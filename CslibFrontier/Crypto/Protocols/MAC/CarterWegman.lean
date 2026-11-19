@@ -3884,10 +3884,11 @@ noncomputable def linearHashNonceMAC (msgLen : ℕ → ℕ)
     BitString.LinearHash.wordHash family hmsgLen (isPPTOn_linearHashSeed hmsgLen)
     computableInPolyTime_linearHashWordHash hfamily
 
-/-- **Quantitative SUF-CMA bound for `linearHashNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274): at security parameter `n`, the SUF-CMA
-forgery probability of any `NonceMACForger` against `linearHashNonceMAC` is at most
-`2 * (2 ^ n)⁻¹` plus the PRF distinguishing advantage of `prfNonceToPrfDistinguisher`. -/
+/-- Step instance of [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: the quantitative SUF-CMA bound
+for `linearHashNonceMAC`. At security parameter `n`, the SUF-CMA forgery probability of any
+`NonceMACForger` against `linearHashNonceMAC` is at most `2 * (2 ^ n)⁻¹` plus the PRF distinguishing
+advantage of `prfNonceToPrfDistinguisher`. -/
 theorem sufCmaGame_linearHashNonceMAC_toReal_le
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary)
@@ -3921,8 +3922,9 @@ private theorem isDeltaUniversalHash_linearHashWordHash_nnreal (msgLen : ℕ →
   simpa only [ENNReal.coe_inv (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_ofNat] using
     isDeltaUniversalHash_linearHashWordHash msgLen n
 
-/-- **Asymptotic `NonceMACScheme.SUFCMA` security of `linearHashNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274): for any `PseudorandomFunction family` and
+/-- Step instance of [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic
+`NonceMACScheme.SUFCMA` security of `linearHashNonceMAC`. For any `PseudorandomFunction family` and
 polynomial-time message-length schedule `msgLen`, `linearHashNonceMAC` satisfies
 `NonceMACScheme.SUFCMA`. The Boolean-matrix linear hash is a `2⁻ⁿ`-DUF
 (`isDeltaUniversalHash_linearHashWordHash`), hence a statistical and so a computational DUF
@@ -3937,8 +3939,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashNonceMAC
     computableInPolyTime_linearHashWordHash (isDeltaUniversalHash_linearHashWordHash_nnreal msgLen)
     negligible_inv_two_pow
 
-/-- **Asymptotic `NonceMACScheme.EUFCMA` security of `linearHashNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274). -/
+/-- Step instance of [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic
+`NonceMACScheme.EUFCMA` security of `linearHashNonceMAC`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashNonceMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
@@ -3946,8 +3949,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashNonceMAC
     (linearHashNonceMAC msgLen family hmsgLen hprf.polyTime).EUFCMA :=
   (hprf.sufCma_linearHashNonceMAC hmsgLen).eufCma
 
-/-- **Asymptotic counter SUF-CMA security of `linearHashNonceMAC`** ([BonehShoup2023],
-Section 7.5 and the remark after Theorem 7.10, p. 274): the Boolean-matrix linear hash
+/-- Asymptotic counter SUF-CMA security of `linearHashNonceMAC`, after [BonehShoup2023], Section 7.5
+and the remark after Theorem 7.10 (p. 274), a step and not a cited result: the Boolean-matrix
+linear hash
 instance of `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC_of_statisticalDUF`, whose
 only assumption is that `family` is a `PseudorandomFunction`; the hash is a statistical DUF, as
 `PseudorandomFunction.sufCma_linearHashNonceMAC` explains. -/
@@ -3971,9 +3975,10 @@ noncomputable def linearHashRandomMAC (msgLen : ℕ → ℕ)
     BitString.LinearHash.wordHash family hmsgLen (isPPTOn_linearHashSeed hmsgLen)
     computableInPolyTime_linearHashWordHash hfamily
 
-/-- **Quantitative SUF-CMA bound for `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): at security parameter `n`, the SUF-CMA
-forgery probability of any `Q`-query `Forger` against `linearHashRandomMAC` is at most
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: the quantitative SUF-CMA bound
+for `linearHashRandomMAC`. At security parameter `n`, the SUF-CMA forgery probability of any
+`Q`-query `Forger` against `linearHashRandomMAC` is at most
 `(Q : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) + ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹` plus the PRF distinguishing
 advantage of `prfRandomNonceToPrfDistinguisher`. -/
 theorem sufCmaGame_linearHashRandomMAC_toReal_le
@@ -4003,13 +4008,14 @@ theorem sufCmaGame_linearHashRandomMAC_toReal_le
     (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) hq
   simpa only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat] using h
 
-/-- **Asymptotic `MACScheme.SUFCMA` security of `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): for any `PseudorandomFunction family` and
-polynomial-time message-length schedule `msgLen`, `linearHashRandomMAC` satisfies
-`MACScheme.SUFCMA`. The Boolean-matrix linear hash is a `2⁻ⁿ`-DUF
-(`isDeltaUniversalHash_linearHashWordHash`), hence a statistical and so a computational DUF
-([BonehShoup2023], Definition 7.5, p. 269), so this is Theorem 7.9 for this hash; it is proved
-through `PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`. -/
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic `MACScheme.SUFCMA`
+security of `linearHashRandomMAC`. For any `PseudorandomFunction family` and polynomial-time
+message-length schedule `msgLen`, `linearHashRandomMAC` satisfies `MACScheme.SUFCMA`. The
+Boolean-matrix linear hash is a `2⁻ⁿ`-DUF (`isDeltaUniversalHash_linearHashWordHash`), hence a
+statistical and so a computational DUF ([BonehShoup2023], Definition 7.5, p. 269), so this is
+Theorem 7.9 for this hash; it is proved through
+`PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashRandomMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
@@ -4019,8 +4025,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashRandomMAC
     computableInPolyTime_linearHashWordHash (isDeltaUniversalHash_linearHashWordHash_nnreal msgLen)
     negligible_inv_two_pow
 
-/-- **Asymptotic `MACScheme.EUFCMA` security of `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270). -/
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic `MACScheme.EUFCMA`
+security of `linearHashRandomMAC`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashRandomMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
@@ -4028,8 +4035,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashRandomMAC
     (linearHashRandomMAC msgLen family hmsgLen hprf.polyTime).EUFCMA :=
   (hprf.sufCma_linearHashRandomMAC hmsgLen).eufCma
 
-/-- **Asymptotic `MACScheme.OneTimeEUFCMA` security of `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270). -/
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic
+`MACScheme.OneTimeEUFCMA` security of `linearHashRandomMAC`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.oneTimeEUFCMA_linearHashRandomMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)

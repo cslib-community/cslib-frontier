@@ -1404,9 +1404,10 @@ theorem authenticatedEncryption_encryptThenMAC (E : SymmetricCipher) (M : MACSch
     (encryptThenMAC E M hctLen).AuthenticatedEncryption :=
   ⟨indcpa_encryptThenMAC E M hctLen hcpa, ciphertextIntegrity_encryptThenMAC E M hctLen hmac⟩
 
-/-- **Encrypt-then-MAC Adaptive Chosen-Ciphertext Security** ([BonehShoup2023], combining
-Theorem 9.2 and Theorem 9.1): if `E` is `INDCPA`-secure and `M` is `SUFCMA`-secure, then
-`encryptThenMAC E M hctLen` is `INDCCA`-secure. -/
+/-- Corollary of `authenticatedEncryption_encryptThenMAC` ([BonehShoup2023], Theorem 9.2) and
+`SymmetricCipher.AuthenticatedEncryption.indcca` (Theorem 9.1), not a separate cited result: if `E`
+is `INDCPA`-secure and `M` is `SUFCMA`-secure, then `encryptThenMAC E M hctLen` is
+`INDCCA`-secure. -/
 theorem indcca_encryptThenMAC (E : SymmetricCipher) (M : MACScheme)
     (hctLen : ∀ n, E.CiphertextLength n (M.msgLen n))
     (hcpa : E.INDCPA) (hmac : M.SUFCMA) :
@@ -1492,8 +1493,9 @@ theorem oneTimeAuthenticatedEncryption_encryptThenMAC (E : SymmetricCipher) (M :
   ⟨oneTimeINDCPA_encryptThenMAC E M hctLen hcpa,
     oneTimeCiphertextIntegrity_encryptThenMAC E M hctLen hmac⟩
 
-/-- **One-time Encrypt-then-MAC Chosen-Ciphertext Security** ([BonehShoup2023], combining the
-1AE half of Theorem 9.2 with the 1AE ⇒ 1CCA half of Theorem 9.1): if `E` satisfies
+/-- Corollary of `oneTimeAuthenticatedEncryption_encryptThenMAC` (the 1AE half of
+[BonehShoup2023], Theorem 9.2) and `SymmetricCipher.OneTimeAuthenticatedEncryption.oneTimeINDCCA`
+(the 1AE ⇒ 1CCA half of Theorem 9.1), not a separate cited result: if `E` satisfies
 `OneTimeINDCPA` and `M` satisfies `OneTimeSUFCMA`, then `encryptThenMAC E M hctLen` satisfies
 `OneTimeINDCCA`. -/
 theorem oneTimeINDCCA_encryptThenMAC (E : SymmetricCipher) (M : MACScheme)

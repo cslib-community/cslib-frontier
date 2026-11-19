@@ -1723,8 +1723,9 @@ theorem eval_prfRealGame_macToPrfDistinguisher_eq_sufCmaGame
   rw [eval_sufCmaGame_prfMAC hpoly adversary n]
   exact eval_prfRealGame_macToPrfDistinguisher hpoly hlen adversary n
 
-/-- **Quantitative PRF-to-MAC forgery bound** [Boneh and Shoup, Theorem 6.2][BonehShoup2023]:
-for every adaptive MAC forger `adversary` and every security parameter `n`, the EUF-CMA forgery
+/-- Step of `succProbability_sufCmaGame_prfMAC_le`, the bound of
+[Boneh and Shoup, Theorem 6.2][BonehShoup2023], not the cited result: its fresh-message form. For
+every adaptive MAC forger `adversary` and every security parameter `n`, the EUF-CMA forgery
 probability against `prfMAC family` is at most the PRF distinguishing advantage of
 `macToPrfDistinguisher adversary` plus `1 / 2 ^ n`. -/
 theorem succProbability_eufCmaGame_prfMAC_le
@@ -1765,8 +1766,9 @@ theorem succProbability_sufCmaGame_prfMAC_le
   rw [eval_sufCmaGame_prfMAC hpoly adversary n]
   exact succProbability_eufCmaGame_prfMAC_le hpoly hlen adversary n
 
-/-- **PRF-to-MAC security theorem** [Boneh and Shoup, Theorem 6.2][BonehShoup2023]:
-every uniform `PseudorandomFunction` yields an `EUFCMA`-secure `MACScheme`. -/
+/-- Step of `PseudorandomFunction.sufCma_prfMAC` ([Boneh and Shoup, Theorem 6.2][BonehShoup2023]),
+not the cited result: every uniform `PseudorandomFunction` yields an `EUFCMA`-secure `MACScheme`,
+the fresh-message form of the theorem's conclusion. -/
 theorem PseudorandomFunction.eufCma_prfMAC
     {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family) :

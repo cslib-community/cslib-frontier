@@ -413,9 +413,11 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
 
 /-! ### Security -/
 
-/-- **Nonce-based SUF-CMA security gives counter SUF-CMA security** ([BonehShoup2023],
-Section 7.5): the signer of a SUF-CMA nonce-based MAC may choose its nonces with an `L`-bit
-counter, tagging at most `2 ^ L` messages. The reduction is `counterForger`, with loss `1`
+/-- Nonce-based SUF-CMA security gives counter SUF-CMA security: the signer of a SUF-CMA
+nonce-based MAC may choose its nonces with an `L`-bit counter, tagging at most `2 ^ L` messages.
+This states the suggestion of [BonehShoup2023], Section 7.5 (p. 273), that a stateful signer may
+implement nonces as a counter; the source states no theorem for it, so this is not a cited
+result. The reduction is `counterForger`, with loss `1`
 (`succProbability_counterSufCmaGame_le`). -/
 theorem SUFCMA.counterSufCma (h : M.SUFCMA) : M.CounterSUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := M.exists_sign_length_bound

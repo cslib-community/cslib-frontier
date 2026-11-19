@@ -244,6 +244,7 @@ import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
 import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
+import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.EncForge
 import CslibFrontier.Crypto.Computational.Encryption.Cipher.Perfect
 import CslibFrontier.Crypto.Computational.Encryption.MessageRecovery
 import CslibFrontier.Crypto.Computational.Encryption.ParityPrediction
@@ -8283,7 +8284,8 @@ register_result "prf-mac-suf-cma" where
     { paper := BonehShoup2023, theorem := "Theorem 6.2", locator := "Section 6.3, p. 224" }
   ]
   theorems := [
-    Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC
+    Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC,
+    Cslib.Crypto.succProbability_sufCmaGame_prfMAC_le
   ]
   scope := "Let F be a PseudorandomFunction: n-bit keys, inputs and outputs, deterministic \
     polynomial-time evaluation, secure against adaptive uniform oracle-PPT tests, with queries \
@@ -8304,6 +8306,79 @@ register_result "prf-mac-suf-cma" where
     (isOraclePPT_macToPrfDistinguisher). Asymptotic; succProbability_sufCmaGame_prfMAC_le, \
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
+
+register_result "encrypt-then-mac-authenticated-encryption" where
+  title := "Encrypt-then-MAC is authenticated encryption, many-time and one-time"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 9.2", locator := "Section 9.4.1, p. 367" }
+  ]
+  theorems := [
+    Cslib.Crypto.ciphertextIntegrity_encryptThenMAC,
+    Cslib.Crypto.authenticatedEncryption_encryptThenMAC,
+    Cslib.Crypto.oneTimeCiphertextIntegrity_encryptThenMAC,
+    Cslib.Crypto.oneTimeAuthenticatedEncryption_encryptThenMAC,
+    Cslib.Crypto.succProbability_ciGame_encryptThenMAC_eq,
+    Cslib.Crypto.succProbability_ciOneTimeGame_encryptThenMAC_eq
+  ]
+  scope := "Both sentences of Theorem 9.2 (proof pp. 367–368) for encryptThenMAC E M, the \
+    encrypt-then-MAC cipher of Section 9.4.1 (p. 367): independent keys (ke, km) from the key \
+    generators of E and M; a ciphertext is the framed pair (c, t) of c ← E(ke, m) and \
+    t ← S(km, c); decryption rejects unless the word is a canonically framed pair whose first \
+    part has msgLen n bits and V(km, c, t) accepts, and then outputs D(ke, c). E is any \
+    SymmetricCipher (n-bit messages at parameter n, as in the authenticated-encryption-cca \
+    entry) and M any MACScheme, under the hypothesis hctLen that E's ciphertexts of n-bit \
+    messages have msgLen n bits: the source asks that I be defined over E's ciphertext space \
+    C, and a MACScheme's message space at parameter n is the msgLen n-bit words. The \
+    ciphertext space is the framed pairs whose first part has msgLen n bits and lies in \
+    E.ctSpace n, with any word as tag: the source's C × T, a MACScheme declaring no tag \
+    space. ciphertextIntegrity_encryptThenMAC and authenticatedEncryption_encryptThenMAC: if \
+    E is CPA-secure (INDCPA, Attack Game 5.2 and Definition 5.2, pp. 181–182) and M is a \
+    secure MAC (SUFCMA, Attack Game 6.1 and Definition 6.2, pp. 218–219, with tagging queries \
+    and forgery in the message space), the cipher has ciphertext integrity (Attack Game 9.1 \
+    and Definition 9.1, pp. 358–359) and is AE-secure (Definition 9.2, p. 359). The one-time \
+    forms: if E is OneTimeINDCPA (Attack Game 5.2 answering one encryption query, standing \
+    for the theorem's semantic security) and M is OneTimeSUFCMA (Attack Game 6.1 with one \
+    tagging query, Section 7.6, p. 275, against efficient forgers), the cipher has one-time \
+    ciphertext integrity and is 1AE-secure (Definitions 9.3–9.4, p. 360). Adversaries are \
+    uniform strict oracle-PPT programs in the standard model, with the game conventions of the \
+    authenticated-encryption-cca entry. succProbability_ciGame_encryptThenMAC_eq and its \
+    one-time form are the theorem's CIadv[Aci, EEtM] = MACadv[Bmac, I], for the reductions \
+    etmToMACForger and etmToOneTimeMACForger, which are certified oracle PPT and make no more \
+    tagging queries than the adversary makes encryption queries \
+    (isQueryBounded_etmToMACForger); advantage_cpaGame_encryptThenMAC_eq, in the same module, \
+    is the theorem's CPA equality."
+
+register_result "mac-then-encrypt-plaintext-integrity" where
+  title := "MAC-then-encrypt has plaintext integrity"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 9.15(a), plaintext-integrity half",
+      locator := "Section 9.13, p. 395" }
+  ]
+  theorems := [
+    Cslib.Crypto.encForge_macThenEncrypt
+  ]
+  scope := "The plaintext-integrity half of Exercise 9.15(a), \"Show that MAC-then-Encrypt is \
+    both CPA and PI secure\", for macThenEncrypt E M, the MAC-then-encrypt cipher of \
+    Section 9.4.2 (p. 369): tag t ← S(km, m), encrypt the framed pair (m, t) under ke, and on \
+    decryption reject unless the plaintext is a canonically framed pair whose first part has \
+    n bits and V(km, m, t) accepts, then output m. M is any MACScheme on n-bit messages \
+    (hmsgLen); E is any SymmetricCipher, run at parameter ptLen n so that it encrypts \
+    ptLen n-bit words, under the hypothesis hpairLen that every framed pair of an n-bit \
+    message and an honest tag has ptLen n bits: the source asks that E be defined over \
+    M × T, and a SymmetricCipher's message space at parameter ptLen n is the ptLen n-bit \
+    words. Plaintext integrity is EncForge, the ciphertext integrity game of Attack Game 9.1 \
+    (pp. 358–359) won, as Exercise 9.15 defines, when the output decrypts to a message that \
+    was never queried; encryption queries other than n-bit messages are answered with the \
+    empty word. The hypothesis is that M is EUFCMA: fresh-message unforgeability with tagging \
+    queries and forgery in the message space, which a secure MAC (SUFCMA, Definition 6.2, \
+    pp. 218–219) implies (MACScheme.SUFCMA.eufCma). Nothing is assumed of E, so the \
+    conclusion holds for every MAC-then-encrypt cipher built from a secure MAC. Adversaries \
+    are uniform strict oracle-PPT programs in the standard model. The reduction \
+    mteToMACForger is certified oracle PPT (isOraclePPT_mteToMACForger), and \
+    succProbability_encForgeGame_macThenEncrypt_le, in the same module, is its concrete \
+    bound."
 
 register_result "authenticated-encryption-cca" where
   title := "Authenticated encryption implies chosen-ciphertext security, many-time and one-time"
