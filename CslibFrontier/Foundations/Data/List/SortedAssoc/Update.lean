@@ -25,7 +25,8 @@ otherwise, appending when it reaches the end of the list. `eraseM` drops the ent
 if the keys are equal and otherwise leaves the list as it is.
 
 With the comparator `Cslib.SortedAssoc.leI` of a linear order, the identity-monad instance of
-`insertM` is `Cslib.SortedAssoc.insert` on every list, because the two are the same recursion.
+`insertM` is `Cslib.SortedAssoc.insert` on every list: in a linear order the two recursions agree
+branch by branch.
 The instance of `eraseM` is `Cslib.SortedAssoc.erase` on a sorted list. Sortedness is needed
 there: the scan removes at most one entry and stops early, whereas the model function, a filter,
 removes every entry with the key.
@@ -107,7 +108,7 @@ variable {α β : Type} [LinearOrder α] {l : List (α × β)} {k k' : α} {v v'
 
 /-- The pure insert scan at an entry: stop at a key not below `k`, replacing it on equality, and
 move on otherwise. -/
-theorem idRun_insertM_cons :
+private theorem idRun_insertM_cons :
     Id.run (insertM leI k v ((k', v') :: l)) =
       if k ≤ k' then (if k' ≤ k then (k, v) :: l else (k, v) :: (k', v') :: l)
       else (k', v') :: Id.run (insertM leI k v l) := by
@@ -115,7 +116,7 @@ theorem idRun_insertM_cons :
 
 /-- The pure erase scan at an entry: stop at a key not below `k`, dropping it on equality, and
 move on otherwise. -/
-theorem idRun_eraseM_cons :
+private theorem idRun_eraseM_cons :
     Id.run (eraseM leI k ((k', v') :: l)) =
       if k ≤ k' then (if k' ≤ k then l else (k', v') :: l)
       else (k', v') :: Id.run (eraseM leI k l) := by
