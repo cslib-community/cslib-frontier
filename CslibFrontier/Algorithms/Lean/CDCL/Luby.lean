@@ -7,6 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
+public import CslibFrontier.Init
 public import Mathlib.Data.Nat.Notation
 
 /-! # The Luby sequence
