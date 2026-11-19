@@ -719,12 +719,16 @@ private meta def polytimeFold (guard : TacticM Unit → TacticM Unit) : TacticM 
     let isFold ← lambdaTelescope program fun _ body => pure (body.isAppOf ``List.foldl)
     unless isFold do throwError "expected a list fold"
     guard do
-      let rules := [``Internal.plain_foldl_bits_rule,
-        ``ComputableInPolyTime.foldl_of_bounded_growth]
-      for rule in rules do
+      let rules : Array (TacticM Unit) := #[
+        liftMetaTactic fun goal => goal.applyConst ``Internal.plain_foldl_bits_rule,
+        evalTactic (← `(tactic| apply ComputableInPolyTime.foldl_of_bounded_growth
+          (encL := encList _))),
+        liftMetaTactic fun goal => goal.applyConst
+          ``ComputableInPolyTime.foldl_of_bounded_growth]
+      for applyRule in rules do
         let saved ← saveState
         try
-          liftMetaTactic fun goal => goal.applyConst rule
+          applyRule
           evalTactic (← `(tactic| case hlist => solve |
             aesop
               (config :=
@@ -738,6 +742,16 @@ private meta def polytimeFold (guard : TacticM Unit → TacticM Unit) : TacticM 
             Cslib.Tactic.solveTagged `hgrowth
           catch _ =>
             afterList.restore
+            Cslib.Tactic.solveTagged `hgrowth
+          -- Commit to a representation only after all its callback and growth obligations
+          -- close. A failed canonical representation must retain the arbitrary-encoding route.
+          evalTactic (← `(tactic| all_goals solve |
+            aesop
+              (config :=
+                { terminal := true
+                  enableSimp := false
+                  assumptionTransparency := .reducible })
+              (rule_sets := [PolyTime])))
           return
         catch _ => saved.restore
       throwError "no supported list encoding"

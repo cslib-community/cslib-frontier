@@ -62,4 +62,6 @@ example : ∃ (c k : ℕ) (State : Type) (_ : Finite State)
     (universalImplementationSpace (emptyDescription, [], 1) + 1) c
   rw [ho0] at h0
   rw [ho1] at h1
-  exact ⟨_, k, State, hfinite, tm, h0.mono ht0 hs0, h1.mono ht1 hs1⟩
+  exact ⟨_, k, State, hfinite, tm,
+    ⟨h0.1, h0.2.1.mono ht0, h0.2.2.mono hs0⟩,
+    ⟨h1.1, h1.2.1.mono ht1, h1.2.2.mono hs1⟩⟩

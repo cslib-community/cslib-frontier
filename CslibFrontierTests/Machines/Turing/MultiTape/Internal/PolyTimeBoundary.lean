@@ -49,7 +49,7 @@ private theorem reverseMachine :
 attribute [local fun_prop] ComputableTidilyInTimeAndSpace
 
 /-- A total step which truncates a routine output to the current state length. -/
-@[expose] def shrinkingStep (routine : List Bool → List Bool) (state : List Bool) (_ : Bool) :
+def shrinkingStep (routine : List Bool → List Bool) (state : List Bool) (_ : Bool) :
     List Bool :=
   (routine state).take state.length
 
@@ -334,6 +334,11 @@ attribute [fun_prop] RoutineContract
   exact hf
 
 -- The explicit eager API and nested supplied-evidence search have independent proof contexts.
+section
+
+-- Ordinary Aesop has a raw construction fixture; filtered search still cannot request it.
+attribute [local aesop safe apply (rule_sets := [PolyTime])] rawOnlyReverseProbe_machine
+
 example (h : ComputableTidilyInTimeAndSpaceOfLength rawOnlyReverseProbe encBits encBits
       reverseClock reverseClock →
       ComputableInPolyTime localImplicationResult encBits encBits)
@@ -383,6 +388,8 @@ example (h : ComputableTidilyInTimeAndSpaceOfLength rawOnlyReverseProbe encBits 
   · clear h hf hplain hrawAlias hplainAlias
     fail_if_success (clear hc; polytime)
     polytime
+
+end
 
 end CslibFrontierTests.PolyTimePlainSource
 

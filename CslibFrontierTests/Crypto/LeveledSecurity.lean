@@ -360,7 +360,7 @@ private theorem inputSizedAdversary_ppt : inputSizedAdversary.IsPPT := by
       (encIn := encPair (encPair encUnary encBits) encBits)
     have hhead := (ComputableInPolyTime.headD
       (encA := encBool) (encL := encBits) false).comp hq.snd'
-    simpa only [inputSizedAdversary, bind_pure_comp] using
+    simpa only [inputSizedAdversary, bind_pure_comp, Function.comp_def] using
       hsample.map_with (f := fun p seed => ((seed.headD false, false), p.2 ++ seed))
         ((hhead.prod (ComputableInPolyTime.const false)).prod
           (hq.fst'.snd'.bitsAppend hq.snd'))
@@ -371,9 +371,14 @@ private theorem inputSizedAdversary_ppt : inputSizedAdversary.IsPPT := by
       (encA := encBool) (encL := encBits) false).comp hq.snd'
     have hct := (ComputableInPolyTime.headD
       (encA := encBool) (encL := encBits) false).comp hq.fst'.snd'.snd'
-    simpa only [inputSizedAdversary, bind_pure_comp] using
-      hsample.map_with (f := fun p seed => seed.headD false ^^ p.2.2.headD false)
-        (ComputableInPolyTime.bool_xor.comp (hcoin.prod hct))
+    have hpost : ComputableInPolyTime
+        (fun p : (ℕ × List Bool × List Bool) × List Bool =>
+          p.2.headD false ^^ p.1.2.2.headD false)
+        (encPair Encryption.encGuessInput encBits) encBool :=
+      ComputableInPolyTime.bool_xor.comp (hcoin.prod hct)
+    simpa only [inputSizedAdversary, bind_pure_comp, Function.comp_def] using
+      hsample.map_with (f := fun (p : ℕ × List Bool × List Bool) (seed : List Bool) =>
+        seed.headD false ^^ p.2.2.headD false) hpost
 
 example (word : List Bool) (choice : (Bool × Bool) × List Bool)
     (hchoice : choice ∈ (ProbComp.eval (inputSizedAdversary.choose 0 word)).support) :

@@ -14,10 +14,10 @@ The returned state precedes the empty probe, so the second case returns `1`, not
 The resource statement retains the `rounds + 1` factor covering initialization and finalization.
 -/
 
-namespace CslibFrontierTests.PlainPolyTimeTermination
-
 -- This ordinary-import regression module exports no fixtures.
 set_option linter.privateModule false
+
+namespace CslibFrontierTests.PlainPolyTimeTermination
 
 open Turing.MultiTapeTM
 

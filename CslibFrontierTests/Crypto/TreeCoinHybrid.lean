@@ -102,10 +102,15 @@ noncomputable def seededToy : IndexedSignatureScheme where
   sign_ppt := by
     have hcoin := (ComputableInPolyTime.const (encIn := encIndexedSignInput) 1).sampleList
     have hp := ComputableInPolyTime.id' (encIn := encPair encIndexedSignInput encBits)
-    exact hcoin.map_with (f := fun input coins => sigEnc
-      (input.1, input.2.1, input.2.2, coins))
+    have hpost : ComputableInPolyTime
+        (fun p : (List Bool × ℕ × List Bool) × List Bool =>
+          sigEnc (p.1.1, p.1.2.1, p.1.2.2, p.2))
+        (encPair encIndexedSignInput encBits) encBits :=
       (hp.fst'.fst'.prod (hp.fst'.snd'.fst'.prod
         (hp.fst'.snd'.snd'.prod hp.snd'))).encoding_comp
+    simpa only [bind_pure_comp] using
+      hcoin.map_with (f := fun input coins => sigEnc
+        (input.1, input.2.1, input.2.2, coins)) hpost
   verify_polyTime := by
     have hp := ComputableInPolyTime.id'
       (encIn := encPair encBits encIndexedSignedMessage)
