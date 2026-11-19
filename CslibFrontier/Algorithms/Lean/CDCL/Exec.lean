@@ -638,35 +638,6 @@ theorem XTrail.mem_reasonIds_root {M : XTrail} {r : ℕ} (h : r ∈ XTrail.reaso
   rw [hA, XTrail.reasonIds_append]
   exact List.mem_append_right _ h
 
-/-- **The reasons entail the root**: on a trail without decisions, in every model of numbered
-clauses containing the reasons, every literal holds. -/
-theorem Reasons.eval_of_no_decision {log : LRATLog φ} {db : List (ℕ × Clause ℕ)}
-    (hdb : ∀ e ∈ db, log.clause? e.1 = some e.2) {σ : ℕ → Bool}
-    (hσ : ∀ e ∈ db, e.2.eval σ = true) {M : XTrail} (h : Reasons log M)
-    (hnodec : ∀ x ∈ M, x.entry.decision = false)
-    (hR : ∀ r ∈ XTrail.reasonIds M, ∃ R, (r, R) ∈ db) :
-    ∀ l ∈ Trail.lits (XTrail.trail M), Literal.eval σ l = true := by
-  induction h with
-  | nil => simp [Trail.lits]
-  | decision l _ _ => exact absurd (hnodec _ List.mem_cons_self) (by simp [XEntry.entry])
-  | @implied M l r R _ hr hl hfalse ih =>
-    have ih' := ih (fun x hx => hnodec x (List.mem_cons_of_mem _ hx))
-      (fun r' hr' => hR r' (by simp [hr']))
-    intro l' hl'
-    simp only [XTrail.trail_cons, XEntry.entry_implied, Trail.lits, List.map_cons,
-      List.mem_cons] at hl'
-    rcases hl' with rfl | hl'
-    · obtain ⟨R', hR'⟩ := hR r (by simp)
-      have hRR : R' = R := by have := hdb _ hR'; rw [hr] at this; cases this; rfl
-      subst hRR
-      obtain ⟨z, hz, hzσ⟩ := (Clause.eval_eq_true_iff σ R').1 (hσ _ hR')
-      rw [← Literal.eval_eq_true_iff] at hzσ
-      by_contra hne
-      have hzl : z ≠ l' := fun h => hne (h ▸ hzσ)
-      have := ih' _ (hfalse z hz hzl)
-      simp [hzσ] at this
-    · exact ih' l' hl'
-
 /-- **The reasons make the root true in partial models**: on a trail without decisions, every
 partial model of numbered clauses containing the reasons makes every literal of the trail true. -/
 theorem Reasons.psat_of_no_decision {log : LRATLog φ} {db : List (ℕ × Clause ℕ)}
@@ -694,6 +665,20 @@ theorem Reasons.psat_of_no_decision {log : LRATLog φ} {db : List (ℕ × Clause
       have := ih' _ (hfalse z hz hzl)
       simp [Std.Sat.Literal.negate, hzρ] at this
     · exact ih' l' hl'
+
+/-- **The reasons entail the root**: on a trail without decisions, in every model of numbered
+clauses containing the reasons, every literal holds. The total assignment `σ` is the partial
+assignment `fun v => some (σ v)`, so this is `Reasons.psat_of_no_decision`. -/
+theorem Reasons.eval_of_no_decision {log : LRATLog φ} {db : List (ℕ × Clause ℕ)}
+    (hdb : ∀ e ∈ db, log.clause? e.1 = some e.2) {σ : ℕ → Bool}
+    (hσ : ∀ e ∈ db, e.2.eval σ = true) {M : XTrail} (h : Reasons log M)
+    (hnodec : ∀ x ∈ M, x.entry.decision = false)
+    (hR : ∀ r ∈ XTrail.reasonIds M, ∃ R, (r, R) ∈ db) :
+    ∀ l ∈ Trail.lits (XTrail.trail M), Literal.eval σ l = true := fun l hl => by
+  have hρ : ∀ e ∈ db, PSat (fun v => some (σ v)) e.2 := fun e he => by
+    obtain ⟨z, hz, hzσ⟩ := (Clause.eval_eq_true_iff σ e.2).1 (hσ e he)
+    exact ⟨z, hz, by simp [hzσ]⟩
+  simpa using Reasons.psat_of_no_decision hdb hρ h hnodec hR l hl
 
 /-! ### The solver state -/
 
