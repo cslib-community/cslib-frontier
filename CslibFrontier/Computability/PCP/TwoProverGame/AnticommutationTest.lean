@@ -52,8 +52,11 @@ defects (`Cslib.PCP.expect_norm_pauliFamily_sub_sq_le_of_chsh`).
 common state are inputs. The averages are masked and unconditional: for `n ≥ 1` the pairs with
 `a · b = 1` have probability `(1 - 2⁻ⁿ) / 2`, so each masked average is that factor times the
 conditional one, and for `n = 0` there are no such pairs and the masked averages vanish. The
-consistency test (their Lemma 17, p. 21), which supplies the consistency distances, and the Pauli
-braiding test as a game are tracked in cslib-community/cslib-frontier#6149.
+verifier-level CHSH estimate from a single tested strategy is
+`Cslib.PCP.expect_norm_pauliBraidingBasis_anticomm_sq_le` in
+`CslibFrontier/Computability/PCP/TwoProverGame/PauliBraidingAnticommutation.lean`.
+It uses conditional averaging and the consistency and anticommutation branch scores.
+The full Pauli braiding rigidity theorem is tracked in cslib-community/cslib-frontier#6149.
 
 ## Main definitions
 

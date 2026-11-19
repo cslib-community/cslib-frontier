@@ -3987,6 +3987,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LinearityDiagonal
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearitySoundness
 public import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
 public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
+public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingAnticommutation
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingZero
@@ -6655,6 +6656,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Moore
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegMulVec
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegRank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegativeForm
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Order
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PairedPorts
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PartialDerivatives
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
@@ -6829,6 +6831,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.LinearityTest
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
+public import CslibFrontier.Foundations.Quantum.Algebra.MeasurementAverage
 public import CslibFrontier.Foundations.Quantum.Algebra.Orthogonalization
 public import CslibFrontier.Foundations.Quantum.Algebra.PauliFamily
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson

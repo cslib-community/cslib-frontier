@@ -113,6 +113,17 @@ theorem answersWinProb_bind_seed {I : Type*} [Fintype I] (law : PMF I)
   rw [PMF.bind_bind, Cslib.Probability.PMF.toOuterMeasure_bind_toReal]
   rfl
 
+open scoped BigOperators in
+/-- Drawing a uniform index gives the uniform average of the conditional scores. -/
+theorem answersWinProb_bind_uniformSeed {I : Type*} [Fintype I] [Nonempty I]
+    (conditional : I → PMF R) (ans : X → Y → PMF (A × B)) :
+    (SeededGame.answersWinProb
+      { G with seed := (Cslib.Probability.PMF.uniformOfFintype I).bind conditional } ans) =
+      𝔼 i, ({ G with seed := conditional i }).answersWinProb ans := by
+  rw [answersWinProb_bind_seed]
+  simp only [Cslib.Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
+    ENNReal.toReal_natCast, ← Finset.mul_sum, Fintype.expect_eq_sum_div_card, div_eq_inv_mul]
+
 /-- The weighted rejection probability of one conditional law is bounded by the
 rejection probability under the mixed law. -/
 theorem weighted_rejection_le_of_bind_seed {I : Type*} [Finite I] (law : PMF I)

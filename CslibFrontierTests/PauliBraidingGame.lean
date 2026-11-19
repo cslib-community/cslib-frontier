@@ -8,7 +8,6 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingZero
-import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 
 /-! # Checked rounds of the Pauli braiding verifier
@@ -88,13 +87,8 @@ example (answer : PauliBraidingQuestion 2 Bool → PauliBraidingQuestion 2 Bool 
   dsimp only
   have h := weighted_rejection_pauliBraidingMatchedGame_le
     TwoProverGame.chsh id (fun _ => id) true true answer
-  have hmass : ((TwoProverGame.chsh.questions.map Prod.snd) true).toReal = 1 / 2 := by
-    change (((Probability.PMF.uniformOfFintype (Bool × Bool)).map Prod.snd) true).toReal = _
-    rw [Probability.PMF.uniformOfFintype_prod_map_snd,
-      Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
-    norm_num
   change ((TwoProverGame.chsh.questions.map Prod.snd) true).toReal * _ ≤ _ at h
-  rw [hmass] at h
+  rw [TwoProverGame.chsh_questions_snd_toReal] at h
   linarith
 
 /-- At a duplicated Z query, the diagonal test reads the first point bit, while the
