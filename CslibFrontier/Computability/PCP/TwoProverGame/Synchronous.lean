@@ -283,7 +283,7 @@ section Converse
 open MulOpposite
 
 private noncomputable def unitVectorState
-    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H]
     (ξ : H) (hξ : ‖ξ‖ = 1) : AlgState (H →L[ℂ] H) where
   toFun T := inner ℂ ξ (T ξ)
   map_add' T R := by simp [inner_add_right]

@@ -113,7 +113,7 @@ noncomputable def gnsRight (hφ : φ.IsTracial) :
   simp [gnsRight, rightMulPreGNS_toPreGNS]
 
 /-- The GNS left action on the dense copy of the state algebra. -/
-@[simp] theorem gnsStarAlgHom_toPreGNS (a x : A) :
+theorem gnsStarAlgHom_toPreGNS (a x : A) :
     φ.toPositiveLinearMap.gnsStarAlgHom a (φ.toPreGNS x) =
       (φ.toPreGNS (a * x) : φ.toPositiveLinearMap.GNS) := by
   simp [PositiveLinearMap.gnsStarAlgHom, AlgState.toPreGNS]
