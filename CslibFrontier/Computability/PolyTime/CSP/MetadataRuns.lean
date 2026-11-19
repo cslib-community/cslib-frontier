@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.MetadataRuns
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryGroup
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.PolyTime.CSP.StateSize
 import CslibFrontier.Computability.PolyTime.CSP.Vars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
@@ -60,9 +62,21 @@ private theorem resource_step (I J : State Rel) (keys : List ℕ) (h : resource 
     | cons a ks =>
       have hf := fields_closeFirstMetadataRun J a ks hl
       right
-      have hp := hc.2.2.2
-      simp only [hl,↓reduceIte,List.headD_cons] at hp
-      simpa only [h.2.1,hp] using hf.2.2
+      have hp : (closeFirstMetadataRun J (a::ks)).ports.length = J.ports.length-
+          (List.takeWhile (fun b => decide (b=a)) (a::ks)).length := by
+        rw [(components_closeFirstMetadataRun J (a::ks)).2.2.2]
+        simp only [ite_eq_left hl,List.headD_cons]
+        rfl
+      have hr : (List.takeWhile (fun b => decide (b=a)) (a::ks)).length ≤ J.ports.length :=
+        (List.takeWhile_sublist _).length_le.trans_eq hl
+      constructor
+      · have hx := hf.2.2.1
+        rw [h.2.1] at hx
+        omega
+      · intro v hv
+        have hx := hf.2.2.2 v hv
+        rw [h.2.1] at hx
+        omega
   · simpa only [closeFirstMetadataRun_eq_self J keys (Or.inl hl)] using h.2.2.2.2.2
 
 private def sizeParameter (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ) : ℕ :=
@@ -81,7 +95,7 @@ private theorem sizeParameter_poly (encRel : Rel ↪ List Bool) :
 
 private theorem resource_size (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ)
     (J : State Rel) (h : resource p.1 J) :
-    (encState encRel J).length≤64*(4*sizeParameter encRel p+1)^3 := by
+    (encState encRel J).length ≤ 64*(4*sizeParameter encRel p+1)^3 := by
   let N := sizeParameter encRel p
   have hN : 1≤N := by dsimp only [N,sizeParameter]; omega
   have hS : (encState encRel p.1).length≤N := by
@@ -112,6 +126,39 @@ private theorem resource_size (encRel : Rel ↪ List Bool) (p : State Rel × Lis
       have hp := h.2.2.2.1.trans (hi.2.1.trans hS)
       exact (Nat.size_le_self v).trans (by omega)
 
+private theorem step_poly (encRel : Rel ↪ List Bool) : ComputableInPolyTime
+      (fun p : ((List ℕ) × State Rel) × ℕ =>
+        closeFirstMetadataRun p.1.2 (p.1.1.drop (p.1.1.length-p.1.2.ports.length)))
+      (encPair (encPair (encList encNat) (encState encRel)) encNat) (encState encRel) := by
+  let input := encPair (encList encNat) (encState encRel)
+  have inner : ComputableInPolyTime
+      (fun p : List ℕ × State Rel =>
+        closeFirstMetadataRun p.2 (p.1.drop (p.1.length-p.2.ports.length)))
+      input (encState encRel) := by
+    have hk : ComputableInPolyTime (fun p : List ℕ × State Rel => p.1)
+        input (encList encNat) := ComputableInPolyTime.fst _ _
+    have hi : ComputableInPolyTime (fun p : List ℕ × State Rel => p.2)
+        input (encState encRel) := ComputableInPolyTime.snd _ _
+    have hlen : ComputableInPolyTime (fun p : List ℕ × State Rel => p.1.length)
+        input encUnary := (ComputableInPolyTime.length_list encNat).comp hk
+    have hports : ComputableInPolyTime (fun p : List ℕ × State Rel => p.2.ports.length)
+        input encUnary := (ComputableInPolyTime.length_list encNat).comp
+          (encState_ports_polyTime encRel hi)
+    have hdrop : ComputableInPolyTime
+        (fun p : List ℕ × State Rel => p.1.drop (p.1.length-p.2.ports.length))
+        input (encList encNat) := ComputableInPolyTime.listDropWithInput hk
+          (ComputableInPolyTime.unary_sub' hlen hports)
+    have hinput : ComputableInPolyTime
+        (fun p : List ℕ × State Rel => (p.2,p.1.drop (p.1.length-p.2.ports.length)))
+        input (encStateMetadata encRel) := hi.prod hdrop
+    apply ((computableInPolyTime_closeFirstMetadataRun encRel).comp hinput).of_enc_eq
+    intro p
+    rfl
+  apply (inner.comp (ComputableInPolyTime.fst input encNat)).of_enc_eq
+  intro p
+  rfl
+
+
 /-- Close every actual consecutive run in plain polynomial time on EVERY raw State and
 binary metadata word. The input lists fund counts; relation symbols and malformed huge
 entries remain encoded data. All prefix growth is derived internally. -/
@@ -120,19 +167,7 @@ theorem computableInPolyTime_closeMetadataRuns (encRel : Rel ↪ List Bool) :
       (encStateMetadata encRel) (encState encRel) := by
   have hi := ComputableInPolyTime.fst (encState encRel) (encList encNat)
   have hk := ComputableInPolyTime.snd (encState encRel) (encList encNat)
-  have hstep : ComputableInPolyTime
-      (fun p : ((List ℕ) × State Rel) × ℕ =>
-        closeFirstMetadataRun p.1.2 (p.1.1.drop (p.1.1.length-p.1.2.ports.length)))
-      (encPair (encPair (encList encNat) (encState encRel)) encNat) (encState encRel) := by
-    have hp := ComputableInPolyTime.fst (encPair (encList encNat) (encState encRel)) encNat
-    have hkeys := (ComputableInPolyTime.fst (encList encNat) (encState encRel)).comp hp
-    have hstate := (ComputableInPolyTime.snd (encList encNat) (encState encRel)).comp hp
-    have hlen := (ComputableInPolyTime.length_list encNat).comp hkeys
-    have hports := (ComputableInPolyTime.length_list encNat).comp
-      (encState_ports_polyTime encRel hstate)
-    have hdrop := ComputableInPolyTime.listDropWithInput hkeys
-      (ComputableInPolyTime.unary_sub' hlen hports)
-    exact (computableInPolyTime_closeFirstMetadataRun encRel).comp (hstate.prod hdrop)
+  have hstep := step_poly encRel
   have hbound : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => 64*(4*sizeParameter encRel p+1)^3) := by
     exact (PolyBounded.const 64).mul

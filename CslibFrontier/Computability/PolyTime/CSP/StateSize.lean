@@ -35,7 +35,8 @@ every binary body/port name. No checker hypothesis is needed. -/
 theorem component_size_le_encoding (encRel : Rel ↪ List Bool) (I : State Rel) :
     let S := (encState encRel I).length
     I.body.length ≤ S ∧ I.ports.length ≤ S ∧ I.rotation.successor.length ≤ S ∧
-      ((I.body.map Constraint.rel).map (fun r => (encRel r).length)).sum ≤ S ∧ ∀ z ∈ I.body.vars ++ I.ports, z.size ≤ S := by
+      ((I.body.map Constraint.rel).map (fun r => (encRel r).length)).sum ≤ S ∧
+      ∀ z ∈ I.body.vars ++ I.ports, z.size ≤ S := by
   dsimp only
   have hb : (encCSP encRel encNat I.body).length ≤ (encState encRel I).length := by
     enc_len [encState_apply, encStateFields]
@@ -51,7 +52,8 @@ theorem component_size_le_encoding (encRel : Rel ↪ List Bool) (I : State Rel) 
       I.rotation.successor).trans hc, ?_, ?_⟩
   · apply le_trans _ hb
     calc
-      ((I.body.map Constraint.rel).map (fun r => (encRel r).length)).sum = (I.body.map (fun c => (encRel c.rel).length)).sum := by
+      ((I.body.map Constraint.rel).map (fun r => (encRel r).length)).sum =
+          (I.body.map (fun c => (encRel c.rel).length)).sum := by
         simp only [List.map_map, Function.comp_def]
       _ ≤ (I.body.map (fun c => 2*(encConstraint encRel encNat c).length+1)).sum := by
         apply List.sum_le_sum
@@ -86,7 +88,8 @@ theorem encoding_length_le (encRel : Rel ↪ List Bool) (J : State Rel) (L : ℕ
   have hrow (c : Constraint Rel ℕ) (hc : c ∈ J.body) :
       (encConstraint encRel encNat c).length ≤ 2*L+1+L*(2*L+1) := by
     have hrel : (encRel c.rel).length ≤ L := by
-      have hx : (encRel c.rel).length ≤ ((J.body.map Constraint.rel).map (fun r => (encRel r).length)).sum :=
+      have hx : (encRel c.rel).length ≤
+          ((J.body.map Constraint.rel).map (fun r => (encRel r).length)).sum :=
         List.le_sum_of_mem (List.mem_map.mpr
           ⟨c.rel, List.mem_map.mpr ⟨c,hc,rfl⟩,rfl⟩)
       exact hx.trans hr

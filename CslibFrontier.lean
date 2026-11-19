@@ -2592,6 +2592,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Identification
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.LastArgument
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ListedVariables
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.MetadataRuns
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Nullary
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.OccurrenceMaps
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.OccurrenceTransport
@@ -4236,10 +4237,13 @@ public import CslibFrontier.Computability.PolyTime.CSP.Gadget.ConstructionCompil
 public import CslibFrontier.Computability.PolyTime.CSP.Gadget.PlanarCompiler
 public import CslibFrontier.Computability.PolyTime.CSP.Gadget.Rotation
 public import CslibFrontier.Computability.PolyTime.CSP.Gadget.Size
+public import CslibFrontier.Computability.PolyTime.CSP.MetadataRuns
 public import CslibFrontier.Computability.PolyTime.CSP.Occurrence
 public import CslibFrontier.Computability.PolyTime.CSP.OneHotOrder
 public import CslibFrontier.Computability.PolyTime.CSP.SortMetadata
 public import CslibFrontier.Computability.PolyTime.CSP.SortMetadataGroup
+public import CslibFrontier.Computability.PolyTime.CSP.SortMetadataRuns
+public import CslibFrontier.Computability.PolyTime.CSP.StateSize
 public import CslibFrontier.Computability.PolyTime.CSP.Table
 public import CslibFrontier.Computability.PolyTime.CSP.ToCNF
 public import CslibFrontier.Computability.PolyTime.CSP.Vars

@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.PolyTime.CSP.SortMetadata
 public import CslibFrontier.Computability.PolyTime.CSP.MetadataRuns
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.SortedCount
 import Mathlib.Data.List.Pairwise
 
@@ -46,22 +48,16 @@ retains the entire raw input, including malformed or surplus successor entries. 
     closeMetadataRuns J result.sortedKeys
 
 private theorem intermediate (I : State Rel) (keys : List ℕ)
-    (hl : keys.length=I.ports.length) :
-    sortAndCloseMetadataRuns g w I keys=
-      closeMetadataRuns (sortBoundaryMetadata g w I keys) (compute keys).sortedKeys := by
+    (hl : keys.length = I.ports.length) :
+    sortAndCloseMetadataRuns g w I keys = closeMetadataRuns (sortBoundaryMetadata g w I keys)
+      (compute keys).sortedKeys := by
   simp only [sortAndCloseMetadataRuns,sortBoundaryMetadata,
     ite_eq_right (not_not.mpr hl),ite_eq_left hl]
-
-private theorem alignment (I : State Rel) (keys : List ℕ)
-    (hl : keys.length=I.ports.length) :
-    (compute keys).sortedKeys.length=(sortBoundaryMetadata g w I keys).ports.length := by
-  rw [(components_compute keys).1,List.length_insertionSort,
-    (components_sortBoundaryMetadata g w I keys hl).2.2.1,hl]
 
 /-- Mismatch and aligned empty metadata preserve the entire raw input. A positive number
 of groups really executes hides, even if the stable sorter makes no requests. -/
 theorem sortAndCloseMetadataRuns_eq_self (I : State Rel) (keys : List ℕ)
-    (h : keys.length≠I.ports.length ∨ keys=[]) : sortAndCloseMetadataRuns g w I keys=I := by
+    (h : keys.length ≠ I.ports.length ∨ keys = []) : sortAndCloseMetadataRuns g w I keys = I := by
   rcases h with h | rfl
   · simp only [sortAndCloseMetadataRuns,ite_eq_left h]
   · unfold sortAndCloseMetadataRuns
@@ -89,21 +85,22 @@ theorem wellFormed_sortAndCloseMetadataRuns_iff (I : State Rel) (keys : List ℕ
 /-- Exact component growth is only the initial computed CROSS schedule: all closures
 retain every indexed row/scope width and relation symbol. The final boundary is empty. -/
 theorem components_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
-    (hl : keys.length=I.ports.length) :
+    (hl : keys.length = I.ports.length) :
     let R := compute keys
     let J := sortBoundaryMetadata g w I keys
     let K := sortAndCloseMetadataRuns g w I keys
-    K.body.length=I.body.length+R.requests.length*g.body.length ∧
-      K.body.occurrences.length=I.body.occurrences.length+R.requests.length*g.body.occurrences.length ∧
-      K.ports=[] ∧ K.body.map (fun c => (c.rel,c.scope.length))=
-        J.body.map (fun c => (c.rel,c.scope.length)) ∧
-      K.body.map Constraint.rel=I.body.map Constraint.rel++
+    K.body.length = I.body.length+R.requests.length*g.body.length ∧
+      K.body.occurrences.length =
+        I.body.occurrences.length+R.requests.length*g.body.occurrences.length ∧
+      K.ports = [] ∧ K.body.map (fun c => (c.rel,c.scope.length)) = J.body.map (fun c =>
+        (c.rel,c.scope.length)) ∧
+      K.body.map Constraint.rel = I.body.map Constraint.rel++
         (List.replicate R.requests.length (g.body.map Constraint.rel)).flatten ∧
-      (keys≠[] → K.rotation.successor.length=2*K.body.occurrences.length ∧
-        ∀ v∈K.rotation.successor, v<2*K.body.occurrences.length) := by
+      (keys ≠ [] → K.rotation.successor.length = 2*K.body.occurrences.length ∧
+        ∀ v ∈ K.rotation.successor, v < 2*K.body.occurrences.length) := by
   let J := sortBoundaryMetadata g w I keys
   have hs := components_sortBoundaryMetadata g w I keys hl
-  have ha := alignment g w I keys hl
+  have ha := sortedKeys_length_sortBoundaryMetadata g w I keys hl
   have hc := components_closeMetadataRuns J (compute keys).sortedKeys
   have hf := fields_closeMetadataRuns J (compute keys).sortedKeys ha
   rw [intermediate g w I keys hl]
@@ -119,15 +116,19 @@ theorem components_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
       have hh := congrArg List.length (components_compute keys).1
       simp only [he,List.length_nil,List.length_insertionSort] at hh
       exact hn (List.length_eq_zero_iff.mp hh.symm)
-    simpa only [hc.2.1] using hf.2.2 hsorted
+    have ht := hf.2.2 hsorted
+    constructor
+    · exact ht.1.trans (congrArg (fun n => 2*n) hc.2.1.symm)
+    · intro v hv
+      exact (ht.2 v hv).trans_eq (congrArg (fun n => 2*n) hc.2.1.symm)
 
 /-- All coalescing steps select post-sort names. The one scheduled linear bit-growth
 bound therefore suffices for the full driver, including raw cross-group name repetitions. -/
 theorem name_width_sortAndCloseMetadataRuns_le (I : State Rel) (keys : List ℕ) (W : ℕ)
-    (hW : ∀ z∈I.body.vars++I.ports, z.size≤W) :
-    ∀ z∈(sortAndCloseMetadataRuns g w I keys).body.vars++
+    (hW : ∀ z ∈ I.body.vars ++ I.ports, z.size ≤ W) :
+    ∀ z ∈ (sortAndCloseMetadataRuns g w I keys).body.vars++
       (sortAndCloseMetadataRuns g w I keys).ports,
-      z.size≤max W (2*g.numAux+7).size+(compute keys).requests.length := by
+      z.size ≤ max W (2*g.numAux+7).size+(compute keys).requests.length := by
   unfold sortAndCloseMetadataRuns
   split
   · exact fun z hz => (hW z hz).trans (by omega)
@@ -139,16 +140,17 @@ theorem name_width_sortAndCloseMetadataRuns_le (I : State Rel) (keys : List ℕ)
 /-- The actual final successor table, without an additional normalization or choice,
 passes the full body checker whenever the aligned source is accepted. -/
 theorem body_accepted_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
-    (hl : keys.length=I.ports.length) (hI : I.Accepted) :
+    (hl : keys.length = I.ports.length) (hI : I.Accepted) :
     verifyRotationCertificate (sortAndCloseMetadataRuns g w I keys).body
-      (sortAndCloseMetadataRuns g w I keys).rotation=true := by
+      (sortAndCloseMetadataRuns g w I keys).rotation = true := by
   rw [intermediate g w I keys hl]
-  exact body_accepted_closeMetadataRuns _ _ (alignment g w I keys hl)
+  exact body_accepted_closeMetadataRuns _ _ (sortedKeys_length_sortBoundaryMetadata g w I keys hl)
     (accepted_sortBoundaryMetadata g w I keys hI)
 
 private theorem index_keys (keys : List ℕ) :
-    let ids := (compute keys).requests.foldl (fun ps j => ps.swap j (j+1)) (List.range keys.length)
-    ids.map (fun i => keys.getD i 0)=(compute keys).sortedKeys := by
+    let ids := (compute keys).requests.foldl (fun ps j => ps.swap j (j + 1)) (List.range
+      keys.length)
+    ids.map (fun i => keys.getD i 0) = (compute keys).sortedKeys := by
   have hp := (indices_payload keys).2.1 (fun i => keys.getD i 0)
   rw [List.map_getD_range] at hp
   have hr := replay_compute id keys
@@ -156,9 +158,9 @@ private theorem index_keys (keys : List ℕ) :
   exact hp.symm.trans (hr.trans (components_compute keys).1.symm)
 
 private theorem equal_key_values (xs : List (ℕ × Bool))
-    (hs : xs.Pairwise (fun a b => a.1≤b.1))
-    (hc : xs.IsChain (fun a b => a.1=b.1 → a.2=b.2))
-    (x y : ℕ × Bool) (hx : x∈xs) (hy : y∈xs) (he : x.1=y.1) : x.2=y.2 := by
+    (hs : xs.Pairwise (fun a b => a.1 ≤ b.1))
+    (hc : xs.IsChain (fun a b => a.1 = b.1 → a.2 = b.2))
+    (x y : ℕ × Bool) (hx : x ∈ xs) (hy : y ∈ xs) (he : x.1 = y.1) : x.2 = y.2 := by
   let block := xs.filter (fun q => q.1=x.1)
   have hb := List.Pairwise.filter_key_eq Prod.fst x.1 hs
   have hchain : block.IsChain (fun a b => a.1=b.1 → a.2=b.2) := by
@@ -169,7 +171,7 @@ private theorem equal_key_values (xs : List (ℕ × Bool))
     exact of_decide_eq_true (List.mem_filter.mp hq).2
   have hvalues : (block.map Prod.snd).IsChain (· = ·) := by
     apply (List.isChain_map Prod.snd).mpr
-    exact hchain.imp_of_mem_imp (fun a ha b hb hab => hab ((hall a ha).trans (hall b hb).symm))
+    exact hchain.imp_of_mem_imp (fun a b ha hb hab => hab ((hall a ha).trans (hall b hb).symm))
   have hxm : x.2∈block.map Prod.snd := List.mem_map.mpr ⟨x,by simp [block,hx],rfl⟩
   have hym : y.2∈block.map Prod.snd := List.mem_map.mpr ⟨y,by simp [block,hy,he],rfl⟩
   cases hv : block.map Prod.snd with
@@ -184,11 +186,11 @@ private theorem equal_key_values (xs : List (ℕ × Bool))
     exact (hconst _ (hv ▸ hxm)).trans (hconst _ (hv ▸ hym)).symm
 
 private theorem paired_word (I : State Rel) (keys : List ℕ) (σ ν : ℕ → Bool)
-    (hword : (sortBoundaryMetadata g w I keys).ports.map ν=
-      ((compute keys).requests.foldl (fun ps j => ps.swap j (j+1)) (List.range keys.length)).map
+    (hword : (sortBoundaryMetadata g w I keys).ports.map ν = ((compute keys).requests.foldl (fun
+      ps j => ps.swap j (j + 1)) (List.range keys.length)).map
         (fun i => (I.ports.map σ).getD i false)) :
-    (compute keys).sortedKeys.zip ((sortBoundaryMetadata g w I keys).ports.map ν)=
-      ((compute keys).requests.foldl (fun ps j => ps.swap j (j+1)) (List.range keys.length)).map
+    (compute keys).sortedKeys.zip ((sortBoundaryMetadata g w I keys).ports.map ν) = ((compute
+      keys).requests.foldl (fun ps j => ps.swap j (j + 1)) (List.range keys.length)).map
         (fun i => (keys.getD i 0,(I.ports.map σ).getD i false)) := by
   rw [← index_keys keys,hword,List.zip_map']
 
@@ -196,8 +198,8 @@ private theorem paired_word (I : State Rel) (keys : List ℕ) (σ ν : ℕ → B
 original-index value word, and agreement at ANY original positions with equal metadata.
 The recovery is collapse AFTER `2^T` tagging, including on unused original names. -/
 theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
-    (hl : keys.length=I.ports.length) (τ : ℕ → Bool)
-    (ht : (sortAndCloseMetadataRuns g w I keys).body.eval sem τ=true) :
+    (hl : keys.length = I.ports.length) (τ : ℕ → Bool)
+    (ht : (sortAndCloseMetadataRuns g w I keys).body.eval sem τ = true) :
     let R := compute keys
     let J := sortBoundaryMetadata g w I keys
     let sorted := R.sortedKeys
@@ -206,14 +208,15 @@ theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
     let Phi := (List.range sorted.length).foldl (fun f s => fun z =>
       if f z ∈ (states s).ports.take
           ((sorted.drop (sorted.length-(states s).ports.length)).takeWhile
-            (fun b => decide (b=(sorted.drop (sorted.length-(states s).ports.length)).headD 0))).length
+            (fun b => decide (b = (sorted.drop (sorted.length-(states s).ports.length)).headD
+              0))).length
       then (states s).ports.headD 0 else f z) id
     let ρ := fun z => τ (Phi (2^R.requests.length*z))
-    let ids := R.requests.foldl (fun ps j => ps.swap j (j+1)) (List.range keys.length)
-    I.body.eval sem ρ=true ∧ J.ports.map (τ ∘ Phi)=
-      ids.map (fun i => (I.ports.map ρ).getD i false) ∧
-      ∀ i j, i<keys.length → j<keys.length → keys.getD i 0=keys.getD j 0 →
-        (I.ports.map ρ).getD i false=(I.ports.map ρ).getD j false := by
+    let ids := R.requests.foldl (fun ps j => ps.swap j (j + 1)) (List.range keys.length)
+    I.body.eval sem ρ = true ∧ J.ports.map (τ ∘ Phi) = ids.map (fun i => (I.ports.map ρ).getD i
+      false) ∧
+      ∀ i j, i < keys.length → j < keys.length → keys.getD i 0 = keys.getD j 0 →
+        (I.ports.map ρ).getD i false = (I.ports.map ρ).getD j false := by
   let R := compute keys
   let J := sortBoundaryMetadata g w I keys
   let sorted := R.sortedKeys
@@ -222,11 +225,12 @@ theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
   let Phi := (List.range sorted.length).foldl (fun f s => fun z =>
     if f z ∈ (states s).ports.take
         ((sorted.drop (sorted.length-(states s).ports.length)).takeWhile
-          (fun b => decide (b=(sorted.drop (sorted.length-(states s).ports.length)).headD 0))).length
+          (fun b => decide (b=(sorted.drop (sorted.length-(states s).ports.length)).headD
+            0))).length
     then (states s).ports.headD 0 else f z) id
   let ρ := fun z => τ (Phi (2^R.requests.length*z))
-  let ids := R.requests.foldl (fun ps j => ps.swap j (j+1)) (List.range keys.length)
-  have ha := alignment g w I keys hl
+  let ids := R.requests.foldl (fun ps j => ps.swap j (j + 1)) (List.range keys.length)
+  have ha := sortedKeys_length_sortBoundaryMetadata g w I keys hl
   have hlow := recover_closeMetadataRuns sem J sorted ha τ (by
     rw [← intermediate g w I keys hl]
     exact ht)
@@ -241,6 +245,7 @@ theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
   have hpairs := paired_word g w I keys ρ (τ ∘ Phi) hs.2
   change pairs=ids.map (fun i => (keys.getD i 0,(I.ports.map ρ).getD i false)) at hpairs
   have hsort : sorted.Pairwise (· ≤ ·) := by
+    change (compute keys).sortedKeys.Pairwise (· ≤ ·)
     rw [(components_compute keys).1]
     exact List.pairwise_insertionSort _ _
   have hproj : pairs.map Prod.fst=sorted :=
@@ -249,7 +254,7 @@ theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
     have hh : (pairs.map Prod.fst).Pairwise (· ≤ ·) := by rwa [hproj]
     simpa only [List.pairwise_map] using hh
   intro i j hi hj he
-  have hperm : ids.Perm (List.range keys.length) := (indices_payload keys).1
+  have hperm : ids.Perm (List.range keys.length) := (indices_payload.{0} keys).1
   have hmi : i∈ids := hperm.mem_iff.mpr (List.mem_range.mpr hi)
   have hmj : j∈ids := hperm.mem_iff.mpr (List.mem_range.mpr hj)
   apply equal_key_values pairs horder hlow.2
@@ -263,30 +268,29 @@ theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
 EVERY `2^T*z`, including unused names. The same actual sorter assignment forwards through
 all run closures; no equality is inferred from arbitrary eliminated output labels. -/
 theorem forward_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
-    (hl : keys.length=I.ports.length) (σ : ℕ → Bool) (hs : I.body.eval sem σ=true)
-    (he : ∀ i j, i<keys.length → j<keys.length → keys.getD i 0=keys.getD j 0 →
-      (I.ports.map σ).getD i false=(I.ports.map σ).getD j false) :
-    ∃ τ : ℕ → Bool, (sortAndCloseMetadataRuns g w I keys).body.eval sem τ=true ∧
-      ∀ z, τ (2^(compute keys).requests.length*z)=σ z := by
+    (hl : keys.length = I.ports.length) (σ : ℕ → Bool) (hs : I.body.eval sem σ = true)
+    (he : ∀ i j, i < keys.length → j < keys.length → keys.getD i 0 = keys.getD j 0 →
+      (I.ports.map σ).getD i false = (I.ports.map σ).getD j false) :
+    ∃ τ : ℕ → Bool, (sortAndCloseMetadataRuns g w I keys).body.eval sem τ = true ∧
+      ∀ z, τ (2^(compute keys).requests.length*z) = σ z := by
   obtain ⟨ν,hν,hagree,hword⟩ := (eval_sortBoundaryMetadata_iff g w I keys hl σ).mp hs
-  let ids := (compute keys).requests.foldl (fun ps j => ps.swap j (j+1)) (List.range keys.length)
+  let ids := (compute keys).requests.foldl (fun ps j => ps.swap j (j + 1)) (List.range keys.length)
   let J := sortBoundaryMetadata g w I keys
   have hpairs := paired_word g w I keys σ ν hword
-  have hperm : ids.Perm (List.range keys.length) := (indices_payload keys).1
+  have hperm : ids.Perm (List.range keys.length) := (indices_payload.{0} keys).1
   have hchain : ((compute keys).sortedKeys.zip (J.ports.map ν)).IsChain
       (fun a b => a.1=b.1 → a.2=b.2) := by
     rw [hpairs]
     apply List.isChain_iff_getElem.mpr
     intro s hs'
-    have hsids : s+1<ids.length := by simpa only [List.length_map] using hs'
-    have hi : ids[s]<keys.length := List.mem_range.mp
+    have hsids : s+1 < ids.length := by simpa only [List.length_map] using hs'
+    have hi : ids[s] < keys.length := List.mem_range.mp
       (hperm.mem_iff.mp (List.getElem_mem _))
-    have hj : ids[s+1]<keys.length := List.mem_range.mp
+    have hj : ids[s+1] < keys.length := List.mem_range.mp
       (hperm.mem_iff.mp (List.getElem_mem _))
-    simp only [List.getElem_map]
-    exact he _ _ hi hj
+    simpa only [List.getElem_map] using he ids[s] ids[s+1] hi hj
   have ht := forward_closeMetadataRuns sem J (compute keys).sortedKeys
-    (alignment g w I keys hl) ν hν hchain
+    (sortedKeys_length_sortBoundaryMetadata g w I keys hl) ν hν hchain
   refine ⟨ν,?_,hagree⟩
   rwa [intermediate g w I keys hl]
 
@@ -309,6 +313,8 @@ theorem computableInPolyTime_sortAndCloseMetadataRuns (encRel : Rel ↪ List Boo
   have hbad : ComputableInPolyTime
       (fun p : State Rel × List ℕ => decide (p.2.length≠p.1.ports.length))
       (encStateMetadata encRel) encBool := by fun_prop
-  exact ComputableInPolyTime.ite_decide hbad hi (hclose.comp hstored)
+  apply (ComputableInPolyTime.ite_decide hbad hi (hclose.comp hstored)).of_enc_eq
+  intro p
+  rfl
 
 end Cslib.Complexity.CSP.CrossInsertion
