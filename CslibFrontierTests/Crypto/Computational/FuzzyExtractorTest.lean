@@ -37,13 +37,13 @@ premise holds unconditionally, and to independent-coordinate sources under `Deci
 The reusable-extractor tests use non-degenerate parameters (secret dimension at least `1`, modulus
 greater than `1`). They check the reduction bounds of the common-matrix scheme and of the Section 5
 scheme, the advantage lower bound of the Section 3.3 attack (end to end with `unitDecoder`, giving
-advantage at least `3 / 5`), that the setup-averaged correctness theorems apply with `δ = 1 / 5`,
-and that both reduction bounds are attained (advantage `0`) for a uniform source (and uniform
-encryption errors). A word adversary that sends an encoded shift is uniform strict oracle PPT, so
-the admitted class of `weaklyReusable_commonMatrixFuzzyExtractor` is inhabited, and the theorem
-gives it negligible advantage under the FMR security hypothesis. The same adversary makes one shift
-query, so `stronglyReusable_lweEncryptFuzzyExtractor` admits it at query bound `1`; for uniform
-noise, where its `DecisionLWE` premise holds unconditionally, it has negligible
+advantage at least `3 / 5`), that the decoder-relative setup-correctness steps apply with
+`δ = 1 / 5`, and that both reduction bounds are attained (advantage `0`) for a uniform source (and
+uniform encryption errors). A word adversary that sends an encoded shift is uniform strict oracle
+PPT, so the admitted class of `weaklyReusable_commonMatrixFuzzyExtractor` is inhabited, and the
+theorem gives it negligible advantage under the FMR security hypothesis. The same adversary makes
+one shift query, so `stronglyReusable_lweEncryptFuzzyExtractor` admits it at query bound `1`; for
+uniform noise, where its `DecisionLWE` premise holds unconditionally, it has negligible
 strong-reusability advantage.
 -/
 
@@ -134,6 +134,13 @@ theorem decoderCorrectWithError_unitDecoder : DecoderCorrectWithError unitDecode
     simp [h0, hs] at hA
   · have hcard : Fintype.card (Matrix (Fin 1) (Fin 1) (ZMod 5)) = 5 := rfl
     rw [hcard, Nat.cast_ofNat, one_div, ENNReal.coe_inv (by norm_num), ENNReal.coe_ofNat]
+
+/-- Non-trivial reproduction correctness for `lweFuzzyExtractor` at `m = 1, k = 1, l = 0, q = 5`
+via `correctHammingWithError_decodeThenExtract_of_decoderCorrectWithError` on `unitDecoder`
+(`δ = 1 / 5`). -/
+example : (lweFuzzyExtractor 1 1 0 5 unitDecoder).CorrectHammingWithError 0 (1 / 5) :=
+  correctHammingWithError_decodeThenExtract_of_decoderCorrectWithError
+    decoderCorrectWithError_unitDecoder _
 
 /-! ### Concrete decode-then-extract security (Construction 4.1) -/
 
@@ -275,8 +282,8 @@ example : clampShift 1 ![(0 : ZMod 5), 2, 0] = ![(0 : ZMod 5), 2, 0] := by
   decide
 
 /-- Every decoder fails with probability at most `1`, so `DecoderCorrectWithError decode t 1`
-holds at all parameters; the setup-averaged correctness theorems therefore apply to every decoder
-with error term `1`. -/
+holds at all parameters; the decoder-relative setup-correctness steps therefore apply to every
+decoder with error term `1`. -/
 theorem decoderCorrectWithError_one {m n q : ℕ} [NeZero q]
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q))) (t : ℕ) :
@@ -284,14 +291,15 @@ theorem decoderCorrectWithError_one {m n q : ℕ} [NeZero q]
   rw [Game.failProbability_eq]
   exact tsub_le_self
 
-/-- The setup-averaged correctness theorem for the common-matrix scheme at
+/-- The decoder-relative setup-correctness step for the common-matrix scheme at
 `m = 4, k = 1, l = 1, q = 7`, with a decoder hypothesis that every decoder meets (`δ = 1`). -/
 example
     (decode : Matrix (Fin 4) (Fin (1 + 1)) (ZMod 7) → (Fin 4 → ZMod 7) →
       ProbComp (Option (Fin (1 + 1) → ZMod 7))) (t : ℕ) :
     SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin 4) (Fin (1 + 1)) (ZMod 7)))
       (commonMatrixFuzzyExtractor 4 1 1 7 decode) t 1 :=
-  (decoderCorrectWithError_one decode t).setupCorrect_commonMatrixFuzzyExtractor
+  setupCorrect_commonMatrixFuzzyExtractor_of_decoderCorrectWithError
+    (decoderCorrectWithError_one decode t)
 
 /-- By the Theorem 1 reduction bound (`weakReuseAdvantage_commonMatrixFuzzyExtractor_le`), on a
 uniform source at `m = 4, k = 1, l = 1, q = 7`, every weak-reusability adversary has advantage `0`
@@ -327,7 +335,8 @@ example
 `1 / 5`, averaged over the common matrix. -/
 example : SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin 1) (Fin (1 + 0)) (ZMod 5)))
     (commonMatrixFuzzyExtractor 1 1 0 5 unitDecoder) 0 (1 / 5) :=
-  decoderCorrectWithError_unitDecoder.setupCorrect_commonMatrixFuzzyExtractor
+  setupCorrect_commonMatrixFuzzyExtractor_of_decoderCorrectWithError
+    decoderCorrectWithError_unitDecoder
 
 /-- The Section 3.3 attack bound end to end, at `m = 1, k = 1, l = 0, q = 5` with `unitDecoder`
 (`δ = 1 / 5 < 1 - 1 / q ^ k = 4 / 5`): on every source, the 1-query attack has strong-reuse
@@ -385,15 +394,15 @@ example
 
 /-! ### Section 5: the hypotheses are satisfiable and the bound can be attained -/
 
-/-- Both hypotheses of the Section 5 setup-averaged correctness theorem hold at
+/-- Both hypotheses of the Section 5 decoder-relative setup-correctness step hold at
 `m = 4, n = 2, l = 2, q = 16` for the zero encryption error and every decoder (with `δ = 1`). -/
 example
     (decode : Matrix (Fin 4) (Fin 2) (ZMod 16) → (Fin 4 → ZMod 16) →
       ProbComp (Option (Fin 2 → ZMod 16))) (t : ℕ) :
     SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin 4) (Fin 2) (ZMod 16)))
       (lweEncryptFuzzyExtractor 4 2 2 16 (return 0) decode) t 1 := by
-  refine (decoderCorrectWithError_one decode t).setupCorrect_lweEncryptFuzzyExtractor
-    ?_
+  refine setupCorrect_lweEncryptFuzzyExtractor_of_decoderCorrectWithError
+    (decoderCorrectWithError_one decode t) ?_
   intro e he i
   simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at he
   subst he
@@ -404,7 +413,8 @@ example
 probability at most `1 / 5`, averaged over the public matrix. -/
 example : SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin 1) (Fin 1) (ZMod 5)))
     (lweEncryptFuzzyExtractor 1 1 1 5 (return 0) unitDecoder) 0 (1 / 5) := by
-  refine decoderCorrectWithError_unitDecoder.setupCorrect_lweEncryptFuzzyExtractor ?_
+  refine setupCorrect_lweEncryptFuzzyExtractor_of_decoderCorrectWithError
+    decoderCorrectWithError_unitDecoder ?_
   intro e he i
   simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at he
   subst he

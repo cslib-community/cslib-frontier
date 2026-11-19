@@ -82,18 +82,16 @@ theorem selectBelow_sublist (T : ℕ) (ps : List ℕ) : (selectBelow T ps).Subli
 
 /-- The greedy choice has product at most the budget `T ≥ 1`. -/
 theorem prod_selectBelow_le {T : ℕ} (hT : 1 ≤ T) (ps : List ℕ) : (selectBelow T ps).prod ≤ T := by
-  induction ps generalizing T with
-  | nil => simpa [selectBelow] using hT
-  | cons p ps ih =>
-    simp only [selectBelow]
-    split_ifs with hp
-    · rw [List.prod_cons]
-      rcases Nat.eq_zero_or_pos p with rfl | hp0
-      · simp
-      · calc p * (selectBelow (T / p) ps).prod ≤ p * (T / p) :=
-              Nat.mul_le_mul_left _ (ih ((Nat.one_le_div_iff hp0).2 hp))
-          _ ≤ T := Nat.mul_div_le T p
-    · exact ih hT
+  fun_induction selectBelow T ps with
+  | case1 => exact hT
+  | case2 T p ps hp ih =>
+    rw [List.prod_cons]
+    rcases Nat.eq_zero_or_pos p with rfl | hp0
+    · simp
+    · calc p * (selectBelow (T / p) ps).prod ≤ p * (T / p) :=
+            Nat.mul_le_mul_left _ (ih ((Nat.one_le_div_iff hp0).2 hp))
+        _ ≤ T := Nat.mul_div_le T p
+  | case3 T p ps hp ih => exact ih hT
 
 /-- **The greedy choice is large**: if every element of `ps` is positive and at most `B`, either
 every element is chosen (the product of `ps` is at most the chosen product) or the chosen product

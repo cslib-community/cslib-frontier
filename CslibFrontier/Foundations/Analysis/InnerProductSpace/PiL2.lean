@@ -24,6 +24,7 @@ with `1 - Mᴴ M` positive semidefinite, does not increase norms
 * `EuclideanSpace.star_dotProduct_self_eq_norm_sq`: `ψ† ψ = ‖ψ‖²`.
 * `Matrix.norm_toLp_mulVec_le_of_posSemidef`: a matrix `M` with `Mᴴ M ≤ 1` does not increase
   norms.
+* `Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self`: an isometry, `Kᴴ K = 1`, preserves norms.
 -/
 
 public section
@@ -53,3 +54,15 @@ theorem Matrix.norm_toLp_mulVec_le_of_posSemidef [DecidableEq ι] {M : Matrix ι
     EuclideanSpace.star_dotProduct_self_eq_norm_sq, ← Complex.ofReal_pow, ← Complex.ofReal_pow,
     ← Complex.ofReal_sub, Complex.ofReal_re] at h0
   exact (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp (by linarith)
+
+/-- An isometry preserves the norm of vectors. -/
+theorem Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self {m n : Type*} [Fintype m] [Fintype n]
+    [DecidableEq n] {K : Matrix m n ℂ} (hK : Kᴴ * K = 1) (ψ : EuclideanSpace ℂ n) :
+    ‖(WithLp.toLp 2 (K *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ = ‖ψ‖ := by
+  have h : ((‖(WithLp.toLp 2 (K *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ ^ 2 : ℝ) : ℂ) =
+      ((‖ψ‖ ^ 2 : ℝ) : ℂ) := by
+    push_cast
+    rw [← EuclideanSpace.star_dotProduct_self_eq_norm_sq,
+      ← EuclideanSpace.star_dotProduct_self_eq_norm_sq, WithLp.ofLp_toLp, star_mulVec,
+      ← dotProduct_mulVec, mulVec_mulVec, hK, one_mulVec]
+  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp (Complex.ofReal_injective h)

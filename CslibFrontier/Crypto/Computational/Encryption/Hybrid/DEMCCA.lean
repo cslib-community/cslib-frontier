@@ -24,8 +24,12 @@ import CslibFrontier.Tactic.PPT
 
 This intermediate experiment uses the symmetric cipher's actual key distribution. Its
 distinguished encapsulation component is redirected to that key before and after the challenge.
-This is the DEM leg of [BonehShoup2023], Exercise 12.5(a), not the full KEM–DEM composition:
-the two KEM hops and compatibility of the KEM's ideal key distribution remain separate.
+Its security is the DEM hop of [BonehShoup2023], Exercise 12.5(a): a step toward that exercise,
+not the exercise itself. `Cslib.Crypto.Encryption.hybrid_indcca2On` adds the two KEM hops. The
+exercise stays open (#5686): the premise `SymmetricCipher.OneTimeINDCCA` decrypts every word other
+than the challenge, whereas the source's 1CCA security (Definition 9.6, printed p. 363) rests on
+Attack Game 9.2, whose decryption queries lie in the cipher's ciphertext space `C`
+(printed p. 362).
 
 ## Main definitions
 
@@ -39,7 +43,7 @@ the two KEM hops and compatibility of the KEM's ideal key distribution remain se
 * `Cslib.Crypto.Encryption.isOraclePPT_hybridToOneTimeCCAAdversary`: native reduction certificate.
 * `Cslib.Crypto.Encryption.isPPTOn_hybridDEMGame`: native certificate for the closed game.
 * `Cslib.Crypto.SymmetricCipher.OneTimeINDCCA.indistinguishable_hybridDEMGame`:
-  the loss-one DEM leg.
+  the loss-one DEM hop, a step toward Exercise 12.5(a).
 
 ## References
 
@@ -491,9 +495,16 @@ theorem isPPTOn_hybridDEMGame (E : SymmetricCipher)
     (eval_hybridDEMGame E keyGen encaps decaps ctBound decBound adversary bit n
       (hct n) (hdec n)).symm
 
-/-- The DEM leg of [BonehShoup2023], Exercise 12.5(a): one-time symmetric CCA security
-indistinguishes the two intermediate games with loss one. The two KEM hops and their
-ideal-key sampler compatibility remain separate obligations for full composition. -/
+/-- One-time symmetric CCA security of `E` makes the two DEM intermediate games `hybridDEMGame`
+indistinguishable with loss one: a step toward [BonehShoup2023], Exercise 12.5(a), not the cited
+result, which also needs the two KEM hops and a 1CCA premise restricted to the cipher's
+ciphertext space, where `E.OneTimeINDCCA` decrypts every word other than the challenge (#5686).
+
+`Cslib.Crypto.Encryption.hybrid_indcca2On` composes this hop with the two KEM hops. The source's
+1CCA security (Definition 9.6, printed p. 363) rests on Attack Game 9.2, whose decryption queries
+lie in the ciphertext space `C` (printed p. 362). `SymmetricCipher` declares no ciphertext space,
+and the one-time oracle decrypts every word other than the challenge, so a cipher that is 1CCA
+secure on `C` but leaks on some word outside `C` does not satisfy `OneTimeINDCCA`. -/
 theorem _root_.Cslib.Crypto.SymmetricCipher.OneTimeINDCCA.indistinguishable_hybridDEMGame
     {E : SymmetricCipher} (hsecure : E.OneTimeINDCCA)
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}

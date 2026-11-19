@@ -7,12 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
-public import CslibFrontier.Languages.Probabilistic.Oracle.Run
+public import CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce
 public import CslibFrontier.Languages.Probabilistic.Vector
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Exp
-import CslibFrontier.Languages.Probabilistic.Oracle.Vector
 import CslibFrontier.Probability.IID.FunctionCollision
 import CslibFrontier.Probability.PMF.Event
 
@@ -54,9 +52,9 @@ function.
 
 ## Main definitions
 
-* `Cslib.Crypto.collidingPair?`: the first pair of different messages with equal digests.
-* `Cslib.Crypto.birthdayFinder`: the birthday collision finder.
-* `Cslib.Crypto.collisionOutputs`: the outputs that are collisions of a function.
+* `Cslib.Crypto.birthdayFinder`: the birthday collision finder (`collidingPair?`,
+  `collisionOutputs`, and `bruteForceFinder` are defined in
+  `CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce`).
 
 ## Main results
 
@@ -80,49 +78,17 @@ namespace Cslib.Crypto
 
 open Cslib.Probability.PMF
 
-section Search
-
-variable {M T : Type} [DecidableEq M] [DecidableEq T]
-
-/-- The first pair of positions (in lexicographic order) whose digests agree and whose messages
-differ, returned as the two messages and their common digest. -/
-@[expose] def collidingPair? {s : ℕ} (ms : Fin s → M) (ds : Fin s → T) : Option (M × M × T) :=
-  ((List.finRange s ×ˢ List.finRange s).find? fun p => ds p.1 = ds p.2 ∧ ms p.1 ≠ ms p.2).map
-    fun p => (ms p.1, ms p.2, ds p.1)
-
-/-- An output `some (m, m', d)` of `collidingPair?` is two different messages that occur among
-`ms` with digest `d`. -/
-theorem collidingPair?_eq_some {s : ℕ} {ms : Fin s → M} {ds : Fin s → T} {m m' : M} {d : T}
-    (h : collidingPair? ms ds = some (m, m', d)) :
-    m ≠ m' ∧ ∃ i j, ms i = m ∧ ms j = m' ∧ ds i = d ∧ ds j = d := by
-  obtain ⟨p, hp, heq⟩ := Option.map_eq_some_iff.mp h
-  have hp' := List.find?_some hp
-  simp only [decide_eq_true_eq] at hp'
-  simp only [Prod.mk.injEq] at heq
-  obtain ⟨rfl, rfl, rfl⟩ := heq
-  exact ⟨hp'.2, p.1, p.2, rfl, rfl, rfl, hp'.1.symm⟩
-
-/-- `collidingPair?` finds a pair exactly when two positions have equal digests and different
-messages. -/
-theorem isSome_collidingPair?_iff {s : ℕ} {ms : Fin s → M} {ds : Fin s → T} :
-    (collidingPair? ms ds).isSome ↔ ∃ i j, ds i = ds j ∧ ms i ≠ ms j := by
-  simp [collidingPair?]
-
-end Search
-
 section Finder
 
 variable {Query M T : Type} {spec : Query → Type} [DecidableEq M] [DecidableEq T]
 
 /-- The birthday collision finder ([BonehShoup2023], §8.3, Algorithm BirthdayAttack, printed
-p. 294, with the number of samples `s` as a parameter): sample `s` messages, compute the digest of
-each with the oracle program `digest`, and return the first pair of different messages with equal
-digests, together with the digest. -/
+p. 294, with the number of samples `s` as a parameter): sample `s` messages and run
+`bruteForceFinder digest` on them (computing the digest of each with `digest` and returning the
+first pair of different messages with equal digests, together with the digest). -/
 def birthdayFinder (digest : M → ProbOracleComp spec T) (sampler : ProbComp M) (s : ℕ) :
     ProbOracleComp spec (Option (M × M × T)) :=
-  ProbOracleComp.sample (OracleComp.replicateFin s sampler) >>= fun ms =>
-    OracleComp.pi (fun i : Fin s => digest (ms i)) >>= fun ds =>
-      pure (collidingPair? ms ds)
+  ProbOracleComp.sample (OracleComp.replicateFin s sampler) >>= bruteForceFinder digest
 
 /-- **Cost of the birthday finder.** When each digest makes at most `c` oracle calls, the finder
 makes at most `s * c` on every path. Sampling and the search among the digests are not counted:
@@ -130,11 +96,10 @@ this is a count of oracle calls, not a running time. -/
 theorem isQueryBounded_birthdayFinder {digest : M → ProbOracleComp spec T} {c : ℕ}
     (hdigest : ∀ m, ProbOracleComp.IsQueryBounded (digest m) c) (sampler : ProbComp M) (s : ℕ) :
     ProbOracleComp.IsQueryBounded (birthdayFinder digest sampler s) (s * c) := by
-  have h := (ProbOracleComp.IsQueryBounded.sample (spec := spec)
-    (OracleComp.replicateFin s sampler)).bind (m := s * c + 0) fun ms =>
-      (OracleComp.isCostBounded_pi fun i => hdigest (ms i)).bind fun ds =>
-        OracleComp.IsCostBounded.pure (collidingPair? ms ds) 0
-  simpa [birthdayFinder] using h
+  simpa [birthdayFinder] using
+    (ProbOracleComp.IsQueryBounded.sample (spec := spec)
+      (OracleComp.replicateFin s sampler)).bind (m := s * c) fun ms =>
+        isQueryBounded_bruteForceFinder fun i => hdigest (ms i)
 
 /-- Against a deterministic oracle `O` under which `digest m` returns `f m`, the finder samples
 and searches. -/
@@ -145,14 +110,8 @@ theorem eval_run_birthdayFinder {digest : M → ProbOracleComp spec T} (O : (q :
       (ProbComp.eval (OracleComp.replicateFin s sampler)).map
         fun ms => collidingPair? ms fun i => f (ms i) := by
   simp only [birthdayFinder, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
-    ProbOracleComp.run_pi, hdigest, ProbOracleComp.run_pure, ProbComp.eval_bind,
-    ProbComp.eval_pi_pure, ProbComp.eval_pure, PMF.pure_bind]
+    ProbComp.eval_bind, eval_run_bruteForceFinder O f (fun _ => hdigest _)]
   rfl
-
-/-- The outputs of the finder that are collisions of `f`: two different messages and their
-common value. -/
-@[expose] def collisionOutputs (f : M → T) : Set (Option (M × M × T)) :=
-  {o | ∃ m m', m ≠ m' ∧ f m' = f m ∧ o = some (m, m', f m)}
 
 /-- The finder never returns a wrong pair: against a deterministic oracle under which `digest m`
 returns `f m`, every output other than `none` is a collision of `f`, for every sampler. -/
@@ -163,9 +122,7 @@ theorem birthdayFinder_sound {digest : M → ProbOracleComp spec T} (O : (q : Qu
       fun x => pure (O x))).support) (hne : o ≠ none) : o ∈ collisionOutputs f := by
   rw [eval_run_birthdayFinder O f hdigest, PMF.support_map] at ho
   obtain ⟨ms, -, rfl⟩ := ho
-  obtain ⟨⟨m, m', d⟩, hc⟩ := Option.ne_none_iff_exists'.mp hne
-  obtain ⟨hmm, i, j, rfl, rfl, rfl, hd⟩ := collidingPair?_eq_some hc
-  exact ⟨_, _, hmm, hd, hc⟩
+  exact collidingPair?_mem_collisionOutputs_of_isSome (Option.isSome_iff_ne_none.mpr hne)
 
 variable [Fintype M] [Nonempty M]
 
@@ -187,10 +144,8 @@ theorem birthdayFinder_success {digest : M → ProbOracleComp spec T} (O : (q : 
   refine (one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision f D hf s).trans
     (ENNReal.toReal_mono (toOuterMeasure_ne_top _ _) (MeasureTheory.measure_mono ?_))
   rintro x ⟨i, j, hd, hm⟩
-  obtain ⟨⟨m, m', d⟩, ho⟩ := Option.isSome_iff_exists.mp
+  exact collidingPair?_mem_collisionOutputs_of_isSome
     ((isSome_collidingPair?_iff (ds := fun i => f (x i))).mpr ⟨i, j, hd, hm⟩)
-  obtain ⟨hne, i', j', rfl, rfl, rfl, hd'⟩ := collidingPair?_eq_some ho
-  exact ⟨_, _, hne, hd', ho⟩
 
 /-- **Lemma 8.2 with the book's parameters** ([BonehShoup2023], §8.3, printed p. 294): if
 `|M| ≥ 100 |D|`, where `D` contains every value of `f`, then the finder with

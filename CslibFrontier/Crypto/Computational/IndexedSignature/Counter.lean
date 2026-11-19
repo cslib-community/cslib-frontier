@@ -24,10 +24,11 @@ import CslibFrontier.Tactic.EncLen
 
 An indexed signature scheme becomes an ordinary many-time signature scheme once the signer
 chooses the indices itself: it keeps a counter `j`, signs its `j`-th message at index `j`, and
-publishes `j` with the signature. This is [BonehShoup2023], Section 14.6.4, with the counter as
-the nonce, and it is how Merkle's tree signature is used ([Merkle1989], Sections 6–7). The signer is
-stateful, so the construction is not a `SignatureScheme`, whose signer is a function of the secret
-key alone. Instead, the state lives in the signing oracle of a dedicated security game.
+publishes `j` with the signature. This is the construction of [BonehShoup2023], Section 14.6.4,
+with the counter as the nonce, and it is how Merkle's tree signature is used ([Merkle1989],
+Sections 6–7). The signer is stateful, so the construction is not a `SignatureScheme`, whose signer
+is a function of the secret key alone. Instead, the state lives in the signing oracle of a
+dedicated security game.
 
 The counter signing oracle (`counterSigningOracle`) at security parameter `n` holds the counter and
 the signed messages. While `j < capacity n` it signs the request at index `j`, answers with the word
@@ -36,6 +37,13 @@ word and records nothing. A signature word is verified by `counterVerify`, which
 runs the indexed verifier at `u`. The game `counterEufCmaGame` is the EUF-CMA experiment with this
 oracle; the forger wins with a valid signature on any message it never had signed, of any length.
 This is stronger than `SignatureScheme.eufCmaGame`, which only counts `n`-bit forgeries.
+
+The game is not the source's, so the results here are steps toward Section 14.6.4, not that
+result (#5686). From `j = capacity n` on, the signing oracle refuses every request, but a fresh
+forgery at an index `u ≥ capacity n` still wins whenever `S.verify` accepts it, as in
+`indexedEufCmaGame`. Definition 14.6 (printed p. 597) has message space `{1, …, q} × M`, and in
+the nonce example of Section 14.6.4 the counter runs from `1` to `q` (printed p. 603), so both use
+bounded indices.
 
 The security reduction is exact. `counterForger` runs a counter forger, answering its `j`-th
 signing query through the indexed signing oracle at index `j` and forwarding the forgery with its
@@ -65,7 +73,7 @@ that the reduction is strict oracle PPT for every external oracle (`isOraclePPT_
 * `Cslib.Crypto.IndexedSignatureScheme.succProbability_counterEufCmaGame_le`: the exact bound.
 * `Cslib.Crypto.IndexedSignatureScheme.isOraclePPT_counterForger`: the reduction is efficient.
 * `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.counterEUFCMA`: indexed EUF-CMA security
-  gives counter EUF-CMA security.
+  gives counter EUF-CMA security (a step toward Section 14.6.4).
 
 ## References
 
@@ -508,10 +516,18 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
 
 /-! ### Security -/
 
-/-- **Indexed EUF-CMA security gives counter EUF-CMA security** ([BonehShoup2023],
-Section 14.6.4): the signer of an indexed EUF-CMA secure scheme may choose its indices with a
-counter. The reduction is `counterForger`, with loss `1`
-(`succProbability_counterEufCmaGame_le`). -/
+/-- Indexed EUF-CMA security gives counter EUF-CMA security, so the signer of an indexed EUF-CMA
+secure scheme may choose its indices with a counter: a step toward [BonehShoup2023],
+Section 14.6.4, not the cited result, because both games count a fresh forgery at an index
+`u ≥ capacity n` whenever `S.verify` accepts it, where the source's indices are bounded (#5686).
+
+The indexed signing oracle refuses a request at an index `u ≥ capacity n`, and the counter signing
+oracle refuses every request once `j = capacity n`, but neither winning test has an index guard.
+Definition 14.6 (printed p. 597) and the nonce example of Section 14.6.4 (printed p. 603) use
+bounded indices. The reduction `counterForger` has loss `1`
+(`succProbability_counterEufCmaGame_le`) and remains valid for the library's games: it forwards
+the forgery with its index, so a counter forgery at any index is an indexed forgery at that
+index. -/
 theorem IndexedEUFCMA.counterEUFCMA (h : S.IndexedEUFCMA) : S.CounterEUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
   apply CounterEUFCMA.of_negligible

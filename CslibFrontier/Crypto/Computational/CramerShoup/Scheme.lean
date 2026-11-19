@@ -156,6 +156,12 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   `computableInPolyTime_encodeCramerShoupEncrypt`,
   `computableInPolyTime_encodeCramerShoupChallenge`, `computableInPolyTime_decodeCramerShoup`:
   decryption correctness and polynomial-time computability certificates.
+* `isCramerShoupHashInput`, `isCramerShoupHashInput_iff`,
+  `computableInPolyTime_isCramerShoupHashInput`,
+  `decodeCramerShoup_eq_none_of_isCramerShoupHashInput_eq_false`: the well-formed inputs
+  $\mathbb{G}^3 \times \mathcal{D}$ of the hash $H'$, on which the security theorems assume
+  collision resistance; they are exactly the encoded tuples, membership is decidable in polynomial
+  time, and decryption rejects every ciphertext whose hashed tuple is not well-formed.
 * `cramerShoupGame3`, `cramerShoupGame3Half`, `cramerShoupGame4`, `cramerShoupGame5`,
   `advantage_cramerShoupGame3_game3Half_le`, `advantage_cramerShoupGame3Half_game4_le`,
   `advantage_cramerShoupGame3_game4_le`, `cramerShoupGame5_false_eq_true`,
@@ -625,6 +631,61 @@ with an encoded associated-data word `ad : List Bool` as a framed 4-tuple bit st
 def encodeCramerShoupTuple (d : F.Desc) (v w e : F.Carrier d) (ad : List Bool) : List Bool :=
   encBits4 (F.encode d v, F.encode d w, F.encode d e, ad)
 
+/-- The well-formed inputs of the hash `cramerShoupHashMod H d`: the words of
+$\mathbb{G}^3 \times \mathcal{D}$, the domain of $H'$ in [BonehShoup2023], Exercise 12.27
+(printed p. 521). A word is accepted when it is a canonically framed 4-tuple
+`encBits4 (v, w, e, ad)` whose first three components `isElem` accepts as group elements of `d`.
+With associated data (`hasAD = true`) the component `ad` may be any word, since decryption accepts
+any associated-data word; without it (`hasAD = false`) it must be `[]`, the only associated data
+the scheme then hashes. `isCramerShoupHashInput_iff` shows that these are exactly the words
+`encodeCramerShoupTuple d v w e ad`. -/
+def isCramerShoupHashInput (hasAD : Bool) (isElem : F.Desc × List Bool → Bool) (d : F.Desc)
+    (x : List Bool) : Bool :=
+  let (v, w, e, ad) := decodeBits4 x
+  (encBits4 (v, w, e, ad) == x) && isElem (d, v) && isElem (d, w) && isElem (d, e) &&
+    (hasAD || ad == [])
+
+/-- When `isElem` accepts exactly the group-element words, `isCramerShoupHashInput` accepts exactly
+the encoded tuples `encodeCramerShoupTuple d v w e ad` of $\mathbb{G}^3 \times \mathcal{D}$, with
+`ad = []` when `hasAD = false`. -/
+theorem isCramerShoupHashInput_iff (hasAD : Bool) {isElem : F.Desc × List Bool → Bool}
+    (hmem : ∀ d x, isElem (d, x) = true ↔ x ∈ Set.range (F.encode d))
+    (d : F.Desc) (x : List Bool) :
+    F.isCramerShoupHashInput hasAD isElem d x = true ↔
+      ∃ (v w e : F.Carrier d) (ad : List Bool), (hasAD = true ∨ ad = []) ∧
+        F.encodeCramerShoupTuple d v w e ad = x := by
+  constructor
+  · intro h
+    generalize hparts : decodeBits4 x = parts at h
+    obtain ⟨a, b, c, ad⟩ := parts
+    simp only [isCramerShoupHashInput, hparts, Bool.and_eq_true, beq_iff_eq, Bool.or_eq_true]
+      at h
+    obtain ⟨⟨⟨⟨hx, ha⟩, hb⟩, hc⟩, had⟩ := h
+    obtain ⟨v, rfl⟩ := (hmem d a).mp ha
+    obtain ⟨w, rfl⟩ := (hmem d b).mp hb
+    obtain ⟨e, rfl⟩ := (hmem d c).mp hc
+    exact ⟨v, w, e, ad, had, hx⟩
+  · rintro ⟨v, w, e, ad, had, rfl⟩
+    simp only [isCramerShoupHashInput, encodeCramerShoupTuple, decodeBits4_encBits4,
+      beq_self_eq_true, (hmem d _).mpr ⟨_, rfl⟩, Bool.true_and, Bool.or_eq_true, beq_iff_eq,
+      had]
+
+/-- `isCramerShoupHashInput` is decidable in polynomial time whenever `isElem` is. -/
+theorem computableInPolyTime_isCramerShoupHashInput (hasAD : Bool)
+    {isElem : F.Desc × List Bool → Bool}
+    (hisElem : ComputableInPolyTime isElem (encPair F.encDesc encBits) encBool) :
+    ComputableInPolyTime (fun ⟨d, x⟩ => F.isCramerShoupHashInput hasAD isElem d x)
+      (encPair F.encDesc encBits) encBool :=
+  let hd := ComputableInPolyTime.fst F.encDesc encBits
+  let hx := ComputableInPolyTime.snd F.encDesc encBits
+  let hparts := computableInPolyTime_decodeBits4.comp' hx
+  let hframe := hparts.encoding_comp.beq hx
+  let hv := hisElem.comp' (hd.prod hparts.fst')
+  let hw := hisElem.comp' (hd.prod hparts.snd'.fst')
+  let he := hisElem.comp' (hd.prod hparts.snd'.snd'.fst')
+  let had := (ComputableInPolyTime.const hasAD).bool_or' (hparts.snd'.snd'.snd'.beq (.const []))
+  (((hframe.bool_and' hv).bool_and' hw).bool_and' he).bool_and' had
+
 /-- Algebraic Cramer–Shoup public key `pk = (u, h, h₁, h₂) ∈ G⁴` generated from secret exponents
 `(α, σ, τ, σ₁, τ₁, σ₂, τ₂)` ([BonehShoup2023], Section 12.5.3, printed p. 489). -/
 def cramerShoupPublicKey (d : F.Desc) (α σ τ σ₁ τ₁ σ₂ τ₂ : ZMod (F.order d)) :
@@ -875,6 +936,23 @@ theorem decodeCramerShoup_encode
     encodeGroupNeg_encode, F.add_encode, cramerShoupDecrypt, encodeCramerShoupTuple,
     cramerShoupHashMod, sub_eq_add_neg, decide_eq_true_eq]
   split_ifs <;> rfl
+
+/-- Decryption rejects every ciphertext whose hashed tuple `extractCramerShoupTuple ct ad` is not a
+well-formed hash input: a ciphertext that decrypts has group-element components `v`, `w`, `e`. -/
+theorem decodeCramerShoup_eq_none_of_isCramerShoupHashInput_eq_false (hasAD : Bool)
+    (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool) (d : F.Desc)
+    (sk : (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ))) (ct ad : List Bool) (had : hasAD = true ∨ ad = [])
+    (h : F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple ct ad) = false) :
+    F.decodeCramerShoup H isElem d sk ct ad = none := by
+  have hAD : (hasAD || ad == []) = true := by rcases had with rfl | rfl <;> simp
+  simp only [isCramerShoupHashInput, extractCramerShoupTuple, decodeBits4_encBits4,
+    beq_self_eq_true, Bool.true_and, hAD, Bool.and_true] at h
+  simp only [decodeCramerShoup]
+  split_ifs with hc
+  · simp only [Bool.and_eq_true] at hc
+    obtain ⟨⟨⟨⟨-, hv⟩, hw⟩, he⟩, -⟩ := hc
+    simp [hv, hw, he] at h
+  · rfl
 
 /-- **Word-level Cramer–Shoup decryption of an honest encryption recovers
 `some (F.encode d m)`**. -/

@@ -157,20 +157,7 @@ private def extract (r : ℕ × C × SelectBestAcc) : List Bool :=
 
 private theorem extract_polyTime :
     ComputableInPolyTime (extract (C := C)) (encPair encNat (encAcc encC)) encBits := by
-  unfold extract encAcc encSelectBestAcc
-  let eBest := encPair encBits encNat
-  let encRest := encPair (encList encBits) (encOption eBest)
-  let encS := encPair (encPair encUnary encUnary) encRest
-  have hacc := (ComputableInPolyTime.snd encC encS).comp
-    (ComputableInPolyTime.snd encNat (encPair encC encS))
-  have hm := (ComputableInPolyTime.fst encUnary encUnary).comp
-    ((ComputableInPolyTime.fst (encPair encUnary encUnary) encRest).comp hacc)
-  have hopt := (ComputableInPolyTime.snd (encList encBits) (encOption eBest)).comp
-    ((ComputableInPolyTime.snd (encPair encUnary encUnary) encRest).comp hacc)
-  exact ComputableInPolyTime.optionElimWithInput hopt
-    ((ComputableInPolyTime.bitsReplicate false).comp hm)
-    ((ComputableInPolyTime.fst encBits encNat).comp
-      (ComputableInPolyTime.snd (encPair encNat (encPair encC encS)) eBest))
+  fun_prop [extract]
 
 private theorem selectCertificate_eq (count : C × List (List Bool) → ℕ)
     (a : C × ℕ × ℕ × List (List Bool)) :

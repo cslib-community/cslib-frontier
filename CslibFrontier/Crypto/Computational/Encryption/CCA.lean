@@ -242,8 +242,22 @@ And the two-phase decomposition of the 1CCA experiment (printed pp. 468–469):
   `Cslib.Crypto.Encryption.isQueryBounded_cca2MultiToSingle`,
   `Cslib.Crypto.Encryption.cca2MultiHybridGameOn_step_gap`,
   `Cslib.Crypto.Encryption.cca2MultiGameOn_gap`,
-  `Cslib.Crypto.Encryption.advantage_cca2MultiGameOn`,
-  `Cslib.Crypto.Encryption.INDCCA2On.indcca2MultiOn`,
+  `Cslib.Crypto.Encryption.advantage_cca2MultiGameOn`: the batch-challenge hybrid reduction is
+  strict oracle PPT and preserves the decryption-query bounds, and the batch-challenge advantage
+  is `dyadicSize (Q n)` times its 1CCA advantage.
+
+## Steps toward Theorem 12.1
+
+[BonehShoup2023], Theorem 12.1 (printed p. 468) concerns Attack Game 12.1 (p. 467), in which
+encryption and decryption queries are adaptively interleaved. It is
+`Cslib.Crypto.Encryption.INDCCA2On.indcca2InterleavedOn` and
+`Cslib.Crypto.Encryption.indcca2InterleavedOn_iff_indcca2On` in
+`CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean`. The theorems below are its
+restriction to adversaries that submit all challenge pairs in one batch between the two phases of
+decryption queries; `Interleaved.lean` uses them to relate the two notions
+(`indcca2InterleavedOn_iff_indcca2MultiOn`).
+
+* `Cslib.Crypto.Encryption.INDCCA2On.indcca2MultiOn`,
   `Cslib.Crypto.Encryption.indcca2MultiOn_iff_indcca2On`,
   `Cslib.Crypto.Encryption.INDCCA2Of.indcca2MultiOf`,
   `Cslib.Crypto.Encryption.indcca2MultiOf_iff_indcca2Of`,
@@ -251,9 +265,7 @@ And the two-phase decomposition of the 1CCA experiment (printed pp. 468–469):
   `Cslib.Crypto.Encryption.indcca2Multi_iff_indcca2`,
   `Cslib.Crypto.Encryption.WordINDCCA2.wordINDCCA2Multi`,
   `Cslib.Crypto.Encryption.wordINDCCA2Multi_iff_wordINDCCA2`: single-challenge 1CCA implies
-  batch-challenge multi-challenge CCA via the hybrid reduction (batch-challenge specialization of
-  [BonehShoup2023], Theorem 12.1), and their equivalence (Theorem 12.1 together with
-  Definition 12.2).
+  batch-challenge multi-challenge CCA, and the two are equivalent.
 
 ## References
 
@@ -1664,7 +1676,7 @@ theorem WordINDCCA2Multi.wordINDCCA2
     WordINDCCA2 keyGen encrypt decrypt :=
   INDCCA2MultiOn.indcca2On h
 
-/-! ### Single-challenge 1CCA implies batch-challenge CCA (Theorem 12.1) -/
+/-! ### Single-challenge 1CCA implies batch-challenge CCA (step toward Theorem 12.1) -/
 
 open scoped NNReal
 
@@ -2551,11 +2563,10 @@ theorem cca2MultiHybridGameOn_step_gap {Msg Out : Type} [Inhabited Msg]
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
   linarith
 
-/-- **Quantitative signed hybrid gap for batch-challenge multi-challenge CCA** (batch-challenge
-specialization of [BonehShoup2023], Theorem 12.1, printed p. 468): when every supported Phase 1
-challenge list has length at most `Q n`, the batch-challenge multi-challenge signed
-success-probability gap equals `dyadicSize (Q n)` times the single-challenge 1CCA gap of
-`cca2MultiToSingle`. -/
+/-- Signed hybrid gap for batch-challenge multi-challenge CCA, a step toward [BonehShoup2023],
+Theorem 12.1 (printed p. 468) for batch challenges only: when every supported Phase 1 challenge
+list has length at most `Q n`, the batch-challenge multi-challenge signed success-probability gap
+equals `dyadicSize (Q n)` times the single-challenge 1CCA gap of `cca2MultiToSingle`. -/
 theorem cca2MultiGameOn_gap {Msg Out : Type} [Inhabited Msg]
     (valid : ℕ → List Bool → Msg → Msg → Bool)
     (encOut : Out ↪ List Bool)
@@ -2612,11 +2623,10 @@ theorem cca2MultiGameOn_gap {Msg Out : Type} [Inhabited Msg]
     eval_cca2GameOn_cca2MultiToSingle]
   simp only [Fin.is_lt, ↓reduceIte]
 
-/-- **Quantitative hybrid advantage bound for batch-challenge multi-challenge CCA**
-(batch-challenge specialization of [BonehShoup2023], Theorem 12.1, printed p. 468): when every
-supported Phase 1 challenge list has length at most `Q n`, the batch-challenge multi-challenge CCA
-advantage equals `dyadicSize (Q n)` times the single-challenge 1CCA advantage of
-`cca2MultiToSingle`. -/
+/-- Hybrid advantage identity for batch-challenge multi-challenge CCA, a step toward
+[BonehShoup2023], Theorem 12.1 (printed p. 468) for batch challenges only: when every supported
+Phase 1 challenge list has length at most `Q n`, the batch-challenge multi-challenge CCA advantage
+equals `dyadicSize (Q n)` times the single-challenge 1CCA advantage of `cca2MultiToSingle`. -/
 theorem advantage_cca2MultiGameOn {Msg Out : Type} [Inhabited Msg]
     (valid : ℕ → List Bool → Msg → Msg → Bool)
     (encOut : Out ↪ List Bool)
@@ -2649,10 +2659,13 @@ theorem advantage_cca2MultiGameOn {Msg Out : Type} [Inhabited Msg]
     cca2MultiGameOn_gap valid encOut keyGen encrypt decrypt decBound Q adversary n hdecBound hQ,
     abs_mul, Nat.abs_cast]
 
-/-- **Single-challenge 1CCA security implies batch-challenge multi-challenge CCA security**
-(batch-challenge specialization of [BonehShoup2023], Theorem 12.1, printed p. 468, in which all
-encryption queries are submitted in one batch between Phase 1 and Phase 2 decryption queries)
-whenever `valid`, `keyGen`, `encrypt`, and `decrypt` are polynomial-time / strict PPT. -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 (printed p. 468), not the cited
+result: single-challenge 1CCA security implies batch-challenge multi-challenge CCA security, in
+which all encryption queries come in one batch between Phase 1 and Phase 2 decryption queries,
+whenever `valid`, `keyGen`, `encrypt`, and `decrypt` are polynomial-time / strict PPT. Attack
+Game 12.1 (p. 467) lets the adversary interleave encryption and decryption queries adaptively;
+Theorem 12.1 for that game is `INDCCA2On.indcca2InterleavedOn`
+(`CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean`). -/
 theorem INDCCA2On.indcca2MultiOn {Msg Out : Type} [Inhabited Msg]
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encMsg : Msg ↪ List Bool} {encOut : Out ↪ List Bool}
@@ -2700,9 +2713,11 @@ theorem INDCCA2On.indcca2MultiOn {Msg Out : Type} [Inhabited Msg]
   rw [advantage_cca2MultiGameOn valid encOut keyGen encrypt decrypt decBound Q adversary n
     (hdecBound n) (hQ n)]
 
-/-- **Equivalence of single-challenge 1CCA and batch-challenge multi-challenge CCA security**
-(batch-challenge specialization of [BonehShoup2023], Theorem 12.1 together with Definition 12.2,
-printed p. 468) under any polynomial-time challenge-pair admissibility predicate `valid`. -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 with Definition 12.2 (printed
+p. 468), not the cited result: single-challenge 1CCA security and batch-challenge multi-challenge
+CCA security are equivalent under any polynomial-time challenge-pair admissibility predicate
+`valid`. Batch challenges restrict the adaptively interleaved queries of Attack Game 12.1
+(p. 467); the equivalence for that game is `indcca2InterleavedOn_iff_indcca2On`. -/
 theorem indcca2MultiOn_iff_indcca2On {Msg Out : Type} [Inhabited Msg]
     {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encMsg : Msg ↪ List Bool} {encOut : Out ↪ List Bool}
@@ -2724,9 +2739,9 @@ theorem indcca2MultiOn_iff_indcca2On {Msg Out : Type} [Inhabited Msg]
   ⟨INDCCA2MultiOn.indcca2On,
     INDCCA2On.indcca2MultiOn hvalid hkeyGen hencrypt hdecrypt⟩
 
-/-- **Unrestricted single-challenge 1CCA security implies unrestricted batch-challenge
-multi-challenge CCA security** (batch-challenge specialization of [BonehShoup2023],
-Theorem 12.1). -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1, not the cited result:
+unrestricted single-challenge 1CCA security implies unrestricted batch-challenge multi-challenge
+CCA security. Theorem 12.1 for interleaved queries is `INDCCA2Of.indcca2InterleavedOf`. -/
 theorem INDCCA2Of.indcca2MultiOf {Msg Out : Type} [Inhabited Msg]
     {encMsg : Msg ↪ List Bool} {encOut : Out ↪ List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -2743,9 +2758,9 @@ theorem INDCCA2Of.indcca2MultiOf {Msg Out : Type} [Inhabited Msg]
   INDCCA2On.indcca2MultiOn (ComputableInPolyTime.const true)
     hkeyGen hencrypt hdecrypt h
 
-/-- **Equivalence of unrestricted 1CCA and batch-challenge multi-challenge CCA security**
-(batch-challenge specialization of [BonehShoup2023], Theorem 12.1 together with
-Definition 12.2). -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 with Definition 12.2, not the
+cited result: unrestricted 1CCA and batch-challenge multi-challenge CCA security are
+equivalent. -/
 theorem indcca2MultiOf_iff_indcca2Of {Msg Out : Type} [Inhabited Msg]
     {encMsg : Msg ↪ List Bool} {encOut : Out ↪ List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -2762,8 +2777,9 @@ theorem indcca2MultiOf_iff_indcca2Of {Msg Out : Type} [Inhabited Msg]
   indcca2MultiOn_iff_indcca2On (ComputableInPolyTime.const true)
     hkeyGen hencrypt hdecrypt
 
-/-- **Bit single-challenge 1CCA security implies bit batch-challenge multi-challenge CCA security**
-(batch-challenge specialization of [BonehShoup2023], Theorem 12.1). -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1, not the cited result: bit
+single-challenge 1CCA security implies bit batch-challenge multi-challenge CCA security. Theorem
+12.1 for interleaved queries is `INDCCA2.indcca2Interleaved`. -/
 theorem INDCCA2.indcca2Multi
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)}
@@ -2778,9 +2794,8 @@ theorem INDCCA2.indcca2Multi
     INDCCA2Multi keyGen encrypt decrypt :=
   INDCCA2Of.indcca2MultiOf hkeyGen hencrypt hdecrypt h
 
-/-- **Equivalence of bit 1CCA and bit batch-challenge multi-challenge CCA security**
-(batch-challenge specialization of [BonehShoup2023], Theorem 12.1 together with
-Definition 12.2). -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 with Definition 12.2, not the
+cited result: bit 1CCA and bit batch-challenge multi-challenge CCA security are equivalent. -/
 theorem indcca2Multi_iff_indcca2
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)}
@@ -2794,8 +2809,9 @@ theorem indcca2Multi_iff_indcca2
     INDCCA2Multi keyGen encrypt decrypt ↔ INDCCA2 keyGen encrypt decrypt :=
   indcca2MultiOf_iff_indcca2Of hkeyGen hencrypt hdecrypt
 
-/-- **Word single-challenge 1CCA security implies word batch-challenge multi-challenge CCA
-security** (batch-challenge specialization of [BonehShoup2023], Theorem 12.1). -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1, not the cited result: word
+single-challenge 1CCA security implies word batch-challenge multi-challenge CCA security. Theorem
+12.1 for interleaved queries is `WordINDCCA2.wordINDCCA2Interleaved`. -/
 theorem WordINDCCA2.wordINDCCA2Multi
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)}
@@ -2811,9 +2827,8 @@ theorem WordINDCCA2.wordINDCCA2Multi
   INDCCA2On.indcca2MultiOn computableInPolyTime_wordValid
     hkeyGen hencrypt hdecrypt h
 
-/-- **Equivalence of word 1CCA and word batch-challenge multi-challenge CCA security**
-(batch-challenge specialization of [BonehShoup2023], Theorem 12.1 together with
-Definition 12.2). -/
+/-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 with Definition 12.2, not the
+cited result: word 1CCA and word batch-challenge multi-challenge CCA security are equivalent. -/
 theorem wordINDCCA2Multi_iff_wordINDCCA2
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)}

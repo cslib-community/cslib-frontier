@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.WordConstant
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Computability.Circuit.Simulation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Threshold and majority circuits in `NC¹`
@@ -123,19 +124,7 @@ theorem size_thresholdDeMorganCircuit_le (k j : ℕ) :
 /-- `thresholdDeMorganCircuit k j` has depth at most `2 + 23 ⌈log₂ (k + 1)⌉`. -/
 theorem depth_thresholdDeMorganCircuit_le (k j : ℕ) :
     (thresholdDeMorganCircuit k j).depth ≤ 2 + 23 * Nat.clog 2 (k + 1) := by
-  dsimp [thresholdDeMorganCircuit]
-  split_ifs with h
-  · refine (Circuit.depth_comp_le _ _).trans ?_
-    have hle := depth_leCircuit_le (Nat.clog 2 (k + 1))
-    have happ := (Circuit.depth_append_le
-        (wordConstCircuit k ((BitString.equivFin (Nat.clog 2 (k + 1))).symm
-          ⟨j, (Nat.lt_succ_of_le h).trans_le (Nat.le_pow_clog one_lt_two (k + 1))⟩))
-        (weightCircuit k)).trans
-      (max_le ((depth_wordConstCircuit_le _ _).trans (Nat.le_add_right 1 _))
-        (depth_weightCircuit_le k))
-    omega
-  · rw [Circuit.depth_oneGate]
-    omega
+  circuit_bound [thresholdDeMorganCircuit]
 
 /-- **Logarithmic-depth majority circuit**: computes `majority k` over the De Morgan basis of
 fan-in two in size `O(k log k)` and depth `O(log k)`. -/

@@ -107,7 +107,8 @@ open scoped NNReal ENNReal
 /-- **MAC-then-Encrypt symmetric cipher**: signs `n`-bit messages under `km ← M.keyGen n` and
 encrypts the framed pair `encPair encBits encBits (msg, tag)` under `ke ← E.keyGen (ptLen n)` at
 security parameter `ptLen n`. Because `hpairLen` guarantees the framed `(msg, tag)` pair has length
-`ptLen n`, decryption completeness follows directly from `E.decrypt_encrypt (ptLen n)`. -/
+`ptLen n`, decryption completeness follows directly from `E.decrypt_encrypt (ptLen n)`. Its
+ciphertext space is `E`'s at parameter `ptLen n`. -/
 @[expose]
 noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
     (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
@@ -132,6 +133,10 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
         some msg
       else
         none
+  ctSpace n := E.ctSpace (ptLen n)
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    rw [E.decrypt_eq_none_of_ctSpace_eq_false _ _ _ h]
+    rfl
   keyGen_ppt := by
     have hpt := hptLenPoly.tidy
     ppt
@@ -370,9 +375,9 @@ theorem eval_cpaGame_mteToCPAAdversary (E : SymmetricCipher) (M : MACScheme)
     ProbComp.eval (E.cpaGame (mteToCPAAdversary M ptLen ctBound adversary) bit (ptLen n)) =
       ProbComp.eval
         ((macThenEncrypt E M ptLen hptLenPoly hmsgLen hpairLen).cpaGame adversary bit n) := by
-  simp only [SymmetricCipher.cpaGame, mteToCPAAdversary,
+  simp only [SymmetricCipher.cpaGame, symmetricCPAGameOn, mteToCPAAdversary,
     GeneratorReindex.parameter_apply_of_strictMono hmono n, beq_self_eq_true, ↓reduceIte,
-    ProbComp.eval_bind, ProbComp.eval_pure]
+    ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind]
   have hkeyGen : ProbComp.eval
       ((macThenEncrypt E M ptLen hptLenPoly hmsgLen hpairLen).keyGen n) =
       (ProbComp.eval (E.keyGen (ptLen n))).bind (fun ke =>
@@ -382,80 +387,68 @@ theorem eval_cpaGame_mteToCPAAdversary (E : SymmetricCipher) (M : MACScheme)
   rw [hkeyGen]
   simp only [PMF.bind_bind, PMF.pure_bind]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
-  simp only [ProbOracleComp.eval_run_interpret_eq_runWith]
-  rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample]
-  simp only [PMF.bind_map, Function.comp_def, PMF.bind_bind]
   refine PMF.bind_congr_on_support _ _ _ fun km hkm => ?_
-  simp only [ProbOracleComp.runWith_interpret_sumHandler]
-  have horacle :
-      (fun q => ProbOracleComp.runWith
-          (fun q' s' => ProbComp.eval (E.cpaEncryptionOracle (ptLen n) ke bit q' s'))
-          (mteToCPAHandler M n (ctBound (ptLen n)) km q)) =
-        (fun q s =>
-          ProbComp.eval ((macThenEncrypt E M ptLen hptLenPoly hmsgLen hpairLen).cpaEncryptionOracle
-            n (encPair encBits encBits (ke, km)) bit q s)) := by
-    funext ⟨⟨⟩, req⟩ ⟨⟩
-    simp only [mteToCPAHandler, SymmetricCipher.cpaEncryptionOracle]
-    by_cases hcond : ((unframe req).length == n && (dropFrame req).length == n) = true
-    · simp only [hcond, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-        ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-        PMF.bind_map, Function.comp_def]
-      simp only [Bool.and_eq_true, beq_iff_eq] at hcond
-      rcases hcond with ⟨hm0, hm1⟩
-      dsimp only [macThenEncrypt]
-      rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind]
-      have htagstep (tag0 : List Bool)
-          (htag0 : tag0 ∈ (ProbComp.eval (M.sign km (unframe req))).support)
-          (tag1 : List Bool)
-          (htag1 : tag1 ∈ (ProbComp.eval (M.sign km (dropFrame req))).support) :
-          ((unframe (encPair encBits encBits
-              (encPair encBits encBits (unframe req, tag0),
-               encPair encBits encBits (dropFrame req, tag1)))).length == ptLen n &&
-            (dropFrame (encPair encBits encBits
-              (encPair encBits encBits (unframe req, tag0),
-               encPair encBits encBits (dropFrame req, tag1)))).length == ptLen n) = true := by
-        rw [unframe_encPair_encBits, dropFrame_encPair_encBits,
-          hpairLen n km hkm (unframe req) hm0 tag0 htag0,
-          hpairLen n km hkm (dropFrame req) hm1 tag1 htag1]
-        simp
-      cases bit with
-      | false =>
-        simp only [Bool.false_eq_true, ↓reduceIte]
-        refine PMF.bind_congr_on_support _ _ _ fun tag0 htag0 => ?_
-        trans (ProbComp.eval (M.sign km (dropFrame req))).bind fun _ =>
-          (ProbComp.eval (E.encrypt (ptLen n) ke
-            (encPair encBits encBits (unframe req, tag0)))).bind
-            fun ct => PMF.pure (ct, ())
-        · refine PMF.bind_congr_on_support _ _ _ fun tag1 htag1 => ?_
-          rw [htagstep tag0 htag0 tag1 htag1]
-          simp only [↓reduceIte, unframe_encPair_encBits, ProbComp.eval_bind, ProbComp.eval_pure,
-            PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq]
-          refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
-          have htake := hctBound ke hke _ (hpairLen n km hkm _ hm0 tag0 htag0) ct hct
-          rw [List.take_of_length_le htake]
-        · exact PMF.bind_const _ _
-      | true =>
-        simp only [↓reduceIte]
-        trans (ProbComp.eval (M.sign km (unframe req))).bind fun _ =>
-          (ProbComp.eval (M.sign km (dropFrame req))).bind fun tag1 =>
-            (ProbComp.eval (E.encrypt (ptLen n) ke
-              (encPair encBits encBits (dropFrame req, tag1)))).bind fun ct =>
-              PMF.pure (ct, ())
-        · refine PMF.bind_congr_on_support _ _ _ fun tag0 htag0 => ?_
-          refine PMF.bind_congr_on_support _ _ _ fun tag1 htag1 => ?_
-          rw [htagstep tag0 htag0 tag1 htag1]
-          simp only [↓reduceIte, dropFrame_encPair_encBits, ProbComp.eval_bind, ProbComp.eval_pure,
-            PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq]
-          refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
-          have htake := hctBound ke hke _ (hpairLen n km hkm _ hm1 tag1 htag1) ct hct
-          rw [List.take_of_length_le htake]
-        · exact PMF.bind_const _ _
-    · have hcondF : ((unframe req).length == n && (dropFrame req).length == n) = false :=
-        Bool.eq_false_iff.mpr hcond
-      simp only [hcondF, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
-        ProbComp.eval_pure]
-  rw [horacle]
+  have hsim := ProbOracleComp.run_simulate (mteToCPAHandler M n (ctBound (ptLen n)) km)
+    (adversary n []) (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+      E.encrypt (ptLen n) ke bit)
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret] at hsim
+  rw [hsim, ProbOracleComp.eval_run, ProbOracleComp.eval_run]
+  congr 2
+  funext ⟨⟨⟩, req⟩
+  simp only [mteToCPAHandler, symmetricCPAReplyOn]
+  by_cases hcond : ((unframe req).length == n && (dropFrame req).length == n) = true
+  · simp only [hcond, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+      ProbOracleComp.run_map, ProbOracleComp.run_query, ProbComp.eval_bind, ProbComp.eval_map]
+    simp only [Bool.and_eq_true, beq_iff_eq] at hcond
+    rcases hcond with ⟨hm0, hm1⟩
+    dsimp only [macThenEncrypt]
+    rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
+    simp only [ProbComp.eval_bind]
+    have htagstep (tag0 : List Bool)
+        (htag0 : tag0 ∈ (ProbComp.eval (M.sign km (unframe req))).support)
+        (tag1 : List Bool)
+        (htag1 : tag1 ∈ (ProbComp.eval (M.sign km (dropFrame req))).support) :
+        ((unframe (encPair encBits encBits
+            (encPair encBits encBits (unframe req, tag0),
+             encPair encBits encBits (dropFrame req, tag1)))).length == ptLen n &&
+          (dropFrame (encPair encBits encBits
+            (encPair encBits encBits (unframe req, tag0),
+             encPair encBits encBits (dropFrame req, tag1)))).length == ptLen n) = true := by
+      rw [unframe_encPair_encBits, dropFrame_encPair_encBits,
+        hpairLen n km hkm (unframe req) hm0 tag0 htag0,
+        hpairLen n km hkm (dropFrame req) hm1 tag1 htag1]
+      simp
+    cases bit with
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      refine PMF.bind_congr_on_support _ _ _ fun tag0 htag0 => ?_
+      trans (ProbComp.eval (M.sign km (dropFrame req))).bind fun _ =>
+        ProbComp.eval (E.encrypt (ptLen n) ke (encPair encBits encBits (unframe req, tag0)))
+      · refine PMF.bind_congr_on_support _ _ _ fun tag1 htag1 => ?_
+        simp only [symmetricCPAReplyOn]
+        rw [htagstep tag0 htag0 tag1 htag1]
+        simp only [↓reduceIte, Bool.false_eq_true, unframe_encPair_encBits]
+        refine (PMF.map_congr_on_support _ _ id fun ct hct => ?_).trans (PMF.map_id _)
+        exact List.take_of_length_le
+          (hctBound ke hke _ (hpairLen n km hkm _ hm0 tag0 htag0) ct hct)
+      · exact PMF.bind_const _ _
+    | true =>
+      simp only [↓reduceIte]
+      trans (ProbComp.eval (M.sign km (unframe req))).bind fun _ =>
+        (ProbComp.eval (M.sign km (dropFrame req))).bind fun tag1 =>
+          ProbComp.eval (E.encrypt (ptLen n) ke (encPair encBits encBits (dropFrame req, tag1)))
+      · refine PMF.bind_congr_on_support _ _ _ fun tag0 htag0 => ?_
+        refine PMF.bind_congr_on_support _ _ _ fun tag1 htag1 => ?_
+        simp only [symmetricCPAReplyOn]
+        rw [htagstep tag0 htag0 tag1 htag1]
+        simp only [↓reduceIte, dropFrame_encPair_encBits]
+        refine (PMF.map_congr_on_support _ _ id fun ct hct => ?_).trans (PMF.map_id _)
+        exact List.take_of_length_le
+          (hctBound ke hke _ (hpairLen n km hkm _ hm1 tag1 htag1) ct hct)
+      · exact PMF.bind_const _ _
+  · have hcondF : ((unframe req).length == n && (dropFrame req).length == n) = false :=
+      Bool.eq_false_iff.mpr hcond
+    simp only [hcondF, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_pure]
 
 /-- **IND-CPA security preserves under MAC-then-Encrypt**: when `ptLen` is strictly monotone and
 computable in polynomial time, every encoded `(msg, tag)` pair on an `n`-bit message has length
@@ -488,7 +481,8 @@ theorem indcpa_macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
 namespace SymmetricCipher
 
 /-- Trailing-bit malleable extension of `E`: appends `false` to every ciphertext on encryption and
-ignores the final bit (`ct.take (ct.length - 1)`) during decryption. -/
+ignores the final bit (`ct.take (ct.length - 1)`) during decryption. Its ciphertext space is the
+nonempty words whose prefix without the final bit lies in `E.ctSpace`. -/
 @[expose]
 noncomputable def extendCipher (E : SymmetricCipher) : SymmetricCipher where
   keyGen := E.keyGen
@@ -497,6 +491,11 @@ noncomputable def extendCipher (E : SymmetricCipher) : SymmetricCipher where
     return c ++ [false]
   decrypt n k ct :=
     if ct.length == 0 then none else E.decrypt n k (ct.take (ct.length - 1))
+  ctSpace n ct := !(ct.length == 0) && E.ctSpace n (ct.take (ct.length - 1))
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    split_ifs with hlen
+    · rfl
+    · exact E.decrypt_eq_none_of_ctSpace_eq_false n k _ (by simpa [hlen] using h)
   keyGen_ppt := E.keyGen_ppt
   encrypt_ppt := by ppt
   decrypt_polyTime := by polytime
@@ -587,33 +586,27 @@ theorem eval_cpaGame_extendCPAAdversary (E : SymmetricCipher) (ctBound : ℕ →
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (extendCPAAdversary ctBound adversary) bit n) =
       ProbComp.eval (E.extendCipher.cpaGame adversary bit n) := by
-  simp only [cpaGame, extendCPAAdversary, ProbComp.eval_bind, ProbComp.eval_pure]
+  simp only [cpaGame, symmetricCPAGameOn, extendCPAAdversary, ProbComp.eval_bind]
   apply PMF.bind_congr_on_support
   intro k hk
-  simp only [ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_interpret_sumHandler]
-  have horacle :
-      (fun q s => ProbOracleComp.runWith
-          (fun q' s' => ProbComp.eval (E.cpaEncryptionOracle n k bit q' s'))
-          (extendCPAHandler n (ctBound n) q) s) =
-        (fun q s =>
-          ProbComp.eval ((SymmetricCipher.extendCipher E).cpaEncryptionOracle n k bit q s)) := by
-    funext ⟨⟨⟩, req⟩ s
-    simp only [extendCPAHandler, cpaEncryptionOracle]
-    by_cases hcond : ((unframe req).length == n && (dropFrame req).length == n) = true
-    · simp only [hcond, ↓reduceIte, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-        extendCipher, ProbComp.eval_bind, ProbComp.eval_pure,
-        Functor.map_map, PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq,
-        PMF.bind_bind, PMF.pure_bind]
-      apply PMF.bind_congr_on_support
-      intro c hc
-      simp only [Bool.and_eq_true, beq_iff_eq] at hcond
-      have hmbLen : (if bit then dropFrame req else unframe req).length = n := by
-        cases bit <;> simp [hcond]
-      rw [List.take_of_length_le (hctBound k hk _ hmbLen c hc)]
-    · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
-        ProbComp.eval_pure]
-  rw [horacle]
+  have hsim := ProbOracleComp.run_simulate (extendCPAHandler n (ctBound n)) (adversary n [])
+    (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n)) E.encrypt n k bit)
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret] at hsim
+  rw [hsim, ProbOracleComp.eval_run, ProbOracleComp.eval_run]
+  congr 2
+  funext ⟨⟨⟩, req⟩
+  simp only [extendCPAHandler, symmetricCPAReplyOn]
+  by_cases hcond : ((unframe req).length == n && (dropFrame req).length == n) = true
+  · simp only [hcond, ↓reduceIte, ProbOracleComp.run_map, ProbOracleComp.run_query, extendCipher,
+      symmetricCPAReplyOn, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_comp]
+    rw [← PMF.bind_pure_comp]
+    apply PMF.bind_congr_on_support
+    intro c hc
+    simp only [Bool.and_eq_true, beq_iff_eq] at hcond
+    have hmbLen : (if bit then dropFrame req else unframe req).length = n := by
+      cases bit <;> simp [hcond]
+    simp only [Function.comp_apply, List.take_of_length_le (hctBound k hk _ hmbLen c hc)]
+  · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_pure]
 
 /-- Appending and ignoring a constant trailing bit preserves `INDCPA`. -/
 theorem INDCPA.extendCipher {E : SymmetricCipher} (h : E.INDCPA) :

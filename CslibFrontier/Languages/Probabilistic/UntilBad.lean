@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import Mathlib.Probability.ProbabilityMassFunction.Monad
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
@@ -88,8 +89,8 @@ theorem bad_of_mem_support_run {handler : (q : ι) → StateT σ PMF (spec q)} {
     exact hx ▸ hs
   | query_bind q cont ih =>
     intro x hx
-    simp only [PFunctor.FreeM.bind_eq_bind, run_interpret_bind, run_interpret_query,
-      Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hx
+    simp only [PFunctor.FreeM.bind_eq_bind, interp_norm, Probability.PMF.monad_bind_eq_bind,
+      PMF.mem_support_bind_iff] at hx
     obtain ⟨y, hy, hxy⟩ := hx
     exact ih y.1 (habsorb q s hs y hy) x hxy
 
@@ -216,7 +217,7 @@ theorem toOuterMeasure_bad_le {handler : (q : ι) → StateT σ PMF (spec q)} {b
     exact zero_le
   | liftBind q cont n _ ih =>
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hk
-    simp only [run_interpret_bind, run_interpret_query, Probability.PMF.monad_bind_eq_bind]
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind]
     set K : ℝ≥0∞ := (k - cost q : ℕ) * (budget s + δ + n * δ)
     calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K := by
           refine Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ K fun y hmem hy => ?_

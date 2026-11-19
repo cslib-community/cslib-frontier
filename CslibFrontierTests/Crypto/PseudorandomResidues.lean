@@ -18,9 +18,9 @@ import CslibFrontier.Tactic.PPT
 
 Exercises `modWord`, `modDistinguisher`, `ComputationallyIndistinguishable.map_modWord`,
 `PseudorandomGenerator.indistinguishable_map_modWord`,
-`advantage_generatorEnsemble_map_modWord_le`, `PRG.Generator.modNat`,
-`PRG.Generator.advantage_modNat_le`, and `PRG.Generator.Secure.modNat`, including hypothesis
-necessity probes and constant-modulus instances (`m = 3` and general constant `c ≠ 0`).
+`advantage_generatorEnsemble_map_modWord_le`, `PRG.Generator.modNat` and
+`PRG.Generator.advantage_modNat_le`, including hypothesis necessity probes and constant-modulus
+instances (`m = 3` and general constant `c ≠ 0`).
 -/
 
 set_option linter.privateModule false
@@ -223,22 +223,5 @@ theorem advantage_modNat_const_zero :
   rw [hreal, hideal]
   simp
   norm_num
-
-/-- Probe for `hred` in `Secure.modNat`. The constant generator is secure with error `0` against
-the empty class of adversaries. Without `hred` the conclusion would bound every test of its
-residues modulo `3` by `3 / 256`, and the test above has advantage `2 / 3`. -/
-example : (PRG.Generator.mk fun _ : Unit => (0 : Fin 256)).Secure (fun _ => False) 0 ∧
-    ¬ ((PRG.Generator.mk fun _ : Unit => (0 : Fin 256)).modNat 3).Secure (fun _ => True)
-      (0 + 3 / 256) := by
-  refine ⟨fun _ h => h.elim, fun h => ?_⟩
-  have hA := h (fun y => PMF.pure (decide (y = 0))) trivial
-  rw [advantage_modNat_const_zero] at hA
-  norm_num at hA
-
-/-- `Secure.modNat` against all adversaries: the closure hypothesis is trivial. -/
-example {Seed : Type} [Fintype Seed] [Nonempty Seed] (G : PRG.Generator Seed (Fin 256))
-    {ε : ℝ≥0} (hG : G.Secure (fun _ => True) ε) :
-    (G.modNat 3).Secure (fun _ => True) (ε + 3 / 256) := by
-  simpa using hG.modNat (m := 3) (Admissible' := fun _ => True) fun _ _ => trivial
 
 end CslibFrontierTests.Crypto.PseudorandomResidues

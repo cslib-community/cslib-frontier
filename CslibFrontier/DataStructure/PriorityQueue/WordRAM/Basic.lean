@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.PriorityQueue.Spec
 import CslibFrontier.Computability.WordRAM.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Tactic.Fits
 public import CslibFrontier.Computability.WordRAM.ExactNotation
 public import CslibFrontier.Computability.WordRAM.Subroutine
 public import CslibFrontier.DataStructure.WordRAM.StateTransition
@@ -172,15 +173,16 @@ private theorem nodup_dests (P : PQCode B r_pq) :
     P.tag2 ≠ P.tag1 ∧ P.tag2 ≠ P.tag0 ∧ P.tag2 ≠ P.argV ∧ P.tag2 ≠ P.argK ∧
     P.tag1 ≠ P.tag0 ∧ P.tag1 ≠ P.argV ∧ P.tag1 ≠ P.argK ∧
     P.tag0 ≠ P.argV ∧ P.tag0 ≠ P.argK ∧ P.argV ≠ P.argK := by
-  obtain ⟨h2, h1, h0, hv, _⟩ :=
-    (List.nodup_cons.mp P.args_nodup).imp_right fun h =>
-      (List.nodup_cons.mp h).imp_right fun h =>
-        (List.nodup_cons.mp h).imp_right List.nodup_cons.mp
-  exact ⟨fun e => h2 (by simp [e]), fun e => h2 (by simp [e]),
-    fun e => h2 (by simp [e]), fun e => h2 (by simp [e]),
-    fun e => h1 (by simp [e]), fun e => h1 (by simp [e]), fun e => h1 (by simp [e]),
-    fun e => h0 (by simp [e]), fun e => h0 (by simp [e]),
-    fun e => hv (by simp [e])⟩
+  have h := P.args_nodup
+  simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, not_or,
+    List.nodup_nil, and_true] at h
+  tauto
+
+private theorem not_input_ne {P : PQCode B r_pq} {i : Fin r_pq} (hi : P.input i = false) :
+    i ≠ P.tag2 ∧ i ≠ P.tag1 ∧ i ≠ P.tag0 ∧ i ≠ P.argV ∧ i ≠ P.argK :=
+  have ne {j} (hj : P.input j = true) : i ≠ j :=
+    fun h => Bool.false_ne_true (hi.symm.trans (h ▸ hj))
+  ⟨ne P.tag2_input, ne P.tag1_input, ne P.tag0_input, ne P.argV_input, ne P.argK_input⟩
 
 /-- Standard encoded arguments fit in `w`-bit words whenever `n + 1 ≤ space`,
 `Fits w (base + space)`, and `Fits w K_max`. -/
@@ -189,38 +191,11 @@ theorem arguments_fit (P : PQCode B r_pq) {n K_max w base space : ℕ}
     {s : IndexedMinPQ.State n} (o : IndexedMinPQ.Op n)
     (hv : (indexedMinPQSpec n K_max).valid s o) (i : Fin r_pq) :
     Fits w (P.encode o i) := by
-  have h0 : Fits w 0 := hS.of_le (Nat.zero_le _)
-  have h1 : Fits w 1 := hS.of_le (by omega)
   cases o with
-  | isEmpty => exact h0
-  | getKey v =>
-    simp only [encode]
-    split_ifs
-    · exact h1
-    · exact hS.of_le (by have := v.isLt; omega)
-    · exact h0
-  | insert v k =>
-    have hk : k ≤ K_max := hv.2
-    simp only [encode]
-    split_ifs
-    · exact h1
-    · exact hS.of_le (by have := v.isLt; omega)
-    · exact hK.of_le hk
-    · exact h0
-  | decreaseKey v k =>
-    have hk : k ≤ K_max := hv.2
-    simp only [encode]
-    split_ifs
-    · exact h1
-    · exact h1
-    · exact hS.of_le (by have := v.isLt; omega)
-    · exact hK.of_le hk
-    · exact h0
-  | extractMin =>
-    simp only [encode]
-    split_ifs
-    · exact h1
-    · exact h0
+  | isEmpty => simp only [encode]; fits
+  | getKey v => simp only [encode]; split_ifs <;> fits [v.isLt]
+  | insert v k | decreaseKey v k => simp only [encode]; split_ifs <;> fits [v.isLt, hv.2]
+  | extractMin => simp only [encode]; split_ifs <;> fits
 
 /-- Full standalone `prepare` register delivery satisfies `P.argMatch`. -/
 theorem encode_matches (P : PQCode B r_pq) {n : ℕ} (o : IndexedMinPQ.Op n)
@@ -285,6 +260,40 @@ def callDecreaseKey (P : PQCode B r_pq) (f : Fin r_pq → Fin r_caller)
              (.op (.copy (f P.argK) kReg_c)))
        (P.code.rename f)
 
+private theorem callStaged_exec {P : PQCode B r_pq} {n K_max w base : ℕ} (t_prep : ℕ)
+    (C : WordRAM.StateTransitionImpl P.toSubroutineCode (indexedMinPQSpec n K_max) w base ![n]
+      (IndexedMinPQ.empty n))
+    (harg_eq : C.argMatch = P.argMatch)
+    {f : Fin r_pq → Fin r_caller} (hf : f.Injective)
+    {s : IndexedMinPQ.State n} {x x' : Data r_caller} {x_pq : Data r_pq}
+    {prep : Code B r_caller} {Q : Data r_caller → ℕ → Prop} (o : IndexedMinPQ.Op n)
+    (hr : C.rep s (x.comap f)) (hval : (indexedMinPQSpec n K_max).valid s o)
+    (hprep : ExecWithin w prep x x' t_prep) (hmem : x'.mem = x.mem)
+    (hcomap : x'.comap f = x_pq) (hb : x_pq.Bounded w)
+    (hnot_in : ∀ i, i ≠ P.tag2 → i ≠ P.tag1 → i ≠ P.tag0 → i ≠ P.argV → i ≠ P.argK →
+      x_pq.regs i = (x.comap f).regs i)
+    (hout : ∀ j ∉ Set.range f, x'.regs j = x.regs j)
+    (hmatch : P.argMatch o x_pq.regs)
+    (hQ : ∀ {z t},
+      C.decode o (z.comap f).regs = some ((indexedMinPQSpec n K_max).stepFn s o).2 →
+      C.rep ((indexedMinPQSpec n K_max).stepFn s o).1 (z.comap f) →
+      Modifies (Block.mk base C.space).footprint x.mem z.mem →
+      (∀ j ∉ Set.range f, z.regs j = x.regs j) →
+      t + C.potential (z.comap f) ≤ t_prep + C.charge s o + C.potential (x.comap f) →
+      Q z t) :
+    ∃ z t, ExecWithin w (.seq prep (P.code.rename f)) x z t ∧ Q z t := by
+  have hreg : ∀ i, P.input i = false → x'.regs (f i) = x.regs (f i) := by
+    intro i hi
+    obtain ⟨h2, h1, h0, hv, hk⟩ := not_input_ne hi
+    change (x'.comap f).regs i = (x.comap f).regs i
+    rw [hcomap]
+    exact hnot_in i h2 h1 h0 hv hk
+  obtain ⟨z, t, he, hdec, hrep_z, hmod, hregs_z, hpot⟩ :=
+    C.call_rename_ofFn hf o hr hval hprep (hcomap ▸ hb) hreg (fun a _ => congrFun hmem a)
+      (harg_eq ▸ hcomap ▸ hmatch)
+  exact ⟨z, t, he, hQ hdec hrep_z (hmem ▸ hmod)
+    (fun j hj => (hregs_z j hj).trans (hout j hj)) hpot⟩
+
 /-- Inline execution of `P.callIsEmpty`: preserves abstract state `s`, sets `z.regs (f P.outFlag)`
 so `z.regs (f P.outFlag) = 0 ↔ IndexedMinPQ.dom s ≠ ∅`, and charges `3 + C.charge s .isEmpty`. -/
 theorem callIsEmpty_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
@@ -302,40 +311,21 @@ theorem callIsEmpty_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
       (∀ j ∉ Set.range f, z.regs j = x.regs j) ∧
       t + C.potential (z.comap f) ≤ 3 + C.charge s .isEmpty + C.potential (x.comap f) := by
   obtain ⟨h21, h20, _, _, h10, _, _, _, _, _⟩ := P.nodup_dests
-  let x₃ := ((x.set (f P.tag2) 0).set (f P.tag1) 0).set (f P.tag0) 0
-  have hprep : ExecWithin (B := B) w
-      (.seq (.op (.copy (f P.tag2) zeroReg_c))
-        (.seq (.op (.copy (f P.tag1) zeroReg_c)) (.op (.copy (f P.tag0) zeroReg_c)))) x x₃ 3 := by
-    wram_exec [hz0]
   have hx_bnd := C.bounded hr
-  have hfit0 : Fits w 0 := (hx_bnd.1 P.baseReg).of_le (Nat.zero_le _)
-  have hcomap : x₃.comap f = (((x.comap f).set P.tag2 0).set P.tag1 0).set P.tag0 0 := by
-    simp only [x₃, Data.comap_set hf]
-  have hb3 : (x₃.comap f).Bounded w := by
-    rw [hcomap]
-    exact Data.Bounded.set (Data.Bounded.set (Data.Bounded.set hx_bnd hfit0) hfit0) hfit0
-  have hreg : ∀ i, P.input i = false → x₃.regs (f i) = x.regs (f i) := by
-    intro i hi
-    change (x₃.comap f).regs i = (x.comap f).regs i
-    rw [hcomap]
-    have ni0 : i ≠ P.tag0 := fun h => by rw [h, P.tag0_input] at hi; cases hi
-    have ni1 : i ≠ P.tag1 := fun h => by rw [h, P.tag1_input] at hi; cases hi
-    have ni2 : i ≠ P.tag2 := fun h => by rw [h, P.tag2_input] at hi; cases hi
-    wram_simp
-  have harg : C.argMatch .isEmpty (x₃.comap f).regs := by
-    rw [harg_eq, hcomap]
-    wram_simp [argMatch]
-  obtain ⟨z, t, he, hdec, hrep_z, hmod, hregs_z, hpot⟩ :=
-    C.call_rename_ofFn hf .isEmpty hr trivial hprep hb3 hreg (fun _ _ => rfl) harg
-  have hx3_out : ∀ j ∉ Set.range f, x₃.regs j = x.regs j := fun j hj => by wram_simp [x₃]
+  have hfit_base := hx_bnd.1 P.baseReg
+  let x₃ := ((x.set (f P.tag2) 0).set (f P.tag1) 0).set (f P.tag0) 0
+  refine callStaged_exec 3 C harg_eq hf .isEmpty hr trivial
+    (x' := x₃) (by wram_exec [hz0]) rfl
+    (by simp only [x₃, Data.comap_set hf]; rfl) (by wram_bounded <;> fits)
+    (fun _ _ _ _ _ _ => by wram_simp) (fun _ _ => by wram_simp [x₃])
+    (by wram_simp [argMatch]) fun {z _} hdec hrep_z hmod hregs_z hpot => ?_
   rw [hdec_eq] at hdec
   simp only [decode, indexedMinPQSpec, IndexedMinPQ.step, StateTransitionSpec.stepFn,
     Option.some.injEq, decide_eq_decide] at hdec
-  have hflag : z.regs (f P.outFlag) = 0 ↔ IndexedMinPQ.dom s ≠ ∅ := by
-    change (z.comap f).regs P.outFlag = 0 ↔ IndexedMinPQ.dom s ≠ ∅
-    exact ⟨fun h0 hd => absurd h0 (hdec.mpr hd),
-      fun hd => Decidable.byContradiction fun hne => hd (hdec.mp hne)⟩
-  exact ⟨z, t, he, hflag, hrep_z, hmod, fun j hj => (hregs_z j hj).trans (hx3_out j hj), hpot⟩
+  refine ⟨?_, hrep_z, hmod, hregs_z, hpot⟩
+  change (z.comap f).regs P.outFlag = 0 ↔ IndexedMinPQ.dom s ≠ ∅
+  exact ⟨fun h0 hd => absurd h0 (hdec.mpr hd),
+    fun hd => Decidable.byContradiction fun hne => hd (hdec.mp hne)⟩
 
 /-- Inline execution of `P.callExtractMin`: extracts `findMin s` and charges
 `1 + C.charge s .extractMin`. -/
@@ -355,29 +345,55 @@ theorem callExtractMin_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
       Modifies (Block.mk base C.space).footprint x.mem z.mem ∧
       (∀ j ∉ Set.range f, z.regs j = x.regs j) ∧
       t + C.potential (z.comap f) ≤ 1 + C.charge s .extractMin + C.potential (x.comap f) := by
-  let x₁ := x.set (f P.tag2) 1
-  have hprep : ExecWithin (B := B) w (.op (.copy (f P.tag2) oneReg_c)) x x₁ 1 := by
-    wram_exec [ho1]
   have hx_bnd := C.bounded hr
-  have hfit1 : Fits w 1 := hS.of_le (by omega)
-  have hcomap : x₁.comap f = (x.comap f).set P.tag2 1 := Data.comap_set hf x P.tag2 1
-  have hb1 : (x₁.comap f).Bounded w := by
-    rw [hcomap]
-    exact Data.Bounded.set hx_bnd hfit1
-  have hreg : ∀ i, P.input i = false → x₁.regs (f i) = x.regs (f i) := by
-    intro i hi
-    change (x₁.comap f).regs i = (x.comap f).regs i
-    rw [hcomap]
-    have ni2 : i ≠ P.tag2 := fun h => by rw [h, P.tag2_input] at hi; cases hi
-    wram_simp
-  have harg : C.argMatch .extractMin (x₁.comap f).regs := by
-    rw [harg_eq, hcomap]
-    wram_simp [argMatch, ne_eq]
-  obtain ⟨z, t, he, hdec, hrep_z, hmod, hregs_z, hpot⟩ :=
-    C.call_rename_ofFn hf .extractMin hr trivial hprep hb1 hreg (fun _ _ => rfl) harg
-  rw [hdec_eq] at hdec
-  have hx1_out : ∀ j ∉ Set.range f, x₁.regs j = x.regs j := fun j hj => by wram_simp [x₁]
-  exact ⟨z, t, he, hdec, hrep_z, hmod, fun j hj => (hregs_z j hj).trans (hx1_out j hj), hpot⟩
+  let x₁ := x.set (f P.tag2) 1
+  exact callStaged_exec 1 C harg_eq hf .extractMin hr trivial
+    (x' := x₁) (by wram_exec [ho1]) rfl
+    (Data.comap_set hf x P.tag2 1) (by wram_bounded; fits)
+    (fun _ _ _ _ _ _ => by wram_simp) (fun _ _ => by wram_simp [x₁])
+    (by wram_simp [argMatch, ne_eq])
+    fun hdec hrep_z hmod hregs_z hpot => ⟨hdec_eq ▸ hdec, hrep_z, hmod, hregs_z, hpot⟩
+
+private theorem callKeyed_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
+    (C : WordRAM.StateTransitionImpl P.toSubroutineCode (indexedMinPQSpec n K_max) w base ![n]
+      (IndexedMinPQ.empty n))
+    (hsp : n + 1 ≤ C.space) (hS : Fits w (base + C.space)) (hK : Fits w K_max)
+    (harg_eq : C.argMatch = P.argMatch)
+    {f : Fin r_pq → Fin r_caller} (hf : f.Injective)
+    {zeroReg_c oneReg_c tag0Src_c vReg_c kReg_c : Fin r_caller}
+    (ho_out : oneReg_c ∉ Set.range f) (ht0_out : tag0Src_c ∉ Set.range f)
+    (hv_out : vReg_c ∉ Set.range f) (hk_out : kReg_c ∉ Set.range f)
+    {s : IndexedMinPQ.State n} {x : Data r_caller} {v : Fin n} {k tag0Val : ℕ}
+    (o : IndexedMinPQ.Op n)
+    (hr : C.rep s (x.comap f))
+    (hval : (indexedMinPQSpec n K_max).valid s o) (hk : k ≤ K_max) (ht0_le : tag0Val ≤ 1)
+    (hstep : ((indexedMinPQSpec n K_max).stepFn s o).1 = Function.update s v (some k))
+    (hmatch : ∀ regs : Fin r_pq → ℕ,
+      regs P.tag2 = 0 → regs P.tag1 = 1 → regs P.tag0 = tag0Val →
+      regs P.argV = v.val → regs P.argK = k → P.argMatch o regs)
+    (hz0 : x.regs zeroReg_c = 0) (ho1 : x.regs oneReg_c = 1) (ht0 : x.regs tag0Src_c = tag0Val)
+    (hvv : x.regs vReg_c = v.val) (hvk : x.regs kReg_c = k) :
+    ∃ z t, ExecWithin w
+        (.seq (.seq (.op (.copy (f P.tag2) zeroReg_c)) <|
+               .seq (.op (.copy (f P.tag1) oneReg_c)) <|
+               .seq (.op (.copy (f P.tag0) tag0Src_c)) <|
+               .seq (.op (.copy (f P.argV) vReg_c)) <|
+                    (.op (.copy (f P.argK) kReg_c)))
+              (P.code.rename f)) x z t ∧
+      C.rep (Function.update s v (some k)) (z.comap f) ∧
+      Modifies (Block.mk base C.space).footprint x.mem z.mem ∧
+      (∀ j ∉ Set.range f, z.regs j = x.regs j) ∧
+      t + C.potential (z.comap f) ≤ 5 + C.charge s o + C.potential (x.comap f) := by
+  obtain ⟨h21, h20, h2v, h2k, h10, h1v, h1k, h0v, h0k, hvk_ne⟩ := P.nodup_dests
+  have hx_bnd := C.bounded hr
+  let x₅ := ((((x.set (f P.tag2) 0).set (f P.tag1) 1).set (f P.tag0) tag0Val).set
+    (f P.argV) v.val).set (f P.argK) k
+  exact callStaged_exec 5 C harg_eq hf o hr hval
+    (x' := x₅) (by wram_exec [hz0, ho1, ht0, hvv, hvk]) rfl
+    (by simp only [x₅, Data.comap_set hf]; rfl) (by wram_bounded <;> fits [v.isLt])
+    (fun _ _ _ _ _ _ => by wram_simp) (fun _ _ => by wram_simp [x₅])
+    (by apply hmatch <;> wram_simp)
+    fun _ hrep_z hmod hregs_z hpot => ⟨hstep ▸ hrep_z, hmod, hregs_z, hpot⟩
 
 /-- Inline execution of `P.callInsert`: inserts `(v, k)` and charges
 `5 + C.charge s (.insert v k)`. -/
@@ -398,49 +414,11 @@ theorem callInsert_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
       C.rep (Function.update s v (some k)) (z.comap f) ∧
       Modifies (Block.mk base C.space).footprint x.mem z.mem ∧
       (∀ j ∉ Set.range f, z.regs j = x.regs j) ∧
-      t + C.potential (z.comap f) ≤ 5 + C.charge s (.insert v k) + C.potential (x.comap f) := by
-  obtain ⟨h21, h20, h2v, h2k, h10, h1v, h1k, h0v, h0k, hvk_ne⟩ := P.nodup_dests
-  let x₁ := x.set (f P.tag2) 0
-  let x₂ := x₁.set (f P.tag1) 1
-  let x₃ := x₂.set (f P.tag0) 0
-  let x₄ := x₃.set (f P.argV) v.val
-  let x₅ := x₄.set (f P.argK) k
-  have hprep : ExecWithin (B := B) w
-      (.seq (.op (.copy (f P.tag2) zeroReg_c)) <|
-       .seq (.op (.copy (f P.tag1) oneReg_c)) <|
-       .seq (.op (.copy (f P.tag0) zeroReg_c)) <|
-       .seq (.op (.copy (f P.argV) vReg_c)) <|
-            (.op (.copy (f P.argK) kReg_c))) x x₅ 5 := by
-    wram_exec [hz0, ho1, hvv, hvk]
-  have hx_bnd := C.bounded hr
-  have hcomap : x₅.comap f =
-      (((((x.comap f).set P.tag2 0).set P.tag1 1).set P.tag0 0).set P.argV v.val).set P.argK k := by
-    simp only [x₅, x₄, x₃, x₂, x₁, Data.comap_set hf]
-  have hb5 : (x₅.comap f).Bounded w := by
-    rw [hcomap]
-    exact Data.Bounded.set (Data.Bounded.set (Data.Bounded.set (Data.Bounded.set
-      (Data.Bounded.set hx_bnd (hS.of_le (Nat.zero_le _)))
-      (hS.of_le (by omega)))
-      (hS.of_le (Nat.zero_le _)))
-      (hS.of_le (by have := v.isLt; omega)))
-      (hK.of_le hval.2)
-  have hreg : ∀ i, P.input i = false → x₅.regs (f i) = x.regs (f i) := by
-    intro i hi
-    change (x₅.comap f).regs i = (x.comap f).regs i
-    rw [hcomap]
-    have niK : i ≠ P.argK := fun h => by rw [h, P.argK_input] at hi; cases hi
-    have niV : i ≠ P.argV := fun h => by rw [h, P.argV_input] at hi; cases hi
-    have ni0 : i ≠ P.tag0 := fun h => by rw [h, P.tag0_input] at hi; cases hi
-    have ni1 : i ≠ P.tag1 := fun h => by rw [h, P.tag1_input] at hi; cases hi
-    have ni2 : i ≠ P.tag2 := fun h => by rw [h, P.tag2_input] at hi; cases hi
-    wram_simp
-  have harg : C.argMatch (.insert v k) (x₅.comap f).regs := by
-    rw [harg_eq, hcomap]
-    wram_simp [argMatch, ne_eq]
-  obtain ⟨z, t, he, _, hrep_z, hmod, hregs_z, hpot⟩ :=
-    C.call_rename_ofFn hf (.insert v k) hr hval hprep hb5 hreg (fun _ _ => rfl) harg
-  exact ⟨z, t, he, hrep_z, hmod, fun j hj => (hregs_z j hj).trans
-    (by wram_simp [x₅, x₄, x₃, x₂, x₁]), hpot⟩
+      t + C.potential (z.comap f) ≤ 5 + C.charge s (.insert v k) + C.potential (x.comap f) :=
+  callKeyed_exec C hsp hS hK harg_eq hf ho_out hz_out hv_out hk_out (.insert v k)
+    hr hval hval.2 (Nat.zero_le 1) rfl
+    (fun _ h2 h1 h0 hv hk => ⟨h2, by omega, h0, hv, hk⟩)
+    hz0 ho1 hz0 hvv hvk
 
 /-- Inline execution of `P.callDecreaseKey`: lowers `v`'s key to `k` and charges
 `5 + C.charge s (.decreaseKey v k)`. -/
@@ -462,49 +440,11 @@ theorem callDecreaseKey_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
       Modifies (Block.mk base C.space).footprint x.mem z.mem ∧
       (∀ j ∉ Set.range f, z.regs j = x.regs j) ∧
       t + C.potential (z.comap f) ≤
-        5 + C.charge s (.decreaseKey v k) + C.potential (x.comap f) := by
-  obtain ⟨h21, h20, h2v, h2k, h10, h1v, h1k, h0v, h0k, hvk_ne⟩ := P.nodup_dests
-  let x₁ := x.set (f P.tag2) 0
-  let x₂ := x₁.set (f P.tag1) 1
-  let x₃ := x₂.set (f P.tag0) 1
-  let x₄ := x₃.set (f P.argV) v.val
-  let x₅ := x₄.set (f P.argK) k
-  have hprep : ExecWithin (B := B) w
-      (.seq (.op (.copy (f P.tag2) zeroReg_c)) <|
-       .seq (.op (.copy (f P.tag1) oneReg_c)) <|
-       .seq (.op (.copy (f P.tag0) oneReg_c)) <|
-       .seq (.op (.copy (f P.argV) vReg_c)) <|
-            (.op (.copy (f P.argK) kReg_c))) x x₅ 5 := by
-    wram_exec [hz0, ho1, hvv, hvk]
-  have hx_bnd := C.bounded hr
-  have hcomap : x₅.comap f =
-      (((((x.comap f).set P.tag2 0).set P.tag1 1).set P.tag0 1).set P.argV v.val).set P.argK k := by
-    simp only [x₅, x₄, x₃, x₂, x₁, Data.comap_set hf]
-  have hb5 : (x₅.comap f).Bounded w := by
-    rw [hcomap]
-    exact Data.Bounded.set (Data.Bounded.set (Data.Bounded.set (Data.Bounded.set
-      (Data.Bounded.set hx_bnd (hS.of_le (Nat.zero_le _)))
-      (hS.of_le (by omega)))
-      (hS.of_le (by omega)))
-      (hS.of_le (by have := v.isLt; omega)))
-      (hK.of_le hval.2)
-  have hreg : ∀ i, P.input i = false → x₅.regs (f i) = x.regs (f i) := by
-    intro i hi
-    change (x₅.comap f).regs i = (x.comap f).regs i
-    rw [hcomap]
-    have niK : i ≠ P.argK := fun h => by rw [h, P.argK_input] at hi; cases hi
-    have niV : i ≠ P.argV := fun h => by rw [h, P.argV_input] at hi; cases hi
-    have ni0 : i ≠ P.tag0 := fun h => by rw [h, P.tag0_input] at hi; cases hi
-    have ni1 : i ≠ P.tag1 := fun h => by rw [h, P.tag1_input] at hi; cases hi
-    have ni2 : i ≠ P.tag2 := fun h => by rw [h, P.tag2_input] at hi; cases hi
-    wram_simp
-  have harg : C.argMatch (.decreaseKey v k) (x₅.comap f).regs := by
-    rw [harg_eq, hcomap]
-    wram_simp [argMatch, ne_eq]
-  obtain ⟨z, t, he, _, hrep_z, hmod, hregs_z, hpot⟩ :=
-    C.call_rename_ofFn hf (.decreaseKey v k) hr hval hprep hb5 hreg (fun _ _ => rfl) harg
-  exact ⟨z, t, he, hrep_z, hmod, fun j hj => (hregs_z j hj).trans
-    (by wram_simp [x₅, x₄, x₃, x₂, x₁]), hpot⟩
+        5 + C.charge s (.decreaseKey v k) + C.potential (x.comap f) :=
+  callKeyed_exec C hsp hS hK harg_eq hf ho_out ho_out hv_out hk_out (.decreaseKey v k)
+    hr hval hval.2 le_rfl rfl
+    (fun _ h2 h1 h0 hv hk => ⟨h2, by omega, by omega, hv, hk⟩)
+    hz0 ho1 ho1 hvv hvk
 
 /-- Inline execution of `P.callGetKey`: queries `s v` and charges `4 + C.charge s (.getKey v)`. -/
 theorem callGetKey_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
@@ -526,44 +466,14 @@ theorem callGetKey_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
       (∀ j ∉ Set.range f, z.regs j = x.regs j) ∧
       t + C.potential (z.comap f) ≤ 4 + C.charge s (.getKey v) + C.potential (x.comap f) := by
   obtain ⟨h21, h20, h2v, _, h10, h1v, _, h0v, _, _⟩ := P.nodup_dests
-  let x₁ := x.set (f P.tag2) 0
-  let x₂ := x₁.set (f P.tag1) 0
-  let x₃ := x₂.set (f P.tag0) 1
-  let x₄ := x₃.set (f P.argV) v.val
-  have hprep : ExecWithin (B := B) w
-      (.seq (.op (.copy (f P.tag2) zeroReg_c)) <|
-       .seq (.op (.copy (f P.tag1) zeroReg_c)) <|
-       .seq (.op (.copy (f P.tag0) oneReg_c)) <|
-            (.op (.copy (f P.argV) vReg_c))) x x₄ 4 := by
-    wram_exec [hz0, ho1, hvv]
   have hx_bnd := C.bounded hr
-  have hcomap : x₄.comap f =
-      ((((x.comap f).set P.tag2 0).set P.tag1 0).set P.tag0 1).set P.argV v.val := by
-    simp only [x₄, x₃, x₂, x₁, Data.comap_set hf]
-  have hb4 : (x₄.comap f).Bounded w := by
-    rw [hcomap]
-    exact Data.Bounded.set (Data.Bounded.set (Data.Bounded.set
-      (Data.Bounded.set hx_bnd (hS.of_le (Nat.zero_le _)))
-      (hS.of_le (Nat.zero_le _)))
-      (hS.of_le (by omega)))
-      (hS.of_le (by have := v.isLt; omega))
-  have hreg : ∀ i, P.input i = false → x₄.regs (f i) = x.regs (f i) := by
-    intro i hi
-    change (x₄.comap f).regs i = (x.comap f).regs i
-    rw [hcomap]
-    have niV : i ≠ P.argV := fun h => by rw [h, P.argV_input] at hi; cases hi
-    have ni0 : i ≠ P.tag0 := fun h => by rw [h, P.tag0_input] at hi; cases hi
-    have ni1 : i ≠ P.tag1 := fun h => by rw [h, P.tag1_input] at hi; cases hi
-    have ni2 : i ≠ P.tag2 := fun h => by rw [h, P.tag2_input] at hi; cases hi
-    wram_simp
-  have harg : C.argMatch (.getKey v) (x₄.comap f).regs := by
-    rw [harg_eq, hcomap]
-    wram_simp [argMatch, ne_eq]
-  obtain ⟨z, t, he, hdec, hrep_z, hmod, hregs_z, hpot⟩ :=
-    C.call_rename_ofFn hf (.getKey v) hr trivial hprep hb4 hreg (fun _ _ => rfl) harg
-  rw [hdec_eq] at hdec
-  exact ⟨z, t, he, hdec, hrep_z, hmod, fun j hj => (hregs_z j hj).trans
-    (by wram_simp [x₄, x₃, x₂, x₁]), hpot⟩
+  let x₄ := (((x.set (f P.tag2) 0).set (f P.tag1) 0).set (f P.tag0) 1).set (f P.argV) v.val
+  exact callStaged_exec 4 C harg_eq hf (.getKey v) hr trivial
+    (x' := x₄) (by wram_exec [hz0, ho1, hvv]) rfl
+    (by simp only [x₄, Data.comap_set hf]; rfl) (by wram_bounded <;> fits [v.isLt])
+    (fun _ _ _ _ _ _ => by wram_simp) (fun _ _ => by wram_simp [x₄])
+    (by wram_simp [argMatch, ne_eq])
+    fun hdec hrep_z hmod hregs_z hpot => ⟨hdec_eq ▸ hdec, hrep_z, hmod, hregs_z, hpot⟩
 
 end PQCode
 

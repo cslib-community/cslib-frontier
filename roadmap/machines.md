@@ -2,8 +2,8 @@
 
 Part of the [roadmap](../ROADMAP.md), which explains what an entry is and when one is added or removed.
 
-- **Pointer machines and disjoint sets** ([#5441](https://github.com/cslib-community/cslib-frontier/issues/5441)): Build on the injective heap simulation with allocation to prove separation/locality and source-program correspondence accounting for undefined-value traps and invocation conventions.
-  Establish certified machine simulations and native union-find algorithms and lower bounds with explicit symbol-opacity and set-separation assumptions.
+- **Pointer machines and disjoint sets** ([#5441](https://github.com/cslib-community/cslib-frontier/issues/5441)): Build on the injective heap simulation with allocation to prove separation/locality and source-program correspondence with undefined-value traps and invocation conventions.
+  Extend WordRAM compilation with input/output setup, further scalar implementations and workspace bounds. Compose AVL search and insertion with dictionary updates to compile RAM to pointer machines with logarithmic overhead. Establish native union-find algorithms and lower bounds with explicit symbol-opacity and set-separation assumptions.
 
 - **Efficient universal simulation** ([#800](https://github.com/cslib-community/cslib-frontier/issues/800)): A universal function that runs in time `O(N + poly(D, M) · (t + 1) log(t + 2))`, for encoded input length `N`, description length `D` and largest input symbol `M`, with a storage bound in terms of the simulated machine's space rather than its time.
   Both a clocked form and an unclocked form that runs until the simulated machine halts are in scope.

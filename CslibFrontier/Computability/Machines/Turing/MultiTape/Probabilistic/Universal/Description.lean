@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive
 public import CslibFrontier.Foundations.Data.Fin.Decode
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Finite descriptions of fair-coin oracle machines
@@ -280,29 +281,24 @@ def descLen (d : Desc) : ℕ := (eDesc d).length
 
 /-- The declared work-tape count is bounded by the encoded description length. -/
 theorem Desc.tapes_le_descLen (d : Desc) : d.tapes ≤ descLen d := by
-  simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
-  omega
+  enc_len [descLen, eDesc_apply]
 
 /-- The declared user-state count is bounded by the encoded description length. -/
 theorem Desc.states_le_descLen (d : Desc) : d.states ≤ descLen d := by
-  simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
-  omega
+  enc_len [descLen, eDesc_apply]
 
 /-- The declared operation count is bounded by the encoded description length. -/
 theorem Desc.operations_le_descLen (d : Desc) : d.operations ≤ descLen d := by
-  simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
-  omega
+  enc_len [descLen, eDesc_apply]
 
 /-- The initial-state tag is bounded by the encoded description length. -/
 theorem Desc.q₀_le_descLen (d : Desc) : d.q₀ ≤ descLen d := by
-  simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
-  omega
+  enc_len [descLen, eDesc_apply]
 
 /-- The number of transition-table entries is bounded by the encoded description length. -/
 theorem Desc.table_length_le_descLen (d : Desc) : d.table.length ≤ descLen d := by
-  have h := length_le_length_encList (encPair eKey eBranches) d.table
-  simp only [descLen, eDesc_apply, length_encPair] at h ⊢
-  omega
+  have := length_le_length_encList (encPair eKey eBranches) d.table
+  enc_len [descLen, eDesc_apply]
 
 /-! ### Exact open semantics -/
 

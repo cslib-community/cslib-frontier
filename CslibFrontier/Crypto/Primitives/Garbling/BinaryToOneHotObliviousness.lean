@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.BinaryToOneHot
 public import CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Uniform
 import Mathlib.Tactic.Abel
@@ -139,8 +140,7 @@ private theorem interpret_oracleSteps {m : Type → Type*} [Monad m] [LawfulMona
   induction n with
   | zero => simp only [oracleSteps, OracleComp.interpret_pure, runSteps]
   | succ n ih =>
-    simp only [oracleSteps, OracleComp.interpret_bind, ih, ProbOracleComp.interpret_query,
-      OracleComp.interpret_pure, pure_bind]
+    simp only [oracleSteps, interp_norm, ih, pure_bind]
     rfl
 
 /-- The reduction's evaluation reads `f` only at the tweaks of the steps it runs. -/
@@ -316,8 +316,7 @@ private theorem eval_run_reduction (H : L → T → L)
     ProbComp.eval ((reduction H tw n x D).run fun q => pure (f q)) =
       (PMF.uniformOfFintype (Fin (n + 1) → L)).bind fun A =>
         ProbComp.eval (D (A, (runSteps H tw f n x A).1)) := by
-  simp only [ProbOracleComp.run, reduction, OracleComp.interpret_bind,
-    ProbOracleComp.interpret_sample, ProbComp.interpret_unifFin, interpret_oracleSteps, pure_bind,
+  simp only [ProbOracleComp.run, reduction, interp_norm, interpret_oracleSteps, pure_bind,
     ProbComp.eval_bind, ProbComp.eval_uniform]
 
 /-- **Real side**: against the keyed oracle, the reduction plays the real experiment. -/

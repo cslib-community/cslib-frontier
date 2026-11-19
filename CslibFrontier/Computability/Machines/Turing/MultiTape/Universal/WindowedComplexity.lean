@@ -478,11 +478,6 @@ lemma length_encNat_le_log (t : ℕ) : (encNat t).length ≤ Nat.log 2 (t + 1) +
       have := two_pow_length_encNat_le t; omega)
   rwa [Nat.log_mul_base (by norm_num) (by omega)] at h
 
-lemma two_pow_log_le (t : ℕ) : 2 ^ Nat.log 2 t ≤ t + 1 := by
-  rcases Nat.eq_zero_or_pos t with rfl | ht
-  · simp
-  · exact (Nat.pow_log_le_self 2 (by omega)).trans (by omega)
-
 /-- **The universal function in time `O(t log t)`.** For a description `d` of encoded length `D`,
 an input `x` with largest symbol `M` and `t` steps given in binary, the universal function is
 computable in time and space `O(N + (D + M + 2) ^ 6 * (t + 1) * (log₂ (t + 1) + 1))`, where `N` is
@@ -527,7 +522,7 @@ public theorem computableInO_universal_nlogn :
       calc 2 ^ (Nat.log 2 t + 1 + 1) * (Nat.log 2 t + 1 + 1)
           ≤ (4 * (t + 1)) * (2 * (Nat.log 2 (t + 1) + 1)) := by
             refine Nat.mul_le_mul ?_ (by omega)
-            have := two_pow_log_le t
+            have := Nat.pow_log_le_add_one 2 t
             rw [pow_succ, pow_succ]; omega
         _ = _ := by ring
     have hC2 : costA (descLen d) (descLen d + listMax id x + 1) ≤

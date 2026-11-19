@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Privacy.DifferentialPrivacy.Hamming
 public import CslibFrontier.Languages.Probabilistic.Vector
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Randomized response
@@ -74,9 +75,7 @@ theorem eval_randomizedResponse_apply (truth answer : Bool) :
     rw [← ENNReal.mul_inv (by simp) (by simp)]
     norm_num
   have h3 : (2 : ℝ≥0∞)⁻¹ + 4⁻¹ = 3 / 4 := by
-    rw [← ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness),
-      ENNReal.toReal_add (by finiteness) (by finiteness)]
-    simp only [ENNReal.toReal_inv, ENNReal.toReal_div, ENNReal.toReal_ofNat]
+    ennreal_to_real
     norm_num
   cases truth <;> cases answer <;> simp [h1, h3]
 
@@ -88,9 +87,7 @@ theorem differentiallyPrivate_randomizedResponse :
   refine DifferentiallyPrivate.of_apply_le fun x y _ r => ?_
   rw [Real.exp_log (by norm_num), ENNReal.ofReal_ofNat, eval_randomizedResponse_apply,
     eval_randomizedResponse_apply]
-  rw [← ENNReal.toReal_le_toReal (by split_ifs <;> finiteness) (by split_ifs <;> finiteness)]
-  split_ifs <;> simp only [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_ofNat,
-    ENNReal.toReal_one] <;> norm_num
+  split_ifs <;> ennreal_to_real <;> norm_num
 
 /-- `ln 3` is optimal: randomized response is `(ε, 0)`-differentially private exactly when
 `ln 3 ≤ ε`. -/
@@ -101,9 +98,7 @@ theorem differentiallyPrivate_randomizedResponse_iff {ε : ℝ} :
   have key := DifferentiallyPrivate.iff_apply_le.mp h (x := true) (y := false) trivial true
   rw [eval_randomizedResponse_apply, eval_randomizedResponse_apply] at key
   simp only [ite_true, Bool.true_eq_false, ite_false] at key
-  rw [← ENNReal.toReal_le_toReal (by finiteness) (by finiteness), ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal (Real.exp_pos _).le] at key
-  simp only [ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_one] at key
+  ennreal_to_real at key
   rw [Real.log_le_iff_le_exp (by norm_num)]
   linarith
 
