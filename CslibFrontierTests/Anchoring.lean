@@ -352,3 +352,69 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   rintro ⟨t, a, b⟩ ht u hu
   exact checkedVectorGivenAlice_purifies_winningMarginal acceptingGame half C S e
     (acceptingGame_win_supported S) hρ hbranch t a b 0 u ht hu
+
+/-- The support penalty is one if either endpoint is missing, including when only the
+anchor has zero winning mass. It is zero when both endpoints occur. -/
+example :
+    let P : PMF (Unit × (Fin 1 → Bool)) := PMF.pure ((), fun _ => false)
+    winningAnchorMiss P false 0 () false = 0 ∧
+      winningAnchorMiss P false 0 () true = 1 ∧ winningAnchorMiss P true 0 () false = 1 := by
+  simp [winningAnchorMiss, WinningQuestionSupported, PMF.pure_map]
+
+open Finset in
+/-- A one-coordinate transcript supported on a left nonanchor message gives positive
+missing mass when both questions are erased, in either tagged redraw. -/
+example :
+    let C : Finset (Fin 1) := ∅
+    let e : Fin 1 ≃ {i : Fin 1 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let t : Cslib.PCP.ParallelRepetition.Revealed (Option Bool) (Option Bool) C :=
+      ⟨fun _ => (none, none), fun _ => Sum.inl (some false)⟩
+    let z := ((t, fun _ : C => (false, false)),
+      fun _ : {i : Fin 1 // i ∉ C} => (some false, none))
+    let Q := PMF.pure z
+    let d := ∑ j : {i : Fin 1 // i ∉ C}, dist (Q.map fun v =>
+      (freeTrials C v j, restTranscript C j v)) (priorTrialAndRest acceptingGame half C Q j)
+    let left :=
+      taggedPairAnchorMissMass C acceptingGame half Q Prod.snd (Sum.inl ∘ Prod.fst) none e
+    let right :=
+      taggedPairAnchorMissMass C acceptingGame half Q Prod.fst (Sum.inr ∘ Prod.snd) none e
+    0 < left ∧ 0 < right ∧
+      ((half : ℝ) / 4) * (half : ℝ) * left ≤ ((half : ℝ) + 1) * d ∧
+      ((half : ℝ) / 4) * (half : ℝ) * right ≤ ((half : ℝ) + 1) * d := by
+  classical
+  intro C e t z Q d left right
+  have hpos (read : Option Bool × Option Bool → Option Bool)
+      (tag : Option Bool × Option Bool → Option Bool ⊕ Option Bool)
+      (htag : tag (none, none) ≠ Sum.inl (some false)) :
+      0 < taggedPairAnchorMissMass C acceptingGame half Q read tag none e := by
+    let r := restTranscript C (e 0) z
+    let label := restoreCheckedTranscript C (e 0) r (tag (none, none))
+    let P := Q.map (questionTranscriptProjection C read e)
+    have hm : ¬ WinningQuestionSupported P 0 label (read (none, none)) := by
+      intro h
+      change (_, _) ∈ (P.map fun v => (v.1, v.2 0)).support at h
+      simp only [P, Q, PMF.pure_map, PMF.mem_support_pure_iff] at h
+      have hmsg := congrArg (fun v => v.1.1.halves (e 0)) h
+      exact htag (by simpa [label, restoreCheckedTranscript, questionTranscriptProjection, z, t]
+        using hmsg)
+    have hmiss (i : Fin 1) (t' : _) (u : Option Bool) : 0 ≤ winningAnchorMiss P none i t' u := by
+      unfold winningAnchorMiss
+      split <;> norm_num
+    unfold taggedPairAnchorMissMass taggedPairScore
+    apply sum_pos' (fun i _ => sum_nonneg fun q _ => mul_nonneg ENNReal.toReal_nonneg
+      (sum_nonneg fun r' _ => mul_nonneg ENNReal.toReal_nonneg (hmiss _ _ _)))
+    refine ⟨0, mem_univ _, ?_⟩
+    apply sum_pos' (fun q _ => mul_nonneg ENNReal.toReal_nonneg
+      (sum_nonneg fun r' _ => mul_nonneg ENNReal.toReal_nonneg (hmiss _ _ _)))
+    refine ⟨(none, none), mem_univ _, mul_pos ?_ ?_⟩
+    · rw [anchored_questions_apply]
+      norm_num [half, ENNReal.toReal_pow]
+    · apply sum_pos' (fun r' _ => mul_nonneg ENNReal.toReal_nonneg (hmiss _ _ _))
+      refine ⟨r, mem_univ _, ?_⟩
+      change 0 < ((Q.map (restTranscript C (e 0))) r).toReal *
+        winningAnchorMiss P none 0 label (read (none, none))
+      simp [Q, r, PMF.pure_map, winningAnchorMiss, hm]
+  exact ⟨hpos Prod.snd (Sum.inl ∘ Prod.fst) (by decide),
+    hpos Prod.fst (Sum.inr ∘ Prod.snd) (by decide),
+    leftTaggedPairAnchorMissMass_le C acceptingGame half Q e,
+    rightTaggedPairAnchorMissMass_le C acceptingGame half Q e⟩

@@ -22,6 +22,8 @@ distributions by the same injective map preserves it (`dist_map_of_injective`).
 
 ## Main results
 
+* `Cslib.Probability.PMF.abs_sum_mul_sub_le_of_nonneg`: expectation bounds for nonnegative
+  bounded scores.
 * `Cslib.Probability.PMF.abs_toOuterMeasure_toReal_sub_le_dist`: event probabilities move by at
   most the statistical distance.
 * `Cslib.Probability.PMF.abs_bind_apply_toReal_sub_le_dist`: the advantage of a randomized
@@ -36,20 +38,34 @@ namespace Cslib.Probability.PMF
 
 variable {α β : Type*}
 
+/-- A score taking values in `[0, bound]` changes in expectation by at most
+`bound` times the statistical distance. -/
+theorem abs_sum_mul_sub_le_of_nonneg [Fintype α] (p q : PMF α) (score : α → ℝ)
+    {bound : ℝ} (hzero : ∀ a, 0 ≤ score a) (hbound : ∀ a, score a ≤ bound) :
+    |(∑ a, (p a).toReal * score a) - ∑ a, (q a).toReal * score a| ≤ bound * dist p q := by
+  have hhalf (a : α) : |score a - bound / 2| ≤ bound / 2 := abs_le.mpr ⟨by
+    rw [← zero_sub (bound / 2)]
+    exact sub_le_sub_right (hzero a) _, by
+    calc
+      _ ≤ bound - bound / 2 := sub_le_sub_right (hbound a) _
+      _ = _ := by ring⟩
+  have h := abs_sum_mul_sub_le p q _ hhalf
+  simpa only [mul_sub, Finset.sum_sub_distrib, ← Finset.sum_mul, sum_toReal, one_mul,
+    sub_sub_sub_cancel_right, mul_div_cancel₀ _ (by norm_num : (2 : ℝ) ≠ 0)] using h
+
 /-- Statistical distance bounds the change in the probability of every event. -/
 theorem abs_toOuterMeasure_toReal_sub_le_dist [Fintype α] (p q : PMF α) (event : Set α) :
     |(p.toOuterMeasure event).toReal - (q.toOuterMeasure event).toReal| ≤ dist p q := by
   classical
-  let score : α → ℝ := fun a => (if a ∈ event then 1 else 0) - 1 / 2
-  have hscore (a : α) : |score a| ≤ 1 / 2 := by
-    by_cases ha : a ∈ event <;> norm_num [score, ha]
-  have hmean (r : PMF α) :
-      ∑ a, (r a).toReal * score a = (r.toOuterMeasure event).toReal - 1 / 2 := by
-    simp only [score, mul_sub, mul_ite, mul_one, mul_zero, Finset.sum_sub_distrib,
-      ← Finset.sum_mul, sum_toReal, one_mul, toOuterMeasure_apply_toReal]
-  have h := abs_sum_mul_sub_le p q score hscore
-  rwa [hmean, hmean, sub_sub_sub_cancel_right, show (2 : ℝ) * (1 / 2) = 1 by norm_num,
-    one_mul] at h
+  let score : α → ℝ := fun a => if a ∈ event then 1 else 0
+  have hzero (a : α) : 0 ≤ score a := by
+    dsimp [score]
+    split <;> norm_num
+  have hone (a : α) : score a ≤ 1 := by
+    dsimp [score]
+    split <;> norm_num
+  simpa only [score, mul_ite, mul_one, mul_zero, toOuterMeasure_apply_toReal, one_mul] using
+    abs_sum_mul_sub_le_of_nonneg p q score hzero hone
 
 /-- A randomized distinguisher `T` outputs any given value `b` with probabilities, under `p` and
 under `q`, that differ by at most the statistical distance of `p` and `q`. -/

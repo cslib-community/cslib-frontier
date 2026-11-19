@@ -11079,6 +11079,24 @@ register_result "anchored-noisy-question-purifications" where
     Each vector places the retained player first. Null observations under the independent \
     prior redraw and the ensuing averaged local-unitary estimates are outside this result."
 
+register_result "anchored-prior-redraw-missing-winning-support" where
+  title := "Missing winning support under the anchored question redraw"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 4.6 and the redraw in Section 5.2",
+      locator := "arXiv:1509.07466v2, §4.1 and §5.2" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.leftTaggedPairAnchorMissMass_le,
+    Cslib.PCP.AnchoredDependency.rightTaggedPairAnchorMissMass_le
+  ]
+  scope := "An explicit support estimate for using the supported noisy purifications in the \
+    independent redraw. With the opposite player's tag fixed, sum the probabilities that the \
+    sampled or anchored observation is outside the joint support of the winning law. Scaling \
+    by α²/4 bounds this sum by (α + 1) times the summed distance from the actual selected trials \
+    to their independent prior redraw, where α is the anchor rate. The local-unitary estimate \
+    uses this cost for samples on which a normalized branch may have zero norm."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"
