@@ -69,8 +69,9 @@ example : (fun w : List Bool => w.length) = fun w => w.length := by
 
 /--
 Note: logspace composes `@[fun_prop]` rules and named `program_certificate`s for
-  `ComputableInLogSpace`. Supply a certificate for each local routine, with the goal's encodings. An
-  answer vector `(List.range (r a)).map (f a)` also needs a hypothesis `∀ a, r a ≤ k`.
+  `ComputableInLogSpace`. Supply a certificate for each local routine, with the goal's encodings, or
+  unfold a definition with `logspace [f]`. A list `(List.range (r a)).map (f a)` also needs a constant
+  count or a hypothesis `∀ a, r a ≤ k`.
 -/
 #guard_msgs (whitespace := lax, substring := true) in
 example (r : List Bool → ℕ) (g : List Bool → ℕ → Bool)

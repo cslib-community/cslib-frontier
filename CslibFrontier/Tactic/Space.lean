@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 public import CslibFrontier.Tactic.FailureNote
+public import CslibFrontier.Tactic.CertificatePreparation
 public meta import Lean.Elab.Tactic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 
@@ -16,7 +17,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 # Composing explicit workspace certificates
 
 `space` proves a `ComputableInSpace` goal by the existing budget-preserving `fun_prop` rules.
-`space [f, g]` unfolds the indicated program definitions. Local routine certificates are reused;
+`space [f, g]` unfolds the indicated program definitions. All forms inline local encoding
+`let`s and expose certificates in local structures, as `polytime` and `logspace` do. Local
+routine certificates are reused;
 unproved size inequalities and iteration invariants are not guessed. An input-length side
 condition must be reflexive or supplied in the context. When the search fails, the `fun_prop`
 error ends with a note naming these inputs.
@@ -92,13 +95,14 @@ elab_rules : tactic
     unless target.isAppOf ``Turing.MultiTapeTM.ComputableInSpace do
       throwError "space expects a ComputableInSpace goal with an explicit budget"
     let defs := (defs.map (·.getElems)).getD #[]
+    Cslib.Tactic.prepareCertificateGoal defs
     Cslib.Tactic.withFailureNote m!"space composes `@[fun_prop]` rules for `ComputableInSpace` \
         within the goal's budget. Supply a certificate for each local routine, unfold a program \
         definition with `space [f]`, and supply a nontrivial input-length allowance \
         `(fun a => (encIn a).length) ≼ S` as a hypothesis." do
       withCanUnfoldPred spaceCanUnfold do
         let funProp ← `(tactic| fun_prop (config := { maxSteps := 256 })
-          (disch := space_discharge) [$defs,*])
+          (disch := space_discharge))
         let s ← saveState
         try
           evalTactic funProp

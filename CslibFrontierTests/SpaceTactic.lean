@@ -26,6 +26,14 @@ example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {g : α → ℕ} {
     (hf : ComputableInSpace f encNat encNat (fun n => (encNat n).length)) :
     ComputableInSpace (fun a => f (g a + 1)) enc encNat S := by space
 
+-- The same certificate preparation as `polytime` exposes fields and encoding `let`s.
+example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {f g : α → ℕ}
+    (h : ComputableInSpace f enc encNat S ∧ ComputableInSpace g enc encNat S) :
+    ComputableInSpace (fun a => f a + g a) enc encNat S := by
+  let input := enc
+  change ComputableInSpace _ input encNat S
+  space
+
 -- Binary and unary output costs cannot be silently exchanged.
 example : True := by
   fail_if_success
