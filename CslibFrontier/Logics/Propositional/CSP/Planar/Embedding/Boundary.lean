@@ -71,6 +71,7 @@ theorem entries_restrictPrefix_lt (darts : ℕ) (c : Graph.RotationCertificate) 
   cases found with
   | none => simpa using (show 0 < darts from by omega)
   | some j =>
+    change j < darts
     have hj := List.find?_some hfind
     simpa only [decide_eq_true_eq] using hj
 

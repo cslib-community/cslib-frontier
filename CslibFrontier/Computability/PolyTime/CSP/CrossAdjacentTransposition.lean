@@ -290,12 +290,15 @@ theorem counts_transposeAdjacent (I : State Rel) (j : ℕ) :
     (transposeAdjacent g w I j).ports.length = I.ports.length := by
   dsimp only
   by_cases h : j + 1 < I.ports.length
-  · rw [if_pos h]
+  · rw [ite_eq_left h]
     obtain ⟨L, x, y, R, hL, hI⟩ := split_valid I j h
     have hc := counts_valid g w I.body L x y R I.rotation
     rw [hL, ← hI] at hc
-    simpa only [one_mul, hI, List.length_append, List.length_cons, List.length_nil] using hc
-  · rw [transposeAdjacent_invalid g w I j (by omega), if_neg h]
+    have hp : I.ports.length = j + 2 + R.length := by
+      rw [hI]
+      simp only [List.length_append, List.length_cons, List.length_nil, hL]
+    simpa only [one_mul, ← hp] using hc
+  · rw [transposeAdjacent_invalid g w I j (by omega), ite_eq_right h]
     simp
 
 /-- Each successful request appends the fixed template's relation-symbol word after all
@@ -304,10 +307,10 @@ theorem relations_transposeAdjacent (I : State Rel) (j : ℕ) :
     (transposeAdjacent g w I j).body.map Constraint.rel = I.body.map Constraint.rel ++
       (if j + 1 < I.ports.length then g.body.map Constraint.rel else []) := by
   by_cases h : j + 1 < I.ports.length
-  · rw [transposeAdjacent, if_pos h, left_body, relations_transposeTail, right_body]
+  · rw [transposeAdjacent, ite_eq_left h, left_body, relations_transposeTail, right_body]
     rw [right_ports, List.length_reverse, List.length_rotate, List.length_reverse]
-    simp only [show ¬I.ports.length < 2 from by omega, ↓reduceIte]
-  · rw [transposeAdjacent_invalid g w I j (by omega), if_neg h, List.append_nil]
+    simp only [show ¬I.ports.length < 2 from by omega, h, ↓reduceIte]
+  · rw [transposeAdjacent_invalid g w I j (by omega), ite_eq_right h, List.append_nil]
 
 /-- One positioned operation adds at most one bit to old names. Rotations preserve
 name multisets; no accumulated repeated-swap bound is asserted. -/
@@ -613,9 +616,9 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
   have hmJ : J.body = I.body := right_body I r
   have hpH : H.ports.length = I.ports.length := by rw [tail_ports_length, hpJ]
   have hout : transposeAdjacent g w I j = (rotateLeft^[r]) H := by
-    rw [transposeAdjacent, if_pos h]
+    rw [transposeAdjacent, ite_eq_left h]
   have hc := counts_transposeAdjacent g w I j
-  simp only [if_pos h, one_mul] at hc
+  simp only [ite_eq_left h, one_mul] at hc
   have hmH : H.body.occurrences.length =
       I.body.occurrences.length + g.body.occurrences.length := by
     rw [hout, left_body] at hc
@@ -625,12 +628,17 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
     I.ports.length + 4)).size
   have hb : (2 * (H.body.occurrences.length + H.ports.length)).size ≤ B := by
     simpa only [hmH, hpH] using (Nat.size_le_size (Nat.mul_le_mul_left 2
-      (Nat.le_add_right (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
+      (Nat.le_add_right
+        (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
   have hs := normalized_loop_storage false H r B
     (by simpa only [hpJ, hpH] using ht.1)
     (by simpa only [hmJ, hpJ] using ht.2) hb
+  have ht : (turn false : State Rel → State Rel) = rotateLeft := by
+    funext K
+    rfl
+  rw [ht] at hs
   rw [hout]
   refine ⟨?_, hs.2.2.2⟩
-  simpa only [turn, ↓reduceIte, hmH, hpH] using hs.2.2.1
+  simpa only [turn, Bool.false_eq_true, ↓reduceIte, hmH, hpH] using hs.2.2.1
 
 end Cslib.Complexity.CSP.CrossInsertion

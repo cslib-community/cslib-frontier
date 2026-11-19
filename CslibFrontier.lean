@@ -4172,6 +4172,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.CNFTemplate
 public import CslibFrontier.Computability.PolyTime.CSP.CrossAdjacentTransposition
 public import CslibFrontier.Computability.PolyTime.CSP.CrossInsertion
 public import CslibFrontier.Computability.PolyTime.CSP.CrossTailTransposition
+public import CslibFrontier.Computability.PolyTime.CSP.CrossTranspositionSchedule
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.BlackCounts
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.FaceParity
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Native

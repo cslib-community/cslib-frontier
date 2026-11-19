@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.PolyTime.CSP.BoundaryHiding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import Mathlib.Data.List.Rotate
 
+import Mathlib.Data.List.GetD
+
 /-!
 # A computed CROSS tail-value transposition
 
@@ -531,7 +533,7 @@ theorem relations_transposeTail (I : State Rel) :
     (transposeTail g w I).body.map Constraint.rel = I.body.map Constraint.rel ++
       (if I.ports.length < 2 then [] else g.body.map Constraint.rel) := by
   by_cases hs : I.ports.length < 2
-  · rw [transposeTail_short g w I hs, if_pos hs, List.append_nil]
+  · rw [transposeTail_short g w I hs, ite_eq_left hs, List.append_nil]
   · rcases I with ⟨F, ps, c⟩
     induction ps using List.reverseRecOn with
     | nil => simp at hs
@@ -583,8 +585,7 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
     (rotateRight (rotateRight (rotateRight (rotateRight (rotateRight (insert g w I)))))))))
   let J := hideHead H
   have hout : transposeTail g w I = rotateLeft (rotateLeft J) := by
-    rw [transposeTail, if_neg (by omega)]
-    rfl
+    rw [transposeTail, ite_eq_right (by omega)]
   have hcounts : (transposeTail g w I).ports.length = I.ports.length ∧
       (transposeTail g w I).body.occurrences.length =
         I.body.occurrences.length + g.body.occurrences.length := by
@@ -622,7 +623,8 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
     I.ports.length + 4)).size
   have hB : (2 * (J.body.occurrences.length + J.ports.length)).size ≤ B := by
     simpa only [hmJ, hpJ] using (Nat.size_le_size (Nat.mul_le_mul_left 2
-      (Nat.le_add_right (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
+      (Nat.le_add_right
+        (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
   have hj : J.rotation.successor.length = 2 * (J.body.occurrences.length + J.ports.length) ∧
       ∀ v ∈ J.rotation.successor, v.size ≤ B := by
     rcases H with ⟨F, ps, c⟩

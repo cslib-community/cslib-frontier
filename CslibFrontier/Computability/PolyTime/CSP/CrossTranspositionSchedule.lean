@@ -12,6 +12,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+
 /-!
 # Executing a finite schedule of adjacent CROSS transpositions
 
@@ -44,7 +47,7 @@ public section
 namespace Cslib.Complexity.CSP.CrossInsertion
 
 open Cslib.Logic.PL Cslib.Logic.PL.CSP Cslib.Logic.PL.CSP.Crossover
-open Cslib.BitString Turing.MultiTapeTM
+open OrderedBoundary Graph Cslib.BitString Turing.MultiTapeTM
 
 variable {Rel : Type} {ar : Rel → ℕ} {sem : Rel → List Bool → Bool}
 variable (g : PPGadget ar sem cross) (w : GadgetWitness g)
@@ -56,7 +59,7 @@ positions remain data; invalid guards execute the existing whole-State identity 
 
 /-- An all-invalid schedule preserves the entire input, including malformed surplus data. -/
 theorem transposeSchedule_eq_self (I : State Rel) (js : List ℕ)
-    (h : ∀ j ∈ js, I.ports.length ≤ j+1) : transposeSchedule g w I js = I := by
+    (h : ∀ j ∈ js, I.ports.length ≤ j + 1) : transposeSchedule g w I js = I := by
   induction js with
   | nil => rfl
   | cons j js ih =>
@@ -89,7 +92,7 @@ private def valueStep {α : Type} (ps : List α) (j : ℕ) : List α :=
 
 private theorem valueStep_pair {α : Type} (L : List α) (x y : α) (R : List α) :
     valueStep (L ++ [x,y] ++ R) L.length = L ++ [y,x] ++ R := by
-  simp [valueStep, List.take_append, List.drop_append, List.getElem_append]
+  simp [valueStep, List.drop_append]
 
 /-- The exact component recurrence counts only successful guards. The symbol word keeps
 all old rows in order and appends one fixed gadget word per successful request. -/
@@ -106,6 +109,7 @@ theorem components_transposeSchedule (I : State Rel) (js : List ℕ) :
   | append_singleton js j ih =>
     dsimp only at ih ⊢
     rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    rw [← transposeSchedule]
     have hc := counts_transposeAdjacent g w (transposeSchedule g w I js) j
     have hr := relations_transposeAdjacent g w (transposeSchedule g w I js) j
     rw [ih.2.2.1] at hc hr
@@ -114,16 +118,16 @@ theorem components_transposeSchedule (I : State Rel) (js : List ℕ) :
           (if j+1<I.ports.length then 1 else 0) := by simp
     rw [hk]
     by_cases h : j+1<I.ports.length <;>
-      simp only [h, ↓reduceIte, zero_add, add_zero] at *
+      simp only [h, ↓reduceIte, add_zero] at *
     · rcases hc with ⟨hq, hm, hp⟩
-      refine ⟨?_, ?_, hp.trans ih.2.2.1, ?_⟩
+      refine ⟨?_, ?_, hp, ?_⟩
       · rw [hq, ih.1]; simp only [Nat.add_mul, one_mul]; omega
       · rw [hm, ih.2.1]; simp only [Nat.add_mul, one_mul]; omega
       · rw [hr, ih.2.2.2, List.replicate_add]
         simp [List.flatten_append, List.append_assoc]
-    · simpa only [zero_mul, add_zero, List.append_nil] using
-        ⟨hc.1.trans ih.1, hc.2.1.trans ih.2.1, hc.2.2.trans ih.2.2.1,
-          hr.trans (by simpa using ih.2.2.2)⟩
+    · simp only [zero_mul, add_zero] at hc
+      simp only [List.append_nil] at hr
+      exact ⟨hc.1.trans ih.1, hc.2.1.trans ih.2.1, hc.2.2, hr.trans ih.2.2.2⟩
 
 private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
     (ht : (transposeAdjacent g w I j).body.eval sem τ = true) :
@@ -147,7 +151,7 @@ private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
         congrArg (fun ps => State.mk _ ps _) hp.symm
     have hr := recover_transposeAdjacent g w I.body L x y R I.rotation τ
       (by simpa only [← hI, hL] using ht)
-    rw [if_pos h]
+    rw [ite_eq_left h]
     simp only [pow_one]
     have hr' : I.body.eval sem (fun z => τ (2*z)) = true ∧
         (transposeAdjacent g w I j).ports.map τ =
@@ -178,13 +182,16 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
     (transposeSchedule g w I js).ports.map τ =
       js.foldl valueStep (I.ports.map (fun z => τ (2^(_)*z)))
   induction js using List.reverseRecOn generalizing τ with
-  | nil => simpa [transposeSchedule] using ⟨ht, rfl⟩
+  | nil =>
+    simp only [transposeSchedule, List.foldl_nil, List.countP_nil, pow_zero, one_mul] at ht ⊢
+    exact ⟨ht, trivial⟩
   | append_singleton js j ih =>
     let J := transposeSchedule g w I js
     have hp := (components_transposeSchedule g w I js).2.2.1
     let e := if j+1<I.ports.length then 1 else 0
     have hstep := recover_step g w J j τ (by
-      simpa only [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil] using ht)
+      simpa only [J, transposeSchedule, List.foldl_append, List.foldl_cons,
+      List.foldl_nil] using ht)
     rw [hp] at hstep
     have hprior := ih (fun z => τ (2^e*z)) hstep.1
     have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
@@ -197,9 +204,11 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
       ac_rfl
     refine ⟨?_, ?_⟩
     · simpa only [hass] using hprior.1
-    · change (transposeAdjacent g w J j).ports.map τ = _
+    · rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
+        ← transposeSchedule]
+      change (transposeAdjacent g w J j).ports.map τ = _
       rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil]
-      simpa only [hass]
+      simp only [hass]
 
 private theorem forward_step (I : State Rel) (j : ℕ) (σ : ℕ → Bool)
     (hs : I.body.eval sem σ = true) :
@@ -223,7 +232,7 @@ private theorem forward_step (I : State Rel) (j : ℕ) (σ : ℕ → Bool)
         simpa only [L, R, List.append_assoc, List.cons_append, List.nil_append] using
           congrArg (fun ps => State.mk _ ps _) hp.symm
       simpa only [← hI, hL] using ht
-    · simpa only [if_pos h, pow_one] using ha
+    · simpa only [ite_eq_left h, pow_one] using ha
   · refine ⟨σ, ?_, ?_⟩
     · rw [transposeAdjacent_invalid g w I j (by omega)]; exact hs
     · simp only [h, ↓reduceIte, pow_zero, one_mul, implies_true]
@@ -253,7 +262,8 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
         have hp := (components_transposeSchedule g w I js).2.2.1
         rw [hp] at he
         refine ⟨τ, ?_, ?_⟩
-        · simpa only [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil] using ht
+        · simpa only [J, transposeSchedule, List.foldl_append, List.foldl_cons,
+      List.foldl_nil] using ht
         intro z
         have h := (he (2^(js.countP (fun t => decide (t+1<I.ports.length)))*z)).trans (ha z)
         simpa [List.countP_append, pow_add, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
@@ -292,10 +302,12 @@ private theorem prefix_width (I : State Rel) (js : List ℕ) (W : ℕ)
       intro z hz
       have hJ : J = (⟨J.body, J.ports.take j ++ [J.ports[j],J.ports[j+1]] ++
           J.ports.drop (j+2), J.rotation⟩ : State Rel) := by
-        cases J
-        simpa only [List.append_assoc, List.cons_append, List.nil_append] using
-          congrArg (fun ps => State.mk _ ps _) hs.symm
-      have hz' := hb z (by simpa only [← hJ, hlen, transposeSchedule, List.foldl_append,
+        have hps : J.ports = J.ports.take j ++ [J.ports[j], J.ports[j+1]] ++
+            J.ports.drop (j+2) := by
+          simpa only [List.append_assoc, List.cons_append, List.nil_append] using hs.symm
+        exact congrArg (fun ps => State.mk J.body ps J.rotation) hps
+      rw [← hJ, hlen] at hb
+      have hz' := hb z (by simpa only [J, transposeSchedule, List.foldl_append,
         List.foldl_cons, List.foldl_nil] using hz)
       have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
           js.countP (fun t => decide (t+1<I.ports.length)) + 1 := by simp [h]
@@ -305,7 +317,7 @@ private theorem prefix_width (I : State Rel) (js : List ℕ) (W : ℕ)
       have hbad : J.ports.length ≤ j+1 := by rw [hp]; omega
       have heq : transposeSchedule g w I (js++[j]) = J := by
         rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-          transposeAdjacent_invalid g w J j hbad]
+          ← transposeSchedule, transposeAdjacent_invalid g w J j hbad]
       rw [heq] at hz
       have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
           js.countP (fun t => decide (t+1<I.ports.length)) := by simp [h]
@@ -325,25 +337,33 @@ private theorem prefix_storage (I : State Rel) (js : List ℕ) :
     let J := transposeSchedule g w I js
     have hc := components_transposeSchedule g w I js
     have hp := hc.2.2.1
+    change J.ports.length = I.ports.length at hp
     by_cases h : j+1<I.ports.length
     · have hgood : j+1<J.ports.length := by rw [hp]; exact h
       have hs := storage_transposeAdjacent g w J j hgood
       have hn := counts_transposeAdjacent g w J j
-      simp only [if_pos hgood, one_mul] at hn
+      simp only [ite_eq_left hgood, one_mul] at hn
       have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
           js.countP (fun t => decide (t+1<I.ports.length)) + 1 := by simp [h]
       dsimp only
       rw [hk]
       refine ⟨by omega, fun _ => ?_⟩
-      simpa only [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-        hn.2.1, hp] using hs
+      rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
+        ← transposeSchedule]
+      change (transposeAdjacent g w J j).rotation.successor.length =
+        2 * ((transposeAdjacent g w J j).body.occurrences.length + I.ports.length) ∧
+        ∀ v ∈ (transposeAdjacent g w J j).rotation.successor,
+          v.size ≤ (2 * ((transposeAdjacent g w J j).body.occurrences.length +
+            I.ports.length + 4)).size
+      simpa only [hn.2.1, hp] using hs
     · have hbad : J.ports.length ≤ j+1 := by rw [hp]; omega
       have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
           js.countP (fun t => decide (t+1<I.ports.length)) := by simp [h]
       dsimp only
       rw [hk]
-      simpa only [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
-        transposeAdjacent_invalid g w J j hbad] using ih
+      rw [transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil,
+        ← transposeSchedule, transposeAdjacent_invalid g w J j hbad]
+      exact ih
 
 private def symbolMass (encRel : Rel ↪ List Bool) (F : CSP Rel ℕ) : ℕ :=
   ((F.map Constraint.rel).map (fun r => (encRel r).length)).sum
@@ -359,7 +379,7 @@ private theorem prefix_symbol_mass (encRel : Rel ↪ List Bool) (I : State Rel) 
   generalize js.countP (fun j => decide (j+1<I.ports.length)) = k
   induction k with
   | zero => simp
-  | succ k ih => simp [List.replicate_succ, List.flatten_cons, ih, Nat.succ_mul]
+  | succ k ih => simp [List.replicate_succ, List.flatten_cons, Nat.succ_mul, Nat.add_comm]
 
 private theorem input_components (encRel : Rel ↪ List Bool) (I : State Rel) :
     let S := (encState encRel I).length
@@ -373,8 +393,11 @@ private theorem input_components (encRel : Rel ↪ List Bool) (I : State Rel) :
   have hc : (encList encNat I.rotation.successor).length ≤ (encState encRel I).length := by
     enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
       Graph.encRotationCertificateFields]
-  refine ⟨(SizedListEncoding.length_le _).trans hb,
-    (SizedListEncoding.length_le _).trans hp, (SizedListEncoding.length_le _).trans hc, ?_, ?_⟩
+  refine ⟨(SizedListEncoding.length_le (encA := encConstraint encRel encNat)
+    (encL := encCSP encRel encNat) I.body).trans hb,
+    (SizedListEncoding.length_le (encA := encNat) (encL := encList encNat) I.ports).trans hp,
+      (SizedListEncoding.length_le (encA := encNat) (encL := encList encNat)
+      I.rotation.successor).trans hc, ?_, ?_⟩
   · apply le_trans _ hb
     calc
       symbolMass encRel I.body = (I.body.map (fun c => (encRel c.rel).length)).sum := by
@@ -410,13 +433,16 @@ private theorem state_envelope (encRel : Rel ↪ List Bool) (J : State Rel) (L :
   have hrow (c : Constraint Rel ℕ) (hc : c ∈ J.body) :
       (encConstraint encRel encNat c).length ≤ 2*L+1+L*(2*L+1) := by
     have hrel : (encRel c.rel).length ≤ L := by
-      have hx := List.le_sum_of_mem (List.mem_map.mpr
-        ⟨c.rel, List.mem_map.mpr ⟨c,hc,rfl⟩,rfl⟩)
+      have hx : (encRel c.rel).length ≤ symbolMass encRel J.body :=
+        List.le_sum_of_mem (List.mem_map.mpr
+          ⟨c.rel, List.mem_map.mpr ⟨c,hc,rfl⟩,rfl⟩)
       exact hx.trans hr
     have hn : c.scope.length ≤ L := by
       have hx := List.le_sum_of_mem (List.mem_map.mpr ⟨c,hc,rfl⟩ :
         c.scope.length ∈ J.body.map (fun d => d.scope.length))
-      exact (by simpa only [CSP.length_occurrences] using hx).trans hm
+      have hx' : c.scope.length ≤ J.body.occurrences.length := by
+        simpa only [CSP.length_occurrences] using hx
+      exact hx'.trans hm
     have hs := length_encList_le encNat c.scope (fun z hz => by
       rw [encNat_apply, Nat.size_eq_bits_len]
       exact hw z (List.mem_append_left _ (List.mem_flatMap.mpr ⟨c,hc,hz⟩)))
@@ -452,58 +478,83 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
   let k := s.countP (fun j => decide (j+1<I.ports.length))
   let J := transposeSchedule g w I s
   have hb := input_components encRel I
-  have hk : k ≤ js.length := (List.countP_le_length _ _).trans hs.length_le
+  have hk : k ≤ js.length := (List.countP_le_length).trans hs.length_le
+  dsimp only [k] at hk
   have hc := components_transposeSchedule g w I s
   have hC : 8 ≤ C ∧ g.body.length ≤ C ∧ g.body.occurrences.length ≤ C ∧
       (2*g.numAux+7).size ≤ C ∧
       ((g.body.map Constraint.rel).map (fun r => (encRel r).length)).sum ≤ C := by
     dsimp only [C, templateBudget]; omega
-  have hq : J.body.length ≤ (C+1)*U := by
+  let K := (C+1)*U
+  have hSU : S ≤ U := by dsimp only [U]; omega
+  have hMU : I.body.occurrences.length ≤ U := by dsimp only [U]; omega
+  have hTU : js.length ≤ U := by dsimp only [U]; omega
+  have hkU : k ≤ U := hk.trans hTU
+  have hUK : U ≤ K := by
+    calc U = 1*U := by omega
+         _ ≤ K := Nat.mul_le_mul_right U (by omega)
+  have hCK : C ≤ K := by
+    calc C = C*1 := by omega
+         _ ≤ K := Nat.mul_le_mul (by omega) (by dsimp only [U]; omega)
+  have hK : 9 ≤ K := by
+    calc 9 = 9*1 := by omega
+         _ ≤ K := Nat.mul_le_mul (by omega) (by dsimp only [U]; omega)
+  have hq : J.body.length ≤ K := by
     rw [hc.1]
-    have hx := Nat.mul_le_mul hk hC.2.1
-    dsimp only [U, S] at *
-    nlinarith [hb.1]
-  have hm : J.body.occurrences.length ≤ (C+1)*U := by
+    calc _ ≤ U + U*C := Nat.add_le_add (hb.1.trans hSU)
+           (Nat.mul_le_mul hkU hC.2.1)
+         _ = K := by dsimp only [K]; ring
+  have hm : J.body.occurrences.length ≤ K := by
     rw [hc.2.1]
-    have hx := Nat.mul_le_mul hk hC.2.2.1
-    dsimp only [U, S] at *
-    nlinarith
-  have hp : J.ports.length ≤ U := by rw [hc.2.2.1]; dsimp only [U,S]; omega
-  have hr : symbolMass encRel J.body ≤ (C+1)*U := by
+    calc _ ≤ U + U*C := Nat.add_le_add hMU (Nat.mul_le_mul hkU hC.2.2.1)
+         _ = K := by dsimp only [K]; ring
+  have hp : J.ports.length ≤ U := by rw [hc.2.2.1]; exact hb.2.1.trans hSU
+  have hr : symbolMass encRel J.body ≤ K := by
     rw [prefix_symbol_mass]
-    have hx := Nat.mul_le_mul hk hC.2.2.2.2
-    dsimp only [U,S] at *
-    nlinarith [hb.2.2.2.1]
+    calc _ ≤ U + U*C := Nat.add_le_add (hb.2.2.2.1.trans hSU)
+           (Nat.mul_le_mul hkU hC.2.2.2.2)
+         _ = K := by dsimp only [K]; ring
+  have hL : L = 8*K := by dsimp only [L, K]; ring
+  have hpad : K ≤ L := by rw [hL]; omega
   have hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L := by
     intro z hz
     have hx := prefix_width g w I s S hb.2.2.2.2 z hz
-    dsimp only [L,U,S]
-    have hg := hC.2.2.2.1
-    have hmax : max S (2*g.numAux+7).size ≤ S+C := max_le (by omega) (by omega)
-    nlinarith
+    have hmax : max S (2*g.numAux+7).size ≤ K :=
+      max_le (hSU.trans hUK) (hC.2.2.2.1.trans hCK)
+    change z.size ≤ max S (2*g.numAux+7).size + k at hx
+    rw [hL]
+    omega
   have hstore := prefix_storage g w I s
   have hD : J.rotation.successor.length ≤ L ∧
       ∀ v ∈ J.rotation.successor, v.size ≤ L := by
     by_cases hzero : k=0
     · have heq := hstore.1 hzero
+      change J = I at heq
       rw [heq]
-      refine ⟨?_, ?_⟩
-      · dsimp only [L,U,S]; nlinarith [hb.2.2.1]
-      · intro v hv
-        have hx := SizedListEncoding.length_elem_le (encA := encNat)
-          (encL := encList encNat) I.rotation.successor v hv
-        rw [encNat_apply, Nat.size_eq_bits_len] at hx
-        enc_len [encState_apply,encStateFields,Graph.encRotationCertificate_apply,
-          Graph.encRotationCertificateFields] at *
+      refine ⟨hb.2.2.1.trans (hSU.trans (hUK.trans hpad)), ?_⟩
+      intro v hv
+      have hx := SizedListEncoding.length_elem_le (encA := encNat)
+        (encL := encList encNat) I.rotation.successor v hv
+      rw [encNat_apply, Nat.size_eq_bits_len] at hx
+      have htab : (encList encNat I.rotation.successor).length ≤ S := by
+        dsimp only [S]
+        enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
+          Graph.encRotationCertificateFields]
+      exact hx.trans (htab.trans (hSU.trans (hUK.trans hpad)))
     · have ht := hstore.2 (by omega : 0<k)
+      change J.rotation.successor.length = 2*(J.body.occurrences.length+I.ports.length) ∧
+        (∀ v ∈ J.rotation.successor,
+          v.size ≤ (2*(J.body.occurrences.length+I.ports.length+4)).size) at ht
+      have hi : I.ports.length ≤ K := hb.2.1.trans (hSU.trans hUK)
       refine ⟨?_, ?_⟩
-      · rw [ht.1]; dsimp only [L,U,S] at *; nlinarith [hb.2.1]
+      · rw [ht.1, hL]; omega
       · intro v hv
         have hx := (ht.2 v hv).trans (Nat.size_le_self _)
-        dsimp only [L,U,S] at *
-        nlinarith [hb.2.1]
-  exact state_envelope encRel J L (by dsimp only [L]; nlinarith) (by dsimp only [L]; nlinarith)
-    (by dsimp only [L]; nlinarith) hD.1 (by dsimp only [L]; nlinarith) hw hD.2
+        rw [hL]
+        omega
+  exact state_envelope encRel J L (hq.trans hpad) (hm.trans hpad)
+    (hp.trans (hUK.trans hpad)) hD.1 (hr.trans hpad) hw hD.2
+
 
 private theorem budget_poly (encRel : Rel ↪ List Bool) :
     PolyBounded (fun p : State Rel × List ℕ =>
@@ -517,10 +568,19 @@ private theorem budget_poly (encRel : Rel ↪ List Bool) :
     simpa only [CSP.vars_length_eq_occurrences, Function.comp_def] using
       (computableInPolyTime_length_vars encRel encNat).comp hb
   have ht := (ComputableInPolyTime.length_list encNat).comp hj
-  have hU := ((hi.polyBounded_length.add hm.polyBounded).add ht.polyBounded).add (.const 1)
-  have hx := ((PolyBounded.const (8*(templateBudget g encRel+1))).mul hU).add (.const 1)
-  have h := (PolyBounded.const 64).mul ((hx.mul hx).mul hx)
-  simpa only [scheduleBudget, pow_succ, pow_zero, mul_one, Nat.mul_assoc] using h
+  let measure := fun p : State Rel × List ℕ => (input p).length
+  have hS : PolyBounded measure (fun p => (encState encRel p.1).length) :=
+    hi.polyBounded_length
+  have hM : PolyBounded measure (fun p => p.1.body.occurrences.length) := hm.polyBounded
+  have hT : PolyBounded measure (fun p => p.2.length) := ht.polyBounded
+  have hU : PolyBounded measure (fun p => (encState encRel p.1).length +
+      p.1.body.occurrences.length + p.2.length + 1) :=
+    ((hS.add hM).add hT).add (.const 1)
+  have hx : PolyBounded measure (fun p => 8*(templateBudget g encRel+1)*
+      ((encState encRel p.1).length+p.1.body.occurrences.length+p.2.length+1)+1) :=
+    ((PolyBounded.const (8*(templateBudget g encRel+1))).mul hU).add (.const 1)
+  exact (PolyBounded.const 64).mul (hx.pow 3)
+
 
 /-- Execute every raw binary request in plain polynomial time. The actual framed schedule
 funds the fold and each positioned step caps binary positions by port length. Reachable
@@ -536,7 +596,7 @@ theorem computableInPolyTime_transposeSchedule (encRel : Rel ↪ List Bool) :
     (fun p consumed J => J=transposeSchedule g w p.1 consumed)
     (fun _ => rfl)
     (fun p consumed J j _ hJ => by
-      rw [hJ, transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil])
+      simp only [hJ, transposeSchedule, List.foldl_append, List.foldl_cons, List.foldl_nil])
     (budget_poly g encRel)
     (fun p consumed J hp hJ => by rw [hJ]; exact prefix_size g w encRel p.1 p.2 consumed hp)).1
 

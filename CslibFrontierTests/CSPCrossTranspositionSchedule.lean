@@ -64,7 +64,7 @@ example : ∃ τ : ℕ → Bool, (transposeSchedule g w atom [1,0]).body.eval ne
   exact ⟨τ,ht,he,by simpa [sigma] using hv⟩
 
 -- ONE final assignment recovers source satisfaction and the whole word, not just existence.
-example (τ : ℕ → Bool) (ht : (transposeSchedule g w atom [0,1]).body.eval nearSem τ = true) :
+example (τ : ℕ → Bool) (ht : (transposeSchedule g w atom [0, 1]).body.eval nearSem τ = true) :
     atom.body.eval nearSem (fun z => τ (4*z)) = true ∧
       (transposeSchedule g w atom [0,1]).ports.map τ =
         [τ (4*20),τ (4*30),τ (4*10),τ (4*40)] := by
@@ -105,8 +105,12 @@ private def broken : State Unit :=
 example : transposeSchedule g w broken [] = broken := rfl
 
 example : transposeSchedule g w broken [2^300,3,2^300] = broken :=
-  transposeSchedule_eq_self g w broken _ (by intro j hj; simp only [List.mem_cons,
-    List.mem_singleton] at hj; rcases hj with rfl|rfl|rfl <;> decide +kernel)
+  transposeSchedule_eq_self g w broken _ (by
+    intro j hj
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hj
+    rcases hj with hj | hj | hj
+    all_goals rw [hj]; decide +kernel)
+
 
 -- Invalid calls are exact identity, so only the single valid request contributes a doubling.
 example : transposeSchedule g w broken [2^300,0,2^300] = transposeAdjacent g w broken 0 := by
@@ -123,13 +127,17 @@ example : ∃ τ : ℕ → Bool,
     (transposeSchedule g w atom [2^300,0,2^300]).ports.map τ = [true,false,false,true] := by
   obtain ⟨τ,ht,he,hv⟩ := (eval_transposeSchedule_iff g w atom [2^300,0,2^300] sigma).mp
     (by decide +kernel)
-  change ∀ z, τ (2*z)=sigma z at he
-  change _ = [sigma 20,sigma 10,sigma 30,sigma 40] at hv
-  exact ⟨τ,ht,he,by simpa [sigma] using hv⟩
+  have hk : ([2^300, 0, 2^300] : List ℕ).countP
+      (fun j => decide (j+1<atom.ports.length)) = 1 := by decide +kernel
+  simp only [hk, pow_one] at he
+  exact ⟨τ, ht, he, hv.trans (by decide +kernel)⟩
 
 example : (transposeSchedule g w broken [2^300,0,2^300]).body.length = 5 := by
   have h := (components_transposeSchedule g w broken [2^300,0,2^300]).1
-  simpa [broken,g,figureOneB,figureOneBBody] using h
+  have hk : ([2^300, 0, 2^300] : List ℕ).countP
+      (fun j => decide (j+1<4)) = 1 := by decide +kernel
+  rw [show broken.ports.length = 4 from rfl, hk] at h
+  exact h
 
 -- Both duplicate indexed rows and the false closed nullary row remain in the old prefix.
 example : ((transposeSchedule g w broken [0]).body.take 3).map (fun c => c.scope.length) =
@@ -174,7 +182,8 @@ example (c : Graph.RotationCertificate) (js : List ℕ) :
       ⟨broken.body,[2^250],c⟩ :=
   transposeSchedule_eq_self g w _ _ (by intro j _; change 1 ≤ j+1; omega)
 
-example {Rel : Type} {ar : Rel → ℕ} {sem : Rel → List Bool → Bool}
+/-- The schedule runtime certificate admits arbitrary encoded relation alphabets. -/
+theorem computableInPolyTime_anyRel {Rel : Type} {ar : Rel → ℕ} {sem : Rel → List Bool → Bool}
     (g : PPGadget ar sem cross) (w : GadgetWitness g) (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (fun p : State Rel × List ℕ => transposeSchedule g w p.1 p.2)
       (encPair (encState encRel) (encList encNat)) (encState encRel) :=
