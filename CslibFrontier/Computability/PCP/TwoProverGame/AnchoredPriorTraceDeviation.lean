@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTr
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.StatisticalDistance.Event
+import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 
 /-!
 # Trace deviation under an independent selected trial
@@ -171,6 +172,116 @@ transcript, setting the selected message by `tag`. -/
     ((Q.map (restTranscript C (e i))) r).toReal *
       score i (restoreCheckedTranscript C (e i) r (tag q)) (read q)
 
+
+private theorem taggedPairScore_sq_le (Q : PMF Transcript) (read : PairQ → U)
+    (tag : PairQ → Message) (e : Fin m ≃ Free) (f : Fin m → Label → U → ℝ) :
+    (taggedPairScore C G α Q read tag e f) ^ 2 ≤
+      m * taggedPairScore C G α Q read tag e (fun i t u => (f i t u) ^ 2) := by
+  classical
+  let Samples := Σ i : Fin m, PairQ × Rest (e i)
+  let p (z : Samples) : ℝ :=
+    ((G.anchored α).questions z.2.1).toReal * ((Q.map (restTranscript C (e z.1))) z.2.2).toReal
+  let F (z : Samples) := f z.1 (restoreCheckedTranscript C (e z.1) z.2.2 (tag z.2.1)) (read z.2.1)
+  have hp (z : Samples) : 0 ≤ p z := mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg
+  have hmass : ∑ z, p z = (m : ℝ) := by
+    simp only [Samples, Fintype.sum_sigma, Fintype.sum_prod_type, p, ← mul_sum, sum_toReal,
+      mul_one, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
+  have he (g : Fin m → Label → U → ℝ) :
+      (∑ z : Samples, p z * g z.1
+        (restoreCheckedTranscript C (e z.1) z.2.2 (tag z.2.1)) (read z.2.1)) =
+      taggedPairScore C G α Q read tag e g := by
+    simp only [Samples, Fintype.sum_sigma, Fintype.sum_prod_type, p, taggedPairScore, mul_sum,
+      mul_assoc]
+  have h := Finset.sum_sq_le_sum_mul_sum_of_sq_le_mul (univ : Finset Samples)
+    (r := fun z => p z * F z) (f := p) (g := fun z => p z * (F z) ^ 2)
+    (fun z _ => hp z) (fun z _ => mul_nonneg (hp z) (sq_nonneg _))
+    (fun z _ => by ring_nf; rfl)
+  rw [hmass] at h
+  change (∑ z : Samples, p z * F z) ^ 2 ≤ (m : ℝ) * ∑ z : Samples, p z * (F z) ^ 2 at h
+  simpa only [F, he f, he (fun i t u => (f i t u) ^ 2)] using h
+
+/-- Average a score bounded by a main term plus a penalty. A second-moment bound on the
+main term and a first-moment bound on the penalty suffice, including at zero weight. -/
+theorem taggedPairScore_le_sqrt_add (Q : PMF Transcript) (read : PairQ → U)
+    (tag : PairQ → Message) (e : Fin m ≃ Free) (score main penalty : Fin m → Label → U → ℝ)
+    {w B M : ℝ} (hw : 0 ≤ w)
+    (hpoint : ∀ i t u, score i t u ≤ main i t u + penalty i t u)
+    (hB : w * taggedPairScore C G α Q read tag e (fun i t u => (main i t u) ^ 2) ≤ B)
+    (hM : w * taggedPairScore C G α Q read tag e penalty ≤ M) :
+    w * taggedPairScore C G α Q read tag e score ≤ Real.sqrt (m * w * B) + M := by
+  classical
+  have hsum : taggedPairScore C G α Q read tag e score ≤
+      taggedPairScore C G α Q read tag e main + taggedPairScore C G α Q read tag e penalty := by
+    unfold taggedPairScore
+    simp only [mul_sum, ← sum_add_distrib, ← mul_add]
+    exact sum_le_sum fun i _ => sum_le_sum fun q _ => sum_le_sum fun r _ =>
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hpoint i _ _)
+        ENNReal.toReal_nonneg) ENNReal.toReal_nonneg
+  have hsq := mul_le_mul_of_nonneg_left
+    (taggedPairScore_sq_le C G α Q read tag e main) (sq_nonneg w)
+  rw [← mul_pow] at hsq
+  have hmain : w * taggedPairScore C G α Q read tag e main ≤ Real.sqrt (m * w * B) := by
+    apply Real.le_sqrt_of_sq_le
+    refine hsq.trans ?_
+    rw [show w ^ 2 * ((m : ℝ) *
+      taggedPairScore C G α Q read tag e (fun i t u => (main i t u) ^ 2)) =
+      (m * w) * (w * taggedPairScore C G α Q read tag e (fun i t u => (main i t u) ^ 2)) by ring]
+    exact mul_le_mul_of_nonneg_left hB (mul_nonneg (Nat.cast_nonneg _) hw)
+  exact (mul_le_mul_of_nonneg_left hsum hw).trans
+    ((mul_add _ _ _).le.trans (add_le_add hmain hM))
+
+/-- Pull a constant out of the averaged tagged score. -/
+theorem taggedPairScore_mul (Q : PMF Transcript) (read : PairQ → U)
+    (tag : PairQ → Message) (e : Fin m ≃ Free) (f : Fin m → Label → U → ℝ) (a : ℝ) :
+    taggedPairScore C G α Q read tag e (fun i t u => a * f i t u) =
+      a * taggedPairScore C G α Q read tag e f := by
+  simp only [taggedPairScore, mul_sum]
+  refine sum_congr rfl fun i _ => sum_congr rfl fun q _ => sum_congr rfl fun r _ => ?_
+  ring
+
+
+private theorem taggedPairScore_fixedTag_le_of_erase
+    (Q : PMF Transcript) (read : PairQ → U) (tag : PairQ → Message) (msg : Message)
+    (e : Fin m ≃ Free) (f : Fin m → Label → U → ℝ) (hf : ∀ i t u, 0 ≤ f i t u)
+    (erase : PairQ → PairQ) (htag : ∀ q, tag (erase q) = msg)
+    (hread : ∀ q, read (erase q) = read q)
+    (hslice : ∀ g : PairQ → ℝ, (∀ q, 0 ≤ g q) →
+      (α : ℝ) * (∑ q, ((G.anchored α).questions q).toReal * g (erase q)) ≤
+        ∑ q, ((G.anchored α).questions q).toReal * g q) :
+    (α : ℝ) * taggedPairScore C G α Q read (fun _ => msg) e f ≤
+      taggedPairScore C G α Q read tag e f := by
+  classical
+  unfold taggedPairScore
+  rw [mul_sum]
+  refine sum_le_sum fun i _ => ?_
+  let g (q : PairQ) : ℝ := ∑ r, ((Q.map (restTranscript C (e i))) r).toReal *
+    f i (restoreCheckedTranscript C (e i) r (tag q)) (read q)
+  have h := hslice g (fun q => sum_nonneg fun r _ =>
+    mul_nonneg ENNReal.toReal_nonneg (hf _ _ _))
+  simpa only [g, htag, hread] using h
+
+/-- Holding the left message at its anchor costs one factor of the anchor rate. -/
+theorem leftAnchorTagScore_le (Q : PMF Transcript) (e : Fin m ≃ Free)
+    (f : Fin m → Label → Option Y → ℝ) (hf : ∀ i t u, 0 ≤ f i t u) :
+    (α : ℝ) * taggedPairScore C G α Q Prod.snd (fun _ => Sum.inl none) e f ≤
+      taggedPairScore C G α Q Prod.snd (Sum.inl ∘ Prod.fst) e f := by
+  apply taggedPairScore_fixedTag_le_of_erase C G α Q _ _ _ e f hf
+    (fun q => (none, q.2)) (fun _ => rfl) (fun _ => rfl)
+  intro g hg
+  rw [TwoProverGame.anchored_questions]
+  exact rate_mul_sum_anchorPair_erase_left_le G.questions α α g hg
+
+/-- Holding the right message at its anchor costs one factor of the anchor rate. -/
+theorem rightAnchorTagScore_le (Q : PMF Transcript) (e : Fin m ≃ Free)
+    (f : Fin m → Label → Option X → ℝ) (hf : ∀ i t u, 0 ≤ f i t u) :
+    (α : ℝ) * taggedPairScore C G α Q Prod.fst (fun _ => Sum.inr none) e f ≤
+      taggedPairScore C G α Q Prod.fst (Sum.inr ∘ Prod.snd) e f := by
+  apply taggedPairScore_fixedTag_le_of_erase C G α Q _ _ _ e f hf
+    (fun q => (q.1, none)) (fun _ => rfl) (fun _ => rfl)
+  intro g hg
+  rw [TwoProverGame.anchored_questions]
+  exact rate_mul_sum_anchorPair_erase_right_le G.questions α α g hg
+
 /-- Average the conditional trace deviation using an independent anchored pair, with the
 noisy message set to the indicated player's question. -/
 noncomputable def taggedPairConditionalTraceNormSq [Fintype U] [DecidableEq U]
@@ -274,7 +385,7 @@ theorem rightTaggedPairConditionalTraceNormSq_le (Q : PMF Transcript) (e : Fin m
 
 /-- Average the squared trace norm between the winning-law states at the selected prior
 question and at its anchor value. Both states use the same restored transcript. -/
-noncomputable def taggedPairAnchorTraceNormSq [Fintype U] [DecidableEq U]
+@[expose] noncomputable def taggedPairAnchorTraceNormSq [Fintype U] [DecidableEq U]
     (Q : PMF Transcript) (read : PairQ → U)
     (tag : PairQ → Message) (anchor : U) (e : Fin m ≃ Free)
     (ρ : Label × (Fin m → U) → Matrix D D ℂ) : ℝ :=

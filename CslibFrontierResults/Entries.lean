@@ -12,6 +12,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
@@ -11096,6 +11097,27 @@ register_result "anchored-prior-redraw-missing-winning-support" where
     by α²/4 bounds this sum by (α + 1) times the summed distance from the actual selected trials \
     to their independent prior redraw, where α is the anchor rate. The local-unitary estimate \
     uses this cost for samples on which a normalized branch may have zero norm."
+
+register_result "anchored-averaged-local-unitary-alignment" where
+  title := "Averaged local-unitary alignment of noisy checked-answer branches"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 5.12, equations (29)–(31)",
+      locator := "arXiv:1509.07466v2, §5.2, printed pp. 22 and 27–28" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.exists_bob_taggedLocalUnitary_le,
+    Cslib.PCP.AnchoredDependency.exists_alice_taggedLocalUnitary_le,
+    Cslib.PCP.AnchoredDependency.exists_bob_anchorLocalUnitary_le,
+    Cslib.PCP.AnchoredDependency.exists_alice_anchorLocalUnitary_le
+  ]
+  scope := "Coordinate-summed squared alignment errors for the actual anchored tensor \
+    experiment, with explicit dependence on the checked-win probability and answer alphabet. \
+    The tag can follow its player's question or be fixed at its anchor. A missing winning \
+    observation uses the identity, and its mass contributes to the bound. The fixed-message \
+    alignments go from the doubly anchored branch to the sampled question branch. Alice's \
+    unitary is on the second factor of the Bob-first branch. This gives the averaged step \
+    before the good-coordinate comparison and the repetition decay theorem."
 
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"

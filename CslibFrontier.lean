@@ -4121,6 +4121,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
+public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript

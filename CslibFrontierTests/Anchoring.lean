@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
@@ -418,3 +418,32 @@ example :
     hpos Prod.fst (Sum.inr ∘ Prod.snd) (by decide),
     leftTaggedPairAnchorMissMass_le C acceptingGame half Q e,
     rightTaggedPairAnchorMissMass_le C acceptingGame half Q e⟩
+
+
+/-- The fixed-right-tag estimate acts on Alice's original two-dimensional local system
+and allows division by the alignment scale at anchor rate one half. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let Q := (transcriptLaw acceptingGame half C S).filter (winsOnChecked acceptingGame half C)
+      (acceptingGame_win_supported S)
+    let Label := Cslib.PCP.ParallelRepetition.Revealed (Option Bool) (Option Bool) C ×
+      ((C → Bool) × (C → Bool))
+    ∃ V : Fin 1 → Label → Option Bool → Matrix (Fin 2) (Fin 2) ℂ,
+      (∀ i t x, V i t x ∈ Matrix.unitaryGroup (Fin 2) ℂ) ∧
+      taggedPairScore C acceptingGame half Q Prod.fst (fun _ => Sum.inr none) e
+        (fun i label x =>
+          let (t, a, b) := label
+          let v u := checkedVectorGivenAlice acceptingGame half C S (e i) t u a b
+          localUnitaryErrorSq (V i label x) (v none) (v x)) ≤
+        anchoredAlignmentBound half 1 4 1 / ((half : ℝ) * anchoredAlignmentScale half) := by
+  intro C e Q Label
+  obtain ⟨V, hV, hbound⟩ :=
+    exists_alice_anchorLocalUnitary_le C acceptingGame half S e (acceptingGame_win_supported S)
+  refine ⟨V, hV, ?_⟩
+  have hp : 0 < (half : ℝ) * anchoredAlignmentScale half := by
+    norm_num [anchoredAlignmentScale, half]
+  rw [le_div_iff₀ hp, mul_comm]
+  have hc : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
+  simpa only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one] using hbound
