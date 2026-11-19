@@ -36,8 +36,10 @@ the signed messages. While `j < capacity n` it signs the request at index `j`, a
 word and records nothing. A signature word is verified by `counterVerify`, which reads `(u, σ)` and
 runs the indexed verifier at `u`. The game `counterEufCmaGame` is the EUF-CMA experiment with this
 oracle; the forger wins with a valid signature on any message it never had signed, of any length,
-at an index `u < capacity n`. This is stronger than `SignatureScheme.eufCmaGame`, which only counts
-`n`-bit forgeries.
+at an index `u < capacity n`. It admits forgeries on messages of every length, where
+`SignatureScheme.eufCmaGame` counts only `n`-bit ones, but it also requires the forgery's index to
+be below the capacity, which `counterVerify` alone does not check. The two games are therefore not
+ordered in general.
 
 From `j = capacity n` on, the signing oracle refuses every request, and a forgery counts only at an
 index below the capacity, as in `indexedEufCmaGame`. Definition 14.6 (printed p. 597) has message
@@ -250,7 +252,7 @@ variable (S) in
 /-- Existential unforgeability of the counter-stateful use of an indexed scheme under adaptive
 chosen-message attack ([BonehShoup2023], Section 14.6.4, with the counter as the nonce) against
 uniform strict oracle-PPT forgers. A forgery on any never-signed message counts, whatever its
-length. -/
+length, provided its index is below `capacity n`. -/
 def CounterEUFCMA : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (S.counterEufCmaGame adversary n))
