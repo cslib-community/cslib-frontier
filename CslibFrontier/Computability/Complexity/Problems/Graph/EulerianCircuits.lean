@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Arborescences
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.BEST
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Factorial
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Foundations.Data.List.OfFn
 
@@ -132,14 +133,13 @@ theorem eulerianCircuitCount_eq_natCard (G : Graph) (eIdx : ℕ) :
         ⟨G.validArcs[i].2, (harcs _ (List.getElem_mem i.isLt)).2⟩
       have hcirc_iff : ∀ l : List (Fin G.validArcs.length),
           Multidigraph.IsEulerianCircuit G.arcSrc G.arcTgt ⟨eIdx, he⟩ l ↔
-            Multidigraph.IsEulerianCircuit srcAct tgtAct ⟨eIdx, he⟩ l := by
-        intro l
+            Multidigraph.IsEulerianCircuit srcAct tgtAct ⟨eIdx, he⟩ l := fun l => by
         constructor <;> rintro ⟨hnd, hmem, hh, hch, hgl⟩ <;>
-          refine ⟨hnd, hmem, hh, hch.imp fun a b hab => ?_, fun a ha => ?_⟩
-        · simpa only [Subtype.ext_iff, arcSrc, arcTgt, srcAct, tgtAct] using hab
-        · simpa only [Subtype.ext_iff, arcSrc, arcTgt, srcAct, tgtAct] using hgl a ha
-        · simpa only [Subtype.ext_iff, arcSrc, arcTgt, srcAct, tgtAct] using hab
-        · simpa only [Subtype.ext_iff, arcSrc, arcTgt, srcAct, tgtAct] using hgl a ha
+          refine ⟨hnd, hmem, hh,
+            hch.imp fun a b hab => by
+              simpa only [Subtype.ext_iff, arcSrc, arcTgt, srcAct, tgtAct] using hab,
+            fun a ha => by
+              simpa only [Subtype.ext_iff, arcSrc, arcTgt, srcAct, tgtAct] using hgl a ha⟩
       have hcard_eq :
           Nat.card {l : List (Fin G.validArcs.length) //
               Multidigraph.IsEulerianCircuit G.arcSrc G.arcTgt ⟨eIdx, he⟩ l} =
@@ -217,13 +217,8 @@ theorem computableInPolyTime_outdeg {γ : Type} {encIn : γ ↪ List Bool}
     (hg : ComputableInPolyTime g encIn encGraph)
     (hv : ComputableInPolyTime v encIn encNat) :
     ComputableInPolyTime (fun x => (g x).outdeg (v x)) encIn encUnary := by
-  have harcs : ComputableInPolyTime (fun x => (g x).validArcs) encIn
-      (encList (encPair encNat encNat)) :=
-    computableInPolyTime_validArcs.comp hg
-  refine ComputableInPolyTime.countPWithInput harcs ?_
-  exact ((ComputableInPolyTime.fst encNat encNat).comp
-    (ComputableInPolyTime.snd encIn (encPair encNat encNat))).decide_eq'
-    (hv.comp (ComputableInPolyTime.fst encIn (encPair encNat encNat)))
+  unfold outdeg
+  fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_indeg {γ : Type} {encIn : γ ↪ List Bool}
@@ -231,100 +226,37 @@ theorem computableInPolyTime_indeg {γ : Type} {encIn : γ ↪ List Bool}
     (hg : ComputableInPolyTime g encIn encGraph)
     (hv : ComputableInPolyTime v encIn encNat) :
     ComputableInPolyTime (fun x => (g x).indeg (v x)) encIn encUnary := by
-  have harcs : ComputableInPolyTime (fun x => (g x).validArcs) encIn
-      (encList (encPair encNat encNat)) :=
-    computableInPolyTime_validArcs.comp hg
-  refine ComputableInPolyTime.countPWithInput harcs ?_
-  exact ((ComputableInPolyTime.snd encNat encNat).comp
-    (ComputableInPolyTime.snd encIn (encPair encNat encNat))).decide_eq'
-    (hv.comp (ComputableInPolyTime.fst encIn (encPair encNat encNat)))
+  unfold indeg
+  fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_isBalancedBool :
     ComputableInPolyTime isBalancedBool encGraph encBool := by
-  refine ComputableInPolyTime.allWithInput computableInPolyTime_distinctVertices ?_
-  have hout := computableInPolyTime_outdeg
-    (ComputableInPolyTime.fst encGraph encNat) (ComputableInPolyTime.snd encGraph encNat)
-  have hin := computableInPolyTime_indeg
-    (ComputableInPolyTime.fst encGraph encNat) (ComputableInPolyTime.snd encGraph encNat)
-  exact hout.decide_eq' hin
+  unfold isBalancedBool
+  fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_activeVertices :
     ComputableInPolyTime activeVertices encGraph (encList encNat) := by
-  refine ComputableInPolyTime.filterWithInput computableInPolyTime_distinctVertices ?_
-  have hout := computableInPolyTime_outdeg
-    (ComputableInPolyTime.fst encGraph encNat) (ComputableInPolyTime.snd encGraph encNat)
-  have hzero : ComputableInPolyTime (fun p : Graph × ℕ => decide (p.1.outdeg p.2 = 0))
-      (encPair encGraph encNat) encBool :=
-    hout.decide_eq' (ComputableInPolyTime.const 0)
-  simpa only [Function.comp_def, decide_not] using ComputableInPolyTime.bool_not.comp hzero
+  unfold activeVertices
+  fun_prop
 
 /-- `Graph.eulerianCircuitCount` is computable in polynomial time on `encPair encGraph encNat`. -/
 @[fun_prop]
 theorem computableInPolyTime_eulerianCircuitCount :
     ComputableInPolyTime (fun p : Graph × ℕ => p.1.eulerianCircuitCount p.2)
       (encPair encGraph encNat) encNat := by
-  have hfst : ComputableInPolyTime (fun p : Graph × ℕ => p.1) (encPair encGraph encNat) encGraph :=
-    ComputableInPolyTime.fst _ _
-  have hsnd : ComputableInPolyTime (fun p : Graph × ℕ => p.2) (encPair encGraph encNat) encNat :=
-    ComputableInPolyTime.snd _ _
-  have harcs : ComputableInPolyTime (fun p : Graph × ℕ => p.1.validArcs)
-      (encPair encGraph encNat) (encList (encPair encNat encNat)) :=
-    computableInPolyTime_validArcs.comp hfst
-  have hlen : ComputableInPolyTime (fun p : Graph × ℕ => p.1.validArcs.length)
-      (encPair encGraph encNat) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp
-      ((ComputableInPolyTime.length_list (encPair encNat encNat)).comp harcs)
+  dsimp only [eulerianCircuitCount]
   have hlt : ComputableInPolyTime (fun p : Graph × ℕ => decide (p.2 < p.1.validArcs.length))
       (encPair encGraph encNat) encBool :=
-    ComputableInPolyTime.binary_lt' hsnd hlen
-  have hcond : ComputableInPolyTime
-      (fun p : Graph × ℕ => decide (p.2 < p.1.validArcs.length) && p.1.isBalancedBool)
-      (encPair encGraph encNat) encBool :=
-    ComputableInPolyTime.bool_and.comp (hlt.prod (computableInPolyTime_isBalancedBool.comp hfst))
+    ComputableInPolyTime.binary_lt' (by fun_prop)
+      (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
   have hr : ComputableInPolyTime (fun p : Graph × ℕ => (p.1.validArcs.getD p.2 (0, 0)).1)
       (encPair encGraph encNat) encNat :=
     (ComputableInPolyTime.fst encNat encNat).comp
-      (ComputableInPolyTime.listGetD_binary (encA := encPair encNat encNat) (0, 0) harcs hsnd)
-  have harb : ComputableInPolyTime
-      (fun p : Graph × ℕ => multiLaplacianCount p.1.activeVertices p.1.validArcs
-        (p.1.validArcs.getD p.2 (0, 0)).1)
-      (encPair encGraph encNat) encNat :=
-    computableInPolyTime_multiLaplacianCount (computableInPolyTime_activeVertices.comp hfst)
-      harcs hr
-  have hprod : ComputableInPolyTime
-      (fun p : Graph × ℕ =>
-        (p.1.activeVertices.map fun v => ((p.1.outdeg v - 1).factorial : ℤ)).prod.toNat)
-      (encPair encGraph encNat) encNat := by
-    have hact : ComputableInPolyTime (fun p : Graph × ℕ => p.1.activeVertices)
-        (encPair encGraph encNat) (encList encNat) :=
-      computableInPolyTime_activeVertices.comp hfst
-    have hout : ComputableInPolyTime
-        (fun q : (Graph × ℕ) × ℕ => q.1.1.outdeg q.2)
-        (encPair (encPair encGraph encNat) encNat) encUnary :=
-      computableInPolyTime_outdeg
-        (hfst.comp (ComputableInPolyTime.fst (encPair encGraph encNat) encNat))
-        (ComputableInPolyTime.snd (encPair encGraph encNat) encNat)
-    have hfac : ComputableInPolyTime
-        (fun q : (Graph × ℕ) × ℕ => ((q.1.1.outdeg q.2 - 1).factorial : ℤ))
-        (encPair (encPair encGraph encNat) encNat) encIntBin :=
-      ComputableInPolyTime.intBin_natCast.comp
-        (ComputableInPolyTime.binary_factorial.comp
-          (ComputableInPolyTime.unary_sub' hout (ComputableInPolyTime.const 1)))
-    have hlist : ComputableInPolyTime
-        (fun p : Graph × ℕ => p.1.activeVertices.map fun v => ((p.1.outdeg v - 1).factorial : ℤ))
-        (encPair encGraph encNat) (encList encIntBin) :=
-      ComputableInPolyTime.mapWithInput hact hfac
-    exact ComputableInPolyTime.intBin_toNat.comp
-      (ComputableInPolyTime.intBin_prod.comp hlist)
-  have hmul : ComputableInPolyTime
-      (fun p : Graph × ℕ =>
-        multiLaplacianCount p.1.activeVertices p.1.validArcs (p.1.validArcs.getD p.2 (0, 0)).1 *
-          (p.1.activeVertices.map fun v => ((p.1.outdeg v - 1).factorial : ℤ)).prod.toNat)
-      (encPair encGraph encNat) encNat :=
-    ComputableInPolyTime.binary_mul' harb hprod
-  exact ComputableInPolyTime.ite' hcond hmul (ComputableInPolyTime.const 0)
+      (ComputableInPolyTime.listGetD_binary (encA := encPair encNat encNat) (0, 0)
+        (by fun_prop) (by fun_prop))
+  fun_prop
 
 /-- The number of Eulerian circuits starting with arc `eIdx` in the multidigraph
 `(G.arcSrc, G.arcTgt)` is computable in polynomial time on `encPair encGraph encNat`. -/

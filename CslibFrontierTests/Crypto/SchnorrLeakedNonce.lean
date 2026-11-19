@@ -108,7 +108,7 @@ example (n : ℕ) (msg : List Bool) :
   have hadd : (7 / 8 : ℝ≥0) + (2 ^ 3 : ℝ≥0)⁻¹ ≤ 1 := by norm_num
   exact le_of_add_le_add_right (hadd.trans (tsub_le_iff_right.mp h))
 
--- Fixing `(d23, 3)` via `IsOraclePPTOn.preprocess'` preserves the uniform strict oracle-PPT
+-- Fixing `(d23, 3)` via `IsOraclePPTOn.preprocess` preserves the uniform strict oracle-PPT
 -- certificate of `schnorrLeakedNonceWordAdversary`.
 example :
     IsOraclePPTOn (encPair encBits (encPair encBits encBits)) encBits
@@ -120,6 +120,6 @@ example :
       (encPair schnorrGroups.encDesc
         (encPair encUnary (encPair encBits (encPair encBits encBits)))) := by
     fun_prop
-  exact (schnorrGroups.isOraclePPTOn_schnorrLeakedNonceWordAdversary).preprocess' hpre
+  exact (schnorrGroups.isOraclePPTOn_schnorrLeakedNonceWordAdversary).preprocess hpre
 
 end CslibFrontierTests.Crypto.SchnorrLeakedNonce

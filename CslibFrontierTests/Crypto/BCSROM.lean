@@ -670,7 +670,7 @@ theorem isPPTOn_cheatingTraceAdversary :
     IsPPTOn (encPair encUnary encBits) (encBCSTraceOutput 1 Bool Bool encBool encBool)
       (fun ⟨n, k⟩ => cheatingTraceAdversary n k) :=
   (computableInPolyTime_cheatingTraceOutput.comp
-    (ComputableInPolyTime.snd encUnary encBits)).tidy.isPPTOn
+    (ComputableInPolyTime.snd encUnary encBits)).isPPTOn
 
 -- Edge case: on `trProver` under `idTreeHash`, `honestProof` agrees with `bcsExtractOracles`, so
 -- `bcsExtractTraceCollision` returns the default empty pair `([], [])`.

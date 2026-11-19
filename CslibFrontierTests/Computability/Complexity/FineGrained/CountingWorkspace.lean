@@ -41,8 +41,8 @@ private theorem probe_certificate (q : CNF ℕ → ℕ) :
   have hp : ComputableTidilyInPolyTime leafProbe encCNF encNat := by
     unfold leafProbe encCNF
     fun_prop
-  obtain ⟨d, e, h⟩ := hp.exists_degree
-  exact ⟨d, .of_tidy (h.inO.mono_le
+  obtain ⟨d, e, h⟩ := hp.computableInPolyTime.exists_degree
+  exact ⟨d, (h.inO.mono_le
     (fun ψ => Nat.le_mul_of_pos_left _ (Nat.two_pow_pos (q ψ))) (fun _ => le_rfl))⟩
 
 /-- No tree or machine premise is assumed: the width-one tree bound and the concrete leaf

@@ -90,7 +90,8 @@ private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
     have := (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha
     simp only [encodePublic, List.length_append, List.length_take, length_packCoeffs]
     lia
-  simp only [Xofs.keyGen, exp, ← show e = G.expandKeySeed s seed from rfl, mat, secret, pk]
+  simp only [Xofs.keyGen, Xofs.expandS, exp, ← show e = G.expandKeySeed s seed from rfl,
+    mat, secret, pk]
 
 private theorem representative (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {tr ctx : List Byte} {msg : List Bool} (ht : tr.length ≤ 64)
@@ -165,7 +166,7 @@ private theorem signInternal (h : Agreement H G a b) (ha : honestAddressBits s m
     H.signInternal s key (formatMessage msg ctx) rnd =
       G.signInternal s key (formatMessage msg ctx) rnd := by
   simp only [Xofs.signInternal, Xofs.runSigning, Xofs.startSigning, Xofs.startSigningWithSeed,
-    bind_assoc, pure_bind]
+    Xofs.startDecodedSigning, bind_assoc, pure_bind]
   apply Option.bind_congr
   intro sk hsk
   obtain ⟨hr, hk, ht⟩ := lengths_of_decodePrivate hsk
@@ -244,9 +245,8 @@ private theorem forgeryGame_eq (C : QuantumSigningForger) {m a b : ℕ} {s : Lev
     intro q hq
     rcases q with n | dev | req
     · rfl
-    · change C.deviceCommand H dev = C.deviceCommand G dev
-      unfold deviceCommand
-      rw [C.queryTable_eq h hc hd]
+    · funext st
+      simp only [OracleComp.sumHandler, commands, deviceCommand, C.queryTable_eq h hc hd]
     · funext st
       change ((H.signingOracle s keys.secretKey req st.2).map _) =
         ((G.signingOracle s keys.secretKey req st.2).map _)

@@ -73,7 +73,7 @@ theorem firstBitZero_isOraclePPT : IsOraclePPT encBool firstBitZero := by
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitZero
-  exact ((IsOraclePPTOn.query_take' () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 /-- `firstBitZero` asks one query, so it never repeats a tweak. -/
 theorem firstBitZero_isTweakUnique (k : ℕ) :

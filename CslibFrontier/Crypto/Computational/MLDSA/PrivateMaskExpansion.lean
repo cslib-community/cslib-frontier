@@ -268,9 +268,9 @@ private theorem sign_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
   change G.signWithRow s keys.secretKey q (fun _ => t i) = H.signWithExpansionRow s _ q _
   by_cases ctx : q.context.length ≤ 255
   · simp only [Xofs.signWithRow, Xofs.runSigning, Xofs.startSigningWithSeed,
-      Xofs.signWithExpansionRow, ctx, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
-      Option.bind_some, dec, mat, matrix, ← show msg = formatMessage q.message q.context from rfl,
-      rep]
+      Xofs.startDecodedSigning, Xofs.signWithExpansionRow, ctx, guard, ↓reduceIte,
+      Option.pure_def, Option.bind_eq_bind, Option.bind_some, dec, mat, matrix,
+      ← show msg = formatMessage q.message q.context from rfl, rep]
     apply congrArg (fun f => firstAccepted s.params.ℓ f 814 0)
     funext counter
     exact maskStreams_attempt base ha s hb t T₁ T₂ rows _ sk.A

@@ -148,7 +148,7 @@ theorem isPPTOn_dcrDistinguisher {adversary : AdversaryOf ℕ} (hA : adversary.I
     (prepare := fun input : ℕ × ℕ × ℕ => (input.1, encNat input.2.1))
     ((ComputableInPolyTime.fst encUnary (encPair encNat encNat)).prod
       hN_in.encoding_comp)).bind_with ?_
-  exact IsPPTOn.cond' hvalidStep hguessStep (ComputableInPolyTime.const false).isPPTOn
+  exact IsPPTOn.cond hvalidStep hguessStep (ComputableInPolyTime.const false).isPPTOn
 
 /-! ### Algebra of the reduction -/
 

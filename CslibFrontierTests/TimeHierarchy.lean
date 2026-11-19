@@ -56,8 +56,7 @@ example :
     (encNat (2 ^ 5)).length = 6 ∧
     ComputableInPolyTime (fun x : List Bool => 2 ^ x.length) encBits encNat :=
   ⟨by rw [encNat_two_pow]; decide,
-   (ComputableTidilyInDegree.two_pow_length
-     encBits).computableTidilyInPolyTime.computableInPolyTime⟩
+   (ComputableInDegree.two_pow_length encBits).computableInPolyTime⟩
 
 /-! ### The diagonal on concrete machines -/
 

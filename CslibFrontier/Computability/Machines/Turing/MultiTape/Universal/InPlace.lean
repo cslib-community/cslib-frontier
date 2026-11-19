@@ -444,13 +444,13 @@ public lemma stepAt_inO : ComputableTidilyInO stepAt eSt (encPair eCfg eSym)
   have hr := hn.fst'
   have hk := hn.snd'.fst'
   have hcur := hn.snd'.snd'
-  have hor := (ComputableTidilyInDegree.of_finite (encIn := encPair encBool encBool)
-    (encMid := encBool) fun b : Bool × Bool => b.1 || !b.2).inO_one.comp_linear
+  have hor := (ComputableInDegree.of_finite (encIn := encPair encBool encBool)
+    (encMid := encBool) fun b : Bool × Bool => b.1 || !b.2).inO_one.tidy.comp_linear
       ((ComputableInO.natIsZero.tidy.comp_linear hpos).prod
         (ComputableInO.natIsZero.tidy.comp_linear hk))
   have hsym : ComputableTidilyInO symAt eSt eSym _ _ :=
-    (hor.ite (const none) ((ComputableTidilyInDegree.optionSome (enc₁ := encUnary)
-      (enc := eSym)).inO_one.comp_linear hcur)).of_enc_eq fun s => by
+    (hor.ite (const none) ((ComputableInDegree.optionSome (enc₁ := encUnary)
+      (enc := eSym)).inO_one.tidy.comp_linear hcur)).of_enc_eq fun s => by
         simp only [symAt, Function.comp_apply]
         split_ifs <;> simp_all
   -- bridge for #862: tidy client of the plain `stepWith_inO`
@@ -498,8 +498,8 @@ public lemma foldEnd_inO : ComputableTidilyInO foldEnd eSt eSt
 public lemma foldEmit_inO : ComputableTidilyInO foldEmit eSt encBits
     (fun s => ((eSt s).length + 1) ^ 3) fun s => (eSt s).length + 1 := by
   have ho := stepAt_inO.snd'
-  have hsome := (ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear ho
-  have hn := (ComputableTidilyInDegree.getD (enc₁ := encUnary) (enc := eSym) 0).inO_one.comp_linear
+  have hsome := (ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear ho
+  have hn := (ComputableInDegree.getD (enc₁ := encUnary) (enc := eSym) 0).inO_one.tidy.comp_linear
     ho
   have hdbl : ComputableTidilyInO (fun n => doubled (frame (encUnary n))) encUnary encBits
       (fun n => (encUnary n).length) fun n => (encUnary n).length :=
@@ -519,8 +519,9 @@ public lemma foldEmit_inO : ComputableTidilyInO foldEmit eSt encBits
 public lemma foldCont_inO : ComputableTidilyInO foldCont eSt encBool
     (fun s => ((eSt s).length + 1) ^ 3) fun s => (eSt s).length + 1 := by
   have hr := (snd (encPair eDesc eCfg) (encPair encNat (encPair encNat encUnary))).fst'
-  refine (((ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    fun b : Bool => !b).inO_one.comp_linear (ComputableInO.natIsZero.tidy.comp_linear hr)).of_enc_eq
+  refine (((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
+    fun b : Bool => !b).inO_one.tidy.comp_linear
+      (ComputableInO.natIsZero.tidy.comp_linear hr)).of_enc_eq
     (g := foldCont) fun s => by simp [foldCont]).mono 1 (fun s => ?_) fun s => ?_ <;>
   · have hL : (eSt s).length + 1 ≤ ((eSt s).length + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
     have : (encNat s.2.1).length ≤ (eSt s).length := by simp only [length_encPair]; omega
@@ -531,9 +532,9 @@ public lemma foldCont_inO : ComputableTidilyInO foldCont eSt encBool
 public lemma foldFinish_inO : ComputableTidilyInO foldFinish eSt eHalted
     (fun s => ((eSt s).length + 1) ^ 3) fun s => (eSt s).length + 1 := by
   have hc := (fst (encPair eDesc eCfg) (encPair encNat (encPair encNat encUnary))).snd'
-  refine (((ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := eHalted)
-    fun b : Bool => !b).inO_one.comp_linear
-      ((ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear
+  refine (((ComputableInDegree.of_finite (encIn := encBool) (encMid := eHalted)
+    fun b : Bool => !b).inO_one.tidy.comp_linear
+      ((ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear
         -- bridge for #862: tidy client of the plain `state_inO`
         (state_inO.tidy.comp_linear hc))).of_enc_eq (g := foldFinish) fun s => by
         simp only [foldFinish, Function.comp_apply]

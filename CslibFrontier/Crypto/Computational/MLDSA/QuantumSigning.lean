@@ -69,8 +69,8 @@ private abbrev State (C : QuantumSigningForger) := Device C × List Forgery
 private noncomputable def initial (C : QuantumSigningForger) : State C :=
   (C.initialDevice, [])
 
-private noncomputable def deviceCommand (C : QuantumSigningForger) (H : Xofs)
-    (cmd : DeviceRequest (Width C) Empty) : StateT (State C) PMF (List Bool) :=
+private noncomputable def deviceCommand (C : QuantumSigningForger) (H : Xofs) {σ : Type}
+    (cmd : DeviceRequest (Width C) Empty) : StateT (Device C × σ) PMF (List Bool) :=
   fun st => (deviceHandler (m := Width C) (κ := Unit)
       (H.queryTable C.addressBits C.responseBytes)
       (fun p : Empty × List Bool => p.1.elim (C := StateT Unit PMF (Fin 0 → Bool))) cmd st.1).map

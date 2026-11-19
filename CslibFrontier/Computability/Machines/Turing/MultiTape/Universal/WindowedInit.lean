@@ -35,7 +35,7 @@ input cells `x' = x.map fun a => some (a + 1)`:
   `(true true)^(a + 2) false`. The rewrite `true ↦ true`, `false ↦ true false`, applied four times,
   maps the one to the other, and every application is a finite-state transducer.
 * The input window keeps the first `t + 1` coded cells; the blank work windows are built by
-  `ComputableTidilyInDegree.replicate`, within time cubic in the number of work tapes.
+  `ComputableInDegree.replicate`, within time cubic in the number of work tapes.
 
 ## Main results
 
@@ -94,11 +94,11 @@ private lemma foldl_dbl_take_le (n i : ℕ) : ((encNat n).reverse.take i).foldl 
     _ = n := by rw [← List.foldl_append, List.take_append_drop, foldl_dbl_bits]
 
 /-- A doubling round, in linear time. -/
-private lemma dbl_deg : ComputableTidilyInDegree (fun p : ℕ × Bool => dbl p.1 p.2)
+private lemma dbl_deg : ComputableInDegree (fun p : ℕ × Bool => dbl p.1 p.2)
     (encPair encUnary encBool) encUnary 1 1 := by
-  have h₁ := ComputableTidilyInDegree.fst encUnary encBool
-  have h₂ := (ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encUnary)
-    fun b : Bool => cond b 1 0).comp (ComputableTidilyInDegree.snd encUnary encBool)
+  have h₁ := ComputableInDegree.fst encUnary encBool
+  have h₂ := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encUnary)
+    fun b : Bool => cond b 1 0).comp (ComputableInDegree.snd encUnary encBool)
   have hdouble := h₁.append h₁ (encOut := encUnary) (g := fun p : ℕ × Bool => p.1 + p.1)
     fun p => by simp only [encUnary_apply, List.replicate_add]
   exact (hdouble.append h₂ fun p => by
@@ -113,7 +113,7 @@ private lemma toUnary_inO : ComputableTidilyInO (fun t : ℕ => t) encNat encUna
       (fun _ => by omega) (fun _ => Nat.zero_le _)
       (fun _ => by simp only [encBits_apply, List.length_reverse]; omega)
   refine ((foldl (encA := encBool) (encL := encBits) (list := fun t : ℕ => (encNat t).reverse)
-    (init := fun _ => 0) (step := dbl) hrev (const 0) dbl_deg.inO_one
+    (init := fun _ => 0) (step := dbl) hrev (const 0) dbl_deg.inO_one.tidy
     (R := fun t => 2 * t + 2) (Q := fun t => 2 * t + 2) (B := fun t => t)
     (fun t i _ => ?_) (fun t i _ => ?_) (fun t i _ => ?_)).mono 8 (fun t => ?_)
       fun t => ?_).of_enc_eq fun t => ?_
@@ -200,12 +200,12 @@ private lemma length_encList_recode (x : List ℕ) :
 private lemma recode_inO : ComputableTidilyInO (fun x : List ℕ => x.map fun a => some (a + 1))
     (encList encUnary) (encList eSym) (fun x => (encList encUnary x).length)
     fun x => (encList encUnary x).length := by
-  have hins : ComputableTidilyInDegree ins encBits encBits 1 1 :=
-    .of_linear (ComputableInDegree.of_transducer insT fun w => (insT_run w).symm)
-  have h₁ : ComputableTidilyInDegree (fun x : List ℕ => ins (encList encUnary x))
+  have hins : ComputableInDegree ins encBits encBits 1 1 :=
+    ComputableInDegree.of_transducer insT fun w => (insT_run w).symm
+  have h₁ : ComputableInDegree (fun x : List ℕ => ins (encList encUnary x))
       (encList encUnary) encBits 1 1 :=
-    .of_linear (ComputableInDegree.of_transducer insT fun x => (insT_run _).symm)
-  exact ((hins.comp (hins.comp (hins.comp h₁))).mono (d' := 1) (e' := 1)).inO_one.of_enc_eq
+    ComputableInDegree.of_transducer insT fun x => (insT_run _).symm
+  exact ((hins.comp (hins.comp (hins.comp h₁))).mono (d' := 1) (e' := 1)).inO_one.tidy.of_enc_eq
     fun x => (ins_four x).symm
 
 /-! ### The intermediate value -/
@@ -243,7 +243,7 @@ private lemma fin_inO : ComputableTidilyInO (fun m : Desc × ℕ × List (Option
       (encPair encUnary (encPair encUnary (encList (encPair eKey eAct))))
       (fun d => (eDesc d).length) fun d => (eDesc d).length :=
     of_linear (.of_eq fun _ => rfl)
-  have hq := ((ComputableTidilyInDegree.optionSome (enc₁ := encUnary) (enc := eSym)).inO_one
+  have hq := ((ComputableInDegree.optionSome (enc₁ := encUnary) (enc := eSym)).inO_one.tidy
     |>.comp_linear hf.snd'.fst').comp_linear pd
   have hz : ComputableTidilyInO (fun n : ℕ => decide (n = 0)) encUnary encBool
       (fun n => (encUnary n).length) fun n => (encUnary n).length :=
@@ -259,7 +259,7 @@ private lemma fin_inO : ComputableTidilyInO (fun m : Desc × ℕ × List (Option
       (encOut := eTape) (g := fun m : Desc × ℕ × List (Option ℕ) =>
         (⟨0, if decide (m.2.1 = 0) then [] else [some 0], m.2.2.take (m.2.1 + 1)⟩ : Tape))
       fun m => rfl
-  have hb := (ComputableTidilyInDegree.replicate eTape).inO.comp
+  have hb := (ComputableInDegree.replicate eTape).inO.tidy.comp
     ((hf.fst'.comp_linear pd).prod (const (encMid := eTape) (⟨0, [], []⟩ : Tape)))
   have hw := (htape.prod hb).of_enc_eq (encOut := encList eTape)
     (g := fun m : Desc × ℕ × List (Option ℕ) =>

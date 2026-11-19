@@ -472,7 +472,7 @@ private noncomputable def realPairCall (m : ℕ) (p : OrderedPair m) (x : Fin m 
 private theorem isOraclePPTOn_realPairCall (m : ℕ) (p : OrderedPair m) :
     IsOraclePPTOn (encFinite (Fin m → Bool × Bool)) (encPair encBool encBool)
       (realPairCall m p) := by
-  refine (IsOraclePPTOn.finite_cases'
+  refine (IsOraclePPTOn.finite_cases
     (tagEncoding := encFinite (Fin m → Bool × Bool))
     (tag := id) (branch := fun x _ => realPairCall m p x) id' ?_).congr
     fun _ _ _ _ => rfl
@@ -493,13 +493,13 @@ private theorem isOraclePPTOn_realPairCall (m : ℕ) (p : OrderedPair m) :
           ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
             ((), encodeOT14Query
               (fun s => twoPartyMulQuery s (x (pairEmbedding p s), twoPartyMulCoins c₀ s)))) :=
-    IsOraclePPTOn.query_take' () (of_finite _) (const 1)
+    IsOraclePPTOn.query_take () (of_finite _) (const 1)
   have hpost : ComputableInPolyTime
       (fun q : Bool × List Bool => (q.1, q.2.headD false))
       (encPair encBool encBits) (encPair encBool encBool) :=
     (fst encBool encBits).prod
       (comp' (headD (encA := encBool) (encL := encBits) false) (snd encBool encBits))
-  have hsecond := hq.map_with' (f := fun c₀ raw => (c₀, raw.headD false)) hpost
+  have hsecond := hq.map_with (f := fun c₀ raw => (c₀, raw.headD false)) hpost
   exact hc₀.bind hsecond
 
 /-- Sequential execution of `realPairCall m p x` along `L : List (OrderedPair m)`. -/
@@ -520,8 +520,8 @@ private theorem isOraclePPTOn_realPairsCalls (m : ℕ) (L : List (OrderedPair m)
       (fun _ : OrderedPair m => (false, false)))).isPPTOn).isOraclePPTOn
   | cons p L ih =>
     unfold realPairsCalls
-    have hprep := ih.preprocess' (fst (encFinite (Fin m → Bool × Bool)) (encPair encBool encBool))
-    have hsecond := hprep.map_with'
+    have hprep := ih.preprocess (fst (encFinite (Fin m → Bool × Bool)) (encPair encBool encBool))
+    have hsecond := hprep.map_with
       (f := fun pair rest => Function.update rest p pair.2)
       (of_finite (encOut := encFinite (OrderedPair m → Bool × Bool)) _)
     exact (isOraclePPTOn_realPairCall m p).bind_with
@@ -678,7 +678,7 @@ private noncomputable def realGateCore (m : ℕ) [NeZero m] (p : Boolean.Op × (
 private theorem isOraclePPTOn_realGateCore (m : ℕ) [NeZero m] :
     IsOraclePPTOn (encFinite (Boolean.Op × (Fin m → Bool × Bool))) (encStep2Acc m)
       (realGateCore m) := by
-  refine (IsOraclePPTOn.finite_cases'
+  refine (IsOraclePPTOn.finite_cases
     (tagEncoding := encFinite (Boolean.Op × (Fin m → Bool × Bool)))
     (tag := id) (branch := fun choice _ => realGateCore m choice) id' ?_).congr
     fun _ _ _ _ => rfl
@@ -689,10 +689,10 @@ private theorem isOraclePPTOn_realGateCore (m : ℕ) [NeZero m] :
   | not =>
     exact ((of_finite _).isPPTOn).isOraclePPTOn
   | and =>
-    exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess' (const x)).map'
+    exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess (const x)).map
       (of_finite (fun tr => finishMulGate m false x (realSharedMulPure m x tr))))
   | or =>
-    exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess' (const x)).map'
+    exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess (const x)).map
       (of_finite (fun tr => finishMulGate m true x (realSharedMulPure m x tr))))
 
 /-- Shared simulated multiplication core: sample additive shares `ans` of `target` and pair coins
@@ -770,8 +770,8 @@ private noncomputable def realGateStep (m : ℕ) [NeZero m] (gate : Boolean.Op �
 private theorem isOraclePPTOn_realGateStep (m : ℕ) [NeZero m] :
     IsOraclePPTOn (encPair Boolean.encGate (encStep2Acc m)) (encStep2Acc m)
       (fun p => realGateStep m p.1 p.2) :=
-  ((isOraclePPTOn_realGateCore m).preprocess'
-    (computableInPolyTime_extractGateCoreInput m)).map_with'
+  ((isOraclePPTOn_realGateCore m).preprocess
+    (computableInPolyTime_extractGateCoreInput m)).map_with
     (f := fun (p : (Boolean.Op × List ℕ) × Step2Acc m) delta => appendStep2Acc m p.2 delta)
     (computableInPolyTime_appendAcc_post Boolean.encGate
       (computableInPolyTime_appendStep2Acc m))
@@ -961,13 +961,13 @@ private noncomputable def realOutCore (m : ℕ) [NeZero m] (item : OutItem m) :
 
 private theorem isOraclePPTOn_realOutCore (m : ℕ) [NeZero m] :
     IsOraclePPTOn (encFinite (OutItem m)) (encStep3Acc m) (realOutCore m) := by
-  refine (IsOraclePPTOn.finite_cases'
+  refine (IsOraclePPTOn.finite_cases
     (tagEncoding := encFinite (OutItem m))
     (tag := id) (branch := fun item _ => realOutCore m item) id' ?_).congr
     fun _ _ _ _ => rfl
   intro item
-  exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess'
-    (const (fun s => (item.2.1 s, GMWCircuit.constShare true s)))).map'
+  exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess
+    (const (fun s => (item.2.1 s, GMWCircuit.constShare true s)))).map
     (of_finite (fun tr =>
       finishOutStep m item.1
         (realSharedMulPure m (fun s => (item.2.1 s, GMWCircuit.constShare true s)) tr))))
@@ -996,8 +996,8 @@ private noncomputable def realOutStep (m : ℕ) [NeZero m] (item : OutItem m) (a
 private theorem isOraclePPTOn_realOutStep (m : ℕ) [NeZero m] :
     IsOraclePPTOn (encPair (encFinite (OutItem m)) (encStep3Acc m)) (encStep3Acc m)
       (fun p => realOutStep m p.1 p.2) :=
-  ((isOraclePPTOn_realOutCore m).preprocess'
-    (fst (encFinite (OutItem m)) (encStep3Acc m))).map_with'
+  ((isOraclePPTOn_realOutCore m).preprocess
+    (fst (encFinite (OutItem m)) (encStep3Acc m))).map_with
     (f := fun (p : OutItem m × Step3Acc m) delta => appendStep3Acc m p.2 delta)
     (computableInPolyTime_appendAcc_post (encFinite (OutItem m))
       (computableInPolyTime_appendStep3Acc m))
@@ -1312,7 +1312,7 @@ private theorem isOraclePPTOn_realRunWord {α : Type} {encA : α ↪ List Bool}
   have hstage2 := (IsOraclePPTOn.foldlM_of_bounded_growth (.const false, [])
     (step := fun acc item => realGateStep m item acc)
     hD1_gates hinit2
-    ((isOraclePPTOn_realGateStep m).preprocess'
+    ((isOraclePPTOn_realGateStep m).preprocess
       (prepare := fun p : Step2Acc m × (Boolean.Op × List ℕ) => (p.2, p.1)) (by fun_prop))
     (fun acc item => realGateStep_growth m item acc)).keep_input
   have hs2_s1 := fst e1 (encStep2Acc m)
@@ -1334,7 +1334,7 @@ private theorem isOraclePPTOn_realRunWord {α : Type} {encA : α ↪ List Bool}
     ((0, fun _ => false, false) : OutItem m)
     (step := fun acc item => realOutStep m item acc)
     houtItems2 hinit3
-    ((isOraclePPTOn_realOutStep m).preprocess'
+    ((isOraclePPTOn_realOutStep m).preprocess
       (prepare := fun p : Step3Acc m × OutItem m => (p.2, p.1)) (by fun_prop))
     (fun acc item => realOutStep_growth m item acc)).keep_input
   have hs3_s1 := comp' hs2_s1 (fst e2 (encStep3Acc m))
@@ -1345,7 +1345,7 @@ private theorem isOraclePPTOn_realRunWord {α : Type} {encA : α ↪ List Bool}
   have hin3 := comp' hin1 hs3_s1
   have hpost := computableInPolyTime_packRealOutput hx3 hr3 hc3 hin3 hs3_acc3
   dsimp only [e0, ePi, eRC, e1, e2, e3] at hstage1 hstage2 hstage3 hpost
-  have hres := ((hstage1.bind hstage2).bind hstage3).map' hpost
+  have hres := ((hstage1.bind hstage2).bind hstage3).map hpost
   unfold realRunWord
   simpa only [bind_assoc, bind_map_left, map_bind, Functor.map_map, bind_pure_comp,
     Function.comp_def, Function.flip_def] using hres

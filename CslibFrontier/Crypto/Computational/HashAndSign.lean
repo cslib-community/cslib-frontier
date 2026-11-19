@@ -282,26 +282,27 @@ theorem isPPT_collisionFinder
       (fun p : ℕ × List Bool => S.keyGen p.1) :=
     S.isPPTOn_keyGen_comp (ComputableInPolyTime.fst encUnary encBits)
   let E1 := encPair (encPair encUnary encBits) (encPair encBits encBits)
-  have hfst := ComputableTidilyInPolyTime.fst (encPair encUnary encBits) (encPair encBits encBits)
-  have hsnd := ComputableTidilyInPolyTime.snd (encPair encUnary encBits) (encPair encBits encBits)
-  have henc := ComputableTidilyInPolyTime.encode (encPair encBits encBits)
-  have hprep : ComputableTidilyInPolyTime
+  have hfst := ComputableInPolyTime.fst (encPair encUnary encBits) (encPair encBits encBits)
+  have hsnd := ComputableInPolyTime.snd (encPair encUnary encBits) (encPair encBits encBits)
+  have henc : ComputableInPolyTime (encPair encBits encBits)
+      (encPair encBits encBits) encBits := .of_eq fun _ => rfl
+  have hprep : ComputableInPolyTime
       (fun q : (ℕ × List Bool) × (List Bool × List Bool) =>
         (q.1.1, encPair encBits encBits (q.2.1, q.1.2), encPair encBits encBits (q.2.2, q.1.2)))
       E1 encKeyPairInput :=
     hfst.fst'.prod ((henc.comp (hsnd.fst'.prod hfst.snd')).prod
       (henc.comp (hsnd.snd'.prod hfst.snd')))
   have hrun₀ := (scheme S H hH hlen).isPPTOn_run_signingOracle hadversary
-  have hrun := hrun₀.preprocess (.of_tidy hprep)
+  have hrun := hrun₀.preprocess hprep
   let EOut := encPair (encPair encBits encBits) (encList encBits)
-  have hrfst := ComputableTidilyInPolyTime.fst E1 EOut
-  have hrsnd := ComputableTidilyInPolyTime.snd E1 EOut
-  have hpost : ComputableTidilyInPolyTime
+  have hrfst := ComputableInPolyTime.fst E1 EOut
+  have hrsnd := ComputableInPolyTime.snd E1 EOut
+  have hpost : ComputableInPolyTime
       (fun r : ((ℕ × List Bool) × (List Bool × List Bool)) ×
           ((List Bool × List Bool) × List (List Bool)) =>
         collisionOf H r.1.1.2 r.2)
       (encPair E1 EOut) (encPair encBits encBits) :=
-    (computableInPolyTime_collisionOf H hH).tidy.comp (hrfst.fst'.snd'.prod hrsnd)
+    (computableInPolyTime_collisionOf H hH).comp (hrfst.fst'.snd'.prod hrsnd)
   unfold collisionFinder
   exact hkeys.bind_with (hrun.bind_with hpost.isPPTOn)
 
@@ -346,14 +347,14 @@ private theorem isOraclePPTOn_hashSigningHandler
   have hmsg := hr.fst'.snd'
   have hdigest := hH.comp' (hs.prod hmsg)
   have hbn := hboundPoly.comp' hn
-  have hq := IsOraclePPTOn.query_take' (input := EIn) () hdigest hbn
+  have hq := IsOraclePPTOn.query_take (input := EIn) () hdigest hbn
   have hpost : ComputableInPolyTime
       (fun r : (((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × Unit)) × List Bool =>
         (r.2, ()))
       (encPair EIn encBits) (encPair encBits (encFinEnum Unit)) :=
     (ComputableInPolyTime.snd EIn encBits).prod (ComputableInPolyTime.const ())
   unfold hashSigningHandler
-  simpa [bind_pure_comp] using hq.map_with'
+  simpa [bind_pure_comp] using hq.map_with
     (f := fun (_ : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × Unit)) sig => (sig, ()))
     hpost
 
@@ -409,7 +410,7 @@ theorem isOraclePPT_baseForger
 
 /-- When `bound` upper-bounds the bit-length of every signature in the support of
 `S.sign sk₀ (H s msg)` and `|H s msg| = n`, interpreting `hashSigningHandler` against
-`S.signingOracle sk₀` matches running `(scheme S H hH hlen).signingOracle ⟨sk₀, s⟩` while mapping
+`S.signingOracle n sk₀` matches running `(scheme S H hH hlen).signingOracle ⟨sk₀, s⟩` while mapping
 the recorded query log `queried` to `queried.map (H s)`. -/
 theorem eval_run_hashSigningHandler
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
@@ -421,7 +422,7 @@ theorem eval_run_hashSigningHandler
     {α : Type} (program : WordOracleComp Unit α) :
     (OracleComp.interpret
       (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-        (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+        (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
       ((OracleComp.interpret
         (OracleComp.sumHandler
           (fun j => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin j)))
@@ -438,7 +439,7 @@ theorem eval_run_hashSigningHandler
     (oracle' := fun (q : Unit × List Bool) (state : Unit × List (List Bool)) =>
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-          (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+          (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
         ((hashSigningHandler H s bound q).run state.1)).run state.2).map
           (fun result => (result.1.1, result.1.2, result.2)))
     (represent := fun queried => ((), queried.map (H s)))
@@ -451,7 +452,7 @@ theorem eval_run_hashSigningHandler
         PMF.map (fun result => (result.1.1, result.1.2, result.2))
           ((OracleComp.interpret
             (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-              (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+              (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
             (do
               let sig ← List.take bound <$> ProbOracleComp.query ((), H s msg)
               return (sig, ()))).run (List.map (H s) queried))
@@ -459,7 +460,8 @@ theorem eval_run_hashSigningHandler
         ProbOracleComp.interpret_query, OracleComp.interpret_pure,
         StateT.run_bind, StateT.run_map, StateT.run_pure]
       simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracle,
-        scheme, sign_encPair, ProbComp.eval_bind, ProbComp.eval_pure,
+        SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, hmsg, beq_self_eq_true,
+        ↓reduceIte, scheme, sign_encPair, ProbComp.eval_bind, ProbComp.eval_pure,
         PMF.monad_map_eq_map, PMF.monad_pure_eq_pure, PMF.monad_bind_eq_bind,
         PMF.map_bind, PMF.bind_bind, PMF.pure_bind, PMF.pure_map, List.map_cons]
       refine PMF.bind_congr_on_support _ _ _ fun sig hsig => ?_
@@ -582,13 +584,13 @@ theorem isOraclePPT_fixedCollisionForger {bound : ℕ → ℕ}
   have hbn := hboundPoly.comp' (ComputableInPolyTime.fst encUnary encBits)
   have hmsg : ComputableInPolyTime (fun _ : ℕ × List Bool => m₀) EIn encBits :=
     ComputableInPolyTime.const m₀
-  have hq := IsOraclePPTOn.query_take' (input := EIn) () hmsg hbn
+  have hq := IsOraclePPTOn.query_take (input := EIn) () hmsg hbn
   have hpost : ComputableInPolyTime
       (fun r : (ℕ × List Bool) × List Bool => (m₁, r.2))
       (encPair EIn encBits) (encPair encBits encBits) :=
     (ComputableInPolyTime.const m₁).prod (ComputableInPolyTime.snd EIn encBits)
   unfold fixedCollisionForger
-  simpa [bind_pure_comp] using hq.map_with' (f := fun (_ : ℕ × List Bool) sig => (m₁, sig)) hpost
+  simpa [bind_pure_comp] using hq.map_with (f := fun (_ : ℕ × List Bool) sig => (m₁, sig)) hpost
 
 /-- If `m₀ ≠ m₁` collide under every hash key (`∀ s, H s m₀ = H s m₁`) and `bound n` upper-bounds
 the length of valid `S`-signatures, `fixedCollisionForger bound m₀ m₁` wins
@@ -611,7 +613,8 @@ theorem succProbability_eufCmaGame_fixedCollisionForger
     simp only [WordSignatureScheme.eufCmaGame, fixedCollisionForger,
       OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_query,
       OracleComp.interpret_pure, StateT.run_bind, StateT.run_map, StateT.run_pure]
-    simp only [StateT.run, WordSignatureScheme.signingOracle, scheme, keyGen, sign_encPair,
+    simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracleOf,
+      SignatureScheme.signingOracleOn, ↓reduceIte, scheme, keyGen, sign_encPair,
       verify_encPair, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
       BitString.eval_sampleList, PMF.bind_bind, PMF.map_bind, PMF.pure_bind,
       PMF.pure_map]

@@ -219,7 +219,7 @@ theorem isOraclePPT_twoBlockIdAttack : IsOraclePPT encBool twoBlockIdAttack := b
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold twoBlockIdAttack
-  exact ((IsOraclePPTOn.query_take' () hrequest hlimit).map_with' hout).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hrequest hlimit).map_with hout).isOraclePPT
 
 private theorem zipWith_xor_replicate_false :
     ∀ (u : List Bool) {n : ℕ}, u.length = n → List.zipWith xor u (List.replicate n false) = u

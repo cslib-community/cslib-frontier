@@ -99,12 +99,12 @@ and reads one reply bit. -/
 @[fun_prop]
 theorem isOraclePPTOn_queryTable : IsOraclePPTOn (encList encBits) encBits queryTable := by
   unfold queryTable
-  refine IsOraclePPTOn.map' (IsOraclePPTOn.iterate_of_bounded_growth'
+  refine IsOraclePPTOn.map (IsOraclePPTOn.iterate_of_bounded_growth
     (stateEncoding := encPair (encList encBits) encBits) (by fun_prop) (by fun_prop) ?_
     (growth := 0) ?_) (by fun_prop)
   · unfold queryTableStep
-    refine IsOraclePPTOn.cond' (by fun_prop) ComputableInPolyTime.id'.isOraclePPTOn ?_
-    exact IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop))
+    refine IsOraclePPTOn.cond (by fun_prop) ComputableInPolyTime.id'.isOraclePPTOn ?_
+    exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
       (by fun_prop)
   · intro state next hnext
     obtain ⟨words, acc⟩ := state

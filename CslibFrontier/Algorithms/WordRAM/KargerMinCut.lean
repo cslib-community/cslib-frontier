@@ -201,29 +201,6 @@ theorem holdsMatrix_init_amplified {r R n : ℕ} (W : Fin n → Fin n → ℕ) :
     HoldsMatrix (Data.init (r := r) (R :: n :: flattenMatrix W)).mem 3 n W :=
   holdsMatrix_init_append [R, n] W
 
-/-- When the degree array starts at or after `[wb, wb + n * n)`, `workspaceFootprint wb db n n`
-lies inside `[wb, db + n)`. -/
-private theorem workspaceFootprint_subset_Ico {wb db n : ℕ} (hdb : wb + n * n ≤ db) :
-    workspaceFootprint wb db n n ⊆ Finset.Ico wb (db + n) := by
-  intro a ha
-  simp only [workspaceFootprint, Finset.mem_union, Finset.mem_Ico] at ha ⊢
-  omega
-
-/-- Prepend a right-associated chain of deterministic steps onto an `ExecRandLaw` continuation. -/
-private theorem execRandLaw_of_foldr_seq_det {r w T₁ T₂ R : ℕ} {α : Type}
-    (cs : List (Code .standard r)) {last c : Code .standard r}
-    {x y : Data r} {Q : Data r → Prop} {f : Data r → α} {μ : PMF α}
-    (hpre : ExecWithin w (cs.foldr Code.seq last) x y T₁)
-    (htail : ExecRandLaw w c y Q T₂ R f μ) :
-    ExecRandLaw w (cs.foldr Code.seq (.seq last c)) x Q (T₁ + T₂) R f μ := by
-  induction cs generalizing x T₁ with
-  | nil => exact ExecRandLaw.seq_det hpre htail
-  | cons hd tl ih =>
-    obtain ⟨_, hn, he⟩ := hpre
-    cases he with
-    | seq ha hb =>
-      exact (ExecRandLaw.seq_det ha.within (ih hb.within)).mono (fun _ h => h) (by omega) le_rfl
-
 /-! ### Endpoint 1: Single-trial Basic Karger (`r = 16`) -/
 
 section SingleTrial
@@ -319,10 +296,11 @@ theorem singleCode_law {n w : ℕ} {W : Fin n → Fin n → ℕ}
           (Data.init (r := 16) (n :: flattenMatrix W)).mem y_p.mem := by
         rw [hmem_p]
         exact modifies_trans_subset (hm_s ▸ hmod_d) hmod_c
-          (Finset.Ico_subset_Ico (by omega) le_rfl) (workspaceFootprint_subset_Ico le_rfl)
+          (Finset.Ico_subset_Ico (by omega) le_rfl)
+          (workspaceFootprint_subset_Ico le_rfl le_rfl le_rfl)
       exact (ExecRandLaw.of_execWithin (f := fun y => y.regs val1) e_p.within hmod).congr_law
         (by rw [hv_p, hst'.mem_add_one hW'])
-  refine ((execRandLaw_of_foldr_seq_det [singleSetup] (e_s.within.seq e_deg) hrun).congr_law
+  refine ((ExecRandLaw.foldr_seq_det [singleSetup] (e_s.within.seq e_deg) hrun).congr_law
     ?_).mono (fun _ h => h) (by omega) (by omega)
   rw [Lean.Karger.answerLaw_eq]
   exact PMF.bind_pure_comp _ _
@@ -611,7 +589,7 @@ theorem ampTrialBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem�
       have hmod : Modifies (Finset.Ico wb (db + n)) x.mem y_p.mem := by
         rw [hm_p]
         exact modifies_trans_subset hmod_deg' hmod_c Finset.Subset.rfl
-          (workspaceFootprint_subset_Ico (by omega))
+          (workspaceFootprint_subset_Ico le_rfl (by omega) le_rfl)
       refine (ExecRandLaw.of_execWithin (P := AmpInv w sb n R (i + 1) W mem₀)
         (f := fun y => y.regs bestVal) e_p ⟨?_, hwb_p, hdb_p.trans hst'.regs_dBase, ?_, ?_, ?_,
         hti_p, fun a b => ?_, modifies_trans_subset hinv.modifies_ws hmod Finset.Subset.rfl
@@ -629,7 +607,7 @@ theorem ampTrialBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem�
         exact hinv.src_matrix a b
       · have hv : y.mem (wb + 1) = _ := hst'.mem_add_one hW'
         rw [hbv_p, (hy_hi bestVal (by decide)).trans (e_pre.regs_eq (by decide)), hv]
-  refine ((execRandLaw_of_foldr_seq_det
+  refine ((ExecRandLaw.foldr_seq_det
     [copyMatrixCode, ram[activeK ← nOrig], ram[stride ← nOrig], ram[targetT ← #2]]
     e_pre hrun).congr_law ?_).mono (fun _ h => h) ?_ (by omega)
   · rw [Lean.Karger.answerLaw_eq, PMF.map_comp]
@@ -683,7 +661,7 @@ theorem ampCore_law {w sb n R : ℕ} {W : Fin n → Fin n → ℕ} {x : Data 22}
   have hloop := ampLoop_law (mem₀ := x.mem) hR hn hW h1 hdEnd hR_fit htot R 0 s₆
     (Nat.zero_add R) hinv₀
   rw [ite_eq_left rfl] at hloop
-  exact (execRandLaw_of_foldr_seq_det
+  exact (ExecRandLaw.foldr_seq_det
     [ram[val1 ← nOrig * nOrig], ram[matLen ← val1], ram[wBase ← srcBase + matLen],
       ram[dBase ← wBase + matLen], ram[trialIdx ← #0]]
     e_pre hloop).mono (fun _ h => h.modifies_ws) (by omega) le_rfl

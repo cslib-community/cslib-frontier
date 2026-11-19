@@ -524,14 +524,14 @@ theorem CollisionResistantOn.of_extract
       isCollision H₁ valid₁ n k m₁ m₂ = true →
       isCollision H₂ valid₂ n k (extract n k m₁ m₂).1 (extract n k m₁ m₂).2 = true) :
     CollisionResistantOn H₁ valid₁ := by
-  have hpost : ComputableTidilyInPolyTime
+  have hpost : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
         extract p.1.1 p.1.2 p.2.1 p.2.2)
       (encPair (encPair encUnary encBits) (encPair encBits encBits))
       (encPair encBits encBits) :=
-    hextract.tidy.comp
-      ((ComputableTidilyInPolyTime.fst _ _).fst'.prod
-        ((ComputableTidilyInPolyTime.fst _ _).snd'.prod (ComputableTidilyInPolyTime.snd _ _)))
+    hextract.comp
+      ((ComputableInPolyTime.fst _ _).fst'.prod
+        ((ComputableInPolyTime.fst _ _).snd'.prod (ComputableInPolyTime.snd _ _)))
   refine hCR.of_eventually_succProbability_reduction
     (fun adversary n k => do
       let pair ← adversary n k

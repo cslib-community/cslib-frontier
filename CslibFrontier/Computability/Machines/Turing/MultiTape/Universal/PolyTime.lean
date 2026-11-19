@@ -40,7 +40,7 @@ single bit, independently of hierarchy theorems and Ladner's language.
 
 ## Main results
 
-* `Turing.MultiTapeTM.Universal.computableTidilyInDegree_map_eBit`: input symbols in linear time
+* `Turing.MultiTapeTM.Universal.computableInDegree_map_eBit`: input symbols in linear time
   and output size.
 * `Turing.MultiTapeTM.Universal.computableInO_map_eBit`: its plain linear certificate.
 * `Turing.MultiTapeTM.Universal.computableTidilyInPolyTime_map_eBit`,
@@ -127,18 +127,19 @@ theorem symbolsT_run (x : List Bool) :
       rfl
 
 /-- The input as symbols, in linear time and space. -/
-theorem computableTidilyInDegree_map_eBit :
-    ComputableTidilyInDegree (fun x : List Bool => x.map eBit) encBits (encList encUnary) 1 1 :=
-  (ComputableTidilyInDegree.of_linear (encIn := encTrueDoubled)
-    (ComputableInDegree.of_transducer symbolsT fun x => (symbolsT_run x).symm)).comp
-    (ComputableTidilyInDegree.of_linear (encIn := encBits) (encMid := encTrueDoubled) (f := id)
-      (ComputableInDegree.of_transducer trueDoubleT fun x => (trueDoubleT_run x).symm))
+theorem computableInDegree_map_eBit :
+    ComputableInDegree (fun x : List Bool => x.map eBit) encBits (encList encUnary) 1 1 :=
+  (ComputableInDegree.of_transducer (encIn := encTrueDoubled) symbolsT
+    fun x => (symbolsT_run x).symm).comp
+    (ComputableInDegree.of_transducer (encIn := encBits) (encMid := encTrueDoubled) (f := id)
+      trueDoubleT fun x => (trueDoubleT_run x).symm)
 
 /-- The input of a machine as symbols is linear. -/
 @[fun_prop]
 theorem computableTidilyInPolyTime_map_eBit :
     ComputableTidilyInPolyTime (fun w : List Bool => w.map eBit) encBits (encList encUnary) :=
-  computableTidilyInDegree_map_eBit.computableTidilyInPolyTime
+  (computableInDegree_map_eBit.inO_one.tidy).computableTidilyInPolyTime
+    PolyBounded.self PolyBounded.self
 
 /-- The coding of bits as symbols is a finite computation. -/
 @[fun_prop]
@@ -217,8 +218,8 @@ theorem computableTidilyInPolyTime_universal :
     have : (fun i : Desc × List ℕ × ℕ => i) = fun i => (i.1, i.2.1, i.2.2) := rfl
     rw [this]
     fun_prop
-  obtain ⟨d, e, hdeg⟩ := hconv.exists_degree
-  exact (computableTidilyInO_universal.comp hdeg.inO).computableTidilyInPolyTime
+  obtain ⟨d, e, hdeg⟩ := hconv.computableInPolyTime.exists_degree
+  exact (computableTidilyInO_universal.comp hdeg.inO.tidy).computableTidilyInPolyTime
     ((PolyBounded.of_forall_le 1 d fun _ => by simp).add
       (PolyBounded.of_forall_le 100025 6 fun i => (universal_bounds_unary i).1))
     ((PolyBounded.of_forall_le 1 d fun _ => by simp).add
@@ -237,13 +238,13 @@ theorem computableInPolyTime_decodeDesc :
 theorem computableInO_map_eBit :
     ComputableInO (fun w : List Bool => w.map eBit) encBits (encList encUnary)
       (fun w => (encBits w).length) (fun w => (encBits w).length) :=
-  .of_tidy (ComputableTidilyInDegree.inO_one computableTidilyInDegree_map_eBit)
+  computableInDegree_map_eBit.inO_one
 
 /-- Plain polynomial-time certificate for coding a bit string as unary symbol numbers. -/
 @[fun_prop]
 theorem computableInPolyTime_map_eBit :
     ComputableInPolyTime (fun w : List Bool => w.map eBit) encBits (encList encUnary) :=
-  .of_tidy computableTidilyInPolyTime_map_eBit
+  computableInDegree_map_eBit.computableInPolyTime
 
 /-- Plain polynomial-time certificate for coding a single bit as a unary symbol number. -/
 @[fun_prop]

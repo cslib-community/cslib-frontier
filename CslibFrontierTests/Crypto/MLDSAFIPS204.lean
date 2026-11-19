@@ -7,8 +7,16 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
+import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
+import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
+import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
+import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
+meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+meta import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
+meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
+meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
@@ -24,6 +32,19 @@ set_option linter.privateModule false
 set_option linter.hashCommand false
 
 open Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204
+
+-- Check low-before-high nibble order, the last accepted coefficient, and exhaustion with
+-- 255 accepted coefficients after the final high nibble is rejected.
+private def secretPrefixChecks (s : Level) : Bool :=
+  let sample : Option (ZMod 8380417 × ZMod 8380417 × ZMod 8380417) :=
+    (rejBoundedPoly s (16 :: List.replicate 127 0)).map fun p => (p 0, p 1, p 255)
+  let eta : ZMod 8380417 := s.params.η
+  sample == some (eta, eta - 1, eta) &&
+    (rejBoundedPoly s (List.replicate 127 0 ++ [240])).isNone
+
+#guard secretPrefixChecks .mlDSA44
+#guard secretPrefixChecks .mlDSA65
+#guard secretPrefixChecks .mlDSA87
 
 -- Start with q itself (rejected), then accept a high-bit-set zero. The byte after the
 -- last swapped triple is a sentinel. The shorter prefix contains only 255 accepted triples.
@@ -127,6 +148,96 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- In the independent expansion game the private parser exhausts while the public streams
+-- accept every nibble. The key-seed read and SHAKE128 remain on the ambient table.
+private def independentSecretCheck (s : Level) : Bool :=
+  let ambient := constantStream fun _ => 0
+  let privateRows := constantStream fun _ => 255
+  let H : Xofs := ⟨ambient, ambient⟩
+  let G := H.withExpandSStream ⟨privateRows, privateRows⟩
+  let r := List.replicate 64 (0 : Byte)
+  (H.expandS s r).isSome && (G.expandS s r).isNone &&
+    G.expandKeySeed s (fun _ => 0) == List.replicate 128 0 &&
+    G.h128.read (List.replicate 528 false) 1 == [0]
+
+#guard independentSecretCheck .mlDSA44
+#guard independentSecretCheck .mlDSA65
+#guard independentSecretCheck .mlDSA87
+
+-- At every standard level the bound counts the public-key rounding correction.
+example (s : Level) : MLDSA.compressedSelfTargetRadius s.params 13 =
+    match s with
+    | .mlDSA44 => 350209
+    | .mlDSA65 => 724481
+    | .mlDSA87 => 769537 := by
+  cases s <;> decide
+
+-- The full t has ring unit 1 in every row, so its rounded public part vanishes and the
+-- extracted low vector is c. Different digest bytes can give exactly the same sparse c.
+private def rawOpeningCheck : Bool := Id.run do
+  let s := Level.mlDSA44
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, constantStream fun x => if x.length > 512 then 7 else 0⟩
+  let rho : FixedBytes 32 := fun _ => 0
+  let pk : MLDSA.PublicKey s.params := ⟨fun _ _ _ => 0, fun _ j => if j.val = 0 then 1 else 0⟩
+  let d := List.replicate (digestBytes s) (7 : Byte)
+  let other := List.replicate (digestBytes s) (9 : Byte)
+  let bytes := encodePublic s rho.toList pk.t
+  let sig (digest : List Byte) := encodeSignature s ⟨digest, fun _ _ => 0, fun _ _ => false⟩
+  let f : Forgery := ⟨[], [true, false, true], sig d⟩
+  let some y := H.extractFull s rho pk.A pk.t f | return false
+  let some c := H.sampleInBall s other | return false
+  let failed := H.writeCommitment (Keccak.bytesToBitsLE d) (List.replicate 221 255)
+  let low := Vector.ofFn fun i => Vector.ofFn (y.u i)
+  let response := Vector.ofFn fun i => Vector.ofFn (y.z i)
+  let point := {y with u := fun i j => (low.get i).get j,
+                       z := fun i j => (response.get i).get j}
+  let off := {point with u := fun i j => point.u i j + 1}
+  let first := low.get ⟨0, by decide⟩
+  return H.verify s bytes f.message f.context f.signature == some true &&
+    H.verify s bytes f.message f.context (sig other) == some false &&
+    y.msg == H.messageRepresentative bytes (formattedMessage f) &&
+    Vector.ofFn c == Vector.ofFn y.c && first == Vector.ofFn y.c && first.toList.any (· != 0) &&
+    H.openFullWitness s pk point == some d && (failed.sampleInBall s d).isNone &&
+    (failed.openFullWitness s pk point).isNone &&
+    MLDSA.highBits s.params.q s.params.γ₂ 1 == MLDSA.highBits s.params.q s.params.γ₂ 0 &&
+    (H.openFullWitness s pk off).isNone
+
+#guard rawOpeningCheck
+
+-- A fatal expansion ends a request with a terminal write and no successful log entry.
+#guard
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, zero⟩
+  let w : TerminalSigningWrite .mlDSA44 := ⟨⟨[], [true]⟩, fun _ _ => 0, [], fun _ => 0, none⟩
+  !(H.terminalRepresentativeMatch (s := .mlDSA44) [] []) &&
+    H.terminalRepresentativeMatch [] [w]
+
+-- The final commitment read is necessary. Under this legitimate XOF and encoded key the
+-- zero response is accepted, writing a different digest rejects it, and a second write at
+-- the same input restores acceptance. A prior signature for a different message allows a
+-- strong forgery while excluding it from the fresh-digest branch.
+private def checkVerifierWrite (s : Level) : Bool := Id.run do
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, zero⟩
+  let pk := encodePublic s (List.replicate 32 0) (fun _ _ => 0)
+  let digest := List.replicate (digestBytes s) (0 : Byte)
+  let sig := encodeSignature s ⟨digest, fun _ _ => 0, fun _ _ => false⟩
+  let f : Forgery := ⟨[], [true, false, true], sig⟩
+  let x := commitmentInput s (fun _ _ => 0) (H.messageRepresentative pk (formattedMessage f))
+  let changed := H.writeCommitment x (List.replicate (digestBytes s) 1)
+  let restored := changed.writeCommitment x digest
+  let prior := {f with message := [false]}
+  let trial (G : Xofs) (log : List Forgery) : SignedMatrixTrial s :=
+    ⟨G, fun _ _ _ => 0, pk, f, log⟩
+  return (trial H []).newDigestWin && !(trial changed []).newDigestWin &&
+    (trial restored []).newDigestWin && (trial restored [prior]).wins &&
+    !(trial restored [prior]).newDigestWin
+
+#guard checkVerifierWrite .mlDSA44
+#guard checkVerifierWrite .mlDSA65
+#guard checkVerifierWrite .mlDSA87
 
 -- Algorithm 32 appends the column before the row. Adjacent addresses, bit-length variants
 -- and longer reads exercise the same XOF that the verifier and an outside caller receive.
@@ -247,3 +358,75 @@ example (H : Xofs) (msg : List Bool) :
   simp only [Xofs.answerPublicReads, readSignRead, Cslib.ProbOracleComp.simulate_bind,
     Cslib.ProbOracleComp.simulate_pure, Cslib.ProbOracleComp.simulate_query]
   rfl
+
+namespace Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
+open Cslib.Quantum Cslib.Probability
+
+-- The output bit records whether the single signing request returned the public error.
+private def signingProbe (q : SigningQuery) : QuantumSigningForger where
+  addressBits := 2
+  responseBytes := 1
+  workQubits := 0
+  program _ := do
+    let answer ← ProbOracleComp.query (spec := OracleSpec.sum
+      (fun _ : DeviceRequest 12 Empty => List Bool) (fun _ : SigningQuery => Option (List Byte)))
+      (Sum.inr q)
+    return ⟨[], [answer.isNone], []⟩
+
+-- Every candidate byte exceeds Algorithm 29's initial acceptance threshold 217 at ML-DSA-44.
+private theorem allOnesExhausts (other : ExtendableOutput) (d : List Byte) :
+    (Xofs.mk other allOnesXof).sampleInBall .mlDSA44 d = none := by
+  have rejected (n : ℕ) : ChallengeRow.parse 217 39 (List.replicate n 255) = none := by
+    induction n with
+    | zero => rw [List.replicate_zero, ChallengeRow.parse]
+    | succ n ih =>
+      rw [List.replicate_succ, ChallengeRow.parse, dite_eq_left (by decide), ih]
+      rfl
+  unfold Xofs.sampleInBall sampleInBallBytes
+  change (ChallengeRow.parse 217 39 (List.replicate 213 255)).bind _ = none
+  rw [rejected]
+  rfl
+
+-- Every digest on the all-255 stream exhausts Algorithm 29, independently of the public pair.
+private theorem fatalDraw (other : ExtendableOutput) (pair : MLDSA.PublicKey Level.mlDSA44.params) :
+    publicDraw .mlDSA44 pair ⟨other, allOnesXof⟩ =
+      (PMF.uniformOfFintype (FixedBytes (digestBytes .mlDSA44))).bind fun d =>
+      (signingMaskLaw Level.mlDSA44.params (by decide)).bind fun y =>
+        PMF.pure (some ⟨highBitsVec Level.mlDSA44.params (moduleSISMap pair.A y), d, none,
+          fun _ => allOnesExhausts other d.toList, by simp⟩) := by
+  unfold publicDraw draw
+  congr 1
+  funext d
+  split
+  · rfl
+  · next h => simp [allOnesExhausts] at h
+
+example (other : ExtendableOutput) (rho : FixedBytes 32)
+    (pair : MLDSA.PublicKey Level.mlDSA44.params) :
+    let q : SigningQuery := ⟨[], [true]⟩
+    (((signingProbe q).publicPairSigning .mlDSA44 ⟨other, allOnesXof⟩ rho pair).map fun result =>
+      (result.trial.forgery.message, result.writes.map (fun w => (w.request, w.reply)),
+        result.trial.log)) = PMF.pure ([true], [(q, none)], []) := by
+  intro q
+  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_nil, Nat.not_lt_zero, ite_false]
+  rw [show List.range 814 = 0 :: List.range' 1 813 by rw [List.range_eq_range', List.range'_succ],
+    List.findSomeM?_cons]
+  simp only [fatalDraw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.bind_bind, PMF.pure_bind, PMF.bind_const, PMF.map_bind, PMF.pure_map,
+    SigningQuery.logReply, List.nil_append, List.map_cons, List.map_nil, Option.isNone_none]
+
+-- The context check precedes the first attempt and even the shared raw XOFs stay identical.
+example (s : Level) (H : Xofs) (rho : FixedBytes 32) (pair : MLDSA.PublicKey s.params) :
+    let q : SigningQuery := ⟨List.replicate 256 0, [true]⟩
+    (((signingProbe q).publicPairSigning s H rho pair).map fun result =>
+      (result.trial.forgery.message, result.writes, result.trial.log, result.trial.xofs)) =
+      PMF.pure ([true], [], [], H) := by
+  intro q
+  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_replicate,
+    show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind, Option.isNone_none]
+
+end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

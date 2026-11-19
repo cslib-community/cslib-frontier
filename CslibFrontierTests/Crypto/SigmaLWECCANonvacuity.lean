@@ -211,8 +211,8 @@ theorem isOraclePPT_detCCAAdversary : IsOraclePPT encBool detCCAAdversary := by
       (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBool := by
     polytime
   unfold detCCAAdversary
-  exact ((IsOraclePPTOn.query_take' false hq1 hlim1).bind_with
-    ((IsOraclePPTOn.query_take' false hq2 hlim2).bind_with
+  exact ((IsOraclePPTOn.query_take false hq1 hlim1).bind_with
+    ((IsOraclePPTOn.query_take false hq2 hlim2).bind_with
       hout.isOraclePPTOn)).isOraclePPT
 
 /-- In Experiment `false`, both queries encrypt `0ⁿ`; without ciphertext expansion the answers

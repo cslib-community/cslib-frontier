@@ -33,12 +33,23 @@ namespace Cslib.Crypto.MLDSA.FIPS204.MatrixOracle
 open Cslib.Probability
 open OracleComp
 
+/-- Embed the uniform digit indexing `[-η,η]` as a short coefficient modulo the FIPS modulus. -/
+def shortCoeff (s : Level) (d : Fin (2 * s.params.η + 1)) : ZMod 8380417 :=
+  (d.val : ZMod 8380417) - s.params.η
+
+/-- The short-secret MLWE coefficient law, uniform on the signed interval `[-η,η]`. -/
+noncomputable def shortCoefficientLaw (s : Level) : PMF (ZMod 8380417) :=
+  (PMF.uniformOfFintype (Fin (2 * s.params.η + 1))).map (shortCoeff s)
+
+/-- One short-secret MLWE polynomial. Its 256 coefficients are independent uniform elements
+of the interval `[-η,η]`, reduced modulo 8380417. -/
+noncomputable def shortPolyLaw (s : Level) : PMF Poly :=
+  PMF.pi fun _ => shortCoefficientLaw s
+
 /-- The Dilithium short-vector law: every coefficient independently uniform in
 `{-η,…,η}`, represented in the negacyclic ring modulo 8380417. -/
 noncomputable def shortVectorLaw (s : Level) (rows : ℕ) : PMF (Fin rows → Poly) :=
-  PMF.pi fun _ => PMF.pi fun _ =>
-    (PMF.uniformOfFintype (Fin (2 * s.params.η + 1))).map fun i =>
-      (i.val : ZMod 8380417) - s.params.η
+  PMF.pi fun _ => shortPolyLaw s
 
 /-- Sample every matrix coefficient independently by a uniform integer below the modulus. -/
 def sampleMatrix (s : Level) : ProbComp (PublicMatrix s) :=

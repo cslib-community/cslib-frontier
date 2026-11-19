@@ -289,12 +289,12 @@ theorem answerStep_inO {g : List Bool → Bool} {Tg Sg : List Bool → ℕ}
     (ComputableTidilyInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt.tidy
   have hid : ComputableTidilyInPolyTime (fun cfg : FiniteConfig k Bool Control Operation => cfg)
       encFiniteConfig encFiniteConfig := ComputableTidilyInPolyTime.id'
-  obtain ⟨dc, _, hc⟩ := hcond.exists_degree
-  obtain ⟨dr, _, hr⟩ := machine.pendingRequest_pt.tidy.exists_degree
-  obtain ⟨dv, _, hv⟩ := machine.receiveBit_pt.tidy.exists_degree
-  obtain ⟨dl, _, hl⟩ := machine.localStep_pt.tidy.exists_degree
-  obtain ⟨di, _, hi⟩ := hid.exists_degree
-  have h := hc.inO.ite (hv.inO.comp (hi.inO.prod (hg.comp hr.inO))) hl.inO
+  obtain ⟨dc, _, hc⟩ := hcond.computableInPolyTime.exists_degree
+  obtain ⟨dr, _, hr⟩ := machine.pendingRequest_pt.exists_degree
+  obtain ⟨dv, _, hv⟩ := machine.receiveBit_pt.exists_degree
+  obtain ⟨dl, _, hl⟩ := machine.localStep_pt.exists_degree
+  obtain ⟨di, _, hi⟩ := hid.computableInPolyTime.exists_degree
+  have h := hc.inO.tidy.ite (hv.inO.tidy.comp (hi.inO.tidy.prod (hg.comp hr.inO.tidy))) hl.inO.tidy
   refine ⟨dc + dr + dv + dl + di,
     ((h.mono (4 ^ dv + 5) (fun cfg => ?_) fun cfg => ?_).of_enc_eq
       fun cfg => by rw [answerStep_bit]; rfl).computableInO⟩
@@ -369,16 +369,16 @@ private theorem exists_computableTidilyInO_run [Finite Operation] {α : Type}
     exact (ComputableTidilyInPolyTime.unary_to_binary.comp
       ((ComputableTidilyInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
         hlen)).of_enc_eq fun a => by simp
-  obtain ⟨dn, _, hn⟩ := hn.exists_degree
+  obtain ⟨dn, _, hn⟩ := hn.computableInPolyTime.exists_degree
   have hinit : ComputableTidilyInPolyTime
       (fun a => FiniteConfig.init (k := k) (Oracle := Operation) machine.initial (input a))
       input encFiniteConfig :=
     ComputableTidilyInPolyTime.finiteConfig_init (by fun_prop) _
-  obtain ⟨di, _, hinit⟩ := hinit.exists_degree
+  obtain ⟨di, _, hinit⟩ := hinit.computableInPolyTime.exists_degree
   have hout : ComputableTidilyInPolyTime
       (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output) encFiniteConfig
       encBits := by fun_prop
-  obtain ⟨do', _, hout⟩ := hout.exists_degree
+  obtain ⟨do', _, hout⟩ := hout.computableInPolyTime.exists_degree
   -- the storage of the iterates
   set n : α → ℕ := fun a => c * ((input a).length + 1) ^ d with hn_def
   set step := machine.answerStep fun q => [g q.2] with hstep_def
@@ -398,7 +398,7 @@ private theorem exists_computableTidilyInO_run [Finite Operation] {α : Type}
         n a :=
     (machine.length_pendingRequest_le (hspace a i)).trans hi
   -- the iteration, with every request answered within the space of `g` on a short word
-  have hit := (ComputableInO.iterate hn.inO.computableInO hinit.inO.computableInO
+  have hit := (ComputableInO.iterate hn.inO.tidy.computableInO hinit.inO.tidy.computableInO
     hstep
     (R := fun a => (B a + 1) ^ e + wordMax Tg (n a))
     (Q := fun a => (B a + 1) ^ e + cg * (n a + 1) ^ dg) (B := B)
@@ -408,7 +408,7 @@ private theorem exists_computableTidilyInO_run [Finite Operation] {α : Type}
       ((hSg _).trans (Nat.mul_le_mul_left cg (Nat.pow_le_pow_left (by
         have := hreq a hi; omega) dg))))
     (fun a i hi => hlen a hi)).tidy
-  have h := (hout.inO.comp hit).mono_le (T' := fun a => _ + (B a + 1) ^ do')
+  have h := (hout.inO.tidy.comp hit).mono_le (T' := fun a => _ + (B a + 1) ^ do')
     (S' := fun a => ((input a).length + 1) ^ dn + ((input a).length + 1) ^ di +
       ((B a + 1) ^ e + cg * (n a + 1) ^ dg) + B a + (n a + 1) + (B a + 1) ^ do')
     (fun a => Nat.add_le_add_left (Nat.pow_le_pow_left (by

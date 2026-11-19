@@ -284,6 +284,17 @@ theorem Derivation.findsFalsifiedClause_toDecisionTree (d : φ.Derivation []) :
     d.toDecisionTree.FindsFalsifiedClause φ :=
   fun _ => d.eval_toDecisionTree rfl
 
+omit [DecidableEq V] in
+/-- If the negation of `l` is among `(u, s) :: π` and `l` is not `(u, !s)`, it is among `π`. -/
+theorem _root_.Cslib.Logic.PL.Literal.negate_mem_of_mem_cons {π : List (Literal V)} {u : V}
+    {s : Bool} {l : Literal V} (h : Std.Sat.Literal.negate l ∈ (u, s) :: π) (hne : l ≠ (u, !s)) :
+    Std.Sat.Literal.negate l ∈ π := by
+  rcases List.mem_cons.1 h with h | h
+  · obtain ⟨a, b⟩ := l
+    simp only [Std.Sat.Literal.negate, Prod.mk.injEq] at h
+    exact absurd (by rw [← h.1, ← h.2, Bool.not_not]) hne
+  · exact h
+
 /-- The induction behind `DecisionTree.FindsFalsifiedClause.exists_derivation`: if `t` finds a
 falsified clause of `φ` on the assignments extending the consistent literals `π`, then it
 gives a tree-like derivation of a clause falsified by `π`, with at most twice as many nodes as `t`
@@ -350,18 +361,10 @@ private theorem exists_derivation_of_eval (φ : CNF V) :
         have hσu : σ u = true := hσ _ List.mem_cons_self
         simpa [DecisionTree.eval, hσu] using ht σ fun l hl => hσ l (List.mem_cons_of_mem _ hl)
     -- a literal of `c₀` other than `(u, true)` is falsified by `π`, and likewise for `c₁`
-    have hc₀' : ∀ l ∈ c₀, l ≠ (u, true) → (l.1, !l.2) ∈ π := fun l hl hne => by
-      rcases List.mem_cons.1 (hc₀ l hl) with h | h
-      · obtain ⟨l₁, l₂⟩ := l
-        simp only [Prod.mk.injEq, Bool.not_eq_eq_eq_not, Bool.not_false] at h
-        exact absurd (by rw [h.1, h.2]) hne
-      · exact h
-    have hc₁' : ∀ l ∈ c₁, l ≠ (u, false) → (l.1, !l.2) ∈ π := fun l hl hne => by
-      rcases List.mem_cons.1 (hc₁ l hl) with h | h
-      · obtain ⟨l₁, l₂⟩ := l
-        simp only [Prod.mk.injEq, Bool.not_eq_eq_eq_not, Bool.not_true] at h
-        exact absurd (by rw [h.1, h.2]) hne
-      · exact h
+    have hc₀' : ∀ l ∈ c₀, l ≠ (u, true) → (l.1, !l.2) ∈ π := fun l hl hne =>
+      Literal.negate_mem_of_mem_cons (s := false) (hc₀ l hl) hne
+    have hc₁' : ∀ l ∈ c₁, l ≠ (u, false) → (l.1, !l.2) ∈ π := fun l hl hne =>
+      Literal.negate_mem_of_mem_cons (s := true) (hc₁ l hl) hne
     by_cases hv₀ : (u, true) ∈ c₀
     · by_cases hv₁ : (u, false) ∈ c₁
       · refine ⟨_, .resolvent u d₀ d₁ hv₀ hv₁, fun l hl => ?_, ?_,
