@@ -919,6 +919,6 @@ theorem isPPTOn_pedersenToDLAdversary
         (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
       encBits := by
     fun_prop
-  exact hextract.tidy.isPPTOn
+  exact hextract.isPPTOn
 
 end Cslib.Crypto.PrimeOrderGroupFamily

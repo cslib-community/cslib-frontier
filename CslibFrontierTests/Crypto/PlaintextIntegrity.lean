@@ -97,7 +97,7 @@ def replayAdversary : CIAdversary :=
   fun n _ => List.take n <$> ProbOracleComp.query ((), List.replicate n false)
 
 theorem isOraclePPT_replayAdversary : IsOraclePPT encBits replayAdversary :=
-  IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+  IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
 
 theorem isQueryBounded_replayAdversary (n : ℕ) : (replayAdversary n []).IsQueryBounded 1 := by
   simpa [replayAdversary, map_eq_bind_pure_comp] using

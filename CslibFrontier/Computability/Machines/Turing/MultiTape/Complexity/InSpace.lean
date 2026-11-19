@@ -115,7 +115,7 @@ theorem snd' {f : α → β × γ} (h : ComputableTidilyInSpace f encIn (encPair
 
 theorem of_finite [Finite α] (f : α → β) :
     ComputableTidilyInSpace f encIn encB fun a => (encIn a).length :=
-  of_inO (ComputableTidilyInDegree.of_finite f).inO_one
+  of_inO (ComputableInDegree.of_finite f).inO_one.tidy
 
 /-- **Iterating a step a computed number of times**, within the space of the counter, of the
 initial state, of a round and of the states. -/

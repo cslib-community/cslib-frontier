@@ -10,9 +10,14 @@ module
 public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 
 /-!
-# Subroutine replacement and the UC composition theorem
+# Subroutine replacement and statistical call-bounded UC composition
 
-A *hybrid protocol* `ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
+This module proves composition for this library's novel call-bounded port-model emulation notions,
+in which environments, adversaries, and simulators are query-bounded with unbounded local
+computation: statistical, single-subroutine, static-corruption composition, a step toward Canetti's
+computational UC composition theorem ([Canetti2020], Section 2.3, Theorem 3 and
+Corollaries (a)–(b)) but not that theorem (#6043). A *hybrid protocol*
+`ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
 protocol whose machines also call the party port of a subroutine with inputs `SubIn` and outputs
 `SubOut`. Subroutine replacement `UC.compose ρ σ` (written `ρ^σ` below) answers those calls with the
 protocol `σ : UC.Protocol n SubIn SubOut NQ NR`, run for the same parties, security parameter and
@@ -21,11 +26,12 @@ corrupted parties `C` behind the static-corruption router `UC.corruptRouter C`. 
 schedules `σ`'s network and plays the corrupted parties of `σ`. With `σ = F.toProtocol` this is the
 `F`-hybrid protocol `ρ^F`; with `σ = π` it is the protocol in which `ρ` calls `π` instead.
 
-The universal composition theorem (`UC.Emulates.compose`) says that subroutine replacement preserves
-UC emulation: if `π` UC-emulates `φ`, then `ρ^π` UC-emulates `ρ^φ` for every hybrid protocol `ρ`
-with a polynomial call budget. In particular, if `π` UC-realizes `F` then `ρ^π` UC-emulates `ρ^F`
-(`UC.Realizes.compose`), and if moreover `ρ^F` UC-realizes `G` then `ρ^π` UC-realizes `G`
-(`UC.Realizes.compose_trans`). The concrete versions keep track of budgets and errors:
+The statistical, call-bounded composition theorem (`UC.Emulates.compose`, #6043) says that
+single-subroutine replacement preserves `UC.Emulates`: if `π` emulates `φ`, then `ρ^π` emulates
+`ρ^φ` for every hybrid protocol `ρ` with a polynomial call budget. In particular, if `π` realizes
+`F` in the sense of `UC.Realizes` then `ρ^π` emulates `ρ^F` (`UC.Realizes.compose`), and if
+moreover `ρ^F` realizes `G` then `ρ^π` realizes `G` (`UC.Realizes.compose_trans`). The concrete
+versions keep track of budgets and errors:
 `UC.EmulatesDummyWithin.compose` turns a simulator `S` with budget `pD` for the dummy adversary of
 `π` into the simulator `UC.hybridSim S` with budget `pD + 1` for the dummy adversary of `ρ^π`, with
 the error evaluated at the environment budget `UC.absorbPoly pZ pρ`, and `UC.EmulatesWithin.compose`
@@ -47,8 +53,8 @@ comparison of the activations uses the state-representation lemma
 As in `CslibFrontier.Crypto.Protocols.UC.Execution`, corruptions are static and budgets count calls,
 not running time, so these are composition theorems for interaction-bounded, computationally
 unbounded participants. The composition replaces one subroutine instance whose parties are the
-parties of `ρ`, with the same corrupted parties; multiple or dynamically created subroutine
-sessions, and the hybrid argument that replaces them one at a time, are not covered. The corrupted
+parties of `ρ`, with the same corrupted parties; a fixed number of sessions is handled in
+`CslibFrontier.Crypto.Protocols.UC.MultiSession` and dynamic ones are not covered. The corrupted
 parties of the composed protocol act through the outer router `UC.corruptRouter C`, and the
 adversary reaches their subroutine inputs through the routed network port of the subroutine.
 
@@ -59,10 +65,10 @@ adapt the corollaries (a) and (b) stated after that theorem. The adaptation is t
 one subroutine instance fixed in advance, and statistical security against participants whose
 calls, not running times, are polynomially bounded. The general theorem of the paper is Theorem 22
 of Section 6.1, with Corollaries 23 and 24. Its setting of probabilistic polynomial-time interactive
-Turing machines (running-time bounds, computational indistinguishability) is not modeled here, and
-neither are its dynamic-session premises (a compliant calling protocol, subroutine-respecting and
-subroutine-exposing protocols, identity-bounded environments) or its operation that replaces many
-sessions in one step.
+Turing machines (running-time bounds, computational indistinguishability) is not modeled here
+(#6043), and neither are its dynamic-session premises (a compliant calling protocol,
+subroutine-respecting and subroutine-exposing protocols, identity-bounded environments) or its
+operation that replaces many sessions in one step.
 
 ## Main definitions
 
@@ -88,9 +94,9 @@ sessions in one step.
   `Cslib.Crypto.Protocols.UC.compose_polyBounded`: budgets.
 * `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.compose`,
   `Cslib.Crypto.Protocols.UC.EmulatesWithin.compose`, `Cslib.Crypto.Protocols.UC.Emulates.compose`:
-  the UC composition theorem.
+  statistical, call-bounded single-subroutine static-corruption composition (#6043).
 * `Cslib.Crypto.Protocols.UC.Realizes.compose`, `Cslib.Crypto.Protocols.UC.Realizes.compose_trans`:
-  replacing an ideal functionality by a protocol that realizes it.
+  statistical, call-bounded single-subroutine ideal-functionality replacement (#6043).
 
 ## References
 
@@ -235,20 +241,20 @@ theorem exec_compose_dummy (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) (κ : ℕ) (z : List Bool) :
     exec (compose ρ π) (dummyAdversary n _ _) C Z κ z =
       exec π (dummyAdversary n _ _) C (absorbHybrid C ρ Z) κ z := by
-  simp only [exec, execMachine, dummyAdversary, liftAdversary_id, Machine.run_comp,
+  simp only [exec, execMachine, dummyAdversary, Machine.liftRight_id, Machine.run_comp,
     Machine.link_id, compose, corruptRouter_comp, absorbHybrid]
 
 /-! ### The composed simulator -/
 
 /-- A reply of the composed network port, read as a reply of the subroutine's routed network port.
 Replies of `ρ`'s own ports do not occur where it is used. -/
-private def subReply : RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR) → RoutedNetR SubOut NR
+@[expose] def subReply : RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR) → RoutedNetR SubOut NR
   | .inr (.inr r) => r
   | _ => .inl none
 
 /-- A reply of `ρ^φ`'s network port to a query for `ρ`, read as a reply of `ρ^π`'s network port.
 Replies of the subroutine part do not occur where it is used. -/
-private def outerReply :
+@[expose] def outerReply :
     RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂) → RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁)
   | .inl o => .inl o
   | .inr (.inl r) => .inr (.inl r)
@@ -307,7 +313,7 @@ adversary of `π` against `φ`. -/
 section Swap
 
 /-- A private sample of a program run against a machine stays a private sample. -/
-private theorem runFrom_query_sample {ιI ιE : Type} {I : ιI → Type} {E : ιE → Type}
+theorem runFrom_query_sample {ιI ιE : Type} {I : ιI → Type} {E : ιE → Type}
     (M : Machine I E) (k : ℕ) (s : M.State) :
     M.runFrom (OracleComp.query (spec := probOracleSpec E) (Sum.inl k)) s =
       (fun a => (a, s)) <$> OracleComp.query (spec := probOracleSpec I) (Sum.inl k) := by
@@ -333,7 +339,7 @@ private theorem runFrom_liftAdversary_liftParty {AdvQ AdvR : Type}
 
 /-! #### Activations, one case at a time -/
 
-private theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
+theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (p : Fin n × In) (s : A.State) :
     ((liftAdversary (n := n) (In := In) (Out := Out) A).handle (.inl p)).run s =
       (fun a => (a, s)) <$>
@@ -341,12 +347,12 @@ private theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
   change (StateT.lift _).run s = _
   rw [StateT.run_lift, bind_pure_comp]
 
-private theorem liftAdversary_handle_inr {AdvQ AdvR : Type}
+theorem liftAdversary_handle_inr {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (q : AdvQ) (s : A.State) :
     ((liftAdversary (n := n) (In := In) (Out := Out) A).handle (.inr q)).run s =
-      liftNet ((A.handle q).run s) := rfl
+      Machine.liftRightProgram (partySpec n In Out) ((A.handle q).run s) := rfl
 
-private theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
+theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (i : Fin n) (x : In) (s : P.State) :
     ((routeCorrupt C P).handle (.inl (i, x))).run s =
       if i ∈ C then pure (none, s) else (P.handle (.inl (i, x))).run s := by
@@ -354,7 +360,7 @@ private theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Fin
     StateT P.State (ProbOracleComp I) (Option Out)).run s = _
   split_ifs <;> rfl
 
-private theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
+theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (i : Fin n) (x : In) (s : P.State) :
     ((routeCorrupt C P).handle (.inr (.inl (i, x)))).run s =
       if i ∈ C then (fun p => (Sum.inl p.1, p.2)) <$> (P.handle (.inl (i, x))).run s
@@ -365,7 +371,7 @@ private theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C :
   · exact StateT.run_map _ _ _
   · rfl
 
-private theorem routeCorrupt_handle_inr_inr {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
+theorem routeCorrupt_handle_inr_inr {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (q : NetQ) (s : P.State) :
     ((routeCorrupt C P).handle (.inr (.inr q))).run s =
       (fun p => (Sum.inr p.1, p.2)) <$> (P.handle (.inr q)).run s :=
@@ -468,7 +474,9 @@ private theorem runFrom_routeCorrupt_liftNet_liftSubNet
         (hybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR) M)).runFrom
         (liftNet (liftSubNet program)) s =
       (fun a => (a, s)) <$> liftNet program := by
-  rw [liftNet, liftSubNet, OracleComp.interpret_interpret, liftNet]
+  dsimp only [liftNet]
+  rw [Machine.liftRightProgram, liftSubNet, OracleComp.interpret_interpret,
+    Machine.liftRightProgram]
   refine Machine.runFrom_interpret_of_forward (routeCorrupt C (hybridWrap M)) _ _
     (fun q s => ?_) program s
   cases q with
@@ -514,9 +522,9 @@ private theorem handle_swap
       erw [hybridWrap_handle_inl, hybridWrap_handle_inl, runFrom_liftAdversary_liftParty]
       repeat erw [Functor.map_map]
       rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, liftNet_map, liftNet_query,
-      Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inl,
-      routeCorrupt_handle_inr_inl]
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, Machine.liftRightProgram_map,
+      Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
+      routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
     by_cases hi : i ∈ C
     · simp only [hi, ↓reduceIte]
       erw [hybridWrap_handle_inl, hybridWrap_handle_inl, Machine.runFrom_map,
@@ -525,14 +533,15 @@ private theorem handle_swap
       rfl
     · simp only [hi, ↓reduceIte]
       rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, liftNet_map, liftNet_query,
-      Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inr,
-      routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl, hybridWrap_handle_inr_inl]
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, Machine.liftRightProgram_map,
+      Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
+      routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl,
+      hybridWrap_handle_inr_inl]
     repeat erw [Functor.map_map]
     erw [Machine.runFrom_map, runFrom_liftAdversary_liftParty]
     repeat erw [Functor.map_map]
     rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inr, liftNet_map,
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inr, Machine.liftRightProgram_map,
       Machine.runFrom_map, runFrom_routeCorrupt_liftNet_liftSubNet, routeCorrupt_handle_inr_inr,
       hybridWrap_handle_inr_inr]
     repeat erw [Functor.map_map]
@@ -540,35 +549,42 @@ private theorem handle_swap
     repeat erw [Functor.map_map]
     rfl
 
-/-- Linking a program against the composed simulator in front of the routed hybrid protocol, or
-against the routed hybrid protocol in front of the subroutine simulator, gives the same closed
-behaviour behind any closed machine: the two links make the same calls, and differ only in the order
-in which the two independent initial states are sampled. -/
-private theorem eval_run_link_swap
-    (R : Machine OracleSpec.empty (protocolSpec n SubIn SubOut (RoutedNetQ n SubIn NQ₂)
-      (RoutedNetR SubOut NR₂)))
-    (Z : ProbOracleComp (execSpec n In Out (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₁))
-      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁))) α) :
-    (R.run (((liftAdversary (n := n) (In := In) (Out := Out) (hybridSimMachine S)).comp
-        (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₂)
-          (NR := RoutedNetR SubOut NR₂) M))).link Z)).eval =
-      (R.run (((routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
-          (NR := RoutedNetR SubOut NR₁) M)).comp
-            (liftAdversary (n := n) (In := SubIn) (Out := SubOut) S)).link Z)).eval := by
-  set A := (liftAdversary (n := n) (In := In) (Out := Out) (hybridSimMachine S)).comp
-    (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₂) (NR := RoutedNetR SubOut NR₂) M))
-  set B := (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
-    (NR := RoutedNetR SubOut NR₁) M)).comp (liftAdversary (n := n) (In := SubIn) (Out := SubOut) S)
-  have hrun (s : B.State) : Prod.fst <$> B.runFrom Z s = Prod.fst <$> A.runFrom Z s.swap := by
-    rw [Machine.runFrom_map_state A B Prod.swap (fun q s => handle_swap C M S q s.1 s.2) Z s,
-      Functor.map_map]
+/-- Linking a program against `X₁.comp Y₁`, or against `Y₂.comp X₂` with the component state
+spaces reversed via `fX` and `fY`, gives the same closed behaviour behind any closed machine `R`,
+provided `fX <$> X₂.init = X₁.init`, `fY <$> Y₂.init = Y₁.init`, and the activations agree under
+`(fX s.2, fY s.1)`. -/
+theorem eval_run_link_swap {ιI ιJ₁ ιJ₂ ιE α : Type}
+    {I : ιI → Type} {J₁ : ιJ₁ → Type} {J₂ : ιJ₂ → Type} {E : ιE → Type}
+    (X₁ : Machine J₁ E) (Y₁ : Machine I J₁)
+    (Y₂ : Machine J₂ E) (X₂ : Machine I J₂)
+    (fX : X₂.State → X₁.State) (fY : Y₂.State → Y₁.State)
+    (hX : fX <$> X₂.init = X₁.init) (hY : fY <$> Y₂.init = Y₁.init)
+    (hswap : ∀ q (s : (Y₂.comp X₂).State),
+      ((X₁.comp Y₁).handle q).run (fX s.2, fY s.1) =
+        Prod.map _root_.id (fun s => (fX s.2, fY s.1)) <$> ((Y₂.comp X₂).handle q).run s)
+    (R : Machine OracleSpec.empty I) (Z : ProbOracleComp E α) :
+    (R.run ((X₁.comp Y₁).link Z)).eval = (R.run ((Y₂.comp X₂).link Z)).eval := by
+  let A := X₁.comp Y₁
+  let B := Y₂.comp X₂
+  let f : B.State → A.State := fun s => (fX s.2, fY s.1)
+  have hrun (s : B.State) : Prod.fst <$> B.runFrom Z s = Prod.fst <$> A.runFrom Z (f s) := by
+    rw [Machine.runFrom_map_state A B f hswap Z s, Functor.map_map]
     rfl
   have hB : B.link Z =
-      ProbOracleComp.sample B.init >>= fun s => Prod.fst <$> A.runFrom Z s.swap := by
+      ProbOracleComp.sample B.init >>= fun s => Prod.fst <$> A.runFrom Z (f s) := by
     rw [Machine.link]
     exact bind_congr hrun
-  rw [hB, Machine.link]
-  exact eval_run_sample_bind_swap R M.init S.init (fun s => Prod.fst <$> A.runFrom Z s)
+  have hA : A.link Z =
+      ProbOracleComp.sample (do let a ← Y₂.init; let b ← X₂.init; return (b, a)) >>=
+        fun s => Prod.fst <$> A.runFrom Z (fX s.1, fY s.2) := by
+    change ProbOracleComp.sample (do let a ← Y₁.init; let b ← X₁.init; return (b, a)) >>=
+      (fun s => Prod.fst <$> A.runFrom Z s) = _
+    rw [← hY, ← hX]
+    simp only [← bind_pure_comp, ProbOracleComp.sample_bind, ProbOracleComp.sample_pure,
+      bind_assoc, pure_bind]
+  rw [hA, hB]
+  exact eval_run_sample_bind_swap R Y₂.init X₂.init
+    (fun s => Prod.fst <$> A.runFrom Z (fX s.1, fY s.2))
 
 end Swap
 
@@ -585,7 +601,15 @@ theorem eval_exec_compose_hybridSim (ρ : HybridProtocol n In Out NetQ NetR SubI
   simp only [exec, execMachine, compose, corruptRouter_comp, hybridSim, absorbHybrid,
     Machine.run_comp]
   rw [← Machine.link_comp, ← Machine.link_comp]
-  exact eval_run_link_swap C (ρ κ C) (S κ C) _ _
+  refine eval_run_link_swap (liftAdversary (n := n) (In := In) (Out := Out)
+      (hybridSimMachine (S κ C)))
+    (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₂)
+      (NR := RoutedNetR SubOut NR₂) (ρ κ C)))
+    (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
+      (NR := RoutedNetR SubOut NR₁) (ρ κ C)))
+    (liftAdversary (n := n) (In := SubIn) (Out := SubOut) (S κ C))
+    _root_.id _root_.id (id_map _) (id_map _) ?_ _ _
+  exact fun q s => handle_swap C (ρ κ C) (S κ C) q s.1 s.2
 
 /-- The advantage of an environment against `ρ^π` with the dummy adversary and `ρ^φ` with the
 composed simulator is the advantage of the absorbed environment against `π` with the dummy adversary

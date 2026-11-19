@@ -101,15 +101,6 @@ private theorem gadgetProper_gadgetColor :
       GadgetProper u v w (gadgetColor u v w) 1 2 := by
   decide
 
-private theorem fin_three_eq_of_ne :
-    ∀ x y z w : Fin 3, x ≠ w → y ≠ w → x ≠ y → z ≠ x → z ≠ y → z = w := by
-  intro x y z w
-  fin_cases x <;> fin_cases y <;> fin_cases z <;> fin_cases w <;> decide
-
-private theorem fin_three_eq {x y z w : Fin 3} (hx : x ≠ w) (hy : y ≠ w) (hxy : x ≠ y) (hzx : z ≠ x)
-    (hzy : z ≠ y) : z = w :=
-  fin_three_eq_of_ne x y z w hx hy hxy hzx hzy
-
 /-- **The gadget forces the clause**: in a proper coloring with palette `t`, `f`, `b`, some input
 of the gadget has the color `t` of true, if all inputs are colored `t` or `f`. -/
 private theorem gadget_forces {t f b u v w : Fin 3} {g : Fin 6 → Fin 3} (hu : u = t ∨ u = f)
@@ -119,8 +110,8 @@ private theorem gadget_forces {t f b u v w : Fin 3} {g : Fin 6 → Fin 3} (hu : 
   simp only [not_or] at hne
   rw [hu.resolve_left hne.1, hv.resolve_left hne.2.1, hw.resolve_left hne.2.2] at h
   obtain ⟨h0, h1, h01, h02, h12, h23, h4, h34, h35, h45, h5f, -⟩ := h
-  have hg2 : g 2 = f := fin_three_eq h0 h1 h01 (Ne.symm h02) (Ne.symm h12)
-  exact h5f (fin_three_eq (hg2 ▸ h23.symm) h4 h34 (Ne.symm h35) (Ne.symm h45))
+  have hg2 : g 2 = f := FO.graph.eq_third_color h0 h1 h01 (Ne.symm h02) (Ne.symm h12)
+  exact h5f (FO.graph.eq_third_color (hg2 ▸ h23.symm) h4 h34 (Ne.symm h35) (Ne.symm h45))
 
 /-! ### The graph of a CNF structure -/
 
@@ -452,7 +443,7 @@ private theorem satisfies_of_colorable {f : coloringInterpretation.Model M → F
       f (litVertex p x) = f trueVertex ∨ f (litVertex p x) = f falseVertex := by
     by_contra h
     simp only [not_or] at h
-    exact hlitB p x (fin_three_eq hTB hFB hTF h.1 h.2)
+    exact hlitB p x (FO.graph.eq_third_color hTB hFB hTF h.1 h.2)
   have hneg (x : M) : f (litVertex true x) ≠ f (litVertex false x) :=
     hf _ _ ⟨_, List.mem_cons_self, formula_realize_top, _, rfl,
       fun j i hj => by cases Option.some.inj hj; rfl⟩

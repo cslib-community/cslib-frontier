@@ -125,7 +125,7 @@ theorem IsOraclePPTWithAux.isOraclePPTOn_triple
     {program : α → β → List Bool → WordOracleComp Operation γ}
     (h : IsOraclePPTWithAux (encPair enc₁ enc₂) output (fun (a, b) z => program a b z)) :
     IsOraclePPTOn (encAuxTriple enc₁ enc₂) output (fun ⟨a, b, z⟩ => program a b z) :=
-  h.isOraclePPTOn.preprocess'
+  h.isOraclePPTOn.preprocess
     (prepare := fun p : α × β × List Bool => ((p.1, p.2.1), p.2.2)) (by fun_prop)
 
 /-- Truncating the auxiliary input of a three-argument `IsPPTOn` program to a polynomial in the

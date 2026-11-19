@@ -350,7 +350,7 @@ theorem isPPT_naorYungStepInverter
     (ComputableInPolyTime.beq (hf.comp hr.snd') hr.fst'.fst'.snd')
     hr.snd' (hw₀1.comp hr.fst')
   change IsPPTOn E0 encBits (fun p => naorYungStepInverter f adversary p.1 p.2)
-  exact IsPPTOn.ite' (hm.unary_lt' (.const 2)) (ComputableInPolyTime.const []).isPPTOn
+  exact IsPPTOn.ite (hm.unary_lt' (.const 2)) (ComputableInPolyTime.const []).isPPTOn
     ((ha.choose.preprocess hn0).bind_with
       ((ha.find.preprocess ((hn1.prod (hq.snd'.snd'.prod hδ1)))).bind_with hcb.isPPTOn))
 

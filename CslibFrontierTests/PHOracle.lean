@@ -8,7 +8,9 @@ module
 
 import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Oracle
 import CslibFrontier.Computability.Complexity.Classes.PH.OracleNP
+import CslibFrontier.Computability.Complexity.Classes.PH.OracleCollapse
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Lowness
+import CslibFrontier.Computability.Complexity.Classes.Oracle.Collapse
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-! Clients of the oracle characterization: complement queries, arbitrary encodings and
@@ -54,3 +56,10 @@ example {t : ℕ} {Control Operation : Type} [DecidableEq Operation]
     (a, [false]) ∉ oracleTranscriptNo machine encBits Set.univ := by
   intro h
   exact mem_oracleTranscriptNo.mp h 0 (by simp) rfl hq (Set.mem_univ _)
+
+-- The TQBF oracle collapses two-block problems on an encoded type.
+example {L : Set Bool} (hL : L ∈ SigmaPWithOracle (encQBF '' TQBF) 2 encBool) :
+    L ∈ PWithOracle (encQBF '' TQBF) encBool := by
+  apply PHWithOracle_subset_PWithOracle_of_eq_NPWithOracle
+    (PWithOracle_image_TQBF_eq_NPWithOracle encBits)
+  exact Set.mem_iUnion.mpr ⟨2, hL⟩

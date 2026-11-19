@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
+import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation.StrongSwitching
 import CslibFrontier.Crypto.Negligible.Dyadic
@@ -32,6 +33,9 @@ For the finite experiments, a one-query adversary run against a deterministic or
 oracle's reply. The switching lemma gives it no advantage between a uniform permutation and a
 uniform function, so its PRF and PRP advantages coincide up to zero. Lifted to the bidirectional
 interface it asks the forward direction.
+
+Corollary 4.5 needs no restriction on the key length: the three-round Luby–Rackoff cipher of a
+pseudorandom function, whose keys have `3 * n` bits, is a secure PRF on its `2 * n`-bit blocks.
 
 At `D = Bool`, the adversary that asks the permutation at `false` and at `true` and accepts when
 the replies differ always accepts against a uniform permutation, and accepts with probability
@@ -158,13 +162,26 @@ example {Key D : Type} [Fintype Key] [Nonempty Key] [Fintype D] [DecidableEq D] 
   calc (Q.choose 2 : ℝ) / Fintype.card D ≤ ((Q : ℝ) ^ 2 / 2) / Fintype.card D := by gcongr
     _ = (Q : ℝ) ^ 2 / (2 * Fintype.card D) := by ring
 
--- Length-preserving Corollary 4.5 follows from `BlockCipher.prp_iff_pseudorandomFunctionOver`.
+-- For `n`-bit keys and blocks, a block cipher is a PRP iff it is a `PseudorandomFunction`.
 example {E : BlockCipher} (hkey : E.keyLen = id) (hblock : E.blockLen = id) :
     E.PRP ↔ PseudorandomFunction (fun key query => E.encrypt key.length key query) := by
-  have hiff := BlockCipher.prp_iff_pseudorandomFunctionOver hkey
+  have hiff := BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id hkey
     (by rw [hblock]; exact negligible_inv_two_pow)
   rw [hblock] at hiff
   exact hiff
+
+-- Corollary 4.5 applies to the Luby–Rackoff cipher, whose keys have `3 * n` bits: it is a secure
+-- PRF on its `2 * n`-bit blocks, as the proof of Boneh–Shoup Theorem 4.9 uses.
+example {family : List Bool → List Bool → List Bool} (hfamily : PseudorandomFunction family) :
+    Game.Indistinguishable
+      (fun adversary n => ProbComp.eval
+        ((lubyRackoffCipher family hfamily.polyTime hfamily.length_eq).prpRealGame adversary n))
+      (fun adversary n =>
+        ProbComp.eval (prfIdealGame (fun n => 2 * n) (fun n => 2 * n) adversary n))
+      (Probability.IsOraclePPT encBool) :=
+  (BlockCipher.prp_iff_indistinguishable_prpRealGame_prfIdealGame
+    (negligible_inv_two_pow_comp_of_le fun n => by dsimp only [lubyRackoffCipher]; omega)).mp
+    hfamily.prp_lubyRackoffCipher
 
 -- The lifted adversary asks the forward direction of the bidirectional oracle.
 example (π : Equiv.Perm Bool) :
@@ -321,8 +338,8 @@ private theorem distinctOneBitQuery_isOraclePPT : IsOraclePPT encBool distinctOn
       (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBool := by
     polytime
   unfold distinctOneBitQuery
-  exact ((IsOraclePPTOn.query_take' () hq₀ hlim₀).bind_with
-    ((IsOraclePPTOn.query_take' () hq₁ hlim₁).bind_with hout.isOraclePPTOn)).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq₀ hlim₀).bind_with
+    ((IsOraclePPTOn.query_take () hq₁ hlim₁).bind_with hout.isOraclePPTOn)).isOraclePPT
 
 private def funOneBitEquiv : (BitString 1 → BitString 1) ≃ Bool × Bool where
   toFun t := (t (BitString.ofList 1 [false]) 0, t (BitString.ofList 1 [true]) 0)

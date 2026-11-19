@@ -628,7 +628,7 @@ def map {oracle : List Bool → List Bool} {f : α → β} {g : β → γ}
   bound := R.bound
   alenCap := R.alenCap
   isOraclePPTOn := by
-    simpa only [OracleComp.interpret_map] using R.isOraclePPTOn.map' hg
+    simpa only [OracleComp.interpret_map] using R.isOraclePPTOn.map hg
   computableInPolyTime_alenCap := R.computableInPolyTime_alenCap
   eval_eq a := by
     rw [OracleComp.interpret_map, R.eval_eq a]
@@ -646,7 +646,7 @@ def preprocess {oracle : List Bool → List Bool} {f : α → β} {p : γ → α
   program c := R.program (p c)
   bound c := R.bound (p c)
   alenCap c := R.alenCap (p c)
-  isOraclePPTOn := R.isOraclePPTOn.preprocess' hp
+  isOraclePPTOn := R.isOraclePPTOn.preprocess hp
   computableInPolyTime_alenCap := R.computableInPolyTime_alenCap.comp hp
   eval_eq c := R.eval_eq (p c)
   respects_bound c := R.respects_bound (p c)
@@ -668,9 +668,9 @@ def ofSingleQuery {oracle : List Bool → List Bool} {req : α → List Bool} {a
   bound a := OracleCallBound.single (req a).length (oracle (req a)).length
   alenCap := alenCap
   isOraclePPTOn := by
-    have hq := IsOraclePPTOn.query_take' () hreq halen
+    have hq := IsOraclePPTOn.query_take () hreq halen
     simpa only [OracleComp.interpret_map, OracleComp.interpret_query, Functor.map_map] using
-      hq.map_with' (f := fun a reply => decode (a, reply)) hdec
+      hq.map_with (f := fun a reply => decode (a, reply)) hdec
   computableInPolyTime_alenCap := halen
   eval_eq a := by
     simp only [OracleComp.interpret_map, Functor.map_map]
@@ -739,7 +739,7 @@ noncomputable def comp {oracle₁ oracle₂ : List Bool → List Bool} {f : α �
     let EIn := encPair encA (encPair (encFinEnum Unit) encBits)
     have hR₂_lift : IsOraclePPTOn EIn encBits
         (fun ⟨_, _, w⟩ => OracleComp.interpret ProbOracleComp.query (R₂.program w)) :=
-      R₂.isOraclePPTOn.preprocess' (input := EIn)
+      R₂.isOraclePPTOn.preprocess (input := EIn)
         (prepare := fun ⟨_, _, w⟩ => w) (by dsimp only [EIn]; fun_prop)
     have htake_pt : ComputableInPolyTime
         (fun ⟨⟨a, _, _⟩, reply⟩ => reply.take (R₁.alenCap a))
@@ -756,7 +756,7 @@ noncomputable def comp {oracle₁ oracle₂ : List Bool → List Bool} {f : α �
         (fun p : α × (Unit × List Bool) =>
           OracleComp.interpret ProbOracleComp.query (G p.1 p.2)) := by
       simpa only [G, OracleComp.interpret_map] using
-        hR₂_lift.map_with' (f := fun ⟨a, _⟩ reply => reply.take (R₁.alenCap a)) htake_pt
+        hR₂_lift.map_with (f := fun ⟨a, _⟩ reply => reply.take (R₁.alenCap a)) htake_pt
     have hresources : ComputableInPolyTime (fun p : α × List Bool => R₁.alenCap p.1)
         (encPair encA encBits) encUnary :=
       R₁.computableInPolyTime_alenCap.comp (ComputableInPolyTime.fst encA encBits)
@@ -1179,7 +1179,7 @@ def complLeft {A : Set α} {B : Set β} (R : BoundedOracleReduction encA encB A 
   isOraclePPTOn := by
     have hnot : ComputableInPolyTime Bool.not encBool encBool :=
       ComputableInPolyTime.bool_not
-    simpa only [OracleComp.interpret_map] using R.isOraclePPTOn.map' hnot
+    simpa only [OracleComp.interpret_map] using R.isOraclePPTOn.map hnot
   decides a := by
     rw [Set.mem_compl_iff, R.decides a, OracleComp.interpret_map]
     change ¬(_ = true) ↔ (!(OracleComp.interpret (m := Id) _ (R.program a))) = true
@@ -1216,8 +1216,8 @@ noncomputable def toDecodedWordProgram {B : Set β} {C : Set γ}
     (fun b => [b]) <$> R₂.program (D.decode w)
   have hyes_ppt : IsOraclePPTOn encBits encBits
       (fun w => OracleComp.interpret ProbOracleComp.query (yesProg w)) := by
-    have hpre := R₂.isOraclePPTOn.preprocess' D.computableInPolyTime
-    simpa only [yesProg, OracleComp.interpret_map] using hpre.map' hsingleton
+    have hpre := R₂.isOraclePPTOn.preprocess D.computableInPolyTime
+    simpa only [yesProg, OracleComp.interpret_map] using hpre.map hsingleton
   have hno_ppt : IsOraclePPTOn encBits encBits
       (fun _ : List Bool =>
         OracleComp.interpret (spec := fun _ : Unit × List Bool => List Bool)
@@ -1230,7 +1230,7 @@ noncomputable def toDecodedWordProgram {B : Set β} {C : Set γ}
         if isCan w then { R₂.bound (D.decode w) with alen := 1 } else OracleCallBound.zero
       alenCap := fun _ => 1
       isOraclePPTOn := by
-        refine (IsOraclePPTOn.cond' hisCan hyes_ppt hno_ppt).congr fun w _ _ _ => ?_
+        refine (IsOraclePPTOn.cond hisCan hyes_ppt hno_ppt).congr fun w _ _ _ => ?_
         by_cases hc : isCan w = true <;> simp [hc]
       computableInPolyTime_alenCap := .const 1
       eval_eq := fun w => ?_

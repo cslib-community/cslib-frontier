@@ -41,9 +41,11 @@ Relative to [BonehShoup2023], §2.4, this module has the following differences:
 * The challenger draws all `n` keys before calling `A.choose` rather than after (identical output
   law), and an inadmissible pair makes both experiments output `false`.
 * Key sampling `sampleKey` and challenge admissibility `valid` are parameters where the book fixes
-  uniform keys and equal message length; Theorem 2.12 additionally requires
-  `Cipher.PreservesValid`, a condition the book leaves implicit so that prefix-encrypted challenge
-  pairs stay admissible for the outer single-key game.
+  uniform keys and equal message length. The theorems below also assume `Cipher.PreservesValid`,
+  so that prefix-encrypted challenge pairs stay admissible for the outer single-key game. The book
+  does not state this hypothesis, and Theorem 2.12 fails without it: a one-time secure cipher can
+  have nested advantage one (`tagCipher_no_wrapper` in the tests). They are a corrected form of
+  Theorem 2.12.
 
 `nestedToSingleAdversary` gives the reduction for Theorem 2.12: it samples a `Fin n → K` key vector
 via `OracleComp.replicateFin` (never reading the `withheld` coordinate), encrypts both messages
@@ -150,8 +152,10 @@ theorem Cipher.nested_correct {E : Cipher K M M} (hE : E.Correct) (n : ℕ) :
     exact hE (k 0) m c₀ hc₀
 
 /-- Admissibility preservation under encryption: encrypting an admissible pair `(m₀, m₁)` under any
-supported key produces an admissible ciphertext pair `(c₀, c₁)`. The book leaves this condition
-implicit; Theorem 2.12 requires it so prefix-encrypted pairs stay admissible for the outer game. -/
+supported key produces an admissible ciphertext pair `(c₀, c₁)`. [BonehShoup2023] Theorem 2.12
+does not state this condition, and the theorem fails without it (`tagCipher_no_wrapper` in the
+tests); the corrected form here assumes it so prefix-encrypted pairs stay admissible for the outer
+game. -/
 @[expose] def Cipher.PreservesValid (E : Cipher K M M) (sampleKey : ProbComp K)
     (valid : M → M → Bool) : Prop :=
   ∀ k ∈ (ProbComp.eval sampleKey).support, ∀ m₀ m₁, valid m₀ m₁ = true →
@@ -346,9 +350,10 @@ theorem eval_oneTimeExperiment_nestedToSingleAdversary {σ : Type} (E : Cipher K
         simp [PMF.bind_const]
   · simp [hadm, PMF.bind_const]
 
-/-- Exact advantage equality of Theorem 2.12 ([BonehShoup2023], §2.4, p. 37): under
-`E.PreservesValid sampleKey valid`, the `n`-way nested advantage of `A` equals the one-time
-advantage of `nestedToSingleAdversary`. -/
+/-- Exact advantage equality for the corrected form of Theorem 2.12 ([BonehShoup2023], §2.4,
+p. 37): under `E.PreservesValid sampleKey valid`, a hypothesis the book does not state and without
+which the equality fails (`tagCipher_no_wrapper`), the `n`-way nested advantage of `A` equals the
+one-time advantage of `nestedToSingleAdversary`. -/
 theorem advantage_nestedExperiment_eq {σ : Type} (E : Cipher K M M)
     (sampleKey : ProbComp K) (valid : M → M → Bool)
     (hpres : E.PreservesValid sampleKey valid) (n : ℕ)
@@ -665,13 +670,15 @@ theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
           do let c ← (E x.1).nestedSuffix x.2.1.withheld x.2.1.keys x.2.2
              (A x.1).guess x.2.1.innerState ⟨c, revealKeys x.2.1.withheld x.2.1.keys⟩
           else pure false :=
-      IsPPTOn.cond (encNestedReductionState_admissible_polyTime encK encσ n hg_st).tidy
+      IsPPTOn.cond (encNestedReductionState_admissible_polyTime encK encσ n hg_st)
         (IsPPTOn.bind_pair hsuf hcall)
         (ComputableInPolyTime.const false).isPPTOn
     refine hcond.congr fun ⟨sec, st, chal⟩ => ?_
     simp only [nestedToSingleAdversary]
 
-/-- Theorem 2.12 ([BonehShoup2023], §2.4, p. 37): for every constant `n : ℕ`, if `sampleKey` and
+/-- Corrected form of Theorem 2.12 ([BonehShoup2023], §2.4, p. 37), with the admissibility
+hypothesis `PreservesValid` that the book does not state and without which the theorem fails
+(`tagCipher_no_wrapper` in the tests): for every constant `n : ℕ`, if `sampleKey` and
 `encrypt` are strict PPT, `valid` is computable in polynomial time (each uniformly in the security
 parameter), `E` preserves admissibility (`PreservesValid`) at every security parameter, and `E` is
 one-time semantically secure (`Game.Indistinguishable` against uniform strict PPT `TwoStage`

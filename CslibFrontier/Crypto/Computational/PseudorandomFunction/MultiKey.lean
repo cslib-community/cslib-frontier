@@ -26,12 +26,13 @@ import CslibFrontier.Probability.Product
 # Several independent keys of a pseudorandom function
 
 A pseudorandom function stays pseudorandom when an adversary may query `t` independently keyed
-copies at once, for every fixed number `t` of keys. [BonehShoup2023], Exercise 4.26, allows any
-polynomially bounded number of keys; the asymptotic statement here covers only constant `t`, while
-the concrete bound holds for every `t`. The real game `prfMultiRealGame` samples one
-`t * n`-bit key and answers channel `i : Fin t` with the family under the `i`-th `n`-bit block
-`keyBlock n i key`; the ideal game `prfMultiIdealGame` answers the channels with `t` independent
-uniform random functions.
+copies at once, for every constant number `t` of keys. This is a step toward [BonehShoup2023],
+Exercise 4.26, not the exercise: the exercise allows any polynomially bounded number of keys, and
+that statement is open (#5293). The concrete bound holds for every `t`, but its sum of `t` hybrid
+reductions gives the asymptotic statement only for constant `t`. The real game `prfMultiRealGame`
+samples one `t * n`-bit key and answers channel `i : Fin t` with the family under the `i`-th
+`n`-bit block `keyBlock n i key`; the ideal game `prfMultiIdealGame` answers the channels with `t`
+independent uniform random functions.
 
 The proof is the standard hybrid argument. In the `j`-th hybrid the channels below `j` are random
 and the others are keyed. The reduction `prfMultiReduction family t j adversary` samples its own
@@ -41,10 +42,10 @@ PRF game it is the `j`-th hybrid and against the ideal PRF game the `(j + 1)`-st
 advantage is at most the sum of the `t` PRF advantages
 (`advantage_prfMultiRealGame_prfMultiIdealGame_le`). The reduction is oracle PPT
 (`isOraclePPT_prfMultiReduction`), which gives the asymptotic statement
-`PseudorandomFunction.multiKey`. Against every table on `n`-bit strings, the word reduction has
-the law of the finite reduction `PRF.multiKeyReduction` of `PRF.atLevel family n` on the adapted
-adversary (`interpret_prfMultiReduction_eq_multiKeyReduction`); both PRF games run it against such
-a table.
+`PseudorandomFunction.multiKey_constantCount`. Against every table on `n`-bit strings, the word
+reduction has the law of the finite reduction `PRF.multiKeyReduction` of `PRF.atLevel family n` on
+the adapted adversary (`interpret_prfMultiReduction_eq_multiKeyReduction`); both PRF games run it
+against such a table.
 
 ## Main definitions
 
@@ -58,10 +59,15 @@ a table.
 * `Cslib.Crypto.isOraclePPT_prfMultiReduction`: the hybrid reduction is oracle PPT.
 * `Cslib.Crypto.interpret_prfMultiReduction_eq_multiKeyReduction`: the word hybrid reduction is
   the finite one of `Cslib.Crypto.PRF.multiKeyReduction`, against every table.
+
+## Steps toward Exercise 4.26
+
 * `Cslib.Crypto.advantage_prfMultiRealGame_prfMultiIdealGame_le`: the multi-key advantage is at
   most the sum of the PRF advantages of the `t` hybrid reductions.
-* `Cslib.Crypto.PseudorandomFunction.multiKey`: independently keyed copies of a pseudorandom
-  function are indistinguishable from independent random functions.
+* `Cslib.Crypto.PseudorandomFunction.multiKey_constantCount`: for a constant number of keys,
+  independently keyed copies of a pseudorandom function are indistinguishable from independent
+  random functions. The Luby–Rackoff theorems of
+  `CslibFrontier/Crypto/Computational/LubyRackoff.lean` use it with three and four keys.
 
 ## References
 
@@ -176,13 +182,13 @@ private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction fa
   let hn := h1.fst'.fst'
   let hquery := h2.fst'.snd'
   let hcache := h2.snd'
-  refine IsOraclePPTOn.finite_cases' (tagEncoding := encFinEnum (Fin t))
+  refine IsOraclePPTOn.finite_cases (tagEncoding := encFinEnum (Fin t))
     (tag := fun x : HandlerInput t => x.2.1.1)
     (branch := fun i x => prfMultiHandler family t j x.1.1.1 x.1.2 (i, x.2.1.2) x.2.2)
     h2.fst'.fst' fun i => ?_
   by_cases hlt : i.val < j
   · simp only [prfMultiHandler, hlt, ↓reduceIte]
-    refine IsOraclePPTOn.ite' (hquery.length_bits_comp.unary_eq' hn) ?_ ?_
+    refine IsOraclePPTOn.ite (hquery.length_bits_comp.unary_eq' hn) ?_ ?_
     · exact (IsPPTOn.memoize (input := handlerInputEncoding t)
         (keyEncoding := encPair (encFinEnum (Fin t)) encBits) (valueEncoding := encBits)
         (compute := fun (x : HandlerInput t) (_ : Fin t × List Bool) =>
@@ -193,7 +199,7 @@ private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction fa
         (((ComputableInPolyTime.const ([] : List Bool)).prod hcache))).isOraclePPTOn
   by_cases heq : i.val = j
   · simp only [prfMultiHandler, heq, ↓reduceIte, lt_irrefl]
-    exact (IsOraclePPTOn.query_take' () hquery hn).map_with'
+    exact (IsOraclePPTOn.query_take () hquery hn).map_with
       (f := fun (x : HandlerInput t) reply => (reply, x.2.2))
       ((ComputableInPolyTime.snd _ _).prod (hcache.comp (ComputableInPolyTime.fst _ _)))
   · simp only [prfMultiHandler, hlt, heq, ↓reduceIte]
@@ -224,7 +230,7 @@ theorem isOraclePPT_prfMultiReduction (hfamily : PseudorandomFunction family) (t
     hres ?_
   · exact (((ComputableInPolyTime.const t).unary_mul'
       (.fst _ _)).sampleList.isOraclePPTOn.bind_with
-      (hrun.map' (ComputableInPolyTime.fst _ _))).isOraclePPT
+      (hrun.map (ComputableInPolyTime.fst _ _))).isOraclePPT
   intro caller ⟨i, query⟩ cache hcache result hresult
   dsimp only [cacheEncoding]
   have hkeyLength : (encPair (encFinEnum (Fin t)) encBits (i, query)).length ≤
@@ -588,9 +594,10 @@ theorem interpret_prfMultiReduction_eq_multiKeyReduction
       randomFunctionOracle, prfOracle]
     split_ifs <;> simp
 
-/-- **Multi-key PRF hybrid** ([BonehShoup2023], Exercise 4.26): for a length-preserving family,
-the advantage of a multi-key adversary is at most the sum of the PRF advantages of the `t`
-hybrid reductions. -/
+/-- Hybrid bound, a step toward [BonehShoup2023], Exercise 4.26, not the cited result: for a
+length-preserving family, the advantage of a multi-key adversary is at most the sum of the PRF
+advantages of the `t` hybrid reductions. The exercise asks for one elementary wrapper `B` with
+`PRFadv[A, F'] = n · PRFadv[B, F]`. -/
 theorem advantage_prfMultiRealGame_prfMultiIdealGame_le
     (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (adversary : MultiKeyDistinguisher t) (n : ℕ) :
@@ -606,11 +613,13 @@ theorem advantage_prfMultiRealGame_prfMultiIdealGame_le
   have hj : j < t := Finset.mem_range.mp hj
   rw [eval_prfRealGame_prfMultiReduction hlength hj, eval_prfIdealGame_prfMultiReduction hlength hj]
 
-/-- **Independently keyed copies of a pseudorandom function are pseudorandom**
-([BonehShoup2023], Exercise 4.26, for a constant number of keys): for every fixed number `t` of
-keys, no oracle-PPT adversary distinguishes `t` keyed copies from `t` independent uniform random
-functions. The exercise allows a polynomially bounded number of keys; this statement does not. -/
-theorem PseudorandomFunction.multiKey (hfamily : PseudorandomFunction family) (t : ℕ) :
+/-- Constant-key-count step toward [BonehShoup2023], Exercise 4.26, not the cited result: for
+every constant number `t` of keys, no oracle-PPT adversary distinguishes `t` keyed copies of a
+pseudorandom function from `t` independent uniform random functions. The exercise allows any
+polynomially bounded number `n ≥ 1` of keys; that statement is open (#5293). The Luby–Rackoff
+theorems use this one with `t = 3` and `t = 4`. -/
+theorem PseudorandomFunction.multiKey_constantCount (hfamily : PseudorandomFunction family)
+    (t : ℕ) :
     Game.Indistinguishable
       (fun adversary n => ProbComp.eval (prfMultiRealGame family t adversary n))
       (fun adversary n => ProbComp.eval (prfMultiIdealGame t adversary n))

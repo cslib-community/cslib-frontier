@@ -27,9 +27,8 @@ does not invoke `encrypt`. `SymmetricINDCPAOn` asks that every uniform strict or
 distinguisher have negligible advantage between the two challenge bits. Correctness and efficiency
 of the honest algorithms are separate properties.
 
-`SymmetricCipher.cpaGame` and `SymmetricCipher.INDCPA` in `Authenticated.lean` are the special
-case of `n`-bit pairs; that module proves it (`SymmetricCipher.cpaGame_eq_symmetricCPAGameOn`,
-`SymmetricCipher.indcpa_iff`).
+`SymmetricCipher.cpaGame` and `SymmetricCipher.INDCPA` in `Authenticated.lean` are defined as the
+special case of `n`-bit pairs.
 `blockPairValid` admits equal-length pairs made of whole `n`-bit blocks: the message space
 `Y^{≤ℓ}` of Section 5.4.2 without the cap `ℓ` on the number of blocks.
 

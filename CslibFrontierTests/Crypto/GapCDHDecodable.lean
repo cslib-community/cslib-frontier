@@ -107,12 +107,12 @@ def toyKEMAdversary (n : ℕ) (challenge : List Bool) : WordOracleComp DHKEMOp B
 theorem isOraclePPT_toyKEMAdversary : IsOraclePPT encBool toyKEMAdversary := by
   have hhash : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun x : ℕ × List Bool => List.take x.1 <$> ProbOracleComp.query (DHKEMOp.hash, x.2)) :=
-    IsOraclePPTOn.query_take' DHKEMOp.hash (by polytime) (by polytime)
+    IsOraclePPTOn.query_take DHKEMOp.hash (by polytime) (by polytime)
   have hdec : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBool
       (fun p : (ℕ × List Bool) × List Bool =>
         (p.2 == ·) <$>
           (List.take (2 * p.1.1 + 4) <$> ProbOracleComp.query (DHKEMOp.decaps, p.1.2))) :=
-    (IsOraclePPTOn.query_take' DHKEMOp.decaps (by polytime) (by polytime)).map_with' (by polytime)
+    (IsOraclePPTOn.query_take DHKEMOp.decaps (by polytime) (by polytime)).map_with (by polytime)
   exact (hhash.bind_with
     (second := fun x h =>
       (h == ·) <$>

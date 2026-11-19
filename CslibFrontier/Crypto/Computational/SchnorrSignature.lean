@@ -53,10 +53,10 @@ native scheme under `F.DiscreteLog`, for every oracle-PPT forger, is
 `DiscreteLog.eufCma_schnorrNativeROMScheme` in
 `CslibFrontier.Crypto.Computational.SchnorrSignature.Security`, through a certified native forking
 reduction; that proof uses `oneWayGame_schnorrKeyGen_eq`. The concrete typed bound for any group,
-challenge set and call-bounded forger is `schnorr_succProbability_eufCmaGame_le` in
+challenge set and call-bounded forger is `schnorr_succProbability_eufCmaGame_le_ideal` in
 `CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature`. Strict-PPT identification and
-eavesdropping security under `F.DiscreteLog` are provided by `SchnorrIdentification` and
-`SchnorrEavesdrop`.
+eavesdropping security under `F.DiscreteLog` are `negligible_schnorrDirectProbGame` and
+`schnorr_isProbEavesdropSecure_of_discreteLogHard` in `SchnorrEavesdrop`.
 
 ## Main definitions
 
