@@ -129,7 +129,7 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
       apply card_equiv (equivFin w)
       simp [A]
     rw [show (univ.filter (· ∈ (A : Set (BitString w)))) = A by ext u; simp, hcard,
-      show Fintype.card (BitString w) = M from by simp [M, BitString]]
+      show Fintype.card (BitString w) = M from BitString.card]
     rw [weight_zeroExtend hM x]
   have hemp (r : Fin k → BitString w) :
       empiricalMass A r = (weight (sampleAnswers r
