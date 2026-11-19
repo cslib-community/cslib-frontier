@@ -70,7 +70,8 @@ def acceptCountStep (V : α × List Bool → Bool) (s : α × List Bool × ℕ) 
 
 /-- The number of certificates of length `t` that `V` accepts together with `a`, counted by running
 `acceptCountStep` over all `2 ^ t` values of a `t`-bit binary counter. It equals `acceptCount V a t`
-(`streamAcceptCount_eq_acceptCount`) and needs only the counter and the accumulator as workspace. -/
+(`streamAcceptCount_eq_acceptCount`). The counter and accumulator are the additional storage
+used between calls to `V`. -/
 def streamAcceptCount (V : α × List Bool → Bool) (a : α) (t : ℕ) : ℕ :=
   ((acceptCountStep V)^[2 ^ t] (a, List.replicate t false, 0)).2.2
 
