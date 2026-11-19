@@ -101,6 +101,21 @@ def derivedHints (T : XTrail) (memo : Array (Option Bool)) : List ℕ :=
     | .implied l r => if memo.getD l.1 none == some true then some r else none
     | .decision _ => none
 
+/-- **The redundant literals** of the learned clause `C` with the asserting literal `lit`, whose
+false literals are on the trail `T`, and the memoized search: recursively if `recursive`, and
+otherwise following only the reasons of the literals implied at the root. -/
+def minimizeRedundant (log : LRATLog φ) (T : XTrail) (C : Clause ℕ) (lit : Literal ℕ)
+    (recursive : Bool) : List (Literal ℕ) × Array (Option Bool) :=
+  let n := max T.varBound (C.foldl (fun m y => max m (y.1 + 1)) 0)
+  let reason := T.reasons n
+  let inC := C.foldl (fun a y => a.setIfInBounds y.1 true) (Array.replicate n false)
+  let deep : ℕ → Bool :=
+    if recursive then fun _ => true
+    else
+      let root := Assign.ofTrail (XTrail.trail (XTrail.root T))
+      fun v => root.assigned v
+  redundant log reason inC deep (T.length + 1) lit C (Array.replicate n none)
+
 variable {log₀ : LRATLog φ} {A M₀ : Trail}
 
 /-- **Minimizing a learned clause**, whose false literals are on the trail `T`, recursively if
@@ -111,15 +126,7 @@ redundant, or if the RUP check fails. -/
 def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) (recursive : Bool := true) :
     Learned log₀ A M₀ :=
   let C := L.clause.dedup
-  let n := max T.varBound (C.foldl (fun m y => max m (y.1 + 1)) 0)
-  let reason := T.reasons n
-  let inC := C.foldl (fun a y => a.setIfInBounds y.1 true) (Array.replicate n false)
-  let deep : ℕ → Bool :=
-    if recursive then fun _ => true
-    else
-      let root := Assign.ofTrail (XTrail.trail (XTrail.root T))
-      fun v => root.assigned v
-  let r := redundant L.log reason inC deep (T.length + 1) L.lit C (Array.replicate n none)
+  let r := minimizeRedundant L.log T C L.lit recursive
   if r.1.isEmpty then L
   else
     let D := L.lit :: C.filter fun y => y != L.lit && !r.1.contains y

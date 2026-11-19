@@ -997,35 +997,29 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
 
 /-! ### Restarts -/
 
-/-- The root of a trail, and whether the trail has a decision, in one pass. -/
-def XTrail.rootGo : XTrail → XTrail × Bool
-  | [] => ([], false)
-  | x :: M =>
-    let r := XTrail.rootGo M
-    if r.2 then r else if x.entry.decision then (M, true) else (x :: M, false)
+/-- The root of a trail, in one tail-recursive pass from the newest entry: `acc` is the part below
+the oldest decision seen so far, or the whole trail if there is none. -/
+def XTrail.rootGo : XTrail → XTrail → XTrail
+  | acc, [] => acc
+  | acc, x :: M => XTrail.rootGo (if x.entry.decision then M else acc) M
 
 /-- **The root of a trail**: the part below its oldest decision, the literals implied without any
-decision. It is found in one pass over the trail. -/
-def XTrail.root (M : XTrail) : XTrail := (XTrail.rootGo M).1
+decision. It is found in one tail-recursive pass over the trail. -/
+def XTrail.root (M : XTrail) : XTrail := XTrail.rootGo M M
 
-theorem XTrail.rootGo_snd : ∀ M : XTrail, (XTrail.rootGo M).2 = M.any (·.entry.decision)
-  | [] => rfl
-  | x :: M => by
-    simp only [rootGo, List.any_cons]
-    have ih := XTrail.rootGo_snd M
-    split
-    · rename_i h; rw [h] at ih; simp [h, ← ih]
-    · split
-      · rename_i h₁ h₂; simp [h₂]
-      · rename_i h₁ h₂; rw [Bool.not_eq_true] at h₁ h₂; simp [h₂, ← ih, h₁]
+theorem XTrail.rootGo_eq : ∀ (M acc : XTrail),
+    XTrail.rootGo acc M = if M.any (·.entry.decision) then XTrail.root M else acc
+  | [], _ => rfl
+  | x :: M, acc => by
+    have h : XTrail.root (x :: M) =
+        XTrail.rootGo (if x.entry.decision then M else x :: M) M := rfl
+    rw [rootGo, h, XTrail.rootGo_eq M, XTrail.rootGo_eq M]
+    by_cases hM : M.any (·.entry.decision) <;> by_cases hx : x.entry.decision <;> simp [hM, hx]
 
 theorem XTrail.root_cons (x : XEntry) (M : XTrail) :
     XTrail.root (x :: M) = if M.any (·.entry.decision) then XTrail.root M
       else if x.entry.decision then M else x :: M := by
-  simp only [root, rootGo, ← XTrail.rootGo_snd]
-  split
-  · rfl
-  · split <;> rfl
+  rw [root, rootGo, XTrail.rootGo_eq]
 
 theorem XTrail.root_no_decision : ∀ (M : XTrail), ∀ x ∈ XTrail.root M, x.entry.decision = false
   | [] => by simp [XTrail.root, XTrail.rootGo]
