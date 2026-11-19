@@ -151,17 +151,10 @@ private theorem inChild_correct (side : Bool)
 
 private structure Effect (s t : State M (layout extra (regs + 1)))
     (old tree : BinaryTree (Label M extra)) (target : AVLTree M.Value)
-    (encode : ℕ → M.Value) (field : Fin (extra + 1)) (parent : Pointer) : Prop where
-  rep : Represents t.heap parent tree
-  matched : Matches encode field tree target
-  distinct : AddressesDistinct tree
-  footprint : addresses tree = addresses old
-  cursor : t.ptr 0 = root tree
-  rootReg : t.ptr 1 = s.ptr 1
+    (encode : ℕ → M.Value) (field : Fin (extra + 1)) (parent : Pointer) : Prop
+    extends Rebuilt encode field s t parent old tree target where
   size : t.heap.length = s.heap.length
   data : ∀ i, i ≠ 1 → i ≠ 2 → t.data i = s.data i
-  saved : t.ptr 6 = s.ptr 0
-  frame : ∀ z, z ∉ addresses old → t.heap[z]? = s.heap[z]?
 
 private theorem rotate_correct (side : Bool) (zero maxSucc : M.Op) (encode : ℕ → M.Value)
     (zero_spec : ∀ a b, M.evalOp zero a b = encode 0)
@@ -193,7 +186,7 @@ private theorem rotate_correct (side : Bool) (zero maxSucc : M.Op) (encode : ℕ
           rotateRight_correct zero maxSucc encode zero_spec max_spec field notKey
             s child label a b r left right B parent rep distinct ma mb mr hl.2.1 hl.2.2 hr
             cursor pc
-        refine ⟨t, _, run, ⟨rt, ?_, dt, ?_, ct, ?_, size, data, saved, ?_⟩⟩
+        refine ⟨t, _, run, ⟨⟨rt, ?_, dt, ?_, ct, saved, ?_, ?_⟩, size, data⟩⟩
         · simpa [AVLTree.rotateRight, mkNode, keyEq] using mt
         · simp [addresses, BinaryTree.map, SearchTree.elements,
             Finset.insert_union, Finset.union_insert, Finset.insert_comm]
@@ -223,7 +216,7 @@ private theorem rotate_correct (side : Bool) (zero maxSucc : M.Op) (encode : ℕ
           rotateLeft_correct zero maxSucc encode zero_spec max_spec field notKey
             s child label l b c A left right parent rep distinct ml mb mc hl hr.2.1 hr.2.2
             cursor pc
-        refine ⟨t, _, run, ⟨rt, ?_, dt, ?_, ct, ?_, size, data, saved, ?_⟩⟩
+        refine ⟨t, _, run, ⟨⟨rt, ?_, dt, ?_, ct, saved, ?_, ?_⟩, size, data⟩⟩
         · simpa [AVLTree.rotateLeft, mkNode, keyEq] using mt
         · simp [addresses, BinaryTree.map, SearchTree.elements,
             Finset.insert_union, Finset.union_insert, Finset.insert_comm, Finset.union_assoc]
@@ -257,16 +250,16 @@ private theorem height_correct (zero maxSucc : M.Op) (encode : ℕ → M.Value)
       Effect s t (.node label l r) tree (mkNode (label.data 0) A B) encode field parent := by
   obtain ⟨t, run, heap, rt, mt, dt, data, ptr⟩ := recomputeHeight_mkNode zero maxSucc encode
     zero_spec max_spec field notKey s label l r A B parent rep distinct ml mr hl hr cursor pc
-  refine ⟨t, _, run, ⟨rt, mt, dt, rfl, ?_, ?_, ?_, data, ?_, ?_⟩⟩
+  refine ⟨t, _, run, ⟨⟨rt, mt, dt, rfl, ?_, ?_, ?_, ?_⟩, ?_, data⟩⟩
   · exact (ptr 0 (by change (0 : Fin 7) ≠ 2; decide)).trans cursor
-  · exact ptr 1 (by change (1 : Fin 7) ≠ 2; decide)
-  · rw [heap, List.length_modify]
   · exact (ptr 6 (by change (6 : Fin 7) ≠ 2; decide)).trans saved
+  · exact ptr 1 (by change (1 : Fin 7) ≠ 2; decide)
   · intro z hz
     rw [heap]
     apply List.getElem?_modify_ne
     intro eq
     exact hz ((mem_addresses_iff ..).mpr ⟨.one, label, rfl, eq⟩)
+  · rw [heap, List.length_modify]
 
 private theorem doubleRight_correct (zero maxSucc : M.Op) (encode : ℕ → M.Value)
     (zero_spec : ∀ a b, M.evalOp zero a b = encode 0)
@@ -302,30 +295,30 @@ private theorem doubleRight_correct (zero maxSucc : M.Op) (encode : ℕ → M.Va
       (rotateLeft zero maxSucc field) s u label child pivot a b c d r parent 39
       rep distinct cursor pc run effect.rep effect.distinct effect.footprint effect.cursor
       (by simpa [start, State.setPtr] using effect.saved)
-      (by simpa [start, State.setPtr] using effect.rootReg) effect.frame
+      (by simpa [start, State.setPtr] using effect.top) effect.frame
     have nonempty' : AVLTree.rotateLeft (child.data 0) A B ≠ .nil := by
       cases B <;> simp [AVLTree.rotateLeft, mkNode]
     obtain ⟨t, tree, outerRun, outer⟩ := rotate_correct true zero maxSucc encode
       zero_spec max_spec field notKey { v with pc := 0 } label (.node pivot c d) r
       (AVLTree.rotateLeft (child.data 0) A B) R parent rv dv effect.matched mr
       (heightConsistent_rotateLeft ha hb) hr nonempty' cv rfl
-    refine ⟨_, tree, innerRun.sequence outerRun, ⟨outer.rep, outer.matched, outer.distinct,
-      ?_, outer.cursor, outer.rootReg.trans pv, outer.size.trans (size.trans effect.size),
-      ?_, outer.saved.trans (cv.trans cursor.symm), ?_⟩⟩
+    refine ⟨_, tree, innerRun.sequence outerRun, ⟨⟨outer.rep, outer.matched, outer.distinct,
+      ?_, outer.cursor, outer.saved.trans (cv.trans cursor.symm), outer.top.trans pv, ?_⟩,
+      outer.size.trans (size.trans effect.size), ?_⟩⟩
     · rw [outer.footprint]
       change Insert.insert label.address (addresses (.node pivot c d) ∪ addresses r) = _
       rw [effect.footprint]
       rfl
-    · intro i hi hj
-      rw [outer.data i hi hj]
-      change v.data i = s.data i
-      rw [data]
-      exact effect.data i hi hj
     · intro z hz
       rw [outer.frame z ?_, frame z hz]
       change z ∉ Insert.insert label.address (addresses (.node pivot c d) ∪ addresses r)
       rw [effect.footprint]
       exact hz
+    · intro i hi hj
+      rw [outer.data i hi hj]
+      change v.data i = s.data i
+      rw [data]
+      exact effect.data i hi hj
 
 private theorem doubleLeft_correct (zero maxSucc : M.Op) (encode : ℕ → M.Value)
     (zero_spec : ∀ a b, M.evalOp zero a b = encode 0)
@@ -361,38 +354,38 @@ private theorem doubleLeft_correct (zero maxSucc : M.Op) (encode : ℕ → M.Val
       (rotateRight zero maxSucc field) s u label child pivot a b c d l parent 39
       rep distinct cursor pc run effect.rep effect.distinct effect.footprint effect.cursor
       (by simpa [start, State.setPtr] using effect.saved)
-      (by simpa [start, State.setPtr] using effect.rootReg) effect.frame
+      (by simpa [start, State.setPtr] using effect.top) effect.frame
     have nonempty' : AVLTree.rotateRight (child.data 0) A B ≠ .nil := by
       cases A <;> simp [AVLTree.rotateRight, mkNode]
     obtain ⟨t, tree, outerRun, outer⟩ := rotate_correct false zero maxSucc encode
       zero_spec max_spec field notKey { v with pc := 0 } label l (.node pivot c d)
       L (AVLTree.rotateRight (child.data 0) A B) parent rv dv ml effect.matched
       hl (heightConsistent_rotateRight ha hb) nonempty' cv rfl
-    refine ⟨_, tree, innerRun.sequence outerRun, ⟨outer.rep, outer.matched, outer.distinct,
-      ?_, outer.cursor, outer.rootReg.trans pv, outer.size.trans (size.trans effect.size),
-      ?_, outer.saved.trans (cv.trans cursor.symm), ?_⟩⟩
+    refine ⟨_, tree, innerRun.sequence outerRun, ⟨⟨outer.rep, outer.matched, outer.distinct,
+      ?_, outer.cursor, outer.saved.trans (cv.trans cursor.symm), outer.top.trans pv, ?_⟩,
+      outer.size.trans (size.trans effect.size), ?_⟩⟩
     · rw [outer.footprint]
       change Insert.insert label.address (addresses l ∪ addresses (.node pivot c d)) = _
       rw [effect.footprint]
       rfl
-    · intro i hi hj
-      rw [outer.data i hi hj]
-      change v.data i = s.data i
-      rw [data]
-      exact effect.data i hi hj
     · intro z hz
       rw [outer.frame z ?_, frame z hz]
       change z ∉ Insert.insert label.address (addresses l ∪ addresses (.node pivot c d))
       rw [effect.footprint]
       exact hz
+    · intro i hi hj
+      rw [outer.data i hi hj]
+      change v.data i = s.data i
+      rw [data]
+      exact effect.data i hi hj
 
 private theorem Effect.withPc {s t : State M (layout extra (regs + 1))}
     {old tree : BinaryTree (Label M extra)} {target : AVLTree M.Value}
     {encode : ℕ → M.Value} {field : Fin (extra + 1)} {parent : Pointer}
     (h : Effect s t old tree target encode field parent) (pc : ℕ) :
     Effect s { t with pc := pc } old tree target encode field parent :=
-  ⟨h.rep, h.matched, h.distinct, h.footprint, h.cursor, h.rootReg,
-    h.size, h.data, h.saved, h.frame⟩
+  ⟨⟨h.rep, h.matched, h.distinct, h.footprint, h.cursor, h.saved, h.top, h.frame⟩,
+    h.size, h.data⟩
 
 private theorem Effect.before {s q t : State M (layout extra (regs + 1))}
     {old tree : BinaryTree (Label M extra)} {target : AVLTree M.Value}
@@ -402,7 +395,7 @@ private theorem Effect.before {s q t : State M (layout extra (regs + 1))}
     (data : ∀ i, i ≠ 1 → i ≠ 2 → q.data i = s.data i) :
     Effect s t old tree target encode field parent :=
   { h with
-    rootReg := h.rootReg.trans rootReg
+    top := h.top.trans rootReg
     size := h.size.trans (congrArg List.length heap)
     data := fun i hi hj => (h.data i hi hj).trans (data i hi hj)
     saved := h.saved.trans cursor
@@ -564,23 +557,6 @@ are client registers; the other declared scratch registers may change. -/
         (branch heavy 2 1 (Balance.heavyCase false zero maxSucc le field)
           (recomputeHeight zero maxSucc field))))
 
-private theorem balance_nonempty (key : M.Value) (l r : AVLTree M.Value) :
-    AVLTree.balance key l r ≠ .nil := by
-  have right (key : M.Value) (l r : AVLTree M.Value) : AVLTree.rotateRight key l r ≠ .nil := by
-    cases l <;> simp [AVLTree.rotateRight, mkNode]
-  have left (key : M.Value) (l r : AVLTree M.Value) : AVLTree.rotateLeft key l r ≠ .nil := by
-    cases r <;> simp [AVLTree.rotateLeft, mkNode]
-  unfold AVLTree.balance
-  split
-  · split
-    · simp [mkNode]
-    · split <;> apply right
-  · split
-    · split
-      · simp [mkNode]
-      · split <;> apply left
-    · simp [mkNode]
-
 /-- The concrete balance program implements `AVLTree.balance` in at most 121 instructions,
 without allocation. Children must have consistent encoded caches; the old root cache may
 be arbitrary. Register six retains the former root for the caller's subsequent reconnection. -/
@@ -695,14 +671,14 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
   have finalEffect := effect.before qheap (qp 0 (by decide) (by decide))
     (qp 1 (by decide) (by decide)) data
   refine ⟨_, tree, _, total, by omega, finalEffect.rep, finalEffect.matched,
-    finalEffect.distinct, finalEffect.footprint, ?_, finalEffect.cursor, finalEffect.rootReg,
+    finalEffect.distinct, finalEffect.footprint, ?_, finalEffect.cursor, finalEffect.top,
     finalEffect.saved, finalEffect.size, finalEffect.data, finalEffect.frame, ?_⟩
   · cases tree with
     | node => simp [root]
     | nil =>
       have matched := finalEffect.matched
       cases eq : AVLTree.balance (label.data 0) A B with
-      | nil => exact (balance_nonempty _ _ _ eq).elim
+      | nil => exact (balance_ne_nil _ _ _ eq).elim
       | node => simp [eq, Matches] at matched
   · intro z f hf
     obtain ⟨_, steps, _, _⟩ := total
