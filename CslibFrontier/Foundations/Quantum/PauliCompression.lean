@@ -32,11 +32,10 @@ where `f(s, a, b) = (-1)^s X(a) Z(b)` is the **Pauli family** on the Pauli group
 
 The defect of the Pauli family is bounded by the consistency, linearity and anticommutation
 conditions of the strategy in `CslibFrontier/Foundations/Quantum/Algebra/PauliFamily.lean`, and
-the two compose (`Cslib.Quantum.exists_isometry_compress_of_consistent`). One step toward
-Theorem 14 is not formalized here: passing from the products to the individual generators,
-tracked in [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149) (milestone
-M3). The bound alone does not certify the generators: `X(a) = -X^a`, `Z(b) = -Z^b` give the
-Pauli strings as products, with defect `0`, but `X(0) = Z(0) = -1`.
+the two compose (`Cslib.Quantum.exists_isometry_compress_of_consistent`). When both families
+are exactly linear and normalized, the same isometry also intertwines Z exactly and has
+squared X intertwining error equal to the twisted commutation error. Right multiplication by
+Z is exact in the Pauli family, while a right X factor must pass through the preceding Z.
 
 The proof composes three steps:
 
@@ -61,6 +60,8 @@ The proof composes three steps:
 * `Cslib.Quantum.pauliFamily_pauliXPow_mul`: the Pauli strings are an exact representation.
 * `Cslib.Quantum.regularRep_negOne_mul_regularIsometry`: `g(-1) V = -V`.
 * `Cslib.Quantum.exists_isometry_compress_pauliFamily`: the compression bound for the Pauli family.
+* `Cslib.Quantum.exists_isometry_compress_intertwine_pauliFamily`: product compression and
+  generator intertwining for exactly linear families, using a single isometry.
 * `Cslib.Quantum.exists_isometry_compress_of_consistent`: the same bound from consistency,
   anticommutation and linearity.
 
@@ -213,25 +214,22 @@ end Rep
 
 section Robust
 
-open scoped Kronecker MatrixOrder
+open scoped Kronecker MatrixOrder ComplexOrder
 
 universe u v
 
 variable {ι : Type u} [Fintype ι] [DecidableEq ι] {κ : Type v} [Fintype κ] [DecidableEq κ]
 
-/-- **Compression of the Pauli family**, a step toward robust Pauli rigidity
-[Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017]: for unitaries `X(a)`, `Z(b)` on
-`ℂ^κ` there is one isometry `W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` under which, in **every** state `φ`, the
-products `X(a) Z(b)` are close on average to the Pauli strings `X^a Z^b ⊗ 1`, with error the
-multiplicative defect of the Pauli family `(s, a, b) ↦ (-1)^s X(a) Z(b)` and no dependence on
-`n`. -/
-theorem exists_isometry_compress_pauliFamily (X Z : (ι → Bool) → Matrix κ κ ℂ)
+private theorem exists_isometry_pauliFamily (X Z : (ι → Bool) → Matrix κ κ ℂ)
     (hX : ∀ a, (X a)ᴴ * X a = 1) (hZ : ∀ b, (Z b)ᴴ * Z b = 1) :
     ∃ (J : Type (max u v)) (_ : Fintype J) (_ : DecidableEq J)
-      (W : Matrix ((ι → Bool) × J) κ ℂ), Wᴴ * W = 1 ∧ ∀ φ : AlgState (Matrix κ κ ℂ),
-      𝔼 a, 𝔼 b, φ.norm (X a * Z b -
-          Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2 ≤
-        𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 := by
+      (W : Matrix ((ι → Bool) × J) κ ℂ), Wᴴ * W = 1 ∧
+      (∀ p, Wᴴ * (pauliFamily pauliXPow pauliZPow p ⊗ₖ (1 : Matrix J J ℂ)) * W =
+        (regularIsometry (pauliFamily X Z))ᴴ * regularRep p * regularIsometry (pauliFamily X Z)) ∧
+      (∀ p, let D := W * pauliFamily X Z p -
+          (pauliFamily pauliXPow pauliZPow p ⊗ₖ (1 : Matrix J J ℂ)) * W
+        Dᴴ * D = 𝔼 z, (pauliFamily X Z z * pauliFamily X Z p - pauliFamily X Z (z * p))ᴴ *
+          (pauliFamily X Z z * pauliFamily X Z p - pauliFamily X Z (z * p))) := by
   set f := pauliFamily X Z
   set V := regularIsometry f
   have hf := conjTranspose_pauliFamily_mul X Z hX hZ
@@ -256,8 +254,9 @@ theorem exists_isometry_compress_pauliFamily (X Z : (ι → Bool) → Matrix κ 
         Φ * (pauliXPow a ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * (Φᴴ * Φ) *
           (pauliZPow b ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * Φᴴ by simp only [Matrix.mul_assoc], hΦ1,
       Matrix.mul_one, Matrix.mul_assoc Φ, ← mul_kronecker_mul, Matrix.mul_one]
-  have key : ∀ p : PauliGroup ι, Vᴴ * regularRep p * V = (signVal p.sign : ℂ) •
-      (Wᴴ * ((pauliXPow p.x * pauliZPow p.z) ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * W) := fun p => by
+  have hconj (p : PauliGroup ι) :
+      Eᴴ * regularRep p * E =
+        Φ * (pauliFamily pauliXPow pauliZPow p ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * Φᴴ := by
     have hc : Eᴴ * regularRep (ofX p.x * ofZ p.z) * E = R.X p.x * R.Z p.z :=
       (compress_mul hEE hEP _ _).symm
     have hp : Eᴴ * regularRep p * E = (signVal p.sign : ℂ) • (R.X p.x * R.Z p.z) := by
@@ -265,20 +264,139 @@ theorem exists_isometry_compress_pauliFamily (X Z : (ι → Bool) → Matrix κ 
       cases h : p.sign
       · simp [hc]
       · simp [compress_negOne_mul hEE hEP, hc]
-    calc Vᴴ * regularRep p * V = (E * (Eᴴ * V))ᴴ * regularRep p * (E * (Eᴴ * V)) := by rw [hEV]
-      _ = (Eᴴ * V)ᴴ * (Eᴴ * regularRep p * E) * (Eᴴ * V) := by
-          rw [conjTranspose_mul]; simp only [Matrix.mul_assoc]
+    rw [hp, hRXZ, pauliFamily, smul_kronecker, Matrix.mul_smul, Matrix.smul_mul]
+  let K := Φᴴ * Eᴴ
+  have hKV : K * V = W := Matrix.mul_assoc _ _ _
+  have hKK : Kᴴ * K = E * Eᴴ := by
+    simp only [K, conjTranspose_mul, conjTranspose_conjTranspose, Matrix.mul_assoc]
+    rw [← Matrix.mul_assoc Φ Φᴴ, hΦ2, Matrix.one_mul]
+  have hPV : (E * Eᴴ) * V = V := (Matrix.mul_assoc _ _ _).trans hEV
+  have hP (p : PauliGroup ι) : E * Eᴴ * (regularRep (ι := κ) p * V) = regularRep p * V := by
+    rw [← Matrix.mul_assoc, hEP, ← commute_regularRep_signProj, Matrix.mul_assoc]
+    rw [← hEP, hPV]
+  have hact (p : PauliGroup ι) :
+      K * (regularRep p * V) =
+        (pauliFamily pauliXPow pauliZPow p ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * W := by
+    calc
+      _ = Φᴴ * ((Eᴴ * regularRep p * E) * (Eᴴ * V)) := by
+        simp only [K, Matrix.mul_assoc, hEV]
       _ = _ := by
-          rw [hp, hRXZ]
-          simp only [W, conjTranspose_mul, conjTranspose_conjTranspose, Matrix.smul_mul,
-            Matrix.mul_smul, Matrix.mul_assoc]
-  refine ⟨L₂, inferInstance, inferInstance, W, hWW, fun φ => ?_⟩
+        rw [hconj]
+        simp only [W, Matrix.mul_assoc]
+        rw [← Matrix.mul_assoc Φᴴ Φ, hΦ1, Matrix.one_mul]
+  refine ⟨L₂, inferInstance, inferInstance, W, hWW, ?_, ?_⟩
+  · intro p
+    rw [Matrix.mul_assoc Wᴴ, ← hact, ← hKV, conjTranspose_mul,
+      Matrix.mul_assoc, ← Matrix.mul_assoc Kᴴ K, hKK, hP, Matrix.mul_assoc Vᴴ]
+  · intro p D
+    have hD : D = K * (V * f p - regularRep p * V) := by
+      rw [Matrix.mul_sub, ← Matrix.mul_assoc K V, hKV, hact]
+    rw [hD, conjTranspose_mul, Matrix.mul_assoc, ← Matrix.mul_assoc Kᴴ K, hKK,
+      Matrix.mul_sub, ← Matrix.mul_assoc _ V, hPV, hP]
+    exact regularIsometry_mul_sub_gram f p
+
+private theorem expect_norm_sub_pauliFamily_compression_le
+    {J : Type*} [Fintype J] [DecidableEq J]
+    (X Z : (ι → Bool) → Matrix κ κ ℂ) (W : Matrix ((ι → Bool) × J) κ ℂ)
+    (hf : ∀ p, (pauliFamily X Z p)ᴴ * pauliFamily X Z p = 1)
+    (hcompress : ∀ p, Wᴴ * (pauliFamily pauliXPow pauliZPow p ⊗ₖ (1 : Matrix J J ℂ)) * W =
+      (regularIsometry (pauliFamily X Z))ᴴ * regularRep p * regularIsometry (pauliFamily X Z))
+    (φ : AlgState (Matrix κ κ ℂ)) :
+    (𝔼 a, 𝔼 b, φ.norm (X a * Z b -
+          Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2) ≤
+        𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 := by
+  let f := pauliFamily X Z
   refine le_of_eq_of_le ?_ (expect_norm_sub_compress_sq_le f φ hf)
   rw [← expect_pauliGroup (fun a b => φ.norm (X a * Z b -
-    Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * W) ^ 2)]
+    Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2)]
   refine Finset.expect_congr rfl fun p _ => ?_
-  rw [key, show f p = (signVal p.sign : ℂ) • (X p.x * Z p.z) from rfl, ← smul_sub,
+  rw [← hcompress, pauliFamily, smul_kronecker, Matrix.mul_smul, Matrix.smul_mul,
+    show f p = (signVal p.sign : ℂ) • (X p.x * Z p.z) from rfl, ← smul_sub,
     AlgState.norm_smul, Complex.norm_real, Real.norm_eq_abs, abs_signVal, one_mul]
+
+/-- **Compression of the Pauli family**, a step toward robust Pauli rigidity
+[Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017]: for unitaries `X(a)`, `Z(b)` on
+`ℂ^κ` there is one isometry `W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` under which, in **every** state `φ`, the
+products `X(a) Z(b)` are close on average to the Pauli strings `X^a Z^b ⊗ 1`, with error the
+multiplicative defect of the Pauli family `(s, a, b) ↦ (-1)^s X(a) Z(b)` and no dependence on
+`n`. -/
+theorem exists_isometry_compress_pauliFamily (X Z : (ι → Bool) → Matrix κ κ ℂ)
+    (hX : ∀ a, (X a)ᴴ * X a = 1) (hZ : ∀ b, (Z b)ᴴ * Z b = 1) :
+    ∃ (J : Type (max u v)) (_ : Fintype J) (_ : DecidableEq J)
+      (W : Matrix ((ι → Bool) × J) κ ℂ), Wᴴ * W = 1 ∧ ∀ φ : AlgState (Matrix κ κ ℂ),
+      𝔼 a, 𝔼 b, φ.norm (X a * Z b -
+          Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2 ≤
+        𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 := by
+  obtain ⟨J, _, _, W, hWW, hcompress, _⟩ := exists_isometry_pauliFamily X Z hX hZ
+  exact ⟨J, inferInstance, inferInstance, W, hWW,
+    expect_norm_sub_pauliFamily_compression_le X Z W (conjTranspose_pauliFamily_mul X Z hX hZ)
+      hcompress⟩
+
+/-- The same isometry compresses the rounded Pauli products and exactly intertwines Z.
+For each X string separately, the Gram matrix of its intertwining error equals the
+average Gram matrix of the twisted commutators with the Z strings. -/
+theorem exists_isometry_compress_intertwine_pauliFamily
+    (X Z : (ι → Bool) → Matrix κ κ ℂ)
+    (hX : ∀ a, (X a)ᴴ * X a = 1) (hZ : ∀ b, (Z b)ᴴ * Z b = 1)
+    (hXmul : ∀ a b, X a * X b = X (a + b)) (hZmul : ∀ a b, Z a * Z b = Z (a + b)) :
+    ∃ (J : Type (max u v)) (_ : Fintype J) (_ : DecidableEq J)
+      (W : Matrix ((ι → Bool) × J) κ ℂ), Wᴴ * W = 1 ∧
+      (∀ b, W * Z b = (pauliZPow b ⊗ₖ (1 : Matrix J J ℂ)) * W) ∧
+      (∀ φ : AlgState (Matrix κ κ ℂ),
+        (𝔼 a, 𝔼 b, φ.norm (X a * Z b -
+          Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2) ≤
+          𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2) ∧
+      (∀ a, let D := W * X a - (pauliXPow a ⊗ₖ (1 : Matrix J J ℂ)) * W
+        Dᴴ * D = 𝔼 b, let B := Z b * X a - (signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)
+          Bᴴ * B) := by
+  have hzero (U : (ι → Bool) → Matrix κ κ ℂ) (hU : (U 0)ᴴ * U 0 = 1)
+      (hmul : U 0 * U 0 = U 0) : U 0 = 1 := by
+    calc
+      U 0 = (U 0)ᴴ * (U 0 * U 0) := by rw [← Matrix.mul_assoc, hU, Matrix.one_mul]
+      _ = 1 := by rw [hmul, hU]
+  have hX0 := hzero X (hX 0) (by simpa only [add_zero] using hXmul 0 0)
+  have hZ0 := hzero Z (hZ 0) (by simpa only [add_zero] using hZmul 0 0)
+  obtain ⟨J, _, _, W, hWW, hcompress, hintertwine⟩ := exists_isometry_pauliFamily X Z hX hZ
+  let f := pauliFamily X Z
+  have hZexact (b : ι → Bool) : W * Z b = (pauliZPow b ⊗ₖ (1 : Matrix J J ℂ)) * W := by
+    apply sub_eq_zero.mp
+    apply conjTranspose_mul_self_eq_zero.mp
+    rw [← pauliFamily_ofZ pauliXPow pauliZPow pauliXPow_zero b, ← pauliFamily_ofZ X Z hX0 b,
+      hintertwine]
+    refine (expect_congr rfl fun p _ => ?_).trans (Fintype.expect_const _)
+    have hz : f p * f (ofZ b) - f (p * ofZ b) = 0 := by
+      rw [pauliFamily_mul_sub]
+      simp only [ofZ, zero_dotProduct, Bool.zero_eq_false, signVal_false, Complex.ofReal_one,
+        one_smul, hX0, Matrix.mul_one, add_zero, ← hZmul p.z b, Matrix.mul_assoc, sub_self,
+        smul_zero]
+    change (f p * f (ofZ b) - f (p * ofZ b))ᴴ * (f p * f (ofZ b) - f (p * ofZ b)) = _
+    rw [hz, conjTranspose_zero, Matrix.zero_mul]
+  refine ⟨J, inferInstance, inferInstance, W, hWW, hZexact,
+    expect_norm_sub_pauliFamily_compression_le X Z W
+      (conjTranspose_pauliFamily_mul X Z hX hZ) hcompress, ?_⟩
+  intro a D
+  let B (b : ι → Bool) := Z b * X a - (signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)
+  have hx (p : PauliGroup ι) : f p * f (ofX a) - f (p * ofX a) =
+      (signVal p.sign : ℂ) • (X p.x * B p.z) := by
+    rw [pauliFamily_mul_sub]
+    simp only [ofX, hZ0, Matrix.mul_one, add_zero, B, Matrix.mul_sub, Matrix.mul_smul,
+      ← hXmul, Matrix.mul_assoc]
+    have hs : p.sign + false = p.sign := add_zero p.sign
+    rw [hs]
+  have hgram (p : PauliGroup ι) :
+      (f p * f (ofX a) - f (p * ofX a))ᴴ * (f p * f (ofX a) - f (p * ofX a)) =
+        (B p.z)ᴴ * B p.z := by
+    rw [hx, conjTranspose_smul, smul_mul_smul_comm, conjTranspose_mul, Matrix.mul_assoc,
+      ← Matrix.mul_assoc (X p.x)ᴴ, hX, Matrix.one_mul, Complex.star_def, Complex.conj_ofReal,
+      ← Complex.ofReal_mul, signVal_mul_self, Complex.ofReal_one, one_smul]
+  have h := hintertwine (ofX a)
+  change _ = 𝔼 p, (f p * f (ofX a) - f (p * ofX a))ᴴ *
+    (f p * f (ofX a) - f (p * ofX a)) at h
+  simp only [hgram] at h
+  rw [pauliFamily_ofX _ _ hZ0, pauliFamily_ofX _ _ pauliZPow_zero] at h
+  change _ = 𝔼 b, (B b)ᴴ * B b
+  rw [show Dᴴ * D = _ from h, expect_pauliGroup (fun _ b => (B b)ᴴ * B b),
+    Fintype.expect_const]
 
 /-- **Compression from consistency, anticommutation and linearity**, a step toward robust Pauli
 rigidity [Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017], for unitary families (see

@@ -55,7 +55,8 @@ vectors `ψ`: `E_y ‖(V f(y) - g(y) V) ψ‖² = E_{x,y} ‖(f(x) f(y) - f(xy))
 * `Cslib.Quantum.regularRep_mul`, `Cslib.Quantum.regularRep_one`,
   `Cslib.Quantum.conjTranspose_regularRep_mul`: `g` is a unitary representation.
 * `Cslib.Quantum.conjTranspose_regularIsometry_mul`: `V` is an isometry.
-* `Cslib.Quantum.sum_norm_regularIsometry_mul_sub_eq`: `V` intertwines `f` and `g` approximately.
+* `Cslib.Quantum.regularIsometry_mul_sub_gram`: the exact Gram matrix of the intertwining error.
+* `Cslib.Quantum.sum_norm_regularIsometry_mul_sub_eq`: the intertwining error in a vector.
 * `Cslib.Quantum.expect_norm_sub_compress_sq_le`: the compression bound, in every state.
 * `Cslib.Quantum.sum_vector_norm_sub_compress_le`: the compression bound in a vector state.
 * `Cslib.Quantum.compress_eq_of_mul`: exact representations are recovered exactly.
@@ -184,6 +185,28 @@ private theorem regularIsometry_mul_sub_apply (y : G) (i : ι) (z : G) (j : ι) 
     Matrix.mul_apply, mul_sum]
   simp only [regularIsometry_apply, mul_assoc]
 
+/-- The squared error of the averaging isometry at a group element is the average
+of the Gram matrices of the right multiplication defects at that element. -/
+theorem regularIsometry_mul_sub_gram (y : G) :
+    let D := regularIsometry f * f y - regularRep y * regularIsometry f
+    Dᴴ * D = 𝔼 z, (f z * f y - f (z * y))ᴴ * (f z * f y - f (z * y)) := by
+  intro D
+  have h : Dᴴ * D = ((Fintype.card G : ℂ))⁻¹ •
+      ∑ z, (f z * f y - f (z * y))ᴴ * (f z * f y - f (z * y)) := by
+    ext j k
+    rw [Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply, Matrix.sum_apply,
+      smul_eq_mul, mul_sum]
+    refine sum_congr rfl fun z _ => ?_
+    rw [Matrix.mul_apply, mul_sum]
+    refine sum_congr rfl fun i _ => ?_
+    simp only [D, conjTranspose_apply, regularIsometry_mul_sub_apply, star_mul',
+      Complex.star_def, Complex.conj_ofReal]
+    rw [← regularScale_sq]
+    ring
+  rw [h, expect_univ, ← NNRat.cast_smul_eq_nnqsmul ℂ]
+  push_cast
+  rfl
+
 /-- **The averaging isometry intertwines approximately**, for any matrices `f(x)`:
 `E_y ‖(V f(y) - g(y) V) ψ‖² = E_{x,y} ‖(f(x) f(y) - f(xy)) ψ‖²`. -/
 theorem sum_norm_regularIsometry_mul_sub_eq (ψ : EuclideanSpace ℂ ι) :
@@ -192,22 +215,15 @@ theorem sum_norm_regularIsometry_mul_sub_eq (ψ : EuclideanSpace ℂ ι) :
     (∑ x, ∑ y, ‖(WithLp.toLp 2 ((f x * f y - f (x * y)) *ᵥ ψ.ofLp) :
       EuclideanSpace ℂ ι)‖ ^ 2) / (Fintype.card G) ^ 2 := by
   have hc : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
-  have hcsq : ((√(Fintype.card G))⁻¹ : ℝ) ^ 2 = ((Fintype.card G : ℝ))⁻¹ := by
-    rw [inv_pow, Real.sq_sqrt hc.le]
-  have hrow : ∀ y, ‖(WithLp.toLp 2 ((regularIsometry f * f y - regularRep y * regularIsometry f) *ᵥ
-      ψ.ofLp) : EuclideanSpace ℂ (ι × G))‖ ^ 2 = ((Fintype.card G : ℝ))⁻¹ *
+  have hrow (y : G) :
+      ‖(WithLp.toLp 2 ((regularIsometry f * f y - regularRep y * regularIsometry f) *ᵥ
+        ψ.ofLp) : EuclideanSpace ℂ (ι × G))‖ ^ 2 = ((Fintype.card G : ℝ))⁻¹ *
       ∑ z, ‖(WithLp.toLp 2 ((f z * f y - f (z * y)) *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)‖ ^ 2 := by
-    intro y
-    simp only [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
-    rw [sum_comm, mul_sum]
-    refine sum_congr rfl fun z _ => ?_
-    rw [mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    have : ((regularIsometry f * f y - regularRep y * regularIsometry f) *ᵥ ψ.ofLp) (i, z) =
-        (((√(Fintype.card G))⁻¹ : ℝ) : ℂ) * (((f z * f y - f (z * y)) *ᵥ ψ.ofLp) i) := by
-      simp only [mulVec, dotProduct, regularIsometry_mul_sub_apply, mul_sum, mul_assoc]
-    simp only [this, norm_mul, Complex.norm_real, Real.norm_eq_abs,
-      mul_pow, sq_abs, hcsq]
+    rw [Matrix.norm_toLp_mulVec_sq_eq, regularIsometry_mul_sub_gram]
+    simp only [Finset.expect, ← NNRat.cast_smul_eq_nnqsmul ℂ, smul_mulVec, dotProduct_smul,
+      sum_mulVec, dotProduct_sum, smul_eq_mul, NNRat.cast_inv, NNRat.cast_natCast, card_univ]
+    rw [← Complex.ofReal_natCast, ← Complex.ofReal_inv, Complex.re_ofReal_mul, Complex.re_sum]
+    simp only [Matrix.norm_toLp_mulVec_sq_eq]
   simp only [hrow, ← mul_sum]
   rw [sum_comm]
   field_simp

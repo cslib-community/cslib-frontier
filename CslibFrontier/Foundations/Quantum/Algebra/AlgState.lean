@@ -265,13 +265,8 @@ theorem vector_apply (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) (M : Matr
 /-- The state norm of a vector state is the norm of the image vector: `‖M‖_ψ = ‖M ψ‖`. -/
 theorem norm_vector (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) (M : Matrix ι ι ℂ) :
     (vector ψ hψ).norm M = ‖(WithLp.toLp 2 (M *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)‖ := by
-  have h := EuclideanSpace.star_dotProduct_self_eq_norm_sq
-    (WithLp.toLp 2 (M *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)
-  rw [WithLp.ofLp_toLp] at h
-  rw [norm_eq_sqrt, vector_apply, star_eq_conjTranspose, ← mulVec_mulVec, dotProduct_mulVec,
-    ← star_mulVec, h]
-  norm_cast
-  rw [Real.sqrt_sq (_root_.norm_nonneg _)]
+  apply (sq_eq_sq₀ ((vector ψ hψ).norm_nonneg M) (_root_.norm_nonneg _)).mp
+  rw [norm_sq, vector_apply, star_eq_conjTranspose, Matrix.norm_toLp_mulVec_sq_eq]
 
 end Matrix
 

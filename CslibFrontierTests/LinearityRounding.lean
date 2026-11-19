@@ -135,7 +135,7 @@ example (S : WidthOneTensorStrategy) (basis : Bool)
   · exact expect_nonneg fun _ _ => sq_nonneg _
 
 /-- At the exact upper score Alice's characters agree with her averaged basis observables
-in the state norm, and one local isometry gives zero error on every rounded product. -/
+in the state norm, and one local isometry gives zero error on the products and generators. -/
 example (S : QuantumStrategy (PauliBraidingQuestion 1 Bool) (PauliBraidingQuestion 1 Bool)
     ((Bool × Bool) ⊕ Bool) ((Bool × Bool) ⊕ Bool) (Fin 2) (Fin 2))
     (hA : ∀ basis q, (S.alice (.basis basis q)).toMeasurement.IsProjective)
@@ -150,27 +150,42 @@ example (S : QuantumStrategy (PauliBraidingQuestion 1 Bool) (PauliBraidingQuesti
           kroneckerOne (κ := Fin 2) ((P b).charObs x)) ^ 2 = 0) ∧
       (∀ x z, S.toCommuting.state.norm (kroneckerOne (κ := Fin 2)
         ((P false).charObs x * (P true).charObs z -
-          Wᴴ * ((pauliXPow x * pauliZPow z) ⊗ₖ (1 : Matrix J J ℂ)) * W)) ^ 2 = 0) := by
-  obtain ⟨P, _, _, hclose, ⟨J, _, _, W, hW, h⟩, _⟩ :=
+          Wᴴ * ((pauliXPow x * pauliZPow z) ⊗ₖ (1 : Matrix J J ℂ)) * W)) ^ 2 = 0) ∧
+      (∀ z, W * (P true).charObs z = (pauliZPow z ⊗ₖ (1 : Matrix J J ℂ)) * W) ∧
+      (∀ x, let D := W * (P false).charObs x - (pauliXPow x ⊗ₖ (1 : Matrix J J ℂ)) * W
+        (S.toCommuting.state (kroneckerOne (κ := Fin 2) (Dᴴ * D))).re = 0) := by
+  obtain ⟨P, _, _, hclose, ⟨J, _, _, W, h⟩, _⟩ :=
     exists_local_pauliCompression_of_pauliBraidingGame S hA hB (ε := 0) (by rw [hwin, sub_zero])
   let f (x z : Fin 1 → Bool) := S.toCommuting.state.norm (kroneckerOne (κ := Fin 2)
     ((P false).charObs x * (P true).charObs z -
       Wᴴ * ((pauliXPow x * pauliZPow z) ⊗ₖ (1 : Matrix J J ℂ)) * W)) ^ 2
-  have hzero : (𝔼 x, 𝔼 z, f x z) ≤ 0 := by simpa [f] using h
+  have hzero : (𝔼 x, 𝔼 z, f x z) ≤ 0 := by
+    simpa [f, AlgState.norm_comap] using h.products
   let F (p : (Fin 1 → Bool) × (Fin 1 → Bool)) := f p.1 p.2
   have hn : 0 ≤ F := fun _ => sq_nonneg _
   have hmean : (𝔼 p, F p) = 0 := by
     rw [Fintype.expect_prod_type]
     exact le_antisymm hzero (expect_nonneg fun _ _ => expect_nonneg fun _ _ => sq_nonneg _)
   have hF := (Fintype.expect_eq_zero_iff_of_nonneg hn).mp hmean
-  refine ⟨P, J, inferInstance, inferInstance, W, hW, ?_, fun x z => congrFun hF (x, z)⟩
-  intro b x
-  let g (y : Fin 1 → Bool) := S.toCommuting.state.norm
-    ((𝔼 d, pauliBraidingBasisObservable S.toCommuting.alice b y d) -
-      kroneckerOne (κ := Fin 2) ((P b).charObs y)) ^ 2
-  have hg : 0 ≤ g := fun _ => sq_nonneg _
-  have hle : (𝔼 y, g y) ≤ 0 := by simpa [g] using (hclose b).1
-  have hmean : (𝔼 y, g y) = 0 := le_antisymm hle (expect_nonneg fun y _ => hg y)
-  exact congrFun ((Fintype.expect_eq_zero_iff_of_nonneg hg).mp hmean) x
+  refine ⟨P, J, inferInstance, inferInstance, W, h.isometry,
+    ?_, fun x z => congrFun hF (x, z), h.intertwinesZ, ?_⟩
+  · intro b x
+    let g (y : Fin 1 → Bool) := S.toCommuting.state.norm
+      ((𝔼 d, pauliBraidingBasisObservable S.toCommuting.alice b y d) -
+        kroneckerOne (κ := Fin 2) ((P b).charObs y)) ^ 2
+    have hg : 0 ≤ g := fun _ => sq_nonneg _
+    have hle : (𝔼 y, g y) ≤ 0 := by simpa [g] using (hclose b).1
+    have hmean : (𝔼 y, g y) = 0 := le_antisymm hle (expect_nonneg fun y _ => hg y)
+    exact congrFun ((Fintype.expect_eq_zero_iff_of_nonneg hg).mp hmean) x
+  · intro x
+    let D (a : Fin 1 → Bool) := W * (P false).charObs a -
+      (pauliXPow a ⊗ₖ (1 : Matrix J J ℂ)) * W
+    let φ := S.toCommuting.state.comap (kroneckerOne (κ := Fin 2)) (OrderHomClass.mono _)
+    let g (a : Fin 1 → Bool) := (φ ((D a)ᴴ * D a)).re
+    have hn : 0 ≤ g := fun a =>
+      φ.re_apply_nonneg (nonneg_iff_posSemidef.mpr (posSemidef_conjTranspose_mul_self (D a)))
+    have hle : (𝔼 a, g a) ≤ 0 := by simpa [g, D, φ] using h.intertwinesX
+    have hm := le_antisymm hle (expect_nonneg fun a _ => hn a)
+    exact congrFun ((Fintype.expect_eq_zero_iff_of_nonneg hn).mp hm) x
 
 end CslibFrontierTests.LinearityRounding

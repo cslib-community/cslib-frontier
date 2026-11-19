@@ -85,6 +85,18 @@ open PauliGroup
 noncomputable def pauliFamily (X Z : (ι → Bool) → A) (p : PauliGroup ι) : A :=
   (signVal p.sign : ℂ) • (X p.x * Z p.z)
 
+omit [Fintype ι] in
+/-- The Pauli family restricts to the X family on X elements when Z is normalized. -/
+theorem pauliFamily_ofX (X Z : (ι → Bool) → A) (hZ : Z 0 = 1) (a : ι → Bool) :
+    pauliFamily X Z (ofX a) = X a := by
+  simp only [pauliFamily, ofX, signVal_false, Complex.ofReal_one, one_smul, hZ, mul_one]
+
+omit [Fintype ι] in
+/-- The Pauli family restricts to the Z family on Z elements when X is normalized. -/
+theorem pauliFamily_ofZ (X Z : (ι → Bool) → A) (hX : X 0 = 1) (b : ι → Bool) :
+    pauliFamily X Z (ofZ b) = Z b := by
+  simp only [pauliFamily, ofZ, signVal_false, Complex.ofReal_one, one_smul, hX, one_mul]
+
 /-- Averaging over the Pauli group averages over the two bit strings; the sign does not matter. -/
 theorem expect_pauliGroup [DecidableEq ι] {M : Type*} [AddCommMonoid M] [Module ℚ≥0 M]
     (F : (ι → Bool) → (ι → Bool) → M) :

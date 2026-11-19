@@ -63,6 +63,14 @@ theorem expect_norm_sub_sq_le_through (a b c : ι → A) :
 
 variable [Module ℚ≥0 A]
 
+omit [StarRing A] [StarOrderedRing A] [StarModule ℂ A] [SelfAdjointDecompose A] in
+/-- The real expectation in a state commutes with finite uniform averaging. -/
+theorem re_apply_expect (f : ι → A) :
+    (φ (𝔼 i ∈ s, f i)).re = 𝔼 i ∈ s, (φ (f i)).re := by
+  have hcast (q : ℚ≥0) : (q : ℂ) = ((q : ℝ) : ℂ) := by norm_cast
+  simp only [Finset.expect, ← NNRat.cast_smul_eq_nnqsmul ℂ, ← NNRat.cast_smul_eq_nnqsmul ℝ,
+    map_smul, map_sum, smul_eq_mul, hcast, Complex.re_ofReal_mul, Complex.re_sum]
+
 theorem norm_nnqsmul (q : ℚ≥0) (a : A) : φ.norm (q • a) = q * φ.norm a := by
   rw [← NNRat.cast_smul_eq_nnqsmul ℂ, norm_smul]
   simp
