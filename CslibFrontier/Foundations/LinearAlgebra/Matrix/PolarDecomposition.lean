@@ -103,14 +103,20 @@ theorem exists_unitary_polar (A : Matrix n n ℂ) :
   rw [h.isHermitian.eq,
     CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
 
+omit [DecidableEq n] in
+/-- Taking the adjoint of one factor in the real trace pairing with a Hermitian matrix
+preserves the pairing. -/
+theorem IsHermitian.re_trace_conjTranspose_mul {H : Matrix n n ℂ} (hH : H.IsHermitian)
+    (U : Matrix n n ℂ) : (Uᴴ * H).trace.re = (U * H).trace.re := by
+  have h : ((U * H)ᴴ).trace.re = (U * H).trace.re := by
+    rw [trace_conjTranspose, Complex.star_def, Complex.conj_re]
+  rwa [conjTranspose_mul, hH.eq, trace_mul_comm H] at h
+
 private theorem re_trace_mul_le_trace_of_unitary (U H : Matrix n n ℂ)
     (hU : U ∈ unitaryGroup n ℂ) (hH : H.PosSemidef) :
     (U * H).trace.re ≤ H.trace.re := by
   have hUU : Uᴴ * U = 1 := (mem_unitaryGroup_iff').mp hU
-  have hconj : (Uᴴ * H).trace.re = (U * H).trace.re := by
-    have h : ((U * H)ᴴ).trace.re = (U * H).trace.re := by
-      rw [trace_conjTranspose, Complex.star_def, Complex.conj_re]
-    rwa [conjTranspose_mul, hH.isHermitian.eq, trace_mul_comm H] at h
+  have hconj := hH.isHermitian.re_trace_conjTranspose_mul U
   have h := (Complex.nonneg_iff.mp
     ((posSemidef_conjTranspose_mul_self (1 - U)).trace_mul_nonneg hH)).1
   rw [conjTranspose_sub, conjTranspose_one, sub_mul, mul_sub, mul_sub, hUU,

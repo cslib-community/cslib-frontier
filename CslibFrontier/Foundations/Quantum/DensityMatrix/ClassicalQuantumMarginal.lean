@@ -125,6 +125,18 @@ theorem isDensityMatrix_quantumMarginalGivenMap [DecidableEq X]
   rw [quantumMarginalGivenMap]
   exact isDensityMatrix_quantumMarginalGiven _ (fun z => h z.2) y
 
+omit [Fintype ι] in
+/-- Forgetting the remaining classical label gives the same quantum state as forgetting
+the original classical label. -/
+theorem partialTraceRight_classicalQuantumMarginal [Fintype Y] [DecidableEq X]
+    (p : PMF X) (ρ : X → Matrix ι ι ℂ) (f : X → Y) :
+    partialTraceRight (classicalQuantumMarginal p ρ f) =
+      partialTraceRight (classicalQuantumState p ρ) := by
+  ext i j
+  simp only [classicalQuantumState, classicalQuantumMarginal, partialTraceRight_apply,
+    blockDiagonal_apply_eq, Matrix.sum_apply]
+  simp [sum_fiberwise_eq_sum_filter]
+
 variable [Fintype Y] [Fintype κ] [DecidableEq ι] [DecidableEq κ]
 
 /-- Discarding a quantum subsystem cannot increase its mutual information with a classical label. -/

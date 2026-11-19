@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumMa
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumConditioning
 public import CslibFrontier.Probability.Product
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
+import CslibFrontier.Foundations.Algebra.Order.WithTop
 
 /-!
 # Quantum Raz's lemma
@@ -204,9 +205,6 @@ theorem sum_weighted_coordinate_mutualInformation_le_relativeEntropy {n : ℕ}
     (le_add_of_nonneg_left (extended_klDiv_nonneg (p.map Prod.fst) q))
   have h := sum_mutualInformation_classicalQuantumMarginal_le_relativeEntropy W (conditionalSnd p x)
     (fun y => hρ (x, y)) (r x) (hσ x)
-  have hweight : 0 ≤ ((p.map Prod.fst) x).toReal := ENNReal.toReal_nonneg
-  rcases hweight.eq_or_lt with hw | hw
-  · simp only [← hw, WithTop.coe_zero, zero_mul, le_refl]
-  · exact (WithTop.mul_right_strictMono (WithTop.coe_pos.mpr hw) WithTop.coe_ne_top).monotone h
+  exact WithTop.mul_le_mul_of_nonneg_coe_left ENNReal.toReal_nonneg h
 
 end Cslib.Quantum

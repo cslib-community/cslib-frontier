@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.StatisticalDistance
 import Mathlib.Algebra.Order.Chebyshev
 
@@ -25,6 +26,8 @@ slice then transfers the joint distance estimate to that conditional transcript.
 
 * `sum_dist_anchoredRest_given_wins`: summed distance bounds for replacing the remaining
   transcript by its law when both questions are anchors.
+* `sum_dist_trial_rest_independent_given_wins`: replace the selected trial by its prior law
+  independently of the winning remaining transcript.
 -/
 
 public section
@@ -263,6 +266,23 @@ private theorem both_anchor_comparisons (S : RepeatedStrategy) (j : Free)
         (questionsAndRest G α C Q j)) hw
     nlinarith [mul_le_mul_of_nonneg_left hright hw]
 
+private theorem sum_dist_freeTrials_given_wins_le (S : RepeatedStrategy)
+    (hW : ∃ r ∈ winsOnChecked G α C, r ∈ (transcriptLaw G α C S).support) :
+    let P := transcriptLaw G α C S
+    let W := winsOnChecked G α C
+    let Q := P.filter W hW
+    let p := (P.toOuterMeasure W).toReal
+    (∑ j : Free, dist (Q.map fun r => freeTrials C r j) (law G.questions α)) ≤
+      Real.sqrt (Fintype.card Free * Real.log (1 / p) / 2) := by
+  intro P W Q p
+  let d (j : Free) := dist (Q.map fun r => freeTrials C r j) (law G.questions α)
+  have hcs := sq_sum_le_card_mul_sum_sq (s := Finset.univ) (f := d)
+  refine Real.le_sqrt_of_sq_le (hcs.trans ?_)
+  rw [Finset.card_univ]
+  have h := mul_le_mul_of_nonneg_left (sum_sq_dist_freeTrials_given_wins_le G α C S hW)
+    (Nat.cast_nonneg (α := ℝ) (Fintype.card Free))
+  exact h.trans_eq (by ring)
+
 /-- **BVY Lemma 4.6(3–4)** in summed form. Replacing the remaining transcript by its
 two-anchor conditional law has small statistical cost, both when keeping the selected
 message and when keeping a prior draw of the selected questions. The factor `α² / 2` is
@@ -286,15 +306,7 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
   let d (j : Free) := dist (Q.map fun r => freeTrials C r j) (law G.questions α)
   let e (j : Free) := dist (Q.map fun r => (r.1, r.2 j))
     ((Q.map Prod.fst).bind fun (t, v) => (pairGiven G α C j t).map ((t, v), ·))
-  have hd : (∑ j, d j) ≤ ε₁ := by
-    have hcs := sq_sum_le_card_mul_sum_sq (s := Finset.univ) (f := d)
-    refine Real.le_sqrt_of_sq_le (hcs.trans ?_)
-    rw [Finset.card_univ]
-    have h := mul_le_mul_of_nonneg_left (sum_sq_dist_freeTrials_given_wins_le G α C S hW)
-      (Nat.cast_nonneg (α := ℝ) (Fintype.card Free))
-    have hrearrange : (Fintype.card Free : ℝ) * (Real.log (1 / p) / 2) =
-        Fintype.card Free * Real.log (1 / p) / 2 := by ring
-    exact h.trans_eq hrearrange
+  have hd : (∑ j, d j) ≤ ε₁ := sum_dist_freeTrials_given_wins_le G α C S hW
   have he : (∑ j, e j) ≤ ε₂ := sum_dist_questions_given_wins_le G α C S hW
   have hw : 0 ≤ w := by dsimp only [w]; positivity
   constructor
@@ -317,5 +329,78 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
         rw [← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum]
         exact mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_left hd (by norm_num)) he)
           (by positivity)
+
+/-- Replace the entire selected trial by an independent prior draw, while retaining
+the original winning marginal of the remaining transcript. This controls the change of law
+in the proof of [Bavarian, Vidick and Yuen, equation (48)][BavarianVidickYuen2022],
+(arXiv:1509.07466v2, §5.2, printed pp. 25–26), before projecting to either question. -/
+theorem sum_dist_trial_rest_independent_given_wins (S : RepeatedStrategy)
+    (hW : ∃ r ∈ winsOnChecked G α C, r ∈ (transcriptLaw G α C S).support) :
+    let P := transcriptLaw G α C S
+    let W := winsOnChecked G α C
+    let Q := P.filter W hW
+    let p := (P.toOuterMeasure W).toReal
+    let w := (α : ℝ) ^ 2 / 2
+    let ε₁ := Real.sqrt (Fintype.card Free * Real.log (1 / p) / 2)
+    let ε₂ := Real.sqrt (Fintype.card Free * Real.log (Fintype.card (C → A × B) / p) / 2)
+    w * ∑ j : Free, dist (Q.map fun r => (freeTrials C r j, restTranscript C j r))
+      ((law G.questions α).bind fun z => (Q.map (restTranscript C j)).map (z, ·)) ≤
+      2 * (w * ε₁ + (1 + w) * (2 * ε₁ + ε₂)) := by
+  classical
+  intro P W Q p w ε₁ ε₂
+  let μ := law G.questions α
+  have hw : 0 ≤ w := by dsimp only [w]; positivity
+  have hlocal (j : Free) :
+      dist (Q.map fun r => (freeTrials C r j, restTranscript C j r))
+        (μ.bind fun z => (Q.map (restTranscript C j)).map (z, ·)) ≤
+        2 * (dist (Q.map fun r => freeTrials C r j) μ +
+          dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j)) := by
+    let J := Q.map fun r => (freeTrials C r j, restTranscript C j r)
+    let K := restGivenPair C Q j
+    let K₀ := K (none, none)
+    let R := Q.map (restTranscript C j)
+    let T := μ.bind fun z => (K z.2).map (z, ·)
+    let T₀ := μ.bind fun z => K₀.map (z, ·)
+    let U := μ.bind fun z => R.map (z, ·)
+    have hJ : (J.map Prod.fst).bind (fun z => (K z.2).map (z, ·)) = J := by
+      conv_rhs => rw [← bind_conditionalSnd J]
+      apply bind_congr_on_support
+      intro z hz
+      rw [conditionalSnd_restTranscript_given_wins G α C S j hW z hz]
+      rfl
+    have hfirst : dist J T ≤ dist (Q.map fun r => freeTrials C r j) μ := by
+      have h := dist_bind_le (J.map Prod.fst) μ (fun z => (K z.2).map (z, ·))
+      rw [hJ, PMF.map_comp] at h
+      exact h
+    have hsecond : dist T T₀ =
+        dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j) := by
+      change dist (μ.bind _) (μ.bind _) = dist ((μ.map Prod.snd).bind _) ((μ.map Prod.snd).bind _)
+      rw [dist_bind_pair, dist_bind_pair, sum_map_mul]
+      simp only [dist_comm _ K₀]
+      rfl
+    have hR : J.map Prod.snd = R := PMF.map_comp _ _ _
+    have hT₀ : T₀.map Prod.snd = K₀ := by
+      simp only [T₀, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const]
+      exact PMF.map_id K₀
+    have hlast : dist T₀ U ≤ dist J T₀ := by
+      change dist (μ.bind _) (μ.bind _) ≤ _
+      rw [dist_bind_pair, ← Finset.sum_mul, sum_toReal, one_mul, ← hR, ← hT₀]
+      rw [dist_comm]
+      exact dist_map_le J T₀ Prod.snd
+    have htriangle := dist_triangle J T T₀
+    linarith [dist_triangle J T₀ U]
+  calc
+    _ ≤ w * ∑ j : Free, 2 * (dist (Q.map fun r => freeTrials C r j) μ +
+          dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j)) :=
+      mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun j _ => hlocal j) hw
+    _ = 2 * (w * (∑ j : Free, dist (Q.map fun r => freeTrials C r j) μ) +
+        w * ∑ j : Free, dist (questionsAndAnchoredRest G α C Q j)
+          (questionsAndRest G α C Q j)) := by
+      rw [← Finset.mul_sum, Finset.sum_add_distrib]
+      ring
+    _ ≤ _ := by
+      have htrial := mul_le_mul_of_nonneg_left (sum_dist_freeTrials_given_wins_le G α C S hW) hw
+      exact mul_le_mul_of_nonneg_left
+        (add_le_add htrial (sum_dist_anchoredRest_given_wins G α C S hW).2) (by norm_num)
 
 end Cslib.PCP.AnchoredDependency

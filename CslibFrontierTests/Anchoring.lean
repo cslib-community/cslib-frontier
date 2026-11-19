@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
@@ -219,3 +219,23 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   refine ⟨ρ, hρ, ?_⟩
   simpa only [Fintype.sum_unique, Fin.default_eq_zero, singletonCheckedAnswer_card, Nat.cast_ofNat,
     acceptingGame_win_mass, ENNReal.toReal_one, Real.log_one, sub_zero] using h
+
+/-- The squared trace-norm budget after revealing Alice's unchecked question in the
+two-copy accepting game also applies when Bob's system has the larger dimension. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let T := transcriptLaw acceptingGame half C S
+    let W := winsOnChecked acceptingGame half C
+    let P := (T.filter W (acceptingGame_win_supported S)).map (aliceTranscriptProjection C e)
+    ∃ ρ : _ → Matrix (Fin 3) (Fin 3) ℂ,
+      (∀ z, Cslib.Quantum.IsDensityMatrix (ρ z)) ∧
+      Cslib.Quantum.sumConditionalTraceNormSq P ρ ≤ 2 * Real.log 4 := by
+  dsimp only
+  obtain ⟨ρ, hρ, _, h⟩ := exists_bob_sum_conditionalTraceNormSq_le_after_wins
+    acceptingGame half {0} S (Fintype.equivFinOfCardEq (by decide : _ = 1)).symm
+    (acceptingGame_win_supported S)
+  refine ⟨ρ, hρ, ?_⟩
+  simpa only [singletonCheckedAnswer_card, Nat.cast_ofNat, acceptingGame_win_mass,
+    ENNReal.toReal_one, Real.log_one, sub_zero] using h
