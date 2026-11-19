@@ -10,9 +10,11 @@ module
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofCoverage
+import CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Circuit
 meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 
 /-!
 # Quantum access to the ML-DSA signing experiment
@@ -25,6 +27,19 @@ set_option linter.privateModule false
 set_option linter.hashCommand false
 
 open Cslib Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204 Cslib.Quantum Cslib.Probability
+
+-- Empty pure-mode formatting appends two zero bytes. This is precisely the first private
+-- nonce when the two 64-byte prefixes agree. Changing any one input breaks the equality.
+private def keyRowMatches (tr r : FixedBytes 64) (ctx : List Byte) (m : List Bool)
+    (j : ℕ) : Bool :=
+  representativeInput tr.toList (formatMessage m ctx) ==
+    Keccak.bytesToBitsLE (nonceInput r.toList j)
+
+#guard keyRowMatches (fun _ => 7) (fun _ => 7) [] [] 0
+#guard !keyRowMatches (fun _ => 8) (fun _ => 7) [] [] 0
+#guard !keyRowMatches (fun _ => 7) (fun _ => 7) [] [] 1
+#guard !keyRowMatches (fun _ => 7) (fun _ => 7) [0] [] 0
+#guard !keyRowMatches (fun _ => 7) (fun _ => 7) [] [false] 0
 
 -- First bytes of SHAKE128 and SHAKE256 applied to the empty string, in wire order.
 #guard List.ofFn (Xofs.shake.queryTable 2 1 (Xofs.queryAddress 2 false [] (by decide))) ==
