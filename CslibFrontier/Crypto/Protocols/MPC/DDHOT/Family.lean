@@ -232,20 +232,31 @@ theorem eval_map_binaryValue_sampleExpBits (n : ℕ) (d : F.Desc) :
     ProbComp.eval_map, PMF.map_comp]
   exact congrArg (PMF.map · _) (funext fun _ => (ZMod.natCast_mod _ _).symm)
 
-/-- Helper rewriting a single `sampleExpBits` bind whose body factors through its `ZMod` residue to
-a `sampleExp` bind. -/
-private theorem bind_sampleExpBits_eq_bind_sampleExp {α : Type} (n : ℕ) (d : F.Desc)
-    (f : ZMod (F.order d) → PMF α) :
-    ((ProbComp.eval (F.sampleExpBits n d)).bind fun bs =>
-      f (BitString.binaryValue bs : ZMod (F.order d))) =
-    ((ProbComp.eval (F.sampleExp n d)).bind fun a => f (a : ZMod (F.order d))) := by
-  calc _ = ((ProbComp.eval (F.sampleExpBits n d)).map
-        fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))).bind f :=
-          (PMF.bind_map _ _ _).symm
-    _ = ((ProbComp.eval (F.sampleExp n d)).map
-        (Nat.cast : ℕ → ZMod (F.order d))).bind f := by
-          rw [eval_map_binaryValue_sampleExpBits]
-    _ = _ := PMF.bind_map _ _ _
+/-- Replacing the `ZMod (F.order d)` residues of `m` independent `sampleExpBits n d` draws by `m`
+independent exact uniform draws changes `Game.advantage` by at most `m / 2 ^ n`, via
+`PMF.iid_map` and `advantage_bind_iid_sampleExp_le`. -/
+private theorem advantage_bind_iid_sampleExpBits_le (n : ℕ) (d : F.Desc) (m : ℕ)
+    (k : (Fin m → ZMod (F.order d)) → Game) :
+    Game.advantage
+      ((PMF.iid (ProbComp.eval (F.sampleExpBits n d)) m).bind fun v =>
+        k fun i => (BitString.binaryValue (v i) : ZMod (F.order d)))
+      ((PMF.iid (PMF.uniformOfFintype (ZMod (F.order d))) m).bind k) ≤ m / 2 ^ n := by
+  have hiid :
+      ((PMF.iid (ProbComp.eval (F.sampleExpBits n d)) m).bind fun v =>
+        k fun i => (BitString.binaryValue (v i) : ZMod (F.order d))) =
+      ((PMF.iid (ProbComp.eval (F.sampleExp n d)) m).bind fun v =>
+        k fun i => (v i : ZMod (F.order d))) := by
+    calc _ = ((PMF.iid (ProbComp.eval (F.sampleExpBits n d)) m).map
+          (fun v i => (BitString.binaryValue (v i) : ZMod (F.order d)))).bind k :=
+            (PMF.bind_map _ _ _).symm
+      _ = ((PMF.iid (ProbComp.eval (F.sampleExp n d)) m).map
+          (fun v i => (v i : ZMod (F.order d)))).bind k := by
+            rw [← PMF.iid_map (ProbComp.eval (F.sampleExpBits n d))
+              (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) m,
+              F.eval_map_binaryValue_sampleExpBits, PMF.iid_map]
+      _ = _ := PMF.bind_map _ _ _
+  rw [hiid]
+  exact F.advantage_bind_iid_sampleExp_le n d m k
 
 /-- Replacing the `ZMod (F.order d)` residue of one `sampleExpBits n d` draw by an exact uniform
 draw changes `Game.advantage` by at most `1 / 2 ^ n`. -/
@@ -255,8 +266,10 @@ theorem advantage_bind_sampleExpBits_le (n : ℕ) (d : F.Desc)
       ((ProbComp.eval (F.sampleExpBits n d)).bind fun bs =>
         k (BitString.binaryValue bs : ZMod (F.order d)))
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind k) ≤ 1 / 2 ^ n := by
-  rw [F.bind_sampleExpBits_eq_bind_sampleExp n d k]
-  exact F.advantage_bind_sampleExp_le n d k
+  have h := F.advantage_bind_iid_sampleExpBits_le n d 1 fun v => k (v 0)
+  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+    Function.comp_def, Nat.cast_one] at h
+  exact h
 
 /-- Replacing the `ZMod (F.order d)` residues of two independent `sampleExpBits n d` draws by two
 exact uniform draws changes `Game.advantage` by at most `2 / 2 ^ n`. -/
@@ -269,17 +282,10 @@ private theorem advantage_bind_sampleExpBits_pair_le (n : ℕ) (d : F.Desc)
             (BitString.binaryValue sBits : ZMod (F.order d)))
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun r =>
         (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s => k r s) ≤ 2 / 2 ^ n := by
-  have h1 (rBits : List Bool) :
-      ((ProbComp.eval (F.sampleExpBits n d)).bind fun sBits =>
-        k (BitString.binaryValue rBits : ZMod (F.order d))
-          (BitString.binaryValue sBits : ZMod (F.order d))) =
-      ((ProbComp.eval (F.sampleExp n d)).bind fun s =>
-        k (BitString.binaryValue rBits : ZMod (F.order d)) (s : ZMod (F.order d))) :=
-    F.bind_sampleExpBits_eq_bind_sampleExp n d _
-  simp_rw [h1]
-  rw [F.bind_sampleExpBits_eq_bind_sampleExp n d fun r =>
-    (ProbComp.eval (F.sampleExp n d)).bind fun s => k r (s : ZMod (F.order d))]
-  exact F.advantage_bind_sampleExp_pair_le n d k
+  have h := F.advantage_bind_iid_sampleExpBits_le n d 2 fun v => k (v 0) (v 1)
+  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+    Function.comp_def, Nat.cast_ofNat] at h
+  exact h
 
 /-- Sample the sender's five raw fair-coin bit strings in `ddhOTProbProtocol` via five independent
 `sampleExpBits n d` draws. -/
@@ -301,61 +307,10 @@ theorem advantage_bind_sampleDDHOTSenderBitCoins_le (n : ℕ) (d : F.Desc)
       ((ProbComp.eval (F.sampleDDHOTSenderBitCoins n d)).bind fun raw₀ =>
         k (raw₀.toSenderCoins (F.order d)))
       ((ProbComp.eval (sampleDDHOTSenderCoins (F.order d))).bind k) ≤ 5 / 2 ^ n := by
+  have h := F.advantage_bind_iid_sampleExpBits_le n d 5 fun v => k (v 0, v 1, v 2, v 3, v 4)
   simp only [sampleDDHOTSenderBitCoins, DDHOTSenderBitCoins.toSenderCoins, sampleDDHOTSenderCoins,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
-  have heq :
-      ((ProbComp.eval (F.sampleExpBits n d)).bind fun aBits =>
-        (ProbComp.eval (F.sampleExpBits n d)).bind fun r₀Bits =>
-          (ProbComp.eval (F.sampleExpBits n d)).bind fun s₀Bits =>
-            (ProbComp.eval (F.sampleExpBits n d)).bind fun r₁Bits =>
-              (ProbComp.eval (F.sampleExpBits n d)).bind fun s₁Bits =>
-                k ((BitString.binaryValue aBits : ZMod (F.order d)),
-                  (BitString.binaryValue r₀Bits : ZMod (F.order d)),
-                  (BitString.binaryValue s₀Bits : ZMod (F.order d)),
-                  (BitString.binaryValue r₁Bits : ZMod (F.order d)),
-                  (BitString.binaryValue s₁Bits : ZMod (F.order d)))) =
-      ((ProbComp.eval (F.sampleExp n d)).bind fun a =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun r₀ =>
-          (ProbComp.eval (F.sampleExp n d)).bind fun s₀ =>
-            (ProbComp.eval (F.sampleExp n d)).bind fun r₁ =>
-              (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
-                k ((a : ZMod (F.order d)), (r₀ : ZMod (F.order d)), (s₀ : ZMod (F.order d)),
-                  (r₁ : ZMod (F.order d)), (s₁ : ZMod (F.order d)))) := by
-    refine Eq.trans (congrArg (PMF.bind _) (funext fun aBits =>
-      congrArg (PMF.bind _) (funext fun r₀Bits =>
-        congrArg (PMF.bind _) (funext fun s₀Bits =>
-          congrArg (PMF.bind _) (funext fun r₁Bits =>
-            F.bind_sampleExpBits_eq_bind_sampleExp n d fun s₁ => k (_, _, _, _, s₁)))))) ?_
-    refine Eq.trans (congrArg (PMF.bind _) (funext fun aBits =>
-      congrArg (PMF.bind _) (funext fun r₀Bits =>
-        congrArg (PMF.bind _) (funext fun s₀Bits =>
-          F.bind_sampleExpBits_eq_bind_sampleExp n d fun r₁ =>
-            (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
-              k (_, _, _, r₁, (s₁ : ZMod (F.order d))))))) ?_
-    refine Eq.trans (congrArg (PMF.bind _) (funext fun aBits =>
-      congrArg (PMF.bind _) (funext fun r₀Bits =>
-        F.bind_sampleExpBits_eq_bind_sampleExp n d fun s₀ =>
-          (ProbComp.eval (F.sampleExp n d)).bind fun r₁ =>
-            (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
-              k (_, _, s₀, (r₁ : ZMod (F.order d)), (s₁ : ZMod (F.order d)))))) ?_
-    refine Eq.trans (congrArg (PMF.bind _) (funext fun aBits =>
-      F.bind_sampleExpBits_eq_bind_sampleExp n d fun r₀ =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun s₀ =>
-          (ProbComp.eval (F.sampleExp n d)).bind fun r₁ =>
-            (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
-              k (_, r₀, (s₀ : ZMod (F.order d)), (r₁ : ZMod (F.order d)),
-                (s₁ : ZMod (F.order d))))) ?_
-    exact F.bind_sampleExpBits_eq_bind_sampleExp n d fun a =>
-      (ProbComp.eval (F.sampleExp n d)).bind fun r₀ =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun s₀ =>
-          (ProbComp.eval (F.sampleExp n d)).bind fun r₁ =>
-            (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
-              k (a, (r₀ : ZMod (F.order d)), (s₀ : ZMod (F.order d)), (r₁ : ZMod (F.order d)),
-                (s₁ : ZMod (F.order d)))
-  rw [heq]
-  have h := F.advantage_bind_iid_sampleExp_le n d 5 fun a => k (a 0, a 1, a 2, a 3, a 4)
-  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
-    Function.comp_def, Nat.cast_ofNat] at h
+    PMF.iid, PMF.monad_bind_eq_bind, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    PMF.bind_bind, PMF.bind_map, PMF.pure_bind, Function.comp_def, Nat.cast_ofNat] at h ⊢
   exact h
 
 /-! ### The fair-coin protocol family and its encoding -/
