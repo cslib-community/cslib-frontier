@@ -106,14 +106,9 @@ Algorithm 33 accesses precisely the same stream if supplied the same word. -/
 def maskAddress (seed : FixedBytes 64) (nonce : ℕ) : BitString 528 :=
   BitString.ofList 528 (Keccak.bytesToBitsLE (nonceInput seed.toList nonce))
 
-private theorem raw_length (seed : FixedBytes 64) (nonce : ℕ) :
-    (Keccak.bytesToBitsLE (nonceInput seed.toList nonce)).length = 528 := by
-  rw [Keccak.length_bytesToBitsLE, nonceInput, List.length_append, FixedBytes.length_toList seed]
-  rfl
-
 private theorem maskAddress_bits (seed : FixedBytes 64) (nonce : ℕ) :
     List.ofFn (maskAddress seed nonce) = Keccak.bytesToBitsLE (nonceInput seed.toList nonce) :=
-  BitString.ofFn_ofList (raw_length seed nonce)
+  BitString.ofFn_ofList (length_nonceInput_bits seed nonce)
 
 private abbrev MaskByte (s : Level) := BitString 528 × Fin (maskPolyBytes s)
 
@@ -177,7 +172,7 @@ private theorem read_mask_row {s : Level} {a b : ℕ} (ha : 528 ≤ a)
   · intro i hi _
     have hit : i < maskPolyBytes s := hi.trans_le (G.length_read ..).le
     let k : MaskByte s := (maskAddress seed nonce, ⟨i, hit⟩)
-    have hx : x.length ≤ a := (raw_length seed nonce).le.trans ha
+    have hx : x.length ≤ a := (length_nonceInput_bits seed nonce).le.trans ha
     have loc : maskPoint ha hb k = (word x hx, ⟨i, hit.trans_le hb⟩) := by
       unfold maskPoint k
       simp only [maskAddress_bits]
@@ -233,15 +228,8 @@ private theorem schedule_injective (s : Level) (seed : FixedBytes 64) :
   intro p q h
   have raw := congrArg List.ofFn h
   simp only [maskAddress_bits] at raw
-  have bs := Keccak.bytesToBitsLE_injective raw
-  simp only [nonceInput, List.append_cancel_left_eq, List.cons.injEq, and_true] at bs
-  obtain ⟨lo, hi⟩ := bs
-  have low := congrArg Fin.val lo
-  have high := congrArg Fin.val hi
-  simp only [nonceSuffix, Matrix.cons_val_zero, Matrix.cons_val_one, Fin.val_ofNat] at low high
-  have bp := nonce_lt s p
-  have bq := nonce_lt s q
-  have same : schedule s p = schedule s q := by lia
+  have same := eq_of_nonceInput_eq (nonce_lt s p) (nonce_lt s q)
+    (Keccak.bytesToBitsLE_injective raw)
   have ip := p.2.isLt
   have iq := q.2.isLt
   apply Prod.ext <;> apply Fin.ext <;> cases s <;>
@@ -357,28 +345,6 @@ private theorem iid_maskFromRow (s : Level) :
   · apply congrArg (fun g => PMF.map g _)
     funext r i k j
     exact (unpack_row s (r (i, k)) j).symm
-
-private def terminalReply {α : Type} : Option (Option α) → Option (Option α)
-  | none => some none
-  | some reply => reply.map some
-
-private theorem firstAccepted_eq_terminal (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte)))
-    (k start : ℕ) :
-    firstAccepted stride tryAt k start =
-      (Fin.findSome? fun i : Fin k => terminalReply (tryAt (start + i.val * stride))).join := by
-  induction k generalizing start with
-  | zero => rfl
-  | succ k ih =>
-    rw [Fin.findSome?_succ]
-    simp only [Fin.val_zero, zero_mul, add_zero]
-    have next (i : Fin k) : start + i.succ.val * stride = start + stride + i.val * stride := by
-      rw [Fin.val_succ, Nat.add_mul, Nat.one_mul]
-      lia
-    simp only [next]
-    cases h : tryAt start with
-    | none => simp [firstAccepted, h, terminalReply]
-    | some r =>
-      cases r <;> simp [firstAccepted, h, terminalReply, ih]
 
 private theorem cappedReplay {X Y : Type} (p : PMF X) (μ : PMF Y) (mask : X → ℕ → Y)
     (finish : Y → Option (Option (List Byte))) (stride k : ℕ)

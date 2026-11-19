@@ -71,6 +71,41 @@ noncomputable def withSampleListWhen {Query State Value : Type} {spec : Query �
   if selected q then withSampleList fallback oracle q else fun (s, tape) =>
     (oracle fallback q s).map fun (reply, next) => (reply, next, tape)
 
+/-- Two sufficiently long tapes give the same law of the result and retained state if
+corresponding entries implement the same selected calls and the other calls agree. -/
+theorem IsCostBounded.run_interpret_sampleListWhen_congr {Q S V W α : Type} {spec : Q → Type}
+    {program : OracleComp spec α} {n : ℕ} (selected : Q → Bool)
+    (h : IsCostBounded (fun q => (selected q).toNat) program n)
+    (v₀ : V) (w₀ : W) (f : V → (q : Q) → StateT S PMF (spec q))
+    (g : W → (q : Q) → StateT S PMF (spec q))
+    (off : ∀ q, selected q = false → f v₀ q = g w₀ q)
+    (vs : List V) (ws : List W) (len : n ≤ vs.length)
+    (on : List.Forall₂ (fun v w => ∀ q, selected q = true → f v q = g w q) vs ws) (s : S) :
+    ((OracleComp.interpret (withSampleListWhen selected v₀ f) program).run (s, vs)).map
+      (fun (a, s', _) => (a, s')) =
+    ((OracleComp.interpret (withSampleListWhen selected w₀ g) program).run (s, ws)).map
+      (fun (a, s', _) => (a, s')) := by
+  induction h generalizing vs ws s with
+  | pure a n => simp only [interp_norm, pmf_norm]
+  | liftBind q cont n _ ih =>
+    cases hq : selected q with
+    | false =>
+      simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, ↓reduceIte,
+        Bool.false_eq_true, Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map,
+        Function.comp_def, off q hq]
+      exact congrArg (fun k => (g w₀ q s).bind k)
+        (funext fun v => ih v.1 vs ws (by simpa [hq] using len) on v.2)
+    | true =>
+      cases on with
+      | nil => simp [hq] at len
+      | cons equal tail =>
+        simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, ↓reduceIte,
+          withSampleList, List.headD_cons, List.tail_cons, Probability.PMF.monad_bind_eq_bind,
+          PMF.monad_map_eq_map, PMF.map_bind, PMF.bind_map, Function.comp_def, equal q hq]
+        congr 1
+        funext v
+        exact ih v.1 _ _ (by simpa [hq] using len) tail v.2
+
 /-- Presampling the selected calls of an adaptive program preserves the joint law of its
 result and final state. An uncharged call can read or change that state arbitrarily. -/
 theorem IsCostBounded.run_interpret_presample_when {Query State Value α : Type}

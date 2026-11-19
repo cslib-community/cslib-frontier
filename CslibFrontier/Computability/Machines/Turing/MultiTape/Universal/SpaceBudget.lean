@@ -291,38 +291,38 @@ private lemma length_eSSt_le (t i j : ℕ) :
 open ComputableTidilyInO
 
 /-- The first two elements of a list, in linear time and space. -/
-lemma take_two_deg : ComputableTidilyInDegree (fun l : List ℕ => l.take 2) (encList encUnary)
+lemma take_two_deg : ComputableInDegree (fun l : List ℕ => l.take 2) (encList encUnary)
     (encList encUnary) 1 1 := by
-  have hsingle : ComputableTidilyInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
-    .of_linear (.of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil])
-  have hhead := ComputableTidilyInDegree.headD (enc₁ := encUnary) (enc := encList encUnary) 0
-  have hempty := ComputableTidilyInDegree.isEmpty (enc₁ := encUnary) (enc := encList encUnary)
-  have htail := ComputableTidilyInDegree.tail (enc₁ := encUnary) (enc := encList encUnary)
-  have hone : ComputableTidilyInDegree (fun l : List ℕ => if l.isEmpty then [] else [l.headD 0])
+  have hsingle : ComputableInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
+    .of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil]
+  have hhead := ComputableInDegree.headD (enc₁ := encUnary) (enc := encList encUnary) 0
+  have hempty := ComputableInDegree.isEmpty (enc₁ := encUnary) (enc := encList encUnary)
+  have htail := ComputableInDegree.tail (enc₁ := encUnary) (enc := encList encUnary)
+  have hone : ComputableInDegree (fun l : List ℕ => if l.isEmpty then [] else [l.headD 0])
       (encList encUnary) (encList encUnary) 1 1 :=
-    (hempty.ite ((ComputableTidilyInDegree.const (encMid := encList encUnary) []).restrict _)
+    (hempty.ite ((ComputableInDegree.const (encMid := encList encUnary) []).restrict _)
       ((hsingle.comp hhead).restrict _)).mono
-  have hcons := (ComputableTidilyInDegree.cons encUnary).comp (hhead.prod (hone.comp htail))
-  refine ((hempty.ite ((ComputableTidilyInDegree.const (encMid := encList encUnary) []).restrict _)
+  have hcons := (ComputableInDegree.cons encUnary).comp (hhead.prod (hone.comp htail))
+  refine ((hempty.ite ((ComputableInDegree.const (encMid := encList encUnary) []).restrict _)
     (hcons.restrict _)).of_enc_eq fun l => ?_).mono
   rcases l with _ | ⟨a, _ | ⟨c, l⟩⟩ <;> rfl
 
 /-- The first two symbols of a list followed by an optional symbol, in linear time and space. -/
-lemma keepTwo_deg : ComputableTidilyInDegree
+lemma keepTwo_deg : ComputableInDegree
     (fun p : List ℕ × Option ℕ => (p.1 ++ p.2.toList).take 2)
     (encPair (encList encUnary) eSym) (encList encUnary) 1 1 := by
-  have hsingle : ComputableTidilyInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
-    .of_linear (.of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil])
-  have htoList : ComputableTidilyInDegree (fun e : Option ℕ => e.toList) eSym
+  have hsingle : ComputableInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
+    .of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil]
+  have htoList : ComputableInDegree (fun e : Option ℕ => e.toList) eSym
       (encList encUnary) 1 1 := by
-    refine (((ComputableTidilyInDegree.isSome encUnary).ite
-      ((hsingle.comp (ComputableTidilyInDegree.getD (enc₁ := encUnary) (enc := eSym) 0)).restrict
-        _) ((ComputableTidilyInDegree.const (encMid := encList encUnary) []).restrict _)).of_enc_eq
+    refine (((ComputableInDegree.isSome encUnary).ite
+      ((hsingle.comp (ComputableInDegree.getD (enc₁ := encUnary) (enc := eSym) 0)).restrict
+        _) ((ComputableInDegree.const (encMid := encList encUnary) []).restrict _)).of_enc_eq
       fun e => ?_).mono
     cases e <;> rfl
-  have happ := (ComputableTidilyInDegree.listAppend encUnary).comp
-    ((ComputableTidilyInDegree.fst (encList encUnary) eSym).prod
-      (htoList.comp (ComputableTidilyInDegree.snd (encList encUnary) eSym)))
+  have happ := (ComputableInDegree.listAppend encUnary).comp
+    ((ComputableInDegree.fst (encList encUnary) eSym).prod
+      (htoList.comp (ComputableInDegree.snd (encList encUnary) eSym)))
   exact (take_two_deg.comp happ).mono
 
 /-- The first two symbols of a list followed by an optional symbol, in time and space linear in the
@@ -331,7 +331,7 @@ public lemma keepTwo_inO : ComputableInO (fun p : List ℕ × Option ℕ => (p.1
     (encPair (encList encUnary) eSym) (encList encUnary)
     (fun p => (encPair (encList encUnary) eSym p).length)
     fun p => (encPair (encList encUnary) eSym p).length :=
-  .of_tidy keepTwo_deg.inO_one
+  keepTwo_deg.inO_one
 
 /-- The initial state, in the space of the description, the number of steps and the budget. -/
 private lemma foldInitS_inO : ComputableTidilyInO foldInitS eInS eSSt
@@ -387,9 +387,9 @@ private lemma foldFinishS_inO : ComputableTidilyInO foldFinishS eSSt eOut
   have h₂ := snd eSt (encPair encUnary (encList encUnary))
   -- bridge for #862: tidy client of the plain `state_inO`
   have hst := state_inO.tidy.comp_linear h₁.fst'.snd'
-  have hnone := (ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    fun b : Bool => !b).inO_one.comp_linear
-      ((ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear hst)
+  have hnone := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
+    fun b : Bool => !b).inO_one.tidy.comp_linear
+      ((ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear hst)
   refine ((h₂.snd'.prod hnone).of_enc_eq (g := foldFinishS) fun s => ?_).mono 2 (fun s => ?_)
     fun s => ?_
   · simp only [foldFinishS, Function.comp_apply]
@@ -462,7 +462,7 @@ private lemma foldEndS_inO : ComputableTidilyInO foldEndS eSSt eSSt
   have e₂ (s : SSt) : ((encPair eSt (encPair encUnary (encList encUnary))) s).length =
       (eSSt s).length := rfl
   -- the step taken
-  have hkeep := keepTwo_deg.inO_one.comp_linear (h₂.snd'.prod (stepAt_inO.comp h₁).snd')
+  have hkeep := keepTwo_deg.inO_one.tidy.comp_linear (h₂.snd'.prod (stepAt_inO.comp h₁).snd')
   have htaken : ComputableTidilyInO (fun s : SSt =>
       (foldEnd s.1, s.2.1, (s.2.2 ++ (stepAt s.1).2.toList).take 2)) eSSt eSSt
       (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by

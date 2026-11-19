@@ -22,7 +22,6 @@ without ever writing `2 ^ n` in unary.
 
 * `Turing.MultiTapeTM.encNat_two_pow`: the binary digits of `2 ^ n`.
 * `Turing.MultiTapeTM.ComputableInDegree.two_pow_length`: `2 ^ (encIn a).length` is linear.
-* `Turing.MultiTapeTM.ComputableTidilyInDegree.two_pow_length`: tidy counterpart.
 -/
 
 @[expose] public section
@@ -64,11 +63,5 @@ theorem ComputableInDegree.two_pow_length {α : Type*} (encIn : α ↪ List Bool
   have heq : encNat (2 ^ (encIn a).length) = twoPowT.run twoPowT.q₀ (encIn a) := by
     rw [encNat_two_pow, show twoPowT.q₀ = () from rfl, twoPowT_run]
   simpa only [heq] using twoPowT.computesInTimeAndSpace_toTM (encIn a)
-
-/-- **An exponential clock in binary.** `2 ^ (encIn a).length` is tidily computable in linear time
-and space, for every encoding of the input. -/
-theorem ComputableTidilyInDegree.two_pow_length {α : Type*} (encIn : α ↪ List Bool) :
-    ComputableTidilyInDegree (fun a => 2 ^ (encIn a).length) encIn encNat 1 1 :=
-  .of_linear (ComputableInDegree.two_pow_length encIn)
 
 end Turing.MultiTapeTM

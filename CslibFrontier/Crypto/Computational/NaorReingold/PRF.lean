@@ -614,7 +614,7 @@ private theorem negligible_naorReingoldHashedGame_ideal_pure {F : PrimeOrderGrou
         (F.naorReingoldHashedIdealGame (fun k => PMF.pure (desc k)) id id bound
           (fun k _ => adversary k []) n) := by
   have hadv_aux : IsOraclePPT encBool (fun k (_ : List Bool) => adversary k []) :=
-    hadversary.on.preprocess'
+    hadversary.on.preprocess
       ((ComputableInPolyTime.fst encUnary encBits).prod (ComputableInPolyTime.const []))
   obtain ⟨cD, eD, hdesc_b⟩ := hdesc.polyBounded_length.exists_le
   have hdesc_poly : PolynomiallyBounded (fun n => cD * (n + 1) ^ eD) :=
@@ -866,7 +866,7 @@ private theorem isOraclePPT_ddhPRGAdv {inBits seedLen : ℕ → ℕ} {D : Distin
           (ComputableInPolyTime.fst (encPair encUnary encBits) encUnary)))
         (ComputableInPolyTime.unary_to_binary.comp
           (ComputableInPolyTime.snd (encPair encUnary encBits) encUnary)))
-  exact ((KabanetsCai.isOraclePPTOn_queryTable.preprocess' hqueries).bind_with
+  exact ((KabanetsCai.isOraclePPTOn_queryTable.preprocess hqueries).bind_with
     ((hD.on.preprocess
       (((ComputableInPolyTime.fst encUnary encBits).comp'
         (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)).prod
@@ -887,7 +887,7 @@ private theorem negligible_naorReingoldHashedGame_ideal_const_pure {F : PrimeOrd
         (F.naorReingoldHashedIdealGame (fun k => PMF.pure (desc k)) inBits (fun _ => 1) bound
           (fun k _ => adv k []) n) := by
   have hadv_aux : IsOraclePPT encBool (fun k (_ : List Bool) => adv k []) :=
-    (hadv.on.preprocess'
+    (hadv.on.preprocess
       ((ComputableInPolyTime.fst encUnary encBits).prod
         (ComputableInPolyTime.const []))).isOraclePPT
   obtain ⟨cD, eD, hdesc_b⟩ := hdesc.polyBounded_length.exists_le

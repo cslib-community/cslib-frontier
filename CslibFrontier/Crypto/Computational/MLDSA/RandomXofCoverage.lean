@@ -90,7 +90,8 @@ private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
     have := (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha
     simp only [encodePublic, List.length_append, List.length_take, length_packCoeffs]
     lia
-  simp only [Xofs.keyGen, exp, ← show e = G.expandKeySeed s seed from rfl, mat, secret, pk]
+  simp only [Xofs.keyGen, Xofs.expandS, exp, ← show e = G.expandKeySeed s seed from rfl,
+    mat, secret, pk]
 
 private theorem representative (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {tr ctx : List Byte} {msg : List Bool} (ht : tr.length ≤ 64)
@@ -138,14 +139,6 @@ private theorem attempt (h : Agreement H G a b) (ha : honestAddressBits s m ≤ 
   simp only [Xofs.attempt, Xofs.attemptWithMask, h.mask ha hb hr, h.commitment ha hb hm,
     h.challenge ha hb (le_of_eq (length_commitmentDigest ..))]
 
-private theorem decoded_bounds {sk : PrivateKey s} {key : List Byte}
-    (hd : decodePrivate s key = some sk) :
-    sk.rho.length ≤ 32 ∧ sk.key.length ≤ 32 ∧ sk.tr.length ≤ 64 := by
-  simp only [decodePrivate, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
-    Option.some.injEq] at hd
-  obtain ⟨_, _, rfl⟩ := hd
-  simp
-
 private theorem signAttempts (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) (sk : PrivateKey s) (A : PublicMatrix s) {msg : List Bool}
     (hm : msg.length ≤ m) {ctx : List Byte} (hc : ctx.length ≤ 255) (rnd : FixedBytes 32)
@@ -172,10 +165,11 @@ private theorem signInternal (h : Agreement H G a b) (ha : honestAddressBits s m
     {ctx : List Byte} (hc : ctx.length ≤ 255) (rnd : FixedBytes 32) :
     H.signInternal s key (formatMessage msg ctx) rnd =
       G.signInternal s key (formatMessage msg ctx) rnd := by
-  simp only [Xofs.signInternal, Xofs.startSigning, bind_assoc, pure_bind]
+  simp only [Xofs.signInternal, Xofs.runSigning, Xofs.startSigning, Xofs.startSigningWithSeed,
+    Xofs.startDecodedSigning, bind_assoc, pure_bind]
   apply Option.bind_congr
   intro sk hsk
-  obtain ⟨hr, hk, ht⟩ := decoded_bounds hsk
+  obtain ⟨hr, hk, ht⟩ := lengths_of_decodePrivate hsk
   rw [h.matrix ha hb hr]
   apply Option.bind_congr
   intro A _
@@ -194,30 +188,15 @@ private theorem sign (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
 private theorem verify (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) (key : List Byte) {msg : List Bool} (hm : msg.length ≤ m)
     (ctx sig : List Byte) : H.verify s key msg ctx sig = G.verify s key msg ctx sig := by
-  by_cases hc : ctx.length ≤ 255
-  · simp only [Xofs.verify, Xofs.verifyWithExpansion, guard, hc, ↓reduceIte, Option.pure_def,
-      Option.bind_eq_bind, Option.bind_some, Xofs.verifyInternalWith]
-    by_cases hk : key.length = 32 + 320 * s.params.k
-    · simp only [hk, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
-      cases hd : sigDecode s sig with
-      | none => rfl
-      | some σ =>
-        have dig : σ.digest.length ≤ digestBytes s := by rw [← digest_of_sigDecode hd]; simp
-        rw [h.matrix ha hb (rho := key.take 32) (by simp)]
-        have hash := h.bytes256 (xs := key)
-          (hk ▸ (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha) (n := 64) (by lia)
-        have rep :
-            H.messageRepresentative key (formatMessage msg ctx) =
-              G.messageRepresentative key (formatMessage msg ctx) := by
-          simp only [Xofs.messageRepresentative, hash]
-          exact h.representative ha hb (le_of_eq (G.h256.length_read ..)) hc hm
-        cases he : G.expandA s (key.take 32) <;> simp only [Option.bind_none, Option.bind_some]
-        rw [h.challenge ha hb dig, rep]
-        cases he' : G.sampleInBall s σ.digest <;>
-          simp only [Option.bind_none, Option.bind_some, Xofs.check,
-            h.commitment ha hb (length_messageRepresentative ..)]
-    · simp [hk, bne_iff_ne]
-  · simp [Xofs.verify, Xofs.verifyWithExpansion, hc, guard]
+  apply Xofs.verify_congr_of_reads
+  · exact h.matrix ha hb (by simp)
+  · exact fun _ => h.challenge ha hb
+  · intro hc hk
+    have hash := h.bytes256 (xs := key)
+      (hk ▸ (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha) (n := 64) (by lia)
+    simp only [Xofs.messageRepresentative, hash]
+    exact h.representative ha hb (G.h256.length_read ..).le hc hm
+  · exact h.commitment ha hb (length_messageRepresentative ..)
 
 end Agreement
 
@@ -266,7 +245,8 @@ private theorem forgeryGame_eq (C : QuantumSigningForger) {m a b : ℕ} {s : Lev
     intro q hq
     rcases q with n | dev | req
     · rfl
-    · simp only [OracleComp.sumHandler, commands, deviceCommand, C.queryTable_eq h hc hd]
+    · funext st
+      simp only [OracleComp.sumHandler, commands, deviceCommand, C.queryTable_eq h hc hd]
     · funext st
       change ((H.signingOracle s keys.secretKey req st.2).map _) =
         ((G.signingOracle s keys.secretKey req st.2).map _)

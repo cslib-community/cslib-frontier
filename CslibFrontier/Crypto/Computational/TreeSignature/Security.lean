@@ -586,11 +586,11 @@ private theorem isOraclePPTOn_signEdgeM (S : IndexedSignatureScheme) {γ : Type}
   have hraw : IsOraclePPTOn enc encBits
       (fun a => signEdgeRaw S (keys a) (target a) (sigCap a) (idx a) (u a) (msg a)) := by
     unfold signEdgeRaw
-    exact IsOraclePPTOn.ite' (condition := fun a => idx a = target a) (by fun_prop)
-      (IsOraclePPTOn.query_take' () (by fun_prop) hsigCap)
+    exact IsOraclePPTOn.ite (condition := fun a => idx a = target a) (by fun_prop)
+      (IsOraclePPTOn.query_take () (by fun_prop) hsigCap)
       (((S.sign_ppt.preprocess
         (prepare := fun a => (((keys a).getD (idx a) ([], [])).2, u a, msg a))
-        (by fun_prop)).isOraclePPTOn (Operation := Unit)).map_with'
+        (by fun_prop)).isOraclePPTOn (Operation := Unit)).map_with
         (f := fun a σ => σ.take (sigCap a)) (by fun_prop))
   exact IsOraclePPTOn.memoize
     (compute := fun a _ => signEdgeRaw S (keys a) (target a) (sigCap a) (idx a) (u a) (msg a))
@@ -840,7 +840,7 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
   have hloopId := ComputableInPolyTime.id' (encIn := encLoopIn)
   have hpair1 := ComputableInPolyTime.fst encLoopIn encPlantedCert
   have hpair2 := ComputableInPolyTime.snd encLoopIn encPlantedCert
-  refine (IsOraclePPTOn.iterateWith_spec' (input := encLoopIn) (stateEncoding := encPlantedCert)
+  refine (IsOraclePPTOn.iterateWith_spec (input := encLoopIn) (stateEncoding := encPlantedCert)
     (count := fun a : CertLoopIn => depth a.parameter - 1)
     (initial := fun a => ((([], 0, []), a.2) : PlantedCertState))
     (step := fun (a : CertLoopIn) state =>
@@ -848,7 +848,7 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
     ((hdepth.comp hloopId.fst'.snd'.snd'.fst').unary_sub' (.const 1))
     (((ComputableInPolyTime.const []).prod ((ComputableInPolyTime.const 0).prod (.const []))).prod
       hloopId.snd')
-    ((isOraclePPTOn_certifyStepPlanted S).preprocess'
+    ((isOraclePPTOn_certifyStepPlanted S).preprocess
       (prepare := fun pair : CertLoopIn × PlantedCertState =>
         ((pair.1.keys, (pair.1.target, pair.1.sigCap), pair.1.leaf), pair.2))
       (((hpair1.fst'.fst'.prod (hpair1.fst'.snd'.fst'.prod hpair1.fst'.snd'.snd'.snd')).prod
@@ -958,7 +958,7 @@ private theorem isOraclePPTOn_plantedTreeHandler (S : IndexedSignatureScheme)
       (fun q : (ForgerCaller × ((Unit × List Bool) × PlantedState)) × List Bool => badOut q.1)
       encHL (encPair encBits encPlantedState) :=
     hbadBr.comp (ComputableInPolyTime.fst encH encBits)
-  have hcertPrep := (isOraclePPTOn_certifyPlanted S hdepth).preprocess' (input := encHL)
+  have hcertPrep := (isOraclePPTOn_certifyPlanted S hdepth).preprocess (input := encHL)
     (prepare := fun q : (ForgerCaller × ((Unit × List Bool) × PlantedState)) × List Bool =>
       (((q.1.1.2, (q.1.1.1.2, sigCap q.1.1.1.1.1), (q.1.1.1.1.1, q.2)),
         (q.1.2.2.1.1, q.1.2.2.1.2)) : CertLoopIn)) (by fun_prop)
@@ -993,13 +993,13 @@ private theorem isOraclePPTOn_plantedTreeHandler (S : IndexedSignatureScheme)
         hpostGood.isOraclePPTOn)
   have hafterLeaf : IsOraclePPTOn encHL (encPair encBits encPlantedState)
       (fun q => afterLeaf q.1 q.2) :=
-    IsOraclePPTOn.cond' (condition := fun q => q.1.2.2.2.2.1.contains q.2) (by fun_prop)
+    IsOraclePPTOn.cond (condition := fun q => q.1.2.2.2.2.1.contains q.2) (by fun_prop)
       hcollBr.isOraclePPTOn hgoodLeaf
   have hnotBad := hleaf.bind_with (second := afterLeaf) hafterLeaf
-  have hlenEq := IsOraclePPTOn.cond' (condition := fun p => p.2.2.2.2.2) (by fun_prop)
+  have hlenEq := IsOraclePPTOn.cond (condition := fun p => p.2.2.2.2.2) (by fun_prop)
     hbadBr.isOraclePPTOn hnotBad
   simpa only [plantedTreeHandler, StateT.run, badOut, afterLeaf, goodLeaf] using
-    IsOraclePPTOn.ite' (condition := fun p => p.2.1.2.length = p.1.1.1.1) (by fun_prop)
+    IsOraclePPTOn.ite (condition := fun p => p.2.1.2.length = p.1.1.1.1) (by fun_prop)
       hlenEq hnoMsgBr.isOraclePPTOn
 
 private def plantedResourceAllowance (depth sigCap : ℕ → ℕ) (c : ForgerCaller)
@@ -2795,6 +2795,16 @@ private theorem localTreeHandler_planted_step (S : IndexedSignatureScheme) (dept
   · obtain ⟨⟨σ, e'', a''⟩, hm_se, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hm_edg
     exact ⟨hroot_v', hlt_v', huniq_v', hedg_inv σ e'' a'' hm_se⟩
 
+/-- The index of an extracted forgery is a bit, so it lies below every capacity of at least `2`. -/
+private theorem extractForgery_fst_lt (d target : ℕ) (visited : NodeSlotCache)
+    (msg sig : List Bool) {cap : ℕ} (hcap : 2 ≤ cap) :
+    (extractForgery d target visited msg sig).1 < cap := by
+  unfold extractForgery
+  generalize signatureDecoder.decode sig = t
+  obtain ⟨leaf, certs, last⟩ := t
+  dsimp only
+  split_ifs <;> exact (Bool.toNat_le _).trans_lt (by omega)
+
 private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
     (depth slotBound sigCap : ℕ → ℕ) {n : ℕ} (hcap : 2 ≤ S.capacity n)
     (adversary : Forger) {target : ℕ} (htarget : target < dyadicSize (slotBound n)) :
@@ -2855,9 +2865,11 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
   have hwin := congrArg (PMF.map fun out : ((List Bool × List Bool) × PlantedState) ×
       List (ℕ × List Bool) =>
     let cand := extractForgery (depth n) front.length out.1.2.1.1 out.1.1.1 out.1.1.2
-    !out.2.contains (cand.1, cand.2.1) && S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
+    decide (cand.1 < S.capacity n) && !out.2.contains (cand.1, cand.2.1) &&
+      S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
   simp only [PMF.map_comp, Function.comp_def, plantedWin, keys,
-    List.getD_append_cons_length] at hwin ⊢
+    List.getD_append_cons_length, extractForgery_fst_lt _ _ _ _ _ hcap, decide_true,
+    Bool.true_and] at hwin ⊢
   exact hwin
 
 /-! #### Equivalence between `lazyTreeGame` and `presampledExp` -/

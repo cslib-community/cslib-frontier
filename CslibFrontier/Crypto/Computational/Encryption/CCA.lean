@@ -590,7 +590,7 @@ private theorem isPPTOn_run_cca2Phase2Oracle_of_guess {Challenge Out : Type}
       (fun pair : (ℕ × List Bool × List Bool × Challenge) × ((Unit × List Bool) × Unit) =>
         if blocked pair.2.1.2 pair.1.2.2.2 then pure ([], pair.2.2)
         else pure (encOption encOut (decrypt pair.1.1 pair.1.2.1 pair.2.1.2), pair.2.2)) :=
-    IsPPTOn.cond' hguard hnoReply
+    IsPPTOn.cond hguard hnoReply
       ((ComputableInPolyTime.prod hdecWord (by fun_prop)).isPPTOn)
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool × List Bool × Challenge) × List Bool =>
@@ -742,7 +742,7 @@ theorem isPPTOn_cca2GameOn {Msg Out : Type} {encMsg : Msg ↪ List Bool} {encOut
           return guessOut.1
         else
           return false) :=
-    IsPPTOn.cond' hvalidStep (hencStep.bind_with hphase2Bool)
+    IsPPTOn.cond hvalidStep (hencStep.bind_with hphase2Bool)
       (ComputableInPolyTime.const false).isPPTOn
   exact hkeyGen.bind_with (hphase1.bind_with hbranch)
 
@@ -856,7 +856,7 @@ theorem CCA2AdversaryOf.IsPPT.restrict {Msg : Type} {encMsg : Msg ↪ List Bool}
         (ComputableInPolyTime.prod
           (ComputableInPolyTime.bitsTail.comp (by dsimp only [EGuess]; fun_prop))
           (by dsimp only [EGuess]; fun_prop))
-    exact IsOraclePPTOn.cond' hcond (hadversary.guess.preprocess' hprep)
+    exact IsOraclePPTOn.cond hcond (hadversary.guess.preprocess hprep)
       (ComputableInPolyTime.const false).isOraclePPTOn
 
 /-- Unrestricted 1CCA security implies 1CCA security under every polynomial-time admissibility
@@ -1378,7 +1378,7 @@ theorem isPPTOn_cca2MultiGameOn {Msg Out : Type} {encMsg : Msg ↪ List Bool}
           return guessOut.1
         else
           return false) :=
-    IsPPTOn.cond' hvalidStep (hencStep.bind_with hphase2Bool)
+    IsPPTOn.cond hvalidStep (hencStep.bind_with hphase2Bool)
       (ComputableInPolyTime.const false).isPPTOn
   exact hkeyGen.bind_with (hphase1.bind_with hbranch)
 
@@ -1504,7 +1504,7 @@ theorem MultiCCA2AdversaryOf.IsPPT.restrict {Msg : Type} {encMsg : Msg ↪ List 
         (ComputableInPolyTime.prod
           (ComputableInPolyTime.bitsTail.comp (by dsimp only [EGuess]; fun_prop))
           (by dsimp only [EGuess]; fun_prop))
-    exact IsOraclePPTOn.cond' hcond (hadversary.guess.preprocess' hprep)
+    exact IsOraclePPTOn.cond hcond (hadversary.guess.preprocess hprep)
       (ComputableInPolyTime.const false).isOraclePPTOn
 
 /-- Unrestricted batch-challenge multi-challenge CCA security implies batch-challenge
@@ -1567,7 +1567,7 @@ theorem CCA2AdversaryOf.isPPT_toMulti {Msg : Type} {encMsg : Msg ↪ List Bool}
     have hstate : ComputableInPolyTime
         (fun choice : (Msg × Msg) × List Bool => choice.2) EIn encBits :=
       ComputableInPolyTime.snd _ _
-    exact (hA.choose.on.map' (ComputableInPolyTime.prod hsingleton hstate)).isOraclePPT
+    exact (hA.choose.on.map (ComputableInPolyTime.prod hsingleton hstate)).isOraclePPT
   guess := by
     let EGuess := encPair encUnary (encPair encBits (encList encBits))
     have hhead : ComputableInPolyTime
@@ -1579,7 +1579,7 @@ theorem CCA2AdversaryOf.isPPT_toMulti {Msg : Type} {encMsg : Msg ↪ List Bool}
         EGuess (encPair encUnary (encPair encBits encBits)) :=
       ComputableInPolyTime.prod (by dsimp only [EGuess]; fun_prop)
         (ComputableInPolyTime.prod (by dsimp only [EGuess]; fun_prop) hhead)
-    exact hA.guess.preprocess' hprep
+    exact hA.guess.preprocess hprep
 
 /-- Embedding a strict oracle PPT bit `CCA2Adversary` yields a strict oracle PPT
 `MultiCCA2Adversary`. -/
@@ -1935,7 +1935,7 @@ theorem isOraclePPTOn_cca2MultiToSingleAt_choose {Msg : Type} [Inhabited Msg]
   let E4 := encPair E3 (encList encBits)
   have hchooseA : IsOraclePPTOn (Operation := Unit) ECaller EChoiceOut
       (fun caller : (ℕ × List Bool) × ℕ => adversary.choose caller.1.1 caller.1.2) :=
-    hA.choose.on.preprocess' (by dsimp only [ECaller]; fun_prop)
+    hA.choose.on.preprocess (by dsimp only [ECaller]; fun_prop)
   have hchallenges : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × ℕ) × (List (Msg × Msg) × List Bool) => q.2.1)
       E2 (encList (encPair encMsg encMsg)) :=
@@ -2106,11 +2106,11 @@ theorem isOraclePPTOn_cca2MultiToSingleAt_choose {Msg : Type} [Inhabited Msg]
             ((q.2.1.drop (q.1.2 + 1)).mapM (fun p => encrypt q.1.1.1 q.1.1.2 p.1))
         return (q.2.1.getD q.1.2 (default, default),
           encMultiCCA2State ⟨true, q.2.2, ctsFront, ctsBack⟩)) := by
-    simpa only [bind_pure_comp] using hfront.bind_with (hback.map_with' hpost)
+    simpa only [bind_pure_comp] using hfront.bind_with (hback.map_with hpost)
   have hno : IsOraclePPTOn (Operation := Unit) E2 (encPair (encPair encMsg encMsg) encBits)
       (fun _ => pure ((default, default), rejectMultiCCA2State)) :=
     (ComputableInPolyTime.const ((default, default), rejectMultiCCA2State)).isOraclePPTOn
-  exact hchooseA.bind_with (IsOraclePPTOn.cond' hcond hyes hno)
+  exact hchooseA.bind_with (IsOraclePPTOn.cond hcond hyes hno)
 
 /-- Phase 2 (`guess`) of `cca2MultiToSingleAt` is uniformly strict oracle PPT in
 `(n, state, ct)`. -/
@@ -2210,7 +2210,7 @@ theorem isOraclePPTOn_cca2MultiToSingleAt_guess {Msg : Type} [Inhabited Msg]
               p.2.2 :: (multiCCA2StateDecoder.decode p.2.1).ctsBack))).run ()) := by ppt
   have hno : IsOraclePPTOn (Operation := Unit) EGuess encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isOraclePPTOn
-  exact IsOraclePPTOn.cond' hactive hyes hno
+  exact IsOraclePPTOn.cond hactive hyes hno
 
 /-- `cca2MultiToSingleAt` preserves strict oracle PPT admissibility (`CCA2AdversaryOf.IsPPT`). -/
 theorem isPPT_cca2MultiToSingleAt {Msg : Type} [Inhabited Msg]
@@ -2232,7 +2232,7 @@ theorem isPPT_cca2MultiToSingleAt {Msg : Type} [Inhabited Msg]
     (cca2MultiToSingleAt valid encrypt decBound adversary split).IsPPT encMsg where
   choose := by
     have h := (isOraclePPTOn_cca2MultiToSingleAt_choose (decBound := decBound)
-      hvalid hencrypt hA).preprocess'
+      hvalid hencrypt hA).preprocess
       (ComputableInPolyTime.prod ComputableInPolyTime.id' (ComputableInPolyTime.const split))
     exact h.isOraclePPT
   guess := isOraclePPTOn_cca2MultiToSingleAt_guess valid encrypt hdecBound hA split

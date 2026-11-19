@@ -7,9 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import Mathlib.Algebra.Order.Floor.Div
+import all CslibFrontier.Crypto.Primitives.ByteString
+import CslibFrontier.Foundations.Data.BitString.List
 import all Batteries.Data.List.Basic
 
 /-!
@@ -410,6 +413,46 @@ theorem bytesToBitsLE_injective : Function.Injective bytesToBitsLE := by
       obtain ⟨head, tail⟩ := List.append_inj h (by simp [byteBitsLE])
       have hab : a = b := by simpa using congrArg bitsToByteLE head
       rw [hab, ih tail]
+
+/-- The FIPS 202 little-endian bijection between a fixed byte string and its bit register. -/
+def fixedBytesEquivBitsLE (d : ℕ) : FixedBytes d ≃ BitString (8 * d) where
+  toFun D := BitString.ofList _ (bytesToBitsLE D.toList)
+  invFun bits :=
+    let bytes := ((List.ofFn bits).toChunks 8).map bitsToByteLE
+    fun i => bytes.getD i 0
+  left_inv D := by
+    have bits : List.ofFn (BitString.ofList (8 * d) (bytesToBitsLE D.toList)) =
+        bytesToBitsLE D.toList :=
+      BitString.ofFn_ofList (by rw [length_bytesToBitsLE, FixedBytes.length_toList])
+    funext i
+    simp only [bits]
+    have chunks := bytesToBitsLE_toChunks
+      (bits := bytesToBitsLE D.toList) (by simp [length_bytesToBitsLE])
+    have bytes := bytesToBitsLE_injective chunks
+    rw [bytes]
+    simp [FixedBytes.toList, List.getD_eq_getElem?_getD]
+  right_inv bits := by
+    have unpack := bytesToBitsLE_toChunks (bits := List.ofFn bits) (by simp)
+    have len := congrArg List.length unpack
+    rw [length_bytesToBitsLE, List.length_ofFn] at len
+    have size : ((List.ofFn bits).toChunks 8).length = d := by
+      simp only [List.length_map] at len
+      lia
+    have read : (List.ofFn fun i : Fin d =>
+        (((List.ofFn bits).toChunks 8).map bitsToByteLE).getD i 0) =
+        ((List.ofFn bits).toChunks 8).map bitsToByteLE := by
+      apply List.ext_getElem
+      · simp [size]
+      · intro i hi _
+        simp [List.getD_eq_getElem?_getD, size] at *
+    apply List.ofFn_inj.mp
+    dsimp only [FixedBytes.toList]
+    rw [read, unpack, BitString.ofFn_ofList (by simp)]
+
+/-- The register has precisely the bits that the underlying SHAKE byte stream returns. -/
+theorem ofFn_fixedBytesEquivBitsLE {d : ℕ} (D : FixedBytes d) :
+    List.ofFn (fixedBytesEquivBitsLE d D) = bytesToBitsLE D.toList :=
+  BitString.ofFn_ofList (by rw [length_bytesToBitsLE, FixedBytes.length_toList])
 
 /-- The first `n` bytes expand to the first `8 * n` bits, including truncated inputs. -/
 theorem bytesToBitsLE_take (xs : List (Fin 256)) (n : ℕ) :

@@ -96,7 +96,7 @@ theorem isPPT_maulAdversary {Msg : Type} {encMsg : Msg ↪ List Bool}
         (encPair encGuessInput encBits) encBool :=
       (ComputableInPolyTime.snd encGuessInput encBits).beq
         (ht.comp (ComputableInPolyTime.fst encGuessInput encBits))
-    exact (IsOraclePPTOn.query_take' () hmaul (by fun_prop)).bind_with hout.isOraclePPTOn
+    exact (IsOraclePPTOn.query_take () hmaul (by fun_prop)).bind_with hout.isOraclePPTOn
 
 /-- Reading a prefix one bit longer than `l` decides equality with `l`. -/
 private theorem take_length_succ_beq (l r : List Bool) :

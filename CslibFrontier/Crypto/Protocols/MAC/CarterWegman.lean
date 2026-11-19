@@ -1105,7 +1105,7 @@ theorem isOraclePPT_prfPadDistinguisher
   have hq : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun p : ℕ × List Bool =>
         List.take p.1 <$> ProbOracleComp.query ((), List.replicate p.1 false)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   apply IsOraclePPTOn.isOraclePPT
   exact hq.bind_with ((htest.preprocess
     (prepare := fun p : (ℕ × List Bool) × List Bool => (p.1.1, p.2))
@@ -1851,8 +1851,8 @@ signing request `request.2`, it decodes `msg := unframe request.2` and
 `nonce := dropFrame request.2`. When `msg.length == msgLen n` and `nonce.length == n`, it queries
 the external oracle on `((), nonce)` (reading `n` bits `pad`), computes
 `tag := BitString.listXor n [hash n k msg, pad]`, and prepends `((msg, nonce), tag)` to
-`queriedTriples`; otherwise it returns `[]` and prepends `((msg, nonce), [])` without querying the
-external oracle. -/
+`queriedTriples`; otherwise it returns `[]` without querying the external oracle or recording the
+request, as the nonce-based tagging oracle does. -/
 def cwNonceLogHandler (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List Bool → List Bool)
     (n : ℕ) (k : List Bool) (request : Unit × List Bool) :
     StateT (List ((List Bool × List Bool) × List Bool)) (WordOracleComp Unit) (List Bool) :=
@@ -1865,7 +1865,7 @@ def cwNonceLogHandler (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List 
         (tag, ((msg, nonce), tag) :: queriedTriples)) <$>
         (List.take n <$> ProbOracleComp.query ((), nonce))
     else
-      pure ([], ((msg, nonce), []) :: queriedTriples)
+      pure ([], queriedTriples)
 
 /-- Oracle reduction turning an adaptive word-level `NonceMACForger` into an `OracleDistinguisher`
 for the PRF security game ([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274):
@@ -1917,13 +1917,12 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
           ((Unit × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
         cwNonceLogHandler msgLen hash p.1.1.1 p.1.2 p.2.1 p.2.2) := by
     unfold cwNonceLogHandler
-    exact IsOraclePPTOn.cond' (by fun_prop)
-      ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop))
+    exact IsOraclePPTOn.cond (by fun_prop)
+      ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop))
       ((show ComputableInPolyTime
         (fun p : ((ℕ × List Bool) × List Bool) ×
             ((Unit × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
-          (([] : List Bool),
-            ((unframe p.2.1.2, dropFrame p.2.1.2), ([] : List Bool)) :: p.2.2))
+          (([] : List Bool), p.2.2))
         (encPair (encPair (encPair encUnary encBits) encBits)
           (encPair (encPair (encFinite Unit) encBits)
             (encList (encPair (encPair encBits encBits) encBits))))
@@ -1967,10 +1966,10 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
       (fun p : ((ℕ × List Bool) × List Bool) ×
           (((List Bool × List Bool) × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
         List.take p.1.1.1 <$> ProbOracleComp.query ((), p.2.1.1.2)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   unfold prfNonceToPrfDistinguisher
   apply IsOraclePPTOn.isOraclePPT
-  exact hk.bind_with (hrun.bind_with (hq.map_with' (by
+  exact hk.bind_with (hrun.bind_with (hq.map_with (by
     simp only [List.contains_eq_mem]
     fun_prop)))
 
@@ -2015,7 +2014,7 @@ theorem eval_prfRealGame_prfNonceToPrfDistinguisher
           (OracleComp.sumHandler ProbComp.unifFin (fun req =>
             pure (prfOracle family n prfKey req.2)))
           (cwNonceLogHandler msgLen hash n k request state)) =
-      M.signingPairOracle (encPair encBits encBits (k, prfKey)) := by
+      M.signingPairOracle n (encPair encBits encBits (k, prfKey)) := by
     funext request state
     simp only [cwNonceLogHandler, NonceMACScheme.signingPairOracle, M, carterWegmanNonceMAC,
       encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append, hprfLen]
@@ -2061,7 +2060,7 @@ private def adaptNonceStep (msgLen : ℕ → ℕ) (n : ℕ) (request : Unit × L
         (tag, ((msg, nonce), tag) :: queriedTriples)) <$>
         ProbOracleComp.query (BitString.ofList (msgLen n) msg, BitString.ofList n nonce)
     else
-      pure ([], ((msg, nonce), []) :: queriedTriples)
+      pure ([], queriedTriples)
 
 private def cwNonceIdealCheck (msgLen : ℕ → ℕ)
     (hash : ℕ → List Bool → List Bool → List Bool)
@@ -2222,10 +2221,7 @@ private theorem eval_cwNonceLogHandler_randomFunctionOracle_le
           Bool.eq_false_iff.mpr hcond
         simp only [pmf_norm, hcond', Bool.false_eq_true, ↓reduceIte, OracleComp.interpret_pure,
           StateT.run_pure]
-        have hsub' : tr.map ofBitTriple <+ (((msg, nonce), []) :: init).reverse := by
-          rw [List.reverse_cons]
-          exact hsub.trans (List.sublist_append_left _ _)
-        exact ih [] (((msg, nonce), []) :: init) tr hsub'
+        exact ih [] init tr hsub
 
 /-- **Ideal-game bound for `prfNonceToPrfDistinguisher`**, a step of the proof of
 [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274): under
@@ -2987,7 +2983,8 @@ noncomputable def carterWegmanRandomMAC (msgLen : ℕ → ℕ)
 `nonce ← BitString.sampleList n`, queries the external oracle on `((), nonce)` (reading `n` bits
 `pad`), computes `tag := BitString.listXor n [hash n k msg, pad]` and
 `fullTag := encPair encBits encBits (nonce, tag)`, and prepends `(msg, fullTag)` to `queriedPairs`;
-otherwise it returns `[]` and prepends `(msg, [])` without querying the external oracle. -/
+otherwise it returns `[]` without querying the external oracle or recording the request, as the
+tagging oracle does. -/
 noncomputable def cwRandomNonceLogHandler (msgLen : ℕ → ℕ)
     (hash : ℕ → List Bool → List Bool → List Bool)
     (n : ℕ) (k : List Bool) (request : Unit × List Bool) :
@@ -3002,7 +2999,7 @@ noncomputable def cwRandomNonceLogHandler (msgLen : ℕ → ℕ)
         (fullTag, (msg, fullTag) :: queriedPairs)) <$>
         (List.take n <$> ProbOracleComp.query ((), nonce))
     else
-      pure ([], (msg, []) :: queriedPairs)
+      pure ([], queriedPairs)
 
 /-- Oracle reduction turning an adaptive word-level `Forger` into an `OracleDistinguisher`
 for the PRF security game ([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270):
@@ -3074,12 +3071,12 @@ private theorem isOraclePPTOn_cwRandomNonceLogHandler
           let fullTag := encPair encBits encBits (nonce, tag)
           (fullTag, (msg, fullTag) :: q.1.2.2)) <$>
           (List.take q.1.1.1.1 <$> ProbOracleComp.query ((), q.2))) :=
-    (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop)
-  exact IsOraclePPTOn.cond' (by fun_prop) (hsample.bind_with hquery)
+    (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop)
+  exact IsOraclePPTOn.cond (by fun_prop) (hsample.bind_with hquery)
     ((show ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) ×
           ((Unit × List Bool) × List (List Bool × List Bool)) =>
-        (([] : List Bool), (p.2.1.2, ([] : List Bool)) :: p.2.2))
+        (([] : List Bool), p.2.2))
       (encPair (encPair (encPair encUnary encBits) encBits)
         (encPair (encPair (encFinite Unit) encBits)
           (encList (encPair encBits encBits))))
@@ -3107,7 +3104,7 @@ private theorem isOraclePPTOn_cwRandomNonceCheck
             !p.2.2.contains p.2.1 &&
             (encPair encBits encBits (nonce, tag) == fullTag)) <$>
           (List.take p.1.1.1 <$> ProbOracleComp.query ((), unframe p.2.1.2))) :=
-  (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by
+  (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by
     simp only [List.contains_eq_mem]
     fun_prop)
 
@@ -3214,20 +3211,15 @@ theorem eval_prfRealGame_prfRandomNonceToPrfDistinguisher
             (cwRandomNonceLogHandler msgLen hash n k request state))) =
       (fun request state =>
         ProbComp.eval
-          (M.signingPairOracle (encPair encBits encBits (k, prfKey)) request state)) := by
+          (M.signingPairOracle n (encPair encBits encBits (k, prfKey)) request state)) := by
     funext request state
-    dsimp only [cwRandomNonceLogHandler, MACScheme.signingPairOracle, M, carterWegmanRandomMAC]
+    dsimp only [cwRandomNonceLogHandler, MACScheme.signingPairOracle,
+      MACScheme.signingPairOracleOn, M, carterWegmanRandomMAC]
     simp only [encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append,
       hprfLen]
     by_cases hcond : (request.2.length == msgLen n) = true
     · simp [hcond, Functor.map_map]
-    · have hcond' : (request.2.length == msgLen n) = false := Bool.eq_false_iff.mpr hcond
-      have hconst :
-          PMF.map (fun _ : List Bool => (([] : List Bool), (request.2, []) :: state))
-            (BitString.uniformList n) =
-          PMF.pure (([] : List Bool), (request.2, []) :: state) :=
-        PMF.map_const (BitString.uniformList n) (([] : List Bool), (request.2, []) :: state)
-      simp [hcond', hconst]
+    · simp [Bool.eq_false_iff.mpr hcond]
   rw [hstep]
   refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
   simp only [encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append, hprfLen]
@@ -3263,7 +3255,7 @@ private def adaptRandomNonceStep (msgLen : ℕ → ℕ) (n : ℕ) (request : Uni
       (fullTag, (msg, fullTag) :: queriedPairs)) <$>
       ProbOracleComp.query (BitString.ofList (msgLen n) msg)
   else
-    pure ([], (msg, []) :: queriedPairs)
+    pure ([], queriedPairs)
 
 private theorem isQueryBounded_adaptRandomNonceStep (msgLen : ℕ → ℕ) (n : ℕ)
     {α : Type} {prog : WordOracleComp Unit α} {Q : ℕ} (hprog : prog.IsQueryBounded Q)
@@ -3446,10 +3438,7 @@ private theorem eval_cwRandomNonceLogHandler_randomFunctionOracle_le
       · have hcond' : (msg.length == msgLen n) = false := Bool.eq_false_iff.mpr hcond
         simp only [pmf_norm, hcond', Bool.false_eq_true, ↓reduceIte, OracleComp.interpret_pure,
           StateT.run_pure]
-        have hsub' : tr.map ofRandomBitTriple <+ ((msg, []) :: init).reverse := by
-          rw [List.reverse_cons]
-          exact hsub.trans (List.sublist_append_left _ _)
-        exact ih [] ((msg, []) :: init) tr hsub'
+        exact ih [] init tr hsub
 
 /-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of
 [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270): under
@@ -3896,10 +3885,11 @@ noncomputable def linearHashNonceMAC (msgLen : ℕ → ℕ)
     BitString.LinearHash.wordHash family hmsgLen (isPPTOn_linearHashSeed hmsgLen)
     computableInPolyTime_linearHashWordHash hfamily
 
-/-- **Quantitative SUF-CMA bound for `linearHashNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274): at security parameter `n`, the SUF-CMA
-forgery probability of any `NonceMACForger` against `linearHashNonceMAC` is at most
-`2 * (2 ^ n)⁻¹` plus the PRF distinguishing advantage of `prfNonceToPrfDistinguisher`. -/
+/-- Step instance of [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: the quantitative SUF-CMA bound
+for `linearHashNonceMAC`. At security parameter `n`, the SUF-CMA forgery probability of any
+`NonceMACForger` against `linearHashNonceMAC` is at most `2 * (2 ^ n)⁻¹` plus the PRF distinguishing
+advantage of `prfNonceToPrfDistinguisher`. -/
 theorem sufCmaGame_linearHashNonceMAC_toReal_le
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary)
@@ -3933,8 +3923,9 @@ private theorem isDeltaUniversalHash_linearHashWordHash_nnreal (msgLen : ℕ →
   simpa only [ENNReal.coe_inv (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_ofNat] using
     isDeltaUniversalHash_linearHashWordHash msgLen n
 
-/-- **Asymptotic `NonceMACScheme.SUFCMA` security of `linearHashNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274): for any `PseudorandomFunction family` and
+/-- Step instance of [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic
+`NonceMACScheme.SUFCMA` security of `linearHashNonceMAC`. For any `PseudorandomFunction family` and
 polynomial-time message-length schedule `msgLen`, `linearHashNonceMAC` satisfies
 `NonceMACScheme.SUFCMA`. The Boolean-matrix linear hash is a `2⁻ⁿ`-DUF
 (`isDeltaUniversalHash_linearHashWordHash`), hence a statistical and so a computational DUF
@@ -3949,8 +3940,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashNonceMAC
     computableInPolyTime_linearHashWordHash (isDeltaUniversalHash_linearHashWordHash_nnreal msgLen)
     negligible_inv_two_pow
 
-/-- **Asymptotic `NonceMACScheme.EUFCMA` security of `linearHashNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274). -/
+/-- Step instance of [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic
+`NonceMACScheme.EUFCMA` security of `linearHashNonceMAC`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashNonceMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
@@ -3958,8 +3950,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashNonceMAC
     (linearHashNonceMAC msgLen family hmsgLen hprf.polyTime).EUFCMA :=
   (hprf.sufCma_linearHashNonceMAC hmsgLen).eufCma
 
-/-- **Asymptotic counter SUF-CMA security of `linearHashNonceMAC`** ([BonehShoup2023],
-Section 7.5 and the remark after Theorem 7.10, p. 274): the Boolean-matrix linear hash
+/-- Asymptotic counter SUF-CMA security of `linearHashNonceMAC`, after [BonehShoup2023], Section 7.5
+and the remark after Theorem 7.10 (p. 274), a step and not a cited result: the Boolean-matrix
+linear hash
 instance of `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC_of_statisticalDUF`, whose
 only assumption is that `family` is a `PseudorandomFunction`; the hash is a statistical DUF, as
 `PseudorandomFunction.sufCma_linearHashNonceMAC` explains. -/
@@ -3983,9 +3976,10 @@ noncomputable def linearHashRandomMAC (msgLen : ℕ → ℕ)
     BitString.LinearHash.wordHash family hmsgLen (isPPTOn_linearHashSeed hmsgLen)
     computableInPolyTime_linearHashWordHash hfamily
 
-/-- **Quantitative SUF-CMA bound for `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): at security parameter `n`, the SUF-CMA
-forgery probability of any `Q`-query `Forger` against `linearHashRandomMAC` is at most
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: the quantitative SUF-CMA bound
+for `linearHashRandomMAC`. At security parameter `n`, the SUF-CMA forgery probability of any
+`Q`-query `Forger` against `linearHashRandomMAC` is at most
 `(Q : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) + ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹` plus the PRF distinguishing
 advantage of `prfRandomNonceToPrfDistinguisher`. -/
 theorem sufCmaGame_linearHashRandomMAC_toReal_le
@@ -4015,13 +4009,14 @@ theorem sufCmaGame_linearHashRandomMAC_toReal_le
     (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) hq
   simpa only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat] using h
 
-/-- **Asymptotic `MACScheme.SUFCMA` security of `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): for any `PseudorandomFunction family` and
-polynomial-time message-length schedule `msgLen`, `linearHashRandomMAC` satisfies
-`MACScheme.SUFCMA`. The Boolean-matrix linear hash is a `2⁻ⁿ`-DUF
-(`isDeltaUniversalHash_linearHashWordHash`), hence a statistical and so a computational DUF
-([BonehShoup2023], Definition 7.5, p. 269), so this is Theorem 7.9 for this hash; it is proved
-through `PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`. -/
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic `MACScheme.SUFCMA`
+security of `linearHashRandomMAC`. For any `PseudorandomFunction family` and polynomial-time
+message-length schedule `msgLen`, `linearHashRandomMAC` satisfies `MACScheme.SUFCMA`. The
+Boolean-matrix linear hash is a `2⁻ⁿ`-DUF (`isDeltaUniversalHash_linearHashWordHash`), hence a
+statistical and so a computational DUF ([BonehShoup2023], Definition 7.5, p. 269), so this is
+Theorem 7.9 for this hash; it is proved through
+`PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashRandomMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
@@ -4031,8 +4026,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashRandomMAC
     computableInPolyTime_linearHashWordHash (isDeltaUniversalHash_linearHashWordHash_nnreal msgLen)
     negligible_inv_two_pow
 
-/-- **Asymptotic `MACScheme.EUFCMA` security of `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270). -/
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic `MACScheme.EUFCMA`
+security of `linearHashRandomMAC`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashRandomMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
@@ -4040,8 +4036,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashRandomMAC
     (linearHashRandomMAC msgLen family hmsgLen hprf.polyTime).EUFCMA :=
   (hprf.sufCma_linearHashRandomMAC hmsgLen).eufCma
 
-/-- **Asymptotic `MACScheme.OneTimeEUFCMA` security of `linearHashRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270). -/
+/-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
+linear hash, not the cited result, which holds for every DUF hash: asymptotic
+`MACScheme.OneTimeEUFCMA` security of `linearHashRandomMAC`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.oneTimeEUFCMA_linearHashRandomMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)

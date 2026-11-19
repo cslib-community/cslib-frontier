@@ -116,7 +116,8 @@ theorem isPPT_iterateInverter (hf : ComputableInPolyTime f encBits encBits)
       (encPair encUnary encBits) encBits :=
     ComputableTidilyInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
       (ComputableTidilyInPolyTime.snd encUnary encBits) hf.tidy fun state => by simp [encBits, hlen]
-  exact hadversary.preprocess (ComputableTidilyInPolyTime.fst encUnary encBits) hiterate
+  exact hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits)
+    (ComputableInPolyTime.of_tidy hiterate)
 
 /-- **The reduction is exact.** At every length `n` with `k n ≠ 0`, the derived inverter inverts
 `f` exactly as often as the given inverter inverts the iterate. -/

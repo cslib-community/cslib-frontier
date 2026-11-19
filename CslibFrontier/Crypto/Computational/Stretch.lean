@@ -185,7 +185,7 @@ theorem isPPT_test {α : Type} {input : α ↪ List Bool}
   have hcond := ComputableInPolyTime.unary_lt' hi (hcount.comp ha)
   have hfalse : IsPPTOn pairEncoding encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isPPTOn
-  have hbranch := IsPPTOn.ite hcond.tidy hyes hfalse
+  have hbranch := IsPPTOn.ite hcond hyes hfalse
   have hindex := isPPTOn_sampleBoundedIndex hcount
   simpa only [test, reduction, hop, pairEncoding, fullEncoding, Function.comp_def] using
     hindex.bind_with hbranch

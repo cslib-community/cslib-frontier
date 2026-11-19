@@ -158,12 +158,12 @@ public theorem lift (tr : Translator Q E)
     enc_len [List.length_singleton]
   have h₁ := fst (encPair encQ encS) encBool
   have hqb := (fst' h₁).prod (snd (encPair encQ encS) encBool)
-  have hstate := ((ComputableTidilyInDegree.of_finite (encIn := encPair encQ encBool)
-    (encMid := encQ) fun qb : Q × Bool => (tr.step qb.1 qb.2).1).inO_one).comp hqb
-  have hsome := ((ComputableTidilyInDegree.of_finite (encIn := encPair encQ encBool)
-    (encMid := encBool) fun qb : Q × Bool => (tr.step qb.1 qb.2).2.isSome).inO_one).comp hqb
-  have hevent := ((ComputableTidilyInDegree.of_finite (encIn := encPair encQ encBool)
-    (encMid := encE) fun qb : Q × Bool => (tr.step qb.1 qb.2).2.getD default).inO_one).comp hqb
+  have hstate := ((ComputableInDegree.of_finite (encIn := encPair encQ encBool)
+    (encMid := encQ) fun qb : Q × Bool => (tr.step qb.1 qb.2).1).inO_one.tidy).comp hqb
+  have hsome := ((ComputableInDegree.of_finite (encIn := encPair encQ encBool)
+    (encMid := encBool) fun qb : Q × Bool => (tr.step qb.1 qb.2).2.isSome).inO_one.tidy).comp hqb
+  have hevent := ((ComputableInDegree.of_finite (encIn := encPair encQ encBool)
+    (encMid := encE) fun qb : Q × Bool => (tr.step qb.1 qb.2).2.getD default).inO_one.tidy).comp hqb
   have hs := snd' h₁
   have hnext := h.comp (hs.prod hevent)
   have hall := hstate.prod (hsome.ite hnext hs)

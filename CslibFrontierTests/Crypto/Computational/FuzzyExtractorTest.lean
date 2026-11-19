@@ -473,7 +473,7 @@ theorem isPPT_oneShiftReuseAdversary : oneShiftReuseAdversary.IsPPT where
         (encPair encUnary encBits) encBits := by fun_prop
     have hlim : ComputableInPolyTime (fun p : ℕ × List Bool => p.1)
         (encPair encUnary encBits) encUnary := by fun_prop
-    exact (IsOraclePPTOn.query_take' () hreq hlim).isOraclePPT
+    exact (IsOraclePPTOn.query_take () hreq hlim).isOraclePPT
   guess := by
     have hguess : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.1.headD false)
         (encPair encUnary (encPair encBits encBits)) encBool := by fun_prop

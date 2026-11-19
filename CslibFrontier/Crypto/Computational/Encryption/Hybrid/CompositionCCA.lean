@@ -383,9 +383,9 @@ theorem isOraclePPTOn_hybridKEMCCAHandler (E : SymmetricCipher)
   have hreply := (computableInPolyTime_hybridKEMReply E hF).comp
     ((hn.comp hp).prod ((hdem.comp hp).prod hr))
   unfold hybridKEMCCAHandler
-  exact IsOraclePPTOn.cond' hcanonical
-    (IsOraclePPTOn.cond' heq hlocal.isOraclePPTOn
-      ((IsOraclePPTOn.query_take' () hkem (hdecBound.comp (hn.prod hkem))).bind_with
+  exact IsOraclePPTOn.cond hcanonical
+    (IsOraclePPTOn.cond heq hlocal.isOraclePPTOn
+      ((IsOraclePPTOn.query_take () hkem (hdecBound.comp (hn.prod hkem))).bind_with
         hreply.isOraclePPTOn))
     (ComputableInPolyTime.const []).isOraclePPTOn
 
@@ -411,7 +411,7 @@ private theorem isOraclePPTOn_hybridKEMCCAInterpret (E : SymmetricCipher)
   have hhandler : IsOraclePPTOn (encPair input (encPair (encFinEnum Unit) encBits)) encBits
       (fun p : α × (Unit × List Bool) => if reject p.1 p.2.2 then pure [] else
         hybridKEMCCAHandler E F decBound (n p.1) (key p.1) (ctK p.1) p.2) :=
-    IsOraclePPTOn.cond' (hreject.comp
+    IsOraclePPTOn.cond (hreject.comp
       ((ComputableInPolyTime.fst input (encPair (encFinEnum Unit) encBits)).prod
         (ComputableInPolyTime.snd input (encPair (encFinEnum Unit) encBits)).snd'))
       (ComputableInPolyTime.const []).isOraclePPTOn
@@ -478,7 +478,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   let C := encPair (encPair encBits encBits) encBits
   have hchoose := isOraclePPTOn_hybridKEMCCAInterpret E (reject := fun _ _ => false)
     hF hdecBound hn hkey hctK
-    (hA.choose.on.preprocess' (hn.prod hpk)) (ComputableInPolyTime.const false)
+    (hA.choose.on.preprocess (hn.prod hpk)) (ComputableInPolyTime.const false)
   have hp := ComputableInPolyTime.fst input C
   have hc := ComputableInPolyTime.snd input C
   have hn1 := hn.comp hp
@@ -486,7 +486,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   have hk1 := hctK.comp hp
   have hm0 := hc.fst'.fst'
   have hm1 := hc.fst'.snd'
-  have henc := (E.encrypt_ppt.isOraclePPTOn (Operation := Unit)).preprocess'
+  have henc := (E.encrypt_ppt.isOraclePPTOn (Operation := Unit)).preprocess
     (hn1.prod (hkey1.prod (ComputableInPolyTime.ite (hbit.comp hp) hm1 hm0)))
   have hbase := ComputableInPolyTime.fst (encPair input C) encBits
   have hctD := ComputableInPolyTime.snd (encPair input C) encBits
@@ -497,7 +497,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   have hguess := isOraclePPTOn_hybridKEMCCAInterpret E
     (reject := fun a req => req == encPair encBits encBits (ctK a.1.1, a.2))
     hF hdecBound hn2 hkey2 hk2
-    (hA.guess.preprocess' (hn2.prod ((hc.snd'.comp hbase).prod hct)))
+    (hA.guess.preprocess (hn2.prod ((hc.snd'.comp hbase).prod hct)))
     (ComputableInPolyTime.beq (encB := encBits)
       (ComputableInPolyTime.snd _ encBits)
       (hct.comp (ComputableInPolyTime.fst _ encBits)))
@@ -507,7 +507,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   have hcondition := hvalid.comp (hn1.prod (hm0.prod hm1))
   simp only [Bool.false_eq_true, ↓reduceIte] at hchoose
   unfold hybridKEMCCAContinuation
-  exact hchoose.bind_with (IsOraclePPTOn.cond' hcondition (henc.bind_with hguess)
+  exact hchoose.bind_with (IsOraclePPTOn.cond hcondition (henc.bind_with hguess)
     (ComputableInPolyTime.const false).isOraclePPTOn)
 
 /-- The fixed-bit KEM reduction is uniform strict oracle PPT. It does not sample ideal keys,
