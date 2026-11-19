@@ -133,16 +133,7 @@ omit [StarModule R B] in
 /-- A star-algebra homomorphism out of the free algebra is determined by the generators. -/
 @[ext] theorem hom_ext {f g : FreeSelfAdjoint R X →⋆ₐ[R] B}
     (h : ∀ x, f (of x) = g (of x)) : f = g := by
-  apply DFunLike.ext
-  intro a
-  induction a using FreeAlgebra.induction with
-  | grade0 r =>
-    change f (algebraMap R (FreeSelfAdjoint R X) r) = g (algebraMap R (FreeSelfAdjoint R X) r)
-    rw [AlgHomClass.commutes, AlgHomClass.commutes]
-  | grade1 x => exact h x
-  | mul a b ha hb =>
-    exact (map_mul f a b).trans ((congrArg₂ (· * ·) ha hb).trans (map_mul g a b).symm)
-  | add a b ha hb =>
-    exact (map_add f a b).trans ((congrArg₂ (· + ·) ha hb).trans (map_add g a b).symm)
+  have he : f.toAlgHom = g.toAlgHom := FreeAlgebra.hom_ext (funext h)
+  exact DFunLike.ext f g fun a => congrArg (fun F : FreeSelfAdjoint R X →ₐ[R] B => F a) he
 
 end FreeSelfAdjoint
