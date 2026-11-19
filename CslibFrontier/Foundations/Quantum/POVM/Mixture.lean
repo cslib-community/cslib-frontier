@@ -131,16 +131,6 @@ theorem mixture_coin_bind_effect (η : I) (p₀ p₁ : PMF A) (M : A → POVM B 
   rw [mixture_bind, mixture_effect, Fintype.sum_bool]
   simp only [Probability.PMF.coin_apply_toReal, Bool.false_eq_true, ite_true, ite_false]
 
-open scoped MatrixOrder in
-/-- In a two-stage mixture, the outer probability times a whole branch effect lies below the
-final averaged effect. -/
-theorem smul_mixture_effect_le_mixture_bind {Z : Type*} [Finite Z] (r : PMF Z) (p : Z → PMF A)
-    (M : A → POVM B ι) (z : Z) (b : B) :
-    (r z).toReal • (mixture (p z) M).effect b ≤ (mixture (r.bind p) M).effect b := by
-  let := Fintype.ofFinite Z
-  rw [mixture_bind]
-  exact smul_effect_le_mixture r (fun z' => mixture (p z') M) z b
-
 open scoped Kronecker in
 /-- Independent choices of local measurements give the mixture of their product POVMs. -/
 theorem kronecker_mixture {C D κ : Type*} [Fintype C] [Fintype D] [Fintype κ] [DecidableEq κ]
