@@ -77,7 +77,7 @@ theorem actual_conditionalChildCost_le_of_root_budgets
         terminal (fun i => rate (kb i)) CA CB estimated canonical) ≤ δ := by
   extract_lets cutoff bounded source mid terminal estimated canonical channelsV CA CB B scale
   intro hroot
-  have hCA : 0 ≤ CA := mul_nonneg (by norm_num) (HP.Q_nonneg _)
+  have hCA : 0 ≤ CA := by positivity
   have hCB : 0 ≤ CB := by dsimp only [CB]; positivity
   have hP : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
   have hbounded (i : ℕ) (v : ℝ) : bounded i v ∈ Set.Icc 0 (max cap 16) :=

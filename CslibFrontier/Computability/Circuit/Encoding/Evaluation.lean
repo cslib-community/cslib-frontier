@@ -20,11 +20,14 @@ Runtime certificates belong to the interpretation-specific modules.
 
 ## Main definitions
 
+* `evalCodeStep`: one total gate-list evaluation step.
 * `evalCode`: total evaluation of a gate list.
 
 ## Main results
 
 * `length_evalCode`, `prefix_evalCode`: the evaluator appends one value per gate.
+* `getD_evalCode_of_lt`, `getD_evalCode_of_le`: it keeps the initial wires and reads the default
+  beyond the last gate.
 * `getD_evalCode`: gate equations on well-formed codes.
 * `Program.evalCode_code`: the input values followed by the complete program trace.
 * `Circuit.eval_eq_getD`: typed circuit outputs are lookups in that trace.
@@ -40,13 +43,21 @@ universe u v
 
 variable {σ : Signature.{v}} {U : Type u} {n k m : ℕ}
 
+/-- Evaluate one encoded gate from the values computed so far, appending its output. A missing
+argument or out-of-range wire reads the supplied default. -/
+def evalCodeStep (I : Interpretation σ U) (d : U)
+    (input : List U × (σ.Op × List ℕ)) : List U :=
+  match input with
+  | (values, op, args) =>
+      values ++ [I op fun a => args[a.val]?.elim d (values.getD · d)]
+
 /-- Evaluate the list of gates `gates` on the input values `x`: start from `x` and append the value
 of each gate in turn, reading wire `i` at position `i` of the values computed so far. An argument
 missing from a gate, or a wire not yet computed, reads `d`; on the code of a program neither
 happens (`Program.evalCode_code`). -/
 def evalCode (I : Interpretation σ U) (d : U) (x : List U) (gates : List (σ.Op × List ℕ)) :
     List U :=
-  gates.foldl (fun values g => values ++ [I g.1 fun a => g.2[a.val]?.elim d (values.getD · d)]) x
+  gates.foldl (fun values gate => evalCodeStep I d (values, gate)) x
 
 /-- Evaluating an empty gate list returns the initial wire values unchanged. -/
 @[simp] theorem evalCode_nil (I : Interpretation σ U) (d : U) (x : List U) :
@@ -59,7 +70,7 @@ theorem evalCode_append_singleton (I : Interpretation σ U) (d : U) (x : List U)
     evalCode I d x (gates ++ [g]) =
       evalCode I d x gates ++
         [I g.1 fun a => g.2[a.val]?.elim d ((evalCode I d x gates).getD · d)] := by
-  simp [evalCode, List.foldl_append]
+  simp [evalCode, evalCodeStep, List.foldl_append]
 
 /-- Evaluating a concatenation of gate lists evaluates the second list starting from the wire
 values produced by the first. -/
@@ -83,6 +94,19 @@ theorem prefix_evalCode (I : Interpretation σ U) (d : U) (x : List U)
   | append_singleton gates g ih =>
     rw [evalCode_append_singleton]
     exact ih.trans (List.prefix_append _ _)
+
+/-- Evaluating a gate list keeps the values of the initial wires. -/
+theorem getD_evalCode_of_lt (I : Interpretation σ U) (d : U)
+    (x : List U) (gates : List (σ.Op × List ℕ)) {i : ℕ} (hi : i < x.length) :
+    (evalCode I d x gates).getD i d = x.getD i d := by
+  obtain ⟨t, ht⟩ := prefix_evalCode I d x gates
+  rw [← ht, List.getD_append _ _ _ _ hi]
+
+/-- Beyond the initial wires and the gates, evaluation reads the default. -/
+theorem getD_evalCode_of_le (I : Interpretation σ U) (d : U)
+    (x : List U) (gates : List (σ.Op × List ℕ)) {i : ℕ} (hi : x.length + gates.length ≤ i) :
+    (evalCode I d x gates).getD i d = d :=
+  List.getD_eq_default _ _ (by rw [length_evalCode]; exact hi)
 
 /-- **The value of a gate** of a well-formed gate list is its operation applied to the values of
 its arguments. -/

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
 public import CslibFrontier.Foundations.LinearAlgebra.KernelVector
 public import Mathlib.Algebra.Polynomial.Bivariate
 public import Mathlib.Algebra.Polynomial.Roots
@@ -35,17 +36,25 @@ agrees with `w`; when there are more than `D` of them it is zero, so `Y - P(X)` 
 (`Cslib.Code.Sudan.IsInterpolant.X_sub_C_dvd`): `P` is a root of `Q` viewed as a polynomial in `Y`
 over `F[X]`.
 
-This module also computes an explicit interpolant by linear algebra, choosing one of least
-`Y`-degree: for `j = 0, 1, …, D / d` it finds a kernel vector of the interpolation matrix
-restricted to the monomials of `Y`-degree at most `j` (`Cslib.LinearAlgebra.kernelVec`), and takes
-the first nonzero one (`Cslib.Code.Sudan.interpolant`). When `d ≥ 1` and there are more monomials
-than points this is an interpolant (`Cslib.Code.Sudan.isInterpolant_interpolant`), and no
-interpolant has smaller `Y`-degree (`Cslib.Code.Sudan.natDegree_interpolant_le`).
+More generally, for any finite system of homogeneous linear constraints `entry : κ → ℕ × ℕ → F` on
+the monomials of `(1, d)`-weighted degree at most `D`, this module computes an explicit solution of
+least `Y`-degree by Gaussian elimination (`Cslib.LinearAlgebra.kernelVec`): for `j = 0, 1, …, D / d`
+it finds a kernel vector of the constraint matrix restricted to the monomials of `Y`-degree at most
+`j` (`Cslib.Code.Sudan.minDegKernelVecUpTo`) and selects the first nonzero one
+(`Cslib.Code.Sudan.minDegPoly`), returning `0` if every kernel vector vanishes. When `d ≥ 1` and a
+nonzero bounded-weighted-degree solution exists, `minDegPoly` is a nonzero solution
+(`Cslib.Code.Sudan.minDegPoly_spec`) of minimum `Y`-degree
+(`Cslib.Code.Sudan.natDegree_minDegPoly_le`). Specializing to point evaluations yields Sudan's
+explicit least-`Y`-degree interpolant (`Cslib.Code.Sudan.interpolant`,
+`Cslib.Code.Sudan.isInterpolant_interpolant`, `Cslib.Code.Sudan.natDegree_interpolant_le`);
+`CslibFrontier.Foundations.Data.Code.GuruswamiSudan` instantiates the same machinery for
+multiplicity-`m` shifted-coefficient constraints.
 
 Least `Y`-degree makes every polynomial `P` of degree at most `d` with more than `D` agreements a
 *simple* root of `Q`, viewed as a polynomial in `Y`: if `(Y - P)²` divided `Q`, then `Q / (Y - P)`
 would be an interpolant of smaller `Y`-degree. On division by `Y - P` the bound `D` on the
-weighted degree drops to `D - d` (`Cslib.Code.Sudan.add_mul_add_one_le_of_mul`, an upper bound),
+weighted degree drops to `D - d` (`Cslib.Code.Sudan.add_mul_add_one_le_of_mul`, derived from
+`Polynomial.Bivariate.weightedDegree_mul` and `Polynomial.Bivariate.weightedDegree_X_sub_C`),
 so `Q = (Y - P) * S` where `S(X, P(X))` is a nonzero polynomial of degree at most `D - d`
 (`Cslib.Code.Sudan.exists_eq_mul_eval_ne_zero`). Simplicity is what lets the root `P` be lifted
 from a single known value by Newton iteration (`Cslib.Code.henselValue_eq`).
@@ -56,23 +65,29 @@ from a single known value by Newton iteration (`Cslib.Code.henselValue_eq`).
 * `Cslib.Code.Sudan.WeightedDegreeLE`: bivariate polynomials of bounded `(1, d)`-weighted degree.
 * `Cslib.Code.Sudan.bivariateOf`: the bivariate polynomial with given coefficients on a set of
   monomials.
-* `Cslib.Code.Sudan.IsInterpolant`: the bivariate interpolants of a received word.
 * `Cslib.Code.Sudan.monomialsUpTo`: the monomials of bounded weighted degree and bounded
   `Y`-degree.
-* `Cslib.Code.Sudan.interpMatrix`: the interpolation matrix on a set of monomials.
 * `Cslib.Code.Sudan.coeffsOf`: the coefficients on a set of monomials given by a vector indexed by
   its enumeration.
-* `Cslib.Code.Sudan.kernelVecUpTo`: the kernel vector of the interpolation matrix on the monomials
-  of `Y`-degree at most `j`.
-* `Cslib.Code.Sudan.interpolantCoeffs`: the coefficients of the first nonzero kernel vector.
-* `Cslib.Code.Sudan.interpolant`: an interpolant of least `Y`-degree, by elimination.
+* `Cslib.Code.Sudan.monomialMatrix`, `Cslib.Code.Sudan.minDegKernelVecUpTo`,
+  `Cslib.Code.Sudan.minDegCoeffs`, `Cslib.Code.Sudan.minDegPoly`: generic linear-constraint
+  elimination selecting a bounded-weighted-degree bivariate solution of least `Y`-degree.
+* `Cslib.Code.Sudan.IsInterpolant`: the bivariate interpolants of a received word.
+* `Cslib.Code.Sudan.interpMatrix`, `Cslib.Code.Sudan.kernelVecUpTo`,
+  `Cslib.Code.Sudan.interpolantCoeffs`, `Cslib.Code.Sudan.interpolant`: Sudan's interpolation
+  matrix and least-`Y`-degree interpolant by elimination.
 
 ## Main results
 
 * `Cslib.Code.Sudan.add_one_mul_add_two_le_two_mul_mul_card_monomials`: counting the monomials.
+* `Cslib.Code.Sudan.WeightedDegreeLE.of_dvd`: divisibility monotonicity for weighted degree.
 * `Cslib.Code.Sudan.WeightedDegreeLE.natDegree_mul_le`,
   `Cslib.Code.Sudan.IsInterpolant.natDegree_mul_le`: the `Y`-degree under a weighted-degree bound.
 * `Cslib.Code.Sudan.WeightedDegreeLE.natDegree_eval_le`: the degree of `Q(X, P(X))`.
+* `Cslib.Code.Sudan.exists_weightedDegreeLE_eq_zero`, `Cslib.Code.Sudan.minDegPoly_spec`,
+  `Cslib.Code.Sudan.natDegree_minDegPoly_le`,
+  `Cslib.Code.Sudan.minDegPoly_eq_zero_of_forall_eq_zero`: existence, correctness, least `Y`-degree,
+  and zero handling for generic linear-constraint elimination.
 * `Cslib.Code.Sudan.exists_isInterpolant`: interpolants exist when there are more than `n`
   monomials.
 * `Cslib.Code.Sudan.IsInterpolant.eval_eq_zero`, `Cslib.Code.Sudan.IsInterpolant.X_sub_C_dvd`,
@@ -170,6 +185,14 @@ theorem WeightedDegreeLE.mono {d D D' : ℕ} {Q : F[X][Y]} (hQ : WeightedDegreeL
     (hD : D ≤ D') : WeightedDegreeLE d D' Q :=
   fun a b hab => (hQ a b hab).trans hD
 
+/-- If `Q ≠ 0` has `(1, d)`-weighted degree at most `D` and `S ∣ Q`, then `S` also has
+`(1, d)`-weighted degree at most `D`. -/
+theorem WeightedDegreeLE.of_dvd {d D : ℕ} {Q S : F[X][Y]} (hQ0 : Q ≠ 0)
+    (hQ : WeightedDegreeLE d D Q) (hdvd : S ∣ Q) : WeightedDegreeLE d D S :=
+  Polynomial.Bivariate.weightedDegree_le_iff.1
+    ((Polynomial.Bivariate.weightedDegree_le_of_dvd hQ0 hdvd).trans
+      (Polynomial.Bivariate.weightedDegree_le_iff.2 hQ))
+
 /-- If `Q` has `(1, d)`-weighted degree at most `D`, its `Y`-degree satisfies
 `deg_Y Q * d ≤ D`. -/
 theorem WeightedDegreeLE.natDegree_mul_le {d D : ℕ} {Q : F[X][Y]}
@@ -226,8 +249,8 @@ theorem coeff_coeff_bivariateOf (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → F)
       by_cases ha : a' = a
       · subst ha
         simp
-      · simp [coeff_monomial, ha, Ne.symm ha]
-    · simp [hb, Ne.symm hb]
+      · simp [coeff_monomial, Ne.symm ha]
+    · simp [Ne.symm hb]
 
 /-- The value of `bivariateOf M c` at `(x, y)` is `∑ m ∈ M, c m * x ^ m.1 * y ^ m.2`. -/
 theorem evalEval_bivariateOf (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → F) (x y : F) :
@@ -261,6 +284,264 @@ theorem weightedDegreeLE_bivariateOf {M : Finset (ℕ × ℕ)} {d D : ℕ} (hM :
   · exact (mem_monomials.1 (hM h)).2.2
   · exact absurd rfl hab
 
+/-- The monomials of `(1, d)`-weighted degree at most `D` and `Y`-degree at most `j`. -/
+def monomialsUpTo (d D j : ℕ) : Finset (ℕ × ℕ) := (monomials d D).filter fun m => m.2 ≤ j
+
+/-- The coefficients on `M` given by a vector indexed by the enumeration of `M`, and zero
+elsewhere. -/
+noncomputable def coeffsOf (M : Finset (ℕ × ℕ)) (u : Fin #M → F) (m : ℕ × ℕ) : F :=
+  if h : m ∈ M then u (M.equivFin ⟨m, h⟩) else 0
+
+/-! ### Generic linear-constraint interpolation of least `Y`-degree -/
+
+section GenericInterpolation
+
+variable {κ : Type*} [Fintype κ]
+
+/-- The linear-constraint matrix for a family of row functionals `entry : κ → ℕ × ℕ → F` on a
+monomial set `M`: rows index constraints `k : κ` (enumerated by `Fintype.equivFin κ`), columns index
+monomials `m ∈ M` (enumerated by `M.equivFin`), and entry `(t, col)` is `entry k m`. -/
+noncomputable abbrev monomialMatrix (entry : κ → ℕ × ℕ → F) (M : Finset (ℕ × ℕ)) :
+    Fin (Fintype.card κ) → Fin #M → F :=
+  fun t col => entry ((Fintype.equivFin κ).symm t) (M.equivFin.symm col : ℕ × ℕ)
+
+/-- The dot product of row `k` of `monomialMatrix entry M` with `u` equals
+`∑ m ∈ M, coeffsOf M u m * entry k m`. -/
+theorem monomialMatrix_dotProduct (entry : κ → ℕ × ℕ → F) (M : Finset (ℕ × ℕ))
+    (u : Fin #M → F) (k : κ) :
+    monomialMatrix entry M (Fintype.equivFin κ k) ⬝ᵥ u =
+      ∑ m ∈ M, coeffsOf M u m * entry k m := by
+  rw [dotProduct]
+  have h := Equiv.sum_comp M.equivFin.symm
+    (fun m : M => entry k (m : ℕ × ℕ) * u (M.equivFin m))
+  simp only [Equiv.apply_symm_apply] at h
+  rw [← Finset.sum_coe_sort M (fun m => coeffsOf M u m * entry k m)]
+  simp only [monomialMatrix, Equiv.symm_apply_apply]
+  rw [h]
+  refine Fintype.sum_congr _ _ fun m => ?_
+  simp only [coeffsOf, Finset.coe_mem, dite_true, Subtype.coe_eta]
+  ring
+
+/-- **Existence of a nonzero bounded-weighted-degree solution.** Whenever `|κ| < #(monomials d D)`
+and the homogeneous linear functionals `L : κ → F[X][Y] → F` act on `bivariateOf` via
+`entry : κ → ℕ × ℕ → F`, there exists a nonzero polynomial `Q` of `(1, d)`-weighted degree at most
+`D` satisfying `L k Q = 0` for all `k`. -/
+theorem exists_weightedDegreeLE_eq_zero (entry : κ → ℕ × ℕ → F) (L : κ → F[X][Y] → F)
+    (hL : ∀ M c k, L k (bivariateOf M c) = ∑ m ∈ M, c m * entry k m)
+    {d D : ℕ} (hn : Fintype.card κ < #(monomials d D)) :
+    ∃ Q : F[X][Y], Q ≠ 0 ∧ WeightedDegreeLE d D Q ∧ ∀ k, L k Q = 0 := by
+  classical
+  let M := monomials d D
+  let A : Matrix κ M F := Matrix.of fun k col => entry k (col : ℕ × ℕ)
+  have hker : LinearMap.ker A.mulVecLin ≠ ⊥ :=
+    LinearMap.ker_ne_bot_of_finrank_lt (by
+      rwa [Module.finrank_fintype_fun_eq_card, Module.finrank_fintype_fun_eq_card,
+        Fintype.card_coe])
+  obtain ⟨c, hc, hc0⟩ := (Submodule.ne_bot_iff _).1 hker
+  obtain ⟨col₀, hcol₀⟩ := Function.ne_iff.1 hc0
+  let c' : ℕ × ℕ → F := fun m' => if h : m' ∈ M then c ⟨m', h⟩ else 0
+  refine ⟨bivariateOf M c', fun h => hcol₀ ?_, weightedDegreeLE_bivariateOf Subset.rfl c',
+    fun k => ?_⟩
+  · have := coeff_coeff_bivariateOf M c' (col₀ : ℕ × ℕ).1 (col₀ : ℕ × ℕ).2
+    rw [h] at this
+    simpa [c', col₀.2] using this.symm
+  · rw [hL, ← sum_attach]
+    have hrow := congrFun (LinearMap.mem_ker.1 hc) k
+    simpa [A, c', Matrix.mulVec, dotProduct, mul_comm] using hrow
+
+variable [DecidableEq F]
+
+/-- The kernel vector of `monomialMatrix entry` on the monomials of `(1, d)`-weighted degree at
+most `D` and `Y`-degree at most `j`. -/
+noncomputable abbrev minDegKernelVecUpTo (entry : κ → ℕ × ℕ → F) (d D j : ℕ) :
+    Fin #(monomialsUpTo d D j) → F :=
+  kernelVec (monomialMatrix entry (monomialsUpTo d D j))
+
+/-- The coefficients of the least-`Y`-degree solution for `entry`: those of the first nonzero
+kernel vector among `j = 0, 1, …, D / d`, or zero if every kernel vector vanishes. -/
+noncomputable abbrev minDegCoeffs (entry : κ → ℕ × ℕ → F) (d D : ℕ) : ℕ × ℕ → F :=
+  ∑ j : Fin (D / d + 1),
+    firstFlags (fun j : Fin (D / d + 1) =>
+        if minDegKernelVecUpTo entry d D j = 0 then (0 : F) else 1) j •
+      coeffsOf (monomialsUpTo d D j) (minDegKernelVecUpTo entry d D j)
+
+/-- **Least-`Y`-degree elimination polynomial** for a linear constraint family `entry` on
+`monomials d D`: reconstructs the bivariate polynomial from the first nonzero kernel vector among
+`Y`-degree bounds `j = 0, 1, …, D / d`, and returns `0` if every kernel vector vanishes. -/
+noncomputable def minDegPoly (entry : κ → ℕ × ℕ → F) (d D : ℕ) : F[X][Y] :=
+  bivariateOf (monomials d D) (minDegCoeffs entry d D)
+
+/-- `minDegPoly` always has `(1, d)`-weighted degree at most `D`. -/
+theorem weightedDegreeLE_minDegPoly (entry : κ → ℕ × ℕ → F) (d D : ℕ) :
+    WeightedDegreeLE d D (minDegPoly entry d D) :=
+  weightedDegreeLE_bivariateOf Subset.rfl _
+
+/-- `minDegPoly` always has `Y`-degree at most `D` (for all `d`, including `d = 0`). -/
+theorem natDegree_minDegPoly_le_bound (entry : κ → ℕ × ℕ → F) (d D : ℕ) :
+    (minDegPoly entry d D).natDegree ≤ D := by
+  refine natDegree_le_iff_coeff_eq_zero.2 fun b hb => ?_
+  ext a
+  rw [minDegPoly, coeff_coeff_bivariateOf, coeff_zero]
+  split_ifs with h
+  · exact absurd (mem_monomials.1 h).2.1 (not_le.2 hb)
+  · rfl
+
+/-- If every bounded-`Y`-degree kernel vector vanishes, `minDegPoly` is the zero polynomial. -/
+theorem minDegPoly_eq_zero_of_forall_eq_zero (entry : κ → ℕ × ℕ → F) (d D : ℕ)
+    (h0 : ∀ j : Fin (D / d + 1), minDegKernelVecUpTo entry d D j = 0) :
+    minDegPoly entry d D = 0 := by
+  have hb : (fun j : Fin (D / d + 1) =>
+      if minDegKernelVecUpTo entry d D j = 0 then (0 : F) else 1) = 0 := by
+    funext j
+    simp [h0 j]
+  have hcoeffs : minDegCoeffs entry d D = 0 := by
+    simp only [minDegCoeffs, firstFlags_of_eq_zero hb, Pi.zero_apply, zero_smul, sum_const_zero]
+  ext b a
+  rw [minDegPoly, coeff_coeff_bivariateOf, hcoeffs]
+  simp
+
+/-- `minDegPoly` always satisfies every linear constraint `L k _ = 0` (for all `d, D`, including
+when `minDegPoly = 0` or `d = 0`). -/
+theorem apply_minDegPoly_eq_zero (entry : κ → ℕ × ℕ → F) (L : κ → F[X][Y] → F)
+    (hL : ∀ M c k, L k (bivariateOf M c) = ∑ m ∈ M, c m * entry k m) (d D : ℕ) (k : κ) :
+    L k (minDegPoly entry d D) = 0 := by
+  rw [minDegPoly, hL]
+  obtain ⟨-, hsum⟩ | ⟨j, -, -, hsum⟩ := sum_firstFlags_smul_eq
+      (fun j : Fin (D / d + 1) => if minDegKernelVecUpTo entry d D j = 0 then (0 : F) else 1)
+      (fun j => coeffsOf (monomialsUpTo d D j) (minDegKernelVecUpTo entry d D j))
+  · rw [show minDegCoeffs entry d D = 0 from hsum]
+    simp
+  · set M := monomialsUpTo d D (j : ℕ)
+    have hsub : M ⊆ monomials d D := filter_subset _ _
+    have hzero : monomialMatrix entry M (Fintype.equivFin κ k) ⬝ᵥ
+        minDegKernelVecUpTo entry d D j = 0 :=
+      congrFun (mulVec_kernelVec _) _
+    rw [monomialMatrix_dotProduct] at hzero
+    rw [show minDegCoeffs entry d D = coeffsOf M (minDegKernelVecUpTo entry d D j) from hsum,
+      ← hzero]
+    refine (Finset.sum_subset hsub fun m _ hm => ?_).symm
+    simp only [coeffsOf]
+    rw [dite_eq_right fun h => absurd h hm, zero_mul]
+
+omit [Fintype κ] [DecidableEq F] in
+/-- For `d ≥ 1`, every nonzero monomial of a polynomial with `WeightedDegreeLE d D` lies in
+`monomials d D`. -/
+private theorem mem_monomials_of_weightedDegreeLE {d D : ℕ} (hd : 1 ≤ d) {Q : F[X][Y]}
+    (hQ : WeightedDegreeLE d D Q) {a b : ℕ} (hab : (Q.coeff b).coeff a ≠ 0) :
+    (a, b) ∈ monomials d D := by
+  have h := hQ a b hab
+  refine mem_monomials.2 ⟨by omega, ?_, h⟩
+  nlinarith
+
+/-- Any nonzero bounded-weighted-degree solution `Q` of `Y`-degree at most `j` gives a nonzero
+kernel vector on `monomialsUpTo d D j`. -/
+private theorem minDegKernelVecUpTo_ne_zero (entry : κ → ℕ × ℕ → F) (L : κ → F[X][Y] → F)
+    (hL : ∀ M c k, L k (bivariateOf M c) = ∑ m ∈ M, c m * entry k m)
+    {d D : ℕ} (hd : 1 ≤ d) {Q : F[X][Y]} (hQ0 : Q ≠ 0) (hQwd : WeightedDegreeLE d D Q)
+    (hQL : ∀ k, L k Q = 0) {j : ℕ} (hj : Q.natDegree ≤ j) :
+    minDegKernelVecUpTo entry d D j ≠ 0 := by
+  set M := monomialsUpTo d D j
+  have hsupp : ∀ a b, (Q.coeff b).coeff a ≠ 0 → (a, b) ∈ M := fun a b hab =>
+    mem_filter.2 ⟨mem_monomials_of_weightedDegreeLE hd hQwd hab,
+      (le_natDegree_of_ne_zero fun h => hab (by rw [h, coeff_zero])).trans hj⟩
+  refine kernelVec_ne_zero _ ⟨fun col =>
+    (Q.coeff (M.equivFin.symm col : ℕ × ℕ).2).coeff (M.equivFin.symm col : ℕ × ℕ).1,
+    ?_, funext fun t => ?_⟩
+  · obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 := by
+      by_contra h
+      push Not at h
+      exact hQ0 (by ext b : 2; rw [h b, coeff_zero])
+    obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 := by
+      by_contra h
+      push Not at h
+      exact hb (by ext a; rw [h a, coeff_zero])
+    intro h0
+    have := congrFun h0 (M.equivFin ⟨(a, b), hsupp a b ha⟩)
+    simp only [Equiv.symm_apply_apply, Pi.zero_apply] at this
+    exact ha this
+  · change monomialMatrix entry M t ⬝ᵥ _ = 0
+    obtain ⟨k, rfl⟩ := (Fintype.equivFin κ).surjective t
+    rw [monomialMatrix_dotProduct, ← hL, ← hQL k]
+    congr 1
+    refine (bivariateOf_congr fun m hm => ?_).trans (eq_bivariateOf hsupp).symm
+    simp only [coeffsOf, dite_eq_left hm, Equiv.symm_apply_apply]
+
+/-- Given any nonzero bounded-weighted-degree solution `Q₀` (for `d ≥ 1`), `minDegCoeffs` selects
+the first nonzero kernel vector among `j = 0, …, D / d`. -/
+private theorem exists_minDegPoly_eq (entry : κ → ℕ × ℕ → F) (L : κ → F[X][Y] → F)
+    (hL : ∀ M c k, L k (bivariateOf M c) = ∑ m ∈ M, c m * entry k m)
+    {d D : ℕ} (hd : 1 ≤ d) {Q₀ : F[X][Y]} (hQ₀0 : Q₀ ≠ 0) (hQ₀wd : WeightedDegreeLE d D Q₀)
+    (hQ₀L : ∀ k, L k Q₀ = 0) :
+    ∃ j : Fin (D / d + 1), minDegKernelVecUpTo entry d D j ≠ 0 ∧
+      (∀ i < j, minDegKernelVecUpTo entry d D i = 0) ∧
+      minDegCoeffs entry d D =
+        coeffsOf (monomialsUpTo d D j) (minDegKernelVecUpTo entry d D j) := by
+  have hdeg : Q₀.natDegree ≤ D / d := (Nat.le_div_iff_mul_le hd).2 hQ₀wd.natDegree_mul_le
+  obtain h | h := sum_firstFlags_smul_eq
+      (fun j : Fin (D / d + 1) => if minDegKernelVecUpTo entry d D j = 0 then (0 : F) else 1)
+      (fun j => coeffsOf (monomialsUpTo d D j) (minDegKernelVecUpTo entry d D j))
+  · exfalso
+    have := congrFun h.1 ⟨Q₀.natDegree, Nat.lt_succ_of_le hdeg⟩
+    simp only [Pi.zero_apply, ite_eq_left_iff, one_ne_zero, imp_false, not_not] at this
+    exact minDegKernelVecUpTo_ne_zero entry L hL hd hQ₀0 hQ₀wd hQ₀L le_rfl this
+  · obtain ⟨j, hj, hlt, hsum⟩ := h
+    refine ⟨j, fun h => hj (by simp [h]), fun i hi => ?_, hsum⟩
+    have := hlt i hi
+    simpa using this
+
+/-- **Nonzero correctness of `minDegPoly`.** When `d ≥ 1` and there exists a nonzero solution of
+`(1, d)`-weighted degree at most `D`, `minDegPoly entry d D` is nonzero, has `(1, d)`-weighted
+degree at most `D`, and satisfies every constraint `L k _ = 0`. -/
+theorem minDegPoly_spec (entry : κ → ℕ × ℕ → F) (L : κ → F[X][Y] → F)
+    (hL : ∀ M c k, L k (bivariateOf M c) = ∑ m ∈ M, c m * entry k m)
+    {d D : ℕ} (hd : 1 ≤ d)
+    (hex : ∃ Q₀ : F[X][Y], Q₀ ≠ 0 ∧ WeightedDegreeLE d D Q₀ ∧ ∀ k, L k Q₀ = 0) :
+    minDegPoly entry d D ≠ 0 ∧ WeightedDegreeLE d D (minDegPoly entry d D) ∧
+      ∀ k, L k (minDegPoly entry d D) = 0 := by
+  obtain ⟨Q₀, hQ₀0, hQ₀wd, hQ₀L⟩ := hex
+  obtain ⟨j, hj, -, hcoeffs⟩ := exists_minDegPoly_eq entry L hL hd hQ₀0 hQ₀wd hQ₀L
+  set M := monomialsUpTo d D (j : ℕ)
+  have hsub : M ⊆ monomials d D := filter_subset _ _
+  refine ⟨fun h0 => hj ?_, weightedDegreeLE_minDegPoly entry d D,
+    apply_minDegPoly_eq_zero entry L hL d D⟩
+  funext col
+  have h := coeff_coeff_bivariateOf (monomials d D) (minDegCoeffs entry d D)
+    (M.equivFin.symm col : ℕ × ℕ).1 (M.equivFin.symm col : ℕ × ℕ).2
+  rw [show bivariateOf (monomials d D) (minDegCoeffs entry d D) = minDegPoly entry d D from rfl,
+    h0, hcoeffs] at h
+  simp only [coeff_zero, Prod.mk.eta, hsub (coe_mem _), ↓reduceIte, coeffsOf, coe_mem, dite_true,
+    Subtype.coe_eta] at h
+  change minDegKernelVecUpTo entry d D j col = 0
+  rw [show ((monomialsUpTo d D (j : ℕ)).equivFin (M.equivFin.symm col)) = col from
+    Equiv.apply_symm_apply _ _] at h
+  exact h.symm
+
+/-- **Least `Y`-degree minimality of `minDegPoly`.** When `d ≥ 1`, `minDegPoly entry d D` has
+`Y`-degree at most that of every nonzero solution `Q` of `(1, d)`-weighted degree at most `D`. -/
+theorem natDegree_minDegPoly_le (entry : κ → ℕ × ℕ → F) (L : κ → F[X][Y] → F)
+    (hL : ∀ M c k, L k (bivariateOf M c) = ∑ m ∈ M, c m * entry k m)
+    {d D : ℕ} (hd : 1 ≤ d) {Q : F[X][Y]} (hQ0 : Q ≠ 0) (hQwd : WeightedDegreeLE d D Q)
+    (hQL : ∀ k, L k Q = 0) :
+    (minDegPoly entry d D).natDegree ≤ Q.natDegree := by
+  obtain ⟨j, -, hlt, hcoeffs⟩ := exists_minDegPoly_eq entry L hL hd hQ0 hQwd hQL
+  have hdeg : Q.natDegree ≤ D / d := (Nat.le_div_iff_mul_le hd).2 hQwd.natDegree_mul_le
+  have hj : (j : ℕ) ≤ Q.natDegree := by
+    by_contra h
+    push Not at h
+    exact minDegKernelVecUpTo_ne_zero entry L hL hd hQ0 hQwd hQL le_rfl
+      (hlt ⟨Q.natDegree, Nat.lt_succ_of_le hdeg⟩ (Fin.lt_def.2 h))
+  refine (natDegree_le_iff_coeff_eq_zero.2 fun b hb => ?_).trans hj
+  ext a
+  rw [minDegPoly, coeff_coeff_bivariateOf, hcoeffs, coeff_zero]
+  split_ifs
+  · simp only [coeffsOf]
+    split_ifs with h
+    · exact absurd (mem_filter.1 h).2 (not_le.2 hb)
+    · rfl
+  · rfl
+
+end GenericInterpolation
+
 /-! ### Sudan interpolants -/
 
 /-- `Q` is a *Sudan interpolant* for the received word `w` with evaluation points `α`, weight `d`
@@ -282,6 +563,13 @@ theorem IsInterpolant.natDegree_mul_le (hQ : IsInterpolant α w d D Q) :
     Q.natDegree * d ≤ D :=
   hQ.weightedDegree_le.natDegree_mul_le
 
+/-- Evaluation at `(α i, w i)` is linear on `bivariateOf` with entry `α i ^ m.1 * w i ^ m.2`. -/
+private theorem evalEval_bivariateOf_eq_sum (α w : ι → F) (M : Finset (ℕ × ℕ))
+    (c : ℕ × ℕ → F) (i : ι) :
+    (bivariateOf M c).evalEval (α i) (w i) = ∑ m ∈ M, c m * (α i ^ m.1 * w i ^ m.2) := by
+  rw [evalEval_bivariateOf]
+  exact sum_congr rfl fun m _ => mul_assoc _ _ _
+
 variable [Fintype ι]
 
 /-- **Interpolation.** If there are more than `n` monomials of `(1, d)`-weighted degree at most
@@ -289,24 +577,10 @@ variable [Fintype ι]
 in the coefficients of `Q`. -/
 theorem exists_isInterpolant (α w : ι → F)
     (hn : Fintype.card ι < #(monomials d D)) : ∃ Q, IsInterpolant α w d D Q := by
-  classical
-  let M := monomials d D
-  let A : Matrix ι M F := Matrix.of fun i m => α i ^ m.1.1 * w i ^ m.1.2
-  have hker : LinearMap.ker A.mulVecLin ≠ ⊥ :=
-    LinearMap.ker_ne_bot_of_finrank_lt (by
-      rwa [Module.finrank_fintype_fun_eq_card, Module.finrank_fintype_fun_eq_card,
-        Fintype.card_coe])
-  obtain ⟨c, hc, hc0⟩ := (Submodule.ne_bot_iff _).1 hker
-  obtain ⟨m, hm⟩ := Function.ne_iff.1 hc0
-  let c' : ℕ × ℕ → F := fun m' => if h : m' ∈ M then c ⟨m', h⟩ else 0
-  refine ⟨bivariateOf M c', fun h => hm ?_, weightedDegreeLE_bivariateOf Subset.rfl c',
-    fun i => ?_⟩
-  · have := coeff_coeff_bivariateOf M c' m.1.1 m.1.2
-    rw [h] at this
-    simpa [c', m.2] using this.symm
-  · rw [evalEval_bivariateOf, ← sum_attach]
-    have := congrFun (LinearMap.mem_ker.1 hc) i
-    simpa [A, c', Matrix.mulVec, dotProduct, mul_comm, mul_left_comm, mul_assoc] using this
+  obtain ⟨Q, h0, hwd, hev⟩ := exists_weightedDegreeLE_eq_zero
+    (fun i ab => α i ^ ab.1 * w i ^ ab.2) (fun i Q => Q.evalEval (α i) (w i))
+    (evalEval_bivariateOf_eq_sum α w) hn
+  exact ⟨Q, h0, hwd, hev⟩
 
 variable [DecidableEq F]
 
@@ -336,23 +610,14 @@ theorem IsInterpolant.mem_roots (hα : Function.Injective α) (hQ : IsInterpolan
     {P : F[X]} (hP : P.natDegree ≤ d) (hagree : D < #{i | P.eval (α i) = w i}) : P ∈ Q.roots :=
   (Polynomial.mem_roots hQ.ne_zero).2 (hQ.eval_eq_zero hα hP hagree)
 
-/-! ### The interpolation matrix -/
-
-/-- The monomials of `(1, d)`-weighted degree at most `D` and `Y`-degree at most `j`. -/
-def monomialsUpTo (d D j : ℕ) : Finset (ℕ × ℕ) := (monomials d D).filter fun m => m.2 ≤ j
+/-! ### The interpolation matrix and interpolant of least `Y`-degree -/
 
 /-- The interpolation matrix: its rows are the points `(α i, w i)` (enumerated by
 `Fintype.equivFin ι`), its columns the monomials of `M` (enumerated by `M.equivFin`), and its
 entries the values of the monomials at the points. -/
 noncomputable def interpMatrix (α w : ι → F) (M : Finset (ℕ × ℕ)) :
     Fin (Fintype.card ι) → Fin #M → F :=
-  fun t m => α ((Fintype.equivFin ι).symm t) ^ (M.equivFin.symm m : ℕ × ℕ).1 *
-    w ((Fintype.equivFin ι).symm t) ^ (M.equivFin.symm m : ℕ × ℕ).2
-
-/-- The coefficients on `M` given by a vector indexed by the enumeration of `M`, and zero
-elsewhere. -/
-noncomputable def coeffsOf (M : Finset (ℕ × ℕ)) (u : Fin #M → F) (m : ℕ × ℕ) : F :=
-  if h : m ∈ M then u (M.equivFin ⟨m, h⟩) else 0
+  monomialMatrix (fun i ab => α i ^ ab.1 * w i ^ ab.2) M
 
 omit [DecidableEq F] in
 /-- The product of a row of the interpolation matrix with a vector `u` is the value at the row's
@@ -361,98 +626,25 @@ theorem interpMatrix_dotProduct (α w : ι → F) (M : Finset (ℕ × ℕ)) (u :
     (i : ι) :
     interpMatrix α w M (Fintype.equivFin ι i) ⬝ᵥ u =
       (bivariateOf M (coeffsOf M u)).evalEval (α i) (w i) := by
-  rw [evalEval_bivariateOf, dotProduct]
-  have h := Equiv.sum_comp M.equivFin.symm
-    (fun m : M => α i ^ (m : ℕ × ℕ).1 * w i ^ (m : ℕ × ℕ).2 * u (M.equivFin m))
-  simp only [Equiv.apply_symm_apply] at h
-  rw [← Finset.sum_coe_sort M (fun m => coeffsOf M u m * α i ^ m.1 * w i ^ m.2)]
-  simp only [interpMatrix, Equiv.symm_apply_apply]
-  rw [h]
-  refine Fintype.sum_congr _ _ fun m => ?_
-  simp only [coeffsOf, Finset.coe_mem, dite_true, Subtype.coe_eta]
-  ring
-
-/-! ### The interpolant of least `Y`-degree -/
+  rw [interpMatrix, monomialMatrix_dotProduct, evalEval_bivariateOf_eq_sum]
 
 /-- The kernel vector of the interpolation matrix on the monomials of `Y`-degree at most `j`. -/
 noncomputable def kernelVecUpTo (α w : ι → F) (d D j : ℕ) : Fin #(monomialsUpTo d D j) → F :=
-  kernelVec (interpMatrix α w (monomialsUpTo d D j))
+  minDegKernelVecUpTo (fun i ab => α i ^ ab.1 * w i ^ ab.2) d D j
 
 /-- The coefficients of the interpolant: those of the first nonzero kernel vector among
 `j = 0, 1, …, D / d`. -/
 noncomputable def interpolantCoeffs (α w : ι → F) (d D : ℕ) : ℕ × ℕ → F :=
-  ∑ j : Fin (D / d + 1),
-    firstFlags (fun j : Fin (D / d + 1) => if kernelVecUpTo α w d D j = 0 then (0 : F) else 1) j •
-      coeffsOf (monomialsUpTo d D j) (kernelVecUpTo α w d D j)
+  minDegCoeffs (fun i ab => α i ^ ab.1 * w i ^ ab.2) d D
 
 /-- **An interpolant of least `Y`-degree**, computed by elimination. -/
 noncomputable def interpolant (α w : ι → F) (d D : ℕ) : F[X][Y] :=
-  bivariateOf (monomials d D) (interpolantCoeffs α w d D)
+  minDegPoly (fun i ab => α i ^ ab.1 * w i ^ ab.2) d D
 
 /-- The elimination interpolant always has `(1, d)`-weighted degree at most `D`. -/
 theorem weightedDegreeLE_interpolant (α w : ι → F) (d D : ℕ) :
     WeightedDegreeLE d D (interpolant α w d D) :=
-  weightedDegreeLE_bivariateOf Subset.rfl _
-
-omit [Fintype ι] [DecidableEq F] in
-/-- The monomials of an interpolant lie in `monomials d D`. -/
-private theorem mem_monomials_of_isInterpolant {α w : ι → F} {d D : ℕ} (hd : 1 ≤ d)
-    {Q : F[X][Y]} (hQ : IsInterpolant α w d D Q) {a b : ℕ}
-    (hab : (Q.coeff b).coeff a ≠ 0) : (a, b) ∈ monomials d D := by
-  have h := hQ.weightedDegree_le a b hab
-  refine mem_monomials.2 ⟨by omega, ?_, h⟩
-  nlinarith
-
-/-- An interpolant of `Y`-degree at most `j` gives a nonzero kernel vector on the monomials of
-`Y`-degree at most `j`. -/
-private theorem kernelVecUpTo_ne_zero {α w : ι → F} {d D : ℕ} (hd : 1 ≤ d) {Q : F[X][Y]}
-    (hQ : IsInterpolant α w d D Q) {j : ℕ} (hj : Q.natDegree ≤ j) :
-    kernelVecUpTo α w d D j ≠ 0 := by
-  have hsupp : ∀ a b, (Q.coeff b).coeff a ≠ 0 → (a, b) ∈ monomialsUpTo d D j := fun a b hab =>
-    mem_filter.2 ⟨mem_monomials_of_isInterpolant hd hQ hab,
-      (le_natDegree_of_ne_zero fun h => hab (by rw [h, coeff_zero])).trans hj⟩
-  refine kernelVec_ne_zero _ ⟨fun m =>
-    (Q.coeff ((monomialsUpTo d D j).equivFin.symm m : ℕ × ℕ).2).coeff
-      ((monomialsUpTo d D j).equivFin.symm m : ℕ × ℕ).1, ?_, funext fun t => ?_⟩
-  · obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hQ.ne_zero (Polynomial.ext fun b => by rw [h b, coeff_zero])
-    obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hb (Polynomial.ext fun a => by rw [h a, coeff_zero])
-    intro h0
-    have := congrFun h0 ((monomialsUpTo d D j).equivFin ⟨(a, b), hsupp a b ha⟩)
-    simp only [Equiv.symm_apply_apply, Pi.zero_apply] at this
-    exact ha this
-  · change interpMatrix α w (monomialsUpTo d D j) t ⬝ᵥ _ = 0
-    obtain ⟨i, rfl⟩ := (Fintype.equivFin ι).surjective t
-    rw [interpMatrix_dotProduct, ← hQ.evalEval_eq_zero i]
-    congr 1
-    refine (bivariateOf_congr fun m hm => ?_).trans (eq_bivariateOf hsupp).symm
-    simp only [coeffsOf, dite_eq_left hm, Equiv.symm_apply_apply]
-
-/-- The interpolant is `bivariateOf` of the first nonzero kernel vector, at an index `j` below
-which all kernel vectors vanish. -/
-private theorem exists_interpolant_eq {α w : ι → F} {d D : ℕ} (hd : 1 ≤ d)
-    (hn : Fintype.card ι < #(monomials d D)) :
-    ∃ j : Fin (D / d + 1), kernelVecUpTo α w d D j ≠ 0 ∧
-      (∀ i < j, kernelVecUpTo α w d D i = 0) ∧
-      interpolantCoeffs α w d D = coeffsOf (monomialsUpTo d D j) (kernelVecUpTo α w d D j) := by
-  obtain ⟨Q₀, hQ₀⟩ := exists_isInterpolant α w hn
-  have hdeg : Q₀.natDegree ≤ D / d := (Nat.le_div_iff_mul_le hd).2 hQ₀.natDegree_mul_le
-  obtain h | h := sum_firstFlags_smul_eq
-      (fun j : Fin (D / d + 1) => if kernelVecUpTo α w d D j = 0 then (0 : F) else 1)
-      (fun j => coeffsOf (monomialsUpTo d D j) (kernelVecUpTo α w d D j))
-  · exfalso
-    have := congrFun h.1 ⟨Q₀.natDegree, Nat.lt_succ_of_le hdeg⟩
-    simp only [Pi.zero_apply, ite_eq_left_iff, one_ne_zero, imp_false, not_not] at this
-    exact kernelVecUpTo_ne_zero hd hQ₀ le_rfl this
-  · obtain ⟨j, hj, hlt, hsum⟩ := h
-    refine ⟨j, fun h => hj (by simp [h]), fun i hi => ?_, hsum⟩
-    have := hlt i hi
-    simpa using this
+  weightedDegreeLE_minDegPoly _ _ _
 
 /-- **The elimination interpolant is an interpolant.** With `d ≥ 1` and more monomials of
 `(1, d)`-weighted degree at most `D` than points, `interpolant α w d D` is a Sudan interpolant of
@@ -460,80 +652,22 @@ weight `d` and weighted degree `D`. -/
 theorem isInterpolant_interpolant (α w : ι → F) {d D : ℕ} (hd : 1 ≤ d)
     (hn : Fintype.card ι < #(monomials d D)) :
     IsInterpolant α w d D (interpolant α w d D) := by
-  obtain ⟨j, hj, -, hcoeffs⟩ := exists_interpolant_eq (α := α) (w := w) hd hn
-  set M := monomialsUpTo d D (j : ℕ)
-  have hsub : M ⊆ monomials d D := filter_subset _ _
-  have hcoeff : ∀ a b, ((interpolant α w d D).coeff b).coeff a =
-      coeffsOf M (kernelVecUpTo α w d D j) (a, b) := by
-    intro a b
-    rw [interpolant, coeff_coeff_bivariateOf, hcoeffs]
-    split_ifs with h
-    · rfl
-    · simp only [coeffsOf]
-      rw [dite_eq_right fun h' => absurd (hsub h') h]
-  refine ⟨fun h0 => hj ?_, weightedDegreeLE_interpolant α w d D, fun i => ?_⟩
-  · funext m
-    have := hcoeff (M.equivFin.symm m : ℕ × ℕ).1 (M.equivFin.symm m : ℕ × ℕ).2
-    rw [h0] at this
-    simp only [coeff_zero, coeffsOf, Prod.mk.eta, coe_mem, dite_eq_left, Subtype.coe_eta,
-      Equiv.apply_symm_apply] at this
-    exact this.symm
-  · have hzero : interpMatrix α w M (Fintype.equivFin ι i) ⬝ᵥ kernelVecUpTo α w d D j = 0 :=
-      congrFun (mulVec_kernelVec _) _
-    rw [interpMatrix_dotProduct, evalEval_bivariateOf] at hzero
-    rw [interpolant, hcoeffs, evalEval_bivariateOf, ← hzero]
-    refine (Finset.sum_subset hsub fun m _ hm => ?_).symm
-    simp only [coeffsOf]
-    rw [dite_eq_right fun h => absurd h hm, zero_mul, zero_mul]
+  obtain ⟨Q₀, hQ₀⟩ := exists_isInterpolant (d := d) (D := D) α w hn
+  obtain ⟨h0, hwd, hev⟩ := minDegPoly_spec (fun i ab => α i ^ ab.1 * w i ^ ab.2)
+    (fun i Q => Q.evalEval (α i) (w i)) (evalEval_bivariateOf_eq_sum α w) hd
+    ⟨Q₀, hQ₀.ne_zero, hQ₀.weightedDegree_le, hQ₀.evalEval_eq_zero⟩
+  exact ⟨h0, hwd, hev⟩
 
 /-- **The elimination interpolant has least `Y`-degree** among all Sudan interpolants. -/
 theorem natDegree_interpolant_le (α w : ι → F) {d D : ℕ} (hd : 1 ≤ d)
-    (hn : Fintype.card ι < #(monomials d D)) {Q : F[X][Y]}
+    (_hn : Fintype.card ι < #(monomials d D)) {Q : F[X][Y]}
     (hQ : IsInterpolant α w d D Q) :
-    (interpolant α w d D).natDegree ≤ Q.natDegree := by
-  obtain ⟨j, -, hlt, hcoeffs⟩ := exists_interpolant_eq (α := α) (w := w) hd hn
-  have hdeg : Q.natDegree ≤ D / d := (Nat.le_div_iff_mul_le hd).2 hQ.natDegree_mul_le
-  have hj : (j : ℕ) ≤ Q.natDegree := by
-    by_contra h
-    push Not at h
-    exact kernelVecUpTo_ne_zero hd hQ le_rfl
-      (hlt ⟨Q.natDegree, Nat.lt_succ_of_le hdeg⟩ (Fin.lt_def.2 h))
-  refine (natDegree_le_iff_coeff_eq_zero.2 fun b hb => ?_).trans hj
-  ext a
-  rw [interpolant, coeff_coeff_bivariateOf, hcoeffs, coeff_zero]
-  split_ifs
-  · simp only [coeffsOf]
-    split_ifs with h
-    · exact absurd (mem_filter.1 h).2 (not_le.2 hb)
-    · rfl
-  · rfl
+    (interpolant α w d D).natDegree ≤ Q.natDegree :=
+  natDegree_minDegPoly_le (fun i ab => α i ^ ab.1 * w i ^ ab.2)
+    (fun i Q => Q.evalEval (α i) (w i)) (evalEval_bivariateOf_eq_sum α w) hd
+    hQ.ne_zero hQ.weightedDegree_le hQ.evalEval_eq_zero
 
 /-! ### Simplicity of the roots -/
-
-omit [Fintype ι] [DecidableEq F] in
-/-- If `(a₀, b₀)` maximizes the `(1, d)`-weighted degree of `S` and `b₀` is largest among those
-maximizers, then `X ^ a₀ * Y ^ (b₀ + 1)` has a nonzero coefficient in `(Y - C P) * S`. -/
-private theorem coeff_X_sub_C_mul_ne_zero {d a₀ b₀ : ℕ} {P : F[X]} (hP : P.natDegree ≤ d)
-    {S : F[X][Y]} (ha₀ : (S.coeff b₀).coeff a₀ ≠ 0)
-    (hle : ∀ a b, (S.coeff b).coeff a ≠ 0 → a + d * b ≤ a₀ + d * b₀)
-    (hbmax : ∀ a b, (S.coeff b).coeff a ≠ 0 → a + d * b = a₀ + d * b₀ → b ≤ b₀) :
-    (((Y - C P) * S).coeff (b₀ + 1)).coeff a₀ ≠ 0 := by
-  rw [mul_comm, coeff_mul_X_sub_C, coeff_sub, mul_comm, coeff_mul]
-  have hzero : ∑ x ∈ antidiagonal a₀, P.coeff x.1 * (S.coeff (b₀ + 1)).coeff x.2 = 0 := by
-    refine sum_eq_zero fun ⟨i, j⟩ hij => ?_
-    rw [mem_antidiagonal] at hij
-    by_cases hPi : P.coeff i = 0
-    · rw [hPi, zero_mul]
-    by_cases hSj : (S.coeff (b₀ + 1)).coeff j = 0
-    · rw [hSj, mul_zero]
-    exfalso
-    have hi : i ≤ d := (le_natDegree_of_ne_zero hPi).trans hP
-    have hj := hle j (b₀ + 1) hSj
-    have hjM : j + d * (b₀ + 1) = a₀ + d * b₀ := by nlinarith
-    have := hbmax j (b₀ + 1) hSj hjM
-    omega
-  rw [hzero, sub_zero]
-  exact ha₀
 
 omit [Fintype ι] [DecidableEq F] in
 /-- **Division by `Y - P` lowers the weighted degree bound by `d`.** If `P` has degree at most `d`
@@ -542,38 +676,16 @@ and `(Y - P) * S` has `(1, d)`-weighted degree at most `D`, then every monomial 
 theorem add_mul_add_one_le_of_mul {d D : ℕ} {P : F[X]} (hP : P.natDegree ≤ d) {S : F[X][Y]}
     (h : WeightedDegreeLE d D ((Y - C P) * S)) :
     ∀ a b, (S.coeff b).coeff a ≠ 0 → a + d * (b + 1) ≤ D := by
-  classical
-  -- the monomials of `S`
-  let supp : Finset (ℕ × ℕ) := S.support.biUnion fun b => (S.coeff b).support.image (·, b)
-  have hmem : ∀ a b, (S.coeff b).coeff a ≠ 0 ↔ (a, b) ∈ supp := by
-    intro a b
-    simp only [supp, mem_biUnion, mem_image, mem_support_iff, Prod.mk.injEq]
-    constructor
-    · intro hab
-      exact ⟨b, fun h => hab (by rw [h, coeff_zero]), a, hab, rfl, rfl⟩
-    · rintro ⟨b', -, a', ha', rfl, rfl⟩
-      exact ha'
   intro a b hab
-  have hne : supp.Nonempty := ⟨(a, b), (hmem a b).1 hab⟩
-  -- the largest weighted degree, and the largest `Y`-degree attaining it
-  set M₀ := supp.sup' hne fun p => p.1 + d * p.2
-  have hle : ∀ p ∈ supp, p.1 + d * p.2 ≤ M₀ := fun p hp => le_sup' (fun p => p.1 + d * p.2) hp
-  have htop : (supp.filter fun p => p.1 + d * p.2 = M₀).Nonempty := by
-    obtain ⟨p, hp, hpeq⟩ := exists_mem_eq_sup' hne fun p => p.1 + d * p.2
-    exact ⟨p, mem_filter.2 ⟨hp, hpeq.symm⟩⟩
-  obtain ⟨⟨a₀, b₀⟩, hp₀, hb₀⟩ := exists_mem_eq_sup' htop Prod.snd
-  obtain ⟨hp₀, hM₀⟩ := mem_filter.1 hp₀
-  have hbmax : ∀ p ∈ supp, p.1 + d * p.2 = M₀ → p.2 ≤ b₀ := fun p hp hpM => by
-    rw [show b₀ = (a₀, b₀).2 from rfl, ← hb₀]
-    exact le_sup' Prod.snd (mem_filter.2 ⟨hp, hpM⟩)
-  simp only at hM₀
-  have hcoeff := coeff_X_sub_C_mul_ne_zero hP ((hmem a₀ b₀).2 hp₀)
-    (fun a' b' hab' => hM₀ ▸ hle (a', b') ((hmem a' b').1 hab'))
-    (fun a' b' hab' hM => hbmax (a', b') ((hmem a' b').1 hab') (hM.trans hM₀))
-  have hD := h a₀ (b₀ + 1) hcoeff
-  have hab' := hle (a, b) ((hmem a b).1 hab)
-  simp only at hab'
-  nlinarith
+  have hS0 : S ≠ 0 := fun h0 => hab (by rw [h0, coeff_zero, coeff_zero])
+  have hmul : Polynomial.Bivariate.weightedDegree d ((Y - C P) * S) ≤ D :=
+    Polynomial.Bivariate.weightedDegree_le_iff.2 h
+  rw [Polynomial.Bivariate.weightedDegree_mul (X_sub_C_ne_zero P) hS0,
+    Polynomial.Bivariate.weightedDegree_X_sub_C hP] at hmul
+  have hab' : a + d * b ≤ Polynomial.Bivariate.weightedDegree d S :=
+    Polynomial.Bivariate.le_weightedDegree hab
+  rw [mul_add, mul_one]
+  omega
 
 omit [Fintype ι] [DecidableEq F] in
 /-- The value at `(x, y)` of `(Y - P) * S`. -/

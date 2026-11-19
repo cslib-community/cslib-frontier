@@ -71,15 +71,14 @@ example : lamportVerify id (encList encBits
   simp only [lamportVerify, frames_encList]
   decide
 
--- A wrong-length first query returns no Lamport secret but still consumes the one query.
-example : idLamportScheme.oneTimeSigningOracle
-      (encList encBits [[false], [true]]) ((), []) [] = pure ([], [[]]) := by
-  simp only [SignatureScheme.oneTimeSigningOracle, SignatureScheme.oneTimeSigningOracleOf,
-    idLamportScheme, lamportScheme, lamportSign, frames_encList]
+-- A wrong-length query is refused: it returns no Lamport secret and does not use up the one query.
+example : idLamportScheme.oneTimeSigningOracle 1
+      (encList encBits [[false], [true]]) ((), []) [] = pure ([], []) := by
   rfl
 
-example : idLamportScheme.oneTimeSigningOracle
-      (encList encBits [[false], [true]]) ((), [true]) [[]] = pure ([], [[]]) := by
+-- A second query is refused.
+example : idLamportScheme.oneTimeSigningOracle 1
+      (encList encBits [[false], [true]]) ((), [true]) [[false]] = pure ([], [[false]]) := by
   rfl
 
 -- Even an always-accepting verifier cannot bypass the game's n-bit message check.

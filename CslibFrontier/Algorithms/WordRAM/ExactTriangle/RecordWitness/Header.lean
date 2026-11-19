@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Spec
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual record and interval-header execution
@@ -61,11 +62,6 @@ theorem exec_readRecord {W n D g i records heap out : ℕ} (x : Data 400) (v : F
   let r := records + i * stride
   have heq : stride = 6 + 2 * (n * D) := by dsimp only [stride]; omega
   have hrange : r + 6 ≤ heap := by simpa only [r, heq] using hrec
-  have h1 : Fits W 1 := hfit.of_le (by omega)
-  have h2 : Fits W 2 := hfit.of_le (by omega)
-  have h3 : Fits W 3 := hfit.of_le (by omega)
-  have h6 : Fits W 6 := hfit.of_le (by omega)
-  have harea : Fits W (n * D) := hfit.of_le (by omega)
   have htwice : Fits W (n * D + n * D) := hfit.of_le (by omega)
   have hstride : Fits W stride := hfit.of_le (by dsimp only [stride]; omega)
   have hmul : Fits W (i * stride) := hfit.of_le (by dsimp only [r] at hrange; omega)
@@ -95,7 +91,7 @@ theorem exec_readRecord {W n D g i records heap out : ℕ} (x : Data 400) (v : F
     |>.set Reg.scans 0 |>.set Reg.index 0
   have he : ExecWithin W readRecord x y 28 := by
     ram_eval [readRecord, y, r, stride, hD, hg, hn, hi, hrecords, hout, hv1, hv2, hv3,
-      h1, h2, h3, h6, harea, htwice, hstride, hmul, hr, hr1, hr2, hr3,
+      htwice, hstride, hmul, hr, hr1, hr2, hr3,
       Reg.one, Reg.zero, Reg.address, Reg.size, Reg.temp, Reg.divisor, Reg.output,
       Reg.piece, Reg.queries, Reg.count, Reg.found, Reg.witnessA, Reg.witnessB,
       Reg.witnessC, Reg.scans, Reg.index, productBank, sqrtBank, RecordProduct.producerBank,
@@ -157,9 +153,6 @@ theorem exec_finishHeader {W n S g k : ℕ} (x : Data 400)
   have hB : Fits W B := by rw [← hquot]; exact hsub.of_le (Nat.div_le_self ..)
   have hfirst : Fits W first := hfit.of_le (by change k * B ≤ n at hc; dsimp only [first]; omega)
   have hlen : Fits W (n - first) := hfit.of_le (by omega)
-  have harea : Fits W (n * n) := hfit.of_le (by omega)
-  have h5 : Fits W 5 := hfit.of_le (by omega)
-  have hbc : Fits W (5 + n * n) := hfit.of_le (by omega)
   have hac : Fits W (5 + n * n + n * n) := hfit.of_le (by omega)
   dsimp only [sqrtBank, NatSqrt.root] at hroot
   let y := x.set Reg.blockLength (S + g) |>.set Reg.blockLength (S + g - 1)
@@ -173,13 +166,13 @@ theorem exec_finishHeader {W n S g k : ℕ} (x : Data 400)
     by_cases hlt : B < n - first
     · have hl : length = B := min_eq_left hlt.le
       ram_eval [finishHeader, y, hroot, hn, hg, hk, h1, hquot, hlt, hl,
-        hsum, hsub, hB, hfirst, hlen, harea, h5, hbc, hac, B, first, length,
+        hsum, hsub, hB, hfirst, hlen, hac, B, first, length,
         Reg.blockLength, Reg.divisor, Reg.one, Reg.piece, Reg.first, Reg.length, Reg.size,
         Reg.temp, scanBank, sqrtBank, WitnessScan.Reg.ab, WitnessScan.Reg.bc, WitnessScan.Reg.ac,
         WitnessScan.Reg.size, WitnessScan.Reg.first, WitnessScan.Reg.length, NatSqrt.root]
     · have hl : length = n - first := min_eq_right (by omega)
       ram_eval [finishHeader, y, hroot, hn, hg, hk, h1, hquot, hlt, hl,
-        hsum, hsub, hB, hfirst, hlen, harea, h5, hbc, hac, B, first, length,
+        hsum, hsub, hB, hfirst, hlen, hac, B, first, length,
         Reg.blockLength, Reg.divisor, Reg.one, Reg.piece, Reg.first, Reg.length, Reg.size,
         Reg.temp, scanBank, sqrtBank, WitnessScan.Reg.ab, WitnessScan.Reg.bc, WitnessScan.Reg.ac,
         WitnessScan.Reg.size, WitnessScan.Reg.first, WitnessScan.Reg.length, NatSqrt.root]
@@ -210,35 +203,16 @@ theorem exec_header {W n D g i records heap out : ℕ} (x : Data 400) (v : Fin 6
   obtain ⟨a, ha, am, aD, an, ag, ao, ak, aq, aQ, af, aa, ab, ac, as, ai, a1, a0, ar⟩ :=
     exec_readRecord x v hD hg hn hi hrecords hout hrec hv (hfit.of_le (by omega))
   obtain ⟨b, hb, bS, bm, br⟩ := exec_squareRoot a aD (hfit.of_le (by omega))
-  have bn : b.regs Reg.size = n := (br _ (by decide)).trans an
-  have bg : b.regs Reg.divisor = g := (br _ (by decide)).trans ag
-  have bk : b.regs Reg.piece = v 1 := (br _ (by decide)).trans ak
-  have b1 : b.regs Reg.one = 1 := (br _ (by decide)).trans a1
+  have bn : b.regs Reg.size = n := by regs_frame
+  have bg : b.regs Reg.divisor = g := by regs_frame
+  have bk : b.regs Reg.piece = v 1 := by regs_frame
+  have b1 : b.regs Reg.one = 1 := by regs_frame
   have hsqrt := Nat.sqrt_le_self D
   obtain ⟨y, hy, ym, yB, yf, yl, yab, ybc, yac, yn, yfirst, ylength, yr⟩ :=
     exec_finishHeader b bS bn bg bk b1 hfirst (hfit.of_le (by omega))
   refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), ?_, ym.trans (bm.trans am),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans af),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans aa),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans ab),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans ac),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans as),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans ai), ?_⟩
-  · exact
-      { output := (yr _ (by decide)).trans ((br _ (by decide)).trans ao)
-        queries := (yr _ (by decide)).trans ((br _ (by decide)).trans aq)
-        count := (yr _ (by decide)).trans ((br _ (by decide)).trans aQ)
-        size := (yr _ (by decide)).trans bn
-        first := yf
-        length := yl
-        one := (yr _ (by decide)).trans b1
-        zero := (yr _ (by decide)).trans ((br _ (by decide)).trans a0)
-        ab := yab
-        bc := ybc
-        ac := yac
-        scanSize := yn
-        scanFirst := yfirst
-        scanLength := ylength }
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, ?_⟩
+  · regs_frame
   · intro j hj
     exact (yr j (Or.inl (by omega))).trans ((br j (Or.inl (by omega))).trans (ar j hj))
 

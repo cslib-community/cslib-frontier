@@ -13,6 +13,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.PMFSwap
 import Mathlib.Data.Fin.Tuple.Basic
 
 /-!
@@ -93,7 +94,8 @@ chunk.
 * `Cslib.Crypto.Protocols.PIR.Preprocessing.Piano.isPerfectlyPrivateWith_pianoHybridScheme`,
   `Cslib.Crypto.Protocols.PIR.Preprocessing.Piano.eval_queryTranscript_pianoHybridScheme`:
   multi-query adaptive perfect privacy (Definition 3.1) and non-adaptive transcript privacy of the
-  ideal-random-set hybrid (the `Real*` step of the proof of Theorem C.1).
+  ideal-random-set hybrid (the `Real*` step of the proof of Theorem C.1). The hybrid models only
+  the server's view and is not a correct PIR scheme.
 * `Cslib.Crypto.Protocols.PIR.Preprocessing.Piano.onlineCommunication_fullQuery`,
   `Cslib.Crypto.Protocols.PIR.Preprocessing.Piano.onlineCommunication_compacted`: per-query online
   communication of the main scheme and of the Appendix A variant (Theorem 3.4 online part).
@@ -324,16 +326,13 @@ private theorem uniformOfFintype_bind_bind_equiv {α β γ δ ε : Type*} [Finty
       f (e (a, b))) =
       (PMF.uniformOfFintype γ).bind fun c => (PMF.uniformOfFintype δ).bind fun d => f (c, d) := by
   calc _ = (PMF.uniformOfFintype (α × β)).bind (fun ab => f (e ab)) := by
-        rw [← PMF.uniformOfFintype_prod, PMF.bind_bind]
-        simp only [PMF.bind_map, Function.comp_def]
+        simp only [← PMF.uniformOfFintype_prod, pmf_norm]
     _ = ((PMF.uniformOfFintype (α × β)).map e).bind f := by
-        rw [PMF.bind_map]
-        rfl
+        simp only [pmf_norm]
     _ = (PMF.uniformOfFintype (γ × δ)).bind f := by
         rw [PMF.uniformOfFintype_map_equiv]
     _ = _ := by
-        rw [← PMF.uniformOfFintype_prod, PMF.bind_bind]
-        simp only [PMF.bind_map, Function.comp_def]
+        simp only [← PMF.uniformOfFintype_prod, pmf_norm]
 
 section IdealUniform
 
@@ -361,7 +360,7 @@ theorem eval_pianoStepSets_uniform (x : Chunk × Offset) :
       let B ← ProbComp.uniform (Chunk → Offset)
       pure (pianoStepSets x (T, B))) =
       PMF.uniformOfFintype ((Fin M₁ → Chunk → Offset) × (Chunk → Offset)) := by
-  simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  simp only [pmf_norm, ProbComp.eval_uniform]
   rw [uniformOfFintype_bind_bind_pianoStepSets x PMF.pure, ← PMF.uniformOfFintype_prod]
   rfl
 
@@ -374,7 +373,7 @@ theorem eval_pianoRefreshedTable_uniform (x : Chunk × Offset) :
       let B ← ProbComp.uniform (Chunk → Offset)
       pure (pianoStepSets x (T, B)).1) =
       PMF.uniformOfFintype (Fin M₁ → Chunk → Offset) := by
-  simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  simp only [pmf_norm, ProbComp.eval_uniform]
   rw [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.1)]
   simp [PMF.bind_const]
 
@@ -387,7 +386,7 @@ theorem eval_pianoServerQuery_uniform (x : Chunk × Offset) :
       let B ← ProbComp.uniform (Chunk → Offset)
       pure (pianoStepSets x (T, B)).2) =
       PMF.uniformOfFintype (Chunk → Offset) := by
-  simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  simp only [pmf_norm, ProbComp.eval_uniform]
   rw [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.2)]
   simp [PMF.bind_const]
 
@@ -463,16 +462,9 @@ theorem eval_compactedQuery_uniform {m : ℕ} [Fintype Offset] [DecidableEq Offs
       let B ← ProbComp.uniform (Fin (m + 1) → Offset)
       pure (compactedOffsets (pianoStepSets x (T, B)).2 x.1)) =
       PMF.uniformOfFintype (Fin m → Offset) := by
-  have hmap : ProbComp.eval (do
-      let T ← ProbComp.uniform (Fin M₁ → Fin (m + 1) → Offset)
-      let B ← ProbComp.uniform (Fin (m + 1) → Offset)
-      pure (compactedOffsets (pianoStepSets x (T, B)).2 x.1)) =
-      (ProbComp.eval (do
-        let T ← ProbComp.uniform (Fin M₁ → Fin (m + 1) → Offset)
-        let B ← ProbComp.uniform (Fin (m + 1) → Offset)
-        pure (pianoStepSets x (T, B)).2)).map (fun S => compactedOffsets S x.1) := by
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
-  rw [hmap, eval_pianoServerQuery_uniform, uniformOfFintype_map_compactedOffsets]
+  rw [← uniformOfFintype_map_compactedOffsets x.1,
+    ← eval_pianoServerQuery_uniform (M₁ := M₁) x]
+  simp only [pmf_norm]
 
 /-! ### Figure 1 `HintTable`, single-pass chunk streaming, and deterministic correctness -/
 
@@ -845,7 +837,9 @@ private noncomputable def pianoAdaptiveStepSets {St : Type}
 ideal-random-set part of the proof of Theorem C.1 in
 [Zhou, Park, Zheng and Shi][ZhouParkZhengShi2024]): `pianoHybridScheme` is perfectly private with
 simulator `ProbComp.uniform (Chunk → Offset)` against any adaptive malicious server `adv` over any
-number of queries `k`. The PRF step and the full `HintTable` client are not covered. -/
+number of queries `k`. `pianoHybridScheme` is not a correct PIR scheme, so this is privacy of the
+server's view in the hybrid only. The PRF step and the correct `HintTable` client are not covered.
+-/
 theorem isPerfectlyPrivateWith_pianoHybridScheme :
     (pianoHybridScheme M₁ Chunk Offset).IsPerfectlyPrivateWith
       (ProbComp.uniform (Chunk → Offset)) := by
@@ -855,45 +849,28 @@ theorem isPerfectlyPrivateWith_pianoHybridScheme :
     (sim := ProbComp.uniform (Chunk → Offset))
     (stepS := fun adv => pianoAdaptiveStepSets adv)
   · intro db
-    simp only [pianoHybridScheme, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map]
-    exact PMF.bind_pure _
+    simp only [pmf_norm, ProbComp.eval_uniform, pianoHybridScheme]
   · intro St adv h st
-    dsimp only [pianoAdaptiveStepSets]
-    simp only [Scheme.realAdaptiveStep, pianoHybridScheme, ProbComp.eval_bind,
-      ProbComp.eval_uniform, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map]
-    congr 1
-    funext p
-    congr 1
-    funext B
-    congr 1
-    funext sa
-    cases hfind : findHint h.primarySets p.2 <;>
-      simp [pianoStepSets, hfind]
+    simp only [pmf_norm, ProbComp.eval_uniform, pianoAdaptiveStepSets, Scheme.realAdaptiveStep,
+      pianoHybridScheme, PMF.map]
+    pmf_swap with p B sa
+    cases hfind : findHint h.primarySets p.2 <;> simp [pianoStepSets, hfind]
   · intro St adv st kCont
-    dsimp only [pianoAdaptiveStepSets]
-    simp only [idealAdaptiveStep, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Fin M₁ → Chunk → Offset))
-      (ProbComp.eval (adv.chooseQuery st))]
-    congr 1
-    funext p
+    simp only [pmf_norm, ProbComp.eval_uniform, pianoAdaptiveStepSets, idealAdaptiveStep]
+    pmf_swap with p
     rw [uniformOfFintype_bind_bind_pianoStepSets p.2
       (fun tq => (ProbComp.eval (adv.onQuery p.1 tq.2)).bind fun sa => kCont tq.1 sa.1)]
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Fin M₁ → Chunk → Offset))
-      (PMF.uniformOfFintype (Chunk → Offset))]
-    congr 1
-    funext Q
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Fin M₁ → Chunk → Offset))
-      (ProbComp.eval (adv.onQuery p.1 Q))]
+    pmf_swap
 
-/-- `pianoHybridScheme` satisfies `Scheme.IsPerfectlyPrivate`. -/
+/-- `pianoHybridScheme` satisfies `Scheme.IsPerfectlyPrivate`. The hybrid is not a correct PIR
+scheme (see `pianoHybridScheme`); privacy of the correct `HintTable` client is not proved. -/
 theorem isPerfectlyPrivate_pianoHybridScheme :
     (pianoHybridScheme M₁ Chunk Offset).IsPerfectlyPrivate :=
   isPerfectlyPrivateWith_pianoHybridScheme.isPerfectlyPrivate
 
 /-- Every adaptive malicious server with Boolean finalizer `finalize : St → Bool` has zero
-distinguishing advantage against `pianoHybridScheme` in the ideal-random-set model. -/
+distinguishing advantage against `pianoHybridScheme` in the ideal-random-set model. The hybrid is
+not a correct PIR scheme. -/
 theorem privacyAdvantage_pianoHybridScheme_eq_zero {St : Type}
     (adv : AdaptiveServer (Chunk × Offset) (Chunk → Offset) Bool St) (finalize : St → Bool)
     (db : Chunk × Offset → Bool) (k : ℕ) (st₀ : St) :
@@ -916,19 +893,15 @@ theorem eval_queryTranscript_pianoHybridScheme (db : Chunk × Offset → Bool)
     (sim := ProbComp.uniform (Chunk → Offset))
     (stepQ := fun T x =>
       (PMF.uniformOfFintype (Chunk → Offset)).map fun B => pianoStepSets x (T, B))
-  · simp only [pianoHybridScheme, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map]
-    exact PMF.bind_pure _
+  · simp only [pmf_norm, ProbComp.eval_uniform, pianoHybridScheme]
   · intro h x
-    simp only [Scheme.queryStep, pianoHybridScheme, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map]
-    congr 1
-    funext B
+    simp only [pmf_norm, ProbComp.eval_uniform, Scheme.queryStep, pianoHybridScheme, PMF.map]
+    pmf_swap with B
     cases hfind : findHint h.primarySets x <;> simp [pianoStepSets, hfind]
   · intro x kCont
-    simp only [PMF.bind_map, Function.comp_def, ProbComp.eval_uniform]
+    simp only [pmf_norm, ProbComp.eval_uniform]
     rw [uniformOfFintype_bind_bind_pianoStepSets x (fun tq => kCont tq.1 tq.2)]
-    exact PMF.bind_comm _ _ _
+    pmf_swap
 
 end PianoSchemePrivacy
 

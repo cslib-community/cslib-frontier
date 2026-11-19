@@ -21,12 +21,12 @@ with `Cslib.negacyclicMul`), and proves its correctness.
 
 The model is the *uncompressed-public-key* scheme: the public key is `(A, t)` with
 `t = A s₁ + s₂`, a signature is `(z, c)`, and verification recomputes
-`w₁' = HighBits(A z - c t)` and checks `c = H(w₁', M)`. It omits the parts of [NISTFIPS204]
-that only shrink keys and signatures or derive randomness from seeds: `Power2Round` of `t`, the
-hint vector (`MakeHint` / `UseHint`), the byte encodings, the `ExpandA` / `ExpandS` /
-`ExpandMask` expansions and the message representative `μ`. The hash-to-ball map
-`SampleInBall ∘ H` is an arbitrary function `Hash`, and the masking vector `y` of each attempt is
-drawn from an arbitrary `ProbComp` sampler.
+`w₁' = HighBits(A z - c t)` and checks `c = H(w₁', M)`.
+This fixed hash-to-ball function compares challenge polynomials.
+FIPS 204 Algorithm 8 checks equality of the full commitment digests, uses a rounded public vector
+and hint, and hashes the message representative and encoded commitment. Its byte-level verifier
+is in `CslibFrontier.Crypto.Computational.MLDSA.FIPS204`. Each signing attempt in this algebraic
+model draws its masking vector `y` from an arbitrary `ProbComp` sampler.
 
 * **Parameters.** `Params` bundles `(n, q, k, ℓ, η, γ₁, γ₂, τ, β)`; `Params.mldsa44`,
   `Params.mldsa65` and `Params.mldsa87` are the three parameter sets of [NISTFIPS204]
@@ -182,10 +182,11 @@ theorem sum_abs_valMinAbs_le {τ : ℕ} {c : Fin n → ZMod q} (hc : InBall τ c
           · rw [not_not.mp h, ZMod.valMinAbs_zero, abs_zero]
     _ = τ := by rw [Finset.sum_boole, hc.2]
 
-/-- **Challenge times short is short.** If `c ∈ B_τ` and `‖s‖_∞ ≤ η`, with `2 τ η < q` so that
-the product has centered representatives, then `‖c s‖_∞ ≤ τ η` in `R_q`. -/
+/-- **Challenge times short is short.** If `c ∈ B_τ` and `‖s‖_∞ ≤ η`, then
+`‖c s‖_∞ ≤ τ η` in `R_q`. Centered reduction modulo `q` cannot increase the norm, so a
+no-wrap hypothesis is unnecessary. -/
 theorem abs_valMinAbs_negacyclicMul_le [NeZero q] {τ η : ℕ} {c s : Fin n → ZMod q}
-    (hc : InBall τ c) (hs : ∀ j, |(s j).valMinAbs| ≤ η) (hq : 2 * (τ * η) < q) (i : Fin n) :
+    (hc : InBall τ c) (hs : ∀ j, |(s j).valMinAbs| ≤ η) (i : Fin n) :
     |(negacyclicMul c s i).valMinAbs| ≤ τ * η := by
   set ĉ : Fin n → ℤ := fun j => (c j).valMinAbs
   set ŝ : Fin n → ℤ := fun j => (s j).valMinAbs
@@ -197,12 +198,11 @@ theorem abs_valMinAbs_negacyclicMul_le [NeZero q] {τ η : ℕ} {c s : Fin n →
   have hbound : |negacyclicMul ĉ ŝ i| ≤ τ * η := by
     calc |negacyclicMul ĉ ŝ i| ≤ (∑ j, |ĉ j|) * η := abs_negacyclicMul_le_sum_abs_mul hs i
       _ ≤ τ * η := mul_le_mul_of_nonneg_right (sum_abs_valMinAbs_le hc) (by positivity)
-  have hq' : (2 * (τ * η) : ℤ) < q := by exact_mod_cast hq
-  rw [hlift, (ZMod.valMinAbs_spec _ _).mpr ⟨rfl, ?_⟩]
-  · exact hbound
-  · rw [abs_le] at hbound
-    simp only [Set.mem_Ioc]
-    constructor <;> linarith [hbound.1, hbound.2]
+  calc
+    |(negacyclicMul c s i).valMinAbs| ≤ |negacyclicMul ĉ ŝ i| := by
+      rw [hlift]
+      exact ZMod.abs_valMinAbs_intCast_le _
+    _ ≤ τ * η := hbound
 
 end Challenge
 
@@ -316,6 +316,20 @@ theorem verifierCommitment_publicKey (sk : SecretKey P) (y : Fin P.ℓ → Fin P
   simp only [h]
   abel
 
+/-- Once the low-bits rejection test succeeds, subtracting the challenge times a short
+secret preserves the high bits of the original commitment. -/
+theorem highBitsVec_sub_challenge (hP : P.Valid) {c : Fin P.n → ZMod P.q}
+    {w s : Fin P.k → Fin P.n → ZMod P.q} (hc : InBall P.τ c)
+    (hs : ∀ i j, |(s i j).valMinAbs| ≤ P.η)
+    (hlow : LowBitsShort P (w - fun i => negacyclicMul c (s i))) :
+    highBitsVec P (w - fun i => negacyclicMul c (s i)) = highBitsVec P w := by
+  have : NeZero P.q := ⟨by have := hP.one_lt_q; lia⟩
+  funext i j
+  have hb : |(negacyclicMul c (s i) j).valMinAbs| ≤ P.β :=
+    (abs_valMinAbs_negacyclicMul_le hc (hs i) j).trans (by exact_mod_cast hP.τ_mul_η_le_β)
+  have he := highBits_add_of_abs_lowBits_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hP.one_lt_q hb (hlow i j)
+  simpa only [highBitsVec, Pi.sub_apply, sub_add_cancel] using he.symm
+
 /-- **Correctness of one attempt.** If `‖s₂‖_∞ ≤ η` and the hash takes values in `B_τ`, every
 signature output by `signAttempt` verifies under the matching public key. -/
 theorem verify_signAttempt (hP : P.Valid) {H : Hash P} (hH : ∀ x, InBall P.τ (H x))
@@ -332,20 +346,7 @@ theorem verify_signAttempt (hP : P.Valid) {H : Hash P} (hH : ∀ x, InBall P.τ 
   simp only [verify, Bool.and_eq_true, decide_eq_true_eq]
   refine ⟨⟨hz, hH _⟩, ?_⟩
   rw [verifierCommitment_publicKey]
-  -- `HighBits(w - c s₂) = HighBits(w)`, since `c s₂` is `β`-short.
-  have hq : 2 * (P.τ * P.η) < P.q := by
-    have := hP.τ_mul_η_le_β; have := hP.two_mul_β_lt_q; omega
-  have hhigh : highBitsVec P (w - fun i => negacyclicMul c (sk.s₂ i)) = highBitsVec P w := by
-    funext i j
-    have hs : |(negacyclicMul c (sk.s₂ i) j).valMinAbs| ≤ P.β := by
-      have := abs_valMinAbs_negacyclicMul_le (hH (highBitsVec P w, msg)) (hs₂ i) hq j
-      have hτη : ((P.τ * P.η : ℕ) : ℤ) ≤ P.β := by exact_mod_cast hP.τ_mul_η_le_β
-      push_cast at hτη
-      linarith
-    have := highBits_add_of_abs_lowBits_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hP.one_lt_q hs (hlow i j)
-    simp only [Pi.sub_apply, sub_add_cancel] at this
-    exact this.symm
-  rw [hhigh]
+  rw [highBitsVec_sub_challenge hP (hH (highBitsVec P w, msg)) hs₂ hlow]
 
 /-- **Correctness of signing.** Under the hypotheses of `verify_signAttempt`, every signature that
 `sign` can output verifies, whatever the mask sampler and the retry bound. -/

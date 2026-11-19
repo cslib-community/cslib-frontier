@@ -5,6 +5,8 @@ Authors: Erik Demaine
 -/
 
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 Complete native routed box-product regressions. Original matrices and coordinates are

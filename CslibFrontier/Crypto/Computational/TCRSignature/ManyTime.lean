@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -31,6 +32,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Many-time fresh-key TCR hash-and-sign on arbitrary-length bit words
@@ -95,7 +97,8 @@ messages**:
 * `Cslib.Crypto.WordSignatureScheme.EUFCMA.exists_oneWay`,
   `Cslib.Crypto.OneWay.exists_wordEUFCMA_of_targetCollisionResistant`,
   `Cslib.Crypto.OneWayPermutation.exists_wordEUFCMA`: necessity and sufficiency bridges for
-  unrestricted-message signatures.
+  unrestricted-message signatures (the last two are steps toward [NaorYung1989]: no inspection of
+  the primary source is recorded).
 
 ## References
 
@@ -225,7 +228,7 @@ private theorem isOraclePPTOn_manyTimeHandler (H : KeyedHashFamily) {sigBound : 
     have hquery : IsOraclePPTOn (Operation := Unit) encMid encBits
         (fun q : Mid => List.take (sigBound q.1.1.1) <$>
           ProbOracleComp.query ((), otsMsg H q.1.1.1 q.2 (H.eval q.1.1.1 q.2 q.1.2.1.2))) :=
-      IsOraclePPTOn.query_take' () (hmOtsReq.of_enc_eq fun _ => rfl)
+      IsOraclePPTOn.query_take () (hmOtsReq.of_enc_eq fun _ => rfl)
         ((hmN.trans hsigBound).of_enc_eq fun _ => rfl)
     have hpack : ComputableInPolyTime
         (fun r : Mid × List Bool => (encPair encBits encBits (r.1.2, r.2), ()))
@@ -267,7 +270,7 @@ private theorem isOraclePPTOn_run_manyTimeHandler (H : KeyedHashFamily) {sigBoun
       (ComputableInPolyTime.fst _ _).fst'
     have htwoK := (ComputableInPolyTime.const 2).unary_mul' (hn.trans H.keyLen_polyTime)
     exact (htwoK.unary_add' (hn.trans hsigBound)).unary_add' (.const 2)
-  apply hadversary.run_interpret_preprocess_open'
+  apply hadversary.run_interpret_preprocess_open
     (handler := fun (caller : Caller) request state =>
       manyTimeHandler H sigBound caller.1 request state)
     (prepare := fun caller : Caller =>
@@ -330,14 +333,14 @@ theorem isOraclePPT_manyTimeForger (H : KeyedHashFamily) {sigBound : ℕ → ℕ
   have hcond : ComputableInPolyTime
       (fun p : In => decide (otsParam H (otsParamInv H p.1) = p.1)) encIn encBool :=
     ComputableInPolyTime.unary_eq' ((computableInPolyTime_otsParam H).comp hnIn) hM
-  have hrunIn := (isOraclePPTOn_run_manyTimeHandler H hsigBound hadversary).preprocess'
+  have hrunIn := (isOraclePPTOn_run_manyTimeHandler H hsigBound hadversary).preprocess
     (hnIn.prod hotvk)
   have hactive := hrunIn.map_pair' (computableInPolyTime_manyTimePost H)
   have hempty : IsOraclePPTOn (Operation := Unit) encIn (encPair encBits encBits)
       (fun _ : In => pure ([], [])) :=
     (ComputableInPolyTime.const (encIn := encIn) (encOut := encPair encBits encBits)
       ([], [])).isOraclePPTOn
-  exact IsOraclePPTOn.ite' hcond hactive hempty
+  exact IsOraclePPTOn.ite hcond hactive hempty
 
 /-! ### Deterministic step replay and bounded-growth trace sampling (`tcrMultiAdversary`) -/
 
@@ -601,7 +604,7 @@ private theorem isPPTOn_appendTraceStep {k : ℕ} {Control α : Type} [Finite Co
         (replayCfg machine (limit a) (word a) (trace a)) (b a)).isSome = true))
       input encBool :=
     hqOpt.optionIsSome.of_enc_eq fun _ => rfl
-  refine (IsPPTOn.ite' hcond hsome hnone).congr fun a => ?_
+  refine (IsPPTOn.ite hcond hsome hnone).congr fun a => ?_
   dsimp only [appendTraceStep]
   cases queryOf machine (replayCfg machine (limit a) (word a) (trace a)) (b a) with
   | none => rfl
@@ -629,23 +632,6 @@ private theorem exists_ots_of_mem_support_appendTraceStep {k : ℕ} {Control : T
       PMF.mem_support_pure_iff] at hnext
     obtain ⟨ots, hots, rfl⟩ := hnext
     exact ⟨ots, rfl, Or.inr ⟨msg, hots⟩⟩
-
-private theorem isPPTOn_iterateWith_of_bounded_growth' {α State : Type}
-    {input : α ↪ List Bool} {stateEncoding : State ↪ List Bool}
-    {initial : α → State} {count : α → ℕ} {step : α → State → ProbComp State}
-    (hcount : ComputableInPolyTime count input encUnary)
-    (hinitial : ComputableInPolyTime initial input stateEncoding)
-    (hstep : IsPPTOn (encPair input stateEncoding) stateEncoding
-      (fun pair => step pair.1 pair.2))
-    {growth : α → ℕ} (hpoly : PolyBounded (fun a => (input a).length) growth)
-    (hgrowth : ∀ a state next, next ∈ (ProbComp.eval (step a state)).support →
-      (stateEncoding next).length ≤ (stateEncoding state).length + growth a) :
-    IsPPTOn input stateEncoding (fun a => OracleComp.iterate (count a) (step a) (initial a)) := by
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinitial
-    (hstep.isOraclePPTOn (Operation := Empty)) hpoly fun a state next hnext =>
-      hgrowth a state next ((ProbOracleComp.support_sample _).subset hnext)
-  apply IsOraclePPTOn.isPPTOn
-  simpa only [ProbOracleComp.sample, OracleComp.interpret_iterate] using hloop
 
 private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite Control]
     {input : α ↪ List Bool}
@@ -703,7 +689,7 @@ private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite
   have hpolyGrowth : PolyBounded (fun a => (input a).length) growth :=
     (((PolyBounded.const 4).mul (H.keyLen_polyTime.comp hn).polyBounded).add
       ((PolyBounded.const 2).mul hpolySig)).add (.const 10)
-  refine isPPTOn_iterateWith_of_bounded_growth' hcount hinit hstep hpolyGrowth ?_
+  refine IsPPTOn.iterateWith_of_bounded_growth hcount hinit hstep hpolyGrowth ?_
   intro a tr next hnext
   simp only [sampleStep, ProbComp.eval_bind, ProbComp.eval_uniform, BitString.eval_sampleList,
     PMF.mem_support_bind_iff] at hnext
@@ -720,10 +706,7 @@ private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite
           2 * (otsk a).length + otsParam H (n a) + 2 := by omega
       exact hs.trans (Nat.mul_le_mul_left csg (Nat.pow_le_pow_left hle dsg))
   rw [encList_append]
-  simp only [List.length_append, encList_cons, encList_nil, List.append_nil, length_frame,
-    encTraceStep_apply, length_encPair, encBool_apply, encBits_apply, List.length_singleton,
-    hkLen, growth]
-  omega
+  enc_len [List.append_nil, encTraceStep_apply, List.length_singleton, hkLen, growth]
 
 /-- Uniform polynomial upper bound on the machine clock `c * ((wordOf n otvk).length + 1) ^ d`
 across all `otvk` of length at most `ckg * (otsParam H n + 1) ^ dkg`. -/
@@ -900,7 +883,7 @@ private theorem isPPTOn_tcrMultiAdversary_choose {k : ℕ} {Control : Type} [Fin
         encSIn encTcrSavedState :=
       encTcrSavedState_mk_polyTime (.const false) hsKeys (.const false) (.const 0) (.const [])
     exact ((ComputableInPolyTime.const []).prod (hsavedFalse.trans hencState)).isPPTOn
-  have hite := IsPPTOn.ite' hsCond hyes hno
+  have hite := IsPPTOn.ite hsCond hyes hno
   exact (hkg.bind_pair (hslot.bind_pair hite)).congr fun _ => rfl
 
 private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finite Control]
@@ -966,7 +949,7 @@ private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finit
   have hyes := hmid.bind_pair (hpostLoop.map_pair hpostOut)
   have hno : IsPPTOn encFIn encBits (fun _ : FIn => pure []) :=
     (ComputableInPolyTime.const []).isPPTOn
-  exact (IsPPTOn.ite' hactive hyes hno).congr fun _ => rfl
+  exact (IsPPTOn.ite hactive hyes hno).congr fun _ => rfl
 
 /-- Both stages of `tcrMultiAdversary` are uniformly strict PPT. -/
 theorem isPPT_tcrMultiAdversary {k : ℕ} {Control : Type} [Finite Control]
@@ -1427,7 +1410,7 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
             (FiniteConfig.init machine.initial (wordOf keys.1), [])
           (msgSigDecoder.decode res.1.tapes.output, res.2) := by
     intro keys
-    rw [← ProbOracleComp.run_interpret_eq_runWith]
+    rw [ProbOracleComp.runWith_eq_run_interpret]
     have hdecode : adversary n (pkOf keys.1) =
         msgSigDecoder.decode <$> ((encPair encBits encBits) <$> adversary n (pkOf keys.1)) := by
       simp only [Functor.map_map, msgSigDecoder.decode_enc]
@@ -1471,7 +1454,8 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
       (represent := List.map Prod.fst)
       (step := by
         intro ⟨⟨⟩, msg⟩ pairs
-        simp only [pairSigningOracle, WordSignatureScheme.signingOracle, wordScheme_sign, sign,
+        simp only [pairSigningOracle, WordSignatureScheme.signingOracle,
+          SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, wordScheme_sign, sign,
           pkOf, simPkOf, keyDecoder.decode_enc, ↓reduceIte, BitString.eval_sampleList,
           List.map_cons, _root_.PMF.map, pmf_norm])
       (adversary n (pkOf keys.1)) []
@@ -1489,7 +1473,8 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
     have hsim := ProbOracleComp.runWith_map_state
       (oracle := pairSigningOracle S H n keys.2)
       (oracle' := fun q (state : Unit × List (List Bool)) =>
-        (ProbOracleComp.runWith (fun req s => ProbComp.eval (S.signingOracle keys.2 req s))
+        (ProbOracleComp.runWith
+          (fun req s => ProbComp.eval (S.signingOracle (otsParam H n) keys.2 req s))
           (StateT.run (manyTimeHandler H sigBound n q) state.1) state.2).map
             (fun p => (p.1.1, p.1.2, p.2)))
       (represent := fun pairs : List (List Bool × List Bool) =>
@@ -1497,12 +1482,14 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
       (step := by
         intro ⟨⟨⟩, msg⟩ pairs
         change _ = (ProbOracleComp.runWith
-          (fun req s => ProbComp.eval (S.signingOracle keys.2 req s))
+          (fun req s => ProbComp.eval (S.signingOracle (otsParam H n) keys.2 req s))
           (manyTimeHandler H sigBound n ((), msg) ())
           (pairs.map fun p => otsMsg H n p.2 (H.eval n p.2 p.1))).map
             (fun p => (p.1.1, p.1.2, p.2))
-        simp only [manyTimeHandler, SignatureScheme.signingOracle, pairSigningOracle,
-          BitString.eval_sampleList, List.map_cons, _root_.PMF.map, runWith_norm, pmf_norm]
+        simp only [manyTimeHandler, SignatureScheme.signingOracle,
+          SignatureScheme.signingOracleOn, length_otsMsg, beq_self_eq_true, ↓reduceIte,
+          pairSigningOracle, BitString.eval_sampleList, List.map_cons, _root_.PMF.map,
+          runWith_norm, pmf_norm]
         peel_binds hashKey ots
         have htake : ots.take (sigBound n) = ots :=
           List.take_of_length_le
@@ -1529,8 +1516,7 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
       have hwLen : (wordOf keys.1).length + 1 ≤
           4 * n + ckg * (otsParam H n + 1) ^ dkg + 3 := by
         dsimp only [wordOf, pkOf, simWordOf, simPkOf]
-        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-        omega
+        enc_len
       exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left hwLen d)
     have hfuelLtD : fuelOf keys.1 < D :=
       Nat.lt_of_le_of_lt hfuelLe (lt_dyadicSize _)
@@ -1640,6 +1626,19 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
   have hlossPoly : PolynomiallyBounded (fun n => dyadicSize (fuelUpper H ckg dkg c d n)) :=
     (ComputableInPolyTime.unary_dyadicSize.comp
       (computableInPolyTime_fuelUpper H ckg dkg c d)).polynomiallyBounded
+  have hmachineInterpret : ∀ (input : ℕ × List Bool) (State : Type)
+      (oracle : Unit × List Bool → StateT State PMF (List Bool)) s,
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (encPair encBits encBits <$> adversary input.1 input.2)).run s =
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (machine.runOracle
+            (c * ((encPair encUnary encBits input).length + 1) ^ d)
+            (encPair encUnary encBits input))).run s := by
+    intro input State oracle s
+    simpa only [← ProbOracleComp.runWith_eq_run_interpret] using
+      hmachine input State oracle s
   exact ⟨manyTimeForger H sigBound adversary,
     tcrMultiAdversary S H machine ckg dkg c d,
     fun n => dyadicSize (fuelUpper H ckg dkg c d n),
@@ -1648,14 +1647,30 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
     hlossPoly,
     succProbability_wordScheme_eufCmaGame_le_of_machine S H ckg dkg
       (fun n pk sk h => hpkBoundLe n (pk, sk) h) sigBound
-      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachine⟩
+      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachineInterpret⟩
 
 end TCRSignature
 
-/-- **Boneh–Shoup Theorem 13.2** ([BonehShoup2023], Section 13.2.1, p. 534): if `S` is a stateless
-many-time `EUFCMA`-secure `SignatureScheme` on fixed-length bit strings and `H` is an unrestricted
-target collision-resistant `KeyedHashFamily` on `List Bool`, then `TCRSignature.wordScheme S H` is
-an `EUFCMA`-secure stateless `WordSignatureScheme` on arbitrary-length `List Bool` messages. -/
+/-- **Boneh–Shoup Theorem 13.2** ([BonehShoup2023], Section 13.2.1, p. 534): if `S` is a secure
+signature scheme (`EUFCMA`) and `H` is target collision resistant, then the derived scheme
+`TCRSignature.wordScheme S H` of construction `(13.2)` (p. 533) is a secure signature scheme, here
+on messages of any length.
+
+`S` is a `SignatureScheme`, whose message space at security parameter `p` is the `p`-bit words.
+The source's `S` signs the pairs `(r, h)` of `K_H × T` at the same security parameter. Here, at
+parameter `n`, the derived scheme runs `S` at the parameter `otsParam H n` (injective, computable
+in polynomial time and above `H.keyLen n + H.digestLen n`) on the `otsParam H n`-bit word
+`otsMsg H n r h`: `r`, then `h`, then zero padding. So the premise `S.EUFCMA` is Attack Game 13.1
+for `S` on all `otsParam H n`-bit words, which contain the encoded pairs, and the bound at `n` uses
+the advantage against `S` at `otsParam H n`, which is negligible in `n` since `otsParam H n ≥ n`
+(`TCRSignature.negligible_comp_otsParam`). The keys of the derived scheme also carry `n`; its
+signature is `(r, σ)`, and verification checks that `r` has `H.keyLen n` bits.
+
+`H.TargetCollisionResistant` is Attack Game 8.5 and Definition 8.7 (pp. 337–338) with every word a
+message, and the conclusion is Attack Game 13.1 on every word: security on every message space of
+polynomially bounded word length at once. Adversaries are uniform strict (oracle) PPT machines.
+`TCRSignature.exists_reduction_wordScheme_eufCmaGame_le` gives the certified reductions and the
+bound, with a polynomially bounded loss in place of the source's factor `Q`. -/
 theorem SignatureScheme.EUFCMA.eufCMA_wordScheme
     {S : SignatureScheme} (hS : S.EUFCMA)
     {H : KeyedHashFamily} (hH : H.TargetCollisionResistant) :
@@ -1673,11 +1688,14 @@ theorem WordSignatureScheme.EUFCMA.exists_oneWay {S : WordSignatureScheme} (hS :
     ∃ f, OneWay f :=
   hS.toSignatureScheme.exists_oneWay
 
-/-- **Stateless unrestricted-message `EUFCMA` signatures from one-way functions and target
-collision-resistant hash families** ([NaorYung1989], Section 4; [BonehShoup2023], Sections 13.2.1
-and 14.6): any uniform `OneWay` function and any unrestricted target collision-resistant
-`KeyedHashFamily` yield a stateless many-time `WordSignatureScheme` satisfying `EUFCMA` on all
-`List Bool` messages. -/
+/-- Step toward the signatures of [NaorYung1989], Section 4, for messages of any length, not the
+cited result: no inspection of the primary source is recorded (`manual/sources.md` lists the
+authors' manuscript without a check), so this statement has not been checked against it (#5293).
+[BonehShoup2023], Sections 13.2.1 and 14.6, give the route but state no theorem of this form.
+
+Any uniform `OneWay` function and any unrestricted target collision-resistant `KeyedHashFamily`
+yield a stateless many-time `WordSignatureScheme` satisfying `EUFCMA` on all `List Bool`
+messages. -/
 theorem OneWay.exists_wordEUFCMA_of_targetCollisionResistant
     {f : List Bool → List Bool} (hf : OneWay f)
     {H : KeyedHashFamily} (hH : H.TargetCollisionResistant) :
@@ -1685,10 +1703,14 @@ theorem OneWay.exists_wordEUFCMA_of_targetCollisionResistant
   obtain ⟨S, hS⟩ := hf.exists_eufCMA_of_targetCollisionResistant hH
   exact ⟨TCRSignature.wordScheme S H, hS.eufCMA_wordScheme hH⟩
 
-/-- **Unrestricted-message Naor–Yung signature theorem** ([NaorYung1989], Theorem 2 / Section 4;
-[BonehShoup2023], Section 13.2.1, Theorem 13.2): every one-way permutation implies the existence of
-a stateless many-time `EUFCMA`-secure `WordSignatureScheme` on arbitrary-length `List Bool`
-messages. -/
+/-- Step toward the Naor–Yung signature theorem ([NaorYung1989], Theorem 2 / Section 4), for
+messages of any length, not the cited result: no inspection of the primary source is recorded
+(`manual/sources.md` lists the authors' manuscript without a check), so this statement has not been
+checked against it (#5293).
+
+Every one-way permutation implies the existence of a stateless many-time `EUFCMA`-secure
+`WordSignatureScheme` on arbitrary-length `List Bool` messages; the extension to all lengths is
+[BonehShoup2023], Theorem 13.2 (`SignatureScheme.EUFCMA.eufCMA_wordScheme`). -/
 theorem OneWayPermutation.exists_wordEUFCMA
     {f : List Bool → List Bool} (hf : OneWayPermutation f) :
     ∃ W : WordSignatureScheme, W.EUFCMA := by

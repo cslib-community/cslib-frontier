@@ -56,7 +56,7 @@ theorem computableInPolyTime_instantiate (encRel : Rel ↪ List Bool) (B : ℕ) 
         instantiate B index scope body)
       (encPair (encPair encUnary (encList encNat))
         (encCSP encRel (encPair encBool encUnary))) (encCSP encRel encNat) := by
-  unfold instantiate relabel Constraint.relabel
+  unfold instantiate Cslib.Logic.PL.CSP.relabel Constraint.relabel
   fun_prop
 
 /-- Finite fixed gadget lookup and replacement are native polynomial time, with no
@@ -71,7 +71,7 @@ theorem computableInPolyTime_replaceGadgets [Finite Src]
   have hi := computableInPolyTime_instantiate encRel B
   have hz : ComputableInPolyTime (fun F : CSP Src ℕ => F.zipIdx)
       (encCSP encSrc encNat) (encList (encPair (encConstraint encSrc encNat) encUnary)) :=
-    .of_tidy (ComputableTidilyInPolyTime.zipIdx _)
+    (ComputableInPolyTime.zipIdx _)
   unfold replaceGadgets
   apply flatMapWithInput hz
   exact hi.comp (g := fun p : CSP Src ℕ × (Constraint Src ℕ × ℕ) =>

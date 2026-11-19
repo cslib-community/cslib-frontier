@@ -370,16 +370,17 @@ theorem runFrom_fcom_committed (κ : ℕ) (b : Bool) {α : Type}
   induction program using OracleComp.induction generalizing recDel with
   | pure a => rfl
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q
-    · have h₁ : liftNet (n := 2) (In := CommitmentInput) (Out := CommitmentOutput)
+    · have h₁ : Machine.liftRightProgram (partySpec 2 CommitmentInput CommitmentOutput)
           (OracleComp.query
             (spec := probOracleSpec (netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
               (RoutedNetR CommitmentOutput (Option CommitmentOutput))))
             (Sum.inl k)) =
           ProbOracleComp.sample (ProbComp.unifFin k) := by
-        rw [← liftNet_sample
-          (NetQ := RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
-          (NetR := RoutedNetR CommitmentOutput (Option CommitmentOutput))]
+        rw [← Machine.liftRightProgram_sample (partySpec 2 CommitmentInput CommitmentOutput)
+          (R := netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
+            (RoutedNetR CommitmentOutput (Option CommitmentOutput)))]
         rfl
       have h₂ : fcomCommittedView.runFrom
           (OracleComp.query
@@ -389,10 +390,12 @@ theorem runFrom_fcom_committed (κ : ℕ) (b : Bool) {α : Type}
           (fun a => (a, fcomCommittedState recDel)) <$>
             ProbOracleComp.sample (ProbComp.unifFin k) :=
         fcomCommittedView.runFrom_sample (ProbComp.unifFin k) (fcomCommittedState recDel)
-      erw [liftNet_bind, h₁, Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left,
-        Machine.runFrom_bind, h₂, bind_map_left, map_bind]
+      dsimp only [liftNet]
+      erw [Machine.liftRightProgram_bind, h₁, Machine.runFrom_bind, Machine.runFrom_sample,
+        bind_map_left, Machine.runFrom_bind, h₂, bind_map_left, map_bind]
       exact bind_congr fun a => ih a recDel
-    · rw [liftNet_bind]
+    · dsimp only [liftNet]
+      rw [Machine.liftRightProgram_bind]
       have h₁ : (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).runFrom
           (liftNet (OracleComp.query
             (spec := probOracleSpec (netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
@@ -400,7 +403,8 @@ theorem runFrom_fcom_committed (κ : ℕ) (b : Bool) {α : Type}
             (Sum.inr q))) (fcomRouterState κ {1} (.committed b recDel)) =
           pure ((fcomCommittedStep q recDel).1,
             fcomRouterState κ {1} (.committed b (fcomCommittedStep q recDel).2)) := by
-        erw [liftNet_query, Machine.runFrom_query]
+        dsimp only [liftNet]
+        erw [Machine.liftRightProgram_query, Machine.runFrom_query]
         exact handle_corruptRouter_fcom_committed κ b q recDel
       have h₂ : fcomCommittedView.runFrom
           (OracleComp.query
@@ -1058,7 +1062,7 @@ theorem isQueryBounded_simOpen {S₁ : PlainCommitmentSim CommitMsg OpenMsg} {κ
     (simOpen S₁ b κ st₁ recDel₁).IsQueryBounded t := by
   refine (OracleComp.isCostBounded_map_iff _ _ _).mpr ?_
   have hrun := Machine.isQueryBounded_runFrom (corruptRouter_fcom_isBounded κ {1})
-    (isQueryBounded_liftNet (hS.2 (.inr .readOpen) st₁))
+    (Machine.isQueryBounded_liftRightProgram _ (hS.2 (.inr .readOpen) st₁))
     (fcomRouterState κ {1} (.opened b recDel₁))
   rw [Nat.mul_one] at hrun
   exact Machine.isQueryBounded_closeProgram hrun
@@ -1213,7 +1217,7 @@ private theorem init_execMachine_fcom {AdvQ AdvR : Type}
     (κ : ℕ) (C : Finset (Fin 2)) :
     (execMachine fcom.toProtocol S κ C).init =
       (fun sA => fcomExecState S κ C sA .idle) <$> (S κ C).init := by
-  simp only [execMachine, Machine.comp, liftAdversary, corruptRouter, fcom,
+  simp only [execMachine, Machine.comp, liftAdversary, Machine.liftRight, corruptRouter, fcom,
     IdealFunctionality.toProtocol, fcomExecState, pure_bind, bind_pure_comp]
 
 private theorem handle_execMachine_fcom_commit {AdvQ AdvR : Type}

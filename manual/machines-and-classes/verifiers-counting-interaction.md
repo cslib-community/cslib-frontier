@@ -19,9 +19,17 @@ and the distinction between Toda’s bit-oracle endpoint and a fixed #SAT oracle
 
 [BPP](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/BPP.lean#L163) and [RP](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/RP.lean#L143) use the same native deterministic verifier with a uniform seed of exactly polynomial length. BPP's fractions are expressed through finite accepted-seed counts, with thresholds two thirds and one third. RP has no false positives and accepts a yes instance on at least half of its seeds. `coRP` complements the language. Explicit amplification and coin-tape/PTM bridges connect these presentations to probabilistic execution.
 
-A worked one-sided-error client is the Miller–Rabin test in [MillerRabin.lean](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean). Its verifier reads `2 |n|` random bits on the binary input `n` and reduces them to a base in `[1, n - 1]`. [decidesWithOneSidedError](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L267) charges the bias of reducing a uniform word modulo `n - 1` against the strong-liar bound [two_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/StrongLiars.lean#L217), which gives [primes_mem_coRP](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L317). The sharper Rabin–Monier bound [four_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/RabinMonier.lean#L334), at most `φ(n) / 4` strong liars for odd composite `n ≠ 9` (attributed in the module docstring to Rabin and to Monier, 1980), is not needed for the `1/2` error of `RP`. The same membership follows from AKS through `P_subset_coRP`; the client is there to exhibit the verifier and its error count, not to give a new route to the class membership.
+A worked one-sided-error client is the Miller–Rabin test in [MillerRabin.lean](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean). Its verifier reads `2 |n|` random bits on the binary input `n` and reduces them to a base in `[1, n - 1]`. [decidesWithOneSidedError](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L265) charges the bias of reducing a uniform word modulo `n - 1` against the strong-liar bound [two_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/StrongLiars.lean#L217), which gives [primes_mem_coRP](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L315). The sharper Rabin–Monier bound [four_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/RabinMonier.lean#L334), at most `φ(n) / 4` strong liars for odd composite `n ≠ 9` (attributed in the module docstring to Rabin and to Monier, 1980), is not needed for the `1/2` error of `RP`. The same membership follows from AKS through `P_subset_coRP`; the client is there to exhibit the verifier and its error count, not to give a new route to the class membership.
 
 The Solovay–Strassen test compares `a ^ ((n - 1) / 2)` with the Jacobi symbol `J(a | n)` modulo `n`; its Euler-liar bound is [two_mul_card_eulerLiars_le](../../CslibFrontier/Foundations/NumberTheory/Primality/EulerLiars.lean#L147). The symbol itself is certified by [binary_jacobiSym](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Jacobi.lean#L287): Mathlib's `jacobiSym` on binary naturals, with a binary signed result, for every `a` and `n` (even `n` and `n = 0` included). The proof runs the reciprocity reductions as a counted loop of `2 * Nat.size n` steps, each of which at least halves `a * n` ([jacobiReadout_iterate_jacobiStep](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Jacobi.lean#L244)), and `intBin_jacobiSym` extends it to a signed numerator. [JacobiPolyTime](../../CslibFrontierTests/JacobiPolyTime.lean) composes it into the Solovay–Strassen comparison and runs the loop on concrete inputs. The Solovay–Strassen `coRP` verifier is not yet stated ([#2958](https://github.com/cslib-community/cslib-frontier/issues/2958)).
+
+The modular-power certificate `ComputableInPolyTime.binary_powMod` composes plain input and
+fold-step certificates. Its square-and-multiply fold keeps every accumulator below the positive
+modulus, preserving the prefix encoding-size bound. For an unconstrained modulus, use
+`computableInPolyTime_powMod`: its total function `powMod` returns `1` when the modulus is zero.
+The [ordinary-module client](../../CslibFrontierTests/PowModPlain.lean) exercises both
+contracts and the zero, unit and positive modulus cases.
+
 
 [ZPP](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/ZPP.lean#L19) changes the result type to `Option Bool`. A returned Boolean is always correct; at least half of all seeds yield an answer. The remaining seeds return `none`. The source proves `ZPP = RP ∩ coRP`. Expected polynomial running time is not modeled by this definition, and no equivalence with an expected-time operational semantics is claimed here.
 
@@ -38,6 +46,8 @@ Goldreich's Proposition 6.22, integer permanents from 0/1 permanents, is [metric
 The 0/1 permanent is in #P by a permutation-matrix verifier ([Problems/Permanent/Membership](../../CslibFrontier/Computability/Complexity/Problems/Permanent/Membership.lean): `ZeroOnePermanent.mem_SharpP`; certificates are `n * n` bits read row by row, padded with required-`false` bits), and it counts the perfect matchings of the bipartite graph whose biadjacency matrix is the table ([Problems/Permanent/Matching](../../CslibFrontier/Computability/Complexity/Problems/Permanent/Matching.lean): `bipartitePerfectMatchingCount_eq_zeroOnePermanent`, for Mathlib's `Subgraph.IsPerfectMatching`). A metric reduction to a function with polynomially many bits is a polynomial-time oracle program reading those bits through `AnswersBits`, so metric #P-completeness implies #P-completeness in Arora and Barak's oracle sense ([SharpP/MetricOracle](../../CslibFrontier/Computability/Complexity/Classes/SharpP/MetricOracle.lean): `SharpPMetricComplete.computableInPolyTimeWithOracle`).
 
 Valiant's theorem assembles these: [zeroOnePermanent_sharpPMetricComplete](../../CslibFrontier/Computability/Complexity/Problems/Permanent/Valiant.lean) composes `SharpThreeSAT_sharpPComplete` with the two metric reductions above, and `zeroOnePermanent_computableInPolyTimeWithOracle` turns it into the books' oracle form. To prove another counting problem #P-hard through the permanent, give a `MetricReducible` from `ZeroOnePermanent` (or `IntPermanent`) and apply `SharpPMetricHard.trans`; a parsimonious reduction suffices via `ParsimoniousReducible.metricReducible`.
+
+Over a finite field `F`, Lipton's random self-reduction of the permanent (Arora–Barak Theorem 8.30) is formalized in the probabilistic oracle-query model (`ProbOracleComp`) in [Problems/Permanent/Lipton.lean](../../CslibFrontier/Computability/Complexity/Problems/Permanent/Lipton.lean), built on the univariate polynomial line restriction `Matrix.permanentLinePoly` in [Permanent/Line.lean](../../CslibFrontier/Foundations/Data/Matrix/Permanent/Line.lean) (`eval_permanentLinePoly`, `eval_zero_permanentLinePoly`, `natDegree_permanentLinePoly_le`), the vector-space generalization of Lagrange self-correction `Cslib.Code.lagrangeDecode` and `Cslib.Code.nonzeroNodes` in [Code/SelfCorrection.lean](../../CslibFrontier/Foundations/Data/Code/SelfCorrection.lean) (`lagrangeDecode_eq_of_exists_natDegree_le`, `card_lagrangeDecode_ne_le_of_forall_eq`, `affineLineEquiv`), affine-line uniformity in [Probability/Uniform/AffineLine.lean](../../CslibFrontier/Probability/Uniform/AffineLine.lean), tuple/repetition query laws in [Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean), and Hoeffding plurality amplification in [Probabilistic/Plurality.lean](../../CslibFrontier/Languages/Probabilistic/Plurality.lean). Given `n + 1` distinct nonzero interpolation nodes `ν : Fin (n + 1) ↪ F` (`Cslib.Code.nonzeroNodes` constructs them whenever `n + 2 ≤ Fintype.card F`, which `3 * n < Fintype.card F` implies for `n ≥ 1`), `liptonPermanentTrial ν A` samples a uniform mask `R : Matrix (Fin n) (Fin n) F`, makes `n + 1` oracle queries `O (A + ν i • R)` (`isQueryBounded_liptonPermanentTrial`, `length_transcript_liptonPermanentTrial`), and Lagrange-interpolates at `0`. Against any deterministic oracle `O` erring on at most `|F| ^ (n * n) / (3 * n)` matrices, `liptonPermanentTrial_prob_ge` and `liptonPermanentTrial_prob_toReal_ge` (and the direct `3 * n < Fintype.card F` corollaries `liptonPermanentTrial_prob_ge_of_three_mul_lt`, `liptonPermanentTrial_prob_toReal_ge_of_three_mul_lt`) prove single-trial success probability at least `1 - (n + 1) / (3 * n)`. For `k` independent trials (`liptonPermanentPlurality k ν A`, making `k * (n + 1)` queries by `isQueryBounded_liptonPermanentPlurality`), Hoeffding concentration (`Cslib.ProbComp.toOuterMeasure_plurality_replicate_ne_toReal_le`) gives success probability at least `1 - 2 ^ (-2 * γ ^ 2 * k)` whenever the single-trial success probability is at least `1 / 2 + γ` (`liptonPermanentPlurality_prob_toReal_ge_of_margin`). Because `(n + 1) / (3 * n)` equals `2 / 3` at `n = 1` and `1 / 2` at `n = 2`, the literal `3 * n` denominator yields `1 - 2 ^ (-(k / 162))` for `n ≥ 3` (`liptonPermanentPlurality_prob_toReal_ge`, `liptonPermanentPlurality_prob_toReal_ge_of_three_mul_lt`), while denominator `4 * n` yields `1 - 2 ^ (-(k / 32))` for `n ≥ 2` (`liptonPermanentPlurality_prob_toReal_ge_of_four_mul`) and denominator `3 * (n + 1)` yields `1 - 2 ^ (-(k / 18))` for all `n` (`liptonPermanentPlurality_prob_toReal_ge_of_three_mul_succ`). Field arithmetic is not charged as bit-level Turing-machine time. Check the `ZMod 5` (`n = 1`, including a concrete faulty oracle `badOracle`) and `ZMod 11` (`n = 2, 3`) examples in [CslibFrontierTests/LiptonPermanent.lean](../../CslibFrontierTests/LiptonPermanent.lean) with `scripts/build.sh CslibFrontierTests.LiptonPermanent --wfail --iofail`.
 
 The following are acceptance conventions over these shared count models, not a separate tape instruction set for each class. Here `f` is a #P function, `g` a GapP function, and all constraints apply to every valid encoded input.
 
@@ -95,6 +105,232 @@ When an exact witness counter `count z = |W z|` (on instances with `|enc z| ≤ 
 For strict native PPT and oracle-PPT execution (where coin budgets are worst-case polynomial rather than unbounded Las Vegas), `sampleUniformIntervalRetry c fuel` caps binary rejection sampling at `fuel` trials of `sampleBinaryNat c.size`. It has the law of `sampleUniformInterval c fuel` (`eval_sampleUniformIntervalRetry`) and consumes at most `2 * c.size` expected fair coins (`expectedCost_sampleUniformIntervalRetry_le`). Running `R.len x` steps with `fuel = q + R.len x` (`SelfReducible.boundedConditionalSample`) keeps the counter budget at `1 + R.len x` (independent of `q`), achieves total-variation distance at most `(1 / 2) ^ q` (`closeTo_boundedConditionalSample`), certifies `IsPPTOn` and `IsFPAUS` when `count` is polynomial-time (`isPPTOn_boundedConditionalSample`, `isFPAUS_boundedConditionalSample`), and lifts to `IsOraclePPTOn` when `count` is `ComputableInPolyTimeWithOracle` (`isOraclePPTOn_boundedConditionalOracleSample`, `exists_oraclePPTSampler_of_oracle_count`). [Checked examples](../../CslibFrontierTests/ThresholdSearchAndExactSampler.lean) cover a non-dyadic (`|W| = 3`) witness family, dead branches, zero-length witnesses, `IsFPAUS`, and the oracle lift.
 
 Counting arguments for matchings and permanents can use the deterministic upper bound [Bregman.lean](../../CslibFrontier/Foundations/Combinatorics/Bregman.lean) (`import CslibFrontier.Foundations.Combinatorics.Bregman`), which proves Brégman's theorem (Minc's conjecture) [bregman73][bregman73]. For a 0/1 matrix `A : Matrix n n ℕ` (every entry at most `1`) with row sums `r i`, `Matrix.permanent_le_prod_factorial_rpow` gives `per A ≤ ∏ i, (r i)! ^ (1 / r i)` in `ℝ`. `Matrix.permanent_le_factorial_rpow_card_div` is the `d`-regular form `per A ≤ d! ^ (n / d)`. A zero row contributes `0! ^ (1 / 0) = 1` under Mathlib's `Real.rpow` convention, and the permanent is then `0`, so there are no positivity hypotheses. The underlying statement `Equiv.card_filter_forall_rel_le_prod_factorial_rpow` counts the bijections `e : α ≃ β` with `R a (e a)` for all `a`. These are the perfect matchings of the bipartite graph `R` (the witnesses of `Cslib.Circuits.BipartiteMatching.HasPerfectMatching` when `α = β`), and `d a = #{b | R a b}` is the left degree. Equality holds for disjoint unions of complete bipartite graphs `K_{d,d}` (`Equiv.card_filter_forall_eq_eq_prod_factorial_rpow`, `Matrix.permanent_eq_prod_factorial_rpow_of_eq_ite`). The proof follows Schrijver's induction on `n` [schrijver78][schrijver78]. It uses the convexity inequality `Real.sum_mul_log_div_card_le` from [LogSum.lean](../../CslibFrontier/Foundations/Analysis/SpecialFunctions/LogSum.lean), not the entropy proof of [radhakrishnan97][radhakrishnan97]. `Matrix.permanent_eq_card_filter_of_le_one`, in [Permanent/ZeroOne.lean](../../CslibFrontier/Foundations/Data/Matrix/Permanent/ZeroOne.lean), identifies the permanent of a 0/1 matrix with this count. Only 0/1 matrices are covered. Extensions of the bound to nonnegative real matrices, the van der Waerden lower bound and the Kahn–Lovász bound for general graphs are not formalized. The [checked examples](../../CslibFrontierTests/Bregman.lean) evaluate `per J₃ = 6` (equality), a `2 × 2` matrix with `1 < √2`, a zero row, the block matrix `K_{2,2} ⊕ K_{1,1}` (equality) and a `2`-regular `4 × 4` instance.
+
+## Counting-hierarchy function levels
+
+Import `CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Aggregation` for
+`CountingLevel a enc` (C_a P) and `CountingFunction a input output` (F_a).
+The zero levels are P and ordinary polynomial-time computation; the first decision level is PP.
+Successor decision levels use the existing fixed-length relativized majority verifier model.
+Equivalence with probabilistic oracle machines is not asserted here.
+
+A function witness contains one fixed raw-word oracle in C_a P and one uniform strict
+polynomial-time oracle program. Its certificate charges input preparation, adaptive requests,
+reply access and encoded output. Polynomial output length follows from the certificate.
+Use `CountingFunction.comp` and `CountingFunction.prod` to combine functions at the same level;
+`exists_common_oracle` supplies one oracle for a fixed finite family. These results use finite
+tagged unions, without assuming adaptive PP access collapses to PP.
+
+For a uniform evaluator on `(instance, index)`, `CountingFunction.count_bits`, `sum_bits` and
+`sum_bits_int` compute counts, nonnegative sums and signed sums in F_(a+1). The width function
+must be polynomial-time with **unary** output: its value bounds the number of index bits,
+while the domain can contain exponentially many indices. Summands use binary natural or signed
+integer encodings. `sum_bits_restrict` masks a same-level predicate by zero, and `sum_bits_mod`
+reduces a sum modulo a uniformly accessible short modulus. `exists_bits` and `forall_bits`
+also cost one level; `CountingFunction.decision` then turns an F_a Boolean function into a
+C_(a+1) P language.
+
+These aggregation rules take a `Decoder enc`, such as `Decoder.bits` for words or
+`Decoder.pair` for pairs. The decoder gives a total polynomial-time interpretation of raw
+threshold requests, including malformed words. An arbitrary encoding image is not assumed
+efficiently recognizable. Binary search uses one more bit than the witness bound, so it covers
+the maximum count and width-zero indices. The ordinary-module
+[checked clients](../../CslibFrontierTests/CountingHierarchy.lean) exercise those cases,
+binary interval restrictions, signed cancellation and the decision conversion.
+
+For the numerical prime-product estimates used by sign recovery, import
+[`PrimeWindowBounds`](../../CslibFrontier/Foundations/NumberTheory/PrimeWindowBounds.lean).
+The window is `Nat.primesLE Y \ Nat.primesLE L`, so it excludes `L` and includes `Y`.
+For `16 ≤ Z` and `L ≤ Z`, the cutoff `Y = 2 * Z ^ 4` leaves at least `3 * Z` primes;
+their product lies between `2 ^ (3 * Z)` and `2 ^ (Y * Y.size)` and exceeds
+`6 * 2 ^ m` whenever `m ≤ Z`. These are mathematical bounds, without a computational
+certificate for the prime product. The same module bounds `Y.size` by `4 * Z.size + 3`,
+the width of every `k ≤ Y * Y.size + 1` by `8 * Z.size + 8`, and the precision exponent
+`Y.size + 10` by `4 * Z.size + 13`. The
+[ordinary-import client](../../CslibFrontierTests/PrimeWindowBounds.lean) combines the bounds
+at `Z = max 16 (max m L)` and checks open/closed and empty-window endpoints.
+
+The [development issue](https://github.com/cslib-community/cslib-frontier/issues/5619) tracks
+these arithmetic layers and their integration. The downstream real-feasibility theorem is
+outside these components.
+
+For binary interval endpoints, import `CountingHierarchy.Range`: `CountingFunction.sum_range`
+and `sum_range_int` sum over `0 ≤ i < r(w)` in one level. The endpoint is computed in binary;
+its value may be exponential. `CountingHierarchy.Arithmetic` supplies same-level multiplication,
+remainder, comparison and modular exponentiation. The last uses a binary exponent and the
+existing total `powMod` operation; modulus zero returns one.
+
+`CountingHierarchy.Generator` certifies a total prime-field generator test in F_1. One uniform
+universal pass checks prime divisors and smaller powers, rejecting composite moduli and
+noncanonical representatives. The standalone primality test and generator test share the
+bounded-divisor evaluator, its polynomial-time certificate and its primality characterization. `CountingHierarchy.DiscreteLog` certifies the sum of matching
+exponents below `p - 1` in F_1. Its logarithm specification requires a primitive base and a
+nonzero target; its total behavior is defined on every binary triple. The
+[checked clients](../../CslibFrontierTests/CountingNumberTheory.lean) cover these domain limits,
+binary interval sums and modular powering.
+
+Import [`CountingHierarchy.Products`](../../CslibFrontier/Computability/Complexity/Classes/CountingHierarchy/Products.lean)
+for `CountingFunction.prod_primeField_bits`: a uniform F_a factor evaluator, a polynomial-time
+binary modulus, and a polynomial-time **unary** width give the total product in F_(a+4).
+`primeFieldProduct_spec` identifies its prime-modulus output with the product in `ZMod p`,
+and `primeFieldProduct_eq_val` gives the canonical natural representative. Every nonprime
+modulus, including zero and one, returns zero. `prod_primeField_bits_restrict` replaces
+excluded factors by one, including an empty allowed domain. No factor need already be a
+canonical residue. A `Decoder enc` supports arbitrary primary input encodings; a modulus
+supplied as an extra input is covered by the same rule.
+
+The evaluator averages modular logarithm formulas over all generators, using the existing
+finite-field product identity. It uses no generator selection: generator counting costs F_2,
+logarithm summation over the factor indices F_(a+2), and the generator-masked outer sum
+F_(a+3). Modular inverse, remainder and the F_(a+1) zero-factor flag fit F_(a+3), the stronger
+bound exposed by `CountingFunction.primeFieldProduct_mem`. Every operation is composed through
+strict certificates charging queries, replies, intermediate values and encoded output; no full
+integer product or unreduced power is passed as program data. The ordinary-module
+[checked client](../../CslibFrontierTests/CountingFieldProducts.lean) covers variable binary
+moduli and unary widths, polynomial output length, prime two, zero factors, noncanonical
+factors, restrictions and nonprime defaults. Its one certified variable-input product takes
+different values at the words representing five and two, including a nonzero prime-field value. Run
+`LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CountingFieldProducts --wfail --iofail`.
+
+## Finite-field product identities
+
+Import `CslibFrontier.Foundations.NumberTheory.FiniteField.GeneratorProducts` for the algebraic
+identity `ZMod.prod_eq_generator_average`. For a prime modulus, it writes a finite product as
+the average of its logarithm formula over all multiplicative generators. The generator count
+is positive and smaller than the prime, so its image in the field is invertible, including
+at the prime two. An explicit zero test handles zero factors; empty products are covered too.
+The matching-exponent sum `ZMod.generatorLogSum` is total even for nongenerators, but its
+bounded-logarithm specification requires a primitive root and a nonzero target.
+
+`FiniteField.Enumeration` translates sums over canonical natural representatives into sums
+over residues or a finite subset. `BitString.WeightedEnumeration` translates sums over wider
+bitstrings, restricted by their binary value, into ordinary interval sums. The existing
+word-count theorem uses the weighted rule with constant weight one. These are mathematical
+identities; they assert no computational cost or efficient discrete-logarithm algorithm.
+The [checked examples](../../CslibFrontierTests/PrimeFieldProducts.lean) cover a product modulo
+five, the prime two, residue enumeration, signed weights and a zero-width interval.
+
+## Implicit integer access and bounded first events
+
+Import `CountingHierarchy.ResidueAccess` for `IntegerResidueAccess X`. The integer family `X`
+is a specification parameter. The access record supplies a logarithmic magnitude bound,
+admissible positive moduli and one total canonical-residue evaluator. Its `InCountingFunction`
+certificate requires the exponent in polynomial-time binary and the residue evaluator in F_a
+on every input pair, including off-domain inputs. It requires no encoding or computation of X.
+Admissibility is a correctness domain, not an extra oracle: an algorithm must justify that its
+queries belong to the domain and certify its own modulus-selection procedure.
+
+`CountingHierarchy.Primality` certifies the standalone `primeTest` in F_1 by a uniform divisor
+test. `CountingHierarchy.BoundedSearch` supplies existential/universal interval quantification
+at one additional level and `firstEventTest` at two. Its Boolean answer tests a property of
+the first event below a binary endpoint; a later matching event cannot replace the first one.
+All nested indices share fixed evaluators. `Foundations.NumberTheory.DyadicResidues` expresses
+the rational CRT approximation using a natural numerator built by multiplication, quotient,
+sum and remainder, with an exact correctness bridge. It constructs neither X nor the full
+modulus product. The [checked client](../../CslibFrontierTests/ResidueAccess.lean) includes
+minus one, excluded moduli, first-event ordering, an empty interval and a concrete dyadic sum.
+These operations alone do not certify the complete sign-recovery procedure.
+
+`CountingHierarchy.DyadicSummation` certifies `dyadicRangeSum` in F_(a+1) from uniform F_a
+natural numerators and denominators. The precision is polynomial-time unary, paying for the
+binary scale `2^B`; the interval endpoint is polynomial-time binary. A zero denominator
+contributes zero. The finite-restriction bridge masks excluded numerators by zero and matches
+the mathematical CRT numerator exactly. `CountingHierarchy.FirstEventSign` returns `1`, `-1`
+or `0` using three F_a event/test evaluators in F_(a+2). Positive has priority if both tests
+hold; its name alone implies no integer-sign correctness. The
+[ordinary-module client](../../CslibFrontierTests/DyadicFirstEvent.lean) checks these defaults,
+masking, precision zero, empty ranges, ordering and priority.
+
+`CountingHierarchy.DyadicFirstFlag` specializes those tests to dyadic flag windows, with a
+binary margin denominator `d`, unary precision and binary exclusive endpoint. The first flagged
+value below one half gives `1`, above one half gives `-1`, and an exact half gives `0`.
+Its F_(a+2) certificate is uniform in all parameters; the semantic bridge to `FirstCircleFlag`
+requires `0 < d`. The [checked client](../../CslibFrontierTests/DyadicFirstFlag.lean) covers both
+sides, later flags, zero margin denominator, zero precision, exact half and empty ranges.
+
+`CountingHierarchy.PrimeCofactor` supplies the weighted coefficients. Its shared
+`primeWindowTest` is in F_1. `primeCofactor Y L p` takes the product of the other primes
+`L < q ≤ Y` modulo `p` in F_5; on every prime modulus that residue is nonzero. The
+coefficient operation combines its modular inverse, a binary modular power and an F_a supplied
+residue in F_max(a,5). Both operations return zero for nonprime moduli, including zero and one.
+`primeWindowCoefficient_modEq_subtype` consumes `IntegerResidueAccess.residue_modEq` directly
+and proves the congruence required by CRT correctness. Its full cofactor and represented integer
+occur only in the specification. The [checked client](../../CslibFrontierTests/PrimeCofactor.lean)
+covers negative residues, p=2, omitted/empty/reversed windows, defaults and uniform composition.
+
+## Mathematical sign recovery from residues
+
+Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
+for the mathematical sign step of [the manuscript][OpenAI2026CountingHierarchy], Section 2.
+For positive pairwise coprime integer moduli `m i`, let `Π = ∏ i, m i`.
+[`crt_circle_identity`](../../CslibFrontier/Foundations/NumberTheory/CRTCircle.lean) proves that
+weighted residues satisfying `c i * (Π / m i) ≡ X (mod m i)` have
+`∑ i, c i / m i ≡ X / Π (mod 1)`. Its cofactor is defined as the product omitting `i`,
+so the congruences do not require integer division. `crtCoefficient_modEq` supplies each
+congruence from a modular inverse. The moduli need not be prime.
+
+`crtCircleApprox m B c` rounds the normalized residues down to multiples of `2⁻ᴮ`, sums
+the numerators, and reduces modulo `2ᴮ`. It takes neither `X` nor `Π` as data.
+[`dyadicCircleApprox_close`](../../CslibFrontier/Foundations/NumberTheory/DyadicCircle.lean)
+bounds the circular error by any `ε` with `card ι / 2ᴮ < ε`, including for negative targets.
+
+For the successive weighted residues of `2ᵏX`, `crt_firstCircleFlag_sign` assumes
+`|X| < aΠ`, `aΠ ≤ 2ᴷ`, `0 < t`, `ε < t`, `t + ε ≤ a`, and `2a + ε ≤ 1/2`.
+A nonzero integer then has a first index `k ≤ K` with approximation in `[t, 1-t]`;
+it is positive exactly when that approximation is below `1/2`, and negative exactly when
+it is above `1/2`. `crtCircleApprox_not_flag_zero` excludes every flag for zero.
+The underlying [`DoublingSign`](../../CslibFrontier/Foundations/NumberTheory/DoublingSign.lean)
+lemmas apply directly to any rational target and circle approximations.
+These are mathematical correctness results; computing the weighted residues, obtaining a
+large enough modulus product, and proving counting-hierarchy bounds are separate obligations.
+
+The ordinary-module [checked client](../../CslibFrontierTests/CRTSign.lean) discharges the
+hypotheses for both signs of one with moduli `5, 7`, precision `B = 8`, and cutoff `K = 3`.
+It also checks zero, negative summands, the strict precision boundary, and wraparound at zero.
+Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CRTSign --wfail --iofail`.
+
+For the exact manuscript parameters, import `Foundations.NumberTheory.PrimeWindowSign`.
+`PrimeWindowSign.firstCircleFlag_sign_of_coefficients` takes `|X| ≤ 2^m`, `X ≠ 0` and the
+local weighted-coefficient congruences. It proves all positivity, coprimality, prime-product,
+precision and doubling-limit conditions for primes `L < p ≤ Y`, where
+`Y = 2 * max(16,m,L)^4`. Precision is `Y.size + 10` and the limit is `Y * Y.size + 1`.
+`not_flag_zero_of_coefficients` handles zero. The
+[checked client](../../CslibFrontierTests/PrimeWindowSign.lean) uses supplied coefficient
+congruences for both signs of one, an unconditional zero instance and excluded-prime endpoints.
+The computational layer below constructs those coefficients and certifies sign recovery.
+
+## Computing signs from residue access
+
+Import `CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ResidueSign`.
+`residueWindowNumerator` computes a dyadic numerator from the shared prime-window selector
+and weighted coefficients; `residueWindowSign` classifies its first flag. These operations
+accept general window, precision and doubling-limit parameters. Their certificate gives
+F_(max(a,5)+3) from an F_a residue evaluator, polynomial-time binary cutoffs/limit and unary
+precision, independently of the mathematical correctness conditions.
+
+For `R : IntegerResidueAccess X` and a polynomial-time **binary** excluded-prime bound `L`,
+`R.primeWindowSign L` chooses the manuscript parameters. `primeWindowSign_eq_sign` proves
+that its result is `Int.sign (X w)` whenever every prime in the chosen window is admissible.
+`IntegerResidueAccess.sign_mem_CountingFunction` therefore recovers Proposition 2.6:
+the sign belongs to F_(max(a,5)+3). The magnitude exponent and `L` have polynomial binary
+length but may have exponential values. `SignParameters` certifies cutoff, precision and
+doubling-limit preparation explicitly; `PrimeWindowBounds` gives their numerical width bounds.
+The algorithm constructs neither `X`, `2^m`, the full prime product nor an unreduced doubling
+power. Nonprime arithmetic inputs use the component defaults, while the selector excludes
+small and out-of-window primes. Zero and both signs use the same total uniform program.
+
+The [ordinary-module client](../../CslibFrontierTests/ResidueSign.lean) covers zero, negative
+integers, an exponentially large excluded bound, and the implicit family `2^(2^n)` on unary
+input. That family's residues are polynomial-time even though its binary expansion is
+exponentially long. Checked compositions illustrate conservative levels 8 → 13 → 21 and
+derive signs at 24, existential choice at 25 and language membership at 26 from an F_21
+residue component. They assert no characteristic-coefficient computation or ETR theorem.
+Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.ResidueSign --wfail --iofail`.
+
+Parameter preparation reuses the binary minimum/maximum certificates in
+`PolyTime.Nat.BinaryOrder`, shared by the existing IP/PSPACE and PacketPacking callers. The
+IP/PSPACE caller retains its local automation registration; PacketPacking invokes the rules
+explicitly without repeating the binary case and encoding-conversion proofs.
 
 ## Efficient oracle programs
 
@@ -181,7 +417,19 @@ and `solveMaxSAT` on an unsatisfiable 4-clause 2-CNF, the empty formula, and gap
 
 The [Arthur–Merlin definitions](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/ArthurMerlin.lean#L98) are fixed polynomial-length classical verifier games. In MA the proof precedes the random seed: a yes instance has one proof accepted on at least two thirds of seeds, while every proof for a no instance is accepted on at most one third. In AM the random challenge precedes the proof: acceptance counts the seeds for which some reply makes the verifier accept. The existential reply may therefore depend on the challenge.
 
-The function `arthurMerlinSlice` is the logical existential predicate used to count favorable challenges. It is not asserted to be a polynomial-time decision procedure. The library proves amplification, `MA ⊆ SBP` and containment in the second level of PH through this explicit verifier formulation, while `MA ⊆ AM` and closure of `AM` under polynomially bounded existential quantification (`mem_AM_of_exists`) follow from the fixed-pattern round collapse below. [`AM_subset_NPPoly`](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/Advice.lean) puts `AM` in `NP/poly`, a result usually attributed to Babai and Moran, by Adleman's fixed-coins argument for `RP ⊆ P/poly`. With the error reduced to `2 ^ (-(n + 1))`, the union bound over the at most `2 ^ n` instances of length `n` gives one random string that decides all of them (`exists_coins_forall_iff_exists`). That string is the advice, and Merlin's reply is the `NP` certificate. Corollaries are `MA ⊆ NP/poly`, private-coin games of any fixed pattern in `NP/poly` (`IPGameClass_subset_NPPoly`), and graph isomorphism in `coNP/poly` (`GraphNonIsomorphism.GraphIsomorphism_mem_coNPPoly`).
+To use an NP predicate after Arthur's random challenge, import
+[ArthurMerlin/Operators.lean](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/Operators.lean)
+and rewrite with `BPOp_NP`. For any instance encoding `enc`, this identifies
+`BPOp enc (NP (encPair enc encBits))` with `AM enc`; `BPOp_NP_subset_NPPoly` then supplies
+polynomial advice. No message splitting or finite-function conversion is needed in the caller.
+The internal NP certificate bound `s` is evaluated at the pair length `2*n + 1 + p(n)`, so the
+AM reply bound is `s(2*n + 1 + p(n))`. The theorem constrains the NP predicate only on
+challenges of the prescribed length. Zero coin and reply lengths are allowed.
+[Checked clients](../../CslibFrontierTests/ArthurMerlinOperators.lean) use unary-encoded instances,
+nonconstant message bounds and empty blocks. This native operator theorem leaves the
+randomized-reduction-to-3SAT definition and nondeterministic circuit correspondence open.
+
+The function `arthurMerlinSlice` is the logical existential predicate used to count favorable challenges. It is not asserted to be a polynomial-time decision procedure. The library proves amplification, `MA ⊆ SBP` and containment in the second level of PH through this explicit verifier formulation, while `MA ⊆ AM` and closure of `AM` under polynomially bounded existential quantification (`mem_AM_of_exists`) follow from the fixed-pattern round collapse below. [ArthurMerlin/PerfectCompleteness.lean](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/PerfectCompleteness.lean) connects the two-sided definitions to one-sided error: `MAZero` (`IsMerlinArthurZeroVerifier`, completeness at least `1 / 2` on members and soundness error `0` on non-members) equals `NP` (`MAZero_eq_NP`, Goldreich Exercise 6.12(1)), while `MAOne` (`IsMerlinArthurOneVerifier`) and `AMOne` (`IsArthurMerlinOneVerifier`), which require completeness `1` and soundness error at most `1 / 2`, equal `MA` and `AM` (`MA_eq_MAOne`, `AM_eq_AMOne`, `MAOne_subset_AMOne`, Goldreich Exercise 6.12(2) and Exercise 9.9 at `f ≡ 1`). The forward inclusions reuse `ArthurMerlin.sigmaTwoVerifier` and `ArthurMerlin.piTwoVerifier` from [ArthurMerlin/PH.lean](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/PH.lean) with the Lautemann shift-covering bounds `BitString.two_mul_card_filter_exists_add_mem_le` and `BitString.two_mul_card_filter_exists_forall_add_mem_le` in [Lautemann.lean](../../CslibFrontier/Foundations/Combinatorics/Lautemann.lean); the reverse inclusions repeat two independent trials via `merlinArthurRepeat` and `arthurMerlinRepeat` (`r = 1`). [`AM_subset_NPPoly`](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/Advice.lean) puts `AM` in `NP/poly`, a result usually attributed to Babai and Moran, by Adleman's fixed-coins argument for `RP ⊆ P/poly`. With the error reduced to `2 ^ (-(n + 1))`, the union bound over the at most `2 ^ n` instances of length `n` gives one random string that decides all of them (`exists_coins_forall_iff_exists`). That string is the advice, and Merlin's reply is the `NP` certificate. Corollaries are `MA ⊆ NP/poly`, private-coin games of any fixed pattern in `NP/poly` (`IPGameClass_subset_NPPoly`), and graph isomorphism in `coNP/poly` (`GraphNonIsomorphism.GraphIsomorphism_mem_coNPPoly`).
 
 [Games with a fixed pattern of moves](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/Games.lean) extend these definitions. Each move is Arthur's fresh public coins or a Merlin message, with lengths polynomial in the instance length. One polynomial-time verifier reads the whole transcript. `AMGame.count` sums over Arthur's coins and maximises over Merlin's messages, so the value against an optimal, adaptive Merlin is counted exactly. `AMGameClass enc π` requires count at least two thirds of `2 ^ B` on members and at most one third on non-members, where `B` is the number of Arthur's bits. The patterns `[]`, `A`, `M`, `A M` and `M A` give `P`, `BPP`, `NP`, `AM` and `MA` (`AMk_zero`, `MAk_zero`, `AMk_one`, `MAk_one`, `AMk_two`, `MAk_two`), `AMk`/`MAk` are the alternating patterns, and prepending a polynomially bounded existential quantifier over words prepends a Merlin move (`mem_AMGameClass_cons_merlin`). Parallel repetition is multiplicative for these public-coin games, which gives [error reduction](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/Games/Repetition.lean) for every pattern. The [round collapse](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/RoundCollapse.lean) proves that every fixed pattern lies in `AM` (`AMGameClass_subset_AM`), with equality when `A M` is a sublist of the pattern (`AMGameClass_eq_AM`). In particular `MA ⊆ AM`, `AM[k] = AM` for `k ≥ 2`, `MA[k] = AM` for `k ≥ 3` and `MAM = AM` (giving `mem_AM_of_exists`). The patterns are fixed, so the round count is constant. For input-length-dependent shapes `g : ℕ → List (AMMove × ℕ)` computed in polynomial time from the encoded length in unary, [dynamic public-coin games](../../CslibFrontier/Computability/Complexity/Classes/ArthurMerlin/Games/PolyRounds.lean) define `AMPolyGameClass` and the alternating `AMPolyRounds enc k`, with `AMGameClass_subset_AMPolyGameClass` and `AMk_subset_AMPolyRounds`. The polynomial-round speedup (`AM[2 t(n)] = AM[t(n)]`) is not covered; private-coin games are described under IP below.
 
@@ -189,7 +437,7 @@ The function `arthurMerlinSlice` is the logical existential predicate used to co
 
 [Prover](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/IP.lean#L78) has a private state, initial state and a probabilistic stateful response function. No computational bound is imposed on the prover. [IP](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/IP.lean#L22) uses a Unit-channel oracle-PPT verifier, completeness two thirds and soundness one third. For every yes input there exists a prover; for every no input every prover fails with probability at least two thirds. Only transmitted messages reveal verifier information to the prover; fair coins remain private until their consequences are sent.
 
-The finite native verifier and strict clock permit a finite quotient of observable interaction histories at every input, even though the prover's raw state and replies are unbounded. The `IP ⊆ PSPACE` direction optimizes over consistent histories and evaluates the finite game tree in polynomial space. The opposite direction builds the arithmetized TQBF protocol and transports it along PSPACE-completeness reductions. Together these yield `IP = PSPACE` for these encodings and semantics. [Shamir endpoint](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/IP/Shamir.lean#L61)
+The finite native verifier and strict clock permit a finite quotient of observable interaction histories at every input, even though the prover's raw state and replies are unbounded. The `IP ⊆ PSPACE` direction optimizes over consistent histories and evaluates the finite game tree in polynomial space. The opposite direction builds the arithmetized TQBF protocol and transports it along PSPACE-completeness reductions. Together these yield `IP = PSPACE` for these encodings and semantics ([Shamir endpoint](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/IP/Shamir.lean#L61)). Because the TQBF sum-check protocol has completeness `1` and soundness error at most `1 / 3` (`QBFProtocol.isInteractiveProof_verifier`), transporting it along the PSPACE-completeness reduction gives every `A ∈ IP enc` a perfectly complete protocol with soundness `1 / 3` (`exists_isInteractiveProof_one_of_mem_IP`, `IP_eq_setOf_isInteractiveProof_one`), and sequential AND-repetition (`sequentialRepeat`) reduces soundness error to `(1 / 3) ^ k` (`exists_isInteractiveProof_one_pow_of_mem_IP`) while patching the three words of length below `2` yields `IP_eq_setOf_acceptProb_two_pow_length` (`1 - 2 ^ (-|enc a|)` completeness and `2 ^ (-|enc a|)` soundness for every encoding; checked in [`CslibFrontierTests/QBFProtocol.lean`](../../CslibFrontierTests/QBFProtocol.lean)).
 
 [Deterministic interactive proofs](../../CslibFrontier/Computability/Complexity/Classes/IP/Deterministic.lean) are the coin-free case of the same model, not a separate interaction notion. A `dIP` verifier is a `WordQueryComp Unit Bool` program, the deterministic oracle programs of `ComputableInPolyTimeWithOracle`, run against the prover by `OracleComp.interpret ProbOracleComp.query`. It carries the same `IsOraclePPTOn` certificate as an `IP` verifier, with completeness `1` and soundness error `0`. The clock bounds the verifier's time, and `exists_queryBounds_of_mem_dIP` bounds the number and length of its messages; replies are read only up to the clock. `dIP_eq_NP` holds for every instance encoding. `NP ⊆ dIP` reuses the one-message `npVerifier`. The reverse direction is the coin-free case of [perfect soundness](../../CslibFrontier/Computability/Complexity/Classes/IP/PerfectSoundness.lean): `IsInteractiveProof.mem_NP` puts every strict oracle-PPT interactive proof with soundness error `0` and any positive completeness in `NP`. Its certificate is a transcript of at most `t` messages and replies of at most `t` bits each, together with the `t` coins that produced it, where `t` is the verifier's clock. `Interaction.exists_pos_acceptProb_iff` states this characterization, and the replay `Interaction.accepts` checks a certificate in polynomial time. The prover `Interaction.historyProver` replays the replies of an accepting transcript, so an accepted certificate yields a prover accepted with probability at least `2⁻ᵗ`. Because the coins are part of the certificate, perfect completeness is not needed. Goldreich's proof instead fixes the coins to all zeros, which needs it.
 
@@ -207,6 +455,8 @@ The [2007 draft Chapters 18–19 audit](../../results/arora-barak-2007.md#chapte
 
 The verifier computes its own coin count. The external function `r(n)` only bounds that count; the verifier is not handed a potentially uncomputable amount of random tape. Completeness is perfect and every false instance is accepted with probability at most one half under every proof. The full theorem is `NP = PCP(log₂ n + 1, 1)`. [NP_eq_PCP_log](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/PCP/Completeness.lean#L80)
 
+[PCP/ZeroRandomness.lean](../../CslibFrontier/Computability/Complexity/Classes/PCP/ZeroRandomness.lean) covers deterministic PCP verification (`r ≡ 0`): `PCP_zero_zero` (`PCP(0, 0) = P`), `PCP_zero_log` (`PCP(0, log₂ n + 1) = P` by enumerating all `2 ^ O(log n)` consistent bit tables for `PCPVerifier.tableVerifier` via `PCPVerifier.exhaustiveTableDecider`, Arora–Barak Ch. 18 Problem 4(i)), and `mem_NP_iff_exists_PCP_zero` (`NP = PCP(0, poly)`). [PCP/Robustness.lean](../../CslibFrontier/Computability/Complexity/Classes/PCP/Robustness.lean) defines `IsPCPVerifierWith` and `PCPWith c s r q enc` for arbitrary real completeness `c` and soundness `s`, leaving `PCP r q enc` unchanged (`PCPWith_one_half : PCPWith 1 (1 / 2) r q enc = PCP r q enc`). Independent `k`-fold repetition (`PCPVerifier.repeatAll`, `PCPVerifier.polyTime_repeatAll`) caps per-round coin width at `min ρ.length (V.coins a)` (`PCPVerifier.repeatRowWidth`) so malformed short random strings never pad beyond the input length, resolves duplicate queries across trials via first-occurrence lookup (`PCPVerifier.getD_answers_idxOf`), and raises acceptance probability to the `k`-th power (`PCPVerifier.acceptProb_repeatAll`), giving `PCPWith_one : PCPWith 1 s r q enc = PCP r q enc` for every `0 < s < 1` (Arora–Barak Ch. 18 Problem 1). For logarithmic randomness `r(n) = log₂ n + 1`, counting accepted random words on a first-occurrence query table (`PCPVerifier.tableAcceptCount`, `PCPVerifier.majorityTableVerifier`) puts `PCPWith c (1 / 2) (log₂ n + 1) q` in `NP` for every `c > 1 / 2` (`PCPWith_log_subset_NP`), and combining with `NP_eq_PCP_log` yields `PCPWith_log_const : PCPWith c (1 / 2) (fun n => Nat.log 2 n + 1) (fun _ => q) enc = PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc` for `1 / 2 < c ≤ 1` and `1 ≤ q` (Arora–Barak Ch. 18 Problem 2, corrected from the unproved general `(r, q)` statement, which at `q ≡ 0` and polynomial `r` would imply `BPP = coRP`). [PCPRobustness.lean](../../CslibFrontierTests/PCPRobustness.lean) checks these constructions and class equalities on concrete verifiers.
+
 The intermediate proof representations are useful models in their own right:
 
 - [LocalTest](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/PCP/LocalTest.lean#L79) reads positions in an arbitrary typed proof using uniformly sampled finite randomness and a finite query layout. It is semantic; no uniform running-time certificate is built into the structure. It composes tests and translates rejection probability into violated-edge fractions.
@@ -220,9 +470,11 @@ Satisfiable unique games are easy, which is why the Unique Games Conjecture asks
 
 ## Representative tests
 
-[ArthurMerlinGames.lean](../../CslibFrontierTests/ArthurMerlinGames.lean) evaluates game counts and gives a game verifier that holds with the moves in one order and fails with them swapped. [IPGames.lean](../../CslibFrontierTests/IPGames.lean) evaluates private-coin counts, shows on one game that hiding the coins lowers the optimal count from two to one, evaluates a repeated game and instantiates `AM[k] ⊆ IP[k]` and gap amplification. [GoldwasserSipser.lean](../../CslibFrontierTests/GoldwasserSipser.lean) evaluates the emulation patterns. On a one-bit game the emulating verifier wins on six of eight seeds with the honest claim and on four with an inflated one, and never against a rejecting payoff. It also evaluates a revealed-coin count and instantiates `IP[k] ⊆ AM[k + 2]` and `IP[3] = AM`. [IPPolyOracleRounds.lean](../../CslibFrontierTests/IPPolyOracleRounds.lean) checks `AMGame.mergeMerlin` and `AMGame.value_append_arthur_zero`, instantiates `IPPolyRounds_subset_AMPolyRounds` on constant and `fun n => n` shapes and `IPPolyQueryBounded_eq_IPPolyRounds` on `fun n => n + 1`, checks a one-query `WordOracleComp` budget, and applies `IPQueryBounded_zero`, `IPQueryBounded_eq_AM`, `IPQueryBounded_eq_IPk_odd` and `IP_subset_AMPolyRounds` to a concrete `BPP` language. [AMAdvice.lean](../../CslibFrontierTests/AMAdvice.lean) instantiates `AM ⊆ NP/poly` on a problem in `BPP`, on graph non-isomorphism (graph isomorphism in `coNP/poly`) and on a problem in `IP[2]`. [OraclePPT.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/OraclePPT.lean#L1) checks actual composed query programs, the distinction between sampling and external query count, and a negative example showing that returning an unbounded oracle reply is not free. [MIP.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/MIP.lean#L1) checks that querying channel zero preserves the other private state and includes positive and negative transcript-consistency instances. [Toda.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/Toda.lean#L1) includes concrete counting identities, isolation examples and admissible counting-oracle instances. [PCPCompleteness.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/PCPCompleteness.lean#L1) instantiates the encoded PCP interface. No execution of these tests is claimed by this chapter.
+[ArthurMerlin.lean](../../CslibFrontierTests/ArthurMerlin.lean) checks `MA` and `AM` inclusion and amplification, `MAZero_eq_NP`, `MA_eq_MAOne`, `MAOne_subset_AMOne`, and `AM_eq_AMOne`. [ArthurMerlinGames.lean](../../CslibFrontierTests/ArthurMerlinGames.lean) evaluates game counts and gives a game verifier that holds with the moves in one order and fails with them swapped. [IPGames.lean](../../CslibFrontierTests/IPGames.lean) evaluates private-coin counts, shows on one game that hiding the coins lowers the optimal count from two to one, evaluates a repeated game and instantiates `AM[k] ⊆ IP[k]` and gap amplification. [GoldwasserSipser.lean](../../CslibFrontierTests/GoldwasserSipser.lean) evaluates the emulation patterns. On a one-bit game the emulating verifier wins on six of eight seeds with the honest claim and on four with an inflated one, and never against a rejecting payoff. It also evaluates a revealed-coin count and instantiates `IP[k] ⊆ AM[k + 2]` and `IP[3] = AM`. [IPPolyOracleRounds.lean](../../CslibFrontierTests/IPPolyOracleRounds.lean) checks `AMGame.mergeMerlin` and `AMGame.value_append_arthur_zero`, instantiates `IPPolyRounds_subset_AMPolyRounds` on constant and `fun n => n` shapes and `IPPolyQueryBounded_eq_IPPolyRounds` on `fun n => n + 1`, checks a one-query `WordOracleComp` budget, and applies `IPQueryBounded_zero`, `IPQueryBounded_eq_AM`, `IPQueryBounded_eq_IPk_odd` and `IP_subset_AMPolyRounds` to a concrete `BPP` language. [AMAdvice.lean](../../CslibFrontierTests/AMAdvice.lean) instantiates `AM ⊆ NP/poly` on a problem in `BPP`, on graph non-isomorphism (graph isomorphism in `coNP/poly`) and on a problem in `IP[2]`. [OraclePPT.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/OraclePPT.lean#L1) checks actual composed query programs, the distinction between sampling and external query count, and a negative example showing that returning an unbounded oracle reply is not free. [MIP.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/MIP.lean#L1) checks that querying channel zero preserves the other private state and includes positive and negative transcript-consistency instances. [Toda.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/Toda.lean#L1) includes concrete counting identities, isolation examples and admissible counting-oracle instances. [PCPCompleteness.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/ComplexityTests/PCPCompleteness.lean#L1) instantiates the encoded PCP interface. No execution of these tests is claimed by this chapter.
 
 [bregman73]: ../sources.md#bregman73
 [complexitylib]: ../sources.md#complexitylib
 [radhakrishnan97]: ../sources.md#radhakrishnan97
 [schrijver78]: ../sources.md#schrijver78
+
+[OpenAI2026CountingHierarchy]: ../sources.md#openaich26

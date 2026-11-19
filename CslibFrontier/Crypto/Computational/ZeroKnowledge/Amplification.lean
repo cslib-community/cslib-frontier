@@ -20,39 +20,53 @@ import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 
 /-!
-# Soundness-amplified GMW zero-knowledge proof systems for NP
+# Soundness-amplified `ZKProof` builders for NP with uniform generable zero knowledge
 
-This module packages the `k n`-fold sequential repetition of the Goldreich–Micali–Wigderson
-masked-3SAT protocol from `CslibFrontier.Crypto.Computational.GMW.Sequential` and its witness-free
-simulator from `CslibFrontier.Crypto.Computational.GMW.Sequential.Simulator` into `ZKProof` systems
-with soundness error `(1 / 3) ^ (k n)`:
+This module packages the `k n`-fold sequential repetition of the masked-3SAT protocol from
+`CslibFrontier.Crypto.Computational.GMW.Sequential` and its witness-free simulator from
+`CslibFrontier.Crypto.Computational.GMW.Sequential.Simulator` into `ZKProof` systems with soundness
+error `(1 / 3) ^ (k n)` and uniform `GenerableZeroKnowledge` only (zero knowledge restricted to
+`(instance, witness)` families generated from `1^n` in deterministic polynomial time, #6044, rather
+than Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments], Definition 4.3.8 and
+Theorem 4.4.10, proved under nonuniform one-way functions in
+`Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_mem_NP` and
+`Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_npRelation`):
 
 * `Cslib.Crypto.PseudorandomGenerator.zkProofOfReduction`: for any polynomial-time Karp reduction
   `f : α → CNF ℕ` to `ThreeSAT` and any polynomial-time repetition schedule `k : ℕ → ℕ`, a
   `ZKProof enc A (fun n => (1 / 3) ^ (k n))` with perfect completeness, soundness `(1 / 3) ^ (k n)`
-  against computationally unbounded stateful provers, and `GenerableZeroKnowledge`. Under
-  `GMW.AdvicePRG enc generator length`, it satisfies `ZKProof.AuxiliaryInputZeroKnowledge`
-  (`PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction`).
+  against computationally unbounded stateful provers, and uniform `GenerableZeroKnowledge` only
+  (#6044). Under `GMW.AdvicePRG enc generator length`, a premise novel to this library, it
+  satisfies `ZKProof.AuxiliaryInputZeroKnowledge`
+  (`PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction_of_advicePRG`).
 * `Cslib.Crypto.PseudorandomGenerator.zkProofThreeSAT`: specialization to `ThreeSAT` at repetition
-  schedule `k n := n + 1`, with soundness `(1 / 3) ^ (n + 1)` (`ZKProof.NegligibleSoundness`).
+  schedule `k n := n + 1`, with soundness `(1 / 3) ^ (n + 1)` (`ZKProof.NegligibleSoundness`) and
+  uniform `GenerableZeroKnowledge` only (#6044).
 * `Cslib.Crypto.PseudorandomGenerator.levinZKProof`: for any NP relation `R` and Levin reduction
   `r : LevinReduction R ThreeSAT.npRelation`, a `ZKProof enc R.language (fun n => (1 / 3) ^ (k n))`
-  whose honest prover uses `R`'s own witnesses (`isWitness a w := decide (R.IsWitness a w)`),
-  satisfying `ZKProof.AuxiliaryInputZeroKnowledge` under `GMW.AdvicePRG`.
-* `Cslib.Crypto.PseudorandomGenerator.exists_zkProof_of_mem_NP`,
-  `Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP`,
-  `Cslib.Crypto.PseudorandomGenerator.exists_zkProof_of_npRelation`,
-  `Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation`,
-  `Cslib.Crypto.OneWay.exists_zkProof_of_mem_NP`, and
-  `Cslib.Crypto.OneWay.exists_zkProof_of_npRelation`: existential endpoints at schedule
-  `k n := n + 1` with `ZKProof.NegligibleSoundness`.
+  with uniform `GenerableZeroKnowledge` only (#6044) whose honest prover uses `R`'s own witnesses
+  (`isWitness a w := decide (R.IsWitness a w)`), satisfying `ZKProof.AuxiliaryInputZeroKnowledge`
+  under `GMW.AdvicePRG`.
+* `Cslib.Crypto.PseudorandomGenerator.exists_generableZKProof_of_mem_NP`,
+  `Cslib.Crypto.PseudorandomGenerator.exists_generableZKProof_of_npRelation`,
+  `Cslib.Crypto.OneWay.exists_generableZKProof_of_mem_NP`, and
+  `Cslib.Crypto.OneWay.exists_generableZKProof_of_npRelation`: uniform existential endpoints at
+  schedule `k n := n + 1` giving `ZKProof.NegligibleSoundness` and uniform
+  `GenerableZeroKnowledge` only (#6044; not auxiliary-input GMW).
+* `Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP_of_advicePRG`,
+  `Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation_of_advicePRG`:
+  steps toward the auxiliary-input GMW theorem, adding `ZKProof.AuxiliaryInputZeroKnowledge` under
+  `GMW.AdvicePRG`, a premise novel to this library. The library's GMW theorem,
+  `Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_mem_NP` in
+  `CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge`, discharges the premise from a
+  nonuniform one-way function.
 
 ## References
 
 * [O. Goldreich, S. Micali, A. Wigderson, *Proofs that Yield Nothing But Their Validity, or All
   Languages in NP Have Zero-Knowledge Proof Systems*][GoldreichMicaliWigderson1991]
-* [O. Goldreich, *Foundations of Cryptography: Volume 1, Basic Tools*][Goldreich2001],
-  Sections 4.3–4.4.
+* [O. Goldreich, *Foundations of Cryptography* (1998 fragments, v2.03)][Goldreich1998Fragments],
+  Definition 4.3.8 (pp. 151–152) and Theorem 4.4.10 (pp. 175–176).
 -/
 
 @[expose] public section
@@ -62,11 +76,11 @@ namespace Cslib.Crypto
 open Probability Complexity Logic.PL Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
-/-- **Sequentially amplified GMW zero-knowledge proof system via a Karp reduction to `ThreeSAT`.**
-Given a pseudorandom generator with stretch at least `3 * m + 1`, a polynomial-time reduction
-`f : α → CNF ℕ` from `A` to `ThreeSAT`, and a polynomial-time repetition schedule `k : ℕ → ℕ`, this
-constructs a `ZKProof enc A (fun n => (1 / 3) ^ (k n))` running `k n` sequential sessions of the
-3-copy masked-3SAT protocol. -/
+/-- Sequentially amplified masked-3SAT `ZKProof` builder via a Karp reduction to `ThreeSAT`, giving
+uniform `GenerableZeroKnowledge` only (#6044; see `GenerableZeroKnowledge`) and soundness
+`(1 / 3) ^ (k n)`. Given a pseudorandom generator with stretch at least `3 * m + 1`, a
+polynomial-time reduction `f : α → CNF ℕ` from `A` to `ThreeSAT`, and a polynomial-time repetition
+schedule `k : ℕ → ℕ`, this runs `k n` sequential sessions of the 3-copy masked-3SAT protocol. -/
 noncomputable def PseudorandomGenerator.zkProofOfReduction
     {α : Type} {enc : α ↪ List Bool} {A : Set α}
     {generator : List Bool → List Bool} {length k : ℕ → ℕ}
@@ -109,10 +123,13 @@ theorem PseudorandomGenerator.negligibleSoundness_zkProofOfReduction
     (hG.zkProofOfReduction hstretch hf hred hk).NegligibleSoundness :=
   ZKProof.negligibleSoundness_one_third_pow _ hk_ge
 
-/-- Under `GMW.AdvicePRG enc generator length`, the sequentially amplified GMW proof system
-`hG.zkProofOfReduction hstretch hf hred hk` satisfies general auxiliary-input zero knowledge
-(`ZKProof.AuxiliaryInputZeroKnowledge`). -/
-theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction
+/-- A step toward the Goldreich–Micali–Wigderson theorem, not that theorem: it rests on
+`GMW.AdvicePRG`, a premise novel to this library. Under `GMW.AdvicePRG enc generator length`, the
+sequentially amplified GMW proof system `hG.zkProofOfReduction hstretch hf hred hk` satisfies
+general auxiliary-input zero knowledge (`ZKProof.AuxiliaryInputZeroKnowledge`). A nonuniform PRG
+satisfies the premise (`NonuniformPRG.advicePRG`); the library's GMW theorem is
+`NonuniformOneWay.exists_zkProof_of_mem_NP`. -/
+theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction_of_advicePRG
     {α : Type} {enc : α ↪ List Bool} {A : Set α}
     {generator : List Bool → List Bool} {length k : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -128,8 +145,9 @@ theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction
     fun _ _ _ _ ha hw hz hz' hw_sat _ hadv =>
       hAdv.gmwSeqView_negligible hf hk hV hadv ha hw hz hz' hw_sat⟩
 
-/-- The sequentially amplified GMW zero-knowledge proof system for `ThreeSAT` at repetition
-schedule `k n := n + 1`, with soundness bound `(1 / 3) ^ (n + 1)`. -/
+/-- Sequentially amplified masked-3SAT `ZKProof` builder for `ThreeSAT` at repetition schedule
+`k n := n + 1`, giving uniform `GenerableZeroKnowledge` only (#6044; see `GenerableZeroKnowledge`)
+and soundness bound `(1 / 3) ^ (n + 1)`. -/
 noncomputable def PseudorandomGenerator.zkProofThreeSAT
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -146,24 +164,27 @@ theorem PseudorandomGenerator.negligibleSoundness_zkProofThreeSAT
   hG.negligibleSoundness_zkProofOfReduction hstretch (by fun_prop) (fun _ => Iff.rfl) (by fun_prop)
     Nat.le_succ
 
-/-- Under `GMW.AdvicePRG encCNF generator length`, `hG.zkProofThreeSAT hstretch` satisfies general
-auxiliary-input zero knowledge (`ZKProof.AuxiliaryInputZeroKnowledge`). -/
-theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofThreeSAT
+/-- A step toward the Goldreich–Micali–Wigderson theorem, not that theorem: it rests on
+`GMW.AdvicePRG`, a premise novel to this library. Under `GMW.AdvicePRG encCNF generator length`,
+`hG.zkProofThreeSAT hstretch` satisfies general auxiliary-input zero knowledge
+(`ZKProof.AuxiliaryInputZeroKnowledge`). The library's GMW theorem is
+`NonuniformOneWay.exists_zkProof_of_mem_NP`. -/
+theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofThreeSAT_of_advicePRG
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
     (hstretch : ∀ m, 3 * m + 1 ≤ length m)
     (hAdv : GMW.AdvicePRG encCNF generator length) :
     (hG.zkProofThreeSAT hstretch).AuxiliaryInputZeroKnowledge :=
-  hG.auxiliaryInputZeroKnowledge_zkProofOfReduction hstretch (by fun_prop) (fun _ => Iff.rfl)
-    (by fun_prop) hAdv
+  hG.auxiliaryInputZeroKnowledge_zkProofOfReduction_of_advicePRG hstretch (by fun_prop)
+    (fun _ => Iff.rfl) (by fun_prop) hAdv
 
-/-- **Sequentially amplified GMW zero knowledge with an NP relation's own witnesses.**
-Given a pseudorandom generator with stretch at least `3 * m + 1`, a Levin reduction `r` from an NP
-relation `R` to `ThreeSAT.npRelation`, and a polynomial-time repetition schedule `k : ℕ → ℕ`, this
-is `zkProofOfReduction` for the instance map of `r` with witnesses changed by
-`ZKProof.withRelationWitness`: a `ZKProof enc R.language (fun n => (1 / 3) ^ (k n))` whose honest
-prover maps an `R`-witness `w` to `r.forwardWitness (a, w)` and whose bundled witness check is
-`decide (R.IsWitness a w)`. -/
+/-- Sequentially amplified masked-3SAT `ZKProof` builder for an NP relation `R` with uniform
+`GenerableZeroKnowledge` only (#6044; see `GenerableZeroKnowledge`) and soundness `(1 / 3) ^ (k n)`.
+Given a pseudorandom generator with stretch at least `3 * m + 1`, a Levin reduction `r` from `R` to
+`ThreeSAT.npRelation`, and a polynomial-time repetition schedule `k : ℕ → ℕ`, this is
+`zkProofOfReduction` for the instance map of `r` with witnesses changed by
+`ZKProof.withRelationWitness`: the honest prover maps an `R`-witness `w` to
+`r.forwardWitness (a, w)` and the bundled witness check is `decide (R.IsWitness a w)`. -/
 noncomputable def PseudorandomGenerator.levinZKProof
     {α : Type} {enc : α ↪ List Bool} {R : NPRelation enc}
     {generator : List Bool → List Bool} {length k : ℕ → ℕ}
@@ -201,9 +222,12 @@ theorem PseudorandomGenerator.negligibleSoundness_levinZKProof
     (hG.levinZKProof hstretch r hk).NegligibleSoundness :=
   ZKProof.negligibleSoundness_one_third_pow _ hk_ge
 
-/-- Under `GMW.AdvicePRG enc generator length`, `hG.levinZKProof hstretch r hk` satisfies general
-auxiliary-input zero knowledge (`ZKProof.AuxiliaryInputZeroKnowledge`). -/
-theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinZKProof
+/-- A step toward the Goldreich–Micali–Wigderson theorem, not that theorem: it rests on
+`GMW.AdvicePRG`, a premise novel to this library. Under `GMW.AdvicePRG enc generator length`,
+`hG.levinZKProof hstretch r hk` satisfies general auxiliary-input zero knowledge
+(`ZKProof.AuxiliaryInputZeroKnowledge`). The library's GMW theorem for NP relations is
+`NonuniformOneWay.exists_zkProof_of_npRelation`. -/
+theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinZKProof_of_advicePRG
     {α : Type} {enc : α ↪ List Bool} {R : NPRelation enc}
     {generator : List Bool → List Bool} {length k : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -212,14 +236,16 @@ theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinZKProof
     (hk : ComputableInPolyTime k encUnary encUnary)
     (hAdv : GMW.AdvicePRG enc generator length) :
     (hG.levinZKProof hstretch r hk).AuxiliaryInputZeroKnowledge :=
-  (hG.auxiliaryInputZeroKnowledge_zkProofOfReduction hstretch r.computableInPolyTime_toFun
-    r.mem_language_iff_mem_threeSAT hk hAdv).withRelationWitness r _
+  (hG.auxiliaryInputZeroKnowledge_zkProofOfReduction_of_advicePRG hstretch
+    r.computableInPolyTime_toFun r.mem_language_iff_mem_threeSAT hk hAdv).withRelationWitness r _
 
-/-- **Soundness-amplified GMW theorem (from a pseudorandom generator).** Given a pseudorandom
-generator with stretch at least `3 * m + 1`, every language `A ∈ NP enc` has a computational
-zero-knowledge interactive proof system with negligible soundness `(1 / 3) ^ (n + 1)` against
-unbounded provers and `GenerableZeroKnowledge`. -/
-theorem PseudorandomGenerator.exists_zkProof_of_mem_NP
+/-- Existence of a `ZKProof` with uniform `GenerableZeroKnowledge` only (#6044; see
+`GenerableZeroKnowledge` — not Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments],
+Definition 4.3.8 and Theorem 4.4.10, proved under nonuniform one-way functions in
+`NonuniformOneWay.exists_zkProof_of_mem_NP`) and negligible soundness `(1 / 3) ^ (n + 1)` against
+unbounded provers for every language `A ∈ NP enc`, from any uniform pseudorandom generator with
+stretch at least `3 * m + 1`. -/
+theorem PseudorandomGenerator.exists_generableZKProof_of_mem_NP
     {α : Type} {enc : α ↪ List Bool} {A : Set α}
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -231,12 +257,15 @@ theorem PseudorandomGenerator.exists_zkProof_of_mem_NP
   exact ⟨hG.zkProofOfReduction hstretch hf hred (by fun_prop),
     hG.negligibleSoundness_zkProofOfReduction hstretch hf hred (by fun_prop) Nat.le_succ⟩
 
-/-- **Soundness-amplified GMW theorem under `GMW.AdvicePRG`.** Given a pseudorandom generator with
-stretch at least `3 * m + 1` satisfying `GMW.AdvicePRG enc generator length`, every language
-`A ∈ NP enc` has a computational zero-knowledge interactive proof system with negligible soundness
-`(1 / 3) ^ (n + 1)` and general auxiliary-input zero knowledge
-(`ZKProof.AuxiliaryInputZeroKnowledge`). -/
-theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP
+/-- A step toward the Goldreich–Micali–Wigderson theorem, not that theorem: it rests on
+`GMW.AdvicePRG`, a premise novel to this library, where the theorem assumes a nonuniform one-way
+function. Given a pseudorandom generator with stretch at least `3 * m + 1` satisfying
+`GMW.AdvicePRG enc generator length`, every language `A ∈ NP enc` has a computational
+zero-knowledge interactive proof system with negligible soundness `(1 / 3) ^ (n + 1)` and general
+auxiliary-input zero knowledge (`ZKProof.AuxiliaryInputZeroKnowledge`). The library's GMW theorem,
+`NonuniformOneWay.exists_zkProof_of_mem_NP`, applies this step to a nonuniform PRG through
+`NonuniformPRG.advicePRG`. -/
+theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP_of_advicePRG
     {α : Type} {enc : α ↪ List Bool} {A : Set α}
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -248,13 +277,16 @@ theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP
   obtain ⟨f, hf, hred⟩ := ThreeSAT_npHard enc A hA
   exact ⟨hG.zkProofOfReduction hstretch hf hred (by fun_prop),
     hG.negligibleSoundness_zkProofOfReduction hstretch hf hred (by fun_prop) Nat.le_succ,
-    hG.auxiliaryInputZeroKnowledge_zkProofOfReduction hstretch hf hred (by fun_prop) hAdv⟩
+    hG.auxiliaryInputZeroKnowledge_zkProofOfReduction_of_advicePRG hstretch hf hred (by fun_prop)
+      hAdv⟩
 
-/-- **Soundness-amplified GMW for NP relations (from a pseudorandom generator).** Given a
-pseudorandom generator with stretch at least `3 * m + 1`, every NP relation `R` has a computational
-zero-knowledge interactive proof system with negligible soundness `(1 / 3) ^ (n + 1)` whose honest
-prover uses `R`'s own witnesses. -/
-theorem PseudorandomGenerator.exists_zkProof_of_npRelation
+/-- Existence of a `ZKProof` for any NP relation `R` with uniform `GenerableZeroKnowledge` only
+(#6044; see `GenerableZeroKnowledge` — not Goldreich's auxiliary-input GMW theorem of
+[Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.10, proved under nonuniform one-way
+functions in `NonuniformOneWay.exists_zkProof_of_npRelation`), negligible soundness
+`(1 / 3) ^ (n + 1)`, and honest prover using `R`'s own witnesses, from any uniform pseudorandom
+generator with stretch at least `3 * m + 1`. -/
+theorem PseudorandomGenerator.exists_generableZKProof_of_npRelation
     {α : Type} {enc : α ↪ List Bool}
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -267,12 +299,15 @@ theorem PseudorandomGenerator.exists_zkProof_of_npRelation
     hG.isWitness_levinZKProof hstretch r (by fun_prop),
     hG.negligibleSoundness_levinZKProof hstretch r (by fun_prop) Nat.le_succ⟩
 
-/-- **Soundness-amplified GMW for NP relations under `GMW.AdvicePRG`.** Given a pseudorandom
-generator with stretch at least `3 * m + 1` satisfying `GMW.AdvicePRG enc generator length`, every
-NP relation `R` has a computational zero-knowledge interactive proof system with negligible
-soundness `(1 / 3) ^ (n + 1)` and general auxiliary-input zero knowledge whose honest prover uses
-`R`'s own witnesses. -/
-theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation
+/-- A step toward the Goldreich–Micali–Wigderson theorem for NP relations, not that theorem: it
+rests on `GMW.AdvicePRG`, a premise novel to this library, where the theorem assumes a nonuniform
+one-way function. Given a pseudorandom generator with stretch at least `3 * m + 1` satisfying
+`GMW.AdvicePRG enc generator length`, every NP relation `R` has a computational zero-knowledge
+interactive proof system with negligible soundness `(1 / 3) ^ (n + 1)` and general auxiliary-input
+zero knowledge whose honest prover uses `R`'s own witnesses. The library's GMW theorem for
+relations, `NonuniformOneWay.exists_zkProof_of_npRelation`, applies this step to a nonuniform PRG
+through `NonuniformPRG.advicePRG`. -/
+theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation_of_advicePRG
     {α : Type} {enc : α ↪ List Bool}
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -286,29 +321,33 @@ theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation
   exact ⟨hG.levinZKProof hstretch r (by fun_prop),
     hG.isWitness_levinZKProof hstretch r (by fun_prop),
     hG.negligibleSoundness_levinZKProof hstretch r (by fun_prop) Nat.le_succ,
-    hG.auxiliaryInputZeroKnowledge_levinZKProof hstretch r (by fun_prop) hAdv⟩
+    hG.auxiliaryInputZeroKnowledge_levinZKProof_of_advicePRG hstretch r (by fun_prop) hAdv⟩
 
-/-- **Soundness-amplified GMW theorem (from a one-way function).** If a one-way function exists,
-every language `A ∈ NP enc` has a computational zero-knowledge interactive proof system with
-negligible soundness `(1 / 3) ^ (n + 1)` and `GenerableZeroKnowledge`. -/
-theorem OneWay.exists_zkProof_of_mem_NP
+/-- Existence of a `ZKProof` with uniform `GenerableZeroKnowledge` only (#6044; see
+`GenerableZeroKnowledge` — not Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments],
+Definition 4.3.8 and Theorem 4.4.10, proved under nonuniform one-way functions in
+`NonuniformOneWay.exists_zkProof_of_mem_NP`) and negligible soundness `(1 / 3) ^ (n + 1)` against
+unbounded provers for every language `A ∈ NP enc`, from any uniform one-way function. -/
+theorem OneWay.exists_generableZKProof_of_mem_NP
     {α : Type} {enc : α ↪ List Bool} {A : Set α}
     {f : List Bool → List Bool} (hf : OneWay f) (hA : A ∈ NP enc) :
     ∃ zk : ZKProof enc A (fun n => (1 / 3 : ENNReal) ^ (n + 1)),
       zk.NegligibleSoundness := by
   obtain ⟨_, hG⟩ := hf.exists_pseudorandomGenerator_three_mul
-  exact hG.exists_zkProof_of_mem_NP (fun _ => le_rfl) hA
+  exact hG.exists_generableZKProof_of_mem_NP (fun _ => le_rfl) hA
 
-/-- **Soundness-amplified GMW for NP relations (from a one-way function).** If a one-way function
-exists, every NP relation `R` has a computational zero-knowledge interactive proof system with
-negligible soundness `(1 / 3) ^ (n + 1)` and `GenerableZeroKnowledge` whose honest prover uses
-`R`'s own witnesses. -/
-theorem OneWay.exists_zkProof_of_npRelation
+/-- Existence of a `ZKProof` for any NP relation `R` with uniform `GenerableZeroKnowledge` only
+(#6044; see `GenerableZeroKnowledge` — not Goldreich's auxiliary-input GMW theorem of
+[Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.10, proved under nonuniform one-way
+functions in `NonuniformOneWay.exists_zkProof_of_npRelation`), negligible soundness
+`(1 / 3) ^ (n + 1)`, and honest prover using `R`'s own witnesses, from any uniform one-way
+function. -/
+theorem OneWay.exists_generableZKProof_of_npRelation
     {α : Type} {enc : α ↪ List Bool}
     {f : List Bool → List Bool} (hf : OneWay f) (R : NPRelation enc) :
     ∃ zk : ZKProof enc R.language (fun n => (1 / 3 : ENNReal) ^ (n + 1)),
       (∀ a w, zk.isWitness a w = true ↔ R.IsWitness a w) ∧ zk.NegligibleSoundness := by
   obtain ⟨_, hG⟩ := hf.exists_pseudorandomGenerator_three_mul
-  exact hG.exists_zkProof_of_npRelation (fun _ => le_rfl) R
+  exact hG.exists_generableZKProof_of_npRelation (fun _ => le_rfl) R
 
 end Cslib.Crypto

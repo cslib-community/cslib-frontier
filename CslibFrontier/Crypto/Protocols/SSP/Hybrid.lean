@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.SSP.Basic
+import CslibFrontier.Languages.Probabilistic.Oracle.Vector
 
 /-!
 # State-separating proofs: hybrid arguments over parallel sessions
@@ -59,7 +60,6 @@ namespace Cslib.Crypto.Protocols.SSP
 
 open UC
 open OracleComp (sumHandler)
-open scoped NNReal
 
 variable {ιE : Type} {E : ιE → Type} {α : Type}
 
@@ -302,16 +302,40 @@ theorem advantage_parFin_le_sum {m : ℕ} (real ideal : Fin m → Machine Oracle
   rw [← Fin.sum_univ_eq_sum_range]
   exact Finset.sum_congr rfl fun j _ => advantage_hybridFamily_succ real ideal A j
 
-/-- If every single-session distinguisher has advantage at most `ε`, the multi-session advantage
-is at most `m * ε`. -/
-theorem advantage_parFin_le_mul {m : ℕ} (real ideal : Fin m → Machine OracleSpec.empty E)
-    (A : ProbOracleComp (sessionSpec m E) Bool) (ε : ℝ≥0)
-    (hε : ∀ j, advantage (hybridDistinguisher real ideal A j) (real j) (ideal j) ≤ ε) :
-    advantage A (parFin real) (parFin ideal) ≤ m * ε := by
-  refine (advantage_parFin_le_sum real ideal A).trans ?_
-  calc ∑ j : Fin m, advantage (hybridDistinguisher real ideal A j) (real j) (ideal j)
-      ≤ ∑ _j : Fin m, ε := Finset.sum_le_sum fun j _ => hε j
-    _ = m * ε := by simp
+/-- The hybrid reduction for session `j₀` of `m` sessions, each with call budget `t`, has call
+budget `m * t + 1`. -/
+theorem isBounded_hybridReduction {m : ℕ} (j₀ : Fin m)
+    (F : {j : Fin m // j ≠ j₀} → Machine OracleSpec.empty E) {t : ℕ}
+    (hF : ∀ j, (F j).IsBounded t) : (hybridReduction j₀ F).IsBounded (m * t + 1) := by
+  refine ⟨(OracleComp.isCostBounded_pi fun j => ?_).mono (Nat.le_succ _), fun ⟨j, e⟩ r => ?_⟩
+  · by_cases h : j = j₀
+    · rw [dite_eq_left h]
+      exact .pure _ _
+    · rw [dite_eq_right h]
+      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (hF ⟨j, h⟩).1
+  · by_cases h : j = j₀
+    · subst h
+      rw [hybridReduction_handle_self]
+      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+        ((OracleComp.IsCostBounded.query _).mono (by omega))
+    · rw [hybridReduction_handle_of_ne F h]
+      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+        ((Machine.isQueryBounded_sample
+          (Machine.isQueryBounded_closeProgram ((hF ⟨j, h⟩).2 e (r j h)))).mono
+          (by have := Nat.le_mul_of_pos_left t j₀.pos; omega))
+
+/-- The single-session distinguisher of hop `j₀`, linking an adversary with query budget `qA`
+against `m` real/ideal packages of call budget `t`, has query budget
+`m * t + 1 + qA * (m * t + 2)`. -/
+theorem isQueryBounded_hybridDistinguisher {m : ℕ}
+    (real ideal : Fin m → Machine OracleSpec.empty E)
+    {A : ProbOracleComp (sessionSpec m E) Bool} (j₀ : Fin m) {t qA : ℕ}
+    (hreal : ∀ j, (real j).IsBounded t) (hideal : ∀ j, (ideal j).IsBounded t)
+    (hA : A.IsQueryBounded qA) :
+    (hybridDistinguisher real ideal A j₀).IsQueryBounded (m * t + 1 + qA * (m * t + 2)) :=
+  Machine.isQueryBounded_link (isBounded_hybridReduction j₀ _ fun j => by
+    dsimp only [hybridFamily]
+    split_ifs <;> [exact hideal j.1; exact hreal j.1]) hA
 
 end Stateful
 
@@ -344,7 +368,7 @@ theorem runFrom_par_id_liftInr (Q : Machine I E) (program : ProbOracleComp I α)
         cases q with
         | inl n =>
           simp only [OracleComp.interpret_query, Machine.handler, ProbOracleComp.sample,
-            ProbComp.unifFin]
+            ProbComp.unifFin, OracleComp.sumHandler, OracleComp.substitute_query]
         | inr i =>
           funext s'
           change (par Q (Machine.id I)).runFrom (ProbOracleComp.query (spec := E ⊕ₒ I) (.inr i))

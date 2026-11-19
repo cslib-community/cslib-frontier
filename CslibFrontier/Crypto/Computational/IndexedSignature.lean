@@ -7,15 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.EncLen
@@ -39,10 +37,8 @@ The definition here differs from [BonehShoup2023], Definition 14.6, in four labe
 * Instead of forbidding the adversary to repeat an index, the signing oracle refuses a repeated
   index, and an index `u ≥ q`, by returning the empty word and recording nothing. Every oracle
   adversary is therefore admissible.
-* A forgery may name any index, whereas the source's message space is `{1, …, q} × M`. The
-  structure does not require verification to reject an index `u ≥ q`; the game does. The oracle
-  never signs at such an index, so a forger that finds a valid signature there wins. This
-  strengthens the source notion.
+* Indices run over `0, …, q - 1` instead of `1, …, q`. As in the source's message space
+  `{1, …, q} × M`, a forgery counts only at an index `u < q`.
 
 A request to the signing oracle is the word `encPair encUnary encBits (u, msg)`. The oracle reads
 every word with the total decoder `requestDecoder`.
@@ -170,8 +166,8 @@ def indexedSigningOracle (S : IndexedSignatureScheme) (n : ℕ) (sk : List Bool)
       return ([], signed)
 
 /-- The indexed EUF-CMA experiment: sample `(pk, sk) ← keyGen n`, run the forger on `(n, pk)`
-with the indexed signing oracle, and accept a valid signature on a pair `(u, msg)` that was never
-signed. -/
+with the indexed signing oracle, and accept a valid signature on a pair `(u, msg)` with
+`u < capacity n` that was never signed. -/
 def indexedEufCmaGame (S : IndexedSignatureScheme) (adversary : IndexedForger) (n : ℕ) :
     ProbComp Bool := do
   let keys ← S.keyGen n
@@ -179,7 +175,7 @@ def indexedEufCmaGame (S : IndexedSignatureScheme) (adversary : IndexedForger) (
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
       (S.indexedSigningOracle n keys.2)) (adversary n keys.1)).run []
   let (u, msg, sig) := out.1
-  return !out.2.contains (u, msg) && S.verify keys.1 u msg sig
+  return decide (u < S.capacity n) && !out.2.contains (u, msg) && S.verify keys.1 u msg sig
 
 /-- Running an oracle-PPT indexed forger against `indexedSigningOracle` is uniformly strict PPT in
 the unary security parameter, the public key and the secret key. -/
@@ -213,7 +209,7 @@ theorem isPPTOn_run_indexedSigningOracle (S : IndexedSignatureScheme) {adversary
       · apply ComputableInPolyTime.isPPTOn
         polytime
     · ppt
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × (List Bool × List Bool) => (caller.1, caller.2.1))
     (initial := fun _ => ([] : List (ℕ × List Bool)))
     (resources := fun caller query =>
@@ -253,11 +249,12 @@ theorem isPPTOn_indexedEufCmaGame (S : IndexedSignatureScheme) {adversary : Inde
     (hadversary : IsOraclePPT encIndexedSignedMessage adversary) :
     IsPPTOn encUnary encBool (S.indexedEufCmaGame adversary) := by
   have hrun := S.isPPTOn_run_indexedSigningOracle hadversary
-  have hverify := S.verify_polyTime.tidy
-  have hpost : ComputableTidilyInPolyTime
+  have hverify := S.verify_polyTime
+  have hpost : ComputableInPolyTime
       (fun pair : (ℕ × (List Bool × List Bool)) ×
           ((ℕ × List Bool × List Bool) × List (ℕ × List Bool)) =>
-        !pair.2.2.contains (pair.2.1.1, pair.2.1.2.1) &&
+        decide (pair.2.1.1 < S.capacity pair.1.1) &&
+          !pair.2.2.contains (pair.2.1.1, pair.2.1.2.1) &&
           S.verify pair.1.2.1 pair.2.1.1 pair.2.1.2.1 pair.2.1.2.2)
       (encPair (encPair encUnary (encPair encBits encBits))
         (encPair (encPair encUnary (encPair encBits encBits))

@@ -11,6 +11,8 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained
 public import CslibFrontier.Computability.Complexity.Problems.Graph
 public import Mathlib.Combinatorics.SimpleGraph.Diam
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Foundations.Data.Nat.LogRpow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
@@ -22,6 +24,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import Mathlib.Data.List.GetD
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Orthogonal vectors hardness of diameter two versus three
@@ -716,9 +719,7 @@ private theorem foldl_parseStep_le (s : ParseState) (l : List Bool) :
 /-- The length of an encoded parser state. -/
 private theorem length_encParseState (s : ParseState) :
     (encParseState s).length = 43 + 2 * Nat.size s.1.2 + Nat.size s.2 := by
-  simp only [length_encPair, encBool_apply, encNat_apply, Nat.size_eq_bits_len,
-    List.length_singleton]
-  omega
+  enc_len [encNat_apply, Nat.size_eq_bits_len, List.length_singleton]
 
 /-- The parser state after `j` bits holds numbers at most `j`. -/
 private theorem length_encParseState_streamState_le (x : List Bool) (j : ℕ) :
@@ -849,9 +850,10 @@ theorem computableInO_parseRun {β : Type} {enc : β ↪ List Bool} {f : ℕ →
     have h₂ := Nat.mul_le_mul_left cE' (hpow x dE (by omega))
     simp only [M, Nat.add_mul, Nat.mul_assoc] at h₁ h₂ ⊢
     omega
-  refine ⟨dN + dE + 1, ComputableInO.of_bounds h.computableInTimeAndSpace
+  refine ⟨dN + dE + 1, ComputableInO.of_bounds
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
     (c * (2 * cI + 2 + (2 * cF + 2) + M + 100)) (fun x => ?_) (fun x => ?_)
-    (fun x => (h.computableInTimeAndSpace.length_le x).trans ?_)⟩
+    (fun x => ((ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).length_le x).trans ?_)⟩
   · rw [Nat.mul_assoc]
     apply Nat.mul_le_mul_left
     rw [encBits_apply]

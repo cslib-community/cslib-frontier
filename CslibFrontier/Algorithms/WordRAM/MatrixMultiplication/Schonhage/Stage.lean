@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Cell
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged shared-coordinate array loop
@@ -63,12 +64,12 @@ theorem exec_cells {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
       ∃ z, ExecWithin (w + 2) (cellBody side) y z 205 ∧ Inv (y.regs cell + 1) z ∧
         z.regs cell = y.regs cell + 1 := by
     obtain ⟨hr, hm, hf⟩ := hy
-    have hys : y.regs src = s := (hr src (by decide) (by decide)).trans hsrc
-    have hyd : y.regs dst = d := (hr dst (by decide) (by decide)).trans hdst
-    have hyn : y.regs stride = n := (hr stride (by decide) (by decide)).trans hn
-    have hy7 : y.regs seven = 7 := (hr seven (by decide) (by decide)).trans hseven
-    have hy10 : y.regs ten = 10 := (hr ten (by decide) (by decide)).trans hten
-    have hy1 : y.regs one = 1 := (hr one (by decide) (by decide)).trans hone
+    have hys : y.regs src = s := by regs_frame
+    have hyd : y.regs dst = d := by regs_frame
+    have hyn : y.regs stride = n := by regs_frame
+    have hy7 : y.regs seven = 7 := by regs_frame
+    have hy10 : y.regs ten = 10 := by regs_frame
+    have hy1 : y.regs one = 1 := by regs_frame
     have hyinput (a : Fin 7) :
         y.mem (s + (y.regs cell / (10 * n) * 7 + a.val) * n + y.regs cell % n) =
           encode (v (y.regs cell) a) := by
@@ -143,26 +144,18 @@ theorem exec_stageBody {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
   have hz : ExecWithin (w + 2) stageHead x z 4 := by
     ram_eval [stageHead, z, hn, hseven, hp, hten, hdiv, hnfit, h10P, hN,
       stride, prefixes, ten, seven, stageSize, cell, Fin.mk.injEq]
-  have hzr (a : Fin 32) (ha : a ≠ stride ∧ a ≠ stageSize ∧ a ≠ cell) :
-      z.regs a = x.regs a := by
-    simp only [z, Data.set_regs, Function.update_of_ne ha.1, Function.update_of_ne ha.2.1,
-      Function.update_of_ne ha.2.2]
   obtain ⟨u, hu, hum, huf, hur⟩ := exec_cells hw side z P n s d hP hnpos
-    ((hzr src (by decide)).trans hsrc) ((hzr dst (by decide)).trans hdst)
+    (by regs_frame) (by regs_frame)
     (by simp [z]) (by simp [z, stride, stageSize, cell])
-    ((hzr seven (by decide)).trans hseven) ((hzr ten (by decide)).trans hten)
-    ((hzr one (by decide)).trans hone)
+    (by regs_frame) (by regs_frame) (by regs_frame)
     (by simp [z, stageSize, cell, Nat.mul_comm]) v B hB hv hmem hval haddr hdisj
-  have ur (a : Fin 32) (ha : 9 ≤ a.val) (hl : ¬CellLocal a)
-      (hzl : a ≠ stride ∧ a ≠ stageSize ∧ a ≠ cell) : u.regs a = x.regs a :=
-    (hur a ha hl).trans (hzr a hzl)
-  have us : u.regs dst = d := (ur dst (by decide) (by decide) (by decide)).trans hdst
-  have uo : u.regs output = o := (ur output (by decide) (by decide) (by decide)).trans hout
-  have uq : u.regs scratch = q := (ur scratch (by decide) (by decide) (by decide)).trans hscratch
-  have up : u.regs prefixes = P := (ur prefixes (by decide) (by decide) (by decide)).trans hp
-  have uj : u.regs stage = j := (ur stage (by decide) (by decide) (by decide)).trans hj
-  have ut : u.regs ten = 10 := (ur ten (by decide) (by decide) (by decide)).trans hten
-  have u1 : u.regs one = 1 := (ur one (by decide) (by decide) (by decide)).trans hone
+  have us : u.regs dst = d := by regs_frame
+  have uo : u.regs output = o := by regs_frame
+  have uq : u.regs scratch = q := by regs_frame
+  have up : u.regs prefixes = P := by regs_frame
+  have uj : u.regs stage = j := by regs_frame
+  have ut : u.regs ten = 10 := by regs_frame
+  have u1 : u.regs one = 1 := by regs_frame
   have un : u.regs stride = n := by
     rw [hur stride (by decide) (by decide)]
     simp [z, stride, stageSize, cell]

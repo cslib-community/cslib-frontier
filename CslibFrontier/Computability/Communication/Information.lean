@@ -279,32 +279,13 @@ private theorem condMutualInfo_eq_zero_alice {ν : PMF (U × V)} (hν : ProductF
 private theorem condMutualInfo_eq_zero_bob {ν : PMF (U × V)} (hν : ProductForm fx fy ν)
     (s : V → Bool) :
     condMutualInfo (ν.map fun ω => (fy ω.2, fx ω.1, s ω.2)) = 0 := by
-  classical
-  let := Fintype.ofFinite U
-  let := Fintype.ofFinite V
   obtain ⟨w, α, β, hν⟩ := hν
-  refine condMutualInfo_eq_zero_of_apply_eq_mul _
-    (fun y x => w x y * ∑ u, if x = fx u then α u else 0)
-    (fun y c => ∑ v, if y = fy v ∧ c = s v then β v else 0) fun y x c => ?_
-  have key : ∀ u v, (if (y, x, c) = (fy v, fx u, s v) then ν (u, v) else 0) =
-      (if x = fx u then α u else 0) * (w x y * if y = fy v ∧ c = s v then β v else 0) := by
-    intro u v
-    by_cases h1 : y = fy v ∧ c = s v
-    · obtain ⟨rfl, rfl⟩ := h1
-      by_cases h2 : x = fx u
-      · subst h2
-        rw [ite_eq_left rfl, ite_eq_left rfl, ite_eq_left ⟨rfl, rfl⟩, hν]
-        ring
-      · rw [ite_eq_right (fun h => h2 (congrArg (fun t => t.2.1) h)), ite_eq_right h2, zero_mul]
-    · rw [ite_eq_right (fun h => h1 ⟨congrArg (fun t => t.1) h, congrArg (fun t => t.2.2) h⟩),
-        ite_eq_right h1, mul_zero, mul_zero]
-  calc _ = ∑ u, ∑ v,
-        (if x = fx u then α u else 0) * (w x y * if y = fy v ∧ c = s v then β v else 0) := by
-        rw [PMF.map_apply, tsum_fintype, Fintype.sum_prod_type]
-        exact Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => by convert key u v
-    _ = _ := by
-        simp only [← Finset.mul_sum, ← Finset.sum_mul]
-        ring
+  have hswap : ProductForm fy fx (ν.map Prod.swap) := ⟨fun y x => w x y, β, α, fun v u => by
+    rw [show (v, u) = Prod.swap (u, v) from rfl,
+      Probability.PMF.map_apply_of_injective _ Prod.swap_injective, hν]
+    ring⟩
+  simpa only [PMF.map_comp, Function.comp_def, Prod.fst_swap, Prod.snd_swap] using
+    condMutualInfo_eq_zero_alice hswap s
 
 end Core
 

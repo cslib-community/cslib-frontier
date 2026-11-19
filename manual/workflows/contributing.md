@@ -4,7 +4,9 @@ A useful contribution gives the next client a clearer theorem, construction or p
 
 ## Design the statement before its proof
 
-Specify the model, encodings, resource convention, uniformity and quantifier order. For a published result, identify the source version and locator and map those choices to the source. For a conditional or restricted milestone, state its restriction and preserve the broader objective. Assuming the difficult endpoint is not constructing it.
+Specify the model, encodings, resource convention, uniformity and quantifier order. For a published result, identify the source version and locator and map those choices to the source; original mathematics and internal infrastructure need no cited source, provided their names, docstrings and titles state their actual hypotheses and scope without implying a cited endpoint. For a conditional or restricted milestone, state its restriction and preserve the broader objective. Assuming the difficult endpoint is not constructing it.
+
+A headline theorem assumes only what its source or advertised claim allows—for a security theorem, named hardness assumptions, the adversary's class and properties of components that the cited result takes as given ([security theorems](../programs-crypto-and-probability/security-games-and-primitives.md#security-theorems-and-efficiency-witnesses)). A theorem that assumes a step of the cited proof, a property of an object its proof builds (a reduction, distinguisher, simulator, extractor, hybrid or decoder), a caller-supplied object whose existence or efficiency is what the result proves, unassumed idealized behaviour of the construction's algorithms, or only a fixed instance is not the cited result, however carefully its limitations are listed ([faithful headlines](../../AGENTS.md#faithful-headlines)). When such a conditional statement is a useful, non-vacuous intermediate step, name it for what it proves (`…_of_reduction_le`, `…_of_realization`), open its docstring by saying it is a step or helper, and keep the cited theorem's name, locator, PR title and inventory entry for the statement that matches the source while keeping the objective open. When you later prove that statement, delete or demote the stand-in in the same change. A faithful statement matters more than the milestone: if the endpoint is out of reach, land the honest step and keep the objective open.
 
 Model domain objects, problem instances, certificates, configurations, and multi-field algorithm contexts or states as documented `structure`s rather than tuple `abbrev`s or bare product sets, and declare field-tuple structure encodings with [`enc_structure`](choosing-models.md#write-the-contract-before-the-proof) ([structures for domain objects](../../AGENTS.md#structures-for-domain-objects-and-records)). Where ordinary pairs remain—such as generic combinators or `Instance × List Bool` verifier inputs—bind tuple components by name instead of reaching into nested tuples with chains such as `c.1.2`; CI stops a changed module from adding such chains to its public statements and definition bodies ([named components](../../CONTRIBUTING.md#library-quality-standard)). Write encodings so that readers can see them without parsing the same nested term repeatedly: name a compound encoding that recurs in a module's statements with a documented reducible `abbrev` (not a `local notation`, which CI rejects in changed modules), and keep unary versus binary and representation choices visible in names and docstrings. The [encoding rules](../../AGENTS.md#encodings-in-statements) state when a name is required.
 
@@ -44,13 +46,13 @@ keep their documented access and supplement this evidence.
 
 For new bundled hypotheses, provide a satisfying instance; use a negative case when it exposes vacuity or a model boundary. Tests should exercise behavior or the interface rather than restate a theorem by name.
 
-After adding a library file, run `lake exe mk_all` to regenerate the aggregate. New tests belong in `CslibFrontierTests/` and are included by a Lake glob. During development:
+After adding a library file, run `lake exe mk_all` to regenerate the aggregate. New tests belong in `CslibFrontierTests/` and are included by a Lake glob. At a local validation checkpoint:
 
 ```bash
-scripts/check.sh --quick
+scripts/check.sh --quick --no-full-fallback
 ```
 
-Quick mode compares against the merge base with local `origin/main` without fetching by default. It includes committed, staged, unstaged and untracked changes and builds affected modules and importing clients when supported. It runs source hygiene on the changed files and the encoding readability and projection chain ratchets on changed library modules, then the declaration linters on the affected library modules, so an argument that a change leaves unused in a client is reported before CI. A changed ratchet baseline (`scripts/encoding_readability_baseline.json` or `scripts/projection_chains_baseline.json`) runs its ratchet. A library aggregate whose only edit is the import lines `lake exe mk_all` adds for new modules keeps the quick plan, which then builds the aggregate's importing clients. Other non-Lean, unsupported or ambiguous changes, including deletions and renames, fall back to the full check; `scripts/check.sh --quick --no-full-fallback` instead reports the reason and exits with status 3. Quick success is development feedback, not full integration validation.
+Quick mode compares against the merge base with local `origin/main` without fetching by default. It includes committed, staged, unstaged and untracked changes and builds affected modules and importing clients when supported. It runs source hygiene on the changed files and the encoding readability and projection chain ratchets on changed library modules, then the declaration linters on the affected library modules, so an argument that a change leaves unused in a client is reported before CI. A changed ratchet baseline (`scripts/encoding_readability_baseline.json` or `scripts/projection_chains_baseline.json`) runs its ratchet. A library aggregate whose only edit is the import lines `lake exe mk_all` adds for new modules keeps the quick plan, which then builds the aggregate's importing clients. With `--no-full-fallback`, other non-Lean, unsupported or ambiguous changes, including deletions and renames, report the reason and exit with status 3: run focused checks for the changed files and use hosted CI for full validation. Omitting the flag retains the automatic full-check fallback. Quick success is development feedback, not full integration validation.
 
 Quick mode also runs the changed-file lints that read only sources: an `@[expose]` section with nothing to expose, and a new test file that only restates signatures. When building targets directly instead, run them with `python3 scripts/check_changed_files.py --source-only`; CI's changed-file step additionally checks module-doc names against build outputs.
 
@@ -69,23 +71,26 @@ lake exe checkInitImports
 
 This split overlaps work rather than removing it. It adds another checkout and runner plus the aggregator's scheduling time, and saves only source-check time that would otherwise extend the slower Lean path. Treat measured wall-time improvements as run-specific rather than a fixed reduction.
 
-## Update and review both manuals
+## Update procedure pages and registries
 
-Before handoff, identify the reader tasks affected in both manuals. Update the relevant
-workflows, model descriptions, assumptions, commands and examples in the same PR. If the
-manual remains accurate, record a specific reason for it in the PR’s manual-impact assessment.
-A proof-only edit preserving statements, imports and automation may need no prose change;
-a changed encoding or resource bound normally does. An edit that changes the number of lines
-in a file still moves the declarations below it, so repoint any manual links such as
-`File.lean#L120` to them (for `[Ns.name](File.lean#Ln)` links,
-`python3 scripts/check_operator_manual.py --fix-anchors` repoints unambiguous declaration
-headers automatically). The checker below reports a link that no longer starts a
-declaration, or whose text names a declaration of the linked file that it does not start.
+Explain a change in its docstrings and PR description. Edit the manual only in two cases: a
+change to a command, procedure or role updates the workflow or other procedure page that
+describes it, and a change to a fact recorded in the
+[assumptions inventory](../programs-crypto-and-probability/assumptions.md), the
+[bibliography](../sources.md) or the [results inventory](../../results/README.md) updates that
+registry. The reference chapters are frozen; do not update them
+([policy](../../CONTRIBUTING.md#maintaining-the-manuals)).
+
+An edit that changes the number of lines in a Lean file moves the declarations below it. When a
+procedure page or registry links one of them as `File.lean#L120`, repoint the link (for
+`[Ns.name](File.lean#Ln)` links, `python3 scripts/check_operator_manual.py --fix-anchors`
+repoints unambiguous declaration headers automatically). The checker reports such a link that
+no longer starts a declaration, or whose text names a declaration of the linked file that it
+does not start. It does not check or repoint the frozen chapters' source links.
 
 Run `python3 scripts/check_operator_manual.py` from the repository root, and check changed
-complete Lean clients as above. The coordinator must review both assessments and ensure independent review of affected
-reader paths against the final revision. Changes to agent roles, direction, permissions or
-intervention also require checking the [Agent Operator’s Manual](../AGENT_OPERATORS.md). The [maintenance procedure](../MAINTAINING.md)
+complete Lean clients as above. Changes to agent roles, direction, permissions or
+intervention update the [Agent Operator’s Manual](../AGENT_OPERATORS.md). The [maintenance procedure](../MAINTAINING.md)
 sets out the human acceptance test and distinguishes live checks from dated history.
 
 ## Check the statement readers will see
@@ -116,14 +121,14 @@ contribution before approval. Deferral requires the exceptional disposition desc
 
 Write the PR for a contributor who has not followed the task. Introduce the setting, central
 idea and what the change enables, using the
-[PR-writing guidance and example](../../AGENTS.md#writing-in-issues-and-prs). Explain important
+[PR-writing guidance](../../AGENTS.md#writing-in-issues-and-prs). Explain important
 limitations and put validation after the explanation, linking detailed evidence.
 
 Link its task issue and source references, preserve contributor credit, and disclose AI tools and their role under the applicable policy. Obtain independent correctness/API review of the current revision. Reviewers read new and changed proofs against the rest of the file and nearby modules, because a diff does not show the existing proof that a new block repeats; a new copy of an argument the library already makes is a [review finding](../../AGENTS.md#review-cycle) when a shared lemma would pay under the [library quality standard](../../CONTRIBUTING.md#library-quality-standard). A reviewer who helped design or implement the change cannot supply that independence; agent review is not human approval.
 
 After fixes, request review of the affected delta. Changed reasoning, statement semantics and uncertain conflict resolutions require fresh review; a clean rebase may sometimes preserve existing approval. Integration requires maintainer authority as well as validation and review. State what is complete and what remains. When only a milestone is delivered, keep the broader objective visible and open or explicitly disposed of.
 
-Keep a source approval conditional while notices, rendered pages or other source questions still
+Keep a source approval conditional while notices or other source questions still
 need review. When releasing that hold, link the earlier proof/API/caller assessment and record
 which remaining questions were resolved; reuse unchanged evidence. The queue helper's `--wait`
 option queues automatically when CI passes, so finish any review of newly produced material

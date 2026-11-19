@@ -50,6 +50,10 @@ the Goldreich–Levin construction is a separate step in the OWP-to-PRG reductio
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09], Chapter 9.
 * [L. Trevisan, *CS276 Lecture 13: Pseudorandom Generators*][Trevisan2009PRG],
   scribed by Siu-On Chan, Theorem 2 and its prediction reduction.
+* [O. Goldreich, *Foundations of Cryptography (Fragments of a Book – Version 2.03)*,
+  1998 draft][Goldreich1998Fragments], Theorem 3.4.1, p. 91, which
+  `OneWayPermutation.pseudorandomGenerator_of_hardCore` states with `HardCore` as the hard-core
+  predicate.
 
 Adapted from Crypto/Computational/HardCore.lean on the cslib `crypto` branch at
 `5ff69ca93402e7c947208dc56396d6d86203ccd8`, using the shared nonnegative game API and tidy machines.
@@ -74,7 +78,23 @@ noncomputable abbrev predictionAdvantage (f : List Bool → List Bool)
   Game.guessingAdvantage (ProbComp.eval (predictionGame f predicate adversary n))
 
 /-- A plain polynomial-time predicate whose value is computationally hidden by the image
-function. -/
+function.
+
+This notion is novel to this library. It strengthens [Goldreich1998Fragments], Definition 2.5.1,
+p. 54, whose predictor receives only `f x`: here the predictor also receives the seed length `n` in
+unary, as the inverter of `OneWay` does, and runs in time polynomial in `n + |f x|`. When `n`
+cannot be computed from `f x` in polynomial time, that gives the predictor more information and
+more time than the source does. Security bounds the absolute bias `|Pr[correct] - 1/2|`; since the
+admitted predictors are closed under negating their output, this is equivalent to the source's
+one-sided bound `Pr[correct] < 1/2 + 1/p(n)`.
+
+*Relation to standard assumptions.* The extra input can only help the predictor, so this notion
+implies Definition 2.5.1. The two agree when `n` in unary can be computed from `f x` in time
+polynomial in `|f x|`, for example for length-preserving `f`, which `HardCore.pseudorandomGenerator`
+and `OneWayPermutation.pseudorandomGenerator_of_hardCore` assume.
+
+*Why it is plausible.* `GoldreichLevin.padded_hardCore` derives it from `OneWay`, for the
+inner-product predicate of the padded function. -/
 structure HardCore (f : List Bool → List Bool) (predicate : List Bool → Bool) : Prop where
   /-- Computing the predicate from the seed uses a fixed polynomial-time machine. -/
   polyTime : ComputableInPolyTime predicate encBits encBool
@@ -93,8 +113,7 @@ theorem HardCore.of_unpredictable {f : List Bool → List Bool} {predicate : Lis
     (hp : ComputableInPolyTime predicate encBits encBool)
     (h : ∀ adversary : Distinguisher, IsPPT encBool adversary →
       Negligible (predictionAdvantage f predicate adversary)) : HardCore f predicate := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at hp
-  exact ⟨.of_tidy hp, h⟩
+  exact ⟨hp, h⟩
 
 /-- The prediction experiment is a uniform PPT program when its ingredients are efficient. -/
 @[program_certificate]
@@ -114,8 +133,13 @@ def hardCorePredictor (adversary : Distinguisher) (trial : Bool) : Distinguisher
 theorem isPPT_hardCorePredictor {adversary : Distinguisher}
     (ha : IsPPT encBool adversary) (trial : Bool) :
     IsPPT encBool (hardCorePredictor adversary trial) := by
-  unfold hardCorePredictor
-  ppt
+  apply IsPPTOn.isPPT
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary encBits) encBool)
+  have hbit := ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const [])
+  have hword := ComputableInPolyTime.bitsAppend hp.fst'.snd' hbit
+  exact isPPTOn_trialPredictor
+    (ha.preprocess hp.fst'.fst' hword) (ComputableInPolyTime.const trial)
 
 /-- The ideal hybrid replaces the hidden predicate by an independent fair bit. -/
 noncomputable def hardCoreIdeal (f : List Bool → List Bool) (n : ℕ) : PMF (List Bool) := do
@@ -225,14 +249,24 @@ theorem HardCore.pseudorandomGenerator {f : List Bool → List Bool} {predicate 
     (hlen : ∀ word, (f word).length = word.length)
     (huniform : ∀ n, (BitString.uniformList n).map f = BitString.uniformList n) :
     PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) := by
-  have hf := hf.tidy
-  have hp := h.polyTime.tidy
-  refine PseudorandomGenerator.of_indistinguishable (.of_tidy (by fun_prop)) ?_ Nat.lt_succ_self
+  have hp := h.polyTime
+  refine PseudorandomGenerator.of_indistinguishable ((by fun_prop)) ?_ Nat.lt_succ_self
     (h.indistinguishable_of_uniform huniform)
   intro seed
   simp [hlen]
 
-/-- A one-way permutation with a hard-core predicate gives a uniform polynomial-time one-bit PRG. -/
+/-- Step of the construction of a generator from a one-way permutation: a one-way permutation with
+a hard-core predicate gives a uniform polynomial-time one-bit PRG.
+
+In statement this is [Goldreich1998Fragments], Theorem 3.4.1, p. 91, and
+[Goldreich2007DraftR4], Proposition 8.9, printed p. 330: if `f` is a length-preserving one-to-one
+one-way function and `b` a hard-core predicate for `f`, then `G(s) = f(s) b(s)` is a pseudorandom
+generator, here `PseudorandomGenerator` (Definition 3.3.2, p. 85). The hypothesis `HardCore` is
+novel to this library: its predictors also receive the seed length in unary. For a
+length-preserving `f` it agrees with the source's Definition 2.5.1, p. 54, as `HardCore` explains,
+but the library does not prove that, so this is a step and not the cited theorem. As in the
+source's proof, one-wayness itself is not used: only that `f` is computable in polynomial time,
+preserves lengths and permutes the words of each length. -/
 theorem OneWayPermutation.pseudorandomGenerator_of_hardCore {f : List Bool → List Bool}
     {predicate : List Bool → Bool} (hf : OneWayPermutation f) (h : HardCore f predicate) :
     PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) :=

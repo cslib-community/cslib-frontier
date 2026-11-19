@@ -96,7 +96,8 @@ def canonical (φ : CNF ℕ) (w : List Bool) : Bool :=
 read at the first occurrences of the variables. -/
 def verifier (x : CNF ℕ × List Bool) : Bool := SAT.verifier x && canonical x.1 x.2
 
-private theorem isFirst_idxOf {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
+/-- The first occurrence of an occurring variable in `φ.vars` is a first-occurrence position. -/
+theorem isFirst_idxOf {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
     isFirst φ (φ.vars.idxOf v) = true := by
   have hlt := List.idxOf_lt_length_iff.2 hv
   simp [isFirst, hlt]
@@ -173,7 +174,26 @@ theorem computableInPolyTime_card_vars :
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encCNF encBits) encBool := by
-  fun_prop [verifier, canonical]
+  have hcanonical : ComputableInPolyTime (fun x : CNF ℕ × List Bool => canonical x.1 x.2)
+      (encPair encCNF encBits) encBool := by
+    unfold canonical
+    apply ComputableInPolyTime.allWithInput (encA := encUnary)
+    · fun_prop
+    · have hfirst : ComputableInPolyTime
+          (fun p : (CNF ℕ × List Bool) × ℕ => isFirst p.1.1 p.2)
+          (encPair (encPair encCNF encBits) encUnary) encBool :=
+        computableInPolyTime_isFirst.comp
+          ((ComputableInPolyTime.fst (encPair encCNF encBits) encUnary).fst'.prod
+            (ComputableInPolyTime.snd (encPair encCNF encBits) encUnary))
+      have hbit : ComputableInPolyTime
+          (fun p : (CNF ℕ × List Bool) × ℕ => p.1.2.getD p.2 false)
+          (encPair (encPair encCNF encBits) encUnary) encBool :=
+        ComputableInPolyTime.bitsGetDWithInput
+          (ComputableInPolyTime.fst (encPair encCNF encBits) encUnary).snd'
+          (ComputableInPolyTime.snd (encPair encCNF encBits) encUnary) false
+      exact ComputableInPolyTime.bool_or.comp
+        ((ComputableInPolyTime.bool_not.comp hbit).prod hfirst)
+  exact ComputableInPolyTime.bool_and' SAT.computableInPolyTime_verifier hcanonical
 
 /-- **`#SAT` belongs to `#P`**, with certificates as long as the encoded formula. -/
 theorem mem_SharpP : SharpSAT ∈ SharpP encCNF :=

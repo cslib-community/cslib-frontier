@@ -70,8 +70,18 @@ private theorem polytime_bitPrefix {α : Type} {enc : α ↪ List Bool} {m : α 
       (encPair enc encUnary) encBits := by
   have hframe : ComputableInPolyTime Turing.MultiTapeTM.frame encBits encBits :=
     ComputableInPolyTime.frame
-  unfold bitPrefix selector
-  fun_prop
+  have ha : ComputableInPolyTime (fun p : α × ℕ => p.1)
+      (encPair enc encUnary) enc := ComputableInPolyTime.fst enc encUnary
+  have hj := ComputableInPolyTime.snd enc encUnary
+  have hwidth := hm.comp ha
+  have hrest := ComputableInPolyTime.unary_sub' hwidth hj
+  have hones : ComputableInPolyTime (fun p : α × ℕ => List.replicate p.2 true)
+      (encPair enc encUnary) encBits := (ComputableInPolyTime.bitsReplicate true).comp hj
+  have hzeros : ComputableInPolyTime (fun p : α × ℕ => List.replicate (m p.1 - p.2) false)
+      (encPair enc encUnary) encBits := (ComputableInPolyTime.bitsReplicate false).comp hrest
+  exact ComputableInPolyTime.bitsAppend
+    (hframe.comp (ComputableInPolyTime.encoding_comp ha))
+    (hframe.comp (ComputableInPolyTime.bitsAppend hones hzeros))
 
 private theorem polytime_outputBit {α : Type} {enc : α ↪ List Bool}
     {F : α × List Bool → List Bool}

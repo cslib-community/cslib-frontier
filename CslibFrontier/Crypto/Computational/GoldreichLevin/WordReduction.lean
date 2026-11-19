@@ -16,6 +16,7 @@ import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Computability.Probabilistic.CoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # The uniform Goldreich–Levin inverter
@@ -80,7 +81,21 @@ theorem isPPTOn_parityPredictionGame {f : List Bool → List Bool} {adversary : 
     (hf : ComputableInPolyTime f encBits encBits) (ha : IsPPT encBool adversary) :
     IsPPTOn encUnary encBool (parityPredictionGame f adversary) := by
   unfold parityPredictionGame
-  ppt
+  apply (ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.id' (encIn := encUnary))).bind_with
+  apply (ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.fst encUnary encBits)).bind_with
+  have hprepare : ComputableInPolyTime
+      (fun q : (ℕ × List Bool) × List Bool => f q.1.2 ++ q.2)
+      (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
+  have hcall := ha.preprocess
+    (ComputableInPolyTime.fst encUnary encBits |>.comp
+      (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)) hprepare
+  have hresult : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × List Bool) × Bool =>
+        q.2 == listDot q.1.1.2 q.1.2)
+      (encPair (encPair (encPair encUnary encBits) encBits) encBool) encBool := by fun_prop
+  simpa only [bind_pure_comp, Function.comp_def] using hcall.map_with hresult
 
 /-- Sample one sign, one predictor seed and independent masks, then decode and check candidates. -/
 noncomputable def wordInverter (f : List Bool → List Bool)
@@ -91,7 +106,6 @@ noncomputable def wordInverter (f : List Bool → List Bool)
   return wordDecode f (fun query => evaluate (n, image ++ query) coins ^^ flip)
     degree n image masks
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- Every fixed degree gives one strict PPT inverter for all parameters and images. -/
 @[program_certificate]
 theorem isPPT_wordInverter {f : List Bool → List Bool}
@@ -108,9 +122,27 @@ theorem isPPT_wordInverter {f : List Bool → List Bool}
           degree p.1.1.1.1 p.1.1.1.2 p.2)
       (encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
       encBits := by
-    apply polyTime_wordDecode degree hf <;> fun_prop
-  unfold wordInverter coinBudget
-  ppt
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair (encPair (encPair (encPair (encPair encUnary encBits) encBool)
+        encBits) encBits) encBits)
+    have hn := hp.fst'.fst'.fst'.fst'.fst'
+    have himage := hp.fst'.fst'.fst'.fst'.snd'
+    have hcoins := hp.fst'.fst'.snd'
+    have hflip := hp.fst'.fst'.fst'.snd'
+    have hprepare := (hn.prod
+      (ComputableInPolyTime.bitsAppend himage hp.snd')).prod hcoins
+    have hpredict := ComputableInPolyTime.bool_xor.comp
+      ((hevaluate.comp hprepare).prod hflip)
+    have hinput := ComputableInPolyTime.id'
+      (encIn := encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
+    exact polyTime_wordDecode degree hf hpredict
+      hinput.fst'.fst'.fst'.fst' hinput.fst'.fst'.fst'.snd' hinput.snd'
+  unfold wordInverter
+  apply IsPPTOn.isPPT
+  apply (isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with
+  refine (ComputableInPolyTime.sampleList (by unfold coinBudget; fun_prop)).bind_with ?_
+  simpa only [bind_pure_comp] using
+    (ComputableInPolyTime.sampleList (by fun_prop)).map_with hdecode
 
 /-- At every image length, the program realizes exactly the finite seeded inverter. -/
 theorem wordInverter_eval (f : List Bool → List Bool)
@@ -142,9 +174,7 @@ theorem fixedPredictor_distribution (adversary : Distinguisher)
   rw [hrealize]
   have hlen : (encPair encUnary encBits (n, image ++ List.ofFn query)).length + 1 =
       3 * n + image.length + 2 := by
-    simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply,
-      List.length_append, List.length_ofFn]
-    lia
+    enc_len [List.length_ofFn]
   rw [hlen]
   simp only [uniformList, PMF.map_comp, Function.comp_def, coinBudget, fixedPredictor]
   rfl

@@ -15,7 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 # Pair-unpacked captured-input composition for efficient probabilistic programs
 
 `IsPPTOn.bind_with`, `IsPPTOn.map_with`, `IsOraclePPTOn.bind_with` and
-`IsOraclePPTOn.map_with'` take curried continuations `α → β → …` and synthesize
+`IsOraclePPTOn.map_with` take curried continuations `α → β → …` and synthesize
 `fun pair => second pair.1 pair.2` over `encPair input middle`. When chaining multi-step
 `do` blocks directly without `fun_prop` synthesis, passing an uncurried continuation
 `α × β → …` avoids repeated `Prod.mk.eta` normalization in the premise.

@@ -13,7 +13,9 @@ import CslibFrontier.Probability.PMF.Bool
 /-!
 # Hitting a point with a draw
 
-Testing a draw from `μ` for equality with a fixed point `a` accepts with probability `μ a`
+Testing a draw from `p` with an arbitrary decidable predicate `P` accepts with probability
+`p.toOuterMeasure {x | P x}` (`bind_pure_decide_apply_true`). Testing a draw from `μ` for
+equality with a fixed point `a` accepts with probability `μ a`
 (`bind_pure_decide_eq_apply_true`, `map_decide_eq_apply_true`). The unprimed bind form and the
 uniform form test `a = x`; `bind_pure_decide_eq_apply_true'` and the map form test `x = a`. For a
 uniform draw from a nonempty finite type `α` this is `(Fintype.card α)⁻¹`
@@ -26,9 +28,10 @@ adversary whose view is independent of a uniform secret guesses it with probabil
 
 ## Main results
 
-* `Cslib.Probability.PMF.bind_pure_decide_eq_apply_true`,
-  `Cslib.Probability.PMF.map_decide_eq_apply_true`: an equality test against a fixed point accepts
-  with the point's probability.
+* `Cslib.Probability.PMF.bind_pure_decide_apply_true`,
+  `Cslib.Probability.PMF.bind_pure_decide_eq_apply_true`,
+  `Cslib.Probability.PMF.map_decide_eq_apply_true`: predicate and point-equality acceptance
+  probabilities.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true`: a uniform draw equals a
   fixed point with probability `(Fintype.card α)⁻¹`.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_pure_apply_true_le`: a test accepting at most one
@@ -42,6 +45,13 @@ public section
 namespace Cslib.Probability.PMF
 
 open scoped ENNReal
+
+/-- The probability that `decide (P x)` is `true` is the measure of `{x | P x}`. -/
+theorem bind_pure_decide_apply_true {β : Type*} (p : PMF β) (P : β → Prop) [DecidablePred P] :
+    (p.bind fun x => PMF.pure (decide (P x))) true = p.toOuterMeasure {x | P x} := by
+  rw [PMF.bind_apply, PMF.toOuterMeasure_apply]
+  refine tsum_congr fun x => ?_
+  by_cases hx : P x <;> simp [hx]
 
 section Point
 

@@ -10,16 +10,15 @@ module
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle
 import CslibFrontier.Probability.PMF
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Chosen-plaintext attacks on public-key encryption
@@ -333,8 +332,7 @@ theorem isPPTOn_runWithEncryption {Caller α β : Type} {input : Caller ↪ List
       have hsize : (encPair encUnary (encPair encBits encBits)
           (param a, pk a, request.2)).length + 1 ≤
           2 * param a + 2 * (pk a).length + request.2.length + 5 := by
-        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-        lia
+        enc_len
       refine ⟨trivial, ?_, Nat.le_add_right _ _⟩
       exact (hlen (param a, pk a, request.2) ciphertext hciphertext).trans
         (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hsize d))

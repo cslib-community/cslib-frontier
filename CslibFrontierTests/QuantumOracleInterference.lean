@@ -8,6 +8,8 @@ module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Code
 public import CslibFrontier.Probability.Uniform
+import CslibFrontier.Computability.Circuit.Quantum.GateMatrix
+import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
 import CslibFrontierTests.QuantumCircuitFixture
 import CslibFrontierTests.QuantumOracleFixture
 
@@ -42,11 +44,6 @@ private theorem hadamard_one (q r : Bool) : h₁.eval (ket ![q, r]) =
     ext i
     fin_cases i <;> simp
   simpa [Fintype.sum_bool, hu, add_comm] using h
-
-private theorem hadamard_twice (A : Fin 1 ↪ Fin 2) (ψ : Qubits 2) :
-    (PlacedGate.mk 1 Gate.hadamard A).eval ((PlacedGate.mk 1 Gate.hadamard A).eval ψ) = ψ := by
-  change unitaryEquiv (place A Gate.hadamard) (unitaryEquiv (place A Gate.hadamard) ψ) = ψ
-  rw [← unitaryEquiv_mul, ← map_mul, Gate.hadamard_mul_self, map_one, unitaryEquiv_one]
 
 /-- Prepare a negative-phase response, query once, and interfere the address amplitudes. -/
 @[expose] def parityProgram : OracleCircuit :=
@@ -124,5 +121,29 @@ theorem parityExperiment_eq : parityExperiment = Probability.PMF.uniformOfFintyp
 example : parityExperiment true = 1 / 2 := by
   rw [parityExperiment_eq]
   norm_num [Probability.PMF.uniformOfFintype_apply]
+
+open Matrix in
+-- On a basis input with distinct oracle answers the resulting states are orthogonal.
+example :
+    xorQueryDisturbance (fun (_ : Fin 1 → Bool) (_ : Fin 1) => true) (fun _ _ => false)
+      (Function.Embedding.refl _) (pureState (ket (![false, false], ()))) = 2 := by
+  let col (r : Bool) := onFirst (κ := Unit)
+    (xorQuery (fun (_ : Fin 1 → Bool) (_ : Fin 1) => r) (Function.Embedding.refl _)).matrix
+  have act (r : Bool) : (col r).val.toEuclideanLin (ket (![false, false], ())) =
+      ket (![false, r], ()) := by
+    change (toEuclideanCLM (𝕜 := ℂ) (col r).val) (ket _) = _
+    rw [toEuclideanCLM_ket]
+    ext y
+    obtain ⟨y, ⟨⟩⟩ := y
+    change (col r).val (y, ()) (![false, false], ()) = _
+    simp only [col, onFirst_apply, ← PlacedGate.eval_ket_apply, xorQuery_oneBit_ket,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Bool.false_xor, ket_apply]
+    simp
+  change (densityConj ((col true).val - (col false).val)
+    (pureState (ket (![false, false], ())))).trace.re = 2
+  rw [densityConj_pureState, trace_pureState]
+  change ‖((col true).val - (col false).val).toEuclideanLin (ket _)‖ ^ 2 = 2
+  rw [map_sub, LinearMap.sub_apply, act, act, @norm_sub_sq ℂ, norm_ket, norm_ket]
+  norm_num [ket, EuclideanSpace.inner_single_left]
 
 end CslibFrontierTests.QuantumOracleInterference

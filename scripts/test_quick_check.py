@@ -19,7 +19,7 @@ sys.modules[SPEC.name] = quick
 SPEC.loader.exec_module(quick)
 REPO = Path(__file__).resolve().parent.parent
 # The audit of affected files restored from the artifact cache, run after the build (#4523).
-RESTORES = [sys.executable, "-B", "scripts/check_cache_restores.py"]
+RESTORES = [sys.executable, "-B", "scripts/check_cache_restores.py", "--progress"]
 
 
 class QuickCheckTests(unittest.TestCase):
@@ -75,6 +75,52 @@ class QuickCheckTests(unittest.TestCase):
                           "DemoTests/Client.lean"])
         self.assertEqual(plan.restore_built, ["Demo.lean"])
 
+    def test_focused_defers_only_unedited_global_test_leaves(self):
+        with (self.root / "lakefile.toml").open("a") as stream:
+            stream.write('[[lean_lib]]\nname = "CslibFrontierTests"\nroots = []\nglobs = ["CslibFrontierTests.+"]\n')
+        for test in ("Smoke", "Axioms"):
+            self.write(f"CslibFrontierTests/{test}.lean", "import Demo\n")
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("Demo/Base.lean", "def value := 2\n")
+        def focused():
+            return quick.make_plan(self.root, parser=self.simple_headers, focused=True)
+
+        plan = focused()
+        self.assertEqual(plan.deferred, ["CslibFrontierTests.Axioms", "CslibFrontierTests.Smoke"])
+        self.assertEqual(set(self.plan().targets) - set(plan.targets), set(plan.deferred))
+        self.assertIn("DemoTests.AllClient", plan.targets)
+        self.assertNotIn("CslibFrontierTests/Axioms.lean", plan.restore_files)
+        self.write("CslibFrontierTests/Smoke.lean", "import Demo\n-- changed\n")
+        self.write("CslibFrontierTests/Client.lean", "import CslibFrontierTests.Axioms\n")
+        self.assertEqual(focused().deferred, [])
+        self.assertIn("CslibFrontierTests.Axioms", focused().targets)
+
+    def test_mixed_prose_and_new_bibliography_entries_keep_lean_clients(self):
+        self.write("references.bib", "@book{Existing,\n}\n")
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("Demo/Base.lean", "def value := 2\n")
+        self.write("results/topic.md", "Source mapping.\n")
+        self.write("manual/workflows/operation.md", "Procedure.\n")
+        self.write("roadmap/topic.md", "Topics.\n")
+        self.write("references.bib", "@book{Added,\n}\n@book{Existing,\n}\n")
+        plan = self.plan()
+        self.assertIn("DemoTests.Client", plan.targets)
+        self.assertTrue(any("--config-only" in command for _, command in plan.checks))
+        self.assertTrue(any("--check-metadata" in command for _, command in plan.checks))
+        self.write("references.bib", "@book{Removed,\n}\n")
+        with self.assertRaisesRegex(quick.FullCheck, "existing bibliography"):
+            self.plan()
+        self.write("references.bib", "@book{Existing,\n}\n")
+        (self.root / "results/link.md").symlink_to(self.root / "Demo/Base.lean")
+        with self.assertRaisesRegex(quick.FullCheck, "symlinked"):
+            self.plan()
+        (self.root / "results/link.md").unlink()
+        self.write("manual/programs-crypto-and-probability/assumptions.md", "Inventory\n")
+        with self.assertRaisesRegex(quick.FullCheck, "non-Lean change"):
+            self.plan()
+
     def test_unused_aggregate_is_not_audited_or_built(self):
         (self.root / "DemoTests/AllClient.lean").unlink()
         self.write("DemoTests.lean", "import DemoTests.Client\n")
@@ -86,10 +132,10 @@ class QuickCheckTests(unittest.TestCase):
 
     def record_command(self, command, plan):
         """Read the audit's temporary manifest while it exists, then normalize its random path."""
-        if command[:3] == RESTORES:
-            self.assertEqual(command[3], "--files-from")
-            self.assertEqual(json.loads(Path(command[4]).read_text()), plan.restore_files)
-            self.assertEqual(command[5:], [part for path in plan.restore_built
+        if command[:4] == RESTORES:
+            self.assertEqual(command[4], "--files-from")
+            self.assertEqual(json.loads(Path(command[5]).read_text()), plan.restore_files)
+            self.assertEqual(command[6:], [part for path in plan.restore_built
                                           for part in ("--built-under", path)])
             return RESTORES
         return command
@@ -273,7 +319,7 @@ class QuickCheckTests(unittest.TestCase):
             with self.subTest(lint_status=lint_status):
                 calls = []
 
-                def run(root, command, label):
+                def run(root, command, label, **kwargs):
                     calls.append(self.record_command(command, plan))
                     return lint_status if command[0] == "lint" else 0
 
@@ -334,7 +380,7 @@ class QuickCheckTests(unittest.TestCase):
             with self.subTest(lint_status=lint_status):
                 calls, listings = [], []
 
-                def run(root, command, label):
+                def run(root, command, label, **kwargs):
                     calls.append(self.record_command(command, plan))
                     if command[:2] == ["lake", "lint"]:
                         listing = Path(command[4].removeprefix("--only-modules="))
@@ -366,8 +412,10 @@ class QuickCheckTests(unittest.TestCase):
                 calls = []
                 plan = quick.Plan("base", targets, [], restore_files=["Demo/Base.lean"])
 
-                def run(root, command, label):
+                def run(root, command, label, **kwargs):
                     command = self.record_command(command, plan)
+                    if command == RESTORES:
+                        self.assertEqual(kwargs, {"progress": True})
                     calls.append(command)
                     return audit_status if command == RESTORES else 0
 
@@ -507,7 +555,8 @@ class QuickCheckTests(unittest.TestCase):
         with patch.object(quick, "make_plan", side_effect=quick.FullCheck("unsafe")), \
              patch.object(quick.subprocess, "run") as run, \
              patch("sys.stdout", new_callable=io.StringIO) as out:
-            self.assertEqual(quick.main(["--no-full-fallback"], self.root), quick.NO_FALLBACK_STATUS)
+            for flag in ("--no-full-fallback", "--focused"):
+                self.assertEqual(quick.main([flag], self.root), quick.NO_FALLBACK_STATUS)
         run.assert_not_called()
         self.assertIn("cannot plan this change: unsafe", out.getvalue())
 
@@ -549,11 +598,11 @@ class QuickCheckTests(unittest.TestCase):
         original = quick.make_plan
         calls = []
 
-        def run(root, command, label):
+        def run(root, command, label, **kwargs):
             calls.append(command)
             return 1 if "DemoTests.Client" in command else 0
 
-        with patch.object(quick, "make_plan", side_effect=lambda r, b: original(r, b, parser=self.simple_headers)), \
+        with patch.object(quick, "make_plan", side_effect=lambda r, b, **kw: original(r, b, parser=self.simple_headers, **kw)), \
              patch.object(quick, "run_check", side_effect=run):
             self.assertEqual(quick.main([], self.root), 1)
         self.assertIn("DemoTests.Client", calls[0])
@@ -569,7 +618,8 @@ class LocalManualGateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="cslib-frontier-manual-gates-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for source in ("scripts/check.sh", "scripts/check_operator_manual.py", "manual/data/visuals.py"):
+        for source in ("scripts/check.sh", "scripts/check_operator_manual.py", "manual/data/build_latex.py",
+                       "manual/data/visuals.py"):
             self.write(source, (REPO / source).read_text())
         self.write("manual/README.md", "# Manual\n\n[Drivers](AGENT_OPERATORS.md)\n"
                    "[Example](workflows/example.md)\n")
@@ -628,6 +678,10 @@ class LocalManualGateTests(unittest.TestCase):
         commands = [json.loads(x) for x in self.log.read_text().splitlines()]
         self.assertEqual(commands[1:], [["quick_check.py", "--base", "origin/main",
                                          "--no-full-fallback"]])
+        self.log.unlink()
+        self.assertEqual(self.run_gate("--focused").returncode, 0)
+        commands = [json.loads(x) for x in self.log.read_text().splitlines()]
+        self.assertEqual(commands[-1], ["quick_check.py", "--base", "origin/main", "--focused"])
         self.log.unlink()
         bad = self.run_gate("--no-full-fallback")
         self.assertEqual(bad.returncode, 2)

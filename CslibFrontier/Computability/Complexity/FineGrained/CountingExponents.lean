@@ -26,6 +26,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinato
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 import CslibFrontier.Foundations.Analysis.SublinearEnvelope
 import CslibFrontier.Foundations.Data.List.OfFn
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # `#k-SAT` exponents, `#ETH`, and `#SETH`
@@ -261,15 +262,11 @@ theorem count_eq_modelCount (φ : CNF ℕ) : count φ = φ.modelCount := by
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_init : ComputableInPolyTime init encCNF encState := by
-  have := SAT.computableInPolyTime_distinctVars
-  unfold init
-  fun_prop
+  fun_prop [init]
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_rounds : ComputableInPolyTime rounds encCNF encNat := by
-  have := SAT.computableInPolyTime_distinctVars
-  unfold rounds
-  exact binary_two_pow.comp (by fun_prop)
+  fun_prop [rounds]
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_step : ComputableInPolyTime step encState encState := by
@@ -313,11 +310,9 @@ theorem SharpSAT_computableInExpTime_one :
       (length_encNat_mono hacc_le).trans hm_len
     have hbase : (encCNF φ).length + (encList encNat φ.distinctVars).length ≤
         (encState (init φ)).length := by
-      simp only [init, encState_apply, length_encPair]
-      omega
+      enc_len [init, encState_apply]
     have hci1 : (encState (init φ)).length ≤ ci * ((encCNF φ).length + 1) ^ di_len := hinit
-    simp only [encState_apply, encStateFields, length_encPair, stateBound, Nat.mul_assoc]
-    omega
+    enc_len [encState_apply, encStateFields, stateBound, Nat.mul_assoc]
   let R (φ : CNF ℕ) : ℕ := (stateBound φ + 1) ^ ds
   have hround (φ : CNF ℕ) (m : ℕ) (hm : m ≤ rounds φ) :
       ((encState ((BruteForceCount.step)^[m] (init φ))).length + 1) ^ ds ≤ R φ :=

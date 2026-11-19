@@ -10,6 +10,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Explici
 public import Mathlib.Logic.Equiv.Fin.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -294,7 +295,7 @@ private theorem computableInPolyTime_countTake {γ : Type} {encIn : γ ↪ List 
     ((ComputableInPolyTime.length_list _).comp hgroups) hv
   have htake : ComputableInPolyTime (fun x => (groups x).take (min (groups x).length (v x))) encIn
       (encList encNat) :=
-    .of_tidy (ComputableTidilyInPolyTime.listTakeWithInput hgroups.tidy hcap.tidy)
+    ComputableInPolyTime.listTakeWithInput hgroups hcap
   have htest : ComputableInPolyTime (fun p : γ × ℕ => decide (p.2 = g p.1))
       (encPair encIn encNat) encBool :=
     ComputableInPolyTime.decide_eq' (ComputableInPolyTime.snd _ _)
@@ -362,26 +363,7 @@ theorem computableInPolyTime_childEdgeList :
 theorem computableInPolyTime_childPorts :
     ComputableInPolyTime (fun x : List (ℕ × ℕ) × ℕ => childPorts x.1 x.2)
       (encPair (encList (encPair encNat encNat)) encNat) (encList encUnary) := by
-  let enc := encPair (encList (encPair encNat encNat)) encNat
-  have hl : ComputableInPolyTime (fun x : List (ℕ × ℕ) × ℕ => x.1) enc
-      (encList (encPair encNat encNat)) := ComputableInPolyTime.fst _ _
-  have hrange : ComputableInPolyTime (fun x : List (ℕ × ℕ) × ℕ => List.range x.1.length) enc
-      (encList encUnary) := ComputableInPolyTime.range.comp
-        ((ComputableInPolyTime.length_list _).comp hl)
-  let encJ := encPair enc encUnary
-  have hentry : ComputableInPolyTime (fun p : (List (ℕ × ℕ) × ℕ) × ℕ => p.1.1.getD p.2 (0, 0))
-      encJ (encPair encNat encNat) :=
-    (ComputableInPolyTime.listGetD (0, 0)).comp ((hl.comp (ComputableInPolyTime.fst _ _)).prod
-      (ComputableInPolyTime.snd _ _))
-  have hi : ComputableInPolyTime (fun p : (List (ℕ × ℕ) × ℕ) × ℕ => p.1.2) encJ encNat :=
-    (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
-  have htest := ComputableInPolyTime.decide_or
-    (ComputableInPolyTime.decide_eq' ((ComputableInPolyTime.fst _ _).comp hentry) hi)
-    (ComputableInPolyTime.decide_eq' ((ComputableInPolyTime.snd _ _).comp hentry) hi)
-  have h := ComputableInPolyTime.filterWithInput
-    (test := fun x j => decide ((x.1.getD j (0, 0)).1 = x.2 ∨ (x.1.getD j (0, 0)).2 = x.2))
-    hrange htest
-  exact h
+  fun_prop [childPorts]
 
 end PolyTime
 

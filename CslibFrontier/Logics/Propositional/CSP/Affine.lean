@@ -35,6 +35,7 @@ is made in this module.
 * `Cslib.Logic.PL.AffineEquation`: an affine parity equation with repeated variables allowed.
 * `Cslib.Logic.PL.AffineEquation.Holds`: satisfaction of one equation.
 * `Cslib.Logic.PL.AffineSystem.Holds`: satisfaction of a conjunction of equations.
+* `Cslib.Logic.PL.AffineSystem.countSat`: the number of equations an assignment satisfies.
 
 ## Main results
 
@@ -66,6 +67,15 @@ abbrev AffineSystem (V : Type*) := List (AffineEquation V)
 /-- Every equation in the system holds. -/
 @[expose] def AffineSystem.Holds (F : AffineSystem V) (a : V → Bool) : Prop :=
   ∀ e ∈ F, e.Holds a
+
+/-- Whether an equation holds is decided by comparing two bits. -/
+instance AffineEquation.decidableHolds (e : AffineEquation V) (a : V → Bool) :
+    Decidable (e.Holds a) :=
+  inferInstanceAs (Decidable ((e.vars.map a).sum = e.rhs))
+
+/-- The number of equations of the system that hold, counted with multiplicity. -/
+@[expose] def AffineSystem.countSat (F : AffineSystem V) (a : V → Bool) : ℕ :=
+  F.countP fun e => decide (e.Holds a)
 
 /-- Two occurrences of the same variable cancel, with no condition on the remaining list. -/
 theorem AffineEquation.holds_cons_cons (v : V) (vs : List V) (b : Bool) (a : V → Bool) :
