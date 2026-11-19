@@ -256,6 +256,7 @@ import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
+import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
 import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
@@ -8835,6 +8836,37 @@ register_result "optimized-lamport-containment-free" where
     affect containment freeness. Unconditional combinatorics, with no adversary or sampling. \
     The general Lamport signature scheme and Theorem 14.2 are not formalized here. \
     optWord_polyTime, in the same module, computes the encoding in polynomial time."
+
+register_result "indexed-signature-counter-nonce" where
+  title := "A secure indexed signature with a counter as its nonce is a secure stateful signature"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Section 14.6.4 nonce-based signatures, counter nonce",
+      locator := "Section 14.6.4, pp. 602–603" }
+  ]
+  theorems := [
+    Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.counterEUFCMA
+  ]
+  scope := "Premise: IndexedEUFCMA S, Definition 14.6 (p. 597): a q-indexed signature on the \
+    message space {1, …, q} × M, secure against efficient adversaries whose signing queries \
+    use distinct indices and who win with a valid signature on a new pair (u, m). Here \
+    q = capacity n, computed in polynomial time from 1^n; indices run over 0, …, q − 1, in \
+    unary; M is every bit string, which is security on every message space of polynomially \
+    bounded word length at once. Signing may be randomized, where Definition 14.6 \
+    requires deterministic signing: the theorem covers more schemes and is the source's for \
+    deterministic ones. A request with a repeated index or an index u ≥ q is answered with \
+    the empty word and not recorded, instead of being excluded from the adversary class; a \
+    forger can predict these refusals, so the notions agree. A forgery counts only at an \
+    index u < q. Conclusion: CounterEUFCMA S, the nonce-based use of Section 14.6.4 with the \
+    nonce a counter (p. 603): the signing oracle signs its j-th request at index j and \
+    answers the word (j, σ), refuses every request once j = q, and a forger wins with a valid \
+    signature on a message it never had signed, at an index below q read from the signature \
+    word. This is existential unforgeability for a nonce never used twice, as Section 14.6.4 \
+    states it (p. 602). Same message space, refusals and index range as the premise. Forgers \
+    in both games are uniform strict oracle-PPT machines. The proof's reduction \
+    counterForger answers the j-th request by one indexed query at index j and forwards the \
+    forgery with its index; it is certified oracle PPT (isOraclePPT_counterForger) and has \
+    loss 1 (succProbability_counterEufCmaGame_le, in the same module). Asymptotic."
 
 register_result "span-program-change-of-basis-equivalence" where
   title := "Right multiplication by an invertible matrix with top row e₁ gives an equivalent \

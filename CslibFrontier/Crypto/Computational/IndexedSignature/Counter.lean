@@ -74,7 +74,7 @@ that the reduction is strict oracle PPT for every external oracle (`isOraclePPT_
 * `Cslib.Crypto.IndexedSignatureScheme.succProbability_counterEufCmaGame_le`: the exact bound.
 * `Cslib.Crypto.IndexedSignatureScheme.isOraclePPT_counterForger`: the reduction is efficient.
 * `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.counterEUFCMA`: indexed EUF-CMA security
-  gives counter EUF-CMA security (a step toward Section 14.6.4).
+  gives counter EUF-CMA security ([BonehShoup2023], Section 14.6.4, with a counter as the nonce).
 
 ## References
 
@@ -519,17 +519,28 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
 
 /-! ### Security -/
 
-/-- Indexed EUF-CMA security gives counter EUF-CMA security, so the signer of an indexed EUF-CMA
-secure scheme may choose its indices with a counter: a step toward [BonehShoup2023],
-Section 14.6.4, presented as a step until its statement has been checked against the source for
-registration.
+/-- **A counter as the nonce** ([BonehShoup2023], Section 14.6.4, pp. 602–603): if `S` is a
+secure `q`-indexed signature (Definition 14.6, p. 597), with `q = capacity n`, then the stateful
+signer that signs its `j`-th message at index `j` and publishes `j` with the signature is
+existentially unforgeable under adaptive chosen-message attack (`CounterEUFCMA`). This is the
+security that Section 14.6.4 states for a nonce-based signature whose nonce is never used twice
+(p. 602), for its counter nonce (p. 603).
 
-The indexed signing oracle refuses a request at an index `u ≥ capacity n`, the counter signing
-oracle refuses every request once `j = capacity n`, and both winning tests count a forgery only at
-an index below the capacity, as Definition 14.6 (printed p. 597) and the nonce example of
-Section 14.6.4 (printed p. 603) bound the indices. The reduction `counterForger` has loss `1`
-(`succProbability_counterEufCmaGame_le`): it forwards the forgery with its index, so a counter
-forgery at an admissible index is an indexed forgery at that index. -/
+The differences from the source are those of `IndexedEUFCMA` (see the `IndexedSignature` module
+docstring), shared by premise and conclusion:
+* signing may be randomized, where Definition 14.6 requires deterministic signing, so the theorem
+  covers more schemes and is the source's for deterministic ones;
+* messages are bit strings of any length;
+* a request the source forbids (a repeated index or one `u ≥ capacity n` in the indexed game, any
+  request once `j = capacity n` in the counter game) is answered with the empty word and not
+  recorded, instead of being excluded from the adversary class; a forger can predict these
+  refusals, so the notions agree;
+* indices run over `0, …, q - 1` instead of `1, …, q`, and a forgery counts only at an index below
+  the capacity, which the counter game reads from the signature word.
+
+Forgers are uniform strict oracle-PPT machines. The reduction `counterForger` forwards each request
+at the counter's index and the forgery with its index; it is certified (`isOraclePPT_counterForger`)
+and has loss `1` (`succProbability_counterEufCmaGame_le`). -/
 theorem IndexedEUFCMA.counterEUFCMA (h : S.IndexedEUFCMA) : S.CounterEUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
   apply CounterEUFCMA.of_negligible
