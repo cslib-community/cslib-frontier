@@ -260,7 +260,7 @@ private theorem rowSigner_plant (H : Xofs) (s : Level) (p : FixedBytes 96)
   have expansion (u v : FixedBytes 32) :
       (G u v).expandKeySeed s u = FixedBytes.toList (n := 128) (Fin.append p v) :=
     Xofs.expandKeySeed_withKeySeedExpansion H s u _
-  simp only [rowSigner, Xofs.keyGen, expansion, (fields K).1, (fields K).2.1,
+  simp only [rowSigner, Xofs.keyGen, Xofs.expandS, expansion, (fields K).1, (fields K).2.1,
     (fields K).2.2, (fields z).1, (fields z).2.1, (fields z).2.2,
     Xofs.expandA_congr (H := H) (K := G seed K) rfl,
     Xofs.expandA_congr (H := H) (K := G z z) rfl, short, pkHash,

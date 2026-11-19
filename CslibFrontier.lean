@@ -4174,6 +4174,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.CNFTemplate
 public import CslibFrontier.Computability.PolyTime.CSP.CrossAdjacentTransposition
 public import CslibFrontier.Computability.PolyTime.CSP.CrossInsertion
 public import CslibFrontier.Computability.PolyTime.CSP.CrossTailTransposition
+public import CslibFrontier.Computability.PolyTime.CSP.CrossTranspositionSchedule
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.BlackCounts
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.FaceParity
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Native
@@ -4985,6 +4986,7 @@ public import CslibFrontier.Crypto.Computational.LWE.Trapdoor
 public import CslibFrontier.Crypto.Computational.LWE.Trapdoor.Basic
 public import CslibFrontier.Crypto.Computational.LWE.Trapdoor.Gadget
 public import CslibFrontier.Crypto.Computational.Lattice.ShortestVector
+public import CslibFrontier.Crypto.Computational.LinearSigmaProtocol
 public import CslibFrontier.Crypto.Computational.LubyRackoff
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Computational.MAC.Counter
@@ -5017,6 +5019,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
+public import CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
 public import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 public import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing

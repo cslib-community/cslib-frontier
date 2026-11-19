@@ -267,32 +267,55 @@ example (F : PrimeOrderGroupFamily) :
       F.computableInPolyTime_schnorrExtractWord F.computableInPolyTime_schnorrExtractWord)
     (isPPT_echoProver _)
 
-/-- The composed Schnorr OR-proof and parallel-repetition bundles instantiate cleanly on any
-`PrimeOrderGroupFamily`. -/
-example (F : PrimeOrderGroupFamily) (k : ℕ × F.Desc → ℕ) :
-    Nonempty
-      (EfficientSpecialSoundness
-        (fun i => SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
-          (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-            (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
-          (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-            (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)))
-        (fun i => orRelation (fun α u => α • F.generator i.2 = u)
-          (fun α u => α • F.generator i.2 = u))
-        (F.schnorrEncoding.orProof F.schnorrEncoding)
-        (fun i => encSum (F.encScalar i.2) (F.encScalar i.2))
-        (fun i => orExtract (F.schnorrExtract i) (F.schnorrExtract i))) ∧
-    Nonempty
-      (EfficientSpecialHVZK
-        (fun i => (F.schnorrFamily i).parallelRepetition (k i))
-        (fun i α u => α • F.generator i.2 = u)
-        (F.schnorrEncoding.parallelRepetition k)
-        (fun i => parallelSimulate
-          (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-            (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)) (k i))
-        (fun i => (k i : ENNReal) * (1 / 2 ^ i.1))) :=
-  ⟨⟨F.efficientSpecialSoundness_orProof_schnorr⟩,
-   ⟨F.efficientSpecialHVZK_parallelRepetition_schnorr_ideal k⟩⟩
+/-- The fair-coin composed Schnorr protocols (`andProof`, `schnorrOrProbFamily`, and
+`(n + 1)`-fold `parallelRepetition`) satisfy completeness, `EfficientSpecialSoundness`, and
+`ComputationalSpecialHVZK` with zero acceptance error on any `PrimeOrderGroupFamily` and `setup`.
+-/
+example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) :
+    (∀ i, ((F.schnorrProbFamily i).andProof (F.schnorrProbFamily i)).Complete
+      fun x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2) ∧
+    (∀ i, (F.schnorrOrProbFamily i).Complete
+      (orRelation (fun α u => α • F.generator i.2 = u) (fun α u => α • F.generator i.2 = u))) ∧
+    (∀ i, ((F.schnorrProbFamily i).parallelRepetition (i.1 + 1)).Complete
+      fun α u => α • F.generator i.2 = u) ∧
+    EfficientSpecialSoundness F.schnorrOrProbFamily
+      (fun i => orRelation (fun α u => α • F.generator i.2 = u)
+        (fun α u => α • F.generator i.2 = u))
+      (F.schnorrEncoding.orProof F.schnorrEncoding)
+      (fun i => encSum (F.encScalar i.2) (F.encScalar i.2))
+      (fun i => orExtract (F.schnorrExtract i) (F.schnorrExtract i)) ∧
+    ComputationalSpecialHVZK
+      (fun i => (F.schnorrProbFamily i).andProof (F.schnorrProbFamily i))
+      (fun i x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2)
+      (F.schnorrEncoding.andProof F.schnorrEncoding)
+      (fun i => encPair (F.encScalar i.2) (F.encScalar i.2))
+      (fun n => (setup n).map (n, ·))
+      (andSimulator F.schnorrSimulator F.schnorrSimulator)
+      (fun _ => 0) ∧
+    ComputationalSpecialHVZK F.schnorrOrProbFamily
+      (fun i => orRelation (fun α u => α • F.generator i.2 = u)
+        (fun α u => α • F.generator i.2 = u))
+      (F.schnorrEncoding.orProof F.schnorrEncoding)
+      (fun i => encSum (F.encScalar i.2) (F.encScalar i.2))
+      (fun n => (setup n).map (n, ·))
+      (orSimulator F.schnorrSampleChallenge F.schnorrSimulator F.schnorrSimulator)
+      (fun _ => 0) ∧
+    ComputationalSpecialHVZK
+      (fun i => (F.schnorrProbFamily i).parallelRepetition (i.1 + 1))
+      (fun i α u => α • F.generator i.2 = u)
+      (F.schnorrEncoding.parallelRepetition fun i => i.1 + 1)
+      (fun i => F.encScalar i.2)
+      (fun n => (setup n).map (n, ·))
+      (parallelSimulator F.schnorrSimulator fun i => i.1 + 1)
+      (fun _ => 0) :=
+  ⟨fun i => andProof_complete (F.schnorrProbFamily_complete i) (F.schnorrProbFamily_complete i),
+   F.schnorrOrProbFamily_complete,
+   fun i => parallelRepetition_complete (F.schnorrProbFamily_complete i),
+   F.efficientSpecialSoundness_orProof_schnorr,
+   F.computationalSpecialHVZK_andProof_schnorr setup,
+   F.computationalSpecialHVZK_orProof_schnorr setup,
+   F.computationalSpecialHVZK_parallelRepetition_schnorr (fun i => i.1 + 1) setup
+     (K := fun n => n + 1) (by fun_prop) (fun _ _ _ => le_rfl)⟩
 
 /-- Concrete evaluation of `orExtractWord` via `extractorRealizedBy_orExtractWord`: when the first
 side's challenge words differ, it outputs `encSum encBool encBool (.inl true)`; when they agree, it

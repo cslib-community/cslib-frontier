@@ -7,10 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.LinearSigmaProtocol
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
@@ -45,9 +45,7 @@ intermediate step:
   statement nor the commitment, so its polynomial-time word function is Schnorr's
   `schnorrExtractWord`.
 * **Statistical closeness and computational special HVZK for the fair-coin prover**
-  (`closeTo_transcript_chaumPedersenProbFamily`,
-  `closeTo_transcript_chaumPedersenProbFamily_simulator`,
-  `advantage_chvzkRealGame_chaumPedersenProbFamily_le`,
+  (`closeTo_transcript_chaumPedersenProbFamily_simulator`,
   `advantage_chvzkGame_chaumPedersenProbFamily_le`,
   `computationalSpecialHVZK_chaumPedersen`, Theorem 19.10 with Definitions 19.5 and 20.6):
   Theorem 19.10 states exact special HVZK (Definition 19.5(ii), identical transcript distribution,
@@ -55,7 +53,9 @@ intermediate step:
   exact rejection sampling on `ZMod q`); in the strict-PPT fair-coin model exact simulation is
   impossible when `q` is not a power of two, so this module establishes the `2 / 2 ^ n` statistical
   form (`closeTo_transcript_chaumPedersenProbFamily_simulator`) and Definition 20.6
-  (`computationalSpecialHVZK_chaumPedersen`). Boneh and Shoup's simulator samples a uniform response
+  (`computationalSpecialHVZK_chaumPedersen`), derived from the shared `linearProbFamily` transfer in
+  `CslibFrontier.Crypto.Computational.LinearSigmaProtocol`. Boneh and Shoup's simulator samples a
+  uniform response
   `z` and outputs `((z • g - c • v, z • u - c • w), z)`. The typed simulator
   `chaumPedersenSimulator` (certified strict PPT by `chaumPedersenSimulateWord`) samples `z` with
   `sampleExp`, incurring `1 / 2 ^ n` against the ideal-nonce prover
@@ -85,9 +85,7 @@ intermediate step:
   `Cslib.Crypto.PrimeOrderGroupFamily.schnorrRespondBits_chaumPedersen`
 * `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_chaumPedersenProb`,
   `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_chaumPedersen`
-* `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_chaumPedersenProbFamily`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_chaumPedersenProbFamily_simulator`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_chvzkRealGame_chaumPedersenProbFamily_le`,
+* `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_chaumPedersenProbFamily_simulator`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_chvzkGame_chaumPedersenProbFamily_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_chaumPedersen`
 
@@ -133,11 +131,13 @@ commitment sampler `chaumPedersenCommit`. -/
 Section 19.5.2, Figure 19.7, p. 777): at index `(n, d)` and statement `(u, v, w)`, sample `s` with
 `sampleExp n d`, read it as `r = (s : ZMod q)`, and return the commitment `(r • g, r • u)` together
 with the prover state `r`. -/
-@[expose] noncomputable def chaumPedersenCommit (i : ℕ × F.Desc) (_ : ZMod (F.order i.2))
-    (y : F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2) :
-    ProbComp ((F.Carrier i.2 × F.Carrier i.2) × ZMod (F.order i.2)) :=
-  (fun r : ZMod (F.order i.2) => ((r • F.generator i.2, r • y.1), r)) <$>
-    ((Nat.cast : ℕ → ZMod (F.order i.2)) <$> F.sampleExp i.1 i.2)
+@[expose] noncomputable def chaumPedersenCommit :
+    ∀ i : ℕ × F.Desc, ZMod (F.order i.2) →
+      F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2 →
+      ProbComp ((F.Carrier i.2 × F.Carrier i.2) × ZMod (F.order i.2)) :=
+  F.linearProbCommit fun i s =>
+    (LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2)).prod
+      (LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) s.1)
 
 /-- The Chaum–Pedersen commitment sampler on words: on the index `(n, d)` and an encoded statement
 `(u, v, w)`, sample `s` with `sampleExp n d` and return the encoded commitment `(s • g, s • u)` and
@@ -156,13 +156,15 @@ noncomputable def chaumPedersenCommitWord :
 a fair-coin prover: at index `(n, d)`, the honest prover commits with `chaumPedersenCommit` (using
 `sampleExp n d`), answers a challenge `c` with `r + c * β`, and the verifier checks
 `z • g = t₁ + c • v` and `z • u = t₂ + c • w`. -/
-@[expose] noncomputable def chaumPedersenProbFamily (i : ℕ × F.Desc) :
-    SigmaProtocol (ZMod (F.order i.2)) (F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
-      (F.Carrier i.2 × F.Carrier i.2) (ZMod (F.order i.2)) (ZMod (F.order i.2)) where
-  State := ZMod (F.order i.2)
-  commit x y := ProbComp.eval (F.chaumPedersenCommit i x y)
-  respond := (F.chaumPedersenFamily i).respond
-  verify := (F.chaumPedersenFamily i).verify
+@[expose] noncomputable def chaumPedersenProbFamily :
+    ∀ i : ℕ × F.Desc,
+      SigmaProtocol (ZMod (F.order i.2)) (F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
+        (F.Carrier i.2 × F.Carrier i.2) (ZMod (F.order i.2)) (ZMod (F.order i.2)) :=
+  F.linearProbFamily
+    (fun i s =>
+      (LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2)).prod
+        (LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) s.1))
+    (fun _ => Prod.snd) (fun _ => Function.Embedding.refl _)
 
 /-- The word encodings of `chaumPedersenFamily`: the unary security parameter with the
 description, statements `(u, v, w)` and commitments `(t₁, t₂)` as framed tuples of the family's
@@ -242,9 +244,8 @@ Theorem 19.10 with Definition 19.4). -/
 theorem efficientSpecialSoundness_chaumPedersenProb :
     EfficientSpecialSoundness F.chaumPedersenProbFamily
       (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
-      F.chaumPedersenEncoding (fun i => F.encScalar i.2) F.chaumPedersenExtract where
-  specialSoundness := F.efficientSpecialSoundness_chaumPedersen.specialSoundness
-  polyTime := F.efficientSpecialSoundness_chaumPedersen.polyTime
+      F.chaumPedersenEncoding (fun i => F.encScalar i.2) F.chaumPedersenExtract :=
+  F.efficientSpecialSoundness_chaumPedersen.of_verify_eq fun _ => rfl
 
 /-! ### Fair-coin prover completeness and efficiency -/
 
@@ -253,16 +254,8 @@ with Definition 19.3): for every valid witness-statement pair `(β, (u, v, w))` 
 every honest transcript of `chaumPedersenProbFamily` is accepting. -/
 theorem chaumPedersenProbFamily_complete (i : ℕ × F.Desc) :
     (F.chaumPedersenProbFamily i).Complete
-      fun β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w := by
-  rintro β ⟨u, v, w⟩ ⟨hv, hw⟩ c tz htz
-  simp only [SigmaProtocol.transcript, chaumPedersenProbFamily, chaumPedersenCommit,
-    ProbComp.eval_map, PMF.map_comp, PMF.mem_support_map_iff] at htz
-  obtain ⟨s, -, rfl⟩ := htz
-  change (chaumPedersen (Function.Embedding.refl _) (F.generator i.2)).Accepts (u, v, w)
-    ((s : ZMod (F.order i.2)) • F.generator i.2, (s : ZMod (F.order i.2)) • u) c
-    ((s : ZMod (F.order i.2)) + c * β)
-  rw [chaumPedersen_accepts_iff]
-  simp only [Function.Embedding.refl_apply, add_smul, mul_smul, hv, hw, and_self]
+      fun β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w :=
+  (F.linearProbFamily_complete _ _ _ i).mono fun _ _ h => by simpa [Prod.ext_iff] using h
 
 /-- On an encoded statement, `chaumPedersenCommitWord` computes the encoded commitment and scalar
 state of `chaumPedersenCommit`. -/
@@ -276,15 +269,16 @@ theorem eval_chaumPedersenCommitWord (i : ℕ × F.Desc) (β : ZMod (F.order i.2
   rw [show (F.chaumPedersenEncoding.statement (n, d)) (u, v, w) =
       encPair (F.encodeEmbedding d) (encPair (F.encodeEmbedding d) (F.encodeEmbedding d))
         (u, v, w) from rfl,
-    chaumPedersenCommitWord, ProbComp.eval_bind, chaumPedersenCommit, ProbComp.eval_map,
-    ProbComp.eval_map, PMF.map_comp, PMF.map_comp]
+    chaumPedersenCommitWord, ProbComp.eval_bind, chaumPedersenCommit, linearProbCommit,
+    ProbComp.eval_map, ProbComp.eval_map, PMF.map_comp, PMF.map_comp]
   simp only [ProbComp.eval_pure, unframe_encPair, encodeEmbedding, Function.Embedding.coeFn_mk,
     F.smul_encode]
   rw [← PMF.bind_pure_comp]
   congr 1 with s : 1
   simp only [Function.comp_apply, Prod.map, chaumPedersenEncoding, encodeEmbedding, encScalar,
     Function.Embedding.coeFn_mk, encNat_apply, ZMod.val_natCast, encPair_apply, encBits,
-    Function.Embedding.refl_apply]
+    Function.Embedding.refl_apply, LinearMap.prod_apply]
+  rfl
 
 /-- `chaumPedersenCommitWord` is uniform strict PPT in the security parameter, the group
 description and the encoded statement. -/
@@ -328,9 +322,9 @@ theorem schnorrRespondBits_chaumPedersen (i : ℕ × F.Desc) (β : ZMod (F.order
         (i.2, F.encScalar i.2 β, F.encScalar i.2 r, F.chaumPedersenEncoding.challenge i c) =
       F.chaumPedersenEncoding.response i ((F.chaumPedersenProbFamily i).respond β y r c) := by
   rw [schnorrRespondBits_encScalar]
-  simp only [chaumPedersenEncoding, chaumPedersenProbFamily, chaumPedersenFamily, chaumPedersen,
-    linear, encScalar, Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits,
-    ZMod.natCast_zmod_val, Function.Embedding.refl_apply, smul_eq_mul]
+  simp only [chaumPedersenEncoding, chaumPedersenProbFamily, linearProbFamily, encScalar,
+    Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits, ZMod.natCast_zmod_val,
+    Function.Embedding.refl_apply, smul_eq_mul]
 
 /-! ### Special HVZK -/
 
@@ -473,85 +467,27 @@ theorem computationalSpecialHVZK_chaumPedersen_ideal (setup : ℕ → PMF F.Desc
     (fun i y c => by rw [F.accepts_chaumPedersenSimulator i y c, tsub_zero])
     (exists_negligible_inv_two_pow_map setup)
 
-/-- At every index `i = (n, d)`, witness `β`, statement `y` and challenge `c`, the honest
-transcript of the ideal-nonce `chaumPedersenFamily` and the fair-coin `chaumPedersenProbFamily`
-are within statistical distance `1 / 2 ^ n`. -/
-theorem closeTo_transcript_chaumPedersenProbFamily (i : ℕ × F.Desc)
-    (β : ZMod (F.order i.2)) (y : F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
-    (c : ZMod (F.order i.2)) :
-    CloseTo ((F.chaumPedersenFamily i).transcript β y c)
-      ((F.chaumPedersenProbFamily i).transcript β y c) (1 / 2 ^ i.1) := by
-  have hlhs : (F.chaumPedersenFamily i).transcript β y c =
-      (PMF.uniformOfFintype (ZMod (F.order i.2))).map
-        fun r : ZMod (F.order i.2) =>
-          ((r • F.generator i.2, r • y.1), r + c * β) := by
-    simp only [chaumPedersenFamily, chaumPedersen, linear_transcript, LinearMap.prod_apply,
-      Function.Embedding.refl_apply, smul_eq_mul]
-    rfl
-  have hrhs : (F.chaumPedersenProbFamily i).transcript β y c =
-      ProbComp.eval ((fun r : ZMod (F.order i.2) =>
-          ((r • F.generator i.2, r • y.1), r + c * β)) <$>
-        ((Nat.cast : ℕ → ZMod (F.order i.2)) <$> F.sampleExp i.1 i.2)) := by
-    simp only [SigmaProtocol.transcript, chaumPedersenProbFamily, chaumPedersenCommit,
-      chaumPedersenFamily, chaumPedersen, linear, Function.Embedding.refl_apply, smul_eq_mul,
-      ProbComp.eval_map, PMF.map_comp, Function.comp_def]
-  rw [hlhs, hrhs]
-  exact F.closeTo_map_uniform_sampleExp i.1 i.2 _
-
 /-- On every valid witness-statement pair `(β, (u, v, w))` and challenge `c`, the honest transcript
 of the fair-coin `chaumPedersenProbFamily` and the output of the strict PPT simulator
 `chaumPedersenSimulator` are within statistical distance `2 / 2 ^ n` (`1 / 2 ^ n` from the
 prover's `sampleExp` commitment nonce and `1 / 2 ^ n` from the simulator's `sampleExp` response;
 [BonehShoup2023], Theorem 19.10 with Definition 19.5, in the strict-PPT fair-coin model). Derived
-from `efficientSpecialHVZK_chaumPedersen_ideal` and
-`closeTo_transcript_chaumPedersenProbFamily`. -/
+from `efficientSpecialHVZK_chaumPedersen_ideal` via
+`closeTo_transcript_linearProbFamily_simulator`. -/
 theorem closeTo_transcript_chaumPedersenProbFamily_simulator (i : ℕ × F.Desc)
     {β : ZMod (F.order i.2)} {u v w : F.Carrier i.2}
     (hxy : β • F.generator i.2 = v ∧ β • u = w) (c : ZMod (F.order i.2)) :
     CloseTo ((F.chaumPedersenProbFamily i).transcript β (u, v, w) c)
-      (ProbComp.eval (F.chaumPedersenSimulator i (u, v, w) c)) (2 / 2 ^ i.1) := by
-  have h1 := (F.closeTo_transcript_chaumPedersenProbFamily i β (u, v, w) c).symm
-  have h2 := F.simulatorRealizedBy_chaumPedersenSimulator.closeTo_transcript
+      (ProbComp.eval (F.chaumPedersenSimulator i (u, v, w) c)) (2 / 2 ^ i.1) :=
+  F.closeTo_transcript_linearProbFamily_simulator
     F.efficientSpecialHVZK_chaumPedersen_ideal.specialHVZK
-    (i := i) (x := β) (y := (u, v, w)) hxy c
-  have h12 := h1.trans h2
-  have hadd : (1 / 2 ^ i.1 : ℝ≥0∞) + 1 / 2 ^ i.1 = 2 / 2 ^ i.1 := by
-    rw [← ENNReal.add_div, one_add_one_eq_two]
-  rwa [hadd] at h12
-
-/-- Replacing the ideal-nonce `chaumPedersenFamily` by the fair-coin `chaumPedersenProbFamily` in
-Experiment 0 of Attack Game 20.4 (`chvzkRealGame`) changes `Game.advantage` by at most `1 / 2 ^ n`
-against every adversary (including computationally unbounded ones). -/
-theorem advantage_chvzkRealGame_chaumPedersenProbFamily_le {σ : Type} (setup : ℕ → PMF F.Desc)
-    (A : CHVZKAdversary (ℕ × F.Desc) (fun i => ZMod (F.order i.2))
-      (fun i => F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
-      (fun i => F.Carrier i.2 × F.Carrier i.2)
-      (fun i => ZMod (F.order i.2)) (fun i => ZMod (F.order i.2)) σ) (n : ℕ) :
-    Game.advantage
-      (chvzkRealGame F.chaumPedersenProbFamily
-        (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
-        (fun m => (setup m).map (m, ·)) A n)
-      (chvzkRealGame F.chaumPedersenFamily
-        (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
-        (fun m => (setup m).map (m, ·)) A n) ≤
-      1 / 2 ^ n := by
-  refine Game.advantage_bind_le_of_support ((setup n).map (n, ·)) _ _ fun i hi => ?_
-  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-  refine SigmaProtocol.advantage_chvzkExperiment_le (fun β y _ => ?_) (A n (n, d))
-  rw [(F.chaumPedersenProbFamily (n, d)).conversation_eq_bind_transcript,
-    (F.chaumPedersenFamily (n, d)).conversation_eq_bind_transcript]
-  have hcoe : (((1 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ n := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  rw [hcoe]
-  exact CloseTo.bind_right _ fun c _ =>
-    ((F.closeTo_transcript_chaumPedersenProbFamily (n, d) β y c).symm).bind_left _
+    F.simulatorRealizedBy_chaumPedersenSimulator (x := β) (y := (u, v, w)) hxy c
 
 /-- In Attack Game 20.4 (`chvzkRealGame` vs `chvzkSimGame`), the fair-coin Chaum–Pedersen prover
 `chaumPedersenProbFamily` and the strict PPT simulator `chaumPedersenSimulator` differ in
 distinguishing advantage by at most `2 / 2 ^ n` against *every* adversary (including
-computationally unbounded ones). Derived from `efficientSpecialHVZK_chaumPedersen_ideal` and
-`advantage_chvzkRealGame_chaumPedersenProbFamily_le`. -/
+computationally unbounded ones). Derived from `efficientSpecialHVZK_chaumPedersen_ideal` via
+`advantage_chvzkGame_linearProbFamily_le`. -/
 theorem advantage_chvzkGame_chaumPedersenProbFamily_le {σ : Type} (setup : ℕ → PMF F.Desc)
     (A : CHVZKAdversary (ℕ × F.Desc) (fun i => ZMod (F.order i.2))
       (fun i => F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
@@ -564,26 +500,10 @@ theorem advantage_chvzkGame_chaumPedersenProbFamily_le {σ : Type} (setup : ℕ 
       (chvzkSimGame
         (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
         (fun m => (setup m).map (m, ·)) F.chaumPedersenSimulator A n) ≤
-      2 / 2 ^ n := by
-  have h1 := F.advantage_chvzkRealGame_chaumPedersenProbFamily_le setup A n
-  have h2 : Game.advantage
-      (chvzkRealGame F.chaumPedersenFamily
-        (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
-        (fun m => (setup m).map (m, ·)) A n)
-      (chvzkSimGame
-        (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
-        (fun m => (setup m).map (m, ·)) F.chaumPedersenSimulator A n) ≤
-      1 / 2 ^ n := by
-    refine F.simulatorRealizedBy_chaumPedersenSimulator.advantage_chvzkGame_le
-      F.efficientSpecialHVZK_chaumPedersen_ideal.specialHVZK (fun i hi => ?_) A
-    obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-    dsimp only
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  refine ((Game.advantage_triangle _ _ _).trans (add_le_add h1 h2)).trans_eq ?_
-  ext
-  push_cast
-  ring
+      2 / 2 ^ n :=
+  F.advantage_chvzkGame_linearProbFamily_le
+    F.efficientSpecialHVZK_chaumPedersen_ideal.specialHVZK
+    F.simulatorRealizedBy_chaumPedersenSimulator setup A n
 
 /-- **The fair-coin Chaum–Pedersen protocol satisfies computational special HVZK**
 ([BonehShoup2023], Theorem 19.10, Section 19.5.2, p. 777, with Definition 20.6, Section 20.4.2,
@@ -594,20 +514,13 @@ is impossible when `q` is not a power of two, so Definition 19.5(ii) is relaxed 
 Definition 20.6. Against the fair-coin honest prover of `chaumPedersenProbFamily`, the strict PPT
 simulator `chaumPedersenSimulator` satisfies Definition 20.6 with exact zero acceptance error
 (`δ = fun _ => 0`) over any group-description setup `setup : ℕ → PMF F.Desc` paired with the
-security parameter. Derived from `computationalSpecialHVZK_chaumPedersen_ideal` and
-`advantage_chvzkRealGame_chaumPedersenProbFamily_le`. -/
+security parameter. Derived from `computationalSpecialHVZK_chaumPedersen_ideal` via
+`computationalSpecialHVZK_linearProbFamily`. -/
 theorem computationalSpecialHVZK_chaumPedersen (setup : ℕ → PMF F.Desc) :
     ComputationalSpecialHVZK F.chaumPedersenProbFamily
       (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
       F.chaumPedersenEncoding (fun i => F.encScalar i.2) (fun n => (setup n).map (n, ·))
-      F.chaumPedersenSimulator (fun _ => 0) where
-  ppt := (F.computationalSpecialHVZK_chaumPedersen_ideal setup).ppt
-  accepts := (F.computationalSpecialHVZK_chaumPedersen_ideal setup).accepts
-  indistinguishable encσ A hA := by
-    have hideal :=
-      (F.computationalSpecialHVZK_chaumPedersen_ideal setup).indistinguishable encσ A hA
-    refine negligible_of_le (negligible_one_div_two_pow.add hideal) fun n => ?_
-    exact (Game.advantage_triangle _ _ _).trans
-      (add_le_add (F.advantage_chvzkRealGame_chaumPedersenProbFamily_le setup A n) le_rfl)
+      F.chaumPedersenSimulator (fun _ => 0) :=
+  F.computationalSpecialHVZK_linearProbFamily (F.computationalSpecialHVZK_chaumPedersen_ideal setup)
 
 end Cslib.Crypto.PrimeOrderGroupFamily

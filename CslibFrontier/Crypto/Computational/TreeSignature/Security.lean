@@ -2795,6 +2795,16 @@ private theorem localTreeHandler_planted_step (S : IndexedSignatureScheme) (dept
   · obtain ⟨⟨σ, e'', a''⟩, hm_se, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hm_edg
     exact ⟨hroot_v', hlt_v', huniq_v', hedg_inv σ e'' a'' hm_se⟩
 
+/-- The index of an extracted forgery is a bit, so it lies below every capacity of at least `2`. -/
+private theorem extractForgery_fst_lt (d target : ℕ) (visited : NodeSlotCache)
+    (msg sig : List Bool) {cap : ℕ} (hcap : 2 ≤ cap) :
+    (extractForgery d target visited msg sig).1 < cap := by
+  unfold extractForgery
+  generalize signatureDecoder.decode sig = t
+  obtain ⟨leaf, certs, last⟩ := t
+  dsimp only
+  split_ifs <;> exact (Bool.toNat_le _).trans_lt (by omega)
+
 private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
     (depth slotBound sigCap : ℕ → ℕ) {n : ℕ} (hcap : 2 ≤ S.capacity n)
     (adversary : Forger) {target : ℕ} (htarget : target < dyadicSize (slotBound n)) :
@@ -2855,9 +2865,11 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
   have hwin := congrArg (PMF.map fun out : ((List Bool × List Bool) × PlantedState) ×
       List (ℕ × List Bool) =>
     let cand := extractForgery (depth n) front.length out.1.2.1.1 out.1.1.1 out.1.1.2
-    !out.2.contains (cand.1, cand.2.1) && S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
+    decide (cand.1 < S.capacity n) && !out.2.contains (cand.1, cand.2.1) &&
+      S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
   simp only [PMF.map_comp, Function.comp_def, plantedWin, keys,
-    List.getD_append_cons_length] at hwin ⊢
+    List.getD_append_cons_length, extractForgery_fst_lt _ _ _ _ _ hcap, decide_true,
+    Bool.true_and] at hwin ⊢
   exact hwin
 
 /-! #### Equivalence between `lazyTreeGame` and `presampledExp` -/

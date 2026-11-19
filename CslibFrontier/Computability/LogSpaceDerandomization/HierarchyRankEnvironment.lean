@@ -15,7 +15,6 @@ public import CslibFrontier.Computability.LogSpaceDerandomization.DetectedHierar
 public import CslibFrontier.Foundations.Probability.ProductDensity
 public import CslibFrontier.Computability.LogSpaceDerandomization.PairwiseIndependentHash.AtomChannels
 public import Mathlib.Algebra.Order.Floor.Div
-import Mathlib.Tactic
 
 /-!
 # Full rank environments for finite hierarchy prefixes

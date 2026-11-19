@@ -22,7 +22,9 @@ the parameters: a MAC has no public key (`PK = Unit`) and verifies with the secr
 The signing oracle is a *policy* over the history of answered queries (`Signer`). Each policy either
 signs the next query or refuses it; a refused query is answered with `default` and is not recorded,
 as in `ProbOracleComp.runLogWith`. Full, one-time, indexed and counter signing oracles are policies,
-so the experiment is written once (`forgeExperiment`). Freshness is a parameter too: `freshMessage`
+so the experiment is written once (`forgeExperiment`). `Signer.restrict` refuses the queries outside
+a message space, which is how a word-level game keeps signing queries in the source's message
+space. Freshness is a parameter too: `freshMessage`
 asks for a message that was never signed (existential unforgeability) and `freshPair` for a pair
 that was never answered (strong unforgeability). The evaluation law `eval_forgeExperiment_eq`
 writes the experiment's law as an event of the logged run.
@@ -30,7 +32,7 @@ writes the experiment's law as an event of the logged run.
 ## Main definitions
 
 * `Cslib.Crypto.Signer`: a signing policy over the log of answered queries, with
-  `Signer.ofSign`, `Signer.oneTime`, `Signer.indexed` and `Signer.counter`.
+  `Signer.ofSign`, `Signer.restrict`, `Signer.oneTime`, `Signer.indexed` and `Signer.counter`.
 * `Cslib.Crypto.forgeExperiment`: the forgery experiment for a key generator, signing policy,
   verifier and freshness test.
 * `Cslib.Crypto.freshMessage`, `Cslib.Crypto.freshPair`: the existential and strong freshness
@@ -70,6 +72,12 @@ variable {SK M Sig : Type}
 /-- The policy that signs every query with `sign`. -/
 def ofSign (sign : SK → M → ProbComp Sig) : Signer SK M Sig := fun sk _ m => some (sign sk m)
 
+/-- The restriction of `s` to the queries accepted by `adm`: answer an admissible query as `s`
+does and refuse every other one. A refused query is answered with `default` and is not logged, so
+under `oneTime` or `counter` it uses up no answer and no counter value. -/
+def restrict (s : Signer SK M Sig) (adm : M → Bool) : Signer SK M Sig := fun sk log m =>
+  if adm m then s sk log m else none
+
 /-- The one-time restriction of `s`: answer the first query as `s` does, refuse every later
 one. -/
 def oneTime (s : Signer SK M Sig) : Signer SK M Sig := fun sk log m =>
@@ -89,6 +97,10 @@ def counter (cap : ℕ) (sign : SK → ℕ → M → ProbComp Sig) : Signer SK M
 
 @[simp] theorem ofSign_apply (sign : SK → M → ProbComp Sig) (sk : SK) (log : List (M × Sig))
     (m : M) : ofSign sign sk log m = some (sign sk m) := rfl
+
+@[simp] theorem restrict_apply (s : Signer SK M Sig) (adm : M → Bool) (sk : SK)
+    (log : List (M × Sig)) (m : M) :
+    s.restrict adm sk log m = if adm m then s sk log m else none := rfl
 
 @[simp] theorem oneTime_nil (s : Signer SK M Sig) (sk : SK) (m : M) :
     s.oneTime sk [] m = s sk [] m := rfl

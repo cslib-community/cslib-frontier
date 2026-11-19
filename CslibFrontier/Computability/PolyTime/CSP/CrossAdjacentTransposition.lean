@@ -252,7 +252,7 @@ theorem wellFormed_transposeAdjacent_iff (I : State Rel) (j : ℕ) :
 
 /-- Rows, occurrences and port counts for a valid positioned operation. These are
 one-operation bounds, not an accumulated routing/iteration certificate. -/
-theorem counts_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
+private theorem counts_valid (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (R : List ℕ) (c : RotationCertificate) :
     let K := transposeAdjacent g w (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel) L.length
     K.body.length = F.length + g.body.length ∧
@@ -268,6 +268,49 @@ theorem counts_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   · rw [hf.1, hj, length_transposeTail_occurrences]
   · rw [ports_transposeAdjacent]
     simp only [List.length_append, List.length_map, List.length_cons, List.length_nil]
+
+private theorem split_valid (I : State Rel) (j : ℕ) (h : j + 1 < I.ports.length) :
+    ∃ L x y R, L.length = j ∧ I = (⟨I.body, L ++ [x, y] ++ R, I.rotation⟩ : State Rel) := by
+  have hj : j < I.ports.length := by omega
+  refine ⟨I.ports.take j, I.ports[j], I.ports[j+1], I.ports.drop (j+2), ?_, ?_⟩
+  · exact List.length_take_of_le hj.le
+  · have hs := List.take_append_drop j I.ports
+    rw [List.drop_eq_getElem_cons hj, List.drop_eq_getElem_cons h] at hs
+    cases I
+    simp only [List.append_assoc, List.cons_append, List.nil_append] at hs ⊢
+    exact congrArg (fun ps => State.mk _ ps _) hs.symm
+
+/-- Total raw component counts. Only a successful guard inserts the actual gadget;
+invalid requests preserve every component and never change the boundary length. -/
+theorem counts_transposeAdjacent (I : State Rel) (j : ℕ) :
+    let e := if j + 1 < I.ports.length then 1 else 0
+    (transposeAdjacent g w I j).body.length = I.body.length + e * g.body.length ∧
+    (transposeAdjacent g w I j).body.occurrences.length =
+      I.body.occurrences.length + e * g.body.occurrences.length ∧
+    (transposeAdjacent g w I j).ports.length = I.ports.length := by
+  dsimp only
+  by_cases h : j + 1 < I.ports.length
+  · rw [ite_eq_left h]
+    obtain ⟨L, x, y, R, hL, hI⟩ := split_valid I j h
+    have hc := counts_valid g w I.body L x y R I.rotation
+    rw [hL, ← hI] at hc
+    have hp : I.ports.length = j + 2 + R.length := by
+      rw [hI]
+      simp only [List.length_append, List.length_cons, List.length_nil, hL]
+    simpa only [one_mul, ← hp] using hc
+  · rw [transposeAdjacent_invalid g w I j (by omega), ite_eq_right h]
+    simp
+
+/-- Each successful request appends the fixed template's relation-symbol word after all
+old rows; invalid requests preserve the word exactly. This includes arbitrary encoded Rel. -/
+theorem relations_transposeAdjacent (I : State Rel) (j : ℕ) :
+    (transposeAdjacent g w I j).body.map Constraint.rel = I.body.map Constraint.rel ++
+      (if j + 1 < I.ports.length then g.body.map Constraint.rel else []) := by
+  by_cases h : j + 1 < I.ports.length
+  · rw [transposeAdjacent, ite_eq_left h, left_body, relations_transposeTail, right_body]
+    rw [right_ports, List.length_reverse, List.length_rotate, List.length_reverse]
+    simp only [show ¬I.ports.length < 2 from by omega, h, ↓reduceIte]
+  · rw [transposeAdjacent_invalid g w I j (by omega), ite_eq_right h, List.append_nil]
 
 /-- One positioned operation adds at most one bit to old names. Rotations preserve
 name multisets; no accumulated repeated-swap bound is asserted. -/
@@ -312,16 +355,6 @@ private theorem turn_ports_perm (b : Bool) (I : State Rel) :
     exact (List.reverse_perm _).trans
       ((List.rotate_perm _ _).trans (List.reverse_perm _))
 
-private theorem window_size (M N : ℕ) (shift : ℕ → ℕ) (h : ∀ j, shift j < N)
-    (v : ℕ) : (boundaryIndexMap M N shift v).size ≤
-      max v.size (2 * (M + N)).size := by
-  unfold boundaryIndexMap
-  split_ifs
-  · have hs := h (v / 2 - M)
-    have hb := Nat.mod_lt v (by decide : 0 < 2)
-    exact (Nat.size_le_size (by omega)).trans (le_max_right _ _)
-  · exact le_max_left _ _
-
 private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
     (he : ∀ v ∈ I.rotation.successor, v.size ≤ B)
     (hd : (2 * (I.body.occurrences.length + I.ports.length)).size ≤ B) :
@@ -351,7 +384,7 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
           simp
       have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
           (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
-        (window_size M N shift hs _).trans (max_le (hread i) hd)
+        (size_boundaryIndexMap_le M N shift hs _).trans (max_le (hread i) hd)
       cases b <;>
         simp only [turn, Bool.false_eq_true, ↓reduceIte, rotateLeft, rotateRight,
           rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
@@ -530,5 +563,82 @@ theorem computableInPolyTime_transposeAdjacent (encRel : Rel ↪ List Bool) :
   · rw [tail_ports_length, hp, Nat.min_eq_right hle]
     rfl
   · rfl
+
+private theorem normalized_turn_length (b : Bool) (I : State Rel)
+    (hl : I.rotation.successor.length = 2 * (I.body.occurrences.length + I.ports.length)) :
+    (turn b I).rotation.successor.length =
+      2 * ((turn b I).body.occurrences.length + (turn b I).ports.length) := by
+  rcases I with ⟨F, ps, c⟩
+  cases ps with
+  | nil => simpa [turn, rotateLeft, rotateRight] using hl
+  | cons x ps =>
+    cases ps <;> cases b <;>
+      simp_all [turn, rotateLeft, rotateRight, rotateBoundaryCertificate,
+        rotateBoundaryCertificateRight_eq_reindex_mod, RotationCertificate.length_reindex]
+
+private theorem normalized_loop_storage (b : Bool) (I : State Rel) (n B : ℕ)
+    (hl : I.rotation.successor.length = 2 * (I.body.occurrences.length + I.ports.length))
+    (he : ∀ v ∈ I.rotation.successor, v.size ≤ B)
+    (hb : (2 * (I.body.occurrences.length + I.ports.length)).size ≤ B) :
+    ((turn b)^[n] I).body = I.body ∧ ((turn b)^[n] I).ports.length = I.ports.length ∧
+    ((turn b)^[n] I).rotation.successor.length =
+      2 * (I.body.occurrences.length + I.ports.length) ∧
+    ∀ v ∈ ((turn b)^[n] I).rotation.successor, v.size ≤ B := by
+  induction n with
+  | zero => exact ⟨rfl, rfl, hl, he⟩
+  | succ n ih =>
+    rw [Function.iterate_succ_apply']
+    have hl' : ((turn b)^[n] I).rotation.successor.length =
+        2 * (((turn b)^[n] I).body.occurrences.length + ((turn b)^[n] I).ports.length) := by
+      simpa only [ih.1, ih.2.1] using ih.2.2.1
+    have hb' : (2 * (((turn b)^[n] I).body.occurrences.length +
+        ((turn b)^[n] I).ports.length)).size ≤ B := by
+      simpa only [ih.1, ih.2.1] using hb
+    have ht := turn_table b ((turn b)^[n] I) B ih.2.2.2 hb'
+    refine ⟨(turn_body _ _).trans ih.1, (turn_ports_perm _ _).length_eq.trans ih.2.1, ?_, ht.2⟩
+    have hn := normalized_turn_length b ((turn b)^[n] I) hl'
+    simpa only [turn_body, (turn_ports_perm b ((turn b)^[n] I)).length_eq,
+      ih.1, ih.2.1] using hn
+
+/-- A valid raw step emits the actual dart count, with entry widths reset by its final
+restriction. Arbitrary malformed source entries require no input bound or acceptance. -/
+theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports.length) :
+    (transposeAdjacent g w I j).rotation.successor.length =
+        2 * (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) ∧
+      ∀ v ∈ (transposeAdjacent g w I j).rotation.successor,
+        v.size ≤ (2 * (I.body.occurrences.length + g.body.occurrences.length +
+          I.ports.length + 4)).size := by
+  let r := I.ports.length - (j+2)
+  let J := (rotateRight^[r]) I
+  let H := transposeTail g w J
+  have hpJ : J.ports.length = I.ports.length := by
+    rw [right_ports, List.length_reverse, List.length_rotate, List.length_reverse]
+  have hmJ : J.body = I.body := right_body I r
+  have hpH : H.ports.length = I.ports.length := by rw [tail_ports_length, hpJ]
+  have hout : transposeAdjacent g w I j = (rotateLeft^[r]) H := by
+    rw [transposeAdjacent, ite_eq_left h]
+  have hc := counts_transposeAdjacent g w I j
+  simp only [ite_eq_left h, one_mul] at hc
+  have hmH : H.body.occurrences.length =
+      I.body.occurrences.length + g.body.occurrences.length := by
+    rw [hout, left_body] at hc
+    exact hc.2.1
+  have ht := storage_transposeTail g w J (by rw [hpJ]; omega)
+  let B := (2 * (I.body.occurrences.length + g.body.occurrences.length +
+    I.ports.length + 4)).size
+  have hb : (2 * (H.body.occurrences.length + H.ports.length)).size ≤ B := by
+    simpa only [hmH, hpH] using (Nat.size_le_size (Nat.mul_le_mul_left 2
+      (Nat.le_add_right
+        (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
+  have hs := normalized_loop_storage false H r B
+    (by simpa only [hpJ, hpH] using ht.1)
+    (by simpa only [hmJ, hpJ] using ht.2) hb
+  have ht : (turn false : State Rel → State Rel) = rotateLeft := by
+    funext K
+    rfl
+  rw [ht] at hs
+  rw [hout]
+  refine ⟨?_, hs.2.2.2⟩
+  simpa only [turn, Bool.false_eq_true, ↓reduceIte, hmH, hpH] using hs.2.2.1
 
 end Cslib.Complexity.CSP.CrossInsertion

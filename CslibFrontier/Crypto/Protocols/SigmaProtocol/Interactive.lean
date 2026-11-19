@@ -674,8 +674,8 @@ theorem commitRealizedBy_orProof
     (orProof P₀ P₁ simulate₀ simulate₁).CommitRealizedBy
       (orCommit sample₀ sample₁ sim₀ sim₁) := by
   rintro (x | x) y
-  · simp only [pmf_norm, orCommit, orProof, ProbComp.eval_uniform, h₀ x y.1, hs₁]
-  · simp only [pmf_norm, orCommit, orProof, ProbComp.eval_uniform, h₁ x y.2, hs₀]
+  · simp only [pmf_norm, orCommit, orProof, orProofWith, ProbComp.eval_uniform, h₀ x y.1, hs₁]
+  · simp only [pmf_norm, orCommit, orProof, orProofWith, ProbComp.eval_uniform, h₁ x y.2, hs₀]
 
 theorem eval_orSimComp
     {simulate₀ : Y₀ → C → PMF (T₀ × Z₀)} {simulate₁ : Y₁ → C → PMF (T₁ × Z₁)}

@@ -833,38 +833,52 @@ private theorem reductionWins_of_blockwiseWins {n : ℕ} {sk : List Bool}
     exact ⟨⟨length_of_mem_blockInputs (fun _ _ _ hb => length_fullEncoder hr hb)
       (List.of_mem_zip hp).1, hpred⟩, hall p hp⟩
 
-private theorem runWith_mapM_query (sk : List Bool) (xs : List (List Bool))
-    (log : List (List Bool)) :
-    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle sk q s))
+/-- Querying `M.msgLen n`-bit words one after another tags each of them with `M.sign` and logs
+them. -/
+private theorem runWith_mapM_query {n : ℕ} (sk : List Bool) (xs : List (List Bool))
+    (hxs : ∀ x ∈ xs, x.length = M.msgLen n) (log : List (List Bool)) :
+    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
       (xs.mapM fun x => (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) log =
       (ProbComp.eval (xs.mapM (M.sign sk))).map fun tags => (tags, xs.reverse ++ log) := by
   induction xs generalizing log with
   | nil => simp
   | cons x xs ih =>
+    have hx : (x.length == M.msgLen n) = true := beq_iff_eq.mpr (hxs x (by simp))
     simp only [List.mapM_cons, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_pure, ih]
-    simp only [signingOracle, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-      PMF.pure_bind, PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def,
-      List.reverse_cons, List.append_assoc, List.singleton_append]
+      ProbOracleComp.runWith_pure, ih fun y hy => hxs y (by simp [hy])]
+    simp only [signingOracle, SignatureScheme.signingOracleOn, hx, ↓reduceIte, ProbComp.eval_bind,
+      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.bind_map, PMF.pure_map,
+      Function.comp_def, List.reverse_cons, List.append_assoc, List.singleton_append]
 
 private theorem runWith_blockwiseSimulator (A : BlockwiseMACAdversary) (n : ℕ)
-    (sk : List Bool) :
-    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle sk q s))
+    (sk : List Bool)
+    (hElen : ∀ len idx r b, r.length = fieldWidth (M.msgLen n) →
+      b.length = fieldWidth (M.msgLen n) →
+        (E (fieldWidth (M.msgLen n)) (M.msgLen n) r len idx b).length = M.msgLen n) :
+    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
       ((OracleComp.interpret (OracleComp.sumHandler
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (M.blockwiseSimulator E n)) (A n)).run []) [] =
       (M.blockwiseRun E A n sk).map fun out => (out, authenticatedInputs E (M.msgLen n) out.2) := by
   exact ProbOracleComp.runWith_run_interpret_map (M.blockwiseSimulator E n)
-    (fun q s => ProbComp.eval (M.signingOracle sk q s))
+    (fun q s => ProbComp.eval (M.signingOracle n sk q s))
     (fun q s => ProbComp.eval (M.blockwiseSigningOracle E n sk q s)) (fun log => log)
     (authenticatedInputs E (M.msgLen n)) (fun m log => by
       simp only [eval_blockwiseSigningOracle, StateT.run, blockwiseSimulator,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
-        runWith_mapM_query, BitString.eval_sampleList, PMF.map_bind, PMF.bind_map, PMF.pure_map,
-        Function.comp_def, authenticatedInputs, List.flatMap_cons])
+        BitString.eval_sampleList, PMF.map_bind, PMF.bind_map, Function.comp_def]
+      refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
+      rw [M.runWith_mapM_query sk _ fun x hx => length_of_mem_blockInputs
+        (fun len idx b hb => hElen len idx r b (BitString.length_of_mem_support_uniformList hr) hb)
+        hx]
+      simp only [PMF.bind_map, PMF.pure_map, Function.comp_def, authenticatedInputs,
+        List.flatMap_cons])
     (A n) []
 
-private theorem eval_eufCmaGame_blockwiseReduction (A : BlockwiseMACAdversary) (n : ℕ) :
+private theorem eval_eufCmaGame_blockwiseReduction (A : BlockwiseMACAdversary) (n : ℕ)
+    (hElen : ∀ len idx r b, r.length = fieldWidth (M.msgLen n) →
+      b.length = fieldWidth (M.msgLen n) →
+        (E (fieldWidth (M.msgLen n)) (M.msgLen n) r len idx b).length = M.msgLen n) :
     ProbComp.eval (M.eufCmaGame (M.blockwiseReduction E A) n) =
       (ProbComp.eval (M.keyGen n)).bind fun sk => (M.blockwiseRun E A n sk).bind fun out =>
         PMF.pure (M.reductionWins n sk (freshBlockPair E (M.msgLen n) out.2 out.1.1 out.1.2)
@@ -873,7 +887,7 @@ private theorem eval_eufCmaGame_blockwiseReduction (A : BlockwiseMACAdversary) (
   refine PMF.bind_congr_on_support _ _ _ fun sk _ => ?_
   rw [ProbOracleComp.eval_run_interpret_eq_runWith]
   simp only [blockwiseReduction, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure]
-  rw [runWith_blockwiseSimulator, PMF.bind_map, PMF.bind_bind]
+  rw [runWith_blockwiseSimulator _ _ _ _ _ hElen, PMF.bind_map, PMF.bind_bind]
   refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
   simp only [Function.comp_apply, PMF.pure_bind]
   rfl
@@ -884,7 +898,9 @@ theorem blockwiseGame_le_add_repeat (A : BlockwiseMACAdversary) (n : ℕ) :
     ProbComp.eval (M.blockwiseGame fullEncoder A n) true ≤
       ProbComp.eval (M.eufCmaGame (M.blockwiseReduction fullEncoder A) n) true +
         ProbComp.eval (M.blockwiseRepeatGame fullEncoder A n) true := by
-  rw [eval_blockwiseGame, eval_eufCmaGame_blockwiseReduction, eval_blockwiseRepeatGame]
+  rw [eval_blockwiseGame,
+    eval_eufCmaGame_blockwiseReduction _ _ _ _ fun _ _ _ _ hr hb => length_fullEncoder hr hb,
+    eval_blockwiseRepeatGame]
   refine PMF.bind_apply_le_add_on_support _ _ fun sk _ => ?_
   refine PMF.bind_apply_le_add_on_support _ _ fun out _ => ?_
   by_cases hnodup : (out.2.map fun entry => entry.2.1).Nodup
@@ -1462,7 +1478,7 @@ private theorem runWith_mapM_query_take {n : ℕ} {sk : List Bool} {tagBound : �
     (htagBound : ∀ msg, msg.length = M.msgLen n →
       ∀ tag ∈ (ProbComp.eval (M.sign sk msg)).support, tag.length ≤ tagBound n)
     (xs : List (List Bool)) (hxs : ∀ x ∈ xs, x.length = M.msgLen n) (log : List (List Bool)) :
-    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle sk q s))
+    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
       (xs.mapM fun x =>
         List.take (tagBound n) <$>
           (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) log =
@@ -1474,9 +1490,10 @@ private theorem runWith_mapM_query_take {n : ℕ} {sk : List Bool} {tagBound : �
     have hxs' : ∀ y ∈ xs, y.length = M.msgLen n := fun y hy => hxs y (by simp [hy])
     simp only [List.mapM_cons, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
       ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ih hxs']
-    simp only [signingOracle, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-      PMF.pure_bind, PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def,
-      Prod.map_apply, id_eq, List.reverse_cons, List.append_assoc, List.singleton_append]
+    simp only [signingOracle, SignatureScheme.signingOracleOn, beq_iff_eq.mpr hx, ↓reduceIte,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
+      PMF.bind_map, PMF.pure_map, Function.comp_def, Prod.map_apply, id_eq, List.reverse_cons,
+      List.append_assoc, List.singleton_append]
     refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
     rw [List.take_of_length_le (htagBound x hx tag htag)]
 
@@ -1487,11 +1504,11 @@ private theorem runWith_blockwiseBoundedSimulator (F : BlockwiseMACForger) (tagB
     (hElen : ∀ len idx r b, r.length = fieldWidth (M.msgLen n) →
       b.length = fieldWidth (M.msgLen n) →
         (E (fieldWidth (M.msgLen n)) (M.msgLen n) r len idx b).length = M.msgLen n) :
-    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle sk q s))
+    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
       ((OracleComp.interpret (OracleComp.sumHandler
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (M.blockwiseBoundedSimulator E tagBound n)) (F n [])).run []) [] =
-      ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle sk q s))
+      ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
         ((OracleComp.interpret (OracleComp.sumHandler
           (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
           (M.blockwiseSimulator E n)) (F.toAdversary n)).run []) [] := by
@@ -1506,9 +1523,9 @@ private theorem runWith_blockwiseBoundedSimulator (F : BlockwiseMACForger) (tagB
     ProbOracleComp.runWith_pure, BitString.eval_sampleList, PMF.bind_map, Function.comp_def]
   refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
   have hrlen := BitString.length_of_mem_support_uniformList hr
-  rw [M.runWith_mapM_query_take htagBound _
-      (fun x hx => length_of_mem_blockInputs (fun len idx b hb => hElen len idx r b hrlen hb) hx),
-    M.runWith_mapM_query]
+  have hxs : ∀ x ∈ blockInputs E (M.msgLen n) r request.2, x.length = M.msgLen n :=
+    fun x hx => length_of_mem_blockInputs (fun len idx b hb => hElen len idx r b hrlen hb) hx
+  rw [M.runWith_mapM_query_take htagBound _ hxs, M.runWith_mapM_query sk _ hxs]
 
 /-- When `tagBound n` bounds all honest tags of `M.sign sk` on `M.msgLen n`-bit messages, running
 `blockwiseBoundedReduction fullEncoder tagBound F` in `M.eufCmaGame` has the exact same output

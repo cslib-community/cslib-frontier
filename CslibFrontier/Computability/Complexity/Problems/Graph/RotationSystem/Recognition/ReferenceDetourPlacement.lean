@@ -35,9 +35,12 @@ polygonal route parameters; reversing a free member moves its old first piece to
   simple local routes, source cut endpoints, protected line identity, unique transverse
   pair contacts and no triple contact inside a given ball.
 
-These are local cuts. Keeping global frozen routes literal, assembling ordered patches,
-global simplicity/contact/parity, placement, HT and the query/source criterion remain open
-under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+These are local cuts. `exists_reference_patch_assembly` assembles them into simple global
+routes while retaining frozen routes literally. The downstream
+`exists_reference_crossing_regularization` in `ReferenceRegularization` proves exact
+pair-contact correspondence, transverse contacts and no triples away from declared vertices.
+Parity, frozen placement, Hanani–Tutte and query/source recognition remain open under
+[#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 -/
 
 public section

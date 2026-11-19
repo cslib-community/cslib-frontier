@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Probability.IID.CollisionCount
 public import CslibFrontier.Probability.PMF.Event
-import Mathlib.Tactic
+import Mathlib.Data.Nat.Choose.Cast
 
 /-!
 # Distinct independent samples
