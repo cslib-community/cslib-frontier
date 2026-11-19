@@ -89,9 +89,9 @@ attribute [program_certificate hvalues] ComputableInPolyTime.pi_update'
 attribute [program_certificate]
   ComputableInPolyTime.bitsReverseWithInput ComputableInPolyTime.listReverseWithInput
 
--- Require the growth contract before exploring encodings on alternative computation branches.
--- Each contract keeps the evidence that must agree on a bound or an encoding in one search.
-attribute [program_certificate hbound hcompute]
+-- Joint computation resolves the list and accumulator encodings before the growth contract
+-- uses them. Each conjunction retains the evidence that must agree on those choices.
+attribute [program_certificate hcompute hbound]
   ComputableInPolyTime.foldlWithInput_of_bounded_growth
 attribute [program_certificate hbound]
   ComputableInPolyTime.iterateWithInput_of_bounded_growth
@@ -736,6 +736,9 @@ private meta def polytimeFold (guard : TacticM Unit → TacticM Unit) : TacticM 
                   enableSimp := false
                   assumptionTransparency := .reducible })
               (rule_sets := [PolyTime])))
+          -- The callback can determine the accumulator encoding; growth and the initializer
+          -- must use that representation rather than trying to infer it independently.
+          Cslib.Tactic.solveTagged `hstep
           let afterList ← saveState
           try
             evalTactic (← `(tactic| case growth => exact 0))

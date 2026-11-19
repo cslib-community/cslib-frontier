@@ -347,7 +347,7 @@ example (h : ComputableTidilyInTimeAndSpaceOfLength rawOnlyReverseProbe encBits 
     (routine : List Bool → List Bool)
     (hplain : ComputableInPolyTime routine encBits encBits)
     (hrawAlias : RawAliasFull routine encBits encBits)
-    (hplainAlias : PlainAliasFull routine encBits encBits)
+    (_hplainAlias : PlainAliasFull routine encBits encBits)
     (hc : RoutineContract routine)
     (hcImp : RoutineContract routine →
       ComputableInPolyTime localImplicationResult encBits encBits) :
@@ -361,31 +361,31 @@ example (h : ComputableTidilyInTimeAndSpaceOfLength rawOnlyReverseProbe encBits 
     ComputableInPolyTime rawOnlyReverseProbe encBits encBits ∧
     ComputableInPolyTime routine encBits encBits ∧
     ComputableInPolyTime localImplicationResult encBits encBits := by
-  refine ⟨?_, ?_, ?_, ?_, by clear h hf hplain hplainAlias hc hcImp; polytime,
-    by clear h hf hplain hplainAlias hc hcImp; exact hrawAlias, ?_,
-    by clear h hf hplain hrawAlias hplainAlias hcImp; polytime, ?_⟩
-  · clear routine hplain hrawAlias hplainAlias hc hcImp
+  refine ⟨?_, ?_, ?_, ?_, by clear h hf hplain _hplainAlias hc hcImp; polytime,
+    by clear h hf hplain _hplainAlias hc hcImp; exact hrawAlias, ?_,
+    by clear h hf hplain hrawAlias _hplainAlias hcImp; polytime, ?_⟩
+  · clear routine hplain hrawAlias _hplainAlias hc hcImp
     fail_if_success (clear hf; polytime)
     exact eagerLocal_plain (h rawOnlyReverseProbe_machine)
-  · clear routine hplain hrawAlias hplainAlias hc hcImp
+  · clear routine hplain hrawAlias _hplainAlias hc hcImp
     polytime
-  · clear hf hrawAlias hplainAlias hc hcImp
+  · clear hf hrawAlias _hplainAlias hc hcImp
     fail_if_success (clear hplain; polytime)
     refine ⟨by polytime, ?_⟩
     fail_if_success polytime
     aesop (rule_sets := [PolyTime])
-  · clear hf routine hplain hrawAlias hplainAlias hc hcImp
+  · clear hf routine hplain hrawAlias _hplainAlias hc hcImp
     run_tac do
       try
         Cslib.Tactic.PolyTime.Internal.withPlainRuleCache do
           throwError "test scoped restoration"
       catch _ => pure ()
       Lean.Elab.Tactic.evalTactic (← `(tactic| aesop (rule_sets := [PolyTime])))
-  · clear h hf routine hplain hrawAlias hplainAlias hc hcImp
+  · clear h hf routine hplain hrawAlias _hplainAlias hc hcImp
     fail_if_success polytime
     exact rawOnlyReverseProbe_machine.computableInTimeAndSpace.computableInPolyTime
       reverseClock_polynomial
-  · clear h hf hplain hrawAlias hplainAlias
+  · clear h hf hplain hrawAlias _hplainAlias
     fail_if_success (clear hc; polytime)
     polytime
 
