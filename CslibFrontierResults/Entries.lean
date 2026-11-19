@@ -7,6 +7,8 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.AlmostSynchronous
+import CslibFrontier.Computability.PCP.TwoProverGame.AlmostSynchronousReduction
+import CslibFrontier.Computability.PCP.TwoProverGame.SynchronousCorrelation
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.Orthogonalization
@@ -5424,6 +5426,38 @@ register_result "almost-synchronous-projective-spectral-mixture" where
     synchronous. Their average squared state-dependent error is at most 9δ + 10√(2δ). The defect δ \
     is one minus the average diagonal answer agreement. The finite convex sum follows the remark \
     after Theorem 3.1. This entry covers the symmetric-strategy theorem."
+
+register_result "almost-synchronous-arbitrary-projective-spectral-mixture" where
+  title := "Vidick: finite projective mixtures for either marginal of an arbitrary strategy"
+  topic := "nonlocal games"
+  sources := [
+    { paper := Vidick2022, theorem := "Corollary 3.2",
+      locator := "arXiv:2103.02468v3, p. 12" }
+  ]
+  theorems := [
+    Cslib.PCP.QuantumStrategy.exists_alice_projective_spectral_mixture,
+    Cslib.PCP.QuantumStrategy.exists_bob_projective_spectral_mixture
+  ]
+  scope := "Pure finite-dimensional tensor-product strategies with possibly unequal local \
+    dimensions. For either party the spectrum and basis can be chosen before the question PMF. \
+    A finite mixture of synchronous projective strategies on spectral subspaces recovers that \
+    party's reduced state exactly in the original local basis. The average squared state-dependent \
+    measurement error is at most 18δ + 20√δ, where δ is the diagonal synchrony defect."
+
+register_result "almost-synchronous-correlation-mixture" where
+  title := "Vidick: approximation by a mixture of synchronous correlations"
+  topic := "nonlocal games"
+  sources := [
+    { paper := Vidick2022, theorem := "Corollary 3.3",
+      locator := "arXiv:2103.02468v3, pp. 12–13, equation (21)" }
+  ]
+  theorems := [Cslib.PCP.QuantumStrategy.exists_synchronous_correlation_mixture]
+  scope := "Finite tensor-product strategies with arbitrary POVMs and possibly unequal local \
+    dimensions. The mixture is chosen for a fixed question marginal before choosing the joint \
+    law with that marginal on both sides. The projective components have normalized trace \
+    correlations. The mixture differs from the original joint answer probabilities by at most \
+    2√(2δ) + 4√(18δ + 20√δ) in the question-averaged \
+    sum of absolute differences, for diagonal synchrony defect δ under the common marginal."
 
 register_result "binary-linear-constraint-operator-solution-perfect" where
   title := "Cleve–Mittal: finite-dimensional operator solutions of binary linear constraint \

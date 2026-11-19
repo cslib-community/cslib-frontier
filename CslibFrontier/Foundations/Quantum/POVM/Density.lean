@@ -8,8 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.POVM
+public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
 import all Mathlib.Analysis.Matrix.Order
+import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
+import CslibFrontier.Foundations.Quantum.Algebra.DensityState
+import CslibFrontier.Foundations.Quantum.Algebra.MeasurementDistance
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefTrace
 
 /-!
@@ -139,10 +143,7 @@ noncomputable def measureDensity (M : POVM A ι) (ρ : Matrix ι ι ℂ)
 /-- The trace pairing with a pure-state projector equals the vector-state probability. -/
 @[simp] theorem densityProb_pureState (M : POVM A ι) (ψ : EuclideanSpace ℂ ι) (a : A) :
     M.densityProb (pureState ψ) a = M.prob ψ a := by
-  have hp : pureState ψ = Matrix.vecMulVec ψ.ofLp (star ψ.ofLp) := by
-    ext i j
-    exact pureState_apply ψ i j
-  rw [densityProb, hp, Matrix.mul_vecMulVec, Matrix.trace_vecMulVec, dotProduct_comm]
+  rw [densityProb, trace_mul_pureState]
   rfl
 
 /-- Density-matrix readout agrees with vector readout on every normalized pure state. -/
@@ -156,5 +157,28 @@ noncomputable def measureDensity (M : POVM A ι) (ρ : Matrix ι ι ℂ)
 theorem densityProb_basis (ρ : Matrix ι ι ℂ) (i : ι) :
     basis.densityProb ρ i = (ρ i i).re := by
   rw [densityProb, basis_effect, Matrix.trace_single_mul, one_smul]
+
+open scoped MatrixOrder in
+/-- Under a density that commutes with the first rounded measurement, replacing two
+sequential projective measurements costs at most twice the error of each replacement.
+This applies in particular when the density is totally mixed on their support. -/
+theorem sum_abs_trace_sequential_sub_product_le {ρ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ)
+    (P₁ P₂ Q₁ Q₂ : POVM A ι) (hQ₁ : Q₁.toMeasurement.IsProjective)
+    (hP₂ : P₂.toMeasurement.IsProjective) (hQ₂ : Q₂.toMeasurement.IsProjective)
+    (hcomm : ∀ a, Commute (Q₁.effect a) ρ) :
+    (∑ a, ∑ b, |((P₁.effect a * P₂.effect b * P₁.effect a) * ρ).trace.re -
+        ((Q₁.effect a * Q₂.effect b) * ρ).trace.re|) ≤
+      2 * √(∑ a, ((P₁.effect a - Q₁.effect a) * (P₁.effect a - Q₁.effect a) * ρ).trace.re) +
+        2 * √(∑ b, ((P₂.effect b - Q₂.effect b) * (P₂.effect b - Q₂.effect b) *
+          ρ).trace.re) := by
+  have h₁ (a : A) : star (P₁.effect a - Q₁.effect a) = P₁.effect a - Q₁.effect a :=
+    ((P₁.posSemidef a).isHermitian.sub (Q₁.posSemidef a).isHermitian).eq
+  have h₂ (a : A) : star (P₂.effect a - Q₂.effect a) = P₂.effect a - Q₂.effect a :=
+    ((P₂.posSemidef a).isHermitian.sub (Q₂.posSemidef a).isHermitian).eq
+  simpa only [toMeasurement_effect, AlgState.norm_sq, AlgState.ofDensityMatrix_apply, h₁, h₂]
+    using Measurement.sum_abs_re_apply_conjugation_sub_mul_le_of_central
+      (AlgState.ofDensityMatrix ρ hρ) P₁.toMeasurement Q₁.toMeasurement
+      P₂.toMeasurement Q₂.toMeasurement hQ₁ hP₂ hQ₂
+      (fun a => AlgState.ofDensityMatrix_mul_comm hρ (hcomm a))
 
 end Cslib.Quantum.POVM

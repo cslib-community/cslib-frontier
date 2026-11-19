@@ -4105,6 +4105,7 @@ public import CslibFrontier.Computability.PCP.SelectedComposition
 public import CslibFrontier.Computability.PCP.ThreeSAT
 public import CslibFrontier.Computability.PCP.TwoProverGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.AlmostSynchronous
+public import CslibFrontier.Computability.PCP.TwoProverGame.AlmostSynchronousReduction
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
@@ -4117,6 +4118,8 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.Schmidt
+public import CslibFrontier.Computability.PCP.TwoProverGame.SchmidtReduction
+public import CslibFrontier.Computability.PCP.TwoProverGame.SynchronousCorrelation
 public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 public import CslibFrontier.Computability.Pebbling.Basic
 public import CslibFrontier.Computability.Pebbling.BinaryTree
@@ -7092,10 +7095,12 @@ public import CslibFrontier.Foundations.Quantum.Algebra.Approx
 public import CslibFrontier.Foundations.Quantum.Algebra.CHSHRigidity
 public import CslibFrontier.Foundations.Quantum.Algebra.CStar
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
+public import CslibFrontier.Foundations.Quantum.Algebra.DensityState
 public import CslibFrontier.Foundations.Quantum.Algebra.Involution
 public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
+public import CslibFrontier.Foundations.Quantum.Algebra.MeasurementDistance
 public import CslibFrontier.Foundations.Quantum.Algebra.Orthogonalization
 public import CslibFrontier.Foundations.Quantum.Algebra.SpectralCut
 public import CslibFrontier.Foundations.Quantum.Algebra.SpectralRounding
@@ -7121,6 +7126,7 @@ public import CslibFrontier.Foundations.Quantum.NoCloning
 public import CslibFrontier.Foundations.Quantum.Orthogonalization
 public import CslibFrontier.Foundations.Quantum.POVM
 public import CslibFrontier.Foundations.Quantum.POVM.Density
+public import CslibFrontier.Foundations.Quantum.POVM.DirectSum
 public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 public import CslibFrontier.Foundations.Quantum.Pauli
 public import CslibFrontier.Foundations.Quantum.PauliTwirl

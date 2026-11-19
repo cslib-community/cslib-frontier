@@ -45,7 +45,7 @@ noncomputable def spectralCutWeight (d : ι → ℝ) (s : Cuts) : ℝ :=
   diagonalCutWidth d s * s.val.card
 
 /-- The totally mixed state on the cut, as a density matrix on the original space. -/
-noncomputable def spectralCutDensity [DecidableEq ι] (s : Cuts) : Matrix ι ι ℂ :=
+@[expose] noncomputable def spectralCutDensity [DecidableEq ι] (s : Cuts) : Matrix ι ι ℂ :=
   (s.val.card : ℝ)⁻¹ • diagonal (fun i => if i ∈ s.val then (1 : ℂ) else 0)
 
 theorem spectralCutWeight_nonneg (d : ι → ℝ) (s : Cuts) : 0 ≤ spectralCutWeight d s :=
@@ -97,7 +97,7 @@ theorem spectralCutDensity_isDensityMatrix (s : Cuts) :
     exact mul_inv_cancel₀ hn
 
 /-- Extend a cut matrix by zero in both coordinates. -/
-noncomputable def extendCutMatrix (s : Finset ι)
+@[expose] noncomputable def extendCutMatrix (s : Finset ι)
     (B : Matrix {i : ι // i ∈ s} {i : ι // i ∈ s} ℂ) : Matrix ι ι ℂ :=
   fun i j => if hi : i ∈ s then if hj : j ∈ s then B ⟨i, hi⟩ ⟨j, hj⟩ else 0 else 0
 
@@ -186,6 +186,16 @@ theorem partialTraceRight_pureState_ofSpectralCut (s : Cuts)
   · exact fun _ => inv_nonneg.mpr (cut_card_pos s).le
 
 omit [Fintype ι] in
+/-- The cut strategy's joint probabilities are the normalized trace of the product. -/
+theorem ofSpectralCut_prob_eq_trace (s : Cuts)
+    (M : X → Measurement A (Matrix {i : ι // i ∈ s.val} {i : ι // i ∈ s.val} ℂ))
+    (x y : X) (a b : A) :
+    (ofSpectralCut s M).prob x y a b =
+      (s.val.card : ℝ)⁻¹ * (Matrix.trace ((M x).effect a * (M y).effect b)).re := by
+  unfold ofSpectralCut
+  rw [prob_ofSchmidt_const _ (inv_nonneg.mpr (cut_card_pos s).le)]
+
+omit [Fintype ι] in
 open scoped Matrix.Norms.L2Operator in
 /-- Projective strategies on a uniform cut give zero probability to unequal answers
 on a repeated question. -/
@@ -193,10 +203,17 @@ theorem ofSpectralCut_prob_eq_zero (s : Cuts)
     (M : X → Measurement A (Matrix {i : ι // i ∈ s.val} {i : ι // i ∈ s.val} ℂ))
     (hM : ∀ x, (M x).IsProjective) (x : X) {a b : A} (hab : a ≠ b) :
     (ofSpectralCut s M).prob x x a b = 0 := by
-  unfold ofSpectralCut
-  rw [prob_ofSchmidt_const _ (inv_nonneg.mpr (cut_card_pos s).le)]
-  change (s.val.card : ℝ)⁻¹ * (Matrix.trace ((M x).effect a * (M x).effect b)).re = 0
-  rw [(hM x).mul_eq_zero hab, Matrix.trace_zero, Complex.zero_re, mul_zero]
+  rw [ofSpectralCut_prob_eq_trace, (hM x).mul_eq_zero hab, Matrix.trace_zero, Complex.zero_re,
+    mul_zero]
+
+/-- Matching-answer agreement in a Schmidt strategy is the geometric-mean-weighted
+agreement of its Alice POVM. -/
+theorem sum_prob_same_ofSchmidt (d : ι → ℝ) (hd : ∀ i, 0 ≤ d i) (htrace : ∑ i, d i = 1)
+    (M : X → POVM A ι) (x : X) :
+    (∑ a, (ofSchmidt d hd htrace M).prob x x a a) = (M x).toMeasurement.schmidtAgreement d := by
+  simp_rw [prob_ofSchmidt_same, Measurement.schmidtAgreement, POVM.toMeasurement_effect, mul_sum]
+  rw [sum_comm]
+  exact sum_congr rfl fun i _ => sum_comm
 
 variable [Fintype X]
 
@@ -213,6 +230,9 @@ theorem exists_projective_spectral_mixture (d : ι → ℝ) (hd : ∀ i, 0 ≤ d
       (∀ s x a, ((T s).alice x).effect a * ((T s).alice x).effect a = ((T s).alice x).effect a) ∧
       (∀ s x a, ((T s).bob x).effect a * ((T s).bob x).effect a = ((T s).bob x).effect a) ∧
       (∀ s x a b, a ≠ b → (T s).prob x x a b = 0) ∧
+      (∀ s x y a b, (T s).prob x y a b =
+        (s.val.card : ℝ)⁻¹ *
+          (Matrix.trace (((T s).alice x).effect a * ((T s).alice y).effect b)).re) ∧
       (∀ s : Cuts, extendCutMatrix s.val (partialTraceRight (pureState (T s).state)) =
         spectralCutDensity s) ∧
       (∀ s : Cuts, 0 ≤ spectralCutWeight d s) ∧
@@ -224,17 +244,13 @@ theorem exists_projective_spectral_mixture (d : ι → ℝ) (hd : ∀ i, 0 ≤ d
              (Matrix.trace (E * E * spectralCutDensity s)).re) ≤
         9 * δ + 10 * Real.sqrt (2 * δ) := by
   intro S δ
-  have hagree (x : X) : (∑ a, S.prob x x a a) = (M x).toMeasurement.schmidtAgreement d := by
-    dsimp only [S]
-    simp_rw [prob_ofSchmidt_same, Measurement.schmidtAgreement, POVM.toMeasurement_effect,
-      mul_sum]
-    rw [sum_comm]
-    exact sum_congr rfl fun i _ => sum_comm
+  have hagree (x : X) : (∑ a, S.prob x x a a) = (M x).toMeasurement.schmidtAgreement d :=
+    sum_prob_same_ofSchmidt d hd htrace M x
   obtain ⟨R, hR, hround⟩ :=
     Measurement.exists_projective_cutColumnError_average_le
       (fun x => (M x).toMeasurement) ν d hd htrace
   let T (s : Cuts) := ofSpectralCut s (fun x => R x s)
-  refine ⟨T, ?_, ?_, ?_, fun s => partialTraceRight_pureState_ofSpectralCut s _,
+  refine ⟨T, ?_, ?_, ?_, ?_, fun s => partialTraceRight_pureState_ofSpectralCut s _,
     spectralCutWeight_nonneg d, sum_spectralCutWeight d hd htrace, ?_, ?_⟩
   · intro s x a
     simpa only [T, ofSpectralCut_alice_effect] using hR x s a
@@ -243,6 +259,9 @@ theorem exists_projective_spectral_mixture (d : ι → ℝ) (hd : ∀ i, 0 ≤ d
       congrArg Matrix.transpose (hR x s a)
   · intro s x a b hab
     exact ofSpectralCut_prob_eq_zero s (fun x => R x s) (fun x => hR x s) x hab
+  · intro s x y a b
+    simpa only [T, ofSpectralCut_alice_effect] using
+      ofSpectralCut_prob_eq_trace s (fun x => R x s) x y a b
   · dsimp only [S]
     rw [ofSchmidt_state, partialTraceRight_pureState_schmidtVector d hd,
       diagonal_eq_sum_spectralCutDensity d hd]

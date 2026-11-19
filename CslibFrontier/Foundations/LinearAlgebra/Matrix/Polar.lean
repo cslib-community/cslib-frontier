@@ -27,6 +27,7 @@ of `yᴴ y` the columns of `y` are orthogonal, the normalized nonzero ones form 
 
 * `Matrix.exists_unitary_extension`: an isometry extends to a unitary.
 * `Matrix.exists_polar`: polar decomposition of a square matrix; `yᴴ y ≤ 1` gives `|y| ≤ 1`.
+* `Matrix.exists_singular_value_decomposition`: rectangular diagonalization in orthonormal bases.
 -/
 
 public section
@@ -35,6 +36,18 @@ open Finset
 open scoped ComplexOrder MatrixOrder
 
 namespace Matrix
+
+private theorem orthonormal_columns {m n : Type*} [Fintype m] [DecidableEq n]
+    (V : Matrix m n ℂ) (hV : Vᴴ * V = 1) :
+    Orthonormal ℂ fun j => (WithLp.toLp 2 (fun i => V i j) : EuclideanSpace ℂ m) := by
+  rw [orthonormal_iff_ite]
+  intro j k
+  have h : ∑ i, star (V i j) * V i k = if j = k then 1 else 0 := by
+    have := congrFun (congrFun hV j) k
+    simpa [Matrix.mul_apply, Matrix.one_apply] using this
+  rw [← h]
+  simp only [PiLp.inner_apply, RCLike.inner_apply]
+  exact Finset.sum_congr rfl fun i _ => mul_comm _ _
 
 /-- **Unitary extension of an isometry**: if the columns of `V : n × ι` are orthonormal and
 `j : ι → n` is injective, some unitary `U` has the columns of `V` at the positions `j i`. -/
@@ -49,14 +62,7 @@ theorem exists_unitary_extension {n ι : Type*} [Fintype n] [DecidableEq n] [Dec
     have hc : h.choose = i := hj h.choose_spec
     simp only [v, h, ↓reduceDIte, hc]
   have hv' : Orthonormal ℂ fun i => v (j i) := by
-    rw [orthonormal_iff_ite]
-    intro i i'
-    have h : ∑ k, star (V k i) * V k i' = if i = i' then 1 else 0 := by
-      have := congrFun (congrFun hV i) i'
-      simpa [Matrix.mul_apply, Matrix.one_apply] using this
-    rw [hvj, hvj, ← h]
-    simp only [PiLp.inner_apply, RCLike.inner_apply]
-    exact Finset.sum_congr rfl fun k _ => mul_comm _ _
+    simpa only [hvj] using orthonormal_columns V hV
   have hv : Orthonormal ℂ ((Set.range j).domRestrict v) := by
     convert hv'.comp _ (Equiv.ofInjective j hj).symm.injective
     ext1 ⟨m, hm⟩
@@ -79,12 +85,16 @@ private theorem exists_unitary_eq_diagonal {n : Type*} [Fintype n] [DecidableEq 
     simp [Unitary.conjStarAlgAut_apply, star_eq_conjTranspose, Function.comp_def]
 
 
-/-- **Polar decomposition** of a square matrix `y : m × n`, `|m| = |n|`: a unitary `R` and
-`h = |y| ≥ 0` with `h² = yᴴ y` and `y = R h`; if `yᴴ y ≤ 1` then `h ≤ 1`. -/
-theorem exists_polar {m n : Type*} [Fintype m] [Fintype n] [DecidableEq m] [DecidableEq n]
-    (y : Matrix m n ℂ) (hmn : Fintype.card m = Fintype.card n) :
-    ∃ (R : Matrix m n ℂ) (h : Matrix n n ℂ), Rᴴ * R = 1 ∧ R * Rᴴ = 1 ∧ h.PosSemidef ∧
-      h * h = yᴴ * y ∧ y = R * h ∧ (yᴴ * y ≤ 1 → h ≤ 1) := by
+/-- In a right eigenbasis of the Gram matrix, the nonzero columns normalize to an
+isometry. The eigenvalue at each column is its squared norm. -/
+private theorem exists_singular_columns {m n : Type*} [Fintype m] [Fintype n] [DecidableEq n]
+    (y : Matrix m n ℂ) :
+    ∃ (μ : n → ℝ) (U : Matrix n n ℂ)
+      (W : Matrix m {k : n // μ k ≠ 0} ℂ),
+      (∀ k, 0 ≤ μ k) ∧ Uᴴ * U = 1 ∧ U * Uᴴ = 1 ∧
+      yᴴ * y = U * diagonal (fun k => (μ k : ℂ)) * Uᴴ ∧ Wᴴ * W = 1 ∧
+      ∀ i k, (y * U) i k =
+        if hk : μ k ≠ 0 then W i ⟨k, hk⟩ * (Real.sqrt (μ k) : ℂ) else 0 := by
   classical
   set B := yᴴ * y
   have hB : B.PosSemidef := posSemidef_conjTranspose_mul_self y
@@ -131,6 +141,26 @@ theorem exists_polar {m n : Type*} [Fintype m] [Fintype n] [DecidableEq m] [Deci
       rw [ite_eq_left rfl, ite_eq_left rfl, ← Complex.ofReal_mul, hss, div_self]
       exact_mod_cast k.2
     · rw [ite_eq_right (fun h => absurd (Subtype.ext h) hkl), ite_eq_right (absurd · hkl), zero_div]
+  refine ⟨μ, U, W, hμ0, hU1, hU2, hBU, hW, ?_⟩
+  intro i k
+  by_cases hk : μ k = 0
+  · rw [dite_eq_right (fun hn => hn hk)]
+    exact hY0 k hk i
+  · rw [dite_eq_left hk]
+    exact (div_mul_cancel₀ _ (hs0 ⟨k, hk⟩)).symm
+
+/-- **Polar decomposition** of a square matrix `y : m × n`, `|m| = |n|`: a unitary `R` and
+`h = |y| ≥ 0` with `h² = yᴴ y` and `y = R h`; if `yᴴ y ≤ 1` then `h ≤ 1`. -/
+theorem exists_polar {m n : Type*} [Fintype m] [Fintype n] [DecidableEq m] [DecidableEq n]
+    (y : Matrix m n ℂ) (hmn : Fintype.card m = Fintype.card n) :
+    ∃ (R : Matrix m n ℂ) (h : Matrix n n ℂ), Rᴴ * R = 1 ∧ R * Rᴴ = 1 ∧ h.PosSemidef ∧
+      h * h = yᴴ * y ∧ y = R * h ∧ (yᴴ * y ≤ 1 → h ≤ 1) := by
+  classical
+  obtain ⟨μ, U, W, hμ0, hU1, hU2, hBU, hW, hcolumns⟩ := exists_singular_columns y
+  set s : n → ℝ := fun k => √(μ k)
+  have hss : ∀ k, s k * s k = μ k := fun k => Real.mul_self_sqrt (hμ0 k)
+  set Y := y * U
+  let P := {k : n // μ k ≠ 0}
   -- Extend to a unitary and reindex.
   let σ : n ≃ m := Fintype.equivOfCardEq hmn.symm
   obtain ⟨U', hU', hU'W⟩ := exists_unitary_extension W hW
@@ -153,12 +183,11 @@ theorem exists_polar {m n : Type*} [Fintype m] [Fintype n] [DecidableEq m] [Deci
   have hR'Y : R' * diagonal (fun k => (s k : ℂ)) = Y := by
     ext i k
     rw [mul_diagonal]
+    rw [hcolumns]
     by_cases hk : μ k = 0
-    · rw [hY0 k hk i]
-      simp [s, hk]
-    · have h1 := hU'W i ⟨k, hk⟩
-      simp only [R', submatrix_apply, id, W, Matrix.of_apply] at h1 ⊢
-      rw [h1, div_mul_cancel₀ _ (hs0 ⟨k, hk⟩)]
+    · simp [s, hk]
+    · rw [dite_eq_left hk]
+      exact congrArg (fun z => z * (s k : ℂ)) (hU'W i ⟨k, hk⟩)
   set h := U * diagonal (fun k => (s k : ℂ)) * Uᴴ
   refine ⟨R' * Uᴴ, h, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [conjTranspose_mul, conjTranspose_conjTranspose, Matrix.mul_assoc, ← Matrix.mul_assoc R'ᴴ,
@@ -199,5 +228,37 @@ theorem exists_polar {m n : Type*} [Fintype m] [Fintype n] [DecidableEq m] [Deci
     have := Real.sqrt_le_one.mpr (hμ1 k)
     simp only [s]
     linarith
+
+/-- Rectangular singular value decomposition in orthonormal bases. The nonzero singular
+values occupy matching positions specified by the injection into the left basis. -/
+theorem exists_singular_value_decomposition {m n : Type*} [Fintype m] [Fintype n]
+    [DecidableEq m] [DecidableEq n] (y : Matrix m n ℂ) :
+    ∃ (μ : n → ℝ) (e : {k : n // μ k ≠ 0} ↪ m) (L : Matrix m m ℂ) (R : Matrix n n ℂ),
+      (∀ k, 0 ≤ μ k) ∧ L ∈ unitaryGroup m ℂ ∧ R ∈ unitaryGroup n ℂ ∧
+      ∀ i k, (Lᴴ * y * R) i k =
+        if hk : μ k ≠ 0 then if i = e ⟨k, hk⟩ then (Real.sqrt (μ k) : ℂ) else 0 else 0 := by
+  classical
+  obtain ⟨μ, R, W, hμ, hR₁, hR₂, _, hW, hcolumns⟩ := exists_singular_columns y
+  let P := {k : n // μ k ≠ 0}
+  have hc : Fintype.card P ≤ Fintype.card m := by
+    have h := (orthonormal_columns W hW).linearIndependent.fintype_card_le_finrank
+    rw [finrank_euclideanSpace] at h
+    exact h
+  obtain ⟨e⟩ := Function.Embedding.nonempty_of_card_le hc
+  obtain ⟨L, hL, hLW⟩ := exists_unitary_extension W hW e.injective
+  have hL₁ : Lᴴ * L = 1 := by
+    rw [← star_eq_conjTranspose]
+    exact mem_unitaryGroup_iff'.mp hL
+  refine ⟨μ, e, L, R, hμ, hL, ?_, ?_⟩
+  · exact mem_unitaryGroup_iff.mpr (by simpa only [star_eq_conjTranspose] using hR₂)
+  · intro i k
+    rw [Matrix.mul_assoc, Matrix.mul_apply]
+    simp_rw [hcolumns]
+    by_cases hk : μ k ≠ 0
+    · simp only [dite_eq_left hk]
+      simp_rw [← hLW _ ⟨k, hk⟩, ← mul_assoc, ← sum_mul]
+      rw [← Matrix.mul_apply, hL₁, Matrix.one_apply]
+      split_ifs <;> simp_all
+    · simp [hk]
 
 end Matrix

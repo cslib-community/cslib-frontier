@@ -43,7 +43,7 @@ example :
       = ∑ s : {s : Finset Bool // s.Nonempty},
         QuantumStrategy.spectralCutWeight pureSpectrum s •
           QuantumStrategy.spectralCutDensity s := by
-  obtain ⟨_, _, _, _, _, _, _, h, _⟩ :=
+  obtain ⟨_, _, _, _, _, _, _, _, h, _⟩ :=
     QuantumStrategy.exists_projective_spectral_mixture pureSpectrum pureSpectrum_nonneg
       sum_pureSpectrum pauliPOVM (PMF.pure ())
   exact h
