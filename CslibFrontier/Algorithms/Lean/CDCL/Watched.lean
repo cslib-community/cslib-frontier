@@ -85,8 +85,10 @@ since the last time, before the reduction, the clauses satisfied by a literal of
 deleted, input clauses included (MiniSat's `remove_satisfied`, `Options.removeSatisfied`), except
 the reasons of the trail; the watch store and the marks of the variables occurring in the database
 are rebuilt (`Cslib.Algorithms.Lean.CDCL.WExec.simplify`). At level `0` the trail is its root, so
-the clauses deleted stay entailed (`Cslib.Algorithms.Lean.CDCL.Exec.forget_inv`), and each
-deletion is a step of the certificate. If no clause is satisfied, only the schedule advances.
+under total assignments the remaining clauses entail the input clauses, and with them the
+clauses deleted; for partial assignments the guarantee concerns the input clauses only
+(`Cslib.Algorithms.Lean.CDCL.Exec.forget_inv`). Each deletion is a step of the certificate. If no
+clause is satisfied, only the schedule advances.
 
 This is part of MiniSat's `simplify`, not all of it. MiniSat also removes the false literals from
 the clauses it keeps, can delete a satisfied clause that is the reason of a root literal after

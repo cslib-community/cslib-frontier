@@ -53,8 +53,11 @@ with:
   the trail from the database and the log, input clauses only if a literal of the root of the
   trail, implied without any decision, satisfies them
   (`Cslib.Algorithms.Lean.CDCL.Exec.forget_inv`). The reasons kept are in the database and entail
-  the root (`Cslib.Algorithms.Lean.CDCL.Reasons.eval_of_no_decision`), so the remaining clauses
-  entail the input clauses, and with them the clauses deleted.
+  the root (`Cslib.Algorithms.Lean.CDCL.Reasons.eval_of_no_decision`), so under total
+  assignments the remaining clauses entail the input clauses, and with them the clauses deleted.
+  For partial assignments the guarantee concerns the input only: a partial model of the remaining
+  clauses satisfies the input clauses through the root. It is not shown to satisfy the deleted
+  clauses.
 
 Every move other than Restart and Forget is a Basic DPLL step, or Backjump followed by Learn, of
 the abstract system, and so lowers its rank (`Cslib.Algorithms.Lean.CDCL.rank`); Forget keeps it.
