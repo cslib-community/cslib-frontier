@@ -228,23 +228,13 @@ private theorem sum_endpoint_querySlice_sq_le [DecidableEq α]
           w p i * ‖querySlice i (runValue step U ψ₀ (k p) t)‖ ^ 2 =
         ∑ i, (∑ p ∈ R with p.1 i ≠ p.2 i ∧ k p = x, w p i) *
           ‖querySlice i (runValue step U ψ₀ x t)‖ ^ 2 := by
-    calc
-      ∑ p ∈ R with k p = x, ∑ i with p.1 i ≠ p.2 i,
-          w p i * ‖querySlice i (runValue step U ψ₀ (k p) t)‖ ^ 2
-          = ∑ p ∈ R, ∑ i,
-              if p.1 i ≠ p.2 i ∧ k p = x then
-                w p i * ‖querySlice i (runValue step U ψ₀ x t)‖ ^ 2
-              else 0 := by
-              simp only [sum_filter]
-              refine sum_congr rfl fun p _ => ?_
-              by_cases hkx : k p = x <;> simp [hkx]
-      _ = ∑ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ k p = x,
-            w p i * ‖querySlice i (runValue step U ψ₀ x t)‖ ^ 2 := by
-            rw [sum_comm]
-            simp only [sum_filter]
-      _ = ∑ i, (∑ p ∈ R with p.1 i ≠ p.2 i ∧ k p = x, w p i) *
-            ‖querySlice i (runValue step U ψ₀ x t)‖ ^ 2 := by
-            simp only [sum_mul]
+    trans ∑ p ∈ R, ∑ i,
+      if p.1 i ≠ p.2 i ∧ k p = x then w p i * ‖querySlice i (runValue step U ψ₀ x t)‖ ^ 2 else 0
+    · simp only [sum_filter]
+      refine sum_congr rfl fun p _ => ?_
+      by_cases hkx : k p = x <;> simp [hkx]
+    · rw [sum_comm]
+      simp only [sum_filter, sum_mul, ite_mul, zero_mul]
   rw [hswap]
   calc
     ∑ i, (∑ p ∈ R with p.1 i ≠ p.2 i ∧ k p = x, w p i) *
@@ -327,6 +317,13 @@ theorem one_sub_mul_sum_le_of_sq_le_value [DecidableEq α]
   rw [valueWeightedProgress_zero step U hψ₀ R γ] at htelT
   linarith
 
+private theorem sum_le_of_eq_div_card {γ : Type*} {S : Finset γ} {C : ℝ} (hC : 0 ≤ C)
+    {f : γ → ℝ} (hf : ∀ p ∈ S, f p = C / (#S : ℝ)) : ∑ p ∈ S, f p ≤ C := by
+  rw [sum_congr rfl hf, sum_const, nsmul_eq_mul]
+  by_cases h0 : #S = 0
+  · simp [h0, hC]
+  · exact (mul_div_cancel₀ _ (Nat.cast_ne_zero.2 h0)).le
+
 /-- **Ambainis's adversary bound for non-Boolean input alphabets** ([Ambainis2002], Section 6.1,
 Theorem 6, overlap form): let `R` be a nonempty set of pairs of inputs `x, y : ι → α` on which a
 `T`-query value-query algorithm `(step, U, ψ₀)` with `‖ψ₀‖ = 1` ends in states with overlap at most
@@ -352,19 +349,13 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sqrt_value [DecidableEq α]
   have hX : (0 : ℝ) < #X := Nat.cast_pos.2 (card_pos.2 (hR.image _))
   have hY : (0 : ℝ) < #Y := Nat.cast_pos.2 (card_pos.2 (hR.image _))
   have hRX : (m : ℝ) * #X ≤ #R := by
-    have : m * #X ≤ #R := by
-      rw [card_eq_sum_card_image Prod.fst R, mul_comm, ← smul_eq_mul, ← sum_const]
-      refine sum_le_sum fun x hx => ?_
+    exact_mod_cast mul_card_image_le_card (f := Prod.fst) R m fun _ hx => by
       obtain ⟨p, hp, rfl⟩ := mem_image.1 hx
       exact hm p hp
-    exact_mod_cast this
   have hRY : (m' : ℝ) * #Y ≤ #R := by
-    have : m' * #Y ≤ #R := by
-      rw [card_eq_sum_card_image Prod.snd R, mul_comm, ← smul_eq_mul, ← sum_const]
-      refine sum_le_sum fun y hy => ?_
+    exact_mod_cast mul_card_image_le_card (f := Prod.snd) R m' fun _ hy => by
       obtain ⟨p, hp, rfl⟩ := mem_image.1 hy
       exact hm' p hp
-    exact_mod_cast this
   set wXY : ℝ := (#X : ℝ) * (#Y : ℝ)
   have hwXY : 0 < wXY := mul_pos hX hY
   have htel := one_sub_mul_sum_le_of_sq_le_value step U hψ₀ T R (fun _ => √wXY) hδ
@@ -387,22 +378,10 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sqrt_value [DecidableEq α]
             ≤ wXY * L := mul_le_mul_of_nonneg_left hll hwXY.le
         _ = wXY * (√L * √L) := by rw [Real.mul_self_sqrt (Nat.cast_nonneg L)]
         _ = (#Y : ℝ) * √L * ((#X : ℝ) * √L) := by dsimp only [wXY]; ring)
-    (fun z _ i => by
-      let S := R.filter fun p => p.1 i ≠ p.2 i ∧ p.1 = z
-      rw [sum_congr rfl (g := fun _ => (#Y : ℝ) * √L / (#S : ℝ)) fun p hp => by
-        simp only [S, (mem_filter.1 hp).2.2], sum_const, nsmul_eq_mul]
-      by_cases h0 : #S = 0
-      · rw [h0, Nat.cast_zero, zero_mul]
-        exact mul_nonneg (Nat.cast_nonneg _) (Real.sqrt_nonneg _)
-      · exact (mul_div_cancel₀ _ (by exact_mod_cast h0)).le)
-    (fun z _ i => by
-      let S := R.filter fun p => p.1 i ≠ p.2 i ∧ p.2 = z
-      rw [sum_congr rfl (g := fun _ => (#X : ℝ) * √L / (#S : ℝ)) fun p hp => by
-        simp only [S, (mem_filter.1 hp).2.2], sum_const, nsmul_eq_mul]
-      by_cases h0 : #S = 0
-      · rw [h0, Nat.cast_zero, zero_mul]
-        exact mul_nonneg (Nat.cast_nonneg _) (Real.sqrt_nonneg _)
-      · exact (mul_div_cancel₀ _ (by exact_mod_cast h0)).le)
+    (fun z _ i => sum_le_of_eq_div_card (by positivity) fun p hp => by
+      simp only [(mem_filter.1 hp).2.2])
+    (fun z _ i => sum_le_of_eq_div_card (by positivity) fun p hp => by
+      simp only [(mem_filter.1 hp).2.2])
   simp only [sum_const, nsmul_eq_mul] at htel
   have hR' : √(m * m') * √wXY ≤ #R := by
     rw [← Real.sqrt_mul (by positivity)]

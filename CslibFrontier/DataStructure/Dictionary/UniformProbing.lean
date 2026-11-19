@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Probability.PMF.Expect
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.Product
+import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.UniformBound
 import Mathlib.Data.Fintype.Perm
 import Mathlib.Topology.Instances.ENNReal.Lemmas
@@ -160,21 +161,17 @@ instance instDecidableAllOccupied {m : ℕ} (O : Finset (Fin m)) (k : ℕ)
 
 @[simp]
 theorem allOccupied_zero {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m)) :
-    allOccupied O 0 σ := by
-  intro i hi
-  omega
+    allOccupied O 0 σ :=
+  fun _ hi => absurd hi (Nat.not_lt_zero _)
 
 theorem allOccupied_succ_iff {m : ℕ} {O : Finset (Fin m)} {k : ℕ} (hk : k < m)
     (σ : Equiv.Perm (Fin m)) :
     allOccupied O (k + 1) σ ↔ allOccupied O k σ ∧ σ ⟨k, hk⟩ ∈ O := by
-  constructor
-  · intro h
-    refine ⟨fun i hi => h i (by omega), h ⟨k, hk⟩ (by simp)⟩
-  · rintro ⟨h, hk_mem⟩ i hi
-    rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | heq
-    · exact h i hlt
-    · have : i = ⟨k, hk⟩ := Fin.ext heq
-      rwa [this]
+  refine ⟨fun h => ⟨fun i hi => h i (by omega), h ⟨k, hk⟩ (Nat.lt_succ_self k)⟩, ?_⟩
+  rintro ⟨h, hk_mem⟩ i hi
+  rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | heq
+  · exact h i hlt
+  · exact (Fin.ext heq : i = ⟨k, hk⟩) ▸ hk_mem
 
 theorem allOccupied_mono {m : ℕ} {O : Finset (Fin m)} {j k : ℕ} (hjk : j ≤ k)
     {σ : Equiv.Perm (Fin m)} (h : allOccupied O k σ) : allOccupied O j σ :=
@@ -204,12 +201,9 @@ theorem missedProbesFrom_le {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin
   induction rem generalizing idx with
   | zero => simp [missedProbesFrom]
   | succ rem ih =>
+    have := ih (idx + 1)
     simp only [missedProbesFrom]
-    split_ifs
-    · have := ih (idx + 1)
-      omega
-    · omega
-    · omega
+    split_ifs <;> omega
 
 theorem missedProbes_le {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m)) :
     missedProbes O σ ≤ m :=
@@ -219,22 +213,18 @@ theorem mem_of_lt_missedProbesFrom {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Pe
     {rem idx t : ℕ} (hrem : idx + rem ≤ m) (ht : t < missedProbesFrom O σ rem idx) :
     ∃ h : idx + t < m, σ ⟨idx + t, h⟩ ∈ O := by
   induction rem generalizing idx t with
-  | zero =>
-    simp [missedProbesFrom] at ht
+  | zero => simp [missedProbesFrom] at ht
   | succ rem ih =>
     have hidx : idx < m := by omega
     simp only [missedProbesFrom, hidx, ↓reduceDIte] at ht
     split_ifs at ht with hmem
     · cases t with
-      | zero =>
-        exact ⟨hidx, by simpa using hmem⟩
+      | zero => exact ⟨hidx, hmem⟩
       | succ t =>
-        have ht' : t < missedProbesFrom O σ rem (idx + 1) := by omega
-        obtain ⟨h', hmem'⟩ := ih (idx := idx + 1) (by omega) ht'
-        refine ⟨by omega, ?_⟩
+        obtain ⟨h', hmem'⟩ := ih (idx := idx + 1) (t := t) (by omega) (by omega)
         have heq : (⟨idx + (t + 1), by omega⟩ : Fin m) = ⟨idx + 1 + t, h'⟩ :=
-          Fin.ext (show idx + (t + 1) = idx + 1 + t by omega)
-        rwa [heq]
+          Fin.ext (Nat.add_right_comm idx t 1)
+        exact ⟨by omega, heq ▸ hmem'⟩
     · omega
 
 theorem notMem_at_missedProbesFrom {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Perm (Fin m)}
@@ -246,39 +236,26 @@ theorem notMem_at_missedProbesFrom {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Pe
   | succ rem ih =>
     have hidx : idx < m := by omega
     simp only [missedProbesFrom, hidx, ↓reduceDIte] at hlt ⊢
-    split_ifs with hmem
-    · simp only [hmem, ↓reduceIte] at hlt
-      have hlt' : missedProbesFrom O σ rem (idx + 1) < rem := by omega
-      obtain ⟨h', hnot⟩ := ih (idx := idx + 1) (by omega) hlt'
-      refine ⟨by omega, ?_⟩
-      have heq :
-          (⟨idx + (1 + missedProbesFrom O σ rem (idx + 1)), by omega⟩ : Fin m) =
-            ⟨idx + 1 + missedProbesFrom O σ rem (idx + 1), h'⟩ :=
-        Fin.ext (show idx + (1 + missedProbesFrom O σ rem (idx + 1)) =
-          idx + 1 + missedProbesFrom O σ rem (idx + 1) by omega)
-      rwa [heq]
-    · exact ⟨hidx, by simpa using hmem⟩
+    split_ifs at hlt ⊢ with hmem
+    · obtain ⟨h', hnot⟩ := ih (idx := idx + 1) (by omega) (by omega)
+      have heq : (⟨idx + (1 + missedProbesFrom O σ rem (idx + 1)), by omega⟩ : Fin m) =
+          ⟨idx + 1 + missedProbesFrom O σ rem (idx + 1), h'⟩ :=
+        Fin.ext (Nat.add_assoc idx 1 _).symm
+      exact ⟨by omega, heq ▸ hnot⟩
+    · exact ⟨hidx, hmem⟩
 
 /-- For any `k ≤ m`, at least `k` probes miss (`k ≤ missedProbes O σ`) if and only if the first `k`
 slots of `σ` all belong to `O`. -/
 theorem le_missedProbes_iff_allOccupied {m : ℕ} {O : Finset (Fin m)} {k : ℕ} (hk : k ≤ m)
     (σ : Equiv.Perm (Fin m)) :
     k ≤ missedProbes O σ ↔ allOccupied O k σ := by
-  constructor
-  · intro hle i hi
-    have hit : i.val < missedProbesFrom O σ m 0 := lt_of_lt_of_le hi hle
-    obtain ⟨_, hmem⟩ := mem_of_lt_missedProbesFrom (by omega) hit
-    simpa using hmem
-  · intro hall
-    by_contra hnot
-    have hlt : missedProbesFrom O σ m 0 < k := not_le.mp hnot
-    obtain ⟨hidx, hnotMem⟩ := notMem_at_missedProbesFrom (by omega) (lt_of_lt_of_le hlt hk)
-    have hidx' : missedProbesFrom O σ m 0 < m := by omega
-    have hnotMem' : σ ⟨missedProbesFrom O σ m 0, hidx'⟩ ∉ O := by
-      convert hnotMem using 2
-      ext
-      simp
-    exact hnotMem' (hall ⟨missedProbesFrom O σ m 0, hidx'⟩ hlt)
+  refine ⟨fun hle i hi => ?_, fun hall => ?_⟩
+  · obtain ⟨_, hmem⟩ := mem_of_lt_missedProbesFrom (by omega) (lt_of_lt_of_le hi hle)
+    simpa only [Nat.zero_add] using hmem
+  · by_contra! hlt
+    obtain ⟨_, hnotMem⟩ := notMem_at_missedProbesFrom (by omega) (hlt.trans_le hk)
+    simp only [Nat.zero_add] at hnotMem
+    exact hnotMem (hall ⟨missedProbes O σ, by omega⟩ hlt)
 
 /-- For any `k ≤ m`, an unsuccessful search inspects more than `k` slots
 (`k < unsuccessfulProbes O σ`) if and only if the first `k` slots of `σ` all belong to `O`. -/
@@ -292,23 +269,17 @@ theorem lt_unsuccessfulProbes_iff_allOccupied {m : ℕ} {O : Finset (Fin m)} {k 
 theorem not_allOccupied_self_of_card_lt {m : ℕ} {O : Finset (Fin m)} (hO : O.card < m)
     (σ : Equiv.Perm (Fin m)) : ¬ allOccupied O m σ := by
   intro hall
-  have hsub : Finset.univ.map σ.toEmbedding ⊆ O := by
-    intro x hx
-    rcases Finset.mem_map.mp hx with ⟨i, -, rfl⟩
-    exact hall i i.isLt
-  have hcard := Finset.card_le_card hsub
-  simp only [Finset.card_map, Finset.card_univ, Fintype.card_fin] at hcard
+  have hcard := Finset.card_le_card_of_injOn σ
+    (fun i (_ : i ∈ (Finset.univ : Finset (Fin m))) => hall i i.isLt)
+    fun _ _ _ _ h => σ.injective h
+  simp only [Finset.card_univ, Fintype.card_fin] at hcard
   omega
 
 /-- When `O.card < m`, `missedProbes O σ < m` for every permutation `σ`. -/
 theorem missedProbes_lt_of_card_lt {m : ℕ} {O : Finset (Fin m)} (hO : O.card < m)
-    (σ : Equiv.Perm (Fin m)) : missedProbes O σ < m := by
-  have hle := missedProbes_le O σ
-  have hne : missedProbes O σ ≠ m := by
-    intro heq
-    exact not_allOccupied_self_of_card_lt hO σ
-      ((le_missedProbes_iff_allOccupied le_rfl σ).mp (by omega))
-  omega
+    (σ : Equiv.Perm (Fin m)) : missedProbes O σ < m :=
+  lt_of_le_of_ne (missedProbes_le O σ) fun heq =>
+    not_allOccupied_self_of_card_lt hO σ ((le_missedProbes_iff_allOccupied le_rfl σ).mp heq.ge)
 
 /-- The probe index `⟨missedProbes O σ, _⟩ : Fin m` of the first slot along `σ` outside `O` when
 `O.card < m`. -/
@@ -330,7 +301,8 @@ theorem notMem_apply_probeSlotIndex {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.P
     (hO : O.card < m) : σ (probeSlotIndex O σ hO) ∉ O := by
   obtain ⟨_, hnot⟩ := notMem_at_missedProbesFrom (O := O) (σ := σ) (by omega)
     (missedProbes_lt_of_card_lt hO σ)
-  simpa [probeSlotIndex, missedProbes] using hnot
+  simp only [Nat.zero_add] at hnot
+  exact hnot
 
 /-- Exact characterization of `missedProbes O σ`: for any `i₀ : Fin m`, `missedProbes O σ = i₀.val`
 if and only if all earlier probes `i < i₀` lie in `O` and `σ i₀ ∉ O`. -/
@@ -338,23 +310,21 @@ theorem missedProbes_eq_iff {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Perm (Fin
     missedProbes O σ = i₀.val ↔ allOccupied O i₀.val σ ∧ σ i₀ ∉ O := by
   constructor
   · intro heq
-    have hlt : missedProbes O σ < m := heq ▸ i₀.isLt
-    have hall : allOccupied O i₀.val σ :=
-      (le_missedProbes_iff_allOccupied (le_of_lt i₀.isLt) σ).mp (by omega)
+    have hall := (le_missedProbes_iff_allOccupied i₀.isLt.le σ).mp heq.ge
+    have hlt : missedProbesFrom O σ m 0 < m := by
+      change missedProbes O σ < m
+      rw [heq]
+      exact i₀.isLt
     obtain ⟨hidx, hnot⟩ := notMem_at_missedProbesFrom (O := O) (σ := σ) (by omega) hlt
     have hi₀ : (⟨0 + missedProbesFrom O σ m 0, hidx⟩ : Fin m) = i₀ := by
       ext
-      simpa [missedProbes] using heq
-    rw [hi₀] at hnot
-    exact ⟨hall, hnot⟩
+      simpa only [Nat.zero_add, missedProbes] using heq
+    exact ⟨hall, hi₀ ▸ hnot⟩
   · rintro ⟨hall, hnot⟩
-    have hge : i₀.val ≤ missedProbes O σ :=
-      (le_missedProbes_iff_allOccupied (le_of_lt i₀.isLt) σ).mpr hall
-    have hnot_succ : ¬ (i₀.val + 1 ≤ missedProbes O σ) := by
-      intro hle
-      have hall' := (le_missedProbes_iff_allOccupied i₀.isLt σ).mp hle
-      exact hnot (hall' i₀ (by omega))
-    omega
+    have hge := (le_missedProbes_iff_allOccupied i₀.isLt.le σ).mpr hall
+    by_contra! hne
+    have hlt : i₀.val + 1 ≤ missedProbes O σ := by omega
+    exact hnot ((le_missedProbes_iff_allOccupied i₀.isLt σ).mp hlt i₀ (Nat.lt_succ_self _))
 
 theorem probeSlotIndex_eq_iff {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Perm (Fin m)}
     (hO : O.card < m) (i₀ : Fin m) :
@@ -368,19 +338,19 @@ theorem unsuccessfulProbes_eq_sum_boole {m : ℕ} {O : Finset (Fin m)} (hO : O.c
     (σ : Equiv.Perm (Fin m)) :
     unsuccessfulProbes O σ =
       ∑ k ∈ Finset.range m, if allOccupied O k σ then 1 else 0 := by
-  have hlt : missedProbes O σ < m := missedProbes_lt_of_card_lt hO σ
-  have hcongr : ∀ k ∈ Finset.range m,
-      (if allOccupied O k σ then 1 else 0) =
-        (if k ∈ Finset.range (missedProbes O σ + 1) then 1 else 0) := by
-    intro k hk
-    have hk_le : k ≤ m := le_of_lt (Finset.mem_range.mp hk)
-    simp only [Finset.mem_range, Nat.lt_succ_iff, le_missedProbes_iff_allOccupied hk_le]
-  rw [Finset.sum_congr rfl hcongr, ← Finset.sum_filter,
-    Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr (by
-      intro k hk
-      rw [Finset.mem_range] at hk ⊢
-      omega),
-    Finset.sum_const, smul_eq_mul, mul_one, Finset.card_range, unsuccessfulProbes, Nat.add_comm]
+  have hlt := missedProbes_lt_of_card_lt hO σ
+  calc
+    unsuccessfulProbes O σ
+      = (Finset.range (missedProbes O σ + 1)).card := by
+          rw [Finset.card_range, unsuccessfulProbes, Nat.add_comm]
+    _ = ((Finset.range m).filter fun k => allOccupied O k σ).card := by
+          congr 1
+          ext k
+          simp only [Finset.mem_range, Finset.mem_filter]
+          exact ⟨fun hk => ⟨by omega, (le_missedProbes_iff_allOccupied (by omega) σ).mp (by omega)⟩,
+            fun ⟨hkm, hall⟩ =>
+              Nat.lt_succ_of_le ((le_missedProbes_iff_allOccupied hkm.le σ).mpr hall)⟩
+    _ = ∑ k ∈ Finset.range m, if allOccupied O k σ then 1 else 0 := Finset.card_filter _ _
 
 /-! ## Section 2: Textbook Uniform-Probing Expected-Probe Bounds ([CLRS2009], Theorem 11.6) -/
 
@@ -405,11 +375,7 @@ private theorem allOccupied_mul_swap_iff {m : ℕ} {O : Finset (Fin m)} {k : ℕ
     {j : Fin m} (hj : k ≤ j.val) (σ : Equiv.Perm (Fin m)) :
     allOccupied O k (σ * Equiv.swap ⟨k, hk⟩ j) ↔ allOccupied O k σ := by
   have hfix : ∀ i : Fin m, i.val < k → (Equiv.swap ⟨k, hk⟩ j) i = i := by grind
-  refine ⟨fun h i hi => ?_, fun h i hi => ?_⟩
-  · have := h i hi
-    rwa [Equiv.Perm.mul_apply, hfix i hi] at this
-  · rw [Equiv.Perm.mul_apply, hfix i hi]
-    exact h i hi
+  exact forall₂_congr fun i hi => by rw [Equiv.Perm.mul_apply, hfix i hi]
 
 /-- By transposition symmetry `σ ↦ σ * Equiv.swap ⟨k, hk⟩ j`, for every `j : Fin m` with
 `k ≤ j.val`, the number of permutations in `occPermSet O k` with `σ j ∈ O` equals
@@ -418,70 +384,17 @@ private theorem card_filter_occPermSet_eq_succ {m : ℕ} (O : Finset (Fin m)) {k
     {j : Fin m} (hj : k ≤ j.val) :
     ((occPermSet O k).filter fun σ => σ j ∈ O).card = (occPermSet O (k + 1)).card := by
   classical
-  let τ : Equiv.Perm (Fin m) := Equiv.swap ⟨k, hk⟩ j
-  refine Finset.card_bij (fun σ _ => σ * τ) ?_ ?_ ?_
-  · intro σ hσ
-    rcases Finset.mem_filter.mp hσ with ⟨hσ_occ, hσj⟩
-    rw [mem_occPermSet] at hσ_occ ⊢
-    rw [allOccupied_succ_iff hk]
-    refine ⟨(allOccupied_mul_swap_iff hk hj σ).mpr hσ_occ, ?_⟩
-    simpa [τ] using hσj
-  · intro σ₁ _ σ₂ _ heq
-    exact mul_right_cancel heq
-  · intro σ hσ
-    rw [mem_occPermSet, allOccupied_succ_iff hk] at hσ
-    refine ⟨σ * τ, ?_, ?_⟩
-    · rw [Finset.mem_filter, mem_occPermSet]
-      refine ⟨(allOccupied_mul_swap_iff hk hj σ).mpr hσ.1, ?_⟩
-      simpa [τ] using hσ.2
-    · ext x
-      simp [τ]
-
-/-- For any permutation `σ : Equiv.Perm (Fin m)`, the number of indices `i : Fin m` with `σ i ∈ O`
-equals `O.card`. -/
-private theorem card_filter_apply_mem_eq {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m)) :
-    (Finset.univ.filter fun i : Fin m => σ i ∈ O).card = O.card := by
-  refine Finset.card_bij (fun i _ => σ i) ?_ ?_ ?_
-  · intro i hi
-    exact (Finset.mem_filter.mp hi).2
-  · intro i₁ _ i₂ _ h
-    exact σ.injective h
-  · intro y hy
-    exact ⟨σ.symm y, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by simp [hy]⟩, by simp⟩
-
-/-- Partition of a `Finset` into elements satisfying `p` and `¬ p`. -/
-private theorem card_filter_add_card_filter_neg {α : Type*} (s : Finset α)
-    (p : α → Prop) [DecidablePred p] :
-    (s.filter p).card + (s.filter fun x => ¬ p x).card = s.card := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | @insert a s ha ih =>
-    by_cases hp : p a <;> simp [Finset.filter_insert, hp, ha] <;> omega
-
-/-- Cardinality of `{i : Fin m | i.val < k}` when `k ≤ m`. -/
-private theorem card_filter_val_lt {m k : ℕ} (hk : k ≤ m) :
-    (Finset.univ.filter fun i : Fin m => i.val < k).card = k := by
-  refine (Finset.card_bij (fun i _ => i.val) ?_ ?_ ?_).trans (Finset.card_range k)
-  · intro i hi
-    exact Finset.mem_range.mpr (Finset.mem_filter.mp hi).2
-  · intro i₁ _ i₂ _ h
-    exact Fin.ext h
-  · intro j hj
-    have hj_lt : j < k := Finset.mem_range.mp hj
-    exact ⟨⟨j, lt_of_lt_of_le hj_lt hk⟩,
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, hj_lt⟩, rfl⟩
+  refine Finset.card_equiv (Equiv.mulRight (Equiv.swap ⟨k, hk⟩ j)) fun σ => ?_
+  simp only [Finset.mem_filter, mem_occPermSet, allOccupied_succ_iff hk, Equiv.coe_mulRight,
+    allOccupied_mul_swap_iff hk hj, Equiv.Perm.mul_apply, Equiv.swap_apply_left]
 
 /-- Cardinality of `{i : Fin m | k ≤ i.val}` when `k ≤ m`. -/
 private theorem card_filter_val_ge {m k : ℕ} (hk : k ≤ m) :
     (Finset.univ.filter fun i : Fin m => k ≤ i.val).card = m - k := by
-  have hpart := card_filter_add_card_filter_neg
-    (Finset.univ : Finset (Fin m)) (fun i : Fin m => i.val < k)
-  have hneg : (Finset.univ.filter fun i : Fin m => ¬ i.val < k) =
-      Finset.univ.filter fun i : Fin m => k ≤ i.val := by
-    ext i
-    simp
-  rw [hneg, card_filter_val_lt hk, Finset.card_univ, Fintype.card_fin] at hpart
+  have hpart := Finset.card_filter_add_card_filter_not
+    (s := (Finset.univ : Finset (Fin m))) (fun i => i.val < k)
+  simp only [not_lt, Fin.card_filter_val_lt, min_eq_right hk, Finset.card_univ,
+    Fintype.card_fin] at hpart
   omega
 
 /-- For any `σ ∈ occPermSet O k` with `k ≤ m`, the number of remaining indices `j ≥ k` satisfying
@@ -490,21 +403,16 @@ private theorem card_filter_ge_and_mem {m : ℕ} {O : Finset (Fin m)} {k : ℕ} 
     {σ : Equiv.Perm (Fin m)} (hσ : σ ∈ occPermSet O k) :
     ((Finset.univ.filter fun j : Fin m => k ≤ j.val).filter fun j => σ j ∈ O).card =
       O.card - k := by
-  rw [mem_occPermSet] at hσ
   set S := Finset.univ.filter fun j : Fin m => σ j ∈ O
-  have hpart := card_filter_add_card_filter_neg S (fun j : Fin m => j.val < k)
-  have hlt_eq : S.filter (fun j : Fin m => j.val < k) =
-      Finset.univ.filter fun j : Fin m => j.val < k := by
+  set L := Finset.univ.filter fun j : Fin m => j.val < k
+  have hsub : L ⊆ S := fun j hj => by
+    simp only [L, S, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
+    exact (mem_occPermSet.mp hσ) j hj
+  have heq : ((Finset.univ.filter fun j : Fin m => k ≤ j.val).filter fun j => σ j ∈ O) = S \ L := by
     ext j
-    simp only [S, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨fun h => h.2, fun h => ⟨hσ j h, h⟩⟩
-  have hge_eq : S.filter (fun j : Fin m => ¬ j.val < k) =
-      (Finset.univ.filter fun j : Fin m => k ≤ j.val).filter fun j => σ j ∈ O := by
-    ext j
-    simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_lt]
-    exact and_comm
-  rw [hlt_eq, hge_eq, card_filter_val_lt hk, card_filter_apply_mem_eq O σ] at hpart
-  omega
+    simp [S, L, and_comm]
+  have hS : S.card = O.card := Finset.card_equiv σ (by simp [S])
+  rw [heq, Finset.card_sdiff_of_subset hsub, hS, Fin.card_filter_val_lt, min_eq_right hk]
 
 /-- **Exact step recurrence for `occPermSet`**: for any `k < m`,
 `(m - k) * (occPermSet O (k + 1)).card = (O.card - k) * (occPermSet O k).card`. -/
@@ -515,24 +423,18 @@ theorem mul_card_occPermSet_succ {m : ℕ} (O : Finset (Fin m)) {k : ℕ} (hk : 
   have hsum_j :
       ∑ j ∈ J_ge, ((occPermSet O k).filter fun σ => σ j ∈ O).card =
         (m - k) * (occPermSet O (k + 1)).card := by
-    have hcongr : ∀ j ∈ J_ge,
-        ((occPermSet O k).filter fun σ => σ j ∈ O).card = (occPermSet O (k + 1)).card := by
-      intro j hj
-      exact card_filter_occPermSet_eq_succ O hk (Finset.mem_filter.mp hj).2
-    rw [Finset.sum_congr rfl hcongr, Finset.sum_const, smul_eq_mul,
-      card_filter_val_ge (le_of_lt hk)]
+    rw [Finset.sum_congr rfl
+      fun j hj => card_filter_occPermSet_eq_succ O hk (Finset.mem_filter.mp hj).2,
+      Finset.sum_const, smul_eq_mul, card_filter_val_ge hk.le]
   have hsum_σ :
       ∑ j ∈ J_ge, ((occPermSet O k).filter fun σ => σ j ∈ O).card =
         (O.card - k) * (occPermSet O k).card := by
     simp only [Finset.card_filter]
-    rw [Finset.sum_comm]
-    have hcongr : ∀ σ ∈ occPermSet O k,
-        (∑ j ∈ J_ge, if σ j ∈ O then 1 else 0) = O.card - k := by
-      intro σ hσ
+    rw [Finset.sum_comm, Finset.sum_congr (g := fun _ => O.card - k) rfl fun σ hσ => by
       rw [← Finset.card_filter]
-      exact card_filter_ge_and_mem (le_of_lt hk) hσ
-    rw [Finset.sum_congr rfl hcongr, Finset.sum_const, smul_eq_mul, Nat.mul_comm]
-  omega
+      exact card_filter_ge_and_mem hk.le hσ]
+    rw [Finset.sum_const, smul_eq_mul, Nat.mul_comm]
+  exact hsum_j.symm.trans hsum_σ
 
 /-- **Exact textbook product formula ([CLRS2009], Proof of Theorem 11.6)**:
 for any occupied slot set `O : Finset (Fin m)` and `k ≤ m`, the probability over a uniform random
@@ -544,53 +446,35 @@ theorem toOuterMeasure_allOccupied_eq_prod {m : ℕ} (O : Finset (Fin m)) {k : �
       ∏ i ∈ Finset.range k, (((O.card - i : ℕ) : ℝ≥0∞) / ((m - i : ℕ) : ℝ≥0∞)) := by
   induction k with
   | zero =>
+    rw [show {σ | allOccupied O 0 σ} = Set.univ from Set.eq_univ_of_forall (allOccupied_zero O)]
     rw [PMF.toOuterMeasure_uniformOfFintype]
-    change ((occPermSet O 0).card : ℝ≥0∞) * (Fintype.card (Equiv.Perm (Fin m)) : ℝ≥0∞)⁻¹ = _
-    rw [occPermSet_zero, Finset.card_univ, Finset.prod_range_zero]
-    have hcard_pos : 0 < Fintype.card (Equiv.Perm (Fin m)) := Fintype.card_pos_iff.mpr ⟨1⟩
-    exact ENNReal.mul_inv_cancel (by exact_mod_cast hcard_pos.ne') (ENNReal.natCast_ne_top _)
+    simp only [Finset.prod_range_zero, Set.mem_univ, Finset.filter_true, Finset.card_univ]
+    exact ENNReal.mul_inv_cancel (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)
+      (ENNReal.natCast_ne_top _)
   | succ k ih =>
-    have hk_lt : k < m := hk
-    rw [Finset.prod_range_succ, ← ih (le_of_lt hk_lt)]
-    rw [PMF.toOuterMeasure_uniformOfFintype, PMF.toOuterMeasure_uniformOfFintype]
-    change ((occPermSet O (k + 1)).card : ℝ≥0∞) * (Fintype.card (Equiv.Perm (Fin m)) : ℝ≥0∞)⁻¹ =
-      ((occPermSet O k).card : ℝ≥0∞) * (Fintype.card (Equiv.Perm (Fin m)) : ℝ≥0∞)⁻¹ *
-        (((O.card - k : ℕ) : ℝ≥0∞) / ((m - k : ℕ) : ℝ≥0∞))
-    have hrec : (((m - k : ℕ) : ℝ≥0∞) * ((occPermSet O (k + 1)).card : ℝ≥0∞)) =
-        ((O.card - k : ℕ) : ℝ≥0∞) * ((occPermSet O k).card : ℝ≥0∞) := by
-      exact_mod_cast mul_card_occPermSet_succ O hk_lt
-    have hmk_ne0 : ((m - k : ℕ) : ℝ≥0∞) ≠ 0 := by
-      exact_mod_cast (by omega : m - k ≠ 0)
-    have hmk_top : ((m - k : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+    rw [Finset.prod_range_succ, ← ih (Nat.le_of_succ_le hk), PMF.toOuterMeasure_uniformOfFintype,
+      PMF.toOuterMeasure_uniformOfFintype]
+    change ((occPermSet O (k + 1)).card : ℝ≥0∞) * _ =
+      ((occPermSet O k).card : ℝ≥0∞) * _ * _
     have hcard_eq : ((occPermSet O (k + 1)).card : ℝ≥0∞) =
         ((occPermSet O k).card : ℝ≥0∞) * (((O.card - k : ℕ) : ℝ≥0∞) / ((m - k : ℕ) : ℝ≥0∞)) := by
-      rw [div_eq_mul_inv, ← mul_assoc, mul_comm ((occPermSet O k).card : ℝ≥0∞), ← hrec,
-        mul_comm ((m - k : ℕ) : ℝ≥0∞), mul_assoc, ENNReal.mul_inv_cancel hmk_ne0 hmk_top, mul_one]
+      rw [← mul_div_assoc, ENNReal.eq_div_iff (Nat.cast_ne_zero.mpr (by omega))
+        (ENNReal.natCast_ne_top _)]
+      exact_mod_cast (mul_card_occPermSet_succ O hk).trans (Nat.mul_comm _ _)
     rw [hcard_eq]
     ring
 
 /-- Each factor `(n - i) / (m - i)` for `i < m` and `n ≤ m` is at most `n / m`. -/
 theorem sub_div_sub_le_div {n m i : ℕ} (hnm : n ≤ m) (hi : i < m) :
     (((n - i : ℕ) : ℝ≥0∞) / ((m - i : ℕ) : ℝ≥0∞)) ≤ (n : ℝ≥0∞) / (m : ℝ≥0∞) := by
-  have hm_ne0 : (m : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by omega : m ≠ 0)
-  have hm_top : (m : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top m
-  have hmi_ne0 : ((m - i : ℕ) : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by omega : m - i ≠ 0)
-  have hmi_top : ((m - i : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top (m - i)
+  refine ENNReal.div_le_of_le_mul ?_
+  rw [← ENNReal.mul_div_right_comm,
+    ENNReal.le_div_iff_mul_le (.inl (Nat.cast_ne_zero.mpr (by omega)))
+      (.inl (ENNReal.natCast_ne_top m))]
   have hnat : (n - i) * m ≤ n * (m - i) := by
     rw [Nat.sub_mul, Nat.mul_sub, Nat.mul_comm n i]
     exact Nat.sub_le_sub_left (Nat.mul_le_mul_left i hnm) (n * m)
-  have hcast : ((n - i : ℕ) : ℝ≥0∞) * (m : ℝ≥0∞) ≤ (n : ℝ≥0∞) * ((m - i : ℕ) : ℝ≥0∞) := by
-    exact_mod_cast hnat
-  calc
-    (((n - i : ℕ) : ℝ≥0∞) / ((m - i : ℕ) : ℝ≥0∞))
-      = (((n - i : ℕ) : ℝ≥0∞) * (m : ℝ≥0∞)) * ((m : ℝ≥0∞)⁻¹ * ((m - i : ℕ) : ℝ≥0∞)⁻¹) := by
-          rw [div_eq_mul_inv, mul_assoc, ← mul_assoc (m : ℝ≥0∞),
-            ENNReal.mul_inv_cancel hm_ne0 hm_top, one_mul]
-    _ ≤ ((n : ℝ≥0∞) * ((m - i : ℕ) : ℝ≥0∞)) * ((m : ℝ≥0∞)⁻¹ * ((m - i : ℕ) : ℝ≥0∞)⁻¹) := by
-          gcongr
-    _ = (n : ℝ≥0∞) / (m : ℝ≥0∞) := by
-          rw [div_eq_mul_inv, mul_assoc, mul_left_comm ((m - i : ℕ) : ℝ≥0∞),
-            ENNReal.mul_inv_cancel hmi_ne0 hmi_top, mul_one]
+  exact_mod_cast hnat
 
 /-- **Upper bound `(n / m) ^ k` on the `k`-probe tail probability ([CLRS2009], Proof of Theorem
 11.6)**: for any occupied slot set `O : Finset (Fin m)` and `k ≤ m`, the probability over a uniform
@@ -616,32 +500,26 @@ theorem sum_div_pow_add_tail {n m : ℕ} (hnm : n < m) (j : ℕ) :
     (∑ k ∈ Finset.range j, ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ k) +
       ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) * ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ j =
         (m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞) := by
-  have hm_ne0 : (m : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by omega : m ≠ 0)
-  have hm_top : (m : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top m
-  have hmn_ne0 : ((m - n : ℕ) : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by omega : m - n ≠ 0)
-  have hmn_top : ((m - n : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top (m - n)
   have hstep : 1 + ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) * ((n : ℝ≥0∞) / (m : ℝ≥0∞)) =
       (m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞) := by
-    have hmul : ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) * ((n : ℝ≥0∞) / (m : ℝ≥0∞)) =
-        (n : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞) := by
-      rw [div_eq_mul_inv, div_eq_mul_inv, div_eq_mul_inv,
-        mul_comm (n : ℝ≥0∞), ← mul_assoc, mul_right_comm (m : ℝ≥0∞),
-        ENNReal.mul_inv_cancel hm_ne0 hm_top, one_mul, mul_comm]
-    rw [hmul, ← ENNReal.div_self hmn_ne0 hmn_top, ← ENNReal.add_div]
+    rw [mul_comm,
+      ENNReal.div_mul_div_cancel (Nat.cast_ne_zero.mpr (by omega)) (ENNReal.natCast_ne_top _),
+      ← ENNReal.div_self (a := ((m - n : ℕ) : ℝ≥0∞)) (Nat.cast_ne_zero.mpr (by omega))
+        (ENNReal.natCast_ne_top _),
+      ← ENNReal.add_div]
     congr 1
-    exact_mod_cast Nat.sub_add_cancel (le_of_lt hnm)
+    exact_mod_cast Nat.sub_add_cancel hnm.le
   induction j with
   | zero => simp
   | succ j ih =>
-    have htail : ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ j +
-        ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) * ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ (j + 1) =
-          ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) * ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ j := by
-      rw [pow_succ, ← mul_assoc,
-        mul_comm ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) (((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ j),
-        mul_assoc]
-      nth_rw 1 [← mul_one (((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ j)]
-      rw [← mul_add, hstep, mul_comm]
-    rw [Finset.sum_range_succ, add_assoc, htail, ih]
+    calc
+      (∑ k ∈ Finset.range (j + 1), ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ k) +
+          ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) * ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ (j + 1)
+        = (∑ k ∈ Finset.range j, ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ k) +
+            (1 + ((m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞)) * ((n : ℝ≥0∞) / (m : ℝ≥0∞))) *
+              ((n : ℝ≥0∞) / (m : ℝ≥0∞)) ^ j := by
+            rw [Finset.sum_range_succ]; ring
+      _ = (m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞) := by rw [hstep, ih]
 
 /-- For `n < m`, any partial geometric sum `∑ k ∈ Finset.range j, (n / m) ^ k` is at most
 `m / (m - n)`. -/
@@ -655,9 +533,7 @@ theorem sum_div_pow_le {n m : ℕ} (hnm : n < m) (j : ℕ) :
 -/
 theorem div_sub_le_two {n m : ℕ} (hm : 0 < m) (h2n : 2 * n ≤ m) :
     (m : ℝ≥0∞) / ((m - n : ℕ) : ℝ≥0∞) ≤ 2 := by
-  have hmn_ne0 : ((m - n : ℕ) : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by omega : m - n ≠ 0)
-  have hmn_top : ((m - n : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top (m - n)
-  rw [ENNReal.div_le_iff_le_mul (Or.inl hmn_ne0) (Or.inl hmn_top)]
+  rw [ENNReal.div_le_iff (Nat.cast_ne_zero.mpr (by omega)) (ENNReal.natCast_ne_top _)]
   exact_mod_cast (by omega : m ≤ 2 * (m - n))
 
 /-- **Theorem 11.6 of [CLRS2009] (Expected probes in an unsuccessful search)**:
@@ -670,34 +546,26 @@ theorem expect_unsuccessfulProbes_le {m : ℕ} {O : Finset (Fin m)} (hO : O.card
         (m : ℝ≥0∞) / ((m - O.card : ℕ) : ℝ≥0∞) := by
   classical
   let μ := PMF.uniformOfFintype (Equiv.Perm (Fin m))
-  have hdecomp : ∀ σ : Equiv.Perm (Fin m),
-      μ σ * (unsuccessfulProbes O σ : ℝ≥0∞) =
-        ∑ k ∈ Finset.range m, μ σ * (if allOccupied O k σ then 1 else 0) := by
+  have hsum : ∀ σ : Equiv.Perm (Fin m),
+      (unsuccessfulProbes O σ : ℝ≥0∞) =
+        ∑ k ∈ Finset.range m, ({τ : Equiv.Perm (Fin m) | allOccupied O k τ}).indicator 1 σ := by
     intro σ
-    rw [← Finset.mul_sum]
-    congr 1
-    exact_mod_cast unsuccessfulProbes_eq_sum_boole hO σ
-  change (∑' σ : Equiv.Perm (Fin m), μ σ * (unsuccessfulProbes O σ : ℝ≥0∞)) ≤ _
-  simp_rw [hdecomp]
-  rw [tsum_fintype, Finset.sum_comm]
-  have hterm : ∀ k ∈ Finset.range m,
-      (∑ σ : Equiv.Perm (Fin m), μ σ * (if allOccupied O k σ then (1 : ℝ≥0∞) else 0)) =
-        μ.toOuterMeasure {σ | allOccupied O k σ} := by
-    intro k _
-    rw [PMF.toOuterMeasure_apply, tsum_fintype]
-    refine Finset.sum_congr rfl fun σ _ => ?_
-    unfold Set.indicator
-    by_cases h : allOccupied O k σ
-    · have hmem : σ ∈ {σ | allOccupied O k σ} := h
-      simp [h, hmem]
-    · have hmem : σ ∉ {σ | allOccupied O k σ} := h
-      simp [h, hmem]
-  rw [Finset.sum_congr rfl hterm]
+    simpa [Set.indicator_apply] using
+      congrArg ((↑) : ℕ → ℝ≥0∞) (unsuccessfulProbes_eq_sum_boole hO σ)
   calc
-    (∑ k ∈ Finset.range m, μ.toOuterMeasure {σ | allOccupied O k σ})
-      ≤ ∑ k ∈ Finset.range m, ((O.card : ℝ≥0∞) / (m : ℝ≥0∞)) ^ k :=
-        Finset.sum_le_sum fun k hk =>
-          toOuterMeasure_allOccupied_le_pow O (le_of_lt (Finset.mem_range.mp hk))
+    (∑' σ : Equiv.Perm (Fin m), μ σ * (unsuccessfulProbes O σ : ℝ≥0∞))
+      = ∑ σ : Equiv.Perm (Fin m), ∑ k ∈ Finset.range m,
+          μ σ * ({τ : Equiv.Perm (Fin m) | allOccupied O k τ}).indicator 1 σ := by
+          rw [tsum_fintype]
+          refine Finset.sum_congr rfl fun σ _ => ?_
+          rw [hsum σ, Finset.mul_sum]
+    _ = ∑ k ∈ Finset.range m, μ.toOuterMeasure {τ | allOccupied O k τ} := by
+          rw [Finset.sum_comm]
+          refine Finset.sum_congr rfl fun k _ => ?_
+          rw [Cslib.Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator, tsum_fintype]
+    _ ≤ ∑ k ∈ Finset.range m, ((O.card : ℝ≥0∞) / (m : ℝ≥0∞)) ^ k :=
+          Finset.sum_le_sum fun k hk =>
+            toOuterMeasure_allOccupied_le_pow O (Finset.mem_range.mp hk).le
     _ ≤ (m : ℝ≥0∞) / ((m - O.card : ℕ) : ℝ≥0∞) := sum_div_pow_le hO m
 
 /-- **Half-load corollary of Theorem 11.6 ([CLRS2009], Section 11.4)**:
@@ -747,17 +615,11 @@ theorem otherOccupiedSlots_emptyTable (U m : ℕ) (u : Fin U) :
 theorem mem_otherOccupiedSlots_iff {U m : ℕ} {T : Table U m} {u : Fin U} {j : Fin m} :
     j ∈ otherOccupiedSlots T u ↔ ∃ u' v', T j = some (u', v') ∧ u' ≠ u := by
   simp only [otherOccupiedSlots, Finset.mem_filter, Finset.mem_univ, true_and]
-  cases h : T j with
-  | none => simp
-  | some p =>
-    rcases p with ⟨u', v'⟩
-    simp
+  rcases T j with _ | ⟨u', v'⟩ <;> simp
 
 theorem otherOccupiedSlots_subset_occupiedSlots {U m : ℕ} (T : Table U m) (u : Fin U) :
-    otherOccupiedSlots T u ⊆ occupiedSlots T := by
-  intro j hj
-  rcases mem_otherOccupiedSlots_iff.mp hj with ⟨u', v', hTj, -⟩
-  simp [occupiedSlots, hTj]
+    otherOccupiedSlots T u ⊆ occupiedSlots T := fun _ hj =>
+  Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hj).2.1⟩
 
 /-- Open-addressed table representation invariant linking concrete slot array `T : Table U m` to
 abstract dictionary state `s : Dictionary.State U` under permutation family
@@ -789,54 +651,48 @@ theorem TableRep.slot_eq_of_same_key {U m : ℕ} {π : Fin U → Equiv.Perm (Fin
   obtain ⟨-, _, rfl⟩ := hrep.slot_spec j₂ u v₂ h₂
   rfl
 
+/-- Under `TableRep π s T`, any slot set characterized by `(u', v')` satisfying `p u'` has the same
+cardinality as `(Dictionary.dom s).filter p`. -/
+private theorem TableRep.card_filter_slots {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
+    {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T)
+    (S : Finset (Fin m)) (p : Fin U → Prop) [DecidablePred p]
+    (hS : ∀ j, j ∈ S ↔ ∃ u' v', T j = some (u', v') ∧ p u') :
+    S.card = ((Dictionary.dom s).filter p).card := by
+  refine Finset.card_bij
+    (fun j hj => ((T j).get (by obtain ⟨u', v', hTj, -⟩ := (hS j).mp hj; simp [hTj])).1)
+    ?_ ?_ ?_
+  · intro j hj
+    obtain ⟨u', v', hTj, hp⟩ := (hS j).mp hj
+    have hsu := (hrep.slot_spec j u' v' hTj).1
+    simp [Dictionary.dom, hTj, hsu, hp]
+  · intro j₁ hj₁ j₂ hj₂ heq
+    obtain ⟨u₁, v₁, h₁, -⟩ := (hS j₁).mp hj₁
+    obtain ⟨u₂, v₂, h₂, -⟩ := (hS j₂).mp hj₂
+    have hu : u₁ = u₂ := by simpa [h₁, h₂] using heq
+    subst hu
+    exact hrep.slot_eq_of_same_key h₁ h₂
+  · intro u' hu'
+    rcases Finset.mem_filter.mp hu' with ⟨hu'_dom, hp⟩
+    obtain ⟨v', hsu'⟩ := Dictionary.mem_dom_iff.mp hu'_dom
+    obtain ⟨hlt, hTj⟩ := hrep.key_spec u' v' hsu'
+    refine ⟨π u' ⟨missedProbes (otherOccupiedSlots T u') (π u'), hlt⟩, ?_, by simp [hTj]⟩
+    exact (hS _).mpr ⟨u', v', hTj, hp⟩
+
 /-- Under `TableRep π s T`, the number of occupied slots in `T` equals `(Dictionary.dom s).card`. -/
 theorem TableRep.card_occupiedSlots {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
     {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T) :
     (occupiedSlots T).card = (Dictionary.dom s).card := by
-  refine Finset.card_bij
-    (fun j hj => ((T j).get (by simpa [occupiedSlots] using hj)).1) ?_ ?_ ?_
-  · intro j hj
-    have his : (T j).isSome := by simpa [occupiedSlots] using hj
-    obtain ⟨⟨u, v⟩, hTj⟩ := Option.isSome_iff_exists.mp his
-    have hsu := (hrep.slot_spec j u v hTj).1
-    simp [Dictionary.dom, hTj, hsu]
-  · intro j₁ hj₁ j₂ hj₂ heq
-    obtain ⟨⟨u₁, v₁⟩, h₁⟩ := Option.isSome_iff_exists.mp (by simpa [occupiedSlots] using hj₁)
-    obtain ⟨⟨u₂, v₂⟩, h₂⟩ := Option.isSome_iff_exists.mp (by simpa [occupiedSlots] using hj₂)
-    have hu : u₁ = u₂ := by simpa [h₁, h₂] using heq
-    subst hu
-    exact hrep.slot_eq_of_same_key h₁ h₂
-  · intro u hu
-    obtain ⟨v, hsu⟩ := Dictionary.mem_dom_iff.mp hu
-    obtain ⟨hlt, hTj⟩ := hrep.key_spec u v hsu
-    refine ⟨π u ⟨missedProbes (otherOccupiedSlots T u) (π u), hlt⟩, ?_, ?_⟩
-    · simp [occupiedSlots, hTj]
-    · simp [hTj]
+  rw [← Finset.filter_true (s := Dictionary.dom s)]
+  exact hrep.card_filter_slots (occupiedSlots T) (fun _ => True) fun j => by
+    simp [occupiedSlots, Option.isSome_iff_exists]
 
 /-- Under `TableRep π s T`, `(otherOccupiedSlots T u).card = ((Dictionary.dom s).erase u).card`. -/
 theorem TableRep.card_otherOccupiedSlots {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
     {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T) (u : Fin U) :
     (otherOccupiedSlots T u).card = ((Dictionary.dom s).erase u).card := by
-  refine Finset.card_bij
-    (fun j hj => ((T j).get (by
-      exact (Finset.mem_filter.mp hj).2.1)).1) ?_ ?_ ?_
-  · intro j hj
-    rcases mem_otherOccupiedSlots_iff.mp hj with ⟨u', v', hTj, hne⟩
-    have hsu' := (hrep.slot_spec j u' v' hTj).1
-    simp [Dictionary.dom, hTj, hsu', hne]
-  · intro j₁ hj₁ j₂ hj₂ heq
-    rcases mem_otherOccupiedSlots_iff.mp hj₁ with ⟨u₁, v₁, h₁, -⟩
-    rcases mem_otherOccupiedSlots_iff.mp hj₂ with ⟨u₂, v₂, h₂, -⟩
-    have hu : u₁ = u₂ := by simpa [h₁, h₂] using heq
-    subst hu
-    exact hrep.slot_eq_of_same_key h₁ h₂
-  · intro u' hu'
-    rcases Finset.mem_erase.mp hu' with ⟨hne, hu'_dom⟩
-    obtain ⟨v', hsu'⟩ := Dictionary.mem_dom_iff.mp hu'_dom
-    obtain ⟨hlt, hTj⟩ := hrep.key_spec u' v' hsu'
-    refine ⟨π u' ⟨missedProbes (otherOccupiedSlots T u') (π u'), hlt⟩, ?_, ?_⟩
-    · exact mem_otherOccupiedSlots_iff.mpr ⟨u', v', hTj, hne⟩
-    · simp [hTj]
+  rw [show (Dictionary.dom s).erase u = (Dictionary.dom s).filter (· ≠ u) from by
+    ext; simp [and_comm]]
+  exact hrep.card_filter_slots (otherOccupiedSlots T u) (· ≠ u) fun _ => mem_otherOccupiedSlots_iff
 
 /-- Under `TableRep π s T`, `(otherOccupiedSlots T u).card ≤ (Dictionary.dom s).card`. -/
 theorem TableRep.card_otherOccupiedSlots_le {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
@@ -852,12 +708,10 @@ theorem TableRep.otherOccupiedSlots_eq_occupiedSlots_of_eq_none {U m : ℕ}
     (hrep : TableRep π s T) {u : Fin U} (hu : s u = none) :
     otherOccupiedSlots T u = occupiedSlots T := by
   ext j
-  refine ⟨fun hj => otherOccupiedSlots_subset_occupiedSlots T u hj, fun hj => ?_⟩
-  simp only [occupiedSlots, Finset.mem_filter, Finset.mem_univ, true_and] at hj
-  obtain ⟨⟨u', v'⟩, hTj⟩ := Option.isSome_iff_exists.mp hj
+  refine ⟨(otherOccupiedSlots_subset_occupiedSlots T u ·), fun hj => ?_⟩
+  obtain ⟨⟨u', v'⟩, hTj⟩ := Option.isSome_iff_exists.mp (Finset.mem_filter.mp hj).2
   have hsu' := (hrep.slot_spec j u' v' hTj).1
-  have hne : u' ≠ u := by grind
-  exact mem_otherOccupiedSlots_iff.mpr ⟨u', v', hTj, hne⟩
+  exact mem_otherOccupiedSlots_iff.mpr ⟨u', v', hTj, fun h => by simp [h, hu] at hsu'⟩
 
 /-- When `TableRep π s T` and `(Dictionary.dom s).card < m`, the stopping index for any key `u`
 satisfies `missedProbes (otherOccupiedSlots T u) (π u) < m`. -/
@@ -881,23 +735,13 @@ theorem TableRep.apply_targetSlot {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)
     T (targetSlot π T u hO) = (s u).map (fun v => (u, v)) := by
   cases hsu : s u with
   | none =>
-    simp only [Option.map_none]
-    have hnot : targetSlot π T u hO ∉ otherOccupiedSlots T u :=
-      notMem_apply_probeSlotIndex hO
-    cases hTj : T (targetSlot π T u hO) with
-    | none => rfl
-    | some p =>
-      rcases p with ⟨u', v'⟩
-      by_cases hne : u' = u
-      · subst hne
-        have hsu' := (hrep.slot_spec _ u' v' hTj).1
-        rw [hsu] at hsu'
-        cases hsu'
-      · exact False.elim (hnot (mem_otherOccupiedSlots_iff.mpr ⟨u', v', hTj, hne⟩))
-  | some v =>
-    simp only [Option.map_some]
-    obtain ⟨_, hTj⟩ := hrep.key_spec u v hsu
-    exact hTj
+    by_contra hne
+    obtain ⟨⟨u', v'⟩, hTj⟩ := Option.ne_none_iff_exists'.mp hne
+    have hu' : u' ≠ u := fun h => by
+      have := (hrep.slot_spec _ u' v' hTj).1
+      simp [h, hsu] at this
+    exact notMem_apply_probeSlotIndex hO (mem_otherOccupiedSlots_iff.mpr ⟨u', v', hTj, hu'⟩)
+  | some v => exact (hrep.key_spec u v hsu).2
 
 /-- Pure open-addressed lookup `tableQuery hm π T u` when `0 < m`: inspects slot
 `π u ⟨min (missedProbes (otherOccupiedSlots T u) (π u)) (m - 1), _⟩` and returns `some v` if it
@@ -916,34 +760,29 @@ def tableInsert {U m : ℕ} (hm : 0 < m) (π : Fin U → Equiv.Perm (Fin m)) (T 
   let idx := min (missedProbes (otherOccupiedSlots T u) (π u)) (m - 1)
   Function.update T (π u ⟨idx, by omega⟩) (some (u, v))
 
+/-- When `O.card < m`, clamping `missedProbes O σ` to `m - 1` agrees with `probeSlotIndex O σ hO`.
+-/
+private theorem probeSlotIndex_eq_min {m : ℕ} (hm : 0 < m) (O : Finset (Fin m))
+    (σ : Equiv.Perm (Fin m)) (hO : O.card < m) :
+    (⟨min (missedProbes O σ) (m - 1), by omega⟩ : Fin m) = probeSlotIndex O σ hO :=
+  Fin.ext (Nat.min_eq_left (Nat.le_pred_of_lt (missedProbes_lt_of_card_lt hO σ)))
+
 theorem tableInsert_eq_update_targetSlot {U m : ℕ} (hm : 0 < m) (π : Fin U → Equiv.Perm (Fin m))
     (T : Table U m) (u : Fin U) (v : ℕ) (hO : (otherOccupiedSlots T u).card < m) :
     tableInsert hm π T u v = Function.update T (targetSlot π T u hO) (some (u, v)) := by
-  have hlt : missedProbes (otherOccupiedSlots T u) (π u) < m :=
-    missedProbes_lt_of_card_lt hO (π u)
-  have hmin : min (missedProbes (otherOccupiedSlots T u) (π u)) (m - 1) =
-      missedProbes (otherOccupiedSlots T u) (π u) := Nat.min_eq_left (by omega)
-  have hslot : (⟨min (missedProbes (otherOccupiedSlots T u) (π u)) (m - 1), by omega⟩ : Fin m) =
-      probeSlotIndex (otherOccupiedSlots T u) (π u) hO := Fin.ext hmin
   dsimp only [tableInsert, targetSlot]
-  rw [hslot]
+  rw [probeSlotIndex_eq_min hm _ (π u) hO]
 
 /-- Under `TableRep π s T` and `(otherOccupiedSlots T u).card < m`, `tableQuery hm π T u = s u`. -/
 theorem TableRep.tableQuery_eq {U m : ℕ} (hm : 0 < m) {π : Fin U → Equiv.Perm (Fin m)}
     {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T) (u : Fin U)
     (hO : (otherOccupiedSlots T u).card < m) :
     tableQuery hm π T u = s u := by
-  have hlt : missedProbes (otherOccupiedSlots T u) (π u) < m :=
-    missedProbes_lt_of_card_lt hO (π u)
-  have hmin : min (missedProbes (otherOccupiedSlots T u) (π u)) (m - 1) =
-      missedProbes (otherOccupiedSlots T u) (π u) := Nat.min_eq_left (by omega)
   dsimp only [tableQuery]
-  have hslot : (⟨min (missedProbes (otherOccupiedSlots T u) (π u)) (m - 1), by omega⟩ : Fin m) =
-      probeSlotIndex (otherOccupiedSlots T u) (π u) hO := Fin.ext hmin
-  rw [hslot]
-  have htarget := hrep.apply_targetSlot u hO
-  dsimp only [targetSlot] at htarget
-  rw [htarget]
+  rw [probeSlotIndex_eq_min hm _ (π u) hO]
+  change (match T (targetSlot π T u hO) with
+    | some (u', v) => if u' = u then some v else none | none => none) = s u
+  rw [hrep.apply_targetSlot u hO]
   cases s u <;> simp
 
 /-- Inserting `(u, v)` leaves `otherOccupiedSlots` for `u` itself unchanged. -/
@@ -956,10 +795,24 @@ theorem otherOccupiedSlots_tableInsert_self {U m : ℕ} (hm : 0 < m)
   ext j
   by_cases hj : j = targetSlot π T u hO
   · subst hj
-    have hnot : targetSlot π T u hO ∉ otherOccupiedSlots T u :=
-      notMem_apply_probeSlotIndex hO
-    simp [mem_otherOccupiedSlots_iff, hnot]
+    refine iff_of_false ?_ (notMem_apply_probeSlotIndex hO)
+    simp [mem_otherOccupiedSlots_iff]
   · simp [mem_otherOccupiedSlots_iff, Function.update_of_ne hj]
+
+/-- Any slot `j` holding a key `w ≠ u` cannot be `targetSlot π T u hO`. -/
+private theorem TableRep.slot_ne_targetSlot {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
+    {s : Dictionary.State U} {T : Table U m} (hrep : TableRep π s T)
+    {j : Fin m} {u w : Fin U} {vw : ℕ}
+    (hO : (otherOccupiedSlots T u).card < m) (hTj : T j = some (w, vw)) (hwu : w ≠ u) :
+    j ≠ targetSlot π T u hO := by
+  intro heq
+  have htarget := hrep.apply_targetSlot u hO
+  rw [← heq, hTj] at htarget
+  cases hsu : s u with
+  | none => simp [hsu] at htarget
+  | some vu =>
+    simp only [hsu, Option.map_some, Option.some.injEq, Prod.mk.injEq] at htarget
+    exact hwu htarget.1
 
 /-- Inserting `(u, v)` preserves the stopping index `missedProbes (otherOccupiedSlots · w) (π w)`
 for every key `w` already present in `s` (`(s w).isSome`). -/
@@ -977,33 +830,16 @@ theorem TableRep.missedProbes_tableInsert_of_isSome {U m : ℕ} (hm : 0 < m)
     obtain ⟨hlt_w, hTw⟩ := hrep.key_spec w vw hsw
     set iw : Fin m := ⟨missedProbes (otherOccupiedSlots T w) (π w), hlt_w⟩
     have hiw_spec := (missedProbes_eq_iff (O := otherOccupiedSlots T w) (σ := π w) iw).mp rfl
-    have htarget_u := hrep.apply_targetSlot u hO
-    have hne_slot : π w iw ≠ targetSlot π T u hO := by
-      intro heq
-      rw [← heq, hTw] at htarget_u
-      cases hsu : s u with
-      | none => simp [hsu] at htarget_u
-      | some vu =>
-        simp only [hsu, Option.map_some, Option.some.injEq, Prod.mk.injEq] at htarget_u
-        exact hwu htarget_u.1
+    have hne_slot := hrep.slot_ne_targetSlot hO hTw hwu
     rw [tableInsert_eq_update_targetSlot hm π T u v hO]
     apply (missedProbes_eq_iff iw).mpr
     refine ⟨fun i hi => ?_, ?_⟩
-    · have hi_mem : π w i ∈ otherOccupiedSlots T w := hiw_spec.1 i hi
-      rcases mem_otherOccupiedSlots_iff.mp hi_mem with ⟨u', v', hTi, hne'⟩
+    · rcases mem_otherOccupiedSlots_iff.mp (hiw_spec.1 i hi) with ⟨u', v', hTi, hne'⟩
       rw [mem_otherOccupiedSlots_iff]
       by_cases h_eq : π w i = targetSlot π T u hO
-      · refine ⟨u, v, ?_, Ne.symm hwu⟩
-        simp [h_eq]
-      · refine ⟨u', v', ?_, hne'⟩
-        simp [Function.update_of_ne h_eq, hTi]
-    · rw [mem_otherOccupiedSlots_iff]
-      rintro ⟨u', v', hTiw, hne'⟩
-      simp only [Function.update_of_ne hne_slot] at hTiw
-      rw [hTw] at hTiw
-      injection hTiw with hpair
-      injection hpair with hu' _
-      exact hne' hu'.symm
+      · exact ⟨u, v, by simp [h_eq], Ne.symm hwu⟩
+      · exact ⟨u', v', by simp [Function.update_of_ne h_eq, hTi], hne'⟩
+    · simp [mem_otherOccupiedSlots_iff, Function.update_of_ne hne_slot, hTw]
 
 /-- **Preservation of `TableRep` under `tableInsert`**: if `TableRep π s T` and
 `(otherOccupiedSlots T u).card < m`, then `tableInsert hm π T u v` satisfies
@@ -1021,59 +857,39 @@ theorem TableRep.tableInsert {U m : ℕ} (hm : 0 < m) {π : Fin U → Equiv.Perm
   have hupd := tableInsert_eq_update_targetSlot hm π T u v hO
   refine ⟨?_, ?_⟩
   · intro j w vw hj
+    rw [hupd] at hj
     by_cases hju : j = targetSlot π T u hO
     · subst hju
-      rw [hupd] at hj
       simp only [Function.update_self, Option.some.injEq, Prod.mk.injEq] at hj
       rcases hj with ⟨rfl, rfl⟩
-      refine ⟨by simp, ⟨by omega, ?_⟩⟩
-      ext
-      simp [targetSlot, probeSlotIndex, hself_mp]
-    · rw [hupd, Function.update_of_ne hju] at hj
+      refine ⟨Function.update_self _ _ _, by rw [hself_mp]; exact hlt_u, ?_⟩
+      simp only [targetSlot, probeSlotIndex, hself_mp]
+    · rw [Function.update_of_ne hju] at hj
       obtain ⟨hsw, hlt_w, hj_eq⟩ := hrep.slot_spec j w vw hj
       have hwu : w ≠ u := by
         rintro rfl
-        have ⟨_, hTu⟩ := hrep.key_spec w vw hsw
-        have h_same := hrep.slot_eq_of_same_key hj hTu
-        exact hju h_same
-      have hw_mp := hrep.missedProbes_tableInsert_of_isSome hm u v hO (by rw [hsw]; rfl)
-      refine ⟨by simp [Function.update_of_ne hwu, hsw], ⟨by omega, ?_⟩⟩
-      ext
-      simpa [hw_mp] using congrArg Fin.val hj_eq
+        exact hju (hrep.slot_eq_of_same_key hj (hrep.key_spec w vw hsw).2)
+      have hw_mp := hrep.missedProbes_tableInsert_of_isSome hm u v hO (w := w) (by simp [hsw])
+      refine ⟨by simp [Function.update_of_ne hwu, hsw], by omega, ?_⟩
+      simp only [hw_mp]
+      exact hj_eq
   · intro w vw hsw'
     by_cases hwu : w = u
     · subst hwu
       simp only [Function.update_self, Option.some.injEq] at hsw'
       subst hsw'
-      refine ⟨by omega, ?_⟩
-      have hidx_eq :
-          (⟨missedProbes (otherOccupiedSlots (UniformProbing.tableInsert hm π T w v) w) (π w),
-            by omega⟩ : Fin m) = probeSlotIndex (otherOccupiedSlots T w) (π w) hO := by
-        ext
-        simp [probeSlotIndex, hself_mp]
-      rw [hidx_eq, hupd]
-      simp [targetSlot]
+      refine ⟨by rw [hself_mp]; exact hlt_u, ?_⟩
+      rw [congrFun hupd]
+      simp only [hself_mp]
+      exact Function.update_self (targetSlot π T w hO) (some (w, v)) T
     · simp only [Function.update_of_ne hwu] at hsw'
       obtain ⟨hlt_w, hTw⟩ := hrep.key_spec w vw hsw'
-      have hw_mp := hrep.missedProbes_tableInsert_of_isSome hm u v hO (by rw [hsw']; rfl)
-      refine ⟨by omega, ?_⟩
-      have hidx_eq :
-          (⟨missedProbes (otherOccupiedSlots (UniformProbing.tableInsert hm π T u v) w) (π w),
-            by omega⟩ : Fin m) = ⟨missedProbes (otherOccupiedSlots T w) (π w), hlt_w⟩ := by
-        ext
-        exact hw_mp
-      rw [hidx_eq, hupd]
-      have hne_slot :
-          π w ⟨missedProbes (otherOccupiedSlots T w) (π w), hlt_w⟩ ≠ targetSlot π T u hO := by
-        intro heq
-        have htarget_u := hrep.apply_targetSlot u hO
-        rw [← heq, hTw] at htarget_u
-        cases hsu : s u with
-        | none => simp [hsu] at htarget_u
-        | some vu =>
-          simp only [hsu, Option.map_some, Option.some.injEq, Prod.mk.injEq] at htarget_u
-          exact hwu htarget_u.1
-      simp [Function.update_of_ne hne_slot, hTw]
+      have hw_mp := hrep.missedProbes_tableInsert_of_isSome hm u v hO (w := w) (by simp [hsw'])
+      have hne_slot := hrep.slot_ne_targetSlot hO hTw hwu
+      refine ⟨by rw [hw_mp]; exact hlt_w, ?_⟩
+      rw [congrFun hupd]
+      simp only [hw_mp]
+      rw [Function.update_of_ne hne_slot, hTw]
 
 /-- Inserting `(u, v)` leaves `probeCount · u (π u)` unchanged. -/
 theorem TableRep.probeCount_tableInsert_self {U m : ℕ} (hm : 0 < m)
@@ -1175,7 +991,8 @@ theorem probeCount_runTableFrom_of_isSome {U V n_max m : ℕ} (hm : 0 < m) (hcap
     | insert u v =>
       have hO : (otherOccupiedSlots T u).card < m :=
         hrep.card_otherOccupiedSlots_lt_of_valid hm hcap hs hvh.1
-      have hw' : ((Function.update s u (some v)) w).isSome := by grind
+      have hw' : ((Function.update s u (some v)) w).isSome := by
+        by_cases h : w = u <;> simp [h, hw]
       rw [runTableFrom, tableStep, ih (hrep.tableInsert hm u v hO) hs' hw' hvh.2]
       exact hrep.probeCount_tableInsert_of_isSome hm u v hO hw
 
@@ -1209,24 +1026,16 @@ theorem probeCount_runTable_eq_firstInsert {U V n_max m : ℕ} (hm : 0 < m) (hca
       probeCount (runTable hm π ops₁) u (π u) := by
   obtain ⟨hvh₁, hvh_rest, hrun_eq⟩ :=
     validHistory_and_runTableFrom_append hm π (emptyTable U m) hvh
-  set s₁ : Dictionary.State U := ((Dictionary.spec U V n_max).run (Dictionary.empty U) ops₁).1
   set T₁ := runTable hm π ops₁
-  have hrep₁ : TableRep π s₁ T₁ := tableRep_runTable hm hcap π hvh₁
-  have hs₁ : (Dictionary.dom s₁).card ≤ n_max := Dictionary.card_dom_run_empty_le hvh₁
-  have hO₁ : (otherOccupiedSlots T₁ u).card < m :=
-    hrep₁.card_otherOccupiedSlots_lt_of_valid hm hcap hs₁ hvh_rest.1
-  have hrep_ins : TableRep π (Function.update s₁ u (some v₀)) (tableInsert hm π T₁ u v₀) :=
-    hrep₁.tableInsert hm u v₀ hO₁
-  have hs_ins : (Dictionary.dom (Function.update s₁ u (some v₀))).card ≤ n_max :=
-    Dictionary.card_dom_step_le_of_valid hs₁ hvh_rest.1
-  change probeCount (runTableFrom hm π (emptyTable U m) (ops₁ ++ (.insert u v₀ :: ops₂))) u (π u) =
-    probeCount T₁ u (π u)
+  have hrep₁ := tableRep_runTable hm hcap π hvh₁
+  have hs₁ := Dictionary.card_dom_run_empty_le hvh₁
+  have hO₁ := hrep₁.card_otherOccupiedSlots_lt_of_valid hm hcap hs₁ hvh_rest.1
+  dsimp only [runTable]
   rw [hrun_eq]
-  change probeCount (runTableFrom hm π (tableInsert hm π T₁ u v₀) ops₂) u (π u) =
-    probeCount T₁ u (π u)
-  rw [probeCount_runTableFrom_of_isSome hm hcap π hrep_ins hs_ins
-    (by rw [Function.update_self]; rfl) hvh_rest.2]
-  exact hrep₁.probeCount_tableInsert_self hm u v₀ hO₁
+  dsimp only [runTableFrom, tableStep]
+  exact (probeCount_runTableFrom_of_isSome hm hcap π (hrep₁.tableInsert hm u v₀ hO₁)
+    (Dictionary.card_dom_step_le_of_valid hs₁ hvh_rest.1) (by simp) hvh_rest.2).trans
+    (hrep₁.probeCount_tableInsert_self hm u v₀ hO₁)
 
 /-- If key `u` is never inserted during `ops` (`∀ v, .insert u v ∉ ops`), then `runTableFrom` is
 independent of `π u`: updating `π` at `u` leaves the resulting table unchanged. -/
@@ -1236,16 +1045,15 @@ theorem runTableFrom_update_eq {U m : ℕ} (hm : 0 < m) (π : Fin U → Equiv.Pe
       (∀ v, Dictionary.Op.insert u v ∉ ops) →
       runTableFrom hm (Function.update π u σ) T ops = runTableFrom hm π T ops
   | [], _ => rfl
-  | .query _ :: _, hno => by
-    dsimp only [runTableFrom, tableStep]
-    exact runTableFrom_update_eq hm π u σ T fun v hv => hno v (List.mem_cons_of_mem _ hv)
-  | .insert w v :: _, hno => by
-    have hwu : w ≠ u := by grind
+  | .query _ :: os, hno =>
+    runTableFrom_update_eq hm π u σ T (ops := os) fun v hv => hno v (List.mem_cons_of_mem _ hv)
+  | .insert w v :: os, hno => by
+    have hwu : w ≠ u := fun h => hno v (h ▸ List.mem_cons_self)
     have hins : tableInsert hm (Function.update π u σ) T w v = tableInsert hm π T w v := by
       simp [tableInsert, Function.update_of_ne hwu]
     dsimp only [runTableFrom, tableStep]
     rw [hins]
-    exact runTableFrom_update_eq hm π u σ (tableInsert hm π T w v)
+    exact runTableFrom_update_eq hm π u σ (tableInsert hm π T w v) (ops := os)
       fun v' hv' => hno v' (List.mem_cons_of_mem _ hv')
 
 /-- Once `(s₀ u).isSome`, running any list of operations `l` preserves `isSome` at `u`. -/
@@ -1254,12 +1062,9 @@ private theorem isSome_run_of_isSome {U V n_max : ℕ} {u : Fin U} :
       (s₀ u).isSome → (((Dictionary.spec U V n_max).run s₀ l).1 u).isSome
   | [], _, h => h
   | .query _ :: l, _, h => isSome_run_of_isSome l h
-  | .insert w _ :: l, s₀, h => by
-    apply isSome_run_of_isSome l (s₀ := ((Dictionary.spec U V n_max).stepFn s₀ (.insert w _)).1)
-    dsimp only [Dictionary.spec, Dictionary.step, StateTransitionSpec.stepFn]
-    by_cases hwu : u = w
-    · subst hwu; simp
-    · simpa [Function.update_of_ne hwu] using h
+  | .insert w _ :: l, s₀, h =>
+    isSome_run_of_isSome l (s₀ := ((Dictionary.spec U V n_max).stepFn s₀ (.insert w _)).1)
+      (by by_cases hwu : u = w <;> simp [hwu, h])
 
 /-- If `((Dictionary.spec U V n_max).run s ops).1 u = none`, then no `.insert u v` appears in `ops`.
 -/
@@ -1267,21 +1072,13 @@ theorem not_mem_insert_of_run_eq_none {U V n_max : ℕ} {u : Fin U} :
     ∀ {ops : List (Dictionary.Op U)} {s : Dictionary.State U},
       ((Dictionary.spec U V n_max).run s ops).1 u = none →
       ∀ v, Dictionary.Op.insert u v ∉ ops
-  | [], _, _, _ => by simp
-  | o :: os, s, hnone, v => by
-    intro hmem
+  | [], _, _, _ => List.not_mem_nil
+  | o :: os, s, hnone, v => fun hmem => by
     rcases List.mem_cons.mp hmem with rfl | htail
-    · have his :
-          (((Dictionary.spec U V n_max).run
-            (((Dictionary.spec U V n_max).stepFn s (.insert u v)).1) os).1 u).isSome :=
-        isSome_run_of_isSome (V := V) (n_max := n_max) os
-          (by
-            dsimp [Dictionary.spec, Dictionary.step, StateTransitionSpec.stepFn]
-            rw [Function.update_self]; rfl)
-      have hnone' :
-          (((Dictionary.spec U V n_max).run
-            (((Dictionary.spec U V n_max).stepFn s (.insert u v)).1) os).1 u) = none := hnone
-      rw [hnone'] at his
+    · have his := isSome_run_of_isSome (V := V) (n_max := n_max) (u := u) os
+        (s₀ := ((Dictionary.spec U V n_max).stepFn s (.insert u v)).1) (by simp)
+      change (((Dictionary.spec U V n_max).run s (.insert u v :: os)).1 u).isSome at his
+      rw [hnone] at his
       cases his
     · exact not_mem_insert_of_run_eq_none
         (s := ((Dictionary.spec U V n_max).stepFn s o).1) hnone v htail
@@ -1305,44 +1102,40 @@ theorem expect_probeCount_of_eq_none_le {U V n_max m : ℕ} (hm : 0 < m) (hcap :
         (probeCount (runTable hm π ops) u (π u) : ℝ≥0∞)) ≤
       (m : ℝ≥0∞) / ((m - (Dictionary.dom s).card : ℕ) : ℝ≥0∞) := by
   intro s
-  have hcard_s : (Dictionary.dom s).card < m := hcard
   have : Nonempty (Equiv.Perm (Fin m)) := ⟨1⟩
   let μ_all := PMF.uniformOfFintype (Fin U → Equiv.Perm (Fin m))
   let μ_one := PMF.uniformOfFintype (Equiv.Perm (Fin m))
   have hno : ∀ v, Dictionary.Op.insert u v ∉ ops := not_mem_insert_of_run_eq_none hu
-  have hupd : μ_all = μ_one.bind (fun σ => μ_all.map (fun π => Function.update π u σ)) :=
-    (PMF.uniformOfFintype_update (ι := Fin U) (γ := Equiv.Perm (Fin m)) u).symm
+  have hupd : μ_all = μ_all.bind (fun π₀ => μ_one.map (fun σ => Function.update π₀ u σ)) := by
+    dsimp only [μ_all, μ_one]
+    conv_lhs => rw [← PMF.uniformOfFintype_update u]
+    simp only [← PMF.bind_pure_comp]
+    exact PMF.bind_comm _ _ _
   calc
     (∑' π, μ_all π * (probeCount (runTable hm π ops) u (π u) : ℝ≥0∞))
-      = ∑' π, (μ_one.bind (fun σ => μ_all.map (fun π₀ => Function.update π₀ u σ))) π *
-          (probeCount (runTable hm π ops) u (π u) : ℝ≥0∞) := by
-          rw [← hupd]
-    _ = ∑' σ, μ_one σ * ∑' π₀, μ_all π₀ *
+      = ∑' π₀, μ_all π₀ * ∑' σ, μ_one σ *
           (probeCount (runTable hm (Function.update π₀ u σ) ops) u
             ((Function.update π₀ u σ) u) : ℝ≥0∞) := by
+          conv_lhs => rw [hupd]
           rw [PMF.tsum_bind_mul]
-          refine tsum_congr fun σ => congrArg (μ_one σ * ·) ?_
-          exact PMF.tsum_map_mul μ_all (fun π₀ => Function.update π₀ u σ)
-            (fun π => (probeCount (runTable hm π ops) u (π u) : ℝ≥0∞))
-    _ = ∑' π₀, μ_all π₀ * ∑' σ, μ_one σ *
-          (unsuccessfulProbes (occupiedSlots (runTable hm π₀ ops)) σ : ℝ≥0∞) := by
-          simp_rw [← ENNReal.tsum_mul_left]
-          rw [tsum_comm]
-          refine tsum_congr fun π₀ => tsum_congr fun σ => ?_
-          have hrep : TableRep π₀ s (runTable hm π₀ ops) := tableRep_runTable hm hcap π₀ hvh
-          have htbl : runTable hm (Function.update π₀ u σ) ops = runTable hm π₀ ops :=
-            runTableFrom_update_eq hm π₀ u σ (emptyTable U m) hno
-          rw [htbl, Function.update_self, probeCount,
-            hrep.otherOccupiedSlots_eq_occupiedSlots_of_eq_none hu]
-          ring
+          refine tsum_congr fun π₀ => congrArg (μ_all π₀ * ·) ?_
+          exact PMF.tsum_map_mul μ_one (fun σ => Function.update π₀ u σ) _
     _ ≤ ∑' π₀, μ_all π₀ * ((m : ℝ≥0∞) / ((m - (Dictionary.dom s).card : ℕ) : ℝ≥0∞)) := by
           refine tsum_le_tsum fun π₀ => ?_
           gcongr
-          have hrep : TableRep π₀ s (runTable hm π₀ ops) := tableRep_runTable hm hcap π₀ hvh
-          have hcard_occ : (occupiedSlots (runTable hm π₀ ops)).card = (Dictionary.dom s).card :=
-            hrep.card_occupiedSlots
-          rw [← hcard_occ]
-          exact expect_unsuccessfulProbes_le (by omega)
+          have hrep := tableRep_runTable hm hcap π₀ hvh
+          have hcongr : ∀ σ,
+              probeCount (runTable hm (Function.update π₀ u σ) ops) u
+                ((Function.update π₀ u σ) u) =
+                unsuccessfulProbes (occupiedSlots (runTable hm π₀ ops)) σ := fun σ => by
+            dsimp only [runTable]
+            rw [runTableFrom_update_eq hm π₀ u σ (emptyTable U m) hno, Function.update_self]
+            exact congrArg (unsuccessfulProbes · σ)
+              (hrep.otherOccupiedSlots_eq_occupiedSlots_of_eq_none hu)
+          simp_rw [hcongr]
+          dsimp only [μ_one]
+          exact (expect_unsuccessfulProbes_le (hrep.card_occupiedSlots.symm ▸ hcard)).trans_eq
+            (by rw [hrep.card_occupiedSlots])
     _ = (m : ℝ≥0∞) / ((m - (Dictionary.dom s).card : ℕ) : ℝ≥0∞) := by
           rw [ENNReal.tsum_mul_right, μ_all.tsum_coe, one_mul]
 
@@ -1386,8 +1179,7 @@ theorem expect_probeCount_of_mem_dom_le {U V n_max m : ℕ} (hm : 0 < m) (hcap :
         (probeCount (runTable hm π (ops₁ ++ (.insert u v₀ :: ops₂))) u (π u) : ℝ≥0∞)) ≤
       (m : ℝ≥0∞) / ((m - (Dictionary.dom s₁).card : ℕ) : ℝ≥0∞) := by
   intro s₁
-  have hvh₁ : (Dictionary.spec U V n_max).ValidHistory (Dictionary.empty U) ops₁ :=
-    (validHistory_and_runTableFrom_append hm (fun _ => 1) (emptyTable U m) hvh).1
+  have hvh₁ := ((StateTransitionSpec.validHistory_append _ _ _).mp hvh).1
   have hcongr : ∀ π : Fin U → Equiv.Perm (Fin m),
       probeCount (runTable hm π (ops₁ ++ (.insert u v₀ :: ops₂))) u (π u) =
         probeCount (runTable hm π ops₁) u (π u) :=
@@ -1408,8 +1200,7 @@ theorem expect_probeCount_of_mem_dom_le_two {U V n_max m : ℕ} (hm : 0 < m) (h2
     (∑' π : Fin U → Equiv.Perm (Fin m),
       PMF.uniformOfFintype (Fin U → Equiv.Perm (Fin m)) π *
         (probeCount (runTable hm π (ops₁ ++ (.insert u v₀ :: ops₂))) u (π u) : ℝ≥0∞)) ≤ 2 := by
-  have hvh₁ : (Dictionary.spec U V n_max).ValidHistory (Dictionary.empty U) ops₁ :=
-    (validHistory_and_runTableFrom_append hm (fun _ => 1) (emptyTable U m) hvh).1
+  have hvh₁ := ((StateTransitionSpec.validHistory_append _ _ _).mp hvh).1
   have hdom₁_le :
       (Dictionary.dom ((Dictionary.spec U V n_max).run (Dictionary.empty U) ops₁).1).card ≤ n_max :=
     Dictionary.card_dom_run_empty_le hvh₁
@@ -1438,17 +1229,13 @@ theorem uniform_interpret_eq_lazy_perm {U m : ℕ} {α : Type}
 number of consecutive missed probes `missedProbes O σ` is at most `O.card` by injectivity of `σ`. -/
 theorem missedProbes_le_card {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m)) :
     missedProbes O σ ≤ O.card := by
-  have hle_m : missedProbes O σ ≤ m := missedProbes_le O σ
-  have hall : allOccupied O (missedProbes O σ) σ :=
-    (le_missedProbes_iff_allOccupied hle_m σ).mp le_rfl
-  let f : Fin (missedProbes O σ) → Fin m := fun i => σ ⟨i.val, lt_of_lt_of_le i.isLt hle_m⟩
-  have hmaps : ∀ i ∈ (Finset.univ : Finset (Fin (missedProbes O σ))), f i ∈ O :=
-    fun i _ => hall ⟨i.val, lt_of_lt_of_le i.isLt hle_m⟩ i.isLt
-  have hinj : Set.InjOn f (Finset.univ : Finset (Fin (missedProbes O σ))) := by
-    intro i _ j _ hij
-    have hfin := σ.injective hij
-    exact Fin.ext (Fin.mk.inj hfin)
-  simpa using Finset.card_le_card_of_injOn f hmaps hinj
+  have hle_m := missedProbes_le O σ
+  have hall := (le_missedProbes_iff_allOccupied hle_m σ).mp le_rfl
+  have hle := Finset.card_le_card_of_injOn σ
+    (fun i (hi : i ∈ Finset.univ.filter fun i : Fin m => i.val < missedProbes O σ) =>
+      hall i (Finset.mem_filter.mp hi).2)
+    fun _ _ _ _ h => σ.injective h
+  rwa [Fin.card_filter_val_lt, min_eq_right hle_m] at hle
 
 /-- **Deterministic Pigeonhole Probe Bound**: for any table `T : Table U m`, key `u : Fin U`, and
 probe permutation `σ : Equiv.Perm (Fin m)`, `probeCount T u σ ≤ (otherOccupiedSlots T u).card + 1`.
@@ -1488,12 +1275,9 @@ theorem expect_probeCount_le_add_one
     (hdom : (Dictionary.dom s).card ≤ n_max) (u : Fin U) :
     (∑' θ : Θ, PMF.uniformOfFintype Θ θ * (probeCount (T θ) u (π θ u) : ℝ≥0∞)) ≤
       (n_max + 1 : ℝ≥0∞) := by
-  have hsum : (∑ θ : Θ, probeCount (T θ) u (π θ u)) ≤ (n_max + 1) * Fintype.card Θ := by
-    calc
-      (∑ θ : Θ, probeCount (T θ) u (π θ u))
-        ≤ ∑ _θ : Θ, (n_max + 1) :=
-          Finset.sum_le_sum fun θ _ => probeCount_le_add_one (hrep θ) hdom u
-      _ = (n_max + 1) * Fintype.card Θ := by simp [Nat.mul_comm]
+  have hsum : (∑ θ : Θ, probeCount (T θ) u (π θ u)) ≤ (n_max + 1) * Fintype.card Θ :=
+    (Finset.sum_le_sum fun θ _ => probeCount_le_add_one (hrep θ) hdom u).trans_eq
+      (by simp [Nat.mul_comm])
   exact mod_cast Cslib.Probability.PMF.tsum_uniformOfFintype_le_of_sum_le hsum
 
 end Cslib.DataStructure.Dictionary.UniformProbing

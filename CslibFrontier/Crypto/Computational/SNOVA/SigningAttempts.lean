@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # SNOVA's bounded signing-attempt schedule
@@ -80,9 +81,7 @@ theorem mem_signingAttemptCounters_iff (counter : Fin 256) :
   · rintro ⟨hpos, hlt⟩
     let i : Fin 254 := ⟨counter.val - 1, by omega⟩
     refine ⟨i, ?_⟩
-    apply Fin.ext
-    simp only [i]
-    omega
+    fin_index [i]
 
 /-- SNOVA's attempted counter bytes occur in strictly increasing order. -/
 theorem pairwise_lt_signingAttemptCounters : signingAttemptCounters.Pairwise (· < ·) := by

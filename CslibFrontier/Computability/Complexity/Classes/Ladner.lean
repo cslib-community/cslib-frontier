@@ -140,9 +140,7 @@ noncomputable def padBounded (C : ℕ) (φ : CNF ℕ) : List Bool :=
 
 private theorem computableInPolyTime_padBounded (C : ℕ) :
     ComputableInPolyTime (padBounded C) encCNF encBits := by
-  have henc : ComputableInPolyTime (fun φ => encCNF φ) encCNF encBits := .of_eq fun _ => rfl
-  unfold padBounded pad
-  fun_prop
+  fun_prop [padBounded, pad]
 
 /-- **If `H` is bounded, padding reduces `SAT` to `SATH` in polynomial time.** -/
 theorem reducible_of_H_le {C : ℕ} (hC : ∀ n, H n ≤ C) :

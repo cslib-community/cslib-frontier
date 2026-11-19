@@ -289,20 +289,7 @@ theorem length_toSparseHamCycle_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c ∈ φ,
 theorem computableInPolyTime_occurrencePositions :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occurrencePositions p.1 p.2)
       (encPair encCNF encNat) (encList encUnary) := by
-  have hvars := computableInPolyTime_vars
-  have htest : ComputableInPolyTime
-      (fun p : (CNF ℕ × ℕ) × ℕ => decide (p.1.1.vars.getD p.2 0 = p.1.2))
-      (encPair (encPair encCNF encNat) encUnary) encBool := by
-    have hget : ComputableInPolyTime (fun p : (CNF ℕ × ℕ) × ℕ => p.1.1.vars.getD p.2 0)
-        (encPair (encPair encCNF encNat) encUnary) encNat :=
-      (listGetD (encA := encNat) (encL := encList encNat) 0).comp
-        ((hvars.comp ((fst _ _).comp (fst _ _))).prod (snd _ _))
-    exact hget.decide_eq' ((snd _ _).comp (fst _ _))
-  have hrange : ComputableInPolyTime (fun p : CNF ℕ × ℕ => List.range p.1.vars.length)
-      (encPair encCNF encNat) (encList encUnary) :=
-    range.comp ((length_list encNat).comp (hvars.comp (fst _ _)))
-  unfold occurrencePositions
-  exact filterWithInput hrange htest
+  fun_prop [occurrencePositions]
 
 /-- The numbers of slots are computable in polynomial time, in unary. -/
 theorem computableInPolyTime_sparseSlots :
@@ -339,9 +326,7 @@ theorem computableInPolyTime_sparseDiamondGraph :
 @[fun_prop]
 theorem computableInPolyTime_toSparseDirHamPath :
     ComputableInPolyTime toSparseDirHamPath encCNF encPathInstance := by
-  have hn := computableInPolyTime_numDiamonds
-  unfold toSparseDirHamPath
-  fun_prop
+  fun_prop [toSparseDirHamPath]
 
 /-- The reduction `toSparseDirHamCycle` is computable in polynomial time. -/
 @[fun_prop]

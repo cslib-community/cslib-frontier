@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
@@ -136,18 +137,36 @@ theorem prfIdealGame_eq_lazy (inLen outLen : ℕ → ℕ) (adversary : OracleDis
           (randomFunctionQuery (inLen n) query) =
         PMF.pure (randomFunctionOracle (inLen n) table query) :=
     interpret_randomFunctionQuery ProbComp.unifOracle (inLen n) table query
-  simpa only [ProbOracleComp.runWith_eq_run_interpret, adapted, prfIdealGame,
-    ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run, ProbComp.eval_pure,
-    OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
-    ProbOracleComp.interpret_sample, ProbComp.unifFin, OracleComp.interpret_query, heager,
-    lazyRandomFunctionOracle, PMF.monad_bind_eq_bind] using h
+  simpa only [ProbOracleComp.runWith_eq_run_interpret, adapted, prfIdealGame, ProbComp.eval_uniform,
+    ProbOracleComp.eval_run, OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
+    interp_norm, pmf_norm, ProbComp.unifFin, heager, lazyRandomFunctionOracle] using h
 
 /-- A keyed family with `n`-bit keys, `inLen n`-bit inputs and `outLen n`-bit outputs, evaluated in
 plain polynomial time and secure against every uniform adaptive oracle test: [BonehShoup2023],
 Attack Game 4.2 and Definition 4.2, pp. 132–133, for a PRF defined over `(K, X, Y)`, read
 asymptotically with `K`, `X` and `Y` the words of `n`, `inLen n` and `outLen n` bits. A query of
 another length is answered by the empty word in both games, and deterministic polynomial-time
-evaluation is part of the notion. `PseudorandomFunction` is the case `inLen = outLen = id`. -/
+evaluation is part of the notion. `PseudorandomFunction` is the case `inLen = outLen = id`.
+
+The lengths are meant to be polynomially bounded in `n`, as in the book's asymptotic definition
+(Definition 4.4, Section 4.4.5, pp. 139–141), whose `X` and `Y` are families of spaces with strings
+of polynomially bounded length (Definition 2.9, Section 2.3.2, p. 30). The structure does not
+require this, and without it the notion degenerates:
+
+* if `inLen n` grows faster than every polynomial (for example `2 ^ n`), each admitted test
+  eventually writes only queries shorter than `inLen n` (`IsOraclePPT.query_bounds`), so both
+  games answer all of them with the empty word and `secure` holds for every family: every family
+  meeting `polyTime` and `length_eq` qualifies;
+* if `outLen n` is not bounded by a polynomial in `n + inLen n`, `polyTime` and `length_eq`
+  cannot both hold, because a polynomial-time machine writes polynomially many bits
+  (`ComputableInPolyTime.polyBounded_length`), and no family qualifies.
+
+The theorems that use the notion take the bound from their own hypotheses: a `BlockCipher`'s
+`blockLen` is computable in polynomial time from unary `n` (`BlockCipher.blockLen_polyTime`);
+`indistinguishable_prgFromPRF` and `PseudorandomFunctionOver.toPRG` assume the query points
+computable in polynomial time from unary `n`, and the former also `outLen`; and
+`MLKEM.indCPA_kpkePRF_of_decisionModuleLWEWith` assumes parameters computable in polynomial time,
+with `n`, `k`, `η₁` and `η₂` encoded in unary. -/
 structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/

@@ -174,14 +174,6 @@ theorem eval_spliceEncryptedBit_eq_map_coins_of_le (E : Scheme)
     (htape : ComputableInPolyTime tape input encBits) :
     ComputableInPolyTime (fun a => spliceEncryptedBitCoins evaluate (n a) (encCoins a)
       (pk a) (before a) (after a) (challenge a) (tape a)) input (encList encBits) := by
-  have hfront : ComputableInPolyTime (fun a => encryptBitsCoins evaluate (n a) (encCoins a)
-      (pk a) (List.replicate (before a) false) ((tape a).take (before a * encCoins a)))
-      input (encList encBits) := by
-    apply computableInPolyTime_encryptBitsCoins hevaluate <;> fun_prop
-  have hback : ComputableInPolyTime (fun a => encryptBitsCoins evaluate (n a) (encCoins a)
-      (pk a) (after a) ((tape a).drop (before a * encCoins a))) input (encList encBits) := by
-    apply computableInPolyTime_encryptBitsCoins hevaluate <;> fun_prop
-  unfold spliceEncryptedBitCoins
-  fun_prop
+  fun_prop [spliceEncryptedBitCoins]
 
 end Cslib.Crypto.Homomorphic.Scheme

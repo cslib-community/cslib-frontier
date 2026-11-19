@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.Circuit.Boolean.FanInTwo
 import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Samples
+import CslibFrontier.Computability.PCP.Approximation.MaxThreeSAT.Approx
 import CslibFrontier.Foundations.Combinatorics.Expander.AffineTower
 import CslibFrontier.Foundations.Combinatorics.Expander.Connected
 import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
@@ -16,7 +17,8 @@ import CslibFrontier.Foundations.Data.Code.Varshamov
 
 /-! # Satisfying instances for the Arora–Barak short steps
 
-Each hypothesis of the theorems for Arora–Barak Theorem 16.35, Lemma 17.9, Claim 18.34 and
+Each hypothesis of the theorems for Arora–Barak Theorem 16.35, Lemma 17.9, Corollary 18.7,
+Claim 18.34 and
 Exercises 13.2, 16.11, 17.6 and 17.10(b) holds in a concrete case. The file is a `module`
 client with ordinary imports, so it checks the public API as downstream modules see it.
 -/
@@ -86,3 +88,29 @@ example {n m : ℕ} (C : Cslib.Circuits.Circuit Cslib.Circuits.Boolean.Unbounded
       F.depth ≤ C.depth ∧ F.size + F.leafSize ≤ (10 * (n + C.size)) ^ C.depth := by
   obtain ⟨F, -, hd, hs⟩ := Cslib.Circuits.Boolean.Unbounded.exists_formula_size_add_leafSize_le C j
   exact ⟨F, hd, hs⟩
+
+/-- Corollary 18.7 in the source's form: some constant `ρ < 1` admits no polynomial-time
+`ρ`-approximation algorithm for MAX-3SAT unless `P = NP`. -/
+example : ∃ ρ : ℝ, ρ < 1 ∧ ∀ A : Cslib.Logic.PL.CNF ℕ → List ℕ,
+    Turing.MultiTapeTM.ComputableInPolyTime A Cslib.Complexity.encCNF
+      (Turing.MultiTapeTM.encList Turing.MultiTapeTM.encNat) →
+    (∀ φ : Cslib.Logic.PL.CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
+      ρ * (1 - φ.unsatVal) * φ.length ≤ φ.length - φ.countUnsat (fun v => decide (v ∈ A φ))) →
+    ∀ {β : Type} (enc : β ↪ List Bool), Cslib.Complexity.P enc = Cslib.Complexity.NP enc :=
+  ⟨1 - 1 / (3 * 2 ^ 78), by norm_num, fun _ hA happrox _ enc =>
+    Cslib.Complexity.P_eq_NP_of_maxThreeSAT_approx (by norm_num) hA happrox enc⟩
+
+/-- The approximation premise of Corollary 18.7 holds with `ρ = 1` for the algorithm listing the
+true variables of an optimal assignment, which is not claimed to be polynomial-time. -/
+example : ∃ A : Cslib.Logic.PL.CNF ℕ → List ℕ, ∀ φ : Cslib.Logic.PL.CNF ℕ,
+    1 * (1 - φ.unsatVal) * φ.length ≤ φ.length - φ.countUnsat (fun v => decide (v ∈ A φ)) := by
+  choose σ hσ using fun φ : Cslib.Logic.PL.CNF ℕ =>
+    Cslib.Logic.PL.CNF.exists_countUnsat_div_eq_unsatVal (φ := φ)
+  refine ⟨fun φ => φ.vars.filter (σ φ), fun φ => ?_⟩
+  have hc : φ.countUnsat (fun v => decide (v ∈ φ.vars.filter (σ φ))) = φ.countUnsat (σ φ) :=
+    Cslib.Logic.PL.CNF.countUnsat_congr fun v hv => by simp [hv]
+  rw [hc, ← hσ φ]
+  rcases Nat.eq_zero_or_pos φ.length with h0 | hpos
+  · have := Cslib.Logic.PL.CNF.countUnsat_le_length (σ φ) φ
+    simp_all
+  · rw [one_mul, sub_mul, one_mul, div_mul_cancel₀ _ (by positivity)]

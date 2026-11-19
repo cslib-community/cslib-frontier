@@ -92,9 +92,9 @@ the Section 5 reductions also use); that program has the law of the typed simula
 * Theorem 1 assumes that the FMR scheme "is an (M, ℓ, t, ϵ)-fuzzy extractor", which comprises
   correctness and security (Definition 1, p. 4), and Definition 2 defines weak reusability for a
   fuzzy extractor. The theorem here assumes and concludes only the security halves, since the
-  weak-reusability experiment never runs reproduction (`Rec`). Correctness of the common-matrix
-  scheme, averaged over the uniform matrix, is
-  `DecoderCorrectWithError.setupCorrect_commonMatrixFuzzyExtractor`.
+  weak-reusability experiment never runs reproduction (`Rec`). Setup reproduction correctness of
+  the common-matrix scheme relative to a caller-supplied decoder (`DecoderCorrectWithError`,
+  #6040) is `setupCorrect_commonMatrixFuzzyExtractor_of_decoderCorrectWithError`.
 
 ## References
 

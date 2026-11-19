@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.PrimeTrial
 public import Mathlib.NumberTheory.PrimeCounting
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native prime tables
@@ -155,11 +156,10 @@ theorem exec {w : ℕ} (x : Data 15)
         q.regs cursor = y.regs cursor + 1 := by
     obtain ⟨hl, hb, hs, ho, hz, ht, hcount, hm⟩ := hy
     obtain ⟨z, he, hzf, hzm, hzr⟩ := exec_test y ht (show y.regs cursor ≤ m by omega) hfit
-    have hzb : z.regs base = x.regs base := (hzr base (by decide)).trans hb
+    have hzb : z.regs base = x.regs base := by regs_frame
     have hzi : z.regs cursor = y.regs cursor := hzr cursor (by decide)
-    have hzc : z.regs count = Nat.primeCounting' (y.regs cursor) :=
-      (hzr count (by decide)).trans hcount
-    have hzo : z.regs one = 1 := (hzr one (by decide)).trans ho
+    have hzc : z.regs count = Nat.primeCounting' (y.regs cursor) := by regs_frame
+    have hzo : z.regs one = 1 := by regs_frame
     have hzf_le : z.regs flag ≤ 1 := by rw [hzf]; split_ifs <;> omega
     have ha : Fits w (z.regs base + z.regs cursor) := haddr.of_le (by rw [hzb, hzi]; omega)
     have hn : Fits w (z.regs cursor + 1) := hfit.of_le (by rw [hzi]; change _ ≤ m + 3; omega)
@@ -177,12 +177,12 @@ theorem exec {w : ℕ} (x : Data 15)
       exact (he.seq htail).mono (by omega)
     case inv =>
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [Function.update_apply] using (hzr limit (by decide)).trans hl
-      · simpa +decide [Function.update_apply] using hzb
-      · simpa +decide [Function.update_apply] using (hzr stop (by decide)).trans hs
-      · simpa +decide [Function.update_apply] using hzo
-      · simpa +decide [Function.update_apply] using (hzr zero (by decide)).trans hz
-      · simpa +decide [Function.update_apply] using (hzr two (by decide)).trans ht
+      · regs_frame
+      · regs_frame
+      · regs_frame
+      · regs_frame
+      · regs_frame
+      · regs_frame
       · change z.regs count + z.regs flag = Nat.primeCounting' (y.regs cursor + 1)
         rw [hzc, hzf]
         simp only [Nat.primeCounting', Nat.count_succ]

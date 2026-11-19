@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.Finset.Sort
 
 /-!
@@ -638,13 +639,12 @@ def standardLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
   probes_spill regs m := probes_writeFin _ _ m
   nextMem_spill_data regs m idx :=
     nextMem_writeFin_of_forall_ne _ _ m (Fin.castAdd (persCount input) idx) fun k heq => by
-      have hval : idx.1 = S + k.1 := by simpa using congrArg Fin.val heq
-      omega
+      fin_index
   nextMem_spill_reg y m c _ hc := by
     let k : Fin (persCount input) := ⟨c.1 - S, by omega⟩
-    have hc_eq : c = Fin.natAdd S k := Fin.ext (by simp [k]; omega)
-    have hinj : Function.Injective (fun j : Fin (persCount input) => Fin.natAdd S j) :=
-      fun a b h => Fin.ext (by simpa using congrArg Fin.val h)
+    have hc_eq : c = Fin.natAdd S k := by fin_index [k]
+    have hinj : Function.Injective (fun j : Fin (persCount input) => Fin.natAdd S j) := by
+      fin_index
     rw [hc_eq, nextMem_writeFin_apply hinj]
     have hnotlt : ¬ (Fin.natAdd S k).1 < S := by simp
     simp only [packMem, hnotlt, ↓reduceDIte]
@@ -756,19 +756,17 @@ def wideLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
     by_cases h0 : persCount input = 0
     · simp [h0]
     · simp only [h0, ↓reduceDIte, ProbeTree.run_write]
-      have hne : Fin.castAdd 1 idx ≠ Fin.last S := fun heq => by
-        have hval : idx.1 = S := by simpa using congrArg Fin.val heq
-        omega
+      have hne : Fin.castAdd 1 idx ≠ Fin.last S := by fin_index
       exact Function.update_of_ne hne _ m
   nextMem_spill_reg y m c hzero hc := by
-    have hc_eq : c = Fin.last S := Fin.ext (by simp; omega)
+    have hc_eq : c = Fin.last S := by fin_index
     subst hc_eq
     by_cases h0 : persCount input = 0
     · simp only [h0, ↓reduceDIte, ProbeTree.run_pure]
       exact hzero h0 (Fin.last S) hc
     · simp [h0, packMemWide]
   validMem_reg_zero hm h0 y d hd := by
-    have hd_eq : d = Fin.last S := Fin.ext (by simp; omega)
+    have hd_eq : d = Fin.last S := by fin_index
     subst hd_eq
     refine Fin.ext ?_
     simp [hm.2 h0, packMemWide, packDigits_eq_zero_of_zero h0]
@@ -961,9 +959,8 @@ private theorem flushAux_spec {S regCells w wCell : ℕ} (hw : w ≤ wCell)
         simp only [hwb, Option.isSome_some, ↓reduceIte, Finset.card_insert_of_notMem hnotMem]
       · intro idx hidx
         rcases Nat.lt_succ_iff_lt_or_eq.mp hidx with hlt_k | heq_k
-        · have hne : Fin.castAdd regCells idx ≠ Fin.castAdd regCells idx_k := fun h => by
-            have : idx.1 = k := by simpa [idx_k] using congrArg Fin.val h
-            omega
+        · have hne : Fin.castAdd regCells idx ≠ Fin.castAdd regCells idx_k := by
+            fin_index [idx_k]
           rw [Function.update_of_ne hne]
           exact hlt idx hlt_k
         · have : idx = idx_k := Fin.ext heq_k
@@ -971,9 +968,7 @@ private theorem flushAux_spec {S regCells w wCell : ℕ} (hw : w ≤ wCell)
           rw [hwb]
           exact Function.update_self _ _ _
       · intro c hc
-        have hne : c ≠ Fin.castAdd regCells idx_k := fun h => by
-          have : c.1 = k := by simpa [idx_k] using congrArg Fin.val h
-          omega
+        have hne : c ≠ Fin.castAdd regCells idx_k := by fin_index [idx_k]
         rw [Function.update_of_ne hne]
         exact hge c (by omega)
 
@@ -1263,10 +1258,8 @@ theorem simStepDet_spec {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p
               simp [wb', wordOfNat_val_of_lt hfit_val]
             · rw [Function.update_of_ne hb]
               by_cases hba : base ≤ b ∧ b < base + S
-              · have hne_idx : (⟨b - base, by omega⟩ : Fin S) ≠ ⟨regs a - base, by omega⟩ :=
-                  fun h => hb (by
-                    have hval : b - base = regs a - base := congrArg Fin.val h
-                    omega)
+              · have hne_idx : (⟨b - base, by omega⟩ : Fin S) ≠ ⟨regs a - base, by omega⟩ := by
+                  fin_index
                 split_ifs
                 simp only [wb', Function.update_of_ne hne_idx]
               · split_ifs

@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.List.Fold
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Linarith
@@ -289,27 +290,6 @@ private theorem poly_apply_le {α : Type} {f Lfn : α → ℕ} {c d L : ℕ}
     f a ≤ c * (L + 1) ^ d :=
   (hf a).trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (Nat.add_le_add_right hla 1) d))
 
-private theorem polyBounded_option_elim {α β : Type}
-    {eα : α ↪ List Bool} {eβ : β ↪ List Bool}
-    {f : α → Option β} {gNone : α → ℕ} {gSome : α × β → ℕ}
-    (hf_len : PolyBounded (fun a => (eα a).length) (fun a => (encOption eβ (f a)).length))
-    (hgNone : PolyBounded (fun a => (eα a).length) gNone)
-    (hgSome : PolyBounded (fun p => (encPair eα eβ p).length) gSome) :
-    PolyBounded (fun a => (eα a).length)
-      (fun a => (f a).elim (gNone a) (fun b => gSome (a, b))) := by
-  have hlenIY : PolyBounded (fun a => (eα a).length)
-      (fun a => 2 * (eα a).length + 2 * (encOption eβ (f a)).length + 1) :=
-    (((PolyBounded.const 2).mul .self).add ((PolyBounded.const 2).mul hf_len)).add (.const 1)
-  obtain ⟨c, d, hcd⟩ := hgSome.exists_le
-  refine (hgNone.add (NativeCertificate.polyBounded_pow_of_polyBounded hlenIY c d)).mono
-    fun a => ?_
-  cases h : f a with
-  | none => exact Nat.le_add_right _ _
-  | some b =>
-    have hiy : (encPair eα eβ (a, b)).length ≤
-        2 * (eα a).length + 2 * (encOption eβ (some b)).length + 1 := by enc_len
-    exact (poly_apply_le hcd hiy).trans (Nat.le_add_left _ (gNone a))
-
 private theorem computableInPolyTime_ctxAddJet
     {α Ctx : Type} {eα : α ↪ List Bool} {eCtx : Ctx ↪ List Bool}
     {J ℓ : Ctx → ℕ} (hJ : PolyT J eCtx encUnary) (hℓ : PolyT ℓ eCtx encUnary) :
@@ -386,19 +366,13 @@ private theorem exists_computableInO_signedMeasJet :
     (NativeCertificate.linear (ei := eMIn) (ComputableInO.of_eq fun _ => rfl))
   let cValM := cPay.comp cProjWC; let cbM₀ := NativeCertificate.option cValM cNoM cAddM
   have hcValM_sp : HasPolySpace cValM := hasPolySpace_comp hP₁_pb hcProjWC.2
-  have hcNoM_sp : PolyBounded (fun inp => (eMIn inp).length) cNoM.space :=
-    ((PolyBounded.const 2).mul .self).mono fun inp => by
-      dsimp only [cNoM]; simp only [NativeCertificate.snd_space, NativeCertificate.linear_space]
-      omega
-  have hcNoM_t : PolyBounded (fun inp => (eMIn inp).length) cNoM.time :=
-    ((PolyBounded.const 2).mul .self).mono fun inp => by
-      dsimp only [cNoM]; simp only [NativeCertificate.snd_time, NativeCertificate.linear_time]
-      omega
-  have hcbM_sp : HasPolySpace cbM₀ :=
-    (((((PolyBounded.const 2).mul hcValM_sp).add .self).add
-      (polyBounded_option_elim (polyBounded_length_of_hasPolySpace hcValM_sp) hcNoM_sp
-        hcAddM.2))).mono fun inp => by
-      simp only [cbM₀, cValM, NativeCertificate.option_space, Function.comp_apply]; exact le_rfl
+  have hcNoM_sp : PolyBounded (fun inp => (eMIn inp).length) cNoM.space := .self
+  have hcNoM_t : PolyBounded (fun inp => (eMIn inp).length) cNoM.time := .self
+  have hcbM_sp : HasPolySpace cbM₀ := by
+    dsimp only [HasPolySpace, cbM₀, cValM, NativeCertificate.option, NativeCertificate.comp,
+      Function.comp_apply]
+    growth_poly [NativeCertificate.polyBounded_optionElim
+      (polyBounded_length_of_hasPolySpace hcValM_sp) hcNoM_sp hcAddM.2]
   let cbM : Cert measurementStepBody eMIn eAcc :=
     ⟨cbM₀.time, cbM₀.space,
       cbM₀.computes.of_enc_eq fun inp => congrArg eAcc (measurementStepBody_eq inp)⟩
@@ -410,9 +384,9 @@ private theorem exists_computableInO_signedMeasJet :
   have hovM_pb : PolyBounded (fun inp => (eMIn inp).length)
       (fun inp => 2 * cProjWC.time inp + (eMIn inp).length +
         (evalMeasPayload (inp.1.2, inp.2.1)).elim (cNoM.time inp)
-          (fun b => cAddM.time (inp, b))) :=
-    (((PolyBounded.const 2).mul hcProjWC.1).add .self).add
-      (polyBounded_option_elim (polyBounded_length_of_hasPolySpace hcValM_sp) hcNoM_t hcAddM.1)
+          (fun b => cAddM.time (inp, b))) := by
+    growth_poly [NativeCertificate.polyBounded_optionElim
+      (polyBounded_length_of_hasPolySpace hcValM_sp) hcNoM_t hcAddM.1]
   let eSt := encPair encNat (encPair (encPair encUnary encNat) eAcc)
   have hovV_pb := (PolyBounded.self.add hcPrep.1).add
     (hovM_pb.comp (MeasurementFold.prepare_polyTime (encB := eAcc)).polyBounded_length)
@@ -443,30 +417,17 @@ private theorem exists_computableInO_signedMeasJet :
   let L_wc (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) :=
     2 * (dc.2.2.1.1 * (2 * ((dc.2.2.1.2).size + 1) + 1)) +
       2 * (encMeasStepCtx (mkMCtx dc)).length + 1
-  have hLwc_pb : PolyBounded (fun dc => (eDC dc).length) L_wc :=
-    (((PolyBounded.const 2).mul (hc_pb.mul (((PolyBounded.const 2).mul
-      (hDsz_pb.add (.const 1))).add (.const 1)))).add
-      ((PolyBounded.const 2).mul hmkMCtx.polyBounded_length)).add (.const 1)
   obtain ⟨cp1, dp1, hp1_le⟩ := hP₁_pb.exists_le
   obtain ⟨co1, do1, ho1_le⟩ := (polyBounded_length_of_hasPolySpace (c := cPay) hP₁_pb).exists_le
   let P_pay (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) := cp1 * (L_wc dc + 1) ^ dp1
-  have hPpay_pb := NativeCertificate.polyBounded_pow_of_polyBounded hLwc_pb cp1 dp1
   let L_opt (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) := co1 * (L_wc dc + 1) ^ do1
-  have hLopt_pb := NativeCertificate.polyBounded_pow_of_polyBounded hLwc_pb co1 do1
   let B_jet (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) :=
     dc.2.jetOrder * (2 * (dc.2.precision *
     (2 * ((dc.2.2.1.1 * ((dc.2.2.1.2).size + 1) + 1) + (L_opt dc + 1)) + 3)) + 1)
-  have hBjet_pb : PolyBounded (fun dc => (eDC dc).length) B_jet :=
-    hJ_dc.polyBounded.mul (((PolyBounded.const 2).mul (hℓ_dc.polyBounded.mul
-      (((PolyBounded.const 2).mul (((hc_pb.mul (hDsz_pb.add (.const 1))).add (.const 1)).add
-        (hLopt_pb.add (.const 1)))).add (.const 3)))).add (.const 1))
   let B_outer (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) :=
     2 * (encPair encUnary encNat dc.2.2.1).length +
       2 * (2 * (encMeasStepCtx (mkMCtx dc)).length + 2 * B_jet dc + 1) + 1
-  have hBout_pb : PolyBounded (fun dc => (eDC dc).length) B_outer :=
-    (((PolyBounded.const 2).mul hparDC.polyBounded_length).add ((PolyBounded.const 2).mul
-      ((((PolyBounded.const 2).mul hmkMCtx.polyBounded_length).add
-        ((PolyBounded.const 2).mul hBjet_pb)).add (.const 1)))).add (.const 1)
+  have hBout_pb : PolyBounded (fun dc => (eDC dc).length) B_outer := by growth_poly
   have hrun_eq (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) (j : ℕ) :
       (IndexFold.run (MeasurementFold.visit measurementStepBody) j
         (dc.2.2.1, (mkMCtx dc, zeroJet dc.2.jetOrder dc.2.precision))).2 =
@@ -532,10 +493,8 @@ private theorem exists_computableInO_signedMeasJet :
     (NativeCertificate.ofPolyTime_isPolynomial hparDC)
   let S_st (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) :=
     2 * (encNat (MeasurementFold.count dc.2.2.1)).length + 1 + B_outer dc
-  have hSst_pb := (((PolyBounded.const 2).mul (cCnt.polyTime hcCnt).polyBounded_length).add
-    (.const 1)).add hBout_pb
   let P_cb (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) := cv * (S_st dc + 1) ^ dv
-  have hPcb_pb := NativeCertificate.polyBounded_pow_of_polyBounded hSst_pb cv dv
+  have hPcb_pb : PolyBounded (fun dc => (eDC dc).length) P_cb := by growth_poly
   obtain ⟨P_loop, hPloop_pb, hloop⟩ := computableInO_snd_indexFold cCnt (.ofPolyTime hinitDC)
     cVisit hcCnt (NativeCertificate.ofPolyTime_isPolynomial hinitDC) hcVisit_sp hBout_pb hB
     (fun dc =>
@@ -582,10 +541,12 @@ private theorem exists_computableInO_signedMeasJet :
       (mkMCtx dc, zeroJet dc.2.jetOrder dc.2.precision)).2.2.2
   let P_out (dc : SubsetPairFold.DecodedPair × SubsetStepCtx) :=
     2 * P_pay dc + P_loop dc + (eDC dc).length + cSign.time (dc, measFn dc) + cFinal.space dc
-  have hPout_pb : PolyBounded (fun dc => (eDC dc).length) P_out :=
-    (((((PolyBounded.const 2).mul hPpay_pb).add hPloop_pb).add .self).add
-      (hcSign.1.comp (polyBounded_length_of_hasPolySpace hspDCM))).add
-      (hasPolySpace_comp hcSign.2 hspDCM)
+  have hPout_pb : PolyBounded (fun dc => (eDC dc).length) P_out := by
+    have := hasPolySpace_comp hcSign.2 hspDCM
+    have : PolyBounded (fun dc => (eDC dc).length) (fun dc => cSign.time (dc, measFn dc)) :=
+      hcSign.1.comp (polyBounded_length_of_hasPolySpace hspDCM)
+    dsimp only [P_out]
+    growth_poly
   clear_value L_wc P_pay L_opt B_jet B_outer S_st P_cb cVisit cCnt
   refine ⟨P_out, hPout_pb, (cFinal.computes.of_enc_eq fun _ => rfl).mono_le (fun dc => ?_)
     fun dc => Nat.le_add_left _ _⟩
@@ -655,29 +616,20 @@ private theorem exists_computableInO_nodeJet :
     unfold eQS encSubsetStepCtx; exact (snd encUnary _).snd'.snd'.fst'.fst'
   have hℓ_qs : PolyT (fun qs : ℕ × SubsetStepCtx => qs.2.precision) eQS encUnary := by
     unfold eQS encSubsetStepCtx; exact (snd encUnary _).snd'.snd'.fst'.snd'.fst'
-  have hinitQS := (snd encUnary encSubsetStepCtx).prod (computableInPolyTime_zeroJet hJ_qs hℓ_qs)
-  have hn_pb := hn_qs.polyBounded
-  have hctx_pb := (snd encUnary encSubsetStepCtx).polyBounded_length
+  have hctx_qs := snd encUnary encSubsetStepCtx
+  have hinitQS := hctx_qs.prod (computableInPolyTime_zeroJet hJ_qs hℓ_qs)
   let L_dc (qs : ℕ × SubsetStepCtx) :=
     2 * (6 * qs.2.numVars + 7) + 2 * (encSubsetStepCtx qs.2).length + 1
-  have hLdc_pb : PolyBounded (fun qs => (eQS qs).length) L_dc :=
-    (((PolyBounded.const 2).mul (((PolyBounded.const 6).mul hn_pb).add (.const 7))).add
-      ((PolyBounded.const 2).mul hctx_pb)).add (.const 1)
+  have hLdc_pb : PolyBounded (fun qs => (eQS qs).length) L_dc := by growth_poly
   obtain ⟨M_entry, hM_pb, hM_le⟩ := exists_natAbs_rowEntry_le_two_pow
     (polyBounded_length_of_hasPolySpace (c := cSignM) hP₂_pb) hLdc_pb
   obtain ⟨cp2, dp2, hp2_le⟩ := hP₂_pb.exists_le
   let P_sm (qs : ℕ × SubsetStepCtx) := cp2 * (L_dc qs + 1) ^ dp2
-  have hPsm_pb := NativeCertificate.polyBounded_pow_of_polyBounded hLdc_pb cp2 dp2
   let B_jet (qs : ℕ × SubsetStepCtx) :=
     qs.2.jetOrder *
       (2 * (qs.2.precision * (2 * ((2 * qs.2.numVars + 1) + (M_entry qs + 1)) + 3)) + 1)
-  have hBjet_pb : PolyBounded (fun qs => (eQS qs).length) B_jet :=
-    hJ_qs.polyBounded.mul (((PolyBounded.const 2).mul (hℓ_qs.polyBounded.mul
-      (((PolyBounded.const 2).mul ((((PolyBounded.const 2).mul hn_pb).add (.const 1)).add
-        (hM_pb.add (.const 1)))).add (.const 3)))).add (.const 1))
   let B_sub (qs : ℕ × SubsetStepCtx) := 2 * (encSubsetStepCtx qs.2).length + 2 * B_jet qs + 1
-  have hBsub_pb : PolyBounded (fun qs => (eQS qs).length) B_sub :=
-    (((PolyBounded.const 2).mul hctx_pb).add ((PolyBounded.const 2).mul hBjet_pb)).add (.const 1)
+  have hBsub_pb : PolyBounded (fun qs => (eQS qs).length) B_sub := by growth_poly
   have hdp_len (n q i : ℕ) :
       (SubsetPairFold.encDecodedPair (SubsetPairFold.unrankSubsetPair n q i)).length ≤
         6 * n + 7 := by
@@ -706,13 +658,9 @@ private theorem exists_computableInO_nodeJet :
     simp only [Option.elim_some] at hjet_le
     dsimp only [eSubAcc, B_sub, B_jet] at hjet_le ⊢; enc_len
   let L_sub (qs : ℕ × SubsetStepCtx) := 2 * (6 * qs.2.numVars + 7) + 2 * B_sub qs + 1
-  have hLsub_pb : PolyBounded (fun qs => (eQS qs).length) L_sub :=
-    (((PolyBounded.const 2).mul (((PolyBounded.const 6).mul hn_pb).add (.const 7))).add
-      ((PolyBounded.const 2).mul hBsub_pb)).add (.const 1)
   let Q_sub (qs : ℕ × SubsetStepCtx) := cs * (L_sub qs + 1) ^ ds
-  have hQsub_pb := NativeCertificate.polyBounded_pow_of_polyBounded hLsub_pb cs ds
+  have hQsub_pb : PolyBounded (fun qs => (eQS qs).length) Q_sub := by growth_poly
   let Ov_sub (qs : ℕ × SubsetStepCtx) := co * (L_sub qs + 1) ^ do_
-  have hOvsub_pb := NativeCertificate.polyBounded_pow_of_polyBounded hLsub_pb co do_
   let cn := NativeCertificate.ofPolyTime hn_qs
   let cq := NativeCertificate.ofPolyTime hq_qs
   let ci := NativeCertificate.ofPolyTime hinitQS
@@ -764,9 +712,9 @@ private theorem exists_computableInO_nodeJet :
   let P_out (qs : ℕ × SubsetStepCtx) := P_sm qs + Ov_sub qs + hd_ov qs + B_sub qs +
     ((eQS qs).length + cn.time qs + cq.time qs + ci.time qs + hd_ov qs) +
     (NativeCertificate.snd cSubRun).space qs
-  have hPout_pb : PolyBounded (fun qs => (eQS qs).length) P_out :=
-    (((((hPsm_pb.add hOvsub_pb).add hhd_pb).add hBsub_pb).add
-      ((((PolyBounded.self.add hcn.1).add hcq.1).add hci.1).add hhd_pb)).add hS_pb)
+  have hPout_pb : PolyBounded (fun qs => (eQS qs).length) P_out := by
+    dsimp only [P_out, NativeCertificate.snd, NativeCertificate.post]
+    growth_poly [hS_pb]
   clear_value L_dc P_sm B_jet B_sub L_sub Q_sub Ov_sub
   refine ⟨P_out, hPout_pb, (NativeCertificate.snd cSubRun).computes.mono_le (fun qs => ?_)
     fun qs => Nat.le_add_left _ _⟩
@@ -902,9 +850,8 @@ private theorem exists_computableInO_mkDesignPair :
   let P_out (inp : BranchEvalInput) : ℕ :=
     poly (BalancedSchedules.encScheduleParams (prepScheduleParams inp)).length +
       ov1 inp + cStg1.space inp
-  have hPout_pb : PolyBounded (fun inp => (encBranchEvalInput inp).length) P_out :=
-    (hpoly_pb.add (((PolyBounded.self.add hcPrep.1).add
-      (hcBuild.1.comp (polyBounded_length_of_hasPolySpace hspMid))))).add hcStg1_sp
+  have hPout_pb : PolyBounded (fun inp => (encBranchEvalInput inp).length) P_out := by
+    growth_poly [polyBounded_length_of_hasPolySpace hspMid]
   refine ⟨P_out, hPout_pb, (cStg1.computes.of_enc_eq fun _ => rfl).mono_le (fun inp => ?_)
     fun inp => Nat.le_add_left _ _⟩
   have hsched_t := (hB (prepScheduleParams inp)).1
@@ -1052,9 +999,7 @@ private theorem exists_boundedIncidenceBranch_cert :
     cn1 * (2 * (eCtx (idPair,
       buildEqRowTables idPair.1.numVars idPair.1.equations idPair.2)).length +
       2 * branchQ_u idPair.1 + 1 + 1) ^ dn1
-  have hPn_iter_pb := NativeCertificate.polyBounded_pow_of_polyBounded
-    ((((PolyBounded.const 2).mul hctx_build.polyBounded_length).add
-      ((PolyBounded.const 2).mul hQu_id.polyBounded)).add (.const 1)) cn1 dn1
+  have hPn_iter_pb : PolyBounded (fun idPair => (eID idPair).length) Pn_iter := by growth_poly
   let K_inner (idPair : BranchEvalInput × ReplacementDesignData) : ℕ :=
     let n' := idPair.1.numVars; let Q_u := branchQ_u idPair.1; let r_u := branchr_u idPair.1
     let c_meas := min (4 * (n' + 1) * (idPair.1.equations.length * n' + n' + 1))
@@ -1118,9 +1063,8 @@ private theorem exists_boundedIncidenceBranch_cert :
   let P_stg2 (idPair : BranchEvalInput × ReplacementDesignData) : ℕ :=
     Pn_iter idPair + Pm_nodes idPair +
       (cGuard2.time idPair + (eID idPair).length + cFin.time (fnOut idPair))
-  have hPstg2_pb : PolyBounded (fun idPair => (eID idPair).length) P_stg2 :=
-    (hPn_iter_pb.add hPmn_pb).add
-      ((hcGuard2.1.add .self).add (hcFin.1.comp (polyBounded_length_of_hasPolySpace hspIDN)))
+  have hPstg2_pb : PolyBounded (fun idPair => (eID idPair).length) P_stg2 := by
+    growth_poly [polyBounded_length_of_hasPolySpace hspIDN]
   have hStg2_time (idPair : BranchEvalInput × ReplacementDesignData) :
       cStg2.time idPair ≤ (branchQ_u idPair.1 + 1) * K_inner idPair * P_stg2 idPair := by
     have hK_pos : 1 ≤ K_inner idPair :=
@@ -1166,9 +1110,9 @@ private theorem exists_boundedIncidenceBranch_cert :
       hcGuard1.2 hsp12 (NativeCertificate.const_isPolynomial 0).2
   let P_all (inp : BranchEvalInput) : ℕ :=
     cGuard1.time inp + (encBranchEvalInput inp).length + P_stg1 inp + P_stg2 (mkDesignPair inp)
-  have hPall_pb : PolyBounded (fun inp => (encBranchEvalInput inp).length) P_all :=
-    ((hcGuard1.1.add .self).add hPstg1_pb).add
-      (hPstg2_pb.comp (polyBounded_length_of_hasPolySpace (c := cStg1) hPstg1_pb))
+  have hPall_pb : PolyBounded (fun inp => (encBranchEvalInput inp).length) P_all := by
+    dsimp only [P_all]
+    growth_poly [hPstg2_pb.comp (polyBounded_length_of_hasPolySpace (c := cStg1) hPstg1_pb)]
   refine ⟨cFull, hcFull_sp, P_all, hPall_pb, fun inp => ?_⟩
   have hmk1 : (mkDesignPair inp).1 = inp := rfl
   set K0 := K_inner (mkDesignPair inp); set A_cnt := branchr_u inp ^ branchQ_u inp + 1

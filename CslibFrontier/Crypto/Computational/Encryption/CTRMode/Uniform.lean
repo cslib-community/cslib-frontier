@@ -79,7 +79,9 @@ keeping at most `n` bits of the reply.
 * `Cslib.Crypto.ctrWordDecrypt_ctrWordEncrypt`: decryption inverts encryption.
 * `Cslib.Crypto.isPPTOn_ctrWordEncrypt`, `Cslib.Crypto.computableInPolyTime_ctrWordDecrypt`:
   efficiency of the honest algorithms.
-* `Cslib.Crypto.isOraclePPT_ctrToPrfDistinguisher`: the reduction is uniform strict oracle PPT.
+* `Cslib.Crypto.isOraclePPTOn_ctrKeystreamQueries`,
+  `Cslib.Crypto.isOraclePPT_ctrToPrfDistinguisher`: the keystream queries and reduction are strict
+  oracle PPT.
 * `Cslib.Crypto.eval_prfRealGame_ctrToPrfDistinguisher`: the real PRF game of the reduction is
   the CPA game.
 * `Cslib.Crypto.advantage_ctrWordCPAGame_le`: the concrete CPA bound.
@@ -223,12 +225,14 @@ theorem computableInPolyTime_ctrWordDecrypt {family : List Bool → List Bool �
 
 /-- One keystream block from the function oracle: query the `j`-th counter block, keep at most
 `n` bits of the reply and append them to the keystream so far. -/
+@[expose]
 def ctrKeystreamStep (n : ℕ) (iv : List Bool) (state : ℕ × List Bool) :
     WordOracleComp Unit (ℕ × List Bool) :=
   (fun block => (state.1 + 1, state.2 ++ block)) <$>
     (List.take n <$> ProbOracleComp.query ((), ctrWordCounter n iv state.1))
 
 /-- The keystream of `blocks` blocks from the function oracle, with one query per block. -/
+@[expose]
 def ctrKeystreamQueries (n : ℕ) (iv : List Bool) (blocks : ℕ) : WordOracleComp Unit (List Bool) :=
   Prod.snd <$> OracleComp.iterate blocks (ctrKeystreamStep n iv) (0, [])
 
@@ -281,7 +285,7 @@ theorem eval_prfRealGame_ctrToPrfDistinguisher {family : List Bool → List Bool
 
 /-- The keystream queries are strict oracle PPT: each step makes one charged query and grows the
 encoded state by at most `n + 2` bits. -/
-private theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
+theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
     {n blocks : α → ℕ} {iv : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary) (hiv : ComputableInPolyTime iv input encBits)
     (hblocks : ComputableInPolyTime blocks input encUnary) :

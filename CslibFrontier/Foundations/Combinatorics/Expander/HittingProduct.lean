@@ -196,7 +196,6 @@ theorem dens_filter_forall_walkAt_mem_le_product_of_spectralExpansion_le
       Real.sqrt (dens (B 0) : ℝ) *
         ∏ i ∈ range t, Real.sqrt ((dens (B (i + 1)) : ℝ) + η ^ 2) := by
   refine (G.dens_filter_forall_walkAt_mem_le_product B t).trans ?_
-  have hn := G.spectralExpansion_nonneg
   gcongr
 
 /-- The constant-set corollary for `t + 1` vertices, in square-root power form:

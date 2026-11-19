@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChild
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.List.GetD
 
 /-!
@@ -131,7 +132,7 @@ theorem card_colOfP_le (w : Fin (D.vertices.length - r)) :
         have hle := DescribedNetwork.le_tgtFin hD e
         have hw : (D.tgtFin hD e : ℕ) - r = w := congrArg Fin.val he
         exact (DescribedNetwork.mem_ports_iff hD ⟨r + w, hv⟩ e).mpr
-          (Or.inr (Fin.ext (by simp only; omega)))
+          (Or.inr (by fin_index))
     _ ≤ _ := List.toFinset_card_le _
 
 include hD in

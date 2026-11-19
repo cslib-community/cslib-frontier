@@ -71,7 +71,7 @@ open scoped NNReal
 `c = (m, CRC(m)) ⊕ RC4(IV ‖ k)` ([BonehShoup2023], Section 9.10, Attack 3): encrypt
 `msg ++ checksum msg` with `prfCipher` at parameter `n + csLen n`, where `csLen` gives the
 checksum length, and on decryption return the first `n` bits only if the rest is their
-checksum. -/
+checksum. Its ciphertext space is `prfCipher`'s at parameter `n + csLen n`. -/
 @[expose]
 noncomputable def prfChecksumCipher (family : List Bool → List Bool → List Bool)
     (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
@@ -87,6 +87,10 @@ noncomputable def prfChecksumCipher (family : List Bool → List Bool → List B
   decrypt n k ct :=
     ((prfCipher family hpoly hlen).decrypt (n + csLen n) k ct).elim none fun p =>
       if p.drop n == checksum (p.take n) then some (p.take n) else none
+  ctSpace n := (prfCipher family hpoly hlen).ctSpace (n + csLen n)
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    rw [(prfCipher family hpoly hlen).decrypt_eq_none_of_ctSpace_eq_false _ _ _ h]
+    rfl
   keyGen_ppt := by ppt
   encrypt_ppt := by ppt
   decrypt_polyTime := by polytime

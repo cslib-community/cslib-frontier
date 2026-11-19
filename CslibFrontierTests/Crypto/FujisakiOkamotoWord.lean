@@ -15,6 +15,8 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Data.BitString.Basic
 
 /-!
 # Tests for the word-level Fujisaki–Okamoto family
@@ -25,7 +27,7 @@ apply to it. Its native decapsulations are run against fixed oracles `G` and `H`
 
 * an honest ciphertext of a message of the right length decapsulates to `H(false, m, c)`;
 * a ciphertext whose decryption has the wrong length is a decryption failure, so `FO-notbot`
-  returns the fallback key `H(true, s, c)` and `FO^⊥` returns `none`;
+  returns the fallback key `H(false, s, c)` and `FO^⊥` returns `none`;
 * a word longer than the ciphertext bound is rejected with `none` by both.
 
 The native keyless simulator of the IND-CPA reduction caches an in-domain `G` request, rejects a
@@ -35,11 +37,19 @@ challenge word is uniform strict PPT. In the word ROM IND-CCA game, decapsulatio
 ciphertext and a `G` request of the wrong length get the empty word and leave the random oracles
 unchanged, and an in-domain `G` request is answered and cached.
 
+The `FO^⊥` filter of the simulator rejects a decapsulation request that no cached `G` query
+re-encrypts to, and the `FO^⊥` reduction is uniform strict PPT too.
+
 The ciphertexts of the identity scheme fit its ciphertext space, and it is perfectly correct, so
 the typed bridge identifies the word game of `queryChallengeG` with a typed game. For the same
 reasons, the asymptotic theorem `WordPKE.INDCPA.romINDCCA` applies to the identity scheme with
 every premise discharged except IND-CPA security, its only security premise, which the identity
 scheme lacks.
+
+The identity scheme has no coins, so it is not `γ`-spread for any `γ > 0`. The padded scheme
+`padPKE` encrypts `m` with coins `r` to the pair `(m, r)`: it is efficient, perfectly correct and
+`n`-spread at parameter `n`, so every premise of the `FO^⊥` theorem `WordPKE.INDCPA.romINDCCABot`
+other than IND-CPA security holds for it, and they can hold together.
 -/
 
 public section
@@ -94,12 +104,12 @@ example : ProbOracleComp.runWith fixedOracle
     runWith_norm, pmf_norm]
 
 /-- At parameter `2`, the ciphertext `[false]` decrypts to a word of the wrong length, so
-`FO-notbot` returns the fallback key `H(true, s, c)`. -/
+`FO-notbot` returns the ordinary key-oracle answer at the valid seed `[true, true]`. -/
 example : ProbOracleComp.runWith fixedOracle
-      (identityPKE.decapsNotBot (fun _ => 20) 2 dk [false]) () =
-    PMF.pure (some ((encHQuery (true, [true], [false])).take 20), ()) := by
+      (identityPKE.decapsNotBot (fun _ => 20) 2 ⟨[], [], [true, true]⟩ [false]) () =
+    PMF.pure (some ((encHQuery (false, [true, true], [false])).take 20), ()) := by
   simp [WordPKE.decapsNotBot, identityPKE, WordPKE.scheme, WordPKE.toExplicitCoin,
-    Scheme.decapsNotBotM_eq, Option.filter_some, queryH, fixedOracle, dk, runWith_norm, pmf_norm]
+    Scheme.decapsNotBotM_eq, Option.filter_some, queryH, fixedOracle, runWith_norm, pmf_norm]
 
 /-- At parameter `2`, `FO^⊥` rejects the same ciphertext with `none`. -/
 example : ProbOracleComp.runWith fixedOracle
@@ -124,7 +134,7 @@ theorem stateT_bind_apply {σ α β : Type} (x : StateT σ ProbComp α)
 
 /-- An in-domain `G` request is cached: at parameter `1` with empty coins, `G([true])` answers the
 empty coin word and records it. -/
-example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ => true) 1 []
+example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ _ => true) 1 []
       [false] (.G, [true]) {}) =
     PMF.pure ([], { gCache := [([true], [])] }) := by
   simp [WordPKE.simFilterWordHandler, identityPKE, Scheme.simFilterHandler,
@@ -132,19 +142,19 @@ example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ 
     WordPKE.toExplicitCoin, BitString.sampleList, pmf_norm]
 
 /-- A `G` request of the wrong length gets the empty reply and leaves the state unchanged. -/
-example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ => true) 1 []
+example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ _ => true) 1 []
       [false] (.G, [true, false]) {}) = PMF.pure ([], {}) := by
   simp [WordPKE.simFilterWordHandler, identityPKE]
 
 /-- Decapsulation of the challenge ciphertext is refused with the empty reply. -/
-example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ => true) 1 []
+example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ _ => true) 1 []
       [false] (.decaps, [false]) {}) = PMF.pure ([], {}) := by
   simp [WordPKE.simFilterWordHandler, identityPKE, Scheme.simFilterHandler,
     Scheme.simFilterDispatch, stateT_pure_apply, pmf_norm]
 
 /-- Any other ciphertext within the bound is answered from the ciphertext table `H_q`: with empty
 keys the reply is `encOption encBits (some []) = [true]`, and `([true], [])` is recorded. -/
-example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ => true) 1 []
+example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ _ => true) 1 []
       [false] (.decaps, [true]) {}) =
     PMF.pure ([true], { hqCache := [([true], [])] }) := by
   simp [WordPKE.simFilterWordHandler, identityPKE, Scheme.simFilterHandler,
@@ -167,20 +177,52 @@ example : (identityPKE.romCpaReductionWord (fun n => n) queryChallengeG).IsPPT e
     (by fun_prop : ComputableInPolyTime (fun n : ℕ => n) encUnary encUnary)
     isOraclePPT_queryChallengeG
 
+/-- With the `FO^⊥` filter and an empty `G` cache, a decapsulation request in the ciphertext space
+other than the challenge is rejected with `none`, encoded as the empty word, and the state is
+unchanged. -/
+example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0)
+      (fun n => Scheme.simBotCheck (identityPKE.toExplicitCoin n)) 1 [] [false] (.decaps, [true])
+      {}) = PMF.pure ([], {}) := by
+  simp [WordPKE.simFilterWordHandler, identityPKE, Scheme.simFilterHandler,
+    Scheme.simFilterDispatch, filterDecaps, Scheme.simBotCheck, stateT_pure_apply]
+
+/-- The `FO^⊥` reduction against the identity scheme is uniform strict PPT. -/
+example : (identityPKE.romBotCpaReductionWord (fun n => n) queryChallengeG).IsPPT encBits :=
+  identityPKE_isEfficient.isPPT_romBotCpaReductionWord
+    (by fun_prop : ComputableInPolyTime (fun n : ℕ => n) encUnary encUnary)
+    isOraclePPT_queryChallengeG
+
 /-! ### The word ROM IND-CCA game -/
 
+/-- Exactly the ordinary encoding of a seed/ciphertext pair is a public hash request. -/
+example : identityPKE.isHQuery 2 (encHQuery (false, [true, true], [false])) = true ∧
+    identityPKE.isHQuery 2 (encHQuery (true, [true, true], [false])) = false := by decide
+
+/-- A key already returned by a public `H(s,c)` query is exactly the key returned on rejecting
+`c`, for either possible value of the cached bit. -/
+example (k : Bool) :
+    let cache : ROCache (List Bool) (List Bool) (List Bool) (List Bool) :=
+      { hCache := [((false, [true, true], [false]), [k])] }
+    ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 1) 2
+      (identityPKE.decapsNotBot (fun _ => 1) 2 ⟨[], [], [true, true]⟩)
+      [] (.decaps, [false]) cache) = PMF.pure (encOption encBits (some [k]), cache) := by
+  cases k <;> rfl
+
 /-- The game's decapsulation oracle refuses the challenge ciphertext with the empty word. -/
-example : ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 0) 1 dk [false] (.decaps, [false])
+example : ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 0) 1
+      (identityPKE.decapsNotBot (fun _ => 0) 1 dk) [false] (.decaps, [false])
       {}) = PMF.pure ([], {}) := by
   simp [WordPKE.ccaWordOracle, stateT_pure_apply]
 
 /-- A `G` request of the wrong length gets the empty word and leaves the caches unchanged. -/
-example : ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 0) 1 dk [false] (.G, [true, true])
+example : ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 0) 1
+      (identityPKE.decapsNotBot (fun _ => 0) 1 dk) [false] (.G, [true, true])
       {}) = PMF.pure ([], {}) := by
   simp [WordPKE.ccaWordOracle, WordPKE.roWordOracle, identityPKE]
 
 /-- An in-domain `G` request is answered with a coin of length `coinLen 1 = 0` and cached. -/
-example : ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 0) 1 dk [false] (.G, [true])
+example : ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 0) 1
+      (identityPKE.decapsNotBot (fun _ => 0) 1 dk) [false] (.G, [true])
       {}) = PMF.pure ([], { gCache := [([true], [])] }) := by
   simp [WordPKE.ccaWordOracle, WordPKE.roWordOracle, identityPKE, roHashG,
     RandomOracle.zoomStateT, memoize, BitString.sampleList, pmf_norm]
@@ -200,11 +242,11 @@ theorem identityPKE_deltaCorrect : identityPKE.DeltaCorrect fun _ => 0 := fun n 
     simp [WordPKE.finitePKE, WordPKE.toCiphertext, identityPKE]
 
 /-- The word game of `queryChallengeG` against the identity scheme has the law of a typed game of
-the scheme at each parameter, played by an adversary with polynomially many `G` and `H`
-queries. -/
+the scheme at each parameter, played by an adversary with polynomially many `G`, `H` and
+decapsulation queries. -/
 example : ∃ (B : (n : ℕ) → RandomizedROAdversary (List Bool) (BitString n) (BitString 0)
       (identityPKE.Ciphertext n) (BitString n)) (q : ℕ → ℕ), PolynomiallyBounded q ∧
-      ∀ n, (B n).QueryBounds (q n) (q n) ∧ ∀ b,
+      ∀ n, (B n).FullQueryBounds (q n) (q n) (q n) ∧ ∀ b,
         ProbComp.eval (identityPKE.romIndCcaGameWord (fun n => n) queryChallengeG b n) =
           ProbComp.eval ((B n).play (identityPKE.finiteScheme (fun n => n) n).roIndCcaGame b) := by
   obtain ⟨B, q, hq, hbounds, hbridge⟩ := identityPKE_isEfficient.exists_typedAdversary
@@ -221,6 +263,93 @@ example (hcpa : identityPKE.INDCPA) : identityPKE.ROMINDCCA (fun n => n) :=
   hcpa.romINDCCA (δ := fun _ => 0) identityPKE_isEfficient
     (by fun_prop : ComputableInPolyTime (fun n : ℕ => n) encUnary encUnary)
     identityPKE_ciphertextFits identityPKE_deltaCorrect Crypto.negligible_zero
+    Crypto.negligible_inv_two_pow
+
+/-! ### A `γ`-spread scheme and the `FO^⊥` theorem -/
+
+/-- The padded scheme: at parameter `n`, messages and coins have length `n`; a message `m` with
+coins `r` encrypts to the pair `(m, r)` of framed words, and decryption returns the first
+component. -/
+def padPKE : WordPKE where
+  msgLen n := n
+  coinLen n := n
+  ctLen n := 3 * n + 2
+  keyGen _ := pure ([], [])
+  encDet _ _ m r := encPair encBits encBits (m, r)
+  dec _ _ c := some ((Decoder.bits.pair Decoder.bits).decode c).1
+
+/-- The padded scheme is an efficient word-level PKE family. -/
+theorem padPKE_isEfficient : padPKE.IsEfficient where
+  msgLen := by simp only [padPKE]; fun_prop
+  coinLen := by simp only [padPKE]; fun_prop
+  ctLen := by simp only [padPKE]; fun_prop
+  keyGen := (ComputableInPolyTime.const (([], []) : List Bool × List Bool)).isPPTOn
+  encDet := by
+    change ComputableInPolyTime (fun x : ℕ × List Bool × List Bool × List Bool =>
+      encPair encBits encBits (x.2.2.1, x.2.2.2)) encEncDetInput encBits
+    exact (by fun_prop : ComputableInPolyTime
+      (fun x : ℕ × List Bool × List Bool × List Bool => (x.2.2.1, x.2.2.2)) encEncDetInput
+      (encPair encBits encBits)).encoding_comp
+  dec := by
+    change ComputableInPolyTime (fun x : ℕ × List Bool × List Bool =>
+      some ((Decoder.bits.pair Decoder.bits).decode x.2.2).1)
+      (encPair encUnary (encPair encBits encBits)) (encOption encBits)
+    exact (by fun_prop : ComputableInPolyTime (some (α := List Bool)) encBits
+      (encOption encBits)).comp (((Decoder.bits.pair Decoder.bits).computableInPolyTime.comp
+        (by fun_prop : ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
+          (encPair encUnary (encPair encBits encBits)) encBits)).fst')
+
+/-- The ciphertexts of the padded scheme fit its ciphertext space. -/
+theorem padPKE_ciphertextFits : padPKE.CiphertextFits := by
+  intro n pk sk _ m r hm hr
+  simp only [padPKE] at hm hr ⊢
+  simp only [length_encPair, encBits_apply, hm, hr]
+  omega
+
+/-- The padded scheme is perfectly correct at every parameter. -/
+theorem padPKE_deltaCorrect : padPKE.DeltaCorrect fun _ => 0 := fun n =>
+  (padPKE.finitePKE n).deltaCorrect_zero_of_perfect fun pk sk hkeys m r _ => by
+    have hfit := padPKE_ciphertextFits n pk sk hkeys (List.ofFn m) (List.ofFn r)
+      List.length_ofFn List.length_ofFn
+    have hdec : padPKE.dec n sk (padPKE.encDet n pk (List.ofFn m) (List.ofFn r)) =
+        some (List.ofFn m) := by
+      change some ((Decoder.bits.pair Decoder.bits).decode
+        (encPair encBits encBits (List.ofFn m, List.ofFn r))).1 = some (List.ofFn m)
+      rw [Decoder.decode_enc]
+    simp only [WordPKE.finitePKE]
+    rw [WordPKE.toCiphertext_val hfit, hdec, Option.bind_some]
+    simp only [List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn]
+
+/-- The padded scheme is `n`-spread at parameter `n`: a ciphertext is hit by at most one coin
+word of length `n`. -/
+theorem padPKE_gammaSpread : padPKE.GammaSpread fun n => n := by
+  intro n pk sk hkeys m c
+  have hfit (r : BitString (padPKE.coinLen n)) := padPKE_ciphertextFits n pk sk hkeys
+    (List.ofFn m) (List.ofFn r) List.length_ofFn List.length_ofFn
+  have hsub : {r | (padPKE.finitePKE n).encDet pk m r = c}.Subsingleton := by
+    intro r₁ h₁ r₂ h₂
+    have h := (WordPKE.toCiphertext_inj (hfit r₁) (hfit r₂)).mp (h₁.trans h₂.symm)
+    simp only [padPKE] at h
+    exact List.ofFn_injective (congrArg Prod.snd ((encPair encBits encBits).injective h))
+  have hpow : (2 : ℝ) ^ (-(n : ℝ)) = ((2 : ℝ) ^ n)⁻¹ := by
+    rw [Real.rpow_neg (by norm_num), Real.rpow_natCast]
+  rcases hsub.eq_empty_or_singleton with h | ⟨r, h⟩
+  · rw [h, MeasureTheory.measure_empty, ENNReal.toReal_zero]
+    positivity
+  · rw [h, hpow, PMF.toOuterMeasure_apply_singleton, WordPKE.finitePKE_sampleCoins,
+      ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_apply]
+    rw [Cslib.BitString.card]
+    simp [padPKE]
+
+/-- For the padded scheme, every premise of `WordPKE.INDCPA.romINDCCABot` other than IND-CPA
+security holds: it is efficient, its ciphertexts fit, it is `0`-correct, it is `n`-spread with
+`2 ^ (-n)` negligible, and `2 ^ (-n)` is negligible. IND-CPA security is the only security premise
+left. -/
+example (hcpa : padPKE.INDCPA) : padPKE.ROMINDCCABot (fun n => n) :=
+  hcpa.romINDCCABot (δ := fun _ => 0) padPKE_isEfficient
+    (by fun_prop : ComputableInPolyTime (fun n : ℕ => n) encUnary encUnary)
+    padPKE_ciphertextFits padPKE_deltaCorrect Crypto.negligible_zero padPKE_gammaSpread
+    (by simpa only [NNReal.rpow_neg, NNReal.rpow_natCast] using Crypto.negligible_inv_two_pow)
     Crypto.negligible_inv_two_pow
 
 end CslibFrontierTests.Crypto.FujisakiOkamotoWord

@@ -26,6 +26,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Sum.Lift
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
@@ -42,7 +43,8 @@ chosen-ciphertext security (`INDCCA`) following
 Chapter 5 (Sections 5.3 and 5.10) and Chapter 9 (Sections 9.1 and 9.2.2–9.2.3):
 
 1. **Symmetric ciphers and adaptive/one-time CPA security (`SymmetricCipher`, `cpaGame`, `INDCPA`,
-   `cpaOneTimeGame`, `OneTimeINDCPA`, `not_indcpa_of_ciphertext_length_eq`)**
+   `cpaOneTimeGame`, `OneTimeINDCPA`, `not_indcpa_of_deterministic`,
+   `not_indcpa_of_ciphertext_length_eq`)**
    ([BonehShoup2023], Section 2.2, Attack Game 2.1 and Definition 2.2; Section 5.3, Attack Game 5.2,
    Definition 5.2, and Example 5.1, printed pp. 181–182; Exercise 5.10(a), printed p. 211):
    a uniform symmetric cipher on `n`-bit messages at security parameter `n` consists of strict PPT
@@ -51,10 +53,9 @@ Chapter 5 (Sections 5.3 and 5.10) and Chapter 9 (Sections 9.1 and 9.2.2–9.2.3)
    `cpaGame`, an adaptive `OracleDistinguisher` submits left-or-right pairs `(m0, m1)` of `n`-bit
    messages and receives `encrypt n k (if bit then m1 else m0)`; `cpaOneTimeGame` and
    `OneTimeINDCPA` restrict the oracle to at most one valid encryption query. We also formalize
-   Example 5.1 and Exercise 5.10(a) (`not_indcpa_of_ciphertext_length_eq`): if every supported
-   ciphertext of an `n`-bit message has length `n`, decryption completeness forces `encrypt` to be a
-   deterministic permutation on `n`-bit strings, which a 2-query CPA adversary (`detCPAAdversary`)
-   breaks with advantage `1`.
+   Example 5.1 (`not_indcpa_of_deterministic`) for any cipher deterministic on `0^n` with arbitrary
+   polynomial ciphertext expansion via the 2-query distinguisher `detCPAAdversary ctBound`, and
+   deduce Exercise 5.10(a) (`not_indcpa_of_ciphertext_length_eq`) as its zero-expansion corollary.
 2. **Ciphertext integrity and authenticated encryption (`ciGame`, `CiphertextIntegrity`,
    `AuthenticatedEncryption`, `ciOneTimeGame`, `OneTimeCiphertextIntegrity`,
    `OneTimeAuthenticatedEncryption`)** ([BonehShoup2023], Section 9.1, Attack Game 9.1 and
@@ -95,6 +96,13 @@ Section 5.4.1, Example 5.2 and Theorem 5.2, printed pp. 183–187) are formalize
 
 ## Specializations and losses relative to Boneh–Shoup Chapter 9
 
+* **Ciphertext space**: a cipher declares its ciphertext space `ctSpace`, every word by default,
+  and decryption rejects outside it (`decrypt_eq_none_of_ctSpace_eq_false`). Attack Game 9.1 asks
+  for a forgery in `C`, and Attack Game 9.2 for decryption queries in `C`. On a cipher with
+  `ctSpace = C`, a forgery outside `C` loses and a decryption query outside `C` is answered with a
+  rejection, so the integrity games are the source's on `C`, and `INDCCA` and `OneTimeINDCCA`
+  imply the source's CCA and 1CCA security on `C` (and are equivalent to them when `C` is
+  efficiently recognizable, as Definition 2.10 requires).
 * **Fixed `n`-bit plaintext domain at security parameter `n`**: encryption queries take `n`-bit
   messages (`msg.length = n` in `ciGame`, `m0.length = n ∧ m1.length = n` in `cpaGame` and
   `ccaGame`). Malformed encryption queries return `[]` without invoking `encrypt` or recording a
@@ -123,12 +131,13 @@ Section 5.4.1, Example 5.2 and Theorem 5.2, printed pp. 183–187) are formalize
 
 * `Cslib.Crypto.CIAdversary`, `Cslib.Crypto.CCAAdversary`: adaptive ciphertext-integrity and
   chosen-ciphertext adversaries.
-* `Cslib.Crypto.SymmetricCipher`: uniform symmetric cipher on `n`-bit messages.
+* `Cslib.Crypto.SymmetricCipher`: uniform symmetric cipher on `n`-bit messages, with a ciphertext
+  space outside which decryption rejects.
 * `Cslib.Crypto.SymmetricCipher.CiphertextLength`, `CiphertextLengthLE`: exact and bounded
   ciphertext length on `n`-bit messages under keys supported by `keyGen n`.
 * `Cslib.Crypto.SymmetricCipher.cpaGame`, `INDCPA`, `cpaOneTimeGame`, `OneTimeINDCPA`,
   `detCPAAdversary`: adaptive and one-time symmetric CPA games, security predicates, and 2-query
-  distinguisher comparing the `n`-bit prefixes of its two replies ([BonehShoup2023],
+  distinguisher truncating replies to `ctBound n` bits ([BonehShoup2023],
   Attack Game 5.2 / Definition 5.2 / Example 5.1 / Definition 9.4).
 * `Cslib.Crypto.SymmetricCipher.ciGame`, `CiphertextIntegrity`, `AuthenticatedEncryption`,
   `ciOneTimeGame`, `OneTimeCiphertextIntegrity`, `OneTimeAuthenticatedEncryption`:
@@ -157,11 +166,14 @@ Section 5.4.1, Example 5.2 and Theorem 5.2, printed pp. 183–187) are formalize
 * `Cslib.Crypto.SymmetricCipher.cpaGame_eq_symmetricCPAGameOn`,
   `Cslib.Crypto.SymmetricCipher.indcpa_iff`: `cpaGame` and `INDCPA` are the `n`-bit case of
   `symmetricCPAGameOn` and `SymmetricINDCPAOn` (`SymmetricCPA.lean`).
-* `Cslib.Crypto.SymmetricCipher.encrypt_eq_of_ciphertext_length_eq`,
+* `Cslib.Crypto.SymmetricCipher.isOraclePPT_detCPAAdversary`,
   `Cslib.Crypto.SymmetricCipher.advantage_cpaGame_detCPAAdversary`,
-  `Cslib.Crypto.SymmetricCipher.not_indcpa_of_ciphertext_length_eq`: any cipher whose ciphertexts on
-  `n`-bit messages have length `n` is forced by decryption completeness to be deterministic and
-  hence cannot satisfy `INDCPA` ([BonehShoup2023], Example 5.1 and Exercise 5.10(a)).
+  `Cslib.Crypto.SymmetricCipher.not_indcpa_of_deterministic`,
+  `Cslib.Crypto.SymmetricCipher.encrypt_eq_of_ciphertext_length_eq`,
+  `Cslib.Crypto.SymmetricCipher.exists_eval_encrypt_eq_pure_of_ciphertext_length_eq`,
+  `Cslib.Crypto.SymmetricCipher.not_indcpa_of_ciphertext_length_eq`: deterministic symmetric ciphers
+  (even with arbitrary polynomial ciphertext expansion) and zero-expansion ciphers cannot satisfy
+  `INDCPA` ([BonehShoup2023], Example 5.1 and Exercise 5.10(a)).
 * `Cslib.Crypto.SymmetricCipher.isOraclePPT_ccaToCPAAdversary`,
   `Cslib.Crypto.SymmetricCipher.isOraclePPT_ccaToCIAdversary`,
   `Cslib.Crypto.SymmetricCipher.isOraclePPT_ccaToCIHiddenBitAdversary`,
@@ -206,8 +218,18 @@ abbrev CCAAdversary := ℕ → List Bool → WordOracleComp Bool Bool
 
 /-- A uniform symmetric cipher on `n`-bit messages at security parameter `n`, with strict
 probabilistic polynomial-time key generation and encryption, deterministic polynomial-time
-decryption (returning `Option (List Bool)`), and perfect decryption completeness on supported keys,
-`n`-bit messages, and ciphertexts ([BonehShoup2023], Sections 5.3 and 9.1). -/
+decryption (returning `Option (List Bool)`), a ciphertext space `ctSpace` outside which decryption
+rejects, and perfect decryption completeness on supported keys, `n`-bit messages, and ciphertexts
+([BonehShoup2023], Sections 5.3 and 9.1).
+
+A source cipher defined over `(K, M, C)` ([BonehShoup2023], Section 2.3.2, Definition 2.10,
+printed p. 31) decrypts only words of `C`. It is encoded with `ctSpace n` deciding `C` at
+parameter `n` and with `decrypt` rejecting every other word, which
+`decrypt_eq_none_of_ctSpace_eq_false` requires. The integrity and chosen-ciphertext games then
+match the source's games on `C` (`ciGame` and `ccaOracle` say how). Both fields have defaults,
+every word and its trivial proof, for a cipher whose decryption is meant for all words.
+Definition 2.10 also requires `C` to be efficiently recognizable; `ctSpace` carries no complexity
+certificate, since no theorem here needs one. -/
 structure SymmetricCipher where
   /-- Sample a symmetric secret key `k` at unary security parameter `n`. -/
   keyGen : ℕ → ProbComp (List Bool)
@@ -216,6 +238,9 @@ structure SymmetricCipher where
   /-- Deterministically decrypt a candidate ciphertext `ct` under secret key `k` at parameter `n`,
   returning `none` on rejection and `some msg` on acceptance. -/
   decrypt : ℕ → List Bool → List Bool → Option (List Bool)
+  /-- The ciphertext space at security parameter `n`, as a membership test on words: the set `C`
+  of the source cipher ([BonehShoup2023], Definition 2.10). By default every word. -/
+  ctSpace : ℕ → List Bool → Bool := fun _ _ => true
   /-- Key generation is uniformly strict PPT in the unary security parameter. -/
   keyGen_ppt : IsPPTOn encUnary encBits keyGen
   /-- Encryption is uniformly strict PPT in `(n, k, msg)`. -/
@@ -231,6 +256,9 @@ structure SymmetricCipher where
     ∀ msg, msg.length = n →
     ∀ ct, ct ∈ (ProbComp.eval (encrypt n k msg)).support →
     decrypt n k ct = some msg
+  /-- Decryption rejects every word outside the ciphertext space, under every key. -/
+  decrypt_eq_none_of_ctSpace_eq_false :
+    ∀ n k ct, ctSpace n ct = false → decrypt n k ct = none := by simp
 
 namespace SymmetricCipher
 
@@ -856,119 +884,119 @@ theorem encrypt_eq_of_ciphertext_length_eq (E : SymmetricCipher) {n : ℕ} {ke :
     rw [← hvEq, hcv]
   rw [huniq c₁ hc₁, huniq c₂ hc₂]
 
-/-- Two-query CPA distinguisher ([BonehShoup2023], Example 5.1, printed p. 182): queries
-`(0^n, 1^n)` followed by `(0^n, 0^n)`, truncates each reply to its first `n` bits, and outputs
-`true` iff the two truncated replies are equal (`c₁ == c₂`). Truncation is the identity when every
-supported ciphertext of an `n`-bit message has length `n`, the hypothesis under which
-`advantage_cpaGame_detCPAAdversary` gives advantage `1` for `n ≥ 1`. -/
-def detCPAAdversary : OracleDistinguisher :=
+/-- Under zero ciphertext expansion (`E.CiphertextLength n n`), encryption of any `n`-bit plaintext
+`msg` under any supported key `ke` evaluates to a point mass `PMF.pure c₀` ([BonehShoup2023],
+Section 5.8, Exercise 5.10(a), printed p. 211). -/
+theorem exists_eval_encrypt_eq_pure_of_ciphertext_length_eq (E : SymmetricCipher) {n : ℕ}
+    (hctLen : E.CiphertextLength n n) {ke : List Bool}
+    (hke : ke ∈ (ProbComp.eval (E.keyGen n)).support) {msg : List Bool} (hmsg : msg.length = n) :
+    ∃ c₀, ProbComp.eval (E.encrypt n ke msg) = PMF.pure c₀ := by
+  obtain ⟨c₀, hc₀⟩ := (ProbComp.eval (E.encrypt n ke msg)).support_nonempty
+  refine ⟨c₀, ?_⟩
+  simpa [PMF.map_id] using (PMF.map_eq_pure_iff (f := id) (b := c₀)).mpr fun c hc =>
+    E.encrypt_eq_of_ciphertext_length_eq hke (hctLen ke hke) hmsg hc hc₀
+
+/-- Two-query CPA distinguisher ([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182):
+queries `(0^n, 1^n)` followed by `(0^n, 0^n)`, truncates each reply to `ctBound n` bits, and
+outputs `true` iff the two truncated replies coincide (`c₁ == c₂`). -/
+def detCPAAdversary (ctBound : ℕ → ℕ) : OracleDistinguisher :=
   fun n _ => do
     let m0 := List.replicate n false
     let m1 := List.replicate n true
-    let c₁ ← List.take n <$> ProbOracleComp.query ((), encPair encBits encBits (m0, m1))
-    let c₂ ← List.take n <$> ProbOracleComp.query ((), encPair encBits encBits (m0, m0))
+    let c₁ ← List.take (ctBound n) <$> ProbOracleComp.query ((), encPair encBits encBits (m0, m1))
+    let c₂ ← List.take (ctBound n) <$> ProbOracleComp.query ((), encPair encBits encBits (m0, m0))
     return (c₁ == c₂)
 
-/-- `detCPAAdversary` is uniformly strict oracle-PPT (`IsOraclePPT encBool`). -/
-theorem isOraclePPT_detCPAAdversary : IsOraclePPT encBool detCPAAdversary := by
+/-- `detCPAAdversary ctBound` is uniformly strict oracle-PPT whenever `ctBound` is computable in
+unary polynomial time. -/
+theorem isOraclePPT_detCPAAdversary {ctBound : ℕ → ℕ}
+    (hbound : ComputableInPolyTime ctBound encUnary encUnary) :
+    IsOraclePPT encBool (detCPAAdversary ctBound) := by
   ppt [detCPAAdversary]
 
-/-- In Experiment `false`, `detCPAAdversary` receives two encryptions of `0^n`; when all supported
-ciphertexts of `n`-bit plaintexts have length `n`, both encryptions return the same ciphertext and
-`detCPAAdversary` outputs `true` with probability `1`. -/
-theorem eval_cpaGame_detCPAAdversary_false (E : SymmetricCipher) (n : ℕ)
-    (hctLen : E.CiphertextLength n n) :
-    ProbComp.eval (E.cpaGame detCPAAdversary false n) = PMF.pure true := by
+private theorem eval_cpaGame_detCPAAdversary_false (E : SymmetricCipher) (ctBound : ℕ → ℕ) (n : ℕ)
+    (hdet : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
+      ∃ c, ProbComp.eval (E.encrypt n k (List.replicate n false)) = PMF.pure c) :
+    ProbComp.eval (E.cpaGame (detCPAAdversary ctBound) false n) = PMF.pure true := by
   simp only [cpaGame, detCPAAdversary, OracleComp.interpret_bind, OracleComp.interpret_map,
     OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map,
     StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
-  trans (ProbComp.eval (E.keyGen n)).bind (fun _ => PMF.pure true)
-  · refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
-    unfold cpaEncryptionOracle
-    dsimp only [StateT.run]
-    simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_replicate,
-      beq_self_eq_true, Bool.and_self, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind,
-      ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
-    trans (ProbComp.eval (E.encrypt n ke (List.replicate n false))).bind (fun _ => PMF.pure true)
-    · refine PMF.bind_congr_on_support _ _ _ fun c₁ hc₁ => ?_
-      trans (ProbComp.eval (E.encrypt n ke (List.replicate n false))).bind (fun _ => PMF.pure true)
-      · refine PMF.bind_congr_on_support _ _ _ fun c₂ hc₂ => ?_
-        have heq : c₁ = c₂ :=
-          E.encrypt_eq_of_ciphertext_length_eq hke (hctLen ke hke) (List.length_replicate) hc₁ hc₂
-        simp [heq]
-      · exact PMF.bind_const _ _
-    · exact PMF.bind_const _ _
-  · exact PMF.bind_const _ _
+  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
+  obtain ⟨c, hc⟩ := hdet k hk
+  unfold cpaEncryptionOracle
+  dsimp only [StateT.run]
+  simp [hc]
 
-/-- In Experiment `true` for `n ≥ 1`, `detCPAAdversary` receives an encryption of `1^n` followed by
-an encryption of `0^n`; when all supported ciphertexts of `n`-bit plaintexts have length `n`, the
-two ciphertexts are distinct by decryption completeness, so `detCPAAdversary` outputs `false` with
-probability `1`. -/
-theorem eval_cpaGame_detCPAAdversary_true (E : SymmetricCipher) {n : ℕ} (hn : 1 ≤ n)
-    (hctLen : E.CiphertextLength n n) :
-    ProbComp.eval (E.cpaGame detCPAAdversary true n) = PMF.pure false := by
+private theorem eval_cpaGame_detCPAAdversary_true (E : SymmetricCipher) (ctBound : ℕ → ℕ) {n : ℕ}
+    (hn : 1 ≤ n) (hctLen : E.CiphertextLengthLE n (ctBound n)) :
+    ProbComp.eval (E.cpaGame (detCPAAdversary ctBound) true n) = PMF.pure false := by
   simp only [cpaGame, detCPAAdversary, OracleComp.interpret_bind, OracleComp.interpret_map,
     OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map,
     StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
   have hneMsg : List.replicate n true ≠ List.replicate n false := by
     obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by lia : n ≠ 0)
     simp
-  trans (ProbComp.eval (E.keyGen n)).bind (fun _ => PMF.pure false)
-  · refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
-    unfold cpaEncryptionOracle
-    dsimp only [StateT.run]
-    simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_replicate,
-      beq_self_eq_true, Bool.and_self, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
-    trans (ProbComp.eval (E.encrypt n ke (List.replicate n true))).bind (fun _ => PMF.pure false)
-    · refine PMF.bind_congr_on_support _ _ _ fun c₁ hc₁ => ?_
-      have hc₁Len : c₁.length = n :=
-        hctLen ke hke (List.replicate n true) (List.length_replicate) c₁ hc₁
-      trans (ProbComp.eval (E.encrypt n ke (List.replicate n false))).bind (fun _ => PMF.pure false)
-      · refine PMF.bind_congr_on_support _ _ _ fun c₂ hc₂ => ?_
-        have hc₂Len : c₂.length = n :=
-          hctLen ke hke (List.replicate n false) (List.length_replicate) c₂ hc₂
-        have hne : c₁ ≠ c₂ := by
-          intro hEq
-          have hdec1 := E.decrypt_encrypt n ke hke (List.replicate n true)
-            (List.length_replicate) c₁ hc₁
-          have hdec2 := E.decrypt_encrypt n ke hke (List.replicate n false)
-            (List.length_replicate) c₂ hc₂
-          rw [hEq, hdec2] at hdec1
-          exact hneMsg (Option.some.inj hdec1).symm
-        rw [List.take_of_length_le hc₁Len.le, List.take_of_length_le hc₂Len.le]
-        simp [beq_eq_false_iff_ne.mpr hne]
-      · exact PMF.bind_const _ _
-    · exact PMF.bind_const _ _
-  · exact PMF.bind_const _ _
+  refine PMF.bind_eq_pure_of_forall_mem_support fun ke hke => ?_
+  unfold cpaEncryptionOracle
+  dsimp only [StateT.run]
+  simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_replicate,
+    beq_self_eq_true, Bool.and_self, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun c₁ hc₁ => ?_
+  have hc₁Len : c₁.length ≤ ctBound n :=
+    hctLen ke hke (List.replicate n true) List.length_replicate c₁ hc₁
+  refine PMF.bind_eq_pure_of_forall_mem_support fun c₂ hc₂ => ?_
+  have hc₂Len : c₂.length ≤ ctBound n :=
+    hctLen ke hke (List.replicate n false) List.length_replicate c₂ hc₂
+  have hne : c₁ ≠ c₂ := by
+    intro hEq
+    have hdec1 := E.decrypt_encrypt n ke hke (List.replicate n true) List.length_replicate c₁ hc₁
+    have hdec2 := E.decrypt_encrypt n ke hke (List.replicate n false) List.length_replicate c₂ hc₂
+    rw [hEq, hdec2] at hdec1
+    exact hneMsg (Option.some.inj hdec1).symm
+  rw [List.take_of_length_le hc₁Len, List.take_of_length_le hc₂Len]
+  simp [beq_eq_false_iff_ne.mpr hne]
 
-/-- At every security parameter `n ≥ 1` where supported ciphertexts of `n`-bit plaintexts have
-length `n`, `detCPAAdversary` achieves CPA advantage `1` ([BonehShoup2023], Example 5.1). -/
-theorem advantage_cpaGame_detCPAAdversary (E : SymmetricCipher) {n : ℕ} (hn : 1 ≤ n)
-    (hctLen : E.CiphertextLength n n) :
-    Game.advantage (ProbComp.eval (E.cpaGame detCPAAdversary false n))
-      (ProbComp.eval (E.cpaGame detCPAAdversary true n)) = 1 := by
-  rw [eval_cpaGame_detCPAAdversary_false E n hctLen,
-    eval_cpaGame_detCPAAdversary_true E hn hctLen, Game.advantage]
+/-- At any security parameter `1 ≤ n` where `ctBound n` bounds ciphertext lengths on `n`-bit
+messages and `E.encrypt n k (0^n)` is deterministic under every supported key `k`,
+`detCPAAdversary ctBound` achieves CPA advantage `1`
+([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182). -/
+theorem advantage_cpaGame_detCPAAdversary (E : SymmetricCipher) (ctBound : ℕ → ℕ) {n : ℕ}
+    (hn : 1 ≤ n) (hctLen : E.CiphertextLengthLE n (ctBound n))
+    (hdet : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
+      ∃ c, ProbComp.eval (E.encrypt n k (List.replicate n false)) = PMF.pure c) :
+    Game.advantage (ProbComp.eval (E.cpaGame (detCPAAdversary ctBound) false n))
+      (ProbComp.eval (E.cpaGame (detCPAAdversary ctBound) true n)) = 1 := by
+  rw [eval_cpaGame_detCPAAdversary_false E ctBound n hdet,
+    eval_cpaGame_detCPAAdversary_true E ctBound hn hctLen, Game.advantage]
   simp [Game.succProbability]
 
-/-- **No zero-expansion symmetric cipher is CPA-secure** ([BonehShoup2023], Example 5.1 and
-Exercise 5.10(a), printed pp. 182, 211): if for every security parameter `n`, every supported key
-`ke`, and every `n`-bit message `msg`, every supported ciphertext of `msg` has length `n`, then `E`
-cannot satisfy `INDCPA`. -/
-theorem not_indcpa_of_ciphertext_length_eq (E : SymmetricCipher)
-    (hctLen : ∀ n, E.CiphertextLength n n) :
+/-- **No deterministic symmetric cipher is CPA-secure** ([BonehShoup2023], Section 5.3, Example 5.1,
+printed p. 182): if from some security parameter `n₀` onward, `E.encrypt n k (0^n)` is a point mass
+for every key `k` in the support of `E.keyGen n`, then `E` cannot satisfy `INDCPA`. -/
+theorem not_indcpa_of_deterministic (E : SymmetricCipher) (n₀ : ℕ)
+    (hdet : ∀ n, n₀ ≤ n → ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
+      ∃ c, ProbComp.eval (E.encrypt n k (List.replicate n false)) = PMF.pure c) :
     ¬ E.INDCPA := by
   intro hcpa
-  have hneg := hcpa detCPAAdversary isOraclePPT_detCPAAdversary
-  have hcomp : Negligible (fun n =>
-      Game.advantage (ProbComp.eval (E.cpaGame detCPAAdversary false (n + 1)))
-        (ProbComp.eval (E.cpaGame detCPAAdversary true (n + 1)))) :=
-    hneg.shift 1
+  obtain ⟨ctBound, hpoly, hctLen⟩ := E.exists_ciphertext_length_bound_of_length_eq
+  have hneg := (hcpa (detCPAAdversary ctBound) (isOraclePPT_detCPAAdversary hpoly)).shift
+    (max n₀ 1)
   have hcongr : Negligible (fun _ : ℕ => (1 : ℝ≥0)) :=
-    hcomp.congr fun n => advantage_cpaGame_detCPAAdversary E (by lia) (hctLen (n + 1))
+    hneg.congr fun n =>
+      advantage_cpaGame_detCPAAdversary E ctBound (by lia) (hctLen _) (hdet _ (by lia))
   exact not_negligible_const one_ne_zero hcongr
+
+/-- **No zero-expansion symmetric cipher is CPA-secure** ([BonehShoup2023], Section 5.8,
+Exercise 5.10(a), printed p. 211): if for every security parameter `n`, every supported key `ke`,
+and every `n`-bit message `msg`, every supported ciphertext of `msg` has length `n`, then `E`
+cannot satisfy `INDCPA` (proved via Example 5.1's deterministic-cipher attack
+`not_indcpa_of_deterministic`). -/
+theorem not_indcpa_of_ciphertext_length_eq (E : SymmetricCipher)
+    (hctLen : ∀ n, E.CiphertextLength n n) :
+    ¬ E.INDCPA :=
+  E.not_indcpa_of_deterministic 0 fun n _ _ hke =>
+    E.exists_eval_encrypt_eq_pure_of_ciphertext_length_eq (hctLen n) hke List.length_replicate
 
 /-! ### Ciphertext Integrity and Authenticated Encryption (`ciGame`, `CiphertextIntegrity`,
 `AuthenticatedEncryption`) -/
@@ -990,7 +1018,12 @@ noncomputable def ciEncryptionOracle (E : SymmetricCipher) (n : ℕ) (k : List B
 sample `k ← E.keyGen n`, run `adversary n []` with oracle access to `E.ciEncryptionOracle n k`, and
 accept when the adversary outputs a candidate ciphertext `ct` that was never returned by the
 encryption oracle (`!out.2.contains out.1`) and decrypts without rejection
-(`(E.decrypt n k out.1).isSome`). -/
+(`(E.decrypt n k out.1).isSome`).
+
+This is Attack Game 9.1 on the ciphertext space `C = E.ctSpace n`: a candidate outside `C`
+decrypts to `none` (`decrypt_eq_none_of_ctSpace_eq_false`) and loses, so the adversary wins
+exactly when it outputs a fresh word of `C` that decrypts, which is the source's winning event. The
+same holds for `ciOneTimeGame`. -/
 noncomputable def ciGame (E : SymmetricCipher) (adversary : CIAdversary) (n : ℕ) :
     ProbComp Bool := do
   let k ← E.keyGen n
@@ -1433,7 +1466,15 @@ theorem AuthenticatedEncryption.oneTimeAuthenticatedEncryption {E : SymmetricCip
   both have length `n`, encrypt `if bit then m1 else m0` under `k`, prepend the resulting
   ciphertext `ct` to `queriedCiphertexts`, and return `ct`; otherwise return `[]`.
 * On a decryption query `(true, ct)`: if `queriedCiphertexts.contains ct` is `true`, return `[]`
-  (prohibited challenge ciphertext); otherwise return `encOption encBits (E.decrypt n k ct)`. -/
+  (prohibited challenge ciphertext); otherwise return `encOption encBits (E.decrypt n k ct)`.
+
+Attack Game 9.2 takes decryption queries from the ciphertext space `C = E.ctSpace n`. A query
+outside `C` is answered here with the rejection `[] = encOption encBits none`
+(`decrypt_eq_none_of_ctSpace_eq_false`), and a query inside `C` as in the source, so an adversary
+that asks only the source's queries sees the source's oracle and `INDCCA` implies CCA security on
+`C`. Conversely, when `C` is efficiently recognizable, as [BonehShoup2023], Definition 2.10
+requires, an adversary can answer its queries outside `C` itself, so CCA security on `C` implies
+`INDCCA`. The same holds for `oneTimeCCAOracle`. -/
 noncomputable def ccaOracle (E : SymmetricCipher) (n : ℕ) (k : List Bool) (bit : Bool)
     (request : Bool × List Bool) : StateT (List (List Bool)) ProbComp (List Bool) :=
   fun queriedCiphertexts =>

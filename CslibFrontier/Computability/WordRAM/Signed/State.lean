@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Representing signed RAM states by unsigned words
@@ -41,18 +42,11 @@ def bank (i : Fin r) : Fin (r + 9) := ⟨i.val + 9, by omega⟩
 
 /-- Distinct source registers have distinct target registers. -/
 theorem bank_injective : Function.Injective (bank (r := r)) := by
-  intro i j hij
-  apply Fin.ext
-  have := congrArg Fin.val hij
-  dsimp only [bank] at this
-  omega
+  fin_index [bank]
 
 /-- Source register cells are disjoint from the arithmetic workspace. -/
 theorem bank_ne_scratch (i : Fin r) {j : Fin (r + 9)} (hj : j.val < 9) : bank i ≠ j := by
-  intro he
-  have := congrArg Fin.val he
-  dsimp only [bank] at this
-  omega
+  fin_index [bank]
 
 /-- The source registers fit their signed width; target registers and memory encode the
 source data. Scratch values are unconstrained at instruction boundaries. -/
