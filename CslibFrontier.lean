@@ -2688,6 +2688,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitLayout
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Ports
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ReducedLaplacian
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem
@@ -6866,6 +6867,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleConnector
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleGaps
+public import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 public import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.CutGerms
 public import CslibFrontier.Foundations.Geometry.Polygonal.FiniteAngleOrder
