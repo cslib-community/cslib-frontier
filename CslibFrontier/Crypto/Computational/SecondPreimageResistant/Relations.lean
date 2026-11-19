@@ -232,8 +232,9 @@ is uniformly strict PPT. -/
 theorem isPPT_secondPreimageToCollisionFinder {adversary : SecondPreimageFinder}
     (hadversary : IsPPT encBits adversary) (r : ℕ) :
     IsPPT (encPair encBits encBits) (secondPreimageToCollisionFinder adversary r) := by
-  unfold secondPreimageToCollisionFinder
-  ppt
+  simpa only [secondPreimageToCollisionFinder, CollisionResistantToOneWay.finder] using
+    CollisionResistantToOneWay.isPPT_finder (H := fun _ message => message)
+      (ComputableInPolyTime.snd encBits encBits) hadversary r
 
 /-- A second preimage `candidate ≠ key ++ message` of `key ++ message` under `keyDigest H` has the
 same key `key` and a colliding message part `candidate.drop (candidate.length / 3) ≠ message`. -/

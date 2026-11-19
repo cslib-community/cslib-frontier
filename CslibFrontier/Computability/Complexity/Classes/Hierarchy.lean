@@ -263,7 +263,49 @@ theorem computableInO_diagonal :
   have hpre : ComputableInO
       (fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length))
       encBits eIn _ _ := hdesc.prod (hsym.prod hclock)
-  have hU := computableInO_universal.comp
+  -- Normalize the detailed simulator resources before composing its plain certificate.
+  have hresources (i : Desc × List ℕ × ℕ) := by
+    let I := (eIn i).length
+    have hI : I = 2 * descLen i.1 + 1 +
+        (2 * (encList encUnary i.2.1).length + 1 + (encNat i.2.2).length) := by
+      simp only [I, eIn, length_encPair, descLen]
+    obtain ⟨ht, hs⟩ := universal_bounds_le
+      (D := descLen i.1) (N := (encList encUnary i.2.1).length)
+      (L := (encNat i.2.2).length) (J := i.2.2 + 1) (B := I)
+      (by omega) (by omega) (by omega) (by omega)
+    have hstep := stepBound_mono (le_refl (descLen i.1))
+      (le_refl (encList encUnary i.2.1).length) (Nat.le_succ i.2.2)
+    have hrun := runBound_mono (D := descLen i.1)
+      (N := (encList encUnary i.2.1).length) (Nat.le_succ i.2.2)
+    have htime :
+        (i.2.2 + 1) * (stepBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+          runBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+          ((encNat i.2.2).length + 1) ^ 2) ≤
+        100000 * (I + 1) ^ 4 * (i.2.2 + 1) ^ 2 := by
+      apply le_trans ?_ ht
+      exact Nat.mul_le_mul (Nat.le_succ _) (Nat.add_le_add_right
+        (Nat.add_le_add hstep hrun) _)
+    have hpad : (I + 1) ^ 2 ≤ (I + 1) ^ 4 * (i.2.2 + 1) ^ 2 := by
+      have hp := Nat.pow_le_pow_right (by omega : 1 ≤ I + 1) (by omega : 2 ≤ 4)
+      exact hp.trans (Nat.le_mul_of_pos_right _ (by positivity))
+    have hspace : I ≤ (I + 1) ^ 2 * (i.2.2 + 1) := by
+      have hp := Nat.le_self_pow (by norm_num : 2 ≠ 0) (I + 1)
+      exact (Nat.le_succ I).trans (hp.trans (Nat.le_mul_of_pos_right _ (by omega)))
+    refine And.intro (show
+      (i.2.2 + 1) * (stepBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+        runBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+        ((encNat i.2.2).length + 1) ^ 2) + (I + 1) ^ 2 ≤
+      100001 * ((I + 1) ^ 4 * (i.2.2 + 1) ^ 2 + 1) from ?_)
+      (show runBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 + I ≤
+        100001 * ((I + 1) ^ 2 * (i.2.2 + 1) + 1) from ?_)
+    · nlinarith
+    · nlinarith [hrun.trans hs]
+  have hUniversal : ComputableInO universal eIn eOut
+      (fun i => ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2)
+      (fun i => ((eIn i).length + 1) ^ 2 * (i.2.2 + 1)) :=
+    computableInO_universal.mono 100001 (fun i => (hresources i).1)
+      (fun i => (hresources i).2)
+  have hU := hUniversal.comp
     (f := universal)
     (g := fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hpre
   have h := computableInO_verdict.comp

@@ -178,7 +178,7 @@ private theorem computableInPolyTime_mteMACPost {S : Type} (encS : S ↪ List Bo
       EPost encUnary := hmsgLen
   have hmsg := ComputableInPolyTime.unframe.comp hpt
   have htag := ComputableInPolyTime.dropFrame.comp hpt
-  have hframeEq := (hmsg.prod htag).encoded.beq hpt
+  have hframeEq := (hmsg.prod htag).encoding_comp.beq hpt
   have hlenEq := ((by fun_prop : ComputableInPolyTime (fun x : List Bool => x.length)
     encBits encUnary).comp hmsg).beq hm
   have hfallback : ComputableInPolyTime

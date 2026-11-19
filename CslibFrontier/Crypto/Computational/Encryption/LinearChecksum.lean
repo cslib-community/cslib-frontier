@@ -202,7 +202,8 @@ theorem isOraclePPT_prfChecksumCIAdversary {csLen : ℕ → ℕ} {L : List Bool 
   have hout := computableInPolyTime_ivStreamXorBody
     (hwidth.comp (ComputableInPolyTime.fst _ _))
     (ComputableInPolyTime.bitsAppend hdelta (hLPoly.comp hdelta)) hq.snd'
-  simpa only [prfChecksumCIAdversary, bind_pure_comp] using hquery.map_with hout
+  simpa only [prfChecksumCIAdversary, bind_pure_comp, Function.comp_def] using
+    hquery.map_with hout
 
 
 /-- `prfChecksumCIAdversary` wins the one-time ciphertext-integrity game against
