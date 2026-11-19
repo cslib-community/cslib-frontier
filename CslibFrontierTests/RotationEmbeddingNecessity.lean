@@ -179,7 +179,7 @@ example : (⟨3 / 2, 3⟩ : ℂ) ∈
   all_goals
     refine ⟨3 / 4, by norm_num, ?_⟩
     apply Complex.ext <;>
-      norm_num [referenceDrawing, referencePoint, input_order, input, List.idxOf_cons,
+      norm_num [drawing, P, referenceDrawing, referencePoint, input_order, input, List.idxOf_cons,
         Dart.vertex, Graph.edgeEndpoint, subdivisionGraph, subdivide, parabolaPoint,
         AffineMap.lineMap_apply_module', Complex.real_smul]
 
