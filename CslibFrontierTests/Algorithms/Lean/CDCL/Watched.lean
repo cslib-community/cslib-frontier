@@ -232,4 +232,24 @@ the clauses met: it is bumped once, by the increment `2 ^ 100`, not twice. -/
 example : ((CDCL.Reduction.init 3 3).learn [5] 5 6 false).act.get 5 = 2 ^ 100 := by
   decide
 
+/-- The formula `a ∨ b`, `¬a ∨ b`: its clauses are numbered `1` and `2`. -/
+private abbrev two : CNF ℕ := [[(0, true), (1, true)], [(0, false), (1, true)]]
+
+/-- Storing a clause under the number `2`, a clause of the formula (when the analysis returns the
+conflict clause), does not count as a learned clause, in the store or at insertion; under the
+number `3` it does, in both. -/
+example :
+    ((CDCL.WExec.init two {}).store.addClause 2 [(0, false), (1, true)]).learntCount 2 =
+      (CDCL.WExec.init two {}).store.learntCount 2 ∧ CDCL.isLearntId 2 2 = false ∧
+    ((CDCL.WExec.init two {}).store.addClause 3 [(0, false), (1, false)]).learntCount 2 =
+      (CDCL.WExec.init two {}).store.learntCount 2 + 1 ∧ CDCL.isLearntId 2 3 = true := by
+  decide +kernel
+
+/-- A number listed twice among the clauses met is bumped once: `used = [4, 4]` with the learned
+clause `5` bumps clause `4` as `used = [4]` does. -/
+example : (((CDCL.Reduction.init 3 3).learn [4, 4] 5 6 false).act.get 4) =
+    (((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4) ∧
+    0 < ((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4 := by
+  decide +kernel
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

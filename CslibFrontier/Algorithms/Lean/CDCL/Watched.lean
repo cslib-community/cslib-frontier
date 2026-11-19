@@ -260,6 +260,46 @@ structure Stats where
 /-- One more decision. -/
 @[expose] def Stats.decision (s : Stats) : Stats := { s with decisions := s.decisions + 1 }
 
+/-- Merging two lists sorted by `le`, in at most `fuel` steps. A loop of `sortBy`, which supplies
+enough fuel. -/
+@[expose] def sortBy.merge {α : Type} (le : α → α → Bool) :
+    (fuel : ℕ) → List α → List α → List α
+  | 0, xs, ys => xs ++ ys
+  | _ + 1, [], ys => ys
+  | _ + 1, xs, [] => xs
+  | n + 1, x :: xs, y :: ys =>
+    if le x y then x :: sortBy.merge le n xs (y :: ys) else y :: sortBy.merge le n (x :: xs) ys
+
+/-- The elements of a list at even positions, and those at odd positions. -/
+@[expose] def splitAlternate {α : Type} : List α → List α × List α
+  | [] => ([], [])
+  | x :: xs => let p := splitAlternate xs; (x :: p.2, p.1)
+
+/-- Merge sort by `le`, to depth `fuel`. A loop of `sortBy`, which supplies enough fuel. -/
+@[expose] def sortBy.go {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α
+  | 0, xs => xs
+  | _ + 1, [] => []
+  | _ + 1, [x] => [x]
+  | n + 1, xs =>
+    let p := splitAlternate xs
+    sortBy.merge le xs.length (sortBy.go le n p.1) (sortBy.go le n p.2)
+
+/-- **Merge sort by `le`**, to the depth of the length of the list, which is enough. Unlike
+`List.mergeSort`, it is structurally recursive, so the kernel can run it. -/
+@[expose] def sortBy {α : Type} (le : α → α → Bool) (xs : List α) : List α :=
+  sortBy.go le xs.length xs
+
+/-- The list sorted by `≤` without its adjacent repetitions: on a sorted list, its distinct
+elements. -/
+@[expose] def dedupSorted : List ℕ → List ℕ
+  | a :: b :: t => if a == b then dedupSorted (b :: t) else a :: dedupSorted (b :: t)
+  | l => l
+
+/-- Whether the clause numbered `id` is a learned clause of a formula of `n` clauses: the clauses of
+the formula are numbered `1` to `n`. Counting the learned clauses at insertion and in the store
+(`Cslib.Algorithms.Lean.CDCL.WatchStore.learntCount`) both use it. -/
+@[expose] def isLearntId (n id : ℕ) : Bool := n < id
+
 /-- **The reduction of the learned clauses**, after MiniSat: the clause activities, by number,
 bumped for the clauses met by each analysis and decaying by `1 / 0.999` (MiniSat's
 `clause_decay`); the number of learned clauses in the watch store; their limit (MiniSat's
@@ -291,12 +331,16 @@ thousandths. -/
   ⟨Activity.init 0, 0, m * 1000 / d, 100, 100⟩
 
 /-- After a conflict whose analysis met the clauses `used` and learned the clause numbered `id`,
-the log's next number being `next`: the clause activities are bumped and decay, the learned clause
-is counted if it is `stored`, and the limit grows on schedule. -/
+the log's next number being `next`: the clause activities are bumped and decay, each number once,
+the learned clause is counted if it is `stored`, and the limit grows on schedule. The solver passes
+`stored` only for a clause added to the watch store with a learned number (`isLearntId`), the rule
+by which `WatchStore.learntCount` counts the store. -/
 @[expose]
 def Reduction.learn (R : Reduction) (used : List ℕ) (id next : ℕ) (stored : Bool) : Reduction :=
-  -- the learned clause may be the conflict clause itself, among `used`: bump it once
-  let act := (R.act.grow next).bumpEach (id :: used.filter (· != id)) 999
+  -- each number once: the learned clause may be the conflict clause, among `used`, and `used`
+  -- may list a number twice; sorting costs `O(k log k)` for `k` numbers, independently of their
+  -- size
+  let act := (R.act.grow next).bumpEach (dedupSorted (sortBy (· ≤ ·) (id :: used))) 999
   let learnts := if stored then R.learnts + 1 else R.learnts
   if R.countdown ≤ 1 then
     let adjust := R.adjust + R.adjust / 2
@@ -1189,7 +1233,7 @@ are built once, read by the backjump and cleared after it. -/
   let k := (dedupLits L.clause).length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
-    let red := reducedWith opts red L.used L.id L.log.next true
+    let red := reducedWith opts red L.used L.id L.log.next (isLearntId φ.length L.id)
     let store := store.addClause L.id (learnedWatched L.clause L.lit)
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order, phase, red,
       level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
@@ -1566,35 +1610,6 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
     exact this ▸ hs
   · exact hs.truncate hN h₁.1 h₂.1
 
-/-- Merging two lists sorted by `le`, in at most `fuel` steps. A loop of `sortBy`, which supplies
-enough fuel. -/
-@[expose] def sortBy.merge {α : Type} (le : α → α → Bool) :
-    (fuel : ℕ) → List α → List α → List α
-  | 0, xs, ys => xs ++ ys
-  | _ + 1, [], ys => ys
-  | _ + 1, xs, [] => xs
-  | n + 1, x :: xs, y :: ys =>
-    if le x y then x :: sortBy.merge le n xs (y :: ys) else y :: sortBy.merge le n (x :: xs) ys
-
-/-- The elements of a list at even positions, and those at odd positions. -/
-@[expose] def splitAlternate {α : Type} : List α → List α × List α
-  | [] => ([], [])
-  | x :: xs => let p := splitAlternate xs; (x :: p.2, p.1)
-
-/-- Merge sort by `le`, to depth `fuel`. A loop of `sortBy`, which supplies enough fuel. -/
-@[expose] def sortBy.go {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α
-  | 0, xs => xs
-  | _ + 1, [] => []
-  | _ + 1, [x] => [x]
-  | n + 1, xs =>
-    let p := splitAlternate xs
-    sortBy.merge le xs.length (sortBy.go le n p.1) (sortBy.go le n p.2)
-
-/-- **Merge sort by `le`**, to the depth of the length of the list, which is enough. Unlike
-`List.mergeSort`, it is structurally recursive, so the kernel can run it. -/
-@[expose] def sortBy {α : Type} (le : α → α → Bool) (xs : List α) : List α :=
-  sortBy.go le xs.length xs
-
 /-- **The learned clauses to forget**, as MiniSat's `reduceDB` chooses them: the learned clauses
 of the store, those of more than two literals first by increasing activity; of the less active
 half, those of more than two literals, and of the other half, those of more than two literals and
@@ -1602,7 +1617,7 @@ activity below the increment divided by their number. Kept in any case are the c
 reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
 @[expose] def WExec.reduceIds (S : WExec φ) : List ℕ :=
   let act := S.red.act
-  let learnts := S.store.clauses.toList.filter fun e => φ.length < e.1
+  let learnts := S.store.clauses.toList.filter fun e => isLearntId φ.length e.1
   let sorted := sortBy (fun a b =>
     if (a.2.length ≤ 2) == (b.2.length ≤ 2) then act.get a.1 ≤ act.get b.1 else b.2.length ≤ 2)
     learnts
@@ -1614,15 +1629,15 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   -- a number may be listed twice (a learned clause can be one of the database), and LRAT checkers
   -- such as drat-trim's `lrat-check` reject a number deleted twice
   dedupVars <| (chosen.map Prod.fst).filter fun i =>
-    φ.length < i && !locked.contains i && !S.short.any (·.1 == i)
+    isLearntId φ.length i && !locked.contains i && !S.short.any (·.1 == i)
 
-/-- The number of learned clauses in the store, those numbered above `n`. Reduction and
-simplification set the count of learned clauses from the rebuilt store: a clause can be stored
+/-- The number of learned clauses in the store, those numbered above `n` (`isLearntId`). Reduction
+and simplification set the count of learned clauses from the rebuilt store: a clause can be stored
 twice under one number (when the clause learned is the conflict clause), and its number is deleted
 once, so subtracting the numbers deleted would let the count drift above the store and trigger
 reduction at every decision. -/
 @[expose] def WatchStore.learntCount (S : WatchStore) (n : ℕ) : ℕ :=
-  S.clauses.foldl (fun k e => if n < e.1 then k + 1 else k) 0
+  S.clauses.foldl (fun k e => if isLearntId n e.1 then k + 1 else k) 0
 
 /-- The invariant does not read the bookkeeping of reduction and simplification, nor the
 statistics. -/
@@ -1689,7 +1704,7 @@ theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
     φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
   unfold WExec.reduceIds at h
   rw [mem_dedupKey Function.injective_id] at h
-  simp only [ List.mem_filter, Bool.and_eq_true, Bool.not_eq_true',
+  simp only [ List.mem_filter, Bool.and_eq_true, Bool.not_eq_true', isLearntId,
     decide_eq_true_eq, List.contains_eq_mem, decide_eq_false_iff_not, List.any_eq_false,
     beq_iff_eq] at h
   exact ⟨h.2.1.1, h.2.1.2, fun e he => h.2.2 e he⟩
