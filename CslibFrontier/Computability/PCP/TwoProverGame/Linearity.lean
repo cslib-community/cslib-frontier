@@ -28,8 +28,8 @@ only the questions. Its winning probability is the acceptance probability with t
 
 The acceptance probability is an average of correlations
 (`Cslib.PCP.CommutingStrategy.linearityTestProb_eq`), by
-`Cslib.PCP.CommutingStrategy.sum_ite_prob_eq`. A strategy with projective measurements that is
-accepted with probability `1 - ε` therefore makes Alice's observables `A(c)` linear on average
+`Cslib.PCP.CommutingStrategy.sum_ite_prob_eq`. When a strategy with projective pair measurements
+is accepted with probability `1 - ε`, Alice's observables `A(c)` are linear on average
 (`Cslib.PCP.CommutingStrategy.one_sub_le_expect_re_apply_mul_mul_of_linearityTest`):
 
 `E_{a,b} Re φ(A(a) A(b) A(a + b)) ≥ 1 - 6ε - 2√(12ε)`.
@@ -135,12 +135,12 @@ section CStar
 variable [CStarAlgebra 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜]
 
 /-- **Passing the linearity test makes the point player's observables linear.** A
-commuting-operator strategy with projective measurements that the linearity-test verifier accepts
-with probability at least `1 - ε` has `E_{a,b} Re φ(A(a) A(b) A(a + b)) ≥ 1 - 6ε - 2√(12ε)` for
-the observables `A(c)` of the point player. -/
+commuting-operator strategy with projective pair measurements accepted by the linearity-test
+verifier with probability at least `1 - ε` has
+`E_{a,b} Re φ(A(a) A(b) A(a + b)) ≥ 1 - 6ε - 2√(12ε)` for the point observables `A(c)`. -/
 theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
     (S : CommutingStrategy (n → Bool) ((n → Bool) × (n → Bool)) Bool (Bool × Bool) 𝒜)
-    (hA : ∀ c, (S.alice c).IsProjective) (hB : ∀ q, (S.bob q).IsProjective) {ε : ℝ}
+    (hB : ∀ q, (S.bob q).IsProjective) {ε : ℝ}
     (hε : 1 - ε ≤ S.linearityTestProb) :
     1 - 6 * ε - √(12 * ε) - √(12 * ε) ≤
       𝔼 a, 𝔼 b, (S.state ((S.alice a).observable * (S.alice b).observable *
@@ -152,11 +152,22 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
     ((S.bob (a, b)).map (linearityCheck k)).observable
   let C : Fin 3 → (n → Bool) → (n → Bool) → ℝ := fun k a b =>
     (φ (A (linearityQuery k a b) * N k a b)).re
-  have hAu : ∀ c, A c ∈ unitary 𝒜 := fun c => (hA c).observable_mem_unitary
-  have hNu : ∀ k a b, N k a b ∈ unitary 𝒜 := fun k a b => ((hB _).map _).observable_mem_unitary
-  have hC1 : ∀ k a b, C k a b ≤ 1 := fun k a b =>
-    (Complex.re_le_norm _).trans ((φ.norm_apply_le_norm _).trans (φ.norm_le_one
-      (Unitary.star_mul_self_of_mem (mul_mem (hAu _) (hNu k a b))).le))
+  have hA c : star (A c) * A c ≤ 1 := (S.alice c).star_observable_mul_self_le_one
+  have hN k a b : star (N k a b) * N k a b ≤ 1 :=
+    ((S.bob (a, b)).map (linearityCheck k)).star_observable_mul_self_le_one
+  have hdist (k : Fin 3) (a b : n → Bool) :
+      φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 ≤ 2 - 2 * C k a b := by
+    let c := linearityQuery k a b
+    have ha := φ.norm_sq_le_of_star_mul_le (hA c)
+    have hb := φ.norm_sq_le_of_star_mul_le (hN k a b)
+    rw [AlgState.map_one, Complex.one_re] at ha hb
+    change ‖φ.toPreGNS (A c - N k a b)‖ ^ 2 ≤ 2 - 2 * C k a b
+    rw [map_sub, norm_sub_sq (𝕜 := ℂ), AlgState.inner_toPreGNS,
+      (S.alice c).isSelfAdjoint_observable.star_eq, RCLike.re_to_complex]
+    change φ.norm (A c) ^ 2 - 2 * C k a b + φ.norm (N k a b) ^ 2 ≤ _
+    linarith
+  have hC1 (k : Fin 3) (a b : n → Bool) : C k a b ≤ 1 := by
+    linarith [hdist k a b, sq_nonneg (φ.norm (A (linearityQuery k a b) - N k a b))]
   have hwin : S.linearityTestProb =
       1 / 2 + (𝔼 a, 𝔼 b, C 0 a b + 𝔼 a, 𝔼 b, C 1 a b + 𝔼 a, 𝔼 b, C 2 a b) / 6 := by
     rw [linearityTestProb_eq]
@@ -170,16 +181,12 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
           expect_le_expect fun a _ => expect_le_expect fun b _ => hC1 k a b
       _ = 1 := by simp only [Fintype.expect_const]
   have hc : ∀ k a b c, Commute (N k a b) (A c) := fun k a b c => S.commute_observable_map _ _ _
-  have hNsa : ∀ k a b, IsSelfAdjoint (N k a b) := fun k a b =>
-    Measurement.isSelfAdjoint_observable _
-  have hN2 : ∀ k a b, N k a b * N k a b = 1 := fun k a b =>
-    Measurement.observable_mul_self ((hB _).map _)
-  have hdist : ∀ k a b, φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 = 2 - 2 * C k a b :=
-    fun k a b => φ.norm_sub_sq_eq_of_mul_self (S.alice _).isSelfAdjoint_observable (hNsa k a b)
-      (Measurement.observable_mul_self (hA _)) (hN2 k a b)
-  have hdistE : ∀ k, 𝔼 a, 𝔼 b, φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 =
-      2 - 2 * 𝔼 a, 𝔼 b, C k a b := fun k => by
-    simp only [hdist, expect_sub_distrib, ← mul_expect, Fintype.expect_const]
+  have hdistE (k : Fin 3) :
+      𝔼 a, 𝔼 b, φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 ≤
+        2 - 2 * 𝔼 a, 𝔼 b, C k a b := by
+    have h := expect_le_expect (s := (univ : Finset (n → Bool))) fun a _ =>
+      expect_le_expect (s := (univ : Finset (n → Bool))) fun b _ => hdist k a b
+    simpa only [expect_sub_distrib, ← mul_expect, Fintype.expect_const] using h
   have hL : 1 - 6 * ε ≤ 𝔼 a, 𝔼 b, (φ (N 0 a b * N 1 a b * A (a + b))).re := by
     have e : ∀ a b, (φ (N 0 a b * N 1 a b * A (a + b))).re = C 2 a b := fun a b => by
       simp only [C, N, linearityCheck, linearityQuery, Fin.reduceEq, ite_true, ite_false,
@@ -190,14 +197,12 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
   have h₁ : 𝔼 a, 𝔼 b, φ.norm (A a - N 0 a b) ^ 2 ≤ 12 * ε := by
     have := hdistE 0
     simp only [linearityQuery, ite_true] at this
-    rw [this]
     linarith [hE 0, hE 1, hE 2]
   have h₂ : 𝔼 a, 𝔼 b, φ.norm (A b - N 1 a b) ^ 2 ≤ 12 * ε := by
     have := hdistE 1
     simp only [linearityQuery, Fin.reduceEq, ite_true, ite_false] at this
-    rw [this]
     linarith [hE 0, hE 1, hE 2]
-  exact one_sub_le_expect_re_apply_mul_mul φ A (N 0) (N 1) hAu (hNu 0) (hc 0) (hc 1) hL h₁ h₂
+  exact one_sub_le_expect_re_apply_mul_mul φ A (N 0) (N 1) hA (hN 0) (hc 0) (hc 1) hL h₁ h₂
 
 end CStar
 
@@ -224,21 +229,10 @@ theorem commutingWinProb_linearityGame {𝒜 : Type*} [Ring 𝒜] [StarRing 𝒜
     [ContinuousFunctionalCalculus ℝ 𝒜 IsSelfAdjoint] [NonnegSpectrumClass ℝ 𝒜]
     (S : CommutingStrategy (n → Bool) ((n → Bool) × (n → Bool)) Bool (Bool × Bool) 𝒜) :
     (linearityGame n).commutingWinProb S = S.linearityTestProb := by
-  have hw : ∀ s, ((linearityGame n).seed s).toReal =
-      (Fintype.card (Fin 3 × (n → Bool) × (n → Bool)) : ℝ)⁻¹ := fun s => by
-    change (Probability.PMF.uniformOfFintype _ s).toReal = _
-    rw [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-  rw [SeededGame.commutingWinProb_eq_sum, CommutingStrategy.linearityTestProb]
-  simp only [hw, ← mul_sum, Fintype.sum_prod_type, Fintype.expect_eq_sum_div_card,
-    Fintype.card_prod, Fintype.card_fin, ← sum_div]
-  have hK : (Fintype.card (n → Bool) : ℝ) ≠ 0 := by positivity
-  simp only [linearityGame]
-  push_cast
-  field_simp
-  refine sum_congr rfl fun k _ => sum_congr rfl fun a _ => sum_congr rfl fun b _ =>
-    sum_congr rfl fun γ _ => sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
-  by_cases h : γ = linearityCheck k (x, y)
-  · simp only [h, ite_true]
-  · simp only [h, ite_false]
+  rw [SeededGame.commutingWinProb_eq_expect_of_uniform _ rfl, CommutingStrategy.linearityTestProb]
+  simp only [Fintype.expect_prod_type, linearityGame]
+  refine expect_congr rfl fun k _ => expect_congr rfl fun a _ => expect_congr rfl fun b _ =>
+    sum_congr rfl fun γ _ => sum_congr rfl fun r _ => ?_
+  by_cases h : γ = linearityCheck k r <;> simp only [h, ite_true, ite_false]
 
 end Cslib.PCP

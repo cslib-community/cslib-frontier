@@ -61,17 +61,23 @@ variable {R : Type*} [Ring R] [StarRing R] [PartialOrder R] [StarOrderedRing R] 
   [StarModule ℂ R] [SelfAdjointDecompose R]
 
 /-- **Pointwise estimate.** If `N₁` commutes with `A₂` and `A₃`, and `N₂` commutes with `A₃`, then
-`Re φ(A₃ A₂ A₁) ≥ Re φ(N₁ N₂ A₃) - ‖A₁ - N₁‖_φ - ‖A₂ - N₂‖_φ`, for unitaries `A₂`, `A₃`, `N₁`. -/
-theorem re_apply_mul_mul_ge (φ : AlgState R) {A₁ A₂ A₃ N₁ N₂ : R} (h₂ : A₂ ∈ unitary R)
-    (h₃ : A₃ ∈ unitary R) (hN₁ : N₁ ∈ unitary R) (hc₁₂ : Commute N₁ A₂) (hc₁₃ : Commute N₁ A₃)
+`Re φ(A₃ A₂ A₁) ≥ Re φ(N₁ N₂ A₃) - ‖A₁ - N₁‖_φ - ‖A₂ - N₂‖_φ`, for contractions `A₂`, `A₃`, `N₁`. -/
+theorem re_apply_mul_mul_ge (φ : AlgState R) {A₁ A₂ A₃ N₁ N₂ : R} (h₂ : star A₂ * A₂ ≤ 1)
+    (h₃ : star A₃ * A₃ ≤ 1) (hN₁ : star N₁ * N₁ ≤ 1)
+    (hc₁₂ : Commute N₁ A₂) (hc₁₃ : Commute N₁ A₃)
     (hc₂₃ : Commute N₂ A₃) :
     (φ (N₁ * N₂ * A₃)).re - φ.norm (A₁ - N₁) - φ.norm (A₂ - N₂) ≤ (φ (A₃ * A₂ * A₁)).re := by
+  have mul_contraction {x y : R} (hx : star x * x ≤ 1) (hy : star y * y ≤ 1) :
+      star (x * y) * (x * y) ≤ 1 := by
+    have h := star_left_conjugate_le_conjugate hx y
+    simp only [one_mul, star_mul, mul_assoc] at h ⊢
+    exact h.trans hy
   have chain := calc
       A₃ * A₂ * A₁ ≈[φ; φ.norm (A₁ - N₁)] A₃ * A₂ * N₁ :=
-        (φ.approx_norm_sub A₁ N₁).mul_left_unitary (by unitary_mem)
+        (φ.approx_norm_sub A₁ N₁).mul_left (mul_contraction h₃ h₂)
     _ = N₁ * A₃ * A₂ := by commute_left [hc₁₂.symm, hc₁₃.symm]
     _ ≈[φ; φ.norm (A₂ - N₂)] N₁ * A₃ * N₂ :=
-        (φ.approx_norm_sub A₂ N₂).mul_left_unitary (by unitary_mem)
+        (φ.approx_norm_sub A₂ N₂).mul_left (mul_contraction hN₁ h₃)
     _ = N₁ * N₂ * A₃ := by commute_left [hc₂₃.symm]
   have h := (Complex.re_le_norm _).trans chain.symm.norm_apply_sub_le
   rw [Complex.sub_re] at h
@@ -79,13 +85,13 @@ theorem re_apply_mul_mul_ge (φ : AlgState R) {A₁ A₂ A₃ N₁ N₂ : R} (h�
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
-/-- **Linearity from consistency.** Let `A(a)` be unitaries, and `N₁(a, b)`, `N₂(a, b)` operators
-commuting with every `A(c)`, with `N₁(a, b)` unitary. If
+/-- **Linearity from consistency.** Let `A(a)` be contractions, and `N₁(a, b)`, `N₂(a, b)` operators
+commuting with every `A(c)`, with `N₁(a, b)` a contraction. If
 `E_{a,b} Re φ(N₁(a, b) N₂(a, b) A(a + b)) ≥ 1 - ε`, `E_{a,b} ‖A(a) - N₁(a, b)‖²_φ ≤ η₁` and
 `E_{a,b} ‖A(b) - N₂(a, b)‖²_φ ≤ η₂`, then `E_{a,b} Re φ(A(a) A(b) A(a + b)) ≥ 1 - ε - √η₁ - √η₂`. -/
 theorem one_sub_le_expect_re_apply_mul_mul (φ : AlgState R) (A : (ι → Bool) → R)
-    (N₁ N₂ : (ι → Bool) → (ι → Bool) → R) (hA : ∀ a, A a ∈ unitary R)
-    (hN₁ : ∀ a b, N₁ a b ∈ unitary R) (hc₁ : ∀ a b c, Commute (N₁ a b) (A c))
+    (N₁ N₂ : (ι → Bool) → (ι → Bool) → R) (hA : ∀ a, star (A a) * A a ≤ 1)
+    (hN₁ : ∀ a b, star (N₁ a b) * N₁ a b ≤ 1) (hc₁ : ∀ a b c, Commute (N₁ a b) (A c))
     (hc₂ : ∀ a b c, Commute (N₂ a b) (A c)) {ε η₁ η₂ : ℝ}
     (hL : 1 - ε ≤ 𝔼 a, 𝔼 b, (φ (N₁ a b * N₂ a b * A (a + b))).re)
     (hC₁ : 𝔼 a, 𝔼 b, φ.norm (A a - N₁ a b) ^ 2 ≤ η₁)

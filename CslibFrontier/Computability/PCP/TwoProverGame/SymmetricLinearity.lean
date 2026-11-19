@@ -47,7 +47,7 @@ structure SymmetricLinearitySeed (n : ℕ) where
   dummy : Fin n → Bool
 
 /-- The five independent choices of a symmetric linearity seed as a product. -/
-def SymmetricLinearitySeed.equivProd (n : ℕ) :
+@[expose] def SymmetricLinearitySeed.equivProd (n : ℕ) :
     SymmetricLinearitySeed n ≃
       Bool × Fin 3 × (Fin n → Bool) × (Fin n → Bool) × (Fin n → Bool) where
   toFun seed := (seed.swapRoles, seed.check, seed.first, seed.second, seed.dummy)

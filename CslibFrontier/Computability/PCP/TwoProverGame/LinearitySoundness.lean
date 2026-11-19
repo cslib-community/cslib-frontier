@@ -95,17 +95,12 @@ theorem exists_isProjective_charObs_of_linearityTest
   have hwin : 1 - ε ≤ T.linearityTestProb := by
     rw [linearityTestProb_dilate]
     exact hε
-  have hA : ∀ c, (T.alice c).IsProjective := fun c a => by
-    change (S'.alice c).effect a ⊗ₖ 1 * (S'.alice c).effect a ⊗ₖ 1 = (S'.alice c).effect a ⊗ₖ 1
-    rw [← mul_kronecker_mul, Matrix.mul_one]
-    exact congrArg (· ⊗ₖ (1 : Matrix (κ × (Bool × Bool)) _ ℂ))
-      (S.isProjective_alice_dilate false (false, false) c a)
   have hB : ∀ q, (T.bob q).IsProjective := fun q r => by
     change 1 ⊗ₖ (S'.bob q).effect r * 1 ⊗ₖ (S'.bob q).effect r = 1 ⊗ₖ (S'.bob q).effect r
     rw [← mul_kronecker_mul, Matrix.mul_one]
     exact congrArg ((1 : Matrix (ι × Bool) _ ℂ) ⊗ₖ ·)
       (S.isProjective_bob_dilate false (false, false) q r)
-  have hlin := CommutingStrategy.one_sub_le_expect_re_apply_mul_mul_of_linearityTest T hA hB hwin
+  have hlin := CommutingStrategy.one_sub_le_expect_re_apply_mul_mul_of_linearityTest T hB hwin
   set O : (n → Bool) → Matrix (ι × Bool) (ι × Bool) ℂ := fun c =>
     (S'.alice c).toMeasurement.observable
   have hobs : ∀ c, (T.alice c).observable = O c ⊗ₖ 1 := fun c => by

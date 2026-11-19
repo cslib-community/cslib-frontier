@@ -50,6 +50,7 @@ Every two-prover game is a seeded game with the questions as the seed
 namespace Cslib.PCP
 
 open Finset Quantum
+open scoped BigOperators
 
 namespace SeededGame
 
@@ -78,6 +79,17 @@ theorem commutingWinProb_eq_sum [Fintype R] [∀ r a b, Decidable (G.accepts r a
       if G.accepts r a b then S.prob (G.query r).1 (G.query r).2 a b else 0 := by
   rw [commutingWinProb, answersWinProb_eq_sum]
   simp only [S.answers_apply, ENNReal.toReal_ofReal (S.prob_nonneg _ _ _ _)]
+
+/-- With a uniform private seed, the winning probability is the average of the conditional
+acceptance probabilities. -/
+theorem commutingWinProb_eq_expect_of_uniform [Fintype R] [Nonempty R]
+    [∀ r a b, Decidable (G.accepts r a b)]
+    (h : G.seed = Cslib.Probability.PMF.uniformOfFintype R) (S : CommutingStrategy X Y A B 𝒜) :
+    G.commutingWinProb S = 𝔼 r, ∑ a, ∑ b,
+      if G.accepts r a b then S.prob (G.query r).1 (G.query r).2 a b else 0 := by
+  rw [commutingWinProb_eq_sum, Fintype.expect_eq_sum_div_card, div_eq_inv_mul, mul_sum]
+  simp only [h, Cslib.Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
+    ENNReal.toReal_natCast]
 
 /-- Rejection at a specified private seed is the sum of the probability of every rejected
 answer pair on that seed's questions. -/

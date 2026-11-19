@@ -7,7 +7,8 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.SymmetricLinearity
+import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingLinearity
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Order
 
 /-! # The two-player linearity test
 
@@ -42,12 +43,12 @@ example {n 𝒜 : Type} [Fintype n] [DecidableEq n] [Ring 𝒜] [StarRing 𝒜] 
 example {n 𝒜 : Type} [Fintype n] [DecidableEq n] [CStarAlgebra 𝒜] [PartialOrder 𝒜]
     [StarOrderedRing 𝒜]
     (S : CommutingStrategy (n → Bool) ((n → Bool) × (n → Bool)) Bool (Bool × Bool) 𝒜)
-    (hA : ∀ c, (S.alice c).IsProjective) (hB : ∀ q, (S.bob q).IsProjective) {ε : ℝ}
+    (hB : ∀ q, (S.bob q).IsProjective) {ε : ℝ}
     (hε : 1 - ε ≤ S.linearityTestProb) :
     1 - 6 * ε - √(12 * ε) - √(12 * ε) ≤
       𝔼 a, 𝔼 b, (S.state ((S.alice a).observable * (S.alice b).observable *
         (S.alice (a + b)).observable)).re :=
-  CommutingStrategy.one_sub_le_expect_re_apply_mul_mul_of_linearityTest S hA hB hε
+  CommutingStrategy.one_sub_le_expect_re_apply_mul_mul_of_linearityTest S hB hε
 
 /-- **Completeness for linear functions** (concrete, two bits): the honest answers of the linear
 function `c ↦ s·c` pass every check. -/
@@ -119,5 +120,72 @@ example :
       G.accepts ⟨false, 0, zero, zero, zero⟩ (true, true) (true, true) ∧
       ¬ G.accepts ⟨false, 2, zero, zero, zero⟩ (true, true) (true, true) := by
   decide
+
+private abbrev String₁ := Fin 1 → Bool
+
+private def dummyAnswer (q : String₁ × String₁) : Bool × Bool :=
+  let bit := decide (q.1 ≠ q.2)
+  (bit, bit)
+
+private noncomputable def dummyDependent (φ : AlgState (Matrix (Fin 1) (Fin 1) ℂ)) :
+    CommutingStrategy (String₁ × String₁) (String₁ × String₁)
+      (Bool × Bool) (Bool × Bool) (Matrix (Fin 1) (Fin 1) ℂ) where
+  state := φ
+  alice q := Measurement.const (dummyAnswer q)
+  bob q := Measurement.const (dummyAnswer q)
+  commute _ _ a b := by
+    simp only [Measurement.const]
+    split_ifs <;> simp [Commute, SemiconjBy]
+
+/-- The width-one matrix strategy participates in the score identity for both assignments. -/
+example (φ : AlgState (Matrix (Fin 1) (Fin 1) ℂ)) :
+    let S := dummyDependent φ
+    (symmetricLinearityGame 1).commutingWinProb S =
+      𝔼 roles : Bool, (cond roles S S.swap).asymmetricLinearity.linearityTestProb :=
+  (dummyDependent φ).commutingWinProb_symmetricLinearityGame
+
+/-- Both strategies answer projectively on every visible pair. On point zero, the uniform
+dummy leads to both possible decoded point answers, so the averaged measurement is a POVM
+with zero observable. -/
+example (φ : AlgState (Matrix (Fin 1) (Fin 1) ℂ)) :
+    let S := dummyDependent φ
+    (∀ q, (S.alice q).IsProjective ∧ (S.bob q).IsProjective) ∧
+      ¬ (S.asymmetricLinearity.alice 0).IsProjective := by
+  intro S
+  refine ⟨fun q => ⟨Measurement.isProjective_const _, Measurement.isProjective_const _⟩, ?_⟩
+  have hobs : (S.asymmetricLinearity.alice 0).observable = 0 := by
+    rw [CommutingStrategy.observable_asymmetricLinearity]
+    simp only [Cslib.BitString.lexSwap_zero_left, Bool.cond_false, id_eq]
+    let O (d : String₁) := ((S.alice (0, d)).map Prod.fst).observable
+    change (𝔼 d, O d) = 0
+    have he := Fintype.expect_equiv (Equiv.funUnique (Fin 1) Bool) O
+      (fun b => O (fun _ => b)) (fun d => congrArg O (funext fun i =>
+        congrArg d (Subsingleton.elim i default)))
+    have hfalse : dummyAnswer (0, fun _ => false) = (false, false) := by decide
+    have htrue : dummyAnswer (0, fun _ => true) = (true, true) := by decide
+    rw [he, Finset.expect, Fintype.sum_bool]
+    simp [O, S, dummyDependent, hfalse, htrue, Measurement.observable, Measurement.map_effect,
+      Measurement.const]
+  intro h
+  have hsquare := Measurement.observable_mul_self h
+  rw [hobs, zero_mul] at hsquare
+  exact zero_ne_one hsquare
+
+/-- The width-one Pauli bound instantiates in the usual matrix order for either basis and role. -/
+example
+    (S : CommutingStrategy (PauliBraidingQuestion 1 Bool) (PauliBraidingQuestion 1 Bool)
+      ((Bool × Bool) ⊕ Bool) ((Bool × Bool) ⊕ Bool) (Matrix (Fin 1) (Fin 1) ℂ))
+    (hA : ∀ basis q, (S.alice (.basis basis q)).IsProjective)
+    (hB : ∀ basis q, (S.bob (.basis basis q)).IsProjective)
+    (basis roles : Bool) {ε : ℝ}
+    (hwin : 1 - ε ≤ (pauliBraidingBranchGame 1 TwoProverGame.chsh id
+      (fun _ => id) 0).commutingWinProb S) :
+    let R := pauliBraidingLinearityStrategy basis S
+    let T := (cond roles R R.swap).asymmetricLinearity
+    1 - 24 * ε - √(48 * ε) - √(48 * ε) ≤
+      𝔼 a, 𝔼 b, (T.state ((T.alice a).observable * (T.alice b).observable *
+        (T.alice (a + b)).observable)).re :=
+  one_sub_le_expect_re_apply_mul_mul_of_pauliBraidingLinearity
+    TwoProverGame.chsh id (fun _ => id) S hA hB hwin basis roles
 
 end CslibFrontierTests.LinearityGame

@@ -29,7 +29,7 @@ open scoped Kronecker MatrixOrder ComplexOrder BigOperators Matrix.Norms.L2Opera
 example {n R : Type} [Fintype n] [DecidableEq n] [Ring R] [StarRing R] [PartialOrder R]
     [StarOrderedRing R] [Algebra ℂ R] [StarModule ℂ R] [SelfAdjointDecompose R]
     (φ : AlgState R) (A : (n → Bool) → R) (N₁ N₂ : (n → Bool) → (n → Bool) → R)
-    (hA : ∀ a, A a ∈ unitary R) (hN₁ : ∀ a b, N₁ a b ∈ unitary R)
+    (hA : ∀ a, star (A a) * A a ≤ 1) (hN₁ : ∀ a b, star (N₁ a b) * N₁ a b ≤ 1)
     (hc₁ : ∀ a b c, Commute (N₁ a b) (A c)) (hc₂ : ∀ a b c, Commute (N₂ a b) (A c))
     {ε η₁ η₂ : ℝ} (hL : 1 - ε ≤ 𝔼 a, 𝔼 b, (φ (N₁ a b * N₂ a b * A (a + b))).re)
     (hC₁ : 𝔼 a, 𝔼 b, φ.norm (A a - N₁ a b) ^ 2 ≤ η₁)
@@ -60,8 +60,10 @@ example {n : Type} [Fintype n] [DecidableEq n] (φ : AlgState (Matrix (n → Boo
     pauliZPow_mem_unitaryGroup
   have hcomm : ∀ a b, Commute (pauliZPow (ι := n) a) (pauliZPow b) := fun a b => by
     rw [Commute, SemiconjBy, pauliZPow_mul, pauliZPow_mul, add_comm]
+  have hcontract (a : n → Bool) : star (pauliZPow a) * pauliZPow a ≤ 1 :=
+    (Unitary.star_mul_self_of_mem (hZ a)).le
   have h := one_sub_le_expect_re_apply_mul_mul (ε := 0) (η₁ := 0) (η₂ := 0) φ pauliZPow
-    (fun a _ => pauliZPow a) (fun _ b => pauliZPow b) hZ (fun a _ => hZ a)
+    (fun a _ => pauliZPow a) (fun _ b => pauliZPow b) hcontract (fun a _ => hcontract a)
     (fun a _ c => hcomm a c) (fun _ b c => hcomm b c)
     (by simp only [pauliZPow_mul, BitString.add_self, pauliZPow_zero, φ.map_one, Complex.one_re,
       Fintype.expect_const, sub_zero, le_refl])

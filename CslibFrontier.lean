@@ -3990,12 +3990,14 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingAnticommutation
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
+public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingLinearity
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingZero
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded
 public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded.Basic
 public import CslibFrontier.Computability.PCP.TwoProverGame.SymmetricLinearity
+public import CslibFrontier.Computability.PCP.TwoProverGame.SymmetricLinearityReduction
 public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 public import CslibFrontier.Computability.Pebbling.Basic
 public import CslibFrontier.Computability.Pebbling.BinaryTree
