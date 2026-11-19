@@ -273,6 +273,7 @@ import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
 import CslibFrontier.Crypto.Computational.OneWay.LengthPreserving
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
+import CslibFrontier.Crypto.Computational.OneWay.Repeated
 import CslibFrontier.Crypto.Computational.OneWay.WeakNotStrong
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
@@ -290,6 +291,7 @@ import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
 import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
@@ -8569,9 +8571,92 @@ register_result "second-preimage-counting-and-inversion" where
     succProbability_inversionExperiment_uniform_le_add_card_div is the sharper \
     OWadv[A, H] ≤ SPRadv[B, H] + |T|/|M|, from which (8.22) follows. These are concrete bounds \
     for every A, with no cost model; B calls A once. The asymptotic part of 8.23(b), that \
-    second-preimage resistance implies one-wayness when s is super-poly, has a bit-string \
-    counterpart in Computational/SecondPreimageResistant/Relations.lean, which is not part of \
-    this entry; nor are 8.23(c)–(d)."
+    second-preimage resistance implies one-wayness when s is super-poly, is entry \
+    second-preimage-resistance-implies-one-way, and 8.23(c) is entry \
+    second-preimage-resistant-not-one-way; 8.23(d) is not part of this entry."
+
+register_result "second-preimage-resistance-implies-one-way" where
+  title := "A second-preimage resistant function that compresses by a super-polynomial factor is \
+    one-way"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Equation (8.17), second implication, and Exercise 8.23(b)",
+      locator := "Section 8.11.1, p. 337; Section 8.14, pp. 352–353" }
+  ]
+  theorems := [
+    Cslib.Crypto.SecondPreimageResistantOn.oneWayOn_of_outputLength
+  ]
+  scope := "H is one function on bit strings, evaluated in deterministic polynomial time, that \
+    maps n-bit inputs to outLen(n)-bit digests. Hypotheses: SecondPreimageResistantOn H valid \
+    and 2^outLen(n) / 2^n negligible. Conclusion: OneWayOn H valid, on the same answer domain. \
+    At valid n w = decide (w.length = n) both are Definition 8.6 (Section 8.11.1, p. 336) on \
+    M = {0,1}^n and T = {0,1}^outLen(n), with a uniform n-bit challenge and uniform strict PPT \
+    adversaries given n in unary; a wider valid strengthens both. The compression factor \
+    s(n) = |M| / |T| = 2^n / 2^outLen(n) is super-poly exactly when 1/s(n) is negligible; the \
+    source assumes |M| ≥ s·|T|, and here s is that ratio. The proof's B is \
+    inverterToSecondPreimage, which gives A the image of its challenge and returns A's answer, \
+    as in the exercise's hint; it is certified strict PPT (isPPT_inverterToSecondPreimage). \
+    Asymptotic; succProbability_inversionGameOn_le_secondPreimageGameOn_add, in the same \
+    module, is the bound OWadv[A, H] ≤ SPRadv[B, H] + 2^outLen(n) / 2^n, which implies (8.22), \
+    OWadv[A, H] ≤ 2·SPRadv[B, H] + 1/s; the finite form of (8.22) is entry \
+    second-preimage-counting-and-inversion."
+
+register_result "one-way-not-second-preimage-resistant" where
+  title := "Ignoring one input bit keeps a function one-way but makes second preimages easy"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "a one-way h′(m, b) := h(m) that is not 2nd-preimage resistant",
+      locator := "Section 8.11.1, p. 337" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneWayOn.ignoreHeadBit,
+    Cslib.Crypto.not_secondPreimageResistantOn_ignoreHeadBit
+  ]
+  scope := "h is one function on bit strings, evaluated in deterministic polynomial time, and h′ \
+    is ignoreHeadBit h, with h′(b :: m) = h(m): the source's h′(m, b) := h(m), with the extra \
+    bit first. OneWayOn.ignoreHeadBit: if OneWayOn h valid, then OneWayOn h′ valid, for an \
+    answer domain whose words at length n + 1 lose their head bit into words of the domain at \
+    length n. At valid n w = decide (w.length = n) this is Definition 8.6 (Section 8.11.1, \
+    p. 336) for h on M = {0,1}^n and for h′ on M × {0,1} = {0,1}^(n+1), with uniform \
+    challenges and uniform strict PPT inverters given the input length in unary, so h′ at \
+    length n + 1 corresponds to h at length n. The source says only that h′ is clearly \
+    one-way; the reduction here is ignoreHeadBitInverter, which runs the inverter for h′ at \
+    length n + 1 and returns the tail of its answer, certified strict PPT \
+    (isPPT_ignoreHeadBitInverter). not_secondPreimageResistantOn_ignoreHeadBit: for every h, \
+    h′ is not SecondPreimageResistantOn h′ valid for any valid that, for all large n, admits \
+    every n-bit word with its head bit flipped, as {0,1}^n does. The finder flipHeadBit answers \
+    the challenge b :: m with (1 − b) :: m, the source's (m, 1 − b), and wins with \
+    probability 1."
+
+register_result "second-preimage-resistant-not-one-way" where
+  title := "At a bounded compression factor, a second-preimage resistant function need not be \
+    one-way"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 8.23(c)", locator := "Section 8.14, p. 353" }
+  ]
+  theorems := [
+    Cslib.Crypto.SecondPreimageResistantOn.plantEasyBranch,
+    Cslib.Crypto.not_oneWayOn_plantEasyBranch
+  ]
+  scope := "For a function H on bit strings, evaluated in deterministic polynomial time, and \
+    k : ℕ, H′ = plantEasyBranch k H maps w to true :: (w without its first k bits) when those k \
+    bits are all false, and to false :: H(w) otherwise. \
+    SecondPreimageResistantOn.plantEasyBranch: if SecondPreimageResistantOn H valid, then \
+    SecondPreimageResistantOn H′ valid, on the same answer domain. not_oneWayOn_plantEasyBranch: \
+    for every H, H′ is not OneWayOn H′ valid for any valid that contains every n-bit word; \
+    plantEasyBranchInverter k, certified strict PPT (isPPT_plantEasyBranchInverter), answers \
+    with k false bits followed by the tail of its challenge and inverts with probability at \
+    least (1/2)^k at every length n ≥ k. At valid n w = decide (w.length = n) both notions are \
+    Definition 8.6 (Section 8.11.1, p. 336) on M = {0,1}^n, with uniform n-bit challenges and \
+    uniform strict PPT adversaries given n in unary. The exercise takes M := T × {1, …, 2s} \
+    and T′ := T × {0,1}: when H maps n-bit inputs to (n − k)-bit digests, 2s = 2^k, and H′ maps \
+    them to (n − k + 1)-bit digests (length_plantEasyBranch, same module), so H′ has \
+    compression ratio s = 2^(k−1), with s = 2 at k = 2. Only compression factors that are \
+    powers of two are covered. The two theorems hold for every H; the digest length only fixes \
+    the compression ratio."
 
 register_result "xor-tcr-from-second-preimage" where
   title := "Masking the input with the key turns a second-preimage-resistant hash into a target \
@@ -8596,6 +8681,38 @@ register_result "xor-tcr-from-second-preimage" where
     xorTargetToSecondPreimage, certified strict PPT (isPPT_xorTargetToSecondPreimage). \
     Asymptotic; succProbability_targetCollisionGame_xorTargetHash_le, in the same module, is \
     the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
+
+register_result "repeated-one-way" where
+  title := "A function that is one-way on its domain stays hard to invert when polynomially many \
+    instances are published and any others may be revealed"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 13.5",
+      locator := "Section 13.4.1, Attack Game 13.3 and Lemma 13.5, pp. 539–540" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneWayOn.repeatedInversion_negligible
+  ]
+  scope := "f is one function on bit strings, evaluated in deterministic polynomial time. \
+    Hypothesis: OneWayOn f valid for an answer domain valid that contains every n-bit word. At \
+    valid n w = decide (w.length = n) it is Definition 8.6 (Section 8.11.1, p. 336) on \
+    X = {0,1}^n, the lemma's standard one-way problem, with a uniform n-bit challenge and \
+    uniform strict PPT inverters given n in unary; a wider valid gives a stronger premise and a \
+    game that accepts more answers. Conclusion: for every number of instances t(n) computable \
+    in polynomial time from unary n, every uniform strict oracle-PPT adversary has negligible \
+    success in repeatedInversionGameOn f valid t, Attack Game 13.3 with x_1, …, x_t uniform \
+    n-bit words: the adversary receives n in unary and the framed list (y_1, …, y_t), a reveal \
+    query for slot j is answered with x_j, and the adversary wins with (ν, x) when it never \
+    revealed ν, valid n x and f(x) = y_ν. The source's t is a positive integer parameter; here \
+    it is a function of n, computable in polynomial time because the uniform reduction \
+    computes it, and t(n) = 0 is allowed, where the game is lost. Slots are 0-based and named \
+    by the length of the query word; a reveal outside 0, …, t(n) − 1 is answered with the empty \
+    word, and a claim outside it loses. The proof's B is repeatedInverter, certified strict PPT \
+    (isPPT_repeatedInverter); it forwards A's claimed preimage unchanged, and draws its guess ω \
+    with fair coins from the dyadic range dyadicSize(t(n)) = 2^(⌊log₂ t(n)⌋ + 1) instead of \
+    uniformly from 1, …, t, failing when ω ≥ t(n). Asymptotic; \
+    succProbability_repeatedInversionGameOn_le, in the same module, is the bound (13.6) with \
+    dyadicSize(t(n)) ≤ 2·t(n) in place of t: rOWadv[A, f, t] ≤ dyadicSize(t(n))·OWadv[B, f]."
 
 register_result "tcr-hash-and-sign-signature" where
   title := "Signing a fresh target collision resistant hash key with the message digest extends a \
