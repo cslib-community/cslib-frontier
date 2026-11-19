@@ -56,7 +56,7 @@ private theorem tasks_bound (p : State Rel × List ℕ) :
   · simp
 
 private theorem fold_resource (I : State Rel) (ts : List ℕ)
-    (hlen : ts.length≤I.ports.length-1) :
+    (hlen : ts.length ≤ I.ports.length - 1) :
     let J := ts.foldl (fun J _ => fuseHead J) I
     ∃ f : ℕ → ℕ, J.body=I.body.relabel f ∧ J.ports=(I.ports.drop ts.length).map f ∧
       (∀ z∈I.body.vars++I.ports, f z∈I.body.vars++I.ports) ∧
@@ -64,12 +64,25 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
         2*(I.body.occurrences.length+I.ports.length-ts.length) ∧
         ∀ v∈J.rotation.successor, v<2*(I.body.occurrences.length+I.ports.length-ts.length)) := by
   induction ts using List.reverseRecOn with
-  | nil => exact ⟨id,by simp [CSP.relabel,Constraint.relabel],by simp,
-      by simp,by simp,by simp⟩
+  | nil =>
+    refine ⟨id, ?_, by simp, by simp, by simp, by simp⟩
+    change I.body = I.body.relabel id
+    rw [CSP.relabel]
+    calc
+      I.body = I.body.map id := (List.map_id I.body).symm
+      _ = I.body.map (Constraint.relabel id) := by
+        apply List.map_congr_left
+        intro c _
+        cases c
+        simp [Constraint.relabel]
   | append_singleton ts t ih =>
-    have hs : ts.length≤I.ports.length-1 := by simp only [List.length_append,List.length_singleton] at hlen; omega
+    have hs : ts.length ≤ I.ports.length - 1 := by
+      simp only [List.length_append,List.length_singleton] at hlen
+      omega
     obtain ⟨f,hb,hp,hn,_,_⟩ := ih hs
     let J := ts.foldl (fun J _ => fuseHead J) I
+    change J.body = I.body.relabel f at hb
+    change J.ports = (I.ports.drop ts.length).map f at hp
     have hP : J.ports.length=I.ports.length-ts.length := by
       rw [hp,List.length_map,List.length_drop]
     have htwo : 2≤J.ports.length := by
@@ -83,24 +96,28 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
       | cons y ps =>
         let u := Function.update id y x
         have hx : x∈I.body.vars++I.ports := by
-          have hm : x∈J.ports := by simp only [he,List.mem_cons]; exact Or.inl rfl
+          have hm : x∈J.ports := by simp only [he,List.mem_cons]; exact Or.inl trivial
           rw [hp] at hm
           obtain ⟨z,hz,rfl⟩ := List.mem_map.mp hm
           exact hn z (List.mem_append_right _ ((List.drop_sublist _ _).subset hz))
         refine ⟨u ∘ f,?_,?_,?_,by simp,?_⟩
         · simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
           change (fuseHead J).body=_
-          simp only [fuseHead,he,hb,CSP.relabel,Constraint.relabel,List.map_map,Function.comp_def]
+          simp only [fuseHead, he, hb, CSP.relabel, List.map_map]
+          apply List.map_congr_left
+          intro c _
+          cases c
+          simp [Constraint.relabel, Function.comp_def, List.map_map, u]
         · simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
           change (fuseHead J).ports=_
           have ht : (y::ps)=(I.ports.drop ts.length).tail.map f := by
             simpa only [he,List.tail_cons,← List.map_tail] using congrArg List.tail hp
           simp only [fuseHead,he]
           rw [ht,List.map_map]
-          simp [List.tail_eq_drop,List.drop_drop,Nat.add_comm]
+          simp [← List.drop_one,List.drop_drop,u]
         · intro z hz
           by_cases h : f z=y
-          · simpa only [Function.comp_apply,u,Function.update_apply,h,ite_eq_left rfl] using hx
+          · simpa only [Function.comp_apply,u,Function.update_apply,h,↓reduceIte] using hx
           · simpa only [Function.comp_apply,u,Function.update_of_ne h,id_eq] using hn z hz
         · intro _
           have hm : J.body.occurrences.length=I.body.occurrences.length := by
@@ -112,11 +129,21 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
             simp only [List.length_append,List.length_singleton]
             omega
           simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
-          change (fuseHead J).rotation.successor.length=_ ∧ _
-          simp only [fuseHead,he,equalDropCertificate]
-          rw [length_restrictPrefix,hsize]
-          exact ⟨rfl,by simpa only [hsize] using entries_restrictPrefix_lt
-            (2*(J.body.occurrences.length+(ps.length+1))) _⟩
+          change (fuseHead J).rotation.successor.length =
+            2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length) ∧
+            ∀ v ∈ (fuseHead J).rotation.successor,
+              v < 2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length)
+          have hrot : (fuseHead J).rotation = equalDropCertificate J.body ps.length J.rotation := by
+            simp only [fuseHead, he]
+          simp only [hrot, equalDropCertificate, length_restrictPrefix]
+          refine ⟨hsize, ?_⟩
+          intro v hv
+          have he' := entries_restrictPrefix_lt
+            (2*(J.body.occurrences.length+(ps.length+1)))
+            (J.rotation.swapSuccessors (2*(J.body.occurrences.length+ps.length+1))
+              (J.rotation.successor.idxOf (2*(J.body.occurrences.length+ps.length)))) v hv
+          omega
+
 
 private def scale (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ) : ℕ :=
   (encStateMetadata encRel p).length+
@@ -135,14 +162,17 @@ private theorem scale_poly (encRel : Rel ↪ List Bool) :
   have ht := (ComputableInPolyTime.length_list encNat).comp hp
   have hQ : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => p.1.body.length) := by
-    simpa only [encUnary_apply,List.length_replicate] using hq.polyBounded_length
+    simpa only [Function.comp_apply,encUnary_apply,List.length_replicate]
+      using hq.polyBounded_length
   have hM : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => p.1.body.occurrences.length) := by
-    simpa only [encUnary_apply,List.length_replicate,CSP.vars_length_eq_occurrences]
+    simpa only [Function.comp_apply,encUnary_apply,List.length_replicate,
+      CSP.vars_length_eq_occurrences]
       using hm.polyBounded_length
   have hP : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => p.1.ports.length) := by
-    simpa only [encUnary_apply,List.length_replicate] using ht.polyBounded_length
+    simpa only [Function.comp_apply,encUnary_apply,List.length_replicate]
+      using ht.polyBounded_length
   exact ((((PolyBounded.self.add hn.polyBounded_length).add hQ).add hM).add hP).add (.const 1)
 
 private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ)
@@ -156,6 +186,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
   obtain ⟨f,hb,ht,hn,he,hd⟩ := fold_resource I ts hts
   have hS : (encState encRel I).length≤N := by
     apply le_trans (show (encState encRel I).length≤(encStateMetadata encRel p).length by
+      change (encState encRel p.1).length ≤ _
       enc_len [encStateMetadata])
     dsimp [N,scale]
     omega
@@ -224,8 +255,6 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
     change (encState encRel J).length≤512*N^3
     simp only [encState_apply,encStateFields,length_encPair,
       Graph.encRotationCertificate_apply,Graph.encRotationCertificateFields]
-    change 2*(encCSP encRel encNat J.body).length+1+
-      (2*(encList encNat J.ports).length+1+(encList encNat J.rotation.successor).length)≤_
     nlinarith [Nat.zero_le (N*N*N),Nat.zero_le (N*N)]
 
 /-- Close one actual run in plain polynomial time on EVERY raw State and binary metadata
@@ -252,7 +281,7 @@ theorem computableInPolyTime_closeFirstMetadataRun (encRel : Rel ↪ List Bool) 
       ((ComputableInPolyTime.tail (encA := encNat)).comp hrun) (ComputableInPolyTime.const [])
   have hstep := (computableInPolyTime_fuseHead encRel).comp
     (ComputableInPolyTime.fst (encState encRel) encNat)
-  have hfold := (ComputableInPolyTime.foldl_spec ht hi hstep
+  have hfold := (ComputableInPolyTime.foldl_spec (step := fun J (_ : ℕ) => fuseHead J) ht hi hstep
     (fun p consumed J => J=consumed.foldl (fun J _ => fuseHead J) p.1)
     (fun _ => rfl)
     (fun _ consumed J value _ hJ => by
@@ -267,6 +296,7 @@ theorem computableInPolyTime_closeFirstMetadataRun (encRel : Rel ↪ List Bool) 
   rcases p with ⟨I,keys⟩
   by_cases h : keys.length=I.ports.length
   · cases keys <;> simp [closeFirstMetadataRun,tasks,h]
-  · simp [closeFirstMetadataRun,tasks,h]
+    rfl
+  · simp [closeFirstMetadataRun,h]
 
 end Cslib.Complexity.CSP.CrossInsertion

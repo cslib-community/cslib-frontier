@@ -35,18 +35,28 @@ private def keys : List ℕ := [2,1,2,1]
 private def sigma (z : ℕ) : Bool := decide (z=20 ∨ z=40)
 private def C (z : ℕ) : ℕ := if z∈([10,5] : List ℕ) then 10 else z
 
+private theorem computed_keys : compute keys = ⟨[1,1,2,2],[2,0,1]⟩ := by
+  simp [keys, compute, Cslib.AdjacentSortTrace.insert, List.range_succ]
+
 example : (compute keys).requests=[2,0,1] ∧
-    (sortBoundaryMetadata g w atom keys).ports=[10,5,7,28] := by decide +kernel
+    (sortBoundaryMetadata g w atom keys).ports=[10,5,7,28] := by
+  rw [sortBoundaryMetadata, computed_keys]
+  decide +kernel
 
 example : sortAndCloseFirstMetadataRun g w atom keys=
-    hideHead (fuseHead (sortBoundaryMetadata g w atom keys)) := by rfl
+    hideHead (fuseHead (sortBoundaryMetadata g w atom keys)) := by
+  rw [sortAndCloseFirstMetadataRun, sortBoundaryMetadata, computed_keys]
+  rfl
 
-example : (sortAndCloseFirstMetadataRun g w atom keys).ports=[7,28] := by decide +kernel
+example : (sortAndCloseFirstMetadataRun g w atom keys).ports=[7,28] := by
+  rw [sortAndCloseFirstMetadataRun, computed_keys]
+  decide +kernel
 
 example : (sortAndCloseFirstMetadataRun g w atom keys).body.length=7 ∧
     (sortAndCloseFirstMetadataRun g w atom keys).body.occurrences.length=28 ∧
     (sortAndCloseFirstMetadataRun g w atom keys).ports.length=2 ∧
     (sortAndCloseFirstMetadataRun g w atom keys).rotation.successor.length=60 := by
+  rw [sortAndCloseFirstMetadataRun, computed_keys]
   decide +kernel
 
 example : (sortAndCloseFirstMetadataRun g w atom keys).Accepted :=
@@ -58,31 +68,34 @@ example : OrderedBoundary.verify (sortAndCloseFirstMetadataRun g w atom keys).bo
   (accepted_sortAndCloseFirstMetadataRun g w atom keys (by decide +kernel)).2
 
 example : ∃ τ : ℕ → Bool,
-    (sortAndCloseFirstMetadataRun g w atom keys).body.eval nearSem τ=true ∧
+    (sortAndCloseFirstMetadataRun g w atom keys).body.eval nearSem τ = true ∧
     (∀ z,τ (8*z)=sigma z) ∧ τ (8*123456)=false ∧
     (sortAndCloseFirstMetadataRun g w atom keys).ports.map τ=[false,false] := by
   obtain ⟨τ,ht,ha,hv⟩ :=
     forward_sortAndCloseFirstMetadataRun g w atom keys rfl (by decide +kernel) sigma
-      (by decide +kernel) (by decide +kernel)
+      (by decide +kernel) (by simp only [computed_keys]; decide +kernel)
+  simp only [computed_keys] at ha hv
   change ∀ z,τ (8*z)=sigma z at ha
   change _=[sigma 10,sigma 30] at hv
   exact ⟨τ,ht,ha,by simpa [sigma] using ha 123456,by simpa [sigma] using hv⟩
 
 example (τ : ℕ → Bool)
-    (ht : (sortAndCloseFirstMetadataRun g w atom keys).body.eval nearSem τ=true) :
+    (ht : (sortAndCloseFirstMetadataRun g w atom keys).body.eval nearSem τ = true) :
     atom.body.eval nearSem (fun z => τ (C (8*z)))=true ∧
     τ (C (8*20))=τ (C (8*40)) ∧
     (sortAndCloseFirstMetadataRun g w atom keys).ports.map τ=
       [τ (C (8*10)),τ (C (8*30))] := by
   have h := recover_sortAndCloseFirstMetadataRun g w atom keys rfl (by decide +kernel) τ ht
+  simp only [sortBoundaryMetadata, computed_keys] at h
   change _ ∧ (∀ b∈[τ (C (8*20)),τ (C (8*40))],b=τ 10) ∧ _ at h
   exact ⟨h.1,(h.2.1 _ (by simp)).trans (h.2.1 _ (by simp)).symm,h.2.2⟩
 
 example : ¬∃ τ : ℕ → Bool,
-    (sortAndCloseFirstMetadataRun g w atom keys).body.eval nearSem τ=true ∧
+    (sortAndCloseFirstMetadataRun g w atom keys).body.eval nearSem τ = true ∧
       τ (C (8*20))≠τ (C (8*40)) := by
   rintro ⟨τ,ht,hne⟩
   have h := recover_sortAndCloseFirstMetadataRun g w atom keys rfl (by decide +kernel) τ ht
+  simp only [sortBoundaryMetadata, computed_keys] at h
   change _ ∧ (∀ b∈[τ (C (8*20)),τ (C (8*40))],b=τ 10) ∧ _ at h
   exact hne ((h.2.1 _ (by simp)).trans (h.2.1 _ (by simp)).symm)
 
@@ -107,7 +120,7 @@ private def different (z : ℕ) : Bool := decide (z=4)
 
 -- This is a counterexample to inferring input equality from output/all-name agreement.
 example : (∃ τ : ℕ → Bool,
-    (closeFirstMetadataRun (raw [9,4]) [1,1]).body.eval nearSem τ=true ∧
+    (closeFirstMetadataRun (raw [9,4]) [1,1]).body.eval nearSem τ = true ∧
     (∀ z,τ z=different z)) ∧ different 9≠different 4 := by
   exact ⟨⟨different,rfl,fun _ => rfl⟩,by decide +kernel⟩
 
@@ -133,9 +146,8 @@ example : sortAndCloseFirstMetadataRun g w (⟨broken.body,[],broken.rotation⟩
 
 private theorem singleton_raw (F : CSP Unit ℕ) (p H : ℕ) (c : Graph.RotationCertificate) :
     closeFirstMetadataRun (⟨F,[p],c⟩ : State Unit) [H]=hideHead ⟨F,[p],c⟩ := by
-  have hh : H=H := rfl
-  simp only [closeFirstMetadataRun,List.length_cons,List.length_nil,not_true_eq_false,
-    ↓reduceIte,List.takeWhile_cons,hh,decide_true,List.takeWhile_nil,List.tail_cons,
+  simp only [closeFirstMetadataRun,List.length_cons,List.length_nil,ne_eq,not_true_eq_false,
+    ↓reduceIte,List.takeWhile_cons,decide_true,List.takeWhile_nil,List.tail_cons,
     List.foldl_nil]
 
 example : closeFirstMetadataRun (⟨broken.body,[2^250],broken.rotation⟩ : State Unit) [2^300]=
@@ -144,10 +156,9 @@ example : closeFirstMetadataRun (⟨broken.body,[2^250],broken.rotation⟩ : Sta
 -- Huge key equality does not clock the number of fusions; the actual run tail does.
 example (H : ℕ) : closeFirstMetadataRun (raw [9,4,2]) [H,H,H]=
     hideHead (fuseHead (fuseHead (raw [9,4,2]))) := by
-  have hh : H=H := rfl
-  simp only [closeFirstMetadataRun,List.length_cons,List.length_nil,not_true_eq_false,
-    ↓reduceIte,List.takeWhile_cons,hh,decide_true,List.takeWhile_nil,List.tail_cons,
-    List.foldl_cons,List.foldl_nil]
+  simp only [closeFirstMetadataRun, raw, List.length_cons, List.length_nil,
+    ne_eq, not_true_eq_false, ↓reduceIte, List.takeWhile_cons, decide_true,
+    List.takeWhile_nil, List.tail_cons, List.foldl_cons, List.foldl_nil]
 
 -- Raw global relabeling changes scope names, but retains all indexed duplicate/nullary rows.
 example : (closeFirstMetadataRun broken [1,1,2,2]).body.map (fun c => (c.rel,c.scope.length))=
@@ -155,7 +166,7 @@ example : (closeFirstMetadataRun broken [1,1,2,2]).body.map (fun c => (c.rel,c.s
   have h := (components_closeFirstMetadataRun broken [1,1,2,2]).2.2.1
   exact h
 
-example : ¬∃ τ : ℕ → Bool, (closeFirstMetadataRun broken [1,1,2,2]).body.eval nearSem τ=true := by
+example : ¬∃ τ : ℕ → Bool, (closeFirstMetadataRun broken [1,1,2,2]).body.eval nearSem τ = true := by
   rintro ⟨τ,ht⟩
   have hr := (recover_closeFirstMetadataRun nearSem broken 1 [1,2,2] rfl τ ht).1
   change false=true at hr
