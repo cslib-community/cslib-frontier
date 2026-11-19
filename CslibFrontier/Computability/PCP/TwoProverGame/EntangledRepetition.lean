@@ -83,7 +83,7 @@ theorem answers_cons (S : QuantumStrategy X Y A B ι κ)
     (x : Fin (n + 1) → X) (y : Fin (n + 1) → Y) :
     (S.cons T).answers x y =
       ((S.answers (x 0) (y 0)).bind fun ab => (T.answers (Fin.tail x) (Fin.tail y)).map (ab, ·)).map
-        (fun z => (Fin.cons z.1.1 z.2.1, Fin.cons z.1.2 z.2.2)) := by
+        (fun ⟨⟨a, b⟩, ⟨aTail, bTail⟩⟩ => (Fin.cons a aTail, Fin.cons b bTail)) := by
   calc
     _ = ((S.tensor T).answers (x 0, Fin.tail x) (y 0, Fin.tail y)).map
             (Prod.map (fun p => Fin.cons p.1 p.2) (fun p => Fin.cons p.1 p.2)) := by
