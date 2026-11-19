@@ -13,6 +13,7 @@ import all CslibFrontier.Crypto.Computational.MLDSA.AdaptiveCommitmentCall
 import all CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 import all CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
+import CslibFrontier.Foundations.Data.Finset.Expect
 import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
 
 /-!
@@ -27,6 +28,7 @@ public section
 
 namespace Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
 open Cslib.Probability Cslib.Quantum
+open scoped BigOperators
 
 private noncomputable def mixed (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (prog : C.Program Forgery)
@@ -376,6 +378,52 @@ setup contributes zero. -/
     let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
     ∑ i ∈ Finset.range n, (814 * (4 * qH * √δ + (n + 2) * δ) +
       814 * (2 * (4 * qH * √δ + (815 * i + 814) * δ))))
+
+
+-- Sum the charges for the earlier native prefix and the later simulated calls.
+private theorem sum_request_loss (δ : ℝ) (n qH p : ℕ) :
+    (∑ i ∈ Finset.range p, (814 * (4 * qH * √δ + (n + 2) * δ) +
+      814 * (2 * (4 * qH * √δ + (815 * i + 814) * δ)))) =
+      814 * p * (12 * qH * √δ + (n + 815 * p + 815) * δ) := by
+  induction p with
+  | zero => simp
+  | succ p ih => rw [Finset.sum_range_succ, ih]; push_cast; ring
+
+/-- The total adaptive-signing loss in the seeded FIPS game is bounded by the uniform-matrix
+average of the square root of the largest commitment probability. The coefficient includes
+all the native and simulated requests and all 814 attempts per request. -/
+theorem adaptiveSigningLoss_le_mean_sqrt (s : Level) (base : Xofs) {a b : ℕ} (n qH : ℕ)
+    (ha : 272 ≤ a) (hb : 894 ≤ b) :
+    adaptiveSigningLoss s base a b n qH ≤ 814 * n * (12 * qH + 816 * n + 815) *
+      (𝔼 A : PublicMatrix s, Real.sqrt
+        (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal) := by
+  classical
+  let U := PMF.uniformOfFintype (PublicMatrix s)
+  let δ (A : PublicMatrix s) :=
+    (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal
+  let c : ℝ := 814 * n * (12 * qH + 816 * n + 815)
+  have mean : (∑ A, (U A).toReal * (c * √(δ A))) = c * (𝔼 A, √(δ A)) := by
+    simp only [U, PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
+      ← Finset.mul_sum, Finset.expect_eq_sum_div_card, Finset.card_univ, div_eq_inv_mul]
+    ring
+  change _ ≤ c * (𝔼 A, √(δ A))
+  rw [← mean]
+  unfold adaptiveSigningLoss
+  rw [Fintype.sum_option]
+  simp only [Option.elim_none, mul_zero, Option.elim_some, zero_add, sum_request_loss]
+  apply Finset.sum_le_sum
+  intro A _
+  have atom := ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+    (generatedMatrix_apply_some_le_uniform s base ha hb A)
+  apply mul_le_mul atom _ (by positivity) ENNReal.toReal_nonneg
+  have le : δ A ≤ √(δ A) := Real.le_sqrt_self_iff.mpr
+    (ENNReal.toReal_le_of_le_ofReal zero_le_one (by simpa [commitmentGuessProbability] using
+      (iSup_le fun w => PMF.coe_le_one _ w : commitmentGuessProbability s.params
+        (by cases s <;> decide) A ≤ 1)))
+  change 814 * (n : ℝ) * (12 * qH * √(δ A) + (n + 815 * n + 815) * δ A) ≤ c * √(δ A)
+  calc
+    _ ≤ 814 * (n : ℝ) * (12 * qH * √(δ A) + (n + 815 * n + 815) * √(δ A)) := by gcongr
+    _ = _ := by dsimp only [c]; ring
 
 /-- Replace every adaptive signing request in the fresh private-expansion game by the public-pair
 simulator. Keys come from the FIPS byte sampler. The left and right games both score fresh-digest
