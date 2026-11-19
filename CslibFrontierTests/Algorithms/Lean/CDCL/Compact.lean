@@ -68,9 +68,10 @@ private def php54 : CNF ℕ := (CNF.pigeonhole 5 4).relabel fun x => 4 * x.1.val
   | .unsat cert => !(minimizationSteps cert).isEmpty && (minimizationSteps cert).all id
   | .sat _ => false
 
--- Basic and recursive minimization differ on PHP(5, 4), from the same learned clauses: the mode
--- is selected, and recursive minimization removes a literal basic minimization keeps. Both
--- certificates are accepted.
+-- The mode is selected on PHP(5, 4): the two runs learn clauses of the same total width before
+-- minimization and of different total widths after it. These totals do not show that the runs
+-- learn the same clauses; `CslibFrontierTests.Algorithms.Lean.CDCL.Minimize` compares the two
+-- modes on one fixed clause. All three modes' certificates are accepted.
 #guard (solveWith { ccminMode := .basic } php54).2.maxLiterals ==
     (solveWith { ccminMode := .recursive } php54).2.maxLiterals &&
   (solveWith { ccminMode := .recursive } php54).2.literals <
