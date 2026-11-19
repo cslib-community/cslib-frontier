@@ -588,17 +588,26 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
   have hcounts : (transposeTail g w I).ports.length = I.ports.length ∧
       (transposeTail g w I).body.occurrences.length =
         I.body.occurrences.length + g.body.occurrences.length := by
-    rcases I with ⟨F, ps, c⟩
-    induction ps using List.reverseRecOn with
-    | nil => simp at h
-    | append_singleton ps y _ =>
-      cases ps using List.reverseRecOn with
-      | nil => simp at h
-      | append_singleton L x =>
-        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
-          simp only [List.append_assoc, List.cons_append, List.nil_append]]
-        exact ⟨by rw [length_transposeTail_ports]; simp,
-          length_transposeTail_occurrences g w F L x y c⟩
+    let n := I.ports.length-2
+    have hn : n+1<I.ports.length := by dsimp only [n]; omega
+    have hs := List.take_append_drop n I.ports
+    rw [List.drop_eq_getElem_cons (by omega : n<I.ports.length),
+      List.drop_eq_getElem_cons hn,
+      show n+1+1=I.ports.length from by dsimp only [n]; omega, List.drop_length] at hs
+    let L := I.ports.take n
+    let x := I.ports[n]
+    let y := I.ports[n+1]
+    have hI : I=(⟨I.body,L++[x,y],I.rotation⟩ : State Rel) := by
+      cases I
+      simpa only [L,x,y,List.append_assoc,List.cons_append,List.nil_append] using
+        congrArg (fun ps => CrossInsertion.State.mk _ ps _) hs.symm
+    have hlen : I.ports.length=L.length+2 := by
+      dsimp only [L]
+      rw [List.length_take_of_le (by omega : n≤I.ports.length)]
+      dsimp only [n]
+      omega
+    exact ⟨by simpa only [← hI,hlen] using length_transposeTail_ports g w I.body L x y I.rotation,
+      by simpa only [← hI] using length_transposeTail_occurrences g w I.body L x y I.rotation⟩
   have hports := hcounts.1
   have hocc := hcounts.2
   have hpJ : J.ports.length = I.ports.length := by
