@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Protocols.Quantum.OneTimePad
 import CslibFrontier.Foundations.Quantum.Bell
+import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Foundations.Quantum.Pauli
 
 /-! Density matrices, the partial trace, no-signalling and the quantum one-time pad: concrete
@@ -134,5 +135,31 @@ example : averageCiphertextWith (pureState (maxEntangled (Unit → Bool))) =
     ((2 : ℂ)⁻¹ • (1 : Op Unit)) ⊗ₖ ((2 : ℂ)⁻¹ • (1 : Op Unit)) := by
   rw [averageCiphertextWith_eq, partialTraceLeft_pureState_maxEntangled]
   norm_num
+
+-- Unequal local dimensions and rank-one reductions are allowed in the overlap theorem.
+example :
+    rootFidelity (partialTraceRight (pureState (ket (false, (0 : Fin 3)))))
+      (partialTraceRight (pureState (ket (false, (1 : Fin 3))))) = 1 := by
+  let ψ := ket (false, (0 : Fin 3))
+  let φ := ket (false, (1 : Fin 3))
+  have hreduce (k : Fin 3) :
+      partialTraceRight (pureState (ket (false, k))) = pureState (ket false) := by
+    ext i j
+    cases i <;> cases j <;>
+      simp [partialTraceRight_apply, pureState_apply, ket_apply, Finset.sum_ite_eq']
+  have he : partialTraceRight (pureState ψ) = partialTraceRight (pureState φ) :=
+    (hreduce 0).trans (hreduce 1).symm
+  obtain ⟨U, hU, h⟩ := exists_localUnitary_of_partialTraceRight_eq ψ φ he
+  change rootFidelity (partialTraceRight (pureState ψ)) (partialTraceRight (pureState φ)) = 1
+  have hlo := inner_localUnitary_re_le_rootFidelity ψ φ U hU
+  rw [h] at hlo
+  have hφ : ‖φ‖ = 1 := norm_ket _
+  have hself : (inner ℂ φ φ).re = 1 := by
+    change RCLike.re (inner ℂ φ φ) = 1
+    rw [inner_self_eq_norm_sq, hφ, one_pow]
+  rw [hself] at hlo
+  obtain ⟨_, _, hdist⟩ := exists_localUnitary_norm_sub_sq_eq ψ φ (norm_ket _) hφ
+  have hhi := hdist ▸ sq_nonneg _
+  linarith
 
 end CslibFrontierTests.QuantumDensity
