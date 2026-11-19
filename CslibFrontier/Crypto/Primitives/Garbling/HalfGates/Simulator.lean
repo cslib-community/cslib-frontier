@@ -453,7 +453,20 @@ private theorem simRow_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n rank
     (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => simRow (k x) (n x) (coins x) (isAnd x) (rank x) (i x)) encIn
       encBits := by
-  polytime [simRow, BitString.listRow]
+  have hwidth := ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 2)
+  have hrow := ComputableInPolyTime.unary_add' hn
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hrank)
+  have hfirst := ComputableInPolyTime.bitsRowWithInput hwidth hrow hcoins
+  have hsecond := ComputableInPolyTime.bitsRowWithInput hwidth
+    (ComputableInPolyTime.unary_add' hrow (ComputableInPolyTime.const 1)) hcoins
+  have hbit := ComputableInPolyTime.bitsCons hisAnd (ComputableInPolyTime.const [])
+  simpa only [simRow] using ComputableInPolyTime.ite_decide
+    (hi.decide_eq' (ComputableInPolyTime.const 0)) hbit
+    (hisAnd.ite
+      (ComputableInPolyTime.ite_decide (hi.decide_eq' (ComputableInPolyTime.const 1)) hfirst
+        (ComputableInPolyTime.ite_decide (hi.decide_eq' (ComputableInPolyTime.const 2)) hsecond
+          (ComputableInPolyTime.const [])))
+      (ComputableInPolyTime.const []))
 
 private theorem simCoinLen_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × XorAndCircuit => simCoinLen x.1 x.2.2.circuit)

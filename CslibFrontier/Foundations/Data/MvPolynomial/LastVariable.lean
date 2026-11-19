@@ -99,12 +99,26 @@ theorem eval_specializeLast (x : R) (u : Fin m → R) (p : MvPolynomial (Fin (m 
       refine Fin.lastCases ?_ (fun j => ?_) i <;> simp
   exact RingHom.congr_fun h p
 
+/-- Retain the last variable and evaluate all preceding variables at `u`. -/
+noncomputable def evalPrefix (u : Fin m → R) (p : MvPolynomial (Fin (m + 1)) R) : Polynomial R :=
+  (lastVariableEquiv R m p).map (eval u)
+
+theorem eval_evalPrefix (u : Fin m → R) (p : MvPolynomial (Fin (m + 1)) R) (x : R) :
+    (evalPrefix u p).eval x = eval u (specializeLast x p) := by
+  rw [evalPrefix, specializeLast_apply, Polynomial.eval_map, ← Polynomial.eval₂_id,
+    Polynomial.hom_eval₂, RingHom.comp_id, eval_C]
+
 theorem natDegree_lastVariableEquiv (p : MvPolynomial (Fin (m + 1)) R) :
     (lastVariableEquiv R m p).natDegree = p.degreeOf (Fin.last m) := by
   unfold lastVariableEquiv
   change (optionEquivLeft R _ (rename finSuccEquivLast p)).natDegree = _
   rw [natDegree_optionEquivLeft, ← finSuccEquivLast_last,
     degreeOf_rename_of_injective finSuccEquivLast.injective]
+
+/-- Evaluating the prefix does not increase the degree in the remaining variable. -/
+theorem natDegree_evalPrefix_le (u : Fin m → R) (p : MvPolynomial (Fin (m + 1)) R) :
+    (evalPrefix u p).natDegree ≤ p.degreeOf (Fin.last m) :=
+  Polynomial.natDegree_map_le.trans_eq (natDegree_lastVariableEquiv p)
 
 /-- A prefix variable has degree at most `d` exactly when it has that bound in each
 coefficient of the polynomial in the last variable. -/

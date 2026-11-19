@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 public import Mathlib.InformationTheory.KullbackLeibler.Basic
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonal
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonalOrder
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefKernel
 import CslibFrontier.Probability.Divergence
 import Mathlib.Algebra.BigOperators.WithTop
 
@@ -57,20 +59,8 @@ variable {ι X : Type*} [Fintype ι] [Fintype X] [DecidableEq X]
 theorem isDensityMatrix_classicalQuantumState (p : PMF X) {ρ : X → Matrix ι ι ℂ}
     (hρ : ∀ x, IsDensityMatrix (ρ x)) : IsDensityMatrix (classicalQuantumState p ρ) := by
   classical
-  let A (x : X) := (p x).toReal • ρ x
-  have hA (x) : (A x).PosSemidef := (hρ x).posSemidef.smul ENNReal.toReal_nonneg
-  let B (x : X) := CFC.sqrt (A x)
-  have hB (x) : (B x)ᴴ = B x := (CFC.sqrt_nonneg (A x)).posSemidef.isHermitian.eq
-  have hBB (x) : B x * (B x)ᴴ = A x := by
-    rw [hB]
-    exact CFC.sqrt_mul_sqrt_self _ (hA x).nonneg
   constructor
-  · change (blockDiagonal A).PosSemidef
-    have he : blockDiagonal B * (blockDiagonal B)ᴴ = blockDiagonal A := by
-      rw [blockDiagonal_conjTranspose, ← blockDiagonal_mul]
-      exact congrArg blockDiagonal (funext hBB)
-    rw [← he]
-    exact posSemidef_self_mul_conjTranspose _
+  · exact posSemidef_blockDiagonal fun x => (hρ x).posSemidef.smul ENNReal.toReal_nonneg
   · rw [classicalQuantumState, trace_blockDiagonal]
     simp only [trace_smul, (hρ _).trace_eq_one, Complex.real_smul, mul_one]
     exact_mod_cast Cslib.Probability.PMF.sum_toReal p
@@ -268,18 +258,10 @@ theorem supportLE_partialTraceRight_classicalQuantumState (p : PMF X) {ρ : X �
     (hρ : ∀ x, IsDensityMatrix (ρ x)) {x : X} (hx : x ∈ p.support) :
     SupportLE (ρ x) (partialTraceRight (classicalQuantumState p ρ)) := by
   intro v hv
-  let A (y : X) := (p y).toReal • ρ y
-  have hA (y : X) : (A y).PosSemidef := (hρ y).posSemidef.smul ENNReal.toReal_nonneg
-  have hquad (y : X) := Complex.nonneg_iff.mp ((hA y).dotProduct_mulVec_nonneg v)
-  have hsum := congrArg (fun u : ι → ℂ => (star v ⬝ᵥ u).re) hv
-  rw [partialTraceRight_classicalQuantumState, sum_mulVec, dotProduct_sum, Complex.re_sum,
-    dotProduct_zero, Complex.zero_re] at hsum
-  have hzero : (star v ⬝ᵥ (A x *ᵥ v)).re = 0 :=
-    (sum_eq_zero_iff_of_nonneg (fun y _ => (hquad y).1)).mp hsum x (mem_univ _)
-  have hz : star v ⬝ᵥ (A x *ᵥ v) = 0 := Complex.ext hzero (hquad x).2.symm
-  have hxv := (hA x).dotProduct_mulVec_zero_iff.mp hz
-  exact (smul_eq_zero_iff_right (ENNReal.toReal_ne_zero.mpr ⟨hx, p.apply_ne_top x⟩)).mp
-    (by simpa only [A, smul_mulVec] using hxv)
+  rw [partialTraceRight_classicalQuantumState] at hv
+  exact (mulVec_sum_smul_eq_zero_iff univ (fun y => (p y).toReal) ρ
+    (fun _ _ => ENNReal.toReal_nonneg) (fun y _ => (hρ y).posSemidef) v).mp hv
+      x (mem_univ _) (ENNReal.toReal_ne_zero.mpr ⟨hx, p.apply_ne_top x⟩)
 
 omit [DecidableEq ι] in
 private theorem supportLE_partialTraceRight_classicalQuantumState_iff (p : PMF X)

@@ -172,7 +172,7 @@ theorem leafSize_polyTime : ComputableInPolyTime leafSize encUnary encUnary :=
 unary. -/
 theorem degreeBound_polyTime : ComputableInPolyTime degreeBound encUnary encNat := by
   have hlog : ComputableInPolyTime (fun m => Nat.log 2 m) encUnary encUnary :=
-    ComputableTidilyInPolyTime.computableInPolyTime (ComputableTidilyInPolyTime.unary_log_const 2)
+    ComputableInPolyTime.unary_log_const 2
   have he : ComputableInPolyTime (fun m => 9 * Nat.log 2 m / 10 + 2) encUnary encUnary :=
     ComputableInPolyTime.unary_add'
       ((ComputableInPolyTime.unary_div_const 10).comp
@@ -475,7 +475,7 @@ theorem table_polyTime :
   have htake : ComputableInPolyTime (fun r : (Call T × List (List ℕ)) × ℕ =>
       (r.1.2.drop ((nodes r.1.1).idxOf r.2 * numPoints r.1.1)).take (numPoints r.1.1))
       (encPair e encUnary) (encList (encList encNat)) :=
-    .of_tidy (ComputableTidilyInPolyTime.listTakeWithInput hdrop.tidy hn.tidy)
+    (ComputableInPolyTime.listTakeWithInput hdrop hn)
   have hf : ComputableInPolyTime (fun r : (Call T × List (List ℕ)) × ℕ =>
       if r.2 ∈ nodes r.1.1 then
         (r.1.2.drop ((nodes r.1.1).idxOf r.2 * numPoints r.1.1)).take (numPoints r.1.1)
