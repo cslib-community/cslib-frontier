@@ -72,7 +72,7 @@ Omitting the ambient dimension from the word does not change satisfiability. -/
 
 /-- The two-block encoding has exactly the advertised truth condition, including when a
 representing formula has extra unused universal coordinates. -/
-@[simp] theorem encFormula_mem_ExistsForallTheory {r s : ℕ} (p : Formula (r + s)) :
+theorem encFormula_mem_ExistsForallTheory {r s : ℕ} (p : Formula (r + s)) :
     encPair encUnary encBits (r, encFormula (r + s) p) ∈ ExistsForallTheory ↔
       p.existsForallSolutionSet.Nonempty := by
   constructor
