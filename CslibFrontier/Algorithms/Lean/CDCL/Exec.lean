@@ -866,8 +866,9 @@ def Exec.forget (S : Exec φ) (ids : List ℕ) : Exec φ :=
   ⟨S.trail, S.db.filter fun e => !ids.contains e.1, S.log.delete ids⟩
 
 /-- Forgetting clauses other than those of `φ` and the reasons of the trail keeps the invariant:
-the remaining clauses contain `φ`, so they still have the models of `φ`. The removed clauses are
-entailed by them, as Forget requires. -/
+the remaining clauses contain `φ`, so they have the same models as `φ`, and every partial model of
+them is one of `φ`. This does not show that each removed clause is partially entailed by the
+remaining ones, the side condition of the abstract `Forget` rule; the invariant does not need it. -/
 theorem Exec.forget_inv {S : Exec φ} (hS : S.Inv) {ids : List ℕ}
     (horig : ∀ e ∈ φ.lratDB, e.1 ∉ ids) (hreasons : ∀ r ∈ XTrail.reasonIds S.trail, r ∉ ids) :
     (S.forget ids).Inv := by

@@ -181,7 +181,9 @@ next one (MiniSat's `learntsize_adjust_confl` and `learntsize_adjust_cnt`).
 MiniSat keeps the limit and the interval as floating-point numbers. Here they are natural numbers,
 the limit in thousandths of a clause, so that growing it by a tenth keeps growing it: with `27`
 clauses it goes `9000`, `9900`, `10890`, … thousandths, as MiniSat's goes `9`, `9.9`, `10.89`, ….
-Divisions truncate, so the values can fall below MiniSat's by less than one unit at each step. -/
+Divisions truncate. Each division falls short of the exact value by less than one unit, but the
+errors accumulate: from an interval of `100`, four increases by half give `505` here and `506.25`
+unrounded. -/
 structure Reduction where
   /-- The clause activities, by number. -/
   act : Activity
@@ -1074,28 +1076,34 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
     exact this ▸ hs
   · exact hs.truncate hN h₁.1 h₂.1
 
-/-- Merging two lists sorted by `le`, in at most `fuel` steps. -/
-@[expose] def mergeBy {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α → List α
+/-- Merging two lists sorted by `le`, in at most `fuel` steps. A loop of `sortBy`, which supplies
+enough fuel. -/
+@[expose] def sortBy.merge {α : Type} (le : α → α → Bool) :
+    (fuel : ℕ) → List α → List α → List α
   | 0, xs, ys => xs ++ ys
   | _ + 1, [], ys => ys
   | _ + 1, xs, [] => xs
   | n + 1, x :: xs, y :: ys =>
-    if le x y then x :: mergeBy le n xs (y :: ys) else y :: mergeBy le n (x :: xs) ys
+    if le x y then x :: sortBy.merge le n xs (y :: ys) else y :: sortBy.merge le n (x :: xs) ys
 
 /-- The elements of a list at even positions, and those at odd positions. -/
 @[expose] def splitAlternate {α : Type} : List α → List α × List α
   | [] => ([], [])
   | x :: xs => let p := splitAlternate xs; (x :: p.2, p.1)
 
-/-- **Merge sort by `le`**, to depth `fuel`, which the length of the list makes enough. Unlike
-`List.mergeSort`, it is structurally recursive, so the kernel can run it. -/
-@[expose] def sortBy {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α
+/-- Merge sort by `le`, to depth `fuel`. A loop of `sortBy`, which supplies enough fuel. -/
+@[expose] def sortBy.go {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α
   | 0, xs => xs
   | _ + 1, [] => []
   | _ + 1, [x] => [x]
   | n + 1, xs =>
     let p := splitAlternate xs
-    mergeBy le xs.length (sortBy le n p.1) (sortBy le n p.2)
+    sortBy.merge le xs.length (sortBy.go le n p.1) (sortBy.go le n p.2)
+
+/-- **Merge sort by `le`**, to the depth of the length of the list, which is enough. Unlike
+`List.mergeSort`, it is structurally recursive, so the kernel can run it. -/
+@[expose] def sortBy {α : Type} (le : α → α → Bool) (xs : List α) : List α :=
+  sortBy.go le xs.length xs
 
 /-- **The learned clauses to forget**, as MiniSat's `reduceDB` chooses them: the learned clauses
 of the store, those of more than two literals first by increasing activity; of the less active
@@ -1107,7 +1115,7 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   let learnts := S.store.clauses.toList.filter fun e => φ.length < e.1
   let sorted := sortBy (fun a b =>
     if (a.2.length ≤ 2) == (b.2.length ≤ 2) then act.get a.1 ≤ act.get b.1 else b.2.length ≤ 2)
-    learnts.length learnts
+    learnts
   let half := sorted.length / 2
   -- MiniSat's `activity < cla_inc / learnts.size()`, without rounding the quotient
   let chosen := (sorted.take half).filter (2 < ·.2.length) ++
