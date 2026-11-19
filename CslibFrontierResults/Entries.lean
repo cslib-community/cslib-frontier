@@ -10,6 +10,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
+import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
@@ -10553,6 +10554,23 @@ register_result "partial-tag-encrypt-then-mac" where
     pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
     pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
 
+register_result "fixed-length-polynomial-universality" where
+  title := "Collision and difference bounds for fixed-length polynomial hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.16(a)–(b)",
+      locator := "v0.6, printed p. 281; Hfpoly in §7.2.1, equation (7.5), p. 257" }
+  ]
+  theorems := [
+    Cslib.Probability.isUniversalHash_coeffPolyHash,
+    Cslib.Probability.isDeltaUniversalHash_mul_coeffPolyHash
+  ]
+  scope := "For length-n coefficient vectors and an exactly uniform field element, the \
+    collision probability is at most (n − 1)/|F|. Multiplying the evaluation by the key bounds \
+    the probability of any specified difference by n/|F|. Both statements quantify over \
+    distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
+    without a growth condition. The zero-length vector has no distinct partner."
+
 register_result "ghash-gcm-length-block-xor-duf" where
   title := "GHASH on the bit-length version of GCM's line (∗) input, zero-padded with its \
     length block, is an ℓ/2^128-XOR-DUF for inputs of at most ℓ blocks, the length block \
@@ -10857,19 +10875,15 @@ register_result "mpda-one-hole-is-no-hole" where
     Source check: independent agent review (codex-f4a705f4) on PR #6587, against \
     arXiv:2002.05950v2 Definition 1, PDF pp. 5-6, and Appendix G.1, Theorem 2, PDF p. 37."
 
-register_result "fixed-length-polynomial-universality" where
-  title := "Collision and difference bounds for fixed-length polynomial hashing"
-  topic := "cryptography"
+register_result "uhlmann-finite-dimensional-local-overlap" where
+  title := "Uhlmann’s theorem for finite-dimensional purifications"
+  topic := "quantum information"
   sources := [
-    { paper := BonehShoup2023, theorem := "Exercise 7.16(a)–(b)",
-      locator := "v0.6, printed p. 281; Hfpoly in §7.2.1, equation (7.5), p. 257" }
+    { paper := BavarianVidickYuen2022, theorem := "Theorem 5.11",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
   ]
-  theorems := [
-    Cslib.Probability.isUniversalHash_coeffPolyHash,
-    Cslib.Probability.isDeltaUniversalHash_mul_coeffPolyHash
-  ]
-  scope := "For length-n coefficient vectors and an exactly uniform field element, the \
-    collision probability is at most (n − 1)/|F|. Multiplying the evaluation by the key bounds \
-    the probability of any specified difference by n/|F|. Both statements quantify over \
-    distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
-    without a growth condition. The zero-length vector has no distinct partner."
+  theorems := [Cslib.Quantum.exists_localUnitary_inner_eq_rootFidelity]
+  scope := "Two complex vectors on the same finite bipartite space, with possibly unequal \
+    local dimensions and possibly singular reduced states. A unitary on the right system \
+    gives a complex overlap equal to the real unsquared fidelity of the left reductions. \
+    Unit vectors recover the normalized purifications in the source."

@@ -2688,6 +2688,8 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitLayout
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Ports
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ReducedLaplacian
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem
@@ -4118,6 +4120,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Computability.PCP.TwoProverGame.CommutingValue
+public import CslibFrontier.Computability.PCP.TwoProverGame.EntangledRepetition
 public import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebra
 public import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
@@ -6865,6 +6868,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleConnector
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleGaps
+public import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 public import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.CutGerms
 public import CslibFrontier.Foundations.Geometry.Polygonal.FiniteAngleOrder
@@ -6966,6 +6970,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegRank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegativeForm
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PairedPorts
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PartialDerivatives
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PolarDecomposition
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosDef
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefTrace
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowPerturbation
@@ -7143,6 +7148,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Linear
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 public import CslibFrontier.Foundations.Quantum.Fourier
 public import CslibFrontier.Foundations.Quantum.HadamardTransform
 public import CslibFrontier.Foundations.Quantum.Measurement
@@ -7157,6 +7163,7 @@ public import CslibFrontier.Foundations.Quantum.NoCloning
 public import CslibFrontier.Foundations.Quantum.POVM
 public import CslibFrontier.Foundations.Quantum.POVM.Density
 public import CslibFrontier.Foundations.Quantum.POVM.Mixture
+public import CslibFrontier.Foundations.Quantum.POVM.Postprocessing
 public import CslibFrontier.Foundations.Quantum.Pauli
 public import CslibFrontier.Foundations.Quantum.PauliTwirl
 public import CslibFrontier.Foundations.Quantum.Register

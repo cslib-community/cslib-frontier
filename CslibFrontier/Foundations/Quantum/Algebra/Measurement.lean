@@ -40,7 +40,8 @@ measurement is projective (`Cslib.Quantum.Measurement.observable_mul_self`).
 * `Cslib.Quantum.Measurement.const`: the measurement with a fixed outcome.
 * `Cslib.Quantum.Measurement.IsProjective`: projective measurements.
 * `Cslib.Quantum.Measurement.observable`: the `±1` observable of a two-outcome measurement.
-* `Cslib.Quantum.POVM.toMeasurement`: a POVM as a measurement in the matrix algebra.
+* `Cslib.Quantum.POVM.toMeasurement`, `Cslib.Quantum.Measurement.toPOVM`: the bridge
+  between POVMs and measurements in the matrix algebra.
 
 ## Main results
 
@@ -227,6 +228,26 @@ theorem star_observable_mul_self_le_one (M : Measurement Bool A) :
   exact add_nonneg (add_nonneg (add_nonneg hc hc) hc) hc
 
 end Observable
+
+end Measurement
+
+namespace Measurement
+
+open scoped MatrixOrder
+
+variable {α ι : Type*} [Fintype α] [Fintype ι] [DecidableEq ι]
+
+/-- A measurement in the matrix algebra as a positive-operator-valued measurement. -/
+noncomputable def toPOVM (M : Measurement α (Matrix ι ι ℂ)) :
+    POVM α ι where
+  effect := M.effect
+  posSemidef a := Matrix.nonneg_iff_posSemidef.mp (M.nonneg a)
+  sum_effect := M.sum_effect
+
+@[simp]
+theorem toPOVM_effect (M : Measurement α (Matrix ι ι ℂ))
+    (a : α) : M.toPOVM.effect a = M.effect a :=
+  rfl
 
 end Measurement
 
