@@ -170,7 +170,6 @@ private theorem length_encNat_sq_le (W : â„•) : (encNat ((W + 1) ^ 2)).length â‰
   exact Nat.pow_lt_pow_left Nat.lt_two_pow_self (by omega)
 
 -- Compose through the named decoder and encoding contracts without expanding the simulator.
-set_option diagnostics true in
 attribute [local irreducible] ComputableInO Universal.decodeDesc Universal.eDesc in
 /-- The simulation runs within time polynomial in the description, the input and the
 certificate. -/
