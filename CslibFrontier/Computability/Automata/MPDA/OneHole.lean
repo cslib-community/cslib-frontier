@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Automata.MPDA.Holes
+import CslibFrontier.Foundations.Data.List.Extract
 
 /-! # One hole is no hole
 
@@ -52,12 +53,6 @@ namespace Cslib.Automata.MPDA
 variable {n : ℕ} {Γ α β : Type*}
 
 /-! ## Factors -/
-
-private theorem extract_append_extract (w : List β) {a b c : ℕ} (hab : a ≤ b) (hbc : b ≤ c) :
-    w.extract a b ++ w.extract b c = w.extract a c := by
-  unfold List.extract
-  rw [show c - a = (b - a) + (c - b) by omega, List.take_add, List.drop_drop,
-    show a + (b - a) = b by omega]
 
 private theorem take_extract (w : List β) {a b c : ℕ} (hab : a ≤ b) (hbc : b ≤ c) :
     (w.extract a c).take (b - a) = w.extract a b := by
@@ -105,7 +100,7 @@ up to `m'` pops below that height. -/
 private theorem net_neg_of_pop {w : List (α × Op n Γ)} {i : Fin n} {a m m' : ℕ} {b : α} {γ : Γ}
     (ham : a ≤ m) (hmm' : m < m') (hm : w[m]? = some (b, .pop i γ))
     (hnet : net i (w.extract a m) = 0) : net i ((w.extract a m').take (m + 1 - a)) < 0 := by
-  rw [take_extract w (by omega) (by omega), ← extract_append_extract w ham (Nat.le_succ m),
+  rw [take_extract w (by omega) (by omega), ← w.extract_append_extract ham (Nat.le_succ m),
     net_append, hnet, net_extract_succ hm]
   simp [Op.net]
 
@@ -144,8 +139,8 @@ private theorem crossing_holePush_left (hpq : p < q) (hqz : q < z) (hp : IsPushO
   have h₂ := hqk (m + 1 - (q + 1))
   rw [take_extract w (by omega) le_rfl] at h₂
   have h₃ := hws.net_eq_zero j
-  rw [← extract_append_extract w (show p ≤ q by omega) (show q ≤ m + 1 by omega),
-    ← extract_append_extract w (show q ≤ q + 1 by omega) (show q + 1 ≤ m + 1 by omega),
+  rw [← w.extract_append_extract (show p ≤ q by omega) (show q ≤ m + 1 by omega),
+    ← w.extract_append_extract (show q ≤ q + 1 by omega) (show q + 1 ≤ m + 1 by omega),
     net_append, net_append] at h₃
   obtain ⟨a, γ, hqa⟩ := hq
   rw [net_extract_succ hqa] at h₃
@@ -168,11 +163,11 @@ private theorem crossing_holePush_right (hij : i ≠ j) (hpq : p < q) (hqz : q <
   obtain ⟨-, ⟨b', γ', hzpop⟩, hpk, hpnet⟩ := hpz.of_isPushOn hp
   have h₂ := hpk (q - (p + 1))
   rw [take_extract w (by omega) (by omega)] at h₂
-  rw [← extract_append_extract w (show p + 1 ≤ q by omega) (show q ≤ z by omega),
-    ← extract_append_extract w (show q ≤ q + 1 by omega) (show q + 1 ≤ z by omega),
+  rw [← w.extract_append_extract (show p + 1 ≤ q by omega) (show q ≤ z by omega),
+    ← w.extract_append_extract (show q ≤ q + 1 by omega) (show q + 1 ≤ z by omega),
     net_append, net_append] at hpnet
-  rw [← extract_append_extract w (show q ≤ q + 1 by omega) (show q + 1 ≤ z + 1 by omega),
-    ← extract_append_extract w (show q + 1 ≤ z by omega) (show z ≤ z + 1 by omega),
+  rw [← w.extract_append_extract (show q ≤ q + 1 by omega) (show q + 1 ≤ z + 1 by omega),
+    ← w.extract_append_extract (show q + 1 ≤ z by omega) (show z ≤ z + 1 by omega),
     net_append, net_append] at h₁
   obtain ⟨a, δ, hqa⟩ := hq
   rw [net_extract_succ hqa] at hpnet h₁
@@ -378,7 +373,7 @@ private theorem exists_pending_push {j : Fin n} {u : List (α × Op n Γ)}
   obtain ⟨μ, hμ⟩ : ∃ μ, u[K]? = some μ := ⟨u[K], List.getElem?_eq_getElem hKlt⟩
   have hstep : net j (u.take (K + 1)) = net j (u.take K) + μ.2.net j := by
     rw [take_eq_extract, take_eq_extract,
-      ← extract_append_extract u (Nat.zero_le K) (Nat.le_succ K), net_append, net_extract_succ hμ]
+      ← u.extract_append_extract (Nat.zero_le K) (Nat.le_succ K), net_append, net_extract_succ hμ]
   have h1 := hgt (K + 1) (by omega) (by omega)
   rw [hstep, show net j (u.take K) = 0 from hPK] at h1
   obtain ⟨a, op⟩ := μ
@@ -424,7 +419,7 @@ private theorem PendingAt.succ {w : List (α × Op n Γ)} {j : Fin n} {p x : ℕ
   obtain ⟨hpx, -, hk⟩ := h.of_isPushOn hp
   have hlen := (List.getElem?_eq_some_iff.mp hμ).1
   refine ⟨by omega, hlen, j, hp, fun k => ?_⟩
-  rw [← extract_append_extract w (show p + 1 ≤ x + 1 by omega) (Nat.le_succ (x + 1)),
+  rw [← w.extract_append_extract (show p + 1 ≤ x + 1 by omega) (Nat.le_succ (x + 1)),
     extract_succ hμ, List.take_append, net_append]
   have h₁ := hk k
   have h₂ : 0 ≤ net j (List.take (k - (w.extract (p + 1) (x + 1)).length) [μ]) := by

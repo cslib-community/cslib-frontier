@@ -6592,6 +6592,7 @@ public import CslibFrontier.Foundations.Data.List.EmitChain
 public import CslibFrontier.Foundations.Data.List.Equiv
 public import CslibFrontier.Foundations.Data.List.EraseDups
 public import CslibFrontier.Foundations.Data.List.EraseDupsBy
+public import CslibFrontier.Foundations.Data.List.Extract
 public import CslibFrontier.Foundations.Data.List.Filter
 public import CslibFrontier.Foundations.Data.List.FilterMap
 public import CslibFrontier.Foundations.Data.List.FlatMapPositions
