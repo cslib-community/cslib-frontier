@@ -40,9 +40,10 @@ refutation with at least `(n / 2 + 1) ^ (n / 2)` nodes
 (`Cslib.Algorithms.Lean.DPLL.pow_half_le_size_refutation?_pigeonhole`) and a certificate with at
 least `(n / 2 + 1) ^ (n / 2)` steps
 (`Cslib.Algorithms.Lean.DPLL.pow_half_le_size_solve_pigeonhole`).
-This is `2 ^ Ω(n log n)`, as Dantchev and Riis [DantchevRiis2001] showed for every tree-like
-refutation; with `m = n + 1` there are `N = (n + 1) * n` variables, so in terms of `N` it is
-`2 ^ Ω(√N log N)`.
+This is `2 ^ Ω(n log n)`; with `m = n + 1` there are `N = (n + 1) * n` variables, so in terms of
+`N` it is `2 ^ Ω(√N log N)`. Earlier, Dantchev and Riis [DantchevRiis2001, Theorem 1] proved a
+`2 ^ Ω(n log n)` lower bound for regular tree resolution through a factorial estimate; it is
+historical context here, and the exact bound used is that of Beyersdorff, Galesi and Lauria.
 
 ## Main definitions
 
@@ -52,8 +53,6 @@ refutation; with `m = n + 1` there are `N = (n + 1) * n` variables, so in terms 
 
 * `Cslib.Algorithms.Lean.DPLL.solve_eq_unsat_iff`: the solver returns the certificate of that
   refutation.
-* `Cslib.Logic.PL.CNF.Derivation.size_toLRAT`: the certificate of a tree-like refutation has one
-  step for each leaf.
 * `Cslib.Algorithms.Lean.DPLL.size_lt_of_refutation?_eq_some`,
   `Cslib.Algorithms.Lean.DPLL.size_le_of_solve_eq_unsat`: fewer than `2 ^ (N + 1)` nodes and at
   most `2 ^ N` certificate steps.
@@ -70,30 +69,6 @@ refutation; with `m = n + 1` there are `N = (n + 1) * n` variables, so in terms 
 -/
 
 public section
-
-namespace Cslib.Logic.PL.CNF.Derivation
-
-variable {φ : CNF ℕ}
-
-/-- The steps of the certificate of a tree-like derivation: one for each resolution step, so one
-fewer than its leaves. -/
-theorem length_actions_lratSteps_add_one : {c : Clause ℕ} → (d : φ.Derivation c) → (k : ℕ) →
-    (d.lratSteps k).actions.length + 1 = d.toDecisionTree.leafCount
-  | _, mem _, _ => rfl
-  | _, resolvent _ d₁ d₂ _ _, k => by
-    have h₁ := d₁.length_actions_lratSteps_add_one k
-    have h₂ := d₂.length_actions_lratSteps_add_one (d₁.lratSteps k).next
-    simp only [lratSteps, toDecisionTree, DecisionTree.leafCount, List.length_append,
-      List.length_singleton]
-    omega
-
-/-- **The certificate of a tree-like refutation has one step for each of its leaves**: a RUP step
-for each resolution step, and the final empty-clause step. -/
-theorem size_toLRAT (d : φ.Derivation []) : d.toLRAT.size = d.toDecisionTree.leafCount := by
-  simp only [toLRAT, List.size_toArray, List.length_append, List.length_singleton]
-  exact d.length_actions_lratSteps_add_one _
-
-end Cslib.Logic.PL.CNF.Derivation
 
 namespace Cslib.Algorithms.Lean.DPLL
 
@@ -129,7 +104,7 @@ theorem exists_refutation?_eq_some {φ : CNF ℕ} (h : ¬ φ.Satisfiable) :
 /-- A derivation found by the search from `π` with the open variables `vs` has fewer than
 `2 ^ (vs.length + 1)` nodes: each branch assigns an open variable, so the two subsearches have one
 open variable fewer. -/
-theorem size_search_lt (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs : List ℕ) →
+private theorem size_search_lt (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs : List ℕ) →
     (hvs : OpenVars φ π vs) → (hfuel : vs.length ≤ fuel) → {c : Clause ℕ} →
     {d : φ.Derivation c} → {h : ∀ l ∈ c, l.negate ∈ π} →
     search φ fuel π vs hvs hfuel = .unsat c d h → d.size < 2 ^ (vs.length + 1) := by
