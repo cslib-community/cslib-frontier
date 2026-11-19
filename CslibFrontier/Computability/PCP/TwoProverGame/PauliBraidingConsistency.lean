@@ -33,6 +33,8 @@ consistency bound of
 * `Cslib.PCP.weighted_sum_norm_sub_sq_le_of_pauliBraidingMatchedGame`: the matched distance bound.
 * `Cslib.PCP.expect_norm_pauliBraidingBasisObservable_sub_sq_le_add_zero`: the uniform
   averaged-observable bound with an explicit zero-string term.
+* `Cslib.PCP.weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le`: the averaged
+  basis-to-special distance on odd pairs, weighted by the matching question mass.
 -/
 
 public section
@@ -259,19 +261,17 @@ theorem expect_norm_averaged_sub_sq_nonzero_le [Module ℚ≥0 𝒜]
     (le_of_eq (dens_oddFiber hx).symm) (a x) (b x)
   linarith
 
-/-- The combined verifier's consistency rejection controls the uniform average of the
-squared distance of the two averaged basis observables over the nonzero strings. The
-omitted zero term has weight `1 / 2^n` in the full uniform average. -/
-theorem expect_norm_pauliBraidingBasisObservable_sub_sq_nonzero_le [Module ℚ≥0 𝒜]
+private theorem oddExpect_pauliBraidingRoundDistances_le
     (G : TwoProverGame Q Q A A) (special : Bool → Q) (decode : Bool → A → Bool)
     (basis : Bool)
     (S : CommutingStrategy (PauliBraidingQuestion n Q) (PauliBraidingQuestion n Q)
       ((Bool × Bool) ⊕ A) ((Bool × Bool) ⊕ A) 𝒜) :
     let a := pauliBraidingBasisObservable S.alice basis
     let b := pauliBraidingBasisObservable S.bob basis
-    (𝔼 x, if x = 0 then 0 else S.state.norm ((𝔼 y, a x y) - (𝔼 y, b x y)) ^ 2) ≤
-      896 * ((oddPairs (Fin n)).dens : ℝ) *
-        (1 - (pauliBraidingBranchGame n G special decode 2).commutingWinProb S) := by
+    let bound := ((oddPairs (Fin n)).dens : ℝ) *
+      (32 * (1 - (pauliBraidingBranchGame n G special decode 2).commutingWinProb S))
+    oddExpect (fun x y => 𝔼 z, S.state.norm (a x y - b x z) ^ 2) ≤ bound ∧
+      oddExpect (fun x y => 𝔼 z, S.state.norm (a x z - b x y) ^ 2) ≤ bound := by
   let a := pauliBraidingBasisObservable S.alice basis
   let b := pauliBraidingBasisObservable S.bob basis
   let δ := 1 - (pauliBraidingBranchGame n G special decode 2).commutingWinProb S
@@ -306,9 +306,163 @@ theorem expect_norm_pauliBraidingBasisObservable_sub_sq_nonzero_le [Module ℚ�
       rfl
     · rw [← oddExpect_swap, oddExpect_expect_eq_dens_mul]
       rfl
+  exact ⟨hforward, hreverse⟩
+
+/-- The combined verifier's consistency rejection controls the uniform average of the
+squared distance of the two averaged basis observables over the nonzero strings. The
+omitted zero term has weight `1 / 2^n` in the full uniform average. -/
+theorem expect_norm_pauliBraidingBasisObservable_sub_sq_nonzero_le [Module ℚ≥0 𝒜]
+    (G : TwoProverGame Q Q A A) (special : Bool → Q) (decode : Bool → A → Bool)
+    (basis : Bool)
+    (S : CommutingStrategy (PauliBraidingQuestion n Q) (PauliBraidingQuestion n Q)
+      ((Bool × Bool) ⊕ A) ((Bool × Bool) ⊕ A) 𝒜) :
+    let a := pauliBraidingBasisObservable S.alice basis
+    let b := pauliBraidingBasisObservable S.bob basis
+    (𝔼 x, if x = 0 then 0 else S.state.norm ((𝔼 y, a x y) - (𝔼 y, b x y)) ^ 2) ≤
+      896 * ((oddPairs (Fin n)).dens : ℝ) *
+        (1 - (pauliBraidingBranchGame n G special decode 2).commutingWinProb S) := by
+  let a := pauliBraidingBasisObservable S.alice basis
+  let b := pauliBraidingBasisObservable S.bob basis
+  obtain ⟨hforward, hreverse⟩ := oddExpect_pauliBraidingRoundDistances_le G special decode basis S
   refine (expect_norm_averaged_sub_sq_nonzero_le S.state a b).trans ?_
-  change _ ≤ 896 * density * δ
   linarith only [hforward, hreverse]
+
+/-- In the checked-string coordinate order, the same-basis estimates bound how much
+the first logical player's decoded observable changes as its dummy varies, on odd pairs. -/
+theorem oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le [Module ℚ≥0 𝒜]
+    (G : TwoProverGame Q Q A A) (special : Bool → Q) (decode : Bool → A → Bool)
+    (roles basis : Bool)
+    (S : CommutingStrategy (PauliBraidingQuestion n Q) (PauliBraidingQuestion n Q)
+      ((Bool × Bool) ⊕ A) ((Bool × Bool) ⊕ A) 𝒜) :
+    let measure := cond roles S.bob S.alice
+    let a := pauliBraidingBasisObservable measure basis
+    oddExpect (fun x y => S.state.norm (a x y - (𝔼 z, a x z)) ^ 2) ≤
+      960 * ((oddPairs (Fin n)).dens : ℝ) *
+        (1 - (pauliBraidingBranchGame n G special decode 2).commutingWinProb S) := by
+  intro measure a
+  let b := pauliBraidingBasisObservable (cond roles S.alice S.bob) basis
+  let δ := 1 - (pauliBraidingBranchGame n G special decode 2).commutingWinProb S
+  let density := ((oddPairs (Fin n)).dens : ℝ)
+  have hround : oddExpect (fun x y => 𝔼 z, S.state.norm (a x y - b x z) ^ 2) ≤
+      density * (32 * δ) := by
+    obtain ⟨hforward, hreverse⟩ :=
+      oddExpect_pauliBraidingRoundDistances_le G special decode basis S
+    cases roles
+    · exact hforward
+    · refine le_trans ?_ hreverse
+      refine oddExpect_mono fun x y _ => expect_le_expect fun z _ => ?_
+      change S.state.norm (a x y - b x z) ^ 2 ≤ S.state.norm (b x z - a x y) ^ 2
+      rw [← neg_sub (a x y) (b x z), S.state.norm_neg]
+  have hcross : oddExpect (fun x _ => S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2)
+      ≤ 448 * density * δ := by
+    rw [oddExpect_fst]
+    have h := expect_norm_pauliBraidingBasisObservable_sub_sq_nonzero_le G special decode basis S
+    have hcompare : (𝔼 x, if x = 0 then 0 else S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2) ≤
+        896 * density * δ := by
+      cases roles
+      · convert h using 1
+        refine expect_congr rfl fun x _ => ?_
+        split_ifs
+        · rfl
+        · change S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2 =
+            S.state.norm ((𝔼 z, a x z) - (𝔼 z, b x z)) ^ 2
+          rw [← neg_sub (𝔼 z, b x z) (𝔼 z, a x z), S.state.norm_neg]
+      · exact h
+    linarith only [hcompare]
+  have hjensen : oddExpect (fun x y => S.state.norm (a x y - (𝔼 z, b x z)) ^ 2) ≤
+      density * (32 * δ) :=
+    (oddExpect_mono fun x y _ =>
+      S.state.norm_sub_expect_sq_le univ univ_nonempty (a x y) (b x)).trans hround
+  have htri := oddExpect_mono (fun x y (_ : x ⬝ᵥ y = true) =>
+    S.state.norm_sub_sq_le_through (a x y) (𝔼 z, b x z) (𝔼 z, a x z))
+  rw [oddExpect_add, oddExpect_const_mul, oddExpect_const_mul] at htri
+  change _ ≤ 960 * density * δ
+  linarith only [htri, hjensen, hcross]
+
+/-- The opposite player's decoded observable on the matched special question. -/
+@[expose] noncomputable def pauliBraidingSpecialObservable
+    (measure : PauliBraidingQuestion n Q → Measurement ((Bool × Bool) ⊕ A) 𝒜)
+    (question : Q) (decode : A → Bool) (p : ↥(oddPairs (Fin n))) : 𝒜 :=
+  ((measure (.anticommutation true question p)).map
+    (Sum.elim (fun _ : Bool × Bool => false) decode)).observable
+
+/-- The averaged basis observable of the first logical player is close to the other
+player's matched special observable on odd pairs. The estimate carries the marginal
+question mass, so it applies even when that mass is zero. -/
+theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ≥0 𝒜] [Finite Q]
+    (G : TwoProverGame Q Q A A) (special : Bool → Q) (decode : Bool → A → Bool)
+    (roles basis : Bool)
+    (S : CommutingStrategy (PauliBraidingQuestion n Q) (PauliBraidingQuestion n Q)
+      ((Bool × Bool) ⊕ A) ((Bool × Bool) ⊕ A) 𝒜) :
+    let a := pauliBraidingBasisObservable (cond roles S.bob S.alice) basis
+    let b := pauliBraidingSpecialObservable (cond roles S.alice S.bob)
+      (special basis) (decode basis)
+    let mass := ((G.questions.map Prod.snd) (special basis)).toReal
+    let density := ((oddPairs (Fin n)).dens : ℝ)
+    let δ := 1 - (pauliBraidingBranchGame n G special decode 2).commutingWinProb S
+    (mass * density) * (𝔼 p : ↥(oddPairs (Fin n)),
+      let checked := if basis then p.val.2 else p.val.1
+      S.state.norm ((𝔼 z, a checked z) - b p) ^ 2) ≤ (1920 * mass + 64) * density * δ := by
+  intro a b mass density δ
+  let checked (p : ↥(oddPairs (Fin n))) := if basis then p.val.2 else p.val.1
+  let dummy (p : ↥(oddPairs (Fin n))) := if basis then p.val.1 else p.val.2
+  let point (p : ↥(oddPairs (Fin n))) := a (checked p) (dummy p)
+  let avg (p : ↥(oddPairs (Fin n))) := 𝔼 z, a (checked p) z
+  have hvar : density * (𝔼 p, S.state.norm (point p - avg p) ^ 2) ≤ 960 * density * δ := by
+    have h := oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le
+      G special decode roles basis S
+    let f (x y : Fin n → Bool) := S.state.norm (a x y - (𝔼 z, a x z)) ^ 2
+    change oddExpect f ≤ _ at h
+    have hcoord : oddExpect (fun x y => if basis then f y x else f x y) = oddExpect f := by
+      cases basis
+      · rfl
+      · exact oddExpect_swap f
+    rw [← hcoord] at h
+    have hconvert := oddExpect_expect_eq_dens_mul (fun x y _ =>
+      if basis then f y x else f x y)
+    rw [Fintype.expect_prod_type] at hconvert
+    simp only [Fintype.expect_const] at hconvert
+    rw [hconvert] at h
+    change _ ≤ 960 * density * δ
+    convert h using 1
+    congr 1
+    refine expect_congr rfl fun p _ => ?_
+    cases basis <;> rfl
+  have hlocal : mass * (𝔼 p, S.state.norm (point p - b p) ^ 2) ≤ 32 * δ := by
+    have h := weighted_sum_norm_sub_sq_le_of_pauliBraidingMatchedGame
+      G special decode roles basis S
+    let := oddPairs_nonempty (ι := Fin n)
+    dsimp only [pauliBraidingMatchedGame, SeededGame.pullbackSeed] at h
+    simp only [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
+      ENNReal.toReal_natCast, ← mul_sum] at h
+    rw [Fintype.expect_eq_sum_div_card, div_eq_inv_mul]
+    refine le_trans ?_ h
+    refine mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left ?_ (by positivity))
+      ENNReal.toReal_nonneg
+    apply sum_le_sum
+    intro p _
+    cases roles <;> cases basis
+    · exact le_rfl
+    · exact le_rfl
+    · change S.state.norm (point p - b p) ^ 2 ≤ S.state.norm (b p - point p) ^ 2
+      rw [← neg_sub (point p) (b p), S.state.norm_neg]
+    · change S.state.norm (point p - b p) ^ 2 ≤ S.state.norm (b p - point p) ^ 2
+      rw [← neg_sub (point p) (b p), S.state.norm_neg]
+  have htri : (𝔼 p, S.state.norm (avg p - b p) ^ 2) ≤
+      2 * (𝔼 p, S.state.norm (point p - avg p) ^ 2) +
+      2 * (𝔼 p, S.state.norm (point p - b p) ^ 2) := by
+    rw [Finset.mul_expect, Finset.mul_expect, ← expect_add_distrib]
+    refine expect_le_expect fun p _ => ?_
+    have h := S.state.norm_sub_sq_le_through (avg p) (point p) (b p)
+    rw [← neg_sub (point p) (avg p), S.state.norm_neg] at h
+    exact h
+  have hmass : 0 ≤ mass := ENNReal.toReal_nonneg
+  have hdensity : 0 ≤ density := NNRat.cast_nonneg _
+  have hscaled := mul_le_mul_of_nonneg_left htri (mul_nonneg hmass hdensity)
+  have hv := mul_le_mul_of_nonneg_left hvar hmass
+  have hl := mul_le_mul_of_nonneg_left hlocal hdensity
+  change (mass * density) * (𝔼 p, S.state.norm (avg p - b p) ^ 2) ≤ _
+  linarith only [hscaled, hv, hl]
 
 /-- In the full uniform average, the distance at zero is the only additional term.
 The odd-pair consistency branch controls the remaining contribution. -/
