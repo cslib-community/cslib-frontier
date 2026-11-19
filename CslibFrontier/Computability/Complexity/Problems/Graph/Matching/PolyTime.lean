@@ -13,6 +13,7 @@ import CslibFrontier.Computability.PolyTime.CSP.Vars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -57,8 +58,31 @@ attribute [local fun_prop] computableInPolyTime_matchingScope
 /-- The complete generated explicit-table instance is native polynomial-time on every graph. -/
 theorem computableInPolyTime_matchingInstance :
     ComputableInPolyTime matchingInstance encGraph (encCSP CSP.encTable encNat) := by
+  have hvertices : ComputableInPolyTime (fun G : Graph => G.distinctVertices)
+      encGraph (encList encNat) := by
+    have hv : ComputableInPolyTime Graph.vertices encGraph (encList encNat) := by
+      fun_prop
+    exact (computableInPolyTime_selectDistinct encNat).comp
+      (hv.prod ((ComputableInPolyTime.bitsReplicate true).comp
+        ((ComputableInPolyTime.length_list encNat).comp hv)))
+  have hchoice : ComputableInPolyTime
+      (fun p : Graph × ℕ => Constraint.mk
+        (CSP.Table.exactlyOne (p.1.matchingScope p.2)) (p.1.matchingScope p.2))
+      (encPair encGraph encNat) (encConstraint CSP.encTable encNat) :=
+    encConstraint_mk_polyTime
+      (CSP.computableInPolyTime_tableExactlyOne.comp computableInPolyTime_matchingScope)
+      computableInPolyTime_matchingScope
+  have hport : ComputableInPolyTime (fun p : Graph × ℕ => [2 * p.2 + 1])
+      (encPair encGraph encNat) (encList encNat) := by
+    fun_prop
+  have hpin : ComputableInPolyTime
+      (fun p : Graph × ℕ => Constraint.mk (CSP.Table.pinTable false) [2 * p.2 + 1])
+      (encPair encGraph encNat) (encConstraint CSP.encTable encNat) :=
+    encConstraint_mk_polyTime (ComputableInPolyTime.const _) hport
   unfold matchingInstance
-  fun_prop
+  exact ComputableInPolyTime.listAppend'
+    (ComputableInPolyTime.mapWithInput hvertices hchoice)
+    (ComputableInPolyTime.mapWithInput hvertices hpin)
 
 attribute [local fun_prop] computableInPolyTime_matchingInstance
 
@@ -99,20 +123,20 @@ theorem computableInPolyTime_edgesAtPositions :
       (encPair encGraph (encList encNat)) encMatching := by
   unfold edgesAtPositions encMatching
   apply ComputableInPolyTime.mapWithInput (ComputableInPolyTime.snd _ _)
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.listGetD_binary (encL := encMatching) (0, 0)
-  · exact (computableInPolyTime_edgeList.comp (by fun_prop)).tidy
+  apply ComputableInPolyTime.listGetD_binary (encL := encMatching) (0, 0)
+  · exact computableInPolyTime_edgeList.comp (by fun_prop)
   · fun_prop
 
 /-- The graph-only maximum matching endpoint has an ordinary native polynomial certificate. -/
 theorem computableInPolyTime_maximumMatching :
     ComputableInPolyTime maximumMatching encGraph encMatching := by
-  have ho := CSP.EdgeSolver.computableInPolyTime_optimize.comp
-    computableInPolyTime_matchingInstance
+  have ho : ComputableInPolyTime (fun G : Graph => CSP.EdgeSolver.optimize G.matchingInstance)
+      encGraph (encOption (encList encBool)) :=
+    CSP.EdgeSolver.computableInPolyTime_optimize.comp computableInPolyTime_matchingInstance
   have hb : ComputableInPolyTime
       (fun G : Graph => (CSP.EdgeSolver.optimize G.matchingInstance).getD [])
       encGraph (encList encBool) :=
-    .of_tidy (ho.tidy.optionGetDWithInput (ComputableTidilyInPolyTime.const []))
+    ho.optionGetDWithInput (ComputableInPolyTime.const [])
   exact computableInPolyTime_edgesAtPositions.comp
     (ComputableInPolyTime.id'.prod
       (computableInPolyTime_matchingPositions.comp (ComputableInPolyTime.id'.prod hb)))
@@ -127,13 +151,16 @@ theorem computableInPolyTime_coversVertices :
 /-- Constructive perfect-matching search is native polynomial-time on complete raw graphs. -/
 theorem computableInPolyTime_perfectMatching :
     ComputableInPolyTime perfectMatching encGraph (encOption encMatching) := by
-  have hm := computableInPolyTime_maximumMatching
-  have hc := computableInPolyTime_coversVertices.comp (ComputableInPolyTime.id'.prod hm)
+  have hm : ComputableInPolyTime maximumMatching encGraph encMatching :=
+    computableInPolyTime_maximumMatching
+  have hc : ComputableInPolyTime (fun G : Graph => G.coversVertices G.maximumMatching)
+      encGraph encBool :=
+    computableInPolyTime_coversVertices.comp (ComputableInPolyTime.id'.prod hm)
   unfold perfectMatching
   dsimp only
-  exact .of_tidy (hc.tidy.cond
-    ((ComputableTidilyInPolyTime.optionSome encMatching).comp hm.tidy)
-    (ComputableTidilyInPolyTime.const none))
+  exact hc.ite
+    ((ComputableInPolyTime.optionSome encMatching).comp hm)
+    (ComputableInPolyTime.const none)
 
 /-- Full perfect-matching decision is native polynomial-time on complete raw graphs. -/
 theorem computableInPolyTime_decidePerfectMatching :

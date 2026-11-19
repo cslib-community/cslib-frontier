@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.List.OfFn
 public import Mathlib.Logic.Equiv.Fin.Rotate
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Positional operations on function-indexed lists
@@ -31,9 +32,7 @@ theorem reverse_ofFn {α : Type*} {n : ℕ} (f : Fin n → α) :
   · intro i hi hj
     simp only [List.getElem_reverse, List.length_ofFn, List.getElem_ofFn, Fin.rev]
     apply congrArg f
-    apply Fin.ext
-    change n - 1 - i = n - (i + 1)
-    omega
+    fin_index
 
 /-- Positive cyclic index rotation moves the first list entry to the end, retaining every
 position even when values repeat. -/

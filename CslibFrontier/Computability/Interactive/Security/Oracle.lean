@@ -49,7 +49,8 @@ theorem closeTo_runWith {ι α σ : Type} {spec : OracleSpec ι} {cost : ι → 
   have hstep' : ∀ q s, CloseTo ((left q s).bind fun x => (PMF.pure x.2).map (x.1, ·))
       ((PMF.pure s).bind (right q)) (cost q * ε) := fun q s => by
     simpa only [PMF.pure_map, PMF.pure_bind, Prod.mk.eta, PMF.bind_pure] using hstep q s
-  simpa only [runWith, PMF.pure_map, PMF.pure_bind, Prod.mk.eta, PMF.bind_pure] using
+  rw [runWith_eq_run_interpret, runWith_eq_run_interpret]
+  simpa only [PMF.pure_map, PMF.pure_bind, Prod.mk.eta, PMF.bind_pure] using
     closeTo_run_interpret_simulation cost left right PMF.pure ε hstep' program h s
 
 end Cslib.OracleComp.IsCostBounded

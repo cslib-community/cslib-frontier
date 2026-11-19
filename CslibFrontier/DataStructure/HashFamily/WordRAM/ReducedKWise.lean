@@ -82,7 +82,7 @@ independent hash family (`Cslib.Probability.reducedPolyHash U w₀ b b' k`) over
 
 public section
 
-open Cslib.WordRAM Cslib.WordRAM.ExactLog Cslib.DataStructure.WordRAM.Randomized Cslib.Probability
+open Cslib.WordRAM Cslib.DataStructure.WordRAM.Randomized Cslib.Probability
 open scoped ENNReal BigOperators
 
 namespace Cslib.DataStructure.HashFamily.WordRAM.ReducedKWise
@@ -278,6 +278,55 @@ maps `[0, 1, 2, 3, 4, 5] ↦ [3, 4, 5, 6, 7, 0]`. -/
 
 theorem injective_fillMap240 : Function.Injective fillMap240 := by
   decide
+
+/-- `TableRep` depends only on memory in `[base, base + space w w₀ b b' k)`. -/
+theorem tableRep_congr {base w w₀ b b' k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
+    (htab : TableRep base w w₀ b b' k mem₁)
+    (heq : ∀ a, base ≤ a → a < base + space w w₀ b b' k → mem₁ a = mem₂ a) :
+    TableRep base w w₀ b b' k mem₂ := by
+  rcases htab with ⟨hword, hentry⟩
+  refine ⟨fun wIdx hwIdx => ?_, fun idx hidx => ?_⟩
+  · rw [← heq (tabBase base w₀ b b' k + wIdx)
+      (by dsimp only [tabBase]; omega)
+      (by dsimp only [tabBase, space]; omega)]
+    exact hword wIdx hwIdx
+  · have hsh : idx >>> reducedPackShift (reducedTrinomialStep w₀ b b') w <
+        tableWords w w₀ b b' :=
+      shiftRight_lt_reducedTableWords hidx
+    rw [← heq
+      (tabBase base w₀ b b' k +
+        idx >>> reducedPackShift (reducedTrinomialStep w₀ b b') w)
+      (by dsimp only [tabBase]; rw [Nat.add_assoc]; exact Nat.le_add_right base _)
+      (by dsimp only [tabBase, space]; omega)]
+    exact hentry idx hidx
+
+/-- `SeedRep` depends only on memory in `[base, base + space w w₀ b b' k)`. -/
+theorem seedRep_congr {base w w₀ b b' k : ℕ} {θ : ReducedPolySeed w₀ b b' k}
+    {mem₁ mem₂ : ℕ → ℕ}
+    (hseed : SeedRep base w₀ b b' k θ mem₁)
+    (heq : ∀ a, base ≤ a → a < base + space w w₀ b b' k → mem₁ a = mem₂ a) :
+    SeedRep base w₀ b b' k θ mem₂ := by
+  rcases hseed with ⟨h0, hlimb⟩
+  have hs_pos : 0 < seedWords w₀ b b' k := seedWords_pos w₀ b b' k
+  refine ⟨?_, fun j m => ?_⟩
+  · rw [← heq base (le_refl base) (by dsimp only [space]; omega)]
+    exact h0
+  · have hidx : m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val <
+        k * reducedLimbCount (reducedTrinomialStep w₀ b b') := by
+      calc m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val
+          < reducedLimbCount (reducedTrinomialStep w₀ b b') +
+              reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val :=
+            Nat.add_lt_add_right m.isLt _
+        _ = (j.val + 1) * reducedLimbCount (reducedTrinomialStep w₀ b b') := by ring
+        _ ≤ k * reducedLimbCount (reducedTrinomialStep w₀ b b') :=
+            Nat.mul_le_mul_right _ j.isLt
+    have hlt_sp : base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val) <
+        base + space w w₀ b b' k := by
+      dsimp only [space, seedWords]
+      omega
+    rw [← heq (base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val))
+      (by omega) hlt_sp]
+    exact hlimb j m
 
 /-! ## Section 2: Bit-packed Four-Russians table construction (`initTableCode`) -/
 
@@ -587,6 +636,27 @@ theorem clmulTabLoop_exec {w tBase t : ℕ}
         rw [hyout a (by omega)]
         wram_simp⟩
 
+private theorem tableSetup_fits {w base w₀ b b' k : ℕ}
+    (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
+    (hfit_space : Fits w (base + space w w₀ b b' k)) :
+    let t := reducedTrinomialStep w₀ b b'
+    let c := reducedChunkBits t
+    let p := reducedPackShift t w
+    Fits w (2 ^ (2 * c)) ∧ Fits w (seedWords w₀ b b' k) ∧
+      Fits w (tabBase base w₀ b b' k) ∧ Fits w c ∧ Fits w (2 ^ c - 1) ∧
+      Fits w p ∧ Fits w (2 ^ p - 1) ∧ Fits w (2 * c) := by
+  intro t c p
+  have hfit_2c : Fits w (2 ^ (2 * c)) := Nat.pow_lt_pow_right one_lt_two hc_lt
+  have hp_le : p ≤ 2 * c := reducedPackShift_le t w
+  exact ⟨hfit_2c,
+    hfit_space.of_le (by dsimp only [space]; omega),
+    hfit_space.of_le (by dsimp only [tabBase, space]; omega),
+    hfit_2c.of_le (le_of_lt (Nat.lt_of_le_of_lt (by omega) Nat.lt_two_pow_self)),
+    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (by omega))),
+    hfit_2c.of_le (hp_le.trans (le_of_lt Nat.lt_two_pow_self)),
+    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos hp_le)),
+    hfit_2c.of_le (le_of_lt Nat.lt_two_pow_self)⟩
+
 /-- **Deterministic execution of `initTableCode w w₀ b b' k`**: establishes `TableRep`, preserves
 `reg 0 = base`, and modifies only `[tabBase base w₀ b b' k, base + space w w₀ b b' k)`. -/
 theorem initTableCode_exec {w base w₀ b b' k : ℕ} {x : Data 240}
@@ -603,19 +673,10 @@ theorem initTableCode_exec {w base w₀ b b' k : ℕ} {x : Data 240}
   set p := reducedPackShift t w with hp_def
   set s := seedWords w₀ b b' k with hs
   have hc_lt : 2 * c < w := two_mul_reducedChunkBits_lt_of_fits_space hc hfit_space
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hfit_2c : Fits w (2 ^ (2 * c)) := hpow_2c_lt
-  have hfit_s : Fits w s := hfit_space.of_le (by dsimp only [space]; omega)
-  have hfit_tBase : Fits w (base + s) := hfit_space.of_le (by dsimp only [space]; omega)
-  have hfit_c : Fits w c :=
-    hfit_2c.of_le (le_of_lt (Nat.lt_of_le_of_lt (by omega) Nat.lt_two_pow_self))
-  have hfit_mask_c : Fits w (2 ^ c - 1) :=
-    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (by omega)))
-  have hp_le : p ≤ 2 * c := reducedPackShift_le t w
-  have hfit_p : Fits w p := hfit_2c.of_le (hp_le.trans (le_of_lt Nat.lt_two_pow_self))
-  have hfit_mask_p : Fits w (2 ^ p - 1) :=
-    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos hp_le))
-  have hfit_2c_val : Fits w (2 * c) := hfit_2c.of_le (le_of_lt Nat.lt_two_pow_self)
+  obtain ⟨hfit_2c, hfit_s, hfit_tBase, hfit_c, hfit_mask_c, hfit_p, hfit_mask_p, hfit_2c_val⟩ :=
+    tableSetup_fits hc_lt hfit_space
+  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := hfit_2c
+  change Fits w (base + s) at hfit_tBase
   have hfit_end : Fits w (tabBase base w₀ b b' k + reducedTableWords t w) := by
     simpa only [tabBase, space, tableWords, Nat.add_assoc] using hfit_space
   unfold initTableCode initTableSetupCode
@@ -992,39 +1053,45 @@ private theorem seqAsc_exec {w : ℕ} (f : ℕ → Code .exact 240) (step : ℕ)
     rw [show (n + 1) * step + 1 = (n * step + 1) + step by ring]
     exact hy_exec.seq hz_exec
 
-private theorem and_two_pow_sub_one_lt (a n : ℕ) : a &&& (2 ^ n - 1) < 2 ^ n := by
+theorem and_two_pow_sub_one_lt (a n : ℕ) : a &&& (2 ^ n - 1) < 2 ^ n := by
   rw [Nat.and_two_pow_sub_one_eq_mod]
   exact Nat.mod_lt a (Nat.two_pow_pos n)
 
-private theorem xReg_ne_low (m : ℕ) {r : Fin 240} (hr : r.val < 20) : xReg m ≠ r := by
-  intro h; have := congrArg Fin.val h; dsimp only [xReg] at this; omega
+@[local wram_simps]
+private theorem set_lit_regs_xReg (x : Data 240) (n m v : ℕ) [OfNat (Fin 240) n]
+    (h : (@OfNat.ofNat (Fin 240) n _).val < 20) :
+    (x.set (no_index (OfNat.ofNat n)) v).regs (xReg m) = x.regs (xReg m) :=
+  Data.set_regs_of_ne (Fin.ne_of_val_ne (by change 20 + m % 54 ≠ _; omega)) v
 
-private theorem accReg_ne_low (m : ℕ) {r : Fin 240} (hr : r.val < 20) : accReg m ≠ r := by
-  intro h; have := congrArg Fin.val h; dsimp only [accReg] at this; omega
+@[local wram_simps]
+private theorem set_xReg_regs_lit (x : Data 240) (n m v : ℕ) [OfNat (Fin 240) n]
+    (h : (@OfNat.ofNat (Fin 240) n _).val < 20) :
+    (x.set (xReg m) v).regs (no_index (OfNat.ofNat n)) = x.regs (OfNat.ofNat n) :=
+  Data.set_regs_of_ne (Fin.ne_of_val_ne (by change _ ≠ 20 + m % 54; omega)) v
 
-private theorem prodReg_ne_low (d : ℕ) {r : Fin 240} (hr : r.val < 20) : prodReg d ≠ r := by
-  intro h; have := congrArg Fin.val h; dsimp only [prodReg] at this; omega
+@[local wram_simps]
+private theorem set_lit_regs_accReg (x : Data 240) (n m v : ℕ) [OfNat (Fin 240) n]
+    (h : (@OfNat.ofNat (Fin 240) n _).val < 20) :
+    (x.set (no_index (OfNat.ofNat n)) v).regs (accReg m) = x.regs (accReg m) :=
+  Data.set_regs_of_ne (Fin.ne_of_val_ne (by change 74 + m % 54 ≠ _; omega)) v
 
-private theorem xReg_ne_accReg (m₁ m₂ : ℕ) : xReg m₁ ≠ accReg m₂ := by
-  intro h; have := congrArg Fin.val h; dsimp only [xReg, accReg] at this; omega
+@[local wram_simps]
+private theorem set_accReg_regs_lit (x : Data 240) (n m v : ℕ) [OfNat (Fin 240) n]
+    (h : (@OfNat.ofNat (Fin 240) n _).val < 20) :
+    (x.set (accReg m) v).regs (no_index (OfNat.ofNat n)) = x.regs (OfNat.ofNat n) :=
+  Data.set_regs_of_ne (Fin.ne_of_val_ne (by change _ ≠ 74 + m % 54; omega)) v
 
-private theorem xReg_ne_prodReg (m d : ℕ) : xReg m ≠ prodReg d := by
-  intro h; have := congrArg Fin.val h; dsimp only [xReg, prodReg] at this; omega
+@[local wram_simps]
+private theorem set_lit_regs_prodReg (x : Data 240) (n d v : ℕ) [OfNat (Fin 240) n]
+    (h : (@OfNat.ofNat (Fin 240) n _).val < 20) :
+    (x.set (no_index (OfNat.ofNat n)) v).regs (prodReg d) = x.regs (prodReg d) :=
+  Data.set_regs_of_ne (Fin.ne_of_val_ne (by change 128 + d % 108 ≠ _; omega)) v
 
-private theorem accReg_ne_prodReg (m d : ℕ) : accReg m ≠ prodReg d := by
-  intro h; have := congrArg Fin.val h; dsimp only [accReg, prodReg] at this; omega
-
-private theorem xReg_ne_of_ne {m₁ m₂ : ℕ} (h1 : m₁ < 54) (h2 : m₂ < 54) (hne : m₁ ≠ m₂) :
-    xReg m₁ ≠ xReg m₂ := by
-  intro h; have := congrArg Fin.val h; dsimp only [xReg] at this; omega
-
-private theorem accReg_ne_of_ne {m₁ m₂ : ℕ} (h1 : m₁ < 54) (h2 : m₂ < 54) (hne : m₁ ≠ m₂) :
-    accReg m₁ ≠ accReg m₂ := by
-  intro h; have := congrArg Fin.val h; dsimp only [accReg] at this; omega
-
-private theorem prodReg_ne_of_ne {d₁ d₂ : ℕ} (h1 : d₁ < 108) (h2 : d₂ < 108) (hne : d₁ ≠ d₂) :
-    prodReg d₁ ≠ prodReg d₂ := by
-  intro h; have := congrArg Fin.val h; dsimp only [prodReg] at this; omega
+@[local wram_simps]
+private theorem set_prodReg_regs_lit (x : Data 240) (n d v : ℕ) [OfNat (Fin 240) n]
+    (h : (@OfNat.ofNat (Fin 240) n _).val < 20) :
+    (x.set (prodReg d) v).regs (no_index (OfNat.ofNat n)) = x.regs (OfNat.ofNat n) :=
+  Data.set_regs_of_ne (Fin.ne_of_val_ne (by change _ ≠ 128 + d % 108; omega)) v
 
 /-- Part 1a of Stage 1 (`12` instructions): loads `α = x.mem (x.regs 0)`, sets half-width masks and
 shifts in `regs 5..10`, and splits `α` and `x' = x.regs 1 &&& (2 ^ m - 1)` into `regs 12..15`. -/
@@ -1084,7 +1151,7 @@ shifts in `regs 5..10`, and splits `α` and `x' = x.regs 1 &&& (2 ^ m - 1)` into
   .seq (halfMulSetupCode (w₀ - 1))
   (.seq halfMulCombineCode (finishReduceCode w₀ b))
 
-private theorem shiftRight_lt_pow_sub {m h a : ℕ} (hle : h ≤ m) (ha : a < 2 ^ m) :
+theorem shiftRight_lt_pow_sub {m h a : ℕ} (hle : h ≤ m) (ha : a < 2 ^ m) :
     a >>> h < 2 ^ (m - h) := by
   rw [Nat.shiftRight_eq_div_pow]
   apply Nat.div_lt_of_lt_mul
@@ -1326,8 +1393,7 @@ private theorem initLimbsCode_exec {w t r_val : ℕ} (hc_lt : 2 * reducedChunkBi
       y.mem = x.mem := by
   intro c L
   have hL_le : L ≤ 54 := reducedLimbCount_le t
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hfit_2c : Fits w (2 ^ (2 * c)) := hpow_2c_lt
+  have hfit_2c : Fits w (2 ^ (2 * c)) := Nat.pow_lt_pow_right one_lt_two hc_lt
   have hfit_c : Fits w c :=
     hfit_2c.of_le (le_of_lt (Nat.lt_of_le_of_lt (by omega) Nat.lt_two_pow_self))
   have hfit_mask_c : Fits w (2 ^ c - 1) :=
@@ -1343,68 +1409,27 @@ private theorem initLimbsCode_exec {w t r_val : ℕ} (hc_lt : 2 * reducedChunkBi
       fun _ hm => (Nat.not_lt_zero _ hm).elim, rfl⟩
     rw [Nat.zero_mul, Nat.shiftRight_zero, h3]
   obtain ⟨y, hy_exec, hy0, _, hyx, hya, hymem⟩ :=
-    seqAsc_exec (initLimbStep c) 5 P L (fun i hi z ⟨hz0, hz3, hzx, hza, hzmem⟩ => by
+    seqAsc_exec (w := w) (initLimbStep c) 5 P L (fun i hi z ⟨hz0, hz3, hzx, hza, hzmem⟩ => by
       have hi54 : i < 54 := lt_of_lt_of_le hi hL_le
       have hfit_limb : Fits w (getLimb c r_val i) :=
         hfit_2c.of_le ((le_of_lt (getLimb_lt c r_val i)).trans
           (Nat.pow_le_pow_right two_pos (by omega)))
       have hfit_shr : Fits w (r_val >>> ((i + 1) * c)) :=
         lt_of_le_of_lt (Nat.shiftRight_le _ _) hr
-      set s1 := z.set 10 c
-      have e1 : Exec w (.op (.const 10 c) : Code .exact 240) z s1 1 := Exec.const hfit_c
-      set s2 := s1.set 11 (2 ^ c - 1)
-      have e2 : Exec w (.op (.const 11 (2 ^ c - 1)) : Code .exact 240) s1 s2 1 :=
-        Exec.const hfit_mask_c
-      set s3 := s2.set (xReg i) (getLimb c r_val i)
-      have e3 : Exec w (.op (.exactBin .and (xReg i) 3 11) : Code .exact 240) s2 s3 1 :=
-        exec_exactBin (by simp +decide [s2, s1, hz3, getLimb]) hfit_limb
-      set s4 := s3.set 3 (r_val >>> ((i + 1) * c))
-      have hshr_eq : (s3.regs 3) >>> (s3.regs 10) = r_val >>> ((i + 1) * c) := by
-        have h3_s3 : s3.regs 3 = r_val >>> (i * c) := by
-          dsimp only [s3, s2, s1, Data.set]
-          rw [Function.update_of_ne (xReg_ne_low i (r := 3) (by decide)).symm]
-          simp +decide [hz3]
-        have h10_s3 : s3.regs 10 = c := by
-          dsimp only [s3, s2, s1, Data.set]
-          rw [Function.update_of_ne (xReg_ne_low i (r := 10) (by decide)).symm]
-          simp +decide
-        rw [h3_s3, h10_s3, ← Nat.shiftRight_add, ← Nat.succ_mul]
-      have e4 : Exec w (.op (.exactBin .shiftRight 3 3 10) : Code .exact 240) s3 s4 1 :=
-        exec_exactBin (by simp [hshr_eq]) hfit_shr
-      set s5 := s4.set (accReg i) 0
-      have e5 : Exec w (.op (.const (accReg i) 0) : Code .exact 240) s4 s5 1 := Exec.const (by fits)
-      refine ⟨s5, e1.seq (e2.seq (e3.seq (e4.seq e5))), ?_, ?_, ?_, ?_, ?_⟩
-      · dsimp only [s5, s4, s3, s2, s1, Data.set]
-        rw [Function.update_of_ne (accReg_ne_low i (r := 0) (by decide)).symm,
-          Function.update_of_ne (by decide : (0 : Fin 240) ≠ 3),
-          Function.update_of_ne (xReg_ne_low i (r := 0) (by decide)).symm,
-          Function.update_of_ne (by decide : (0 : Fin 240) ≠ 11),
-          Function.update_of_ne (by decide : (0 : Fin 240) ≠ 10), hz0]
-      · dsimp only [s5, s4, Data.set]
-        rw [Function.update_of_ne (accReg_ne_low i (r := 3) (by decide)).symm, Function.update_self]
-      · intro m hm
-        dsimp only [s5, s4, s3, s2, s1, Data.set]
-        rw [Function.update_of_ne (xReg_ne_accReg m i),
-          Function.update_of_ne (xReg_ne_low m (r := 3) (by decide))]
-        rcases eq_or_ne m i with rfl | hne
-        · exact Function.update_self _ _ _
-        · have hm54 : m < 54 := by omega
-          rw [Function.update_of_ne (xReg_ne_of_ne hm54 hi54 hne),
-            Function.update_of_ne (xReg_ne_low m (r := 11) (by decide)),
-            Function.update_of_ne (xReg_ne_low m (r := 10) (by decide))]
-          exact hzx m (by omega)
-      · intro m hm
-        dsimp only [s5, s4, s3, s2, s1, Data.set]
-        rcases eq_or_ne m i with rfl | hne
-        · exact Function.update_self _ _ _
-        · have hm54 : m < 54 := by omega
-          rw [Function.update_of_ne (accReg_ne_of_ne hm54 hi54 hne),
-            Function.update_of_ne (accReg_ne_low m (r := 3) (by decide)),
-            Function.update_of_ne (xReg_ne_accReg i m).symm,
-            Function.update_of_ne (accReg_ne_low m (r := 11) (by decide)),
-            Function.update_of_ne (accReg_ne_low m (r := 10) (by decide))]
-          exact hza m (by omega)
-      · exact hzmem) hP0
+      have hlimb_eq : (r_val >>> (i * c)) &&& (2 ^ c - 1) = getLimb c r_val i := rfl
+      have hshr_eq : (r_val >>> (i * c)) >>> c = r_val >>> ((i + 1) * c) := by
+        rw [← Nat.shiftRight_add, ← Nat.succ_mul]
+      unfold initLimbStep
+      wram_exec [hz3, hlimb_eq, hshr_eq]
+      refine ⟨by wram_simp [hz0], by wram_simp, fun m hm => ?_, fun m hm => ?_, hzmem⟩
+      · rcases eq_or_ne m i with rfl | hne
+        · wram_simp
+        · have hm_lt : m < i := by omega
+          wram_simp [hzx m hm_lt]
+      · rcases eq_or_ne m i with rfl | hne
+        · wram_simp
+        · have hm_lt : m < i := by omega
+          wram_simp [hza m hm_lt]) hP0
   exact ⟨y, hy_exec, hy0, hyx, hya, hymem⟩
 
 /-- Stage 2b of `evalCode` (`8` instructions): loads table/chunk constants into `regs 4..9` and
@@ -1441,20 +1466,8 @@ private theorem hornerSetupCode_exec {w base w₀ b b' k : ℕ}
       (∀ r : Fin 240, 20 ≤ r.val → y.regs r = x.regs r) ∧
       y.mem = x.mem := by
   intro t c p
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hfit_2c : Fits w (2 ^ (2 * c)) := hpow_2c_lt
-  have hfit_s : Fits w (seedWords w₀ b b' k) := hfit_space.of_le (by dsimp only [space]; omega)
-  have hfit_tBase : Fits w (tabBase base w₀ b b' k) :=
-    hfit_space.of_le (by dsimp only [tabBase, space]; omega)
-  have hfit_c : Fits w c :=
-    hfit_2c.of_le (le_of_lt (Nat.lt_of_le_of_lt (by omega) Nat.lt_two_pow_self))
-  have hfit_mask_c : Fits w (2 ^ c - 1) :=
-    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (by omega)))
-  have hp_le : p ≤ 2 * c := reducedPackShift_le t w
-  have hfit_p : Fits w p := hfit_2c.of_le (hp_le.trans (le_of_lt Nat.lt_two_pow_self))
-  have hfit_mask_p : Fits w (2 ^ p - 1) :=
-    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos hp_le))
-  have hfit_2c_val : Fits w (2 * c) := hfit_2c.of_le (le_of_lt Nat.lt_two_pow_self)
+  obtain ⟨hfit_2c, hfit_s, hfit_tBase, hfit_c, hfit_mask_c, hfit_p, hfit_mask_p, hfit_2c_val⟩ :=
+    tableSetup_fits hc_lt hfit_space
   simp only [t, c, p] at *
   unfold hornerSetupCode
   wram_exec [h0, show base + seedWords w₀ b b' k = tabBase base w₀ b b' k from rfl]
@@ -1476,71 +1489,17 @@ private theorem hornerSetupCode_exec {w base w₀ b b' k : ℕ}
   x.regs 18 = 2 ^ (2 * c) - 1 ∧
   ∀ m < L, x.regs (xReg m) = getLimb c r_val m
 
-private theorem HornerConsts.set_scratch {base w w₀ b b' k r_val : ℕ} {x : Data 240}
-    (hc : HornerConsts base w w₀ b b' k r_val x) {r : Fin 240}
-    (hr1 : 10 ≤ r.val) (hr2 : r.val < 18) (v : ℕ) :
-    HornerConsts base w w₀ b b' k r_val (x.set r v) := by
+private theorem HornerConsts.congr {base w w₀ b b' k r_val : ℕ} {x y : Data 240}
+    (hc : HornerConsts base w w₀ b b' k r_val x)
+    (hregs : ∀ r : Fin 240, (r.val < 10 ∨ r.val = 18 ∨ (20 ≤ r.val ∧ r.val < 74)) →
+      y.regs r = x.regs r) :
+    HornerConsts base w w₀ b b' k r_val y := by
   obtain ⟨h0, h4, h5, h6, h7, h8, h9, h18, hx⟩ := hc
-  have hne : ∀ s : Fin 240, (s.val < 10 ∨ s.val = 18) → s ≠ r := by
-    intro s hs h; subst h; omega
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun m hm => ?_⟩
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 0 (by decide))]; exact h0
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 4 (by decide))]; exact h4
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 5 (by decide))]; exact h5
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 6 (by decide))]; exact h6
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 7 (by decide))]; exact h7
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 8 (by decide))]; exact h8
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 9 (by decide))]; exact h9
-  · dsimp only [Data.set]; rw [Function.update_of_ne (hne 18 (by decide))]; exact h18
-  · dsimp only [Data.set]
-    rw [Function.update_of_ne (xReg_ne_low m (by omega))]
-    exact hx m hm
-
-private theorem HornerConsts.set_prodReg {base w w₀ b b' k r_val : ℕ} {x : Data 240}
-    (hc : HornerConsts base w w₀ b b' k r_val x) (d v : ℕ) :
-    HornerConsts base w w₀ b b' k r_val (x.set (prodReg d) v) := by
-  obtain ⟨h0, h4, h5, h6, h7, h8, h9, h18, hx⟩ := hc
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun m hm => ?_⟩
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 0) (by decide)).symm]
-    exact h0
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 4) (by decide)).symm]
-    exact h4
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 5) (by decide)).symm]
-    exact h5
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 6) (by decide)).symm]
-    exact h6
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 7) (by decide)).symm]
-    exact h7
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 8) (by decide)).symm]
-    exact h8
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 9) (by decide)).symm]
-    exact h9
-  · dsimp only [Data.set]; rw [Function.update_of_ne (prodReg_ne_low d (r := 18) (by decide)).symm]
-    exact h18
-  · dsimp only [Data.set]; rw [Function.update_of_ne (xReg_ne_prodReg m d)]; exact hx m hm
-
-private theorem HornerConsts.set_accReg {base w w₀ b b' k r_val : ℕ} {x : Data 240}
-    (hc : HornerConsts base w w₀ b b' k r_val x) (m' v : ℕ) :
-    HornerConsts base w w₀ b b' k r_val (x.set (accReg m') v) := by
-  obtain ⟨h0, h4, h5, h6, h7, h8, h9, h18, hx⟩ := hc
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun m hm => ?_⟩
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 0) (by decide)).symm]
-    exact h0
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 4) (by decide)).symm]
-    exact h4
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 5) (by decide)).symm]
-    exact h5
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 6) (by decide)).symm]
-    exact h6
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 7) (by decide)).symm]
-    exact h7
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 8) (by decide)).symm]
-    exact h8
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 9) (by decide)).symm]
-    exact h9
-  · dsimp only [Data.set]; rw [Function.update_of_ne (accReg_ne_low m' (r := 18) (by decide)).symm]
-    exact h18
-  · dsimp only [Data.set]; rw [Function.update_of_ne (xReg_ne_accReg m m')]; exact hx m hm
+  exact ⟨(hregs 0 (by decide)).trans h0, (hregs 4 (by decide)).trans h4,
+    (hregs 5 (by decide)).trans h5, (hregs 6 (by decide)).trans h6,
+    (hregs 7 (by decide)).trans h7, (hregs 8 (by decide)).trans h8,
+    (hregs 9 (by decide)).trans h9, (hregs 18 (by decide)).trans h18,
+    fun m hm => (hregs (xReg m) (by dsimp [xReg]; omega)).trans (hx m hm)⟩
 
 /-- Invariant combining `HornerConsts` and the current accumulator limbs in `accReg`. -/
 @[expose] def ClmulInv (base w w₀ b b' k r_val acc_val : ℕ) (x : Data 240) : Prop :=
@@ -1550,22 +1509,13 @@ private theorem HornerConsts.set_accReg {base w w₀ b b' k r_val : ℕ} {x : Da
   HornerConsts base w w₀ b b' k r_val x ∧
   ∀ m < L, x.regs (accReg m) = getLimb c acc_val m
 
-private theorem ClmulInv.set_scratch {base w w₀ b b' k r_val acc_val : ℕ} {x : Data 240}
-    (h : ClmulInv base w w₀ b b' k r_val acc_val x) {r : Fin 240}
-    (hr1 : 10 ≤ r.val) (hr2 : r.val < 18) (v : ℕ) :
-    ClmulInv base w w₀ b b' k r_val acc_val (x.set r v) := by
-  refine ⟨h.1.set_scratch hr1 hr2 v, fun m hm => ?_⟩
-  dsimp only [Data.set]
-  rw [Function.update_of_ne (accReg_ne_low m (by omega))]
-  exact h.2 m hm
-
-private theorem ClmulInv.set_prodReg {base w w₀ b b' k r_val acc_val : ℕ} {x : Data 240}
-    (h : ClmulInv base w w₀ b b' k r_val acc_val x) (d v : ℕ) :
-    ClmulInv base w w₀ b b' k r_val acc_val (x.set (prodReg d) v) := by
-  refine ⟨h.1.set_prodReg d v, fun m hm => ?_⟩
-  dsimp only [Data.set]
-  rw [Function.update_of_ne (accReg_ne_prodReg m d)]
-  exact h.2 m hm
+private theorem ClmulInv.congr {base w w₀ b b' k r_val acc_val : ℕ} {x y : Data 240}
+    (h : ClmulInv base w w₀ b b' k r_val acc_val x)
+    (hregs : ∀ r : Fin 240, (r.val < 10 ∨ r.val = 18 ∨ (20 ≤ r.val ∧ r.val < 128)) →
+      y.regs r = x.regs r) :
+    ClmulInv base w w₀ b b' k r_val acc_val y :=
+  ⟨h.1.congr fun r hr => hregs r (hr.imp id (Or.imp id fun ⟨h1, h2⟩ => ⟨h1, by omega⟩)),
+    fun m hm => (hregs (accReg m) (by dsimp [accReg]; omega)).trans (h.2 m hm)⟩
 
 /-- Zeroes `prodReg 0 .. prodReg (2 * L - 1)`. -/
 @[expose] def zeroProdCode (L : ℕ) : Code .exact 240 :=
@@ -1588,25 +1538,21 @@ private theorem zeroProdCode_exec {base w w₀ b b' k r_val acc_val : ℕ}
       y.mem = x.mem := by
   intro t c L
   have hL_le : L ≤ 54 := reducedLimbCount_le t
-  have hfit_0 : Fits w 0 := Nat.two_pow_pos w
   let P (n : ℕ) (z : Data 240) : Prop :=
     ClmulInv base w w₀ b b' k r_val acc_val z ∧
     (∀ d < n, z.regs (prodReg d) = 0) ∧
     z.mem = x.mem
   have hP0 : P 0 x := ⟨hinv, fun _ hd => (Nat.not_lt_zero _ hd).elim, rfl⟩
   obtain ⟨y, hy_exec, hy_inv, hy_zero, hy_mem⟩ :=
-    seqAsc_exec (fun d => .op (.const (prodReg d) 0)) 1 P (2 * L)
+    seqAsc_exec (w := w) (fun d => .op (.const (prodReg d) 0)) 1 P (2 * L)
       (fun i hi z ⟨hz_inv, hz_zero, hz_mem⟩ => by
         have hi108 : i < 108 := by omega
-        set s1 := z.set (prodReg i) 0
-        have e1 : Exec w (.op (.const (prodReg i) 0) : Code .exact 240) z s1 1 :=
-          Exec.const hfit_0
-        refine ⟨s1, e1, hz_inv.set_prodReg i 0, fun d hd => ?_, hz_mem⟩
-        dsimp only [s1, Data.set]
+        wram_exec
+        refine ⟨hz_inv.congr fun r hr => by wram_simp, fun d hd => ?_, hz_mem⟩
         rcases eq_or_ne d i with rfl | hne
-        · exact Function.update_self _ _ _
-        · rw [Function.update_of_ne (prodReg_ne_of_ne (by omega) hi108 hne)]
-          exact hz_zero d (by omega)) hP0
+        · wram_simp
+        · have hd_lt : d < i := by omega
+          wram_simp [hz_zero d hd_lt]) hP0
   refine ⟨y, hy_exec, hy_inv, fun d hd => ?_, ?_, hy_mem⟩
   · rw [hy_zero d hd]
     exact Nat.two_pow_pos c
@@ -1702,12 +1648,13 @@ private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
   have hu_lt : u < 2 ^ c := getLimb_lt c acc_val i
   have hv_lt : v < 2 ^ c := getLimb_lt c r_val m
   obtain ⟨hidx_lt, hidx_u, hidx_v⟩ := pair_index_props hu_lt hv_lt
-  set idx := (u <<< c) + v
+  set idx := (u <<< c) + v with hidx
   have hshl_lt : u <<< c < 2 ^ (2 * c) := lt_of_le_of_lt (Nat.le_add_right _ _) hidx_lt
-  set wIdx := idx >>> p
-  set subIdx := idx &&& (2 ^ p - 1)
-  set sh := subIdx * (2 * c)
+  set wIdx := idx >>> p with hwIdx
+  set subIdx := idx &&& (2 ^ p - 1) with hsubIdx
+  set sh := subIdx * (2 * c) with hsh
   have hwIdx_lt : wIdx < reducedTableWords t w := shiftRight_lt_reducedTableWords hidx_lt
+  have hfit_wIdx : Fits w wIdx := hfit_end.of_le (by omega)
   have hsub_lt : subIdx < 2 ^ p := and_two_pow_sub_one_lt idx p
   have hsh_lt : sh < w := by
     calc subIdx * (2 * c) < 2 ^ p * (2 * c) :=
@@ -1716,7 +1663,7 @@ private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
   have hfit_sh : Fits w sh := lt_trans hsh_lt Nat.lt_two_pow_self
   have hfit_sub : Fits w subIdx :=
     hfit_sh.of_le (Nat.le_mul_of_pos_right _ (by omega : 0 < 2 * c))
-  set word := x.mem (tBase + wIdx)
+  set word := x.mem (tBase + wIdx) with hword
   have hword_lt : word < 2 ^ (2 ^ p * (2 * c)) := htab.1 wIdx hwIdx_lt
   have hfit_word_shr : Fits w (word >>> sh) :=
     lt_of_le_of_lt (Nat.shiftRight_le _ _) (lt_of_lt_of_le hword_lt hpow_pack_le)
@@ -1725,139 +1672,49 @@ private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
     dsimp only [getLimb, wIdx, subIdx, sh, word, tBase] at this ⊢
     rw [this, hidx_u, hidx_v]
   have hcl_lt : clmul u v < 2 ^ (2 * c) := clmul_lt_two_pow_two_mul hu_lt hv_lt
-  set lo := clmul u v &&& (2 ^ c - 1)
-  set hi_part := clmul u v >>> c
+  set lo := clmul u v &&& (2 ^ c - 1) with hlo
+  set hi_part := clmul u v >>> c with hhi_part
   have hlo_lt : lo < 2 ^ c := and_two_pow_sub_one_lt _ c
   have hhi_lt : hi_part < 2 ^ c := by
     have := shiftRight_lt_pow_sub (by omega : c ≤ 2 * c) hcl_lt
     simpa only [Nat.two_mul, Nat.add_sub_cancel] using this
   have hpow_c_lt : 2 ^ c < 2 ^ w :=
     lt_of_le_of_lt (Nat.pow_le_pow_right two_pos (by omega : c ≤ 2 * c)) hpow_2c_lt
+  have hfit_lo : Fits w lo := lt_trans hlo_lt hpow_c_lt
+  have hfit_hi : Fits w hi_part := lt_trans hhi_lt hpow_c_lt
   have him1_lt : i + m + 1 < 2 * L := by omega
   have him_lt : i + m < 2 * L := by omega
-  set old0 := x.regs (prodReg (i + m))
-  set old1 := x.regs (prodReg (i + m + 1))
+  set old0 := x.regs (prodReg (i + m)) with hold0
+  set old1 := x.regs (prodReg (i + m + 1)) with hold1
   have hold0_lt : old0 < 2 ^ c := hprod_lt (i + m) him_lt
   have hold1_lt : old1 < 2 ^ c := hprod_lt (i + m + 1) him1_lt
   have hnew0_lt : old0 ^^^ lo < 2 ^ c := Nat.xor_lt_two_pow hold0_lt hlo_lt
   have hnew1_lt : old1 ^^^ hi_part < 2 ^ c := Nat.xor_lt_two_pow hold1_lt hhi_lt
-  set s1 := x.set 10 (u <<< c)
-  have e1 : Exec w (.op (.exactBin .shiftLeft 10 (accReg i) 5) : Code .exact 240) x s1 1 :=
-    exec_exactBin (by simp +decide [hu_reg, h5]) (by fits)
-  set s2 := s1.set 10 idx
-  have e2 : Exec w (.op (.exactBin .add 10 10 (xReg m)) : Code .exact 240) s1 s2 1 :=
-    exec_exactBin
-      (by
-        dsimp only [s1, Data.set, BinOp.evalExact]
-        rw [Function.update_self, Function.update_of_ne (xReg_ne_low m (r := 10) (by decide)),
-          hv_reg])
-      (by fits)
-  set s3 := s2.set 11 wIdx
-  have e3 : Exec w (.op (.exactBin .shiftRight 11 10 7) : Code .exact 240) s2 s3 1 :=
-    exec_exactBin (by simp +decide [s2, s1, h7, wIdx]) (by fits)
-  set s4 := s3.set 11 (tBase + wIdx)
-  have e4 : Exec w (.op (.exactBin .add 11 4 11) : Code .exact 240) s3 s4 1 :=
-    exec_exactBin (by simp +decide [s3, s2, s1, h4, tBase]) (by fits)
-  set s5 := s4.set 12 word
-  have e5 : Exec w (.op (.load 12 11) : Code .exact 240) s4 s5 1 := by
-    simpa +decide [s5, s4, s3, s2, s1, word] using
-      (Exec.load (B := .exact) (w := w) (d := 12) (a := 11) (x := s4))
-  set s6 := s5.set 11 subIdx
-  have e6 : Exec w (.op (.exactBin .and 11 10 8) : Code .exact 240) s5 s6 1 :=
-    exec_exactBin (by simp +decide [s5, s4, s3, s2, s1, h8, subIdx]) hfit_sub
-  set s7 := s6.set 11 sh
-  have e7 : Exec w (.op (.exactBin .mul 11 11 9) : Code .exact 240) s6 s7 1 :=
-    exec_exactBin (by simp +decide [s6, s5, s4, s3, s2, s1, h9, sh]) hfit_sh
-  set s8 := s7.set 12 (word >>> sh)
-  have e8 : Exec w (.op (.exactBin .shiftRight 12 12 11) : Code .exact 240) s7 s8 1 :=
-    exec_exactBin (by simp +decide [s7, s6, s5]) hfit_word_shr
-  set s9 := s8.set 12 (clmul u v)
-  have e9 : Exec w (.op (.exactBin .and 12 12 18) : Code .exact 240) s8 s9 1 :=
-    exec_exactBin
-      (by
-        dsimp only [BinOp.evalExact]
-        have h12 : s8.regs 12 = word >>> sh := rfl
-        have h18' : s8.regs 18 = 2 ^ (2 * c) - 1 := by
-          simp +decide [s8, s7, s6, s5, s4, s3, s2, s1, h18]
-        rw [h12, h18', hlimb_eq])
-      (by fits)
-  set s10 := s9.set 13 lo
-  have e10 : Exec w (.op (.exactBin .and 13 12 6) : Code .exact 240) s9 s10 1 :=
-    exec_exactBin (by simp +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, h6, lo])
-      (lt_trans hlo_lt hpow_c_lt)
-  set s11 := s10.set 14 hi_part
-  have e11 : Exec w (.op (.exactBin .shiftRight 14 12 5) : Code .exact 240) s10 s11 1 :=
-    exec_exactBin (by simp +decide [s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, h5, hi_part])
-      (lt_trans hhi_lt hpow_c_lt)
-  have hs11_prod : ∀ d, s11.regs (prodReg d) = x.regs (prodReg d) := by
-    intro d
-    dsimp only [s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Data.set]
-    repeat rw [Function.update_of_ne (prodReg_ne_low d (by decide))]
-  set s12 := s11.set (prodReg (i + m)) (old0 ^^^ lo)
-  have e12 : Exec w (.op (.exactBin .xor (prodReg (i + m)) (prodReg (i + m)) 13) : Code .exact 240)
-      s11 s12 1 :=
-    exec_exactBin
-      (by
-        dsimp only [BinOp.evalExact]
-        rw [hs11_prod (i + m)]
-        have h13 : s11.regs 13 = lo := by simp +decide [s11, s10]
-        rw [h13])
-      (lt_trans hnew0_lt hpow_c_lt)
-  set s13 := s12.set (prodReg (i + m + 1)) (old1 ^^^ hi_part)
-  have hne_pair : prodReg (i + m + 1) ≠ prodReg (i + m) :=
-    prodReg_ne_of_ne (by omega) (by omega) (by omega)
-  have e13 : Exec w
-      (.op (.exactBin .xor (prodReg (i + m + 1)) (prodReg (i + m + 1)) 14) : Code .exact 240)
-      s12 s13 1 :=
-    exec_exactBin
-      (by
-        dsimp only [s12, Data.set, BinOp.evalExact]
-        rw [Function.update_of_ne hne_pair, hs11_prod (i + m + 1),
-          Function.update_of_ne (prodReg_ne_low (i + m) (r := 14) (by decide)).symm]
-        have h14 : s11.regs 14 = hi_part := by simp +decide [s11]
-        rw [h14])
-      (lt_trans hnew1_lt hpow_c_lt)
-  have hexec :=
-    e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq (e7.seq (e8.seq (e9.seq (e10.seq
-      (e11.seq (e12.seq e13)))))))))))
-  have hs11_inv : ClmulInv base w w₀ b b' k r_val acc_val s11 := by
-    have i1 := hinv.set_scratch (r := 10) (by decide) (by decide) (u <<< c)
-    have i2 := i1.set_scratch (r := 10) (by decide) (by decide) idx
-    have i3 := i2.set_scratch (r := 11) (by decide) (by decide) wIdx
-    have i4 := i3.set_scratch (r := 11) (by decide) (by decide) (tBase + wIdx)
-    have i5 := i4.set_scratch (r := 12) (by decide) (by decide) word
-    have i6 := i5.set_scratch (r := 11) (by decide) (by decide) subIdx
-    have i7 := i6.set_scratch (r := 11) (by decide) (by decide) sh
-    have i8 := i7.set_scratch (r := 12) (by decide) (by decide) (word >>> sh)
-    have i9 := i8.set_scratch (r := 12) (by decide) (by decide) (clmul u v)
-    have i10 := i9.set_scratch (r := 13) (by decide) (by decide) lo
-    exact i10.set_scratch (r := 14) (by decide) (by decide) hi_part
-  have hs13_inv : ClmulInv base w w₀ b b' k r_val acc_val s13 :=
-    (hs11_inv.set_prodReg (i + m) (old0 ^^^ lo)).set_prodReg (i + m + 1) (old1 ^^^ hi_part)
-  let f := fun d => x.regs (prodReg d)
-  have hs13_fn : ∀ d < 2 * L, s13.regs (prodReg d) =
-      Function.update (Function.update f (i + m) (f (i + m) ^^^ lo))
-        (i + m + 1) (f (i + m + 1) ^^^ hi_part) d := by
-    intro d hd
-    dsimp only [s13, s12, Data.set, f]
-    rcases eq_or_ne d (i + m + 1) with rfl | hne1
-    · rw [Function.update_self, Function.update_self]
-    · rw [Function.update_of_ne (prodReg_ne_of_ne (by omega) (by omega) hne1),
-        Function.update_of_ne hne1]
-      rcases eq_or_ne d (i + m) with rfl | hne0
-      · rw [Function.update_self, Function.update_self]
-      · rw [Function.update_of_ne (prodReg_ne_of_ne (by omega) (by omega) hne0),
-          Function.update_of_ne hne0, hs11_prod d]
-  refine ⟨s13, hexec, hs13_inv, fun d hd => ?_, ?_, rfl⟩
-  · rw [hs13_fn d hd]
-    rcases eq_or_ne d (i + m + 1) with rfl | hne1
-    · rw [Function.update_self]; exact hnew1_lt
-    · rw [Function.update_of_ne hne1]
-      rcases eq_or_ne d (i + m) with rfl | hne0
-      · rw [Function.update_self]; exact hnew0_lt
-      · rw [Function.update_of_ne hne0]; exact hprod_lt d hd
-  · rw [packLimbs_congr hs13_fn]
-    exact packLimbs_update_pair hc_pos f him1_lt hcl_lt
+  have hfit_new0 : Fits w (old0 ^^^ lo) := lt_trans hnew0_lt hpow_c_lt
+  have hfit_new1 : Fits w (old1 ^^^ hi_part) := lt_trans hnew1_lt hpow_c_lt
+  change x.regs 4 = tBase at h4
+  unfold innerClmulStep
+  wram_exec [h4, h5, h6, h7, h8, h9, h18, hu_reg, hv_reg, ← hidx, ← hwIdx, ← hsubIdx, ← hsh,
+    ← hword, hlimb_eq, ← hlo, ← hhi_part, ← hold0, ← hold1]
+  refine ⟨hinv.congr fun r hr => by wram_simp, fun d hd => ?_, ?_, rfl⟩
+  · rcases eq_or_ne d (i + m + 1) with rfl | hne1
+    · wram_simp
+      exact hnew1_lt
+    · rcases eq_or_ne d (i + m) with rfl | hne0
+      · wram_simp
+        exact hnew0_lt
+      · wram_simp
+        exact hprod_lt d hd
+  · rw [packLimbs_congr (g := Function.update
+        (Function.update (fun d => x.regs (prodReg d)) (i + m) (old0 ^^^ lo))
+        (i + m + 1) (old1 ^^^ hi_part)) fun d hd => by
+      rcases eq_or_ne d (i + m + 1) with rfl | hne1
+      · rw [Function.update_self]; wram_simp
+      · rw [Function.update_of_ne hne1]
+        rcases eq_or_ne d (i + m) with rfl | hne0
+        · rw [Function.update_self]; wram_simp
+        · rw [Function.update_of_ne hne0]; wram_simp]
+    exact packLimbs_update_pair hc_pos _ him1_lt hcl_lt
 
 private theorem outerClmulStep_exec {base w w₀ b b' k r_val acc_val i : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -1940,7 +1797,7 @@ private theorem clmulLimbsCode_exec {base w w₀ b b' k r_val acc_val : ℕ}
   refine ⟨y, hy_exec, hy_inv.1, fun d hd => ?_, hy_mem⟩
   rw [← hy_pack, getLimb_packLimbs_of_lt c hd (hy_lt d hd)]
 
-private theorem getLimb_eq_zero_of_lt {c n d P : ℕ} (hP : P < 2 ^ (n * c)) (hd : n ≤ d) :
+theorem getLimb_eq_zero_of_lt {c n d P : ℕ} (hP : P < 2 ^ (n * c)) (hd : n ≤ d) :
     getLimb c P d = 0 := by
   dsimp only [getLimb]
   have hle : n * c ≤ d * c := Nat.mul_le_mul_right c hd
@@ -1995,11 +1852,12 @@ private theorem reduceAddStep_exec {base w w₀ b b' k r_val P_val : ℕ}
   intro t c L L₀ newAcc
   have hL_eq : L = 2 * L₀ := rfl
   have hL_le : L ≤ 54 := reducedLimbCount_le t
-  change m < L at hm
+  change m < 2 * L₀ at hm
+  change ∀ d < 2 * (2 * L₀), x.regs (prodReg d) = getLimb c P_val d at hprod
   have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
   have hpow_c_lt : 2 ^ c < 2 ^ w :=
     lt_of_le_of_lt (Nat.pow_le_pow_right two_pos (by omega : c ≤ 2 * c)) hpow_2c_lt
-  set off := 1 + (m + 2 * L₀ * coeffIdx.val)
+  set off := 1 + (m + 2 * L₀ * coeffIdx.val) with hoff
   have hoff_lt_seed : off < seedWords w₀ b b' k := by
     dsimp only [off, seedWords]
     change 1 + (m + L * coeffIdx.val) < 1 + k * L
@@ -2019,135 +1877,45 @@ private theorem reduceAddStep_exec {base w w₀ b b' k r_val P_val : ℕ}
     rw [show base + (1 + (m + 2 * L₀ * coeffIdx.val)) = base + 1 + (m + L * coeffIdx.val) by
       rw [hL_eq]; ring]
     exact hrep
-  set s1 := x.set 10 off
-  have e1 : Exec w (.op (.const 10 off) : Code .exact 240) x s1 1 := Exec.const hfit_off
-  set s2 := s1.set 10 (base + off)
-  have e2 : Exec w (.op (.exactBin .add 10 0 10) : Code .exact 240) s1 s2 1 :=
-    exec_exactBin (by simp +decide [s1, h0]) hfit_addr
-  set s3 := s2.set 11 seedLimb
-  have e3 : Exec w (.op (.load 11 10) : Code .exact 240) s2 s3 1 := by
-    simpa +decide [s3, s2, s1, hmem_eq] using
-      (Exec.load (B := .exact) (w := w) (d := 11) (a := 10) (x := s2))
-  have hs3_hc : HornerConsts base w w₀ b b' k r_val s3 :=
-    ((hc.set_scratch (r := 10) (by decide) (by decide) off).set_scratch
-      (r := 10) (by decide) (by decide) (base + off)).set_scratch
-      (r := 11) (by decide) (by decide) seedLimb
-  have hs3_prod : ∀ d < 2 * L, s3.regs (prodReg d) = getLimb c P_val d := by
-    intro d hd
-    dsimp only [s3, s2, s1, Data.set]
-    repeat rw [Function.update_of_ne (prodReg_ne_low d (by decide))]
-    exact hprod d hd
-  have hs3_acc : ∀ i, s3.regs (accReg i) = x.regs (accReg i) := by
-    intro i
-    dsimp only [s3, s2, s1, Data.set]
-    repeat rw [Function.update_of_ne (accReg_ne_low i (by decide))]
   set redLimb := getLimb c (reduceTrinomialCode t P_val) m
-  have hmid : ∃ s4 : Data 240,
-      Exec w (if m < L₀ then
-          .seq (.op (.exactBin .xor 12 (prodReg m) (prodReg (3 * L₀ + m))))
-               (.op (.exactBin .xor 12 12 (prodReg (2 * L₀ + m))))
-        else
-          .seq (.op (.exactBin .xor 12 (prodReg m) (prodReg (L₀ + m))))
-               (.op (.copy 12 12))) s3 s4 2 ∧
-      HornerConsts base w w₀ b b' k r_val s4 ∧
-      s4.regs 11 = seedLimb ∧
-      s4.regs 12 = redLimb ∧
-      (∀ d < 2 * L, s4.regs (prodReg d) = getLimb c P_val d) ∧
-      (∀ i < m, s4.regs (accReg i) = x.regs (accReg i)) ∧
-      s4.mem = x.mem := by
-    by_cases hm_low : m < L₀
-    · rw [ite_eq_left hm_low]
-      set v1 := getLimb c P_val m ^^^ getLimb c P_val (3 * L₀ + m)
-      have hv1_lt : v1 < 2 ^ c := Nat.xor_lt_two_pow (getLimb_lt _ _ _) (getLimb_lt _ _ _)
-      have hred_eq : v1 ^^^ getLimb c P_val (2 * L₀ + m) = redLimb :=
-        (getLimb_reduceTrinomialCode_low t P_val hm_low).symm
-      have hred_lt : redLimb < 2 ^ c := getLimb_lt _ _ _
-      set s4a := s3.set 12 v1
-      have e4a : Exec w
-          (.op (.exactBin .xor 12 (prodReg m) (prodReg (3 * L₀ + m))) : Code .exact 240)
-          s3 s4a 1 :=
-        exec_exactBin
-          (by
-            dsimp only [BinOp.evalExact]
-            rw [hs3_prod m (by omega), hs3_prod (3 * L₀ + m) (by omega)])
-          (lt_trans hv1_lt hpow_c_lt)
-      set s4b := s4a.set 12 redLimb
-      have e4b : Exec w
-          (.op (.exactBin .xor 12 12 (prodReg (2 * L₀ + m))) : Code .exact 240)
-          s4a s4b 1 :=
-        exec_exactBin
-          (by
-            dsimp only [s4a, Data.set, BinOp.evalExact]
-            rw [Function.update_self,
-              Function.update_of_ne (prodReg_ne_low (2 * L₀ + m) (r := 12) (by decide)),
-              hs3_prod (2 * L₀ + m) (by omega), hred_eq])
-          (lt_trans hred_lt hpow_c_lt)
-      refine ⟨s4b, e4a.seq e4b,
-        (hs3_hc.set_scratch (r := 12) (by decide) (by decide) v1).set_scratch
-          (r := 12) (by decide) (by decide) redLimb,
-        by simp +decide [s4b, s4a, s3],
-        by simp +decide [s4b],
-        fun d hd => ?_, fun i _ => ?_, rfl⟩
-      · dsimp only [s4b, s4a, Data.set]
-        repeat rw [Function.update_of_ne (prodReg_ne_low d (by decide))]
-        exact hs3_prod d hd
-      · dsimp only [s4b, s4a, Data.set]
-        repeat rw [Function.update_of_ne (accReg_ne_low i (by decide))]
-        exact hs3_acc i
-    · rw [ite_eq_right hm_low]
-      have hm_ge : L₀ ≤ m := le_of_not_gt hm_low
-      have hm'_lt : m - L₀ < L₀ := by omega
-      change P_val < 2 ^ ((2 * L) * c) at hP_lt
-      have hzero4 : getLimb c P_val (4 * L₀ + (m - L₀)) = 0 :=
-        getLimb_eq_zero_of_lt hP_lt (by omega)
-      have hred_eq : getLimb c P_val m ^^^ getLimb c P_val (L₀ + m) = redLimb := by
-        have hhigh : getLimb c (reduceTrinomialCode t P_val) (L₀ + (m - L₀)) =
-            (getLimb c P_val (L₀ + (m - L₀)) ^^^ getLimb c P_val (4 * L₀ + (m - L₀))) ^^^
-              getLimb c P_val (2 * L₀ + (m - L₀)) :=
-          getLimb_reduceTrinomialCode_high t P_val hm'_lt
-        rw [Nat.add_sub_of_le hm_ge,
-          show 2 * L₀ + (m - L₀) = L₀ + m by omega,
-          hzero4, Nat.xor_zero] at hhigh
-        exact hhigh.symm
-      have hred_lt : redLimb < 2 ^ c := getLimb_lt _ _ _
-      set s4a := s3.set 12 redLimb
-      have e4a : Exec w
-          (.op (.exactBin .xor 12 (prodReg m) (prodReg (L₀ + m))) : Code .exact 240)
-          s3 s4a 1 :=
-        exec_exactBin
-          (by
-            dsimp only [BinOp.evalExact]
-            rw [hs3_prod m (by omega), hs3_prod (L₀ + m) (by omega), hred_eq])
-          (lt_trans hred_lt hpow_c_lt)
-      have e4b : Exec w (.op (.copy 12 12) : Code .exact 240) s4a s4a 1 :=
-        exec_copy_self w 12 s4a
-      refine ⟨s4a, e4a.seq e4b,
-        hs3_hc.set_scratch (r := 12) (by decide) (by decide) redLimb,
-        by simp +decide [s4a, s3],
-        by simp +decide [s4a],
-        fun d hd => ?_, fun i _ => ?_, rfl⟩
-      · dsimp only [s4a, Data.set]
-        rw [Function.update_of_ne (prodReg_ne_low d (by decide))]
-        exact hs3_prod d hd
-      · dsimp only [s4a, Data.set]
-        rw [Function.update_of_ne (accReg_ne_low i (by decide))]
-        exact hs3_acc i
-  obtain ⟨s4, e4, hs4_hc, hs4_11, hs4_12, hs4_prod, hs4_acc, hs4_mem⟩ := hmid
+  have hfit_red : Fits w redLimb := lt_trans (getLimb_lt _ _ _) hpow_c_lt
   have hnew_eq : redLimb ^^^ seedLimb = getLimb c newAcc m :=
     (getLimb_xor c (reduceTrinomialCode t P_val) sBot m).symm
-  have hnew_lt : getLimb c newAcc m < 2 ^ c := getLimb_lt _ _ _
-  set s5 := s4.set (accReg m) (getLimb c newAcc m)
-  have e5 : Exec w (.op (.exactBin .xor (accReg m) 12 11) : Code .exact 240) s4 s5 1 :=
-    exec_exactBin (by simp +decide [hs4_12, hs4_11, hnew_eq]) (lt_trans hnew_lt hpow_c_lt)
-  refine ⟨s5, e1.seq (e2.seq (e3.seq (e4.seq e5))),
-    hs4_hc.set_accReg m (getLimb c newAcc m), fun d hd => ?_,
-    Function.update_self _ _ _, fun i hi => ?_, hs4_mem⟩
-  · dsimp only [s5, Data.set]
-    rw [Function.update_of_ne (accReg_ne_prodReg m d).symm]
-    exact hs4_prod d hd
-  · dsimp only [s5, Data.set]
-    rw [Function.update_of_ne (accReg_ne_of_ne (by omega) (by omega) (ne_of_lt hi))]
-    exact hs4_acc i hi
+  have hfit_new : Fits w (getLimb c newAcc m) := lt_trans (getLimb_lt _ _ _) hpow_c_lt
+  have hp_m : x.regs (prodReg m) = getLimb c P_val m := hprod m (by omega)
+  unfold reduceAddStep
+  split_ifs with hm_low
+  · set v1 := getLimb c P_val m ^^^ getLimb c P_val (3 * L₀ + m) with hv1
+    have hfit_v1 : Fits w v1 :=
+      lt_trans (Nat.xor_lt_two_pow (getLimb_lt _ _ _) (getLimb_lt _ _ _)) hpow_c_lt
+    have hred_eq : v1 ^^^ getLimb c P_val (2 * L₀ + m) = redLimb :=
+      (getLimb_reduceTrinomialCode_low t P_val hm_low).symm
+    have hp_3 : x.regs (prodReg (3 * L₀ + m)) = getLimb c P_val (3 * L₀ + m) :=
+      hprod (3 * L₀ + m) (by omega)
+    have hp_2 : x.regs (prodReg (2 * L₀ + m)) = getLimb c P_val (2 * L₀ + m) :=
+      hprod (2 * L₀ + m) (by omega)
+    wram_exec [h0, ← hoff, hmem_eq, hp_m, hp_3, ← hv1, hp_2, hred_eq, hnew_eq]
+    exact ⟨hc.congr fun r hr => by wram_simp, fun d hd => by wram_simp [hprod d hd],
+      by wram_simp, fun i hi => by wram_simp, rfl⟩
+  · have hm_ge : L₀ ≤ m := le_of_not_gt hm_low
+    have hm'_lt : m - L₀ < L₀ := by omega
+    change P_val < 2 ^ ((2 * L) * c) at hP_lt
+    have hzero4 : getLimb c P_val (4 * L₀ + (m - L₀)) = 0 :=
+      getLimb_eq_zero_of_lt hP_lt (by omega)
+    have hred_eq : getLimb c P_val m ^^^ getLimb c P_val (L₀ + m) = redLimb := by
+      have hhigh : getLimb c (reduceTrinomialCode t P_val) (L₀ + (m - L₀)) =
+          (getLimb c P_val (L₀ + (m - L₀)) ^^^ getLimb c P_val (4 * L₀ + (m - L₀))) ^^^
+            getLimb c P_val (2 * L₀ + (m - L₀)) :=
+        getLimb_reduceTrinomialCode_high t P_val hm'_lt
+      rw [Nat.add_sub_of_le hm_ge,
+        show 2 * L₀ + (m - L₀) = L₀ + m by omega,
+        hzero4, Nat.xor_zero] at hhigh
+      exact hhigh.symm
+    have hp_1 : x.regs (prodReg (L₀ + m)) = getLimb c P_val (L₀ + m) :=
+      hprod (L₀ + m) (by omega)
+    wram_exec [h0, ← hoff, hmem_eq, hp_m, hp_1, hred_eq, hnew_eq]
+    exact ⟨hc.congr fun r hr => by wram_simp, fun d hd => by wram_simp [hprod d hd],
+      by wram_simp, fun i hi => by wram_simp, rfl⟩
 
 private theorem reduceAddCode_exec {base w w₀ b b' k r_val P_val : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -2332,63 +2100,28 @@ private theorem packOutStep_exec {w t b' evalVal : ℕ}
       _ ≤ w := hb'_le
       _ < 2 ^ w := Nat.lt_two_pow_self
   set limb := getLimb c evalVal m
-  set masked := limb &&& reducedOutMask c b' m
-  set shifted := masked <<< reducedOutShift c b' m
+  set masked := limb &&& reducedOutMask c b' m with hmasked
+  set shifted := masked <<< reducedOutShift c b' m with hshifted
   set next2 := packLimbs c (m + 1) (getLimb c evalVal) &&& (2 ^ b' - 1)
   have hmasked_lt : masked < 2 ^ c :=
     lt_of_le_of_lt Nat.and_le_right (reducedOutMask_lt c b' m)
-  have hshifted_lt : shifted < 2 ^ w := by
-    dsimp only [shifted, masked, reducedOutMask, reducedOutShift]
-    split_ifs with hlt
-    · have hand : limb &&& (2 ^ min c (b' - m * c) - 1) < 2 ^ (b' - m * c) := by
-        rw [Nat.and_two_pow_sub_one_eq_mod]
-        exact (Nat.mod_lt _ (Nat.two_pow_pos _)).trans_le
-          (Nat.pow_le_pow_right two_pos (Nat.min_le_right _ _))
-      rw [Nat.shiftLeft_eq]
-      calc (limb &&& (2 ^ min c (b' - m * c) - 1)) * 2 ^ (m * c)
-          < 2 ^ (b' - m * c) * 2 ^ (m * c) :=
-            Nat.mul_lt_mul_of_pos_right hand (Nat.two_pow_pos _)
-        _ = 2 ^ b' := by rw [← pow_add, Nat.sub_add_cancel (le_of_lt hlt)]
-        _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hb'_le
-    · have hmin : min c (b' - m * c) = 0 := by omega
-      rw [hmin]
-      simp only [pow_zero, Nat.sub_self, Nat.and_zero, Nat.zero_shiftLeft]
-      exact Nat.two_pow_pos w
   have hnext2_eq : x.regs 2 ^^^ shifted = next2 := by
     rw [h2, ← packLimbs_and_mask_succ c b' m (getLimb c evalVal)]
   have hnext2_lt : next2 < 2 ^ w := by
     calc next2 < 2 ^ b' := and_two_pow_sub_one_lt _ b'
       _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hb'_le
-  set s1 := x.set 10 (reducedOutMask c b' m)
-  have e1 : Exec w (.op (.const 10 (reducedOutMask c b' m)) : Code .exact 240) x s1 1 :=
-    Exec.const hfit_mask
-  set s2 := s1.set 11 (reducedOutShift c b' m)
-  have e2 : Exec w (.op (.const 11 (reducedOutShift c b' m)) : Code .exact 240) s1 s2 1 :=
-    Exec.const hfit_shift
-  set s3 := s2.set 12 masked
-  have e3 : Exec w (.op (.exactBin .and 12 (accReg m) 10) : Code .exact 240) s2 s3 1 :=
-    exec_exactBin
-      (by
-        dsimp only [s2, s1, Data.set, BinOp.evalExact]
-        rw [Function.update_of_ne (accReg_ne_low m (by decide)),
-          Function.update_of_ne (accReg_ne_low m (by decide)),
-          Function.update_of_ne (by decide : (10 : Fin 240) ≠ 11),
-          Function.update_self, hacc m hm])
-      (lt_trans hmasked_lt hpow_c_lt)
-  set s4 := s3.set 12 shifted
-  have e4 : Exec w (.op (.exactBin .shiftLeft 12 12 11) : Code .exact 240) s3 s4 1 :=
-    exec_exactBin (by simp +decide [s3, s2, shifted]) hshifted_lt
-  set s5 := s4.set 2 next2
-  have e5 : Exec w (.op (.exactBin .xor 2 2 12) : Code .exact 240) s4 s5 1 :=
-    exec_exactBin (by simp +decide [s4, s3, s2, s1, hnext2_eq]) hnext2_lt
-  refine ⟨s5, e1.seq (e2.seq (e3.seq (e4.seq e5))),
-    by simp +decide [s5, s4, s3, s2, s1],
-    by simp +decide [s5, s4, s3, s2, s1],
-    by simp +decide [s5],
-    fun i hi => ?_, rfl⟩
-  dsimp only [s5, s4, s3, s2, s1, Data.set]
-  repeat rw [Function.update_of_ne (accReg_ne_low i (by decide))]
-  exact hacc i hi
+  have hfit_masked : Fits w masked := lt_trans hmasked_lt hpow_c_lt
+  have hfit_shifted : Fits w shifted :=
+    (and_reducedOutMask_shiftLeft_lt c b' m limb).trans_le
+      (Nat.pow_le_pow_right two_pos (max_le hb'_le (by omega)))
+  have hfit_next2 : Fits w next2 := hnext2_lt
+  have hacc_m : x.regs (accReg m) = limb := hacc m hm
+  have hL_le : L ≤ 54 := reducedLimbCount_le t
+  change ∀ i < L, x.regs (accReg i) = getLimb c evalVal i at hacc
+  unfold packOutStep
+  wram_exec [hacc_m, ← hmasked, ← hshifted, hnext2_eq]
+  exact ⟨by wram_simp, by wram_simp, by wram_simp,
+    fun i hi => by wram_simp [hacc i hi], rfl⟩
 
 private theorem packOutCode_exec {w t b' evalVal : ℕ}
     (hc_lt : 2 * reducedChunkBits t < w)
@@ -2405,30 +2138,24 @@ private theorem packOutCode_exec {w t b' evalVal : ℕ}
       y.mem = x.mem := by
   intro L
   set c := reducedChunkBits t
-  have hfit_0 : Fits w 0 := Nat.two_pow_pos w
-  set s1 := x.set 2 0
-  have e1 : Exec w (.op (.const 2 0) : Code .exact 240) x s1 1 := Exec.const hfit_0
   let P (n : ℕ) (z : Data 240) : Prop :=
     z.regs 0 = x.regs 0 ∧
     z.regs 1 = x.regs 1 ∧
     z.regs 2 = packLimbs c n (getLimb c evalVal) &&& (2 ^ b' - 1) ∧
     (∀ i < L, z.regs (accReg i) = getLimb c evalVal i) ∧
     z.mem = x.mem
-  have hP0 : P 0 s1 := by
-    refine ⟨by simp +decide [s1], by simp +decide [s1], by simp +decide [s1, packLimbs],
-      fun i hi => ?_, rfl⟩
-    dsimp only [s1, Data.set]
-    rw [Function.update_of_ne (accReg_ne_low i (by decide))]
-    exact hacc i hi
-  obtain ⟨y, e2, hy0, hy1, hy2, _, hymem⟩ :=
-    seqAsc_exec (packOutStep c b') 5 P L
-      (fun m hm z ⟨hz0, hz1, hz2, hz_acc, hz_mem⟩ => by
-        obtain ⟨z', hz'_exec, hz'0, hz'1, hz'2, hz'_acc, hz'_mem⟩ :=
-          packOutStep_exec hc_lt hb'_le m hm z hz2 hz_acc
-        exact ⟨z', hz'_exec, hz'0.trans hz0, hz'1.trans hz1, hz'2, hz'_acc, hz'_mem.trans hz_mem⟩)
-      hP0
-  refine ⟨y, e1.seq e2, hy0, hy1, ?_, hymem⟩
-  rw [hy2, packLimbs_getLimb (reducedChunkBits_pos t) L heval_lt]
+  unfold packOutCode
+  wram_exec
+  wram_call (seqAsc_exec (w := w) (packOutStep c b') 5 P L
+    (fun m hm z ⟨hz0, hz1, hz2, hz_acc, hz_mem⟩ => by
+      obtain ⟨z', hz'_exec, hz'0, hz'1, hz'2, hz'_acc, hz'_mem⟩ :=
+        packOutStep_exec hc_lt hb'_le m hm z hz2 hz_acc
+      exact ⟨z', hz'_exec, hz'0.trans hz0, hz'1.trans hz1, hz'2, hz'_acc, hz'_mem.trans hz_mem⟩)
+    ⟨by wram_simp, by wram_simp, by wram_simp [packLimbs, Nat.zero_and],
+      fun i hi => by wram_simp [hacc i hi], rfl⟩)
+    with y ⟨hy0, hy1, hy2, _, hymem⟩
+  exact ⟨by omega, hy0, hy1, by rw [hy2, packLimbs_getLimb (reducedChunkBits_pos t) L heval_lt],
+    hymem⟩
 
 /-- Complete deterministic Word-RAM hash evaluation program `evalCode w w₀ b b' k` on `Data 240`:
 reduces `reg 1` via Stage 1 (`reduceKeyCode`), unpacks limbs and sets up Horner constants via

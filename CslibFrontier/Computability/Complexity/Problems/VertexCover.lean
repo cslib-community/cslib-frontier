@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Vertex covers
@@ -267,10 +268,7 @@ private theorem computableInPolyTime_isDeclaredEdge :
 @[fun_prop]
 theorem computableInPolyTime_declaredEdges :
     ComputableInPolyTime declaredEdges encGraph (encList (encPair encNat encNat)) := by
-  have hE : ComputableInPolyTime (fun G : Graph => G.edges) encGraph
-      (encList (encPair encNat encNat)) := by
-    fun_prop
-  exact filterWithInput hE computableInPolyTime_isDeclaredEdge
+  fun_prop [declaredEdges]
 
 /-- Whether the edge `e` joins two distinct declared vertices of `G` and neither endpoint is in
 `C`. -/
@@ -328,10 +326,7 @@ private theorem computableInPolyTime_isUncoveredEdge :
 theorem computableInPolyTime_uncoveredEdges :
     ComputableInPolyTime (fun p : Graph × List ℕ => uncoveredEdges p.1 p.2)
       (encPair encGraph (encList encNat)) (encList (encPair encNat encNat)) := by
-  have hE : ComputableInPolyTime (fun p : Graph × List ℕ => p.1.edges)
-      (encPair encGraph (encList encNat)) (encList (encPair encNat encNat)) := by
-    fun_prop
-  exact filterWithInput hE computableInPolyTime_isUncoveredEdge
+  fun_prop [uncoveredEdges]
 
 /-- Testing whether `C` is a cover of `G` is polynomial-time. -/
 @[fun_prop]
@@ -361,8 +356,7 @@ theorem isVerifier :
     (fun x => by
       have := x.graph.length_vertices_le_encGraph
       rw [encVertexCoverInstance_apply]
-      simp only [Polynomial.eval_X, length_encPair]
-      omega)
+      enc_len [Polynomial.eval_X])
     fun x l hl _ => ?_
   simp only [Bool.and_eq_true, decide_eq_true_eq, isCover_eq_true_iff, List.mem_toFinset,
     List.toFinset_card_of_nodup hl, and_comm]
@@ -371,11 +365,7 @@ theorem isVerifier :
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encVertexCoverInstance encBits) encBool := by
-  refine computableInPolyTime_subsetVerifier (encγ := encNat)
-    (by fun_prop)
-    (bool_and' ?_ (computableInPolyTime_isCover.comp
-      ((encVertexCoverInstance_graph_polyTime (fst _ _)).prod (snd _ _))))
-  exact ((length_list_binary encNat).comp (snd _ _)).decide_eq' (by fun_prop)
+  fun_prop [verifier]
 
 /-- `VertexCover` belongs to `NP`. -/
 theorem mem_NP : VertexCover ∈ NP encVertexCoverInstance :=

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Hybrids
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Sum
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 import CslibFrontier.Tactic.PMFSwap
@@ -169,7 +170,7 @@ theorem coupledFilterHandler_eq_interpret (S : Scheme PK SK M R CT K)
       from congrFun h st
     rcases x with ⟨_ | _, m, c⟩
     · simp only [coupledFilterHandler, simFilterDispatch, coupledHashH, coupledProgram,
-        ROQuery.dispatch, OracleComp.interpret_bind, OracleComp.interpret_query]
+        ROQuery.dispatch, interp_norm]
       refine congrArg (simHashG S.pke.sampleCoins m >>= ·) (funext fun r => ?_)
       split_ifs <;> exact (OracleComp.interpret_query _ _).symm
     · exact (OracleComp.interpret_query S.coupledLazyOracle (.inl (.inr (true, m, c)))).symm
@@ -181,8 +182,7 @@ theorem coupledFilterHandler_eq_interpret (S : Scheme PK SK M R CT K)
     · simp only [coupledFilterHandler, simFilterDispatch, coupledProgram, ROQuery.dispatch, hc,
         ↓reduceIte, filterDecaps]
       cases d st.gCache c <;>
-        simp only [Bool.cond_true, Bool.cond_false, OracleComp.interpret_bind,
-          OracleComp.interpret_query, OracleComp.interpret_pure] <;> rfl
+        simp only [Bool.cond_true, Bool.cond_false, interp_norm] <;> rfl
 
 /-- Answering the coupled oracles from a complete table `T` turns `coupledProgram` into the
 stateless dispatcher that reads `G`, `coupledH` and, for accepted ciphertexts, `Hq` from `T`. -/
@@ -198,8 +198,7 @@ theorem interpret_coupledProgram (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK)
   | G m => exact OracleComp.interpret_query (fun q => PMF.pure (T q)) (.inl (.inl m))
   | H x =>
     rcases x with ⟨_ | _, m, c⟩
-    · simp only [coupledH, coupledProgram, ROQuery.dispatch, OracleComp.interpret_bind,
-        OracleComp.interpret_query, PMF.monad_bind_eq_bind, PMF.pure_bind]
+    · simp only [coupledH, coupledProgram, ROQuery.dispatch, interp_norm, pmf_norm]
       split_ifs <;> exact OracleComp.interpret_query _ _
     · exact OracleComp.interpret_query (fun q => PMF.pure (T q)) (.inl (.inr (true, m, c)))
   | decaps c =>
@@ -207,9 +206,7 @@ theorem interpret_coupledProgram (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK)
     · simp [coupledProgram, hc]
     · simp only [coupledProgram, ROQuery.dispatch, hc, ↓reduceIte]
       cases accept c <;>
-        simp only [Bool.cond_true, Bool.cond_false, OracleComp.interpret_bind,
-          OracleComp.interpret_query, OracleComp.interpret_pure, PMF.monad_bind_eq_bind,
-          PMF.monad_pure_eq_pure, PMF.pure_bind]
+        simp only [Bool.cond_true, Bool.cond_false, interp_norm, pmf_norm]
 
 /-- Running a program under `coupledHandler` has the law of completing the three caches into
 tables `G`, `Hraw` and `Hq` and running it under `eagerCoupledHandler`. -/
@@ -281,8 +278,7 @@ theorem eval_coupledGame_eq_eagerCoupledGame [Fintype M] [Finite R] [Fintype CT]
     simp only [← hP]
     simp only [eval_run_coupledHandler_eq_eager]
     simp only [RandomOracle.complete_ofList_singleton, RandomOracle.ofList_nil,
-      RandomOracle.complete_empty, OracleComp.interpret_bind, OracleComp.interpret_query,
-      eagerCoupledHandler, pmf_norm, ROQuery.dispatch]
+      RandomOracle.complete_empty, eagerCoupledHandler, interp_norm, pmf_norm, ROQuery.dispatch]
     pmf_swap
   simp only [hstep]
   pmf_hoist (ProbComp.eval S.sampleMsg)

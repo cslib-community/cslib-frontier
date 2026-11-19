@@ -113,19 +113,26 @@ theorem eval_runClosedConfigFrom_seq (first : MultiTapePTM k Symbol State₀)
       intro result hresult
       rw [OracleComp.run_interpret_stateless, PMF.monad_map_eq_map] at hresult
       obtain ⟨final, hfinal, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
-      exact hfirst final hfinal) (by
+      exact hfirst final (by
+        simpa only [runClosedConfigFrom, ProbComp.eval,
+          OracleComp.evalWith_eq_interpret] using hfinal)) (by
       intro result hresult final hfinal
       rw [OracleComp.run_interpret_stateless, PMF.monad_map_eq_map] at hresult hfinal
       obtain ⟨source, hsource, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
       obtain ⟨target, htarget, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
-      exact hsecond source hsource target htarget)
+      exact hsecond source (by
+        simpa only [runClosedConfigFrom, ProbComp.eval,
+          OracleComp.evalWith_eq_interpret] using hsource) target (by
+        simpa only [runClosedConfigFrom, ProbComp.eval,
+          OracleComp.evalWith_eq_interpret] using htarget))
   simp only [OracleComp.run_interpret_stateless] at h
   have hout := congrArg (PMF.map Prod.fst) h
   simp only [PMF.monad_map_eq_map, PMF.map_bind,
     PMF.bind_map, PMF.map_comp, Function.comp_def] at hout
   change PMF.map id _ = _ at hout
   rw [PMF.map_id] at hout
-  exact hout
+  simpa only [runClosedConfigFrom, ProbComp.eval, OracleComp.evalWith_eq_interpret,
+    Probability.PMF.monad_bind_eq_bind] using hout
 
 /-- A deterministic embedding has a point-mass configuration distribution. -/
 theorem eval_runClosedConfigFrom_ofDeterministic (machine : MultiTapeTM k Symbol State)
@@ -144,6 +151,7 @@ theorem eval_runClosedConfigFrom_ofDeterministic (machine : MultiTapeTM k Symbol
     PMF.pure_map] at hout
   change PMF.map id _ = _ at hout
   rw [PMF.map_id] at hout
-  exact hout
+  simpa only [runClosedConfigFrom, ProbComp.eval,
+    OracleComp.evalWith_eq_interpret] using hout
 
 end Turing.MultiTapePTM

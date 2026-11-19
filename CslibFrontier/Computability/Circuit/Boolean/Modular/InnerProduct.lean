@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Modular.Multiply
 public import CslibFrontier.Foundations.Data.BitString.Block
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Modular inner products of unsigned word arrays
@@ -80,6 +81,7 @@ theorem val_eval_innerProduct (a b : BitString (k * w)) :
   rw [← Finset.sum_nat_mod]
 
 /-- Both multiplication and the sum tree have logarithmic depth in their respective widths. -/
+@[circuit_bound]
 theorem depth_innerProduct_le (k w : ℕ) :
     (innerProduct k w).depth ≤
       17 + 16 * Nat.clog 2 (w + 1) + 12 * Nat.clog 2 k := by

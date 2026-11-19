@@ -10,9 +10,12 @@ module
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Probe
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Relabel
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.AdjacentIdentification
+import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.AppendScopeIndex
+import CslibFrontier.Logics.Propositional.CSP.Occurrence.Symbols
 import CslibFrontier.Foundations.Data.List.OfFnPositions
 import CslibFrontier.Foundations.GroupTheory.Perm.Fin
 import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.AppendScope
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Adjacent identification on actual ordered boundary words
@@ -30,6 +33,16 @@ namespace Cslib.Complexity.CSP.OrderedBoundary
 open Cslib.Logic.PL Cslib.Logic.PL.CSP Graph
 
 variable {Rel V W : Type} [DecidableEq V] [DecidableEq W]
+
+/-- Literal adjacent-equality table program: swap the last probe corner with the
+predecessor of the penultimate probe end, then remove the last probe edge. The clocks
+are the actual body/boundary counts and supplied table length, never an encoded label.
+The residual arity `n` is a static parameter; no uniform binary-arity runtime bound is claimed. -/
+@[expose] def equalDropCertificate {V : Type} (F : CSP Rel V) (n : ℕ)
+    (c : RotationCertificate) : RotationCertificate :=
+  restrictPrefix (2 * (F.occurrences.length + (n + 1)))
+    (c.swapSuccessors (2 * (F.occurrences.length + n + 1))
+      (c.successor.idxOf (2 * (F.occurrences.length + n))))
 
 /-- Identify the first two boundary labels and remove the first marker. The actual body
 is exactly relabeled by `f`; the target boundary is precisely the mapped source tail. -/
@@ -59,17 +72,12 @@ noncomputable def Witness.identifyFirstTwoOfFn {F : CSP Rel V} {n : ℕ}
     change p.var = scope ⟨n, by omega⟩ at he
     rw [he]
     apply congrArg v
-    apply Fin.ext
-    simp only [Fin.rev, Fin.val_mk, Fin.val_one]
-    omega
+    fin_index
   have hne : o.var ≠ p.var := by rwa [ho, hp]
   have hsucc : argumentSuccessor p = o := by
     rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
     apply congrArg (fun i => appendOfFnOccurrenceEquiv B none scope (Sum.inr i))
-    apply Fin.ext
-    rw [val_finRotate]
-    simp only [Fin.val_last]
-    split_ifs <;> omega
+    fin_index [val_finRotate]
   have hsource : S = probeBody F (List.ofFn v) := by
     simp only [S, B, scope, probeBody, List.reverse_ofFn]
   have hkernel : ∀ a ∈ S.vars, ∀ b ∈ S.vars,
@@ -96,5 +104,25 @@ noncomputable def Witness.identifyFirstTwoOfFn {F : CSP Rel V} {n : ℕ}
     exact ht
   exact Witness.ofProbe hn _ (verifyRotationCertificate_restrictPrefix_probe_cons
     (F.relabel f) (f (v 0)) (List.ofFn (fun i : Fin (n + 1) => f (v i.succ))) c hprobe)
+
+/-- The general boundary identification emits the literal outgoing swap and bounded
+prefix restriction. Its hypotheses are exactly those of the existing constructor. -/
+theorem Witness.identifyFirstTwoOfFn_certificate {F : CSP Rel V} {n : ℕ}
+    {v : Fin (n + 2) → V} (w : Witness F (List.ofFn v)) (f : V → W)
+    (hv : v 0 ≠ v 1)
+    (hk : ∀ a ∈ F.vars ++ List.ofFn v, ∀ b ∈ F.vars ++ List.ofFn v,
+      f a = f b ↔ Function.update id (v 1) (v 0) a = Function.update id (v 1) (v 0) b)
+    (hn : (List.ofFn (fun i : Fin (n + 1) => f (v i.succ))).Nodup) :
+    (w.identifyFirstTwoOfFn f hv hk hn).certificate =
+      equalDropCertificate F n w.certificate := by
+  unfold Witness.identifyFirstTwoOfFn
+  change restrictPrefix _ (identifyConsecutiveCertificate _ _ _ _ _ _ _ _) = _
+  rw [identifyConsecutiveCertificate_eq_swapSuccessors]
+  simp only [Dart.index, incidenceDart, incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr,
+    Bool.toNat_false, Nat.add_zero, length_occurrences_probeBody, CSP.occurrences_relabel,
+    List.length_map, List.length_ofFn, Fin.val_last, equalDropCertificate,
+    CSP.occurrences_mapRelation]
+  rfl
+
 
 end Cslib.Complexity.CSP.OrderedBoundary

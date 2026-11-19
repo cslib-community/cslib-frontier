@@ -11,7 +11,6 @@ public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.CNF
 public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.Reachability
 public import CslibFrontier.Logics.FirstOrder.Problems.Coloring
 import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
-import Mathlib.Tactic.FinCases
 
 /-!
 # Canonical ordered 3-colorability and the `SAT ≤_qfp 3COL` projection
@@ -285,7 +284,7 @@ private theorem isQF_upperColorEdge (t₁ t₂ : ColorTag)
   have htrue := ProjectionFormula.isQF_const (N := qfNumericLanguage) (L := FO.cnf)
     (α := Fin 2 × Fin (4 + 2)) true
   cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h
-  all_goals try cases h
+  all_goals cases h
   all_goals first
     | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginBoth htrue
     | exact ProjectionFormula.IsQF.guardAnd isQF_guardOrigin0 (ProjectionFormula.isQF_negLit _ _)
@@ -381,16 +380,11 @@ private theorem orGate_g0_ne_out : ∀ u v : Fin 3, u ≠ 2 → v ≠ 2 → orGa
 private theorem orGate_g1_ne_out : ∀ u v : Fin 3, u ≠ 2 → v ≠ 2 → orGate1 u v ≠ orGateOut u v := by
   decide
 
-private theorem fin_three_eq_of_ne :
-    ∀ x y z w : Fin 3, x ≠ w → y ≠ w → x ≠ y → z ≠ x → z ≠ y → z = w := by
-  intro x y z w
-  fin_cases x <;> fin_cases y <;> fin_cases z <;> fin_cases w <;> decide
-
 private theorem color_or_of_ne {t f b z : Fin 3}
     (htf : t ≠ f) (htb : t ≠ b) (hfb : f ≠ b) (hz : z ≠ b) : z = t ∨ z = f := by
   by_cases hzt : z = t
   · exact .inl hzt
-  · exact .inr (fin_three_eq_of_ne t b z f htf hfb.symm htb hzt hz)
+  · exact .inr (FO.graph.eq_third_color htf hfb.symm htb hzt hz)
 
 private theorem orGate_forces {t f in0 in1 g0 g1 gOut : Fin 3} (htf : t ≠ f)
     (hin0 : in0 = t ∨ in0 = f) (hin1 : in1 = t ∨ in1 = f)
@@ -404,7 +398,7 @@ private theorem orGate_forces {t f in0 in1 g0 g1 gOut : Fin 3} (htf : t ≠ f)
   rw [hf0] at he0
   rw [hf1] at he1
   have hgo_f : gOut = f :=
-    fin_three_eq_of_ne g0 g1 gOut f he0.symm he1.symm hg01 hg0o.symm hg1o.symm
+    FO.graph.eq_third_color he0.symm he1.symm hg01 hg0o.symm hg1o.symm
   exact htf (hout.symm.trans hgo_f)
 
 /-- On inputs colored `0` (true) or `1` (false), `orGateOut` outputs the color of the
@@ -526,7 +520,7 @@ private theorem colorable_of_satisfiable (M : Structure FO.cnf) (hM : FO.cnf.Sat
     rintro u v ⟨t₁, _, t₂, _, hm₁, hm₂, p, h12, hp⟩
     rw [hcol_tag hm₁, hcol_tag hm₂]
     cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h12
-    all_goals try cases h12
+    all_goals cases h12
     · simp only [ProjectionFormula.realize_guardAnd, guardOriginBoth, guardOrigin0,
         Formula.realize_inf, QFNumeric.realize_isZero, Matrix.cons_val_zero, Matrix.cons_val_one,
         Matrix.cons_val_fin_one] at hp
@@ -679,8 +673,7 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
     have hnf : col (mkVertex .vPos 0 x) ≠ fCol :=
       (hedge (t₁ := .pF) (t₂ := .vPos) rfl 0 0 0 x
         (by simp [guardOriginToVar, guardOrigin0, mkVertex])).symm
-    exact fin_three_eq_of_ne fCol bCol (col (mkVertex .vPos 0 x)) tCol
-      htf.symm htb.symm hfb hnf hnA
+    exact FO.graph.eq_third_color htf.symm htb.symm hfb hnf hnA
   have hvNeg_t_of_A (x : Fin M.size) (hAx : A x) : col (mkVertex .vNeg 0 x) = tCol := by
     have hnf : col (mkVertex .vNeg 0 x) ≠ fCol :=
       (hedge (t₁ := .pF) (t₂ := .vNeg) rfl 0 0 0 x
@@ -689,8 +682,7 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
       hedge (t₁ := .vPos) (t₂ := .vNeg) rfl 0 x 0 x
         (by simp [guardSameVar0, mkVertex])
     have hnb : col (mkVertex .vNeg 0 x) ≠ bCol := fun h => hnv (hAx.trans h.symm)
-    exact fin_three_eq_of_ne fCol bCol (col (mkVertex .vNeg 0 x)) tCol
-      htf.symm htb.symm hfb hnf hnb
+    exact FO.graph.eq_third_color htf.symm htb.symm hfb hnf hnb
   -- Vertices adjacent to the palette's `pB` are colored true or false.
   have hbool {t : ColorTag}
       (ht : upperColorEdge .pB t = some (.guardAnd guardOrigin0 (.const true)))
@@ -701,7 +693,11 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
     constructor
     · by_contra hnpos
       have hne := hedge (t₁ := .pT) (t₂ := .actPos) rfl 0 0 c x (by
-        simp [guardOrigin0, pair_arg1_pay, mkVertex, hnpos])
+        rw [ProjectionFormula.realize_guardAnd]
+        constructor
+        · simp [guardOrigin0, mkVertex]
+        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
+          simpa [mkVertex] using hnpos)
       exact hne ht.symm
     · by_contra hnA
       have hvt := hvPos_t_of_not_A x hnA
@@ -713,7 +709,11 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
     constructor
     · by_contra hnneg
       have hne := hedge (t₁ := .pT) (t₂ := .actNeg) rfl 0 0 c x (by
-        simp [guardOrigin0, pair_arg1_pay, mkVertex, hnneg])
+        rw [ProjectionFormula.realize_guardAnd]
+        constructor
+        · simp [guardOrigin0, mkVertex]
+        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
+          simpa [mkVertex] using hnneg)
       exact hne ht.symm
     · intro hAx
       have hvt := hvNeg_t_of_A x hAx

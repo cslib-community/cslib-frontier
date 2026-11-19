@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Native runtime of the chosen-message experiment
@@ -127,7 +128,7 @@ theorem INDCPAOf.wordINDCPA
     {encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)}
     (h : INDCPAOf encBits keyGen encrypt) :
     WordINDCPA keyGen encrypt :=
-  h.indcpaOn (ComputableInPolyTime.of_tidy (by polytime))
+  h.indcpaOn ((by polytime))
 
 /-- Strict PPT key generation supplies an executable unary polynomial bounding the total public
 and secret key material on every supported execution. No width function is assumed computable. -/
@@ -137,11 +138,9 @@ theorem exists_keyLength_bound {keyGen : ℕ → ProbComp (List Bool × List Boo
       ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary ∧
       ∀ n keys, keys ∈ (ProbComp.eval (keyGen n)).support →
         keys.1.length + keys.2.length ≤ c * (n + 1) ^ d := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime]
   obtain ⟨c, d, hlength⟩ := hkeyGen.length_le
   refine ⟨c, d, by fun_prop, fun n keys hkeys => ?_⟩
   have hbound := hlength n keys hkeys
-  simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate] at hbound
-  omega
+  enc_len at hbound
 
 end Cslib.Crypto.Encryption

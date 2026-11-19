@@ -9,9 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Computability.Probabilistic.Parameter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Memoize
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -22,7 +22,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 
 Valid queries are memoized as ordinary words. Malformed queries receive the empty word and retain
 the cache. Injective key representations and the shared eager/lazy theorem identify this program
-with the ideal PRF game for every randomized adaptive adversary.
+with the length-preserving ideal PRF game `prfIdealGame id id` for every randomized adaptive
+adversary.
 
 ## Main definitions
 
@@ -47,37 +48,37 @@ namespace Cslib.Crypto
 
 open Probability
 
-/-- Memoize sampled words on valid queries, rejecting malformed words without altering the cache. -/
-noncomputable def cachedRandomFunctionOracle (n : ℕ) (query : List Bool) :
+/-- Memoize uniform `outLen`-bit samples on `inLen`-bit queries, rejecting malformed words without
+altering the cache. -/
+noncomputable def cachedRandomFunctionOracle (inLen outLen : ℕ) (query : List Bool) :
     StateT (List (List Bool × List Bool)) ProbComp (List Bool) := fun cache =>
-  if query.length = n then memoize (fun _ => BitString.sampleList n) query cache
+  if query.length = inLen then memoize (fun _ => BitString.sampleList outLen) query cache
   else pure ([], cache)
 
 open Turing.MultiTapeTM in
-/-- Each cached call charges the parameter, query and complete input and output cache. -/
+/-- Each cached call charges the input and output length parameters, query and complete input and
+output cache. -/
 @[fun_prop]
 theorem isPPTOn_cachedRandomFunctionOracle {α : Type} {input : α ↪ List Bool}
-    {parameter : α → ℕ} {query : α → List Bool}
+    {inLen outLen : α → ℕ} {query : α → List Bool}
     {cache : α → List (List Bool × List Bool)}
-    (hparameter : Turing.MultiTapeTM.ComputableInPolyTime parameter input encUnary)
+    (hinLen : Turing.MultiTapeTM.ComputableInPolyTime inLen input encUnary)
+    (houtLen : Turing.MultiTapeTM.ComputableInPolyTime outLen input encUnary)
     (hquery : Turing.MultiTapeTM.ComputableInPolyTime query input encBits)
     (hcache : Turing.MultiTapeTM.ComputableInPolyTime cache input (encList (encPair encBits
       encBits))) :
     IsPPTOn input (encPair encBits (encList (encPair encBits encBits)))
-      (fun a => cachedRandomFunctionOracle (parameter a) (query a) (cache a)) := by
-  have hparameter := hparameter.tidy
-  have hquery := hquery.tidy
-  have hcache := hcache.tidy
+      (fun a => cachedRandomFunctionOracle (inLen a) (outLen a) (query a) (cache a)) := by
   unfold cachedRandomFunctionOracle
   fun_prop
 
 /-- An executable list cache realizes the ideal experiment, preserving repeated-query
 consistency and independent private randomness under arbitrary adaptive interaction. -/
 theorem prfIdealGame_eq_cached (adversary : OracleDistinguisher) (n : ℕ) :
-    ProbComp.eval (prfIdealGame adversary n) =
+    ProbComp.eval (prfIdealGame id id adversary n) =
       ProbComp.eval (Prod.fst <$> (OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-          (fun request => cachedRandomFunctionOracle n request.2)) (adversary n [])).run []) := by
+          (fun request => cachedRandomFunctionOracle n n request.2)) (adversary n [])).run []) := by
   let adapter := fun query : List Bool => if query.length = n then
     (ProbOracleComp.query (BitString.ofList n query) :
       ProbOracleComp (fun _ : BitString n => List Bool) (List Bool))
@@ -91,7 +92,7 @@ theorem prfIdealGame_eq_cached (adversary : OracleDistinguisher) (n : ℕ) :
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
         (fun key => memoize (fun _ => BitString.uniformList n) (List.ofFn key)))
           (adapter query) =
-        fun cache => ProbComp.eval (cachedRandomFunctionOracle n query cache) := by
+        fun cache => ProbComp.eval (cachedRandomFunctionOracle n n query cache) := by
     funext cache
     by_cases hquery : query.length = n
     · simp [adapter, cachedRandomFunctionOracle, hquery, BitString.ofFn_ofList hquery,
@@ -104,7 +105,7 @@ theorem prfIdealGame_eq_cached (adversary : OracleDistinguisher) (n : ℕ) :
         (adapter query) = PMF.pure (randomFunctionOracle n table query) := by
     by_cases hquery : query.length = n <;> simp [adapter, randomFunctionOracle, hquery]
   rw [ProbComp.eval_map, ProbOracleComp.eval_run_interpret]
-  simpa only [prfIdealGame, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
+  simpa only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
     ProbOracleComp.eval_interpret, ProbComp.eval_pure, PMF.pi_uniformOfFintype,
     ProbOracleComp.interpret_simulate,
     Turing.MultiTapeTM.encBitString_apply, hstep, heager, PMF.monad_bind_eq_bind] using h
@@ -114,14 +115,14 @@ open Turing.MultiTapeTM in
 construct the exponentially large eager table; the entire adaptive interaction is certified. -/
 theorem isPPT_prfIdealGame {adversary : OracleDistinguisher}
     (hadversary : IsOraclePPT encBool adversary) :
-    IsPPT encBool (fun n _ => prfIdealGame adversary n) := by
+    IsPPT encBool (fun n _ => prfIdealGame id id adversary n) := by
   have hrun : IsPPTOn (encPair encUnary encBits)
       (encPair encBool (encList (encPair encBits encBits))) (fun pair : ℕ × List Bool =>
         (OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-            (fun request => cachedRandomFunctionOracle pair.1 request.2))
+            (fun request => cachedRandomFunctionOracle pair.1 pair.1 request.2))
               (adversary pair.1 [])).run []) := by
-    apply hadversary.run_interpret_preprocess' (operationEncoding := encFinEnum Unit)
+    apply hadversary.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
       (prepare := fun pair : ℕ × List Bool => (pair.1, []))
       (resources := fun pair query => 4 * query.length + 2 * pair.1 + 3)
       (by fun_prop) (by fun_prop) (by fun_prop)

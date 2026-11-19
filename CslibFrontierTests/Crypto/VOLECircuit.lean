@@ -34,7 +34,7 @@ private theorem f4_error : (Fintype.card F : ℝ≥0∞)⁻¹ +
   norm_num only [Nat.cast_ofNat]
   apply (ENNReal.toReal_eq_toReal_iff _ _).mp ?_ |>.resolve_right ?_
   · rw [ENNReal.toReal_add, ENNReal.toReal_mul, ENNReal.toReal_sub_of_le]
-    all_goals try norm_num [ENNReal.inv_le_one, ENNReal.toReal_inv, ENNReal.toReal_div]
+    all_goals norm_num [ENNReal.inv_le_one, ENNReal.toReal_inv, ENNReal.toReal_div]
     exact ENNReal.mul_ne_top (ne_of_lt (lt_of_le_of_lt tsub_le_self ENNReal.one_lt_top))
       (ENNReal.div_ne_top (by norm_num) (by norm_num))
   · simp
@@ -224,11 +224,9 @@ private theorem falseView_real : falseView ∈
             (circuitTrace (square F) (fun _ => 1) Fin.elim0) c.u c.v (fun _ => 0), ()), ())) := by
     unfold circuitReceiverView
     rw [voleWorld_eval]
-    simp [zeroReceiver, circuitCheck, liftProver, liftVerifier, runAgainst,
-      ProverStrategy.hoist, VerifierStrategy.hoist, circuitCheckSpec,
-      threeMoveSpec, ProbOracleComp.query,
-      OracleComp.sumHandler, VOLECorrelation.senderView, PMF.map, Function.comp_def,
-      OracleComp.interpret_pure, OracleComp.interpret_bind]
+    simp [zeroReceiver, circuitCheck, liftProver, liftVerifier, runAgainst, ProverStrategy.hoist,
+      VerifierStrategy.hoist, circuitCheckSpec, threeMoveSpec, ProbOracleComp.query,
+      OracleComp.sumHandler, VOLECorrelation.senderView, PMF.map, Function.comp_def]
   rw [hrun, PMF.mem_support_map_iff]
   refine ⟨voleSample (fun _ => 0) (fun _ => 0) 1,
     (mem_support_voleIdealDist_iff _).mpr (valid_voleSample _ _ _), ?_⟩

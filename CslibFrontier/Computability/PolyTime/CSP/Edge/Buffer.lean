@@ -78,7 +78,7 @@ The default makes this total even for a short buffer. -/
 theorem poly_zipIdx {α β : Type} {e : α ↪ List Bool} {eb : β ↪ List Bool}
     {f : α → List β} (hf : ComputableInPolyTime f e (encList eb)) :
     ComputableInPolyTime (fun x => (f x).zipIdx) e (encList (encPair eb encUnary)) :=
-  .of_tidy ((ComputableTidilyInPolyTime.zipIdx eb).comp hf.tidy)
+  ((ComputableInPolyTime.zipIdx eb).comp hf)
 
 theorem poly_product {α β : Type} (ea : α ↪ List Bool) (eb : β ↪ List Bool) :
     ComputableInPolyTime (fun p : List α × List β => p.1.product p.2)
@@ -91,7 +91,7 @@ theorem poly_idxOf {α β : Type} [DecidableEq β]
     (hl : ComputableInPolyTime list e (encList eb))
     (hv : ComputableInPolyTime value e eb) :
     ComputableInPolyTime (fun x => (list x).idxOf (value x)) e encUnary :=
-  .of_tidy (ComputableTidilyInPolyTime.idxOfWithInput hl.tidy hv.tidy)
+  (ComputableInPolyTime.idxOfWithInput hl hv)
 
 attribute [local fun_prop] poly_zipIdx poly_product poly_idxOf
 
@@ -115,8 +115,8 @@ theorem poly_readRecord :
       (encPair encBuffer encRecord)
       (encList encBool) := by fun_prop
   -- The realizing lookup saturates its binary index at the actual buffer length.
-  exact .of_tidy (ComputableTidilyInPolyTime.listGetD_binary false hlist.tidy
-    (ComputableTidilyInPolyTime.unary_to_binary.comp hindex.tidy))
+  exact (ComputableInPolyTime.listGetD_binary false hlist
+    (ComputableInPolyTime.unary_to_binary.comp hindex))
 
 attribute [local fun_prop] poly_readRecord
 

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Place
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged execution of the native Chan–He placement scan
@@ -151,35 +152,32 @@ theorem exec_body {w M N U t : ℕ} (x : Data 32) (values : ℕ → ℤ) (neg : 
   have hv := tagged_encode neg (values k) t (hbdd.trans ht)
   have hcp : 0 < c := count_residue_pos values n M (show k < n from hi)
   by_cases hh : 1 < c
-  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    rotate_left
-    · ram_eval [body, heavyCode, src, keys, idx, hist, addr, key, bucketSize, value, one,
-        heavy, count, Fin.mk.injEq, h1, hinput, hkey, hhist, hh,
-        fs, fk, fh, fo, fcount, fi, k, n, r, c]
-    · simp [write, hh, k, n, r, c, hcount]
-    · simp +decide [heavyList, hh, k, n, r, c, hcount, count, idx]
-    · simp +decide [idx]
-    · intro i hi
-      fin_cases i <;> norm_num [one, two, four, zero] at hi <;> rfl
+  · refine WP.exists_execWithin ?_
+    unfold body heavyCode
+    wram_exec [h1, hinput, hkey, hhist, hh, fs, fk, fh, fo, fcount, fi, k, n, r, c]
+    refine ⟨?_, ?_, by wram_simp [k], fun i hi => ?_⟩
+    · wram_simp
+      simp [write, hh, k, n, r, c, hcount]
+    · wram_simp [hcount]
+      simp [heavyList, hh, k, n, r, c]
+    · fin_cases i <;> norm_num [one, two, four, zero] at hi <;> wram_simp
   · have hc1 : c = 1 := by omega
     cases neg <;> by_cases hs : values k < 0
     all_goals
       simp only [targetKey, Bool.false_eq_true, ↓reduceIte] at fa fb fc fd
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      rotate_left
-      · ram_eval [body, lightCode, src, keys, idx, hist, addr, key, bucketSize, value,
-          one, two, four, zero, modulus, negative, tag, magnitude, sign, packed, column,
-          distance, Fin.mk.injEq, h1, h2, h4, h0, hmod, htag, hneg, hinput, hkey, hhist,
-          hh, hc1, hs, encode_div_two, encode_mod_two, fs, fk, fh, fi, fm, fr, fmag,
-          fmag2, fsign, fadd, fsub, fone, fzero, fa, fb, fc, fd, targetKey, k, n, r, c]
-      · simp only [write, show ¬1 < Histogram.count (fun i => residueKey M (values i))
+      refine WP.exists_execWithin ?_
+      unfold body lightCode
+      wram_exec [h1, h2, h4, h0, hmod, htag, hneg, hinput, hkey, hhist, hh, hc1, hs,
+        encode_div_two, encode_mod_two, fs, fk, fh, fi, fm, fr, fmag, fmag2, fsign, fadd,
+        fsub, fone, fzero, fa, fb, fc, fd, targetKey, k, n, r, c]
+      refine ⟨?_, ?_, by wram_simp [k], fun i hi => ?_⟩
+      · wram_simp
+        simp only [write, show ¬1 < Histogram.count (fun i => residueKey M (values i))
           (x.regs len) (residueKey M (values (x.regs idx))) from hh, ↓reduceIte]
-        simp only [Data.set_mem, Data.write_mem]
         simp +decide [targetKey, k, hs, encode_div_two, encode_mod_two, hv]
-      · simp +decide [heavyList, hh, k, n, r, c, hcount, count, idx]
-      · simp +decide [idx]
-      · intro i hi
-        fin_cases i <;> norm_num [one, two, four, zero] at hi <;> rfl
+      · wram_simp [hcount]
+        simp [heavyList, hh, k, n, r, c]
+      · fin_cases i <;> norm_num [one, two, four, zero] at hi <;> wram_simp
 
 
 /-- Complete native placement in at most `32n+8` instructions, excluding halt. All input,
@@ -248,26 +246,17 @@ theorem exec {w M N U t : ℕ} (x : Data 32) (values : ℕ → ℤ) (neg : Bool)
       by simpa only [hl] using hzc, ?_⟩
     rw [hzm, hl, ho, hp, hcol, hdist, hm]
     rfl
-  let x₀ := (((((x.set idx 0).set count 0).set one 1).set two 2).set four 4).set zero 0
-  have hx₀ : Inv (x₀.regs idx) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro i hi
-      fin_cases i <;> norm_num [P] at hi <;> rfl
-    all_goals simp +decide [x₀, idx, count, one, two, four, zero, heavyList, memory]
-  obtain ⟨y, he, ⟨hr, _, _, _, _, hcount, hm⟩, _⟩ := ExecWithin.loop_count Inv
-    (fun _ hy => hy.1 len (by decide)) hbody
-    (by simp +decide [x₀, idx, count, one, two, four, zero]) hx₀
   have f4 : Fits w 4 := hfit.of_le (by dsimp only [budget]; omega)
   have f2 : Fits w 2 := f4.of_le (by decide)
   have f1 : Fits w 1 := f4.of_le (by decide)
-  have hinit : ExecWithin (B := .standard) w (ram[
-      idx ← #0; count ← #0; one ← #1; two ← #2; four ← #4; zero ← #0 ]) x x₀ 6 := by
-    ram_eval [x₀, f1, f2, f4]
-  refine ⟨y, ?_, hm, hcount, hr⟩
-  convert hinit.seq he using 1
-  · rfl
-  · simp +decide only [x₀, idx, count, one, two, four, zero, Data.set_regs,
-      Function.update_apply, ↓reduceIte, Nat.sub_zero]
-    omega
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec [f1, f2, f4]
+  wram_call (ExecWithin.loop_count Inv (fun _ hy => hy.1 len (by decide)) hbody
+    (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num [P] at hi <;> wram_simp,
+      by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp [heavyList, List.length_nil], by wram_simp [memory]⟩)
+    with y ⟨⟨hr, _, _, _, _, hcount, hm⟩, _⟩
+  exact ⟨by wram_simp; omega, hm, hcount, hr⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Place

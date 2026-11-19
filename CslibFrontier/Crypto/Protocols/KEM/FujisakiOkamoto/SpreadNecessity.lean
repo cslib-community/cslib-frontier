@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.ToReal
 
@@ -32,10 +33,11 @@ ciphertext space `Option CT`:
 * At `m ≠ m₀`, `encDet pk m r = some (P.encDet pk m r)`, and `dec sk (some c)` returns `some m`
   when `P.dec sk c = some m` with `m ≠ m₀`, and `none` otherwise.
 
-The modified PKE preserves `δ`-correctness (`unspreadPointPKE_deltaCorrect`) and preserves IND-CPA
-advantages on all message pairs away from `m₀` (`unspreadPointPKE_indCpaAdvantage`), while failing
-`γ`-spreadness for every `γ > 0` (`unspreadPointPKE_gammaSpread_zero`,
-`unspreadPointPKE_not_gammaSpread_of_pos`).
+The modified PKE preserves `δ`-correctness (`unspreadPointPKE_deltaCorrect`) and preserves
+fixed-message IND-CPA advantages (`indCpaAdvantage`) on all message pairs away from `m₀`
+(`unspreadPointPKE_indCpaAdvantage`); it is not two-stage IND-CPA secure (`cpaAdvantage`), since
+an adversary may choose `m₀`. It fails `γ`-spreadness for every `γ > 0`
+(`unspreadPointPKE_gammaSpread_zero`, `unspreadPointPKE_not_gammaSpread_of_pos`).
 
 The 1-query adversary `probeDecapsAdv` makes zero queries to `G`, zero queries to `H`, and a single
 decapsulation query `ROQuery.decaps none` (`roFullQueryBounds_probeDecapsAdv`), outputting whether
@@ -71,7 +73,8 @@ For a uniform message sampler on a finite message space `M`, the distinguishing 
   `Cslib.Crypto.Protocols.FujisakiOkamoto.unspreadPointPKE_indCpaAdvantage`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.unspreadPointPKE_gammaSpread_zero`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.unspreadPointPKE_not_gammaSpread_of_pos`:
-  `unspreadPointPKE P m₀` preserves `δ`-correctness and IND-CPA advantages away from `m₀`, is
+  `unspreadPointPKE P m₀` preserves `δ`-correctness and fixed-message IND-CPA advantages
+  (`indCpaAdvantage`) away from `m₀`, is
   `0`-spread, and is not `γ`-spread for any `γ > 0`.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.roFullQueryBounds_probeDecapsAdv`: `probeDecapsAdv`
   satisfies `ROFullQueryBounds probeDecapsAdv 0 0 1`.
@@ -163,7 +166,8 @@ theorem unspreadPointPKE_deltaCorrect [Fintype M] [Nonempty M]
       (P.msgFailProb_le_keyPairMaxFailProb x.1 x.2 m)
 
 /-- On any pair of challenge messages `m₁ ≠ m₀` and `m₂ ≠ m₀`, `unspreadPointPKE P m₀` has the exact
-same IND-CPA advantages as `P`. -/
+same fixed-message IND-CPA advantages (`indCpaAdvantage`) as `P`. It is not two-stage IND-CPA
+secure (`cpaAdvantage`), since a two-stage adversary may choose `m₀`. -/
 theorem unspreadPointPKE_indCpaAdvantage (P : ExplicitCoinPKE PK SK M R CT) (m₀ m₁ m₂ : M)
     (hm₁ : m₁ ≠ m₀) (hm₂ : m₂ ≠ m₀) (A : PK → Option CT → ProbComp Bool) :
     (unspreadPointPKE P m₀).indCpaAdvantage m₁ m₂ A =
@@ -260,8 +264,7 @@ theorem eval_simBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (m₀ 
   let S := unspreadScheme P m₀ sampleMsg sampleKey
   change ProbComp.eval (S.simBotGame probeDecapsAdv b) = PMF.pure false
   dsimp only [Scheme.simBotGame, Scheme.simFilterGame, probeDecapsAdv]
-  simp only [OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-    StateT.run_bind, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure]
+  simp only [interp_norm, ProbComp.eval_bind, ProbComp.eval_pure]
   rw [← PMF.bind_const (ProbComp.eval S.pke.keyGen) (PMF.pure false)]
   congr 1 with ⟨pk, sk⟩ : 1
   rw [← PMF.bind_const (ProbComp.eval S.sampleMsg) (PMF.pure false)]
@@ -299,8 +302,7 @@ theorem eval_roIndCcaBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (
   change ProbComp.eval (S.roIndCcaBotGame probeDecapsAdv b) =
     (ProbComp.eval S.sampleMsg).map (fun mStar => decide (mStar ≠ m₀))
   dsimp only [Scheme.roIndCcaBotGame, probeDecapsAdv]
-  simp only [OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-    StateT.run_bind, StateT.run_pure, pmf_norm]
+  simp only [interp_norm, pmf_norm]
   rw [← PMF.bind_const (ProbComp.eval S.pke.keyGen)
     ((ProbComp.eval S.sampleMsg).map (fun mStar => decide (mStar ≠ m₀)))]
   congr 1 with ⟨pk, sk⟩ : 1

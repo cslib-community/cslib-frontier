@@ -9,10 +9,20 @@ The private-transcript sources are described in [the extraction methods](history
 
 Scott Aaronson. *The Busy Beaver Frontier*. ACM SIGACT News 51(3), 32–54, 2020. https://doi.org/10.1145/3427361.3427369 ; author's version https://www.scottaaronson.com/papers/bb.pdf . Read in the author's version on 2026-11-08: Proposition 1 (oracle access to any upper bound on the shift function solves the halting problem, hence no such bound is computable; the library proves the unrelativized corollary) and Proposition 2 (the shift function eventually exceeds every computable function). Both are stated for Turing machines; Section 2 notes that they hold in any universal model of computation. Section 1 defines `BB_L` for a programming language `L` with bit-string programs (and a variant through Kolmogorov complexity), the closest analogue of the library's code-size version. Journal pagination was taken from the bibliographic record.
 
+<a id="abboudcensorhillelkhourypaz21"></a>
+## abboudcensorhillelkhourypaz21
+
+Amir Abboud, Keren Censor-Hillel, Seri Khoury and Ami Paz. "Smaller Cuts, Higher Lower Bounds." *ACM Transactions on Algorithms* 17(4), article 30, 30:1–30:40, 2021. https://doi.org/10.1145/3469834 ; preprint arXiv:1901.01630. Checked against the publisher's PDF on 2026-11-13: Definition 4 (families of streaming lower bound graphs, p. 30:32) and Theorem 14 (p. 30:33: an `R`-pass streaming algorithm with `M` bits of memory for such a family gives `RM = Ω(CC(f))`, deterministic and randomized). The protocol in the proof of Theorem 14 sends at most `(2R − 1)M` bits (`M` from Alice in each pass and from Bob in every pass but the last); the proof incorrectly writes this total as `R(2M − 1)`, which does not affect the asymptotic statement. The library counts the same protocol exactly, `(2p − 1)b` bits of memory states, plus one bit so that the output is determined by the transcript (in the source, only Bob learns the answer). arXiv:1901.01630v2 numbers these Definition 3 and Theorem 15.
+
 <a id="abukhzam2007"></a>
 ## abukhzam2007
 
 Faisal N. Abu-Khzam, Michael R. Fellows, Michael A. Langston and W. Henry Suters. "Crown Structures for Vertex Cover Kernelization." *Theory of Computing Systems* 41(3), 411–430, 2007. https://doi.org/10.1007/s00224-007-1328-0 . Bibliographic data and the abstract (crown structures; a crown-based kernelization compared with the LP-based one) were checked against secondary search summaries on 2026-11-08 UTC. The full text was not inspected, and the crown definition used in [Crown](../CslibFrontier/Foundations/Combinatorics/SimpleGraph/Crown.lean) is not attributed to a numbered statement there. Chor, Fellows and Juedes, "Linear Kernels in Linear Time, or How to Save k Colors in O(n²) Steps", WG 2004, LNCS 3353, 257–269, https://doi.org/10.1007/978-3-540-30559-0_22, is cited in the module docstring on the same basis.
+
+<a id="acek17"></a>
+## acek17
+
+Daniel Apon, Chongwon Cho, Karim Eldefrawy and Jonathan Katz. "Efficient, Reusable Fuzzy Extractors from LWE." *Cyber Security Cryptography and Machine Learning (CSCML 2017)*, LNCS 10332, 1–18, Springer, 2017. https://doi.org/10.1007/978-3-319-60080-2_1 ; IACR Cryptology ePrint Archive Report 2017/755, https://eprint.iacr.org/2017/755 . Checked against the ePrint 2017/755 PDF on 2026-11-14: Definitions 2 and 3 (weak and strong reusability, Section 2.2, p. 6; the public-parameters model is described in Section 2.1, p. 4), the common-matrix FMR construction, Theorem 1 and the 1-query strong-reusability attack (Section 3.3, pp. 9–10), and the encryption-based strongly reusable fuzzy extractor from LWE without random oracles (Section 5, pp. 11–12). Checked again on 2026-11-15 (SHA-256 `18ebc576b367e3896c77293ca11909a12477b84c770d1490ae3df8db5b8b9d02`): Definition 4 (decisional LWE `LWE_{n,m,q,χ}` for an integer `q ≥ 2`, Section 2.3, p. 7) and the Section 5 security sketch (assumptions (1) and (2), the `LWE_{n,(t+2)m,q,χ}` claim for adversaries making at most `t` oracle calls, and the simulation, p. 12).
 
 <a id="achlioptas03"></a>
 ## achlioptas03
@@ -154,10 +164,28 @@ Saugata Basu, Richard Pollack and Marie-Françoise Roy. *Algorithms in Real Alge
 
 Eric T. Bax. “Inclusion and Exclusion Algorithm for the Hamiltonian Path Problem.” *Information Processing Letters* 47(4), 203–207, 1993. https://doi.org/10.1016/0020-0190(93)90033-6 . Bibliographic metadata checked via DOI/DBLP on 2026-11-11; the article body (paywalled) was not inspected, so the manual cites it for the inclusion–exclusion walk-counting algorithm without a theorem or page locator.
 
+<a id="bbhr18"></a>
+## bbhr18
+
+Eli Ben-Sasson, Iddo Bentov, Yinon Horesh and Michael Riabzev. "Fast Reed–Solomon Interactive Oracle Proofs of Proximity." *45th International Colloquium on Automata, Languages, and Programming (ICALP 2018)*, LIPIcs 107, 14:1–14:17, Schloss Dagstuhl, 2018. https://doi.org/10.4230/LIPIcs.ICALP.2018.14 . The library's key is `BenSassonBentovHoreshRiabzev2018`. Bibliographic metadata checked against `references.bib`. Multi-round 2-to-1 coset folding over arbitrary fields of characteristic `≠ 2`, the `PublicCoinIOP` `friIOP`, perfect completeness, and exact query accounting—`kFinal + q * (3 * m + 2)` committed-proof-oracle openings (`FRIParams.proofOracleQueries`, via `PublicCoinIOP.queries`) plus `q` direct input-word reads (`FRIParams.inputWordReads`, via `friInputQueries`), for `kFinal + q * (3 * m + 3)` total word queries (`FRIParams.totalWordQueries`, matching the paper's counting of both input-word and prover-table queries on pp. 14:3–14:4)—are formalized in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean) and [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean). [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean) establishes the unconditional round-by-round invariant (`friIOP_rbrSound`) and query-round escape bound (`friQueryRound_escape_le`), together with conditional commit-round escape and two-channel BCS random-oracle compilation steps ([bcs16](#bcs16)) parameterized by `WeightedLineGapBound` / `UniqueLineGapHypothesis`; [FRI/JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean) discharges those per-round line-gap hypotheses in the unique-decoding regime and up to the Johnson and `η`-gap bounds (`friJohnsonCommitBound`, `friJohnsonEtaCommitBound`) for this single-word FRI model (paired with [bciks20](#bciks20)).
+
 <a id="bcgl92"></a>
 ## bcgl92
 
 Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of Average Case Complexity*. Journal of Computer and System Sciences 44(2), 193–219, 1992; preliminary version in STOC 1989. https://doi.org/10.1016/0022-0000(92)90019-F . Bibliographic metadata checked against the Crossref record on 2026-11-08. The primary text was not inspected, and no theorem number is claimed. The manual attributes to this paper only the implication `DistNP ⊆ AvgP ⇒ NE = E`, as reported by [bm15](#bm15), §5.
+
+<a id="bciks20"></a>
+## bciks20
+
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; accepted author/NSF manuscript https://par.nsf.gov/servlets/purl/10467091 ; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section and theorem locators follow the accepted *Journal of the ACM* (2023) manuscript (where Theorem 1.2 treats affine-space proximity gaps across both the unique-decoding and Johnson-bound regimes, Theorem 1.4 treats line correlated agreement across both regimes, Theorem 1.5 treats parameterized curves, Theorem 1.6 on printed p. 6 treats affine-space correlated agreement, Theorem 4.1 treats unique-decoding lines, Theorem 5.1 on p. 17 treats unweighted Johnson-bound lines, Lemma 6.3 and Section 6.3 on printed pp. 29–31 prove the line-to-affine reduction, Theorems 6.1–6.2 treat unique-decoding and Johnson-bound degree-`r` curves, Theorem 7.1 treats weighted correlated agreement on curves, Version I, in the `α > √ρ` range, Theorem 7.2 treats weighted correlated agreement on lines/curves, and Theorems 7.3–7.4 on printed p. 32 with proof in Section 7.3 on printed p. 34 treat weighted correlated agreement over affine spaces; by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 author version concerns FRI soundness). Formalized across:
+
+- [Unique.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Unique.lean): unique-decoding correlated agreement and proximity gaps for affine lines and degree-`d` parameterized curves (unique-decoding cases of Theorems 1.2 and 1.4, together with Theorems 4.1 and 6.1);
+- [Johnson.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Johnson.lean): explicit-parameter Guruswami–Sudan correlated-agreement steps for lines and integer-weighted degree-`r` curves over arbitrary fields of arbitrary characteristic (steps toward Theorems 5.1, 6.2 and 7.2) together with original explicit-constant line proximity-gap variants (`1800 * (m + 1)^6 * n^2 / (ρ * |F|)` and `115200 * n^2 / (ρ * η^6 * |F|)`) in the setting of Theorem 1.4 (not uniformly smaller at small `m` than the displayed `(m + 1/2)^7 / (3 * ρ^(3/2))` finite constant of Theorem 5.1, p. 17 in the accepted NSF/JACM manuscript);
+- [Curve.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Curve.lean): sharp unique-decoding `ℕ`/`ℚ`-weighted correlated agreement (a unique-decoding specialization and signed-weight extension of Section 7 / Theorem 7.1, where source Theorem 7.1 treats weighted curves, Version I, in the `α > √ρ` range), original explicit-constant Johnson-bound curve proximity-gap variants and `ℚ`-weighted curve/line steps (toward Theorems 1.5, 6.2, 7.1 and 7.2), pointwise close-or-sparse affine-space dichotomy lifts (`proximityGap_affine_of_line` and unique-decoding instantiations in the setting of Theorem 1.2), the generic Lemma 6.3 + Section 6.3 / Section 7.3 line-to-affine correlated-agreement reduction (`exists_weighted_correlatedAgreement_affine_of_divergence` and `exists_weighted_correlatedAgreement_affine_of_line` on printed pp. 29–31 and p. 34, repairing printed p. 34's zero-weight `D' = D'_i` claim by intersecting candidate agreement sets with `supp W`; the generic linear-code lemma also avoids the unique extension used on printed p. 31, which for Reed–Solomon codes under Theorem 7.4 is available because `α > ρ`), and list-premise-free unweighted, `ℕ`-weighted, and `ℚ`-weighted Johnson-bound affine correlated agreement and exact-`|F|` dichotomies in both explicit-parameter `(m, D)` form and explicit-constant closed form (`1800 * [M *] (m + 1)^6 * n^2 / (ρ * |F|)` and `115200 * [M *] n^2 / (ρ * η^6 * |F|)`) in the setting of Theorem 1.2, Theorem 1.6 on printed p. 6, and Theorems 7.3–7.4 on printed p. 32. These are original finite bounds: eq. (1.3) uses `min(η, √ρ / 20)` in its denominator while the Lean formulas use the gap `η` directly, so a density sufficient for eq. (1.3) / Theorem 1.6 (or Theorem 7.4) can fall below the Lean cutoff; they also omit Theorem 1.6's uniqueness clause in the unique-decoding regime; the exact cited endpoints, the paper's displayed finite constants `(m + 1/2)^7 / (3 * ρ^(3/2))`, `(2 * m + 1) * (M * n + 1) / √ρ`, and `ρ^2 / (2 * η)^7`, and the exact displayed finite constants of Lemma 8.2 and Theorem 8.3 in Section 8 remain tracked in #5968;
+- [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean), [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean) and [FRI/JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean): single-word 2-to-1 FRI coset folding, the unconditional FRI IOP round-by-round invariant and query-round escape bound, and conditional commit-phase escape / summed interactive IOP / BCS random-oracle compilation steps, together with unconditional derivation of the per-round `WeightedLineGapPerRound` and uniform `WeightedLineGapBound` in the unique-decoding regime and up to the Johnson and `η`-gap bounds (`friJohnsonRoundBound`, `friJohnsonCommitBound`, `friJohnsonEtaCommitBound`, `weightedLineGapBound_of_johnson_eta`, `friJohnsonCommitError`) in [FRI/JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean). Theorem 8.3 of the accepted JACM manuscript treats batched FRI with correlated agreement of the initial functions and its stated quantitative error (and is an IOP theorem, not a BCS random-oracle theorem): batched initial-function correlated agreement is formalized in [FRI/BatchProtocol.lean](../CslibFrontier/Crypto/Protocols/FRI/BatchProtocol.lean), [FRI/BatchSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/BatchSoundness.lean) and [FRI/BatchJohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/BatchJohnsonSoundness.lean) (with exact quantitative Lemma 8.2 / Theorem 8.3 displayed constants still tracked in #5968), while the non-interactive random-oracle bounds follow by composing the FRI IOP escape bounds with the two-channel BCS compiler ([bcs16](#bcs16));
+- [FRI/BatchProtocol.lean](../CslibFrontier/Crypto/Protocols/FRI/BatchProtocol.lean): the `(m + 2)`-round `PublicCoinIOP` formulation of Section 8.2's affine/linear batched 2-to-1 FRI protocol (printed pp. 36–40, eq. (8.3) on p. 37 and batched QUERY steps (1)–(4) on p. 38) delegating rounds `1 .. m + 1` to `FRI/Protocol.lean`, together with perfect IOP / deterministic BCS / two-channel BCS random-oracle completeness, the exact committed-oracle opening list length (`kFinal + q * (3 * m + 2)`) and `q`-position direct-read schedule / `(t + 1) * q` direct-read and `kFinal + q * (3 * m + t + 3)` combined word-query budgets (`friBatchDecide_congr_inputQueries`), and the integer and real-density tuple correlated-agreement languages (`batchProximityLang`, `batchCorrAgreeLang`) with ceiling and floor real-to-integer threshold bridges (`batchCeilThreshold_bounds`, `batchFloorThreshold_bounds`) for Lemma 8.2 and Theorem 8.3;
+- [FRI/BatchSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/BatchSoundness.lean): unconditional round-by-round soundness (`friBatchIOP_rbrSound`, proving initialization on false tuples, preservation on good transitions, and terminal rejection) and marginal challenge / tail-escape reductions for `friBatchIOP` delegating rounds `1 .. m + 1` to `FRI/Soundness.lean`, together with polymorphic round-`0` unweighted affine-word escape contracts (`BatchRound0GapBound`, `BatchRound0Escape` testing unweighted agreement of `stmt.eval x` strictly above `B / n` for `n = 2 ^ d` and `B = n - e - 1`, whereas Section 8.2.1, printed pp. 41–42, defines `E⁽⁰⁾` immediately before eq. (8.8)—and eq. (8.8) bounds its probability—via `μ⁽⁰⁾`-weighted agreement of the reported oracle `f⁽⁰⁾` above `max(α, √ρ · (1 + 1 / (2m)))`; because `μ⁽⁰⁾ = 1` only where `f⁽⁰⁾` matches `stmt.eval x`, high weighted agreement implies high unweighted agreement of `stmt.eval x` while the converse can fail, and for a tuple with common agreement at most `B / n` the Lean event contains the paper's event `E⁽⁰⁾` whenever `max(α, √ρ · (1 + 1 / (2m))) ≥ B / n`, though the cutoffs can differ, e.g. at `n = 16, k = 4, e = 7, α = 1 / 2, m = 3`), list-premise-free round-`0` probability upper bounds with exact denominator `|F|` across the unique-decoding (`batchRound0Escape_of_unique`; at batch size `t = 0` the false word is independent of the challenge and its round-`0` escape probability is `0`), explicit-parameter `(m₀, D₀)` Johnson (`batchRound0Escape_of_johnson_discrete`), and original explicit-constant Johnson / `η`-gap regimes (`friBatchJohnsonRound0Bound`, `batchRound0Escape_of_johnson`, `batchRound0Escape_of_johnson_eta`, inheriting `Curve.lean`'s explicit Siegel constants and direct-`η` scope rather than eq. (1.3)'s `min(η, √ρ / 20)`), and conditional whole-protocol uniform per-round escape / two-channel BCS random-oracle composition steps ([bcs16](#bcs16));
+- [FRI/BatchJohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/BatchJohnsonSoundness.lean): whole-protocol summed commit-phase (`friBatchCommitGame`) and interactive IOP (`iopInteractiveGame (friBatchIOP params t)`) soundness probability upper bounds combining `BatchSoundness.lean`'s round-`0` escape bounds with `Soundness.lean` / `JohnsonSoundness.lean`'s shrinking geometric per-round binary-folding budgets (`l⁽ⁱ⁾ = 2`) via [BCS/Interactive.lean](../CslibFrontier/Crypto/Protocols/BCS/Interactive.lean) (`iopCommitPhase_map_true_le_sum`, `iopInteractiveGame_le_sum`), in the setting of Lemma 8.2 (printed pp. 38–39, eq. (8.5); proved via the commit-phase bad-event sum in Section 8.2.1 on printed p. 42 and geometric telescoping on printed p. 43) and Theorem 8.3 (printed p. 39, proved on printed p. 40 by applying Lemma 8.2), across the unique-decoding (`friBatchUniqueCommitError`), discrete `(m₀, D₀)` + `(mRound, DRound)` Guruswami–Sudan, closed-form Johnson (`friBatchJohnsonCommitError`), and `η`-gap (`friBatchJohnsonEtaCommitError`) regimes in both integer-`e` (`batchProximityLang`) and real-`α` (`⌊α₀ * 2 ^ d⌋₊` via `batchFloorThreshold_bounds` for commit-phase bounds and `batchCorrAgreeLang t α` via `batchCeilThreshold_bounds` / `batchCorrAgreeLang_eq_batchProximityLang` for forward interactive upper bounds and direct contrapositives `friBatchIOP_sound_of_*`) forms, together with separate adaptive two-channel BCS random-oracle compiler compositions ([bcs16](#bcs16)). Relative to the `μ⁽⁰⁾`-weighted oracle event `E⁽⁰⁾` defined immediately before eq. (8.8) (whose probability eq. (8.8) bounds, with cutoff `max(α, √ρ · (1 + 1 / (2m)))`), the unweighted `stmt.eval x` round-`0` event unconditionally contains `E⁽⁰⁾` at matching Johnson multiplicity `mJ = m` (`m ≤ mJ`), contains `E⁽⁰⁾` in the real-`α` unique-decoding case under the explicit condition `(1 + ρ) / 2 ≤ max(α, √ρ · (1 + 1 / (2m)))` (failing on `𝔽₁₇ˣ` at `n = 16, k = 4, α = 1 / 2, m = 3`, where `10` agreeing positions clear `7 / 12` and miss strict `> 5 / 8`), and contains `E⁽⁰⁾` in the real-`α` `η`-gap case under `√ρ + η ≤ max(α, √ρ · (1 + 1 / (2m)))` (with `t = 0` round-`0` escape `0`). Inherits direct-read / combined word-query budget accounting (`batchInputWordReads`, `batchTotalWordQueries` vs. exact `proofOracleQueries`) and original explicit Siegel constants (`(2 - 1 / 2 ^ m) * 1800 * (mJ + 1)^6 * (2 ^ d)^2 / (ρ * |F|)` for `mJ ≥ 1` and `(2 - 1 / 2 ^ m) * 115200 * (2 ^ d)^2 / (ρ * η^6 * |F|)` using `η` directly rather than eq. (1.3)'s `min(η, √ρ / 20)`); exact correspondence with the displayed constants of Lemma 8.2 and Theorem 8.3 remains tracked in #5968.
 
 <a id="bcs16"></a>
 ## bcs16
@@ -204,6 +232,16 @@ Claude Berge. *Two Theorems in Graph Theory*. Proceedings of the National Academ
 
 Claude Berge. *Sur le couplage maximum d'un graphe*. Comptes Rendus Hebdomadaires des Séances de l'Académie des Sciences 247, 258–259, 1958. Bibliographic data from secondary bibliographies; the note was not inspected, and no theorem number is claimed. The manual attributes to it the Tutte–Berge formula, following [schrijver17](#schrijver17), Section 5.1.
 
+<a id="berger1966"></a>
+## berger1966
+
+Robert Berger. *The Undecidability of the Domino Problem*. Memoirs of the American
+Mathematical Society 66, 1966. [Publisher record](https://doi.org/10.1090/memo/0066).
+Bibliographic metadata checked on 2026-11-16 against the publisher record and its Crossref
+deposit. The book's full text was inaccessible in this pass: internal locator not verified.
+The formalization uses the later Robinson–Ollinger route described under
+[Jeandel–Vanier](#jeandelvanier2020), ported from the pinned lean-wang revision there.
+
 <a id="bermanhartmanis75"></a>
 ## bermanhartmanis75
 
@@ -219,10 +257,25 @@ Dimitri P. Bertsekas. "The auction algorithm: A distributed relaxation method fo
 
 Dimitri P. Bertsekas. *Network Optimization: Continuous and Discrete Models*. Athena Scientific, Belmont, MA, 1998. ISBN 1-886529-02-7. Author-hosted copy: https://web.mit.edu/dimitrib/www/netbook_Full_Book_NEW.pdf . Checked against that copy on 2026-11-08 UTC: §1.3.3 and Prop. 1.4 (an assignment satisfying `ε`-complementary slackness is within `n ε` of optimal); §7.1.1, ε-CS (7.1), the bidding rule (7.2)–(7.5) with the Gauss–Seidel version, Prop. 7.1 (ε-CS is preserved) and Prop. 7.2 (termination, `n ε`-optimality, optimality for integer data and `ε < 1/n`); Figs. 1.12–1.14 (the price-war example); §7.1.4 and Prop. 7.3 (`ε`-scaling, not formalized).
 
+<a id="beullenscamposcelihesskannwischer26"></a>
+## beullenscamposcelihesskannwischer26
+
+Ward Beullens, Fabio Campos, Sofía Celi, Basil Hess and Matthias J. Kannwischer. *MAYO: Round 3 Version*, August 31, 2026 (bibliography key `BeullensCamposCeliHessKannwischer2026`). https://csrc.nist.gov/csrc/media/Projects/pqc-dig-sig/documents/mayo_specification.pdf . Checked against that PDF on 2026-11-14 (SHA-256 `1fc7561dc8ffdbe36c101b985266e4d3c8aa88fa580e18ead215a80ac7bb371f`): Section 2.1.2, Algorithm 2, printed pp. 8–9 specifies `SampleSolution` by shifting with explicit randomness, rejecting a matrix without full row rank even when the shifted system is consistent, and shifting the solution back. Section 2.1.5, Algorithm 7, printed p. 14 tries at most 256 separately derived randomness records and keeps the first successful call; the remark on printed p. 3 says a failed signing attempt retains the salt and derives fresh randomness for another preimage-sampling attempt. The formalization records only the deterministic abstract solver contract, shift correctness and ordered bounded-retry behavior. It does not formalize the source's uniform-sampling statement, rank probability, signing algorithm, correctness or security reductions.
+
 <a id="beyersdorffgalesilauria10"></a>
 ## beyersdorffgalesilauria10
 
 Olaf Beyersdorff, Nicola Galesi and Massimo Lauria. *A lower bound for the pigeonhole principle in tree-like Resolution by asymmetric Prover–Delayer games*. Information Processing Letters 110(23), 1074–1077, 2010. https://doi.org/10.1016/j.ipl.2010.09.007 ; author's copy https://massimolauria.net/documents/tree-like-php.pdf (6 pages). Read in the author's copy on 2026-11-08. Locators checked there: Theorem 1 on p. 3 (if `F` has a tree-like refutation of size at most `S`, Delayer gets at most `log S` points in every `(c₀, c₁)`-game with `1/c₀ + 1/c₁ = 1`); Theorem 2 on p. 4 (every tree-like refutation of `PHP^m_n` has size `2^Ω(n log n)`); the explicit `2^((n/2) log(n/2 + 1)) = (n/2 + 1)^(n/2)` for even `n` at the end of that proof on p. 5; and the closing remark on p. 5 that the bound also holds for the functional pigeonhole principle. The abstract and introduction present the result as a simpler proof of Dantchev and Riis's bound (CCC 2001). Journal pagination was taken from the Crossref record. The ECCC version (TR10-081) was not reachable from this environment and was not read.
+
+<a id="bfckk24"></a>
+## bfckk24
+
+Michael A. Bender, Martin Farach-Colton, John Kuszmaul and William Kuszmaul. "Modern Hashing Made Simple." *Proceedings of the 2024 SIAM Symposium on Simplicity in Algorithms (SOSA 2024)*, 363–373, 2024. https://doi.org/10.1137/1.9781611977936.33 ; open author-hosted copy https://par.nsf.gov/servlets/purl/10488765 (11 pages; `BenderFarachColtonKuszmaulKuszmaul2024`). Checked against the open copy on 2026-11-14 UTC: Section 2.1, PDF pp. 2–3 (word-RAM model with `w = (1 + Θ(1)) log n`, high-probability `1 - O(1 / n^c)` convention, and zero-space random-hash-oracle assumption); Section 2.2, PDF p. 3 (B-trees and `k`-tries, Lemma 2.2); Section 3, PDF p. 4 (slow partition hash tables, Lemma 3.1); Section 4, PDF pp. 4–6 (indexed partition hash tables and `B = √(log n)` Four-Russians B-tree query mapper, Lemmas 4.1–4.3); and Section 5, PDF pp. 6–7 (deamortizing insertions and deletions to `O(1)` time w.h.p. via growing and shrinking `√n`-tries, Lemma 5.1; historical trie-buffer discussion in Section 7, PDF p. 8). SOSA proceedings pagination (`363–373`) comes from `references.bib` and the DOI record and was not separately inspected; Milestones 1–3a of [#5356](https://github.com/cslib-community/cslib-frontier/issues/5356) formalize foundational and pure-model adaptations rather than the end-to-end Theorem 1.1 / Theorem 6.1 resizable hash table.
+
+<a id="bfckkl22"></a>
+## bfckkl22
+
+Michael A. Bender, Martin Farach-Colton, John Kuszmaul, William Kuszmaul and Mingmou Liu. "On the Optimal Time/Space Tradeoff for Hash Tables." *Proceedings of the 54th Annual ACM SIGACT Symposium on Theory of Computing (STOC 2022)*, 1284–1297, 2022. https://doi.org/10.1145/3519935.3519969 ; open preprint `arXiv:2111.00602v2` (4 November 2021), https://arxiv.org/abs/2111.00602v2 (`BenderFarachColtonKuszmaulKuszmaulLiu2022`). Checked against `arXiv:2111.00602v2` on 2026-11-11 and 2026-11-13 UTC (unnumbered title page is PDF p. 1, so printed p. `p` is PDF p. `p + 1`): Section 2.1, printed p. 3 / PDF p. 4 (balls-to-slots probe complexity `1 + log i` and switching cost); Section 2.4, printed p. 7 / PDF p. 8 (iterated logarithm `log^(k) n`); Sections 3 and 3.1, printed pp. 8–12 / PDF pp. 9–13 (`k`-kick tree hierarchy, depth-cap distribution, greedy unsaturated-ancestor selection, priority kicks with switching cost `≤ k + 1`, Lemma 1 on printed pp. 10–11 / PDF pp. 11–12, and Theorems 2–3 on printed p. 12 / PDF p. 13); and Section 5.1, printed p. 27 / PDF p. 28 (removal-only deletion in cubbies). STOC proceedings pagination comes from `references.bib` and was not separately inspected.
 
 <a id="bfprt73"></a>
 ## bfprt73
@@ -232,7 +285,7 @@ Manuel Blum, Robert W. Floyd, Vaughan Pratt, Ronald L. Rivest and Robert E. Tarj
 <a id="bhr12"></a>
 ## bhr12
 
-Mihir Bellare, Viet Tung Hoang, Phillip Rogaway. "Foundations of Garbled Circuits." *Proceedings of the 2012 ACM Conference on Computer and Communications Security (CCS '12)*, 784–796, 2012. https://doi.org/10.1145/2382196.2382279 . Full version: Cryptology ePrint Archive, Report 2012/265. Bibliographic data from the DOI record and secondary listings (`BellareHoangRogaway2012`). The abstract garbling-scheme framework in `Garbling/{Scheme,Games,Foundations,CircuitInverters}.lean` follows Sections 2.3 and 3–4 of ePrint 2012/265 (conventional Boolean circuits in §2.3, syntax in §3.1, side information in §3.3, the five security games in §§3.4–3.6, the explicit topology and size inverters of Proposition 1 in §4.1, and the indistinguishability/simulation reductions and circuit corollaries of Propositions 2 and 3 and Corollaries 1 and 2 in §§4.2–4.3), while the concrete point-and-permute circuit garbling in `Garbling/{Basic,Privacy}.lean` cites the garbling-scheme syntax and simulation-based privacy with topology side information at paper level only, because the ePrint copy returned HTTP 403 and the ACM page sat behind a bot challenge in the pass that added those modules.
+Mihir Bellare, Viet Tung Hoang, Phillip Rogaway. "Foundations of Garbled Circuits." *Proceedings of the 2012 ACM Conference on Computer and Communications Security (CCS '12)*, 784–796, 2012. https://doi.org/10.1145/2382196.2382279 . Full version: Cryptology ePrint Archive, Report 2012/265. Bibliographic data from the DOI record and secondary listings (`BellareHoangRogaway2012`). The abstract garbling-scheme framework in `Garbling/{Scheme,Games,Foundations,CircuitInverters}.lean` follows Sections 2.3 and 3–4 of ePrint 2012/265 (conventional Boolean circuits in §2.3, syntax in §3.1, side information in §3.3, the five security games in §§3.4–3.6, the explicit topology and size inverters of Proposition 1 in §4.1, and the indistinguishability/simulation reductions and circuit corollaries of Propositions 2 and 3 and Corollaries 1 and 2 in §§4.2–4.3), while the concrete point-and-permute circuit garbling in `Garbling/{Basic,Privacy}.lean` cites the garbling-scheme syntax and simulation-based privacy with topology side information at paper level only, because the ePrint copy returned HTTP 403 and the ACM page sat behind a bot challenge in the pass that added those modules. Checked on 2026-11-15 against the ePrint full version dated October 1, 2012 (45 pages, SHA-256 `33c00b94752c8ecd852c8cf84ef70967a4290ea5409ed615e6293ff3137dc8ed`; printed page `p` is PDF page `p + 2`): §3.1, p. 7, the length condition (`|F|`, `|e|` and `|d|` depend only on `k`, `f.n`, `f.m` and `|f|`), the nondegeneracy condition (`e` and `d` depend only on those and the coins) and the correctness condition, which `Garbling/HalfGates/Scheme.lean` cites for the clauses that half-gates garbling fails.
 
 <a id="bhr12b"></a>
 ## bhr12b
@@ -243,6 +296,11 @@ Mihir Bellare, Viet Tung Hoang, Phillip Rogaway. "Adaptively Secure Garbling wit
 ## birge83
 
 Lucien Birgé. "Approximation dans les espaces métriques et théorie de l'estimation." *Zeitschrift für Wahrscheinlichkeitstheorie und Verwandte Gebiete* 65(2), 181–237, 1983. https://doi.org/10.1007/BF00532480 . Bibliographic metadata checked via search summaries on 2026-11-11; the article text was not inspected, and no theorem number is claimed. Cited as background origin for bounded likelihood-ratio Hellinger tests (`leCamBirgeTest`) and Hellinger tournament localization (`birgeTournamentSelect`); the explicit `1/3`–`2/3` clipped `birgeWeight` formulation and constants (`1 - h² / 25`, `10 * r`, `11 * r`, `2 * (M - 1) * exp (-4 n r²)`) are proved from first principles in `CslibFrontier/Probability/HypothesisSelection/{LeCamBirge,Tournament}.lean`.
+
+<a id="bjks04"></a>
+## bjks04
+
+Ziv Bar-Yossef, T. S. Jayram, Ravi Kumar and D. Sivakumar. "An Information Statistics Approach to Data Stream and Communication Complexity." *Journal of Computer and System Sciences* 68(4), 702–732, 2004 (preliminary version in FOCS 2002). https://doi.org/10.1016/j.jcss.2003.11.006 . Checked on 2026-11-16 against an "Article in press" copy of the journal version with the journal's pagination: Section 3.1, the end of the proof of Theorem 3.1 (pp. 708–709), where a `c`-pass `s`-space algorithm gives a `t`-player multi-round protocol in which "the last player sends the content of the memory back to the first player", with total communication at most `cst`. Whether this paragraph is already in the FOCS 2002 version was not checked.
 
 <a id="bjkst02"></a>
 ## bjkst02
@@ -277,7 +335,7 @@ Markus Bläser and Bodo Manthey. *Smoothed Complexity Theory*. ACM Transactions 
 <a id="bmr16"></a>
 ## bmr16
 
-Marshall Ball, Tal Malkin, Mike Rosulek. "Garbling Gadgets for Boolean and Arithmetic Circuits." *Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS '16)*, 565–577, 2016. https://doi.org/10.1145/2976749.2978410 . Full version: Cryptology ePrint Archive, Report 2016/969. Bibliographic data from the DOI record. Read in the ePrint text on 2026-11-09. Locators checked there: Figure 1 (the garbling scheme for mixed-moduli simple circuits, with free addition and constant multiplication and projection gates of at most `m - 1` ciphertexts after choosing `W_j^0 = -H(g, W_i^{-τ}) - φ(-τ)Δ_n`), the oracle `O(g, i, j, X, a, c) = H(g, X + aΔ_{m_i}) + cΔ_{m_j}`, and Definition 1 (mixed-modulus circular correlation robustness against adversaries that query their oracle on distinct `g` values and `a ≠ 0`). Section numbers were not checked.
+Marshall Ball, Tal Malkin, Mike Rosulek. "Garbling Gadgets for Boolean and Arithmetic Circuits." *Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS '16)*, 565–577, 2016. https://doi.org/10.1145/2976749.2978410 . Full version: Cryptology ePrint Archive, Report 2016/969. Bibliographic data from the DOI record. Checked on 2026-11-14 against the ePrint full version dated October 6, 2016 (22 pages, SHA-256 `e9a7cfec82e60b3c71970f8d617015ab0b731bb53d76710fcbf07bbb11a74755`); locators use its printed page numbers, which are also its PDF page numbers. §4.1, p. 5: labels `W^x = W^0 + xΔ_m`, multiplication by a constant `c` coprime to `m`, and key length `λ_m = ⌈λ / log m⌉` (logarithms base 2, §2, p. 3). §4.2, p. 6: each wire has its own modulus, and a projection gate costs `m - 1` ciphertexts after choosing `W_j^0 = -H(g, W_i^{-τ}) - φ(-τ)Δ_n`. Figure 1, p. 7: the garbling scheme for mixed-moduli simple circuits, in which all ciphertexts of a projection gate use that gate's tweak. §4.3, p. 7: the oracle `O(g, i, j, X, a, c) = H(g, X + aΔ_{m_i}) + cΔ_{m_j}`, Definition 1 (mixed-modulus circular correlation robustness against polynomial-time adversaries that query their oracle on distinct `g` values and `a ≠ 0`) and Theorem 1. Proof sketch of Theorem 1, pp. 7–8: it replaces every ciphertext with `a ≠ 0` using only the oracle of Definition 1, hence with `m - 1` queries under one tweak, and states the authenticity bound `1 / 2^λ` (p. 8). Moduli are not restricted to primes: the gadgets use mod-`(b + 1)` wires (§5, p. 8), output modulus `k + 1` (§6.2, p. 11) and `Z_{p+q-1}` (§6.3, pp. 12–13). §4.3 does not analyse zero divisors of composite moduli. An earlier pass read the ePrint text on 2026-11-09.
 
 <a id="bmr90"></a>
 ## bmr90
@@ -332,7 +390,7 @@ Michael Burrows and David J. Wheeler. *A Block-sorting Lossless Data Compression
 <a id="canetti20"></a>
 ## canetti20
 
-Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 .
+Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 . Locators for the static-UC definitions refer to the ePrint revision of February 11, 2020 (106 pages; printed page = PDF page − 3), read through the Internet Archive copy https://web.archive.org/web/20260904164957id_/https://eprint.iacr.org/2000/067.pdf (SHA-256 `0466f041f546ce6db5e86c7ec81ea12604c4bea6c944b73b4eeac8457564703a`, first recorded in [#5680](https://github.com/cslib-community/cslib-frontier/pull/5680); its SHA-1 matches the archive's digest for that capture); the JACM version was not inspected for those static-UC locators, and its numbering may differ. For adaptive corruptions in `Protocols/UC/Adaptive.lean`, `Protocols/UC/AdaptiveToStatic.lean`, and `Protocols/UC/AdaptiveDummyAdversary.lean`, the JACM version (pagination `28:1`–`28:94`) Section 7.1 (JACM pp. 28:69–70; ePrint p. 74), Section 7.1.1 (JACM p. 28:71), Section 7.2 (JACM pp. 28:73–74), JACM p. 28:15, and Claim 11 (JACM p. 28:43) were checked for adaptive corruptions, static-corruption restriction, the corruption-status query, standard PID-wise ideal-functionality corruption, and dummy-adversary completeness; the formalization provides a call-bounded statistical snapshot corruption model (`P.view` snapshots of every party after each inner activation, where `P.view` is arbitrary and may hide stored coins, and global inner-activation counts are exposed; Canetti §7.1.1's write-once storage restriction, mandatory coin exposure, per-party activation granularity, PPT time bounds, and adaptive composition stay open). For fixed-arity multi-session composition in [Protocols/UC/MultiSession.lean](../CslibFrontier/Crypto/Protocols/UC/MultiSession.lean), Section 6.1 Theorem 22 (JACM p. `28:58`; ePrint p. `61`), Corollaries 23 and 24 (JACM p. `28:59`; ePrint p. `62`), and Section 6.3 (JACM p. `28:67`; ePrint p. `70`) were checked; this adapts them to a fixed finite `Fin m` session family in the static-corruption, call-bounded model, and dynamic `SID` creation and full Theorem 22 stay open.
 
 <a id="canonne22"></a>
 ## canonne22
@@ -357,7 +415,7 @@ Ran Canetti, Yevgeniy Dodis, Rafael Pass and Shabsi Walfish. *Universally Compos
 <a id="cf01"></a>
 ## cf01
 
-Ran Canetti and Marc Fischlin. *Universally Composable Commitments*. CRYPTO 2001, Lecture Notes in Computer Science 2139, 19–40, 2001; full version Cryptology ePrint Archive 2001/055. https://doi.org/10.1007/3-540-44647-8_2 . Section 2.2, Figure 2 (`F_com`, p. 10) and Section 3, Theorem 6 (p. 12) were checked against the full version, Cryptology ePrint Archive 2001/055. The library proves an adaptation and special case of Theorem 6: one commitment message and one opening message, a constant completeness gap, a single simulator fixed before the environment, and call-counted (not machine-efficiency) bounds. Theorem 6 for general bilateral protocols and the computational setting is not formalized.
+Ran Canetti and Marc Fischlin. *Universally Composable Commitments*. CRYPTO 2001, Lecture Notes in Computer Science 2139, 19–40, 2001; full version Cryptology ePrint Archive 2001/055. https://doi.org/10.1007/3-540-44647-8_2 . Section 2.2, Figure 2 (`F_com`, p. 10) and Section 3, Theorem 6 (p. 12) were checked against the full version, Cryptology ePrint Archive 2001/055. The library proves an adaptation and special case of Theorem 6: one commitment message and one opening message, a constant completeness gap, a single simulator fixed before the environment, and call-counted (not machine-efficiency) bounds. Theorem 6 for general bilateral protocols and the computational setting is not formalized. Theorem 8 (p. 20, erasing parties) and Theorem 11 (p. 26, `UCCReUse`/`NotErase`, non-erasing parties) motivate the erasing vs. non-erasing distinction in `Protocols/UC/Adaptive.lean` (modeled via per-activation `P.view` snapshots rather than write-once memory); neither computational theorem is formalized (`CslibFrontierTests/Crypto/UCAdaptiveSeparation.lean` gives concrete separation witnesses for both `AdaptiveEmulatesWithin` and `AdaptiveEmulates`).
 
 <a id="cgks98"></a>
 ## cgks98
@@ -373,6 +431,11 @@ Gregory J. Chaitin. *Information-Theoretic Limitations of Formal Systems*. Journ
 ## chakrabarti25
 
 Amit Chakrabarti. *Data Stream Algorithms: Lecture Notes*. Dartmouth College, latest update July 1, 2025. https://www.cs.dartmouth.edu/~ac/Teach/data-streams-lecnotes.pdf . Locators checked against that PDF on 2026-11-07 UTC: Unit 1 (Section 1.1 for the MAJORITY and FREQUENT problems, Algorithm 1 and Theorem 1.3.1 for Misra–Gries, Exercise 1-1 for the `(m − m̂)/k` sharpening), Section 2.4 (the median trick) and Section 5.3 (Algorithms 7–8 and equations (5.1)–(5.7) for the Count-Sketch).
+
+<a id="changkannan06"></a>
+## changkannan06
+
+Kevin L. Chang and Ravi Kannan. "The Space Complexity of Pass-Efficient Algorithms for Clustering." *Proceedings of the Seventeenth Annual ACM-SIAM Symposium on Discrete Algorithms (SODA 2006)*, 1157–1166. https://doi.org/10.1145/1109557.1109685 . Checked against the SODA text on 2026-11-13: Section 5.1, the proof of Theorem 5.1 (stated on p. 1164), on p. 1165, which simulates an `ℓ`-pass algorithm with memory `M(A)` by "a total of 2ℓ − 1 messages of size at most M(A)", Alice and Bob alternately continuing each pass on their halves of the stream. The journal version (SIAM J. Comput., 2009, retitled) was not inspected.
 
 <a id="charikar02"></a>
 ## charikar02
@@ -422,7 +485,7 @@ Vašek Chvátal. *Linear Programming*. W. H. Freeman, New York, 1983. Bibliograp
 <a id="ckkz12"></a>
 ## ckkz12
 
-Seung Geol Choi, Jonathan Katz, Ranjit Kumaresan and Hong-Sheng Zhou. "On the Security of the 'Free-XOR' Technique." *Theory of Cryptography (TCC 2012)*, 39–53, 2012. https://doi.org/10.1007/978-3-642-28914-9_3 ; full version: Cryptology ePrint Archive, Report 2011/510, https://eprint.iacr.org/2011/510 . Cited at paper level for circular correlation robustness and the security of free XOR; no theorem numbers are claimed.
+Seung Geol Choi, Jonathan Katz, Ranjit Kumaresan and Hong-Sheng Zhou. "On the Security of the 'Free-XOR' Technique." *Theory of Cryptography (TCC 2012)*, 39–53, 2012. https://doi.org/10.1007/978-3-642-28914-9_3 ; full version: Cryptology ePrint Archive, Report 2011/510, https://eprint.iacr.org/2011/510 . Checked on 2026-11-15 against the ePrint PDF of October 5, 2011 (14 pages, SHA-256 `3a8fe73ee05f8abb9d1079da877d1d6a0f42346d05f3a41e7ed630f616ab3897`); locators use its printed page numbers, which are also its PDF page numbers; this is the author's check, which no reviewer has yet repeated at the source, so the library cites these locators as not verified. §4, p. 9: the oracle `Circ_R(w, w′, g, b₁, b₂, b₃) = H(w ⊕ b₁R ‖ w′ ⊕ b₂R ‖ g) ⊕ b₃R`, the random oracle `Rand` and the legal queries. P. 10: Definition 4, circular 2-correlation robustness against non-uniform polynomial-time distinguishers, and Theorem 3, security of the free-XOR protocol against a semi-honest adversary in the OT-hybrid model. Cited for the origin of circular correlation robustness; the library formalizes no dual-key notion.
 
 <a id="cks20"></a>
 ## cks20
@@ -476,6 +539,11 @@ Thomas M. Cover and Joy A. Thomas. *Elements of Information Theory*, second edit
 
 Chapter 13 (universal source coding): the Lempel–Ziv tree-structured (incremental) parsing, its example `ABBABBABBBAABABAA`, and the distinct-parsing lemma `c(n) ≤ n / ((1 - ε_n) log n)` with `ε_n = min(1, (log log n + 4) / log n)` in §13.5. The library cites only the section; secondary sources disagree on the lemma's number. The section, the lemma's statement and the example were taken from secondary course material and search summaries and were not checked against the printed book.
 
+<a id="cs03"></a>
+## cs03
+
+Ronald Cramer and Victor Shoup. “Design and Analysis of Practical Public-Key Encryption Schemes Secure against Adaptive Chosen Ciphertext Attack.” *SIAM Journal on Computing* 33(1), 167–226, 2003. https://doi.org/10.1137/S0097539702403773 . Authors' revised manuscript (August 14, 2003): https://www.shoup.net/papers/cca2.pdf (Section 5.1, target collision resistance; Section 6.1, Figure 1, the hash key `hk` drawn at key generation and published in the public key; Section 6.2, Theorem 1). Checked against that manuscript on 2026-11-14. A copy of the same manuscript (69 pages, dated August 14, 2003; SHA-256 `ac2250e7e5d5c156979de1629edbdb0c8248ef25455f66b55640c98a1bad1191`) was fetched from that URL on 2026-11-18 UTC, because the IACR ePrint refused automated download. Its printed page is the PDF page minus 3. Read there on 2026-11-18: Section 7.1 (key encapsulation mechanisms, with keys of `KEM.KeyLen(λ)` bits), Section 7.1.1 (soundness) and Section 7.1.2, printed pp. 38–39 (the adaptive chosen-ciphertext attack game for a KEM: Stage 1 gives the adversary the public key, Stages 2 and 4 are decryption queries, Stage 3 returns `(K†, ψ*)` with `K⁺` uniform on `ℓ`-bit strings, and `AdvCCA'` = 2 · `AdvCCA`).
+
 <a id="cslib"></a>
 ## cslib
 
@@ -487,6 +555,11 @@ CSLib contributors. *CSLib*, pinned dependency snapshot `254e30e6d4299c51323aaea
 Marek Cygan, Fedor V. Fomin, Łukasz Kowalik, Daniel Lokshtanov, Dániel Marx, Marcin Pilipczuk, Michał Pilipczuk, and Saket Saurabh. *Parameterized Algorithms*. Springer, 2015. [DOI](https://doi.org/10.1007/978-3-319-21275-3). Inspected the authors' companion PDF dated 2016-05-30: Definitions 1.2–1.3 (p. 13), Definition 2.1 (pp. 18–19), Lemma 2.2 (p. 20), and Section 2.2.1 (pp. 21–22); accessed 2026-11-02. On 2026-11-08 the same PDF returned HTTP 403, so the crown material of Section 2.3 cited by [Crown](../CslibFrontier/Foundations/Combinatorics/SimpleGraph/Crown.lean) was not inspected. Secondary sources number the crown lemma Lemma 2.14 and the `3k` kernel Theorem 2.16; these numbers are unverified and are not used in the Lean docstrings. The color-coding locators Section 5.2 and Lemma 5.5, the fpt-reduction locator Section 13.1, and the tree-decomposition locator Section 7.3.1 (weighted independent set, stated for `n`-vertex graphs), used in [parameterized complexity](machines-and-classes/parameterized-complexity.md), were not re-inspected. Section 4.4 (iterative compression for odd cycle transversal), cited by [OddCycleTransversal](../CslibFrontier/Foundations/Combinatorics/SimpleGraph/OddCycleTransversal.lean) and its algorithm, was not inspected either; its locator comes from secondary sources. Likewise, nice tree-decomposition normalization (Lemma 7.4, p. 161), bounded-treewidth CSP dynamic programming, and the clause-grouping `3-SAT`-to-`Clique` ETH lower bound (Theorem 14.21, p. 485) were inspected in the companion PDF and verified, matching the locators in the [results registry](../CslibFrontierResults/Entries.lean).
 
 The same author PDF supports the weighted-circuit enumeration in Section 13.3, p. 436, and the definition of `W[t]` in Definition 13.16, p. 437, used in [parameterized complexity](machines-and-classes/parameterized-complexity.md). This section does not define `W[P]`; the library's `WP` reduction closure is documented separately and its equivalence with an effective literature class is not claimed.
+
+<a id="dasfraigniaudpazrosen25"></a>
+## dasfraigniaudpazrosen25
+
+Avinandan Das, Pierre Fraigniaud, Ami Paz and Adi Rosén. "Semi-Streaming Algorithms for Graph Property Certification." arXiv:2503.12996v1, 2025. https://arxiv.org/abs/2503.12996 . Checked against arXiv:2503.12996v1 on 2026-11-16: Section 1 (a certification scheme's verifier receives a certificate from the prover before the stream starts; its cost is the certificate size plus the memory) and Lemma 7 (a family of streaming lower bound graphs gives `c + m = Ω(CC^N(f))` for one-pass certification schemes with `c`-bit certificates and `m` bits of memory; the proof simulates one pass, with one message from Alice to Bob).
 
 <a id="dasguptagupta03"></a>
 ## dasguptagupta03
@@ -582,6 +655,11 @@ Jeff Erickson, Ivor van der Hoog, Tillmann Miltzow. “Smoothing the Gap Between
 
 Alex Fabrikant, Christos H. Papadimitriou, and Kunal Talwar. *The Complexity of Pure Nash Equilibria*. Proceedings of the 36th Annual ACM Symposium on Theory of Computing (STOC 2004), 604–612. https://doi.org/10.1145/1007352.1007445 . Bibliographic metadata checked against Crossref on 2026-11-08; the PLS-completeness theorem is attributed as cited in Roughgarden's CS364A Lecture #19, Theorem 3.1. The paper itself was not consulted.
 
+<a id="falcon2020"></a>
+## falcon2020
+
+Falcon team. *Falcon: Fast-Fourier Lattice-Based Compact Signatures over NTRU*, NIST Post-Quantum Cryptography Standardization Round 3 submission, version 1.2, 2020. [Official archive](https://csrc.nist.gov/CSRC/media/Projects/post-quantum-cryptography/documents/round-3/submissions/Falcon-Round3.zip). Checked on 2026-11-13 against archive SHA-256 `fd58f0454f6bfb4713734e60b2d2d75d96fbae62d5180fceeef1039df5362f44`; the enclosed specification has SHA-256 `fec58c4c7e2f1712413c1e77994886c6f1f40f1cc7ec5fa650f132927ca07cd6`, and `KAT/falcon512-KAT.rsp` has SHA-256 `dd75c946fdedef4ec46a2bee7e10c65c9126f1a839b9ced6921fd45f7354b5cd`. `CslibFrontier.Crypto.Falcon` maps Algorithm 3, Algorithm 14's 64-bit threshold distribution and lazy byte comparison, Algorithms 16 and 18 and Section 3.11.6 to its current verification and sampler interfaces. Algorithm 14, lines 4–10 on printed p. 43, computes a uint64 threshold `z`; lines 5–10 compare its bytes most-significant first and return one with exact probability `2^-64 * z`. The archive's `Reference_Implementation/falcon512/falcon512int/sign.c::BerExp` assigns the threshold at line 1074 and implements the lazy comparison at lines 1082–1087; `inner.h::prng_get_u8`, lines 565–577, supplies each visited byte and refills its buffer when necessary. The formal fixed-threshold interface proves the exact conditional law. Its lazy companion uses the shared `Byte` and `natToFixedBytesBE` boundary, makes one eight-fair-bit draw per visited byte, records the one-to-eight-byte trace and exact source ledger of one draw, subtraction, loop equality test and eight fair bits per byte with zero external resources, proves the same complete decision distribution, and proves that reading past the first byte has probability `2^-8`. The comparison coordinate excludes the one final sign extraction and loop-index tests. These are source operations, not Lean or native steps. It does not formalize the floating-point approximation that produced `z`, PRNG-buffer refills, `BaseSampler`, `SamplerZ`, the Gaussian or retry law, or native resource use. In `Reference_Implementation/falcon512/falcon512int/shake.c`, `i_shake256_inject`, `i_shake256_flip` and `i_shake256_extract` confirm the 136-byte rate chunks, least-significant-byte lane convention, `0x1F` domain/padding byte and final `0x80` bit; `common.c`'s `hash_to_point_vartime` consumes successive output bytes as big-endian 16-bit words. The SHAKE256 client checks `count = 0`'s exact 40-byte salt followed by its 33-byte message against the first 20 output bytes; these finite fixtures are not a full key/signature KAT verification, a complete Gaussian sampler, a native resource certificate or a claim about the still-developing FIPS 206 standard.
+
 <a id="feige1998"></a>
 ## feige1998
 
@@ -597,10 +675,25 @@ John Fearnley, Spencer Gordon, Ruta Mehta and Rahul Savani. "Unique End of Poten
 
 Amos Fiat, Richard M. Karp, Michael Luby, Lyle A. McGeoch, Daniel D. Sleator and Neal E. Young. "Competitive Paging Algorithms." *Journal of Algorithms* 12(4), 685–699, 1991. https://doi.org/10.1016/0196-6774(91)90040-6 . Checked on 2026-11-11 against the arXiv TeX source of `arXiv:cs/0205038v1` (https://arxiv.org/abs/cs/0205038 , submitted 24 May 2002): Section 3 ("The marking algorithm") and Theorem 1 (`\label{markingthm1}`, stating that the marking algorithm is a `2 H_k`-competitive algorithm for the uniform `k`-server problem on `n` vertices). `CslibFrontier/DataStructure/Paging/Marking.lean` formalizes the marking algorithm over `Paging.problem α k` via `Online.BehavioralStrategy` with three local adaptations: (1) pages range over any `[DecidableEq α]` type rather than a finite `n`-vertex uniform metric; (2) initialization covers any admissible cache `|s₀| ≤ k` (inserting without eviction while `|cache| < k`) with additive constant `0`, rather than only a full initial cache `{1, …, k}`; and (3) `cleanCount_le_two_mul_scheduleCost` proves `#clean ≤ 2 · OPT` directly against arbitrary (not necessarily lazy) valid offline schedules without invoking the Manasse–McGeoch–Sleator lazy-schedule reduction. The `H_k` randomized lower bound against an oblivious adversary (Theorem 4 and Corollary 5, Section 5), unequal-capacity bounds, and the published journal's pagination were not formalized or separately checked.
 
+<a id="fips1804"></a>
+## fips1804
+
+National Institute of Standards and Technology. *Secure Hash Standard*, Federal Information Processing Standards Publication 180-4, 2015. https://doi.org/10.6028/NIST.FIPS.180-4 . Checked on 2026-11-14 against the official August 2015 PDF (SHA-256 `5b88d70308c95106e713221c7085cbb8e89dc2eb6214d75c885af2f07ffc6b8a`): Sections 4.1.2 and 4.1.3 define the SHA-256 and SHA-512 logical functions, Sections 4.2.2 and 4.2.3 give the round constants, Sections 5.1.1 and 5.1.2 give padding and length encoding, Sections 5.2 and 5.3 give parsing and initial states, and Sections 6.2 and 6.4 give the hash computations. `CslibFrontier.Crypto.Primitives.ByteString` supplies typed byte strings and big-endian conversion, and `CslibFrontier.Crypto.Primitives.Hash.SHA2` supplies byte-aligned SHA-256 and SHA-512 with the source input-length domains. The official [SHA-256 example PDF](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA256.pdf) (SHA-256 `7006b6549dad2fc8c6f29417a921f2e48208157ef496a7e1e1d7d17c5cc1e7db`) supplies `abc` at input p. 1 and digest p. 3, and the two-block example at input p. 3 and digest p. 6. The official [SHA-512 example PDF](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA512.pdf) (SHA-256 `84ce867c99bad5a7b05abc74bb1dfc9de8486f49a160653cc8b15272cc532115`) supplies `abc` at input p. 1 and digest p. 4, and the two-block example at input p. 4 and digest p. 11. These executable specifications are not constant-time or machine-costed implementations, security proofs, or NIST validations.
+
+<a id="fips202"></a>
+## fips202
+
+National Institute of Standards and Technology. *SHA-3 Standard: Permutation-Based Hash and Extendable-Output Functions*, Federal Information Processing Standards Publication 202, 2015. https://doi.org/10.6028/NIST.FIPS.202 . Checked on 2026-11-13 against the published August 2015 PDF (SHA-256 `1592607831ff0908cc590632ce371c6c95e94025bb1a0c8ae90a4d0ec1ed025e`): Sections 3.1.2--3.1.3 give the bit-string/state correspondence, Sections 3.2--3.3 and Algorithms 1--7 give the five round maps and round function, Section 4 and Algorithm 8 give the permutation-backed sponge construction, Section 5.1 and Algorithm 9 give `pad10*1`, Section 6.1 defines SHA3-512 as `KECCAK[1024](M || 01, 512)`, and Section 6.2 defines SHAKE128 as `KECCAK[256](M || 1111, d)` and SHAKE256 as `KECCAK[512](M || 1111, d)`. The official NIST [SHA3-512 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA3-512_Msg0.pdf) and [SHA3-512 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA3-512_1600.pdf) examples were checked on 2026-11-16 with SHA-256 hashes `6d0a6fecea7babaffe9f3b09058fdb1590576e52b9dbfe0a637705db6f7de248` and `2f5f6ca71c3bd7bf3e99d142f7c4035b1e3fea95d7fc7e7a79a38ce995388211`. The official NIST [SHAKE128 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE128_Msg0.pdf), [SHAKE128 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE128_Msg1600.pdf), [SHAKE256 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE256_Msg0.pdf) and [SHAKE256 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE256_Msg1600.pdf) examples were checked with SHA-256 hashes `3013d904e0f6cebc8dad6393cbf3eed4d1a537b3b3dc5e7b48552ff597942974`, `437f905d9790ce7a18625b396ba57c6118bb46d1542ec3cf1d46faac23c261ef`, `d736c1a93eb6440e1e6b640402e31ea5258281b2b9237f84ea0ba4186518fc59` and `f4226f5c72914e5d2b331812c5973d8d685c8af1ccb97c2a3a2fd1c02fd173d1`. `CslibFrontier.Crypto.Primitives.Hash.Keccak`, `.Keccak.Circuit`, `.Keccak.Efficient`, and `.Keccak.SHAKE128` implement the byte-aligned executable functions and their stated exact-permutation or asymptotic machine certificates; they do not claim cryptographic security, constant-time execution, a concrete whole-sponge cost, FIPS validation or a future FIPS 206 definition.
+
 <a id="fips203"></a>
 ## fips203
 
-National Institute of Standards and Technology. *Module-Lattice-Based Key-Encapsulation Mechanism Standard*, Federal Information Processing Standards Publication 203, 2024. https://doi.org/10.6028/NIST.FIPS.203 . Cited for the rounding maps `Compress_d` and `Decompress_d` (Section 4.2.1), `SamplePolyCBD` (Section 4.2.2, Algorithm 8), K-PKE (Section 5, Algorithms 13–15), the internal ML-KEM algorithms (Section 6, Algorithms 16–18), the ML-KEM interface (Section 7, Algorithms 19–21) and the parameter sets (Section 8, Table 2); the Lean modules record the model differences (uniform matrix, sampled coins, coefficient form). The locators follow the structure of the published standard; the PDF was not re-read in this pass.
+National Institute of Standards and Technology. *Module-Lattice-Based Key-Encapsulation Mechanism Standard*, Federal Information Processing Standards Publication 203, 2024. https://doi.org/10.6028/NIST.FIPS.203 . Checked on 2026-11-14 against the official published PDF (1,252,341 bytes; SHA-256 `fe1f12f32a7e44ec9fdebbf400cda843a40b506dee676725234dc6f7923b6cac`). Section 4.1, Equations (4.3) and (4.6) define the SHAKE256 noise PRF and the one-shot/incremental SHAKE128 correspondence; Section 4.2.1, Algorithms 3–6 define least-significant-bit-first byte packing and `ByteEncode_d`/`ByteDecode_d`; Section 4.2.2, Algorithms 7–8 define SampleNTT's three-byte rejection parser and `SamplePolyCBD`; Section 5, Algorithms 13–15 define K-PKE, including `rho || j || i`; Section 6, Algorithms 16–18 defines the internal ML-KEM algorithms; Section 7, Algorithms 19–21 defines the ML-KEM interface, and Section 7.2, Equation (7.1) gives the public-key decode/re-encode check; Section 8, Table 2 gives the parameter sets. The publication page currently links an errata/potential-updates workbook; these locators and claims map the published PDF. The coefficient-level K-PKE modules record their model differences (uniform matrix, sampled coins, coefficient form), while the encoding/seed-expansion modules cover only the source-ready byte and finite-prefix boundaries described in their documentation.
+
+<a id="fips205"></a>
+## fips205
+
+National Institute of Standards and Technology. *Stateless Hash-Based Digital Signature Standard*, Federal Information Processing Standards Publication 205, 2024. https://doi.org/10.6028/NIST.FIPS.205 . Checked on 2026-11-13 against the official PDF (SHA-256 `8ef34228276f3386d23cb0da8c14592b8cfb0db3358016bba64df7a004f8d13d`): Section 4.2 and Figures 2–9 define the canonical 32-byte address and its seven type-specific layouts; Section 4.3 and Table 1 define the address setters, including clearing the final 12 bytes on every type change; Section 4.4 defines the unsigned big-endian integer encoding and Algorithm 4 defines `base_2b`; Section 5, Equations (5.1)–(5.4) fixes `lg_w = 4`, `w = 16`, `len1 = 2n`, `len2 = 3` and `len = 2n + 3` for `n = 16, 24, 32`; Algorithms 7 and 8, lines 1–7 define the shared message conversion and complement checksum, including the four-bit left shift and two-byte big-endian encoding; and Section 11.2, Figure 18 and Table 3 define the 22-byte compressed address used by the SHA2 parameter sets. `CslibFrontier.Crypto.Primitives.SLHDSA.Address` formalizes the address-domain layer with typed 32-byte and 22-byte encodings, and `CslibFrontier.Crypto.Primitives.SLHDSA.WOTS.Digits` formalizes exactly the digit-preprocessing layer. They do not formalize the concrete hash instantiations, the Algorithm 5 chain, complete WOTS+, XMSS, FORS, the hypertree, signing, verification or security analysis.
 
 <a id="fks84"></a>
 ## fks84
@@ -630,7 +723,7 @@ Samuel Fiorini, Serge Massar, Sebastian Pokutta, Hans Raj Tiwary and Ronald de W
 <a id="fmr20"></a>
 ## fmr20
 
-Benjamin Fuller, Xianrui Meng and Leonid Reyzin. "Computational Fuzzy Extractors." *Information and Computation* 275, article 104602, 2020. https://doi.org/10.1016/j.ic.2020.104602 ; full version IACR Cryptology ePrint Archive Report 2013/416 (revision of June 23, 2020), https://eprint.iacr.org/2013/416 ; conference version ASIACRYPT 2013, LNCS 8269, 174-193. Locators in the library follow the ePrint revision: Definitions 2.1-2.4 and Lemma 2.5 (Section 2), Construction 4.1, Definition 4.5, Lemma 4.7 and Theorem 4.11 (Section 4).
+Benjamin Fuller, Xianrui Meng and Leonid Reyzin. "Computational Fuzzy Extractors." *Information and Computation* 275, article 104602, 2020. https://doi.org/10.1016/j.ic.2020.104602 ; full version IACR Cryptology ePrint Archive Report 2013/416 (revision of June 23, 2020), https://eprint.iacr.org/2013/416 ; conference version ASIACRYPT 2013, LNCS 8269, 174-193. Locators in the library follow the ePrint revision: Definitions 2.1-2.4 and Lemma 2.5 (Section 2), Construction 4.1, Definition 4.5, Lemma 4.7 and Theorem 4.11 (Section 4). Checked on 2026-11-14 against that revision (31 pages, SHA-256 `7ebe9884a2963304ae98329742652916a281d3eb1eb860fc411392bbb99d310d`; printed page numbers, which are also its PDF page numbers): Construction 4.1 (p. 11, prime `q`, the source reading as the LWE error); Definition 4.5 (p. 13, `dist-LWE_{n,m,q,χ}` with `χ` an arbitrary distribution on `Z_q^m`, prime `q = poly(n)`, concrete `(ε, s_sec)` security); Theorem 4.6 (p. 13, from Döttling and Müller-Quade) and Theorem 4.8 (p. 14, from Bai et al.), which derive it for uniform-interval errors from Gaussian LWE; Lemma 4.7 (p. 14, dimension `n - k`, any `χ`); Theorem 4.11 (p. 17, with `χ` the uniform source over `[-2^(b-1), 2^(b-1)]^m`); and Theorem 5.2 (p. 18, symbol-fixing sources). Checked on 2026-11-15 against the same revision: Definition 2.2 (p. 6, computational fuzzy extractor, whose item 4 is security against the distinguishers `D_{s_sec}` of p. 5). The page numbers of the Information and Computation version were not checked.
 
 <a id="fnw78"></a>
 ## fnw78
@@ -710,7 +803,7 @@ Oded Goldreich, Howard Karloff, Leonard J. Schulman and Luca Trevisan. "Lower Bo
 <a id="gkwy20"></a>
 ## gkwy20
 
-Chun Guo, Jonathan Katz, Xiao Wang and Yu Yu. "Efficient and Secure Multiparty Computation from Fixed-Key Block Ciphers." *2020 IEEE Symposium on Security and Privacy (SP 2020)*, 825–841, 2020. https://doi.org/10.1109/SP40000.2020.00016 ; full version: Cryptology ePrint Archive, Report 2019/074, https://eprint.iacr.org/2019/074 . Cited at paper level for tweakable circular correlation robustness and its restriction on queries; no theorem or definition numbers are claimed.
+Chun Guo, Jonathan Katz, Xiao Wang and Yu Yu. "Efficient and Secure Multiparty Computation from Fixed-Key Block Ciphers." *2020 IEEE Symposium on Security and Privacy (SP 2020)*, 825–841, 2020. https://doi.org/10.1109/SP40000.2020.00016 ; full version: Cryptology ePrint Archive, Report 2019/074, https://eprint.iacr.org/2019/074 . Checked on 2026-11-15 against the ePrint PDF dated January 21, 2019 (30 pages, SHA-256 `dc4ff4859fa884d529c176c13a583433c21d95036e7a563067596d5f05e96292`); locators use its printed page numbers, which are also its PDF page numbers; this is the author's check, which no reviewer has yet repeated at the source, so the library cites these locators as not verified. §3, p. 7: the definitions are concrete, asymptotic versions follow "by suitable modifications", and the key law may be non-uniform, as in half gates, where the least significant bit of `R` is `1`. Pp. 7–8: Definitions 1 and 2, correlation robustness and circular correlation robustness. P. 8: the remark that the definitions let tweaks repeat and that weaker notions, such as non-repeating tweaks, may suffice; Definition 3, tweakable (circular) correlation robustness, with `O(x, i, b) = H(x ⊕ R, i) ⊕ b·R`, distinguishers that never ask both `(x, i, 0)` and `(x, i, 1)`, and `(t, q, ρ, ε)` bounds for every key law of min-entropy at least `ρ`; and the relations between the definitions.
 
 <a id="gm94"></a>
 ## gm94
@@ -736,6 +829,11 @@ Oded Goldreich. *On the Cook–Mertz Tree Evaluation procedure*. ECCC TR24-109, 
 ## goldreich04
 
 Oded Goldreich. *Foundations of Cryptography, Volume 2: Basic Applications*. Cambridge University Press, 2004. https://doi.org/10.1017/CBO9780511721656 . Author's chapter listing and draft availability: https://www.wisdom.weizmann.ac.il/~oded/foc-vol2.html . Author page checked; the full published chapter was not independently audited here.
+
+<a id="goldreich98frag"></a>
+## goldreich98frag
+
+Oded Goldreich. *Foundations of Cryptography (Fragments of a Book – Version 2.03)*. Working draft dated February 27, 1998 (bibliography key `Goldreich1998Fragments`). The author's page https://www.wisdom.weizmann.ac.il/~oded/foc-drafts.html posts it as early drafts of Chapters 1–4 of *Foundations of Cryptography, Volume 1* (Cambridge University Press, 2001), in the files https://www.wisdom.weizmann.ac.il/~oded/PSBookFrag/part1N.pdf (title page, preface and Chapter 1; SHA-256 `8bb9b1749e92a76af10ded00ef440de04bfcd5de128e68022205c8e84037b3d7`), `part2N.pdf` (Chapter 2; `e0c0a64cc14321effaccbcb26e845254f08d8dc14b2358529687430a869aa45d`), `part3N.pdf` (Chapter 3; `773f69ff14873f66bbe241179dcf5c90c2389c81cd8a3b1b8f8f6aad365e46c3`) and `part4N.pdf` (Chapter 4; `97e67c3cae68701705839386a31f462803c6c9e6d1984638442010df99b6f977`). Printed page numbers run continuously across the four files. Read on 2026-11-15: Definitions 2.2.1 (strong one-way functions, p. 29), 2.2.6 (non-uniformly one-way functions, with the remark that follows it, p. 36) and 2.5.1 (hard-core predicates, p. 54); Definitions 3.2.2 (polynomial-time indistinguishability, p. 78) and 3.3.2 (pseudorandom generators, p. 85), the description of one-way permutations as length-preserving one-to-one one-way functions in Section 3.4.1 (p. 91), and the definition of indistinguishability by polynomial-size circuits in Exercise 8 of Chapter 3 (p. 121); Definition 4.2.6 (generalized interactive proofs with a soundness bound, p. 136), the remark that probabilistic polynomial time means a strict bound on the running time (p. 145), and Definition 4.3.8 (auxiliary-input zero knowledge, with the discussion of its clocks that follows it, pp. 151–152). The published volume was not inspected, so its numbering is not claimed to match the draft's.
 
 <a id="gomoryhu61"></a>
 ## gomoryhu61
@@ -789,6 +887,17 @@ Venkatesan Guruswami, Atri Rudra and Madhu Sudan. *Essential Coding Theory*. Dra
 
 The draft does not name Wolfowitz. The manual's attribution of the strong converse for discrete memoryless channels to him is standard background and was not checked against his paper.
 
+Multiplicity list decoding of Reed–Solomon codes (the Guruswami–Sudan algorithm) appears in Chapter 12 of this 26 August 2025 draft (checked correspondence, printed pp. 253–259):
+
+- §§12.2.3–12.2.4: adding multiplicities to Sudan's algorithm, with Definitions 12.2.8–9 (multiplicity vanishing via shifted polynomials and Hasse derivatives, formalized in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) as `Polynomial.Bivariate.shift`, `Polynomial.Bivariate.hasseDerivBiv`, and `Polynomial.Bivariate.VanishesToOrder`);
+- Algorithm 12.2.3 and Lemmas 12.2.10–11: multiplicity interpolation and root-divisibility (formalized in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean) as `Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.GuruswamiSudan.weightedInterpolant`, `Cslib.Code.GuruswamiSudan.interpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant.X_sub_C_dvd`, and `Cslib.Code.guruswamiSudan`);
+- Theorem 12.2.12: list decoding of Reed–Solomon codes up to the Johnson radius `1 - √ρ` (formalized as `Cslib.Code.mem_guruswamiSudan_johnson_iff` and `Cslib.Code.exists_guruswamiSudan_of_eps`).
+
+<a id="guruswamisudan99"></a>
+## guruswamisudan99
+
+Venkatesan Guruswami and Madhu Sudan. "Improved Decoding of Reed–Solomon and Algebraic-Geometry Codes." *IEEE Transactions on Information Theory* 45(6), 1757–1767, 1999; preliminary version FOCS 1998. https://doi.org/10.1109/18.782097 . The library's key is `GuruswamiSudan1999`. Bibliographic metadata checked against `references.bib`; the paywalled IEEE article body was not inspected directly, so no journal theorem or page locator is claimed. The formalized exposition follows [Essential Coding Theory](#guruswamirudrasudan25), §§12.2.3–12.2.4, Definitions 12.2.8–9, Algorithm 12.2.3, Lemmas 12.2.10–11, and Theorem 12.2.12 (pp. 253–259), with characteristic-independent bivariate polynomial algebra (`Polynomial.Bivariate.VanishesToOrder`, `Polynomial.Bivariate.weightedDegree`) in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) and Reed–Solomon multiplicity interpolation and Johnson-radius decoding (`Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.guruswamiSudan`, `Cslib.Code.mem_guruswamiSudan_johnson_iff`, `Cslib.Code.exists_guruswamiSudan_of_eps`) in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean).
+
 <a id="gusfield90"></a>
 ## gusfield90
 
@@ -837,7 +946,7 @@ Christopher Henson and Fabrizio Montesi. *Computer Science as Infrastructure: th
 <a id="hhk17"></a>
 ## hhk17
 
-Dennis Hofheinz, Kathrin Hövelmanns, Eike Kiltz. “A Modular Analysis of the Fujisaki–Okamoto Transformation.” *Theory of Cryptography (TCC 2017)*, LNCS 10677, 341–371, 2017. https://doi.org/10.1007/978-3-319-70500-2_12 ; full version https://eprint.iacr.org/2017/604 (dated 2 November 2021). Checked against the 2 November 2021 ePrint PDF (§2.1 correctness/spreadness and Def. 2.2 / Fig. 4 IND-CPA; §3.1 Fig. 5 transform `T`; §3.2.1 Fig. 9 `FO^⊥`; §3.2.2 Fig. 12 `FO-notbot`), with model adaptations (`ExplicitCoinPKE`/`Scheme` fixed types and arbitrary `sampleCoins`/`sampleMsg`/`sampleKey` samplers, single-stage fixed-message probability-difference `indCpaGame`/`indCpaAdvantage`, and domain-separated `H : Bool × M × CT → K`) documented in the Lean modules and chapter text.
+Dennis Hofheinz, Kathrin Hövelmanns, Eike Kiltz. “A Modular Analysis of the Fujisaki–Okamoto Transformation.” *Theory of Cryptography (TCC 2017)*, LNCS 10677, 341–371, 2017. https://doi.org/10.1007/978-3-319-70500-2_12 ; full version https://eprint.iacr.org/2017/604 (dated 2 November 2021). The pinned copy is the Internet Archive's https://web.archive.org/web/20250427001626id_/https://eprint.iacr.org/2017/604.pdf (38 pages; printed page = PDF page; SHA-256 `056ef846e047ec1e7f69629c839e9160312338d330d27f292e40d595a9c73fff`, first recorded in [#5675](https://github.com/cslib-community/cslib-frontier/pull/5675); its SHA-1 matches the archive's digest for that capture). Checked against the 2 November 2021 ePrint PDF (§2.1 correctness/spreadness and Def. 2.2 / Fig. 4 IND-CPA; §3.1 Fig. 5 transform `T`; §3.2.1 Fig. 9 `FO^⊥`; §3.2.2 Fig. 12 `FO-notbot`), with model adaptations (`ExplicitCoinPKE`/`Scheme` fixed types and arbitrary `sampleCoins`/`sampleMsg`/`sampleKey` samplers, two-stage IND-CPA `cpaAdvantage` via `PKE.cpaExperiment` on `ExplicitCoinPKE.toPKE`, with the single-stage fixed-message `indCpaGame`/`indCpaAdvantage` kept only for the spread-necessity example) documented in the Lean modules. The implicit-rejection key and ordinary key both use `H : M × CT → K` as in Figure 12.
 
 <a id="hhrvw20"></a>
 ## hhrvw20
@@ -894,6 +1003,11 @@ Thomas Holenstein. “Pseudorandom Generators from One-Way Functions: A Simple C
 
 Thomas Holenstein. “Parallel Repetition: Simplifications and the No-Signaling Case.” *Theory of Computing* 5(8), 141–172, 2009. https://doi.org/10.4086/toc.2009.v005a008 . Journal PDF inspected (Definition 2.4 and Theorem 2.5, p. 146; Definition 5.1, p. 151; Lemma 5.4 and (5.5), p. 153; Claims 6.2 and 6.3, p. 154; Lemma 6.4 and (6.3)–(6.7) of its proof, p. 155; (6.8)–(6.16), p. 156; the first stage of the embedding, from (6.15) and (6.16) by Corollary 5.3, (6.17)–(6.19) and the second stage, and Lemma 6.5, (6.20) and its proof, p. 157; Lemma 7.1, p. 158; the proof of Theorem 2.5, (7.6) and (7.7), p. 159).
 
+<a id="hooverpersianoyeo26"></a>
+## hooverpersianoyeo26
+
+Alexander Hoover, Giuseppe Persiano and Kevin Yeo. "Lower Bounds for PIR with Preprocessing from Blackbox Cryptography." FOCS 2026 (the arXiv listing says "To appear in FOCS 2026"). Full version: arXiv:2607.06451v3, 10 September 2026, https://arxiv.org/abs/2607.06451v3 ; also Cryptology ePrint Archive, Paper 2026/1384, https://eprint.iacr.org/2026/1384 . Locators are the printed page numbers of arXiv:2607.06451v3, checked against its PDF on 2026-11-15. Definition 6.1, pp. 50–51: `Query` is a two-party protocol with client messages `τu` and server messages `τd`; `ε`-correctness is a success probability ("Pr[Query(st, Q; D, R) = (D[Q]; ⊥) : R ←$ {0,1}^r; (st; ⊥ | τoff) ←$ Setup(1^λ; 1^λ, D, R)] ≥ ε", p. 50, where the sampling of `R` and the `Setup` run is written under `Pr`); `δ`-privacy and `γ`-data privacy are defined against efficient adversaries, and "perfectly correct, private, and data private" means `ε = 1`, `δ = 0` and `γ = 0` (p. 51). Theorem 6.2 and its proof, p. 52: "Let s < k ≤ n and ε > 2^{s−k}. In the random oracle model, there does not exist a k-batch SPIR scheme with s-bit client storage that is ε-correct, perfectly private, and perfectly data private." The first version, arXiv:2607.06451v1, states the threshold as "ε > 1 − 2^{s−k}" (p. 46). Section 6.3, pp. 54–55 (the first toy, under the heading "n-bit client storage, O(k log n)-bit communication", p. 54). The library does not formalize Theorem 6.2. It proves an original information-theoretic bound in a restricted model (plain model, one online round, deterministic online client, perfect notions as identical view laws) by the counting argument in the proof of Theorem 6.2 (`Scheme.correct_le_card_div_two_pow`; `Scheme.correct_le_two_pow_sub` gives `ε ≤ 2 ^ (s - k)`, matching the v3 threshold; `Scheme.batchSPIR_limitation` uses the v1 threshold; all with a `2 ≤ n` guard that the zero-storage scheme at `n = k = 1, s = 0` shows is needed), using the transcript-independence step of that proof (`Scheme.eval_onlineTranscript_eq`). It also has an online-randomized variant with an explicit `Fintype.card Ω` factor (`RandomizedScheme.correct_le_card_mul_card_div_two_pow`, not in the source), the first Section 6.3 toy with an ideal setup (`toyScheme`: `2 ^ n * n!` client states, perfect correctness and data privacy, privacy on injective batches only, and the repeated-query counterexample for `2 ≤ k` and `2 ≤ n`), and a coordinate-wise variant `parallelToyScheme`, not in the source, which shows the hypotheses are jointly satisfiable for every `n` and `k`. Not formalized: Theorem 6.2 itself, Lemma 6.3, Theorem 6.4, the PRF inner-product toy and Sections 6.4–6.5 (Theorem 6.5).
+
 <a id="hoyerleespalek07"></a>
 ## hoyerleespalek07
 
@@ -904,6 +1018,11 @@ Peter Høyer, Troy Lee and Robert Špalek. "Negative weights make adversaries st
 
 William M. Hoza. *Better Pseudodistributions and Derandomization for Space-Bounded Computation*. APPROX/RANDOM 2021, LIPIcs 207, 28:1–28:23, 2021. https://doi.org/10.4230/LIPIcs.APPROX/RANDOM.2021.28 . Appendix A (Lemma A.2 and the proof of Theorem A.3) was checked against the LIPIcs text on 2026-11-08.
 
+<a id="hppy25"></a>
+## hppy25
+
+Alexander Hoover, Sarvar Patel, Giuseppe Persiano and Kevin Yeo. "Plinko: Single-Server PIR with Efficient Updates via Invertible PRFs." *Advances in Cryptology – EUROCRYPT 2025, Part VI*, Lecture Notes in Computer Science, 3–33, Springer, 2025. https://doi.org/10.1007/978-3-031-91095-1_1 ; full version: Cryptology ePrint Archive, Paper 2024/318, https://eprint.iacr.org/2024/318 . Checked against the full ePrint version on 2026-11-14 and rechecked on 2026-11-15: Section 3 Definition 3.1 (pp. 9–10, PRF), Section 4 Definition 4.1 (p. 10, invertible PRF), Section 4.2 Theorem 4.4 and Corollary 4.5 (pp. 12–13, permutation-and-sampler composition), Section 5.1 Definitions 5.1–5.2 and Figure 5 (pp. 19–20, offline-online and updateable PIR), Section 5.2 Theorem 5.3 and the Plinko construction, promotion, caching, update, correctness and privacy paragraphs (pp. 20–23), and Appendix A (p. 30) with Figure 7 (p. 31, normative pseudocode `HintInit`, `Query`, `Answer`, `Recon`, `GetHint`, `UpdateDB`, `UpdateHint`). `CslibFrontier.Crypto.Primitives.PRF.Invertible` formalizes `InvertiblePRF`, exact inversion correctness (`IsCorrectKey`, `IsCorrect`, `IsCorrectOnGen`), `idealInvertiblePRF`, and the inversion correctness of `compose` / `composePerm` (Theorem 4.4 / Corollary 4.5). `CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Plinko` formalizes `plinkoScheme` on `Fin c × Fin w` with `nReg + nBackup` hint slots (`ActiveHint`, `BackupHint`, `PlinkoState`), algorithmic equivalence of `getHint` via `iF.inv` and `getHintScan` (both return a `MatchedHint` record), single-pass entry streaming (`initPlinkoState`, `streamEntry`, `streamPreprocess`, `foldr_streamEntry_univ`), conditional multi-query correctness (`PlinkoState.Valid`, `CanAnswer`, `CanAnswerSeq`, `isCorrectFrom_plinkoScheme_of_canAnswerSeq`, `valid_of_mem_support_preprocess`), the fact that the query map sends a uniform hint conditioned on containing `x` to `plinkoSim` (`eval_buildQuery_conditioned_eq_plinkoSim`), adaptive multi-query perfect privacy of the idealized stand-in `plinkoHybridScheme`, which has no iPRF, keys or hint table, keeps `db` in its state and draws a fresh conditioned hint per query (`isPerfectlyPrivateWith_plinkoHybridScheme`, `privacyAdvantage_plinkoHybridScheme_eq_zero`), and single/batch database and hint updates driven by `UpdateSummary` records (`updateDB`, `updateHint`, `updateState`, `valid_updateHint`, `valid_updateState`). The bidirectional iPRF security proof of Theorem 4.4, PMNS (Section 4.1 Definitions 4.2–4.3, Figure 4, Lemma 4.6, Theorem 4.7), the Chernoff hint-load bound and Theorem 5.3 asymptotic bounds, `CanAnswerSeq` failure probability, amortized re-streaming, Appendix B Plinko-Piano, `B`-bit entries, FHE offline preprocessing, and exact multi-query privacy of the full `plinkoScheme` are not formalized. Modelling choices: `getHint` takes the smallest matching candidate slot where Figure 7 scans them in random order, and a cached query sends a dummy simulator message where Figure 7 queries a fresh random index. The bibliographic record (authors, title, Part VI, pages, DOI) was checked against the Crossref records for the chapter and the volume on 2026-11-15; Crossref does not list the LNCS volume number, so it is omitted.
+
 <a id="hueffner2009"></a>
 ## hueffner2009
 
@@ -912,7 +1031,7 @@ Falk Hüffner. "Algorithm Engineering for Optimal Graph Bipartization." *Journal
 <a id="iknp03"></a>
 ## iknp03
 
-Yuval Ishai, Joe Kilian, Kobbi Nissim and Erez Petrank. "Extending Oblivious Transfers Efficiently." *Advances in Cryptology – CRYPTO 2003*, Lecture Notes in Computer Science 2729, 145–161, Springer, 2003. https://doi.org/10.1007/978-3-540-45146-4_9 . Bibliographic data from the DOI record; the full text was not inspected in this pass. The manual cites Section 3 for the semi-honest protocol (Figure 1) and Definition 1 for correlation robustness, as reported by secondary descriptions; theorem and lemma numbers are not claimed.
+Yuval Ishai, Joe Kilian, Kobbi Nissim and Erez Petrank. "Extending Oblivious Transfers Efficiently." *Advances in Cryptology – CRYPTO 2003*, Lecture Notes in Computer Science 2729, 145–161, Springer, 2003. https://doi.org/10.1007/978-3-540-45146-4_9 . Inspected on 2026-11-15 in the IACR archive copy of the CRYPTO 2003 version (https://www.iacr.org/archive/crypto2003/27290145/27290145.pdf, read through the Wayback Machine snapshot of 2026-08-21; 17 pages with the LNCS page numbers 145–161; SHA-256 `b1336e811da8a24c4c0fc66904dda4c61aa0283e7d146638c66c8917856ff9ae`): Theorem 2 (p. 147); §2.1 on the random oracle, hybrid-model reductions and black-box reductions (pp. 149–150); §2.2, the functionality `ot^m_ℓ` (p. 151); Fig. 1, the protocol with a semi-honest receiver (p. 152); §3.1, the perfect simulator for a malicious sender and the statistical simulator for a semi-honest receiver in the random-oracle model, with Lemma 1 (pp. 152–154); §5, Definition 1 (correlation robustness of an efficiently computable `h : {0,1}* → {0,1}`) and the discussion that replaces the random oracle of Fig. 1 by a correlation robust `h` for bit transfers, hashing `u` in place of `(j, u)`, with footnote 10 and Theorem 3 (p. 157); and Appendix A, the stand-alone definition of secure two-party computation against a non-adaptive adversary (p. 160).
 
 <a id="ilango2020focs"></a>
 ## ilango2020focs
@@ -979,6 +1098,118 @@ Sandy Irani. "Two Results on the List Update Problem." *Information Processing L
 
 Svante Janson, Tomasz Łuczak and Andrzej Ruciński. *Random Graphs*. Wiley-Interscience Series in Discrete Mathematics and Optimization, Wiley, 2000. https://doi.org/10.1002/9781118032718 . Bibliographic data from secondary records of the DOI. The chapter locator (Chapter 3, small subgraphs and the threshold `n ^ (-1 / m(H))`) was taken from secondary descriptions; the book was not inspected in this pass, and no theorem number is claimed.
 
+<a id="jeandelvanier2020"></a>
+## jeandelvanier2020
+
+Emmanuel Jeandel and Pascal Vanier. *The Undecidability of the Domino Problem*. In Shigeki
+Akiyama and Pierre Arnoux (eds.), *Substitution and Tiling Dynamics*, Lecture Notes in Mathematics
+2273, 293–357, Springer, 2020. [Publisher record](https://doi.org/10.1007/978-3-030-57666-0_6);
+[authors' manuscript](https://www.lacl.fr/pvanier/rech/cirm.pdf). Read on 2026-11-16 by the
+authoring Codex workers: §3.2 (beginning on manuscript p. 22), Definition 10 and Theorem 9
+(p. 23), Proposition 8 (p. 24), and Figures 13–16 (pp. 25–26). The tile set is attributed to
+[Ollinger](#ollinger2008) on p. 24. The Robinson modules use
+[lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3aaaef3eac65559352ef94f62ab9c00482)
+at that revision, retaining its authors and Apache-2.0 credit. “Corrected” identifies its
+Figure 13 component transcription and the second thick-layer summand at `L2b` in Figure 16(c),
+whose southeast extension uses `R1` rather than `R3`
+([plan, lines 94–98](https://github.com/edemaine/lean-wang/blob/64268a3/plan.md#L94-L98)).
+Both thick-layer boundary lanes are retained. This records lean-wang's correction, not a
+verified erratum to the printed figures; historical correction: locator not verified.
+Full agreement with those figures is not checked in Lean. The hierarchy modules formalize
+matching substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
+they do not include Proposition 8's aperiodicity conclusion or domino undecidability.
+The routing worker additionally read §3.3, pp. 26–29, on 2026-11-16: light/dark separation,
+obstruction signals, free-grid transmission and the two directions of seed removal.
+Routing formalizes the generic conditional step, including its finite-grid/addressed-patch
+consumers. Signals constructs the finite decorated scaffold, decodes arbitrary scaffold planes,
+and characterizes roles by clear signal edges. Canonical certificates retain 312 selected
+decorated nodes from that same lean-wang revision's
+[ShadedSubstitutionStateWitnesses](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedSubstitutionStateWitnesses.lean).
+Nodes are reindexed in source-list order; semantic seam certificates replace repeated
+decoding of the source tables.
+Canonical patches assign nearest-border obstruction signals to matching decorated
+substitutions and establish that the resulting finite scaffold tiles the plane.
+Carrier/BorderCertificates retains the 376-state invariant from
+[ShadedCarrierBorderHierarchyData](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedCarrierBorderHierarchyData.lean).
+Each state records a decorated node, coordinate parities and a three-by-three border halo.
+Indexed witnesses certify all sixteen child refinements, visible border observations and
+index-zero child configurations. Carrier/Borders gives these certificates their recursive
+frame interpretation.
+Carrier/Borders, Carrier/Addresses, Carrier/Corners and Realization port the pinned
+revision's ShadedCarrierHierarchy, ShadedCarrierBorderHierarchy, ShadedCarrierBorderGeometry,
+ShadedCarrierBorderIntervals, ShadedCarrierSquareGeometry, ShadedCarrierHierarchyAddressing,
+ShadedCarrierConcreteRoles and ShadedCarrierCornerAddressing. Recursive owner frames identify
+the canonical carriers, their integer addresses satisfy wire equations, and every corner has
+address zero. Thus the concrete scaffold realizes every pointed payload plane, as in
+ShadedCarrierCornerAddressing.lean:435–440. The named border halo and `AddressedSquare`
+replace the source's raw halo lists and `SquareAddressing`; the carrier arithmetic and
+centered-marker induction closely follow the source.
+The backward authoring worker also read Theorem 10 on manuscript p. 29 and the proof-route
+attribution in §3.4, pp. 29–30, plus [Robinson's primary paper](https://lipn.univ-paris13.fr/~fernique/qc/robinson.pdf),
+§7, printed pp. 201–205, on 2026-11-16.
+The red-path and shading modules are after §3.3, Figures 17–18, manuscript
+pp. 24, 26–28, read directly on 2026-11-16: light red wires cross dark ones, and squares
+emit signals on their exterior borders. The exact opposite-shade crossing rule (also
+forbidding dark–dark crossings), quarter-port connectivity, and nearest outward-facing
+light-boundary invariant come from lean-wang's red-graph and oriented-light modules at
+the same pinned revision; the discrete-height argument is not attributed to the manuscript. These are scaffold ingredients, not Theorem 10's endpoint.
+This source check is authoring evidence, not independent review.
+
+FreeGrid proves that every decoded scaffold plane contains a light consecutive marked grid
+for each requested number of rows and columns. Its
+canonical free-line inductions follow `coordinate_free_lines` in
+[CanonicalEvenFreeLines, line 417](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalEvenFreeLines.lean#L417)
+and [CanonicalOddFreeLines, line 449](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddFreeLines.lean#L449).
+Transfer to arbitrary shades follows `freeCoordinates` in
+[CanonicalShadeComparison, line 284](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalShadeComparison.lean#L284)
+and [CanonicalOddShadeComparison, line 361](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddShadeComparison.lean#L361),
+sharing one comparison proof and using closed coordinate formulas instead of branch lists.
+Marker transport follows
+[ShadedMarkedFreeGrid, line 64](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedMarkedFreeGrid.lean#L64);
+the arbitrary-plane assembly and gap filling follow
+[SparseFreeLineDecodedMarkedGrid, line 43](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/SparseFreeLineDecodedMarkedGrid.lean#L43)
+and [ShadedConsecutiveFreeGrid, line 220](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedConsecutiveFreeGrid.lean#L220).
+The `RedPaths/Certificates` module supplies the odd-phase finite base after
+[CanonicalOddShadeBase.exists_boundedPath, line 22](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddShadeBase.lean#L22),
+using the [oddNodes witnesses, line 5412](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/RedShadeGraphPathWitnesses.lean#L5412)
+with shared path prefixes and semantic-side certificates.
+
+FreeGrid/Obstruction turns these grids into routed grids: the outward-facing light boundary
+rules out extra crossings. It retains the signal-corridor argument and
+[ShadedObstructionGeometry.Geometry.crossingObstruction, line 252](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedObstructionGeometry.lean#L252),
+while separating the payload propagation of
+[ShadedPayloadCorridors.tileableFixedCornerSquare_of_consecutive, line 229](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedPayloadCorridors.lean#L229)
+into generic Routing. Forcing then proves `scaffold_forces : Forces scaffold`, after
+[OrientedLightForward.closed104_forcesRoutedFixedCornerSquares, line 32](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/OrientedLightForward.lean#L32):
+for every seeded payload and every combined plane tiling, there is a seeded payload square
+of each positive side length. There is no extra premise about the scaffold.
+The lean-wang declarations and locators above were checked against the pinned source by an
+authoring Codex worker on 2026-11-16; this is authoring evidence, not independent review.
+
+Robinson/Reduction discharges both concrete obligations and proves
+`TilesPlane (removeSeed I) ↔ TilesQuadrant I`, with a primitive-recursive map.
+Undecidable then proves Berger's theorem `¬ ComputablePred TilesPlane`, using the existing
+`List WangTile` instance encoding through `(top, bottom, left, right)`.
+This is after Robinson's proof in the Ollinger form presented here, ported and restructured
+from lean-wang's Robinson/Reduction.lean at the same revision. Its `(n, s, e, w)` record and
+`Fin 4 → ℕ` tiles encode the same fixed-orientation matching problem: our top/bottom/left/right
+correspond to n/s/w/e, reordering the last two coded components. The assembly authoring helper
+checked this manuscript's §1.1, Theorem 1, p. 2 and §3.3, Theorem 10, p. 29 directly on
+2026-11-16. Berger's memoir internal locator remains unverified, as recorded under
+[Berger1966](#berger1966). No aperiodicity theorem or co-RE completeness is claimed.
+
+<a id="jnvwy2020lowindividualdegree"></a>
+## jnvwy2020lowindividualdegree
+
+Zhengfeng Ji, Anand Natarajan, Thomas Vidick, John Wright and Henry Yuen.
+*Quantum soundness of the classical low individual degree test*. arXiv:2009.12982v1, 2020.
+Definition 3.2 and Figure 2 give the three verifier branches, their sampling, and their
+degree requirements. The formalization uses positive ambient dimension so a uniform coordinate
+can be sampled. The displayed diagonal affine image is a singleton for the sampled zero direction.
+The current result establishes the verifier and honest completeness. Theorem 3.10 is tracked
+under [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149).
+[Source, pp. 12–13](https://arxiv.org/pdf/2009.12982v1#page=12)
+
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84
 
@@ -1032,7 +1263,7 @@ Tadao Kasami. *An Efficient Recognition and Syntax-Analysis Algorithm for Contex
 <a id="katzlindell20"></a>
 ## katzlindell20
 
-Jonathan Katz and Yehuda Lindell. *Introduction to Modern Cryptography*, 3rd edition. CRC Press, 2020. Bibliographic metadata and section titles checked against the authors' 3rd-edition table of contents and preface: https://www.cs.umd.edu/~jkatz/imc/toc-preface-3rd.pdf (Sections 9.2.3–9.2.4 on the factoring and RSA assumptions; Section 15.1.1 on trapdoor permutations; Section 15.2 on Paillier encryption; Sections 15.4.1–15.4.3 on quadratic residues and the quadratic residuosity assumption; and Sections 15.5.1–15.5.2 on modular square roots and the Rabin trapdoor permutation). Detailed numbered locators (Definitions, Claims, Propositions, Lemmas, Constructions, Examples, Exercises, and Theorems) remain attributed to the Lean source docstrings, as the textbook body was not independently audited; the Lean modules adapt the parameter generators, RSA challenge domain, Rabin sampling distribution, and the Paillier encryption-randomness sampler (dyadic sampling with `unitOrOne` in place of uniform `ℤ_N^*`) as documented in their module docstrings and implementation notes.
+Jonathan Katz and Yehuda Lindell. *Introduction to Modern Cryptography*, 3rd edition. CRC Press, 2020. Bibliographic metadata and section titles checked against the authors' 3rd-edition table of contents and preface: https://www.cs.umd.edu/~jkatz/imc/toc-preface-3rd.pdf (Sections 9.2.3–9.2.4 on the factoring and RSA assumptions; Section 15.1.1 on trapdoor permutations; Section 15.2 on Paillier encryption; Sections 15.4.1–15.4.3 on quadratic residues and the quadratic residuosity assumption; and Sections 15.5.1–15.5.2 on modular square roots and the Rabin trapdoor permutation). Checked against a PDF of the 3rd edition (CRC Press, 2020), Chapter 12, pp. 423–437, directly inspected on 2026-11-16 for §12.3.2 Definition 12.13 (p. 425, `KEM^cca` with `n`-bit keys and decapsulation oracle rejecting the challenge ciphertext), §12.4.2 Construction 12.19 (p. 431, Diffie–Hellman KEM with `H : G → {0, 1}^{ℓ(n)}`), §12.4.4 gap-CDH prose definition with fixed-base DDH oracle `O_y(U, V) = 1 ↔ V = U^y` (p. 434), Theorem 12.22 (p. 435, ROM CCA security of Construction 12.19 under gap-CDH), and Construction 12.23's `c ∈ G` decryption validation remark (pp. 435–436). Other numbered locators outside pp. 423–437 remain attributed to the Lean source docstrings, as those chapters were not independently audited; the Lean modules adapt the parameter generators, RSA challenge domain, Rabin sampling distribution, and the Paillier encryption-randomness sampler (dyadic sampling with `unitOrOne` in place of uniform `ℤ_N^*`) as documented in their module docstrings and implementation notes.
 
 <a id="kdw04"></a>
 ## kdw04
@@ -1114,6 +1345,11 @@ Peter Kairouz, Sewoong Oh and Pramod Viswanath. *The Composition Theorem for Dif
 
 Vladimir Kolesnikov, Thomas Schneider. "Improved Garbled Circuit: Free XOR Gates and Applications." *Automata, Languages and Programming, 35th International Colloquium (ICALP 2008)*, Lecture Notes in Computer Science 5126, 486–498, 2008. https://doi.org/10.1007/978-3-540-70583-3_40 ; author's copy: https://www.cs.toronto.edu/~vlad/papers/XOR_ICALP08.pdf . Cited at paper level for the free-XOR technique, which it proves secure in the random oracle model; no theorem numbers are claimed.
 
+<a id="kyber302"></a>
+## kyber302
+
+Roberto Avanzi, Joppe Bos, Léo Ducas, Eike Kiltz, Tancrède Lepoint, Vadim Lyubashevsky, John M. Schanck, Peter Schwabe, Gregor Seiler, Damien Stehlé. *CRYSTALS-Kyber: Algorithm Specifications and Supporting Documentation (version 3.02)*, NIST Post-Quantum Cryptography Standardization third-round submission, 4 August 2021. https://pq-crystals.org/kyber/data/kyber-specification-round3-20210804.pdf . Checked on 2026-11-14 against that PDF (SHA-256 `1c54ad57022e00b77ff7acd40e9b38a962e7fbbd02bea73b183349c53a8f8aee`): the Module-LWE advantage `Adv^mlwe_{m,k,η}` with `(s, e) ← β_η^k × β_η^m` (§4.3, p. 19); Theorem 1, the IND-CPA bound for Kyber.CPAPKE (§4.3.1, p. 20); and the Module-LWER problem with the two-term replacement eq. (6) (§4.4 and footnote 3, pp. 21–22). Checked again on 2026-11-15 against the same PDF: the pseudorandom function `PRF : B^32 × B → B^*` (p. 5); `CBD_η : B^{64η} → R_q` (Algorithm 2, p. 7); the noise `CBD_η(PRF(σ, N))` of key generation and `CBD_η(PRF(r, N))` of encryption (Algorithms 4 and 5, pp. 8–9); in Algorithm 4 (p. 8), `(ρ, σ) := G(d)`, `Â[i][j] := Parse(XOF(ρ, j, i))` and `pk := (Encode_12(t̂ mod q) ‖ ρ)`; in Algorithm 5 (p. 9), `ρ` read from `pk` and `Â^T[i][j] := Parse(XOF(ρ, i, j))`; the instantiation of `PRF(s, b)` by SHAKE-256(s‖b) (p. 11); and Theorem 1's opening "Suppose XOF and G are random oracles" (p. 20). Cited for `MLKEM.cpaAdvantage_le`, whose model differences (a uniform matrix in the public key in place of `ρ`, no `XOF` or `G` oracles, sampled coins, uncompressed ciphertext hop, no running time) are recorded in the Lean module; for its asymptotic form with ideal coin expansion and the matrix in the public key, `MLKEM.indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`, a step towards Theorem 1 without its `Adv^prf` term or its random oracles `XOF` and `G`, whose module records the same differences and its parameter family; and for `MLKEM.indCPA_kpkePRF_of_decisionModuleLWEWith`, IND-CPA of K-PKE with seed expansion (`MLKEM.kpkePRF`) and the matrix in the public key, a step towards Theorem 1 with its `Adv^prf` term but without its random oracles `XOF` and `G`, whose module records its deviations.
+
 <a id="lamportshostakpease1982"></a>
 ## lamportshostakpease1982
 
@@ -1164,6 +1400,11 @@ Carsten Lund, Lance Fortnow, Howard Karloff and Noam Nisan. *Algebraic Methods f
 
 Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . Bibliographic metadata checked; secondary search summaries indicate Definition 3.1 (affine sources), Lemma 3.9 (affine conditioning), Lemma 3.10 (block decomposition), Theorem 7.13 (sumset extractor), and Corollary 7.14 in preprint versions, while the full primary PDF was not read line by line, so individual numbered locators in `AffineSource.lean` remain unverified against the typeset FOCS version.
 
+<a id="lindell17"></a>
+## lindell17
+
+Yehuda Lindell. *How To Simulate It – A Tutorial on the Simulation Proof Technique*. Electronic Colloquium on Computational Complexity, Report TR17-112, 2017. https://eccc.weizmann.ac.il/report/2017/112/ . The ECCC PDF dated June 27, 2017 was read for Section 2 (computational indistinguishability against non-uniform polynomial-time distinguishers with one negligible function for all inputs, p. 3), Section 4.2 (Definition 4.1, security against static semi-honest adversaries for two parties, p. 7) and the remark on auxiliary information (p. 9); page numbers are those printed in the report.
+
 <a id="liptonyoung1994"></a>
 ## liptonyoung1994
 
@@ -1207,7 +1448,7 @@ László Lovász. *On the Shannon Capacity of a Graph*. IEEE Transactions on Inf
 <a id="lp09"></a>
 ## lp09
 
-Yehuda Lindell, Benny Pinkas. "A Proof of Security of Yao's Protocol for Two-Party Computation." *Journal of Cryptology* 22(2), 161–188, 2009. https://doi.org/10.1007/s00145-008-9036-8 . Metadata checked at the publisher. The full text is paywalled and ePrint 2004/175 returned HTTP 403 in this pass, so theorem and section locators are not claimed.
+Yehuda Lindell, Benny Pinkas. "A Proof of Security of Yao's Protocol for Two-Party Computation." *Journal of Cryptology* 22(2), 161–188, 2009. https://doi.org/10.1007/s00145-008-9036-8 . Metadata checked at the publisher. Locators refer to the ePrint version 2004/175 of June 26, 2006 (25 pages; printed and PDF page numbers agree), read on 2026-11-15 through the Internet Archive copy https://web.archive.org/web/20260925153108/https://eprint.iacr.org/2004/175.pdf (sha256 `31b6d91daed7b182793d30b47b0b21736dd477f963a732434a21b97f0f07dfe9`): Definition 1 (§2.1, p. 5), the garbled-circuit construction (§4.1, p. 12), Protocol 2 and Theorem 7 (§4.2, p. 15), and the two cases of the proof of Theorem 7, Case 1 (p. 16) and Case 2 with the simulator `S₂` (pp. 18–19). The journal version was not inspected, and its numbering may differ.
 
 <a id="ltv98"></a>
 ## ltv98
@@ -1354,6 +1595,11 @@ Hiroshi Nagamochi and Toshihide Ibaraki. "Computing Edge-Connectivity in Multigr
 
 Zsigmond Nagy. “A Constructive Estimation of the Ramsey Numbers” (in Hungarian). *Matematikai Lapok* 23, 301–302, 1972 (the volume is dated 1972 but reportedly appeared in 1975). The original was not inspected; the construction and its bound follow Jukna, *Extremal Combinatorics*, 2nd ed., §13.7 and the Chapter 13 exercises, as cited in the Lean documentation.
 
+<a id="naor91"></a>
+## naor91
+
+Moni Naor. “Bit Commitment Using Pseudorandomness.” *Journal of Cryptology* 4(2), 151–158, 1991. https://doi.org/10.1007/BF00196774 . The journal version was not inspected. Read on 2026-11-15 in the author's copy, https://www.wisdom.weizmann.ac.il/~naor/PAPERS/bit.pdf (“Bit Commitment Using Pseudo-Randomness”, 10 pages, dated February 25, 2001; SHA-256 `938b32039291411c682ca457c8c040dba7f0dc264de91182e6cb8cdaaba633b6`), whose section and page numbers the library cites: Section 2 (pp. 3–4), the secrecy and binding conditions of a bit commitment, the remark on auxiliary input, and the conditions for commitments to many bits, in which the receiver selects the two sequences.
+
 <a id="naoryung89"></a>
 ## naoryung89
 
@@ -1407,7 +1653,7 @@ Piergiorgio Odifreddi. *Classical Recursion Theory, Volume II*. Studies in Logic
 <a id="odonnell14"></a>
 ## odonnell14
 
-Ryan O'Donnell. *Analysis of Boolean Functions*. Cambridge University Press, 2014; arXiv edition, arXiv:2105.10386v1, May 2021, https://arxiv.org/abs/2105.10386 . Library bibliography key `ODonnell2014`. Read in the arXiv edition on 2026-11-08: §1.7, p. 38, Exercise 1.28 (a) `|f̂(S)| ≤ 2δ` for `S ≠ S*` when `dist(f, χ_{S*}) = δ`, (b) the BLR test rejects with probability at least `3δ − 10δ² + 8δ³`, (c) this cannot be improved to `cδ − O(δ²)` for any `c > 3`; and Exercise 1.29 (a) the characterization of affine functions by `f(x) + f(y) + f(z) = f(x + y + z)`, (b) `E[f(x) f(y) f(z) f(x + y + z)] = Σ_S f̂(S)⁴`, (c) a four-query affinity test with uniform queries whose acceptance probability `1 − ε` gives `ε`-closeness to affine, (d) an alternate test with three uniform queries and one fixed query. Theorem 1.30 (BLR soundness) is in §1.6 of the same edition. In [LinearityRejection](../CslibFrontier/Foundations/BooleanAnalysis/LinearityRejection.lean), part (b) is proved for every parity, not only the nearest, and part (c) is stated as the failure of every bound `cδ − Cδ²` for `c > 3` over functions at distance `δ ≤ δ₀` from their nearest parity. The anchored test in [Affinity](../CslibFrontier/Foundations/BooleanAnalysis/Affinity.lean) is one answer to part (d); the exercise asks for some such test and does not specify it.
+Ryan O'Donnell. *Analysis of Boolean Functions*. Cambridge University Press, 2014; arXiv edition, arXiv:2105.10386v1, May 2021, https://arxiv.org/abs/2105.10386 . Library bibliography key `ODonnell2014`. Read in the arXiv edition on 2026-11-08: §1.7, p. 38, Exercise 1.28 (a) `|f̂(S)| ≤ 2δ` for `S ≠ S*` when `dist(f, χ_{S*}) = δ`, (b) the BLR test rejects with probability at least `3δ − 10δ² + 8δ³`, (c) this cannot be improved to `cδ − O(δ²)` for any `c > 3`; and Exercise 1.29 (a) the characterization of affine functions by `f(x) + f(y) + f(z) = f(x + y + z)`, (b) `E[f(x) f(y) f(z) f(x + y + z)] = Σ_S f̂(S)⁴`, (c) a four-query affinity test with uniform queries whose acceptance probability `1 − ε` gives `ε`-closeness to affine, (d) an alternate test with three uniform queries and one fixed query. Theorem 1.30 (BLR soundness) is in §1.6 of the same edition. In [LinearityRejection](../CslibFrontier/Foundations/BooleanAnalysis/LinearityRejection.lean), part (b) is proved for every parity, not only the nearest, and part (c) is stated as the failure of every bound `cδ − Cδ²` for `c > 3` over functions at distance `δ ≤ δ₀` from their nearest parity. The anchored test in [Affinity](../CslibFrontier/Foundations/BooleanAnalysis/Affinity.lean) is one answer to part (d); the exercise asks for some such test and does not specify it. Read on 2026-11-12: §2.1, p. 43, Definition 2.1 (`Majₙ(x) = sgn(x₁ + ⋯ + xₙ)` for odd `n`; for even `n`, a majority function is any `f` equal to that sign wherever the sum is nonzero); §2.3, p. 50, Proposition 2.31 (`I[f] = Σᵢ f̂(i)` for monotone `f`), Proposition 2.32 (`E[w] = n/2 + ½ Σᵢ f̂(i)` for the number `w` of votes agreeing with the outcome) and equation (2.3) in its proof (`Σᵢ f̂(i) = E[f(x)(x₁ + ⋯ + xₙ)]`); p. 51, Theorem 2.33 (the majority functions are the unique maximizers of `Σᵢ f̂(i)`, and `I[f] ≤ I[Majₙ] = √(2/π)√n + O(n^{−1/2})` for monotone `f`). [Majority](../CslibFrontier/Foundations/BooleanAnalysis/Majority.lean) proves the characterization for every `n`, reading the book's restriction to odd `n` through `Cslib.majority n`, which breaks ties towards `true` (the book's −1) and is a majority function in the book's even-`n` sense, and proves the inequality of Theorem 2.33 but not its asymptotic value. Read on 2026-11-14: §2.3, p. 49, Proposition 2.28 (`I[f] = E[sens_f(x)]`, where `sens_f(x)` is the number of pivotal coordinates for `f` on input `x`); p. 51, equation (2.4) (`I[f] = E[Σᵢ Dᵢf(x)²]`), Definition 2.34 (the discrete gradient of `f` at `x` is `(D₁f(x), D₂f(x), …, Dₙf(x))`), the note after it (for `f : {−1, 1}ⁿ → {−1, 1}` the squared Euclidean norm of the gradient at `x` is `sens_f(x)`) and Proposition 2.35 (`I[f]` is the mean over `x` of the squared Euclidean norm of the gradient). [Influence](../CslibFrontier/Foundations/BooleanAnalysis/Influence.lean) proves Proposition 2.35 and the note for an arbitrary finite coordinate type, writing that squared norm as `∑ i, gradient f x i ^ 2` because the norm on `ι → ℝ` is the sup norm.
 
 <a id="oliveirapichsanthanam2019"></a>
 ## oliveirapichsanthanam2019
@@ -1424,6 +1670,38 @@ Igor Carboni Oliveira and Rahul Santhanam. *Conspiracies Between Learning Algori
 
 Igor Carboni Oliveira and Rahul Santhanam. *Hardness Magnification for Natural Problems*. FOCS 2018, 65–76. https://doi.org/10.1109/FOCS.2018.00016 . Full version ECCC TR18-139. Bibliographic data comes from the repository bibliography; the paper was not inspected for this chapter. The Lean module documentation quotes Theorems 1, 5, 17 and 27 and Lemma 16 from the ECCC full version with page locators.
 
+<a id="ollinger2008"></a>
+## ollinger2008
+
+Nicolas Ollinger. *Two-by-Two Substitution Systems and the Undecidability of the
+Domino Problem*. In Arnold Beckmann, Costas Dimitracopoulos and Benedikt Löwe
+(eds.), *Logic and Theory of Algorithms*, Lecture Notes in Computer Science 5028,
+476–485, Springer, 2008. [Publisher record](https://doi.org/10.1007/978-3-540-69407-6_51).
+Bibliographic metadata checked at the publisher on 2026-11-16 by an authoring Codex
+agent. Cited as the origin of the tile set attributed to Ollinger in
+[Jeandel–Vanier](#jeandelvanier2020), manuscript p. 24 and Figure 13 on p. 25.
+The paper's full text was not available in this pass: internal theorem/figure
+locator not verified. The concrete formalization follows the pinned lean-wang
+transcription described in that registry entry.
+
+<a id="openaich26"></a>
+## openaich26
+
+OpenAI. *Existential–universal real sentences in the counting hierarchy*. Preprint,
+4 October 2026, not peer reviewed. Bibliography key `OpenAI2026CountingHierarchy`;
+source revision `adc7f1241b42e322a6451854ab7e4b4c146bf78a`.
+[Section 2 TeX](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Existential-universal-real-sentences-in-the-counting-hierarchy-October-4-2026/build/sections/02-counting.tex)
+and Appendix A (`08-existential-bound.tex`) were read on 2026-11-14 for the CRT circle identity,
+dyadic error, first-flag sign argument, and its use in the appendix. The mathematical layer
+allows arbitrary pairwise coprime positive moduli and explicit numerical bounds. The numerical
+prime-window corollary uses the existing elementary prime-count estimate, and the product
+algorithm averages over generators instead of selecting one. `CountingHierarchy.ResidueSign`
+formalizes Proposition 2.6's computational sign conclusion for one uniform residue evaluator,
+binary magnitude/exclusion bounds and the disclosed strict oracle/majority-verifier levels.
+Its checked clients illustrate 8 → 13 → 21 arithmetic bookkeeping and the
+21 → 24 → 25 → 26 sign/choice/language compatibility chain;
+characteristic coefficients, real geometry and the ETR theorem remain outside this development.
+
 <a id="openai-logspace26"></a>
 ## openai-logspace26
 
@@ -1438,6 +1716,11 @@ OpenAI. *The Exponential Time Hypothesis is False*. Manuscript dated 17 October 
 ## papadimitriou94ppad
 
 Christos H. Papadimitriou. "On the Complexity of the Parity Argument and Other Inefficient Proofs of Existence." *Journal of Computer and System Sciences* 48(3), 498–532, 1994. https://doi.org/10.1016/S0022-0000(05)80063-7 . Bibliographic metadata checked against `references.bib` (`Papadimitriou1994PPAD`); the journal text was not inspected, so internal theorem numbers are not claimed. Cited for the complexity class `PPAD`, canonical `EndOfLine` completeness, and containment of two-player Nash equilibrium.
+
+<a id="pedersen1991"></a>
+## pedersen1991
+
+Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifiable Secret Sharing." *Advances in Cryptology — CRYPTO '91*, LNCS 576, 129–140, Springer, 1992. https://doi.org/10.1007/3-540-46766-1_9 . Publisher's PDF, https://link.springer.com/content/pdf/10.1007/3-540-46766-1_9.pdf , fetched on 2026-11-18 UTC (SHA-256 `79c0634a04b7bc869715770519eca9dcfcb3011012dbff054b9487b187558b18`): a 12-page scan of the complete printed pp. 129–140 (PDF page = printed page − 128). Read on 2026-11-18: Section 2 (p. 130: primes `q | p − 1`, `G_q` the order-`q` subgroup of `Z_p^*`, `g` a generator) and all of Section 3 (p. 131): `g` and `h` are chosen so that nobody knows `log_g h`, by a trusted center or a coin-flipping protocol; the commitment is `E(s, t) = g^s h^t` for `s ∈ Z_q` and random `t ∈ Z_q`; Theorem 3.1 states that for uniform `t` the commitment is uniform on `G_q` (first sentence) and that `s ≠ s'` with `E(s, t) = E(s', t')` gives `t ≠ t' mod q` and `log_g h = (s − s')/(t' − t) mod q` (second sentence). The theorem states no game or computational assumption, and the first sentence needs `h ≠ 1`, which the condition on `log_g h` implies. Sections 4–6 were not checked.
 
 <a id="pighizzini2009"></a>
 ## pighizzini2009
@@ -1709,6 +1992,16 @@ Madhu Sudan, Luca Trevisan and Salil Vadhan. *Pseudorandom Generators without th
 
 Robert Endre Tarjan. "Depth-First Search and Linear Graph Algorithms." *SIAM Journal on Computing* 1(2), 146–160, 1972. https://doi.org/10.1137/0201010 . Bibliographic data from the DOI record; the paper was not inspected in this pass.
 
+<a id="tarjan77"></a>
+## tarjan77
+
+Robert Endre Tarjan. *Reference Machines Require Non-Linear Time to Maintain Disjoint Sets*. Stanford CS-TR-77-603, March 1977. [Report PDF](https://ftpmirror.your.org/pub/misc/bitsavers/pdf/stanford/Stanford_CS_TR_Collection_2025-12-12/PDF/1977/CS-TR-77-603.pdf). Section 2, pp. 4–7, checked on 2026-11-14: explicit-reference memory, instruction/record costs, undefined-value traps (p. 6), and equality-only symbols. This check corrects the earlier manual claim that behavior on undefined data was unspecified. The local model uses total semantics and does not prove source equivalence or the lower bound.
+
+<a id="tarjan79"></a>
+## tarjan79
+
+Robert Endre Tarjan. “A Class of Algorithms Which Require Nonlinear Time to Maintain Disjoint Sets.” *Journal of Computer and System Sciences* 18(2), 110–127, 1979. https://doi.org/10.1016/0022-0000(79)90042-4 . The pointer-machine development cites §2, pp. 111–112, and the disjoint-set application in §3, pp. 113–115. The original implementation records inspection of the journal PDF; the 2026-11-14 correction independently checked the accessible 1977 report above, not the journal PDF. The chapter distinguishes the formal model from source-faithful algorithms and lower bounds.
+
 <a id="thaler22"></a>
 ## thaler22
 
@@ -1737,6 +2030,11 @@ Alexandre B. Tsybakov. *Introduction to Nonparametric Estimation*. Springer Seri
 ## tutte48
 
 W. T. Tutte. "The dissection of equilateral triangles into equilateral triangles." *Mathematical Proceedings of the Cambridge Philosophical Society* 44(4), 463–482, 1948. https://doi.org/10.1017/S030500410002449X . Not inspected. [Stanley's notes](#stanley13) (Chapter 10 notes, p. 199, and reference [118]) attribute the directed matrix-tree theorem to Theorem 3.6 of this paper.
+
+<a id="uov26"></a>
+## uov26
+
+Ward Beullens, Ming-Shing Chen, Jintai Ding, Boru Gong, Matthias J. Kannwischer, Jacques Patarin, Bo-Yuan Peng, Dieter Schmidt, Cheng-Jhih Shih, Chengdong Tao, Bo-Yin Yang. *UOV: Unbalanced Oil and Vinegar, Algorithm Specifications and Supporting Documentation*, Version 3.0, August 30, 2026 (bibliography key `UOV2026`). https://csrc.nist.gov/csrc/media/Projects/pqc-dig-sig/documents/UOV_Specification_R3.pdf . Checked against that PDF on 2026-11-14 (SHA-256 `ce9044adf1b4e407467968438fa66794882bcaa6411d3509bed72ff54380181a`): Section 3.1 (printed pp. 11–13, specifically p. 12) defines `Upper(M)` as the unique upper-triangular matrix `M'` such that `M' - M` is alternating. `CslibFrontier.Foundations.LinearAlgebra.Matrix.UpperTriangularQuadratic` formalizes only this generic matrix construction (`Matrix.upperQuadratic`), its `Matrix.IsUpperTriangular` and `LinearMap.IsAlt` properties, `Matrix.toQuadraticForm'` equality, and uniqueness. Section 3.3 (printed p. 19) defines `GF16 = F2[x]/(x^4+x+1)` and `GF256 = F2[x]/(x^8+x^4+x^3+x+1)`, stores elements as polynomial-basis coefficient arrays with the high bit representing the `x^3` or `x^7` coefficient, and packs the first of two `GF16` elements into the low nibble. `CslibFrontier.Crypto.Protocols.UOV.Field` identifies these fields with `Cslib.BinaryField 4` and `Cslib.BinaryField 8`, proves their modulus codes are `19` and `283`, and formalizes only the individual-element and two-element packing conventions. UOV block keys, matrices beyond the generic `Upper` construction, vector serialization, oil subspaces, signing/verification, restart bounds, assumptions, and security games remain open under [#5219](https://github.com/cslib-community/cslib-frontier/issues/5219) and [#4987](https://github.com/cslib-community/cslib-frontier/issues/4987).
 
 <a id="valiant84"></a>
 ## valiant84
@@ -1773,10 +2071,20 @@ Robert A. Wagner and Michael J. Fischer. "The String-to-String Correction Proble
 
 Paul S. Wang. "A p-adic Algorithm for Univariate Partial Fractions." *Proceedings of the 1981 ACM Symposium on Symbolic and Algebraic Computation (SYMSAC '81)*, 212–217, ACM, 1981. https://doi.org/10.1145/800206.806398 . Bibliographic metadata checked from the ACM Digital Library record; the article text was not inspected, and no theorem or algorithm numbers are claimed.
 
+<a id="wangren25"></a>
+## wangren25
+
+Zhikun Wang and Ling Ren. "Single-Server Client Preprocessing PIR with Tight Space-Time Trade-off." *Advances in Cryptology – EUROCRYPT 2025*, Lecture Notes in Computer Science, 94–122, Springer, 2025. https://doi.org/10.1007/978-3-031-91095-1_4 ; full version: Cryptology ePrint Archive, Paper 2024/1845 (version of 2024-11-10, 29 pp.), https://eprint.iacr.org/2024/1845 . Checked against the ePrint 2024/1845 version of 2024-11-10 on 2026-11-15 (locators follow the ePrint pagination; the typeset LNCS pages were not consulted directly): Definition 2.1 (p. 10), Section 3.1 (pp. 12–13, operations `Init`/`Access`/`Locate`/`Relocate`, correctness and perfect security, Experiments 3.1 and 3.2 on p. 13), Theorem 3.3 (p. 13), Constructions 3.4 and 3.5 (p. 14), Definition 3.6, Facts 3.7–3.8, Lemma 3.9, Corollary 3.10, Facts 3.11–3.12, and Lemmas 3.13–3.15 (pp. 15–16), and Lemma 3.16 (pp. 16–17). In [PIR/Preprocessing/Relocation.lean](../CslibFrontier/Crypto/Protocols/PIR/Preprocessing/Relocation.lean), Experiment 3.1's initial output is `(locate s₀ 0, …, locate s₀ (m - 1))` (correcting the p. 13 pseudocode typo "Output (DS.Access(0), DS.Access(1), . . . , DS.Access(m − 1))." to match Experiment 3.2, "Output the position of each element in [m] in A.", and the proof of Lemma 3.16 on p. 16), Experiment 3.2's output is read from the queried cell before the update (correcting the p. 13 pseudocode "Update A[c′] ← A[ci] and A[ci] ← ∅." followed by "If A[c′] ≠ ⊥, output c′.", which outputs `c′` when an empty queried cell selects itself, to match the proof of Lemma 3.16 on p. 16, "For the t-th position ct , no element resides in position ct , then the output of both Experiments 3.1 and 3.2 will be ⊥."), the relocation sequence `c : Fin Q → Fin m'` is fixed and injective with `Q ≤ m' - m` as required in Section 3.1 (p. 12), and the history is 0-indexed as in Definition 3.6 (`C[t] → P(m + t)`). The permutation is ideal (uniformly random), security is perfect (exact equality of output laws), and adaptively chosen positions are not modelled. The expected/amortized running-time bounds of Theorem 3.3 and Appendix A, the small-domain PRP instantiation (Section 2.2), the PIR scheme (Section 4, Theorem 4.1 and Construction 4.2), and the `ST = Ω(nw)` lower-bound sketches (Appendix B, Theorems B.1–B.2) are not formalized.
+
 <a id="wattenhofer16"></a>
 ## wattenhofer16
 
 Roger Wattenhofer. *Principles of Distributed Computing*, lecture notes, ETH Zürich, Chapter 7 "Maximal Independent Set". https://disco.ethz.ch/courses/podc_allstars/lecture/chapter7.pdf (PDF dated 2016-08-23). Inspected 2026-11-08: Algorithm 7.12 ("Fast MIS 2"), Lemma 7.14 (edge removal), Theorem 7.15, Corollary 7.18 and the chapter notes, which attribute the algorithm to Métivier, Robson, Saheb-Djahromi and Zemmari (Distributed Computing 23(5–6), 2011) as a simplification of Luby (SIAM J. Comput. 15(4), 1986). Those two papers were not inspected.
+
+<a id="williams2010"></a>
+## williams2010
+
+R. Ryan Williams. *Improving Exhaustive Search Implies Superpolynomial Lower Bounds*. STOC 2010. The author's full version dated May 4, 2010, https://people.csail.mit.edu/rrw/improved-algs-lbs2.pdf , was checked on 2026-11-11 for Theorem 1.1, the violated-clause circuit in the proof of Theorem 3.2 (printed p. 10), and Lemma 3.2. The succinct-verifier modules formalize the violated-clause test and its native guess-and-verify simulation, with a quadratic unary certificate format; they do not claim the full NEXP circuit lower bound or the source's `O(s log s)` description length.
 
 <a id="williams25"></a>
 ## williams25
@@ -1856,7 +2164,7 @@ Mingxun Zhou, Andrew Park, Wenting Zheng and Elaine Shi. "Piano: Extremely Simpl
 <a id="zre15"></a>
 ## zre15
 
-Samee Zahur, Mike Rosulek, David Evans. "Two Halves Make a Whole: Reducing Data Transfer in Garbled Circuits Using Half Gates." *Advances in Cryptology – EUROCRYPT 2015*, Lecture Notes in Computer Science 9057, 220–250, 2015. https://doi.org/10.1007/978-3-662-46803-6_8 . Full version: Cryptology ePrint Archive, Report 2014/756. The half-gates construction, the circular correlation robustness assumption and simulation privacy are cited at paper level. No theorem numbers are claimed.
+Samee Zahur, Mike Rosulek, David Evans. "Two Halves Make a Whole: Reducing Data Transfer in Garbled Circuits Using Half Gates." *Advances in Cryptology – EUROCRYPT 2015*, Lecture Notes in Computer Science 9057, 220–250, 2015. https://doi.org/10.1007/978-3-662-46803-6_8 . Full version: Cryptology ePrint Archive, Report 2014/756, https://eprint.iacr.org/2014/756 . Checked on 2026-11-15 against the ePrint PDF of March 16, 2015, headed "In 34th Eurocrypt, Sofia, Bulgaria, April 2015" (28 pages, SHA-256 `789ecaf8651b6dc8341d6033f951d76c0e6f4b04427cdde26cf91ecfb0af3083`); locators use its printed page numbers, which are also its PDF page numbers. P. 8: the hash `H : {0,1}^k × ℤ → {0,1}^k` used with a unique public index for each group of calls. §4, p. 10: the opening remark that for circuits of AND and XOR gates everything about `f` is public, so no separate `Φ(f)` is defined, and §4.1, Definition 1: circular correlation robustness, with the oracle `Circ_R(x, i, b) = H(x ⊕ R, i) ⊕ bR` for `R ∈ {0,1}^(k−1)1`, a random function `Rand` with `k`-bit output, legal query sequences that never ask one `(x, i)` with different `b`, polynomial-time adversaries and negligible advantage; the adversary has unrestricted access to `H`. P. 11: Definition 3, circular correlation robustness for naturally derived keys. P. 12: Definition 3 is a restricted version of Definition 1, and Theorem 1 states that the scheme satisfies `obv.simS` and `prv.simS` (the notions of [bhr12](#bhr12)) for any `H` with correlation robustness for naturally derived keys. `Computational/CircularCorrelationRobust.lean` formalizes Definition 1 with the differences listed in the [assumptions inventory](programs-crypto-and-probability/assumptions.md). P. 9: Figure 2, the garbling scheme, whose hash calls at AND gates are numbered by `NextIndex`. Pp. 12–14: the proof of Theorem 1, a chain of hybrids from the simulator to the real garbling; Fig. 3 (p. 13) gives the simulator `S` and the hybrid `G₁^O`, which knows the input, samples the labels the evaluator holds and, at each AND gate, asks its oracle `(W_a, j, v_b ⊕ lsb W_b)` and `(W_b, j', v_a)` on the labels `W_a`, `W_b` it holds. `Garbling/HalfGates/Reduction.lean` follows `G₁^O` (checked on 2026-11-15 against the same PDF, by the author of that module). The single-instance simulation privacy of `Garbling/HalfGates/Privacy.lean` is still cited at paper level.
 
 <a id="hoorylinialwigderson06"></a>
 ## hoorylinialwigderson06

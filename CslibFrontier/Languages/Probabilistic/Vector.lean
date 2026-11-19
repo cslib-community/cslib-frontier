@@ -31,10 +31,14 @@ values with the product distribution `PMF.pi`.
 * `Cslib.OracleComp.replicateFin_eq_pi`: `replicateFin` is the constant-family specialization of
   `pi`.
 * `Cslib.OracleComp.map_ofFn_replicateFin`: agreement with list-valued repetition.
+* `Cslib.OracleComp.map_ofFn_pi`: listing a non-dependent tuple is a list traversal `List.mapM`.
 * `Cslib.OracleComp.mem_supportWith_pi_iff`: the possible results of `pi` over any interface are
   coordinatewise.
 * `Cslib.ProbComp.mem_support_pi_iff`, `Cslib.ProbComp.mem_support_replicateFin_iff`: its special
   case for closed programs, even for infinite types.
+* `Cslib.ProbComp.eval_pi_eq_piFin`, `Cslib.ProbComp.eval_pi_map_ofFn`: homogeneous `pi` evaluates
+  to `PMF.piFin` without finiteness assumptions and agrees with `(List.finRange m).mapM` under
+  `List.ofFn`.
 * `Cslib.ProbComp.eval_pi`, `Cslib.ProbComp.eval_replicateFin`: independent finite coordinates have
   the product law `PMF.pi`.
 * `Cslib.ProbComp.eval_pi_uniform`: independent uniform coordinates are uniform on the tuple.
@@ -126,6 +130,16 @@ theorem replicateFin_succ (count : ℕ) (program : OracleComp spec α) :
   | zero => rfl
   | succ count ih =>
     simp [replicateFin_succ, replicate_succ, map_bind, Functor.map_map, List.ofFn_succ, ← ih]
+
+/-- Listing the coordinates of a tuple of runs with one result type is traversing the indices in
+order. -/
+theorem map_ofFn_pi {m : ℕ} (programs : Fin m → OracleComp spec α) :
+    List.ofFn <$> pi programs = (List.finRange m).mapM programs := by
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+    rw [pi_succ, List.finRange_succ, List.mapM_cons, List.mapM_map, ← ih]
+    simp [map_bind, Functor.map_map, List.ofFn_succ, Function.comp_def]
 
 /-- A tuple is a possible result of `pi programs` exactly when each coordinate is a possible
 result of its program. -/
@@ -277,6 +291,23 @@ theorem eval_bind_pi_update {m : ℕ} {α : Fin m → Type} (programs : (i : Fin
       refine congrArg (eval (programs 0)).bind (funext fun x => ?_)
       conv_rhs => rw [← ih (fun i => programs i.succ) k]
       simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
+
+/-- Evaluating a homogeneous `OracleComp.pi` run produces `PMF.piFin` of the coordinate laws,
+without any finiteness assumption on `α`. -/
+theorem eval_pi_eq_piFin :
+    ∀ {m : ℕ} (programs : Fin m → ProbComp α),
+      eval (OracleComp.pi programs) = Probability.PMF.piFin fun i => eval (programs i)
+  | 0, _ => rfl
+  | _ + 1, programs => by
+    simp only [OracleComp.pi_succ, Probability.PMF.piFin, eval_bind, eval_map,
+      eval_pi_eq_piFin (fun i => programs i.succ)]
+
+/-- Mapping `List.ofFn` over `eval (OracleComp.pi programs)` has the same law as
+`eval ((List.finRange m).mapM programs)`. -/
+theorem eval_pi_map_ofFn {m : ℕ} (programs : Fin m → ProbComp α) :
+    (eval (OracleComp.pi programs)).map List.ofFn =
+      eval ((List.finRange m).mapM programs) := by
+  rw [← eval_map, OracleComp.map_ofFn_pi]
 
 /-- When each coordinate type is finite, `eval (pi programs)` is the independent product
 distribution `PMF.pi`. -/

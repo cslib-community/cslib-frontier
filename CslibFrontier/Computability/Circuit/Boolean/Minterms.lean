@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Evaluation
 public import CslibFrontier.Foundations.Data.BitString.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Shared Boolean minterms
@@ -83,13 +84,11 @@ private theorem assignment_eq_iff {n : ℕ} (x : BitString (n + 1))
     have h : BitString.equivFin 0 x = a := Subsingleton.elim (α := Fin 1) _ _
     simp [mintermCircuit, h]
   | succ n ih =>
-    simp only [mintermCircuit, Circuit.eval_comp, Circuit.eval_pi, Formula.eval_toCircuit]
-    simp only [mintermExtension, Formula.eval_and, Circuit.eval_append, Circuit.eval_comp,
-      Circuit.eval_wiring, Formula.eval_input, Fin.append_left, ih]
+    simp only [circuit_simps, mintermCircuit]
+    simp only [circuit_simps, mintermExtension, ih]
     have hlast : Fin.last (2 ^ n) = Fin.natAdd (2 ^ n) (0 : Fin 1) := rfl
     cases hb : (BitString.equivFin (n + 1)).symm a 0 <;>
-      simp [hb, hlast, Formula.eval_not, Formula.eval_input, assignment_eq_iff, Fin.tail_def,
-        Function.comp_def]
+      simp [circuit_simps, hb, hlast, assignment_eq_iff, Fin.tail_def, Function.comp_def]
 
 /-- All minterms together use at most `4 * 2 ^ n - 3` gates, counting constants too. -/
 theorem size_mintermCircuit_add_three_le (n : ℕ) :
@@ -101,8 +100,7 @@ theorem size_mintermCircuit_add_three_le (n : ℕ) :
       simpa [Nat.mul_comm] using Finset.sum_le_sum
         (s := Finset.univ) (f := fun a => (mintermExtension n a).size) (g := fun _ => 2)
         (fun a _ => size_mintermExtension_le n a)
-    simp only [mintermCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_wiring,
-      Circuit.size_pi, Formula.size_toCircuit, Nat.add_zero]
+    simp only [circuit_simps, mintermCircuit]
     have hpow : 2 ^ (n + 1) = 2 ^ n * 2 := pow_succ _ _
     lia
 

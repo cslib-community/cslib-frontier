@@ -7,20 +7,19 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import Mathlib.Data.List.GetD
 public import CslibFrontier.Crypto.Computational.TreeSignature.CoinHybrid
 public import CslibFrontier.Crypto.Computational.CollisionResistant
 public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Negligible.Dyadic
 public import CslibFrontier.Languages.Probabilistic.Repeat
 public import CslibFrontier.Languages.Probabilistic.UniformNat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
@@ -39,20 +38,50 @@ import CslibFrontier.Languages.Probabilistic.Oracle.QueryBoundedSimulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
-import CslibFrontier.Languages.Probabilistic.UntilBad
+import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Coupling
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.Negligible
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Security of stateless tree signatures
 
-Stateless EUF-CMA security ([BonehShoup2023], Section 14.6.3, Theorem 14.6) for
-`TreeSignature.scheme`: combining an indexed EUF-CMA secure signature scheme `S` of capacity at
-least `2` with a pseudorandom function `F` yields a stateless many-time signature scheme.
+Steps toward stateless EUF-CMA security of `TreeSignature.scheme`, [BonehShoup2023],
+Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`. An indexed EUF-CMA secure
+signature scheme `S` of capacity at least `2`, used at indices `0` and `1` only, and a
+length-preserving pseudorandom function yield a stateless many-time signature scheme
+(`eufCMA_scheme_of_prf`). That is not Theorem 14.6, because its PRF premise is stronger than the
+source's, as explained below; the theorem itself is open (#5293).
+
+Theorem 14.6 covers a `q`-ary tree of depth `d` for poly-bounded `d` and `q` with `q ^ d`
+super-poly. The tree here is binary, so `2 ^ depth n` must be super-poly: the asymptotic theorems
+assume that `1 / 2 ^ depth n` is negligible, with `depth` computable in polynomial time. The
+source's term `Q ^ 2 / (2 q ^ d)` becomes `Q ^ 2 / 2 ^ (depth n + 1)`, and its factor `Q d`
+becomes `dyadicSize (Q * depth n)`, a power of two in `(Q d, 2 Q d]` when `Q d ≥ 1`. The tree
+for general `q` is not formalized (#5293). Besides the construction's deviations, listed in
+`CslibFrontier.Crypto.Computational.TreeSignature`, the theorems differ from the source in two ways.
+
+* The outer messages are `n`-bit, `SignatureScheme`'s message space.
+* The coins of node keys and signatures are `prfCoins family`: a length-preserving
+  `PseudorandomFunction` `family`, keyed at `coinParam budget n` bits, evaluated at the padded
+  request and truncated. The source assumes a PRF `F` defined over
+  `(K, {1, …, q} ^ {≤ d}, {0, 1} ^ w)` whose outputs are the coins (Sections 14.6.2 and 14.6.3,
+  p. 600).
+
+Using `family` at the rescaled parameter `coinParam budget n ≥ n` adds no assumption: the proof
+turns its security there into a bound negligible in `n` (`exists_negligible_treeGame_le`). The
+premise that `family` is a length-preserving PRF, on every key length and every query, is however
+stronger than the source's. It implies that the coins `prfCoins family` are pseudorandom
+(`PseudorandomFunction.coinIndistinguishable`), but the converse is not proved. The proof passes
+through the coin games `coinRealGame` and `coinIdealGame`, but these accept every request word,
+and a request of at least `N` bits reaches `family` at its first `N` bits, so they expose `family`
+on every `N`-bit input as its own PRF games do. A faithful Theorem 14.6 needs the coin games
+restricted to the tree's requests at the parameters `coinParam budget n`, and a proof that
+`treeCoinAdversary` stays in that domain.
 
 Starting from `treeGame` (`TreeSignature.scheme`'s `eufCmaGame`), the reduction proceeds in two
 steps after replacing `prfCoins F` with a uniform random function (`treeIdealGame`, proved in
@@ -72,9 +101,11 @@ steps after replacing `prfCoins F` with a uniform random function (`treeIdealGam
 
 Combining this upgrade with `OneWay.exists_pseudorandomFunction` and `OneWay.exists_indexedEUFCMA`
 constructs a stateless EUF-CMA secure signature scheme from a one-way function and a
-collision-resistant hash family (`OneWay.exists_eufCMA_of_hashFamily`); removing the
-collision-resistant hash family assumption requires universal one-way hash functions
-([Rompel1990]).
+collision-resistant hash family (`OneWay.exists_eufCMA_of_hashFamily`). With target
+collision-resistant hashing from inaccessible entropy in place of the collision-resistant hash
+family, `CslibFrontier.Crypto.Computational.Rompel` removes that assumption: every uniform `OneWay`
+function yields a stateless many-time `SignatureScheme` satisfying `EUFCMA`
+(`OneWay.exists_eufCMA`, [Rompel1990]).
 
 ## Main definitions
 
@@ -91,23 +122,27 @@ collision-resistant hash family assumption requires universal one-way hash funct
   all tree request widths and seeded key/signature budgets.
 * `Cslib.Crypto.TreeSignature.isOraclePPT_indexedForger`: `indexedForger` is uniformly strict
   oracle PPT for every oracle-PPT tree forger.
+* `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`,
+  `Cslib.Crypto.OneWay.exists_eufCMA_of_hashFamily`: existential upgrades from indexed signatures
+  and a one-way function, and from a one-way function plus a collision-resistant hash family.
+
+## Steps toward Theorem 14.6 with `q = 2`
+
 * `Cslib.Crypto.TreeSignature.succProbability_treeIdealGame_le_lazy`,
   `Cslib.Crypto.TreeSignature.succProbability_lazyTreeGame_le`,
   `Cslib.Crypto.TreeSignature.succProbability_treeIdealGame_le`,
-  `Cslib.Crypto.TreeSignature.succProbability_eufCmaGame_scheme_le`: concrete Theorem 14.6
-  security bounds for `treeIdealGame`, `lazyTreeGame`, and `TreeSignature.scheme`.
-* `Cslib.Crypto.TreeSignature.eufCMA_scheme_of_inv`,
-  `Cslib.Crypto.TreeSignature.eufCMA_scheme`: stateless EUF-CMA security of `TreeSignature.scheme`
-  from `IndexedEUFCMA` and `PseudorandomFunction`.
-* `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`,
-  `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`,
-  `Cslib.Crypto.OneWay.exists_eufCMA_of_hashFamily`: existential upgrades from indexed signatures
-  and from a one-way function plus a collision-resistant hash family.
+  `Cslib.Crypto.TreeSignature.succProbability_eufCmaGame_scheme_le`: concrete bounds for
+  `treeIdealGame`, `lazyTreeGame`, and `TreeSignature.scheme`.
+* `Cslib.Crypto.TreeSignature.eufCMA_scheme_of_prf_of_inv`,
+  `Cslib.Crypto.TreeSignature.eufCMA_scheme_of_prf`: stateless EUF-CMA security of
+  `TreeSignature.scheme` from `IndexedEUFCMA` and a length-preserving `PseudorandomFunction`, a
+  premise stronger than the source's.
+* `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`: the existential form.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 14.6.3, Theorem 14.6.
+  Section 14.6.3, Theorem 14.6, p. 600.
 * [J. Rompel, *One-Way Functions are Necessary and Sufficient for Secure Signatures*][Rompel1990].
 -/
 
@@ -188,22 +223,18 @@ private theorem exists_signInput_length_bound (S : IndexedSignatureScheme) :
     · have hk' := (length_le_encPair_left encBits encBits keys').trans (hkgLen n keys' hkeys')
       simp only [encBits_apply] at hk'
       omega
-  simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate]
-  omega
+  enc_len
 
 /-! ### Request lengths, injectivity, and coin budgets -/
 
 section Requests
 
 theorem length_keyInput (path : List Bool) : (keyInput path).length = path.length + 3 := by
-  simp only [keyInput, length_encPair, encBool_apply, List.length_singleton, encBits_apply]
-  omega
+  enc_len [keyInput, List.length_singleton]
 
 theorem length_signInput (path : List Bool) (u : ℕ) :
     (signInput path u).length = 2 * path.length + u + 4 := by
-  simp only [signInput, length_encPair, encBool_apply, List.length_singleton, encBits_apply,
-    encUnary_apply, List.length_replicate]
-  omega
+  enc_len [signInput, List.length_singleton]
 
 theorem keyInput_injective : Function.Injective keyInput := by
   intro p q h
@@ -555,11 +586,11 @@ private theorem isOraclePPTOn_signEdgeM (S : IndexedSignatureScheme) {γ : Type}
   have hraw : IsOraclePPTOn enc encBits
       (fun a => signEdgeRaw S (keys a) (target a) (sigCap a) (idx a) (u a) (msg a)) := by
     unfold signEdgeRaw
-    exact IsOraclePPTOn.ite' (condition := fun a => idx a = target a) (by fun_prop)
-      (IsOraclePPTOn.query_take' () (by fun_prop) hsigCap)
+    exact IsOraclePPTOn.ite (condition := fun a => idx a = target a) (by fun_prop)
+      (IsOraclePPTOn.query_take () (by fun_prop) hsigCap)
       (((S.sign_ppt.preprocess
         (prepare := fun a => (((keys a).getD (idx a) ([], [])).2, u a, msg a))
-        (by fun_prop)).isOraclePPTOn (Operation := Unit)).map_with'
+        (by fun_prop)).isOraclePPTOn (Operation := Unit)).map_with
         (f := fun a σ => σ.take (sigCap a)) (by fun_prop))
   exact IsOraclePPTOn.memoize
     (compute := fun a _ => signEdgeRaw S (keys a) (target a) (sigCap a) (idx a) (u a) (msg a))
@@ -606,10 +637,28 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
     encPlantedCert
   let encMid := encPair encIn (encPair encUnary encNodeCache)
   let encEnd := encPair encMid (encPair encBits encEdgeCache)
+  have hnode : ComputableInPolyTime
+      (fun q : CertStepIn => q.2.1.1) encIn encBits := by fun_prop
+  have hleaf : ComputableInPolyTime
+      (fun q : CertStepIn => q.1.2.2) encIn encBits := by fun_prop
+  have hbit := hleaf.bitsGetDWithInput
+    (ComputableInPolyTime.length_bits.comp hnode) false
+  have hpath := ComputableInPolyTime.bitsAppend hnode
+    (ComputableInPolyTime.bitsCons hbit (.const []))
   have hvisit := isOraclePPTOn_visitNodeM (enc := encIn)
     (cap := fun (((keys, _, _), _) : CertStepIn) => keys.length)
     (path := fun ((_, _, leaf), ((node, _, _), _)) => node ++ [leaf.getD node.length false])
-    (visited := fun (_, (_, (visited, _))) => visited) (by fun_prop) (by fun_prop) (by fun_prop)
+    (visited := fun (_, (_, (visited, _))) => visited) (by fun_prop) hpath (by fun_prop)
+  have hbitNat : ComputableInPolyTime
+      (fun q : CertVisitIn => (q.1.1.2.2.getD q.1.2.1.1.length false).toNat)
+      encMid encUnary :=
+    (by fun_prop : ComputableInPolyTime Bool.toNat encBool encUnary).comp
+      (hbit.comp (ComputableInPolyTime.fst encIn (encPair encUnary encNodeCache)))
+  have hkeys : ComputableInPolyTime (fun q : CertVisitIn => q.1.1.1)
+      encMid encKeys := by fun_prop
+  have hchild : ComputableInPolyTime (fun q : CertVisitIn => q.2.1)
+      encMid encUnary := by fun_prop
+  have hmsg := (ComputableInPolyTime.listGetDWithInput hkeys hchild ([], [])).fst'
   have hsign := isOraclePPTOn_signEdgeM S (enc := encMid)
     (keys := fun ((((keys, _, _), _), _) : CertVisitIn) => keys)
     (target := fun (((_, (target, _), _), _), _) => target)
@@ -619,14 +668,26 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
     (u := fun (((_, _, leaf), ((node, _, _), _)), _) => (leaf.getD node.length false).toNat)
     (msg := fun (((keys, _, _), _), (childIdx, _)) => (keys.getD childIdx ([], [])).1)
     (edges := fun ((_, (_, (_, edges))), _) => edges)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    hkeys (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop) hbitNat hmsg (by fun_prop)
   have hpost : ComputableInPolyTime
       (fun (((((keys, _, leaf), ((node, _, certs), _)), (childIdx, visited)), (σ, edges)) :
           CertSignIn) =>
         ((node ++ [leaf.getD node.length false], childIdx,
           certs ++ [((keys.getD childIdx ([], [])).1, σ)]), (visited, edges)))
-      encEnd encPlantedCert := by fun_prop
+      encEnd encPlantedCert := by
+    have hp := ComputableInPolyTime.fst encMid (encPair encBits encEdgeCache)
+    have hinput := (ComputableInPolyTime.fst encIn (encPair encUnary encNodeCache)).comp hp
+    have hpathEnd := hpath.comp hinput
+    have hchildEnd := hchild.comp hp
+    have hmsgEnd := hmsg.comp hp
+    have hcerts : ComputableInPolyTime (fun q : CertSignIn => q.1.1.2.1.2.2)
+        encEnd (encList (encPair encBits encBits)) := by fun_prop
+    have hsig : ComputableInPolyTime (fun q : CertSignIn => q.2.1)
+        encEnd encBits := by fun_prop
+    have hcertsEnd := ComputableInPolyTime.listAppend' hcerts
+      (ComputableInPolyTime.cons' (hmsgEnd.prod hsig) (.const []))
+    exact (hpathEnd.prod (hchildEnd.prod hcertsEnd)).prod (by fun_prop)
   exact hvisit.bind_with
     (second := fun ((keys, (target, sigCap), leaf), ((node, idx, certs), (_, edges)))
         (childIdx, visited) => do
@@ -752,8 +813,7 @@ private theorem plantedLoopInv_enc_bounds {Mv Me d i : ℕ} {a : CertLoopIn}
       certs.length * (2 * (2 * (encKeys keys).length + 1 + Me) + 1) :=
     length_encList_le (encPair encBits encBits) certs fun c hc => by
       obtain ⟨h1, h2⟩ := hcerts c hc
-      simp only [length_encPair, encBits_apply]
-      omega
+      enc_len
   rw [hcertsLen] at hcertsList
   have hcmul := Nat.mul_le_mul_right (2 * (2 * (encKeys keys).length + 1 + Me) + 1) hi
   have hvmul := Nat.mul_le_mul hi
@@ -784,10 +844,8 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
       (encEdgeCache a.edges).length ≤ (encLoopIn a).length := by
     rcases a with ⟨⟨keys, targetCap, ⟨n, leaf⟩⟩, ⟨visited, edges⟩⟩
     have hk := length_le_length_encList (encPair encBits encBits) keys
-    simp only [CertLoopIn.keys, CertLoopIn.sigCap, CertLoopIn.parameter, CertLoopIn.visited,
-      CertLoopIn.edges, encLoopIn, encKeys, length_encPair, encUnary_apply, List.length_replicate,
-      encBits_apply]
-    omega
+    enc_len [CertLoopIn.keys, CertLoopIn.sigCap, CertLoopIn.parameter, CertLoopIn.visited,
+      CertLoopIn.edges, encLoopIn, encKeys]
   have hd : PolyBounded (fun a : CertLoopIn => (encLoopIn a).length)
       (fun a => depth a.parameter) :=
     PolyBounded.of_forall_le cd dd fun a => (hdd a.parameter).trans
@@ -812,7 +870,7 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
   have hloopId := ComputableInPolyTime.id' (encIn := encLoopIn)
   have hpair1 := ComputableInPolyTime.fst encLoopIn encPlantedCert
   have hpair2 := ComputableInPolyTime.snd encLoopIn encPlantedCert
-  refine (IsOraclePPTOn.iterateWith_spec' (input := encLoopIn) (stateEncoding := encPlantedCert)
+  refine (IsOraclePPTOn.iterateWith_spec (input := encLoopIn) (stateEncoding := encPlantedCert)
     (count := fun a : CertLoopIn => depth a.parameter - 1)
     (initial := fun a => ((([], 0, []), a.2) : PlantedCertState))
     (step := fun (a : CertLoopIn) state =>
@@ -820,7 +878,7 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
     ((hdepth.comp hloopId.fst'.snd'.snd'.fst').unary_sub' (.const 1))
     (((ComputableInPolyTime.const []).prod ((ComputableInPolyTime.const 0).prod (.const []))).prod
       hloopId.snd')
-    ((isOraclePPTOn_certifyStepPlanted S).preprocess'
+    ((isOraclePPTOn_certifyStepPlanted S).preprocess
       (prepare := fun pair : CertLoopIn × PlantedCertState =>
         ((pair.1.keys, (pair.1.target, pair.1.sigCap), pair.1.leaf), pair.2))
       (((hpair1.fst'.fst'.prod (hpair1.fst'.snd'.fst'.prod hpair1.fst'.snd'.snd'.snd')).prod
@@ -880,8 +938,7 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
     dsimp only at hle
     obtain ⟨hnode, hidx, -⟩ := hinv
     obtain ⟨hcB, hvB, heB⟩ := hle
-    simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate, hnode]
-    omega
+    enc_len [hnode]
 
 /-- Caller tuple for `plantedTreeHandler`: `(((n, vk), target), keys)`. -/
 private abbrev ForgerCaller := ((ℕ × List Bool) × ℕ) × List (List Bool × List Bool)
@@ -931,7 +988,7 @@ private theorem isOraclePPTOn_plantedTreeHandler (S : IndexedSignatureScheme)
       (fun q : (ForgerCaller × ((Unit × List Bool) × PlantedState)) × List Bool => badOut q.1)
       encHL (encPair encBits encPlantedState) :=
     hbadBr.comp (ComputableInPolyTime.fst encH encBits)
-  have hcertPrep := (isOraclePPTOn_certifyPlanted S hdepth).preprocess' (input := encHL)
+  have hcertPrep := (isOraclePPTOn_certifyPlanted S hdepth).preprocess (input := encHL)
     (prepare := fun q : (ForgerCaller × ((Unit × List Bool) × PlantedState)) × List Bool =>
       (((q.1.1.2, (q.1.1.1.2, sigCap q.1.1.1.1.1), (q.1.1.1.1.1, q.2)),
         (q.1.2.2.1.1, q.1.2.2.1.2)) : CertLoopIn)) (by fun_prop)
@@ -966,13 +1023,13 @@ private theorem isOraclePPTOn_plantedTreeHandler (S : IndexedSignatureScheme)
         hpostGood.isOraclePPTOn)
   have hafterLeaf : IsOraclePPTOn encHL (encPair encBits encPlantedState)
       (fun q => afterLeaf q.1 q.2) :=
-    IsOraclePPTOn.cond' (condition := fun q => q.1.2.2.2.2.1.contains q.2) (by fun_prop)
+    IsOraclePPTOn.cond (condition := fun q => q.1.2.2.2.2.1.contains q.2) (by fun_prop)
       hcollBr.isOraclePPTOn hgoodLeaf
   have hnotBad := hleaf.bind_with (second := afterLeaf) hafterLeaf
-  have hlenEq := IsOraclePPTOn.cond' (condition := fun p => p.2.2.2.2.2) (by fun_prop)
+  have hlenEq := IsOraclePPTOn.cond (condition := fun p => p.2.2.2.2.2) (by fun_prop)
     hbadBr.isOraclePPTOn hnotBad
   simpa only [plantedTreeHandler, StateT.run, badOut, afterLeaf, goodLeaf] using
-    IsOraclePPTOn.ite' (condition := fun p => p.2.1.2.length = p.1.1.1.1) (by fun_prop)
+    IsOraclePPTOn.ite (condition := fun p => p.2.1.2.length = p.1.1.1.1) (by fun_prop)
       hlenEq hnoMsgBr.isOraclePPTOn
 
 private def plantedResourceAllowance (depth sigCap : ℕ → ℕ) (c : ForgerCaller)
@@ -996,8 +1053,7 @@ private theorem plantedState_length_eq (state : PlantedState) :
       2 * (encList encBits state.2.1).length +
       2 * (encList encBits state.2.2.1).length + 6 := by
   rcases state with ⟨⟨v, e⟩, ⟨q, sl, b⟩⟩
-  simp only [length_encPair, encBool_apply, List.length_singleton]
-  omega
+  enc_len [List.length_singleton]
 
 private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth sigCap : ℕ → ℕ)
     (c : ForgerCaller) (request : Unit × List Bool) (state : PlantedState)
@@ -1143,7 +1199,7 @@ theorem isOraclePPT_indexedForger (S : IndexedSignatureScheme) {depth slotBound 
       (fun c : ForgerCaller =>
         (c.1.1.1, encPair encUnary encBits (c.1.1.1, (c.2.getD 0 ([], [])).1)))
       encCaller (encPair encUnary encBits) := by fun_prop
-  have hrun := hA.run_interpret_preprocess_open' (External := Unit)
+  have hrun := hA.run_interpret_preprocess_open (External := Unit)
     (handler := fun c : ForgerCaller =>
       plantedTreeHandler S depth c.2 c.1.2 (sigCap c.1.1.1) c.1.1.1)
     (prepare := fun c : ForgerCaller =>
@@ -1183,7 +1239,21 @@ theorem isOraclePPT_indexedForger (S : IndexedSignatureScheme) {depth slotBound 
               (t.2.1.2.1.getD t.2.2 ([], [])).2)
           else
             ((t.2.1.1.getD t.2.2 false).toNat, t.1.2.1.1, t.2.1.2.2))
-        encMid (encPair encUnary (encPair encBits encBits)) := by fun_prop
+        encMid (encPair encUnary (encPair encBits encBits)) := by
+      let T := (ForgerCaller × ((List Bool × List Bool) × PlantedState)) ×
+        (List Bool × List (List Bool × List Bool) × List Bool) × ℕ
+      have hindex : ComputableInPolyTime (fun t : T => t.2.2) encMid encUnary := by fun_prop
+      have hpath : ComputableInPolyTime (fun t : T => t.2.1.1) encMid encBits := by fun_prop
+      have hkeys : ComputableInPolyTime (fun t : T => t.2.1.2.1) encMid encKeys := by fun_prop
+      have hbit := (by fun_prop : ComputableInPolyTime Bool.toNat encBool encUnary).comp
+        (hpath.bitsGetDWithInput hindex false)
+      have hentry := ComputableInPolyTime.listGetDWithInput hkeys hindex ([], [])
+      apply ComputableInPolyTime.ite_decide
+      · fun_prop
+      · exact hbit.prod hentry
+      · exact hbit.prod ((by fun_prop :
+          ComputableInPolyTime (fun t : T => t.1.2.1.1) encMid encBits).prod
+          (by fun_prop : ComputableInPolyTime (fun t : T => t.2.1.2.2) encMid encBits))
     exact Eq.mp
       (congrArg (ComputableInPolyTime · encEx (encPair encUnary (encPair encBits encBits)))
         (funext fun pair => by dsimp only [Function.comp_apply, extractForgery]))
@@ -1324,261 +1394,117 @@ private noncomputable def coinSignBody (S : IndexedSignatureScheme) (T : S.Seede
       return encodeSignature leaf certs σ)).run cc
 
 private abbrev GuardedCoinState :=
-  CoinCache × (List (List Bool) × List (List Bool) × Bool)
+  (CoinCache × List (List Bool) × List (List Bool)) × Bool
 
 private noncomputable def unguardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (request : Unit × List Bool) :
     StateT GuardedCoinState PMF (List Bool) := fun state =>
   let msg := request.2
-  let (cc, (queried, seenLeaves, bad)) := state
+  let ((cc, queried, seenLeaves), bad) := state
   if msg.length = n then do
     let leaf ← BitString.uniformList (depth n)
     let bad' := bad || seenLeaves.contains leaf
     let seen' := if bad' then seenLeaves else leaf :: seenLeaves
     (coinSignBody S T depth M n leaf msg cc).map fun out =>
-      (out.1, (out.2, (msg :: queried, seen', bad')))
+      (out.1, ((out.2, msg :: queried, seen'), bad'))
   else
-    PMF.pure ([], (cc, (msg :: queried, seenLeaves, bad)))
+    PMF.pure ([], ((cc, msg :: queried, seenLeaves), bad))
 
 private noncomputable def guardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (request : Unit × List Bool) :
     StateT GuardedCoinState PMF (List Bool) := fun state =>
   let msg := request.2
-  let (cc, (queried, seenLeaves, bad)) := state
+  let ((cc, queried, seenLeaves), bad) := state
   if msg.length = n then
     if bad then
-      PMF.pure ([], (cc, (msg :: queried, seenLeaves, true)))
+      PMF.pure ([], ((cc, msg :: queried, seenLeaves), true))
     else do
       let leaf ← BitString.uniformList (depth n)
       if seenLeaves.contains leaf then
-        pure ([], (cc, (msg :: queried, seenLeaves, true)))
+        pure ([], ((cc, msg :: queried, seenLeaves), true))
       else
         (coinSignBody S T depth M n leaf msg cc).map fun out =>
-          (out.1, (out.2, (msg :: queried, leaf :: seenLeaves, false)))
+          (out.1, ((out.2, msg :: queried, leaf :: seenLeaves), false))
   else
-    PMF.pure ([], (cc, (msg :: queried, seenLeaves, bad)))
+    PMF.pure ([], ((cc, msg :: queried, seenLeaves), bad))
 
 private theorem identicalUntilBad_coinHandlers (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) :
-    OracleComp.IdenticalUntilBad
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (unguardedCoinHandler S T depth M n))
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (guardedCoinHandler S T depth M n))
-      (fun s => s.2.2.2 = true) where
-  agree q s hs a s' hs' := by
-    cases q with
-    | inl k => rfl
-    | inr req =>
-      obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-      have hbad : bad = false := Bool.eq_false_iff.mpr hs
-      subst hbad
-      change unguardedCoinHandler S T depth M n req (cc, queried, seenLeaves, false) (a, s') =
-        guardedCoinHandler S T depth M n req (cc, queried, seenLeaves, false) (a, s')
-      simp only [unguardedCoinHandler, guardedCoinHandler, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
-      split_ifs with hmsg
-      · simp only [PMF.bind_apply]
-        refine tsum_congr fun leaf => ?_
-        cases hmem : seenLeaves.contains leaf
-        · rfl
-        · simp only [↓reduceIte]
-          have h1 : ((coinSignBody S T depth M n leaf req.2 cc).map fun out =>
-              (out.1, (out.2, (req.2 :: queried, seenLeaves, true)))) (a, s') = 0 := by
-            rw [PMF.apply_eq_zero_iff]
-            intro hsupp
-            obtain ⟨out, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hsupp
-            exact hs' (congrArg (fun x => x.2.2.2.2) heq.symm)
-          have h2 : (PMF.pure ([], (cc, (req.2 :: queried, seenLeaves, true))) :
-              PMF (List Bool × GuardedCoinState)) (a, s') = 0 := by
-            rw [PMF.apply_eq_zero_iff]
-            intro hsupp
-            have heq := (PMF.mem_support_pure_iff _ _).mp hsupp
-            exact hs' (congrArg (fun x => x.2.2.2.2) heq)
-          rw [h1, h2]
-      · rfl
-  absorb_first q s hs x hx := by
-    cases q with
-    | inl k =>
-      change x ∈ ((ProbComp.unifOracle k).map (·, s)).support at hx
+    ProbOracleComp.IdenticalUntilBad
+      (unguardedCoinHandler S T depth M n)
+      (guardedCoinHandler S T depth M n)
+      OracleComp.FlagBad := by
+  refine ProbOracleComp.IdenticalUntilBad.of_flag ?_ ?_ ?_
+  · rintro req ⟨cc, queried, seenLeaves⟩ x hx
+    simp only [unguardedCoinHandler, PMF.monad_bind_eq_bind, Bool.true_or, ↓reduceIte] at hx
+    split_ifs at hx with hmsg
+    · obtain ⟨_, -, hx⟩ := (PMF.mem_support_bind_iff _ _ _).mp hx
       obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
-    | inr req =>
-      obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-      dsimp only at hs
-      subst hs
-      change x ∈ (unguardedCoinHandler S T depth M n req (cc, queried, seenLeaves, true)).support
-        at hx
-      simp only [unguardedCoinHandler, PMF.monad_bind_eq_bind, Bool.true_or, ↓reduceIte] at hx
-      split_ifs at hx with hmsg
-      · obtain ⟨leaf, -, hx⟩ := (PMF.mem_support_bind_iff _ _ _).mp hx
-        obtain ⟨out, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        rfl
+      rfl
+    · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
+      rfl
+  · rintro req ⟨cc, queried, seenLeaves⟩ x hx
+    simp only [guardedCoinHandler, ↓reduceIte] at hx
+    split_ifs at hx <;>
       · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
         rfl
-  absorb_second q s hs x hx := by
-    cases q with
-    | inl k =>
-      change x ∈ ((ProbComp.unifOracle k).map (·, s)).support at hx
-      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
-    | inr req =>
-      obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-      dsimp only at hs
-      subst hs
-      change x ∈ (guardedCoinHandler S T depth M n req (cc, queried, seenLeaves, true)).support
-        at hx
-      simp only [guardedCoinHandler, ↓reduceIte] at hx
-      split_ifs at hx with hmsg <;>
-        · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
-          rfl
-
-private theorem toOuterMeasure_bad_queryBounded_le {α σ : Type}
-    (extHandler : Unit × List Bool → StateT σ PMF (List Bool))
-    (bad : σ → Prop) (seen : σ → ℕ) (d : ℕ)
-    (hstep : ∀ q s, ¬ bad s →
-      (extHandler q s).toOuterMeasure {x | bad x.2} ≤
-        (seen s : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ d))
-    (hgrow : ∀ q s, ¬ bad s → ∀ x ∈ (extHandler q s).support, ¬ bad x.2 →
-      seen x.2 ≤ seen s + 1)
-    {prog : WordOracleComp Unit α} {Q : ℕ} (hq : prog.IsQueryBounded Q)
-    {s : σ} (hs : ¬ bad s) :
-    ((OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-      prog).run s).toOuterMeasure {x | bad x.2} ≤
-      ((2 * Q * seen s + Q ^ 2 : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ (d + 1)) := by
-  classical
-  set ε : ℝ≥0∞ := (1 : ℝ≥0∞) / 2 ^ (d + 1)
-  have htwo : (1 : ℝ≥0∞) / 2 ^ d = 2 * ε := by
-    simp only [ε, one_div, pow_succ']
-    rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)), ← mul_assoc,
-      ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul]
-  induction hq generalizing s with
-  | pure a Q =>
-    simp only [OracleComp.run_interpret_pure, Probability.PMF.monad_pure_eq_pure,
-      PMF.toOuterMeasure_pure_apply]
-    have hnot : (a, s) ∉ {x : α × σ | bad x.2} := hs
-    simp only [hnot, ↓reduceIte]
-    exact zero_le
-  | liftBind q cont rem hcont ih =>
-    cases q with
-    | inl k =>
-      simp only [Sum.elim_inl, Nat.add_zero]
-      simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
-        Probability.PMF.monad_bind_eq_bind]
-      change (((ProbComp.unifOracle k).map (·, s)).bind fun x =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-          (cont x.1)).run x.2).toOuterMeasure {x | bad x.2} ≤ _
-      rw [PMF.bind_map, Function.comp_def, PMF.toOuterMeasure_bind_apply]
-      calc ∑' i, ProbComp.unifOracle k i *
-            ((OracleComp.interpret
-              (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-              (cont i)).run s).toOuterMeasure {x | bad x.2}
-          ≤ ∑' i, ProbComp.unifOracle k i *
-              (((2 * rem * seen s + rem ^ 2 : ℕ) : ℝ≥0∞) * ε) :=
-            tsum_le_tsum fun i => mul_le_mul_of_nonneg_left (ih i hs) zero_le
-        _ = ((2 * rem * seen s + rem ^ 2 : ℕ) : ℝ≥0∞) * ε := by
-            rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    | inr req =>
-      simp only [Sum.elim_inr]
-      simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
-        Probability.PMF.monad_bind_eq_bind]
-      change ((extHandler req s).bind fun y =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-          (cont y.1)).run y.2).toOuterMeasure {x | bad x.2} ≤ _
-      set K : ℝ≥0∞ := ((2 * rem * (seen s + 1) + rem ^ 2 : ℕ) : ℝ≥0∞) * ε
-      calc _ ≤ (extHandler req s).toOuterMeasure {x | bad x.2} + K := by
-            refine Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ K fun y hmem hy => ?_
-            have hnat : 2 * rem * seen y.2 + rem ^ 2 ≤ 2 * rem * (seen s + 1) + rem ^ 2 := by
-              have := hgrow req s hs y hmem hy
-              nlinarith
-            exact (ih y.1 hy).trans (mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hnat) zero_le)
-        _ ≤ (seen s : ℝ≥0∞) * (2 * ε) + K := by
-            rw [← htwo]
-            exact add_le_add_left (hstep req s hs) K
-        _ = ((2 * seen s + (2 * rem * (seen s + 1) + rem ^ 2) : ℕ) : ℝ≥0∞) * ε := by
-            simp only [K, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat]
-            ring
-        _ ≤ ((2 * (rem + 1) * seen s + (rem + 1) ^ 2 : ℕ) : ℝ≥0∞) * ε := by
-            have hnat : 2 * seen s + (2 * rem * (seen s + 1) + rem ^ 2) ≤
-                2 * (rem + 1) * seen s + (rem + 1) ^ 2 := by nlinarith
-            exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hnat) zero_le
+  · rintro req ⟨cc, queried, seenLeaves⟩ a s'
+    simp only [unguardedCoinHandler, guardedCoinHandler, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+    split_ifs with hmsg
+    · simp only [PMF.bind_apply]
+      refine tsum_congr fun leaf => ?_
+      cases seenLeaves.contains leaf
+      · rfl
+      · simp only [↓reduceIte]
+        have h1 : ((coinSignBody S T depth M n leaf req.2 cc).map fun out =>
+            (out.1, ((out.2, req.2 :: queried, seenLeaves), true))) (a, (s', false)) = 0 :=
+          (PMF.apply_eq_zero_iff _ _).mpr fun hsupp => by
+            obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hsupp
+            cases heq
+        have h2 : (PMF.pure ([], ((cc, req.2 :: queried, seenLeaves), true)) :
+            PMF (List Bool × GuardedCoinState)) (a, (s', false)) = 0 :=
+          (PMF.apply_eq_zero_iff _ _).mpr fun hsupp => by
+            cases (PMF.mem_support_pure_iff _ _).mp hsupp
+        rw [h1, h2]
+    · rfl
 
 private theorem step_bad_guardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (req : Unit × List Bool) (s : GuardedCoinState)
-    (hs : ¬ s.2.2.2 = true) :
-    (guardedCoinHandler S T depth M n req s).toOuterMeasure {x | x.2.2.2.2 = true} ≤
-      (s.2.2.1.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
-  obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-  have hbad : bad = false := Bool.eq_false_iff.mpr hs
-  subst hbad
+    (hs : ¬ OracleComp.FlagBad s) :
+    (guardedCoinHandler S T depth M n req s).toOuterMeasure {x | OracleComp.FlagBad x.2} ≤
+      (s.1.2.2.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
+  obtain ⟨⟨cc, queried, seenLeaves⟩, bad⟩ := s
+  obtain rfl : bad = false := Bool.eq_false_iff.mpr hs
   simp only [guardedCoinHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     Bool.false_eq_true, ↓reduceIte]
   split_ifs with hmsg
   · classical
-    rw [PMF.toOuterMeasure_bind_apply]
-    have hpt (leaf : List Bool) :
-        ((if seenLeaves.contains leaf = true then
-          PMF.pure ([], (cc, req.2 :: queried, seenLeaves, true))
-        else
-          (coinSignBody S T depth M n leaf req.2 cc).map fun out =>
-            (out.1, (out.2, req.2 :: queried, leaf :: seenLeaves, false))).toOuterMeasure
-          {x | x.2.2.2.2 = true}) ≤
-        ((seenLeaves.toFinset : Set (List Bool)).indicator 1 leaf : ℝ≥0∞) := by
-      cases hmem : seenLeaves.contains leaf
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        have hzero : ((coinSignBody S T depth M n leaf req.2 cc).map fun out =>
-            (out.1, (out.2, req.2 :: queried, leaf :: seenLeaves, false))).toOuterMeasure
-            {x | x.2.2.2.2 = true} = 0 := by
-          rw [PMF.toOuterMeasure_apply, tsum_eq_zero_iff]
-          intro x
-          by_cases hx : x ∈ {x : List Bool × GuardedCoinState | x.2.2.2.2 = true}
-          · rw [Set.indicator_of_mem hx, (PMF.apply_eq_zero_iff _ _).mpr]
-            intro hsupp
-            obtain ⟨out, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hsupp
-            have hfalse : x.2.2.2.2 = false := congrArg (fun z => z.2.2.2.2) heq.symm
-            exact Bool.false_ne_true (hfalse.symm.trans hx)
-          · rw [Set.indicator_of_notMem hx]
-        rw [hzero]
-        exact zero_le
-      · simp only [↓reduceIte]
-        have hin : leaf ∈ (seenLeaves.toFinset : Set (List Bool)) := by
-          rw [Finset.mem_coe, List.mem_toFinset]
-          exact List.contains_iff_mem.mp hmem
-        rw [Set.indicator_of_mem hin, Pi.one_apply]
-        exact Probability.PMF.toOuterMeasure_le_one _ _
-    calc ∑' leaf, BitString.uniformList (depth n) leaf * _
-        ≤ ∑' leaf, BitString.uniformList (depth n) leaf *
-            ((seenLeaves.toFinset : Set (List Bool)).indicator 1 leaf : ℝ≥0∞) :=
-          tsum_le_tsum fun leaf => mul_le_mul_of_nonneg_left (hpt leaf) zero_le
-      _ = (BitString.uniformList (depth n)).toOuterMeasure
-            (seenLeaves.toFinset : Set (List Bool)) := by
-          rw [PMF.toOuterMeasure_apply]
-          refine tsum_congr fun leaf => ?_
-          by_cases hl : leaf ∈ (seenLeaves.toFinset : Set (List Bool))
-          · rw [Set.indicator_of_mem hl, Set.indicator_of_mem hl, Pi.one_apply, mul_one]
-          · rw [Set.indicator_of_notMem hl, Set.indicator_of_notMem hl, mul_zero]
-      _ ≤ (seenLeaves.toFinset.card : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) :=
-          BitString.toOuterMeasure_uniformList_finset_le (depth n) seenLeaves.toFinset
-      _ ≤ (seenLeaves.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
-          gcongr
-          exact_mod_cast List.toFinset_card_le seenLeaves
-  · simp only [PMF.toOuterMeasure_pure_apply]
-    have hnot : (([], (cc, req.2 :: queried, seenLeaves, false)) : List Bool × GuardedCoinState) ∉
-        {x : List Bool × GuardedCoinState | x.2.2.2.2 = true} := Bool.false_ne_true
-    simp only [hnot, ↓reduceIte]
-    exact zero_le
+    refine (Probability.PMF.toOuterMeasure_bind_le_add (BitString.uniformList (depth n)) _
+      (seenLeaves.toFinset : Set (List Bool))
+      {x : List Bool × GuardedCoinState | OracleComp.FlagBad x.2} 0 ?_).trans ?_
+    · intro leaf _ hnotMem
+      have hmem : seenLeaves.contains leaf = false :=
+        Bool.eq_false_iff.mpr fun hc =>
+          hnotMem (Finset.mem_coe.mpr (List.mem_toFinset.mpr (List.contains_iff_mem.mp hc)))
+      simp only [hmem, Bool.false_eq_true, ↓reduceIte, le_zero_iff,
+        PMF.toOuterMeasure_apply_eq_zero_iff]
+      refine Set.disjoint_left.mpr fun x hx hbad => ?_
+      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+      exact Bool.false_ne_true hbad
+    · rw [add_zero]
+      exact (BitString.toOuterMeasure_uniformList_finset_le (depth n)
+        seenLeaves.toFinset).trans (by gcongr; exact_mod_cast List.toFinset_card_le seenLeaves)
+  · simp [PMF.toOuterMeasure_pure_apply, OracleComp.FlagBad]
 
 private theorem grow_seen_guardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (req : Unit × List Bool) (s : GuardedCoinState)
-    (hs : ¬ s.2.2.2 = true) (x : List Bool × GuardedCoinState)
-    (hx : x ∈ (guardedCoinHandler S T depth M n req s).support) (hxbad : ¬ x.2.2.2.2 = true) :
-    x.2.2.2.1.length ≤ s.2.2.1.length + 1 := by
-  obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-  have hbad : bad = false := Bool.eq_false_iff.mpr hs
-  subst hbad
+    (hs : ¬ OracleComp.FlagBad s) (x : List Bool × GuardedCoinState)
+    (hx : x ∈ (guardedCoinHandler S T depth M n req s).support)
+    (hxbad : ¬ OracleComp.FlagBad x.2) :
+    x.2.1.2.2.length ≤ s.1.2.2.length + 1 := by
+  obtain ⟨⟨cc, queried, seenLeaves⟩, bad⟩ := s
+  obtain rfl : bad = false := Bool.eq_false_iff.mpr hs
   simp only [guardedCoinHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     Bool.false_eq_true, ↓reduceIte] at hx
   split_ifs at hx with hmsg
@@ -1586,7 +1512,7 @@ private theorem grow_seen_guardedCoinHandler (S : IndexedSignatureScheme) (T : S
     split_ifs at hx with hmem
     · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
       exact False.elim (hxbad rfl)
-    · obtain ⟨out, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    · obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
       exact le_rfl
   · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
     exact Nat.le_succ _
@@ -1815,8 +1741,9 @@ private theorem map_dropCaches_jointCertify (S : IndexedSignatureScheme) (T : S.
 
 private theorem map_dropCaches_jointCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (req : Unit × List Bool) (s : JointLazyState) :
-    (jointCoinHandler S T depth M n req s).map (fun (a, s') => (a, (s'.1, s'.2.2))) =
-      guardedCoinHandler S T depth M n req (s.1, s.2.2) := by
+    (jointCoinHandler S T depth M n req s).map
+        (fun (a, s') => (a, ((s'.1, s'.2.2.1, s'.2.2.2.1), s'.2.2.2.2))) =
+      guardedCoinHandler S T depth M n req ((s.1, s.2.2.1, s.2.2.2.1), s.2.2.2.2) := by
   obtain ⟨cc, ⟨nodes, edges⟩, queried, seenLeaves, bad⟩ := s
   simp only [jointCoinHandler, guardedCoinHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   split_ifs with hmsg hbad
@@ -2225,8 +2152,8 @@ private theorem run_interpret_signHandler (S : IndexedSignatureScheme) (T : S.Se
     (((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) (lazyCoinHandler M))
       (signHandler S T depth n req queried)).run cc)).map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)) =
-      (unguardedCoinHandler S T depth M n req (cc, (queried, [], false))).map
-        (fun (a, s') => (a, (s'.2.1, s'.1))) := by
+      (unguardedCoinHandler S T depth M n req ((cc, queried, []), false)).map
+        (fun (a, s') => (a, (s'.1.2.1, s'.1.1))) := by
   simp only [signHandler, unguardedCoinHandler, signO, PMF.monad_bind_eq_bind]
   split_ifs with hmsg
   · rw [bind_assoc, OracleComp.run_interpret_bind, ProbOracleComp.run_interpret_sample,
@@ -2261,10 +2188,10 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
       (w₀ : List Bool) : PMF Bool :=
     let root := T.keyGenWith n (w₀.take (T.keyGenBudget n))
     let pk := encPair encUnary encBits (n, root.1)
-    let init : GuardedCoinState := ([(padRequest M (keyInput []), w₀)], ([], [], false))
+    let init : GuardedCoinState := (([(padRequest M (keyInput []), w₀)], [], []), false)
     ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) h)
-      (adversary n pk)).run init).bind fun (msig, (_, (queried, _, _))) =>
+      (adversary n pk)).run init).bind fun (msig, ((_, queried, _), _)) =>
         PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
           verify S depth pk msig.1 msig.2)
   -- Step 1: rewrite treeIdealGame as w₀ ← uniformList M followed by unguardedCoinHandler
@@ -2303,15 +2230,15 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (lazyCoinHandler M))
           (signHandler S T depth n q st.1)).run st.2)).map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
-      (fun (s : GuardedCoinState) => (s.2.1, s.1))
+      (fun (s : GuardedCoinState) => (s.1.2.1, s.1.1))
       (fun req s => by
-        obtain ⟨cc, queried, seenLeaves, bad⟩ := s
+        obtain ⟨⟨cc, queried, seenLeaves⟩, bad⟩ := s
         rw [run_interpret_signHandler S T depth M n req queried cc]
         simp only [unguardedCoinHandler, PMF.monad_bind_eq_bind]
         split_ifs with hmsg
         · simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
         · simp only [PMF.pure_map])
-      (adversary n pk) (cc₀, ([], [], false))
+      (adversary n pk) ((cc₀, [], []), false)
     have hcomb := hflat.trans (congrArg (PMF.map fun ⟨a, b, c⟩ => ((a, b), c)) hunguard.symm)
     have hwin := congrArg (fun d => d.bind fun out : ((List Bool × List Bool) × List (List Bool)) ×
         CoinCache =>
@@ -2370,13 +2297,13 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
     have hprojGuard := ProbOracleComp.run_interpret_map_state
       (jointCoinHandler S T depth M n)
       (guardedCoinHandler S T depth M n)
-      (fun s => (s.1, s.2.2))
+      (fun s => ((s.1, s.2.2.1, s.2.2.2.1), s.2.2.2.2))
       (map_dropCaches_jointCoinHandler S T depth M n)
       (adversary n pk) jInit
     have hwinLazy := congrArg (fun d => d.bind fun (msig, (_, (queried, _, _))) =>
       PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
         verify S depth pk msig.1 msig.2)) hprojLazy.symm
-    have hwinGuard := congrArg (fun d => d.bind fun (msig, (_, (queried, _, _))) =>
+    have hwinGuard := congrArg (fun d => d.bind fun (msig, ((_, queried, _), _)) =>
       PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
         verify S depth pk msig.1 msig.2)) hprojGuard
     simp only [PMF.bind_map, Function.comp_def] at hwinLazy hwinGuard
@@ -2388,6 +2315,13 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
     rw [ENNReal.coe_div (by positivity), div_eq_mul_inv, one_div]
     push_cast
     ring
+  have htwo : (1 : ℝ≥0∞) / 2 ^ depth n = 2 * ((1 : ℝ≥0∞) / 2 ^ (depth n + 1)) := by
+    simp only [one_div, pow_succ']
+    rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)), ← mul_assoc,
+      ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul]
+  have hchoose_le : 2 * Q.choose 2 ≤ Q ^ 2 := by
+    rw [Nat.choose_two_right, pow_two]
+    exact (Nat.mul_div_le _ 2).trans (Nat.mul_le_mul_left Q (Nat.sub_le Q 1))
   have hle_enn : ProbComp.eval (treeIdealGame S T depth N adversary n) true ≤
       ProbComp.eval (lazyTreeGame S depth adversary n) true + (err : ℝ≥0∞) := by
     rw [hstep1, hstep2, PMF.bind_apply, PMF.bind_apply]
@@ -2400,23 +2334,32 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
       dsimp only [gameWith]
       set root := T.keyGenWith n (w₀.take (T.keyGenBudget n))
       set pk := encPair encUnary encBits (n, root.1)
-      set init : GuardedCoinState := ([(padRequest M (keyInput []), w₀)], ([], [], false))
+      set init : GuardedCoinState := (([(padRequest M (keyInput []), w₀)], [], []), false)
       have hiub := identicalUntilBad_coinHandlers S T depth M n
-      have hdiff := hiub.bind_apply_le (adversary n pk) init
-        (fun (msig, (_, (queried, _, _))) =>
+      have hdiff := OracleComp.IdenticalUntilBad.bind_apply_le hiub (adversary n pk) init
+        (fun (msig, ((_, queried, _), _)) =>
           PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
             verify S depth pk msig.1 msig.2)) true
-      rw [hiub.bad_eq] at hdiff
+      rw [OracleComp.IdenticalUntilBad.bad_eq hiub] at hdiff
       have hq_root : (adversary n pk).IsQueryBounded Q :=
         hq root (T.keyGenWith_mem_support n _)
-      have hbad_le := toOuterMeasure_bad_queryBounded_le
-        (guardedCoinHandler S T depth M n)
-        (fun s => s.2.2.2 = true) (fun s => s.2.2.1.length) (depth n)
+      have hbad_le := ProbOracleComp.toOuterMeasure_bad_choose_two_le
+        (handler := guardedCoinHandler S T depth M n) (bad := OracleComp.FlagBad)
+        (fun s => s.1.2.2.length) ((1 : ℝ≥0∞) / 2 ^ depth n)
         (step_bad_guardedCoinHandler S T depth M n)
         (grow_seen_guardedCoinHandler S T depth M n)
         hq_root (s := init) Bool.false_ne_true
-      simp only [init, List.length_nil, mul_zero, zero_add] at hbad_le
-      exact hdiff.trans (add_le_add le_rfl (hbad_le.trans_eq herr.symm))
+      rw [ProbOracleComp.runWith_eq_run_interpret] at hbad_le
+      simp only [init, List.length_nil, mul_zero, zero_add, htwo, ← mul_assoc] at hbad_le
+      have hbad_err : ((OracleComp.interpret
+            (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
+              (guardedCoinHandler S T depth M n))
+            (adversary n pk)).run init).toOuterMeasure {x | OracleComp.FlagBad x.2} ≤
+          (err : ℝ≥0∞) := by
+        refine hbad_le.trans ?_
+        rw [herr, mul_comm (Q.choose 2 : ℝ≥0∞) 2, ← Nat.cast_ofNat, ← Nat.cast_mul]
+        exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hchoose_le) zero_le
+      exact hdiff.trans (add_le_add le_rfl hbad_err)
     calc ∑' w₀, _
         ≤ ∑' w₀, BitString.uniformList M w₀ * _ := tsum_le_tsum hpt
       _ = _ := by
@@ -2896,6 +2839,16 @@ private theorem localTreeHandler_planted_step (S : IndexedSignatureScheme) (dept
   · obtain ⟨⟨σ, e'', a''⟩, hm_se, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hm_edg
     exact ⟨hroot_v', hlt_v', huniq_v', hedg_inv σ e'' a'' hm_se⟩
 
+/-- The index of an extracted forgery is a bit, so it lies below every capacity of at least `2`. -/
+private theorem extractForgery_fst_lt (d target : ℕ) (visited : NodeSlotCache)
+    (msg sig : List Bool) {cap : ℕ} (hcap : 2 ≤ cap) :
+    (extractForgery d target visited msg sig).1 < cap := by
+  unfold extractForgery
+  generalize signatureDecoder.decode sig = t
+  obtain ⟨leaf, certs, last⟩ := t
+  dsimp only
+  split_ifs <;> exact (Bool.toNat_le _).trans_lt (by omega)
+
 private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
     (depth slotBound sigCap : ℕ → ℕ) {n : ℕ} (hcap : 2 ≤ S.capacity n)
     (adversary : Forger) {target : ℕ} (htarget : target < dyadicSize (slotBound n)) :
@@ -2956,9 +2909,11 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
   have hwin := congrArg (PMF.map fun out : ((List Bool × List Bool) × PlantedState) ×
       List (ℕ × List Bool) =>
     let cand := extractForgery (depth n) front.length out.1.2.1.1 out.1.1.1 out.1.1.2
-    !out.2.contains (cand.1, cand.2.1) && S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
+    decide (cand.1 < S.capacity n) && !out.2.contains (cand.1, cand.2.1) &&
+      S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
   simp only [PMF.map_comp, Function.comp_def, plantedWin, keys,
-    List.getD_append_cons_length] at hwin ⊢
+    List.getD_append_cons_length, extractForgery_fst_lt _ _ _ _ _ hcap, decide_true,
+    Bool.true_and] at hwin ⊢
   exact hwin
 
 /-! #### Equivalence between `lazyTreeGame` and `presampledExp` -/
@@ -4137,8 +4092,9 @@ end LazyToIndexed
 
 section AsymptoticSecurity
 
-/-- **Concrete security of `treeIdealGame`** ([BonehShoup2023], Section 14.6.3, Theorem 14.6):
-combining the lazy-coin leaf-collision hybrid and the planted-node indexed-forgery reduction. -/
+/-- **Concrete security of `treeIdealGame`** (a step of the proof of [BonehShoup2023],
+Theorem 14.6): combining the lazy-coin leaf-collision hybrid and the planted-node indexed-forgery
+reduction. -/
 theorem succProbability_treeIdealGame_le (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth N slotBound sigCap : ℕ → ℕ) {n Q : ℕ}
     (hcap : 2 ≤ S.capacity n) (hdepth_pos : 1 ≤ depth n)
@@ -4164,12 +4120,14 @@ theorem succProbability_treeIdealGame_le (S : IndexedSignatureScheme) (T : S.See
       (succProbability_lazyTreeGame_le S depth slotBound sigCap hcap hdepth_pos hslot hsigCap
         adversary hq) le_rfl)
 
-/-- **Theorem 14.6 concrete security bound for `TreeSignature.scheme`**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): the forging probability of any `Q`-query forger
-against `TreeSignature.scheme` with `prfCoins family` is bounded by the PRF distinguishing
-advantage of `coinDistinguisher (treeCoinAdversary …)` at `N n`, plus `dyadicSize (slotBound n)`
-times `indexedForger`'s indexed forging probability against `S`, plus
-`(Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1)`. -/
+/-- Concrete bound for `TreeSignature.scheme` at one parameter `n`, a step toward
+[BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`, not the cited
+result: the forging probability of any `Q`-query forger against `TreeSignature.scheme` with
+`prfCoins family` is bounded by the PRF distinguishing advantage of
+`coinDistinguisher (treeCoinAdversary …)` at `N n`, plus `dyadicSize (slotBound n)` times
+`indexedForger`'s indexed forging probability against `S`, plus
+`(Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1)`. The source's terms are `Q d · iSIGadv` and
+`Q ^ 2 / (2 q ^ d)`; general `q` is not formalized (#5293). -/
 theorem succProbability_eufCmaGame_scheme_le (S : IndexedSignatureScheme) (T : S.Seeded)
     (family : List Bool → List Bool → List Bool)
     (depth N inv slotBound sigCap : ℕ → ℕ)
@@ -4195,9 +4153,9 @@ theorem succProbability_eufCmaGame_scheme_le (S : IndexedSignatureScheme) (T : S
         ((scheme S T (prfCoins family) N depth hcoins hN hdepth hcap hdepth_pos).eufCmaGame
           adversary n)) ≤
       Game.advantage
-        (ProbComp.eval (prfRealGame family
+        (ProbComp.eval (prfRealGame id family
           (coinDistinguisher (treeCoinAdversary S T depth N inv adversary)) (N n)))
-        (ProbComp.eval (prfIdealGame
+        (ProbComp.eval (prfIdealGame id id
           (coinDistinguisher (treeCoinAdversary S T depth N inv adversary)) (N n))) +
       dyadicSize (slotBound n) * Game.succProbability
         (ProbComp.eval
@@ -4226,13 +4184,16 @@ private theorem exists_sigCap_polyTime (S : IndexedSignatureScheme) :
       (hsgLen (keys.2, u, msg) σ hσ).trans
         (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (hlenB n keys hkeys u hu msg hmsg) ds))⟩
 
-/-- **Stateless EUF-CMA security of `TreeSignature.scheme` with an explicit left inverse**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): if `S` is indexed EUF-CMA secure with capacity
-at least `2`, `family` is a pseudorandom function, `N` covers all tree coin requests and has a
-polynomial-time left inverse `inv`, and `(1 : ℝ≥0) / 2 ^ depth n` is negligible, then
-`TreeSignature.scheme` is stateless EUF-CMA secure. -/
-theorem eufCMA_scheme_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
-    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
+/-- Step toward [BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case
+`q = 2`, not the cited result: its PRF premise is stronger than the source's (#5293). This is
+`eufCMA_scheme_of_prf` with a general PRF parameter `N` and an explicit left inverse: if `S` is
+indexed EUF-CMA secure with capacity at least `2`, `family` is a length-preserving pseudorandom
+function, `N` covers all tree coin requests and has a polynomial-time left inverse `inv`, and
+`(1 : ℝ≥0) / 2 ^ depth n` is negligible, then `TreeSignature.scheme` is stateless EUF-CMA secure.
+The premise and the other deviations are those of `eufCMA_scheme_of_prf`, with `N` in place of
+`coinParam budget`. -/
+theorem eufCMA_scheme_of_prf_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA)
+    (T : S.Seeded) {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {depth N inv : ℕ → ℕ}
     (hdepth : ComputableInPolyTime depth encUnary encUnary)
     (hN : ComputableInPolyTime N encUnary encUnary)
@@ -4289,10 +4250,28 @@ theorem eufCMA_scheme_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA)
     exact (hprfLe n).trans (add_le_add hideal le_rfl)
   negligible using hbound
 
-/-- **Stateless EUF-CMA security of `TreeSignature.scheme` at `coinParam budget`**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): instantiating the PRF parameter at
-`coinParam budget` eliminates the separate left-inverse hypothesis. -/
-theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
+/-- Step toward [BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case
+`q = 2`, not the cited result: its PRF premise `hF` is stronger than the source's (#5293). If `S`
+is indexed EUF-CMA secure with capacity at least `2`, used at indices `0` and `1` only, `family`
+is a length-preserving pseudorandom function, `budget` covers all tree coin requests, and
+`(1 : ℝ≥0) / 2 ^ depth n` is negligible, then `TreeSignature.scheme` with coins `prfCoins family`
+at the PRF parameter `coinParam budget n` is stateless EUF-CMA secure.
+
+Theorem 14.6 assumes only that its coin function `F`, defined over
+`(K, {1, …, q} ^ {≤ d}, {0, 1} ^ w)`, is a PRF. Here the coins are `prfCoins family`: `family` at
+the padded request, truncated. The premise `hF` asks that `family` be a PRF on every key length
+and every query. It implies that the coins are pseudorandom
+(`PseudorandomFunction.coinIndistinguishable`), but the converse is not proved. The proof passes
+through that coin indistinguishability, but over every request word and every PRF parameter, and a
+request of at least `N` bits reaches `family` at its first `N` bits, so those games expose `family`
+on every `N`-bit input as its own PRF games do. Theorem 14.6 itself needs the coin games
+restricted to the tree's requests at the parameters `coinParam budget n`. The rescaled parameter
+adds no assumption, since the proof turns the PRF's security at `coinParam budget n ≥ n` into a
+bound negligible in `n`.
+
+The other deviations: the tree is binary, so the source's condition that `q ^ d` is super-poly is
+`hdepthNeg`, and general `q` is not formalized (#5293); and the outer messages are `n`-bit. -/
+theorem eufCMA_scheme_of_prf (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {depth budget : ℕ → ℕ}
     (hdepth : ComputableInPolyTime depth encUnary encUnary)
@@ -4306,7 +4285,7 @@ theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S
     (scheme S T (prfCoins family) (coinParam budget) depth
       (computableInPolyTime_prfCoins hF.polyTime)
       (computableInPolyTime_coinParam hbudget) hdepth hcap hdepth_pos).EUFCMA :=
-  eufCMA_scheme_of_inv S hS T hF hdepth
+  eufCMA_scheme_of_prf_of_inv S hS T hF hdepth
     (computableInPolyTime_coinParam hbudget)
     (computableInPolyTime_coinParamInv hbudget)
     hcap hdepth_pos (le_coinParam budget) (coinParamInv_coinParam budget)
@@ -4316,10 +4295,13 @@ theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S
       (hsgBudget n keys hk u hu msg hm).trans (lt_coinParam budget n).le)
     hdepthNeg
 
-/-- **Stateless many-time signatures from indexed signatures and PRFs**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): any indexed EUF-CMA secure signature scheme of
-capacity at least `2` and any pseudorandom function yield a stateless EUF-CMA secure signature
-scheme. -/
+/-- Corollary of the step `eufCMA_scheme_of_prf` toward [BonehShoup2023], Section 14.6.3,
+Theorem 14.6, p. 600, with `q = 2`, not the cited result: any indexed EUF-CMA secure signature
+scheme of capacity at least `2` and any length-preserving pseudorandom function yield a stateless
+EUF-CMA secure signature scheme on `n`-bit messages. The scheme is `TreeSignature.scheme` with
+depth `n + 1`, so that `2 ^ (n + 1)` is super-poly, and coins `prfCoins family`. The premise `hF`
+is stronger than the source's PRF premise on the coins, as `eufCMA_scheme_of_prf` explains
+(#5293). -/
 theorem _root_.Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf
     {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA) (hcap : ∀ n, 2 ≤ S.capacity n)
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
@@ -4335,7 +4317,7 @@ theorem _root_.Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_o
   exact ⟨scheme S T (prfCoins family) (coinParam budget) depth
       (computableInPolyTime_prfCoins hF.polyTime)
       (computableInPolyTime_coinParam hbudget) hdepth hcap hdepth_pos,
-    eufCMA_scheme S hS T hF hdepth hbudget hcap hdepth_pos hwidth hkgB hsgB hdepthNeg⟩
+    eufCMA_scheme_of_prf S hS T hF hdepth hbudget hcap hdepth_pos hwidth hkgB hsgB hdepthNeg⟩
 
 /-- **Stateless many-time signatures from indexed signatures and one-way functions**: any indexed
 EUF-CMA secure signature scheme of capacity at least `2` and any one-way function yield a stateless

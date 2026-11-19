@@ -73,10 +73,6 @@ determinant of the reduced Laplacian; `0` when `G` declares no vertex. -/
 
 /-! ### Correctness -/
 
-/-- Adjacency in `G.induced` is decided by the executable test `Cslib.Complexity.Graph.adjBool`. -/
-instance instDecidableRelInducedAdj (G : Graph) : DecidableRel G.induced.Adj := fun u v =>
-  decidable_of_iff (G.adjBool u v = true) (by rw [adjBool_eq_true_iff, induced_adj])
-
 /-- The degree of a declared vertex in `G.induced` is its number of neighbours among the distinct
 declared vertices. -/
 private theorem degree_induced (G : Graph) (u : {v // v ∈ G.vertices}) :
@@ -180,20 +176,7 @@ private theorem computableInPolyTime_tail_distinctVertices :
 private theorem computableInPolyTime_laplacianEntry :
     ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.1.1.laplacianEntry p.1.2 p.2)
       (encPair (encPair encGraph encNat) encNat) encIntBin := by
-  have hG : ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.1.1)
-      (encPair (encPair encGraph encNat) encNat) encGraph := (fst _ _).fst'
-  have hu : ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.1.2)
-      (encPair (encPair encGraph encNat) encNat) encNat := (fst _ _).snd'
-  have hv : ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.2)
-      (encPair (encPair encGraph encNat) encNat) encNat := snd _ _
-  have hfilter : ComputableInPolyTime
-      (fun p : (Graph × ℕ) × ℕ => p.1.1.distinctVertices.filter fun w => p.1.1.adjBool p.1.2 w)
-      (encPair (encPair encGraph encNat) encNat) (encList encNat) :=
-    filterWithInput (computableInPolyTime_distinctVertices.comp hG)
-      (computableInPolyTime_adjBool_comp (hG.comp (fst _ _)) (hu.comp (fst _ _)) (snd _ _))
-  unfold laplacianEntry
-  exact ite_decide (decide_eq' hu hv) (intBin_natCast.comp (length_list_binary' hfilter))
-    (ite (computableInPolyTime_adjBool_comp hG hu hv) (const _) (const _))
+  fun_prop [laplacianEntry]
 
 /-- Tabulating the reduced Laplacian rows is polynomial-time. -/
 private theorem computableInPolyTime_reducedLaplacianRows :

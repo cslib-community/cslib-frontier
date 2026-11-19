@@ -12,6 +12,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+import CslibFrontier.Foundations.Data.Fin.Embedding
+import CslibFrontier.Foundations.Data.List.Flatten
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -37,6 +40,8 @@ the work tapes.
   by single-pass and multi-pass folds.
 * `Turing.MultiTapeTM.transformsTapesAt_streamLoop_encoded_after`: a typed streaming phase
   starting after a prefix on the input tape.
+* `Turing.MultiTapeTM.transformsTapesAt_streamLoop_encoded_after_of_round`: the same typed phase
+  for any machine satisfying the exact one-round specification.
 * `Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.streamFold_sum_after`: streaming folds
   after an initialization phase that writes the framed initial state and may move the input head
   past a prefix, with cumulative round costs and peak workspace bounds.
@@ -55,7 +60,7 @@ input prefix, and the uniform-round corollary reuses the complete single-pass co
 
 namespace Turing.MultiTapeTM
 
-universe u
+universe u v
 
 variable {α σ : Type*}
 
@@ -131,8 +136,132 @@ public theorem read_rawFrameReader (w rest : List Bool) :
     simp [rawFrameReader, Nat.add_assoc]
 
 -- upstream: candidate
+/-- A typed streaming phase starting after an input prefix `pre`, parameterized by a machine that
+satisfies the exact one-round specification. -/
+public theorem transformsTapesAt_streamLoop_encoded_after_of_round {α : Type u} {σ : Type v}
+    {Q SE SN SR : Type*} {K : ℕ}
+    {encA : α ↪ List Bool} {encS : σ ↪ List Bool}
+    {E : MultiTapeTM K Bool SE} {Nm : MultiTapeTM K Bool SN} {V N : Fin K}
+    (r : InputReader Bool Q)
+    (round : MultiTapeTM K Bool SR)
+    (roundSpec : ∀ (x : List Bool) (p₀ : Fin (x.length + 2)) (hp₀ : p₀.val ≠ 0)
+      (v : List Bool) {emit next : List Bool} {tE sE tN sN : ℕ},
+      TransformsTapes E
+        (fun _ ws => ws = Function.update (fun _ => []) V
+          (v ++ (r.read r.q₀ (x.drop (p₀.val - 1))).1))
+        (fun _ ws ws' em => ws' = ws ∧ em = emit) tE sE →
+      TransformsTapes Nm
+        (fun _ ws => ws = Function.update (fun _ => []) V
+          (v ++ (r.read r.q₀ (x.drop (p₀.val - 1))).1))
+        (fun _ ws ws' em => ws' = Function.update ws N next ∧ em = []) tN sN →
+      let rd := r.read r.q₀ (x.drop (p₀.val - 1))
+      TransformsTapesAt round
+        (fun input p ws => input = x ∧ p.val = p₀.val ∧
+          ws = Function.update (fun _ => []) V v)
+        (fun _ _ _ p' ws' em => p'.val = p₀.val + rd.2 ∧
+          ws' = Function.update (fun _ => []) V next ∧ em = emit)
+        (v.length + 1 + ((rd.2 + 1) + ((v ++ rd.1).length + 2)) +
+          (tE + (tN + (3 * ((v ++ rd.1).length + 1) + ((3 * next.length + 10) +
+            3 * (next.length + 1))))))
+        ((v ++ rd.1).length + 2 + (K - 1) +
+          (sE + (sN + (((v ++ rd.1).length + 1 + K) + ((4 * next.length + K + 15) +
+            (next.length + 1 + K)))))))
+    (tok : α → List Bool) (htok : ∀ a, tok a ≠ [])
+    (hread : ∀ a rest, r.read r.q₀ (tok a ++ rest) = (encA a, (tok a).length))
+    (pre : List Bool) (s : σ) (l : List α) (next : σ × α → σ) (emit : σ × α → List Bool)
+    {tE sE tN sN : σ × α → ℕ}
+    (hE : ∀ p, TransformsTapes E
+      (fun _ ws => ws = Function.update (fun _ => []) V (encPair encS encA p))
+      (fun _ ws ws' em => ws' = ws ∧ em = emit p) (tE p) (sE p))
+    (hN : ∀ p, TransformsTapes Nm
+      (fun _ ws => ws = Function.update (fun _ => []) V (encPair encS encA p))
+      (fun _ ws ws' em => ws' = Function.update ws N (frame (encS (next p))) ∧ em = [])
+      (tN p) (sN p))
+    {roundCost : ℕ → ℕ} {sMax lMax : ℕ}
+    (hcost : ∀ j (hj : j < l.length),
+      tE (streamState s next l j, l[j]) + tN (streamState s next l j, l[j]) +
+        12 * ((encS (streamState s next l j)).length +
+          (encS (streamState s next l (j + 1))).length + (encA l[j]).length) + 32 ≤ roundCost j)
+    (hspace : ∀ j (hj : j < l.length),
+      sE (streamState s next l j, l[j]) + sN (streamState s next l j, l[j]) ≤ sMax)
+    (hstate : ∀ j ≤ l.length, (encS (streamState s next l j)).length ≤ lMax)
+    (helem : ∀ j (hj : j < l.length), (encA l[j]).length ≤ lMax) :
+    TransformsTapesAt (whileInput round)
+      (fun input p ws => input = pre ++ l.flatMap tok ∧ p.val = 1 + pre.length ∧
+        ws = Function.update (fun _ => []) V (frame (encS s)))
+      (fun input _ _ p' ws' em => input = pre ++ l.flatMap tok ∧
+        p'.val = 1 + (pre ++ l.flatMap tok).length ∧
+        ws' = Function.update (fun _ => []) V (frame (encS (streamState s next l l.length))) ∧
+        em = streamEmit next emit s l)
+      ((l.flatMap tok).length + (∑ j ∈ Finset.range l.length, roundCost j) + 1)
+      (2 * K * (sMax + 16 * lMax + 4 * K + 26) + K) := by
+  let st := streamState s next l
+  let toks := l.map tok
+  let cont (j : ℕ) : List Bool := (l[j]?.map encA).getD []
+  let es (j : ℕ) : List Bool := (l[j]?.map fun a => emit (st j, a)).getD []
+  let lift (f : σ × α → ℕ) (j : ℕ) : ℕ := (l[j]?.map fun a => f (st j, a)).getD 0
+  have hlen : toks.length = l.length := List.length_map ..
+  have hcont (j : ℕ) (hj : j < l.length) : cont j = encA l[j] := by
+    simp [cont, List.getElem?_eq_getElem hj]
+  have hlift (f : σ × α → ℕ) (j : ℕ) (hj : j < l.length) : lift f j = f (st j, l[j]) := by
+    simp [lift, List.getElem?_eq_getElem hj]
+  have htoks : ∀ t ∈ toks, t ≠ [] := by
+    rintro t ht
+    obtain ⟨a, _, rfl⟩ := List.mem_map.mp ht
+    exact htok a
+  have hread' : ∀ j (hj : j < toks.length), r.read r.q₀ (toks.flatten.drop
+      ((toks.take j).flatten).length) = (cont j, toks[j].length) := by
+    intro j hj
+    -- vendored: crei's `drop_flatten_take` is `List.drop_flatten_take` here
+    rw [List.drop_flatten_take toks hj]
+    simp [toks, hcont j (by omega), hread]
+  have hE' : ∀ j < toks.length, TransformsTapes E
+      (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (st j)) ++ cont j))
+      (fun _ ws ws' em => ws' = ws ∧ em = es j) (lift tE j) (lift sE j) := by
+    intro j hj
+    have hj' : j < l.length := by omega
+    simpa [encPair_apply, hcont j hj', es, List.getElem?_eq_getElem hj', lift] using hE (st j, l[j])
+  have hN' : ∀ j < toks.length, TransformsTapes Nm
+      (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (st j)) ++ cont j))
+      (fun _ ws ws' em => ws' = Function.update ws N (frame (encS (st (j + 1)))) ∧ em = [])
+      (lift tN j) (lift sN j) := by
+    intro j hj
+    have hj' : j < l.length := by omega
+    simpa [encPair_apply, hcont j hj', lift, List.getElem?_eq_getElem hj', st,
+      streamState_succ s next l hj'] using hN (st j, l[j])
+  have h := transformsTapesAt_streamLoop_after_of_round (r := r)
+    (round := round) (roundSpec := roundSpec) pre toks htoks cont
+    (fun j => frame (encS (st j))) es hread' hE' hN'
+    (sR := sMax + 16 * lMax + 4 * K + 26) ?_
+  · refine h.imp
+      (fun _ _ _ h => by simpa only [toks, st, streamState_zero, List.flatMap_def] using h)
+      ?_ ?_ le_rfl
+    · intro input p ws p' ws' em _ hpost
+      simpa only [hlen, toks, st, es, List.flatMap_def, streamEmit_eq] using hpost
+    · have hs := Finset.sum_le_sum (s := Finset.range toks.length) fun j hj =>
+        (show streamRoundTime toks cont
+          (fun j => frame (encS (st j))) (lift tE) (lift tN) j + 1 ≤
+          (toks[j]?.getD []).length + roundCost j from ?_)
+      · simp only [Finset.sum_add_distrib] at hs ⊢
+        rw [sum_length_getD] at hs
+        simpa only [hlen, toks, ← List.flatMap_def] using Nat.add_le_add_right hs 1
+      · have hj' : j < l.length := by simpa only [Finset.mem_range, hlen] using hj
+        have hc := hcost j hj'
+        simp only [streamRoundTime, hlift _ j hj', hcont j hj', List.length_append, length_frame]
+        lia
+  · intro j hj
+    have hj' : j < l.length := by omega
+    have hs := hspace j hj'
+    have h₀ := hstate j hj'.le
+    have h₁ := hstate (j + 1) hj'
+    have ha := helem j hj'
+    simp only [hlift _ j hj', hcont j hj', List.length_append, length_frame]
+    lia
+
+-- upstream: candidate
 /-- A typed streaming phase starting after an input prefix `pre`. -/
-public theorem transformsTapesAt_streamLoop_encoded_after {α σ : Type u} {Q SE SN : Type*} {K : ℕ}
+public theorem transformsTapesAt_streamLoop_encoded_after {α : Type u} {σ : Type v}
+    {Q SE SN : Type*} {K : ℕ}
     {encA : α ↪ List Bool} {encS : σ ↪ List Bool}
     {E : MultiTapeTM K Bool SE} {Nm : MultiTapeTM K Bool SN} {V N F : Fin K}
     (r : InputReader Bool Q) (tok : α → List Bool) (htok : ∀ a, tok a ≠ [])
@@ -164,73 +293,19 @@ public theorem transformsTapesAt_streamLoop_encoded_after {α σ : Type u} {Q SE
         ws' = Function.update (fun _ => []) V (frame (encS (streamState s next l l.length))) ∧
         em = streamEmit next emit s l)
       ((l.flatMap tok).length + (∑ j ∈ Finset.range l.length, roundCost j) + 1)
-      (2 * K * (sMax + 16 * lMax + 4 * K + 26) + K) := by
-  let st := streamState s next l
-  let toks := l.map tok
-  let cont (j : ℕ) : List Bool := (l[j]?.map encA).getD []
-  let es (j : ℕ) : List Bool := (l[j]?.map fun a => emit (st j, a)).getD []
-  let lift (f : σ × α → ℕ) (j : ℕ) : ℕ := (l[j]?.map fun a => f (st j, a)).getD 0
-  have hlen : toks.length = l.length := List.length_map ..
-  have hcont (j : ℕ) (hj : j < l.length) : cont j = encA l[j] := by
-    simp [cont, List.getElem?_eq_getElem hj]
-  have hlift (f : σ × α → ℕ) (j : ℕ) (hj : j < l.length) : lift f j = f (st j, l[j]) := by
-    simp [lift, List.getElem?_eq_getElem hj]
-  have htoks : ∀ t ∈ toks, t ≠ [] := by
-    rintro t ht
-    obtain ⟨a, _, rfl⟩ := List.mem_map.mp ht
-    exact htok a
-  have hread' : ∀ j (hj : j < toks.length), r.read r.q₀ (toks.flatten.drop
-      ((toks.take j).flatten).length) = (cont j, toks[j].length) := by
-    intro j hj
-    rw [drop_flatten_take toks hj]
-    simp [toks, hcont j (by omega), hread]
-  have hE' : ∀ j < toks.length, TransformsTapes E
-      (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (st j)) ++ cont j))
-      (fun _ ws ws' em => ws' = ws ∧ em = es j) (lift tE j) (lift sE j) := by
-    intro j hj
-    have hj' : j < l.length := by omega
-    simpa [encPair_apply, hcont j hj', es, List.getElem?_eq_getElem hj', lift] using hE (st j, l[j])
-  have hN' : ∀ j < toks.length, TransformsTapes Nm
-      (fun _ ws => ws = Function.update (fun _ => []) V (frame (encS (st j)) ++ cont j))
-      (fun _ ws ws' em => ws' = Function.update ws N (frame (encS (st (j + 1)))) ∧ em = [])
-      (lift tN j) (lift sN j) := by
-    intro j hj
-    have hj' : j < l.length := by omega
-    simpa [encPair_apply, hcont j hj', lift, List.getElem?_eq_getElem hj', st,
-      streamState_succ s next l hj'] using hN (st j, l[j])
-  have h := transformsTapesAt_streamLoop_after (r := r) hVN hVF hNF pre toks htoks cont
-    (fun j => frame (encS (st j))) es hread' hE' hN' (sR := sMax + 16 * lMax + 4 * K + 26) ?_
-  · refine h.imp
-      (fun _ _ _ h => by simpa only [toks, st, streamState_zero, List.flatMap_def] using h)
-      ?_ ?_ le_rfl
-    · intro input p ws p' ws' em _ hpost
-      simpa only [hlen, toks, st, es, List.flatMap_def, streamEmit_eq] using hpost
-    · have hs := Finset.sum_le_sum (s := Finset.range toks.length) fun j hj =>
-        (show streamRoundTime toks cont
-          (fun j => frame (encS (st j))) (lift tE) (lift tN) j + 1 ≤
-          (toks[j]?.getD []).length + roundCost j from ?_)
-      · simp only [Finset.sum_add_distrib] at hs ⊢
-        rw [sum_length_getD] at hs
-        simpa only [hlen, toks, ← List.flatMap_def] using Nat.add_le_add_right hs 1
-      · have hj' : j < l.length := by simpa only [Finset.mem_range, hlen] using hj
-        have hc := hcost j hj'
-        simp only [streamRoundTime, hlift _ j hj', hcont j hj', List.length_append, length_frame]
-        lia
-  · intro j hj
-    have hj' : j < l.length := by omega
-    have hs := hspace j hj'
-    have h₀ := hstate j hj'.le
-    have h₁ := hstate (j + 1) hj'
-    have ha := helem j hj'
-    simp only [hlift _ j hj', hcont j hj', List.length_append, length_frame]
-    lia
+      (2 * K * (sMax + 16 * lMax + 4 * K + 26) + K) :=
+  transformsTapesAt_streamLoop_encoded_after_of_round
+    (round := streamRound r E Nm V N F hVN hVF hNF)
+    (roundSpec := transformsTapesAt_streamRound (r := r) hVN hVF hNF)
+    r tok htok hread pre s l next emit hE hN hcost hspace hstate helem
 
 -- upstream: candidate
 /-- A typed streaming phase on selected tapes. The state is framed, each token is decoded once,
 and the callbacks receive the ordinary pair encoding. `roundCost` charges callback time and
 copying of the current state, next state and decoded element. The phase leaves its final state
 on tape `V` and the input cursor just past the last token, so another phase can consume them. -/
-public theorem transformsTapesAt_streamLoop_encoded {α σ : Type u} {Q SE SN : Type*} {K : ℕ}
+public theorem transformsTapesAt_streamLoop_encoded {α : Type u} {σ : Type v}
+    {Q SE SN : Type*} {K : ℕ}
     {encA : α ↪ List Bool} {encS : σ ↪ List Bool}
     {E : MultiTapeTM K Bool SE} {Nm : MultiTapeTM K Bool SN} {V N F : Fin K}
     (r : InputReader Bool Q) (tok : α → List Bool) (htok : ∀ a, tok a ≠ [])
@@ -279,7 +354,8 @@ initialization, the actual round costs `roundCost` (each round's computation, cu
 states, decoded element storage and control), finalization, input scanning and cleanup. Workspace
 adds the initialization's to the peak callback workspace `sMax` and the stored-word bound `lMax`;
 output is emitted directly and does not count as workspace. -/
-public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α σ : Type u} {γ ε φ ω : Type*}
+public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u} {σ : Type v}
+    {γ ε φ ω : Type*}
     {encA : α ↪ List Bool} {encS : σ ↪ List Bool} {encE : ε ↪ List Bool} {encF : φ ↪ List Bool}
     {encIn : γ ↪ List Bool} {encOut : ω ↪ List Bool} {Q : Type} [Finite Q]
     (r : InputReader Bool Q) (tok : α → List Bool) (htok : ∀ a, tok a ≠ [])
@@ -319,12 +395,13 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α σ : Type
       (fun x => c * (sI x + sF (streamState (init x) next (elems x) (elems x).length) + sMax x +
         lMax x + 1)) := by
   -- the framed next state, and finalization from the framed final state
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id) (encIn := encS)
-    (encOut := encFramed encS) fun _ => rfl
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <|
+    ComputableInDegree.of_frame (f := id) (encIn := encS)
+    (encMid := encFramed encS) fun _ => rfl
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cN, hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hnext
-  obtain ⟨cuf, huf⟩ := ComputableTidilyInLinearTimeAndSpace.of_unframe (f := id)
-    (encIn := encFramed encS) (encOut := encS) fun s => by simp
+  obtain ⟨cuf, huf⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_unframe (f := id)
+    (encIn := encFramed encS) (encMid := encS) fun s => by simp
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cF, hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfinish huf
   obtain ⟨kE, SE, _, tmE, htmE⟩ := hemit
@@ -338,12 +415,14 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α σ : Type
   have hVN : V ≠ N := by simp [V, N, Fin.ext_iff]
   have hVF : V ≠ F := by simp [V, F, Fin.ext_iff]
   have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (K := M + 3) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := exists_embedding_eq (K := M + 3) (by omega) (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := exists_embedding_eq₂ (K := M + 3) (by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega) (Fin.last kI) V
+  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega)
+    (Fin.natAdd kE (0 : Fin 2)) V
+  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := M + 3) (by omega)
     (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
     (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := exists_embedding_eq (K := M + 3) (by omega) (Fin.natAdd kF (0 : Fin 2)) V
+  obtain ⟨eF, heF⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega)
+    (Fin.natAdd kF (0 : Fin 2)) V
   refine ⟨(40 * M + 200) * (cfr + cN + cuf + cF + M + 100), _, _, inferInstance,
     streamTM r (I eI) ((tmE.inputFromWord true).extendTapes eE)
       ((tmN.onWords true).extendTapes eN) ((tmF.inputFromWord true).extendTapes eF)
@@ -465,7 +544,8 @@ is tidily computable. The time bound sums `roundCost`, including each round's co
 and next states, decoded element storage and control. Initialization, finalization, input scanning
 and cleanup are charged separately. `sMax` and `lMax` bound peak callback workspace and stored
 words; output is emitted directly and does not count as workspace. -/
-public theorem ComputableTidilyInTimeAndSpace.streamFold_sum {α σ : Type u} {γ ε φ ω : Type*}
+public theorem ComputableTidilyInTimeAndSpace.streamFold_sum {α : Type u} {σ : Type v}
+    {γ ε φ ω : Type*}
     {encA : α ↪ List Bool} {encS : σ ↪ List Bool} {encE : ε ↪ List Bool} {encF : φ ↪ List Bool}
     {encIn : γ ↪ List Bool} {encOut : ω ↪ List Bool} {Q : Type} [Finite Q]
     (r : InputReader Bool Q) (tok : α → List Bool) (htok : ∀ a, tok a ≠ [])
@@ -498,8 +578,9 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum {α σ : Type u} {�
       (fun x => c * (sI x + sF (streamState (init x) next (elems x) (elems x).length) + sMax x +
         lMax x + 1)) := by
   -- the initial state is computed from the whole input and framed onto the selected tape
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id) (encIn := encS)
-    (encOut := encFramed encS) fun _ => rfl
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <|
+    ComputableInDegree.of_frame (f := id) (encIn := encS)
+    (encMid := encFramed encS) fun _ => rfl
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cI, hI'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hinit
   obtain ⟨kI, SI, _, tmI, htmI⟩ := hI'
@@ -537,7 +618,8 @@ by the words emitted by the fold over `elems x` followed by `finish` of its fina
 is tidily computable. Its time is linear in the input plus the rounds. Workspace uses peak bounds
 on states, elements and callbacks. The bounds `tMax`, `sMax` and `lMax` bound the time and space
 of a round and the lengths of the states and elements. -/
-public theorem ComputableTidilyInTimeAndSpace.streamFold {α σ : Type u} {γ ε φ ω : Type*}
+public theorem ComputableTidilyInTimeAndSpace.streamFold {α : Type u} {σ : Type v}
+    {γ ε φ ω : Type*}
     {encA : α ↪ List Bool} {encS : σ ↪ List Bool} {encE : ε ↪ List Bool} {encF : φ ↪ List Bool}
     {encIn : γ ↪ List Bool} {encOut : ω ↪ List Bool} {Q : Type} [Finite Q]
     (r : InputReader Bool Q) (tok : α → List Bool) (htok : ∀ a, tok a ≠ [])
@@ -590,7 +672,8 @@ initial state `frame (encS (init x))` followed directly by the concatenated toke
 copies the framed initial state onto tape `V` and leaves the input cursor at the start of the
 token stream, so the tokens are streamed directly from the input tape without copying the remainder
 of the input onto work tapes. -/
-public theorem ComputableTidilyInTimeAndSpace.streamFold_pair_sum {α σ : Type u} {γ ε φ ω : Type*}
+public theorem ComputableTidilyInTimeAndSpace.streamFold_pair_sum {α : Type u} {σ : Type v}
+    {γ ε φ ω : Type*}
     {encA : α ↪ List Bool} {encS : σ ↪ List Bool} {encE : ε ↪ List Bool} {encF : φ ↪ List Bool}
     {encIn : γ ↪ List Bool} {encOut : ω ↪ List Bool} {Q : Type} [Finite Q]
     (r : InputReader Bool Q) (tok : α → List Bool) (htok : ∀ a, tok a ≠ [])

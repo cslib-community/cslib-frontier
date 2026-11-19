@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.Product
 public import Mathlib.Data.Matrix.Mul
 public import Mathlib.LinearAlgebra.Matrix.Notation
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Decision LWE
@@ -53,6 +54,9 @@ reduction.
 * `Cslib.Crypto.LWE.Distinguisher`, `Cslib.Crypto.LWE.Distinguisher.IsPPT`: typed distinguishers
   and their efficiency.
 * `Cslib.Crypto.DecisionLWE`: the decision-LWE assumption.
+* `Cslib.Crypto.DecisionLWEWithErrors`: the same assumption with a joint law on the error vector,
+  novel to this library. It has the form of [FullerMengReyzin2020], Definition 4.5, but at modulus
+  `2 ^ w κ`, outside that definition's range of prime `q = poly(n)`.
 * `Cslib.Crypto.LWE.publicMatrix`, `Cslib.Crypto.LWE.publicMatrixLaw`: the matrix `[B * t + e | B]`
   and its law, as produced by key generation.
 * `Cslib.Crypto.LWE.realEnsemble`, `Cslib.Crypto.LWE.uniformEnsemble`: the encoded matrices.
@@ -60,6 +64,11 @@ reduction.
 ## Main results
 
 * `Cslib.Crypto.decisionLWE_iff_encoded`: `DecisionLWE` is the word-level assumption.
+* `Cslib.Crypto.decisionLWE_iff_decisionLWEWithErrors`: `DecisionLWE` is the case of independent
+  error coordinates.
+* `Cslib.Crypto.LWE.realGame_uniform_error_eq_randomGame`,
+  `Cslib.Crypto.LWE.advantage_uniform_error_eq_zero`: with uniform errors the real game is the
+  random game, so every distinguisher has advantage `0`.
 * `Cslib.Crypto.LWE.uniformOfFintype_augmentedMatrix`: `[b | A]` of a uniform pair is uniform.
 * `Cslib.Crypto.LWE.length_of_mem_support_realEnsemble`: every real sample has the declared length.
 * `Cslib.Crypto.LWE.length_of_mem_support_uniformEnsemble`: the comparison uses the same length.
@@ -70,6 +79,7 @@ reduction.
   cryptography*][Regev2009]
 * [C. Gentry, A. Sahai and B. Waters, *Homomorphic Encryption from Learning with Errors:
   Conceptually-Simpler, Asymptotically-Faster, Attribute-Based*, Section 2][GentrySahaiWaters2013]
+* [B. Fuller, X. Meng and L. Reyzin, *Computational Fuzzy Extractors*][FullerMengReyzin2020]
 -/
 
 @[expose] public section
@@ -176,18 +186,26 @@ noncomputable def advantage (secretLaw : PMF (Fin n → R)) (errorLaw : PMF (Fin
     (distinguisher : Matrix (Fin m) (Fin n) R → (Fin m → R) → ProbComp Bool) : ℝ≥0 :=
   Game.advantage (realGame secretLaw errorLaw distinguisher) (randomGame distinguisher)
 
-/-- The real game depends on the distinguisher only through its output distributions. -/
-theorem realGame_congr {secretLaw : PMF (Fin n → R)} {errorLaw : PMF (Fin m → R)}
-    {D D' : Matrix (Fin m) (Fin n) R → (Fin m → R) → ProbComp Bool}
-    (h : ∀ A b, ProbComp.eval (D A b) = ProbComp.eval (D' A b)) :
-    realGame secretLaw errorLaw D = realGame secretLaw errorLaw D' := by
-  simp only [realGame, eval_realExperiment, h]
+/-- With uniform errors the real game is the random game, for every secret law: `A *ᵥ s + e` is
+uniform and independent of `(A, s)`. -/
+theorem realGame_uniform_error_eq_randomGame (secretLaw : PMF (Fin n → R))
+    (distinguisher : Matrix (Fin m) (Fin n) R → (Fin m → R) → ProbComp Bool) :
+    realGame secretLaw (PMF.uniformOfFintype (Fin m → R)) distinguisher =
+      randomGame distinguisher := by
+  simp only [realGame, randomGame, eval_realExperiment, eval_randomExperiment,
+    PMF.monad_bind_eq_bind]
+  refine Eq.trans ?_ (PMF.bind_const secretLaw _)
+  congr 1 with s : 1
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin m → R))]
+  congr 1 with A : 1
+  exact Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addLeft (A *ᵥ s))
+    fun b => ProbComp.eval (distinguisher A b)
 
-/-- The random game depends on the distinguisher only through its output distributions. -/
-theorem randomGame_congr {D D' : Matrix (Fin m) (Fin n) R → (Fin m → R) → ProbComp Bool}
-    (h : ∀ A b, ProbComp.eval (D A b) = ProbComp.eval (D' A b)) :
-    randomGame D = randomGame D' := by
-  simp only [randomGame, eval_randomExperiment, h]
+/-- With uniform errors every distinguisher has advantage `0`, for every secret law. -/
+theorem advantage_uniform_error_eq_zero (secretLaw : PMF (Fin n → R))
+    (distinguisher : Matrix (Fin m) (Fin n) R → (Fin m → R) → ProbComp Bool) :
+    advantage secretLaw (PMF.uniformOfFintype (Fin m → R)) distinguisher = 0 := by
+  rw [advantage, realGame_uniform_error_eq_randomGame, Game.advantage_self]
 
 end Experiment
 
@@ -238,6 +256,21 @@ theorem publicMatrix_eq_augmentedMatrix {n m w : ℕ} (B : Matrix (Fin m) (Fin n
     publicMatrix B t e = augmentedMatrix B (B *ᵥ t + e) :=
   rfl
 
+/-- Column `0` of row `i` of the word of `[b | A]` is `b i`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_zero {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val 0 :
+      ZMod (2 ^ w)) = b i := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i 0
+
+/-- Column `j + 1` of row `i` of the word of `[b | A]` is `A i j`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_succ {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m)
+    (j : Fin n) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val (j.val + 1) :
+      ZMod (2 ^ w)) = A i j := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i j.succ
+
 /-! ### Distinguishers at modulus `2 ^ w` -/
 
 variable (n m w : ℕ → ℕ)
@@ -283,6 +316,24 @@ theorem encInput_apply (x : Input n m w) :
     encInput n m w x =
       frame (encUnary x.secParam) ++ Matrix.toBinary (augmentedMatrix x.matrix x.target) := by
   simp [encInput, Input.words, encPair, encBits]
+
+variable {n m w} in
+/-- The security parameter of a decision-LWE input is computable in polynomial time from its
+encoding. -/
+theorem computableInPolyTime_secParam :
+    ComputableInPolyTime (fun x : Input n m w => x.secParam) (encInput n m w) encUnary :=
+  (ComputableInPolyTime.fst encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
+
+variable {n m w} in
+/-- The word of the matrix `[b | A]` of a decision-LWE input is computable in polynomial time from
+its encoding. -/
+theorem computableInPolyTime_augmentedWord :
+    ComputableInPolyTime
+      (fun x : Input n m w => Matrix.toBinary (augmentedMatrix x.matrix x.target))
+      (encInput n m w) encBits :=
+  (ComputableInPolyTime.snd encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
 
 /-- A decision-LWE distinguisher: given the security parameter `κ`, a matrix `A` and a vector `b`
 of the dimensions and modulus at `κ`, it outputs a bit. `Distinguisher.IsPPT` states its
@@ -330,16 +381,102 @@ theorem distinguishingGame_uniformEnsemble (W : Crypto.Distinguisher) (κ : ℕ)
 end LWE
 
 /-- The decision-LWE assumption with `n κ` secret coordinates, `m κ` samples, modulus `2 ^ w κ`
-and error law `noise κ` for each coordinate: every PPT distinguisher has negligible advantage
-between `LWE.realGame`, with a uniform secret and independent errors, and `LWE.randomGame`. This is
-a hypothesis against uniform classical strict PPT distinguishers, not a theorem of hardness or a
-claim about quantum adversaries. -/
-def DecisionLWE (n m w : ℕ → ℕ) (noise : (κ : ℕ) → PMF (ZMod (2 ^ w κ))) : Prop :=
+and a joint law `errors κ` on the whole error vector: every PPT distinguisher has negligible
+advantage between `LWE.realGame`, with a uniform secret and an error vector drawn from `errors κ`,
+and `LWE.randomGame`. The coordinates of the error vector need not be independent or identically
+distributed, which is the form needed when a noisy source supplies the errors, as in the LWE fuzzy
+extractor. `DecisionLWE` is the case of independent coordinates. This is a hypothesis against
+uniform classical strict PPT distinguishers, not a theorem of hardness or a claim about quantum
+adversaries; whether it holds depends on the error laws.
+
+*Status.* This assumption is novel to this library. It has the form of `dist-LWE_{n,m,q,χ}` of
+[FullerMengReyzin2020], Definition 4.5 (p. 13 of the ePrint revision of June 23, 2020), with
+`χ := errors κ` an arbitrary distribution on the whole error vector, but at modulus `2 ^ w κ`,
+outside that definition's range of prime `q = poly(n)`: the two ranges meet only at `q = 2`.
+Fuller, Meng and Reyzin use the source reading `W` as that error law (Section 4, p. 11):
+Lemma 4.7 (p. 14) assumes Definition 4.5 in dimension `n - k` for any `χ`, and Theorem 4.11
+(p. 17) assumes it for the uniform source over `𝒵^m`, where `𝒵 = [−2^{b−1}, 2^{b−1}]`.
+
+*Relation to standard assumptions.* `DecisionLWE` is the case of independent coordinates
+(`decisionLWE_iff_decisionLWEWithErrors`). For other laws, neither this assumption nor FMR's
+prime-modulus form is proved or cited to imply the other, and hardness can differ between the two
+moduli for the same law. Take an error law supported on even residues. At each `κ` with
+`w κ > 0` and `m κ > n κ`, reducing `A` and `b` modulo 2 and testing whether `A s ≡ b (mod 2)`
+has a solution separates the games: in the real game it always has one, and in the random game
+with probability at most `2 ^ (n κ - m κ) ≤ 1/2`. At `w κ = 0` the modulus is 1 and the two games
+coincide. The test needs `n κ`, `m κ` and `w κ` to locate the entries in its input, so it is PPT
+when `n`, `m` and `w` are computable in polynomial time in unary, and the assumption then fails if
+`w κ > 0` and `m κ > n κ` for infinitely many `κ`. At an odd prime `q`, multiplying by `2⁻¹`
+turns errors `2 e'` into `e'`.
+
+*Deviations from Definition 4.5.*
+* The modulus `2 ^ w κ` replaces the prime `q = poly(n)`, which FMR need for decoding
+  (footnote 2, p. 13), and `w` may make it superpolynomial. FMR's evidence for the assumption
+  does not cover this modulus: Theorems 4.6 and 4.8 (pp. 13–14), which derive it for
+  uniform-interval errors from LWE with Gaussian errors, and Theorem 5.2 (p. 18), which derives it
+  for symbol-fixing sources from uniform errors, are all for prime `q`.
+* Distinguishers are uniform strict PPT programs and the advantage must be negligible, where
+  Definition 4.5 is concrete: advantage at most `ε` against distinguishers of size `s_sec`.
+* The theorem that assumes it chooses the dimension.
+  `FuzzyExtractor.computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors` assumes it in
+  dimension `l = n - k`, following Lemma 4.7, where Theorem 4.11 writes `dist-LWE(n,m,q,𝒵^m)` in
+  dimension `n`; hardness in dimension `n - k` implies hardness in dimension `n`.
+* `n`, `m` and `w` are arbitrary functions of a separate security parameter `κ`, where
+  Definition 4.5 takes `n` as the security parameter and `m, q = poly(n)`. A distinguisher's
+  clock is polynomial in the length of its encoded input (`LWE.Distinguisher.IsPPT`), which is
+  framed unary `κ` followed by the `m κ * (n κ + 1) * w κ` bits of `[b | A]` (`LWE.encInput`).
+  For arbitrary `n`, `m` and `w` that length need not be polynomial in `κ`. When they are
+  computable in polynomial time in unary, as the theorem that assumes it requires, the length is
+  at least `κ` and polynomial in `κ`, so the clock is polynomial in `κ`. A family whose dimension
+  grows slowly in `κ`, such as `n κ = ⌊log κ⌋`, then asks for hardness against adversaries
+  superpolynomial in the dimension, which is more than standard LWE asks.
+
+*Plausibility.* It is the problem that FMR study, moved to the modulus of the library's
+`DecisionLWE`, its case of independent coordinates. At prime modulus, FMR derive it from LWE with
+Gaussian errors, directly for uniform-interval sources (Theorems 4.6 and 4.8) and through them for
+symbol-fixing sources (Theorem 5.2). No such derivation at modulus `2 ^ w κ` is proved here or
+cited, and whether the assumption holds depends on the error law. -/
+def DecisionLWEWithErrors (n m w : ℕ → ℕ)
+    (errors : (κ : ℕ) → PMF (Fin (m κ) → ZMod (2 ^ w κ))) : Prop :=
   Game.Indistinguishable
     (fun (D : LWE.Distinguisher n m w) κ =>
-      LWE.realGame (PMF.uniformOfFintype (Fin (n κ) → ZMod (2 ^ w κ)))
-        (PMF.pi fun _ : Fin (m κ) => noise κ) (D κ))
+      LWE.realGame (PMF.uniformOfFintype (Fin (n κ) → ZMod (2 ^ w κ))) (errors κ) (D κ))
     (fun D κ => LWE.randomGame (D κ)) LWE.Distinguisher.IsPPT
+
+/-- The decision-LWE assumption with `n κ` secret coordinates, `m κ` samples, modulus `2 ^ w κ`
+and error law `noise κ` for each coordinate: every PPT distinguisher has negligible advantage
+between `LWE.realGame`, with a uniform secret and independent errors, and `LWE.randomGame`. It is
+`DecisionLWEWithErrors` for the product error law (`decisionLWE_iff_decisionLWEWithErrors`). This
+is a hypothesis against uniform classical strict PPT distinguishers, not a theorem of hardness or a
+claim about quantum adversaries.
+
+*Source.* [Regev2009] (the author's version of May 2, 2009), Section 2, p. 15, defines, for any
+integer `p ≥ 2` and any distribution `χ` on `ℤ_p`, the distribution `A_{s,χ}` of pairs
+`(a, ⟨a, s⟩ + e)` with `a` uniform on `ℤ_pⁿ` and `e ← χ`, and the search problem `LWE_{p,χ}`.
+Section 4, Lemma 4.1, p. 30, concerns the decision variant: distinguishing `A_{s,χ}` from the
+uniform distribution for a non-negligible fraction of the secrets `s`. Here the secret is uniform
+and the advantage is averaged over it. This definition differs from the source as follows.
+* The modulus is `2 ^ w κ`, a restriction of Regev's range of integers `p ≥ 2` (Section 2, p. 15);
+  at `w κ = 0` it is `1`, where the real and random games coincide. Regev's worst-case hardness for
+  the decision variant covers none of these moduli: his decision-to-search reduction, Lemma 4.2,
+  p. 31, needs a prime `p ≤ poly(n)`, which leaves only `2`, and his main theorem, Theorem 3.1,
+  p. 18, needs `αp > 2√n` with `α < 1`, which fails at `p = 2`.
+* The distinguisher receives exactly `m κ` samples, as the rows of `A` and `b`, where Regev's
+  algorithms draw samples from `A_{s,χ}` as they need them.
+* The noise law is arbitrary; Regev's hardness results are for Gaussian noise (`Ψ_α`, and its
+  discretization `Ψ̄_α` for the decision variant).
+* Distinguishers are uniform classical strict PPT programs in the security parameter `κ`, where
+  Regev's efficient algorithms run in time polynomial in `n`. -/
+def DecisionLWE (n m w : ℕ → ℕ) (noise : (κ : ℕ) → PMF (ZMod (2 ^ w κ))) : Prop :=
+  DecisionLWEWithErrors n m w fun κ => PMF.pi fun _ : Fin (m κ) => noise κ
+
+/-- `DecisionLWE` is `DecisionLWEWithErrors` for the error vector with independent coordinates
+drawn from `noise κ`. -/
+theorem decisionLWE_iff_decisionLWEWithErrors (n m w : ℕ → ℕ)
+    (noise : (κ : ℕ) → PMF (ZMod (2 ^ w κ))) :
+    DecisionLWE n m w noise ↔
+      DecisionLWEWithErrors n m w fun κ => PMF.pi fun _ : Fin (m κ) => noise κ :=
+  Iff.rfl
 
 /-- **`DecisionLWE` is the word-level decision-LWE assumption.** Quantifying over distinguishers
 that read the encoded matrix `[b | A]` as a word gives the same assumption as quantifying over

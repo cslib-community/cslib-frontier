@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Arrays
 import CslibFrontier.Computability.WordRAM.MemoryView
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete descriptor-table execution
@@ -55,23 +56,7 @@ structure Registers (l : Layout) (U k : ℕ) (x : Data 48) : Prop where
 theorem Registers.transfer {l : Layout} {U k : ℕ} {x y : Data 48}
     (h : Registers l U k x) (hr : ∀ i, body.Preserves i → y.regs i = x.regs i) :
     Registers l U k y := by
-  constructor
-  · exact (hr _ (by decide)).trans h.magnitude
-  · exact (hr _ (by decide)).trans h.inputLen
-  · exact (hr _ (by decide)).trans h.digits
-  · exact (hr _ (by decide)).trans h.keys
-  · exact (hr _ (by decide)).trans h.counts
-  · exact (hr _ (by decide)).trans h.len
-  · exact (hr _ (by decide)).trans h.splits
-  · exact (hr _ (by decide)).trans h.triples
-  · exact (hr _ (by decide)).trans h.arrays
-  · exact (hr _ (by decide)).trans h.capacity
-  · exact (hr _ (by decide)).trans h.descriptors
-  · exact (hr _ (by decide)).trans h.heapEnd
-  · obtain ⟨h0, h1, h2, h3, h4, h5⟩ := h.constants
-    exact ⟨(hr _ (by decide)).trans h0, (hr _ (by decide)).trans h1,
-      (hr _ (by decide)).trans h2, (hr _ (by decide)).trans h3,
-      (hr _ (by decide)).trans h4, (hr _ (by decide)).trans h5⟩
+  regs_frame
 
 /-- Every layout scalar and partial allocation is below the explicit arithmetic budget. -/
 theorem layout_bounds (l : Layout) (U : ℕ) :
@@ -101,10 +86,6 @@ theorem setup_exec {w U : ℕ} (l : Layout) (k : ℕ) (x : Data 48)
       y.regs current = 0 ∧ y.regs heap = l.pointer 0 ∧ y.mem = x.mem := by
   obtain ⟨fN, fSq, fS, fD, fA, f2A, fP, fAC, fE, _, f5⟩ := layout_bounds l U
   have f0 : Fits w 0 := fits_zero w
-  have f1 : Fits w 1 := hfit.of_le (by omega)
-  have f2 : Fits w 2 := hfit.of_le (by omega)
-  have f3 : Fits w 3 := hfit.of_le (by omega)
-  have f4 : Fits w 4 := hfit.of_le (by omega)
   have f5' : Fits w 5 := hfit.of_le f5
   have fn := hfit.of_le fN
   have fsq := hfit.of_le fSq
@@ -130,7 +111,7 @@ theorem setup_exec {w U : ℕ} (l : Layout) (k : ℕ) (x : Data 48)
       Layout.arrays, Layout.count, Layout.splits, pow_two, Nat.mul_comm,
       Nat.mul_left_comm, Nat.mul_assoc] using hfit.of_le fE
   refine ⟨?y, ?run, ?_, ?_, ?_, ?_⟩
-  case run => ram_eval [setup, hn, hΛ, hd, f0, f1, f2, f3, f4, f5', fn, fsq,
+  case run => ram_eval [setup, hn, hΛ, hd, f0, f5', fn, fsq,
     fs, fd, fa, f2a, fp, fac, fe]
   · constructor
     all_goals simp +decide [Data.set_regs, hU, hn, hΛ, hk, hc, hlen, hd,

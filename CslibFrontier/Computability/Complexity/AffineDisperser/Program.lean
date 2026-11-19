@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Complexity.AffineDisperser.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Coordinates
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Explicit
 import Mathlib.Algebra.BigOperators.Fin
@@ -60,6 +61,8 @@ roots, every choice of roots gives the same function
 -/
 
 @[expose] public section
+
+open Cslib.BinaryField
 
 namespace Cslib.AffineDisperser
 

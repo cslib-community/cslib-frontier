@@ -28,6 +28,8 @@ re-exports. They are kept in this leaf module because that file has many importe
 * `Cslib.Probability.PMF.uniformOfFintype_bind_sub_right`,
   `Cslib.Probability.PMF.uniformOfFintype_bind_sub_left`: an experiment that reads its uniform
   draw as `x - c` or `c - x` is unchanged.
+* `Cslib.Probability.PMF.uniformOfFintype_bind_bind_sub_right`: subtracting a function of a
+  second independent draw leaves a uniform group element unchanged.
 -/
 
 public section
@@ -58,5 +60,15 @@ theorem uniformOfFintype_bind_sub_left {β : Type*} (c : G) (f : G → PMF β) :
     (PMF.uniformOfFintype G).bind (fun x => f (c - x)) = (PMF.uniformOfFintype G).bind f := by
   conv_rhs => rw [← uniformOfFintype_map_sub_left c, PMF.bind_map]
   rfl
+
+/-- Subtracting a function of a second independent draw leaves a uniform group element
+unchanged. -/
+theorem uniformOfFintype_bind_bind_sub_right {H β : Type*}
+    (p : PMF H) (g : H → G) (f : G → H → PMF β) :
+    ((PMF.uniformOfFintype G).bind fun x => p.bind fun y => f (x - g y) y) =
+      (PMF.uniformOfFintype G).bind fun x => p.bind fun y => f x y := by
+  rw [PMF.bind_comm]
+  conv_rhs => rw [PMF.bind_comm]
+  exact congrArg _ (funext fun y => uniformOfFintype_bind_sub_right (g y) (fun x => f x y))
 
 end Cslib.Probability.PMF

@@ -99,7 +99,7 @@ theorem runOracleConfigFrom_empty (M : MultiTapePTM k Bool State) (fuel : ℕ)
     (cfg : Config k Bool State Empty x) :
     M.runOracleConfigFrom fuel cfg = ProbOracleComp.sample (M.runClosedConfigFrom fuel cfg) := by
   simp only [runOracleConfigFrom, runClosedConfigFrom, runConfigFrom, ProbOracleComp.sample,
-    MultiTapeMachine.interpret_runConfigFrom]
+    OracleComp.substitute_eq_interpret, MultiTapeMachine.interpret_runConfigFrom]
   congr 2 with op : 1
   exact op.elim
 
@@ -173,7 +173,8 @@ private def splitUntilHalted (M : MultiTapePTM k Bool State)
       let pair := splitUntilHalted M ((M.withCoin bit).step c) rest
       (bit :: pair.1, pair.2)
 
-private theorem step_withCoin_repeatUntilBlank_live (i : Fin k) (body : MultiTapePTM k Bool State)
+/-- With a fixed coin, a running round of `repeatUntilBlank` steps as its body. -/
+theorem step_withCoin_repeatUntilBlank_live (i : Fin k) (body : MultiTapePTM k Bool State)
     (bit : Bool) (c : Config k Bool State Empty x) (hlive : c.tapes.state ≠ none) :
     ((repeatUntilBlank i body).withCoin bit).step (RepeatUntilBlank.runConfig c) =
       RepeatUntilBlank.runConfig ((body.withCoin bit).step c) := by
@@ -215,7 +216,8 @@ private theorem splitUntilHalted_spec (i : Fin k) (body : MultiTapePTM k Bool St
       rw [step_withCoin_repeatUntilBlank_live i body bit c hhalt]
       exact hrep
 
-private theorem step_withCoin_repeatUntilBlank_check_nil (i : Fin k)
+/-- With a fixed coin, the blank test on an empty word halts. -/
+theorem step_withCoin_repeatUntilBlank_check_nil (i : Fin k)
     (body : MultiTapePTM k Bool State) (bit : Bool) (ws : Fin k → List Bool) (out₀ : List Bool)
     (hi : ws i = []) (c : Config k Bool (State ⊕ Unit) Empty x)
     (hc : c.tapes = wordsCfg x (some (.inr ())) ws out₀) :
@@ -230,7 +232,8 @@ private theorem step_withCoin_repeatUntilBlank_check_nil (i : Fin k)
     RepeatUntilBlank.checkAction, hsym, Option.map_none, Config.step]
   rw [hc, RepeatUntilBlank.apply_idle_wordsCfg]
 
-private theorem step_withCoin_repeatUntilBlank_check_ne_nil (i : Fin k)
+/-- With a fixed coin, the blank test on a non-empty word restarts the body. -/
+theorem step_withCoin_repeatUntilBlank_check_ne_nil (i : Fin k)
     (body : MultiTapePTM k Bool State) (bit : Bool) (ws : Fin k → List Bool) (out₀ : List Bool)
     (hi : ws i ≠ []) (c : Config k Bool (State ⊕ Unit) Empty x)
     (hc : c.tapes = wordsCfg x (some (.inr ())) ws out₀) :

@@ -17,6 +17,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+
 /-!
 # `TQBF` in alternating prenex conjunctive normal form
 
@@ -178,7 +180,7 @@ theorem eval_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ → 
       (gameFormula tab w).eval σ := by
   rw [prenexPairs, QBF.rounds_append, gameFormula]
   refine QBF.eval_rounds_congr (fun τ => ?_) _ σ
-  rw [QBF.eval_rounds_map_pair (dummyVar_notMem_freeVars tab w), baseFormula]
+  rw [QBF.eval_rounds_map_pair (dummyVar_notMem_freeVars tab w), baseFormula, baseMatrix]
   refine QBF.eval_exs_congr (fun τ => ?_) _ τ
   rw [QBF.eval_ofCNF, prenexMatrix, CNF.eval_append, eval_certLinkCNF, QBF.eval_and,
     QBF.eval_ofCNF]
@@ -245,7 +247,6 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
   have hframe := bitsFrame enc
   have hp : ComputableInPolyTime (fun a => p.eval (enc a).length) enc encUnary :=
     (unary_eval p).comp (encoding_length enc)
-  have hd : ComputableInPolyTime (fun _ : α => dummyVar) enc encNat := const _
   have hvars : ComputableInPolyTime (CNF.vars (V := CookLevin.Var kV StateV))
       (encList (encList (encPair CookLevin.encVar encBool))) (encList CookLevin.encVar) :=
     CNF.computableInPolyTime_vars _
@@ -258,9 +259,36 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
   have hcert : ComputableInPolyTime (fun q : ℕ × ℕ => certVar q.1 q.2)
       (encPair encUnary encUnary) encNat :=
     computableInPolyTime_certVar (.fst _ _) (.snd _ _)
-  unfold prenexReduce gameTableau prenexPairs prenexMatrix gamePairs baseVars certLinkCNF
-    encPrenexCNF encCNF
-  fun_prop
+  have htableau : ComputableInPolyTime (gameTableau enc p tmV cV dV) enc
+      (encList (encList (encPair CookLevin.encVar encBool))) := by
+    unfold gameTableau
+    fun_prop
+  have hbase : ComputableInPolyTime
+      (fun q : CNF (CookLevin.Var kV StateV) × ℕ => baseVars q.1 q.2)
+      (encPair (encList (encList (encPair CookLevin.encVar encBool))) encUnary)
+      (encList encNat) := by
+    unfold baseVars
+    fun_prop
+  have hgamePairs : ComputableInPolyTime gamePairs encUnary
+      (encList (encPair encNat encNat)) := by
+    unfold gamePairs
+    fun_prop
+  have hlinks : ComputableInPolyTime (certLinkCNF kV StateV) encUnary encCNF := by
+    unfold certLinkCNF encCNF
+    fun_prop
+  have hpairs : ComputableInPolyTime
+      (fun a => prenexPairs (gameTableau enc p tmV cV dV a) (p.eval (enc a).length))
+      enc (encList (encPair encNat encNat)) :=
+    (listAppend (encPair encNat encNat)).comp
+      ((hgamePairs.comp hp).prod
+        ((map ((id' (encIn := encNat)).prod (const (encOut := encNat) dummyVar))).comp
+          (hbase.comp (htableau.prod hp))))
+  have hmatrix : ComputableInPolyTime
+      (fun a => prenexMatrix (gameTableau enc p tmV cV dV a) (p.eval (enc a).length))
+      enc encCNF :=
+    (listAppend (encList (encPair encNat encBool))).comp
+      ((hlinks.comp hp).prod (hrelabel.comp htableau))
+  exact hpairs.prod hmatrix
 
 end Reduction
 
@@ -279,14 +307,14 @@ normal form. -/
 theorem TQBFCNF_pspaceHard : PSPACEHard encPrenexCNF TQBFCNF := by
   intro α enc A hA
   obtain ⟨p, V, hV, h⟩ := exists_isGameVerifier_of_mem_PSPACE hA
-  obtain ⟨tV, sV, htV, -, kV, StateV, hfiniteV, tmV, htmV⟩ := hV.tidy
-  obtain ⟨cV, dV, htV⟩ := htV.exists_le
+  obtain ⟨cV, dV, kV, StateV, hfiniteV, tmV, htmV⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hV
   have := Fintype.ofFinite StateV
   classical
   exact ⟨TQBF.prenexReduce enc p tmV cV dV,
     (TQBF.computableInPolyTime_prenexReduce tmV cV dV),
     fun a => (h a).trans
-      ((TQBF.gameReduce_mem_TQBF_iff (htmV.mono htV fun _ => le_rfl) a).symm.trans
+      ((TQBF.gameReduce_mem_TQBF_iff htmV a).symm.trans
         (TQBF.prenexReduce_mem_TQBFCNF_iff tmV cV dV a).symm)⟩
 
 /-- **`TQBF` in alternating prenex conjunctive normal form is `PSPACE`-complete**

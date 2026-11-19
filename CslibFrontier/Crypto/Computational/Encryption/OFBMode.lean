@@ -15,6 +15,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 import CslibFrontier.Probability.PMF.Support
+import CslibFrontier.Tactic.ENNRealToReal
 /-!
 # CPA Security of Output Feedback (OFB) Mode
 
@@ -43,7 +44,11 @@ The proof follows the template of [KatzLindell2020], Theorem 3.33 (CTR mode):
    advantages give the final bound (`advantage_ofbCpaGame_le`).
 
 The PRF experiments are the concrete ones of `Cslib.Crypto.PRF` ([BonehShoup2023], Chapter 4). The
-reduction is concrete (`ProbOracleComp`); no native multitape PPT statement is made.
+reductions here are typed `ProbOracleComp` programs without an efficiency certificate. The uniform
+statement, with a certified word-level reduction and the asymptotic theorem
+`PseudorandomFunction.indcpa_ofbWordEncrypt`, is in
+`CslibFrontier/Crypto/Computational/Encryption/OFBMode/Uniform.lean`, which reuses
+`advantage_idealExperiment_ofbReduction_le`.
 
 ## Main definitions
 
@@ -252,7 +257,11 @@ private theorem toOuterMeasure_bad_freshQuery_le (ℓ : ℕ) (b : Bool) (q : Blo
   have hbad := toOuterMeasure_badChain_le (List.replicate (blockModeBlocks ℓ q) (0 : BitString n))
     (s.1.map Prod.fst)
   simp only [List.length_replicate, List.length_map] at hbad
-  refine le_trans (PMF.toOuterMeasure_mono _ ?_) hbad
+  refine le_trans (PMF.toOuterMeasure_mono _ ?_) (hbad.trans (by
+    gcongr
+    rw [Nat.mul_add, Nat.choose_two_right]
+    gcongr
+    exact (Nat.div_le_self _ _).trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _))))
   rintro ⟨iv, us⟩ ⟨hflag, hp⟩
   have hlen : us.length = blockModeBlocks ℓ q := length_snd_of_mem_support_uniformDraws hp
   have hs' : s.2 = false := by simpa using hs
@@ -268,7 +277,8 @@ private theorem toOuterMeasure_bad_fresh_le (ℓ : ℕ) (b : Bool) {adversary : 
     (ProbOracleComp.runWith freshStep (ofbReduction ℓ b adversary) ([], false)).toOuterMeasure
         {x | x.2.2 = true} ≤
       ((K * (K + ℓ) : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [ofbReduction, blockModeReduction, ProbOracleComp.runWith_simulate]
+  rw [ofbReduction, blockModeReduction, ProbOracleComp.runWith_simulate,
+    ProbOracleComp.runWith_eq_run_interpret]
   refine (OracleComp.toOuterMeasure_bad_le_two_budgets
     (handler := sumHandler (fun i => StateT.lift (ProbComp.unifOracle i))
       fun q => ProbOracleComp.runWith freshStep (ofbQueryProgram ℓ b q))
@@ -328,14 +338,9 @@ theorem advantage_idealExperiment_ofbReduction_le (ℓ : ℕ) (b : Bool)
       exact PMF.map_id _
   rw [ofbReduction, ← hfresh]
   refine (advantage_idealExperiment_freshStep_le _).trans ?_
-  have hne : ((K * (K + ℓ) : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.inv_ne_top.2 (pow_ne_zero _ two_ne_zero))
-  refine (ENNReal.toReal_mono hne (toOuterMeasure_bad_fresh_le ℓ b h)).trans (le_of_eq ?_)
-  simp only [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_natCast,
-    ENNReal.toReal_ofNat]
-  push_cast
-  ring
+  have hbad := toOuterMeasure_bad_fresh_le ℓ b h
+  ennreal_to_real at hbad
+  exact hbad.trans_eq (by push_cast; ring)
 
 /-- **OFB mode with a uniform random function** ([KatzLindell2020], Section 3.6.3). If the
 queries of `adversary` ask at most `K` blocks in total and at most `ℓ` blocks each, its

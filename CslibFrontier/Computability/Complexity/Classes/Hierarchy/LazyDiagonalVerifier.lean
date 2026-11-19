@@ -8,15 +8,17 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.ResourceBound
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalBounds
 import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import Mathlib.Tactic.Ring
+import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 
 /-!
@@ -50,6 +52,8 @@ The word is `frame description ++ frame input ++ certificate`. -/
 abbrev encLazyAcceptsInput : (List Bool × List Bool × List Bool) ↪ List Bool :=
   encPair encBits (encPair encBits encBits)
 
+-- Compose through the named decoder, encoding and coarse simulator resource contracts.
+attribute [local irreducible] ComputableInO Universal.decodeDesc Universal.eDesc in
 /-- Construct the acceptance simulation with an arbitrary binary clock. Its time and space
 budgets include input access; positivity and a linear binary-length bound suffice for the
 shared universal-simulation estimate. The clock may depend on both input and certificate. -/
@@ -75,7 +79,13 @@ theorem exists_computableInO_lazyAccepts
       enc encBits (fun q => (enc q).length) (fun q => (enc q).length) :=
     (ComputableInO.snd encBits (encPair encBits encBits)).of_enc_eq fun _ => rfl
   have hsym := Universal.computableInO_map_eBit.comp hword
-  have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
+  have hpre : ComputableInO
+      (fun q : List Bool × List Bool × List Bool =>
+        (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, β q.2.1 q.2.2))
+      enc eIn _ _ := hdesc.prod (hsym.prod hclock)
+  have hU := computableInO_universal_polynomialBound.comp (f := universal)
+    (g := fun q : List Bool × List Bool × List Bool =>
+      (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, β q.2.1 q.2.2)) hpre
   have hv := Diagonal.computableInO_verdict.comp hU
   have hnot := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp hv
@@ -90,7 +100,8 @@ theorem exists_computableInO_lazyAccepts
       Nat.le_self_pow (Nat.succ_ne_zero _) _
     have hA : (q.1.length + 1) ^ dd ≤ (q.1.length + 1) ^ (dd + 1) :=
       Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_succ _)
-    simp only [Function.comp_apply, encBits_apply, enc, length_encPair, List.length_append,
+    simp only [Function.comp_apply, encBits_apply, enc, encLazyAcceptsInput, length_encPair,
+      List.length_append,
       length_frame] at hD hE hNl ⊢
     exact hK (X := (q.1.length + 1) ^ (dd + 1) + q.2.1.length + q.2.2.length + 1)
       (by omega) (by omega) (by omega) hD hNl
@@ -101,9 +112,7 @@ theorem exists_computableInO_lazyAccepts
   all_goals
     refine le_trans ?_ (Nat.mul_le_mul_left K (Nat.le_succ _))
     have ⟨h₁, h₂⟩ := hbounds q
-    simp only [Function.comp_apply, encBits_apply, enc, length_encPair, List.length_append,
-      length_frame, hb] at h₁ h₂ ⊢
-    omega
+    enc_len [Function.comp_apply, enc, encLazyAcceptsInput, hb] at h₁ h₂ ⊢
 
 /-- Exhaustive acceptance search after polynomial-time parameter selection. The parameter
 may include a unary certificate length, so the same construction covers both directly
