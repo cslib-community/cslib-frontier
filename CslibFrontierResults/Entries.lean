@@ -293,6 +293,7 @@ import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
+import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
 import CslibFrontier.Crypto.Protocols.MPC.ProductRelation
 import CslibFrontier.Crypto.Protocols.MPC.ProductRelation.Privacy
 import CslibFrontier.Crypto.Protocols.PIR.Block
@@ -10477,3 +10478,44 @@ register_result "abstract-dpll-learning-correctness" where
     assignments, Forget could remove the tautology b ∨ ¬b from a, b ∨ ¬b and end at the trail a. \
     Backjump and Learn use entailment by total assignments, which the §2.1 entailment implies, \
     so every step of the source is a step here."
+
+register_result "ddh-oblivious-transfer-semi-honest" where
+  title := "Semi-honest security of three-message DDH 1-out-of-2 oblivious transfer (for a \
+    checked per-branch-coin variant, with modular-reduction coin sampling in the stand-alone \
+    model)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 23.7",
+      locator := "Section 23.5.7.2, p. 1058 (protocol Figure 23.17, p. 1057; randomness \
+        Remark 23.5, p. 1059; check Remark 23.6, p. 1061; framework Section 23.5.6, \
+        pp. 1054–1056; Definition 23.5, p. 1044)" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure,
+    Cslib.Crypto.PrimeOrderGroupFamily.ddhOTProbFamily_semiHonestSecure_sender,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTProbSenderGame_le,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTProbReceiverGame_le
+  ]
+  scope := "Over a PrimeOrderGroupFamily F and any parameter law setup : ℕ → PMF F.Desc, \
+    ddhOTProbFamily runs the fair-coin three-message 1-out-of-2 oblivious transfer protocol \
+    ddhOTProbProtocol for otFunctionality, with machine encoding ddhOTEncoding; every supported \
+    execution computes otOutputs (ddhOTProtocolWith_output_of_mem_support, in DDHOT.lean). \
+    DDH.ddhOTSemiHonestSecure proves F.ddhOTProbFamily.SemiHonestSecure setup I F.ddhOTEncoding \
+    for every static coalition I : Finset (Fin 2) under F.DDH setup alone: simulation is exact \
+    when I = ∅ or I = Finset.univ, unconditional and statistical within 12 / 2 ^ n against any \
+    sender-corrupting environment at I = {0} (advantage_ddhOTProbSenderGame_le, \
+    ddhOTProbFamily_semiHonestSecure_sender), and within the DDH advantage of the certified \
+    strict-PPT reduction ddhOTReceiverToDDHDistinguisher Z plus 18 / 2 ^ n against any \
+    receiver-corrupting environment at I = {1} (advantage_ddhOTProbReceiverGame_le, \
+    isPPT_ddhOTReceiverToDDHDistinguisher in DDHOT/Family.lean), using certified strict-PPT \
+    simulators ddhOTSenderSimSampleExp and ddhOTReceiverSimSampleExp. Deviations from Theorem \
+    23.7: (1) ddhOTProbProtocol sends u = a • g from a sampled exponent a rather than sampling \
+    d directly from G, encrypts each branch i with independent coins (rᵢ, sᵢ) rather than one \
+    shared exponent β, and checks w₀ + w₁ = u (Remark 23.6, p. 1061), returning zeros instead of \
+    aborting when violated; (2) parties and simulators generate random bit strings and reduce \
+    mod F.order d via sampleExp n d (Remark 23.5, p. 1059), incurring the explicit 12 / 2 ^ n \
+    and 18 / 2 ^ n statistical losses, and PartyView records the derived ZMod (F.order d) \
+    exponents rather than the unreduced bit strings; (3) ProtocolFamily.SemiHonestSecure is the \
+    stand-alone two-stage uniform strict-PPT (views, outputs) notion over setup n rather than \
+    the interactive restricted execution framework of Section 23.5.6 with the overwhelming-\
+    probability runtime bound of Section 23.5.2.2 (p. 1043)."

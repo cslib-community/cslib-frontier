@@ -116,8 +116,8 @@ differences:
   value from the word of a coalition's values, as simulator certificates use it.
 
 `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` proves the notion for DDH oblivious
-transfer with exact uniform honest coins from the DDH assumption
-(`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTIdealCoinsSemiHonestSecure`).
+transfer with fair-coin honest parties from the DDH assumption
+(`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
 The test module `CslibFrontierTests.Crypto.MPCAsymptotic` refutes it for a protocol that leaks a
 party's input bit, with a PPT environment, and proves it without assumptions for the protocol that
 delivers the bit as the functionality's output, through `SemiHonestSecure.of_perfect`.

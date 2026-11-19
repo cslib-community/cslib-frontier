@@ -52,20 +52,26 @@ Section 23.5.7, Figure 23.17; DDH-based oblivious transfer of this kind goes bac
 * Figure 23.17 has no check. Here the sender checks `w₀ + w₁ = u`, the additive form of the check
   in [BonehShoup2023], Section 23.5.7.3, Remark 23.6, and sends zeros instead of aborting when the
   check fails. `ddhOTUncheckedProtocol` omits the check.
-* The honest parties draw exact uniform exponents in `ZMod q` (`sampleDDHOTSenderCoins` and the
-  receiver's `ProbComp.uniform (ZMod q)`), and their views hold these exponents. The source
-  requires the parties' only random objects to be random bit strings, from which they derive
-  values statistically indistinguishable from uniform ([BonehShoup2023], Section 23.5.7.2,
-  "Further assumptions about randomness", p. 1059). No bounded-time fair-coin machine draws an
-  exact uniform element of `ZMod q` when `q` is not a power of two, so this idealizes the
-  parties' algorithms.
+* The honest parties of `ddhOTProtocol` draw exact uniform exponents in `ZMod q`
+  (`sampleDDHOTSenderCoins` and the receiver's `ProbComp.uniform (ZMod q)`), and their views hold
+  these exponents. The source requires the parties' only random objects to be random bit strings,
+  from which they derive values statistically indistinguishable from uniform ([BonehShoup2023],
+  Section 23.5.7.2, "Further assumptions about randomness", p. 1059). No bounded-time fair-coin
+  machine draws an exact uniform element of `ZMod q` when `q` is not a power of two;
+  `ddhOTProtocolWith` parameterizes the protocol by arbitrary party coin samplers so that
+  `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Family.lean` instantiates it with the fair-coin sampler
+  `sampleExp` (`ddhOTProbProtocol`, `ddhOTProbFamily`).
 * Theorem 23.7 of [BonehShoup2023] is stated for Figure 23.17. The results below are proved
   directly for this variant.
 
 ## Main definitions
 
 * `Cslib.Crypto.Protocols.MPC.ddhOTSchedule`: the three-message point-to-point schedule.
-* `Cslib.Crypto.Protocols.MPC.ddhOTProtocol`: the checked three-message DDH OT protocol.
+* `Cslib.Crypto.Protocols.MPC.ddhOTProtocolWith`, `Cslib.Crypto.Protocols.MPC.ddhOTProtocol`: the
+  checked three-message DDH OT protocol, parameterized by party coin samplers and specialized to
+  exact uniform coins.
+* `Cslib.Crypto.Protocols.MPC.ddhOTViews`: the pair of party views produced by a run of
+  `ddhOTProtocolWith` on given inputs and coins.
 * `Cslib.Crypto.Protocols.MPC.ddhOTUncheckedProtocol`: the variant omitting the `w₀ + w₁ = u`
   check.
 * `Cslib.Crypto.Protocols.MPC.ddhOTSenderReplyOf`: the honest sender's Round 3 reply in a protocol
@@ -82,8 +88,10 @@ Section 23.5.7, Figure 23.17; DDH-based oblivious transfer of this kind goes bac
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.MPC.ddhOT_output_of_mem_support`: **correctness** — in every execution of
-  `ddhOTProtocol`, the receiver outputs `m_σ` and the sender outputs `()`.
+* `Cslib.Crypto.Protocols.MPC.evalWith_ddhOTProtocolWith`,
+  `Cslib.Crypto.Protocols.MPC.ddhOTProtocolWith_output_of_mem_support`: **execution law and
+  correctness** — for any party coin samplers, every execution of `ddhOTProtocolWith` produces
+  `ddhOTViews` and outputs `m_σ` for the receiver and `()` for the sender.
 * `Cslib.Crypto.Protocols.MPC.idealJoint_ddhOT_sender`,
   `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_ddhOT_sender`: **perfect sender privacy** — the
   ideal joint distribution with `ddhOTSenderSim` equals the real one, so every distinguisher has
@@ -94,13 +102,14 @@ Section 23.5.7, Figure 23.17; DDH-based oblivious transfer of this kind goes bac
   advantage of `CslibFrontier/Crypto/Computational/DiffieHellman/Finite.lean`. There is no
   security parameter and no efficiency certificate for `ddhOTReduction`, so this is not a
   computational privacy theorem. `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Family.lean` runs the
-  protocol over a `PrimeOrderGroupFamily` and reduces a corrupted receiver to the DDH assumption
-  with a certified reduction (`Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTReceiverGame_le`,
+  protocol over a `PrimeOrderGroupFamily` with both exact and fair-coin samplers (`ddhOTFamily`,
+  `ddhOTProbFamily`) and reduces a corrupted receiver to the DDH assumption with a certified
+  reduction (`Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTReceiverGame_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhOTReceiverToDDHDistinguisher`).
   `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` runs `ddhOTSenderSimWithCoins` and
-  `ddhOTReceiverSimWithCoins` on approximately uniform exponents, which gives PPT simulators and
-  asymptotic semi-honest security of the protocol with exact uniform honest coins
-  (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTIdealCoinsSemiHonestSecure`).
+  `ddhOTReceiverSimWithCoins` on approximately uniform exponents, proving PPT simulators and
+  asymptotic semi-honest security of the fair-coin protocol across all static coalitions
+  (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
 * `Cslib.Crypto.Protocols.MPC.ddhOTSenderReply_eq_unchecked_of_add`,
   `Cslib.Crypto.Protocols.MPC.ddhOTSenderReply_eq_zero_of_add_ne`,
   `Cslib.Crypto.Protocols.MPC.ddhOTAttackBothMessages_eq`,
@@ -356,20 +365,28 @@ theorem ddhOTSenderReply_eq_zero_of_add_ne {q : ℕ} [Module (ZMod q) G] (g : G)
   rcases c with ⟨a, r₀, s₀, r₁, s₁⟩
   simp only [ddhOTSenderReply, hw, ↓reduceIte]
 
-/-- **Three-message DDH 1-out-of-2 Oblivious Transfer protocol**: a variant of [BonehShoup2023],
-Section 23.5.7, Figure 23.17, with the check `w₀ + w₁ = u` from Remark 23.6. Unlike in
-Figure 23.17, the sender knows the discrete logarithm `a` of its first message `u = a • g`
-and encrypts each branch with its own coins `(rᵢ, sᵢ)`; the module docstring lists the
+/-- **Three-message DDH 1-out-of-2 Oblivious Transfer protocol with given coin samplers**: a
+variant of [BonehShoup2023], Section 23.5.7, Figure 23.17, with the check `w₀ + w₁ = u` from
+Remark 23.6, drawing the sender's five exponents from `sample₀` and the receiver's exponent from
+`sample₁`. Unlike in Figure 23.17, the sender knows the discrete logarithm `a` of its first message
+`u = a • g` and encrypts each branch with its own coins `(rᵢ, sᵢ)`; the module docstring lists the
 differences. -/
-@[expose] noncomputable def ddhOTProtocol (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G] :
+@[expose] noncomputable def ddhOTProtocolWith (g : G) (q : ℕ) [Module (ZMod q) G]
+    (sample₀ : ProbComp (DDHOTSenderCoins q)) (sample₁ : ProbComp (ZMod q)) :
     Protocol 2 noOracleSpec (ddhOTSchedule G) (OTIn G) (DDHOTCoins q) (OTOut G) where
   sampleCoins i := Fin.cases (motive := fun i => ProbComp (DDHOTCoins q i))
-    (sampleDDHOTSenderCoins q) (fun _ => ProbComp.uniform (ZMod q)) i
+    sample₀ (fun _ => sample₁) i
   steps :=
     .message (fun (_, (a, _)) => a • g)
       (.message (fun ((σ, b), u) => ddhOTReceiverMsg g σ b (u rfl))
         (.message (fun (((m, c), _), w) => ddhOTSenderReply g m c (w rfl))
           (.done ddhOTOutput)))
+
+/-- **Three-message DDH 1-out-of-2 Oblivious Transfer protocol with exact uniform coins**:
+`ddhOTProtocolWith` specialized to `sampleDDHOTSenderCoins q` and `ProbComp.uniform (ZMod q)`. -/
+noncomputable abbrev ddhOTProtocol (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G] :
+    Protocol 2 noOracleSpec (ddhOTSchedule G) (OTIn G) (DDHOTCoins q) (OTOut G) :=
+  ddhOTProtocolWith g q (sampleDDHOTSenderCoins q) (ProbComp.uniform (ZMod q))
 
 /-! ### Party views and execution characterization -/
 
@@ -389,7 +406,21 @@ reply `reply`. -/
   coins := b
   received := (fun _ => u, (fun h => absurd h (by decide), (fun _ => reply, ())))
 
-/-- Received transcript tuple in a run of `ddhOTProtocol` from initial local states `st`. -/
+/-- The pair of party views produced by `ddhOTProtocolWith` on inputs `x`, sender coins `c₀`, and
+receiver coin `b`. Because `ddhOTReceiverMsg` always satisfies the sender's check `w₀ + w₁ = u`,
+the sender's reply equals `ddhOTSenderReplyUnchecked`. -/
+@[expose] def ddhOTViews {q : ℕ} [Module (ZMod q) G] (g : G) (x : (i : Fin 2) → OTIn G i)
+    (c₀ : DDHOTSenderCoins q) (b : ZMod q) :
+    (i : Fin 2) → PartyView (OTIn G) (DDHOTCoins q) (ddhOTSchedule G) i :=
+  let u := c₀.1 • g
+  let w := ddhOTReceiverMsg g (x 1) b u
+  fun i => Fin.cases (motive := fun i => PartyView (OTIn G) (DDHOTCoins q) (ddhOTSchedule G) i)
+    (ddhOTSenderView (x 0) c₀ w)
+    (Fin.cases (motive := fun j => PartyView (OTIn G) (DDHOTCoins q) (ddhOTSchedule G) j.succ)
+      (ddhOTReceiverView (x 1) b u (ddhOTSenderReplyUnchecked g (x 0) c₀ w))
+      fun k => k.elim0) i
+
+/-- Received transcript tuple in a run of `ddhOTProtocolWith` from initial local states `st`. -/
 private def ddhOTReceived {q : ℕ} [Module (ZMod q) G] (g : G)
     (st : (i : Fin 2) → OTIn G i × DDHOTCoins q i) (i : Fin 2) :
     (ddhOTSchedule G).Received i :=
@@ -398,12 +429,13 @@ private def ddhOTReceived {q : ℕ} [Module (ZMod q) G] (g : G)
   let reply := ddhOTSenderReply g (st 0).1 (st 0).2 w
   (Round.deliverMessage u i, (Round.deliverMessage w i, (Round.deliverMessage reply i, ())))
 
-/-- The steps of `ddhOTProtocol` are deterministic once the coins are fixed. -/
-private theorem evalWith_ddhOTSteps (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
+/-- The steps of `ddhOTProtocolWith` are deterministic once the coins are fixed. -/
+private theorem evalWith_ddhOTSteps (g : G) (q : ℕ) [Module (ZMod q) G]
+    (sample₀ : ProbComp (DDHOTSenderCoins q)) (sample₁ : ProbComp (ZMod q))
     (st : (i : Fin 2) → OTIn G i × DDHOTCoins q i) :
-    (ddhOTProtocol g q).steps.evalWith noOracleWorld st =
+    (ddhOTProtocolWith g q sample₀ sample₁).steps.evalWith noOracleWorld st =
       PMF.pure (ddhOTReceived g st) := by
-  dsimp only [ddhOTProtocol]
+  dsimp only [ddhOTProtocolWith]
   refine (Steps.evalWith_message _ _ _ _).trans ?_
   refine (congrArg (PMF.map _) (Steps.evalWith_message _ _ _ _)).trans ?_
   refine (congrArg (PMF.map _ ∘ PMF.map _) (Steps.evalWith_message _ _ _ _)).trans ?_
@@ -411,15 +443,13 @@ private theorem evalWith_ddhOTSteps (g : G) (q : ℕ) [NeZero q] [Module (ZMod q
   rfl
 
 /-- Independent coin sampling draws the sender's and receiver's coins. -/
-private theorem eval_pi_ddhOTSampleCoins (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G] :
-    ProbComp.eval (OracleComp.pi (ddhOTProtocol g q).sampleCoins) =
-      (ProbComp.eval (sampleDDHOTSenderCoins q)).bind fun c₀ =>
-        (PMF.uniformOfFintype (ZMod q)).map fun b => ddhOTCoins c₀ b := by
-  have h1 : ProbComp.eval ((ddhOTProtocol g q).sampleCoins (Fin.succ 0)) =
-      (PMF.uniformOfFintype (ZMod q) : PMF (DDHOTCoins q (Fin.succ 0))) :=
-    ProbComp.eval_uniform (α := ZMod q)
-  simp only [OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, h1]
+private theorem eval_pi_ddhOTSampleCoins (g : G) (q : ℕ) [Module (ZMod q) G]
+    (sample₀ : ProbComp (DDHOTSenderCoins q)) (sample₁ : ProbComp (ZMod q)) :
+    ProbComp.eval (OracleComp.pi (ddhOTProtocolWith g q sample₀ sample₁).sampleCoins) =
+      (ProbComp.eval sample₀).bind fun c₀ =>
+        (ProbComp.eval sample₁).map fun b => ddhOTCoins c₀ b := by
+  simp only [ddhOTProtocolWith, OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind,
+    ProbComp.eval_map, ProbComp.eval_pure]
   refine congrArg (PMF.bind _) (funext fun c₀ => ?_)
   erw [PMF.map_bind]
   simp only [PMF.pure_map]
@@ -454,12 +484,13 @@ private theorem ddhOTReceived_zero {q : ℕ} [Module (ZMod q) G] (g : G)
   · exact Round.received_message_ext fun _ => rfl
   · exact Round.received_message_eq_of_ne (by decide) _ _
 
-/-! ### Correctness -/
+/-! ### Execution law and correctness -/
 
 /-- In a run with coins `(c₀, b)`, the receiver outputs `otOutputs x 1`. -/
-private theorem outputOfView_ddhOT_one (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
+private theorem outputOfView_ddhOT_one (g : G) (q : ℕ) [Module (ZMod q) G]
+    (sample₀ : ProbComp (DDHOTSenderCoins q)) (sample₁ : ProbComp (ZMod q))
     (x : (i : Fin 2) → OTIn G i) (c₀ : DDHOTSenderCoins q) (b : ZMod q) :
-    (ddhOTProtocol g q).outputOfView 1
+    (ddhOTProtocolWith g q sample₀ sample₁).outputOfView 1
         ⟨x 1, ddhOTCoins c₀ b 1, ddhOTReceived g (fun i => (x i, ddhOTCoins c₀ b i)) 1⟩ =
       otOutputs x 1 := by
   rcases c₀ with ⟨a, r₀, s₀, r₁, s₁⟩
@@ -475,6 +506,33 @@ private theorem outputOfView_ddhOT_one (g : G) (q : ℕ) [NeZero q] [Module (ZMo
   · simp only [↓reduceIte, ddhOTReceiverMsg]
     exact ddhOTReceiverOutput_encryptBranch g (x 0).2 a b r₁ s₁
 
+/-- **Execution law of `ddhOTProtocolWith`**: for any party coin samplers `sample₀` and `sample₁`,
+`evalWith` draws `c₀ ← sample₀` and `b ← sample₁` and returns
+`(ddhOTViews g x c₀ b, otOutputs x)`. -/
+theorem evalWith_ddhOTProtocolWith (g : G) (q : ℕ) [Module (ZMod q) G]
+    (sample₀ : ProbComp (DDHOTSenderCoins q)) (sample₁ : ProbComp (ZMod q))
+    (x : (i : Fin 2) → OTIn G i) :
+    (ddhOTProtocolWith g q sample₀ sample₁).evalWith noOracleWorld x =
+      (ProbComp.eval sample₀).bind fun c₀ =>
+        (ProbComp.eval sample₁).map fun b => (ddhOTViews g x c₀ b, otOutputs x) := by
+  rw [Protocol.evalWith_eq, eval_pi_ddhOTSampleCoins]
+  simp only [evalWith_ddhOTSteps, PMF.bind_bind, PMF.bind_map, PMF.pure_map]
+  refine congrArg (ProbComp.eval sample₀).bind (funext fun c₀ => ?_)
+  rw [← PMF.bind_pure_comp]
+  refine congrArg (ProbComp.eval sample₁).bind
+    (funext fun b => congrArg PMF.pure (Prod.ext ?_ ?_))
+  · funext i
+    fin_cases i
+    · exact ddhOTReceived_zero g x c₀ b
+    · refine (ddhOTReceived_one g x c₀ b).trans ?_
+      simp only [ddhOTViews,
+        ddhOTSenderReply_eq_unchecked_of_add g (x 0) c₀ _ (ddhOTReceiverMsg_add g (x 1) b _)]
+      rfl
+  · funext i
+    fin_cases i
+    · rfl
+    · exact outputOfView_ddhOT_one g q sample₀ sample₁ x c₀ b
+
 /-- Full execution distribution of `ddhOTProtocol` in terms of the sampled coins. -/
 private theorem evalWith_ddhOT (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
     (x : (i : Fin 2) → OTIn G i) :
@@ -483,7 +541,7 @@ private theorem evalWith_ddhOT (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
         (PMF.uniformOfFintype (ZMod q)).map fun b =>
           (fun i => ⟨x i, ddhOTCoins c₀ b i, ddhOTReceived g (fun i => (x i, ddhOTCoins c₀ b i)) i⟩,
             otOutputs x) := by
-  rw [Protocol.evalWith_eq, eval_pi_ddhOTSampleCoins]
+  rw [ddhOTProtocol, Protocol.evalWith_eq, eval_pi_ddhOTSampleCoins, ProbComp.eval_uniform]
   simp only [evalWith_ddhOTSteps, PMF.bind_bind, PMF.bind_map, PMF.pure_map]
   refine congrArg (ProbComp.eval (sampleDDHOTSenderCoins q)).bind (funext fun c₀ => ?_)
   rw [← PMF.bind_pure_comp]
@@ -492,17 +550,18 @@ private theorem evalWith_ddhOT (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
   funext i
   fin_cases i
   · rfl
-  · exact outputOfView_ddhOT_one g q x c₀ b
+  · exact outputOfView_ddhOT_one g q _ _ x c₀ b
 
-/-- **Correctness**: in every execution of `ddhOTProtocol`, the sender outputs `()` and the
-receiver outputs `if x 1 then (x 0).2 else (x 0).1`. -/
-theorem ddhOT_output_of_mem_support (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
+/-- **Correctness**: for any party coin samplers, in every execution of `ddhOTProtocolWith`, the
+sender outputs `()` and the receiver outputs `if x 1 then (x 0).2 else (x 0).1`. -/
+theorem ddhOTProtocolWith_output_of_mem_support (g : G) (q : ℕ) [Module (ZMod q) G]
+    {sample₀ : ProbComp (DDHOTSenderCoins q)} {sample₁ : ProbComp (ZMod q)}
     (x : (i : Fin 2) → OTIn G i)
     {r : ((i : Fin 2) → PartyView (OTIn G) (DDHOTCoins q) (ddhOTSchedule G) i) ×
       ((i : Fin 2) → OTOut G i)}
-    (hr : r ∈ ((ddhOTProtocol g q).evalWith noOracleWorld x).support) :
+    (hr : r ∈ ((ddhOTProtocolWith g q sample₀ sample₁).evalWith noOracleWorld x).support) :
     r.2 = otOutputs x := by
-  supp_cases hr [evalWith_ddhOT]
+  supp_cases hr [evalWith_ddhOTProtocolWith]
   rfl
 
 /-! ### Perfect privacy against a corrupted sender -/

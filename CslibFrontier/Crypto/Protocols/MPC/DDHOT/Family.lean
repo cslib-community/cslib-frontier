@@ -25,13 +25,15 @@ import CslibFrontier.Tactic.PMFSwap
 `Cslib.Crypto.Protocols.MPC.ddhOTProtocol` is a three-message 1-out-of-2 oblivious transfer over
 a group of prime order, a variant of the protocol of [BonehShoup2023], Section 23.5.7, Figure 23.17
 (p. 1057). `CslibFrontier/Crypto/Protocols/MPC/DDHOT.lean` defines it, lists its differences from
-Figure 23.17, and relates it to the DDH experiment in one fixed group. This module runs it in the
-groups of a `PrimeOrderGroupFamily` `F` as the protocol family `ddhOTFamily`
-(`Cslib.Crypto.Protocols.MPC.ProtocolFamily`), with the encoding `ddhOTEncoding` for machines,
-and reduces a corrupted receiver to DDH.
+Figure 23.17, and relates it to the DDH experiment in one fixed group. This module runs both the
+exact-coin reference protocol (`ddhOTFamily`) and the fair-coin protocol (`ddhOTProbProtocol`,
+`ddhOTProbFamily`, whose parties derive exponents via `sampleExp` as in Remark 23.5, p. 1059) in
+the groups of a `PrimeOrderGroupFamily` `F` (`Cslib.Crypto.Protocols.MPC.ProtocolFamily`), with the
+shared machine encoding `ddhOTEncoding`, bounds their real-game statistical distance by `6 / 2 ^ n`
+(`advantage_realGame_ddhOTProbFamily_le`), and reduces a corrupted receiver to DDH.
 `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` gives PPT simulators and proves
-semi-honest security with exact uniform honest coins
-(`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTIdealCoinsSemiHonestSecure`).
+semi-honest security of `ddhOTProbFamily` across all static coalitions
+(`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
 
 `ddhOTEncoding` writes group parameters with `F.encDesc` and group elements as `F.encode d` words.
 The sender's input is the pair of words of its two messages and the receiver's input is its choice
@@ -57,7 +59,12 @@ is PPT whenever `Z` is.
 * `Cslib.Crypto.Protocols.MPC.DDHOTSenderViewWords`,
   `Cslib.Crypto.Protocols.MPC.DDHOTReceiverViewWords`, their encodings, and
   `Cslib.Crypto.Protocols.MPC.DDHOTViewWords`: a party's view as words.
-* `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTFamily`: `ddhOTProtocol` over the groups of `F`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTFamily`: `ddhOTProtocol` (exact uniform coins) over the
+  groups of `F`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.sampleDDHOTSenderCoinsProb`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTProbProtocol`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTProbFamily`: fair-coin sender coin sampler, protocol,
+  and `ProtocolFamily` using `sampleExp`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTSenderViewWords`,
   `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTReceiverViewWords`: the words of a party's view.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTEncoding`: the encoding of the family for machines.
@@ -68,6 +75,8 @@ is PPT whenever `Z` is.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTSenderViewWords_injective`,
   `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTReceiverViewWords_injective`: the words determine the
   view.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_realGame_ddhOTProbFamily_le`: the real games of
+  `ddhOTProbFamily` and `ddhOTFamily` are within `6 / 2 ^ n` for every coalition and environment.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTReceiverGame_le`: the advantage of an
   environment against a corrupted receiver and the exact-sampling simulator is at most the DDH
   advantage of the reduction plus `6 / 2 ^ n`.
@@ -157,19 +166,119 @@ variable (F : PrimeOrderGroupFamily)
 
 /-! ### The protocol family and its encoding -/
 
-/-- `ddhOTProtocol` over the groups of `F`: at public parameters `d`, the protocol in `F.Carrier d`
-with generator `F.generator d`, in the plain model, computing `otFunctionality`. The protocol
-depends on the security parameter only through `d`. -/
-noncomputable abbrev ddhOTFamily : ProtocolFamily 2 where
+/-- A `ProtocolFamily` over the groups of `F` with the schedule, inputs, coins, outputs and
+functionality of DDH oblivious transfer, running `proto n d` in the plain model. Parameterizing
+`ddhOTFamily` and `ddhOTProbFamily` through `ddhOTFamilyWith` lets them share `ddhOTEncoding`,
+the DDH reduction, and the PPT certificates of the simulators and reduction. -/
+noncomputable abbrev ddhOTFamilyWith
+    (proto : (n : ℕ) → (d : F.Desc) →
+      Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoins (F.order d)) (OTOut (F.Carrier d))) :
+    ProtocolFamily 2 where
   Desc := F.Desc
   spec _ _ := noOracleSpec
   sc _ d := ddhOTSchedule (F.Carrier d)
   In _ d := OTIn (F.Carrier d)
   Coins _ d := DDHOTCoins (F.order d)
   Out _ d := OTOut (F.Carrier d)
-  protocol _ d := ddhOTProtocol (F.generator d) (F.order d)
+  protocol := proto
   world _ _ := noOracleWorld
   functionality _ d := otFunctionality (F.Carrier d)
+
+/-- `ddhOTProtocol` over the groups of `F`: at public parameters `d`, the protocol in `F.Carrier d`
+with generator `F.generator d` and exact uniform coins, in the plain model, computing
+`otFunctionality`. The protocol depends on the security parameter only through `d`; for the
+fair-coin protocol family see `ddhOTProbFamily`. -/
+noncomputable abbrev ddhOTFamily : ProtocolFamily 2 :=
+  F.ddhOTFamilyWith fun _ d => ddhOTProtocol (F.generator d) (F.order d)
+
+/-- Sample the sender's five exponents in `ddhOTProbProtocol` by drawing five natural numbers with
+the fair-coin sampler `sampleExp n d` ([BonehShoup2023], Remark 23.5, p. 1059) and reducing modulo
+`F.order d`. -/
+@[expose] noncomputable def sampleDDHOTSenderCoinsProb (n : ℕ) (d : F.Desc) :
+    ProbComp (DDHOTSenderCoins (F.order d)) := do
+  let a ← F.sampleExp n d
+  let r₀ ← F.sampleExp n d
+  let s₀ ← F.sampleExp n d
+  let r₁ ← F.sampleExp n d
+  let s₁ ← F.sampleExp n d
+  return ((a : ZMod (F.order d)), (r₀ : ZMod (F.order d)), (s₀ : ZMod (F.order d)),
+    (r₁ : ZMod (F.order d)), (s₁ : ZMod (F.order d)))
+
+/-- Fair-coin three-message DDH 1-out-of-2 Oblivious Transfer protocol over `F.Carrier d` at
+security parameter `n`: `ddhOTProtocolWith` with `sampleDDHOTSenderCoinsProb n d` for the sender
+and `(· : ZMod (F.order d)) <$> F.sampleExp n d` for the receiver. -/
+@[expose] noncomputable def ddhOTProbProtocol (n : ℕ) (d : F.Desc) :
+    Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+      (DDHOTCoins (F.order d)) (OTOut (F.Carrier d)) :=
+  ddhOTProtocolWith (F.generator d) (F.order d) (F.sampleDDHOTSenderCoinsProb n d)
+    ((fun b : ℕ => (b : ZMod (F.order d))) <$> F.sampleExp n d)
+
+/-- `ddhOTProbProtocol` over the groups of `F` as a `ProtocolFamily`: at security parameter `n` and
+public parameters `d`, both parties derive their exponents from random bit strings via
+`sampleExp n d` ([BonehShoup2023], Section 23.5.7.2, Remark 23.5, p. 1059). -/
+noncomputable abbrev ddhOTProbFamily : ProtocolFamily 2 :=
+  F.ddhOTFamilyWith F.ddhOTProbProtocol
+
+/-- Reindex an environment across two `ddhOTFamilyWith` protocol families, which share their
+parameter, input, coin, schedule and output types. -/
+@[expose] def recastDDHOTEnv
+    {p₁ p₂ : (n : ℕ) → (d : F.Desc) →
+      Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoins (F.order d)) (OTOut (F.Carrier d))}
+    {I : Finset (Fin 2)} (Z : Environment (F.ddhOTFamilyWith p₁) I) :
+    Environment (F.ddhOTFamilyWith p₂) I where
+  choose n d := (fun c => ⟨c.inputs, c.state⟩) <$> Z.choose n d
+  guess := Z.guess
+
+/-- Reindexing an environment across `ddhOTFamilyWith` preserves `ProtocolFamily.idealGame`. -/
+theorem idealGame_recastDDHOTEnv
+    {p₁ p₂ : (n : ℕ) → (d : F.Desc) →
+      Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoins (F.order d)) (OTOut (F.Carrier d))}
+    {I : Finset (Fin 2)} (setup : ℕ → PMF F.Desc)
+    (S : SimulatorFamily (F.ddhOTFamilyWith p₂) I)
+    (Z : Environment (F.ddhOTFamilyWith p₁) I) (n : ℕ) :
+    (F.ddhOTFamilyWith p₂).idealGame setup I S (F.recastDDHOTEnv Z) n =
+      (F.ddhOTFamilyWith p₁).idealGame setup I S Z n := by
+  simp only [ProtocolFamily.idealGame, recastDDHOTEnv, ProbComp.eval_map, PMF.monad_bind_eq_bind,
+    PMF.bind_map, Function.comp_def]
+
+/-- Replacing exact uniform party coins with five sender `sampleExp n d` draws and one receiver
+`sampleExp n d` draw changes `Game.advantage` by at most `6 / 2 ^ n`. -/
+private theorem advantage_bind_sampleDDHOTCoinsProb_le (n : ℕ) (d : F.Desc)
+    (k : DDHOTSenderCoins (F.order d) → ZMod (F.order d) → Game) :
+    Game.advantage
+      ((ProbComp.eval (F.sampleDDHOTSenderCoinsProb n d)).bind fun c₀ =>
+        (ProbComp.eval ((fun b : ℕ => (b : ZMod (F.order d))) <$> F.sampleExp n d)).bind (k c₀))
+      ((ProbComp.eval (sampleDDHOTSenderCoins (F.order d))).bind fun c₀ =>
+        (PMF.uniformOfFintype (ZMod (F.order d))).bind (k c₀)) ≤ 6 / 2 ^ n := by
+  simp only [sampleDDHOTSenderCoinsProb, sampleDDHOTSenderCoins, ProbComp.eval_bind,
+    ProbComp.eval_pure, ProbComp.eval_map, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind,
+    PMF.bind_map, Function.comp_def]
+  have h := F.advantage_bind_iid_sampleExp_le n d 6 fun a => k (a 0, a 1, a 2, a 3, a 4) (a 5)
+  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+    Function.comp_def, Nat.cast_ofNat] at h
+  exact h
+
+/-- Replacing exact uniform party coins (`ddhOTFamily`) with six `sampleExp n d` draws
+(`ddhOTProbFamily`: five for the sender, one for the receiver) changes any environment's real-game
+acceptance probability by at most `6 / 2 ^ n`, for every static coalition `I` and without any
+efficiency bound on `Z`. -/
+theorem advantage_realGame_ddhOTProbFamily_le (setup : ℕ → PMF F.Desc)
+    (I : Finset (Fin 2)) (Z : Environment F.ddhOTProbFamily I) (n : ℕ) :
+    Game.advantage (F.ddhOTProbFamily.realGame setup I Z n)
+      (F.ddhOTFamily.realGame setup I (F.recastDDHOTEnv Z) n) ≤ 6 / 2 ^ n := by
+  simp only [ProtocolFamily.realGame, recastDDHOTEnv, Protocol.realJoint, ddhOTProbProtocol,
+    ddhOTProtocol, evalWith_ddhOTProtocolWith, ProbComp.eval_map, PMF.monad_bind_eq_bind,
+    PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def]
+  refine Game.advantage_bind_le_nnreal _ _ _ fun d =>
+    Game.advantage_bind_le_nnreal _ _ _ fun c => ?_
+  simpa only [ProbComp.eval_uniform, ProbComp.eval_map, PMF.bind_bind, PMF.map_bind, PMF.bind_map,
+    Prod.map, id, Function.comp_def] using
+    F.advantage_bind_sampleDDHOTCoinsProb_le n d fun c₀ b =>
+      ProbComp.eval (Z.guess n d c.state
+        (I.restrict (ddhOTViews (F.generator d) c.inputs c₀ b), otOutputs c.inputs))
 
 /-- The words of a sender's view in `ddhOTProtocol` over `F.Carrier d`: the messages and branch
 keys as `F.encode d` words, and the exponents as their values below `F.order d`. -/
@@ -228,7 +337,11 @@ output `()` is the empty word (`encUnit`) and the receiver's output `m_σ` is th
 `F.encode d m_σ`. The sender's and the receiver's views are their view words
 (`ddhOTSenderViewWords`, `ddhOTReceiverViewWords`), encoded by `encDDHOTSenderViewWords` and
 `encDDHOTReceiverViewWords`. -/
-@[expose] noncomputable def ddhOTEncoding : F.ddhOTFamily.Encoding where
+@[expose] noncomputable def ddhOTEncoding
+    {proto : (n : ℕ) → (d : F.Desc) →
+      Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoins (F.order d)) (OTOut (F.Carrier d))} :
+    (F.ddhOTFamilyWith proto).Encoding where
   desc := F.encDesc
   input :=
     { Rep := OTIn (List Bool)
@@ -263,7 +376,11 @@ output `()` is the empty word (`encUnit`) and the receiver's output `m_σ` is th
 security parameter `n`, group parameters `d` and a DDH triple `(u, v, w)`, run `Z.choose`, draw
 the receiver's coin `b` and the chosen branch's coins `r, s` with `sampleExp`, and run
 `ddhOTReductionWithCoins` with `Z.guess`, which embeds the triple into the unchosen branch. -/
-@[expose] noncomputable def ddhOTReceiverToDDHDistinguisher (Z : Environment F.ddhOTFamily {1}) :
+@[expose] noncomputable def ddhOTReceiverToDDHDistinguisher
+    {proto : (n : ℕ) → (d : F.Desc) →
+      Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoins (F.order d)) (OTOut (F.Carrier d))}
+    (Z : Environment (F.ddhOTFamilyWith proto) {1}) :
     F.DDHDistinguisher := fun n d u v w => do
   let c ← Z.choose n d
   let b ← F.sampleExp n d
@@ -318,9 +435,12 @@ private theorem advantage_ddhOTReceiverToDDHExact_le (Z : Environment F.ddhOTFam
     ProbComp.eval (ddhOTReductionWithCoins (F.generator d) c.inputs (Z.guess n d c.state)
       b r s u v w)
 
-/-- **Concrete bound for a corrupted receiver**: the advantage of `Z` between the real game and
-the ideal game with the exact-sampling simulator `ddhOTReceiverSim` is at most the DDH advantage
-of `ddhOTReceiverToDDHDistinguisher Z` plus `6 / 2 ^ n`. -/
+/-- Concrete reduction step for a corrupted receiver in the exact-coin reference family
+`ddhOTFamily`: the advantage of `Z` between the exact-coin real game and the ideal game with the
+exact-sampling simulator `ddhOTReceiverSim` is at most the DDH advantage of
+`ddhOTReceiverToDDHDistinguisher Z` plus `6 / 2 ^ n`. For the fair-coin protocol `ddhOTProbFamily`
+and certified PPT simulator `ddhOTReceiverSimSampleExp`, see `advantage_ddhOTProbReceiverGame_le` in
+`CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean`. -/
 theorem advantage_ddhOTReceiverGame_le (setup : ℕ → PMF F.Desc)
     (Z : Environment F.ddhOTFamily {1}) (n : ℕ) :
     Game.advantage (F.ddhOTFamily.realGame setup {1} Z n)
@@ -386,22 +506,27 @@ private noncomputable def ddhOTReceiverGuessWords (x : F.DDHInput) (m₀ m₁ : 
 
 /-- The words that an environment's choosing stage writes for `ddhOTEncoding`: the table of the
 parties' input words and the state. -/
-private abbrev ChoiceWords : Type := ((i : Fin 2) → F.ddhOTEncoding.input.Rep i) × List Bool
+private abbrev ChoiceWords : Type := ((i : Fin 2) → OTIn (List Bool) i) × List Bool
 
 /-- What the last stage of `ddhOTReceiverToDDHDistinguisher` reads: the DDH input, the words of
 the environment's choice and the three coins. -/
-private abbrev ReceiverReductionWords : Type := (((F.DDHInput × F.ChoiceWords) × ℕ) × ℕ) × ℕ
+private abbrev ReceiverReductionWords : Type := (((F.DDHInput × ChoiceWords) × ℕ) × ℕ) × ℕ
 
 /-- `ddhOTReceiverToDDHDistinguisher Z` is uniform strict PPT whenever `Z` is. -/
-theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}}
+theorem isPPT_ddhOTReceiverToDDHDistinguisher
+    {proto : (n : ℕ) → (d : F.Desc) →
+      Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoins (F.order d)) (OTOut (F.Carrier d))}
+    {Z : Environment (F.ddhOTFamilyWith proto) {1}}
     (hZ : Z.IsPPT F.ddhOTEncoding) : (F.ddhOTReceiverToDDHDistinguisher Z).IsPPT := by
-  obtain ⟨W, hW, hWeq⟩ := hZ.guess.exists_bool_factor (encGuessInput_apply F.ddhOTEncoding)
+  obtain ⟨W, hW, hWeq⟩ := hZ.guess.exists_bool_factor
+    (encGuessInput_apply (F.ddhOTEncoding (proto := proto)))
   let E := encPair (encPair (encPair (encPair F.encDDHInput
-    (encPair (encDPi F.ddhOTEncoding.input.enc) encBits)) encNat) encNat) encNat
+    (encPair (encDPi (F.ddhOTEncoding (proto := proto)).input.enc) encBits)) encNat) encNat) encNat
   have hx : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.1.1) E
       F.encDDHInput := by fun_prop
   have hcw : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.1.2) E
-      (encPair (encDPi F.ddhOTEncoding.input.enc) encBits) := by fun_prop
+      (encPair (encDPi (F.ddhOTEncoding (proto := proto)).input.enc) encBits) := by fun_prop
   have hb : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.2) E
       encNat := by fun_prop
   have hr : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.2) E
@@ -412,10 +537,10 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
   have hstate := hcw.snd'
   have hin₀ : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.1.2.1 0) E
       (encPair encBits encBits) :=
-    (ComputableInPolyTime.dpi_apply F.ddhOTEncoding.input.enc 0).comp htable
+    (ComputableInPolyTime.dpi_apply (F.ddhOTEncoding (proto := proto)).input.enc 0).comp htable
   have hσ : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.1.2.1 1) E
       encBool :=
-    (ComputableInPolyTime.dpi_apply F.ddhOTEncoding.input.enc 1).comp htable
+    (ComputableInPolyTime.dpi_apply (F.ddhOTEncoding (proto := proto)).input.enc 1).comp htable
   have hm₀ := hin₀.fst'
   have hm₁ := hin₀.snd'
   have hd := F.encDDHInput_groupParameters_polyTime hx
@@ -451,15 +576,15 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
     · exact hσ.ite' hm₁ hm₀
   have hwords : ComputableInPolyTime (fun p : F.ReceiverReductionWords =>
       F.ddhOTReceiverGuessWords p.1.1.1.1 (p.1.1.1.2.1 0).1 (p.1.1.1.2.1 0).2 (p.1.1.1.2.1 1)
-        p.1.1.1.2.2 p.1.1.2 p.1.2 p.2) E (encGuessInputFields F.ddhOTEncoding) :=
+        p.1.1.1.2.2 p.1.1.2 p.1.2 p.2) E (encGuessInputFields (F.ddhOTEncoding (proto := proto))) :=
     (F.encDDHInput_secParam_polyTime hx).prod (hd.prod (hstate.prod (hviews.prod houtputs)))
   have hsample {α : Type} {enc : α ↪ List Bool} {x : α → F.DDHInput}
       (hx : ComputableInPolyTime x enc F.encDDHInput) :
       IsPPTOn enc encNat fun a => F.sampleExp (x a).secParam (x a).groupParameters :=
     F.isPPTOn_sampleExp (by fun_prop) (by fun_prop)
   have hprogram : IsPPTOn F.encDDHInput encBool (fun x => do
-      let cw ← (fun c => ((fun i => F.ddhOTEncoding.input.rep x.secParam x.groupParameters i
-          (c.inputs i)), c.state)) <$> Z.choose x.secParam x.groupParameters
+      let cw ← (fun c => ((fun i => (F.ddhOTEncoding (proto := proto)).input.rep x.secParam
+          x.groupParameters i (c.inputs i)), c.state)) <$> Z.choose x.secParam x.groupParameters
       let b ← F.sampleExp x.secParam x.groupParameters
       let r ← F.sampleExp x.secParam x.groupParameters
       let s ← F.sampleExp x.secParam x.groupParameters
@@ -483,7 +608,8 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
     (hWeq ⟨x.secParam, x.groupParameters, state, _, _⟩).symm)
   refine Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (Prod.ext ?_ ?_)))
   · refine Eq.trans ?_
-      (F.ddhOTEncoding.view.encCoalition_singleton x.secParam x.groupParameters 1 _).symm
+      ((F.ddhOTEncoding (proto := proto)).view.encCoalition_singleton x.secParam x.groupParameters
+        1 _).symm
     refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTReceiverViewWords ?_)
     let q := F.order x.groupParameters
     let e := (r : ZMod q) • F.generator x.groupParameters + (s : ZMod q) • x.leftPublic

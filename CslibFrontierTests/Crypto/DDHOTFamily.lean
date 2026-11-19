@@ -14,10 +14,12 @@ import CslibFrontier.Tactic.Negligible
 
 Clients of `CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family` and of the asymptotic notion in
 `CslibFrontier.Crypto.Protocols.MPC.Asymptotic`, under module encapsulation:
+* exact correctness of the fair-coin protocol `ddhOTProbProtocol` in every supported execution;
 * the encoded words of a guessing-stage input, and the words of a receiver's view under
   `ddhOTEncoding`;
-* a receiver-corrupting environment that satisfies `Environment.IsPPT`, so the class of admitted
-  environments is not empty;
+* receiver-corrupting environments for `ddhOTProbFamily` and `ddhOTFamily` that satisfy
+  `Environment.IsPPT`, so the class of admitted environments is not empty;
+* the `6 / 2 ^ n` real-game statistical distance between `ddhOTProbFamily` and `ddhOTFamily`;
 * the concrete bound for a corrupted receiver, and its asymptotic consequence under DDH through
   the reduction's certificate. -/
 
@@ -29,10 +31,19 @@ public section
 
 namespace CslibFrontierTests.Crypto.DDHOTFamily
 
+-- Every supported execution of the fair-coin protocol `ddhOTProbProtocol` computes `otOutputs`.
+example (F : PrimeOrderGroupFamily) (n : ℕ) (d : F.Desc)
+    (x : (i : Fin 2) → OTIn (F.Carrier d) i)
+    {r : ((i : Fin 2) → PartyView (OTIn (F.Carrier d)) (DDHOTCoins (F.order d))
+        (ddhOTSchedule (F.Carrier d)) i) × ((i : Fin 2) → OTOut (F.Carrier d) i)}
+    (hr : r ∈ ((F.ddhOTProbProtocol n d).evalWith noOracleWorld x).support) :
+    r.2 = otOutputs x :=
+  ddhOTProtocolWith_output_of_mem_support (F.generator d) (F.order d) x hr
+
 -- The encoded words of a guessing-stage input: the unary security parameter, the group
 -- parameters, the state, the word of the corrupted receiver's view and the word of the outputs,
 -- all but the last framed.
-example (F : PrimeOrderGroupFamily) (y : GuessInput F.ddhOTFamily {1}) :
+example (F : PrimeOrderGroupFamily) (y : GuessInput F.ddhOTProbFamily {1}) :
     encGuessInput F.ddhOTEncoding y =
       encPair encUnary (encPair F.encDesc (encPair encBits (encPair encBits encBits)))
         (y.secParam, y.desc, y.state,
@@ -43,7 +54,8 @@ example (F : PrimeOrderGroupFamily) (y : GuessInput F.ddhOTFamily {1}) :
 -- Under `ddhOTEncoding`, a receiver's view is written as its view words.
 example (F : PrimeOrderGroupFamily) (n : ℕ) (d : F.Desc)
     (v : PartyView (OTIn (F.Carrier d)) (DDHOTCoins (F.order d)) (ddhOTSchedule (F.Carrier d)) 1) :
-    F.ddhOTEncoding.view.enc 1 (F.ddhOTEncoding.view.rep n d 1 v) =
+    (F.ddhOTEncoding (proto := F.ddhOTProbProtocol)).view.enc 1
+        ((F.ddhOTEncoding (proto := F.ddhOTProbProtocol)).view.rep n d 1 v) =
       encDDHOTReceiverViewWords (F.ddhOTReceiverViewWords d v) :=
   rfl
 
@@ -52,24 +64,33 @@ noncomputable def constantInputs (F : PrimeOrderGroupFamily) (d : F.Desc) :
     (i : Fin 2) → OTIn (F.Carrier d) i :=
   fun i => Fin.cases (motive := fun i => OTIn (F.Carrier d) i) (0, F.generator d) (fun _ => false) i
 
-/-- A receiver-corrupting environment that sends the messages `0` and `g` with choice bit
-`false`, and always guesses `true`. -/
-noncomputable def constantEnvironment (F : PrimeOrderGroupFamily) :
-    Environment F.ddhOTFamily {1} where
+/-- A receiver-corrupting environment for `ddhOTProbFamily` that sends the messages `0` and `g`
+with choice bit `false`, and always guesses `true`. -/
+noncomputable def constantProbEnvironment (F : PrimeOrderGroupFamily) :
+    Environment F.ddhOTProbFamily {1} where
   choose _ d := pure ⟨constantInputs F d, []⟩
   guess _ _ _ _ := pure true
 
--- The class of PPT environments is not empty.
-example (F : PrimeOrderGroupFamily) : (constantEnvironment F).IsPPT F.ddhOTEncoding where
+-- The class of PPT environments for `ddhOTProbFamily` is not empty.
+example (F : PrimeOrderGroupFamily) : (constantProbEnvironment F).IsPPT F.ddhOTEncoding where
   choose := by
     refine (ComputableInPolyTime.isPPTOn (f := fun p : ℕ × F.Desc =>
-      ((fun i => F.ddhOTEncoding.input.rep p.1 p.2 i (constantInputs F p.2 i)), ([] : List Bool)))
+      ((fun i => (F.ddhOTEncoding (proto := F.ddhOTProbProtocol)).input.rep p.1 p.2 i
+        (constantInputs F p.2 i)), ([] : List Bool)))
       ((ComputableInPolyTime.dpi fun i => ?_).prod (.const []))).congr fun _ => rfl
     refine Fin.cases ?_ (fun j => Fin.cases ?_ (fun k => k.elim0) j) i
     · exact (computableInPolyTime_encode_zero (d := fun p : ℕ × F.Desc => p.2) (by fun_prop)).prod
         (computableInPolyTime_encode_generator (d := fun p : ℕ × F.Desc => p.2) (by fun_prop))
     · exact ComputableInPolyTime.const false
   guess := (ComputableInPolyTime.const true).isPPTOn
+
+-- Replacing exact party coins with `sampleExp` coins changes any environment's real-game
+-- acceptance probability by at most `6 / 2 ^ n`.
+example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (I : Finset (Fin 2))
+    (Z : Environment F.ddhOTProbFamily I) (n : ℕ) :
+    Game.advantage (F.ddhOTProbFamily.realGame setup I Z n)
+      (F.ddhOTFamily.realGame setup I (F.recastDDHOTEnv Z) n) ≤ 6 / 2 ^ n :=
+  F.advantage_realGame_ddhOTProbFamily_le setup I Z n
 
 -- Against a corrupted receiver, the advantage is the DDH advantage of an explicit reduction plus
 -- `6 / 2 ^ n`.
