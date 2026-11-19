@@ -46,12 +46,17 @@ structure SymmetricLinearitySeed (n : ℕ) where
   /-- The point player's independent dummy string. -/
   dummy : Fin n → Bool
 
+/-- The five independent choices of a symmetric linearity seed as a product. -/
+def SymmetricLinearitySeed.equivProd (n : ℕ) :
+    SymmetricLinearitySeed n ≃
+      Bool × Fin 3 × (Fin n → Bool) × (Fin n → Bool) × (Fin n → Bool) where
+  toFun seed := (seed.swapRoles, seed.check, seed.first, seed.second, seed.dummy)
+  invFun := fun (roles, k, a, b, dummy) => ⟨roles, k, a, b, dummy⟩
+  left_inv := fun _ => rfl
+  right_inv := by rintro ⟨_, _, _, _, _⟩; rfl
+
 instance {n : ℕ} : Fintype (SymmetricLinearitySeed n) :=
-  Fintype.ofEquiv (Bool × Fin 3 × (Fin n → Bool) × (Fin n → Bool) × (Fin n → Bool))
-    { toFun := fun (roles, k, a, b, dummy) => ⟨roles, k, a, b, dummy⟩
-      invFun := fun seed => (seed.swapRoles, seed.check, seed.first, seed.second, seed.dummy)
-      left_inv := by rintro ⟨_, _, _, _, _⟩; rfl
-      right_inv := fun _ => rfl }
+  Fintype.ofEquiv _ (SymmetricLinearitySeed.equivProd n).symm
 
 instance {n : ℕ} : Nonempty (SymmetricLinearitySeed n) :=
   ⟨⟨false, 0, 0, 0, 0⟩⟩

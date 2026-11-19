@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
+import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Two-prover games with private verifier randomness
@@ -77,6 +78,25 @@ theorem commutingWinProb_eq_sum [Fintype R] [∀ r a b, Decidable (G.accepts r a
       if G.accepts r a b then S.prob (G.query r).1 (G.query r).2 a b else 0 := by
   rw [commutingWinProb, answersWinProb_eq_sum]
   simp only [S.answers_apply, ENNReal.toReal_ofReal (S.prob_nonneg _ _ _ _)]
+
+/-- Rejection at a specified private seed is the sum of the probability of every rejected
+answer pair on that seed's questions. -/
+theorem one_sub_commutingWinProb_pure_seed (r : R)
+    [∀ a b, Decidable (G.accepts r a b)] (S : CommutingStrategy X Y A B 𝒜) :
+    1 - ({ G with seed := PMF.pure r }).commutingWinProb S =
+      ∑ a, ∑ b, if G.accepts r a b then 0 else S.prob (G.query r).1 (G.query r).2 a b := by
+  have hwin : ({ G with seed := PMF.pure r }).commutingWinProb S =
+      ∑ a, ∑ b, if G.accepts r a b then S.prob (G.query r).1 (G.query r).2 a b else 0 := by
+    unfold commutingWinProb answersWinProb
+    rw [PMF.pure_bind, PMF.toOuterMeasure_map_apply,
+      Cslib.Probability.PMF.toOuterMeasure_apply_toReal, Fintype.sum_prod_type]
+    refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
+    simp only [Set.mem_preimage, Set.mem_ofPred_eq, AcceptsRound, S.answers_apply,
+      ENNReal.toReal_ofReal (S.prob_nonneg _ _ _ _)]
+  rw [hwin, ← S.sum_prob (G.query r).1 (G.query r).2]
+  simp only [← sum_sub_distrib]
+  refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
+  split_ifs <;> simp
 
 end Commuting
 

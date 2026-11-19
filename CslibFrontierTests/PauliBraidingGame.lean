@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsistency
+import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingZero
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 
@@ -96,5 +96,16 @@ example (answer : PauliBraidingQuestion 2 Bool → PauliBraidingQuestion 2 Bool 
   change ((TwoProverGame.chsh.questions.map Prod.snd) true).toReal * _ ≤ _ at h
   rw [hmass] at h
   linarith
+
+/-- At a duplicated Z query, the diagonal test reads the first point bit, while the
+consistency test reads the second. Checks 0 and 2 disagree on the pair's bits. -/
+example :
+    let diagonal := pauliBraidingDiagonalGame 1 TwoProverGame.chsh id (fun _ => id) false true
+    let tie : PauliConsistencyQuestion (Fin 1) := .ofChecked true 0 0
+    pauliBraidingZeroBit (.inl (false, true) : (Bool × Bool) ⊕ Bool) = false ∧
+      tie.braidingCheckedBit (false, true) = true ∧
+      diagonal.accepts (0, 0, 0) (.inl (false, true)) (.inl (false, false)) ∧
+      ¬ diagonal.accepts (2, 0, 0) (.inl (false, true)) (.inl (false, false)) :=
+  ⟨rfl, rfl, rfl, Bool.noConfusion⟩
 
 end CslibFrontierTests.PauliBraidingGame

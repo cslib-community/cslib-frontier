@@ -128,6 +128,48 @@ theorem weighted_rejection_le_of_bind_seed {I : Type*} [Finite I] (law : PMF I)
   rw [answersWinProb_bind_seed]
   simpa only [mul_sub, mul_one, score] using h
 
+/-- Over a finite seed type, rejection is the sum of the seed-weighted rejection
+probabilities for deterministic seeds. -/
+theorem rejection_eq_sum [Fintype R] (ans : X → Y → PMF (A × B)) :
+    1 - G.answersWinProb ans =
+      ∑ r, (G.seed r).toReal * (1 - ({ G with seed := PMF.pure r }).answersWinProb ans) := by
+  have h := G.answersWinProb_bind_seed G.seed PMF.pure ans
+  rw [PMF.bind_pure] at h
+  simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Cslib.Probability.PMF.sum_toReal]
+  rw [← h]
+
+/-- An injective restriction of a uniform seed retains at most the total rejection
+budget, after weighting by the proportion of seeds retained. -/
+theorem weighted_rejection_pullback_uniform_le [Fintype R] [Nonempty R]
+    {T : Type*} [Fintype T] [Nonempty T] (f : T ↪ R) (ans : X → Y → PMF (A × B)) :
+    (Fintype.card T : ℝ) / Fintype.card R *
+        (1 - (G.pullbackSeed (Cslib.Probability.PMF.uniformOfFintype T) f).answersWinProb ans) ≤
+      1 - ({ G with seed := Cslib.Probability.PMF.uniformOfFintype R }).answersWinProb ans := by
+  classical
+  let loss (r : R) := 1 - ({ G with seed := PMF.pure r }).answersWinProb ans
+  have hsubset : (∑ t, loss (f t)) ≤ ∑ r, loss r := by
+    rw [← Finset.sum_image f.injective.injOn]
+    exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+      fun r _ _ => sub_nonneg.mpr (answersWinProb_le_one _ _)
+  have hpure (t : T) :
+      1 - ({ G.pullbackSeed (Cslib.Probability.PMF.uniformOfFintype T) f with
+        seed := PMF.pure t }).answersWinProb ans = loss (f t) := by
+    simp only [loss, answersWinProb, pullbackSeed, PMF.pure_bind, PMF.toOuterMeasure_map_apply]
+    rfl
+  rw [rejection_eq_sum, rejection_eq_sum]
+  simp only [pullbackSeed] at hpure
+  simp only [pullbackSeed, Cslib.Probability.PMF.uniformOfFintype_apply,
+    ENNReal.toReal_inv, ENNReal.toReal_natCast, ← Finset.mul_sum]
+  simp only [hpure]
+  change (Fintype.card T : ℝ) / Fintype.card R *
+      ((Fintype.card T : ℝ)⁻¹ * ∑ t, loss (f t)) ≤
+        (Fintype.card R : ℝ)⁻¹ * ∑ r, loss r
+  have ht : (Fintype.card T : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
+  rw [← mul_assoc, show (Fintype.card T : ℝ) / Fintype.card R *
+      (Fintype.card T : ℝ)⁻¹ = (Fintype.card R : ℝ)⁻¹ by
+    rw [div_eq_mul_inv, mul_right_comm, mul_inv_cancel₀ ht, one_mul]]
+  exact mul_le_mul_of_nonneg_left hsubset (by positivity)
+
 end SeededGame
 
 namespace TwoProverGame

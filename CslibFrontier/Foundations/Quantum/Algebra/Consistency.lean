@@ -134,4 +134,20 @@ theorem norm_observable_sub_sq_le (φ : AlgState A) (P Q : Measurement Bool A)
   norm_num
   nlinarith
 
+/-- The squared distance of a binary observable from the identity is bounded by
+four times its true outcome probability. -/
+theorem norm_observable_sub_one_sq_le (φ : AlgState A) (M : Measurement Bool A) :
+    φ.norm (M.observable - 1) ^ 2 ≤ 4 * M.prob φ true := by
+  let constant : Measurement Bool A := const false
+  have hcomm (b : Bool) : Commute (M.effect b) (constant.effect b) := by
+    cases b <;> simp [constant, const]
+  have h := norm_observable_sub_sq_le φ M constant hcomm
+  have hobs : constant.observable = 1 := by simp [constant, const, observable]
+  have hagree : agreement φ M constant = M.prob φ false := by
+    simp [agreement, constant, const, prob]
+  rw [hobs, hagree] at h
+  have htotal := M.sum_prob φ
+  rw [Fintype.sum_bool] at htotal
+  linarith
+
 end Cslib.Quantum.Measurement
