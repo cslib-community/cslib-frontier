@@ -33,6 +33,21 @@ public section
 namespace Cslib.Crypto.MLDSA.FIPS204
 open Cslib.Probability ExtendableOutput
 
+private def matrixSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedBytes 32 :=
+  fun i => ((H.expandKeySeed s seed).take 32)[i.val]!
+
+private theorem matrixSeed_bytes (H : Xofs) (s : Level) (seed : FixedBytes 32) :
+    (matrixSeed H s seed).toList = (H.expandKeySeed s seed).take 32 := by
+  have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
+  let rho := (H.expandKeySeed s seed).take 32
+  have hr : rho.length = 32 := by simp [rho, len]
+  obtain ⟨r, eq⟩ := FixedBytes.exists_toList hr
+  change FixedBytes.toList (n := 32) (fun i => rho[i.val]!) = rho
+  rw [← eq]
+  congr 1
+  funext i
+  simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
+
 private def expansionSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedBytes 64 :=
   fun j => ((H.expandKeySeed s seed).drop 32)[j.val]!
 
@@ -142,7 +157,7 @@ private noncomputable def viewsAt {a b : ℕ} (s : Level) (base : Xofs) (seed : 
     background := H
     keySeed := seed
     secretSeed := expansionSeed H s seed
-    publicSeed := fun i => rho[i.val]!
+    publicSeed := matrixSeed H s seed
     pair := generatedPair (H.expandA s rho) (vectors s (rowPair s rows)) }
 
 /-- Joint distribution of the two online XOFs, derived seeds and the actual (possibly failed)
@@ -290,16 +305,8 @@ theorem SecretExpansionViews.seeds_of_mem {base : Xofs} {s : Level} {a b : ℕ}
       PMF.mem_support_map_iff] using hv)
   let B : Xofs := {base with h128 := install base.h128 M}
   let H := atTable B T
-  refine ⟨fixed_expansion s B seed ha hb T rows, ?_, expansionSeed_bytes H s seed⟩
-  let rho := (H.expandKeySeed s seed).take 32
-  have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
-  have hr : rho.length = 32 := by simp [rho, len]
-  obtain ⟨r, eq⟩ := FixedBytes.exists_toList hr
-  change FixedBytes.toList (n := 32) (fun i => rho[i.val]!) = rho
-  rw [← eq]
-  congr 1
-  funext i
-  simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
+  exact ⟨fixed_expansion s B seed ha hb T rows, matrixSeed_bytes H s seed,
+    expansionSeed_bytes H s seed⟩
 
 /-- The coupled views have identical SHAKE128 streams and identical SHAKE256 bytes except at
 the first 481 positions of an Algorithm 33 row. The nonce range includes both vectors. -/

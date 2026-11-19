@@ -376,7 +376,7 @@ theorem Xofs.prob_representative_ne_sampleSigningMaskSeeds (base : Xofs) (s : Le
             FixedBytes.toList, List.ofFn_inj]
         rw [eq, ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity),
           prob_uniformOfFintype_embedding_mem_range]
-        simp only [Fintype.card_fin, QuantumSigningForger.card_hedge, Nat.cast_pow, Nat.cast_ofNat,
+        simp only [Fintype.card_fin, FixedBytes.card, Nat.cast_pow, Nat.cast_ofNat,
           le_refl]
 
 namespace QuantumSigningForger

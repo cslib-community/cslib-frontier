@@ -302,7 +302,7 @@ private theorem fixedQueryGame_le (C : QuantumSigningForger) (s : Level) (base :
     change (tapes.bind (fun t => PMF.pure (decide (v ∈ Set.range t)))) true ≤ _
     rw [PMF.bind_pure_decide_apply_true, ENNReal.le_ofReal_iff_toReal_le
       (PMF.toOuterMeasure_ne_top _ _) (by positivity), prob_uniformOfFintype_embedding_mem_range]
-    simp only [Fintype.card_fin, card_hedge, Nat.cast_pow, Nat.cast_ofNat, le_refl]
+    simp only [Fintype.card_fin, FixedBytes.card, Nat.cast_pow, Nat.cast_ofNat, le_refl]
   simp only [Function.comp_apply]
   by_cases guess : (signingSeedCandidates (C := C) (hash H) addr).contains
       (Keccak.bytesToBitsLE (key H))

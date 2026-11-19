@@ -401,9 +401,10 @@ example (other : ExtendableOutput) (rho : FixedBytes 32)
       (result.trial.forgery.message, result.writes.map (fun w => (w.request, w.reply)),
         result.trial.log)) = PMF.pure ([true], [(q, none)], []) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_nil, Nat.not_lt_zero, ite_false]
+  simp only [publicPairSigning, runProgrammed, runSigningProgram, signingProbe,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+    OracleComp.sumHandler, signingCall, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q,
+    List.length_nil, Nat.not_lt_zero, ite_false]
   rw [show List.range 814 = 0 :: List.range' 1 813 by rw [List.range_eq_range', List.range'_succ],
     List.findSomeM?_cons]
   simp only [fatalDraw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
@@ -417,9 +418,10 @@ example (s : Level) (H : Xofs) (rho : FixedBytes 32) (pair : MLDSA.PublicKey s.p
       (result.trial.forgery.message, result.writes, result.trial.log, result.trial.xofs)) =
       PMF.pure ([true], [], [], H) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_replicate,
-    show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind, Option.isNone_none]
+  simp only [publicPairSigning, runProgrammed, runSigningProgram, signingProbe,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+    OracleComp.sumHandler, signingCall, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q,
+    List.length_replicate, show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind,
+    Option.isNone_none]
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

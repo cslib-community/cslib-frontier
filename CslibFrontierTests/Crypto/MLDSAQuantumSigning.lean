@@ -10,11 +10,12 @@ module
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofCoverage
-import CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
+import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Circuit
 meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+meta import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
 
 /-!
 # Quantum access to the ML-DSA signing experiment
@@ -40,6 +41,17 @@ private def keyRowMatches (tr r : FixedBytes 64) (ctx : List Byte) (m : List Boo
 #guard !keyRowMatches (fun _ => 7) (fun _ => 7) [] [] 1
 #guard !keyRowMatches (fun _ => 7) (fun _ => 7) [0] [] 0
 #guard !keyRowMatches (fun _ => 7) (fun _ => 7) [] [false] 0
+
+-- ML-DSA-44 reads four secret and four error polynomials. The final row is included,
+-- the next nonce is excluded, and the key seed has a different address length.
+private def expansionHit := hitsExpansionInput .mlDSA44 (fun _ => 1) (fun _ => 2)
+
+#guard expansionHit (some (keySeedInput .mlDSA44 (fun _ => 1)))
+#guard !expansionHit (some (keySeedInput .mlDSA65 (fun _ => 1)))
+#guard expansionHit (some (Keccak.bytesToBitsLE (nonceInput (List.replicate 64 2) 7)))
+#guard !expansionHit (some (Keccak.bytesToBitsLE (nonceInput (List.replicate 64 2) 8)))
+#guard !expansionHit (some (Keccak.bytesToBitsLE (nonceInput (List.replicate 64 1) 7)))
+#guard !expansionHit none
 
 -- First bytes of SHAKE128 and SHAKE256 applied to the empty string, in wire order.
 #guard List.ofFn (Xofs.shake.queryTable 2 1 (Xofs.queryAddress 2 false [] (by decide))) ==

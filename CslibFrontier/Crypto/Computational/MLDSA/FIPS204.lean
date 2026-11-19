@@ -367,6 +367,11 @@ high bits of each coefficient of the full public vector, in row and coefficient 
 def encodePublic (s : Level) (rho : List Byte) (t : Fin s.params.k → Poly) : List Byte :=
   rho ++ packCoeffs 10 (fun i j => (power2Round 8380417 13 (t i j)).1.toNat)
 
+/-- Algorithm 22 appends 320 bytes per rounded polynomial to the supplied matrix seed. -/
+@[simp] theorem length_encodePublic (s : Level) (rho : List Byte) (t : Fin s.params.k → Poly) :
+    (encodePublic s rho t).length = rho.length + 320 * s.params.k := by
+  simp [encodePublic]
+
 /-- The seed used to expand the matrix can be read from the published bytes. -/
 @[simp] theorem take_encodePublic (s : Level) (rho : FixedBytes 32) (t : Fin s.params.k → Poly) :
     (encodePublic s rho.toList t).take 32 = rho.toList := by
@@ -557,7 +562,7 @@ theorem Xofs.keyGen_congr_of_reads {H G : Xofs} (s : Level) (seed : FixedBytes 3
       G.h256.readBytes (encodePublic s (ex.take 32) v) 64 =
         H.h256.readBytes (encodePublic s (ex.take 32) v) 64 := by
     apply publicRead
-    simp only [encodePublic, List.length_append, List.length_take, len, length_packCoeffs]
+    simp only [length_encodePublic, List.length_take, len]
     rfl
   simp only [Xofs.keyGen, Xofs.expandS, seedRead, ← show ex = H.expandKeySeed s seed from rfl,
     matrix, short, pk]
