@@ -6903,6 +6903,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
 public import CslibFrontier.Foundations.Geometry.Polygonal.SlopeDetour
 public import CslibFrontier.Foundations.Geometry.Polygonal.Translation
+public import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
 public import CslibFrontier.Foundations.Geometry.Polyhedra
 public import CslibFrontier.Foundations.Geometry.Polyhedra.Complex
 public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseLinear
