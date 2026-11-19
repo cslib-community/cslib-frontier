@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
@@ -10529,3 +10530,28 @@ register_result "abstract-dpll-learning-correctness" where
     assignments, Forget could remove the tautology b ∨ ¬b from a, b ∨ ¬b and end at the trail a. \
     Backjump and Learn use entailment by total assignments, which the §2.1 entailment implies, \
     so every step of the source is a step here."
+
+register_result "synchronous-correlations-tracial-representation" where
+  title := "Tracial representation of synchronous commuting correlations"
+  topic := "nonlocal games"
+  sources := [
+    { paper := PaulsenEtAl2016, theorem := "Theorem 5.5",
+      locator := "arXiv:1407.6918v2, pp. 16–18" }
+  ]
+  theorems := [
+    Cslib.PCP.CommutingStrategy.IsSynchronous.norm_effect_sub_eq_zero,
+    Cslib.PCP.CommutingStrategy.IsSynchronous.ofReal_prob_eq_state_alice,
+    Cslib.PCP.CommutingStrategy.IsSynchronous.ofReal_prob_eq_state_bob,
+    Cslib.PCP.CommutingStrategy.IsSynchronous.prob_comm,
+    Cslib.PCP.CommutingStrategy.isSynchronous_swap_iff,
+    Cslib.PCP.CommutingStrategy.IsSynchronous.aliceState_isTracial,
+    Cslib.PCP.CommutingStrategy.ofTracial_isProjective,
+    Cslib.PCP.CommutingStrategy.ofTracial_isSynchronous,
+    Cslib.PCP.CommutingStrategy.ofTracial_prob
+  ]
+  scope := "Pointwise correlations of commuting strategies over complex star-ordered algebras. \
+    Zero state distance expresses equality on the GNS vector. The state restricts to a trace on \
+    either player's norm-closed generated C*-algebra, exchanging players for Bob. In the converse, \
+    a normalized trace and projective measurements give commuting projective actions on its \
+    GNS Hilbert space. The complex trace of the product equals the real probability coerced \
+    to ℂ. The forward agreement and trace statements allow POVMs."

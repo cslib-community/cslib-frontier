@@ -69,8 +69,9 @@ example :
 Pauli bases. The same strategy answers synchronously on each individual basis. -/
 example : strategy.IsSynchronous ∧ strategy.prob false true false false = 1 / 4 := by
   refine ⟨strategy_isSynchronous, ?_⟩
+  apply Complex.ofReal_injective
   rw [strategy, CommutingStrategy.ofTracial_prob]
-  change (trace (signProj pauliZ false * signProj pauliX false) / (2 : ℂ)).re = _
+  change trace (signProj pauliZ false * signProj pauliX false) / (2 : ℂ) = _
   norm_num [signProj, Cslib.BitString.signVal_false, Matrix.trace,
     Fintype.sum_bool, Matrix.mul_apply, Matrix.smul_apply, Matrix.add_apply]
 
@@ -87,6 +88,17 @@ example :
         strategy.aliceState ((P x).effect a * (P y).effect b) :=
   strategy_isSynchronous.exists_aliceState_projective fun x =>
     (CommutingStrategy.ofTracial_isProjective _ _ _ pauliMeasurement_isProjective x).1
+
+/-- Trace recovery and the GNS constructor preserve all probabilities in a round trip. -/
+example (x y a b : Bool) :
+    (CommutingStrategy.ofTracial strategy.aliceState strategy_isSynchronous.aliceState_isTracial
+      strategy.aliceMeasurements).prob x y a b = strategy.prob x y a b := by
+  apply Complex.ofReal_injective
+  rw [CommutingStrategy.ofTracial_prob, CommutingStrategy.aliceState_apply]
+  change strategy.state (strategy.aliceAlgebra.subtype (_ * _)) = _
+  rw [map_mul]
+  simpa only [StarSubalgebra.subtype_apply, CommutingStrategy.aliceMeasurements_effect] using
+    (strategy_isSynchronous.ofReal_prob_eq_state_alice x y a b).symm
 
 private noncomputable def equalityGame : TwoProverGame Bool Bool Bool Bool where
   questions := Cslib.Probability.PMF.uniformOfFintype (Bool × Bool)
