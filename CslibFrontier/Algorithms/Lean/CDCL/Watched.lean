@@ -289,12 +289,6 @@ enough fuel. -/
 @[expose] def sortBy {α : Type} (le : α → α → Bool) (xs : List α) : List α :=
   sortBy.go le xs.length xs
 
-/-- The list sorted by `≤` without its adjacent repetitions: on a sorted list, its distinct
-elements. -/
-@[expose] def dedupSorted : List ℕ → List ℕ
-  | a :: b :: t => if a == b then dedupSorted (b :: t) else a :: dedupSorted (b :: t)
-  | l => l
-
 /-- Whether the clause numbered `id` is a learned clause of a formula of `n` clauses: the clauses of
 the formula are numbered `1` to `n`. Counting the learned clauses at insertion and in the store
 (`Cslib.Algorithms.Lean.CDCL.WatchStore.learntCount`) both use it. -/
@@ -338,9 +332,9 @@ by which `WatchStore.learntCount` counts the store. -/
 @[expose]
 def Reduction.learn (R : Reduction) (used : List ℕ) (id next : ℕ) (stored : Bool) : Reduction :=
   -- each number once: the learned clause may be the conflict clause, among `used`, and `used`
-  -- may list a number twice; sorting costs `O(k log k)` for `k` numbers, independently of their
-  -- size
-  let act := (R.act.grow next).bumpEach (dedupSorted (sortBy (· ≤ ·) (id :: used))) 999
+  -- may list a number twice; the numbers are sorted, with `O(k log k)` comparisons for `k`
+  -- numbers, and adjacent repetitions are removed
+  let act := (R.act.grow next).bumpEach (sortBy (· ≤ ·) (id :: used)).eraseReps 999
   let learnts := if stored then R.learnts + 1 else R.learnts
   if R.countdown ≤ 1 then
     let adjust := R.adjust + R.adjust / 2
@@ -1639,6 +1633,14 @@ reduction at every decision. -/
 @[expose] def WatchStore.learntCount (S : WatchStore) (n : ℕ) : ℕ :=
   S.clauses.foldl (fun k e => if isLearntId n e.1 then k + 1 else k) 0
 
+/-- **Adding a clause to the store** of two or more literals adds one to the count of learned
+clauses exactly when its number is a learned one. -/
+theorem WatchStore.learntCount_addClause (S : WatchStore) (n id : ℕ) (w₁ w₂ : Literal ℕ)
+    (rest : Clause ℕ) :
+    (S.addClause id (w₁ :: w₂ :: rest)).learntCount n =
+      if isLearntId n id then S.learntCount n + 1 else S.learntCount n := by
+  simp only [WatchStore.addClause, WatchStore.learntCount, Array.foldl_push]
+
 /-- The invariant does not read the bookkeeping of reduction and simplification, nor the
 statistics. -/
 theorem WExec.Inv.withBookkeeping {S : WExec φ} (h : S.Inv) (red : Reduction) (simpAssigns : ℕ)
@@ -1853,6 +1855,20 @@ theorem WExec.maybeReduce_conflicts (S : WExec φ) :
   split
   · split <;> rfl
   · rfl
+
+/-- **The count of learned clauses at insertion**: with reduction on, a conflict whose learned
+clause goes to the watch store (two or more literals) counts it exactly when its number is a
+learned one (`isLearntId`), the rule by which `WatchStore.learntCount` counts the store
+(`WatchStore.learntCount_addClause`). -/
+theorem WExec.afterConflict_learnts (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) (k₀ : ℕ)
+    (hred : S.opts.reduce = true) (hk : 2 ≤ (dedupLits L.clause).length) :
+    (S.afterConflict sp L k₀).red.learnts =
+      if isLearntId φ.length L.id then S.red.learnts + 1 else S.red.learnts := by
+  unfold WExec.afterConflict
+  dsimp only
+  rw [ite_eq_left hk]
+  simp only [reducedWith, hred, ite_true, Reduction.learn]
+  split <;> rfl
 
 /-- A conflict counts one. -/
 theorem WExec.afterConflict_conflicts (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp)
