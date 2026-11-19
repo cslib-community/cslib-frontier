@@ -38,6 +38,11 @@ namespace Cslib.Quantum.AlgState
     (φ : AlgState A) : Prop :=
   ∀ x y, φ (x * y) = φ (y * x)
 
+/-- A faithful state vanishes on the square of an element only if the element is zero. -/
+@[expose] def IsFaithful {A : Type*} [Ring A] [StarRing A] [PartialOrder A] [Algebra ℂ A]
+    (φ : AlgState A) : Prop :=
+  ∀ z, φ (star z * z) = 0 → z = 0
+
 variable {A : Type*} [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
   (φ : AlgState A)
 
@@ -59,7 +64,8 @@ private theorem rightMulPreGNS_toPreGNS (hφ : φ.IsTracial) (a x : A) :
     rightMulPreGNS φ hφ a (φ.toPreGNS x) = φ.toPreGNS (x * a) := by
   simp [rightMulPreGNS]
 
-private theorem gns_ext {T R : φ.toPositiveLinearMap.GNS →L[ℂ] φ.toPositiveLinearMap.GNS}
+/-- Continuous operators on the GNS space are determined by their values on the dense image. -/
+theorem gns_ext {T R : φ.toPositiveLinearMap.GNS →L[ℂ] φ.toPositiveLinearMap.GNS}
     (h : ∀ x : A, T (φ.toPreGNS x) = R (φ.toPreGNS x)) : T = R := by
   ext z
   induction z using Completion.induction_on with

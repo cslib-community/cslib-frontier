@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
+import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Foundations.Quantum.Algebra.Involution
 import CslibFrontier.Foundations.Quantum.Pauli
 import CslibFrontier.Probability.PMF.Uniform
@@ -94,30 +94,57 @@ example (x y a b : Bool) :
     (CommutingStrategy.ofTracial strategy.aliceState strategy_isSynchronous.aliceState_isTracial
       strategy.aliceMeasurements).prob x y a b = strategy.prob x y a b := by
   apply Complex.ofReal_injective
-  rw [CommutingStrategy.ofTracial_prob, CommutingStrategy.aliceState_apply]
-  change strategy.state (strategy.aliceAlgebra.subtype (_ * _)) = _
-  rw [map_mul]
-  simpa only [StarSubalgebra.subtype_apply, CommutingStrategy.aliceMeasurements_effect] using
-    (strategy_isSynchronous.ofReal_prob_eq_state_alice x y a b).symm
+  rw [CommutingStrategy.ofTracial_prob]
+  exact (strategy_isSynchronous.ofReal_prob_eq_aliceState x y a b).symm
 
 private noncomputable def equalityGame : TwoProverGame Bool Bool Bool Bool where
   questions := Cslib.Probability.PMF.uniformOfFintype (Bool × Bool)
   accepts x y a b := x = y → a = b
 
-/-- The tracial realization also plays a game through the existing commuting-strategy API. -/
-example : equalityGame.commutingWinProb strategy = 1 := by
-  classical
-  have h (x y : Bool) : (∑ a, ∑ b, if equalityGame.accepts x y a b then
-      strategy.prob x y a b else 0) = 1 := by
-    refine (sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_).trans (strategy.sum_prob x y)
-    by_cases he : equalityGame.accepts x y a b
-    · exact ite_eq_left he
-    · have hxy : x = y := Classical.byContradiction fun hxy => he (fun h => (hxy h).elim)
-      subst y
-      have hab : a ≠ b := fun hab => he (fun _ => hab)
-      rw [ite_eq_right he, strategy_isSynchronous x a b hab]
-  rw [TwoProverGame.commutingWinProb_eq_sum]
-  simp only [h, mul_one]
-  norm_num [ equalityGame, Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.sum_bool]
+private theorem equalityGame_isSynchronous : equalityGame.IsSynchronous :=
+  fun _ _ _ hab h => hab (h rfl)
+
+private theorem strategy_isPerfect : equalityGame.IsPerfectCommuting strategy := by
+  intro x y a b hr
+  by_cases hxy : x = y
+  · subst y
+    exact strategy_isSynchronous x a b fun hab => hr (fun _ => hab)
+  · exact (hr fun h => (hxy h).elim).elim
+
+/-- A pointwise perfect strategy has score one under the verifier's distribution. -/
+example : equalityGame.commutingWinProb strategy = 1 :=
+  strategy_isPerfect.commutingWinProb_eq_one equalityGame
+
+/-- With full support, a score of one forces every rejected tuple to have probability zero. -/
+example (h : equalityGame.commutingWinProb strategy = 1) :
+    equalityGame.IsPerfectCommuting strategy :=
+  (equalityGame.commutingWinProb_eq_one_iff_isPerfectCommuting strategy
+    fun x y => Cslib.Probability.PMF.mem_support_uniformOfFintype (x, y)).mp h
+
+/-- Recover a faithful tracial representation from the qubit strategy and use its GNS strategy
+to score one in the original game. -/
+example :
+    ∃ (C : Type) (_ : CStarAlgebra C) (_ : PartialOrder C) (_ : StarOrderedRing C),
+      ∃ S : CommutingStrategy Bool Bool Bool Bool C, equalityGame.commutingWinProb S = 1 := by
+  rcases (equalityGame.exists_isPerfectCommuting_iff equalityGame_isSynchronous).mp
+    ⟨_, inferInstance, inferInstance, inferInstance, strategy, strategy_isPerfect⟩ with
+      ⟨C, _, _, _, τ, hτ, _, ⟨π⟩⟩
+  have h := TwoProverGame.GameAlgebra.isPerfectCommuting_ofTracial equalityGame π τ hτ
+  exact ⟨_, inferInstance, inferInstance, inferInstance, _,
+    h.commutingWinProb_eq_one equalityGame⟩
+
+private noncomputable def rejectAll : TwoProverGame Unit Unit Unit Unit where
+  questions := PMF.pure ((), ())
+  accepts _ _ _ _ := False
+
+/-- Rejecting every answer forces the lone generator to be zero and one. -/
+example (π : rejectAll.GameAlgebra →⋆ₐ[ℂ] ℂ) : False := by
+  let e := TwoProverGame.GameAlgebra.effect rejectAll () ()
+  have hzero : e = 0 :=
+    (TwoProverGame.GameAlgebra.effect_mul_self rejectAll () ()).symm.trans
+      (TwoProverGame.GameAlgebra.effect_mul_eq_zero_of_rejected rejectAll () () () () id)
+  have hone : e = 1 := by
+    simpa only [Fintype.sum_unique] using TwoProverGame.GameAlgebra.sum_effect rejectAll ()
+  exact zero_ne_one (by simpa only [map_zero, map_one] using congrArg π (hzero.symm.trans hone))
 
 end CslibFrontierTests.Synchronous

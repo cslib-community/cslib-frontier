@@ -6,6 +6,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
@@ -10555,3 +10556,21 @@ register_result "synchronous-correlations-tracial-representation" where
     a normalized trace and projective measurements give commuting projective actions on its \
     GNS Hilbert space. The complex trace of the product equals the real probability coerced \
     to ℂ. The forward agreement and trace statements allow POVMs."
+
+register_result "synchronous-game-perfect-commuting-equivalence" where
+  title := "Perfect commuting strategies and tracial representations of synchronous game algebras"
+  topic := "nonlocal games"
+  sources := [
+    { paper := HeltonEtAl2019, theorem := "Theorem 3.2(3)",
+      locator := "published version, pp. 336–338 (game algebra in §3.1)" }
+  ]
+  theorems := [
+    Cslib.PCP.TwoProverGame.exists_isPerfectCommuting_iff,
+    Cslib.PCP.TwoProverGame.commutingWinProb_eq_one_iff_isPerfectCommuting
+  ]
+  scope := "The commuting case of Theorem 3.2. The strategy has zero probability at every \
+    rejected tuple. The unital star algebra has projection generators summing to one at each \
+    question and zero products at rejected tuples. A faithful tracial representation is obtained \
+    on the closed algebra of left GNS operators. The reverse construction uses commuting GNS \
+    actions and works with any tracial state. The real-valued score formulation requires full \
+    support on question pairs for the implication from score one to pointwise perfection."
