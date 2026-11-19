@@ -7,7 +7,8 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
+public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsistency
+import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingDiagonal
 public import CslibFrontier.Computability.PCP.TwoProverGame.SymmetricLinearityReduction
 import CslibFrontier.Foundations.Data.Finset.Expect
 
@@ -28,6 +29,8 @@ reduction then controls the averaged point observables in each basis and role as
 * `Cslib.PCP.rejection_pauliBraidingLinearityStrategy_le`: rejection in a fixed basis.
 * `Cslib.PCP.one_sub_le_expect_re_apply_mul_mul_of_pauliBraidingLinearity`: the correlation
   estimate for either basis and either role assignment.
+* `Cslib.PCP.expect_norm_asymmetricLinearity_sub_basis_sq_le`: the averaged point and
+  consistency decoders agree up to an error controlled by linearity rejection.
 -/
 
 public section
@@ -42,7 +45,7 @@ variable {n : ℕ} {Q A 𝒜 : Type*} [Fintype A] [CStarAlgebra 𝒜] [PartialOr
 
 /-- The strategy on one basis of the Pauli braiding verifier, with malformed answers
 decoded as the all-false pair. -/
-def pauliBraidingLinearityStrategy (basis : Bool)
+@[expose] def pauliBraidingLinearityStrategy (basis : Bool)
     (S : CommutingStrategy (PauliBraidingQuestion n Q) (PauliBraidingQuestion n Q)
       ((Bool × Bool) ⊕ A) ((Bool × Bool) ⊕ A) 𝒜) :
     CommutingStrategy ((Fin n → Bool) × (Fin n → Bool)) ((Fin n → Bool) × (Fin n → Bool))
@@ -130,5 +133,101 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_pauliBraidingLinearity
     (fun q => (hA basis q).map _) (fun q => (hB basis q).map _) hscore roles
   dsimp only at h
   rwa [show 12 * (2 * ε) = 24 * ε by ring, show 24 * (2 * ε) = 48 * ε by ring] at h
+
+open BitString in
+/-- The averaged point and consistency observables agree in X. In Z, the squared
+state-norm distance is controlled by the linearity rejection probability for general
+measurements. -/
+theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
+    (G : TwoProverGame Q Q A A) (special : Bool → Q) (decode : Bool → A → Bool)
+    (S : CommutingStrategy (PauliBraidingQuestion n Q) (PauliBraidingQuestion n Q)
+      ((Bool × Bool) ⊕ A) ((Bool × Bool) ⊕ A) 𝒜)
+    (basis roles : Bool) :
+    let R := pauliBraidingLinearityStrategy basis S
+    let T := (cond roles R R.swap).asymmetricLinearity
+    let M := cond roles S.alice S.bob
+    (𝔼 c, S.state.norm ((T.alice c).observable -
+      (𝔼 d, pauliBraidingBasisObservable M basis c d)) ^ 2) ≤
+      if basis then 48 / (Fintype.card (Fin n → Bool) : ℝ) *
+        (1 - (pauliBraidingBranchGame n G special decode 0).commutingWinProb S)
+      else 0 := by
+  classical
+  intro R T M
+  let point (c d : Fin n → Bool) :=
+    ((M (.basis basis (cond (lexSwap c d) Prod.swap id (c, d)))).map
+      (Sum.elim (fun r => (cond (lexSwap c d) Prod.swap id r).1) fun _ => false)).observable
+  let tie (c : Fin n → Bool) := M (.basis basis (c, c))
+  let first : (Bool × Bool) ⊕ A → Bool := Sum.elim Prod.fst fun _ => false
+  let second : (Bool × Bool) ⊕ A → Bool := Sum.elim Prod.snd fun _ => false
+  let diff (c : Fin n → Bool) := ((tie c).map first).observable - ((tie c).map second).observable
+  let bad (c : Fin n → Bool) := ((tie c).map (fun a => first a ^^ second a)).prob S.state true
+  let size := Fintype.card (Fin n → Bool)
+  have hpoint (c : Fin n → Bool) : (T.alice c).observable = 𝔼 d, point c d := by
+    dsimp only [T]
+    rw [CommutingStrategy.observable_asymmetricLinearity]
+    refine expect_congr rfl fun d _ => ?_
+    let read (r : Bool × Bool) := (cond (lexSwap c d) Prod.swap id r).1
+    have hread : read ∘ Sum.elim id (fun _ : A => (false, false)) =
+        Sum.elim read (fun _ => false) := by
+      funext a
+      cases a with
+      | inl r => rfl
+      | inr a =>
+        change (cond (lexSwap c d) Prod.swap id (false, false)).1 = false
+        cases lexSwap c d <;> rfl
+    change (Measurement.map read ((cond roles R R.swap).alice _)).observable = point c d
+    cases roles <;>
+      simp only [R, M, point, Bool.cond_false, Bool.cond_true, pauliBraidingLinearityStrategy,
+        CommutingStrategy.swap, CommutingStrategy.map, Measurement.map_map, hread] <;> rfl
+  have hcompare (c d : Fin n → Bool) :
+      point c d - pauliBraidingBasisObservable M basis c d =
+        if basis then (if d = c then diff c else 0) else 0 := by
+    cases basis
+    · change point c d - point c d = 0
+      exact sub_self _
+    · by_cases h : d = c
+      · subst d
+        change point c c -
+          ((M (.basis true (cond (lexSwap c c) Prod.swap id (c, c)))).map
+            (Sum.elim (fun r => (cond (lexSwap c c) Prod.swap id r).2) fun _ => false)).observable =
+          if c = c then diff c else 0
+        have htie : lexSwap c c = false := by simp [lexSwap]
+        simp only [point, diff, tie, first, second, htie, Bool.cond_false, id_eq, ite_true, eq_self]
+      · obtain ⟨hq, hbit⟩ :=
+          PauliConsistencyQuestion.ofChecked_braiding (Q := Q) true c d (Or.inl h)
+        simp only [point, pauliBraidingBasisObservable, hq, hbit, h, ite_true, ite_false, sub_self]
+  have hdiff (c : Fin n → Bool) :
+      (T.alice c).observable - (𝔼 d, pauliBraidingBasisObservable M basis c d) =
+        if basis then (size : ℚ≥0)⁻¹ • diff c else 0 := by
+    rw [hpoint, ← expect_sub_distrib]
+    simp_rw [hcompare]
+    cases basis <;> simp [size]
+  simp only [hdiff]
+  cases basis
+  · simp [AlgState.norm_zero]
+  · have hweighted : (𝔼 c, bad c) / size ≤
+        12 * (1 - (pauliBraidingBranchGame n G special decode 0).commutingWinProb S) := by
+      have h := expect_prob_mismatch_pauliBraidingDiagonal_le G special decode (!roles) true S
+      dsimp only at h
+      have hdecode : (fun a => first a ^^ second a) =
+          Sum.elim (fun bits : Bool × Bool => bits.1 ^^ bits.2) (fun _ => false) := by
+        funext a
+        cases a <;> rfl
+      simp only [bad, tie, hdecode, size]
+      cases roles <;> exact h
+    simp only [ite_true, AlgState.norm_nnqsmul, NNRat.cast_inv, NNRat.cast_natCast, mul_pow]
+    calc
+      _ ≤ 𝔼 c, (4 * ((size : ℝ)⁻¹) ^ 2) * bad c := by
+        refine expect_le_expect fun c _ => ?_
+        have h := (tie c).norm_observable_map_sub_sq_le S.state first second
+        change S.state.norm (diff c) ^ 2 ≤ 4 * bad c at h
+        simpa only [mul_assoc, mul_left_comm (((size : ℝ)⁻¹) ^ 2) 4] using
+          mul_le_mul_of_nonneg_left h (sq_nonneg ((size : ℝ)⁻¹))
+      _ = (4 / size) * ((𝔼 c, bad c) / size) := by
+        rw [← mul_expect]
+        ring
+      _ ≤ _ := by
+        rw [show (48 : ℝ) / size = (4 / size) * 12 by ring, mul_assoc]
+        exact mul_le_mul_of_nonneg_left hweighted (by positivity)
 
 end Cslib.PCP

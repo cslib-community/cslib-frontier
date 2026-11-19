@@ -132,6 +132,64 @@ theorem IsProjective.observable_map_mul_observable_map
   refine sum_congr rfl fun r _ => ?_
   rw [BitString.signVal_xor, Complex.ofReal_mul]
 
+/-- For a general measurement, the squared distance between two decoded observables is
+at most four times the probability of different decoder outputs. -/
+theorem norm_observable_map_sub_sq_le (M : Measurement α A)
+    (φ : AlgState A) (f g : α → Bool) :
+    φ.norm ((M.map f).observable - (M.map g).observable) ^ 2 ≤
+      4 * (M.map (fun a => f a ^^ g a)).prob φ true := by
+  let s (a : α) : ℝ := BitString.signVal (f a) - BitString.signVal (g a)
+  let D := (M.map f).observable - (M.map g).observable
+  let V (a : α) : A := s a • 1 - D
+  have hD : IsSelfAdjoint D :=
+    (M.map f).isSelfAdjoint_observable.sub (M.map g).isSelfAdjoint_observable
+  have hsum : ∑ a, s a • M.effect a = D := by
+    simp only [D, observable_map, ← sum_sub_distrib, s, sub_smul]
+    rfl
+  have hvar : 0 ≤ ∑ a, V a * M.effect a * V a := by
+    refine sum_nonneg fun a _ => ?_
+    have hV : IsSelfAdjoint (V a) := by
+      change star (s a • (1 : A) - D) = _
+      simp [V, hD.star_eq, star_smul]
+    simpa only [hV.star_eq] using star_left_conjugate_nonneg (M.nonneg a) (V a)
+  have hterm (a : α) : V a * M.effect a * V a =
+      (s a * s a) • M.effect a - (s a • M.effect a) * D -
+        D * (s a • M.effect a) + D * M.effect a * D := by
+    simp only [V, sub_mul, mul_sub, smul_mul_assoc, one_mul, mul_smul_comm, mul_one,
+      smul_sub, ← mul_smul]
+    abel
+  simp only [hterm, sum_add_distrib, sum_sub_distrib, ← sum_mul, ← mul_sum, M.sum_effect,
+    mul_one, hsum, sub_add_cancel] at hvar
+  have hr := φ.re_apply_mono (sub_nonneg.mp hvar)
+  have hnorm : φ.norm D ^ 2 = (φ (D * D)).re := by rw [φ.norm_sq, hD.star_eq]
+  rw [← hnorm] at hr
+  refine hr.trans_eq ?_
+  have hscalar (a : α) : (s a * s a) • M.effect a =
+      if f a ^^ g a = true then (4 : ℂ) • M.effect a else 0 := by
+    cases hf : f a <;> cases hg : g a <;> norm_num [s, hf, hg, BitString.signVal,
+      ← Complex.coe_smul]
+  simp_rw [hscalar, ← sum_filter, ← smul_sum]
+  rw [← map_effect, map_smul, smul_eq_mul]
+  simp [prob]
+
+/-- The squared distance between two bit observables of one projective measurement is
+four times the probability that those bits differ. -/
+theorem IsProjective.norm_observable_map_sub_sq (hM : M.IsProjective)
+    (φ : AlgState A) (f g : α → Bool) :
+    φ.norm ((M.map f).observable - (M.map g).observable) ^ 2 =
+      4 * (M.map (fun a => f a ^^ g a)).prob φ true := by
+  let P := M.map (fun a => f a ^^ g a)
+  have hsum := P.sum_effect
+  rw [Fintype.sum_bool] at hsum
+  rw [φ.norm_sub_sq_eq_of_mul_self (M.map f).isSelfAdjoint_observable
+    (M.map g).isSelfAdjoint_observable (observable_mul_self (hM.map f))
+    (observable_mul_self (hM.map g)), hM.observable_map_mul_observable_map]
+  change 2 - 2 * (φ (P.effect false - P.effect true)).re =
+    4 * (φ (P.effect true)).re
+  rw [eq_sub_of_add_eq hsum, map_sub, map_sub, AlgState.map_one, Complex.sub_re,
+    Complex.sub_re, Complex.one_re]
+  ring
+
 end Measurement
 
 end Cslib.Quantum

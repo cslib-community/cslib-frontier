@@ -88,6 +88,30 @@ variable {n : ℕ} {Q A : Type*}
     (answer : Bool × Bool) : Bool :=
   q.checkedBit (cond (lexSwap q.xString q.zString) Prod.swap id answer)
 
+/-- Away from a Z-basis tie, the consistency and linearity conventions give the same
+sorted question and read the same coordinate. -/
+theorem PauliConsistencyQuestion.ofChecked_braiding (basis : Bool)
+    (c dummy : Fin n → Bool) (h : dummy ≠ c ∨ basis = false) :
+    let q := ofChecked basis c dummy
+    q.toBraidingQuestion =
+        (.basis basis (cond (lexSwap c dummy) Prod.swap id (c, dummy)) :
+          PauliBraidingQuestion n Q) ∧
+      q.braidingCheckedBit = fun r => (cond (lexSwap c dummy) Prod.swap id r).1 := by
+  intro q
+  cases basis
+  · exact ⟨rfl, rfl⟩
+  have hswap := lexSwap_reverse (Ne.symm (h.resolve_right Bool.noConfusion))
+  constructor
+  · change (.basis true (cond (lexSwap dummy c) Prod.swap id (dummy, c)) :
+      PauliBraidingQuestion n Q) = _
+    rw [hswap]
+    cases lexSwap c dummy <;> rfl
+  · funext r
+    change (cond (lexSwap dummy c) Prod.swap id r).2 =
+      (cond (lexSwap c dummy) Prod.swap id r).1
+    rw [hswap]
+    cases lexSwap c dummy <;> rfl
+
 /-- The two basis questions before lexicographic sorting, in physical player order. -/
 @[expose] def pauliBraidingSameBasisQuestions (swapRoles basis : Bool)
     (p : ↥(oddPairs (Fin n))) (dummy : Fin n → Bool) :

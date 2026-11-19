@@ -3989,6 +3989,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
 public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingAnticommutation
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsistency
+public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingDiagonal
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingLinearity
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingZero
