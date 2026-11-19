@@ -698,7 +698,7 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
     erw [Machine.runFrom_bind, Machine.runFrom_bind, mapRightProg_bind]
     cases q with
     | inl k =>
-      rw [runFrom_query_inl_coin, runFrom_query_inl_coin]
+      erw [runFrom_query_inl_coin, runFrom_query_inl_coin]
       erw [mapRightProg_map]
       simp only [mapRightProg]
       erw [ProbOracleComp.interpret_sample, (OracleComp.substitute_eq_interpret _ _).symm]
@@ -854,7 +854,7 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
     cases q with
     | inl k =>
       simp only [OracleComp.interpret_query, sumHandler]
-      rw [runFrom_query_inl_coin, runFrom_query_inl_coin]
+      erw [runFrom_query_inl_coin, runFrom_query_inl_coin]
       erw [OracleComp.interpret_map, ProbOracleComp.interpret_sample,
         (OracleComp.substitute_eq_interpret _ _).symm]
       erw [bind_map_left]
@@ -892,7 +892,7 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
         · simp only [OracleComp.interpret_query, sumHandler, demuxNetQuery]
           erw [Machine.runFrom_query, Machine.runFrom_query]
           simp only [routeCorrupt, hybridWrap, multiHybridWrap, MultiHybridProtocol.toJoint]
-          repeat erw [StateT.run_map]
+          simp only [StateT.run_map]
           simp only [StateT.run]
           erw [liftParty_map, liftMultiParty_map]
           erw [interpret_liftParty_toJoint (((ρ κ C).handle (.inr q)).run sρ)]
@@ -1058,14 +1058,15 @@ private theorem eval_run_multiSession_relabel {m n : ℕ}
                 (Machine.closeProgram
                   ((P₂.handle (Sum.inr (Sum.inl (i, ⟨j, x⟩)))).run (rep s))).eval
               simp only [P₁, P₂, M, parFinLazy, corruptRouter, IdealFunctionality.multiSession,
-                IdealFunctionality.toProtocol, hi, ↓reduceIte, rep, stateT_map_apply, StateT.run]
+                IdealFunctionality.toProtocol, hi, ↓reduceIte, rep, StateT.run_map]
+              simp only [StateT.run]
               cases s j with
               | none =>
                 simp [Machine.closeProgram_bind, Machine.closeProgram_sample,
                   Machine.closeProgram_map, ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind,
                   PMF.map_comp, Function.comp_def]
               | some st =>
-                simp [Machine.closeProgram_sample, Machine.closeProgram_map, ProbComp.eval_map,
+                simp [Machine.closeProgram_map, ProbComp.eval_map,
                   pure_bind, PMF.map_comp, Function.comp_def]
             · simp only [hi, ↓reduceIte, OracleComp.interpret_pure, StateT.run_pure]
               erw [PMF.pure_map]
@@ -1077,14 +1078,15 @@ private theorem eval_run_multiSession_relabel {m n : ℕ}
                 (fun (a, s') => (a, rep s')) =
               (Machine.closeProgram ((P₂.handle (Sum.inr (Sum.inr ⟨j, bq⟩))).run (rep s))).eval
             simp only [P₁, P₂, M, parFinLazy, corruptRouter, IdealFunctionality.multiSession,
-              IdealFunctionality.toProtocol, rep, stateT_map_apply, StateT.run]
+              IdealFunctionality.toProtocol, rep, StateT.run_map]
+            simp only [StateT.run]
             cases s j with
             | none =>
               simp [Machine.closeProgram_bind, Machine.closeProgram_sample,
                 Machine.closeProgram_map, ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind,
                 PMF.map_comp, Function.comp_def]
             | some st =>
-              simp [Machine.closeProgram_sample, Machine.closeProgram_map, ProbComp.eval_map,
+              simp [Machine.closeProgram_map, ProbComp.eval_map,
                 pure_bind, PMF.map_comp, Function.comp_def])
       prog (fun _ => none)
     have hfst := congrArg (PMF.map Prod.fst) hmap
