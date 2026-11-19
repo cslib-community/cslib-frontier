@@ -140,6 +140,12 @@ theorem oddExpect_nonneg (h : ∀ a b, a ⬝ᵥ b = true → 0 ≤ f a b) : 0 �
   rwa [oddExpect_def (fun _ _ => 0), show (𝔼 a : ι → Bool, 𝔼 b : ι → Bool,
     if a ⬝ᵥ b = true then (0 : ℝ) else 0) = 0 by simp] at h0
 
+/-- At most half of all pairs have odd inner product. -/
+theorem dens_oddPairs_le_half : ((oddPairs ι).dens : ℝ) ≤ 1 / 2 := by
+  rw [dens_oddPairs]
+  have h : 0 ≤ ((2 : ℝ) ^ Fintype.card ι)⁻¹ := by positivity
+  linarith
+
 /-- The masked average is the density of the odd pairs times the conditional average over them. -/
 theorem oddExpect_eq_dens_smul (f : (ι → Bool) → (ι → Bool) → ℝ) :
     oddExpect f = ((oddPairs ι).dens : ℝ) * 𝔼 p ∈ oddPairs ι, f p.1 p.2 := by
@@ -147,6 +153,14 @@ theorem oddExpect_eq_dens_smul (f : (ι → Bool) → (ι → Bool) → ℝ) :
     if a ⬝ᵥ b = true then f a b else 0), Finset.univ_product_univ]
   simp_rw [← mem_oddPairs]
   rw [Fintype.expect_ite_mem, NNRat.smul_def]
+
+/-- The masked average is the density times the uniform average on the subtype of odd pairs. -/
+theorem oddExpect_eq_dens_mul_expect (f : (ι → Bool) → (ι → Bool) → ℝ) :
+    oddExpect f = ((oddPairs ι).dens : ℝ) * (𝔼 p : ↥(oddPairs ι), f p.val.1 p.val.2) := by
+  rw [oddExpect_eq_dens_smul, univ_eq_attach]
+  congr 1
+  rw [Finset.expect, Finset.expect, card_attach,
+    sum_attach (oddPairs ι) (fun p => f p.1 p.2)]
 
 /-- The first marginal of the masked odd-pair average is half the uniform
 average with the zero string removed by a mask. -/

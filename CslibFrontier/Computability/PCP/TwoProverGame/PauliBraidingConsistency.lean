@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
 public import CslibFrontier.Foundations.Quantum.Algebra.Expect
+import CslibFrontier.Foundations.Quantum.Algebra.MeasurementAverage
 
 /-!
 # Consistency rounds of the Pauli braiding verifier
@@ -213,13 +214,30 @@ theorem weighted_sum_norm_sub_sq_le_of_pauliBraidingMatchedGame [Finite Q]
   unfold SeededGame.commutingWinProb
   linarith only [h]
 
-/-- Decode the observable for one checked string and one dummy. Malformed answers are
-decoded as `false`, consistently with the same-basis rejection estimate. -/
+/-- The binary measurement of a checked string and dummy in the consistency verifier.
+Malformed answers are decoded as `false`. -/
+abbrev pauliBraidingBasisBitMeasurement
+    (measure : PauliBraidingQuestion n Q → Measurement ((Bool × Bool) ⊕ A) 𝒜)
+    (basis : Bool) (checked dummy : Fin n → Bool) : Measurement Bool 𝒜 :=
+  let q := PauliConsistencyQuestion.ofChecked basis checked dummy
+  (measure q.toBraidingQuestion).map (Sum.elim q.braidingCheckedBit fun _ => false)
+
+/-- The consistency observable decoded from one checked string and one dummy. -/
 @[expose] noncomputable def pauliBraidingBasisObservable
     (measure : PauliBraidingQuestion n Q → Measurement ((Bool × Bool) ⊕ A) 𝒜)
     (basis : Bool) (checked dummy : Fin n → Bool) : 𝒜 :=
-  let q := PauliConsistencyQuestion.ofChecked basis checked dummy
-  ((measure q.toBraidingQuestion).map (Sum.elim q.braidingCheckedBit fun _ => false)).observable
+  (pauliBraidingBasisBitMeasurement measure basis checked dummy).observable
+
+omit [Nonempty (Fin n)] [StarModule ℂ 𝒜] [SelfAdjointDecompose 𝒜] in
+/-- Averaging the binary consistency observable over the dummy gives a contraction. -/
+theorem star_pauliBraidingBasisObservable_average_mul_self_le_one
+    [Module ℚ≥0 𝒜] [PosSMulMono ℚ≥0 𝒜]
+    (M : PauliBraidingQuestion n Q → Measurement ((Bool × Bool) ⊕ A) 𝒜)
+    (b : Bool) (x : Fin n → Bool) :
+    star (𝔼 d, pauliBraidingBasisObservable M b x d) *
+      (𝔼 d, pauliBraidingBasisObservable M b x d) ≤ 1 := by
+  simp only [pauliBraidingBasisObservable, ← Measurement.observable_average]
+  exact (Measurement.average _).star_observable_mul_self_le_one
 
 omit [Nonempty (Fin n)] in
 private theorem oddExpect_expect_eq_dens_mul (f : (Fin n → Bool) → (Fin n → Bool) →
@@ -227,11 +245,7 @@ private theorem oddExpect_expect_eq_dens_mul (f : (Fin n → Bool) → (Fin n �
     oddExpect (fun x y => 𝔼 z, f x y z) =
       ((oddPairs (Fin n)).dens : ℝ) * (𝔼 r : ↥(oddPairs (Fin n)) × (Fin n → Bool),
         f r.1.val.1 r.1.val.2 r.2) := by
-  rw [oddExpect_eq_dens_smul, Fintype.expect_prod_type, univ_eq_attach]
-  congr 1
-  simp only [expect, card_attach]
-  rw [sum_attach (oddPairs (Fin n)) (fun p =>
-    ((univ : Finset (Fin n → Bool)).card : ℚ≥0)⁻¹ • ∑ z, f p.1 p.2 z)]
+  rw [oddExpect_eq_dens_mul_expect, Fintype.expect_prod_type]
 
 omit [Nonempty (Fin n)] [Fintype A] [TopologicalSpace 𝒜]
   [ContinuousFunctionalCalculus ℝ 𝒜 IsSelfAdjoint] [NonnegSpectrumClass ℝ 𝒜] in

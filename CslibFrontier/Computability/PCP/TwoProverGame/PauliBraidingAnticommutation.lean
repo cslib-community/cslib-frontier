@@ -276,13 +276,7 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
       (fun q => .anticommutation true q p)
       (fun r => Sum.elim (basisQuestion basis r).braidingCheckedBit fun _ => false)
       (fun _ => Sum.elim (fun _ : Bool × Bool => false) id)
-  let M (basis : Bool) (x d : Fin n → Bool) :=
-    let q := PauliConsistencyQuestion.ofChecked basis x d
-    (measure q.toBraidingQuestion).map (Sum.elim q.braidingCheckedBit fun _ => false)
-  have hcontract (basis : Bool) (x : Fin n → Bool) :
-      star (𝔼 d, (M basis x d).observable) * (𝔼 d, (M basis x d).observable) ≤ 1 := by
-    rw [← Measurement.observable_average]
-    exact (Measurement.average (M basis x)).star_observable_mul_self_le_one
+  let M := pauliBraidingBasisBitMeasurement measure
   have hspecial (q : Bool) (p : P) : star (special q id p) * special q id p ≤ 1 := by
     have heq : ((pauliBraidingCHSHStrategy S roles p).bob q).observable = special q id p :=
       pauliBraidingCHSHStrategy_bob_observable S roles p q
@@ -312,7 +306,8 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
   have h := expect_norm_mul_sub_smul_mul_sq_le_of_consistent S.state
     (fun p : P => X p.val.1) (fun p => Z p.val.2)
     (special false id) (special true id) (fun _ => -1)
-    (fun p => hcontract false p.val.1) (fun p => hcontract true p.val.2)
+    (fun p => star_pauliBraidingBasisObservable_average_mul_self_le_one measure false p.val.1)
+    (fun p => star_pauliBraidingBasisObservable_average_mul_self_le_one measure true p.val.2)
     (hspecial false) (hspecial true)
     (fun p => hcomm false true p.val.1 p) (fun p => hcomm true false p.val.2 p) (by simp)
   simp only [neg_one_smul, sub_neg_eq_add, add_comm (Z _ * X _)] at h

@@ -220,7 +220,8 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
         simp only [point, diff, tie, first, second, htie, Bool.cond_false, id_eq, ite_true, eq_self]
       · obtain ⟨hq, hbit⟩ :=
           PauliConsistencyQuestion.ofChecked_braiding (Q := Q) true c d (Or.inl h)
-        simp only [point, pauliBraidingBasisObservable, hq, hbit, h, ite_true, ite_false, sub_self]
+        simp only [point, pauliBraidingBasisObservable, pauliBraidingBasisBitMeasurement,
+          hq, hbit, h, ite_true, ite_false, sub_self]
   have hdiff (c : Fin n → Bool) :
       (T.alice c).observable - (𝔼 d, pauliBraidingBasisObservable M basis c d) =
         if basis then (size : ℚ≥0)⁻¹ • diff c else 0 := by

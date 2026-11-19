@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingRounding
+import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingDefect
 import CslibFrontier.Foundations.Quantum.PauliTwirl
 
 /-! # Rounding approximately linear observables
@@ -26,7 +26,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.LinearityRounding
 
 open Matrix Cslib Cslib.PCP Cslib.Quantum Finset
-open scoped Kronecker MatrixOrder ComplexOrder BigOperators Matrix.Norms.L2Operator
+open scoped Kronecker MatrixOrder ComplexOrder BigOperators Matrix.Norms.L2Operator Real
 
 /-- **Parseval** for the Fourier coefficients of `±1` observables. -/
 example {n R : Type} [Fintype n] [DecidableEq n] [Ring R] [Algebra ℂ R]
@@ -133,5 +133,44 @@ example (S : WidthOneTensorStrategy) (basis : Bool)
   · exact expect_nonneg fun _ _ => sq_nonneg _
   · simpa using hr
   · exact expect_nonneg fun _ _ => sq_nonneg _
+
+/-- At the exact upper score Alice's characters agree with her averaged basis observables
+in the state norm, and one local isometry gives zero error on every rounded product. -/
+example (S : QuantumStrategy (PauliBraidingQuestion 1 Bool) (PauliBraidingQuestion 1 Bool)
+    ((Bool × Bool) ⊕ Bool) ((Bool × Bool) ⊕ Bool) (Fin 2) (Fin 2))
+    (hA : ∀ basis q, (S.alice (.basis basis q)).toMeasurement.IsProjective)
+    (hB : ∀ basis q, (S.bob (.basis basis q)).toMeasurement.IsProjective)
+    (hwin : (pauliBraidingGame 1 TwoProverGame.chsh id (fun _ => id)).quantumWinProb S =
+      (2 + Real.cos (π / 8) ^ 2) / 3) :
+    ∃ (P : Bool → Measurement (Fin 1 → Bool) (Matrix (Fin 2) (Fin 2) ℂ))
+      (J : Type) (_ : Fintype J) (_ : DecidableEq J)
+      (W : Matrix ((Fin 1 → Bool) × J) (Fin 2) ℂ), Wᴴ * W = 1 ∧
+      (∀ b x, S.toCommuting.state.norm
+        ((𝔼 d, pauliBraidingBasisObservable S.toCommuting.alice b x d) -
+          kroneckerOne (κ := Fin 2) ((P b).charObs x)) ^ 2 = 0) ∧
+      (∀ x z, S.toCommuting.state.norm (kroneckerOne (κ := Fin 2)
+        ((P false).charObs x * (P true).charObs z -
+          Wᴴ * ((pauliXPow x * pauliZPow z) ⊗ₖ (1 : Matrix J J ℂ)) * W)) ^ 2 = 0) := by
+  obtain ⟨P, _, _, hclose, ⟨J, _, _, W, hW, h⟩, _⟩ :=
+    exists_local_pauliCompression_of_pauliBraidingGame S hA hB (ε := 0) (by rw [hwin, sub_zero])
+  let f (x z : Fin 1 → Bool) := S.toCommuting.state.norm (kroneckerOne (κ := Fin 2)
+    ((P false).charObs x * (P true).charObs z -
+      Wᴴ * ((pauliXPow x * pauliZPow z) ⊗ₖ (1 : Matrix J J ℂ)) * W)) ^ 2
+  have hzero : (𝔼 x, 𝔼 z, f x z) ≤ 0 := by simpa [f] using h
+  let F (p : (Fin 1 → Bool) × (Fin 1 → Bool)) := f p.1 p.2
+  have hn : 0 ≤ F := fun _ => sq_nonneg _
+  have hmean : (𝔼 p, F p) = 0 := by
+    rw [Fintype.expect_prod_type]
+    exact le_antisymm hzero (expect_nonneg fun _ _ => expect_nonneg fun _ _ => sq_nonneg _)
+  have hF := (Fintype.expect_eq_zero_iff_of_nonneg hn).mp hmean
+  refine ⟨P, J, inferInstance, inferInstance, W, hW, ?_, fun x z => congrFun hF (x, z)⟩
+  intro b x
+  let g (y : Fin 1 → Bool) := S.toCommuting.state.norm
+    ((𝔼 d, pauliBraidingBasisObservable S.toCommuting.alice b y d) -
+      kroneckerOne (κ := Fin 2) ((P b).charObs y)) ^ 2
+  have hg : 0 ≤ g := fun _ => sq_nonneg _
+  have hle : (𝔼 y, g y) ≤ 0 := by simpa [g] using (hclose b).1
+  have hmean : (𝔼 y, g y) = 0 := le_antisymm hle (expect_nonneg fun y _ => hg y)
+  exact congrFun ((Fintype.expect_eq_zero_iff_of_nonneg hg).mp hmean) x
 
 end CslibFrontierTests.LinearityRounding
