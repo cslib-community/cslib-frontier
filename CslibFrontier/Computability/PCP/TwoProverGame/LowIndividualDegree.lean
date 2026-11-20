@@ -53,7 +53,7 @@ abbrev Answer (F : Type*) (m : ℕ) := F ⊕ (Σ L : Finset (Point F m), L → F
 variable [Field F] [Fintype F] [DecidableEq F]
 
 /-- The affine image sent to the line player. -/
-def linePoints (u v : Point F m) : Finset (Point F m) :=
+@[expose] def linePoints (u v : Point F m) : Finset (Point F m) :=
   univ.image fun t : F => u + t • v
 
 theorem mem_linePoints (u v : Point F m) (t : F) : u + t • v ∈ linePoints u v :=
@@ -61,7 +61,7 @@ theorem mem_linePoints (u v : Point F m) (t : F) : u + t • v ∈ linePoints u 
 
 /-- A function on a line has degree at most `d` if it admits a parameterization by such a
 univariate polynomial. This also describes the constant functions on singleton lines. -/
-def LineHasDegree {L : Finset (Point F m)} (f : L → F) (d : ℕ) : Prop :=
+@[expose] def LineHasDegree {L : Finset (Point F m)} (f : L → F) (d : ℕ) : Prop :=
   ∃ (u v : Point F m) (hL : linePoints u v = L) (p : Polynomial F),
     p.natDegree ≤ d ∧
       ∀ t : F, f ⟨u + t • v, hL ▸ mem_linePoints u v t⟩ = p.eval t
@@ -106,7 +106,7 @@ theorem LineHasDegree.exists_polynomial {u v : Point F m} {f : linePoints u v �
     exact congrArg f (Subtype.ext ht)
 
 /-- The line answer must have the right domain and degree, and agree with the point answer. -/
-def lineAgrees (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
+@[expose] def lineAgrees (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
     (a : Σ L : Finset (Point F m), L → F) (b : F) : Prop :=
   a.1 = L ∧ LineHasDegree a.2 d ∧ ∃ h : u ∈ a.1, a.2 ⟨u, h⟩ = b
 
@@ -119,24 +119,38 @@ def accepts (d : ℕ) : Question F m → Question F m → Answer F m → Answer 
     lineAgrees (m * d) L u a b
   | _, _, _, _ => False
 
+/-- Acceptance on an axis question and its paired point is determined by the legal line
+answer and its value at the point. -/
+theorem exists_legal_of_accepts_axis_point (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
+    (a b : Answer F m) (h : accepts d (.axis L) (.point u) a b) :
+    ∃ g z, a = .inr g ∧ b = .inl z ∧
+      g.1 = L ∧ LineHasDegree g.2 d ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z := by
+  cases a <;> cases b <;> simp only [accepts] at h
+  exact ⟨_, _, rfl, rfl, h⟩
+
+theorem accepts_point_axis_iff (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
+    (a b : Answer F m) :
+    accepts d (.point u) (.axis L) a b ↔ accepts d (.axis L) (.point u) b a := by
+  cases a <;> cases b <;> rfl
+
 /-- Send the line and point to uniformly random opposite roles. -/
-noncomputable def assignLineRoles (line point : Question F m) :
+@[expose] noncomputable def assignLineRoles (line point : Question F m) :
     PMF (Question F m × Question F m) :=
   (uniformOfFintype Bool).map fun r => if r then (line, point) else (point, line)
 
 /-- Disclose the same uniformly random point to both players. -/
-noncomputable def consistencyQuestions : PMF (Question F m × Question F m) :=
+@[expose] noncomputable def consistencyQuestions : PMF (Question F m × Question F m) :=
   (uniformOfFintype (Point F m)).map fun u => (.point u, .point u)
 
 /-- Axis-parallel branch, with a uniform point and independently uniform coordinate. -/
-noncomputable def axisQuestions (n : ℕ) :
+@[expose] noncomputable def axisQuestions (n : ℕ) :
     PMF (Question F (n + 1) × Question F (n + 1)) :=
   (uniformOfFintype (Point F (n + 1))).bind fun u =>
     (uniformOfFintype (Fin (n + 1))).bind fun i =>
       assignLineRoles (.axis (linePoints u (Pi.single i (1 : F)))) (.point u)
 
 /-- Extend a direction in the chosen prefix by zero on all remaining coordinates. -/
-def prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) : Point F m :=
+@[expose] def prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) : Point F m :=
   fun j => if h : j.val < i.val + 1 then v ⟨j.val, h⟩ else 0
 
 omit [Fintype F] [DecidableEq F] in
@@ -163,7 +177,7 @@ def prefixDirectionEquiv (i : Fin m) :
 
 /-- Diagonal branch, with a uniform point, uniform prefix length and uniform direction within
 that prefix. Zero directions occur with the sampling probability specified in Figure 2. -/
-noncomputable def diagonalQuestions (n : ℕ) :
+@[expose] noncomputable def diagonalQuestions (n : ℕ) :
     PMF (Question F (n + 1) × Question F (n + 1)) :=
   (uniformOfFintype (Point F (n + 1))).bind fun u =>
     (uniformOfFintype (Fin (n + 1))).bind fun i =>
@@ -205,6 +219,19 @@ noncomputable def branchGame (n d : ℕ) (b : Branch) :
   questions := branchQuestions n b
   accepts := accepts d
 
+theorem branchGame_questions (n d : ℕ) (b : Branch) :
+    (branchGame (F := F) n d b).questions = branchQuestions n b := by
+  unfold branchGame
+  rfl
+
+theorem branchQuestions_axis (n : ℕ) :
+    branchQuestions (F := F) n .axis = axisQuestions n := by
+  unfold branchQuestions
+  rfl
+
+theorem branchGame_accepts (n d : ℕ) (b : Branch) :
+    (branchGame (F := F) n d b).accepts = accepts d := by unfold branchGame; rfl
+
 /-- The low individual degree game in positive ambient dimension `n + 1`. -/
 noncomputable def game (n d : ℕ) :
     TwoProverGame (Question F (n + 1)) (Question F (n + 1))
@@ -243,6 +270,17 @@ theorem answersWinProb_game (n d : ℕ)
   unfold TwoProverGame.answersWinProb game branchGame
   rw [PMF.bind_bind, Cslib.Probability.PMF.toOuterMeasure_bind_toReal]
   exact average_branches _
+
+/-- Each branch loses with probability at most three times the total loss. -/
+theorem branch_loss_le_three_mul (n d : ℕ) (b : Branch)
+    (ans : Question F (n + 1) → Question F (n + 1) → PMF (Answer F (n + 1) × Answer F (n + 1))) :
+    1 - (branchGame (F := F) n d b).answersWinProb ans ≤
+      3 * (1 - (game (F := F) n d).answersWinProb ans) := by
+  rw [answersWinProb_game]
+  have ha := (branchGame (F := F) n d .axis).answersWinProb_le_one ans
+  have hc := (branchGame (F := F) n d .consistency).answersWinProb_le_one ans
+  have hd := (branchGame (F := F) n d .diagonal).answersWinProb_le_one ans
+  cases b <;> linarith
 
 /-- Honest answers give the polynomial's value on point questions and its full restriction
 on line questions. -/
@@ -296,18 +334,22 @@ theorem accepts_honest_of_mem_branch {n d : ℕ} (P : MvPolynomial (Fin (n + 1))
     cases r <;> exact honest_lineAgrees P u (prefixDirection i v) ((n + 1) * d)
       (honest_diagonal_degree P hP u (prefixDirection i v))
 
+/-- Honest play wins each of the three branches with probability one. -/
+theorem winProb_branch_honest {n d : ℕ} (P : MvPolynomial (Fin (n + 1)) F)
+    (hP : ∀ i, P.degreeOf i ≤ d) (b : Branch) :
+    (branchGame (F := F) n d b).winProb (honest P) (honest P) = 1 := by
+  have h : (branchQuestions n b).toOuterMeasure
+      {q | accepts d q.1 q.2 (honest P q.1) (honest P q.2)} = 1 := by
+    rw [PMF.toOuterMeasure_apply_eq_one_iff]
+    exact fun _ hq => accepts_honest_of_mem_branch P hP b hq
+  unfold TwoProverGame.winProb branchGame
+  rw [h, ENNReal.toReal_one]
+
 /-- The honest strategy wins the low individual degree game with probability one. -/
 theorem winProb_honest {n d : ℕ} (P : MvPolynomial (Fin (n + 1)) F)
     (hP : ∀ i, P.degreeOf i ≤ d) : (game (F := F) n d).winProb (honest P) (honest P) = 1 := by
-  have h : (game (F := F) n d).questions.toOuterMeasure
-      {q | accepts d q.1 q.2 (honest P q.1) (honest P q.2)} = 1 := by
-    rw [PMF.toOuterMeasure_apply_eq_one_iff]
-    intro q hq
-    change q ∈ ((uniformOfFintype Branch).bind (branchQuestions n)).support at hq
-    obtain ⟨b, _, hb⟩ := (PMF.mem_support_bind_iff _ _ _).mp hq
-    exact accepts_honest_of_mem_branch P hP b hb
-  change ((game (F := F) n d).questions.toOuterMeasure
-    {q | accepts d q.1 q.2 (honest P q.1) (honest P q.2)}).toReal = 1
-  rw [h, ENNReal.toReal_one]
+  rw [winProb_game, winProb_branch_honest P hP .axis, winProb_branch_honest P hP .consistency,
+    winProb_branch_honest P hP .diagonal]
+  norm_num
 
 end Cslib.PCP.LowIndividualDegree

@@ -38,7 +38,7 @@ realization with the same joint law, and `Oracle.Composition` composes certifica
 ## Main results
 
 * `Cslib.Probability.IsOraclePPTOn.length_le`: uniform bounds on supported encoded output lengths.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.isOraclePPTOn`,
+* `Turing.MultiTapeTM.ComputableInPolyTime.isOraclePPTOn`,
   `Turing.MultiTapeTM.ComputableInPolyTime.isOraclePPTOn`: deterministic functional programs
   are uniform oracle-PPT programs; the plain bridge first normalizes its machine.
 
@@ -123,23 +123,6 @@ theorem length_le {program : α → WordOracleComp Operation β}
 end IsOraclePPTOn
 
 end Cslib.Probability
-
-/-- A tidy deterministic certificate also works in the presence of arbitrary external oracles. -/
-@[fun_prop]
-theorem Turing.MultiTapeTM.ComputableTidilyInPolyTime.isOraclePPTOn
-    {Operation α β : Type} [DecidableEq Operation] [Finite Operation]
-    {input : α ↪ List Bool} {output : β ↪ List Bool} {f : α → β}
-    (h : ComputableTidilyInPolyTime f input output) :
-    Cslib.Probability.IsOraclePPTOn (Operation := Operation) input output
-      (fun a => pure (f a)) := by
-  obtain ⟨t, s, ht, _, k, State, hfinite, machine, hmachine⟩ := h
-  obtain ⟨c, d, ht⟩ := ht.exists_le
-  refine ⟨inferInstance, k, State, hfinite,
-    Turing.MultiTapePTM.ofDeterministic machine, c, d, fun a OracleState oracle state => ?_⟩
-  rw [map_pure, Cslib.ProbOracleComp.runWith_pure,
-    Turing.MultiTapePTM.run_interpret_runOracle_ofDeterministic]
-  exact congrArg (fun word => PMF.pure (word, state))
-    ((hmachine a).mono (ht a) le_rfl).runFrom_initCfg.2.symm
 
 /-- A plain deterministic certificate also works in the presence of arbitrary external oracles. -/
 @[fun_prop]
