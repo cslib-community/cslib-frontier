@@ -984,6 +984,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Width
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.LowerBound
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
+public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Holes
 public import CslibFrontier.Computability.Automata.MPDA.OneHole
@@ -3138,6 +3139,7 @@ public import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 public import CslibFrontier.Computability.Kolmogorov.Uncomputability
 public import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
+public import CslibFrontier.Computability.Languages.DeterministicContextFree
 public import CslibFrontier.Computability.Languages.RegularLanguage
 public import CslibFrontier.Computability.Languages.Slice
 public import CslibFrontier.Computability.Languages.StarFree
