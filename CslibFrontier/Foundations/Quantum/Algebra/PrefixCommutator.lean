@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialDisturbance
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Analysis.Real.Sqrt
+import Mathlib.Algebra.BigOperators.Intervals
 
 /-!
 # Commutation through a sequential measurement prefix
@@ -279,5 +280,29 @@ theorem average_prefixCommutatorDefect_le {Q : Type*} [Fintype Q] [Nonempty Q] {
       rw [hp, hcopy']
       linarith
     _ = _ := by simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, pow_two, mul_assoc]
+
+/-- Summed sequential disturbance in terms of pairwise commutators and copy defects. -/
+theorem sum_prefixDisturbance_le_of_pairwise {Q : Type*} [Fintype Q] [Nonempty Q] (k : ℕ)
+    (φ : AlgState A) (M R : Q → Measurement α A)
+    (hM : ∀ x, (M x).IsProjective) (hR : ∀ x, (R x).IsProjective)
+    (hc : ∀ x y a b, Commute ((M x).effect a) ((R y).effect b)) {χ ζ : ℝ}
+    (hpair : (𝔼 x : Q, 𝔼 y : Q, pairCommutatorDefect φ (M x) (M y)) ≤ χ)
+    (hcopy : (𝔼 x : Q, copyDefect φ (M x) (R x)) ≤ ζ) :
+    (∑ i : Fin k, 2 * √(𝔼 x : Fin k → Q, prefixCommutatorDefect φ (fun j => M (x j)) i)) ≤
+      k * ((k - 1 : ℕ) : ℝ) * √(2 * χ + 8 * ζ) := by
+  have h (i : Fin k) := average_prefixCommutatorDefect_le φ M R hM hR hc i hpair hcopy
+  calc
+    _ ≤ ∑ i : Fin k, 2 * ((i.val : ℝ) * √(2 * χ + 8 * ζ)) := by
+      refine sum_le_sum fun i _ => mul_le_mul_of_nonneg_left ?_ (by norm_num)
+      have hi : (0 : ℝ) ≤ i.val := by positivity
+      simpa only [Function.comp_def, Real.sqrt_mul (sq_nonneg (i.val : ℝ)), Real.sqrt_sq hi] using
+        Real.sqrt_le_sqrt (h i)
+    _ = _ := by
+      have hk : (∑ i : Fin k, i.val) * 2 = k * (k - 1) := by
+        rw [Fin.sum_univ_eq_sum_range (fun j : ℕ => j) k, sum_range_id_mul_two]
+      have hk' := congrArg (fun n : ℕ => (n : ℝ)) hk
+      push_cast at hk'
+      rw [← hk', sum_mul, sum_mul]
+      exact sum_congr rfl fun _ _ => by ring
 
 end Cslib.Quantum.Measurement

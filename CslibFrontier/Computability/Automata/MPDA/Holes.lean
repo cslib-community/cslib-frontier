@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Automata.MPDA.WellNested
 public import Mathlib.Data.Set.Card
+import CslibFrontier.Foundations.Data.List.Extract
 
 /-! # Hole-bounded sequences of multistack pushdown automata
 
@@ -150,26 +151,9 @@ theorem WellNested.net_take_nonneg {w : List (α × Op n Γ)} (hw : WellNested w
 
 /-! ## Shifting positions -/
 
-theorem extract_cons_succ (x : β) (w : List β) (a b : ℕ) :
-    List.extract (x :: w) (a + 1) (b + 1) = w.extract a b := by
-  simp [List.extract]
-
-theorem extract_append_left (v w : List β) (a b : ℕ) :
-    List.extract (v ++ w) (v.length + a) (v.length + b) = w.extract a b := by
-  unfold List.extract
-  rw [List.drop_append, List.drop_of_length_le (by omega), List.nil_append,
-    show v.length + a - v.length = a by omega, show v.length + b - (v.length + a) = b - a by omega]
-
-theorem extract_append_right (w v : List β) {a b : ℕ} (hb : b ≤ w.length) :
-    List.extract (w ++ v) a b = w.extract a b := by
-  unfold List.extract
-  by_cases ha : a ≤ w.length
-  · rw [List.drop_append_of_le_length ha, List.take_append_of_le_length (by simp; omega)]
-  · rw [show b - a = 0 by omega, List.take_zero, List.take_zero]
-
 private theorem matches_cons_succ (x : α × Op n Γ) (w : List (α × Op n Γ)) (p m : ℕ) :
     Matches (x :: w) (p + 1) (m + 1) ↔ Matches w p m := by
-  simp only [Matches, List.getElem?_cons_succ, Nat.add_lt_add_iff_right, extract_cons_succ]
+  simp only [Matches, List.getElem?_cons_succ, Nat.add_lt_add_iff_right, List.extract_cons_succ]
 
 theorem matches_append_left (v w : List (α × Op n Γ)) (p m : ℕ) :
     Matches (v ++ w) (v.length + p) (v.length + m) ↔ Matches w p m := by
@@ -191,9 +175,9 @@ theorem Matches.append_right {w : List (α × Op n Γ)} {p m : ℕ} (h : Matches
   refine ⟨hpm, i, ⟨a, γ, ?_⟩, ⟨b, γ', ?_⟩, ?_, ?_⟩
   · rw [List.getElem?_append_left (by omega), hp]
   · rw [List.getElem?_append_left hm, hm']
-  · rw [extract_append_right _ _ (by omega)]
+  · rw [List.extract_append_right _ _ (by omega)]
     exact hk
-  · rw [extract_append_right _ _ (by omega)]
+  · rw [List.extract_append_right _ _ (by omega)]
     exact hnet
 
 /-! ## Hole pushes and open holes -/
@@ -238,7 +222,7 @@ theorem HoleBounded.mono {K K' : ℕ} {w : List (α × Op n Γ)} (h : HoleBounde
 /-! ## Well-nested sequences have no holes -/
 
 /-- Every push of a well-nested sequence is closed by a well-nested continuation. -/
-private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : WellNested w)
+theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : WellNested w)
     {p : ℕ} {i : Fin n} (hp : IsPushOn w i p) : WellMatched w p := by
   obtain ⟨a, γ, hp⟩ := hp
   induction hw generalizing p with
@@ -250,7 +234,7 @@ private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : W
       rw [List.getElem?_cons_succ] at hp
       obtain ⟨m, hm, hf⟩ := ih hp
       refine ⟨m + 1, (matches_cons_succ _ _ _ _).mpr hm, ?_⟩
-      rw [extract_cons_succ]
+      rw [List.extract_cons_succ]
       exact hf
   | @pushPop a' b j γ' u u' hu _ ih ih' =>
     have e : u ++ (b, Op.pop j γ') :: u' = (u ++ [(b, Op.pop j γ')]) ++ u' := by simp
@@ -279,7 +263,7 @@ private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : W
         obtain ⟨m, hm, hf⟩ := ih hp
         have hmu := hm.lt_length
         refine ⟨m + 1, (matches_cons_succ _ _ _ _).mpr (hm.append_right _), ?_⟩
-        rw [extract_cons_succ, extract_append_right _ _ (by omega)]
+        rw [List.extract_cons_succ, List.extract_append_right _ _ (by omega)]
         exact hf
       · rcases Nat.eq_or_lt_of_le h with h | h
         · subst h
@@ -295,10 +279,10 @@ private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : W
             have := (matches_append_left (u ++ [(b, Op.pop j γ')]) u' q m).mpr hm
             rw [el] at this
             exact this
-          · have := extract_append_left (u ++ [(b, Op.pop j γ')]) u' q (m + 1)
+          · have := List.extract_append_left (u ++ [(b, Op.pop j γ')]) u' q (m + 1)
             rw [el] at this
-            rw [extract_cons_succ, e, show u.length + 1 + m + 1 = u.length + 1 + (m + 1) by omega,
-              this]
+            rw [List.extract_cons_succ, e,
+              show u.length + 1 + m + 1 = u.length + 1 + (m + 1) by omega, this]
             exact hf
 
 /-- A well-nested sequence has no hole pushes. -/
