@@ -51,6 +51,7 @@ public import CslibFrontier.Algorithms.Lean.DFS.Basic
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
 public import CslibFrontier.Algorithms.Lean.DPLL
+public import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Client
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Memory
@@ -6980,6 +6981,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PairedPorts
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PartialDerivatives
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PolarDecomposition
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosDef
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefKernel
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefTrace
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowPerturbation
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
@@ -7161,6 +7163,8 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyResolvent
 public import CslibFrontier.Foundations.Quantum.Fourier
 public import CslibFrontier.Foundations.Quantum.HadamardTransform
 public import CslibFrontier.Foundations.Quantum.Measurement

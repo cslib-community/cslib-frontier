@@ -17,6 +17,7 @@ import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
@@ -41,6 +42,7 @@ import CslibFrontier.Computability.Complexity.Classes.Advice.LengthComparison
 import CslibFrontier.Computability.Circuit.Boolean.Advice.Hierarchy
 import CslibFrontier.Algorithms.Lean.Arborescence.PolyTime
 import CslibFrontier.Algorithms.Lean.DFS.SCC
+import CslibFrontier.Algorithms.Lean.DyadicRecovery
 import CslibFrontier.Algorithms.Lean.MaxDicut.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
@@ -436,6 +438,7 @@ import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
+import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 
 /-!
 # Collected results
@@ -5567,6 +5570,21 @@ register_result "gap-two-csp-boolean-promise-p" where
     Graph.unsatVal_toFiniteGraph identifies the library unsatVal with the minimum over \
     assignments of the declared vertices. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
+
+register_result "arora-barak-dyadic-prefix-recovery" where
+  title := "Polynomial-time rational recovery from a binary prefix"
+  topic := "algorithms"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 20, Exercise §11",
+      locator := "2007-01-08 public draft, printed p. 432 / PDF p. 448" }
+  ]
+  theorems := [Rat.recoverDyadicLogSq_eq_some, Rat.recoverDyadicLogSq_polyTime]
+  scope := "Rounds upward after doubling the logarithm. For positive denominator bound N, \
+    the precision is Nat.clog 2 (N ^ 2) fractional bits. The binary input encodes N and \
+    the half-open dyadic cell index, including the integer part for improper fractions. \
+    Terminating binary expansions use trailing zeros. The optional rational output uses \
+    a reduced binary numerator and denominator. The native multitape polynomial-time \
+    certificate covers the same decoder used in the recovery theorem."
 
 register_result "bareiss-rational-elimination" where
   title := "Exact rational Bareiss–Jordan Gaussian elimination and entry bounds"
@@ -10892,6 +10910,28 @@ register_result "bvy-two-anchor-transcript-comparisons" where
     and the full checked-answer alphabet. The weighted forms include endpoint anchor rates. \
     A null observation uses the remaining transcript’s marginal fallback."
 
+register_result "dpll-pigeonhole-refutation-size" where
+  title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"
+  topic := "SAT algorithms"
+  sources := [
+    { paper := BeyersdorffGalesiLauria2010, theorem := "Theorem 2",
+      locator := "White Rose eprint 74432 (manuscript of 2010-07-01), §4, printed p. 4; PDF p. 5; \
+        the bound 2^((n/2) log(n/2 + 1)) at the end of the proof, printed p. 6; PDF p. 7" }
+  ]
+  theorems := [
+    Cslib.Algorithms.Lean.DPLL.pow_half_le_size_refutation?_pigeonhole,
+    Cslib.Algorithms.Lean.DPLL.pow_half_le_size_solve_pigeonhole
+  ]
+  scope := "The source bound holds for every tree-like resolution refutation of PHP^m_n, m > n; \
+    these theorems apply it to the output of the library's DPLL solver on PHP^m_n relabelled \
+    along any injective numbering Fin m × Fin n → ℕ: the solver finds a refutation with at \
+    least (n/2 + 1)^(n/2) nodes and returns an LRAT certificate with at least that many steps \
+    (one per leaf of the refutation). The source's proof takes n even; the Lean bound uses \
+    floor division n/2 and has no parity hypothesis. Dantchev and Riis (CCC 2001) proved an \
+    earlier asymptotic 2^Ω(n log n) bound for regular tree resolution; it is historical \
+    context, not a source of this exact bound. These bound the output, not the running time; \
+    the running time on the word RAM is issue #6610."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"
@@ -10966,6 +11006,20 @@ register_result "quantum-relative-entropy-nonnegative" where
     singular states, quantum relative entropy is nonnegative. The trace formula uses natural \
     logarithms and requires support containment, stated as reverse kernel inclusion. When that \
     containment fails, the divergence is positive infinity."
+
+register_result "quantum-relative-entropy-joint-convexity" where
+  title := "Joint convexity of quantum relative entropy"
+  topic := "quantum information"
+  sources := [
+    { paper := Ruskai2007, theorem := "Theorem 1",
+      locator := "arXiv:quant-ph/0604206v1, printed p. 2; proof in §§2.1–2.4" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_sum_smul_le]
+  scope := "Finite complex positive semidefinite matrix pairs with arbitrary nonnegative \
+    weights. The normalized weights give joint convexity; this homogeneous form also allows \
+    unnormalized weights and assigns positive infinity to a support mismatch. Zero-weight \
+    terms contribute zero. The natural-log formula uses the standard positive Umegaki sign \
+    as in equation (11), correcting the leading minus sign in the introductory equation (3)."
 
 register_result "classical-quantum-relative-entropy-chain" where
   title := "Relative entropy chain rule for classical–quantum states"
