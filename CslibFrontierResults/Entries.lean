@@ -441,6 +441,7 @@ import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
 import CslibFrontier.Computability.Automata.MPDA.Separation
+import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
 import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
@@ -11330,7 +11331,7 @@ register_result "mpda-scope-bounded-hole-bounded" where
     https://github.com/cslib-community/cslib-frontier/pull/6615#pullrequestreview-5981924133."
 
 register_result "mpda-hole-bounded-not-scope-bounded" where
-  title := "A hole-bounded language of visibly MPDAs that is not scope-, context- or round-bounded"
+  title := "Hole-bounded visibly MPDA languages strictly contain scope-bounded ones"
   topic := "automata theory"
   sources := [
     { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Proposition 2, second sentence",
@@ -11339,15 +11340,17 @@ register_result "mpda-hole-bounded-not-scope-bounded" where
         pp. 6-7; contexts, rounds and scope as defined in Section 2, printed p. 4; holes as in \
         Definition 1, printed p. 5" }
   ]
-  theorems := [Cslib.Automata.MPDA.HoleSeparation.holeBounded_two,
-    Cslib.Automata.MPDA.HoleSeparation.not_scopeBounded,
-    Cslib.Automata.MPDA.HoleSeparation.exists_not_roundBounded]
-  scope := "For every two-stack MPDA that reads the letters a, b, c, d visibly (a, b push on \
-    stacks 0, 1 and c, d pop from them), every run on a word of the source's language L_bh is \
-    2-hole-bounded, and for every K, no run on the word a^(K+1) b^(K+1) (c d)^(K+1) of L_bh is \
-    K-scope-, K-context- or K-round-bounded; a run on a^m b^m (c d)^m is not K-scope-bounded \
-    for any K < 2m. The source's witness for unbounded scope is a^m b^m (a c^2 b d^2)^m; the \
-    Lean witness takes the groups of L_bh with p = q = 0. The statement is for visibly MPDAs, \
-    as in the source's argument; whether the separation holds when stack operations are hidden \
-    is open (issue #6712). The phase-bounded comparison in the last sentence of Proposition 2 \
-    is not formalized. Source check: pending review on the pull request."
+  theorems := [Cslib.Automata.MPDA.HoleSeparation.holeBounded_strictlyContains,
+    Cslib.Automata.MPDA.HoleSeparation.language_automaton]
+  scope := "Two-stack MPDAs that read the letters a, b, c, d visibly (a, b push on stacks 0, 1 \
+    and c, d pop from them), with bounded acceptance: the language of an MPDA restricted to a \
+    class of runs is the set of words with an accepting run in that class. The source's \
+    language L_bh is the 2-hole-bounded language, and also the full language, of a finite \
+    visibly MPDA; and for every K, L_bh is not the K-scope-, K-context- or K-round-bounded \
+    language of any visibly MPDA, finite or not. At run level, every run on a word of L_bh is \
+    2-hole-bounded, and a run on a^m b^m (c d)^m is not K-scope-bounded for any K < 2m. The \
+    source's witness for unbounded scope is a^m b^m (a c^2 b d^2)^m; the Lean witness takes the \
+    groups of L_bh with p = q = 0. The statement is for visibly MPDAs, as in the source's \
+    argument; whether the separation holds when stack operations are hidden is open (issue \
+    #6712). The phase-bounded comparison in the last sentence of Proposition 2 is not \
+    formalized here. Source check: pending review on the pull request."

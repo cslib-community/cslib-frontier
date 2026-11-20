@@ -34,8 +34,12 @@ operation of the kind the letter prescribes.
   `2`-hole-bounded.
 - `MPDA.HoleSeparation.not_scopeBounded`: for every `K` and every `m` with `K < 2 * m`, complete
   runs of a visibly MPDA on `aᵐ bᵐ (c d)ᵐ ∈ L_bh` are not `K`-scope-bounded.
-- `MPDA.HoleSeparation.exists_not_roundBounded`: hence `L_bh` is not `K`-scope-, context- or
-  round-bounded for any `K`.
+- `MPDA.HoleSeparation.exists_not_roundBounded`: hence for every `K`, `L_bh` has a word on which
+  no run is `K`-scope-, context- or round-bounded.
+
+These are the run-level steps. `MPDA.HoleSeparation.holeBounded_strictlyContains` in
+`SeparationAutomaton.lean` combines them with a finite visibly MPDA recognizing exactly `L_bh` into
+the separation of languages.
 
 ## Implementation notes
 
@@ -489,12 +493,11 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   rw [Finset.card_image_of_injective _ hf.injective, Finset.card_range] at hcard
   omega
 
-/-- **Hole-bounded strictly contains scope-, context- and round-bounded**, the second sentence of
-Proposition 2 of [AkshayGastinKrishnaRoychowdhury2020] (arXiv:2002.05950v2, Section 2.1, printed
-pp. 6-7) for visibly MPDAs: `L_bh` is `2`-hole-bounded (`holeBounded_two`), but for every `K` it
-has a word on which no run of a visibly MPDA is `K`-scope-, `K`-context- or `K`-round-bounded. In
-particular, every visibly MPDA accepting `L_bh` has, for every `K`, an accepting run that is
-`2`-hole-bounded but not `K`-scope-, context- or round-bounded. -/
+/-- For every `K`, `L_bh` has a word on which no run of a visibly MPDA is `K`-scope-, `K`-context-
+or `K`-round-bounded. This is the run-level step of the second sentence of Proposition 2 of
+[AkshayGastinKrishnaRoychowdhury2020]; the separation of languages is
+`MPDA.HoleSeparation.holeBounded_strictlyContains`, which also shows that a finite visibly MPDA
+recognizes exactly `L_bh`. -/
 theorem exists_not_roundBounded (hM : M.IsVisibly kind) (K : ℕ) :
     ∃ v ∈ language, ∀ {c c' : Config 2 State Γ} {w : List (Letter × Op 2 Γ)},
       M.configLTS.MTr c w c' → w.map Prod.fst = v →
