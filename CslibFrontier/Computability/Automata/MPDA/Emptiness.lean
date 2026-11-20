@@ -28,10 +28,19 @@ pairs, as many times as there are pairs. Algorithm 2 alternates a transitive clo
 push-pop step until nothing changes; any order of applying the rules reaches the same least fixed
 point, and the number of iterations is not part of the statements here.
 
+The file then defines the search of **repaired Algorithm 1** (`MPDA.isEmpty`). It differs from
+the printed algorithm in two ways. First, `HSᵢ` is the reflexive-transitive closure of `AHSᵢ`, so
+that `AddPop` can remove a hole whose last atomic segment is popped. Second, the search starts
+from the states reached from an initial state by a well-nested run, not from the initial state
+alone. `MPDA.isEmptyPrinted` is the printed-start variant: the printed initial state with the
+reflexive `HSᵢ`. It is not complete; a checked counterexample is in
+`CslibFrontierTests.MPDA.Emptiness`.
+
 ## Main definitions
 
 - `MPDA.wellNestedPairs`: the set `WR` of Algorithm 2, as a computable `Finset`.
 - `MPDA.atomicHoles`, `MPDA.holeSegments`: the sets `AHSᵢ` and `HSᵢ` of Algorithm 1.
+- `MPDA.isEmpty`: repaired Algorithm 1; `MPDA.isEmptyPrinted`: its printed-start variant.
 
 ## Main results
 
@@ -334,15 +343,20 @@ one. -/
   decide (¬∃ μ ∈ M.explore K (listBound n State K) init init,
     μ.holes = [] ∧ ∃ f ∈ (Finset.univ.filter (· ∈ M.accept)), (μ.last, f) ∈ M.wellNestedPairs)
 
-/-- Algorithm 1 of [AkshayGastinKrishnaRoychowdhury2020], repaired: the search starts from the
-states reached from an initial state by a well-nested run (`initialLists`). -/
+/-- **Repaired Algorithm 1** of [AkshayGastinKrishnaRoychowdhury2020]. It differs from the
+printed algorithm in two ways: the search starts from the states reached from an initial state by
+a well-nested run (`initialLists`), not from the initial state alone; and `HSᵢ` is the
+reflexive-transitive closure of `AHSᵢ` (`holeSegments`). -/
 @[expose] def isEmpty [DecidablePred (· ∈ M.start)] [DecidablePred (· ∈ M.accept)] (K : ℕ) :
     Bool :=
   M.isEmptyFrom M.initialLists K
 
-/-- Algorithm 1 as printed in [AkshayGastinKrishnaRoychowdhury2020]: the search starts from the
-initial state (`startLists`). It misses runs whose first hole push follows a nonempty
-well-nested factor. -/
+/-- The printed-start variant of repaired Algorithm 1. The search starts from the initial state
+(`startLists`), as line 10 of Algorithm 1 as printed in [AkshayGastinKrishnaRoychowdhury2020]
+does, but is otherwise `isEmpty`, with the reflexive `HSᵢ`; it does not implement every printed
+line literally. It misses runs whose first hole push follows a nonempty well-nested factor: the
+module client test `CslibFrontierTests.MPDA.Emptiness` checks an MPDA on which it answers `true`
+although a `2`-hole-bounded accepting run exists. -/
 @[expose] def isEmptyPrinted [DecidablePred (· ∈ M.start)] [DecidablePred (· ∈ M.accept)]
     (K : ℕ) : Bool :=
   M.isEmptyFrom M.startLists K

@@ -13,8 +13,11 @@ import CslibFrontier.Foundations.Data.List.Forall2
 
 /-! # Completeness of the emptiness procedure
 
-If an MPDA has a `K`-hole-bounded accepting run, the repaired search of Algorithm 1 of
-[AkshayGastinKrishnaRoychowdhury2020] (`MPDA.isEmpty`) answers `false`.
+If an MPDA has a `K`-hole-bounded accepting run, repaired Algorithm 1 of
+[AkshayGastinKrishnaRoychowdhury2020] (`MPDA.isEmpty`) answers `false`. With soundness, this is
+Theorem 1 for repaired Algorithm 1 (`MPDA.isEmpty_iff`), for every `K`; the source states
+Theorem 1 for positive `K`. The printed-start variant (`MPDA.isEmptyPrinted`) is not complete
+(`CslibFrontierTests.MPDA.Emptiness`).
 
 The run is cut at its events: the positions after a maximal well-nested factor, where the next
 transition is a pop or a push that is not closed by a well-nested continuation (`MPDA.wnEnd`). A
@@ -27,7 +30,8 @@ of them.
 ## Main results
 
 - `MPDA.isEmpty_eq_false_of_mem_boundedLanguage`: if some word has a `K`-hole-bounded accepting
-  run, the search answers `false`.
+  run, repaired Algorithm 1 answers `false`.
+- `MPDA.isEmpty_iff`: Theorem 1 for repaired Algorithm 1.
 
 ## References
 
@@ -1006,9 +1010,8 @@ theorem cinv_length {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} (hK : H
     · exact h
 termination_by t => w.length - t
 
-/-- **Completeness of Algorithm 1** of [AkshayGastinKrishnaRoychowdhury2020], with the search
-started after a well-nested prefix: if some word has a `K`-hole-bounded accepting run, the search
-answers `false`. -/
+/-- **Completeness of repaired Algorithm 1** of [AkshayGastinKrishnaRoychowdhury2020]: if some
+word has a `K`-hole-bounded accepting run, the search answers `false`. -/
 theorem isEmpty_eq_false_of_mem_boundedLanguage [DecidablePred (· ∈ M.accept)] {K : ℕ}
     {x : List Symbol} (hx : x ∈ M.boundedLanguage (HoleBounded K)) : M.isEmpty K = false := by
   obtain ⟨s₀, hs₀, f, hf, w, -, hrun, hK⟩ := hx
@@ -1016,9 +1019,9 @@ theorem isEmpty_eq_false_of_mem_boundedLanguage [DecidablePred (· ∈ M.accept)
   exact isEmpty_eq_false_of_cinv hf
     (cinv_length hK _ hle (wnEnd_event (Nat.zero_le _)) (cinv_init (K := K) hs₀ hrun))
 
-/-- **Theorem 1** of [AkshayGastinKrishnaRoychowdhury2020], for the search started after a
-well-nested prefix: the search answers `true` exactly when no word has a `K`-hole-bounded
-accepting run. -/
+/-- **Theorem 1** of [AkshayGastinKrishnaRoychowdhury2020], for repaired Algorithm 1: the search
+answers `true` exactly when no word has a `K`-hole-bounded accepting run. It holds for every `K`,
+including `K = 0`; the source states Theorem 1 for positive `K`. -/
 theorem isEmpty_iff [DecidablePred (· ∈ M.accept)] {K : ℕ} :
     M.isEmpty K = true ↔ M.boundedLanguage (HoleBounded K) = 0 := by
   constructor

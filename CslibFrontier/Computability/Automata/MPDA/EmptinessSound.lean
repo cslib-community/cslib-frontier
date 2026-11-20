@@ -14,8 +14,8 @@ import CslibFrontier.Foundations.Data.List.Forall2
 
 /-! # Soundness of the emptiness procedure
 
-If Algorithm 1 of [AkshayGastinKrishnaRoychowdhury2020] (`MPDA.isEmpty`) answers `false`, the MPDA
-has a `K`-hole-bounded accepting run.
+If repaired Algorithm 1 of [AkshayGastinKrishnaRoychowdhury2020] (`MPDA.isEmpty`) answers `false`,
+the MPDA has a `K`-hole-bounded accepting run.
 
 A list of the search abstracts each open hole by a triple `(i, s, t)` of `HSᵢ`. For every choice
 of a chain of atomic hole segments realizing each triple (`MPDA.Realizes`), a reachable list comes
@@ -271,8 +271,8 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
         rw [stacksOf_close]
         exact hv.configLTS_mTr hvrun _
 
-/-- **Soundness of Algorithm 1** of [AkshayGastinKrishnaRoychowdhury2020]: if the search answers
-`false`, some word has a `K`-hole-bounded accepting run. -/
+/-- **Soundness of repaired Algorithm 1** of [AkshayGastinKrishnaRoychowdhury2020]: if the search
+answers `false`, some word has a `K`-hole-bounded accepting run. -/
 theorem exists_mem_boundedLanguage_of_isEmpty_eq_false [DecidablePred (· ∈ M.accept)] {K : ℕ}
     (h : M.isEmpty K = false) : ∃ x, x ∈ M.boundedLanguage (HoleBounded K) := by
   unfold isEmpty isEmptyFrom at h

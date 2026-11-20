@@ -12,11 +12,12 @@ import Mathlib.Tactic.FinCases
 
 /-! Clients of the emptiness procedure under module encapsulation. On two stacks, the MPDA
 `crossNop` reads `nop ↓₀ ↓₁ ↑₀ ↑₁` along the control states `0 → 1 → 2 → 3 → 4 → 5`. That run is
-accepting and `2`-hole-bounded, so the search of Algorithm 1 started after a well-nested prefix
-(`MPDA.isEmpty`) answers `false`, by Theorem 1 (`MPDA.isEmpty_iff`). The search as printed in
-[AkshayGastinKrishnaRoychowdhury2020], started from the initial state (`MPDA.isEmptyPrinted`),
-answers `true`: from state `0` it can neither open a hole, since `0` has no push, nor pop. So the
-printed search is not complete. -/
+accepting and `2`-hole-bounded, so repaired Algorithm 1 (`MPDA.isEmpty`) answers `false`, by
+Theorem 1 (`MPDA.isEmpty_iff`). Its printed-start variant (`MPDA.isEmptyPrinted`), which starts
+from the initial state as line 10 of Algorithm 1 as printed in
+[AkshayGastinKrishnaRoychowdhury2020] does, answers `true`. From state `0` it can neither open a
+hole, since `0` has no push, nor pop, and the well-nested acceptance check of line 3 cannot pass
+the crossing pushes and pops. So starting from the initial state is not complete. -/
 
 set_option linter.privateModule false
 

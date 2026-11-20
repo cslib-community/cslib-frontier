@@ -12105,7 +12105,7 @@ register_result "micciancio-regev-smoothing-parameter-lambda-n" where
     not formalized here."
 
 register_result "mpda-hole-bounded-emptiness" where
-  title := "A worklist search over lists of holes decides K-hole-bounded emptiness of an MPDA"
+  title := "Repaired Algorithm 1 decides K-hole-bounded emptiness of an MPDA"
   topic := "automata theory"
   sources := [
     { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Theorem 1",
@@ -12117,17 +12117,21 @@ register_result "mpda-hole-bounded-emptiness" where
   theorems := [Cslib.Automata.MPDA.isEmpty_iff,
     Cslib.Automata.MPDA.isEmpty_eq_false_of_mem_boundedLanguage]
   scope := "For every MPDA with finitely many control states, input letters and stack symbols, \
-    decidable transitions and initial and final states, and every K: the search isEmpty K \
-    answers true exactly when no word has an accepting run from an initial state with empty \
-    stacks to a final state with empty stacks whose transition sequence is K-hole-bounded. The \
-    search is the worklist loop of Algorithm 1 over lists of hole triples with at most K holes, \
-    with WR, the atomic hole segments AHS_i and the hole segments HS_i computed as finite fixed \
-    points, and with the loop's fuel bounded by the number of such lists. Two deviations from \
-    the printed algorithm. First, HS_i is the reflexive-transitive closure of AHS_i, so that \
-    AddPop can remove a hole whose last atomic segment is popped. Second, the search starts from \
-    the lists [s] with s reached from an initial state by a well-nested run, not from the \
-    initial state alone. As printed (isEmptyPrinted), the search is not complete: the module \
-    client test CslibFrontierTests.MPDA.Emptiness gives a two-stack MPDA whose run \
-    nop push0 push1 pop0 pop1 is accepting and 2-hole-bounded, on which the printed search \
-    answers true and the repaired one false. The complexity bound of Theorem 1 and witness \
-    generation are not formalized. Source check: pending."
+    decidable transitions and initial and final states, and every K, including K = 0 (the \
+    source states Theorem 1 for positive K): repaired Algorithm 1, isEmpty K, answers true \
+    exactly when no word has an accepting run from an initial state with empty stacks to a final \
+    state with empty stacks whose transition sequence is K-hole-bounded. The search is the \
+    worklist loop of Algorithm 1 over lists of hole triples with at most K holes, with WR, the \
+    atomic hole segments AHS_i and the hole segments HS_i computed as finite fixed points, and \
+    with the loop's fuel bounded by the number of such lists. Repaired Algorithm 1 differs from \
+    the printed algorithm in two ways. First, HS_i is the reflexive-transitive closure of AHS_i, \
+    so that AddPop can remove a hole whose last atomic segment is popped. Second, the search \
+    starts from the lists [s] with s reached from an initial state by a well-nested run, not \
+    from the initial state alone (line 10 of Algorithm 1, printed p. 8). The printed-start \
+    variant isEmptyPrinted starts from the initial state but keeps the reflexive HS_i, so it \
+    does not literally implement every printed line; it is not complete: the module client test \
+    CslibFrontierTests.MPDA.Emptiness gives a two-stack MPDA whose run nop push0 push1 pop0 pop1 \
+    is accepting and 2-hole-bounded, on which the printed-start variant answers true and \
+    repaired Algorithm 1 false. There the initial state has no push or pop, and the well-nested \
+    acceptance check of line 3 cannot pass the crossing pushes and pops. The complexity bound of \
+    Theorem 1 and witness generation are not formalized. Source check: pending."
