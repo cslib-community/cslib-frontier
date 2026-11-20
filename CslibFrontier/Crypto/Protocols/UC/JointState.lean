@@ -30,7 +30,8 @@ call-budget model vs. PPT ITMs).
 
 The generic lazy-vs-eager parallel-package initialization theorem (`SSP.parFinLazy`,
 `SSP.run_parFinLazy_eq_parFin`) lives separately in `CslibFrontier.Crypto.Protocols.SSP.ParFinLazy`
-so SSP callers can use it without importing the UC execution / joint-state layer.
+(`SSP.Basic` supplies `UC.Machine` via `UC.Linking`), so SSP callers can import the bridge
+without importing the UC ideal-functionality or execution modules.
 
 ## Modelling decisions and differences from [CanettiRabin2003]
 
@@ -43,11 +44,12 @@ so SSP callers can use it without importing the UC execution / joint-state layer
 3. **Pull-model interface and scheduling differences.** On p. 272 of [CanettiRabin2003], `F̂` sends
    the party a tagged output `(ssid, v)` and notifies the adversary of its sub-session ID `ssid`
    when that output is sent. Here, `IdealFunctionality.multiSession` returns an untagged
-   `Option SubOut` on the selected pull query `SubSessionInput SSID SubIn`, and its backdoor
-   (`SubSessionBackdoor SSID BackQ`) is explicitly queried by the adversary rather than sending
-   adversary notifications on honest-party activations or outputs. Because the interfaces,
-   scheduling, and call-bounded vs. PPT ITM resource models differ, no implication between
-   `Realizes` for this pull API and the source premise is claimed here.
+   `Option SubOut` on the selected pull query `SubSessionInput SSID SubIn`, and provides an
+   explicitly queried backdoor interface (`SubSessionBackdoor SSID BackQ`) returning `BackR`
+   (exposing no raw copy state) rather than sending adversary notifications on honest-party
+   activations or outputs. Because the interfaces, scheduling, and call-bounded vs. PPT ITM
+   resource models differ, no implication between `Realizes` for this pull API and the source
+   premise is claimed here.
 4. **Sub-session relabelling `toJoint` and fixed `m` (pp. 273–274).** `MultiHybridProtocol.toJoint`
    relabels each `SubSessionCall` `⟨session, party, input⟩` as `(party, ⟨session, input⟩)`
    (adapting `π̃`, whose construction starts on p. 273 of [CanettiRabin2003], to a fixed finite
@@ -136,7 +138,8 @@ creates a fresh copy of `F` with `F.init secParam corrupted` on the first party 
 query for `ssid`, and activates that copy ([CanettiRabin2003], p. 272). Unlike the source's `F̂`
 (which sends a tagged output `(ssid, v)` to the party and notifies the adversary of `ssid` when
 that output is sent), this pull API returns an untagged `Option SubOut` on the selected pull and
-exposes copy state only through explicit `SubSessionBackdoor` queries. -/
+provides an explicitly queried backdoor interface (`SubSessionBackdoor SSID BackQ`) returning
+`BackR`, exposing no raw copy state. -/
 @[expose] def IdealFunctionality.multiSession {n : ℕ} {SubIn SubOut BackQ BackR : Type}
     (SSID : Type) [DecidableEq SSID]
     (F : IdealFunctionality n SubIn SubOut BackQ BackR) :

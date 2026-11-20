@@ -30,14 +30,17 @@ The paper has a single initial state; we allow a set of initial states, as `NA` 
 ## Main definitions
 
 - `MPDA.Op`: the stack operations of an MPDA.
+- `MPDA.OpKind`, `MPDA.Op.kind`: the kind of a stack operation, forgetting the stack symbol.
 - `MPDA`: multistack pushdown automata.
 - `MPDA.Config`: configurations, consisting of a control state and the contents of all stacks.
 - `MPDA.configLTS`: the transition system on configurations.
 - An `Acceptor` instance for acceptance by final state and empty stacks.
+- `MPDA.IsVisibly`: every transition on a letter performs the operation kind of that letter.
 
 ## Main results
 
 - `MPDA.configLTS_mTr_state`: every run on configurations projects to a run of the control.
+- `MPDA.IsVisibly.kind_eq`: every operation of a run of a visibly MPDA has the kind of its letter.
 
 ## References
 
@@ -98,6 +101,85 @@ theorem Op.apply_push {i : Fin n} {γ : Γ} {σ σ' : Stacks n Γ} :
 theorem Op.apply_pop {i : Fin n} {γ : Γ} {σ σ' : Stacks n Γ} :
     (Op.pop i γ).Apply σ σ' ↔ σ = Function.update σ' i (γ :: σ' i) := Iff.rfl
 
+/-! ### Two stacks -/
+
+/-- Two stacks with contents `s₀` and `s₁`. -/
+@[expose] def Stacks.pair (s₀ s₁ : List Γ) : Stacks 2 Γ := fun i => if i = 0 then s₀ else s₁
+
+theorem Stacks.eq_pair_iff {σ : Stacks 2 Γ} {s₀ s₁ : List Γ} :
+    σ = Stacks.pair s₀ s₁ ↔ σ 0 = s₀ ∧ σ 1 = s₁ := by
+  constructor
+  · rintro rfl
+    exact ⟨rfl, rfl⟩
+  · rintro ⟨h₀, h₁⟩
+    funext i
+    match i with
+    | ⟨0, _⟩ => exact h₀
+    | ⟨1, _⟩ => exact h₁
+
+theorem Stacks.empty_eq_pair : (Stacks.empty : Stacks 2 Γ) = Stacks.pair [] [] :=
+  Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩
+
+theorem Op.apply_push_zero_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
+    (Op.push 0 γ).Apply (Stacks.pair s₀ s₁) σ ↔ σ = Stacks.pair (γ :: s₀) s₁ := by
+  rw [Op.apply_push]
+  suffices h : Function.update (Stacks.pair s₀ s₁) 0 (γ :: Stacks.pair s₀ s₁ 0) =
+      Stacks.pair (γ :: s₀) s₁ by
+    rw [h]
+  exact Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩
+
+theorem Op.apply_push_one_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
+    (Op.push 1 γ).Apply (Stacks.pair s₀ s₁) σ ↔ σ = Stacks.pair s₀ (γ :: s₁) := by
+  rw [Op.apply_push]
+  suffices h : Function.update (Stacks.pair s₀ s₁) 1 (γ :: Stacks.pair s₀ s₁ 1) =
+      Stacks.pair s₀ (γ :: s₁) by
+    rw [h]
+  exact Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩
+
+theorem Op.apply_pop_zero_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
+    (Op.pop 0 γ).Apply (Stacks.pair s₀ s₁) σ ↔ ∃ t, s₀ = γ :: t ∧ σ = Stacks.pair t s₁ := by
+  rw [Op.apply_pop]
+  constructor
+  · intro h
+    have h₀ : s₀ = γ :: σ 0 := congrFun h 0
+    have h₁ : s₁ = σ 1 := congrFun h 1
+    exact ⟨σ 0, h₀, Stacks.eq_pair_iff.mpr ⟨rfl, h₁.symm⟩⟩
+  · rintro ⟨t, rfl, rfl⟩
+    exact ((Stacks.eq_pair_iff (σ := Function.update (Stacks.pair t s₁) 0
+      (γ :: Stacks.pair t s₁ 0))).mpr ⟨rfl, rfl⟩).symm
+
+theorem Op.apply_pop_one_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
+    (Op.pop 1 γ).Apply (Stacks.pair s₀ s₁) σ ↔ ∃ t, s₁ = γ :: t ∧ σ = Stacks.pair s₀ t := by
+  rw [Op.apply_pop]
+  constructor
+  · intro h
+    have h₀ : s₀ = σ 0 := congrFun h 0
+    have h₁ : s₁ = γ :: σ 1 := congrFun h 1
+    exact ⟨σ 1, h₁, Stacks.eq_pair_iff.mpr ⟨h₀.symm, rfl⟩⟩
+  · rintro ⟨t, rfl, rfl⟩
+    exact ((Stacks.eq_pair_iff (σ := Function.update (Stacks.pair s₀ t) 1
+      (γ :: Stacks.pair s₀ t 1))).mpr ⟨rfl, rfl⟩).symm
+
+/-- The kind of a stack operation: a push on stack `i`, a pop from stack `i`, or no stack
+operation. A visibly pushdown alphabet assigns a kind to each letter. -/
+inductive OpKind (n : ℕ) where
+  /-- A push on stack `i`. -/
+  | push (i : Fin n)
+  /-- A pop from stack `i`. -/
+  | pop (i : Fin n)
+  /-- No stack operation. -/
+  | nop
+  deriving DecidableEq
+
+/-- The kind of an operation, forgetting its stack symbol. -/
+@[expose, simp] def Op.kind : Op n Γ → OpKind n
+  | .nop => .nop
+  | .push i _ => .push i
+  | .pop i _ => .pop i
+
+theorem Op.kind_eq_push {op : Op n Γ} {i : Fin n} : op.kind = .push i ↔ ∃ γ, op = .push i γ := by
+  cases op <;> simp
+
 /-- A configuration of an MPDA: a control state and the contents of all stacks. -/
 @[ext]
 structure Config (n : ℕ) (State Γ : Type*) where
@@ -125,6 +207,91 @@ theorem configLTS_mTr_state {M : MPDA n State Symbol Γ} {c c' : Config n State 
   induction h with
   | refl => exact .refl
   | stepL htr _ ih => exact .stepL (configLTS_tr.mp htr).1 ih
+
+/-! ### Repeating a transition -/
+
+section Repeat
+
+variable {M : MPDA n State Symbol Γ} {q : State} {x : Symbol} {i : Fin n} {γ : Γ}
+
+/-- Repeating `k` times a transition that pushes `γ` on stack `i` and stays in its state. -/
+theorem configLTS_mTr_replicate_push (h : M.Tr q (x, .push i γ) q) :
+    ∀ (k : ℕ) (σ : Stacks n Γ), M.configLTS.MTr ⟨q, σ⟩ (List.replicate k (x, .push i γ))
+      ⟨q, Function.update σ i (List.replicate k γ ++ σ i)⟩
+  | 0, σ => by simp
+  | k + 1, σ => .stepL (configLTS_tr.mpr ⟨h, Op.apply_push.mpr rfl⟩) (by
+      have := configLTS_mTr_replicate_push h k (Function.update σ i (γ :: σ i))
+      rwa [Function.update_idem, Function.update_self, show List.replicate k γ ++ γ :: σ i =
+        List.replicate (k + 1) γ ++ σ i by
+          rw [List.replicate_succ', List.append_assoc, List.singleton_append]] at this)
+
+/-- Repeating `k` times a transition that pops `γ` from stack `i` and stays in its state. -/
+theorem configLTS_mTr_replicate_pop (h : M.Tr q (x, .pop i γ) q) :
+    ∀ (k : ℕ) (σ : Stacks n Γ), M.configLTS.MTr ⟨q, Function.update σ i (List.replicate k γ ++ σ i)⟩
+      (List.replicate k (x, .pop i γ)) ⟨q, σ⟩
+  | 0, σ => by simp
+  | k + 1, σ => .stepL (s2 := ⟨q, Function.update σ i (List.replicate k γ ++ σ i)⟩)
+      (configLTS_tr.mpr ⟨h, Op.apply_pop.mpr (by
+        change Function.update σ i (List.replicate (k + 1) γ ++ σ i) =
+          Function.update (Function.update σ i (List.replicate k γ ++ σ i)) i
+            (γ :: Function.update σ i (List.replicate k γ ++ σ i) i)
+        rw [Function.update_self, Function.update_idem, List.replicate_succ, List.cons_append])⟩)
+      (configLTS_mTr_replicate_pop h k σ)
+
+end Repeat
+
+/-! ### Repeating a transition on two stacks -/
+
+section RepeatPair
+
+variable {M : MPDA 2 State Symbol Γ} {q : State} {x : Symbol} {γ : Γ}
+
+theorem configLTS_mTr_replicate_push_zero (h : M.Tr q (x, .push 0 γ) q) (s₁ : List Γ) (k : ℕ)
+    (s₀ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
+      (List.replicate k (x, .push 0 γ)) ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩ := by
+  have := configLTS_mTr_replicate_push h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 0 (List.replicate k γ ++ Stacks.pair s₀ s₁ 0) =
+    Stacks.pair (List.replicate k γ ++ s₀) s₁ from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+theorem configLTS_mTr_replicate_push_one (h : M.Tr q (x, .push 1 γ) q) (s₀ : List Γ) (k : ℕ)
+    (s₁ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
+      (List.replicate k (x, .push 1 γ)) ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩ := by
+  have := configLTS_mTr_replicate_push h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 1 (List.replicate k γ ++ Stacks.pair s₀ s₁ 1) =
+    Stacks.pair s₀ (List.replicate k γ ++ s₁) from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+theorem configLTS_mTr_replicate_pop_zero (h : M.Tr q (x, .pop 0 γ) q) (s₁ : List Γ) (k : ℕ)
+    (s₀ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩
+      (List.replicate k (x, .pop 0 γ)) ⟨q, Stacks.pair s₀ s₁⟩ := by
+  have := configLTS_mTr_replicate_pop h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 0 (List.replicate k γ ++ Stacks.pair s₀ s₁ 0) =
+    Stacks.pair (List.replicate k γ ++ s₀) s₁ from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+theorem configLTS_mTr_replicate_pop_one (h : M.Tr q (x, .pop 1 γ) q) (s₀ : List Γ) (k : ℕ)
+    (s₁ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩
+      (List.replicate k (x, .pop 1 γ)) ⟨q, Stacks.pair s₀ s₁⟩ := by
+  have := configLTS_mTr_replicate_pop h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 1 (List.replicate k γ ++ Stacks.pair s₀ s₁ 1) =
+    Stacks.pair s₀ (List.replicate k γ ++ s₁) from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+end RepeatPair
+
+/-- An MPDA reads the letters visibly for `κ` if every transition on a letter `a` performs an
+operation of kind `κ a`. -/
+@[expose] def IsVisibly (M : MPDA n State Symbol Γ) (κ : Symbol → OpKind n) : Prop :=
+  ∀ s a op s', M.Tr s (a, op) s' → op.kind = κ a
+
+/-- Every operation of a run of a visibly MPDA has the kind of its letter. -/
+theorem IsVisibly.kind_eq {M : MPDA n State Symbol Γ} {κ : Symbol → OpKind n}
+    (hM : M.IsVisibly κ) {c c' : Config n State Γ} {w : List (Symbol × Op n Γ)}
+    (h : M.configLTS.MTr c w c') : ∀ μ ∈ w, μ.2.kind = κ μ.1 := by
+  induction h with
+  | refl => simp
+  | stepL htr _ ih =>
+    intro μ hμ
+    rcases List.mem_cons.mp hμ with rfl | hμ
+    · exact hM _ _ _ _ (configLTS_tr.mp htr).1
+    · exact ih μ hμ
 
 /-- An MPDA accepts a word if it has a run labelled by that word that starts in an initial state
 with all stacks empty and ends in an accepting state with all stacks empty. -/
