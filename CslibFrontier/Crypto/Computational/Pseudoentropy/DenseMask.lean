@@ -150,8 +150,8 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
     (fun n => Nat.mul_pos (by decide) (params (n, []) 0).predictionInverseTolerance_pos)
   have hsmall := SequenceLearner.failureBound_eventually_le (params := fun n => params (n, []) 0)
     (inverseGap := inverseGap) (by change PolynomiallyBounded id; exact .id)
-    hdensity.tidy.polynomiallyBounded hrate.tidy.polynomiallyBounded
-    hinverseGap.tidy.polynomiallyBounded (fun _ => le_rfl)
+    hdensity.polynomiallyBounded hrate.polynomiallyBounded
+    hinverseGap.polynomiallyBounded (fun _ => le_rfl)
   filter_upwards [hsmall, hhard] with n hsmall hhard
   intro i hi hnum hnumBound hthreshold
   specialize hhard i hi

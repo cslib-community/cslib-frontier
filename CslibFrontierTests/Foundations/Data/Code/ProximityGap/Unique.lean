@@ -26,6 +26,13 @@ dimension `k = 3`, and tight unique-decoding radius `e = 1` (`2 * 1 + 3 = 5`):
 3. **Parameterized curve (`d = 2`, three words):** constructs three corrupted words sharing a
    single error at coordinate `0` over `ZMod 11` (`d * n = 10 < 11 = |ZMod 11|`), and applies
    `exists_correlatedAgreement_curve_unique` and `proximityGap_curve_unique`.
+4. **Uniqueness & maximality clauses (BCIKS20 Theorems 1.4 & 1.5):** instantiates
+   `exists_uniqueMaximal_correlatedAgreement_unique` and
+   `exists_uniqueMaximal_correlatedAgreement_curve_unique` on corrupted words `∉ RS`, pinning the
+   exact unique maximal agreement set `Finset.univ.erase 0`, the exact unique codewords, and the
+   literal `∃!` maximal-set consequence; plus a length-`7`, `k = 3`, `e = 2` (`2 * 2 + 3 = 7`)
+   instance with 1-error words showing a valid non-maximal set `D'' = {2, 3, 4, 5, 6}` of size
+   `5 = 7 - 2` strictly contained in the unique maximal set `Finset.univ.erase 0` of size `6`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -399,5 +406,168 @@ theorem test_proximityGap_curve_unique_deg2 :
     rw [hsum] at hdist
     exact absurd hdist (not_le.2 (spike_line_far_at_one c hcRS))
   · simpa only [Fintype.card_fin] using hcard
+
+/-! ### Test 4: Uniqueness & maximality clauses (Theorems 1.4 & 1.5) -/
+
+/-- Line uniqueness-clause test (`exists_uniqueMaximal_correlatedAgreement_unique`): pins the exact
+unique maximal set `Finset.univ.erase 0`, the exact codewords `(v0True, v1True)`, and the literal
+`∃!` maximal qualifying set over `ZMod 11` (`n = 5`, `k = 3`, `e = 1`). -/
+theorem test_uniqueMaximal_correlatedAgreement_unique :
+    u0Corrupt ∉ reedSolomon points5 3 ∧
+    u1Corrupt ∉ reedSolomon points5 3 ∧
+    (∃! D' : Finset (Fin 5),
+      (4 ≤ D'.card ∧ ∃ v₀ ∈ reedSolomon points5 3, ∃ v₁ ∈ reedSolomon points5 3,
+        ∀ i ∈ D', u0Corrupt i = v₀ i ∧ u1Corrupt i = v₁ i) ∧
+      ∀ D₂ : Finset (Fin 5),
+        (4 ≤ D₂.card ∧ ∃ w₀ ∈ reedSolomon points5 3, ∃ w₁ ∈ reedSolomon points5 3,
+          ∀ i ∈ D₂, u0Corrupt i = w₀ i ∧ u1Corrupt i = w₁ i) →
+        D' ⊆ D₂ → D₂ = D') ∧
+    ∀ (D'' : Finset (Fin 5)) (w₀ w₁ : Fin 5 → ZMod 11),
+      4 ≤ D''.card → w₀ ∈ reedSolomon points5 3 → w₁ ∈ reedSolomon points5 3 →
+      (∀ i ∈ D'', u0Corrupt i = w₀ i ∧ u1Corrupt i = w₁ i) →
+      D'' ⊆ Finset.univ.erase 0 ∧ w₀ = v0True ∧ w₁ = v1True := by
+  let S : Finset (ZMod 11) := {0, 1, 2, 3, 4, 5}
+  have hS : Fintype.card (Fin 5) < S.card := by decide
+  have hagree_true : ∀ i ∈ (Finset.univ.erase (0 : Fin 5)),
+      u0Corrupt i = v0True i ∧ u1Corrupt i = v1True i := by
+    intro i hi
+    have hne : i ≠ 0 := (mem_erase.1 hi).1
+    simp only [u0Corrupt, u1Corrupt, hne, ↓reduceIte, and_self]
+  have hclose : ∀ z ∈ S, ∃ c ∈ reedSolomon points5 3,
+      hammingDist (u0Corrupt + z • u1Corrupt) c ≤ 1 := fun z _ =>
+    ⟨v0True + z • v1True, Submodule.add_mem _ v0True_mem_rs
+      (Submodule.smul_mem _ z v1True_mem_rs),
+      hammingDist_add_smul_le_of_eq_on (D' := Finset.univ.erase 0) (by decide) hagree_true z⟩
+  obtain ⟨D', hD', v₀, hv₀, v₁, hv₁, hagree, hmax⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_unique points5_injective (e := 1) (k := 3) (by decide)
+      u0Corrupt u1Corrupt S hS hclose
+  obtain ⟨her_sub, hv₀_eq, hv₁_eq⟩ :=
+    hmax (Finset.univ.erase 0) v0True v1True (by decide) v0True_mem_rs v1True_mem_rs hagree_true
+  subst hv₀_eq hv₁_eq
+  have hD'_eq : D' = Finset.univ.erase 0 := by
+    refine Finset.Subset.antisymm (fun i hi => mem_erase.2 ⟨?_, mem_univ i⟩) her_sub
+    rintro rfl
+    have h0 := (hagree 0 hi).1
+    simp only [u0Corrupt, ↓reduceIte, add_eq_left] at h0
+    exact one_ne_zero h0
+  subst hD'_eq
+  refine ⟨u0Corrupt_not_mem_rs, u1Corrupt_not_mem_rs, ?_, ?_⟩
+  · refine ⟨Finset.univ.erase 0, ⟨⟨by decide, v0True, v0True_mem_rs, v1True, v1True_mem_rs,
+      hagree_true⟩, fun D₂ hD₂ hsub => ?_⟩, fun D₁ hD₁ => ?_⟩
+    · obtain ⟨hcard₂, w₀, hw₀, w₁, hw₁, hag₂⟩ := hD₂
+      exact Finset.Subset.antisymm (hmax D₂ w₀ w₁ (by simpa only [Fintype.card_fin] using hcard₂)
+        hw₀ hw₁ hag₂).1 hsub
+    · obtain ⟨⟨hcard₁, w₀, hw₀, w₁, hw₁, hag₁⟩, hmax₁⟩ := hD₁
+      have hsub := (hmax D₁ w₀ w₁ (by simpa only [Fintype.card_fin] using hcard₁)
+        hw₀ hw₁ hag₁).1
+      exact (hmax₁ (Finset.univ.erase 0)
+        ⟨by decide, v0True, v0True_mem_rs, v1True, v1True_mem_rs, hagree_true⟩ hsub).symm
+  · intro D'' w₀ w₁ hD'' hw₀ hw₁ hag''
+    exact hmax D'' w₀ w₁ (by simpa only [Fintype.card_fin] using hD'') hw₀ hw₁ hag''
+
+/-- Curve uniqueness-clause test (`exists_uniqueMaximal_correlatedAgreement_curve_unique`, `d = 2`):
+pins the exact unique maximal set `Finset.univ.erase 0` and exact codewords
+`![v0True, v1True, v2True]` over `ZMod 11`. -/
+theorem test_uniqueMaximal_correlatedAgreement_curve_deg2 :
+    u2Corrupt ∉ reedSolomon points5 3 ∧
+    ∀ (D'' : Finset (Fin 5)) (w : Fin 3 → (Fin 5 → ZMod 11)),
+      4 ≤ D''.card → (∀ j, w j ∈ reedSolomon points5 3) →
+      (∀ i ∈ D'', ∀ j, (![u0Corrupt, u1Corrupt, u2Corrupt] j) i = w j i) →
+      D'' ⊆ Finset.univ.erase 0 ∧ w = ![v0True, v1True, v2True] := by
+  let u : Fin 3 → (Fin 5 → ZMod 11) := ![u0Corrupt, u1Corrupt, u2Corrupt]
+  let vTrue : Fin 3 → (Fin 5 → ZMod 11) := ![v0True, v1True, v2True]
+  have hvTrue_mem : ∀ j : Fin 3, vTrue j ∈ reedSolomon points5 3 := by
+    intro j; fin_cases j
+    · exact v0True_mem_rs
+    · exact v1True_mem_rs
+    · exact v2True_mem_rs
+  have hagree_true : ∀ i ∈ (Finset.univ.erase (0 : Fin 5)), ∀ j : Fin 3, u j i = vTrue j i := by
+    intro i hi j
+    have hne : i ≠ 0 := (mem_erase.1 hi).1
+    fin_cases j
+    · change u0Corrupt i = v0True i; simp only [u0Corrupt, hne, ↓reduceIte]
+    · change u1Corrupt i = v1True i; simp only [u1Corrupt, hne, ↓reduceIte]
+    · change u2Corrupt i = v2True i; simp only [u2Corrupt, v2True, hne, ↓reduceIte]
+  have hclose : ∀ z ∈ (Finset.univ : Finset (ZMod 11)), ∃ c ∈ reedSolomon points5 3,
+      hammingDist (∑ j : Fin 3, z ^ (j : ℕ) • u j) c ≤ 1 := fun z _ =>
+    ⟨∑ j : Fin 3, z ^ (j : ℕ) • vTrue j,
+      Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvTrue_mem j),
+      hammingDist_curve_le_of_eq_on (D' := Finset.univ.erase 0) (by decide) hagree_true z⟩
+  have hS : 2 * Fintype.card (Fin 5) < (Finset.univ : Finset (ZMod 11)).card := by decide
+  obtain ⟨D', _, v, _, hagree, hmax⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_curve_unique (d := 2) points5_injective
+      (e := 1) (k := 3) (by decide) u Finset.univ hS hclose
+  obtain ⟨her_sub, hv_eq⟩ :=
+    hmax (Finset.univ.erase 0) vTrue (by decide) hvTrue_mem hagree_true
+  subst hv_eq
+  have hD'_eq : D' = Finset.univ.erase 0 := by
+    refine Finset.Subset.antisymm (fun i hi => mem_erase.2 ⟨?_, mem_univ i⟩) her_sub
+    rintro rfl
+    have h0 : u0Corrupt 0 = v0True 0 := hagree 0 hi 0
+    simp only [u0Corrupt, ↓reduceIte, add_eq_left] at h0
+    exact one_ne_zero h0
+  subst hD'_eq
+  exact ⟨u2Corrupt_not_mem_rs, fun D'' w hD'' hwRS hag'' =>
+    hmax D'' w (by simpa only [Fintype.card_fin] using hD'') hwRS hag''⟩
+
+/-- Non-maximal strict-subset test at `n = 7`, `k = 3`, `e = 2` (`2 * 2 + 3 = 7`) over `ZMod 11`:
+words corrupted at only coordinate `0` admit a valid non-maximal agreement set
+`D'' = {2, 3, 4, 5, 6}` of size `5 = 7 - 2`, which sits strictly inside the unique maximal set
+`Finset.univ.erase 0` of size `6` (`D'' ⊂ D'`) with the same unique codewords. -/
+theorem test_uniqueMaximal_strict_subset_e2 :
+    let pts7 : Fin 7 → ZMod 11 := fun i => (i : ℕ)
+    let v0_7 : Fin 7 → ZMod 11 := fun i => (1 + X ^ 2 : (ZMod 11)[X]).eval (pts7 i)
+    let v1_7 : Fin 7 → ZMod 11 := fun i => (C (2 : ZMod 11) * X).eval (pts7 i)
+    let u0_7 : Fin 7 → ZMod 11 := fun i => if i = 0 then v0_7 i + 1 else v0_7 i
+    let u1_7 : Fin 7 → ZMod 11 := fun i => if i = 0 then v1_7 i + 3 else v1_7 i
+    let D_nonmax : Finset (Fin 7) := {2, 3, 4, 5, 6}
+    D_nonmax.card = 5 ∧
+    (∀ i ∈ D_nonmax, u0_7 i = v0_7 i ∧ u1_7 i = v1_7 i) ∧
+    ∃ D' : Finset (Fin 7), D_nonmax ⊂ D' ∧ D' = Finset.univ.erase 0 ∧
+      ∀ (D'' : Finset (Fin 7)) (w₀ w₁ : Fin 7 → ZMod 11),
+        5 ≤ D''.card → w₀ ∈ reedSolomon pts7 3 → w₁ ∈ reedSolomon pts7 3 →
+        (∀ i ∈ D'', u0_7 i = w₀ i ∧ u1_7 i = w₁ i) →
+        D'' ⊆ D' ∧ w₀ = v0_7 ∧ w₁ = v1_7 := by
+  intro pts7 v0_7 v1_7 u0_7 u1_7 D_nonmax
+  have hpts7 : Function.Injective pts7 := by decide
+  have hv0_mem : v0_7 ∈ reedSolomon pts7 3 := by
+    refine eval_mem_reedSolomon pts7 ?_
+    exact (degree_add_le _ _).trans_lt (max_lt
+      (by rw [degree_one]; exact Nat.cast_lt.2 (by decide))
+      (by rw [degree_X_pow]; exact Nat.cast_lt.2 (by decide)))
+  have hv1_mem : v1_7 ∈ reedSolomon pts7 3 := by
+    refine eval_mem_reedSolomon pts7 ?_
+    refine (degree_mul_le _ _).trans_lt ?_
+    rw [degree_X]
+    exact (add_le_add degree_C_le le_rfl).trans_lt
+      (by rw [zero_add]; exact Nat.cast_lt.2 (by decide))
+  have hag_er : ∀ i ∈ Finset.univ.erase (0 : Fin 7), u0_7 i = v0_7 i ∧ u1_7 i = v1_7 i := by
+    intro i hi
+    have hne : i ≠ 0 := (mem_erase.1 hi).1
+    simp only [u0_7, u1_7, hne, ↓reduceIte, and_self]
+  have hag_nm : ∀ i ∈ D_nonmax, u0_7 i = v0_7 i ∧ u1_7 i = v1_7 i :=
+    fun i hi => hag_er i (by revert i hi; decide)
+  let S : Finset (ZMod 11) := {0, 1, 2, 3, 4, 5, 6, 7}
+  have hS : Fintype.card (Fin 7) < S.card := by decide
+  have hclose : ∀ z ∈ S, ∃ c ∈ reedSolomon pts7 3, hammingDist (u0_7 + z • u1_7) c ≤ 2 := fun z _ =>
+    ⟨v0_7 + z • v1_7, Submodule.add_mem _ hv0_mem (Submodule.smul_mem _ z hv1_mem),
+      hammingDist_add_smul_le_of_eq_on (D' := Finset.univ.erase 0) (by decide) hag_er z⟩
+  obtain ⟨D', _, v₀, _, v₁, _, hagree, hmax⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_unique hpts7 (e := 2) (k := 3) (by decide)
+      u0_7 u1_7 S hS hclose
+  obtain ⟨her_sub, hv₀_eq, hv₁_eq⟩ :=
+    hmax (Finset.univ.erase 0) v0_7 v1_7 (by decide) hv0_mem hv1_mem hag_er
+  subst hv₀_eq hv₁_eq
+  have hD'_eq : D' = Finset.univ.erase 0 := by
+    refine Finset.Subset.antisymm (fun i hi => mem_erase.2 ⟨?_, mem_univ i⟩) her_sub
+    rintro rfl
+    have h0 := (hagree 0 hi).1
+    simp only [u0_7, ↓reduceIte, add_eq_left] at h0
+    exact one_ne_zero h0
+  subst hD'_eq
+  refine ⟨by decide, hag_nm, Finset.univ.erase 0, ?_, rfl, fun D'' w₀ w₁ hD'' hw₀ hw₁ hag'' =>
+    hmax D'' w₀ w₁ (by simpa only [Fintype.card_fin] using hD'') hw₀ hw₁ hag''⟩
+  rw [Finset.ssubset_iff_of_subset (hmax D_nonmax v0_7 v1_7 (by decide) hv0_mem hv1_mem hag_nm).1]
+  exact ⟨1, by decide, by decide⟩
 
 end CslibFrontierTests.Foundations.Data.Code.ProximityGap.Unique

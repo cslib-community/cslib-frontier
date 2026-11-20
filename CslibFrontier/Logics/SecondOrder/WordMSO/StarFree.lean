@@ -225,10 +225,8 @@ private theorem extract_eq_singleton (u : List α) (a : α) {i j : ℕ} (hj : j 
     have hji : j = i + 1 := by omega
     have hi : i < u.length := by omega
     subst hji
-    have h1 : u.extract i (i + 1) = [u[i]] := by
-      simp only [List.extract_eq_take_drop, Nat.add_sub_cancel_left]
-      rw [List.take_one_drop_eq_of_lt_length hi]
-      rfl
+    have h1 : u.extract i (i + 1) = [u[i]] :=
+      List.extract_eq_singleton (List.getElem?_eq_getElem hi)
     rw [h1, List.singleton_inj] at h
     exact ⟨⟨i, hi⟩, ⟨le_rfl, Nat.lt_succ_self i⟩, h, fun q hq => by fin_index⟩
   · rintro ⟨⟨p, hp⟩, ⟨hip, hpj⟩, hpa, huniq⟩
@@ -239,9 +237,7 @@ private theorem extract_eq_singleton (u : List α) (a : α) {i j : ℕ} (hj : j 
       fin_index
     subst hji
     obtain rfl : p = i := by simp only at hip hpj; omega
-    simp only [List.extract_eq_take_drop, Nat.add_sub_cancel_left]
-    rw [List.take_one_drop_eq_of_lt_length hp]
-    exact congrArg (fun b => [b]) hpa
+    exact List.extract_eq_singleton (List.getElem?_eq_some_iff.mpr ⟨hp, hpa⟩)
 
 /-- The window formula of `e` holds iff the factor of the word in the window belongs to the
 language of `e`. -/

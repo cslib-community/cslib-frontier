@@ -624,7 +624,7 @@ theorem isPPTOn_schnorrDirectProbExperiment {k : ℕ → ℕ}
   let E2 := encPair E1 (encPair encBits encBits)
   let E3 := encPair E2 encBits
   let E4 := encPair E3 encBits
-  have hk_t := hk.tidy
+  have hk_t := hk
   have hcommit : IsPPTOn E1 (encPair encBits encBits)
       (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => A.commit p.1.1 (p.1.2, p.2.1)) :=
     hA.1.preprocess
@@ -767,13 +767,13 @@ theorem isPPTOn_schnorrEavesdropProbExperiment {k Q : ℕ → ℕ}
   let E3 := encPair E2 (encPair encBits encBits)
   let E4 := encPair E3 encBits
   let E5 := encPair E4 encBits
-  have hk_t := hk.tidy
-  have hQ_t := hQ.tidy
+  have hk_t := hk
+  have hQ_t := hQ
   have hsk_nat : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => ofBits p.2.2) E1 encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp
+    (ComputableInPolyTime.bitsToNat.comp
       (by fun_prop : ComputableInPolyTime
-        (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => p.2.2) E1 encBits).tidy)
+        (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => p.2.2) E1 encBits))
   have hviews : IsPPTOn E1 (encList encTranscript)
       (fun p : (ℕ × F.Desc) × (List Bool × List Bool) =>
         OracleComp.replicate (Q p.1.1)
