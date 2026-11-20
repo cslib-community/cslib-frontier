@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Automata.MPDA.Holes
 public import CslibFrontier.Foundations.Data.List.Splits
+public import Mathlib.Computability.Language
 import CslibFrontier.Foundations.Data.List.Extract
 
 /-! # Context-, round- and scope-bounded sequences of multistack pushdown automata
@@ -26,6 +27,7 @@ classes that hole-bounded sequences generalize:
 
 - `MPDA.IsContext`, `MPDA.IsRound`: contexts and rounds.
 - `MPDA.ContextBounded`, `MPDA.RoundBounded`, `MPDA.ScopeBounded`.
+- `MPDA.boundedLanguage`: acceptance restricted to a class of runs.
 
 ## Main results
 
@@ -111,5 +113,14 @@ contexts. -/
 theorem ContextBounded.scopeBounded {K : ℕ} {w : List (α × Op n Γ)} (h : ContextBounded K w) :
     ScopeBounded K w :=
   fun p m _ => (h.of_isInfix (w.extract_isInfix p (m + 1))).mono_bound (Nat.le_succ K)
+
+/-! ## Bounded acceptance -/
+
+/-- The language of the words with an accepting run satisfying `P`: acceptance restricted to the
+runs of a bounded class, such as `ScopeBounded K` or `HoleBounded K`. -/
+@[expose] def boundedLanguage {State Symbol : Type*} (M : MPDA n State Symbol Γ)
+    (P : List (Symbol × Op n Γ) → Prop) : Language Symbol :=
+  {w | ∃ s ∈ M.start, ∃ s' ∈ M.accept, ∃ μs : List (Symbol × Op n Γ), μs.map Prod.fst = w ∧
+    M.configLTS.MTr ⟨s, Stacks.empty⟩ μs ⟨s', Stacks.empty⟩ ∧ P μs}
 
 end Cslib.Automata.MPDA

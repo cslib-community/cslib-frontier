@@ -440,6 +440,8 @@ import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
+import CslibFrontier.Computability.Automata.MPDA.Separation
+import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
 import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
@@ -11327,3 +11329,30 @@ register_result "mpda-scope-bounded-hole-bounded" where
     independent agent review (reviewer-codex-edemaine) on PR #6615, against \
     arXiv:2002.05950v2, printed pp. 4-6: \
     https://github.com/cslib-community/cslib-frontier/pull/6615#pullrequestreview-5981924133."
+
+register_result "mpda-hole-bounded-not-scope-bounded" where
+  title := "A hole-bounded visibly MPDA language that is not scope-, context- or round-bounded"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Proposition 2, second sentence",
+      locator := "arXiv:2002.05950v2, Section 2.1, Proposition 2 (printed p. 6) and the \
+        strict-containment part of its proof (the language L_bh and the witnesses w_m), printed \
+        pp. 6-7; contexts, rounds and scope as defined in Section 2, printed p. 4; holes as in \
+        Definition 1, printed p. 5" }
+  ]
+  theorems := [Cslib.Automata.MPDA.HoleSeparation.language_separates_holeBounded_scopeBounded,
+    Cslib.Automata.MPDA.HoleSeparation.language_automaton]
+  scope := "Two-stack MPDAs that read the letters a, b, c, d visibly (a, b push on stacks 0, 1 \
+    and c, d pop from them), with bounded acceptance: the language of an MPDA restricted to a \
+    class of runs is the set of words with an accepting run in that class. The source's \
+    language L_bh is the 2-hole-bounded language, and also the full language, of a finite \
+    visibly MPDA; and for every K, L_bh is not the K-scope-, K-context- or K-round-bounded \
+    language of any visibly MPDA, finite or not. At run level, every run on a word of L_bh is \
+    2-hole-bounded, and a run on a^m b^m (c d)^m is not K-scope-bounded for any K < 2m. The \
+    source's witness for unbounded scope is a^m b^m (a c^2 b d^2)^m; the Lean witness takes the \
+    groups of L_bh with p = q = 0. The statement is for visibly MPDAs, as in the source's \
+    argument; whether the separation holds when stack operations are hidden is open (issue \
+    #6712). The phase-bounded comparison in the last sentence of Proposition 2 is not \
+    formalized here. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR \
+    #6714 at 17f93ab43d, against arXiv:2002.05950v2, printed pp. 4-7: \
+    https://github.com/cslib-community/cslib-frontier/pull/6714#issuecomment-7037725174."
