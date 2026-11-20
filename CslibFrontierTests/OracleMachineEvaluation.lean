@@ -6,7 +6,7 @@ Authors: Christian Reitwiessner
 
 module
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePartrec
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePrograms
 
 /-! # Oracle answers control halting and output -/
 
@@ -49,5 +49,14 @@ example : ∃ c : Nat.RecursiveIn.Code, ∀ (oracle : ℕ → Bool),
       (queryOne.eval oracle []).map Encodable.encode := by
   obtain ⟨c, hc⟩ := queryOne.exists_code_eval
   exact ⟨c, fun oracle => hc oracle []⟩
+
+example : OracleDesc.unaryQuery.evalUnary (· == 5) 5 = Part.some 1 := by
+  rw [OracleDesc.evalUnary_unaryQuery]
+  rfl
+
+example : OracleDesc.unaryQuery.eval (· == 4) [1, 1, 1, 1, 1] = Part.some [] := by
+  change OracleDesc.unaryQuery.eval (· == 4) (List.replicate 5 1) = Part.some []
+  rw [OracleDesc.eval_unaryQuery]
+  rfl
 
 end CslibFrontierTests.OracleMachineEvaluation

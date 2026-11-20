@@ -3768,6 +3768,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Comp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Countable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Hardwire
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePartrec
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePrograms
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partialize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Reduction
