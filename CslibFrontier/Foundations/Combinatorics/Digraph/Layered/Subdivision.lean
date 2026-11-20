@@ -60,6 +60,10 @@ abbrev graph : Digraph (Vertex V bound) where
 abbrev toQuiver : Quiver (Vertex V bound) where
   Hom a b := PLift ((graph G weight bound).Adj a b)
 
+instance (a b : Vertex V bound) :
+    Subsingleton (@Quiver.Hom _ (toQuiver G weight bound) a b) :=
+  inferInstanceAs (Subsingleton (PLift ((graph G weight bound).Adj a b)))
+
 /-- Paths in the subdivision's ordinary directed graph. -/
 abbrev Path (a b : Vertex V bound) := @Quiver.Path _ (toQuiver G weight bound) a b
 
@@ -182,7 +186,7 @@ private theorem chain_step (v : V) (a b : Fin (bound + 1))
 
 /-- Every subdivided path is an expanded original path followed by a final chain prefix.
 The statement includes auxiliary endpoints, not only the original graph's vertices. -/
-theorem normalForm (hw : ∀ v, weight v ≤ bound) {s : V} {v : Vertex V bound}
+theorem normal_form (hw : ∀ v, weight v ≤ bound) {s : V} {v : Vertex V bound}
     (p : Path G weight bound (root bound s) v) :
     p = @Quiver.Path.comp _ (toQuiver G weight bound) _ _ _
       (expand hw (contract p))
@@ -237,7 +241,7 @@ noncomputable def pathEquiv (hw : ∀ v, weight v ≤ bound) (s : V) (v : Vertex
   left_inv p := by
     rw [contract_comp, contract_chain, contract_expand]
     rfl
-  right_inv p := (normalForm hw p).symm
+  right_inv p := (normal_form hw p).symm
 
 /-- The rectangular subdivision has at most the number of vertices times one plus the
 uniform weight bound; unused positions remain isolated. -/
