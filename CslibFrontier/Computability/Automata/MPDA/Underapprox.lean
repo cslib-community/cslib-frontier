@@ -12,7 +12,7 @@ public import CslibFrontier.Foundations.Data.List.Splits
 public import Mathlib.Computability.Language
 import CslibFrontier.Foundations.Data.List.Extract
 
-/-! # Context-, round- and scope-bounded sequences of multistack pushdown automata
+/-! # Context-, round-, scope- and phase-bounded sequences of multistack pushdown automata
 
 Reachability for multistack pushdown automata is undecidable, so verification focuses on
 restricted classes of runs. Section 2 of [AkshayGastinKrishnaRoychowdhury2020] recalls the
@@ -22,11 +22,13 @@ classes that hole-bounded sequences generalize:
 - `MPDA.RoundBounded`: at most `K` rounds, where a round is one possibly empty context for each
   stack `0, …, n - 1`, in this order.
 - `MPDA.ScopeBounded`: at most `K` context switches between a push and its matching pop.
+- `MPDA.PhaseBounded`: at most `K` phases, where a phase pops from at most one stack (any two of
+  its pops use the same stack) and may push on any stack.
 
 ## Main definitions
 
-- `MPDA.IsContext`, `MPDA.IsRound`: contexts and rounds.
-- `MPDA.ContextBounded`, `MPDA.RoundBounded`, `MPDA.ScopeBounded`.
+- `MPDA.IsContext`, `MPDA.IsRound`, `MPDA.IsPhase`: contexts, rounds and phases.
+- `MPDA.ContextBounded`, `MPDA.RoundBounded`, `MPDA.ScopeBounded`, `MPDA.PhaseBounded`.
 - `MPDA.boundedLanguage`: acceptance restricted to a class of runs.
 
 ## Main results
@@ -113,6 +115,20 @@ contexts. -/
 theorem ContextBounded.scopeBounded {K : ℕ} {w : List (α × Op n Γ)} (h : ContextBounded K w) :
     ScopeBounded K w :=
   fun p m _ => (h.of_isInfix (w.extract_isInfix p (m + 1))).mono_bound (Nat.le_succ K)
+
+/-! ## Phase-bounded sequences -/
+
+/-- A phase is a sequence of transitions that pops from at most one stack: any two of its pops
+use the same stack. It may push on any stack, and a sequence without pops is a phase. -/
+@[expose] def IsPhase (w : List (α × Op n Γ)) : Prop :=
+  ∀ μ ∈ w, ∀ ν ∈ w, ∀ (i j : Fin n) (γ δ : Γ), μ.2 = .pop i γ → ν.2 = .pop j δ → i = j
+
+/-- At most `K` phases. -/
+@[expose] def PhaseBounded (K : ℕ) (w : List (α × Op n Γ)) : Prop := List.Splits IsPhase K w
+
+theorem IsPhase.of_isInfix {u w : List (α × Op n Γ)} (hu : u <:+: w) (h : IsPhase w) :
+    IsPhase u :=
+  fun μ hμ ν hν => h μ (hu.subset hμ) ν (hu.subset hν)
 
 /-! ## Bounded acceptance -/
 

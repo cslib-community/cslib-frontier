@@ -362,8 +362,7 @@ theorem OpenHolePush.sameHole_pred {w : List (α × Op n Γ)} {x q : ℕ} {i : F
     have hpm := hm.1
     have hpush : IsPushOn (w.extract (q - 1) (m + 1)) j 1 := by
       refine ⟨a, γ, ?_⟩
-      rw [List.extract_eq_take_drop, List.getElem?_take_of_lt (by omega), List.getElem?_drop,
-        show q - 1 + 1 = q by omega, hqj]
+      rw [List.getElem?_extract _ (by omega), show q - 1 + 1 = q by omega, hqj]
     have hsplit : w.take (q - 1) ++ w.extract (q - 1) (m + 1) ++ w.drop (m + 1) = w := by
       rw [List.extract_eq_take_drop, ← List.take_add,
         show q - 1 + (m + 1 - (q - 1)) = m + 1 by omega, List.take_append_drop]
