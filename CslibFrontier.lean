@@ -2002,6 +2002,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BQP.PhaseGates
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Sampling
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Sampling.Resources
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Sampling.Seeded
+public import CslibFrontier.Computability.Complexity.Classes.BQP.Space
 public import CslibFrontier.Computability.Complexity.Classes.BQP.TensorContraction
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Time
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy
