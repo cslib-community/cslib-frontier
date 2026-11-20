@@ -53,7 +53,7 @@ abbrev Answer (F : Type*) (m : ℕ) := F ⊕ (Σ L : Finset (Point F m), L → F
 variable [Field F] [Fintype F] [DecidableEq F]
 
 /-- The affine image sent to the line player. -/
-def linePoints (u v : Point F m) : Finset (Point F m) :=
+@[expose] def linePoints (u v : Point F m) : Finset (Point F m) :=
   univ.image fun t : F => u + t • v
 
 theorem mem_linePoints (u v : Point F m) (t : F) : u + t • v ∈ linePoints u v :=
@@ -120,7 +120,7 @@ theorem LineHasDegree.exists_polynomial {u v : Point F m} {f : linePoints u v �
     exact congrArg f (Subtype.ext ht)
 
 /-- The line answer must have the right domain and degree, and agree with the point answer. -/
-def lineAgrees (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
+@[expose] def lineAgrees (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
     (a : Σ L : Finset (Point F m), L → F) (b : F) : Prop :=
   a.1 = L ∧ LineHasDegree a.2 d ∧ ∃ h : u ∈ a.1, a.2 ⟨u, h⟩ = b
 
@@ -170,7 +170,7 @@ theorem exists_eq_of_accepts_points (d : ℕ) (u v : Point F m) (a b : Answer F 
       assignLineRoles (.axis (linePoints u (Pi.single i (1 : F)))) (.point u)
 
 /-- Extend a direction in the chosen prefix by zero on all remaining coordinates. -/
-def prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) : Point F m :=
+@[expose] def prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) : Point F m :=
   fun j => if h : j.val < i.val + 1 then v ⟨j.val, h⟩ else 0
 
 omit [Fintype F] [DecidableEq F] in
@@ -197,7 +197,7 @@ def prefixDirectionEquiv (i : Fin m) :
 
 /-- Diagonal branch, with a uniform point, uniform prefix length and uniform direction within
 that prefix. Zero directions occur with the sampling probability specified in Figure 2. -/
-noncomputable def diagonalQuestions (n : ℕ) :
+@[expose] noncomputable def diagonalQuestions (n : ℕ) :
     PMF (Question F (n + 1) × Question F (n + 1)) :=
   (uniformOfFintype (Point F (n + 1))).bind fun u =>
     (uniformOfFintype (Fin (n + 1))).bind fun i =>
