@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Foundations.Data.BitString.Weight.ZeroExtend
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 
 /-!
@@ -30,6 +31,8 @@ cutoff. The empty input is rejected without probes.
 
 ## Main results
 
+* `Cslib.BitString.exists_majorityDirectAccess`: a constant-probe tester with
+  polylogarithmic direct-access time and error at most one third.
 * `Cslib.BitString.majorityDirectAccess_timeAndQueries`: one halting fair-coin machine, with
   polynomial time in the binary header length and a separate constant probe bound.
 -/
@@ -188,5 +191,60 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
   exact hresult.mono
     (by simpa only [Nat.add_zero, Nat.mul_one, validRequests, ← hlen'] using
       List.length_filter_le _ words)
+
+private theorem majorityDirectAccess_acceptProb {n k : ℕ} [NeZero n] {δ : ℚ}
+    (hk : 0 < k) (hδ : 0 ≤ δ) (x : BitString n) :
+    (ProbOracleComp.acceptProbWith (majorityInputOracle x)
+      (majorityDirectAccess k δ n) ()).toReal = (majorityTester n k δ).acceptProb x := by
+  classical
+  rw [ProbOracleComp.acceptProbWith, majorityDirectAccess_eq_majorityTester hk hδ,
+    PMF.map_comp, PMF.toReal_uniformOfFintype_map_apply_true,
+    Cslib.PCP.LocalTest.acceptProb_eq_card_div]
+  rw [Finset.dens_eq_card_div_card]
+  push_cast
+  congr 2
+  apply congrArg Finset.card
+  ext r
+  simp
+
+/-- For each positive distance, a single direct-access strict-majority tester has a worst-case
+clock polynomial in the binary input length and a constant probe bound. It accepts members
+with probability at least two thirds and accepts far inputs with probability at most one third. -/
+theorem exists_majorityDirectAccess {δ : ℝ} (hδ : 0 < δ) :
+    ∃ (k : ℕ) (t : ℕ → ℕ) (program : ℕ → WordOracleComp Unit Bool),
+      PolyBounded (fun n => (encNat n).length) t ∧
+      ComputesOracleInTimeAndQueriesOn encNat encBool t (fun _ => k) program ∧
+      (∀ n (x : BitString n), strictMajority n x = true →
+        2 / 3 ≤ (ProbOracleComp.acceptProbWith (majorityInputOracle x) (program n) ()).toReal) ∧
+      (∀ n (x : BitString n),
+        (∀ y, strictMajority n y = true → δ * n ≤ hammingDist x y) →
+        (ProbOracleComp.acceptProbWith (majorityInputOracle x) (program n) ()).toReal ≤ 1 / 3) := by
+  obtain ⟨q, hq, hqδ⟩ := exists_rat_btwn hδ
+  obtain ⟨k, hk⟩ := exists_nat_ge (16 / (q : ℝ) ^ 2)
+  have hbudget : (16 : ℝ) ≤ k * (q : ℝ) ^ 2 := (div_le_iff₀ (pow_pos hq _)).mp hk
+  have hkpos : 0 < k := by
+    by_contra! h
+    have : k = 0 := by omega
+    norm_num [this] at hbudget
+  have hqpos : 0 < q := by exact_mod_cast hq
+  obtain ⟨t, ht, hcert⟩ := majorityDirectAccess_timeAndQueries k q
+  refine ⟨k, t, majorityDirectAccess k q, ht, hcert, ?_, ?_⟩
+  · intro n x hx
+    have hn : n ≠ 0 := by
+      rintro rfl
+      have := strictMajority_eq_true_iff.mp hx
+      have := weight_le_length x
+      omega
+    let _ : NeZero n := ⟨hn⟩
+    rw [majorityDirectAccess_acceptProb hkpos hqpos.le]
+    exact (majorityTester_spec hqpos hbudget).2.1 x hx
+  · intro n x hx
+    by_cases hn : n = 0
+    · subst n
+      simp [majorityDirectAccess, ProbOracleComp.acceptProbWith, PMF.pure_map, PMF.pure_apply]
+    · let _ : NeZero n := ⟨hn⟩
+      rw [majorityDirectAccess_acceptProb hkpos hqpos.le]
+      exact (majorityTester_spec hqpos hbudget).2.2 x fun y hy =>
+        (mul_le_mul_of_nonneg_right hqδ.le (Nat.cast_nonneg n)).trans (hx y hy)
 
 end Cslib.BitString
