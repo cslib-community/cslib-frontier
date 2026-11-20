@@ -166,7 +166,7 @@ example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length 
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg [true]) indices =
       some ([false, true], final)) : ¬final.Halted := by
   intro hhalt
-  have h := (R.replay_correct [true] hr hhalt).2.1 1 (by decide)
+  have h := (R.replay_correct [true] hr hhalt).1.2 1 (by decide)
   exact Bool.noConfusion h
 
 open NondeterministicQueryMachine in
@@ -176,7 +176,7 @@ example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length +
     {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) input}
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg input) indices =
       some ([false, true], final)) (hhalt : final.Halted) : final.output = [true] :=
-  (R.replay_correct input hr hhalt).2.2
+  (R.replay_correct input hr hhalt).2
 
 open NondeterministicQueryMachine in
 /-- An initially halted accepting source has one full native occurrence trace with no choices;
@@ -192,7 +192,7 @@ example (R : Routines ownBit id encBool (fun _ => 1)) {indices : List ℕ}
     {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) (encBool true)}
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (encBool true)) indices =
       some ([], final)) (hhalt : final.Halted) : final.output = [true] :=
-  (R.replay_correct true hr hhalt).2.2
+  (R.replay_correct true hr hhalt).2
 
 open NondeterministicQueryMachine in
 /-- Regression for the former unconditional first choice: an already accepting source has
@@ -202,7 +202,7 @@ example (R : Routines ownBit id encBool (fun _ => 1)) :
       (fun out => out == [true]) fuel (R.machine.initCfg (encBool true)) = 1 := by
   obtain ⟨indices, ⟨final, hr, hhalt⟩, _⟩ :=
     (R.existsUnique_replay_iff true []).mpr ⟨rfl, fun n h => by simp at h⟩
-  have hout : final.output = [true] := (R.replay_correct true hr hhalt).2.2
+  have hout : final.output = [true] := (R.replay_correct true hr hhalt).2
   have hrun := congrArg (Option.map Prod.snd) hr
   rw [Native.map_snd_replayChoices] at hrun
   change (Native.countingMachine R.I R.P R.F R.C).runBranch _ indices = some final at hrun
@@ -223,7 +223,7 @@ example (R : Routines ownBit id encBool (fun _ => 1)) :
     (R.machine.initCfg (encBool true)) indices.length (fun out => out == [true]) [] (by
       intro is trace last hreplay hlast _
       by_contra hne
-      have h := (R.replay_correct true hreplay hlast).2.1 0 (List.length_pos_iff.mpr hne)
+      have h := (R.replay_correct true hreplay hlast).1.2 0 (List.length_pos_iff.mpr hne)
       exact Bool.noConfusion h)
   exact ⟨indices.length, by omega⟩
 

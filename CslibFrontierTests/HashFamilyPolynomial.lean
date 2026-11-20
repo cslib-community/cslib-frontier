@@ -11,10 +11,11 @@ public import CslibFrontier.Probability.HashFamily.Polynomial
 public import Mathlib.Algebra.Field.ZMod
 
 /-!
-# Fixed-length polynomial hash clients
+# Polynomial hash clients
 
 These ordinary-module clients exercise the public coefficient-order bridges, a nonvacuous
-restricted seed-space bound, the empty vector, and both full-field bounds.
+restricted seed-space bound, the empty vector, both full-field bounds, and the power-of-two
+modulus counterexample.
 -/
 
 public section
@@ -85,5 +86,17 @@ example :
     (Finset.univ.filter fun k : ZMod 5 =>
       k * coeffPolyHash k restrictedX - k * coeffPolyHash k restrictedY = 1).card = 2 := by
   decide
+
+/-- The two-block messages with these same leading coefficients are separated by some key. -/
+example : ¬ ∀ k : ZMod 8, polyHash k [4, 4] = polyHash k [0, 0] :=
+  fun h => (by decide : (4 : ZMod 8) ≠ 0) (polyHash_two_blocks_eq_iff.mp h).1
+
+/-- In a composite modulus, the three-block witness collides at all eight keys. -/
+example : ∀ k : ZMod 8, polyHash k [4, 4, 0] = polyHash k [0, 0, 0] := by decide
+
+/-- The obstruction applies even to a seed distribution concentrated on one key. -/
+example : ¬ IsUniversalHash (PMF.pure (1 : ZMod 8))
+    (fun k (m : {m : List (ZMod 8) // m.length ≤ 3}) => polyHash k m) (1 / 2) :=
+  not_isUniversalHash_polyHash_zmod_pow_two 2 (by omega) _ (by norm_num)
 
 end CslibFrontierTests.HashFamilyPolynomial

@@ -19,7 +19,8 @@ remaining choices or terminal configuration. The finalizer consumes no abstract 
 and emits the abstract state's verdict.
 
 `replay_correct` and `existsUnique_replay_iff` compose these boundaries: first-halting abstract
-choice traces correspond exactly to unique halted native occurrence traces, with the same
+choice traces (`FirstHalting`) correspond exactly to unique halted native occurrence traces,
+with the same
 verdict. An initially halted source reaches the finalizer without any choice. The full native
 class-equality theorem remains in #6747.
 -/
@@ -289,8 +290,7 @@ private theorem choose_replay_correct (a : α) (bits : List Bool) (s : σ)
     (hr : Native.replayChoices R.I R.P R.F R.C
       (wordsCfg (enc a) (some .choose) (R.boundary s flag) out) indices = some (bits, final))
     (hhalt : final.Halted) :
-    M.halted (M.replay (enc a) bits s) = true ∧
-      (∀ n < bits.length, M.halted (M.replay (enc a) (bits.take n) s) = false) ∧
+    M.FirstHalting (enc a) bits s ∧
       final.output = out ++ [M.accept (M.replay (enc a) bits s)] := by
   induction bits generalizing s flag out indices final with
   | nil => exact (Native.replayChoices_choose_ne_nil R.I R.P R.F R.C rfl hr hhalt rfl).elim
@@ -302,35 +302,28 @@ private theorem choose_replay_correct (a : α) (bits : List Bool) (s : σ)
     cases hn : M.halted (M.step (enc a) s b) with
     | false =>
       have hi := ih (M.step (enc a) s b) hs' hn true out (by simpa [hn] using hrest) hhalt
-      refine ⟨hi.1, ?_, hi.2.2⟩
-      intro n hnlt
-      cases n with
-      | zero => exact hlive
-      | succ n => simpa [List.take_succ_cons, replay_cons] using hi.2.1 n (by simpa using hnlt)
+      exact ⟨(M.firstHalting_cons_iff (enc a) b bits s).mpr ⟨hlive, hi.1⟩, hi.2⟩
     | true =>
       have hf := (R.finish_replay a _ hs' false out).2 rest bits final
         (by simpa [hn] using hrest) hhalt
       obtain rfl := hf.1
-      refine ⟨hn, ?_, hf.2⟩
-      intro n hnlt
-      have : n = 0 := by simpa using hnlt
-      subst n
-      exact hlive
-
+      exact ⟨(M.firstHalting_cons_iff (enc a) b [] s).mpr
+        ⟨hlive, hn, fun n h => by simp at h⟩, hf.2⟩
 
 private theorem exists_choose_replay (a : α) (bits : List Bool) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s) (hlive : M.halted s = false)
-    (hh : M.halted (M.replay (enc a) bits s) = true)
-    (hproper : ∀ n < bits.length, M.halted (M.replay (enc a) (bits.take n) s) = false)
+    (hfirst : M.FirstHalting (enc a) bits s)
     (flag : Bool) (out : List Bool) :
     ∃ indices final, Native.replayChoices R.I R.P R.F R.C
       (wordsCfg (enc a) (some .choose) (R.boundary s flag) out) indices =
         some (bits, final) ∧ final.Halted := by
   induction bits generalizing s flag out with
   | nil =>
+    have hh := hfirst.1
     simp only [replay_nil, hlive] at hh
     cases hh
   | cons b bits ih =>
+    have hnext := ((M.firstHalting_cons_iff (enc a) b bits s).mp hfirst).2
     obtain ⟨first, hfirst, _⟩ := R.pass_replay a s hs b flag out
     have hs' := Reachable.step (M.withInit (start a)) (enc a) hs b
     change (M.withInit (start a)).Reachable (enc a) (M.step (enc a) s b) at hs'
@@ -345,16 +338,12 @@ private theorem exists_choose_replay (a : α) (bits : List Bool) (s : σ)
       simp [hrest, Option.bind]
     cases hn : M.halted (M.step (enc a) s b) with
     | false =>
-      have hproper' : ∀ n < bits.length,
-          M.halted (M.replay (enc a) (bits.take n) (M.step (enc a) s b)) = false := by
-        intro n hnlt
-        simpa [List.take_succ_cons, replay_cons] using hproper (n + 1) (by simpa using hnlt)
-      simpa [hn] using ih (M.step (enc a) s b) hs' hn hh hproper' true out
+      simpa [hn] using ih (M.step (enc a) s b) hs' hn hnext true out
     | true =>
       have hnil : bits = [] := by
         by_contra hne
-        have h := hproper 1 (by simpa using List.length_pos_iff.mpr hne)
-        simp [List.take_succ_cons, replay_cons, hn] at h
+        have h := hnext.2 0 (List.length_pos_iff.mpr hne)
+        simp [hn] at h
       subst bits
       simpa [hn] using (R.finish_replay a _ hs' false out).1
 
@@ -365,8 +354,7 @@ theorem replay_correct (a : α)
     {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) (enc a)}
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (enc a)) indices =
       some (bits, final)) (hhalt : final.Halted) :
-    M.halted (M.replay (enc a) bits (start a)) = true ∧
-      (∀ n < bits.length, M.halted (M.replay (enc a) (bits.take n) (start a)) = false) ∧
+    M.FirstHalting (enc a) bits (start a) ∧
       final.output = [M.accept (M.replay (enc a) bits (start a))] := by
   obtain ⟨_, _, hfactor⟩ := R.init_replay a
   obtain ⟨rest, _, hrest⟩ := (hfactor indices bits final hhalt).mp hr
@@ -378,7 +366,7 @@ theorem replay_correct (a : α)
     have hf := (R.finish_replay a (start a) hs false []).2 rest bits final
       (by simpa [hn] using hrest) hhalt
     obtain rfl := hf.1
-    exact ⟨hn, fun n h => by simp at h, hf.2⟩
+    exact ⟨⟨hn, fun n h => by simp at h⟩, hf.2⟩
 
 /-- An abstract trace halts for the first time at its end iff
 there is exactly one halted native occurrence trace recording those bits. The quantification
@@ -387,13 +375,11 @@ This is the replay correspondence, not the full native unambiguity or class-equa
 theorem existsUnique_replay_iff (a : α) (bits : List Bool) :
     (∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
       (R.machine.initCfg (enc a)) indices = some (bits, final) ∧ final.Halted) ↔
-    M.halted (M.replay (enc a) bits (start a)) = true ∧
-      ∀ n < bits.length, M.halted (M.replay (enc a) (bits.take n) (start a)) = false := by
+    M.FirstHalting (enc a) bits (start a) := by
   constructor
   · rintro ⟨indices, ⟨final, hr, hhalt⟩, _⟩
-    have h := R.replay_correct a hr hhalt
-    exact ⟨h.1, h.2.1⟩
-  · rintro ⟨hh, hproper⟩
+    exact (R.replay_correct a hr hhalt).1
+  · intro hfirst
     obtain ⟨n, hprefix, _⟩ := R.init_replay a
     have hs := (M.withInit (start a)).reachable_init (enc a)
     obtain ⟨rest, final, hrest, hhalt⟩ : ∃ rest final,
@@ -403,11 +389,11 @@ theorem existsUnique_replay_iff (a : α) (bits : List Bool) :
               some (bits, final) ∧ final.Halted := by
       cases hn : M.halted (start a) with
       | false =>
-        simpa [hn] using R.exists_choose_replay a bits (start a) hs hn hh hproper true []
+        simpa [hn] using R.exists_choose_replay a bits (start a) hs hn hfirst true []
       | true =>
         have hnil : bits = [] := by
           by_contra hne
-          have h := hproper 0 (List.length_pos_iff.mpr hne)
+          have h := hfirst.2 0 (List.length_pos_iff.mpr hne)
           simp [hn] at h
         subst bits
         simpa [hn] using (R.finish_replay a (start a) hs false []).1

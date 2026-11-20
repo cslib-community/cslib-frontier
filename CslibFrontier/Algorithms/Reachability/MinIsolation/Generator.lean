@@ -65,7 +65,7 @@ private theorem vertexWeight_lt_pow {V : Type*} {ℓ : ℕ} (code : V → Fin �
         _ = _ := by
           refine sum_congr rfl fun j _ => ?_
           have hj := j.isLt
-          simp only [coefficient, Fin.revPerm_apply, Fin.val_rev]
+          simp only [coefficient, scaleAccumulatedWeight, Fin.revPerm_apply, Fin.val_rev]
           congr 2
           omega
     _ < 6 ^ (padicValNat 2 i + ℓ) := by

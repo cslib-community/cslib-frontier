@@ -58,15 +58,6 @@ variable {n : ℕ} {Γ α β State : Type*}
 
 /-! ## Factors and runs -/
 
-private theorem getElem?_extract {w : List β} {a b k : ℕ} (hk : k < b - a) :
-    (w.extract a b)[k]? = w[a + k]? := by
-  simp [List.extract_eq_take_drop, hk]
-
-private theorem mem_extract {w : List β} {a b k : ℕ} {μ : β} (h : w[k]? = some μ) (hak : a ≤ k)
-    (hkb : k < b) : μ ∈ w.extract a b := by
-  rw [List.mem_iff_getElem?]
-  exact ⟨k - a, by rw [getElem?_extract (by omega), Nat.add_sub_cancel' hak, h]⟩
-
 private theorem exists_configLTS_mTr_extract {M : MPDA n State α Γ} {c c' : Config n State Γ}
     {w : List (α × Op n Γ)} (h : M.configLTS.MTr c w c') (a b : ℕ) :
     ∃ c₁ c₂, M.configLTS.MTr c₁ (w.extract a b) c₂ := by
@@ -159,7 +150,7 @@ private theorem WellNested.wellMatched_of_extract {w : List (α × Op n Γ)} {s 
     (hqe : q < e) (hq : IsPushOn w i q) : WellMatched w q := by
   obtain ⟨a, γ, hq⟩ := hq
   obtain ⟨m', hm', hwn⟩ := hw.exists_wellMatched (p := q - s) (i := i)
-    ⟨a, γ, by rw [getElem?_extract (by omega), Nat.add_sub_cancel' hsq, hq]⟩
+    ⟨a, γ, by rw [List.getElem?_extract _ (by omega), Nat.add_sub_cancel' hsq, hq]⟩
   have hlen : (w.extract s e).length = e - s := by simp; omega
   have hm'len := hm'.lt_length
   have hw' : w = w.take s ++ (w.extract s e ++ w.drop e) := by
@@ -188,7 +179,7 @@ private theorem exists_matches_of_net_neg {w : List (α × Op n Γ)} {i : Fin n}
       Nat.add_sub_cancel_left]
     simp
   refine ⟨p + 1 + u.length, by omega, by omega, i, hp, ⟨b, δ, ?_⟩, fun k => ?_, ?_⟩
-  · rw [← getElem?_extract hulen, hv]
+  · rw [← List.getElem?_extract _ hulen, hv]
     simp
   · rw [hu']
     exact hk k
@@ -213,11 +204,11 @@ private theorem not_isContext_extract_pop {M : MPDA n State α Γ} {c c' : Confi
   intro hctx
   obtain ⟨-, ⟨b, δ, hpop⟩, hk, hnet⟩ := hm₁.of_isPushOn hr₁
   have hctx' : IsContextOf i (w.extract a (m₁ + 1)) :=
-    hctx.isContextOf (mem_extract hpop (by omega) (by omega)) rfl
+    hctx.isContextOf (List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hpop⟩) rfl
   obtain ⟨⟨j, hj⟩, hnwm⟩ := ha
   have hji : j = i := by
     obtain ⟨a', γ, hj'⟩ := hj
-    have := hctx' _ (mem_extract hj' le_rfl (by omega))
+    have := hctx' _ (List.mem_extract_iff_getElem?.mpr ⟨_, le_rfl, by omega, hj'⟩)
     simpa [Op.stack] using this
   subst hji
   apply hnwm
@@ -251,10 +242,10 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   obtain ⟨⟨⟨j, hbj⟩, hbnwm⟩, hbpend⟩ := id hb
   obtain ⟨a', γ, hai'⟩ := id hai
   have hctx' : IsContextOf i (w.extract a (b + 1)) :=
-    hctx.isContextOf (mem_extract hai' le_rfl (by omega)) rfl
+    hctx.isContextOf (List.mem_extract_iff_getElem?.mpr ⟨_, le_rfl, by omega, hai'⟩) rfl
   obtain ⟨b', δ, hbj'⟩ := id hbj
   have hji : j = i := by
-    have := hctx' _ (mem_extract hbj' (by omega) (by omega))
+    have := hctx' _ (List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hbj'⟩)
     simpa [Op.stack] using this
   subst hji
   -- The last open hole push on stack `j` before `b`.
@@ -292,7 +283,7 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   -- The push at `p' + 1 + q` is still pending at `x`.
   have hsj : IsPushOn w j (p' + 1 + q) := by
     obtain ⟨a'', γ'', h⟩ := hqj
-    exact ⟨a'', γ'', by rw [← getElem?_extract (a := p' + 1) (b := b) (by omega), h]⟩
+    exact ⟨a'', γ'', by rw [← List.getElem?_extract _ (a := p' + 1) (b := b) (by omega), h]⟩
   have hspend : PendingAt w (p' + 1 + q) x := by
     refine ⟨by omega, hxlen, j, hsj, fun k => ?_⟩
     have e : w.extract (p' + 1 + q + 1) (x + 1) =

@@ -303,7 +303,7 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   · have := length_le_length_flatMap_encodeClause φ
     simp only [certWork, hdb]
     omega
-  · rw [hzo, CNF.checkLRAT, hdb]
+  · rw [hzo, CNF.checkLRAT, CNF.lratDB, hdb]
 
 end Specs
 

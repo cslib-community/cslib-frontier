@@ -54,29 +54,38 @@ namespace Cslib.Code.JustesenFamily
 
 open Polynomial
 
-private def bits (s : ℕ) : ℕ := 16 * (s + 1)
-private def dimension (s : ℕ) : ℕ := 2 ^ (bits s - 1)
-private def capacity (s : ℕ) : ℕ := dimension s * bits s
+/-- The binary field degree at scale `s`. -/
+@[expose] def scaleDegree (s : ℕ) : ℕ := 16 * (s + 1)
 
-private theorem bits_ne_zero (s : ℕ) : bits s ≠ 0 := by
-  unfold bits
+/-- The number of field coefficients in a message at scale `s`. -/
+@[expose] def dimension (s : ℕ) : ℕ := 2 ^ (scaleDegree s - 1)
+private def capacity (s : ℕ) : ℕ := dimension s * scaleDegree s
+
+private theorem scaleDegree_ne_zero (s : ℕ) : scaleDegree s ≠ 0 := by
+  unfold scaleDegree
   omega
 
 private theorem le_capacity (s : ℕ) : s ≤ capacity s := by
   have h : 1 ≤ dimension s := Nat.two_pow_pos _
   calc
-    s ≤ bits s := by unfold bits; omega
-    _ = 1 * bits s := (one_mul _).symm
+    s ≤ scaleDegree s := by unfold scaleDegree; omega
+    _ = 1 * scaleDegree s := (one_mul _).symm
     _ ≤ capacity s := Nat.mul_le_mul_right _ h
 
+/-- Moving to the next scale multiplies the message dimension by `2 ^ 16`. -/
+theorem dimension_succ (s : ℕ) : dimension (s + 1) = dimension s * 65536 := by
+  have he : scaleDegree (s + 1) - 1 = scaleDegree s - 1 + 16 := by
+    unfold scaleDegree
+    omega
+  rw [dimension, dimension, he, pow_add]
+  rfl
+
 private theorem capacity_succ_le (s : ℕ) : capacity (s + 1) ≤ 131072 * capacity s := by
-  have he : bits (s + 1) - 1 = bits s - 1 + 16 := by unfold bits; omega
-  have hb : bits (s + 1) ≤ 2 * bits s := by unfold bits; omega
-  unfold capacity dimension
-  rw [he, pow_add]
+  have hb : scaleDegree (s + 1) ≤ 2 * scaleDegree s := by unfold scaleDegree; omega
+  simp only [capacity, dimension_succ]
   calc
-    2 ^ (bits s - 1) * 2 ^ 16 * bits (s + 1) ≤
-        2 ^ (bits s - 1) * 2 ^ 16 * (2 * bits s) := Nat.mul_le_mul_left _ hb
+    dimension s * 65536 * scaleDegree (s + 1) ≤
+        dimension s * 65536 * (2 * scaleDegree s) := Nat.mul_le_mul_left _ hb
     _ = _ := by ring
 
 private def target (w n : ℕ) : ℕ := Nat.log 2 (w * (n + 1)) + 1
@@ -101,22 +110,39 @@ private theorem capacity_le (w n : ℕ) : capacity (scale w n) ≤ 67108864 * ta
       Nat.lt_of_not_ge (Nat.find_min (exists_scale w n) hlt)
     exact (capacity_succ_le s).trans (by omega)
 
-private theorem pow_bits (s : ℕ) : 2 ^ bits s = 2 * dimension s := by
+/-- There are twice as many field elements as coefficients in the message at this scale. -/
+theorem pow_scaleDegree (s : ℕ) : 2 ^ scaleDegree s = 2 * dimension s := by
   unfold dimension
-  rw [← pow_succ', Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.2 (bits_ne_zero s))]
+  rw [← pow_succ', Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.2 (scaleDegree_ne_zero s))]
 
-private theorem dimension_le (s : ℕ) : dimension s ≤ 2 ^ bits s - 1 := by
+private theorem dimension_le (s : ℕ) : dimension s ≤ 2 ^ scaleDegree s - 1 := by
   have h : 0 < dimension s := Nat.two_pow_pos _
-  rw [pow_bits]
+  rw [pow_scaleDegree]
   omega
 
 /-- Degree of the binary field at the least scale with sufficient message capacity. -/
 def fieldDegree (w n : ℕ) : ℕ :=
-  bits (scale w n)
+  scaleDegree (scale w n)
 
 /-- The selected field has positive degree. -/
 theorem fieldDegree_ne_zero (w n : ℕ) : fieldDegree w n ≠ 0 :=
-  bits_ne_zero _
+  scaleDegree_ne_zero _
+
+/-- The chosen degree is the first `16 * (s + 1)` whose message capacity meets the
+required threshold. The threshold also bounds the number of unsuccessful scales. -/
+theorem fieldDegree_spec (w n : ℕ) :
+    let threshold := 512 * (Nat.log2 (w * (n + 1)) + 1)
+    ∃ s ≤ threshold, fieldDegree w n = scaleDegree s ∧
+      threshold ≤ dimension s * scaleDegree s ∧
+      ∀ j < s, dimension j * scaleDegree j < threshold := by
+  have hle := Nat.find_min' (exists_scale w n) (le_capacity (512 * target w n))
+  have hmin {j : ℕ} (hj : j < scale w n) :
+      capacity j < 512 * target w n :=
+    Nat.lt_of_not_ge (Nat.find_min (exists_scale w n) hj)
+  simpa only [target, ← Nat.log2_eq_log_two, capacity] using
+    (show ∃ s ≤ 512 * target w n, fieldDegree w n = scaleDegree s ∧
+        512 * target w n ≤ capacity s ∧ ∀ j < s, capacity j < 512 * target w n
+      from ⟨scale w n, hle, rfl, target_le_capacity w n, fun _ hj => hmin hj⟩)
 
 /-- Code coordinates are a nonzero evaluation point, a Wozencraft half, and a bit within it. -/
 abbrev Coordinate (w n : ℕ) : Type :=
@@ -175,7 +201,8 @@ theorem codeword_injective (w n : ℕ) : Function.Injective (codeword (w := w) (
     exact congrFun he u
 
 private theorem card_coordinate (w n : ℕ) :
-    Fintype.card (Coordinate w n) = (2 ^ bits (scale w n) - 1) * (2 * bits (scale w n)) := by
+    Fintype.card (Coordinate w n) =
+      (2 ^ scaleDegree (scale w n) - 1) * (2 * scaleDegree (scale w n)) := by
   rw [Fintype.card_prod, Fintype.card_units, BinaryField.card (fieldDegree_ne_zero w n),
     Fintype.card_prod, Fintype.card_fin, Fintype.card_fin, fieldDegree]
 
@@ -189,12 +216,13 @@ theorem length_bounds (w n : ℕ) :
   constructor
   · refine (target_le_capacity w n).trans ?_
     calc
-      capacity s ≤ (2 ^ bits s - 1) * bits s := Nat.mul_le_mul_right _ (dimension_le s)
-      _ ≤ (2 ^ bits s - 1) * (2 * bits s) := Nat.mul_le_mul_left _ (by omega)
+      capacity s ≤ (2 ^ scaleDegree s - 1) * scaleDegree s :=
+        Nat.mul_le_mul_right _ (dimension_le s)
+      _ ≤ (2 ^ scaleDegree s - 1) * (2 * scaleDegree s) := Nat.mul_le_mul_left _ (by omega)
   · calc
-      (2 ^ bits s - 1) * (2 * bits s) ≤ 2 ^ bits s * (2 * bits s) :=
+      (2 ^ scaleDegree s - 1) * (2 * scaleDegree s) ≤ 2 ^ scaleDegree s * (2 * scaleDegree s) :=
         Nat.mul_le_mul_right _ (Nat.sub_le _ _)
-      _ = 4 * capacity s := by rw [pow_bits, capacity]; ring
+      _ = 4 * capacity s := by rw [pow_scaleDegree, capacity]; ring
       _ ≤ 268435456 * target w n := by
         have h : capacity s ≤ 67108864 * target w n := capacity_le w n
         omega

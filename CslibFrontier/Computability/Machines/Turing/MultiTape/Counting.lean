@@ -310,6 +310,29 @@ theorem haltsWithin_of_paths {M : MultiTapeCTM k Symbol State} (hM : M.Nonblocki
       (by simpa only [RelSeries.cons_length] using Nat.succ_le_succ hlen)
     simpa only [RelSeries.last_cons] using he
 
+/-- A counting-machine clock also bounds its unlabelled paths. Erasing the occurrence indices
+preserves the halting configuration of every path of at least that length. -/
+theorem HaltsWithin.paths_halted {M : MultiTapeCTM k Symbol State}
+    {fuel : ℕ} {cfg : Cfg k Symbol State input} (h : M.HaltsWithin fuel cfg) :
+    ∀ p : M.toNTM.RunPath input, p.head = cfg → fuel ≤ p.length → p.last.Halted := by
+  induction h with
+  | halt hh =>
+    intro p hp _
+    have hhead : p.head.Halted := by rwa [hp]
+    exact (p.last_eq_of_halted ⟨0, by omega⟩ hhead) ▸ hhead
+  | @step fuel cfg nonempty next ih =>
+    intro p hp hlen
+    have hnext : 1 < p.length + 1 := by omega
+    have hstep := p.step ⟨0, by omega⟩
+    change M.toNTM.Step p.head (p ⟨1, hnext⟩) at hstep
+    rw [hp] at hstep
+    have hlive : ¬cfg.Halted := fun hh => nonempty (M.actions_of_halted hh)
+    obtain ⟨index, hstep⟩ := (M.step_toNTM_iff hlive).mp hstep
+    obtain ⟨hi, heq⟩ := (M.step?_eq_some_iff _ _ _).mp hstep
+    have htail := ih ⟨index, hi⟩ (p.drop ⟨1, hnext⟩)
+      (by simpa using heq.symm) (by simp only [RelSeries.drop_length]; omega)
+    simpa using htail
+
 /-- Enlarging a sufficient clock does not add transitions after a branch halts. -/
 theorem HaltsWithin.mono {machine : MultiTapeCTM k Symbol State}
     {cfg : Cfg k Symbol State input} {fuel larger : ℕ}

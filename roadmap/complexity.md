@@ -10,6 +10,9 @@ Containments, separations, closure properties, complete problems and reductions 
 
 ### Structure, time and space
 
+- **Real-algebraic counting bounds** ([#6560](https://github.com/cslib-community/cslib-frontier/issues/6560)): port lean-canny's ETR/∃ℝ containment in C₂₆P and existential–universal real truth in C₆₀P, with PSPACE corollaries.
+  Extract reusable implicit-polynomial, coefficient and trace algorithms while preserving uniformity, encodings and full evaluator costs.
+
 - **Planar Boolean CSP dichotomy** ([#3091](https://github.com/cslib-community/cslib-frontier/issues/3091)): extend the native Boolean classification to ordered planar instances of arbitrary fixed relation arity, preserving individual incidence occurrences and cyclic argument order.
   The endpoint must prove the embedding and recognition interface, the cyclic-difference reduction, the even delta-matroid edge-CSP algorithm and planar hardness transfer internally, including the additional self-complementary tractable family.
   Supplied-embedding or matching-realizable-only milestones leave it open.
@@ -40,6 +43,8 @@ Containments, separations, closure properties, complete problems and reductions 
   Koucký–Mertz–Pyne–Sami's [*Collapsing Catalytic Classes*](https://arxiv.org/abs/2504.08444) with its parameter ranges and oracle promises: `CL = CNL = CPrL = CBPL`, compress-or-compute simulation, catalytic Savitch and complementation, randomized space–catalyst tradeoffs, hierarchy collapses and lossy-space consequences.
 - **Robust catalytic extensions** ([#2521](https://github.com/cslib-community/cslib-frontier/issues/2521)): the Koucký–Mertz–Sami [robust catalytic extensions](https://arxiv.org/abs/2605.09648), tracked separately from KMPS.
   Their broader collapse is conditional on an explicit circuit-hardness assumption, and their resetting-error and time regimes are kept distinct from the unconditional KMPS results.
+- **Unambiguous logarithmic space** ([#6747](https://github.com/cslib-community/cslib-frontier/issues/6747)): formalize Hoza’s [NL = UL, ECCC TR26-323](https://eccc.weizmann.ac.il/report/2026/323/), including the explicit logarithmic-space min-isolating weight generator and the native class equality for arbitrary injective input encodings.
+  Compose native layered reachability, weighted graph transport, streaming Reinhardt–Allender scans and branch-preserving compilation with polynomial termination and logarithmic workspace.
 - **Classical randomized-space proof reuse** ([#1444](https://github.com/cslib-community/cslib-frontier/issues/1444)): audit and simplify the existing `RL ⊆ NL ⊆ DSPACE(log² n)` proof in [LogSpace/Savitch.lean](../CslibFrontier/Computability/Complexity/Classes/LogSpace/Savitch.lean).
   Reuse support semantics, midpoint reachability, compact configuration graphs and native space simulation; share lemmas and refactor real clients while preserving encodings and workspace bounds.
   `RL = L` remains unresolved; this classical-first milestone has no preprint-estimator dependency.
