@@ -53,23 +53,23 @@ local notation "CheckedAnswers" => (C → A × B)
 local notation "Transcript" => ((Info × CheckedAnswers) × (Free → PairQ))
 
 /-- Draw the checked questions and the free-coordinate messages independently. -/
-noncomputable def infoLaw : PMF Info :=
+@[expose] noncomputable def infoLaw : PMF Info :=
   (pi fun _ : C => (G.anchored α).questions).bind fun checked =>
     (pi fun _ : Free => (law G.questions α).map Prod.fst).map fun messages =>
       ⟨checked, messages⟩
 
 /-- The prior question-pair law at an unchecked coordinate given the revealed information. -/
-noncomputable def pairGiven (j : Free) (t : Info) : PMF PairQ :=
+@[expose] noncomputable def pairGiven (j : Free) (t : Info) : PMF PairQ :=
   conditionalSnd (law G.questions α) (t.halves j)
 
 /-- The law of the checked answers at a full tuple of questions. -/
-noncomputable def checkedAnswerLaw (S : RepeatedStrategy) (q : Fin n → PairQ) :
+@[expose] noncomputable def checkedAnswerLaw (S : RepeatedStrategy) (q : Fin n → PairQ) :
     PMF CheckedAnswers :=
   (S.answers (Prod.fst ∘ q) (Prod.snd ∘ q)).map fun (a, b) i => (a i, b i)
 
 /-- Sample the unchecked pairs given the revealed information and retain the strategy's
 answers on the checked coordinates. -/
-noncomputable def sideKernel (S : RepeatedStrategy) (t : Info) :
+@[expose] noncomputable def sideKernel (S : RepeatedStrategy) (t : Info) :
     PMF ((Free → PairQ) × CheckedAnswers) :=
   (pi fun j => pairGiven G α C j t).bind fun u =>
     (checkedAnswerLaw C S (t.combine u)).map (u, ·)
@@ -83,7 +83,7 @@ theorem map_fst_sideKernel (S : RepeatedStrategy) (t : Info) :
   simp only [sideKernel, PMF.map_bind, PMF.map_comp, Function.comp_def, h, PMF.bind_pure]
 
 /-- The joint law of the transcript and the unchecked questions. -/
-noncomputable def transcriptLaw (S : RepeatedStrategy) : PMF Transcript :=
+@[expose] noncomputable def transcriptLaw (S : RepeatedStrategy) : PMF Transcript :=
   sideJoint (infoLaw G α C) (sideKernel G α C S)
 
 /-- The verifier accepts every coordinate in the checked set. -/

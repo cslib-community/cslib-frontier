@@ -60,6 +60,15 @@ theorem anchored_questions (α : I) :
   unfold anchored
   rfl
 
+/-- On two ordinary questions the anchored verifier uses the original predicate.
+If either question is an anchor, it accepts every answer. -/
+theorem anchored_accepts (α : I) (x : Option X) (y : Option Y) (a : A) (b : B) :
+    (G.anchored α).accepts x y a b ↔
+      match x, y with
+      | some x, some y => G.accepts x y a b
+      | _, _ => True := by
+  cases x <;> cases y <;> rfl
+
 /-- If only one question is retained, its law is the corresponding original marginal.
 The two anchor flags contribute their independent masses in each case. -/
 theorem anchored_questions_apply (α : I) (x : Option X) (y : Option Y) :

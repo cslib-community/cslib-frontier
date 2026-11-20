@@ -56,7 +56,7 @@ local notation "Space" => (ι × (L × Answer))
 
 /-- The joint law obtained by sampling a label and then running the independently
 averaged checked-answer experiment at that label. -/
-noncomputable def checkedAnswersWithLabel (p : L → PMF X) (r : PMF L) (q : L → PMF Y) :
+@[expose] noncomputable def checkedAnswersWithLabel (p : L → PMF X) (r : PMF L) (q : L → PMF Y) :
     PMF (L × Answer) :=
   r.bind fun y => ((p y).bind fun x => (q y).bind fun t => S.checkedAnswers C x t).map (y, ·)
 

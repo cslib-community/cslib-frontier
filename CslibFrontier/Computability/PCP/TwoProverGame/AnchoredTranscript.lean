@@ -54,7 +54,7 @@ local notation "Rest" => Shared (Option X) (Option Y) A B C
 local notation "Transcript" => ((Info × (C → A × B)) × (Free → PairQ))
 
 /-- Keep the checked questions and answers and the messages at all other unchecked trials. -/
-def restTranscript (j : Free) (r : Transcript) : Rest j :=
+@[expose] def restTranscript (j : Free) (r : Transcript) : Rest j :=
   let ((t, v), _) := r
   Shared.ofRevealed j t v
 
@@ -139,6 +139,126 @@ theorem map_trial_restTranscriptLaw (S : RepeatedStrategy) (j : Free) :
       rcases trial with ⟨m, q⟩
       simp only [Function.comp_def, read]
       rw [map_rest_complete_update C S j t u m q]
+
+/-- The checked questions and the noisy messages other than the selected one. -/
+structure RestQuestions (X Y : Type*) {n : ℕ} (C : Finset (Fin n)) (j : {i : Fin n // i ∉ C}) where
+  /-- The pairs on the checked coordinates. -/
+  questions : C → X × Y
+  /-- The noisy messages on the other free coordinates. -/
+  halves : {i : {k : Fin n // k ∉ C} // i ≠ j} → X ⊕ Y
+  deriving Fintype
+
+local notation "Saved" => RestQuestions (Option X) (Option Y) C
+
+/-- Forget the selected message in the question information. -/
+def omitMessage (j : Free) (t : Info) : Saved j :=
+  ⟨t.questions, fun i => t.halves i⟩
+
+/-- Forget the answers in the remaining transcript. -/
+def restQuestions (j : Free) (r : Rest j) : Saved j :=
+  ⟨r.questions, r.halves⟩
+
+/-- Restore the unused message with a dummy value so that the full questions can be recombined. -/
+@[expose] def restoreMessage (j : Free) (t : Saved j) : Info :=
+  ⟨t.questions, fun i => if hi : i = j then Sum.inl none else t.halves ⟨i, hi⟩⟩
+
+/-- The retained question information has a distribution independent of the selected pair. -/
+noncomputable def restQuestionsLaw (j : Free) : PMF (Saved j) :=
+  (infoLaw G α C).map (omitMessage C j)
+
+/-- Reconstruct the full question tuples from the retained information and a fixed selected
+pair. Other free coordinates are filled in from their own noisy messages. -/
+@[expose] noncomputable def questionsGivenRest (j : Free) (t : Saved j) (q : PairQ) :
+    PMF (Fin n → PairQ) :=
+  let full := restoreMessage C j t
+  (pi (Function.update (fun i => pairGiven G α C i full) j (PMF.pure q))).map full.combine
+
+/-- The distribution of the checked answers under the question law reconstructed from
+the retained information. -/
+@[expose] noncomputable def answersGivenRest (S : RepeatedStrategy) (j : Free) (t : Saved j)
+    (q : PairQ) : PMF (C → A × B) :=
+  (questionsGivenRest G α C j t q).bind (checkedAnswerLaw C S)
+
+omit [Fintype A] [Fintype B] in
+private theorem questionsGivenRest_omit (j : Free) (t : Info) (q : PairQ) :
+    questionsGivenRest G α C j (omitMessage C j t) q =
+      (pi (Function.update (fun i => pairGiven G α C i t) j (PMF.pure q))).map t.combine := by
+  have hk : Function.update (fun i => pairGiven G α C i (restoreMessage C j (omitMessage C j t)))
+      j (PMF.pure q) = Function.update (fun i => pairGiven G α C i t) j (PMF.pure q) := by
+    funext i
+    by_cases hi : i = j
+    · subst i
+      simp only [Function.update_self]
+    · simp only [Function.update_of_ne hi, pairGiven, restoreMessage, omitMessage, dite_eq_right hi]
+  unfold questionsGivenRest
+  dsimp only
+  rw [hk]
+  congr 1
+
+omit [Fintype A] [Fintype B] in
+/-- Each retained message in a supported observation is itself possible under the prior. -/
+theorem mem_support_halves_of_mem_support_restQuestionsLaw (j : Free) (t : Saved j)
+    (ht : t ∈ (restQuestionsLaw G α C j).support) (i : {i : Free // i ≠ j}) :
+    t.halves i ∈ ((law G.questions α).map Prod.fst).support := by
+  unfold restQuestionsLaw at ht
+  obtain ⟨full, hfull, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+  simp only [infoLaw, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hfull
+  obtain ⟨_, -, halves, hhalves, rfl⟩ := hfull
+  exact (mem_support_pi_iff _ _).mp hhalves i
+
+/-- With the selected pair fixed, sample the retained information first and then the answers.
+This disintegration keeps the same experiment as the original transcript kernel. -/
+theorem map_restKernel_eq_bind (S : RepeatedStrategy) (j : Free) (q : PairQ) :
+    (restKernel G α C S j q).map (fun r => (restQuestions C j r, r.answers)) =
+      (restQuestionsLaw G α C j).bind fun t =>
+        (answersGivenRest G α C S j t q).map (t, ·) := by
+  let finish (t : Info) (u : Free → PairQ) :=
+    (checkedAnswerLaw C S (t.combine (Function.update u j q))).map (omitMessage C j t, ·)
+  have hread (checked : C → PairQ) (u : Free → Trial) :
+      ((completeTranscript C S checked (Function.update u j (Sum.inl none, q))).map
+        (restTranscript C j)).map (fun r => (restQuestions C j r, r.answers)) =
+          finish ⟨checked, Prod.fst ∘ u⟩ (Prod.snd ∘ u) := by
+    have hq : Prod.snd ∘ Function.update u j (Sum.inl none, q) =
+        Function.update (Prod.snd ∘ u) j q := by
+      funext i
+      by_cases hi : i = j
+      · subst i
+        simp only [Function.comp_apply, Function.update_self]
+      · simp only [Function.comp_apply, Function.update_of_ne hi]
+    have hcombine :
+        (Revealed.mk checked (Prod.fst ∘ Function.update u j (Sum.inl none, q))).combine
+          (Prod.snd ∘ Function.update u j (Sum.inl none, q)) =
+        (Revealed.mk checked (Prod.fst ∘ u)).combine (Function.update (Prod.snd ∘ u) j q) := by
+      rw [hq]
+      unfold Revealed.combine
+      rfl
+    simp only [completeTranscript, PMF.map_comp, Function.comp_def, restTranscript,
+      Shared.ofRevealed.eq_1, restQuestions, finish, omitMessage]
+    simp only [Function.comp_def] at hcombine
+    rw [hcombine]
+    congr 1
+    funext v
+    congr 2
+    funext i
+    simp only [Function.update_of_ne i.property]
+  calc
+    _ = (pi fun _ : C => (G.anchored α).questions).bind (fun checked =>
+        (pi fun _ : Free => law G.questions α).bind fun u =>
+          finish ⟨checked, Prod.fst ∘ u⟩ (Prod.snd ∘ u)) := by
+      simp only [restKernel, PMF.map_bind, hread]
+    _ = (infoLaw G α C).bind (fun t => (pi fun i => pairGiven G α C i t).bind (finish t)) := by
+      simp only [infoLaw, PMF.bind_bind, PMF.bind_map, Function.comp_def]
+      congr 1 with checked : 1
+      have h := congrArg (fun p : PMF ((Free → Option X ⊕ Option Y) × (Free → PairQ)) =>
+        p.bind fun (m, u) => finish ⟨checked, m⟩ u)
+        (pi_joint_eq_bind_conditionalSnd (fun _ : Free => law G.questions α))
+      simpa only [PMF.bind_map, PMF.bind_bind, Function.comp_def, pairGiven] using h
+    _ = _ := by
+      simp only [restQuestionsLaw, PMF.bind_map, Function.comp_def]
+      congr 1 with t : 1
+      rw [answersGivenRest, questionsGivenRest_omit, pi_update_pure, PMF.bind_map, PMF.bind_map,
+        PMF.map_bind]
+      rfl
 
 private theorem conditionalSnd_filter_forget {U V R : Type*} (prior : PMF U)
     (forget : U → V) (K : V → PMF R) (E : Set R)

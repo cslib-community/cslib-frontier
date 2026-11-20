@@ -80,6 +80,16 @@ noncomputable def checkedWinTranscriptLaw (h : (0 : ℝ) < ((Law).toOuterMeasure
     (checkedTranscriptEquiv (C := C) (A := A) (B := B) (Ω := Ω) V)
 
 omit [Fintype X] [Fintype Y] [Fintype Ω] [∀ i, DecidableEq (V i)] in
+/-- Conditioning precedes the regrouping of the visible transcript and question tuple. -/
+theorem checkedWinTranscriptLaw_eq_filter_map (h : (0 : ℝ) < ((Law).toOuterMeasure Win).toReal)
+    (hs : ∃ z ∈ Win, z ∈ (Law).support) :
+    S.checkedWinTranscriptLaw C V p r s q W h =
+      ((Law).filter Win hs).map
+        (fun ((ω, y), a) => ((ω, a), y)) := by
+  unfold checkedWinTranscriptLaw
+  rfl
+
+omit [Fintype X] [Fintype Y] [Fintype Ω] [∀ i, DecidableEq (V i)] in
 open Classical in
 /-- The filtered transcript mass is the original checked-answer mass divided by the
 win probability on the retained event, and zero off that event. -/

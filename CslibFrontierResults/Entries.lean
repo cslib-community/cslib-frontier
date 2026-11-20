@@ -12,6 +12,10 @@ import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
 import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerInformation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
@@ -10899,6 +10903,70 @@ register_result "bvy-anchored-conditioning-bounds" where
     and the second sums transcript and question-resampling distances. Distances are half-L1. \
     The constants use natural logs with Pinsker’s factor 1/2 and the full checked-answer \
     alphabet. Any checked set is allowed, including when no free coordinate remains."
+
+register_result "bvy-two-anchor-transcript-comparisons" where
+  title := "Two-anchor transcript comparisons after checked wins"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 4.6(3)–(4)",
+      locator := "arXiv:1509.07466v2, §4.3, printed pp. 14–17, equations (6)–(11)" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.sum_dist_anchoredRest_given_wins
+  ]
+  scope := "For a positive-probability checked-win event under a finite tensor strategy with local \
+    POVMs, weight both summed half-L1 distances by w = α²/2. The bounds are (2+2w)ε₁+ε₂ \
+    and (1+w)(2ε₁+ε₂), with ε₁ and ε₂ the natural-log bounds from the winning probability \
+    and the full checked-answer alphabet. The weighted forms include endpoint anchor rates. \
+    A null observation uses the remaining transcript’s marginal fallback."
+
+register_result "bvy-checked-answer-weight-given-questions" where
+  title := "Checked-answer branch weight given the selected question pair"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 4.9, equation (20)",
+      locator := "arXiv:1509.07466v2, §4.4, printed pp. 17–18" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.norm_checkedVectorGivenRest_sq_observed
+  ]
+  scope := "For a finite-dimensional tensor strategy with local POVMs and a selected unchecked \
+    coordinate, the squared branch norm is the actual conditional checked-answer probability. \
+    The selected pair and retained question observation must be supported. Local dimensions may \
+    differ. The reconstructed kernels are total and the observed-law equality is on support."
+
+register_result "bvy-checked-answer-weight-given-noisy-message" where
+  title := "Checked-answer branch weight given a noisy message and Bob’s question"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 4.9, equations (21)–(22)",
+      locator := "arXiv:1509.07466v2, §4.4, printed p. 18" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.norm_checkedVectorGivenBob_sq,
+    Cslib.PCP.AnchoredDependency.norm_checkedVectorGivenBob_sq_inl
+  ]
+  scope := "For a finite-dimensional tensor strategy with local POVMs and a selected unchecked \
+    coordinate, the squared branch norm equals the actual conditional checked-answer \
+    probability at supported retained information, tagged message and Bob question. \
+    For a left message, this weight splits into the anchor and ordinary branches at the \
+    additional erasure rate α/2. Local dimensions may differ and the kernels are total."
+
+register_result "bvy-alice-information-after-anchored-wins" where
+  title := "Alice’s coordinate information after checked wins in an anchored game"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13, Alice direction of equation (35)",
+      locator := "arXiv:1509.07466v2, §5, printed pp. 23–24" }
+  ]
+  theorems := [Cslib.PCP.AnchoredDependency.exists_anchored_coordinateInformation_le_after_wins]
+  scope := "For finite tensor-product strategies with local POVMs, sum over the unchecked \
+    coordinates and average over the actual winning transcript. The information between Bob’s \
+    question and Alice’s normalized reduced state is bounded by log of the checked-answer \
+    alphabet size minus log of the checked win probability, in nats. The event must have \
+    positive probability, and the state identification is on support. The sum also permits \
+    zero unchecked coordinates. Source check by codex-f4a705f4 at \
+    https://github.com/cslib-community/cslib-frontier/pull/6669#issuecomment-7021806259."
 
 register_result "dpll-pigeonhole-refutation-size" where
   title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"
