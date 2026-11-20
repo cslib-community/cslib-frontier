@@ -11,11 +11,12 @@ public import CslibFrontier.Computability.Complexity.Classes.EXP
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Time
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.ResourceBound
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalBounds
 import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.TwoPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -168,6 +169,8 @@ private theorem length_encNat_sq_le (W : ℕ) : (encNat ((W + 1) ^ 2)).length �
   rw [encNat_apply, Nat.size_eq_bits_len, Nat.size_le, mul_comm, pow_mul]
   exact Nat.pow_lt_pow_left Nat.lt_two_pow_self (by omega)
 
+-- Compose through the named decoder and encoding contracts without expanding the simulator.
+attribute [local irreducible] ComputableInO Universal.decodeDesc Universal.eDesc in
 /-- The simulation runs within time polynomial in the description, the input and the
 certificate. -/
 private theorem exists_computableInO_accepts : ∃ D, ComputableInO
@@ -181,7 +184,14 @@ private theorem exists_computableInO_accepts : ∃ D, ComputableInO
     (ComputableInO.snd encBits (encPair encBits encBits)).of_enc_eq fun _ => rfl
   have hsym := Universal.computableInO_map_eBit.comp hword
   have hclock := timeConstructible_succ_sq.computableInO.comp hword
-  have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
+  have hpre : ComputableInO
+      (fun q : List Bool × List Bool × List Bool =>
+        (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, ((frame q.2.1 ++ q.2.2).length + 1) ^ 2))
+      enc eIn _ _ := hdesc.prod (hsym.prod hclock)
+  have hU := computableInO_universal_polynomialBound.comp (f := universal)
+    (g := fun q : List Bool × List Bool × List Bool =>
+      (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit,
+        ((frame q.2.1 ++ q.2.2).length + 1) ^ 2)) hpre
   have hv := Diagonal.computableInO_verdict.comp hU
   have hnot := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp hv

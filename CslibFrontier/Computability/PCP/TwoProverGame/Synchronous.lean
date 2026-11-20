@@ -82,6 +82,13 @@ variable [Ring 𝒜] [PartialOrder 𝒜] [Algebra ℂ 𝒜]
   · rw [prob_swap]
     exact h x b a (Ne.symm hab)
 
+/-- In a synchronous strategy, Alice's marginal on a repeated question is its diagonal entry. -/
+theorem IsSynchronous.sum_prob_eq_diag {S : CommutingStrategy X X A A 𝒜}
+    (h : S.IsSynchronous) (x : X) (a : A) :
+    ∑ b, S.prob x x a b = S.prob x x a a := by
+  classical
+  exact sum_eq_single a (fun b _ hb => h x a b (Ne.symm hb)) fun ha => (ha (mem_univ _)).elim
+
 end Ring
 
 section Agreement
@@ -94,12 +101,9 @@ variable [Ring 𝒜] [StarRing 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜] 
 /-- The matching effects of a synchronous strategy agree in the shared state. -/
 theorem IsSynchronous.norm_effect_sub_eq_zero (h : S.IsSynchronous) (x : X) (a : A) :
     S.state.norm ((S.alice x).effect a - (S.bob x).effect a) = 0 := by
-  classical
-  have hrow (b : A) : ∑ c, S.prob x x b c = S.prob x x b b :=
-    sum_eq_single b (fun c _ hc => h x b c (Ne.symm hc)) fun hb => (hb (mem_univ _)).elim
   have hsum : Measurement.agreement S.state (S.alice x) (S.bob x) = 1 := by
     change ∑ b, S.prob x x b b = 1
-    exact (sum_congr rfl fun b _ => (hrow b).symm).trans (S.sum_prob x x)
+    exact (sum_congr rfl fun b _ => (h.sum_prob_eq_diag x b).symm).trans (S.sum_prob x x)
   have hle := Measurement.sum_norm_sub_sq_le S.state (S.alice x) (S.bob x)
     (fun b => S.commute x x b b)
   rw [hsum] at hle
@@ -147,6 +151,12 @@ noncomputable instance : CStarAlgebra S.aliceAlgebra :=
 instance [StarOrderedRing 𝒜] : StarOrderedRing S.aliceAlgebra :=
   let _ := S.isClosed_aliceAlgebra
   Subtype.starOrderedRing (𝕜 := ℂ) S.aliceAlgebra
+
+/-- Every closed star subalgebra containing Alice's effects contains her generated algebra. -/
+theorem aliceAlgebra_le {D : StarSubalgebra ℂ 𝒜} (hD : IsClosed (D : Set 𝒜))
+    (he : ∀ x a, (S.alice x).effect a ∈ D) : S.aliceAlgebra ≤ D := by
+  apply StarSubalgebra.topologicalClosure_minimal _ hD
+  exact StarAlgebra.adjoin_le (by rintro _ ⟨⟨x, a⟩, rfl⟩; exact he x a)
 
 /-- Alice's effects belong to the generated algebra. -/
 theorem alice_effect_mem_aliceAlgebra (x : X) (a : A) :
@@ -257,6 +267,17 @@ theorem IsSynchronous.prob_comm {S : CommutingStrategy X X A A 𝒜}
   exact h.tracial_on_aliceAlgebra (S.alice_effect_mem_aliceAlgebra x a)
     (S.alice_effect_mem_aliceAlgebra y b)
 
+/-- The restricted trace evaluates the products of Alice's measurements to the correlations. -/
+theorem IsSynchronous.ofReal_prob_eq_aliceState {S : CommutingStrategy X X A A 𝒜}
+    (h : S.IsSynchronous) (x y : X) (a b : A) :
+    (S.prob x y a b : ℂ) = S.aliceState
+      ((S.aliceMeasurements x).effect a * (S.aliceMeasurements y).effect b) := by
+  rw [S.aliceState_apply]
+  change (S.prob x y a b : ℂ) = S.state (S.aliceAlgebra.subtype (_ * _))
+  rw [map_mul]
+  simpa only [StarSubalgebra.subtype_apply, aliceMeasurements_effect] using
+    h.ofReal_prob_eq_state_alice x y a b
+
 /-- A projective synchronous strategy has a tracial representation by projective
 measurements in Alice's generated algebra. -/
 theorem IsSynchronous.exists_aliceState_projective {S : CommutingStrategy X X A A 𝒜}
@@ -264,17 +285,12 @@ theorem IsSynchronous.exists_aliceState_projective {S : CommutingStrategy X X A 
     ∃ P : X → Measurement A S.aliceAlgebra,
       (∀ x, (P x).IsProjective) ∧
       ∀ x y a b, (S.prob x y a b : ℂ) = S.aliceState ((P x).effect a * (P y).effect b) := by
-  refine ⟨S.aliceMeasurements, fun x a => ?_, fun x y a b => ?_⟩
-  · apply Subtype.ext
-    change S.aliceAlgebra.subtype (_ * _) = _
-    rw [map_mul]
-    simp only [StarSubalgebra.subtype_apply, aliceMeasurements_effect]
-    exact hP x a
-  · rw [S.aliceState_apply]
-    change (S.prob x y a b : ℂ) = S.state (S.aliceAlgebra.subtype (_ * _))
-    rw [map_mul]
-    simpa only [StarSubalgebra.subtype_apply, aliceMeasurements_effect] using
-      h.ofReal_prob_eq_state_alice x y a b
+  refine ⟨S.aliceMeasurements, fun x a => ?_, h.ofReal_prob_eq_aliceState⟩
+  apply Subtype.ext
+  change S.aliceAlgebra.subtype (_ * _) = _
+  rw [map_mul]
+  simp only [StarSubalgebra.subtype_apply, aliceMeasurements_effect]
+  exact hP x a
 
 end Trace
 
@@ -317,6 +333,13 @@ noncomputable def ofTracial :
       sum_effect := by
         rw [← map_sum, ← op_sum, (P x).sum_effect, op_one, map_one] }
   commute x y a b := τ.commute_gnsLeft_gnsRight hτ ((P x).effect a) ((P y).effect b)
+
+/-- Alice's effect in the tracial realization acts by left multiplication. -/
+theorem ofTracial_alice_effect (x : X) (a : A) :
+    ((ofTracial τ hτ P).alice x).effect a =
+      τ.toPositiveLinearMap.gnsStarAlgHom ((P x).effect a) := by
+  unfold ofTracial
+  rfl
 
 /-- The state in the tracial realization is the vector state of the unit element. -/
 theorem ofTracial_state_apply (T : τ.toPositiveLinearMap.GNS →L[ℂ] τ.toPositiveLinearMap.GNS) :

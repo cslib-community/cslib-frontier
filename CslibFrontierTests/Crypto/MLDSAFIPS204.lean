@@ -17,6 +17,7 @@ meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 meta import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
+meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
@@ -92,9 +93,22 @@ private def keyAndSigningChecks : Option Bool := do
   let msg := [true, false, true]
   let ctx := List.replicate 255 11
   let σ ← sign .mlDSA44 keys.secretKey msg ctx (fun _ => 0)
+  let request : SigningQuery := ⟨[], [true]⟩
+  let reply ← sign .mlDSA44 keys.secretKey request.message request.context (fun _ => 0)
+  let log := request.logReply (some reply) []
+  let A ← Xofs.shake.expandA .mlDSA44 (keys.publicKey.take 32)
+  let fresh : Forgery := ⟨ctx, msg, σ⟩
+  let repeated : Forgery := ⟨request.context, request.message, reply⟩
+  let wins (f : Forgery) := SignedMatrixTrial.newDigestWin ⟨Xofs.shake, A, keys.publicKey, f, log⟩
+  -- The one-request controller probes these two full-length SHAKE256 words in superposition.
+  -- Their first wire responses select opposite candidates on the actual signing-success branch.
+  let afterRead (bit : Bool) := Id.run do
+    let address (wire : Fin (6656 + 2)) := decide (wire.val < 2) || (bit && decide (wire.val = 2))
+    let measured := Xofs.shake.queryTable 6656 1 address 0
+    return if measured = (some reply).isSome then fresh else repeated
   return Keccak.shake256 keys.publicKey 32 == publicKeyFingerprint &&
     Keccak.shake256 keys.secretKey 32 == secretKeyFingerprint &&
-    verify .mlDSA44 keys.publicKey msg ctx σ == some true &&
+    wins fresh && !wins repeated && wins (afterRead false) && !wins (afterRead true) &&
     verify .mlDSA44 keys.publicKey msg [11] σ == some false &&
     (sign .mlDSA44 keys.secretKey msg (11 :: ctx) (fun _ => 0)).isNone
 
@@ -401,8 +415,9 @@ example (other : ExtendableOutput) (rho : FixedBytes 32)
       (result.trial.forgery.message, result.writes.map (fun w => (w.request, w.reply)),
         result.trial.log)) = PMF.pure ([true], [(q, none)], []) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+  simp only [publicPairSigning, runProgrammed, programmedCommands, signingProbe,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+    OracleComp.sumHandler, signingCall,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_nil, Nat.not_lt_zero, ite_false]
   rw [show List.range 814 = 0 :: List.range' 1 813 by rw [List.range_eq_range', List.range'_succ],
     List.findSomeM?_cons]
@@ -417,8 +432,9 @@ example (s : Level) (H : Xofs) (rho : FixedBytes 32) (pair : MLDSA.PublicKey s.p
       (result.trial.forgery.message, result.writes, result.trial.log, result.trial.xofs)) =
       PMF.pure ([true], [], [], H) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+  simp only [publicPairSigning, runProgrammed, programmedCommands, signingProbe,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+    OracleComp.sumHandler, signingCall,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_replicate,
     show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind, Option.isNone_none]
 

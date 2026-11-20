@@ -224,7 +224,9 @@ theorem keyGen_eq_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed 
     lia
   apply Xofs.keyGen_congr_of_reads level setup (agree_off_sampleSigningMaskSeeds h).1
   · exact bytes _ _ (by simp [FixedBytes.toList])
-  · exact fun x hx => bytes x _ (by rw [hx]; decide)
+  · intro i
+    apply bytes
+    simp [nonceInput, Xofs.expandKeySeed, pair.background.h256.length_read]
   · intro x hx
     apply bytes
     rw [hx]

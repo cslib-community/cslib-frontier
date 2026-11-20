@@ -105,10 +105,15 @@ def swap (S : CommutingStrategy X Y A B 𝒜) : CommutingStrategy Y X B A 𝒜 w
   rw [(S.commute x y a b).eq]
   rfl
 
+/-- Summing over Bob's answers gives Alice's marginal probability. -/
+theorem sum_prob_bob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) :
+    ∑ b, S.prob x y a b = (S.state ((S.alice x).effect a)).re := by
+  simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one]
+
 theorem sum_prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
     ∑ a, ∑ b, S.prob x y a b = 1 := by
-  simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one,
-    (S.alice x).sum_effect, AlgState.map_one, Complex.one_re]
+  simp only [sum_prob_bob, ← Complex.re_sum, ← map_sum, (S.alice x).sum_effect,
+    AlgState.map_one, Complex.one_re]
 
 end Ring
 

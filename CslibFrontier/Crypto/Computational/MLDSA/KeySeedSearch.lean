@@ -495,34 +495,13 @@ theorem mean_keySeedQueryDisturbance_le (C : QuantumSigningForger) (s : Level) (
       xorQueryDisturbance
         ((H.withKeySeedExpansion s seed out).queryTable C.addressBits C.responseBytes)
         (H.queryTable C.addressBits C.responseBytes) A st.density ≤ 4 / 2 ^ 256 := by
-  classical
   intro A
-  let seeds := PMF.uniformOfFintype (FixedBytes 32)
-  let basis := POVM.basis.measureDensity st.density st.isDensityMatrix
-  let changed := fun (seed : FixedBytes 32) (z : (Fin (Width C) → Bool) × κ) =>
-    let x := (queryRegisters A z.1).1
-    decide ((H.withKeySeedExpansion s seed out).queryTable C.addressBits C.responseBytes x ≠
-      H.queryTable C.addressBits C.responseBytes x)
-  have hit : (seeds.bind fun seed => basis.map (changed seed)) true ≤ (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-    simp only [← PMF.bind_pure_comp, Function.comp_def]
-    rw [PMF.bind_comm]
-    apply PMF.bind_apply_le_on_support
-    intro z _
-    exact changed_keySeed_le C s H out (some (queryRegisters A z.1).1)
-  have mean := ENNReal.toReal_mono (by simp) hit
-  rw [Cslib.Probability.PMF.bind_apply_toReal] at mean
-  simp only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat] at mean
-  calc
-    _ ≤ ∑ seed, (seeds seed).toReal * (4 * ((basis.map (changed seed)) true).toReal) := by
-      apply Finset.sum_le_sum
-      intro seed _
-      exact mul_le_mul_of_nonneg_left (xorQueryDisturbance_le _ _ A st.isDensityMatrix)
-        ENNReal.toReal_nonneg
-    _ = 4 * ∑ seed, (seeds seed).toReal * ((basis.map (changed seed)) true).toReal := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_congr rfl fun _ _ => mul_left_comm ..
-    _ ≤ _ := by
-      simpa only [div_eq_mul_inv] using mul_le_mul_of_nonneg_left mean (by norm_num : 0 ≤ (4 : ℝ))
+  rw [div_eq_mul_inv]
+  apply mean_xorQueryDisturbance_le _ _ _ A st.isDensityMatrix
+  intro x
+  have h := changed_keySeed_le C s H out (some x)
+  simpa only [Option.any_some, ← PMF.bind_pure_comp, Function.comp_def, ENNReal.toReal_inv,
+    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using ENNReal.toReal_mono (by simp) h
 
 /-- Apply any binary measurement after the native query, allowing the measurement to depend on
 the hidden seed. For a seed-independent input state, the mean square change in the square root
@@ -537,10 +516,7 @@ theorem mean_sq_sqrt_keySeedQuery_readout_le (C : QuantumSigningForger) (s : Lev
     ∑ seed : FixedBytes 32, ((PMF.uniformOfFintype (FixedBytes 32)) seed).toReal *
       (√(p seed (H.withKeySeedExpansion s seed out)) - √(p seed H)) ^ 2 ≤ 4 / 2 ^ 256 := by
   intro p
-  exact (Finset.sum_le_sum fun seed _ => mul_le_mul_of_nonneg_left
-    (st.sq_sqrt_query_readout_sub_le (M seed) true
-      ((H.withKeySeedExpansion s seed out).queryTable C.addressBits C.responseBytes)
-      (H.queryTable C.addressBits C.responseBytes)) ENNReal.toReal_nonneg).trans
+  exact (st.mean_sq_sqrt_query_readout_sub_le _ M true _ _).trans
     (C.mean_keySeedQueryDisturbance_le s H out st)
 
 end QuantumSigningForger
