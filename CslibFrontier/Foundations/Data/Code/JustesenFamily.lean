@@ -257,8 +257,7 @@ private def codewordBitWith {w n : ℕ} (mul : List Bool → List Bool → List 
     (j : Fin (fieldDegree w n)) : Bool :=
   let x := List.ofFn point
   let a := hornerBits (fieldDegree w n) mul x fun i => List.ofFn (coefficientBits (n := n) v i)
-  let block := if half = 0 then a else mul x a
-  block.getD j false
+  wozencraftBitWith mul x a half j
 
 open BinaryField in
 /-- Evaluate one coordinate using the power-basis bits of its field point. Half zero returns the
@@ -315,8 +314,9 @@ private theorem codewordBitWith_eq {w n : ℕ} {mul : List Bool → List Bool �
   let point := equivBits hb (u : BinaryField (fieldDegree w n))
   have ha := fieldOfBits_evalBits hmul v point
   rw [AddEquiv.symm_apply_apply] at ha
-  unfold codewordBitWith codeword justesen concat wozencraft
+  unfold codewordBitWith wozencraftBitWith codeword justesen concat wozencraft
   dsimp only
+  simp only [Fin.val_eq_zero_iff]
   split_ifs with h
   · rw [← equivBits_fieldOfBits hb, ha]
   · rw [← equivBits_fieldOfBits hb, hmul,
