@@ -237,6 +237,21 @@ theorem pasteSlices_effect (k : ℕ) [Nonempty (Fin k ↪ F)]
   let _ : Fintype (Fin k ↪ F) := Fintype.ofFinite _
   exact Measurement.mixture_effect _ _ _
 
+/-- Any operator commuting with the slice effects commutes with the averaged paste. -/
+theorem commute_pasteSlices (k : ℕ) [Nonempty (Fin k ↪ F)]
+    (M : F → Measurement (Option (BoundedPolynomial F m d)) A)
+    (hM : ∀ t, (M t).IsProjective) (e : A)
+    [SMulCommClass ℝ A A] [IsScalarTower ℝ A A]
+    (h : ∀ t a, Commute ((M t).effect a) e) (p : Option (BoundedPolynomial F (m + 1) d)) :
+    Commute ((pasteSlices k M hM).effect p) e := by
+  classical
+  let _ : Fintype (Fin k ↪ F) := Fintype.ofFinite _
+  rw [pasteSlices_effect]
+  refine Commute.sum_left _ _ _ fun x _ => Commute.smul_left ?_ _
+  rw [pasteProjectiveSlices, pasteMeasurement, Measurement.map_effect]
+  exact Commute.sum_left _ _ _ fun g _ =>
+    Measurement.sequentialProjective_commute _ _ _ (fun j a => h (x j) a) g
+
 end Measurement
 
 end Cslib.PCP.LowIndividualDegree

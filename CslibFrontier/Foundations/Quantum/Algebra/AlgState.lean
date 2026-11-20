@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.CStarAlgebra.GelfandNaimarkSegal
 public import Mathlib.Analysis.Matrix.Order
 import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
+import Mathlib.Analysis.Real.Sqrt
 
 /-!
 # States on star-ordered algebras
@@ -186,6 +187,34 @@ theorem norm_apply_star_mul_le (φ : AlgState A) (a b : A) :
 theorem re_apply_star_mul_le (φ : AlgState A) (a b : A) :
     (φ (star a * b)).re ≤ φ.norm a * φ.norm b :=
   (Complex.re_le_norm _).trans (φ.norm_apply_star_mul_le a b)
+
+/-- Cauchy–Schwarz for a finite sum of state pairings. -/
+theorem abs_sum_re_star_mul_le {ι : Type*} [Fintype ι] (φ : AlgState A) (X Y : ι → A) :
+    |∑ i, (φ (star (X i) * Y i)).re| ≤
+      √(∑ i, φ.norm (X i) ^ 2) * √(∑ i, φ.norm (Y i) ^ 2) := by
+  calc
+    _ ≤ ∑ i, |(φ (star (X i) * Y i)).re| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ i, φ.norm (X i) * φ.norm (Y i) := Finset.sum_le_sum fun i _ =>
+      (Complex.abs_re_le_norm _).trans (φ.norm_apply_star_mul_le _ _)
+    _ ≤ _ := Real.sum_mul_le_sqrt_mul_sqrt _ _ _
+
+/-- Cauchy–Schwarz for a state pairing with a normalized left family. -/
+theorem abs_sum_re_star_mul_le_of_normalized {ι : Type*} [Fintype ι]
+    (φ : AlgState A) (X Y : ι → A)
+    (hX : (∑ a, φ.norm (X a) ^ 2) ≤ 1) :
+    |∑ a, (φ (star (X a) * Y a)).re| ≤ √(∑ a, φ.norm (Y a) ^ 2) := by
+  refine (φ.abs_sum_re_star_mul_le X Y).trans ?_
+  simpa only [Real.sqrt_one, one_mul] using
+    mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt hX) (Real.sqrt_nonneg _)
+
+/-- Cauchy–Schwarz for a state pairing with a normalized right family. -/
+theorem abs_sum_re_star_mul_le_of_normalized_right {ι : Type*} [Fintype ι]
+    (φ : AlgState A) (X Y : ι → A)
+    (hY : (∑ a, φ.norm (Y a) ^ 2) ≤ 1) :
+    |∑ a, (φ (star (X a) * Y a)).re| ≤ √(∑ a, φ.norm (X a) ^ 2) := by
+  refine (φ.abs_sum_re_star_mul_le X Y).trans ?_
+  simpa only [Real.sqrt_one, mul_one] using
+    mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hY) (Real.sqrt_nonneg _)
 
 /-- A contraction, `a⋆a ≤ 1`, has state norm at most `1`. -/
 theorem norm_le_one (φ : AlgState A) {a : A} (h : star a * a ≤ 1) : φ.norm a ≤ 1 := by

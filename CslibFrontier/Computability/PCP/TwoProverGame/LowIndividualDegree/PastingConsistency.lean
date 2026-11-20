@@ -14,7 +14,6 @@ public import CslibFrontier.Foundations.Quantum.Algebra.SuccessfulAgreement
 public import CslibFrontier.Probability.PMF.Event
 public import Mathlib.Algebra.BigOperators.Expect
 import CslibFrontier.Probability.IID.Distinct
-import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.Order.BigOperators.Expect
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Union
@@ -187,6 +186,15 @@ noncomputable def isolatedSliceMismatch
     Measurement (Option F) A :=
   M.map (Option.map fun q => eval u q.val)
 
+omit [Algebra ℂ A] [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
+  [NonnegSpectrumClass ℝ A] [StarModule ℂ A] [SelfAdjointDecompose A] in
+@[simp] theorem evaluatePolynomialMeasurement_effect_none [Fintype F] [DecidableEq F]
+    (M : Measurement (Option (BoundedPolynomial F m d)) A) (u : Fin m → F) :
+    (evaluatePolynomialMeasurement M u).effect none = M.effect none := by
+  classical
+  rw [evaluatePolynomialMeasurement, Measurement.map_effect, sum_filter, Fintype.sum_option]
+  simp
+
 private theorem exists_successful_ne {α γ : Type*} (f : α → γ) (a : Option α) (z : γ) :
     (∃ q, a = some q ∧ f q ≠ z) ↔ (∃ v, a.map f = some v ∧ v ≠ z) := by
   cases a <;> simp
@@ -304,21 +312,7 @@ theorem average_pastedLineMismatch_le_of_pairwise [Fintype F] (k : ℕ) [Nonempt
       k * ((k - 1 : ℕ) : ℝ) * √(2 * χ + 8 * ζ) := by
   refine (average_sequential_pastedLineMismatch_le k S hM lineValue hline).trans ?_
   apply add_le_add_right
-  have h (i : Fin k) := Measurement.average_prefixCommutatorDefect_le S.state
-    S.alice R hM hR hc i hpair hcopy
-  calc
-    _ ≤ ∑ i : Fin k, 2 * ((i.val : ℝ) * √(2 * χ + 8 * ζ)) := by
-      refine sum_le_sum fun i _ => mul_le_mul_of_nonneg_left ?_ (by norm_num)
-      have hi : (0 : ℝ) ≤ i.val := by positivity
-      simpa only [Function.comp_def, Real.sqrt_mul (sq_nonneg (i.val : ℝ)), Real.sqrt_sq hi] using
-        Real.sqrt_le_sqrt (h i)
-    _ = _ := by
-      have hk : (∑ i : Fin k, i.val) * 2 = k * (k - 1) := by
-        rw [Fin.sum_univ_eq_sum_range (fun j : ℕ => j) k, sum_range_id_mul_two]
-      have hk' := congrArg (fun n : ℕ => (n : ℝ)) hk
-      push_cast at hk'
-      rw [← hk', sum_mul, sum_mul]
-      exact sum_congr rfl fun _ _ => by ring
+  exact Measurement.sum_prefixDisturbance_le_of_pairwise k S.state S.alice R hM hR hc hpair hcopy
 
 end Strategy
 

@@ -863,12 +863,6 @@ theorem isCostBounded_bcsMTCost_friSmoothBatchVerifyROM [DecidableEq F]
     List (Fin (params.m + 2) × Fin (2 ^ params.d)) :=
   friSmoothBatchQueries params.toSmooth t chals
 
-/-- Exact equality between binary `friBatchQueries` and smooth `friSmoothBatchQueries`. -/
-theorem friBatchQueries_eq_friSmoothBatchQueries (params : FRIParams F) (t : ℕ)
-    (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
-    friBatchQueries params t chals = friSmoothBatchQueries params.toSmooth t chals :=
-  rfl
-
 /-- No query in `friBatchQueries` ever opens the round-`0` announcement table (corollary of
 `round_ne_zero_of_mem_friSmoothBatchQueries`). -/
 theorem round_ne_zero_of_mem_friBatchQueries (params : FRIParams F) (t : ℕ)
@@ -902,14 +896,6 @@ theorem length_friBatchInputQueries (params : FRIParams F) (t : ℕ)
     (stmt : FRIBatchStmt F params.d t)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) (answers : List F) : Bool :=
   friSmoothBatchDecide params.toSmooth t stmt chals answers
-
-/-- Exact equality between binary `friBatchDecide` and smooth `friSmoothBatchDecide`. -/
-theorem friBatchDecide_eq_friSmoothBatchDecide [DecidableEq F] (params : FRIParams F) (t : ℕ)
-    (stmt : FRIBatchStmt F params.d t)
-    (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) (answers : List F) :
-    friBatchDecide params t stmt chals answers =
-      friSmoothBatchDecide params.toSmooth t stmt chals answers :=
-  rfl
 
 /-- Input-query locality (corollary of `friSmoothBatchDecide_congr_inputQueries`). -/
 theorem friBatchDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F) (t : ℕ)

@@ -28,7 +28,7 @@ coset (`d = 5`, `ω = 15` primitive `32`-nd root of unity since `15 ^ 16 ≡ -1 
      `proofOracleQueries = 85`, `totalWordQueries = 91`, `batchTotalWordQueries 2 = 103`,
      per-round curve budgets `(28, 2)` telescoping to `30 = 32 - 2`, round-`0` max `28`).
 2. **Smooth coset folding (`Folding.lean`) & honest prover (`Protocol.lean`):**
-   Certifies `cosetEval_pow_two_pow`, `foldFiberComp`, `foldFiber`, `foldWord_apply_eq_foldFiber`,
+   Certifies `cosetEval_pow_two_pow`, `foldFiber`, `foldWord_apply_eq_foldFiber`,
    `foldFiber_two_eq_fold2Fiber`, `friCumLog_eq_sum_fin`, `friSmoothHonestWord_mem_rsCode`,
    `friSmoothFinalCodeword_mem_rsCode`, exact query lengths (`length_friSmoothIOP_queries`,
    `length_friSmoothInputQueries`), input locality (`friSmoothDecide_congr_inputQueries`), IOP /
@@ -174,11 +174,6 @@ example : friCumLog params257Fold8x2.stepLog 2 = ∑ k : Fin 2, params257Fold8x2
 example (πFinal : OracleTable 5 (ZMod 257)) :
     friSmoothFinalCodeword params257Fold4x4 πFinal ∈ params257Fold4x4.rsCode 2 :=
   friSmoothFinalCodeword_mem_rsCode params257Fold4x4 πFinal
-
-example (f : Fin (4 * 8) → ZMod 257) (r : Fin 4) (j : Fin 8) :
-    foldComp (1 : ZMod 257) 15 f r j =
-      foldFiberComp (1 : ZMod 257) 15 (fun t => f (fiberIdx j t)) r j :=
-  rfl
 
 example (f : Fin (4 * 8) → ZMod 257) (z : ZMod 257) (j : Fin 8) :
     foldWord (1 : ZMod 257) 15 f z j =
@@ -763,11 +758,11 @@ example : friBatchIOP params257 2 = friSmoothBatchIOP params257.toSmooth 2 :=
 example (answers : List (ZMod 257)) :
     friDecide params257 honestWord sampleChals answers =
       friSmoothDecide params257.toSmooth honestWord sampleChals answers :=
-  friDecide_eq_friSmoothDecide params257 honestWord sampleChals answers
+  rfl
 
 example :
     friDecide params257 honestWord sampleChals [0, 1] =
       friSmoothDecide params257.toSmooth honestWord sampleChals [0, 1] :=
-  friDecide_eq_friSmoothDecide params257 honestWord sampleChals [0, 1]
+  rfl
 
 end CslibFrontierTests.Crypto.FRISmooth

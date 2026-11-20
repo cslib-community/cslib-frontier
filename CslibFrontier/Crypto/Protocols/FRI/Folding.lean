@@ -357,7 +357,9 @@ variable {F : Type*} [Field F]
 
 /-- The `r`-th fiberwise IDFT / interpolation coefficient of a single `a`-element fiber
 `ys : Fin a → F` above target index `j : Fin N` in the coset `g * ⟨ω⟩` of size `a * N`
-([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, Eq. (8.1) on printed p. 36). -/
+([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, printed p. 37: Eq. (8.1) defines the fiber,
+the paragraph immediately following it defines the interpolation map whose output is this
+coefficient vector, and Eq. (8.2) evaluates that vector at the challenge powers). -/
 @[expose] def foldFiberComp (g ω : F) {a N : ℕ} (ys : Fin a → F) (r : Fin a) (j : Fin N) : F :=
   ((a : F) * (g * ω ^ j.val) ^ r.val)⁻¹ *
     ∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) * ys t
