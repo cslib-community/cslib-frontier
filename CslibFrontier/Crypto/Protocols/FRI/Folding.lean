@@ -39,13 +39,15 @@ affine lines and parameterized curves for correlated-agreement proximity gaps.
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.FRI.cosetPoint`, `Cslib.Crypto.Protocols.FRI.cosetEval`:
-  multiplicative coset evaluation maps and the power-of-two FRI domain hierarchy.
+* `Cslib.Crypto.Protocols.FRI.cosetPoint`, `Cslib.Crypto.Protocols.FRI.cosetEval`,
+  `Cslib.Crypto.Protocols.FRI.reindexPow`: multiplicative coset evaluation maps, the power-of-two
+  FRI domain hierarchy, and smooth power-of-two domain reindexing.
 * `Cslib.Crypto.Protocols.FRI.polyComp`, `Cslib.Crypto.Protocols.FRI.reconstructPoly`,
   `Cslib.Crypto.Protocols.FRI.foldPoly`: `a`-way polynomial decomposition, reconstruction, and
   polynomial folding.
-* `Cslib.Crypto.Protocols.FRI.foldComp`, `Cslib.Crypto.Protocols.FRI.foldWord`:
-  general `a`-to-1 fiberwise IDFT decomposition and Reed–Solomon word folding.
+* `Cslib.Crypto.Protocols.FRI.foldComp`, `Cslib.Crypto.Protocols.FRI.foldFiber`,
+  `Cslib.Crypto.Protocols.FRI.foldWord`: general `a`-to-1 fiberwise IDFT decomposition, local
+  fiber folding evaluator, and Reed–Solomon word folding.
 * `Cslib.Crypto.Protocols.FRI.pushWeight`: push-forward of a coordinate weight function across
   `a`-element fibers.
 * `Cslib.Crypto.Protocols.FRI.fold2Fiber`, `Cslib.Crypto.Protocols.FRI.fold2Even`,
@@ -56,22 +58,25 @@ affine lines and parameterized curves for correlated-agreement proximity gaps.
 
 * `Cslib.Crypto.Protocols.FRI.cosetPoint_injective`,
   `Cslib.Crypto.Protocols.FRI.cosetEval_injective`,
+  `Cslib.Crypto.Protocols.FRI.cosetEval_pow_two_pow`,
   `Cslib.Crypto.Protocols.FRI.cosetEval_sq`,
-  `Cslib.Crypto.Protocols.FRI.cosetEval_add_half`: injectivity, squaring, and negation-pair
-  structure of the FRI coset hierarchy.
+  `Cslib.Crypto.Protocols.FRI.cosetEval_add_half`: injectivity, smooth `(2 ^ s)`-th powering,
+  squaring, and negation-pair structure of the FRI coset hierarchy.
 * `Cslib.Crypto.Protocols.FRI.reconstructPoly_polyComp`,
   `Cslib.Crypto.Protocols.FRI.degree_polyComp_lt`,
   `Cslib.Crypto.Protocols.FRI.degree_foldPoly_lt`: exact degree-preserving polynomial folding.
 * `Cslib.Crypto.Protocols.FRI.foldComp_eval`, `Cslib.Crypto.Protocols.FRI.foldWord_eval`,
+  `Cslib.Crypto.Protocols.FRI.foldWord_apply_eq_foldFiber`,
   `Cslib.Crypto.Protocols.FRI.foldWord_mem_reedSolomon`: commutation of folding with polynomial
-  evaluation and Reed–Solomon closure.
+  evaluation, local fiber evaluation, and Reed–Solomon closure.
 * `Cslib.Crypto.Protocols.FRI.reconstruct_foldComp`,
   `Cslib.Crypto.Protocols.FRI.exists_mem_reedSolomon_weighted_agree_lift`: exact fiberwise
   reconstruction and weighted correlated-agreement lifting back to the unfolded Reed–Solomon code.
 * `Cslib.Crypto.Protocols.FRI.fold2Fiber_swap`,
+  `Cslib.Crypto.Protocols.FRI.foldFiber_two_eq_fold2Fiber`,
   `Cslib.Crypto.Protocols.FRI.fold2_eq_foldWord`,
   `Cslib.Crypto.Protocols.FRI.fold2_mem_reedSolomon`: fiber-representative invariance and
-  agreement of the explicit 2-to-1 folding formula with `foldWord` at `a = 2`.
+  agreement of the explicit 2-to-1 folding formulas with `foldFiber` / `foldWord` at `a = 2`.
 * `Cslib.Crypto.Protocols.FRI.weighted_agree_of_curve_many`,
   `Cslib.Crypto.Protocols.FRI.weighted_agree_of_line_many`: integer-weighted union-bound
   bridge from agreement on many curve/line evaluations to simultaneous weighted agreement.
@@ -166,19 +171,37 @@ theorem cosetEval_ne_zero {g ω : F} {d i : ℕ} (hg : g ≠ 0) (hω : IsPrimiti
   cosetPoint_ne_zero (pow_ne_zero _ hg) (isPrimitiveRoot_pow_two_pow hω hi)
     (pow_ne_zero _ (by omega)) j
 
+/-- Raising a level-`i` coset point to the `(2 ^ s)`-th power maps onto level `i + s`. -/
+theorem cosetEval_pow_two_pow {g ω : F} {d i s : ℕ} (hω : IsPrimitiveRoot ω (2 ^ d))
+    (his : i + s ≤ d) (j : Fin (2 ^ (d - i))) :
+    (cosetEval g ω d i j) ^ (2 ^ s) =
+      cosetEval g ω d (i + s) ⟨j.val % 2 ^ (d - (i + s)), Nat.mod_lt _ (by positivity)⟩ := by
+  have hsplit : 2 ^ (d - i) = 2 ^ s * 2 ^ (d - (i + s)) := by
+    rw [← pow_add]
+    congr 1
+    omega
+  have hωi : IsPrimitiveRoot (ω ^ (2 ^ i)) (2 ^ s * 2 ^ (d - (i + s))) :=
+    hsplit ▸ isPrimitiveRoot_pow_two_pow hω (by omega)
+  have hstep := cosetPoint_pow_eq (g ^ (2 ^ i)) (ω ^ (2 ^ i)) (a := 2 ^ s)
+    (N := 2 ^ (d - (i + s))) (by positivity) hωi ⟨j.val, hsplit ▸ j.isLt⟩
+  simpa only [cosetEval, cosetPoint, ← pow_mul, ← pow_add] using hstep
+
 /-- Squaring maps level `i` of the FRI coset hierarchy onto level `i + 1`. -/
 theorem cosetEval_sq {g ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^ d)) (hi : i < d)
     (j : Fin (2 ^ (d - i))) :
     (cosetEval g ω d i j) ^ 2 =
       cosetEval g ω d (i + 1) ⟨j.val % 2 ^ (d - (i + 1)), Nat.mod_lt _ (by positivity)⟩ := by
-  have hsplit : 2 ^ (d - i) = 2 * 2 ^ (d - (i + 1)) := by
-    have : d - i = (d - (i + 1)) + 1 := by omega
-    rw [this, pow_succ']
-  have hωi : IsPrimitiveRoot (ω ^ (2 ^ i)) (2 * 2 ^ (d - (i + 1))) :=
-    hsplit ▸ isPrimitiveRoot_pow_two_pow hω hi.le
-  have hstep := cosetPoint_pow_eq (g ^ (2 ^ i)) (ω ^ (2 ^ i)) (a := 2) (N := 2 ^ (d - (i + 1)))
-    (by positivity) hωi ⟨j.val, hsplit ▸ j.isLt⟩
-  simpa only [cosetEval, cosetPoint, ← pow_mul, ← pow_succ] using hstep
+  simpa only [pow_one] using cosetEval_pow_two_pow (s := 1) hω hi j
+
+/-- Reindexing embedding `Fin (2 ^ s * 2 ^ (d - (i + s))) → Fin (2 ^ (d - i))` for `i + s ≤ d`. -/
+@[expose] def reindexPow {d i s : ℕ} (his : i + s ≤ d)
+    (idx : Fin (2 ^ s * 2 ^ (d - (i + s)))) : Fin (2 ^ (d - i)) :=
+  ⟨idx.val, by
+    have hsplit : 2 ^ (d - i) = 2 ^ s * 2 ^ (d - (i + s)) := by
+      rw [← pow_add]
+      congr 1
+      omega
+    omega⟩
 
 /-- Shifting an index in level `i < d` by half the domain size negates its coset point. -/
 theorem cosetEval_add_half {g ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^ d)) (hi : i < d)
@@ -348,10 +371,23 @@ variable {F : Type*} [Field F]
   ((a : F) * (g * ω ^ j.val) ^ r.val)⁻¹ *
     ∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) * f (fiberIdx j t)
 
+/-- Local `a`-to-1 FRI folding formula evaluated on a single `a`-element fiber `ys : Fin a → F`
+above target index `j : Fin N` in the coset `g * ⟨ω⟩` of size `a * N` with challenge `z`. -/
+@[expose] def foldFiber (g ω : F) {a N : ℕ} (ys : Fin a → F) (j : Fin N) (z : F) : F :=
+  ∑ r : Fin a, z ^ r.val *
+    (((a : F) * (g * ω ^ j.val) ^ r.val)⁻¹ *
+      ∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) * ys t)
+
 /-- The `a`-to-1 FRI folding operator applied to a word `f : Fin (a * N) → F` at challenge `z : F`:
 evaluates the parameterized curve `∑ r : Fin a, z ^ r • foldComp g ω f r`. -/
 @[expose] def foldWord (g ω : F) {a N : ℕ} (f : Fin (a * N) → F) (z : F) : Fin N → F :=
   fun j => ∑ r : Fin a, z ^ r.val * foldComp g ω f r j
+
+/-- `foldWord` evaluates pointwise via `foldFiber` on the `a`-element fiber over `j`. -/
+theorem foldWord_apply_eq_foldFiber (g ω : F) {a N : ℕ} (f : Fin (a * N) → F) (z : F)
+    (j : Fin N) :
+    foldWord g ω f z j = foldFiber g ω (fun t => f (fiberIdx j t)) j z :=
+  rfl
 
 /-- `foldWord g ω f z` is the parameterized curve `∑ r : Fin a, z ^ r • foldComp g ω f r`. -/
 theorem foldWord_eq_sum_smul (g ω : F) {a N : ℕ} (f : Fin (a * N) → F) (z : F) :
@@ -701,6 +737,16 @@ theorem fold2Odd_eq_foldComp {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiv
     zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one,
     Nat.cast_ofNat, hneg, inv_neg, inv_one, neg_mul, ← sub_eq_add_neg]
   rw [div_eq_inv_mul]
+
+/-- At `a = 2`, the local `a`-to-1 fiber evaluator `foldFiber` coincides with `fold2Fiber`. -/
+theorem foldFiber_two_eq_fold2Fiber {g ω : F} {N : ℕ} (hN : 0 < N)
+    (hω : IsPrimitiveRoot ω (2 * N)) (ys : Fin 2 → F) (j : Fin N) (z : F) :
+    foldFiber g ω ys j z =
+      fold2Fiber (ys 0) (ys 1) (cosetPoint g ω (2 * N) ⟨j.val, by omega⟩) z := by
+  have hneg : ω ^ N = -1 := pow_half_eq_neg_one hN hω
+  simp only [foldFiber, fold2Fiber, cosetPoint, Fin.sum_univ_two, Fin.val_zero, Fin.val_one,
+    pow_zero, pow_one, one_mul, zero_mul, mul_one, Nat.cast_ofNat, hneg, inv_neg, inv_one,
+    neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
 
 /-- The explicit 2-to-1 folding operator `fold2` coincides with `foldWord` at `a = 2`. -/
 theorem fold2_eq_foldWord {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))
