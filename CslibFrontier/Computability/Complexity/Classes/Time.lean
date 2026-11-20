@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -407,5 +407,8 @@ theorem mem_BPP_iff_exists_mem_BPTIME {α : Type} {enc : α ↪ List Bool} {A : 
       intro hr
       rw [hr]
       decide
+
+/-- Quasi-realtime languages, decided by a nondeterministic multitape machine in linear time. -/
+def Q (enc : α ↪ List Bool) : Set (Set α) := NTIME enc id
 
 end Cslib.Complexity

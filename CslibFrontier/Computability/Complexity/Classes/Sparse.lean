@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -150,5 +150,8 @@ theorem univ_notMem_SPARSE : (Set.univ : Set (List Bool)) ∉ SPARSE encBits := 
   have hle := (Set.encard_le_encard hsub).trans (h n)
   rw [Set.encard_coe_eq_coe_finsetCard, BitString.card_wordsOfLength] at hle
   exact absurd (Nat.cast_le.mp hle) (not_le.mpr hn)
+
+/-- Languages whose complements have only polynomially many words of each encoded length. -/
+def coSPARSE (enc : α ↪ List Bool) : Set (Set α) := {A | Aᶜ ∈ SPARSE enc}
 
 end Cslib.Complexity

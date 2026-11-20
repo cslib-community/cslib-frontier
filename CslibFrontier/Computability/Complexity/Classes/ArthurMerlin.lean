@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -273,5 +273,8 @@ theorem PolyTimeReducible.mem_AM {encB : β ↪ List Bool} {B : Set β}
     fun ha => BitString.mul_two_pow_le_mul_card_filter_take (hPe a)
       (fun w => ∀ y : Fin (q.eval (encB (f a)).length) → Bool, V (f a, w ++ List.ofFn y) = false)
       ((hVB (f a)).2 fun hb => ha ((hAB a).2 hb))⟩
+
+/-- The complements of languages in `MA`, with respect to the same instance encoding. -/
+def coMA (enc : α ↪ List Bool) : Set (Set α) := {A | Aᶜ ∈ MA enc}
 
 end Cslib.Complexity

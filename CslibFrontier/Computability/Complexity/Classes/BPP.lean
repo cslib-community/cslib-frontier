@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -215,5 +215,11 @@ theorem P_subset_BPP : P enc ⊆ BPP enc := by
   · simp [BoundedErrorAt, (hA a).mp ha]
   · have : f a = false := by simpa [hA a] using ha
     simp [BoundedErrorAt, this]
+
+/-- The existential operator applied to `BPP`. An input belongs to the language exactly when
+some polynomial-length certificate makes the pair belong to a `BPP` language. -/
+def ExistsBPP (enc : α ↪ List Bool) : Set (Set α) :=
+  {A | ∃ (p : Polynomial ℕ) (B : Set (α × List Bool)), B ∈ BPP (encPair enc encBits) ∧
+    ∀ a, a ∈ A ↔ ∃ w : List Bool, w.length ≤ p.eval (enc a).length ∧ (a, w) ∈ B}
 
 end Cslib.Complexity

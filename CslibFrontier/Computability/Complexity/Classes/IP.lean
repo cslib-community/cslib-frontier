@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -54,6 +54,8 @@ Conversely, `IP ⊆ PSPACE` (`CslibFrontier.Computability.Complexity.Classes.IP.
 * `Cslib.Complexity.acceptProb`: the probability that a verifier accepts against a prover.
 * `Cslib.Complexity.IsInteractiveProof`: completeness and soundness thresholds.
 * `Cslib.Complexity.IP`.
+
+* `Cslib.Complexity.IPP`: the strict verifier with the unbounded-error threshold of one half.
 
 ## Main results
 
@@ -184,6 +186,15 @@ theorem IsInteractiveProof.mono {verifier : α → WordOracleComp Operation Bool
 def IP (enc : α ↪ List Bool) : Set (Set α) :=
   {A | ∃ verifier : α → WordOracleComp Unit Bool,
     IsOraclePPTOn enc encBool verifier ∧ IsInteractiveProof verifier A (2 / 3) (1 / 3)}
+
+/-- Unbounded-error interactive polynomial time. A member has a prover that makes the verifier
+accept with probability strictly greater than one half. On a nonmember all provers have
+acceptance probability at most one half. -/
+def IPP (enc : α ↪ List Bool) : Set (Set α) :=
+  {A | ∃ verifier : α → WordOracleComp Unit Bool,
+    IsOraclePPTOn enc encBool verifier ∧
+      (∀ a ∈ A, ∃ P : Prover Unit, 1 / 2 < acceptProb (verifier a) P) ∧
+      (∀ a ∉ A, ∀ P : Prover Unit, acceptProb (verifier a) P ≤ 1 / 2)}
 
 variable {enc : α ↪ List Bool}
 

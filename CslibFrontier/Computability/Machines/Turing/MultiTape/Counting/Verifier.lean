@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -30,7 +30,8 @@ words outside the instance encoding is asserted.
 
 * `Turing.MultiTapeCTM.exists_guess_machine`: one occurrence per polynomial-length witness.
 * `Turing.MultiTapeCTM.exists_framedGuess_machine`: retain the instance in the verifier encoding.
-* `Turing.MultiTapeCTM.exists_verifier_machine`: one Boolean result occurrence per witness.
+* `Turing.MultiTapeCTM.exists_verifier_machine`: one encoded result occurrence per witness.
+* `Turing.MultiTapeNTM.exists_guess_output_machine`: characterize all halted outputs.
 
 ## References
 
@@ -158,18 +159,18 @@ theorem exists_framedGuess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
     simpa only [List.map_map, Function.comp_def, encPair_apply, encBits_apply] using
       ((hs a).2).map (frame (enc a) ++ ·)
 
-/-- Run the native verifier once for each witness. Equal Boolean outcomes retain separate List
+/-- Run the native verifier once for each witness. Equal encoded outcomes retain separate List
 occurrences; all branches halt at one polynomial clock in the original encoded input length. -/
 theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
-    (verifier : α × List Bool → Bool)
-    (hverify : ComputableInPolyTime verifier (encPair enc encBits) encBool) :
+    {β : Type} {encOut : β ↪ List Bool} (verifier : α × List Bool → β)
+    (hverify : ComputableInPolyTime verifier (encPair enc encBits) encOut) :
     ∃ (k : ℕ) (State : Type) (_ : Finite State) (machine : MultiTapeCTM k Bool State)
       (clock : Polynomial ℕ), machine.Nonblocking ∧ ∀ a,
         machine.HaltsWithin (clock.eval (enc a).length) (machine.initialConfig (enc a)).tapes ∧
         ((machine.runList (clock.eval (enc a).length)
           (machine.initialConfig (enc a)).tapes).map Cfg.output).Perm
           ((BitString.enumList (p.eval (enc a).length)).map
-            (fun word => encBool (verifier (a, word)))) := by
+            (fun word => encOut (verifier (a, word)))) := by
   obtain ⟨ks, State, hfinite, source, sourceClock, hnon, hs⟩ := exists_framedGuess_machine enc p
   obtain ⟨c, d, kv, VerifyState, hfinite', nativeVerifier, hv⟩ :=
     Internal.NormalForm.polyTime hverify
@@ -183,7 +184,7 @@ theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
       nativeVerifier.runFrom (nativeVerifier.initCfg (encPair enc encBits (a, word)))
         (verifyClock.eval (enc a).length) =
       wordsCfg (encPair enc encBits (a, word)) none (fun _ => [])
-        (encBool (verifier (a, word))) := by
+        (encOut (verifier (a, word))) := by
     have htime : c * ((encPair enc encBits (a, word)).length + 1) ^ d ≤
         verifyClock.eval (enc a).length := by
       simp only [verifyClock, eval_mul, eval_C, eval_pow, eval_add, eval_X, eval_one,
@@ -209,7 +210,7 @@ theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
       (consumer.runList (verifyClock.eval (enc a).length)
         (consumer.initialConfig word).tapes).map Cfg.output
     have hfinish (word : List Bool) (hword : word ∈ BitString.enumList (p.eval (enc a).length)) :
-        finish (encPair enc encBits (a, word)) = [encBool (verifier (a, word))] := by
+        finish (encPair enc encBits (a, word)) = [encOut (verifier (a, word))] := by
       dsimp only [finish]
       rw [runList_ofDeterministic]
       change [(nativeVerifier.runFrom (nativeVerifier.initCfg (encPair enc encBits (a, word)))
@@ -236,3 +237,30 @@ theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
     exact List.Perm.flatMap_left _ fun word hword => List.Perm.of_eq (hfinish word hword)
 
 end Turing.MultiTapeCTM
+
+namespace Turing.MultiTapeNTM
+
+open Cslib MultiTapeTM Polynomial
+
+/-- Guess a witness of the prescribed polynomial length and compute its bit-string output.
+The halted outputs are exactly the values of the given function on such witnesses. -/
+theorem exists_guess_output_machine {α : Type} (enc : α ↪ List Bool) (p : Polynomial ℕ)
+    (f : α × List Bool → List Bool)
+    (hf : ComputableInPolyTime f (encPair enc encBits) encBits) :
+    ∃ (k : ℕ) (State : Type) (_ : Finite State) (machine : MultiTapeNTM k Bool State)
+      (clock : Polynomial ℕ), ∀ a,
+        machine.RunsInTime (enc a) (clock.eval (enc a).length) ∧
+        ∀ output : List Bool,
+          (∃ path : machine.ComputationPath (enc a),
+            path.last.Halted ∧ path.last.output = output) ↔
+          ∃ w : List Bool, w.length = p.eval (enc a).length ∧ output = f (a, w) := by
+  obtain ⟨k, State, hfinite, machine, clock, _, hmachine⟩ :=
+    MultiTapeCTM.exists_verifier_machine enc p f hf
+  refine ⟨k, State, hfinite, machine.toNTM, clock, fun a => ?_⟩
+  obtain ⟨hhalt, houtputs⟩ := hmachine a
+  refine ⟨hhalt.runsInTime_toNTM, fun output => ?_⟩
+  rw [hhalt.exists_halted_computationPath_toNTM_iff (P := fun cfg => cfg.output = output),
+    MultiTapeCTM.initCfg_toNTM, ← List.mem_map, houtputs.mem_iff]
+  simp only [List.mem_map, BitString.mem_enumList, encBits_apply, eq_comm]
+
+end Turing.MultiTapeNTM

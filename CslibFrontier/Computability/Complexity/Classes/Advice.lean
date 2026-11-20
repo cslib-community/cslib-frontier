@@ -27,6 +27,7 @@ differs from the ordinary input length by a constant. This module has no circuit
 
 ## Main definitions
 
+* `Cslib.Complexity.WithAdvice`: the exact-length advice operator on pair languages.
 * `Cslib.Complexity.PWithAdvice`: polynomial time with a specified exact advice length.
 
 ## Main results
@@ -41,11 +42,17 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM
 
+/-- Restrict a class of framed advice/input pair languages to one arbitrary advice word of
+exactly `length n` bits for all inputs of length `n`. -/
+@[expose] def WithAdvice (C : Set (Set (List Bool × List Bool))) (length : ℕ → ℕ) :
+    Set (Set (List Bool)) :=
+  {L | ∃ advice : ℕ → List Bool, (∀ n, (advice n).length = length n) ∧
+    ∃ A ∈ C, ∀ x, x ∈ L ↔ (advice x.length, x) ∈ A}
+
 /-- Polynomial time with an arbitrary advice family of exactly `length n` bits at length `n`.
 The decider reads the framed advice/input pair; the advice family need not be computable. -/
 @[expose] def PWithAdvice (length : ℕ → ℕ) : Set (Set (List Bool)) :=
-  {L | ∃ advice : ℕ → List Bool, (∀ n, (advice n).length = length n) ∧
-    ∃ A ∈ P (encPair encBits encBits), ∀ x, x ∈ L ↔ (advice x.length, x) ∈ A}
+  WithAdvice (P (encPair encBits encBits)) length
 
 /-- A polynomial-time decider may ignore advice of any specified length. -/
 theorem P_subset_PWithAdvice (length : ℕ → ℕ) : P encBits ⊆ PWithAdvice length := by

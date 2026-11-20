@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -48,10 +48,22 @@ namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
+/-- The well-formed satisfiable instances of a fixed constraint language. -/
+@[expose] def CSP.TemplateSAT {Rel D : Type} (arity : Rel → ℕ) (sem : Rel → List D → Bool) :
+    Set (CSP Rel ℕ) :=
+  {F | F.WellFormed arity ∧ F.Satisfiable sem}
+
 /-- The well-formed satisfiable instances of a fixed Boolean constraint language. -/
 @[expose] def CSPSAT {Rel : Type} (arity : Rel → ℕ) (sem : Rel → List Bool → Bool) :
     Set (CSP Rel ℕ) :=
-  {F | F.WellFormed arity ∧ F.Satisfiable sem}
+  CSP.TemplateSAT arity sem
+
+/-- The fixed-template constraint satisfaction languages over a finite relation alphabet.
+A member fixes the finite nonempty domain, relation arities and relation tables before receiving
+an instance [Chen2006CSP]. -/
+def CSP.FixedTemplateLanguages (Rel : Type) : Set (Set (CSP Rel ℕ)) :=
+  {L | Finite Rel ∧ ∃ (q : ℕ) (arity : Rel → ℕ) (sem : Rel → List (Fin (q + 1)) → Bool),
+    L = CSP.TemplateSAT arity sem}
 
 namespace CSPSAT
 

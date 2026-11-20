@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -27,6 +27,8 @@ The interpreter is an auxiliary mathematical observation, not an uncharged machi
 ## Main results
 
 * `Turing.MultiTapeCTM.branchCount_succ`: terminal counts sum over transition occurrences.
+* `Turing.MultiTapeCTM.mem_runList_iff_exists_runPath`: list membership records exactly
+  the endpoints of unlabelled paths at the same clock.
 * `Turing.MultiTapeCTM.countP_runList`: List interpretation equals the native terminal count.
 * `Turing.MultiTapeCTM.haltsWithin_of_halted`: terminal endpoints imply a native halting bound
   when stuck local views are excluded.
@@ -111,6 +113,53 @@ theorem runList_add_of_halted (machine : MultiTapeCTM k Symbol State) (first sec
       exact machine.runList_halted (h final hmem) second
     _ = _ := by simp
 
+private theorem mem_runList_one_iff_step (machine : MultiTapeCTM k Symbol State)
+    (cfg final : Cfg k Symbol State input) :
+    final ∈ machine.runList 1 cfg ↔ machine.toNTM.Step cfg final := by
+  cases hs : cfg.state with
+  | none => simp [machine.runList_halted hs, MultiTapeNTM.step_of_halt hs]
+  | some state =>
+    change final ∈ machine.runList (0 + 1) cfg ↔ _
+    simp only [machine.runList_succ cfg 0 state hs, runList_zero, List.mem_flatMap,
+      List.mem_singleton, MultiTapeNTM.Step, hs]
+    apply exists_congr
+    intro action
+    rw [toNTM, actions, hs, List.mem_map]
+    constructor
+    · rintro ⟨⟨action', hmem, rfl⟩, hfinal⟩
+      exact ⟨by simpa using hmem, hfinal⟩
+    · rintro ⟨hmem, hfinal⟩
+      exact ⟨⟨_, hmem, (MultiTapeMachine.Action.emptyOracleEquiv.apply_symm_apply _).symm⟩,
+        hfinal⟩
+
+/-- The list run reaches exactly the configurations at the ends of unlabelled paths of
+the same length. A path may repeat a halted configuration to fill the clock. -/
+theorem mem_runList_iff_exists_runPath (machine : MultiTapeCTM k Symbol State)
+    {fuel : ℕ} {cfg final : Cfg k Symbol State input} :
+    final ∈ machine.runList fuel cfg ↔
+      ∃ path : machine.toNTM.RunPath input,
+        path.head = cfg ∧ path.length = fuel ∧ path.last = final := by
+  constructor
+  · induction fuel generalizing cfg with
+    | zero =>
+      intro h
+      have hfinal : final = cfg := by simpa using h
+      exact ⟨RelSeries.singleton _ cfg, rfl, rfl, hfinal.symm⟩
+    | succ fuel ih =>
+      rw [Nat.add_comm fuel 1, runList_add, List.mem_flatMap]
+      rintro ⟨next, hstep, hrest⟩
+      obtain ⟨path, hhead, hlen, hlast⟩ := ih hrest
+      have hstep' : machine.toNTM.Step cfg path.head :=
+        hhead ▸ (machine.mem_runList_one_iff_step cfg next).mp hstep
+      exact ⟨path.cons cfg hstep', rfl, by simp [hlen, Nat.add_comm], by simpa using hlast⟩
+  · rintro ⟨path, rfl, rfl, rfl⟩
+    induction path using RelSeries.inductionOn with
+    | singleton cfg => simp
+    | cons path cfg hstep ih =>
+      rw [RelSeries.last_cons, RelSeries.head_cons, RelSeries.cons_length,
+        Nat.add_comm path.length 1, runList_add, List.mem_flatMap]
+      exact ⟨path.head, (machine.mem_runList_one_iff_step cfg path.head).mpr hstep, ih⟩
+
 /-- An all-branches bound ensures every interpreted endpoint really has halted. -/
 theorem HaltsWithin.halted_of_mem_runList {machine : MultiTapeCTM k Symbol State}
     {fuel : ℕ} {cfg final : Cfg k Symbol State input} (h : machine.HaltsWithin fuel cfg)
@@ -129,6 +178,45 @@ theorem HaltsWithin.halted_of_mem_runList {machine : MultiTapeCTM k Symbol State
       obtain ⟨action, haction, hfinal⟩ := List.mem_flatMap.mp hfinal
       obtain ⟨index, hi, rfl⟩ := List.mem_iff_getElem.mp haction
       exact ih ⟨index, hi⟩ hfinal
+
+private theorem mem_runList_at_time {machine : MultiTapeCTM k Symbol State}
+    (path : machine.toNTM.ComputationPath input) (i : Fin (path.length + 1)) :
+    path.toRunPath i ∈ machine.runList i.val (machine.toNTM.initCfg input) :=
+  machine.mem_runList_iff_exists_runPath.mpr
+    ⟨path.toRunPath.take i, (RelSeries.head_take _ _).trans path.head_eq, rfl,
+      RelSeries.last_take _ _⟩
+
+/-- An all-branches counting clock bounds the time of the unlabelled machine. -/
+theorem HaltsWithin.runsInTime_toNTM {machine : MultiTapeCTM k Symbol State}
+    {fuel : ℕ} (h : machine.HaltsWithin fuel (machine.toNTM.initCfg input)) :
+    machine.toNTM.RunsInTime input fuel := by
+  intro path htime
+  let i : Fin (path.length + 1) := ⟨fuel, Nat.lt_succ_of_le htime⟩
+  have hhalt : (path.toRunPath i).Halted := h.halted_of_mem_runList (mem_runList_at_time path i)
+  exact (MultiTapeNTM.RunPath.last_eq_of_halted path.toRunPath i hhalt) ▸ hhalt
+
+/-- If the counting clock suffices to halt every branch, its list endpoints are exactly the
+halted computation endpoints of the unlabelled machine, independent of path length. -/
+theorem HaltsWithin.exists_halted_computationPath_toNTM_iff
+    {machine : MultiTapeCTM k Symbol State} {fuel : ℕ}
+    (h : machine.HaltsWithin fuel (machine.toNTM.initCfg input))
+    {P : Cfg k Symbol State input → Prop} :
+    (∃ path : machine.toNTM.ComputationPath input, path.last.Halted ∧ P path.last) ↔
+      ∃ final ∈ machine.runList fuel (machine.toNTM.initCfg input), P final := by
+  constructor
+  · rintro ⟨path, hhalt, hP⟩
+    refine ⟨path.last, ?_, hP⟩
+    by_cases htime : fuel ≤ path.length
+    · let i : Fin (path.length + 1) := ⟨fuel, Nat.lt_succ_of_le htime⟩
+      have hmem := mem_runList_at_time path i
+      have hhalt' : (path.toRunPath i).Halted := h.halted_of_mem_runList hmem
+      exact (MultiTapeNTM.RunPath.last_eq_of_halted path.toRunPath i hhalt') ▸ hmem
+    · rw [← Nat.add_sub_of_le (Nat.le_of_not_ge htime), runList_add, List.mem_flatMap]
+      exact ⟨path.last, machine.mem_runList_iff_exists_runPath.mpr
+        ⟨path.toRunPath, path.head_eq, rfl, rfl⟩, by simp [machine.runList_halted hhalt]⟩
+  · rintro ⟨final, hmem, hP⟩
+    obtain ⟨path, hhead, _, hlast⟩ := machine.mem_runList_iff_exists_runPath.mp hmem
+    exact ⟨⟨path, hhead⟩, hlast ▸ h.halted_of_mem_runList hmem, hlast ▸ hP⟩
 
 /-- A non-stuck machine whose clocked endpoints all halt has the native all-branches bound.
 The no-stuck hypothesis matters: an empty choice list would otherwise satisfy the endpoint

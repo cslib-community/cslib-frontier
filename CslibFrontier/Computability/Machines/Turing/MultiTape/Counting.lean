@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -29,6 +29,7 @@ An empty list at a running configuration is stuck, not a rejecting halt.
 ## Main definitions
 
 * `Turing.MultiTapeCTM`: the list-choice specialization of the common machine.
+* `Turing.MultiTapeCTM.toNTM`: the unlabelled view of counting transitions.
 * `Turing.MultiTapeCTM.lts`: labelled transitions, using the existing `Cslib.LTS` interface.
 * `Turing.MultiTapeCTM.runBranch`: replay a list of occurrence indices.
 * `Turing.MultiTapeCTM.branches`: first-halting branches of bounded length.
@@ -75,6 +76,17 @@ def actions (machine : MultiTapeCTM k Symbol State) (cfg : Cfg k Symbol State in
   | some state =>
     (machine.tr state cfg.inputSymbol cfg.workTapeSymbols Empty.elim).map
       MultiTapeMachine.Action.emptyOracleEquiv
+
+/-- Forget the multiplicity of transition occurrences for reasoning about reachable configurations.
+Use the original counting machine when counting branches. -/
+def toNTM (M : MultiTapeCTM k Symbol State) : MultiTapeNTM k Symbol State where
+  q₀ := M.initial
+  Tr state symbol work action :=
+    MultiTapeMachine.Action.emptyOracleEquiv.symm action ∈ M.tr state symbol work Empty.elim
+
+/-- Forgetting transition multiplicity preserves the initial configuration. -/
+theorem initCfg_toNTM (machine : MultiTapeCTM k Symbol State) (input : List Symbol) :
+    machine.toNTM.initCfg input = (machine.initialConfig input).tapes := rfl
 
 /-- Every running local view has a transition occurrence. This excludes stuck states even on
 unreachable configurations; a native `HaltsWithin` hypothesis only needs the reachable ones. -/

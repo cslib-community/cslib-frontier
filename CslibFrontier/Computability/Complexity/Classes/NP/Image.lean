@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.P
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
+import CslibFrontier.Computability.Complexity.Classes.NP.Closure
+import CslibFrontier.Computability.Complexity.Reduction
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -77,6 +79,29 @@ theorem mem_NP_image {β : Type} {encB : β ↪ List Bool} (D : Decoder encB) {B
     exact ⟨c, hc, by rw [D.decode_enc], by rw [D.decode_enc]; exact hVc⟩
   · rintro ⟨c, hc, hw, hVc⟩
     exact ⟨D.decode w, (hBV _).2 ⟨c, by rw [hw]; exact hc, hVc⟩, hw⟩
+
+/-- A polynomial-time decoder preserves `NP ∩ coNP` when passing to the encoded language.
+For the complement verifier, a word outside the range of the encoding is an additional
+accepting case that can be decided in polynomial time. -/
+theorem mem_NPInterCoNP_image {β : Type} {encB : β ↪ List Bool} (D : Decoder encB)
+    {B : Set β} (hB : B ∈ NPInterCoNP encB) : encB '' B ∈ NPInterCoNP encBits := by
+  refine ⟨mem_NP_image D hB.1, ?_⟩
+  rw [mem_coNP]
+  have hRange : Set.range encB ∈ P encBits := by
+    simpa only [Set.image_univ] using mem_P_image D univ_mem_P
+  have hComp : (encB '' B)ᶜ = encB '' Bᶜ ∪ (Set.range encB)ᶜ := by
+    ext w
+    constructor
+    · intro hw
+      by_cases h : w ∈ Set.range encB
+      · obtain ⟨b, rfl⟩ := h
+        exact Or.inl ⟨b, fun hb => hw ⟨b, hb, rfl⟩, rfl⟩
+      · exact Or.inr h
+    · rintro (⟨b, hb, rfl⟩ | hw) ⟨b', hb', heq⟩
+      · exact hb (encB.injective heq ▸ hb')
+      · exact hw ⟨b', heq⟩
+  rw [hComp]
+  exact union_mem_NP (mem_NP_image D (mem_coNP.mp hB.2)) (P_subset_NP (compl_mem_P hRange))
 
 /-- The encodings of the satisfiable formulas form a problem in `NP` on words. -/
 theorem image_SAT_mem_NP : encCNF '' SAT ∈ NP encBits :=

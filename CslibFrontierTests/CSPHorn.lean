@@ -201,7 +201,7 @@ example (arity : Empty → ℕ) (sem : Empty → List Bool → Bool) :
     CSPSAT arity sem ∈ P (encCSP (encFinite Empty) encNat) ∧
     ([] : CSP Empty ℕ) ∈ CSPSAT arity sem := by
   exact ⟨CSPSAT.mem_P_of_and (encFinite Empty) arity sem (fun R => nomatch R),
-    by simp [CSPSAT, CSP.WellFormed, CSP.Satisfiable, CSP.eval]⟩
+    by simp [CSPSAT.mem_iff, CSP.WellFormed, CSP.Satisfiable, CSP.eval]⟩
 
 example (arity : Empty → ℕ) (sem : Empty → List Bool → Bool) :
     CSPSAT arity sem ∈ P (encCSP (encFinite Empty) encNat) :=

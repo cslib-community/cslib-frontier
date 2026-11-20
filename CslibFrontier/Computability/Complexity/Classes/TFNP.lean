@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -76,6 +76,9 @@ many-one reduction between the domains (`Cslib.Complexity.SearchReducible.polyTi
 * `Cslib.Complexity.searchSum`: the disjoint sum of two search problems.
 * `Cslib.Complexity.SearchReducible`, `Cslib.Complexity.SearchHard`,
   `Cslib.Complexity.SearchComplete`.
+
+- The output graph of an `NPMV` function is in `NP` and polynomially balanced.
+  `NPMVt` requires totality, and `NPSV` and `NPSVt` impose single-valuedness.
 
 ## Main results
 
@@ -184,6 +187,26 @@ def FPSearch (enc : α ↪ List Bool) : Set (α → List Bool → Prop) :=
 /-- The total search problems in `FNP` [Megiddo and Papadimitriou][MegiddoPapadimitriou1991]. -/
 def TFNP (enc : α ↪ List Bool) : Set (α → List Bool → Prop) :=
   {R | R ∈ FNP enc ∧ IsTotalSearch R}
+
+/-- The partial multivalued functions computable in nondeterministic polynomial time.
+The output relation is polynomially balanced, and certification of an output may itself
+use a nondeterministic polynomial-time computation. The equivalence with the tagged-output
+machine formulation is proved in `CslibFrontier.Computability.Complexity.Classes.NPMV.Machine`. -/
+def NPMV (enc : α ↪ List Bool) : Set (α → List Bool → Prop) :=
+  {R | (∃ p : Polynomial ℕ, ∀ a w, R a w → w.length ≤ p.eval (enc a).length) ∧
+    {aw | R aw.1 aw.2} ∈ NP (encPair enc encBits)}
+
+/-- The total functions in `NPMV`. -/
+def NPMVt (enc : α ↪ List Bool) : Set (α → List Bool → Prop) :=
+  {R ∈ NPMV enc | IsTotalSearch R}
+
+/-- The partial single-valued functions in `NPMV`. -/
+def NPSV (enc : α ↪ List Bool) : Set (α → List Bool → Prop) :=
+  {R ∈ NPMV enc | ∀ a w v, R a w → R a v → w = v}
+
+/-- The total functions in `NPSV`. -/
+def NPSVt (enc : α ↪ List Bool) : Set (α → List Bool → Prop) :=
+  {R ∈ NPSV enc | IsTotalSearch R}
 
 variable {enc : α ↪ List Bool} {R S : α → List Bool → Prop}
 

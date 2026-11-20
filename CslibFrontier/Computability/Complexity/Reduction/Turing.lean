@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -18,6 +18,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Space
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Complexity.Reduction.OneOne
 public import CslibFrontier.Computability.Complexity.Reduction.TruthTableVariants
+import CslibFrontier.Computability.Complexity.Classes.NP.Image
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -499,6 +500,22 @@ theorem PSPACETuringHard.P_eq_PSPACE_of_mem_P {B : Set (List Bool)}
     (hB_hard : PSPACETuringHard encBits B) (hB : B ∈ P encBits) : P encBits = PSPACE encBits :=
   Set.Subset.antisymm P_subset_PSPACE (hB_hard.subset_P_of_mem_P hB encBits)
 
+/-- Polynomial-time Turing reductions to a language in `NP ∩ coNP` preserve membership in
+`NP ∩ coNP` [Ladner, Lynch and Selman][LadnerLynchSelman1975]. -/
+theorem PolyTimeTuringReducible.mem_NPInterCoNP {B : Set (List Bool)}
+    (hAB : PolyTimeTuringReducible encA encBits A B) (hB : B ∈ NPInterCoNP encBits) :
+    A ∈ NPInterCoNP encA :=
+  PWithOracle_subset_NP_inter_coNP hB.1 hB.2
+    (polyTimeTuringReducible_bits_iff_mem_PWithOracle.mp hAB)
+
+/-- Closure of `NP ∩ coNP` under Turing reductions to a target with a polynomial-time decoder. -/
+theorem PolyTimeTuringReducible.mem_NPInterCoNP_of_decoder (D : Decoder encB)
+    (hAB : PolyTimeTuringReducible encA encB A B) (hB : B ∈ NPInterCoNP encB) :
+    A ∈ NPInterCoNP encA := by
+  have hImage := mem_NPInterCoNP_image D hB
+  exact PWithOracle_subset_NP_inter_coNP hImage.1 hImage.2
+    (polyTimeTuringReducible_iff_mem_PWithOracle.mp hAB)
+
 /-- If an NP-hard problem Turing-reduces to a problem in `NP ∩ coNP`, then `NP = coNP`. -/
 theorem NPHard.NP_eq_coNP_of_turing_mem_NP_inter_coNP {B : Set (List Bool)}
     (hL : NPHard encL L) (hLB : PolyTimeTuringReducible encL encBits L B)
@@ -507,8 +524,7 @@ theorem NPHard.NP_eq_coNP_of_turing_mem_NP_inter_coNP {B : Set (List Bool)}
   have hsub : NP encBits ⊆ coNP encBits := fun A hA => by
     have ht : PolyTimeTuringReducible encBits encBits A B :=
       hL.polyTimeTuringHard_of_turing hLB encBits A hA
-    rw [polyTimeTuringReducible_bits_iff_mem_PWithOracle] at ht
-    exact (PWithOracle_subset_NP_inter_coNP hB_np hB_conp ht).2
+    exact (ht.mem_NPInterCoNP ⟨hB_np, hB_conp⟩).2
   ext A
   constructor
   · exact fun hA => hsub hA
