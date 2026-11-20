@@ -62,12 +62,12 @@ local notation "Free" => {i : Fin n // i ∉ C}
 local notation "Saved" => RestQuestions (Option X) (Option Y) C
 
 /-- The Alice question tuple law at fixed remaining information and selected question pair. -/
-noncomputable def aliceQuestionsGivenRest (j : Free) (t : Saved j) (q : PairQ) :
+@[expose] noncomputable def aliceQuestionsGivenRest (j : Free) (t : Saved j) (q : PairQ) :
     PMF (Fin n → Option X) :=
   (questionsGivenRest G α C j t q).map (fun u => Prod.fst ∘ u)
 
 /-- The Bob question tuple law at fixed remaining information and selected question pair. -/
-noncomputable def bobQuestionsGivenRest (j : Free) (t : Saved j) (q : PairQ) :
+@[expose] noncomputable def bobQuestionsGivenRest (j : Free) (t : Saved j) (q : PairQ) :
     PMF (Fin n → Option Y) :=
   (questionsGivenRest G α C j t q).map (fun u => Prod.snd ∘ u)
 
@@ -144,13 +144,29 @@ theorem questionsGivenRest_eq_bind (j : Free) (t : Saved j) (q : PairQ)
   rw [he] at h
   simpa only [PMF.map_bind, PMF.map_comp, PMF.bind_map, Function.comp_def] using h
 
-
 /-- The branch vector selected by the checked answers, with the retained information and
 the selected question pair held fixed. -/
-noncomputable def checkedVectorGivenRest (S : RepeatedStrategy) (j : Free) (t : Saved j)
+@[expose] noncomputable def checkedVectorGivenRest (S : RepeatedStrategy) (j : Free) (t : Saved j)
     (q : PairQ) (a : C → A) (b : C → B) : EuclideanSpace ℂ (ι × κ) :=
   S.averagedCheckedVector C (aliceQuestionsGivenRest G α C j t q)
     (bobQuestionsGivenRest G α C j t q) a b
+
+/-- The branch weight is the point mass of the reconstructed answer kernel. -/
+theorem norm_checkedVectorGivenRest_sq_answers (S : RepeatedStrategy) (j : Free) (t : Saved j)
+    (q : PairQ) (a : C → A) (b : C → B) (ht : t ∈ (restQuestionsLaw G α C j).support) :
+    ‖checkedVectorGivenRest G α C S j t q a b‖ ^ 2 =
+      (answersGivenRest G α C S j t q (fun i => (a i, b i))).toReal := by
+  let pack := (Equiv.arrowProdEquivProdArrow C (fun _ => A) (fun _ => B)).symm
+  have hpack (x : Fin n → Option X) (y : Fin n → Option Y) :
+      checkedAnswerLaw C S (fun i => (x i, y i)) = (S.checkedAnswers C x y).map pack := by
+    simp only [checkedAnswerLaw, QuantumStrategy.checkedAnswers, PMF.map_comp,
+      Function.comp_def, pack]
+    rfl
+  rw [checkedVectorGivenRest, QuantumStrategy.norm_averagedCheckedVector_sq]
+  rw [answersGivenRest, questionsGivenRest_eq_bind G α C j t q ht, PMF.bind_bind]
+  simp only [PMF.bind_map, Function.comp_def, hpack, ← PMF.map_bind]
+  rw [show (fun i => (a i, b i)) = pack (a, b) from rfl,
+    map_apply_of_injective _ pack.injective (a, b)]
 
 /-- The squared norm of the branch is the probability of the checked answers conditional on
 the retained questions and messages in the experiment with the selected pair fixed. -/
@@ -159,29 +175,46 @@ theorem norm_checkedVectorGivenRest_sq (S : RepeatedStrategy) (j : Free) (t : Sa
     ‖checkedVectorGivenRest G α C S j t q a b‖ ^ 2 =
       (conditionalSnd ((restKernel G α C S j q).map (fun r => (restQuestions C j r, r.answers)))
         t (fun i => (a i, b i))).toReal := by
-  let pack := (Equiv.arrowProdEquivProdArrow C (fun _ => A) (fun _ => B)).symm
-  have hpack (x : Fin n → Option X) (y : Fin n → Option Y) :
-      checkedAnswerLaw C S (fun i => (x i, y i)) = (S.checkedAnswers C x y).map pack := by
-    simp only [checkedAnswerLaw, QuantumStrategy.checkedAnswers, PMF.map_comp,
-      Function.comp_def, pack]
-    rfl
-  have h := conditionalSnd_bind_pair (restQuestionsLaw G α C j)
-    (fun t' => answersGivenRest G α C S j t' q) t ht
-  rw [map_restKernel_eq_bind, h, checkedVectorGivenRest,
-    QuantumStrategy.norm_averagedCheckedVector_sq]
-  rw [answersGivenRest, questionsGivenRest_eq_bind G α C j t q ht, PMF.bind_bind]
-  simp only [PMF.bind_map, Function.comp_def, hpack, ← PMF.map_bind]
-  rw [show (fun i => (a i, b i)) = pack (a, b) from rfl,
-    map_apply_of_injective _ pack.injective (a, b)]
+  rw [map_restKernel_eq_bind, conditionalSnd_bind_pair _ _ _ ht,
+    norm_checkedVectorGivenRest_sq_answers G α C S j t q a b ht]
 
+local notation "Trial" => ((Option X ⊕ Option Y) × PairQ)
 
-/-- Keep the selected question pair, the retained question information, and the checked
-answers from the original transcript. -/
+/-- Keep a chosen observation of the selected trial, together with the retained question
+information and the checked answers from the original transcript. -/
+noncomputable def observedCheckedAnswersBy {O : Type*} (S : RepeatedStrategy) (j : Free)
+    (observe : Trial → O) : PMF ((O × Saved j) × (C → A × B)) :=
+  (transcriptLaw G α C S).map fun r =>
+    let rest := restTranscript C j r
+    ((observe (freeTrials C r j), restQuestions C j rest), rest.answers)
+
+/-- Disintegrate the original checked answers by the selected trial and retained information,
+then apply the requested observation to the selected trial. -/
+theorem observedCheckedAnswersBy_eq_bind {O : Type*} (S : RepeatedStrategy) (j : Free)
+    (observe : Trial → O) :
+    observedCheckedAnswersBy G α C S j observe =
+      (law G.questions α).bind fun trial =>
+        (restQuestionsLaw G α C j).bind fun t =>
+          (answersGivenRest G α C S j t trial.2).map ((observe trial, t), ·) := by
+  let read := fun p : Trial × Shared (Option X) (Option Y) A B C j =>
+    let (trial, rest) := p
+    ((observe trial, restQuestions C j rest), rest.answers)
+  have h := congrArg (PMF.map read) (map_trial_restTranscriptLaw G α C S j)
+  have hk (trial : Trial) :
+      (restKernel G α C S j trial.2).map
+        (fun r => ((observe trial, restQuestions C j r), r.answers)) =
+      (restQuestionsLaw G α C j).bind fun t =>
+        (answersGivenRest G α C S j t trial.2).map ((observe trial, t), ·) := by
+    have h' := congrArg (PMF.map fun z : Saved j × (C → A × B) => ((observe trial, z.1), z.2))
+      (map_restKernel_eq_bind G α C S j trial.2)
+    simpa only [PMF.map_comp, PMF.map_bind, Function.comp_def] using h'
+  simpa only [PMF.map_comp, PMF.map_bind, Function.comp_def, read, observedCheckedAnswersBy, hk]
+    using h
+
+/-- Keep the selected question pair as the observation of the selected trial. -/
 noncomputable def observedCheckedAnswers (S : RepeatedStrategy) (j : Free) :
     PMF ((PairQ × Saved j) × (C → A × B)) :=
-  (transcriptLaw G α C S).map fun r =>
-    (((freeTrials C r j).2, restQuestions C j (restTranscript C j r)),
-      (restTranscript C j r).answers)
+  observedCheckedAnswersBy G α C S j Prod.snd
 
 /-- The effect-based branch weight agrees with the conditional answer probability in
 the original sampler, given the selected question pair and retained question information. -/
@@ -196,25 +229,12 @@ theorem norm_checkedVectorGivenRest_sq_observed (S : RepeatedStrategy) (j : Free
   let prior := P.bind fun q' => Q.map (q', ·)
   have hLaw : observedCheckedAnswers G α C S j =
       prior.bind fun z => (H z).map (z, ·) := by
-    let read := fun p : ((Option X ⊕ Option Y) × PairQ) × Shared (Option X) (Option Y) A B C j =>
-      let (trial, rest) := p
-      ((trial.2, restQuestions C j rest), rest.answers)
-    have h := congrArg (PMF.map read) (map_trial_restTranscriptLaw G α C S j)
-    have hk (q' : PairQ) :
-        (restKernel G α C S j q').map (fun r => ((q', restQuestions C j r), r.answers)) =
-          Q.bind fun t' => (H (q', t')).map ((q', t'), ·) := by
-      have h' := congrArg (PMF.map fun z : Saved j × (C → A × B) => ((q', z.1), z.2))
-        (map_restKernel_eq_bind G α C S j q')
-      simpa only [PMF.map_comp, PMF.map_bind, Function.comp_def, Q, H] using h'
-    dsimp only [prior, P]
-    simp only [PMF.map_comp, PMF.map_bind, PMF.bind_bind, PMF.bind_map, Function.comp_def,
-      read, observedCheckedAnswers, hk] at h ⊢
-    exact h
+    rw [observedCheckedAnswers, observedCheckedAnswersBy_eq_bind]
+    simp only [prior, P, Q, H, PMF.bind_bind, PMF.bind_map, Function.comp_def]
   have hsupport : (q, t) ∈ prior.support := by
     refine (PMF.mem_support_bind_iff _ _ _).mpr ⟨q, hq, ?_⟩
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩
   rw [hLaw, conditionalSnd_bind_pair _ _ _ hsupport]
-  rw [norm_checkedVectorGivenRest_sq G α C S j t q a b ht, map_restKernel_eq_bind,
-    conditionalSnd_bind_pair _ _ _ ht]
+  exact norm_checkedVectorGivenRest_sq_answers G α C S j t q a b ht
 
 end Cslib.PCP.AnchoredDependency

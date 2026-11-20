@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyResolvent
 import Mathlib.Algebra.BigOperators.WithTop
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
+public import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 
 /-!
@@ -159,6 +160,21 @@ private theorem spectralIntegrand_eq_resolvent {ρ σ : Matrix ι ι ℂ}
   rw [← div_eq_mul_inv]
   exact scalarIntegrand_eq_resolvent (hρ.eigenvalues_nonneg i) (hσ.eigenvalues_nonneg j) hs
 
+/-- The unit-interval resolvent formula for finite relative entropy. The integrand is
+interval integrable even for singular pairs with compatible supports. -/
+theorem relativeEntropyReal_resolventIntegral {ρ σ : Matrix ι ι ℂ}
+    (hρ : ρ.PosSemidef) (hσ : σ.PosSemidef) (hs : SupportLE ρ σ) :
+    let f := fun s : ℝ =>
+      (relativeEntropyResolvent (s / (1 - s)) ρ σ - (1 - s) * ρ.trace.re) / (1 - s) ^ 2
+    IntervalIntegrable f volume 0 1 ∧
+      (∫ s in (0 : ℝ)..1, f s) = relativeEntropyReal ρ σ := by
+  dsimp only
+  obtain ⟨hi, he⟩ := spectralIntegrand_integral hρ hσ hs
+  have hEq := fun (s : ℝ) (hs' : s ∈ Set.Ioo 0 1) => spectralIntegrand_eq_resolvent hρ hσ hs'
+  refine ⟨(intervalIntegrable_congr_uIoo ?_).mp hi, ?_⟩
+  · rwa [Set.uIoo_of_le zero_le_one]
+  · exact (intervalIntegral.integral_congr_Ioo_of_le zero_le_one hEq).symm.trans he
+
 /-- Comparing resolvents at all positive parameters compares relative entropies when the
 source traces agree and support inclusion for the second pair implies it for the first. -/
 theorem relativeEntropy_le_of_resolvent_le {κ : Type*} [Fintype κ] [DecidableEq κ]
@@ -171,13 +187,12 @@ theorem relativeEntropy_le_of_resolvent_le {κ : Type*} [Fintype κ] [DecidableE
   by_cases hs : SupportLE τ ω
   · have hs' := hsupport hs
     rw [relativeEntropy_of_supportLE hs', relativeEntropy_of_supportLE hs, WithTop.coe_le_coe]
-    obtain ⟨hi, he⟩ := spectralIntegrand_integral hρ hσ hs'
-    obtain ⟨hi', he'⟩ := spectralIntegrand_integral hτ hω hs
+    obtain ⟨hi, he⟩ := relativeEntropyReal_resolventIntegral hρ hσ hs'
+    obtain ⟨hi', he'⟩ := relativeEntropyReal_resolventIntegral hτ hω hs
     rw [← he, ← he']
     apply intervalIntegral.integral_mono_on_of_le_Ioo zero_le_one hi hi'
     intro s hmem
-    rw [spectralIntegrand_eq_resolvent hρ hσ hmem, spectralIntegrand_eq_resolvent hτ hω hmem,
-      htrace]
+    rw [htrace]
     exact div_le_div_of_nonneg_right (sub_le_sub_right
       (h _ (div_pos hmem.1 (sub_pos.mpr hmem.2))) _) (sq_nonneg _)
   · rw [relativeEntropy_of_not_supportLE hs]

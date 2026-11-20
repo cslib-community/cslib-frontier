@@ -4124,6 +4124,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
+public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 public import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
@@ -4144,6 +4145,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Pasting
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingConsistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialAnswer
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.RestrictedStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Slices
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerifierPasting
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerticalAxis
@@ -7180,6 +7182,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.PartialTracePairing
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.QuantumPinsker
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing

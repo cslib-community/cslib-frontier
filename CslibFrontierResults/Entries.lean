@@ -11,6 +11,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
@@ -20,6 +21,7 @@ import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
+import CslibFrontier.Foundations.Quantum.DensityMatrix.QuantumPinsker
 import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
@@ -10927,6 +10929,23 @@ register_result "bvy-checked-answer-weight-given-questions" where
     The selected pair and retained question observation must be supported. Local dimensions may \
     differ. The reconstructed kernels are total and the observed-law equality is on support."
 
+register_result "bvy-checked-answer-weight-given-noisy-message" where
+  title := "Checked-answer branch weight given a noisy message and Bob’s question"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 4.9, equations (21)–(22)",
+      locator := "arXiv:1509.07466v2, §4.4, printed p. 18" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.norm_checkedVectorGivenBob_sq,
+    Cslib.PCP.AnchoredDependency.norm_checkedVectorGivenBob_sq_inl
+  ]
+  scope := "For a finite-dimensional tensor strategy with local POVMs and a selected unchecked \
+    coordinate, the squared branch norm equals the actual conditional checked-answer \
+    probability at supported retained information, tagged message and Bob question. \
+    For a left message, this weight splits into the anchor and ordinary branches at the \
+    additional erasure rate α/2. Local dimensions may differ and the kernels are total."
+
 register_result "dpll-pigeonhole-refutation-size" where
   title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"
   topic := "SAT algorithms"
@@ -11080,6 +11099,20 @@ register_result "quantum-relative-entropy-partial-trace" where
     relative entropy bounded by the joint divergence. The theorem extends the trace-one \
     statement to unnormalized matrices, uses natural logarithms and includes singular \
     states. A joint support mismatch makes the right side positive infinity."
+
+register_result "quantum-pinsker" where
+  title := "Quantum Pinsker’s inequality in nats"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.4",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 19" }
+  ]
+  theorems := [Cslib.Quantum.traceNorm_sub_sq_div_two_le_relativeEntropy]
+  scope := "For any two finite complex density matrices, half the squared unhalved trace norm \
+    of their difference is at most their relative entropy in nats. Changing the source’s \
+    base-two logarithms to natural logarithms gives the coefficient 1/2. The extended \
+    relative entropy is positive infinity on a support mismatch. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6662#issuecomment-7020765004."
 
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"

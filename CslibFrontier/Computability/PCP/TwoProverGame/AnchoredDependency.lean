@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
+import CslibFrontier.Probability.PMF.Bind
 
 /-!
 # Noisy dependency breaking for anchored questions
@@ -83,7 +84,7 @@ theorem conditionalSnd_messagePair (μ : PMF (X × Y)) (α : I)
       (ENNReal.ofReal_ne_zero_iff.mpr (sub_pos.mpr h₁) : ENNReal.ofReal (1 - (α : ℝ)) ≠ 0)
 
 /-- Erase the revealed question with the additional noise probability. -/
-noncomputable def noisyQuestion (α : I) (m : Option X) : PMF (Option X) :=
+@[expose] noncomputable def noisyQuestion (α : I) (m : Option X) : PMF (Option X) :=
   (coin (noise α)).map fun k => if k then none else m
 
 /-- Draw the message, then draw each player's question by its own conditional kernel. -/
@@ -270,6 +271,30 @@ theorem conditionalSnd_law_inr (μ : PMF (X × Y)) (α : I) (m : Option Y)
     exact hm.2
   rw [hcond, hr]
   exact conditionalSnd_bind_pair _ _ _ hm'
+
+/-- Alice's question law given the tagged noisy message. -/
+@[expose] noncomputable def aliceGivenMessage (μ : PMF (X × Y)) (α : I) :
+    Option X ⊕ Option Y → PMF (Option X)
+  | .inl x => noisyQuestion α x
+  | .inr y => conditionalSnd (messagePair (μ.map Prod.swap) α) y
+
+/-- Bob's question law given the tagged noisy message. -/
+@[expose] noncomputable def bobGivenMessage (μ : PMF (X × Y)) (α : I) :
+    Option X ⊕ Option Y → PMF (Option Y)
+  | .inl x => conditionalSnd (messagePair μ α) x
+  | .inr y => noisyQuestion α y
+
+/-- The single-trial law is obtained by sampling the message, then the two independent
+local questions. -/
+theorem law_eq_bind_messages (μ : PMF (X × Y)) (α : I) :
+    law μ α = ((law μ α).map Prod.fst).bind fun m =>
+      ((aliceGivenMessage μ α m).bind fun x => (bobGivenMessage μ α m).map (x, ·)).map (m, ·) := by
+  conv_lhs => rw [← bind_conditionalSnd (law μ α)]
+  apply bind_congr_on_support
+  intro m hm
+  cases m with
+  | inl x => rw [conditionalSnd_law_inl μ α x hm]; rfl
+  | inr y => rw [conditionalSnd_law_inr μ α y hm]; rfl
 
 /-- Conditional on each supported tagged message, the probability of two anchors is at
 least `α² / 2`. The mass form also holds for unsupported messages. -/

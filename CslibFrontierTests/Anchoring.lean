@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 
@@ -114,3 +114,22 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   intro hz
   rw [hz, norm_zero, zero_pow (by decide)] at h
   linarith
+
+
+/-- With final anchoring probability one half, the extra erasure behind a left
+message weighs the anchor branch by one quarter. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 2))
+    (j : {i : Fin 2 // i ∉ ({0} : Finset (Fin 2))})
+    (t : RestQuestions (Option Bool) (Option Bool) {0} j)
+    (ht : t ∈ (restQuestionsLaw chsh half {0} j).support)
+    (hm : Sum.inl (some true) ∈ ((law chsh.questions half).map Prod.fst).support)
+    (hy : none ∈ (bobGivenMessage chsh.questions half (Sum.inl (some true))).support)
+    (a b : ({0} : Finset (Fin 2)) → Bool) :
+    (conditionalSnd (observedCheckedAnswersByBob chsh half {0} S j)
+      ((Sum.inl (some true), none), t) (fun i => (a i, b i))).toReal =
+      1 / 4 * ‖checkedVectorGivenRest chsh half {0} S j t (none, none) a b‖ ^ 2 +
+        3 / 4 * ‖checkedVectorGivenRest chsh half {0} S j t (some true, none) a b‖ ^ 2 := by
+  rw [← norm_checkedVectorGivenBob_sq chsh half {0} S j t _ _ a b ht hm hy,
+    norm_checkedVectorGivenBob_sq_inl, coe_noise]
+  norm_num [half]
