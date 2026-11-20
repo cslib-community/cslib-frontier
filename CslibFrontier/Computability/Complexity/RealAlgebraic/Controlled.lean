@@ -134,7 +134,20 @@ bounded by the polynomially many variables, whereas coordinate values are binary
     have hindex : ComputableInPolyTime
         (fun q : α × (ℕ × List ℕ) => (i q.1).val) (encEvaluation enc) encUnary :=
       hi.comp (ComputableInPolyTime.fst _ _)
-    fun_prop
+    have hcoordinates : ComputableInPolyTime
+        (fun q : α × (ℕ × List ℕ) => q.2.2)
+        (encEvaluation enc) (encList encNat) :=
+      (ComputableInPolyTime.snd encNat (encList encNat)).comp
+        (ComputableInPolyTime.snd enc (encPair encNat (encList encNat)))
+    have hvalue : ComputableInPolyTime
+        (fun q : α × (ℕ × List ℕ) => q.2.2[(i q.1).val]?.getD 0)
+        (encEvaluation enc) encNat :=
+      (ComputableInPolyTime.optionGetD encNat).comp
+        ((ComputableInPolyTime.getElem? (encA := encNat) hcoordinates hindex).prod
+          (ComputableInPolyTime.const 0))
+    exact ComputableInPolyTime.binary_mod' hvalue
+      ((ComputableInPolyTime.fst encNat (encList encNat)).comp
+        (ComputableInPolyTime.snd enc (encPair encNat (encList encNat))))
   evaluate_eq w p z hp _ := by
     let : NeZero p := ⟨hp.ne_zero⟩
     simp only [evaluation, eval₂_X, ZMod.val_natCast]
