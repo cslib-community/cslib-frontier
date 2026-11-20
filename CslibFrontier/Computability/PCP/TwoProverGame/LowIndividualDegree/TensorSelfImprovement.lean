@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerifierSelfImprovement
 import CslibFrontier.Foundations.Quantum.Algebra.CStar
 import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
+import CslibFrontier.Foundations.Quantum.Algebra.TensorState
 
 /-!
 # Tensor-product self-improvement
@@ -49,10 +50,12 @@ private theorem kroneckerOne_decodedPoint (M : Q → POVM Ans ι) (u : Point F (
   simp only [decodedPoint, Measurement.map_effect, map_sum]
   rfl
 
-private theorem kroneckerOne_averagePolynomialPointEffect
+/-- The averaged point effect of a polynomial embeds into the joint algebra
+by tensoring with the identity. -/
+theorem averagePolynomialPointEffect_leftMeasurement
     (M : Q → POVM Ans ι) (g : Poly) :
-    (kroneckerOne (averagePolynomialPointEffect
-      (decodedPoint (fun q => (M q).toMeasurement)) g) : Joint) =
+    (averagePolynomialPointEffect (decodedPoint (fun q => (M q).toMeasurement)) g ⊗ₖ
+      (1 : Matrix κ κ ℂ)) =
       averagePolynomialPointEffect (decodedPoint (fun q => QuantumStrategy.leftMeasurement
         (M q))) g := by
   rw [averagePolynomialPointEffect_eq, averagePolynomialPointEffect_eq]
@@ -75,10 +78,10 @@ private theorem exists_leftSelfImprovementCertificate (M : Q → POVM Ans ι) :
     (decodedPoint (fun q => (M q).toMeasurement))
   refine ⟨T.toPOVM, Z, hZ, hle, ?_, ?_⟩
   · intro g
-    rw [← kroneckerOne_averagePolynomialPointEffect]
+    rw [← averagePolynomialPointEffect_leftMeasurement]
     exact OrderHomClass.mono (kroneckerOne (κ := κ)) (hle g)
   · intro g
-    rw [← kroneckerOne_averagePolynomialPointEffect]
+    rw [← averagePolynomialPointEffect_leftMeasurement]
     change kroneckerOne (κ := κ) (T.effect g) * kroneckerOne Z =
       kroneckerOne (T.effect g) * kroneckerOne (averagePolynomialPointEffect
         (decodedPoint (fun q => (M q).toMeasurement)) g)
@@ -210,23 +213,6 @@ private theorem sandwichedPolynomial_right (M : Q → POVM Ans ι) (T : POVM Pol
     (fun q => QuantumStrategy.rightMeasurement (M q)) (QuantumStrategy.rightMeasurement T)
     (fun _ _ => rfl) (fun _ => rfl) a
 
-private theorem vector_kronecker_swap (ψ : EuclideanSpace ℂ (ι × ι)) (hψ : ‖ψ‖ = 1)
-    (hswap : ∀ a b, ψ.ofLp (a, b) = ψ.ofLp (b, a)) (X Y : Local) :
-    AlgState.vector ψ hψ (X ⊗ₖ Y) = AlgState.vector ψ hψ (Y ⊗ₖ X) := by
-  simp only [AlgState.vector_apply, dotProduct, Matrix.mulVec]
-  let e := Equiv.prodComm ι ι
-  refine ((e.sum_comp _).symm.trans ?_)
-  refine sum_congr rfl fun i _ => ?_
-  change star (ψ.ofLp (e i)) * (∑ j, (X ⊗ₖ Y) (e i) j * ψ.ofLp j) =
-    star (ψ.ofLp i) * ∑ j, (Y ⊗ₖ X) i j * ψ.ofLp j
-  rw [show ψ.ofLp (e i) = ψ.ofLp i from hswap i.2 i.1]
-  congr 1
-  refine ((e.sum_comp _).symm.trans ?_)
-  refine sum_congr rfl fun j _ => ?_
-  change (X i.2 j.2 * Y i.1 j.1) * ψ.ofLp (j.2, j.1) =
-    (Y i.1 j.1 * X i.2 j.2) * ψ.ofLp j
-  rw [hswap j.2 j.1, mul_comm (X i.2 j.2)]
-
 private theorem symmetric_winProb_swap
     (S : QuantumStrategy Q Q Ans Ans ι ι) (hM : S.bob = S.alice)
     (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a)) (b : Branch) :
@@ -238,7 +224,7 @@ private theorem symmetric_winProb_swap
     rw [CommutingStrategy.prob_swap, QuantumStrategy.prob_toCommuting,
       QuantumStrategy.prob_toCommuting]
     simp only [QuantumStrategy.prob_eq, hM]
-    exact congrArg Complex.re (vector_kronecker_swap S.state S.norm_state hψ
+    exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
       ((S.alice y).effect b) ((S.alice x).effect a))
   simp only [TwoProverGame.commutingWinProb_eq_sum, hprob]
 
@@ -351,7 +337,7 @@ theorem exists_symmetricSelfImprovement
       (QuantumStrategy.rightMeasurement T) = R
     rw [hM, sandwichedPolynomial_right]
   have hswap (X Y : Local) : C.state (X ⊗ₖ Y) = C.state (Y ⊗ₖ X) :=
-    vector_kronecker_swap S.state S.norm_state hψ X Y
+    AlgState.vector_kronecker_swap S.state S.norm_state hψ X Y
   have htrace : C.state R.successfulEffect = C.state L.successfulEffect := by
     rw [Measurement.successfulEffect, Measurement.successfulEffect, map_sum, map_sum]
     exact sum_congr rfl fun g _ => hswap 1 (H.effect (some g))

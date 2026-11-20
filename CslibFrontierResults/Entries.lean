@@ -14,6 +14,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSelfImprovement
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.TensorSelfImprovement
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
@@ -11055,6 +11056,24 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     on the closed algebra of left GNS operators. The reverse construction uses commuting GNS \
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
+
+register_result "low-individual-degree-projective-self-improvement" where
+  title := "Projective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 9.4 (restates Theorem 6.2)",
+      locator := "arXiv:2009.12982v1, §9.3, pp. 80–82" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_projectiveSymmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. Input failure is allowed under the \
+    successful agreement premise. The projective output is on the original local space and \
+    has an explicit failure outcome. The theorem bounds completeness loss, point mismatch, \
+    successful squared-distance consistency and the majorant-weighted failure probability by \
+    3000m(ε^(1/32) + δ^(1/32) + (d/|F|)^(1/32)), using the actual axis and point-consistency \
+    losses. The subsequent low-degree induction and soundness remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6612#issuecomment-7016129909."
 
 register_result "low-individual-degree-self-improvement-sdp" where
   title := "Strong duality for the low-individual-degree self-improvement SDP"
