@@ -10,6 +10,7 @@ import CslibFrontier.Crypto.Protocols.BCS.ROM
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Probability.PMF.UniformBound
 import CslibFrontierTests.Crypto.MerkleTestHash
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
 # Tests for BCS ROM soundness and straight-line knowledge soundness
@@ -670,7 +671,7 @@ theorem isPPTOn_cheatingTraceAdversary :
     IsPPTOn (encPair encUnary encBits) (encBCSTraceOutput 1 Bool Bool encBool encBool)
       (fun ⟨n, k⟩ => cheatingTraceAdversary n k) :=
   (computableInPolyTime_cheatingTraceOutput.comp
-    (ComputableInPolyTime.snd encUnary encBits)).tidy.isPPTOn
+    (ComputableInPolyTime.snd encUnary encBits)).isPPTOn
 
 -- Edge case: on `trProver` under `idTreeHash`, `honestProof` agrees with `bcsExtractOracles`, so
 -- `bcsExtractTraceCollision` returns the default empty pair `([], [])`.

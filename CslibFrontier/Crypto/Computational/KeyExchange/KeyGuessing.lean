@@ -8,6 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.KeyExchange
+import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -16,16 +19,17 @@ import CslibFrontier.Probability.PMF.Bind
 [BonehShoup2023], Section 10.1 (Attack Game 10.1 and Definition 10.1, p. 400), defines key-guessing
 security for an anonymous (unauthenticated) two-party key-exchange protocol: after an honest
 execution outputs its public transcript and key, a PPT adversary given the transcript tries to
-output the exact shared key. Section 10.4.2 (p. 408) observes that Diffie–Hellman key exchange
+output the exact shared key. Section 10.4.2 (p. 408) states that Diffie–Hellman key exchange
 satisfies this notion if and only if the Computational Diffie–Hellman assumption holds.
 
-The protocol `PrimeOrderGroupFamily.dhKeyExchange` draws Alice's and Bob's exponents exactly
-uniformly on `ZMod q` at the `PMF` level. In Section 10.1 (pp. 399–400) the parties are
-probabilistic machines and the transcript is a function of their random bits, and a strict PPT
-machine with fair coins cannot sample `ZMod q` exactly when `q` is not a power of two. The
-equivalence proved here is therefore an ideal-sampling step toward the observation of
-Section 10.4.2, not the cited result; no version of the protocol whose parties sample with fair
-coins exists yet (#5293).
+In Section 10.1 (pp. 399–400) Alice and Bob are probabilistic machines whose transcript is a
+function of their random bits. `PrimeOrderGroupFamily.dhKeyExchangeProb` runs `dhExecutionProb`, in
+which Alice and Bob sample their exponents with `PrimeOrderGroupFamily.sampleExp` (certified
+uniform strict PPT in `isPPTOn_dhExecutionProb` and correct in `dhKeyExchangeProb_correct`, within
+statistical distance `1 / 2 ^ n` of uniform on `ZMod q` per party). Its `anonKEGame` is within
+`2 / 2 ^ n` of `cdhGame` (`advantage_anonKEGame_dhKeyExchangeProb_cdhGame_le`), yielding the
+faithful equivalence `dhKeyExchangeProb_anonKESecure_iff_cdh` from the exact-uniform step
+`dhKeyExchange_anonKESecure_iff_cdh_ideal`.
 
 ## Main definitions
 
@@ -45,26 +49,31 @@ coins exists yet (#5293).
   Alice's key agrees with guessing Bob's key.
 * `Cslib.Crypto.PrimeOrderGroupFamily.anonKEGame_dhKeyExchange`,
   `Cslib.Crypto.PrimeOrderGroupFamily.cdhGame_eq_anonKEGame_dhKeyExchange`: game-level identities
-  between Diffie–Hellman key guessing and `cdhGame`.
+  between ideal-sampling Diffie–Hellman key guessing and `cdhGame`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_dhToCDHAdversary`,
   `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhToDHKeyGuesser`: the two conversions preserve
   polynomial-time efficiency.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_anonKEGame_dhKeyExchangeProb_cdhGame_le`: explicit
+  `2 / 2 ^ n` exponent-sampling bound between fair-coin Diffie–Hellman `anonKEGame` and `cdhGame`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchangeProb_anonKESecure_iff_cdh`: the fair-coin
+  Diffie–Hellman protocol `dhKeyExchangeProb` satisfies `AnonKESecure` if and only if `CDH` holds
+  ([BonehShoup2023], Section 10.4.2, p. 408).
 
 ## Ideal-sampling steps
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange_anonKESecure_iff_cdh_ideal`: the
-  ideal-sampling protocol `dhKeyExchange` satisfies `AnonKESecure` if and only if `CDH` holds, a
-  step toward [BonehShoup2023], Section 10.4.2, p. 408.
+  ideal-sampling protocol `dhKeyExchange` satisfies `AnonKESecure` if and only if `CDH` holds,
+  consumed by `dhKeyExchangeProb_anonKESecure_iff_cdh`.
 
 ## Implementation notes
 
-* **Correctness is unbundled from `KeyExchange`:** [BonehShoup2023] defines key-exchange
-  protocols to be correct, so Attack Game 10.1 does not distinguish Alice's output key from Bob's.
-  Here `Cslib.Crypto.KeyExchange.Correct` is unbundled on `KeyExchange`, matching
-  `Cslib.Crypto.KeyExchange.EavSecure`, and `anonKEGame` checks `guess = outcome.aliceKey`. For a
-  non-`Correct` protocol this can differ from checking `outcome.bobKey`, so the book's property is
-  `protocol.Correct ∧ protocol.AnonKESecure encT encK`, and `Correct.anonKEGame_eq_bobKey`
-  connects the two keys under `protocol.Correct`. Honest-party efficiency is also unbundled.
+* **Correctness and party efficiency are unbundled from `KeyExchange`:** [BonehShoup2023] defines
+  key-exchange protocols to be correct probabilistic machines, so Attack Game 10.1 does not
+  distinguish Alice's output key from Bob's. Here `Cslib.Crypto.KeyExchange.Correct` is unbundled
+  on `KeyExchange`, matching `Cslib.Crypto.KeyExchange.EavSecure`, and `anonKEGame` checks
+  `guess = outcome.aliceKey` (`Correct.anonKEGame_eq_bobKey` connects the two keys under
+  `protocol.Correct`). For `dhKeyExchangeProb`, correctness and uniform strict-PPT execution are
+  `dhKeyExchangeProb_correct` and `isPPTOn_dhExecutionProb`.
 * **Terminology (`AnonKESecure` vs `EavSecure`):** [BonehShoup2023], Definition 10.1 (p. 400),
   calls key-guessing security "secure against an eavesdropper", whereas
   `Cslib.Crypto.KeyExchange.EavSecure` in `KeyExchange.lean` is the Katz–Lindell
@@ -72,13 +81,11 @@ coins exists yet (#5293).
   key-guessing security only when the ideal key is hard to guess (no implication is proved here).
   The name `AnonKESecure` follows Boneh–Shoup's advantage notation `AnonKEadv[A, P]`.
 * **Diffie–Hellman and CDH over a setup law:** [BonehShoup2023], Section 10.4.2 (pp. 407–408),
-  fixes cyclic group parameters as system parameters and bounds concrete advantages (`AnonKEadv`
-  and `CDHadv`). Here `DHTranscript` includes `groupParameters : F.Desc`, and `dhKeyExchange setup`
-  draws parameters from an arbitrary `setup : ℕ → PMF F.Desc` (matching `CDH`, which requires no
-  efficient sampler); the asymptotic equivalence `dhKeyExchange_anonKESecure_iff_cdh_ideal`
-  follows from the exact per-parameter game equalities `anonKEGame_dhKeyExchange` and
-  `cdhGame_eq_anonKEGame_dhKeyExchange`. Only unauthenticated passive key-guessing security is
-  formalized here.
+  fixes cyclic group parameters as system parameters (or draws them via an efficient system
+  parameterization algorithm in Section 10.5.2, Definition 10.9, p. 413). Here `DHTranscript`
+  includes `groupParameters : F.Desc`, and `dhKeyExchangeProb setup` draws parameters from an
+  arbitrary `setup : ℕ → PMF F.Desc` (matching `CDH`, which requires no efficient sampler). Only
+  unauthenticated passive key-guessing security is formalized here.
 
 ## References
 
@@ -91,6 +98,7 @@ public section
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
+open scoped NNReal
 
 namespace KeyExchange
 
@@ -218,9 +226,9 @@ theorem isPPT_cdhToDHKeyGuesser {adversary : F.CDHAdversary} (hA : adversary.IsP
 /-- Ideal-sampling step toward [BonehShoup2023], Section 10.4.2, p. 408, not the cited result:
 `dhKeyExchange setup`, whose parties draw their exponents exactly uniformly on `ZMod q` at the
 `PMF` level rather than as probabilistic machines on random bits (Section 10.1, pp. 399–400), is
-key-guessing secure (`AnonKESecure`, Definition 10.1) if and only if `CDH` holds for `setup`. No
-version of the protocol whose parties sample with fair coins exists yet, so the cited result is
-open (#5293). -/
+key-guessing secure (`AnonKESecure`, Definition 10.1) if and only if `CDH` holds for `setup`.
+Consumed by `dhKeyExchangeProb_anonKESecure_iff_cdh`, which proves the equivalence for the
+fair-coin protocol `dhKeyExchangeProb`. -/
 theorem dhKeyExchange_anonKESecure_iff_cdh_ideal (setup : ℕ → PMF F.Desc) :
     (F.dhKeyExchange setup).AnonKESecure F.encDHTranscript F.encDHKey ↔ F.CDH setup := by
   constructor
@@ -230,6 +238,39 @@ theorem dhKeyExchange_anonKESecure_iff_cdh_ideal (setup : ℕ → PMF F.Desc) :
   · intro h A hA
     simpa only [anonKEGame_dhKeyExchange] using
       h _ (F.isPPT_dhToCDHAdversary hA)
+
+/-- The key-guessing game `anonKEGame` against the fair-coin Diffie–Hellman protocol
+`dhKeyExchangeProb` and the CDH game `cdhGame` on `dhToCDHAdversary adversary` differ in success
+probability by at most `2 / 2 ^ n` (`1 / 2 ^ n` for each party's `sampleExp` draw). Because
+`dhToCDHAdversary (cdhToDHKeyGuesser B) = B` is definitional, instantiating `adversary` with
+`cdhToDHKeyGuesser B` gives the same `2 / 2 ^ n` bound in the converse direction. -/
+theorem advantage_anonKEGame_dhKeyExchangeProb_cdhGame_le (setup : ℕ → PMF F.Desc)
+    (adversary : KeyGuesser F.DHTranscript F.DHKey) (n : ℕ) :
+    Game.advantage
+      ((F.dhKeyExchangeProb setup).anonKEGame adversary n)
+      (F.cdhGame setup (F.dhToCDHAdversary adversary) n) ≤
+      2 / 2 ^ n := by
+  rw [← F.anonKEGame_dhKeyExchange]
+  exact F.advantage_bind_dhKeyExchangeProb_le setup n _
+
+/-- **Diffie–Hellman anonymous key exchange is key-guessing secure if and only if CDH holds**
+([BonehShoup2023], Section 10.4.2, p. 408, with Attack Game 10.1 and Definition 10.1, Section 10.1,
+p. 400, and Attack Game 10.5 and Definition 10.7, Section 10.5, pp. 409–410): the fair-coin
+protocol `dhKeyExchangeProb setup`, whose parties sample their exponents with `sampleExp`
+(`isPPTOn_dhExecutionProb`, `dhKeyExchangeProb_correct`), satisfies `AnonKESecure` against uniform
+strict PPT key guessers if and only if `F.CDH setup` holds. Derived from
+`dhKeyExchange_anonKESecure_iff_cdh_ideal` and `advantage_bind_dhKeyExchangeProb_le` with sampling
+loss at most `2 / 2 ^ n`. -/
+theorem dhKeyExchangeProb_anonKESecure_iff_cdh (setup : ℕ → PMF F.Desc) :
+    (F.dhKeyExchangeProb setup).AnonKESecure F.encDHTranscript F.encDHKey ↔ F.CDH setup := by
+  refine Iff.trans ⟨fun h A hA => ?_, fun h A hA => ?_⟩
+    (F.dhKeyExchange_anonKESecure_iff_cdh_ideal setup)
+  · refine negligible_of_le ((h A hA).add (negligible_const_div_two_pow 2)) fun n => ?_
+    exact Game.succProbability_le_add_of_advantage_le
+      ((Game.advantage_comm _ _).trans_le (F.advantage_bind_dhKeyExchangeProb_le setup n _))
+  · refine negligible_of_le ((h A hA).add (negligible_const_div_two_pow 2)) fun n => ?_
+    exact Game.succProbability_le_add_of_advantage_le
+      (F.advantage_bind_dhKeyExchangeProb_le setup n _)
 
 end PrimeOrderGroupFamily
 

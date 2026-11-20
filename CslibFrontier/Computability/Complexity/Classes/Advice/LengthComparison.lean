@@ -78,9 +78,13 @@ private def decodePattern (p : List Bool × List Bool) : Bool :=
 private theorem computableInPolyTime_decodePattern :
     ComputableInPolyTime decodePattern (encPair encBits encBits) encBool := by
   have he : ComputableInPolyTime (List.isEmpty (α := Bool)) encBits encBool :=
-    .of_tidy ComputableTidilyInPolyTime.bitsIsEmpty
+    ComputableInPolyTime.bitsIsEmpty
+  have hh : ComputableInPolyTime (fun l : List Bool => l.headD false) encBits encBool :=
+    (ListEncoding.headD (enc₁ := encBool) (enc := encBits) false).computableInPolyTime
   unfold decodePattern
-  fun_prop
+  exact (he.comp (ComputableInPolyTime.fst encBits encBits)).ite (ComputableInPolyTime.const false)
+    ((hh.comp (ComputableInPolyTime.fst encBits encBits)).ite
+      (hh.comp (ComputableInPolyTime.snd encBits encBits)) (ComputableInPolyTime.const true))
 
 private theorem decodePattern_code (c : Fin 3) (x : List Bool) :
     decodePattern (patternCode c, x) =

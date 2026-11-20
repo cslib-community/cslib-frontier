@@ -203,8 +203,16 @@ private noncomputable def oneBitCipher : BlockCipher where
   blockLen_polyTime := ComputableInPolyTime.const 1
   encrypt _ key block := List.zipWith Bool.xor (key ++ [false]) block
   decrypt _ key block := List.zipWith Bool.xor (key ++ [false]) block
-  encrypt_polyTime := by polytime
-  decrypt_polyTime := by polytime
+  encrypt_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encUnary (encPair encBits encBits))
+    exact ComputableInPolyTime.bitsZipWithInput Bool.xor
+      (hp.snd'.fst'.bitsAppend (ComputableInPolyTime.const [false])) hp.snd'.snd'
+  decrypt_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encUnary (encPair encBits encBits))
+    exact ComputableInPolyTime.bitsZipWithInput Bool.xor
+      (hp.snd'.fst'.bitsAppend (ComputableInPolyTime.const [false])) hp.snd'.snd'
   length_encrypt _ key block _ hblock := by
     simp [List.length_zipWith, hblock]
   length_decrypt _ key block _ hblock := by
@@ -338,8 +346,8 @@ private theorem distinctOneBitQuery_isOraclePPT : IsOraclePPT encBool distinctOn
       (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBool := by
     polytime
   unfold distinctOneBitQuery
-  exact ((IsOraclePPTOn.query_take' () hq₀ hlim₀).bind_with
-    ((IsOraclePPTOn.query_take' () hq₁ hlim₁).bind_with hout.isOraclePPTOn)).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq₀ hlim₀).bind_with
+    ((IsOraclePPTOn.query_take () hq₁ hlim₁).bind_with hout.isOraclePPTOn)).isOraclePPT
 
 private def funOneBitEquiv : (BitString 1 → BitString 1) ≃ Bool × Bool where
   toFun t := (t (BitString.ofList 1 [false]) 0, t (BitString.ofList 1 [true]) 0)

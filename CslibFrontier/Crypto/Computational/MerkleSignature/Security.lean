@@ -76,11 +76,12 @@ hash-and-sign bound of [BonehShoup2023], Theorem 13.1, for the digest.
 * `Cslib.Crypto.MerkleSignature.eval_leafIndex`, `Cslib.Crypto.MerkleSignature.isPPTOn_leafIndex`:
   the leaf is exactly uniform and sampled efficiently.
 * `Cslib.Crypto.SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_merkle`: one-time security of `S` and
-  collision resistance of `H` give indexed EUF-CMA security.
+  collision resistance of `H` give indexed EUF-CMA security (a step: the hash premise covers all
+  words).
 * `Cslib.Crypto.OneWay.exists_indexedEUFCMA`: a one-way function and a collision-resistant hash
   family give indexed EUF-CMA secure signatures of every polynomial capacity `2 ^ depth n`.
 * `Cslib.Crypto.OneWay.exists_counterEUFCMA`: used with a counter, they give counter-stateful
-  many-time signatures of every polynomial capacity.
+  many-time signatures of every polynomial capacity (a step toward [Merkle1989], Sections 6–7).
 
 ## References
 
@@ -201,7 +202,7 @@ private theorem eval_run_plantedHandler
     (hbound : ∀ msg, msg.length = n → ∀ σ ∈ (ProbComp.eval (S.sign x.2 msg)).support,
       σ.length ≤ b)
     {α : Type} (program : WordOracleComp Unit α) :
-    ProbOracleComp.runWith (fun q s => ProbComp.eval (S.oneTimeSigningOracle x.2 q s))
+    ProbOracleComp.runWith (fun q s => ProbComp.eval (S.oneTimeSigningOracle n x.2 q s))
       ((OracleComp.interpret
         (OracleComp.sumHandler
           (fun j => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin j)))
@@ -217,7 +218,7 @@ private theorem eval_run_plantedHandler
       ((scheme S H depth hH hlen hcap).indexedSigningOracle n
         (secretKey k (front ++ x :: back)) q signed))
     (oracle' := fun (q : Unit × List Bool) (state : List (ℕ × List Bool) × List (List Bool)) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (S.oneTimeSigningOracle x.2 q s))
+      (ProbOracleComp.runWith (fun q s => ProbComp.eval (S.oneTimeSigningOracle n x.2 q s))
         ((plantedHandler S H depth n k (front ++ (x.1, []) :: back) front.length b q).run
           state.1) state.2).map (fun result => (result.1.1, result.1.2, result.2)))
     (represent := fun signed => (signed, otsLogOf H front.length k signed))
@@ -230,7 +231,7 @@ private theorem eval_run_plantedHandler
       have hsampleApply : ∀ {β : Type} (p : ProbComp β) (state : List (List Bool)),
           (OracleComp.interpret
             (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-              (fun q s => ProbComp.eval (S.oneTimeSigningOracle x.2 q s)))
+              (fun q s => ProbComp.eval (S.oneTimeSigningOracle n x.2 q s)))
             (ProbOracleComp.sample p)) state = (ProbComp.eval p).map (·, state) :=
         fun p state => ProbOracleComp.run_interpret_sample _ p state
       rintro ⟨⟨⟩, w⟩ signed -
@@ -253,7 +254,8 @@ private theorem eval_run_plantedHandler
           simp only [↓reduceIte, hempty, sign, secretKey, secretKeyDecoder.decode_enc, signWith,
             List.getD_append_cons_length, hkeys, OracleComp.interpret_map,
             ProbOracleComp.interpret_query, SignatureScheme.oneTimeSigningOracle,
-            SignatureScheme.oneTimeSigningOracleOf, List.isEmpty_nil,
+            SignatureScheme.oneTimeSigningOracleOn, hlen, hk, beq_self_eq_true, List.isEmpty_nil,
+            Bool.and_self,
             ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_bind, PMF.pure_bind,
             PMF.pure_map, hmapApply]
           refine PMF.bind_congr_on_support _ _ _ fun σ hσ => ?_
@@ -375,7 +377,7 @@ private theorem eval_indexedEufCmaGame_eq
     (adversary : IndexedForger) (n : ℕ) :
     ProbComp.eval ((scheme S H depth hH hlen hcap).indexedEufCmaGame adversary n) =
       (realExp S H depth hH hlen hcap adversary n).map fun t =>
-        !t.2.2.2.contains (t.2.2.1.1, t.2.2.1.2.1) &&
+        decide (t.2.2.1.1 < 2 ^ depth n) && !t.2.2.2.contains (t.2.2.1.1, t.2.2.1.2.1) &&
           verify S H depth (publicKey H t.1 t.2.1) t.2.2.1.1 t.2.2.1.2.1 t.2.2.1.2.2 := by
   simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme, keyGen, realExp, realRun,
     ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
@@ -527,7 +529,8 @@ theorem succProbability_indexedEufCmaGame_le
         (fun i t => otsWin S H n i t.1 t.2.1 t.2.2)).trans ?_))
     · intro t ht hwin
       obtain ⟨hk, hkeys⟩ := hsupp t ht
-      exact win_cases hlen hk hkeys t.2.2 hwin
+      rw [Bool.and_assoc, Bool.and_eq_true] at hwin
+      exact win_cases hlen hk hkeys t.2.2 hwin.2
     · refine Finset.sum_le_sum fun i hi => ?_
       rw [map_otsWin_realExp hH hlen hcap hbound adversary (Finset.mem_range.mp hi)]
   have havg : ((2 ^ depth n : ℕ) : ℝ≥0∞) *
@@ -745,7 +748,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
       ((ComputableInPolyTime.map (ComputableInPolyTime.fst encUnary encBits)).comp
         hsigned) hu))
   have hcondi := ComputableInPolyTime.decide_eq' hu hi
-  have hq := IsOraclePPTOn.query_take' (input := encHandlerInput) () hdigest hbn
+  have hq := IsOraclePPTOn.query_take (input := encHandlerInput) () hdigest hbn
   have hvki :=
     ((ComputableInPolyTime.listGetD (encA := encPair encBits encBits) ([], [])).comp
       (hkeys.prod hi)).fst'
@@ -754,7 +757,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
   have hqpost := (((hvki.comp hfst).prod
     ((ComputableInPolyTime.snd encHandlerInput encBits).prod
       (hpathi.comp hfst))).encoding_comp).prod (hlog.comp hfst)
-  have hquery := hq.map_with'
+  have hquery := hq.map_with
     (f := fun (p : (((ℕ × List Bool) × ℕ) × (List Bool × List (List Bool × List Bool))) ×
         ((Unit × List Bool) × List (ℕ × List Bool))) ots =>
       (encodeSignature (p.1.2.2.getD p.1.1.2 ([], [])).1 ots
@@ -774,7 +777,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
         (p.1.2.2.getD (IndexedSignatureScheme.requestDecoder.decode p.2.1.2).1 ([], [])).1 ots
         (merklePath H p.1.2.1 (p.1.2.2.map Prod.fst)
           (IndexedSignatureScheme.requestDecoder.decode p.2.1.2).1))) hsignPost.isPPTOn
-  have hsample := (hsign.isOraclePPTOn (Operation := Unit)).map_with'
+  have hsample := (hsign.isOraclePPTOn (Operation := Unit)).map_with
     (f := fun (p : (((ℕ × List Bool) × ℕ) × (List Bool × List (List Bool × List Bool))) ×
         ((Unit × List Bool) × List (ℕ × List Bool))) sig =>
       (sig, IndexedSignatureScheme.requestDecoder.decode p.2.1.2 :: p.2.2))
@@ -782,7 +785,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
   have hpure := ((ComputableInPolyTime.const (encOut := encBits) ([] : List Bool)).prod
     hsigned).isOraclePPTOn (Operation := Unit)
   unfold plantedHandler signWith
-  exact IsOraclePPTOn.ite' hcond (IsOraclePPTOn.ite' hcondi hquery hsample) hpure
+  exact IsOraclePPTOn.ite hcond (IsOraclePPTOn.ite hcondi hquery hsample) hpure
 
 /-- A per-request size bound for the planted handler's reply and added log entry. -/
 private def handlerBound (cs ds : ℕ) (bound : ℕ → ℕ)
@@ -963,8 +966,17 @@ end Efficiency
 
 /-! ### Security -/
 
-/-- **Merkle signatures are secure** ([Merkle1989], Section 6; [BonehShoup2023],
-Section 14.6.1): if `S` is one-time EUF-CMA secure and `H` is collision resistant, then
+/-- Step toward the security of Merkle's tree-compressed indexed signature ([Merkle1989], Section 6;
+[BonehShoup2023], Section 14.6.1, "Shrinking the public-key", p. 597), not the cited result.
+Neither source states it as a theorem: Merkle gives the construction with an informal argument, and
+Section 14.6.1 describes the tree without a security statement; the bound here is the composition
+described in the module docstring. This scheme also signs the digest `H k msg` of each message with
+the one-time key, so its premise `CollisionResistant H` asks for collision resistance on all words.
+The source's tree hashes only its own inputs, the one-time public keys and pairs of digests, and
+needs collision resistance only there; a hash may be collision resistant there and constant
+elsewhere (#5686).
+
+If `S` is one-time EUF-CMA secure and `H` is collision resistant, then
 `MerkleSignature.scheme S H depth` is an indexed EUF-CMA secure signature scheme of capacity
 `2 ^ depth n`. The reductions are `oneTimeForger`, with loss `2 ^ depth n`, and `collisionFinder`,
 with loss `1` (`succProbability_indexedEufCmaGame_le`). -/
@@ -1000,10 +1012,13 @@ theorem _root_.Cslib.Crypto.OneWay.exists_indexedEUFCMA {f : List Bool → List 
   exact ⟨scheme S H depth hH.polyTime hH.length_eq hcap, fun _ => rfl,
     hS.indexedEUFCMA_merkle hH.collisionResistant hH.polyTime hH.length_eq hcap⟩
 
-/-- **Counter-stateful many-time signatures from one-way functions and collision-resistant
-hashing** ([Merkle1989], Sections 6–7): a one-way function and a hash family give a counter
-EUF-CMA secure indexed scheme of every polynomial capacity `2 ^ depth n`; the witness is Merkle's
-tree signature over Lamport's one-time scheme, with the signer choosing the leaves by a counter. -/
+/-- Step toward Merkle's stateful tree signatures ([Merkle1989], Sections 6–7), not the cited
+result: no inspection of the primary source is recorded, and the proof rests on the steps
+`OneWay.oneTimeEUFCMA_lamport` and `SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_merkle` (#5686).
+
+A one-way function and a hash family give a counter EUF-CMA secure indexed scheme of every
+polynomial capacity `2 ^ depth n`; the witness is Merkle's tree signature over Lamport's one-time
+scheme, with the signer choosing the leaves by a counter. -/
 theorem _root_.Cslib.Crypto.OneWay.exists_counterEUFCMA {f : List Bool → List Bool}
     (hf : OneWay f) {H : List Bool → List Bool → List Bool} (hH : HashFamily H)
     {depth : ℕ → ℕ} (hcap : ComputableInPolyTime (fun n => 2 ^ depth n) encUnary encUnary) :

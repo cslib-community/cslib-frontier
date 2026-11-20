@@ -414,7 +414,7 @@ theorem isPPTOn_demKeyGameOn {Msg : Type} {encMsg : Msg ↪ List Bool}
   have hn2 := hn.comp' ha2
   exact (hkeyLen.comp' hn).sampleList.bind_with
     ((hadversary.choose.on.preprocess ((hn.comp' hp1).prod (.const []))).bind_with
-      (IsPPTOn.cond'
+      (IsPPTOn.cond
         (hvalid.comp' (hn2.prod ((ComputableInPolyTime.const []).prod hq2.fst')))
         ((hencrypt.preprocess
           (hn2.prod

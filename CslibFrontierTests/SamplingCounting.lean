@@ -28,6 +28,9 @@ hypothesis. The exact counter is strict PPT, which gives checked instances of
 
 namespace CslibFrontierTests.SamplingCounting
 
+-- Keep certificate search at the function-level API, without expanding machine witnesses.
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 open Cslib Cslib.Complexity Cslib.Probability Turing.MultiTapeTM
 
 /-- All words of length `n`. -/
@@ -232,7 +235,7 @@ private theorem isPPTOn_S :
       (encOption encBits)
       (fun _ : (ℕ × ℕ × Bool) × ℕ => (pure none : ProbComp (Option (List Bool)))) :=
     (ComputableInPolyTime.const none).isPPTOn
-  exact IsPPTOn.cond' hcond hyes hno
+  exact IsPPTOn.cond hcond hyes hno
 
 private theorem isFPAUS_S : IsFPAUS (encPair encUnary (encPair encUnary encBool)) W S :=
   R.isFPAUS_atWitnessPrecision isPPTOn_S

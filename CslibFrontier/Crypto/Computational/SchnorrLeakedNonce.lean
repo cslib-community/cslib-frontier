@@ -146,8 +146,8 @@ theorem isOraclePPTOn_schnorrLeakedNonceWordAdversary (F : PrimeOrderGroupFamily
   have hm : ComputableInPolyTime
       (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool => x.2.1) E encUnary := by
     fun_prop
-  have hqry := IsOraclePPTOn.query_take' () hreq hm
-  refine hqry.map_with' ?_
+  have hqry := IsOraclePPTOn.query_take () hreq hm
+  refine hqry.map_with ?_
   have harg : ComputableInPolyTime
       (fun p : (F.Desc × ℕ × List Bool × List Bool × List Bool) × List Bool =>
         (p.1.1, ([] : List Bool), p.1.2.2.2.2, ([] : List Bool), ([] : List Bool), p.2,

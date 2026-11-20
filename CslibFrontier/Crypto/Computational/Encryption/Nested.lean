@@ -410,14 +410,14 @@ private theorem computable_revealKeys {α K : Type} {encIn : α ↪ List Bool} {
   refine ComputableInPolyTime.finFn fun i => ?_
   have h : ComputableInPolyTime (fun a => if i = d a then none else some (ks a i)) encIn
       (encOption encK) := by
-    refine (ComputableTidilyInPolyTime.finite_cases hd.tidy
+    refine (ComputableInPolyTime.finite_cases hd
       (branch := fun d0 a => if i = d0 then none else some (ks a i))
-      fun d0 => ?_).computableInPolyTime
+      fun d0 => ?_)
     by_cases hi : i = d0
-    · simpa [hi] using ComputableTidilyInPolyTime.const (none : Option K)
+    · simpa [hi] using ComputableInPolyTime.const (none : Option K)
     · simpa [hi, Function.comp_def] using
-        (ComputableTidilyInPolyTime.optionSome encK).comp
-          ((ComputableInPolyTime.finFn_apply encK i).comp hks).tidy
+        (ComputableInPolyTime.optionSome encK).comp
+          ((ComputableInPolyTime.finFn_apply encK i).comp hks)
   simpa only [← revealKeys_apply] using h
 
 private theorem isPPTOn_replicateFin {α K : Type} {encIn : α ↪ List Bool} {encK : K ↪ List Bool}
@@ -670,7 +670,7 @@ theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
           do let c ← (E x.1).nestedSuffix x.2.1.withheld x.2.1.keys x.2.2
              (A x.1).guess x.2.1.innerState ⟨c, revealKeys x.2.1.withheld x.2.1.keys⟩
           else pure false :=
-      IsPPTOn.cond (encNestedReductionState_admissible_polyTime encK encσ n hg_st).tidy
+      IsPPTOn.cond (encNestedReductionState_admissible_polyTime encK encσ n hg_st)
         (IsPPTOn.bind_pair hsuf hcall)
         (ComputableInPolyTime.const false).isPPTOn
     refine hcond.congr fun ⟨sec, st, chal⟩ => ?_

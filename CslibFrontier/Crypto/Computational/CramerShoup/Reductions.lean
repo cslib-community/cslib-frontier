@@ -635,7 +635,7 @@ theorem isPPT_cramerShoupMsgToDDHDistinguisher
       ((hw0.comp hp2.fst'.fst').prod (hm.prod had)))))
   have hphase2 := F.isPPTOn_run_cramerShoupPhase2Oracle hasAD hH hisElem hA
     (hn0.comp hp2.fst'.fst') hd2 hp2.fst'.snd' hp2.snd'.fst'.snd' hct had
-  exact hsk.bind_with (hphase1.bind_with (IsPPTOn.cond' hvalid
+  exact hsk.bind_with (hphase1.bind_with (IsPPTOn.cond hvalid
     (hphase2.bind_with ((ComputableInPolyTime.snd
       (encPair E1 EChoice) (encPair encBool (encFinEnum Unit))).fst').isPPTOn)
     (ComputableInPolyTime.isPPTOn (.const false))))
@@ -786,7 +786,7 @@ theorem isPPTOn_cramerShoupMsgToCollisionFinder
     ((hct.comp hp4.fst').prod (had.comp hp4.fst'))
   have houtPair :=
     (ComputableInPolyTime.optionGetDWithInput hp4.snd'.snd' htarget).prod htarget
-  exact habc.bind_with (hsk.bind_with (hphase1.bind_with (IsPPTOn.cond' hvalid
+  exact habc.bind_with (hsk.bind_with (hphase1.bind_with (IsPPTOn.cond hvalid
     (hphase2c.bind_with houtPair.isPPTOn)
     (ComputableInPolyTime.isPPTOn (.const (([] : List Bool), []))))))
 

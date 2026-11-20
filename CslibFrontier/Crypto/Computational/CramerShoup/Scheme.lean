@@ -408,7 +408,7 @@ def CCA2AdversaryOf.toADUnit {Msg : Type} (adversary : CCA2AdversaryOf Msg) :
 theorem CCA2AdversaryOf.IsPPT.toADUnit {Msg : Type} {encMsg : Msg ↪ List Bool}
     {adversary : CCA2AdversaryOf Msg} (hA : adversary.IsPPT encMsg) :
     adversary.toADUnit.IsPPT encMsg (encFinEnum Unit) where
-  choose := (hA.choose.on.map'
+  choose := (hA.choose.on.map
     (((ComputableInPolyTime.fst (encPair encMsg encMsg) encBits).prod (.const ())).prod
       (ComputableInPolyTime.snd (encPair encMsg encMsg) encBits))).isOraclePPT
   guess := hA.guess
@@ -1118,7 +1118,7 @@ theorem computableInPolyTime_decodeCramerShoup
   let hneg := F.computableInPolyTime_smul.comp'
     (hd.prod (((F.computableInPolyTime_order.comp' hd).binary_sub' (.const 1)).prod
       (F.computableInPolyTime_encodeProjHash hd hsk.fst'.fst' hsk.fst'.snd' hv hw)))
-  let hmsg := (ComputableTidilyInPolyTime.optionSome encBits).computableInPolyTime.comp'
+  let hmsg := (ComputableInPolyTime.optionSome encBits).comp'
     (F.computableInPolyTime_add.comp' (hd.prod (he.prod hneg)))
   .ite hcond hmsg (.const none)
 

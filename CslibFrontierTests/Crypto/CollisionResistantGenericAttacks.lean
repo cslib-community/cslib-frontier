@@ -72,7 +72,7 @@ example (H : List Bool → List Bool → List Bool) (n : ℕ) (k a b : List Bool
 example : ¬ ComputableInPolyTime (fun n : ℕ => 2 ^ n) encUnary encUnary := by
   intro h
   have hb : PolyBounded (fun n : ℕ => n) (fun n : ℕ => 2 ^ n) := by
-    simpa [encUnary_apply] using h.tidy.polyBounded
+    simpa [encUnary_apply] using h.polyBounded
   obtain ⟨n, hn⟩ := (Cslib.PolynomiallyBounded.eventually_lt_two_pow
     (PolyBounded.polynomiallyBounded (f := fun n => 2 ^ n) hb)).exists
   exact lt_irrefl _ hn

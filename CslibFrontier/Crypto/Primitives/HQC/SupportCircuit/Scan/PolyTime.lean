@@ -174,18 +174,18 @@ private def collisionScanFoldStep (par : ScanParameters) (acc : Code) (j : ℕ) 
 private theorem computableInPolyTime_collisionScanFoldStep :
     ComputableInPolyTime
       (fun p : (ScanParameters × Code) × ℕ => collisionScanFoldStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat) encCode := by
-  have hb : ComputableInPolyTime
-      (fun p : (ScanParameters × Code) × ℕ => p.1.1.1)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encUnary := by fun_prop
-  have hc : ComputableInPolyTime
-      (fun p : (ScanParameters × Code) × ℕ => p.1.1.2.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encUnary := by fun_prop
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
+        encCode := by
+  have hp := ComputableInPolyTime.id' (encIn :=
+    encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
+  have hb := hp.fst'.fst'.fst'
+  have ho := hp.fst'.fst'.snd'.fst'
+  have hc := hp.fst'.fst'.snd'.snd'
+  have hN := ComputableInPolyTime.unary_add' hb
+    (ComputableInPolyTime.unary_mul' hc hb)
   unfold collisionScanFoldStep
-  exact computableInPolyTime_compCode (unary_to_binary.comp (by fun_prop)) (by fun_prop)
-    (computableInPolyTime_headCollisionCode hb (by fun_prop) hc (by fun_prop))
+  exact computableInPolyTime_compCode (unary_to_binary.comp hN) hp.fst'.snd'
+    (computableInPolyTime_headCollisionCode hb ho hc hp.snd')
 
 private def collisionScanCodeBound (bits count : ℕ) : ℕ :=
   let N := bits + count * bits
@@ -197,8 +197,8 @@ private theorem polyBounded_collisionScanCodeBound {α : Type} {enc : α ↪ Lis
     (hc : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => collisionScanCodeBound (bits a) (count a)) := by
-  have hb' := hb.tidy.polyBounded
-  have hc' := hc.tidy.polyBounded
+  have hb' := hb.polyBounded
+  have hc' := hc.polyBounded
   have hN := hb'.add (hc'.mul hb')
   have hG := hc'.mul (((PolyBounded.const 13).mul hb').add (.const 6))
   have hNG := hN.add hG
@@ -246,7 +246,7 @@ parameters, with its complete encoded intermediate circuits charged by the loop 
     have hr : ComputableInPolyTime (fun a => List.range (count a)) enc (encList encNat) := by
       simpa only [Function.comp_def, List.map_id_fun', id_eq] using
         unary_to_binary.map.comp (range.comp hc)
-    exact .of_tidy (ComputableTidilyInPolyTime.listReverseWithInput hr.tidy)
+    exact (ComputableInPolyTime.listReverseWithInput hr)
   have hinit : ComputableInPolyTime
       (fun a => (([] : List (Op × List ℕ)), List.range (bits a + count a * bits a)))
       enc encCode := by

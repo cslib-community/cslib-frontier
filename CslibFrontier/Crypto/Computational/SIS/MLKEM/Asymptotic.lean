@@ -460,7 +460,7 @@ theorem isPPT_keyReduction [∀ κ, NeZero (P κ).q] (hP : ComputableInPolyTime 
     have hguess := hA.guess.preprocess (hκG.prod ((by fun_prop : ComputableInPolyTime
         (fun z : ((ℕ × List Bool) × Encryption.ChoiceOut (List Bool)) × List Bool => z.1.2.2) G
         encBits).prod hct))
-    exact IsPPTOn.cond' hvalid hguess (ComputableInPolyTime.const false).isPPTOn
+    exact IsPPTOn.cond hvalid hguess (ComputableInPolyTime.const false).isPPTOn
   have h := hW.preprocess (ComputableInPolyTime.of_eq fun _ => rfl :
     ComputableInPolyTime ModuleLWE.Input.words
       (ModuleLWE.encInput (fun κ => (P κ).k) (fun κ => (P κ).k) (fun κ => (P κ).n)
@@ -501,7 +501,7 @@ theorem isPPT_ciphertextReduction [∀ κ, NeZero (P κ).q]
         (fun y : (ℕ × List Bool) × Encryption.ChoiceOut (List Bool) => y.1.2) F encBits) hm
     have hguess := hA.guess.preprocess (hκF.prod ((by fun_prop : ComputableInPolyTime
         (fun y : (ℕ × List Bool) × Encryption.ChoiceOut (List Bool) => y.2.2) F encBits).prod hct))
-    exact IsPPTOn.cond' hvalid hguess (ComputableInPolyTime.const false).isPPTOn
+    exact IsPPTOn.cond hvalid hguess (ComputableInPolyTime.const false).isPPTOn
   have h := hW.preprocess (ComputableInPolyTime.of_eq fun _ => rfl :
     ComputableInPolyTime ModuleLWE.Input.words
       (ModuleLWE.encInput (fun κ => (P κ).k + 1) (fun κ => (P κ).k) (fun κ => (P κ).n)

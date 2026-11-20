@@ -265,7 +265,6 @@ theorem isPPTOn_rewind {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary e
     {A : F.SchnorrImpersonator} (hA : A.IsPPT) :
     IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
       (fun input => A.rewind k input.1 input.2) := by
-  have hk' := hk.tidy
   have hrespond := hA.2
   unfold SchnorrImpersonator.rewind
   refine hA.1.bind_with ?_
@@ -277,6 +276,6 @@ theorem isPPTOn_rewind {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary e
   refine (hrespond.preprocess
     (prepare := fun p : ((((ℕ × F.Desc × List Bool) × List Bool × List Bool) × List Bool) ×
       List Bool) × List Bool => (p.1.1.1.1.1, (p.1.1.1.2.2, p.1.2))) (by fun_prop)).bind_with ?_
-  exact (ComputableInPolyTime.tidy (by fun_prop)).isPPTOn
+  exact ComputableInPolyTime.isPPTOn (by fun_prop)
 
 end Cslib.Crypto.PrimeOrderGroupFamily

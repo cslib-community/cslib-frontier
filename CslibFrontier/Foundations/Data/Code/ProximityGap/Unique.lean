@@ -69,6 +69,15 @@ The proof follows the bivariate Berlekamp–Welch interpolation strategy of
 * `Cslib.Code.exists_correlatedAgreement_unique`: correlated agreement on affine lines
   `u₀ + z • u₁` in the unique-decoding regime when `|ι| < #S`
   ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1]).
+* `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_of_exists`: generic uniqueness step in the
+  unique-decoding regime: given an existing correlated-agreement witness for any indexed word
+  family, upgrades it to the unique maximal shared agreement set and unique codewords.
+* `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_curve_unique`: unique maximal agreement set
+  and unique codewords on degree-`d` parameterized curves in the unique-decoding regime
+  ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.5 & Theorem 6.1]).
+* `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_unique`: unique maximal agreement set and
+  unique codewords on affine lines in the unique-decoding regime
+  ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4, Theorem 4.1 & Remark 4.1]).
 * `Cslib.Code.proximityGap_curve_unique`: finite-field proximity-gap dichotomy for parameterized
   curves in the unique-decoding regime.
 * `Cslib.Code.proximityGap_unique`: finite-field proximity-gap dichotomy for affine lines in the
@@ -1528,5 +1537,117 @@ theorem proximityGap_unique [Fintype F] {α : ι → F} {e k : ℕ}
       hammingDist_add_smul_le_of_eq_on hD' hagree z⟩
   · right
     exact le_of_not_gt hgt
+
+/-! ### Unique maximal agreement set and unique codewords (Theorems 1.4–1.6) -/
+
+omit [DecidableEq F] in
+/-- **Generic uniqueness step in the unique-decoding regime:** given an existing
+correlated-agreement witness `(D₀, v)` in the unique-decoding regime `2 * e + k ≤ |ι|`, upgrades it
+to the unique maximal shared agreement set and unique codewords (used to prove the uniqueness
+clauses of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 1.5, and 1.6], accepted JACM 2023
+manuscript pp. 5–6; Remark 4.1, p. 13).
+
+Let `α : ι → F` be distinct evaluation points and `2 * e + k ≤ |ι|`. For any indexed family of
+words `u : κ → (ι → F)` whose premise already supplies a shared agreement set `D₀` of size at least
+`|ι| - e` with codewords `v : κ → (ι → F)` in `reedSolomon α k`, there exist a greatest (hence
+unique maximal) shared agreement set `D' : Finset ι` of size at least `|ι| - e` and unique
+codewords `v : κ → (ι → F)` in `reedSolomon α k`: every qualifying pair `(D'', w)` satisfies
+`D'' ⊆ D'` and `w = v`. -/
+theorem exists_uniqueMaximal_correlatedAgreement_of_exists
+    {α : ι → F} {e k : ℕ} {κ : Type*}
+    (hα : Function.Injective α) (he : 2 * e + k ≤ Fintype.card ι)
+    {u : κ → (ι → F)}
+    (hex : ∃ D₀ : Finset ι, Fintype.card ι - e ≤ D₀.card ∧
+      ∃ v : κ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
+        ∀ i ∈ D₀, ∀ j, u j i = v j i) :
+    ∃ D' : Finset ι, Fintype.card ι - e ≤ D'.card ∧
+      ∃ v : κ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
+        (∀ i ∈ D', ∀ j, u j i = v j i) ∧
+        ∀ (D'' : Finset ι) (w : κ → (ι → F)),
+          Fintype.card ι - e ≤ D''.card → (∀ j, w j ∈ reedSolomon α k) →
+          (∀ i ∈ D'', ∀ j, u j i = w j i) →
+          D'' ⊆ D' ∧ w = v := by
+  classical
+  obtain ⟨D₀, hD₀, v, hvRS, hagree₀⟩ := hex
+  let D' : Finset ι := Finset.univ.filter fun i => ∀ j, u j i = v j i
+  have hD₀_sub : D₀ ⊆ D' := fun i hi => mem_filter.2 ⟨mem_univ i, hagree₀ i hi⟩
+  have hD'_card : Fintype.card ι - e ≤ D'.card := hD₀.trans (card_le_card hD₀_sub)
+  have hdist_le : ∀ {D : Finset ι} {w : κ → (ι → F)}, Fintype.card ι - e ≤ D.card →
+      (∀ i ∈ D, ∀ j, u j i = w j i) → ∀ j, hammingDist (u j) (w j) ≤ e := by
+    intro D w hD hag j
+    have hsub : D ⊆ Finset.univ.filter fun i => u j i = w j i :=
+      fun i hi => mem_filter.2 ⟨mem_univ i, hag i hi j⟩
+    have htot := card_filter_eq_add_hammingDist (u j) (w j)
+    have hle := card_le_card hsub
+    omega
+  refine ⟨D', hD'_card, v, hvRS, fun i hi => (mem_filter.1 hi).2, fun D'' w hD'' hwRS hag'' => ?_⟩
+  have hw_eq : w = v := funext fun j =>
+    eq_of_hammingDist_le_reedSolomon hα he (hwRS j) (hvRS j)
+      (hdist_le hD'' hag'' j) (hdist_le hD₀ hagree₀ j)
+  refine ⟨fun i hi => mem_filter.2 ⟨mem_univ i, fun j => ?_⟩, hw_eq⟩
+  rw [hag'' i hi j, hw_eq]
+
+/-- **Unique maximal correlated agreement on parameterized curves in the unique-decoding regime**
+([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.5 & Theorem 6.1], accepted JACM 2023 manuscript
+pp. 6 and 28).
+
+Extends `Cslib.Code.exists_correlatedAgreement_curve_unique` with the unique-decoding uniqueness
+clause: the maximal shared agreement set `D'` of size at least `|ι| - e` and the codewords
+`v : Fin (d + 1) → (ι → F)` are uniquely determined, with every qualifying `(D'', w)` satisfying
+`D'' ⊆ D'` and `w = v`. -/
+theorem exists_uniqueMaximal_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
+    (hα : Function.Injective α) (he : 2 * e + k ≤ Fintype.card ι)
+    (u : Fin (d + 1) → (ι → F)) (S : Finset F) (hS : d * Fintype.card ι < S.card)
+    (hclose : ∀ z ∈ S, ∃ c ∈ reedSolomon α k,
+      hammingDist (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) c ≤ e) :
+    ∃ D' : Finset ι, Fintype.card ι - e ≤ D'.card ∧
+      ∃ v : Fin (d + 1) → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
+        (∀ i ∈ D', ∀ j, u j i = v j i) ∧
+        ∀ (D'' : Finset ι) (w : Fin (d + 1) → (ι → F)),
+          Fintype.card ι - e ≤ D''.card → (∀ j, w j ∈ reedSolomon α k) →
+          (∀ i ∈ D'', ∀ j, u j i = w j i) →
+          D'' ⊆ D' ∧ w = v :=
+  exists_uniqueMaximal_correlatedAgreement_of_exists hα he
+    (exists_correlatedAgreement_curve_unique hα he u S hS hclose)
+
+/-- **Unique maximal correlated agreement on affine lines in the unique-decoding regime**
+([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4, Theorem 4.1 & Remark 4.1], accepted JACM 2023
+manuscript pp. 5 and 13).
+
+Extends `Cslib.Code.exists_correlatedAgreement_unique` with the unique-decoding uniqueness clause:
+the maximal shared agreement set `D'` of size at least `|ι| - e` and the codewords `v₀, v₁` are
+uniquely determined, with every qualifying `(D'', w₀, w₁)` satisfying `D'' ⊆ D'`, `w₀ = v₀`, and
+`w₁ = v₁`. -/
+theorem exists_uniqueMaximal_correlatedAgreement_unique {α : ι → F} {e k : ℕ}
+    (hα : Function.Injective α) (he : 2 * e + k ≤ Fintype.card ι)
+    (u₀ u₁ : ι → F) (S : Finset F) (hS : Fintype.card ι < S.card)
+    (hclose : ∀ z ∈ S, ∃ c ∈ reedSolomon α k, hammingDist (u₀ + z • u₁) c ≤ e) :
+    ∃ D' : Finset ι, Fintype.card ι - e ≤ D'.card ∧
+      ∃ v₀ ∈ reedSolomon α k, ∃ v₁ ∈ reedSolomon α k,
+        (∀ i ∈ D', u₀ i = v₀ i ∧ u₁ i = v₁ i) ∧
+        ∀ (D'' : Finset ι) (w₀ w₁ : ι → F),
+          Fintype.card ι - e ≤ D''.card →
+          w₀ ∈ reedSolomon α k → w₁ ∈ reedSolomon α k →
+          (∀ i ∈ D'', u₀ i = w₀ i ∧ u₁ i = w₁ i) →
+          D'' ⊆ D' ∧ w₀ = v₀ ∧ w₁ = v₁ := by
+  obtain ⟨D₀, hD₀, v₀, hv₀, v₁, hv₁, hag₀⟩ :=
+    exists_correlatedAgreement_unique hα he u₀ u₁ S hS hclose
+  have hex : ∃ D₀ : Finset ι, Fintype.card ι - e ≤ D₀.card ∧
+      ∃ v : Fin 2 → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
+        ∀ i ∈ D₀, ∀ j, (![u₀, u₁] j) i = v j i :=
+    ⟨D₀, hD₀, ![v₀, v₁], fun j => by fin_cases j <;> assumption, fun i hi j => by
+      fin_cases j
+      · exact (hag₀ i hi).1
+      · exact (hag₀ i hi).2⟩
+  obtain ⟨D', hD', v, hvRS, hagree, hmax⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_of_exists hα he hex
+  refine ⟨D', hD', v 0, hvRS 0, v 1, hvRS 1, fun i hi => ⟨hagree i hi 0, hagree i hi 1⟩,
+    fun D'' w₀ w₁ hD'' hw₀ hw₁ hag => ?_⟩
+  obtain ⟨hsub, hweq⟩ := hmax D'' ![w₀, w₁] hD'' (fun j => by fin_cases j <;> assumption)
+    (fun i hi j => by
+      fin_cases j
+      · exact (hag i hi).1
+      · exact (hag i hi).2)
+  exact ⟨hsub, congrFun hweq 0, congrFun hweq 1⟩
 
 end Cslib.Code

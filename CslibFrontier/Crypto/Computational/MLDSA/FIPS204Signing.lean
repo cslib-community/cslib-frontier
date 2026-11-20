@@ -112,6 +112,28 @@ private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List B
     | some sig => return sig
     | none => firstAccepted stride tryAt fuel (κ + stride)
 
+private def terminalReply {α : Type} : Option (Option α) → Option (Option α)
+  | none => some none
+  | some reply => reply.map some
+
+private theorem firstAccepted_eq_terminal (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte)))
+    (k start : ℕ) :
+    firstAccepted stride tryAt k start =
+      (Fin.findSome? fun i : Fin k => terminalReply (tryAt (start + i.val * stride))).join := by
+  induction k generalizing start with
+  | zero => rfl
+  | succ k ih =>
+    rw [Fin.findSome?_succ]
+    simp only [Fin.val_zero, zero_mul, add_zero]
+    have next (i : Fin k) : start + i.succ.val * stride = start + stride + i.val * stride := by
+      rw [Fin.val_succ, Nat.add_mul, Nat.one_mul]
+      lia
+    simp only [next]
+    cases h : tryAt start with
+    | none => simp [firstAccepted, h, terminalReply]
+    | some r =>
+      cases r <;> simp [firstAccepted, h, terminalReply, ih]
+
 /-- Algorithm 7's 814-attempt loop with an explicit mask at each retry counter. The ambient XOF
 supplies the commitment digests and sparse challenges. -/
 def Xofs.signingRetries (H : Xofs) (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
@@ -136,13 +158,17 @@ theorem length_maskSeedInput (key : List Byte) (rnd : FixedBytes 32) (μ : List 
   rw [maskSeedInput, List.length_append, Keccak.length_bytesToBitsLE, List.length_append,
     FixedBytes.length_toList]
 
+private def Xofs.startDecodedSigning (H : Xofs) (s : Level) (sk : PrivateKey s)
+    (formatted : List Bool) (derive : List Bool → List Byte) : Option (SigningState s) := do
+  let matrix ← H.expandA s sk.rho
+  let μ := H.representativeFromTr sk.tr formatted
+  return ⟨sk, matrix, μ, derive μ⟩
+
 private def Xofs.startSigningWithSeed (H : Xofs) (s : Level) (bytes : List Byte)
     (formatted : List Bool) (derive : PrivateKey s → List Bool → List Byte) :
     Option (SigningState s) := do
   let sk ← decodePrivate s bytes
-  let A ← H.expandA s sk.rho
-  let μ := H.representativeFromTr sk.tr formatted
-  return ⟨sk, A, μ, derive sk μ⟩
+  H.startDecodedSigning s sk formatted (derive sk)
 
 private def Xofs.startSigning (H : Xofs) (s : Level) (bytes : List Byte) (formatted : List Bool)
     (rnd : FixedBytes 32) : Option (SigningState s) :=
@@ -222,11 +248,7 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
     | none => simp [he] at out
     | some σ =>
       have enc : encodeSignature s ⟨digest, σ.z, σ.h⟩ = f.signature := by simpa [he] using out
-      have valid : s.params.Valid := by
-        cases s
-        · exact Params.valid_mldsa44
-        · exact Params.valid_mldsa65
-        · exact Params.valid_mldsa87
+      have valid := s.valid
       obtain ⟨hz, hw, hchallenge, recovers⟩ := recovered_of_compressedResponse s.params valid
         (by cases s <;> decide) (inBall_of_sampleInBall hc) hs₂ he
       have dec := sigDecode_encodeSignature s ⟨digest, σ.z, σ.h⟩
@@ -243,13 +265,13 @@ theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : Key
     {rnd : FixedBytes 32} (hg : H.keyGen s seed = some keys)
     (hs : H.sign s keys.secretKey f.message f.context rnd = some f.signature) :
     H.verify s keys.publicKey f.message f.context f.signature = some true := by
-  obtain ⟨rho, sk, hA, pk, decoded, _, short⟩ := privateKey_of_keyGen hg
+  obtain ⟨rho, sk, hA, pk, decoded, _, short, _⟩ := privateKey_of_keyGen hg
   have ctx : f.context.length ≤ 255 := by
     by_contra h
     simp [Xofs.sign, guard, h] at hs
   simp only [Xofs.sign, guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
     Option.bind_some, Xofs.signInternal, Xofs.runSigning, Xofs.signingRetries, Xofs.startSigning,
-    Xofs.startSigningWithSeed, decoded, hA] at hs
+    Xofs.startSigningWithSeed, Xofs.startDecodedSigning, decoded, hA] at hs
   obtain ⟨κ, htry⟩ := attempt_of_firstAccepted hs
   rw [pk] at htry ⊢
   exact verified_of_attempt sk rho hA ctx short htry
@@ -483,7 +505,8 @@ private theorem startSigning_off_rows {H : Xofs} {s : Level} {seed : FixedBytes 
     omega
   have matrix : K.expandA s rho.toList = some sk.A :=
     (Xofs.expandA_congr (K := K) (H := H) rfl s rho.toList).trans hA
-  simp only [Xofs.startSigning, Xofs.startSigningWithSeed, dec, Option.bind_eq_bind,
+  simp only [Xofs.startSigning, Xofs.startSigningWithSeed, Xofs.startDecodedSigning, dec,
+    Option.bind_eq_bind,
     Option.bind_some, matrix, hA,
     Option.pure_def]
   change some _ = some _ ∧ _
