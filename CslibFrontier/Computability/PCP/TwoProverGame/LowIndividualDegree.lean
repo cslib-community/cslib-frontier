@@ -152,7 +152,7 @@ theorem exists_legal_of_accepts_axis_point (d : ℕ) (L : Finset (Point F m)) (u
 theorem exists_agree_of_accepts_point_diagonal (d : ℕ) (L : Finset (Point F m))
     (u : Point F m) (a b : Answer F m) (h : accepts d (.point u) (.diagonal L) a b) :
     ∃ g z, a = .inl z ∧ b = .inr g ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z := by
-  cases a <;> cases b <;> simp only [accepts] at h
+  cases a <;> cases b <;> simp only [accepts, acceptsWithDiagonalCap] at h
   exact ⟨_, _, rfl, rfl, h.2.2⟩
 
 theorem accepts_point_axis_iff (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
@@ -292,11 +292,6 @@ theorem branchQuestions_diagonal (n : ℕ) :
 
 theorem branchQuestions_consistency (n : ℕ) :
     branchQuestions (F := F) n .consistency = consistencyQuestions := by
-  unfold branchQuestions
-  rfl
-
-theorem branchQuestions_diagonal (n : ℕ) :
-    branchQuestions (F := F) n .diagonal = diagonalQuestions n := by
   unfold branchQuestions
   rfl
 
