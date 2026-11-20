@@ -35,6 +35,8 @@ A sequence is `K`-hole-bounded if at most `K` holes are open at each position.
 ## Main results
 
 - `MPDA.WellNested.holeBounded_zero`: well-nested sequences are `0`-hole-bounded.
+- `MPDA.OpenHolePush.sameHole_pred`: a hole push directly preceded by a push on the same stack
+  belongs to the hole of that push.
 
 ## Implementation notes
 
@@ -299,5 +301,63 @@ theorem WellNested.holeBounded_zero {w : List (α × Op n Γ)} (hw : WellNested 
     simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
     exact fun ⟨⟨hq, _⟩, _⟩ => hw.not_holePush q hq
   rw [openHoles, this, Set.ncard_empty]
+
+/-! ## Hole pushes on adjacent positions -/
+
+/-- A push that is closed by a well-nested continuation inside a factor is closed by it in the
+whole sequence. -/
+theorem WellMatched.append {v : List (α × Op n Γ)} {k : ℕ} (h : WellMatched v k)
+    (u u' : List (α × Op n Γ)) : WellMatched (u ++ v ++ u') (u.length + k) := by
+  obtain ⟨m, hm, hwn⟩ := h
+  have hlen := hm.lt_length
+  refine ⟨u.length + m, ?_, ?_⟩
+  · rw [List.append_assoc, matches_append_left]
+    exact hm.append_right u'
+  · rw [List.append_assoc, show u.length + m + 1 = u.length + (m + 1) by omega,
+      List.extract_append_left, List.extract_append_right _ _ (by omega)]
+    exact hwn
+
+/-- A hole push directly preceded by a push on the same stack is not the first pending push of its
+hole: the two pushes belong to the same hole. -/
+theorem OpenHolePush.sameHole_pred {w : List (α × Op n Γ)} {x q : ℕ} {i : Fin n}
+    (h : OpenHolePush w x q) (hq : 0 < q) (hpq : IsPushOn w i (q - 1)) (hqi : IsPushOn w i q) :
+    SameHole w x (q - 1) q := by
+  obtain ⟨⟨-, hnot⟩, hqx, hx, j, ⟨a, γ, hqj⟩, hk⟩ := h
+  obtain ⟨a', γ', hq'⟩ := hqi
+  obtain rfl : j = i := by
+    rw [hqj] at hq'
+    simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hq'
+    exact hq'.2.1
+  have hqlen : q < w.length := (List.getElem?_eq_some_iff.mp hqj).1
+  -- The push at `q - 1` is pending at `x`: the push at `q` keeps stack `i` above it.
+  have hpend : PendingAt w (q - 1) x := by
+    refine ⟨by omega, hx, j, hpq, fun k => ?_⟩
+    rw [show q - 1 + 1 = q by omega, ← w.extract_append_extract (show q ≤ q + 1 by omega)
+      (show q + 1 ≤ x + 1 by omega), List.extract_eq_singleton hqj]
+    rcases k with _ | k
+    · simp [net]
+    · rw [List.cons_append, List.nil_append, List.take_succ_cons, net_cons]
+      have := hk k
+      simp only [Op.net, ite_true]
+      omega
+  -- The push at `q - 1` is a hole push: a well-nested continuation closing it would close the
+  -- push at `q` as well.
+  have hhole : HolePush w (q - 1) := by
+    refine ⟨⟨j, hpq⟩, fun ⟨m, hm, hwn⟩ => hnot ?_⟩
+    have hlen := hm.lt_length
+    have hpm := hm.1
+    have hpush : IsPushOn (w.extract (q - 1) (m + 1)) j 1 := by
+      refine ⟨a, γ, ?_⟩
+      rw [List.extract_eq_take_drop, List.getElem?_take_of_lt (by omega), List.getElem?_drop,
+        show q - 1 + 1 = q by omega, hqj]
+    have hsplit : w.take (q - 1) ++ w.extract (q - 1) (m + 1) ++ w.drop (m + 1) = w := by
+      rw [List.extract_eq_take_drop, ← List.take_add,
+        show q - 1 + (m + 1 - (q - 1)) = m + 1 by omega, List.take_append_drop]
+    have := (hwn.exists_wellMatched hpush).append (w.take (q - 1)) (w.drop (m + 1))
+    rwa [hsplit, List.length_take, min_eq_left (by omega), show q - 1 + 1 = q by omega] at this
+  exact ⟨by omega, ⟨hhole, hpend⟩, ⟨⟨⟨j, ⟨a', γ', hq'⟩⟩, hnot⟩, hqx, hx, j, ⟨a, γ, hqj⟩, hk⟩,
+    ⟨j, hpq, a, γ, hqj⟩, by
+      rw [show q - 1 + 1 = q by omega, List.extract_eq_take_drop, Nat.sub_self, List.take_zero]
+      exact .nil⟩
 
 end Cslib.Automata.MPDA
