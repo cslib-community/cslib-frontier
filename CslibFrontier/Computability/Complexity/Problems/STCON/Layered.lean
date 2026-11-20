@@ -30,6 +30,7 @@ vertex weights. Both views use the same edges and fixed endpoints.
 
 ## Main definitions
 
+* `Cslib.Complexity.STCON.layeredCoordinates`: layer-first coordinates of bounded vertices.
 * `Cslib.Complexity.STCON.layeredDigraph`: the rectangular view of the layered graph.
 
 ## Main results
@@ -80,23 +81,26 @@ theorem layered_reachable_iff (I : STCONInstance) :
   exact (Relation.reflTransGen_iff_relatesWithinSteps (r := I.Adj)
     (by rw [Nat.card_fin]; have := I.s.isLt; omega)).symm
 
+/-- Convert a bounded layered STCON vertex to its layer index followed by its original column. -/
+abbrev layeredCoordinates (I : STCONInstance) :
+    LayeredGraphVertex I ≃ Fin ((I.n - 1) + 1) × Fin I.n :=
+  Relation.LayeredVertex.boundedEquiv (Fin I.n) (I.n - 1)
+
 /-- The bounded STCON layering on layer-first rectangular coordinates. Its edges are those of
-`layeredRelation`, transported by `Relation.LayeredVertex.boundedEquiv`. -/
+`layeredRelation`, transported by `layeredCoordinates`. -/
 @[expose] def layeredDigraph (I : STCONInstance) :
     LayeredDigraph (Fin ((I.n - 1) + 1) × Fin I.n) where
-  Adj a b := layeredRelation I
-    ((Relation.LayeredVertex.boundedEquiv (Fin I.n) (I.n - 1)).symm a)
-    ((Relation.LayeredVertex.boundedEquiv (Fin I.n) (I.n - 1)).symm b)
+  Adj a b := layeredRelation I ((layeredCoordinates I).symm a) ((layeredCoordinates I).symm b)
   layer a := a.1.val
   layer_adj h := h.1
 
 /-- Reachability between the rectangular images of the fixed layered endpoints decides
 the original STCON instance. -/
 theorem layeredDigraph_reachable_iff (I : STCONInstance) :
-    let e := Relation.LayeredVertex.boundedEquiv (Fin I.n) (I.n - 1)
+    let e := layeredCoordinates I
     Relation.ReflTransGen (layeredDigraph I).Adj (e (layeredStart I)) (e (layeredTarget I)) ↔
       I ∈ STCON := by
-  let e := Relation.LayeredVertex.boundedEquiv (Fin I.n) (I.n - 1)
+  let e := layeredCoordinates I
   have hedge (a b : LayeredGraphVertex I) :
       layeredRelation I a b ↔ (layeredDigraph I).Adj (e a) (e b) := by
     change _ ↔ layeredRelation I (e.symm (e a)) (e.symm (e b))

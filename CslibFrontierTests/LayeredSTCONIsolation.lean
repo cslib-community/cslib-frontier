@@ -28,7 +28,7 @@ adjacency callback. The graph's endpoints still decide the original configuratio
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
     (c : ℕ) (w : List Bool) :
     let I := configurationInstance ntm c w
-    let e := Relation.LayeredVertex.boundedEquiv (Fin I.n) (I.n - 1)
+    let e := layeredCoordinates I
     let G := layeredDigraph I
     (∃ seed : Fin (codeLength I.n (I.n - 1)) → Bool, G.IsMinIsolating (generatedWeight seed)) ∧
       (Relation.ReflTransGen G.Adj (e (layeredStart I)) (e (layeredTarget I)) ↔ I ∈ STCON) ∧
