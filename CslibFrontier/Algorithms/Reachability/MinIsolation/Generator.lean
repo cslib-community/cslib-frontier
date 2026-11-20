@@ -31,6 +31,7 @@ The native logspace bound on the evaluator is a separate obligation.
 ## Main definitions
 
 * `Cslib.Reachability.Hoza.generatedWeight`: the executable Justesen-based weight.
+* `Cslib.Reachability.Hoza.generatedWeightBound`: a uniform chain bound for subdivision.
 
 ## Main results
 
@@ -147,10 +148,20 @@ private theorem generatedWeight_lt_pow {w n C : ℕ} (seed : Fin (codeLength w n
       rw [← pow_mul, ← pow_mul, hab]
     _ ≤ _ := Nat.pow_le_pow_left hpow (3 * (C + 1))
 
+/-- A uniform polynomial chain bound for every generated weight at these dimensions.
+It uses the conservative exponent from the Justesen seed-length estimate. -/
+@[expose] def generatedWeightBound (w n : ℕ) : ℕ :=
+  (2 * (w * (n + 1) + 1)) ^ (3 * (268435456 + 1))
+
+/-- The executable chain bound is valid for every seed and vertex. -/
+theorem generatedWeight_lt_bound {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
+    (z : Fin (n + 1) × Fin w) : generatedWeight seed z < generatedWeightBound w n :=
+  generatedWeight_lt_pow seed z (codeLength_bounds w n).2
+
 /-- One polynomial bounds every generated weight, uniformly in the graph dimensions. -/
 theorem generatedWeight_polynomial :
     ∃ C : ℕ, ∀ (w n : ℕ) (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w),
       generatedWeight seed z < (2 * (w * (n + 1) + 1)) ^ C :=
-  ⟨_, fun w n seed z => generatedWeight_lt_pow seed z (codeLength_bounds w n).2⟩
+  ⟨_, fun _ _ seed z => generatedWeight_lt_bound seed z⟩
 
 end Cslib.Reachability.Hoza
