@@ -15,6 +15,9 @@ The supplied word is the read-only choice source. These examples test actual que
 canonical codec agreement, missing bits, invalid IDs and the binary-state certificate.
 -/
 
+-- This module contains only checked clients.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.DoubleCountingVertexReader
 
 open Turing Turing.DoubleCounting.VertexReader Turing.MultiTapeTM

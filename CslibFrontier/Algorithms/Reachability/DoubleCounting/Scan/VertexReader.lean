@@ -68,7 +68,8 @@ enc_structure encState : State where
 
 /-- Read one bit. Absent bits set the flag and leave the accumulator unchanged. -/
 @[expose] def advance (s : State) (bit : Option Bool) : State :=
-  ⟨s.limit, s.width, s.cursor + 1, if bit.isSome then 2 * s.value + (bit.getD false).toNat else s.value,
+  ⟨s.limit, s.width, s.cursor + 1,
+    if bit.isSome then 2 * s.value + (bit.getD false).toNat else s.value,
     s.truncated || !bit.isSome⟩
 
 /-- Return the binary rank only if all bits were present and the ID is in range. -/
@@ -95,7 +96,8 @@ theorem run_prefix (N : ℕ) (w : List Bool) (t : ℕ) (ht : t ≤ N.size) :
     by_cases hw : t < w.length
     · have hg := List.getElem?_eq_getElem hw
       have he := List.take_succ_eq_append_getElem hw
-      simp only [QueryMachine.step, QueryMachine.read, machine, hl, decide_false, Bool.false_eq_true,
+      simp only [QueryMachine.step, QueryMachine.read, machine, hl, decide_false,
+        Bool.false_eq_true,
         ite_false, advance, hg, Option.isSome_some, Option.getD_some, ite_true,
         Bool.not_true, Bool.or_false, he, binaryValue_snoc,
         show ¬w.length < t by omega, show ¬w.length < t + 1 by omega]
@@ -143,7 +145,9 @@ out-of-range branches and clocks after halting. -/
 theorem length_run_le (N : ℕ) (w : List Bool) (t : ℕ) :
     (encState ((machine N).run w t)).length ≤
       4 * (Nat.log2 N.size + 1) + 4 * N.size + 5 := by
-  have hc : ((machine N).run w t).cursor ≤ N.size := by rw [run_eq_prefix]; exact Nat.min_le_right _ _
+  have hc : ((machine N).run w t).cursor ≤ N.size := by
+    rw [run_eq_prefix]
+    exact Nat.min_le_right _ _
   have hv : ((machine N).run w t).value < 2 ^ N.size :=
     (prefix_value_lt N w t).trans_le (Nat.pow_le_pow_right (by decide) (Nat.min_le_right _ _))
   have hcursor := length_encNat_le_log2 hc
