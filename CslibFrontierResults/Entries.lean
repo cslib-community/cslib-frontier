@@ -20,6 +20,7 @@ import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
 import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
@@ -11081,6 +11082,22 @@ register_result "classical-quantum-mutual-information" where
     mutual information to the product of the actual marginals equals the source-weighted \
     divergence of the conditional states from their quantum marginal. The expression \
     uses natural logarithms and extended divergence with zero contribution at null labels."
+
+register_result "quantum-relative-entropy-partial-trace" where
+  title := "Data processing for quantum relative entropy under partial trace"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.5",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 19" }
+  ]
+  theorems := [
+    Cslib.Quantum.relativeEntropy_partialTraceRight_le,
+    Cslib.Quantum.relativeEntropy_partialTraceLeft_le
+  ]
+  scope := "Either partial trace of two finite complex positive semidefinite matrices has \
+    relative entropy bounded by the joint divergence. The theorem extends the trace-one \
+    statement to unnormalized matrices, uses natural logarithms and includes singular \
+    states. A joint support mismatch makes the right side positive infinity."
 
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"
