@@ -16,13 +16,13 @@ This module defines the named data structures (`SubSessionInput`, `SubSessionBac
 `MultiSessionState`) and the lazy multi-session ideal functionality
 `IdealFunctionality.multiSession` (`F̂`), following Section 3 of [CanettiRabin2003] (CRYPTO 2003,
 LNCS 2729, p. 272, where `F̂` and Theorem 1 are stated; the relabelling construction starts on
-p. 273; locators follow the proceedings version and ePrint 2002/047 was not inspected), adapted to
+p. 273; locators follow the CRYPTO 2003 proceedings version (LNCS 2729)), adapted to
 static corruptions and this library's call-bounded, pull-only UC execution model (see
 `Cslib.Crypto.Protocols.UC.Emulates` for the call-budget model vs. PPT ITMs).
 
 The generic lazy-vs-eager parallel-package initialization theorem (`SSP.parFinLazy`,
 `SSP.run_parFinLazy_eq_parFin`) lives separately in `CslibFrontier.Crypto.Protocols.SSP.ParFinLazy`
-so SSP callers can use it without importing UC.
+so SSP callers can use it without importing the UC execution / joint-state layer.
 
 ## Modelling decisions and differences from [CanettiRabin2003]
 
