@@ -27,6 +27,7 @@ concatenation of languages, split a factor at an intermediate position with it.
   `a + d ≤ b`.
 * `List.extract_append_left`, `List.extract_append_right`: factors of an append that lie in one
   of its parts.
+* `List.getElem?_extract`, `List.mem_extract_iff_getElem?`: the entries of a factor by position.
 -/
 
 public section
@@ -51,6 +52,24 @@ theorem extract_eq_singleton {α : Type*} {l : List α} {a : ℕ} {x : α} (h : 
   obtain ⟨ha, rfl⟩ := getElem?_eq_some_iff.mp h
   rw [extract_eq_take_drop, drop_eq_getElem_cons ha, Nat.add_sub_cancel_left]
   rfl
+
+/-- Entry `k` of the factor from position `a` is entry `a + k` of the list. -/
+theorem getElem?_extract {α : Type*} (l : List α) {a b k : ℕ} (hk : k < b - a) :
+    (l.extract a b)[k]? = l[a + k]? := by
+  simp [extract_eq_take_drop, hk]
+
+/-- The entries of a factor are the entries of the list at the positions inside it. -/
+theorem mem_extract_iff_getElem? {α : Type*} {l : List α} {a b : ℕ} {x : α} :
+    x ∈ l.extract a b ↔ ∃ k, a ≤ k ∧ k < b ∧ l[k]? = some x := by
+  rw [mem_iff_getElem?]
+  constructor
+  · rintro ⟨k, hk⟩
+    rw [extract_eq_take_drop, getElem?_take] at hk
+    split_ifs at hk with hkb
+    rw [getElem?_drop] at hk
+    exact ⟨a + k, by omega, by omega, hk⟩
+  · rintro ⟨k, hak, hkb, hk⟩
+    exact ⟨k - a, by rw [l.getElem?_extract (by omega), Nat.add_sub_cancel' hak, hk]⟩
 
 /-- A factor of a list is an infix of it. -/
 theorem extract_isInfix {α : Type*} (l : List α) (a b : ℕ) : l.extract a b <:+: l := by

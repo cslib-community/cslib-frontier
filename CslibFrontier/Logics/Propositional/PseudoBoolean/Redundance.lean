@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Ring
 
 /-!
 # A VeriPB kernel-proof checker: redundance-based strengthening
@@ -32,10 +34,18 @@ including deletion), which may use `¬C`, and `proofgoal` blocks
 a contradiction, after which its constraints are dropped; a block is checked by
 `Cslib.Logic.PL.VeriPB.subproofRefutes`, as a `pbc` subproof is. The step is
 accepted when the subproof closes with a contradiction (then `C` follows outright), or when every
-goal is covered (`Cslib.Logic.PL.VeriPB.goalCovered`): trivially true after normalization, in
-the database, or proved by a `proofgoal` block. A database goal `D|ω` is also covered when `ω`
-sets every literal of `D` it touches true. `C` takes the number after the subproof, whose
-constraints are dropped.
+goal is covered (`Cslib.Logic.PL.VeriPB.goalCovered`), following the autoproven goals of the
+kernel format (§5.5.1 of the VeriPB/CakePB documentation, 22 June 2026 edition): trivially
+true after normalization, in the database up to the order of terms, proved by a `proofgoal`
+block, or weakly syntactically implied by `¬C` (`Cslib.Logic.PL.VeriPB.weakImplies`). A database
+goal `D|ω` is also covered when `ω` sets every literal of `D` it touches true, or when `D` weakly
+syntactically implies it. `C` takes the number after the subproof, whose constraints are
+dropped.
+
+**Weak syntactic implication.** The test is that, in the linear forms `∑ dᵥ xᵥ ≥ A` of `D` and
+`∑ cᵥ xᵥ ≥ B` of `C`, `B + ∑ᵥ max(0, dᵥ - cᵥ) ≤ A`. It bounds the slack of `C` below by that of
+`D` on every assignment (`Cslib.Logic.PL.VeriPB.Holds.of_weakImplies`), and it covers a `C`
+obtained from `D` by adding literal axioms.
 
 `red` is a top-level step (`Cslib.Logic.PL.VeriPB.TopStep`): subproofs contain only derivation
 steps, as in VeriPB. Every derived constraint holds under every solution of the database it was
@@ -245,10 +255,31 @@ def runItems (db₀ : List (ℕ × PBConstr)) (ω : Witness) (c : PBConstr) :
       | some n' => runItems db₀ ω c db n' items (G :: proved)
       | none => none
 
-/-- A goal constraint `G` needs no subproof: it is trivially true after normalization, it is a
-constraint of the database, or a `proofgoal` block proved it. -/
-def goalCovered (db₀ : List (ℕ × PBConstr)) (proved : List PBConstr) (G : PBConstr) : Bool :=
-  G.normalize.degree == 0 || db₀.any (·.2 == G.normalize) || proved.contains G
+/-- The linear form `L - L'`: `L` with the coefficients of `L'` subtracted. -/
+def subLinear (L L' : List (ℕ × ℤ)) : List (ℕ × ℤ) :=
+  L'.foldr (fun e L => insertCoeff e.1 (-e.2) L) L
+
+/-- The sum of the positive coefficients of a linear form. -/
+def posMass (L : List (ℕ × ℤ)) : ℕ := (L.map fun e => e.2.toNat).sum
+
+/-- **Weak syntactic implication**: `D` implies `C` because the slack of `C` exceeds that of `D`
+on every assignment. In the linear forms `∑ dᵥ xᵥ ≥ A` and `∑ cᵥ xᵥ ≥ B`, it suffices that
+`B + ∑ᵥ max(0, dᵥ - cᵥ) ≤ A`. This holds when `C` follows from `D` by adding literal axioms. -/
+def weakImplies (D C : PBConstr) : Bool :=
+  decide (((C.degree : ℤ) - negSum C.terms) +
+      posMass (subLinear (toLinear D.terms) (toLinear C.terms)) ≤
+    (D.degree : ℤ) - negSum D.terms)
+
+/-- `C` and `D` are the same constraint up to the order of their terms. -/
+def sameUpToOrder (C D : PBConstr) : Bool := C.degree == D.degree && C.terms.isPerm D.terms
+
+/-- A goal constraint `G` needs no subproof, given the negation `negC` of the constraint being
+added: it is trivially true after normalization, it is a constraint of the database up to the
+order of terms, a `proofgoal` block proved it, or `negC` weakly syntactically implies it. -/
+def goalCovered (db₀ : List (ℕ × PBConstr)) (proved : List PBConstr) (negC G : PBConstr) :
+    Bool :=
+  G.normalize.degree == 0 || db₀.any (fun e => sameUpToOrder e.2 G.normalize) ||
+    proved.contains G || weakImplies negC G
 
 /-- The end of a `red` subproof: the closing constraint is a contradiction, or every goal is
 covered. -/
@@ -256,8 +287,9 @@ def redOk (db₀ : List (ℕ × PBConstr)) (ω : Witness) (c : PBConstr) (db' : 
     (proved : List PBConstr) : Option ℕ → Bool
   | some q => namesContra db' q
   | none =>
-    goalCovered db₀ proved (Witness.substC ω c) &&
-      db₀.all fun e => Witness.touchedTrue ω e.2 || goalCovered db₀ proved (Witness.substC ω e.2)
+    goalCovered db₀ proved c.negate (Witness.substC ω c) &&
+      db₀.all fun e => Witness.touchedTrue ω e.2 || weakImplies e.2 (Witness.substC ω e.2) ||
+        goalCovered db₀ proved c.negate (Witness.substC ω e.2)
 
 /-- **The redundance check** of `red C : ω`: `¬C` takes the number `n`, the subproof runs, and
 then either the closing contradiction is derived, or `C|ω` is covered and so is `D|ω` for every
@@ -297,15 +329,50 @@ def checkRed (F : List PBConstr) (P : RedProof) : Bool :=
 
 /-! ### Soundness -/
 
+theorem linVal_subLinear (σ : ℕ → Bool) (L L' : List (ℕ × ℤ)) :
+    linVal σ (subLinear L L') = linVal σ L - linVal σ L' := by
+  induction L' with
+  | nil => simp [subLinear]
+  | cons e L' ih =>
+    simp only [subLinear, List.foldr_cons] at ih ⊢
+    rw [linVal_insertCoeff, ih, linVal_cons]
+    ring
+
+theorem linVal_le_posMass (σ : ℕ → Bool) (L : List (ℕ × ℤ)) : linVal σ L ≤ posMass L := by
+  induction L with
+  | nil => simp [posMass]
+  | cons e L ih =>
+    simp only [posMass, List.map_cons, List.sum_cons, Nat.cast_add, linVal_cons] at ih ⊢
+    have : e.2 * ((σ e.1).toNat : ℤ) ≤ (e.2.toNat : ℤ) := by
+      cases σ e.1 <;> simp
+    linarith
+
+/-- **Weak syntactic implication is sound.** -/
+theorem Holds.of_weakImplies {σ : ℕ → Bool} {D C : PBConstr} (hD : D.Holds σ)
+    (h : weakImplies D C = true) : C.Holds σ := by
+  rw [holds_iff_linVal] at hD ⊢
+  have h1 := linVal_subLinear σ (toLinear D.terms) (toLinear C.terms)
+  have h2 := linVal_le_posMass σ (subLinear (toLinear D.terms) (toLinear C.terms))
+  have h3 := of_decide_eq_true h
+  linarith
+
+theorem Holds.of_sameUpToOrder {σ : ℕ → Bool} {C D : PBConstr} (hC : C.Holds σ)
+    (h : sameUpToOrder C D = true) : D.Holds σ := by
+  simp only [sameUpToOrder, Bool.and_eq_true, beq_iff_eq, List.isPerm_iff] at h
+  unfold Holds lhs at hC ⊢
+  rw [← h.1, ← (h.2.map _).sum_nat]
+  exact hC
+
 theorem goalCovered_holds {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)} {proved : List PBConstr}
-    {G : PBConstr} (hdb : AllHold σ db₀) (hp : ∀ G ∈ proved, G.Holds σ)
-    (h : goalCovered db₀ proved G = true) : G.Holds σ := by
+    {negC G : PBConstr} (hdb : AllHold σ db₀) (hp : ∀ G ∈ proved, G.Holds σ)
+    (hneg : negC.Holds σ) (h : goalCovered db₀ proved negC G = true) : G.Holds σ := by
   unfold goalCovered at h
   simp only [Bool.or_eq_true, beq_iff_eq, List.any_eq_true, List.contains_iff_mem] at h
-  rcases h with (h | ⟨e, he, heq⟩) | h
+  rcases h with ((h | ⟨e, he, heq⟩) | h) | h
   · rw [← holds_normalize]; unfold Holds; rw [h]; exact Nat.zero_le _
-  · rw [← holds_normalize, ← heq]; exact hdb e he
+  · rw [← holds_normalize]; exact Holds.of_sameUpToOrder (hdb e he) heq
   · exact hp G h
+  · exact Holds.of_weakImplies hneg h
 
 theorem runItems_sound {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)} {ω : Witness} {c : PBConstr} :
     ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (items : List RedItem) (proved : List PBConstr)
@@ -347,8 +414,8 @@ theorem redCheck_sound {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)} {n n
   split at h
   · cases h
   rename_i db' n'' proved hrun
-  have hneg : AllHold σ ((n, c.negate) :: db₀) :=
-    List.forall_mem_cons.2 ⟨(holds_negate σ c).2 hc, hdb⟩
+  have hnegC : c.negate.Holds σ := (holds_negate σ c).2 hc
+  have hneg : AllHold σ ((n, c.negate) :: db₀) := List.forall_mem_cons.2 ⟨hnegC, hdb⟩
   obtain ⟨hall, hp⟩ := runItems_sound _ _ _ [] db' n'' proved hneg (by simp) hrun
   split at h
   · rename_i hok
@@ -362,10 +429,11 @@ theorem redCheck_sound {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)} {n n
       obtain ⟨hself, hdbg⟩ := hok
       refine List.forall_mem_cons.2 ⟨?_, fun e he => ?_⟩
       · rw [holds_normalize, ← Witness.holds_substC]
-        exact goalCovered_holds hdb hp hself
-      · rcases hdbg e he with ht | hg
+        exact goalCovered_holds hdb hp hnegC hself
+      · rcases hdbg e he with (ht | hw) | hg
         · exact Witness.Holds.apply_of_touchedTrue ht (hdb e he)
-        · rw [← Witness.holds_substC]; exact goalCovered_holds hdb hp hg
+        · rw [← Witness.holds_substC]; exact Holds.of_weakImplies (hdb e he) hw
+        · rw [← Witness.holds_substC]; exact goalCovered_holds hdb hp hnegC hg
   · cases h
 
 theorem runTop_sound :

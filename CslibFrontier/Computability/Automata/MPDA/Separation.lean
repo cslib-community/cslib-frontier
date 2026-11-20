@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Automata.MPDA.Underapprox
 public import Mathlib.Computability.Language
 import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Foundations.Data.List.Extract
+import CslibFrontier.Foundations.Data.List.Flatten
 
 /-! # Hole-bounded languages that are not scope-bounded
 
@@ -78,13 +79,9 @@ private theorem not_isContext_extract {w : List (α × Op n Γ)} {a b s₁ s₂ 
     {i j : Fin n} (hij : i ≠ j) (h₁ : a ≤ s₁ ∧ s₁ < b) (h₂ : a ≤ s₂ ∧ s₂ < b)
     (hμ₁ : w[s₁]? = some μ₁) (hμ₂ : w[s₂]? = some μ₂) (hs₁ : μ₁.2.stack = some i)
     (hs₂ : μ₂.2.stack = some j) : ¬IsContext (w.extract a b) := by
-  have hmem : ∀ {s μ}, a ≤ s ∧ s < b → w[s]? = some μ → μ ∈ w.extract a b := by
-    intro s μ hs hμ
-    refine List.mem_of_getElem? (i := s - a) ?_
-    rw [List.extract_eq_take_drop, List.getElem?_take_of_lt (by omega), List.getElem?_drop,
-      Nat.add_sub_cancel' hs.1, hμ]
   rintro ⟨o, ho⟩
-  rcases ho μ₁ (hmem h₁ hμ₁) with h | h <;> rcases ho μ₂ (hmem h₂ hμ₂) with h' | h' <;>
+  rcases ho μ₁ (List.mem_extract_iff_getElem?.mpr ⟨s₁, h₁.1, h₁.2, hμ₁⟩) with h | h <;>
+    rcases ho μ₂ (List.mem_extract_iff_getElem?.mpr ⟨s₂, h₂.1, h₂.2, hμ₂⟩) with h' | h' <;>
     simp_all
 
 /-! ## The language `L_bh` -/
@@ -318,19 +315,9 @@ theorem word_mem_language (m : ℕ) : word m ∈ language :=
 private theorem getElem?_flatten_cd (r j : ℕ) :
     (List.replicate r [Letter.c, .d]).flatten[j]? =
       if j < 2 * r then some (if j % 2 = 0 then .c else .d) else none := by
-  induction r generalizing j with
-  | zero => simp
-  | succ r ih =>
-    rw [List.replicate_succ, List.flatten_cons]
-    rcases j with _ | _ | j
-    · simp
-    · simp
-      omega
-    · rw [List.getElem?_append_right (by simp), show j + 2 - [Letter.c, .d].length = j by simp,
-        ih]
-      by_cases hj : j < 2 * r
-      · simp [hj, show j + 2 < 2 * (r + 1) by omega, show (j + 1 + 1) % 2 = j % 2 by omega]
-      · simp [hj, show ¬j + 2 < 2 * (r + 1) by omega]
+  rw [List.getElem?_flatten_replicate, List.length_cons, List.length_singleton,
+    show r * (1 + 1) = 2 * r by omega]
+  rcases Nat.mod_two_eq_zero_or_one j with h | h <;> simp [h]
 
 private theorem length_word (m : ℕ) : (word m).length = 4 * m := by
   simp [word]
