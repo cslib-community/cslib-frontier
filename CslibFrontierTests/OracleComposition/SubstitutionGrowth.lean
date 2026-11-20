@@ -91,8 +91,8 @@ private theorem echoHandler_isOraclePPTOn :
       ComputableInPolyTime.snd _ _
     have hpost : ComputableInPolyTime
         (fun q => (stFn q ++ stFn q, stFn q ++ (coinFn q :: extFn q)))
-        EStep (encPair encBits encBits) := by
-      fun_prop
+        EStep (encPair encBits encBits) :=
+      (hst.bitsAppend hst).prod (hst.bitsAppend (hcoinq.bitsCons hextq))
     exact hpost.isOraclePPTOn
 
 /-- Preservation, doubled-state reply length, and additive state growth for `echoHandler`. -/
