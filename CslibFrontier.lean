@@ -2161,6 +2161,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Converse
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Counting
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Loop
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.LayeredReachability
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.Amplification
@@ -2945,6 +2946,8 @@ public import CslibFrontier.Computability.Complexity.Problems.SATUNSAT
 public import CslibFrontier.Computability.Complexity.Problems.STCON
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
+public import CslibFrontier.Computability.Complexity.Problems.STCON.Layered
+public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredQuery
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Search
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Writer
@@ -7248,6 +7251,7 @@ public import CslibFrontier.Foundations.Quantum.RegularCompression
 public import CslibFrontier.Foundations.Quantum.TensorPower
 public import CslibFrontier.Foundations.Relation.Acyclic
 public import CslibFrontier.Foundations.Relation.InductiveCounting
+public import CslibFrontier.Foundations.Relation.Layered
 public import CslibFrontier.Foundations.Relation.RelatesWithinSteps
 public import CslibFrontier.Foundations.Relation.Transport
 public import CslibFrontier.Foundations.RelationAlgebra.AtomStructure
