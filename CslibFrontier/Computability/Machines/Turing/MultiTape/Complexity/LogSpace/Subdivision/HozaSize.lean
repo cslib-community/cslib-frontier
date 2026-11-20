@@ -10,6 +10,9 @@ module
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
 public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered.Subdivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 
 /-!
@@ -18,14 +21,14 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 Every seed uses the same rectangular carrier. The layout counts all chain slots, including
 the unused ones, so the source and adjacency scans can share one dimension. The native
 certificate computes the chain bound and both scan counts from the binary width and
-horizon, using the existing conservative polynomial bound on generated weights.
+horizon, using the actual generator code length and the final layer’s binary size.
 -/
 
 public section
 
 namespace Cslib.Reachability.Hoza
 
-open Turing.MultiTapeTM ComputableInSpace LayeredDigraph.Subdivision
+open Turing.MultiTapeTM ComputableInSpace LayeredDigraph.Subdivision Code.JustesenFamily
 
 /-- Counts and the common chain bound retained across candidate seeds. -/
 structure SubdivisionSize where
@@ -61,11 +64,26 @@ theorem subdivisionSize_inSpace :
   have hin : (fun p => (encPair encNat encNat p).length) ≼
       (fun p => (encPair encNat encNat p).length) := .refl _
   have hcount := budget_natMul (fst encNat encNat) (budget_natSucc (snd encNat encNat))
-  have hbase := budget_natMul (budget_const (encB := encNat) 2 hin) (budget_natSucc hcount)
+  have hbase := budget_const (encB := encNat) 6 hin
+  have hExp := budget_natAdd codeLength_inSpace (budget_comp_linear natSize (snd encNat encNat))
   have hbound : ComputableInSpace (fun p : ℕ × ℕ => generatedWeightBound p.1 p.2)
       (encPair encNat encNat) encNat (fun p => (encPair encNat encNat p).length) := by
     unfold generatedWeightBound
-    exact budget_natPow hbase hin _
+    apply budget_natPow_variable hbase hExp
+    refine .of_le_linear (4 * (268435456 + 1)) (4 * (268435456 + 1) + 4) ?_
+    intro p
+    let e := codeLength p.1 p.2 + p.2.size
+    have hc := codeLength_le_encodedDimensions p
+    have hs : p.2.size ≤ (encPair encNat encNat p).length := by
+      simp only [length_encPair, length_encNat_eq_size]
+      omega
+    have he : (encNat e).length ≤ e := by
+      rw [length_encNat_eq_size, Nat.size_le]
+      exact Nat.lt_two_pow_self
+    change (e + 1) * (encNat 6).length + (encNat e).length + 1 ≤ _
+    rw [show (encNat 6).length = 3 from rfl]
+    dsimp only [e] at *
+    omega
   exact encSubdivisionSize_mk_budget hcount hbound
     (budget_natMul hcount (budget_natSucc hbound))
 

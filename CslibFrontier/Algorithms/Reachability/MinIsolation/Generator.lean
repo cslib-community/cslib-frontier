@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.AllPairs
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
 
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 import Mathlib.Algebra.Order.Ring.GeomSum
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.Ring
@@ -113,6 +114,16 @@ theorem exists_generatedWeight_isMinIsolating {w n : ℕ}
   change G.IsMinIsolating (fun z => vertexWeight indexedCodeword seed z.1.val z.2)
   simpa only [hlayer] using hseed
 
+private theorem layerValuation_le_log {layer limit : ℕ} (h : layer ≤ limit) :
+    padicValNat 2 layer ≤ Nat.log 2 limit := by
+  by_cases hz : layer = 0
+  · simp [hz, Nat.padicValNat_def]
+  · apply Nat.le_log_of_pow_le (by decide)
+    have hdiv : 2 ^ padicValNat 2 layer ∣ layer := by
+      rw [Nat.padicValNat_def]
+      exact pow_multiplicity_dvd _ _
+    exact (Nat.le_of_dvd (Nat.pos_of_ne_zero hz) hdiv).trans h
+
 /-- The executable weights have polynomial magnitude in the number of potential vertices. -/
 private theorem generatedWeight_lt_pow {w n C : ℕ} (seed : Fin (codeLength w n) → Bool)
     (z : Fin (n + 1) × Fin w)
@@ -122,14 +133,7 @@ private theorem generatedWeight_lt_pow {w n C : ℕ} (seed : Fin (codeLength w n
   let L := Nat.log 2 m + 1
   have hw : 0 < w := z.2.isLt.pos
   have hsize : n + 1 ≤ m := Nat.le_mul_of_pos_left _ hw
-  have hv : padicValNat 2 z.1.val ≤ Nat.log 2 m := by
-    by_cases hz : z.1.val = 0
-    · simp [hz, Nat.padicValNat_def]
-    · apply Nat.le_log_of_pow_le (by decide)
-      have hdiv : 2 ^ padicValNat 2 z.1.val ∣ z.1.val := by
-        rw [Nat.padicValNat_def]
-        exact pow_multiplicity_dvd _ _
-      exact (Nat.le_of_dvd (Nat.pos_of_ne_zero hz) hdiv).trans (z.1.isLt.le.trans hsize)
+  have hv := layerValuation_le_log (z.1.isLt.le.trans hsize)
   have hexp : padicValNat 2 z.1.val + codeLength w n ≤ (C + 1) * L := by
     change codeLength w n ≤ C * L at hlen
     have hlog : Nat.log 2 m ≤ L := Nat.le_succ _
@@ -148,20 +152,23 @@ private theorem generatedWeight_lt_pow {w n C : ℕ} (seed : Fin (codeLength w n
       rw [← pow_mul, ← pow_mul, hab]
     _ ≤ _ := Nat.pow_le_pow_left hpow (3 * (C + 1))
 
-/-- A uniform polynomial chain bound for every generated weight at these dimensions.
-It uses the conservative exponent from the Justesen seed-length estimate. -/
+/-- A seed-independent chain bound using the actual code length and the binary width
+of the final layer. -/
 @[expose] def generatedWeightBound (w n : ℕ) : ℕ :=
-  (2 * (w * (n + 1) + 1)) ^ (3 * (268435456 + 1))
+  6 ^ (codeLength w n + n.size)
 
 /-- The executable chain bound is valid for every seed and vertex. -/
 theorem generatedWeight_lt_bound {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
-    (z : Fin (n + 1) × Fin w) : generatedWeight seed z < generatedWeightBound w n :=
-  generatedWeight_lt_pow seed z (codeLength_bounds w n).2
+    (z : Fin (n + 1) × Fin w) : generatedWeight seed z < generatedWeightBound w n := by
+  have hv := layerValuation_le_log (Nat.le_of_lt_succ z.1.isLt)
+  rw [← Nat.log2_eq_log_two, Nat.log2_eq_size_sub_one] at hv
+  exact (vertexWeight_lt_pow indexedCodeword seed z.1.val z.2).trans_le
+    (Nat.pow_le_pow_right (by decide) (by omega))
 
 /-- One polynomial bounds every generated weight, uniformly in the graph dimensions. -/
 theorem generatedWeight_polynomial :
     ∃ C : ℕ, ∀ (w n : ℕ) (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w),
       generatedWeight seed z < (2 * (w * (n + 1) + 1)) ^ C :=
-  ⟨_, fun _ _ seed z => generatedWeight_lt_bound seed z⟩
+  ⟨_, fun w n seed z => generatedWeight_lt_pow seed z (codeLength_bounds w n).2⟩
 
 end Cslib.Reachability.Hoza

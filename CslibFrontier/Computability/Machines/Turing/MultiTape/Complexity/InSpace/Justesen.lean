@@ -76,14 +76,25 @@ private theorem iterate_advance {T s : ℕ}
 private def computed (p : ℕ × ℕ) : CapacityState :=
   advance^[threshold p] (atScale (threshold p) 0)
 
-private theorem length_threshold_le (p : ℕ × ℕ) :
-    threshold p ≤ 512 * ((encDimensions p).length + 1) := by
+private theorem logCapacity_le (p : ℕ × ℕ) :
+    Nat.log2 (p.1 * (p.2 + 1)) + 1 ≤ (encDimensions p).length + 1 := by
   have hm := Nat.size_mul_le p.1 (p.2 + 1)
   have hsucc := Nat.size_add_le_max p.2 1
   change (p.2 + 1).size ≤ max p.2.size 1 + 1 at hsucc
-  simp only [threshold, Nat.log2_eq_size_sub_one, encDimensions, length_encPair,
+  simp only [Nat.log2_eq_size_sub_one, encDimensions, length_encPair,
     length_encNat_eq_size]
   omega
+
+private theorem length_threshold_le (p : ℕ × ℕ) :
+    threshold p ≤ 512 * ((encDimensions p).length + 1) :=
+  Nat.mul_le_mul_left 512 (logCapacity_le p)
+
+/-- The numeric seed length is linear in the binary encoding of its graph dimensions. -/
+theorem codeLength_le_encodedDimensions (p : ℕ × ℕ) :
+    codeLength p.1 p.2 ≤ 268435456 * ((encPair encNat encNat p).length + 1) := by
+  have hc := (codeLength_bounds p.1 p.2).2
+  rw [← Nat.log2_eq_log_two] at hc
+  exact hc.trans (Nat.mul_le_mul_left _ (logCapacity_le p))
 
 private theorem power_le {T s : ℕ}
     (hsmall : ∀ i < s, (atScale T i).power * (atScale T i).degree < T) (j : ℕ)

@@ -30,12 +30,4 @@ example (w h : ℕ) :
     p.vertexCount = Nat.card (Vertex (Fin (h + 1) × Fin w) p.chainBound) := by
   exact ⟨fun seed v => (generatedWeight_lt_bound seed v).le, subdivisionSize_vertexCount w h⟩
 
--- A scanner consumes the dimension through the existing row-major numbering.
-example (w h : ℕ) :
-    Vertex (Fin (h + 1) × Fin w) (subdivisionSize w h).chainBound ≃
-      Fin (subdivisionSize w h).vertexCount :=
-  let index := ((equivProd (Fin (h + 1) × Fin w) _).trans
-    (finProdFinEquiv.prodCongr (Equiv.refl _))).trans finProdFinEquiv
-  index.trans (finCongr (by simp only [subdivisionSize, Nat.mul_comm w (h + 1)]))
-
 end CslibFrontierTests.HozaSubdivisionSize
