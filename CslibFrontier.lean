@@ -3920,6 +3920,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tid
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsWords
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WhileCond
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WhileCond.Partial
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WhileInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordMoves
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
