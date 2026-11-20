@@ -12,6 +12,7 @@ public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.Order.BigOperators.Expect
+import Mathlib.Analysis.MeanInequalitiesPow
 
 /-!
 # `L^p` norms on finite types
@@ -25,7 +26,8 @@ Mathlib's `MeasureTheory.lpNorm`.
 
 The norm is invariant under equivalences (`Cslib.lpNorm_equiv`), on a product `α × β` it is the
 iterated norm (`Cslib.lpNorm_prod`), and on a subsingleton type it is the absolute value
-(`Cslib.lpNorm_subsingleton`).
+(`Cslib.lpNorm_subsingleton`). It increases with `p` (`Cslib.lpNorm_le_lpNorm_of_exponent_le`)
+[O'Donnell, Exercise 1.13][ODonnell2014].
 
 ## Main definitions
 
@@ -38,6 +40,7 @@ iterated norm (`Cslib.lpNorm_prod`), and on a subsingleton type it is the absolu
   the mean absolute value.
 * `Cslib.lpNorm_equiv`, `Cslib.lpNorm_prod`, `Cslib.lpNorm_subsingleton`: invariance under
   equivalence, iterated norm on a product, and value on a subsingleton type.
+* `Cslib.lpNorm_le_lpNorm_of_exponent_le`: `L^p` norms increase with `p`.
 
 ## References
 
@@ -111,5 +114,33 @@ theorem lpNorm_subsingleton [Subsingleton α] {p : ℝ} (hp : p ≠ 0) (f : α �
   have h : (fun y : α => |f y| ^ p) = fun _ => |f x| ^ p :=
     funext fun y => by rw [Subsingleton.elim y x]
   rw [lpNorm, h, Fintype.expect_const, Real.rpow_rpow_inv (abs_nonneg _) hp]
+
+/-! ### Monotonicity in the exponent -/
+
+/-- **`L^p` norms increase with `p`** [O'Donnell, Exercise 1.13][ODonnell2014]: for the uniform
+distribution on a finite type, `‖f‖_p ≤ ‖f‖_q` whenever `0 < p ≤ q`, by the power mean
+inequality. This is the finite uniform case of Mathlib's
+`MeasureTheory.eLpNorm_le_eLpNorm_of_exponent_le` for probability measures. -/
+theorem lpNorm_le_lpNorm_of_exponent_le {p q : ℝ} (hp : 0 < p) (hpq : p ≤ q) (f : α → ℝ) :
+    lpNorm p f ≤ lpNorm q f := by
+  have hq : 0 < q := hp.trans_le hpq
+  rcases isEmpty_or_nonempty α with hα | hα
+  · simp [lpNorm, Real.zero_rpow (inv_ne_zero hp.ne'), Real.zero_rpow (inv_ne_zero hq.ne')]
+  have hcard : (0 : ℝ) < Fintype.card α := Nat.cast_pos.2 Fintype.card_pos
+  -- the power mean inequality with exponent `q / p ≥ 1`
+  have hpm := Real.rpow_arith_mean_le_arith_mean_rpow (s := univ)
+    (fun _ => (Fintype.card α : ℝ)⁻¹) (fun x => |f x| ^ p) (fun _ _ => by positivity)
+    (by rw [sum_const, card_univ, nsmul_eq_mul]; field_simp) (fun _ _ => by positivity)
+    ((one_le_div hp).2 hpq)
+  simp only [← mul_sum, ← Real.rpow_mul (abs_nonneg _), mul_div_cancel₀ _ hp.ne'] at hpm
+  have hE (g : α → ℝ) : 𝔼 x, g x = (Fintype.card α : ℝ)⁻¹ * ∑ x, g x := by
+    rw [Fintype.expect_eq_sum_div_card, div_eq_inv_mul]
+  rw [← hE, ← hE] at hpm
+  calc lpNorm p f = ((𝔼 x, |f x| ^ p) ^ (q / p)) ^ q⁻¹ := by
+        rw [lpNorm, ← Real.rpow_mul (expect_abs_rpow_nonneg p f)]
+        congr 1; field_simp
+    _ ≤ (𝔼 x, |f x| ^ q) ^ q⁻¹ :=
+        Real.rpow_le_rpow (by positivity) hpm (inv_nonneg.2 hq.le)
+    _ = lpNorm q f := rfl
 
 end Cslib
