@@ -349,7 +349,7 @@ private theorem decryptedBit_polyTime :
       (encPair (encPair encNat encNat) encNat) encNat := by fun_prop
   have hdiv : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 / p.2)
       (encPair encNat encNat) encNat :=
-    .of_tidy Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_div
+    Turing.MultiTapeTM.ComputableInPolyTime.binary_div
   have hq4 : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.1 / 4)
       (encPair (encPair encNat encNat) encNat) encNat :=
     hdiv.comp (hq.prod (ComputableInPolyTime.const 4))
@@ -363,7 +363,7 @@ private theorem decryptedBit_polyTime :
     ComputableInPolyTime.binary_le.comp (hdiff.prod hq2)
   have hsub_nat : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 - p.2)
       (encPair encNat encNat) encNat :=
-    .of_tidy Turing.MultiTapeTM.ComputableTidilyInPolyTime.binary_sub
+    Turing.MultiTapeTM.ComputableInPolyTime.binary_sub
   have hqsub : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × ℕ => p.1.1 - (((p.1.2 : ℤ) - (p.2 : ℤ)) % (p.1.1 : ℤ)).toNat)
       (encPair (encPair encNat encNat) encNat) encNat :=

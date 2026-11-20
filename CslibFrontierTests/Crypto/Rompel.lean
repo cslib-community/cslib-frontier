@@ -111,11 +111,17 @@ def zeroFlipFinder (G : ShrinkingCollisionGrid) : TargetCollisionFinder where
 
 theorem isPPT_zeroFlipFinder (G : ShrinkingCollisionGrid) : (zeroFlipFinder G).IsPPT where
   choose := by
-    dsimp only [zeroFlipFinder]
-    ppt
+    have hlen := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
+      (computableInPolyTime_rompelBlockLen G)
+    exact (((ComputableInPolyTime.bitsReplicate false).comp hlen).prod
+      (ComputableInPolyTime.const [])).isPPTOn
   find := by
-    dsimp only [zeroFlipFinder]
-    ppt
+    have hp := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
+    have hlen := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
+      ((computableInPolyTime_rompelBlockLen G).comp hp)
+    exact (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.const [true])
+      ((ComputableInPolyTime.bitsReplicate false).comp
+        (hlen.unary_sub' (ComputableInPolyTime.const 1)))).isPPTOn
 
 example (G : ShrinkingCollisionGrid) :
     IsPPT encBits (rompelCompressionInverter G (zeroFlipFinder G)) :=
