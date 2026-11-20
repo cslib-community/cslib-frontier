@@ -333,9 +333,48 @@ theorem codewordBit_eq {w n : ℕ} (v : Fin w) (u : (BinaryField (fieldDegree w 
 @[expose] def codeLength (w n : ℕ) : ℕ :=
   (2 ^ fieldDegree w n - 1) * (2 * fieldDegree w n)
 
-private def decodeCoordinate (w n : ℕ) :
-    Fin (codeLength w n) ≃ Fin (2 ^ fieldDegree w n - 1) × (Fin 2 × Fin (fieldDegree w n)) :=
+private def unrankCoordinate (points degree : ℕ) :
+    Fin (points * (2 * degree)) ≃ Fin points × (Fin 2 × Fin degree) :=
   finProdFinEquiv.symm.trans (Equiv.prodCongr (Equiv.refl _) finProdFinEquiv.symm)
+
+/-- Unrank an executable codeword index in point, half, then bit order. -/
+def decodeCoordinate (w n : ℕ) :
+    Fin (codeLength w n) ≃ Fin (2 ^ fieldDegree w n - 1) × (Fin 2 × Fin (fieldDegree w n)) :=
+  unrankCoordinate (2 ^ fieldDegree w n - 1) (fieldDegree w n)
+
+/-- The numeric fields of one executable Justesen codeword coordinate. -/
+structure CoordinateNumbers where
+  /-- The positive binary number of the field point. -/
+  point : ℕ
+  /-- The zero-based Wozencraft half. -/
+  half : ℕ
+  /-- The zero-based bit within that half. -/
+  bit : ℕ
+
+/-- Decode a binary index at the supplied degree. The index runs through all bits in a half,
+then both halves at a point, before advancing to the next nonzero point. -/
+@[expose] def decodeIndex (degree index : ℕ) : CoordinateNumbers :=
+  let block := 2 * degree
+  let withinPoint := index % block
+  ⟨index / block + 1, withinPoint / degree, withinPoint % degree⟩
+
+private theorem decodeIndex_eq_unrankCoordinate {points degree : ℕ}
+    (j : Fin (points * (2 * degree))) :
+    decodeIndex degree j.val =
+      let (point, half, bit) := unrankCoordinate points degree j
+      ⟨point.val + 1, half.val, bit.val⟩ := by
+  dsimp only [decodeIndex, unrankCoordinate]
+  simp only [Equiv.trans_apply, finProdFinEquiv_symm_apply, Equiv.prodCongr_apply, Prod.map,
+    Equiv.refl_apply, Fin.coe_divNat, Fin.coe_modNat]
+
+/-- On valid indices the numeric decoder reads the same coordinate as the equivalence used
+by the indexed evaluator. The point field uses the positive numbering of the field words. -/
+theorem decodeIndex_eq_decodeCoordinate {w n : ℕ} (j : Fin (codeLength w n)) :
+    decodeIndex (fieldDegree w n) j.val =
+      let (point, half, bit) := decodeCoordinate w n j
+      ⟨point.val + 1, half.val, bit.val⟩ :=
+  decodeIndex_eq_unrankCoordinate
+    (show Fin ((2 ^ fieldDegree w n - 1) * (2 * fieldDegree w n)) from j)
 
 private def nonzeroPointBits {b : ℕ} (i : Fin (2 ^ b - 1)) : BitString b :=
   (BitString.equivFin b).symm ⟨i.val + 1, by have := i.isLt; omega⟩
