@@ -52,6 +52,7 @@ public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
 public import CslibFrontier.Algorithms.Lean.DPLL
 public import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
+public import CslibFrontier.Algorithms.Lean.DPLL.Trail
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Client
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Memory
@@ -335,6 +336,10 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PolyArray
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Steps
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Count
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Model
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Program
