@@ -46,20 +46,6 @@ enc_structure encState (κ : Type) (encContext : κ ↪ List Bool) : State κ wh
 
 variable {κ : Type}
 
-/-- The base-six value of the first `t` masked seed bits. Missing bits default to zero. -/
-@[expose] def maskedPrefix (code : ℕ → Bool) (seed : List Bool) (t : ℕ) : ℕ :=
-  accumulateWeightDigits fun j : Fin t => code j.val && (seed[j.val]?).getD false
-
-/-- A raw seed written in increasing index order supplies exactly the finite seed function
-used by the streaming weight formula. -/
-theorem maskedPrefix_ofFn {n : ℕ} (code : ℕ → Bool) (seed : Fin n → Bool) :
-    maskedPrefix code (List.ofFn seed) n =
-      accumulateWeightDigits (fun j => code j.val && seed j) := by
-  unfold maskedPrefix
-  congr 1
-  funext j
-  simp
-
 private theorem maskedPrefix_succ (code : ℕ → Bool) (seed : List Bool) (t : ℕ) :
     maskedPrefix code seed (t + 1) =
       appendWeightDigit (maskedPrefix code seed t) (code t && (seed[t]?).getD false) := by

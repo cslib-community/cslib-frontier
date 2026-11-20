@@ -49,4 +49,17 @@ example :
   have hpack := budget_prod (budget_const (encB := encNat) 12 (.refl _)) hscan
   exact (budget_comp_linear scaleAccumulatedWeight_inSpace hpack).of_enc_eq fun _ => rfl
 
+open Cslib.Code.JustesenFamily in
+/-- The actual raw-word run, followed by guarded scaling, gives the isolation weight. -/
+example {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w)
+    (code : ℕ → Bool)
+    (hcode : ∀ j : Fin (codeLength w n), code j.val = indexedCodewordMod z.2 j) :
+    (if z.1.val = 0 then 0 else
+      scaleAccumulatedWeight z.1.val
+        (((SeedDigits.machine (fun (_ : Unit) => code) ()).run (List.ofFn seed)
+          ((List.ofFn seed).length + 1)).accumulator)) =
+      generatedWeight seed z := by
+  rw [SeedDigits.run_at_end, ← generatedWeightScan_eq]
+  exact SeedDigits.scaledMaskedPrefix_eq_generatedWeightScan seed z code hcode
+
 end CslibFrontierTests.HozaSeedDigits

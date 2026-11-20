@@ -119,4 +119,32 @@ theorem generatedWeightScan_eq {w n : ℕ} (seed : Fin (codeLength w n) → Bool
     rw [indexedCodewordMod_eq]
     cases indexedCodeword z.2 j <;> cases seed j <;> simp
 
+namespace SeedDigits
+
+/-- The base-six value of the first `t` masked seed bits. Missing bits default to zero. -/
+@[expose] def maskedPrefix (code : ℕ → Bool) (seed : List Bool) (t : ℕ) : ℕ :=
+  accumulateWeightDigits fun j : Fin t => code j.val && (seed[j.val]?).getD false
+
+/-- A raw seed written in increasing index order supplies exactly the finite seed function
+used by the streaming weight formula. -/
+theorem maskedPrefix_ofFn {n : ℕ} (code : ℕ → Bool) (seed : Fin n → Bool) :
+    maskedPrefix code (List.ofFn seed) n =
+      accumulateWeightDigits (fun j => code j.val && seed j) := by
+  unfold maskedPrefix
+  congr 1
+  funext j
+  simp
+
+/-- A raw seed and a code-bit callback that agrees with the executable Justesen word
+give the existing streaming weight, including the zero weight in layer zero. -/
+theorem scaledMaskedPrefix_eq_generatedWeightScan {w n : ℕ}
+    (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w) (code : ℕ → Bool)
+    (hcode : ∀ j : Fin (codeLength w n), code j.val = indexedCodewordMod z.2 j) :
+    (if z.1.val = 0 then 0 else
+      scaleAccumulatedWeight z.1.val (maskedPrefix code (List.ofFn seed) (List.ofFn seed).length)) =
+      generatedWeightScan seed z := by
+  simp only [List.length_ofFn, maskedPrefix_ofFn, generatedWeightScan, hcode]
+
+end SeedDigits
+
 end Cslib.Reachability.Hoza
