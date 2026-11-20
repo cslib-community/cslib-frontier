@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
+import Mathlib.Logic.Equiv.Fin.Basic
 
 /-! Checked generator-to-scan transport and a native callback reading the actual source word. -/
 
@@ -133,7 +134,8 @@ private def zeroRectangle : LayeredDigraph (Vertex (Fin 3 × Fin 2) 0) where
 
 /-- A tied diamond remains ambiguous with zero weights; the isolation premise cannot be
 omitted from the shortest-path transport theorem. -/
-example : ¬ ∃! p : Path rectangle (fun _ => 0) 0 (root 0 (0, 0)) (root 0 (2, 0)),
+private theorem tiedShortest :
+    ¬ ∃! p : Path rectangle (fun _ => 0) 0 (root 0 (0, 0)) (root 0 (2, 0)),
     ∀ r : Path rectangle (fun _ => 0) 0 (root 0 (0, 0)) (root 0 (2, 0)),
       @Quiver.Path.length _ (toQuiver rectangle (fun _ => 0) 0) _ _ p ≤
         @Quiver.Path.length _ (toQuiver rectangle (fun _ => 0) 0) _ _ r := by
@@ -153,5 +155,20 @@ example : ¬ ∃! p : Path rectangle (fun _ => 0) 0 (root 0 (0, 0)) (root 0 (2, 
   have hv := congrArg LayeredDigraph.Path.vertices h
   change [(0, 0), (1, (0 : Fin 2)), (2, 0)] = [(0, 0), (1, (1 : Fin 2)), (2, 0)] at hv
   simp at hv
+
+private def indices : Vertex (Fin 3 × Fin 2) 0 ≃ Fin ((3 * 2) * (0 + 1)) :=
+  (equivProd _ _).trans ((Equiv.prodCongr finProdFinEquiv (Equiv.refl _)).trans finProdFinEquiv)
+
+/-- A saturated scan with row-major IDs cannot report unique transcripts from every
+original source of the tied rectangle. -/
+example : ¬ ∀ s : Fin 3 × Fin 2, ∃! w, DoubleCounting.Passes
+    (fun u v => (graph rectangle (fun _ => 0) 0).Adj (indices.symm u) (indices.symm v))
+    (indices (root 0 s)) 5 w := by
+  intro h
+  have hiso := (isMinIsolating_iff_indexedPasses indices (fun _ => le_rfl)
+    (by decide : Fintype.card (Fin ((3 * 2) * (0 + 1))) ≤ 5 + 1)).mpr h
+  apply tiedShortest
+  exact existsUnique_shortest_of_isMinIsolating (fun _ => le_rfl) hiso (0, 0) (root 0 (2, 0))
+    ⟨expand (fun _ => le_rfl) (via 0)⟩
 
 end CslibFrontierTests.WeightedSubdivision

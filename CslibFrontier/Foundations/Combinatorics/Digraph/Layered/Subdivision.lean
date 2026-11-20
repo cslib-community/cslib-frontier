@@ -330,6 +330,28 @@ private theorem departureCost_eq {a b : V} (p : G.Path a b) (h : a ≠ b) :
       dsimp only [LayeredDigraph.Path.length] at *
       omega
 
+/-- For a fixed pair of endpoints and final offset, expansion orders paths by internal weight. -/
+theorem length_pathEquiv_le_iff (hw : ∀ v, weight v ≤ bound) (s : V) (v : Vertex V bound)
+    (hv : v.offset.val ≤ weight v.vertex) (p q : G.Path s v.vertex) :
+    @Quiver.Path.length _ (toQuiver G weight bound) _ _ (pathEquiv hw s v hv p) ≤
+      @Quiver.Path.length _ (toQuiver G weight bound) _ _ (pathEquiv hw s v hv q) ↔
+      p.internalWeight weight ≤ q.internalWeight weight := by
+  let _ := G.toQuiver
+  let _ := toQuiver G weight bound
+  by_cases heq : s = v.vertex
+  · have hsame := LayeredDigraph.Path.eq_of_layer_le_succ
+      (by rw [heq]; exact Nat.le_succ _) p q
+    simp [hsame]
+  · rw [length_pathEquiv, length_pathEquiv, departureCost_eq p heq, departureCost_eq q heq]
+    have hp := LayeredDigraph.Path.layer_end p
+    have hq := LayeredDigraph.Path.layer_end q
+    have hlen : p.length = q.length := by
+      change G.layer v.vertex = G.layer s + p.length at hp
+      change G.layer v.vertex = G.layer s + q.length at hq
+      omega
+    dsimp only [LayeredDigraph.Path.length] at *
+    omega
+
 /-- Min-isolation of the original vertex weights gives a unique shortest unweighted path
 from each original source to every reachable subdivision vertex, including auxiliary slots.
 Zero weights are allowed: the original outgoing edge still contributes one positive step. -/
@@ -344,37 +366,14 @@ theorem existsUnique_shortest_of_isMinIsolating (hw : ∀ v, weight v ≤ bound)
   let _ := toQuiver G weight bound
   obtain ⟨p₀⟩ := hv
   let E := pathEquiv (G := G) hw s v (offset_le p₀)
-  by_cases heq : s = v.vertex
-  · have hall (p q : Path G weight bound (root bound s) v) : p = q := by
-      apply E.symm.injective
-      exact LayeredDigraph.Path.eq_of_layer_le_succ (by rw [heq]; exact Nat.le_succ _) _ _
-    exact ⟨p₀, fun q => (congrArg Quiver.Path.length (hall p₀ q)).le,
-      fun q _ => hall q p₀⟩
-  · have horder (p q : G.Path s v.vertex) :
-        (E p).length ≤ (E q).length ↔ p.internalWeight weight ≤ q.internalWeight weight := by
-      change (pathEquiv hw s v (offset_le p₀) p).length ≤
-        (pathEquiv hw s v (offset_le p₀) q).length ↔ _
-      rw [length_pathEquiv, length_pathEquiv, departureCost_eq p heq, departureCost_eq q heq]
-      have hp := LayeredDigraph.Path.layer_end p
-      have hq := LayeredDigraph.Path.layer_end q
-      have hlen : p.length = q.length := by
-        change G.layer v.vertex = G.layer s + p.length at hp
-        change G.layer v.vertex = G.layer s + q.length at hq
-        omega
-      dsimp only [LayeredDigraph.Path.length] at *
-      omega
-    obtain ⟨p, hp, huniq⟩ := hG s v.vertex ⟨contract p₀⟩
-    refine ⟨E p, ?_, ?_⟩
-    · intro q
-      have h := (horder p (E.symm q)).mpr (isMinOn_univ_iff.mp hp (E.symm q))
-      simpa only [E.apply_symm_apply] using h
-    · intro q hq
-      apply E.symm.injective
-      rw [E.symm_apply_apply]
-      apply huniq
-      apply isMinOn_univ_iff.mpr
-      intro r
-      apply (horder (E.symm q) r).mp
-      simpa only [E.apply_symm_apply] using hq (E r)
+  refine (E.existsUnique_congr fun p => ?_).mp (hG s v.vertex ⟨contract p₀⟩)
+  rw [isMinOn_univ_iff]
+  constructor
+  · intro h q
+    have hle := (length_pathEquiv_le_iff hw s v (offset_le p₀) p (E.symm q)).mpr (h _)
+    change (E p).length ≤ (E (E.symm q)).length at hle
+    simpa only [E.apply_symm_apply] using hle
+  · intro h q
+    exact (length_pathEquiv_le_iff hw s v (offset_le p₀) p q).mp (h (E q))
 
 end Cslib.LayeredDigraph.Subdivision
