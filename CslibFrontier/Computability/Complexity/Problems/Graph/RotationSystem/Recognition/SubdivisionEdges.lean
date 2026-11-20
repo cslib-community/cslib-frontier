@@ -59,7 +59,9 @@ theorem subdivide_getElem? (I : FixedRotationInput)
   rw [hsub, List.getElem?_append_left (by simp [emit])]
   simp [emit, entries, List.getElem_zipIdx]
 
-private theorem subdivision_edge_cases (I : FixedRotationInput)
+/-- Each indexed subdivision edge has its original occurrence and local piece index,
+with the corresponding ordered endpoints. -/
+theorem subdivision_edge_cases (I : FixedRotationInput)
     (e : Fin (subdivisionGraph I).edges.length) :
     ∃ (i : Fin I.graph.edges.length) (k : Fin 3), e.val = 3 * i.val + k.val ∧
       (subdivisionGraph I).edges[e] =
