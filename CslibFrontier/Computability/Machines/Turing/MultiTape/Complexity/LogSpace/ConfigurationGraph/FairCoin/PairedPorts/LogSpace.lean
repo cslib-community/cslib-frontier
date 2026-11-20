@@ -732,12 +732,19 @@ private theorem nap_fields_inSpace {α : Type} {enc : α ↪ List Bool} {S : α 
     (budget_comp_linear (fst encNat encNat) hrest).of_enc_eq fun _ => rfl,
     (budget_comp_linear (snd encNat encNat) hrest).of_enc_eq fun _ => rfl⟩
 
-/-- Outgoing port multiplicity `clockedOutCount machine D d w a p` is computable in deterministic
-logarithmic space. -/
-theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool State) (D d : ℕ) :
-    ComputableInLogSpace
-      (fun (w, a, p) => clockedOutCount machine D d w a p)
-      encPortQuery encNat := by
+private abbrev encOutQueryPack : NAP × Option Bool ↪ List Bool :=
+  encPair encNAP (encOption encBool)
+
+private noncomputable def outQueryPack {k D d : ℕ} (s : GuardedSub k D d 2) :
+    NAP × Option Bool :=
+  let z := napOfSub s
+  let B := radix D (napLen z)
+  (z, (wordSub s)[queryIndex (k := k) B (napId z % vertexBound (k := k) B)]?)
+
+private theorem outQueryPack_log (k D d : ℕ) :
+    ComputableInLogSpace outQueryPack (encGuardedSub k D d 2) encOutQueryPack ∧
+    ∃ C, ∀ s : GuardedSub k D d 2, (encOutQueryPack (outQueryPack s)).length ≤
+      C * (Nat.log2 (encGuardedSub k D d 2 s).length + 1) := by
   have hnap_log := computableInLogSpace_napOfSub k D d 2
   have hnap_len := length_napOfSub_log k D d 2
   have hidxOut_space : ComputableInSpace
@@ -750,13 +757,20 @@ theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool Stat
     have hN := vertexBound_budget (k := k) hB (.refl _)
     exact queryIndex_budget (k := k) hB (budget_natMod ha hN)
   have hsymOut_log := computableInLogSpace_queryAt hnap_log hnap_len hidxOut_space
-  have hpack_log := ComputableInLogSpace.pair hnap_log hsymOut_log
-  have hpack_len := pair_length_log hnap_len (optionBool_length_log hsymOut_log)
-  let encPack := encPair encNAP (encOption encBool)
+  exact ⟨ComputableInLogSpace.pair hnap_log hsymOut_log,
+    pair_length_log hnap_len (optionBool_length_log hsymOut_log)⟩
+
+/-- Outgoing port multiplicity `clockedOutCount machine D d w a p` is computable in deterministic
+logarithmic space. -/
+theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool State) (D d : ℕ) :
+    ComputableInLogSpace
+      (fun (w, a, p) => clockedOutCount machine D d w a p)
+      encPortQuery encNat := by
+  obtain ⟨hpack_log, hpack_len⟩ := outQueryPack_log k D d
   have hcnt_space : ComputableInSpace
       (fun z : NAP × Option Bool =>
         clockedOutCountWithSymbol machine D d (napLen z.1) (napId z.1) (napPort z.1) z.2)
-      encPack encNat fun z => (encPack z).length := by
+      encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
     exact clockedOutCountWithSymbol_budget machine D d hn ha hp hsym (.refl _)
@@ -772,26 +786,12 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
     ComputableInLogSpace
       (fun (w, a, p) => clockedOutPort machine D d w a p)
       encPortQuery (encOption (encPair encNat encNat)) := by
-  have hnap_log := computableInLogSpace_napOfSub k D d 2
-  have hnap_len := length_napOfSub_log k D d 2
-  have hidxOut_space : ComputableInSpace
-      (fun z : NAP =>
-        queryIndex (k := k) (radix D (napLen z))
-          (napId z % vertexBound (k := k) (radix D (napLen z))))
-      encNAP encNat fun z => (encNAP z).length := by
-    obtain ⟨hn, ha, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := radix_budget D hn (.refl _)
-    have hN := vertexBound_budget (k := k) hB (.refl _)
-    exact queryIndex_budget (k := k) hB (budget_natMod ha hN)
-  have hsymOut_log := computableInLogSpace_queryAt hnap_log hnap_len hidxOut_space
-  have hpack1_log := ComputableInLogSpace.pair hnap_log hsymOut_log
-  have hpack1_len := pair_length_log hnap_len (optionBool_length_log hsymOut_log)
-  let encPack1 := encPair encNAP (encOption encBool)
+  obtain ⟨hpack1_log, hpack1_len⟩ := outQueryPack_log k D d
   have hvVal_space : ComputableInSpace
       (fun z : NAP × Option Bool =>
         ((coinOutTargetsWithSymbol machine (radix D (napLen z.1)) (napLen z.1)
           (napId z.1 % vertexBound (k := k) (radix D (napLen z.1))) z.2)[napPort z.1]?).getD 0)
-      encPack1 encNat fun z => (encPack1 z).length := by
+      encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
     have hB := radix_budget D hn (.refl _)
@@ -807,11 +807,11 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
   have hpack2_log := ComputableInLogSpace.pair hpack1_log hinSyms_log
   have hpack2_len := pair_length_log hpack1_len
     (optionBoolList_length_log (inPortBound machine) hinSyms_log fun _ => List.length_map _)
-  have hp1 := fst encPack1 (encList (encOption encBool))
+  have hp1 := fst encOutQueryPack (encList (encOption encBool))
   obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace
     (budget_comp_linear (fst encNAP (encOption encBool)) hp1)
   have hsymOut := budget_comp_linear (snd encNAP (encOption encBool)) hp1
-  have hinSyms := snd encPack1 (encList (encOption encBool))
+  have hinSyms := snd encOutQueryPack (encList (encOption encBool))
   have hout_space := clockedOutPortWithSymbols_budget machine D d _
     hn ha hp hsymOut (fun i => budget_listGetDOptionBool i.val hinSyms) (.refl _)
   let f : Triple → Option (ℕ × ℕ) := fun (w, a, p) => clockedOutPort machine D d w a p
@@ -819,8 +819,8 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
       (encOption (encPair encNat encNat)) := by
     refine (comp_logSpace_of_length_log hpack2_log hpack2_len hout_space).congr_fun
       fun ⟨⟨w, a, p⟩, _⟩ => ?_
-    dsimp only [Function.comp_apply, f, napOfSub, napLen, napId, napPort, wordSub, lenSub, idSub,
-      portSub]
+    dsimp only [Function.comp_apply, f, outQueryPack, napOfSub, napLen, napId, napPort, wordSub,
+      lenSub, idSub, portSub]
     dsimp only [clockedOutPortWithSymbols, clockedOutPort, coinInSources]
     split_ifs with hcond
     · cases hget : (coinOutTargetsWithSymbol machine (radix D w.length) w.length
