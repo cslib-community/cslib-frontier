@@ -63,7 +63,7 @@ theorem scanStep_scanOf (F : Literal ℕ → Bool) (f : List (Literal ℕ)) (l :
     · simp only [scanOf, Bool.not_true, Bool.false_eq_true, ↓reduceIte, List.cons_append,
         List.all_append, List.all_cons, List.all_nil, Bool.and_true]
       by_cases h : litCode a = litCode l
-      · rw [litCode_inj] at h; subst h; simp
+      · rw [(litCodeBy_injective Function.injective_id).eq_iff] at h; subst h; simp
       · simp only [h, ↓reduceIte]
         have : (l == a) = false := by
           rw [beq_eq_false_iff_ne]; rintro rfl; exact h rfl
@@ -110,7 +110,8 @@ theorem litBody_spec (F : Literal ℕ → Bool) (l : Literal ℕ) (st : ScanStat
       y.regs stamp = x.regs stamp ∧ y.regs lend = x.regs lend := by
   have : Fits w (litCode l) := hfit.of_le (by
     have : litCode l ≤ litCode (Std.Sat.Literal.negate l) + 1 := by
-      obtain ⟨v, b⟩ := l; cases b <;> simp [litCode, Std.Sat.Literal.negate]; omega
+      simpa only [Std.Sat.Literal.negate, Bool.not_not] using
+        litCodeBy_negate_le _root_.id (Std.Sat.Literal.negate l)
     omega)
   have : Fits w (litCode (Std.Sat.Literal.negate l)) := hfit.of_le (by omega)
   have : Fits w (litCode (Std.Sat.Literal.negate l) + litCode (Std.Sat.Literal.negate l)) :=
@@ -124,19 +125,19 @@ theorem litBody_spec (F : Literal ℕ → Bool) (l : Literal ℕ) (st : ScanStat
   unfold litBody
   by_cases hF : F l = true
   · have hv := hFl.mpr hF
-    wram_exec [hlit, hone, litCode_xor_one, hv]
+    wram_exec [hlit, hone, litCodeBy_xor_one, hv]
     wram_simp
     simp [scanStep, hF, hhas, hunit, hbad, hzero, hone]
   · have hv : ¬ _ := mt hFl.mp hF
     cases h0
-    · wram_exec [hlit, hone, litCode_xor_one, hhas, hzero]
+    · wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero]
       wram_simp
       simp [scanStep, hF, hbad, hzero, hone]
     · by_cases hu : u0 = litCode l
-      · wram_exec [hlit, hone, litCode_xor_one, hhas, hzero, hunit, hu]
+      · wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero, hunit, hu]
         wram_simp
         simp [scanStep, hF, hbad, hzero, hhas, hu, hunit, hone]
-      · wram_exec [hlit, hone, litCode_xor_one, hhas, hzero, hunit]
+      · wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero, hunit]
         wram_simp
         simp [scanStep, hF, hzero, hhas, hu, hunit, hone]
 
@@ -168,9 +169,7 @@ theorem litLoop_spec (F : Literal ℕ → Bool) (ls : List (Literal ℕ)) (st : 
     have hc : (Cond.lt lptr lend).Holds x := by simp only [Cond.holds_lt, hend]; omega
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp (by simpa using hl)
     have hMl := hM l (by simp)
-    have hx1 : litCode (Std.Sat.Literal.negate l) ≤ litCode l + 1 := by
-      obtain ⟨v, b⟩ := l
-      cases b <;> simp [litCode, Std.Sat.Literal.negate]; omega
+    have hx1 : litCode (Std.Sat.Literal.negate l) ≤ litCode l + 1 := litCodeBy_negate_le _root_.id l
     obtain ⟨y, hy, hym, hyh, hyu, hyb, hyp, hy0, hy1, hyt, hys, hye⟩ :=
       litBody_spec (w := w) F l st x hzero hone hlit (hF l (by simp)) hhas hunit hbad
         (hw.of_le (by omega)) (hlw.of_le (by omega))

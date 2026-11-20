@@ -11,7 +11,6 @@ public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.CNF
 public import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
 public import CslibFrontier.Logics.SecondOrder.Grounding
 public import CslibFrontier.Logics.SecondOrder.Projection
-import CslibFrontier.Foundations.Data.List.Fold
 
 /-!
 # Grounding ordered existential second-order sentences by quantifier-free projections
@@ -123,7 +122,7 @@ noncomputable def groundPayloadDim : ℕ :=
   ((allGroundTags Φ).map Φ.groundCoordArity).foldr max 0
 
 theorem groundCoordArity_le (t : Φ.GroundTag) : Φ.groundCoordArity t ≤ Φ.groundPayloadDim :=
-  List.le_foldr_max_of_mem (List.mem_map_of_mem (mem_allGroundTags Φ t))
+  List.le_max_of_le' 0 (List.mem_map_of_mem (mem_allGroundTags Φ t)) le_rfl
 
 /-- Full-tuple dimension `groundTagCard Φ + groundPayloadDim Φ` of `Φ.groundQFInterpretation`. -/
 noncomputable abbrev groundDim : ℕ :=

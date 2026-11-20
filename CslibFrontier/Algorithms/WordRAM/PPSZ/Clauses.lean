@@ -210,16 +210,14 @@ def compatCodes (tw : ℕ → ℕ) (x b : ℕ) (cs : List ℕ) : Bool :=
   cs.all fun c => litFine tw x b c && cs.all fun c' => c' != c ^^^ 1
 
 /-- The code of the complementary literal
-(`Cslib.Algorithms.WordRAM.ClauseCode.litCode_xor_one`). -/
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy_xor_one`). -/
 theorem litCode_xor_one (l : Literal (Fin n)) : litCode l ^^^ 1 = litCode (l.1, !l.2) :=
-  ClauseCode.litCode_xor_one _
+  ClauseCode.litCodeBy_xor_one _ _
 
-/-- Literal codes determine literals (`Cslib.Algorithms.WordRAM.ClauseCode.litCode_injective`). -/
-theorem litCode_injective : Function.Injective (litCode (n := n)) := by
-  intro l l' h
-  have h' := ClauseCode.litCode_injective h
-  simp only [Schoening.natLit, Prod.mk.injEq] at h'
-  exact Prod.ext (Fin.ext h'.1) h'.2
+/-- Literal codes determine literals
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy_injective`). -/
+theorem litCode_injective : Function.Injective (litCode (n := n)) :=
+  ClauseCode.litCodeBy_injective Fin.val_injective
 
 /-- **Compatibility through codes** is compatibility of the literals, with `x` set to `!b`. -/
 theorem compatCodes_map_litCode {mem : ℕ → ℕ} {Tb : ℕ} {τ : Fin n → Option Bool}

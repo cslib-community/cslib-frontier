@@ -63,7 +63,7 @@ theorem TableAt.cons {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
     subst he
     simp only [Function.update_self]
     refine ⟨ha, haT, hc.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, List.length_cons, List.length_map] at hb
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
     omega
   · have hne : tcell T j ≠ tcell T i := by simp only [tcell]; omega
     have hfind : ((i, c) :: db).find? (·.1 == j) = db.find? (·.1 == j) := by
@@ -72,7 +72,7 @@ theorem TableAt.cons {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
     refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, List.length_cons, List.length_map] at hb
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
     omega
 
 /-- Clearing the cell of number `i` deletes the clauses numbered `i`. -/
@@ -100,7 +100,7 @@ theorem TableAt.erase {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause �
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
     refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, List.length_cons, List.length_map] at hb
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
     omega
 
 /-! ### The trail -/
@@ -116,7 +116,7 @@ theorem TrailAt.fresh_succ {mem : ℕ → ℕ} {T s : ℕ} {trail : List (Litera
   intro c
   obtain ⟨l, rfl⟩ : ∃ l, litCode l = c :=
     ⟨(c / 2, c % 2 == 1), by
-      simp only [litCode]
+      simp only [litCode, litCodeBy]
       rcases Nat.mod_two_eq_zero_or_one c with h | h <;> simp [h] <;> omega⟩
   exact Nat.lt_succ_of_le (h l).2
 
@@ -174,9 +174,7 @@ theorem assumeLoop_spec (ls : List (Literal ℕ)) (trail : List (Literal ℕ)) (
     have hc : (Cond.lt lptr lend).Holds x := by simp only [Cond.holds_lt, hle]; omega
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp (by simpa using hl)
     have hMl := hM l (by simp)
-    have hx1 : litCode (Std.Sat.Literal.negate l) ≤ litCode l + 1 := by
-      obtain ⟨v, b⟩ := l
-      cases b <;> simp [litCode, Std.Sat.Literal.negate]; omega
+    have hx1 : litCode (Std.Sat.Literal.negate l) ≤ litCode l + 1 := litCodeBy_negate_le _root_.id l
     have : Fits w (litCode l) := hw.of_le (by omega)
     have : Fits w (litCode (Std.Sat.Literal.negate l)) := hw.of_le (by omega)
     have : Fits w (litCode (Std.Sat.Literal.negate l) + litCode (Std.Sat.Literal.negate l)) :=
@@ -191,7 +189,7 @@ theorem assumeLoop_spec (ls : List (Literal ℕ)) (trail : List (Literal ℕ)) (
       OnlyAsg.update T _ s x.mem
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold assumeBody
-    wram_exec [hlit, hone, litCode_xor_one, hT, hst]
+    wram_exec [hlit, hone, litCodeBy_xor_one, hT, hst]
     refine WP.name fun x' hx' => ?_
     obtain ⟨z, hz, hzp, hzoa, hztr, hz1, hzT, hzs, hze⟩ :=
       ih (Std.Sat.Literal.negate l :: trail) x' (by subst hx'; wram_simp [hone])
@@ -231,7 +229,7 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
         y.regs stamp = s + 1 ∧ y.regs out = x.regs out ∧
         TableAt y.mem T ((i, c) :: db) ∧ Fresh y.mem T (s + 1) ∧ ∀ a < T, y.mem a = x.mem a
       else y.regs out = 0 ∧ y.regs ptr = T := by
-  simp only [List.cons_append, List.length_cons, List.length_append, encodeClause,
+  simp only [List.cons_append, List.length_cons, List.length_append, encodeClause, encodeClauseBy,
     encodeNums, List.length_map] at hl hpT
   obtain ⟨hli, hl⟩ := holdsList_cons_iff.mp hl
   obtain ⟨hlen, hl⟩ := holdsList_cons_iff.mp hl
@@ -294,9 +292,9 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
       have hc0 : HoldsList (x.regs ptr + 1) (encodeClause c) x.mem :=
         holdsList_cons_iff.mpr ⟨hlen, hlits⟩
       exact hc0.frame fun a _ ha => hOA.eq_of_lt (by
-        simp only [encodeClause, List.length_cons, List.length_map] at ha; omega)
+        simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at ha; omega)
     refine ⟨hz0, hz1, hzE', hzT, ?_, hzo.trans (hyo), ?_, ?_, fun a ha => ?_⟩
-    · rw [hzp]; simp [encodeClause, encodeNums]; omega
+    · rw [hzp]; simp [encodeClause, encodeClauseBy, encodeNums]; omega
     · exact (htab.of_onlyAsg hOA).cons i c _ (by omega) (by omega) hcz
     · exact hztr.fresh_succ.of_tcell i _
     · simp only [Data.set_mem, Data.write_mem]
@@ -467,17 +465,17 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
     | addRup i c hints =>
       set c' := Clause.ofDIMACS c.toList with hc'
       have hea : (encodeAction (.addRup i c hints)).length = c'.length + hints.size + 4 := by
-        simp [encodeAction, encodeClause, encodeNums, c']; omega
+        simp [encodeAction, encodeClause, encodeClauseBy, encodeNums, c']; omega
       have hwl : (i :: encodeClause c' ++ encodeNums hints.toList).length =
           c'.length + hints.size + 3 := by
-        simp [encodeClause, encodeNums]; omega
+        simp [encodeClause, encodeClauseBy, encodeNums]; omega
       rw [hea] at hpT
       simp only [stepWords] at hpT
       simp only [encodeAction] at hla hMa
       obtain ⟨htag, hla⟩ := holdsList_cons_iff.mp hla
       have hcl : ∀ l ∈ c', litCode l + 1 ≤ M := fun l hl =>
         hMa _ (List.mem_append_left _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-          (by simp only [encodeClause]; exact List.mem_cons_of_mem _ (List.mem_map_of_mem hl)))))
+          (List.mem_cons_of_mem _ (List.mem_map_of_mem hl)))))
       have hiM : i + 1 ≤ M :=
         hMa i (List.mem_append_left _ (List.mem_cons_of_mem _ List.mem_cons_self))
       have hhM : ∀ h ∈ hints.toList, h + 1 ≤ M := fun h hh =>

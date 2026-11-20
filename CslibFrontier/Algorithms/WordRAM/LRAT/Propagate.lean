@@ -102,7 +102,7 @@ theorem TableAt.of_onlyAsg {mem mem' : ℕ → ℕ} {T : ℕ} {db : List (ℕ ×
   obtain ⟨hpos, hlt, hl⟩ := (h i).2 e he
   rw [hm.tcell_eq]
   refine ⟨hpos, hlt, hl.frame fun a _ ha => hm.eq_of_lt ?_⟩
-  simp only [encodeClause, List.length_cons, List.length_map] at ha
+  simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at ha
   omega
 
 /-- Assigning a literal the stamp puts it on the trail. -/
@@ -115,7 +115,7 @@ theorem TrailAt.update {mem : ℕ → ℕ} {T s : ℕ} {trail : List (Literal �
   · have : acell T (litCode l') ≠ acell T (litCode l) := by
       intro he
       simp only [acell] at he
-      exact hl (litCode_injective (by omega))
+      exact hl (litCodeBy_injective Function.injective_id (show litCode l' = litCode l by omega))
     rw [Function.update_of_ne this]
     simpa [hl] using h l'
 

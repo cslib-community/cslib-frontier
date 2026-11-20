@@ -67,20 +67,16 @@ open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.Schoening
 
 variable {n : ℕ}
 
-/-- The literal over `ℕ` with the value of the variable of `l`. -/
-def natLit (l : Literal (Fin n)) : Literal ℕ := (l.1.val, l.2)
-
 /-- The word code `2 v + b` of the literal `(v, b)`
-(`Cslib.Algorithms.WordRAM.ClauseCode.litCode` of its variable's value). -/
-def litCode (l : Literal (Fin n)) : ℕ := ClauseCode.litCode (natLit l)
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy` through the value of the variable). -/
+def litCode (l : Literal (Fin n)) : ℕ := ClauseCode.litCodeBy Fin.val l
 
 /-- A clause is stored as its length followed by the codes of its literals
-(`Cslib.Algorithms.WordRAM.ClauseCode.encodeClause`). -/
-def encodeClause (c : Clause (Fin n)) : List ℕ := ClauseCode.encodeClause (c.map natLit)
+(`Cslib.Algorithms.WordRAM.ClauseCode.encodeClauseBy`). -/
+def encodeClause (c : Clause (Fin n)) : List ℕ := ClauseCode.encodeClauseBy Fin.val c
 
 /-- The words of a clause: its length, then the codes of its literals. -/
-theorem encodeClause_eq (c : Clause (Fin n)) : encodeClause c = c.length :: c.map litCode := by
-  simp [encodeClause, ClauseCode.encodeClause, litCode, Function.comp_def]
+theorem encodeClause_eq (c : Clause (Fin n)) : encodeClause c = c.length :: c.map litCode := rfl
 
 /-- The clauses of a formula, stored one after another. -/
 def encodeClauses (φ : CNF (Fin n)) : List ℕ := φ.flatMap encodeClause
@@ -104,16 +100,16 @@ theorem encodeClauses_cons (c : Clause (Fin n)) (φ : CNF (Fin n)) :
 theorem litCode_lt (l : Literal (Fin n)) : litCode l < 2 * n := by
   obtain ⟨v, b⟩ := l
   have := v.isLt
-  cases b <;> simp only [litCode, natLit, ClauseCode.litCode, Bool.toNat_false,
+  cases b <;> simp only [litCode, ClauseCode.litCodeBy, Bool.toNat_false,
     Bool.toNat_true] <;> omega
 
 /-- Shifting a literal code right recovers its variable. -/
 theorem litCode_shiftRight (l : Literal (Fin n)) : litCode l >>> 1 = l.1.val :=
-  ClauseCode.litCode_shiftRight _
+  ClauseCode.litCodeBy_shiftRight _ _
 
 /-- The low bit of a literal code is its sign. -/
 theorem litCode_and_one (l : Literal (Fin n)) : litCode l &&& 1 = l.2.toNat :=
-  ClauseCode.litCode_and_one _
+  ClauseCode.litCodeBy_and_one _ _
 
 /-- The assignment `σ` is stored as the words `(σ i).toNat` from address `base`. -/
 def AssignAt (mem : ℕ → ℕ) (base : ℕ) (σ : Fin n → Bool) : Prop :=

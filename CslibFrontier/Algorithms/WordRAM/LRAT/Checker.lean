@@ -9,7 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Steps
-import CslibFrontier.Foundations.Data.List.Fold
+import Mathlib.Data.List.MinMax
 
 /-!
 # An LRAT checker on the word RAM: correctness and running time
@@ -95,7 +95,7 @@ theorem TableAt.snoc {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
     subst he
     simp only [Function.update_self]
     refine ⟨ha, haT, hc.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, List.length_cons, List.length_map] at hb
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
     omega
   · have hne : tcell T j ≠ tcell T i := by simp only [tcell]; omega
     have hfind : (db ++ [(i, c)]).find? (·.1 == j) = db.find? (·.1 == j) := by
@@ -104,7 +104,7 @@ theorem TableAt.snoc {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
     refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, List.length_cons, List.length_map] at hb
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
     omega
 
 /-! ### Loading the formula -/
@@ -133,13 +133,13 @@ theorem loadLoop_spec (done ψ : CNF ℕ) (x : Data 28) (M T : ℕ)
     simp [Cond.holds_lt, hn, hcnt]
   | cons c ψ ih =>
     simp only [List.length_cons] at hn hnM
-    simp only [List.flatMap_cons, List.length_append, encodeClause, List.length_cons,
-      List.length_map] at hpT
+    simp only [List.flatMap_cons, List.length_append, encodeClause, encodeClauseBy,
+      List.length_cons, List.length_map] at hpT
     have hc : (Cond.lt cnt nCl).Holds x := by simp only [Cond.holds_lt, hn, hcnt]; omega
     rw [List.flatMap_cons] at hl
     obtain ⟨hcl, hrest⟩ := holdsList_append_iff.mp hl
     obtain ⟨hlen, -⟩ := holdsList_cons_iff.mp hcl
-    simp only [encodeClause, List.length_cons, List.length_map] at hrest
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hrest
     have : Fits w (done.length + 1 + (done.length + 1)) := hw.of_le (by omega)
     have : Fits w (T + (done.length + 1 + (done.length + 1))) := hw.of_le (by omega)
     have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
@@ -177,7 +177,7 @@ theorem loadLoop_spec (done ψ : CNF ℕ) (x : Data 28) (M T : ℕ)
     wram_simp at hzp hzm
     refine ⟨?_, ?_, by simpa using hztab, hzfr, fun a ha => ?_⟩
     · simp only [List.length_cons]; omega
-    · rw [hzp]; simp [encodeClause]; omega
+    · rw [hzp]; simp [encodeClause, encodeClauseBy]; omega
     · rw [hzm a ha]; exact Function.update_of_ne (by omega) _ _
 
 end Specs
@@ -198,7 +198,7 @@ theorem length_le_length_flatMap_encodeClause (ψ : CNF ℕ) :
     ψ.length ≤ (ψ.flatMap encodeClause).length := by
   induction ψ with
   | nil => simp
-  | cons c ψ ih => simp [encodeClause]; omega
+  | cons c ψ ih => simp [encodeClause, encodeClauseBy]; omega
 
 section Specs
 
@@ -217,7 +217,7 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   set T := L + 1
   set M := input.foldr max 0 + 1
   have hTL : T = L + 1 := rfl
-  have hM : ∀ v ∈ input, v + 1 ≤ M := fun v hv => by have := List.le_foldr_max_of_mem hv; omega
+  have hM : ∀ v ∈ input, v + 1 ≤ M := fun v hv => by have := List.le_max_of_le' 0 hv le_rfl; omega
   have hw' : Fits w (T + 2 * M + 2) := hw.of_le (by simp only [wordBound, T, M, L, hinput]; omega)
   set F := φ.flatMap encodeClause
   set C := cert.toList.flatMap encodeAction
@@ -289,7 +289,7 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
         rw [hinputeq]
         refine List.mem_cons_of_mem _ (List.mem_append_left _ (List.mem_flatMap.mpr
           ⟨e.2, snd_mem_of_mem_numbered he, ?_⟩))
-        simp only [encodeClause]; exact List.mem_cons_of_mem _ (List.mem_map_of_mem hl)),
+        exact List.mem_cons_of_mem _ (List.mem_map_of_mem hl)),
       hw', by rw [hyp]; omega⟩
     (by
       rw [hyp]

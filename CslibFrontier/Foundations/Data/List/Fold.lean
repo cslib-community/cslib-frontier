@@ -22,7 +22,6 @@ public import Mathlib.Data.List.Basic
   regardless of duplicates or fallback. Used by finite-control certificates.
 * `List.foldl_or_eq`, `List.foldl_min_add_eq`: folding a disjunction is `List.any`, and folding a
   sum capped at `cap` caps the sum.
-* `List.le_foldr_max_of_mem`: every entry is at most `l.foldr max 0`.
 
 ## References
 
@@ -93,8 +92,3 @@ theorem List.foldl_min_add_eq {α : Type*} (cap : ℕ) (f : α → ℕ) {b : ℕ
   | [], init => by simp
   | x :: xs, init => by
     rw [List.foldl_cons, foldl_and_eq_and_all, List.all_cons, Bool.and_assoc]
-
-/-- Every entry of a list of naturals is at most its maximum `l.foldr max 0`. -/
-theorem List.le_foldr_max_of_mem : ∀ {l : List ℕ} {a : ℕ}, a ∈ l → a ≤ l.foldr max 0
-  | _, _, .head _ => Nat.le_max_left _ _
-  | _ :: _, _, .tail _ h => Nat.le_trans (List.le_foldr_max_of_mem h) (Nat.le_max_right _ _)
