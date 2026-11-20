@@ -18,6 +18,9 @@ This module defines `Cslib.Crypto.Protocols.SSP.parFinLazy`, the lazy first-touc
 `Cslib.Crypto.Protocols.SSP.parFin`, and proves that for every adaptive client program `program`
 over `SSP.sessionSpec m E`, running `parFinLazy M` has the same output distribution as running
 eager `SSP.parFin M` (`Cslib.Crypto.Protocols.SSP.run_parFinLazy_eq_parFin`).
+Because `CslibFrontier.Crypto.Protocols.SSP.Basic` supplies `UC.Machine` via
+`CslibFrontier.Crypto.Protocols.UC.Linking`, SSP callers can import this bridge without importing
+the UC ideal-functionality, execution, or joint-state modules.
 
 ## Proof strategy
 
