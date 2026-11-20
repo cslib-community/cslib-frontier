@@ -166,7 +166,7 @@ example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length 
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg [true]) indices =
       some ([false, true], final)) : ¬final.Halted := by
   intro hhalt
-  have h := (R.replay_correct [true] rfl hr hhalt).2.1 1 (by decide)
+  have h := (R.replay_correct [true] rfl hr hhalt).1.2 1 (by decide)
   exact Bool.noConfusion h
 
 open NondeterministicQueryMachine in
@@ -176,6 +176,6 @@ example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length +
     {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) input}
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg input) indices =
       some ([false, true], final)) (hhalt : final.Halted) : final.output = [true] :=
-  (R.replay_correct input rfl hr hhalt).2.2
+  (R.replay_correct input rfl hr hhalt).2
 
 end CslibFrontierTests.NondeterministicQueryMachineCompiler
