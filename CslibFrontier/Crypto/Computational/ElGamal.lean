@@ -355,17 +355,16 @@ theorem decodeElGamal_encodeElGamalEncrypt (d : F.Desc) (a b : ℕ) (m : F.Carri
 theorem computableInPolyTime_decodeElGamal :
     ComputableInPolyTime F.decodeElGamal
       (encPair F.encDesc (encPair encNat (encPair encBits encBits))) encBits := by
-  have hd := ComputableTidilyInPolyTime.fst F.encDesc (encPair encNat (encPair encBits encBits))
-  have h2 := ComputableTidilyInPolyTime.snd F.encDesc (encPair encNat (encPair encBits encBits))
-  have ha := (ComputableTidilyInPolyTime.fst encNat (encPair encBits encBits)).comp h2
-  have h3 := (ComputableTidilyInPolyTime.snd encNat (encPair encBits encBits)).comp h2
-  have hv := (ComputableTidilyInPolyTime.fst encBits encBits).comp h3
-  have he := (ComputableTidilyInPolyTime.snd encBits encBits).comp h3
-  have horder := F.computableInPolyTime_order.tidy.comp hd
-  have hexp := ComputableTidilyInPolyTime.binary_sub' horder (.binary_mod' ha horder)
-  have hsmul := F.computableInPolyTime_smul.tidy.comp (hd.prod (hexp.prod hv))
-  exact ComputableInPolyTime.of_tidy
-    (F.computableInPolyTime_add.tidy.comp (hd.prod (he.prod hsmul)))
+  have hd := ComputableInPolyTime.fst F.encDesc (encPair encNat (encPair encBits encBits))
+  have h2 := ComputableInPolyTime.snd F.encDesc (encPair encNat (encPair encBits encBits))
+  have ha := (ComputableInPolyTime.fst encNat (encPair encBits encBits)).comp h2
+  have h3 := (ComputableInPolyTime.snd encNat (encPair encBits encBits)).comp h2
+  have hv := (ComputableInPolyTime.fst encBits encBits).comp h3
+  have he := (ComputableInPolyTime.snd encBits encBits).comp h3
+  have horder := F.computableInPolyTime_order.comp hd
+  have hexp := ComputableInPolyTime.binary_sub' horder (.binary_mod' ha horder)
+  have hsmul := F.computableInPolyTime_smul.comp (hd.prod (hexp.prod hv))
+  exact (F.computableInPolyTime_add.comp (hd.prod (he.prod hsmul)))
 
 /-! ### Shared typed-message ElGamal IND-CPA reduction ([BonehShoup2023], Exercise 11.5(a)) -/
 
@@ -853,7 +852,7 @@ theorem advantage_elGamalCPAGame_le_ideal (setup : ℕ → PMF F.Desc)
 theorem isPPT_elGamalToDDHDistinguisher {adversary : Encryption.Adversary}
     (hA : adversary.IsPPT) (bit : Bool) : (F.elGamalToDDHDistinguisher adversary bit).IsPPT :=
   F.isPPT_elGamalMsgToDDHDistinguisher
-    (ComputableTidilyInPolyTime.const true).computableInPolyTime F.computableInPolyTime_encodeBit hA
+    (ComputableInPolyTime.const true) F.computableInPolyTime_encodeBit hA
     bit
 
 /-- Ideal-sampling step toward `DDH.indcpa_elGamalBitEncryptProb`, not the cited result: under DDH

@@ -45,7 +45,7 @@ local notation "RawStrategy" => CommutingStrategy (Question F (n + 1)) (Question
     CommutingStrategy F (Point F n) (Option (BoundedPolynomial F n d))
       (PolynomialFunction F d) A :=
   sliceLineStrategy S.state M (decodedVertical S.bob d) fun t u a b =>
-    commute_decodedVertical S.bob d u ((M t).effect a) (hComm t u a) b
+    Measurement.commute_map_right _ (decodeVertical d u) _ (hComm t u a) b
 
 /-- The isolated slice mismatch for the decoded vertical line is bounded by the slice
 mismatch for Bob's point answer and the verifier's two branch losses. -/

@@ -39,9 +39,9 @@ variable (F : PrimeOrderGroupFamily)
 theorem exists_length_encode_le :
     ∃ c k : ℕ, ∀ d : F.Desc, ∀ x : F.Carrier d,
       (F.encode d x).length ≤ c * ((F.encDesc d).length + 1) ^ k := by
-  obtain ⟨co, ko, hord⟩ := F.computableInPolyTime_order.tidy.polyBounded_length.exists_le
-  obtain ⟨cg, kg, hgen⟩ := F.computableInPolyTime_generator.tidy.polyBounded_length.exists_le
-  obtain ⟨cs, ks, hsmul⟩ := F.computableInPolyTime_smul.tidy.polyBounded_length.exists_le
+  obtain ⟨co, ko, hord⟩ := F.computableInPolyTime_order.polyBounded_length.exists_le
+  obtain ⟨cg, kg, hgen⟩ := F.computableInPolyTime_generator.polyBounded_length.exists_le
+  obtain ⟨cs, ks, hsmul⟩ := F.computableInPolyTime_smul.polyBounded_length.exists_le
   have hpoly : PolynomiallyBounded
       (fun L => cs * (2 * L + 4 * (co * (L + 1) ^ ko) + 4 * (cg * (L + 1) ^ kg) + 7) ^ ks) := by
     fun_prop

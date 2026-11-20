@@ -412,6 +412,7 @@ private theorem computableInPolyTime_returnStep :
     ComputableInPolyTime (fun s : EvalState α =>
       (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0)))
       (encEvalState enc) (encEvalState enc) := by
+  have hinc := ComputableInPolyTime.increment
   fun_prop [returnStep]
 
 /-- Pushing a frame is polynomial-time. -/

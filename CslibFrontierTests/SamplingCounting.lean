@@ -28,6 +28,9 @@ hypothesis. The exact counter is strict PPT, which gives checked instances of
 
 namespace CslibFrontierTests.SamplingCounting
 
+-- Keep certificate search at the function-level API, without expanding machine witnesses.
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 open Cslib Cslib.Complexity Cslib.Probability Turing.MultiTapeTM
 
 /-- All words of length `n`. -/

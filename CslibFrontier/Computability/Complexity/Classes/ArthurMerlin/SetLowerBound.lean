@@ -162,9 +162,35 @@ theorem computableInPolyTime_verifier {N c m T : Polynomial ℕ} {ℓ : α → �
     {R : α × List Bool → Bool} (hℓ : ComputableInPolyTime ℓ enc encUnary)
     (hR : ComputableInPolyTime R (encPair enc encBits) encBool) :
     ComputableInPolyTime (verifier enc N c m T ℓ R) (encPair enc encBits) encBool := by
-  unfold verifier
-  dsimp only
-  fun_prop
+  have ha := ComputableInPolyTime.fst enc encBits
+  have hword := ComputableInPolyTime.snd enc encBits
+  have hn := (ComputableInPolyTime.encoding_length enc).comp ha
+  have hN := (ComputableInPolyTime.unary_eval N).comp hn
+  have hc := (ComputableInPolyTime.unary_eval c).comp hn
+  have hm := (ComputableInPolyTime.unary_eval m).comp hn
+  have hT := (ComputableInPolyTime.unary_eval T).comp hn
+  have hfiveN := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 5) hN
+  have hM := ComputableInPolyTime.unary_add' hfiveN hT
+  have hP := ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' hm hM) hm
+  have he := ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.bitsDropWithInput hword hP) hM
+  have hblocks := ComputableInPolyTime.bitsTakeWithInput he hfiveN
+  have hcerts := ComputableInPolyTime.bitsDropWithInput hword
+    (ComputableInPolyTime.unary_add' hP hM)
+  have hrows := ComputableInPolyTime.allConst (List.range 5) fun i _ =>
+    hR.comp (ha.prod (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsRowWithInput hN (ComputableInPolyTime.const i) hblocks)
+      (ComputableInPolyTime.bitsRowWithInput hc (ComputableInPolyTime.const i) hcerts)))
+  have hpadding := ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.bitsDropWithInput he hfiveN) (hℓ.comp ha)
+  have hzero := ComputableInPolyTime.bool_not.comp
+    (ComputableInPolyTime.bitsAnyWithInput (test := fun _ b => b) hpadding
+      (ComputableInPolyTime.snd _ encBool))
+  have hhash := BitString.LinearHash.computableInPolyTime_hashZero hm hM
+    (ComputableInPolyTime.bitsTakeWithInput hword hP) he
+  change ComputableInPolyTime (fun x => verifier enc N c m T ℓ R x) _ _
+  simpa only [verifier, Function.comp_def] using
+    ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hrows hzero) hhash
 
 /-- On a seed, an element and five certificates, the verifier accepts exactly when the blocks of
 the element have accepted certificates, the padding starts with `ℓ` bits `false` and the affine

@@ -6,6 +6,8 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Protocols.Quantum.OneTimePad
 import CslibFrontier.Foundations.Quantum.Bell
+import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
 import CslibFrontier.Foundations.Quantum.Pauli
 
 /-! Density matrices, the partial trace, no-signalling and the quantum one-time pad: concrete
@@ -14,7 +16,7 @@ instances and edge cases. -/
 namespace CslibFrontierTests.QuantumDensity
 
 open Cslib.Quantum Cslib.Crypto.Protocols.Quantum.OneTimePad Matrix Finset
-open scoped Kronecker
+open scoped Kronecker MatrixOrder
 
 /-! ### Density matrices -/
 
@@ -134,5 +136,124 @@ example : averageCiphertextWith (pureState (maxEntangled (Unit → Bool))) =
     ((2 : ℂ)⁻¹ • (1 : Op Unit)) ⊗ₖ ((2 : ℂ)⁻¹ • (1 : Op Unit)) := by
   rw [averageCiphertextWith_eq, partialTraceLeft_pureState_maxEntangled]
   norm_num
+
+private theorem partialTraceRight_ket_pair (i : Bool) (k : Fin 3) :
+    partialTraceRight (pureState (ket (i, k))) = pureState (ket i) := by
+  ext a b
+  cases i <;> cases a <;> cases b <;>
+    simp [partialTraceRight_apply, pureState_apply, ket_apply, Finset.sum_ite_eq']
+
+-- Unequal local dimensions and rank-one reductions are allowed in the overlap theorem.
+example :
+    rootFidelity (partialTraceRight (pureState (ket (false, (0 : Fin 3)))))
+      (partialTraceRight (pureState (ket (false, (1 : Fin 3))))) = 1 := by
+  let ψ := ket (false, (0 : Fin 3))
+  let φ := ket (false, (1 : Fin 3))
+  have he : partialTraceRight (pureState ψ) = partialTraceRight (pureState φ) :=
+    (partialTraceRight_ket_pair false 0).trans (partialTraceRight_ket_pair false 1).symm
+  obtain ⟨U, hU, h⟩ := exists_localUnitary_of_partialTraceRight_eq ψ φ he
+  change rootFidelity (partialTraceRight (pureState ψ)) (partialTraceRight (pureState φ)) = 1
+  have hlo := inner_localUnitary_re_le_rootFidelity ψ φ U hU
+  rw [h] at hlo
+  have hφ : ‖φ‖ = 1 := norm_ket _
+  have hself : (inner ℂ φ φ).re = 1 := by
+    change RCLike.re (inner ℂ φ φ) = 1
+    rw [inner_self_eq_norm_sq, hφ, one_pow]
+  rw [hself] at hlo
+  obtain ⟨_, _, hdist⟩ := exists_localUnitary_norm_sub_sq_eq ψ φ (norm_ket _) hφ
+  have hhi := hdist ▸ sq_nonneg _
+  linarith
+
+private theorem traceNorm_orthogonal_qubit_states :
+    (pureState (ket false) - pureState (ket true)).traceNorm = 2 := by
+  let D : Matrix Bool Bool ℂ := diagonal fun b => if b then -1 else 1
+  have hD : pureState (ket false) - pureState (ket true) = D := by
+    ext i j
+    cases i <;> cases j <;> simp [D, pureState_apply, ket_apply, diagonal]
+  have hgram : Dᴴ * D = 1 := by
+    unfold D
+    rw [diagonal_conjTranspose, diagonal_mul_diagonal, ← diagonal_one]
+    congr 1
+    funext b
+    cases b <;> simp
+  rw [hD, traceNorm, hgram, CFC.sqrt_one, trace_one]
+  norm_num [Fintype.card_bool]
+
+-- Orthogonal rank-one reductions have trace norm difference two, even with a larger purifier.
+example :
+    ∃ U ∈ unitaryGroup (Fin 3) ℂ,
+      ‖WithLp.toLp 2 (((1 : Matrix Bool Bool ℂ) ⊗ₖ U) *ᵥ
+        (ket (false, (0 : Fin 3))).ofLp) - ket (true, (1 : Fin 3))‖ ^ 2 ≤ 2 := by
+  obtain ⟨U, hU, h⟩ := exists_localUnitary_norm_sub_sq_le_traceNorm
+    (ket (false, (0 : Fin 3))) (ket (true, (1 : Fin 3))) (norm_ket _) (norm_ket _)
+  refine ⟨U, hU, h.trans_eq ?_⟩
+  rw [partialTraceRight_ket_pair, partialTraceRight_ket_pair]
+  exact traceNorm_orthogonal_qubit_states
+-- The upper inequality detects zero fidelity from maximal trace distance, including at
+-- these singular density matrices.
+example : rootFidelity (pureState (ket false)) (pureState (ket true)) = 0 := by
+  have h := traceDistance_le_sqrt_one_sub_rootFidelity_sq
+    (isDensityMatrix_pureState (norm_ket false)) (isDensityMatrix_pureState (norm_ket true))
+  rw [traceDistance, traceNorm_orthogonal_qubit_states] at h
+  have hOne : (1 : ℝ) ≤ Real.sqrt (1 - rootFidelity (pureState (ket false))
+      (pureState (ket true)) ^ 2) := by simpa only [show (2 : ℝ) / 2 = 1 by norm_num] using h
+  have hSq := (Real.le_sqrt' (by norm_num : (0 : ℝ) < 1)).mp hOne
+  apply sq_eq_zero_iff.mp
+  exact le_antisymm (by linarith) (sq_nonneg _)
+
+-- Disjoint one-dimensional supports give infinite relative entropy.
+private theorem relativeEntropy_orthogonal_qubit_states :
+    relativeEntropy (pureState (ket false)) (pureState (ket true)) = ⊤ := by
+  apply relativeEntropy_of_not_supportLE
+  intro h
+  let v := (ket false).ofLp
+  have hz : (pureState (ket true)) *ᵥ v = 0 := by
+    funext i
+    cases i <;> simp [v, mulVec, dotProduct, pureState_apply, ket_apply]
+  have he := congrFun (h v hz) false
+  simp [v, mulVec, dotProduct, pureState_apply, ket_apply] at he
+
+-- Zero relative entropy of the common rank-one reduction gives exact alignment even
+-- when the original purifying vectors use different coordinates.
+example : ∃ U ∈ unitaryGroup (Fin 3) ℂ,
+    WithLp.toLp 2 (((1 : Matrix Bool Bool ℂ) ⊗ₖ U) *ᵥ
+      (ket (false, (0 : Fin 3))).ofLp) = ket (false, (1 : Fin 3)) := by
+  obtain ⟨U, hU, h⟩ := exists_localUnitary_norm_sub_sq_le_relativeEntropy
+    (ket (false, (0 : Fin 3))) (ket (false, (1 : Fin 3))) (norm_ket _) (norm_ket _)
+  rw [partialTraceRight_ket_pair, partialTraceRight_ket_pair, relativeEntropy_self,
+    ← WithTop.coe_zero, WithTop.coe_le_coe] at h
+  have hz := sq_eq_zero_iff.mp (le_antisymm h (sq_nonneg _))
+  exact ⟨U, hU, sub_eq_zero.mp (norm_eq_zero.mp hz)⟩
+
+-- An incompatible conditional block contributes zero when its source label has zero mass.
+example : relativeEntropy
+    (classicalQuantumState (PMF.pure false) (fun _ => pureState (ket false)))
+    (classicalQuantumState (PMF.pure false) (fun x => pureState (ket x))) = 0 := by
+  let : MeasurableSpace Bool := ⊤
+  let : MeasurableSingletonClass Bool := ⟨fun _ => trivial⟩
+  rw [relativeEntropy_classicalQuantumState _ _
+    (fun _ => isDensityMatrix_pureState (norm_ket false))
+    (fun x => isDensityMatrix_pureState (norm_ket x)), InformationTheory.klDiv_self,
+    Fintype.sum_bool]
+  simp [PMF.pure_apply]
+
+-- At positive source mass, the same support failure gives infinite divergence.
+example : relativeEntropy
+    (classicalQuantumState (PMF.pure false) (fun _ => pureState (ket false)))
+    (classicalQuantumState (PMF.pure false) (fun _ => pureState (ket true))) = ⊤ := by
+  let : MeasurableSpace Bool := ⊤
+  let : MeasurableSingletonClass Bool := ⟨fun _ => trivial⟩
+  rw [relativeEntropy_classicalQuantumState _ _
+    (fun _ => isDensityMatrix_pureState (norm_ket false))
+    (fun _ => isDensityMatrix_pureState (norm_ket true)), InformationTheory.klDiv_self,
+    Fintype.sum_bool]
+  simp [PMF.pure_apply, relativeEntropy_orthogonal_qubit_states]
+
+-- A deterministic classical label carries no information about its quantum block.
+example : mutualInformation
+    (classicalQuantumState (PMF.pure false) (fun x => pureState (ket x))) = 0 := by
+  rw [mutualInformation_classicalQuantumState _ (fun x => isDensityMatrix_pureState (norm_ket x)),
+    partialTraceRight_classicalQuantumState, Fintype.sum_bool, Fintype.sum_bool]
+  simp [PMF.pure_apply]
 
 end CslibFrontierTests.QuantumDensity

@@ -14,7 +14,7 @@ public import Mathlib.Algebra.Field.ZMod
 # Fixed-length polynomial hash clients
 
 These ordinary-module clients exercise the public coefficient-order bridges, a nonvacuous
-restricted seed-space bound, the empty vector, and the full-field specialization.
+restricted seed-space bound, the empty vector, and both full-field bounds.
 -/
 
 public section
@@ -48,11 +48,11 @@ example :
         3 ^ 2 + coeffPolyHash 3 restrictedX :=
   ⟨coeffPolyHash_eq_polynomialHash_rev 3 restrictedX, polyHash_ofFn_eq 3 restrictedX⟩
 
-/-- The three-point embedding gives the nontrivial theorem bound `2 / 3 < 1`. -/
+/-- The three-point embedding gives the nontrivial theorem bound `1 / 3 < 1`. -/
 example :
     IsUniversalHash (PMF.uniformOfFintype (Fin 3))
-        (fun s (x : Fin 2 → ZMod 5) => coeffPolyHash (finThreeToZModFive s) x) (2 / 3) ∧
-      (2 / 3 : ℝ≥0∞) < 1 := by
+        (fun s (x : Fin 2 → ZMod 5) => coeffPolyHash (finThreeToZModFive s) x) (1 / 3) ∧
+      (1 / 3 : ℝ≥0∞) < 1 := by
   constructor
   · simpa using isUniversalHash_coeffPolyHash_of_embedding finThreeToZModFive 2
   · rw [ENNReal.div_lt_iff (by norm_num) (by norm_num)]
@@ -66,7 +66,24 @@ example (k : ZMod 5) (x : Fin 0 → ZMod 5) : coeffPolyHash k x = 0 := by
 example :
     IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
       (fun k (x : Fin 2 → ZMod 5) => coeffPolyHash k x)
-      (2 / Fintype.card (ZMod 5)) :=
-  isUniversalHash_coeffPolyHash 2
+      (1 / Fintype.card (ZMod 5)) := by
+  simpa using isUniversalHash_coeffPolyHash (F := ZMod 5) 2
+
+/-- A one-coefficient hash never collides. After multiplication by the key, each
+specified difference has probability at most one over the field size. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+        (fun k (x : Fin 1 → ZMod 5) => coeffPolyHash k x) 0 ∧
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 5))
+        (fun k (x : Fin 1 → ZMod 5) => k * coeffPolyHash k x)
+          (1 / Fintype.card (ZMod 5)) := by
+  exact ⟨by simpa using isUniversalHash_coeffPolyHash (F := ZMod 5) 1,
+    by simpa using isDeltaUniversalHash_mul_coeffPolyHash (F := ZMod 5) 1⟩
+
+/-- A nonzero difference is attained at two keys for these length-two messages. -/
+example :
+    (Finset.univ.filter fun k : ZMod 5 =>
+      k * coeffPolyHash k restrictedX - k * coeffPolyHash k restrictedY = 1).card = 2 := by
+  decide
 
 end CslibFrontierTests.HashFamilyPolynomial
