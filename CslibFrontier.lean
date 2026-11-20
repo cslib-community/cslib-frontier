@@ -3804,6 +3804,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Hard
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePartrec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partialize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.PostTheorem
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Reduction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Rice
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SMN
