@@ -118,6 +118,22 @@ def fieldDegree (w n : ℕ) : ℕ :=
 theorem fieldDegree_ne_zero (w n : ℕ) : fieldDegree w n ≠ 0 :=
   bits_ne_zero _
 
+/-- The chosen degree is the first `16 * (s + 1)` whose message capacity meets the
+required threshold. The threshold also bounds the number of unsuccessful scales. -/
+theorem fieldDegree_spec (w n : ℕ) :
+    let threshold := 512 * (Nat.log2 (w * (n + 1)) + 1)
+    ∃ s ≤ threshold, fieldDegree w n = 16 * (s + 1) ∧
+      threshold ≤ 2 ^ (16 * (s + 1) - 1) * (16 * (s + 1)) ∧
+      ∀ j < s, 2 ^ (16 * (j + 1) - 1) * (16 * (j + 1)) < threshold := by
+  have hle := Nat.find_min' (exists_scale w n) (le_capacity (512 * target w n))
+  have hmin {j : ℕ} (hj : j < scale w n) :
+      capacity j < 512 * target w n :=
+    Nat.lt_of_not_ge (Nat.find_min (exists_scale w n) hj)
+  simpa only [target, ← Nat.log2_eq_log_two, capacity, dimension, bits] using
+    (show ∃ s ≤ 512 * target w n, fieldDegree w n = bits s ∧
+        512 * target w n ≤ capacity s ∧ ∀ j < s, capacity j < 512 * target w n
+      from ⟨scale w n, hle, rfl, target_le_capacity w n, fun _ hj => hmin hj⟩)
+
 /-- Code coordinates are a nonzero evaluation point, a Wozencraft half, and a bit within it. -/
 abbrev Coordinate (w n : ℕ) : Type :=
   (BinaryField (fieldDegree w n))ˣ × (Fin 2 × Fin (fieldDegree w n))
