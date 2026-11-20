@@ -131,7 +131,18 @@ noncomputable def weakToPrfDistinguisher (adversary : OracleDistinguisher) :
 private theorem isOraclePPTOn_weakSampleQuery :
     IsOraclePPTOn (encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)) encBits
       (fun pair : (ℕ × List Bool) × (Unit × List Bool) => weakSampleQuery pair.1.1) := by
-  ppt [weakSampleQuery]
+  let input := encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)
+  have hn := (ComputableInPolyTime.fst (encPair encUnary encBits)
+    (encPair (encFinEnum Unit) encBits)).fst'
+  have hsample := (ComputableInPolyTime.sampleList hn).isOraclePPTOn (Operation := Unit)
+  have hquery := IsOraclePPTOn.query_take ()
+    (ComputableInPolyTime.snd input encBits)
+    (hn.comp (ComputableInPolyTime.fst input encBits))
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair input encBits) encBits)
+  simpa only [weakSampleQuery, bind_pure_comp] using
+    hsample.bind_with (hquery.map_with
+      (ComputableInPolyTime.bitsAppend hp.fst'.snd' hp.snd'))
 
 private theorem length_le_of_mem_support_weakSampleQuery {n : ℕ} {reply : List Bool}
     (hreply : reply ∈ OracleComp.support (weakSampleQuery n)) : reply.length ≤ 2 * n + 2 := by

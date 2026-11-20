@@ -207,8 +207,8 @@ theorem isPPTOn_pedersenKeyGenProb :
   have hn := ComputableInPolyTime.fst encUnary F.encDesc
   have hd := ComputableInPolyTime.snd encUnary F.encDesc
   have hs := F.isPPTOn_sampleExp hn hd
-  have hg := F.computableInPolyTime_generator.tidy
-  have hsmul := F.computableInPolyTime_smul.tidy
+  have hg := F.computableInPolyTime_generator
+  have hsmul := F.computableInPolyTime_smul
   have hpair : ComputableInPolyTime
       (fun q : (ℕ × F.Desc) × ℕ =>
         (q.1.2, F.smul (q.1.2, q.2, F.encode q.1.2 (F.generator q.1.2))))

@@ -149,9 +149,9 @@ theorem isPPT_lengthStrengthenedWrapper {h : List Bool → List Bool → List Bo
     (ha : IsPPT (encPair encBits encBits) adversary) :
     IsPPT (encPair encBits encBits) (lengthStrengthenedWrapper h valid adversary) := by
   have hCol := (computableInPolyTime_isCollision
-    (computableInPolyTime_lengthStrengthenedMD hh hlen) hvalid).tidy
-  have hExt := (computableInPolyTime_extractChainCollision hh hlen).tidy
-  have hBlk := computableInPolyTime_mdLengthBlocks.tidy
+    (computableInPolyTime_lengthStrengthenedMD hh hlen) hvalid)
+  have hExt := (computableInPolyTime_extractChainCollision hh hlen)
+  have hBlk := computableInPolyTime_mdLengthBlocks
   unfold lengthStrengthenedWrapper
   ppt
 

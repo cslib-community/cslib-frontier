@@ -10,8 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!

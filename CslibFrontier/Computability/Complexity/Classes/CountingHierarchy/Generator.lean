@@ -73,7 +73,7 @@ private theorem computableInPolyTime_generatorIndexTest :
     exact ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' (.const 0) hg)
       (ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' hg hp)
         (ComputableInPolyTime.decide_or
-          (ComputableInPolyTime.of_tidy (hd.tidy.decide_eq' (.const 0)))
+          ((hd.decide_eq' (.const 0)))
           (ComputableInPolyTime.decide_or (ComputableInPolyTime.binary_le' hpred hd)
             (ComputableInPolyTime.decide_ne (ComputableInPolyTime.snd _ _) (.const 1)))))
   exact ComputableInPolyTime.bool_and.comp

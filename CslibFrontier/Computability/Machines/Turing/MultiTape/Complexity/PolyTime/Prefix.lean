@@ -40,7 +40,7 @@ variable {α β : Type} {enc : α ↪ List Bool} {encB : β ↪ List Bool}
     ComputableInPolyTime (fun a => (xs a).takeWhile (pred a)) enc (encList encB) := by
   have hn := findIdxWithInput (pred := fun a b => !(pred a b)) hx (by fun_prop)
   simpa only [List.takeWhile_eq_take_findIdx_not] using
-    (ComputableTidilyInPolyTime.listTakeWithInput hx.tidy hn.tidy).computableInPolyTime
+    (ComputableInPolyTime.listTakeWithInput hx hn)
 
 /-- Drop the maximal prefix passing an input-dependent polynomial-time predicate. -/
 @[fun_prop] theorem dropWhileWithInput
@@ -49,6 +49,6 @@ variable {α β : Type} {enc : α ↪ List Bool} {encB : β ↪ List Bool}
     ComputableInPolyTime (fun a => (xs a).dropWhile (pred a)) enc (encList encB) := by
   have hn := findIdxWithInput (pred := fun a b => !(pred a b)) hx (by fun_prop)
   simpa only [List.dropWhile_eq_drop_findIdx_not] using
-    (ComputableTidilyInPolyTime.listDropWithInput hx.tidy hn.tidy).computableInPolyTime
+    (ComputableInPolyTime.listDropWithInput hx hn)
 
 end Turing.MultiTapeTM.ComputableInPolyTime

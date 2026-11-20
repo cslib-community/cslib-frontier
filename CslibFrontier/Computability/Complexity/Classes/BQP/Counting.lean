@@ -89,8 +89,44 @@ theorem computableInPolyTime_pathStep :
     ComputableInPolyTime (fun p : (List Bool × List Bool × Bool) × GateCode => pathStep p.1 p.2)
       (encPair (encPair encBits (encPair encBits encBool)) encGateCode)
       (encPair encBits (encPair encBits encBool)) := by
+  have hs := (ComputableInPolyTime.fst
+    (encPair encBits (encPair encBits encBool)) encGateCode).fst'
+  have hp := (ComputableInPolyTime.fst
+    (encPair encBits (encPair encBits encBool)) encGateCode).snd'.fst'
+  have hsign := (ComputableInPolyTime.fst
+    (encPair encBits (encPair encBits encBool)) encGateCode).snd'.snd'
+  have hg := ComputableInPolyTime.snd
+    (encPair encBits (encPair encBits encBool)) encGateCode
+  have ht := hg.snd'.fst'
+  have hbit := ComputableInPolyTime.bitsGetDWithInput hs ht false
+  have hhead := (ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hp
+  have hall : ComputableInPolyTime
+      (fun p : (List Bool × List Bool × Bool) × GateCode =>
+        p.2.2.2.all fun c => p.1.1.getD c false)
+      (encPair (encPair encBits (encPair encBits encBool)) encGateCode) encBool := by
+    apply ComputableInPolyTime.allWithInput hg.snd'.snd'
+    exact ComputableInPolyTime.bitsGetDWithInput
+      (hs.comp (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _) false
+  have htake := ComputableInPolyTime.bitsTake.comp (hs.prod ht)
+  have hdrop := ComputableInPolyTime.bitsDropWithInput hs
+    (ComputableInPolyTime.unary_add.comp (ht.prod (ComputableInPolyTime.const 1)))
+  have hin := ComputableInPolyTime.unary_lt.comp
+    (ht.prod (ComputableInPolyTime.length_bits.comp hs))
+  have hH := hin.ite'
+    (ComputableInPolyTime.bitsAppend htake (ComputableInPolyTime.bitsCons hhead hdrop)) hs
+  have hX := hin.ite'
+    (ComputableInPolyTime.bitsAppend htake
+      (ComputableInPolyTime.bitsCons
+        (ComputableInPolyTime.bool_xor.comp (hbit.prod hall)) hdrop)) hs
+  have htail : ComputableInPolyTime
+      (fun p : (List Bool × List Bool × Bool) × GateCode => p.1.2.1.tail)
+      (encPair (encPair encBits (encPair encBits encBool)) encGateCode) encBits := by fun_prop
   simp only [pathStep_eq]
-  fun_prop
+  apply hg.fst'.ite'
+  · simpa only [Function.comp_def, decide_eq_true_eq] using
+      hH.prod (htail.prod (ComputableInPolyTime.bool_xor.comp
+        (hsign.prod (ComputableInPolyTime.bool_and' hbit hhead))))
+  · simpa only [Function.comp_def, decide_eq_true_eq] using hX.prod (hp.prod hsign)
 
 /-- A simulation step never lengthens the encoded state. -/
 private theorem length_encPair_pathStep (st : List Bool × List Bool × Bool) (g : GateCode) :

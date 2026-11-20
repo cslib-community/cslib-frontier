@@ -582,7 +582,11 @@ private theorem isOraclePPTOn_cbcBodyQueries :
       (fun p : (ℕ × List Bool × List Bool) × (List (List Bool) × List Bool × List Bool) =>
         cbcBodyStep p.1.1 p.2) :=
     hquery.map_with (f := fun p c => (p.2.1.tail, c, p.2.2.2 ++ c))
-      (by dsimp only [EStep, EIn, EState]; fun_prop)
+      (by
+        have hp := ComputableInPolyTime.id' (encIn := encPair EStep encBits)
+        exact ((ComputableInPolyTime.tail (encA := encBits) (encL := encList encBits)).comp
+          hp.fst'.snd'.fst').prod
+          (hp.snd'.prod (ComputableInPolyTime.bitsAppend hp.fst'.snd'.snd'.snd' hp.snd')))
   have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth
     (stateEncoding := EState)
     (initial := fun a : ℕ × List Bool × List Bool =>
