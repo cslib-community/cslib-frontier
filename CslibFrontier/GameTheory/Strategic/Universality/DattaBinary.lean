@@ -9,18 +9,18 @@ module
 
 public import CslibFrontier.GameTheory.Strategic.Universality.Binary
 import Mathlib.Algebra.MvPolynomial.CommRing
-import Mathlib.Logic.Equiv.Fin.Rotate
+import CslibFrontier.Foundations.GroupTheory.Perm.Fin
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
 # Datta's binary game
 
-Theorem 6 of [Datta2003]: for polynomials `F₀, …, F_{m-1}` in `n` variables whose degree in each
-variable is at most `d`, with `3 ≤ n d`, there is a game with `n d + max(m, n)` players, each with
-two pure strategies, whose totally mixed Nash equilibria are the points `x ∈ (0, 1)ⁿ` with
-`F_j(x) = 0`, encoded together with the powers `x_i ^ k` and, when `m > n`, `m - n` free
-probabilities.
+The uniform-degree binary construction in the proof of Theorem 6 of [Datta2003]: for polynomials
+`F₀, …, F_{m-1}` in `n` variables whose degree in each variable is at most `d`, with `3 ≤ n d`,
+there is a game with `n d + max(m, n)` players, each with two pure strategies, whose totally mixed
+Nash equilibria are the points `x ∈ (0, 1)ⁿ` with `F_j(x) = 0`, encoded together with the powers
+`x_i ^ k` and, when `m > n`, `m - n` free probabilities.
 
 ## The construction
 
@@ -98,15 +98,10 @@ noncomputable def chainEq (c : Fin n × Fin d) : MvPolynomial (Player n d m) ℝ
   if h : c.2.val = 0 then X (chain c) - X (var c.1)
   else X (chain c) - X (var c.1) * X (chain (c.1, ⟨c.2.val - 1, by omega⟩))
 
-/-- The position `d i + k` of the chain player `(i, k)`. -/
-def pos : Fin n × Fin d ≃ Fin (n * d) := finProdFinEquiv
-
-theorem val_pos (c : Fin n × Fin d) : (pos c).val = c.2.val + d * c.1.val :=
-  finProdFinEquiv_apply_val c
-
-/-- The chain equation assigned to the chain player `c`: that of the previous position. -/
+/-- The chain equation assigned to the chain player `c`: that of the previous position, where
+`(i, k)` sits at position `d i + k` (`finProdFinEquiv`). -/
 def source (c : Fin n × Fin d) : Fin n × Fin d :=
-  pos.symm ((finRotate (n * d)).symm (pos c))
+  finProdFinEquiv.symm ((finRotate (n * d)).symm (finProdFinEquiv c))
 
 /-- The equation assigned to each player. -/
 noncomputable def equation (F : Fin m → MvPolynomial (Fin n) ℝ) :
@@ -184,35 +179,24 @@ theorem vars_chainEq {c : Fin n × Fin d} {v : Player n d m} (hv : v ∈ (chainE
       · simp [hv]
       · exact Or.inr (Or.inr ⟨h, hv⟩)
 
-/-- The position after `t`, cyclically. -/
-private theorem val_finRotate {N : ℕ} (t : Fin N) :
-    (finRotate N t).val = if t.val + 1 = N then 0 else t.val + 1 := by
-  obtain ⟨N, rfl⟩ : ∃ N', N = N' + 1 := ⟨N - 1, by have := t.2; omega⟩
-  rw [coe_finRotate]
-  split_ifs with h1 h2 h2
-  · rfl
-  · exact absurd (by rw [h1]; simp) h2
-  · exact absurd (Fin.ext (by simp; omega)) h1
-  · rfl
-
 /-- In the cyclic assignment, a chain player does not occur in its own equation. -/
 theorem notMem_vars_chainEq_source (hN : 3 ≤ n * d) (c : Fin n × Fin d) :
     chain (m := m) c ∉ (chainEq (source c)).vars := by
   intro hv
-  have hrot : pos c = finRotate (n * d) (pos (source c)) := by
+  have hrot : finProdFinEquiv c = finRotate (n * d) (finProdFinEquiv (source c)) := by
     simp only [source, Equiv.apply_symm_apply]
   have hval := congrArg Fin.val hrot
   rw [val_finRotate] at hval
-  have hlt := (pos (source c)).2
+  have hlt := (finProdFinEquiv (source c)).2
   rcases vars_chainEq hv with h | h | ⟨h0, h⟩
   · simp only [chain, Sum.inr.injEq, Sum.inl.injEq] at h
     rw [← h] at hval
     split_ifs at hval <;> omega
   · simp at h
   · simp only [chain, Sum.inr.injEq, Sum.inl.injEq] at h
-    have hp : (pos c).val + 1 = (pos (source c)).val := by
+    have hp : (finProdFinEquiv c).val + 1 = (finProdFinEquiv (source c)).val := by
       conv_lhs => rw [h]
-      rw [val_pos, val_pos]
+      rw [finProdFinEquiv_apply_val, finProdFinEquiv_apply_val]
       simp only
       omega
     split_ifs at hval <;> omega
@@ -295,12 +279,14 @@ theorem eval_chainEq_of_pow {q : Player n d m → ℝ}
 
 theorem source_bijective : Bijective (source (n := n) (d := d)) := by
   unfold source
-  exact (pos.symm.bijective.comp (finRotate (n * d)).symm.bijective).comp pos.bijective
+  exact (finProdFinEquiv.symm.bijective.comp (finRotate (n * d)).symm.bijective).comp
+    finProdFinEquiv.bijective
 
-/-- **Theorem 6 of [Datta2003].** If each `F j` has degree at most `d` in every variable and
-`3 ≤ n d`, the totally mixed Nash equilibria of Datta's binary game are the profiles
-`binaryProfile q` such that `q` lies in the open cube, `x = q ∘ var` solves every `F j = 0`, and
-each chain player plays the power `x_i ^ (k + 1)`. The extra players are unconstrained. -/
+/-- **The uniform-degree binary construction in the proof of Theorem 6 of [Datta2003].** If each
+`F j` has degree at most `d` in every variable and `3 ≤ n d`, the totally mixed Nash equilibria of
+Datta's binary game are the profiles `binaryProfile q` such that `q` lies in the open cube,
+`x = q ∘ var` solves every `F j = 0`, and each chain player plays the power `x_i ^ (k + 1)`. The
+extra players are unconstrained. -/
 theorem isTotallyMixedNash_game_iff {F : Fin m → MvPolynomial (Fin n) ℝ}
     (hF : ∀ j, ∀ e ∈ (F j).support, ∀ i, e i ≤ d) (hN : 3 ≤ n * d) (q : Player n d m → ℝ) :
     (game F).IsTotallyMixedNash (binaryProfile q) ↔

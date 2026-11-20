@@ -21,7 +21,8 @@ vector `q : P → ℝ` of probabilities of `true`. By Lemma 4 of [Datta2003]
 (`CostGame.deviationCost_realize`), for any multilinear polynomials `E v` in which `v` does not
 occur, some binary game makes `E v (q)` the difference of player `v`'s expected costs. Its totally
 mixed Nash equilibria are then exactly the points of the open cube `(0, 1)ᴾ` at which every `E v`
-vanishes (`CostGame.isTotallyMixedNash_binaryGame_iff`). This is the engine of Datta's Theorem 6.
+vanishes (`CostGame.isTotallyMixedNash_binaryGame_iff`). This is the engine of the binary
+construction in the proof of Datta's Theorem 6.
 
 ## Main definitions
 
