@@ -10,7 +10,7 @@ import CslibFrontier.Crypto.Protocols.UC.PushExecution
 
 End-to-end concrete witnesses exercising `Cslib.Crypto.Protocols.UC.Push`:
 
-* **Ping-pong witness (W2)**: a 3-node reactive system (`envNode` → `forwardNode` → `pongNode` →
+* **Ping-pong witness**: a 3-node reactive system (`envNode` → `forwardNode` → `pongNode` →
   `envNode`) verifying:
   - a 4-step write chain yields `PMF.pure (some true)` under `pushRun` and `PMF.pure true` under
     `pushExec`, invariant under extra fuel (`4 + extra`),
@@ -20,7 +20,7 @@ End-to-end concrete witnesses exercising `Cslib.Crypto.Protocols.UC.Push`:
   - under-fueled execution (`fuel = 3`) yields `PMF.pure none` under `pushRun` and `PMF.pure false`
     under `pushExec`,
   - a probabilistic leaf node (`coinNode`) propagates `ProbComp` randomness through `pushExec`.
-* **Halted-recipient witness (W3)**: a 2-node system contrasting `haltingPeer`, `replyingPeer`,
+* **Halted-recipient witness**: a 2-node system contrasting `haltingPeer`, `replyingPeer`,
   and `yieldingPeer` to verify that:
   - writing to a halted recipient records the envelope in `TokenState.log`, skips the halted
     node's handler (keeping its state counter at `1`), and returns `Delivery.resume` to `initial`,
@@ -52,7 +52,7 @@ private theorem runFrom_steps_pure_step {m : ℕ} {Msg : Type} (S : PushSystem m
     (Function.update s ts.target v) = _
   exact congrArg _ hs
 
-/-! ### Witness W2: 3-Node Ping-Pong Chain -/
+/-! ### 3-Node Ping-Pong Chain -/
 
 private inductive PingPong where
   | ping
@@ -191,8 +191,8 @@ private theorem pingPong_deterministic_steps (q : ReactiveNode 3 PingPong) (b : 
     steps_of_output_isSome _ extra rfl, Machine.runFrom_pure]
   rfl
 
-/-- **Witness W2a**: 3-node ping-pong with `allowAll` halts in 4 steps with `some true`, and
-extra fuel leaves the output unchanged. -/
+/-- 3-node ping-pong with `allowAll` halts in 4 steps with `some true`, and extra fuel leaves
+the output unchanged. -/
 theorem pingPong_allowAll_run (κ : ℕ) (z : List Bool) (extra : ℕ) :
     (pushRun (pingPongSystem pongNode allowAll) κ z (4 + extra)).eval =
       PMF.pure (some true) := by
@@ -201,14 +201,14 @@ theorem pingPong_allowAll_run (κ : ℕ) (z : List Bool) (extra : ℕ) :
     pingPong_deterministic_steps pongNode true (fun () => rfl) () κ extra z]
   simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure]
 
-/-- **Witness W2b**: `pushExec` on the 3-node ping-pong system outputs `true`. -/
+/-- `pushExec` on the 3-node ping-pong system outputs `true`. -/
 theorem pingPong_allowAll_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     (pushExec (pingPongSystem pongNode allowAll) κ z (4 + extra)).eval = PMF.pure true := by
   rw [pushExec, ProbComp.eval_map, pingPong_allowAll_run, PMF.pure_map]
   rfl
 
-/-- **Witness W2c**: flipping the leaf payload to `pong false` flips the system output to
-`some false` (non-triviality). -/
+/-- Flipping the leaf payload to `pong false` flips the system output to `some false`
+(non-triviality). -/
 theorem pingPong_flip_run (κ : ℕ) (z : List Bool) (extra : ℕ) :
     (pushRun (pingPongSystem flipNode allowAll) κ z (4 + extra)).eval =
       PMF.pure (some false) := by
@@ -217,8 +217,8 @@ theorem pingPong_flip_run (κ : ℕ) (z : List Bool) (extra : ℕ) :
     pingPong_deterministic_steps flipNode false (fun () => rfl) () κ extra z]
   simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure]
 
-/-- **Witness W2d**: denying writes to node `2` via `denyTo2` causes node `1`'s write to fail,
-bouncing `Delivery.resume` back to `0` so `0` halts with `some false` in 3 steps. -/
+/-- Denying writes to node `2` via `denyTo2` causes node `1`'s write to fail, bouncing
+`Delivery.resume` back to `0` so `0` halts with `some false` in 3 steps. -/
 theorem pingPong_denyForward_run (κ : ℕ) (z : List Bool) (extra : ℕ) :
     (pushRun (pingPongSystem pongNode denyTo2) κ z (3 + extra)).eval =
       PMF.pure (some false) := by
@@ -237,8 +237,7 @@ theorem pingPong_denyForward_run (κ : ℕ) (z : List Bool) (extra : ℕ) :
   simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure]
   rfl
 
-/-- **Witness W2d (observable contrast)**: the control function observably separates `allowAll`
-from `denyTo2`. -/
+/-- Observable contrast: the control function separates `allowAll` from `denyTo2`. -/
 theorem pingPong_control_separates (κ : ℕ) (z : List Bool) :
     (pushRun (pingPongSystem pongNode allowAll) κ z 4).eval ≠
       (pushRun (pingPongSystem pongNode denyTo2) κ z 4).eval := by
@@ -248,7 +247,7 @@ theorem pingPong_control_separates (κ : ℕ) (z : List Bool) :
   have htrue := congrArg (fun p => p (some true)) h
   simp at htrue
 
-/-- **Witness W2e**: with `fuel = 3` (one step short of `envNode`'s final halt), `pushRun`
+/-- Under-fueled witness: with `fuel = 3` (one step short of `envNode`'s final halt), `pushRun`
 returns `PMF.pure none` and `pushExec` defaults to `PMF.pure false`. -/
 theorem pingPong_underfueled_run (κ : ℕ) (z : List Bool) :
     (pushRun (pingPongSystem pongNode allowAll) κ z 3).eval = PMF.pure none ∧
@@ -266,8 +265,8 @@ theorem pingPong_underfueled_run (κ : ℕ) (z : List Bool) :
   rw [pushExec, ProbComp.eval_map, hpush, PMF.pure_map]
   rfl
 
-/-- **Witness W2f**: a probabilistic leaf node (`coinNode`) propagates `ProbComp` randomness
-through `pushRun` and `pushExec`. -/
+/-- Probabilistic leaf witness: a coin-flipping leaf node (`coinNode`) propagates `ProbComp`
+randomness through `pushRun` and `pushExec`. -/
 theorem pingPong_coinNode_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     (pushExec (pingPongSystem coinNode allowAll) κ z (4 + extra)).eval =
       (PMF.uniformOfFintype (Fin 2)).map (fun b => decide (b = 1)) := by
@@ -304,7 +303,7 @@ theorem pingPong_coinNode_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     ProbComp.eval_unifFin, PMF.map_bind, PMF.pure_map]
   rfl
 
-/-! ### Witness W3: Halted-Recipient No-Op vs Reply vs Yield -/
+/-! ### Halted-Recipient No-Op vs Reply vs Yield -/
 
 private abbrev resumeCountEnv : ReactiveNode 2 Unit where
   State := ℕ
@@ -363,9 +362,9 @@ private theorem init_peerSystem (peer : ReactiveNode 2 Unit) (b₀ : peer.State)
 private def pEnv01 : Envelope 2 Unit := ⟨0, 1, .input, ()⟩
 private def pEnv10 : Envelope 2 Unit := ⟨1, 0, .subroutineOutput, ()⟩
 
-/-- **Witness W3a (state/log check)**: after 4 steps with `haltingPeer`, both writes from node `0`
-are logged, node `1` is in `ts.halted`, and node `1`'s state counter remains `1` (the second
-write skipped its handler and bounced `Delivery.resume` back to `0`). -/
+/-- State/log check: after 4 steps with `haltingPeer`, both writes from node `0` are logged, node
+`1` is in `ts.halted`, and node `1`'s state counter remains `1` (the second write skipped its
+handler and bounced `Delivery.resume` back to `0`). -/
 theorem haltingPeer_step4_state (κ : ℕ) (z : List Bool) :
     (SSP.parFin ((peerSystem haltingPeer).node κ)).runFrom
       (steps (peerSystem haltingPeer) 4
@@ -386,7 +385,7 @@ theorem haltingPeer_step4_state (κ : ℕ) (z : List Bool) :
       steps_zero, Machine.runFrom_pure]
   rfl
 
-/-- **Witness W3a (end-to-end)**: on step 5, `resumeCountEnv` receives the second `resume` and
+/-- End-to-end halted-recipient check: on step 5, `resumeCountEnv` receives the second `resume` and
 halts with `true`. -/
 theorem haltingPeer_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     (pushExec (peerSystem haltingPeer) κ z (5 + extra)).eval = PMF.pure true := by
@@ -408,8 +407,8 @@ theorem haltingPeer_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     PMF.pure_map]
   rfl
 
-/-- **Witness W3b**: replacing `haltingPeer` with `replyingPeer` sends a message back to `0`,
-so `resumeCountEnv` halts with `false` in 3 steps. -/
+/-- Replying-peer contrast: replacing `haltingPeer` with `replyingPeer` sends a message back to
+`0`, so `resumeCountEnv` halts with `false` in 3 steps. -/
 theorem replyingPeer_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     (pushExec (peerSystem replyingPeer) κ z (3 + extra)).eval = PMF.pure false := by
   rw [pushExec, ProbComp.eval_map,
@@ -429,8 +428,8 @@ theorem replyingPeer_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     PMF.pure_map]
   rfl
 
-/-- **Witness W3c**: unlike `haltingPeer`, `yieldingPeer` is NOT added to `ts.halted`, so on the
-second write its handler runs a second time (state counter reaches `2`, vs `1` for
+/-- Yielding-peer contrast: unlike `haltingPeer`, `yieldingPeer` is not added to `ts.halted`, so
+on the second write its handler runs a second time (state counter reaches `2`, vs `1` for
 `haltingPeer`). -/
 theorem yieldingPeer_step4_state (κ : ℕ) (z : List Bool) :
     (SSP.parFin ((peerSystem yieldingPeer).node κ)).runFrom

@@ -59,11 +59,13 @@ namespace Cslib.Crypto.Protocols.UC.Push
 
 variable {m : ℕ} {Msg : Type}
 
-/-- One scheduler step of a push system `S` from state `ts`. A finished run (`ts.output.isSome`)
-is left unchanged with no network query. A halted target performs no operation and the initial
-node is activated next with `.resume` (§3.1.2 of [Canetti2020], JACM p. 28:33, ePrint p. 34),
-costing one unit of fuel and making no network query. Otherwise `ts.target` is activated with
-`ts.delivery` (one query to the network) and `TokenState.next` applies its outcome. -/
+/-- Library infrastructure for one scheduler step of a push system `S` from state `ts`, in this
+library's push reading of §3.1.2 of [Canetti2020] (JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24,
+34). A finished run (`ts.output.isSome`) is left unchanged with no network query. A halted target
+performs no operation and the initial node is activated next with `.resume` (§3.1.2 of
+[Canetti2020], JACM p. 28:33, ePrint p. 34), costing one unit of fuel and making no network query
+(a library convention). Otherwise `ts.target` is activated with `ts.delivery` (one query to the
+network, ending the activation at its outcome) and `TokenState.next` applies its outcome. -/
 @[expose] def step (S : PushSystem m Msg) (ts : TokenState m Msg) :
     ProbOracleComp (SSP.sessionSpec m (netSpec (Delivery m Msg) (Outcome m Msg)))
       (TokenState m Msg) :=
@@ -99,9 +101,9 @@ network once and applies `TokenState.next`. -/
       return ts.next S a) := by
   simp [step, ho, hh]
 
-/-- `fuel` scheduler steps of a push system `S` starting from `ts`. Fuel counts scheduler steps
-(including steps on halted targets, which make no network query), not node activations or
-running time (a library convention). -/
+/-- Library infrastructure (no cited result): `fuel` scheduler steps of a push system `S` starting
+from `ts`. Fuel counts scheduler steps (including steps on halted targets, which make no network
+query), not node activations or running time (a library convention). -/
 @[expose] def steps (S : PushSystem m Msg) : ℕ → TokenState m Msg →
     ProbOracleComp (SSP.sessionSpec m (netSpec (Delivery m Msg) (Outcome m Msg)))
       (TokenState m Msg)
@@ -137,20 +139,20 @@ steps change nothing. -/
   | succ f ih => rw [steps_succ, step_of_output_isSome S h, pure_bind, ih]
 
 /-- The single-token execution of a push system, in this library's push reading of §3.1.2 of
-[Canetti2020] (JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34): a fixed node set initialized
-eagerly, nodes addressed by index, every write forced and sender-revealing, a control function
-over the delivered log, and an activation that ends without a write returning control to the
-initial node (a library convention). The result is the initial node's output bit, or `none` if
-it has not halted within `fuel` steps (a library convention). The relation to the pull execution
-of `CslibFrontier.Crypto.Protocols.UC.Execution` is not proved here. -/
+[Canetti2020] (JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34), narrower in having a fixed node
+set initialized eagerly, nodes addressed by index, every write forced and sender-revealing, a
+control function over the delivered log, and an activation that ends without a write returning
+control to the initial node (a library convention). The result is the initial node's output bit, or
+`none` if it has not halted within `fuel` steps (a library convention). The relation to the pull
+execution of `CslibFrontier.Crypto.Protocols.UC.Execution` is not proved here. -/
 @[expose] def pushRun (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel : ℕ) :
     ProbComp (Option Bool) :=
   TokenState.output <$>
     (SSP.parFin (S.node κ)).run (steps S fuel (TokenState.initialFor S.initial z))
 
 /-- The output bit of a push execution, in this library's push reading of §3.1.2 of [Canetti2020]
-(JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34), with fuel exhaustion read as `false`
-(a library convention). -/
+(JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34), narrower as in `pushRun` and with fuel
+exhaustion read as `false` (a library convention). -/
 @[expose] def pushExec (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel : ℕ) :
     ProbComp Bool :=
   (fun r => r.getD false) <$> pushRun S κ z fuel

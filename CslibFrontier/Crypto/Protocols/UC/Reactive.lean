@@ -164,7 +164,10 @@ with `.start z`, the delivered log and halted set are empty, and no output has b
   halted := ∅
   output := none
 
-/-- Pure scheduler transition applying the active node `ts.target`'s `Outcome` in push system `S`:
+/-- Library infrastructure for the pure scheduler transition applying the active node `ts.target`'s
+`Outcome` in push system `S` (in this library's push reading of §3.1.2 of [Canetti2020],
+JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34; narrower in fixed index addressing, eager
+initialization, forced sender-revealing writes, and a log-based control function):
 - `write r t p` allowed by `S.control`: the envelope `e` is appended to `ts.log` and `r` is
   activated next with `.deliver e` (step 1a, §3.1.2 of [Canetti2020], JACM p. 28:24, ePrint p. 24).
 - `write r t p` disallowed by `S.control`: the write is not carried out and the initial node is
