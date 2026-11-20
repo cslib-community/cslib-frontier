@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Streaming
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
@@ -26,6 +27,7 @@ The accumulator visits positions in ascending order and uses the streaming digit
 The native certificate takes a uniform code-bit routine as a hypothesis. It charges the
 encoded request and the numeric seed width, which bounds the possible base-six output and
 the live cursor and accumulator. The loop keeps the rank and callback context in its state.
+`weightRank` adds the native layer scaling and the weight-zero rule for layer zero.
 -/
 
 public section
@@ -137,5 +139,56 @@ theorem accumulateRank_inSpace [Inhabited κ] (encContext : κ ↪ List Bool) (c
       .of_le_linear 5 1 fun _ => by dsimp [B]; omega)
   exact (encRegisters_accumulator_budget encContext hrun).of_enc_eq fun q => by
     rw [iterate_step]
+
+/-- A retained-rank seed request and the binary layer of the vertex being weighed. -/
+structure WeightRequest (κ : Type) where
+  /-- Code context, rank and width for the digit scan. -/
+  seed : Request κ
+  /-- Layer of the original vertex. -/
+  layer : ℕ
+
+/-- Framed seed request followed by the binary layer. -/
+enc_structure encWeightRequest (encContext : κ ↪ List Bool) : WeightRequest κ where
+  seed : (encRequest encContext), layer : encNat
+
+/-- Compute the scaled weight for a retained rank, with zero weight in layer zero. -/
+@[expose] def weightRank (code : κ → ℕ → Bool) (q : WeightRequest κ) : ℕ :=
+  if q.layer = 0 then 0
+  else scaleAccumulatedWeight q.layer (accumulateRank code q.seed)
+
+open Code.JustesenFamily in
+/-- A callback that gives the executable Justesen bit at each valid index makes the retained
+rank evaluator agree with the generated weight used by the isolation theorem. -/
+theorem weightRank_eq_generatedWeight {w n : ℕ} (code : κ → ℕ → Bool) (ctx : κ)
+    (rank : Fin (2 ^ codeLength w n)) (z : Fin (n + 1) × Fin w)
+    (hcode : ∀ j : Fin (codeLength w n), code ctx j.val = indexedCodewordMod z.2 j) :
+    weightRank code ⟨⟨ctx, rank.val, codeLength w n⟩, z.1.val⟩ =
+      generatedWeight ((BitString.equivFin _).symm rank) z := by
+  rw [← generatedWeightScan_eq,
+    ← SeedDigits.scaledMaskedPrefix_eq_generatedWeightScan _ z (code ctx) hcode]
+  simp only [weightRank, List.length_ofFn, SeedDigits.maskedPrefix_ofFn, accumulateRank_eq_seed]
+
+/-- Compute the scaled weight with a supplied native code-bit routine. The seed width is charged
+numerically, while the layer, context and rank are charged through the input encoding. -/
+theorem weightRank_inSpace [Inhabited κ] (encContext : κ ↪ List Bool) (code : κ → ℕ → Bool)
+    (hc : ComputableInSpace (fun p : κ × ℕ => code p.1 p.2) (encPair encContext encNat)
+      encBool (fun p => (encPair encContext encNat p).length)) :
+    ComputableInSpace (weightRank code) (encWeightRequest encContext) encNat
+      (fun q => (encWeightRequest encContext q).length + q.seed.width) := by
+  let B (q : WeightRequest κ) := (encWeightRequest encContext q).length + q.seed.width
+  have hin : (fun q => (encWeightRequest encContext q).length) ≼ B :=
+    .of_le fun _ => Nat.le_add_right _ _
+  have hid := budget_id hin
+  have hs := encWeightRequest_seed_budget encContext hid
+  have hl := encWeightRequest_layer_budget encContext hid
+  have hwidth : (fun q : WeightRequest κ =>
+      (encRequest encContext q.seed).length + q.seed.width) ≼ B := by
+    refine .of_le fun q => ?_
+    simp only [B, encWeightRequest_apply, encWeightRequestFields, length_encPair]
+    omega
+  have ha := budget_comp (accumulateRank_inSpace encContext code hc) hs hwidth
+  have hw := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hl ha)
+  exact (budget_ite (budget_natIsZero hl) (budget_const 0 hin) hw).of_enc_eq fun q => by
+    simp [weightRank]
 
 end Cslib.Reachability.Hoza.SeedRank
