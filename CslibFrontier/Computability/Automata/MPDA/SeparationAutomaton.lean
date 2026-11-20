@@ -336,44 +336,6 @@ private theorem mem_language_of_accepts {w : List Letter} (h : Acceptor.Accepts 
 
 /-! ## Every word of `L_bh` is accepted -/
 
-private theorem run_push₀ {q : State} {x : Letter} {γ : Sym}
-    (hq : Step q (x, .push 0 γ) q) (s₁ : List Sym) :
-    ∀ (k : ℕ) (s₀ : List Sym), automaton.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
-      (List.replicate k (x, .push 0 γ)) ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩
-  | 0, s₀ => .refl
-  | k + 1, s₀ => .stepL (step_iff.mpr ⟨hq, Op.apply_push_zero_pair.mpr rfl⟩) (by
-      have := run_push₀ hq s₁ k (γ :: s₀)
-      rwa [show List.replicate k γ ++ γ :: s₀ = List.replicate (k + 1) γ ++ s₀ by
-        simp [List.replicate_succ']] at this)
-
-private theorem run_push₁ {q : State} {x : Letter} {γ : Sym}
-    (hq : Step q (x, .push 1 γ) q) (s₀ : List Sym) :
-    ∀ (k : ℕ) (s₁ : List Sym), automaton.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
-      (List.replicate k (x, .push 1 γ)) ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩
-  | 0, s₁ => .refl
-  | k + 1, s₁ => .stepL (step_iff.mpr ⟨hq, Op.apply_push_one_pair.mpr rfl⟩) (by
-      have := run_push₁ hq s₀ k (γ :: s₁)
-      rwa [show List.replicate k γ ++ γ :: s₁ = List.replicate (k + 1) γ ++ s₁ by
-        simp [List.replicate_succ']] at this)
-
-private theorem run_pop₀ {q : State} {x : Letter} {γ : Sym}
-    (hq : Step q (x, .pop 0 γ) q) (s₁ : List Sym) :
-    ∀ (k : ℕ) (s₀ : List Sym),
-      automaton.configLTS.MTr ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩
-      (List.replicate k (x, .pop 0 γ)) ⟨q, Stacks.pair s₀ s₁⟩
-  | 0, _ => .refl
-  | k + 1, s₀ =>
-    .stepL (step_iff.mpr ⟨hq, Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩) (run_pop₀ hq s₁ k s₀)
-
-private theorem run_pop₁ {q : State} {x : Letter} {γ : Sym}
-    (hq : Step q (x, .pop 1 γ) q) (s₀ : List Sym) :
-    ∀ (k : ℕ) (s₁ : List Sym),
-      automaton.configLTS.MTr ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩
-      (List.replicate k (x, .pop 1 γ)) ⟨q, Stacks.pair s₀ s₁⟩
-  | 0, _ => .refl
-  | k + 1, s₁ =>
-    .stepL (step_iff.mpr ⟨hq, Op.apply_pop_one_pair.mpr ⟨_, rfl, rfl⟩⟩) (run_pop₁ hq s₀ k s₁)
-
 private theorem replicate_append_cons {β : Type*} (p : ℕ) (x : β) (l : List β) :
     List.replicate p x ++ x :: l = x :: (List.replicate p x ++ l) := by
   rw [← List.singleton_append, ← List.append_assoc, ← List.replicate_succ', List.replicate_succ,
@@ -408,9 +370,11 @@ private theorem run_group {q₀ : State} (hq₀ : q₀ = .pb ∨ q₀ = .ge) (p 
         rcases hq₀ with rfl | rfl
         · exact .pb_a
         · exact .ge_a
-      refine .comp _ (.comp _ (.stepL hfirst (run_push₀ .ga_a _ p _)) (.stepL (step_iff.mpr
-        ⟨.ga_c, Op.apply_pop_zero_pair.mpr ⟨_, replicate_append_cons _ _ _, rfl⟩⟩)
-        (run_pop₀ .gc_c _ p _)))
+      refine .comp _ (.comp _ (.stepL hfirst
+        (configLTS_mTr_replicate_push_zero (M := automaton) Step.ga_a _ p _))
+        (.stepL (step_iff.mpr
+          ⟨.ga_c, Op.apply_pop_zero_pair.mpr ⟨_, replicate_append_cons _ _ _, rfl⟩⟩)
+        (configLTS_mTr_replicate_pop_zero (M := automaton) Step.gc_c _ p _)))
         (.single _ (step_iff.mpr ⟨.gc_c', Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩))
   -- The letters `b^q d^(q+1)`, ending in `ge` with the `outer` of stack `1` popped.
   obtain ⟨μ₂, hμ₂, h₂⟩ : ∃ μ₂ : List (Letter × Op 2 Sym),
@@ -423,10 +387,11 @@ private theorem run_group {q₀ : State} (hq₀ : q₀ = .pb ∨ q₀ = .ge) (p 
         (.d, .pop 1 .inner) :: List.replicate q (.d, .pop 1 .inner) ++ [(.d, .pop 1 .outer)],
         by simp [List.replicate_succ, replicate_append_singleton], ?_⟩
       refine .comp _ (.comp _ (.stepL (step_iff.mpr ⟨.gb_b, Op.apply_push_one_pair.mpr rfl⟩)
-        (run_push₁ .gB_b _ q _)) (.stepL (step_iff.mpr ⟨.gB_d,
+        (configLTS_mTr_replicate_push_one (M := automaton) Step.gB_b _ q _))
+        (.stepL (step_iff.mpr ⟨.gB_d,
         Op.apply_pop_one_pair.mpr ⟨_, replicate_append_cons _ _ _, rfl⟩⟩)
-        (run_pop₁ .gd_d _ q _))) (.single _ (step_iff.mpr ⟨.gd_d', Op.apply_pop_one_pair.mpr
-        ⟨_, rfl, rfl⟩⟩))
+        (configLTS_mTr_replicate_pop_one (M := automaton) Step.gd_d _ q _)))
+        (.single _ (step_iff.mpr ⟨.gd_d', Op.apply_pop_one_pair.mpr ⟨_, rfl, rfl⟩⟩))
   exact ⟨μ₁ ++ μ₂, by simp [hμ₁, hμ₂, group, List.append_assoc], .comp _ h₁ h₂⟩
 
 /-- Runs on sequences of groups, from `pb` or `ge`. -/
@@ -459,10 +424,12 @@ private theorem accepts_of_mem_language {w : List Letter} (h : w ∈ language) :
         List.replicate n (.b, .push 1 .outer))
       ⟨.pb, Stacks.pair (List.replicate (n + 1) .outer) (List.replicate (n + 1) .outer)⟩ := by
     rw [Stacks.empty_eq_pair]
-    refine .comp _ (by simpa using run_push₀ .pa_a [] (n + 1) []) (.stepL (step_iff.mpr
-      ⟨.pa_b, Op.apply_push_one_pair.mpr rfl⟩) ?_)
-    simpa [List.replicate_succ'] using run_push₁ .pb_b (List.replicate (n + 1) .outer) n
-      [.outer]
+    refine .comp _
+      (by simpa using configLTS_mTr_replicate_push_zero (M := automaton) Step.pa_a [] (n + 1) [])
+      (.stepL (step_iff.mpr ⟨.pa_b, Op.apply_push_one_pair.mpr rfl⟩) ?_)
+    simpa [List.replicate_succ'] using
+      configLTS_mTr_replicate_push_one (M := automaton) Step.pb_b
+        (List.replicate (n + 1) .outer) n [.outer]
   obtain ⟨μs, hμs, hrun⟩ := run_groups gs hg (by rintro rfl; simp at hlen) (q₀ := .pb) (.inl rfl)
   rw [hlen] at hrun
   refine ⟨.pa, rfl, .ge, .inr rfl, (List.replicate (n + 1) (.a, .push 0 .outer) ++
