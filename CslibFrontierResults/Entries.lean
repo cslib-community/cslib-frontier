@@ -10697,6 +10697,20 @@ register_result "single-pair-hash-game-bounds" where
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
 
+register_result "variable-length-polynomial-not-universal" where
+  title := "The coefficient hash Hfpoly fails universality on variable-length messages"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Failure of universality for Hfpoly (unnumbered)",
+      locator := "v0.6, Section 7.2.1, Equation 7.5 and its discussion, printed p. 257" }
+  ]
+  theorems := [Cslib.Probability.not_isUniversalHash_coeffPolyHash_variableLength]
+  scope := "The hash reads a bounded-length list in coefficient order using the fixed-length \
+    evaluator initialized at zero. The empty list and the singleton zero collide at every key \
+    whenever the length cap is at least one. This is the source’s leading-zero example at the \
+    smallest length cap. The theorem rules out every statistical bound below 1 and extends \
+    from uniform prime-field keys to any field and any key probability mass function."
+
 register_result "fixed-length-polynomial-universality" where
   title := "Collision and difference bounds for fixed-length polynomial hashing"
   topic := "cryptography"
