@@ -4364,6 +4364,7 @@ public import CslibFrontier.Computability.PropertyTesting.Linearity
 public import CslibFrontier.Computability.PropertyTesting.LinearityLowerBound
 public import CslibFrontier.Computability.PropertyTesting.Majority
 public import CslibFrontier.Computability.PropertyTesting.Majority.Decision
+public import CslibFrontier.Computability.PropertyTesting.Majority.DirectAccess
 public import CslibFrontier.Computability.PropertyTesting.Monotonicity.Basic
 public import CslibFrontier.Computability.PropertyTesting.Monotonicity.EdgeTester
 public import CslibFrontier.Computability.QueryComplexity.AdjacentPair
