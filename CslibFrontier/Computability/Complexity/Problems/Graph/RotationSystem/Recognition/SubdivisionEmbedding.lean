@@ -159,20 +159,18 @@ private theorem dart_node {I : FixedRotationInput} (e : Edge (subdivisionGraph I
 private theorem piece_endpoint {I : FixedRotationInput} (hI : Valid I)
     (D : PolygonalDrawing I.graph) (i : Edge I.graph) (k : Fin 3) (b : Bool) :
     ((D.route i).trisect cut cut k).endpoint b = place D (node I i (boundary k b)) := by
-  have hold (b : Bool) :
-      (D.route i).endpoint b = place D (Dart.vertex (i, b)) := by
-    rw [D.endpoint_eq, place_old D (endpoint_lt hI i b)]
-  have hcut (b : Bool) :
-      ((D.route i).cutEnds cut cut).endpoint b = place D (fresh I i b) := by
-    rw [place_fresh, Route.endpoint_cutEnds]
-    cases b <;> rfl
-  fin_cases k <;> cases b
-  · exact hold false
-  · exact hcut false
-  · exact hcut false
-  · exact hcut true
-  · exact hcut true
-  · exact hold true
+  have placed (a : Fin 4) :
+      (D.route i).trisectionPoints cut cut a = place D (node I i a) := by
+    have hold (b : Bool) :
+        (D.route i).endpoint b = place D (Dart.vertex (i, b)) := by
+      rw [D.endpoint_eq, place_old D (endpoint_lt hI i b)]
+    fin_cases a
+    · exact hold false
+    · exact (place_fresh D i false).symm
+    · exact (place_fresh D i true).symm
+    · exact hold true
+  rw [Route.endpoint_trisect]
+  exact placed (boundary k b)
 
 private noncomputable def drawing {I : FixedRotationInput} (hI : Valid I)
     (D : PolygonalDrawing I.graph) : PolygonalDrawing (subdivisionGraph I) where

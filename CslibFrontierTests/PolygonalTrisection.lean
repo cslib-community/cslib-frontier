@@ -24,9 +24,9 @@ private def p : Route := Route.line 0 3
 theorem one_segment_cut_points :
     ((Route.line 0 3).trisect (1 / 3) (1 / 3) 1).start = 1 ∧
       ((Route.line 0 3).trisect (1 / 3) (1 / 3) 1).finish = 2 := by
-  change (p.cutEnds (1 / 3) (1 / 3)).endpoint false = 1 ∧
-    (p.cutEnds (1 / 3) (1 / 3)).endpoint true = 2
-  rw [Route.endpoint_cutEnds, Route.endpoint_cutEnds]
+  change (p.trisect (1 / 3) (1 / 3) 1).endpoint false = 1 ∧
+    (p.trisect (1 / 3) (1 / 3) 1).endpoint true = 2
+  rw [Route.endpoint_trisect, Route.endpoint_trisect]
   change (Route.line 0 3).eval 0 (1 / 3) = 1 ∧
     (Route.line 0 3).eval 0 (1 - 1 / 3) = 2
   rw [Route.eval_line, Route.eval_line]
