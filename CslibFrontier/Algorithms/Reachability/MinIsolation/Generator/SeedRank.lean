@@ -66,7 +66,6 @@ private structure Registers (κ : Type) where
   rank : ℕ
   cursor : ℕ
   accumulator : ℕ
-  deriving Inhabited
 
 private enc_structure encRegisters (encContext : κ ↪ List Bool) : Registers κ where
   context : encContext, rank : encNat, cursor : encNat, accumulator : encNat
@@ -124,6 +123,7 @@ theorem accumulateRank_inSpace [Inhabited κ] (encContext : κ ↪ List Bool) (c
       encBool (fun p => (encPair encContext encNat p).length)) :
     ComputableInSpace (accumulateRank code) (encRequest encContext) encNat
       (fun q => (encRequest encContext q).length + q.width) := by
+  let : Inhabited (Registers κ) := ⟨⟨default, 0, 0, 0⟩⟩
   let B (q : Request κ) := (encRequest encContext q).length + q.width
   have hin : (fun q => (encRequest encContext q).length) ≼ B :=
     .of_le fun _ => Nat.le_add_right _ _
