@@ -52,6 +52,9 @@ moment-generating-function bounds used for random sign projections.
 * `Cslib.BitString.expect_sq_sum_mul_signVal`, `Cslib.BitString.expect_sum_mul_signVal_pow_four`,
   `Cslib.BitString.expect_sum_mul_signVal_pow_four_le`: the second and fourth moments.
 * `Cslib.BitString.expect_norm_sum_signVal_smul_sq`: the second moment of a vector Rademacher sum.
+* `Cslib.BitString.expect_sq_inv_sqrt_card_mul_sum_signVal`,
+  `Cslib.BitString.expect_sq_inv_sqrt_card_mul_sum_signVal_le`: the normalized sum `∑ᵢ xᵢ / √n`
+  of `n` uniform signs has second moment one, and at most one when `n = 0`.
 * `Cslib.BitString.expect_exp_mul_sum_mul_signVal`: `𝔼 exp (s Y) = ∏ i, cosh (s a i)`.
 * `Cslib.BitString.expect_exp_mul_sum_mul_signVal_le`: `𝔼 exp (s Y) ≤ exp (s² ∑ a² / 2)`.
 * `Cslib.BitString.expect_exp_mul_sq_sum_mul_signVal_le`: `𝔼 exp (t Y²) ≤ 1 / √(1 - 2 t ∑ a²)`.
@@ -131,6 +134,21 @@ theorem expect_sum_mul_signVal_pow_four_le (a : ι → ℝ) :
   rw [expect_sum_mul_signVal_pow_four]
   have : 0 ≤ ∑ i, a i ^ 4 := sum_nonneg fun i _ => by positivity
   linarith
+
+/-- The normalized sum `∑ᵢ xᵢ / √n` of `n ≥ 1` uniform signs has second moment one. -/
+theorem expect_sq_inv_sqrt_card_mul_sum_signVal [Nonempty ι] :
+    𝔼 x : ι → Bool, ((√(Fintype.card ι : ℝ))⁻¹ * ∑ i, signVal (x i)) ^ 2 = 1 := by
+  simp only [mul_sum]
+  rw [expect_sq_sum_mul_signVal, sum_const, card_univ, nsmul_eq_mul, inv_pow,
+    Real.sq_sqrt (Nat.cast_nonneg _), mul_inv_cancel₀ (Nat.cast_ne_zero.2 Fintype.card_ne_zero)]
+
+/-- The normalized sum `∑ᵢ xᵢ / √n` of `n` uniform signs has second moment at most one, for every
+`n`, including `n = 0`. -/
+theorem expect_sq_inv_sqrt_card_mul_sum_signVal_le :
+    𝔼 x : ι → Bool, ((√(Fintype.card ι : ℝ))⁻¹ * ∑ i, signVal (x i)) ^ 2 ≤ 1 := by
+  cases isEmpty_or_nonempty ι
+  · simp
+  · exact expect_sq_inv_sqrt_card_mul_sum_signVal.le
 
 /-- **The moment generating function of a Rademacher sum**:
 `𝔼 exp (s ∑ i, a i signVal (x i)) = ∏ i, cosh (s a i)`. -/

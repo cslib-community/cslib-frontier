@@ -6170,6 +6170,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 public import CslibFrontier.Foundations.BooleanAnalysis.Bonami
 public import CslibFrontier.Foundations.BooleanAnalysis.BooleanQuotient
 public import CslibFrontier.Foundations.BooleanAnalysis.BucketWeight
+public import CslibFrontier.Foundations.BooleanAnalysis.CentralLimit
 public import CslibFrontier.Foundations.BooleanAnalysis.Concentration
 public import CslibFrontier.Foundations.BooleanAnalysis.Convolution
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators
@@ -6190,6 +6191,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.GreedyFixing
 public import CslibFrontier.Foundations.BooleanAnalysis.Hadamard
 public import CslibFrontier.Foundations.BooleanAnalysis.HadamardRectangles
 public import CslibFrontier.Foundations.BooleanAnalysis.HadamardTester
+public import CslibFrontier.Foundations.BooleanAnalysis.HammingBallWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.HammingFourier
 public import CslibFrontier.Foundations.BooleanAnalysis.HarmonicTransform
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity
@@ -6218,6 +6220,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePhase
 public import CslibFrontier.Foundations.BooleanAnalysis.Majority
+public import CslibFrontier.Foundations.BooleanAnalysis.MajorityInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
 public import CslibFrontier.Foundations.BooleanAnalysis.MirrorSets
 public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
@@ -7129,6 +7132,7 @@ public import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
 public import CslibFrontier.Foundations.MeasureTheory.MeasurableSpace.Embedding
 public import CslibFrontier.Foundations.MeasureTheory.Measure.TotalVariation.Map
 public import CslibFrontier.Foundations.MeasureTheory.Measure.TotalVariation.Mixture
+public import CslibFrontier.Foundations.MeasureTheory.Measure.WeakConvergenceMoments
 public import CslibFrontier.Foundations.ModelTheory.Basic
 public import CslibFrontier.Foundations.ModelTheory.Graph
 public import CslibFrontier.Foundations.NumberTheory.AKS.Coefficients
