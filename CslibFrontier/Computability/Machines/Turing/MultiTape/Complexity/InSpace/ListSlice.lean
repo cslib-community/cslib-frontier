@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import Mathlib.Data.List.GetD
+import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -26,6 +27,7 @@ large binary counts never cause a list of that length to be allocated.
 * `Turing.MultiTapeTM.ComputableInSpace.listDrop`, `.listTake`: slice with a binary counter.
 * `Turing.MultiTapeTM.ComputableInSpace.bitsDrop`, `.bitsGetD`, `.bitsReverse`: the same for a
   plain bit word, and reading one of its bits.
+* `Turing.MultiTapeTM.ComputableInSpace.natShiftRight`: right shift by a binary offset.
 -/
 
 public section
@@ -110,6 +112,14 @@ theorem bitsDrop : ComputableInSpace (fun p : List Bool × ℕ => p.1.drop p.2)
   · enc_len
   · intro p
     rw [List.tail_iterate]
+
+/-- Right shift a binary natural in space linear in the value and the binary offset.
+The remaining digits already form the canonical encoding, including the empty word for zero. -/
+theorem natShiftRight : ComputableInSpace (fun p : ℕ × ℕ => p.1 >>> p.2)
+    (encPair encNat encNat) encNat (fun p => (encPair encNat encNat p).length) := by
+  have h := bitsDrop.of_encIn_eq (encIn' := encPair encNat encNat)
+    (fun p : ℕ × ℕ => (p.1.bits, p.2)) (fun _ => rfl)
+  exact h.of_enc_eq fun p => Nat.bits_shiftRight p.1 p.2
 
 /-- Read the bit of a bit word at a binary index, or `fallback` beyond its end, in space linear in
 the word and index. -/
