@@ -181,8 +181,8 @@ polynomial time with unary input and output, by a bounded search below `n ^ p`. 
 theorem unary_ceil_rpow (p q : ℕ) (hq : q ≠ 0) :
     ComputableInPolyTime (fun n : ℕ => ⌈(n : ℝ) ^ ((p : ℝ) / q)⌉₊) encUnary encUnary := by
   simp only [ceil_rpow_eq_findGreatest _ p q hq]
-  have hp := (ComputableTidilyInPolyTime.unary_pow p).computableInPolyTime
-  have hq' := (ComputableTidilyInPolyTime.unary_pow q).computableInPolyTime
+  have hp := unary_pow p
+  have hq' := unary_pow q
   exact findGreatest hp (by fun_prop)
 
 end ComputableInPolyTime

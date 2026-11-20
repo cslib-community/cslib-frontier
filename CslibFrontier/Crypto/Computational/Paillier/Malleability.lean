@@ -80,8 +80,11 @@ returns `decrypt sk ct`. -/
 theorem computableInPolyTime_incrementCiphertext :
     ComputableInPolyTime (fun ⟨pk, ct⟩ => incrementCiphertext pk ct) (encPair encBits encBits)
       encBits := by
-  unfold incrementCiphertext addCiphertexts
-  fun_prop
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBits)
+  have hN := ComputableInPolyTime.bitsToNat.comp hp.fst'
+  have hinc := (ComputableInPolyTime.binary_add' (.const 1) hN).encoding_comp
+  simpa only [incrementCiphertext, Function.comp_def] using
+    computableInPolyTime_addCiphertexts.comp (hp.fst'.prod (hp.snd'.prod hinc))
 
 /-- **Incrementing adds one to the plaintext**: for a valid description `d`, every ciphertext in
 the support of `encrypt n (encNat N) m` increments to a ciphertext that decrypts to

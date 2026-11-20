@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
@@ -91,7 +92,8 @@ private theorem computableInO_two_pow_le :
       rfl
   have hpos : ComputableInO (fun k : ℕ => [decide (0 < k)]) encUnary encBits (fun v => v)
       fun v => v :=
-    .of_bounds hT.computableInTimeAndSpace 12 (fun n => by rw [hlen]; omega)
+    .of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hT) 12
+      (fun n => by rw [hlen]; omega)
       (fun _ => Nat.zero_le _) fun _ => by simp only [encBits_apply, List.length_singleton]; omega
   have hnil : ComputableInO (fun _ : ℕ => ([] : List Bool)) encUnary encBits (fun v => v)
       fun v => v :=
@@ -106,7 +108,7 @@ framed description are written in unary, and the first is halved once per bit of
 theorem computableInO_shortDesc :
     ComputableInO shortDesc encBits encBool (fun x => x.length) fun x => x.length := by
   have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
-    (ComputableTidilyInO.of_linear (.of_unframe fun _ => rfl)).computableInO
+    (ComputableInO.of_linear (.of_unframe fun _ => rfl))
   have hl := ComputableInO.lengthUnary
   have h := computableInO_two_pow_le.comp (hl.prod (hl.comp hu))
   refine h.mono 8 (fun x => ?_) fun x => ?_

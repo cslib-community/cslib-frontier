@@ -98,26 +98,25 @@ theorem computableInPolyTime_iterateByLength (hf : ComputableInPolyTime f encBit
     (hlen : ∀ word, (f word).length = word.length)
     (hk : ComputableInPolyTime k encUnary encUnary) :
     ComputableInPolyTime (iterateByLength f k) encBits encBits := by
-  have hcount : ComputableTidilyInPolyTime (fun x : List Bool => k x.length) encBits encUnary :=
-    hk.tidy.comp ComputableTidilyInPolyTime.length_bits
-  exact (ComputableTidilyInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
-    ComputableTidilyInPolyTime.id' hf.tidy fun state => by
-      simp [encBits, hlen]).computableInPolyTime
+  have hcount : ComputableInPolyTime (fun x : List Bool => k x.length) encBits encUnary :=
+    hk.comp ComputableInPolyTime.length_bits
+  exact (ComputableInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
+    ComputableInPolyTime.id' hf fun state => by
+      simp [encBits, hlen])
 
 /-- The derived inverter is uniform strict PPT when the iterate's inverter is. -/
 theorem isPPT_iterateInverter (hf : ComputableInPolyTime f encBits encBits)
     (hlen : ∀ word, (f word).length = word.length)
     (hk : ComputableInPolyTime k encUnary encUnary) {adversary : Inverter}
     (hadversary : IsPPT encBits adversary) : IsPPT encBits (iterateInverter f k adversary) := by
-  have hkt := hk.tidy
-  have hcount : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => k p.1 - 1)
+  have hcount : ComputableInPolyTime (fun p : ℕ × List Bool => k p.1 - 1)
       (encPair encUnary encBits) encUnary := by fun_prop
-  have hiterate : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => f^[k p.1 - 1] p.2)
+  have hiterate : ComputableInPolyTime (fun p : ℕ × List Bool => f^[k p.1 - 1] p.2)
       (encPair encUnary encBits) encBits :=
-    ComputableTidilyInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
-      (ComputableTidilyInPolyTime.snd encUnary encBits) hf.tidy fun state => by simp [encBits, hlen]
+    ComputableInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
+      (ComputableInPolyTime.snd encUnary encBits) hf fun state => by simp [encBits, hlen]
   exact hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits)
-    (ComputableInPolyTime.of_tidy hiterate)
+    hiterate
 
 /-- **The reduction is exact.** At every length `n` with `k n ≠ 0`, the derived inverter inverts
 `f` exactly as often as the given inverter inverts the iterate. -/
