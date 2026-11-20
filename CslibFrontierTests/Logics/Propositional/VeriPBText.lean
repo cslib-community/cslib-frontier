@@ -31,6 +31,8 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   `NONE`;
 * `obju`: an objective update, autoproven or with explicit `proofgoal` blocks, before and after
   a logged solution;
+* projected enumeration: `solx` over a `preserved:` set, with `ENUMERATION_PARTIAL` and
+  `ENUMERATION_COMPLETE`;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
@@ -39,7 +41,9 @@ deletion of the wrong kind, a checked deletion with a failing witness, a witness
 deletion that strengthening-to-core mode forbids, an upper bound, a lower bound above the asserted
 value or `UNSAT` resting on `obji` alone, stated assignments that fail the input, have the wrong
 value or leave an objective variable unassigned, an objective update that is not an equality on
-the core set or rests on derived constraints, a dropped
+the core set or rests on derived constraints, an enumeration that overcounts, repeats a solution,
+claims completeness without a contradiction, leaves a preserved variable unassigned, follows an
+unchecked deletion, or uses a witness that moves a preserved variable, a dropped
 hint, a repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a
 wrong formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
 tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
@@ -742,6 +746,84 @@ end pseudo-Boolean proof;
 #guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n" objuCoreProof).isNone
 #guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
   (objuCoreProof.replace "obju new 1 x2 ;\n" "")).isSome
+
+/-! ### Projected enumeration
+
+`solx ρ` logs `ρ` and excludes every assignment that agrees with it on the preserved set
+(§5.8.3); `ENUMERATION_PARTIAL n` and `ENUMERATION_COMPLETE n : q` claim at least, or exactly,
+`n` distinct projections of solutions (§4.3). VeriPB 3.0.2 and CakePB give the same verdicts as
+this checker, except where noted. -/
+
+/-- `x1 + x2 >= 1`, preserving both variables: three solutions. -/
+def enum3 : String := "* #variable= 2 #constraint= 1
+preserved: x1 x2 ;
+1 x1 1 x2 >= 1 ;
+"
+
+#guard (parseOPB enum3).map (·.preserved) == some (some [0, 1])
+
+/-- The three solutions, then a contradiction from the three exclusions and the input: `5` is
+`~x1`, `6` is `x1`. -/
+def enumProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+solx x1 x2;
+solx x1 ~x2;
+solx ~x1 x2;
+pol 2 3 + 2 d ;
+pol 1 4 + 2 d ;
+pol 5 6 + ;
+output NONE;
+conclusion ENUMERATION_COMPLETE 3 : 7;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB enum3 enumProof == some (.enumComplete 3 7)
+-- Two of them, as a partial enumeration.
+def enumPartialProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+solx x1 x2;
+solx ~x1 x2;
+output NONE;
+conclusion ENUMERATION_PARTIAL 2;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB enum3 enumPartialProof == some (.enumPartial 2)
+-- The count must match.
+#guard (checkOPB enum3 (enumPartialProof.replace "PARTIAL 2" "PARTIAL 3")).isNone
+-- Completeness needs a contradiction.
+#guard (checkOPB enum3 (enumPartialProof.replace "ENUMERATION_PARTIAL 2"
+  "ENUMERATION_COMPLETE 2 : 1")).isNone
+-- A solution cannot be logged twice: its exclusion rules it out.
+#guard (checkOPB enum3 (enumPartialProof.replace "solx ~x1 x2;" "solx x1 x2;")).isNone
+-- Every preserved variable must be assigned (CakePB sets `x2` false and accepts).
+#guard (checkOPB enum3 ((enumPartialProof.replace "solx ~x1 x2;\n" "").replace "solx x1 x2;"
+  "solx x1;" |>.replace "PARTIAL 2" "PARTIAL 1")).isNone
+-- Not after an unchecked deletion.
+#guard (checkOPB enum3 ((enumPartialProof.replace "solx x1 x2;" "delc 1;").replace "PARTIAL 2"
+  "PARTIAL 1")).isNone
+-- A witness may not move a preserved variable.
+#guard (checkOPB enum3 ((enumPartialProof.replace "solx x1 x2;"
+  "red 1 ~x1 >= 1 : x1 -> 0 : subproof\nqed;").replace "PARTIAL 2" "PARTIAL 1")).isNone
+-- Without a preserved set there is nothing to enumerate.
+#guard (checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" enumPartialProof).isNone
+
+/-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. A witness that moves only the unpreserved `x3`
+is allowed (VeriPB and CakePB accept). -/
+def enum2 : String := "* #variable= 3 #constraint= 1
+preserved: x1 x2 ;
+1 x1 1 x2 1 x3 >= 1 ;
+"
+
+#guard checkOPB enum2 "pseudo-Boolean proof version 3.0
+f 1;
+red 1 x3 >= 1 : x3 -> 1 : subproof
+qed;
+solx ~x1 ~x2 x3;
+output NONE;
+conclusion ENUMERATION_PARTIAL 1;
+end pseudo-Boolean proof;
+" == some (.enumPartial 1)
 
 /-! ### Soundness -/
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
+public import Mathlib.Data.Set.Card
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -72,6 +73,16 @@ proved by a `proofgoal` block run on the core. So the two objectives agree on ev
 the core (`Cslib.Logic.PL.VeriPB.objuCheck_sound`). The state carries the current objective,
 which the rules after the update use. Values logged earlier are kept as numbers, as CakePB keeps
 `bound` and `dbound`: a solution's value under a later objective could differ.
+
+**Projected enumeration** (§5.8.3, §4.3). An input may name a *preserved set* `P` of
+variables. `solx ρ` logs a solution `ρ` of the database that assigns every variable of `P`, and
+adds to the core its *solution-excluding constraint*, which holds exactly at the assignments
+whose projection to `P` differs from that of `ρ` (`Cslib.Logic.PL.VeriPB.exclusion`). As in
+CakePB, `solx` needs no objective and no earlier unchecked deletion, and the witnesses of `red`
+and of checked deletion must leave the variables of `P` alone (`Cslib.Logic.PL.VeriPB.presFree`,
+CakePB's `check_pres`). `ENUMERATION_PARTIAL n` claims `n` distinct projections of solutions;
+`ENUMERATION_COMPLETE n : q` claims exactly `n`, with the contradiction `q`. The rules that
+change the preserved set (`preserved_add`, `preserved_rm`, §5.10) are not supported.
 
 **Core and derived constraints** (§3.4). The database is split into a *core set* and a *derived
 set* (`Cslib.Logic.PL.VeriPB.State`). The input constraints start in the core. Implicational
@@ -141,15 +152,25 @@ commit `14856fcf`).
   Every solution `σ` of the formula meets this invariant initially for `w = f(σ)`, which gives
   the lower bounds. It is CakePB's invariant `bimp_obj`.
 
+* *The enumeration invariants*, the counting half of CakePB's `check_csteps_correct`.
+  * Backward (`Cslib.Logic.PL.VeriPB.EnumInv`): the logged projections are distinct, and each is
+    the projection of an input solution. While `chk` holds, every core solution agrees on `P`
+    with an input solution, and its projection has not been logged. `solx` keeps this, because
+    its exclusion constraint removes exactly the projection it logs.
+  * Forward (`Cslib.Logic.PL.VeriPB.Covers`): without an objective, the projection of every input
+    solution is that of a database solution, or has been logged. Witnesses keep projections, and
+    an exclusion constraint removes only a logged projection.
+
+  Together they give the count of `ENUMERATION` (`Cslib.Logic.PL.VeriPB.projections`).
+
 The soundness theorems follow CakePB's semantics of conclusions (`sem_concl`, `npbcScript.sml`).
 In particular a finite upper bound `ub` certifies a solution of value at most `ub`.
 
-**Scope.** There is no order, so no dominance and no order goals. Neither `solx` nor the
-objective update `obju` (§5.9) is supported, nor deletion by specification and levels (§5.7.2).
-The conclusion `ENUMERATION` is not supported, nor `UNSAT` without a constraint ID (the kernel
-format requires one). Matching VeriPB, `red` steps are not cutting-planes steps, and the
-translation of `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check` covers only proofs without
-them.
+**Scope.** There is no order, so no dominance and no order goals. Neither the preserved-set rules
+(§5.10) nor deletion by specification and levels (§5.7.2) are supported, nor `UNSAT` without a
+constraint ID (the kernel format requires one). Matching VeriPB, `red` steps are not
+cutting-planes steps, and the translation of `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check`
+covers only proofs without them.
 
 ## Main definitions
 
@@ -177,6 +198,8 @@ them.
   `Cslib.Logic.PL.VeriPB.not_satisfiable_of_checkRed_bounds`,
   `Cslib.Logic.PL.VeriPB.exists_eval_le_of_checkRed`: soundness for `BOUNDS`, its lower bound,
   infinite lower bound and upper bound.
+* `Cslib.Logic.PL.VeriPB.le_encard_of_checkRed_enum`,
+  `Cslib.Logic.PL.VeriPB.encard_eq_of_checkRed_enumComplete`: soundness for `ENUMERATION`.
 * `Cslib.Logic.PL.VeriPB.checkRed_map_step`: without `red` and solutions, the checker of
   `Cslib.Logic.PL.VeriPB.check`.
 
@@ -443,6 +466,9 @@ inductive TopStep where
   /-- `obju new g` (`diff = false`) or `obju diff g` (`diff = true`), with an optional subproof
   of the goals `#1` and `#2` (§5.9). -/
   | obju (diff : Bool) (g : Objective) (sub : Option (List RedItem))
+  /-- `solx ρ`: log the solution `ρ` and exclude every assignment that agrees with it on the
+  preserved set (§5.8.3). -/
+  | solx (ρ : List (Literal ℕ))
   deriving Repr
 
 /-- The linear form `L - L'`: `L` with the coefficients of `L'` subtracted. -/
@@ -586,6 +612,30 @@ def assigns (ρ : List (Literal ℕ)) (f : Objective) : Bool :=
 /-- Lower the bound `d`, if any, to `v`. -/
 def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
 
+/-! ### Preserved sets -/
+
+/-- The values of the preserved variables `P` under `σ`: the projection of `σ` to `P`. -/
+def proj (P : List ℕ) (σ : ℕ → Bool) : List Bool := P.map σ
+
+/-- `ρ` assigns every variable of `P`, as `solx` requires in the kernel format (§6.1). -/
+def assignsAll (ρ : List (Literal ℕ)) (P : List ℕ) : Bool :=
+  P.all fun x => ρ.contains (x, true) || ρ.contains (x, false)
+
+/-- **The solution-excluding constraint** of `ρ` over `P` (§5.8.3): `∑ x` over the variables of
+`P` false in `ρ`, plus `∑ ¬x` over those true, at least `1`. It holds exactly at the assignments
+whose projection to `P` differs from that of `ρ`. -/
+def exclusion (P : List ℕ) (ρ : List (Literal ℕ)) : PBConstr :=
+  ⟨P.map fun x => (1, (x, !assignOf ρ x)), 1⟩
+
+/-- The witness `ω` leaves the preserved variables, if any, alone (CakePB's `check_pres`). -/
+def presFree (pres : Option (List ℕ)) (ω : Witness) : Bool :=
+  pres.all fun P => ω.all fun e => !P.contains e.1
+
+/-- The redundance check, with a witness that leaves the preserved variables alone. -/
+def redCheckP (pres : Option (List ℕ)) (obj : Option Objective) (db₀ gs : List (ℕ × PBConstr))
+    (n : ℕ) (c : PBConstr) (ω : Witness) (items : List RedItem) (qed : Option ℕ) : Option ℕ :=
+  if presFree pres ω then redCheckOn obj db₀ gs n c ω items qed else none
+
 /-! ### Proofs and the checker -/
 
 /-- The state of the checker between top-level steps. -/
@@ -610,12 +660,16 @@ structure State where
   tcb : Bool
   /-- The current objective, which `obju` changes (§5.9). -/
   obj : Option Objective
+  /-- The preserved set, if any, from the input (`preserved:`); it does not change here. -/
+  pres : Option (List ℕ)
+  /-- The projections to the preserved set of the solutions logged by `solx`, latest first. -/
+  logged : List (List Bool)
   deriving DecidableEq, Repr
 
-/-- The initial state for the formula `F` and the objective `obj`: the constraints, numbered from
-`1`, form the database and the core set. -/
-def State.init (F : List PBConstr) (obj : Option Objective) : State :=
-  ⟨initDb F, F.length + 1, none, none, initDb F, true, false, obj⟩
+/-- The initial state for the formula `F`, the objective `obj` and the preserved set `pres`: the
+constraints, numbered from `1`, form the database and the core set. -/
+def State.init (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ)) : State :=
+  ⟨initDb F, F.length + 1, none, none, initDb F, true, false, obj, pres, []⟩
 
 /-- Log the solution `ρ` of the database in the state `s` for the formula `F` and the input
 objective `obj`. Its value under the current objective lowers `dbound`. It lowers `bound` too
@@ -658,7 +712,8 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
         chk := s.chk && !s.core.any (fun e => st.delIds.contains e.1) }
     | none => none
   | .red c ω sub q =>
-    match redCheckOn s.obj s.db (if s.tcb then s.core else s.db) s.next c ω (sub.getD []) q with
+    match redCheckP s.pres s.obj s.db (if s.tcb then s.core else s.db) s.next c ω (sub.getD []) q
+    with
     | some n' =>
       let m := if sub.isSome then n' else s.next
       some { s with
@@ -692,8 +747,8 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     match lookup s.core i with
     | some c =>
       if s.core.all (fun e => e.1 != i || e.2 == c) && (!s.tcb || ω.isEmpty) then
-        match redCheckOn s.obj (s.core.filter (·.1 != i)) (s.core.filter (·.1 != i)) s.next c ω
-            (sub.getD []) q with
+        match redCheckP s.pres s.obj (s.core.filter (·.1 != i)) (s.core.filter (·.1 != i)) s.next
+            c ω (sub.getD []) q with
         | some n' =>
           some { s with
             db := s.db.filter (·.1 != i), core := s.core.filter (·.1 != i),
@@ -724,6 +779,15 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
           obj := some (if diff then f.add g else g), next := if sub.isSome then n' else s.next }
       | none => none
     | none => none
+  | .solx ρ =>
+    match s.pres, s.obj with
+    | some P, none =>
+      if s.chk && solves ρ (s.db.map (·.2)) && assignsAll ρ P then
+        some { s.log F obj ρ with
+          db := (s.next, exclusion P ρ) :: s.db, core := (s.next, exclusion P ρ) :: s.core,
+          next := s.next + 1, logged := proj P (assignOf ρ) :: s.logged }
+      else none
+    | _, _ => none
 
 /-- Run the top-level steps for the input formula `F` and the objective `obj`. -/
 def runTop (F : List PBConstr) (obj : Option Objective) : State → List TopStep → Option State
@@ -746,6 +810,12 @@ inductive Conclusion where
   | bounds (lb : Option ℤ) (q : ℕ) (ub : Option ℤ) (asg : Option (List (Literal ℕ)))
   /-- `conclusion NONE`: no claim. -/
   | noClaim
+  /-- `conclusion ENUMERATION_PARTIAL n`: at least `n` solutions, counted by their projections
+  to the preserved set. -/
+  | enumPartial (n : ℕ)
+  /-- `conclusion ENUMERATION_COMPLETE n : q`: exactly `n` solutions, counted by their
+  projections to the preserved set, the contradiction `q` showing there are no others. -/
+  | enumComplete (n : ℕ) (q : ℕ)
   deriving DecidableEq, Repr
 
 /-- A kernel proof with redundance and solution-logging steps. -/
@@ -794,11 +864,15 @@ def checkConclusion (F : List PBConstr) (obj : Option Objective) (s : State) : C
     | some f₀, some f => boundsOk F f₀ f s lb q ub asg
     | _, _ => false
   | .noClaim => true
+  | .enumPartial n => obj.isNone && s.pres.isSome && s.logged.length == n
+  | .enumComplete n q =>
+    obj.isNone && s.pres.isSome && s.logged.length == n && namesContra s.db q
 
-/-- **The checker** for the formula `F` and the objective `obj`: run the steps from the
-formula, numbered from `1`, and check the conclusion. -/
-def checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof) : Bool :=
-  match runTop F obj (State.init F obj) P.steps with
+/-- **The checker** for the formula `F`, the objective `obj` and the preserved set `pres`, if
+any: run the steps from the formula, numbered from `1`, and check the conclusion. -/
+def checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof)
+    (pres : Option (List ℕ) := none) : Bool :=
+  match runTop F obj (State.init F obj pres) P.steps with
   | some s => checkConclusion F obj s P.conclusion
   | none => false
 
@@ -1004,6 +1078,50 @@ theorem objuCheck_sound {σ : ℕ → Bool} {core : List (ℕ × PBConstr)} {n n
     · cases h
   · cases h
 
+/-! ### Preserved sets: soundness -/
+
+theorem redCheckOn_of_redCheckP {pres : Option (List ℕ)} {obj : Option Objective}
+    {db₀ gs : List (ℕ × PBConstr)} {n n' : ℕ} {c : PBConstr} {ω : Witness}
+    {items : List RedItem} {qed : Option ℕ}
+    (h : redCheckP pres obj db₀ gs n c ω items qed = some n') :
+    presFree pres ω = true ∧ redCheckOn obj db₀ gs n c ω items qed = some n' := by
+  unfold redCheckP at h
+  split at h
+  · exact ⟨‹_›, h⟩
+  · cases h
+
+/-- A witness that leaves the preserved variables alone keeps every projection to them. -/
+theorem proj_apply_of_presFree {pres : Option (List ℕ)} {ω : Witness}
+    (h : presFree pres ω = true) (σ : ℕ → Bool) :
+    ∀ P ∈ pres, proj P (Witness.apply σ ω) = proj P σ := by
+  intro P hP
+  simp only [presFree, Option.all_eq_true] at h
+  have hω := h P hP
+  simp only [proj, List.map_inj_left]
+  intro x hx
+  have hfind : Witness.find ω x = none := by
+    simp only [Witness.find, Option.map_eq_none_iff, List.find?_eq_none, beq_iff_eq]
+    intro e he hex
+    have := List.all_eq_true.1 hω e he
+    simp [hex, hx] at this
+  simp [Witness.apply, hfind]
+
+/-- **The solution-excluding constraint** holds exactly where the projection differs from that of
+`ρ`. -/
+theorem holds_exclusion (σ : ℕ → Bool) (P : List ℕ) (ρ : List (Literal ℕ)) :
+    (exclusion P ρ).Holds σ ↔ proj P σ ≠ proj P (assignOf ρ) := by
+  have key : ∀ Q : List ℕ, 1 ≤ lhs σ (Q.map fun x => (1, (x, !assignOf ρ x))) ↔
+      ∃ x ∈ Q, σ x ≠ assignOf ρ x := by
+    intro Q
+    induction Q with
+    | nil => simp
+    | cons x Q ih =>
+      simp only [List.map_cons, lhs_cons, termVal, Literal.eval, List.mem_cons, exists_eq_or_imp,
+        ← ih]
+      cases σ x <;> cases assignOf ρ x <;> simp
+  rw [Holds, exclusion, key]
+  simp [proj, List.map_inj_left]
+
 /-! ### The invariants -/
 
 private theorem holds_of_solves_normalize {ρ : List (Literal ℕ)} {F : List PBConstr}
@@ -1079,8 +1197,8 @@ structure Inv (F : List PBConstr) (obj : Option Objective) (s : State) : Prop wh
   /-- The bound `bound` is at least the input objective value of a solution of `F`. -/
   wit : ∀ v ∈ s.bound, ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ objValue obj σ ≤ v
 
-theorem inv_init (F : List PBConstr) (obj : Option Objective) :
-    Inv F obj (State.init F obj) where
+theorem inv_init (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ)) :
+    Inv F obj (State.init F obj pres) where
   sub _ he := he
   imp h := by simp [State.init] at h
   chk _ τ hτ := ⟨τ, holds_of_allHold_initDb hτ, le_rfl⟩
@@ -1246,7 +1364,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
           have hback : ∀ τ, AllHold τ (s.core.filter (·.1 != i)) →
               ∃ τ', (τ' = τ ∨ τ' = Witness.apply τ ω) ∧ AllHold τ' s.core ∧
                 objValue s.obj τ' ≤ objValue s.obj τ := fun τ hτ => by
-            obtain ⟨τ', hτ', hall, hle⟩ := redCheckOn_sound hτ hτ hred
+            obtain ⟨τ', hτ', hall, hle⟩ := redCheckOn_sound hτ hτ (redCheckOn_of_redCheckP hred).2
             exact ⟨τ', hτ', allHold_core_of_filter hok.1 (fun e he => hall e
               (List.mem_cons_of_mem _ he)) ((holds_normalize _ _).1 (hall _ List.mem_cons_self)),
               hle⟩
@@ -1315,6 +1433,24 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         exact hle
       · cases h
     · cases h
+  | solx ρ =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i P
+      split at h
+      · rename_i hok
+        simp only [Option.some.injEq] at h
+        subst h
+        simp only [Bool.and_eq_true] at hok
+        refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, wit_log hs hok.1.2⟩
+        · rcases List.mem_cons.1 he with rfl | he
+          · exact List.mem_cons_self
+          · exact List.mem_cons_of_mem _ (hs.sub e he)
+        · exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
+            hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
+        · exact hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+      · cases h
+    · cases h
 
 /-- **The lower-bound invariant** for a value `w`: some solution of the database has objective at
 most `w`, or the bound `dbound` is at most `w`. -/
@@ -1370,7 +1506,7 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
           split
           · exact allHold_mono hinv.sub hτ
           · exact hτ
-        obtain ⟨τ', -, hτ', hle⟩ := redCheckOn_sound hτ hgs h₁
+        obtain ⟨τ', -, hτ', hle⟩ := redCheckOn_sound hτ hgs (redCheckOn_of_redCheckP h₁).2
         refine .inl ⟨τ', List.forall_mem_cons.2
           ⟨(hτ' (n₁, c.normalize) List.mem_cons_self : c.normalize.Holds τ'), ?_⟩, hle.trans hw⟩
         have hτ'' := fun e he => hτ' e (List.mem_cons_of_mem _ he)
@@ -1490,6 +1626,23 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
         · exact .inr hb
       · cases h
     · cases h
+  | solx ρ =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i P hP hobj
+      split at h
+      · simp only [Option.some.injEq] at h
+        subst h
+        rcases hs with ⟨τ, hτ, hw⟩ | hb
+        · by_cases hex : (exclusion P ρ).Holds τ
+          · exact .inl ⟨τ, List.forall_mem_cons.2 ⟨hex, hτ⟩, hw⟩
+          · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound (objValue s.obj (assignOf ρ))
+            refine .inr ⟨v, hv, ?_⟩
+            simp only [hobj, objValue] at hle hw
+            omega
+        · exact .inr (exists_mem_lowerTo _ hb)
+      · cases h
+    · cases h
 
 /-- A property kept by every step is kept by the checker. -/
 theorem runTop_induct {F : List PBConstr} {obj : Option Objective} {P : State → Prop}
@@ -1505,27 +1658,393 @@ theorem runTop_induct {F : List PBConstr} {obj : Option Objective} {P : State �
       exact runTop_induct hstep s₁ ss s' (hstep s t s₁ hs h₁) h
     · cases h
 
+/-! ### The enumeration invariants -/
+
+/-- **The backward enumeration invariant** for the formula `F`, the input objective `obj` and
+the preserved set `pres`.
+* The preserved set is `pres`, and without an input objective there is no current one.
+* While no unchecked deletion has happened, every solution of the core set agrees on `pres`
+  with a solution of `F`, and its projection has not been logged.
+* The logged projections are distinct, and each is the projection of a solution of `F`.
+
+This is the counting half of CakePB's `check_csteps_correct` that `ENUMERATION` uses. -/
+structure EnumInv (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
+    (s : State) : Prop where
+  pres_eq : s.pres = pres
+  obj_none : obj = none → s.obj = none
+  agree : s.chk = true → ∀ τ, AllHold τ s.core → ∀ P ∈ pres,
+    ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ proj P σ = proj P τ
+  nodup : s.logged.Nodup
+  logsol : ∀ l ∈ s.logged, ∀ P ∈ pres, ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ proj P σ = l
+  logcore : s.chk = true → ∀ τ, AllHold τ s.core → ∀ P ∈ pres, proj P τ ∉ s.logged
+
+theorem enumInv_init (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ)) :
+    EnumInv F obj pres (State.init F obj pres) where
+  pres_eq := rfl
+  obj_none h := h
+  agree _ τ hτ _ _ := ⟨τ, holds_of_allHold_initDb hτ, rfl⟩
+  nodup := List.nodup_nil
+  logsol l hl := by simp [State.init] at hl
+  logcore _ _ _ _ _ h := by simp [State.init] at h
+
+/-- A step that keeps the preserved set and the logged projections, and whose core solutions,
+while `chk` holds, come from core solutions before it with the same projection, keeps the
+backward enumeration invariant. -/
+private theorem enumInv_of {F : List PBConstr} {obj : Option Objective} {pres : Option (List ℕ)}
+    {s s' : State} (he : EnumInv F obj pres s) (hpres : s'.pres = s.pres)
+    (hobj : s.obj = none → s'.obj = none) (hlog : s'.logged = s.logged)
+    (hcore : s'.chk = true → s.chk = true ∧ ∀ τ, AllHold τ s'.core →
+      ∃ τ', AllHold τ' s.core ∧ ∀ P ∈ pres, proj P τ' = proj P τ) :
+    EnumInv F obj pres s' where
+  pres_eq := hpres.trans he.pres_eq
+  obj_none h := hobj (he.obj_none h)
+  agree hc τ hτ P hP := by
+    obtain ⟨hc0, hback⟩ := hcore hc
+    obtain ⟨τ', hτ', hag⟩ := hback τ hτ
+    obtain ⟨σ, hσ, hp⟩ := he.agree hc0 τ' hτ' P hP
+    exact ⟨σ, hσ, hp.trans (hag P hP)⟩
+  nodup := hlog ▸ he.nodup
+  logsol l hl P hP := he.logsol l (hlog ▸ hl) P hP
+  logcore hc τ hτ P hP := by
+    obtain ⟨hc0, hback⟩ := hcore hc
+    obtain ⟨τ', hτ', hag⟩ := hback τ hτ
+    rw [hlog, ← hag P hP]
+    exact he.logcore hc0 τ' hτ' P hP
+
+/-- **Each step keeps the backward enumeration invariant.** -/
+theorem stepTop_enumInv {F : List PBConstr} {obj : Option Objective} {pres : Option (List ℕ)}
+    {s s' : State} {t : TopStep} (hinv : Inv F obj s) (he : EnumInv F obj pres s)
+    (h : stepTop F obj s t = some s') : EnumInv F obj pres s' := by
+  have same : ∀ τ, AllHold τ s.core → ∃ τ', AllHold τ' s.core ∧ ∀ P ∈ pres, proj P τ' = proj P τ :=
+    fun τ hτ => ⟨τ, hτ, fun _ _ => rfl⟩
+  have cons : ∀ e τ, AllHold τ (e :: s.core) →
+      ∃ τ', AllHold τ' s.core ∧ ∀ P ∈ pres, proj P τ' = proj P τ :=
+    fun _ τ hτ => ⟨τ, fun e he => hτ e (List.mem_cons_of_mem _ he), fun _ _ => rfl⟩
+  cases t with
+  | step st =>
+    simp only [stepTop] at h
+    split at h
+    · split at h
+      · cases h
+      · simp only [Option.some.injEq] at h
+        subst h
+        refine enumInv_of he rfl id rfl fun hc => ?_
+        simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
+        have hkeep : s.core.filter (fun e => !st.delIds.contains e.1) = s.core :=
+          List.filter_eq_self.2 fun e he => by
+            have := List.any_eq_false.1 hc.2 e he
+            simpa using this
+        exact ⟨hc.1, fun τ hτ => same τ (by rw [← hkeep]; exact hτ)⟩
+    · cases h
+  | red c ω items q =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i n' hred
+      simp only [Option.some.injEq] at h
+      subst h
+      generalize (if items.isSome = true then n' else s.next) = m
+      refine enumInv_of he rfl id rfl fun hc => ⟨hc, fun τ hτ => ?_⟩
+      split at hτ
+      · exact cons _ τ hτ
+      · exact same τ hτ
+    · cases h
+  | sol ρ =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact enumInv_of he rfl id rfl fun hc => ⟨hc, same⟩
+    · cases h
+  | soli ρ =>
+    simp only [stepTop] at h
+    split at h
+    · split at h
+      · simp only [Option.some.injEq] at h
+        subst h
+        exact enumInv_of he rfl id rfl fun hc => ⟨hc, cons _⟩
+      · cases h
+    · cases h
+  | deld ids =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact enumInv_of he rfl id rfl fun hc => ⟨hc, same⟩
+    · cases h
+  | delc ids =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact enumInv_of he rfl id rfl fun hc => by cases hc
+    · cases h
+  | delcChecked i ω items q =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i c hc
+      split at h
+      · rename_i hok
+        split at h
+        · rename_i n' hred
+          simp only [Option.some.injEq] at h
+          subst h
+          simp only [Bool.and_eq_true] at hok
+          obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
+          refine enumInv_of he rfl id rfl fun hc => ⟨hc, fun τ hτ => ?_⟩
+          obtain ⟨τ', hτ', hall, -⟩ := redCheckOn_sound hτ hτ hred
+          refine ⟨τ', allHold_core_of_filter hok.1 (fun e he => hall e
+            (List.mem_cons_of_mem _ he)) ((holds_normalize _ _).1 (hall _ List.mem_cons_self)),
+            fun P hP => ?_⟩
+          rcases hτ' with rfl | rfl
+          · rfl
+          · exact proj_apply_of_presFree hfree τ P (he.pres_eq ▸ hP)
+        · cases h
+      · cases h
+    · cases h
+  | core ids =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact enumInv_of he rfl id rfl fun hc => ⟨hc, fun τ hτ =>
+        ⟨τ, fun e he => hτ e (List.mem_append_right _ he), fun _ _ => rfl⟩⟩
+    · cases h
+  | strengthenToCore b =>
+    unfold stepTop at h
+    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h
+    · exact enumInv_of he rfl id rfl fun hc => ⟨hc, same⟩
+    · exact enumInv_of he rfl id rfl fun hc =>
+        ⟨hc, fun τ hτ => ⟨τ, allHold_mono hinv.sub hτ, fun _ _ => rfl⟩⟩
+  | obji u =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact enumInv_of he rfl id rfl fun hc => ⟨hc, cons _⟩
+    · cases h
+  | obju diff g sub =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i f hf
+      split at h
+      · simp only [Option.some.injEq] at h
+        subst h
+        exact enumInv_of he rfl (fun h => by simp [hf] at h) rfl fun hc => ⟨hc, same⟩
+      · cases h
+    · cases h
+  | solx ρ =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i P hP hobj
+      split at h
+      · rename_i hok
+        simp only [Option.some.injEq] at h
+        subst h
+        simp only [Bool.and_eq_true] at hok
+        obtain ⟨⟨hchk, hsol⟩, -⟩ := hok
+        have hPp : P ∈ pres := by rw [← he.pres_eq, hP]; rfl
+        have hpres : ∀ P' ∈ pres, P' = P := fun P' hP' => by
+          rw [← he.pres_eq, hP] at hP'
+          exact (Option.mem_some_iff.1 hP').symm
+        have hρ : AllHold (assignOf ρ) s.core := fun e he =>
+          holds_of_solves hsol (List.mem_map_of_mem (f := (·.2)) (hinv.sub e he))
+        refine ⟨he.pres_eq, he.obj_none, fun hc τ hτ P' hP' =>
+          he.agree hc τ (fun e he => hτ e (List.mem_cons_of_mem _ he)) P' hP',
+          List.nodup_cons.2 ⟨he.logcore hchk _ hρ P hPp, he.nodup⟩, fun l hl P' hP' => ?_,
+          fun hc τ hτ P' hP' => ?_⟩
+        · rw [hpres P' hP']
+          rcases List.mem_cons.1 hl with rfl | hl
+          · exact he.agree hchk _ hρ P hPp
+          · exact he.logsol l hl P hPp
+        · rw [hpres P' hP']
+          have hex : (exclusion P ρ).Holds τ := hτ _ List.mem_cons_self
+          rw [holds_exclusion] at hex
+          intro hm
+          rcases List.mem_cons.1 hm with heq | hm
+          · exact hex heq
+          · exact he.logcore hc τ (fun e he => hτ e (List.mem_cons_of_mem _ he)) P hPp hm
+      · cases h
+    · cases h
+
+/-- **The forward enumeration invariant** for a solution `σ₀` of the formula: without an
+objective, its projection to the preserved set is that of a solution of the database, or has
+been logged. -/
+def Covers (σ₀ : ℕ → Bool) (s : State) : Prop :=
+  s.obj = none → ∀ P ∈ s.pres,
+    (∃ τ, AllHold τ s.db ∧ proj P τ = proj P σ₀) ∨ proj P σ₀ ∈ s.logged
+
+private theorem covers_of {σ₀ : ℕ → Bool} {s s' : State} (hc : Covers σ₀ s)
+    (hpres : s'.pres = s.pres) (hobj : s'.obj = none → s.obj = none)
+    (hlog : ∀ l ∈ s.logged, l ∈ s'.logged)
+    (hdb : s.obj = none → ∀ P ∈ s.pres, ∀ τ, AllHold τ s.db →
+      (∃ τ', AllHold τ' s'.db ∧ proj P τ' = proj P τ) ∨ proj P τ ∈ s'.logged) :
+    Covers σ₀ s' := by
+  intro ho P hP
+  rw [hpres] at hP
+  rcases hc (hobj ho) P hP with ⟨τ, hτ, hp⟩ | hl
+  · rcases hdb (hobj ho) P hP τ hτ with ⟨τ', hτ', hp'⟩ | hl'
+    · exact .inl ⟨τ', hτ', hp'.trans hp⟩
+    · exact .inr (hp ▸ hl')
+  · exact .inr (hlog _ hl)
+
+/-- **Each step keeps the forward enumeration invariant.** -/
+theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {σ₀ : ℕ → Bool}
+    {s s' : State} {t : TopStep} (hinv : Inv F obj s) (hs : Covers σ₀ s)
+    (h : stepTop F obj s t = some s') : Covers σ₀ s' := by
+  have keep : ∀ db' : List (ℕ × PBConstr), (∀ τ, AllHold τ s.db → AllHold τ db') →
+      s.obj = none → ∀ P ∈ s.pres, ∀ τ, AllHold τ s.db →
+        (∃ τ', AllHold τ' db' ∧ proj P τ' = proj P τ) ∨ proj P τ ∈ s.logged :=
+    fun _ hdb _ _ _ τ hτ => .inl ⟨τ, hdb τ hτ, rfl⟩
+  cases t with
+  | step st =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i db₁ n₁ h₁
+      split at h
+      · cases h
+      · simp only [Option.some.injEq] at h
+        subst h
+        exact covers_of hs rfl id (fun _ h => h)
+          (keep _ fun τ hτ => runStep_sound _ _ _ _ _ hτ h₁)
+    · cases h
+  | red c ω items q =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i n₁ h₁
+      simp only [Option.some.injEq] at h
+      subst h
+      generalize (if items.isSome = true then n₁ else s.next) = m
+      obtain ⟨hfree, h₁⟩ := redCheckOn_of_redCheckP h₁
+      refine covers_of hs rfl id (fun _ h => h) fun _ P hP τ hτ => .inl ?_
+      have hgs : AllHold τ (if s.tcb then s.core else s.db) := by
+        split
+        · exact allHold_mono hinv.sub hτ
+        · exact hτ
+      obtain ⟨τ', hτ'eq, hτ', -⟩ := redCheckOn_sound hτ hgs h₁
+      refine ⟨τ', List.forall_mem_cons.2
+        ⟨(hτ' (n₁, c.normalize) List.mem_cons_self : c.normalize.Holds τ'), ?_⟩, ?_⟩
+      · have hτ'' := fun e he => hτ' e (List.mem_cons_of_mem _ he)
+        split at hτ''
+        · rename_i ht
+          exact hinv.imp ht τ' hτ''
+        · exact hτ''
+      · rcases hτ'eq with rfl | rfl
+        · rfl
+        · exact proj_apply_of_presFree hfree τ P hP
+    · cases h
+  | sol ρ =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact covers_of hs rfl id (fun _ h => h) (keep _ fun _ h => h)
+    · cases h
+  | soli ρ =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i f hf
+      split at h
+      · simp only [Option.some.injEq] at h
+        subst h
+        intro ho
+        simp [State.log, hf] at ho
+      · cases h
+    · cases h
+  | deld ids =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact covers_of hs rfl id (fun _ h => h) (keep _ fun τ hτ => allHold_filter hτ _)
+    · cases h
+  | delc ids =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact covers_of hs rfl id (fun _ h => h) (keep _ fun τ hτ => allHold_filter hτ _)
+    · cases h
+  | delcChecked i ω items q =>
+    simp only [stepTop] at h
+    split at h
+    · split at h
+      · split at h
+        · simp only [Option.some.injEq] at h
+          subst h
+          exact covers_of hs rfl id (fun _ h => h) (keep _ fun τ hτ => allHold_filter hτ _)
+        · cases h
+      · cases h
+    · cases h
+  | core ids =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact covers_of hs rfl id (fun _ h => h) (keep _ fun _ h => h)
+    · cases h
+  | strengthenToCore b =>
+    unfold stepTop at h
+    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h <;>
+      exact covers_of hs rfl id (fun _ h => h) (keep _ fun _ h => h)
+  | obji u =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i f hf
+      simp only [Option.some.injEq] at h
+      subst h
+      intro ho
+      simp [hf] at ho
+    · cases h
+  | obju diff g sub =>
+    simp only [stepTop] at h
+    split at h
+    · split at h
+      · simp only [Option.some.injEq] at h
+        subst h
+        intro ho
+        simp at ho
+      · cases h
+    · cases h
+  | solx ρ =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i P hP hobj
+      split at h
+      · simp only [Option.some.injEq] at h
+        subst h
+        refine covers_of hs rfl id (fun _ h => List.mem_cons_of_mem _ h) fun _ P' hP' τ hτ => ?_
+        have hP'P : P' = P := by rw [hP] at hP'; exact (Option.mem_some_iff.1 hP').symm
+        subst hP'P
+        by_cases hex : (exclusion P' ρ).Holds τ
+        · exact .inl ⟨τ, List.forall_mem_cons.2 ⟨hex, hτ⟩, rfl⟩
+        · rw [holds_exclusion, not_not] at hex
+          exact .inr (hex ▸ List.mem_cons_self)
+      · cases h
+    · cases h
+
 /-! ### Soundness of the conclusions -/
+
+variable {pres : Option (List ℕ)}
 
 /-- The final state of an accepted proof meets the core invariant, and the lower-bound invariant
 for the value of every solution of the formula. -/
 private theorem reaches_of_checkRed {F : List PBConstr} {obj : Option Objective} {P : RedProof}
-    (h : checkRed F obj P = true) :
+    (h : checkRed F obj P pres = true) :
     ∃ s, checkConclusion F obj s P.conclusion = true ∧ Inv F obj s ∧
       ∀ σ, (∀ c ∈ F, c.Holds σ) → Reaches (objValue obj σ) s := by
   unfold checkRed at h
   split at h
   · rename_i s hrun
-    refine ⟨s, h, runTop_induct (fun _ _ _ => stepTop_inv) _ _ s (inv_init F obj) hrun,
+    refine ⟨s, h, runTop_induct (fun _ _ _ => stepTop_inv) _ _ s (inv_init F obj pres) hrun,
       fun σ hσ => ?_⟩
     exact (runTop_induct (P := fun s => Inv F obj s ∧ Reaches (objValue obj σ) s)
       (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_reaches hs.1 hs.2 ht⟩) _ _ s
-      ⟨inv_init F obj, .inl ⟨σ, allHold_initDb hσ, le_rfl⟩⟩ hrun).2
+      ⟨inv_init F obj pres, .inl ⟨σ, allHold_initDb hσ, le_rfl⟩⟩ hrun).2
   · cases h
 
 /-- **Soundness for `UNSAT`**: a formula with a checked proof of `UNSAT` has no solution. -/
 theorem not_satisfiable_of_checkRed {F : List PBConstr} {obj : Option Objective} {P : RedProof}
-    {q : ℕ} (h : checkRed F obj P = true) (hc : P.conclusion = .unsat q) (σ : ℕ → Bool) :
+    {q : ℕ} (h : checkRed F obj P pres = true) (hc : P.conclusion = .unsat q) (σ : ℕ → Bool) :
     ¬ ∀ c ∈ F, c.Holds σ := fun hF => by
   obtain ⟨s, hconc, -, hreach⟩ := reaches_of_checkRed h
   rw [hc] at hconc
@@ -1538,7 +2057,7 @@ theorem not_satisfiable_of_checkRed {F : List PBConstr} {obj : Option Objective}
 /-- **Soundness for CNF**: a CNF whose clauses, as pseudo-Boolean constraints, have a checked
 proof of `UNSAT` is unsatisfiable. -/
 theorem not_satisfiable_cnf_of_checkRed {φ : CNF ℕ} {obj : Option Objective} {P : RedProof}
-    {q : ℕ} (h : checkRed (φ.map Clause.toPB) obj P = true) (hc : P.conclusion = .unsat q) :
+    {q : ℕ} (h : checkRed (φ.map Clause.toPB) obj P pres = true) (hc : P.conclusion = .unsat q) :
     ¬ φ.Satisfiable := by
   rintro ⟨σ, hσ⟩
   refine not_satisfiable_of_checkRed h hc σ fun c hc => ?_
@@ -1548,7 +2067,7 @@ theorem not_satisfiable_cnf_of_checkRed {φ : CNF ℕ} {obj : Option Objective} 
 /-- **Soundness for `SAT`**: a formula with a checked proof of `SAT`, with or without an
 assignment, has a solution. -/
 theorem exists_satisfies_of_checkRed {F : List PBConstr} {obj : Option Objective}
-    {P : RedProof} {asg : Option (List (Literal ℕ))} (h : checkRed F obj P = true)
+    {P : RedProof} {asg : Option (List (Literal ℕ))} (h : checkRed F obj P pres = true)
     (hc : P.conclusion = .sat asg) : ∃ σ, ∀ c ∈ F, c.Holds σ := by
   obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
   rw [hc] at hconc
@@ -1562,7 +2081,7 @@ theorem exists_satisfies_of_checkRed {F : List PBConstr} {obj : Option Objective
 
 /-- **Soundness for `SAT : ρ`**: the stated assignment is a solution of the formula. -/
 theorem holds_of_checkRed_sat {F : List PBConstr} {obj : Option Objective} {P : RedProof}
-    {ρ : List (Literal ℕ)} (h : checkRed F obj P = true) (hc : P.conclusion = .sat (some ρ)) :
+    {ρ : List (Literal ℕ)} (h : checkRed F obj P pres = true) (hc : P.conclusion = .sat (some ρ)) :
     ∀ c ∈ F, c.Holds (assignOf ρ) := by
   obtain ⟨s, hconc, -, -⟩ := reaches_of_checkRed h
   rw [hc] at hconc
@@ -1582,7 +2101,8 @@ private theorem boundsOk_of_checkConclusion {F : List PBConstr} {f : Objective} 
 `conclusion BOUNDS lb : q ub` with a finite `lb` for the formula `F` and the objective `f`, then
 every solution of `F` has objective at least `lb`. -/
 theorem le_eval_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof} {lb : ℤ}
-    {q : ℕ} {ub : Option ℤ} {asg : Option (List (Literal ℕ))} (h : checkRed F (some f) P = true)
+    {q : ℕ} {ub : Option ℤ} {asg : Option (List (Literal ℕ))}
+    (h : checkRed F (some f) P pres = true)
     (hc : P.conclusion = .bounds (some lb) q ub asg) (σ : ℕ → Bool) (hσ : ∀ c ∈ F, c.Holds σ) :
     lb ≤ f.eval σ := by
   obtain ⟨s, hconc, -, hreach⟩ := reaches_of_checkRed h
@@ -1603,7 +2123,8 @@ theorem le_eval_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof} {
 `conclusion BOUNDS INF : q ub` for the formula `F` and the objective `f`, then `F` has no
 solution. -/
 theorem not_satisfiable_of_checkRed_bounds {F : List PBConstr} {f : Objective} {P : RedProof}
-    {q : ℕ} {ub : Option ℤ} {asg : Option (List (Literal ℕ))} (h : checkRed F (some f) P = true)
+    {q : ℕ} {ub : Option ℤ} {asg : Option (List (Literal ℕ))}
+    (h : checkRed F (some f) P pres = true)
     (hc : P.conclusion = .bounds none q ub asg) (σ : ℕ → Bool) :
     ¬ ∀ c ∈ F, c.Holds σ := fun hF => by
   obtain ⟨s, hconc, -, hreach⟩ := reaches_of_checkRed h
@@ -1621,7 +2142,7 @@ some solution of `F` has objective at most `ub`. With the lower bound
 (`Cslib.Logic.PL.VeriPB.le_eval_of_checkRed`), the optimum lies in `[lb, ub]`. -/
 theorem exists_eval_le_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof}
     {lb : Option ℤ} {q : ℕ} {ub : ℤ} {asg : Option (List (Literal ℕ))}
-    (h : checkRed F (some f) P = true) (hc : P.conclusion = .bounds lb q (some ub) asg) :
+    (h : checkRed F (some f) P pres = true) (hc : P.conclusion = .bounds lb q (some ub) asg) :
     ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ f.eval σ ≤ ub := by
   obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
   rw [hc] at hconc
@@ -1639,7 +2160,7 @@ theorem exists_eval_le_of_checkRed {F : List PBConstr} {f : Objective} {P : RedP
 /-- **Soundness for `BOUNDS lb : q ub : ρ`**: the stated assignment is a solution of the formula
 with objective value exactly `ub`. -/
 theorem holds_of_checkRed_bounds {F : List PBConstr} {f : Objective} {P : RedProof}
-    {lb : Option ℤ} {q : ℕ} {ub : ℤ} {ρ : List (Literal ℕ)} (h : checkRed F (some f) P = true)
+    {lb : Option ℤ} {q : ℕ} {ub : ℤ} {ρ : List (Literal ℕ)} (h : checkRed F (some f) P pres = true)
     (hc : P.conclusion = .bounds lb q (some ub) (some ρ)) :
     (∀ c ∈ F, c.Holds (assignOf ρ)) ∧ f.eval (assignOf ρ) = ub := by
   obtain ⟨s, hconc, -, -⟩ := reaches_of_checkRed h
@@ -1648,6 +2169,82 @@ theorem holds_of_checkRed_bounds {F : List PBConstr} {f : Objective} {P : RedPro
   simp only [boundsOk, Bool.and_eq_true, beq_iff_eq] at hconc
   obtain ⟨-, ⟨hsol, -⟩, hval⟩ := hconc
   exact ⟨holds_of_solves_normalize hsol, hval⟩
+
+/-! ### Soundness of `ENUMERATION` -/
+
+/-- The projections to `P` of the solutions of `F`: the solutions counted by a projected
+enumeration (§4.3). -/
+def projections (F : List PBConstr) (P : List ℕ) : Set (List Bool) :=
+  {l | ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ proj P σ = l}
+
+/-- The final state of an accepted proof meets the enumeration invariants. -/
+private theorem enum_of_checkRed {F : List PBConstr} {obj : Option Objective} {P : RedProof}
+    (h : checkRed F obj P pres = true) :
+    ∃ s, checkConclusion F obj s P.conclusion = true ∧ EnumInv F obj pres s ∧
+      ∀ σ, (∀ c ∈ F, c.Holds σ) → Covers σ s := by
+  unfold checkRed at h
+  split at h
+  · rename_i s hrun
+    refine ⟨s, h, (runTop_induct (P := fun s => Inv F obj s ∧ EnumInv F obj pres s)
+      (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_enumInv hs.1 hs.2 ht⟩) _ _ s
+      ⟨inv_init F obj pres, enumInv_init F obj pres⟩ hrun).2, fun σ hσ => ?_⟩
+    exact (runTop_induct (P := fun s => Inv F obj s ∧ Covers σ s)
+      (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_covers hs.1 hs.2 ht⟩) _ _ s
+      ⟨inv_init F obj pres, fun _ _ _ => .inl ⟨σ, allHold_initDb hσ, rfl⟩⟩ hrun).2
+  · cases h
+
+/-- An accepted `ENUMERATION` conclusion needs a preserved set. -/
+theorem isSome_of_checkRed_enum {F : List PBConstr} {obj : Option Objective} {P : RedProof}
+    {n : ℕ} (h : checkRed F obj P pres = true)
+    (hc : P.conclusion = .enumPartial n ∨ ∃ q, P.conclusion = .enumComplete n q) :
+    pres.isSome := by
+  obtain ⟨s, hconc, he, -⟩ := enum_of_checkRed h
+  rw [← he.pres_eq]
+  rcases hc with hc | ⟨q, hc⟩ <;> rw [hc] at hconc <;>
+    simp only [checkConclusion, Bool.and_eq_true] at hconc
+  · exact hconc.1.2
+  · exact hconc.1.1.2
+
+/-- **Soundness of the enumeration count**: if the checker accepts
+`conclusion ENUMERATION_PARTIAL n` or `conclusion ENUMERATION_COMPLETE n : q` for the formula
+`F` with the preserved set `P`, then `F` has at least `n` solutions with distinct projections to
+`P`. -/
+theorem le_encard_of_checkRed_enum {F : List PBConstr} {obj : Option Objective} {P : RedProof}
+    {Pres : List ℕ} {n : ℕ} (h : checkRed F obj P (some Pres) = true)
+    (hc : P.conclusion = .enumPartial n ∨ ∃ q, P.conclusion = .enumComplete n q) :
+    (n : ℕ∞) ≤ (projections F Pres).encard := by
+  obtain ⟨s, hconc, he, -⟩ := enum_of_checkRed h
+  have hlen : s.logged.length = n := by
+    rcases hc with hc | ⟨q, hc⟩ <;> rw [hc] at hconc <;>
+      simp only [checkConclusion, Bool.and_eq_true, beq_iff_eq] at hconc
+    · exact hconc.2
+    · exact hconc.1.2
+  have hsub : (↑s.logged.toFinset : Set (List Bool)) ⊆ projections F Pres := fun l hl =>
+    he.logsol l (by simpa using hl) Pres rfl
+  calc (n : ℕ∞) = (↑s.logged.toFinset : Set (List Bool)).encard := by
+        rw [Set.encard_coe_eq_coe_finsetCard, List.toFinset_card_of_nodup he.nodup, hlen]
+    _ ≤ _ := Set.encard_le_encard hsub
+
+/-- **Soundness of a complete enumeration**: if the checker accepts
+`conclusion ENUMERATION_COMPLETE n : q` for the formula `F` with the preserved set `P`, then the
+solutions of `F` have exactly `n` distinct projections to `P`. -/
+theorem encard_eq_of_checkRed_enumComplete {F : List PBConstr} {obj : Option Objective}
+    {P : RedProof} {Pres : List ℕ} {n q : ℕ} (h : checkRed F obj P (some Pres) = true)
+    (hc : P.conclusion = .enumComplete n q) : (projections F Pres).encard = n := by
+  refine le_antisymm ?_ (le_encard_of_checkRed_enum h (.inr ⟨q, hc⟩))
+  obtain ⟨s, hconc, he, hcov⟩ := enum_of_checkRed h
+  rw [hc] at hconc
+  simp only [checkConclusion, Bool.and_eq_true, beq_iff_eq, Option.isNone_iff_eq_none] at hconc
+  obtain ⟨⟨⟨hobj, -⟩, hlen⟩, hq⟩ := hconc
+  have hsub : projections F Pres ⊆ (↑s.logged.toFinset : Set (List Bool)) := by
+    rintro l ⟨σ, hσ, rfl⟩
+    rcases hcov σ hσ (he.obj_none hobj) Pres (by rw [he.pres_eq]; rfl) with ⟨τ, hτ, -⟩ | hl
+    · simp [hτ.not_namesContra] at hq
+    · simpa using hl
+  calc (projections F Pres).encard ≤ (↑s.logged.toFinset : Set (List Bool)).encard :=
+        Set.encard_le_encard hsub
+    _ = n := by
+        rw [Set.encard_coe_eq_coe_finsetCard, List.toFinset_card_of_nodup he.nodup, hlen]
 
 /-! ### Proofs without redundance and solutions -/
 
@@ -1668,10 +2265,11 @@ theorem runTop_map_step (F : List PBConstr) (obj : Option Objective) (s : State)
 implicational steps. -/
 theorem checkRed_map_step (F : List PBConstr) (obj : Option Objective) (P : Proof) :
     checkRed F obj ⟨P.steps.map .step, .unsat P.conclusion⟩ = check F P := by
-  have hmap := runTop_map_step F obj (State.init F obj) rfl P.steps
+  have hmap := runTop_map_step F obj (State.init F obj none) rfl P.steps
   unfold checkRed check
   simp only [State.init] at hmap ⊢
-  rcases h1 : runTop F obj ⟨initDb F, F.length + 1, none, none, initDb F, true, false, obj⟩
+  rcases h1 : runTop F obj
+      ⟨initDb F, F.length + 1, none, none, initDb F, true, false, obj, none, []⟩
       (P.steps.map .step) with _ | s <;>
     rcases h2 : runSteps (initDb F) (F.length + 1) P.steps with _ | ⟨db, n⟩ <;>
     simp_all [checkConclusion]

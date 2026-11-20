@@ -44,13 +44,13 @@ example : (∀ c ∈ G, c.Holds (Witness.apply σ₀ setX0)) ∧ D.Holds (Witnes
 
 -- As a step of a proof without a subproof, `¬D` takes no number and `D` joins the database as
 -- constraint `2`, as in VeriPB.
-example : runTop G none (State.init G none) [.red D setX0 none none] =
-    some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false, none⟩ := by
+example : runTop G none (State.init G none none) [.red D setX0 none none] =
+    some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false, none, none, []⟩ := by
   decide
 
 -- With a subproof, even an empty one, `¬D` takes `2` and `D` takes `3`.
-example : runTop G none (State.init G none) [.red D setX0 (some []) none] =
-    some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false, none⟩ := by
+example : runTop G none (State.init G none none) [.red D setX0 (some []) none] =
+    some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false, none, none, []⟩ := by
   decide
 
 /-! ### Breaking a symmetry -/
@@ -80,7 +80,7 @@ def proof : RedProof :=
 example : checkRed F none proof = true := by decide
 
 theorem F_unsat (σ : ℕ → Bool) : ¬ ∀ c ∈ F, c.Holds σ :=
-  not_satisfiable_of_checkRed (obj := none) (P := proof) (by decide) rfl σ
+  not_satisfiable_of_checkRed (obj := none) (P := proof) (pres := none) (by decide) rfl σ
 
 -- The database goals may also be proved explicitly, each by RUP from its negation.
 example : checkRed F none
