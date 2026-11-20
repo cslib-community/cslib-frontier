@@ -688,37 +688,55 @@ private theorem computableInPolyTime_rawGen {g : List Bool → List Bool} {imgLe
   let h2Fn (z : List Bool) :=
     (z.drop (wFn z + kFn z + kFn z * imgLen (kFn z))).take (h2Rows d γ_core (kFn z) * kFn z)
   let padFn (z : List Bool) := z.drop (coreSeedLen imgLen d γ_core (kFn z))
+  have hn := ComputableInPolyTime.length_bits
+  have hid := ComputableInPolyTime.id' (encIn := encBits)
   have hk : ComputableInPolyTime kFn encBits encUnary :=
-    (GeneratorReindex.isPolyTime_parameter (by fun_prop) (by fun_prop))
-  have hw : ComputableInPolyTime wFn encBits encUnary := by unfold wFn; fun_prop
-  have hr : ComputableInPolyTime rFn encBits encUnary := by unfold rFn; fun_prop
-  have hx : ComputableInPolyTime xFn encBits encBits := by unfold xFn; fun_prop
-  have hh1 : ComputableInPolyTime h1Fn encBits encBits := by unfold h1Fn; fun_prop
-  have hh2 : ComputableInPolyTime h2Fn encBits encBits := by unfold h2Fn; fun_prop
-  have hpad : ComputableInPolyTime padFn encBits encBits := by unfold padFn; fun_prop
-  have hd1 : ComputableInPolyTime
-      (fun z => LinearHash.wordHash (l1Val d (kFn z) (rFn z)) (h1Fn z) (g (xFn z)))
-      encBits encBits := by fun_prop
-  have hd2 : ComputableInPolyTime
-      (fun z => LinearHash.wordHash
-        (l2Val d (kFn z) (rFn z) + mActual d γ (kFn z) z.length) (h2Fn z) (xFn z))
-      encBits encBits := by fun_prop
-  change ComputableInPolyTime
-    (fun z => padFn z ++ h1Fn z ++
-      LinearHash.wordHash (l1Val d (kFn z) (rFn z)) (h1Fn z) (g (xFn z)) ++
-      h2Fn z ++
-      LinearHash.wordHash
-        (l2Val d (kFn z) (rFn z) + mActual d γ (kFn z) z.length) (h2Fn z) (xFn z))
-    encBits encBits
-  fun_prop
+    GeneratorReindex.isPolyTime_parameter
+      (computableInPolyTime_coreSeedLen himgLen d γ_core
+        (ComputableInPolyTime.id' (encIn := encUnary))) hn
+  have hw : ComputableInPolyTime wFn encBits encUnary :=
+    computableInPolyTime_regWidth hk
+  have hr : ComputableInPolyTime rFn encBits encUnary :=
+    ComputableInPolyTime.bitsBoundedBinaryValueWithInput hk
+      (ComputableInPolyTime.bitsTakeWithInput hid hw)
+  have hx : ComputableInPolyTime xFn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid hw) hk
+  have himageLen := himgLen.comp hk
+  have hh1Size := ComputableInPolyTime.unary_mul' hk himageLen
+  have hh1 : ComputableInPolyTime h1Fn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid (ComputableInPolyTime.unary_add' hw hk))
+      hh1Size
+  have hh2 : ComputableInPolyTime h2Fn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid
+        (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' hw hk) hh1Size))
+      (ComputableInPolyTime.unary_mul' (computableInPolyTime_h2Rows d γ_core hk) hk)
+  have hpad : ComputableInPolyTime padFn encBits encBits :=
+    ComputableInPolyTime.bitsDropWithInput hid
+      (computableInPolyTime_coreSeedLen himgLen d γ_core hk)
+  have hd1 := LinearHash.computableInPolyTime_wordHash
+    (computableInPolyTime_l1Val d hk hr) hh1 (hg.comp hx)
+  have hd2 := LinearHash.computableInPolyTime_wordHash
+    (ComputableInPolyTime.unary_add' (computableInPolyTime_l2Val d hk hr)
+      (computableInPolyTime_mActual d γ hk hn)) hh2 hx
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hpad hh1) hd1) hh2) hd2
 
 private theorem computableInPolyTime_fullGen {g : List Bool → List Bool} {imgLen : ℕ → ℕ}
     (hg : ComputableInPolyTime g encBits encBits)
     (himgLen : ComputableInPolyTime imgLen encUnary encUnary)
     (d γ_core γ : ℕ) :
     ComputableInPolyTime (fullGen g imgLen d γ_core γ) encBits encBits := by
-  unfold fullGen
-  fun_prop
+  have hn := ComputableInPolyTime.length_bits
+  have htarget := ComputableInPolyTime.unary_add' hn
+    (ComputableInPolyTime.unary_mul' (.const γ)
+      (ComputableInPolyTime.unary_log_two.comp hn))
+  exact ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.bitsAppend (computableInPolyTime_rawGen hg himgLen d γ_core γ)
+      ((ComputableInPolyTime.bitsReplicate false).comp htarget)) htarget
 
 /-! ### Seed packing and conditioning events $E_n$ -/
 
@@ -1439,7 +1457,13 @@ private theorem computableInPolyTime_spliceMatrixWord {α : Type} {encode : α �
     ComputableInPolyTime
       (fun a => spliceMatrixWord (k a) (idx a) (h2 a) (query a)) encode encBits := by
   unfold spliceMatrixWord
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsTakeWithInput hh2
+        (ComputableInPolyTime.unary_mul' hidx hk)) hquery)
+    (ComputableInPolyTime.bitsDropWithInput hh2
+      (ComputableInPolyTime.unary_mul'
+        (ComputableInPolyTime.unary_add' hidx (.const 1)) hk))
 
 /-- Assemble the word challenge fed to the PRG distinguisher at hybrid step `idx = m2 + j`. -/
 private def wordChallenge (k m1 idx : ℕ) (pad h1 image h2 digest r_word z_tail query : List Bool) :
@@ -1464,8 +1488,15 @@ private theorem computableInPolyTime_wordChallenge {α : Type} {encode : α ↪ 
     ComputableInPolyTime
       (fun a => wordChallenge (k a) (m1 a) (idx a) (pad a) (h1 a) (image a)
         (h2 a) (digest a) (r_word a) (z_tail a) (query a)) encode encBits := by
+  have hhash := LinearHash.computableInPolyTime_wordHash hm1 hh1 himage
+  have hsplice := computableInPolyTime_spliceMatrixWord hk hidx hh2 hquery
   unfold wordChallenge
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsAppend
+        (ComputableInPolyTime.bitsAppend
+          (ComputableInPolyTime.bitsAppend
+            (ComputableInPolyTime.bitsAppend hpad hh1) hhash) hsplice) hdigest) hr_word) hz_tail
 
 /-- Convert the saved-coin distinguisher into a signed parity predictor for row `idx` of `h2`. -/
 private def wordStepPredictor (evaluate : (ℕ × List Bool) → List Bool → Bool)

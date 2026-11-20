@@ -1,0 +1,110 @@
+/-
+Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Christian Reitwiessner
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
+import Mathlib.Data.List.GetD
+
+/-!
+# Table-free multiplication in explicit binary fields
+
+Multiplication scans one operand's coefficient word, shifting the other modulo the supplied
+polynomial and accumulating the product. Both live words have the degree of the modulus at
+every scan boundary, by `Cslib.modMulBits_spec`.
+
+## Main definitions
+
+* `Cslib.BinaryField.modulusBitsScan`: modulus search by bounded counters.
+* `Cslib.BinaryField.fieldMulMod`: table-free multiplication with a supplied modulus.
+
+## Main results
+
+* `Cslib.BinaryField.fieldOfBits_fieldMulMod`: correctness for the explicit binary field.
+-/
+
+public section
+
+namespace Cslib.BinaryField
+
+open Polynomial BitString
+
+-- The two natural-number parameters are the current candidate and the remaining count.
+private def findCode (p : ℕ → Bool) : ℕ → ℕ → Option ℕ
+  | _, 0 => none
+  | i, fuel + 1 => if p i then some i else findCode p (i + 1) fuel
+
+private theorem findCode_eq (p : ℕ → Bool) (i fuel : ℕ) :
+    findCode p i fuel = (List.range' i fuel).find? p := by
+  induction fuel generalizing i with
+  | zero => simp [findCode]
+  | succ fuel ih => cases hp : p i <;> simp [findCode, List.range'_succ, ih, hp]
+
+private theorem all_range_eq_isNone_findCode (p : ℕ → Bool) (n : ℕ) :
+    (List.range n).all p = (findCode (fun d => !p d) 0 n).isNone := by
+  rw [findCode_eq, ← List.range_eq_range']
+  apply Bool.eq_iff_iff.mpr
+  simp [List.all_eq_true, Option.isNone_iff_eq_none]
+
+private def isIrreducibleCodeScan (m : ℕ) : Bool :=
+  decide (2 ≤ m) && (findCode (fun d =>
+    !(decide (d < 2) || decide (Nat.log 2 m / 2 < Nat.log 2 d) ||
+      (modBits d.bits m.bits).any id)) 0 m).isNone
+
+private theorem isIrreducibleCodeScan_eq (m : ℕ) :
+    isIrreducibleCodeScan m = isIrreducibleCode m := by
+  rw [isIrreducibleCodeScan, isIrreducibleCode, all_range_eq_isNone_findCode]
+
+/-- Search for the modulus in code order using a candidate and a trial divisor counter,
+without allocating lists of candidates or divisors. -/
+def modulusBitsScan (w : ℕ) : List Bool :=
+  ((findCode (fun m => Nat.log 2 m == w && isIrreducibleCodeScan m) 0 (2 ^ (w + 1))).getD 0).bits
+
+/-- The counter scan selects exactly the modulus used by the table-based evaluator. -/
+theorem modulusBitsScan_eq (w : ℕ) : modulusBitsScan w = modulusBits w := by
+  simp [modulusBitsScan, findCode_eq, ← List.range_eq_range', isIrreducibleCodeScan_eq,
+    modulusBits, leastIrreducibleCode]
+
+/-- Multiply coordinate words using the supplied modulus bits, with zero padding or truncation
+to its degree. A caller can reuse the same modulus across many products. -/
+@[expose] def fieldMulMod (g a b : List Bool) : List Bool :=
+  let word (x : List Bool) := List.ofFn fun i : Fin (g.length - 1) => x.getD i false
+  modMulBits g (word a) (word b)
+
+private theorem mk_polyOfBits_word {w : ℕ} (hw : w ≠ 0) (a : List Bool) :
+    AdjoinRoot.mk (leastIrreducible w)
+        (polyOfBits (List.ofFn fun i : Fin w => a.getD i false)) =
+      fieldOfBits (basis hw) a := by
+  rw [← AdjoinRoot.aeval_eq, aeval_polyOfBits, List.length_ofFn, Finset.sum_range,
+    fieldOfBits, ofBits]
+  exact Finset.sum_congr rfl fun i _ => by
+    rw [basis_apply, List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
+
+/-- The table-free algorithm computes multiplication in the same power basis as
+`fieldMul (fieldTable w)`. -/
+theorem fieldOfBits_fieldMulMod {w : ℕ} (hw : w ≠ 0) (a b : List Bool) :
+    fieldOfBits (basis hw) (fieldMulMod (modulusBits w) a b) =
+      fieldOfBits (basis hw) a * fieldOfBits (basis hw) b := by
+  obtain ⟨l, hl, hlen⟩ := exists_modulusBits_eq hw
+  have hg : (modulusBits w).length - 1 = w := by simp [hl, hlen]
+  have hp : polyOfBits (l ++ [true]) = leastIrreducible w := by
+    rw [← hl, polyOfBits_modulusBits hw]
+  let word (x : List Bool) := List.ofFn fun i : Fin w => x.getD i false
+  have hprod := (modMulBits_spec l (word a) (word b) (by simp [word, hlen])).2
+  rw [hp, map_mul, mk_polyOfBits_word hw a, mk_polyOfBits_word hw b] at hprod
+  have hword : word (modMulBits (l ++ [true]) (word a) (word b)) =
+      modMulBits (l ++ [true]) (word a) (word b) := by
+    apply List.ext_getElem
+    · simpa [word, hlen] using hprod.1.symm
+    · intro i hi hi'
+      rw [List.getElem_ofFn, List.getD_eq_getElem _ _ hi']
+  rw [fieldMulMod, hg, hl, ← mk_polyOfBits_word hw]
+  change AdjoinRoot.mk (leastIrreducible w)
+    (polyOfBits (word (modMulBits (l ++ [true]) (word a) (word b)))) = _
+  rw [hword, hprod.2]
+
+end Cslib.BinaryField

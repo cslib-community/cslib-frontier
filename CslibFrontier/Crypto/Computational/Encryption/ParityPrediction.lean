@@ -296,7 +296,13 @@ private theorem computableInPolyTime_flipLastBitWord {α : Type} {enc : α ↪ L
     (hL : ComputableInPolyTime L enc encUnary)
     (hw : ComputableInPolyTime w enc encBits) :
     ComputableInPolyTime (fun a => flipLastBitWord (L a) (w a)) enc encBits := by
-  fun_prop [flipLastBitWord]
+  have hmask := ComputableInPolyTime.bitsAppend
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.unary_sub' hL (ComputableInPolyTime.const 1)))
+    (ComputableInPolyTime.const [true])
+  exact ComputableInPolyTime.bitsXorWithInput hL
+    (ComputableInPolyTime.cons' hw
+      (ComputableInPolyTime.cons' hmask (ComputableInPolyTime.const [])))
 
 attribute [local fun_prop] computableInPolyTime_wordParity computableInPolyTime_flipLastBitWord
 

@@ -28,7 +28,7 @@ def reverseEquiv : List Bool ≃ List Bool where
 
 theorem computableInPolyTime_reverse :
     ComputableInPolyTime List.reverse encBits encBits :=
-  ComputableTidilyInPolyTime.bitsReverse.computableInPolyTime
+  ComputableInPolyTime.bitsReverse
 
 theorem polyTimeIsomorphic_reverse (A : Set (List Bool)) :
     PolyTimeIsomorphic encBits encBits A {w : List Bool | w.reverse ∈ A} := by
@@ -43,12 +43,12 @@ Prefixing `true` to a bitstring strictly increases its length and is invertible 
 
 theorem computableInPolyTime_cons_true :
     ComputableInPolyTime (fun w : List Bool => true :: w) encBits encBits :=
-  (ComputableTidilyInPolyTime.bitsCons (ComputableTidilyInPolyTime.const true)
-    ComputableTidilyInPolyTime.id').computableInPolyTime
+  (ComputableInPolyTime.bitsCons (ComputableInPolyTime.const true)
+    ComputableInPolyTime.id')
 
 theorem computableInPolyTime_tail :
     ComputableInPolyTime List.tail encBits encBits :=
-  ComputableTidilyInPolyTime.bitsTail.computableInPolyTime
+  ComputableInPolyTime.bitsTail
 
 theorem polyTimeInvertibleLengthIncreasingOneOneReducible_cons_true (A : Set (List Bool)) :
     PolyTimeInvertibleLengthIncreasingOneOneReducible encBits encBits A

@@ -259,7 +259,6 @@ theorem ComputationallyIndistinguishable.replicate_bind {orig repl : ℕ → Pro
     ComputationallyIndistinguishable
       (fun n => ProbComp.eval (OracleComp.replicate (count n) (orig n) >>= process n))
       (fun n => ProbComp.eval (OracleComp.replicate (count n) (repl n) >>= process n)) := by
-  have hcount := hcount.tidy
   intro adversary hadversary
   let test (n : ℕ) (xs : List (List Bool)) : ProbComp Bool := process n xs >>= adversary n
   have htest : IsPPTOn (encPair encUnary (encList encBits)) encBool

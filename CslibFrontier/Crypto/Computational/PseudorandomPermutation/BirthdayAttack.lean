@@ -160,9 +160,9 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
           q.1.2.1.any fun prev => decide (prev = q.2))
         (encPair inp encBits) encBool := by
       refine ComputableInPolyTime.anyWithInput hqseen ?_
-      exact ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.decide_eq'
-        (ComputableTidilyInPolyTime.snd _ _)
-        (ComputableTidilyInPolyTime.snd _ _ |>.comp (ComputableTidilyInPolyTime.fst _ _)))
+      exact (ComputableInPolyTime.decide_eq'
+        (ComputableInPolyTime.snd _ _)
+        (ComputableInPolyTime.snd _ _ |>.comp (ComputableInPolyTime.fst _ _)))
     have hor : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
           q.1.2.2 || q.1.2.1.any fun prev => decide (prev = q.2))
