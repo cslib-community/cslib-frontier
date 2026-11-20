@@ -63,7 +63,7 @@ Following Boneh–Shoup Exercises 10.4, 10.8, 10.11, and 4.18, we formalize:
      `advantage_naorReingoldHybridGame_succ_le`, and the exact $n$-hybrid sum bound
      `advantage_naorReingold_le_sum` for arbitrary typed adversaries at one group. These are
      concrete bounds through PMF distinguishers with no efficiency certificate. Asymptotic security
-     under `F.DDH` (`DDH.negligible_naorReingoldWordGame`) goes through a different, certified
+     under `F.DDH` (`DDH.negligible_naorReingoldProbGame`) goes through a different, certified
      lazy-sampling reduction in `NaorReingold.Security`; the `PseudorandomFunction` bridge is in
      `NaorReingold.PRF`.
 
@@ -654,7 +654,7 @@ between `naorReingoldRealGame` and `naorReingoldIdealGame` is bounded by the sum
 distinguisher `naorReingoldLevelDDHDistinguisher` (`naorReingoldHopDDHDistinguisher`) plus
 `n * (F.order d)⁻¹`. This is a concrete bound for every typed adversary at one group; the
 distinguishers have no efficiency certificate. Security under `F.DDH` is
-`DDH.negligible_naorReingoldWordGame`, through the certified reduction
+`DDH.negligible_naorReingoldProbGame`, through the certified reduction
 `naorReingoldToDDHDistinguisher`. -/
 theorem advantage_naorReingold_le_sum (d : F.Desc) (n : ℕ)
     (adv : OracleComp (fun _ : BitString n => F.Carrier d) Bool) :

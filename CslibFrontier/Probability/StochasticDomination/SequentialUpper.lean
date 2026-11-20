@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Probability.StochasticDomination.SequentialSupport
 import CslibFrontier.Probability.PoissonBinomial.Reflection
 import CslibFrontier.Probability.PMF.Event
-import Mathlib.Tactic
 
 /-!
 # Upper bounds for sequential event counts

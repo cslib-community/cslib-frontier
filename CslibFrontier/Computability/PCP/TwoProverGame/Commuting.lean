@@ -92,10 +92,28 @@ variable [Ring 𝒜] [PartialOrder 𝒜] [Algebra ℂ 𝒜]
 noncomputable def prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) (b : B) : ℝ :=
   (S.state ((S.alice x).effect a * (S.bob y).effect b)).re
 
+/-- Exchange the two physical players of a commuting strategy. -/
+def swap (S : CommutingStrategy X Y A B 𝒜) : CommutingStrategy Y X B A 𝒜 where
+  state := S.state
+  alice := S.bob
+  bob := S.alice
+  commute y x b a := (S.commute x y a b).symm
+
+@[simp] theorem prob_swap (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) (b : B) :
+    S.swap.prob y x b a = S.prob x y a b := by
+  unfold prob
+  rw [(S.commute x y a b).eq]
+  rfl
+
+/-- Summing over Bob's answers gives Alice's marginal probability. -/
+theorem sum_prob_bob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) :
+    ∑ b, S.prob x y a b = (S.state ((S.alice x).effect a)).re := by
+  simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one]
+
 theorem sum_prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
     ∑ a, ∑ b, S.prob x y a b = 1 := by
-  simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one,
-    (S.alice x).sum_effect, AlgState.map_one, Complex.one_re]
+  simp only [sum_prob_bob, ← Complex.re_sum, ← map_sum, (S.alice x).sum_effect,
+    AlgState.map_one, Complex.one_re]
 
 end Ring
 

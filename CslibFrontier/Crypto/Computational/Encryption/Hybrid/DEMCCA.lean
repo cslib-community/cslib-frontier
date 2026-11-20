@@ -24,8 +24,12 @@ import CslibFrontier.Tactic.PPT
 
 This intermediate experiment uses the symmetric cipher's actual key distribution. Its
 distinguished encapsulation component is redirected to that key before and after the challenge.
-This is the DEM leg of [BonehShoup2023], Exercise 12.5(a), not the full KEM–DEM composition:
-the two KEM hops and compatibility of the KEM's ideal key distribution remain separate.
+Its security is the DEM hop of [BonehShoup2023], Exercise 12.5(a): a step toward that exercise,
+not the exercise itself. `Cslib.Crypto.Encryption.hybrid_indcca2On` adds the two KEM hops. The
+exercise stays open (#5686): the premise `SymmetricCipher.OneTimeINDCCA` decrypts every word other
+than the challenge, whereas the source's 1CCA security (Definition 9.6, printed p. 363) rests on
+Attack Game 9.2, whose decryption queries lie in the cipher's ciphertext space `C`
+(printed p. 362).
 
 ## Main definitions
 
@@ -39,7 +43,7 @@ the two KEM hops and compatibility of the KEM's ideal key distribution remain se
 * `Cslib.Crypto.Encryption.isOraclePPT_hybridToOneTimeCCAAdversary`: native reduction certificate.
 * `Cslib.Crypto.Encryption.isPPTOn_hybridDEMGame`: native certificate for the closed game.
 * `Cslib.Crypto.SymmetricCipher.OneTimeINDCCA.indistinguishable_hybridDEMGame`:
-  the loss-one DEM leg.
+  the loss-one DEM hop, a step toward Exercise 12.5(a).
 
 ## References
 
@@ -340,9 +344,9 @@ theorem isOraclePPTOn_hybridDEMHandler (E : SymmetricCipher)
   have hlocal := (computableInPolyTime_hybridDecrypt hdecaps E.decrypt_polyTime).comp
     (hn.prod (hsk.prod hrequest))
   unfold hybridDEMHandler
-  exact IsOraclePPTOn.cond' hcanonical
-    (IsOraclePPTOn.cond' hkey
-      (IsOraclePPTOn.query_take' true hdem (hdecBound.comp (hn.prod hdem)))
+  exact IsOraclePPTOn.cond hcanonical
+    (IsOraclePPTOn.cond hkey
+      (IsOraclePPTOn.query_take true hdem (hdecBound.comp (hn.prod hdem)))
       hlocal.encoding_comp.isOraclePPTOn)
     (ComputableInPolyTime.const []).isOraclePPTOn
 
@@ -409,7 +413,7 @@ theorem isOraclePPTOn_hybridDEMContinuation (E : SymmetricCipher)
       hybridDEMContinuation E decaps ctBound decBound adversary (n a) (pk a) (sk a) (ctK a)) := by
   let C := encPair (encPair encBits encBits) encBits
   have hchoose := isOraclePPTOn_hybridDEMInterpret E hdecaps hdecBound hn hsk hctK
-    (hA.choose.on.preprocess' (hn.prod hpk))
+    (hA.choose.on.preprocess (hn.prod hpk))
   have hp := ComputableInPolyTime.fst input C
   have hc := ComputableInPolyTime.snd input C
   have hn1 := hn.comp hp
@@ -417,7 +421,7 @@ theorem isOraclePPTOn_hybridDEMContinuation (E : SymmetricCipher)
   have hk1 := hctK.comp hp
   have hm0 := hc.fst'.fst'
   have hm1 := hc.fst'.snd'
-  have hquery := IsOraclePPTOn.query_take' false (hm0.prod hm1).encoding_comp
+  have hquery := IsOraclePPTOn.query_take false (hm0.prod hm1).encoding_comp
     (hctBound.comp hn1)
   have hbase := ComputableInPolyTime.fst (encPair input C) encBits
   have hct := ComputableInPolyTime.snd (encPair input C) encBits
@@ -425,14 +429,14 @@ theorem isOraclePPTOn_hybridDEMContinuation (E : SymmetricCipher)
   have hsk2 := hsk1.comp hbase
   have hk2 := hk1.comp hbase
   have hguess := isOraclePPTOn_hybridDEMInterpret E hdecaps hdecBound hn2 hsk2 hk2
-    (hA.guess.preprocess' (hn2.prod
+    (hA.guess.preprocess (hn2.prod
       ((hc.snd'.comp hbase).prod (hk2.prod hct).encoding_comp)))
   have hvalid : ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool => (p.2.1.length == p.1) && (p.2.2.length == p.1))
       (encPair encUnary (encPair encBits encBits)) encBool := by fun_prop
   have hcondition := hvalid.comp (hn1.prod (hm0.prod hm1))
   unfold hybridDEMContinuation
-  exact hchoose.bind_with (IsOraclePPTOn.cond' hcondition (hquery.bind_with hguess)
+  exact hchoose.bind_with (IsOraclePPTOn.cond hcondition (hquery.bind_with hguess)
     (ComputableInPolyTime.const false).isOraclePPTOn)
 
 /-- The complete reduction is uniform strict oracle PPT. Key generation, encapsulation,
@@ -460,8 +464,8 @@ theorem isOraclePPT_hybridToOneTimeCCAAdversary (E : SymmetricCipher)
   have hk := ComputableInPolyTime.snd I K
   have hq := ComputableInPolyTime.fst (encPair I K) K
   have he := ComputableInPolyTime.snd (encPair I K) K
-  have hfirst := (hkeyGen.isOraclePPTOn (Operation := Bool)).preprocess' hn
-  have hsecond := (hencaps.isOraclePPTOn (Operation := Bool)).preprocess'
+  have hfirst := (hkeyGen.isOraclePPTOn (Operation := Bool)).preprocess hn
+  have hsecond := (hencaps.isOraclePPTOn (Operation := Bool)).preprocess
     ((hn.comp hp).prod hk.fst')
   have hlast := isOraclePPTOn_hybridDEMContinuation E hdecaps hctBound hdecBound hA
     (hn.comp (hp.comp hq)) (hk.fst'.comp hq) (hk.snd'.comp hq) he.snd'
@@ -491,9 +495,16 @@ theorem isPPTOn_hybridDEMGame (E : SymmetricCipher)
     (eval_hybridDEMGame E keyGen encaps decaps ctBound decBound adversary bit n
       (hct n) (hdec n)).symm
 
-/-- The DEM leg of [BonehShoup2023], Exercise 12.5(a): one-time symmetric CCA security
-indistinguishes the two intermediate games with loss one. The two KEM hops and their
-ideal-key sampler compatibility remain separate obligations for full composition. -/
+/-- One-time symmetric CCA security of `E` makes the two DEM intermediate games `hybridDEMGame`
+indistinguishable with loss one: a step toward [BonehShoup2023], Exercise 12.5(a), not the cited
+result, which also needs the two KEM hops and a 1CCA premise restricted to the cipher's
+ciphertext space, where `E.OneTimeINDCCA` decrypts every word other than the challenge (#5686).
+
+`Cslib.Crypto.Encryption.hybrid_indcca2On` composes this hop with the two KEM hops. The source's
+1CCA security (Definition 9.6, printed p. 363) rests on Attack Game 9.2, whose decryption queries
+lie in the ciphertext space `C` (printed p. 362). `SymmetricCipher` declares no ciphertext space,
+and the one-time oracle decrypts every word other than the challenge, so a cipher that is 1CCA
+secure on `C` but leaks on some word outside `C` does not satisfy `OneTimeINDCCA`. -/
 theorem _root_.Cslib.Crypto.SymmetricCipher.OneTimeINDCCA.indistinguishable_hybridDEMGame
     {E : SymmetricCipher} (hsecure : E.OneTimeINDCCA)
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}

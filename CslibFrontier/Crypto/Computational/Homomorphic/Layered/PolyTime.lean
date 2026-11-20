@@ -195,7 +195,7 @@ theorem isPPTOn_evaluateLayers
   have hinit : ComputableInPolyTime (fun a => (0, inputs a)) input
       (encPair encUnary (encList encBits)) :=
     (ComputableInPolyTime.const 0).prod hinputs
-  have hloop := IsPPTOn.iterateWith_of_bounded_growth'
+  have hloop := IsPPTOn.iterateWith_of_bounded_growth
     (stateEncoding := encPair encUnary (encList encBits))
     (count := fun a => (layers a).length)
     (initial := fun a => (0, inputs a))

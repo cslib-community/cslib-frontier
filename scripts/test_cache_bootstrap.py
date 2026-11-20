@@ -58,7 +58,7 @@ class CacheBootstrapTests(unittest.TestCase):
                          "BOOTSTRAP_LOG": str(self.log)})
         self.git("init", "-q")
         for name in ("scripts/build.sh", "scripts/check.sh", "scripts/quick_check.py",
-                     "scripts/check_progress.py",
+                     "scripts/check_progress.py", "scripts/ci/select_checks.py",
                      "scripts/cache/ensure.sh", "scripts/cache/bounded.py", "scripts/cache/restore.py", "scripts/cache/windows_job.py"):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)

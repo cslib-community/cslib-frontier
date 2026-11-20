@@ -127,36 +127,12 @@ theorem isPPTOn_run_encForgeOracle (E : SymmetricCipher) {adversary : CIAdversar
   obtain ⟨c, d, hlen⟩ := E.encrypt_ppt.length_le
   let EIn := encPair (encPair encUnary encBits)
     (encPair (encPair (encFinEnum Unit) encBits) (encList encBits))
-  have hcond : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        p.2.1.2.length == p.1.1)
-      EIn encBool :=
-    ComputableInPolyTime.unary_beq'
-      (by dsimp only [EIn]; fun_prop) (by dsimp only [EIn]; fun_prop)
-  have hencArg : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        (p.1.1, p.1.2, p.2.1.2))
-      EIn (encPair encUnary (encPair encBits encBits)) := by
-    dsimp only [EIn]; fun_prop
-  have hyes : IsPPTOn EIn (encPair encBits (encList encBits))
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) => do
-        let ct ← E.encrypt p.1.1 p.1.2 p.2.1.2
-        return (ct, p.2.1.2 :: p.2.2)) :=
-    (E.encrypt_ppt.preprocess hencArg).bind_with
-      ((by dsimp only [EIn]; fun_prop : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × ((Unit × List Bool) × List (List Bool))) × List Bool =>
-          (q.2, q.1.2.1.2 :: q.1.2.2))
-        (encPair EIn encBits) (encPair encBits (encList encBits))).isPPTOn)
-  have hno : IsPPTOn EIn (encPair encBits (encList encBits))
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        pure ([], p.2.2)) :=
-    (ComputableInPolyTime.prod (ComputableInPolyTime.const [])
-      (by dsimp only [EIn]; fun_prop)).isPPTOn
+  have henc := E.encrypt_ppt
   have hhandler : IsPPTOn EIn (encPair encBits (encList encBits))
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
         E.encForgeOracle pair.1.1 pair.1.2 pair.2.1 pair.2.2) := by
-    unfold encForgeOracle
-    exact IsPPTOn.cond' hcond hyes hno
+    dsimp only [EIn, encForgeOracle]
+    ppt
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
@@ -375,7 +351,7 @@ end SymmetricCipher
 /-- Joint encryption oracle for `encryptThenMAC E M hctLen` recording `(msg, c)` pairs for each
 valid `n`-bit plaintext query `msg` and its inner ciphertext `c ← E.encrypt n ke msg`. Projecting
 `Prod.fst` recovers `(encryptThenMAC E M hctLen).encForgeOracle`, while projecting `Prod.snd`
-recovers the inner ciphertext log of `M.signingOracle km` in `etmToMACForger`. -/
+recovers the inner ciphertext log of `M.signingOracle n km` in `etmToMACForger`. -/
 private noncomputable def etmForgeJointOracle (E : SymmetricCipher) (M : MACScheme) (n : ℕ)
     (ke km : List Bool) (request : Unit × List Bool) :
     StateT (List (List Bool × List Bool)) ProbComp (List Bool) :=
@@ -425,7 +401,7 @@ private theorem eval_run_etmToMACHandler_signingOracle_eq (E : SymmetricCipher) 
     (prog : WordOracleComp Unit (List Bool)) :
     ((OracleComp.interpret
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-        (fun q s => ProbComp.eval (M.signingOracle km q s)))
+        (fun q s => ProbComp.eval (M.signingOracle n km q s)))
       ((OracleComp.interpret
         (OracleComp.sumHandler
           (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
@@ -441,7 +417,7 @@ private theorem eval_run_etmToMACHandler_signingOracle_eq (E : SymmetricCipher) 
     (oracle' := fun q (state : Unit × List (List Bool)) =>
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-          (fun q s => ProbComp.eval (M.signingOracle km q s)))
+          (fun q s => ProbComp.eval (M.signingOracle n km q s)))
         (etmToMACHandler E n (tagBound n) ke q state.1)).run state.2).map
         (fun result => (result.1.1, result.1.2, result.2)))
     (represent := fun s : List (List Bool × List Bool) => ((), s.map Prod.snd))
@@ -451,7 +427,7 @@ private theorem eval_run_etmToMACHandler_signingOracle_eq (E : SymmetricCipher) 
           (fun x => (x.1, (), x.2.map Prod.snd)) =
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-            (fun q s => ProbComp.eval (M.signingOracle km q s)))
+            (fun q s => ProbComp.eval (M.signingOracle n km q s)))
           (etmToMACHandler E n (tagBound n) ke ((), msg) ())).run
             (queriedPairs.map Prod.snd)).map
           (fun result => (result.1.1, result.1.2, result.2))
@@ -465,8 +441,8 @@ private theorem eval_run_etmToMACHandler_signingOracle_eq (E : SymmetricCipher) 
         intro c hc
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlenEq) c hc
         simp only [OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query,
-          _root_.PMF.monad_map_eq_map, MACScheme.signingOracle, ProbComp.eval_bind,
-          ProbComp.eval_pure]
+          _root_.PMF.monad_map_eq_map, MACScheme.signingOracle, SignatureScheme.signingOracleOn,
+          hcLen, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
         dsimp only [StateT.run]
         simp only [PMF.map_bind, PMF.pure_map]
         apply PMF.bind_congr_on_support
@@ -529,7 +505,7 @@ theorem succProbability_encForgeGame_encryptThenMAC_le (E : SymmetricCipher) (M 
   have hinner (km : List Bool) :
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-          (fun q s => ProbComp.eval (M.signingOracle km q s)))
+          (fun q s => ProbComp.eval (M.signingOracle n km q s)))
         (do
           let ke ← ProbOracleComp.sample (E.keyGen n)
           (fun out : List Bool × Unit =>
@@ -549,7 +525,7 @@ theorem succProbability_encForgeGame_encryptThenMAC_le (E : SymmetricCipher) (M 
       (ProbComp.eval (E.keyGen n)).bind (fun ke =>
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-            (fun q s => ProbComp.eval (M.signingOracle km q s)))
+            (fun q s => ProbComp.eval (M.signingOracle n km q s)))
           ((OracleComp.interpret
             (OracleComp.sumHandler
               (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))

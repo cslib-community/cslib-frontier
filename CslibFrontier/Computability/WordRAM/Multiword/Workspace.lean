@@ -105,4 +105,21 @@ theorem setup_digit (w : ℕ) (x : Data (r + 4)) {i : Fin (r + 4)}
   obtain ⟨ht, hc, hb, hz⟩ := digit_ne hi
   simp only [setupResult, Data.set_regs, Function.update_apply, ht, hc, hb, hz, ↓reduceIte]
 
+/-- Setting the `total` workspace register preserves the routine frame. -/
+theorem frame_set_total (x : Data (r + 4)) (v : ℕ) (ds : List (Fin (r + 4))) :
+    Frame x (x.set total v) ds :=
+  ⟨rfl, fun _ _ ht _ => by simp only [Data.set_regs, Function.update_of_ne ht]⟩
+
+/-- Setting the `carry` workspace register preserves the routine frame. -/
+theorem frame_set_carry (x : Data (r + 4)) (v : ℕ) (ds : List (Fin (r + 4))) :
+    Frame x (x.set carry v) ds :=
+  ⟨rfl, fun _ _ _ hc => by simp only [Data.set_regs, Function.update_of_ne hc]⟩
+
+/-- Setting a listed destination register preserves the routine frame. -/
+theorem frame_set_mem {d : Fin (r + 4)} {ds : List (Fin (r + 4))} (x : Data (r + 4)) (v : ℕ)
+    (hd : d ∈ ds := by simp) : Frame x (x.set d v) ds :=
+  ⟨rfl, fun i hi _ _ => by
+    have hne : i ≠ d := fun h => hi (h ▸ hd)
+    simp only [Data.set_regs, Function.update_of_ne hne]⟩
+
 end Cslib.WordRAM.Multiword.Workspace

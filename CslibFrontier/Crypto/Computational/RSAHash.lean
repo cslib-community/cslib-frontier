@@ -298,8 +298,8 @@ theorem computableInPolyTime_validRSAHashInput :
     (ComputableInPolyTime.binary_gcd' hd.fst' hN) (ComputableInPolyTime.const 1)
   have hlt₂ := ComputableInPolyTime.binary_lt' hd.snd' he
   unfold validRSAHashInput
-  exact .of_tidy (ComputableTidilyInPolyTime.bool_and' (ComputableTidilyInPolyTime.bool_and'
-    (ComputableTidilyInPolyTime.bool_and' hcanon.tidy hlt.tidy) hcop.tidy) hlt₂.tidy)
+  exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.bool_and' hcanon hlt) hcop) hlt₂)
 
 /-- A collision of the RSA hash at a key with prime `e` and a unit base `y < N` decodes to pairs
 from which `rsaHashRoot` computes an `e`-th root of `y`. -/

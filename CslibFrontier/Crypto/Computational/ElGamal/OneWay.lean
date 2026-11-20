@@ -7,13 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.DiffieHellman
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Finite
-public import CslibFrontier.Crypto.Computational.ElGamal.ExplicitCoin
+public import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 public import CslibFrontier.Crypto.Computational.Encryption.OneWay
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Crypto.Computational.DiffieHellman.Blinded
-import CslibFrontier.Crypto.Computational.ElGamal
+import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Tactic.Negligible
@@ -28,48 +27,75 @@ adversary `ℬ` that breaks the CDH with same advantage". Given `(u, v)`, `ℬ` 
 gives `𝒜` the public key `u` and the ciphertext `(v, y)`; when `𝒜` outputs `x ∈ 𝔾`, adversary `ℬ`
 outputs `w ← y/x`."
 
-The scheme is `elGamalExplicitCoinPKE q g` of
-`CslibFrontier/Crypto/Computational/ElGamal/ExplicitCoin.lean`, in additive notation over a
-`ZMod q`-module `G`, and `elGamalOWToCDH sampleGroup A` is the adversary `ℬ`, with `y` drawn from
-`sampleGroup`. When the message and `y` are both drawn as `γ • g` for uniform `γ`, the one-way
-experiment and the CDH experiment of `ℬ` have the same law
-(`eval_owExperiment_elGamalExplicitCoinPKE`), so the advantages are equal
-(`owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage`). This needs neither finiteness of `G` nor
-that `g` generates it. In the book `g` generates `𝔾`, so `γ • g` for uniform `γ` is the book's
-uniform draw from `𝔾`.
+In a fixed `ZMod q`-module `G`, `elGamalExplicitCoinPKE q g` of
+`CslibFrontier/Crypto/Computational/ElGamal/ExplicitCoin.lean` writes this scheme additively, and
+`elGamalOWToCDH sampleGroup A` is the adversary `ℬ`, with `y` drawn from `sampleGroup`. When the
+message and `y` are both drawn as `γ • g` for uniform `γ`, the one-way experiment and the CDH
+experiment of `ℬ` have the same law (`eval_owExperiment_elGamalExplicitCoinPKE`), so the advantages
+are equal (`owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage`). This needs neither finiteness of
+`G` nor that `g` generates it. In the book `g` generates `𝔾`, so `γ • g` for uniform `γ` is the
+book's uniform draw from `𝔾`.
 
-For a prime-order group family, `elGamalOWGame` is Attack Game 12.6 on the scheme of each group,
-with the message drawn as `γ • g`, which is uniform on the group because the family's generator
-generates it (`smul_generator_bijective`). `elGamalOWToCDHAdversary` is `ℬ` with `y` drawn through
-the family's polynomial-time exponent sampler `sampleExp`, and is efficient whenever `𝒜` is
-(`isPPT_elGamalOWToCDHAdversary`). Because `sampleExp` is within `1 / 2 ^ n` of uniform, the two
-games differ by at most `1 / 2 ^ n` (`advantage_elGamalOWGame_cdhGame_le`), not exactly, and
-`CDH.elGamal_oneWay` concludes that every efficient typed adversary has negligible advantage under
-CDH. Adversaries read and write group elements, as CDH adversaries of the family do; a word-level
-one-wayness predicate would need a decoder for group elements, which the family does not provide.
+For a prime-order group family, `elGamalOWProbGame` is Attack Game 12.6 on the fair-coin scheme
+`elGamalProbExplicitCoinPKE n d` (whose encoded key generator, encryption, and decryption are
+`elGamalKeyGenProb`, `elGamalEncryptProb`, and `elGamalDecryptDet` in
+`CslibFrontier/Crypto/Computational/ElGamal/ProbComp.lean`), with the challenge message drawn from
+the certified fair-coin sampler `sampleGroupElem n d` (`isPPTOn_encode_sampleGroupElem`). Under
+strict-PPT fair-coin sampling (unlike [BonehShoup2023], Definition 2.8, p. 30, which allows a
+negligible runtime-overflow probability), each `sampleExp` draw is within statistical distance
+`1 / 2 ^ n` of uniform on `ZMod q`:
+
+* Replacing the challenger's three exponents (key, challenge message, and encryption coins) in
+  `elGamalOWProbGame` by the exact uniform draws of the ideal step `elGamalOWGame` changes
+  `Game.advantage` by at most `3 / 2 ^ n` (`advantage_elGamalOWProbGame_elGamalOWGame_le`).
+* The reduction `elGamalOWToCDHAdversary` draws `y` via `sampleGroupElem` and is uniform strict PPT
+  whenever `𝒜` is (`isPPT_elGamalOWToCDHAdversary`), losing at most `1 / 2 ^ n` against
+  `elGamalOWGame` (`advantage_elGamalOWGame_cdhGame_le`) and at most `4 / 2 ^ n` against
+  `elGamalOWProbGame` (`advantage_elGamalOWProbGame_cdhGame_le`).
+* `CDH.elGamal_oneWay` derives from the ideal step `CDH.elGamal_oneWay_ideal` that every uniform
+  strict-PPT typed adversary succeeds in `elGamalOWProbGame` with negligible probability under CDH.
+
+Adversaries read and write group elements, as CDH adversaries of the family do; a word-level
+one-wayness predicate would need a decoder for group elements, which a general
+`PrimeOrderGroupFamily` does not provide.
 
 ## Main definitions
 
 * `Cslib.Crypto.elGamalOWToCDH`: the book's adversary `ℬ`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ElGamalOWAdversary`, `…ElGamalOWAdversary.IsPPT`: typed
   one-way adversaries against a family, and their efficiency.
+* `Cslib.Crypto.PrimeOrderGroupFamily.sampleGroupElem`: fair-coin group-element sampler
+  `(c : ZMod q) • g` for `c ← sampleExp n d`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.elGamalOWToCDHAdversary`: the reduction for a family.
-* `Cslib.Crypto.PrimeOrderGroupFamily.elGamalOWGame`: Attack Game 12.6 for a family.
+* `Cslib.Crypto.PrimeOrderGroupFamily.elGamalOWProbGame`: Attack Game 12.6 for the fair-coin scheme
+  `elGamalProbExplicitCoinPKE` and message sampler `sampleGroupElem`.
 
 ## Main results
 
 * `Cslib.Crypto.eval_owExperiment_elGamalExplicitCoinPKE`,
   `Cslib.Crypto.owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage`: equal advantage in a fixed
   group.
-* `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalOWToCDHAdversary`: the reduction is efficient.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalOWGame_cdhGame_le`: the family games differ
-  by at most `1 / 2 ^ n`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_oneWay`: one-wayness under CDH.
+* `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_encode_sampleGroupElem`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalOWToCDHAdversary`: strict-PPT certificates for
+  `sampleGroupElem` and the CDH reduction.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalOWProbGame_elGamalOWGame_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalOWProbGame_cdhGame_le`: the fair-coin
+  one-way game differs from the ideal game by at most `3 / 2 ^ n` and from the CDH game of `ℬ` by
+  at most `4 / 2 ^ n`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_oneWay`: one-wayness under CDH of fair-coin
+  multiplicative ElGamal (`elGamalProbExplicitCoinPKE`).
+
+## Ideal-sampling steps
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.elGamalOWGame`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalOWGame_cdhGame_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_oneWay_ideal`: Attack Game 12.6 with exact
+  uniform exponents and its `1 / 2 ^ n` step toward `CDH.elGamal_oneWay`.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
-  Section 12.6.2 (printed pp. 499–500).
+  Section 12.6.2 (printed pp. 499–500) and Theorem 12.12 (printed p. 501).
 -/
 
 public section
@@ -105,7 +131,7 @@ theorem eval_owExperiment_elGamalExplicitCoinPKE (A : G → G × G → ProbComp 
       ProbComp.eval (cdhExperiment q g
         (elGamalOWToCDH ((fun γ : ZMod q => γ • g) <$> ($ᵗ ZMod q)) A)) := by
   simp only [PKE.owExperiment, ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt,
-    elGamalExplicitCoinPKE, cdhExperiment, elGamalOWToCDH,
+    elGamalExplicitCoinPKEWith, cdhExperiment, elGamalOWToCDH,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, ProbComp.eval_pure,
     PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
   refine congrArg (PMF.bind _) (funext fun α => ?_)
@@ -153,17 +179,42 @@ def ElGamalOWAdversary.IsPPT {F : PrimeOrderGroupFamily} (A : F.ElGamalOWAdversa
     F.encode x.groupParameters <$>
       A x.secParam x.groupParameters x.leftPublic (x.rightPublic, x.candidateShared)
 
+/-- Fair-coin group-element sampler: draw `c ← sampleExp n d` and output `(c : ZMod q) • g`, within
+statistical distance `1 / 2 ^ n` of uniform on `F.Carrier d`. -/
+@[expose]
+noncomputable def sampleGroupElem (n : ℕ) (d : F.Desc) : ProbComp (F.Carrier d) :=
+  (fun c => (c : ZMod (F.order d)) • F.generator d) <$> F.sampleExp n d
+
+/-- `sampleGroupElem` encoded with `F.encode` is uniform strict PPT on `(1ⁿ, d)`. -/
+theorem isPPTOn_encode_sampleGroupElem :
+    IsPPTOn (encPair encUnary F.encDesc) encBits
+      (fun p : ℕ × F.Desc => F.encode p.2 <$> F.sampleGroupElem p.1 p.2) := by
+  unfold sampleGroupElem
+  have hsample : IsPPTOn (encPair encUnary F.encDesc) encNat
+      (fun p : ℕ × F.Desc => F.sampleExp p.1 p.2) :=
+    F.isPPTOn_sampleExp (.fst encUnary F.encDesc) (.snd encUnary F.encDesc)
+  have hd : ComputableInPolyTime (fun q : (ℕ × F.Desc) × ℕ => q.1.2)
+      (encPair (encPair encUnary F.encDesc) encNat) F.encDesc := by fun_prop
+  let f (p : ℕ × F.Desc) (c : ℕ) : List Bool :=
+    F.encode p.2 ((c : ZMod (F.order p.2)) • F.generator p.2)
+  have hsmul : ComputableInPolyTime (fun q : (ℕ × F.Desc) × ℕ => f q.1 q.2)
+      (encPair (encPair encUnary F.encDesc) encNat) encBits :=
+    F.computableInPolyTime_encode_natCast_smul hd (.snd _ _)
+      (F.computableInPolyTime_encode_generator hd)
+  exact (hsample.map_with (f := f) hsmul).congr fun p => by
+    simp only [f, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, ← PMF.bind_pure_comp,
+      PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+
 /-- The reduction `ℬ` for a prime-order group family ([BonehShoup2023], Section 12.6.2, p. 500):
-`elGamalOWToCDH` in each group, with `y` drawn as `c • g` for `c ← sampleExp n d`. -/
+`elGamalOWToCDH` in each group, with `y` drawn from `sampleGroupElem n d`. -/
 noncomputable def elGamalOWToCDHAdversary (A : F.ElGamalOWAdversary) : F.CDHAdversary :=
-  fun n d =>
-    elGamalOWToCDH ((fun c => (c : ZMod (F.order d)) • F.generator d) <$> F.sampleExp n d) (A n d)
+  fun n d => elGamalOWToCDH (F.sampleGroupElem n d) (A n d)
 
 /-- `elGamalOWToCDHAdversary A` is an efficient CDH adversary whenever `A` is efficient. The
 subtraction `y - x` is computed as an ElGamal decryption with secret key `1`. -/
 theorem isPPT_elGamalOWToCDHAdversary {F : PrimeOrderGroupFamily} {A : F.ElGamalOWAdversary}
     (hA : A.IsPPT) : (F.elGamalOWToCDHAdversary A).IsPPT := by
-  unfold CDHAdversary.IsPPT elGamalOWToCDHAdversary elGamalOWToCDH
+  unfold CDHAdversary.IsPPT elGamalOWToCDHAdversary elGamalOWToCDH sampleGroupElem
   have hsample : IsPPTOn F.encCDHInput encNat
       (fun x : F.CDHInput => F.sampleExp x.secParam x.groupParameters) :=
     F.isPPTOn_sampleExp (by fun_prop) (by fun_prop)
@@ -219,7 +270,7 @@ theorem advantage_elGamalOWGame_cdhGame_le (setup : ℕ → PMF F.Desc) (A : F.E
           (F.generator d) fun u v => A n d u (v, y) >>= fun x => pure (y - x)) :=
     eval_cdhExperiment_bind (F.order d) (F.generator d) S fun y u v =>
       A n d u (v, y) >>= fun x => pure (y - x)
-  unfold elGamalOWToCDHAdversary
+  unfold elGamalOWToCDHAdversary sampleGroupElem
   rw [key, key, ProbComp.eval_map, ProbComp.eval_map, ProbComp.eval_uniform, PMF.bind_map,
     PMF.bind_map, Game.advantage_comm]
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
@@ -228,15 +279,88 @@ theorem advantage_elGamalOWGame_cdhGame_le (setup : ℕ → PMF F.Desc) (A : F.E
     ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
       fun u v => A n d u (v, δ • F.generator d) >>= fun x => pure (δ • F.generator d - x))
 
-/-- **Multiplicative ElGamal is one-way under CDH** ([BonehShoup2023], Section 12.6.2, p. 500): if
-CDH holds for the family under `setup`, every efficient typed adversary wins Attack Game 12.6 with
-negligible probability. -/
-theorem CDH.elGamal_oneWay {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+/-- Ideal-sampling step toward `CDH.elGamal_oneWay`, not the cited result: if CDH holds for the
+family under `setup`, every efficient typed adversary wins Attack Game 12.6 against
+`elGamalExplicitCoinPKE` (whose key, challenge message, and encryption coins are drawn from exact
+uniform `ZMod q`) with negligible probability. -/
+theorem CDH.elGamal_oneWay_ideal {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hCDH : F.CDH setup) (A : F.ElGamalOWAdversary) (hA : A.IsPPT) :
     Negligible fun n => Game.succProbability (F.elGamalOWGame setup A n) := by
   have hcdh := hCDH _ (isPPT_elGamalOWToCDHAdversary hA)
   negligible using fun n => Game.succProbability_le_add_of_advantage_le
     (F.advantage_elGamalOWGame_cdhGame_le setup A n)
+
+/-- **Attack Game 12.6 for fair-coin multiplicative ElGamal over a group family**
+([BonehShoup2023], Section 12.6, p. 495, and Section 12.6.2, pp. 499–500): draw the group
+description from `setup n` and run `PKE.owExperiment` on `(elGamalProbExplicitCoinPKE n d).toPKE`
+with the challenge message drawn from `sampleGroupElem n d`. -/
+@[expose]
+noncomputable def elGamalOWProbGame (setup : ℕ → PMF F.Desc) (A : F.ElGamalOWAdversary) (n : ℕ) :
+    Game :=
+  Game.withSetup (setup n) fun d =>
+    PKE.owExperiment (F.elGamalProbExplicitCoinPKE n d).toPKE (F.sampleGroupElem n d) (A n d)
+
+/-- Replacing the three `sampleExp` draws (secret key, challenge message, and encryption coins) in
+`elGamalOWProbGame` by exact uniform draws on `ZMod q` changes `Game.advantage` by at most
+`3 / 2 ^ n`. -/
+theorem advantage_elGamalOWProbGame_elGamalOWGame_le (setup : ℕ → PMF F.Desc)
+    (A : F.ElGamalOWAdversary) (n : ℕ) :
+    Game.advantage (F.elGamalOWProbGame setup A n) (F.elGamalOWGame setup A n) ≤ 3 / 2 ^ n := by
+  refine Game.advantage_withSetup_le _ _ _ fun d _ => ?_
+  rw [Experiment.advantage]
+  let k (α γ β : ZMod (F.order d)) : Game :=
+    (ProbComp.eval (A n d (α • F.generator d)
+      (β • F.generator d, β • (α • F.generator d) + γ • F.generator d))).bind fun x' =>
+        PMF.pure (decide (x' = γ • F.generator d))
+  have hprob : ProbComp.eval (PKE.owExperiment (F.elGamalProbExplicitCoinPKE n d).toPKE
+      (F.sampleGroupElem n d) (A n d)) =
+      (ProbComp.eval (F.sampleExp n d)).bind fun a =>
+        (ProbComp.eval (F.sampleExp n d)).bind fun m =>
+          (ProbComp.eval (F.sampleExp n d)).bind fun b =>
+            k (a : ZMod (F.order d)) (m : ZMod (F.order d)) (b : ZMod (F.order d)) := by
+    simp only [PKE.owExperiment, ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt,
+      elGamalExplicitCoinPKEWith, sampleGroupElem, ProbComp.eval_bind,
+      ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
+      Function.comp_def, k]
+  have hideal : ProbComp.eval (PKE.owExperiment
+      (elGamalExplicitCoinPKE (F.order d) (F.generator d)).toPKE
+      ((fun γ : ZMod (F.order d) => γ • F.generator d) <$> ($ᵗ ZMod (F.order d))) (A n d)) =
+      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun α =>
+        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun γ =>
+          (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β => k α γ β := by
+    simp only [PKE.owExperiment, ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt,
+      elGamalExplicitCoinPKEWith, ProbComp.eval_bind, ProbComp.eval_map,
+      ProbComp.eval_uniform, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
+      Function.comp_def, k]
+  rw [hprob, hideal]
+  exact F.advantage_bind_sampleExp_triple_le n d k
+
+/-- The fair-coin one-way game `elGamalOWProbGame` and the CDH game of `elGamalOWToCDHAdversary`
+differ by at most `4 / 2 ^ n` (`3 / 2 ^ n` from the challenger's three `sampleExp` draws and
+`1 / 2 ^ n` from the reduction's draw of `y`). -/
+theorem advantage_elGamalOWProbGame_cdhGame_le (setup : ℕ → PMF F.Desc)
+    (A : F.ElGamalOWAdversary) (n : ℕ) :
+    Game.advantage (F.elGamalOWProbGame setup A n)
+      (F.cdhGame setup (F.elGamalOWToCDHAdversary A) n) ≤ 4 / 2 ^ n := by
+  calc _ ≤ (3 : ℝ≥0) / 2 ^ n + 1 / 2 ^ n :=
+        (Game.advantage_triangle _ (F.elGamalOWGame setup A n) _).trans
+          (add_le_add (F.advantage_elGamalOWProbGame_elGamalOWGame_le setup A n)
+            (F.advantage_elGamalOWGame_cdhGame_le setup A n))
+    _ = 4 / 2 ^ n := by rw [← add_div]; norm_num
+
+/-- **Multiplicative ElGamal is one-way under CDH** ([BonehShoup2023], Section 12.6.2, p. 500;
+Attack Game 12.6 and Definition 12.5, p. 495): if CDH holds for `F` under `setup`, every uniform
+strict-PPT typed adversary succeeds in Attack Game 12.6 (`elGamalOWProbGame`) against the fair-coin
+scheme `elGamalProbExplicitCoinPKE` with negligible probability. Relative to the book's exact
+advantage equality (under Definition 2.8's negligible runtime-overflow model, p. 30), fair-coin
+`sampleExp` sampling adds a `4 / 2 ^ n` statistical loss
+(`advantage_elGamalOWProbGame_cdhGame_le`). -/
+theorem CDH.elGamal_oneWay {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+    (hCDH : F.CDH setup) (A : F.ElGamalOWAdversary) (hA : A.IsPPT) :
+    Negligible fun n => Game.succProbability (F.elGamalOWProbGame setup A n) := by
+  have hideal := hCDH.elGamal_oneWay_ideal A hA
+  negligible using fun n => Game.succProbability_le_add_of_advantage_le
+    (F.advantage_elGamalOWProbGame_elGamalOWGame_le setup A n)
 
 end PrimeOrderGroupFamily
 

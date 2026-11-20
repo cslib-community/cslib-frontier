@@ -435,7 +435,7 @@ theorem isPPTOn_run {α : Type} {input : α ↪ List Bool} {evaluate : List Bool
     unfold Parameters.clock Parameters.inverseRate Parameters.denominator
     polytime
   have hcode := Parameters.isPolyTime_codeBound hparams
-  refine (IsPPTOn.iterateWith_spec' (stateEncoding := State.encoding)
+  refine (IsPPTOn.iterateWith_spec (stateEncoding := State.encoding)
     (initial := fun _ => State.initial)
     (step := fun a => round evaluate (source a) (learn a) (params a))
     hclock (by fun_prop) (isPPTOn_round hevaluate hsource hlearn hparams)

@@ -167,6 +167,12 @@ example : EpsilonUnpredictable (elGamalExplicitCoinPKE 5 (1 : ZMod 5)).toPKE (5 
   simpa using epsilonUnpredictable_elGamalExplicitCoinPKE 5 (1 : ZMod 5)
     fun β β' h => by simpa using h
 
+/-- CDH along a deterministic group schedule makes fair-coin multiplicative ElGamal
+`elGamalProbExplicitCoinPKE` unpredictable (`CDH.elGamal_unpredictable`). -/
+example {F : PrimeOrderGroupFamily} {d : ℕ → F.Desc} (hCDH : F.CDH (fun n => PMF.pure (d n))) :
+    Encryption.Unpredictable fun n => (F.elGamalProbExplicitCoinPKE n (d n)).toPKE :=
+  PrimeOrderGroupFamily.CDH.elGamal_unpredictable hCDH
+
 /-- Injectivity of `β ↦ β • g` is needed: with `g = 0`, the public key `0` encrypts every message
 `x` as `(0, x)`, so the scheme is not `ε`-unpredictable for any `ε < 1`. -/
 theorem not_epsilonUnpredictable_elGamal_zero_generator {ε : ℝ≥0} (hε : ε < 1) :
@@ -174,12 +180,14 @@ theorem not_epsilonUnpredictable_elGamal_zero_generator {ε : ℝ≥0} (hε : ε
   intro h
   have hkey : ((0 : ZMod 5), (0 : ZMod 5)) ∈
       (ProbComp.eval (elGamalExplicitCoinPKE 5 (0 : ZMod 5)).toPKE.keyGen).support := by
-    simp [ExplicitCoinPKE.toPKE, elGamalExplicitCoinPKE]
+    simp [ExplicitCoinPKE.toPKE, elGamalExplicitCoinPKEWith]
   have heval : ProbComp.eval ((elGamalExplicitCoinPKE 5 (0 : ZMod 5)).toPKE.encrypt 0 0) =
       PMF.pure (0, 0) := by
-    simp only [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, elGamalExplicitCoinPKE, smul_zero,
-      add_zero, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_const]
-  have hhit := h _ hkey (0, 0) 0 (by simp [ExplicitCoinPKE.toPKE, elGamalExplicitCoinPKE])
+    simp only [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt,
+      elGamalExplicitCoinPKEWith, smul_zero, add_zero, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.bind_const]
+  have hhit := h _ hkey (0, 0) 0
+    (by simp [ExplicitCoinPKE.toPKE, elGamalExplicitCoinPKEWith])
   rw [heval] at hhit
   exact hε.not_ge (by simpa using hhit)
 
