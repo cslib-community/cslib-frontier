@@ -175,7 +175,7 @@ theorem computableInPolyTime_validGroupHashInput {blockLen : F.Desc → ℕ}
       (fun p : ℕ × (F.Desc × List Bool) × List Bool =>
         F.validGroupHashInput blockLen p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair (encPair F.encDesc encBits) encBits)) encBool := by
-  have hbt := hblock.tidy
+  have hbt := hblock
   unfold validGroupHashInput
   polytime
 
@@ -186,8 +186,8 @@ theorem computableInPolyTime_groupHash {blockLen : F.Desc → ℕ}
     ComputableInPolyTime
       (fun p : (F.Desc × List Bool) × List Bool => F.groupHash blockLen p.1 p.2)
       (encPair (encPair F.encDesc encBits) encBits) encBits := by
-  have hbt := hblock.tidy
-  have hped := F.computableInPolyTime_encodePedersenCommit.tidy
+  have hbt := hblock
+  have hped := F.computableInPolyTime_encodePedersenCommit
   unfold groupHash
   polytime
 
@@ -283,7 +283,7 @@ theorem isPPTOn_groupHashToDLAdversary {blockLen : F.Desc → ℕ}
       (fun p => F.groupHashToDLAdversary blockLen adversary p.1 p.2) := by
   unfold groupHashToDLAdversary
   refine hA.bind_with ?_
-  have hbt := hblock.tidy
+  have hbt := hblock
   have hextract : ComputableInPolyTime
       (fun p : (ℕ × (F.Desc × List Bool)) × (List Bool × List Bool) =>
         (extractNat (F.order p.1.2.1)

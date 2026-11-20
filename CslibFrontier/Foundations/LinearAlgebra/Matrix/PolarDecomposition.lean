@@ -103,14 +103,20 @@ theorem exists_unitary_polar (A : Matrix n n ℂ) :
   rw [h.isHermitian.eq,
     CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
 
+omit [DecidableEq n] in
+/-- Taking the adjoint of one factor in the real trace pairing with a Hermitian matrix
+preserves the pairing. -/
+theorem IsHermitian.re_trace_conjTranspose_mul {H : Matrix n n ℂ} (hH : H.IsHermitian)
+    (U : Matrix n n ℂ) : (Uᴴ * H).trace.re = (U * H).trace.re := by
+  have h : ((U * H)ᴴ).trace.re = (U * H).trace.re := by
+    rw [trace_conjTranspose, Complex.star_def, Complex.conj_re]
+  rwa [conjTranspose_mul, hH.eq, trace_mul_comm H] at h
+
 private theorem re_trace_mul_le_trace_of_unitary (U H : Matrix n n ℂ)
     (hU : U ∈ unitaryGroup n ℂ) (hH : H.PosSemidef) :
     (U * H).trace.re ≤ H.trace.re := by
   have hUU : Uᴴ * U = 1 := (mem_unitaryGroup_iff').mp hU
-  have hconj : (Uᴴ * H).trace.re = (U * H).trace.re := by
-    have h : ((U * H)ᴴ).trace.re = (U * H).trace.re := by
-      rw [trace_conjTranspose, Complex.star_def, Complex.conj_re]
-    rwa [conjTranspose_mul, hH.isHermitian.eq, trace_mul_comm H] at h
+  have hconj := hH.isHermitian.re_trace_conjTranspose_mul U
   have h := (Complex.nonneg_iff.mp
     ((posSemidef_conjTranspose_mul_self (1 - U)).trace_mul_nonneg hH)).1
   rw [conjTranspose_sub, conjTranspose_one, sub_mul, mul_sub, mul_sub, hUU,
@@ -209,5 +215,25 @@ theorem traceNorm_conjTranspose (A : Matrix m n ℂ) : Aᴴ.traceNorm = A.traceN
     PosSemidef.zero, sqrt_fromBlocks_diagonal _ _ PosSemidef.zero
       (posSemidef_conjTranspose_mul_self A), CFC.sqrt_zero, CFC.sqrt_zero] at h
   simpa [Matrix.trace, Fintype.sum_sum_type, fromBlocks] using h
+
+/-- Trace is invariant under unitary conjugation. -/
+theorem trace_conjStarAlgAut (U : unitary (Matrix n n ℂ)) (A : Matrix n n ℂ) :
+    (Unitary.conjStarAlgAut ℂ _ U A).trace = A.trace := by
+  rw [Unitary.conjStarAlgAut_apply, trace_mul_cycle, Unitary.coe_star_mul_self, Matrix.one_mul]
+
+/-- Trace norm is invariant under unitary conjugation. -/
+theorem traceNorm_conjStarAlgAut (U : unitary (Matrix n n ℂ)) (A : Matrix n n ℂ) :
+    (Unitary.conjStarAlgAut ℂ _ U A).traceNorm = A.traceNorm := by
+  let F := Unitary.conjStarAlgAut ℂ _ U
+  let H := CFC.sqrt (Aᴴ * A)
+  have hH : H.PosSemidef := Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg _)
+  have hpos : (F H).PosSemidef := hH.mul_mul_conjTranspose_same (U : Matrix n n ℂ)
+  have hroot : CFC.sqrt ((F A)ᴴ * F A) = F H := by
+    apply CFC.sqrt_unique _ hpos.nonneg
+    rw [← map_mul, ← star_eq_conjTranspose (F A), ← map_star, ← map_mul]
+    change F (CFC.sqrt (Aᴴ * A) * CFC.sqrt (Aᴴ * A)) = F (Aᴴ * A)
+    rw [CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
+  change (CFC.sqrt ((F A)ᴴ * F A)).trace.re = H.trace.re
+  rw [hroot, trace_conjStarAlgAut]
 
 end Matrix

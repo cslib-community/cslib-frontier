@@ -54,3 +54,8 @@ example (η : I) :
     cases erase <;> rfl
   rw [hmix, QuantumStrategy.norm_averagedCheckedVector_sq_coin, h, h]
   simp
+
+/-- Independent play gives the lower end of the interval for repeated CHSH. -/
+example (n : ℕ) : (Real.cos (π / 8) ^ 2) ^ n ≤ (chsh.pow n).quantumValue := by
+  rw [← quantumValue_chsh]
+  exact chsh.pow_quantumValue_le_quantumValue_pow n

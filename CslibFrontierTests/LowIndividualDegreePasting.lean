@@ -7,9 +7,9 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Pasting
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingConsistency
+import CslibFrontierTests.QubitMeasurementFixture
 import Mathlib.Algebra.Field.ZMod
-import Mathlib.Algebra.Ring.Idempotent
 
 /-! # Pasting on three slices over the field with three elements -/
 
@@ -17,7 +17,7 @@ set_option linter.privateModule false
 
 open Cslib.PCP.LowIndividualDegree Cslib.Quantum MvPolynomial Finset
 open scoped ComplexOrder MatrixOrder Matrix.Norms.L2Operator
-open Matrix
+open Matrix CslibFrontierTests.QubitMeasurementFixture
 
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
 
@@ -94,6 +94,64 @@ example : pasteOutcome nodes inconsistentSlices = none := by
     exact (X_ne_zero (R := F) (0 : Fin 1)) hv'.symm
 
 
+private def twoNodes : Fin 2 ↪ F :=
+  (Fin.castSuccEmb (n := 2)).trans nodes
+
+private noncomputable def zeroTranscript (_ : Fin 2) : Option (BoundedPolynomial F 1 1) :=
+  some zeroSlice
+
+/-- A zero readout differs from the line `t ↦ t` at the unsampled coordinate two.
+The mismatch bound charges the disagreement on the sampled coordinate one. -/
+example :
+    ((PMF.pure (zeroTranscript, ())).map (Prod.map (pasteOutcome twoNodes) id)).toOuterMeasure
+        (pastedLineMismatch (d := 1) (m := 1) (0 : Fin 1 → F) 2 (fun (_ : Unit) t => t)) = 1 ∧
+      (∑ i : Fin 2, ((PMF.pure (zeroTranscript, ())).toOuterMeasure
+        (sliceLineMismatch (0 : Fin 1 → F) twoNodes (fun (_ : Unit) t => t) i)).toReal) = 1 := by
+  classical
+  let p : BoundedPolynomial F 2 1 := ⟨0, by simp⟩
+  have hp : pasteOutcome twoNodes zeroTranscript = some p := by
+    apply (pasteOutcome_eq_some_iff _ _ _).mpr
+    constructor
+    · have hs : successfulSlices zeroTranscript = Finset.univ := by
+        ext i
+        simp [zeroTranscript]
+      rw [hs]
+      decide
+    · intro i q h
+      have he : q = zeroSlice := (Option.some.inj h).symm
+      subst q
+      apply Subtype.ext
+      change specializeLast _ (0 : MvPolynomial (Fin 2) F) = 0
+      exact map_zero _
+  constructor
+  · rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_pure_apply]
+    have hm : (Prod.map (pasteOutcome twoNodes) id (zeroTranscript, ())) ∈
+        pastedLineMismatch (d := 1) (0 : Fin 1 → F) 2 (fun (_ : Unit) t => t) := by
+      unfold pastedLineMismatch
+      refine ⟨p, hp, ?_⟩
+      change eval (Fin.snoc (0 : Fin 1 → F) (2 : F)) (0 : MvPolynomial (Fin 2) F) ≠ 2
+      rw [map_zero]
+      decide
+    exact ite_eq_left hm
+  · rw [Fin.sum_univ_two]
+    have hzero :
+        (zeroTranscript, ()) ∉ sliceLineMismatch (0 : Fin 1 → F) twoNodes
+          (fun (_ : Unit) t => t) (0 : Fin 2) := by
+      rintro ⟨q, he, hne⟩
+      have hq : q = zeroSlice := (Option.some.inj he).symm
+      subst q
+      apply hne
+      change eval (0 : Fin 1 → F) (0 : MvPolynomial (Fin 1) F) = 0
+      exact map_zero _
+    have hone :
+        (zeroTranscript, ()) ∈ sliceLineMismatch (0 : Fin 1 → F) twoNodes
+          (fun (_ : Unit) t => t) (1 : Fin 2) := by
+      refine ⟨zeroSlice, rfl, ?_⟩
+      change eval (0 : Fin 1 → F) (0 : MvPolynomial (Fin 1) F) ≠ 1
+      rw [map_zero]
+      exact zero_ne_one
+    simp only [PMF.toOuterMeasure_pure_apply, hzero, hone, ↓reduceIte,
+      ENNReal.toReal_zero, ENNReal.toReal_one, zero_add]
 private noncomputable def zeroConstant : BoundedPolynomial F 0 0 := ⟨0, fun i => Fin.elim0 i⟩
 private noncomputable def zeroPaste : BoundedPolynomial F 1 0 := ⟨0, by simp⟩
 
@@ -187,54 +245,6 @@ example :
   rw [Fintype.sum_option] at h
   simp only [averaged_single_slice_effect, sum_ite_eq', mem_univ, ite_true] at h
   linear_combination h
-
-private abbrev Mat := Matrix (Fin 2) (Fin 2) ℂ
-private def diagonalProjection : Mat := !![1, 0; 0, 0]
-private noncomputable def uniformProjection : Mat := !![1 / 2, 1 / 2; 1 / 2, 1 / 2]
-
-private theorem diagonalProjection_star : star diagonalProjection = diagonalProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;> simp [diagonalProjection, Matrix.star_apply]
-
-private theorem uniformProjection_star : star uniformProjection = uniformProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;> simp [uniformProjection, Matrix.star_apply]
-
-private theorem diagonalProjection_sq :
-    diagonalProjection * diagonalProjection = diagonalProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;> norm_num [diagonalProjection, Matrix.mul_apply, Fin.sum_univ_two]
-
-private theorem uniformProjection_sq :
-    uniformProjection * uniformProjection = uniformProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;>
-    norm_num [uniformProjection, Matrix.mul_apply, Fin.sum_univ_two]
-
-private def binary (e : Mat) (he : star e = e) (he₂ : e * e = e) : Measurement Bool Mat where
-  effect b := if b then e else 1 - e
-  nonneg b := by
-    cases b
-    · have hc : (1 - e) * (1 - e) = 1 - e := (show IsIdempotentElem e from he₂).one_sub
-      simpa only [Bool.false_eq_true, ite_false, star_sub, star_one, he, hc]
-        using star_mul_self_nonneg (1 - e)
-    · simpa only [ite_true, he, he₂] using star_mul_self_nonneg e
-  sum_effect := by simp
-
-private theorem binary_projective (e : Mat) (he : star e = e) (he₂ : e * e = e) :
-    (binary e he he₂).IsProjective := by
-  intro b
-  cases b
-  · exact (show IsIdempotentElem e from he₂).one_sub
-  · exact he₂
-
-private theorem pair_projective (D U : Measurement Bool Mat)
-    (hD : D.IsProjective) (hU : U.IsProjective) :
-    ∀ i : Fin 2, (![D, U] i).IsProjective := by
-  intro i
-  fin_cases i
-  · exact hD
-  · exact hU
 
 /-- The first measurement sandwiches the second, with distinct values for the
 off-diagonal entry when the order is reversed. -/
