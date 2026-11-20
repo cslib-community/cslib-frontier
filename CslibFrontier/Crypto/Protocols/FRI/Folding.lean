@@ -39,9 +39,8 @@ affine lines and parameterized curves for correlated-agreement proximity gaps.
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.FRI.cosetPoint`, `Cslib.Crypto.Protocols.FRI.cosetEval`,
-  `Cslib.Crypto.Protocols.FRI.reindexPow`: multiplicative coset evaluation maps, the power-of-two
-  FRI domain hierarchy, and smooth power-of-two domain reindexing.
+* `Cslib.Crypto.Protocols.FRI.cosetPoint`, `Cslib.Crypto.Protocols.FRI.cosetEval`:
+  multiplicative coset evaluation maps and the power-of-two FRI domain hierarchy.
 * `Cslib.Crypto.Protocols.FRI.polyComp`, `Cslib.Crypto.Protocols.FRI.reconstructPoly`,
   `Cslib.Crypto.Protocols.FRI.foldPoly`: `a`-way polynomial decomposition, reconstruction, and
   polynomial folding.
@@ -192,16 +191,6 @@ theorem cosetEval_sq {g ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^ d)) (
     (cosetEval g ω d i j) ^ 2 =
       cosetEval g ω d (i + 1) ⟨j.val % 2 ^ (d - (i + 1)), Nat.mod_lt _ (by positivity)⟩ := by
   simpa only [pow_one] using cosetEval_pow_two_pow (s := 1) hω hi j
-
-/-- Reindexing embedding `Fin (2 ^ s * 2 ^ (d - (i + s))) → Fin (2 ^ (d - i))` for `i + s ≤ d`. -/
-@[expose] def reindexPow {d i s : ℕ} (his : i + s ≤ d)
-    (idx : Fin (2 ^ s * 2 ^ (d - (i + s)))) : Fin (2 ^ (d - i)) :=
-  ⟨idx.val, by
-    have hsplit : 2 ^ (d - i) = 2 ^ s * 2 ^ (d - (i + s)) := by
-      rw [← pow_add]
-      congr 1
-      omega
-    omega⟩
 
 /-- Shifting an index in level `i < d` by half the domain size negates its coset point. -/
 theorem cosetEval_add_half {g ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^ d)) (hi : i < d)

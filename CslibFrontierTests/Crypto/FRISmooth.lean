@@ -28,11 +28,12 @@ coset (`d = 5`, `ω = 15` primitive `32`-nd root of unity since `15 ^ 16 ≡ -1 
      `proofOracleQueries = 85`, `totalWordQueries = 91`, `batchTotalWordQueries 2 = 103`,
      per-round curve budgets `(28, 2)` telescoping to `30 = 32 - 2`, round-`0` max `28`).
 2. **Smooth coset folding (`Folding.lean`) & honest prover (`Protocol.lean`):**
-   Certifies `cosetEval_pow_two_pow`, `reindexPow`, `foldFiber`, `foldWord_apply_eq_foldFiber`,
-   `foldFiber_two_eq_fold2Fiber`, `friCumLog`, `friSmoothHonestWord_mem_rsCode`, exact query
-   lengths (`length_friSmoothIOP_queries`, `length_friSmoothInputQueries`), input locality
-   (`friSmoothDecide_congr_inputQueries`), IOP / deterministic BCS / BCS ROM completeness, and
-   verifier Merkle query cost (`isCostBounded_bcsMTCost_friSmoothVerifyROM`) for both schedules.
+   Certifies `cosetEval_pow_two_pow`, `foldFiber`, `foldWord_apply_eq_foldFiber`,
+   `foldFiber_two_eq_fold2Fiber`, `friCumLog_eq_sum_fin`, `friSmoothHonestWord_mem_rsCode`,
+   `friSmoothFinalCodeword_mem_rsCode`, exact query lengths (`length_friSmoothIOP_queries`,
+   `length_friSmoothInputQueries`), input locality (`friSmoothDecide_congr_inputQueries`), IOP /
+   deterministic BCS / BCS ROM completeness, and verifier Merkle query cost
+   (`isCostBounded_bcsMTCost_friSmoothVerifyROM`) for both schedules.
 3. **Far-from-Reed–Solomon word (`X ^ 16`) & concrete rejection for 4-to-1 and 8+2 folding:**
    Proves `card_agree_farWord32_le_16` via `Cslib.Code.card_filter_eval_eq_eval_le` (`farWord32 ∉
    proximityLang 7`) and proves concrete verifier rejection `iopVerify (friSmoothIOP _) farWord32
@@ -155,8 +156,8 @@ example : params257Fold8x2.batchTotalWordQueries 2 =
       params257Fold8x2.q * (params257Fold8x2.aritySum + params257Fold8x2.m + 2 + 3) :=
   params257Fold8x2.batchTotalWordQueries_eq 2
 
--- Exercise `cosetEval_pow_two_pow`, `reindexPow`, `foldWord_apply_eq_foldFiber`, and
--- `foldFiber_two_eq_fold2Fiber`.
+-- Exercise `cosetEval_pow_two_pow`, `foldWord_apply_eq_foldFiber`, `foldFiber_two_eq_fold2Fiber`,
+-- `friCumLog_eq_sum_fin`, and `friSmoothFinalCodeword_mem_rsCode`.
 example (j : Fin 32) :
     (cosetEval (1 : ZMod 257) 15 5 0 j) ^ (2 ^ 2) =
       cosetEval (1 : ZMod 257) 15 5 2 ⟨j.val % 8, Nat.mod_lt _ (by omega)⟩ :=
@@ -167,8 +168,12 @@ example (j : Fin 32) :
       cosetEval (1 : ZMod 257) 15 5 3 ⟨j.val % 4, Nat.mod_lt _ (by omega)⟩ :=
   cosetEval_pow_two_pow (d := 5) (i := 0) (s := 3) isPrimitiveRoot_fifteen_32 (by omega) j
 
-example (idx : Fin (2 ^ 2 * 2 ^ (5 - (0 + 2)))) :
-    (reindexPow (d := 5) (i := 0) (s := 2) (by omega) idx).val = idx.val := rfl
+example : friCumLog params257Fold8x2.stepLog 2 = ∑ k : Fin 2, params257Fold8x2.stepLog k :=
+  friCumLog_eq_sum_fin params257Fold8x2.stepLog
+
+example (πFinal : OracleTable 5 (ZMod 257)) :
+    friSmoothFinalCodeword params257Fold4x4 πFinal ∈ params257Fold4x4.rsCode 2 :=
+  friSmoothFinalCodeword_mem_rsCode params257Fold4x4 πFinal
 
 example (f : Fin (4 * 8) → ZMod 257) (z : ZMod 257) (j : Fin 8) :
     foldWord (1 : ZMod 257) 15 f z j =

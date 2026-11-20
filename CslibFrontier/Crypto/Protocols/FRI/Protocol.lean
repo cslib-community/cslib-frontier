@@ -453,22 +453,6 @@ theorem dim_eq_arity_mul_succ (params : FRISmoothParams F) (i : Fin params.m) :
 theorem dim_last (params : FRISmoothParams F) : params.dim params.m = params.kFinal := by
   simp [dim]
 
-theorem two_pow_cumLog_mul_domainSize (params : FRISmoothParams F) {i : ℕ} (hi : i ≤ params.m) :
-    2 ^ params.cumLog i * params.domainSize i = 2 ^ params.d := by
-  have hle := params.cumLog_le_d hi
-  simp only [domainSize, ← pow_add]
-  congr 1
-  omega
-
-theorem two_pow_cumLog_mul_dim (params : FRISmoothParams F) {i : ℕ} (hi : i ≤ params.m) :
-    2 ^ params.cumLog i * params.dim i = params.dim 0 := by
-  have hle := params.cumLog_le_totalLog hi
-  simp only [dim, cumLog, friCumLog_zero, Nat.sub_zero]
-  have hexp : params.cumLog i + (params.totalLog - params.cumLog i) = params.totalLog := by omega
-  calc 2 ^ params.cumLog i * (params.kFinal * 2 ^ (params.totalLog - params.cumLog i))
-      = params.kFinal * (2 ^ params.cumLog i * 2 ^ (params.totalLog - params.cumLog i)) := by ring
-    _ = params.kFinal * 2 ^ params.totalLog := by rw [← pow_add, hexp]
-
 /-- Per-round curve-degree weight identity: `(l⁽ⁱ⁾ - 1) * n_{i+1} = nᵢ - n_{i+1}`. -/
 theorem arity_sub_one_mul_domainSize (params : FRISmoothParams F) (i : Fin params.m) :
     (params.arity i - 1) * params.domainSize (i.val + 1) =
