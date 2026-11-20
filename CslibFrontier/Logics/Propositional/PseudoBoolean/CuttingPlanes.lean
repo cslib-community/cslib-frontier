@@ -593,9 +593,12 @@ theorem runSteps_der : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List St
           exact List.forall_mem_cons.2 ⟨this c (by simp), hdb⟩
         · cases h₁
       | del ids =>
-        simp only [runStep, Option.some.injEq, Prod.mk.injEq] at h₁
-        obtain ⟨rfl, -⟩ := h₁
-        exact fun e he => hdb e (List.mem_of_mem_filter he)
+        simp only [runStep] at h₁
+        split at h₁
+        · simp only [Option.some.injEq, Prod.mk.injEq] at h₁
+          obtain ⟨rfl, -⟩ := h₁
+          exact fun e he => hdb e (List.mem_of_mem_filter he)
+        · cases h₁
       | rup => simp [Step.IsCP] at hss
       | rupSearch => simp [Step.IsCP] at hss
       | pbc => simp [Step.IsCP] at hss

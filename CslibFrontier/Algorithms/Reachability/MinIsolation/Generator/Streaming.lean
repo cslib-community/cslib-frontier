@@ -8,6 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Data.Fin.Rev
+import Mathlib.Data.List.FinRange
+import Mathlib.Data.Nat.Digits.Lemmas
 
 /-!
 # Streaming evaluation of Hoza's weights
@@ -36,36 +40,37 @@ open Code.JustesenFamily Finset
 private def accumulate {ℓ : ℕ} (digit : Fin ℓ → Bool) : ℕ :=
   Fin.foldl ℓ (fun a j => 6 * a + (digit j).toNat) 0
 
+private theorem accumulate_eq_ofDigits {ℓ : ℕ} (digit : Fin ℓ → Bool) :
+    accumulate digit = Nat.ofDigits 6 (List.ofFn fun j => (digit j).toNat).reverse := by
+  rw [accumulate, Fin.foldl_eq_finRange_foldl, Nat.ofDigits_eq_foldr, ← List.foldl_reverse,
+    List.reverse_reverse, List.ofFn_eq_map, List.foldl_map]
+  simp only [Nat.cast_id, Nat.add_comm]
+
 private theorem accumulate_eq {ℓ : ℕ} (digit : Fin ℓ → Bool) :
     accumulate digit = ∑ j, 6 ^ (ℓ - (j.val + 1)) * (digit j).toNat := by
-  induction ℓ with
-  | zero => simp [accumulate]
-  | succ k ih =>
-    unfold accumulate
-    rw [Fin.foldl_succ_last, Fin.sum_univ_castSucc]
-    change 6 * accumulate (fun j : Fin k => digit j.castSucc) + (digit (Fin.last k)).toNat = _
-    rw [ih, mul_sum]
-    simp only [Fin.val_last, Nat.sub_self, pow_zero, one_mul]
-    congr 1
-    apply sum_congr rfl
-    intro j _
-    have hj := j.isLt
-    simp only [Fin.val_castSucc]
-    rw [show k + 1 - (j.val + 1) = k - (j.val + 1) + 1 by omega, pow_succ']
-    ring
+  rw [accumulate_eq_ofDigits, Nat.ofDigits_eq_sum_mapIdx]
+  have h :
+      (List.ofFn fun j => (digit j).toNat).reverse.mapIdx (fun i d => d * 6 ^ i) =
+        List.ofFn (fun j : Fin ℓ => (digit j.rev).toNat * 6 ^ j.val) := by
+    apply List.ext_getElem
+    · simp
+    · intro i _ _
+      simp only [List.getElem_mapIdx, List.getElem_reverse, List.getElem_ofFn, List.length_ofFn]
+      congr 3
+      apply Fin.ext
+      simp only [Fin.val_rev]
+      omega
+  rw [h, List.sum_ofFn]
+  simpa only [Fin.revPerm_apply, Fin.rev_rev, Fin.val_rev, mul_comm] using
+    (Equiv.sum_comp Fin.revPerm (fun j : Fin ℓ => (digit j.rev).toNat * 6 ^ j.val)).symm
 
 private theorem accumulate_lt {ℓ : ℕ} (digit : Fin ℓ → Bool) :
     accumulate digit < 6 ^ ℓ := by
-  induction ℓ with
-  | zero => simp [accumulate]
-  | succ k ih =>
-    unfold accumulate
-    rw [Fin.foldl_succ_last, pow_succ']
-    change 6 * accumulate (fun j : Fin k => digit j.castSucc) + (digit (Fin.last k)).toNat <
-      6 * 6 ^ k
-    have ha := ih fun j => digit j.castSucc
-    have hd : (digit (Fin.last k)).toNat ≤ 1 := by cases digit (Fin.last k) <;> decide
-    omega
+  rw [accumulate_eq_ofDigits]
+  refine (Nat.ofDigits_lt_base_pow_length (by decide) ?_).trans_le (by simp)
+  intro d hd
+  obtain ⟨j, rfl⟩ := List.mem_ofFn.mp (List.mem_reverse.mp hd)
+  cases digit j <;> decide
 
 /-- After scanning the first `k` masked digits the unscaled accumulator is less than `6 ^ k`. -/
 theorem generatedWeightScan_prefix_lt {w n k : ℕ} (seed : Fin (codeLength w n) → Bool)

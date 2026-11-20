@@ -40,7 +40,8 @@ the number after them.
   does for `rup C;` without hints.
 * *Deletion.* The kernel format distinguishes deleting derived constraints (`deld`) from deleting
   constraints of the formula (`delc`) and checks each number against the matching set. Here `del`
-  is a single untyped deletion that removes whatever constraints carry the given numbers. Deleting
+  is a single untyped deletion: its numbers must be distinct and each must name a constraint of
+  the database, core or derived, and those constraints are removed. Deleting
   constraints only enlarges the set of solutions of the database, so this is sound for `UNSAT`,
   the only conclusion checked here; the typed deletions matter for the guarantees of other
   conclusions.
@@ -440,8 +441,9 @@ inductive Step where
   /-- `pbc C : subproof … qed : n;`: the subproof starts from the negation of `C` and must
   derive the contradiction numbered `n`. -/
   | pbc (c : PBConstr) (sub : List Step) (qed : ℕ)
-  /-- `del id ids;`: delete the constraints with these numbers. This untyped deletion stands for
-  both `deld` and `delc` and takes no number; it is sound only for `UNSAT`. -/
+  /-- `del id ids;`: delete the constraints with these distinct numbers, each of which must be in
+  the database. This untyped deletion stands for both `deld` and `delc` and takes no number; it is
+  sound only for `UNSAT`. -/
   | del (ids : List ℕ)
   deriving Repr
 
@@ -458,7 +460,10 @@ def runStep (db : List (ℕ × PBConstr)) (n : ℕ) : Step → Option (List (ℕ
   | .pbc c sub q =>
     (subproofRefutes (fun db n => runSteps db n sub) db n c q).map
       fun n' => ((n', c.normalize) :: db, n' + 1)
-  | .del ids => some (db.filter fun e => !ids.contains e.1, n)
+  | .del ids =>
+    if decide ids.Nodup && ids.all (fun i => (lookup db i).isSome) then
+      some (db.filter fun e => !ids.contains e.1, n)
+    else none
 
 /-- Run the steps in order. -/
 def runSteps (db : List (ℕ × PBConstr)) (n : ℕ) :
@@ -527,9 +532,12 @@ theorem runStep_sound {σ : ℕ → Bool} :
     exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (holds_of_subproofRefutes
       (fun _ _ hext hsub => runSteps_sound _ _ sub _ _ hext hsub) hdb hq), hdb⟩
   | db, n, .del ids, db', n', hdb, h => by
-    simp only [runStep, Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, -⟩ := h
-    exact fun e he => hdb e (List.mem_of_mem_filter he)
+    simp only [runStep] at h
+    split at h
+    · simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      exact fun e he => hdb e (List.mem_of_mem_filter he)
+    · cases h
 
 theorem runSteps_sound {σ : ℕ → Bool} :
     ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List Step) (db' : List (ℕ × PBConstr)) (n' : ℕ),
