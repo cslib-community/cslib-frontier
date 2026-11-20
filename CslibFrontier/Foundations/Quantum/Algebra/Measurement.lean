@@ -96,6 +96,10 @@ theorem map_effect [DecidableEq β] (f : α → β) (M : Measurement α A) (b : 
     (M.map f).effect b = ∑ a with f a = b, M.effect a :=
   rfl
 
+@[simp] theorem map_id [DecidableEq α] (M : Measurement α A) : M.map id = M := by
+  ext a
+  simp [map_effect, sum_filter]
+
 /-- An operator commuting with the original effects commutes with their postprocessing. -/
 theorem commute_map_right [DecidableEq β] (M : Measurement α A) (f : α → β)
     (e : A) (h : ∀ a, Commute e (M.effect a)) (b : β) : Commute e ((M.map f).effect b) := by

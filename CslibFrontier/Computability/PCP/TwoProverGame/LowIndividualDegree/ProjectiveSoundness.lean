@@ -126,9 +126,23 @@ theorem exists_projective_polynomial_POVMs {k : ℕ} (D : ℕ)
           (fun a => QuantumStrategy.commute_liftedEffects Pₐ Pᵦ a a)] at hleft
     linarith only [hLR, (abs_le.mp hright).2, (abs_le.mp hleft).2]
 
+/-- Disagreement bounds for the low-individual-degree verifier. -/
+structure SoundnessErrors where
+  /-- The bound for evaluation at a uniform point compared with the other player's answer. -/
+  point : ℝ
+  /-- The bound for disagreement on the full polynomial outcomes. -/
+  polynomial : ℝ
+
+/-- The explicit soundness errors in dimension `m`, with sampling parameter `k`,
+verifier rejection probability `ε`, and degree-to-field-size ratio `r`. -/
+@[expose] noncomputable def soundnessErrors (m : ℝ) (k : ℕ) (ε r : ℝ) : SoundnessErrors :=
+  let σ := 320000 * dimensionInductionError m k (3 * ε) (3 * ε) (3 * ε) r
+  let ζ := σ + √(4 * (σ + 3 * ε)) + m * r
+  ⟨σ + √(8 * ζ + 4 * √(18 * ζ)), ζ + 2 * √(18 * ζ)⟩
+
 /-- Low-individual-degree soundness stated using the loss in the full verifier.
 This specializes the quantitative variant above by substituting three times the full
-verifier loss for each branch loss in its error expressions. -/
+verifier loss for each branch loss in the two fields of soundnessErrors. -/
 theorem exists_projective_polynomial_POVMs_of_winProb {k : ℕ}
     (hk : (n + 1) * d ≤ k) (S : QuantumStrategy Q Q Ans Ans ι κ)
     (hA : ∀ q, (S.alice q).toMeasurement.IsProjective)
@@ -136,20 +150,20 @@ theorem exists_projective_polynomial_POVMs_of_winProb {k : ℕ}
     let C := S.toCommuting
     let ε := 1 - (game (F := F) n d).quantumWinProb S
     let r := (d : ℝ) / Fintype.card F
-    let σ := 320000 * dimensionInductionError (n + 1) k (3 * ε) (3 * ε) (3 * ε) r
-    let ζ := σ + √(4 * (σ + 3 * ε)) + (n + 1) * r
-    let pointError := σ + √(8 * ζ + 4 * √(18 * ζ))
+    let errors := soundnessErrors (n + 1) k ε r
     ∃ (Pₐ : POVM Poly ι) (Pᵦ : POVM Poly κ),
       Pₐ.toMeasurement.IsProjective ∧ Pᵦ.toMeasurement.IsProjective ∧
       (𝔼 u : Pt, (1 - Measurement.agreement C.state (decodedPoint C.alice u)
         ((QuantumStrategy.rightMeasurement (ι := ι) Pᵦ).map
-          fun g => MvPolynomial.eval u g.val))) ≤ pointError ∧
+          fun g => MvPolynomial.eval u g.val))) ≤ errors.point ∧
       (𝔼 u : Pt, (1 - Measurement.agreement C.state
         ((QuantumStrategy.leftMeasurement (κ := κ) Pₐ).map
-          fun g => MvPolynomial.eval u g.val) (decodedPoint C.bob u))) ≤ pointError ∧
+          fun g => MvPolynomial.eval u g.val) (decodedPoint C.bob u))) ≤ errors.point ∧
       1 - Measurement.agreement C.state (QuantumStrategy.leftMeasurement (κ := κ) Pₐ)
-        (QuantumStrategy.rightMeasurement (ι := ι) Pᵦ) ≤ ζ + 2 * √(18 * ζ) := by
-  intro C ε r σ ζ pointError
+        (QuantumStrategy.rightMeasurement (ι := ι) Pᵦ) ≤ errors.polynomial := by
+  intro C ε r errors
+  let σ := 320000 * dimensionInductionError (n + 1) k (3 * ε) (3 * ε) (3 * ε) r
+  let ζ := σ + √(4 * (σ + 3 * ε)) + (n + 1) * r
   let loss (b : Branch) := 1 - (branchGame (F := F) n d b).commutingWinProb C
   let σ₀ := 320000 * dimensionInductionError (n + 1) k
     (loss .axis) (loss .consistency) (loss .diagonal) r
@@ -171,10 +185,12 @@ theorem exists_projective_polynomial_POVMs_of_winProb {k : ℕ}
   obtain ⟨Pₐ, Pᵦ, hPₐ, hPᵦ, hpointB, hpointA, hpoly⟩ :=
     exists_projective_polynomial_POVMs ((n + 1) * d) hk S hA hB
   rw [← branchGame_eq_withDiagonalCap] at hpointB hpointA hpoly
-  have h₁ : σ₀ + √(8 * ζ₀ + 4 * √(18 * ζ₀)) ≤ pointError := by
-    dsimp only [pointError]
+  have h₁ : σ₀ + √(8 * ζ₀ + 4 * √(18 * ζ₀)) ≤ errors.point := by
+    change _ ≤ σ + √(8 * ζ + 4 * √(18 * ζ))
     gcongr
-  have h₂ : ζ₀ + 2 * √(18 * ζ₀) ≤ ζ + 2 * √(18 * ζ) := by gcongr
+  have h₂ : ζ₀ + 2 * √(18 * ζ₀) ≤ errors.polynomial := by
+    change _ ≤ ζ + 2 * √(18 * ζ)
+    gcongr
   exact ⟨Pₐ, Pᵦ, hPₐ, hPᵦ, hpointB.trans h₁, hpointA.trans h₁, hpoly.trans h₂⟩
 
 end Cslib.PCP.LowIndividualDegree
