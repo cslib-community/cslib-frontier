@@ -39,9 +39,11 @@ counter, so a later native implementation need not retain an array of seed words
 The selected answer concerns the graph at the selected seed. Applying it to a fixed language
 also uses the reachability-preservation theorem of the weighted transport.
 
-The outer traversal keeps a cursor and a remaining count, each bounded by `2 ^ length`.
-The candidate passed to the callback is strictly below that bound, so its binary representation
-has at most `length` bits. The source list still specifies the inner traversal.
+The outer traversal keeps a cursor and a remaining count, each at most `2 ^ length`, so each
+register fits in `length + 1` binary digits. The initial count `2 ^ length` needs all of those
+digits. Each tested cursor is strictly below `2 ^ length` and fits in `length` digits. The checked
+client verifies these bounds for the native binary encoding. The source list specifies the inner
+traversal.
 The actual replay callback in the [checked client][client] is proof-level enumeration.
 Native loop/state bounds, binary choice lowering, callbacks and first-halting composition
 remain in #6747. Validate this client with

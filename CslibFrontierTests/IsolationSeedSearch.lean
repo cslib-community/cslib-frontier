@@ -5,6 +5,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
 import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
 /-! Ordered seeds, all-source checks, rejection and multiplicity, plus actual controller replay. -/
 
@@ -14,6 +15,25 @@ set_option linter.hashCommand false
 namespace CslibFrontierTests.IsolationSeedSearch
 
 open Cslib.DoubleCounting
+
+open Turing.MultiTapeTM in
+-- A tested seed uses at most the seed width. Either loop register can reach the inclusive bound.
+example (width : ℕ) (candidate : Fin (2 ^ width)) (cursor remaining : ℕ)
+    (h : cursor + remaining ≤ 2 ^ width) :
+    (encNat candidate.val).length ≤ width ∧
+      (encNat cursor).length ≤ width + 1 ∧ (encNat remaining).length ≤ width + 1 := by
+  have hnext : (2 : ℕ) ^ width < 2 ^ (width + 1) := by
+    rw [pow_succ]
+    have := Nat.two_pow_pos width
+    omega
+  exact ⟨length_encNat_le_of_lt_two_pow candidate.isLt,
+    length_encNat_le_of_lt_two_pow (lt_of_le_of_lt (by omega) hnext),
+    length_encNat_le_of_lt_two_pow (lt_of_le_of_lt (by omega) hnext)⟩
+
+open Turing.MultiTapeTM in
+-- In particular, the initial remaining count does not fit in the candidate's width.
+example (width : ℕ) : width < (encNat (2 ^ width)).length := by
+  rw [encNat_apply, Nat.size_eq_bits_len, Nat.lt_size]
 
 private def badThenNegative (seed : Fin 1 → Bool) (_ : Fin 2) : List (Option ControllerVerdict) :=
   if seed 0 then [some (.decided false)] else [some (.bad 1)]
