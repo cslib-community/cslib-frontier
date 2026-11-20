@@ -6,7 +6,10 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
+import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
+import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerInformation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
@@ -20,6 +23,7 @@ import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
 import CslibFrontier.Foundations.Quantum.DensityMatrix.QuantumRaz
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDomination
 import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
@@ -11095,6 +11099,86 @@ register_result "quantum-raz-transcript-coordinate-information" where
     empty tuple. The anchored-game instantiation and the full Claim 5.13 remain open. \
     Source check by codex-f4a705f4 at \
     https://github.com/cslib-community/cslib-frontier/pull/6667#issuecomment-7021187449."
+register_result "quantum-relative-entropy-reference-domination" where
+  title := "Quantum relative entropy under reference domination"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.8 (bound proved)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 20" }
+  ]
+  theorems := [
+    Cslib.Quantum.relativeEntropy_le_add_log_of_le_smul,
+    Cslib.Quantum.relativeEntropy_le_neg_log_weight
+  ]
+  scope := "The proof of Proposition 5.8 bounds Umegaki relative entropy. Its displayed \
+    conclusion uses max-relative entropy. For a finite complex density source and positive \
+    semidefinite references with σ ≤ c • τ and c > 0, changing the reference from σ to τ \
+    costs at most log c nats. References may be singular or unnormalized. A component of \
+    positive weight p has divergence at most −log p from the finite weighted sum, including \
+    when total weight differs from one. Claim 5.13 uses these comparisons and remains open. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6664#issuecomment-7020792318."
+
+register_result "bvy-checked-answer-marginal-entropy" where
+  title := "Marginal domination and entropy cost for checked-answer postselection"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13 (proof step)",
+      locator := "arXiv:1509.07466v2, printed pp. 23–24" }
+  ]
+  theorems := [
+    Cslib.PCP.QuantumStrategy.sum_partialTraceRight_averagedCheckedVector,
+    Cslib.PCP.QuantumStrategy.partialTraceRight_averagedCheckedVector_le,
+    Cslib.PCP.QuantumStrategy.isDensityMatrix_averagedCheckedMarginalAlice,
+    Cslib.PCP.QuantumStrategy.relativeEntropy_normalizedCheckedVector_partialTraceRight_le
+  ]
+  scope := "A checked-answer marginal and postselection step in the proof of Claim 5.13. \
+    For finite tensor strategies with local POVMs and independent full-question laws, \
+    forgetting Bob’s checked answers leaves the selected Alice marginal. Each branch lies \
+    below a common trace-one reference independent of Bob’s question law. At positive actual \
+    Born weight w the normalized reduced branch has Umegaki relative entropy at most −log w \
+    in nats. The full opposite-question register, win-conditioned and averaged coordinate \
+    information bounds, and local-unitary estimates remain open. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6665#issuecomment-7020963630."
+
+register_result "bvy-checked-answer-register-entropy-budget" where
+  title := "Entropy budget for a retained label and checked-answer event"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13 (proof step)",
+      locator := "arXiv:1509.07466v2, printed pp. 23–24" }
+  ]
+  theorems := [
+    Cslib.PCP.QuantumStrategy.trace_checkedAnswerRegister,
+    Cslib.PCP.QuantumStrategy.checkedAnswerRegister_le_card_smul,
+    Cslib.PCP.QuantumStrategy.relativeEntropy_normalize_checkedAnswerRegister_le
+  ]
+  scope := "Event/reference budget in the proof of Claim 5.13. Given a finite retained label, \
+    the two local question laws are independent conditional on that label. The restricted \
+    Born-law state has trace equal to the label-dependent event probability P. For P > 0 \
+    and nonempty full checked-answer alphabet Z, the normalized state has relative entropy \
+    at most log |Z| − log P nats against the reference with uniform checked answers and \
+    the original label distribution. Both states retain the label. Instantiation with the \
+    anchored sampler and the averaged coordinate-information bound remain open. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6666#issuecomment-7021086979."
+
+register_result "bvy-checked-win-coordinate-information" where
+  title := "Coordinate information after a checked win"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13 (proof step)",
+      locator := "arXiv:1509.07466v2, printed p. 24" }
+  ]
+  theorems := [Cslib.PCP.QuantumStrategy.exists_checkedWin_coordinateInformation_le]
+  scope := "For a finite tensor strategy, a shared label and a question tuple with a \
+    conditional product prior, group the shared label and checked answers into a winning \
+    transcript. Supported quantum blocks are normalized Alice marginals of the actual \
+    branches. The transcript-averaged sum of coordinate mutual informations is at most \
+    log |Z| − log Pr(W) nats, for the full checked-answer alphabet Z and positive actual win \
+    probability. The anchored-sampler identification, opposite-player bound and full \
+    Claim 5.13 remain open in #6149. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6668#issuecomment-7021554661."
 
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"

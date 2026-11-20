@@ -24,6 +24,7 @@ the zero matrix. These are original bridges for supported probabilistic continua
 
 ## Main results
 
+* `Cslib.Quantum.normalizeDensity_smul`: nonzero real rescaling preserves normalization.
 * `Cslib.Quantum.isDensityMatrix_normalizeDensity`: positive nonzero mass gives a density matrix.
 * `Cslib.Quantum.trace_smul_normalizeDensity`: recover a positive matrix from its weight and
   normalized value, including the null case.
@@ -45,6 +46,13 @@ noncomputable def normalizeDensity (ρ : Matrix ι ι ℂ) : Matrix ι ι ℂ :=
 /-- Normalization scales by the inverse real trace. -/
 theorem normalizeDensity_apply (ρ : Matrix ι ι ℂ) :
     normalizeDensity ρ = ρ.trace.re⁻¹ • ρ := by rfl
+
+/-- Nonzero real rescaling preserves normalization, including for a matrix of zero real trace. -/
+theorem normalizeDensity_smul {c : ℝ} (hc : c ≠ 0) (ρ : Matrix ι ι ℂ) :
+    normalizeDensity (c • ρ) = normalizeDensity ρ := by
+  simp only [normalizeDensity, trace_smul, Complex.real_smul, Complex.mul_re,
+    Complex.ofReal_re, Complex.ofReal_im, zero_mul, sub_zero, smul_smul]
+  rw [_root_.mul_inv_rev, mul_assoc, inv_mul_cancel₀ hc, mul_one]
 
 /-- A positive matrix with positive mass normalizes to a density matrix. -/
 theorem isDensityMatrix_normalizeDensity {ρ : Matrix ι ι ℂ} (hρ : ρ.PosSemidef)

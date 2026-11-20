@@ -4119,9 +4119,12 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
 public import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
+public import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 public import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerStates
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
+public import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerInformation
+public import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Computability.PCP.TwoProverGame.CommutingValue
 public import CslibFrontier.Computability.PCP.TwoProverGame.EntangledRepetition
@@ -7170,6 +7173,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.QuantumRaz
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDomination
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyResolvent
 public import CslibFrontier.Foundations.Quantum.Fourier
 public import CslibFrontier.Foundations.Quantum.HadamardTransform
