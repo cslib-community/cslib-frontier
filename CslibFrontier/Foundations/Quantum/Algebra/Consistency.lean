@@ -97,6 +97,18 @@ theorem agreement_map_left {β : Type*} [Fintype β] [DecidableEq β] [IsOrdered
 variable [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
   [NonnegSpectrumClass ℝ A]
 
+/-- The agreement of commuting measurements is at most their total joint mass. -/
+theorem agreement_le_one (φ : AlgState A) (P Q : Measurement α A)
+    (h : ∀ a b, Commute (P.effect a) (Q.effect b)) : agreement φ P Q ≤ 1 := by
+  calc
+    _ ≤ ∑ a, ∑ b, (φ (P.effect a * Q.effect b)).re := by
+      unfold agreement
+      exact sum_le_sum fun a _ => single_le_sum
+        (fun b _ => φ.re_apply_nonneg ((h a b).mul_nonneg (P.nonneg a) (Q.nonneg b))) (mem_univ a)
+    _ = _ := by
+      simp only [← Complex.re_sum, ← map_sum, ← mul_sum, Q.sum_effect, mul_one, P.sum_effect,
+        φ.map_one, Complex.one_re]
+
 /-- An element between `0` and `1` satisfies `e² ≤ e`. -/
 theorem _root_.Cslib.Quantum.mul_self_le_self_of_nonneg_of_le_one {e : A} (h0 : 0 ≤ e)
     (h1 : e ≤ 1) : e * e ≤ e := by

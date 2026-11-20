@@ -4178,6 +4178,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Slices
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SymmetricSoundness
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.TensorSelfImprovement
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Unsymmetrize
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerifierPasting
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerifierPointVariance
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerifierSelfImprovement
@@ -4187,6 +4188,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.Sequential
+public import CslibFrontier.Computability.PCP.TwoProverGame.Symmetrize
 public import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 public import CslibFrontier.Computability.PCP.TwoProverGame.TensorStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
@@ -7253,6 +7255,7 @@ public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 public import CslibFrontier.Foundations.Quantum.POVM.Optimization
 public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import CslibFrontier.Foundations.Quantum.POVM.Postprocessing
+public import CslibFrontier.Foundations.Quantum.POVM.Restriction
 public import CslibFrontier.Foundations.Quantum.Pauli
 public import CslibFrontier.Foundations.Quantum.PauliTwirl
 public import CslibFrontier.Foundations.Quantum.Register

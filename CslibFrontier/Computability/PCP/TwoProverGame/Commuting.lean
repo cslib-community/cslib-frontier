@@ -15,6 +15,7 @@ import CslibFrontier.Probability.PMF.Event
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 import CslibFrontier.Foundations.Quantum.Algebra.TensorState
 
 /-!
@@ -340,6 +341,13 @@ noncomputable def rightMeasurement (N : POVM B κ) : Measurement B (Matrix (ι �
   nonneg b := Matrix.nonneg_iff_posSemidef.mpr (PosSemidef.one.kronecker (N.posSemidef b))
   sum_effect := by rw [← one_kronecker_sum, N.sum_effect, one_kronecker_one]
 
+/-- Any left tensor-factor effect commutes with any right tensor-factor effect. -/
+theorem commute_liftedEffects (L : POVM A ι) (R : POVM B κ) (a : A) (b : B) :
+    Commute ((leftMeasurement (κ := κ) L).effect a) ((rightMeasurement (ι := ι) R).effect b) := by
+  change Commute (L.effect a ⊗ₖ (1 : Matrix κ κ ℂ)) ((1 : Matrix ι ι ℂ) ⊗ₖ R.effect b)
+  simpa only [kroneckerOne_apply, oneKronecker_apply] using
+    commute_kroneckerOne_oneKronecker (L.effect a) (R.effect b)
+
 /-- A projective local measurement stays projective on the first tensor factor. -/
 theorem leftMeasurement_isProjective (M : POVM A ι) (h : M.toMeasurement.IsProjective) :
     (leftMeasurement (κ := κ) M).IsProjective := by
@@ -363,9 +371,7 @@ noncomputable def toCommuting (S : QuantumStrategy X Y A B ι κ) :
   state := AlgState.vector S.state S.norm_state
   alice x := leftMeasurement (S.alice x)
   bob y := rightMeasurement (S.bob y)
-  commute x y a b := by
-    change Commute ((S.alice x).effect a ⊗ₖ 1) (1 ⊗ₖ (S.bob y).effect b)
-    simp only [Commute, SemiconjBy, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
+  commute x y := commute_liftedEffects (S.alice x) (S.bob y)
 
 theorem prob_toCommuting (S : QuantumStrategy X Y A B ι κ) (x : X) (y : Y) (a : A) (b : B) :
     S.toCommuting.prob x y a b = S.prob x y a b := by
