@@ -42,6 +42,14 @@ noncomputable def restrictStrategy (x : F)
     CommutingStrategy (Question F m) (Question F m) (Answer F m) (Answer F m) 𝒜 :=
   S.relabel (appendQuestion x) (appendQuestion x) (restrictAnswer x) (restrictAnswer x)
 
+/-- Restricting the questions and answers leaves the shared state unchanged. -/
+theorem restrictStrategy_state (x : F)
+    (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
+      (Answer F (m + 1)) (Answer F (m + 1)) 𝒜) :
+    (restrictStrategy x S).state = S.state := by
+  unfold restrictStrategy CommutingStrategy.relabel
+  rfl
+
 end Ring
 
 section CStar

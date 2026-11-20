@@ -311,14 +311,6 @@ theorem lineAgrees_appendLineAnswer_iff (x : F) (L : Finset (Point F m)) (w : Po
     have he : e ⟨w, hw⟩ = ⟨appendPoint x w, hm⟩ := Subtype.ext rfl
     rwa [← he, e.symm_apply_apply]
 
-/-- The line-versus-point predicate is preserved on a geometric line at a fixed degree cap. -/
-theorem lineAgrees_append_iff (x : F) (u v w : Point F m) (d : ℕ)
-    (f : linePoints u v → F) (a : F) :
-    lineAgrees d (appendLine x (linePoints u v)) (appendPoint x w)
-        (appendLineAnswer x ⟨linePoints u v, f⟩) a ↔
-      lineAgrees d (linePoints u v) w ⟨linePoints u v, f⟩ a :=
-  lineAgrees_appendLineAnswer_iff x _ w d _ a
-
 omit [Field F] [Fintype F] [DecidableEq F] in
 private theorem appendLineAnswer_injective (x : F) :
     Function.Injective (appendLineAnswer (m := m) x) := by
