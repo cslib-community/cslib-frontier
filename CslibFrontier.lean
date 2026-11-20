@@ -2300,6 +2300,7 @@ public import CslibFrontier.Computability.Complexity.Classes.SBP
 public import CslibFrontier.Computability.Complexity.Classes.SBP.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.SPP
 public import CslibFrontier.Computability.Complexity.Classes.SPP.FewP
+public import CslibFrontier.Computability.Complexity.Classes.SZK
 public import CslibFrontier.Computability.Complexity.Classes.Selective
 public import CslibFrontier.Computability.Complexity.Classes.Selective.Ko
 public import CslibFrontier.Computability.Complexity.Classes.Selective.LeftCut
