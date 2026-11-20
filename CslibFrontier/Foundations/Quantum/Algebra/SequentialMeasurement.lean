@@ -63,6 +63,18 @@ theorem sequentialProjective_effect_succ {k : ℕ} (M : Fin (k + 1) → Measurem
           (Fin.tail g) * (M 0).effect (g 0) := by
   rw [sequentialProjective.eq_2]
 
+/-- An operator commuting with each measured effect also commutes with each transcript effect. -/
+theorem sequentialProjective_commute {k : ℕ} (M : Fin k → Measurement α A)
+    (hM : ∀ i, (M i).IsProjective) (a : A) (h : ∀ i b, Commute ((M i).effect b) a)
+    (g : Fin k → α) : Commute ((sequentialProjective M hM).effect g) a := by
+  induction k with
+  | zero =>
+    rw [sequentialProjective.eq_1]
+    exact Commute.one_left a
+  | succ k ih =>
+    rw [sequentialProjective_effect_succ]
+    have ht := ih (fun i => M i.succ) (fun i => hM i.succ) (fun i => h i.succ) (Fin.tail g)
+    exact ((h 0 (g 0)).mul_left ht).mul_left (h 0 (g 0))
 /-- A one-step transcript has the effect of its only outcome. -/
 theorem sequentialProjective_effect_one (M : Fin 1 → Measurement α A)
     (hM : ∀ i, (M i).IsProjective) (g : Fin 1 → α) :

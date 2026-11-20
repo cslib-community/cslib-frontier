@@ -7,10 +7,12 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Quantum.DensityMatrix
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+public import CslibFrontier.Probability.Hellinger
 public import Mathlib.Analysis.Matrix.HermitianFunctionalCalculus
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefKernel
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PolarDecomposition
+import CslibFrontier.Probability.ChiSquare
 import CslibFrontier.Probability.Divergence
 
 /-!
@@ -21,12 +23,17 @@ It is finite precisely when the second state's kernel is contained in the first 
 Nonnegativity follows from classical Gibbs' inequality applied to the two distributions formed
 from eigenvalues and squared overlaps of the eigenvectors. This supplies the nonnegativity
 used in [Bavarian, Vidick and Yuen, Proposition 5.2][BavarianVidickYuen2022].
+The same distributions identify their Bhattacharyya coefficient with the trace overlap of
+the two positive square roots. This controls fidelity and the squared error of aligning
+purifications using a local unitary.
 
 ## Main results
 
 * `exists_pmf_relativeEntropyReal_eq`: representation of the finite trace formula as a
-  classical relative entropy.
+  classical relative entropy, with an exact formula for the overlap coefficient.
 * `relativeEntropy_nonneg`: Gibbs' inequality, including the infinite case.
+* `exp_neg_half_relativeEntropyReal_le_rootFidelity`: the entropy lower bound on fidelity.
+* `exists_localUnitary_norm_sub_sq_le_relativeEntropy`: relative entropy bounds alignment error.
 -/
 
 public section
@@ -34,12 +41,12 @@ public section
 namespace Cslib.Quantum
 
 open Matrix Finset
-open scoped MatrixOrder ComplexOrder
+open scoped MatrixOrder ComplexOrder Kronecker
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- The support of `ρ` is contained in that of `σ`, stated in terms of their kernels. -/
-def SupportLE (ρ σ : Matrix ι ι ℂ) : Prop :=
+@[expose] def SupportLE (ρ σ : Matrix ι ι ℂ) : Prop :=
   ∀ v : ι → ℂ, σ *ᵥ v = 0 → ρ *ᵥ v = 0
 
 omit [DecidableEq ι] in
@@ -93,7 +100,7 @@ theorem SupportLE.submatrix {κ : Type*} [Fintype κ] {ρ σ : Matrix ι ι ℂ}
   exact h.conjTranspose_mul_mul hσ V
 
 /-- The finite trace formula, with the logarithm assigned zero on the kernel. -/
-noncomputable def relativeEntropyReal (ρ σ : Matrix ι ι ℂ) : ℝ :=
+@[expose] noncomputable def relativeEntropyReal (ρ σ : Matrix ι ι ℂ) : ℝ :=
   (ρ * (cfc Real.log ρ - cfc Real.log σ)).trace.re
 
 open Classical in
@@ -169,20 +176,20 @@ private theorem sum_normSq_col (W : Matrix ι ι ℂ) (h : Wᴴ * W = 1) (j : ι
   have hr := sum_normSq_row Wᴴ h' j
   simpa only [conjTranspose_apply, Complex.star_def, Complex.normSq_conj] using hr
 
-/-- The trace pairing with a spectral function can be evaluated in the two eigenbases. -/
-private theorem trace_mul_cfc_re (A B : Matrix ι ι ℂ) (hA : A.IsHermitian) (hB : B.IsHermitian)
-    (f : ℝ → ℝ) :
-    (A * cfc f B).trace.re = ∑ i, ∑ j, hA.eigenvalues i * f (hB.eigenvalues j) *
+/-- The trace pairing of two spectral functions can be evaluated in the two eigenbases. -/
+private theorem trace_cfc_mul_cfc_re (A B : Matrix ι ι ℂ) (hA : A.IsHermitian) (hB : B.IsHermitian)
+    (f g : ℝ → ℝ) :
+    (cfc f A * cfc g B).trace.re = ∑ i, ∑ j, f (hA.eigenvalues i) * g (hB.eigenvalues j) *
       Complex.normSq (((hA.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ *
         (hB.eigenvectorUnitary : Matrix ι ι ℂ)) i j) := by
   let U := hA.eigenvectorUnitary
   let V := hB.eigenvectorUnitary
-  let D := diagonal (fun i => (hA.eigenvalues i : ℂ))
-  let E := diagonal (fun j => (f (hB.eigenvalues j) : ℂ))
+  let D := diagonal (fun i => (f (hA.eigenvalues i) : ℂ))
+  let E := diagonal (fun j => (g (hB.eigenvalues j) : ℂ))
   let W : Matrix ι ι ℂ := (U : Matrix ι ι ℂ)ᴴ * (V : Matrix ι ι ℂ)
-  have hD : A = Unitary.conjStarAlgAut ℂ _ U D := hA.spectral_theorem
-  have hE : cfc f B = Unitary.conjStarAlgAut ℂ _ V E := hB.cfc_eq f
-  have htrace : (A * cfc f B).trace = (D * (W * E * Wᴴ)).trace := by
+  have hD : cfc f A = Unitary.conjStarAlgAut ℂ _ U D := hA.cfc_eq f
+  have hE : cfc g B = Unitary.conjStarAlgAut ℂ _ V E := hB.cfc_eq g
+  have htrace : (cfc f A * cfc g B).trace = (D * (W * E * Wᴴ)).trace := by
     rw [hD, hE, ← trace_conjStarAlgAut (star U), map_mul]
     simp only [Unitary.conjStarAlgAut_apply, Unitary.coe_star, star_eq_conjTranspose,
       conjTranspose_conjTranspose]
@@ -194,6 +201,18 @@ private theorem trace_mul_cfc_re (A B : Matrix ι ι ℂ) (hA : A.IsHermitian) (
   rw [htrace]
   exact trace_diagonal_mul_conj_re _ _ _
 
+private theorem trace_mul_cfc_re (A B : Matrix ι ι ℂ) (hA : A.IsHermitian) (hB : B.IsHermitian)
+    (f : ℝ → ℝ) :
+    (A * cfc f B).trace.re = ∑ i, ∑ j, hA.eigenvalues i * f (hB.eigenvalues j) *
+      Complex.normSq (((hA.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ *
+        (hB.eigenvectorUnitary : Matrix ι ι ℂ)) i j) := by
+  have h := trace_cfc_mul_cfc_re A B hA hB id f
+  rw [cfc_id (p := IsSelfAdjoint) ℝ A hA] at h
+  exact h
+
+private theorem sqrt_eq_cfc_real_sqrt (A : Matrix ι ι ℂ) (hA : A.PosSemidef) :
+    CFC.sqrt A = cfc Real.sqrt A := by
+  rw [CFC.sqrt_eq_real_sqrt A hA.nonneg, cfcₙ_eq_cfc (hf0 := Real.sqrt_zero)]
 
 /-- A source eigenvalue weighted by its overlap with a reference kernel vector vanishes
 under support inclusion. -/
@@ -270,12 +289,56 @@ theorem relativeEntropyReal_eq_sum_eigenbasis {A B : Matrix ι ι ℂ}
   rw [relativeEntropyReal, mul_sub, trace_sub, Complex.sub_re, hself, trace_mul_cfc_re _ _ hA hB]
   simp only [sub_mul, sum_sub_distrib, ← Finset.mul_sum, sum_eigenbasis_overlap_row, mul_one]
 
-/-- The finite trace formula equals the classical divergence of the two distributions
-obtained by weighting squared eigenbasis overlaps with the two sets of eigenvalues. -/
+private theorem trace_mul_log_smul_re {A B : Matrix ι ι ℂ}
+    (hA : A.IsHermitian) (hB : B.IsHermitian) (hs : SupportLE A B) {b : ℝ} (hb : 0 < b) :
+    (A * cfc Real.log (b • B)).trace.re =
+      (A * cfc Real.log B).trace.re + Real.log b * A.trace.re := by
+  have hc := cfc_comp_const_mul (p := IsSelfAdjoint) b Real.log B
+    (((B.finite_real_spectrum).image _).continuousOn Real.log) hB
+  rw [← hc, trace_mul_cfc_re _ _ hA hB, trace_mul_cfc_re _ _ hA hB]
+  let a := hA.eigenvalues
+  let e := hB.eigenvalues
+  let w (i j : ι) := Complex.normSq
+    (((hA.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ * (hB.eigenvectorUnitary : Matrix ι ι ℂ)) i j)
+  have ht (i j : ι) : a i * Real.log (b * e j) * w i j =
+      a i * Real.log (e j) * w i j + Real.log b * (a i * w i j) := by
+    by_cases hj : e j = 0
+    · have hz : a i * w i j = 0 := eigenvalue_mul_overlap_eq_zero_of_supportLE hA hB hs i j hj
+      simp only [hj, mul_zero, Real.log_zero, zero_mul, hz, add_zero]
+    · rw [Real.log_mul hb.ne' hj]
+      ring
+  have hsum : (∑ i, ∑ j, a i * w i j) = A.trace.re := by
+    have h := trace_mul_cfc_re A B hA hB (fun _ => 1)
+    rw [cfc_const (p := IsSelfAdjoint) 1 B hB, map_one, Matrix.mul_one] at h
+    simpa only [mul_one, a, w] using h.symm
+  change (∑ i, ∑ j, a i * Real.log (b * e j) * w i j) =
+    (∑ i, ∑ j, a i * Real.log (e j) * w i j) + Real.log b * A.trace.re
+  rw [← hsum]
+  simp only [ht, Finset.sum_add_distrib, Finset.mul_sum]
+
+/-- Positive scalar weights contribute a classical log likelihood to the block entropy. -/
+theorem relativeEntropyReal_smul {ρ σ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ)
+    (hσ : IsDensityMatrix σ) (hs : SupportLE ρ σ) {a b : ℝ} (ha : 0 < a) (hb : 0 < b) :
+    relativeEntropyReal (a • ρ) (b • σ) =
+      a * (Real.log (a / b) + relativeEntropyReal ρ σ) := by
+  unfold relativeEntropyReal
+  rw [Matrix.smul_mul, trace_smul]
+  change ((a : ℂ) * (ρ * (cfc Real.log (a • ρ) - cfc Real.log (b • σ))).trace).re = _
+  simp only [Complex.mul_re, Complex.ofReal_re, Complex.ofReal_im, zero_mul, sub_zero,
+    mul_sub, trace_sub, Complex.sub_re]
+  rw [trace_mul_log_smul_re hρ.posSemidef.isHermitian hρ.posSemidef.isHermitian
+      (fun _ h => h) ha,
+    trace_mul_log_smul_re hρ.posSemidef.isHermitian hσ.posSemidef.isHermitian hs hb,
+    hρ.trace_eq_one, Complex.one_re, mul_one, mul_one, Real.log_div ha.ne' hb.ne']
+  ring
+
+/-- Weight the squared eigenbasis overlaps by the two sets of eigenvalues. The resulting
+distributions give the finite trace formula and the square-root trace overlap. -/
 theorem exists_pmf_relativeEntropyReal_eq {ρ σ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ)
     (hσ : IsDensityMatrix σ) (hs : SupportLE ρ σ) :
     ∃ p q : PMF (ι × ι), p.support ⊆ q.support ∧
-      relativeEntropyReal ρ σ = ∑ z, (p z).toReal * Real.log ((p z).toReal / (q z).toReal) := by
+      relativeEntropyReal ρ σ = (∑ z, (p z).toReal * Real.log ((p z).toReal / (q z).toReal)) ∧
+      Cslib.Probability.PMF.bhattacharyya p q = (CFC.sqrt ρ * CFC.sqrt σ).trace.re := by
   let hA := hρ.posSemidef.isHermitian
   let hB := hσ.posSemidef.isHermitian
   let a := hA.eigenvalues
@@ -322,27 +385,36 @@ theorem exists_pmf_relativeEntropyReal_eq {ρ σ : Matrix ι ι ℂ} (hρ : IsDe
       rw [hq]
       exact mul_ne_zero hb' (right_ne_zero_of_mul hp')
     exact (ENNReal.toReal_ne_zero.mp hq').1
-  refine ⟨p, q, hsupp, ?_⟩
-  rw [Fintype.sum_prod_type]
-  simp only [hp, hq]
-  have hterm (i j : ι) : a i * w i j * Real.log (a i * w i j / (b j * w i j)) =
-      (a i * Real.log (a i) - a i * Real.log (b j)) * w i j := by
-    by_cases hz : a i * w i j = 0
-    · rcases mul_eq_zero.mp hz with hz' | hz'
-      · simp [hz']
-      · simp [hz']
-    · have hb' : b j ≠ 0 := fun hz' =>
-        hz (eigenvalue_mul_overlap_eq_zero_of_supportLE hA hB hs i j hz')
-      rw [mul_div_mul_right _ _ (right_ne_zero_of_mul hz),
-        Real.log_div (left_ne_zero_of_mul hz) hb']
-      ring
-  rw [relativeEntropyReal_eq_sum_eigenbasis hA hB]
-  exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => (hterm i j).symm
+  refine ⟨p, q, hsupp, ?_, ?_⟩
+  · rw [Fintype.sum_prod_type]
+    simp only [hp, hq]
+    have hterm (i j : ι) : a i * w i j * Real.log (a i * w i j / (b j * w i j)) =
+        (a i * Real.log (a i) - a i * Real.log (b j)) * w i j := by
+      by_cases hz : a i * w i j = 0
+      · rcases mul_eq_zero.mp hz with hz' | hz'
+        · simp [hz']
+        · simp [hz']
+      · have hb' : b j ≠ 0 := fun hz' =>
+          hz (eigenvalue_mul_overlap_eq_zero_of_supportLE hA hB hs i j hz')
+        rw [mul_div_mul_right _ _ (right_ne_zero_of_mul hz),
+          Real.log_div (left_ne_zero_of_mul hz) hb']
+        ring
+    rw [relativeEntropyReal_eq_sum_eigenbasis hA hB]
+    exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => (hterm i j).symm
+  · rw [Cslib.Probability.PMF.bhattacharyya_eq_sum, Fintype.sum_prod_type,
+      sqrt_eq_cfc_real_sqrt _ hρ.posSemidef, sqrt_eq_cfc_real_sqrt _ hσ.posSemidef,
+      trace_cfc_mul_cfc_re _ _ hA hB]
+    refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => ?_
+    rw [hp, hq]
+    change Real.sqrt ((a i * w i j) * (b j * w i j)) =
+      Real.sqrt (a i) * Real.sqrt (b j) * w i j
+    rw [show (a i * w i j) * (b j * w i j) = (a i * b j) * (w i j) ^ 2 by ring,
+      Real.sqrt_mul (mul_nonneg (ha i) (hb j)), Real.sqrt_mul (ha i), Real.sqrt_sq (hw i j)]
 
 /-- Finite quantum relative entropy is nonnegative whenever the supports are compatible. -/
 theorem relativeEntropyReal_nonneg {ρ σ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ)
     (hσ : IsDensityMatrix σ) (hs : SupportLE ρ σ) : 0 ≤ relativeEntropyReal ρ σ := by
-  obtain ⟨p, q, hsub, he⟩ := exists_pmf_relativeEntropyReal_eq hρ hσ hs
+  obtain ⟨p, q, hsub, he, _⟩ := exists_pmf_relativeEntropyReal_eq hρ hσ hs
   rw [he]
   exact Cslib.Probability.PMF.sum_mul_log_div_nonneg hsub
 
@@ -359,5 +431,40 @@ theorem relativeEntropy_nonneg {ρ σ : Matrix ι ι ℂ} (hρ : IsDensityMatrix
     exact_mod_cast relativeEntropyReal_nonneg hρ hσ h
   · rw [relativeEntropy_of_not_supportLE h]
     exact le_top
+
+/-- When relative entropy is finite, fidelity is at least the exponential of minus half
+the entropy in nats. -/
+theorem exp_neg_half_relativeEntropyReal_le_rootFidelity {ρ σ : Matrix ι ι ℂ}
+    (hρ : IsDensityMatrix ρ) (hσ : IsDensityMatrix σ) (hs : SupportLE ρ σ) :
+    Real.exp (-relativeEntropyReal ρ σ / 2) ≤ rootFidelity ρ σ := by
+  obtain ⟨p, q, hsub, hKL, hBC⟩ := exists_pmf_relativeEntropyReal_eq hρ hσ hs
+  rw [hKL]
+  apply (Cslib.Probability.PMF.exp_neg_half_sum_mul_log_div_le_bhattacharyya hsub).trans
+  rw [hBC]
+  have h := re_trace_conjTranspose_mul_le_traceNorm (CFC.sqrt ρ * CFC.sqrt σ) 1 (one_mem _)
+  rwa [conjTranspose_one, Matrix.one_mul] at h
+
+/-- Twice one minus the unsquared fidelity is at most the quantum relative entropy. -/
+theorem two_mul_one_sub_rootFidelity_le_relativeEntropy {ρ σ : Matrix ι ι ℂ}
+    (hρ : IsDensityMatrix ρ) (hσ : IsDensityMatrix σ) :
+    ((2 * (1 - rootFidelity ρ σ) : ℝ) : WithTop ℝ) ≤ relativeEntropy ρ σ := by
+  by_cases hs : SupportLE ρ σ
+  · rw [relativeEntropy_of_supportLE hs, WithTop.coe_le_coe]
+    linarith [exp_neg_half_relativeEntropyReal_le_rootFidelity hρ hσ hs,
+      Real.add_one_le_exp (-relativeEntropyReal ρ σ / 2)]
+  · rw [relativeEntropy_of_not_supportLE hs]
+    exact le_top
+
+/-- Two unit purifications can be aligned with squared error at most the relative entropy
+of their left reduced states. -/
+theorem exists_localUnitary_norm_sub_sq_le_relativeEntropy {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (ψ φ : EuclideanSpace ℂ (ι × κ)) (hψ : ‖ψ‖ = 1) (hφ : ‖φ‖ = 1) :
+    ∃ U ∈ unitaryGroup κ ℂ,
+      ((‖WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ U) *ᵥ ψ.ofLp) - φ‖ ^ 2 : ℝ) : WithTop ℝ) ≤
+        relativeEntropy (partialTraceRight (pureState ψ)) (partialTraceRight (pureState φ)) := by
+  obtain ⟨U, hU, he⟩ := exists_localUnitary_norm_sub_sq_eq ψ φ hψ hφ
+  exact ⟨U, hU, he ▸ two_mul_one_sub_rootFidelity_le_relativeEntropy
+    (isDensityMatrix_pureState hψ).partialTraceRight
+    (isDensityMatrix_pureState hφ).partialTraceRight⟩
 
 end Cslib.Quantum

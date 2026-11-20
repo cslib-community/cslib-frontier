@@ -94,7 +94,7 @@ private theorem computableInPolyTime_exhaustiveAccepts (D : Decoder enc)
   have hlen : ComputableInPolyTime (certLength D p) encBits encUnary :=
     (unary_eval p).comp ((encoding_length enc).comp hi)
   have hlog : ComputableInPolyTime (fun π : List Bool => Nat.log 2 π.length) encBits encUnary :=
-    (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_log_two).comp length_bits
+    ComputableInPolyTime.unary_log_two.comp length_bits
   have henum : ComputableInPolyTime
       (fun π => BitString.enumList (min (certLength D p π) (Nat.log 2 π.length)))
       encBits (encList encBits) :=
@@ -105,7 +105,7 @@ private theorem computableInPolyTime_exhaustiveAccepts (D : Decoder enc)
       (fun q : List Bool × List Bool => !V (verifierInstance D q.1, q.2))
       (encPair encBits encBits) encBool :=
     bool_not.comp (hV.comp ((hi.comp (fst _ _)).prod (snd _ _)))
-  exact bool_and' (.of_tidy (ComputableTidilyInPolyTime.unary_le' hlen.tidy hlog.tidy))
+  exact bool_and' (ComputableInPolyTime.unary_le' hlen hlog)
     (allWithInput henum htest)
 
 /-- Soundness of the check: an accepted word presents a member of `L`. -/

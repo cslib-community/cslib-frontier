@@ -110,8 +110,12 @@ theorem isOraclePPTOn_readBitsProgram {encA : α ↪ List Bool} {req : α → �
     hreq.comp ((fst encA encBits).prod (length_bits.comp (snd encA encBits)))
   have hstep : IsOraclePPTOn (encPair encA encBits) encBits
       (fun pair => OracleComp.interpret ProbOracleComp.query (readBitStep req pair.1 pair.2)) := by
+    have happend : ComputableInPolyTime
+        (fun p : (α × List Bool) × Bool => p.1.2 ++ [p.2])
+        (encPair (encPair encA encBits) encBool) encBits :=
+      bitsAppend ((fst _ _).snd') (bitsCons (snd _ _) (const []))
     have h := (isOraclePPTOn_queryBit hword).map_with
-      (f := fun (pair : α × List Bool) (b : Bool) => pair.2 ++ [b]) (by fun_prop)
+      (f := fun (pair : α × List Bool) (b : Bool) => pair.2 ++ [b]) happend
     refine h.congr fun pair State oracle s => ?_
     simp only [readBitStep, OracleComp.interpret_map]
   have hsize : PolyBounded (fun a => (encA a).length) count := hcount.polyBounded

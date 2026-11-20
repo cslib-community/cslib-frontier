@@ -10,11 +10,12 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Time
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.ResourceBound
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalBounds
 import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
@@ -156,6 +157,8 @@ private theorem length_encNat_clock_le (d y : ℕ) :
   rw [encNat_apply, Nat.size_eq_bits_len, Nat.size_le, mul_comm, pow_mul]
   exact Nat.pow_lt_pow_left Nat.lt_two_pow_self (by omega)
 
+-- Compose through the named decoder and encoding contracts without expanding the simulator.
+attribute [local irreducible] ComputableInO Universal.decodeDesc Universal.eDesc in
 /-- The simulation runs within time polynomial in the description, the input and the
 certificate. -/
 private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
@@ -170,7 +173,13 @@ private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
   have hsym := Universal.computableInO_map_eBit.comp hword
   have hy := (ComputableInO.snd encBits (encPair encBits encBits)).fst'
   have hclock := (timeConstructible_succ_pow (d + 3)).computableInO.comp hy
-  have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
+  have hpre : ComputableInO
+      (fun q : List Bool × List Bool × List Bool =>
+        (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, clock d q.2.1.length))
+      enc eIn _ _ := hdesc.prod (hsym.prod hclock)
+  have hU := computableInO_universal_polynomialBound.comp (f := universal)
+    (g := fun q : List Bool × List Bool × List Bool =>
+      (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, clock d q.2.1.length)) hpre
   have hv := Diagonal.computableInO_verdict.comp hU
   have hnot := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp hv
@@ -202,7 +211,7 @@ private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
     refine le_trans ?_ (Nat.mul_le_mul_left K (Nat.le_succ _))
     rw [e]
     have ⟨h₁, h₂⟩ := hbounds q
-    enc_len [Function.comp_apply, enc, hb] at h₁ h₂ ⊢
+    enc_len [Function.comp_apply, enc, hb, clock] at h₁ h₂ ⊢
 
 attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd' in
 /-- The brute force at the end of an interval runs within time exponential in the description,
