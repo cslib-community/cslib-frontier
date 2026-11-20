@@ -37,30 +37,6 @@ private theorem nonempty_hom_eq_adj :
   funext a b
   exact propext ⟨fun h => h.some.down, fun h => ⟨⟨h⟩⟩⟩
 
-private theorem nonempty_path_iff_reachable {W : Type*} (r : W → W → Prop) (a b : W) :
-    Nonempty (@Quiver.Path W ⟨fun u v => PLift (r u v)⟩ a b) ↔
-      Relation.ReflTransGen r a b := by
-  let _ : Quiver W := ⟨fun u v => PLift (r u v)⟩
-  constructor
-  · rintro ⟨p⟩
-    induction p with
-    | nil => exact .refl
-    | cons _ e ih => exact ih.tail e.down
-  · intro h
-    induction h with
-    | refl => exact ⟨.nil⟩
-    | tail _ e ih => exact ih.map (fun p => p.cons ⟨e⟩)
-
-omit [Fintype V] in
-/-- Reachability between subdivision roots is exactly reachability between the original
-vertices, for every weight assignment within the subdivision bound. -/
-theorem reachable_root_iff (hw : ∀ v, weight v ≤ bound) (s t : V) :
-    Relation.ReflTransGen (graph G weight bound).Adj (root bound s) (root bound t) ↔
-      Relation.ReflTransGen G.Adj s t := by
-  let e := pathEquiv (G := G) hw s (root bound t) (Nat.zero_le _)
-  rw [← nonempty_path_iff_reachable, ← nonempty_path_iff_reachable]
-  exact ⟨fun h => h.map e.symm, fun h => h.map e⟩
-
 /-- Every breadth-first round of a subdivided min-isolating graph has exactly one successful
 unweighted scan transcript, including its choices at auxiliary vertices. -/
 theorem existsUnique_passes_of_isMinIsolating (hw : ∀ v, weight v ≤ bound)
