@@ -85,16 +85,6 @@ variable [Ring A] [PartialOrder A] [IsOrderedAddMonoid A]
     (d : ℕ) (u : Point F n) : Measurement (PolynomialFunction F d) A :=
   (M (.axis (verticalLine u))).map (decodeVertical d u)
 
-/-- An operator commuting with the raw line effects also commutes with the decoded effects. -/
-theorem commute_decodedVertical
-    (M : Question F (n + 1) → Measurement (Answer F (n + 1)) A)
-    (d : ℕ) (u : Point F n) (e : A)
-    (h : ∀ a, Commute e ((M (.axis (verticalLine u))).effect a)) (b : PolynomialFunction F d) :
-    Commute e ((decodedVertical M d u).effect b) := by
-  classical
-  rw [decodedVertical, Measurement.map_effect]
-  exact (Commute.sum_left _ _ _ fun a _ => (h a).symm).symm
-
 end Measurement
 
 section Score

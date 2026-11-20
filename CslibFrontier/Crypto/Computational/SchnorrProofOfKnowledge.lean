@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.ProofOfKnowledge
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
@@ -325,14 +326,15 @@ theorem computableInPolyTime_schnorrSubChallengeWord :
       (fun p : (ℕ × F.Desc) × List Bool × List Bool => p.1.2) encIn F.encDesc := by fun_prop
   have hc : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × List Bool × List Bool => ofBits p.2.1) encIn encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp (by fun_prop))
+    ComputableInPolyTime.bitsToNat.comp (by fun_prop)
   have hc₀ : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × List Bool × List Bool => ofBits p.2.2) encIn encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp (by fun_prop))
+    ComputableInPolyTime.bitsToNat.comp (by fun_prop)
   have hq := F.computableInPolyTime_order.comp hd
-  exact .of_tidy (ComputableTidilyInPolyTime.natBits.comp
-    (.binary_mod' (.binary_add' hc.tidy (.binary_sub' hq.tidy (.binary_mod' hc₀.tidy hq.tidy)))
-      hq.tidy))
+  exact ComputableInPolyTime.natBits.comp
+    (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_add' hc
+      (ComputableInPolyTime.binary_sub' hq (ComputableInPolyTime.binary_mod' hc₀ hq)))
+      hq)
 
 /-- `schnorrSubChallengeWord` computes `c - c₀` on encoded Schnorr challenges. -/
 theorem schnorrSubChallengeWord_eq (i : ℕ × F.Desc) (c c₀ : ZMod (F.order i.2)) :
