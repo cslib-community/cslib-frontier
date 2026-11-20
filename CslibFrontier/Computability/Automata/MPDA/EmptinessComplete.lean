@@ -328,7 +328,7 @@ end Guard
 section Helpers
 
 theorem splitLastHole_eq_none {State : Type*} {i : Fin n} :
-    ∀ {l : List (HoleTriple n State)}, (∀ h ∈ l, h.1 ≠ i) → splitLastHole i l = none
+    ∀ {l : List (HoleTriple n State)}, (∀ h ∈ l, h.stack ≠ i) → splitLastHole i l = none
   | [], _ => rfl
   | h :: t, hl => by
     unfold splitLastHole
@@ -337,8 +337,9 @@ theorem splitLastHole_eq_none {State : Type*} {i : Fin n} :
 
 /-- The converse of `splitLastHole_eq_some`. -/
 theorem splitLastHole_eq_some_of {State : Type*} {i : Fin n} {post : List (HoleTriple n State)}
-    {x : State × State} (hpost : ∀ h ∈ post, h.1 ≠ i) :
-    ∀ pre : List (HoleTriple n State), splitLastHole i (pre ++ (i, x) :: post) = some (pre, x, post)
+    {s s' : State} (hpost : ∀ h ∈ post, h.stack ≠ i) :
+    ∀ pre : List (HoleTriple n State),
+      splitLastHole i (pre ++ ⟨i, s, s'⟩ :: post) = some (pre, (s, s'), post)
   | [] => by
     simp only [List.nil_append]
     unfold splitLastHole
@@ -602,8 +603,8 @@ def CInv (K : ℕ) (w : List (Symbol × Op n Γ)) (f : State) (t : ℕ) : Prop :
     M.Reachable K M.initialLists μ ∧ HoleDerivation K C (w.take t) ∧
     M.configLTS.MTr c (w.drop t) ⟨f, Stacks.empty⟩ ∧ c.state = μ.last ∧
     c.contents = stacksOf C ∧
-    List.Forall₂ (fun c (h : HoleTriple n State) => c.stack = h.1) C μ.holes ∧
-    List.Forall₂ (fun r ((i, s, s') : HoleTriple n State) => M.Realizes i s s' r) rs μ.holes ∧
+    List.Forall₂ (fun c (h : HoleTriple n State) => c.stack = h.stack) C μ.holes ∧
+    List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.stack h.src h.dst r) rs μ.holes ∧
     List.Forall₂ (fun c (r : List (Γ × State)) => c.pushes.map Prod.snd = r.map Prod.fst) C rs ∧
     (∀ c ∈ C, c.pushes ≠ []) ∧ (∀ c ∈ C, ∀ e ∈ c.pushes, IsHolePushOn w c.stack e.1) ∧
     ∀ c ∈ C, ∃ q₀ m, c.pushes.map Prod.fst = ((chainFrom w c.stack q₀).take m).reverse ∧
@@ -692,12 +693,12 @@ theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
   obtain ⟨i₀, s₁, s₃⟩ := h₀
   simp only at hh₀ hreal₀
   subst hh₀
-  have hpost'' : ∀ h ∈ hpost', h.1 ≠ i := by
+  have hpost'' : ∀ h ∈ hpost', h.stack ≠ i := by
     intro h hh
     obtain ⟨d, hd', hdh⟩ := List.Forall₂.exists_mem_of_mem hstkpost.flip hh
     rw [← hdh]
     exact hpost d hd'
-  have hsplitLast := splitLastHole_eq_some_of (x := (s₁, s₃)) hpost'' hpre
+  have hsplitLast := splitLastHole_eq_some_of (s := s₁) (s' := s₃) hpost'' hpre
   -- The last atomic segment of the realization pushes `γ`.
   cases hreal₀ with
   | nil => simp at hsym₀
@@ -803,7 +804,7 @@ theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
     exact Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(s₁, γ, c₁.state, c₂.state),
       Finset.mem_filter.mpr ⟨Finset.mem_univ _, hok, rfl⟩, rfl⟩)
   · -- The chain shrinks.
-    refine ⟨⟨hpre ++ (i, s₁, s₂) :: hpost', c₂.state⟩, pre ++ ⟨i, ps⟩ :: post,
+    refine ⟨⟨hpre ++ ⟨i, s₁, s₂⟩ :: hpost', c₂.state⟩, pre ++ ⟨i, ps⟩ :: post,
       rpre ++ r :: rpost, c₂, hpopnext _ ?_, htake' ▸ hd₁.wellNested hwn, hrest, rfl,
       by rw [hc₂, hc₁], List.rel_append hstkpre (.cons rfl hstkpost),
       List.rel_append hrealpre (.cons hr hrealpost), List.rel_append hsympre (.cons hpsr hsympost),
@@ -917,13 +918,13 @@ theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
     rw [← hst]
     exact mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
   have hif : μ.holes.length < K := by omega
-  have hnext : M.Reachable K M.initialLists ⟨μ.holes ++ [(i, μ.last, c'.state)], c'.state⟩ := by
+  have hnext : M.Reachable K M.initialLists ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩ := by
     refine .step hμ ?_
     unfold successors
     simp only [hif, ↓reduceIte]
     exact Finset.mem_union_left _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _,
       Finset.mem_image.mpr ⟨(μ.last, c'.state), Finset.mem_filter.mpr ⟨hHS, rfl⟩, rfl⟩⟩)
-  refine ⟨htlt, ⟨μ.holes ++ [(i, μ.last, c'.state)], c'.state⟩, C ++ [⟨i, ps⟩], rs ++ [r], c',
+  refine ⟨htlt, ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩, C ++ [⟨i, ps⟩], rs ++ [r], c',
     hnext, hd', hrun', rfl, ?_, List.rel_append hstk (.cons rfl .nil),
     List.rel_append hreal (.cons (by rw [← hst]; exact hr) .nil),
     List.rel_append hsym (.cons hpssnd .nil), ?_, ?_, ?_⟩

@@ -187,8 +187,27 @@ end Holes
 
 /-! ## Lists and the search -/
 
-/-- A hole triple `(i, s, s')`: a hole segment of stack `i` from `s` to `s'`. -/
-abbrev HoleTriple (n : ℕ) (State : Type*) := Fin n × State × State
+/-- A hole triple `(i, s, s')` of a list of the search: an open hole of stack `i`, abstracted by a
+hole segment from `s` to `s'`. -/
+structure HoleTriple (n : ℕ) (State : Type*) where
+  /-- The stack of the hole. -/
+  stack : Fin n
+  /-- The state where the hole starts, the source of its first push. -/
+  src : State
+  /-- The state where the hole segment ends. -/
+  dst : State
+  deriving DecidableEq
+
+/-- Hole triples are in bijection with the triples of their fields. -/
+@[expose] def HoleTriple.equivProd (n : ℕ) (State : Type*) :
+    HoleTriple n State ≃ Fin n × State × State where
+  toFun h := (h.stack, h.src, h.dst)
+  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+instance [Fintype State] : Fintype (HoleTriple n State) :=
+  Fintype.ofEquiv _ (HoleTriple.equivProd n State).symm
 
 /-- A list of the search of Algorithm 1 of [AkshayGastinKrishnaRoychowdhury2020]: the open hole
 triples, oldest first, and the last control state. The source's lists also start with the initial
@@ -200,8 +219,9 @@ structure HoleList (n : ℕ) (State : Type*) where
   last : State
   deriving DecidableEq
 
-/-- Split a list of hole triples at its last triple of stack `i`: `l = pre ++ (i, s, s') :: post`,
-where `post` has no triple of stack `i`. This is `lastHoleᵢ` of Algorithm 4. -/
+/-- Split a list of hole triples at its last triple of stack `i`, `l = pre ++ ⟨i, s, s'⟩ :: post`
+where `post` has no triple of stack `i`: the result is `pre`, the endpoints `(s, s')` and `post`.
+This is `lastHoleᵢ` of Algorithm 4. -/
 @[expose] def splitLastHole (i : Fin n) :
     List (HoleTriple n State) → Option (List (HoleTriple n State) × (State × State) ×
       List (HoleTriple n State))
@@ -209,34 +229,32 @@ where `post` has no triple of stack `i`. This is `lastHoleᵢ` of Algorithm 4. -
   | h :: t =>
     match splitLastHole i t with
     | some (pre, x, post) => some (h :: pre, x, post)
-    | none => if h.1 = i then some ([], h.2, t) else none
+    | none => if h.stack = i then some ([], (h.src, h.dst), t) else none
 
 theorem splitLastHole_eq_some {i : Fin n} :
-    ∀ {l pre post : List (HoleTriple n State)} {x : State × State},
-      splitLastHole i l = some (pre, x, post) →
-        l = pre ++ (i, x) :: post ∧ ∀ h ∈ post, h.1 ≠ i
-  | [], _, _, _, h => by simp [splitLastHole] at h
-  | h :: t, pre, post, x, hs => by
+    ∀ {l pre post : List (HoleTriple n State)} {s s' : State},
+      splitLastHole i l = some (pre, (s, s'), post) →
+        l = pre ++ ⟨i, s, s'⟩ :: post ∧ ∀ h ∈ post, h.stack ≠ i
+  | [], _, _, _, _, h => by simp [splitLastHole] at h
+  | ⟨j, a, b⟩ :: t, pre, post, s, s', hs => by
     unfold splitLastHole at hs
-    rcases ht : splitLastHole i t with _ | ⟨pre', x', post'⟩
+    rcases ht : splitLastHole i t with _ | ⟨pre', ⟨x, x'⟩, post'⟩
     · rw [ht] at hs
       simp only at hs
       split_ifs at hs with hi
       simp only [Option.some.injEq, Prod.mk.injEq] at hs
-      obtain ⟨rfl, rfl, rfl⟩ := hs
-      refine ⟨by simp [← hi], fun h' hh' => ?_⟩
-      intro hh
-      have := splitLastHole_none_of_mem (i := i) ht h' hh' hh
-      exact this
+      obtain ⟨rfl, ⟨rfl, rfl⟩, rfl⟩ := hs
+      subst hi
+      exact ⟨rfl, fun h' hh' hh => splitLastHole_none_of_mem ht h' hh' hh⟩
     · rw [ht] at hs
       simp only [Option.some.injEq, Prod.mk.injEq] at hs
-      obtain ⟨rfl, rfl, rfl⟩ := hs
+      obtain ⟨rfl, ⟨rfl, rfl⟩, rfl⟩ := hs
       obtain ⟨rfl, hpost⟩ := splitLastHole_eq_some ht
       exact ⟨rfl, hpost⟩
 where
   /-- If `splitLastHole` fails, no triple has stack `i`. -/
   splitLastHole_none_of_mem {i : Fin n} : ∀ {l : List (HoleTriple n State)},
-      splitLastHole i l = none → ∀ h ∈ l, h.1 = i → False
+      splitLastHole i l = none → ∀ h ∈ l, h.stack = i → False
     | [], _, _, hh, _ => by simp at hh
     | h :: t, hs, h', hh', hi => by
       unfold splitLastHole at hs
@@ -259,7 +277,7 @@ variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ] [Deci
 segment of stack `i` that starts at its last state. -/
 @[expose] def addHole (i : Fin n) (μ : HoleList n State) : Finset (HoleList n State) :=
   ((M.holeSegments i).filter fun p => p.1 = μ.last).image fun p =>
-    ⟨μ.holes ++ [(i, p.1, p.2)], p.2⟩
+    ⟨μ.holes ++ [⟨i, p.1, p.2⟩], p.2⟩
 
 /-- `AddPopᵢ` (Algorithm 4): a pop from stack `i` at the last state that matches the last pending
 push of the last open hole `(i, s₁, s₃)` of stack `i`. The hole splits into a hole segment
@@ -273,7 +291,7 @@ also be removed. Without an open hole of stack `i` there is no successor. -/
     let ok : State × Γ × State × State → Prop := fun (s₂, γ, s', s'') =>
       (s₁, s₂) ∈ M.holeSegments i ∧ (s₂, γ, s₃) ∈ M.atomicHoles i ∧
         (∃ b, M.Tr μ.last (b, .pop i γ) s') ∧ (s', s'') ∈ M.wellNestedPairs
-    (Finset.univ.filter ok).image (fun (s₂, _, _, s'') => ⟨pre ++ (i, s₁, s₂) :: post, s''⟩) ∪
+    (Finset.univ.filter ok).image (fun (s₂, _, _, s'') => ⟨pre ++ ⟨i, s₁, s₂⟩ :: post, s''⟩) ∪
       ((Finset.univ.filter fun t => ok t ∧ t.1 = s₁).image fun (_, _, _, s'') => ⟨pre ++ post, s''⟩)
 
 /-- The children of a list in the search: holes while fewer than `K` are open, and pops. -/
@@ -405,7 +423,7 @@ private theorem card_listsUpTo_le (K : ℕ) :
   rw [Finset.card_product, Finset.card_univ]
   refine Nat.mul_le_mul_right _ ((List.toFinset_card_le _).trans
     ((List.length_listsUpTo_le _ _).trans ?_))
-  simp [Fintype.card_prod, pow_two]
+  simp [Fintype.card_congr (HoleTriple.equivProd n State), Fintype.card_prod, pow_two]
 
 /-- A set of lists that contains the initial lists, is closed under `successors` and only contains
 reachable lists is the set of reachable lists. -/
