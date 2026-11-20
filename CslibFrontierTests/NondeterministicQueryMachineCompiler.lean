@@ -120,4 +120,20 @@ example : ∃ (R : Routines ownBit id encBool (fun _ => 1)) (n : ℕ),
   obtain ⟨n, hprefix, hfactor⟩ := R.init_replay true
   exact ⟨R, n, hprefix, fun indices bits final hhalt hr => (hfactor indices bits final hhalt).mp hr⟩
 
+open NondeterministicQueryMachine in
+/-- A pass from the live start of `firstBit` on `[true]` selects the finalizer with state `1`.
+The suffix retains the terminal configuration and all choices after the true selector. -/
+example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1)) :
+    ∃ first, ∀ (indices : List ℕ) (bits : List Bool)
+      (final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) [true]), final.Halted →
+      Native.replayChoices R.I R.P R.F R.C
+        (wordsCfg [true] (some .choose) (R.boundary 0 false) []) indices =
+        some (true :: bits, final) →
+      ∃ rest, indices = first ++ rest ∧ Native.replayChoices R.I R.P R.F R.C
+        (wordsCfg [true] (some (.finish R.F.q₀)) (R.boundary 1 false) []) rest =
+          some (bits, final) := by
+  obtain ⟨first, _, hfactor⟩ := R.pass_replay [true] 0
+    ((firstBit.withInit 0).reachable_init _) true false []
+  exact ⟨first, fun indices bits final hhalt hr => (hfactor indices bits final hhalt).mp hr⟩
+
 end CslibFrontierTests.NondeterministicQueryMachineCompiler

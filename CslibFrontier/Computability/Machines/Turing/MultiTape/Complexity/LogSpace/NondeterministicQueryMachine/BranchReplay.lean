@@ -13,9 +13,11 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 /-! # Occurrence replay for compiled query machines
 
 Initialization writes the initial boundary and takes no choice. Every first-halting replay
-from the machine's start has this deterministic prefix. The finalizer consumes no abstract
-choices and emits the abstract state's verdict. The full compiler correspondence is tracked
-in #6747. The initializer still routes to the first choice when the abstract start is halted.
+from the machine's start has this deterministic prefix. At a choice boundary, a halted
+replay splits after one selected pass and its continuation check, with no change to the
+remaining choices or terminal configuration. The finalizer consumes no abstract choices
+and emits the abstract state's verdict. The full compiler correspondence is tracked in #6747.
+The initializer still routes to the first choice when the abstract start is halted.
 -/
 
 public section
@@ -156,14 +158,29 @@ theorem finish_replay (a : α) (s : σ)
     simp [MultiTapeCTM.runBranch_of_halted _ hqhalt] at htail
 
 /-- One selected native pass records its selector and updates the boundary according to the
-abstract step. The continuation check records no choice. -/
-theorem exists_pass_replay (a : α) (s : σ)
+abstract step. A halted replay beginning with that selector is exactly this pass, including the
+deterministic continuation check, followed by a replay with the remaining choices. -/
+theorem pass_replay (a : α) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s) (b flag : Bool) (out : List Bool) :
-    ∃ indices, Native.replayChoices R.I R.P R.F R.C
-      (wordsCfg (enc a) (some .choose) (R.boundary s flag) out) indices =
-      some ([b], wordsCfg (enc a)
-        (some (if M.halted (M.step (enc a) s b) then .finish R.F.q₀ else .choose))
-        (R.boundary (M.step (enc a) s b) (!M.halted (M.step (enc a) s b))) out) := by
+    let initial := wordsCfg (enc a) (some (.choose : Native.State R.SI R.SP R.SF))
+      (R.boundary s flag) out
+    let next := M.step (enc a) s b
+    let boundary := wordsCfg (enc a) (some (if M.halted next then
+      (.finish R.F.q₀ : Native.State R.SI R.SP R.SF) else .choose))
+      (R.boundary next (!M.halted next)) out
+    ∃ first, Native.replayChoices R.I R.P R.F R.C initial first = some ([b], boundary) ∧
+      ∀ (indices : List ℕ) (bits : List Bool)
+        (final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) (enc a)), final.Halted →
+        (Native.replayChoices R.I R.P R.F R.C initial indices = some (b :: bits, final) ↔
+          ∃ rest, indices = first ++ rest ∧
+            Native.replayChoices R.I R.P R.F R.C boundary rest = some (bits, final)) := by
+  dsimp only
+  set initial := wordsCfg (enc a) (some (.choose : Native.State R.SI R.SP R.SF))
+    (R.boundary s flag) out
+  set boundary := wordsCfg (enc a)
+    (some (if M.halted (M.step (enc a) s b) then
+      (.finish R.F.q₀ : Native.State R.SI R.SP R.SF) else .choose))
+    (R.boundary (M.step (enc a) s b) (!M.halted (M.step (enc a) s b))) out
   obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
   obtain ⟨ws', e, ⟨hws, he⟩, q₀, hqhead, hqlast, _, _⟩ := ht _ _ out ⟨rfl, rfl⟩
   obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
@@ -188,11 +205,48 @@ theorem exists_pass_replay (a : α) (s : σ)
   have hcheck := Native.replayChoices_step_zero R.I R.P R.F R.C
     (show p.last.state ≠ some .choose by rw [hplast]; exact fun h => by cases h)
     (show ¬p.last.Halted by rw [hplast]; exact fun h => by cases h) hstep []
-  refine ⟨b.toNat :: (List.replicate p.length 0 ++ [0]), ?_⟩
-  rw [Native.replayChoices_choose _ _ _ _ _ rfl, withState_wordsCfg, ← hphead,
-    Native.replayChoices_append, hp]
-  simp only [Option.bind, hcheck, Native.replayChoices_nil, Option.map_some, List.nil_append]
-  rw [hws, R.boundary_flag]
-  cases M.halted (M.step (enc a) s b) <;> simp [flagWord]
+  let first := b.toNat :: (List.replicate p.length 0 ++ [0])
+  have hfirst : Native.replayChoices R.I R.P R.F R.C initial first = some ([b], boundary) := by
+    dsimp only [initial, boundary, first]
+    rw [Native.replayChoices_choose _ _ _ _ _ rfl, withState_wordsCfg, ← hphead,
+      Native.replayChoices_append, hp]
+    simp only [Option.bind, hcheck, Native.replayChoices_nil, Option.map_some, List.nil_append]
+    rw [hws, R.boundary_flag]
+    cases M.halted (M.step (enc a) s b) <;> simp [flagWord]
+  refine ⟨first, hfirst, fun indices bits final hhalt => ⟨?_, ?_⟩⟩
+  · intro hr
+    have hchoose : Native.replayChoices R.I R.P R.F R.C initial [b.toNat] =
+        some ([b], p.head) := by
+      dsimp only [initial]
+      rw [Native.replayChoices_choose _ _ _ _ _ rfl, withState_wordsCfg, ← hphead,
+        Native.replayChoices_nil, Option.map_some]
+    have hnonempty : indices ≠ [] := by
+      intro hempty
+      simp [hempty, Native.replayChoices_nil] at hr
+    obtain ⟨tail, hindices, htail⟩ := Native.exists_suffix_of_replayChoices R.I R.P R.F R.C
+      hchoose (show _ = some ([b] ++ bits, final) from hr)
+      (List.length_pos_iff.mpr hnonempty)
+    obtain ⟨full, hfullhead, hfulllast, hfulllen⟩ := R.exists_native_path_of_replay htail
+    have hpass : q.length < full.length := by
+      by_contra! hshort
+      have hmap : full.head = q.head.mapState (Native.passState b) := hfullhead
+      have heq := Native.follows_pass R.I R.P R.F R.C b full q hmap full.length
+        (Nat.lt_succ_self _) (by omega)
+      change full.last = (q ⟨full.length, by omega⟩).mapState (Native.passState b) at heq
+      have hh : full.last.Halted := hfulllast ▸ hhalt
+      rw [heq] at hh
+      change some _ = none at hh
+      cases hh
+    have hlen : first.length ≤ indices.length := by
+      have hplen : p.length = q.length := rfl
+      rw [hindices]
+      simp only [first, List.length_cons, List.length_append, List.length_replicate,
+        List.length_nil, hplen]
+      omega
+    exact Native.exists_suffix_of_replayChoices R.I R.P R.F R.C hfirst
+      (show _ = some ([b] ++ bits, final) from hr) hlen
+  · rintro ⟨rest, rfl, hrest⟩
+    rw [Native.replayChoices_append, hfirst]
+    simp [hrest, Option.bind]
 
 end Turing.NondeterministicQueryMachine.Routines
