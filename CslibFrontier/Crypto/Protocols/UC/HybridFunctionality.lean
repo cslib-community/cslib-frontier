@@ -25,15 +25,15 @@ Closing `F` with a closed resource machine `R κ C : Machine OracleSpec.empty G`
 ## Model and scope
 
 * **Library construction (no cited definition).** In the interactive Turing machine model of
-  [Canetti2020], Section 3.1.2 (p. 28:23; ePrint p. 24), any ITM instance may write to the input
-  tape of another; `HybridFunctionality` restricts outgoing calls to call-and-return oracle
-  invocations (`ProbOracleComp G`).
+  [Canetti2020], Section 3.1.2 (p. 28:23; ePrint p. 24), the external-write instruction lets an ITI
+  write to a tape of another ITI, subject to the control function, which determines which
+  external-write instructions are allowed; `HybridFunctionality` restricts outgoing calls to
+  call-and-return oracle invocations (`ProbOracleComp G`).
 * **Private resource.** In `HybridFunctionality.close F R`, neither the environment nor the
   adversary can reach `G` directly; any adversary access to the resource must be forwarded by `F`
-  through `onBackdoor`. This is narrower than a Canetti `G`-hybrid execution where the subroutine's
-  backdoor tape is exposed directly to the adversary, and it is distinct from `UC.HybridProtocol`
-  (`CslibFrontier.Crypto.Protocols.UC.Composition`), whose subroutine calls are routed behind
-  `corruptRouter` with the subroutine's routed network port exposed to the adversary.
+  through `onBackdoor`. By contrast, the library's routed `UC.HybridProtocol` construction
+  (`CslibFrontier.Crypto.Protocols.UC.Composition`) routes subroutine calls behind `corruptRouter`
+  and exposes the subroutine's routed network port to the adversary.
 * **Initialization order and indexing.** Like a `UC.Protocol`, the resource `R` is indexed by
   `(κ, C)`. Because `close` is `Machine.comp`, `R κ C` is initialized before `F.init κ C`.
 * **Call-bounded budgets.** As throughout `CslibFrontier.Crypto.Protocols.UC`, budgets

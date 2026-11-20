@@ -41,7 +41,7 @@ open scoped NNReal
 
 /-- State of the 2-party coin-relay hybrid functionality: the most recent bit returned by the
 private resource and the cumulative number of resource calls. -/
-structure CoinRelayState where
+private structure CoinRelayState where
   /-- Most recent bit received from the private coin resource. -/
   lastBit : Option Bool
   /-- Total number of resource calls made so far. -/
@@ -50,7 +50,7 @@ structure CoinRelayState where
 /-- A 2-party hybrid functionality with a private outgoing coin port `netSpec Unit Bool`: party `0`
 queries the resource once, stores the bit and increments `calls`, and returns `some b`; party `1`
 returns `none`; the backdoor returns the current call count. -/
-def coinRelay : HybridFunctionality 2 Unit Bool Unit ℕ (netSpec Unit Bool) where
+private def coinRelay : HybridFunctionality 2 Unit Bool Unit ℕ (netSpec Unit Bool) where
   State := CoinRelayState
   init _ _ := pure { lastBit := none, calls := 0 }
   onInput i _ :=
@@ -66,7 +66,7 @@ def coinRelay : HybridFunctionality 2 Unit Bool Unit ℕ (netSpec Unit Bool) whe
 
 /-- Closed resource answering every query with a fresh uniform coin (and sampling an initial coin).
 -/
-noncomputable def fairCoinResource :
+private noncomputable def fairCoinResource :
     ℕ → Finset (Fin 2) → Machine OracleSpec.empty (netSpec Unit Bool) :=
   fun _ _ => {
     State := Bool
@@ -74,7 +74,7 @@ noncomputable def fairCoinResource :
     handle _ := StateT.lift (ProbOracleComp.sample ($ᵗ Bool)) }
 
 /-- Closed resource that always answers `true`, making no random draws. -/
-def oneCoinResource :
+private def oneCoinResource :
     ℕ → Finset (Fin 2) → Machine OracleSpec.empty (netSpec Unit Bool) :=
   fun _ _ => {
     State := Unit
@@ -82,15 +82,15 @@ def oneCoinResource :
     handle _ := pure true }
 
 /-- Corrupted party set `C = {1}`: party `0` is honest and party `1` is corrupted. -/
-abbrev corruptOne : Finset (Fin 2) := {1}
+private abbrev corruptOne : Finset (Fin 2) := {1}
 
 /-- Dummy adversary for `coinRelay`'s routed network port. -/
-abbrev relayDummyAdv :
+private abbrev relayDummyAdv :
     ExecAdversary 2 Unit Bool Unit ℕ (RoutedNetQ 2 Unit Unit) (RoutedNetR Bool ℕ) :=
   dummyAdversary 2 (RoutedNetQ 2 Unit Unit) (RoutedNetR Bool ℕ)
 
 /-- Environment that sends one input to honest party `0` and outputs the returned bit. -/
-def queryPartyZero :
+private def queryPartyZero :
     Environment 2 Unit Bool (RoutedNetQ 2 Unit Unit) (RoutedNetR Bool ℕ) :=
   fun _ _ => do
     let r ← ProbOracleComp.query
@@ -100,7 +100,7 @@ def queryPartyZero :
 
 /-- Environment that queries honest party `0` twice and then queries the backdoor through the dummy
 adversary to check that the call counter has grown to `2`. -/
-def queryTwiceAndCheckCount :
+private def queryTwiceAndCheckCount :
     Environment 2 Unit Bool (RoutedNetQ 2 Unit Unit) (RoutedNetR Bool ℕ) :=
   fun _ _ => do
     let _ ← ProbOracleComp.query
@@ -116,7 +116,7 @@ def queryTwiceAndCheckCount :
 
 /-- Environment that queries corrupted party `1` directly (blocked by `corruptRouter`) and checks
 that it receives `none`. -/
-def queryCorruptedPartyOne :
+private def queryCorruptedPartyOne :
     Environment 2 Unit Bool (RoutedNetQ 2 Unit Unit) (RoutedNetR Bool ℕ) :=
   fun _ _ => do
     let r ← ProbOracleComp.query
@@ -126,7 +126,7 @@ def queryCorruptedPartyOne :
 
 /-- The resource-swap reduction program for `coinRelay`, `relayDummyAdv`, `C = {1}`, and
 `queryPartyZero`. -/
-abbrev coinRelayReduction (κ : ℕ) (z : List Bool) :
+private abbrev coinRelayReduction (κ : ℕ) (z : List Bool) :
     ProbOracleComp (netSpec Unit Bool) Bool :=
   (routeCorrupt corruptOne (coinRelay.toMachine κ corruptOne)).link
     ((liftAdversary (relayDummyAdv κ corruptOne)).link (queryPartyZero κ z))
