@@ -96,6 +96,19 @@ theorem map_effect [DecidableEq β] (f : α → β) (M : Measurement α A) (b : 
     (M.map f).effect b = ∑ a with f a = b, M.effect a :=
   rfl
 
+/-- An operator commuting with the original effects commutes with their postprocessing. -/
+theorem commute_map_right [DecidableEq β] (M : Measurement α A) (f : α → β)
+    (e : A) (h : ∀ a, Commute e (M.effect a)) (b : β) : Commute e ((M.map f).effect b) := by
+  rw [map_effect]
+  exact (Commute.sum_left _ _ _ fun a _ => (h a).symm).symm
+
+/-- Postprocessing preserves cross-commutation of two measurements. -/
+theorem commute_map_map {γ ω : Type*} [Fintype γ] [Fintype ω] [DecidableEq γ] [DecidableEq ω]
+    (P : Measurement α A) (R : Measurement β A)
+    (h : ∀ a b, Commute (P.effect a) (R.effect b)) (f : α → γ) (g : β → ω)
+    (c : γ) (z : ω) : Commute ((P.map f).effect c) ((R.map g).effect z) :=
+  (commute_map_right P f _ (fun a => (commute_map_right R g _ (h a) z).symm) c).symm
+
 /-- Successive outcome postprocessings compose. -/
 theorem map_map {γ : Type*} [Fintype γ] [DecidableEq β] [DecidableEq γ]
     (M : Measurement α A) (f : α → β) (g : β → γ) :
