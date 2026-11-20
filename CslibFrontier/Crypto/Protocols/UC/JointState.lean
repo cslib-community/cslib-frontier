@@ -22,11 +22,11 @@ library's call-bounded, static-corruption port-model emulation notions (`UC.Emul
 `UC.Emulates`, `UC.Realizes`).
 
 These form the relabelling and execution-equivalence steps toward Theorem 1 of [CanettiRabin2003]
-(CRYPTO 2003, LNCS 2729, p. 272 for `F̂` and Theorem 1; the relabelling construction starts on
-p. 273 and continues on p. 274; locators follow the CRYPTO 2003 proceedings version (LNCS 2729)),
-adapted to a fixed finite session count `m`, static corruptions, pull-only execution, and this
-library's call-bounded statistical model (see `Cslib.Crypto.Protocols.UC.Emulates` for the
-call-budget model vs. PPT ITMs).
+(CRYPTO 2003, LNCS 2729, pp. 265–281: composition operation `π^[ρ̂]` on pp. 272–273, `F̂` and
+Theorem 1 on p. 273, Theorem 1 proof and `π̃` from p. 274; locators follow the CRYPTO 2003
+proceedings version (LNCS 2729)), adapted to a fixed finite session count `m`, static
+corruptions, pull-only execution, and this library's call-bounded statistical model (see
+`Cslib.Crypto.Protocols.UC.Emulates` for the call-budget model vs. PPT ITMs).
 
 The generic lazy-vs-eager parallel-package initialization theorem (`SSP.parFinLazy`,
 `SSP.run_parFinLazy_eq_parFin`) lives separately in `CslibFrontier.Crypto.Protocols.SSP.ParFinLazy`
@@ -37,24 +37,24 @@ without importing the UC ideal-functionality or execution modules.
 
 1. **Named structures (zero projection chains).** `SubSessionInput`, `SubSessionBackdoor`, and
    `MultiSessionState` replace raw nested products and options.
-2. **Lazy multi-session extension `F.multiSession` (p. 272).** For any `[DecidableEq SSID]`,
+2. **Lazy multi-session extension `F.multiSession` (p. 273).** For any `[DecidableEq SSID]`,
    `IdealFunctionality.multiSession SSID F` stores `(secParam, corrupted, sessions)` and creates a
    fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor query
    for a given `ssid`, keeping distinct `ssid`s independent.
-3. **Pull-model interface and scheduling differences.** On p. 272 of [CanettiRabin2003], `F̂` sends
-   the party a tagged output `(ssid, v)` and notifies the adversary of its sub-session ID `ssid`
-   when that output is sent. Here, `IdealFunctionality.multiSession` returns an untagged
+3. **Pull-model interface and scheduling differences.** On p. 273 of [CanettiRabin2003], whenever
+   a copy of `F` sends `(ssid, v)` to some party `Pi`, `F̂` sends `(sid, ssid, v)` to `Pi` and
+   sends `ssid` to the adversary. Here, `IdealFunctionality.multiSession` returns an untagged
    `Option SubOut` on the selected pull query `SubSessionInput SSID SubIn`, and provides an
    explicitly queried backdoor interface (`SubSessionBackdoor SSID BackQ`) returning `BackR`
    (exposing no raw copy state) rather than sending adversary notifications on honest-party
    activations or outputs. Because the interfaces, scheduling, and call-bounded vs. PPT ITM
    resource models differ, no implication between `Realizes` for this pull API and the source
    premise is claimed here.
-4. **Sub-session relabelling `toJoint` and fixed `m` (pp. 273–274).** `MultiHybridProtocol.toJoint`
-   relabels each `SubSessionCall` `⟨session, party, input⟩` as `(party, ⟨session, input⟩)`
-   (adapting `π̃`, whose construction starts on p. 273 of [CanettiRabin2003], to a fixed finite
-   `Fin m` family; dynamic `SID` creation and push-model tagged outputs / `ssid` notifications are
-   out of scope).
+4. **Sub-session relabelling `toJoint` and fixed `m` (pp. 272–274).**
+   `MultiHybridProtocol.toJoint` relabels each `SubSessionCall` `⟨session, party, input⟩` as
+   `(party, ⟨session, input⟩)` (adapting the composition operation `π^[ρ̂]` on pp. 272–273 and `π̃`
+   from p. 274 of [CanettiRabin2003] to a fixed finite `Fin m` family; dynamic `SID` creation and
+   push-model tagged outputs / `ssid` notifications are out of scope).
 5. **Explicit demux/mux adversaries under static corruption.** `jointDemux` and `jointMux`
    translate network queries between the single-protocol `F̂`-hybrid interface and the `m`-session
    `composeMulti` interface while preserving replies (`NetR ⊕ RoutedNetR SubOut BackR`). Static
@@ -94,7 +94,8 @@ without importing the UC ideal-functionality or execution modules.
 ## References
 
 * [R. Canetti and T. Rabin, *Universal Composition with Joint State*][CanettiRabin2003], CRYPTO
-  2003, LNCS 2729, pp. 265–281 (`F̂` and Theorem 1, p. 272; relabelling construction, pp. 273–274).
+  2003, LNCS 2729, pp. 265–281 (composition operation, pp. 272–273; `F̂` and Theorem 1, p. 273;
+  Theorem 1 proof and `π̃`, from p. 274).
 -/
 
 public section
@@ -107,7 +108,7 @@ open scoped NNReal
 /-! ### Named structures and lazy multi-session functionality -/
 
 /-- A party input to a multi-session functionality or joint-state protocol: sub-session `ssid`
-with value `input` ([CanettiRabin2003], p. 272, the `(ssid, v)` part of `(sid, ssid, v)`). -/
+with value `input` ([CanettiRabin2003], p. 273, the `(ssid, v)` part of `(sid, ssid, v)`). -/
 structure SubSessionInput (SSID SubIn : Type) : Type where
   /-- Sub-session identifier. -/
   ssid : SSID
@@ -135,9 +136,9 @@ structure MultiSessionState (n : ℕ) (SSID FState : Type) : Type where
 
 /-- Multi-session extension `F̂` of an ideal functionality `F` for any `[DecidableEq SSID]`:
 creates a fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor
-query for `ssid`, and activates that copy ([CanettiRabin2003], p. 272). Unlike the source's `F̂`
-(which sends a tagged output `(ssid, v)` to the party and notifies the adversary of `ssid` when
-that output is sent), this pull API returns an untagged `Option SubOut` on the selected pull and
+query for `ssid`, and activates that copy ([CanettiRabin2003], p. 273). Unlike the source's `F̂`
+(which sends `(sid, ssid, v)` to `Pi` and sends `ssid` to the adversary when a copy sends
+`(ssid, v)`), this pull API returns an untagged `Option SubOut` on the selected pull and
 provides an explicitly queried backdoor interface (`SubSessionBackdoor SSID BackQ`) returning
 `BackR`, exposing no raw copy state. -/
 @[expose] def IdealFunctionality.multiSession {n : ℕ} {SubIn SubOut BackQ BackR : Type}
@@ -163,8 +164,8 @@ provides an explicitly queried backdoor interface (`SubSessionBackdoor SSID Back
 /-! ### Sub-session relabelling and explicit demux/mux adversaries -/
 
 /-- Relabel a multi-session hybrid protocol `ρ` (`SubSessionCall` subroutine calls) to a
-single-subroutine `HybridProtocol` targeting `F.multiSession (Fin m)` (`π̃`, whose construction
-starts on p. 273 of [CanettiRabin2003]). -/
+single-subroutine `HybridProtocol` targeting `F.multiSession (Fin m)` ([CanettiRabin2003],
+composition operation `π^[ρ̂]` on pp. 272–273; `π̃` in the Theorem 1 proof from p. 274). -/
 @[expose] def MultiHybridProtocol.toJoint {m n : ℕ} {In Out NetQ NetR SubIn SubOut : Type}
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut) :
     HybridProtocol n In Out NetQ NetR (SubSessionInput (Fin m) SubIn) SubOut :=
@@ -254,8 +255,8 @@ private theorem isBounded_mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ
   | inr nq => exact OracleComp.IsCostBounded.query (Sum.inr (f nq))
 
 /-- Explicit demultiplexing adversary for `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`
-running against `composeMulti ρ F.toProtocol` ([CanettiRabin2003], relabelling construction
-pp. 273–274). -/
+running against `composeMulti ρ F.toProtocol` ([CanettiRabin2003], composition operation
+pp. 272–273; Theorem 1 proof from p. 274). -/
 @[expose] def jointDemux {m n : ℕ} {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     (A : ExecAdversary n In Out
       (NetQ ⊕ RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
@@ -866,10 +867,10 @@ private theorem jointDemux_jointMux {m n : ℕ}
 
 end DemuxProof
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 272; relabelling construction
-starting on p. 273), not that theorem; fixed-session joint-state execution identity for this
-library's call-bounded UC execution model:
-`compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with adversary `A` and
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 273; composition operation
+pp. 272–273),
+not that theorem; fixed-session joint-state execution identity for this library's call-bounded UC
+execution model: `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with adversary `A` and
 `composeMulti ρ F.toProtocol` with `jointDemux A` have identical output distributions. -/
 theorem exec_compose_toJoint_multiSession {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
@@ -887,9 +888,10 @@ theorem exec_compose_toJoint_multiSession {m n : ℕ}
     ← link_liftAdversary_mapNetMachine]
   rfl
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 272; relabelling construction
-starting on p. 273), not that theorem; fixed-session reverse joint-state execution identity for
-this library's call-bounded UC execution model: `composeMulti ρ F.toProtocol` with adversary `A` and
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 273; composition operation
+pp. 272–273),
+not that theorem; fixed-session reverse joint-state execution identity for this library's
+call-bounded UC execution model: `composeMulti ρ F.toProtocol` with adversary `A` and
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with `jointMux A` have identical output
 distributions. -/
 theorem exec_composeMulti_toJoint {m n : ℕ}
@@ -903,12 +905,13 @@ theorem exec_composeMulti_toJoint {m n : ℕ}
       (exec (compose ρ.toJoint (F.multiSession (Fin m)).toProtocol) (jointMux A) C Z κ z).eval := by
   rw [exec_compose_toJoint_multiSession, jointDemux_jointMux]
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 272; relabelling construction
-starting on p. 273), not that theorem; fixed-session joint-state step for this library's
-call-bounded `EmulatesWithin` relation: `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`
-emulates `composeMulti ρ F.toProtocol` with overhead `Polynomial.X + 1` and zero distinguishing
-error via the explicit demultiplexing adversary `jointDemux`. Fixed number `m` of sessions chosen in
-advance; static corruption; pull execution returning untagged `Option SubOut` with explicit
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 273; composition operation
+pp. 272–273),
+not that theorem; fixed-session joint-state step for this library's call-bounded `EmulatesWithin`
+relation: `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` emulates
+`composeMulti ρ F.toProtocol` with overhead `Polynomial.X + 1` and zero distinguishing error via the
+explicit demultiplexing adversary `jointDemux`. Fixed number `m` of sessions chosen in advance;
+static corruption; pull execution returning untagged `Option SubOut` with explicit
 `SubSessionBackdoor` queries. -/
 theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR : Type}
@@ -927,9 +930,10 @@ theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
     exact Nat.le_succ_of_le h
   · simp only [advantage, Game.advantage, exec_compose_toJoint_multiSession, nndist_self, le_rfl]
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 272; relabelling construction
-starting on p. 273), not that theorem; fixed-session reverse joint-state step for this library's
-call-bounded `EmulatesWithin` relation: `composeMulti ρ F.toProtocol` emulates
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 273; composition operation
+pp. 272–273),
+not that theorem; fixed-session reverse joint-state step for this library's call-bounded
+`EmulatesWithin` relation: `composeMulti ρ F.toProtocol` emulates
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with overhead `Polynomial.X + 1` and zero
 distinguishing error via `jointMux`. Fixed number `m` of sessions chosen in advance; static
 corruption; pull execution returning untagged `Option SubOut` with explicit
