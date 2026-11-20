@@ -430,6 +430,8 @@ import CslibFrontier.Probability.Fooling.DecisionTree
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
+import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve
+import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.ExponentialDesign
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
@@ -11184,3 +11186,98 @@ register_result "fuchs-van-de-graaf-upper" where
   scope := "For finite complex positive semidefinite trace-one matrices, including singular \
     states, trace distance is at most the square root of one minus squared root fidelity. \
     Trace distance is half the trace norm of the difference, and root fidelity is unsquared."
+
+register_result "bciks20-correlated-agreement-line-unique" where
+  title := "Correlated agreement and proximity gap on affine lines in the unique-decoding regime"
+  topic := "codes"
+  sources := [
+    { paper := BenSassonCarmonIshaiKoppartySaraf2020,
+      theorem := "Theorems 1.2 (affine-line case), 1.4 (unique-decoding regime), 4.1, and \
+        Remark 4.1",
+      locator := "accepted JACM 2023 manuscript, §1 pp. 3 and 5 (eq. (1.2)); §4 p. 13" }
+  ]
+  theorems := [
+    Cslib.Code.exists_correlatedAgreement_unique,
+    Cslib.Code.exists_uniqueMaximal_correlatedAgreement_unique,
+    Cslib.Code.proximityGap_unique
+  ]
+  scope := "Over any field F with distinct evaluation points α : ι → F (n = |ι|) and \
+    unique-decoding radius 2 * e + k ≤ n, if strictly more than n scalars z ∈ S place \
+    u₀ + z • u₁ within Hamming distance e of reedSolomon α k, then there exist a greatest \
+    (hence unique maximal) shared agreement set D' of size at least n - e and unique codewords \
+    v₀, v₁ ∈ reedSolomon α k agreeing with u₀, u₁ on D'; uniqueness and maximality are supplied \
+    by the generic uniqueness step exists_uniqueMaximal_correlatedAgreement_of_exists, whose \
+    premise takes an agreement witness. Over a finite field F, proximityGap_unique gives the \
+    contrapositive dichotomy with at most n exceptional scalars (density n / |F|, eq. (1.2)). \
+    Unique-decoding regime only; the Johnson-bound regime, weighted line theorems, and \
+    Section 8 FRI obligations remain open in #5968. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6699#issuecomment-7031504400."
+
+register_result "bciks20-correlated-agreement-curve-unique" where
+  title := "Correlated agreement and proximity gap on parameterized curves in the unique-decoding \
+    regime"
+  topic := "codes"
+  sources := [
+    { paper := BenSassonCarmonIshaiKoppartySaraf2020,
+      theorem := "Theorems 1.5 (unique-decoding regime) and 6.1",
+      locator := "accepted JACM 2023 manuscript, §1 p. 6 (eq. (1.2)); §6.1 p. 28" }
+  ]
+  theorems := [
+    Cslib.Code.exists_correlatedAgreement_curve_unique,
+    Cslib.Code.exists_uniqueMaximal_correlatedAgreement_curve_unique,
+    Cslib.Code.proximityGap_curve_unique
+  ]
+  scope := "Over any field F with distinct evaluation points α : ι → F (n = |ι|), \
+    unique-decoding radius 2 * e + k ≤ n, and d + 1 words u : Fin (d + 1) → (ι → F), if \
+    strictly more than d * n scalars z ∈ S place ∑ j, z ^ j • u j within Hamming distance e \
+    of reedSolomon α k, then there exist a greatest (hence unique maximal) shared agreement \
+    set D' of size at least n - e and unique codewords v : Fin (d + 1) → (ι → F) agreeing \
+    with u on D'; uniqueness and maximality follow from the generic uniqueness step \
+    exists_uniqueMaximal_correlatedAgreement_of_exists, whose premise supplies an agreement \
+    witness. Over a finite field F, proximityGap_curve_unique gives the contrapositive \
+    dichotomy with at most d * n exceptional scalars. Unique-decoding regime only; the \
+    Johnson-bound curve theorems, weighted curve theorems, and Section 8 FRI obligations \
+    remain open in #5968. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6699#issuecomment-7031504400."
+
+register_result "bciks20-correlated-agreement-affine-unique" where
+  title := "Correlated agreement on affine spaces in the unique-decoding regime"
+  topic := "codes"
+  sources := [
+    { paper := BenSassonCarmonIshaiKoppartySaraf2020,
+      theorem := "Theorem 1.6 (unique-decoding regime) and Section 6.3",
+      locator := "accepted JACM 2023 manuscript, §1 p. 6 (eq. (1.2)); §6.3 pp. 28–31" }
+  ]
+  theorems := [Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique]
+  scope := "Over a finite field F with distinct evaluation points α : ι → F (n = |ι|), \
+    unique-decoding radius 2 * e + k ≤ n, and any affine space u₀ + ∑ j : Fin ℓ, z j • u j, \
+    if n * |F| ^ ℓ < |F| * #T (exact eq. (1.2) density threshold #T / |F| ^ ℓ > n / |F|, \
+    independent of ℓ) and every z ∈ T lies within Hamming distance e of reedSolomon α k, then \
+    there exist a greatest (hence unique maximal) shared agreement set D' of size at least \
+    n - e and unique codewords v₀, v j ∈ reedSolomon α k matching u₀, u j on D'. Uniqueness \
+    and maximality are supplied by the generic uniqueness step \
+    exists_uniqueMaximal_correlatedAgreement_of_exists, whose premise takes an agreement \
+    witness; the ℓ = 0 case with n = |F| is vacuous because n * 1 < |F| * #T requires #T > 1. \
+    Unweighted unique-decoding regime only; the Johnson-bound affine theorem (eq. (1.3)), \
+    exact weighted affine constants, and Section 8 FRI obligations remain open in #5968. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6699#issuecomment-7031504400."
+
+register_result "bciks20-proximity-gap-affine-unique" where
+  title := "Proximity gap for Reed–Solomon codes on affine spaces in the unique-decoding regime"
+  topic := "codes"
+  sources := [
+    { paper := BenSassonCarmonIshaiKoppartySaraf2020,
+      theorem := "Theorem 1.2 (unique-decoding regime, eq. (1.2))",
+      locator := "accepted JACM 2023 manuscript, §1 p. 3 (eq. (1.2))" }
+  ]
+  theorems := [Cslib.Code.proximityGap_affine_unique]
+  scope := "Over a finite field F with distinct evaluation points α : ι → F (n = |ι|), \
+    unique-decoding radius 2 * e + k ≤ n, and any affine space u₀ + ∑ j : Fin ℓ, z j • u j, \
+    either every point of the affine space lies within Hamming distance e of reedSolomon α k, \
+    or the close parameter set T satisfies |F| * #T ≤ n * |F| ^ ℓ (exact eq. (1.2) bound \
+    #T / |F| ^ ℓ ≤ n / |F|, independent of ℓ). Proved as the contrapositive corollary of \
+    exists_uniqueMaximal_correlatedAgreement_affine_unique. Unique-decoding regime only; the \
+    Johnson-bound affine dichotomy (eq. (1.3)) and Section 8 FRI obligations remain open in \
+    #5968. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6699#issuecomment-7031504400."

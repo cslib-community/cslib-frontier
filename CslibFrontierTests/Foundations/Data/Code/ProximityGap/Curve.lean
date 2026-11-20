@@ -26,21 +26,23 @@ on concrete finite-field Reed–Solomon instances:
    `W = ![1, 1, 2, 2, 2]` on disjoint spikes (`z = 0` achieves weight `7`, `z = 1` achieves weight
    `< 7` for every codeword) to instantiate `weighted_proximityGap_unique`.
 3. **2D affine space (`ℓ = 2`) over `ZMod 23`:**
-   - Positive nonzero-error instantiation of `exists_correlatedAgreement_affine_unique_sharp`,
+   - Positive nonzero-error instantiation of
+     `exists_uniqueMaximal_correlatedAgreement_affine_unique`,
      `exists_correlatedAgreement_affine_of_curve`, and
      `exists_weighted_correlatedAgreement_affine_unique_sharp` with three corrupted words `∉ RS`;
-   - Negative / tightness instantiation of `proximityGap_affine_unique_sharp` proving at most `120`
-     (`22 * #T ≤ 5 * (23 ^ 2 - 1) = 2640`) of the `529` affine combinations lie within distance `1`
+   - Upper-bound regression for `proximityGap_affine_unique` proving at most `115`
+     (`23 * #T ≤ 5 * 23 ^ 2 = 2645`) of the `529` affine combinations lie within distance `1`
      of the code.
 4. **Dimension-independent 2D affine space (`ℓ = 2`) over `ZMod 11` (`5 * 120 = 600 < 10 * #T`):**
    - Here the linear-in-`ℓ` bound `2 * (5 + 1) * 11 = 132 > 121 = 11 ^ 2` is vacuous even on the
-     entire plane, while the dimension-independent threshold is `#T > 60`;
+     entire plane, while the dimension-independent thresholds are `#T > 55` (exact unweighted) and
+     `#T > 60` (weighted);
    - Positive unweighted, `ℕ`-weighted, and `ℚ`-weighted correlated agreement on a proper subset
-     `T` of size `66 < 121` (`exists_correlatedAgreement_affine_unique_sharp`,
+     `T` of size `66 < 121` (`exists_uniqueMaximal_correlatedAgreement_affine_unique`,
      `exists_weighted_correlatedAgreement_affine_unique_sharp`,
      `exists_ratWeighted_correlatedAgreement_affine_unique_sharp`);
-   - Negative / tightness dichotomies proving at most `60` of the `121` affine points lie close
-     (`proximityGap_affine_unique_sharp`, `weighted_proximityGap_affine_unique_sharp`,
+   - Weighted upper-bound regressions proving at most `60` of the `121` affine points lie close
+     (`weighted_proximityGap_affine_unique_sharp`,
      `ratWeighted_proximityGap_affine_unique_sharp`).
 5. **Beyond-unique-decoding Johnson 2D affine spaces & `ℚ`-weighted curves over `ZMod 65537`
    (`n = 5`, `k = 2`, `e = 2 > 1`, `m = 1`, `D = 2`, `L = 2`):**
@@ -74,12 +76,14 @@ on concrete finite-field Reed–Solomon instances:
    `exists_ratWeighted_correlatedAgreement_affine_johnson` at full weight `B_W = 6` (`0 ∉ D'`).
 10. **Exact eq. (1.2) Theorem 1.6 uniqueness & maximality tests and sharpness counterexample:**
     - Positive 2D affine space over `ZMod 11` (`n = 5`, `k = 3`, `e = 1`) on a proper subset `T56`
-      of size `56` (`5 * 11 ^ 2 = 605 < 616 = 11 * 56`, strictly below `_sharp`'s `61` cutoff where
-      `10 * 56 = 560 ≤ 600`), instantiating
+      of size `56` (`5 * 11 ^ 2 = 605 < 616 = 11 * 56`, strictly below the weighted `61` cutoff
+      where `10 * 56 = 560 ≤ 600`), instantiating
       `exists_uniqueMaximal_correlatedAgreement_affine_unique`, pinning `D' = Finset.univ.erase 0`,
       unique codewords `(v0 11, ![v1 11, v2 11])`, and the literal `∃!` maximal-set consequence;
-    - Negative/tightness instantiation of `proximityGap_affine_unique` bounding `#T ≤ 55`
-      (tightening `_sharp`'s `≤ 60`);
+    - Upper-bound regression for `proximityGap_affine_unique` bounding `#T ≤ 55` out of `121`
+      (separate finite enumeration of the quadratic code over `ZMod 11` gives `44` close pairs);
+    - One-point (`ℓ = 0`) regression exercising the weighted theorems at `n = q` over `ZMod 5`
+      and `exists_uniqueMaximal_correlatedAgreement_affine_unique` at `n < q` over `ZMod 11`;
     - Sharpness counterexample at `2 * e + k = n + 1` (`n = 5`, `k = 2`, `e = 2` over `ZMod 11`)
       exhibiting two distinct maximal qualifying sets `{0, 1, 2}` and `{0, 3, 4}` with distinct
       codewords `0 ≠ pts5 11`, showing `2 * e + k ≤ n` is sharp for Theorem 1.6's uniqueness clause.
@@ -93,6 +97,7 @@ namespace CslibFrontierTests.Foundations.Data.Code.ProximityGap.Curve
 open scoped BigOperators
 open Cslib Cslib.Code Finset Polynomial
 
+instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 instance : Fact (Nat.Prime 11) := ⟨by decide⟩
 instance : Fact (Nat.Prime 23) := ⟨by decide⟩
 
@@ -101,6 +106,7 @@ instance : Fact (Nat.Prime 23) := ⟨by decide⟩
 /-- Five distinct evaluation points `0, 1, 2, 3, 4` in `ZMod p`. -/
 private def pts5 (p : ℕ) : Fin 5 → ZMod p := fun i => (i : ℕ)
 
+private theorem pts5_5_injective : Function.Injective (pts5 5) := by decide
 private theorem pts5_11_injective : Function.Injective (pts5 11) := by decide
 private theorem pts5_23_injective : Function.Injective (pts5 23) := by decide
 
@@ -455,7 +461,7 @@ theorem test_weighted_proximityGap_unique_negative :
 /-! ### Test 3: 2D affine space (`ℓ = 2`) over `ZMod 23` (positive, weighted, & negative) -/
 
 /-- Positive nonzero-error 2D affine space (`ℓ = 2`) instantiation of
-`exists_correlatedAgreement_affine_unique_sharp` (and the generic curve reduction
+`exists_uniqueMaximal_correlatedAgreement_affine_unique` (and the generic curve reduction
 `exists_correlatedAgreement_affine_of_curve`) over `ZMod 23`. -/
 theorem test_correlatedAgreement_affine_unique_2d :
     u0 23 ∉ reedSolomon (pts5 23) 3 ∧
@@ -500,13 +506,13 @@ theorem test_correlatedAgreement_affine_unique_2d :
         exists_correlatedAgreement_curve_unique (d := 2) pts5_23_injective (e := 1) (k := 3)
           (by decide) u' S hS hcl)
       (u0 23) u Finset.univ hT_curve hclose
-  have hT : Fintype.card (Fin 5) * ((Fintype.card (ZMod 23)) ^ 2 - 1) <
-      (Fintype.card (ZMod 23) - 1) * (Finset.univ : Finset (Fin 2 → ZMod 23)).card := by
+  have hT : Fintype.card (Fin 5) * (Fintype.card (ZMod 23)) ^ 2 <
+      Fintype.card (ZMod 23) * (Finset.univ : Finset (Fin 2 → ZMod 23)).card := by
     rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, ZMod.card]
     norm_num
-  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
-    exists_correlatedAgreement_affine_unique_sharp (ℓ := 2) pts5_23_injective (e := 1) (k := 3)
-      (by decide) (u0 23) u Finset.univ hT hclose
+  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree, _⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_affine_unique (ℓ := 2) pts5_23_injective (e := 1)
+      (k := 3) (by decide) (u0 23) u Finset.univ hT hclose
   exact ⟨u0_not_mem_rs_23, u1_not_mem_rs_23, u2_not_mem_rs_23, D',
     by simpa only [Fintype.card_fin] using hD', v₀, hv₀, v, hvRS, hagree⟩
 
@@ -549,18 +555,18 @@ theorem test_weighted_correlatedAgreement_affine_unique_2d :
   exact exists_weighted_correlatedAgreement_affine_unique_sharp (ℓ := 2) pts5_23_injective
     (k := 3) (M := 2) (B := 7) (by decide) hW (by decide) (u0 23) u Finset.univ hT hclose
 
-/-- Negative / tightness 2D affine space dichotomy instantiation of
-`proximityGap_affine_unique_sharp` over `ZMod 23`: since `(z₀, z₁) = (1, 0)` yields
-`spike0 + 1 • spike1` at distance `> 1` from every codeword, `22 * #T ≤ 5 * (23 ^ 2 - 1) = 2640`,
-so at most `120` of the `529` affine combinations lie within distance `1`. -/
+/-- Upper-bound regression for `proximityGap_affine_unique` over `ZMod 23`: since
+`(z₀, z₁) = (1, 0)` yields `spike0 + 1 • spike1` at distance `> 1` from every codeword,
+`23 * #T ≤ 5 * 23 ^ 2 = 2645`, so at most `115` of the `529` affine combinations lie within
+distance `1`. -/
 theorem test_proximityGap_affine_unique_negative_2d :
     open scoped Classical in
     (Finset.univ.filter fun z : Fin 2 → ZMod 23 => ∃ c ∈ reedSolomon (pts5 23) 3,
       hammingDist (spike0 23 + ∑ j : Fin 2, z j • (![spike1 23, (0 : Fin 5 → ZMod 23)] j)) c ≤
-        1).card ≤ 120 := by
+        1).card ≤ 115 := by
   classical
   let u : Fin 2 → (Fin 5 → ZMod 23) := ![spike1 23, 0]
-  rcases proximityGap_affine_unique_sharp (ℓ := 2) pts5_23_injective (e := 1) (k := 3) (by decide)
+  rcases proximityGap_affine_unique (ℓ := 2) pts5_23_injective (e := 1) (k := 3) (by decide)
       (spike0 23) u with hall | hcard
   · obtain ⟨c, hcRS, hdist⟩ := hall ![1, 0]
     have hsum : (spike0 23 + ∑ j : Fin 2, (![(1 : ZMod 23), 0] j) • u j) =
@@ -612,9 +618,9 @@ private theorem halfPlane11_card : halfPlane11.card = 66 := by
 private def muSpike : Fin 5 → ℚ := ![(1 : ℚ) / 2, (1 : ℚ) / 2, 1, 1, 1]
 
 /-- Positive dimension-independent unweighted 2D affine space correlated agreement over `ZMod 11`
-on the proper subset `halfPlane11` (`#T = 66`, `5 * (11 ^ 2 - 1) = 600 < 660 = 10 * 66`), where the
+on the proper subset `halfPlane11` (`#T = 66`, `5 * 11 ^ 2 = 605 < 726 = 11 * 66`), where the
 linear-in-`ℓ` bound `132 > 121` is vacuous. -/
-theorem test_correlatedAgreement_affine_unique_sharp_2d_zmod11 :
+theorem test_correlatedAgreement_affine_unique_2d_zmod11 :
     u0 11 ∉ reedSolomon (pts5 11) 3 ∧
     u1 11 ∉ reedSolomon (pts5 11) 3 ∧
     u2 11 ∉ reedSolomon (pts5 11) 3 ∧
@@ -643,13 +649,13 @@ theorem test_correlatedAgreement_affine_unique_sharp_2d_zmod11 :
       Submodule.add_mem _ v0_mem_rs
         (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvTrue_mem j)),
       hammingDist_affine_le_of_eq_on (D' := Finset.univ.erase 0) (by decide) hagree_true z⟩
-  have hT : Fintype.card (Fin 5) * ((Fintype.card (ZMod 11)) ^ 2 - 1) <
-      (Fintype.card (ZMod 11) - 1) * halfPlane11.card := by
+  have hT : Fintype.card (Fin 5) * (Fintype.card (ZMod 11)) ^ 2 <
+      Fintype.card (ZMod 11) * halfPlane11.card := by
     rw [Fintype.card_fin, ZMod.card, halfPlane11_card]
     norm_num
-  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
-    exists_correlatedAgreement_affine_unique_sharp (ℓ := 2) pts5_11_injective (e := 1) (k := 3)
-      (by decide) (u0 11) u halfPlane11 hT hclose
+  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree, _⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_affine_unique (ℓ := 2) pts5_11_injective (e := 1)
+      (k := 3) (by decide) (u0 11) u halfPlane11 hT hclose
   exact ⟨u0_not_mem_rs_11, u1_not_mem_rs_11, u2_not_mem_rs_11, D',
     by simpa only [Fintype.card_fin] using hD', v₀, hv₀, v, hvRS, hagree⟩
 
@@ -715,16 +721,12 @@ theorem test_weighted_correlatedAgreement_affine_unique_sharp_2d_zmod11 :
     exact exists_ratWeighted_correlatedAgreement_affine_unique_sharp (ℓ := 2) pts5_11_injective
       (e := 1) (k := 3) (by decide) hμ_le hθ (u0 11) u halfPlane11 hT hclose
 
-/-- Negative / tightness dimension-independent 2D affine space dichotomies over `ZMod 11`:
-unweighted (`proximityGap_affine_unique_sharp`), `ℕ`-weighted
-(`weighted_proximityGap_affine_unique_sharp`), and `ℚ`-weighted
-(`ratWeighted_proximityGap_affine_unique_sharp`) all bound the close set to at most `60` of the
+/-- Upper-bound regressions for the weighted dimension-independent 2D affine space dichotomies over
+`ZMod 11`: `ℕ`-weighted (`weighted_proximityGap_affine_unique_sharp`) and `ℚ`-weighted
+(`ratWeighted_proximityGap_affine_unique_sharp`) both bound the close set to at most `60` of the
 `121` points (`10 * #T ≤ 600`) while `z = ![0, 0]` is close and `z = ![1, 0]` is far. -/
-theorem test_proximityGap_affine_unique_sharp_negative_2d_zmod11 :
+theorem test_weighted_proximityGap_affine_unique_sharp_negative_2d_zmod11 :
     open scoped Classical in
-    (Finset.univ.filter fun z : Fin 2 → ZMod 11 => ∃ c ∈ reedSolomon (pts5 11) 3,
-      hammingDist (spike0 11 + ∑ j : Fin 2, z j • (![spike1 11, (0 : Fin 5 → ZMod 11)] j)) c ≤
-        1).card ≤ 60 ∧
     (Finset.univ.filter fun z : Fin 2 → ZMod 11 => ∃ c ∈ reedSolomon (pts5 11) 3,
       7 ≤ ∑ i ∈ Finset.univ.filter (fun i =>
         (spike0 11 + ∑ j : Fin 2, z j • (![spike1 11, (0 : Fin 5 → ZMod 11)] j)) i = c i),
@@ -748,14 +750,7 @@ theorem test_proximityGap_affine_unique_sharp_negative_2d_zmod11 :
     intro i; fin_cases i <;> norm_num [muSpike]
   have hθ : ((Fintype.card (Fin 5) - 1 : ℕ) : ℚ) - 1 < (7 : ℚ) / 2 := by
     rw [Fintype.card_fin]; norm_num
-  refine ⟨?_, ?_, ?_⟩
-  · rcases proximityGap_affine_unique_sharp (ℓ := 2) pts5_11_injective (e := 1) (k := 3)
-        (by decide) (spike0 11) u with hall | hcard
-    · obtain ⟨c, hcRS, hdist⟩ := hall ![1, 0]
-      rw [hsum1] at hdist
-      exact absurd hdist (not_le.2 (spike_far_at_one (p := 11) (by decide) (by decide) c hcRS))
-    · rw [Fintype.card_fin, ZMod.card] at hcard
-      omega
+  refine ⟨?_, ?_⟩
   · rcases weighted_proximityGap_affine_unique_sharp (ℓ := 2) pts5_11_injective (k := 3) (M := 2)
         (B := 7) (by decide) hW (by decide) (spike0 11) u with hall | hcard
     · obtain ⟨c, hcRS, hge⟩ := hall ![1, 0]
@@ -2138,9 +2133,9 @@ end RealAsymptoticJohnsonTests
 /-- Positive exact-threshold 2D affine space uniqueness-clause test over `ZMod 11` (`n = 5`,
 `k = 3`, `e = 1`) on `T56 = insert ![5, 0] (strip2D 11 5)` of size `56`:
 `5 * 11 ^ 2 = 605 < 616 = 11 * 56` clears Theorem 1.6's exact eq. (1.2) threshold while falling
-strictly below `_sharp`'s cutoff (`10 * 56 = 560 ≤ 600 = 5 * (11 ^ 2 - 1)`). Pins the exact unique
-maximal set `Finset.univ.erase 0`, exact codewords `(v0 11, ![v1 11, v2 11])`, and the literal `∃!`
-maximal-set consequence. -/
+strictly below the weighted cutoff (`10 * 56 = 560 ≤ 600 = 5 * (11 ^ 2 - 1)`). Pins the exact
+unique maximal set `Finset.univ.erase 0`, exact codewords `(v0 11, ![v1 11, v2 11])`, and the
+literal `∃!` maximal-set consequence. -/
 theorem test_uniqueMaximal_correlatedAgreement_affine_unique_exact :
     u0 11 ∉ reedSolomon (pts5 11) 3 ∧
     u1 11 ∉ reedSolomon (pts5 11) 3 ∧
@@ -2217,10 +2212,11 @@ theorem test_uniqueMaximal_correlatedAgreement_affine_unique_exact :
   · intro D'' w₀ w hD'' hw₀ hw hag''
     exact hmax D'' w₀ w (by simpa only [Fintype.card_fin] using hD'') hw₀ hw hag''
 
-/-- Negative / tightness instantiation of `proximityGap_affine_unique` over `ZMod 11`: bounds the
-close parameter set to at most `55` of `121` points (`11 * #T ≤ 5 * 121 = 605`), strictly tighter
-than `proximityGap_affine_unique_sharp`'s bound of `60`. -/
-theorem test_proximityGap_affine_unique_negative_exact :
+/-- Upper-bound regression for `proximityGap_affine_unique` over `ZMod 11`: proves the close
+parameter set has cardinality at most `55` of `121` points (`11 * #T ≤ 5 * 121 = 605`). A separate
+finite enumeration of this quadratic code over `ZMod 11` gives `44` close parameter pairs in this
+fixture. -/
+theorem test_proximityGap_affine_unique_upper_bound_regression :
     open scoped Classical in
     (Finset.univ.filter fun z : Fin 2 → ZMod 11 => ∃ c ∈ reedSolomon (pts5 11) 3,
       hammingDist (spike0 11 + ∑ j : Fin 2, z j • (![spike1 11, (0 : Fin 5 → ZMod 11)] j)) c ≤
@@ -2240,6 +2236,95 @@ theorem test_proximityGap_affine_unique_negative_exact :
     exact absurd hdist (not_le.2 (spike_far_at_one (p := 11) (by decide) (by decide) c hcRS))
   · rw [Fintype.card_fin, ZMod.card] at hcard
     omega
+
+/-- One-point (`ℓ = 0`) regression exercising both `n = q` over `ZMod 5` (for the weighted
+`*_affine_unique_sharp` theorems, where `(q - 1) * #T = 4 > 0 = n * (q ^ 0 - 1)`) and `n < q` over
+`ZMod 11` (for `exists_uniqueMaximal_correlatedAgreement_affine_unique` at
+`5 * 11 ^ 0 < 11 * 1`). -/
+theorem test_affine_unique_zero_dim :
+    u0 5 ∉ reedSolomon (pts5 5) 3 ∧
+    (∃ D' : Finset (Fin 5), (7 : ℚ) / 2 ≤ ∑ i ∈ D', muNonConst i ∧
+      ∃ v₀ ∈ reedSolomon (pts5 5) 3, ∀ i ∈ D', u0 5 i = v₀ i) ∧
+    (∃ D' : Finset (Fin 5), 7 ≤ ∑ i ∈ D', wNonConst i ∧
+      ∃ v₀ ∈ reedSolomon (pts5 5) 3, ∀ i ∈ D', u0 5 i = v₀ i) ∧
+    (∃ D' : Finset (Fin 5), 4 ≤ D'.card ∧
+      ∃ v₀ ∈ reedSolomon (pts5 11) 3,
+        (∀ i ∈ D', u0 11 i = v₀ i) ∧
+        ∀ (D'' : Finset (Fin 5)) (w₀ : Fin 5 → ZMod 11),
+          4 ≤ D''.card → w₀ ∈ reedSolomon (pts5 11) 3 →
+          (∀ i ∈ D'', u0 11 i = w₀ i) → D'' ⊆ D' ∧ w₀ = v₀) := by
+  let u5 : Fin 0 → (Fin 5 → ZMod 5) := Fin.elim0
+  let u11 : Fin 0 → (Fin 5 → ZMod 11) := Fin.elim0
+  have hu0_5_not : u0 5 ∉ reedSolomon (pts5 5) 3 := by
+    intro hmem
+    have hdiff := third_diff_zero_of_mem_rs hmem
+    have hval : u0 5 0 - 3 * u0 5 1 + 3 * u0 5 2 - u0 5 3 = 1 := by
+      simp only [u0, v0, pts5, eval_add, eval_one, eval_pow, eval_X]; decide
+    rw [hval] at hdiff
+    exact one_ne_zero hdiff
+  have hag5 : ∀ i ∈ Finset.univ.erase (0 : Fin 5),
+      u0 5 i = v0 5 i ∧ ∀ j : Fin 0, u5 j i = u5 j i := by
+    intro i hi
+    have hne : i ≠ 0 := (mem_erase.1 hi).1
+    exact ⟨by simp only [u0, hne, ↓reduceIte], fun j => Fin.elim0 j⟩
+  have hT5 : Fintype.card (Fin 5) * ((Fintype.card (ZMod 5)) ^ 0 - 1) <
+      (Fintype.card (ZMod 5) - 1) * (Finset.univ : Finset (Fin 0 → ZMod 5)).card := by
+    rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, ZMod.card]
+    norm_num
+  have hμ_nonneg : ∀ i : Fin 5, 0 ≤ muNonConst i := by
+    intro i; fin_cases i <;> norm_num [muNonConst]
+  have hμ_le : ∀ i : Fin 5, muNonConst i ≤ 1 := by
+    intro i; fin_cases i <;> norm_num [muNonConst]
+  have hθ : ((Fintype.card (Fin 5) - 1 : ℕ) : ℚ) - 1 < (7 : ℚ) / 2 := by
+    rw [Fintype.card_fin]; norm_num
+  have hclose_μ5 : ∀ z ∈ (Finset.univ : Finset (Fin 0 → ZMod 5)), ∃ c ∈ reedSolomon (pts5 5) 3,
+      (7 : ℚ) / 2 ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+        (u0 5 + ∑ j : Fin 0, z j • u5 j) i = c i), muNonConst i := by
+    intro z _
+    refine ⟨v0 5, v0_mem_rs, ?_⟩
+    have hD : (7 : ℚ) / 2 ≤ ∑ i ∈ Finset.univ.erase (0 : Fin 5), muNonConst i := by
+      norm_num [Fin.sum_univ_five, Finset.sum_erase_eq_sub, muNonConst]
+    simpa only [Finset.univ_eq_empty, Finset.sum_empty, add_zero] using
+      hD.trans (ratWeightedAgree_affine_ge_of_eq_on hμ_nonneg hag5 z)
+  obtain ⟨Dμ, hDμ, vμ, hvμ, _, _, hagμ⟩ :=
+    exists_ratWeighted_correlatedAgreement_affine_unique_sharp (ℓ := 0) pts5_5_injective
+      (e := 1) (k := 3) (by decide) hμ_le hθ (u0 5) u5 Finset.univ hT5 hclose_μ5
+  have hW : ∀ i : Fin 5, wNonConst i ≤ 2 := by decide
+  have hclose_W5 : ∀ z ∈ (Finset.univ : Finset (Fin 0 → ZMod 5)), ∃ c ∈ reedSolomon (pts5 5) 3,
+      7 ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+        (u0 5 + ∑ j : Fin 0, z j • u5 j) i = c i), wNonConst i := by
+    intro z _
+    refine ⟨v0 5, v0_mem_rs, ?_⟩
+    have hD : 7 ≤ ∑ i ∈ Finset.univ.erase (0 : Fin 5), wNonConst i := by decide
+    simpa only [Finset.univ_eq_empty, Finset.sum_empty, add_zero] using
+      hD.trans (weightedAgree_affine_ge_of_eq_on wNonConst hag5 z)
+  obtain ⟨DW, hDW, vW, hvW, _, _, hagW⟩ :=
+    exists_weighted_correlatedAgreement_affine_unique_sharp (ℓ := 0) pts5_5_injective
+      (k := 3) (M := 2) (B := 7) (by decide) hW (by decide) (u0 5) u5 Finset.univ hT5 hclose_W5
+  have hag11 : ∀ i ∈ Finset.univ.erase (0 : Fin 5),
+      u0 11 i = v0 11 i ∧ ∀ j : Fin 0, u11 j i = u11 j i := by
+    intro i hi
+    have hne : i ≠ 0 := (mem_erase.1 hi).1
+    exact ⟨by simp only [u0, hne, ↓reduceIte], fun j => Fin.elim0 j⟩
+  have hT11 : Fintype.card (Fin 5) * (Fintype.card (ZMod 11)) ^ 0 <
+      Fintype.card (ZMod 11) * (Finset.univ : Finset (Fin 0 → ZMod 11)).card := by
+    rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, ZMod.card]
+    norm_num
+  have hclose11 : ∀ z ∈ (Finset.univ : Finset (Fin 0 → ZMod 11)), ∃ c ∈ reedSolomon (pts5 11) 3,
+      hammingDist (u0 11 + ∑ j : Fin 0, z j • u11 j) c ≤ 1 := fun z _ =>
+    ⟨v0 11 + ∑ j : Fin 0, z j • u11 j,
+      by simpa only [Finset.univ_eq_empty, Finset.sum_empty, add_zero] using v0_mem_rs,
+      hammingDist_affine_le_of_eq_on (D' := Finset.univ.erase 0) (by decide) hag11 z⟩
+  obtain ⟨D11, hD11, v11, hv11, _, _, hag11', hmax11⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_affine_unique (ℓ := 0) pts5_11_injective
+      (e := 1) (k := 3) (by decide) (u0 11) u11 Finset.univ hT11 hclose11
+  refine ⟨hu0_5_not, ⟨Dμ, hDμ, vμ, hvμ, fun i hi => (hagμ i hi).1⟩,
+    ⟨DW, hDW, vW, hvW, fun i hi => (hagW i hi).1⟩,
+    ⟨D11, by simpa only [Fintype.card_fin] using hD11, v11, hv11,
+      fun i hi => (hag11' i hi).1, fun D'' w₀ hD'' hw₀ hag'' => ?_⟩⟩
+  obtain ⟨hsub, hw₀_eq, _⟩ := hmax11 D'' w₀ u11 (by simpa only [Fintype.card_fin] using hD'')
+    hw₀ (fun j => Fin.elim0 j) (fun i hi => ⟨hag'' i hi, fun j => Fin.elim0 j⟩)
+  exact ⟨hsub, hw₀_eq⟩
 
 /-- Sharpness counterexample just beyond the unique-decoding radius (`2 * e + k = n + 1` at
 `n = 5`, `k = 2`, `e = 2` over `ZMod 11`): on the constant 2D affine space generated by

@@ -53,15 +53,21 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
   counterparts give a unique-decoding specialization and signed-weight extension (`μ i ≤ 1`) of
   weighted curve correlated agreement (whereas source Theorem 7.1 treats weighted curves,
   Version I, across the `α > √ρ` range), achieving the sharp `d * |ι| < #S` threshold with zero
-  dependence on weight denominators. `Cslib.Code.exists_correlatedAgreement_affine_unique_sharp`
-  and its `ℕ`/`ℚ`-weighted and dichotomy counterparts formalize the unique-decoding cases of
-  Theorem 1.2, Theorem 1.6 (printed p. 6), and Theorem 7.4 (printed p. 32) with
-  dimension-independent threshold `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (alongside the generic
-  `(Fˣ)^ℓ × Fˣ` curve reduction `Cslib.Code.exists_correlatedAgreement_affine_of_curve` with
-  linear-in-`ℓ` overhead); `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique` and
-  `Cslib.Code.proximityGap_affine_unique` further formalize the exact eq. (1.2) threshold
-  `|ι| * |F| ^ ℓ < |F| * #T` (`ε_U = n / q`) together with Theorem 1.6's uniqueness and maximality
-  clause in the unique-decoding regime `2 * e + k ≤ |ι|` (printed p. 6 and pp. 28–31).
+  dependence on weight denominators.
+  `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique` and
+  `Cslib.Code.proximityGap_affine_unique` formalize the exact eq. (1.2) threshold
+  `|ι| * |F| ^ ℓ < |F| * #T` (`ε_U = n / q`) for unweighted affine spaces together with
+  Theorem 1.6's uniqueness and maximality clause in the unique-decoding regime `2 * e + k ≤ |ι|`
+  (printed p. 3, p. 6, and pp. 28–31), alongside the generic `(Fˣ)^ℓ × Fˣ` curve reduction
+  `Cslib.Code.exists_correlatedAgreement_affine_of_curve` with linear-in-`ℓ` overhead and the
+  `ℕ`/`ℚ`-weighted unique-decoding affine theorems
+  `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_unique_sharp`,
+  `Cslib.Code.exists_weighted_correlatedAgreement_affine_unique_sharp`,
+  `Cslib.Code.weighted_proximityGap_affine_unique_sharp`, and
+  `Cslib.Code.ratWeighted_proximityGap_affine_unique_sharp` at threshold
+  `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (reusing
+  `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique` for the `ℓ ≥ 1` unweighted
+  step while handling `ℓ = 0` explicitly, including `|ι| = |F|`).
 * **Johnson-bound curves (`ℚ`-weighted steps and explicit-constant dichotomies):**
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_curve_johnson` and
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_line_johnson` are **explicit-parameter
@@ -165,13 +171,11 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
    By averaging over all `(q ^ ℓ - 1) / (q - 1)` lines passing through a single non-close point
    `y`, any 1D line proximity-gap dichotomy for an arbitrary predicate `P` with exceptional count
    `≤ B_line` lifts to `(q - 1) * #T ≤ B_line * (q ^ ℓ - 1)` with zero dependence on `ℓ`
-   (`Cslib.Code.proximityGap_affine_of_line`, yielding
-   `Cslib.Code.exists_correlatedAgreement_affine_unique_sharp`,
-   `Cslib.Code.proximityGap_affine_unique_sharp`,
-   `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_unique_sharp`,
-   `Cslib.Code.exists_weighted_correlatedAgreement_affine_unique_sharp`,
-   `Cslib.Code.weighted_proximityGap_affine_unique_sharp`, and
-   `Cslib.Code.ratWeighted_proximityGap_affine_unique_sharp` in the unique-decoding regime). For
+   (`Cslib.Code.proximityGap_affine_of_line`, yielding the weighted unique-decoding dichotomies
+   `Cslib.Code.weighted_proximityGap_affine_unique_sharp` and
+   `Cslib.Code.ratWeighted_proximityGap_affine_unique_sharp`, alongside the weighted correlated
+   agreement theorems `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_unique_sharp` and
+   `Cslib.Code.exists_weighted_correlatedAgreement_affine_unique_sharp`). For
    linear codes with list size `L < |F|` and 1D weighted line correlated agreement, Lemma 6.3's
    parallel-line partition plus homogenization and Section 6.3's minimal-agreement / affine-subspace
    pigeonhole (refined by intersecting candidate agreement sets with `supp W`) yield
@@ -222,14 +226,12 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
   reduction with linear-in-`ℓ` error overhead.
 * `Cslib.Code.proximityGap_affine_of_line`: polymorphic 1D-line-to-affine-space pointwise dichotomy
   with zero dimension overhead (`(|F| - 1) * #T ≤ B_line * (|F| ^ ℓ - 1)`).
-* `Cslib.Code.exists_correlatedAgreement_affine_unique_sharp`,
-  `Cslib.Code.proximityGap_affine_unique_sharp`,
-  `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_unique_sharp`,
+* `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_unique_sharp`,
   `Cslib.Code.exists_weighted_correlatedAgreement_affine_unique_sharp`,
   `Cslib.Code.weighted_proximityGap_affine_unique_sharp`, &
   `Cslib.Code.ratWeighted_proximityGap_affine_unique_sharp`: dimension-independent unique-decoding
-  unweighted and weighted affine-space correlated agreement and dichotomies at threshold
-  `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T`.
+  `ℕ`/`ℚ`-weighted affine-space correlated agreement and dichotomies at threshold
+  `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (zero dependence on weight denominators).
 * `Cslib.Code.exists_weighted_correlatedAgreement_affine_of_divergence` &
   `Cslib.Code.exists_weighted_correlatedAgreement_affine_of_line`: Section 6.3 / 7.3 divergence
   and Lemma 6.3 homogenization lift from 1D weighted line correlated agreement plus codeword list
@@ -1229,36 +1231,6 @@ private theorem card_biUnion_zero_affine_le
     _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
         Nat.mul_le_mul_right _ (Finset.card_le_univ badI)
 
-/-- Private helper: if `1 ≤ ℓ` and `K * (|F| ^ ℓ - 1) < (|F| - 1) * #T` for `T ⊆ (Fin ℓ → F)`,
-then `K < |F|`. -/
-private theorem lt_card_field_of_affine_threshold
-    {F : Type*} [Field F] [Fintype F]
-    {K ℓ : ℕ} (hℓ : 1 ≤ ℓ)
-    {T : Finset (Fin ℓ → F)}
-    (hT : K * ((Fintype.card F) ^ ℓ - 1) < (Fintype.card F - 1) * T.card) :
-    K < Fintype.card F := by
-  by_contra hge
-  push Not at hge
-  have hT_le : T.card ≤ (Fintype.card F) ^ ℓ := by
-    calc T.card ≤ Fintype.card (Fin ℓ → F) := Finset.card_le_univ T
-      _ = (Fintype.card F) ^ ℓ := by
-          rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-  have hq_le_pow : Fintype.card F ≤ (Fintype.card F) ^ ℓ :=
-    Nat.le_self_pow (by omega : ℓ ≠ 0) (Fintype.card F)
-  have hmul1 : (Fintype.card F - 1) * T.card ≤ (Fintype.card F - 1) * (Fintype.card F) ^ ℓ :=
-    Nat.mul_le_mul_left _ hT_le
-  have hmul2 : Fintype.card F * ((Fintype.card F) ^ ℓ - 1) ≤ K * ((Fintype.card F) ^ ℓ - 1) :=
-    Nat.mul_le_mul_right _ hge
-  have hkey : (Fintype.card F - 1) * (Fintype.card F) ^ ℓ ≤
-      Fintype.card F * ((Fintype.card F) ^ ℓ - 1) := by
-    have hq_pos : 1 ≤ Fintype.card F := Fintype.card_pos
-    have hpow_pos : 1 ≤ (Fintype.card F) ^ ℓ := Nat.one_le_pow _ _ hq_pos
-    zify [hq_pos, hpow_pos]
-    have hleZ : (Fintype.card F : ℤ) ≤ ((Fintype.card F : ℤ) ^ ℓ) := by
-      exact_mod_cast hq_le_pow
-    nlinarith
-  omega
-
 /-- Private helper: the exact affine density threshold `K * |F| ^ ℓ < |F| * #T` for
 `T ⊆ (Fin ℓ → F)` forces `K < |F|`. -/
 private theorem lt_card_field_of_density_threshold
@@ -1270,530 +1242,6 @@ private theorem lt_card_field_of_density_threshold
       _ = (Fintype.card F) ^ ℓ := by
           rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
   exact Nat.lt_of_mul_lt_mul_right (hT.trans_le (Nat.mul_le_mul_left _ hT_le))
-
-/-- Private helper: in the unique-decoding regime with `|ι| < |F|`, if every point of an affine
-space `u₀ + ∑ j, z j • u j` lies within Hamming distance `e` of `reedSolomon α k`, then the unique
-nearest codeword varies affinely as `v₀ + ∑ j, z j • v j`. -/
-private theorem exists_affine_codewords_of_all_close_unique
-    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
-    {ι : Type*} [Fintype ι]
-    {α : ι → F} (hα : Function.Injective α)
-    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
-    (hlt : Fintype.card ι < Fintype.card F)
-    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
-    (hall : ∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
-      hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e) :
-    ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F),
-      (∀ j, v j ∈ reedSolomon α k) ∧
-      ∀ z : Fin ℓ → F,
-        hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) (v₀ + ∑ j : Fin ℓ, z j • v j) ≤ e := by
-  classical
-  by_cases hq2 : Fintype.card F ≤ 2
-  · -- `|ι| < |F| ≤ 2` forces `|ι| ≤ 1`, hence `e = 0`, so every point lies in `reedSolomon α k`.
-    have he0 : e = 0 := by omega
-    have hu_mem : ∀ z : Fin ℓ → F, u₀ + ∑ j : Fin ℓ, z j • u j ∈ reedSolomon α k := by
-      intro z
-      obtain ⟨c, hcRS, hdist⟩ := hall z
-      have heq : u₀ + ∑ j : Fin ℓ, z j • u j = c :=
-        hammingDist_eq_zero.1 (Nat.le_zero.1 (he0 ▸ hdist))
-      rwa [heq]
-    have hu₀ : u₀ ∈ reedSolomon α k := by
-      simpa only [Pi.zero_apply, zero_smul, Finset.sum_const_zero, add_zero] using hu_mem 0
-    have huj : ∀ j : Fin ℓ, u j ∈ reedSolomon α k := by
-      intro j
-      have h1 := hu_mem (Pi.single j 1)
-      have hsum : ∑ r : Fin ℓ, (Pi.single (M := fun _ => F) j (1 : F) r) • u r = u j := by
-        rw [Finset.sum_eq_single j]
-        · simp only [Pi.single_eq_same, one_smul]
-        · intro r _ hr
-          simp only [Pi.single_eq_of_ne hr, zero_smul]
-        · intro h; exact absurd (mem_univ j) h
-      rw [hsum] at h1
-      have hsub := Submodule.sub_mem _ h1 hu₀
-      simpa only [add_sub_cancel_left] using hsub
-    refine ⟨u₀, hu₀, u, huj, fun z => ?_⟩
-    rw [hammingDist_self]
-    exact Nat.zero_le e
-  · -- `3 ≤ |F|` and `|ι| < |F|`: unique decoding makes `z ↦ c z` affine on every line, hence on
-    -- all of `Fin ℓ → F` (using any `lam ∈ F \ {0, 1}`, valid in arbitrary characteristic).
-    have hq3 : 3 ≤ Fintype.card F := by omega
-    choose c hcRS hcDist using hall
-    have hline_eval : ∀ (a b : Fin ℓ → F) (t : F),
-        u₀ + ∑ j : Fin ℓ, (a + t • b) j • u j =
-          (u₀ + ∑ j : Fin ℓ, a j • u j) + t • (∑ j : Fin ℓ, b j • u j) := by
-      intro a b t
-      funext i
-      simp only [Pi.add_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, add_mul,
-        Finset.sum_add_distrib, Finset.mul_sum]
-      have hre : ∑ j : Fin ℓ, t * b j * u j i = ∑ j : Fin ℓ, t * (b j * u j i) :=
-        Finset.sum_congr rfl fun j _ => by ring
-      rw [hre, ← add_assoc]
-    have hc_line : ∀ (a b : Fin ℓ → F) (t : F),
-        c (a + t • b) = c a + t • (c (a + b) - c a) := by
-      intro a b
-      have hclose_ab : ∀ t ∈ (Finset.univ : Finset F), ∃ w ∈ reedSolomon α k,
-          hammingDist ((u₀ + ∑ j : Fin ℓ, a j • u j) + t • (∑ j : Fin ℓ, b j • u j)) w ≤ e := by
-        intro t _
-        refine ⟨c (a + t • b), hcRS (a + t • b), ?_⟩
-        rw [← hline_eval a b t]
-        exact hcDist (a + t • b)
-      have hcard_u : Fintype.card ι < (Finset.univ : Finset F).card := by
-        simpa only [Finset.card_univ] using hlt
-      obtain ⟨D', hD', w₀, hw₀, w₁, hw₁, hagree⟩ :=
-        exists_correlatedAgreement_unique hα hunique (u₀ + ∑ j : Fin ℓ, a j • u j)
-          (∑ j : Fin ℓ, b j • u j) Finset.univ hcard_u hclose_ab
-      have hc_eq : ∀ t : F, c (a + t • b) = w₀ + t • w₁ := by
-        intro t
-        have hdist1 : hammingDist (u₀ + ∑ j : Fin ℓ, (a + t • b) j • u j) (w₀ + t • w₁) ≤ e := by
-          rw [hline_eval a b t]
-          exact hammingDist_add_smul_le_of_eq_on hD' hagree t
-        exact eq_of_hammingDist_le_reedSolomon hα hunique (hcRS (a + t • b))
-          (Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁)) (hcDist (a + t • b)) hdist1
-      have hw₀_eq : w₀ = c a := by
-        have h0 := hc_eq 0
-        simp only [zero_smul, add_zero] at h0
-        exact h0.symm
-      have hw₁_eq : w₁ = c (a + b) - c a := by
-        have h1 := hc_eq 1
-        simp only [one_smul] at h1
-        rw [hw₀_eq] at h1
-        rw [h1, add_sub_cancel_left]
-      intro t
-      rw [hc_eq t, hw₀_eq, hw₁_eq]
-    let f : (Fin ℓ → F) → (ι → F) := fun z => c z - c 0
-    have hf_smul : ∀ (t : F) (b : Fin ℓ → F), f (t • b) = t • f b := by
-      intro t b
-      have h := hc_line 0 b t
-      simp only [zero_add] at h
-      simp only [f, h, add_sub_cancel_left]
-    have hlam_ex : ∃ lam : F, lam ≠ 0 ∧ lam ≠ 1 := by
-      have h01 : ({0, 1} : Finset F).card < (Finset.univ : Finset F).card := by
-        calc ({0, 1} : Finset F).card ≤ 2 := Finset.card_le_two
-          _ < Fintype.card F := by omega
-          _ = (Finset.univ : Finset F).card := (Finset.card_univ).symm
-      obtain ⟨lam, _, hnot⟩ := Finset.exists_mem_notMem_of_card_lt_card h01
-      simp only [mem_insert, mem_singleton, not_or] at hnot
-      exact ⟨lam, hnot.1, hnot.2⟩
-    obtain ⟨lam, hlam0, hlam1⟩ := hlam_ex
-    have h1lam : (1 : F) - lam ≠ 0 := sub_ne_zero.2 hlam1.symm
-    have hf_add : ∀ x y : Fin ℓ → F, f (x + y) = f x + f y := by
-      intro x y
-      let a' : Fin ℓ → F := lam⁻¹ • x
-      let b' : Fin ℓ → F := (1 - lam)⁻¹ • y - lam⁻¹ • x
-      have hcomb : a' + (1 - lam) • b' = x + y := by
-        funext j
-        simp only [a', b', Pi.add_apply, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
-        field_simp [hlam0, h1lam]
-        ring
-      have hab : a' + b' = (1 - lam)⁻¹ • y := by
-        simp only [a', b', add_sub_cancel]
-      have hl := hc_line a' b' (1 - lam)
-      rw [hcomb, hab] at hl
-      have hfx : f x = lam • f a' := by
-        rw [← hf_smul lam a']
-        simp only [a', smul_smul, mul_inv_cancel₀ hlam0, one_smul]
-      have hfy : f y = (1 - lam) • f ((1 - lam)⁻¹ • y) := by
-        rw [← hf_smul (1 - lam) ((1 - lam)⁻¹ • y), smul_smul, mul_inv_cancel₀ h1lam, one_smul]
-      funext i
-      have hli := congrFun hl i
-      have hfxi := congrFun hfx i
-      have hfyi := congrFun hfy i
-      simp only [f, Pi.sub_apply, Pi.add_apply, Pi.smul_apply, smul_eq_mul] at hli hfxi hfyi ⊢
-      rw [hli, hfxi, hfyi]
-      ring
-    let fLin : (Fin ℓ → F) →ₗ[F] (ι → F) :=
-      { toFun := f
-        map_add' := hf_add
-        map_smul' := hf_smul }
-    let v₀ : ι → F := c 0
-    let v : Fin ℓ → (ι → F) := fun j => fLin (fun r => if j = r then 1 else 0)
-    have hvRS : ∀ j : Fin ℓ, v j ∈ reedSolomon α k :=
-      fun j => Submodule.sub_mem _ (hcRS (fun r => if j = r then 1 else 0)) (hcRS 0)
-    refine ⟨v₀, hcRS 0, v, hvRS, fun z => ?_⟩
-    have hcz : c z = v₀ + ∑ j : Fin ℓ, z j • v j := by
-      have hfz : f z = ∑ j : Fin ℓ, z j • v j := fLin.pi_apply_eq_sum_univ z
-      simp only [v₀, ← hfz, f, add_sub_cancel]
-    rw [← hcz]
-    exact hcDist z
-
-/-- **Dimension-independent correlated agreement on affine spaces in the unique-decoding regime**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.6]):
-
-Over a finite field `F`, given `2 * e + k ≤ |ι|` and an affine space
-`u₀ + ∑ j : Fin ℓ, z j • u j`, if `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (density strictly
-greater than `|ι| / (|F| - 1)`, completely independent of the dimension `ℓ` and reducing to the
-exact threshold `|ι| < #T` when `ℓ = 1`), then there exist a shared coordinate set `D'` of size
-at least `|ι| - e` and codewords `v₀, v j ∈ reedSolomon α k` matching `u₀, u j` on `D'`. -/
-theorem exists_correlatedAgreement_affine_unique_sharp
-    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
-    {ι : Type*} [Fintype ι]
-    {α : ι → F} (hα : Function.Injective α)
-    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
-    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
-    (T : Finset (Fin ℓ → F))
-    (hT : Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) < (Fintype.card F - 1) * T.card)
-    (hclose : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
-      hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e) :
-    ∃ D' : Finset ι, Fintype.card ι - e ≤ D'.card ∧
-      ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F),
-        (∀ j, v j ∈ reedSolomon α k) ∧
-        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  classical
-  rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ
-  · have hpos : 0 < T.card := by
-      have h1 : 0 < (Fintype.card F - 1) * T.card := by simpa only [pow_zero, tsub_self,
-        mul_zero] using hT
-      exact Nat.pos_of_mul_pos_left h1
-    obtain ⟨z₀, hz₀⟩ := Finset.card_pos.1 hpos
-    obtain ⟨c, hcRS, hdist⟩ := hclose z₀ hz₀
-    have hdist0 : hammingDist u₀ c ≤ e := by
-      simpa only [Finset.univ_eq_empty, Finset.sum_empty, add_zero] using hdist
-    refine ⟨Finset.univ.filter fun i => u₀ i = c i, card_filter_eq_of_hammingDist_le hdist0,
-      c, hcRS, Fin.elim0, fun j => Fin.elim0 j, fun i hi => ⟨(mem_filter.1 hi).2,
-        fun j => Fin.elim0 j⟩⟩
-  · have hlt : Fintype.card ι < Fintype.card F := lt_card_field_of_affine_threshold hℓ hT
-    -- Step 1: Lift the 1D unique-decoding line dichotomy to deduce every affine point is close.
-    have hdich := proximityGap_affine_of_line
-      (P := fun w => ∃ c ∈ reedSolomon α k, hammingDist w c ≤ e)
-      (B_line := Fintype.card ι)
-      (fun a b S hS hcl => by
-        obtain ⟨D₀, hD₀, w₀, hw₀, w₁, hw₁, hag⟩ :=
-          exists_correlatedAgreement_unique hα hunique a b S hS hcl
-        intro t
-        exact ⟨w₀ + t • w₁, Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁),
-          hammingDist_add_smul_le_of_eq_on hD₀ hag t⟩)
-      u₀ u
-    have hall : ∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
-        hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e := by
-      refine hdich.resolve_right ?_
-      intro hle
-      have hsub : T ⊆ Finset.univ.filter fun z : Fin ℓ → F =>
-          ∃ c ∈ reedSolomon α k, hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e :=
-        fun z hz => mem_filter.2 ⟨mem_univ z, hclose z hz⟩
-      have hcard_le : (Fintype.card F - 1) * T.card ≤
-          (Fintype.card F - 1) * (Finset.univ.filter fun z : Fin ℓ → F =>
-            ∃ c ∈ reedSolomon α k, hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e).card :=
-        Nat.mul_le_mul_left _ (Finset.card_le_card hsub)
-      omega
-    -- Step 2: Unique decoding makes the nearest codeword affine: `v₀ + ∑ j, z j • v j`.
-    obtain ⟨v₀, hv₀, v, hvRS, hdist_all⟩ :=
-      exists_affine_codewords_of_all_close_unique hα hunique hlt u₀ u hall
-    -- Step 3: Hyperplane zero bound forces the maximal shared agreement set `D'` to have size
-    -- at least `|ι| - e`.
-    let D' : Finset ι := Finset.univ.filter fun i => u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i
-    refine ⟨D', ?_, v₀, hv₀, v, hvRS, fun i hi => (mem_filter.1 hi).2⟩
-    by_contra hlt_D'
-    push Not at hlt_D'
-    let badI : Finset ι := Finset.univ.filter fun i => ¬ (u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i)
-    have huniv_sub : (Finset.univ : Finset (Fin ℓ → F)) ⊆
-        badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
-          (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0 := by
-      intro z _
-      set A_z := Finset.univ.filter fun i =>
-        (u₀ + ∑ j : Fin ℓ, z j • u j) i = (v₀ + ∑ j : Fin ℓ, z j • v j) i
-      have hAz_card : Fintype.card ι - e ≤ A_z.card :=
-        card_filter_eq_of_hammingDist_le (hdist_all z)
-      have hex : ∃ i ∈ A_z, i ∉ D' := by
-        by_contra hnone
-        push Not at hnone
-        have hle := Finset.card_le_card hnone
-        omega
-      obtain ⟨i, hiA, hiNotD'⟩ := hex
-      have hi_bad : i ∈ badI :=
-        mem_filter.2 ⟨mem_univ i, fun h => hiNotD' (mem_filter.2 ⟨mem_univ i, h⟩)⟩
-      refine mem_biUnion.2 ⟨i, hi_bad, mem_filter.2 ⟨mem_univ z, ?_⟩⟩
-      have heq := (mem_filter.1 hiA).2
-      simp only [Pi.add_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at heq
-      have hsub_sum : ∑ j : Fin ℓ, z j * (u j i - v j i) =
-          ∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i := by
-        rw [← Finset.sum_sub_distrib]
-        exact Finset.sum_congr rfl fun j _ => by ring
-      rw [hsub_sum]
-      calc u₀ i - v₀ i + (∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i)
-          = (u₀ i + ∑ j : Fin ℓ, z j * u j i) - (v₀ i + ∑ j : Fin ℓ, z j * v j i) := by ring
-        _ = 0 := sub_eq_zero.2 heq
-    have hpow_le : (Fintype.card F) ^ ℓ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) := by
-      calc (Fintype.card F) ^ ℓ
-          = (Finset.univ : Finset (Fin ℓ → F)).card := by
-              rw [Finset.card_univ, Fintype.card_pi, Finset.prod_const, Finset.card_univ,
-                Fintype.card_fin]
-        _ ≤ (badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
-              (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
-            Finset.card_le_card huniv_sub
-        _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
-            card_biUnion_zero_affine_le u₀ v₀ u v badI fun _ hi => (mem_filter.1 hi).2
-    have hpow_eq : (Fintype.card F) ^ ℓ = Fintype.card F * (Fintype.card F) ^ (ℓ - 1) := by
-      conv_lhs => rw [← Nat.sub_add_cancel hℓ, pow_succ', Nat.mul_comm]
-      rw [Nat.mul_comm]
-    rw [hpow_eq] at hpow_le
-    have hpos : 0 < (Fintype.card F) ^ (ℓ - 1) := Nat.pow_pos Fintype.card_pos
-    have hle_q : Fintype.card F ≤ Fintype.card ι := Nat.le_of_mul_le_mul_right hpow_le hpos
-    omega
-
-/-- **Dimension-independent proximity-gap dichotomy on affine spaces in the unique-decoding regime**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.6]):
-Either every point of the affine space `u₀ + ∑ j : Fin ℓ, z j • u j` lies within Hamming distance
-`e` of `reedSolomon α k`, or `(|F| - 1) * #T ≤ |ι| * (|F| ^ ℓ - 1)`. -/
-theorem proximityGap_affine_unique_sharp
-    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
-    {ι : Type*} [Fintype ι]
-    {α : ι → F} (hα : Function.Injective α)
-    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
-    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
-    [DecidablePred fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-      hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e] :
-    (∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
-        hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e) ∨
-      (Fintype.card F - 1) *
-        (Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-          hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e).card ≤
-        Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) :=
-  proximityGap_affine_of_line
-    (P := fun w => ∃ c ∈ reedSolomon α k, hammingDist w c ≤ e)
-    (B_line := Fintype.card ι)
-    (fun a b S hS hcl => by
-      obtain ⟨D₀, hD₀, w₀, hw₀, w₁, hw₁, hag⟩ :=
-        exists_correlatedAgreement_unique hα hunique a b S hS hcl
-      intro t
-      exact ⟨w₀ + t • w₁, Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁),
-        hammingDist_add_smul_le_of_eq_on hD₀ hag t⟩)
-    u₀ u
-
-/-- **Dimension-independent `ℚ`-weighted correlated agreement on affine spaces in the
-unique-decoding regime** ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]):
-At threshold `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (completely independent of `ℓ` and weight
-denominators), any weight function `μ : ι → ℚ` with `∀ i, μ i ≤ 1` admits shared correlated
-agreement `θ ≤ ∑ i ∈ D', μ i`. -/
-theorem exists_ratWeighted_correlatedAgreement_affine_unique_sharp
-    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
-    {ι : Type*} [Fintype ι]
-    {α : ι → F} (hα : Function.Injective α)
-    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
-    {μ : ι → ℚ} (hμ_le : ∀ i, μ i ≤ 1)
-    {θ : ℚ} (hθ : ((Fintype.card ι - e : ℕ) : ℚ) - 1 < θ)
-    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
-    (T : Finset (Fin ℓ → F))
-    (hT : Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) < (Fintype.card F - 1) * T.card)
-    (hclose : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
-      θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i) :
-    ∃ D' : Finset ι, θ ≤ ∑ i ∈ D', μ i ∧
-      ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F),
-        (∀ j, v j ∈ reedSolomon α k) ∧
-        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  classical
-  rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ
-  · have hpos : 0 < T.card := by
-      have h1 : 0 < (Fintype.card F - 1) * T.card := by
-        simpa only [pow_zero, tsub_self, mul_zero] using hT
-      exact Nat.pos_of_mul_pos_left h1
-    obtain ⟨z₀, hz₀⟩ := Finset.card_pos.1 hpos
-    obtain ⟨c, hcRS, hμ_ge⟩ := hclose z₀ hz₀
-    have hμ0 : θ ≤ ∑ i ∈ Finset.univ.filter (fun i => u₀ i = c i), μ i := by
-      simpa only [Finset.univ_eq_empty, Finset.sum_empty, add_zero] using hμ_ge
-    refine ⟨Finset.univ.filter fun i => u₀ i = c i, hμ0, c, hcRS, Fin.elim0,
-      fun j => Fin.elim0 j, fun i hi => ⟨(mem_filter.1 hi).2, fun j => Fin.elim0 j⟩⟩
-  · have hclose_unw : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
-        hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e := by
-      intro z hz
-      obtain ⟨c, hcRS, hμ_ge⟩ := hclose z hz
-      exact ⟨c, hcRS, hammingDist_le_of_ratWeightedAgree_ge hμ_le hθ hμ_ge⟩
-    obtain ⟨D₀, hD₀, v₀, hv₀, v, hvRS, hagree₀⟩ :=
-      exists_correlatedAgreement_affine_unique_sharp hα hunique u₀ u T hT hclose_unw
-    let D' : Finset ι := Finset.univ.filter fun i => u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i
-    refine ⟨D', ?_, v₀, hv₀, v, hvRS, fun i hi => (mem_filter.1 hi).2⟩
-    by_contra hlt_θ
-    push Not at hlt_θ
-    let badI : Finset ι := Finset.univ.filter fun i => ¬ (u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i)
-    have hT_sub : T ⊆ badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
-        (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0 := by
-      intro z hz
-      obtain ⟨c, hcRS, hμ_ge⟩ := hclose z hz
-      have hc_dist : hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e :=
-        hammingDist_le_of_ratWeightedAgree_ge hμ_le hθ hμ_ge
-      let vz : ι → F := v₀ + ∑ j : Fin ℓ, z j • v j
-      have hvz_RS : vz ∈ reedSolomon α k :=
-        Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j))
-      have hvz_dist : hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) vz ≤ e :=
-        hammingDist_affine_le_of_eq_on hD₀ hagree₀ z
-      have hceq : c = vz :=
-        eq_of_hammingDist_le_reedSolomon hα hunique hcRS hvz_RS hc_dist hvz_dist
-      subst hceq
-      let agree_z : Finset ι :=
-        Finset.univ.filter fun i => (u₀ + ∑ j : Fin ℓ, z j • u j) i = vz i
-      have hD'_sub : D' ⊆ agree_z := by
-        intro i hi
-        refine mem_filter.2 ⟨mem_univ i, ?_⟩
-        obtain ⟨h0, hj⟩ := (mem_filter.1 hi).2
-        simp only [vz, Pi.add_apply, Finset.sum_apply, Pi.smul_apply, h0]
-        congr 1
-        exact Finset.sum_congr rfl fun j _ => by rw [hj j]
-      have hex : ∃ i ∈ agree_z, i ∉ D' := by
-        by_contra hnone
-        push Not at hnone
-        have heq : D' = agree_z := Finset.Subset.antisymm hD'_sub hnone
-        rw [heq] at hlt_θ
-        exact absurd hμ_ge (not_le.2 hlt_θ)
-      obtain ⟨i, hi_ag, hi_notD'⟩ := hex
-      have hi_bad : i ∈ badI :=
-        mem_filter.2 ⟨mem_univ i, fun h => hi_notD' (mem_filter.2 ⟨mem_univ i, h⟩)⟩
-      refine mem_biUnion.2 ⟨i, hi_bad, mem_filter.2 ⟨mem_univ z, ?_⟩⟩
-      have heq := (mem_filter.1 hi_ag).2
-      simp only [vz, Pi.add_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at heq
-      have hsub_sum : ∑ j : Fin ℓ, z j * (u j i - v j i) =
-          ∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i := by
-        rw [← Finset.sum_sub_distrib]
-        exact Finset.sum_congr rfl fun j _ => by ring
-      rw [hsub_sum]
-      calc u₀ i - v₀ i + (∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i)
-          = (u₀ i + ∑ j : Fin ℓ, z j * u j i) - (v₀ i + ∑ j : Fin ℓ, z j * v j i) := by ring
-        _ = 0 := sub_eq_zero.2 heq
-    have hT_le : T.card ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) := by
-      calc T.card
-          ≤ (badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
-              (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
-            Finset.card_le_card hT_sub
-        _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
-            card_biUnion_zero_affine_le u₀ v₀ u v badI fun _ hi => (mem_filter.1 hi).2
-    have hcontra : (Fintype.card F - 1) * T.card ≤
-        Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) := by
-      have h1 : (Fintype.card F - 1) * T.card ≤
-          (Fintype.card F - 1) * (Fintype.card ι * (Fintype.card F) ^ (ℓ - 1)) :=
-        Nat.mul_le_mul_left _ hT_le
-      have h2 : (Fintype.card F - 1) * (Fintype.card F) ^ (ℓ - 1) ≤ (Fintype.card F) ^ ℓ - 1 := by
-        have hq_pos : 1 ≤ Fintype.card F := Fintype.card_pos
-        have hpow_pos : 1 ≤ (Fintype.card F) ^ (ℓ - 1) := Nat.one_le_pow _ _ hq_pos
-        have hpow_eq : (Fintype.card F) ^ ℓ = Fintype.card F * (Fintype.card F) ^ (ℓ - 1) := by
-          conv_lhs => rw [← Nat.sub_add_cancel hℓ, pow_succ', Nat.mul_comm]
-          rw [Nat.mul_comm]
-        rw [hpow_eq]
-        have hmul_pos : 1 ≤ Fintype.card F * (Fintype.card F) ^ (ℓ - 1) :=
-          Nat.mul_pos hq_pos hpow_pos
-        zify [hq_pos, hmul_pos]
-        nlinarith
-      calc (Fintype.card F - 1) * T.card
-          ≤ Fintype.card ι * ((Fintype.card F - 1) * (Fintype.card F) ^ (ℓ - 1)) := by
-            linarith
-        _ ≤ Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) := Nat.mul_le_mul_left _ h2
-    omega
-
-/-- **Dimension-independent `ℕ`-weighted correlated agreement on affine spaces in the
-unique-decoding regime** ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]). -/
-theorem exists_weighted_correlatedAgreement_affine_unique_sharp
-    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
-    {ι : Type*} [Fintype ι]
-    {α : ι → F} (hα : Function.Injective α)
-    {k ℓ M B : ℕ} (hM : 0 < M)
-    {W : ι → ℕ} (hW : ∀ i, W i ≤ M)
-    (hunique : 2 * (Fintype.card ι - (B + M - 1) / M) + k ≤ Fintype.card ι)
-    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
-    (T : Finset (Fin ℓ → F))
-    (hT : Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) < (Fintype.card F - 1) * T.card)
-    (hclose : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
-      B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i) :
-    ∃ D' : Finset ι, B ≤ ∑ i ∈ D', W i ∧
-      ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F),
-        (∀ j, v j ∈ reedSolomon α k) ∧
-        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  let μ : ι → ℚ := fun i => (W i : ℚ) / (M : ℚ)
-  let θ : ℚ := (B : ℚ) / (M : ℚ)
-  have hMq : (0 : ℚ) < (M : ℚ) := Nat.cast_pos.2 hM
-  have hμ_le : ∀ i, μ i ≤ 1 := fun i => (div_le_one hMq).2 (Nat.cast_le.2 (hW i))
-  have hθ : ((Fintype.card ι - (Fintype.card ι - (B + M - 1) / M) : ℕ) : ℚ) - 1 < θ :=
-    card_sub_sub_ceilDiv_sub_one_lt hM
-  have hclose' : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
-      θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i := by
-    intro z hz
-    obtain ⟨c, hcRS, hW_ge⟩ := hclose z hz
-    refine ⟨c, hcRS, ?_⟩
-    simp only [μ, θ, ← Finset.sum_div]
-    exact div_le_div_of_nonneg_right (by exact_mod_cast hW_ge) hMq.le
-  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
-    exists_ratWeighted_correlatedAgreement_affine_unique_sharp hα hunique hμ_le hθ u₀ u T hT
-      hclose'
-  refine ⟨D', ?_, v₀, hv₀, v, hvRS, hagree⟩
-  simp only [μ, θ, ← Finset.sum_div] at hD'
-  have hq : (B : ℚ) ≤ ((∑ i ∈ D', W i : ℕ) : ℚ) := by
-    have := (div_le_div_iff_of_pos_right hMq).1 hD'
-    simpa only [Nat.cast_sum] using this
-  exact Nat.cast_le.1 hq
-
-/-- **Dimension-independent `ℕ`-weighted proximity-gap dichotomy on affine spaces in the
-unique-decoding regime** ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]). -/
-theorem weighted_proximityGap_affine_unique_sharp
-    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
-    {ι : Type*} [Fintype ι]
-    {α : ι → F} (hα : Function.Injective α)
-    {k ℓ M B : ℕ} (hM : 0 < M)
-    {W : ι → ℕ} (hW : ∀ i, W i ≤ M)
-    (hunique : 2 * (Fintype.card ι - (B + M - 1) / M) + k ≤ Fintype.card ι)
-    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
-    [DecidablePred fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-      B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i] :
-    (∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
-        B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-          (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i) ∨
-      (Fintype.card F - 1) *
-        (Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-          B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-            (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i).card ≤
-        Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) :=
-  proximityGap_affine_of_line
-    (P := fun w => ∃ c ∈ reedSolomon α k,
-      B ≤ ∑ i ∈ Finset.univ.filter (fun i => w i = c i), W i)
-    (B_line := Fintype.card ι)
-    (fun a b S hS hcl => by
-      obtain ⟨D', hD', w₀, hw₀, w₁, hw₁, hag⟩ :=
-        exists_weighted_correlatedAgreement_unique hα hM hW hunique a b S hS hcl
-      intro t
-      refine ⟨w₀ + t • w₁, Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁),
-        hD'.trans (Finset.sum_le_sum_of_subset ?_)⟩
-      intro i hi
-      refine mem_filter.2 ⟨mem_univ i, ?_⟩
-      obtain ⟨h0, h1⟩ := hag i hi
-      simp only [Pi.add_apply, Pi.smul_apply, h0, h1])
-    u₀ u
-
-/-- **Dimension-independent `ℚ`-weighted proximity-gap dichotomy on affine spaces in the
-unique-decoding regime** (`ℚ`-weights in `[0, 1]`,
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]). -/
-theorem ratWeighted_proximityGap_affine_unique_sharp
-    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
-    {ι : Type*} [Fintype ι]
-    {α : ι → F} (hα : Function.Injective α)
-    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
-    {μ : ι → ℚ} (hμ_nonneg : ∀ i, 0 ≤ μ i) (hμ_le : ∀ i, μ i ≤ 1)
-    {θ : ℚ} (hθ : ((Fintype.card ι - e : ℕ) : ℚ) - 1 < θ)
-    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
-    [DecidablePred fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-      θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i] :
-    (∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
-        θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-          (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i) ∨
-      (Fintype.card F - 1) *
-        (Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-          θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-            (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i).card ≤
-        Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) :=
-  proximityGap_affine_of_line
-    (P := fun w => ∃ c ∈ reedSolomon α k,
-      θ ≤ ∑ i ∈ Finset.univ.filter (fun i => w i = c i), μ i)
-    (B_line := Fintype.card ι)
-    (fun a b S hS hcl => by
-      obtain ⟨D', hD', w₀, hw₀, w₁, hw₁, hag⟩ :=
-        exists_ratWeighted_correlatedAgreement_unique hα hunique hμ_le hθ a b S hS hcl
-      intro t
-      refine ⟨w₀ + t • w₁, Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁),
-        hD'.trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun i _ _ => hμ_nonneg i))⟩
-      intro i hi
-      refine mem_filter.2 ⟨mem_univ i, ?_⟩
-      obtain ⟨h0, h1⟩ := hag i hi
-      simp only [Pi.add_apply, Pi.smul_apply, h0, h1])
-    u₀ u
 
 /-! ### Part 4: Generic Section 6.3 / 7.3 affine correlated-agreement lift -/
 
@@ -2452,6 +1900,256 @@ theorem exists_uniqueMaximal_correlatedAgreement_affine_unique
   obtain ⟨hsub, hweq⟩ := hmax' D'' (Fin.cons w₀ w) hD'' (Fin.cases hw₀ hw)
     (fun i hi => Fin.cases (hag'' i hi).1 (hag'' i hi).2)
   exact ⟨hsub, congrFun hweq 0, funext fun j => congrFun hweq j.succ⟩
+
+/-- **Dimension-independent `ℚ`-weighted correlated agreement on affine spaces in the
+unique-decoding regime** ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]):
+At threshold `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (completely independent of `ℓ` and weight
+denominators), any weight function `μ : ι → ℚ` with `∀ i, μ i ≤ 1` admits shared correlated
+agreement `θ ≤ ∑ i ∈ D', μ i`. Handles the one-point `ℓ = 0` case explicitly (including
+`|ι| = |F|`), and for `ℓ ≥ 1` delegates the unweighted step to
+`Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique`. -/
+theorem exists_ratWeighted_correlatedAgreement_affine_unique_sharp
+    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    {ι : Type*} [Fintype ι]
+    {α : ι → F} (hα : Function.Injective α)
+    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
+    {μ : ι → ℚ} (hμ_le : ∀ i, μ i ≤ 1)
+    {θ : ℚ} (hθ : ((Fintype.card ι - e : ℕ) : ℚ) - 1 < θ)
+    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
+    (T : Finset (Fin ℓ → F))
+    (hT : Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) < (Fintype.card F - 1) * T.card)
+    (hclose : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
+      θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i) :
+    ∃ D' : Finset ι, θ ≤ ∑ i ∈ D', μ i ∧
+      ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F),
+        (∀ j, v j ∈ reedSolomon α k) ∧
+        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
+  classical
+  rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ
+  · have hpos : 0 < T.card := by
+      have h1 : 0 < (Fintype.card F - 1) * T.card := by
+        simpa only [pow_zero, tsub_self, mul_zero] using hT
+      exact Nat.pos_of_mul_pos_left h1
+    obtain ⟨z₀, hz₀⟩ := Finset.card_pos.1 hpos
+    obtain ⟨c, hcRS, hμ_ge⟩ := hclose z₀ hz₀
+    have hμ0 : θ ≤ ∑ i ∈ Finset.univ.filter (fun i => u₀ i = c i), μ i := by
+      simpa only [Finset.univ_eq_empty, Finset.sum_empty, add_zero] using hμ_ge
+    refine ⟨Finset.univ.filter fun i => u₀ i = c i, hμ0, c, hcRS, Fin.elim0,
+      fun j => Fin.elim0 j, fun i hi => ⟨(mem_filter.1 hi).2, fun j => Fin.elim0 j⟩⟩
+  · have hclose_unw : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
+        hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e := by
+      intro z hz
+      obtain ⟨c, hcRS, hμ_ge⟩ := hclose z hz
+      exact ⟨c, hcRS, hammingDist_le_of_ratWeightedAgree_ge hμ_le hθ hμ_ge⟩
+    have hq_gt1 : 1 < Fintype.card F := Fintype.one_lt_card
+    have hq_le_pow : Fintype.card F ≤ (Fintype.card F) ^ ℓ :=
+      Nat.le_self_pow (by omega : ℓ ≠ 0) (Fintype.card F)
+    have hpow_pos : 1 ≤ (Fintype.card F) ^ ℓ := Nat.one_le_pow ℓ (Fintype.card F) Fintype.card_pos
+    have hcard_lt : Fintype.card ι < T.card := by
+      have hmul : Fintype.card ι * (Fintype.card F - 1) < T.card * (Fintype.card F - 1) := by
+        calc Fintype.card ι * (Fintype.card F - 1)
+            ≤ Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) :=
+              Nat.mul_le_mul_left _ (Nat.sub_le_sub_right hq_le_pow 1)
+          _ < (Fintype.card F - 1) * T.card := hT
+          _ = T.card * (Fintype.card F - 1) := Nat.mul_comm _ _
+      exact Nat.lt_of_mul_lt_mul_right hmul
+    have hT_exact : Fintype.card ι * (Fintype.card F) ^ ℓ < Fintype.card F * T.card := by
+      have h1 : Fintype.card ι * (Fintype.card F) ^ ℓ =
+          Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) + Fintype.card ι := by
+        calc Fintype.card ι * (Fintype.card F) ^ ℓ
+            = Fintype.card ι * ((Fintype.card F) ^ ℓ - 1 + 1) := by
+              rw [Nat.sub_add_cancel hpow_pos]
+          _ = Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) + Fintype.card ι := by ring
+      have h2 : Fintype.card F * T.card = (Fintype.card F - 1) * T.card + T.card := by
+        calc Fintype.card F * T.card
+            = (Fintype.card F - 1 + 1) * T.card := by rw [Nat.sub_add_cancel (by omega)]
+          _ = (Fintype.card F - 1) * T.card + T.card := by ring
+      omega
+    obtain ⟨D₀, hD₀, v₀, hv₀, v, hvRS, hagree₀, _⟩ :=
+      exists_uniqueMaximal_correlatedAgreement_affine_unique hα hunique u₀ u T hT_exact hclose_unw
+    let D' : Finset ι := Finset.univ.filter fun i => u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i
+    refine ⟨D', ?_, v₀, hv₀, v, hvRS, fun i hi => (mem_filter.1 hi).2⟩
+    by_contra hlt_θ
+    push Not at hlt_θ
+    let badI : Finset ι := Finset.univ.filter fun i => ¬ (u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i)
+    have hT_sub : T ⊆ badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
+        (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0 := by
+      intro z hz
+      obtain ⟨c, hcRS, hμ_ge⟩ := hclose z hz
+      have hc_dist : hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e :=
+        hammingDist_le_of_ratWeightedAgree_ge hμ_le hθ hμ_ge
+      let vz : ι → F := v₀ + ∑ j : Fin ℓ, z j • v j
+      have hvz_RS : vz ∈ reedSolomon α k :=
+        Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j))
+      have hvz_dist : hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) vz ≤ e :=
+        hammingDist_affine_le_of_eq_on hD₀ hagree₀ z
+      have hceq : c = vz :=
+        eq_of_hammingDist_le_reedSolomon hα hunique hcRS hvz_RS hc_dist hvz_dist
+      subst hceq
+      let agree_z : Finset ι :=
+        Finset.univ.filter fun i => (u₀ + ∑ j : Fin ℓ, z j • u j) i = vz i
+      have hD'_sub : D' ⊆ agree_z := by
+        intro i hi
+        refine mem_filter.2 ⟨mem_univ i, ?_⟩
+        obtain ⟨h0, hj⟩ := (mem_filter.1 hi).2
+        simp only [vz, Pi.add_apply, Finset.sum_apply, Pi.smul_apply, h0]
+        congr 1
+        exact Finset.sum_congr rfl fun j _ => by rw [hj j]
+      have hex : ∃ i ∈ agree_z, i ∉ D' := by
+        by_contra hnone
+        push Not at hnone
+        have heq : D' = agree_z := Finset.Subset.antisymm hD'_sub hnone
+        rw [heq] at hlt_θ
+        exact absurd hμ_ge (not_le.2 hlt_θ)
+      obtain ⟨i, hi_ag, hi_notD'⟩ := hex
+      have hi_bad : i ∈ badI :=
+        mem_filter.2 ⟨mem_univ i, fun h => hi_notD' (mem_filter.2 ⟨mem_univ i, h⟩)⟩
+      refine mem_biUnion.2 ⟨i, hi_bad, mem_filter.2 ⟨mem_univ z, ?_⟩⟩
+      have heq := (mem_filter.1 hi_ag).2
+      simp only [vz, Pi.add_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at heq
+      have hsub_sum : ∑ j : Fin ℓ, z j * (u j i - v j i) =
+          ∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i := by
+        rw [← Finset.sum_sub_distrib]
+        exact Finset.sum_congr rfl fun j _ => by ring
+      rw [hsub_sum]
+      calc u₀ i - v₀ i + (∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i)
+          = (u₀ i + ∑ j : Fin ℓ, z j * u j i) - (v₀ i + ∑ j : Fin ℓ, z j * v j i) := by ring
+        _ = 0 := sub_eq_zero.2 heq
+    have hT_le : T.card ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) := by
+      calc T.card
+          ≤ (badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
+              (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
+            Finset.card_le_card hT_sub
+        _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
+            card_biUnion_zero_affine_le u₀ v₀ u v badI fun _ hi => (mem_filter.1 hi).2
+    have hpow_eq : Fintype.card F * (Fintype.card F) ^ (ℓ - 1) = (Fintype.card F) ^ ℓ := by
+      conv_rhs => rw [← Nat.sub_add_cancel hℓ, pow_succ']
+    have hmul_le : Fintype.card F * T.card ≤ Fintype.card ι * (Fintype.card F) ^ ℓ := by
+      calc Fintype.card F * T.card
+          ≤ Fintype.card F * (Fintype.card ι * (Fintype.card F) ^ (ℓ - 1)) :=
+            Nat.mul_le_mul_left _ hT_le
+        _ = Fintype.card ι * (Fintype.card F * (Fintype.card F) ^ (ℓ - 1)) := by ring
+        _ = Fintype.card ι * (Fintype.card F) ^ ℓ := by rw [hpow_eq]
+    omega
+
+/-- **Dimension-independent `ℕ`-weighted correlated agreement on affine spaces in the
+unique-decoding regime** ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]). -/
+theorem exists_weighted_correlatedAgreement_affine_unique_sharp
+    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    {ι : Type*} [Fintype ι]
+    {α : ι → F} (hα : Function.Injective α)
+    {k ℓ M B : ℕ} (hM : 0 < M)
+    {W : ι → ℕ} (hW : ∀ i, W i ≤ M)
+    (hunique : 2 * (Fintype.card ι - (B + M - 1) / M) + k ≤ Fintype.card ι)
+    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
+    (T : Finset (Fin ℓ → F))
+    (hT : Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) < (Fintype.card F - 1) * T.card)
+    (hclose : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
+      B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i) :
+    ∃ D' : Finset ι, B ≤ ∑ i ∈ D', W i ∧
+      ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F),
+        (∀ j, v j ∈ reedSolomon α k) ∧
+        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
+  let μ : ι → ℚ := fun i => (W i : ℚ) / (M : ℚ)
+  let θ : ℚ := (B : ℚ) / (M : ℚ)
+  have hMq : (0 : ℚ) < (M : ℚ) := Nat.cast_pos.2 hM
+  have hμ_le : ∀ i, μ i ≤ 1 := fun i => (div_le_one hMq).2 (Nat.cast_le.2 (hW i))
+  have hθ : ((Fintype.card ι - (Fintype.card ι - (B + M - 1) / M) : ℕ) : ℚ) - 1 < θ :=
+    card_sub_sub_ceilDiv_sub_one_lt hM
+  have hclose' : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
+      θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i := by
+    intro z hz
+    obtain ⟨c, hcRS, hW_ge⟩ := hclose z hz
+    refine ⟨c, hcRS, ?_⟩
+    simp only [μ, θ, ← Finset.sum_div]
+    exact div_le_div_of_nonneg_right (by exact_mod_cast hW_ge) hMq.le
+  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
+    exists_ratWeighted_correlatedAgreement_affine_unique_sharp hα hunique hμ_le hθ u₀ u T hT
+      hclose'
+  refine ⟨D', ?_, v₀, hv₀, v, hvRS, hagree⟩
+  simp only [μ, θ, ← Finset.sum_div] at hD'
+  have hq : (B : ℚ) ≤ ((∑ i ∈ D', W i : ℕ) : ℚ) := by
+    have := (div_le_div_iff_of_pos_right hMq).1 hD'
+    simpa only [Nat.cast_sum] using this
+  exact Nat.cast_le.1 hq
+
+/-- **Dimension-independent `ℕ`-weighted proximity-gap dichotomy on affine spaces in the
+unique-decoding regime** ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]). -/
+theorem weighted_proximityGap_affine_unique_sharp
+    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    {ι : Type*} [Fintype ι]
+    {α : ι → F} (hα : Function.Injective α)
+    {k ℓ M B : ℕ} (hM : 0 < M)
+    {W : ι → ℕ} (hW : ∀ i, W i ≤ M)
+    (hunique : 2 * (Fintype.card ι - (B + M - 1) / M) + k ≤ Fintype.card ι)
+    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
+    [DecidablePred fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
+      B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i] :
+    (∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
+        B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+          (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i) ∨
+      (Fintype.card F - 1) *
+        (Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
+          B ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+            (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i).card ≤
+        Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) :=
+  proximityGap_affine_of_line
+    (P := fun w => ∃ c ∈ reedSolomon α k,
+      B ≤ ∑ i ∈ Finset.univ.filter (fun i => w i = c i), W i)
+    (B_line := Fintype.card ι)
+    (fun a b S hS hcl => by
+      obtain ⟨D', hD', w₀, hw₀, w₁, hw₁, hag⟩ :=
+        exists_weighted_correlatedAgreement_unique hα hM hW hunique a b S hS hcl
+      intro t
+      refine ⟨w₀ + t • w₁, Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁),
+        hD'.trans (Finset.sum_le_sum_of_subset ?_)⟩
+      intro i hi
+      refine mem_filter.2 ⟨mem_univ i, ?_⟩
+      obtain ⟨h0, h1⟩ := hag i hi
+      simp only [Pi.add_apply, Pi.smul_apply, h0, h1])
+    u₀ u
+
+/-- **Dimension-independent `ℚ`-weighted proximity-gap dichotomy on affine spaces in the
+unique-decoding regime** (`ℚ`-weights in `[0, 1]`,
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4]). -/
+theorem ratWeighted_proximityGap_affine_unique_sharp
+    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    {ι : Type*} [Fintype ι]
+    {α : ι → F} (hα : Function.Injective α)
+    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
+    {μ : ι → ℚ} (hμ_nonneg : ∀ i, 0 ≤ μ i) (hμ_le : ∀ i, μ i ≤ 1)
+    {θ : ℚ} (hθ : ((Fintype.card ι - e : ℕ) : ℚ) - 1 < θ)
+    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
+    [DecidablePred fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
+      θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+        (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i] :
+    (∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
+        θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+          (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i) ∨
+      (Fintype.card F - 1) *
+        (Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
+          θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
+            (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i).card ≤
+        Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) :=
+  proximityGap_affine_of_line
+    (P := fun w => ∃ c ∈ reedSolomon α k,
+      θ ≤ ∑ i ∈ Finset.univ.filter (fun i => w i = c i), μ i)
+    (B_line := Fintype.card ι)
+    (fun a b S hS hcl => by
+      obtain ⟨D', hD', w₀, hw₀, w₁, hw₁, hag⟩ :=
+        exists_ratWeighted_correlatedAgreement_unique hα hunique hμ_le hθ a b S hS hcl
+      intro t
+      refine ⟨w₀ + t • w₁, Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁),
+        hD'.trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun i _ _ => hμ_nonneg i))⟩
+      intro i hi
+      refine mem_filter.2 ⟨mem_univ i, ?_⟩
+      obtain ⟨h0, h1⟩ := hag i hi
+      simp only [Pi.add_apply, Pi.smul_apply, h0, h1])
+    u₀ u
 
 /-! ### Part 5: Johnson-bound curves, affine correlated agreement, and dichotomies -/
 

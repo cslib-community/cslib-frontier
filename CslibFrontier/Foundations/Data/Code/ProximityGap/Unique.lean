@@ -69,10 +69,9 @@ The proof follows the bivariate Berlekamp–Welch interpolation strategy of
 * `Cslib.Code.exists_correlatedAgreement_unique`: correlated agreement on affine lines
   `u₀ + z • u₁` in the unique-decoding regime when `|ι| < #S`
   ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1]).
-* `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_of_exists`: polymorphic unique-maximal
-  agreement set and unique codewords in the unique-decoding regime for any indexed word family
-  ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 1.5, and 1.6], accepted JACM 2023
-  manuscript pp. 5–6; Remark 4.1, p. 13).
+* `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_of_exists`: generic uniqueness step in the
+  unique-decoding regime: given an existing correlated-agreement witness for any indexed word
+  family, upgrades it to the unique maximal shared agreement set and unique codewords.
 * `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_curve_unique`: unique maximal agreement set
   and unique codewords on degree-`d` parameterized curves in the unique-decoding regime
   ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.5 & Theorem 6.1]).
@@ -1542,13 +1541,15 @@ theorem proximityGap_unique [Fintype F] {α : ι → F} {e k : ℕ}
 /-! ### Unique maximal agreement set and unique codewords (Theorems 1.4–1.6) -/
 
 omit [DecidableEq F] in
-/-- **Unique maximal correlated agreement in the unique-decoding regime**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 1.5, and 1.6], accepted JACM 2023
+/-- **Generic uniqueness step in the unique-decoding regime:** given an existing
+correlated-agreement witness `(D₀, v)` in the unique-decoding regime `2 * e + k ≤ |ι|`, upgrades it
+to the unique maximal shared agreement set and unique codewords (used to prove the uniqueness
+clauses of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 1.5, and 1.6], accepted JACM 2023
 manuscript pp. 5–6; Remark 4.1, p. 13).
 
 Let `α : ι → F` be distinct evaluation points and `2 * e + k ≤ |ι|`. For any indexed family of
-words `u : κ → (ι → F)`, if there exists at least one shared agreement set `D₀` of size at least
-`|ι| - e` with codewords `v : κ → (ι → F)` in `reedSolomon α k`, then there exist a greatest (hence
+words `u : κ → (ι → F)` whose premise already supplies a shared agreement set `D₀` of size at least
+`|ι| - e` with codewords `v : κ → (ι → F)` in `reedSolomon α k`, there exist a greatest (hence
 unique maximal) shared agreement set `D' : Finset ι` of size at least `|ι| - e` and unique
 codewords `v : κ → (ι → F)` in `reedSolomon α k`: every qualifying pair `(D'', w)` satisfies
 `D'' ⊆ D'` and `w = v`. -/
