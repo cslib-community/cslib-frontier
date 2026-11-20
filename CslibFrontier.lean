@@ -3542,10 +3542,12 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.D
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Doubled
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryModulus
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitGame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitList
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FindCode
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
@@ -6868,6 +6870,7 @@ public import CslibFrontier.Foundations.Data.Nat.Div
 public import CslibFrontier.Foundations.Data.Nat.Doubling
 public import CslibFrontier.Foundations.Data.Nat.Factorial
 public import CslibFrontier.Foundations.Data.Nat.Fields
+public import CslibFrontier.Foundations.Data.Nat.FindCode
 public import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
 public import CslibFrontier.Foundations.Data.Nat.IntermediateValue
 public import CslibFrontier.Foundations.Data.Nat.IterLog
