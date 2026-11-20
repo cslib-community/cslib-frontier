@@ -989,6 +989,7 @@ public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Holes
 public import CslibFrontier.Computability.Automata.MPDA.OneHole
+public import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
 public import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
 public import CslibFrontier.Computability.Automata.MPDA.Separation
 public import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
@@ -3015,6 +3016,7 @@ public import CslibFrontier.Computability.Complexity.Reduction.Isomorphism.Conje
 public import CslibFrontier.Computability.Complexity.Reduction.Isomorphism.Paddable
 public import CslibFrontier.Computability.Complexity.Reduction.Isomorphism.SchroederBernstein
 public import CslibFrontier.Computability.Complexity.Reduction.Levin
+public import CslibFrontier.Computability.Complexity.Reduction.LinearApproximation
 public import CslibFrontier.Computability.Complexity.Reduction.LocalSelfReducibility
 public import CslibFrontier.Computability.Complexity.Reduction.LocalSelfReducibility.RuntimeAccess
 public import CslibFrontier.Computability.Complexity.Reduction.LocalSelfReducibility.RuntimeEvaluator
@@ -3768,6 +3770,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Comp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Countable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Hardwire
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePartrec
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePrograms
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partialize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Reduction
@@ -7324,6 +7327,9 @@ public import CslibFrontier.GameTheory.Strategic.Smooth
 public import CslibFrontier.GameTheory.Strategic.Stability
 public import CslibFrontier.GameTheory.Strategic.StrongNash
 public import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
+public import CslibFrontier.GameTheory.Strategic.Universality.Binary
+public import CslibFrontier.GameTheory.Strategic.Universality.DattaBinary
+public import CslibFrontier.GameTheory.Strategic.Universality.Realize
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Languages.Probabilistic.BitString
@@ -7880,6 +7886,7 @@ public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 public import CslibFrontier.Logics.Propositional.PseudoBoolean
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
 public import CslibFrontier.Logics.Propositional.QBF
 public import CslibFrontier.Logics.Propositional.QBF.Arithmetization
