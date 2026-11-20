@@ -128,9 +128,9 @@ noncomputable def relabel {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
     { state := S.state
       alice := fun x => (S.alice (qx x)).map fa
       bob := fun y => (S.bob (qy y)).map fb
-      commute := fun x y a b =>
-        Commute.sum_left _ _ _ fun a' _ =>
-          (Commute.sum_left _ _ _ fun b' _ => (S.commute (qx x) (qy y) a' b').symm).symm }
+      commute := fun x y =>
+        Measurement.commute_map_map (S.alice (qx x)) (S.bob (qy y))
+          (S.commute (qx x) (qy y)) fa fb }
 
 end Ring
 
