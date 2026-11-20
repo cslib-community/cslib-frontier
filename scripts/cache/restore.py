@@ -197,7 +197,7 @@ def read_output_mapping(path):
         header = stream.readline()
         if header.rstrip(b"\r\n") != MAPPING_VERSION:
             raise ValueError("missing or unsupported mapping version")
-        entries = []
+        entries = {}
         for number, line in enumerate(stream, 2):
             try:
                 row = json.loads(line)
@@ -207,7 +207,10 @@ def read_output_mapping(path):
                     or not isinstance(row[0], str) or not INPUT_HASH.fullmatch(row[0])
                     or not isinstance(row[1], str) or not ARCHIVE_NAME.fullmatch(row[1])):
                 raise ValueError(f"unsupported mapping row {number}")
-            entries.append((row[0], line))
+            input_hash = row[0]
+            if input_hash in entries:
+                raise ValueError(f"duplicate input hash in mapping row {number}")
+            entries[input_hash] = line
     if not entries:
         raise ValueError("empty mapping")
     return header, entries
@@ -273,7 +276,7 @@ def one_origin(root, origin, work, missing):
                 current.update(re.findall(r'"depHash": *"([0-9a-f]+)"', trace.read_text()))
             except (OSError, UnicodeError):
                 pass
-        needed = [line for input_hash, line in entries if input_hash not in current]
+        needed = [line for input_hash, line in entries.items() if input_hash not in current]
         mapping = work / "missing.jsonl"
         mapping.write_bytes(header + b"".join(needed))
         print(f"Remote cache: {revision} (candidate {back + 1}/{len(revisions)}) has outputs for "

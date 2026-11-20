@@ -148,6 +148,8 @@ class MirrorFixture(unittest.TestCase):
                         data += b"not json\n"
                     elif "/malformed-current/" in self.path:
                         data = b'"2026-03-17"\n["0000000000000001","not-an-archive"]\n'
+                    elif "/duplicate-input/" in self.path:
+                        data = data.replace(b'["0000000000000002",', b'["0000000000000001",')
                 else:
                     name = self.path.rsplit("/", 1)[-1]
                     data = fixture.artifact_payloads.get(name)
@@ -319,6 +321,24 @@ class MirrorTests(MirrorFixture):
         self.assertEqual(len(self.events()), 1)
         self.assertFalse(any(request.endswith(".art") or "/fallback/" in request
                              for request in self.requests))
+
+    def test_duplicate_inputs_fall_back_even_if_filtered_as_current(self):
+        trace = self.root / ".lake/build/Current.trace"
+        trace.parent.mkdir(parents=True)
+        trace.write_text('{"depHash":"0000000000000001"}')
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.log.unlink(missing_ok=True)
+                self.requests.clear()
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/duplicate-input", "/fallback", missing=missing)
+                self.assertIn("duplicate input hash in mapping row 3", result.stdout)
+                self.assertEqual([event["endpoint"] for event in self.events()],
+                                 [self.base + "/fallback/a0"])
+                expected = {"0000000000000002.art"}
+                if not missing:
+                    expected.add("0000000000000001.art")
+                self.assertEqual({path.name for path in self.artifacts.iterdir()}, expected)
 
     def test_403_on_unpublished_revisions_continues_to_published_ancestor(self):
         # GCS with roles/storage.legacyObjectReader (read without list) answers missing objects
