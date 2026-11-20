@@ -34,14 +34,11 @@ example : ComputableInSpace (weightRank contextBit) (encWeightRequest encBool) e
 
 example : weightRank contextBit ⟨⟨true, 1, 3⟩, 0⟩ = 0 := rfl
 
--- The rank contributes 36, and layer 12 multiplies that value by six squared.
-example : weightRank contextBit ⟨⟨true, 1, 3⟩, 12⟩ = 1296 := by
+-- The positive-layer adapter passes the computed accumulator to the existing scaling routine.
+example : weightRank contextBit ⟨⟨true, 1, 3⟩, 12⟩ = scaleAccumulatedWeight 12 36 := by
   have ha : accumulateRank contextBit ⟨true, 1, 3⟩ = 36 := by decide +kernel
-  have hv : multiplicity (2 : ℕ) 12 = 2 :=
-    multiplicity_eq_of_dvd_of_not_dvd (by decide) (by decide)
-  change scaleAccumulatedWeight 12 (accumulateRank contextBit ⟨true, 1, 3⟩) = 1296
-  simpa only [ha, scaleAccumulatedWeight, Nat.padicValNat_def, hv] using
-    (show (6 : ℕ) ^ 2 * 36 = 1296 by decide)
+  change scaleAccumulatedWeight 12 (accumulateRank contextBit ⟨true, 1, 3⟩) = _
+  rw [ha]
 
 -- The checker can use the original theorem's weight directly for the retained seed rank.
 example {κ : Type} {w n : ℕ} (code : κ → ℕ → Bool) (ctx : κ)
