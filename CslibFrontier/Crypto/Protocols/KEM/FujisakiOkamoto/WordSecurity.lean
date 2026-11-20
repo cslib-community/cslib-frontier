@@ -153,8 +153,8 @@ The premises on `δ`, `γ` and the message length are the asymptotic form of the
 counted over the whole experiment (§2.1, p. 9). This theorem states none; its concrete step,
 `Scheme.indCcaBotAdvantage_le`, counts the adversary's explicit queries and has a bound that
 differs from the source's in every term. The game `romIndCcaBotGameWord` reads `H(m, c)` as the
-domain-separated `H(false, m, c)`, answers requests outside the oracles' word domains with the
-empty word, rejects words longer than `ctLen n` with `⊥` and measures the two-world advantage,
+canonical word encoding `H(false, m, c)`, answers requests outside the oracles' word domains with
+the empty word, rejects words longer than `ctLen n` with `⊥` and measures the two-world advantage,
 twice the source's `|Pr[b' = b] - 1/2|`. -/
 theorem INDCPA.romINDCCABot {P : WordPKE} {keyLen : ℕ → ℕ} (hcpa : P.INDCPA)
     (hP : P.IsEfficient) (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)

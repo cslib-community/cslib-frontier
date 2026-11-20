@@ -13,7 +13,6 @@ public import CslibFrontier.Crypto.Primitives.Hash.SHA2
 public import CslibFrontier.Crypto.Primitives.SLHDSA.Address
 public import CslibFrontier.Crypto.Primitives.SLHDSA.Parameters
 public import CslibFrontier.Foundations.Data.BitString.Block
-import Mathlib.Tactic
 
 /-!
 # Addressed SLH-DSA hash calls

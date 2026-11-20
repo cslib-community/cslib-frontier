@@ -25,11 +25,11 @@ scheme `PKE = (Gen, Enc, Dec)` with explicit coin space `R` into two modular ste
    `Dec(sk, c) = some m'`, rejecting any ciphertext failing the check (`encT_of_decT_eq_some`).
 2. **Key encapsulation with explicit or implicit rejection**:
    * `FO^⊥ = U^⊥ ∘ T` (`Scheme.encapsBot`, `Scheme.decapsBot`; §3.2.1, Fig. 9): decapsulation
-     returns `none` on re-encryption failure and `some (H(false, m', c))` on success.
+     returns `none` on re-encryption failure and `some (H(m', c))` on success.
    * `FO-notbot = U-notbot ∘ T` (`Scheme.keyGenNotBot`, `Scheme.encapsNotBot`,
      `Scheme.decapsNotBot`; §3.2.2, Fig. 12, written with a negated-`⊥` superscript in the paper):
      the secret key (`ImplicitSK`) retains the public key `pk` and a secret fallback seed
-     `fallback ← M`, returning a pseudorandom fallback key `H(true, fallback, c)` on
+     `fallback ← M`, returning a pseudorandom fallback key `H(fallback, c)` on
      decapsulation rejection so decapsulation never outputs failure externally.
 
 **Scope of this module**: this file formalizes the `T`, `FO^⊥`, and `FO-notbot` transforms together
@@ -55,23 +55,11 @@ by IACR ePrint 2017/604, dated **2 November 2021**:
 
 The PKE-level fixed-coin-type and arbitrary-sampler differences are documented in
 `CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin`; the security theorems use two-stage
-IND-CPA. This transform differs from the
-paper's presentation in two further respects:
-
-1. **Fixed message/key types and arbitrary samplers**: in [HofheinzHoevelmannsKiltz2017]
-   (§3.2.1 Fig. 9, §3.2.2 Fig. 12), encapsulated messages, fallback seeds, and ideal keys are drawn
-   uniformly. Here `Scheme` uses fixed types `M`, `K` and arbitrary `ProbComp` samplers
-   `sampleMsg : ProbComp M` and `sampleKey : ProbComp K`. The deterministic transform lemmas hold
-   for arbitrary samplers and fixed functions `G, H`.
-2. **Domain-separated `H : Bool × M × CT → K` in `FO-notbot`**: in [HofheinzHoevelmannsKiltz2017]
-   (§3.2.1 Fig. 9, §3.2.2 Fig. 12), `U^⊥` and `U-notbot` derive honest keys `H(m, c)` and
-   implicit-rejection keys `H(s, c)` from a single untagged random oracle `H : M × CT → K` using a
-   secret seed `s ←$ M`. Here `H` has domain `Bool × M × CT → K`, with `false` tagging valid key
-   derivations `H(false, m, c)` and `true` tagging implicit-rejection queries
-   `H(true, fallback, c)`. This deliberate domain-separated variant (analogous to the separate
-   implicit-rejection hash `J(s, c)` in ML-KEM / FIPS 203) keeps the valid-key and rejection-key
-   namespaces disjoint. It does not affect the deterministic correctness and re-encryption rigidity
-   lemmas proved below; its effect on random-oracle security bounds is not analysed in this module.
+IND-CPA. In Figures 9 and 12 the encapsulated message, fallback seed and ideal key are uniform.
+The algorithms take explicit message and key samplers, and the word-level security theorem
+instantiates them with uniform fixed-length words. In Figure 12 both successful decapsulation and
+implicit rejection query the same function on a message and ciphertext. The secret seed is the
+message argument on rejection.
 
 The imported `ExplicitCoinPKE` interface exposes the deterministic encryption needed for `T` to
 recompute `Enc(pk, m'; G(m'))` during decapsulation.
@@ -84,7 +72,7 @@ recompute `Enc(pk, m'; G(m'))` during decapsulation.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.ImplicitSK`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme`: implicit-rejection secret key and FO parameter
   bundle (`FO^⊥` via `Scheme.encapsBot` / `Scheme.decapsBot` (§3.2.1, Fig. 9) and
-  domain-separated `FO-notbot` via `Scheme.keyGenNotBot` / `Scheme.encapsNotBot` /
+  `FO-notbot` via `Scheme.keyGenNotBot` / `Scheme.encapsNotBot` /
   `Scheme.decapsNotBot` (§3.2.2, Fig. 12)).
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.decTM`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.decapsBotM`,
@@ -249,7 +237,7 @@ namespace Scheme
 /-! ### Decapsulation with oracle access
 
 The random-oracle games answer `G` and `H` lazily, so their decapsulation oracles run the
-decapsulation algorithms with `G : M → m R` and `H : Bool × M × CT → m K` given as oracles in a
+decapsulation algorithms with `G : M → m R` and `H : M × CT → m K` given as oracles in a
 monad `m`. Both run the `T` check `decTM` and add only their rejection policy and `H` query.
 `decapsBotM_eq` and `decapsNotBotM_eq` unfold them into explicit oracle calls. The fixed-function
 decapsulations `decapsBot` and `decapsNotBot` below are these algorithms in the identity monad; with
@@ -261,27 +249,27 @@ section OracleAccess
 variable {PK SK M R CT K : Type} [DecidableEq CT] {m : Type → Type} [Monad m]
 
 /-- Explicit-rejection decapsulation `Decaps^⊥(pk, sk, c)` of `FO^⊥` with oracle access to `G` and
-`H`: returns `some (H(false, m', c))` when `decTM` accepts `m'`, and `none` otherwise. -/
-def decapsBotM (S : Scheme PK SK M R CT K) (G : M → m R) (H : Bool × M × CT → m K) (pk : PK)
+`H`: returns `some (H(m', c))` when `decTM` accepts `m'`, and `none` otherwise. -/
+def decapsBotM (S : Scheme PK SK M R CT K) (G : M → m R) (H : M × CT → m K) (pk : PK)
     (sk : SK) (c : CT) : m (Option K) := do
   match ← decTM S.pke G pk sk c with
-  | some m' => some <$> H (false, m', c)
+  | some m' => some <$> H (m', c)
   | none => return none
 
 /-- Implicit-rejection decapsulation `Decaps-notbot(dk, c)` of `FO-notbot` with oracle access to
-`G` and `H`: returns `H(false, m', c)` when `decTM` accepts `m'`, and the fallback key
-`H(true, dk.fallback, c)` otherwise. -/
-def decapsNotBotM (S : Scheme PK SK M R CT K) (G : M → m R) (H : Bool × M × CT → m K)
+`G` and `H`: returns `H(m', c)` when `decTM` accepts `m'`, and the fallback key
+`H(dk.fallback, c)` otherwise. -/
+def decapsNotBotM (S : Scheme PK SK M R CT K) (G : M → m R) (H : M × CT → m K)
     (dk : ImplicitSK PK SK M) (c : CT) : m K := do
   match ← decTM S.pke G dk.pk dk.sk c with
-  | some m' => H (false, m', c)
-  | none => H (true, dk.fallback, c)
+  | some m' => H (m', c)
+  | none => H (dk.fallback, c)
 
 variable [LawfulMonad m]
 
 /-- `decapsBotM` as explicit oracle calls: no query when `Dec` fails; otherwise `G(m')`, then
-`H(false, m', c)` exactly when the re-encryption check passes. -/
-theorem decapsBotM_eq (S : Scheme PK SK M R CT K) (G : M → m R) (H : Bool × M × CT → m K)
+`H(m', c)` exactly when the re-encryption check passes. -/
+theorem decapsBotM_eq (S : Scheme PK SK M R CT K) (G : M → m R) (H : M × CT → m K)
     (pk : PK) (sk : SK) (c : CT) :
     S.decapsBotM G H pk sk c =
       (match S.pke.dec sk c with
@@ -289,7 +277,7 @@ theorem decapsBotM_eq (S : Scheme PK SK M R CT K) (G : M → m R) (H : Bool × M
       | some m' => do
         let r' ← G m'
         if S.pke.encDet pk m' r' = c then do
-          let k ← H (false, m', c)
+          let k ← H (m', c)
           return some k
         else
           return none) := by
@@ -301,17 +289,17 @@ theorem decapsBotM_eq (S : Scheme PK SK M R CT K) (G : M → m R) (H : Bool × M
     refine bind_congr fun r' => ?_
     split_ifs <;> simp
 
-/-- `decapsNotBotM` as explicit oracle calls: `H(true, dk.fallback, c)` when `Dec` fails;
-otherwise `G(m')`, then `H(false, m', c)` or `H(true, dk.fallback, c)` by the re-encryption
+/-- `decapsNotBotM` as explicit oracle calls: `H(dk.fallback, c)` when `Dec` fails;
+otherwise `G(m')`, then `H(m', c)` or `H(dk.fallback, c)` by the re-encryption
 check. -/
-theorem decapsNotBotM_eq (S : Scheme PK SK M R CT K) (G : M → m R) (H : Bool × M × CT → m K)
+theorem decapsNotBotM_eq (S : Scheme PK SK M R CT K) (G : M → m R) (H : M × CT → m K)
     (dk : ImplicitSK PK SK M) (c : CT) :
     S.decapsNotBotM G H dk c =
       (match S.pke.dec dk.sk c with
-      | none => H (true, dk.fallback, c)
+      | none => H (dk.fallback, c)
       | some m' => do
         let r' ← G m'
-        if S.pke.encDet dk.pk m' r' = c then H (false, m', c) else H (true, dk.fallback, c)) := by
+        if S.pke.encDet dk.pk m' r' = c then H (m', c) else H (dk.fallback, c)) := by
   unfold decapsNotBotM decTM
   cases S.pke.dec dk.sk c with
   | none => simp
@@ -327,39 +315,39 @@ section FixedOracles
 variable {PK SK M R CT K : Type}
 
 /-- Encapsulation `Encaps^⊥(pk)` for `FO^⊥ = U^⊥ ∘ T` with fixed functions `G` and
-domain-separated `H` ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §3.2.1,
+`H` ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §3.2.1,
 Fig. 9): samples `m ← sampleMsg`, computes `c := Enc(pk, m; G(m))`, and outputs
-`(c, H(false, m, c))`. -/
-def encapsBot (S : Scheme PK SK M R CT K) (G : M → R) (H : Bool × M × CT → K)
+`(c, H(m, c))`. -/
+def encapsBot (S : Scheme PK SK M R CT K) (G : M → R) (H : M × CT → K)
     (pk : PK) : ProbComp (CT × K) := do
   let m ← S.sampleMsg
   let c := encT S.pke G pk m
-  return (c, H (false, m, c))
+  return (c, H (m, c))
 
 /-- Explicit-rejection decapsulation `Decaps^⊥(pk, sk, c)` for `FO^⊥ = U^⊥ ∘ T`
 ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §3.2.1, Fig. 9) with fixed
-functions `G` and `H`: `decapsBotM` in the identity monad. It returns `some (H(false, m', c))`
+functions `G` and `H`: `decapsBotM` in the identity monad. It returns `some (H(m', c))`
 when `decT` accepts `m'`, and `none` otherwise (`decapsBot_eq`). -/
 def decapsBot [DecidableEq CT] (S : Scheme PK SK M R CT K) (G : M → R)
-    (H : Bool × M × CT → K) (pk : PK) (sk : SK) (c : CT) : Option K :=
+    (H : M × CT → K) (pk : PK) (sk : SK) (c : CT) : Option K :=
   S.decapsBotM (m := Id) G H pk sk c
 
-/-- `decapsBot` returns `some (H(false, m', c))` when `decT` accepts `m'`, and `none` otherwise. -/
+/-- `decapsBot` returns `some (H(m', c))` when `decT` accepts `m'`, and `none` otherwise. -/
 theorem decapsBot_eq [DecidableEq CT] (S : Scheme PK SK M R CT K) (G : M → R)
-    (H : Bool × M × CT → K) (pk : PK) (sk : SK) (c : CT) :
-    S.decapsBot G H pk sk c = (decT S.pke G pk sk c).map fun m' => H (false, m', c) :=
+    (H : M × CT → K) (pk : PK) (sk : SK) (c : CT) :
+    S.decapsBot G H pk sk c = (decT S.pke G pk sk c).map fun m' => H (m', c) :=
   rfl
 
 /-- Honest recovery for `FO^⊥`: whenever `Dec(sk, Enc_1(pk, m)) = some m`, `decapsBot` returns
-`some (H(false, m, Enc_1(pk, m)))`. -/
+`some (H(m, Enc_1(pk, m)))`. -/
 theorem decapsBot_encT_eq_some [DecidableEq CT] (S : Scheme PK SK M R CT K) (G : M → R)
-    (H : Bool × M × CT → K) (pk : PK) (sk : SK) (m : M)
+    (H : M × CT → K) (pk : PK) (sk : SK) (m : M)
     (hdec : S.pke.dec sk (encT S.pke G pk m) = some m) :
-    S.decapsBot G H pk sk (encT S.pke G pk m) = some (H (false, m, encT S.pke G pk m)) := by
+    S.decapsBot G H pk sk (encT S.pke G pk m) = some (H (m, encT S.pke G pk m)) := by
   simp [decapsBot_eq, decT_encT_eq_some S.pke G pk sk m hdec]
 
 theorem decapsBot_eq_none_of_decT_eq_none [DecidableEq CT] (S : Scheme PK SK M R CT K)
-    (G : M → R) (H : Bool × M × CT → K) (pk : PK) (sk : SK) (c : CT)
+    (G : M → R) (H : M × CT → K) (pk : PK) (sk : SK) (c : CT)
     (hnone : decT S.pke G pk sk c = none) :
     S.decapsBot G H pk sk c = none := by
   simp [decapsBot_eq, hnone]
@@ -367,7 +355,7 @@ theorem decapsBot_eq_none_of_decT_eq_none [DecidableEq CT] (S : Scheme PK SK M R
 /-- Explicit rejection for `FO^⊥`: any tampered ciphertext failing the re-encryption check
 decapsulates to `none`. -/
 theorem decapsBot_eq_none_of_reencrypt_ne [DecidableEq CT] (S : Scheme PK SK M R CT K)
-    (G : M → R) (H : Bool × M × CT → K) (pk : PK) (sk : SK) (c : CT)
+    (G : M → R) (H : M × CT → K) (pk : PK) (sk : SK) (c : CT)
     (hbad : ∀ m', S.pke.dec sk c = some m' → encT S.pke G pk m' ≠ c) :
     S.decapsBot G H pk sk c = none :=
   S.decapsBot_eq_none_of_decT_eq_none G H pk sk c
@@ -385,50 +373,47 @@ def keyGenNotBot (S : Scheme PK SK M R CT K) : ProbComp (PK × ImplicitSK PK SK 
 /-- Encapsulation `Encaps-notbot(pk)` for `FO-notbot = U-notbot ∘ T`
 ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §3.2.2, Fig. 12), identical to
 `encapsBot`. -/
-def encapsNotBot (S : Scheme PK SK M R CT K) (G : M → R) (H : Bool × M × CT → K)
+def encapsNotBot (S : Scheme PK SK M R CT K) (G : M → R) (H : M × CT → K)
     (pk : PK) : ProbComp (CT × K) :=
   S.encapsBot G H pk
 
-/-- Implicit-rejection decapsulation `Decaps-notbot(dk, c)` for the domain-separated variant of
-`FO-notbot = U-notbot ∘ T` ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §3.2.2,
-Fig. 12) with fixed functions `G` and `H`: `decapsNotBotM` in the identity monad. It returns
-`H(false, m', c)` when `decT` accepts `m'`, and the domain-separated pseudorandom fallback key
-`H(true, dk.fallback, c)` otherwise (`decapsNotBot_eq`), where the `Bool` tag separates valid key
-derivations from rejection evaluations, in place of HHK17's untagged `H(s, c)`. -/
+/-- Implicit-rejection decapsulation for `FO-notbot = U-notbot ∘ T`
+([HofheinzHoevelmannsKiltz2017], §3.2.2, Figure 12), with fixed functions `G` and `H`.
+A rejection and an ordinary key query at the fallback seed use the same `H(dk.fallback, c)`. -/
 def decapsNotBot [DecidableEq CT] (S : Scheme PK SK M R CT K) (G : M → R)
-    (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (c : CT) : K :=
+    (H : M × CT → K) (dk : ImplicitSK PK SK M) (c : CT) : K :=
   S.decapsNotBotM (m := Id) G H dk c
 
-/-- `decapsNotBot` returns `H(false, m', c)` when `decT` accepts `m'`, and the fallback key
-`H(true, dk.fallback, c)` otherwise. -/
+/-- `decapsNotBot` returns `H(m', c)` when `decT` accepts `m'`, and the fallback key
+`H(dk.fallback, c)` otherwise. -/
 theorem decapsNotBot_eq [DecidableEq CT] (S : Scheme PK SK M R CT K) (G : M → R)
-    (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (c : CT) :
+    (H : M × CT → K) (dk : ImplicitSK PK SK M) (c : CT) :
     S.decapsNotBot G H dk c =
       (match decT S.pke G dk.pk dk.sk c with
-      | some m' => H (false, m', c)
-      | none => H (true, dk.fallback, c)) :=
+      | some m' => H (m', c)
+      | none => H (dk.fallback, c)) :=
   rfl
 
 /-- Honest recovery for `FO-notbot`: whenever `Dec(dk.sk, Enc_1(dk.pk, m)) = some m`, the
-re-encryption check passes and `decapsNotBot` outputs `H(false, m, Enc_1(dk.pk, m))`. -/
+re-encryption check passes and `decapsNotBot` outputs `H(m, Enc_1(dk.pk, m))`. -/
 theorem decapsNotBot_encT_eq [DecidableEq CT] (S : Scheme PK SK M R CT K) (G : M → R)
-    (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (m : M)
+    (H : M × CT → K) (dk : ImplicitSK PK SK M) (m : M)
     (hdec : S.pke.dec dk.sk (encT S.pke G dk.pk m) = some m) :
-    S.decapsNotBot G H dk (encT S.pke G dk.pk m) = H (false, m, encT S.pke G dk.pk m) := by
+    S.decapsNotBot G H dk (encT S.pke G dk.pk m) = H (m, encT S.pke G dk.pk m) := by
   simp [decapsNotBot_eq, decT_encT_eq_some S.pke G dk.pk dk.sk m hdec]
 
 theorem decapsNotBot_of_decT_eq_none [DecidableEq CT] (S : Scheme PK SK M R CT K)
-    (G : M → R) (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (c : CT)
+    (G : M → R) (H : M × CT → K) (dk : ImplicitSK PK SK M) (c : CT)
     (hnone : decT S.pke G dk.pk dk.sk c = none) :
-    S.decapsNotBot G H dk c = H (true, dk.fallback, c) := by
+    S.decapsNotBot G H dk c = H (dk.fallback, c) := by
   simp [decapsNotBot_eq, hnone]
 
 /-- Implicit pseudorandom rejection for `FO-notbot`: any tampered ciphertext failing the
-re-encryption check decapsulates to `H(true, dk.fallback, c)`. -/
+re-encryption check decapsulates to `H(dk.fallback, c)`. -/
 theorem decapsNotBot_of_reencrypt_ne [DecidableEq CT] (S : Scheme PK SK M R CT K)
-    (G : M → R) (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (c : CT)
+    (G : M → R) (H : M × CT → K) (dk : ImplicitSK PK SK M) (c : CT)
     (hbad : ∀ m', S.pke.dec dk.sk c = some m' → encT S.pke G dk.pk m' ≠ c) :
-    S.decapsNotBot G H dk c = H (true, dk.fallback, c) :=
+    S.decapsNotBot G H dk c = H (dk.fallback, c) :=
   S.decapsNotBot_of_decT_eq_none G H dk c
     (decT_eq_none_of_reencrypt_ne S.pke G dk.pk dk.sk c hbad)
 
@@ -444,7 +429,7 @@ section PureOracles
 variable {PK SK M R CT K : Type} [DecidableEq CT] {m : Type → Type} [Monad m] [LawfulMonad m]
 
 /-- With pure oracles, `decapsBotM` is the fixed-function decapsulation `decapsBot`. -/
-@[simp] theorem decapsBotM_pure (S : Scheme PK SK M R CT K) (G : M → R) (H : Bool × M × CT → K)
+@[simp] theorem decapsBotM_pure (S : Scheme PK SK M R CT K) (G : M → R) (H : M × CT → K)
     (pk : PK) (sk : SK) (c : CT) :
     S.decapsBotM (m := m) (pure ∘ G) (pure ∘ H) pk sk c = pure (S.decapsBot G H pk sk c) := by
   rw [decapsBot_eq]
@@ -454,7 +439,7 @@ variable {PK SK M R CT K : Type} [DecidableEq CT] {m : Type → Type} [Monad m] 
 
 /-- With pure oracles, `decapsNotBotM` is the fixed-function decapsulation `decapsNotBot`. -/
 @[simp] theorem decapsNotBotM_pure (S : Scheme PK SK M R CT K) (G : M → R)
-    (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (c : CT) :
+    (H : M × CT → K) (dk : ImplicitSK PK SK M) (c : CT) :
     S.decapsNotBotM (m := m) (pure ∘ G) (pure ∘ H) dk c = pure (S.decapsNotBot G H dk c) := by
   rw [decapsNotBot_eq]
   unfold decapsNotBotM

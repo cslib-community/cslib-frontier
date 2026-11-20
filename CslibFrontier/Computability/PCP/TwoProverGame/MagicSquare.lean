@@ -209,11 +209,6 @@ private theorem signProj₃_eq (O₀ O₁ O₂ : 𝒜) (a : Bool × Bool × Bool
   obtain ⟨a₀, a₁, a₂⟩ := a
   rfl
 
-/-- An observable commuting with `O` commutes with the projections of `O`. -/
-theorem _root_.Commute.signProj_left {O O' : 𝒜} (h : Commute O O') (b : Bool) :
-    Commute (signProj O b) O' :=
-  (((Commute.one_left _).add_left (h.smul_left _)).smul_left _)
-
 omit [Algebra ℂ 𝒜] in
 /-- A product of three pairwise commuting factors ends with any of them. -/
 private theorem exists_mul₃_eq_mul_right (P : Fin 3 → 𝒜) (h : ∀ i j, Commute (P i) (P j))

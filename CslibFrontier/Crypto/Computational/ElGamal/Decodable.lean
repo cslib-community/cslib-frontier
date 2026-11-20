@@ -57,7 +57,7 @@ are a step toward `DDH.indcpaOn_elGamalGroupEncryptProb`, not the cited result. 
 arbitrary setup law, while the native theorem fixes the group description at each security
 parameter.
 
-* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.advantage_elGamalGroupCPAGame_le`,
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.advantage_elGamalGroupCPAGame_le_ideal`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.negligible_elGamalGroupCPAGame_ideal`: DDH
   implies group-element ElGamal CPA security of the ideal-sampling game without an external `valid`
   predicate.
@@ -117,8 +117,13 @@ private theorem elemGuard_sound (d : F.Desc) (m₀ m₁ : List Bool)
   obtain ⟨x₁, _, hx₁⟩ := F.exists_decode_eq_some_of_isElem h.2
   exact ⟨⟨x₀, hx₀.symm⟩, ⟨x₁, hx₁.symm⟩⟩
 
-/-- **Quantitative reduction from decodable group-element ElGamal CPA to DDH**. -/
-theorem advantage_elGamalGroupCPAGame_le (setup : ℕ → PMF F.Desc)
+/-- Ideal-sampling step toward `DDH.indcpaOn_elGamalGroupEncryptProb`, not the cited result: in
+`elGamalGroupCPAGame`, whose key and challenge exponents are drawn exactly uniformly at the `PMF`
+level and whose challenge membership is enforced directly by `F.isElem`, the IND-CPA distinguishing
+advantage of `adversary` is bounded by the sum of the DDH advantages of
+`elGamalGroupToDDHDistinguisher adversary false` and
+`elGamalGroupToDDHDistinguisher adversary true`. -/
+theorem advantage_elGamalGroupCPAGame_le_ideal (setup : ℕ → PMF F.Desc)
     (adversary : Encryption.WordAdversary) (n : ℕ) :
     Game.advantage (F.elGamalGroupCPAGame setup adversary false n)
       (F.elGamalGroupCPAGame setup adversary true n) ≤
@@ -128,8 +133,8 @@ theorem advantage_elGamalGroupCPAGame_le (setup : ℕ → PMF F.Desc)
       Game.advantage
         (F.ddhRealGame setup (F.elGamalGroupToDDHDistinguisher adversary true) n)
         (F.ddhRandomGame setup (F.elGamalGroupToDDHDistinguisher adversary true) n) :=
-  F.toPrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le _ (fun _ m => m) setup adversary n
-    fun d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv
+  F.toPrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le_ideal _ (fun _ m => m) setup
+    adversary n fun d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv
 
 /-- Ideal-sampling step toward `DDH.indcpaOn_elGamalGroupEncryptProb`, not the cited result: under
 DDH for any setup law, every uniform strict PPT `Encryption.WordAdversary` has negligible advantage

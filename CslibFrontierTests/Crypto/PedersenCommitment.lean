@@ -139,7 +139,8 @@ example (setup : ℕ → PMF schnorrGroups.Desc) (hDL : schnorrGroups.DiscreteLo
       Game.succProbability
         (schnorrGroups.pedersenScheme.bindingGame
           (schnorrGroups.pedersenKeyDistProb setup) trivialBindingAdversary n) :=
-  hDL.pedersenBinding_pedersenKeyDistProb trivialBindingAdversary isPPTOn_trivialBindingAdversary
+  hDL.pedersenScheme_binding_pedersenKeyDistProb trivialBindingAdversary
+    isPPTOn_trivialBindingAdversary
 
 /-- Packaged `CommitmentScheme.StatisticalHiding` for `schnorrGroups.pedersenScheme` under the ideal
 key law `schnorrGroups.pedersenKeyDist setup`, and `CommitmentScheme.Binding` under the fair-coin

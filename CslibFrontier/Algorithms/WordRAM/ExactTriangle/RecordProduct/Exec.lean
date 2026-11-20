@@ -40,6 +40,18 @@ theorem preparation_margin {m n Q : ℕ} (hN : D m ^ 18 ≤ n) :
   unfold QueriedProduct.wordBudget QueriedProduct.inputEnd at hbudget
   omega
 
+/-- Postcondition of a 320-register per-record matrix-product backend at tensor level `L`. -/
+abbrev ExecPost (prog : Code .standard 320) (L : ℕ) {m n : ℕ} (W b time : ℕ)
+    (X : Matrix (Fin n) (Fin (D m)) ℤ) (Y : Matrix (Fin (D m)) (Fin n) ℤ)
+    (qs : List (Fin n × Fin n)) (x : Data 320) : Prop :=
+  ∃ y, ExecWithin W prog x y time ∧
+    y.regs Reg.result = b + QueriedProduct.outputBase L m n qs.length ∧
+    (∀ j : Fin qs.length,
+      y.mem (b + (QueriedProduct.outputBase L m n qs.length + j.val)) =
+        Signed.encode ((X * Y) (qs.get j).1 (qs.get j).2)) ∧
+    (∀ a, a < b ∨ b + CallableProduct.windowSize n qs.length ≤ a → y.mem a = x.mem a) ∧
+    ∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j
+
 /-- Actual record-to-product execution, with only original input/readback premises and no
 solver/run/time oracle. The final initialized client derives these premises from the producer. -/
 theorem exec {W b m n i out rho piece s t q : ℕ}
@@ -63,13 +75,7 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
     (hX : ∀ a k, 0 ≤ X a k ∧ X a k ≤ 1) (hY : ∀ k a, 0 ≤ Y k a ∧ Y k a ≤ 1)
     (hN : D m ^ 18 ≤ n)
     (hfit : Fits W (2 * b + 4 * CallableProduct.windowSize n qs.length + 1024)) :
-    ∃ y, ExecWithin W program x y (timeBound (m := m) qs) ∧
-      y.regs Reg.result = b + QueriedProduct.outputBase (19 * m) m n qs.length ∧
-      (∀ j : Fin qs.length,
-        y.mem (b + (QueriedProduct.outputBase (19 * m) m n qs.length + j.val)) =
-          Signed.encode ((X * Y) (qs.get j).1 (qs.get j).2)) ∧
-      (∀ a, a < b ∨ b + CallableProduct.windowSize n qs.length ≤ a → y.mem a = x.mem a) ∧
-      ∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j := by
+    ExecPost program (19 * m) W b (timeBound (m := m) qs) X Y qs x := by
   have hmargin := preparation_margin (Q := qs.length) hN
   obtain ⟨a, ha, ab, ain, af, ar⟩ := exec_prepare X Y qs x hD hn hi hout hb hrec hrecord
     hsb htb hqb hleft hright hqueries (hfit.of_le (by omega))
@@ -84,5 +90,47 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
   · intro j hj
     have hne : j ≠ Reg.result := by intro h; subst j; simp [Reg.result] at hj
     exact (yg j (by omega) hne).trans (ar j hj)
+
+/-- Common execution interface of a 320-register per-record matrix-product backend
+(`RecordProduct` at tensor level `19 * m`, `RecordBoxProduct` at tensor level `21 * m`). -/
+structure RecordBackend where
+  /-- Native 320-register record-consumer program. -/
+  program : Code .standard 320
+  /-- Tensor level `L m` (`19 * m` or `21 * m`). -/
+  level : ℕ → ℕ
+  /-- Per-record instruction bound for scale `m` and query list `qs`. -/
+  timeBound : ℕ → {n : ℕ} → List (Fin n × Fin n) → ℕ
+  /-- Fixed instruction-count and physical-width-independence certificate. -/
+  program_fixed : program.size ≤ 131584 ∧ ¬program.ReadsWidth
+  /-- Record-to-product execution from a single descriptor and raw source spans. -/
+  exec : ∀ {W b m n i out rho piece s t q : ℕ}
+    (X : Matrix (Fin n) (Fin (D m)) ℤ) (Y : Matrix (Fin (D m)) (Fin n) ℤ)
+    (qs : List (Fin n × Fin n)) (x : Data 320),
+    x.mem 1 = D m → x.mem 3 = n →
+    x.regs Reg.ordinal = i → x.regs 39 = out → x.regs 42 = b →
+    out + i * (6 + 2 * (n * D m)) + 6 ≤ b →
+    (Block.mk (out + i * (6 + 2 * (n * D m))) 6).Realizes x.mem
+      ![rho, piece, q, qs.length, s, t] →
+    s + n * D m ≤ b → t + n * D m ≤ b → q + 2 * qs.length ≤ b →
+    (∀ a < n * D m, x.mem (s + a) =
+      (State.init (QueriedProduct.input true (19 * m) X Y qs) : State 160).data.mem (5 + a)) →
+    (∀ a < n * D m, x.mem (t + a) =
+      (State.init (QueriedProduct.input true (19 * m) X Y qs) : State 160).data.mem
+        (5 + n * D m + a)) →
+    (∀ a < 2 * qs.length, x.mem (q + a) =
+      (State.init (QueriedProduct.input true (19 * m) X Y qs) : State 160).data.mem
+        (5 + 2 * (n * D m) + a)) →
+    (∀ a k, 0 ≤ X a k ∧ X a k ≤ 1) → (∀ k a, 0 ≤ Y k a ∧ Y k a ≤ 1) →
+    D m ^ 18 ≤ n →
+    Fits W (2 * b + 4 * CallableProduct.windowSize n qs.length + 1024) →
+    ExecPost program (level m) W b (timeBound m qs) X Y qs x
+
+/-- The `RecordProduct` backend at tensor level `19 * m`. -/
+abbrev backend : RecordBackend where
+  program := program
+  level m := 19 * m
+  timeBound m {_n} qs := timeBound (m := m) qs
+  program_fixed := program_fixed
+  exec := @exec
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct

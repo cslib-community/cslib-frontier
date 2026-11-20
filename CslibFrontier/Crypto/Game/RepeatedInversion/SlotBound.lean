@@ -30,8 +30,8 @@ certified inside the word-level reduction `repeatedInverter`
 when it is below `t n`, runs `slotInverter` at it. `plantInverter` has no efficiency certificate:
 a strict PPT sampler draws an exactly uniform index below `t` only when `t` is a power of two. So
 (13.6) here is not Lemma 13.5 itself, whose `B` is efficient. The efficient form is
-`OneWay.repeatedInversion_negligible`, through `succProbability_repeatedInversionGame_le`, which
-loses the dyadic range `dyadicSize (t n)` in place of `t`.
+`OneWayOn.repeatedInversion_negligible`, through `succProbability_repeatedInversionGameOn_le`,
+which loses the dyadic range `dyadicSize (t n)` in place of `t`.
 
 ## Main definitions
 
@@ -333,7 +333,7 @@ word-level reduction `repeatedInverter` draws a dyadic index instead. -/
 /-- The inequality (13.6) of [BonehShoup2023], Lemma 13.5, p. 539, for the typed game and every
 typed adversary `A`: `rOWadv[A, f, t] ≤ t · OWadv[B, f]` with `B = plantInverter`. This is not
 Lemma 13.5 itself, whose `B` is efficient: `plantInverter` has no efficiency certificate. The
-efficient form is `OneWay.repeatedInversion_negligible`, with the factor `dyadicSize (t n)` in
+efficient form is `OneWayOn.repeatedInversion_negligible`, with the factor `dyadicSize (t n)` in
 place of `t`. -/
 theorem succProbability_repeatedInversionExperiment_le (idx : Q → ℕ) (sample : ProbComp X)
     (f : X → X) (t : ℕ) (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) :

@@ -32,9 +32,9 @@ uniform strict PPT cheating prover wins with negligible probability.
 **The reduction.** `kilianBindingAdversary P` runs the first stage of `P` once and the second stage
 twice, on independent challenges, and outputs the first pair of openings, one from each run, of a
 common position to different bits (`kilianBindingOutput`). When both runs are accepted, these are
-two accepted openings of one position of one root to different leaves
-(`merkleBreaksBinding_kilianBindingOutput`): a break of `MerklePositionBinding`. The reduction is
-strict PPT (`isPPT_kilianBindingAdversary`).
+two accepted openings of one position of one root to different one-bit leaves
+(`merkleBreaksBinding_kilianBindingOutput`): a break of `MerklePositionBinding` with the leaf space
+of one-bit words. The reduction is strict PPT (`isPPT_kilianBindingAdversary`).
 
 **The exact bound** (`succProbability_kilianSoundnessGame_le`). If every statement that `P` can
 output at parameter `n` has a compact table of at most `M` entries, then
@@ -46,7 +46,8 @@ run that accepts while its opened bits agree with a fixed table makes the PCP ve
 proof spelled by that table on all `n` independent random strings, which happens with
 probability at most `2⁻ⁿ` when `x ∉ L` (`IsPCPVerifier.sound`); otherwise two runs disagree.
 Composing with `succProbability_merkleBindingGame_le` bounds the advantage by that of the collision
-finder `merkleCollisionFinder H (kilianBindingAdversary P)`.
+finder `merkleCollisionFinder H (kilianBindingAdversary P)`, for a hash whose digests have the
+length of the key.
 
 **Asymptotics.** For a polynomial-time PCP verifier for `L` with `O(log n)` random bits and a
 `HashFamily H`, every efficient prover outputs statements of polynomial length, so `M` is
@@ -220,16 +221,17 @@ theorem merkleVerify_of_mem_kilianOpenings {k : List Bool} {x : α} {root : List
 
 /-- **Two accepted runs that disagree break position binding**: if two responses against one root
 are accepted and open some common position to different bits, the binding adversary's output
-breaks binding. -/
-theorem merkleBreaksBinding_kilianBindingOutput {k : List Bool} {x : α} {root : List Bool}
+breaks binding, with the leaf space of one-bit words. -/
+theorem merkleBreaksBinding_kilianBindingOutput {n : ℕ} {k : List Bool} {x : α} {root : List Bool}
     {ρs₁ ρs₂ : List (List Bool)} {response₁ response₂ : KilianResponse}
     (h₁ : kilianVerify H V k x root ρs₁ response₁ = true)
     (h₂ : kilianVerify H V k x root ρs₂ response₂ = true) {a₁ a₂ : ℕ} {o₁ o₂ : MerkleOpening Bool}
     (ho₁ : (a₁, o₁) ∈ kilianOpenings V x ρs₁ response₁)
     (ho₂ : (a₂, o₂) ∈ kilianOpenings V x ρs₂ response₂)
     (hpos : kilianPosition V x a₁ = kilianPosition V x a₂) (hb : o₁.leaf ≠ o₂.leaf) :
-    merkleBreaksBinding H k (kilianBindingOutput V x root (kilianOpenings V x ρs₁ response₁)
-      (kilianOpenings V x ρs₂ response₂)) = true := by
+    merkleBreaksBinding H (fun _ leaf => leaf.length == 1) n k
+      (kilianBindingOutput V x root (kilianOpenings V x ρs₁ response₁)
+        (kilianOpenings V x ρs₂ response₂)) = true := by
   set openings₁ := kilianOpenings V x ρs₁ response₁
   set openings₂ := kilianOpenings V x ρs₂ response₂
   have hsome : (kilianConflict V x openings₁ openings₂).isSome = true := by
@@ -248,11 +250,10 @@ theorem merkleBreaksBinding_kilianBindingOutput {k : List Bool} {x : α} {root :
   have v₂ := merkleVerify_of_mem_kilianOpenings h₂ hq₂
   simp only [bne_iff_ne, ne_eq, Bool.and_eq_true, beq_iff_eq] at hp
   rw [kilianBindingOutput, hfind]
-  have hlen : o₁'.path.length = kilianDepth V x := by
-    simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq] at v₁
-    exact v₁.1.1
+  have hlen : o₁'.path.length = kilianDepth V x := (merkleVerify_eq_true_iff.mp v₁).1
   simp only [Option.elim, merkleBreaksBinding, MerkleOpening.verify_id, hlen, Bool.and_eq_true,
-    bne_iff_ne, ne_eq, List.cons.injEq, and_true]
+    bne_iff_ne, ne_eq, List.cons.injEq, and_true, List.length_singleton, beq_self_eq_true,
+    true_and]
   exact ⟨⟨v₁, hp.1 ▸ v₂⟩, hp.2⟩
 
 /-! ### Acceptance with a consistent table -/
@@ -348,7 +349,9 @@ private theorem eval_kilianSoundnessGame (L : Set α) (P : KilianProver α) (n :
 private theorem disagreement_le_merkleBindingGame (L : Set α) (P : KilianProver α) (n M : ℕ) :
     Rewinding.disagreement (kilianFirst P n) (kilianRun V P n) (kilianWins H V L)
         (kilianOpens V) M true ≤
-      ProbComp.eval (merkleBindingGame H (kilianBindingAdversary V P) n) true := by
+      ProbComp.eval
+        (merkleBindingGame H (fun _ leaf => leaf.length == 1) (kilianBindingAdversary V P) n)
+        true := by
   simp only [Rewinding.disagreement, merkleBindingGame, kilianBindingAdversary, kilianFirst,
     kilianRun, ProbComp.eval_bind, ProbComp.eval_pure, Probability.PMF.monad_bind_eq_bind,
     Probability.PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
@@ -439,8 +442,8 @@ theorem succProbability_kilianSoundnessGame_le (L : Set α) (P : KilianProver α
     (hM : ∀ k : List Bool, k.length = n → ∀ c ∈ (ProbComp.eval (P.commit n k)).support,
       (V.queryTable c.stmt).length ≤ M) :
     Game.succProbability (ProbComp.eval (kilianSoundnessGame H V L P n)) ≤
-      (1 / 2) ^ n + M * NNReal.sqrt (Game.succProbability
-        (ProbComp.eval (merkleBindingGame H (kilianBindingAdversary V P) n))) := by
+      (1 / 2) ^ n + M * NNReal.sqrt (Game.succProbability (ProbComp.eval (merkleBindingGame H
+        (fun _ leaf => leaf.length == 1) (kilianBindingAdversary V P) n))) := by
   have hcore := Rewinding.le_add_mul_sqrt_disagreement (kilianFirst P n) (kilianRun V P n)
     (kilianWins H V L) (kilianOpens V) M (ε := (1 / 2) ^ n) ?hpos ?hcons
   case hpos =>
@@ -660,9 +663,11 @@ end Efficiency
 
 /-! ### Computational soundness -/
 
-/-- The exact soundness bound composed with the reduction of `HashFamily.merklePositionBinding`:
+/-- The exact soundness bound composed with the reduction of
+`CollisionResistantOn.merklePositionBinding`, for a hash whose digests have the length of the key:
 `Pr[x ∉ L ∧ accept] ≤ 2⁻ⁿ + M · √Adv^CR(merkleCollisionFinder H (kilianBindingAdversary P), n)`. -/
-theorem succProbability_kilianSoundnessGame_le_collision (L : Set α) (P : KilianProver α) (n M : ℕ)
+theorem succProbability_kilianSoundnessGame_le_collision (hlen : ∀ k y, (H k y).length = k.length)
+    (L : Set α) (P : KilianProver α) (n M : ℕ)
     (hsound : ∀ x ∉ L, ∀ π : List Bool,
       2 * acceptCount (fun y => V.accepts y.1 π y.2) x (V.coins x) ≤ 2 ^ V.coins x)
     (hM : ∀ k : List Bool, k.length = n → ∀ c ∈ (ProbComp.eval (P.commit n k)).support,
@@ -670,10 +675,17 @@ theorem succProbability_kilianSoundnessGame_le_collision (L : Set α) (P : Kilia
     Game.succProbability (ProbComp.eval (kilianSoundnessGame H V L P n)) ≤
       (1 / 2) ^ n + M * NNReal.sqrt (Game.succProbability (ProbComp.eval
         (collisionGame H (fun _ _ => true) (merkleCollisionFinder H (kilianBindingAdversary V P))
-          n))) :=
-  (succProbability_kilianSoundnessGame_le L P n M hsound hM).trans
-    (add_le_add le_rfl (mul_le_mul_of_nonneg_left
-      (NNReal.sqrt_le_sqrt.mpr (succProbability_merkleBindingGame_le _ n)) (by positivity)))
+          n))) := by
+  have hall := succProbability_collisionGame_le_of_extract (H₁ := H) (H₂ := H)
+    (valid₁ := merkleHashDomain fun _ leaf => leaf.length == 1) (valid₂ := fun _ _ => true)
+    (fun _ _ m₁ m₂ => (m₁, m₂))
+    (merkleCollisionFinder H (kilianBindingAdversary V P)) n fun _ _ _ _ hcol => by
+      rw [isCollision_eq_true_iff] at hcol ⊢
+      exact ⟨rfl, rfl, hcol.2.2⟩
+  simp only [Prod.mk.eta, bind_pure] at hall
+  exact (succProbability_kilianSoundnessGame_le L P n M hsound hM).trans
+    (add_le_add le_rfl (mul_le_mul_of_nonneg_left (NNReal.sqrt_le_sqrt.mpr
+      ((succProbability_merkleBindingGame_le hlen _ n).trans hall)) (by positivity)))
 
 /-- **Kilian's protocol is computationally sound** ([BarakGoldreich2001], Construction 3.4 and
 Lemma 3.5, for uniform adversaries and compact tables): for a polynomial-time PCP verifier for `L`
@@ -705,7 +717,8 @@ theorem HashFamily.kilianSound (hH : HashFamily H) {enc : α ↪ List Bool} {L :
       _ ≤ c₂ * (c₁ * (3 * n + 2) ^ d₁ + 1) ^ d₂ := by gcongr
   have hpoly : PolynomiallyBounded fun n => c₂ * (c₁ * (3 * n + 2) ^ d₁ + 1) ^ d₂ := by
     fun_prop
-  have hbind := hH.merklePositionBinding.negligible _ (isPPT_kilianBindingAdversary hV hcoins hP)
+  have hbind := (merklePositionBinding_of_hashFamily hH fun _ leaf => leaf.length == 1).negligible _
+    (isPPT_kilianBindingAdversary hV hcoins hP)
   refine negligible_of_le ((negligible_geometric (by norm_num : (1 / 2 : NNReal) < 1)).add
     (hbind.sqrt.polynomiallyBounded_mul hpoly)) fun n => ?_
   exact succProbability_kilianSoundnessGame_le L P n _ hpcp.sound (hM n)

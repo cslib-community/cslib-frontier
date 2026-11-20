@@ -120,7 +120,7 @@ theorem isPolyTime_mapConstraints {graph : Input → Graph C} {f : C → C'}
 theorem isPolyTime_constraintTable [Fintype α] {alphabet : α ↪ List Bool}
     {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     ComputableInPolyTime eval enc encConstraintTable := by
   fun_prop
 
@@ -130,7 +130,7 @@ The source descriptor may have unbounded encoded size. -/
 theorem isPolyTime_tabulateConstraints [Fintype α] {alphabet : α ↪ List Bool}
     {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     ComputableInPolyTime (mapConstraints eval) (encoding enc) (encoding encConstraintTable) :=
   isPolyTime_mapConstraints (.id' (encIn := encoding enc)) (isPolyTime_constraintTable heval)
 
@@ -138,7 +138,7 @@ theorem isPolyTime_tabulateConstraints [Fintype α] {alphabet : α ↪ List Bool
 @[fun_prop]
 theorem isPolyTime_constraintTableEval [Fintype α] (alphabet : α ↪ List Bool) :
     ComputableInPolyTime (fun p : (α → α → Bool) × α × α => p.1 p.2.1 p.2.2)
-      (encPair encConstraintTable (encPair alphabet alphabet)) encBool := by
+      (encEvalInput encConstraintTable alphabet) encBool := by
   polytime
 
 /-- The full two-dimensional constraint table has bounded encoded size, including its framing. -/

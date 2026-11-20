@@ -11,9 +11,10 @@ public import CslibFrontier.Computability.Complexity.FineGrained.Sparsification
 public import CslibFrontier.Computability.Complexity.Problems.Clique
 public import CslibFrontier.Computability.Complexity.Parameterized
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Complexity.FineGrained.Reduction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.TwoPow
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -23,6 +24,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Logics.Propositional.CNF.Eval
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
+import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Clause-Grouping Reduction from 3-SAT to Clique and ETH Lower Bounds
@@ -247,17 +249,8 @@ private lemma compat_iff {vs₁ vs₂ : List ℕ} {a₁ a₂ : ℕ} :
 
 private lemma compat_symm {vs₁ vs₂ : List ℕ} {a₁ a₂ : ℕ} :
     GroupClique.compat vs₁ vs₂ a₁ a₂ = true ↔ GroupClique.compat vs₂ vs₁ a₂ a₁ = true := by
-  simp only [GroupClique.compat, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true',
-    List.contains_eq_mem, beq_iff_eq]
-  constructor
-  · intro h x hx₂
-    by_cases hx₁ : x ∈ vs₁
-    · exact Or.inr ((h x hx₁).resolve_left (by simp [hx₂])).symm
-    · exact Or.inl (by simp [hx₁])
-  · intro h x hx₁
-    by_cases hx₂ : x ∈ vs₂
-    · exact Or.inr ((h x hx₂).resolve_left (by simp [hx₁])).symm
-    · exact Or.inl (by simp [hx₂])
+  simp only [compat_iff]
+  exact ⟨fun h x hx₂ hx₁ => (h x hx₁ hx₂).symm, fun h x hx₁ hx₂ => (h x hx₂ hx₁).symm⟩
 
 private lemma mem_edgesOfBound_iff {r : ℕ} {φ : CNF ℕ} {bound : ℕ} {e : ℕ × ℕ} :
     e ∈ GroupClique.edgesOfBound r φ bound ↔
@@ -486,27 +479,25 @@ theorem groupClique_mem_Clique_iff {r : ℕ} (hr : 1 ≤ r) (φ : CNF ℕ) :
 
 /-! ### Polynomial-time computability of the bounded builder -/
 
+@[local program_certificate]
 private theorem computableInPolyTime_blockSize {γ : Type} {encIn : γ ↪ List Bool}
     {φ : γ → CNF ℕ} {r : γ → ℕ}
     (hφ : ComputableInPolyTime φ encIn encCNF)
     (hr : ComputableInPolyTime r encIn encUnary) :
     ComputableInPolyTime (fun g => GroupClique.blockSize (φ g) (r g)) encIn encUnary := by
   have hlen := SAT.computableInPolyTime_length hφ
-  have hnum := ComputableInPolyTime.unary_sub'
-    (ComputableInPolyTime.unary_add' hlen hr) (ComputableInPolyTime.const 1)
-  exact ComputableInPolyTime.unary_div' hnum hr
+  polytime [GroupClique.blockSize]
 
+@[local program_certificate]
 private theorem computableInPolyTime_block {γ : Type} {encIn : γ ↪ List Bool}
     {φ : γ → CNF ℕ} {r i : γ → ℕ}
     (hφ : ComputableInPolyTime φ encIn encCNF)
     (hr : ComputableInPolyTime r encIn encUnary)
     (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun g => GroupClique.block (φ g) (r g) (i g)) encIn encCNF := by
-  have hbs := computableInPolyTime_blockSize hφ hr
-  have hoff := ComputableInPolyTime.unary_mul' hi hbs
-  exact ComputableInPolyTime.listTakeWithInput
-    (ComputableInPolyTime.listDropWithInput hφ hoff) hbs
+  polytime [GroupClique.block]
 
+@[local program_certificate]
 private theorem computableInPolyTime_compat {γ : Type} {encIn : γ ↪ List Bool}
     {vs₁ vs₂ : γ → List ℕ} {a₁ a₂ : γ → ℕ}
     (hvs₁ : ComputableInPolyTime vs₁ encIn (encList encNat))
@@ -515,42 +506,9 @@ private theorem computableInPolyTime_compat {γ : Type} {encIn : γ ↪ List Boo
     (ha₂ : ComputableInPolyTime a₂ encIn encNat) :
     ComputableInPolyTime
       (fun g => GroupClique.compat (vs₁ g) (vs₂ g) (a₁ g) (a₂ g)) encIn encBool := by
-  have hnot_mem :
-      ComputableInPolyTime
-        (fun p : γ × ℕ => !(vs₂ p.1).contains p.2)
-        (encPair encIn encNat) encBool :=
-    ComputableInPolyTime.bool_not.comp
-      (ComputableInPolyTime.contains
-        (hvs₂.comp (ComputableInPolyTime.fst encIn encNat))
-        (ComputableInPolyTime.snd encIn encNat))
-  have hbit₁ :
-      ComputableInPolyTime
-        (fun p : γ × ℕ => bitsAssignment (vs₁ p.1) (a₁ p.1) p.2)
-        (encPair encIn encNat) encBool :=
-    ComputableInPolyTime.binary_testBit
-      (ha₁.comp (ComputableInPolyTime.fst encIn encNat))
-      (ComputableInPolyTime.idxOfWithInput
-        (hvs₁.comp (ComputableInPolyTime.fst encIn encNat))
-        (ComputableInPolyTime.snd encIn encNat))
-  have hbit₂ :
-      ComputableInPolyTime
-        (fun p : γ × ℕ => bitsAssignment (vs₂ p.1) (a₂ p.1) p.2)
-        (encPair encIn encNat) encBool :=
-    ComputableInPolyTime.binary_testBit
-      (ha₂.comp (ComputableInPolyTime.fst encIn encNat))
-      (ComputableInPolyTime.idxOfWithInput
-        (hvs₂.comp (ComputableInPolyTime.fst encIn encNat))
-        (ComputableInPolyTime.snd encIn encNat))
-  have heq_bit :
-      ComputableInPolyTime
-        (fun p : γ × ℕ =>
-          bitsAssignment (vs₁ p.1) (a₁ p.1) p.2 ==
-            bitsAssignment (vs₂ p.1) (a₂ p.1) p.2)
-        (encPair encIn encNat) encBool :=
-    ComputableInPolyTime.beq hbit₁ hbit₂
-  have hbody := ComputableInPolyTime.bool_or.comp (ComputableInPolyTime.prod hnot_mem heq_bit)
-  exact ComputableInPolyTime.allWithInput hvs₁ hbody
+  polytime [GroupClique.compat, bitsAssignment]
 
+@[local program_certificate]
 private theorem computableInPolyTime_evalBlock {γ : Type} {encIn : γ ↪ List Bool}
     {φ : γ → CNF ℕ} {r i a : γ → ℕ}
     (hφ : ComputableInPolyTime φ encIn encCNF)
@@ -561,13 +519,13 @@ private theorem computableInPolyTime_evalBlock {γ : Type} {encIn : γ ↪ List 
       (fun g =>
         (GroupClique.block (φ g) (r g) (i g)).eval
           (bitsAssignment (GroupClique.block (φ g) (r g) (i g)).distinctVars (a g)))
-      encIn encBool := by
-  have hb := computableInPolyTime_block hφ hr hi
-  have hvs := SAT.computableInPolyTime_distinctVars.comp hb
-  have ha_nat := ComputableInPolyTime.unary_to_binary.comp ha
-  exact computableInPolyTime_eval_bitsAssignment.comp
-    (ComputableInPolyTime.prod (ComputableInPolyTime.prod hb hvs) ha_nat)
+      encIn encBool :=
+  computableInPolyTime_eval_bitsAssignment.comp
+    (((computableInPolyTime_block hφ hr hi).prod
+      (SAT.computableInPolyTime_distinctVars.comp (computableInPolyTime_block hφ hr hi))).prod
+      (ComputableInPolyTime.unary_to_binary.comp ha))
 
+@[local program_certificate]
 private theorem computableInPolyTime_vertex {γ : Type} {encIn : γ ↪ List Bool}
     {bound i a : γ → ℕ}
     (hb : ComputableInPolyTime bound encIn encUnary)
@@ -580,181 +538,38 @@ private theorem computableInPolyTime_vertex {γ : Type} {encIn : γ ↪ List Boo
       (ComputableInPolyTime.unary_to_binary.comp hb))
     (ComputableInPolyTime.unary_to_binary.comp ha)
 
+@[local program_certificate]
 private theorem computableInPolyTime_verticesOfBound :
     ComputableInPolyTime
       (fun p : (ℕ × CNF ℕ) × ℕ => GroupClique.verticesOfBound p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encCNF) encUnary) (encList encNat) := by
-  let encIn := encPair (encPair encUnary encCNF) encUnary
-  have hr : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.1) encIn encUnary :=
-    (ComputableInPolyTime.fst encUnary encCNF).comp
-      (ComputableInPolyTime.fst (encPair encUnary encCNF) encUnary)
-  have hφ : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.2) encIn encCNF :=
-    (ComputableInPolyTime.snd encUnary encCNF).comp
-      (ComputableInPolyTime.fst (encPair encUnary encCNF) encUnary)
-  have hbd : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.2) encIn encUnary :=
-    ComputableInPolyTime.snd (encPair encUnary encCNF) encUnary
-  have hrange_r := ComputableInPolyTime.range.comp hr
-  refine ComputableInPolyTime.flatMapWithInput hrange_r ?_
-  let encI := encPair encIn encUnary
-  have hrI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.1.1.1) encI encUnary :=
-    hr.comp (ComputableInPolyTime.fst encIn encUnary)
-  have hφI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.1.1.2) encI encCNF :=
-    hφ.comp (ComputableInPolyTime.fst encIn encUnary)
-  have hbdI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.1.2) encI encUnary :=
-    hbd.comp (ComputableInPolyTime.fst encIn encUnary)
-  have hiI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.2) encI encUnary :=
-    ComputableInPolyTime.snd encIn encUnary
-  have hrange_bd := ComputableInPolyTime.range.comp hbdI
-  have hfilt :
-      ComputableInPolyTime
-        (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ =>
-          (List.range q.1.2).filter fun a =>
-            (GroupClique.block q.1.1.2 q.1.1.1 q.2).eval
-              (bitsAssignment (GroupClique.block q.1.1.2 q.1.1.1 q.2).distinctVars a))
-        encI (encList encUnary) := by
-    refine ComputableInPolyTime.filterWithInput hrange_bd ?_
-    exact computableInPolyTime_evalBlock
-      (hφI.comp (ComputableInPolyTime.fst encI encUnary))
-      (hrI.comp (ComputableInPolyTime.fst encI encUnary))
-      (hiI.comp (ComputableInPolyTime.fst encI encUnary))
-      (ComputableInPolyTime.snd encI encUnary)
-  refine ComputableInPolyTime.mapWithInput hfilt ?_
-  exact computableInPolyTime_vertex
-    (hbdI.comp (ComputableInPolyTime.fst encI encUnary))
-    (hiI.comp (ComputableInPolyTime.fst encI encUnary))
-    (ComputableInPolyTime.snd encI encUnary)
+  polytime [GroupClique.verticesOfBound]
 
+@[local program_certificate]
 private theorem computableInPolyTime_edgesOfBound :
     ComputableInPolyTime
       (fun p : (ℕ × CNF ℕ) × ℕ => GroupClique.edgesOfBound p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encCNF) encUnary) (encList (encPair encNat encNat)) := by
-  let encIn := encPair (encPair encUnary encCNF) encUnary
-  have hr : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.1) encIn encUnary :=
-    (ComputableInPolyTime.fst encUnary encCNF).comp
-      (ComputableInPolyTime.fst (encPair encUnary encCNF) encUnary)
-  have hφ : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.2) encIn encCNF :=
-    (ComputableInPolyTime.snd encUnary encCNF).comp
-      (ComputableInPolyTime.fst (encPair encUnary encCNF) encUnary)
-  have hbd : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.2) encIn encUnary :=
-    ComputableInPolyTime.snd (encPair encUnary encCNF) encUnary
-  refine ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.range.comp hr) ?_
-  let encI := encPair encIn encUnary
-  have hrI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.1.1.1) encI encUnary :=
-    hr.comp (ComputableInPolyTime.fst encIn encUnary)
-  have hφI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.1.1.2) encI encCNF :=
-    hφ.comp (ComputableInPolyTime.fst encIn encUnary)
-  have hbdI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.1.2) encI encUnary :=
-    hbd.comp (ComputableInPolyTime.fst encIn encUnary)
-  have hiI : ComputableInPolyTime (fun q : ((ℕ × CNF ℕ) × ℕ) × ℕ => q.2) encI encUnary :=
-    ComputableInPolyTime.snd encIn encUnary
-  refine ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.range.comp hbdI) ?_
-  let encA := encPair encI encUnary
-  have hrA : ComputableInPolyTime (fun q : (((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ => q.1.1.1.1)
-      encA encUnary := hrI.comp (ComputableInPolyTime.fst encI encUnary)
-  have hφA : ComputableInPolyTime (fun q : (((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ => q.1.1.1.2)
-      encA encCNF := hφI.comp (ComputableInPolyTime.fst encI encUnary)
-  have hbdA : ComputableInPolyTime (fun q : (((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ => q.1.1.2)
-      encA encUnary := hbdI.comp (ComputableInPolyTime.fst encI encUnary)
-  have hiA : ComputableInPolyTime (fun q : (((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ => q.1.2)
-      encA encUnary := hiI.comp (ComputableInPolyTime.fst encI encUnary)
-  have haA : ComputableInPolyTime (fun q : (((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ => q.2)
-      encA encUnary := ComputableInPolyTime.snd encI encUnary
-  have hcondA := ComputableInPolyTime.bool_not.comp
-    (computableInPolyTime_evalBlock hφA hrA hiA haA)
-  dsimp only [Function.comp_def] at hcondA
-  refine ComputableInPolyTime.ite_decide (by simpa only [Bool.decide_eq_true] using hcondA)
-    (ComputableInPolyTime.const []) ?_
-  refine ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.range.comp hrA) ?_
-  let encJ := encPair encA encUnary
-  have hrJ : ComputableInPolyTime (fun q : ((((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ) × ℕ => q.1.1.1.1.1)
-      encJ encUnary := hrA.comp (ComputableInPolyTime.fst encA encUnary)
-  have hφJ : ComputableInPolyTime (fun q : ((((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ) × ℕ => q.1.1.1.1.2)
-      encJ encCNF := hφA.comp (ComputableInPolyTime.fst encA encUnary)
-  have hbdJ : ComputableInPolyTime (fun q : ((((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ) × ℕ => q.1.1.1.2)
-      encJ encUnary := hbdA.comp (ComputableInPolyTime.fst encA encUnary)
-  have hiJ : ComputableInPolyTime (fun q : ((((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ) × ℕ => q.1.1.2)
-      encJ encUnary := hiA.comp (ComputableInPolyTime.fst encA encUnary)
-  have haJ : ComputableInPolyTime (fun q : ((((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ) × ℕ => q.1.2)
-      encJ encUnary := haA.comp (ComputableInPolyTime.fst encA encUnary)
-  have hjJ : ComputableInPolyTime (fun q : ((((ℕ × CNF ℕ) × ℕ) × ℕ) × ℕ) × ℕ => q.2)
-      encJ encUnary := ComputableInPolyTime.snd encA encUnary
-  have hji := ComputableInPolyTime.beq hjJ hiJ
-  refine ComputableInPolyTime.ite_decide (by simpa only [Bool.decide_eq_true] using hji)
-    (ComputableInPolyTime.const []) ?_
-  have hfilt :
-      ComputableInPolyTime
-        (fun q =>
-          (List.range q.1.1.1.2).filter fun b =>
-            (GroupClique.block q.1.1.1.1.2 q.1.1.1.1.1 q.2).eval
-                (bitsAssignment
-                  (GroupClique.block q.1.1.1.1.2 q.1.1.1.1.1 q.2).distinctVars b) &&
-              GroupClique.compat
-                (GroupClique.block q.1.1.1.1.2 q.1.1.1.1.1 q.1.1.2).distinctVars
-                (GroupClique.block q.1.1.1.1.2 q.1.1.1.1.1 q.2).distinctVars
-                q.1.2 b)
-        encJ (encList encUnary) := by
-    refine ComputableInPolyTime.filterWithInput (ComputableInPolyTime.range.comp hbdJ) ?_
-    have hrB := hrJ.comp (ComputableInPolyTime.fst encJ encUnary)
-    have hφB := hφJ.comp (ComputableInPolyTime.fst encJ encUnary)
-    have hiB := hiJ.comp (ComputableInPolyTime.fst encJ encUnary)
-    have haB := haJ.comp (ComputableInPolyTime.fst encJ encUnary)
-    have hjB := hjJ.comp (ComputableInPolyTime.fst encJ encUnary)
-    have hbB := ComputableInPolyTime.snd encJ encUnary
-    have heval₂ := computableInPolyTime_evalBlock hφB hrB hjB hbB
-    have hvs₁ := SAT.computableInPolyTime_distinctVars.comp
-      (computableInPolyTime_block hφB hrB hiB)
-    have hvs₂ := SAT.computableInPolyTime_distinctVars.comp
-      (computableInPolyTime_block hφB hrB hjB)
-    have hcomp := computableInPolyTime_compat hvs₁ hvs₂
-      (ComputableInPolyTime.unary_to_binary.comp haB)
-      (ComputableInPolyTime.unary_to_binary.comp hbB)
-    exact ComputableInPolyTime.bool_and.comp (ComputableInPolyTime.prod heval₂ hcomp)
-  refine ComputableInPolyTime.mapWithInput hfilt ?_
-  have hbdB := hbdJ.comp (ComputableInPolyTime.fst encJ encUnary)
-  have hiB := hiJ.comp (ComputableInPolyTime.fst encJ encUnary)
-  have haB := haJ.comp (ComputableInPolyTime.fst encJ encUnary)
-  have hjB := hjJ.comp (ComputableInPolyTime.fst encJ encUnary)
-  have hbB := ComputableInPolyTime.snd encJ encUnary
-  exact ComputableInPolyTime.prod
-    (computableInPolyTime_vertex hbdB hiB haB)
-    (computableInPolyTime_vertex hbdB hjB hbB)
+  polytime [GroupClique.edgesOfBound]
 
 private theorem computableInPolyTime_graphOfBound :
     ComputableInPolyTime
       (fun p : (ℕ × CNF ℕ) × ℕ => GroupClique.graphOfBound p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encCNF) encUnary) encCliqueInstance := by
-  let encIn := encPair (encPair encUnary encCNF) encUnary
-  have hr : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.1) encIn encUnary :=
-    (ComputableInPolyTime.fst encUnary encCNF).comp
-      (ComputableInPolyTime.fst (encPair encUnary encCNF) encUnary)
-  have hφ : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.2) encIn encCNF :=
-    (ComputableInPolyTime.snd encUnary encCNF).comp
-      (ComputableInPolyTime.fst (encPair encUnary encCNF) encUnary)
-  have hr0 : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.1 == 0) encIn encBool :=
-    ComputableInPolyTime.beq hr (ComputableInPolyTime.const 0)
-  have hnot3 :
-      ComputableInPolyTime
-        (fun p : (ℕ × CNF ℕ) × ℕ => !p.1.2.all fun c => decide (c.length ≤ 3))
-        encIn encBool :=
-    ComputableInPolyTime.bool_not.comp ((computableInPolyTime_all_length_le 3).comp hφ)
-  have hmain :
-      ComputableInPolyTime
-        (fun p : (ℕ × CNF ℕ) × ℕ =>
-          ⟨⟨GroupClique.verticesOfBound p.1.1 p.1.2 p.2,
-            GroupClique.edgesOfBound p.1.1 p.1.2 p.2⟩, p.1.1⟩)
-        encIn encCliqueInstance :=
-    encCliqueInstance_mk_polyTime
+  unfold GroupClique.graphOfBound
+  have h3 : ComputableInPolyTime
+      (fun p : (ℕ × CNF ℕ) × ℕ => !p.1.2.all fun c => decide (c.length ≤ 3))
+      (encPair (encPair encUnary encCNF) encUnary) encBool :=
+    ComputableInPolyTime.bool_not.comp ((computableInPolyTime_all_length_le 3).comp (by polytime))
+  refine ComputableInPolyTime.ite_decide
+    (by simpa only [Bool.decide_eq_true] using
+      (by polytime : ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => p.1.1 == 0) _ encBool))
+    (ComputableInPolyTime.const _)
+    (ComputableInPolyTime.ite_decide (by simpa only [Bool.decide_eq_true] using h3) ?_ ?_)
+  · exact encCliqueInstance_mk_polyTime (ComputableInPolyTime.const _) (by polytime)
+  · exact encCliqueInstance_mk_polyTime
       (encGraph_mk_polyTime computableInPolyTime_verticesOfBound computableInPolyTime_edgesOfBound)
-      (ComputableInPolyTime.unary_to_binary.comp hr)
-  have hbad3 :
-      ComputableInPolyTime (fun p : (ℕ × CNF ℕ) × ℕ => ⟨⟨[], []⟩, p.1.1⟩)
-        encIn encCliqueInstance :=
-    encCliqueInstance_mk_polyTime (ComputableInPolyTime.const (⟨[], []⟩ : Graph))
-      (ComputableInPolyTime.unary_to_binary.comp hr)
-  refine ComputableInPolyTime.ite_decide (by simpa only [Bool.decide_eq_true] using hr0)
-    (ComputableInPolyTime.const (⟨⟨[], []⟩, 1⟩ : CliqueInstance)) ?_
-  exact ComputableInPolyTime.ite_decide (by simpa only [Bool.decide_eq_true] using hnot3)
-    hbad3 hmain
+      (by polytime)
 
 /-- Uniform runtime and output-size bound for `(r, φ) ↦ SAT.groupClique r φ`: the exponential
 exponent scales linearly in `3 * ((φ.length + r - 1) / r)` with polynomial degree `D` independent
@@ -781,133 +596,40 @@ theorem exists_computableInO_groupClique :
 
 private lemma blockSize_real_le {m r : ℕ} (hr : 1 ≤ r) :
     (((m + r - 1) / r : ℕ) : ℝ) ≤ (m : ℝ) / (r : ℝ) + 1 := by
-  have hr_pos : (0 : ℝ) < (r : ℝ) := by exact_mod_cast hr
-  have hmul : ((m + r - 1) / r) * r ≤ m + r := by
-    have hle := Nat.div_mul_le_self (m + r - 1) r
-    omega
-  have hmul_r : (((m + r - 1) / r : ℕ) : ℝ) * (r : ℝ) ≤ (m : ℝ) + (r : ℝ) := by
-    exact_mod_cast hmul
-  have hdiv_r : (((m + r - 1) / r : ℕ) : ℝ) * (r : ℝ) ≤
-      ((m : ℝ) / (r : ℝ) + 1) * (r : ℝ) := by
-    calc
-      (((m + r - 1) / r : ℕ) : ℝ) * (r : ℝ) ≤ (m : ℝ) + (r : ℝ) := hmul_r
-      _ = ((m : ℝ) / (r : ℝ) + 1) * (r : ℝ) := by field_simp
-  exact le_of_mul_le_mul_right hdiv_r hr_pos
+  have hr0 : (0 : ℝ) < r := by exact_mod_cast hr
+  rw [div_add_one hr0.ne', le_div_iff₀ hr0]
+  exact_mod_cast (Nat.div_mul_le_self (m + r - 1) r).trans (by omega)
 
 private lemma two_pow_blockSize_real_le {r D : ℕ} (hr : 1 ≤ r) (φ : CNF ℕ) :
     ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) ≤
       (2 : ℝ) ^ (3 * D) * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) := by
-  have hbs : ((GroupClique.blockSize φ r : ℕ) : ℝ) ≤ (φ.length : ℝ) / (r : ℝ) + 1 :=
-    blockSize_real_le hr
-  have hexp_le :
-      ((D * (3 * GroupClique.blockSize φ r) : ℕ) : ℝ) ≤
-        (3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ) + (3 * D : ℕ) := by
-    have hcast :
-        ((D * (3 * GroupClique.blockSize φ r) : ℕ) : ℝ) =
-          3 * (D : ℝ) * ((GroupClique.blockSize φ r : ℕ) : ℝ) := by
-      push_cast; ring
-    rw [hcast]
-    have h1 : 3 * (D : ℝ) * ((GroupClique.blockSize φ r : ℕ) : ℝ) ≤
-        3 * (D : ℝ) * ((φ.length : ℝ) / (r : ℝ) + 1) := by gcongr
-    calc
-      3 * (D : ℝ) * ((GroupClique.blockSize φ r : ℕ) : ℝ)
-          ≤ 3 * (D : ℝ) * ((φ.length : ℝ) / (r : ℝ) + 1) := h1
-      _ = (3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ) + ((3 * D : ℕ) : ℝ) := by
-        push_cast; ring
-  have hpow_nat :
-      ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) =
-        (2 : ℝ) ^ ((D * (3 * GroupClique.blockSize φ r) : ℕ) : ℝ) := by
-    rw [Real.rpow_natCast]
+  have hbs := blockSize_real_le (m := φ.length) hr
+  rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, mul_comm ((2 : ℝ) ^ (3 * D)),
+    ← Real.rpow_natCast 2 (3 * D), ← Real.rpow_add (by norm_num)]
+  refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
+  push_cast
+  calc (D : ℝ) * (3 * GroupClique.blockSize φ r)
+      ≤ D * (3 * (φ.length / r + 1)) := by gcongr; exact hbs
+    _ = (3 * (D : ℝ) / r) * φ.length + 3 * D := by ring
+
+private lemma encPair_unary_cnf_length_pow_le (r : ℕ) (φ : CNF ℕ) {D E : ℕ} (hDE : D ≤ E) :
+    (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D ≤
+      (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by
+  have hp : ((encPair encUnary encCNF (r, φ)).length + 1 : ℝ) ≤
+      ((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1) := by
+    have hlen : (encPair encUnary encCNF (r, φ)).length =
+        (frame (encUnary r)).length + (encCNF φ).length := by simp [encPair]
+    rw [hlen]
     push_cast
-    rfl
-  rw [hpow_nat]
-  calc
-    (2 : ℝ) ^ ((D * (3 * GroupClique.blockSize φ r) : ℕ) : ℝ)
-        ≤ (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ) + (3 * D : ℕ)) :=
-      Real.rpow_le_rpow_of_exponent_le (by norm_num) hexp_le
-    _ = (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) * (2 : ℝ) ^ (3 * D) := by
-      rw [Real.rpow_add (by norm_num), Real.rpow_natCast]
-    _ = (2 : ℝ) ^ (3 * D) * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) := by ring
-
-private lemma encPair_unary_cnf_length_le (r : ℕ) (φ : CNF ℕ) :
-    (encPair encUnary encCNF (r, φ)).length + 1 ≤
-      ((frame (encUnary r)).length + 1) * ((encCNF φ).length + 1) := by
-  have hlen : (encPair encUnary encCNF (r, φ)).length =
-      (frame (encUnary r)).length + (encCNF φ).length := by
-    simp [encPair]
-  rw [hlen]
-  nlinarith
-
-private lemma enc_groupClique_length_le {C₀ D c_len : ℕ} (r : ℕ) (hr : 1 ≤ r)
-    (hlen_red : ∀ p : ℕ × CNF ℕ,
-      (encCliqueInstance (groupClique p.1 p.2)).length ≤
-        c_len * (C₀ * 2 ^ (D * (3 * GroupClique.blockSize p.2 p.1)) *
-          ((encPair encUnary encCNF p).length + 1) ^ D + 1)) :
-    let Lr := (frame (encUnary r)).length + 1
-    let K_enc : ℝ := (c_len : ℝ) * (C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D + (c_len : ℝ) + 1
-    ∀ φ : CNF ℕ,
-      ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1 ≤
-        K_enc * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) *
-          (((encCNF φ).length : ℝ) + 1) ^ D := by
-  intro Lr K_enc φ
-  have hl1r :
-      ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1 ≤
-        (c_len : ℝ) * ((C₀ : ℝ) *
-          ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
-          (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D) + ((c_len : ℝ) + 1) := by
-    have hl := hlen_red (r, φ)
-    have hmul_eq :
-        c_len * (C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
-          ((encPair encUnary encCNF (r, φ)).length + 1) ^ D + 1) =
-          c_len * (C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
-            ((encPair encUnary encCNF (r, φ)).length + 1) ^ D) + c_len := by
-      ring
-    have hl' : (encCliqueInstance (groupClique r φ)).length + 1 ≤
-        c_len * (C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
-          ((encPair encUnary encCNF (r, φ)).length + 1) ^ D) + (c_len + 1) := by
-      change (encCliqueInstance (groupClique (r, φ).1 (r, φ).2)).length + 1 ≤ _
-      have hl2 := Nat.add_le_add_right hl 1
-      rw [hmul_eq] at hl2
-      exact le_trans hl2 (by omega)
-    exact_mod_cast hl'
-  have hpow2 := two_pow_blockSize_real_le (D := D) hr φ
-  have hpoly :
-      (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D ≤
-        (Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D := by
-    have hp : ((encPair encUnary encCNF (r, φ)).length + 1 : ℝ) ≤
-        (Lr : ℝ) * (((encCNF φ).length : ℝ) + 1) := by
-      exact_mod_cast encPair_unary_cnf_length_le r φ
-    calc
-      (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
-          ≤ ((Lr : ℝ) * (((encCNF φ).length : ℝ) + 1)) ^ D :=
+    nlinarith
+  calc (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
+      ≤ (((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1)) ^ D :=
         pow_le_pow_left₀ (by positivity) hp D
-      _ = (Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D := mul_pow _ _ _
-  have hbase_ge :
-      (1 : ℝ) ≤
-        (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) *
-          (((encCNF φ).length : ℝ) + 1) ^ D := by
-    have hexp : (1 : ℝ) ≤ (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) :=
-      Real.one_le_rpow (by norm_num) (by positivity)
-    have hpol : (1 : ℝ) ≤ (((encCNF φ).length : ℝ) + 1) ^ D :=
-      one_le_pow₀ (by linarith [Nat.cast_nonneg (α := ℝ) (encCNF φ).length])
-    exact one_le_mul_of_one_le_of_one_le hexp hpol
-  calc
-    ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1
-        ≤ (c_len : ℝ) * ((C₀ : ℝ) *
-              ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
-              (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D) +
-            ((c_len : ℝ) + 1) := hl1r
-    _ ≤ (c_len : ℝ) * ((C₀ : ℝ) *
-              ((2 : ℝ) ^ (3 * D) * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ))) *
-              ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D)) +
-            ((c_len : ℝ) + 1) *
-              ((2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) *
-                (((encCNF φ).length : ℝ) + 1) ^ D) := by
-      gcongr
-      exact le_mul_of_one_le_right (by positivity) hbase_ge
-    _ = K_enc * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) *
-          (((encCNF φ).length : ℝ) + 1) ^ D := by
-      simp only [K_enc]; ring
+    _ = (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D :=
+        mul_pow _ _ _
+    _ ≤ (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by
+        gcongr
+        linarith [Nat.cast_nonneg (α := ℝ) (encCNF φ).length]
 
 private lemma decidableInExpTime_threeSAT_of_groupClique_bound
     {dec : CliqueInstance → Bool} {t₂ : CliqueInstance → ℕ} {c₂ : ℕ}
@@ -926,157 +648,81 @@ private lemma decidableInExpTime_threeSAT_of_groupClique_bound
       (t₂ (groupClique r φ) : ℝ) ≤
         A * (2 : ℝ) ^ (B * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ d + c₂) :
     DecidableInExpTime ThreeSAT encCNF List.length δ := by
-  let prep : CNF ℕ → ℕ × CNF ℕ := fun φ => (r, φ)
-  have hprep_poly : ComputableInPolyTime prep encCNF (encPair encUnary encCNF) :=
-    ComputableInPolyTime.prod (ComputableInPolyTime.const r) ComputableInPolyTime.id'
-  rcases hprep_poly.exists_computableInO with ⟨T₀, S₀, hT₀, hS₀, hprepO⟩
+  have hprep_poly : ComputableInPolyTime (fun φ : CNF ℕ => (r, φ)) encCNF
+      (encPair encUnary encCNF) := by polytime
+  rcases hprep_poly.exists_computableInO with ⟨T₀, S₀, hT₀, -, hprepO⟩
   rcases hT₀.exists_le with ⟨C₀', d₀, hT₀_le⟩
-  have hcomp₁ := hred.comp hprepO
-  have hcomp₂ := hdec.comp hcomp₁
+  have hcomp₂ := hdec.comp (hred.comp hprepO)
   let tTot : CNF ℕ → ℕ := fun φ =>
     (T₀ φ +
       C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
         ((encPair encUnary encCNF (r, φ)).length + 1) ^ D) +
     t₂ (groupClique r φ)
-  have heqv : ∀ φ : CNF ℕ, φ ∈ ThreeSAT ↔ dec (groupClique r φ) = true := by
-    intro φ
+  have heqv : ∀ φ : CNF ℕ, φ ∈ ThreeSAT ↔ dec (groupClique r φ) = true := fun φ => by
     rw [← hmem, groupClique_mem_Clique_iff hr]
   let Lr : ℕ := (frame (encUnary r)).length + 1
   let E : ℕ := max d₀ (max D d)
   refine ⟨E, ?_⟩
-  have hbase_ge : ∀ φ : CNF ℕ,
-      (1 : ℝ) ≤ (2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E := by
-    intro φ
-    have hexp : (1 : ℝ) ≤ (2 : ℝ) ^ (δ * (φ.length : ℝ)) :=
-      Real.one_le_rpow (by norm_num) (mul_nonneg hδ (Nat.cast_nonneg _))
-    have hpoly : (1 : ℝ) ≤ (((encCNF φ).length : ℝ) + 1) ^ E :=
-      one_le_pow₀ (by linarith [Nat.cast_nonneg (α := ℝ) (encCNF φ).length])
-    exact one_le_mul_of_one_le_of_one_le hexp hpoly
   have hstep1 : ∀ φ : CNF ℕ,
       (T₀ φ : ℝ) ≤
-        (C₀' : ℝ) *
-          ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) := by
-    intro φ
-    have h1 : (T₀ φ : ℝ) ≤ (C₀' : ℝ) * (((encCNF φ).length : ℝ) + 1) ^ d₀ := by
-      exact_mod_cast hT₀_le φ
-    have hpow : (((encCNF φ).length : ℝ) + 1) ^ d₀ ≤ (((encCNF φ).length : ℝ) + 1) ^ E :=
-      pow_le_pow_right₀ (by linarith [Nat.cast_nonneg (α := ℝ) (encCNF φ).length])
-        (le_max_left _ _)
-    have hexp : (1 : ℝ) ≤ (2 : ℝ) ^ (δ * (φ.length : ℝ)) :=
-      Real.one_le_rpow (by norm_num) (mul_nonneg hδ (Nat.cast_nonneg _))
-    have hterm : (((encCNF φ).length : ℝ) + 1) ^ d₀ ≤
-        (2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E :=
-      le_trans hpow (le_mul_of_one_le_left (pow_nonneg (by positivity) _) hexp)
-    exact h1.trans (mul_le_mul_of_nonneg_left hterm (Nat.cast_nonneg _))
+        (C₀' : ℝ) * ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) := fun φ =>
+    (by exact_mod_cast hT₀_le φ : (T₀ φ : ℝ) ≤ _).trans
+      (mul_le_mul_of_nonneg_left
+        (pow_le_two_rpow_mul_pow (mul_nonneg hδ (Nat.cast_nonneg _)) (le_max_left _ _))
+        (Nat.cast_nonneg _))
   have hstep2 : ∀ φ : CNF ℕ,
       ((C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
           ((encPair encUnary encCNF (r, φ)).length + 1) ^ D : ℕ) : ℝ) ≤
-        ((C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D) *
-          ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) := by
+        ((C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D) *
+          ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) := by
     intro φ
-    have hpow2 :
-        ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) ≤
-          (2 : ℝ) ^ (3 * D) * (2 : ℝ) ^ (δ * (φ.length : ℝ)) := by
-      have hexp :
-          (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) ≤
-            (2 : ℝ) ^ (δ * (φ.length : ℝ)) :=
-        Real.rpow_le_rpow_of_exponent_le (by norm_num)
-          (mul_le_mul_of_nonneg_right hDr (by positivity))
-      exact le_trans (two_pow_blockSize_real_le hr φ)
-        (mul_le_mul_of_nonneg_left hexp (by positivity))
-    have hpoly_pair :
-        (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D ≤
-          (Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by
-      have hlen_r : ((encPair encUnary encCNF (r, φ)).length + 1 : ℝ) ≤
-          (Lr : ℝ) * (((encCNF φ).length : ℝ) + 1) := by
-        exact_mod_cast encPair_unary_cnf_length_le r φ
-      calc
-        (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
-            ≤ ((Lr : ℝ) * (((encCNF φ).length : ℝ) + 1)) ^ D :=
-          pow_le_pow_left₀ (by positivity) hlen_r D
-        _ = (Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D := mul_pow _ _ _
-        _ ≤ (Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by
-          gcongr
-          · linarith [Nat.cast_nonneg (α := ℝ) (encCNF φ).length]
-          · exact le_trans (le_max_left D d) (le_max_right d₀ (max D d))
+    have hpow2 : ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) ≤
+        (2 : ℝ) ^ (3 * D) * 2 ^ (δ * φ.length) :=
+      (two_pow_blockSize_real_le hr φ).trans (mul_le_mul_of_nonneg_left
+        (Real.rpow_le_rpow_of_exponent_le (by norm_num)
+          (mul_le_mul_of_nonneg_right hDr (by positivity))) (by positivity))
+    have hpoly := encPair_unary_cnf_length_pow_le r φ
+      ((le_max_left D d).trans (le_max_right d₀ (max D d)))
     have hcast :
         ((C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
             ((encPair encUnary encCNF (r, φ)).length + 1) ^ D : ℕ) : ℝ) =
           (C₀ : ℝ) * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
-            (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D := by
-      push_cast; rfl
+            (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D := by push_cast; rfl
     rw [hcast]
-    calc
-      (C₀ : ℝ) * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
+    calc (C₀ : ℝ) * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
           (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
-          ≤ (C₀ : ℝ) * ((2 : ℝ) ^ (3 * D) * (2 : ℝ) ^ (δ * (φ.length : ℝ))) *
-              ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E) := by
-        gcongr
-      _ = ((C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D) *
-            ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) := by ring
+        ≤ C₀ * ((2 : ℝ) ^ (3 * D) * 2 ^ (δ * φ.length)) *
+            ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E) := by gcongr
+      _ = ((C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D) *
+            ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) := by ring
   have hstep3 : ∀ φ : CNF ℕ,
       (t₂ (groupClique r φ) : ℝ) ≤
-        A * ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) + c₂ := by
-    intro φ
-    have hexp : (2 : ℝ) ^ (B * (φ.length : ℝ)) ≤ (2 : ℝ) ^ (δ * (φ.length : ℝ)) :=
-      Real.rpow_le_rpow_of_exponent_le (by norm_num)
-        (mul_le_mul_of_nonneg_right hBδ (Nat.cast_nonneg _))
-    have hpoly : (((encCNF φ).length : ℝ) + 1) ^ d ≤ (((encCNF φ).length : ℝ) + 1) ^ E :=
-      pow_le_pow_right₀ (by linarith [Nat.cast_nonneg (α := ℝ) (encCNF φ).length])
-        (le_trans (le_max_right D d) (le_max_right d₀ (max D d)))
-    calc
-      (t₂ (groupClique r φ) : ℝ)
-          ≤ A * (2 : ℝ) ^ (B * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ d + c₂ :=
-        ht₂ φ
-      _ ≤ A * (2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E + c₂ := by
-        gcongr
-      _ = A * ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) + c₂ := by
-        ring
+        A * ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) + c₂ := fun φ =>
+    (ht₂ φ).trans (by
+      rw [mul_assoc]
+      exact add_le_add_left (mul_le_mul_of_nonneg_left
+        (two_rpow_mul_pow_le_two_rpow_mul_pow
+          (mul_le_mul_of_nonneg_right hBδ (Nat.cast_nonneg _))
+          ((le_max_right D d).trans (le_max_right d₀ (max D d)))) hA) _)
   let K : ℕ :=
-    Nat.ceil ((C₀' : ℝ) + (C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D + A) + c₂
+    Nat.ceil ((C₀' : ℝ) + (C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D + A) + c₂
   have hK : ∀ φ : CNF ℕ,
       (tTot φ : ℝ) ≤
-        (K : ℝ) * ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) +
-          (K : ℝ) := by
+        (K : ℝ) * ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) + K := by
     intro φ
-    have hceil :
-        (C₀' : ℝ) + (C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D + A ≤ (K : ℝ) := by
-      have h1 := Nat.le_ceil
-        ((C₀' : ℝ) + (C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D + A)
-      have h2 : (Nat.ceil
-          ((C₀' : ℝ) + (C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D + A) : ℝ) ≤
-          (K : ℝ) := Nat.cast_le.mpr (Nat.le_add_right _ c₂)
-      exact le_trans h1 h2
-    have hc₂ : (c₂ : ℝ) ≤ (K : ℝ) := Nat.cast_le.mpr (Nat.le_add_left c₂ _)
-    have hsum :
-        (tTot φ : ℝ) ≤
-          ((C₀' : ℝ) + (C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D + A) *
-            ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) +
-          c₂ := by
-      have hT : (tTot φ : ℝ) = (T₀ φ : ℝ) +
-          ((C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
-            ((encPair encUnary encCNF (r, φ)).length + 1) ^ D : ℕ) : ℝ) +
-          (t₂ (groupClique r φ) : ℝ) := by
-        simp only [tTot, Nat.cast_add]
-      rw [hT]
-      have hs1 := hstep1 φ
-      have hs2 := hstep2 φ
-      have hs3 := hstep3 φ
-      linarith
-    have hbase0 : (0 : ℝ) ≤ (2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E :=
-      le_trans zero_le_one (hbase_ge φ)
-    calc
-      (tTot φ : ℝ)
-          ≤ ((C₀' : ℝ) + (C₀ : ℝ) * (2 : ℝ) ^ (3 * D) * (Lr : ℝ) ^ D + A) *
-              ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) + c₂ :=
-        hsum
-      _ ≤ (K : ℝ) * ((2 : ℝ) ^ (δ * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ E) +
-            (K : ℝ) := by
-        gcongr
-  have hO : DecidableInTimeO ThreeSAT encCNF (fun φ => (tTot φ : ℝ)) :=
-    DecidableInTimeO.of_computableInO hcomp₂ heqv (fun _ => le_rfl)
-  exact DecidableInTimeO.mono hO K hK (fun φ => by positivity)
-
+    have hceil : (C₀' : ℝ) + (C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D + A ≤ K :=
+      (Nat.le_ceil _).trans (Nat.cast_le.mpr (Nat.le_add_right _ c₂))
+    have hc₂ : (c₂ : ℝ) ≤ K := Nat.cast_le.mpr (Nat.le_add_left c₂ _)
+    have hbase0 : (0 : ℝ) ≤ (2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E :=
+      zero_le_one.trans (one_le_two_rpow_mul_pow (mul_nonneg hδ (Nat.cast_nonneg _)))
+    have hsum : (tTot φ : ℝ) ≤
+        ((C₀' : ℝ) + (C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D + A) *
+          ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) + c₂ := by
+      simp only [tTot, Nat.cast_add]
+      linarith [hstep1 φ, hstep2 φ, hstep3 φ]
+    exact hsum.trans (by gcongr)
+  exact (DecidableInTimeO.of_computableInO hcomp₂ heqv (fun _ => le_rfl)).mono
+    K hK (fun _ => by positivity)
 
 /-- The encoded size of `SAT.groupClique r φ` is at most `K * 2 ^ (3 D / r * |φ|) * poly`, for a
 constant `K ≥ 0` depending on `r`. -/
@@ -1092,7 +738,27 @@ private lemma exists_enc_groupClique_length_le {C₀ D : ℕ} {r : ℕ} (hr : 1 
         K * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) *
           (((encCNF φ).length : ℝ) + 1) ^ D := by
   obtain ⟨c_len, -, hlen_red⟩ := hred
-  exact ⟨_, by positivity, enc_groupClique_length_le r hr hlen_red⟩
+  let Lr := (frame (encUnary r)).length + 1
+  refine ⟨(c_len : ℝ) * C₀ * 2 ^ (3 * D) * (Lr : ℝ) ^ D + c_len + 1, by positivity, fun φ => ?_⟩
+  have hl : ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1 ≤
+      (c_len : ℝ) * (C₀ * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
+        (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D) + (c_len + 1) := by
+    have h := Nat.add_le_add_right (hlen_red (r, φ)) 1
+    exact_mod_cast h.trans (by ring_nf; omega)
+  have hpow2 := two_pow_blockSize_real_le (D := D) hr φ
+  have hpoly := encPair_unary_cnf_length_pow_le r φ (le_refl D)
+  have hbase : (1 : ℝ) ≤
+      (2 : ℝ) ^ ((3 * (D : ℝ) / r) * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ D :=
+    one_le_two_rpow_mul_pow (by positivity)
+  calc ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1
+      ≤ (c_len : ℝ) * (C₀ * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
+          (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D) + (c_len + 1) * 1 := by
+        linarith
+    _ ≤ (c_len : ℝ) * (C₀ * ((2 : ℝ) ^ (3 * D) * 2 ^ ((3 * (D : ℝ) / r) * φ.length)) *
+          ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D)) +
+        (c_len + 1) * ((2 : ℝ) ^ ((3 * (D : ℝ) / r) * φ.length) *
+          (((encCNF φ).length : ℝ) + 1) ^ D) := by gcongr
+    _ = _ := by ring
 
 /-- A block count `r ≥ 1` past the growth threshold for which both the `3 D / r` factor and its
 product with `max (g r) 0` are at most `δ`. -/
