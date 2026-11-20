@@ -97,40 +97,59 @@ theorem effect_mul_self_le (P : Measurement α A) (a : α) :
 
 variable [StarModule ℂ A] [SelfAdjointDecompose A]
 
+omit [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
+  [NonnegSpectrumClass ℝ A] in
+private theorem norm_sub_effect_sq (φ : AlgState A) (P Q : Measurement α A)
+    (a : α) (h : Commute (P.effect a) (Q.effect a)) :
+    φ.norm (P.effect a - Q.effect a) ^ 2 =
+      (φ (P.effect a * P.effect a)).re + (φ (Q.effect a * Q.effect a)).re -
+        2 * (φ (P.effect a * Q.effect a)).re := by
+  have hP := (P.nonneg a).isSelfAdjoint.star_eq
+  have hQ := (Q.nonneg a).isSelfAdjoint.star_eq
+  have hexp : star (P.effect a - Q.effect a) * (P.effect a - Q.effect a) =
+      P.effect a * P.effect a + Q.effect a * Q.effect a - 2 * (P.effect a * Q.effect a) := by
+    have hc := h.eq
+    rw [star_sub, hP, hQ, two_mul]
+    calc (P.effect a - Q.effect a) * (P.effect a - Q.effect a)
+        = P.effect a * P.effect a + Q.effect a * Q.effect a -
+          (P.effect a * Q.effect a + Q.effect a * P.effect a) := by noncomm_ring
+      _ = _ := by rw [← hc]
+  have h2 : (φ (2 * (P.effect a * Q.effect a))).re = 2 * (φ (P.effect a * Q.effect a)).re := by
+    rw [two_mul, map_add, Complex.add_re, two_mul]
+  rw [AlgState.norm_sq, hexp, map_sub, map_add, Complex.sub_re, Complex.add_re, h2]
+
+omit [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
+  [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint] [NonnegSpectrumClass ℝ A]
+  [StarModule ℂ A] [SelfAdjointDecompose A] in
+private theorem sum_re_effect_add_sub (φ : AlgState A) (P Q : Measurement α A) :
+    (∑ a, ((φ (P.effect a)).re + (φ (Q.effect a)).re -
+      2 * (φ (P.effect a * Q.effect a)).re)) = 2 - 2 * agreement φ P Q := by
+  have hP : ∑ a, (φ (P.effect a)).re = 1 := by
+    simpa [prob] using P.sum_prob φ
+  have hQ : ∑ a, (φ (Q.effect a)).re = 1 := by
+    simpa [prob] using Q.sum_prob φ
+  rw [sum_sub_distrib, sum_add_distrib, hP, hQ, ← mul_sum, agreement]
+  ring
+
+omit [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
+  [NonnegSpectrumClass ℝ A] in
+/-- For commuting projective measurements the squared distance is twice the disagreement. -/
+theorem sum_norm_sub_sq_eq_of_isProjective (φ : AlgState A) (P Q : Measurement α A)
+    (h : ∀ a, Commute (P.effect a) (Q.effect a)) (hP : P.IsProjective) (hQ : Q.IsProjective) :
+    ∑ a, φ.norm (P.effect a - Q.effect a) ^ 2 = 2 - 2 * agreement φ P Q := by
+  rw [← sum_re_effect_add_sub]
+  exact sum_congr rfl fun a _ => by rw [norm_sub_effect_sq φ P Q a (h a), hP a, hQ a]
+
 /-- **Consistency implies closeness**: if the effects of `P` and `Q` commute, then
 `∑_a ‖P_a - Q_a‖²_φ ≤ 2 - 2 · agreement`. -/
 theorem sum_norm_sub_sq_le (φ : AlgState A) (P Q : Measurement α A)
     (h : ∀ a, Commute (P.effect a) (Q.effect a)) :
     ∑ a, φ.norm (P.effect a - Q.effect a) ^ 2 ≤ 2 - 2 * agreement φ P Q := by
-  have key : ∀ a, φ.norm (P.effect a - Q.effect a) ^ 2 ≤
-      (φ (P.effect a)).re + (φ (Q.effect a)).re - 2 * (φ (P.effect a * Q.effect a)).re := by
-    intro a
-    have hP := (P.nonneg a).isSelfAdjoint.star_eq
-    have hQ := (Q.nonneg a).isSelfAdjoint.star_eq
-    have hexp : star (P.effect a - Q.effect a) * (P.effect a - Q.effect a) =
-        P.effect a * P.effect a + Q.effect a * Q.effect a - 2 * (P.effect a * Q.effect a) := by
-      have hc := (h a).eq
-      rw [star_sub, hP, hQ, two_mul]
-      calc (P.effect a - Q.effect a) * (P.effect a - Q.effect a)
-          = P.effect a * P.effect a + Q.effect a * Q.effect a -
-            (P.effect a * Q.effect a + Q.effect a * P.effect a) := by noncomm_ring
-        _ = _ := by rw [← hc]
-    have hPP := φ.re_apply_mono (P.effect_mul_self_le a)
-    have hQQ := φ.re_apply_mono (Q.effect_mul_self_le a)
-    have h2 : (φ (2 * (P.effect a * Q.effect a))).re = 2 * (φ (P.effect a * Q.effect a)).re := by
-      rw [two_mul, map_add, Complex.add_re, two_mul]
-    rw [AlgState.norm_sq, hexp, map_sub, map_add, Complex.sub_re, Complex.add_re, h2]
-    linarith
-  have hP : ∑ a, (φ (P.effect a)).re = 1 := by
-    simpa [prob] using P.sum_prob φ
-  have hQ : ∑ a, (φ (Q.effect a)).re = 1 := by
-    simpa [prob] using Q.sum_prob φ
-  calc ∑ a, φ.norm (P.effect a - Q.effect a) ^ 2
-      ≤ ∑ a, ((φ (P.effect a)).re + (φ (Q.effect a)).re -
-          2 * (φ (P.effect a * Q.effect a)).re) := sum_le_sum fun a _ => key a
-    _ = 2 - 2 * agreement φ P Q := by
-      rw [sum_sub_distrib, sum_add_distrib, hP, hQ, ← mul_sum, agreement]
-      ring
+  rw [← sum_re_effect_add_sub]
+  refine sum_le_sum fun a _ => ?_
+  rw [norm_sub_effect_sq φ P Q a (h a)]
+  linarith only [φ.re_apply_mono (P.effect_mul_self_le a),
+    φ.re_apply_mono (Q.effect_mul_self_le a)]
 
 /-- Measurements that agree with probability at least `1 - ε` have effects that are close in
 the state: `∑_a ‖P_a - Q_a‖²_φ ≤ 2ε`. -/

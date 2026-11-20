@@ -380,6 +380,18 @@ theorem answers_toCommuting (S : QuantumStrategy X Y A B ι κ) (x : X) (y : Y) 
   ext ⟨a, b⟩
   rw [CommutingStrategy.answers_apply, answers_apply, prob_toCommuting, prob_eq]
 
+/-- Swapping questions and answers preserves the correlations of a symmetric strategy. -/
+theorem prob_toCommuting_swap_of_symmetric {Q C J : Type*}
+    [Fintype C] [Fintype J] [DecidableEq J]
+    (S : QuantumStrategy Q Q C C J J) (hM : S.bob = S.alice)
+    (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a))
+    (x y : Q) (a b : C) :
+    S.toCommuting.prob y x b a = S.toCommuting.prob x y a b := by
+  rw [prob_toCommuting, prob_toCommuting]
+  simp only [prob_eq, hM]
+  exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
+    ((S.alice y).effect b) ((S.alice x).effect a))
+
 end QuantumStrategy
 
 namespace TwoProverGame
@@ -406,18 +418,12 @@ theorem commutingWinProb_swap_of_symmetric {Q C J : Type*}
     (hM : S.bob = S.alice) (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a)) :
     G.commutingWinProb S.toCommuting.swap = G.commutingWinProb S.toCommuting := by
   classical
-  have hprob (x y : Q) (a b : C) :
-      S.toCommuting.swap.prob x y a b = S.toCommuting.prob x y a b := by
-    rw [CommutingStrategy.prob_swap, QuantumStrategy.prob_toCommuting,
-      QuantumStrategy.prob_toCommuting]
-    simp only [QuantumStrategy.prob_eq, hM]
-    exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
-      ((S.alice y).effect b) ((S.alice x).effect a))
   unfold commutingWinProb
   congr 1
   funext x y
   ext ⟨a, b⟩
-  simp only [CommutingStrategy.answers_apply, hprob]
+  simp only [CommutingStrategy.answers_apply, CommutingStrategy.prob_swap,
+    S.prob_toCommuting_swap_of_symmetric hM hψ x y a b]
 
 end TwoProverGame
 

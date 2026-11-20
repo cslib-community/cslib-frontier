@@ -98,6 +98,13 @@ theorem PolynomialFunction.exists_polynomial_value {d : ℕ} (p : PolynomialFunc
   obtain ⟨f, hf, he⟩ := p.exists_polynomial
   exact ⟨f, hf, fun t => (he (fun _ => t)).symm⟩
 
+/-- A degree-zero function takes the same value at every field element. -/
+theorem PolynomialFunction.value_eq_of_degree_zero (f : PolynomialFunction F 0) (s t : F) :
+    f.value s = f.value t := by
+  obtain ⟨p, hp, he⟩ := f.exists_polynomial_value
+  rw [← he s, ← he t, Polynomial.eq_C_of_natDegree_eq_zero (Nat.eq_zero_of_le_zero hp),
+    Polynomial.eval_C, Polynomial.eval_C]
+
 /-- Represent the evaluations of a degree-bounded univariate polynomial. -/
 noncomputable def PolynomialFunction.ofPolynomial {d : ℕ} (p : Polynomial F)
     (hp : p.natDegree ≤ d) : PolynomialFunction F d :=
