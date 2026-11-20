@@ -309,7 +309,7 @@ theorem friSmoothBatchIOP_rbrSound [DecidableEq F] (params : FRISmoothParams F) 
       (friSmoothBatchGoodStep params t (2 ^ params.d - e - 1)) where
   init_doomed stmt hnot :=
     (friSmoothBatchDoomed_nil_iff_not_mem_batchProximityLang params t stmt
-      (params.lt_two_pow_of_not_mem_batchProximityLang hnot)).mpr hnot
+      (lt_two_pow_of_not_mem_friBatchProximityLang hnot)).mpr hnot
   step_doomed stmt pref π c _ hgood := by
     by_cases h : pref.length ≤ params.m + 1
     · simpa only [friSmoothBatchGoodStep, h, ↓reduceIte] using hgood
@@ -570,7 +570,7 @@ private theorem smoothBatchRound0Escape_of_real_density [Fintype F] [DecidableEq
     SmoothBatchRound0Escape params t e (ENNReal.ofReal (R (2 ^ params.d : ℝ))) := by
   classical
   intro stmt hnot
-  have he_lt : e < 2 ^ params.d := params.lt_two_pow_of_not_mem_batchProximityLang hnot
+  have he_lt : e < 2 ^ params.d := lt_two_pow_of_not_mem_friBatchProximityLang hnot
   have hα : Function.Injective (params.eval 0 : Fin (2 ^ params.d) → F) :=
     cosetEval_injective params.hg params.hω (Nat.zero_le params.d)
   have hk_le_n : params.dim 0 ≤ Fintype.card (Fin (2 ^ params.d)) := by
@@ -616,7 +616,7 @@ theorem smoothBatchRound0GapBound_of_unique [Fintype F] [DecidableEq F]
   intro stmt hnot T hT_good
   by_contra hgt
   have hT : 2 ^ params.d * Fintype.card F ^ t < Fintype.card F * T.card := Nat.lt_of_not_ge hgt
-  have he_lt : e < 2 ^ params.d := params.lt_two_pow_of_not_mem_batchProximityLang hnot
+  have he_lt : e < 2 ^ params.d := lt_two_pow_of_not_mem_friBatchProximityLang hnot
   have hα : Function.Injective (params.eval 0 : Fin (2 ^ params.d) → F) :=
     cosetEval_injective params.hg params.hω (Nat.zero_le params.d)
   have hlist : ∀ u : Fin (2 ^ params.d) → F,
@@ -718,7 +718,7 @@ theorem smoothBatchRound0GapBound_of_johnson_discrete [Fintype F] [DecidableEq F
     SmoothBatchRound0GapBound params t e B_batch := by
   intro stmt hnot T hT_good
   by_contra hgt
-  have he_lt : e < 2 ^ params.d := params.lt_two_pow_of_not_mem_batchProximityLang hnot
+  have he_lt : e < 2 ^ params.d := lt_two_pow_of_not_mem_friBatchProximityLang hnot
   have hα : Function.Injective (params.eval 0 : Fin (2 ^ params.d) → F) :=
     cosetEval_injective params.hg params.hω (Nat.zero_le params.d)
   have hT_jb :

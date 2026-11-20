@@ -6,11 +6,12 @@ Authors: Mayank Rathee
 
 module
 
-import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness
-import CslibFrontierTests.Crypto.FRISmooth
-import CslibFrontierTests.Crypto.FRIBatchSoundness
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness
+public import CslibFrontierTests.Crypto.FRISmooth
+public import CslibFrontierTests.Crypto.FRIBatchSoundness
+import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import Mathlib.Analysis.Real.Sqrt
-import Mathlib.Data.ZMod.Basic
+public import Mathlib.Data.ZMod.Basic
 import Mathlib.Tactic.NormNum.Prime
 import Mathlib.Tactic.Ring
 
@@ -75,7 +76,7 @@ section Helpers
 
 /-- Concrete single-word BCS cheating prover for `friSmoothIOP` (0 FS queries, 0 MT queries, empty
 openings). -/
-@[expose] public def mkSmoothCheater {F : Type} [Field F] (params : FRISmoothParams F)
+def mkSmoothCheater {F : Type} [Field F] (params : FRISmoothParams F)
     (stmt : OracleTable params.d F) :
     OracleComp (BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
       (OracleTable params.d F × BCSProof (params.m + 1) F) :=
@@ -115,7 +116,7 @@ private theorem isCostBounded_soundnessProg_mkSmoothCheater {F : Type} [Field F]
 
 /-- Concrete batched BCS cheating prover for `friSmoothBatchIOP` (0 FS queries, 0 MT queries, empty
 openings). -/
-@[expose] public def mkSmoothBatchCheater {F : Type} [Field F] (params : FRISmoothParams F) {t : ℕ}
+def mkSmoothBatchCheater {F : Type} [Field F] (params : FRISmoothParams F) {t : ℕ}
     (stmt : FRIBatchStmt F params.d t) :
     OracleComp (BCSROMSpec (FRIBatchStmt F params.d t) (FRIBatchChal F params.d params.q t))
       (FRIBatchStmt F params.d t × BCSProof (params.m + 2) F) :=
@@ -198,8 +199,8 @@ private theorem card_agree_monomial_le_smooth {F : Type} [Field F] [DecidableEq 
     have h2 : (deg : WithBot ℕ) < (params.dim 0 : WithBot ℕ) := h1 ▸ hp
     have h3 : deg < params.dim 0 := by exact_mod_cast h2
     omega
-  have hmax : max (X ^ deg : Polynomial F).natDegree p.natDegree ≤ deg := by
-    refine max_le (Polynomial.natDegree_X_pow deg).le ?_
+  have hP_deg : (X ^ deg : Polynomial F).natDegree ≤ deg := (Polynomial.natDegree_X_pow deg).le
+  have hQ_deg : p.natDegree ≤ deg := by
     rcases eq_or_ne p 0 with rfl | hp0
     · simp only [Polynomial.natDegree_zero, Nat.zero_le]
     · have hpnat : p.natDegree < params.dim 0 := by
@@ -208,7 +209,7 @@ private theorem card_agree_monomial_le_smooth {F : Type} [Field F] [DecidableEq 
       omega
   have hα : Function.Injective (params.eval 0) :=
     cosetEval_injective params.hg params.hω (Nat.zero_le params.d)
-  have hle := card_filter_eval_eq_eval_le hα hne
+  have hle := card_filter_eval_eq_eval_le hα hP_deg hQ_deg hne
   have hfilt :
       (Finset.univ.filter fun s : Fin (2 ^ params.d) => (params.eval 0 s) ^ deg = c s) =
       Finset.univ.filter fun s : Fin (2 ^ params.d) =>
@@ -218,7 +219,7 @@ private theorem card_agree_monomial_le_smooth {F : Type} [Field F] [DecidableEq 
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, hcs, Polynomial.eval_pow,
       Polynomial.eval_X]
   rw [hfilt]
-  exact hle.trans hmax
+  exact hle
 
 end Helpers
 
@@ -227,13 +228,13 @@ end Helpers
 section SmoothUnique257
 
 /-- Batch-size-`0` far statement over `ZMod 257` (`d = 5`) for exercising `t = 0` bounds. -/
-@[expose] public def badBatchStmt32Zero : FRIBatchStmt (ZMod 257) 5 0 where
+def badBatchStmt32Zero : FRIBatchStmt (ZMod 257) 5 0 where
   base := farWord32
   terms := Fin.elim0
 
 private theorem badBatchStmt32Zero_not_mem_4x4 :
     badBatchStmt32Zero ∉ params257Fold4x4.batchProximityLang 0 7 := by
-  rw [mem_smoothBatchProximityLang_zero_iff]
+  rw [mem_friBatchProximityLang_zero_iff]
   exact farWord32_not_mem_proximityLang_4x4
 
 private theorem badBatchStmt32_not_mem_corrAgree_4x4 :
@@ -252,20 +253,20 @@ private theorem badBatchStmt32_not_mem_corrAgree_8x2 :
 
 private theorem friSmoothUniqueCommitError_257_eq_4x4 :
     friSmoothUniqueCommitError params257Fold4x4 = (30 : ℝ) / 257 := by
-  simp only [friSmoothUniqueCommitError, params257Fold4x4, FRISmoothParams.totalLog,
-    FRISmoothParams.cumLog, ZMod.card]
+  simp only [friSmoothUniqueCommitError, params257Fold4x4, mkParams257Smooth,
+    FRISmoothParams.totalLog, FRISmoothParams.cumLog, ZMod.card]
   norm_num [friCumLog]
 
 private theorem friSmoothBatchUniqueCommitError_257_eq_4x4 :
     friSmoothBatchUniqueCommitError params257Fold4x4 = (62 : ℝ) / 257 := by
-  simp only [friSmoothBatchUniqueCommitError, params257Fold4x4, FRISmoothParams.totalLog,
-    FRISmoothParams.cumLog, ZMod.card]
+  simp only [friSmoothBatchUniqueCommitError, params257Fold4x4, mkParams257Smooth,
+    FRISmoothParams.totalLog, FRISmoothParams.cumLog, ZMod.card]
   norm_num [friCumLog]
 
 private theorem friSmoothBatchUniqueCommitError_257_eq_8x2 :
     friSmoothBatchUniqueCommitError params257Fold8x2 = (62 : ℝ) / 257 := by
-  simp only [friSmoothBatchUniqueCommitError, params257Fold8x2, FRISmoothParams.totalLog,
-    FRISmoothParams.cumLog, ZMod.card]
+  simp only [friSmoothBatchUniqueCommitError, params257Fold8x2, mkParams257Smooth,
+    FRISmoothParams.totalLog, FRISmoothParams.cumLog, ZMod.card]
   norm_num [friCumLog]
 
 -- Single-word smooth commit game, interactive IOP (`< 1 / 3`), and RBR soundness for `![2, 2]` and
@@ -284,7 +285,7 @@ theorem smooth257_4x4_single_interactive_lt_third
       decide
     rw [this]; norm_num
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-  refine ⟨by simpa only [h30, hcard] using hcg, lt_of_le_of_lt hiop ?_⟩
+  refine ⟨by rw [h30, hcard] at hcg; exact hcg, lt_of_le_of_lt hiop ?_⟩
   rw [h30, hcard]
   have hlt : (30 / 257 + (24 / 32) ^ 6 : ℝ≥0) < 1 / 3 := by
     rw [← NNReal.coe_lt_coe]; push_cast; norm_num
@@ -292,7 +293,7 @@ theorem smooth257_4x4_single_interactive_lt_third
     ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (32 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (3 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4,
+    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4, mkParams257Smooth,
     (by norm_num : ((2 ^ 5 - 7 - 1 : ℕ) : ℝ≥0∞) = 24),
     (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32)] using ENNReal.coe_lt_coe.mpr hlt
 
@@ -310,7 +311,7 @@ theorem smooth257_8x2_single_interactive_lt_third
       decide
     rw [this]; norm_num
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-  refine ⟨by simpa only [h30, hcard] using hcg, lt_of_le_of_lt hiop ?_⟩
+  refine ⟨by rw [h30, hcard] at hcg; exact hcg, lt_of_le_of_lt hiop ?_⟩
   rw [h30, hcard]
   have hlt : (30 / 257 + (24 / 32) ^ 6 : ℝ≥0) < 1 / 3 := by
     rw [← NNReal.coe_lt_coe]; push_cast; norm_num
@@ -318,7 +319,7 @@ theorem smooth257_8x2_single_interactive_lt_third
     ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (32 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (3 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold8x2,
+    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold8x2, mkParams257Smooth,
     (by norm_num : ((2 ^ 5 - 7 - 1 : ℕ) : ℝ≥0∞) = 24),
     (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32)] using ENNReal.coe_lt_coe.mpr hlt
 
@@ -364,7 +365,7 @@ private theorem friSmooth257_rbrError_eq (B_c : ℕ) (hBc : B_c ≤ 32) :
       ENNReal.coe_div (by norm_num : (4096 : ℝ≥0) ≠ 0), ENNReal.coe_ofNat] using
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friSmoothRBRError, params257Fold4x4, hcard,
+  simp only [friSmoothRBRError, params257Fold4x4, mkParams257Smooth, hcard,
     (by norm_num : ((2 ^ 5 - 7 - 1 : ℕ) : ℝ≥0∞) = 24),
     (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32), hpow, max_eq_right h1]
 
@@ -400,7 +401,7 @@ theorem smooth257_4x4_bcs_single_lt_three_fifths :
     ENNReal.coe_div (by norm_num : (275951648768 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (5 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4,
+    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4, mkParams257Smooth,
     (by norm_num : ((0 + (2 + 1) : ℕ) : ℝ≥0∞) = 3),
     (by norm_num : ((3 * 73 + (2 + 1) * (0 + (2 + 1)) : ℕ) : ℝ≥0∞) = 228),
     (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using ENNReal.coe_lt_coe.mpr hnn
@@ -421,7 +422,7 @@ example :
       (2 ^ params257Fold8x2.d - 2 ^ (params257Fold8x2.d - params257Fold8x2.firstStepLog)) =
       (729 : ℝ≥0∞) / 4096 := by
     have := friSmooth257_rbrError_eq 28 (by decide)
-    simpa only [friSmoothRBRError, params257Fold4x4, params257Fold8x2] using this
+    simpa only [friSmoothRBRError, params257Fold4x4, params257Fold8x2, mkParams257Smooth] using this
   have hpq : params257Fold8x2.proofOracleQueries = 85 := by decide
   rw [hrbr, card_friChal257_32, hpq]
   have hnn : (3 * (729 / 4096 + 3 * (1 / 275951648768)) +
@@ -432,7 +433,7 @@ example :
     ENNReal.coe_div (by norm_num : (275951648768 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (5 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold8x2,
+    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold8x2, mkParams257Smooth,
     (by norm_num : ((0 + (2 + 1) : ℕ) : ℝ≥0∞) = 3),
     (by norm_num : ((0 + 85 * (0 + 1) : ℕ) : ℝ≥0∞) = 85),
     (by norm_num : ((3 * (0 + 85 * (0 + 1)) + (2 + 1) * (0 + (2 + 1)) : ℕ) : ℝ≥0∞) = 264),
@@ -472,7 +473,7 @@ theorem smooth257_4x4_batch_interactive_lt_half
         2 ^ (params257Fold4x4.d - params257Fold4x4.totalLog) = 62 := by decide
     rw [this]; norm_num
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-  refine ⟨by simpa only [h62, hcard] using hcg, lt_of_le_of_lt hiop ?_⟩
+  refine ⟨by rw [h62, hcard] at hcg; exact hcg, lt_of_le_of_lt hiop ?_⟩
   rw [h62, hcard]
   have hlt : (62 / 257 + (24 / 32) ^ 6 : ℝ≥0) < 1 / 2 := by
     rw [← NNReal.coe_lt_coe]; push_cast; norm_num
@@ -480,7 +481,7 @@ theorem smooth257_4x4_batch_interactive_lt_half
     ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (32 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (2 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4,
+    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4, mkParams257Smooth,
     (by norm_num : ((2 ^ 5 - 7 - 1 : ℕ) : ℝ≥0∞) = 24),
     (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32)] using ENNReal.coe_lt_coe.mpr hlt
 
@@ -495,7 +496,8 @@ example (P : InteractiveIOPProver 5 (ZMod 257) (FRIBatchChal (ZMod 257) 5 6 0)) 
         2 ^ (params257Fold4x4.d - params257Fold4x4.totalLog) = 62 := by decide
     rw [this]; norm_num
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-  simpa only [h62, hcard] using hcg
+  rw [h62, hcard] at hcg
+  exact hcg
 
 -- Real-`α` unique-decoding batched interactive bound & contrapositive `friSmoothBatchIOP_sound_of_unique`
 -- on both `![2, 2]` and `![3, 1]`.
@@ -504,13 +506,14 @@ theorem smooth257_8x2_batch_real_lt_half
     iopInteractiveGame (friSmoothBatchIOP params257Fold8x2 2) badBatchStmt32 P true < 1 / 2 := by
   refine lt_of_le_of_lt
     (friSmoothBatchIOP_interactiveGame_le_of_unique params257Fold8x2 2 (α := 3 / 4)
-      (by norm_num [params257Fold8x2, FRISmoothParams.dim, FRISmoothParams.totalLog,
-        FRISmoothParams.cumLog, friCumLog])
+      (by norm_num [params257Fold8x2, mkParams257Smooth, FRISmoothParams.dim,
+        FRISmoothParams.totalLog, FRISmoothParams.cumLog, friCumLog])
       badBatchStmt32_not_mem_corrAgree_8x2 P) ?_
   rw [friSmoothBatchUniqueCommitError_257_eq_8x2]
   have hlt : ENNReal.ofReal ((62 : ℝ) / 257 + (3 / 4 : ℝ) ^ params257Fold8x2.q) <
       ENNReal.ofReal ((1 : ℝ) / 2) :=
-    (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr (by norm_num [params257Fold8x2])
+    (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr
+      (by norm_num [params257Fold8x2, mkParams257Smooth])
   have hrhs : ENNReal.ofReal ((1 : ℝ) / 2) = (1 : ℝ≥0∞) / 2 := by
     rw [ENNReal.ofReal_div_of_pos (by norm_num), ENNReal.ofReal_one]; norm_num
   rwa [hrhs] at hlt
@@ -518,24 +521,26 @@ theorem smooth257_8x2_batch_real_lt_half
 theorem honestBatchStmt32_mem_corrAgree_4x4_via_sound :
     honestBatchStmt32 ∈ params257Fold4x4.batchCorrAgreeLang 2 (3 / 4) := by
   refine friSmoothBatchIOP_sound_of_unique params257Fold4x4 2 (α := 3 / 4)
-    (by norm_num [params257Fold4x4, FRISmoothParams.dim, FRISmoothParams.totalLog,
-      FRISmoothParams.cumLog, friCumLog])
+    (by norm_num [params257Fold4x4, mkParams257Smooth, FRISmoothParams.dim,
+      FRISmoothParams.totalLog, FRISmoothParams.cumLog, friCumLog])
     honestBatchStmt32 (honestCausalSmoothBatchProver params257Fold4x4 2 honestBatchStmt32) ?_
   rw [iopInteractiveGame_honestCausalSmoothBatchProver_true_eq_one params257Fold4x4 2
       honestBatchStmt32_completeRel_4x4,
     friSmoothBatchUniqueCommitError_257_eq_4x4, ← ENNReal.ofReal_one]
-  exact (ENNReal.ofReal_lt_ofReal_iff zero_lt_one).mpr (by norm_num [params257Fold4x4])
+  exact (ENNReal.ofReal_lt_ofReal_iff zero_lt_one).mpr
+    (by norm_num [params257Fold4x4, mkParams257Smooth])
 
 theorem honestBatchStmt32_mem_corrAgree_8x2_via_sound :
     honestBatchStmt32 ∈ params257Fold8x2.batchCorrAgreeLang 2 (3 / 4) := by
   refine friSmoothBatchIOP_sound_of_unique params257Fold8x2 2 (α := 3 / 4)
-    (by norm_num [params257Fold8x2, FRISmoothParams.dim, FRISmoothParams.totalLog,
-      FRISmoothParams.cumLog, friCumLog])
+    (by norm_num [params257Fold8x2, mkParams257Smooth, FRISmoothParams.dim,
+      FRISmoothParams.totalLog, FRISmoothParams.cumLog, friCumLog])
     honestBatchStmt32 (honestCausalSmoothBatchProver params257Fold8x2 2 honestBatchStmt32) ?_
   rw [iopInteractiveGame_honestCausalSmoothBatchProver_true_eq_one params257Fold8x2 2
       honestBatchStmt32_completeRel_8x2,
     friSmoothBatchUniqueCommitError_257_eq_8x2, ← ENNReal.ofReal_one]
-  exact (ENNReal.ofReal_lt_ofReal_iff zero_lt_one).mpr (by norm_num [params257Fold8x2])
+  exact (ENNReal.ofReal_lt_ofReal_iff zero_lt_one).mpr
+    (by norm_num [params257Fold8x2, mkParams257Smooth])
 
 -- Batched smooth unique-decoding BCS ROM (`friSmoothBatchBCS_romSoundness_bound_of_unique`,
 -- `_of_prover_verifier_of_unique`, `_corrAgree_romSoundness_bound_of_unique`).
@@ -556,7 +561,7 @@ theorem smooth257_4x4_batch_bcs_lt_three_quarters :
       (729 : ℝ≥0∞) / 4096 := by
     have hnn : (32 / 257 : ℝ≥0) ≤ 729 / 4096 := by rw [← NNReal.coe_le_coe]; push_cast; norm_num
     have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-    simpa only [params257Fold4x4, hcard, (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32),
+    simpa only [params257Fold4x4, mkParams257Smooth, hcard, (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32),
       ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
       ENNReal.coe_div (by norm_num : (4096 : ℝ≥0) ≠ 0), ENNReal.coe_ofNat] using
       ENNReal.coe_le_coe.mpr hnn
@@ -575,7 +580,7 @@ theorem smooth257_4x4_batch_bcs_lt_three_quarters :
     ENNReal.coe_div (by norm_num : (18226330449477632 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4,
+    ENNReal.coe_ofNat, ENNReal.coe_one, params257Fold4x4, mkParams257Smooth,
     (by norm_num : ((0 + (2 + 2) : ℕ) : ℝ≥0∞) = 4),
     (by norm_num : ((0 + 73 * (0 + 1) : ℕ) : ℝ≥0∞) = 73),
     (by norm_num : ((3 * (0 + 73 * (0 + 1)) + (2 + 2) * (0 + (2 + 2)) : ℕ) : ℝ≥0∞) = 235),
@@ -740,7 +745,7 @@ private theorem badBatchStmtGold_not_mem_corrAgree_8x2 :
 private theorem sqrt_rate_gold :
     Real.sqrt ((paramsGold4x4.dim 0 : ℝ) / (2 ^ paramsGold4x4.d : ℝ)) = 1 / 2 := by
   have h : (paramsGold4x4.dim 0 : ℝ) / (2 ^ paramsGold4x4.d : ℝ) = (1 / 2 : ℝ) ^ 2 := by
-    norm_num [paramsGold4x4, FRISmoothParams.dim, FRISmoothParams.totalLog,
+    norm_num [paramsGold4x4, mkParamsGoldSmooth, FRISmoothParams.dim, FRISmoothParams.totalLog,
       FRISmoothParams.cumLog, friCumLog]
   rw [h, Real.sqrt_sq (by norm_num)]
 
@@ -749,13 +754,13 @@ private theorem he_johnson_gold :
       1 - Real.sqrt ((paramsGold4x4.dim 0 : ℝ) / (2 ^ paramsGold4x4.d : ℝ)) -
         Real.sqrt ((paramsGold4x4.dim 0 : ℝ) / (2 ^ paramsGold4x4.d : ℝ)) / (2 * ((3 : ℕ) : ℝ)) := by
   rw [sqrt_rate_gold]
-  norm_num [paramsGold4x4]
+  norm_num [paramsGold4x4, mkParamsGoldSmooth]
 
 private theorem he_eta_gold :
     ((25 : ℕ) : ℝ) / (2 ^ paramsGold4x4.d : ℝ) ≤
       1 - Real.sqrt ((paramsGold4x4.dim 0 : ℝ) / (2 ^ paramsGold4x4.d : ℝ)) - (1 / 12 : ℝ) := by
   rw [sqrt_rate_gold]
-  norm_num [paramsGold4x4]
+  norm_num [paramsGold4x4, mkParamsGoldSmooth]
 
 private theorem halpha_johnson_gold :
     Real.sqrt ((paramsGold4x4.dim 0 : ℝ) / (2 ^ paramsGold4x4.d : ℝ)) *
@@ -802,7 +807,7 @@ example :
       intro heq
       have := congrFun heq ⟨0, by omega⟩
       exact absurd this (by decide)
-    simp only [hne, ↓reduceIte] at h0
+    simp only [hne.symm, ↓reduceIte] at h0
     exact one_ne_zero h0
   · intro h
     have h0 := congrArg (fun p : PMF _ => p (fun _ => 1)) h
@@ -811,7 +816,7 @@ example :
       intro heq
       have := congrFun heq ⟨0, by omega⟩
       exact absurd this (by decide)
-    simp only [hne, ↓reduceIte] at h0
+    simp only [hne.symm, ↓reduceIte] at h0
     exact one_ne_zero h0
   · intro h
     have h0 := congrArg (fun p : PMF _ => p (fun _ => 1)) h
@@ -820,17 +825,17 @@ example :
       intro heq
       have := congrFun heq ⟨0, by omega⟩
       exact absurd this (by decide)
-    simp only [hne, ↓reduceIte] at h0
+    simp only [hne.symm, ↓reduceIte] at h0
     exact one_ne_zero h0
 
 -- --- Part 2A: Discrete Guruswami–Sudan bounds on Goldilocks (`![2, 2]` and `![3, 1]`) ---
 
 /-- Discrete Sudan multiplicities (`m = 1`) for Goldilocks smooth folding rounds. -/
-@[expose] public def mRoundGold : Fin 2 → ℕ := ![1, 1]
+def mRoundGold : Fin 2 → ℕ := ![1, 1]
 /-- Discrete Sudan weighted degrees for Goldilocks `![2, 2]` (`D = ![9, 2]`). -/
-@[expose] public def dRoundGold4x4 : Fin 2 → ℕ := ![9, 2]
+def dRoundGold4x4 : Fin 2 → ℕ := ![9, 2]
 /-- Discrete Sudan weighted degrees for Goldilocks `![3, 1]` (`D = ![4, 2]`). -/
-@[expose] public def dRoundGold8x2 : Fin 2 → ℕ := ![4, 2]
+def dRoundGold8x2 : Fin 2 → ℕ := ![4, 2]
 
 private theorem gold_r0_discrete_hinterp :
     2 ^ paramsGold4x4.d * (1 * (1 + 1) / 2) <
@@ -869,7 +874,7 @@ theorem smoothGold_4x4_single_discrete
     (fun i => by fin_cases i <;> decide) farWordGold_not_mem_4x4 P
   rw [gold_4x4_discrete_jcb_sum, ZMod.card] at h1 h2
   refine ⟨by simpa only [Nat.cast_ofNat] using h1, ?_⟩
-  simpa only [paramsGold4x4, Nat.cast_ofNat,
+  simpa only [paramsGold4x4, mkParamsGoldSmooth, Nat.cast_ofNat,
     (by norm_num : ((2 ^ 6 - 25 - 1 : ℕ) : ℝ≥0∞) = 38),
     (by norm_num : (2 : ℝ≥0∞) ^ 6 = 64)] using h2
 
@@ -889,7 +894,7 @@ theorem smoothGold_8x2_single_discrete
     (fun i => by fin_cases i <;> decide) farWordGold_not_mem_8x2 P
   rw [gold_8x2_discrete_jcb_sum, ZMod.card] at h1 h2
   refine ⟨by simpa only [Nat.cast_ofNat] using h1, ?_⟩
-  simpa only [paramsGold8x2, Nat.cast_ofNat,
+  simpa only [paramsGold8x2, mkParamsGoldSmooth, Nat.cast_ofNat,
     (by norm_num : ((2 ^ 6 - 25 - 1 : ℕ) : ℝ≥0∞) = 38),
     (by norm_num : (2 : ℝ≥0∞) ^ 6 = 64)] using h2
 
@@ -914,7 +919,8 @@ theorem smoothGold_4x4_batch_discrete :
     badBatchStmtGold_not_mem_4x4 adaptiveSmoothBatchProverGold
   rw [gold_4x4_discrete_jcb_sum, ZMod.card] at h1 h2
   refine ⟨by simpa only [(by norm_num : ((623336 + 512826 : ℕ) : ℝ≥0∞) = 1136162)] using h1, ?_⟩
-  simpa only [paramsGold4x4, (by norm_num : ((623336 + 512826 : ℕ) : ℝ≥0∞) = 1136162),
+  simpa only [paramsGold4x4, mkParamsGoldSmooth,
+    (by norm_num : ((623336 + 512826 : ℕ) : ℝ≥0∞) = 1136162),
     (by norm_num : ((2 ^ 6 - 25 - 1 : ℕ) : ℝ≥0∞) = 38),
     (by norm_num : (2 : ℝ≥0∞) ^ 6 = 64)] using h2
 
@@ -967,20 +973,20 @@ example :
 
 private theorem friSmoothJohnsonCommitError_gold_lt_4x4 :
     friSmoothJohnsonCommitError paramsGold4x4 3 < (1 : ℝ) / 10000000 := by
-  simp only [friSmoothJohnsonCommitError, paramsGold4x4, FRISmoothParams.totalLog,
-    FRISmoothParams.dim, FRISmoothParams.cumLog, ZMod.card]
+  simp only [friSmoothJohnsonCommitError, paramsGold4x4, mkParamsGoldSmooth,
+    FRISmoothParams.totalLog, FRISmoothParams.dim, FRISmoothParams.cumLog, ZMod.card]
   norm_num [friCumLog, goldilocksP]
 
 private theorem friSmoothBatchJohnsonCommitError_gold_lt_4x4 :
     friSmoothBatchJohnsonCommitError paramsGold4x4 3 < (1 : ℝ) / 10000000 := by
-  simp only [friSmoothBatchJohnsonCommitError, paramsGold4x4, FRISmoothParams.totalLog,
-    FRISmoothParams.dim, FRISmoothParams.cumLog, ZMod.card]
+  simp only [friSmoothBatchJohnsonCommitError, paramsGold4x4, mkParamsGoldSmooth,
+    FRISmoothParams.totalLog, FRISmoothParams.dim, FRISmoothParams.cumLog, ZMod.card]
   norm_num [friCumLog, goldilocksP]
 
 private theorem friSmoothBatchJohnsonEtaCommitError_gold_lt_4x4 :
     friSmoothBatchJohnsonEtaCommitError paramsGold4x4 (1 / 12) < (1 : ℝ) / 1000 := by
-  simp only [friSmoothBatchJohnsonEtaCommitError, paramsGold4x4, FRISmoothParams.totalLog,
-    FRISmoothParams.dim, FRISmoothParams.cumLog, ZMod.card]
+  simp only [friSmoothBatchJohnsonEtaCommitError, paramsGold4x4, mkParamsGoldSmooth,
+    FRISmoothParams.totalLog, FRISmoothParams.dim, FRISmoothParams.cumLog, ZMod.card]
   norm_num [friCumLog, goldilocksP]
 
 private theorem friSmoothBatchJohnsonCommitError_gold_lt_8x2 :
@@ -1018,7 +1024,8 @@ theorem smoothGold_4x4_single_johnson_lt_tenth
       ENNReal.coe_ofNat, ENNReal.coe_one] using ENNReal.coe_lt_coe.mpr hnn
   have hq_eq : (((2 ^ paramsGold4x4.d - 25 - 1 : ℕ) : ℝ≥0∞) /
       (2 ^ paramsGold4x4.d : ℝ≥0∞)) ^ paramsGold4x4.q = ((38 : ℝ≥0∞) / 64) ^ 5 := by
-    simp only [paramsGold4x4, (by norm_num : ((2 ^ 6 - 25 - 1 : ℕ) : ℝ≥0∞) = 38),
+    simp only [paramsGold4x4, mkParamsGoldSmooth,
+      (by norm_num : ((2 ^ 6 - 25 - 1 : ℕ) : ℝ≥0∞) = 38),
       (by norm_num : (2 : ℝ≥0∞) ^ 6 = 64)]
   rw [hq_eq]
   exact lt_of_le_of_lt (add_le_add hcg_lt.le le_rfl) hsum
@@ -1052,7 +1059,8 @@ private theorem gold_rbr_single_johnson_le (params : FRISmoothParams (ZMod goldi
   have h1 : ((B_c : ℕ) : ℝ≥0∞) / (goldilocksP : ℝ≥0∞) ≤ ((38 : ℝ≥0∞) / 64) ^ 5 := by
     have hnn : ((B_c : ℝ≥0) / (goldilocksP : ℝ≥0)) ≤ (38 / 64 : ℝ≥0) ^ 5 := by
       rw [← NNReal.coe_le_coe]; push_cast; exact hBc
-    simpa only [ENNReal.coe_pow, ENNReal.coe_div (by decide : (goldilocksP : ℝ≥0) ≠ 0),
+    simpa only [ENNReal.coe_pow,
+      ENNReal.coe_div (by norm_num [goldilocksP] : (goldilocksP : ℝ≥0) ≠ 0),
       ENNReal.coe_div (by norm_num : (64 : ℝ≥0) ≠ 0), ENNReal.coe_natCast, ENNReal.coe_ofNat] using
       ENNReal.coe_le_coe.mpr hnn
   have hq : (((2 ^ 6 - 25 - 1 : ℕ) : ℝ≥0∞) / (2 ^ 6 : ℝ≥0∞)) ^ 5 = ((38 : ℝ≥0∞) / 64) ^ 5 := by
@@ -1110,7 +1118,7 @@ theorem smoothGold_4x4_single_bcs_johnson_lt_quarter :
     ENNReal.coe_div (by norm_num : (1000000000 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold4x4,
+    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold4x4, mkParamsGoldSmooth,
     (by norm_num : ((0 + (2 + 1) : ℕ) : ℝ≥0∞) = 3),
     (by norm_num : ((3 * 61 + (2 + 1) * (0 + (2 + 1)) : ℕ) : ℝ≥0∞) = 192),
     (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using ENNReal.coe_lt_coe.mpr hnn
@@ -1148,7 +1156,7 @@ theorem smoothGold_8x2_single_bcs_pv_johnson_lt_quarter :
     ENNReal.coe_div (by norm_num : (1000000000 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold8x2,
+    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold8x2, mkParamsGoldSmooth,
     (by norm_num : ((0 + (2 + 1) : ℕ) : ℝ≥0∞) = 3),
     (by norm_num : ((0 + 71 * (0 + 1) : ℕ) : ℝ≥0∞) = 71),
     (by norm_num : ((3 * (0 + 71 * (0 + 1)) + (2 + 1) * (0 + (2 + 1)) : ℕ) : ℝ≥0∞) = 222),
@@ -1173,7 +1181,8 @@ theorem smoothGold_4x4_batch_johnson_and_eta_lt_tenth :
     have hR : friSmoothBatchJohnsonEtaCommitError paramsGold4x4 (1 / 12) +
         (3 / 5 : ℝ) ^ paramsGold4x4.q < (1 : ℝ) / 10 := by
       have := friSmoothBatchJohnsonEtaCommitError_gold_lt_4x4
-      have hpow : (3 / 5 : ℝ) ^ paramsGold4x4.q = 243 / 3125 := by norm_num [paramsGold4x4]
+      have hpow : (3 / 5 : ℝ) ^ paramsGold4x4.q = 243 / 3125 := by
+        norm_num [paramsGold4x4, mkParamsGoldSmooth]
       linarith
     have hof := (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr hR
     simpa only [ENNReal.ofReal_div_of_pos (by norm_num : (0 : ℝ) < 10), ENNReal.ofReal_one,
@@ -1196,7 +1205,8 @@ theorem smoothGold_8x2_batch_johnson_lt_tenth :
   have hR : friSmoothBatchJohnsonCommitError paramsGold8x2 3 +
       (3 / 5 : ℝ) ^ paramsGold8x2.q < (1 : ℝ) / 10 := by
     have := friSmoothBatchJohnsonCommitError_gold_lt_8x2
-    have hpow : (3 / 5 : ℝ) ^ paramsGold8x2.q = 243 / 3125 := by norm_num [paramsGold8x2]
+    have hpow : (3 / 5 : ℝ) ^ paramsGold8x2.q = 243 / 3125 := by
+      norm_num [paramsGold8x2, mkParamsGoldSmooth]
     linarith
   have hof := (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr hR
   simpa only [ENNReal.ofReal_div_of_pos (by norm_num : (0 : ℝ) < 10), ENNReal.ofReal_one,
@@ -1213,7 +1223,8 @@ theorem honestBatchStmtGold_mem_corrAgree_4x4_via_johnson :
       honestBatchStmtGold_rel_4x4, ← ENNReal.ofReal_one]
   refine (ENNReal.ofReal_lt_ofReal_iff zero_lt_one).mpr ?_
   have := friSmoothBatchJohnsonCommitError_gold_lt_4x4
-  have hpow : (3 / 5 : ℝ) ^ paramsGold4x4.q = 243 / 3125 := by norm_num [paramsGold4x4]
+  have hpow : (3 / 5 : ℝ) ^ paramsGold4x4.q = 243 / 3125 := by
+    norm_num [paramsGold4x4, mkParamsGoldSmooth]
   linarith
 
 theorem honestBatchStmtGold_mem_corrAgree_8x2_via_eta :
@@ -1225,7 +1236,8 @@ theorem honestBatchStmtGold_mem_corrAgree_8x2_via_eta :
       honestBatchStmtGold_rel_8x2, ← ENNReal.ofReal_one]
   refine (ENNReal.ofReal_lt_ofReal_iff zero_lt_one).mpr ?_
   have := friSmoothBatchJohnsonEtaCommitError_gold_lt_8x2
-  have hpow : (3 / 5 : ℝ) ^ paramsGold8x2.q = 243 / 3125 := by norm_num [paramsGold8x2]
+  have hpow : (3 / 5 : ℝ) ^ paramsGold8x2.q = 243 / 3125 := by
+    norm_num [paramsGold8x2, mkParamsGoldSmooth]
   linarith
 
 -- Batched smooth `η`-gap BCS ROM soundness (`friSmoothBatchBCS_romSoundness_bound_of_johnson_eta`
@@ -1258,12 +1270,14 @@ private theorem gold_batch_rbr_eta_le (params : FRISmoothParams (ZMod goldilocks
         115200 * ((2 ^ params.d - 2 ^ (params.d - params.firstStepLog) : ℕ) : ℝ) *
           ((2 ^ params.d : ℝ) ^ 2) / ((params.dim 0 : ℝ) * ((1 / 12 : ℝ) ^ 6)) :=
       Nat.floor_le (by positivity)
-    have hfstR : ((2 ^ params.d - 2 ^ (params.d - params.firstStepLog) : ℕ) : ℝ) ≤ 56 := by
+    have hfstR : ((2 ^ 6 - 2 ^ (6 - params.firstStepLog) : ℕ) : ℝ) ≤ 56 := by
+      rw [← hd]
       exact_mod_cast hfst
     have hnum : (friSmoothJohnsonEtaCommitBound params (1 / 12) : ℝ) ≤
         115200 * (56 : ℝ) * ((2 ^ 6 : ℝ) ^ 2) / ((16 : ℝ) * ((1 / 12 : ℝ) ^ 6)) := by
       refine hfl.trans ?_
       rw [hd, hdim]
+      push_cast
       gcongr
     have hp_pos : (0 : ℝ) < (goldilocksP : ℝ) := by norm_num [goldilocksP]
     refine (div_le_div_of_nonneg_right hnum hp_pos.le).trans ?_
@@ -1298,7 +1312,7 @@ theorem smoothGold_4x4_batch_bcs_eta_lt_third :
     ENNReal.coe_div (by norm_num : (1000000000 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (3 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold4x4,
+    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold4x4, mkParamsGoldSmooth,
     (by norm_num : ((0 + (2 + 2) : ℕ) : ℝ≥0∞) = 4),
     (by norm_num : ((3 * 61 + (2 + 2) * (0 + (2 + 2)) : ℕ) : ℝ≥0∞) = 199),
     (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using ENNReal.coe_lt_coe.mpr hnn
@@ -1333,7 +1347,7 @@ theorem smoothGold_8x2_batch_bcs_pv_eta_lt_third :
     ENNReal.coe_div (by norm_num : (1000000000 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (3 : ℝ≥0) ≠ 0),
-    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold8x2,
+    ENNReal.coe_ofNat, ENNReal.coe_one, paramsGold8x2, mkParamsGoldSmooth,
     (by norm_num : ((0 + (2 + 2) : ℕ) : ℝ≥0∞) = 4),
     (by norm_num : ((0 + 71 * (0 + 1) : ℕ) : ℝ≥0∞) = 71),
     (by norm_num : ((3 * (0 + 71 * (0 + 1)) + (2 + 2) * (0 + (2 + 2)) : ℕ) : ℝ≥0∞) = 229),

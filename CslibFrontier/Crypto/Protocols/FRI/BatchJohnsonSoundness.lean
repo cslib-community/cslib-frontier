@@ -61,7 +61,7 @@ Section 8.2 on printed pp. 36–40 and Section 8.2.1 on printed pp. 41–43;
     `B / n ≤ α⁽⁰⁾(ρ, m)` (general integer `(e, α, m)` cutoffs can differ, e.g. at `n = 16, k = 4,
     e = 7, α = 1 / 2, m = 3` where `> 8 / 16` admits nine positions while `> 7 / 12` starts at ten).
   - In the real-`α` commit-phase bounds (`> ⌊α₀ * 2 ^ d⌋₊`, bridged to integer proximity via
-    `smoothBatchFloorThreshold_bounds` from `BatchProtocol.lean`),
+    `friBatchFloorThreshold_bounds` from `BatchProtocol.lean`),
     `friSmoothBatchCommitGame_le_of_johnson` uses `α₀ = max(α, √ρ · (1 + 1 / (2 * mJ)))`, so at
     matching Johnson multiplicity `mJ = m` (or whenever `m ≤ mJ`) the cutoffs satisfy
     `α₀ ≤ α⁽⁰⁾(ρ, m)` and Lean's unweighted round-`0` event **unconditionally contains** `E⁽⁰⁾`.
@@ -448,7 +448,7 @@ private theorem friSmoothBatchCommitGame_le_of_floor [Fintype F]
     friSmoothBatchCommitGame params t ⌊α₀ * (2 ^ params.d : ℝ)⌋₊ stmt P true ≤ ε_C := by
   by_cases hα₀_lt : α₀ < 1
   · obtain ⟨hiff, _, hB_eq, _, he_lt⟩ :=
-      smoothBatchFloorThreshold_bounds params t stmt hα₀_nn hα₀_lt
+      friBatchFloorThreshold_bounds params.initialCode t stmt hα₀_nn hα₀_lt
     have hnot :
         stmt ∉ params.batchProximityLang t (2 ^ params.d - 1 - ⌊α₀ * (2 ^ params.d : ℝ)⌋₊) :=
       hiff.mp fun D' v₀ hv₀ v hv hag => (hagree_le D' v₀ hv₀ v hv hag).trans hα_le_α₀
@@ -504,8 +504,8 @@ private theorem friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le [Fintype F]
       ENNReal.ofReal (ε_C + α ^ params.q) := by
   set e : ℕ := 2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊
   have hnot_e : stmt ∉ params.batchProximityLang t e := by
-    rwa [smoothBatchCorrAgreeLang_eq_batchProximityLang params t hα_le] at hfar
-  obtain ⟨_, hq_lt, he_le⟩ := smoothBatchCeilThreshold_bounds params hα_pos hα_le
+    rwa [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hfar
+  obtain ⟨_, hq_lt, he_le⟩ := friBatchCeilThreshold_bounds params.d hα_pos hα_le
   have hpow_nn : 0 ≤ α ^ params.q := pow_nonneg hα_pos.le params.q
   refine (hprox e hnot_e he_le).trans ?_
   calc ENNReal.ofReal ε_C +
@@ -519,7 +519,7 @@ private theorem friSmoothBatchRBRError_ceil_le [Fintype F] (params : FRISmoothPa
     friSmoothBatchRBRError params ε_batch (2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊) B_commit ≤
       max ε_batch
         (max ((B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) (ENNReal.ofReal (α ^ params.q))) := by
-  obtain ⟨_, hq_lt, _⟩ := smoothBatchCeilThreshold_bounds params hα_pos hα_le
+  obtain ⟨_, hq_lt, _⟩ := friBatchCeilThreshold_bounds params.d hα_pos hα_le
   simp only [friSmoothBatchRBRError, friSmoothRBRError]
   exact max_le_max le_rfl (max_le_max le_rfl (query_pow_le_ofReal_pow hq_lt))
 
@@ -663,7 +663,7 @@ private theorem smooth_two_mul_add_dim_le_of_div_le (params : FRISmoothParams F)
 
 /-- **Unconditional real-`α` unique-decoding smooth batched FRI commit-phase upper bound**
 (unique-decoding counterpart of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed
-pp. 38–39, bridged via `smoothBatchFloorThreshold_bounds`). -/
+pp. 38–39, bridged via `friBatchFloorThreshold_bounds`). -/
 theorem friSmoothBatchCommitGame_le_of_unique [Fintype F]
     (params : FRISmoothParams F) (t : ℕ) {α : ℝ}
     {stmt : FRIBatchStmt F params.d t}
@@ -806,10 +806,10 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_unique [Fintype F] [De
           (((3 * Q_MT + (params.m + 2) * (t_FS + (params.m + 2)) : ℕ) : ℝ≥0∞) *
             ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   have hα_pos : 0 < α := lt_of_lt_of_le (by positivity) hα
-  obtain ⟨_, _, he_le⟩ := smoothBatchCeilThreshold_bounds params hα_pos hα_le
+  obtain ⟨_, _, he_le⟩ := friBatchCeilThreshold_bounds params.d hα_pos hα_le
   have huniq : 2 * (2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊) + params.dim 0 ≤ 2 ^ params.d :=
     smooth_two_mul_add_dim_le_of_div_le params (he_le.trans (by linarith))
-  rw [smoothBatchCorrAgreeLang_eq_batchProximityLang params t hα_le] at hMT ⊢
+  rw [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hMT ⊢
   refine (friSmoothBatchBCS_romSoundness_bound_of_unique params t huniq hdec σ hFS hMT).trans ?_
   have hrbr := friSmoothBatchRBRError_ceil_le params
     ((2 ^ params.d : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) hα_pos hα_le
@@ -854,7 +854,7 @@ theorem friSmoothBatchCommitGame_le_of_johnson_discrete [Fintype F]
             (params.dim (i.val + 1) - 1) (DRound i) (params.arity i - 1) (2 ^ params.d) : ℕ) :
         ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
   classical
-  have he_lt : e < 2 ^ params.d := params.lt_two_pow_of_not_mem_batchProximityLang hfar
+  have he_lt : e < 2 ^ params.d := lt_two_pow_of_not_mem_friBatchProximityLang hfar
   exact (friSmoothBatchCommitGame_le_of_escape params t
     (smoothBatchRound0Escape_of_johnson_discrete params t hm₀ hk₀_le hinterp₀ hroot₀ hbound₀)
     (weightedCurveEscapePerRound_of_gapPerRound params
@@ -890,7 +890,7 @@ theorem friSmoothBatchIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [De
               (params.dim (i.val + 1) - 1) (DRound i) (params.arity i - 1) (2 ^ params.d) : ℕ) :
           ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
         (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q := by
-  have he_lt : e < 2 ^ params.d := params.lt_two_pow_of_not_mem_batchProximityLang hfar
+  have he_lt : e < 2 ^ params.d := lt_two_pow_of_not_mem_friBatchProximityLang hfar
   refine (friSmoothBatchIOP_interactiveGame_le_of_escape params t
     (smoothBatchRound0Escape_of_johnson_discrete params t hm₀ hk₀_le hinterp₀ hroot₀ hbound₀)
     (weightedCurveEscapePerRound_of_gapPerRound params
@@ -1163,7 +1163,7 @@ theorem friSmoothBatchIOP_interactiveGame_proximity_le_of_johnson_eta [Fintype F
 /-- **Original explicit-constant real-`α` Johnson smooth batched FRI commit-phase upper bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed pp. 38–39,
 Eq. (8.5), and Section 8.2.1 on printed pp. 41–43, bridged via
-`smoothBatchFloorThreshold_bounds`). -/
+`friBatchFloorThreshold_bounds`). -/
 theorem friSmoothBatchCommitGame_le_of_johnson [Fintype F]
     (params : FRISmoothParams F) (t : ℕ) {mJ : ℕ} (hmJ : 1 ≤ mJ) {α : ℝ}
     {stmt : FRIBatchStmt F params.d t}
@@ -1467,10 +1467,10 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_johnson [Fintype F] [D
         (Q_MT : ℝ≥0∞) *
           (((3 * Q_MT + (params.m + 2) * (t_FS + (params.m + 2)) : ℕ) : ℝ≥0∞) *
             ((1 : ℝ≥0∞) / 2 ^ σ)) := by
-  obtain ⟨_, _, he_le⟩ := smoothBatchCeilThreshold_bounds params
+  obtain ⟨_, _, he_le⟩ := friBatchCeilThreshold_bounds params.d
     (smooth_johnson_slack_of_le params hmJ hα le_rfl).1 hα_le
   obtain ⟨hα_pos, he_slack⟩ := smooth_johnson_slack_of_le params hmJ hα he_le
-  rw [smoothBatchCorrAgreeLang_eq_batchProximityLang params t hα_le] at hMT ⊢
+  rw [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hMT ⊢
   refine (friSmoothBatchBCS_romSoundness_bound_of_johnson params t hmJ he_slack hdec σ hFS
     hMT).trans ?_
   have hrbr := friSmoothBatchRBRError_ceil_le params
@@ -1510,10 +1510,10 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_prover_verifier_of_joh
           (((3 * (t_MT + params.proofOracleQueries * (L_path + 1)) +
               (params.m + 2) * (t_FS + (params.m + 2)) : ℕ) : ℝ≥0∞) *
             ((1 : ℝ≥0∞) / 2 ^ σ)) := by
-  obtain ⟨_, _, he_le⟩ := smoothBatchCeilThreshold_bounds params
+  obtain ⟨_, _, he_le⟩ := friBatchCeilThreshold_bounds params.d
     (smooth_johnson_slack_of_le params hmJ hα le_rfl).1 hα_le
   obtain ⟨hα_pos, he_slack⟩ := smooth_johnson_slack_of_le params hmJ hα he_le
-  rw [smoothBatchCorrAgreeLang_eq_batchProximityLang params t hα_le]
+  rw [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le]
   refine (friSmoothBatchBCS_romSoundness_bound_of_prover_verifier_of_johnson params t hmJ he_slack
     hdec σ hMT hFS hops).trans ?_
   have hrbr := friSmoothBatchRBRError_ceil_le params
@@ -1901,7 +1901,7 @@ theorem friBatchCommitGame_le_of_johnson_discrete [Fintype F]
             (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d) : ℕ) : ℝ≥0∞) /
         (Fintype.card F : ℝ≥0∞) := by
   classical
-  have he_lt : e < 2 ^ params.d := params.lt_two_pow_of_not_mem_batchProximityLang hfar
+  have he_lt : e < 2 ^ params.d := lt_two_pow_of_not_mem_friBatchProximityLang hfar
   exact (friBatchCommitGame_le_of_escape params t
     (batchRound0Escape_of_johnson_discrete params t hm₀ hk₀_le hinterp₀ hroot₀ hbound₀)
     (weightedLineEscapePerRound_of_gapPerRound params
@@ -1935,7 +1935,7 @@ theorem friBatchIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [Decidabl
               (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d) : ℕ) : ℝ≥0∞) /
           (Fintype.card F : ℝ≥0∞) +
         (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q := by
-  have he_lt : e < 2 ^ params.d := params.lt_two_pow_of_not_mem_batchProximityLang hfar
+  have he_lt : e < 2 ^ params.d := lt_two_pow_of_not_mem_friBatchProximityLang hfar
   refine (friBatchIOP_interactiveGame_le_of_escape params t
     (batchRound0Escape_of_johnson_discrete params t hm₀ hk₀_le hinterp₀ hroot₀ hbound₀)
     (weightedLineEscapePerRound_of_gapPerRound params
