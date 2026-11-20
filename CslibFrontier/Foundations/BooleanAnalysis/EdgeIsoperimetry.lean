@@ -46,6 +46,19 @@ book states the theorem without proof; its Exercises 10.25 and 11.21 derive weak
   `Cslib.BitString.two_mul_min_mul_logb_inv_le_totalInfluence`: the edge-isoperimetric
   inequality.
 
+## Usage
+
+Apply `two_mul_min_mul_logb_inv_le_totalInfluence f` to `f : (ι → Bool) → Bool` over any finite
+coordinate type `ι`. Its `α` is the same minimum of relative Hamming distances as in
+`two_mul_min_le_expect_sub_expect_sq_signVal`, so the two bounds compose. When the distance to
+one constant `b` is known, `two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence f b` gives the
+bound for that distance directly; `b = true` gives the book's `Pr[f = 1]`. For a set `A` of the
+cube, `sum_card_filter_update_mem_le A` bounds the directed edges inside `A`. The checked clients in
+[CslibFrontierTests/BooleanAnalysisEdgeIsoperimetry.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisEdgeIsoperimetry.lean)
+count the edges spanned by the square and by three of its corners, apply the inequality to a
+dictator on three bits, and show it is attained by the conjunction of two bits, with `α = 1/4` and
+total influence `1`.
+
 ## References
 
 * [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014]

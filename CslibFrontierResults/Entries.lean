@@ -444,6 +444,7 @@ import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
 import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
+import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
 
 /-!
 # Collected results
@@ -11184,3 +11185,19 @@ register_result "fuchs-van-de-graaf-upper" where
   scope := "For finite complex positive semidefinite trace-one matrices, including singular \
     states, trace distance is at most the square root of one minus squared root fidelity. \
     Trace distance is half the trace norm of the difference, and root fidelity is unsquared."
+
+-- https://github.com/cslib-community/cslib-frontier/pull/5817#pullrequestreview-5913387425
+register_result "odonnell-edge-isoperimetric-inequality" where
+  title := "Edge-isoperimetric inequality for the Boolean cube"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Theorem 2.39",
+      locator := "arXiv:2105.10386v1, §2.3, printed p. 52" }
+  ]
+  theorems := [Cslib.BitString.two_mul_min_mul_logb_inv_le_totalInfluence]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), 2 α log₂(1/α) ≤ I[f], where α is the smaller of the two \
+    relative Hamming distances hammingDist f (fun _ => b) / 2 ^ card ι to the constants \
+    b = true and b = false; these are the book's Pr[f = 1] and Pr[f = −1]. The logarithm is \
+    Real.logb 2, the book's log. The book's optimality remark for α a power of 1/2 is checked \
+    only for the conjunction of two bits. Source check: outside-fleet review on PR #5817."
