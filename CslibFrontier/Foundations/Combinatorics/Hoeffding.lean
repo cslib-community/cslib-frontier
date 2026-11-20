@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Analysis.Complex.Trigonometric
 public import Mathlib.Data.Fintype.Pi
+public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.Probability.BoundedDifferences
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.BigOperators.Ring.Finset
@@ -23,7 +24,10 @@ less than `t` (`card_filter_le_abs_sum_mul_sub_half_le`). This is Hoeffding's in
 weighted sum of independent unbiased bits, in counting form. With the weights `±1` on a finite set
 `R` and `0` elsewhere, it bounds the binomial tail: for all but a `2 exp (-2 t² / |R|)` fraction of
 the strings, the number of true coordinates of `x` in `R` is within `t` of `|R| / 2`
-(`card_filter_le_abs_card_filter_sub_half_le`).
+(`card_filter_le_abs_card_filter_sub_half_le`). Read with the signs `signVal b = 1 - 2 b`, it
+bounds a weighted sum of uniform random signs: `|∑ i, a i * signVal (x i)| ≥ t` on at most a
+`2 exp (-t² / (2 ∑ i, a i ^ 2))` fraction of the strings
+(`card_filter_le_abs_sum_mul_signVal_le`).
 
 The tail bounds are McDiarmid's inequality (`Cslib.Probability.HasBoundedDifferences`) for the
 sum of the coordinate scores `a i * (x i - 1 / 2)`, each varying by at most `|a i|` and of mean
@@ -40,6 +44,8 @@ strings of `exp (s ∑ i, a i (x i - 1 / 2))` factors over the coordinates, and 
 * `Cslib.BitString.card_filter_le_sum_mul_sub_half_le`: the weighted one-sided tail bound.
 * `Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le`: Hoeffding's inequality for weighted
   bit sums.
+* `Cslib.BitString.card_filter_le_abs_sum_mul_signVal_le`: Hoeffding's inequality for weighted
+  sums of signs.
 * `Cslib.BitString.sum_exp_mul_card_filter_sub_half`: the exponential moment of a bit count.
 * `Cslib.BitString.card_filter_le_card_filter_sub_half_le`: the one-sided tail bound for a bit
   count.
@@ -158,6 +164,22 @@ theorem card_filter_le_abs_sum_mul_sub_half_le (a : ι → ℝ) {t : ℝ} (ht : 
   simp only [sub_zero, sq_abs, neg_mul, neg_div] at h
   rw [card_filter_eq_two_pow_mul_toOuterMeasure]
   nlinarith [exp_pos (-(2 * t ^ 2 / ∑ i, a i ^ 2)), (by positivity : (0 : ℝ) < 2 ^ Fintype.card ι)]
+
+/-- **Hoeffding's inequality for weighted sums of signs.** At most a
+`2 exp (-t² / (2 ∑ i, a i ^ 2))` fraction of the bit strings `x` have a weighted sign sum
+`∑ i, a i * signVal (x i)` of absolute value at least `t`. Since `signVal b = -2 (b - 1 / 2)`,
+this is `card_filter_le_abs_sum_mul_sub_half_le` for the weights `-2 a i`. -/
+theorem card_filter_le_abs_sum_mul_signVal_le (a : ι → ℝ) {t : ℝ} (ht : 0 ≤ t) :
+    (#{x : ι → Bool | t ≤ |∑ i, a i * signVal (x i)|} : ℝ) ≤
+      2 * 2 ^ Fintype.card ι * exp (-(t ^ 2 / (2 * ∑ i, a i ^ 2))) := by
+  have hsum (x : ι → Bool) :
+      ∑ i, -2 * a i * (((x i).toNat : ℝ) - 1 / 2) = ∑ i, a i * signVal (x i) :=
+    sum_congr rfl fun i _ => by cases x i <;> norm_num <;> ring
+  have hsq : ∑ i, (-2 * a i) ^ 2 = 2 * (2 * ∑ i, a i ^ 2) := by
+    rw [mul_sum, mul_sum]
+    exact sum_congr rfl fun i _ => by ring
+  simpa only [hsum, hsq, mul_div_mul_left _ _ (two_ne_zero' ℝ)] using
+    card_filter_le_abs_sum_mul_sub_half_le (fun i => -2 * a i) ht
 
 /-- The signed indicator weights of `R`: `1` (if `c = true`) or `-1` (if `c = false`) on `R`, and
 `0` elsewhere. -/

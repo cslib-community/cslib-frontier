@@ -6123,6 +6123,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Influence
 public import CslibFrontier.Foundations.BooleanAnalysis.Invariance
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
 public import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
+public import CslibFrontier.Foundations.BooleanAnalysis.LevelOneInequality
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.LightPatterns
 public import CslibFrontier.Foundations.BooleanAnalysis.Linearity
