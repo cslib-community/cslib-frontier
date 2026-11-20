@@ -421,9 +421,8 @@ private theorem evalWord_polyTime :
     polytime
   have hfin : ComputableInPolyTime (fun p : List (List Bool) × ℕ => (p.1.drop p.2).flatten)
       (encPair (encList encBits) encUnary) encBits :=
-    (ComputableTidilyInPolyTime.bitsFlatten (ComputableTidilyInPolyTime.listDropWithInput
-      (ComputableTidilyInPolyTime.fst _ _)
-        (ComputableTidilyInPolyTime.snd _ _))).computableInPolyTime
+    ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
+      (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.snd _ _))
   exact hfin.comp (hfold.fst'.prod hc)
 
 private abbrev encGbInput : (ℕ × ValidCircuit × List Bool) ↪ List Bool :=
