@@ -198,6 +198,24 @@ theorem abs_sum_re_star_mul_le {ι : Type*} [Fintype ι] (φ : AlgState A) (X Y 
       (Complex.abs_re_le_norm _).trans (φ.norm_apply_star_mul_le _ _)
     _ ≤ _ := Real.sum_mul_le_sqrt_mul_sqrt _ _ _
 
+/-- Cauchy–Schwarz for a state pairing with a normalized left family. -/
+theorem abs_sum_re_star_mul_le_of_normalized {ι : Type*} [Fintype ι]
+    (φ : AlgState A) (X Y : ι → A)
+    (hX : (∑ a, φ.norm (X a) ^ 2) ≤ 1) :
+    |∑ a, (φ (star (X a) * Y a)).re| ≤ √(∑ a, φ.norm (Y a) ^ 2) := by
+  refine (φ.abs_sum_re_star_mul_le X Y).trans ?_
+  simpa only [Real.sqrt_one, one_mul] using
+    mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt hX) (Real.sqrt_nonneg _)
+
+/-- Cauchy–Schwarz for a state pairing with a normalized right family. -/
+theorem abs_sum_re_star_mul_le_of_normalized_right {ι : Type*} [Fintype ι]
+    (φ : AlgState A) (X Y : ι → A)
+    (hY : (∑ a, φ.norm (Y a) ^ 2) ≤ 1) :
+    |∑ a, (φ (star (X a) * Y a)).re| ≤ √(∑ a, φ.norm (X a) ^ 2) := by
+  refine (φ.abs_sum_re_star_mul_le X Y).trans ?_
+  simpa only [Real.sqrt_one, mul_one] using
+    mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hY) (Real.sqrt_nonneg _)
+
 /-- A contraction, `a⋆a ≤ 1`, has state norm at most `1`. -/
 theorem norm_le_one (φ : AlgState A) {a : A} (h : star a * a ≤ 1) : φ.norm a ≤ 1 := by
   rw [norm_eq_sqrt, Real.sqrt_le_one]

@@ -67,6 +67,19 @@ theorem successfulEffect_eq_success_prob
   unfold Measurement.successfulEffect Measurement.prob
   rw [map_sum, Complex.re_sum]
 
+/-- The success effect is a positive contraction. -/
+theorem successfulEffect_mem_Icc (P : Measurement (Option α) A) :
+    P.successfulEffect ∈ Set.Icc (0 : A) 1 :=
+  ⟨sum_nonneg fun a _ => P.nonneg (some a), by
+    rw [← sub_nonneg, ← P.effect_none_eq_one_sub_successfulEffect]
+    exact P.nonneg none⟩
+
+/-- Mapping optional outcomes groups the successful effects by the fibers of the map. -/
+theorem map_option_effect_some [DecidableEq β] (P : Measurement (Option α) A) (f : α → β)
+    (b : β) : (P.map (Option.map f)).effect (some b) = ∑ a with f a = b, P.effect (some a) := by
+  rw [map_effect, sum_filter, Fintype.sum_option, sum_filter]
+  simp
+
 private theorem norm_sum_effect_mul_sq_le (φ : AlgState A)
     (M : Measurement β A) (hM : M.IsProjective) (ι : κ ↪ β) (X : κ → A) :
     φ.norm (∑ a, M.effect (ι a) * X a) ^ 2 ≤ ∑ a, φ.norm (X a) ^ 2 := by
@@ -166,26 +179,21 @@ theorem sum_successfulEffect_commutator_sq_le (φ : AlgState A)
     (P R : Measurement (Option α) A) : ℝ :=
   ∑ a, φ.norm (P.effect (some a) - R.effect (some a)) ^ 2
 
-/-- The failure effects differ by at most the summed squared discrepancy of the successful
-effects in the state norm. Cross terms between distinct successful outcomes are nonpositive. -/
-theorem norm_none_sub_sq_le_successfulCopyDefect (φ : AlgState A)
+/-- Coarsening a family of successful outcomes cannot increase the squared copy
+defect within that family. Distinct outcomes have nonpositive cross terms. -/
+theorem norm_sum_successful_diff_sq_le (φ : AlgState A)
     (P R : Measurement (Option α) A) (hP : P.IsProjective) (hR : R.IsProjective)
-    (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) :
-    φ.norm (P.effect none - R.effect none) ^ 2 ≤ successfulCopyDefect φ P R := by
+    (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) (s : Finset α) :
+    φ.norm (∑ a ∈ s, (P.effect (some a) - R.effect (some a))) ^ 2 ≤
+      ∑ a ∈ s, φ.norm (P.effect (some a) - R.effect (some a)) ^ 2 := by
   classical
   let D (a : α) := P.effect (some a) - R.effect (some a)
-  have hd : P.effect none - R.effect none = -(∑ a, D a) := by
-    rw [effect_none_eq_one_sub_successfulEffect, effect_none_eq_one_sub_successfulEffect]
-    unfold successfulEffect D
-    rw [sum_sub_distrib]
-    abel
-  unfold successfulCopyDefect
-  change _ ≤ ∑ a, φ.norm (D a) ^ 2
-  rw [hd, AlgState.norm_neg, AlgState.norm_sq, star_sum, sum_mul, map_sum, Complex.re_sum]
-  refine sum_le_sum fun a _ => ?_
+  change φ.norm (∑ a ∈ s, D a) ^ 2 ≤ ∑ a ∈ s, φ.norm (D a) ^ 2
+  rw [AlgState.norm_sq, star_sum, sum_mul, map_sum, Complex.re_sum]
+  refine sum_le_sum fun a ha => ?_
   rw [mul_sum, map_sum, Complex.re_sum]
   calc
-    _ ≤ ∑ b, if b = a then φ.norm (D a) ^ 2 else 0 := by
+    _ ≤ ∑ b ∈ s, if b = a then φ.norm (D a) ^ 2 else 0 := by
       refine sum_le_sum fun b _ => ?_
       by_cases hab : b = a
       · subst b
@@ -201,7 +209,35 @@ theorem norm_none_sub_sq_le_successfulCopyDefect (φ : AlgState A)
           (R.nonneg (some a)).isSelfAdjoint.star_eq, sub_mul, mul_sub, hp, hr, zero_sub,
           sub_zero, map_sub, map_neg, Complex.sub_re, Complex.neg_re]
         linarith
-    _ = _ := by simp
+    _ = _ := by simp [ha]
+
+/-- Mapping successful outcomes through the same function cannot increase their copy defect. -/
+theorem successfulCopyDefect_map_le [DecidableEq β] (φ : AlgState A)
+    (P R : Measurement (Option α) A) (hP : P.IsProjective) (hR : R.IsProjective)
+    (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) (f : α → β) :
+    successfulCopyDefect φ (P.map (Option.map f)) (R.map (Option.map f)) ≤
+      successfulCopyDefect φ P R := by
+  unfold successfulCopyDefect
+  rw [← sum_fiberwise univ f (fun a => φ.norm (P.effect (some a) - R.effect (some a)) ^ 2)]
+  refine sum_le_sum fun b _ => ?_
+  simp only [map_option_effect_some, ← sum_sub_distrib]
+  exact norm_sum_successful_diff_sq_le φ P R hP hR hc _
+
+/-- The failure effects differ by at most the summed squared discrepancy of the successful
+effects in the state norm. Cross terms between distinct successful outcomes are nonpositive. -/
+theorem norm_none_sub_sq_le_successfulCopyDefect (φ : AlgState A)
+    (P R : Measurement (Option α) A) (hP : P.IsProjective) (hR : R.IsProjective)
+    (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) :
+    φ.norm (P.effect none - R.effect none) ^ 2 ≤ successfulCopyDefect φ P R := by
+  classical
+  let D (a : α) := P.effect (some a) - R.effect (some a)
+  have hd : P.effect none - R.effect none = -(∑ a, D a) := by
+    rw [effect_none_eq_one_sub_successfulEffect, effect_none_eq_one_sub_successfulEffect]
+    unfold successfulEffect D
+    rw [sum_sub_distrib]
+    abel
+  rw [hd, AlgState.norm_neg]
+  exact norm_sum_successful_diff_sq_le φ P R hP hR hc univ
 
 /-- The completed copy defect costs at most twice the successful part. -/
 theorem copyDefect_le_two_mul_successfulCopyDefect (φ : AlgState A)

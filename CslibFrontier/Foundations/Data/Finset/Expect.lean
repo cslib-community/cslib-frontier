@@ -369,6 +369,13 @@ theorem Fintype.expect_fin_snoc {α M : Type*} [Fintype α] [AddCommMonoid M] [M
     ← Fintype.expect_prod_type (fun p : α × (Fin n → α) => f (Fin.snoc p.2 p.1))]
   exact Fintype.expect_equiv (Fin.snocEquiv (fun _ : Fin (n + 1) => α)) _ _ fun _ => rfl
 
+/-- Split a uniform tuple into its last coordinate followed by its initial tuple. -/
+theorem Fintype.expect_eq_expect_snoc {α M : Type*} [Fintype α] [AddCommMonoid M]
+    [Module ℚ≥0 M] {n : ℕ} (f : (Fin (n + 1) → α) → M) :
+    (𝔼 v, f v) = 𝔼 x : α, 𝔼 u : Fin n → α, f (Fin.snoc u x) := by
+  rw [Finset.expect_comm Finset.univ Finset.univ]
+  exact (Fintype.expect_fin_snoc f).symm
+
 namespace Fin
 
 open Finset

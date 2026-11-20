@@ -56,7 +56,7 @@ theorem sum_norm_sub_success_mul_sq_eq (φ : AlgState A)
     (∑ a, φ.norm (P.effect (some a) - P.successfulEffect * Q.effect a) ^ 2) =
       2 * successfulMismatch φ P Q := by
   let G := P.successfulEffect
-  have hG₀ : 0 ≤ G := sum_nonneg fun a _ => P.nonneg (some a)
+  have hG₀ : 0 ≤ G := P.successfulEffect_mem_Icc.1
   have hG := hG₀.isSelfAdjoint.star_eq
   have hGQ (a : α) : Commute G (Q.effect a) :=
     Commute.sum_left _ _ _ fun b _ => hc _ _
@@ -103,12 +103,6 @@ theorem sum_successful_product_sq_le {β : Type*} [Fintype β]
     (hp : P.IsProjective) (hn : N.IsProjective) :
     (∑ a : β, ∑ g : α, star (P.effect (some g) * N.effect (some a)) *
       (P.effect (some g) * N.effect (some a))) ≤ 1 := by
-  have hpSum : P.successfulEffect ≤ 1 := by
-    rw [← sub_nonneg, ← P.effect_none_eq_one_sub_successfulEffect]
-    exact P.nonneg none
-  have hnSum : N.successfulEffect ≤ 1 := by
-    rw [← sub_nonneg, ← N.effect_none_eq_one_sub_successfulEffect]
-    exact N.nonneg none
   have he (a : β) (g : α) :
       star (P.effect (some g) * N.effect (some a)) * (P.effect (some g) * N.effect (some a)) =
         N.effect (some a) * P.effect (some g) * N.effect (some a) := by
@@ -117,25 +111,87 @@ theorem sum_successful_product_sq_le {β : Type*} [Fintype β]
     rw [mul_assoc (N.effect (some a)), hp]
   simp only [he, ← sum_mul, ← mul_sum]
   change (∑ a : β, N.effect (some a) * P.successfulEffect * N.effect (some a)) ≤ 1
-  refine (sum_le_sum fun a _ => ?_).trans hnSum
+  refine (sum_le_sum fun a _ => ?_).trans N.successfulEffect_mem_Icc.2
   simpa only [mul_one, hn (some a)] using
-    (N.nonneg (some a)).isSelfAdjoint.conjugate_le_conjugate hpSum
+    (N.nonneg (some a)).isSelfAdjoint.conjugate_le_conjugate P.successfulEffect_mem_Icc.2
 
-/-- Swapping the order of two point effects in a product with a failure projection costs
+/-- Sandwiching by the successful projections does not amplify a replacement on the
+right. The bound uses one squared norm per outcome of the replaced operator family. -/
+theorem abs_sum_successful_sandwich_mul_le {β : Type*} [Fintype β]
+    (φ : AlgState A) (P : Measurement (Option α) A) (N : Measurement (Option β) A)
+    (hp : P.IsProjective) (D : β → A) :
+    |∑ a, ∑ b, (φ (P.effect (some a) * N.effect (some b) * P.effect (some a) * D b)).re| ≤
+      √(∑ b, φ.norm (D b) ^ 2) := by
+  let X (b : β) := ∑ a : α, P.effect (some a) * N.effect (some b) * P.effect (some a)
+  have hX₀ (b : β) : 0 ≤ X b := by
+    refine sum_nonneg fun a _ => ?_
+    simpa only [(P.nonneg (some a)).isSelfAdjoint.star_eq] using
+      star_right_conjugate_nonneg (N.nonneg (some b)) (P.effect (some a))
+  have hXsum : (∑ b, X b) ≤ 1 := by
+    unfold X
+    rw [sum_comm]
+    simp only [← sum_mul, ← mul_sum]
+    refine (sum_le_sum fun a _ => ?_).trans P.successfulEffect_mem_Icc.2
+    change P.effect (some a) * N.successfulEffect * P.effect (some a) ≤ P.effect (some a)
+    simpa only [mul_one, hp (some a)] using
+      (P.nonneg (some a)).isSelfAdjoint.conjugate_le_conjugate N.successfulEffect_mem_Icc.2
+  have hX₁ (b : β) : X b ≤ 1 := (single_le_sum (fun b _ => hX₀ b) (mem_univ b)).trans hXsum
+  have hX : (∑ b, φ.norm (X b) ^ 2) ≤ 1 := by
+    refine (sum_le_sum (g := fun b => (φ (X b)).re) fun b _ => ?_).trans ?_
+    · rw [AlgState.norm_sq, (hX₀ b).isSelfAdjoint.star_eq]
+      exact φ.re_apply_mono (mul_self_le_self_of_nonneg_of_le_one (hX₀ b) (hX₁ b))
+    · simpa only [← Complex.re_sum, ← map_sum] using φ.re_apply_le_one hXsum
+  have h := φ.abs_sum_re_star_mul_le_of_normalized X D hX
+  rw [sum_comm]
+  simpa only [(hX₀ _).isSelfAdjoint.star_eq, X, sum_mul, map_sum, Complex.re_sum] using h
+
+/-- A sum of matching successful effects of commuting measurements is a positive
+contraction. -/
+theorem sum_successful_matching_mem_Icc (P : Measurement (Option α) A)
+    (B : Measurement α A) (hPB : ∀ a, Commute (P.effect (some a)) (B.effect a)) :
+    (∑ a, P.effect (some a) * B.effect a) ∈ Set.Icc (0 : A) 1 := by
+  refine ⟨sum_nonneg fun a _ => (hPB a).mul_nonneg (P.nonneg _) (B.nonneg _), ?_⟩
+  refine (sum_le_sum fun a _ => ?_).trans P.successfulEffect_mem_Icc.2
+  rw [← sub_nonneg, ← mul_one_sub]
+  exact ((Commute.one_right (P.effect (some a))).sub_right (hPB a)).mul_nonneg
+    (P.nonneg _) (sub_nonneg.mpr (B.effect_le_one a))
+
+/-- Multiplying the successful projections by a positive contraction gives the
+normalization needed for replacement on either side of the product. -/
+theorem sum_norm_mul_some_effect_sq_le_one (φ : AlgState A)
+    (P : Measurement (Option α) A) (hp : P.IsProjective) (J : A) (hJ : J ∈ Set.Icc (0 : A) 1) :
+    (∑ a, φ.norm (J * P.effect (some a)) ^ 2) ≤ 1 := by
+  have hJ' : star J * J ≤ 1 := by
+    rw [hJ.1.isSelfAdjoint.star_eq]
+    exact (mul_self_le_self_of_nonneg_of_le_one hJ.1 hJ.2).trans hJ.2
+  refine (sum_le_sum fun a _ => pow_le_pow_left₀ (φ.norm_nonneg _)
+    (φ.norm_mul_le_of_star_mul_self_le_one hJ' _) _).trans ?_
+  simpa only [mul_one, AlgState.norm_one, one_pow] using sum_norm_some_effect_mul_sq_le φ P hp 1
+
+/-- A positive contraction on the right also normalizes the family of products. -/
+theorem sum_norm_some_effect_mul_sq_le_one (φ : AlgState A)
+    (P : Measurement (Option α) A) (hp : P.IsProjective) (J : A) (hJ : J ∈ Set.Icc (0 : A) 1) :
+    (∑ a, φ.norm (P.effect (some a) * J) ^ 2) ≤ 1 := by
+  refine (sum_norm_some_effect_mul_sq_le φ P hp J).trans ?_
+  rw [AlgState.norm_sq, hJ.1.isSelfAdjoint.star_eq]
+  exact φ.re_apply_le_one ((mul_self_le_self_of_nonneg_of_le_one hJ.1 hJ.2).trans hJ.2)
+
+/-- Swapping the order of two point effects in a product with a positive contraction costs
 at most the square root of their pair commutator defect. Projectivity of the preceding
 measurements bounds the normalization of the coefficients. -/
-theorem abs_sum_failure_pointOrder_sub_le {β : Type*} [Fintype β]
+theorem abs_sum_mul_pointOrder_sub_le {β : Type*} [Fintype β]
     (φ : AlgState A) (P : Measurement (Option α) A) (N : Measurement (Option β) A)
-    (hp : P.IsProjective) (hn : N.IsProjective) (B : Measurement α A) (C : Measurement β A) :
-    |(∑ a, ∑ b, (φ (P.effect (some a) * N.effect (some b) * P.effect none *
+    (hp : P.IsProjective) (hn : N.IsProjective) (B : Measurement α A) (C : Measurement β A)
+    (J : A) (hJ : J ∈ Set.Icc (0 : A) 1) :
+    |(∑ a, ∑ b, (φ (P.effect (some a) * N.effect (some b) * J *
         (B.effect a * C.effect b))).re) -
-      (∑ a, ∑ b, (φ (P.effect (some a) * N.effect (some b) * P.effect none *
+      (∑ a, ∑ b, (φ (P.effect (some a) * N.effect (some b) * J *
         (C.effect b * B.effect a))).re)| ≤ √(pairCommutatorDefect φ B C) := by
-  let X (z : α × β) := P.effect none * (N.effect (some z.2) * P.effect (some z.1))
+  let X (z : α × β) := J * (N.effect (some z.2) * P.effect (some z.1))
   let D (z : α × β) := B.effect z.1 * C.effect z.2 - C.effect z.2 * B.effect z.1
-  have hF : star (P.effect none) * P.effect none ≤ 1 := by
-    rw [(P.nonneg none).isSelfAdjoint.star_eq, hp none]
-    exact P.effect_le_one none
+  have hF : star (J) * J ≤ 1 := by
+    rw [hJ.1.isSelfAdjoint.star_eq]
+    exact (mul_self_le_self_of_nonneg_of_le_one hJ.1 hJ.2).trans hJ.2
   have hX : (∑ z, φ.norm (X z) ^ 2) ≤ 1 := by
     rw [Fintype.sum_prod_type]
     calc
@@ -149,12 +205,23 @@ theorem abs_sum_failure_pointOrder_sub_le {β : Type*} [Fintype β]
       _ ≤ 1 := by
         simpa only [mul_one, AlgState.norm_one, one_pow] using
           sum_norm_some_effect_mul_sq_le φ P hp 1
-  have h := (φ.abs_sum_re_star_mul_le X D).trans
-    (mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt hX) (Real.sqrt_nonneg _))
+  have h := φ.abs_sum_re_star_mul_le_of_normalized X D hX
   simpa only [X, D, Fintype.sum_prod_type, star_mul,
-    (P.nonneg _).isSelfAdjoint.star_eq, (N.nonneg _).isSelfAdjoint.star_eq, ← mul_assoc,
-    mul_sub, map_sub, Complex.sub_re, sum_sub_distrib, pairCommutatorDefect, Real.sqrt_one, one_mul]
+    (P.nonneg _).isSelfAdjoint.star_eq, (N.nonneg _).isSelfAdjoint.star_eq,
+    hJ.1.isSelfAdjoint.star_eq, ← mul_assoc,
+    mul_sub, map_sub, Complex.sub_re, sum_sub_distrib, pairCommutatorDefect]
     using h
+
+/-- Swapping point effects after multiplication by the failure projection. -/
+theorem abs_sum_failure_pointOrder_sub_le {β : Type*} [Fintype β]
+    (φ : AlgState A) (P : Measurement (Option α) A) (N : Measurement (Option β) A)
+    (hp : P.IsProjective) (hn : N.IsProjective) (B : Measurement α A) (C : Measurement β A) :
+    |(∑ a, ∑ b, (φ (P.effect (some a) * N.effect (some b) * P.effect none *
+        (B.effect a * C.effect b))).re) -
+      (∑ a, ∑ b, (φ (P.effect (some a) * N.effect (some b) * P.effect none *
+        (C.effect b * B.effect a))).re)| ≤ √(pairCommutatorDefect φ B C) :=
+  abs_sum_mul_pointOrder_sub_le φ P N hp hn B C (P.effect none)
+    ⟨P.nonneg none, P.effect_le_one none⟩
 
 end Measurement
 
@@ -206,11 +273,8 @@ theorem AlgState.abs_sum_failure_mul_le {ι : Type*} [Fintype ι] (φ : AlgState
   have hnorm : (∑ i, φ.norm (X i * H i) ^ 2) ≤ (φ (F * Z)).re :=
     (sum_le_sum fun i _ => hnormX i).trans (by
       simpa only [← Complex.re_sum, ← map_sum] using φ.re_apply_mono hsum)
-  have h := φ.abs_sum_re_star_mul_le K (fun i => X i * H i)
+  have h := φ.abs_sum_re_star_mul_le_of_normalized K (fun i => X i * H i) hnormK
   simp only [X, ← mul_assoc] at h
-  exact h.trans (by
-    simpa only [Real.sqrt_one, one_mul] using
-      mul_le_mul (Real.sqrt_le_sqrt hnormK) (Real.sqrt_le_sqrt hnorm)
-        (Real.sqrt_nonneg _) (by norm_num))
+  exact h.trans (Real.sqrt_le_sqrt hnorm)
 
 end Cslib.Quantum

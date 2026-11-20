@@ -75,15 +75,9 @@ theorem card_locallyInterpolable_mul_card_le [Fintype F] (x : ι ↪ F)
     cases this
   obtain ⟨i, q, hq, hne⟩ := not_forall.mp hfit |>.imp fun j hj =>
     not_forall.mp hj |>.imp fun q hq => not_imp.mp hq
-  let difference := (p.specialize (x i)).val - q.val
-  have hdiff : difference ≠ 0 := fun he => hne (Subtype.ext (sub_eq_zero.mp he))
-  have hdeg : difference.totalDegree ≤ m * d := by
-    refine (totalDegree_le_card_mul_of_degreeOf_le fun j =>
-      (degreeOf_sub_le j _ _).trans (max_le ((p.specialize (x i)).prop j) (q.prop j))).trans_eq ?_
-    rw [Fintype.card_fin]
   have hsubset :
       ({u | LocallyInterpolable x g u} : Finset (Fin m → F)) ⊆
-          ({u | eval u difference = 0} : Finset (Fin m → F)) := by
+          ({u | eval u (p.specialize (x i)).val = eval u q.val} : Finset (Fin m → F)) := by
     intro u hu
     simp only [mem_filter, mem_univ, true_and] at hu ⊢
     obtain ⟨f, hf, hagree⟩ := hu
@@ -92,11 +86,11 @@ theorem card_locallyInterpolable_mul_card_le [Fintype F] (x : ι ↪ F)
       by_cases hj : j ∈ s
       · simpa [selected, hj] using hr
       · simp [selected, hj] at hr
-    change eval u ((p.specialize (x i)).val - q.val) = 0
-    rw [map_sub, hagree i q hq, ← hline, eval_evalPrefix]
-    exact sub_self _
+    rw [hagree i q hq, ← hline, eval_evalPrefix]
+    rfl
   exact (Nat.mul_le_mul_right _ (card_le_card hsubset)).trans
-    (card_filter_eval_eq_zero_mul_card_le hdiff hdeg)
+    (card_filter_eval_eq_mul_card_le (fun h => hne (Subtype.ext h))
+      (p.specialize (x i)).prop q.prop)
 
 open Cslib.Probability.PMF
 open scoped BigOperators

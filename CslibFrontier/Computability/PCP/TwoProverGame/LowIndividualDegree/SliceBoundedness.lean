@@ -43,8 +43,9 @@ open scoped BigOperators Real
 variable {F A : Type*} {m d : ℕ} [Field F] [Fintype F] [DecidableEq F]
   [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
 
-private theorem evaluated_successfulEffect (P : Measurement (Option (BoundedPolynomial F m d)) A)
-    (u : Fin m → F) :
+/-- Evaluating a polynomial outcome preserves the total successful effect. -/
+theorem evaluatePolynomialMeasurement_successfulEffect
+    (P : Measurement (Option (BoundedPolynomial F m d)) A) (u : Fin m → F) :
     (evaluatePolynomialMeasurement P u).successfulEffect = P.successfulEffect := by
   have hh := congrArg (fun x : A => 1 - x) (evaluatePolynomialMeasurement_effect_none P u)
   simpa only [Measurement.effect_none_eq_one_sub_successfulEffect, sub_sub_cancel] using hh
@@ -63,7 +64,7 @@ theorem evaluatedSlice_gated_stateDist_eq
   have hc' (a : Option F) (b : F) : Commute ((evaluatePolynomialMeasurement P u).effect a)
       (B.effect b) :=
     (Measurement.commute_map_right P _ _ (fun g => (hc g b).symm) a).symm
-  simpa only [evaluated_successfulEffect] using
+  simpa only [evaluatePolynomialMeasurement_successfulEffect] using
     Measurement.sum_norm_sub_success_mul_sq_eq φ (evaluatePolynomialMeasurement P u) B hP hb hc'
 
 /-- The true effect of the uniform mixture of tests for the value of a fixed polynomial. -/
@@ -95,10 +96,8 @@ theorem commute_averagePolynomialPointEffect
 
 private theorem evaluation_some (P : Measurement (Option (BoundedPolynomial F m d)) A)
     (u : Fin m → F) (b : F) : (evaluatePolynomialMeasurement P u).effect (some b) =
-      ∑ g with eval u g.val = b, P.effect (some g) := by
-  rw [evaluatePolynomialMeasurement, Measurement.map_effect, sum_filter, Fintype.sum_option,
-    sum_filter]
-  simp
+      ∑ g with eval u g.val = b, P.effect (some g) :=
+  P.map_option_effect_some (fun g => eval u g.val) b
 
 /-- A positive common majorant of the averaged point effects controls the failure term
 after sandwiching an evaluated slice by the successful effects of a second measurement.
@@ -225,10 +224,7 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
   calc
     _ ≤ 𝔼 u : Fin m → F, √(∑ p, φ.norm (Y u p) ^ 2) := by
       refine (abs_expect_le _ _).trans (expect_le_expect fun u _ => ?_)
-      have h := φ.abs_sum_re_star_mul_le L (Y u)
-      exact h.trans (by
-        simpa only [Real.sqrt_one, one_mul] using
-          mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt hL) (Real.sqrt_nonneg _))
+      exact φ.abs_sum_re_star_mul_le_of_normalized L (Y u) hL
     _ ≤ _ := (Fintype.expect_sqrt_le_sqrt_expect _ (fun u =>
       sum_nonneg fun p _ => sq_nonneg _)).trans (Real.sqrt_le_sqrt hv)
 
@@ -316,13 +312,9 @@ theorem abs_average_evaluated_failure_pointProduct_le
       (fun g b => hMP x v g b) (fun b a => hnQ b v a) (fun g => hMZ x x g) hnZ
     simpa only [reordered, P, Fin.snoc_last, Fin.init_snoc,
       evaluatePolynomialMeasurement_effect_none] using h
-  have hsplit (f : Point F (m + 1) → ℝ) :
-      (𝔼 w, f w) = 𝔼 x : F, 𝔼 u : Point F m, f (Fin.snoc u x) := by
-    rw [expect_comm univ univ]
-    exact (Fintype.expect_fin_snoc f).symm
   have hremaining : |𝔼 u, 𝔼 v, reordered u v| ≤ √ζ := by
     rw [expect_comm univ univ]
-    simp_rw [hsplit (fun u => reordered u _)]
+    simp_rw [Fintype.expect_eq_expect_snoc (fun u => reordered u _)]
     refine (abs_expect_le _ _).trans ?_
     refine (expect_le_expect fun v _ => abs_expect_le _ _).trans ?_
     refine (expect_le_expect fun v _ => expect_le_expect fun x _ => hfixed x v).trans ?_
