@@ -115,40 +115,18 @@ private theorem place_fresh {I : FixedRotationInput} (D : PolygonalDrawing I.gra
   · rename_i h
     exact (h (hq ▸ i.isLt)).elim
 
-private def original (I : FixedRotationInput) (e : Edge (subdivisionGraph I)) : Edge I.graph :=
-  ⟨e.val / 3, by
-    have h : e.val < (subdivide I).length := by
-      simpa only [subdivisionGraph, List.length_map] using e.isLt
-    rw [length_subdivide] at h
-    omega⟩
-
-private def piece {I : FixedRotationInput} (e : Edge (subdivisionGraph I)) : Fin 3 :=
-  ⟨e.val % 3, Nat.mod_lt _ (by decide)⟩
-
-private theorem edge_index {I : FixedRotationInput} (e : Edge (subdivisionGraph I)) :
-    e.val = 3 * (original I e).val + (piece e).val := by
-  dsimp [original, piece]
-  omega
-
 private theorem dart_node {I : FixedRotationInput} (e : Edge (subdivisionGraph I)) (b : Bool) :
-    Dart.vertex (e, b) = node I (original I e) (boundary (piece e) b) := by
-  obtain ⟨i, k, he, hpair⟩ := subdivision_edge_cases I e
-  have hi : original I e = i := by
-    apply Fin.ext
-    dsimp [original]
-    have := k.isLt
-    omega
-  have hk : piece e = k := by
-    apply Fin.ext
-    dsimp [piece]
-    have := k.isLt
-    omega
-  rw [Dart.edge_eq_vertices e] at hpair
-  rw [hi, hk]
+    Dart.vertex (e, b) = node I (subdivisionEdgeIndex I e).original
+      (boundary (subdivisionEdgeIndex I e).piece b) := by
+  generalize hd : subdivisionEdgeIndex I e = d
+  obtain ⟨i, k⟩ := d
+  have hpair := subdivision_edge_endpoints I e
+  rw [hd, Dart.edge_eq_vertices e] at hpair
   have hleft := congrArg Prod.fst (Dart.edge_eq_vertices i)
   have hright := congrArg Prod.snd (Dart.edge_eq_vertices i)
   fin_cases k <;> cases b
-  all_goals simp only [Fin.getElem_fin, List.getElem_cons_zero, List.getElem_cons_succ] at hpair
+  all_goals simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
+    List.getElem_cons_succ] at hpair
   · exact (congrArg Prod.fst hpair).trans hleft
   · exact congrArg Prod.snd hpair
   · exact congrArg Prod.fst hpair
@@ -175,11 +153,14 @@ private theorem piece_endpoint {I : FixedRotationInput} (hI : Valid I)
 private noncomputable def drawing {I : FixedRotationInput} (hI : Valid I)
     (D : PolygonalDrawing I.graph) : PolygonalDrawing (subdivisionGraph I) where
   vertex := place D
-  route := fun e => (D.route (original I e)).trisect cut cut (piece e)
+  route := fun e =>
+    let d := subdivisionEdgeIndex I e
+    (D.route d.original).trisect cut cut d.piece
   endpoint_eq := by
     intro e b
     rw [dart_node]
-    exact piece_endpoint hI D (original I e) (piece e) b
+    let d := subdivisionEdgeIndex I e
+    exact piece_endpoint hI D d.original d.piece b
 
 -- The two levels of parameter data stay separate: a sample is on the original
 -- route, and a trace certifies how a parameter on a new piece maps to that sample.
@@ -334,11 +315,12 @@ private theorem vertex_contacts {I : FixedRotationInput} (hI : Valid I)
     (t : ℝ) (ht : t ∈ Set.Icc 0 1) (v : ℕ) (hv : v ∈ (subdivisionGraph I).vertices)
     (he : ((drawing hI D).route e).eval i t = (drawing hI D).vertex v) :
     ∃ b, ((drawing hI D).route e).AtEnd i t b ∧ Dart.vertex (e, b) = v := by
-  obtain ⟨L⟩ := trace_exists (D.route (original I e)) (piece e) i t ht
+  let d := subdivisionEdgeIndex I e
+  obtain ⟨L⟩ := trace_exists (D.route d.original) d.piece i t ht
   have hv' : L.source.value = place D v := L.value_eq.trans he
   rcases name_cases hv with hold | ⟨j, b, rfl⟩
   · rw [place_old D hold] at hv'
-    obtain ⟨b, hb, hn⟩ := hD.vertex_contacts (original I e) L.source.index L.source.time
+    obtain ⟨b, hb, hn⟩ := hD.vertex_contacts d.original L.source.index L.source.time
       L.source.inside v (old_mem hI hold) hv'
     obtain ⟨c, hc, hcut⟩ := L.at_original_end b hb
     refine ⟨c, hc, ?_⟩
@@ -360,28 +342,32 @@ private theorem edge_contacts {I : FixedRotationInput} (hI : Valid I)
     (he : ((drawing hI D).route e).eval i s = ((drawing hI D).route f).eval j t) :
     ∃ b c, ((drawing hI D).route e).AtEnd i s b ∧ ((drawing hI D).route f).AtEnd j t c ∧
       Dart.vertex (e, b) = Dart.vertex (f, c) := by
-  obtain ⟨L⟩ := trace_exists (D.route (original I e)) (piece e) i s hs
-  obtain ⟨M⟩ := trace_exists (D.route (original I f)) (piece f) j t ht
+  let a := subdivisionEdgeIndex I e
+  let b := subdivisionEdgeIndex I f
+  obtain ⟨L⟩ := trace_exists (D.route a.original) a.piece i s hs
+  obtain ⟨M⟩ := trace_exists (D.route b.original) b.piece j t ht
   have heq := L.value_eq.trans (he.trans M.value_eq.symm)
   rcases sample_contact hI hD L.source M.source heq with ⟨hi, hp⟩ | ⟨b, c, hb, hc, hn⟩
-  · have hpiece : piece e ≠ piece f := by
+  · have hpiece : a.piece ≠ b.piece := by
       intro h
       apply hef
       apply Fin.ext
-      exact (edge_index e).trans (by rw [hi, h, ← edge_index f])
+      have he' : e.val = 3 * a.original.val + a.piece.val := subdivisionEdgeIndex_val I e
+      have hf' : f.val = 3 * b.original.val + b.piece.val := subdivisionEdgeIndex_val I f
+      exact he'.trans (by rw [hi, h, ← hf'])
     have hfint : L.source.position ∈ Set.Icc
-        ((D.route (original I e)).trisectionBounds cut cut (piece f).castSucc)
-        ((D.route (original I e)).trisectionBounds cut cut (piece f).succ) := by
+        ((D.route a.original).trisectionBounds cut cut b.piece.castSucc)
+        ((D.route a.original).trisectionBounds cut cut b.piece.succ) := by
       rw [hp, hi]
       exact M.interval
-    obtain ⟨a, ha⟩ := interval_contact (D.route (original I e)) hpiece L.interval hfint
-    have hM : M.source.position = (D.route (original I f)).trisectionBounds cut cut a := by
+    obtain ⟨k, hk⟩ := interval_contact (D.route a.original) hpiece L.interval hfint
+    have hM : M.source.position = (D.route b.original).trisectionBounds cut cut k := by
       calc
         _ = L.source.position := hp.symm
-        _ = (D.route (original I e)).trisectionBounds cut cut a := ha
+        _ = (D.route a.original).trisectionBounds cut cut k := hk
         _ = _ := by rw [hi]
-    obtain ⟨b, hb, hbe⟩ := L.at_boundary a ha
-    obtain ⟨c, hc, hcf⟩ := M.at_boundary a hM
+    obtain ⟨b, hb, hbe⟩ := L.at_boundary k hk
+    obtain ⟨c, hc, hcf⟩ := M.at_boundary k hM
     exact ⟨b, c, hb, hc, by rw [dart_node e, dart_node f, hbe, hcf, hi]⟩
   · obtain ⟨b', hb', hbe⟩ := L.at_original_end b hb
     obtain ⟨c', hc', hcf⟩ := M.at_original_end c hc
@@ -399,7 +385,7 @@ theorem exists_subdivision_embedding {I : FixedRotationInput} (hI : Valid I)
   refine ⟨drawing hI D, ⟨place_injective hI hD, ?_, vertex_contacts hI hD, edge_contacts hI hD⟩,
     ?_⟩
   · intro e
-    exact (hD.simple (original I e)).trisect cut_pos cut_pos cut_small _
+    exact (hD.simple (subdivisionEdgeIndex I e).original).trisect cut_pos cut_pos cut_small _
   · intro v hv
     apply place_old D
     rw [hI.1] at hv
