@@ -46,18 +46,18 @@ soundness, which concerns only the parsed formula.
 
 **Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
 witness and an optional subproof of `proofgoal` blocks (`#1`, `#2` for the objective, and
-constraint numbers), the solution-logging steps `sol` and `soli` and the bound `obji` (§5.8),
-`core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1):
+constraint numbers), the solution-logging steps `sol` and `soli` and the bound `obji` (§5.8), the
+objective update `obju new` or `obju diff` with an optional subproof of `proofgoal #1` and `#2`
+(§5.9), `core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1):
 `deld` of derived constraints, the unchecked `delc` of core constraints, and the checked
 `delc id : ω` of one core constraint, with an optional subproof. Deletion, `core`,
-strengthening-to-core, solution logging and `obji` are accepted only at top level, as the format
-requires. Two steps of the augmented
-format are also accepted: `del id`, read as the untyped deletion
-`Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts as unchecked),
-and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
-operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, orders, `dom`,
-`solx`, `obju`, `del spec`, levels, other outputs, and the conclusions `UNSAT` without an ID and
-`ENUMERATION`) is rejected.
+strengthening-to-core, solution logging, `obji` and `obju` are accepted only at top level, as
+the format requires. Two steps of the augmented format are also accepted: `del id`, read as the
+untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts
+as unchecked), and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`.
+Everything else (`pol` operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and
+`ia`, orders, `dom`, `solx`, `del spec`, levels, other outputs, and the conclusions `UNSAT`
+without an ID and `ENUMERATION`) is rejected.
 
 **Soundness.** The checkers return the conclusion of an accepted proof. If it is `UNSAT`, the
 input parses to a formula with no 0/1 solution
@@ -157,13 +157,13 @@ private def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
 
 /-! ### Constraints -/
 
-/-- The terms `a ℓ` of a constraint or an objective, up to the relation or `;`, as an integer
+/-- The terms `a ℓ` of a constraint or an objective, up to the relation, `;` or `:`, as an integer
 linear form and the constant contributed by negative literals (`a ¬x = a - a x`). -/
 private def terms (N : Names) :
     ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
   | 0, _, _, _ => none
   | fuel + 1, t :: ts, L, k =>
-    if t == ">=" || t == "<=" || t == "=" || t == ";" then some (L, k, t :: ts)
+    if t == ">=" || t == "<=" || t == "=" || t == ";" || t == ":" then some (L, k, t :: ts)
     else
       -- A coefficient and a literal, or a literal with coefficient `1`.
       let (a, rest) := match int? t with
@@ -442,6 +442,18 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
     | some (ρ, ";" :: rest) => some ([.soli ρ], rest)
     | _ => none
   | "obji" :: v :: ";" :: rest => (int? v).map fun v => ([.obji v], rest)
+  | "obju" :: kind :: ts =>
+    (if kind == "new" then some false else if kind == "diff" then some true else none).bind
+      fun diff =>
+        match terms N (ts.length + 1) ts [] 0 with
+        | some (L, k, ";" :: rest) => some ([.obju diff ⟨L, k⟩ none], rest)
+        | some (L, k, ":" :: "subproof" :: rest) =>
+          (redItems N fuel rest).bind fun (items, rest) =>
+            match rest with
+            | "qed" :: ";" :: rest | "qed" :: "obju" :: ";" :: rest =>
+              some ([.obju diff ⟨L, k⟩ (some items)], rest)
+            | _ => none
+        | _ => none
   | "core" :: "id" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.core ns], rest)

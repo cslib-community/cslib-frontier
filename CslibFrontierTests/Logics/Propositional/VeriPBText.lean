@@ -29,6 +29,8 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
 * `obji`: a lower bound from an asserted value with no logged solution, alone and after `soli`;
 * the conclusion section: `SAT : ρ` and `BOUNDS lb : q ub : ρ` with stated assignments, and
   `NONE`;
+* `obju`: an objective update, autoproven or with explicit `proofgoal` blocks, before and after
+  a logged solution;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
@@ -36,7 +38,8 @@ certified only by a solution logged after unchecked deletion that fails the inpu
 deletion of the wrong kind, a checked deletion with a failing witness, a witness or an unchecked
 deletion that strengthening-to-core mode forbids, an upper bound, a lower bound above the asserted
 value or `UNSAT` resting on `obji` alone, stated assignments that fail the input, have the wrong
-value or leave an objective variable unassigned, a dropped
+value or leave an objective variable unassigned, an objective update that is not an equality on
+the core set or rests on derived constraints, a dropped
 hint, a repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a
 wrong formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
 tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
@@ -666,6 +669,79 @@ end pseudo-Boolean proof;
 -- A step that fails is rejected even under `NONE`.
 #guard (checkOPB one ((satAsgProof.replace "SAT : x1" "NONE").replace "output"
   "rup >= 1 : 1;\noutput")).isNone
+
+/-! ### Objective updates
+
+`obju new g` or `obju diff g` replaces the objective `f` by `g` or `f + g` (§5.9). Its goals
+`#1`, the new objective at least the old, and `#2`, the old at least the new, must follow from the
+core set alone. VeriPB 3.0.2 gives the same verdicts as this checker, except where noted; CakePB
+parses `obju` only with a subproof. -/
+
+/-- Minimize `x1 + x2 + x3` subject to `x1 = x2` and `x1 + x3 >= 1`; the optimum is `1`. -/
+def eqOpt : String := "* #variable= 3 #constraint= 3
+min: 1 x1 1 x2 1 x3 ;
+1 x1 1 ~x2 >= 1 ;
+1 ~x1 1 x2 >= 1 ;
+1 x1 1 x3 >= 1 ;
+"
+
+/-- As `x1 = x2` in the core, the objective becomes `2 x1 + x3`; both goals are constraints of
+the core, so they need no subproof. Then `~x1 ~x2 x3` of value `1` is logged, and its improving
+constraint `4` contradicts constraint `3`. -/
+def objuProof : String := "pseudo-Boolean proof version 3.0
+f 3;
+obju new 2 x1 1 x3 ;
+soli ~x1 ~x2 x3;
+rup >= 1 : 4 3;
+output NONE;
+conclusion BOUNDS 1 : 5 1;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB eqOpt objuProof == some (.bounds (some 1) 5 (some 1) none)
+-- The same update as a difference.
+#guard checkOPB eqOpt (objuProof.replace "obju new 2 x1 1 x3" "obju diff 1 x1 -1 x2") ==
+  some (.bounds (some 1) 5 (some 1) none)
+-- With explicit `proofgoal` blocks: each negated goal takes a number (`4`, then `6`), and the
+-- improving constraint is `8` (VeriPB and CakePB accept).
+#guard checkOPB eqOpt (objuProof.replace "obju new 2 x1 1 x3 ;\nsoli ~x1 ~x2 x3;\nrup >= 1 : 4 3;"
+  "obju new 2 x1 1 x3 : subproof\nproofgoal #1\npol 4 1 + ;\nqed : 5;\nproofgoal #2\n\
+  pol 6 2 + ;\nqed : 7;\nqed obju;\nsoli ~x1 ~x2 x3;\nrup >= 1 : 8 3;" |>.replace
+  "BOUNDS 1 : 5 1" "BOUNDS 1 : 9 1") == some (.bounds (some 1) 9 (some 1) none)
+-- A solution logged before the update keeps the value it had then (VeriPB accepts).
+#guard checkOPB eqOpt (objuProof.replace "obju new 2 x1 1 x3 ;\nsoli ~x1 ~x2 x3;"
+  "soli ~x1 ~x2 x3;\nobju new 2 x1 1 x3 ;") == some (.bounds (some 1) 5 (some 1) none)
+-- `x1 + x3` is not the objective on the core: it drops `x2` (VeriPB rejects).
+#guard (checkOPB eqOpt (objuProof.replace "2 x1 1 x3" "1 x1 1 x3")).isNone
+
+/-- Minimize `x1` subject to `x1 >= 1` and `x2 >= 1`. -/
+def twoOpt : String := "* #variable= 2 #constraint= 2
+min: 1 x1 ;
+1 x1 >= 1 ;
+1 x2 >= 1 ;
+"
+
+/-- The goals of `obju new 1 x2`, `x2 + ~x1 >= 1` and `x1 + ~x2 >= 1`, are derived as `3` and
+`4` and moved to the core, so they are constraints of the core. -/
+def objuCoreProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+pol 2 ~x1 + ;
+pol 1 ~x2 + ;
+core id 3 4;
+obju new 1 x2 ;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB twoOpt objuCoreProof == some .noClaim
+-- Without `core id` the goals rest on derived constraints, which §5.9 forbids. VeriPB accepts
+-- this proof: its autoproving checks the goals against the whole database.
+#guard (checkOPB twoOpt (objuCoreProof.replace "core id 3 4;\n" "")).isNone
+-- `obju` needs an objective.
+#guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n" objuCoreProof).isNone
+#guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
+  (objuCoreProof.replace "obju new 1 x2 ;\n" "")).isSome
 
 /-! ### Soundness -/
 
