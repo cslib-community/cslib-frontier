@@ -34,7 +34,7 @@ independent uniform signs under `Measure.infinitePi`, carried to the cube by
   (`tendsto_expect_inv_sqrt_mul_sum_signVal`);
 * for the indicator of a measurable set whose frontier is Gaussian-null, by the portmanteau theorem
   (`tendsto_expect_indicator_inv_sqrt_mul_sum_signVal`);
-* for continuous `h` of quadratic growth, `h(z)² ≤ a z² + b`, since `E[Zₙ²] ≤ 1`
+* for continuous `h` of at most linear growth, `h(z)² ≤ a z² + b`, since `E[Zₙ²] ≤ 1`
   (`tendsto_expect_inv_sqrt_mul_sum_signVal_of_sq_le`, through
   `MeasureTheory.ProbabilityMeasure.tendsto_integral_of_integral_sq_le`).
 
@@ -46,7 +46,7 @@ estimate (5.4) of [O'Donnell, Section 5.2][ODonnell2014] behind `I[Majₙ] ∼ �
 * `Cslib.BitString.tendsto_expect_inv_sqrt_mul_sum_signVal`,
   `Cslib.BitString.tendsto_expect_indicator_inv_sqrt_mul_sum_signVal`,
   `Cslib.BitString.tendsto_expect_inv_sqrt_mul_sum_signVal_of_sq_le`: the central limit theorem on
-  the cube for bounded continuous functions, events and functions of quadratic growth.
+  the cube for bounded continuous functions, events and functions of at most linear growth.
 * `Cslib.BitString.tendsto_expect_abs_inv_sqrt_mul_sum_signVal`: `E[|∑ᵢ xᵢ / √n|] → √(2 / π)`.
 
 ## References
@@ -130,7 +130,7 @@ private theorem memLp_two_signSeq (k : ℕ) : MemLp (fun ω : ℕ → ℝ => ω 
   rw [← Measure.infinitePi_map_eval (fun _ : ℕ => rademacher) k] at h
   exact (memLp_map_measure_iff aestronglyMeasurable_id (measurable_pi_apply k).aemeasurable).1 h
 
-/-- **The central limit theorem on the cube, for functions of quadratic growth.** For a
+/-- **The central limit theorem on the cube, for functions of at most linear growth.** For a
 continuous `h` with `h(z)² ≤ a z² + b`, the expectation of `h (∑ᵢ xᵢ / √n)` at a uniform
 `x ∈ {-1, 1}ⁿ` tends to `E[h(Z)]` for a standard Gaussian `Z`. The second moments are at most one,
 which makes `h` uniformly integrable. -/

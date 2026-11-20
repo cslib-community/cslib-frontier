@@ -18,7 +18,7 @@ On two bits at `t = 0` the Hamming ball is the single point `(1, 1)`. The exact 
 `W¹[f] = E[f(x) ∑ᵢ xᵢ / √n]²` gives `W¹ = 1 / 8`, as do the two degree-one coefficients `1 / 4`
 computed directly. The limit `W¹[fₙ] → φ(t)²` is `1 / (2π)` at `t = 0` and `e⁻¹ / (2π)` at
 `t = 1`. The central limit theorem on the cube applies to `z - |z|`, which is unbounded below and
-of quadratic growth, and `E[|∑ᵢ xᵢ / √n|] → √(2 / π)` keeps it eventually below `1`. At
+of at most linear growth, and `E[|∑ᵢ xᵢ / √n|] → √(2 / π)` keeps it eventually below `1`. At
 `t = 0` the mean tends to `1 / 2`.
 -/
 
@@ -74,7 +74,7 @@ example : Tendsto (fun n : ℕ => 𝔼 x : Fin n → Bool,
   rwa [cdf_gaussianReal_zero_zero one_ne_zero, show (1 : ℝ) - 2⁻¹ = 1 / 2 by norm_num] at h
 
 -- The central limit theorem on the cube for `z ↦ z - |z| = 2 min z 0`, which is unbounded below
--- and of quadratic growth.
+-- and of at most linear growth.
 example : Tendsto (fun n : ℕ => 𝔼 x : Fin n → Bool,
     ((√n)⁻¹ * ∑ i, signVal (x i) - |(√n)⁻¹ * ∑ i, signVal (x i)|)) atTop
     (𝓝 (∫ z, (z - |z|) ∂gaussianReal 0 1)) :=

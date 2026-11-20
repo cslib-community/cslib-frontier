@@ -33,7 +33,7 @@ The proof is the one of [O'Donnell, Exercise 5.30][ODonnell2014].
 * **Central limit theorem.** Write `z · 1{z > t} = (z - t)⁺ + t · 1{z > t}`. The central limit
   theorem on the cube (`CslibFrontier.Foundations.BooleanAnalysis.CentralLimit`) takes the
   expectation of the event (`tendsto_expect_indicator_inv_sqrt_mul_sum_signVal`) and of `(z - t)⁺`,
-  which has quadratic growth (`tendsto_expect_inv_sqrt_mul_sum_signVal_of_sq_le`), to their
+  which grows at most linearly (`tendsto_expect_inv_sqrt_mul_sum_signVal_of_sq_le`), to their
   Gaussian limits.
 * **Limit.** The limit is `E[Z · 1{Z > t}] = φ(t)`
   (`ProbabilityTheory.setIntegral_Ioi_id_gaussianReal`).
@@ -94,7 +94,7 @@ theorem tendsto_levelWeight_one_hammingBall (t : ℝ) :
         if t < (√n)⁻¹ * ∑ i, signVal (x i) then (1 : ℝ) else 0) atTop
       (𝓝 (gaussianPDFReal 0 1 t ^ 2)) := by
   have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-  -- `z · 1{z > t} = (z - t)⁺ + t · 1{z > t}`, a function of quadratic growth plus an event.
+  -- `z · 1{z > t} = (z - t)⁺ + t · 1{z > t}`, a function of at most linear growth plus an event.
   have hpos := tendsto_expect_inv_sqrt_mul_sum_signVal_of_sq_le (h := fun z => max (z - t) 0)
     (by fun_prop) (a := 2) (b := 2 * t ^ 2) fun z => by
       rcases le_total (z - t) 0 with hz | hz

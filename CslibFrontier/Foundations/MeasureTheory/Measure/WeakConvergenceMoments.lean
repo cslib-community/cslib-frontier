@@ -12,11 +12,11 @@ public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 import Mathlib.MeasureTheory.Function.L2Space
 
 /-!
-# Weak convergence and functions of quadratic growth
+# Weak convergence and functions of at most linear growth
 
 Weak convergence of probability measures on `ℝ` gives convergence of `∫ g` for bounded continuous
 `g` only. If the second moments are bounded uniformly, it also gives convergence of `∫ h` for a
-continuous `h` of quadratic growth, `h(z)² ≤ a z² + b`
+continuous `h` of at most linear growth, `h(z)² ≤ a z² + b`
 (`MeasureTheory.ProbabilityMeasure.tendsto_integral_of_integral_sq_le`). Clamping `h` to
 `[-M, M]` changes each integral by at most `(max a 0 · C + b) / M`, where `C` bounds the second
 moments, since `|h - clamp h| ≤ h² / M`; this is uniform integrability of `h` from the second
@@ -30,8 +30,8 @@ moments. The clamping estimate holds on any measurable space, for `h² ≤ a Φ 
   clamping to `[-M, M]` moves a number by at most its square over `M`, and the integral of a
   function `h` with `h² ≤ a Φ + b` by at most `(max a 0 · C + b) / M`, where `C` bounds `∫ Φ`.
 * `MeasureTheory.ProbabilityMeasure.tendsto_integral_of_integral_sq_le`: weak convergence with
-  bounded second moments gives convergence of integrals of continuous functions of quadratic
-  growth.
+  bounded second moments gives convergence of integrals of continuous functions of at most
+  linear growth.
 -/
 
 public section
@@ -87,7 +87,7 @@ namespace ProbabilityMeasure
 
 /-- **Weak convergence with bounded second moments.** If probability measures `μs i` on `ℝ`
 converge weakly to `μ`, and `μ` and every `μs i` have second moment at most `C`, then
-`∫ h ∂μs i → ∫ h ∂μ` for every continuous `h` of quadratic growth, `h(z)² ≤ a z² + b`. -/
+`∫ h ∂μs i → ∫ h ∂μ` for every continuous `h` of at most linear growth, `h(z)² ≤ a z² + b`. -/
 theorem tendsto_integral_of_integral_sq_le {ι : Type*} {l : Filter ι}
     {μs : ι → ProbabilityMeasure ℝ} {μ : ProbabilityMeasure ℝ} (hμ : Tendsto μs l (𝓝 μ)) {C : ℝ}
     (hsq : ∀ i, Integrable (fun z => z ^ 2) (μs i : Measure ℝ))
