@@ -31,8 +31,8 @@ then flattening the original label and chain offset. -/
 abbrev subdivisionIndex (I : STCONInstance) (bound : ℕ) :
     Vertex (Fin ((I.n - 1) + 1) × Fin I.n) bound ≃
       Fin ((((I.n - 1) + 1) * I.n) * (bound + 1)) :=
-  (equivProd _ bound).trans
-    ((Equiv.prodCongr finProdFinEquiv (Equiv.refl _)).trans finProdFinEquiv)
+  ((equivProd _ bound).trans (Equiv.prodCongr finProdFinEquiv (Equiv.refl _))).trans
+    ((equivProd _ bound).symm.trans (flatIndex _ bound))
 
 /-- The numbering agrees with the flat adjacency interface after flattening the original
 vertex. -/
@@ -40,8 +40,12 @@ theorem subdivisionIndex_apply (I : STCONInstance) (bound : ℕ)
     (v : Vertex (Fin ((I.n - 1) + 1) × Fin I.n) bound) :
     subdivisionIndex I bound v =
       flatIndex (((I.n - 1) + 1) * I.n) bound ⟨finProdFinEquiv v.vertex, v.offset⟩ := by
-  simp only [subdivisionIndex, flatIndex, Equiv.trans_apply, equivProd_apply,
+  simp only [subdivisionIndex, Equiv.trans_apply, equivProd_apply,
     Equiv.prodCongr_apply, Prod.map_apply, Equiv.refl_apply]
+  congr 1
+  simpa only [equivProd_apply] using
+    (equivProd (Fin (((I.n - 1) + 1) * I.n)) bound).apply_symm_apply
+      (finProdFinEquiv v.vertex, v.offset)
 
 /-- The source and target IDs for the scan, computed from the graph parameters and chain
 bound. The final layer and the sink column are both the predecessor of the width. -/
