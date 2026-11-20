@@ -28,6 +28,27 @@ namespace Cslib.Polygonal.Route
 @[expose] noncomputable def trisect (p : Route) (s t : ℝ) : Fin 3 → Route :=
   ![line p.start (p.cutEnds s t).start, p.cutEnds s t, line (p.cutEnds s t).finish p.finish]
 
+/-- The old start, first cut, last cut and old finish, in traversal order. -/
+@[expose] noncomputable def trisectionPoints (p : Route) (s t : ℝ) : Fin 4 → ℂ :=
+  ![p.start, p.eval (p.endSegment false) (endTime false s),
+    p.eval (p.endSegment true) (endTime true t), p.finish]
+
+/-- Each piece joins the consecutive source boundary points in traversal order. -/
+theorem endpoint_trisect (p : Route) (s t : ℝ) (k : Fin 3) (b : Bool) :
+    (p.trisect s t k).endpoint b =
+      p.trisectionPoints s t (if b then k.succ else k.castSucc) := by
+  have hl : (p.cutEnds s t).start = p.eval (p.endSegment false) (endTime false s) :=
+    p.endpoint_cutEnds s t false
+  have hr : (p.cutEnds s t).finish = p.eval (p.endSegment true) (endTime true t) :=
+    p.endpoint_cutEnds s t true
+  fin_cases k <;> cases b
+  · rfl
+  · exact hl
+  · exact hl
+  · exact hr
+  · exact hr
+  · rfl
+
 /-- The four boundaries of the pieces in the original route's position parameter. -/
 @[expose] def trisectionBounds (p : Route) (s t : ℝ) : Fin 4 → ℝ :=
   ![0, s, (p.segments : ℝ) - t, p.segments]
@@ -46,45 +67,44 @@ theorem strictMono_trisectionBounds (p : Route) {s t : ℝ}
     linarith
   · exact sub_lt_self _ ht
 
-private theorem eval_start_zero (p : Route) : p.eval 0 0 = p.start := by
-  simp [eval, start]
-
-private theorem eval_finish_one (p : Route) : p.eval (Fin.last p.bends) 1 = p.finish := by
-  simp [eval, finish, segments]
-
-private theorem eval_between (p : Route) (j : Fin p.segments) (a b u : ℝ) :
-    AffineMap.lineMap (p.eval j a) (p.eval j b) u =
-      p.eval j (AffineMap.lineMap a b u) :=
-  ((AffineMap.lineMap (p.point j.castSucc) (p.point j.succ)).apply_lineMap a b u).symm
+private theorem lineMap_cut (p : Route) (b : Bool) (v u : ℝ) :
+    AffineMap.lineMap (p.endpoint b) (p.eval (p.endSegment b) (endTime b v)) u =
+      p.eval (p.endSegment b) (endTime b (v * u)) := by
+  rw [p.eval_near_end b v, p.eval_near_end b (v * u), AffineMap.lineMap_apply_module',
+    add_sub_cancel_left, smul_smul, mul_comm u v, add_comm]
 
 private theorem eval_trisect_first (p : Route) (s t : ℝ)
     (i : Fin (p.trisect s t 0).segments) (u : ℝ) :
     (p.trisect s t 0).eval i u = p.eval 0 (s * u) := by
   change Fin 1 at i
   change (line p.start (p.cutEnds s t).start).eval i u = _
-  have hstart : (p.cutEnds s t).start = p.eval 0 s := p.endpoint_cutEnds s t false
+  have hstart : (p.cutEnds s t).start = p.eval (p.endSegment false) (endTime false s) :=
+    p.endpoint_cutEnds s t false
   calc
     _ = AffineMap.lineMap p.start (p.cutEnds s t).start u := eval_line _ _ i u
     _ = _ := by
-      rw [hstart, ← p.eval_start_zero, p.eval_between]
-      congr 1
-      rw [AffineMap.lineMap_apply_ring']
-      ring
+      rw [hstart]
+      exact p.lineMap_cut false s u
+
+private theorem endTime_last (t u : ℝ) :
+    endTime true (t * (1 - u)) = 1 - t + t * u := by
+  change 1 - t * (1 - u) = _
+  ring
 
 private theorem eval_trisect_last (p : Route) (s t : ℝ)
     (i : Fin (p.trisect s t 2).segments) (u : ℝ) :
     (p.trisect s t 2).eval i u = p.eval (Fin.last p.bends) (1 - t + t * u) := by
   change Fin 1 at i
   change (line (p.cutEnds s t).finish p.finish).eval i u = _
-  have hfinish : (p.cutEnds s t).finish = p.eval (Fin.last p.bends) (1 - t) :=
+  have hfinish : (p.cutEnds s t).finish = p.eval (p.endSegment true) (endTime true t) :=
     p.endpoint_cutEnds s t true
   calc
     _ = AffineMap.lineMap (p.cutEnds s t).finish p.finish u := eval_line _ _ i u
+    _ = AffineMap.lineMap p.finish (p.eval (p.endSegment true) (endTime true t)) (1 - u) := by
+      rw [hfinish, ← AffineMap.lineMap_apply_one_sub p.finish _ u]
     _ = _ := by
-      rw [hfinish, ← p.eval_finish_one, p.eval_between]
-      congr 1
-      rw [AffineMap.lineMap_apply_ring']
-      ring
+      rw [← endTime_last]
+      exact p.lineMap_cut true t (1 - u)
 
 private theorem middle_position_lower (p : Route) {s t : ℝ}
     (hs : 0 < s) (ht : 0 < t) (hst : s + t < 1)
@@ -151,7 +171,7 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
   · change Fin 1 at i
     have hi : i = (0 : Fin 1) := Subsingleton.elim _ _
     subst i
-    have hpos : p.position 0 (s * u) = s * u := by simp [position]
+    have hpos : p.position 0 (s * u) = s * u := p.position_near_end false (s * u)
     have hlo : 0 ≤ s * u := mul_nonneg hs.le hu.1
     have hhi : s * u ≤ s := by simpa using mul_le_mul_of_nonneg_left hu.2 hs.le
     refine ⟨0, s * u, ⟨hlo, hhi.trans (by linarith)⟩,
@@ -178,8 +198,9 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
     have hhi : t * u ≤ t := by simpa using mul_le_mul_of_nonneg_left hu.2 ht.le
     have hr : r ∈ Set.Icc 0 1 := ⟨by dsimp [r]; linarith, by dsimp [r]; linarith⟩
     have hpos : p.position (Fin.last p.bends) r = (p.segments : ℝ) - t + t * u := by
-      simp only [position, Fin.val_last, segments, Nat.cast_add, Nat.cast_one]
-      dsimp [r]
+      change p.position (p.endSegment true) (1 - t + t * u) = _
+      rw [← endTime_last, p.position_near_end]
+      change (p.segments : ℝ) - t * (1 - u) = _
       ring
     refine ⟨Fin.last p.bends, r, hr, (p.eval_trisect_last s t 0 u).symm, ?_⟩
     change p.position (Fin.last p.bends) r ∈ Set.Icc ((p.segments : ℝ) - t) p.segments ∧
@@ -207,23 +228,15 @@ The original route may have the same start and finish. -/
 theorem IsSimple.trisect {p : Route} (hp : p.IsSimple) {s t : ℝ}
     (hs : 0 < s) (ht : 0 < t) (hst : s + t < 1) (k : Fin 3) :
     (p.trisect s t k).IsSimple := by
+  have hcut (b : Bool) (h : (if b then t else s) ≠ 0) :
+      (p.cutEnds s t).endpoint b ≠ p.endpoint b := by
+    rw [p.endpoint_cutEnds, p.eval_near_end]
+    intro he
+    exact (smul_ne_zero h (hp.germ_ne_zero b)) (add_left_cancel (he.trans (add_zero _).symm))
   fin_cases k
-  · change (line p.start (p.cutEnds s t).start).IsSimple
-    apply isSimple_line
-    intro he
-    rw [← p.eval_start_zero] at he
-    have hend : (p.cutEnds s t).start = p.eval 0 s := p.endpoint_cutEnds s t false
-    rw [hend] at he
-    exact hs.ne' (AffineMap.lineMap_injective ℝ (hp.segment_ne 0) he).symm
+  · exact isSimple_line (hcut false hs.ne').symm
   · exact hp.cutEnds hs.le ht.le hst
-  · change (line (p.cutEnds s t).finish p.finish).IsSimple
-    apply isSimple_line
-    intro he
-    have hend : (p.cutEnds s t).finish = p.eval (Fin.last p.bends) (1 - t) :=
-      p.endpoint_cutEnds s t true
-    rw [hend, ← p.eval_finish_one] at he
-    have h := AffineMap.lineMap_injective ℝ (hp.segment_ne (Fin.last p.bends)) he
-    linarith
+  · exact isSimple_line (hcut true ht.ne')
 
 /-- The pieces cover precisely the continuous support of the original route. -/
 theorem support_trisect (p : Route) {s t : ℝ}
