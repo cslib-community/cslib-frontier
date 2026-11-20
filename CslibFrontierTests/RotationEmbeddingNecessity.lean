@@ -322,6 +322,15 @@ private theorem empty_embedding : (referenceDrawing emptyInput).IsEmbedding wher
 example : query emptyInput = true :=
   query_eq_true_of_unfrozen_embedding empty_valid (by decide) _ empty_embedding
 
+-- The original star is supplied before any edges are subdivided or vertices positioned.
+private def freeStar : FixedRotationInput :=
+  ⟨Graph.RotationSystem.starGraph 3, [none, none, none, none]⟩
+
+example : query freeStar = true := by
+  have hI : Valid freeStar := (validate_eq_true_iff freeStar).mp (by decide)
+  exact query_eq_true_of_unfrozen_original_embedding hI (by decide) _
+    (PolygonalDrawing.star_isEmbedding 3)
+
 -- The shared append-support property includes degenerate and already closed routes.
 example : ((Route.line (0 : ℂ) 0).append 0).support = {0} := by
   rw [Route.support_append, Route.support_line, Route.finish_line]

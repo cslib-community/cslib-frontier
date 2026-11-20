@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Moves
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRegularization
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEmbedding
 import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
 import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
@@ -20,14 +21,14 @@ import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.FinCases
 
 /-!
-# Necessity for embeddings already at the reference positions
+# Embedding necessity for the fixed-rotation query
 
-The supplied embedding is already at the reference vertices and has LITERAL frozen routes.
-`query_eq_true_of_positioned_frozen_embedding` constructs comparison routes, a common axis
-and switch bits internally, and derives the actual frozen independent-pair equations.
-The positioned theorem constructs its own parity witnesses.
+`query_eq_true_of_positioned_frozen_embedding` starts with an embedding at the reference
+vertices with literal frozen routes. It constructs comparison routes, a common axis and
+switch bits to derive the frozen independent-pair equations.
 When there are no frozen subdivision edges, `query_eq_true_of_unfrozen_embedding`
-places all vertices at the reference points internally.
+places the vertices at the reference points. `query_eq_true_of_unfrozen_original_embedding`
+first constructs the embedding of the indexed subdivision.
 
 Auxiliary two-piece routes have reciprocal closed-node exclusions for independent pairs,
 even when the two original drawings overlap. A common complex multiplier makes all actual
@@ -993,5 +994,14 @@ theorem query_eq_true_of_unfrozen_embedding {I : FixedRotationInput} (hI : Valid
     List.mem_map.mpr ⟨_, List.mem_filter.mpr ⟨List.getElem_mem _, he⟩, rfl⟩
   rw [hF] at hem
   exact (List.not_mem_nil hem).elim
+
+/-- An actual embedding of the original listed graph makes the query accept when no
+subdivision edge is frozen. The proof subdivides the indexed routes and places all
+subdivision vertices at the reference points. -/
+theorem query_eq_true_of_unfrozen_original_embedding {I : FixedRotationInput} (hI : Valid I)
+    (hF : (frozenGraph I).edges = [])
+    (D : PolygonalDrawing I.graph) (hD : D.IsEmbedding) : query I = true := by
+  obtain ⟨E, hE, _⟩ := exists_subdivision_embedding hI D hD
+  exact query_eq_true_of_unfrozen_embedding hI hF E hE
 
 end Cslib.Complexity.Graph.RotationRecognition
