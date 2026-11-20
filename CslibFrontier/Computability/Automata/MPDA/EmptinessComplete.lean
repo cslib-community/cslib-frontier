@@ -321,4 +321,195 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
 
 end Guard
 
+/-! ## Helper lemmas -/
+
+section Helpers
+
+theorem splitLastHole_eq_none {State : Type*} {i : Fin n} :
+    ∀ {l : List (HoleTriple n State)}, (∀ h ∈ l, h.1 ≠ i) → splitLastHole i l = none
+  | [], _ => rfl
+  | h :: t, hl => by
+    unfold splitLastHole
+    rw [splitLastHole_eq_none fun h' hh' => hl h' (List.mem_cons_of_mem _ hh')]
+    simp [hl h List.mem_cons_self]
+
+/-- The converse of `splitLastHole_eq_some`. -/
+theorem splitLastHole_eq_some_of {State : Type*} {i : Fin n} {post : List (HoleTriple n State)}
+    {x : State × State} (hpost : ∀ h ∈ post, h.1 ≠ i) :
+    ∀ pre : List (HoleTriple n State), splitLastHole i (pre ++ (i, x) :: post) = some (pre, x, post)
+  | [] => by
+    simp only [List.nil_append]
+    unfold splitLastHole
+    rw [splitLastHole_eq_none hpost]
+    simp
+  | h :: pre => by
+    simp only [List.cons_append]
+    unfold splitLastHole
+    rw [splitLastHole_eq_some_of hpost pre]
+
+/-- The top of a stack holding open chains is the newest push of the last chain of that stack. -/
+theorem stacksOf_eq_cons {C : List (HoleChain n Γ)} (hne : ∀ c ∈ C, c.pushes ≠ []) {i : Fin n}
+    {γ : Γ} {rest : List Γ} (h : stacksOf C i = γ :: rest) :
+    ∃ pre post p ps, C = pre ++ ⟨i, (p, γ) :: ps⟩ :: post ∧ ∀ d ∈ post, d.stack ≠ i := by
+  induction C using List.reverseRecOn generalizing rest with
+  | nil => simp [stacksOf] at h
+  | append_singleton C d ih =>
+    rw [stacksOf_append_singleton] at h
+    by_cases hd : d.stack = i
+    · subst hd
+      rw [Function.update_self] at h
+      obtain ⟨⟨p, γ'⟩, ps, hps⟩ := List.exists_cons_of_ne_nil (hne d (by simp))
+      rw [hps] at h
+      simp only [List.map_cons, List.cons_append, List.cons.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      refine ⟨C, [], p, ps, ?_, by simp⟩
+      obtain ⟨stk, pushes⟩ := d
+      simp only at hps ⊢
+      rw [hps]
+    · rw [Function.update_of_ne (Ne.symm hd)] at h
+      obtain ⟨pre, post, p, ps, rfl, hpost⟩ :=
+        ih (fun c hc => hne c (by simp [hc])) h
+      refine ⟨pre, post ++ [d], p, ps, by simp, fun d' hd' => ?_⟩
+      rcases List.mem_append.mp hd' with hd' | hd'
+      · exact hpost d' hd'
+      · obtain rfl := List.mem_singleton.mp hd'
+        exact hd
+
+/-- Prepend an atomic hole segment to a hole block. -/
+theorem HoleBlock.prepend {i : Fin n} {L : ℕ} {v ws : List (α × Op n Γ)} {ps : List (ℕ × Γ)}
+    {a : α} {γ : Γ} (hb : HoleBlock i (L + 1 + ws.length) v ps) (hws : WellNested ws) :
+    HoleBlock i L ((a, .push i γ) :: ws ++ v) (ps ++ [(L, γ)]) := by
+  induction hb with
+  | nil => simpa using HoleBlock.snoc (v := []) (L := L) (a := a) (γ := γ) .nil hws
+  | @snoc v ws' ps' a' γ' _ hws' ih =>
+    have := HoleBlock.snoc (a := a') (γ := γ') ih hws'
+    have e₁ : (a, Op.push i γ) :: ws ++ (v ++ (a', Op.push i γ') :: ws') =
+        (a, Op.push i γ) :: ws ++ v ++ (a', Op.push i γ') :: ws' := by simp
+    have e₂ : (L + 1 + ws.length + v.length, γ') :: ps' ++ [(L, γ)] =
+        (L + ((a, Op.push i γ) :: ws ++ v).length, γ') :: (ps' ++ [(L, γ)]) := by
+      simp only [List.cons_append, List.length_cons, List.length_append, List.cons.injEq,
+        Prod.mk.injEq, and_true]
+      omega
+    rw [e₁, e₂]
+    exact this
+
+end Helpers
+
+/-! ## Blocks of greedy chains along a run -/
+
+section Block
+
+open Classical
+
+/-- The end of the hole block of the greedy chain from `q`: after its last push, the longest
+well-nested factor. -/
+noncomputable def blockEnd (w : List (α × Op n Γ)) (i : Fin n) (q : ℕ) : ℕ :=
+  if h : ∃ r, Ext w i q r then blockEnd w i (Nat.find h) else wnEnd w (q + 1)
+termination_by w.length - q
+decreasing_by
+  have hspec := Nat.find_spec h
+  have := hspec.2.1.1.lt_length
+  have := hspec.1
+  omega
+
+variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
+  {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
+
+/-- Prepend an atomic hole segment to a realization. -/
+theorem Realizes.prepend {i : Fin n} {s s₁ t : State} {γ : Γ} {r : List (Γ × State)}
+    (hγ : (s, γ, s₁) ∈ M.atomicHoles i) (hr : M.Realizes i s₁ t r) :
+    M.Realizes i s t (r ++ [(γ, s₁)]) := by
+  induction hr with
+  | nil => exact .cons .nil hγ
+  | cons _ hγ' ih => exact .cons ih hγ'
+
+/-- **The block of a greedy chain along a run**: from a push at `q`, the greedy chain is a hole
+block, the run through it realizes the hole triple from the state at `q` to the state at the end of
+the block, and pushes the chain's symbols on stack `i`. -/
+theorem exists_block_run {w : List (Symbol × Op n Γ)} {i : Fin n} :
+    ∀ q, IsPushOn w i q → ∀ (c cf : Config n State Γ), M.configLTS.MTr c (w.drop q) cf →
+      ∃ (c' : Config n State Γ) (r : List (Γ × State)) (ps : List (ℕ × Γ)),
+        HoleBlock i q (w.extract q (blockEnd w i q)) ps ∧
+        ps.map Prod.fst = (chainFrom w i q).reverse ∧ ps.map Prod.snd = r.map Prod.fst ∧
+        M.Realizes i c.state c'.state r ∧
+        c'.contents = Function.update c.contents i (r.map Prod.fst ++ c.contents i) ∧
+        M.configLTS.MTr c' (w.drop (blockEnd w i q)) cf ∧
+        q < blockEnd w i q ∧ blockEnd w i q ≤ w.length
+  | q, hq, c, cf, hrun => by
+    obtain ⟨a, γ, hqa⟩ := hq
+    have hqlen : q < w.length := (List.getElem?_eq_some_iff.mp hqa).1
+    -- The push at `q`.
+    have hdrop : w.drop q = (a, Op.push i γ) :: w.drop (q + 1) := by
+      rw [List.drop_eq_getElem_cons hqlen]
+      congr 1
+      exact (List.getElem?_eq_some_iff.mp hqa).2
+    rw [hdrop] at hrun
+    obtain ⟨c₁, hpush, hrest⟩ := LTS.MTr.cons_iff.mp hrun
+    obtain ⟨hpushT, hpushA⟩ := configLTS_tr.mp hpush
+    -- The segment `↓ws` ending at `e`, then the rest of the run from `e`.
+    have hseg : ∀ e, q + 1 ≤ e → e ≤ w.length → WellNested (w.extract (q + 1) e) →
+        ∃ c₂ : Config n State Γ, (c.state, γ, c₂.state) ∈ M.atomicHoles i ∧
+          c₂.contents = Function.update c.contents i (γ :: c.contents i) ∧
+          M.configLTS.MTr c₂ (w.drop e) cf := by
+      intro e he₁ he₂ hwn
+      have hsplit : w.drop (q + 1) = w.extract (q + 1) e ++ w.drop e := by
+        rw [List.extract_eq_take_drop, show w.drop e = (w.drop (q + 1)).drop (e - (q + 1)) by
+          rw [List.drop_drop]; congr 1; omega, List.take_append_drop]
+      rw [hsplit] at hrest
+      obtain ⟨c₂, hws, hrest'⟩ := LTS.MTr.split hrest
+      obtain ⟨hwsc, hcont⟩ := (hwn.configLTS_mTr_iff).mp hws
+      refine ⟨c₂, (mem_atomicHoles M).mpr ⟨a, c₁.state, hpushT,
+        wellNestedReach_iff.mpr ⟨_, hwn, hwsc⟩⟩, ?_, hrest'⟩
+      rw [hcont]
+      exact Op.apply_push.mp hpushA
+    rw [chainFrom_eq, blockEnd]
+    split_ifs with h
+    · -- The chain extends to the least extension `q₂`.
+      have hspec := Nat.find_spec h
+      set q₂ := Nat.find h
+      obtain ⟨c₂, hγ, hc₂, hrun₂⟩ := hseg q₂ (by have := hspec.1; omega)
+        (by have := hspec.2.1.1.lt_length; omega) hspec.2.2
+      obtain ⟨c', r, ps, hb, hpsf, hpss, hr, hc', hrun', hlt, hle⟩ :=
+        exists_block_run q₂ hspec.2.1.1 c₂ cf hrun₂
+      refine ⟨c', r ++ [(γ, c₂.state)], ps ++ [(q, γ)], ?_, by simp [hpsf], by simp [hpss],
+        hr.prepend hγ, ?_, hrun', by have := hspec.1; omega, hle⟩
+      · have hlen : q + 1 + (w.extract (q + 1) q₂).length = q₂ := by
+          rw [List.extract_eq_take_drop, List.length_take, List.length_drop]
+          have := hspec.1
+          have := hspec.2.1.1.lt_length
+          omega
+        have hb₂ : HoleBlock i (q + 1 + (w.extract (q + 1) q₂).length)
+            (w.extract q₂ (blockEnd w i q₂)) ps := by
+          rw [hlen]
+          exact hb
+        have hb' := hb₂.prepend (a := a) (γ := γ) hspec.2.2
+        convert hb' using 1
+        rw [← w.extract_append_extract (show q ≤ q₂ by have := hspec.1; omega)
+          (show q₂ ≤ blockEnd w i q₂ by omega),
+          ← w.extract_append_extract (show q ≤ q + 1 by omega) (show q + 1 ≤ q₂ by
+            have := hspec.1; omega), List.extract_eq_singleton hqa]
+        simp
+      · rw [hc', hc₂]
+        simp
+    · -- The chain stops: one segment, then the longest well-nested factor.
+      obtain ⟨hle₁, hle₂, hwn⟩ := wnEnd_spec (w := w) (p := q + 1) (by omega)
+      obtain ⟨c₂, hγ, hc₂, hrun₂⟩ := hseg _ hle₁ hle₂ hwn
+      refine ⟨c₂, [(γ, c₂.state)], [(q, γ)], ?_, by simp, by simp, .cons .nil hγ, ?_, hrun₂,
+        by omega, hle₂⟩
+      · have := HoleBlock.snoc (v := []) (L := q) (a := a) (γ := γ) (i := i) .nil hwn
+        convert this using 1
+        rw [← w.extract_append_extract (show q ≤ q + 1 by omega) hle₁,
+          List.extract_eq_singleton hqa]
+        simp
+      · rw [hc₂]
+        simp
+termination_by q => w.length - q
+decreasing_by
+  have hspec := Nat.find_spec h
+  have := hspec.2.1.1.lt_length
+  have := hspec.1
+  omega
+
+end Block
+
 end Cslib.Automata.MPDA
