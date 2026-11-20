@@ -621,6 +621,117 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     · exact h₅.2.2 c hc c₀ (by simp) e he e' (List.mem_cons_of_mem _ he')
     · exact h₅.2.2 c hc c' (by simp [hc']) e he e' he'
 
+/-- Closing a hole without pending pushes. -/
+theorem HoleBoundary.close {pre post : List (HoleChain n Γ)} {i : Fin n}
+    (h : HoleBoundary K w (pre ++ ⟨i, []⟩ :: post)) : HoleBoundary K w (pre ++ post) := by
+  obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := h
+  have hsub : ∀ c ∈ pre ++ post, c ∈ pre ++ ⟨i, []⟩ :: post := fun c hc => by
+    rcases List.mem_append.mp hc with hc | hc <;> simp [hc]
+  refine ⟨by simp at h₁ ⊢; omega, fun c hc => h₂ c (hsub c hc), fun c hc => h₃ c (hsub c hc),
+    fun q hq => ?_, h₅.sublist ((List.sublist_cons_self _ post).append_left pre)⟩
+  obtain ⟨c, hc, e, he, rfl⟩ := h₄ q hq
+  rcases List.mem_append.mp hc with hc | hc
+  · exact ⟨c, by simp [hc], e, he, rfl⟩
+  · rcases List.mem_cons.mp hc with rfl | hc
+    · simp at he
+    · exact ⟨c, by simp [hc], e, he, rfl⟩
+
+/-- A hole block opens a new chain. -/
+theorem HoleBlock.boundary {i : Fin n} {L : ℕ} {v : List (α × Op n Γ)} {ps : List (ℕ × Γ)}
+    (hb : HoleBlock i L v ps) :
+    ∀ {w : List (α × Op n Γ)} {C : List (HoleChain n Γ)}, w.length = L → C.length < K →
+      HoleBoundary K w C → (∀ x < w.length, ∃ Cx, Snapshot K w x Cx) →
+      HoleBoundary K (w ++ v) (C ++ [⟨i, ps⟩]) ∧
+        (∀ x < (w ++ v).length, ∃ Cx, Snapshot K (w ++ v) x Cx) ∧
+        ∀ e ∈ ps.head?, WellNested ((w ++ v).extract (e.1 + 1) (w ++ v).length) := by
+  induction hb with
+  | nil =>
+    intro w C hL hC h hs
+    obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := h
+    simp only [List.append_nil]
+    refine ⟨⟨by simp; omega, fun c hc e he => ?_, fun c hc => ?_, fun q hq => ?_, ?_⟩, hs,
+      by simp⟩
+    · rcases List.mem_append.mp hc with hc | hc
+      · exact h₂ c hc e he
+      · obtain rfl := List.mem_singleton.mp hc
+        simp at he
+    · rcases List.mem_append.mp hc with hc | hc
+      · exact h₃ c hc
+      · obtain rfl := List.mem_singleton.mp hc
+        exact .nil
+    · obtain ⟨c, hc, e, he, rfl⟩ := h₄ q hq
+      exact ⟨c, by simp [hc], e, he, rfl⟩
+    · rw [List.pairwise_append]
+      exact ⟨h₅, by simp, by simp⟩
+  | @snoc v ws ps a γ _ hws ih =>
+    intro w C hL hC h hs
+    obtain ⟨hB, hS, hlink⟩ := ih hL hC h hs
+    have hW : (w ++ v).length = L + v.length := by simp [hL]
+    have hB' := hB.append_push (a := a) (γ := γ) hlink
+    rw [hW] at hB'
+    obtain ⟨hB'', hS''⟩ := hB'.append_wellNested hws
+    have heq : w ++ (v ++ (a, Op.push i γ) :: ws) = w ++ v ++ [(a, .push i γ)] ++ ws := by simp
+    rw [heq]
+    refine ⟨hB'', fun x hx => ?_, fun e he => ?_⟩
+    · by_cases hx₁ : x < (w ++ v).length
+      · obtain ⟨Cx, hCx⟩ := hS x hx₁
+        exact ⟨Cx, (hCx.append (v := [(a, .push i γ)]) hx₁).append (by simp; omega)⟩
+      by_cases hx₂ : x = (w ++ v).length
+      · have hidx : (w ++ v ++ [(a, Op.push i γ)]).length - 1 = x := by simp [hx₂]
+        exact ⟨_, hidx ▸ hB'.snapshot.append (v := ws) (by simp)⟩
+      · exact ⟨_, hS'' x (by simp at hx₁ ⊢; omega) hx⟩
+    · obtain rfl := Option.mem_some_iff.mp he
+      have : (w ++ v ++ [(a, Op.push i γ)] ++ ws).extract (L + v.length + 1)
+          (w ++ v ++ [(a, Op.push i γ)] ++ ws).length = ws := by
+        rw [show L + v.length + 1 = (w ++ v ++ [(a, Op.push i γ)]).length by simp [hL]; omega]
+        simp [List.extract_eq_take_drop]
+        omega
+      rw [this]
+      exact hws
+
+/-- The invariant of hole derivations: the open chains at the end, and a snapshot at every
+position. -/
+theorem HoleDerivation.invariant {K : ℕ} {C : List (HoleChain n Γ)} {w : List (α × Op n Γ)}
+    (h : HoleDerivation K C w) :
+    HoleBoundary K w C ∧ ∀ x < w.length, ∃ Cx, Snapshot K w x Cx := by
+  induction h with
+  | nil =>
+    refine ⟨⟨by simp, by simp, by simp, fun q hq => ?_, by simp⟩, by simp⟩
+    exact absurd hq.2.1 (by simp)
+  | @wellNested C w v _ hv ih =>
+    obtain ⟨hB, hS⟩ := ih
+    obtain ⟨hB', hS'⟩ := hB.append_wellNested hv
+    refine ⟨hB', fun x hx => ?_⟩
+    by_cases hx₁ : x < w.length
+    · obtain ⟨Cx, hCx⟩ := hS x hx₁
+      exact ⟨Cx, hCx.append hx₁⟩
+    · exact ⟨_, hS' x (by omega) hx⟩
+  | hole _ hC hb ih =>
+    obtain ⟨hB, hS⟩ := ih
+    obtain ⟨hB', hS', -⟩ := hb.boundary rfl hC hB hS
+    exact ⟨hB', hS'⟩
+  | @pop pre post w ps i p γ b _ hpost ih =>
+    obtain ⟨hB, hS⟩ := ih
+    have hB' := hB.append_pop (b := b) hpost
+    refine ⟨hB', fun x hx => ?_⟩
+    by_cases hx₁ : x < w.length
+    · obtain ⟨Cx, hCx⟩ := hS x hx₁
+      exact ⟨Cx, hCx.append hx₁⟩
+    · have hidx : (w ++ [(b, Op.pop i γ)]).length - 1 = x := by
+        simp at hx hx₁ ⊢
+        omega
+      exact ⟨_, hidx ▸ hB'.snapshot⟩
+  | close _ ih =>
+    obtain ⟨hB, hS⟩ := ih
+    exact ⟨hB.close, hS⟩
+
+/-- **Words built by hole derivations are hole-bounded**: a hole derivation with at most `K` open
+holes builds a `K`-hole-bounded sequence. -/
+theorem HoleDerivation.holeBounded {K : ℕ} {C : List (HoleChain n Γ)} {w : List (α × Op n Γ)}
+    (h : HoleDerivation K C w) : HoleBounded K w := fun x hx => by
+  obtain ⟨Cx, hCx⟩ := h.invariant.2 x hx
+  exact hCx.openHoles_le.trans hCx.1
+
 end Invariant
 
 end Cslib.Automata.MPDA
