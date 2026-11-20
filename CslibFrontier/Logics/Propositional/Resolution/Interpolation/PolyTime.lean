@@ -144,7 +144,7 @@ private theorem candidates_polyTime {V : Type} {encV : V ↪ List Bool} :
     ComputableInPolyTime (candidates (V := V)) (encList (encList (encPair encV encBool)))
       (encList (encStep V encV)) := by
   have hzip :=
-    (ComputableTidilyInPolyTime.zipIdx (encList (encPair encV encBool))).computableInPolyTime
+    (ComputableInPolyTime.zipIdx (encList (encPair encV encBool)))
   unfold candidates
   refine flatMapWithInput hzip (flatMapWithInput (hzip.comp (fst _ _))
     (mapWithInput (fst _ _).snd'.fst' ?_))
@@ -202,7 +202,7 @@ private theorem lineGatesOf_polyTime {Op : Type} {encOp : Op ↪ List Bool}
     hq.fst'.snd'.fst') hc
   have hmemB := decide_mem ((CNF.computableInPolyTime_relabel (sumMap_inr (encY := encY))).comp
     hq.fst'.snd'.snd') hc
-  have hbin := ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime
+  have hbin := ComputableInPolyTime.unary_to_binary
   have hp := id' (encIn := encPair (encPair (encPair encUnary
     (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
       (encList (encList (encPair (encSum encNat encZ) encBool)))))
@@ -269,13 +269,13 @@ private theorem codeOf_polyTime {Op : Type} {encOp : Op ↪ List Bool}
     (encList (encList (encPair (encSum encNat encY) encBool)))
     (encList (encList (encPair (encSum encNat encZ) encBool))))
     (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))))
-  have hrev := (ComputableTidilyInPolyTime.listReverse
-    (encList (encPair (encSum encNat (encSum encY encZ)) encBool))).computableInPolyTime
-  have hzip := (ComputableTidilyInPolyTime.zipIdx
-    (encList (encPair (encSum encNat (encSum encY encZ)) encBool))).computableInPolyTime
-  have htake := (ComputableTidilyInPolyTime.takeUnary
-    (encList (encPair (encSum encNat (encSum encY encZ)) encBool))).computableInPolyTime
-  have hbin := ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime
+  have hrev := (ComputableInPolyTime.listReverse
+    (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+  have hzip := (ComputableInPolyTime.zipIdx
+    (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+  have htake := (ComputableInPolyTime.takeUnary
+    (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+  have hbin := ComputableInPolyTime.unary_to_binary
   have hlines := hrev.comp hp.snd'.snd'
   have hgates := flatMapWithInput (f := fun (p : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
       List (Clause (ℕ ⊕ (Y ⊕ Z)))) (e : Clause (ℕ ⊕ (Y ⊕ Z)) × ℕ) =>
@@ -285,9 +285,9 @@ private theorem codeOf_polyTime {Op : Type} {encOp : Op ↪ List Bool}
         ((htake.comp ((hlines.comp (fst _ _)).prod (snd _ _).snd')).prod (snd _ _).fst')))
   have hempty := mapWithInput (f := fun (_ : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
       List (Clause (ℕ ⊕ (Y ⊕ Z)))) (c : Clause (ℕ ⊕ (Y ⊕ Z))) => c.isEmpty) hlines
-    ((ComputableTidilyInPolyTime.listIsEmpty'
-      (encPair (encSum encNat (encSum encY encZ)) encBool)).computableInPolyTime.comp (snd _ _))
-  have hidx := (ComputableTidilyInPolyTime.idxOf encBool).computableInPolyTime.comp
+    ((ComputableInPolyTime.listIsEmpty'
+      (encPair (encSum encNat (encSum encY encZ)) encBool)).comp (snd _ _))
+  have hidx := (ComputableInPolyTime.idxOf encBool).comp
     (hempty.prod (const true))
   have hout := hbin.comp (unary_add' (unary_add' hp.fst' (unary_mul' (const s) hidx))
     (const (s - 1)))
@@ -323,7 +323,7 @@ private theorem resolventGates_polyTime :
   have hv := hr.snd'
   have hw₁ := hr.fst'.snd'.snd'.fst'
   have hw₂ := hr.fst'.snd'.snd'.snd'
-  have hadd := (ComputableTidilyInPolyTime.binary_add).computableInPolyTime
+  have hadd := (ComputableInPolyTime.binary_add)
   refine optionElimWithInput ((getLeft? _ _).comp hv)
     (ite (optionElimWithInput ((getRight? _ _).comp hv) (const false)
       ((isLeft _ _).comp (snd _ _)))
@@ -400,7 +400,7 @@ private theorem positive_polyTime :
       (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
         (encList (encPair (encSum encNat encY) encBool))) (encPair (encSum encNat encY) encBool))
       encBool :=
-    ComputableTidilyInPolyTime.bool_or.computableInPolyTime.comp
+    ComputableInPolyTime.bool_or.comp
       (((ComputableInO.isRight_deg encNat encY).computableInPolyTime.comp (snd _ _).fst').prod
         (snd _ _).snd')
   exact allWithEncoding (test := fun p : CNF (ℕ ⊕ Y) × Clause (ℕ ⊕ Y) =>

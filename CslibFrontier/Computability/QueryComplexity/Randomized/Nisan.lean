@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Computability.QueryComplexity.ApproximateDegree
 public import CslibFrontier.Computability.QueryComplexity.Randomized
 public import Cslib.Computability.QueryComplexity.Measures
+public import CslibFrontier.Computability.DecisionTree.Cost
 import CslibFrontier.Computability.QueryComplexity.Relations
+import CslibFrontier.Computability.QueryComplexity.Threshold
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -29,6 +31,10 @@ disjoint, so `t` queries variables of at most `depth t` of them, and errs on `x`
 `Bⱼ` flipped for every other block. Averaging over `t` drawn from `μ`,
 `b ≤ depth μ + ∑ⱼ (ε + ε)`, that is `(1 - 2ε) bs(f) ≤ R_ε(f)`; for `ε = 1/3`, `bs(f) ≤ 3 R(f)`.
 With `D(f) ≤ bs(f)³` [BealsBuhrmanCleveMoscaDeWolf2001] this gives `D(f) ≤ 27 R(f)³`.
+The argument counts the queries a tree executes on the input `x`, so it bounds executed queries,
+not only structural depth. Majority has block sensitivity `⌊n/2⌋ + 1`, so deciding it with error
+`1/3` executes at least `(⌊n/2⌋ + 1) / 3` probes on some input and coin outcome, a linear lower
+bound [Goldreich, Exercise 10.8][Goldreich2007DraftR5].
 
 **Approximate degree** (`QueryComplexity.approxDegree_le_randomizedComplexity`). The probability
 that a tree drawn from `μ` outputs `1` on `x` is an average of functions of degree at most the
@@ -42,6 +48,13 @@ within `ε` of `f` when `μ` computes `f` with error `ε`. So `adeg_ε(f) ≤ R_
   `(1 - 2ε) bs(f) ≤ R_ε(f)` for `ε ≥ 0`.
 * `Cslib.QueryComplexity.blockSensitivity_le_three_mul_randomizedComplexity`: `bs(f) ≤ 3 R(f)`.
 * `Cslib.QueryComplexity.approxDegree_le_randomizedComplexity`: `adeg_ε(f) ≤ R_ε(f)`.
+* `Cslib.QueryComplexity.div_two_add_one_le_three_mul_randomizedComplexity_majority`:
+  `⌊n/2⌋ + 1 ≤ 3 R(MAJ_n)`.
+* `Cslib.RandomizedDecisionTree.Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost`:
+  some tree drawn executes at least `(1 - 2ε) bs(f)` queries on some input.
+* `Cslib.RandomizedDecisionTree.Computes.exists_div_two_add_one_le_three_mul_cost_majority`:
+  deciding majority with error `1/3` executes at least `(⌊n/2⌋ + 1) / 3` probes on some input and
+  coin outcome [Goldreich, Exercise 10.8][Goldreich2007DraftR5].
 * `Cslib.RandomizedDecisionTree.Computes.one_sub_two_mul_mul_blockSensitivity_le_depth`,
   `Cslib.RandomizedDecisionTree.Computes.approxDegree_le_depth`: the same bounds for the depth of
   one randomized decision tree computing `f` with error `ε`.
@@ -56,6 +69,8 @@ within `ε` of `f` when `μ` computes `f` with error `ε`. So `adeg_ε(f) ≤ R_
   polynomials*][BealsBuhrmanCleveMoscaDeWolf2001]
 * [H. Buhrman, R. de Wolf, *Complexity measures and decision tree complexity:
   a survey*][BuhrmanDeWolf2002]
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, Draft `r5.pdf`,
+  Exercise 10.8][Goldreich2007DraftR5]
 -/
 
 public section
@@ -92,10 +107,12 @@ open QueryComplexity
 
 variable {n : ℕ} {f : BooleanFunction n} {μ : RandomizedDecisionTree (Fin n) Bool} {ε : ℝ}
 
-/-- **Nisan's bound for one randomized decision tree**: if `μ` computes `f` with error `ε`, then
-`(1 - 2ε) bs(f) ≤ depth μ`. -/
-theorem Computes.one_sub_two_mul_mul_blockSensitivity_le_depth (h : μ.Computes ε f) :
-    (1 - 2 * ε) * blockSensitivity f ≤ μ.depth := by
+/-- **Nisan's bound on executed queries**: if `μ` computes `f` with error `ε`, then on some input
+`x` some tree `t` that `μ` can draw executes at least `(1 - 2ε) bs(f)` queries,
+`(1 - 2ε) bs(f) ≤ t.cost x`. The bound is on the queries made on `x`, counting repeated queries,
+not on the structural depth of the trees. -/
+theorem Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost (h : μ.Computes ε f) :
+    ∃ x, ∃ t ∈ μ.weights.support, (1 - 2 * ε) * blockSensitivity f ≤ t.cost x := by
   classical
   -- an input and a family of pairwise disjoint sensitive blocks attaining `bs(f)`
   obtain ⟨x, -, hx⟩ := exists_mem_eq_sup univ univ_nonempty (blockSensitivityAt f)
@@ -108,17 +125,17 @@ theorem Computes.one_sub_two_mul_mul_blockSensitivity_le_depth (h : μ.Computes 
   have he (t : DecisionTree (Fin n) Bool) (y : BitString n) : 0 ≤ e t y := by
     simp only [e]
     split_ifs <;> norm_num
-  -- every tree that `μ` can draw meets at most `depth μ` blocks and errs for every other block
-  have key (t : DecisionTree (Fin n) Bool) (ht : t ∈ μ.weights.support) :
-      (#F : ℝ) ≤ μ.depth + ∑ B ∈ F, (e t x + e t (flipBlock B x)) := by
+  -- every tree meets at most `t.cost x` blocks on `x` and errs for every other block
+  have key (t : DecisionTree (Fin n) Bool) :
+      (#F : ℝ) ≤ t.cost x + ∑ B ∈ F, (e t x + e t (flipBlock B x)) := by
     set Q := t.queries x
-    have hhit : #(F.filter fun B => ¬Disjoint B Q) ≤ μ.depth := by
+    have hhit : #(F.filter fun B => ¬Disjoint B Q) ≤ t.cost x := by
       refine (card_le_card_biUnion (f := fun B => B ∩ Q) (fun B hB B' hB' hne =>
         Disjoint.mono inter_subset_left inter_subset_left
           (hF.2 (mem_filter.1 hB).1 (mem_filter.1 hB').1 hne))
         fun B hB => not_disjoint_iff_nonempty_inter.1 (mem_filter.1 hB).2).trans ?_
-      exact ((card_le_card (biUnion_subset.2 fun _ _ => inter_subset_right)).trans
-        (t.card_queries_le_depth x)).trans (depth_le_depth ht)
+      exact (card_le_card (biUnion_subset.2 fun _ _ => inter_subset_right)).trans
+        (t.card_queries_le_cost x)
     have hmiss : (#(F.filter fun B => Disjoint B Q) : ℝ) ≤
         ∑ B ∈ F, (e t x + e t (flipBlock B x)) := by
       rw [card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
@@ -130,18 +147,18 @@ theorem Computes.one_sub_two_mul_mul_blockSensitivity_le_depth (h : μ.Computes 
     have : (#F : ℝ) = #(F.filter fun B => Disjoint B Q) + #(F.filter fun B => ¬Disjoint B Q) := by
       rw [← Nat.cast_add, hsplit]
     rw [this]
-    have hhit' : (#(F.filter fun B => ¬Disjoint B Q) : ℝ) ≤ μ.depth := by exact_mod_cast hhit
+    have hhit' : (#(F.filter fun B => ¬Disjoint B Q) : ℝ) ≤ t.cost x := by exact_mod_cast hhit
     linarith
   -- average over the tree drawn from `μ`
   have htot : ∑ t ∈ μ.weights.support, μ.weights t = 1 := by simpa [Finsupp.sum] using μ.total
-  have havg := Finset.sum_le_sum fun t ht =>
-    mul_le_mul_of_nonneg_left (key t ht) (μ.weights_nonneg t)
+  have havg := Finset.sum_le_sum fun t (_ : t ∈ μ.weights.support) =>
+    mul_le_mul_of_nonneg_left (key t) (μ.weights_nonneg t)
   rw [← Finset.sum_mul, htot, one_mul] at havg
   have hrhs : ∑ t ∈ μ.weights.support,
-      μ.weights t * (μ.depth + ∑ B ∈ F, (e t x + e t (flipBlock B x))) =
-      μ.depth + ∑ B ∈ F, (μ.errorProb f x + μ.errorProb f (flipBlock B x)) := by
-    rw [Finset.sum_congr rfl fun t _ => mul_add _ _ _, Finset.sum_add_distrib, ← Finset.sum_mul,
-      htot, one_mul]
+      μ.weights t * (t.cost x + ∑ B ∈ F, (e t x + e t (flipBlock B x))) =
+      ∑ t ∈ μ.weights.support, μ.weights t * t.cost x +
+        ∑ B ∈ F, (μ.errorProb f x + μ.errorProb f (flipBlock B x)) := by
+    rw [Finset.sum_congr rfl fun t _ => mul_add _ _ _, Finset.sum_add_distrib]
     congr 1
     simp only [Finset.mul_sum]
     rw [Finset.sum_comm]
@@ -151,7 +168,46 @@ theorem Computes.one_sub_two_mul_mul_blockSensitivity_le_depth (h : μ.Computes 
     refine (sum_le_sum fun B _ => add_le_add (h x) (h (flipBlock B x))).trans_eq ?_
     rw [sum_const, nsmul_eq_mul]
     ring
-  linarith
+  -- the average cost is at most the largest cost of a tree that `μ` can draw
+  obtain ⟨t₀, ht₀, hmax⟩ := Finset.exists_max_image μ.weights.support
+    (fun t => (t.cost x : ℝ)) μ.support_weights_nonempty
+  have hcost : ∑ t ∈ μ.weights.support, μ.weights t * t.cost x ≤ t₀.cost x :=
+    StdSimplex.sum_mul_le_of_forall_le
+      (g := fun t : DecisionTree (Fin n) Bool => (t.cost x : ℝ)) hmax
+  exact ⟨x, t₀, ht₀, by linarith⟩
+
+/-- **Nisan's bound for one randomized decision tree**: if `μ` computes `f` with error `ε`, then
+`(1 - 2ε) bs(f) ≤ depth μ`. -/
+theorem Computes.one_sub_two_mul_mul_blockSensitivity_le_depth (h : μ.Computes ε f) :
+    (1 - 2 * ε) * blockSensitivity f ≤ μ.depth := by
+  obtain ⟨x, t, ht, hle⟩ := h.exists_one_sub_two_mul_mul_blockSensitivity_le_cost
+  exact hle.trans (by exact_mod_cast (t.cost_le_depth x).trans (depth_le_depth ht))
+
+/-- **Deciding majority requires linearly many probes** ([Goldreich, Exercise 10.8, draft `r5.pdf`
+p. 498][Goldreich2007DraftR5]): if `μ` computes `majority n` with error at most `1/3` on every
+input, for `n ≥ 1`, then on some input `x` some tree `t` that `μ` can draw executes at least
+`(⌊n/2⌋ + 1) / 3` probes, `⌊n/2⌋ + 1 ≤ 3 · t.cost x`. A randomized decision tree is the
+direct-access model with adaptive probes, the tree drawn by the coins; `t.cost x` counts the probes
+executed on `x`, repeated probes included, and each probe takes time. `majority n` accepts strings
+with at least `⌈n/2⌉` ones, the convention of the exercise's guideline; for strict majority
+(`threshold n (n / 2 + 1)`) the same bound follows in the same way from
+`QueryComplexity.blockSensitivity_threshold`.
+
+The proof composes Nisan's bound on executed probes
+(`Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost`) with
+`bs(MAJ_n) ≥ s(MAJ_n) = ⌊n/2⌋ + 1`. It does not follow the exercise's guideline, which bounds the
+statistical distance between the restrictions to the probed positions of uniform strings with
+`⌊n/2⌋` and `⌊n/2⌋ + 1` zeros. -/
+theorem Computes.exists_div_two_add_one_le_three_mul_cost_majority (hn : 1 ≤ n)
+    (h : μ.Computes (1 / 3) (majority n)) :
+    ∃ x, ∃ t ∈ μ.weights.support, n / 2 + 1 ≤ 3 * t.cost x := by
+  obtain ⟨x, t, ht, hle⟩ := h.exists_one_sub_two_mul_mul_blockSensitivity_le_cost
+  have hbs : n / 2 + 1 ≤ blockSensitivity (majority n) :=
+    (BitString.sensitivity_majority hn).symm.trans_le (sensitivity_le_blockSensitivity _)
+  have hbs' : ((n / 2 + 1 : ℕ) : ℝ) ≤ blockSensitivity (majority n) := by exact_mod_cast hbs
+  refine ⟨x, t, ht, ?_⟩
+  have : ((n / 2 + 1 : ℕ) : ℝ) ≤ 3 * (t.cost x : ℝ) := by linarith
+  exact_mod_cast this
 
 /-- A randomized decision tree computing `f` with error `ε` gives a real function of degree at most
 its depth within `ε` of `f`: the probability that the tree drawn outputs `1`. -/
@@ -201,6 +257,15 @@ theorem blockSensitivity_le_three_mul_randomizedComplexity (f : BooleanFunction 
   norm_num only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at this
   have h : (blockSensitivity f : ℝ) ≤ 3 * randomizedComplexity (1 / 3) f := by linarith
   exact_mod_cast h
+
+/-- Deciding majority with error `1/3` has randomized query complexity at least `(⌊n/2⌋ + 1) / 3`,
+for `n ≥ 1`: the complexity form of
+`RandomizedDecisionTree.Computes.exists_div_two_add_one_le_three_mul_cost_majority`. -/
+theorem div_two_add_one_le_three_mul_randomizedComplexity_majority (hn : 1 ≤ n) :
+    n / 2 + 1 ≤ 3 * randomizedComplexity (1 / 3) (majority n) :=
+  (BitString.sensitivity_majority hn).symm.trans_le
+    ((sensitivity_le_blockSensitivity _).trans
+      (blockSensitivity_le_three_mul_randomizedComplexity _))
 
 /-- **Approximate degree is at most randomized complexity**: `adeg_ε(f) ≤ R_ε(f)`. -/
 theorem approxDegree_le_randomizedComplexity (ε : ℝ≥0) (f : BooleanFunction n) :

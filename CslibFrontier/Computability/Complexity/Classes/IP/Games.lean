@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Games
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List

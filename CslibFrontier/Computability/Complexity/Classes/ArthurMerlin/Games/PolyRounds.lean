@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.BitString.List
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Public-coin games with polynomially many rounds
@@ -62,7 +63,7 @@ public section
 
 namespace Cslib.Complexity
 
-open Finset Turing.MultiTapeTM
+open Finset Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
 variable {α : Type}
 
@@ -93,10 +94,7 @@ theorem transcriptLength_le_length_encAMShape (g : List (AMMove × ℕ)) :
   | nil => simp [transcriptLength]
   | cons x g ih =>
     obtain ⟨m, n⟩ := x
-    simp only [transcriptLength, List.map_cons, List.sum_cons, encAMShape, encList_cons,
-      List.length_append, length_frame, length_encPair, encUnary_apply,
-      List.length_replicate] at ih ⊢
-    omega
+    enc_len [transcriptLength, List.map_cons, List.sum_cons, encAMShape] at ih ⊢
 
 /-- Evaluating a fixed polynomial shape `G` at unary `n` is polynomial-time. -/
 theorem computableInPolyTime_evalShape (G : List (AMMove × Polynomial ℕ)) :
@@ -138,11 +136,24 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
   have hstep : ComputableInPolyTime
       (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
         copyStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary encUnary) (encPair encBits encBits)
+      (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
         (encPair encAMMove encUnary))
       (encPair encBits encBits) := by
-    unfold copyStep
-    fun_prop
+    have hp : ComputableInPolyTime
+        (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) => p.1.1)
+        (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+          (encPair encAMMove encUnary)) (encPair encUnary encUnary) := (fst _ _).fst'
+    have hs := (fst (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+      (encPair encAMMove encUnary)).snd'
+    have hn := (snd (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+      (encPair encAMMove encUnary)).snd'
+    have hrow : ComputableInPolyTime
+        (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
+          BitString.listRow p.2.2 p.1.1.2 p.1.2.1)
+        (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+          (encPair encAMMove encUnary)) encBits := by fun_prop
+    exact (bitsDropWithInput hs.fst' (unary_mul' hp.fst' hn)).prod
+      (bitsAppend hs.snd' hrow)
   obtain ⟨c₁, d₁, hwlen⟩ := (show PolyBounded (fun x => (encIn x).length) (fun x => (w x).length)
     from by simpa only [encBits_apply] using hw.polyBounded_length).exists_le
   obtain ⟨c₂, d₂, hglen⟩ := hg.polyBounded_length.exists_le

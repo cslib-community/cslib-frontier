@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Karn Seth, Samuel Schlesinger
+Authors: Karn Seth, Samuel Schlesinger, Mayank Rathee
 -/
 
 module
@@ -32,7 +32,7 @@ PRF game `Cslib.Crypto.PRF.advantage`. Three Boolean garbling schemes of this li
 * Free-XOR (`Cslib.Crypto.Garbling.FreeXOR`): the hash reads only a key `x : K`, labels are
   `K × Bool`, and the offsets are `δ` and `(δ, true)`.
 * half gates (`Cslib.Crypto.Garbling.HalfGates`): the hash reads the whole label, colour bit
-  included, and both offsets are `(δ, true)`.
+  included, and both offsets are `CCR.offset δ = (δ, true)`.
 * one-hot garbling (`Cslib.Crypto.Garbling.BinaryToOneHot`): labels form a `ZMod 2`-module, both
   offsets are `δ k` for a key map `δ`, which can fix the colour bit of the offset.
 
@@ -51,8 +51,11 @@ Definition 1, has its own dependent query type and lives in
 ## Main definitions
 
 * `Cslib.Crypto.Garbling.CCR.Query`: a query of a label, a tweak and a bit.
+* `Cslib.Crypto.Garbling.CCR.offset`: the half-gates offset `(R, true)`.
 * `Cslib.Crypto.Garbling.CCR.oracle`: the circular oracle under an input and an output offset.
 * `Cslib.Crypto.Garbling.CCR.advantage`: the circular correlation robustness advantage.
+* `Cslib.Crypto.Garbling.CCR.IsTweakUnique`: tweak uniqueness for Boolean CCR adversaries (at most
+  one query per tweak on every execution path).
 * `Cslib.Crypto.Garbling.CCR.Arithmetic.advantage`: the arithmetic variant, with
   `Cslib.Crypto.Garbling.CCR.Arithmetic.IsTweakUnique`.
 
@@ -60,9 +63,11 @@ Definition 1, has its own dependent query type and lives in
 
 The definition of [GuoKatzWangYu2020] only allows adversaries that never ask both `(x, t, false)`
 and `(x, t, true)`, whose answers reveal the offset (`CCR.oracle_true_sub_oracle_false`). Here
-`advantage` is defined for every adversary, and the restriction is a property of the adversary at
-hand: the Free-XOR, half-gates and one-hot reductions ask every tweak at most once. The same holds
-for the arithmetic variant, whose restriction `IsTweakUnique` is formalized.
+`advantage` is defined for every adversary, and the restriction `IsTweakUnique` is stated as a
+property of the adversary at hand: the Free-XOR (`FreeXOR.isTweakUnique_reduction`), half-gates
+(`HalfGates.isTweakUnique_reduction`) and one-hot (`BinaryToOneHot.isTweakUnique_reduction`)
+reductions ask every tweak at most once. The same holds for the arithmetic variant, whose
+restriction `Arithmetic.IsTweakUnique` is likewise formalized.
 
 ## References
 
@@ -99,6 +104,11 @@ structure Query (L T : Type) where
 that ask queries of a label, a tweak and a bit, get answers in `M`, and output a guess. -/
 abbrev Adversary (L T M : Type) : Type := PRF.Adversary (Query L T) M
 
+/-- The global offset `Δ = (R, true)` of the half-gates instance, of colour `true`: the colour
+plays the role of the least significant bit, which [ZahurRosulekEvans2015] fixes to `1`
+(`R ∈ {0, 1}^(k - 1) 1` in Definition 1). -/
+@[expose] def offset {K : Type} (R : K) : K × Bool := (R, true)
+
 variable {L T M Key : Type} [AddCommGroup L] [AddCommGroup M]
 
 /-- The circular oracle under the input offset `Δ` and the output offset `Δ'`: the query
@@ -128,6 +138,25 @@ function. -/
     [Fintype T] [DecidableEq T] [Fintype M] [Nonempty M] (H : L → T → M) (δ : Key → L)
     (δ' : Key → M) (A : Adversary L T M) : NNReal :=
   PRF.advantage (keyed H δ δ') A
+
+/-- The adversary never repeats a tweak: on every path it makes at most one query with each
+tweak `t`. In particular, it never queries both `(x, t, false)` and `(x, t, true)`. -/
+@[expose] def IsTweakUnique [DecidableEq T] (A : Adversary L T M) : Prop :=
+  ∀ t : T, OracleComp.IsCostBounded
+    (Sum.elim (fun _ => 0) fun q : Query L T => if q.tweak = t then 1 else 0) A 1
+
+omit [AddCommGroup L] [AddCommGroup M] in
+/-- Against every stateful oracle, a tweak-unique adversary records at most one query with each
+tweak `t` on every supported execution. -/
+theorem IsTweakUnique.transcript_tweak_le_one [DecidableEq T] {A : Adversary L T M}
+    (h : IsTweakUnique A) {State : Type}
+    (oracle : (q : Query L T) → StateT State PMF M) {s s' : State} {result : Bool}
+    {transcript : OracleComp.Transcript fun _ : Query L T => M}
+    (hmem : (result, s', transcript) ∈
+      (ProbOracleComp.runWith (OracleComp.withTranscript oracle) A (s, [])).support)
+    (t : T) :
+    (transcript.map fun entry => if entry.1.tweak = t then 1 else 0).sum ≤ 1 :=
+  ProbOracleComp.transcript_cost_le (h t) oracle hmem
 
 /-! ### The arithmetic variant -/
 

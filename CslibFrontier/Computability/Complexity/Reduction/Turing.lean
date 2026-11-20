@@ -39,6 +39,8 @@ oracle for `B` within polynomial time [Ladner, Lynch and Selman][LadnerLynchSelm
   completeness under polynomial-time Turing reductions.
 * `Cslib.Complexity.NPTuringHard`, `Cslib.Complexity.NPTuringComplete`: Turing hardness and
   completeness for `NP`.
+* `Cslib.Complexity.coNPTuringHard`, `Cslib.Complexity.coNPTuringComplete`: Turing hardness and
+  completeness for `coNP`.
 * `Cslib.Complexity.PPTuringHard`, `Cslib.Complexity.PPTuringComplete`: Turing hardness and
   completeness for `PP`.
 * `Cslib.Complexity.PSPACETuringHard`, `Cslib.Complexity.PSPACETuringComplete`: Turing hardness and
@@ -79,8 +81,13 @@ oracle for `B` within polynomial time [Ladner, Lynch and Selman][LadnerLynchSelm
 * `Cslib.Complexity.PolyTimeTuringReducible.mem_P`: `P` is closed under Turing reductions to word
   languages.
 * `Cslib.Complexity.PolyTimeHard.polyTimeTuringHard`: many-one hardness implies Turing hardness.
+* `Cslib.Complexity.coNPHard.npTuringHard`, `Cslib.Complexity.NPHard.coNPTuringHard`: Turing
+  hardness across complementation between `NP` and `coNP`.
 * `Cslib.Complexity.PolyTimeHard.polyTimeTuringHard_of_turing`: transferring many-one hardness
   across a Turing reduction.
+* `Cslib.Complexity.PolyTimeTuringHard.trans`: transferring Turing hardness across a Turing
+  reduction from a word language; with membership in `NP` this is the Cook-reduction form of
+  [Goldreich, Proposition 2.20][Goldreich2008].
 * Hardness transfer to `P`:
   * `Cslib.Complexity.NPHard.P_eq_NP_of_turing_mem_P`: if an NP-hard problem Turing-reduces to a
     problem in `P`, then `P = NP`.
@@ -96,6 +103,7 @@ oracle for `B` within polynomial time [Ladner, Lynch and Selman][LadnerLynchSelm
 * [R. E. Ladner, N. A. Lynch, A. L. Selman, *A comparison of polynomial time
   reducibilities*][LadnerLynchSelman1975]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*][Goldreich2008]
 -/
 
 @[expose] public section
@@ -180,14 +188,14 @@ theorem isOraclePPTOn_queryWords :
     Probability.IsOraclePPTOn (encList encBits) encBits
       (fun words => OracleComp.interpret ProbOracleComp.query (queryWords words)) := by
   simp only [queryWords, OracleComp.interpret_map, OracleComp.interpret_iterate]
-  refine Probability.IsOraclePPTOn.map' (Probability.IsOraclePPTOn.iterate_of_bounded_growth'
+  refine Probability.IsOraclePPTOn.map (Probability.IsOraclePPTOn.iterate_of_bounded_growth
     (stateEncoding := encPair (encList encBits) encBits) (by fun_prop) (by fun_prop) ?_
     (growth := 0) ?_) (by fun_prop)
   · simp only [interpret_queryWordsStep]
-    refine Probability.IsOraclePPTOn.cond' (by fun_prop)
+    refine Probability.IsOraclePPTOn.cond (by fun_prop)
       (ComputableInPolyTime.id'.isOraclePPTOn) ?_
-    exact Probability.IsOraclePPTOn.map_with'
-      (Probability.IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop))
+    exact Probability.IsOraclePPTOn.map_with
+      (Probability.IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
       (by fun_prop)
   · intro state next hnext
     rw [interpret_queryWordsStep] at hnext
@@ -375,6 +383,30 @@ abbrev NPTuringHard (encB : β ↪ List Bool) (B : Set β) : Prop :=
 abbrev NPTuringComplete (encB : β ↪ List Bool) (B : Set β) : Prop :=
   PolyTimeTuringComplete @NP encB B
 
+/-- Hardness for `coNP` under polynomial-time Turing reductions. -/
+abbrev coNPTuringHard (encB : β ↪ List Bool) (B : Set β) : Prop :=
+  PolyTimeTuringHard @coNP encB B
+
+/-- Completeness for `coNP` under polynomial-time Turing reductions. -/
+abbrev coNPTuringComplete (encB : β ↪ List Bool) (B : Set β) : Prop :=
+  PolyTimeTuringComplete @coNP encB B
+
+/-- Every `coNP`-hard problem is `NP`-hard under polynomial-time Turing reductions: to decide
+`A ∈ NP`, query the `coNP`-hard oracle on the many-one reduction of `Aᶜ ∈ coNP` and negate the
+answer. -/
+theorem coNPHard.npTuringHard (hB : coNPHard encB B) : NPTuringHard encB B := by
+  intro α enc A hA
+  have hAc : Aᶜ ∈ coNP enc := by
+    simpa only [coNP, Set.mem_ofPred_eq, compl_compl] using hA
+  simpa only [compl_compl] using (hB enc Aᶜ hAc).polyTimeTuringReducible.compl_left
+
+/-- Every `NP`-hard problem is `coNP`-hard under polynomial-time Turing reductions: to decide
+`A ∈ coNP`, query the `NP`-hard oracle on the many-one reduction of `Aᶜ ∈ NP` and negate the
+answer. -/
+theorem NPHard.coNPTuringHard (hB : NPHard encB B) : coNPTuringHard encB B := by
+  intro α enc A hA
+  simpa only [compl_compl] using (hB enc Aᶜ hA).polyTimeTuringReducible.compl_left
+
 /-- Hardness for `PP` under polynomial-time Turing reductions. -/
 abbrev PPTuringHard (encB : β ↪ List Bool) (B : Set β) : Prop :=
   PolyTimeTuringHard PP encB B
@@ -402,6 +434,18 @@ theorem PolyTimeHard.polyTimeTuringHard_of_turing {C : ∀ {α : Type}, (α ↪ 
     (hL : PolyTimeHard C encL L) (hLB : PolyTimeTuringReducible encL encB L B) :
     PolyTimeTuringHard C encB B :=
   HardUnder.trans (fun _ _ hr h_t => hr.trans_turing h_t) hL hLB
+
+/-- **Turing hardness transfers along Turing reductions** from a word language: if every problem
+of `C` Turing-reduces to `B ⊆ {0,1}*` and `B` Turing-reduces to `L`, then every problem of `C`
+Turing-reduces to `L`. With `C = NP` and `L ∈ NP`, this is the Cook-reduction form of
+[Goldreich, Proposition 2.20][Goldreich2008] (draft `r1.pdf` of 30 December 2006, PDF p. 103,
+printed p. 78), where NP-hardness allows arbitrary Cook reductions and problems are sets of bit
+strings. The intermediate problem is a word language because a Turing reduction to `B` under an
+encoding `encB` may ask about words outside the range of `encB`. -/
+theorem PolyTimeTuringHard.trans {C : ∀ {α : Type}, (α ↪ List Bool) → Set (Set α)}
+    {B : Set (List Bool)} (hB : PolyTimeTuringHard C encBits B)
+    (hBL : PolyTimeTuringReducible encBits encL B L) : PolyTimeTuringHard C encL L :=
+  HardUnder.trans (fun _ _ hr h => hr.trans h) hB hBL
 
 /-- **Hardness transfer to `P`**: if a problem hard for `C` under many-one reductions Turing-reduces
 to a problem `B ∈ P`, then `C ⊆ P`. -/

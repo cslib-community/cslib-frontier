@@ -28,6 +28,9 @@ hypothesis. The exact counter is strict PPT, which gives checked instances of
 
 namespace CslibFrontierTests.SamplingCounting
 
+-- Keep certificate search at the function-level API, without expanding machine witnesses.
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 open Cslib Cslib.Complexity Cslib.Probability Turing.MultiTapeTM
 
 /-- All words of length `n`. -/
@@ -232,12 +235,16 @@ private theorem isPPTOn_S :
       (encOption encBits)
       (fun _ : (ℕ × ℕ × Bool) × ℕ => (pure none : ProbComp (Option (List Bool)))) :=
     (ComputableInPolyTime.const none).isPPTOn
-  exact IsPPTOn.cond' hcond hyes hno
+  exact IsPPTOn.cond hcond hyes hno
 
 private theorem isFPAUS_S : IsFPAUS (encPair encUnary (encPair encUnary encBool)) W S :=
-  ⟨isPPTOn_S, fun x q => by
-    rw [eval_S]
-    exact (Probability.CloseTo.refl _).mono (by positivity)⟩
+  R.isFPAUS_atWitnessPrecision isPPTOn_S
+    (fun x q w hw => by
+      rw [eval_S]
+      have h := uniformWitness_some_toReal (W x) w
+      rw [ite_eq_right hw] at h
+      exact ((ENNReal.toReal_eq_zero_iff _).mp h).resolve_right (PMF.apply_ne_top _ _))
+    (fun x q => by rw [eval_S]; exact (Probability.CloseTo.refl _).mono (by positivity))
 
 /-! ### A checked instance of the theorem -/
 
@@ -246,7 +253,7 @@ example : (fun x => (W x).card) ∈ FPRAS (encPair encUnary (encPair encUnary en
   R.mem_FPRAS_of_mem_FPAUS ⟨S, isFPAUS_S⟩
 
 example : IsFPRAS (encPair encUnary (encPair encUnary encBool)) (fun x => (W x).card)
-    (R.estimate S) :=
+    (R.estimate (retrySampler S)) :=
   R.isFPRAS_of_isFPAUS isFPAUS_S
 
 /-! ### Counts, empty branches, zero counts and witness length `0` -/
@@ -276,15 +283,48 @@ example (p t : ℕ) : R.estimate S (0, 0, true) p t = pure (1, 1) := by
 /-- The sampler that always reports no witness is not an almost uniform sampler for the family:
 on `(0, 1, true)` the event `{none}` has probability `1` instead of `0`. -/
 example : ¬ IsFPAUS (encPair encUnary (encPair encUnary encBool)) W (fun _ _ => pure none) := by
-  rintro ⟨-, h⟩
+  intro h
   have hW : (W (0, 1, true)).Nonempty := ⟨[true], mem_W.2 ⟨rfl, [true], rfl, rfl⟩⟩
-  have h1 := (h (0, 1, true) 1).abs_toReal_sub_le (by norm_num) {none}
-  have hpre : (some : List Bool → Option (List Bool)) ⁻¹' {none} = ∅ := by
-    ext
-    simp
-  rw [uniformWitness_of_nonempty hW, PMF.toOuterMeasure_map_apply, hpre,
-    MeasureTheory.measure_empty] at h1
-  norm_num at h1
+  have hfail := h.failure (0, 1, true) 1 hW
+  norm_num at hfail
+
+/-- A fair bit interpreted as a successful one-bit word can return the wrong witness on a
+singleton instance. Its total-variation distance is one half, but JVV forbids this output at
+every precision. -/
+example : ¬ IsFPAUS encBool (fun _ => {[false]}) (fun _ q =>
+    if q = 1 then some <$> BitString.sampleList 1 else pure (some [false])) := by
+  intro h
+  have hv := h.valid false 1 [true] (by decide)
+  simp only [↓reduceIte, ProbComp.eval_map, BitString.eval_sampleList,
+    BitString.uniformList_map_apply] at hv
+  have hc : (Finset.univ.filter fun r : Fin 1 → Bool =>
+      some (List.ofFn r) = some [true]).card = 1 := by
+    decide
+  rw [hc] at hv
+  norm_num at hv
+
+/-- On a singleton relation, a sampler that explicitly reports failure on half its runs
+still satisfies JVV with reference mass one half. -/
+example : IsFPAUS encBool (fun _ => {[]}) (fun _ _ =>
+    (fun b : Bool => if b then some [] else none) <$> ProbComp.uniform Bool) := by
+  let s := (fun b : Bool => if b then some ([] : List Bool) else none) <$> ProbComp.uniform Bool
+  have hnone : (ProbComp.eval s none).toReal = 1 / 2 := by
+    norm_num [s, ProbComp.eval_map, PMF.map_apply, tsum_fintype, Fintype.sum_bool,
+      PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
+  have hsome : (ProbComp.eval s (some [])).toReal = 1 / 2 := by
+    norm_num [s, ProbComp.eval_map, PMF.map_apply, tsum_fintype, Fintype.sum_bool,
+      PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
+  refine ⟨(isPPTOn_uniform_bool _).map (by fun_prop), ?_, fun _ _ _ => hnone.le, ?_⟩
+  · intro x q w hw
+    have hne : w ≠ [] := by simpa using hw
+    simp [ProbComp.eval_map, PMF.map_apply, tsum_fintype, hne]
+  · intro x
+    refine ⟨1 / 2, by norm_num, ?_⟩
+    intro q w hw
+    obtain rfl : w = [] := by simpa using hw
+    change _ ≤ (ProbComp.eval s (some [])).toReal ∧ _ ≤ _
+    rw [hsome, div_le_iff₀ (by positivity)]
+    constructor <;> nlinarith [show 0 ≤ (1 / 2 : ℝ) ^ (q + 1) by positivity]
 
 /-! ### Approximate counting gives almost uniform sampling -/
 
@@ -309,14 +349,16 @@ private theorem goodEstimate_exact (p : ℕ) (x : ℕ × ℕ × Bool) :
 
 /-- The sampler built from the exact counter is almost uniform, for every instance and accuracy. -/
 example (x : ℕ × ℕ × Bool) (q : ℕ) :
-    Probability.CloseTo (ProbComp.eval (R.sampler exactCounter x q)) (uniformWitness (W x))
+    Probability.CloseTo (ProbComp.eval (R.sampler exactCounter x q))
+      (uniformWitness (W x))
       (ENNReal.ofReal ((1 / 2 : ℝ) ^ q)) :=
   R.closeTo_sampler (fun p t _ y => exactCounter_approx y p t) x q
 
 /-- The round trip: the FPRAS obtained from the exact sampler gives back a sampler with the output
 law of an almost uniform sampler. -/
 example (x : ℕ × ℕ × Bool) (q : ℕ) :
-    Probability.CloseTo (ProbComp.eval (R.sampler (R.estimate S) x q)) (uniformWitness (W x))
+    Probability.CloseTo (ProbComp.eval (R.sampler (R.estimate (retrySampler S)) x q))
+      (uniformWitness (W x))
       (ENNReal.ofReal ((1 / 2 : ℝ) ^ q)) :=
   R.closeTo_sampler_of_isFPRAS (R.isFPRAS_of_isFPAUS isFPAUS_S) x q
 
@@ -391,12 +433,14 @@ private theorem isFPRAS_exactCounter :
   ⟨isPPTOn_exactCounter, fun x p t _ => exactCounter_approx x p t⟩
 
 /-- The sampler built from the exact counter is a fully polynomial almost uniform sampler. -/
-example : IsFPAUS (encPair encUnary (encPair encUnary encBool)) W (R.sampler exactCounter) :=
+example : IsFPAUS (encPair encUnary (encPair encUnary encBool)) W
+    (R.atWitnessPrecision (R.sampler exactCounter)) :=
   R.isFPAUS_of_isFPRAS exactCounter isFPRAS_exactCounter
 
 /-- The round trip through both reductions: the FPRAS obtained from the exact sampler gives back a
 fully polynomial almost uniform sampler. -/
-example : IsFPAUS (encPair encUnary (encPair encUnary encBool)) W (R.sampler (R.estimate S)) :=
+example : IsFPAUS (encPair encUnary (encPair encUnary encBool)) W
+    (R.atWitnessPrecision (R.sampler (R.estimate (retrySampler S)))) :=
   R.isFPAUS_of_isFPRAS _ (R.isFPRAS_of_isFPAUS isFPAUS_S)
 
 example : W ∈ FPAUS (encPair encUnary (encPair encUnary encBool)) :=

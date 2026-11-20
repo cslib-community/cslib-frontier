@@ -181,7 +181,8 @@ theorem pos_acceptProb_historyProver {V : WordOracleComp Unit Bool} {t : ℕ} {x
     (hout : outcome (coinProgram M t x r) e = .done true) :
     0 < acceptProb V (historyProver e) := by
   subst hr
-  rw [acceptProb_eq_sum M hV]
+  rw [acceptProb_eq_sum M (by
+    simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV)]
   refine ENNReal.mul_pos (ENNReal.inv_ne_zero.2 (ENNReal.pow_ne_top ENNReal.ofNat_ne_top))
     (ne_of_gt ?_)
   refine lt_of_lt_of_le ?_ (Finset.single_le_sum (fun _ _ => bot_le)
@@ -202,7 +203,9 @@ theorem exists_pos_acceptProb_iff {V : WordOracleComp Unit Bool} {t : ℕ} {x : 
         outcome (coinProgram M t x r) e = .done true := by
   constructor
   · rintro ⟨P, hP⟩
-    rw [acceptProb_eq_sum M hV P, ENNReal.mul_pos_iff] at hP
+    rw [acceptProb_eq_sum M (by
+      simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV) P,
+      ENNReal.mul_pos_iff] at hP
     have hval : (0 : ENNReal) < value (coinFamily M t x) t t [] :=
       hP.2.trans_le (sum_acceptFrom_le_value (isBounded_coinFamily M t x) P)
     obtain ⟨r, e, he, hshort, hout⟩ :=

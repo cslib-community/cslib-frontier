@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.TreeEval.Reader.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
 
 /-!
 # Encodings of the states of the Tree Evaluation read machine

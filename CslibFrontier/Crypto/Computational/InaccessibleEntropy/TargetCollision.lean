@@ -214,8 +214,8 @@ theorem computableInPolyTime_rompelShiftedStep (G : ShrinkingCollisionGrid)
       encIn encBits :=
   G.polyTime_evalGrid.comp (hn.prod (hq.prod
     (ComputableInPolyTime.bitsXorWithInput (G.polyTime_inLen.comp hn)
-      (.of_tidy (ComputableTidilyInPolyTime.cons' hw.tidy
-        (ComputableTidilyInPolyTime.cons' hy.tidy (ComputableTidilyInPolyTime.const [])))))))
+      ((ComputableInPolyTime.cons' hw
+        (ComputableInPolyTime.cons' hy (ComputableInPolyTime.const [])))))))
 
 /-! ### `1`-bit shrinking cascade and step-collision extraction (adapting Lemma 5.7, STEP 5(ii)) -/
 
@@ -306,8 +306,8 @@ theorem computableInPolyTime_rompelCascade (G : ShrinkingCollisionGrid)
     ((ComputableInPolyTime.fst encUnary encUnary).comp hnq)
     ((ComputableInPolyTime.snd encUnary encUnary).comp hnq)
     hy (ComputableInPolyTime.bitsAppend hacc1
-      (.of_tidy (ComputableTidilyInPolyTime.bitsCons hhead.tidy
-        (ComputableTidilyInPolyTime.const []))))).prod
+      ((ComputableInPolyTime.bitsCons hhead
+        (ComputableInPolyTime.const []))))).prod
     (ComputableInPolyTime.bitsDropWithInput hacc2 (.const 1))
   let stateBound (a : γ) : ℕ :=
     2 * ((state a).length + G.outLen (n a)) + 1 + (rest a).length
@@ -391,8 +391,8 @@ theorem computableInPolyTime_rompelCascadeInput (G : ShrinkingCollisionGrid)
     (computableInPolyTime_rompelCascade G hn hq
       (ComputableInPolyTime.bitsRowsWithInput hi (G.polyTime_inLen.comp hn) hfront)
       (ComputableInPolyTime.bitsRowWithInput hout (.const 0) hx) htail)
-    (.of_tidy (ComputableTidilyInPolyTime.bitsCons hbit.tidy
-      (ComputableTidilyInPolyTime.const [])))
+    ((ComputableInPolyTime.bitsCons hbit
+      (ComputableInPolyTime.const [])))
 
 theorem rompelCascadeInput_take_eq (G : ShrinkingCollisionGrid) {n q i : ℕ}
     (K x : List Bool) :
@@ -588,8 +588,8 @@ private theorem computableInPolyTime_pairXor {γ : Type} {encIn : γ ↪ List Bo
     (hv : ComputableInPolyTime v encIn encBits) :
     ComputableInPolyTime (fun a => pairXor (m a) (u a) (v a)) encIn encBits :=
   ComputableInPolyTime.bitsXorWithInput hm
-    (.of_tidy (ComputableTidilyInPolyTime.cons' hu.tidy
-      (ComputableTidilyInPolyTime.cons' hv.tidy (ComputableTidilyInPolyTime.const []))))
+    ((ComputableInPolyTime.cons' hu
+      (ComputableInPolyTime.cons' hv (ComputableInPolyTime.const []))))
 
 private def rompelFrontLen (G : ShrinkingCollisionGrid) (n slot : ℕ) : ℕ :=
   clampIdx (rompelCascadeSteps G n) slot * G.inLen n

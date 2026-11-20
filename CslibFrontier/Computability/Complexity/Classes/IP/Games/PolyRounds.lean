@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.AffineHash
 import CslibFrontier.Foundations.Data.BitString.List
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Private-coin games with polynomially many rounds and `IP[k(n)] ⊆ AM[k(n) + 2]`
@@ -134,14 +135,14 @@ private theorem computableInPolyTime_amMoveCases {γ β : Type} {encIn : γ ↪ 
 
 private theorem computableInPolyTime_unaryOdd :
     ComputableInPolyTime (fun n : ℕ => decide (n % 2 = 1)) encUnary encBool := by
-  have hstep : ComputableTidilyInPolyTime (fun p : Bool × Bool => !p.1)
+  have hstep : ComputableInPolyTime (fun p : Bool × Bool => !p.1)
       (encPair encBool encBool) encBool := by fun_prop
-  have hf := ComputableTidilyInPolyTime.foldl_of_bounded_growth (encA := encBool)
+  have hf := ComputableInPolyTime.foldl_of_bounded_growth (encA := encBool)
     (encL := encBits) (encB := encBool)
     (list := encUnary) (init := fun _ => false) (step := fun acc _ => !acc)
-    (ComputableTidilyInPolyTime.encoded (ComputableTidilyInPolyTime.id' (encIn := encUnary)))
-    (ComputableTidilyInPolyTime.const false) hstep (growth := 1) (fun _ _ => by simp)
-  refine (ComputableInPolyTime.of_tidy hf).of_enc_eq fun n => congrArg encBool ?_
+    (ComputableInPolyTime.encoding_comp (ComputableInPolyTime.id' (encIn := encUnary)))
+    (ComputableInPolyTime.const false) hstep (growth := 1) (fun _ _ => by simp)
+  refine (hf).of_enc_eq fun n => congrArg encBool ?_
   have hacc : ∀ k (b : Bool), (List.replicate k true).foldl (fun acc _ => !acc) b =
       (if k % 2 = 1 then !b else b) := by
     intro k
@@ -158,13 +159,13 @@ private theorem computableInPolyTime_listAppend {α γ : Type}
     (hleft : ComputableInPolyTime left encIn (encList encA))
     (hright : ComputableInPolyTime right encIn (encList encA)) :
     ComputableInPolyTime (fun x => left x ++ right x) encIn (encList encA) :=
-  .of_tidy (ComputableTidilyInPolyTime.listAppend' hleft.tidy hright.tidy)
+  (ComputableInPolyTime.listAppend' hleft hright)
 
 private theorem computableInPolyTime_listReverseWithInput {α γ : Type}
     {encA : α ↪ List Bool} {encIn : γ ↪ List Bool} {list : γ → List α}
     (hlist : ComputableInPolyTime list encIn (encList encA)) :
     ComputableInPolyTime (fun x => (list x).reverse) encIn (encList encA) :=
-  .of_tidy (ComputableTidilyInPolyTime.listReverseWithInput hlist.tidy)
+  (ComputableInPolyTime.listReverseWithInput hlist)
 
 private theorem list_getLastD_eq_getD {α : Type} (l : List α) (d : α) :
     l.getLastD d = l.getD (l.length - 1) d := by
@@ -180,10 +181,7 @@ theorem transcriptLength_le_length_encIPShape (g : List (IPMove × ℕ)) :
   | nil => simp [transcriptLength]
   | cons x g ih =>
     obtain ⟨m, n⟩ := x
-    simp only [transcriptLength, List.map_cons, List.sum_cons, encIPShape, encList_cons,
-      List.length_append, length_frame, length_encPair, encUnary_apply,
-      List.length_replicate] at ih ⊢
-    omega
+    enc_len [transcriptLength, List.map_cons, List.sum_cons, encIPShape] at ih ⊢
 
 /-- Evaluating a fixed polynomial private-coin shape `G` at unary `n` is polynomial-time. -/
 theorem computableInPolyTime_evalShape (G : List (IPMove × Polynomial ℕ)) :
@@ -223,7 +221,7 @@ theorem computableInPolyTime_transcriptLength_dyn {γ : Type} {encIn : γ ↪ Li
     ComputableInPolyTime (fun x => transcriptLength (g x)) encIn encUnary := by
   obtain ⟨c, d, hlen⟩ := hg.polyBounded_length.exists_le
   have hstep : ComputableInPolyTime (fun p : (Bool × ℕ) × (IPMove × ℕ) => p.1.2 + p.2.2)
-      (encFoldStep encBool encUnary (encPair encIPMove encUnary)) encUnary := by
+      (encPair (encPair encBool encUnary) (encPair encIPMove encUnary)) encUnary := by
     fun_prop
   have hspec := ComputableInPolyTime.foldlWith_spec
     (encP := encBool) (encB := encUnary) (encA := encPair encIPMove encUnary) (encL := encIPShape)
@@ -263,10 +261,10 @@ theorem computableInPolyTime_verifierMoves_dyn {γ : Type} {encIn : γ ↪ List 
   obtain ⟨c, d, hlen⟩ := hg.polyBounded_length.exists_le
   have hstep : ComputableInPolyTime
       (fun p : (Bool × ℕ) × (IPMove × ℕ) => p.1.2 + if p.2.1 = .verifier then 1 else 0)
-      (encFoldStep encBool encUnary (encPair encIPMove encUnary)) encUnary := by
+      (encPair (encPair encBool encUnary) (encPair encIPMove encUnary)) encUnary := by
     refine ComputableInPolyTime.unary_add' ((ComputableInPolyTime.snd _ _).comp (.fst _ _)) ?_
     have hmbool : ComputableInPolyTime (fun p : (Bool × ℕ) × (IPMove × ℕ) => p.2.1.toBool)
-        (encFoldStep encBool encUnary (encPair encIPMove encUnary)) encBool :=
+        (encPair (encPair encBool encUnary) (encPair encIPMove encUnary)) encBool :=
       ((ComputableInPolyTime.fst encIPMove encUnary).comp (.snd _ _)).of_enc_eq fun _ => rfl
     exact (hmbool.ite (ComputableInPolyTime.const 0) (ComputableInPolyTime.const 1)).of_enc_eq
       fun p => by cases p.2.1 <;> rfl
@@ -424,9 +422,7 @@ theorem computableInPolyTime_agrees_dyn {γ : Type} {enc : α ↪ List Bool} {en
       (fun x => agrees (fun j p => msg (a x, c x, j, p)) (g x) (j₀ x) (p₀ x) (t₀ x))
       encIn encBool := by
   let encAg : (((α × List Bool) × AgreesState) × (IPMove × ℕ)) ↪ List Bool :=
-    encFoldStep (encPair enc encBits)
-      encAgreesState
-      (encPair encIPMove encUnary)
+    encPair (encPair (encPair enc encBits) encAgreesState) (encPair encIPMove encUnary)
   have hstep : ComputableInPolyTime
       (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) =>
         agreesStep msg q.1.1 q.1.2 q.2)
@@ -435,30 +431,30 @@ theorem computableInPolyTime_agrees_dyn {γ : Type} {enc : α ↪ List Bool} {en
     unfold agreesStep
     have ha' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.1.1.1) encAg enc := by
-      fun_prop
+      exact (ComputableInPolyTime.fst _ _).fst'.fst'
     have hc' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.1.1.2) encAg encBits := by
-      fun_prop
+      exact (ComputableInPolyTime.fst _ _).fst'.snd'
     have hj' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.1.2.j) encAg encUnary := by
-      fun_prop
+      exact encAgreesState_j_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hp' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.1.2.p) encAg encBits := by
-      fun_prop
+      exact encAgreesState_p_polyTime (ComputableInPolyTime.fst _ _).snd'
     have ht' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.1.2.t)
         encAg encBits := by
-      fun_prop
+      exact encAgreesState_t_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hok' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.1.2.ok)
         encAg encBool := by
-      fun_prop
+      exact encAgreesState_ok_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hm' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.2.1) encAg encIPMove := by
-      fun_prop
+      exact (ComputableInPolyTime.snd _ _).fst'
     have hn' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) => q.2.2) encAg encUnary := by
-      fun_prop
+      exact (ComputableInPolyTime.snd _ _).snd'
     have hmsg' : ComputableInPolyTime
         (fun q : ((α × List Bool) × AgreesState) × (IPMove × ℕ) =>
           msg (q.1.1.1, q.1.1.2, q.1.2.j, q.1.2.p)) encAg encBits :=
@@ -596,8 +592,8 @@ theorem computableInPolyTime_repeatMsg_dyn {γ : Type} {enc : α ↪ List Bool} 
   have htake : ComputableInPolyTime (fun y : γ × ℕ => toAM ((g y.1).take (j y.1)))
       (encPair encIn encUnary) encAMShape :=
     computableInPolyTime_toAM_dyn
-      (.of_tidy (ComputableTidilyInPolyTime.listTakeWithInput (hg.comp hx1).tidy
-        (hj.comp hx1).tidy))
+      ((ComputableInPolyTime.listTakeWithInput (hg.comp hx1)
+        (hj.comp hx1)))
   have hcopy := AMGame.computableInPolyTime_copyTranscript_dyn
     (hT.comp hx1) hi htake (hp.comp hx1)
   have hrow := ComputableInPolyTime.bitsRowWithInput (hρ.comp hx1) hi (hc.comp hx1)
@@ -774,8 +770,7 @@ theorem computableInPolyTime_check_dyn {γ : Type} {encIn : γ ↪ List Bool}
     ComputableInPolyTime
       (fun x => check (B x) (Z x) (K x) (V x) (g x) (κ x) (p x) (w x)) encIn encBool := by
   let encCh : (((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ)) ↪ List Bool :=
-    encFoldStep (encPair encUnary (encPair encUnary encUnary))
-      (encCheckState)
+    encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCheckState)
       (encPair encIPMove encUnary)
   let encSt : CheckState ↪ List Bool :=
     encCheckState
@@ -785,31 +780,31 @@ theorem computableInPolyTime_check_dyn {γ : Type} {encIn : γ ↪ List Bool}
       encCh encSt := by
     have hBq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.1.1.1) encCh encUnary := by
-      fun_prop
+      exact (ComputableInPolyTime.fst _ _).fst'.fst'
     have hZq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.1.1.2.1) encCh encUnary := by
-      fun_prop
+      exact (ComputableInPolyTime.fst _ _).fst'.snd'.fst'
     have hKq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.1.1.2.2) encCh encUnary := by
-      fun_prop
+      exact (ComputableInPolyTime.fst _ _).fst'.snd'.snd'
     have hκq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.1.2.κ) encCh encUnary := by
-      fun_prop
+      exact encCheckState_κ_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hpq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.1.2.p) encCh encBits := by
-      fun_prop
+      exact encCheckState_p_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hwq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.1.2.w) encCh encBits := by
-      fun_prop
+      exact encCheckState_w_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hokq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.1.2.ok) encCh encBool := by
-      fun_prop
+      exact encCheckState_ok_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hmq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.2.1) encCh encIPMove := by
-      fun_prop
+      exact (ComputableInPolyTime.snd _ _).fst'
     have hnq : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) => q.2.2) encCh encUnary := by
-      fun_prop
+      exact (ComputableInPolyTime.snd _ _).snd'
     have hvBranch : ComputableInPolyTime
         (fun q : ((ℕ × ℕ × ℕ) × CheckState) × (IPMove × ℕ) =>
           checkStep q.1.1.1 q.1.1.2.1 q.1.1.2.2 q.1.2 (.verifier, q.2.2))
@@ -1116,24 +1111,23 @@ theorem computableInPolyTime_mergeMerlin {γ : Type} {encIn : γ ↪ List Bool}
     ComputableInPolyTime (fun x => AMGame.mergeMerlin (g x)) encIn encAMShape := by
   let encSt : MergeState ↪ List Bool := encMergeState
   let encMe : ((Bool × MergeState) × (AMMove × ℕ)) ↪ List Bool :=
-    encFoldStep encBool encSt (encPair encAMMove encUnary)
+    encPair (encPair encBool encSt) (encPair encAMMove encUnary)
   have hstep : ComputableInPolyTime
       (fun q : (Bool × MergeState) × (AMMove × ℕ) => mergeStep q.1.2 q.2)
       encMe encSt := by
     have hopt : ComputableInPolyTime
         (fun q : (Bool × MergeState) × (AMMove × ℕ) => q.1.2.pending)
           encMe (encOption encUnary) :=
-      by
-      fun_prop
+      encMergeState_pending_polyTime ((ComputableInPolyTime.fst _ _).snd')
     have hacc : ComputableInPolyTime
         (fun q : (Bool × MergeState) × (AMMove × ℕ) => q.1.2.history) encMe encAMShape := by
-      fun_prop
+      exact encMergeState_history_polyTime (ComputableInPolyTime.fst _ _).snd'
     have hm : ComputableInPolyTime
         (fun q : (Bool × MergeState) × (AMMove × ℕ) => q.2.1) encMe encAMMove := by
-      fun_prop
+      exact (ComputableInPolyTime.snd _ _).fst'
     have hn : ComputableInPolyTime
         (fun q : (Bool × MergeState) × (AMMove × ℕ) => q.2.2) encMe encUnary := by
-      fun_prop
+      exact (ComputableInPolyTime.snd _ _).snd'
     have haBranch : ComputableInPolyTime
         (fun q : (Bool × MergeState) × (AMMove × ℕ) =>
           mergeStep q.1.2 (.arthur, q.2.2)) encMe encSt := by
@@ -1154,15 +1148,15 @@ theorem computableInPolyTime_mergeMerlin {γ : Type} {encIn : γ ↪ List Bool}
         have hq : ComputableInPolyTime
             (fun p : ((Bool × MergeState) × (AMMove × ℕ)) × ℕ => p.1.2.2)
             (encPair encMe encUnary) encUnary := by
-          fun_prop
+          exact (ComputableInPolyTime.fst _ _).snd'.snd'
         have hm2 : ComputableInPolyTime
             (fun p : ((Bool × MergeState) × (AMMove × ℕ)) × ℕ => p.2)
             (encPair encMe encUnary) encUnary := by
-          fun_prop
+          exact ComputableInPolyTime.snd _ _
         have hacc2 : ComputableInPolyTime
             (fun p : ((Bool × MergeState) × (AMMove × ℕ)) × ℕ => p.1.1.2.history)
             (encPair encMe encUnary) encAMShape := by
-          fun_prop
+          exact encMergeState_history_polyTime ((ComputableInPolyTime.fst _ _).fst'.snd')
         have eA : ComputableInPolyTime
             (fun p : ((Bool × MergeState) × (AMMove × ℕ)) × ℕ => (AMMove.arthur, p.1.2.2))
             (encPair encMe encUnary) (encPair encAMMove encUnary) :=
@@ -1241,10 +1235,7 @@ theorem computableInPolyTime_mergeMerlin {γ : Type} {encIn : γ ↪ List Bool}
         | cons y ys ih =>
           obtain ⟨m, n⟩ := y
           have hm1 : (encAMMove m).length = 1 := by cases m <;> rfl
-          simp only [encAMShape, encList_cons, List.length_append, length_frame, length_encPair,
-            hm1, encUnary_apply, List.length_replicate, List.length_cons, AMGame.transcriptLength,
-            List.map_cons, List.sum_cons] at ih ⊢
-          omega
+          enc_len [encAMShape, hm1, AMGame.transcriptLength, List.map_cons, List.sum_cons] at ih ⊢
       have hOptLen : (encOption encUnary st.pending).length ≤ 1 + st.pending.getD 0 := by
         cases st.pending with
         | none => simp
@@ -1596,8 +1587,8 @@ private theorem computableInPolyTime_truncShape {g₀ : ℕ → List (IPMove × 
     computableInPolyTime_unaryOdd.comp hlen
   have htake : ComputableInPolyTime (fun n => (g₀ n).take ((g₀ n).length - 1))
       encUnary encIPShape :=
-    .of_tidy (ComputableTidilyInPolyTime.listTakeWithInput hgp₀.tidy
-      (ComputableInPolyTime.unary_sub' hlen (ComputableInPolyTime.const 1)).tidy)
+    (ComputableInPolyTime.listTakeWithInput hgp₀
+      (ComputableInPolyTime.unary_sub' hlen (ComputableInPolyTime.const 1)))
   exact (hodd.ite htake hgp₀).of_enc_eq fun n => by
     simp only [truncShape, decide_eq_true_eq]
 

@@ -15,12 +15,12 @@ cyclic group `ZMod 5` of order `5` with generator `1 : ZMod 5`:
   `if σ then m₁ else m₀`.
 * Computational check (`decide`) that on the unchecked variant `ddhOTSenderReplyUnchecked`,
   `ddhOTAttackBothMessages` simultaneously recovers `(m₀, m₁)`.
-* `ddhOT_output_of_mem_support`: in every execution of `ddhOTProtocol` over `ZMod 5`, the outputs
-  equal `otOutputs x`.
+* `ddhOTProtocolWith_output_of_mem_support`: in every execution of `ddhOTProtocol` over `ZMod 5`,
+  the outputs equal `otOutputs x`.
 * `idealJoint_ddhOT_sender` and `semiHonestAdvantage_ddhOT_sender`: unconditional perfect privacy
   (zero distinguishing advantage) against a corrupted sender.
-* `semiHonestAdvantage_ddhOT_receiver_eq`: computational privacy against a corrupted receiver
-  reduced tightly to the fixed-group DDH advantage `Cslib.Crypto.ddhAdvantage`.
+* `semiHonestAdvantage_ddhOT_receiver_eq`: privacy against a corrupted receiver, as a per-instance
+  equality with the fixed-group DDH advantage `Cslib.Crypto.ddhAdvantage`.
 * `ddhOTUnchecked_malicious_receiver_advantage`: against `ddhOTUncheckedProtocol`, any simulator
   that picks one query bit `τ` and receives only `m_τ` falls short of the malicious receiver's
   simultaneous-recovery success probability on `ZMod 5` by at least `1 - 5⁻¹`. -/
@@ -57,7 +57,7 @@ example (x : (i : Fin 2) → OTIn (ZMod 5) i)
       ((i : Fin 2) → OTOut (ZMod 5) i)}
     (hr : r ∈ ((ddhOTProtocol (1 : ZMod 5) 5).evalWith noOracleWorld x).support) :
     r.2 = otOutputs x :=
-  ddhOT_output_of_mem_support (1 : ZMod 5) 5 x hr
+  ddhOTProtocolWith_output_of_mem_support (1 : ZMod 5) 5 x hr
 
 -- Perfect privacy against a corrupted sender over ZMod 5.
 example (x : (i : Fin 2) → OTIn (ZMod 5) i) :
@@ -83,7 +83,7 @@ example (x : (i : Fin 2) → OTIn (ZMod 5) i)
     semiHonestAdvantage (ddhOTProtocol (1 : ZMod 5) 5) noOracleWorld
         (otFunctionality (ZMod 5)) {1} (ddhOTReceiverSim (1 : ZMod 5) 5) x D =
       ddhAdvantage 5 (1 : ZMod 5) (ddhOTReduction (1 : ZMod 5) 5 x D) :=
-  semiHonestAdvantage_ddhOT_receiver_eq (1 : ZMod 5) 5 zmod5_card zmod5_gen x D
+  semiHonestAdvantage_ddhOT_receiver_eq (1 : ZMod 5) 5 zmod5_gen x D
 
 -- Unchecked malicious-receiver separation against any simulator choosing one query bit τ.
 example (b₀ b₁ : ZMod 5) (S : ProbComp (Bool × (ZMod 5 → ProbComp (ZMod 5 × ZMod 5)))) :

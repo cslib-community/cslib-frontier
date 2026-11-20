@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Nat
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 
 /-!
@@ -32,15 +33,18 @@ elements.
 * `Turing.MultiTapeTM.frames`: the framed words one after another in a word.
 * `Turing.MultiTapeTM.ofBits`: binary digits, least significant first, read as a number.
 * `Turing.MultiTapeTM.Decoder`: total decoders with plain certificates of independent fixed degrees.
-* `Turing.MultiTapeTM.Decoder.bits`, `.unary`, `.nat`, `.bool`, `.option`, `.pair`, `.list`, `.map`:
-  decoders of bit strings, unary and binary numbers, Booleans, options, pairs and lists, and
-  transport along an equivalence of encodings.
+* `Turing.MultiTapeTM.Decoder.bits`, `.unary`, `.nat`, `.bool`, `.option`, `.pair`, `.sum`, `.list`,
+  `.map`: decoders of bit strings, unary and binary numbers, Booleans, options, pairs, sums and
+  lists, and transport along an equivalence of encodings.
 
 ## Main results
 
-* `Turing.MultiTapeTM.frames_encList`: the framed words of an encoded list are its encoded
-  elements.
-* `Turing.MultiTapeTM.computableInDegree_frames`: splitting into framed words is linear.
+* `Turing.MultiTapeTM.frames_encList`, `Turing.MultiTapeTM.encList_eq_encList_bits_map`: the framed
+  words of an encoded list are its encoded elements, and `encList enc l` is `encList encBits` of
+  `l.map enc`.
+* `Turing.MultiTapeTM.computableInDegree_frames`,
+  `Turing.MultiTapeTM.computableInPolyTime_frames`: splitting into framed words is linear and
+  computable in polynomial time.
 * `Turing.MultiTapeTM.bits_ofBits`: the binary digits of a word read as a number are the word up
   to its last `true`.
 -/
@@ -96,6 +100,13 @@ theorem frames_encList {α : Type*} (enc : α ↪ List Bool) (l : List α) :
   | cons a l ih =>
     rw [encList_cons, frames_frame_append, ih, List.map_cons]
 
+/-- `encList enc l` is `encList encBits (l.map enc)`. -/
+theorem encList_eq_encList_bits_map {α : Type*} (enc : α ↪ List Bool) (l : List α) :
+    encList enc l = encList encBits (l.map enc) := by
+  induction l with
+  | nil => rfl
+  | cons a l ih => simp [encList_cons, ih]
+
 /-- The states of the transducer splitting a word into framed words: between frames, inside a
 frame after a marker, and inside a frame after a symbol. -/
 inductive FramesState
@@ -106,6 +117,10 @@ instance : Finite FramesState :=
   Finite.of_surjective (fun i : Fin 3 => [FramesState.between, .marker, .symbol][i]) fun q => by
     cases q
     exacts [⟨0, rfl⟩, ⟨1, rfl⟩, ⟨2, rfl⟩]
+
+/-- Constructive enumeration of the three list-frame parser states. -/
+instance : Fintype FramesState :=
+  ⟨{FramesState.between, .marker, .symbol}, fun state => by cases state <;> simp⟩
 
 /-- Splits a word into framed words, closing a final incomplete frame. -/
 @[simps q₀ step final]
@@ -163,6 +178,11 @@ theorem computableInDegree_frames :
     simpa only [show framesT.q₀ = .between from rfl, framesT_run, encBits,
       Function.Embedding.refl_apply, pow_one] using hlen.trans
         (by omega : 2 * w.length + 3 ≤ 3 * (w.length + 1))
+
+/-- Splitting a word into its framed words is computable in polynomial time. -/
+@[fun_prop] theorem computableInPolyTime_frames :
+    ComputableInPolyTime frames encBits (encList encBits) :=
+  computableInDegree_frames.computableInPolyTime
 
 /-! ### Decoders -/
 

@@ -30,6 +30,55 @@ private theorem productBank_injective : Function.Injective productBank := by
   intro i j h
   exact Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
 
+/-- Combined physical word/address envelope required by the product-and-verifier composition
+at heap base `heap`, query count `Q` and product-answer offset `offset`. -/
+abbrev witnessWindow (n d g heap Q offset : ℕ) : ℕ :=
+  4 * heap + 4 * CallableProduct.windowSize n Q + offset + 4 * Q + 4 * d +
+    2 * (n * d) + 9 * (n * n) + 4 * n + g + 4096
+
+/-- Shared postcondition of executing 400-register product-and-verifier program `prog` with
+product instruction budget `productTime qs`: exact scan/verdict accounting, signed product answers,
+original-coordinate witness soundness and caller memory/register frames. -/
+abbrev WitnessPost (prog : Code .standard 400) {w m n g p : ℕ} (hD : 16 ≤ D m) (hN : D m ^ 18 ≤ n)
+    (values : ℕ → ℤ) (AB BC AC : ℕ → ℕ → ℤ) (x : Data 400) (idx : InstanceIndex p)
+    (productTime : List (Fin n × Fin n) → ℕ) : Prop :=
+  let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
+    ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
+  let q := RecordProduct.recordQueries n (D m) p idx
+  let Q := RecordProduct.recordQueryCount n (D m) p values idx
+  let qs := RecordProduct.decodedQueries hn x.mem q Q
+  let first := idx.piece * pieceSize (D m) g
+  let length := min (pieceSize (D m) g) (n - first)
+  ∃ y S, ExecWithin (w + 2) prog x y
+      (productTime qs + 5 * Nat.sqrt (D m) + 8 * Q +
+        (42 * length + 28) * S + 52) ∧
+    y.regs Reg.scans = S ∧ (y.regs Reg.found = 0 ∨ y.regs Reg.found = 1) ∧
+    S ≤ Nat.count (fun j => y.mem (y.regs (productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
+      ∀ c : Fin length,
+        AB (x.mem (q + 2 * j)) (x.mem (q + 2 * j + 1)) +
+          BC (x.mem (q + 2 * j + 1)) (first + c.val) +
+          AC (x.mem (q + 2 * j)) (first + c.val) ≠ 0) Q + y.regs Reg.found ∧
+    (y.regs Reg.found = 1 ↔ ∃ j < Q,
+      y.mem (y.regs (productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
+      ∃ c, first ≤ c ∧ c < first + length ∧
+        AB (x.mem (q + 2 * j)) (x.mem (q + 2 * j + 1)) +
+          BC (x.mem (q + 2 * j + 1)) c + AC (x.mem (q + 2 * j)) c = 0) ∧
+    (∀ j : Fin qs.length,
+      y.mem (y.regs (productBank RecordProduct.Reg.result) + j.val) = Signed.encode
+        ((RecordProduct.leftMatrix m n g p values idx *
+          RecordProduct.rightMatrix m n g p values idx) (qs.get j).1 (qs.get j).2)) ∧
+    (y.regs Reg.found = 1 →
+      y.regs Reg.witnessA < n ∧ y.regs Reg.witnessB < n ∧
+      first ≤ y.regs Reg.witnessC ∧ y.regs Reg.witnessC < first + length ∧
+      AB (y.regs Reg.witnessA) (y.regs Reg.witnessB) +
+        BC (y.regs Reg.witnessB) (y.regs Reg.witnessC) +
+        AC (y.regs Reg.witnessA) (y.regs Reg.witnessC) = 0 ∧
+      ∃ j < Q, y.regs Reg.witnessA = x.mem (q + 2 * j) ∧
+        y.regs Reg.witnessB = x.mem (q + 2 * j + 1)) ∧
+    (∀ u, u < x.regs (productBank 42) ∨
+      x.regs (productBank 42) + CallableProduct.windowSize n Q ≤ u → y.mem u = x.mem u) ∧
+    (∀ j : Fin 320, j.val < 65 → y.regs (productBank j) = x.regs (productBank j))
+
 /-- Compose a proved product execution with the real consumer. The actual result offset,
 exact signed answers, outside-window frame and producer registers are the only product
 postconditions used. The selected physical descriptor need not retain any other record.
@@ -77,48 +126,10 @@ theorem exec_after_record_product {w U m n g p i : ℕ} (values : ℕ → ℤ)
           x.regs (productBank 42) + CallableProduct.windowSize n Q ≤ u →
           r.mem u = x.mem u) ∧
         (∀ j : Fin 320, j.val < 65 → r.regs j = x.regs (productBank j)))
-    (hfit : Fits (w + 2)
-      (4 * x.regs (productBank 42) +
-        4 * CallableProduct.windowSize n (RecordProduct.recordQueryCount n (D m) p values idx) +
-        offset +
-        4 * RecordProduct.recordQueryCount n (D m) p values idx + 4 * D m +
-        2 * (n * D m) + 9 * (n * n) + 4 * n + g + 4096)) :
-    let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
-      ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
-    let q := RecordProduct.recordQueries n (D m) p idx
-    let Q := RecordProduct.recordQueryCount n (D m) p values idx
-    let qs := RecordProduct.decodedQueries hn x.mem q Q
-    let first := idx.piece * pieceSize (D m) g
-    let length := min (pieceSize (D m) g) (n - first)
-    ∃ y S, ExecWithin (w + 2) (.seq (product.rename productBank) consume) x y
-        (T + 5 * Nat.sqrt (D m) + 8 * Q +
-          (42 * length + 28) * S + 52) ∧
-      y.regs Reg.scans = S ∧ (y.regs Reg.found = 0 ∨ y.regs Reg.found = 1) ∧
-      S ≤ Nat.count (fun j => y.mem (y.regs (productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
-        ∀ c : Fin length,
-          AB (x.mem (q + 2 * j)) (x.mem (q + 2 * j + 1)) +
-            BC (x.mem (q + 2 * j + 1)) (first + c.val) +
-            AC (x.mem (q + 2 * j)) (first + c.val) ≠ 0) Q + y.regs Reg.found ∧
-      (y.regs Reg.found = 1 ↔ ∃ j < Q,
-        y.mem (y.regs (productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
-        ∃ c, first ≤ c ∧ c < first + length ∧
-          AB (x.mem (q + 2 * j)) (x.mem (q + 2 * j + 1)) +
-            BC (x.mem (q + 2 * j + 1)) c + AC (x.mem (q + 2 * j)) c = 0) ∧
-      (∀ j : Fin qs.length,
-        y.mem (y.regs (productBank RecordProduct.Reg.result) + j.val) = Signed.encode
-          ((RecordProduct.leftMatrix m n g p values idx *
-            RecordProduct.rightMatrix m n g p values idx) (qs.get j).1 (qs.get j).2)) ∧
-      (y.regs Reg.found = 1 →
-        y.regs Reg.witnessA < n ∧ y.regs Reg.witnessB < n ∧
-        first ≤ y.regs Reg.witnessC ∧ y.regs Reg.witnessC < first + length ∧
-        AB (y.regs Reg.witnessA) (y.regs Reg.witnessB) +
-          BC (y.regs Reg.witnessB) (y.regs Reg.witnessC) +
-          AC (y.regs Reg.witnessA) (y.regs Reg.witnessC) = 0 ∧
-        ∃ j < Q, y.regs Reg.witnessA = x.mem (q + 2 * j) ∧
-          y.regs Reg.witnessB = x.mem (q + 2 * j + 1)) ∧
-      (∀ u, u < x.regs (productBank 42) ∨
-        x.regs (productBank 42) + CallableProduct.windowSize n Q ≤ u → y.mem u = x.mem u) ∧
-      (∀ j : Fin 320, j.val < 65 → y.regs (productBank j) = x.regs (productBank j)) := by
+    (hfit : Fits (w + 2) (witnessWindow n (D m) g (x.regs (productBank 42))
+      (RecordProduct.recordQueryCount n (D m) p values idx) offset)) :
+    WitnessPost (.seq (product.rename productBank) consume) (w := w) (g := g) hD hN values
+      AB BC AC x idx (fun _ => T) := by
   let heap := x.regs (productBank 42)
   let q := RecordProduct.recordQueries n (D m) p idx
   let Q := RecordProduct.recordQueryCount n (D m) p values idx

@@ -108,7 +108,7 @@ theorem length_le_of_reach {w₀ w : List Bool} (h : Reach List.tail w₀ w) :
 example : {w : List Bool | Wins List.tail w} ∈ APSPACE encBits :=
   mem_APSPACE_of_wins (I := id) (U := List.tail) (ℓ := List.length)
     ComputableInPolyTime.id'
-    ComputableTidilyInPolyTime.bitsTail.computableInPolyTime
+    ComputableInPolyTime.bitsTail
     (PolyBounded.of_forall_le 1 1 fun w => by simp)
     (fun _ _ h => length_le_of_reach h)
     (fun w => ⟨w.length, ends_tail _ w le_rfl⟩)
@@ -161,7 +161,7 @@ example : {w : List Bool | Wins List.tail w} ∈ EXP encBits := by
   rw [← APSPACE_eq_EXP]
   exact mem_APSPACE_of_wins (I := id) (U := List.tail) (ℓ := List.length)
     ComputableInPolyTime.id'
-    ComputableTidilyInPolyTime.bitsTail.computableInPolyTime
+    ComputableInPolyTime.bitsTail
     (PolyBounded.of_forall_le 1 1 fun w => by simp)
     (fun _ _ h => length_le_of_reach h)
     (fun w => ⟨w.length, ends_tail _ w le_rfl⟩)

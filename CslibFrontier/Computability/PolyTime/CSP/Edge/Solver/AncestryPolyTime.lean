@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Native chronological ancestry compiler certificates
@@ -115,9 +116,7 @@ private theorem traceStep_growth (F : CSP Table ℕ) (es : List ExpansionCode)
       List.mem_flatMap.mpr ⟨e, he, List.mem_map.mpr ⟨o, List.mem_of_find?_eq_some ho, rfl⟩⟩
     have hb := length_le_encList_of_mem encTraceCode hm
     simp only [Option.elim_some]
-    simp only [atom, encTraceCode_apply, encTraceCodeFields, length_encPair, encList_cons,
-      encList_nil, List.length_append, length_frame, List.length_nil] at hb ⊢
-    omega
+    enc_len [atom, encTraceCode_apply, encTraceCodeFields] at hb ⊢
 
 /-- A backwards chronological scan is native polynomial-time on all raw logs and suffixes.
 Every intermediate code is bounded by the full encoded parent-record envelope. -/
@@ -125,16 +124,15 @@ theorem computableInPolyTime_trace : ComputableInPolyTime
     (fun p : CSP Table ℕ × List ExpansionCode × TraceCode => trace p.1 p.2.1 p.2.2)
     encTraceArgs encTraceCode := by
   unfold trace
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.foldlWithInput_of_bounded_growth
+  apply ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encTimedExpansion) (encL := encList encTimedExpansion)
     (growth := fun p => (encList encTraceCode (atoms p.1 p.2.1)).length)
     (show ComputableInPolyTime (fun p : CSP Table ℕ × List ExpansionCode × TraceCode => p.2.2)
-      encTraceArgs encTraceCode from by fun_prop).tidy
-  · refine ⟨?_, poly_traceStep.tidy, inferInstance, inferInstance⟩
+      encTraceArgs encTraceCode from by fun_prop)
+  · refine ⟨?_, poly_traceStep, inferInstance, inferInstance⟩
     exact (poly_timedWith (show ComputableInPolyTime
       (fun p : CSP Table ℕ × List ExpansionCode × TraceCode => p.2.1)
-      encTraceArgs (encList encExpansionCode) from by fun_prop)).tidy
+      encTraceArgs (encList encExpansionCode) from by fun_prop))
   · exact ⟨poly_atoms.polyBounded_length, fun p s e he => traceStep_growth p.1 p.2.1 s e he⟩
 
 /-- Body and expansion log are framed, followed by the queried binary original name. -/
@@ -171,20 +169,7 @@ private theorem poly_nodesWith {α : Type} {e : α ↪ List Bool}
     ComputableInPolyTime (fun a => nodes (F a) (p a)) e (encList encNodeCode) := by
   simpa only [Function.comp_def] using poly_nodes.comp (hF.prod hp)
 
-private theorem poly_takeWhileWith {α β : Type} {e : α ↪ List Bool}
-    {eb : β ↪ List Bool} {xs : α → List β} {pred : α → β → Bool}
-    (hx : ComputableInPolyTime xs e (encList eb))
-    (hp : ComputableInPolyTime (fun p : α × β => pred p.1 p.2) (encPair e eb) encBool) :
-    ComputableInPolyTime (fun a => (xs a).takeWhile (pred a)) e (encList eb) := by
-  have hn := NativeWalk.computableInPolyTime_findIdxWith (pred := fun a b => !(pred a b)) hx
-    (show ComputableInPolyTime (fun p : α × β => !(pred p.1 p.2))
-      (encPair e eb) encBool from by fun_prop)
-  simpa only [List.takeWhile_eq_take_findIdx_not] using
-    (show ComputableInPolyTime
-      (fun a => (xs a).take ((xs a).findIdx (fun b => !(pred a b)))) e (encList eb)
-      from by fun_prop)
-
-attribute [local fun_prop] poly_ancestryWith poly_nodesWith poly_takeWhileWith
+attribute [local fun_prop] poly_ancestryWith poly_nodesWith
 
 /-- Body and left ancestry are framed, followed by the right ancestry with unary timestamps. -/
 private abbrev encCommonArgs := encPair (encCSP encTable encNat)
@@ -281,10 +266,10 @@ theorem computableInPolyTime_blossom : ComputableInPolyTime
     fun_prop
   have hgetL : ComputableInPolyTime (fun p => (left p).steps[k p]?) encMeetingArgs
       (encOption (encPair encNat encNat)) := by
-    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (poly_steps.comp hl).tidy hk.tidy)
+    exact (ComputableInPolyTime.getElem? (poly_steps.comp hl) hk)
   have hgetR : ComputableInPolyTime (fun p => (right p).steps[k p]?) encMeetingArgs
       (encOption (encPair encNat encNat)) := by
-    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (poly_steps.comp hr).tidy hk.tidy)
+    exact (ComputableInPolyTime.getElem? (poly_steps.comp hr) hk)
   have hrb : ComputableInPolyTime (fun p : (CSP Table ℕ × MeetingCode) × (ℕ × ℕ) => rb p.1 p.2)
       (encPair encMeetingArgs (encPair encUnary encUnary)) (encOption encBlossomCode) := by
     dsimp only [rb]

@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Step
 public import CslibFrontier.Foundations.NumberTheory.SqrtPrimeWindow
 import all CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Step
 import Mathlib.Data.Nat.Sqrt
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native selection loop composed with a finite counting call
@@ -64,7 +65,7 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
       ∃ z, ExecWithin w (body counter) y z (T + 7 * Nat.sqrt D + 18) ∧ I z ∧
         Nat.sqrt D + 1 - z.regs Reg.cursor < Nat.sqrt D + 1 - y.regs Reg.cursor := by
     obtain ⟨hstatic, ho, hz, hf, hk2, hkmax, hsq, hbest, hSource⟩ := hy
-    have hyD : y.regs Reg.window = D := (hstatic Reg.window (by decide)).trans hxD
+    have hyD : y.regs Reg.window = D := by regs_frame
     have hupper : y.regs Reg.cursor * y.regs Reg.cursor < D := by
       simpa only [Cond.holds_lt, hsq, hyD] using hc
     have hk : y.regs Reg.cursor ≤ Nat.sqrt D := Nat.le_sqrt.2 hupper.le
@@ -100,7 +101,7 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
     obtain ⟨v, hv, hvbest, hvSource, hvr⟩ := exec_candidate_bestBefore counter score Source u
       (by simpa +decide [u, Reg.zero, Reg.fourSquare] using hz)
       (by simpa +decide [u, Reg.one, Reg.fourSquare] using ho)
-      ((huStatic Reg.window (by decide)).trans hxD) (by simpa only [huk] using hk2)
+      (by regs_frame) (by simpa only [huk] using hk2)
       (by simpa only [huk] using hupper) (by simp [u, huk])
       (by simpa only [huk] using htrialFit) hSource
       (by simpa +decide [u, Reg.cursor, Reg.best, Reg.bestCount, Reg.found, Reg.fourSquare]
@@ -111,25 +112,20 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
           (fun i hi => (hmeta i (by omega)).trans (huStatic i hi))
           (by simpa only [hmeta Reg.cursor (by decide)] using hwindow)
         exact ⟨b, hb, by simpa only [hmeta Reg.cursor (by decide)] using hbscore, hbSource⟩)
-    have hvk : v.regs Reg.cursor = y.regs Reg.cursor := (hvr Reg.cursor (by decide)).trans huk
-    have hvone : v.regs Reg.one = 1 :=
-      (hvr Reg.one (by decide)).trans (by simpa +decide [u, Reg.one, Reg.fourSquare] using ho)
+    have hvk : v.regs Reg.cursor = y.regs Reg.cursor := by regs_frame
+    have hvone : v.regs Reg.one = 1 := by regs_frame
     obtain ⟨z, hzrun, hzk, hzsq, hzm, hzr⟩ := exec_advance v hvone
       (by simpa only [hvk] using hnewFit)
     have hzk' : z.regs Reg.cursor = y.regs Reg.cursor + 1 := by simpa only [hvk] using hzk
-    have hzframe (i : Fin 160) (hi : 131 ≤ i.val)
-        (hk : i ≠ Reg.cursor) (hs : i ≠ Reg.square) (hf : i ≠ Reg.fourSquare) :
-        z.regs i = y.regs i :=
-      (hzr i hk hs).trans ((hvr i hi).trans (Function.update_of_ne hf _ _))
     have he : ExecWithin w (body counter) y z (T + 7 * Nat.sqrt D + 18) :=
       (hprep.seq (hv.seq hzrun)).mono (by rw [huk]; omega)
     refine ⟨z, he, ?_, ?_⟩
     · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
       · intro i hi
         exact (he.regs_eq ((preserves_input counter i (Or.inl hi)).2)).trans (hstatic i hi)
-      · exact (hzframe Reg.one (by decide) (by decide) (by decide) (by decide)).trans ho
-      · exact (hzframe Reg.zero (by decide) (by decide) (by decide) (by decide)).trans hz
-      · exact (hzframe Reg.four (by decide) (by decide) (by decide) (by decide)).trans hf
+      · regs_frame
+      · regs_frame
+      · regs_frame
       · rw [hzk']; omega
       · rw [hzk']; omega
       · simpa only [hvk, hzk'] using hzsq
@@ -141,11 +137,8 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
     · rw [hzk']; omega
   let x₀ := (((((((x.set Reg.one 1).set Reg.zero 0).set Reg.four 4).set Reg.cursor 2).set
     Reg.square 4).set Reg.best 0).set Reg.bestCount 0).set Reg.found 0
-  have h1 : Fits w 1 := hfit.of_le (by omega)
-  have h2 : Fits w 2 := hfit.of_le (by omega)
-  have h4 : Fits w 4 := hfit.of_le (by omega)
   have hinit : ExecWithin w setup x x₀ 8 := by
-    ram_eval [setup, x₀, h1, h2, h4, Reg.one, Reg.zero, Reg.four, Reg.cursor,
+    ram_eval [setup, x₀, Reg.one, Reg.zero, Reg.four, Reg.cursor,
       Reg.square, Reg.best, Reg.bestCount, Reg.found, Fin.mk.injEq]
   have hx₀ : I x₀ := by
     refine ⟨?_, rfl, rfl, rfl, by change 2 ≤ 2; omega, ?_, rfl,
@@ -158,7 +151,7 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
   obtain ⟨y, he, hy, hstop⟩ := ExecWithin.loop_invariant I
     (fun y => Nat.sqrt D + 1 - y.regs Reg.cursor) hbody hx₀
   obtain ⟨hstatic, _, _, _, _, _, hsq, hbest, hSource⟩ := hy
-  have hDy : y.regs Reg.window = D := (hstatic Reg.window (by decide)).trans hxD
+  have hDy : y.regs Reg.window = D := by regs_frame
   have hstop' : D ≤ y.regs Reg.cursor * y.regs Reg.cursor := by
     simpa only [Cond.holds_lt, hsq, hDy, not_lt] using hstop
   obtain ⟨hfound, hwindow, hvalue, hminimum⟩ := bestBefore_exit hbest hne hstop'

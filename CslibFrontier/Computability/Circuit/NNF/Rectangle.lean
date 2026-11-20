@@ -181,7 +181,7 @@ private theorem isBalancedRectangle_nodeRect (hn : 2 ≤ Fintype.card ι) (v : N
           piecewise_mem_certRect h.choose_spec.1 hx hz
       · exact isBalancedRectangle_empty hX₀
       · exact isBalancedRectangle_empty hX₀
-    all_goals exact isBalancedRectangle_empty hX₀
+    exact isBalancedRectangle_empty hX₀
 
 private theorem nodeRect_subset (hC : C.IsDecomposable) (v : N) :
     nodeRect C v ⊆ C.toFun ⁻¹' {true} := by
@@ -196,7 +196,7 @@ private theorem nodeRect_subset (hC : C.IsDecomposable) (v : N) :
       · exact certRect_subset hC h.choose_spec.2.1 fun z hz => by simp [eval_or hg, hz]
       · exact empty_subset _
       · exact empty_subset _
-    all_goals exact empty_subset _
+    exact empty_subset _
 
 private theorem isBalanced_iff {X : Finset ι} :
     IsBalanced X ↔ Fintype.card ι ≤ 3 * X.card ∧ 3 * X.card ≤ 2 * Fintype.card ι := by

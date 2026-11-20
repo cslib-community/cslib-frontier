@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Search
 import CslibFrontier.Algorithms.ThreeSum.ChanHe.SelectorBounds
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native setup of the two Chan–He prime searches
@@ -88,10 +89,9 @@ theorem exec_firstSetup {w : ℕ} (x : Data 64) (h3 : Fits w 3)
     (hsq : ∀ j, Fits w (x.regs (CountCall.length j) ^ 2))
     (hcut : ∀ j, Fits w (3 * x.regs digits * x.regs (CountCall.length j) ^ 2)) :
     ExecWithin w firstSetup x (firstState x) 9 := by
-  have h1 : Fits w 1 := h3.of_le (by omega)
   simp only [digits] at htriple
   simp only [CountCall.length, pow_two] at hsq hcut
-  ram_eval [firstSetup, firstState, h3, h1, htriple, hsq 0, hsq 1, hsq 2,
+  ram_eval [firstSetup, firstState, h3, htriple, hsq 0, hsq 1, hsq 2,
     hcut 0, hcut 1, hcut 2, digits, multiplier, Search.rawModulus, Search.factor,
     CountCall.length, CollisionTest.threshold, Fin.mk.injEq, pow_two, Nat.mul_comm]
 
@@ -467,7 +467,7 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     (show c.regs CountCall.modulus = 2 * p from rfl)
   obtain ⟨d, hd, hds, hdcounts, hdr⟩ := exec_counts x c values (by omega)
     (hp.2.trans (Nat.le_self_pow two_ne_zero _)) hmod hfits hcs hcm hvalues hsk hkd hinput hinj
-  have hdvalue : d.regs first = p := (hdr first (by decide)).trans (by rfl)
+  have hdvalue : d.regs first = p := by regs_frame
   have hddigits : d.regs digits = x.regs digits := hds.1 _ (by decide)
   have hcoll (j : Fin 3) : coll (S j) p ≤ x.regs (CountCall.length j) ^ 2 := by
     have hsize : (S j).card ≤ x.regs (CountCall.length j) :=

@@ -213,6 +213,10 @@ theorem adjBool_eq_false_iff (G : Graph) (u v : ℕ) :
     G.adjBool u v = false ↔ ¬G.toSimpleGraph.Adj u v := by
   rw [← Bool.not_eq_true, ← adjBool_eq_true_iff, Bool.not_eq_true]
 
+/-- Adjacency in `G.induced` is decided by the executable test `Cslib.Complexity.Graph.adjBool`. -/
+instance instDecidableRelInducedAdj (G : Graph) : DecidableRel G.induced.Adj := fun u v =>
+  decidable_of_iff (G.adjBool u v = true) (by rw [adjBool_eq_true_iff, induced_adj])
+
 /-- Testing adjacency in an encoded graph is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_adjBool :
@@ -470,13 +474,7 @@ theorem computableInPolyTime_verifyOrdering {α : Type} {enc : α ↪ List Bool}
     (hcheck : ComputableInPolyTime (fun q : α × List ℕ => check q.1 q.2)
       (encPair enc (encList encNat)) encBool) :
     ComputableInPolyTime (verifyOrdering V check) (encPair enc encBits) encBool := by
-  have hV' : ComputableInPolyTime (fun x : α × List Bool => V x.1) (encPair enc encBits)
-      (encList encNat) := hV.comp (fst _ _)
-  have hp : ComputableInPolyTime (fun x : α × List Bool => decodeVertexList (V x.1) x.2)
-      (encPair enc encBits) (encList encNat) :=
-    computableInPolyTime_decodeVertexList.comp (hV'.prod (snd _ _))
-  exact (computableInPolyTime_enumeratesBool.comp (hV'.prod hp)).bool_and'
-    (hcheck.comp ((fst _ _).prod hp))
+  fun_prop [verifyOrdering]
 
 end Graph
 

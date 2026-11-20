@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Simulation
 
 /-!
@@ -58,13 +59,11 @@ theorem closeTo_run_interpret_simulation (cost : ι → ℕ)
       (d * ε) := by
   induction hd generalizing s with
   | pure a n =>
-    simp only [run_interpret_pure, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.map,
-      Function.comp_def]
+    simp only [interp_norm, pmf_norm, PMF.map]
     exact (CloseTo.refl _).mono zero_le
   | liftBind q cont n _ ih =>
     rw [run_interpret_bind, run_interpret_query]
-    simp only [interpret_bind, interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.bind_bind]
+    simp only [interp_norm, pmf_norm]
     have h₁ : CloseTo
         ((oracle q s).bind fun x =>
           ((interpret oracle (cont x.1)).run x.2).bind fun y => (relate y.2).map (y.1, ·))

@@ -290,15 +290,8 @@ private lemma listHeadD_pt {α γ : Type} {enc : α ↪ List Bool} {encIn : γ �
     ComputableInPolyTime (fun x => (list x).headD fallback) encIn enc :=
   (headD fallback).comp hlist
 
-private lemma unary_mod'_pt {γ : Type} {encIn : γ ↪ List Bool} {a b : γ → ℕ}
-    (ha : ComputableInPolyTime a encIn encUnary)
-    (hb : ComputableInPolyTime b encIn encUnary) :
-    ComputableInPolyTime (fun x => a x % b x) encIn encUnary :=
-  unary_mod.comp (ha.prod hb)
-
 attribute [local fun_prop] ComputableInPolyTime.bool_and' listTail_pt listIsEmpty_pt listHeadD_pt
-  unary_mod'_pt computableInPolyTime_connectiveMod
-  computableInPolyTime_operatorMod
+  computableInPolyTime_connectiveMod computableInPolyTime_operatorMod
 
 private lemma xs_pt :
     ComputableInPolyTime StepData.xs encStepData (encList encNat) := by
@@ -383,7 +376,7 @@ private lemma opNext_pt :
   fun_prop
 
 private lemma ask_pt : IsOraclePPTOn encStepData encBits ask :=
-  IsOraclePPTOn.query_take' () message_pt (by fun_prop)
+  IsOraclePPTOn.query_take () message_pt (by fun_prop)
 
 private lemma opCont_pt (o : ArithQBF.Operator) :
     IsOraclePPTOn (encPair encStepData encBits) encVState (fun pair => opCont o pair.1 pair.2) := by
@@ -391,7 +384,7 @@ private lemma opCont_pt (o : ArithQBF.Operator) :
   have hsample : IsOraclePPTOn (Operation := Unit) (encPair encStepData encBits) encUnary
       (fun pair : StepData × List Bool => ProbOracleComp.sample (sampleMod pair.1.modulus)) :=
     (isPPTOn_sampleMod (by fun_prop)).isOraclePPTOn
-  exact IsOraclePPTOn.cond' (opCheck_pt o) (hsample.map_with' opNext_pt)
+  exact IsOraclePPTOn.cond (opCheck_pt o) (hsample.map_with opNext_pt)
     ((ComputableInPolyTime.isOraclePPTOn (f := fun pair : StepData × List Bool =>
       reject pair.1) (by fun_prop)))
 
@@ -418,8 +411,8 @@ private lemma stepAt_pt (k : ArithQBF.Kind) :
 private theorem isOraclePPTOn_step :
     IsOraclePPTOn encStepData encVState (fun a : StepData => step a.1 a.2) := by
   unfold step
-  exact IsOraclePPTOn.cond' (by fun_prop)
-    (IsOraclePPTOn.finite_cases' (tagEncoding := encFinEnum ArithQBF.Kind)
+  exact IsOraclePPTOn.cond (by fun_prop)
+    (IsOraclePPTOn.finite_cases (tagEncoding := encFinEnum ArithQBF.Kind)
       (tag := fun a : StepData => a.head.1) (branch := stepAt) (by fun_prop) stepAt_pt)
     (ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => a.2) (by fun_prop))
 
@@ -549,7 +542,7 @@ private lemma growth_polyBounded :
 /-- **The machine is strict oracle PPT** in its encoded input. -/
 private theorem isOraclePPTOn_loop : IsOraclePPTOn encLoopInput encVState loop := by
   unfold loop
-  exact IsOraclePPTOn.iterateWith_of_bounded_growth' (count := fun I => I.tokens.length)
+  exact IsOraclePPTOn.iterateWith_of_bounded_growth (count := fun I => I.tokens.length)
     (by fun_prop) init_pt isOraclePPTOn_step growth_polyBounded
     fun I st _ h => length_encVState_le_of_mem_support_step I st h
 
@@ -652,8 +645,8 @@ private lemma loopInput_pt : ComputableInPolyTime loopInput encQBF encLoopInput 
 realizes it against every stateful prover. -/
 theorem isOraclePPTOn_verifier : IsOraclePPTOn encQBF encBool verifier := by
   unfold verifier
-  exact IsOraclePPTOn.cond' computableInPolyTime_decide_closed
-    ((isOraclePPTOn_loop.preprocess' loopInput_pt).map' (by fun_prop))
+  exact IsOraclePPTOn.cond computableInPolyTime_decide_closed
+    ((isOraclePPTOn_loop.preprocess loopInput_pt).map (by fun_prop))
     (ComputableInPolyTime.isOraclePPTOn (f := fun _ : QBF ℕ => false) (const false))
 
 end VerifierPolyTime

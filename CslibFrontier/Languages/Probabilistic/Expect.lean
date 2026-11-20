@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Semantics
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Extended-nonnegative-real expectation on `ProbComp`
@@ -95,22 +96,12 @@ theorem expect_map (g : α → β) (m : ProbComp α) (f : β → ℝ≥0∞) :
   simp only [expect_pure]
 
 theorem expect_congr_on_support {m : ProbComp α} {f g : α → ℝ≥0∞}
-    (h : ∀ a ∈ m.support, f a = g a) : expect m f = expect m g := by
-  refine tsum_congr fun a => ?_
-  by_cases ha : a ∈ m.support
-  · rw [h a ha]
-  · have hzero : (eval m) a = 0 := (PMF.apply_eq_zero_iff (eval m) a).mpr (by
-      rwa [support_eval])
-    simp [hzero]
+    (h : ∀ a ∈ m.support, f a = g a) : expect m f = expect m g :=
+  Probability.PMF.tsum_mul_congr_support (eval m) fun a ha => h a (by rwa [← support_eval])
 
 theorem expect_mono_on_support {m : ProbComp α} {f g : α → ℝ≥0∞}
-    (h : ∀ a ∈ m.support, f a ≤ g a) : expect m f ≤ expect m g := by
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ m.support
-  · exact mul_le_mul_right (h a ha) _
-  · have hzero : (eval m) a = 0 := (PMF.apply_eq_zero_iff (eval m) a).mpr (by
-      rwa [support_eval])
-    simp [hzero]
+    (h : ∀ a ∈ m.support, f a ≤ g a) : expect m f ≤ expect m g :=
+  Probability.PMF.tsum_mul_mono_support (eval m) fun a ha => h a (by rwa [← support_eval])
 
 theorem expect_mono {m : ProbComp α} {f g : α → ℝ≥0∞}
     (h : ∀ a, f a ≤ g a) : expect m f ≤ expect m g :=

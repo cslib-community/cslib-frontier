@@ -25,34 +25,28 @@ private def emptyInput (m : ℕ) : Data 64 :=
 
 /-- Zero candidates return the specified default, without running a collision query. -/
 example : (Code.eval 8 2 Search.program (emptyInput 0)).map
-    (fun yn => yn.1.regs Search.answer) = some 1 := by decide
+    (fun yn => yn.1.regs Search.answer) = some 1 := by decide +kernel
 
 /-- The nonprime boundary one still returns the default. -/
 example : (Code.eval 8 3 Search.program (emptyInput 1)).map
-    (fun yn => yn.1.regs Search.answer) = some 1 := by decide
+    (fun yn => yn.1.regs Search.answer) = some 1 := by decide +kernel
 
--- The positive case reduces the full renamed three-set query inside the search loop.
-set_option maxRecDepth 8192 in
 /-- The first prime is accepted at three zero thresholds for three empty sets. -/
 example : (Code.eval 8 4 Search.program (emptyInput 2)).map
     (fun yn => [yn.1.regs Search.answer, yn.1.regs Search.found, yn.1.mem 12]) =
-      some [2, 1, 1] := by decide
+      some [2, 1, 1] := by decide +kernel
 
--- After accepting two, the search executes only the charged skip branch for three.
-set_option maxRecDepth 8192 in
 /-- Later accepted primes cannot overwrite the minimum or rerun the collision query. -/
 example : (Code.eval 8 5 Search.program (emptyInput 3)).map
     (fun yn => [yn.1.regs Search.answer, yn.1.regs CountCall.modulus]) =
-      some [2, 4] := by decide
+      some [2, 4] := by decide +kernel
 
--- The rejected prime still runs all three native collision-counting calls.
-set_option maxRecDepth 8192 in
 /-- The only prime fails because zero and two collide, so the answer is the default one. -/
 example : (Code.eval 8 4 Search.program
     ⟨Function.update (emptyInput 2).regs (CountCall.length 0) 2,
       Function.update (emptyInput 2).mem 2 4⟩).map
     (fun yn => [yn.1.regs Search.answer, yn.1.regs Search.found]) =
-      some [1, 0] := by decide
+      some [1, 0] := by decide +kernel
 
 /-- The full execution contract has an admissible initialized instance, including every fit,
 bitmap cell and input frame. -/
@@ -101,7 +95,7 @@ example : ∃ y, ExecWithin 8 Search.program laterInput y 1049 ∧ y.regs Search
   obtain ⟨y, he, _, _, ha⟩ := Search.exec (w := 6) laterInput laterValues
     (by decide) (by decide) (by decide) (by decide) (by decide)
     (by intro q hq; change q ≤ 3 at hq; interval_cases q <;> decide)
-    (by intro j i _; unfold laterValues; split; split <;> decide; decide)
+    (by intro j i _; unfold laterValues; split <;> [(split <;> decide); decide])
     (by intro j; fin_cases j <;> decide) (by intro j; fin_cases j <;> decide)
     (by decide) (by intro j; fin_cases j <;> decide) (by intro j; fin_cases j <;> decide)
     (by intro j; fin_cases j <;> decide) (by intro j; fin_cases j <;> decide)

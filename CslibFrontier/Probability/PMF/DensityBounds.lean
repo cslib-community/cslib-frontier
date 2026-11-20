@@ -18,6 +18,12 @@ public import CslibFrontier.Probability.PMF.Map
 * `Cslib.Probability.PMF.bind_apply_le_mul_of_le_mul`,
   `Cslib.Probability.PMF.mul_bind_apply_le_of_mul_le`: density bounds multiply under sequential
   sampling, including when the second distribution depends on the first result.
+* `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply_add_on_support`,
+  `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply_add`,
+  `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply_on_support`,
+  `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply`: an affine bound at one outcome of every
+  continuation (even when assumed only on `p.support`) survives the initial draw, and so does its
+  multiplicative case `ε = 0`.
 -/
 
 public section
@@ -47,6 +53,43 @@ theorem bind_apply_le_mul_of_le_mul {p q : PMF α} {f g : α → PMF β} {c d : 
   calc
     p a * f a b ≤ (c * q a) * (d * g a b) := mul_le_mul' (hp a) (hf a b)
     _ = c * d * (q a * g a b) := by ac_rfl
+
+/-- A bound by `c` times another continuation plus a constant `ε`, at one outcome on `p.support`,
+survives the same initial draw: the constant is averaged against a probability distribution, so it
+is not multiplied. -/
+theorem bind_apply_le_mul_bind_apply_add_on_support (p : PMF α) {f g : α → PMF β} {c ε : ℝ≥0∞}
+    {b : β} (h : ∀ a ∈ p.support, f a b ≤ c * g a b + ε) :
+    p.bind f b ≤ c * p.bind g b + ε := by
+  simp only [PMF.bind_apply]
+  calc ∑' a, p a * f a b ≤ ∑' a, (c * (p a * g a b) + p a * ε) := tsum_le_tsum fun a => by
+        by_cases ha : a ∈ p.support
+        · calc p a * f a b ≤ p a * (c * g a b + ε) := mul_le_mul' le_rfl (h a ha)
+            _ = c * (p a * g a b) + p a * ε := by rw [mul_add, mul_left_comm]
+        · rw [PMF.mem_support_iff, not_not] at ha
+          simp [ha]
+    _ = c * ∑' a, p a * g a b + ε := by
+        rw [tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
+
+/-- A bound by `c` times another continuation plus a constant `ε`, at one outcome, survives the
+same initial draw: the constant is averaged against a probability distribution, so it is not
+multiplied. -/
+theorem bind_apply_le_mul_bind_apply_add (p : PMF α) {f g : α → PMF β} {c ε : ℝ≥0∞} {b : β}
+    (h : ∀ a, f a b ≤ c * g a b + ε) : p.bind f b ≤ c * p.bind g b + ε :=
+  bind_apply_le_mul_bind_apply_add_on_support p fun a _ => h a
+
+/-- A bound by `c` times another continuation at one outcome survives the same initial draw: the
+case `ε = 0` of `bind_apply_le_mul_bind_apply_add`. Unlike `bind_apply_le_mul_of_le_mul`, the
+continuations are compared only at `b`. -/
+theorem bind_apply_le_mul_bind_apply (p : PMF α) {f g : α → PMF β} {c : ℝ≥0∞} {b : β}
+    (h : ∀ a, f a b ≤ c * g a b) : p.bind f b ≤ c * p.bind g b := by
+  simpa using bind_apply_le_mul_bind_apply_add p (ε := 0) (fun a => by simpa using h a)
+
+/-- A variant of `bind_apply_le_mul_bind_apply` requiring the pointwise continuation bound only
+on `p.support`. -/
+theorem bind_apply_le_mul_bind_apply_on_support (p : PMF α) {f g : α → PMF β} {c : ℝ≥0∞} {b : β}
+    (h : ∀ a ∈ p.support, f a b ≤ c * g a b) : p.bind f b ≤ c * p.bind g b := by
+  simpa using bind_apply_le_mul_bind_apply_add_on_support p (ε := 0)
+    (fun a ha => by simpa using h a ha)
 
 /-- Lower density factors for the initial draw and every continuation multiply. -/
 theorem mul_bind_apply_le_of_mul_le {p q : PMF α} {f g : α → PMF β} {c d : ℝ≥0∞}

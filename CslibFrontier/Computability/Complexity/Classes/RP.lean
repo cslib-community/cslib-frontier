@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.Classes.RepeatedTrials
 public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Computability.Complexity.Classes.SharpP
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Data.BitString.WordCount
 import Mathlib.Data.Fintype.BigOperators
 
 /-!
@@ -57,6 +58,8 @@ never accepted. Two runs reject a yes-instance with probability at most `1 / 4`,
 * `Cslib.Complexity.PromiseProblem.SolvesWithOneSidedError.exists_certificate`,
   `Cslib.Complexity.DecidesWithOneSidedError.isVerifier`, `Cslib.Complexity.RP_subset_NP`,
   `Cslib.Complexity.PromiseRP_subset_PromiseNP`, `Cslib.Complexity.coRP_subset_coNP`.
+* `Cslib.Complexity.card_filter_repeatAny_eq_false`: repetition rejects on a power of the
+  rejected strings.
 * `Cslib.Complexity.PromiseProblem.SolvesWithOneSidedError.repeatAny`: repetition reduces the
   error to `2 ^ (-q(n))`.
 * `Cslib.Complexity.mem_PromiseRP_iff_forall_solvesWithOneSidedErrorExponent`,
@@ -189,6 +192,19 @@ theorem coRP_subset_coNP : coRP enc ⊆ coNP enc := fun _ hA => RP_subset_NP hA
 
 /-! ### Error reduction -/
 
+/-- The disjunction of `q(n)` runs of `V` rejects exactly the random strings on which every run
+rejects: their number is the `q(n)`-th power of the number of strings a single run rejects. -/
+theorem card_filter_repeatAny_eq_false {enc : α ↪ List Bool} {q p : Polynomial ℕ}
+    {V : α × List Bool → Bool} (a : α) :
+    (Finset.univ.filter fun x : Fin (q.eval (enc a).length * p.eval (enc a).length) → Bool =>
+        Complexity.repeatAny enc q p V (a, List.ofFn x) = false).card =
+      (Finset.univ.filter fun u : Fin (p.eval (enc a).length) → Bool =>
+        V (a, List.ofFn u) = false).card ^ q.eval (enc a).length := by
+  rw [← BitString.card_filter_forall_block _ _ fun u => V (a, List.ofFn u) = false]
+  refine congrArg Finset.card (Finset.filter_congr fun x _ => ?_)
+  rw [← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff]
+  simp
+
 namespace PromiseProblem
 
 /-- `V` solves the promise problem `Q` with one-sided error at most `2 ^ (-q(n))`, using random
@@ -221,24 +237,11 @@ theorem SolvesWithOneSidedError.repeatAny {p : Polynomial ℕ} {V : α × List B
   rw [hlen]
   set k := q.eval (enc a).length
   set m := p.eval (enc a).length
-  set R := Finset.univ.filter fun u : Fin m → Bool => V (a, List.ofFn u) = false
   constructor
   · -- so all `k` runs reject on at most a `2 ^ (-k)` fraction
     intro ha
-    replace hR := hR ha
-    have hcard : (Finset.univ.filter fun x : BitString (k * m) =>
-        Complexity.repeatAny enc q p V (a, List.ofFn x) = false).card ≤ R.card ^ k := by
-      rw [← Fintype.card_piFinset_const, ← Finset.card_map BitString.blocksEquiv.toEmbedding]
-      refine Finset.card_le_card fun ω hω => ?_
-      obtain ⟨x, hx, rfl⟩ := Finset.mem_map.1 hω
-      rw [Finset.mem_filter, ← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff] at hx
-      simpa [Fintype.mem_piFinset, R] using hx.2
-    calc 2 ^ k * (Finset.univ.filter fun x : BitString (k * m) =>
-          Complexity.repeatAny enc q p V (a, List.ofFn x) = false).card
-        ≤ 2 ^ k * R.card ^ k := Nat.mul_le_mul_left _ hcard
-      _ = (2 * R.card) ^ k := (mul_pow _ _ _).symm
-      _ ≤ (2 ^ m) ^ k := Nat.pow_le_pow_left hR k
-      _ = 2 ^ (k * m) := by rw [← pow_mul, Nat.mul_comm]
+    rw [Bool.not_true, card_filter_repeatAny_eq_false, ← mul_pow, Nat.mul_comm k, pow_mul]
+    exact Nat.pow_le_pow_left (hR ha) k
   · -- on a no-instance, no run accepts
     intro ha x
     rw [← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff]

@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.Ordered.FullTuple.DomainInterpreta
 public import CslibFrontier.Logics.FirstOrder.Ordered.TransitiveClosure
 public import Mathlib.ModelTheory.Graph
 import CslibFrontier.Foundations.Relation.Transport
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Canonical ordered directed reachability
@@ -352,11 +353,8 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
   let I := boundedReachInterpretation src step tgt
   let maxElem : Fin M.size := M.maxElem
   have h0_ne_max : (0 : Fin M.size) ≠ maxElem := by
-    intro h
-    have hv := congrArg Fin.val h
     have hge := M.size_ge_two
-    simp only [Fin.val_zero, maxElem] at hv
-    omega
+    fin_index [maxElem]
   let Z : Fin (d + 2) → Fin M.size := constantTuple (n := M.size) (k := d + 1) .zero
   let T : Fin (d + 2) → Fin M.size := constantTuple (n := M.size) (k := d + 1) .max
   let hc : (I.toDomainInterpretation.map hI M).size = M.size ^ (d + 2) :=

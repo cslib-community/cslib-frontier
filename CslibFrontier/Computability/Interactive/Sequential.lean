@@ -8,9 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Interactive.Plain
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Sequential composition of interactive reductions
@@ -47,8 +49,9 @@ when the intermediate statement type is empty.
 * `Interactive.Reduction.Complete.append`, `Interactive.Verifier.Sound.append`,
   `Interactive.Verifier.KnowledgeSound.append`, `Interactive.Verifier.RbrSound.append`.
 * `Interactive.Reduction.Complete.iterate`, `Interactive.Verifier.RbrSound.iterate`.
-* `Interactive.plainLaw_run_append`, `Interactive.plainLaw_run_split`: execution laws of composed
-  and split strategies.
+* `Interactive.plainLaw_run_append`, `Interactive.plainLaw_run_split`,
+  `Interactive.Reduction.plainLaw_run_append`, `Interactive.Verifier.plainLaw_run_append`:
+  execution laws of composed and split strategies, reductions, and verifiers.
 -/
 
 @[expose] public section
@@ -235,7 +238,7 @@ private theorem interpret_liftDecisionLeft {α : Type} (τ : Transcript (s₁ ++
   funext q
   rcases q with e | q
   · exact e.elim
-  · refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
+  · rw [OracleComp.interpret_sumHandler_liftRight]
     exact interpret_liftMsgLeft s₁ s₂ τ q
 
 private theorem interpret_liftDecisionRight {α : Type} (τ : Transcript (s₁ ++ s₂))
@@ -248,7 +251,7 @@ private theorem interpret_liftDecisionRight {α : Type} (τ : Transcript (s₁ +
   funext q
   rcases q with e | q
   · exact e.elim
-  · refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
+  · rw [OracleComp.interpret_sumHandler_liftRight]
     exact interpret_liftMsgRight s₁ s₂ τ q
 
 /-- The composed verifier's output is the second verifier's output on the first one's. -/
@@ -437,31 +440,16 @@ theorem plainLaw_bindLeaf_run : ∀ (s : Spec) (smp : PerChallenge ProbComp s) {
   | [], _, _, _, a, f => by
     simp [ProverStrategy.bindLeaf, runStrategy]
   | .prover M I :: s, smp, _, _, st, f => by
-    simp only [ProverStrategy.bindLeaf, runStrategy, plainLaw_bind, plainLaw_pure, PMF.pure_bind,
-      PMF.bind_bind]
-    congr 1
-    funext a
-    have ih := plainLaw_bindLeaf_run s smp a.2 (fun τ b => f (a.1, τ) b)
-    rw [plainLaw_bind] at ih
-    rw [← PMF.bind_bind, ih, PMF.bind_bind]
-    congr 1
-    funext r
-    rw [PMF.bind_map]
-    rfl
+    simp only [ProverStrategy.bindLeaf, runStrategy, plainLaw_bind, plainLaw_pure, pmf_norm]
+    pmf_swap with a
+    rw [← PMF.bind_bind, ← plainLaw_bind, plainLaw_bindLeaf_run s smp]
+    simp only [pmf_norm, PMF.map]
   | .verifier C :: s, smp, _, _, st, f => by
     simp only [ProverStrategy.bindLeaf, runStrategy, plainLaw_bind, plainLaw_pure, plainLaw_sample,
-      PMF.pure_bind, PMF.bind_bind]
-    congr 1
-    funext c
-    congr 1
-    funext st'
-    have ih := plainLaw_bindLeaf_run s smp.2 st' (fun τ b => f (c, τ) b)
-    rw [plainLaw_bind] at ih
-    rw [← PMF.bind_bind, ih, PMF.bind_bind]
-    congr 1
-    funext r
-    rw [PMF.bind_map]
-    rfl
+      pmf_norm]
+    pmf_swap with c st'
+    rw [← PMF.bind_bind, ← plainLaw_bind, plainLaw_bindLeaf_run s smp.2]
+    simp only [pmf_norm, PMF.map]
 
 /-- Running a strategy continued by a pure map at its end maps the output, keeping the
 transcript. -/
@@ -470,8 +458,7 @@ theorem plainLaw_bindLeaf_pure_run (s : Spec) (smp : PerChallenge ProbComp s) {�
     plainLaw (ProverStrategy.bindLeaf s st (fun τ a => pure (f τ a)) >>= runStrategy s smp) =
       (plainLaw (runStrategy s smp st)).map fun r => (r.1, f r.1 r.2) := by
   rw [plainLaw_bindLeaf_run]
-  simp only [plainLaw_pure, PMF.pure_map]
-  exact PMF.bind_pure_comp _ _
+  simp only [plainLaw_pure, pmf_norm, PMF.map]
 
 /-- Split a strategy for `s₁ ++ s₂` into a strategy for `s₁` ending with one for `s₂`. -/
 def ProverStrategy.split {m : Type → Type} [Monad m] {α : Type} :
@@ -502,31 +489,17 @@ theorem plainLaw_run_append : ∀ (s₁ s₂ : Spec) (smp₁ : PerChallenge Prob
       PerChallenge.append, Transcript.append]
     exact (PMF.map_id _).symm
   | .prover M I :: s₁, s₂, smp₁, smp₂, _, _, st, next => by
-    simp only [ProverStrategy.append, List.cons_append, runStrategy, plainLaw_bind, plainLaw_pure,
-      PMF.pure_bind, PMF.bind_bind, PerChallenge.append]
-    congr 1
-    funext a
-    have ih := plainLaw_run_append s₁ s₂ smp₁ smp₂ a.2 next
-    rw [plainLaw_bind] at ih
-    rw [← PMF.bind_bind, ih, PMF.bind_bind]
-    congr 1
-    funext r
-    rw [PMF.bind_map, plainLaw_bind]
-    rfl
+    simp only [ProverStrategy.append, List.cons_append, runStrategy, PerChallenge.append,
+      Transcript.append, plainLaw_bind, plainLaw_pure, pmf_norm]
+    pmf_swap with a
+    rw [← PMF.bind_bind, ← plainLaw_bind, plainLaw_run_append s₁ s₂ smp₁ smp₂]
+    simp only [plainLaw_bind, pmf_norm, PMF.map]
   | .verifier C :: s₁, s₂, smp₁, smp₂, _, _, st, next => by
-    simp only [ProverStrategy.append, List.cons_append, runStrategy, plainLaw_bind, plainLaw_pure,
-      plainLaw_sample, PMF.pure_bind, PMF.bind_bind, PerChallenge.append]
-    congr 1
-    funext c
-    congr 1
-    funext st'
-    have ih := plainLaw_run_append s₁ s₂ smp₁.2 smp₂ st' next
-    rw [plainLaw_bind] at ih
-    rw [← PMF.bind_bind, ih, PMF.bind_bind]
-    congr 1
-    funext r
-    rw [PMF.bind_map, plainLaw_bind]
-    rfl
+    simp only [ProverStrategy.append, List.cons_append, runStrategy, PerChallenge.append,
+      Transcript.append, plainLaw_bind, plainLaw_pure, plainLaw_sample, pmf_norm]
+    pmf_swap with c st'
+    rw [← PMF.bind_bind, ← plainLaw_bind, plainLaw_run_append s₁ s₂ smp₁.2 smp₂]
+    simp only [plainLaw_bind, pmf_norm, PMF.map]
 
 /-- Running any strategy for `s₁ ++ s₂` runs its split: the first part, then the rest. -/
 theorem plainLaw_run_split : ∀ (s₁ s₂ : Spec) (smp₁ : PerChallenge ProbComp s₁)
@@ -541,29 +514,17 @@ theorem plainLaw_run_split : ∀ (s₁ s₂ : Spec) (smp₁ : PerChallenge ProbC
       Transcript.append]
     exact (PMF.map_id _).symm
   | .prover M I :: s₁, s₂, smp₁, smp₂, _, st => by
-    simp only [ProverStrategy.split, List.cons_append, runStrategy, plainLaw_bind, plainLaw_pure,
-      plainLaw_map, PMF.pure_bind, PMF.bind_bind, PMF.bind_map, PerChallenge.append,
-      Function.comp_apply]
-    congr 1
-    funext a
-    rw [plainLaw_run_split s₁ s₂ smp₁ smp₂ a.2, PMF.bind_bind]
-    congr 1
-    funext r
-    rw [PMF.bind_map]
-    rfl
+    simp only [ProverStrategy.split, List.cons_append, runStrategy, PerChallenge.append,
+      Transcript.append, plainLaw_bind, plainLaw_pure, plainLaw_map, pmf_norm]
+    pmf_swap with a
+    rw [plainLaw_run_split s₁ s₂ smp₁ smp₂ a.2]
+    simp only [pmf_norm, PMF.map]
   | .verifier C :: s₁, s₂, smp₁, smp₂, _, st => by
-    simp only [ProverStrategy.split, List.cons_append, runStrategy, plainLaw_bind, plainLaw_pure,
-      plainLaw_map, plainLaw_sample, PMF.pure_bind, PMF.bind_bind, PMF.bind_map,
-      PerChallenge.append, Function.comp_apply]
-    congr 1
-    funext c
-    congr 1
-    funext st'
-    rw [plainLaw_run_split s₁ s₂ smp₁.2 smp₂ st', PMF.bind_bind]
-    congr 1
-    funext r
-    rw [PMF.bind_map]
-    rfl
+    simp only [ProverStrategy.split, List.cons_append, runStrategy, PerChallenge.append,
+      Transcript.append, plainLaw_bind, plainLaw_pure, plainLaw_map, plainLaw_sample, pmf_norm]
+    pmf_swap with c st'
+    rw [plainLaw_run_split s₁ s₂ smp₁.2 smp₂ st']
+    simp only [pmf_norm, PMF.map]
 
 /-- Run the first part of a split prover, which ends by running its second part and applying `g`
 to the first transcript and the result: the law runs the first part, then the second part, and
@@ -577,14 +538,10 @@ theorem plainLaw_split_bindLeaf_run (s₁ s₂ : Spec) (smp₁ : PerChallenge Pr
         fun τ₁ st₂ => g τ₁ <$> runStrategy s₂ smp₂ st₂) >>= runStrategy s₁ smp₁) =
       (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ smp₁)).bind
         fun r₁ => (plainLaw (runStrategy s₂ smp₂ r₁.2)).map fun r₂ => (r₁.1, g r₁.1 r₂) := by
-  simp only [bind_assoc, plainLaw_bind, PMF.bind_bind]
-  congr 1
-  funext st₁
+  simp only [bind_assoc, plainLaw_bind, pmf_norm]
+  pmf_swap with st₁
   rw [← plainLaw_bind, plainLaw_bindLeaf_run]
-  congr 1
-  funext r₁
-  rw [plainLaw_map, PMF.map_comp]
-  rfl
+  simp only [plainLaw_map, pmf_norm]
 
 /-- Splitting a concatenated transcript recovers its halves. -/
 theorem Spec.Transcript.split_append : ∀ (s₁ s₂ : Spec) (τ₁ : Transcript s₁)
@@ -597,19 +554,19 @@ section Compose
 
 /-- The honest run of a composed reduction runs the first reduction, then the second on the
 first prover's output. -/
-private theorem plainLaw_run_reductionAppend
+theorem Reduction.plainLaw_run_append
     (R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₂ W₂)
     (R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₃ W₃) (x : S₁) (w : W₁) :
     plainLaw ((R₁.append R₂).prover x w >>=
         runStrategy (s₁ ++ s₂) (R₁.append R₂).verifier.samplers) =
-      (plainLaw (R₁.prover x w >>= runStrategy s₁ R₁.verifier.samplers)).bind fun r₁ =>
-        (plainLaw (R₂.prover r₁.2.1 r₁.2.2 >>= runStrategy s₂ R₂.verifier.samplers)).map
-          fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-  simp only [Reduction.append, Verifier.append, bind_assoc, plainLaw_bind, PMF.bind_bind]
-  congr 1
-  funext st
-  rw [← plainLaw_bind, plainLaw_run_append]
-  simp only [plainLaw_bind]
+      (plainLaw (R₁.prover x w >>= runStrategy s₁ R₁.verifier.samplers)).bind
+        fun (τ₁, x₂, w₂) =>
+          (plainLaw (R₂.prover x₂ w₂ >>= runStrategy s₂ R₂.verifier.samplers)).map
+            fun (τ₂, yw) => (Transcript.append s₁ s₂ τ₁ τ₂, yw) := by
+  simp only [Reduction.append, Verifier.append, bind_assoc, plainLaw_bind, pmf_norm]
+  pmf_swap with st
+  rw [← plainLaw_bind, Interactive.plainLaw_run_append]
+  simp only [plainLaw_bind, pmf_norm]
 
 /-- **Completeness errors add up under sequential composition.** -/
 theorem Reduction.Complete.append {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₂ W₂}
@@ -620,33 +577,32 @@ theorem Reduction.Complete.append {R₁ : Reduction OracleSpec.empty OracleSpec.
   intro x w hxw
   have hl₁ := h₁ x w hxw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁ ⊢
-  rw [plainLaw_run_reductionAppend]
-  refine le_trans (Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun r₁ _ hr₁ => ?_)
-    (add_le_add hl₁ le_rfl)
+  rw [Reduction.plainLaw_run_append]
+  refine le_trans (Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _
+    fun ⟨τ₁, x₂, w₂⟩ _ hr₁ => ?_) (add_le_add hl₁ le_rfl)
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_not, Execution.output, Execution.result]
     at hr₁
   obtain ⟨hout, hrel⟩ := hr₁
-  have hl₂ := h₂ r₁.2.1 r₁.2.2 hrel
+  have hl₂ := h₂ x₂ w₂ hrel
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
   rw [PMF.toOuterMeasure_map_apply]
   convert hl₂ using 2
-  ext r₂
+  ext ⟨τ₂, yw⟩
   simp [Reduction.append, outputOn_append, Spec.Transcript.split_append, hout]
 
 
 /-- A run against a composed verifier is a run of the split strategy against the first, then
 of its continuation against the second. -/
-private theorem plainLaw_run_verifierAppend (V₁ : Verifier OracleSpec.empty s₁ S₁ S₂)
+theorem Verifier.plainLaw_run_append (V₁ : Verifier OracleSpec.empty s₁ S₁ S₂)
     (V₂ : Verifier OracleSpec.empty s₂ S₂ S₃) {α : Type}
     (P : ProbOracleComp OracleSpec.empty
       (ProverStrategy (ProbOracleComp OracleSpec.empty) (s₁ ++ s₂) α)) :
     plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.append V₂).samplers) =
       (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
-        fun r₁ => (plainLaw (runStrategy s₂ V₂.samplers r₁.2)).map
-          fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-  simp only [plainLaw_bind, plainLaw_map, PMF.bind_map, PMF.bind_bind]
-  congr 1
-  funext st
+        fun (τ₁, st) => (plainLaw (runStrategy s₂ V₂.samplers st)).map
+          fun (τ₂, a) => (Transcript.append s₁ s₂ τ₁ τ₂, a) := by
+  simp only [plainLaw_bind, plainLaw_map, pmf_norm]
+  pmf_swap with st
   exact plainLaw_run_split s₁ s₂ V₁.samplers V₂.samplers st
 
 /-- **Soundness errors add up under sequential composition**, through the intermediate
@@ -659,7 +615,7 @@ theorem Verifier.Sound.append {V₁ : Verifier OracleSpec.empty s₁ S₁ S₂}
   intro x hx α P
   have hl₁ := h₁ x hx _ ((ProverStrategy.split s₁ s₂ ·) <$> P)
   rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁ ⊢
-  rw [plainLaw_run_verifierAppend]
+  rw [Verifier.plainLaw_run_append]
   refine le_trans (Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun r₁ _ hr₁ => ?_)
     (add_le_add hl₁ le_rfl)
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_exists, not_and] at hr₁
@@ -695,7 +651,7 @@ theorem Verifier.KnowledgeSound.append {V₁ : Verifier OracleSpec.empty s₁ S�
     (V₁.append V₂).KnowledgeSound rel₁ rel₃
       (V₁.extractAppend E₁ E₂ y₀) (ε₁ + ε₂) := by
   intro x P
-  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, plainLaw_run_verifierAppend]
+  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, Verifier.plainLaw_run_append]
   let T₁ : Set (Transcript (s₁ ++ s₂) × W₃) := {r | ∃ y,
     V₁.outputOn x (Transcript.split s₁ s₂ r.1).1 = some y ∧
       rel₂ y (E₂ y (Transcript.split s₁ s₂ r.1).2 r.2) ∧
