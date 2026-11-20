@@ -1,0 +1,100 @@
+/-
+Copyright (c) 2026 Christian Reitwiessner, Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Christian Reitwiessner, Samuel Schlesinger
+-/
+
+import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
+
+/-! Ordered seeds, all-source checks, rejection and multiplicity, plus actual controller replay. -/
+
+-- These commands check executable branch-multiplicity regressions.
+set_option linter.hashCommand false
+
+namespace CslibFrontierTests.IsolationSeedSearch
+
+open Cslib.DoubleCounting
+
+private def badThenNegative (seed : Fin 1 → Bool) (_ : Fin 2) : List (Option ControllerVerdict) :=
+  if seed 0 then [some (.decided false)] else [some (.bad 1)]
+
+#guard runSeedSearch badThenNegative [0, 1] 0 = [some ⟨1, false⟩]
+
+private def negativeThenPositive (seed : Fin 1 → Bool) (_ : Fin 2) :
+    List (Option ControllerVerdict) := [some (.decided (seed 0))]
+
+-- A negative answer stops the search at seed zero; the later positive answer is irrelevant.
+#guard runSeedSearch negativeThenPositive [0, 1] 0 = [some ⟨0, false⟩]
+
+private def failedFirst (seed : Fin 1 → Bool) (_ : Fin 2) : List (Option ControllerVerdict) :=
+  if seed 0 then [some (.decided true)] else [none]
+
+-- An invalid controller execution rejects the branch instead of masquerading as a bad seed.
+#guard runSeedSearch failedFirst [0, 1] 0 = []
+
+private def duplicatedBad (seed : Fin 1 → Bool) (_ : Fin 2) : List (Option ControllerVerdict) :=
+  if seed 0 then [some (.decided false)] else [some (.bad 1), some (.bad 1)]
+
+-- Equal answer values are not deduplicated: two bad-seed continuations give two later results.
+#guard runSeedSearch duplicatedBad [0, 1] 0 = [some ⟨1, false⟩, some ⟨1, false⟩]
+
+private def originalRoots (seed : Fin 1 → Bool) (s : Fin 3) : List (Option ControllerVerdict) :=
+  if s = 2 then [some (.bad 1)]
+  else if s == 1 && !seed 0 then [some (.bad 1)]
+  else [some (.decided false)]
+
+-- Source 1 rejects seed zero. Auxiliary source 2 is deliberately outside the original-root list.
+#guard runSeedSearch originalRoots [0, 1] 0 = [some ⟨1, false⟩]
+
+private def emptySeed (_ : Fin 0 → Bool) (_ : Fin 1) : List (Option ControllerVerdict) :=
+  [some (.decided false)]
+
+#guard runSeedSearch emptySeed [] 0 = [some ⟨0, false⟩]
+
+private abbrev r : Fin 2 → Fin 2 → Prop := fun _ _ => (false : Bool) = true
+
+private theorem empty_unique (s : Fin 2) (k : ℕ) : ∃! w, Passes r s k w := by
+  have hr : round r s k = round r s 0 := by
+    ext v
+    rw [mem_round, mem_round, Relation.reachableWithin_zero, Set.mem_singleton_iff]
+    constructor
+    · intro h
+      exact (Relation.reflTransGen_iff_eq (fun _ => by simp [r])).mp h.reflTransGen
+    · rintro rfl
+      exact Relation.reachableWithin_mono (Nat.zero_le k) (by simp)
+  simpa only [passes_iff, hr] using existsUnique_passes_zero r s
+
+private noncomputable def replay (_ : Fin 2 → Bool) (s : Fin 2) :
+    List (Option ControllerVerdict) :=
+  runController (m := List) (fun _ _ => pure false) (replayMembership (fun _ _ => false) s) 1
+
+/-- The actual successful typed replay enumeration supplies the controller contract. The
+search selects binary seed zero and gives the correct negative reachability answer. This
+uses proof-level replay semantics and does not claim native compilation. -/
+example : ∃ result, runSeedSearch replay (List.finRange 2) 0 = [some result] ∧
+    result.seed = 0 ∧ result.reachable = false := by
+  have hc (seed : Fin 2 → Bool) (s : Fin 2) : ∃ verdict, replay seed s = [some verdict] ∧
+      match verdict with
+      | .bad j => ¬ ∃! w, Passes r s j w
+      | .decided b => (∀ j, ∃! w, Passes r s j w) ∧
+          (b = true ↔ Relation.ReflTransGen r s 1) := by
+    obtain ⟨v, hv, hs⟩ := runController_replay_correct (fun _ _ : Fin 2 => false) s 1
+    refine ⟨v, hv, ?_⟩
+    cases v with
+    | bad j => exact hs.2
+    | decided b => exact hs
+  obtain ⟨result, hrun, _, hmin, hans⟩ := runSeedSearch_correct (m := List)
+    (r := fun _ => r) (source := 0) (target := 1) (List.finRange 2) hc
+    ⟨fun _ => false, empty_unique 0, fun s _ => empty_unique s⟩
+  refine ⟨result, hrun, ?_, ?_⟩
+  · apply Fin.ext
+    change result.seed.val = 0
+    by_contra hn
+    have hlt : (0 : Fin 4) < result.seed := by change 0 < result.seed.val; omega
+    exact (hmin 0 hlt) ⟨empty_unique 0, fun s _ => empty_unique s⟩
+  · have hn : ¬ Relation.ReflTransGen r (0 : Fin 2) 1 := by
+      rw [Relation.reflTransGen_iff_eq (fun _ => by simp [r])]
+      decide
+    exact Bool.eq_false_iff.mpr (fun h => hn (hans.mp h))
+
+end CslibFrontierTests.IsolationSeedSearch
