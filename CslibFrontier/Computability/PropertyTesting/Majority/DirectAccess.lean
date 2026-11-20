@@ -86,7 +86,7 @@ private theorem isOraclePPTOn_majorityDirectAccess (k : ℕ) (δ : ℚ) :
     let encInput := encPair (encPair encNat wordsEncoding) wordsEncoding
     have hlength := (ComputableInPolyTime.fst encNat wordsEncoding).comp
       (ComputableInPolyTime.fst (encPair encNat wordsEncoding) wordsEncoding)
-    have hcount := ComputableInPolyTime.countPWithInput
+    have hcount := ComputableInPolyTime.countPWithInput (test := fun _ reply => reply.headD false)
       (ComputableInPolyTime.snd (encPair encNat wordsEncoding) wordsEncoding)
       ((ComputableInPolyTime.headD (encA := encBool) false).comp
         (ComputableInPolyTime.snd encInput encBits))
@@ -119,7 +119,10 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
     List Bool) coins
   change (ProbOracleComp.sample coins >>= fun words =>
     decideReplies k δ n <$> (validRequests n words).mapM readBit).IsQueryBounded k
-  refine Nat.zero_add k ▸ hsample.bind_on_support ?_
+  suffices h : (ProbOracleComp.sample coins >>= fun words =>
+      decideReplies k δ n <$> (validRequests n words).mapM readBit).IsQueryBounded (0 + k) by
+    simpa only [Nat.zero_add] using h
+  apply hsample.bind_on_support
   intro words hwords
   have hlen' := hlen words (by simpa only [ProbOracleComp.support_sample] using hwords)
   have htraverse : ((validRequests n words).mapM readBit).IsQueryBounded
@@ -127,13 +130,15 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
     OracleComp.IsCostBounded.mapM fun word _ => by
       unfold readBit
       rw [map_eq_bind_pure_comp]
-      simpa only [Nat.add_zero] using
-        (ProbOracleComp.IsQueryBounded.query ((), word)).bind
-          (fun reply => OracleComp.IsCostBounded.pure (reply.take 1) 0)
+      simpa only [Nat.add_zero, Function.comp_def] using
+        (ProbOracleComp.IsQueryBounded.query
+          (spec := fun _ : Unit × List Bool => List Bool) ((), word)).bind
+          (fun reply : List Bool => OracleComp.IsCostBounded.pure (reply.take 1) 0)
   rw [map_eq_bind_pure_comp]
   have hresult := htraverse.bind
     (fun replies => OracleComp.IsCostBounded.pure (decideReplies k δ n replies) 0)
   exact hresult.mono
-    (by simpa only [Nat.add_zero, Nat.mul_one, ← hlen'] using List.length_filter_le _ words)
+    (by simpa only [Nat.add_zero, Nat.mul_one, validRequests, ← hlen'] using
+      List.length_filter_le _ words)
 
 end Cslib.BitString
