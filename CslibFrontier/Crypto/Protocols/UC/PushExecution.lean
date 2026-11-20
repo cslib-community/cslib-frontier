@@ -138,21 +138,22 @@ steps change nothing. -/
   | zero => rfl
   | succ f ih => rw [steps_succ, step_of_output_isSome S h, pure_bind, ih]
 
-/-- The single-token execution of a push system, in this library's push reading of §3.1.2 of
-[Canetti2020] (JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34), narrower in having a fixed node
-set initialized eagerly, nodes addressed by index, every write forced and sender-revealing, a
-control function over the delivered log, and an activation that ends without a write returning
-control to the initial node (a library convention). The result is the initial node's output bit, or
-`none` if it has not halted within `fuel` steps (a library convention). The relation to the pull
-execution of `CslibFrontier.Crypto.Protocols.UC.Execution` is not proved here. -/
+/-- Library construction (no cited definition): the single-token execution of a push system, in
+this library's push reading of §3.1.2 of [Canetti2020] (JACM pp. 28:22–28:24, 28:33; ePrint
+pp. 23–24, 34), narrower in having a fixed node set initialized eagerly, nodes addressed by index,
+every write forced and sender-revealing, a control function over the delivered log, and an
+activation that ends without a write returning control to the initial node (a library convention).
+The result is the initial node's output bit, or `none` if it has not halted within `fuel` steps
+(a library convention). The relation to the pull execution of
+`CslibFrontier.Crypto.Protocols.UC.Execution` is not proved here. -/
 @[expose] def pushRun (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel : ℕ) :
     ProbComp (Option Bool) :=
   TokenState.output <$>
     (SSP.parFin (S.node κ)).run (steps S fuel (TokenState.initialFor S.initial z))
 
-/-- The output bit of a push execution, in this library's push reading of §3.1.2 of [Canetti2020]
-(JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34), narrower as in `pushRun` and with fuel
-exhaustion read as `false` (a library convention). -/
+/-- Library construction (no cited definition): the output bit of a push execution, in this
+library's push reading of §3.1.2 of [Canetti2020] (JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24,
+34), narrower as in `pushRun` and with fuel exhaustion read as `false` (a library convention). -/
 @[expose] def pushExec (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel : ℕ) :
     ProbComp Bool :=
   (fun r => r.getD false) <$> pushRun S κ z fuel
@@ -217,7 +218,10 @@ theorem runFrom_steps_succ_of_mem_halted (S : PushSystem m Msg) (κ f : ℕ)
 
 /-- Library infrastructure (no cited result): the output distribution of `pushRun` binds the
 joint initial-state distribution `(SSP.parFin (S.node κ)).init.eval` into the closed `fuel`-step
-execution from that joint state. -/
+execution from that joint state. Unlike `Cslib.Crypto.Protocols.SSP.eval_run`, which translates a
+run into an `OracleComp.interpret` over `PMF` handlers for state-simulation proofs, this lemma
+keeps the `Machine.closeProgram`/`Machine.runFrom` form so callers can step `steps` directly via
+`runFrom_steps_succ_of_not_mem_halted` and `runFrom_steps_succ_of_mem_halted` before closing. -/
 theorem eval_pushRun (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel : ℕ) :
     (pushRun S κ z fuel).eval =
       ((SSP.parFin (S.node κ)).init).eval.bind fun s₀ =>

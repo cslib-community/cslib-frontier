@@ -119,17 +119,17 @@ calls) whose activations take a `Delivery` and return an `Outcome`. -/
 abbrev ReactiveNode (m : ℕ) (Msg : Type) : Type 1 :=
   Machine OracleSpec.empty (netSpec (Delivery m Msg) (Outcome m Msg))
 
-/-- A control function over the log of previously delivered envelopes: given the delivered log
-and a proposed envelope, returns `true` to allow the write or `false` to disallow it. Library
-construction narrower than §3.1.2 of [Canetti2020] (JACM p. 28:23, ePrint p. 24), where the
-control function reads the entire execution prefix and may be extended to redirect writes. -/
+/-- Library construction (no cited definition): a control function over the log of previously
+delivered envelopes, returning `true` to allow a proposed write or `false` to disallow it
+(narrower than §3.1.2 of [Canetti2020], JACM p. 28:23, ePrint p. 24, where the control function
+reads the entire execution prefix and may be extended to redirect writes). -/
 abbrev ControlFunction (m : ℕ) (Msg : Type) : Type :=
   List (Envelope m Msg) → Envelope m Msg → Bool
 
-/-- A push system: a fixed family of `m` reactive nodes indexed by security parameter and node
-index, a distinguished initial node, and a control function. Library reading of the pair `(I, C)`
-of §3.1.2 of [Canetti2020] (JACM p. 28:23, ePrint p. 24), with the node set fixed in advance
-rather than dynamically invoked. -/
+/-- Library construction (no cited definition): a push system comprising a fixed family of `m`
+reactive nodes indexed by security parameter and node index, a distinguished initial node, and a
+control function (a library reading of the pair `(I, C)` of §3.1.2 of [Canetti2020], JACM
+p. 28:23, ePrint p. 24, with the node set fixed in advance rather than dynamically invoked). -/
 structure PushSystem (m : ℕ) (Msg : Type) : Type 1 where
   /-- The reactive node at index `i` for security parameter `κ`. -/
   node : ℕ → Fin m → ReactiveNode m Msg
