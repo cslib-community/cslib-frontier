@@ -21,8 +21,8 @@ This is a scalar kernel for the generator, not its native logspace certificate (
 with no irreducibility or nonempty-word assumptions. Coefficients are little-endian Boolean
 lists. Each bit uses the existing framed-list encoding; its length is three times the word
 length. The modulus and operands are retained while the multiplication fold executes. Remainder uses
-the same fold and native step, initialized with the coefficient word for one instead of an operand. The
-fold rule charges the callee as well as both live coefficient words at every prefix.
+the same fold and native step, initialized with the coefficient word for one instead of an
+operand. The fold rule charges the callee as well as both live coefficient words at every prefix.
 
 This is an original resource analysis of the existing executable algorithm. Modulus search,
 binary dimension processing, Horner composition and seed-tape queries remain under #6747.
