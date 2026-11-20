@@ -302,10 +302,12 @@ public import CslibFrontier.Algorithms.Reachability.BreadthFirst
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Controller
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerBounds
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerClock
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerReplay
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
 public import CslibFrontier.Algorithms.Reachability.InductiveCounting
 public import CslibFrontier.Algorithms.Reachability.InductiveCounting.Bounds
 public import CslibFrontier.Algorithms.Reachability.InductiveCounting.Completeness
@@ -6492,6 +6494,7 @@ public import CslibFrontier.Foundations.Computability.KleenePostJump
 public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Control.Except
+public import CslibFrontier.Foundations.Control.Monad.Clock
 public import CslibFrontier.Foundations.Control.Monad.FilterM
 public import CslibFrontier.Foundations.Control.Monad.FindM
 public import CslibFrontier.Foundations.Control.Monad.IsMonadHom.StateT
