@@ -195,8 +195,7 @@ theorem PseudorandomGenerator.of_indistinguishable
     (hstretch : ∀ n, n < length n)
     (hsecure : ComputationallyIndistinguishable (generatorEnsemble generator)
       (fun n => BitString.uniformList (length n))) : PseudorandomGenerator generator length := by
-  have hg := hg.tidy
-  exact ⟨.of_tidy hg, hlen, hstretch, (PRG.wordFamily_secure_iff hlen).mpr hsecure⟩
+  exact ⟨hg, hlen, hstretch, (PRG.wordFamily_secure_iff hlen).mpr hsecure⟩
 
 /-- The generated words are computationally indistinguishable from uniform words. -/
 theorem PseudorandomGenerator.indistinguishable

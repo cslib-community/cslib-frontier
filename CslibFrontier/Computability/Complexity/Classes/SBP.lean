@@ -54,7 +54,7 @@ are proved in `CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Ampli
 
 namespace Cslib.Complexity
 
-open Turing.MultiTapeTM
+open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
 variable {α β : Type} {enc : α ↪ List Bool} {A B : Set α}
 
@@ -149,7 +149,8 @@ theorem union_mem_SBP (hA : A ∈ SBP enc) (hB : B ∈ SBP enc) : A ∪ B ∈ SB
   have hfl := SharpP.mul_mem hf (mem_SharpP_of_polyTime hl)
   have hgk := SharpP.mul_mem hg (mem_SharpP_of_polyTime hk)
   refine ⟨_, SharpP.add_mem (SharpP.pow_mem hfl 2) (SharpP.pow_mem hgk 2),
-    fun a => (k a * l a) ^ 2, by fun_prop, fun a => ?_⟩
+    fun a => (k a * l a) ^ 2,
+    (binary_mul' hk hl).binary_pow' (const 2), fun a => ?_⟩
   change (a ∈ A ∪ B → (k a * l a) ^ 2 ≤ (f a * l a) ^ 2 + (g a * k a) ^ 2) ∧
     (a ∉ A ∪ B → 2 * ((f a * l a) ^ 2 + (g a * k a) ^ 2) < (k a * l a) ^ 2)
   constructor
@@ -201,7 +202,9 @@ theorem inter_mem_SBP_of_mem_BPP (hA : A ∈ SBP enc) (hB : B ∈ BPP enc) :
   have hc : c ∈ SharpP enc := ⟨q, V, hV, fun _ => rfl⟩
   refine ⟨_, SharpP.mul_mem (SharpP.natCast_mem 4) (SharpP.mul_mem hf hc),
     fun a => 3 * (k a * 2 ^ q.eval (enc a).length),
-    (by fun_prop), fun a => ?_⟩
+    binary_mul' (const 3)
+      (binary_mul' hk (binary_two_pow.comp ((unary_eval q).comp (encoding_length enc)))),
+    fun a => ?_⟩
   have hc_le : c a ≤ 2 ^ q.eval (enc a).length := acceptCount_le_two_pow
   have hD : 0 < 2 ^ q.eval (enc a).length := by positivity
   have hp1 : 1 ≤ 2 ^ p.eval (enc a).length := Nat.one_le_pow _ _ (by decide)

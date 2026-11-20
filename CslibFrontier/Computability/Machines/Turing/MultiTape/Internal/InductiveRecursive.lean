@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveParser
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial

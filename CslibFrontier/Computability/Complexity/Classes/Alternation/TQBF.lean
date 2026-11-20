@@ -19,6 +19,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+
 /-!
 # Games of polynomially many moves reduce to `TQBF`
 
@@ -369,22 +371,21 @@ variable {α : Type} {enc : α ↪ List Bool} {p : Polynomial ℕ} {V : α × Li
 
 /-- **Games with a polynomial-time winning condition reduce to `TQBF`.** -/
 private theorem IsGameVerifier.polyTimeReducible
-    (hV : ComputableTidilyInPolyTime V (encPair enc encBits) encBool)
+    (hV : ComputableInPolyTime V (encPair enc encBits) encBool)
     (h : IsGameVerifier enc p V A) : PolyTimeReducible enc encQBF A TQBF := by
-  obtain ⟨tV, sV, htV, -, kV, StateV, hfiniteV, tmV, htmV⟩ := hV
-  obtain ⟨cV, dV, htV⟩ := htV.exists_le
+  obtain ⟨cV, dV, kV, StateV, hfiniteV, tmV, htmV⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hV
   have := Fintype.ofFinite StateV
   classical
   exact ⟨TQBF.gameReduce enc p tmV cV dV,
     (TQBF.computableInPolyTime_gameReduce tmV cV dV),
-    fun a => (h a).trans (TQBF.gameReduce_mem_TQBF_iff (htmV.mono htV fun _ => le_rfl) a).symm⟩
+    fun a => (h a).trans (TQBF.gameReduce_mem_TQBF_iff htmV a).symm⟩
 
 /-- **Games of polynomially many moves are decided in polynomial space**: a problem with a
 polynomial-time game verifier is in `PSPACE`. -/
 theorem IsGameVerifier.mem_PSPACE
     (hV : Turing.MultiTapeTM.ComputableInPolyTime V (encPair enc encBits) encBool)
     (h : IsGameVerifier enc p V A) : A ∈ PSPACE enc := by
-  have hV := hV.tidy
   exact (h.polyTimeReducible hV).mem_PSPACE TQBF_mem_PSPACE
 
 /-- **`AP ⊆ PSPACE`** [Chandra, Kozen and Stockmeyer][ChandraKozenStockmeyer1981]
