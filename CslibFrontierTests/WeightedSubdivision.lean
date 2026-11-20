@@ -14,6 +14,7 @@ namespace CslibFrontierTests.WeightedSubdivision
 
 open Cslib Cslib.LayeredDigraph.Subdivision
 open Turing Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInSpace
+open Turing.QueryMachine.Subdivision
 
 private def rectangle : LayeredDigraph (Fin 3 × Fin 2) where
   Adj a b := b.1.val = a.1.val + 1
@@ -100,7 +101,7 @@ example (w : List Bool) : ∃ b,
       (fun t => t.getD false)).runFrom w (.inl (.inl q)) 3 = .inl (.inr b) ∧
     (b = true ↔ (graph (inputGraph w) Fin.val 1).Adj (root 1 0) (root 1 1)) := by
   refine ⟨w[0]?.getD false, run_readFirst w, ?_⟩
-  exact edgeQuery_agrees (inputGraph w) Fin.val 1 () (root 1 0) (root 1 1)
+  exact edgeQuery_agrees (inputGraph w) Fin.valEmbedding Fin.val 1 () (root 1 0) (root 1 1)
     (w[0]?.getD false) (by simp [inputGraph])
 
 private def noEdges : LayeredDigraph Unit where

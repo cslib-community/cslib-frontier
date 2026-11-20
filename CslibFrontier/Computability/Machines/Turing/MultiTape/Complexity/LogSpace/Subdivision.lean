@@ -27,7 +27,7 @@ constructing Hoza's weight routine remains in #6747.
 
 ## Applying the interface
 
-Import this module and use `Cslib.LayeredDigraph.Subdivision`. Supply a fixed original-edge
+Import this module and use `Turing.QueryMachine.Subdivision`. Supply a fixed original-edge
 `QueryMachine`, a compact-query-to-callee-state request function, a source-weight routine,
 and a decoder for the callee's returned state. `callback_runFrom` composes the actual
 same-input execution. `edgeQuery_agrees` supplies graph agreement from the original-edge
@@ -59,9 +59,10 @@ input-reading callee with graph agreement and the native certificate. Run
 
 public section
 
-namespace Cslib.LayeredDigraph.Subdivision
+namespace Turing.QueryMachine.Subdivision
 
-open Turing Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInSpace
+open Cslib Cslib.LayeredDigraph.Subdivision
+open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeTM.ComputableInSpace
 
 /-- Coordinates of a subdivision edge, together with its dimensions/seed context. -/
 structure Query (Context : Type) where
@@ -90,14 +91,14 @@ enc_structure encQuery (encContext : Context ↪ List Bool) : Query Context wher
   ((q.fromOffset == sourceWeight) && (q.toOffset == 0) && baseEdge)
 
 /-- The Boolean kernel agrees with the mathematical subdivision, including unused offsets. -/
-theorem edgeQuery_agrees {n : ℕ} (G : LayeredDigraph (Fin n)) (weight : Fin n → ℕ)
-    (bound : ℕ) (ctx : Context) (a b : Vertex (Fin n) bound) (baseEdge : Bool)
+theorem edgeQuery_agrees {V : Type*} (G : LayeredDigraph V) (label : V ↪ ℕ) (weight : V → ℕ)
+    (bound : ℕ) (ctx : Context) (a b : Vertex V bound) (baseEdge : Bool)
     (hbase : baseEdge = true ↔ G.Adj a.vertex b.vertex) :
-    edgeQuery ⟨ctx, a.vertex.val, b.vertex.val, a.offset.val, b.offset.val⟩
+    edgeQuery ⟨ctx, label a.vertex, label b.vertex, a.offset.val, b.offset.val⟩
       (weight a.vertex) baseEdge = true ↔ (graph G weight bound).Adj a b := by
   simp only [edgeQuery, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq]
   rw [hbase]
-  simp only [Fin.ext_iff, and_assoc]
+  simp only [label.injective.eq_iff, and_assoc]
 
 variable {Context τ : Type} (encContext : Context ↪ List Bool) (encT : τ ↪ List Bool)
 
@@ -275,4 +276,4 @@ theorem query_length_le_log (q : Query Context) (n d : ℕ)
     (length_encNat_le_of_le_pow (N := n + 1) hi)
     (length_encNat_le_of_le_pow (N := n + 1) hj)
 
-end Cslib.LayeredDigraph.Subdivision
+end Turing.QueryMachine.Subdivision
