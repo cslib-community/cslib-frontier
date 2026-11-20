@@ -422,26 +422,34 @@ theorem isSat_solve_eq_isSome_dfs (φ : CNF ℕ) :
 
 /-! ### The search with an explicit trail -/
 
-/-- A trail: the literals assumed, last first, each with whether it is the second branch of its
+/-- An entry of a trail: a literal assumed, and whether it is the second branch of its
 variable. -/
-abbrev Trail := List (Literal ℕ × Bool)
+structure TrailEntry where
+  /-- The literal assumed. -/
+  lit : Literal ℕ
+  /-- Whether this is the second branch of its variable, after the first was refuted. -/
+  isSecond : Bool
+  deriving DecidableEq, Repr
+
+/-- A trail: its entries, last first. -/
+abbrev Trail := List TrailEntry
 
 namespace Trail
 
 /-- The partial assignment of a trail. -/
-def lits (t : Trail) : List (Literal ℕ) := t.map Prod.fst
+def lits (t : Trail) : List (Literal ℕ) := t.map TrailEntry.lit
 
 @[simp] theorem lits_nil : lits [] = [] := rfl
 
 @[simp] theorem lits_cons (l : Literal ℕ) (b : Bool) (t : Trail) :
-    lits ((l, b) :: t) = l :: lits t := rfl
+    lits (⟨l, b⟩ :: t) = l :: lits t := rfl
 
 /-- **Backtracking**: drop the second branches on top, and turn the first branch below them into
 its second branch; `none` when every branch is a second branch. -/
 def backtrack : Trail → Option Trail
   | [] => none
-  | (_, true) :: t => backtrack t
-  | (l, false) :: t => some ((l.negate, true) :: t)
+  | ⟨_, true⟩ :: t => backtrack t
+  | ⟨l, false⟩ :: t => some (⟨l.negate, true⟩ :: t)
 
 /-- The end of a run: a partial assignment satisfying every clause, or none. -/
 inductive Answer : Type
@@ -456,7 +464,7 @@ clause, and otherwise push the branch literal. -/
 def step (φ : CNF ℕ) (t : Trail) : Answer ⊕ Trail :=
   match status φ (lits t) with
   | .sat => .inl (.sat (lits t))
-  | .branch l => .inr ((l, false) :: t)
+  | .branch l => .inr (⟨l, false⟩ :: t)
   | .conflict =>
     match backtrack t with
     | none => .inl .unsat
@@ -501,10 +509,10 @@ def after (φ : CNF ℕ) (k : ℕ) (t : Trail) : Option (List (Literal ℕ)) →
     | some t' => run φ k t'
 
 theorem backtrack_cons_false (l : Literal ℕ) (t : Trail) :
-    backtrack ((l, false) :: t) = some ((l.negate, true) :: t) := rfl
+    backtrack (⟨l, false⟩ :: t) = some (⟨l.negate, true⟩ :: t) := rfl
 
 theorem backtrack_cons_true (l : Literal ℕ) (t : Trail) :
-    backtrack ((l, true) :: t) = backtrack t := rfl
+    backtrack (⟨l, true⟩ :: t) = backtrack t := rfl
 
 /-- **The run explores the subtree at the top of the trail** in `nodes` steps: it ends with the
 model of the subtree if there is one, and otherwise continues by backtracking. -/
@@ -532,9 +540,9 @@ theorem run_add_nodes (φ : CNF ℕ) : (fuel : ℕ) → (t : Trail) → (k : ℕ
       have hlen₂ : (openVars φ (l.negate :: lits t)).length ≤ fuel := by
         rw [openVars_cons, show (Std.Sat.Literal.negate l).1 = l.1 from rfl,
           List.length_erase_of_mem hmem]; omega
-      have ih₁ := run_add_nodes φ fuel ((l, false) :: t) (k + nodes φ fuel (l.negate :: lits t))
+      have ih₁ := run_add_nodes φ fuel (⟨l, false⟩ :: t) (k + nodes φ fuel (l.negate :: lits t))
         hlen₁
-      have ih₂ := run_add_nodes φ fuel ((l.negate, true) :: t) k hlen₂
+      have ih₂ := run_add_nodes φ fuel (⟨l.negate, true⟩ :: t) k hlen₂
       simp only [lits_cons] at ih₁ ih₂
       have hn : k + nodes φ (fuel + 1) (lits t) =
           (k + nodes φ fuel (l.negate :: lits t) + nodes φ fuel (l :: lits t)) + 1 := by

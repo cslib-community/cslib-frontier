@@ -4,13 +4,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
-import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
+module
 
-/-! The DPLL solver on the word RAM: the encoding of small formulas, runs of the compiled program
-that return the solver's answer and model, and the hypothesis of `program_spec` at word size
-`64`. -/
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
+public meta import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
+
+/-! An ordinary-module client of the DPLL solver on the word RAM: the encoding of small formulas,
+runs of the exported compiled program that return the solver's answer and model, and the exported
+cost theorem `program_spec` at word size `64`. -/
 
 set_option linter.hashCommand false
+
+public section
 
 namespace CslibFrontierTests.WordRAMDPLL
 
@@ -68,3 +73,5 @@ example : ∃ n ≤ 2 ^ (Cslib.Algorithms.Lean.DPLL.depth full + 1) * (46 * (enc
   program_spec 2 full (by decide) (w := 64) (by decide)
 
 end CslibFrontierTests.WordRAMDPLL
+
+end

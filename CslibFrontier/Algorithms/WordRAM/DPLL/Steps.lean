@@ -232,10 +232,11 @@ theorem lastPass_spec (φ : CNF ℕ) (x : Data 32) (N : ℕ)
 
 /-- The words of the trail: two per entry, bottom first, the code of its literal and `1` for a
 second branch. -/
-def trailWords (t : Trail) : List ℕ := t.reverse.flatMap fun e => [litCode e.1, e.2.toNat]
+def trailWords (t : Trail) : List ℕ :=
+  t.reverse.flatMap fun e => [litCode e.lit, e.isSecond.toNat]
 
-theorem trailWords_cons (e : Literal ℕ × Bool) (t : Trail) :
-    trailWords (e :: t) = trailWords t ++ [litCode e.1, e.2.toNat] := by
+theorem trailWords_cons (e : TrailEntry) (t : Trail) :
+    trailWords (e :: t) = trailWords t ++ [litCode e.lit, e.isSecond.toNat] := by
   simp [trailWords]
 
 theorem length_trailWords (t : Trail) : (trailWords t).length = 2 * t.length := by
@@ -244,10 +245,10 @@ theorem length_trailWords (t : Trail) : (trailWords t).length = 2 * t.length := 
   | cons e t ih => rw [trailWords_cons]; simp [ih]; omega
 
 /-- The variable of a trail entry. -/
-def entryVar : Literal ℕ × Bool → ℕ
-  | (l, _) => l.1
+def entryVar : TrailEntry → ℕ
+  | ⟨(v, _), _⟩ => v
 
-@[simp] theorem entryVar_mk (l : Literal ℕ) (b : Bool) : entryVar (l, b) = l.1 := rfl
+@[simp] theorem entryVar_mk (l : Literal ℕ) (b : Bool) : entryVar ⟨l, b⟩ = l.1 := rfl
 
 /-- The trail invariant: the variables of the trail are distinct variables of the formula. -/
 def TrailOK (φ : CNF ℕ) (t : Trail) : Prop :=
@@ -280,12 +281,12 @@ theorem mem_vars_lt {φ : CNF ℕ} {N T : ℕ} {mem : ℕ → ℕ} {t : Trail} (
   exact h.vars c hc _ hl
 
 theorem lits_not_mem {φ : CNF ℕ} {l : Literal ℕ} {b : Bool} {t : Trail}
-    (h : TrailOK φ ((l, b) :: t)) :
+    (h : TrailOK φ (⟨l, b⟩ :: t)) :
     l ∉ Trail.lits t ∧ Std.Sat.Literal.negate l ∉ Trail.lits t := by
   have hn : l.1 ∉ t.map entryVar := (List.nodup_cons.1 h.1).1
   have key : ∀ l' ∈ Trail.lits t, l'.1 ≠ l.1 := fun l' hl' he => by
     obtain ⟨⟨l₀, b₀⟩, hee, hel⟩ := List.mem_map.1 hl'
-    exact hn (List.mem_map.2 ⟨(l₀, b₀), hee, by simp only [entryVar_mk]; rw [← he, ← hel]⟩)
+    exact hn (List.mem_map.2 ⟨⟨l₀, b₀⟩, hee, by simp only [entryVar_mk]; rw [← he, ← hel]⟩)
   exact ⟨fun hm => key l hm rfl, fun hm => key _ hm rfl⟩
 
 /-- Updating a cell of the literal array. -/
@@ -309,62 +310,71 @@ theorem LitArr.update_ge {mem : ℕ → ℕ} {T N : ℕ} {π : List (Literal ℕ
   rw [Function.update_of_ne (by omega)]
   exact h l hl
 
-theorem lt_of_holdsList_clauses {φ : CNF ℕ} {T : ℕ}
-    (hT : 2 + (φ.flatMap encodeClause).length = T) {a : ℕ}
-    (ha : a < 2 + (φ.flatMap encodeClause).length) : a < T := by omega
+/-- **Pushing an entry** `⟨l, b⟩` on a variable of the formula not on the trail: the new memory
+sets the literal's cell to `1` and writes the entry's two words above the trail, and agrees with
+the old memory elsewhere. -/
+theorem MemAt.cons {φ : CNF ℕ} {N T : ℕ} {mem mem' : ℕ → ℕ} {t : Trail} (h : MemAt φ N T mem t)
+    {l : Literal ℕ} {b : Bool} (hl : l.1 ∈ φ.vars) (hnot : l.1 ∉ t.map entryVar)
+    (hmem : ∀ a, mem' a =
+      if a = T + litCode l then 1
+      else if a = T + 3 * N + 2 * t.length then litCode l
+      else if a = T + 3 * N + 2 * t.length + 1 then b.toNat
+      else mem a) :
+    MemAt φ N T mem' (⟨l, b⟩ :: t) := by
+  have hlN := mem_vars_lt h hl
+  have hc := litCode_lt hlN
+  have hT := h.hT
+  -- Cells away from the three written ones keep their contents.
+  have hframe : ∀ a, a ≠ T + litCode l → a ≠ T + 3 * N + 2 * t.length →
+      a ≠ T + 3 * N + 2 * t.length + 1 → mem' a = mem a := fun a h₁ h₂ h₃ => by
+    simp [hmem, h₁, h₂, h₃]
+  refine ⟨h.clauses.frame fun a _ ha' => hframe a (by omega) (by omega) (by omega), h.hT,
+    h.vars, fun l' hl' => ?_, fun v hv => ?_, ?_, ?_⟩
+  · have hc' := litCode_lt hl'
+    by_cases he : l' = l
+    · subst he; simp [hmem, Trail.lits]
+    · have hne : T + litCode l' ≠ T + litCode l := fun h' =>
+        he (litCodeBy_injective Function.injective_id (show litCode l' = litCode l by omega))
+      rw [hframe _ hne (by omega) (by omega), h.lits l' hl']
+      simp [Trail.lits, he]
+  · rw [hframe _ (by omega) (by omega) (by omega)]; exact h.last v hv
+  · rw [trailWords_cons]
+    refine holdsList_append_iff.mpr ⟨h.trail.frame fun a _ ha' => ?_, ?_⟩
+    · rw [length_trailWords] at ha'
+      exact hframe a (by omega) (by omega) (by omega)
+    · rw [length_trailWords]
+      refine holdsList_cons_iff.mpr ⟨?_, holdsList_cons_iff.mpr ⟨?_, fun i => i.elim0⟩⟩
+      · rw [hmem]; split_ifs <;> first | rfl | omega
+      · rw [hmem]; split_ifs <;> first | rfl | omega
+  · refine ⟨List.nodup_cons.2 ⟨hnot, h.ok.1⟩, fun e he => ?_⟩
+    rcases List.mem_cons.1 he with rfl | he
+    · exact hl
+    · exact h.ok.2 e he
 
 /-- **Pushing a first branch** on an open variable of the formula. -/
 theorem MemAt.push {φ : CNF ℕ} {N T : ℕ} {mem : ℕ → ℕ} {t : Trail} (h : MemAt φ N T mem t)
     {l : Literal ℕ} (hl : l.1 ∈ φ.vars) (ha : Assigned (Trail.lits t) l.1 = false) :
     MemAt φ N T (Function.update (Function.update (Function.update mem
       (T + 3 * N + 2 * t.length) (litCode l)) (T + 3 * N + 2 * t.length + 1) 0)
-      (T + litCode l) 1) ((l, false) :: t) := by
-  have hlN := mem_vars_lt h hl
-  have hc := litCode_lt hlN
-  have hT := h.hT
-  have hnot : l.1 ∉ t.map entryVar := by
-    rw [← assigned_lits_iff]; simp [ha]
-  have hlnot : l ∉ Trail.lits t := fun hm => hnot (by
-    obtain ⟨⟨l₀, b₀⟩, he, hel⟩ := List.mem_map.1 hm
-    exact List.mem_map.2 ⟨(l₀, b₀), he, by simp only [entryVar_mk]; rw [show l₀ = l from hel]⟩)
-  refine ⟨h.clauses.frame fun a _ ha' => ?_, h.hT, h.vars, ?_, fun v hv => ?_, ?_, ?_⟩
-  · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega)]
-  · refine LitArr.update ((h.lits.update_ge (by omega) _).update_ge (by omega) _) l 1
-      (by simp [Trail.lits]) fun l' hl' => ?_
-    simp [Trail.lits, hl']
-  · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega)]
-    exact h.last v hv
-  · rw [trailWords_cons]
-    refine holdsList_append_iff.mpr ⟨h.trail.frame fun a _ ha' => ?_, ?_⟩
-    · rw [length_trailWords] at ha'
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega)]
-    · rw [length_trailWords]
-      refine holdsList_cons_iff.mpr ⟨?_, holdsList_cons_iff.mpr ⟨?_, fun i => i.elim0⟩⟩
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        simp
-      · rw [Function.update_of_ne (by omega)]
-        simp
-  · refine ⟨List.nodup_cons.2 ⟨hnot, h.ok.1⟩, fun e he => ?_⟩
-    rcases List.mem_cons.1 he with rfl | he
-    · exact hl
-    · exact h.ok.2 e he
+      (T + litCode l) 1) (⟨l, false⟩ :: t) := by
+  have hc := litCode_lt (mem_vars_lt h hl)
+  refine h.cons hl (by rw [← assigned_lits_iff]; simp [ha]) fun a => ?_
+  simp only [Function.update_apply]
+  split_ifs <;> first | rfl | omega
 
-theorem TrailOK.tail {φ : CNF ℕ} {e : Literal ℕ × Bool} {t : Trail} (h : TrailOK φ (e :: t)) :
+theorem TrailOK.tail {φ : CNF ℕ} {e : TrailEntry} {t : Trail} (h : TrailOK φ (e :: t)) :
     TrailOK φ t :=
   ⟨(List.nodup_cons.1 h.1).2, fun e' he' => h.2 e' (List.mem_cons_of_mem _ he')⟩
 
 /-- **Popping an entry**: clearing its literal. -/
 theorem MemAt.pop {φ : CNF ℕ} {N T : ℕ} {mem : ℕ → ℕ} {l : Literal ℕ} {b : Bool} {t : Trail}
-    (h : MemAt φ N T mem ((l, b) :: t)) :
+    (h : MemAt φ N T mem (⟨l, b⟩ :: t)) :
     MemAt φ N T (Function.update mem (T + litCode l) 0) t := by
-  have hlN : l.1 < N := mem_vars_lt h (h.ok.2 (l, b) List.mem_cons_self)
+  have hlN : l.1 < N := mem_vars_lt h (h.ok.2 ⟨l, b⟩ List.mem_cons_self)
   have hc := litCode_lt hlN
   have hT := h.hT
   have hnot := (lits_not_mem h.ok).1
-  have htr := (holdsList_append_iff.mp (trailWords_cons (l, b) t ▸ h.trail)).1
+  have htr := (holdsList_append_iff.mp (trailWords_cons ⟨l, b⟩ t ▸ h.trail)).1
   refine ⟨h.clauses.frame fun a _ ha' => ?_, h.hT, h.vars, ?_, fun v hv => ?_, ?_, h.ok.tail⟩
   · rw [Function.update_of_ne (by omega)]
   · refine LitArr.update h.lits l 0 (by simp [hnot]) fun l' hl' => ?_
@@ -372,42 +382,18 @@ theorem MemAt.pop {φ : CNF ℕ} {N T : ℕ} {mem : ℕ → ℕ} {l : Literal �
   · rw [Function.update_of_ne (by omega)]; exact h.last v hv
   · exact htr.frame fun a h₁ _ => by rw [Function.update_of_ne (by omega)]
 
-/-- **Flipping a first branch** into the second branch. -/
+/-- **Flipping a first branch** into the second branch: popping it, then pushing its negation as
+a second branch. -/
 theorem MemAt.flip {φ : CNF ℕ} {N T : ℕ} {mem : ℕ → ℕ} {l : Literal ℕ} {t : Trail}
-    (h : MemAt φ N T mem ((l, false) :: t)) :
+    (h : MemAt φ N T mem (⟨l, false⟩ :: t)) :
     MemAt φ N T (Function.update (Function.update (Function.update (Function.update mem
       (T + litCode l) 0) (T + litCode l.negate) 1) (T + 3 * N + 2 * t.length)
-      (litCode l.negate)) (T + 3 * N + 2 * t.length + 1) 1) ((l.negate, true) :: t) := by
-  have hlN : l.1 < N := mem_vars_lt h (h.ok.2 (l, false) List.mem_cons_self)
-  have hc := litCode_lt hlN
-  have hnc := litCode_lt (l := l.negate) hlN
-  have hT := h.hT
-  have hp := h.pop
-  have hnn := (lits_not_mem h.ok).2
-  refine ⟨hp.clauses.frame fun a _ ha' => ?_, h.hT, h.vars, ?_, fun v hv => ?_, ?_, ?_⟩
-  · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega)]
-  · refine ((LitArr.update hp.lits l.negate 1 (by simp [Trail.lits]) fun l' hl' => ?_).update_ge
-      (by omega) _).update_ge (by omega) _
-    simp [Trail.lits, hl']
-  · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega)]
-    exact hp.last v hv
-  · rw [trailWords_cons]
-    refine holdsList_append_iff.mpr ⟨hp.trail.frame fun a _ ha' => ?_, ?_⟩
-    · rw [length_trailWords] at ha'
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega)]
-    · rw [length_trailWords]
-      refine holdsList_cons_iff.mpr ⟨?_, holdsList_cons_iff.mpr ⟨?_, fun i => i.elim0⟩⟩
-      · rw [Function.update_of_ne (by omega)]
-        simp
-      · simp
-  · refine ⟨List.nodup_cons.2 ⟨(List.nodup_cons.1 h.ok.1).1, (List.nodup_cons.1 h.ok.1).2⟩,
-      fun e he => ?_⟩
-    rcases List.mem_cons.1 he with rfl | he
-    · exact h.ok.2 (l, false) List.mem_cons_self
-    · exact h.ok.2 e (List.mem_cons_of_mem _ he)
+      (litCode l.negate)) (T + 3 * N + 2 * t.length + 1) 1) (⟨l.negate, true⟩ :: t) := by
+  have hl := h.ok.2 ⟨l, false⟩ List.mem_cons_self
+  have hnc := litCode_lt (l := l.negate) (mem_vars_lt h hl)
+  refine h.pop.cons (l := l.negate) hl (List.nodup_cons.1 h.ok.1).1 fun a => ?_
+  simp only [Function.update_apply]
+  split_ifs <;> first | rfl | omega
 
 theorem TrailOK.length_le_vars {φ : CNF ℕ} {t : Trail} (h : TrailOK φ t) :
     t.length ≤ φ.vars.length := by
@@ -464,7 +450,7 @@ theorem push_spec (φ : CNF ℕ) (N T : ℕ) (x : Data 32) (t : Trail) (l : Lite
     (hcode : (if x.regs uf = 0 then x.regs ov + x.regs ov + 1 else x.regs unit) = litCode l)
     (hl : l.1 ∈ φ.vars) (ha : Assigned (Trail.lits t) l.1 = false)
     (hfit : Fits w (T + 6 * N + 2)) :
-    ∃ y, ExecWithin w push x y 12 ∧ StateAt φ N T y ((l, false) :: t) := by
+    ∃ y, ExecWithin w push x y 12 ∧ StateAt φ N T y (⟨l, false⟩ :: t) := by
   have hpush := hs.mem.push hl ha
   have hlen := hpush.ok.length_le (fun v hv => mem_vars_lt hs.mem hv)
   simp only [List.length_cons] at hlen
@@ -494,13 +480,13 @@ theorem push_spec (φ : CNF ℕ) (N T : ℕ) (x : Data 32) (t : Trail) (l : Lite
 
 /-- The trail without the second branches on top. -/
 def dropSecond : Trail → Trail
-  | (_, true) :: t => dropSecond t
+  | ⟨_, true⟩ :: t => dropSecond t
   | t => t
 
 theorem backtrack_eq (t : Trail) :
     Trail.backtrack t = match dropSecond t with
       | [] => none
-      | (l, _) :: t' => some ((l.negate, true) :: t') := by
+      | ⟨l, _⟩ :: t' => some (⟨l.negate, true⟩ :: t') := by
   induction t with
   | nil => rfl
   | cons e t ih =>
@@ -510,13 +496,13 @@ theorem backtrack_eq (t : Trail) :
     · rw [Trail.backtrack_cons_true, ih]; rfl
 
 theorem dropSecond_cons_true (l : Literal ℕ) (t : Trail) :
-    dropSecond ((l, true) :: t) = dropSecond t := rfl
+    dropSecond (⟨l, true⟩ :: t) = dropSecond t := rfl
 
 theorem dropSecond_cons_false (l : Literal ℕ) (t : Trail) :
-    dropSecond ((l, false) :: t) = (l, false) :: t := rfl
+    dropSecond (⟨l, false⟩ :: t) = ⟨l, false⟩ :: t := rfl
 
 theorem dropSecond_eq_cons {t t' : Trail} {l : Literal ℕ} {b : Bool}
-    (h : dropSecond t = (l, b) :: t') : b = false := by
+    (h : dropSecond t = ⟨l, b⟩ :: t') : b = false := by
   induction t with
   | nil => cases h
   | cons e t ih =>
@@ -536,10 +522,10 @@ theorem length_dropSecond_le (t : Trail) : (dropSecond t).length ≤ t.length :=
 
 /-- The two words of the top entry of a trail. -/
 theorem MemAt.top {φ : CNF ℕ} {N T : ℕ} {mem : ℕ → ℕ} {l : Literal ℕ} {b : Bool} {t : Trail}
-    (h : MemAt φ N T mem ((l, b) :: t)) :
+    (h : MemAt φ N T mem (⟨l, b⟩ :: t)) :
     mem (T + 3 * N + 2 * t.length) = litCode l ∧
       mem (T + 3 * N + 2 * t.length + 1) = b.toNat := by
-  have := (holdsList_append_iff.mp (trailWords_cons (l, b) t ▸ h.trail)).2
+  have := (holdsList_append_iff.mp (trailWords_cons ⟨l, b⟩ t ▸ h.trail)).2
   rw [length_trailWords] at this
   obtain ⟨h₁, h₂⟩ := holdsList_cons_iff.mp this
   exact ⟨h₁, (holdsList_cons_iff.mp h₂).1⟩
@@ -565,7 +551,7 @@ theorem popLoop_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs : 
     have htp : x.regs tp = T + 3 * N + 2 * t.length + 2 := by rw [hs.tp]; simp; omega
     have hst : x.regs sb < x.regs tp := by rw [hs.sb, htp]; omega
     obtain ⟨hcode, hflag⟩ := hs.mem.top
-    have hlN : l.1 < N := mem_vars_lt hs.mem (hs.mem.ok.2 (l, b) List.mem_cons_self)
+    have hlN : l.1 < N := mem_vars_lt hs.mem (hs.mem.ok.2 ⟨l, b⟩ List.mem_cons_self)
     have hcl := litCode_lt hlN
     have : Fits w (T + 3 * N + 2 * t.length + 1) := hfit.of_le (by omega)
     have : Fits w (T + 3 * N + 2 * t.length) := hfit.of_le (by omega)
@@ -629,7 +615,7 @@ theorem backtrack_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs 
     have htp : y.regs tp = T + 3 * N + 2 * t'.length + 2 := by rw [hy.tp]; simp; omega
     have hst : y.regs sb < y.regs tp := by rw [hy.sb, htp]; omega
     obtain ⟨hcode, -⟩ := hy.mem.top
-    have hlN : l.1 < N := mem_vars_lt hy.mem (hy.mem.ok.2 (l, false) List.mem_cons_self)
+    have hlN : l.1 < N := mem_vars_lt hy.mem (hy.mem.ok.2 ⟨l, false⟩ List.mem_cons_self)
     have hcl := litCode_lt hlN
     have hncl := litCode_lt (l := l.negate) hlN
     have hxor : litCode l ^^^ 1 = litCode l.negate := litCodeBy_xor_one _root_.id l
@@ -823,7 +809,7 @@ theorem stepBody_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs :
       rw [ha, Bool.toNat_false] at halls
       have hstat : status φ π = .branch (nextLiteral φ π) := by
         unfold status; rw [List.isSome_find?, hc]; simp only [Bool.false_eq_true, ↓reduceIte, ha]
-      have hstep : Trail.step φ t = .inr ((nextLiteral φ π, false) :: t) := by
+      have hstep : Trail.step φ t = .inr (⟨nextLiteral φ π, false⟩ :: t) := by
         unfold Trail.step; rw [show Trail.lits t = π from rfl, hstat]
       obtain ⟨hv, hun⟩ := assigned_of_status_eq_branch hstat
       have hcode : (if y.regs uf = 0 then y.regs ov + y.regs ov + 1 else y.regs unit) =

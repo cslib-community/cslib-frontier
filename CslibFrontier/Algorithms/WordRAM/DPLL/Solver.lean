@@ -18,13 +18,16 @@ This file proves the main theorem about the word-RAM DPLL solver
 variable of `φ` is below `N`, it returns the output of `Cslib.Algorithms.Lean.DPLL.solve`
 (`Cslib.Algorithms.WordRAM.DPLL.answerWords`): `[0]` when `φ` is unsatisfiable, and `1` followed by
 the bits of the solver's model otherwise. It halts within
-`2 ^ (d + 1) (46 E + 64) + 10 N + 8 E + 24` instructions, where `d` is the number of distinct
+`2 ^ (d + 1) (46 E + 64) + 10 N + 8 E + 21` instructions, where `d` is the number of distinct
 variables of `φ` (`Cslib.Algorithms.WordRAM.DPLL.program_spec`), and so within `260 · 2 ^ N · E`
 (`Cslib.Algorithms.WordRAM.DPLL.program_spec_pow`).
 
 Each iteration of the main loop runs one step of the search with an explicit trail
 (`Cslib.Algorithms.Lean.DPLL.Trail.step`) in `O(E)` instructions, and the search ends within
-`2 ^ (d + 1)` steps (`Cslib.Algorithms.Lean.DPLL.Trail.run_answer`).
+`2 ^ (d + 1)` steps (`Cslib.Algorithms.Lean.DPLL.Trail.run_answer`). The term `10 N` is charged
+once, on the exit that writes a model: it writes one word for each of the `N` variables. It is
+not covered by the `O(E)` cost of a step, because the header `N` is only an upper bound on the
+variables and can exceed the input length `E`.
 
 ## Main results
 
