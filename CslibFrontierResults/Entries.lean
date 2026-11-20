@@ -3223,7 +3223,8 @@ register_result "nash-realize-coefficients" where
   title := "Any block-affine polynomials are realized as expected pure-strategy costs"
   topic := "game theory"
   sources := [
-    { paper := Datta2003, theorem := "Lemma 4", locator := "Section 2, equations (2)-(4), pp. 3-4" }
+    { paper := Datta2003, theorem := "Lemma 4",
+      locator := "arXiv:math/0301001, §3, equations (2)–(4), printed pp. 3–4" }
   ]
   theorems := [
     Cslib.GameTheory.CostGame.deviationCost_realize,
@@ -3236,7 +3237,8 @@ register_result "nash-realize-coefficients" where
     expected cost of pure strategy a for player i equal to g i a. The identity holds for signed \
     weights. Datta prescribes payoff differences against a reference strategy; taking g i (a₀ i) \
     = 0 recovers them, and the totally mixed equilibria are the positive normalized profiles at \
-    which every g i a vanishes."
+    which every g i a vanishes. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6703#pullrequestreview-5993269399"
 
 register_result "correlated-equilibrium-hierarchy" where
   title := "Pure Nash, mixed Nash, correlated and coarse correlated equilibria are nested"
