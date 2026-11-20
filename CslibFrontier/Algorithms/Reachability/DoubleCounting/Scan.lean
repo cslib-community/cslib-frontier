@@ -479,21 +479,12 @@ private theorem foldlM_registers_le (g : Fin N → Option Result) (k : ℕ)
     rw [Fin.foldlM_succ_last] at hr
     change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero).bind
       (fun acc => (g (Fin.last N)).map (add acc))) = some r at hr
-    cases hp : Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero with
-    | none =>
-      rw [hp] at hr
-      contradiction
-    | some partialResult =>
-      have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
-      rw [hp] at hr
-      cases hl : g (Fin.last N) with
-      | none => simp [hl, Option.bind] at hr
-      | some last =>
-        have hlast := hg (Fin.last N) last hl
-        simp only [hl, Option.bind, Option.map_some, Option.some.injEq] at hr
-        subst r
-        exact ⟨Nat.add_le_add hb.1 hlast.1,
-          (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
+    obtain ⟨partialResult, hp, hr⟩ := Option.bind_eq_some_iff.mp hr
+    obtain ⟨last, hl, rfl⟩ := Option.map_eq_some_iff.mp hr
+    have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
+    have hlast := hg (Fin.last N) last hl
+    exact ⟨Nat.add_le_add hb.1 hlast.1,
+      (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
 
 /-- In any successfully processed prefix, the count is bounded by the number of processed
 vertices, and the length sum by that number times the walk budget. The prefix may be followed
