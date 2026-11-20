@@ -2172,6 +2172,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.TimeLayer
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Savitch
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
+public import CslibFrontier.Computability.Complexity.Classes.LogarithmicTimeHierarchy
 public import CslibFrontier.Computability.Complexity.Classes.MIP
 public import CslibFrontier.Computability.Complexity.Classes.MIP.Defs
 public import CslibFrontier.Computability.Complexity.Classes.MIP.NEXP
