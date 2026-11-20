@@ -84,8 +84,8 @@ is bounded through `measure_mono_ae`, which holds for outer measure. The seed of
 `correlatedCoupling` is the library's finite correlated sampling, whose law is built from both
 `P v` and `Q v`. A protocol in which each party needs only its own distribution is milestone 2 of
 #6718. The divergence and output bounds use no hypothesis on `Q`: they need only the first run's
-expected sample counts, and the second run stops whenever the runs agree. Termination of both runs
-on every table (`coupledTable_ae_terminate`) does need the local-lemma hypothesis for `Q` as well.
+expected sample counts, and the second run stops whenever the runs agree. Almost-sure termination
+of both runs (`coupledTable_ae_terminate`) does need the local-lemma hypothesis for `Q` as well.
 
 ## References
 
@@ -331,6 +331,10 @@ noncomputable def coupledTable : Measure (∀ p : V × ℕ, α p.1 × α p.1) :=
 instance : IsProbabilityMeasure (coupledTable κ) := by
   unfold coupledTable
   infer_instance
+
+omit [Fintype V] [DecidableEq V] [∀ v, IsProbabilityMeasure (κ v)] in
+theorem coupledTable_def : coupledTable κ = Measure.infinitePi fun p : V × ℕ => κ p.1 := by
+  rw [coupledTable]
 
 /-- The first run's table. -/
 @[expose] def fstTable (T : ∀ p : V × ℕ, α p.1 × α p.1) : ∀ p : V × ℕ, α p.1 :=
@@ -631,8 +635,9 @@ theorem coupledTable_not_agreeGood_le [Finite ι] (A : ι → Set (∀ v, α v))
 omit [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
 /-- **Both runs terminate.** If each run's distributions satisfy the asymmetric local-lemma
 hypothesis, with weights `x` and `y`, then almost surely both runs stop. The local-lemma
-hypothesis for the second run cannot be dropped: if its events have probability `1`, it never
-stops. -/
+hypothesis for the second run cannot be dropped. Take one coin, a second-run distribution that
+always gives `true`, and the rule that resamples whenever the coin shows `true`. The second run's
+table is then almost surely all `true`, and on that table the rule resamples forever. -/
 theorem coupledTable_ae_terminate [Finite ι] (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
