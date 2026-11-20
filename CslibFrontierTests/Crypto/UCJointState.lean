@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+import CslibFrontier.Crypto.Protocols.SSP.ParFinLazy
 import CslibFrontier.Crypto.Protocols.UC.JointState
 
 /-! # Lazy multi-session UC (c1a) witness tests -/
@@ -104,7 +105,7 @@ theorem copies_independent_witness :
   rw [hInd, hShared] at h12
   norm_num at h12
 
-/-- Witness 3 (lazy sampling via `run_parFinLazy_eq_parFin` at `m = 2` touching `1, 0, 1`):
+/-- Witness 3 (lazy sampling via `SSP.run_parFinLazy_eq_parFin` at `m = 2` touching `1, 0, 1`):
 session `1` keeps the same coin across two calls while session `0` samples independently. -/
 theorem lazy_sampling_witness :
     let prog : ProbOracleComp
@@ -113,7 +114,7 @@ theorem lazy_sampling_witness :
       let b₀ ← ProbOracleComp.query ((0 : Fin 2), ())
       let b₁' ← ProbOracleComp.query ((1 : Fin 2), ())
       pure (decide (b₁ = b₁' ∧ b₀ = b₁))
-    ((parFinLazy (fun _ : Fin 2 => coinMachine)).run prog).eval true = (2 : ENNReal)⁻¹ ∧
+    ((SSP.parFinLazy (fun _ : Fin 2 => coinMachine)).run prog).eval true = (2 : ENNReal)⁻¹ ∧
       ((SSP.parFin (fun _ : Fin 2 => coinMachine)).run prog).eval true = (2 : ENNReal)⁻¹ := by
   intro prog
   have hE : ((SSP.parFin (fun _ : Fin 2 => coinMachine)).run prog).eval true =
@@ -131,7 +132,7 @@ theorem lazy_sampling_witness :
     rw [← mul_add]
     simp [ENNReal.inv_two_add_inv_two]
   refine ⟨?_, hE⟩
-  rw [run_parFinLazy_eq_parFin]
+  rw [SSP.run_parFinLazy_eq_parFin]
   exact hE
 
 end CslibFrontierTests.Crypto.UCJointState

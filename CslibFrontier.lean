@@ -5546,6 +5546,7 @@ public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.Basic
 public import CslibFrontier.Crypto.Protocols.Quantum.OneTimePad
 public import CslibFrontier.Crypto.Protocols.SSP.Basic
 public import CslibFrontier.Crypto.Protocols.SSP.Hybrid
+public import CslibFrontier.Crypto.Protocols.SSP.ParFinLazy
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Additive
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Designs
