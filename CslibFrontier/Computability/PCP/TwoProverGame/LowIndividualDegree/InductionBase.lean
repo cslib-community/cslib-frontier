@@ -236,28 +236,12 @@ theorem exists_degree_zero_polynomial_POVM
   have hpoint : (𝔼 u : Pt, dist (P u) (R u)) ≤ 2 * δ := by
     have h (u : Pt) (a : F) := C.state.norm_sub_comm ((P u).effect a) ((R u).effect a)
     simpa only [dist, h] using decodedPoint_stateDist_le C 0
-  have htri (u v : Pt) :
-      dist (P u) (R v) ≤ 2 * (dist (P u) (P v) + dist (P v) (R v)) := by
-    simp only [dist, ← sum_add_distrib, mul_sum]
-    refine sum_le_sum fun a _ => ?_
-    let X := (P u).effect a - (P v).effect a
-    let Y := (P v).effect a - (R v).effect a
-    change C.state.norm ((P u).effect a - (R v).effect a) ^ 2 ≤
-      2 * (C.state.norm X ^ 2 + C.state.norm Y ^ 2)
-    rw [show (P u).effect a - (R v).effect a = X + Y by
-      dsimp only [X, Y]
-      abel]
-    calc
-      _ ≤ (C.state.norm X + C.state.norm Y) ^ 2 := by
-        gcongr
-        · exact C.state.norm_nonneg _
-        · exact C.state.norm_add_le _ _
-      _ ≤ _ := by nlinarith only [sq_nonneg (C.state.norm X - C.state.norm Y)]
   have hcross :
       (𝔼 u : Pt, 𝔼 v : Pt, dist (P u) (R v)) ≤ 2 * (8 * (n + 1 : ℝ) * ε + 2 * δ) := by
     calc
       _ ≤ 𝔼 u : Pt, 𝔼 v : Pt, 2 * (dist (P u) (P v) + dist (P v) (R v)) :=
-        expect_le_expect fun u _ => expect_le_expect fun v _ => htri u v
+        expect_le_expect fun u _ => expect_le_expect fun v _ =>
+          Measurement.sum_norm_sub_sq_triangle C.state (P u) (P v) (R v)
       _ ≤ _ := by
         simp only [← mul_expect, expect_add_distrib, Fintype.expect_const]
         linarith only [hpoint, degreeZero_pointVariance C]

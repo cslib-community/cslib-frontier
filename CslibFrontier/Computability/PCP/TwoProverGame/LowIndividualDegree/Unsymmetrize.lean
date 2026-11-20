@@ -130,12 +130,10 @@ theorem exists_local_polynomial_POVMs_of_projective {k : ℕ} (D : ℕ)
     rw [decodedPoint, decodedPoint, decodedPoint]
     refine Eq.trans ?_ (S.symmetrize_agreement (.point u) G decodePoint
       (fun g => MvPolynomial.eval u g.val))
-    unfold Measurement.agreement
-    refine sum_congr rfl fun a _ => ?_
-    have hc := Measurement.commute_map_map _ _
+    apply Measurement.agreement_comm
+    exact fun a => (Measurement.commute_map_map _ _
       (QuantumStrategy.commute_liftedEffects (T.alice (.point u)) G)
-      decodePoint (fun g => MvPolynomial.eval u g.val) a a
-    exact congrArg (fun x => (T.toCommuting.state x).re) hc.eq.symm
+      decodePoint (fun g => MvPolynomial.eval u g.val) a a).symm
   simp only [T] at h
   simp only [h, expect_sub_distrib, expect_add_distrib, ← expect_div, Fintype.expect_const] at hG
   have hₐ : (𝔼 u : Point F (n + 1), (1 - Measurement.agreement C.state

@@ -116,9 +116,8 @@ theorem sum_prob_bob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A
   simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one]
 
 theorem sum_prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
-    ∑ a, ∑ b, S.prob x y a b = 1 := by
-  simp only [sum_prob_bob, ← Complex.re_sum, ← map_sum, (S.alice x).sum_effect,
-    AlgState.map_one, Complex.one_re]
+    ∑ a, ∑ b, S.prob x y a b = 1 :=
+  Measurement.sum_re_effect_mul_effect S.state (S.alice x) (S.bob y)
 
 /-- Pull back each player's questions and post-process each player's outcomes independently. -/
 noncomputable def relabel {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']

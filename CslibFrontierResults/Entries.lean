@@ -15,6 +15,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSelfImprovement
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSoundness
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SymmetricSoundness
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.TensorSelfImprovement
@@ -11075,6 +11076,28 @@ register_result "low-individual-degree-projective-self-improvement" where
     losses. The subsequent low-degree induction and soundness remain separate. \
     Outside source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6612#issuecomment-7016129909."
+
+register_result "low-individual-degree-projective-soundness" where
+  title := "Quantitative soundness for projective low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 3.10",
+      locator := "arXiv:2009.12982v1, p. 15 and the proof in §6" }
+  ]
+  theorems := [
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs,
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs_of_winProb
+  ]
+  scope := "Quantitative variant of Theorem 3.10 for finite projective tensor strategies over \
+    a finite field, with k ≥ md. The original spaces may differ, and no symmetry is assumed. \
+    The two projective polynomial POVMs are on the original local spaces. Let r = d/|F| and \
+    σ = 320000 m² (100000 k² m R + exp(-k/(80000 m²))), where R sums the 1/128 powers of \
+    the axis, consistency and diagonal losses and of r. Let ζ = σ + √(4(σ + δ)) + mr, \
+    where δ is the consistency loss. Each opposite-player point disagreement is bounded by \
+    σ + √(8ζ + 4√(18ζ)), and full-polynomial disagreement by ζ + 2√(18ζ). The branchwise \
+    result allows an independent diagonal cutoff. The full-score result uses the Figure 2 \
+    cutoff and substitutes three times the full loss for each branch loss. Outside source \
+    check: https://github.com/cslib-community/cslib-frontier/pull/6621#issuecomment-7016634350."
 
 register_result "low-individual-degree-self-improvement-sdp" where
   title := "Strong duality for the low-individual-degree self-improvement SDP"

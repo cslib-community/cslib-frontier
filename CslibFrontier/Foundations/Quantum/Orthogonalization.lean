@@ -299,4 +299,27 @@ theorem exists_isProjective_sum_norm_sub_sq_le_of_le (φ : AlgState (Matrix ι �
   obtain ⟨P, hP, h⟩ := exists_isProjective_sum_norm_sub_sq_le φ M
   exact ⟨P, hP, h.trans (by linarith)⟩
 
+/-- Orthogonalize on the original space, measuring the distance in a state
+after a unital star-algebra embedding into a larger matrix algebra. -/
+theorem exists_isProjective_sum_norm_map_sub_sq_le_of_le {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (φ : AlgState (Matrix κ κ ℂ)) (e : Matrix ι ι ℂ →⋆ₐ[ℂ] Matrix κ κ ℂ)
+    (M : Measurement α (Matrix ι ι ℂ)) {ε : ℝ}
+    (hε : 1 - ε ≤ ∑ a, (φ (e (M.effect a * M.effect a))).re) :
+    ∃ P : Measurement α (Matrix ι ι ℂ), P.IsProjective ∧
+      ∑ a, φ.norm (e (M.effect a) - e (P.effect a)) ^ 2 ≤ 9 * ε := by
+  let ψ : AlgState (Matrix ι ι ℂ) :=
+    { toFun := φ ∘ e
+      map_add' := fun X Y => by simp only [Function.comp_apply, map_add]
+      map_smul' := fun z X => by simp only [Function.comp_apply, map_smul, RingHom.id_apply]
+      monotone' := fun _ _ h => φ.apply_mono (OrderHomClass.mono e h)
+      map_one' := by simp only [Function.comp_apply, map_one, φ.map_one] }
+  obtain ⟨P, hP, h⟩ := exists_isProjective_sum_norm_sub_sq_le_of_le ψ M hε
+  have he (a : α) :
+      ψ.norm (M.effect a - P.effect a) ^ 2 =
+        φ.norm (e (M.effect a) - e (P.effect a)) ^ 2 := by
+    rw [AlgState.norm_sq, AlgState.norm_sq]
+    change (φ (e (star (M.effect a - P.effect a) * (M.effect a - P.effect a)))).re = _
+    rw [map_mul, map_star, map_sub]
+  exact ⟨P, hP, by simpa only [he] using h⟩
+
 end Cslib.Quantum.Measurement

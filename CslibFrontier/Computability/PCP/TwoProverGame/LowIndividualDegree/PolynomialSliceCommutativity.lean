@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SliceCommutativity
 import CslibFrontier.Foundations.Data.Finset.Expect
-import CslibFrontier.Foundations.Data.MvPolynomial.SchwartzZippel
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialEvaluationCollision
 import CslibFrontier.Foundations.Quantum.Algebra.OutcomeCommutator
 
 /-!
@@ -35,16 +35,6 @@ open scoped BigOperators Real
 
 variable {F A : Type*} {m d : ℕ} [Field F] [Fintype F] [DecidableEq F]
   [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
-
-private theorem expect_evaluation_collision_le
-    (g h : BoundedPolynomial F m d) (hne : g ≠ h) :
-    (𝔼 u : Point F m, if eval u h.val = eval u g.val then (1 : ℝ) else 0) ≤
-      (m : ℝ) * d / Fintype.card F := by
-  have hcard := card_filter_eval_eq_mul_card_le (fun h' => hne.symm (Subtype.ext h')) h.prop g.prop
-  rw [Fintype.expect_eq_sum_div_card, sum_boole, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow]
-  refine (div_le_div_iff₀ (pow_pos (by exact_mod_cast Fintype.card_pos) _)
-    (by exact_mod_cast Fintype.card_pos)).mpr ?_
-  exact_mod_cast hcard
 
 /-- Recover commutation before evaluation from the averaged evaluated commutators.
 A copy of each original slice on a commuting side pays for the comparison. -/

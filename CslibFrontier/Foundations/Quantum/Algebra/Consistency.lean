@@ -55,6 +55,13 @@ noncomputable def agreement (φ : AlgState A) (P Q : Measurement α A) : ℝ :=
   ∑ a, (φ (P.effect a * Q.effect a)).re
 
 omit [StarRing A] [StarOrderedRing A] in
+/-- Exchanging the roles of commuting effects leaves their agreement unchanged. -/
+theorem agreement_comm (φ : AlgState A) (P Q : Measurement α A)
+    (h : ∀ a, Commute (P.effect a) (Q.effect a)) : agreement φ P Q = agreement φ Q P := by
+  unfold agreement
+  exact sum_congr rfl fun a _ => congrArg (fun x => (φ x).re) (h a).eq
+
+omit [StarRing A] [StarOrderedRing A] in
 /-- Agreement of two postprocessed measurements sums exactly the joint coefficients whose
 decoded outcomes match. -/
 theorem agreement_map_map {β γ : Type*} [Fintype β] [Fintype γ] [DecidableEq γ]
@@ -94,6 +101,14 @@ theorem agreement_map_left {β : Type*} [Fintype β] [DecidableEq β] [IsOrdered
       rw [agreement_map_map]
       simp
 
+omit [StarRing A] [StarOrderedRing A] in
+/-- The total joint mass of two complete measurements is one. -/
+theorem sum_re_effect_mul_effect {β : Type*} [Fintype β]
+    (φ : AlgState A) (P : Measurement α A) (Q : Measurement β A) :
+    (∑ a, ∑ b, (φ (P.effect a * Q.effect b)).re) = 1 := by
+  simp only [← Complex.re_sum, ← map_sum, ← mul_sum, Q.sum_effect, mul_one, P.sum_effect,
+    φ.map_one, Complex.one_re]
+
 variable [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
   [NonnegSpectrumClass ℝ A]
 
@@ -105,9 +120,7 @@ theorem agreement_le_one (φ : AlgState A) (P Q : Measurement α A)
       unfold agreement
       exact sum_le_sum fun a _ => single_le_sum
         (fun b _ => φ.re_apply_nonneg ((h a b).mul_nonneg (P.nonneg a) (Q.nonneg b))) (mem_univ a)
-    _ = _ := by
-      simp only [← Complex.re_sum, ← map_sum, ← mul_sum, Q.sum_effect, mul_one, P.sum_effect,
-        φ.map_one, Complex.one_re]
+    _ = _ := sum_re_effect_mul_effect φ P Q
 
 /-- An element between `0` and `1` satisfies `e² ≤ e`. -/
 theorem _root_.Cslib.Quantum.mul_self_le_self_of_nonneg_of_le_one {e : A} (h0 : 0 ≤ e)
@@ -177,6 +190,44 @@ theorem sum_norm_sub_sq_le (φ : AlgState A) (P Q : Measurement α A)
   rw [norm_sub_effect_sq φ P Q a (h a)]
   linarith only [φ.re_apply_mono (P.effect_mul_self_le a),
     φ.re_apply_mono (Q.effect_mul_self_le a)]
+
+omit [StarModule ℂ A] [SelfAdjointDecompose A] in
+/-- The sum of the squared effects of a measurement has state mass at most one. -/
+theorem sum_re_effect_sq_le_one (φ : AlgState A) (P : Measurement α A) :
+    (∑ a, (φ (P.effect a * P.effect a)).re) ≤ 1 := by
+  calc
+    _ ≤ ∑ a, (φ (P.effect a)).re :=
+      sum_le_sum fun a _ => φ.re_apply_mono (P.effect_mul_self_le a)
+    _ = 1 := P.sum_prob φ
+
+omit [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
+  [NonnegSpectrumClass ℝ A] in
+/-- Agreement is bounded by the mean of the two squared-effect masses. -/
+theorem two_mul_agreement_le_sum_re_effect_sq (φ : AlgState A) (P Q : Measurement α A)
+    (h : ∀ a, Commute (P.effect a) (Q.effect a)) :
+    2 * agreement φ P Q ≤
+      (∑ a, (φ (P.effect a * P.effect a)).re) + ∑ a, (φ (Q.effect a * Q.effect a)).re := by
+  rw [agreement, mul_sum, ← sum_add_distrib]
+  refine sum_le_sum fun a _ => ?_
+  have hn := sq_nonneg (φ.norm (P.effect a - Q.effect a))
+  rw [norm_sub_effect_sq φ P Q a (h a)] at hn
+  linarith only [hn]
+
+omit [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
+  [NonnegSpectrumClass ℝ A] in
+/-- Squared state distance between measurements satisfies a triangle bound with factor two. -/
+theorem sum_norm_sub_sq_triangle (φ : AlgState A) (P Q R : Measurement α A) :
+    (∑ a, φ.norm (P.effect a - R.effect a) ^ 2) ≤
+      2 * ((∑ a, φ.norm (P.effect a - Q.effect a) ^ 2) +
+        ∑ a, φ.norm (Q.effect a - R.effect a) ^ 2) := by
+  rw [← sum_add_distrib, mul_sum]
+  refine sum_le_sum fun a _ => ?_
+  let X := P.effect a - Q.effect a
+  let Y := Q.effect a - R.effect a
+  change φ.norm (P.effect a - R.effect a) ^ 2 ≤ 2 * (φ.norm X ^ 2 + φ.norm Y ^ 2)
+  rw [show P.effect a - R.effect a = X + Y by dsimp only [X, Y]; abel]
+  refine (pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_add_le X Y) 2).trans ?_
+  nlinarith only [sq_nonneg (φ.norm X - φ.norm Y)]
 
 /-- Measurements that agree with probability at least `1 - ε` have effects that are close in
 the state: `∑_a ‖P_a - Q_a‖²_φ ≤ 2ε`. -/

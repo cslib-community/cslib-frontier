@@ -43,14 +43,6 @@ local notation "Ans" => Answer F (n + 1)
 local notation "Poly" => BoundedPolynomial F (n + 1) d
 local notation "Local" => Matrix ι ι ℂ
 
-private noncomputable def leftState (φ : AlgState (Matrix (ι × ι) (ι × ι) ℂ)) :
-    AlgState Local where
-  toFun X := φ (kroneckerOne X)
-  map_add' X Y := by rw [map_add, map_add]
-  map_smul' z X := by simp only [map_smul, RingHom.id_apply]
-  monotone' X Y h := φ.apply_mono (OrderHomClass.mono (kroneckerOne (κ := ι)) h)
-  map_one' := by simp only [map_one, φ.map_one]
-
 private theorem exists_projective_approx_of_symmetric_successfulGap
     {α : Type*} [Fintype α]
     (ψ : EuclideanSpace ℂ (ι × ι)) (hψ : ‖ψ‖ = 1)
@@ -89,39 +81,30 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
       (φ (((1 : Local) ⊗ₖ H.effect a) * ((1 : Local) ⊗ₖ H.effect a))).re
     simpa only [← mul_kronecker_mul, Matrix.one_mul] using
       congrArg Complex.re (hφ (H.effect a * H.effect a) 1)
-  have hlocal : 1 - 2 * ζ ≤ ∑ a, (leftState φ (H.toMeasurement.effect a *
-      H.toMeasurement.effect a)).re := by
+  have hlocal : 1 - 2 * ζ ≤ ∑ a, (φ (kroneckerOne (κ := ι)
+      (H.toMeasurement.effect a * H.toMeasurement.effect a))).re := by
     refine hcomplete.trans ((Measurement.agreement_le_sum_effect_sq_of_equal φ L R
       (fun a => hc a a) hsquare).trans_eq ?_)
     refine sum_congr rfl fun a _ => ?_
-    change (φ (kroneckerOne (H.effect a) * kroneckerOne (H.effect a))).re =
-      (φ (kroneckerOne (H.effect a * H.effect a))).re
-    rw [map_mul (kroneckerOne (κ := ι))]
-  obtain ⟨P, hP, hround⟩ := Measurement.exists_isProjective_sum_norm_sub_sq_le_of_le
-    (leftState φ) H.toMeasurement hlocal
+    change (φ (kroneckerOne (H.effect a) * kroneckerOne (H.effect a))).re = _
+    rw [map_mul (kroneckerOne (κ := ι)), POVM.toMeasurement_effect]
+  obtain ⟨P, hP, hround⟩ := Measurement.exists_isProjective_sum_norm_map_sub_sq_le_of_le
+    φ (kroneckerOne (κ := ι)) H.toMeasurement hlocal
+  simp only [← map_sub (kroneckerOne (κ := ι))] at hround
+  simp only [POVM.toMeasurement_effect, kroneckerOne_apply] at hround
   refine ⟨P.toPOVM, hP, hcomplete, ?_, ?_⟩
+  · simpa only [Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using hround
   · have he (a : Option α) :
-        (leftState φ).norm (H.toMeasurement.effect a - P.effect a) ^ 2 =
-          φ.norm ((H.effect a - P.effect a) ⊗ₖ (1 : Local)) ^ 2 := by
-      rw [AlgState.norm_sq, AlgState.norm_sq]
-      change (φ (kroneckerOne (star (H.effect a - P.effect a) *
-        (H.effect a - P.effect a)))).re = _
-      rw [map_mul, map_star, kroneckerOne_apply]
-    simp only [he] at hround
-    simpa only [Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring]
-      using hround
-  · have he (a : Option α) :
-        (leftState φ).norm (H.toMeasurement.effect a - P.effect a) ^ 2 =
+        φ.norm ((H.effect a - P.effect a) ⊗ₖ (1 : Local)) ^ 2 =
           φ.norm ((1 : Local) ⊗ₖ (H.effect a - P.effect a)) ^ 2 := by
-      rw [AlgState.norm_sq, AlgState.norm_sq]
       let X := H.effect a - P.effect a
-      change (φ (kroneckerOne (star X * X))).re = (φ (star (1 ⊗ₖ X) * (1 ⊗ₖ X))).re
-      rw [kroneckerOne_apply, hφ]
-      change _ = (φ (star (oneKronecker X) * oneKronecker X)).re
-      rw [← map_star, ← map_mul, oneKronecker_apply]
+      change φ.norm (kroneckerOne X) ^ 2 = φ.norm (oneKronecker X) ^ 2
+      rw [AlgState.norm_sq, AlgState.norm_sq, ← map_star (kroneckerOne (κ := ι)),
+        ← map_star (oneKronecker (ι := ι)), ← map_mul (kroneckerOne (κ := ι)),
+        ← map_mul (oneKronecker (ι := ι)), kroneckerOne_apply, oneKronecker_apply]
+      exact congrArg Complex.re (hφ _ _)
     simp only [he] at hround
-    simpa only [Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring]
-      using hround
+    simpa only [Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using hround
 
 private theorem boundedness_le_evaluatedGap
     (φ : AlgState (Matrix (ι × ι) (ι × ι) ℂ))
