@@ -47,6 +47,13 @@ namespace Matrix
 
 open Kronecker
 
+/-- Exchanging both index factors of a Kronecker product exchanges its two matrices. -/
+theorem submatrix_kronecker_prodComm {l m n p R : Type*} [CommMagma R]
+    (A : Matrix l m R) (B : Matrix n p R) :
+    (A ⊗ₖ B).submatrix (Equiv.prodComm n l) (Equiv.prodComm p m) = B ⊗ₖ A := by
+  ext i j
+  exact mul_comm _ _
+
 section MulVec
 
 variable {R : Type*} {l m n p : Type*}

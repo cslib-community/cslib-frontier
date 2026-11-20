@@ -10968,6 +10968,22 @@ register_result "bvy-alice-information-after-anchored-wins" where
     zero unchecked coordinates. Source check by codex-f4a705f4 at \
     https://github.com/cslib-community/cslib-frontier/pull/6669#issuecomment-7021806259."
 
+register_result "bvy-bob-information-after-anchored-wins" where
+  title := "Bob’s coordinate information after checked wins in an anchored game"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13, equation (36)",
+      locator := "arXiv:1509.07466v2, §5.2, printed pp. 23–24" }
+  ]
+  theorems := [Cslib.PCP.AnchoredDependency.exists_bob_anchored_coordinateInformation_le_after_wins]
+  scope := "For finite tensor-product strategies with local POVMs, sum over the unchecked \
+    coordinates and average over the actual winning transcript. The information between Alice’s \
+    question and Bob’s normalized reduced state is bounded by log of the checked-answer alphabet \
+    size minus log of the checked win probability, in nats. The win event must have positive \
+    probability, and the identity of the reduced state is on support. The sum permits zero \
+    unchecked coordinates. Source check by codex-f4a705f4 at \
+    https://github.com/cslib-community/cslib-frontier/pull/6671#issuecomment-7022481272."
+
 register_result "dpll-pigeonhole-refutation-size" where
   title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"
   topic := "SAT algorithms"

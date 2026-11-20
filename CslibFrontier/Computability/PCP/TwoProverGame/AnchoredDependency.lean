@@ -155,11 +155,6 @@ theorem map_snd_leftLaw (μ : PMF (X × Y)) (α : I) :
         coin_messageRate_or_noise α]
       rfl
 
-private theorem map_swap_anchorPair (μ : PMF (X × Y)) (α β : I) :
-    (anchorPair μ α β).map Prod.swap = anchorPair (μ.map Prod.swap) β α := by
-  simp only [anchorPair, PMF.map_bind, PMF.map_comp, Function.comp_def]
-  exact PMF.bind_comm _ _ _
-
 /-- Draw the right reveal by exchanging the players, then restore the question order. -/
 noncomputable def rightLaw (μ : PMF (X × Y)) (α : I) :
     PMF (Option Y × (Option X × Option Y)) :=
@@ -219,6 +214,28 @@ private theorem law_inr_apply (μ : PMF (X × Y)) (α : I) (m : Option Y)
   have hmap := map_apply_of_injective (rightLaw μ α) hinj (m, q)
   simpa only [Bool.false_eq_true, ite_false, ite_true, hzero, mul_zero, zero_add,
     Prod.map_apply, id_eq] using congrArg ((uniformOfFintype Bool) false * ·) hmap
+
+/-- Exchanging both the message tag and the questions gives the reveal law of the exchanged
+question distribution. -/
+theorem map_swap_law (μ : PMF (X × Y)) (α : I) :
+    (law μ α).map (Prod.map Sum.swap Prod.swap) = law (μ.map Prod.swap) α := by
+  have hμ : (μ.map Prod.swap).map Prod.swap = μ := by
+    rw [PMF.map_comp, show Prod.swap ∘ (Prod.swap : X × Y → Y × X) = id from
+      funext Prod.swap_swap, PMF.map_id]
+  have hcoin : (uniformOfFintype Bool) true = (uniformOfFintype Bool) false := by
+    simp only [Probability.PMF.uniformOfFintype_apply]
+  ext ⟨m, y, x⟩
+  change ((law μ α).map ((Equiv.sumComm _ _).prodCongr (Equiv.prodComm _ _))) (m, y, x) = _
+  rw [map_equiv_apply]
+  cases m with
+  | inl m =>
+    change law μ α (Sum.inr m, x, y) = law (μ.map Prod.swap) α (Sum.inl m, y, x)
+    rw [law_inr_apply, law_inl_apply, hcoin, rightLaw, map_equiv_apply]
+    rfl
+  | inr m =>
+    change law μ α (Sum.inl m, x, y) = law (μ.map Prod.swap) α (Sum.inr m, y, x)
+    rw [law_inl_apply, law_inr_apply, hcoin, rightLaw, map_equiv_apply, hμ]
+    rfl
 
 /-- Given a supported left message, the questions are sampled independently. -/
 theorem conditionalSnd_law_inl (μ : PMF (X × Y)) (α : I) (m : Option X)

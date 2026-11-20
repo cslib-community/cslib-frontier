@@ -30,6 +30,12 @@ namespace Cslib.Probability.PMF
   (coin α).bind fun i => (coin β).bind fun j =>
     μ.map fun q => (if i then none else some q.1, if j then none else some q.2)
 
+/-- Exchanging the two components also exchanges their erasure rates. -/
+theorem map_swap_anchorPair {X Y : Type*} (μ : PMF (X × Y)) (α β : I) :
+    (anchorPair μ α β).map Prod.swap = anchorPair (μ.map Prod.swap) β α := by
+  simp only [anchorPair, PMF.map_bind, PMF.map_comp, Function.comp_def]
+  exact PMF.bind_comm _ _ _
+
 /-- If only one question is retained, its law is the corresponding original marginal.
 The two anchor flags contribute their independent masses in each case. -/
 theorem anchorPair_apply {X Y : Type*} (μ : PMF (X × Y)) (α β : I)

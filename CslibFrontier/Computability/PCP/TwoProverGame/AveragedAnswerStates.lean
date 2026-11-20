@@ -7,9 +7,11 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
+public import CslibFrontier.Computability.PCP.TwoProverGame.PlayerSwap
 public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import CslibFrontier.Foundations.Quantum.POVM.Mixture
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Kronecker
+import CslibFrontier.Foundations.Quantum.DensityMatrix.PartialTracePairing
 import CslibFrontier.Foundations.Quantum.POVM.Postprocessing
 import Mathlib.Analysis.Normed.Module.Normalize
 
@@ -31,6 +33,8 @@ mixture of anchor and ordinary questions.
 * `measure_averagedChecked`: the averaged effects produce the original checked-answer
   distribution under independent questions.
 * `norm_averagedCheckedVector_sq`: the corresponding identity for the state norm.
+* `partialTraceRight_averagedCheckedVector_swap`: exchanging the players exchanges the
+  two marginals of the checked branch.
 -/
 
 public section
@@ -92,6 +96,26 @@ theorem averagedCheckedVector_eq (p : PMF X) (q : PMF Y) (a : C → A) (b : C �
       (((POVM.mixture p (S.checkedAlice C)).sqrtEffect a ⊗ₖ
         (POVM.mixture q (S.checkedBob C)).sqrtEffect b) *ᵥ S.state.ofLp) := by
   rw [averagedCheckedVector, POVM.outcomeVector, averagedChecked, POVM.sqrtEffect_kronecker]
+
+/-- The Alice marginal of the exchanged checked-answer branch is the original Bob marginal. -/
+theorem partialTraceRight_averagedCheckedVector_swap (p : PMF X) (q : PMF Y)
+    (a : C → A) (b : C → B) :
+    partialTraceRight (pureState (S.swap.averagedCheckedVector C q p b a)) =
+      partialTraceLeft (pureState (S.averagedCheckedVector C p q a b)) := by
+  let e := Equiv.prodComm κ ι
+  have hv : (S.swap.averagedCheckedVector C q p b a).ofLp =
+      (S.averagedCheckedVector C p q a b).ofLp ∘ e := by
+    rw [averagedCheckedVector_eq, averagedCheckedVector_eq]
+    let M := (POVM.mixture p (S.checkedAlice C)).sqrtEffect a
+    let N := (POVM.mixture q (S.checkedBob C)).sqrtEffect b
+    change ((N ⊗ₖ M) *ᵥ (S.state.ofLp ∘ e)) = ((M ⊗ₖ N) *ᵥ S.state.ofLp) ∘ e
+    rw [← submatrix_kronecker_prodComm, submatrix_mulVec_equiv, Function.comp_assoc,
+      e.self_comp_symm, Function.comp_id]
+  rw [← partialTraceRight_reindex_prodComm]
+  congr 1
+  ext i j
+  simp only [pureState_apply, hv, reindex_apply, submatrix_apply, Equiv.prodComm_symm,
+    Function.comp_apply, e]
 
 /-- The squared norm of the branch is the probability of the checked answer pair
 in the independently sampled experiment. -/

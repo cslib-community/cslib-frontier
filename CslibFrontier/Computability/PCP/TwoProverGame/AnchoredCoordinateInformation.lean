@@ -28,6 +28,8 @@ in [Bavarian, Vidick and Yuen, Claim 5.13][BavarianVidickYuen2022].
 * `map_transcriptLaw_eq_checkedAnswersWithLabel`: the sampler identity before filtering.
 * `exists_anchored_coordinateInformation_le_after_wins`: the Alice marginal bound
   weighted by the verifier's winning transcript.
+* `exists_bob_anchored_coordinateInformation_le_after_wins`: the Bob marginal bound
+  obtained by exchanging the players in the same experiment.
 -/
 
 public section
@@ -213,5 +215,203 @@ theorem exists_anchored_coordinateInformation_le_after_wins
         (T.toOuterMeasure (winsOnChecked G α C)).toReal from congrArg ENNReal.toReal hmass]
       at hbound
     exact hbound
+
+local notation "SwappedInfo" => Revealed (Option Y) (Option X) C
+local notation "Raw" => ((Info × (C → A × B)) × (Free → PairQ))
+local notation "SwappedRaw" => ((SwappedInfo × (C → B × A)) ×
+  (Free → Option Y × Option X))
+
+private def swapRevealed (t : Info) : SwappedInfo :=
+  ⟨Prod.swap ∘ t.questions, Sum.swap ∘ t.halves⟩
+
+omit [Fintype X] [Fintype Y] in
+private theorem swapRevealed_swapRevealed (t : Info) :
+    swapRevealed C (swapRevealed C t) = t := by
+  cases t with
+  | mk qs ms =>
+    exact congrArg (Revealed.mk qs) (funext fun i => Sum.swap_swap (ms i))
+
+private def swapInfo : Info ≃ SwappedInfo where
+  toFun := swapRevealed C
+  invFun := swapRevealed C
+  left_inv := swapRevealed_swapRevealed C
+  right_inv := swapRevealed_swapRevealed C
+
+private def swapTranscript (z : Raw) : SwappedRaw :=
+  let ((t, a), u) := z
+  ((swapInfo C t, Prod.swap ∘ a), Prod.swap ∘ u)
+
+omit [Fintype X] [Fintype Y] in
+private theorem completeTranscript_swap (S : RepeatedStrategy) (qs : C → PairQ)
+    (trials : Free → (Option X ⊕ Option Y) × PairQ) :
+    completeTranscript C S.swap (Prod.swap ∘ qs) (fun j =>
+        Prod.map Sum.swap Prod.swap (trials j)) =
+      (completeTranscript C S qs trials).map (swapTranscript C) := by
+  let t : Info := ⟨qs, Prod.fst ∘ trials⟩
+  let u := Prod.snd ∘ trials
+  have hcombine : (swapInfo C t).combine (Prod.swap ∘ u) = Prod.swap ∘ t.combine u := by
+    funext i
+    by_cases hi : i ∈ C <;>
+      simp [swapInfo, swapRevealed, Revealed.combine, Equiv.piEquivPiSubtypeProd_symm_apply, hi]
+  change (checkedAnswerLaw C S.swap ((swapInfo C t).combine (Prod.swap ∘ u))).map
+      (fun v => ((swapInfo C t, v), Prod.swap ∘ u)) =
+    ((checkedAnswerLaw C S (t.combine u)).map (fun v => ((t, v), u))).map (swapTranscript C)
+  rw [hcombine]
+  simp only [checkedAnswerLaw, Function.comp_def, QuantumStrategy.answers_swap, PMF.map_comp]
+  rfl
+
+private theorem transcriptLaw_swap (S : RepeatedStrategy) :
+    transcriptLaw G.swap α C S.swap = (transcriptLaw G α C S).map (swapTranscript C) := by
+  rw [transcriptLaw_eq_complete, transcriptLaw_eq_complete, TwoProverGame.anchored_questions]
+  change (pi fun _ : C => anchorPair (G.questions.map Prod.swap) α α).bind
+      (fun qs => (pi fun _ : Free => law (G.questions.map Prod.swap) α).bind
+        (completeTranscript C S.swap qs)) = _
+  simp only [← map_swap_anchorPair, ← map_swap_law, pi_map, PMF.bind_map, Function.comp_def,
+    PMF.map_bind, TwoProverGame.anchored_questions]
+  apply congrArg ((pi fun _ : C => anchorPair G.questions α α).bind)
+  funext qs
+  apply congrArg ((pi fun _ : Free => law G.questions α).bind)
+  funext tr
+  exact completeTranscript_swap C S qs tr
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+private theorem preimage_winsOnChecked_swap :
+    swapTranscript C ⁻¹' winsOnChecked G.swap α C = winsOnChecked G α C := by
+  ext ⟨⟨t, a⟩, u⟩
+  change (∀ i : C, (G.swap.anchored α).accepts (t.questions i).2 (t.questions i).1
+      (a i).2 (a i).1) ↔
+    (∀ i : C, (G.anchored α).accepts (t.questions i).1 (t.questions i).2 (a i).1 (a i).2)
+  apply forall_congr'
+  intro i
+  rw [TwoProverGame.anchored_accepts, TwoProverGame.anchored_accepts]
+  cases (t.questions i).1 <;> cases (t.questions i).2 <;> rfl
+
+/-- Bob's full-question law, conditional on the shared questions and noisy messages. -/
+noncomputable def bobQuestionsGivenInfo (t : Info) : PMF (Fin n → Option Y) :=
+  (pi fun j : Free => bobGivenMessage G.questions α (t.halves j)).map
+    (appendQuestions C (Prod.snd ∘ t.questions))
+
+/-- Insert the checked Alice questions into the renumbered free tuple. -/
+def completeAliceQuestions (e : Fin m ≃ Free) (t : Info) (x : Fin m → Option X) :
+    Fin n → Option X :=
+  appendQuestions C (Prod.fst ∘ t.questions) (x ∘ e.symm)
+
+omit [Fintype X] [Fintype A] [Fintype B] in
+private theorem aliceQuestionsGivenInfo_swap (t : Info) :
+    aliceQuestionsGivenInfo G.swap α C (swapInfo C t) = bobQuestionsGivenInfo G α C t := by
+  have hk (j : Free) : aliceGivenMessage G.swap.questions α ((swapInfo C t).halves j) =
+      bobGivenMessage G.questions α (t.halves j) := by
+    have hμ : ((G.questions.map Prod.swap).map Prod.swap) = G.questions := by
+      rw [PMF.map_comp, show Prod.swap ∘ (Prod.swap : X × Y → Y × X) = id from
+        funext Prod.swap_swap, PMF.map_id]
+    change aliceGivenMessage (G.questions.map Prod.swap) α (Sum.swap (t.halves j)) =
+      bobGivenMessage G.questions α (t.halves j)
+    cases t.halves j <;> simp [aliceGivenMessage, bobGivenMessage, hμ]
+  simp only [aliceQuestionsGivenInfo, bobQuestionsGivenInfo, hk]
+  rfl
+
+/-- The projection of the original transcript to its checked answers and Alice's
+renumbered free questions. -/
+@[expose] def aliceTranscriptProjection (e : Fin m ≃ Free) (z : Raw) :
+    (Info × Answer) × (Fin m → Option X) :=
+  let ((t, a), u) := z
+  ((t, (Prod.fst ∘ a, Prod.snd ∘ a)), fun i => (u (e i)).1)
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] [Fintype ι] [DecidableEq ι]
+  [Fintype κ] [DecidableEq κ] in
+private theorem conditionalSnd_prodCongr_left {D E F : Type*} (P : PMF (D × F))
+    (f : D ≃ E) {d : D} (hd : d ∈ (P.map Prod.fst).support) :
+    conditionalSnd (P.map (f.prodCongr (Equiv.refl F))) (f d) = conditionalSnd P d := by
+  symm
+  apply conditionalSnd_eq_of_scaled_slices _ _ _ _ 1 1 hd one_ne_zero ENNReal.one_ne_top
+  intro x
+  rw [map_equiv_apply]
+  simp
+
+/-- Bob's coordinate-information bound in the summed form of equation (36) of
+[Bavarian, Vidick and Yuen, Claim 5.13][BavarianVidickYuen2022]
+(arXiv:1509.07466v2, §5, printed pp. 23–24). The state at each supported transcript
+is the normalized Bob marginal of the original strategy's checked-answer branch. -/
+theorem exists_bob_anchored_coordinateInformation_le_after_wins
+    [DecidableEq X] [Nonempty A] [Nonempty B]
+    (S : RepeatedStrategy) (e : Fin m ≃ Free)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support) :
+    let P := ((transcriptLaw G α C S).filter (winsOnChecked G α C) hs).map
+      (aliceTranscriptProjection C e)
+    ∃ ρ : (Info × Answer) × (Fin m → Option X) → Matrix κ κ ℂ,
+      (∀ z, IsDensityMatrix (ρ z)) ∧
+      (∀ (t : Info) (a : C → A) (b : C → B) (x : Fin m → Option X),
+        ((t, a, b), x) ∈ P.support →
+        ρ ((t, a, b), x) = normalizeDensity (partialTraceLeft (pureState
+          (S.averagedCheckedVector C (PMF.pure (completeAliceQuestions C e t x))
+            (bobQuestionsGivenInfo G α C t) a b)))) ∧
+      (∑ t, (((P.map Prod.fst) t).toReal : WithTop ℝ) *
+        ∑ i, mutualInformation
+          (classicalQuantumMarginal (conditionalSnd P t) (fun x => ρ (t, x)) (fun x => x i))) ≤
+        ((Real.log (Fintype.card Answer) -
+          Real.log ((transcriptLaw G α C S).toOuterMeasure (winsOnChecked G α C)).toReal : ℝ) :
+          WithTop ℝ) := by
+  classical
+  let T := transcriptLaw G α C S
+  let W := winsOnChecked G α C
+  let Ts := transcriptLaw G.swap α C S.swap
+  let Ws := winsOnChecked G.swap α C
+  let f := swapInfo (X := X) (Y := Y) C |>.prodCongr (Equiv.prodComm (C → A) (C → B))
+  let g := f.prodCongr (Equiv.refl (Fin m → Option X))
+  have hmap : Ts = T.map (swapTranscript C) := transcriptLaw_swap G α C S
+  have hpre : swapTranscript C ⁻¹' Ws = W := preimage_winsOnChecked_swap G α C
+  have hmass : Ts.toOuterMeasure Ws = T.toOuterMeasure W := by
+    rw [hmap, PMF.toOuterMeasure_map_apply, hpre]
+  have hss : ∃ z ∈ Ws, z ∈ Ts.support := by
+    rw [← toOuterMeasure_toReal_pos_iff, hmass, toOuterMeasure_toReal_pos_iff]
+    exact hs
+  let P := (T.filter W hs).map (aliceTranscriptProjection C e)
+  let Ps := (Ts.filter Ws hss).map (bobTranscriptProjection C e)
+  have hPs : Ps = P.map g := by
+    have hss' : ∃ z ∈ Ws, z ∈ (T.map (swapTranscript C)).support := hmap ▸ hss
+    have hs' : ∃ z ∈ swapTranscript C ⁻¹' Ws, z ∈ T.support := hpre.symm ▸ hs
+    have hfilter : Ts.filter Ws hss = (T.map (swapTranscript C)).filter Ws hss' := by
+      congr 1
+    dsimp only [Ps, P]
+    rw [hfilter, filter_map T _ _ hss' hs', PMF.map_comp, PMF.map_comp]
+    congr 1
+    congr 1
+  obtain ⟨ρ, hρ, hbranch, hbound⟩ :=
+    exists_anchored_coordinateInformation_le_after_wins G.swap α C S.swap e hss
+  change _ ≤ ((Real.log (Fintype.card ((C → B) × (C → A))) -
+    Real.log (Ts.toOuterMeasure Ws).toReal : ℝ) : WithTop ℝ) at hbound
+  have hcard : Fintype.card ((C → B) × (C → A)) = Fintype.card Answer :=
+    Fintype.card_congr (Equiv.prodComm _ _)
+  rw [hmass, hcard] at hbound
+  refine ⟨ρ ∘ g, fun z => hρ (g z), ?_, ?_⟩
+  · intro t a b x hx
+    have hxs : ((swapInfo C t, b, a), x) ∈ Ps.support := by
+      rw [hPs, PMF.mem_support_map_iff]
+      exact ⟨((t, a, b), x), hx, rfl⟩
+    change ρ ((swapInfo C t, b, a), x) = _
+    have hq : completeBobQuestions C e (swapInfo C t) x = completeAliceQuestions C e t x := rfl
+    rw [hbranch _ _ _ _ hxs, aliceQuestionsGivenInfo_swap, hq,
+      QuantumStrategy.partialTraceRight_averagedCheckedVector_swap]
+  · change _ ≤ ((Real.log (Fintype.card Answer) -
+      Real.log (T.toOuterMeasure W).toReal : ℝ) : WithTop ℝ)
+    refine le_trans ?_ hbound
+    rw [← Equiv.sum_comp f]
+    have hmarg : Ps.map Prod.fst = (P.map Prod.fst).map f := by
+      simp only [hPs, PMF.map_comp]
+      rfl
+    apply le_of_eq
+    refine Finset.sum_congr rfl fun t _ => ?_
+    have hmass' : (Ps.map Prod.fst) (f t) = (P.map Prod.fst) t := by
+      rw [hmarg, map_equiv_apply, Equiv.symm_apply_apply]
+    rw [hmass']
+    by_cases ht : t ∈ (P.map Prod.fst).support
+    · have hc := conditionalSnd_prodCongr_left P f ht
+      rw [← hPs] at hc
+      rw [hc]
+      rfl
+    · have hz := (PMF.apply_eq_zero_iff _ _).mpr ht
+      change (↑((P.map Prod.fst) t).toReal : WithTop ℝ) * _ =
+        (↑((P.map Prod.fst) t).toReal : WithTop ℝ) * _
+      rw [hz, ENNReal.toReal_zero, WithTop.coe_zero, zero_mul, zero_mul]
 
 end Cslib.PCP.AnchoredDependency

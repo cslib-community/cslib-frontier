@@ -156,6 +156,28 @@ private theorem acceptingGame_winsOnChecked :
   rw [anchored_accepts]
   cases (t.questions i).1 <;> cases (t.questions i).2 <;> trivial
 
+private theorem acceptingGame_win_supported {ι κ : Type*} [Fintype ι] [DecidableEq ι]
+    [Fintype κ] [DecidableEq κ]
+    (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+      (Fin 2 → Bool) (Fin 2 → Bool) ι κ) :
+    ∃ z ∈ winsOnChecked acceptingGame half ({0} : Finset (Fin 2)),
+      z ∈ (transcriptLaw acceptingGame half {0} S).support := by
+  rw [acceptingGame_winsOnChecked]
+  obtain ⟨z, hz⟩ := (transcriptLaw acceptingGame half {0} S).support_nonempty
+  exact ⟨z, Set.mem_univ _, hz⟩
+
+private theorem acceptingGame_win_mass {ι κ : Type*} [Fintype ι] [DecidableEq ι]
+    [Fintype κ] [DecidableEq κ]
+    (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+      (Fin 2 → Bool) (Fin 2 → Bool) ι κ) :
+    (transcriptLaw acceptingGame half {0} S).toOuterMeasure (winsOnChecked acceptingGame half {0}) =
+      1 := by
+  rw [acceptingGame_winsOnChecked, PMF.toOuterMeasure_apply, Set.indicator_univ, PMF.tsum_coe]
+
+private theorem singletonCheckedAnswer_card :
+    Fintype.card ((({0} : Finset (Fin 2)) → Bool) ×
+      (({0} : Finset (Fin 2)) → Bool)) = 4 := by decide
+
 /-- A two-copy echo strategy with one checked and one unchecked coordinate has the
 information budget `log 4` when every checked answer is accepted. -/
 example :
@@ -170,18 +192,30 @@ example :
           mutualInformation (classicalQuantumMarginal (conditionalSnd P t)
             (fun y => ρ (t, y)) (fun y => y 0))) ≤ (Real.log 4 : ℝ) := by
   dsimp only
-  have hW : ∃ z ∈ winsOnChecked acceptingGame half ({0} : Finset (Fin 2)),
-      z ∈ (transcriptLaw acceptingGame half {0} anchoredEcho).support := by
-    rw [acceptingGame_winsOnChecked]
-    obtain ⟨z, hz⟩ := (transcriptLaw acceptingGame half {0} anchoredEcho).support_nonempty
-    exact ⟨z, Set.mem_univ _, hz⟩
+  have hW := acceptingGame_win_supported anchoredEcho
   obtain ⟨ρ, _, _, h⟩ := exists_anchored_coordinateInformation_le_after_wins acceptingGame half
     {0} anchoredEcho (Fintype.equivFinOfCardEq (by decide : _ = 1)).symm hW
   refine ⟨hW, ρ, ?_⟩
-  have hcard : Fintype.card ((({0} : Finset (Fin 2)) → Bool) ×
-      (({0} : Finset (Fin 2)) → Bool)) = 4 := by decide
-  have hmass : (transcriptLaw acceptingGame half {0} anchoredEcho).toOuterMeasure
-      (winsOnChecked acceptingGame half {0}) = 1 := by
-    rw [acceptingGame_winsOnChecked, PMF.toOuterMeasure_apply, Set.indicator_univ, PMF.tsum_coe]
-  simpa only [Fintype.sum_unique, Fin.default_eq_zero, hcard, Nat.cast_ofNat, hmass,
-    ENNReal.toReal_one, Real.log_one, sub_zero] using h
+  simpa only [Fintype.sum_unique, Fin.default_eq_zero, singletonCheckedAnswer_card, Nat.cast_ofNat,
+    acceptingGame_win_mass, ENNReal.toReal_one, Real.log_one, sub_zero] using h
+
+/-- With unequal local dimensions the winning information bound on Alice's question
+uses Bob's three-dimensional density matrices. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let T := transcriptLaw acceptingGame half C S
+    let W := winsOnChecked acceptingGame half C
+    let P := (T.filter W (acceptingGame_win_supported S)).map (aliceTranscriptProjection C e)
+    ∃ ρ : _ → Matrix (Fin 3) (Fin 3) ℂ,
+      (∀ z, Cslib.Quantum.IsDensityMatrix (ρ z)) ∧
+      (∑ t, (((P.map Prod.fst) t).toReal : WithTop ℝ) *
+        mutualInformation (classicalQuantumMarginal (conditionalSnd P t)
+          (fun x => ρ (t, x)) (fun x => x 0))) ≤ (Real.log 4 : ℝ) := by
+  dsimp only
+  obtain ⟨ρ, hρ, _, h⟩ := exists_bob_anchored_coordinateInformation_le_after_wins acceptingGame half
+    {0} S (Fintype.equivFinOfCardEq (by decide : _ = 1)).symm (acceptingGame_win_supported S)
+  refine ⟨ρ, hρ, ?_⟩
+  simpa only [Fintype.sum_unique, Fin.default_eq_zero, singletonCheckedAnswer_card, Nat.cast_ofNat,
+    acceptingGame_win_mass, ENNReal.toReal_one, Real.log_one, sub_zero] using h
