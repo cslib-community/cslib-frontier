@@ -13,7 +13,7 @@ public import CslibFrontier.Logics.Propositional.CNF.Encoding
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Pair
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 
 /-!

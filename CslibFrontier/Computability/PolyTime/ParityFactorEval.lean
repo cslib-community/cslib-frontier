@@ -1081,7 +1081,7 @@ theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
     ComputableInPolyTime (fun x => divModByH (p x))
       encIn (encPair (encList encIntBin) (encPair encIntBin encIntBin)) := by
   have hrev : ComputableInPolyTime (fun x => (p x).reverse) encIn (encList encIntBin) :=
-    .of_tidy (ComputableTidilyInPolyTime.listReverseWithInput hp.tidy)
+    (ComputableInPolyTime.listReverseWithInput hp)
   have hstep : ComputableInPolyTime
       (fun p : (List ℤ × (ℤ × ℤ)) × ℤ => ParityFactorEval.divModByHStep p.1 p.2)
       (encPair (encPair (encList encIntBin) (encPair encIntBin encIntBin)) encIntBin)

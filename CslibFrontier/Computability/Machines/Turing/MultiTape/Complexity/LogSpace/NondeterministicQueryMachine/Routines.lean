@@ -13,6 +13,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNorma
 import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Data.List.GetD
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyZeroSpace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+
 /-!
 # Framed native routines for nondeterministic query machines
 
@@ -149,7 +152,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cN', hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hN
   obtain ⟨cF', hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hF huf
   obtain ⟨cPE', hPE'⟩ := ComputableTidilyInTimeAndSpace.comp_linear
-    hPE.computableTidilyInTimeAndSpace huf
+    (ComputableInTimeAndSpace.computableTidilyInTimeAndSpace hPE) huf
   have hpn₁ (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear (hPN b) huf
   choose cPN₁ hPN₁ using hpn₁
   have hpn' (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear hfr (hPN₁ b)
@@ -157,7 +160,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cC₁, hC₁⟩ := ComputableTidilyInTimeAndSpace.comp_linear hC huf
   obtain ⟨cC', hC'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfl hC₁
   obtain ⟨kI, SI, _, tmI, htmI⟩ := hI'
-  obtain ⟨kE, SE, _, tmE, htmE⟩ := hE.computableTidilyInTimeAndSpace
+  obtain ⟨kE, SE, _, tmE, htmE⟩ := (ComputableInTimeAndSpace.computableTidilyInTimeAndSpace hE)
   obtain ⟨kN, SN, _, tmN, htmN⟩ := hN'
   obtain ⟨kF, SF, _, tmF, htmF⟩ := hF'
   obtain ⟨kPE, SPE, _, tmPE, htmPE⟩ := hPE'

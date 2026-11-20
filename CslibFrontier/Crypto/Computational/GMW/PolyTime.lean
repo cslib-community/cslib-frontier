@@ -588,8 +588,8 @@ theorem computableInPolyTime_firstSuccess {α β : Type} {input : α ↪ List Bo
     ComputableInPolyTime (fun a => firstSuccess (d a) (attempts a)) input enc :=
   let hfilt := (ComputableInPolyTime.headD (encA := encOption enc) none).comp'
     (ha.filterWithInput
-      (ComputableTidilyInPolyTime.snd input (encOption enc)).optionIsSome.computableInPolyTime)
-  (hfilt.tidy.optionGetDWithInput hd.tidy).computableInPolyTime
+      (ComputableInPolyTime.snd input (encOption enc)).optionIsSome)
+  (hfilt.optionGetDWithInput hd)
 
 @[fun_prop]
 theorem computableInPolyTime_acceptGuess {α β : Type} {input : α ↪ List Bool}

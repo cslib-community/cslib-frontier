@@ -248,7 +248,7 @@ private theorem computableInPolyTime_extractHistory {γ : Type} {encIn : γ ↪ 
       encIn Interaction.encHistory := by
   let encSt : ExtractState ↪ List Bool := encExtractState
   let encStep : ((ℕ × ExtractState) × Bool) ↪ List Bool :=
-    encFoldStep encUnary encSt encBool
+    encPair (encPair encUnary encSt) encBool
   have hstep : ComputableInPolyTime
       (fun q : (ℕ × ExtractState) × Bool => extractStep q.1.1 q.1.2)
       encStep encSt := by
@@ -289,7 +289,7 @@ private theorem computableInPolyTime_extractHistory {γ : Type} {encIn : γ ↪ 
     have hle : ComputableInPolyTime
         (fun q : (ℕ × ExtractState) × Bool =>
           decide (2 * q.1.1 + 3 ≤ q.1.2.rem.length)) encStep encBool :=
-      .of_tidy (ComputableTidilyInPolyTime.unary_le' h2t3.tidy hlen.tidy)
+      (ComputableInPolyTime.unary_le' h2t3 hlen)
     have hhead : ComputableInPolyTime
         (fun q : (ℕ × ExtractState) × Bool => q.1.2.rem.getD 0 false)
         encStep encBool :=

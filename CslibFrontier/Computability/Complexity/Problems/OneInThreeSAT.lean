@@ -71,9 +71,16 @@ theorem computableInPolyTime_clause_count :
       (fun p : (CNF ℕ × List Bool) × Clause ℕ =>
         p.2.countP (Literal.eval (SAT.assignment p.1.1 p.1.2)))
       (encPair (encPair encCNF encBits) (encClause encNat)) encUnary := by
-  apply ComputableInPolyTime.countPWithInput
+  apply ComputableInPolyTime.countPWithInput (encA := encPair encNat encBool)
   · fun_prop
-  · fun_prop [SAT.assignment]
+  · have hinput : ComputableInPolyTime
+        (fun p : ((CNF ℕ × List Bool) × Clause ℕ) × Literal ℕ => (p.1.1, p.2))
+        (encPair (encPair (encPair encCNF encBits) (encClause encNat))
+          (encPair encNat encBool))
+        (encPair (encPair encCNF encBits) (encPair encNat encBool)) := by fun_prop
+    exact SAT.computableInPolyTime_literal.comp
+      (encIn := encPair (encPair (encPair encCNF encBits) (encClause encNat))
+        (encPair encNat encBool)) hinput
 
 /-- An exact-one clause is verified in polynomial time. -/
 @[fun_prop]
@@ -89,7 +96,9 @@ theorem computableInPolyTime_clause :
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encCNF encBits) encBool := by
-  fun_prop [verifier, CNF.evalOne]
+  unfold verifier CNF.evalOne
+  exact ComputableInPolyTime.allWithInput (encA := encClause encNat)
+    (ComputableInPolyTime.fst encCNF encBits) computableInPolyTime_clause
 
 /-- Exact-one satisfiability belongs to NP. -/
 theorem mem_NP : OneSAT ∈ NP encCNF :=
