@@ -46,6 +46,10 @@ private def originalRoots (seed : Fin 1 → Bool) (s : Fin 3) : List (Option Con
 -- Source 1 rejects seed zero. Auxiliary source 2 is deliberately outside the original-root list.
 #guard runSeedSearch originalRoots [0, 1] 0 = [some ⟨1, false⟩]
 
+-- Exhausting the counter returns one unsuccessful search result, distinct from branch rejection.
+#guard runSeedSearch
+  (fun (_ : Fin 2 → Bool) (_ : Fin 1) => [some (ControllerVerdict.bad 1)]) [] 0 = [none]
+
 private def emptySeed (_ : Fin 0 → Bool) (_ : Fin 1) : List (Option ControllerVerdict) :=
   [some (.decided false)]
 
