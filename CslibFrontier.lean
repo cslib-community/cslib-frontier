@@ -4152,6 +4152,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.AxisPolynomialAnswer
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.AxisScore
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.BoundedPolynomial
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ClassicalSoundness
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.InductionBase
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.InductionError
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.OneCoordinate

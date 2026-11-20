@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ClassicalSoundness
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.InductionBase
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Soundness
 import Mathlib.Algebra.Field.ZMod
@@ -76,15 +77,12 @@ private theorem strategy_score : (game (F := ZMod 3) 1 0).quantumWinProb strateg
     strategy_branch_score .diagonal]
   norm_num
 
-private theorem soundnessErrors_polynomial_at_zero :
+private theorem soundnessErrors_at_zero :
+    (soundnessErrors 2 (10 ^ 30) 0 0).point ≤ 1 / 2 ∧
     (soundnessErrors 2 (10 ^ 30) 0 0).polynomial ≤ 1 / 2 := by
-  conv_lhs =>
-    norm_num [soundnessErrors, dimensionInductionError, inductionLossTerm, Real.zero_rpow,
-      -Real.sqrt_mul, -Real.sqrt_mul']
   let x : ℝ := 3125000000000000000000000
   let σ := 320000 * (4 * Real.exp (-x))
   let ζ := σ + Real.sqrt (4 * σ)
-  change ζ + 2 * Real.sqrt (18 * ζ) ≤ 1 / 2
   have he : Real.exp (-x) ≤ 1 / (x + 1) := by
     rw [Real.exp_neg, one_div]
     exact inv_anti₀ (by dsimp [x]; positivity) (Real.add_one_le_exp x)
@@ -102,7 +100,32 @@ private theorem soundnessErrors_polynomial_at_zero :
   have hroot' : Real.sqrt (18 * ζ) ≤ 1 / 100 := by
     rw [Real.sqrt_le_left (by norm_num)]
     linarith only [hζ]
-  linarith only [hζ, hroot']
+  have hroot'' : Real.sqrt (8 * ζ + 4 * Real.sqrt (18 * ζ)) ≤ 1 / 4 := by
+    rw [Real.sqrt_le_left (by norm_num)]
+    linarith only [hζ, hroot']
+  constructor <;> (conv_lhs => norm_num [soundnessErrors, dimensionInductionError,
+    inductionLossTerm, Real.zero_rpow, -Real.sqrt_mul, -Real.sqrt_mul'])
+  · change σ + Real.sqrt (8 * ζ + 4 * Real.sqrt (18 * ζ)) ≤ 1 / 2
+    linarith only [hσ, hroot'']
+  · change ζ + 2 * Real.sqrt (18 * ζ) ≤ 1 / 2
+    linarith only [hζ, hroot']
+
+open Classical in
+/-- Classical extraction finds a constant polynomial matching both raw point answers on at least
+half the points. -/
+example :
+    ∃ g : BoundedPolynomial (ZMod 3) 2 0,
+      (𝔼 u : Point (ZMod 3) 2,
+        if honest constantPoly (.point u) = Sum.inl (MvPolynomial.eval u g.val) ∧
+          honest constantPoly (.point u) = Sum.inl (MvPolynomial.eval u g.val)
+        then (0 : ℝ) else 1) ≤ 1 / 2 := by
+  obtain ⟨g, hg⟩ := exists_polynomial_of_classical_winProb
+    (n := 1) (d := 0) (k := 10 ^ 30) (honest constantPoly) (honest constantPoly) (by simp)
+  have hs : (game (F := ZMod 3) 1 0).winProb (honest constantPoly) (honest constantPoly) = 1 :=
+    winProb_honest constantPoly (fun i => (MvPolynomial.degreeOf_C (2 : ZMod 3) i).le)
+  simp only [hs, sub_self, mul_zero, add_zero, Nat.cast_zero, zero_div, Nat.cast_one,
+    one_add_one_eq_two] at hg
+  exact ⟨g, hg.trans soundnessErrors_at_zero.1⟩
 
 /-- The honest two-coordinate strategy supplies projective polynomial
 measurements that agree with probability at least one half. -/
@@ -118,7 +141,7 @@ example :
       (by simp) strategy strategy_projective (by rw [hBob]; exact strategy_projective)
   simp only [strategy_score, sub_self, Nat.cast_zero, zero_div, Nat.cast_one,
     one_add_one_eq_two] at hpair
-  have h := hpair.trans soundnessErrors_polynomial_at_zero
+  have h := hpair.trans soundnessErrors_at_zero.2
   exact ⟨P, Q, hP, hQ, by linarith⟩
 
 open scoped Kronecker
@@ -210,5 +233,5 @@ example :
   obtain ⟨P, Q, _, _, hp⟩ := exists_polynomial_POVMs_of_winProb
     (k := 10 ^ 30) (n := 1) (d := 0) (by simp) enlargedStrategy
   simp only [hs, sub_self, Nat.cast_zero, zero_div, Nat.cast_one, one_add_one_eq_two] at hp
-  have h := hp.trans soundnessErrors_polynomial_at_zero
+  have h := hp.trans soundnessErrors_at_zero.2
   exact ⟨P, Q, by linarith⟩
