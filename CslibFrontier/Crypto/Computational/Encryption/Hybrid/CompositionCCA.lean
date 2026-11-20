@@ -418,7 +418,7 @@ private theorem isOraclePPTOn_hybridKEMCCAInterpret (E : SymmetricCipher)
       (isOraclePPTOn_hybridKEMCCAHandler E hF hdecBound
         (hn.comp (by fun_prop)) (hkey.comp (by fun_prop)) (hctK.comp (by fun_prop)) (by fun_prop))
   obtain ⟨c, d, hsize⟩ :=
-    (computableInPolyTime_hybridKEMReply E hF).tidy.polyBounded_length.exists_le
+    (computableInPolyTime_hybridKEMReply E hF).polyBounded_length.exists_le
   let resources := fun (a : α) (ct : List Bool) =>
     (encOption encBits (E.decrypt (n a) (key a) (dropFrame ct))).length +
       c * (2 * n a + 2 * (dropFrame ct).length + decBound (n a) (unframe ct) + 5) ^ d

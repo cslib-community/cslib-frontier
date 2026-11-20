@@ -169,11 +169,11 @@ theorem computableInPolyTime_ctrWordCounter {α : Type} {input : α ↪ List Boo
   have hvalue : ComputableInPolyTime (fun a => BitString.lsbValue (iv a)) input encNat := by
     simp only [BitString.lsbValue_eq_binaryValue_reverse]
     exact ComputableInPolyTime.bitsBinaryValue.comp
-      ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.bitsReverse).comp hiv)
+      ((ComputableInPolyTime.bitsReverse).comp hiv)
   unfold ctrWordCounter
   exact ComputableInPolyTime.bitsLow hn
     (ComputableInPolyTime.binary_add' hvalue
-      ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp hj))
+      ((ComputableInPolyTime.unary_to_binary).comp hj))
 
 /-- The keystream is computable in polynomial time from the family's evaluator. -/
 theorem computableInPolyTime_ctrWordKeystream {family : List Bool → List Bool → List Bool}
@@ -302,10 +302,15 @@ theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
       (computableInPolyTime_ctrWordCounter hnStep (hiv.comp (ComputableInPolyTime.fst _ _))
         (by dsimp only [EStep]; fun_prop))
       hnStep
+  have hcallbackInput := ComputableInPolyTime.id' (encIn := encPair EStep encBits)
+  have hcounter := ComputableInPolyTime.unary_add' hcallbackInput.fst'.snd'.fst'
+    (ComputableInPolyTime.const 1)
+  have houtput := ComputableInPolyTime.bitsAppend hcallbackInput.fst'.snd'.snd'
+    hcallbackInput.snd'
   have hstep : IsOraclePPTOn EStep (encPair encUnary encBits)
       (fun pair : α × (ℕ × List Bool) => ctrKeystreamStep (n pair.1) (iv pair.1) pair.2) :=
     hquery.map_with (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
-      (by dsimp only [EStep]; fun_prop)
+      (hcounter.prod houtput)
   have hnBound : PolyBounded (fun a => (input a).length) n := by
     simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
   have hgrowthPoly : PolyBounded (fun a => (input a).length) (fun a => n a + 2) :=
