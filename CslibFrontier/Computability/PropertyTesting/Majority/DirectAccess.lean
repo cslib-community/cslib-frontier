@@ -14,6 +14,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.N
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 import CslibFrontier.Computability.Probabilistic.Repeat
+import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Foundations.Data.BitString.Weight.ZeroExtend
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 
@@ -39,7 +41,7 @@ open Cslib.Probability Turing.MultiTapeTM
 
 /-- Provide one bit at the requested little-endian address, with zero as the total
 handler's default outside the input. -/
-def majorityInputOracle {n : ℕ} (x : BitString n)
+noncomputable def majorityInputOracle {n : ℕ} (x : BitString n)
     (request : Unit × List Bool) : StateT Unit PMF (List Bool) :=
   fun s => PMF.pure ([if h : ofBits request.2 < n then x ⟨_, h⟩ else false], s)
 
@@ -108,7 +110,7 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
   have hlen (words : List (List Bool)) (h : words ∈ (ProbComp.eval coins).support) :
       words.length = k := by
     rw [ProbComp.eval_replicate_sampleList] at h
-    obtain ⟨_, -, rfl⟩ := PMF.mem_support_map_iff.mp h
+    obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp h
     simp
   have hsample := ProbOracleComp.IsQueryBounded.sample (spec := fun _ : Unit × List Bool =>
     List Bool) coins
