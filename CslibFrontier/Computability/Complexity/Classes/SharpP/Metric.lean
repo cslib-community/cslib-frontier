@@ -7,6 +7,8 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
+
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Completeness
 
 /-!
