@@ -27,8 +27,8 @@ extended as described below, producing the abstract syntax checked by
   `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
 * a proof (`Cslib.Logic.PL.VeriPB.Text.parseProof`): the header
   `pseudo-Boolean proof version 3.0`, the line `f N;` checked against the number of
-  constraints, the derivation steps, `output NONE;`, a conclusion `UNSAT : id`, `SAT` or
-  `BOUNDS lb : id ub` (§4.3, with `INF` for an infinite bound), and
+  constraints, the derivation steps, `output NONE;`, a conclusion `UNSAT : id`, `SAT [: ρ]`,
+  `BOUNDS lb : id ub [: ρ]` (§4.3, with `INF` for an infinite bound) or `NONE`, and
   `end pseudo-Boolean proof;`.
 
 **Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1
@@ -56,17 +56,19 @@ format are also accepted: `del id`, read as the untyped deletion
 `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts as unchecked),
 and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
 operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, orders, `dom`,
-`solx`, `obju`, `del spec`, levels, other outputs and conclusions, and the optional
-assignments of `SAT` and `BOUNDS`) is rejected.
+`solx`, `obju`, `del spec`, levels, other outputs, and the conclusions `UNSAT` without an ID and
+`ENUMERATION`) is rejected.
 
 **Soundness.** The checkers return the conclusion of an accepted proof. If it is `UNSAT`, the
 input parses to a formula with no 0/1 solution
 (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB`,
 `Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkDIMACS`); if `SAT`, to one with a solution
 (`Cslib.Logic.PL.VeriPB.Text.exists_satisfies_of_checkOPB`,
-`Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`); if `BOUNDS lb : q ub`, to an
+`Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`), the stated assignment of `SAT : ρ`
+being one (`Cslib.Logic.PL.VeriPB.Text.holds_of_checkOPB_sat`); if `BOUNDS lb : q ub`, to an
 instance with an objective `f` whose every solution has value at least `lb` and, for a finite
 `ub`, some solution has value at most `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`).
+`NONE` claims nothing.
 This is a guarantee about the text and the formula the parser returns: the parsers are trusted
 to read the files as intended, and nothing is said about compiled code. It is smaller than the
 end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
@@ -458,12 +460,24 @@ private def topSteps (N : Names) : ℕ → List String → Option (List TopStep 
 private def bound? (t : String) : Option (Option ℤ) :=
   if t == "INF" then some none else (int? t).map some
 
-/-- The conclusion section, after `conclusion`: `UNSAT : id`, `SAT`, or `BOUNDS lb : id ub`. -/
-private def conclusion : List String → Option Conclusion
+/-- An optional assignment `: ρ` at the end of a conclusion, up to the final `;`. -/
+private def asgOpt (N : Names) : List String → Option (Option (List (Literal ℕ)))
+  | [";"] => some none
+  | ":" :: ts =>
+    match lits N ts with
+    | some (ρ, [";"]) => some (some ρ)
+    | _ => none
+  | _ => none
+
+/-- The conclusion section, after `conclusion`: `UNSAT : id`, `SAT [: ρ]`,
+`BOUNDS lb : id ub [: ρ]` or `NONE` (§4.3). -/
+private def conclusion (N : Names) : List String → Option Conclusion
   | ["UNSAT", ":", q, ";"] => (id? q).map .unsat
-  | ["SAT", ";"] => some .sat
-  | ["BOUNDS", lb, ":", q, ub, ";"] =>
-    (bound? lb).bind fun lb => (id? q).bind fun q => (bound? ub).map (.bounds lb q ·)
+  | ["NONE", ";"] => some .noClaim
+  | "SAT" :: ts => (asgOpt N ts).map .sat
+  | "BOUNDS" :: lb :: ":" :: q :: ub :: ts =>
+    (bound? lb).bind fun lb => (id? q).bind fun q => (bound? ub).bind fun ub =>
+      (asgOpt N ts).map (.bounds lb q ub ·)
   | _ => none
 
 /-- **A proof** in the supported fragment (kernel proofs, with `f N;` optional) for a formula
@@ -482,7 +496,7 @@ def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
       | some (ss, "output" :: "NONE" :: ";" :: "conclusion" :: rest) =>
         match rest.reverse with
         | ";" :: "proof" :: "pseudo-Boolean" :: "end" :: concl =>
-          (conclusion concl.reverse).map (⟨ss, ·⟩)
+          (conclusion N concl.reverse).map (⟨ss, ·⟩)
         | _ => none
       | _ => none
   | _ => none
@@ -530,17 +544,26 @@ theorem not_satisfiable_of_checkOPB {opb pbp : String} {q : ℕ}
 
 /-- **Soundness of `SAT` for OPB text**: an accepted proof of `SAT` means the instance parses
 and its constraints have a 0/1 solution. -/
-theorem exists_satisfies_of_checkOPB {opb pbp : String} (h : checkOPB opb pbp = some .sat) :
+theorem exists_satisfies_of_checkOPB {opb pbp : String} {asg : Option (List (Literal ℕ))}
+    (h : checkOPB opb pbp = some (.sat asg)) :
     ∃ I, parseOPB opb = some I ∧ ∃ σ : ℕ → Bool, ∀ c ∈ I.constraints, c.Holds σ := by
   obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPB h
   exact ⟨I, hI, exists_satisfies_of_checkRed h hc⟩
+
+/-- **Soundness of `SAT : ρ` for OPB text**: an accepted proof of `SAT` with the assignment `ρ`
+means the instance parses and `ρ` solves its constraints. -/
+theorem holds_of_checkOPB_sat {opb pbp : String} {ρ : List (Literal ℕ)}
+    (h : checkOPB opb pbp = some (.sat (some ρ))) :
+    ∃ I, parseOPB opb = some I ∧ ∀ c ∈ I.constraints, c.Holds (assignOf ρ) := by
+  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPB h
+  exact ⟨I, hI, holds_of_checkRed_sat h hc⟩
 
 /-- **Soundness of `BOUNDS` for OPB text**: an accepted proof of `BOUNDS lb : q ub` means the
 instance parses with an objective `f`; every 0/1 solution `σ` of its constraints has a finite
 `lb` with `lb ≤ f σ` (so for `lb = INF` there is no solution); and for a finite `ub` some
 solution has objective at most `ub`. -/
 theorem bounds_of_checkOPB {opb pbp : String} {lb ub : Option ℤ} {q : ℕ}
-    (h : checkOPB opb pbp = some (.bounds lb q ub)) :
+    {asg : Option (List (Literal ℕ))} (h : checkOPB opb pbp = some (.bounds lb q ub asg)) :
     ∃ I f, parseOPB opb = some I ∧ I.objective = some f ∧
       (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → ∃ l, lb = some l ∧ l ≤ f.eval σ) ∧
       ∀ u, ub = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u := by
@@ -574,7 +597,8 @@ theorem not_satisfiable_of_checkDIMACS {cnf pbp : String} {q : ℕ}
 
 /-- **Soundness of `SAT` for DIMACS text**: an accepted proof of `SAT` means the CNF parses and
 is satisfiable. -/
-theorem satisfiable_of_checkDIMACS {cnf pbp : String} (h : checkDIMACS cnf pbp = some .sat) :
+theorem satisfiable_of_checkDIMACS {cnf pbp : String} {asg : Option (List (Literal ℕ))}
+    (h : checkDIMACS cnf pbp = some (.sat asg)) :
     ∃ φ, parseDIMACS cnf = some φ ∧ φ.Satisfiable := by
   simp only [checkDIMACS, Option.bind_eq_some_iff] at h
   obtain ⟨φ, hφ, P, -, h⟩ := h

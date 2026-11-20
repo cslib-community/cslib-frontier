@@ -96,10 +96,15 @@ and this checker rejects such a deletion in strengthening-to-core mode.
 
 The conclusions (§4.3; `Cslib.Logic.PL.VeriPB.Conclusion`):
 * `UNSAT : q` needs a contradiction `q`, no logged solution and no `obji` step.
-* `SAT` needs a witness.
+* `SAT` needs a witness. `SAT : ρ` instead needs the stated assignment `ρ` to solve the input
+  formula, whatever was logged.
 * `BOUNDS lb : q ub` needs an objective. The lower bound `lb` must be at most `dbound`, and `q`
   must be a contradiction or weakly syntactically imply `f ≥ lb`; `lb = INF` is checked as
-  `UNSAT`. The upper bound `ub`, unless `INF`, must be the value of the witness.
+  `UNSAT`. The upper bound `ub`, unless `INF`, must be the value of the witness; with an
+  assignment `BOUNDS lb : q ub : ρ`, `ρ` must instead solve the input formula, assign every
+  objective variable and have value `ub`, as in VeriPB. As in VeriPB, an assignment after an
+  infinite upper bound is not checked.
+* `NONE` claims nothing; the proof is still checked step by step.
 
 §4.3 gives `BOUNDS` for optimization problems; accepting `UNSAT` and `SAT` under an objective as
 well is an extension of this checker.
@@ -130,9 +135,10 @@ In particular a finite upper bound `ub` certifies a solution of value at most `u
 
 **Scope.** There is no order, so no dominance and no order goals. Neither `solx` nor the
 objective update `obju` (§5.9) is supported, nor deletion by specification and levels (§5.7.2).
-The conclusions `NONE` and `ENUMERATION`, and the optional assignments of `SAT` and `BOUNDS`, are
-not supported. Matching VeriPB, `red` steps are not cutting-planes steps, and the translation of
-`Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check` covers only proofs without them.
+The conclusion `ENUMERATION` is not supported, nor `UNSAT` without a constraint ID (the kernel
+format requires one). Matching VeriPB, `red` steps are not cutting-planes steps, and the
+translation of `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check` covers only proofs without
+them.
 
 ## Main definitions
 
@@ -675,10 +681,15 @@ def runTop (F : List PBConstr) (obj : Option Objective) : State → List TopStep
 inductive Conclusion where
   /-- `conclusion UNSAT : q`: the constraint `q` is a contradiction. -/
   | unsat (q : ℕ)
-  /-- `conclusion SAT`, certified by a logged solution. -/
-  | sat
-  /-- `conclusion BOUNDS lb : q ub`, with `none` for `INF`: the optimum lies in `[lb, ub]`. -/
-  | bounds (lb : Option ℤ) (q : ℕ) (ub : Option ℤ)
+  /-- `conclusion SAT [: ρ]`: certified by the assignment `ρ` if given, which must solve the input
+  formula, and otherwise by a logged solution. -/
+  | sat (asg : Option (List (Literal ℕ)))
+  /-- `conclusion BOUNDS lb : q ub [: ρ]`, with `none` for `INF`: the optimum lies in `[lb, ub]`.
+  For a finite `ub`, the assignment `ρ`, if given, must be a solution of the input of value `ub`;
+  otherwise the witness certifies `ub`. -/
+  | bounds (lb : Option ℤ) (q : ℕ) (ub : Option ℤ) (asg : Option (List (Literal ℕ)))
+  /-- `conclusion NONE`: no claim. -/
+  | noClaim
   deriving DecidableEq, Repr
 
 /-- A kernel proof with redundance and solution-logging steps. -/
@@ -689,38 +700,48 @@ structure RedProof where
   conclusion : Conclusion
   deriving Repr
 
-/-- The check of `BOUNDS lb : q ub` for the objective `f` in the final state `s`. The lower
-bound: for `INF`, `q` is a contradiction, no solution was logged and no `obji` step was taken;
-otherwise `lb` is at most the bound `dbound`, and `q` is a contradiction or weakly syntactically
-implies `f ≥ lb`. The upper bound, unless `INF`: the witness has value `ub`. -/
-def boundsOk (f : Objective) (s : State) (lb : Option ℤ) (q : ℕ) (ub : Option ℤ) : Bool :=
+/-- The check of `BOUNDS lb : q ub [: ρ]` for the formula `F` and the objective `f` in the final
+state `s` (§4.3). The lower bound: for `INF`, `q` is a contradiction, no solution was logged and
+no `obji` step was taken; otherwise `lb` is at most the bound `dbound`, and `q` is a
+contradiction or weakly syntactically implies `f ≥ lb`. The upper bound, unless `INF`: the
+assignment `ρ`, if given, solves `F`, assigns every variable of `f` and has value `ub`; otherwise
+the witness has value `ub`. As in VeriPB, an assignment after `INF` is not checked. -/
+def boundsOk (F : List PBConstr) (f : Objective) (s : State) (lb : Option ℤ) (q : ℕ)
+    (ub : Option ℤ) (asg : Option (List (Literal ℕ))) : Bool :=
   (match lb with
     | none => s.dbound.isNone && namesContra s.db q
     | some l =>
       s.dbound.all (fun d => decide (l ≤ d)) &&
         (namesContra s.db q || (lookup s.db q).any fun D => weakImplies D (f.atLeast l))) &&
-  match ub with
-  | none => true
-  | some u => s.witness.any fun ρ => f.eval (assignOf ρ) == u
+  match ub, asg with
+  | none, _ => true
+  | some u, none => s.witness.any fun ρ => f.eval (assignOf ρ) == u
+  | some u, some ρ => solves ρ (F.map normalize) && assigns ρ f && f.eval (assignOf ρ) == u
 
-/-- **The check of a conclusion** for the objective `obj` in the final state `s`. `UNSAT : q`
-needs the contradiction `q` and no logged solution; `SAT` a logged solution that solves the input
-formula (a witness); `BOUNDS` an objective and `Cslib.Logic.PL.VeriPB.boundsOk`. `UNSAT` and
-`SAT` are also accepted under an objective, an extension of this checker: §4.3 of the
+/-- **The check of a conclusion** for the formula `F` and the objective `obj` in the final state
+`s` (§4.3).
+* `UNSAT : q` needs the contradiction `q`, and `dbound` unset.
+* `SAT : ρ` needs `ρ` to solve `F`; `SAT` alone needs a witness.
+* `BOUNDS` needs an objective and `Cslib.Logic.PL.VeriPB.boundsOk`.
+* `NONE` claims nothing and is always accepted once the steps check.
+
+`UNSAT` and `SAT` are also accepted under an objective, an extension of this checker: §4.3 of the
 documentation gives `BOUNDS` for optimization problems. -/
-def checkConclusion (obj : Option Objective) (s : State) : Conclusion → Bool
+def checkConclusion (F : List PBConstr) (obj : Option Objective) (s : State) : Conclusion → Bool
   | .unsat q => s.dbound.isNone && namesContra s.db q
-  | .sat => s.witness.isSome
-  | .bounds lb q ub =>
+  | .sat none => s.witness.isSome
+  | .sat (some ρ) => solves ρ (F.map normalize)
+  | .bounds lb q ub asg =>
     match obj with
-    | some f => boundsOk f s lb q ub
+    | some f => boundsOk F f s lb q ub asg
     | none => false
+  | .noClaim => true
 
 /-- **The checker** for the formula `F` and the objective `obj`: run the steps from the
 formula, numbered from `1`, and check the conclusion. -/
 def checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof) : Bool :=
   match runTop F obj (State.init F) P.steps with
-  | some s => checkConclusion obj s P.conclusion
+  | some s => checkConclusion F obj s P.conclusion
   | none => false
 
 /-! ### Soundness of `red` -/
@@ -1357,7 +1378,7 @@ theorem runTop_induct {F : List PBConstr} {obj : Option Objective} {P : State �
 for the value of every solution of the formula. -/
 private theorem reaches_of_checkRed {F : List PBConstr} {obj : Option Objective} {P : RedProof}
     (h : checkRed F obj P = true) :
-    ∃ s, checkConclusion obj s P.conclusion = true ∧ Inv F obj s ∧
+    ∃ s, checkConclusion F obj s P.conclusion = true ∧ Inv F obj s ∧
       ∀ σ, (∀ c ∈ F, c.Holds σ) → Reaches obj (objValue obj σ) s := by
   unfold checkRed at h
   split at h
@@ -1391,23 +1412,35 @@ theorem not_satisfiable_cnf_of_checkRed {φ : CNF ℕ} {obj : Option Objective} 
   obtain ⟨cl, hcl, rfl⟩ := List.mem_map.mp hc
   exact (Clause.holds_toPB_iff σ cl).2 ((CNF.eval_eq_true_iff σ φ).1 hσ cl hcl)
 
-/-- **Soundness for `SAT`**: a formula with a checked proof of `SAT` has a solution. -/
+/-- **Soundness for `SAT`**: a formula with a checked proof of `SAT`, with or without an
+assignment, has a solution. -/
 theorem exists_satisfies_of_checkRed {F : List PBConstr} {obj : Option Objective}
-    {P : RedProof} (h : checkRed F obj P = true) (hc : P.conclusion = .sat) :
-    ∃ σ, ∀ c ∈ F, c.Holds σ := by
+    {P : RedProof} {asg : Option (List (Literal ℕ))} (h : checkRed F obj P = true)
+    (hc : P.conclusion = .sat asg) : ∃ σ, ∀ c ∈ F, c.Holds σ := by
   obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
   rw [hc] at hconc
-  simp only [checkConclusion, Option.isSome_iff_exists] at hconc
-  obtain ⟨ρ, hρ⟩ := hconc
-  obtain ⟨σ, hσ, -⟩ := hinv.wit ρ hρ
-  exact ⟨σ, hσ⟩
+  cases asg with
+  | none =>
+    simp only [checkConclusion, Option.isSome_iff_exists] at hconc
+    obtain ⟨ρ, hρ⟩ := hconc
+    obtain ⟨σ, hσ, -⟩ := hinv.wit ρ hρ
+    exact ⟨σ, hσ⟩
+  | some ρ => exact ⟨_, holds_of_solves_normalize hconc⟩
+
+/-- **Soundness for `SAT : ρ`**: the stated assignment is a solution of the formula. -/
+theorem holds_of_checkRed_sat {F : List PBConstr} {obj : Option Objective} {P : RedProof}
+    {ρ : List (Literal ℕ)} (h : checkRed F obj P = true) (hc : P.conclusion = .sat (some ρ)) :
+    ∀ c ∈ F, c.Holds (assignOf ρ) := by
+  obtain ⟨s, hconc, -, -⟩ := reaches_of_checkRed h
+  rw [hc] at hconc
+  exact holds_of_solves_normalize hconc
 
 /-- **Soundness for the lower bound of `BOUNDS`**: if the checker accepts
 `conclusion BOUNDS lb : q ub` with a finite `lb` for the formula `F` and the objective `f`, then
 every solution of `F` has objective at least `lb`. -/
 theorem le_eval_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof} {lb : ℤ}
-    {q : ℕ} {ub : Option ℤ} (h : checkRed F (some f) P = true)
-    (hc : P.conclusion = .bounds (some lb) q ub) (σ : ℕ → Bool) (hσ : ∀ c ∈ F, c.Holds σ) :
+    {q : ℕ} {ub : Option ℤ} {asg : Option (List (Literal ℕ))} (h : checkRed F (some f) P = true)
+    (hc : P.conclusion = .bounds (some lb) q ub asg) (σ : ℕ → Bool) (hσ : ∀ c ∈ F, c.Holds σ) :
     lb ≤ f.eval σ := by
   obtain ⟨s, hconc, -, hreach⟩ := reaches_of_checkRed h
   rw [hc] at hconc
@@ -1426,8 +1459,9 @@ theorem le_eval_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof} {
 `conclusion BOUNDS INF : q ub` for the formula `F` and the objective `f`, then `F` has no
 solution. -/
 theorem not_satisfiable_of_checkRed_bounds {F : List PBConstr} {f : Objective} {P : RedProof}
-    {q : ℕ} {ub : Option ℤ} (h : checkRed F (some f) P = true)
-    (hc : P.conclusion = .bounds none q ub) (σ : ℕ → Bool) : ¬ ∀ c ∈ F, c.Holds σ := fun hF => by
+    {q : ℕ} {ub : Option ℤ} {asg : Option (List (Literal ℕ))} (h : checkRed F (some f) P = true)
+    (hc : P.conclusion = .bounds none q ub asg) (σ : ℕ → Bool) :
+    ¬ ∀ c ∈ F, c.Holds σ := fun hF => by
   obtain ⟨s, hconc, -, hreach⟩ := reaches_of_checkRed h
   rw [hc] at hconc
   simp only [checkConclusion, boundsOk, Bool.and_eq_true, Option.isNone_iff_eq_none] at hconc
@@ -1441,15 +1475,34 @@ theorem not_satisfiable_of_checkRed_bounds {F : List PBConstr} {f : Objective} {
 some solution of `F` has objective at most `ub`. With the lower bound
 (`Cslib.Logic.PL.VeriPB.le_eval_of_checkRed`), the optimum lies in `[lb, ub]`. -/
 theorem exists_eval_le_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof}
-    {lb : Option ℤ} {q : ℕ} {ub : ℤ} (h : checkRed F (some f) P = true)
-    (hc : P.conclusion = .bounds lb q (some ub)) :
+    {lb : Option ℤ} {q : ℕ} {ub : ℤ} {asg : Option (List (Literal ℕ))}
+    (h : checkRed F (some f) P = true) (hc : P.conclusion = .bounds lb q (some ub) asg) :
     ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ f.eval σ ≤ ub := by
   obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
   rw [hc] at hconc
-  simp only [checkConclusion, boundsOk, Bool.and_eq_true, Option.any_eq_true, beq_iff_eq] at hconc
-  obtain ⟨-, ρ, hρ, hval⟩ := hconc
-  obtain ⟨σ, hσ, hle⟩ := hinv.wit ρ hρ
-  exact ⟨σ, hσ, hval ▸ hle⟩
+  cases asg with
+  | none =>
+    simp only [checkConclusion, boundsOk, Bool.and_eq_true, Option.any_eq_true,
+      beq_iff_eq] at hconc
+    obtain ⟨-, ρ, hρ, hval⟩ := hconc
+    obtain ⟨σ, hσ, hle⟩ := hinv.wit ρ hρ
+    exact ⟨σ, hσ, hval ▸ hle⟩
+  | some ρ =>
+    simp only [checkConclusion, boundsOk, Bool.and_eq_true, beq_iff_eq] at hconc
+    obtain ⟨-, ⟨hsol, -⟩, hval⟩ := hconc
+    exact ⟨_, holds_of_solves_normalize hsol, hval.le⟩
+
+/-- **Soundness for `BOUNDS lb : q ub : ρ`**: the stated assignment is a solution of the formula
+with objective value exactly `ub`. -/
+theorem holds_of_checkRed_bounds {F : List PBConstr} {f : Objective} {P : RedProof}
+    {lb : Option ℤ} {q : ℕ} {ub : ℤ} {ρ : List (Literal ℕ)} (h : checkRed F (some f) P = true)
+    (hc : P.conclusion = .bounds lb q (some ub) (some ρ)) :
+    (∀ c ∈ F, c.Holds (assignOf ρ)) ∧ f.eval (assignOf ρ) = ub := by
+  obtain ⟨s, hconc, -, -⟩ := reaches_of_checkRed h
+  rw [hc] at hconc
+  simp only [checkConclusion, boundsOk, Bool.and_eq_true, beq_iff_eq] at hconc
+  obtain ⟨-, ⟨hsol, -⟩, hval⟩ := hconc
+  exact ⟨holds_of_solves_normalize hsol, hval⟩
 
 /-! ### Proofs without redundance and solutions -/
 

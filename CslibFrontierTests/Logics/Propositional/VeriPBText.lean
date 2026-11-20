@@ -27,13 +27,16 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   strengthening-to-core mode, and the numbering of `red` and `delc` with and without subproofs,
   each compared with VeriPB 3.0.2 and CakePB;
 * `obji`: a lower bound from an asserted value with no logged solution, alone and after `soli`;
+* the conclusion section: `SAT : ρ` and `BOUNDS lb : q ub : ρ` with stated assignments, and
+  `NONE`;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
 certified only by a solution logged after unchecked deletion that fails the input, a typed
 deletion of the wrong kind, a checked deletion with a failing witness, a witness or an unchecked
 deletion that strengthening-to-core mode forbids, an upper bound, a lower bound above the asserted
-value or `UNSAT` resting on `obji` alone, a dropped
+value or `UNSAT` resting on `obji` alone, stated assignments that fail the input, have the wrong
+value or leave an objective variable unassigned, a dropped
 hint, a repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a
 wrong formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
 tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
@@ -319,7 +322,7 @@ conclusion BOUNDS 1 : 6 1;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB cover coverProof == some (.bounds (some 1) 6 (some 1))
+#guard checkOPB cover coverProof == some (.bounds (some 1) 6 (some 1) none)
 
 -- Goal `#2` may be proved explicitly: its negation `x1 + x2 <= 0` is `4`, and with `~C`, `3`,
 -- it sums to a contradiction. VeriPB and CakePB accept this proof too.
@@ -329,14 +332,14 @@ def coverGoal2 : String :=
     "BOUNDS 1 : 6 1" "BOUNDS 1 : 8 1"
 
 #guard coverGoal2 != coverProof
-#guard checkOPB cover coverGoal2 == some (.bounds (some 1) 8 (some 1))
+#guard checkOPB cover coverGoal2 == some (.bounds (some 1) 8 (some 1) none)
 
 -- `INF` bounds claim nothing above, and a weaker lower bound may name any constraint implying
 -- it; both are accepted by VeriPB and CakePB.
 #guard checkOPB cover (coverProof.replace "BOUNDS 1 : 6 1" "BOUNDS 1 : 6 INF") ==
-  some (.bounds (some 1) 6 none)
+  some (.bounds (some 1) 6 none none)
 #guard checkOPB cover (coverProof.replace "BOUNDS 1 : 6 1" "BOUNDS 0 : 1 1") ==
-  some (.bounds (some 0) 1 (some 1))
+  some (.bounds (some 0) 1 (some 1) none)
 
 -- Rejected, as by VeriPB and CakePB: a lower bound above the logged value,
 #guard (checkOPB cover (coverProof.replace "BOUNDS 1 : 6 1" "BOUNDS 2 : 6 1")).isNone
@@ -379,7 +382,7 @@ def coverDecisionSat : String :=
   ((coverBadRed.replace "soli" "sol").replace "rup >= 1 : 5 4 2;\n" "").replace
     "BOUNDS 2 : 6 2" "SAT"
 
-#guard checkOPB coverDecision coverDecisionSat == some .sat
+#guard checkOPB coverDecision coverDecisionSat == some (.sat none)
 -- `soli` needs an objective, and `BOUNDS` too.
 #guard (checkOPB coverDecision coverBadRed).isNone
 #guard (checkOPB coverDecision (coverDecisionSat.replace "SAT" "BOUNDS 0 : 1 INF")).isNone
@@ -408,7 +411,7 @@ conclusion BOUNDS 0 : 2 1;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB delOpt delOptProof == some (.bounds (some 0) 2 (some 1))
+#guard checkOPB delOpt delOptProof == some (.bounds (some 0) 2 (some 1) none)
 -- The invalid `~x1` does not certify the upper bound `0` (VeriPB and CakePB reject it too).
 #guard (checkOPB delOpt (delOptProof.replace "BOUNDS 0 : 2 1" "BOUNDS 0 : 2 0")).isNone
 
@@ -432,7 +435,7 @@ conclusion SAT;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB delDec delDecProof == some .sat
+#guard checkOPB delDec delDecProof == some (.sat none)
 -- With only the invalid solution logged, `SAT` is rejected (CakePB rejects it too).
 #guard (checkOPB delDec (delDecProof.replace "sol x1;\n" "")).isNone
 
@@ -463,10 +466,10 @@ conclusion BOUNDS 0 : 3 0;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB ck ckProof == some (.bounds (some 0) 3 (some 0))
+#guard checkOPB ck ckProof == some (.bounds (some 0) 3 (some 0) none)
 -- Without a subproof, `¬C` takes no number and the improving constraint is `2` (VeriPB accepts).
 #guard checkOPB ck ((ckProof.replace " : subproof\nqed delc;" " ;").replace ": 3 0" ": 2 0") ==
-  some (.bounds (some 0) 2 (some 0))
+  some (.bounds (some 0) 2 (some 0) none)
 -- After an unchecked deletion the same solution certifies nothing (VeriPB and CakePB reject).
 #guard (checkOPB ck (ckProof.replace "delc 1 : x1 -> 1 : subproof\nqed delc;" "delc 1;")).isNone
 -- The witness `x1 ↦ 0` falsifies goal `#1` (VeriPB and CakePB reject).
@@ -495,7 +498,7 @@ conclusion SAT;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB one coreProof == some .sat
+#guard checkOPB one coreProof == some (.sat none)
 -- `~x1` is not a solution of the database (VeriPB and CakePB reject).
 #guard (checkOPB one (coreProof.replace "sol x1;" "sol ~x1;")).isNone
 -- Without `core id`, constraint `2` is derived and `delc` cannot delete it (VeriPB rejects; CakePB
@@ -507,7 +510,7 @@ def deldProof : String := (coreProof.replace "core id 2;\n" "").replace
   "delc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;" "deld 2;"
 
 #guard (deldProof.splitOn "deld 2;").length == 2 && (deldProof.splitOn "core").length == 1
-#guard checkOPB one deldProof == some .sat
+#guard checkOPB one deldProof == some (.sat none)
 
 /-- Unchecked deletion of the core constraint `2`: `sol x1` solves the input, so `SAT` stands
 (VeriPB accepts; CakePB ignores solutions logged after unchecked deletion and rejects). -/
@@ -515,7 +518,7 @@ def uncheckedProof : String := coreProof.replace
   "delc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;" "delc 2;"
 
 #guard uncheckedProof != coreProof
-#guard checkOPB one uncheckedProof == some .sat
+#guard checkOPB one uncheckedProof == some (.sat none)
 
 /-- `red` without a subproof: `¬C` takes no number, so `C`, `x2 >= 1`, is constraint `2`, which
 the next step uses. VeriPB accepts this proof. -/
@@ -529,14 +532,14 @@ conclusion SAT;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB one redNumProof == some .sat
+#guard checkOPB one redNumProof == some (.sat none)
 /-- With a subproof, `¬C` is `2` and `C` is `3` (VeriPB and CakePB accept). -/
 def redNumSubProof : String :=
   (redNumProof.replace "x2 -> 1 ;" "x2 -> 1 : subproof\nqed;").replace "pol 2 1" "pol 3 1"
 
 #guard (redNumSubProof.splitOn "subproof").length == 2
 #guard (redNumSubProof.splitOn "pol 3").length == 2
-#guard checkOPB one redNumSubProof == some .sat
+#guard checkOPB one redNumSubProof == some (.sat none)
 -- The old numbering fails without a subproof: constraint `3` does not exist.
 #guard (checkOPB one (redNumProof.replace "pol 2 1" "pol 3 1")).isNone
 
@@ -553,9 +556,9 @@ conclusion SAT;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB one tcbProof == some .sat
+#guard checkOPB one tcbProof == some (.sat none)
 #guard (tcbProof.replace "core on" "core off") != tcbProof
-#guard checkOPB one (tcbProof.replace "core on" "core off") == some .sat
+#guard checkOPB one (tcbProof.replace "core on" "core off") == some (.sat none)
 -- In the mode, a checked deletion takes no witness (VeriPB and CakePB reject).
 #guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
   "delc 1 : x1 -> 1 : subproof\nqed delc;\nsol ~x1;")).isNone
@@ -570,7 +573,7 @@ def tcbDeleteProof : String := tcbProof.replace
   "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;" "pol 1 x2 + ;\ndeld 2;\ndelc 1;\nsol x1;"
 
 #guard (tcbDeleteProof.splitOn "delc 1;").length == 2
-#guard checkOPB one tcbDeleteProof == some .sat
+#guard checkOPB one tcbDeleteProof == some (.sat none)
 
 /-! ### Bounds without a solution
 
@@ -597,7 +600,7 @@ conclusion BOUNDS 1 : 4 INF;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB cov objiProof == some (.bounds (some 1) 4 none)
+#guard checkOPB cov objiProof == some (.bounds (some 1) 4 none none)
 -- `obji` certifies no upper bound.
 #guard (checkOPB cov (objiProof.replace "4 INF" "4 1")).isNone
 -- The lower bound may not exceed the asserted value.
@@ -611,15 +614,64 @@ end pseudo-Boolean proof;
 #guard checkOPB cov ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
   "rup >= 1 : 3 1;\noutput NONE;\nconclusion BOUNDS 1 : 4 INF;"
   "rup >= 1 : 4 1;\noutput NONE;\nconclusion BOUNDS 1 : 5 1;") ==
-  some (.bounds (some 1) 5 (some 1))
+  some (.bounds (some 1) 5 (some 1) none)
 -- `obji` needs an objective.
 #guard (checkOPB "* #variable= 1 #constraint= 1\n1 x1 >= 1 ;\n" objiProof).isNone
+
+/-! ### Stated assignments and `NONE`
+
+A conclusion may state its solution (§4.3): `SAT : ρ` is accepted when `ρ` solves the input,
+whatever was logged, and `BOUNDS lb : q ub : ρ` when `ρ` solves the input, assigns every
+objective variable and has value `ub`. `NONE` claims nothing. VeriPB 3.0.2 and CakePB give the
+same verdicts as this checker, except where noted. -/
+
+/-- `objiProof` with its conclusion replaced. -/
+def objiConcl (c : String) : String := objiProof.replace "BOUNDS 1 : 4 INF" c
+
+-- The optimal solution `~x1 x2 ~x3`, stated, certifies the upper bound with nothing logged.
+#guard checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : ~x1 x2 ~x3") ==
+  some (.bounds (some 1) 4 (some 1) (some [(0, false), (1, true), (2, false)]))
+-- `x1 x2 ~x3` solves the input but has value `2`.
+#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x1 x2 ~x3")).isNone
+-- `x1 ~x2 ~x3` violates `x2 + x3 >= 1`.
+#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x1 ~x2 ~x3")).isNone
+-- `x2` leaves `x1` and `x3` unassigned (VeriPB rejects; CakePB sets them false and accepts).
+#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x2")).isNone
+-- After `INF` the assignment is not checked (VeriPB and CakePB accept).
+#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 INF : ~x1 x2 ~x3")).isSome
+-- `NONE` claims nothing.
+#guard checkOPB cov "pseudo-Boolean proof version 3.0
+f 2;
+obji 1;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" == some .noClaim
+
+/-- `SAT : ρ` for `x1 >= 1` with no step at all. -/
+def satAsgProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+output NONE;
+conclusion SAT : x1;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB one satAsgProof == some (.sat (some [(0, true)]))
+-- A logged solution does not rescue a wrong stated one.
+#guard (checkOPB one ((satAsgProof.replace "output" "sol x1;\noutput").replace
+  "SAT : x1" "SAT : ~x1")).isNone
+-- `x2` does not satisfy `x1 >= 1`.
+#guard (checkOPB one (satAsgProof.replace "SAT : x1" "SAT : x2")).isNone
+#guard checkOPB one (satAsgProof.replace "SAT : x1" "NONE") == some .noClaim
+-- A step that fails is rejected even under `NONE`.
+#guard (checkOPB one ((satAsgProof.replace "SAT : x1" "NONE").replace "output"
+  "rup >= 1 : 1;\noutput")).isNone
 
 /-! ### Soundness -/
 
 -- The accepted optimality proof: every solution of `cover` has value at least `1`, and one has
 -- value at most `1`, so the optimum is `1`.
-example (h : checkOPB cover coverProof = some (.bounds (some 1) 6 (some 1))) :
+example (h : checkOPB cover coverProof = some (.bounds (some 1) 6 (some 1) none)) :
     ∃ I f, parseOPB cover = some I ∧ I.objective = some f ∧
     (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) →
       ∃ l, some 1 = some l ∧ l ≤ f.eval σ) ∧
