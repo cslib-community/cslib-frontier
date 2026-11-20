@@ -157,11 +157,19 @@ theorem exists_legal_of_accepts_axis_point (d : ℕ) (L : Finset (Point F m)) (u
   exact ⟨_, _, rfl, rfl, h⟩
 
 /-- Accepted diagonal and point answers agree at the queried point. -/
+theorem exists_agree_of_acceptsAtDegrees_point_diagonal (d D : ℕ) (L : Finset (Point F m))
+    (u : Point F m) (a b : Answer F m)
+    (h : acceptsWithDiagonalCap d D (.point u) (.diagonal L) a b) :
+    ∃ g z, a = .inl z ∧ b = .inr g ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z := by
+  cases a <;> cases b <;> simp only [acceptsWithDiagonalCap] at h
+  exact ⟨_, _, rfl, rfl, h.2.2⟩
+
+/-- Accepted diagonal and point answers agree at the queried point. -/
 theorem exists_agree_of_accepts_point_diagonal (d : ℕ) (L : Finset (Point F m))
     (u : Point F m) (a b : Answer F m) (h : accepts d (.point u) (.diagonal L) a b) :
     ∃ g z, a = .inl z ∧ b = .inr g ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z := by
-  cases a <;> cases b <;> simp only [accepts, acceptsWithDiagonalCap] at h
-  exact ⟨_, _, rfl, rfl, h.2.2⟩
+  rw [accepts_eq_withDiagonalCap] at h
+  exact exists_agree_of_acceptsAtDegrees_point_diagonal d (m * d) L u a b h
 
 theorem accepts_point_axis_iff (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
     (a b : Answer F m) :

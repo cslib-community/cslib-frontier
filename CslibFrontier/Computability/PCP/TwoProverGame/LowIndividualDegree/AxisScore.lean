@@ -84,19 +84,30 @@ theorem acceptScore_le_one
 
 /-- A pair of answer decoders agreeing on each accepted answer pair has agreement
 at least the verifier acceptance score. -/
+theorem acceptScoreAtDegrees_le_decodedAgreement {B : Type*} [Fintype B] [DecidableEq B]
+    (S : CommutingStrategy (Question F m) (Question F m) (Answer F m) (Answer F m) A)
+    (d D : ℕ) (x y : Question F m) (f g : Answer F m → B)
+    (hagree : ∀ a b, acceptsWithDiagonalCap d D x y a b → f a = g b) :
+    acceptScoreAtDegrees S d D x y ≤
+      Cslib.Quantum.Measurement.agreement S.state ((S.alice x).map f) ((S.bob y).map g) := by
+  classical
+  simp only [acceptScoreAtDegrees, Cslib.Quantum.Measurement.agreement_map_map]
+  refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
+  by_cases h : acceptsWithDiagonalCap d D x y a b
+  · simp only [ite_eq_left h, hagree a b h, ite_true, CommutingStrategy.prob, le_refl]
+  · rw [ite_eq_right h]
+    exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
+
+/-- A pair of answer decoders agreeing on each accepted answer pair has agreement
+at least the verifier acceptance score. -/
 theorem acceptScore_le_decodedAgreement {B : Type*} [Fintype B] [DecidableEq B]
     (S : CommutingStrategy (Question F m) (Question F m) (Answer F m) (Answer F m) A)
     (d : ℕ) (x y : Question F m) (f g : Answer F m → B)
     (hagree : ∀ a b, accepts d x y a b → f a = g b) :
     acceptScore S d x y ≤
       Cslib.Quantum.Measurement.agreement S.state ((S.alice x).map f) ((S.bob y).map g) := by
-  classical
-  simp only [acceptScore_eq_sum, Cslib.Quantum.Measurement.agreement_map_map]
-  refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
-  by_cases h : accepts d x y a b
-  · simp only [ite_eq_left h, hagree a b h, ite_true, CommutingStrategy.prob, le_refl]
-  · rw [ite_eq_right h]
-    exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
+  apply acceptScoreAtDegrees_le_decodedAgreement S d (m * d) x y f g
+  simpa only [accepts_eq_withDiagonalCap] using hagree
 
 private theorem branchWinProbAtDegrees_eq_weighted {n : ℕ} (d D : ℕ) (b : Branch)
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
@@ -261,21 +272,24 @@ theorem diagonalScore_eq_expect (n d : ℕ)
 
 /-- Conditioning the diagonal test on a prefix and the point-first role assignment
 costs at most twice the number of coordinates in its rejection probability. -/
-theorem diagonalPointLossAt_le (n d : ℕ)
+theorem diagonalPointLossAtDegrees_le (n d D : ℕ)
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
       (Answer F (n + 1)) (Answer F (n + 1)) A) (j : Fin (n + 1)) :
     (𝔼 u : Point F (n + 1), 𝔼 v : Fin (j.val + 1) → F,
-        (1 - acceptScore S d (.point u) (.diagonal (linePoints u (prefixDirection j v))))) ≤
-      2 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .diagonal).commutingWinProb S) := by
-  rw [diagonalScore_eq_expect, expect_comm (ι := Point F (n + 1)) (κ := Fin (n + 1)) univ univ]
-  let loss (i : Fin (n + 1)) := 𝔼 u : Point F (n + 1), 𝔼 v, (1 - diagonalScoreAt S d u i v)
+        (1 - acceptScoreAtDegrees S d D (.point u)
+          (.diagonal (linePoints u (prefixDirection j v))))) ≤
+      2 * (n + 1 : ℝ) *
+        (1 - (branchGameWithDiagonalCap (F := F) n d D .diagonal).commutingWinProb S) := by
+  rw [diagonalScoreAtDegrees_eq_expect,
+    expect_comm (ι := Point F (n + 1)) (κ := Fin (n + 1)) univ univ]
+  let score (u : Point F (n + 1)) (i : Fin (n + 1)) (v : Fin (i.val + 1) → F) :=
+    lineScoreAtDegrees S d D u (.diagonal (linePoints u (prefixDirection i v)))
+  let loss (i : Fin (n + 1)) := 𝔼 u : Point F (n + 1), 𝔼 v, (1 - score u i v)
   have h0 (i : Fin (n + 1)) : 0 ≤ loss i := by
     refine expect_nonneg fun u _ => expect_nonneg fun v _ => ?_
-    unfold diagonalScoreAt
-    linarith [acceptScore_le_one S d (.point u) (.diagonal (linePoints u (prefixDirection i v))),
-      acceptScore_le_one S d (.diagonal (linePoints u (prefixDirection i v))) (.point u)]
+    exact sub_nonneg.mpr (lineScoreAtDegrees_le_one S d D u _)
   have hselected : loss j ≤ (n + 1 : ℝ) * (1 - 𝔼 i : Fin (n + 1),
-      𝔼 u : Point F (n + 1), 𝔼 v, diagonalScoreAt S d u i v) := by
+      𝔼 u : Point F (n + 1), 𝔼 v, score u i v) := by
     calc
       _ ≤ ∑ i, loss i := single_le_sum (fun i _ => h0 i) (mem_univ _)
       _ = _ := by
@@ -283,15 +297,27 @@ theorem diagonalPointLossAt_le (n d : ℕ)
         simp only [loss, expect_sub_distrib, Fintype.expect_const]
   calc
     _ ≤ 𝔼 u : Point F (n + 1), 𝔼 v : Fin (j.val + 1) → F,
-        (2 * (1 - diagonalScoreAt S d u j v)) := by
+        (2 * (1 - score u j v)) := by
       refine expect_le_expect fun u _ => expect_le_expect fun v _ => ?_
-      simp only [diagonalScoreAt]
-      linarith [acceptScore_le_one S d (.diagonal (linePoints u (prefixDirection j v))) (.point u)]
+      simp only [score, lineScoreAtDegrees]
+      linarith [acceptScoreAtDegrees_le_one S d D
+        (.diagonal (linePoints u (prefixDirection j v))) (.point u)]
     _ = 2 * loss j := by
       simp only [← mul_expect]
       rfl
     _ ≤ _ := by
       rw [mul_assoc]
       exact mul_le_mul_of_nonneg_left hselected (by norm_num)
+
+/-- Conditioning the diagonal test on a prefix and the point-first role assignment
+costs at most twice the number of coordinates in its rejection probability. -/
+theorem diagonalPointLossAt_le (n d : ℕ)
+    (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
+      (Answer F (n + 1)) (Answer F (n + 1)) A) (j : Fin (n + 1)) :
+    (𝔼 u : Point F (n + 1), 𝔼 v : Fin (j.val + 1) → F,
+        (1 - acceptScore S d (.point u) (.diagonal (linePoints u (prefixDirection j v))))) ≤
+      2 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .diagonal).commutingWinProb S) := by
+  rw [branchGame_eq_withDiagonalCap]
+  exact diagonalPointLossAtDegrees_le n d ((n + 1) * d) S j
 
 end Cslib.PCP.LowIndividualDegree
