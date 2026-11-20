@@ -55,18 +55,19 @@ Each player's indifference equations involve only the other two players:
 
 **Differences from the source.** The monomial table is this library's, not Datta's. Datta
 writes each `F_j` by Horner's rule as a chain of bilinear equations, one per step, with affine
-rescalings of Bob's coordinates, which gives the strategy counts `n + 1`, `D − m + 1` and `D + 1`
-with `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, where `d_ij` is the degree of `xᵢ` in `F_j`. Here the `F_j`
-share one table of monomials, so the scaling `1 / K` keeps Bob's probabilities in the open simplex
-without affine shifts. With the sparse table, `|sparseTable F| + m ≤ D + 2`
-(`card_sparseTable_add_le`), so Bob and Critter have at most `D − m + 3` and `D + 3` strategies:
-at most two more than in the paper, and possibly fewer when the `F_j` share monomials or are
-sparse within their degree boxes. With the full box `{0, …, d}ⁿ`, write `N = (d + 1)ⁿ`; Bob and
-Critter have `N + 1` and `N + m + 1` strategies, and the sparse table is never larger
-(`card_sparseTable_le_pow`). Datta fixes Critter's probabilities at `1 / D` (p. 6), which leaves
-Critter's reference strategy with probability `0` when `m ≤ n`; dividing by the number of
-Critter's strategies avoids this. The exact Horner construction and
-counts stay open in #6701.
+rescalings of Bob's coordinates (`Cslib.GameTheory.DattaHorner.game`). Here the `F_j` share one
+table of monomials, so the scaling `1 / K` keeps Bob's probabilities in the open simplex without
+affine shifts. With `d_ij` the degree of `xᵢ` in `F_j`, the sparse table satisfies
+`|sparseTable F| + m ≤ 1 + ∑ⱼ ∏ᵢ (1 + d_ij)` (`card_sparseTable_add_le`). Against the counts
+`D − m + 1` and `D + 1` printed in the paper, with `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, Bob and Critter
+have at most two more strategies. Against the Horner game's actual counts, whose `D` is the number
+`∑ⱼ (∏ᵢ (1 + d_ij) − 1)` of chain equations, they have at most `m + 1` more
+(`DattaHorner.card_sparseTable_le`), and fewer when the `F_j` share monomials or are sparse within
+their degree boxes (`DattaHorner.card_table_sub_card`). With the full box `{0, …, d}ⁿ`, write
+`N = (d + 1)ⁿ`; Bob and Critter have `N + 1` and `N + m + 1` strategies, and the sparse table is
+never larger (`card_sparseTable_le_pow`). Datta fixes Critter's probabilities at `1 / D` (p. 6),
+which leaves Critter's reference strategy with probability `0` when `m ≤ n`; dividing by the
+number of Critter's strategies avoids this.
 
 ## Main definitions
 
@@ -77,7 +78,7 @@ counts stay open in #6701.
 
 * `Cslib.GameTheory.DattaThree.isTotallyMixedNash_game_iff`: its totally mixed Nash equilibria.
 * `Cslib.GameTheory.DattaThree.card_strategies`: the numbers of pure strategies.
-* `Cslib.GameTheory.DattaThree.card_sparseTable_add_le`: the sparse table against Datta's `D`.
+* `Cslib.GameTheory.DattaThree.card_sparseTable_add_le`: the sparse table against the paper's `D`.
 * `Cslib.GameTheory.DattaThree.card_sparseTable_le_pow`: the sparse table against the full box.
 
 ## References
@@ -209,16 +210,21 @@ theorem card_Iic_eq_prod (f : Fin n →₀ ℕ) : #(Iic f) = ∏ i, (1 + f i) :=
   · simp [add_comm]
 
 /-- The vector of degrees `(degreeOf i F)ᵢ` of `F` in each variable. -/
-private noncomputable def degreeVec (F : MvPolynomial (Fin n) ℝ) : Fin n →₀ ℕ :=
+noncomputable def degreeVec (F : MvPolynomial (Fin n) ℝ) : Fin n →₀ ℕ :=
   Finsupp.equivFunOnFinite.symm fun i => degreeOf i F
 
-private theorem le_degreeVec {F : MvPolynomial (Fin n) ℝ} {s : Fin n →₀ ℕ} (hs : s ∈ F.support) :
-    s ≤ degreeVec F := fun i => by
-  simpa [degreeVec] using monomial_le_degreeOf i hs
+@[simp] theorem degreeVec_apply (F : MvPolynomial (Fin n) ℝ) (i : Fin n) :
+    degreeVec F i = degreeOf i F := by simp [degreeVec]
 
-/-- **The sparse table against Datta's count.** With `d_ij = degreeOf i (F j)` and Datta's
-`D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, this says `|sparseTable F| + m ≤ D + 2`: Bob's and Critter's
-`|E| + 1` and `|E| + m + 1` strategies exceed Datta's `D − m + 1` and `D + 1` by at most `2`. -/
+theorem le_degreeVec {F : MvPolynomial (Fin n) ℝ} {s : Fin n →₀ ℕ} (hs : s ∈ F.support) :
+    s ≤ degreeVec F := fun i => by
+  simpa using monomial_le_degreeOf i hs
+
+/-- **The sparse table against Datta's count.** With `d_ij = degreeOf i (F j)` and the paper's
+printed `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, this says `|sparseTable F| + m ≤ D + 2`: Bob's and Critter's
+`|E| + 1` and `|E| + m + 1` strategies exceed the printed `D − m + 1` and `D + 1` by at most `2`.
+The Horner chain has only `D − m + 1` equations, so against the Horner game's actual counts the
+excess is at most `m + 1` (`DattaHorner.card_sparseTable_le`). -/
 theorem card_sparseTable_add_le (F : Fin m → MvPolynomial (Fin n) ℝ) :
     #(sparseTable F) + m ≤ 1 + ∑ j, ∏ i, (1 + degreeOf i (F j)) := by
   classical
