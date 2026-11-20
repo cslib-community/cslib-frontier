@@ -13,6 +13,7 @@ public import Mathlib.Data.Fintype.Sigma
 public import Mathlib.Order.FixedPoints
 public import CslibFrontier.Foundations.Relation.FiniteClosure
 import CslibFrontier.Foundations.Order.FiniteFixedPoint
+import CslibFrontier.Foundations.Data.List.ListsUpTo
 
 /-! # Computing well-nested reachability
 
@@ -307,5 +308,150 @@ the loop (line 3) and each new list obtained by a pop (line 25); both checks are
     μ.holes = [] ∧ ∃ f ∈ (Finset.univ.filter (· ∈ M.accept)), (μ.last, f) ∈ M.wellNestedPairs)
 
 end Search
+
+/-! ## The search computes the reachable lists -/
+
+section Reach
+
+variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ] [DecidableEq Γ]
+  (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')] [DecidablePred (· ∈ M.start)]
+
+/-- The lists the search of Algorithm 1 reaches: the initial lists, closed under `successors`. -/
+inductive Reachable (K : ℕ) : HoleList n State → Prop where
+  | init {s : State} : s ∈ M.start → Reachable K ⟨[], s⟩
+  | step {μ ν : HoleList n State} : Reachable K μ → ν ∈ M.successors K μ → Reachable K ν
+
+variable {M}
+
+omit [Fintype Symbol] [Fintype Γ] [DecidableEq Γ] [∀ s μ s', Decidable (M.Tr s μ s')] in
+theorem mem_initialLists {μ : HoleList n State} :
+    μ ∈ M.initialLists ↔ μ.holes = [] ∧ μ.last ∈ M.start := by
+  obtain ⟨holes, last⟩ := μ
+  simp [initialLists, eq_comm, and_comm]
+
+omit [DecidablePred (· ∈ M.start)] in
+theorem length_holes_le_of_mem_successors {K : ℕ} {μ ν : HoleList n State}
+    (hμ : μ.holes.length ≤ K) (hν : ν ∈ M.successors K μ) : ν.holes.length ≤ K := by
+  simp only [successors, Finset.mem_union] at hν
+  rcases hν with hν | hν
+  · split_ifs at hν with hK
+    · obtain ⟨i, -, hν⟩ := Finset.mem_biUnion.mp hν
+      obtain ⟨p, -, rfl⟩ := Finset.mem_image.mp hν
+      simp only [List.length_append, List.length_singleton]
+      omega
+    · simp at hν
+  · obtain ⟨i, -, hν⟩ := Finset.mem_biUnion.mp hν
+    unfold addPop at hν
+    rcases hs : splitLastHole i μ.holes with _ | ⟨pre, ⟨s₁, s₃⟩, post⟩
+    · simp [hs] at hν
+    · obtain ⟨hl, -⟩ := splitLastHole_eq_some hs
+      rw [hl] at hμ
+      simp only [hs, Finset.mem_union, Finset.mem_image] at hν
+      rcases hν with ⟨t, -, rfl⟩ | ⟨t, -, rfl⟩ <;>
+        simp only [List.length_append, List.length_cons] at hμ ⊢ <;> omega
+
+omit [DecidablePred (· ∈ M.start)] in
+theorem Reachable.length_le {K : ℕ} {μ : HoleList n State} (h : M.Reachable K μ) :
+    μ.holes.length ≤ K := by
+  induction h with
+  | init => simp
+  | step _ hν ih => exact length_holes_le_of_mem_successors ih hν
+
+/-- The lists with at most `K` holes, as a finite set. -/
+private noncomputable def listsUpTo (n : ℕ) (State : Type*) [Fintype State] [DecidableEq State]
+    (K : ℕ) : Finset (HoleList n State) :=
+  (((Finset.univ : Finset (HoleTriple n State)).toList.listsUpTo K).toFinset ×ˢ
+    (Finset.univ : Finset State)).image fun p => ⟨p.1, p.2⟩
+
+private theorem mem_listsUpTo_of_length_le {K : ℕ} {μ : HoleList n State}
+    (h : μ.holes.length ≤ K) : μ ∈ listsUpTo n State K := by
+  refine Finset.mem_image.mpr ⟨(μ.holes, μ.last), ?_, rfl⟩
+  simp [List.mem_listsUpTo, h]
+
+private theorem card_listsUpTo_le (K : ℕ) :
+    (listsUpTo n State K).card + 1 ≤ listBound n State K := by
+  unfold listsUpTo listBound
+  refine Nat.add_le_add_right ((Finset.card_image_le).trans ?_) 1
+  rw [Finset.card_product, Finset.card_univ]
+  refine Nat.mul_le_mul_right _ ((List.toFinset_card_le _).trans
+    ((List.length_listsUpTo_le _ _).trans ?_))
+  simp [Fintype.card_prod, pow_two]
+
+/-- A set of lists that contains the initial lists, is closed under `successors` and only contains
+reachable lists is the set of reachable lists. -/
+private theorem mem_iff_reachable_of_closed {K : ℕ} {visited : Finset (HoleList n State)}
+    (hreach : ∀ μ ∈ visited, M.Reachable K μ) (hinit : M.initialLists ⊆ visited)
+    (hclosed : ∀ μ ∈ visited, M.successors K μ ⊆ visited) (μ : HoleList n State) :
+    μ ∈ visited ↔ M.Reachable K μ := by
+  refine ⟨hreach μ, fun h => ?_⟩
+  induction h with
+  | init hs => exact hinit (mem_initialLists.mpr ⟨rfl, hs⟩)
+  | step _ hν ih => exact hclosed _ ih hν
+
+/-- The worklist loop returns the reachable lists, as long as the fuel exceeds the number of lists
+that could still be added while work remains. -/
+private theorem mem_explore_iff {K : ℕ} (f : ℕ) :
+    ∀ (visited todo : Finset (HoleList n State)),
+      (∀ μ ∈ visited, M.Reachable K μ) → todo ⊆ visited → M.initialLists ⊆ visited →
+      (∀ μ ∈ visited, μ ∉ todo → M.successors K μ ⊆ visited) →
+      (todo.Nonempty → (listsUpTo n State K).card < f + visited.card) →
+      ∀ μ, μ ∈ M.explore K f visited todo ↔ M.Reachable K μ := by
+  induction f with
+  | zero =>
+    intro visited todo hreach htodo hinit hclosed hfuel μ
+    rcases Finset.eq_empty_or_nonempty todo with rfl | hne
+    · exact mem_iff_reachable_of_closed hreach hinit
+        (fun ν hν => hclosed ν hν (Finset.notMem_empty _)) μ
+    · have hcard : visited.card ≤ (listsUpTo n State K).card := Finset.card_le_card
+        fun ν hν => mem_listsUpTo_of_length_le (hreach ν hν).length_le
+      have := hfuel hne
+      omega
+  | succ f ih =>
+    intro visited todo hreach htodo hinit hclosed hfuel μ
+    unfold explore
+    split_ifs with hempty
+    · subst hempty
+      exact mem_iff_reachable_of_closed hreach hinit
+        (fun ν hν => hclosed ν hν (Finset.notMem_empty _)) μ
+    · set new := todo.biUnion (M.successors K) \ visited with hnew
+      refine ih (visited ∪ new) new ?_ Finset.subset_union_right
+        (hinit.trans Finset.subset_union_left) ?_ ?_ μ
+      · intro ν hν
+        rcases Finset.mem_union.mp hν with hν | hν
+        · exact hreach ν hν
+        · obtain ⟨hν, -⟩ := Finset.mem_sdiff.mp hν
+          obtain ⟨ρ, hρ, hν⟩ := Finset.mem_biUnion.mp hν
+          exact .step (hreach ρ (htodo hρ)) hν
+      · intro ρ hρ hρnew ν hν
+        rcases Finset.mem_union.mp hρ with hρ | hρ
+        · by_cases hρt : ρ ∈ todo
+          · by_cases hνv : ν ∈ visited
+            · exact Finset.mem_union_left _ hνv
+            · exact Finset.mem_union_right _
+                (Finset.mem_sdiff.mpr ⟨Finset.mem_biUnion.mpr ⟨ρ, hρt, hν⟩, hνv⟩)
+          · exact Finset.mem_union_left _ (hclosed ρ hρ hρt hν)
+        · exact absurd hρ hρnew
+      · intro hne
+        rw [Finset.card_union_of_disjoint Finset.disjoint_sdiff]
+        have := hfuel (Finset.nonempty_iff_ne_empty.mpr hempty)
+        have hpos := hne.card_pos
+        rw [hnew] at hpos
+        omega
+
+/-- The search of Algorithm 1 returns exactly the reachable lists: the fuel `listBound` is never
+exhausted. -/
+theorem mem_explore {K : ℕ} {μ : HoleList n State} :
+    μ ∈ M.explore K (listBound n State K) M.initialLists M.initialLists ↔ M.Reachable K μ := by
+  refine mem_explore_iff _ _ _ (fun ν hν => ?_) subset_rfl subset_rfl
+    (fun ν hν hνt => absurd hν hνt) (fun _ => ?_) μ
+  · obtain ⟨holes, last⟩ := ν
+    obtain ⟨h, hs⟩ := mem_initialLists.mp hν
+    simp only at h hs
+    subst h
+    exact .init hs
+  · have := card_listsUpTo_le (n := n) (State := State) K
+    omega
+
+end Reach
 
 end Cslib.Automata.MPDA
