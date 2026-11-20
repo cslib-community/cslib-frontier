@@ -10,9 +10,11 @@ module
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
 public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered.Subdivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 
 /-!
@@ -22,6 +24,10 @@ Every seed uses the same rectangular carrier. The layout counts all chain slots,
 the unused ones, so the source and adjacency scans can share one dimension. The native
 certificate computes the chain bound and both scan counts from the binary width and
 horizon, using the actual generator code length and the final layer’s binary size.
+
+`seedSearchSize` also computes the seed width and the exclusive binary rank limit needed
+to start the outer counter. The exponent is linear in the encoded dimensions. The actual
+candidate limit is written in binary.
 -/
 
 public section
@@ -86,5 +92,44 @@ theorem subdivisionSize_inSpace :
     omega
   exact encSubdivisionSize_mk_budget hcount hbound
     (budget_natMul hcount (budget_natSucc hbound))
+
+/-- Size parameters shared across the seed counter and the subdivision scans. -/
+structure SeedSearchSize where
+  /-- The carrier used for every candidate seed. -/
+  subdivision : SubdivisionSize
+  /-- Number of bits in a seed. -/
+  seedWidth : ℕ
+  /-- Exclusive bound on candidate ranks. -/
+  seedLimit : ℕ
+
+/-- Framed subdivision parameters and seed width, followed by the binary seed limit. -/
+enc_structure encSeedSearchSize : SeedSearchSize where
+  subdivision : encSubdivisionSize, seedWidth : encNat, seedLimit : encNat
+
+/-- Prepare the seed counter and its scan dimensions from binary width and horizon. -/
+@[expose] def seedSearchSize (width horizon : ℕ) : SeedSearchSize :=
+  let bits := codeLength width horizon
+  ⟨subdivisionSize width horizon, bits, 2 ^ bits⟩
+
+/-- The exclusive limit needs one more binary digit than the candidate ranks. -/
+theorem length_seedSearchSize_seedLimit (width horizon : ℕ) :
+    (encNat (seedSearchSize width horizon).seedLimit).length =
+      (seedSearchSize width horizon).seedWidth + 1 := by
+  simp only [seedSearchSize, encNat_two_pow, List.length_append, List.length_replicate,
+    List.length_singleton]
+
+/-- Initializing the sizes uses space linear in the encoded graph dimensions. The seed width
+can be represented in unary within this budget, and the exclusive limit is written in binary. -/
+theorem seedSearchSize_inSpace :
+    ComputableInSpace (fun p : ℕ × ℕ => seedSearchSize p.1 p.2) (encPair encNat encNat)
+      encSeedSearchSize (fun p => (encPair encNat encNat p).length) := by
+  have hwidth := budget_comp (of_inO ComputableInO.natToUnary) codeLength_inSpace
+    (.of_le_linear 268435456 268435456 fun p => by
+      have hp := codeLength_le_encodedDimensions p
+      omega)
+  have hlimit := budget_comp_linear
+    (of_inO (ComputableInDegree.two_pow_length encUnary).inO_one) hwidth
+  exact encSeedSearchSize_mk_budget subdivisionSize_inSpace codeLength_inSpace
+    (hlimit.of_enc_eq fun _ => by simp [encUnary_apply])
 
 end Cslib.Reachability.Hoza
