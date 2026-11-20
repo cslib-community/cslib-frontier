@@ -91,7 +91,7 @@ states after each segment, newest first. -/
 inductive Realizes (i : Fin n) (s : State) : State → List (Γ × State) → Prop where
   | nil : Realizes i s s []
   | cons {t' t : State} {γ : Γ} {r : List (Γ × State)} :
-    Realizes i s t' r → (t', γ, t) ∈ M.atomicHoles i → Realizes i s t ((γ, t) :: r)
+    Realizes i s t' r → ⟨t', γ, t⟩ ∈ M.atomicHoles i → Realizes i s t ((γ, t) :: r)
 
 variable {M}
 
@@ -202,7 +202,7 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
         true_and] at hν
       -- The common part: the run to the pop and the pop itself.
       have hpop : ∀ (s₂ : State) (γ : Γ) (s' : State) (rpre rpost : List (List (Γ × State)))
-          (r : List (Γ × State)), (s₂, γ, s₃) ∈ M.atomicHoles i →
+          (r : List (Γ × State)), ⟨s₂, γ, s₃⟩ ∈ M.atomicHoles i →
           (∃ b, M.Tr μ.last (b, .pop i γ) s') → rpre.length = pre.length →
           List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.stack h.src h.dst r)
             rpre pre →

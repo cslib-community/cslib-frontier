@@ -16,8 +16,8 @@ import CslibFrontier.Foundations.Data.List.Forall2
 If an MPDA has a `K`-hole-bounded accepting run, repaired Algorithm 1 of
 [AkshayGastinKrishnaRoychowdhury2020] (`MPDA.isEmpty`) answers `false`. With soundness, this is
 Theorem 1 for repaired Algorithm 1 (`MPDA.isEmpty_iff`), for every `K`; the source states
-Theorem 1 for positive `K`. The printed-start variant (`MPDA.isEmptyPrinted`) is not complete
-(`CslibFrontierTests.MPDA.Emptiness`).
+Theorem 1 for positive `K`. Starting the search from the initial state alone, as printed, is not
+complete (`CslibFrontierTests.MPDA.Emptiness`).
 
 The run is cut at its events: the positions after a maximal well-nested factor, where the next
 transition is a pop or a push that is not closed by a well-nested continuation (`MPDA.wnEnd`). A
@@ -423,7 +423,7 @@ variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Sym
 
 /-- Prepend an atomic hole segment to a realization. -/
 theorem Realizes.prepend {i : Fin n} {s s₁ t : State} {γ : Γ} {r : List (Γ × State)}
-    (hγ : (s, γ, s₁) ∈ M.atomicHoles i) (hr : M.Realizes i s₁ t r) :
+    (hγ : ⟨s, γ, s₁⟩ ∈ M.atomicHoles i) (hr : M.Realizes i s₁ t r) :
     M.Realizes i s t (r ++ [(γ, s₁)]) := by
   induction hr with
   | nil => exact .cons .nil hγ
@@ -455,14 +455,11 @@ theorem exists_block_run {w : List (Symbol × Op n Γ)} {i : Fin n} :
     obtain ⟨hpushT, hpushA⟩ := configLTS_tr.mp hpush
     -- The segment `↓ws` ending at `e`, then the rest of the run from `e`.
     have hseg : ∀ e, q + 1 ≤ e → e ≤ w.length → WellNested (w.extract (q + 1) e) →
-        ∃ c₂ : Config n State Γ, (c.state, γ, c₂.state) ∈ M.atomicHoles i ∧
+        ∃ c₂ : Config n State Γ, ⟨c.state, γ, c₂.state⟩ ∈ M.atomicHoles i ∧
           c₂.contents = Function.update c.contents i (γ :: c.contents i) ∧
           M.configLTS.MTr c₂ (w.drop e) cf := by
       intro e he₁ he₂ hwn
-      have hsplit : w.drop (q + 1) = w.extract (q + 1) e ++ w.drop e := by
-        rw [List.extract_eq_take_drop, show w.drop e = (w.drop (q + 1)).drop (e - (q + 1)) by
-          rw [List.drop_drop]; congr 1; omega, List.take_append_drop]
-      rw [hsplit] at hrest
+      rw [w.drop_eq_extract_append_drop he₁] at hrest
       obtain ⟨c₂, hws, hrest'⟩ := LTS.MTr.split hrest
       obtain ⟨hwsc, hcont⟩ := (hwn.configLTS_mTr_iff).mp hws
       refine ⟨c₂, (mem_atomicHoles M).mpr ⟨a, c₁.state, hpushT,
@@ -601,7 +598,7 @@ variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Sym
 list of the search, a hole derivation of the run up to `t`, and the rest of the run, whose stacks
 hold the pushes of the chains; chains, hole triples and their realizations agree; and each chain
 is a prefix of a greedy chain whose other pushes are no longer pending. -/
-def CInv (K : ℕ) (w : List (Symbol × Op n Γ)) (f : State) (t : ℕ) : Prop :=
+private def CInv (K : ℕ) (w : List (Symbol × Op n Γ)) (f : State) (t : ℕ) : Prop :=
   ∃ (μ : HoleList n State) (C : List (HoleChain n Γ)) (rs : List (List (Γ × State)))
     (c : Config n State Γ),
     M.Reachable K M.initialLists μ ∧ HoleDerivation K C (w.take t) ∧
@@ -618,8 +615,8 @@ def CInv (K : ℕ) (w : List (Symbol × Op n Γ)) (f : State) (t : ℕ) : Prop :
 variable {M}
 
 /-- The invariant holds at the first event. -/
-theorem cinv_init {K : ℕ} {w : List (Symbol × Op n Γ)} {s₀ f : State} (hs₀ : s₀ ∈ M.start)
-    (hrun : M.configLTS.MTr ⟨s₀, Stacks.empty⟩ w ⟨f, Stacks.empty⟩) :
+private theorem cinv_init {K : ℕ} {w : List (Symbol × Op n Γ)} {s₀ f : State}
+    (hs₀ : s₀ ∈ M.start) (hrun : M.configLTS.MTr ⟨s₀, Stacks.empty⟩ w ⟨f, Stacks.empty⟩) :
     M.CInv K w f (wnEnd w 0) := by
   obtain ⟨-, hle, hwn⟩ := wnEnd_spec (w := w) (p := 0) (Nat.zero_le _)
   have hsplit : w = w.extract 0 (wnEnd w 0) ++ w.drop (wnEnd w 0) := by
@@ -636,7 +633,7 @@ theorem cinv_init {K : ℕ} {w : List (Symbol × Op n Γ)} {s₀ f : State} (hs�
     by rw [hcont, stacksOf_nil], .nil, .nil, .nil, by simp, by simp, by simp⟩
 
 /-- At the end of the run, the invariant gives an accepting list. -/
-theorem isEmpty_eq_false_of_cinv [DecidablePred (· ∈ M.accept)] {K : ℕ}
+private theorem isEmpty_eq_false_of_cinv [DecidablePred (· ∈ M.accept)] {K : ℕ}
     {w : List (Symbol × Op n Γ)} {f : State} (hf : f ∈ M.accept)
     (h : M.CInv K w f w.length) : M.isEmpty K = false := by
   obtain ⟨μ, C, rs, c, hμ, -, hrun, hst, hcont, hstk, -, -, hne, -, -⟩ := h
@@ -662,7 +659,7 @@ variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Sym
   [DecidablePred (· ∈ M.start)]
 
 /-- **The pop step**: at a pop, the invariant moves to the next event. -/
-theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
+private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
     {b : Symbol} {i : Fin n} {γ : Γ} (hwt : w[t]? = some (b, .pop i γ)) (h : M.CInv K w f t) :
     t < wnEnd w (t + 1) ∧ M.CInv K w f (wnEnd w (t + 1)) := by
   have htlen : t < w.length := (List.getElem?_eq_some_iff.mp hwt).1
@@ -787,7 +784,7 @@ theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
   -- The step of the search.
   have hpopnext : ∀ ν, ν ∈ M.addPop i μ → M.Reachable K M.initialLists ν := fun ν hν =>
     .step hμ (Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _, hν⟩))
-  have hok : (s₁, s₂) ∈ M.holeSegments i ∧ (s₂, γ, s₃) ∈ M.atomicHoles i ∧
+  have hok : (s₁, s₂) ∈ M.holeSegments i ∧ ⟨s₂, γ, s₃⟩ ∈ M.atomicHoles i ∧
       (∃ b', M.Tr μ.last (b', .pop i γ) c₁.state) ∧ (c₁.state, c₂.state) ∈ M.wellNestedPairs :=
     ⟨hHS, hγ', ⟨b, hst ▸ hTr⟩, hWR⟩
   have htake' : w.take t' = w.take (t + 1) ++ w.extract (t + 1) t' :=
@@ -858,7 +855,7 @@ variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Sym
 
 /-- **The hole step**: at a hole push, the invariant moves to the end of the block of its greedy
 chain. The counting guard keeps the number of chains below `K`. -/
-theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
+private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
     {a : Symbol} {i : Fin n} {γ : Γ} (hK : HoleBounded K w)
     (hwt : w[t]? = some (a, .push i γ)) (hev : ¬WellMatched w t) (h : M.CInv K w f t) :
     t < blockEnd w i t ∧ M.CInv K w f (blockEnd w i t) := by
@@ -989,7 +986,8 @@ variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Sym
   [DecidablePred (· ∈ M.start)]
 
 /-- From an event, or the end, the invariant reaches the end of the run. -/
-theorem cinv_length {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} (hK : HoleBounded K w) :
+private theorem cinv_length {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State}
+    (hK : HoleBounded K w) :
     ∀ t, t ≤ w.length →
       (t < w.length → (¬∃ a, w[t]? = some (a, .nop)) ∧ ¬WellMatched w t) →
       M.CInv K w f t → M.CInv K w f w.length

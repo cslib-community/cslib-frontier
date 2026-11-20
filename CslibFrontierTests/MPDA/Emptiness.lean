@@ -13,10 +13,11 @@ import Mathlib.Tactic.FinCases
 /-! Clients of the emptiness procedure under module encapsulation. On two stacks, the MPDA
 `crossNop` reads `nop ↓₀ ↓₁ ↑₀ ↑₁` along the control states `0 → 1 → 2 → 3 → 4 → 5`. That run is
 accepting and `2`-hole-bounded, so repaired Algorithm 1 (`MPDA.isEmpty`) answers `false`, by
-Theorem 1 (`MPDA.isEmpty_iff`). Its printed-start variant (`MPDA.isEmptyPrinted`), which starts
-from the initial state as line 10 of Algorithm 1 as printed in
-[AkshayGastinKrishnaRoychowdhury2020] does, answers `true`. From state `0` it can neither open a
-hole, since `0` has no push, nor pop, and the well-nested acceptance check of line 3 cannot pass
+Theorem 1 (`MPDA.isEmpty_iff`). Its printed-start variant (`isEmptyPrinted`, defined here), which
+starts from the initial state as line 10 of Algorithm 1 as printed in
+[AkshayGastinKrishnaRoychowdhury2020] does and otherwise is `MPDA.isEmpty`, answers `true`. From
+state `0` it can only open empty holes `(i, 0, 0)`, since `0` has no push, and cannot pop, so
+every list it reaches ends in state `0`; and the well-nested acceptance check of line 3 cannot pass
 the crossing pushes and pops. So starting from the initial state is not complete. -/
 
 set_option linter.privateModule false
@@ -24,6 +25,29 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.MPDA.Emptiness
 
 open Cslib Cslib.Automata Cslib.Automata.MPDA
+
+section Printed
+
+variable {n : ℕ} {State Symbol Γ : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol]
+  [Fintype Γ] [DecidableEq Γ] (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')]
+  [DecidablePred (· ∈ M.start)]
+
+/-- The initial lists of the search as printed (line 10 of Algorithm 1): an initial state and no
+holes. -/
+private def startLists : Finset (HoleList n State) :=
+  (Finset.univ.filter (· ∈ M.start)).image fun s => ⟨[], s⟩
+
+/-- The printed-start variant of repaired Algorithm 1: the search from the initial state. -/
+private def isEmptyPrinted [DecidablePred (· ∈ M.accept)] (K : ℕ) : Bool :=
+  M.isEmptyFrom (startLists M) K
+
+omit [Fintype Symbol] [Fintype Γ] [DecidableEq Γ] [∀ s μ s', Decidable (M.Tr s μ s')] in
+private theorem mem_startLists {μ : HoleList n State} :
+    μ ∈ startLists M ↔ μ.holes = [] ∧ μ.last ∈ M.start := by
+  obtain ⟨holes, last⟩ := μ
+  simp [startLists, eq_comm, and_comm]
+
+end Printed
 
 /-- `nop`, then `↓₀ ↓₁ ↑₀ ↑₁`, along the control states `0 → 1 → 2 → 3 → 4 → 5`. -/
 private def crossNop : MPDA 2 (Fin 6) Unit Unit where
@@ -103,9 +127,9 @@ private theorem wellNestedReach {s t : Fin 6} (h : crossNop.WellNestedReach s t)
 
 /-- Every list reached by the printed search ends in state `0`. -/
 private theorem last_eq_zero {μ : HoleList 2 (Fin 6)}
-    (h : crossNop.Reachable 2 crossNop.startLists μ) : μ.last = 0 := by
+    (h : crossNop.Reachable 2 (startLists crossNop) μ) : μ.last = 0 := by
   induction h with
-  | init hμ => exact (mem_startLists.mp hμ).2
+  | init hμ => exact ((mem_startLists _).mp hμ).2
   | @step μ ν _ hν ih =>
     unfold successors at hν
     rcases Finset.mem_union.mp hν with hν | hν
@@ -155,8 +179,8 @@ private theorem isEmptyFrom_eq_true {n : ℕ} {State Symbol Γ : Type} [Fintype 
   exact h μ ((mem_explore hinit).mp hμ) f (Finset.mem_filter.mp hf).2 hwr
 
 /-- The search as printed misses the run. -/
-example : crossNop.isEmptyPrinted 2 = true := by
-  refine isEmptyFrom_eq_true (fun ν hν => (mem_startLists.mp hν).1) fun μ hμ f hf hwr => ?_
+example : isEmptyPrinted crossNop 2 = true := by
+  refine isEmptyFrom_eq_true (fun ν hν => ((mem_startLists _).mp hν).1) fun μ hμ f hf hwr => ?_
   rw [last_eq_zero hμ] at hwr
   obtain rfl : f = 5 := hf
   rcases wellNestedReach ((mem_wellNestedPairs crossNop).mp hwr) with h | ⟨-, h⟩ <;>

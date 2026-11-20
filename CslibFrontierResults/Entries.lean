@@ -12125,13 +12125,18 @@ register_result "mpda-hole-bounded-emptiness" where
     atomic hole segments AHS_i and the hole segments HS_i computed as finite fixed points, and \
     with the loop's fuel bounded by the number of such lists. Repaired Algorithm 1 differs from \
     the printed algorithm in two ways. First, HS_i is the reflexive-transitive closure of AHS_i, \
-    so that AddPop can remove a hole whose last atomic segment is popped. Second, the search \
-    starts from the lists [s] with s reached from an initial state by a well-nested run, not \
-    from the initial state alone (line 10 of Algorithm 1, printed p. 8). The printed-start \
-    variant isEmptyPrinted starts from the initial state but keeps the reflexive HS_i, so it \
-    does not literally implement every printed line; it is not complete: the module client test \
-    CslibFrontierTests.MPDA.Emptiness gives a two-stack MPDA whose run nop push0 push1 pop0 pop1 \
-    is accepting and 2-hole-bounded, on which the printed-start variant answers true and \
-    repaired Algorithm 1 false. There the initial state has no push or pop, and the well-nested \
-    acceptance check of line 3 cannot pass the crossing pushes and pops. The complexity bound of \
-    Theorem 1 and witness generation are not formalized. Source check: pending."
+    where line 9 takes the transitive closure. This lets AddPop remove a hole whose last atomic \
+    segment is popped. It also lets AddHole open a hole (i, s, s) without taking a transition, \
+    even from a state with no push: such a hole is realized by the empty factor, while \
+    Definition 1 counts nonempty factors; it only uses up one of the K holes, and the soundness \
+    proof allows the empty realization. Second, the search starts from the lists [s] with s \
+    reached from an initial state by a well-nested run, not from the initial state alone (line \
+    10 of Algorithm 1, printed p. 8). Starting from the initial state alone, with the reflexive \
+    HS_i and otherwise as isEmpty, is not complete: the module client test \
+    CslibFrontierTests.MPDA.Emptiness defines this printed-start variant and gives a two-stack \
+    MPDA whose run nop push0 push1 pop0 pop1 is accepting and 2-hole-bounded, on which the \
+    printed-start variant answers true and repaired Algorithm 1 false. There the initial state \
+    has no push and no pop, so the variant only opens empty holes there, and the well-nested \
+    acceptance check of line 3 cannot pass the crossing pushes and pops. Theorem 1 states \
+    termination and correctness; the complexity bound given in the paragraph after it and \
+    witness generation are not formalized. Source check: pending."

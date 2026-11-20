@@ -29,18 +29,24 @@ push-pop step until nothing changes; any order of applying the rules reaches the
 point, and the number of iterations is not part of the statements here.
 
 The file then defines the search of **repaired Algorithm 1** (`MPDA.isEmpty`). It differs from
-the printed algorithm in two ways. First, `HSᵢ` is the reflexive-transitive closure of `AHSᵢ`, so
-that `AddPop` can remove a hole whose last atomic segment is popped. Second, the search starts
-from the states reached from an initial state by a well-nested run, not from the initial state
-alone. `MPDA.isEmptyPrinted` is the printed-start variant: the printed initial state with the
-reflexive `HSᵢ`. It is not complete; a checked counterexample is in
-`CslibFrontierTests.MPDA.Emptiness`.
+the printed algorithm in two ways.
+- `HSᵢ` is the reflexive-transitive closure of `AHSᵢ`, where line 9 of Algorithm 1 takes the
+  transitive closure. This lets `AddPop` remove a hole whose last atomic segment is popped. It
+  also lets `AddHole` open a hole `(i, s, s)` without taking a transition, even from a state with
+  no push; such a hole is realized by the empty factor, while Definition 1 counts nonempty
+  factors. It only uses up one of the `K` holes, and soundness allows the empty realization.
+- The search starts from the states reached from an initial state by a well-nested run, not from
+  the initial state alone (line 10).
+
+Starting from the initial state alone is not complete: the module client test
+`CslibFrontierTests.MPDA.Emptiness` defines this printed-start variant and checks a
+counterexample.
 
 ## Main definitions
 
 - `MPDA.wellNestedPairs`: the set `WR` of Algorithm 2, as a computable `Finset`.
 - `MPDA.atomicHoles`, `MPDA.holeSegments`: the sets `AHSᵢ` and `HSᵢ` of Algorithm 1.
-- `MPDA.isEmpty`: repaired Algorithm 1; `MPDA.isEmptyPrinted`: its printed-start variant.
+- `MPDA.isEmpty`: repaired Algorithm 1.
 
 ## Main results
 
@@ -150,26 +156,47 @@ end Compute
 
 /-! ## Hole segments -/
 
+/-- An atomic hole segment `(s, α, s')`: a push of `α` from `s`, followed by a well-nested run to
+`s'`. The stack of the push is the index of the set `AHSᵢ` that contains the segment. -/
+structure AtomicHole (State Γ : Type*) where
+  /-- The state where the push starts. -/
+  src : State
+  /-- The pushed stack symbol. -/
+  sym : Γ
+  /-- The state where the well-nested run after the push ends. -/
+  dst : State
+  deriving DecidableEq
+
+/-- Atomic hole segments are in bijection with the triples of their fields. -/
+@[expose] def AtomicHole.equivProd (State Γ : Type*) : AtomicHole State Γ ≃ State × Γ × State where
+  toFun h := (h.src, h.sym, h.dst)
+  invFun := fun (s, γ, s') => ⟨s, γ, s'⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+instance [Fintype State] [Fintype Γ] : Fintype (AtomicHole State Γ) :=
+  Fintype.ofEquiv _ (AtomicHole.equivProd State Γ).symm
+
 section Holes
 
 variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
   (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')]
 
 /-- The atomic hole segments `AHSᵢ` of stack `i` (Algorithm 1, lines 5–8, of
-[AkshayGastinKrishnaRoychowdhury2020]): the triples `(s, α, s')` such that a push of `α` on stack
+[AkshayGastinKrishnaRoychowdhury2020]): the segments `(s, α, s')` such that a push of `α` on stack
 `i` from `s`, followed by a well-nested run, reaches `s'`. -/
-@[expose] def atomicHoles (i : Fin n) : Finset (State × Γ × State) :=
-  Finset.univ.filter fun (s, γ, s') => ∃ (a : Symbol) (s₁ : State), M.Tr s (a, .push i γ) s₁ ∧
-    (s₁, s') ∈ M.wellNestedPairs
+@[expose] def atomicHoles (i : Fin n) : Finset (AtomicHole State Γ) :=
+  Finset.univ.filter fun h => ∃ (a : Symbol) (s₁ : State), M.Tr h.src (a, .push i h.sym) s₁ ∧
+    (s₁, h.dst) ∈ M.wellNestedPairs
 
 theorem mem_atomicHoles {i : Fin n} {s s' : State} {γ : Γ} :
-    (s, γ, s') ∈ M.atomicHoles i ↔
+    ⟨s, γ, s'⟩ ∈ M.atomicHoles i ↔
       ∃ (a : Symbol) (s₁ : State), M.Tr s (a, .push i γ) s₁ ∧ M.WellNestedReach s₁ s' := by
   simp [atomicHoles, mem_wellNestedPairs]
 
 /-- An atomic hole segment is a push of `α` on stack `i` followed by a well-nested run. -/
 theorem mem_atomicHoles_iff_mTr {i : Fin n} {s s' : State} {γ : Γ} :
-    (s, γ, s') ∈ M.atomicHoles i ↔ ∃ (a : Symbol) (w : List (Symbol × Op n Γ)),
+    ⟨s, γ, s'⟩ ∈ M.atomicHoles i ↔ ∃ (a : Symbol) (w : List (Symbol × Op n Γ)),
       WellNested w ∧ M.MTr s ((a, .push i γ) :: w) s' := by
   rw [mem_atomicHoles]
   constructor
@@ -183,13 +210,15 @@ theorem mem_atomicHoles_iff_mTr {i : Fin n} {s s' : State} {γ : Γ} :
 /-- The hole segments `HSᵢ` of stack `i` (Algorithm 1, line 9): the reflexive-transitive closure of
 the atomic hole segments, forgetting the pushed symbols. The source writes `TransitiveClosure`;
 the closure must be reflexive, since `AddPop` (Algorithm 4) splits off the only atomic segment of
-a hole through a triple `(i, s, s)`. -/
+a hole through a triple `(i, s, s)`. Reflexivity also lets `AddHole` (Algorithm 3) open a hole
+`(i, s, s)` without taking a transition, even from a state with no push; such a hole is realized
+by the empty factor. -/
 @[expose] def holeSegments [DecidableEq Γ] (i : Fin n) : Finset (State × State) :=
-  Relation.reflTransGenFinset fun s s' => ∃ γ, (s, γ, s') ∈ M.atomicHoles i
+  Relation.reflTransGenFinset fun s s' => ∃ γ, ⟨s, γ, s'⟩ ∈ M.atomicHoles i
 
 theorem mem_holeSegments [DecidableEq Γ] {i : Fin n} {s s' : State} :
     (s, s') ∈ M.holeSegments i ↔
-      Relation.ReflTransGen (fun s s' => ∃ γ, (s, γ, s') ∈ M.atomicHoles i) s s' :=
+      Relation.ReflTransGen (fun s s' => ∃ γ, ⟨s, γ, s'⟩ ∈ M.atomicHoles i) s s' :=
   Relation.mem_reflTransGenFinset _
 
 end Holes
@@ -283,7 +312,8 @@ variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ] [Deci
   (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')]
 
 /-- `AddHoleᵢ` (Algorithm 3 of [AkshayGastinKrishnaRoychowdhury2020]): extend the list with a hole
-segment of stack `i` that starts at its last state. -/
+segment of stack `i` that starts at its last state. Since `HSᵢ` is reflexive here, this includes
+the empty hole `(i, s, s)` at the last state `s`, opened without a transition. -/
 @[expose] def addHole (i : Fin n) (μ : HoleList n State) : Finset (HoleList n State) :=
   ((M.holeSegments i).filter fun p => p.1 = μ.last).image fun p =>
     ⟨μ.holes ++ [⟨i, p.1, p.2⟩], p.2⟩
@@ -298,7 +328,7 @@ also be removed. Without an open hole of stack `i` there is no successor. -/
   | none => ∅
   | some (pre, (s₁, s₃), post) =>
     let ok : State × Γ × State × State → Prop := fun (s₂, γ, s', s'') =>
-      (s₁, s₂) ∈ M.holeSegments i ∧ (s₂, γ, s₃) ∈ M.atomicHoles i ∧
+      (s₁, s₂) ∈ M.holeSegments i ∧ ⟨s₂, γ, s₃⟩ ∈ M.atomicHoles i ∧
         (∃ b, M.Tr μ.last (b, .pop i γ) s') ∧ (s', s'') ∈ M.wellNestedPairs
     (Finset.univ.filter ok).image (fun (s₂, _, _, s'') => ⟨pre ++ ⟨i, s₁, s₂⟩ :: post, s''⟩) ∪
       ((Finset.univ.filter fun t => ok t ∧ t.1 = s₁).image fun (_, _, _, s'') => ⟨pre ++ post, s''⟩)
@@ -318,14 +348,10 @@ none, or the fuel runs out. -/
       let new := todo.biUnion (M.successors K) \ visited
       explore K k (visited ∪ new) new
 
-/-- The initial list of the search as printed in Algorithm 1 (line 10): an initial state and no
-holes. -/
-@[expose] def startLists [DecidablePred (· ∈ M.start)] : Finset (HoleList n State) :=
-  (Finset.univ.filter (· ∈ M.start)).image fun s => ⟨[], s⟩
-
 /-- The initial lists of the repaired search: a state reached from an initial state by a
-well-nested run, and no holes. The search as printed starts from the initial state itself
-(`startLists`), and so misses runs whose first hole push follows a nonempty well-nested factor. -/
+well-nested run, and no holes. The search as printed starts from the initial state itself (line
+10 of Algorithm 1), and so misses runs whose first hole push follows a nonempty well-nested
+factor. -/
 @[expose] def initialLists [DecidablePred (· ∈ M.start)] : Finset (HoleList n State) :=
   (Finset.univ.filter fun s => ∃ s₀, s₀ ∈ M.start ∧ (s₀, s) ∈ M.wellNestedPairs).image
     fun s => ⟨[], s⟩
@@ -351,16 +377,6 @@ reflexive-transitive closure of `AHSᵢ` (`holeSegments`). -/
     Bool :=
   M.isEmptyFrom M.initialLists K
 
-/-- The printed-start variant of repaired Algorithm 1. The search starts from the initial state
-(`startLists`), as line 10 of Algorithm 1 as printed in [AkshayGastinKrishnaRoychowdhury2020]
-does, but is otherwise `isEmpty`, with the reflexive `HSᵢ`; it does not implement every printed
-line literally. It misses runs whose first hole push follows a nonempty well-nested factor: the
-module client test `CslibFrontierTests.MPDA.Emptiness` checks an MPDA on which it answers `true`
-although a `2`-hole-bounded accepting run exists. -/
-@[expose] def isEmptyPrinted [DecidablePred (· ∈ M.start)] [DecidablePred (· ∈ M.accept)]
-    (K : ℕ) : Bool :=
-  M.isEmptyFrom M.startLists K
-
 end Search
 
 /-! ## The search computes the reachable lists -/
@@ -385,12 +401,6 @@ theorem mem_initialLists [DecidablePred (· ∈ M.start)] {μ : HoleList n State
       μ.holes = [] ∧ ∃ s₀ ∈ M.start, (s₀, μ.last) ∈ M.wellNestedPairs := by
   obtain ⟨holes, last⟩ := μ
   simp [initialLists, eq_comm, and_comm]
-
-omit [Fintype Symbol] [Fintype Γ] [DecidableEq Γ] [∀ s μ s', Decidable (M.Tr s μ s')] in
-theorem mem_startLists [DecidablePred (· ∈ M.start)] {μ : HoleList n State} :
-    μ ∈ M.startLists ↔ μ.holes = [] ∧ μ.last ∈ M.start := by
-  obtain ⟨holes, last⟩ := μ
-  simp [startLists, eq_comm, and_comm]
 
 theorem length_holes_le_of_mem_successors {K : ℕ} {μ ν : HoleList n State}
     (hμ : μ.holes.length ≤ K) (hν : ν ∈ M.successors K μ) : ν.holes.length ≤ K := by
