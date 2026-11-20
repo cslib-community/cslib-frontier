@@ -1,12 +1,13 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 import CslibFrontier.Computability.Complexity.Classes.Alternation.NP
 import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
+import CslibFrontier.Computability.Complexity.Classes.Alternation.Unambiguous
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
@@ -103,6 +104,65 @@ example (a : List Bool) (u : Bool) :
    AP_subset_PSPACE huniv,
    exists_isGameVerifier_of_mem_AP hempty,
    MultiTapeATM.runsInTime_iff_haltsWithin.mp (runsInTime_emitMove u a)⟩
+
+/-! ### Global unambiguity -/
+
+/-- The two moves emit distinct answers, so there is exactly one accepting move. -/
+example : (Set.univ : Set (List Bool)) ∈ UAP encBits := by
+  refine ⟨_, PolyBounded.const 1, 0, Unit, inferInstance, emitMove false, decidesInTime_univ, ?_⟩
+  intro input
+  refine ⟨?_, fun _ => trivial⟩
+  rintro ⟨h, _⟩
+  rw [MultiTapeATM.AcceptsWithin] at h
+  have out := h.2
+  rw [(next_emitMove false false (encBits input)).2] at out
+  cases out
+
+/-- The existential root can accept immediately. Its other move leads to a universal node
+with two rejecting children, which violates global unambiguity. -/
+private def hiddenAmbiguity : MultiTapeATM 0 Bool Bool where
+  toPTM :=
+    { initial := false
+      tr := fun q _ _ _ b =>
+        if q then .step ⟨0, Fin.elim0, some false, none⟩ Empty.elim Empty.elim
+        else if b then .step ⟨0, Fin.elim0, some true, none⟩ Empty.elim Empty.elim
+        else .step ⟨0, Fin.elim0, none, some true⟩ Empty.elim Empty.elim }
+  universal := id
+
+example (input : List Bool) :
+    hiddenAmbiguity.AcceptsWithin 2 (hiddenAmbiguity.toPTM.toNTM.initCfg input) ∧
+    ¬ hiddenAmbiguity.UnambiguousWithin 2 (hiddenAmbiguity.toPTM.toNTM.initCfg input) := by
+  let init := hiddenAmbiguity.toPTM.toNTM.initCfg input
+  let bad := hiddenAmbiguity.next false init
+  have hbad : bad.state = some true := by
+    dsimp only [bad]
+    rw [hiddenAmbiguity.next_of_state (q := false) rfl]
+    rfl
+  have good : (hiddenAmbiguity.next true init).state = none ∧
+      (hiddenAmbiguity.next true init).output = [true] := by
+    rw [hiddenAmbiguity.next_of_state (q := false) rfl]
+    exact ⟨rfl, rfl⟩
+  have rejects (b : Bool) : ¬ hiddenAmbiguity.AcceptsWithin 0 (hiddenAmbiguity.next b bad) := by
+    rw [MultiTapeATM.AcceptsWithin, hiddenAmbiguity.next_of_state hbad]
+    rintro ⟨_, hout⟩
+    have oldOut : bad.output = [] := by
+      dsimp only [bad]
+      rw [hiddenAmbiguity.next_of_state (q := false) rfl]
+      rfl
+    change bad.output ++ [false] = [true] at hout
+    rw [oldOut] at hout
+    cases hout
+  constructor
+  · refine ⟨true, ?_⟩
+    rw [MultiTapeATM.AcceptsWithin, good.1]
+    exact good.2
+  · intro h
+    have child := h.2 false
+    change hiddenAmbiguity.UnambiguousWithin 1 bad at child
+    rw [MultiTapeATM.UnambiguousWithin, hbad] at child
+    rcases child.1 with h | h
+    · exact rejects false h
+    · exact rejects true h
 
 /-! ### Parametric alternating time and space -/
 

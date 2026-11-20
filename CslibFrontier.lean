@@ -1949,6 +1949,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.Space
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.SpaceGame
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
+public import CslibFrontier.Computability.Complexity.Classes.Alternation.Unambiguous
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Advice
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Amplification
