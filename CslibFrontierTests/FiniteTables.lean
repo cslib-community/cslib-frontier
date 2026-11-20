@@ -13,6 +13,9 @@ import CslibFrontier.Tactic.PolyTime
 
 namespace CslibFrontierTests.FiniteTables
 
+-- Search the table programs without unfolding existential machine witnesses.
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 open Cslib.Turing Turing.MultiTapeTM
 
 -- All three words may grow with the input; the fixed table length does not bound their sizes.
@@ -42,7 +45,7 @@ example : ComputableInPolyTime
 -- Aesop normalizes the tuple spelling to replication, including a symbolic fixed tuple length.
 example (count : ℕ) : ComputableInPolyTime
     (fun bits : List Bool => List.ofFn (fun _ : Fin count => bits.reverse))
-    encBits (encList encBits) := .of_tidy (by polytime)
+    encBits (encList encBits) := by polytime
 
 example (count : ℕ) : ComputableInPolyTime
     (fun bits : List Bool => List.replicate count bits.reverse)
@@ -51,7 +54,7 @@ example (count : ℕ) : ComputableInPolyTime
 -- Runtime replication computes its count in unary and charges every copy of an unbounded value.
 example : ComputableInPolyTime
     (fun pair : ℕ × List Bool => List.replicate pair.1 pair.2)
-    (encPair encUnary encBits) (encList encBits) := .of_tidy (by polytime)
+    (encPair encUnary encBits) (encList encBits) := by polytime
 
 private def encEmpty : Empty ↪ List Bool := ⟨Empty.elim, fun value => value.elim⟩
 

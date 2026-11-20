@@ -1571,7 +1571,7 @@ private theorem mapToBitsWithInput_poly {α β : Type} {encIn : α ↪ List Bool
     (hlist : ComputableInPolyTime list encIn (encList enc))
     (hf : ComputableInPolyTime (fun p : α × β => f p.1 p.2) (encPair encIn enc) encBool) :
     ComputableInPolyTime (fun a => (list a).map (f a)) encIn encBits :=
-  .of_tidy (ComputableTidilyInPolyTime.mapToBitsWithInput hlist.tidy hf.tidy)
+  (ComputableInPolyTime.mapToBitsWithInput hlist hf)
 
 private theorem bool_xor_polytime {α : Type} {encIn : α ↪ List Bool}
     {a b : α → Bool} (ha : ComputableInPolyTime a encIn encBool)
@@ -1579,7 +1579,7 @@ private theorem bool_xor_polytime {α : Type} {encIn : α ↪ List Bool}
     ComputableInPolyTime (fun x => a x != b x) encIn encBool := by
   have h1 : ComputableInPolyTime (fun p : Bool × Bool => p.1 != p.2)
       (encPair encBool encBool) encBool :=
-    .of_tidy (ComputableTidilyInPolyTime.of_finite _)
+    (ComputableInPolyTime.of_finite _)
   exact h1.comp (ha.prod hb)
 
 @[local fun_prop]

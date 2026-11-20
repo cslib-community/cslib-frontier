@@ -113,8 +113,7 @@ theorem HardCore.of_unpredictable {f : List Bool → List Bool} {predicate : Lis
     (hp : ComputableInPolyTime predicate encBits encBool)
     (h : ∀ adversary : Distinguisher, IsPPT encBool adversary →
       Negligible (predictionAdvantage f predicate adversary)) : HardCore f predicate := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at hp
-  exact ⟨.of_tidy hp, h⟩
+  exact ⟨hp, h⟩
 
 /-- The prediction experiment is a uniform PPT program when its ingredients are efficient. -/
 @[program_certificate]
@@ -134,8 +133,13 @@ def hardCorePredictor (adversary : Distinguisher) (trial : Bool) : Distinguisher
 theorem isPPT_hardCorePredictor {adversary : Distinguisher}
     (ha : IsPPT encBool adversary) (trial : Bool) :
     IsPPT encBool (hardCorePredictor adversary trial) := by
-  unfold hardCorePredictor
-  ppt
+  apply IsPPTOn.isPPT
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary encBits) encBool)
+  have hbit := ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const [])
+  have hword := ComputableInPolyTime.bitsAppend hp.fst'.snd' hbit
+  exact isPPTOn_trialPredictor
+    (ha.preprocess hp.fst'.fst' hword) (ComputableInPolyTime.const trial)
 
 /-- The ideal hybrid replaces the hidden predicate by an independent fair bit. -/
 noncomputable def hardCoreIdeal (f : List Bool → List Bool) (n : ℕ) : PMF (List Bool) := do
@@ -245,9 +249,8 @@ theorem HardCore.pseudorandomGenerator {f : List Bool → List Bool} {predicate 
     (hlen : ∀ word, (f word).length = word.length)
     (huniform : ∀ n, (BitString.uniformList n).map f = BitString.uniformList n) :
     PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) := by
-  have hf := hf.tidy
-  have hp := h.polyTime.tidy
-  refine PseudorandomGenerator.of_indistinguishable (.of_tidy (by fun_prop)) ?_ Nat.lt_succ_self
+  have hp := h.polyTime
+  refine PseudorandomGenerator.of_indistinguishable ((by fun_prop)) ?_ Nat.lt_succ_self
     (h.indistinguishable_of_uniform huniform)
   intro seed
   simp [hlen]
