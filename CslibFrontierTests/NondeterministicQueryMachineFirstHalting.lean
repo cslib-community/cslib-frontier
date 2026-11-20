@@ -31,15 +31,13 @@ private def chooseVerdict : NondeterministicQueryMachine (Option Bool) where
 
 /-- The unique first-halting prefix retains the true selector and removes the false padding. -/
 example : ∃ first : List Bool, first = [true] ∧ chooseVerdict.replay [] first none = some true := by
-  obtain ⟨first, ⟨_, _, _, hstate⟩, huniq⟩ :=
+  obtain ⟨first, ⟨_, _, hstate⟩, huniq⟩ :=
     chooseVerdict.existsUnique_firstHalting_prefix [] (s := none) (choices := [true, false])
       (by rfl)
   have hone : [true] <+: [true, false] ∧
-      chooseVerdict.halted (chooseVerdict.replay [] [true] none) = true ∧
-      (∀ n < ([true] : List Bool).length,
-        chooseVerdict.halted (chooseVerdict.replay [] ([true].take n) none) = false) ∧
+      chooseVerdict.FirstHalting [] [true] none ∧
       chooseVerdict.replay [] [true] none = chooseVerdict.replay [] [true, false] none := by
-    refine ⟨⟨[false], rfl⟩, rfl, ?_, rfl⟩
+    refine ⟨⟨[false], rfl⟩, ⟨rfl, ?_⟩, rfl⟩
     intro n hn
     obtain rfl : n = 0 := Nat.lt_one_iff.mp hn
     rfl
@@ -50,10 +48,10 @@ example : ∃ choices : List Bool, choices = [] ∧
     (chooseVerdict.withInit (some true)).accept
       ((chooseVerdict.withInit (some true)).run [] choices) = true := by
   have haccept : (chooseVerdict.withInit (some true)).Accepts [] := ⟨[false], rfl, rfl⟩
-  obtain ⟨choices, _, hproper, hv⟩ :=
+  obtain ⟨choices, hfirst, hv⟩ :=
     ((chooseVerdict.withInit (some true)).accepts_iff_exists_firstHalting []).mp haccept
   refine ⟨choices, ?_, hv⟩
   by_contra hne
-  exact Bool.noConfusion (hproper 0 (List.length_pos_iff.mpr hne))
+  exact Bool.noConfusion (hfirst.2 0 (List.length_pos_iff.mpr hne))
 
 end CslibFrontierTests.NondeterministicQueryMachineFirstHalting
