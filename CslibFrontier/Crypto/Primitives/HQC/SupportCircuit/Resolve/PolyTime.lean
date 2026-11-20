@@ -207,25 +207,18 @@ private def supportScanFoldStep (par : ResolveParameters) (suffix : Code) (index
 private theorem computableInPolyTime_supportScanFoldStep :
     ComputableInPolyTime
       (fun p : (ResolveParameters × Code) × ℕ => supportScanFoldStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat) encCode := by
-  have hb : ComputableInPolyTime
-      (fun p : (ResolveParameters × Code) × ℕ => p.1.1.1)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encUnary := by fun_prop
-  have hc : ComputableInPolyTime
-      (fun p : (ResolveParameters × Code) × ℕ => p.1.1.2.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encUnary := by fun_prop
-  have hindex : ComputableInPolyTime
-      (fun p : (ResolveParameters × Code) × ℕ => p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encNat := by fun_prop
-  have htail : ComputableInPolyTime
-      (fun p : (ResolveParameters × Code) × ℕ => min p.1.1.2.2 p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encUnary := binary_min_unary' hc hindex
-  unfold supportScanFoldStep
-  exact computableInPolyTime_supportScanStepCode hb (by fun_prop) htail (by fun_prop)
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
+        encCode := by
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
+  have hb := hp.fst'.fst'.fst'
+  have ho := hp.fst'.fst'.snd'.fst'
+  have hc := hp.fst'.fst'.snd'.snd'
+  have htail := binary_min_unary' hc hp.snd'
+  have hrow := ComputableInPolyTime.unary_sub'
+    (ComputableInPolyTime.unary_add' ho hc)
+    (ComputableInPolyTime.unary_add' htail (.const 1))
+  exact computableInPolyTime_supportScanStepCode hb hrow htail hp.fst'.snd'
 
 private def supportScanCodeBound (bits count : ℕ) : ℕ :=
   let N := count * bits
@@ -237,8 +230,8 @@ private theorem polyBounded_supportScanCodeBound {α : Type} {enc : α ↪ List 
     (hc : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => supportScanCodeBound (bits a) (count a)) := by
-  have hb' := hb.tidy.polyBounded
-  have hc' := hc.tidy.polyBounded
+  have hb' := hb.polyBounded
+  have hc' := hc.polyBounded
   have hN := hc'.mul hb'
   have hG := (hc'.mul hc').mul (((PolyBounded.const 13).mul hb').add (.const 6))
   have hNG := hN.add hG
@@ -284,7 +277,8 @@ parameters, with every intermediate circuit encoding charged by the loop bound. 
       enc (encList encNat) := by
     simpa only [Function.comp_def, List.map_id_fun', id_eq] using
       unary_to_binary.map.comp (range.comp hc)
-  have h := foldlWith (step := supportScanFoldStep) hpar hlist
+  have h := foldlWith (encIn := enc) (encP := parEnc) (encA := encNat)
+    (encB := encCode) (encL := encList encNat) (step := supportScanFoldStep) hpar hlist
     (const (encOut := encCode) (([], []) : Code))
     (by simpa only [parEnc] using computableInPolyTime_supportScanFoldStep)
     (polyBounded_supportScanCodeBound hb hc) fun a i hi =>

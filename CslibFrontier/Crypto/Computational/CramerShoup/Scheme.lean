@@ -1118,7 +1118,7 @@ theorem computableInPolyTime_decodeCramerShoup
   let hneg := F.computableInPolyTime_smul.comp'
     (hd.prod (((F.computableInPolyTime_order.comp' hd).binary_sub' (.const 1)).prod
       (F.computableInPolyTime_encodeProjHash hd hsk.fst'.fst' hsk.fst'.snd' hv hw)))
-  let hmsg := (ComputableTidilyInPolyTime.optionSome encBits).computableInPolyTime.comp'
+  let hmsg := (ComputableInPolyTime.optionSome encBits).comp'
     (F.computableInPolyTime_add.comp' (hd.prod (he.prod hneg)))
   .ite hcond hmsg (.const none)
 
