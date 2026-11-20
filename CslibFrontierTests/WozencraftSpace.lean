@@ -26,10 +26,12 @@ example :
     wozencraftBitWith (fieldMulMod [true, true, true]) [false, true] [false, true] 1 0 = true :=
   by decide
 
-/-- Out-of-range bit reads use the same default in either half. -/
+/-- An index far beyond either half returns the default. -/
 example :
-    wozencraftBitWith (fieldMulMod [true, true, true]) [false, true] [false, true] 1 7 = false :=
-  by decide
+    wozencraftBitWith (fieldMulMod [true, true, true]) [false, true] [false, true] 0 (2 ^ 60) =
+      false ∧
+    wozencraftBitWith (fieldMulMod [true, true, true]) [false, true] [false, true] 1 (2 ^ 60) =
+      false := by decide
 
 private def chooseWord (context : Bool) (point evaluation : List Bool) : List Bool :=
   if context then point else evaluation
