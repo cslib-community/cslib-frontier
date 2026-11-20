@@ -458,6 +458,7 @@ import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExp
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Computability.Automata.MPDA.EmptinessComplete
 import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
@@ -12102,3 +12103,31 @@ register_result "micciancio-regev-smoothing-parameter-lambda-n" where
     ZLattice.smoothingParameter L ε ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no \
     MeasurableSpace E hypothesis. The asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is \
     not formalized here."
+
+register_result "mpda-hole-bounded-emptiness" where
+  title := "A worklist search over lists of holes decides K-hole-bounded emptiness of an MPDA"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Theorem 1",
+      locator := "arXiv:2002.05950v2, Section 3, Theorem 1 (printed p. 10) and its proof; \
+        Algorithm 1 (printed p. 8) with AddHole and AddPop as Algorithms 3 and 4 in Appendix B \
+        (printed p. 23); well-nested reachability WR as Algorithm 2 and Lemma 1; holes as in \
+        Definition 1, printed p. 5" }
+  ]
+  theorems := [Cslib.Automata.MPDA.isEmpty_iff,
+    Cslib.Automata.MPDA.isEmpty_eq_false_of_mem_boundedLanguage]
+  scope := "For every MPDA with finitely many control states, input letters and stack symbols, \
+    decidable transitions and initial and final states, and every K: the search isEmpty K \
+    answers true exactly when no word has an accepting run from an initial state with empty \
+    stacks to a final state with empty stacks whose transition sequence is K-hole-bounded. The \
+    search is the worklist loop of Algorithm 1 over lists of hole triples with at most K holes, \
+    with WR, the atomic hole segments AHS_i and the hole segments HS_i computed as finite fixed \
+    points, and with the loop's fuel bounded by the number of such lists. Two deviations from \
+    the printed algorithm. First, HS_i is the reflexive-transitive closure of AHS_i, so that \
+    AddPop can remove a hole whose last atomic segment is popped. Second, the search starts from \
+    the lists [s] with s reached from an initial state by a well-nested run, not from the \
+    initial state alone. As printed (isEmptyPrinted), the search is not complete: the module \
+    client test CslibFrontierTests.MPDA.Emptiness gives a two-stack MPDA whose run \
+    nop push0 push1 pop0 pop1 is accepting and 2-hole-bounded, on which the printed search \
+    answers true and the repaired one false. The complexity bound of Theorem 1 and witness \
+    generation are not formalized. Source check: pending."

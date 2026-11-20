@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Automata.MPDA.Emptiness
 public import CslibFrontier.Computability.Automata.MPDA.HoleDerivation
 public import CslibFrontier.Computability.Automata.MPDA.Underapprox
-import Mathlib.Data.List.Forall2
+import CslibFrontier.Foundations.Data.List.Forall2
 
 /-! # Soundness of the emptiness procedure
 
@@ -136,55 +136,6 @@ theorem Realizes.exists_holeBlock {i : Fin n} {s t : State} {r : List (Γ × Sta
 
 end Realize
 
-/-! ## Splitting aligned lists -/
-
-section Align
-
-variable {α β : Type*} {R : α → β → Prop}
-
-theorem forall₂_split {l : List α} {pre post : List β}
-    (h : List.Forall₂ R l (pre ++ post)) :
-    ∃ a b, l = a ++ b ∧ a.length = pre.length ∧ List.Forall₂ R a pre ∧ List.Forall₂ R b post := by
-  refine ⟨l.take pre.length, l.drop pre.length, (List.take_append_drop _ _).symm, ?_,
-    List.forall₂_take_append _ _ _ h, List.forall₂_drop_append _ _ _ h⟩
-  have := h.length_eq
-  simp at this ⊢
-  omega
-
-theorem forall₂_split_middle {l : List α} {pre post : List β} {x : β}
-    (h : List.Forall₂ R l (pre ++ x :: post)) :
-    ∃ a y b, l = a ++ y :: b ∧ a.length = pre.length ∧ List.Forall₂ R a pre ∧ R y x ∧
-      List.Forall₂ R b post := by
-  obtain ⟨a, b, rfl, hlen, ha, hb⟩ := forall₂_split h
-  cases hb with
-  | cons hy hb => exact ⟨a, _, _, rfl, hlen, ha, hy, hb⟩
-
-theorem forall₂_append {a a' : List α} {b b' : List β} (h : List.Forall₂ R a b)
-    (h' : List.Forall₂ R a' b') : List.Forall₂ R (a ++ a') (b ++ b') := by
-  induction h with
-  | nil => exact h'
-  | cons hab _ ih => exact .cons hab ih
-
-theorem forall₂_exists_of_mem {a : List α} {b : List β} (h : List.Forall₂ R a b) {x : α}
-    (hx : x ∈ a) : ∃ y ∈ b, R x y := by
-  induction h with
-  | nil => simp at hx
-  | cons hxy _ ih =>
-    rcases List.mem_cons.mp hx with rfl | hx
-    · exact ⟨_, List.mem_cons_self, hxy⟩
-    · obtain ⟨y, hy, hxy'⟩ := ih hx
-      exact ⟨y, List.mem_cons_of_mem _ hy, hxy'⟩
-
-/-- Split an aligned list at a prefix of known length. -/
-theorem forall₂_split_at {a a' : List α} {b b' : List β} (hlen : a.length = b.length)
-    (h : List.Forall₂ R (a ++ a') (b ++ b')) : List.Forall₂ R a b ∧ List.Forall₂ R a' b' := by
-  have h₁ := List.forall₂_take a.length h
-  have h₂ := List.forall₂_drop a.length h
-  rw [List.take_left, hlen, List.take_left] at h₁
-  rw [List.drop_left, hlen, List.drop_left] at h₂
-  exact ⟨h₁, h₂⟩
-
-end Align
 
 /-! ## Reachable lists come from hole derivations -/
 
@@ -229,7 +180,7 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
       obtain ⟨hhs, hs⟩ := Finset.mem_filter.mp hss
       simp only at hs
       subst hs
-      obtain ⟨rs₀, rs₁, rfl, hlen, hrs₀, hrs₁⟩ := forall₂_split hrs
+      obtain ⟨rs₀, rs₁, rfl, hlen, hrs₀, hrs₁⟩ := List.Forall₂.split_right hrs
       obtain ⟨r, rfl⟩ : ∃ r, rs₁ = [r] := by
         cases hrs₁ with
         | cons _ h => cases h; exact ⟨_, rfl⟩
@@ -237,7 +188,7 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
       obtain ⟨s₀, hs₀, w, C, hd, hst, hsym, hrun⟩ := ih rs₀ hrs₀
       obtain ⟨v, ps, hb, hps, hrun'⟩ := hr.exists_holeBlock w.length (stacksOf C)
       refine ⟨s₀, hs₀, w ++ v, C ++ [⟨i, ps⟩], .hole hd (by rw [hst.length_eq]; exact hK) hb,
-        forall₂_append hst (.cons rfl .nil), forall₂_append hsym (.cons hps .nil),
+        List.rel_append hst (.cons rfl .nil), List.rel_append hsym (.cons hps .nil),
         hrun.comp _ ?_⟩
       rw [stacksOf_append_singleton]
       simpa [hps] using hrun'
@@ -270,11 +221,11 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
         have hrs' : List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r)
             (rpre ++ ((γ, s₃) :: r) :: rpost) μ.holes := by
           rw [hμh]
-          exact forall₂_append hrpre (.cons (.cons hr hγ) hrpost)
+          exact List.rel_append hrpre (.cons (.cons hr hγ) hrpost)
         obtain ⟨s₀, hs₀, w, C, hd, hst, hsym, hrun⟩ := ih _ hrs'
         rw [hμh] at hst
-        obtain ⟨Cpre, c₀, Cpost, rfl, hClen, hstpre, hc₀, hstpost⟩ := forall₂_split_middle hst
-        have hsym' := forall₂_split_at (hClen.trans hlen.symm) hsym
+        obtain ⟨Cpre, c₀, Cpost, rfl, hClen, hstpre, hc₀, hstpost⟩ := hst.split_right_cons
+        have hsym' := List.Forall₂.split_of_length_eq (hClen.trans hlen.symm) hsym
         obtain ⟨hsympre, hsymrest⟩ := hsym'
         cases hsymrest with
         | cons hsym₀ hsympost =>
@@ -289,7 +240,7 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
         obtain ⟨rfl, hps⟩ := hsym₀
         have hCpost : ∀ c ∈ Cpost, c.stack ≠ i := by
           intro c hc
-          obtain ⟨h, hh, hch⟩ := forall₂_exists_of_mem hstpost hc
+          obtain ⟨h, hh, hch⟩ := List.Forall₂.exists_mem_of_mem hstpost hc
           rw [hch]
           exact hpost h hh
         refine ⟨s₀, hs₀, w ++ [(b, .pop i γ')], Cpre, Cpost, ps, .pop hd hCpost, hstpre, hstpost,
@@ -299,22 +250,22 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
         ⟨⟨s₂, γ, s', s''⟩, ⟨⟨hhs, hγ, hpopt, hwr⟩, rfl⟩, rfl⟩
       · -- The hole shrinks.
         simp only at hrs ⊢
-        obtain ⟨rpre, r, rpost, rfl, hlen, hrpre, hr, hrpost⟩ := forall₂_split_middle hrs
+        obtain ⟨rpre, r, rpost, rfl, hlen, hrpre, hr, hrpost⟩ := List.Forall₂.split_right_cons hrs
         obtain ⟨s₀, hs₀, w, Cpre, Cpost, ps, hd, hstpre, hstpost, hsympre, hsympost, hps, hrun⟩ :=
           hpop s₂ γ s' rpre rpost r hγ hpopt hlen hrpre hr hrpost
         obtain ⟨v, hv, hvrun⟩ := wellNestedReach_iff.mp ((mem_wellNestedPairs M).mp hwr)
         exact ⟨s₀, hs₀, w ++ v, Cpre ++ ⟨i, ps⟩ :: Cpost, .wellNested hd hv,
-          forall₂_append hstpre (.cons rfl hstpost), forall₂_append hsympre (.cons hps hsympost),
+          List.rel_append hstpre (.cons rfl hstpost), List.rel_append hsympre (.cons hps hsympost),
           hrun.comp _ (hv.configLTS_mTr hvrun _)⟩
       · -- The hole closes.
         simp only at hrs ⊢
-        obtain ⟨rpre, rpost, rfl, hlen, hrpre, hrpost⟩ := forall₂_split hrs
+        obtain ⟨rpre, rpost, rfl, hlen, hrpre, hrpost⟩ := List.Forall₂.split_right hrs
         obtain ⟨s₀, hs₀, w, Cpre, Cpost, ps, hd, hstpre, hstpost, hsympre, hsympost, hps, hrun⟩ :=
           hpop s₂ γ s' rpre rpost [] hγ hpopt hlen hrpre .nil hrpost
         obtain rfl : ps = [] := by simpa using hps
         obtain ⟨v, hv, hvrun⟩ := wellNestedReach_iff.mp ((mem_wellNestedPairs M).mp hwr)
         refine ⟨s₀, hs₀, w ++ v, Cpre ++ Cpost, .wellNested hd.close hv,
-          forall₂_append hstpre hstpost, forall₂_append hsympre hsympost, hrun.comp _ ?_⟩
+          List.rel_append hstpre hstpost, List.rel_append hsympre hsympost, hrun.comp _ ?_⟩
         rw [stacksOf_close]
         exact hv.configLTS_mTr hvrun _
 
