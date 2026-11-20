@@ -184,7 +184,8 @@ theorem HybridFunctionality.isQueryBounded_closeReduction
     (hF : ∀ κ C, (F.toMachine κ C).IsBounded (pF.eval κ))
     (hA : A.PolyBounded pA) (hZ : Z.PolyBounded pZ)
     (C : Finset (Fin n)) (κ : ℕ) (z : List Bool) :
-    ((routeCorrupt C (F.toMachine κ C)).link ((liftAdversary (A κ C)).link (Z κ z))).IsQueryBounded
+    OracleComp.IsQueryBounded
+      ((routeCorrupt C (F.toMachine κ C)).link ((liftAdversary (A κ C)).link (Z κ z)))
       (pF.eval κ + (absorbPoly pZ pA).eval κ * (pF.eval κ + 1)) :=
   Machine.isQueryBounded_link (isBounded_routeCorrupt C (hF κ C))
     (absorbAdversary_polyBounded C hA hZ κ z)
