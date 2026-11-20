@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 
 /-! # Anchoring the CHSH game -/
@@ -15,7 +15,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 set_option linter.privateModule false
 
 open Cslib.PCP.TwoProverGame
-open scoped unitInterval Real ENNReal
+open scoped unitInterval Real ENNReal Cslib.Probability.PMF
 
 private noncomputable def half : I := ⟨1 / 2, by constructor <;> norm_num⟩
 
@@ -70,3 +70,26 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   intro hs r
   exact congrArg (fun p => p r)
     (conditionalSnd_restTranscript_given_wins chsh half {0} S j hW (m, (none, none)) hs)
+
+/-- With anchor rate one half, the two-anchor probability used in the transcript bound
+is at least one eighth. This gives an unscaled comparison after a win in copy zero. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 2))
+    (hW : ∃ r ∈ winsOnChecked chsh half ({0} : Finset (Fin 2)),
+      r ∈ (transcriptLaw chsh half {0} S).support) :
+    let C : Finset (Fin 2) := {0}
+    let P := transcriptLaw chsh half C S
+    let W := winsOnChecked chsh half C
+    let Q := P.filter W hW
+    let p := (P.toOuterMeasure W).toReal
+    let m := Fintype.card {i : Fin 2 // i ∉ C}
+    let ε₁ := Real.sqrt (m * Real.log (1 / p) / 2)
+    let ε₂ := Real.sqrt (m * Real.log (Fintype.card (C → Bool × Bool) / p) / 2)
+    (∑ j : {i : Fin 2 // i ∉ C},
+      dist (questionsAndAnchoredRest chsh half C Q j) (questionsAndRest chsh half C Q j)) ≤
+        9 * (2 * ε₁ + ε₂) := by
+  dsimp only
+  have h := (sum_dist_anchoredRest_given_wins chsh half {0} S hW).2
+  have hw : (half : ℝ) ^ 2 / 2 = 1 / 8 := by norm_num [half]
+  rw [hw] at h
+  linarith

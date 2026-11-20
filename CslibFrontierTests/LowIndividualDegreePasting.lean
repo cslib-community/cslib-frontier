@@ -8,8 +8,8 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingConsistency
+import CslibFrontierTests.QubitMeasurementFixture
 import Mathlib.Algebra.Field.ZMod
-import Mathlib.Algebra.Ring.Idempotent
 
 /-! # Pasting on three slices over the field with three elements -/
 
@@ -17,7 +17,7 @@ set_option linter.privateModule false
 
 open Cslib.PCP.LowIndividualDegree Cslib.Quantum MvPolynomial Finset
 open scoped ComplexOrder MatrixOrder Matrix.Norms.L2Operator
-open Matrix
+open Matrix CslibFrontierTests.QubitMeasurementFixture
 
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
 
@@ -245,54 +245,6 @@ example :
   rw [Fintype.sum_option] at h
   simp only [averaged_single_slice_effect, sum_ite_eq', mem_univ, ite_true] at h
   linear_combination h
-
-private abbrev Mat := Matrix (Fin 2) (Fin 2) ℂ
-private def diagonalProjection : Mat := !![1, 0; 0, 0]
-private noncomputable def uniformProjection : Mat := !![1 / 2, 1 / 2; 1 / 2, 1 / 2]
-
-private theorem diagonalProjection_star : star diagonalProjection = diagonalProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;> simp [diagonalProjection, Matrix.star_apply]
-
-private theorem uniformProjection_star : star uniformProjection = uniformProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;> simp [uniformProjection, Matrix.star_apply]
-
-private theorem diagonalProjection_sq :
-    diagonalProjection * diagonalProjection = diagonalProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;> norm_num [diagonalProjection, Matrix.mul_apply, Fin.sum_univ_two]
-
-private theorem uniformProjection_sq :
-    uniformProjection * uniformProjection = uniformProjection := by
-  ext i j
-  fin_cases i <;> fin_cases j <;>
-    norm_num [uniformProjection, Matrix.mul_apply, Fin.sum_univ_two]
-
-private def binary (e : Mat) (he : star e = e) (he₂ : e * e = e) : Measurement Bool Mat where
-  effect b := if b then e else 1 - e
-  nonneg b := by
-    cases b
-    · have hc : (1 - e) * (1 - e) = 1 - e := (show IsIdempotentElem e from he₂).one_sub
-      simpa only [Bool.false_eq_true, ite_false, star_sub, star_one, he, hc]
-        using star_mul_self_nonneg (1 - e)
-    · simpa only [ite_true, he, he₂] using star_mul_self_nonneg e
-  sum_effect := by simp
-
-private theorem binary_projective (e : Mat) (he : star e = e) (he₂ : e * e = e) :
-    (binary e he he₂).IsProjective := by
-  intro b
-  cases b
-  · exact (show IsIdempotentElem e from he₂).one_sub
-  · exact he₂
-
-private theorem pair_projective (D U : Measurement Bool Mat)
-    (hD : D.IsProjective) (hU : U.IsProjective) :
-    ∀ i : Fin 2, (![D, U] i).IsProjective := by
-  intro i
-  fin_cases i
-  · exact hD
-  · exact hU
 
 /-- The first measurement sandwiches the second, with distinct values for the
 off-diagonal entry when the order is reversed. -/
