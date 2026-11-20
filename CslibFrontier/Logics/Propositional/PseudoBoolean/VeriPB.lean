@@ -50,9 +50,9 @@ works on a trail of literals taken to be true. The *slack* of `∑ aᵢ ℓᵢ �
 coefficients of the terms whose literals the trail does not falsify, minus `d`. A negative slack
 is a conflict; otherwise every term not yet decided whose coefficient exceeds the slack must be
 true (`Cslib.Logic.PL.VeriPB.propagate`). A `rup` step for `C` with hints propagates the hinted
-constraints in order, `~` naming the negation of `C`, and succeeds at the first conflict; without
-`rupSearch` it propagates all constraints and the negation of `C` until a conflict or until
-nothing changes.
+constraints in order, `~` naming the negation of `C`, and succeeds at the first conflict. A
+`rupSearch` step for `C` propagates all constraints of the database and the negation of `C` until
+a conflict or until nothing changes.
 
 **Soundness** (`Cslib.Logic.PL.VeriPB.not_satisfiable_of_check`): every constraint the checker
 derives holds under every assignment satisfying the formula, so a checked proof of `UNSAT` shows
