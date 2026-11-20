@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Layered
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.FairCoin.PairedPorts.LogSpace
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
 
 /-!
 # Binary initialization of the layered configuration graph
@@ -60,22 +60,15 @@ theorem layeredParameters_inSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
       (fun n => (encNat n).length) := by
   have hin : (fun n => (encNat n).length) ≼ (fun n => (encNat n).length) := .refl _
   have hn := budget_id hin
-  have hB : ComputableInSpace (radix (radixExponent State c)) encNat encNat
-      (fun n => (encNat n).length) :=
-    budget_natPow (budget_natAdd hn (budget_const 2 hin)) hin (radixExponent State c)
+  have hB := radix_budget (radixExponent State c) hn hin
   exact encLayeredParameters_mk_budget hn hB
     (budget_natSucc (vertexBound_budget (k := k) hB hin)) (startID_budget ntm hB hin)
-
-private theorem binaryLength_bound :
-    ∃ C, ∀ w : List Bool, (encNat w.length).length ≤ C * (Nat.log2 (encBits w).length + 1) :=
-  ⟨1, fun w => by simpa only [one_mul, encBits_apply] using
-    length_encNat_le_log2 (j := w.length) le_rfl⟩
 
 /-- The parameters can be computed by a native logspace machine from the raw word. -/
 theorem layeredParameters_inLogSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ComputableInLogSpace (fun w : List Bool => layeredParameters ntm c w.length)
       encBits encLayeredParameters :=
-  comp_logSpace_of_length_log computableInLogSpace_bitsLength binaryLength_bound
+  comp_logSpace_of_length_log computableInLogSpace_bitsLength length_bitsLength_log
     (layeredParameters_inSpace ntm c)
 
 /-- The retained binary parameters fit in logarithmic space in the length of the raw word. -/
@@ -83,6 +76,6 @@ theorem length_layeredParameters_le_log (ntm : MultiTapeNTM k Bool State) (c : �
     ∃ C, ∀ w : List Bool,
       (encLayeredParameters (layeredParameters ntm c w.length)).length ≤
         C * (Nat.log2 w.length + 1) :=
-  length_log_of_inSpace binaryLength_bound (layeredParameters_inSpace ntm c)
+  length_log_of_inSpace length_bitsLength_log (layeredParameters_inSpace ntm c)
 
 end Cslib.Complexity.STCON

@@ -1306,8 +1306,7 @@ theorem clockedOutCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
       (fun x => clockedOutCountWithSymbol machine D d (n x) (a x) (p x) (symOut x))
       enc encNat S := by
   have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2 hin
-  have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
-    budget_natPow (budget_natAdd hn htwo) hin D
+  have hB := radix_budget D hn hin
   have hN := vertexBound_budget (k := k) hB hin
   have hT := polyClock_budget d hn hin
   have hM := clockedVertexBound_budget (k := k) D d hn hin
@@ -1338,8 +1337,7 @@ theorem clockedOutPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
         (List.ofFn fun i => inSymAt i x))
       enc (encOption (encPair encNat encNat)) S := by
   have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2 hin
-  have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
-    budget_natPow (budget_natAdd hn htwo) hin D
+  have hB := radix_budget D hn hin
   have hN := vertexBound_budget (k := k) hB hin
   have hT := polyClock_budget d hn hin
   have hM := clockedVertexBound_budget (k := k) D d hn hin
@@ -1376,9 +1374,7 @@ theorem clockedInPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
       (fun x => clockedInPortWithSymbols machine D d (n x) (b x) (q x)
         (List.ofFn fun i => inSymAt i x) (symPred x))
       enc (encOption (encPair encNat encNat)) S := by
-  have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2 hin
-  have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
-    budget_natPow (budget_natAdd hn htwo) hin D
+  have hB := radix_budget D hn hin
   have hN := vertexBound_budget (k := k) hB hin
   have hM := clockedVertexBound_budget (k := k) D d hn hin
   have hcond := budget_boolAnd (budget_natLt hb hM)
