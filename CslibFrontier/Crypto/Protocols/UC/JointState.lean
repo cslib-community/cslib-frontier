@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Crypto.Protocols.UC.MultiSession
 import CslibFrontier.Crypto.Protocols.SSP.ParFinLazy
+import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 
 /-!
 # Universal composition with joint state (step theorems and lazy multi-session functionality)
@@ -22,7 +24,7 @@ library's call-bounded, static-corruption port-model emulation notions (`UC.Emul
 `UC.Emulates`, `UC.Realizes`).
 
 These form the relabelling and execution-equivalence steps toward Theorem 1 (Universal
-Composition with Joint State) of [CanettiRabin2003] (CRYPTO 2003, LNCS 2729, pp. 265–281: §3,
+Composition with Joint State) of [CanettiRabin2003] (CRYPTO 2003, LNCS 2729: §3,
 "The Composition Operation"; §3, "The Multi-session Extension of an Ideal Functionality"; Theorem 1;
 and the proof of Theorem 1, definition of `π̃`), adapted to a fixed finite session count `m`, static
 corruptions, pull-only execution, and this library's call-bounded statistical model (see
@@ -96,9 +98,9 @@ without importing the UC ideal-functionality or execution modules.
 ## References
 
 * [R. Canetti and T. Rabin, *Universal Composition with Joint State*][CanettiRabin2003], CRYPTO
-  2003, LNCS 2729, pp. 265–281 (§3, "The Composition Operation"; §3, "The Multi-session Extension
-  of an Ideal Functionality"; Theorem 1 (Universal Composition with Joint State); and the proof of
-  Theorem 1, definition of `π̃`).
+  2003, LNCS 2729 (§3, "The Composition Operation"; §3, "The Multi-session Extension of an Ideal
+  Functionality"; Theorem 1 (Universal Composition with Joint State); and the proof of Theorem 1,
+  definition of `π̃`).
 -/
 
 public section
@@ -189,7 +191,8 @@ single-subroutine `HybridProtocol` targeting `F.multiSession (Fin m)` ([CanettiR
                 (c.party, ⟨c.session, c.input⟩))
           (((ρ κ C).handle q).run s) }
 
-/-- Relabelling `ρ` via `toJoint` preserves its polynomial call budget `pρ` unchanged. -/
+/-- Library infrastructure (no cited result): relabelling `ρ` via `toJoint` preserves its polynomial
+call budget `pρ` unchanged. -/
 theorem toJoint_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut} {pρ : Polynomial ℕ}
     (hρ : ρ.PolyBounded pρ) : (ρ.toJoint).PolyBounded pρ := fun κ C => by
@@ -202,9 +205,9 @@ theorem toJoint_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut : Type}
       (spec := probOracleSpec (partySpec n (SubSessionInput (Fin m) SubIn) SubOut))
       (Sum.inr (c.party, ⟨c.session, c.input⟩))
 
-/-- Translate a network query of the `F̂`-hybrid execution (`compose ρ.toJoint F̂`) to the
-corresponding network query of the `m`-session execution (`composeMulti ρ F.toProtocol`), keeping
-replies identical. -/
+/-- Library construction (no cited definition): translate a network query of the `F̂`-hybrid
+execution (`compose ρ.toJoint F̂`) to the corresponding network query of the `m`-session execution
+(`composeMulti ρ F.toProtocol`), keeping replies identical. -/
 @[expose] def demuxNetQuery {m n : ℕ} {In NetQ SubIn BackQ : Type} :
     RoutedNetQ n In (NetQ ⊕ RoutedNetQ n (SubSessionInput (Fin m) SubIn)
       (SubSessionBackdoor (Fin m) BackQ)) →
@@ -214,8 +217,9 @@ replies identical. -/
   | .inr (.inr (.inl (i, req))) => .inr (.sub req.ssid (.inl (i, req.input)))
   | .inr (.inr (.inr req)) => .inr (.sub req.ssid (.inr req.query))
 
-/-- Inverse network query translation from the `m`-session interface (`composeMulti ρ F.toProtocol`)
-to the `F̂`-hybrid interface (`compose ρ.toJoint F̂`). -/
+/-- Library construction (no cited definition): inverse network query translation from the
+`m`-session interface (`composeMulti ρ F.toProtocol`) to the `F̂`-hybrid interface
+(`compose ρ.toJoint F̂`). -/
 @[expose] def muxNetQuery {m n : ℕ} {In NetQ SubIn BackQ : Type} :
     RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ)) →
       RoutedNetQ n In (NetQ ⊕ RoutedNetQ n (SubSessionInput (Fin m) SubIn)
@@ -236,8 +240,8 @@ private theorem demuxNetQuery_muxNetQuery {m n : ℕ} {In NetQ SubIn BackQ : Typ
     demuxNetQuery (muxNetQuery q) = q := by
   rcases q with p | q | ⟨j, ⟨i, x⟩ | bq⟩ <;> rfl
 
-/-- Translate the network query interface of a machine via `f` without modifying replies or state.
--/
+/-- Library construction (no cited definition): translate the network query interface of a machine
+via `f` without modifying replies or state. -/
 @[expose] def mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ₁ → NQ₂)
     (A : Machine (netSpec NQ₁ R) (netSpec AdvQ AdvR)) :
     Machine (netSpec NQ₂ R) (netSpec AdvQ AdvR) where
@@ -259,9 +263,10 @@ private theorem isBounded_mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ
   | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
   | inr nq => exact OracleComp.IsCostBounded.query (Sum.inr (f nq))
 
-/-- Explicit demultiplexing adversary for `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`
-running against `composeMulti ρ F.toProtocol` ([CanettiRabin2003], §3, "The Composition Operation",
-and the proof of Theorem 1). -/
+/-- Library construction (no cited result): explicit demultiplexing adversary for
+`compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` running against
+`composeMulti ρ F.toProtocol` ([CanettiRabin2003], §3, "The Composition Operation", and the proof
+of Theorem 1). -/
 @[expose] def jointDemux {m n : ℕ} {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     (A : ExecAdversary n In Out
       (NetQ ⊕ RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
@@ -270,8 +275,9 @@ and the proof of Theorem 1). -/
       (NetR ⊕ RoutedNetR SubOut BackR) AdvQ AdvR :=
   fun κ C => mapNetMachine demuxNetQuery (A κ C)
 
-/-- Explicit multiplexing adversary in the reverse direction: maps `composeMulti ρ F.toProtocol`
-queries to `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`. -/
+/-- Library construction (no cited result): explicit multiplexing adversary in the reverse
+direction, mapping `composeMulti ρ F.toProtocol` queries to
+`compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`. -/
 @[expose] def jointMux {m n : ℕ} {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     (A : ExecAdversary n In Out (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ))
       (NetR ⊕ RoutedNetR SubOut BackR) AdvQ AdvR) :
@@ -280,7 +286,8 @@ queries to `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`. -/
       (NetR ⊕ RoutedNetR SubOut BackR) AdvQ AdvR :=
   fun κ C => mapNetMachine muxNetQuery (A κ C)
 
-/-- `jointDemux A` preserves `A`'s polynomial call budget `pA`. -/
+/-- Library infrastructure (no cited result): `jointDemux A` preserves `A`'s polynomial call budget
+`pA`. -/
 theorem jointDemux_polyBounded {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     {A : ExecAdversary n In Out
@@ -289,7 +296,8 @@ theorem jointDemux_polyBounded {m n : ℕ}
     {pA : Polynomial ℕ} (hA : A.PolyBounded pA) : (jointDemux A).PolyBounded pA :=
   fun κ C => isBounded_mapNetMachine demuxNetQuery (hA κ C)
 
-/-- `jointMux A` preserves `A`'s polynomial call budget `pA`. -/
+/-- Library infrastructure (no cited result): `jointMux A` preserves `A`'s polynomial call budget
+`pA`. -/
 theorem jointMux_polyBounded {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     {A : ExecAdversary n In Out (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ))
@@ -301,72 +309,31 @@ theorem jointMux_polyBounded {m n : ℕ}
 
 section DemuxProof
 
-private def mapRightProg {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R : ιR₂ → Type} {α : Type} (f : ιR₁ → ιR₂)
-    (prog : ProbOracleComp (L ⊕ₒ (R ∘ f)) α) : ProbOracleComp (L ⊕ₒ R) α :=
-  OracleComp.interpret
-    (sumHandler
-      (fun k => OracleComp.query (spec := probOracleSpec (L ⊕ₒ R)) (Sum.inl k))
-      fun q => match q with
-        | .inl p => ProbOracleComp.query (spec := L ⊕ₒ R) (Sum.inl p)
-        | .inr r => ProbOracleComp.query (spec := L ⊕ₒ R) (Sum.inr (f r)))
-    prog
-
-private theorem mapRightProg_pure {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R : ιR₂ → Type} {α : Type} (f : ιR₁ → ιR₂) (a : α) :
-    mapRightProg (L := L) (R := R) f (pure a) = pure a := rfl
-
-private theorem mapRightProg_bind {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R : ιR₂ → Type} {α β : Type} (f : ιR₁ → ιR₂)
-    (p : ProbOracleComp (L ⊕ₒ (R ∘ f)) α)
-    (k : α → ProbOracleComp (L ⊕ₒ (R ∘ f)) β) :
-    mapRightProg (L := L) (R := R) f (p >>= k) =
-      mapRightProg (L := L) (R := R) f p >>= fun a =>
-        mapRightProg (L := L) (R := R) f (k a) :=
-  OracleComp.interpret_bind _ _ _
-
-private theorem mapRightProg_map {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R : ιR₂ → Type} {α β : Type} (f : ιR₁ → ιR₂) (g : α → β)
-    (p : ProbOracleComp (L ⊕ₒ (R ∘ f)) α) :
-    mapRightProg (L := L) (R := R) f (g <$> p) =
-      g <$> mapRightProg (L := L) (R := R) f p :=
-  OracleComp.interpret_map _ _ _
-
-private theorem runFrom_query_inl_coin {ιI ιO : Type} {I : ιI → Type} {O : ιO → Type}
-    (M : Machine I O) (k : ℕ) (s : M.State) :
-    M.runFrom (OracleComp.query (Sum.inl k)) s =
-      (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
-  dsimp only [Machine.runFrom]
-  erw [OracleComp.run_interpret_query]
-  simp only [Machine.handler, sumHandler]
-  exact StateT.run_lift _ s
+private def mapRightHandler {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
+    {R : ιR₂ → Type} (f : ιR₁ → ιR₂) :
+    (q : ιL ⊕ ιR₁) → ProbOracleComp (L ⊕ₒ R) ((L ⊕ₒ (R ∘ f)) q)
+  | .inl p => ProbOracleComp.query (spec := L ⊕ₒ R) (.inl p)
+  | .inr r => ProbOracleComp.query (spec := L ⊕ₒ R) (.inr (f r))
 
 private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R AdvQ AdvR α : Type}
     (f : NQ₁ → NQ₂) (A : Machine (netSpec NQ₁ R) (netSpec AdvQ AdvR))
     (prog : ProbOracleComp (execSpec n In Out AdvQ AdvR) α) :
     (liftAdversary (n := n) (In := In) (Out := Out) (mapNetMachine f A)).link prog =
-      mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
+      ProbOracleComp.simulate (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
         ((liftAdversary (n := n) (In := In) (Out := Out) A).link prog) := by
-  simp only [Machine.link, mapRightProg_bind, mapRightProg_map]
-  rw [show mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
-      (ProbOracleComp.sample (liftAdversary (n := n) (In := In) (Out := Out) A).init) =
-      ProbOracleComp.sample
-        (liftAdversary (n := n) (In := In) (Out := Out) (mapNetMachine f A)).init by
-    dsimp only [mapRightProg]
-    rw [ProbOracleComp.interpret_sample]
-    exact (OracleComp.substitute_eq_interpret _ _).symm]
+  simp only [Machine.link, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_map,
+    ProbOracleComp.simulate_sample]
   refine congrArg _ (funext fun s => ?_)
   induction prog using OracleComp.induction generalizing s with
   | pure a => rfl
   | query_bind q cont ih =>
     simp only [PFunctor.FreeM.bind_eq_bind]
-    erw [Machine.runFrom_bind, Machine.runFrom_bind, mapRightProg_bind]
+    erw [Machine.runFrom_bind, Machine.runFrom_bind, ProbOracleComp.simulate_bind]
     cases q with
     | inl k =>
-      erw [runFrom_query_inl_coin, runFrom_query_inl_coin]
-      erw [mapRightProg_map]
-      simp only [mapRightProg]
-      erw [ProbOracleComp.interpret_sample, (OracleComp.substitute_eq_interpret _ _).symm]
+      rw [← ProbOracleComp.sample_unifFin]
+      erw [Machine.runFrom_sample, Machine.runFrom_sample]
+      rw [ProbOracleComp.simulate_map, ProbOracleComp.simulate_sample]
       simp only [bind_map_left, map_bind]
       exact bind_congr fun a => ih a s
     | inr e =>
@@ -375,35 +342,42 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
         erw [Machine.runFrom_query, Machine.runFrom_query]
         change Prod.fst <$> ((StateT.lift (ProbOracleComp.query (.inl p))).run s >>= fun x =>
             (liftAdversary (mapNetMachine f A)).runFrom (cont x.1) x.2) =
-          Prod.fst <$> (mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
-            ((StateT.lift (ProbOracleComp.query (.inl p))).run s) >>= fun x =>
-              mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
-                ((liftAdversary A).runFrom (cont x.1) x.2))
+          Prod.fst <$> (ProbOracleComp.simulate
+              (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
+              ((StateT.lift (ProbOracleComp.query (.inl p))).run s) >>= fun x =>
+            ProbOracleComp.simulate
+              (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
+              ((liftAdversary A).runFrom (cont x.1) x.2))
         rw [StateT.run_lift, StateT.run_lift, bind_pure_comp, bind_pure_comp,
-          mapRightProg_map, bind_map_left, bind_map_left, map_bind, map_bind]
+          ProbOracleComp.simulate_map, ProbOracleComp.simulate_query]
+        simp only [mapRightHandler, bind_map_left, map_bind]
         exact bind_congr fun a => ih a s
       | inr adv =>
         erw [Machine.runFrom_query, Machine.runFrom_query]
         change Prod.fst <$> (Machine.liftRightProgram (partySpec n In Out)
             (OracleComp.interpret _ ((A.handle adv).run s)) >>= fun x =>
               (liftAdversary (mapNetMachine f A)).runFrom (cont x.1) x.2) =
-          Prod.fst <$> (mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
-            (Machine.liftRightProgram (partySpec n In Out) ((A.handle adv).run s)) >>= fun x =>
-              mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
-                ((liftAdversary A).runFrom (cont x.1) x.2))
+          Prod.fst <$> (ProbOracleComp.simulate
+              (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
+              (Machine.liftRightProgram (partySpec n In Out) ((A.handle adv).run s)) >>= fun x =>
+            ProbOracleComp.simulate
+              (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
+              ((liftAdversary A).runFrom (cont x.1) x.2))
         have hint : Machine.liftRightProgram (partySpec n In Out)
             (OracleComp.interpret
               (sumHandler
                 (fun k => OracleComp.query (spec := probOracleSpec (netSpec NQ₂ R)) (Sum.inl k))
                 fun nq => ProbOracleComp.query (spec := netSpec NQ₂ R) (f nq))
               ((A.handle adv).run s)) =
-            mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
+            ProbOracleComp.simulate
+              (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
               (Machine.liftRightProgram (partySpec n In Out) ((A.handle adv).run s)) := by
-          dsimp only [Machine.liftRightProgram, mapRightProg]
+          dsimp only [Machine.liftRightProgram, ProbOracleComp.simulate]
+          rw [OracleComp.substitute_eq_interpret]
           erw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
           congr 1 with r : 1
           cases r with
-          | inl k => rfl
+          | inl k => erw [OracleComp.interpret_query]
           | inr nq => rfl
         rw [hint, map_bind, map_bind]
         exact bind_congr fun x => ih x.1 x.2
@@ -479,19 +453,23 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
         ((routeCorrupt C
           (multiHybridWrap (NQ := RoutedNetQ n SubIn BackQ) (NR := RoutedNetR SubOut BackR)
             (ρ κ C))).link
-          (mapRightProg (L := partySpec n In Out)
-          (R := netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ)))
-            (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut BackR)))
-          demuxNetQuery prog)) := by
+          (ProbOracleComp.simulate
+            (mapRightHandler (L := partySpec n In Out)
+              (R := netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ)))
+                (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut BackR)))
+              demuxNetQuery)
+            prog)) := by
   simp only [Machine.link, routeCorrupt, hybridWrap, multiHybridWrap, MultiHybridProtocol.toJoint]
   change (ProbOracleComp.sample (ρ κ C).init >>= fun sρ =>
       Prod.fst <$> (routeCorrupt C (hybridWrap (ρ.toJoint κ C))).runFrom prog sρ) =
     relabelSessionProg (ProbOracleComp.sample (ρ κ C).init >>= fun sρ =>
       Prod.fst <$> (routeCorrupt C (multiHybridWrap (ρ κ C))).runFrom
-        (mapRightProg (L := partySpec n In Out)
-          (R := netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ)))
-            (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut BackR)))
-          demuxNetQuery prog) sρ)
+        (ProbOracleComp.simulate
+          (mapRightHandler (L := partySpec n In Out)
+            (R := netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ)))
+              (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut BackR)))
+            demuxNetQuery)
+          prog) sρ)
   rw [relabelSessionProg, OracleComp.interpret_bind]
   have hsamp :
       OracleComp.interpret
@@ -514,20 +492,20 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
   induction prog using OracleComp.induction generalizing sρ with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [PFunctor.FreeM.bind_eq_bind, mapRightProg, OracleComp.interpret_bind]
+    rw [PFunctor.FreeM.bind_eq_bind, ProbOracleComp.simulate_bind]
     erw [Machine.runFrom_bind, Machine.runFrom_bind, OracleComp.interpret_bind]
     cases q with
     | inl k =>
-      simp only [OracleComp.interpret_query, sumHandler]
-      erw [runFrom_query_inl_coin, runFrom_query_inl_coin]
-      erw [OracleComp.interpret_map, ProbOracleComp.interpret_sample,
-        (OracleComp.substitute_eq_interpret _ _).symm]
-      erw [bind_map_left]
+      rw [← ProbOracleComp.sample_unifFin]
+      erw [ProbOracleComp.simulate_sample, Machine.runFrom_sample, Machine.runFrom_sample,
+        OracleComp.interpret_map, ProbOracleComp.interpret_sample]
+      rw [(OracleComp.substitute_eq_interpret _ _).symm, bind_map_left]
       exact bind_congr fun a => ih a sρ
     | inr e =>
       cases e with
       | inl p =>
-        simp only [OracleComp.interpret_query, sumHandler]
+        erw [ProbOracleComp.simulate_query]
+        dsimp only [mapRightHandler]
         erw [Machine.runFrom_query, Machine.runFrom_query]
         by_cases hp : p.1 ∈ C
         · simp only [routeCorrupt, hp, ↓reduceIte, StateT.run]
@@ -539,8 +517,10 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
           erw [interpret_liftParty_toJoint (((ρ κ C).handle (.inl p)).run sρ)]
           exact bind_congr fun x => ih x.1 x.2
       | inr nq =>
+        erw [ProbOracleComp.simulate_query]
+        dsimp only [mapRightHandler]
         rcases nq with ⟨i, x⟩ | q | ⟨i, req⟩ | req
-        · simp only [OracleComp.interpret_query, sumHandler, demuxNetQuery]
+        · simp only [demuxNetQuery]
           erw [Machine.runFrom_query, Machine.runFrom_query]
           by_cases hi : i ∈ C
           · simp only [routeCorrupt, hi, ↓reduceIte, hybridWrap, multiHybridWrap,
@@ -554,7 +534,7 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
             erw [OracleComp.interpret_pure]
             simp only [pure_bind]
             exact ih (.inl none) sρ
-        · simp only [OracleComp.interpret_query, sumHandler, demuxNetQuery]
+        · simp only [demuxNetQuery]
           erw [Machine.runFrom_query, Machine.runFrom_query]
           simp only [routeCorrupt, hybridWrap, multiHybridWrap, MultiHybridProtocol.toJoint]
           simp only [StateT.run_map]
@@ -565,7 +545,7 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
           simp only [Functor.map_map, bind_map_left]
           exact bind_congr fun (x : NetR × _) => ih (Sum.inr (Sum.inl x.1)) x.2
         all_goals
-          simp only [OracleComp.interpret_query, sumHandler, demuxNetQuery]
+          simp only [demuxNetQuery]
           erw [Machine.runFrom_query, Machine.runFrom_query]
           simp only [routeCorrupt, hybridWrap, multiHybridWrap]
           repeat erw [StateT.run_map]
@@ -872,9 +852,9 @@ private theorem jointDemux_jointMux {m n : ℕ}
 
 end DemuxProof
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (§3, "The Composition Operation", and
-the proof of Theorem 1), not that theorem; fixed-session joint-state execution identity for this
-library's call-bounded UC execution model:
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (the step showing that "protocol `π̃`
+in the `F̂`-hybrid model emulates protocol `π` in the `F`-hybrid model"), not that theorem;
+fixed-session joint-state execution identity for this library's call-bounded UC execution model:
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with adversary `A` and
 `composeMulti ρ F.toProtocol` with `jointDemux A` have identical output distributions. -/
 theorem exec_compose_toJoint_multiSession {m n : ℕ}
@@ -893,9 +873,10 @@ theorem exec_compose_toJoint_multiSession {m n : ℕ}
     ← link_liftAdversary_mapNetMachine]
   rfl
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (§3, "The Composition Operation", and
-the proof of Theorem 1), not that theorem; fixed-session reverse joint-state execution identity for
-this library's call-bounded UC execution model: `composeMulti ρ F.toProtocol` with adversary `A` and
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (the step showing that "protocol `π̃`
+in the `F̂`-hybrid model emulates protocol `π` in the `F`-hybrid model"), not that theorem;
+fixed-session reverse joint-state execution identity for this library's call-bounded UC execution
+model: `composeMulti ρ F.toProtocol` with adversary `A` and
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with `jointMux A` have identical output
 distributions. -/
 theorem exec_composeMulti_toJoint {m n : ℕ}
@@ -909,13 +890,13 @@ theorem exec_composeMulti_toJoint {m n : ℕ}
       (exec (compose ρ.toJoint (F.multiSession (Fin m)).toProtocol) (jointMux A) C Z κ z).eval := by
   rw [exec_compose_toJoint_multiSession, jointDemux_jointMux]
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (§3, "The Composition Operation", and
-the proof of Theorem 1), not that theorem; fixed-session joint-state step for this library's
-call-bounded `EmulatesWithin` relation: `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`
-emulates `composeMulti ρ F.toProtocol` with overhead `Polynomial.X + 1` and zero distinguishing
-error via the explicit demultiplexing adversary `jointDemux`. Fixed number `m` of sessions chosen in
-advance; static corruption; pull execution returning untagged `Option SubOut` with explicit
-`SubSessionBackdoor` queries. -/
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (the step showing that "protocol `π̃`
+in the `F̂`-hybrid model emulates protocol `π` in the `F`-hybrid model"), not that theorem;
+fixed-session joint-state step for this library's call-bounded `EmulatesWithin` relation:
+`compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` emulates `composeMulti ρ F.toProtocol`
+with overhead `Polynomial.X + 1` and zero distinguishing error via the explicit demultiplexing
+adversary `jointDemux`. Fixed number `m` of sessions chosen in advance; static corruption; pull
+execution returning untagged `Option SubOut` with explicit `SubSessionBackdoor` queries. -/
 theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR : Type}
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
@@ -933,13 +914,13 @@ theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
     exact Nat.le_succ_of_le h
   · simp only [advantage, Game.advantage, exec_compose_toJoint_multiSession, nndist_self, le_rfl]
 
-/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (§3, "The Composition Operation", and
-the proof of Theorem 1), not that theorem; fixed-session reverse joint-state step for this
-library's call-bounded `EmulatesWithin` relation: `composeMulti ρ F.toProtocol` emulates
-`compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with overhead `Polynomial.X + 1` and zero
-distinguishing error via `jointMux`. Fixed number `m` of sessions chosen in advance; static
-corruption; pull execution returning untagged `Option SubOut` with explicit
-`SubSessionBackdoor` queries. -/
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (the step showing that "protocol `π̃`
+in the `F̂`-hybrid model emulates protocol `π` in the `F`-hybrid model"), not that theorem;
+fixed-session reverse joint-state step for this library's call-bounded `EmulatesWithin` relation:
+`composeMulti ρ F.toProtocol` emulates `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`
+with overhead `Polynomial.X + 1` and zero distinguishing error via `jointMux`. Fixed number `m` of
+sessions chosen in advance; static corruption; pull execution returning untagged `Option SubOut`
+with explicit `SubSessionBackdoor` queries. -/
 theorem EmulatesWithin.multiSession_toJoint {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR : Type}
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)

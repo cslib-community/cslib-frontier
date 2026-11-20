@@ -8,27 +8,27 @@ import CslibFrontier.Crypto.Protocols.SSP.ParFinLazy
 import CslibFrontier.Crypto.Protocols.UC.JointState
 import CslibFrontierTests.Crypto.UCMultiSession
 
-/-! # Joint-state UC (c1) witness tests -/
+/-! # Joint-state UC witness tests -/
 namespace CslibFrontierTests.Crypto.UCJointState
 open Cslib Cslib.Crypto Cslib.Crypto.Protocols Cslib.Crypto.Protocols.UC
 open CslibFrontierTests.Crypto.UCMultiSession
 
 /-- Uniform-bit ideal functionality (`n = 2`): samples a bit at `init` and outputs it on poll. -/
-def coinFunc : IdealFunctionality 2 Unit Bool Unit Unit where
+private def coinFunc : IdealFunctionality 2 Unit Bool Unit Unit where
   State := Bool
   init _ _ := (fun r : Fin 2 => decide (r.val = 0)) <$> ProbComp.unifFin 1
   onInput _ _ s := pure (some s, s)
   onBackdoor _ s := pure ((), s)
 
 /-- Uniform-bit functionality with a nontrivial backdoor (`BackR := Bool`) revealing the coin. -/
-def coinBackdoorFunc : IdealFunctionality 2 Unit Bool Unit Bool where
+private def coinBackdoorFunc : IdealFunctionality 2 Unit Bool Unit Bool where
   State := Bool
   init _ _ := (fun r : Fin 2 => decide (r.val = 0)) <$> ProbComp.unifFin 1
   onInput _ _ s := pure (some s, s)
   onBackdoor _ s := pure (s, s)
 
 /-- Deliberately wrong shared-copy functionality: ignores `ssid` and shares one global coin. -/
-def wrongSharedCoinFunc :
+private def wrongSharedCoinFunc :
     IdealFunctionality 2 (SubSessionInput (Fin 2) Unit) Bool
       (SubSessionBackdoor (Fin 2) Unit) Unit where
   State := Bool
@@ -37,7 +37,7 @@ def wrongSharedCoinFunc :
   onBackdoor _ s := pure ((), s)
 
 /-- Single-session coin machine used to witness lazy sampling (`SSP.run_parFinLazy_eq_parFin`). -/
-def coinMachine : Machine OracleSpec.empty (fun _ : Unit => Bool) where
+private def coinMachine : Machine OracleSpec.empty (fun _ : Unit => Bool) where
   State := Bool
   init := (fun r : Fin 2 => decide (r.val = 0)) <$> ProbComp.unifFin 1
   handle _ s := pure (s, s)
@@ -114,67 +114,6 @@ theorem copies_independent_witness :
   rw [hInd, hShared] at h12
   norm_num at h12
 
-private theorem liftAdversary_init {n : ℕ} {In Out NetQ NetR AdvQ AdvR : Type}
-    (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) :
-    (liftAdversary (n := n) (In := In) (Out := Out) A).init = A.init := rfl
-
-private theorem routeCorrupt_hybridWrap_init {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
-    (C : Finset (Fin n))
-    (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR)) :
-    (routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).init = M.init := rfl
-
-private theorem routeCorrupt_hybridWrap_handle_inr_inr
-    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type} (C : Finset (Fin n))
-    (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR)) (q : NQ)
-    (s : M.State) :
-    ((routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).handle (.inr (.inr (.inr q)))).run s =
-      (fun a => (Sum.inr (Sum.inr a), s)) <$>
-        ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr q) := by
-  erw [routeCorrupt_handle_inr_inr]
-  change (fun p => (Sum.inr p.1, p.2)) <$>
-    (StateT.lift (Sum.inr <$> ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR)
-      (.inr q)) : StateT M.State _ _).run s = _
-  erw [StateT.run_lift]
-  simp only [bind_pure_comp, Functor.map_map]
-
-private theorem runFrom_routeCorrupt_hybridWrap_bind_inr_inr
-    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR β : Type} (C : Finset (Fin n))
-    (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR))
-    (q : NQ) (cont : RoutedNetR Out (NetR ⊕ NR) → ProbOracleComp
-      (protocolSpec n In Out (RoutedNetQ n In (NetQ ⊕ NQ)) (RoutedNetR Out (NetR ⊕ NR))) β)
-    (s : M.State) :
-    (routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).runFrom
-        (ProbOracleComp.query (.inr (.inr (.inr q))) >>= cont) s =
-      ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr q) >>= fun a =>
-        (routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).runFrom
-          (cont (.inr (.inr a))) s := by
-  erw [Machine.runFrom_bind, Machine.runFrom_query, routeCorrupt_hybridWrap_handle_inr_inr,
-    bind_map_left]
-
-private theorem routeCorrupt_hybridWrap_handle_inl
-    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type} (C : Finset (Fin n))
-    (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR)) (i : Fin n)
-    (x : In) (s : M.State) :
-    ((routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).handle (.inl (i, x))).run s =
-      if i ∈ C then pure (none, s)
-      else liftParty ((M.handle (.inl (i, x))).run s) := by
-  erw [routeCorrupt_handle_inl]
-  split_ifs <;> rfl
-
-private theorem runFrom_routeCorrupt_hybridWrap_bind_inl_pure
-    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR β : Type} (C : Finset (Fin n))
-    (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR))
-    (i : Fin n) (x : In) (f : Option Out → β) (s : M.State) :
-    Prod.fst <$> (routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).runFrom
-        (ProbOracleComp.query (.inl (i, x)) >>= fun r => pure (f r)) s =
-      (if i ∈ C then pure (none, s) else liftParty ((M.handle (.inl (i, x))).run s)) >>= fun p =>
-        pure (f p.1) := by
-  erw [Machine.runFrom_bind, Machine.runFrom_query, routeCorrupt_hybridWrap_handle_inl]
-  simp only [Machine.runFrom_pure]
-  erw [← bind_pure_comp, bind_assoc]
-  simp only [pure_bind]
-  rfl
-
 private theorem link_routeCorrupt_hybridWrap_inr_inl
     {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR β : Type} (C : Finset (Fin n))
     (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR))
@@ -187,16 +126,34 @@ private theorem link_routeCorrupt_hybridWrap_inr_inl
         (if i ∈ C then pure none
           else Prod.fst <$> liftParty ((M.handle (.inl (i, x))).run s₀)) >>=
           fun r₁ => pure (f (.inr (.inr a)) r₁) := by
-  erw [Machine.link, routeCorrupt_hybridWrap_init, hInit, ProbOracleComp.sample_pure, pure_bind,
-    runFrom_routeCorrupt_hybridWrap_bind_inr_inr, map_bind]
+  have h0 : (routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).init = pure s₀ := hInit
+  have h1 : ∀ (s : M.State), ((routeCorrupt C (hybridWrap (NQ := NQ) (NR := NR) M)).handle
+      (.inr (.inr (.inr q)))).run s = (fun a => (Sum.inr (Sum.inr a), s)) <$>
+        ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr q) := fun s => by
+    erw [routeCorrupt_handle_inr_inr]
+    change (fun p => (Sum.inr p.1, p.2)) <$>
+      (StateT.lift (Sum.inr <$> ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR)
+        (.inr q)) : StateT M.State _ _).run s = _
+    erw [StateT.run_lift]
+    simp only [bind_pure_comp, Functor.map_map]
+  erw [Machine.link, h0, ProbOracleComp.sample_pure, pure_bind, Machine.runFrom_bind,
+    Machine.runFrom_query, h1, bind_map_left, map_bind]
   refine bind_congr fun a => ?_
-  erw [runFrom_routeCorrupt_hybridWrap_bind_inl_pure]
-  by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte, pure_bind, bind_map_left]
+  erw [Machine.runFrom_bind, Machine.runFrom_query, routeCorrupt_handle_inl]
+  simp only [Machine.runFrom_pure]
+  by_cases hi : i ∈ C
+  · simp only [hi, ↓reduceIte]
+    change Prod.fst <$> (pure (none, s₀) >>= fun x₁ => pure (f (.inr (.inr a)) x₁.1, x₁.2)) = _
+    simp only [pure_bind, map_pure]
+  · simp only [hi, ↓reduceIte]
+    change Prod.fst <$> (liftParty ((M.handle (.inl (i, x))).run s₀) >>= fun p =>
+      pure (f (.inr (.inr a)) p.1, p.2)) = _
+    simp only [map_bind, map_pure, bind_map_left]
 
-private theorem interpret_liftParty_toJoint_bind
+private theorem liftParty_toJoint_bind
     {m n : ℕ} {SubIn SubOut BackQ BackR α : Type}
     (c : SubSessionCall m n SubIn)
-    (cont : multiPartySpec m n SubIn SubOut c →
+    (cont : Option SubOut →
       ProbOracleComp (multiPartySpec m n SubIn SubOut) α) :
     liftParty (NetQ := RoutedNetQ n (SubSessionInput (Fin m) SubIn)
         (SubSessionBackdoor (Fin m) BackQ))
@@ -209,11 +166,11 @@ private theorem interpret_liftParty_toJoint_bind
           fun (c' : SubSessionCall m n SubIn) => ProbOracleComp.query
             (spec := partySpec n (SubSessionInput (Fin m) SubIn) SubOut)
             (c'.party, ⟨c'.session, c'.input⟩))
-        (ProbOracleComp.query c >>= cont)) =
+        (ProbOracleComp.query c >>= fun r : Option SubOut => cont r)) =
       ProbOracleComp.query (spec := protocolSpec n (SubSessionInput (Fin m) SubIn) SubOut
           (RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
           (RoutedNetR SubOut BackR))
-        (Sum.inl (c.party, ⟨c.session, c.input⟩)) >>= fun r =>
+        (Sum.inl (c.party, ⟨c.session, c.input⟩)) >>= fun r : Option SubOut =>
       liftParty (NetQ := RoutedNetQ n (SubSessionInput (Fin m) SubIn)
           (SubSessionBackdoor (Fin m) BackQ))
         (NetR := RoutedNetR SubOut BackR)
@@ -227,11 +184,10 @@ private theorem interpret_liftParty_toJoint_bind
               (c'.party, ⟨c'.session, c'.input⟩))
           (cont r)) := by
   erw [OracleComp.interpret_bind, OracleComp.interpret_query]
-  dsimp only [OracleComp.sumHandler]
-  dsimp only [liftParty]
+  dsimp only [OracleComp.sumHandler, liftParty]
   erw [OracleComp.interpret_bind, OracleComp.interpret_query]
 
-private theorem interpret_liftParty_toJoint_pure
+private theorem liftParty_toJoint_pure
     {m n : ℕ} {SubIn SubOut BackQ BackR α : Type} (a : α) :
     liftParty (NetQ := RoutedNetQ n (SubSessionInput (Fin m) SubIn)
         (SubSessionBackdoor (Fin m) BackQ))
@@ -248,10 +204,9 @@ private theorem interpret_liftParty_toJoint_pure
   dsimp only [liftParty]
   erw [OracleComp.interpret_pure]
 
-private theorem interpret_liftParty_toJoint_one
+private theorem liftParty_toJoint_one
     {m n : ℕ} {SubIn SubOut BackQ BackR α : Type}
-    (c : SubSessionCall m n SubIn)
-    (f : Option SubOut → α) :
+    (c : SubSessionCall m n SubIn) (f : Option SubOut → α) :
     liftParty (NetQ := RoutedNetQ n (SubSessionInput (Fin m) SubIn)
         (SubSessionBackdoor (Fin m) BackQ))
       (NetR := RoutedNetR SubOut BackR)
@@ -263,19 +218,17 @@ private theorem interpret_liftParty_toJoint_one
           fun (c' : SubSessionCall m n SubIn) => ProbOracleComp.query
             (spec := partySpec n (SubSessionInput (Fin m) SubIn) SubOut)
             (c'.party, ⟨c'.session, c'.input⟩))
-        (ProbOracleComp.query c >>= fun r => pure (f r))) =
+        (ProbOracleComp.query c >>= fun r : Option SubOut => pure (f r))) =
       ProbOracleComp.query (spec := protocolSpec n (SubSessionInput (Fin m) SubIn) SubOut
           (RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
           (RoutedNetR SubOut BackR))
-        (Sum.inl (c.party, ⟨c.session, c.input⟩)) >>= fun r => pure (f r) := by
-  erw [interpret_liftParty_toJoint_bind c (fun r => pure (f r))]
-  refine bind_congr fun r => ?_
-  exact interpret_liftParty_toJoint_pure (f r)
+        (Sum.inl (c.party, ⟨c.session, c.input⟩)) >>= fun r : Option SubOut => pure (f r) := by
+  erw [liftParty_toJoint_bind c (fun r => pure (f r))]
+  exact bind_congr fun r => liftParty_toJoint_pure (f r)
 
-private theorem interpret_liftParty_toJoint_two
+private theorem liftParty_toJoint_two
     {m n : ℕ} {SubIn SubOut BackQ BackR α : Type}
-    (c₀ c₁ : SubSessionCall m n SubIn)
-    (f : Option SubOut → Option SubOut → α) :
+    (c₀ c₁ : SubSessionCall m n SubIn) (f : Option SubOut → Option SubOut → α) :
     liftParty (NetQ := RoutedNetQ n (SubSessionInput (Fin m) SubIn)
         (SubSessionBackdoor (Fin m) BackQ))
       (NetR := RoutedNetR SubOut BackR)
@@ -287,22 +240,22 @@ private theorem interpret_liftParty_toJoint_two
           fun (c' : SubSessionCall m n SubIn) => ProbOracleComp.query
             (spec := partySpec n (SubSessionInput (Fin m) SubIn) SubOut)
             (c'.party, ⟨c'.session, c'.input⟩))
-        (ProbOracleComp.query c₀ >>= fun x₀ =>
-          ProbOracleComp.query c₁ >>= fun x₁ => pure (f x₀ x₁))) =
+        (ProbOracleComp.query c₀ >>= fun x₀ : Option SubOut =>
+          ProbOracleComp.query c₁ >>= fun x₁ : Option SubOut => pure (f x₀ x₁))) =
       ProbOracleComp.query (spec := protocolSpec n (SubSessionInput (Fin m) SubIn) SubOut
           (RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
           (RoutedNetR SubOut BackR))
-        (Sum.inl (c₀.party, ⟨c₀.session, c₀.input⟩)) >>= fun x₀ =>
+        (Sum.inl (c₀.party, ⟨c₀.session, c₀.input⟩)) >>= fun x₀ : Option SubOut =>
       ProbOracleComp.query (spec := protocolSpec n (SubSessionInput (Fin m) SubIn) SubOut
           (RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
           (RoutedNetR SubOut BackR))
-        (Sum.inl (c₁.party, ⟨c₁.session, c₁.input⟩)) >>= fun x₁ => pure (f x₀ x₁) := by
-  erw [interpret_liftParty_toJoint_bind c₀ (fun x₀ =>
+        (Sum.inl (c₁.party, ⟨c₁.session, c₁.input⟩)) >>= fun x₁ : Option SubOut =>
+        pure (f x₀ x₁) := by
+  erw [liftParty_toJoint_bind c₀ (fun x₀ =>
     ProbOracleComp.query c₁ >>= fun x₁ => pure (f x₀ x₁))]
   refine bind_congr fun x₀ => ?_
-  erw [interpret_liftParty_toJoint_bind c₁ (fun x₁ => pure (f x₀ x₁))]
-  refine bind_congr fun x₁ => ?_
-  exact interpret_liftParty_toJoint_pure (f x₀ x₁)
+  erw [liftParty_toJoint_bind c₁ (fun x₁ => pure (f x₀ x₁))]
+  exact bind_congr fun x₁ => liftParty_toJoint_pure (f x₀ x₁)
 
 private theorem tsum_ite_add_mul_eq {α : Type}
     (c₁ c₂ : α) {dc₁ : ∀ a, Decidable (a = c₁)} {dc₂ : ∀ a, Decidable (a = c₂)}
@@ -367,14 +320,14 @@ theorem demux_nontrivial_corrupted_witness :
           fun r => ProbOracleComp.query (.inl ((0 : Fin 2), false)) >>= fun r₁ =>
             pure (((Sum.elim (fun _ => none) (Sum.elim (fun _ => none)
               (Sum.elim id (fun _ => none))) r == some true) && (r₁ == some false)))) := by
-      rw [Machine.link, liftAdversary_init]
-      dsimp only [A, Z]
+      rw [Machine.link]
+      dsimp only [liftAdversary, A, Z]
       erw [ProbOracleComp.sample_pure, pure_bind]
     rw [exec, execMachine, compose, corruptRouter_comp, Machine.run_comp, Machine.run_comp, hA]
     erw [link_routeCorrupt_hybridWrap_inr_inl _ _ (() : Unit) rfl]
     simp only [Finset.mem_singleton, Fin.zero_ne_one, ↓reduceIte, MultiHybridProtocol.toJoint,
       orOuter, StateT.run]
-    erw [interpret_liftParty_toJoint_two]
+    erw [liftParty_toJoint_two]
     simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
     simp only [pure_bind, Machine.run, Machine.link, corruptRouter,
       IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
@@ -469,13 +422,13 @@ theorem backdoor_creation_witness :
           ProbOracleComp.query (.inl ((0 : Fin 2), ())) >>= fun bPoll =>
             pure (some (Sum.elim (fun _ => false) (Sum.elim (fun _ => false)
               (Sum.elim (fun _ => false) id)) r) == bPoll)) := by
-      rw [Machine.link, liftAdversary_init]
-      dsimp only [A, Zsame]
+      rw [Machine.link]
+      dsimp only [liftAdversary, A, Zsame]
       erw [ProbOracleComp.sample_pure, pure_bind]
     rw [exec, execMachine, compose, corruptRouter_comp, Machine.run_comp, Machine.run_comp, hA]
     erw [link_routeCorrupt_hybridWrap_inr_inl _ _ (() : Unit) rfl]
     simp only [Finset.notMem_empty, ↓reduceIte, MultiHybridProtocol.toJoint, ρ, StateT.run]
-    erw [interpret_liftParty_toJoint_one]
+    erw [liftParty_toJoint_one]
     simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
     simp only [pure_bind, bind_map_left, Machine.run, Machine.link, corruptRouter,
       coinBackdoorFunc, IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
@@ -499,13 +452,13 @@ theorem backdoor_creation_witness :
           ProbOracleComp.query (.inl ((1 : Fin 2), ())) >>= fun bPoll =>
             pure (some (Sum.elim (fun _ => false) (Sum.elim (fun _ => false)
               (Sum.elim (fun _ => false) id)) r) == bPoll)) := by
-      rw [Machine.link, liftAdversary_init]
-      dsimp only [A, Zind]
+      rw [Machine.link]
+      dsimp only [liftAdversary, A, Zind]
       erw [ProbOracleComp.sample_pure, pure_bind]
     rw [exec, execMachine, compose, corruptRouter_comp, Machine.run_comp, Machine.run_comp, hA]
     erw [link_routeCorrupt_hybridWrap_inr_inl _ _ (() : Unit) rfl]
     simp only [Finset.notMem_empty, ↓reduceIte, MultiHybridProtocol.toJoint, ρ, StateT.run]
-    erw [interpret_liftParty_toJoint_one]
+    erw [liftParty_toJoint_one]
     simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
     simp only [pure_bind, bind_map_left, Machine.run, Machine.link, corruptRouter,
       coinBackdoorFunc, IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
