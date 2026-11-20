@@ -58,7 +58,10 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
   Theorem 1.2, Theorem 1.6 (printed p. 6), and Theorem 7.4 (printed p. 32) with
   dimension-independent threshold `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (alongside the generic
   `(Fˣ)^ℓ × Fˣ` curve reduction `Cslib.Code.exists_correlatedAgreement_affine_of_curve` with
-  linear-in-`ℓ` overhead).
+  linear-in-`ℓ` overhead); `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique` and
+  `Cslib.Code.proximityGap_affine_unique` further formalize the exact eq. (1.2) threshold
+  `|ι| * |F| ^ ℓ < |F| * #T` (`ε_U = n / q`) together with Theorem 1.6's uniqueness and maximality
+  clause in the unique-decoding regime `2 * e + k ≤ |ι|` (printed p. 6 and pp. 28–31).
 * **Johnson-bound curves (`ℚ`-weighted steps and explicit-constant dichotomies):**
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_curve_johnson` and
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_line_johnson` are **explicit-parameter
@@ -110,8 +113,9 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
     directly, so a density sufficient for (1.3) can fall below the Lean cutoff: for example at
     `q = 11 ^ 10`, `n = 16`, `ρ = 1 / 4`, radius `7 / 16`, `η = 1 / 16` (`> √ρ / 20 = 1 / 40`),
     `m = 4`, a line of codewords has close density one and clears the (1.3) cutoff
-    `20,480,000,000 / q < 1`, but not the multiplicity corollary's `28,800,000,000 / q > 1`. They
-    also omit Theorem 1.6's uniqueness clause in the unique-decoding regime. The exact cited
+    `20,480,000,000 / q < 1`, but not the multiplicity corollary's `28,800,000,000 / q > 1`. The
+    unique-decoding uniqueness clause of Theorem 1.6 is formalized separately in
+    `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique`. The exact cited
     endpoints, including the displayed constants `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`,
     `(2 * m + 1) * (M * n + 1) / √ρ`, and `ρ ^ 2 / (2 * η) ^ 7`, remain tracked in `#5968`.
   - `Cslib.Code.proximityGap_affine_johnson_exact`,
@@ -231,6 +235,11 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
   and Lemma 6.3 homogenization lift from 1D weighted line correlated agreement plus codeword list
   bound `2 ≤ ℓ → L < |F|` to arbitrary-dimensional affine spaces at exact threshold
   `B_line * |F| ^ ℓ < |F| * #T` (returning `D' ⊆ supp W`).
+* `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique` &
+  `Cslib.Code.proximityGap_affine_unique`: exact eq. (1.2) (`|ι| * |F| ^ ℓ < |F| * #T`)
+  unique-decoding affine-space correlated agreement with Theorem 1.6's unique maximal agreement set
+  and unique generator codewords (printed p. 6, pp. 28–31), together with its exact-`|F|`
+  proximity-gap dichotomy (Theorem 1.2, eq. (1.2)).
 * `Cslib.Code.proximityGap_curve_johnson` & `Cslib.Code.proximityGap_curve_johnson_of_eta`:
   original explicit-constant finite-field Johnson-bound proximity-gap variants on degree-`r` curves
   (variants of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.5], accepted JACM 2023 manuscript).
@@ -317,41 +326,6 @@ private theorem hammingDist_le_of_ratWeightedAgree_ge
     linarith
   have hlt_n : Fintype.card ι - e < A.card + 1 := Nat.cast_lt.1 hlt_q
   omega
-
-/-- Unique decoding for Reed–Solomon codes: if `2 * e + k ≤ |ι|`, two codewords within Hamming
-distance `e` of the same word must coincide. -/
-private theorem reedSolomon_eq_of_hammingDist_le
-    {F : Type*} [Field F] {ι : Type*} [Fintype ι] [DecidableEq F]
-    {α : ι → F} (hα : Function.Injective α) {e k : ℕ}
-    (hunique : 2 * e + k ≤ Fintype.card ι)
-    {w c₁ c₂ : ι → F} (hc₁ : c₁ ∈ reedSolomon α k) (hc₂ : c₂ ∈ reedSolomon α k)
-    (h₁ : hammingDist w c₁ ≤ e) (h₂ : hammingDist w c₂ ≤ e) :
-    c₁ = c₂ := by
-  rcases Nat.eq_zero_or_pos k with rfl | hk
-  · obtain ⟨p₁, hp₁, rfl⟩ := mem_reedSolomon.1 hc₁
-    obtain ⟨p₂, hp₂, rfl⟩ := mem_reedSolomon.1 hc₂
-    have hp₁0 : p₁ = 0 := by
-      by_contra hne
-      rw [Polynomial.degree_eq_natDegree hne] at hp₁
-      have hlt : p₁.natDegree < 0 := Nat.cast_lt.1 (by simpa only [Nat.cast_zero] using hp₁)
-      omega
-    have hp₂0 : p₂ = 0 := by
-      by_contra hne
-      rw [Polynomial.degree_eq_natDegree hne] at hp₂
-      have hlt : p₂.natDegree < 0 := Nat.cast_lt.1 (by simpa only [Nat.cast_zero] using hp₂)
-      omega
-    rw [hp₁0, hp₂0]
-  · by_contra hne
-    have hdiff_mem : c₁ - c₂ ∈ reedSolomon α k := Submodule.sub_mem _ hc₁ hc₂
-    have hdiff_ne : c₁ - c₂ ≠ 0 := sub_ne_zero.2 hne
-    have hmin := le_hammingNorm_of_mem_reedSolomon hα hdiff_mem hdiff_ne
-    have htri : hammingDist c₁ c₂ ≤ 2 * e := by
-      have h := hammingDist_triangle c₁ w c₂
-      rw [hammingDist_comm c₁ w] at h
-      omega
-    have hnorm : hammingDist c₁ c₂ = hammingNorm (c₁ - c₂) := by
-      rw [hammingDist_comm, hammingDist_eq_hammingNorm, neg_add_eq_sub]
-    omega
 
 /-- Counting lemma: in `Fin ℓ → F` with `1 ≤ ℓ`, the hyperplane `{z | z j₀ = 0}` has cardinality
 `|F| ^ (ℓ - 1)`. -/
@@ -569,7 +543,7 @@ theorem exists_ratWeighted_correlatedAgreement_curve_unique
       Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)
     have hvz_dist : hammingDist (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) vz ≤ e :=
       hammingDist_curve_le_of_eq_on hD₀ hagree₀ z
-    have hceq : c = vz := reedSolomon_eq_of_hammingDist_le hα hunique hcRS hvz_RS hc_dist hvz_dist
+    have hceq : c = vz := eq_of_hammingDist_le_reedSolomon hα hunique hcRS hvz_RS hc_dist hvz_dist
     subst hceq
     let agree_z : Finset ι :=
       Finset.univ.filter fun i => (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) i = vz i
@@ -1373,7 +1347,7 @@ private theorem exists_affine_codewords_of_all_close_unique
         have hdist1 : hammingDist (u₀ + ∑ j : Fin ℓ, (a + t • b) j • u j) (w₀ + t • w₁) ≤ e := by
           rw [hline_eval a b t]
           exact hammingDist_add_smul_le_of_eq_on hD' hagree t
-        exact reedSolomon_eq_of_hammingDist_le hα hunique (hcRS (a + t • b))
+        exact eq_of_hammingDist_le_reedSolomon hα hunique (hcRS (a + t • b))
           (Submodule.add_mem _ hw₀ (Submodule.smul_mem _ t hw₁)) (hcDist (a + t • b)) hdist1
       have hw₀_eq : w₀ = c a := by
         have h0 := hc_eq 0
@@ -1643,7 +1617,7 @@ theorem exists_ratWeighted_correlatedAgreement_affine_unique_sharp
       have hvz_dist : hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) vz ≤ e :=
         hammingDist_affine_le_of_eq_on hD₀ hagree₀ z
       have hceq : c = vz :=
-        reedSolomon_eq_of_hammingDist_le hα hunique hcRS hvz_RS hc_dist hvz_dist
+        eq_of_hammingDist_le_reedSolomon hα hunique hcRS hvz_RS hc_dist hvz_dist
       subst hceq
       let agree_z : Finset ι :=
         Finset.univ.filter fun i => (u₀ + ∑ j : Fin ℓ, z j • u j) i = vz i
@@ -2382,6 +2356,102 @@ theorem exists_weighted_correlatedAgreement_affine_of_line
       have hB_lt_q : B_line < Fintype.card F := lt_card_field_of_density_threshold hT
       hline hB' a b Finset.univ (by rwa [Finset.card_univ]) (fun t _ => hcl t))
     hL u₀ u hall
+
+/-- **Exact-threshold correlated agreement on affine spaces in the unique-decoding regime, with
+unique maximal agreement set and unique codewords**
+([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.6 & Section 6.3], accepted JACM 2023 manuscript
+p. 6 and pp. 28–31, eq. (1.2)).
+
+Over a finite field `F`, given distinct evaluation points `α : ι → F`, `2 * e + k ≤ |ι|`, and an
+affine space `u₀ + ∑ j : Fin ℓ, z j • u j`, if `|ι| * |F| ^ ℓ < |F| * #T` (exact density threshold
+`#T / |F| ^ ℓ > |ι| / |F| = ε_U` of eq. (1.2), completely independent of `ℓ`) and every `z ∈ T`
+lies within Hamming distance `e` of `reedSolomon α k`, then there exist a greatest (hence unique
+maximal) shared coordinate subset `D' : Finset ι` of size at least `|ι| - e` and unique codewords
+`v₀, v j ∈ reedSolomon α k` matching `u₀, u j` on `D'`: every qualifying `(D'', w₀, w)` satisfies
+`D'' ⊆ D'`, `w₀ = v₀`, and `w = v`. -/
+theorem exists_uniqueMaximal_correlatedAgreement_affine_unique
+    {F : Type*} [Field F] [Fintype F] [DecidableEq F]
+    {ι : Type*} [Fintype ι]
+    {α : ι → F} (hα : Function.Injective α)
+    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
+    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
+    (T : Finset (Fin ℓ → F))
+    (hT : Fintype.card ι * (Fintype.card F) ^ ℓ < Fintype.card F * T.card)
+    (hclose : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
+      hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e) :
+    ∃ D' : Finset ι, Fintype.card ι - e ≤ D'.card ∧
+      ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F),
+        (∀ j, v j ∈ reedSolomon α k) ∧
+        (∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i) ∧
+        ∀ (D'' : Finset ι) (w₀ : ι → F) (w : Fin ℓ → (ι → F)),
+          Fintype.card ι - e ≤ D''.card →
+          w₀ ∈ reedSolomon α k → (∀ j, w j ∈ reedSolomon α k) →
+          (∀ i ∈ D'', u₀ i = w₀ i ∧ ∀ j, u j i = w j i) →
+          D'' ⊆ D' ∧ w₀ = v₀ ∧ w = v := by
+  classical
+  have hlist : ∀ w : ι → F, ∃ Lset : Finset (ι → F), Lset.card ≤ 1 ∧
+      ∀ c ∈ reedSolomon α k,
+        Fintype.card ι - e ≤ ∑ i ∈ Finset.univ.filter (fun i => w i = c i), (1 : ℕ) →
+        c ∈ Lset := by
+    intro w
+    by_cases hex : ∃ c ∈ reedSolomon α k, hammingDist w c ≤ e
+    · refine ⟨{hex.choose}, by simp only [Finset.card_singleton, le_rfl], fun c hc hsum => ?_⟩
+      simp only [Finset.sum_const, smul_eq_mul, mul_one] at hsum
+      have hdist : hammingDist w c ≤ e := hammingDist_le_of_card_filter_eq hsum
+      exact mem_singleton.2
+        (eq_of_hammingDist_le_reedSolomon hα hunique hc hex.choose_spec.1 hdist hex.choose_spec.2)
+    · refine ⟨∅, Nat.zero_le 1, fun c hc hsum => ?_⟩
+      simp only [Finset.sum_const, smul_eq_mul, mul_one] at hsum
+      exact absurd ⟨c, hc, hammingDist_le_of_card_filter_eq hsum⟩ hex
+  have hline : ∀ {B' : ℕ}, Fintype.card ι - e ≤ B' → ∀ (a b : ι → F) (S : Finset F),
+      Fintype.card ι < S.card →
+      (∀ t ∈ S, ∃ c ∈ reedSolomon α k,
+        B' ≤ ∑ i ∈ Finset.univ.filter (fun i => (a + t • b) i = c i), (1 : ℕ)) →
+      ∃ D' : Finset ι, B' ≤ ∑ i ∈ D', (1 : ℕ) ∧
+        ∃ w₀ ∈ reedSolomon α k, ∃ w₁ ∈ reedSolomon α k,
+          ∀ i ∈ D', a i = w₀ i ∧ b i = w₁ i := by
+    intro B' hB' a b S hS hcl
+    obtain ⟨t₀, ht₀⟩ := Finset.card_pos.1 (Nat.lt_of_le_of_lt (Nat.zero_le _) hS)
+    obtain ⟨c₀, _, hB'_le_sum⟩ := hcl t₀ ht₀
+    simp only [Finset.sum_const, smul_eq_mul, mul_one] at hB'_le_sum
+    have hB'_le_n : B' ≤ Fintype.card ι := hB'_le_sum.trans (Finset.card_le_univ _)
+    let e' : ℕ := Fintype.card ι - B'
+    have hunique' : 2 * e' + k ≤ Fintype.card ι := by omega
+    have hsub_eq : Fintype.card ι - e' = B' := by omega
+    have hcl' : ∀ t ∈ S, ∃ c ∈ reedSolomon α k, hammingDist (a + t • b) c ≤ e' := by
+      intro t ht
+      obtain ⟨c, hc, hsum⟩ := hcl t ht
+      simp only [Finset.sum_const, smul_eq_mul, mul_one] at hsum
+      exact ⟨c, hc, hammingDist_le_of_card_filter_eq (hsub_eq.symm ▸ hsum)⟩
+    obtain ⟨D', hD', w₀, hw₀, w₁, hw₁, hag⟩ :=
+      exists_correlatedAgreement_unique hα hunique' a b S hS hcl'
+    refine ⟨D', ?_, w₀, hw₀, w₁, hw₁, hag⟩
+    simpa only [Finset.sum_const, smul_eq_mul, mul_one, hsub_eq] using hD'
+  have hclose' : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
+      Fintype.card ι - e ≤ ∑ i ∈ Finset.univ.filter
+        (fun i => (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), (1 : ℕ) := by
+    intro z hz
+    obtain ⟨c, hc, hdist⟩ := hclose z hz
+    refine ⟨c, hc, ?_⟩
+    simpa only [Finset.sum_const, smul_eq_mul, mul_one] using card_filter_eq_of_hammingDist_le hdist
+  obtain ⟨D₀, _, hD₀_sum, v₀, hv₀, v, hv, hag₀⟩ :=
+    exists_weighted_correlatedAgreement_affine_of_line (C := reedSolomon α k) (W := fun _ => 1)
+      (B_W := Fintype.card ι - e) (B_line := Fintype.card ι) (L := 1)
+      hlist hline (fun _ => Fintype.one_lt_card) u₀ u T hT hclose'
+  simp only [Finset.sum_const, smul_eq_mul, mul_one] at hD₀_sum
+  have hex : ∃ D₀ : Finset ι, Fintype.card ι - e ≤ D₀.card ∧
+      ∃ v' : Fin (ℓ + 1) → (ι → F), (∀ j, v' j ∈ reedSolomon α k) ∧
+        ∀ i ∈ D₀, ∀ j, (Fin.cons (α := fun _ => ι → F) u₀ u j) i = v' j i :=
+    ⟨D₀, hD₀_sum, Fin.cons v₀ v, Fin.cases hv₀ hv, fun i hi =>
+      Fin.cases (hag₀ i hi).1 (hag₀ i hi).2⟩
+  obtain ⟨D', hD', v', hv'RS, hagree', hmax'⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_of_exists hα hunique hex
+  refine ⟨D', hD', v' 0, hv'RS 0, fun j => v' j.succ, fun j => hv'RS j.succ,
+    fun i hi => ⟨hagree' i hi 0, fun j => hagree' i hi j.succ⟩,
+    fun D'' w₀ w hD'' hw₀ hw hag'' => ?_⟩
+  obtain ⟨hsub, hweq⟩ := hmax' D'' (Fin.cons w₀ w) hD'' (Fin.cases hw₀ hw)
+    (fun i hi => Fin.cases (hag'' i hi).1 (hag'' i hi).2)
+  exact ⟨hsub, congrFun hweq 0, funext fun j => congrFun hweq j.succ⟩
 
 /-! ### Part 5: Johnson-bound curves, affine correlated agreement, and dichotomies -/
 
@@ -3521,6 +3591,37 @@ private theorem affine_dichotomy_of_correlatedAgreement
       Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hv j)),
       hgood hD' hagree z⟩
   · exact Or.inr (hsmall hdense)
+
+/-- **Exact-threshold proximity-gap dichotomy on affine spaces in the unique-decoding regime**
+([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.2, eq. (1.2)], accepted JACM 2023 manuscript
+p. 3).
+
+Contrapositive corollary of `Cslib.Code.exists_uniqueMaximal_correlatedAgreement_affine_unique`:
+either every point of `u₀ + ∑ j, z j • u j` lies within Hamming distance `e` of `reedSolomon α k`,
+or `|F| * #T ≤ |ι| * |F| ^ ℓ` (density at most `|ι| / |F| = ε_U`, uniformly for all `ℓ : ℕ`). -/
+theorem proximityGap_affine_unique
+    {F ι : Type*} [Field F] [Fintype F] [Fintype ι] [DecidableEq F]
+    {α : ι → F} (hα : Function.Injective α)
+    {e k ℓ : ℕ} (hunique : 2 * e + k ≤ Fintype.card ι)
+    (u₀ : ι → F) (u : Fin ℓ → (ι → F))
+    [DecidablePred fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
+      hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e] :
+    (∀ z : Fin ℓ → F, ∃ c ∈ reedSolomon α k,
+        hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e) ∨
+      Fintype.card F *
+        (Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
+          hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e).card ≤
+        Fintype.card ι * (Fintype.card F) ^ ℓ :=
+  affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => hammingDist x c ≤ e)
+    (fun D' => Fintype.card ι - e ≤ D'.card)
+    (fun hD' _ _ hag z => hammingDist_affine_le_of_eq_on hD' hag z)
+    (fun T' => Fintype.card ι * (Fintype.card F) ^ ℓ < Fintype.card F * T'.card)
+    Nat.le_of_not_lt
+    fun T' hT' hcl =>
+      let ⟨D', hD', v₀, hv₀, v, hv, hag, _⟩ :=
+        exists_uniqueMaximal_correlatedAgreement_affine_unique hα hunique u₀ u T' hT' hcl
+      ⟨D', hD', v₀, hv₀, v, hv, hag⟩
 
 /-- **Explicit-parameter proximity-gap dichotomy on affine spaces up to the Johnson bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.2 and 1.6], accepted JACM

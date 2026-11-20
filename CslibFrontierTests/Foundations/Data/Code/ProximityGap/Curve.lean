@@ -72,6 +72,17 @@ on concrete finite-field Reed–Solomon instances:
    `exists_weighted_correlatedAgreement_affine_of_divergence`,
    `exists_weighted_correlatedAgreement_affine_johnson`, and
    `exists_ratWeighted_correlatedAgreement_affine_johnson` at full weight `B_W = 6` (`0 ∉ D'`).
+10. **Exact eq. (1.2) Theorem 1.6 uniqueness & maximality tests and sharpness counterexample:**
+    - Positive 2D affine space over `ZMod 11` (`n = 5`, `k = 3`, `e = 1`) on a proper subset `T56`
+      of size `56` (`5 * 11 ^ 2 = 605 < 616 = 11 * 56`, strictly below `_sharp`'s `61` cutoff where
+      `10 * 56 = 560 ≤ 600`), instantiating
+      `exists_uniqueMaximal_correlatedAgreement_affine_unique`, pinning `D' = Finset.univ.erase 0`,
+      unique codewords `(v0 11, ![v1 11, v2 11])`, and the literal `∃!` maximal-set consequence;
+    - Negative/tightness instantiation of `proximityGap_affine_unique` bounding `#T ≤ 55`
+      (tightening `_sharp`'s `≤ 60`);
+    - Sharpness counterexample at `2 * e + k = n + 1` (`n = 5`, `k = 2`, `e = 2` over `ZMod 11`)
+      exhibiting two distinct maximal qualifying sets `{0, 1, 2}` and `{0, 3, 4}` with distinct
+      codewords `0 ≠ pts5 11`, showing `2 * e + k ≤ n` is sharp for Theorem 1.6's uniqueness clause.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -2121,5 +2132,182 @@ theorem test_correlatedAgreement_affine_johnson_closed_form_gf11_14 :
       hT_big hclose_μ
 
 end RealAsymptoticJohnsonTests
+
+/-! ### Test 10: Exact eq. (1.2) Theorem 1.6 uniqueness & maximality and sharpness counterexample -/
+
+/-- Positive exact-threshold 2D affine space uniqueness-clause test over `ZMod 11` (`n = 5`,
+`k = 3`, `e = 1`) on `T56 = insert ![5, 0] (strip2D 11 5)` of size `56`:
+`5 * 11 ^ 2 = 605 < 616 = 11 * 56` clears Theorem 1.6's exact eq. (1.2) threshold while falling
+strictly below `_sharp`'s cutoff (`10 * 56 = 560 ≤ 600 = 5 * (11 ^ 2 - 1)`). Pins the exact unique
+maximal set `Finset.univ.erase 0`, exact codewords `(v0 11, ![v1 11, v2 11])`, and the literal `∃!`
+maximal-set consequence. -/
+theorem test_uniqueMaximal_correlatedAgreement_affine_unique_exact :
+    u0 11 ∉ reedSolomon (pts5 11) 3 ∧
+    u1 11 ∉ reedSolomon (pts5 11) 3 ∧
+    u2 11 ∉ reedSolomon (pts5 11) 3 ∧
+    (∃! D' : Finset (Fin 5),
+      (4 ≤ D'.card ∧ ∃ v₀ ∈ reedSolomon (pts5 11) 3, ∃ v : Fin 2 → (Fin 5 → ZMod 11),
+        (∀ j, v j ∈ reedSolomon (pts5 11) 3) ∧
+        ∀ i ∈ D', u0 11 i = v₀ i ∧ ∀ j, (![u1 11, u2 11] j) i = v j i) ∧
+      ∀ D₂ : Finset (Fin 5),
+        (4 ≤ D₂.card ∧ ∃ w₀ ∈ reedSolomon (pts5 11) 3, ∃ w : Fin 2 → (Fin 5 → ZMod 11),
+          (∀ j, w j ∈ reedSolomon (pts5 11) 3) ∧
+          ∀ i ∈ D₂, u0 11 i = w₀ i ∧ ∀ j, (![u1 11, u2 11] j) i = w j i) →
+        D' ⊆ D₂ → D₂ = D') ∧
+    ∀ (D'' : Finset (Fin 5)) (w₀ : Fin 5 → ZMod 11) (w : Fin 2 → (Fin 5 → ZMod 11)),
+      4 ≤ D''.card → w₀ ∈ reedSolomon (pts5 11) 3 → (∀ j, w j ∈ reedSolomon (pts5 11) 3) →
+      (∀ i ∈ D'', u0 11 i = w₀ i ∧ ∀ j, (![u1 11, u2 11] j) i = w j i) →
+      D'' ⊆ Finset.univ.erase 0 ∧ w₀ = v0 11 ∧ w = ![v1 11, v2 11] := by
+  let u : Fin 2 → (Fin 5 → ZMod 11) := ![u1 11, u2 11]
+  let vTrue : Fin 2 → (Fin 5 → ZMod 11) := ![v1 11, v2 11]
+  have hvTrue_mem : ∀ j : Fin 2, vTrue j ∈ reedSolomon (pts5 11) 3 := by
+    intro j; fin_cases j
+    · exact v1_mem_rs
+    · exact v2_mem_rs
+  have hagree_true : ∀ i ∈ Finset.univ.erase (0 : Fin 5),
+      u0 11 i = v0 11 i ∧ ∀ j : Fin 2, u j i = vTrue j i := by
+    intro i hi
+    have hne : i ≠ 0 := (mem_erase.1 hi).1
+    refine ⟨by simp only [u0, hne, ↓reduceIte], fun j => ?_⟩
+    fin_cases j
+    · change u1 11 i = v1 11 i; simp only [u1, hne, ↓reduceIte]
+    · change u2 11 i = v2 11 i; simp only [u2, v2, hne, ↓reduceIte]
+  let z50 : Fin 2 → ZMod 11 := ![5, 0]
+  let T56 : Finset (Fin 2 → ZMod 11) := insert z50 (strip2D 11 5)
+  have hz50_not : z50 ∉ strip2D 11 5 := by
+    intro hmem
+    have hlt : (z50 0).val < 5 := (mem_filter.1 hmem).2
+    have hv : (z50 0).val = 5 := by decide
+    omega
+  have hT56_card : T56.card = 56 := by
+    rw [Finset.card_insert_of_notMem hz50_not, strip2D_card (by omega)]
+  have hT56_lt : Fintype.card (Fin 5) * (Fintype.card (ZMod 11)) ^ 2 <
+      Fintype.card (ZMod 11) * T56.card := by
+    rw [Fintype.card_fin, ZMod.card, hT56_card]; norm_num
+  have hclose : ∀ z ∈ T56, ∃ c ∈ reedSolomon (pts5 11) 3,
+      hammingDist (u0 11 + ∑ j : Fin 2, z j • u j) c ≤ 1 := fun z _ =>
+    ⟨v0 11 + ∑ j : Fin 2, z j • vTrue j,
+      Submodule.add_mem _ v0_mem_rs
+        (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvTrue_mem j)),
+      hammingDist_affine_le_of_eq_on (D' := Finset.univ.erase 0) (by decide) hagree_true z⟩
+  obtain ⟨D', _, v₀, _, v, _, hagree, hmax⟩ :=
+    exists_uniqueMaximal_correlatedAgreement_affine_unique (ℓ := 2) pts5_11_injective
+      (e := 1) (k := 3) (by decide) (u0 11) u T56 hT56_lt hclose
+  obtain ⟨her_sub, hv₀_eq, hv_eq⟩ :=
+    hmax (Finset.univ.erase 0) (v0 11) vTrue (by decide) v0_mem_rs hvTrue_mem hagree_true
+  subst hv₀_eq hv_eq
+  have hD'_eq : D' = Finset.univ.erase 0 := by
+    refine Finset.Subset.antisymm (fun i hi => mem_erase.2 ⟨?_, mem_univ i⟩) her_sub
+    rintro rfl
+    have h0 := (hagree 0 hi).1
+    simp only [u0, ↓reduceIte, add_eq_left] at h0
+    exact one_ne_zero h0
+  subst hD'_eq
+  refine ⟨u0_not_mem_rs_11, u1_not_mem_rs_11, u2_not_mem_rs_11, ?_, ?_⟩
+  · refine ⟨Finset.univ.erase 0, ⟨⟨by decide, v0 11, v0_mem_rs, vTrue, hvTrue_mem, hagree_true⟩,
+      fun D₂ hD₂ hsub => ?_⟩, fun D₁ hD₁ => ?_⟩
+    · obtain ⟨hcard₂, w₀, hw₀, w, hw, hag₂⟩ := hD₂
+      exact Finset.Subset.antisymm (hmax D₂ w₀ w (by simpa only [Fintype.card_fin] using hcard₂)
+        hw₀ hw hag₂).1 hsub
+    · obtain ⟨⟨hcard₁, w₀, hw₀, w, hw, hag₁⟩, hmax₁⟩ := hD₁
+      have hsub := (hmax D₁ w₀ w (by simpa only [Fintype.card_fin] using hcard₁)
+        hw₀ hw hag₁).1
+      exact (hmax₁ (Finset.univ.erase 0)
+        ⟨by decide, v0 11, v0_mem_rs, vTrue, hvTrue_mem, hagree_true⟩ hsub).symm
+  · intro D'' w₀ w hD'' hw₀ hw hag''
+    exact hmax D'' w₀ w (by simpa only [Fintype.card_fin] using hD'') hw₀ hw hag''
+
+/-- Negative / tightness instantiation of `proximityGap_affine_unique` over `ZMod 11`: bounds the
+close parameter set to at most `55` of `121` points (`11 * #T ≤ 5 * 121 = 605`), strictly tighter
+than `proximityGap_affine_unique_sharp`'s bound of `60`. -/
+theorem test_proximityGap_affine_unique_negative_exact :
+    open scoped Classical in
+    (Finset.univ.filter fun z : Fin 2 → ZMod 11 => ∃ c ∈ reedSolomon (pts5 11) 3,
+      hammingDist (spike0 11 + ∑ j : Fin 2, z j • (![spike1 11, (0 : Fin 5 → ZMod 11)] j)) c ≤
+        1).card ≤ 55 := by
+  classical
+  set u : Fin 2 → (Fin 5 → ZMod 11) := ![spike1 11, 0]
+  rcases proximityGap_affine_unique (ℓ := 2) pts5_11_injective (e := 1) (k := 3) (by decide)
+      (spike0 11) u with hall | hcard
+  · obtain ⟨c, hcRS, hdist⟩ := hall ![1, 0]
+    have hsum1 : (spike0 11 + ∑ j : Fin 2, (![(1 : ZMod 11), 0] j) • u j) =
+        spike0 11 + (1 : ZMod 11) • spike1 11 := by
+      rw [Fin.sum_univ_two]
+      change spike0 11 + ((1 : ZMod 11) • spike1 11 + (0 : ZMod 11) • (0 : Fin 5 → ZMod 11)) =
+        spike0 11 + (1 : ZMod 11) • spike1 11
+      simp only [zero_smul, add_zero]
+    rw [hsum1] at hdist
+    exact absurd hdist (not_le.2 (spike_far_at_one (p := 11) (by decide) (by decide) c hcRS))
+  · rw [Fintype.card_fin, ZMod.card] at hcard
+    omega
+
+/-- Sharpness counterexample just beyond the unique-decoding radius (`2 * e + k = n + 1` at
+`n = 5`, `k = 2`, `e = 2` over `ZMod 11`): on the constant 2D affine space generated by
+`u₀ = ![0, 0, 0, 3, 4]` and `u = ![0, 0]`, every affine point lies within distance `2` of
+`reedSolomon (pts5 11) 2`, yet `D₁ = {0, 1, 2}` (with `c₁ = 0`) and `D₂ = {0, 3, 4}` (with
+`c₂ = pts5 11`) are two **distinct maximal** qualifying agreement sets with distinct codewords,
+showing `2 * e + k ≤ n` is sharp for Theorem 1.6's uniqueness clause. -/
+theorem test_uniqueMaximal_fails_beyond_unique_decoding :
+    let u₀ : Fin 5 → ZMod 11 := ![0, 0, 0, 3, 4]
+    let u : Fin 2 → (Fin 5 → ZMod 11) := ![0, 0]
+    let c₁ : Fin 5 → ZMod 11 := 0
+    let c₂ : Fin 5 → ZMod 11 := pts5 11
+    let D₁ : Finset (Fin 5) := {0, 1, 2}
+    let D₂ : Finset (Fin 5) := {0, 3, 4}
+    D₁ ≠ D₂ ∧ c₁ ≠ c₂ ∧
+    (∀ z : Fin 2 → ZMod 11, ∃ c ∈ reedSolomon (pts5 11) 2,
+      hammingDist (u₀ + ∑ j : Fin 2, z j • u j) c ≤ 2) ∧
+    (3 ≤ D₁.card ∧ c₁ ∈ reedSolomon (pts5 11) 2 ∧
+      (∀ i ∈ D₁, u₀ i = c₁ i ∧ ∀ j, u j i = (0 : Fin 5 → ZMod 11) i) ∧
+      ∀ (D' : Finset (Fin 5)) (w₀ : Fin 5 → ZMod 11),
+        w₀ ∈ reedSolomon (pts5 11) 2 → (∀ i ∈ D', u₀ i = w₀ i) → D₁ ⊆ D' → D' = D₁) ∧
+    (3 ≤ D₂.card ∧ c₂ ∈ reedSolomon (pts5 11) 2 ∧
+      (∀ i ∈ D₂, u₀ i = c₂ i ∧ ∀ j, u j i = (0 : Fin 5 → ZMod 11) i) ∧
+      ∀ (D' : Finset (Fin 5)) (w₀ : Fin 5 → ZMod 11),
+        w₀ ∈ reedSolomon (pts5 11) 2 → (∀ i ∈ D', u₀ i = w₀ i) → D₂ ⊆ D' → D' = D₂) := by
+  intro u₀ u c₁ c₂ D₁ D₂
+  have hc₁_mem : c₁ ∈ reedSolomon (pts5 11) 2 := Submodule.zero_mem _
+  have hc₂_mem : c₂ ∈ reedSolomon (pts5 11) 2 :=
+    mem_reedSolomon.2 ⟨X, by rw [degree_X]; exact Nat.cast_lt.2 (by decide), funext fun _ => eval_X⟩
+  have huniq_k2 : ∀ {w c : Fin 5 → ZMod 11} {D : Finset (Fin 5)},
+      w ∈ reedSolomon (pts5 11) 2 → c ∈ reedSolomon (pts5 11) 2 →
+      2 ≤ D.card → (∀ i ∈ D, w i = c i) → w = c := by
+    intro w c D hw hc hD hag
+    by_contra hne
+    have hnorm := le_hammingNorm_of_mem_reedSolomon pts5_11_injective
+      (Submodule.sub_mem _ hw hc) (sub_ne_zero.2 hne)
+    have hsub : D ⊆ Finset.univ.filter fun i => w i = c i :=
+      fun i hi => mem_filter.2 ⟨mem_univ i, hag i hi⟩
+    have htot := card_agree_add_hammingDist w c
+    have hdist : hammingDist w c = hammingNorm (w - c) := by
+      rw [hammingDist_comm, hammingDist_eq_hammingNorm, neg_add_eq_sub]
+    have hle := Finset.card_le_card hsub
+    simp only [Fintype.card_fin] at hnorm
+    omega
+  have hag₁ : ∀ i ∈ D₁, u₀ i = c₁ i ∧ ∀ j : Fin 2, u j i = (0 : Fin 5 → ZMod 11) i := by
+    intro i hi
+    refine ⟨by revert i hi; decide, fun j => by fin_cases j <;> rfl⟩
+  have hag₂ : ∀ i ∈ D₂, u₀ i = c₂ i ∧ ∀ j : Fin 2, u j i = (0 : Fin 5 → ZMod 11) i := by
+    intro i hi
+    refine ⟨by revert i hi; decide, fun j => by fin_cases j <;> rfl⟩
+  refine ⟨by decide, fun h => by
+      have h1 : c₁ 1 = c₂ 1 := congrFun h 1
+      revert h1; decide,
+    fun z => ⟨c₁ + ∑ j : Fin 2, z j • (0 : Fin 5 → ZMod 11),
+      Submodule.add_mem _ hc₁_mem
+        (Submodule.sum_mem _ fun _ _ => Submodule.smul_mem _ _ (Submodule.zero_mem _)),
+      hammingDist_affine_le_of_eq_on (D' := D₁) (by decide) hag₁ z⟩,
+    ⟨by decide, hc₁_mem, hag₁, fun D' w₀ hw₀ hag' hsub => ?_⟩,
+    ⟨by decide, hc₂_mem, hag₂, fun D' w₀ hw₀ hag' hsub => ?_⟩⟩
+  · have hw₀_eq : w₀ = c₁ := huniq_k2 hw₀ hc₁_mem (by decide : 2 ≤ D₁.card) fun i hi =>
+      (hag' i (hsub hi)).symm.trans (hag₁ i hi).1
+    subst hw₀_eq
+    exact Finset.Subset.antisymm
+      (fun i hi => (by decide : ∀ j : Fin 5, u₀ j = c₁ j → j ∈ D₁) i (hag' i hi)) hsub
+  · have hw₀_eq : w₀ = c₂ := huniq_k2 hw₀ hc₂_mem (by decide : 2 ≤ D₂.card) fun i hi =>
+      (hag' i (hsub hi)).symm.trans (hag₂ i hi).1
+    subst hw₀_eq
+    exact Finset.Subset.antisymm
+      (fun i hi => (by decide : ∀ j : Fin 5, u₀ j = c₂ j → j ∈ D₂) i (hag' i hi)) hsub
 
 end CslibFrontierTests.Foundations.Data.Code.ProximityGap.Curve
