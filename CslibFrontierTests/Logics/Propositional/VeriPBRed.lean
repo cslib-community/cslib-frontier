@@ -43,8 +43,8 @@ example : (∀ c ∈ G, c.Holds (Witness.apply σ₀ setX0)) ∧ D.Holds (Witnes
   decide
 
 -- As a step of a proof, `D` joins the database as constraint `3`.
-example : runTop none ⟨initDb G, 2, none⟩ [.red D setX0 [] none] =
-    some ⟨(3, D.normalize) :: initDb G, 4, none⟩ := by
+example : runTop G none ⟨initDb G, 2, none, none⟩ [.red D setX0 [] none] =
+    some ⟨(3, D.normalize) :: initDb G, 4, none, none⟩ := by
   decide
 
 /-! ### Breaking a symmetry -/

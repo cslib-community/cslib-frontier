@@ -486,7 +486,7 @@ def checkDIMACS (cnf pbp : String) : Option Conclusion :=
     (parseProof φ.length (numVars (φ.map Clause.toPB) none) pbp).bind fun P =>
       if checkRed (φ.map Clause.toPB) none P then some P.conclusion else none
 
-theorem exists_checkRed_of_checkOPB {opb pbp : String} {c : Conclusion}
+private theorem exists_checkRed_of_checkOPB {opb pbp : String} {c : Conclusion}
     (h : checkOPB opb pbp = some c) :
     ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P = true ∧
       P.conclusion = c := by

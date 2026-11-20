@@ -20,12 +20,16 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
 * a small covering problem with an objective, its optimum `1` certified by `red`, `soli` and
   `conclusion BOUNDS 1 : 6 1`, with goal `#2` autoproven or proved explicitly; the proofs were
   also accepted by CakePB (CakeML commit `14856fcf`);
+* unchecked deletion between logged solutions: the best logged value gives the lower bound, and
+  only a solution of the input certifies the upper bound or `SAT`;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
-an objective variable unassigned, a `red` step raising the objective, a dropped hint, a repeated
-deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a wrong formula
-size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is tested on its
-own. The checks run by `#guard`; the soundness theorems apply to any accepted pair of texts. -/
+an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
+certified only by a solution logged after unchecked deletion that fails the input, a dropped
+hint, a repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a
+wrong formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
+tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
+of texts. -/
 
 set_option linter.hashCommand false
 
@@ -371,6 +375,58 @@ def coverDecisionSat : String :=
 -- `soli` needs an objective, and `BOUNDS` too.
 #guard (checkOPB coverDecision coverBadRed).isNone
 #guard (checkOPB coverDecision (coverDecisionSat.replace "SAT" "BOUNDS 0 : 1 INF")).isNone
+
+/-! ### Unchecked deletion and the witness -/
+
+/-- Minimize `x1` subject to `x1 >= 1` and `x1 >= 0`; the optimum is `1`. -/
+def delOpt : String := "* #variable= 1 #constraint= 2
+min: 1 x1 ;
+1 x1 >= 1 ;
+1 x1 >= 0 ;
+"
+
+/-- `x1` is logged while both constraints are present, then constraint `1` is deleted without a
+proof (`delc` without a subproof is unchecked deletion in VeriPB's kernel format), and `~x1`,
+of value `0`, is logged against the weakened database. `~x1` gives the best logged value, so
+the lower bound `0` is accepted. It does not solve the input, so `x1` stays the witness, of
+value `1`, for the upper bound. VeriPB 3.0.2 and CakePB both accept this proof. -/
+def delOptProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+soli x1;
+delc 1;
+soli ~x1;
+output NONE;
+conclusion BOUNDS 0 : 2 1;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB delOpt delOptProof == some (.bounds (some 0) 2 (some 1))
+-- The invalid `~x1` does not certify the upper bound `0` (VeriPB and CakePB reject it too).
+#guard (checkOPB delOpt (delOptProof.replace "BOUNDS 0 : 2 1" "BOUNDS 0 : 2 0")).isNone
+
+/-- The decision version of `delOpt`. -/
+def delDec : String := "* #variable= 1 #constraint= 2
+1 x1 >= 1 ;
+1 x1 >= 0 ;
+"
+
+/-- After an unchecked deletion, `~x1` (not a solution of the input) is logged, then `x1` (one
+that is), with the same value. The later valid solution becomes the witness, so `SAT` is
+accepted. VeriPB accepts this proof. CakePB rejects it: it ignores solutions logged after an
+unchecked deletion, where this checker tests them against the input instead. -/
+def delDecProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+delc 1;
+sol ~x1;
+sol x1;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB delDec delDecProof == some .sat
+-- With only the invalid solution logged, `SAT` is rejected (CakePB rejects it too).
+#guard (checkOPB delDec (delDecProof.replace "sol x1;\n" "")).isNone
 
 /-! ### Soundness -/
 
