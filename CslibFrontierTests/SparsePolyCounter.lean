@@ -100,7 +100,7 @@ example : ComputableInPolyTime prepareBranchEvalInput
 example : ComputableInPolyTime (checkTopFeasible 20) encSparseSystemInput encBool := by fun_prop
 private noncomputable def zeroBranchCert :
     NativeCertificate (fun _ : BranchEvalInput => 0) encBranchEvalInput encNat :=
-  NativeCertificate.ofPolyTime (.of_tidy (.const 0))
+  NativeCertificate.ofPolyTime (.const 0)
 example : PolyBounded (fun inp => (encSparseSystemInput inp).length)
     (sparsePolyCounterCertificate 20 20 zeroBranchCert (fun _ _ _ => Nat.zero_le _)).space :=
   polyBounded_sparsePolyCounterCertificate_space 20 20 zeroBranchCert

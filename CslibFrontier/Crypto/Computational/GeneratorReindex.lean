@@ -191,7 +191,7 @@ theorem indistinguishable {length : ℕ → ℕ} {generator : ℕ → List Bool 
   obtain ⟨ε, hε, hbound⟩ := hfamily.uniform_bound hreal hideal
     (bound := fun n => length (n + 1)) (hlength.comp .unary_succ) test htest
   have hdecay := hε.comp_of_polynomial_bound (parameter_tendsto length)
-    (hlength.tidy.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
+    (hlength.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
     (Eventually.of_forall (fun size => (lt_length_succ_parameter hge size).le))
   apply negligible_of_eventually_le hdecay
   filter_upwards [eventually_ge_atTop (length 0)] with size hsize
@@ -233,7 +233,7 @@ theorem nonuniformIndistinguishable {length : ℕ → ℕ} {generator : ℕ → 
       (fun n => uniformList (length n + 1))) :
     NonuniformlyIndistinguishable (generatorEnsemble (generate length generator))
       (fun n => uniformList (n + 1)) := by
-  have hlengthPoly : PolynomiallyBounded length := hlength.tidy.polynomiallyBounded
+  have hlengthPoly : PolynomiallyBounded length := hlength.polynomiallyBounded
   intro advice hadvice adversary hadversary
   let test (n size : ℕ) (adv : List Bool) (word : List Bool) : ProbComp Bool :=
     GeneratorPadding.test (length n) size (fun w => adversary ((size, adv), w)) word

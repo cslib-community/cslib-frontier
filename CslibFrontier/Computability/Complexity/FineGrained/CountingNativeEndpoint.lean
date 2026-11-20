@@ -13,7 +13,7 @@ import CslibFrontier.Computability.Complexity.FineGrained.CountingParameterBound
 import CslibFrontier.Computability.PolyTime.FineGrained.ParameterCheck
 import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingParametersPolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
