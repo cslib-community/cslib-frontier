@@ -26,19 +26,16 @@ the mixed Nash equilibria and the totally mixed Nash equilibria form semialgebra
 * `CostGame.deviationCostPoly G i a`: the polynomial
   `∑_{s, s i = a} cost i s · ∏_{j ≠ i} x⟨j, s j⟩`, which does not involve player `i`'s
   coordinates (`CostGame.vars_deviationCostPoly`).
-* `CostGame.nashPoly G`: the polynomials whose nonnegativity cuts out the mixed Nash equilibria.
-* `CostGame.IsTotallyMixedNash G p`: a mixed Nash equilibrium in which every pure strategy has
-  positive probability.
 
 ## Main results
 
 * `CostGame.eval_expectedCostPoly`, `CostGame.eval_deviationCostPoly`: the polynomials evaluate to
   `expectedCost` and, on profiles where player `i`'s weights sum to `1`, to `deviationCost`.
-* `CostGame.setOf_isMixedNash_eq`: the mixed Nash equilibria are a basic closed semialgebraic set,
-  cut out by the inequalities `nashPoly G k ≥ 0`.
-* `CostGame.isTotallyMixedNash_iff`: equation (1) of [Datta2003]: a profile is a totally mixed Nash
-  equilibrium iff it is positive, each player's weights sum to `1`, and each player's pure
-  strategies all have the same expected cost.
+* `CostGame.exists_finset_setOf_isMixedNash_eq`: the mixed Nash equilibria are a basic closed
+  semialgebraic set, the common nonnegativity set of finitely many polynomials.
+* `CostGame.setOf_isTotallyMixedNash_eq`: by equation (1) of [Datta2003]
+  (`CostGame.isTotallyMixedNash_iff`), the totally mixed Nash equilibria are the positive profiles,
+  with each player's weights summing to `1`, on which each player's `deviationCostPoly`s agree.
 * `CostGame.isSemialgebraic_setOf_isMixedNash`,
   `CostGame.isSemialgebraic_setOf_isTotallyMixedNash`.
 
@@ -57,11 +54,11 @@ variable {ι : Type*} {S : ι → Type*} [Fintype ι] [DecidableEq ι] [∀ i, F
   [∀ i, DecidableEq (S i)] (G : CostGame ι S)
 
 /-- The monomial `∏ i, x⟨i, s i⟩`, whose value is the product weight of the pure profile `s`. -/
-noncomputable def weightPoly (s : ∀ i, S i) : MvPolynomial (Σ i, S i) ℝ :=
+private noncomputable def weightPoly (s : ∀ i, S i) : MvPolynomial (Σ i, S i) ℝ :=
   ∏ i, X ⟨i, s i⟩
 
 omit [DecidableEq ι] [∀ i, Fintype (S i)] [∀ i, DecidableEq (S i)] in
-theorem eval_weightPoly (x : (Σ i, S i) → ℝ) (s : ∀ i, S i) :
+private theorem eval_weightPoly (x : (Σ i, S i) → ℝ) (s : ∀ i, S i) :
     eval x (weightPoly s) = productWeight (Sigma.curry x) s := by
   simp [weightPoly, productWeight_def, Sigma.curry]
 
@@ -158,51 +155,24 @@ theorem blockDegree_of_mem_support_deviationCostPoly {i : ι} {a : S i} {m : (Σ
   rw [support_C_mul_prod_X hs, blockSum_sum_single]
   by_cases hj : j = i <;> simp [hj]
 
-/-- A **totally mixed Nash equilibrium**: a mixed Nash equilibrium in which every pure strategy is
-played with positive probability. -/
-@[expose] def IsTotallyMixedNash (p : ∀ i, S i → ℝ) : Prop :=
-  G.IsMixedNash p ∧ ∀ i a, 0 < p i a
-
-omit [∀ i, DecidableEq (S i)] in
-/-- **Equation (1)** of [Datta2003]: a profile is a totally mixed Nash equilibrium iff it is
-positive, each player's weights sum to `1`, and each player's pure strategies all have the same
-expected cost against the other players' strategies. -/
-theorem isTotallyMixedNash_iff {p : ∀ i, S i → ℝ} :
-    G.IsTotallyMixedNash p ↔ (∀ i a, 0 < p i a) ∧ (∀ i, ∑ a, p i a = 1) ∧
-      ∀ i a b, G.deviationCost p i a = G.deviationCost p i b := by
-  constructor
-  · rintro ⟨h, hpos⟩
-    exact ⟨hpos, fun i => (h.1 i).sum_eq_one, fun i a b => by
-      rw [h.deviationCost_eq_of_pos i (hpos i a), h.deviationCost_eq_of_pos i (hpos i b)]⟩
-  · rintro ⟨hpos, hsum, heq⟩
-    refine ⟨⟨fun i => isMixedStrategy_iff.2 ⟨fun a => (hpos i a).le, hsum i⟩, fun i a => ?_⟩,
-      hpos⟩
-    rw [← G.sum_mul_deviationCost_eq_expectedCost p (hsum i)]
-    refine le_of_eq ?_
-    calc ∑ b, p i b * G.deviationCost p i b = ∑ b, p i b * G.deviationCost p i a :=
-          sum_congr rfl fun b _ => by rw [heq i b a]
-      _ = G.deviationCost p i a := by rw [← sum_mul, hsum i, one_mul]
-
 /-- The total weight `∑ a, x⟨i, a⟩` of player `i`, as a polynomial. -/
-noncomputable def massPoly (i : ι) : MvPolynomial (Σ i, S i) ℝ :=
+private noncomputable def massPoly (i : ι) : MvPolynomial (Σ i, S i) ℝ :=
   ∑ a, X ⟨i, a⟩
 
 omit [Fintype ι] [DecidableEq ι] [∀ i, DecidableEq (S i)] in
-theorem eval_massPoly (x : (Σ i, S i) → ℝ) (i : ι) : eval x (massPoly (S := S) i) =
+private theorem eval_massPoly (x : (Σ i, S i) → ℝ) (i : ι) : eval x (massPoly (S := S) i) =
     ∑ a, x ⟨i, a⟩ := by
   simp [massPoly]
 
 /-- The polynomials whose nonnegativity cuts out the mixed Nash equilibria: the coordinates, the
 two inequalities `∑ a, x⟨i, a⟩ ≥ 1` and `≤ 1`, and `deviationCostPoly - expectedCostPoly`. -/
-noncomputable def nashPoly : (Σ i, S i) ⊕ ι ⊕ ι ⊕ (Σ i, S i) → MvPolynomial (Σ i, S i) ℝ
+private noncomputable def nashPoly : (Σ i, S i) ⊕ ι ⊕ ι ⊕ (Σ i, S i) → MvPolynomial (Σ i, S i) ℝ
   | .inl v => X v
   | .inr (.inl i) => massPoly i - 1
   | .inr (.inr (.inl i)) => 1 - massPoly i
   | .inr (.inr (.inr v)) => G.deviationCostPoly v.1 v.2 - G.expectedCostPoly v.1
 
-/-- The mixed Nash equilibria form a **basic closed semialgebraic set**: the profiles at which every
-`nashPoly G k` is nonnegative. -/
-theorem setOf_isMixedNash_eq :
+private theorem setOf_isMixedNash_eq_nashPoly :
     {x : (Σ i, S i) → ℝ | G.IsMixedNash (Sigma.curry x)} =
       {x | ∀ k, 0 ≤ eval x (G.nashPoly k)} := by
   ext x
@@ -222,23 +192,36 @@ theorem setOf_isMixedNash_eq :
     exact hdev i a
 
 omit [∀ i, DecidableEq (S i)] in
+/-- The mixed Nash equilibria form a **basic closed semialgebraic set**: the common nonnegativity
+set of finitely many polynomials. These are the coordinates `x⟨i, a⟩`, the polynomials
+`∑ a, x⟨i, a⟩ - 1` and `1 - ∑ a, x⟨i, a⟩`, and `deviationCostPoly G i a - expectedCostPoly G i`. -/
+theorem exists_finset_setOf_isMixedNash_eq :
+    ∃ F : Finset (MvPolynomial (Σ i, S i) ℝ),
+      {x : (Σ i, S i) → ℝ | G.IsMixedNash (Sigma.curry x)} = {x | ∀ f ∈ F, 0 ≤ eval x f} := by
+  classical
+  refine ⟨univ.image G.nashPoly, ?_⟩
+  rw [setOf_isMixedNash_eq_nashPoly]
+  ext x
+  simp only [Set.mem_ofPred_eq, mem_image, mem_univ, true_and, forall_exists_index,
+    forall_apply_eq_imp_iff]
+
+omit [∀ i, DecidableEq (S i)] in
 theorem isSemialgebraic_setOf_isMixedNash :
     IsSemialgebraic {x : (Σ i, S i) → ℝ | G.IsMixedNash (Sigma.curry x)} := by
   classical
-  rw [setOf_isMixedNash_eq, Set.ofPred_forall]
+  rw [setOf_isMixedNash_eq_nashPoly, Set.ofPred_forall]
   exact IsSemialgebraic.iInter fun k => IsSemialgebraic.setOf_nonneg _
 
 /-- The totally mixed Nash equilibria are the positive profiles at which each player's weights sum
 to `1` and each player's `deviationCostPoly`s agree. -/
 theorem setOf_isTotallyMixedNash_eq :
     {x : (Σ i, S i) → ℝ | G.IsTotallyMixedNash (Sigma.curry x)} =
-      (⋂ v, {x | 0 < MvPolynomial.eval x (X v)}) ∩
-        (⋂ i, {x | MvPolynomial.eval x (massPoly i) = MvPolynomial.eval x 1}) ∩
+      (⋂ v, {x | 0 < x v}) ∩ (⋂ i, {x | ∑ a, x ⟨i, a⟩ = 1}) ∩
         ⋂ i, ⋂ a, ⋂ b, {x | MvPolynomial.eval x (G.deviationCostPoly i a) =
           MvPolynomial.eval x (G.deviationCostPoly i b)} := by
   ext x
-  simp only [Set.mem_ofPred_eq, isTotallyMixedNash_iff, Set.mem_inter_iff, Set.mem_iInter, eval_X,
-    eval_massPoly, map_one, Sigma.forall]
+  simp only [Set.mem_ofPred_eq, isTotallyMixedNash_iff, Set.mem_inter_iff, Set.mem_iInter,
+    Sigma.forall]
   constructor
   · rintro ⟨hpos, hsum, heq⟩
     refine ⟨⟨fun i a => hpos i a, hsum⟩, fun i a b => ?_⟩
@@ -257,7 +240,7 @@ theorem isSemialgebraic_setOf_isTotallyMixedNash :
   refine ((IsSemialgebraic.iInter fun v => ?_).inter (IsSemialgebraic.iInter fun i => ?_)).inter
     (IsSemialgebraic.iInter fun i => IsSemialgebraic.iInter fun a =>
       IsSemialgebraic.iInter fun b => IsSemialgebraic.setOf_eq _ _)
-  · exact IsSemialgebraic.setOf_pos _
-  · exact IsSemialgebraic.setOf_eq _ _
+  · simpa using IsSemialgebraic.setOf_pos (X v)
+  · simpa [eval_massPoly] using IsSemialgebraic.setOf_eq (massPoly (S := S) i) 1
 
 end Cslib.GameTheory.CostGame

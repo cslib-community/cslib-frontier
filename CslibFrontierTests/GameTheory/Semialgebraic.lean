@@ -54,6 +54,12 @@ theorem pennies_isTotallyMixedNash_iff (p : Fin 2 → Bool → ℝ) :
 example : IsSemialgebraic {x : (Σ _ : Fin 2, Bool) → ℝ | pennies.IsMixedNash (Sigma.curry x)} :=
   pennies.isSemialgebraic_setOf_isMixedNash
 
+/-- The mixed equilibria of matching pennies are cut out by finitely many polynomial
+inequalities. -/
+example : ∃ F : Finset (MvPolynomial (Σ _ : Fin 2, Bool) ℝ),
+    {x | pennies.IsMixedNash (Sigma.curry x)} = {x | ∀ f ∈ F, 0 ≤ MvPolynomial.eval x f} :=
+  pennies.exists_finset_setOf_isMixedNash_eq
+
 example : IsSemialgebraic
     {x : (Σ _ : Fin 2, Bool) → ℝ | pennies.IsTotallyMixedNash (Sigma.curry x)} :=
   pennies.isSemialgebraic_setOf_isTotallyMixedNash
