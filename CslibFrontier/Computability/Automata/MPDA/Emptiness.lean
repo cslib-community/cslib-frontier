@@ -211,7 +211,7 @@ structure HoleTriple (n : ℕ) (State : Type*) where
 @[expose] def HoleTriple.equivProd (n : ℕ) (State : Type*) :
     HoleTriple n State ≃ Fin n × State × State where
   toFun h := (h.stack, h.src, h.dst)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (i, s, s') => ⟨i, s, s'⟩
   left_inv _ := rfl
   right_inv _ := rfl
 
