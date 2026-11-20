@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree
+import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.Fin.Tuple.Basic
@@ -54,7 +56,7 @@ def appendLine (x : F) (L : Finset (Point F m)) : Finset (Point F (m + 1)) :=
   L.map (appendPoint x)
 
 /-- Include a question in the larger game through a fixed last coordinate. -/
-def appendQuestion (x : F) : Question F m → Question F (m + 1)
+@[expose] def appendQuestion (x : F) : Question F m → Question F (m + 1)
   | .point u => .point (appendPoint x u)
   | .axis L => .axis (appendLine x L)
   | .diagonal L => .diagonal (appendLine x L)
@@ -255,26 +257,48 @@ noncomputable def appendLineAnswer (x : F) (answer : Σ L : Finset (Point F m), 
     Σ L : Finset (Point F (m + 1)), L → F :=
   ⟨appendLine x answer.1, answer.2 ∘ (appendLineEquiv x answer.1).symm⟩
 
-/-- The line-versus-point predicate is preserved on a slice at a fixed degree cap. -/
-theorem lineAgrees_append_iff (x : F) (u v w : Point F m) (d : ℕ)
-    (f : linePoints u v → F) (a : F) :
-    lineAgrees d (appendLine x (linePoints u v)) (appendPoint x w)
-        (appendLineAnswer x ⟨linePoints u v, f⟩) a ↔
-      lineAgrees d (linePoints u v) w ⟨linePoints u v, f⟩ a := by
-  let L := linePoints u v
-  let e := appendLineEquiv x L
-  unfold lineAgrees appendLineAnswer
-  change (_ = _ ∧ LineHasDegree (f ∘ e.symm) d ∧
-    ∃ h : appendPoint x w ∈ appendLine x L, f (e.symm ⟨appendPoint x w, h⟩) = a) ↔
-    (_ = _ ∧ LineHasDegree f d ∧ ∃ h : w ∈ L, f ⟨w, h⟩ = a)
-  rw [lineHasDegree_append_iff]
-  simp only [true_and]
-  apply and_congr_right
-  intro _
+private theorem lineHasDegree_append (x : F) (L : Finset (Point F m)) (d : ℕ)
+    (f : L → F) :
+    LineHasDegree (f ∘ (appendLineEquiv x L).symm) d ↔ LineHasDegree f d := by
+  constructor
+  · intro h
+    have hgeomWitness := h
+    obtain ⟨u, v, hL, _, _, _⟩ := hgeomWitness
+    have hinit : (fun p : Point F (m + 1) => Fin.init p) ∘ appendPoint x = id := by
+      funext z i
+      exact appendPoint_apply_castSucc x z i
+    have hproj : (appendLine x L).image (fun p => Fin.init p) = L := by
+      unfold appendLine
+      rw [map_eq_image, image_image, hinit, image_id]
+    have hgeom : linePoints (Fin.init u) (Fin.init v) = L := by
+      rw [← hproj, ← hL]
+      simp only [linePoints, image_image]
+      congr 1
+    subst L
+    exact (lineHasDegree_append_iff x _ _ d f).mp h
+  · intro h
+    have hgeomWitness := h
+    obtain ⟨u, v, hL, _, _, _⟩ := hgeomWitness
+    subst L
+    exact (lineHasDegree_append_iff x u v d f).mpr h
+
+/-- Transporting a line answer preserves its agreement with the point at the same degree cap. -/
+theorem lineAgrees_appendLineAnswer_iff (x : F) (L : Finset (Point F m)) (w : Point F m)
+    (d : ℕ) (answer : Σ K : Finset (Point F m), K → F) (a : F) :
+    lineAgrees d (appendLine x L) (appendPoint x w) (appendLineAnswer x answer) a ↔
+      lineAgrees d L w answer a := by
+  obtain ⟨K, f⟩ := answer
+  let e := appendLineEquiv x K
+  change (appendLine x K = appendLine x L ∧ LineHasDegree (f ∘ e.symm) d ∧
+    ∃ h : appendPoint x w ∈ appendLine x K, f (e.symm ⟨appendPoint x w, h⟩) = a) ↔
+    (K = L ∧ LineHasDegree f d ∧ ∃ h : w ∈ K, f ⟨w, h⟩ = a)
+  rw [show appendLine x K = appendLine x L ↔ K = L from
+    (Finset.map_injective (appendPoint x)).eq_iff,
+    lineHasDegree_append]
+  refine and_congr_right fun _ => and_congr_right fun _ => ?_
   constructor
   · rintro ⟨hw, heval⟩
-    have hp := Finset.mem_map.mp hw
-    obtain ⟨z, hz, he⟩ := hp
+    obtain ⟨z, hz, he⟩ := mem_map.mp hw
     have hzw := (appendPoint x).injective he
     subst z
     refine ⟨hz, ?_⟩
@@ -282,10 +306,142 @@ theorem lineAgrees_append_iff (x : F) (u v w : Point F m) (d : ℕ)
     rw [← h, e.symm_apply_apply] at heval
     exact heval
   · rintro ⟨hw, heval⟩
-    have h : (e ⟨w, hw⟩).val = appendPoint x w := rfl
-    have hm : appendPoint x w ∈ appendLine x L := h ▸ (e ⟨w, hw⟩).property
+    have hm : appendPoint x w ∈ appendLine x K := (e ⟨w, hw⟩).property
     refine ⟨hm, ?_⟩
-    have he : e ⟨w, hw⟩ = ⟨appendPoint x w, hm⟩ := Subtype.ext h
-    rw [← he, e.symm_apply_apply, heval]
+    have he : e ⟨w, hw⟩ = ⟨appendPoint x w, hm⟩ := Subtype.ext rfl
+    rwa [← he, e.symm_apply_apply]
+
+omit [Field F] [Fintype F] [DecidableEq F] in
+private theorem appendLineAnswer_injective (x : F) :
+    Function.Injective (appendLineAnswer (m := m) x) := by
+  rintro ⟨L, f⟩ ⟨K, g⟩ h
+  have hLK : L = K := (Finset.map_injective (appendPoint x)) (congrArg Sigma.fst h)
+  subst K
+  have hfg : f ∘ (appendLineEquiv x L).symm = g ∘ (appendLineEquiv x L).symm :=
+    eq_of_heq (Sigma.mk.inj h).2
+  have hf : f = g := by
+    funext u
+    obtain ⟨v, rfl⟩ := (appendLineEquiv x L).symm.surjective u
+    exact congrFun hfg v
+  rw [hf]
+
+private local instance [Nonempty F] : Nonempty (Σ L : Finset (Point F m), L → F) :=
+  ⟨⟨∅, fun _ => Classical.choice inferInstance⟩⟩
+
+omit [Fintype F] [DecidableEq F] in
+/-- Restrict an answer to a fixed last coordinate. Point values are unchanged. On line
+answers outside the slice the inverse can choose any line answer, since the larger verifier
+already rejects those answers on the lifted questions. -/
+noncomputable def restrictAnswer (x : F) : Answer F (m + 1) → Answer F m
+  | .inl a => .inl a
+  | .inr a => .inr (Function.invFun (appendLineAnswer x) a)
+
+private theorem restrictAnswer_lineAgrees (x : F) (L : Finset (Point F m)) (u : Point F m)
+    (d : ℕ) (g : Σ K : Finset (Point F (m + 1)), K → F) (a : F)
+    (h : lineAgrees d (appendLine x L) (appendPoint x u) g a) :
+    lineAgrees d L u (Function.invFun (appendLineAnswer x) g) a := by
+  have hdomain := h.1
+  obtain ⟨K, f⟩ := g
+  change K = appendLine x L at hdomain
+  subst K
+  let e := appendLineEquiv x L
+  let g : Σ K : Finset (Point F m), K → F := ⟨L, f ∘ e⟩
+  have hg : appendLineAnswer x g = ⟨appendLine x L, f⟩ := by
+    unfold appendLineAnswer
+    congr 1
+    funext u
+    change f (e (e.symm u)) = f u
+    rw [e.apply_symm_apply]
+  rw [← hg] at h ⊢
+  rw [Function.leftInverse_invFun (appendLineAnswer_injective x) g]
+  exact (lineAgrees_appendLineAnswer_iff x L u d g a).mp h
+
+/-- Every accepted answer pair on two lifted questions remains accepted after restriction,
+at unchanged axis and diagonal degree bounds. -/
+theorem acceptsWithDiagonalCap_restrict (x : F) (d D : ℕ) (q₁ q₂ : Question F m)
+    (a b : Answer F (m + 1))
+    (h : acceptsWithDiagonalCap d D (appendQuestion x q₁) (appendQuestion x q₂) a b) :
+    acceptsWithDiagonalCap d D q₁ q₂ (restrictAnswer x a) (restrictAnswer x b) := by
+  cases q₁ <;> cases q₂ <;> cases a <;> cases b <;>
+    simp only [appendQuestion, acceptsWithDiagonalCap, restrictAnswer] at h ⊢ <;>
+    first | exact h | exact restrictAnswer_lineAgrees _ _ _ _ _ _ h
+
+omit [Fintype F] [DecidableEq F] in
+/-- Ask the lifted questions and restrict the two answers independently. -/
+@[expose] noncomputable def restrictAnswerLaw (x : F)
+    (ans : Question F (m + 1) → Question F (m + 1) →
+      PMF (Answer F (m + 1) × Answer F (m + 1))) (q₁ q₂ : Question F m) :
+    PMF (Answer F m × Answer F m) :=
+  (ans (appendQuestion x q₁) (appendQuestion x q₂)).map
+    (Prod.map (restrictAnswer x) (restrictAnswer x))
+
+private noncomputable def lossAt (d D : ℕ)
+    (ans : Question F m → Question F m → PMF (Answer F m × Answer F m))
+    (q : Question F m × Question F m) : ℝ :=
+  ((ans q.1 q.2).toOuterMeasure {a | ¬ acceptsWithDiagonalCap d D q.1 q.2 a.1 a.2}).toReal
+
+private theorem lossAt_restrict_le (x : F) (d D : ℕ)
+    (ans : Question F (m + 1) → Question F (m + 1) →
+      PMF (Answer F (m + 1) × Answer F (m + 1))) (q : Question F m × Question F m) :
+    lossAt d D (restrictAnswerLaw x ans) q ≤
+      lossAt d D ans (appendQuestion x q.1, appendQuestion x q.2) := by
+  unfold lossAt restrictAnswerLaw
+  rw [PMF.toOuterMeasure_map_apply]
+  apply ENNReal.toReal_mono (toOuterMeasure_ne_top _ _)
+  exact (PMF.toOuterMeasure _).mono fun a ha h =>
+    ha (acceptsWithDiagonalCap_restrict x d D q.1 q.2 a.1 a.2 h)
+
+private theorem branchLoss_eq_sum {n : ℕ} (d D : ℕ) (b : Branch)
+    (ans : Question F (n + 1) → Question F (n + 1) →
+      PMF (Answer F (n + 1) × Answer F (n + 1))) :
+    1 - (branchGameWithDiagonalCap n d D b).answersWinProb ans =
+      ∑ q, (branchQuestions n b q).toReal * lossAt d D ans q := by
+  unfold TwoProverGame.answersWinProb
+  let p := (branchGameWithDiagonalCap n d D b).questions.bind fun q =>
+    (ans q.1 q.2).map fun a => (q, a)
+  let e := {z | (branchGameWithDiagonalCap (F := F) n d D b).AcceptsRound z}
+  change 1 - (p.toOuterMeasure e).toReal = _
+  have hcompl : 1 - (p.toOuterMeasure e).toReal = (p.toOuterMeasure eᶜ).toReal := by
+    linarith [toOuterMeasure_toReal_add_compl p e]
+  rw [hcompl]
+  unfold p
+  rw [toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
+  refine sum_congr rfl fun q _ => ?_
+  rw [PMF.toOuterMeasure_map_apply]
+  unfold e lossAt TwoProverGame.AcceptsRound
+  rw [branchGameWithDiagonalCap_accepts]
+  rfl
+
+/-- Averaged over the last coordinate, restriction at fixed degree caps does not increase
+the consistency loss. In the axis and diagonal branches it increases the loss by at most
+`(n + 2) / (n + 1)`, the inverse probability that the selected coordinate lies in the prefix. -/
+theorem branchLoss_restrict_le (n d D : ℕ) (b : Branch)
+    (ans : Question F (n + 2) → Question F (n + 2) →
+      PMF (Answer F (n + 2) × Answer F (n + 2))) :
+    (if b = .consistency then 1 else (n + 1 : ℝ)) *
+        (∑ x, (uniformOfFintype F x).toReal *
+          (1 - (branchGameWithDiagonalCap n d D b).answersWinProb (restrictAnswerLaw x ans))) ≤
+      (if b = .consistency then 1 else (n + 2 : ℝ)) *
+        (1 - (branchGameWithDiagonalCap (n + 1) d D b).answersWinProb ans) := by
+  simp only [branchLoss_eq_sum]
+  have h := sum_le_sum (s := (univ : Finset F)) fun x _ =>
+    mul_le_mul_of_nonneg_left (sum_le_sum (s := univ) fun q _ =>
+      mul_le_mul_of_nonneg_left (lossAt_restrict_le x d D ans q)
+        (ENNReal.toReal_nonneg (a := branchQuestions n b q)))
+      (ENNReal.toReal_nonneg (a := uniformOfFintype F x))
+  have hn (q : Question F (n + 2) × Question F (n + 2)) : 0 ≤ lossAt d D ans q :=
+    ENNReal.toReal_nonneg
+  cases b
+  · simp only [branchQuestions_axis] at h ⊢
+    simp only [ite_eq_right (by decide : Branch.axis ≠ .consistency)]
+    exact (mul_le_mul_of_nonneg_left h (by positivity)).trans
+      (axisQuestions_slices_le (lossAt d D ans) hn)
+  · simp only [branchQuestions_consistency] at h ⊢
+    simp only [↓reduceIte, one_mul]
+    exact h.trans_eq (consistencyQuestions_slices (lossAt d D ans)).symm
+  · simp only [branchQuestions_diagonal] at h ⊢
+    simp only [ite_eq_right (by decide : Branch.diagonal ≠ .consistency)]
+    exact (mul_le_mul_of_nonneg_left h (by positivity)).trans
+      (diagonalQuestions_slices_le (lossAt d D ans) hn)
 
 end Cslib.PCP.LowIndividualDegree

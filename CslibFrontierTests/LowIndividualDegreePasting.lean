@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingConsistency
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerifierPasting
 import CslibFrontierTests.QubitMeasurementFixture
 import Mathlib.Algebra.Field.ZMod
 
@@ -15,8 +15,8 @@ import Mathlib.Algebra.Field.ZMod
 
 set_option linter.privateModule false
 
-open Cslib.PCP.LowIndividualDegree Cslib.Quantum MvPolynomial Finset
-open scoped ComplexOrder MatrixOrder Matrix.Norms.L2Operator
+open Cslib.PCP Cslib.PCP.LowIndividualDegree Cslib.Quantum MvPolynomial Finset
+open scoped ComplexOrder MatrixOrder Matrix.Norms.L2Operator BigOperators Real
 open Matrix CslibFrontierTests.QubitMeasurementFixture
 
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
@@ -70,7 +70,7 @@ private noncomputable def inconsistentSlices (i : Fin 3) :
   if i = 2 then some linearSlice else some zeroSlice
 
 /-- Once two zero slices force the zero polynomial, an incompatible third slice fails. -/
-example : pasteOutcome nodes inconsistentSlices = none := by
+private theorem inconsistentSlices_fail : pasteOutcome nodes inconsistentSlices = none := by
   cases h : pasteOutcome nodes inconsistentSlices with
   | none => rfl
   | some p =>
@@ -93,6 +93,21 @@ example : pasteOutcome nodes inconsistentSlices = none := by
     rw [hzero, map_zero] at hv'
     exact (X_ne_zero (R := F) (0 : Fin 1)) hv'.symm
 
+
+open scoped Classical in
+/-- The three incompatible slices can agree with a line at at most one prefix. -/
+example :
+    (Finset.univ.filter fun u => LocallyInterpolable nodes inconsistentSlices u).card ≤ 1 := by
+  have hcard : 1 < (successfulSlices inconsistentSlices).card := by
+    have h : successfulSlices inconsistentSlices = Finset.univ := by
+      ext i
+      by_cases hi : i = 2 <;> simp [inconsistentSlices, hi]
+    rw [h, Finset.card_univ]
+    decide
+  have h := card_locallyInterpolable_mul_card_le nodes inconsistentSlices hcard
+    inconsistentSlices_fail
+  simp only [ZMod.card, Nat.pow_one, Nat.one_mul] at h
+  omega
 
 private def twoNodes : Fin 2 ↪ F :=
   (Fin.castSuccEmb (n := 2)).trans nodes
@@ -234,13 +249,9 @@ private theorem averaged_single_slice_effect (p : BoundedPolynomial F 1 0) :
   · simp [term, hp, one_div, Algebra.smul_def]
   · simp [term, hp]
 
-/-- The average samples each singleton slice uniformly. Only the slice at zero
-can produce the zero polynomial, and the remaining mass is failure. -/
-example :
-    (pasteSlices 1 singleSlice singleSlice_projective).effect (some zeroPaste) = 1 / 3 ∧
+private theorem averaged_single_slice_failure :
     (pasteSlices 1 singleSlice singleSlice_projective).effect none = 2 / 3 := by
   classical
-  refine ⟨by simp [averaged_single_slice_effect], ?_⟩
   have h := (pasteSlices 1 singleSlice singleSlice_projective).sum_effect
   rw [Fintype.sum_option] at h
   simp only [averaged_single_slice_effect, sum_ite_eq', mem_univ, ite_true] at h
@@ -265,3 +276,103 @@ example :
   · rw [Measurement.sequentialProjective_effect_succ, Measurement.sequentialProjective_effect_one]
     change (uniformProjection * diagonalProjection * uniformProjection) 0 1 = 1 / 4
     norm_num [diagonalProjection, uniformProjection, Matrix.mul_apply, Fin.sum_univ_two]
+
+private noncomputable def zeroVerifier (φ : AlgState ℂ) :
+    CommutingStrategy (Question F 1) (Question F 1) (Answer F 1) (Answer F 1) ℂ := by
+  classical
+  exact {
+    state := φ
+    alice q := Measurement.const (honest zeroPaste.val q)
+    bob q := Measurement.const (honest zeroPaste.val q)
+    commute _ _ _ _ := Commute.all _ _ }
+
+private theorem zeroVerifier_score (φ : AlgState ℂ) (b : Branch) :
+    (branchGame (F := F) 0 0 b).commutingWinProb (zeroVerifier φ) = 1 := by
+  classical
+  let reply := honest zeroPaste.val
+  have h (x y : Question F 1) :
+      (zeroVerifier φ).answers x y = PMF.pure (reply x, reply y) := by
+    ext ⟨a, c⟩
+    rw [CommutingStrategy.answers_apply, PMF.pure_apply]
+    by_cases ha : a = reply x <;> by_cases hc : c = reply y <;>
+      simp [zeroVerifier, CommutingStrategy.prob, Measurement.const, reply, ha, hc]
+  calc
+    _ = (branchGame (F := F) 0 0 b).quantumWinProb
+        (QuantumStrategy.ofDeterministic reply reply) := by
+      rw [TwoProverGame.commutingWinProb, TwoProverGame.quantumWinProb]
+      congr 1
+      funext x y
+      rw [h, QuantumStrategy.answers_ofDeterministic]
+    _ = 1 := by
+      rw [TwoProverGame.quantumWinProb_ofDeterministic]
+      exact winProb_branch_honest zeroPaste.val zeroPaste.prop b
+
+private theorem singleSlice_mismatch_zero (φ : AlgState ℂ) (u : Point F 0) (t : F) :
+    Measurement.successfulMismatch φ (evaluatePolynomialMeasurement (singleSlice t) u)
+      (decodedPoint (zeroVerifier φ).bob (Fin.snoc u t)) = 0 := by
+  classical
+  rw [evaluatePolynomialMeasurement, decodedPoint, Measurement.successfulMismatch_map_map]
+  refine sum_eq_zero fun a _ => sum_eq_zero fun b _ => ?_
+  by_cases ht : t = 0
+  · have hv : honest zeroPaste.val (.point (Fin.snoc u 0)) = Sum.inl (0 : F) := by
+      rw [honest_point]
+      simp [zeroPaste]
+    have hz : eval u zeroConstant.val = 0 := by simp [zeroConstant]
+    by_cases ha : a = some zeroConstant <;> by_cases hb : b = Sum.inl (0 : F) <;>
+      simp [singleSlice, zeroVerifier, Measurement.const, hv, hz, ht, ha, hb]
+  · by_cases ha : a = none <;>
+      simp [singleSlice, Measurement.const, ht, ha]
+
+/-- A one-slice paste passes the degree-zero threshold. The successful effect has
+mass one third and agrees with the honest point answer. The two thirds of failure
+mass contribute zero to the verifier-pasting mismatch bound. -/
+example (φ : AlgState ℂ) :
+    (pasteSlices 1 singleSlice singleSlice_projective).effect (some zeroPaste) = 1 / 3 ∧
+    (pasteSlices 1 singleSlice singleSlice_projective).effect none = 2 / 3 ∧
+    (𝔼 u : Point F 0, 𝔼 t : F, Measurement.successfulMismatch φ
+      (evaluatePolynomialMeasurement (pasteSlices 1 singleSlice singleSlice_projective)
+        (Fin.snoc u t)) (decodedPoint (zeroVerifier φ).bob (Fin.snoc u t))) ≤ 0 := by
+  classical
+  refine ⟨by simp [averaged_single_slice_effect], averaged_single_slice_failure, ?_⟩
+  have hpair : (𝔼 x : F, 𝔼 y : F,
+      Measurement.successfulPairDefect φ (singleSlice x) (singleSlice y)) ≤ 0 := by
+    simp [Measurement.successfulPairDefect, mul_comm]
+  have hcopy : (𝔼 x : F, Measurement.successfulCopyDefect φ (singleSlice x) (singleSlice x)) ≤ 0 :=
+    by simp [Measurement.successfulCopyDefect]
+  have hp : (𝔼 u : Point F 0, 𝔼 t : F, Measurement.successfulMismatch φ
+      (evaluatePolynomialMeasurement (singleSlice t) u)
+      (decodedPoint (zeroVerifier φ).bob (Fin.snoc u t))) ≤ 0 := by
+    simp [singleSlice_mismatch_zero]
+  have h := average_pastedPointMismatch_le_of_verifier 1 (zeroVerifier φ)
+    singleSlice singleSlice singleSlice_projective singleSlice_projective
+    (fun _ _ _ _ => Commute.all _ _) (fun _ _ _ _ => Commute.all _ _)
+    hpair hcopy hp
+  norm_num [zeroVerifier_score] at h ⊢
+  exact h
+
+open scoped Classical in
+/-- Even a successful slice cannot meet the degree-one threshold on a single
+sample. Completion puts the resulting unit failure effect on the chosen polynomial. -/
+example :
+    let M (_ : F) : Measurement (Option (BoundedPolynomial F 1 1)) ℂ :=
+      Measurement.const (some zeroSlice)
+    let hp (_ : F) := Measurement.isProjective_const (A := ℂ) (some zeroSlice)
+    (pasteSlices 1 M hp).effect none = 1 ∧
+      (completedPaste 1 M hp productPoly).effect productPoly = 1 := by
+  intro M hp
+  have hs (p : BoundedPolynomial F 2 1) : (pasteSlices 1 M hp).effect (some p) = 0 := by
+    rw [pasteSlices_effect]
+    refine Finset.sum_eq_zero fun x _ => ?_
+    rw [pasteProjectiveSlices_effect_some]
+    suffices hempty : (Finset.univ.filter fun g : Fin 1 → Option (BoundedPolynomial F 1 1) =>
+        1 < (successfulSlices g).card ∧ FitsSlices x g p) = ∅ by
+      rw [hempty, Finset.sum_empty, smul_zero]
+    apply Finset.eq_empty_iff_forall_notMem.mpr
+    intro g hg
+    have hcard := Finset.card_le_univ (successfulSlices g)
+    simp only [Fintype.card_fin] at hcard
+    exact (not_lt_of_ge hcard) (Finset.mem_filter.mp hg).2.1
+  have hf : (pasteSlices 1 M hp).effect none = 1 := by
+    rw [Measurement.effect_none_eq_one_sub_successfulEffect]
+    simp [Measurement.successfulEffect, hs]
+  exact ⟨hf, by rw [completedPaste_effect]; simp [hf, hs]⟩

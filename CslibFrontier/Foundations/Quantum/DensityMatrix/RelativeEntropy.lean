@@ -55,6 +55,23 @@ protected theorem SupportLE.refl (ρ : Matrix ι ι ℂ) : SupportLE ρ ρ :=
   fun _ h => h
 
 omit [DecidableEq ι] in
+/-- Support inclusion is transitive. -/
+protected theorem SupportLE.trans {ρ σ τ : Matrix ι ι ℂ}
+    (hρσ : SupportLE ρ σ) (hστ : SupportLE σ τ) : SupportLE ρ τ :=
+  fun x hx => hρσ x (hστ x hx)
+
+omit [DecidableEq ι] in
+/-- The support of a positive semidefinite matrix is contained in that of every
+larger positive semidefinite matrix. -/
+theorem SupportLE.of_le {σ τ : Matrix ι ι ℂ} (hσ : σ.PosSemidef) (h : σ ≤ τ) :
+    SupportLE σ τ := by
+  intro x hx
+  apply hσ.dotProduct_mulVec_zero_iff.mp
+  have hdiff := ((Matrix.le_iff.mp h).dotProduct_mulVec_nonneg x)
+  rw [sub_mulVec, dotProduct_sub, hx, dotProduct_zero, zero_sub, neg_nonneg] at hdiff
+  exact le_antisymm hdiff (hσ.dotProduct_mulVec_nonneg x)
+
+omit [DecidableEq ι] in
 /-- Support inclusion is preserved by nonnegative weighted sums of the pairs when the
 reference matrices are positive semidefinite. -/
 theorem SupportLE.sum_smul {κ : Type*} [Fintype κ] (w : κ → ℝ) (hw : ∀ k, 0 ≤ w k)
@@ -431,6 +448,24 @@ theorem relativeEntropy_nonneg {ρ σ : Matrix ι ι ℂ} (hρ : IsDensityMatrix
     exact_mod_cast relativeEntropyReal_nonneg hρ hσ h
   · rw [relativeEntropy_of_not_supportLE h]
     exact le_top
+
+/-- Scaling the reference by a positive constant subtracts the logarithm of that
+constant times the source trace. The identity uses only the support of the source. -/
+theorem relativeEntropy_smul_right {ρ σ : Matrix ι ι ℂ}
+    (hρ : ρ.IsHermitian) (hσ : σ.IsHermitian) {c : ℝ} (hc : 0 < c) :
+    relativeEntropy ρ (c • σ) =
+      relativeEntropy ρ σ + ((-(Real.log c * ρ.trace.re) : ℝ) : WithTop ℝ) := by
+  have hsupp : SupportLE ρ (c • σ) ↔ SupportLE ρ σ := by
+    simp only [SupportLE, smul_mulVec, smul_eq_zero, hc.ne', false_or]
+  by_cases hs : SupportLE ρ σ
+  · rw [relativeEntropy_of_supportLE (hsupp.mpr hs), relativeEntropy_of_supportLE hs,
+      ← WithTop.coe_add, WithTop.coe_eq_coe]
+    simp only [relativeEntropyReal, mul_sub, trace_sub, Complex.sub_re]
+    rw [trace_mul_log_smul_re hρ hσ hs hc]
+    ring
+  · rw [relativeEntropy_of_not_supportLE hs,
+      relativeEntropy_of_not_supportLE (fun h => hs (hsupp.mp h))]
+    simp
 
 /-- When relative entropy is finite, fidelity is at least the exponential of minus half
 the entropy in nats. -/

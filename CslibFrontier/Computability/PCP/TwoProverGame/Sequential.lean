@@ -33,7 +33,7 @@ variable {A X Y α β : Type*} [Fintype α] [Fintype β] [Ring A] [StarRing A] [
   [StarOrderedRing A] [Algebra ℂ A]
 
 /-- Ask Alice all the questions of the input tuple in order, and ask Bob his original question. -/
-noncomputable def sequential (S : CommutingStrategy X Y α β A) (k : ℕ)
+@[expose] noncomputable def sequential (S : CommutingStrategy X Y α β A) (k : ℕ)
     (hM : ∀ x, (S.alice x).IsProjective) : CommutingStrategy (Fin k → X) Y (Fin k → α) β A where
   state := S.state
   alice xs := Measurement.sequentialProjective (fun j => S.alice (xs j)) (fun j => hM (xs j))

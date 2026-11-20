@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+import CslibFrontier.Crypto.Protocols.SSP.ParFinLazy
 import CslibFrontier.Crypto.Protocols.UC.JointState
 import CslibFrontierTests.Crypto.UCMultiSession
 
@@ -35,7 +36,7 @@ def wrongSharedCoinFunc :
   onInput _ _ s := pure (some s, s)
   onBackdoor _ s := pure ((), s)
 
-/-- Single-session coin machine used to witness lazy sampling (`run_parFinLazy_eq_parFin`). -/
+/-- Single-session coin machine used to witness lazy sampling (`SSP.run_parFinLazy_eq_parFin`). -/
 def coinMachine : Machine OracleSpec.empty (fun _ : Unit => Bool) where
   State := Bool
   init := (fun r : Fin 2 => decide (r.val = 0)) <$> ProbComp.unifFin 1
@@ -391,7 +392,7 @@ theorem demux_nontrivial_corrupted_witness :
   rw [← exec_compose_toJoint_multiSession]
   exact hL
 
-/-- Witness 4 (lazy sampling via `run_parFinLazy_eq_parFin` at `m = 2` touching `1, 0, 1`):
+/-- Witness 4 (lazy sampling via `SSP.run_parFinLazy_eq_parFin` at `m = 2` touching `1, 0, 1`):
 session `1` keeps the same coin across two calls while session `0` samples independently. -/
 theorem lazy_sampling_witness :
     let prog : ProbOracleComp
@@ -400,7 +401,7 @@ theorem lazy_sampling_witness :
       let b₀ ← ProbOracleComp.query ((0 : Fin 2), ())
       let b₁' ← ProbOracleComp.query ((1 : Fin 2), ())
       pure (decide (b₁ = b₁' ∧ b₀ = b₁))
-    ((parFinLazy (fun _ : Fin 2 => coinMachine)).run prog).eval true = (2 : ENNReal)⁻¹ ∧
+    ((SSP.parFinLazy (fun _ : Fin 2 => coinMachine)).run prog).eval true = (2 : ENNReal)⁻¹ ∧
       ((SSP.parFin (fun _ : Fin 2 => coinMachine)).run prog).eval true = (2 : ENNReal)⁻¹ := by
   intro prog
   have hE : ((SSP.parFin (fun _ : Fin 2 => coinMachine)).run prog).eval true =
@@ -418,7 +419,7 @@ theorem lazy_sampling_witness :
     rw [← mul_add]
     simp [ENNReal.inv_two_add_inv_two]
   refine ⟨?_, hE⟩
-  rw [run_parFinLazy_eq_parFin]
+  rw [SSP.run_parFinLazy_eq_parFin]
   exact hE
 
 /-- Witness 5 (creation by a backdoor query): first touching copy `0` via backdoor query `⟨0, ()⟩`
