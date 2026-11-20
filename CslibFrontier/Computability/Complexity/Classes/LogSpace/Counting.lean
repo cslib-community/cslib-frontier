@@ -43,7 +43,7 @@ variable {α : Type}
 
 /-- A given counting machine realizes the accepting count in logarithmic workspace.
 The finite clock is chosen for each input because the count is stable after every branch halts. -/
-def _root_.Turing.MultiTapeCTM.CountsInLogSpace {k : ℕ} {State : Type}
+@[expose] def _root_.Turing.MultiTapeCTM.CountsInLogSpace {k : ℕ} {State : Type}
     (M : MultiTapeCTM k Bool State) (enc : α ↪ List Bool) (f : α → ℕ) : Prop :=
   ∃ c : ℕ, ∀ a,
     M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1)) ∧
@@ -51,13 +51,13 @@ def _root_.Turing.MultiTapeCTM.CountsInLogSpace {k : ℕ} {State : Type}
         f a = M.acceptCount t (Cfg.init M.initial (enc a))
 
 /-- The accepting branch counts of finite logspace counting machines. -/
-def SharpL (enc : α ↪ List Bool) : Set (α → ℕ) :=
+@[expose] def SharpL (enc : α ↪ List Bool) : Set (α → ℕ) :=
   {f | ∃ (k : ℕ) (State : Type) (_ : Finite State) (M : MultiTapeCTM k Bool State),
     M.CountsInLogSpace enc f}
 
 /-- Unambiguous logarithmic space. There is one accepting branch on members and none on
 nonmembers. -/
-def UL (enc : α ↪ List Bool) : Set (Set α) :=
+@[expose] def UL (enc : α ↪ List Bool) : Set (Set α) :=
   {A | ∃ f ∈ SharpL enc, (∀ a, f a ≤ 1) ∧ ∀ a, a ∈ A ↔ 0 < f a}
 
 /-- An unambiguous logspace witness yields an NL witness by forgetting transition
