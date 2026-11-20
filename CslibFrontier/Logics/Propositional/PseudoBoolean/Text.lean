@@ -30,12 +30,12 @@ extended as described below, producing the abstract syntax checked by
   constraints, the derivation steps, `output NONE;`, `conclusion UNSAT : id;` and
   `end pseudo-Boolean proof;`.
 
-**Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§2.1
-and §6.1 of the VeriPB/CakePB documentation for the SAT Competition 2026), with three
-extensions. First, the line `f N;` is optional: the kernel format requires it, but a proof
-without it is accepted and checked against the parsed formula. The other two extensions,
-`del id` and `rup` without hints, are described under **Steps**. So a proof accepted here need
-not be a kernel proof.
+**Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1
+of the VeriPB/CakePB documentation, 22 June 2026 edition), with three extensions. First, the
+line `f N;` is optional, as in the general format (§4.1). The kernel format requires it as the
+first command after the header (§6.1), but a proof without it is accepted and checked against
+the parsed formula. The other two extensions, `del id` and `rup` without hints, are described
+under **Steps**. So a proof accepted here need not be a kernel proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
@@ -58,7 +58,7 @@ objectives, other outputs and conclusions) is rejected.
 parses to a formula with no 0/1 solution. This is a guarantee about the text and the formula the
 parser returns: the parsers are trusted to read the files as intended, and nothing is said about
 compiled code. It is smaller than the end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB
-documentation for the SAT Competition 2026), which also covers the execution of its compiled
+documentation, 22 June 2026 edition), which also covers the execution of its compiled
 machine code and the parsing of DIMACS input.
 
 ## Main definitions

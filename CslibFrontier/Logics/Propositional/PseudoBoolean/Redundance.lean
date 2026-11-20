@@ -35,7 +35,7 @@ a contradiction, after which its constraints are dropped; a block is checked by
 `Cslib.Logic.PL.VeriPB.subproofRefutes`, as a `pbc` subproof is. The step is
 accepted when the subproof closes with a contradiction (then `C` follows outright), or when every
 goal is covered (`Cslib.Logic.PL.VeriPB.goalCovered`), following the autoproven goals of the
-kernel format (§5.5.1 of the VeriPB/CakePB documentation for the SAT Competition 2026): trivially
+kernel format (§5.5.1 of the VeriPB/CakePB documentation, 22 June 2026 edition): trivially
 true after normalization, in the database up to the order of terms, proved by a `proofgoal`
 block, or weakly syntactically implied by `¬C` (`Cslib.Logic.PL.VeriPB.weakImplies`). A database
 goal `D|ω` is also covered when `ω` sets every literal of `D` it touches true, or when `D` weakly
