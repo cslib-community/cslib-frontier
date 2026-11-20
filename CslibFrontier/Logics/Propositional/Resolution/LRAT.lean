@@ -34,6 +34,8 @@ on, in post-order.
 
 * `Cslib.Logic.PL.CNF.Derivation.checkLRAT_toLRAT`: the checker accepts the certificate of a
   tree-like refutation.
+* `Cslib.Logic.PL.CNF.Derivation.size_toLRAT`: the certificate of a tree-like refutation has one
+  step for each leaf: a RUP step for each resolution step, and the final empty-clause step.
 -/
 
 @[expose] public section
@@ -97,6 +99,25 @@ one past the last clause of the formula, and an empty-clause step hinting its co
 def toLRAT (d : φ.Derivation []) : Array LRAT.IntAction :=
   let r := d.lratSteps (φ.length + 1)
   (r.actions ++ [Std.Tactic.BVDecide.LRAT.Action.addEmpty r.next #[r.id]]).toArray
+
+
+/-- The steps of the certificate of a tree-like derivation: one for each resolution step, so one
+fewer than its leaves. -/
+private theorem length_actions_lratSteps_add_one : {c : Clause ℕ} → (d : φ.Derivation c) → (k : ℕ) →
+    (d.lratSteps k).actions.length + 1 = d.toDecisionTree.leafCount
+  | _, mem _, _ => rfl
+  | _, resolvent _ d₁ d₂ _ _, k => by
+    have h₁ := d₁.length_actions_lratSteps_add_one k
+    have h₂ := d₂.length_actions_lratSteps_add_one (d₁.lratSteps k).next
+    simp only [lratSteps, toDecisionTree, DecisionTree.leafCount, List.length_append,
+      List.length_singleton]
+    omega
+
+/-- **The certificate of a tree-like refutation has one step for each of its leaves**: a RUP step
+for each resolution step, and the final empty-clause step. -/
+theorem size_toLRAT (d : φ.Derivation []) : d.toLRAT.size = d.toDecisionTree.leafCount := by
+  simp only [toLRAT, List.size_toArray, List.length_append, List.length_singleton]
+  exact d.length_actions_lratSteps_add_one _
 
 end Derivation
 

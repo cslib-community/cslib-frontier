@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF.Uniform
+public import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
 # Conditional Uniform Distributions on Finite Subsets and Rejection Resampling
@@ -31,7 +32,7 @@ public section
 
 namespace Cslib.Probability.PMF
 
-open scoped ENNReal
+open scoped BigOperators ENNReal
 
 /-- **Conditional-uniform subset resampling identity**:
 If `E_curr ⊆ E_prev` are nonempty finite sets, then starting from a sample drawn uniformly from
@@ -195,5 +196,37 @@ theorem pmf_eq_uniformOfFinset_of_ite_const {Θ : Type*} [DecidableEq Θ]
   ext θ
   rw [hν θ, hc, PMF.uniformOfFinset_apply]
   split_ifs <;> rfl
+
+/-- Conditioning a uniform sample on membership in a nonempty subset increases the
+average of a score in `[0, 1]` by at most the excluded probability. -/
+theorem expect_finset_le_expect_add_compl {α : Type*} [Fintype α] [Nonempty α]
+    (s : Finset α) (hs : s.Nonempty) (f : α → ℝ) (h₀ : ∀ a, 0 ≤ f a) (h₁ : ∀ a, f a ≤ 1) :
+    (𝔼 a ∈ s, f a) ≤ (𝔼 a, f a) + ((uniformOfFintype α).toOuterMeasure {a | a ∉ s}).toReal := by
+  classical
+  have hcard : s.card ≤ Fintype.card α := Finset.card_le_univ s
+  have hs0 : (0 : ℝ) < s.card := by exact_mod_cast hs.card_pos
+  have hα0 : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
+  have hle := Finset.expect_le hs (fun a _ => h₁ a)
+  have hsum : ∑ a ∈ s, f a ≤ ∑ a, f a :=
+    Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun a _ _ => h₀ a
+  have hfilter : Finset.univ.filter (fun a : α => a ∉ s) = Finset.univ \ s := by
+    ext a
+    simp
+  rw [toOuterMeasure_uniformOfFintype_toReal]
+  change (𝔼 a ∈ s, f a) ≤ (𝔼 a, f a) +
+    ((Finset.univ.filter (fun a : α => a ∉ s)).card : ℝ) / Fintype.card α
+  rw [hfilter, Finset.card_sdiff_of_subset (Finset.subset_univ s), Finset.card_univ,
+    Nat.cast_sub hcard]
+  have hdiff : (0 : ℝ) ≤ (Fintype.card α - s.card : ℝ) / Fintype.card α := by
+    exact div_nonneg (sub_nonneg.mpr (by exact_mod_cast hcard)) hα0.le
+  rw [Finset.expect_eq_sum_div_card] at hle
+  rw [Finset.expect_eq_sum_div_card, Fintype.expect_eq_sum_div_card]
+  calc
+    _ = (∑ a ∈ s, f a) / (Fintype.card α : ℝ) +
+          ((∑ a ∈ s, f a) / s.card) * (((Fintype.card α : ℝ) - s.card) / Fintype.card α) := by
+      field_simp [hs0.ne', hα0.ne']
+      ring
+    _ ≤ _ := add_le_add (div_le_div_of_nonneg_right hsum hα0.le)
+      (mul_le_of_le_one_left hdiff hle)
 
 end Cslib.Probability.PMF

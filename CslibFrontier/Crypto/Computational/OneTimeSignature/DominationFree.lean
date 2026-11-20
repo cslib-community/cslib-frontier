@@ -260,40 +260,40 @@ theorem winternitzDigitList_eq_ofFn (d n0 n1 m : ℕ) :
     simp [getElem_winternitzDigitList]
 
 private theorem radixDigitList_polyTime :
-    ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2)
+    ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2)
       (encPair encNat (encPair encUnary encNat)) (encList encNat) := by
   let encIn := encPair encNat (encPair encUnary encNat)
-  have hd : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.1) encIn encNat :=
-    ComputableTidilyInPolyTime.fst encNat (encPair encUnary encNat)
-  have hwidth : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.1) encIn encUnary :=
-    (ComputableTidilyInPolyTime.fst encUnary encNat).comp
-      (ComputableTidilyInPolyTime.snd encNat (encPair encUnary encNat))
-  have hx : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.2) encIn encNat :=
-    (ComputableTidilyInPolyTime.snd encUnary encNat).comp
-      (ComputableTidilyInPolyTime.snd encNat (encPair encUnary encNat))
-  have hrange : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => List.range p.2.1)
+  have hd : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => p.1) encIn encNat :=
+    ComputableInPolyTime.fst encNat (encPair encUnary encNat)
+  have hwidth : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.1) encIn encUnary :=
+    (ComputableInPolyTime.fst encUnary encNat).comp
+      (ComputableInPolyTime.snd encNat (encPair encUnary encNat))
+  have hx : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.2) encIn encNat :=
+    (ComputableInPolyTime.snd encUnary encNat).comp
+      (ComputableInPolyTime.snd encNat (encPair encUnary encNat))
+  have hrange : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => List.range p.2.1)
       encIn (encList encUnary) :=
-    ComputableTidilyInPolyTime.range.comp hwidth
-  refine ComputableTidilyInPolyTime.mapWithInput hrange ?_
-  have hd1 : ComputableTidilyInPolyTime
+    ComputableInPolyTime.range.comp hwidth
+  refine ComputableInPolyTime.mapWithInput hrange ?_
+  have hd1 : ComputableInPolyTime
       (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.1 + 1) (encPair encIn encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_add'
-      (hd.comp (ComputableTidilyInPolyTime.fst encIn encUnary))
-      (ComputableTidilyInPolyTime.const 1)
-  have hi : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_add'
+      (hd.comp (ComputableInPolyTime.fst encIn encUnary))
+      (ComputableInPolyTime.const 1)
+  have hi : ComputableInPolyTime
       (fun q : (ℕ × ℕ × ℕ) × ℕ => q.2) (encPair encIn encUnary) encUnary :=
-    ComputableTidilyInPolyTime.snd encIn encUnary
-  have hpow : ComputableTidilyInPolyTime
+    ComputableInPolyTime.snd encIn encUnary
+  have hpow : ComputableInPolyTime
       (fun q : (ℕ × ℕ × ℕ) × ℕ => (q.1.1 + 1) ^ q.2) (encPair encIn encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_pow' hd1 hi
-  have hxq : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_pow' hd1 hi
+  have hxq : ComputableInPolyTime
       (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.2.2) (encPair encIn encUnary) encNat :=
-    hx.comp (ComputableTidilyInPolyTime.fst encIn encUnary)
-  have hdiv : ComputableTidilyInPolyTime
+    hx.comp (ComputableInPolyTime.fst encIn encUnary)
+  have hdiv : ComputableInPolyTime
       (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.2.2 / (q.1.1 + 1) ^ q.2)
       (encPair encIn encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_div.comp (hxq.prod hpow)
-  exact ComputableTidilyInPolyTime.binary_mod.comp (hdiv.prod hd1)
+    ComputableInPolyTime.binary_div.comp (hxq.prod hpow)
+  exact ComputableInPolyTime.binary_mod.comp (hdiv.prod hd1)
 
 /-- `winternitzDigitList` is computable in polynomial time when `d` and `m` are encoded in
 binary (`encNat`) and the digit counts `n0` and `n1` are encoded in unary (`encUnary`). -/
@@ -301,41 +301,40 @@ theorem winternitzDigitList_polyTime :
     ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ => winternitzDigitList p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair encNat (encPair encUnary (encPair encUnary encNat))) (encList encNat) := by
-  refine ComputableInPolyTime.of_tidy ?_
   let encIn := encPair encNat (encPair encUnary (encPair encUnary encNat))
-  have hd : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.1) encIn encNat :=
-    ComputableTidilyInPolyTime.fst encNat (encPair encUnary (encPair encUnary encNat))
-  have hn0 : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.1) encIn encUnary :=
-    (ComputableTidilyInPolyTime.fst encUnary (encPair encUnary encNat)).comp
-      (ComputableTidilyInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat)))
-  have hn1 : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.2.1) encIn encUnary :=
-    (ComputableTidilyInPolyTime.fst encUnary encNat).comp
-      ((ComputableTidilyInPolyTime.snd encUnary (encPair encUnary encNat)).comp
-        (ComputableTidilyInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat))))
-  have hm : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.2.2) encIn encNat :=
-    (ComputableTidilyInPolyTime.snd encUnary encNat).comp
-      ((ComputableTidilyInPolyTime.snd encUnary (encPair encUnary encNat)).comp
-        (ComputableTidilyInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat))))
-  have hm0 : ComputableTidilyInPolyTime
+  have hd : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.1) encIn encNat :=
+    ComputableInPolyTime.fst encNat (encPair encUnary (encPair encUnary encNat))
+  have hn0 : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.1) encIn encUnary :=
+    (ComputableInPolyTime.fst encUnary (encPair encUnary encNat)).comp
+      (ComputableInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat)))
+  have hn1 : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.2.1) encIn encUnary :=
+    (ComputableInPolyTime.fst encUnary encNat).comp
+      ((ComputableInPolyTime.snd encUnary (encPair encUnary encNat)).comp
+        (ComputableInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat))))
+  have hm : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.2.2) encIn encNat :=
+    (ComputableInPolyTime.snd encUnary encNat).comp
+      ((ComputableInPolyTime.snd encUnary (encPair encUnary encNat)).comp
+        (ComputableInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat))))
+  have hm0 : ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2.2) encIn (encList encNat) :=
     radixDigitList_polyTime.comp (hd.prod (hn0.prod hm))
-  have hsum : ComputableTidilyInPolyTime
+  have hsum : ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ => (radixDigitList p.1 p.2.1 p.2.2.2).sum) encIn encNat :=
-    ComputableInPolyTime.binary_sum.tidy.comp hm0
-  have hdn0 : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_sum.comp hm0
+  have hdn0 : ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ => p.1 * p.2.1) encIn encNat :=
-    ComputableTidilyInPolyTime.binary_mul'
-      hd (ComputableTidilyInPolyTime.unary_to_binary.comp hn0)
-  have hcs : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_mul'
+      hd (ComputableInPolyTime.unary_to_binary.comp hn0)
+  have hcs : ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ => p.1 * p.2.1 - (radixDigitList p.1 p.2.1 p.2.2.2).sum)
       encIn encNat :=
-    ComputableTidilyInPolyTime.binary_sub' hdn0 hsum
-  have hm1 : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_sub' hdn0 hsum
+  have hm1 : ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ =>
         radixDigitList p.1 p.2.2.1 (p.1 * p.2.1 - (radixDigitList p.1 p.2.1 p.2.2.2).sum))
       encIn (encList encNat) :=
     radixDigitList_polyTime.comp (hd.prod (hn1.prod hcs))
-  exact ComputableTidilyInPolyTime.listAppend' hm0 hm1
+  exact ComputableInPolyTime.listAppend' hm0 hm1
 
 private theorem radixDigits_one_val (n x : ℕ) (i : Fin n) :
     (radixDigits 1 n x i).val = (x.testBit i.val).toNat := by

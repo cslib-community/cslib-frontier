@@ -127,8 +127,8 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn {pair
     hnumerator hdensity hinverseGap hgap
   have hbound : PolynomiallyBounded
       (fun n => 2 * inverseGap n * dyadicSize (densityBound n)) :=
-    ((PolynomiallyBounded.const 2).mul hinverseGap.tidy.polynomiallyBounded).mul
-      (hdensity.trans .unary_dyadicSize).tidy.polynomiallyBounded
+    ((PolynomiallyBounded.const 2).mul hinverseGap.polynomiallyBounded).mul
+      (hdensity.trans .unary_dyadicSize).polynomiallyBounded
   have hmass := maskedSample_dyadic_mass_ge_eventually
     (fun n => pair.latentSample n) (fun _ => id) (fun _ => Prod.snd)
     realization.length (fun n => 2 * inverseGap n * dyadicSize (densityBound n)) hbound

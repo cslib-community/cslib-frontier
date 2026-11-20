@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter.Unary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
@@ -39,7 +40,7 @@ namespace Turing.MultiTapeTM
 in time `O(n+1)`, including its preparation phase. -/
 theorem exists_stepCounter : Nonempty StepCounter := by
   classical
-  obtain ⟨c, ⟨k, Q, hfinite, conv, hconv⟩, _⟩ := ComputableInO.natToUnary.tidy
+  obtain ⟨c, ⟨k, Q, hfinite, conv, hconv⟩, _⟩ := Internal.NormalForm.inO ComputableInO.natToUnary
   let := hfinite
   let prep := conv.outputToWord
   let tail := StepCounter.countdown.extendTapes (tapeEmb (Fin.last k))
