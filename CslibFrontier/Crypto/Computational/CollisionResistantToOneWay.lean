@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.CollisionResistant
 public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Computational.WordSignature
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Crypto.Computational.MerkleDamgard
 import CslibFrontier.Crypto.Computational.Rompel
 import CslibFrontier.Crypto.Negligible
@@ -89,8 +90,11 @@ theorem polyTime_keyDigest {H : List Bool → List Bool → List Bool}
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits) :
     ComputableInPolyTime (keyDigest H) encBits encBits := by
-  unfold keyDigest
-  polytime
+  have hsplit := (ComputableInPolyTime.unary_div_const 3).comp
+    ComputableInPolyTime.length_bits
+  have hkey := ComputableInPolyTime.id'.bitsTakeWithInput hsplit
+  have hmessage := ComputableInPolyTime.id'.bitsDropWithInput hsplit
+  exact ComputableInPolyTime.bitsAppend hkey (hH.comp (hkey.prod hmessage))
 
 /-- The collision finder built from an inverter. On key `k` at parameter `n`, it samples a message
 `x` of length `2 n + r`, asks the inverter for a preimage of `k ++ H k x` at parameter `3 n + r`,
@@ -109,9 +113,26 @@ theorem isPPT_finder {H : List Bool → List Bool → List Bool} {adversary : In
       (encPair encBits encBits) encBits)
     (hadversary : IsPPT encBits adversary) (r : ℕ) :
     IsPPT (encPair encBits encBits) (finder H adversary r) := by
-  have hHt := hH.tidy
-  unfold finder
-  ppt
+  change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
+    (fun p => finder H adversary r p.1 p.2)
+  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+  have hsample := ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hp.fst')
+      (ComputableInPolyTime.const r))
+  let middle := encPair (encPair encUnary encBits) encBits
+  have hm := ComputableInPolyTime.id' (encIn := middle)
+  have hprepare := (ComputableInPolyTime.unary_add'
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 3) hm.fst'.fst')
+    (ComputableInPolyTime.const r)).prod
+    (ComputableInPolyTime.bitsAppend hm.fst'.snd' (hH.comp (hm.fst'.snd'.prod hm.snd')))
+  have hinvert := IsPPTOn.preprocess hadversary hprepare
+  have hq := ComputableInPolyTime.id' (encIn := encPair middle encBits)
+  have hthird := (ComputableInPolyTime.unary_div_const 3).comp
+    (ComputableInPolyTime.length_bits.comp hq.snd')
+  have hreturn := hq.fst'.snd'.prod (hq.snd'.bitsDropWithInput hthird)
+  simpa only [finder, bind_pure_comp] using
+    IsPPTOn.bind_with hsample (IsPPTOn.map_with hinvert hreturn)
 
 /-- On a key followed by a message of length `2 |k| + r` with `r < 3`, the construction outputs
 the key followed by the message's digest. -/

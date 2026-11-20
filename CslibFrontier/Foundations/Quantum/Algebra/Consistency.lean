@@ -54,6 +54,31 @@ variable {α A : Type*} [Fintype α] [Ring A] [StarRing A] [PartialOrder A] [Sta
 noncomputable def agreement (φ : AlgState A) (P Q : Measurement α A) : ℝ :=
   ∑ a, (φ (P.effect a * Q.effect a)).re
 
+omit [StarRing A] [StarOrderedRing A] in
+/-- Agreement of two postprocessed measurements sums exactly the joint coefficients whose
+decoded outcomes match. -/
+theorem agreement_map_map {β γ : Type*} [Fintype β] [Fintype γ] [DecidableEq γ]
+    [IsOrderedAddMonoid A] (φ : AlgState A) (P : Measurement α A) (Q : Measurement β A)
+    (f : α → γ) (g : β → γ) :
+    agreement φ (P.map f) (Q.map g) =
+      ∑ a, ∑ b, if f a = g b then (φ (P.effect a * Q.effect b)).re else 0 := by
+  simp only [agreement, map_effect, sum_mul, mul_sum, map_sum, Complex.re_sum, sum_filter]
+  let c (z : γ) (b : β) (a : α) :=
+    (φ ((if f a = z then P.effect a else 0) * (if g b = z then Q.effect b else 0))).re
+  change (∑ z, ∑ b, ∑ a, c z b a) = _
+  calc
+    _ = ∑ b, ∑ a, ∑ z, c z b a := by
+      rw [sum_comm]
+      exact sum_congr rfl fun _ _ => sum_comm
+    _ = ∑ a, ∑ b, ∑ z, c z b a := sum_comm
+    _ = _ := by
+      refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
+      have hc (z : γ) : c z b a =
+          if f a = z then if g b = z then (φ (P.effect a * Q.effect b)).re else 0 else 0 := by
+        dsimp only [c]
+        split_ifs <;> simp
+      simp only [hc, sum_ite_eq', mem_univ, ite_true, eq_comm]
+
 variable [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
   [NonnegSpectrumClass ℝ A]
 

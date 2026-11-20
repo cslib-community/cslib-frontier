@@ -248,15 +248,24 @@ theorem quantumWinProb_reindex {ι' κ' : Type*} [Fintype ι'] [DecidableEq ι']
 
 end WinProb
 
-/-- The quantum embedding of a deterministic strategy wins with its classical probability. -/
-theorem quantumWinProb_ofDeterministic [DecidableEq A] [DecidableEq B] (ha : X → A)
-    (hb : Y → B) : G.quantumWinProb (QuantumStrategy.ofDeterministic ha hb) = G.winProb ha hb := by
-  rw [quantumWinProb, answersWinProb, winProb]
-  simp_rw [QuantumStrategy.answers_ofDeterministic, PMF.pure_map]
+omit [Fintype A] [Fintype B] in
+/-- Point-mass answer laws reproduce the deterministic winning probability. -/
+theorem answersWinProb_pure (ha : X → A) (hb : Y → B) :
+    G.answersWinProb (fun x y => PMF.pure (ha x, hb y)) = G.winProb ha hb := by
+  rw [answersWinProb, winProb]
+  simp_rw [PMF.pure_map]
   rw [show (fun q => PMF.pure (q, ha q.1, hb q.2)) =
       PMF.pure ∘ fun q : X × Y => (q, ha q.1, hb q.2) from rfl, PMF.bind_pure_comp,
     PMF.toOuterMeasure_map_apply]
   rfl
+
+/-- The quantum embedding of a deterministic strategy wins with its classical probability. -/
+theorem quantumWinProb_ofDeterministic [DecidableEq A] [DecidableEq B] (ha : X → A)
+    (hb : Y → B) : G.quantumWinProb (QuantumStrategy.ofDeterministic ha hb) = G.winProb ha hb := by
+  rw [← G.answersWinProb_pure ha hb, quantumWinProb]
+  congr 1
+  funext x y
+  exact QuantumStrategy.answers_ofDeterministic ha hb x y
 
 /-- The **entangled value** `ω*(G)` of a game: the supremum of the winning probability of quantum
 strategies over all finite dimensions

@@ -91,7 +91,7 @@ theorem poly_idxOf {α β : Type} [DecidableEq β]
     (hl : ComputableInPolyTime list e (encList eb))
     (hv : ComputableInPolyTime value e eb) :
     ComputableInPolyTime (fun x => (list x).idxOf (value x)) e encUnary :=
-  .of_tidy (ComputableTidilyInPolyTime.idxOfWithInput hl.tidy hv.tidy)
+  (ComputableInPolyTime.idxOfWithInput hl hv)
 
 attribute [local fun_prop] poly_zipIdx poly_product poly_idxOf
 
@@ -115,8 +115,8 @@ theorem poly_readRecord :
       (encPair encBuffer encRecord)
       (encList encBool) := by fun_prop
   -- The realizing lookup saturates its binary index at the actual buffer length.
-  exact .of_tidy (ComputableTidilyInPolyTime.listGetD_binary false hlist.tidy
-    (ComputableTidilyInPolyTime.unary_to_binary.comp hindex.tidy))
+  exact (ComputableInPolyTime.listGetD_binary false hlist
+    (ComputableInPolyTime.unary_to_binary.comp hindex))
 
 attribute [local fun_prop] poly_readRecord
 
