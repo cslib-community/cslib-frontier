@@ -52,6 +52,7 @@ public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
 public import CslibFrontier.Algorithms.Lean.DPLL
 public import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
+public import CslibFrontier.Algorithms.Lean.DPLL.Trail
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Client
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Memory
@@ -124,6 +125,7 @@ public import CslibFrontier.Algorithms.Lean.Karger.Memory
 public import CslibFrontier.Algorithms.Lean.Karger.Memory.Contract
 public import CslibFrontier.Algorithms.Lean.Karger.Memory.Layout
 public import CslibFrontier.Algorithms.Lean.Karger.MinCutCount
+public import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
 public import CslibFrontier.Algorithms.Lean.Knapsack.FPTAS
 public import CslibFrontier.Algorithms.Lean.Knapsack.PolyTime
 public import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
@@ -335,6 +337,10 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PolyArray
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Steps
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Count
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Model
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Program
@@ -979,9 +985,14 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Width
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.LowerBound
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
+public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Holes
 public import CslibFrontier.Computability.Automata.MPDA.OneHole
+public import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
+public import CslibFrontier.Computability.Automata.MPDA.Separation
+public import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
+public import CslibFrontier.Computability.Automata.MPDA.Underapprox
 public import CslibFrontier.Computability.Automata.MPDA.WellNested
 public import CslibFrontier.Computability.Automata.NA.Map
 public import CslibFrontier.Computability.BlumComplexity.Basic
@@ -1942,6 +1953,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.Space
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.SpaceGame
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
+public import CslibFrontier.Computability.Complexity.Classes.ApproximationSchemes
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Advice
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Amplification
@@ -1994,6 +2006,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BQP.Sampling.Resour
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Sampling.Seeded
 public import CslibFrontier.Computability.Complexity.Classes.BQP.TensorContraction
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Time
+public import CslibFrontier.Computability.Complexity.Classes.BQP.TruthTable
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Closure
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Kadin
@@ -2070,6 +2083,7 @@ public import CslibFrontier.Computability.Complexity.Classes.FunctionTime.WordRA
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalBounds
+public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalVerifier
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LogClock
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Nondeterministic
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.NondeterministicExponentialTime
@@ -3133,6 +3147,7 @@ public import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 public import CslibFrontier.Computability.Kolmogorov.Uncomputability
 public import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
+public import CslibFrontier.Computability.Languages.DeterministicContextFree
 public import CslibFrontier.Computability.Languages.RegularLanguage
 public import CslibFrontier.Computability.Languages.Slice
 public import CslibFrontier.Computability.Languages.StarFree
@@ -3605,6 +3620,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Lex
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List.AdjacentTrace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List.Sublist
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.ListsUpTo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -3749,6 +3765,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Comp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Countable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Hardwire
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePartrec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partialize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Reduction
@@ -3996,6 +4013,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Lo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Machine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.NondeterministicBudget
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.ResourceBound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space
@@ -4144,10 +4162,16 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.AxisScore
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.OneCoordinate
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Pasting
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingCompleteness
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingConsistency
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PointCommutativity
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialAnswer
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialSliceCommutativity
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.RestrictedStrategy
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SliceBoundedness
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SliceCommutativity
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Slices
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerifierPasting
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.VerticalAxis
 public import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
 public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
@@ -4337,6 +4361,7 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
 public import CslibFrontier.Computability.Probabilistic.Oracle.RunState
 public import CslibFrontier.Computability.Probabilistic.Oracle.SingleOracle
 public import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
+public import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time.Basic
 public import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
@@ -6022,6 +6047,7 @@ public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Montgome
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.PointCount
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.QuadraticTwist
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.VariableChange
+public import CslibFrontier.Foundations.AlgebraicGeometry.Semialgebraic
 public import CslibFrontier.Foundations.Analysis.Asymptotics.CostBound
 public import CslibFrontier.Foundations.Analysis.Asymptotics.Exponential
 public import CslibFrontier.Foundations.Analysis.Asymptotics.PolyErr
@@ -6113,6 +6139,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateSampling
 public import CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct
 public import CslibFrontier.Foundations.BooleanAnalysis.Decomposition
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
+public import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
 public import CslibFrontier.Foundations.BooleanAnalysis.FiberWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.Fibers
 public import CslibFrontier.Foundations.BooleanAnalysis.Fourier
@@ -6671,6 +6698,7 @@ public import CslibFrontier.Foundations.Data.List.SortedAssoc
 public import CslibFrontier.Foundations.Data.List.SortedAssoc.Flatten
 public import CslibFrontier.Foundations.Data.List.SortedAssoc.Scan
 public import CslibFrontier.Foundations.Data.List.SortedCount
+public import CslibFrontier.Foundations.Data.List.Splits
 public import CslibFrontier.Foundations.Data.List.SumIndicator
 public import CslibFrontier.Foundations.Data.List.Swap
 public import CslibFrontier.Foundations.Data.List.TakeQuantifiers
@@ -7156,16 +7184,22 @@ public import CslibFrontier.Foundations.Probability.SpectralPayment
 public import CslibFrontier.Foundations.Probability.TwoStage
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
+public import CslibFrontier.Foundations.Quantum.Algebra.BinomialTail
 public import CslibFrontier.Foundations.Quantum.Algebra.CHSHRigidity
 public import CslibFrontier.Foundations.Quantum.Algebra.CStar
+public import CslibFrontier.Foundations.Quantum.Algebra.CommutatorTransfer
 public import CslibFrontier.Foundations.Quantum.Algebra.CompletedMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
+public import CslibFrontier.Foundations.Quantum.Algebra.GatedAgreement
 public import CslibFrontier.Foundations.Quantum.Algebra.Involution
 public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MeasurementMixture
+public import CslibFrontier.Foundations.Quantum.Algebra.OutcomeCommutator
 public import CslibFrontier.Foundations.Quantum.Algebra.PrefixCommutator
+public import CslibFrontier.Foundations.Quantum.Algebra.SequentialBinomial
+public import CslibFrontier.Foundations.Quantum.Algebra.SequentialCopy
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialDisturbance
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.SuccessfulAgreement
@@ -7283,6 +7317,7 @@ public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.GameTheory.Strategic.Nash
 public import CslibFrontier.GameTheory.Strategic.NoRegret
 public import CslibFrontier.GameTheory.Strategic.Potential
+public import CslibFrontier.GameTheory.Strategic.Semialgebraic
 public import CslibFrontier.GameTheory.Strategic.Smooth
 public import CslibFrontier.GameTheory.Strategic.Stability
 public import CslibFrontier.GameTheory.Strategic.StrongNash
@@ -7840,6 +7875,10 @@ public import CslibFrontier.Logics.Propositional.ParitySystem.Tseitin
 public import CslibFrontier.Logics.Propositional.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Pigeonhole.Extension
 public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
+public import CslibFrontier.Logics.Propositional.PseudoBoolean
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
 public import CslibFrontier.Logics.Propositional.QBF
 public import CslibFrontier.Logics.Propositional.QBF.Arithmetization
 public import CslibFrontier.Logics.Propositional.QBF.Assignment
@@ -7874,6 +7913,7 @@ public import CslibFrontier.Logics.Propositional.Tseitin
 public import CslibFrontier.Logics.Propositional.TseitinCNF
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
+public import CslibFrontier.Logics.SecondOrder.Basic
 public import CslibFrontier.Logics.SecondOrder.Coloring
 public import CslibFrontier.Logics.SecondOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Existential
