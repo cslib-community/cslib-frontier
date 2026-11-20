@@ -6,6 +6,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 public import CslibFrontier.Tactic.PPT
 public import CslibFrontier.Tactic.PolyTime
 
@@ -21,19 +23,48 @@ namespace CslibFrontierTests.PPTMemoScope
 @[irreducible] def rawRoutine (word : List Bool) : List Bool := word.reverse
 
 /-- Global construction evidence remains available to ordinary search. -/
-@[fun_prop] theorem rawRoutine_raw : ComputableTidilyInPolyTime rawRoutine encBits encBits := by
+private theorem rawRoutine_plain : ComputableInPolyTime rawRoutine encBits encBits := by
   unfold rawRoutine
-  exact ComputableInPolyTime.bitsReverse.tidy
+  fun_prop
+
+private noncomputable def rawFactor : ℕ :=
+  Classical.choose (Internal.NormalForm.polyTime rawRoutine_plain)
+
+private noncomputable def rawDegree : ℕ :=
+  Classical.choose (Classical.choose_spec (Internal.NormalForm.polyTime rawRoutine_plain))
+
+private noncomputable def rawBudget (n : ℕ) : ℕ := rawFactor * (n + 1) ^ rawDegree
+
+-- Register only the machine property for this boundary regression.
+attribute [local fun_prop] ComputableTidilyInTimeAndSpace
+
+@[fun_prop] private theorem rawRoutine_raw :
+    ComputableTidilyInTimeAndSpace rawRoutine encBits encBits
+    (fun a => rawBudget (encBits a).length) (fun a => rawBudget (encBits a).length) := by
+  exact Classical.choose_spec (Classical.choose_spec
+    (Internal.NormalForm.polyTime rawRoutine_plain))
 
 /-- A complete-arity alias tests fresh local proposition handling inside the memo scope. -/
-abbrev RawAlias {α β : Type*} (f : α → β) (input : α ↪ List Bool) (output : β ↪ List Bool) :=
-  ComputableTidilyInPolyTime f input output
+private abbrev RawAlias {α β : Type*} (f : α → β)
+    (input : α ↪ List Bool) (output : β ↪ List Bool) :=
+  ComputableTidilyInTimeAndSpace f input output
+    (fun a => rawBudget (input a).length) (fun a => rawBudget (input a).length)
+
+@[fun_prop] private theorem rawAlias_toPlain {α β : Type*} {f : α → β}
+    {input : α ↪ List Bool} {output : β ↪ List Bool}
+    (h : RawAlias f input output) : ComputableInPolyTime f input output := by
+  refine ⟨rawBudget, rawBudget, ?_, ?_, h.computableInTimeAndSpace⟩ <;>
+    unfold rawBudget <;> fun_prop
 
 /-- The result has no global automation certificate. -/
 @[irreducible] def localResult (word : List Bool) : List Bool := word
 
+-- This fixture supplies ordinary Aesop with its raw construction rule independently of FunProp.
+attribute [local aesop safe apply (rule_sets := [PolyTime])] rawRoutine_raw
+
 -- The memo alone filters neither ordinary FunProp nor the builtin local-application descriptor.
-example (h : ComputableTidilyInPolyTime rawRoutine encBits encBits →
+example (h : ComputableTidilyInTimeAndSpace rawRoutine encBits encBits
+    (fun a => rawBudget (encBits a).length) (fun a => rawBudget (encBits a).length) →
     ComputableInPolyTime localResult encBits encBits) :
     ComputableInPolyTime localResult encBits encBits := by
   run_tac Cslib.Tactic.PolyTime.Internal.withPlainRuleMemo do

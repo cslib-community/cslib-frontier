@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Moves
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRegularization
 import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
+import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
@@ -317,24 +318,10 @@ private theorem exists_auxiliaryOn {E : Type*} [Fintype E] [DecidableEq E]
       exact auxiliaryOn_insert c d R V hcV hdV hcd hR hclean A e he
   exact h Finset.univ
 
-private def mulRoute (u : ℂ) (p : Route) : Route where
-  bends := p.bends
-  point := fun k => u * p.point k
-
-private theorem mulRoute_support (u : ℂ) (p : Route) :
-    (mulRoute u p).support = (fun z => u * z) '' p.support := by
-  let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
-  change (⋃ j : Fin p.segments, segment ℝ (f (p.point j.castSucc)) (f (p.point j.succ))) =
-    f '' (⋃ j : Fin p.segments, segment ℝ (p.point j.castSucc) (p.point j.succ))
-  rw [Set.image_iUnion]
-  congr 1
-  funext j
-  exact (image_segment ℝ f.toAffineMap _ _).symm
-
 private theorem nodesAvoid_mul {p q : Route} (h : NodesAvoid p q) {u : ℂ} (hu : u ≠ 0) :
-    NodesAvoid (mulRoute u p) (mulRoute u q) := by
+    NodesAvoid (Route.mulComplex u p) (Route.mulComplex u q) := by
   intro k hz
-  rw [mulRoute_support] at hz
+  rw [Route.support_mulComplex] at hz
   obtain ⟨z, hz, heq⟩ := hz
   have hzp : z = p.point k := mul_left_cancel₀ hu heq
   exact h k (hzp ▸ hz)
@@ -352,7 +339,7 @@ private theorem pairParity_symm (p q : Route) : pairParity p q = pairParity q p 
   simp only [Set.inter_comm]
 
 private theorem pairParity_mul (p q : Route) {u : ℂ} (hu : u ≠ 0) :
-    pairParity (mulRoute u p) (mulRoute u q) = pairParity p q := by
+    pairParity (Route.mulComplex u p) (Route.mulComplex u q) = pairParity p q := by
   classical
   let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
   have hf : Function.Injective f := fun _ _ h => mul_left_cancel₀ hu h
@@ -421,7 +408,7 @@ private theorem cycle_observe {p q r : Route} {u : ℂ} (hu : u ≠ 0)
   have hrp' := nodesAvoid_mul hrp hu
   have hrq' := nodesAvoid_mul hrq hu
   have h := Route.rayParity_endpoints_add_eq_sum_intersections
-    (cycleStart u p q) (cycleFinish u p q) (fun _ => true) (mulRoute u r)
+    (cycleStart u p q) (cycleFinish u p q) (fun _ => true) (Route.mulComplex u r)
     (by intro i; cases i with | inl i => exact hp i | inr i => exact hq i)
     hr
     (by
@@ -454,13 +441,13 @@ private theorem cycle_observe {p q r : Route} {u : ℂ} (hu : u ≠ 0)
       (∑ i : Fin p.segments, decide ((openSegment ℝ
         (u * p.point i.castSucc) (u * p.point i.succ) ∩
           openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty))) =
-        pairParity (mulRoute u p) (mulRoute u r) := by
+        pairParity (Route.mulComplex u p) (Route.mulComplex u r) := by
     exact Finset.sum_comm
   have hsum' : (∑ j : Fin r.segments,
       (∑ i : Fin q.segments, decide ((openSegment ℝ
         (u * q.point i.castSucc) (u * q.point i.succ) ∩
           openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty))) =
-        pairParity (mulRoute u q) (mulRoute u r) := by
+        pairParity (Route.mulComplex u q) (Route.mulComplex u r) := by
     exact Finset.sum_comm
   rw [hsum, hsum', pairParity_mul p r hu, pairParity_mul q r hu] at h
   exact h

@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Crypto.Computational.GGM.Evaluation
 import Mathlib.Tactic.Linarith
 
@@ -130,10 +131,10 @@ example {σ : Type} [Finite σ] (enc : σ ↪ List Bool) (step : σ → Bool →
       l.foldl (fun acc b => acc ++ [f b]) []) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) := by
   refine ⟨?_, ?_, ?_, by fun_prop, ?_⟩
-  · exact (ComputableTidilyInO.foldl_bits_finite encBool (· ^^ ·) false).computableInO
-  · exact (ComputableTidilyInO.foldl_bits_finite
-      (encFramed encBool) (fun state bit => state ^^ bit) false).computableInO
-  · exact (ComputableTidilyInO.foldl_bits_finite enc step init).computableInO
+  · exact ComputableInO.foldl_bits_finite encBool (· ^^ ·) false
+  · exact ComputableInO.foldl_bits_finite
+      (encFramed encBool) (fun state bit => state ^^ bit) false
+  · exact ComputableInO.foldl_bits_finite enc step init
   · simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
       ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
 
@@ -166,7 +167,8 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
         List.length_append, hs]
       exact ⟨by lia, Nat.mul_le_mul_left k (by lia)⟩)
     (by intro l i hi state hs; simpa [hs] using hi)
-  refine ⟨⟨c * (3 * k + 3), h.computableInTimeAndSpace.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
+  refine ⟨⟨c * (3 * k + 3), (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono
+    (fun l => ?_) (fun l => ?_)⟩, hpost⟩
   · have hsum (n : ℕ) : (∑ i ∈ Finset.range n, (k * (2 * i + 3) + 2 * i + 2)) =
         (k + 1) * n ^ 2 + (2 * k + 1) * n := by
       induction n with

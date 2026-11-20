@@ -93,7 +93,7 @@ def ofCircuitFamily (F : UniformCircuitFamily) : UniformOracleCircuitFamily wher
     have hmap : ComputableInPolyTime
         (List.map fun g : GateCode => OracleGateCode.gate (false, g))
         (encList encGateCode) (encList encOracleGateCode) :=
-      (ComputableTidilyInPolyTime.map horacle.tidy).computableInPolyTime
+      (ComputableInPolyTime.map horacle)
     have hgates : ComputableInPolyTime
         (fun s : OracleInputSize =>
           (F.gates (2 * s.securityParameter + 1 + s.classicalInputLength)).map
