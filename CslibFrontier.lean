@@ -6476,9 +6476,12 @@ public import CslibFrontier.Foundations.Combinatorics.WeightedTail
 public import CslibFrontier.Foundations.Computability.ArithmeticHierarchy
 public import CslibFrontier.Foundations.Computability.ComputablePred
 public import CslibFrontier.Foundations.Computability.ContextFreeGrammar
+public import CslibFrontier.Foundations.Computability.DiagonalHalting
 public import CslibFrontier.Foundations.Computability.DistinctValues
 public import CslibFrontier.Foundations.Computability.KleenePost
 public import CslibFrontier.Foundations.Computability.KleenePostJump
+public import CslibFrontier.Foundations.Computability.OracleJump
+public import CslibFrontier.Foundations.Computability.PostTheorem
 public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Control.Except

@@ -1,15 +1,15 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 module
 -- upstream: candidate (Mathlib, `Mathlib/Computability/TuringDegree.lean`)
 
 public import CslibFrontier.Foundations.Computability.KleenePost
+public import CslibFrontier.Foundations.Computability.DiagonalHalting
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Data.List.Primrec
-public import Mathlib.Computability.PartrecCode
 
 /-!
 # Kleene–Post Theorem with Turing Jump
@@ -49,7 +49,7 @@ of numerical stage clocks is claimed.
 
 ## Main definitions
 
-* `Nat.RecursiveIn.KleenePost.halting`: the diagonal halting set for partial recursive functions
+* `Nat.RecursiveIn.KleenePost.halting`: the ordinary diagonal halting set
   (`∅'`).
 * `Nat.RecursiveIn.KleenePost.haltingOraclePart`: the characteristic function of `halting` as a
   total `ℕ →. ℕ` oracle.
@@ -80,10 +80,6 @@ open Nat.RecursiveIn (comp pair prec rfind)
 open scoped Computability
 
 namespace Nat.RecursiveIn.KleenePost
-
-/-- The Turing jump of the empty set, the diagonal halting set for partial recursive functions. -/
-@[expose]
-def halting : Set ℕ := { c | (Nat.Partrec.Code.eval (ofNat Nat.Partrec.Code c) c).Dom }
 
 /-- Boolean decision procedure for `haltsPred`. -/
 private def haltsPredDecide (c : Nat.RecursiveIn.Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Bool :=
@@ -177,48 +173,8 @@ private lemma partrec_haltsPredOpt_rfindOpt :
 lemma halts_reducibleTo_halting :
     ∃ K : (Nat.RecursiveIn.Code × List Bool × ℕ) → ℕ,
       _root_.Primrec K ∧ ∀ c τ x, Halts c τ x ↔ K (c, τ, x) ∈ halting := by
-  have H : Partrec fun (p : Nat.RecursiveIn.Code × List Bool × ℕ) =>
-      Nat.rfindOpt (haltsPredOpt p.1 p.2.1 p.2.2) :=
-    partrec_haltsPredOpt_rfindOpt
-  obtain ⟨c_G, hc_G⟩ := Nat.Partrec.Code.exists_code.mp H
-  have hc_G' : Nat.Partrec.Code.eval c_G = fun n =>
-      (Encodable.decode (α := Nat.RecursiveIn.Code × List Bool × ℕ) n : Part _).bind
-        fun (a : Nat.RecursiveIn.Code × List Bool × ℕ) =>
-          Part.map (Encodable.encode : ℕ → ℕ) (Nat.rfindOpt (haltsPredOpt a.1 a.2.1 a.2.2)) :=
-    hc_G
-  let K := fun (p : Nat.RecursiveIn.Code × List Bool × ℕ) =>
-    Encodable.encode (Nat.Partrec.Code.comp c_G (Nat.Partrec.Code.const (Encodable.encode p)))
-  have hK : _root_.Primrec K :=
-    _root_.Primrec.encode.comp
-      (Nat.Partrec.Code.primrec₂_comp.comp (_root_.Primrec.const c_G)
-        (Nat.Partrec.Code.primrec_const.comp _root_.Primrec.encode))
-  use K, hK
-  intro c τ x
-  have h_eval : ∀ p,
-      Nat.Partrec.Code.eval
-        (Nat.Partrec.Code.comp c_G (Nat.Partrec.Code.const (Encodable.encode p))) (K p) =
-        Part.map (Encodable.encode : ℕ → ℕ) (Nat.rfindOpt (haltsPredOpt p.1 p.2.1 p.2.2)) := by
-    intro p
-    change ((Nat.Partrec.Code.const (Encodable.encode p)).eval (K p)).bind
-      (fun m => Nat.Partrec.Code.eval c_G m) = _
-    rw [Nat.Partrec.Code.eval_const, Part.bind_some, hc_G']
-    dsimp
-    rw [Encodable.encodek]
-    change (Part.some p).bind _ = _
-    rw [Part.bind_some]
-  change Halts c τ x ↔
-    (Nat.Partrec.Code.eval (ofNat Nat.Partrec.Code (K (c, τ, x))) (K (c, τ, x))).Dom
-  constructor
-  · intro h
-    rw [ofNat_encode]
-    have he := h_eval (c, τ, x)
-    rw [he]
-    exact (halts_iff_haltsPredOpt_dom c τ x).mp h
-  · intro h
-    rw [ofNat_encode] at h
-    have he := h_eval (c, τ, x)
-    rw [he] at h
-    exact (halts_iff_haltsPredOpt_dom c τ x).mpr h
+  obtain ⟨K, hK, h⟩ := exists_primrec_reduce_dom_to_halting partrec_haltsPredOpt_rfindOpt
+  exact ⟨K, hK, fun c τ x => (halts_iff_haltsPredOpt_dom c τ x).trans (h (c, τ, x))⟩
 
 private lemma rfindOpt_const_some (a : ℕ) :
     Nat.rfindOpt (fun _ : ℕ => Option.some a) = Part.some a := by
