@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Relation.InductiveCounting
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Nat.Find
+import Mathlib.Logic.Equiv.List
 
 /-!
 # Double-counting certificates for bounded reachability
@@ -318,15 +319,11 @@ theorem existsUnique_passes_reindex {α β : Type*} [Fintype α] [Fintype β] (i
     have ha := (distance_spec (mem_round.mp hv)).1
     have hb := (distance_spec (mem_round.mp ((memRound v).mp hv))).1
     exact le_antisymm (distance_le ((steps v _).mpr hb)) (distance_le ((steps v _).mp ha))
-  let lists : List α ≃ List β :=
-    ⟨List.map index, List.map index.symm,
-      fun xs => by simp [List.map_map, Function.comp_def],
-      fun ys => by simp [List.map_map, Function.comp_def]⟩
   have shortest (v : α) (hv : v ∈ round r s k) :
       (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = distance r s v + 1) ↔
         ∃! p : List β, p.IsChainFromTo r' (index s) (index v) ∧
           p.length = distance r' (index s) (index v) + 1 := by
-    apply lists.existsUnique_congr
+    apply index.listEquivOfEquiv.existsUnique_congr
     intro xs
     change (_ ∧ _) ↔ (xs.map index).IsChainFromTo r' (index s) (index v) ∧
       (xs.map index).length = distance r' (index s) (index v) + 1
