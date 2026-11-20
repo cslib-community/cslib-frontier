@@ -7236,6 +7236,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
 public import CslibFrontier.Foundations.Probability.Gaussian.Stein
+public import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 public import CslibFrontier.Foundations.Probability.InfinitePi
 public import CslibFrontier.Foundations.Probability.Multilinear.Basic
 public import CslibFrontier.Foundations.Probability.Multilinear.Bonami

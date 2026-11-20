@@ -1515,6 +1515,11 @@ Dylan McKay, Cody D. Murray and R. Ryan Williams. *Weak Lower Bounds on Resource
 
 Karl Menger. "Zur allgemeinen Kurventheorie." *Fundamenta Mathematicae* 10, 96–115, 1927. Cited for attribution only: the paper was not consulted, and the formal statements follow [schrijver17](#schrijver17) and [diestel25](#diestel25).
 
+<a id="micciancioregev2007"></a>
+## micciancioregev2007
+
+Daniele Micciancio and Oded Regev. "Worst-case to Average-case Reductions based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007 (preliminary version in FOCS 2004). https://doi.org/10.1137/S0097539705447360 ; author's copy (December 14, 2005) https://cims.nyu.edu/~regev/papers/average.pdf . Checked against the December 14, 2005 author's copy on 2026-11-20: Lemma 2.9 (p. 9, `ρ_{s,c}(Λ) ≤ ρ_s(Λ)`, generalized in `ZLattice.gaussianMass_le_gaussianMass_zero` to arbitrary discrete `ℤ`-submodules) and Lemma 3.3 (p. 11, `η_ε(Λ) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(Λ)`, whose dual-mass core `ρ_{1/s}(Λ* \ {0}) ≤ ε` is proved in `ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`, excluding the asymptotic `ω(log n)` remark). Journal pagination was taken from the DOI bibliographic record.
+
 <a id="mignonressayre04"></a>
 ## mignonressayre04
 
