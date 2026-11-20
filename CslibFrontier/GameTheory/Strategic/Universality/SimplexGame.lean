@@ -15,23 +15,33 @@ import Mathlib.Tactic.Linarith
 /-!
 # Games with a reference strategy per player
 
-Each player `p` has a reference strategy `none` and further pure strategies `some t`, `t : T p`. A
-totally mixed profile is then determined by the weights `q ⟨p, t⟩` of the non-reference strategies
-(`simplexProfile q`): the reference strategy gets `1 - ∑ t, q ⟨p, t⟩`. The game `simplexGame E`
-gives the reference strategy cost `0` and the strategy `t` the cost `E p t`, through Lemma 4 of
-[Datta2003] (`CostGame.realize`). Its totally mixed Nash equilibria are the points of the product
-of open simplices at which every `E p t` vanishes (`CostGame.isTotallyMixedNash_simplexGame_iff`).
-This is the setting of the three-player construction in the proof of Theorem 5 of [Datta2003];
-binary games (`CostGame.binaryGame`) are the case of one non-reference strategy per player.
+The bridge `CostGame.referenceGame emb E` gives each player `p` a reference strategy of cost `0`.
+Every strategy `s` gets cost `E p s`, a polynomial in some coordinates `σ`, renamed into the
+profile coordinates along `emb`. Through Lemma 4 of [Datta2003] (`CostGame.realize`), its totally
+mixed Nash equilibria among the profiles with weights summing to `1` are the positive profiles at
+which every `E p s` vanishes (`CostGame.isTotallyMixedNash_referenceGame_iff`). Both
+`CostGame.simplexGame` below and the binary games `CostGame.binaryGame` are built on it.
+
+In `simplexGame`, each player `p` has the reference strategy `none` and further pure strategies
+`some t`, `t : T p`. A totally mixed profile is then determined by the weights `q ⟨p, t⟩` of the
+non-reference strategies (`simplexProfile q`): the reference strategy gets `1 - ∑ t, q ⟨p, t⟩`.
+The game `simplexGame E` gives the reference strategy cost `0` and the strategy `t` the cost
+`E p t`. Its totally mixed Nash equilibria are the points of the product of open simplices at
+which every `E p t` vanishes (`CostGame.isTotallyMixedNash_simplexGame_iff`). This is the setting
+of the three-player construction in the proof of Theorem 5 of [Datta2003].
 
 ## Main definitions
 
+* `Cslib.GameTheory.CostGame.referenceGame emb E`: the game with costs `E p s` renamed along
+  `emb`.
 * `Cslib.GameTheory.simplexProfile q`: the mixed profile with non-reference weights `q`.
 * `Cslib.GameTheory.CostGame.simplexGame E`: the game whose indifference equations are
   `E p t = 0`.
 
 ## Main results
 
+* `Cslib.GameTheory.CostGame.isTotallyMixedNash_referenceGame_iff`: the shared bridge from
+  Lemma 4 to the reference-strategy games.
 * `Cslib.GameTheory.CostGame.isTotallyMixedNash_simplexGame_iff`: the totally mixed equilibria of
   `simplexGame E` are the zeros of the `E p t` in the product of open simplices.
 * `Cslib.GameTheory.CostGame.IsTotallyMixedNash.eq_simplexProfile`: every totally mixed profile of
@@ -138,7 +148,7 @@ end IsBlockAffine
 /-- The embedding of the non-reference coordinates into the coordinates of `Option (T p)`. -/
 @[expose] def someCoord (v : Σ p, T p) : Σ p, Option (T p) := ⟨v.1, some v.2⟩
 
-theorem someCoord_injective : Injective (someCoord (T := T)) := by
+private theorem someCoord_injective : Injective (someCoord (T := T)) := by
   rintro ⟨p, t⟩ ⟨p', t'⟩ h
   simp only [someCoord, Sigma.mk.injEq] at h
   obtain ⟨rfl, h⟩ := h
@@ -146,7 +156,7 @@ theorem someCoord_injective : Injective (someCoord (T := T)) := by
   rw [h]
 
 /-- The rename of a block-affine polynomial to the non-reference coordinates is block-affine. -/
-theorem IsBlockAffine.rename_someCoord [∀ p, Fintype (T p)] {f : MvPolynomial (Σ p, T p) ℝ}
+private theorem IsBlockAffine.rename_someCoord [∀ p, Fintype (T p)] {f : MvPolynomial (Σ p, T p) ℝ}
     (hf : IsBlockAffine f) : IsBlockAffine (rename someCoord f) := by
   classical
   intro m hm p
@@ -161,22 +171,51 @@ theorem IsBlockAffine.rename_someCoord [∀ p, Fintype (T p)] {f : MvPolynomial 
     obtain ⟨rfl, h⟩ := hw
     exact Option.some_ne_none _ (eq_of_heq h)
 
-theorem eval_rename_someCoord [∀ p, Fintype (T p)] (q : (Σ p, T p) → ℝ)
-    (f : MvPolynomial (Σ p, T p) ℝ) :
-    eval (Sigma.uncurry (simplexProfile q)) (rename someCoord f) = eval q f := by
-  rw [eval_rename]
-  rfl
-
 namespace CostGame
+
+section Reference
+
+variable {S : P → Type*} [Fintype P] [DecidableEq P] [∀ p, Fintype (S p)]
+  [∀ p, DecidableEq (S p)] {σ : Type*}
+
+/-- The game with costs `E p s` on the coordinates `σ`, renamed into the profile coordinates along
+`emb`: player `p`'s cost for `s` is `E p s` at the vertex of the pure profile (Lemma 4 of
+[Datta2003], `CostGame.realize`). With `E p (ref p) = 0`, the strategy `ref p` is a reference
+strategy of cost `0`. -/
+noncomputable def referenceGame (emb : σ → Σ p, S p) (E : ∀ p, S p → MvPolynomial σ ℝ) :
+    CostGame P S :=
+  realize fun p s => rename emb (E p s)
+
+/-- **The reference-strategy bridge.** Suppose the renamed costs are block-affine, the cost of
+player `p` involves no coordinate of `p`'s block, and each player has a reference strategy of cost
+`0`. Then a profile whose weights sum to `1` for every player is a totally mixed Nash equilibrium of
+`referenceGame emb E` iff it is positive and every `E p s` vanishes at it. -/
+theorem isTotallyMixedNash_referenceGame_iff {emb : σ → Σ p, S p}
+    {E : ∀ p, S p → MvPolynomial σ ℝ} (hE : ∀ p s, IsBlockAffine (rename emb (E p s)))
+    (hEp : ∀ p s, ∀ v ∈ (E p s).vars, (emb v).1 ≠ p) (ref : ∀ p, S p)
+    (href : ∀ p, E p (ref p) = 0) {x : ∀ p, S p → ℝ} (hx : ∀ p, ∑ s, x p s = 1) :
+    (referenceGame emb E).IsTotallyMixedNash x ↔
+      (∀ p s, 0 < x p s) ∧ ∀ p s, eval (Sigma.uncurry x ∘ emb) (E p s) = 0 := by
+  classical
+  have hgp : ∀ p s, ∀ w ∈ (rename emb (E p s)).vars, w.1 ≠ p := by
+    intro p s w hw
+    obtain ⟨u, hu, rfl⟩ := Finset.mem_image.1 (vars_rename emb (E p s) hw)
+    exact hEp p s u hu
+  rw [referenceGame,
+    isTotallyMixedNash_realize_iff hE hgp ref fun p => by rw [href, map_zero]]
+  simp only [eval_rename]
+  exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h3⟩ => ⟨h1, hx, h3⟩⟩
+
+end Reference
 
 variable [Fintype P] [DecidableEq P] [∀ p, Fintype (T p)] [∀ p, DecidableEq (T p)]
 
 /-- The game with indifference equations `E p t = 0`: player `p`'s cost for the non-reference
 strategy `t` is `E p t` at the vertex of the pure profile, and its cost for the reference strategy
-`none` is `0` (Lemma 4 of [Datta2003], `CostGame.realize`). -/
+`none` is `0` (`CostGame.referenceGame`). -/
 noncomputable def simplexGame (E : ∀ p, T p → MvPolynomial (Σ p, T p) ℝ) :
     CostGame P (fun p => Option (T p)) :=
-  realize fun p a => a.elim 0 fun t => rename someCoord (E p t)
+  referenceGame someCoord fun p a => a.elim 0 (E p)
 
 omit [∀ p, DecidableEq (T p)] in
 /-- Every totally mixed profile of a game with strategy sets `Option (T p)` is a
@@ -202,35 +241,33 @@ theorem isTotallyMixedNash_simplexGame_iff {E : ∀ p, T p → MvPolynomial (Σ 
     (simplexGame E).IsTotallyMixedNash (simplexProfile q) ↔
       (∀ v, 0 < q v) ∧ (∀ p, ∑ t, q ⟨p, t⟩ < 1) ∧ ∀ p t, eval q (E p t) = 0 := by
   classical
-  have hg : ∀ p (a : Option (T p)),
-      IsBlockAffine (a.elim 0 fun t => rename someCoord (E p t)) := by
+  have hsum : ∀ p, ∑ a, simplexProfile q p a = 1 := fun p => by
+    simp [Fintype.sum_option, simplexProfile]
+  have hg : ∀ p (a : Option (T p)), IsBlockAffine (rename someCoord (a.elim 0 (E p))) := by
     rintro p (_ | t)
-    · exact IsBlockAffine.zero
+    · simpa using IsBlockAffine.zero
     · exact (hE p t).rename_someCoord
-  have hgp : ∀ p (a : Option (T p)),
-      ∀ w ∈ (a.elim 0 fun t => rename someCoord (E p t)).vars, w.1 ≠ p := by
-    rintro p (_ | t) w hw
-    · simp at hw
-    · obtain ⟨u, hu, rfl⟩ := Finset.mem_image.1 (vars_rename someCoord (E p t) hw)
-      exact hEp p t u hu
-  rw [simplexGame, isTotallyMixedNash_realize_iff hg hgp (fun _ => none) (fun _ => rfl)]
+  have hgp : ∀ p (a : Option (T p)), ∀ v ∈ (a.elim 0 (E p)).vars, (someCoord v).1 ≠ p := by
+    rintro p (_ | t) v hv
+    · simp at hv
+    · exact hEp p t v hv
+  rw [simplexGame, isTotallyMixedNash_referenceGame_iff hg hgp (fun _ => none) (fun _ => rfl) hsum,
+    show Sigma.uncurry (simplexProfile q) ∘ someCoord = q from rfl]
   constructor
-  · rintro ⟨hpos, -, hE0⟩
-    refine ⟨fun v => hpos v.1 (some v.2), fun p => ?_, fun p t => ?_⟩
-    · have := hpos p none
-      simp only [simplexProfile] at this
-      linarith
-    · simpa [eval_rename_someCoord] using hE0 p (some t)
-  · rintro ⟨hq, hsum, hE0⟩
-    refine ⟨fun p a => ?_, fun p => ?_, fun p a => ?_⟩
+  · rintro ⟨hpos, hE0⟩
+    refine ⟨fun v => hpos v.1 (some v.2), fun p => ?_, fun p t => hE0 p (some t)⟩
+    have := hpos p none
+    simp only [simplexProfile] at this
+    linarith
+  · rintro ⟨hq, hlt, hE0⟩
+    refine ⟨fun p a => ?_, fun p a => ?_⟩
     · cases a
       · simp only [simplexProfile]
-        linarith [hsum p]
+        linarith [hlt p]
       · exact hq _
-    · simp [Fintype.sum_option, simplexProfile]
     · cases a
       · simp
-      · simpa [eval_rename_someCoord] using hE0 p _
+      · exact hE0 p _
 
 end CostGame
 

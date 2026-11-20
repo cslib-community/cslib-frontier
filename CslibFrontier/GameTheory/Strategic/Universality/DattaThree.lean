@@ -51,7 +51,11 @@ writes each `F_j` by Horner's rule as a chain of bilinear equations, one per ste
 rescalings of Bob's coordinates, which gives the strategy counts `n + 1`, `D − m + 1` and `D + 1`
 with `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`. Here the `F_j` share one table of monomials, so the scaling
 `1 / K` keeps Bob's probabilities in the open simplex without affine shifts. The counts differ
-from the paper's; they do not matter for universality. Datta fixes Critter's probabilities at
+from the paper's; they do not matter for universality. When every `F_j` has degree `d` in every
+variable, write `N = (d + 1)ⁿ`. Then the paper gives Bob and Critter `m (N − 1)` and `m N`
+strategies, and this game gives them `N + 1` and `N + m + 1`. So this game is smaller exactly when
+`(m − 1) N > m + 1`; it is larger for one equation, and for two linear equations in one variable.
+On sparse systems it can be exponentially larger. Datta fixes Critter's probabilities at
 `1 / D` (p. 6), which leaves Critter's reference strategy with probability `0` when `m ≤ n`;
 dividing by the number of Critter's strategies avoids this. The exact Horner construction and
 counts stay open in #6701.
