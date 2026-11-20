@@ -301,6 +301,7 @@ public import CslibFrontier.Algorithms.Quantum.PeriodFinding
 public import CslibFrontier.Algorithms.Reachability.BreadthFirst
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Controller
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerBounds
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerReplay
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan
