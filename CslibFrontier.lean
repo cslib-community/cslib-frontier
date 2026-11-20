@@ -1735,6 +1735,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.GateMatrix
 public import CslibFrontier.Computability.Circuit.Quantum.HadamardLayer
 public import CslibFrontier.Computability.Circuit.Quantum.Input
 public import CslibFrontier.Computability.Circuit.Quantum.Interactive
+public import CslibFrontier.Computability.Circuit.Quantum.Multiprover
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Basic
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Code
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Boundary
@@ -2290,6 +2291,7 @@ public import CslibFrontier.Computability.Complexity.Classes.QMA.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.QMA.Counting
 public import CslibFrontier.Computability.Complexity.Classes.QMA.MA
 public import CslibFrontier.Computability.Complexity.Classes.QMA.NP
+public import CslibFrontier.Computability.Complexity.Classes.QMIP
 public import CslibFrontier.Computability.Complexity.Classes.RP
 public import CslibFrontier.Computability.Complexity.Classes.RP.Closure
 public import CslibFrontier.Computability.Complexity.Classes.RP.Reduction
