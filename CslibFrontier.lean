@@ -2004,6 +2004,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BQP.Sampling.Resour
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Sampling.Seeded
 public import CslibFrontier.Computability.Complexity.Classes.BQP.TensorContraction
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Time
+public import CslibFrontier.Computability.Complexity.Classes.BQP.TruthTable
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Closure
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Kadin
