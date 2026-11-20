@@ -86,6 +86,30 @@ private theorem runWith_majorityDirectAccess {n : ℕ} (hn : n ≠ 0)
   rw [ProbOracleComp.runWith_map, runWith_readBits, PMF.pure_map]
   rfl
 
+/-- The oracle program returns the same verdict in law as the local test on a uniform seed. -/
+theorem majorityDirectAccess_eq_majorityTester {n k : ℕ} [NeZero n] {δ : ℚ}
+    (hk : 0 < k) (hδ : 0 ≤ δ) (x : BitString n) :
+    ProbOracleComp.runWith (majorityInputOracle x) (majorityDirectAccess k δ n) () =
+      (PMF.uniformOfFintype (Fin k → BitString (Nat.log 2 n + 1))).map
+        (fun r => (decide ((majorityTester n k δ).Passes x r), ())) := by
+  classical
+  rw [runWith_majorityDirectAccess (NeZero.ne n), ProbComp.eval_replicate_sampleList,
+    PMF.map_comp]
+  congr 1
+  funext r
+  simp only [Function.comp_apply, decideReplies, validRequests, List.countP_map,
+    List.countP_filter, List.map_ofFn, List.countP_ofFn, ofBits_ofFn, List.headD_cons]
+  apply congrArg (fun verdict : Bool => (verdict, ()))
+  apply Bool.eq_iff_iff.mpr
+  rw [decide_eq_true_eq, decide_eq_true_eq,
+    majorityTester_passes_iff_sampleAccepts hk hδ x r]
+  unfold weight
+  apply eq_iff_iff.mp
+  apply congrArg (majoritySampleAccepts n k δ)
+  apply congrArg Finset.card
+  ext j
+  by_cases hj : (equivFin _ (r j)).val < n <;> simp [zeroExtend, hj]
+
 private theorem isOraclePPTOn_majorityDirectAccess (k : ℕ) (δ : ℚ) :
     IsOraclePPTOn encNat encBool (majorityDirectAccess k δ) := by
   let wordsEncoding := encList encBits

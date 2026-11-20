@@ -7,13 +7,14 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.PropertyTesting.Majority.Decision
+import CslibFrontier.Computability.PropertyTesting.Majority.DirectAccess
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Linarith
 
 /-! # Clients of the strict majority tester -/
 
 namespace Cslib.BitString
+open Cslib.Probability
 
 open scoped BigOperators
 
@@ -57,5 +58,13 @@ example (δ : ℝ) (hδ : 0 < δ) :
   have := strictMajority_eq_true_iff.mp hy
   have := weight_le_length y
   omega
+
+-- The timed program has exactly the existing local test's output law.
+example (x : BitString 3) :
+    ProbOracleComp.runWith (majorityInputOracle x) (majorityDirectAccess 64 (1 / 2) 3) () =
+      (PMF.uniformOfFintype (Fin 64 → BitString (Nat.log 2 3 + 1))).map
+        (fun r => (decide ((majorityTester 3 64 (1 / 2)).Passes x r), ())) := by
+  classical
+  exact majorityDirectAccess_eq_majorityTester (by decide) (by norm_num) x
 
 end Cslib.BitString
