@@ -2188,7 +2188,7 @@ private theorem friTargetWord_apply_eq_smooth (params : FRIParams F)
       hsplit ▸ isPrimitiveRoot_pow_two_pow params.hω hkd.le
     simp only [friTargetWord, friSmoothTargetWord]
     rw [fold2_eq_foldWord (Nat.pow_pos (by omega)) hωk]
-    simp only [foldWord_apply_eq_foldFiber, foldFiber, hck]
+    simp only [foldWord_apply_eq_foldFiber, foldFiber, foldFiberComp, hck]
     change (∑ r : Fin 2, _) = (∑ r : Fin 2, _)
     refine Finset.sum_congr rfl fun r _ => ?_
     congr 1
@@ -2309,7 +2309,7 @@ private theorem foldFiber_toSmooth_step_eq (params : FRIParams F) (k : Fin param
         foldFiber (params.g ^ (2 ^ k.val)) (params.ω ^ (2 ^ k.val))
           (fun t : Fin 2 => π (friSmoothFiberIdx params.toSmooth k s ⟨t.val, by simp [t.isLt]⟩))
           (friFoldedFin params k s) z := by
-    simp only [foldFiber, friSmoothFoldedFin, friFoldedFin, hck, hck1]
+    simp only [foldFiber, foldFiberComp, friSmoothFoldedFin, friFoldedFin, hck, hck1]
     rfl
   rw [hrew, foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωk]
   simp only [Fin.val_zero, Fin.val_one, h0, h1, FRIParams.eval, cosetEval, cosetPoint,

@@ -504,7 +504,8 @@ private theorem friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le [Fintype F]
       ENNReal.ofReal (ε_C + α ^ params.q) := by
   set e : ℕ := 2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊
   have hnot_e : stmt ∉ params.batchProximityLang t e := by
-    rwa [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hfar
+    rwa [FRISmoothParams.batchCorrAgreeLang,
+        friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hfar
   obtain ⟨_, hq_lt, he_le⟩ := friBatchCeilThreshold_bounds params.d hα_pos hα_le
   have hpow_nn : 0 ≤ α ^ params.q := pow_nonneg hα_pos.le params.q
   refine (hprox e hnot_e he_le).trans ?_
@@ -809,7 +810,8 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_unique [Fintype F] [De
   obtain ⟨_, _, he_le⟩ := friBatchCeilThreshold_bounds params.d hα_pos hα_le
   have huniq : 2 * (2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊) + params.dim 0 ≤ 2 ^ params.d :=
     smooth_two_mul_add_dim_le_of_div_le params (he_le.trans (by linarith))
-  rw [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hMT ⊢
+  rw [FRISmoothParams.batchCorrAgreeLang,
+      friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hMT ⊢
   refine (friSmoothBatchBCS_romSoundness_bound_of_unique params t huniq hdec σ hFS hMT).trans ?_
   have hrbr := friSmoothBatchRBRError_ceil_le params
     ((2 ^ params.d : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) hα_pos hα_le
@@ -1470,7 +1472,8 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_johnson [Fintype F] [D
   obtain ⟨_, _, he_le⟩ := friBatchCeilThreshold_bounds params.d
     (smooth_johnson_slack_of_le params hmJ hα le_rfl).1 hα_le
   obtain ⟨hα_pos, he_slack⟩ := smooth_johnson_slack_of_le params hmJ hα he_le
-  rw [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hMT ⊢
+  rw [FRISmoothParams.batchCorrAgreeLang,
+      friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hMT ⊢
   refine (friSmoothBatchBCS_romSoundness_bound_of_johnson params t hmJ he_slack hdec σ hFS
     hMT).trans ?_
   have hrbr := friSmoothBatchRBRError_ceil_le params
@@ -1513,7 +1516,8 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_prover_verifier_of_joh
   obtain ⟨_, _, he_le⟩ := friBatchCeilThreshold_bounds params.d
     (smooth_johnson_slack_of_le params hmJ hα le_rfl).1 hα_le
   obtain ⟨hα_pos, he_slack⟩ := smooth_johnson_slack_of_le params hmJ hα he_le
-  rw [friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le]
+  rw [FRISmoothParams.batchCorrAgreeLang,
+      friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le]
   refine (friSmoothBatchBCS_romSoundness_bound_of_prover_verifier_of_johnson params t hmJ he_slack
     hdec σ hMT hFS hops).trans ?_
   have hrbr := friSmoothBatchRBRError_ceil_le params
