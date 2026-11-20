@@ -216,6 +216,29 @@ private theorem quadraticObjective_resolvent (t : ℝ) (ρ σ X : Matrix ι ι �
       2 * (Xᴴ * ρ).trace.re - (Xᴴ * (σ * X + t • (X * ρ))).trace.re := by
   rw [quadraticObjective, resolventMatrix_mulVec, star_vec_dotProduct_vec, star_vec_dotProduct_vec]
 
+/-- The resolvent is the attained supremum of its affine test-matrix objectives. -/
+theorem relativeEntropyResolvent_isGreatest {t : ℝ} (ht : 0 < t)
+    {ρ σ : Matrix ι ι ℂ} (hρ : ρ.PosSemidef) (hσ : σ.PosSemidef) :
+    IsGreatest
+      (Set.range fun X : Matrix ι ι ℂ =>
+        2 * (Xᴴ * ρ).trace.re - (Xᴴ * (σ * X + t • (X * ρ))).trace.re)
+      (relativeEntropyResolvent t ρ σ) := by
+  obtain ⟨B, hB, _⟩ := resolvent_solution ht hρ hσ
+  have h := quadraticObjective_isGreatest (resolventMatrix_posSemidef ht.le hρ hσ) hB
+  have hrange :
+      Set.range (quadraticObjective (resolventMatrix t ρ σ) ρ.vec) =
+        Set.range fun X : Matrix ι ι ℂ =>
+          2 * (Xᴴ * ρ).trace.re - (Xᴴ * (σ * X + t • (X * ρ))).trace.re := by
+    ext z
+    constructor
+    · rintro ⟨v, rfl⟩
+      obtain ⟨X, rfl⟩ := Matrix.vec_bijective.surjective v
+      exact ⟨X, (quadraticObjective_resolvent t ρ σ X).symm⟩
+    · rintro ⟨X, rfl⟩
+      exact ⟨X.vec, quadraticObjective_resolvent t ρ σ X⟩
+  rw [relativeEntropyResolvent, iSup, h.csSup_eq, ← hrange]
+  exact h
+
 /-- The resolvent kernel of a nonnegative weighted mixture is bounded by the weighted kernels
 of its components. No normalization of the weights is needed. -/
 theorem relativeEntropyResolvent_sum_smul_le {κ : Type*} [Fintype κ]
