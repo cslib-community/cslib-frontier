@@ -49,6 +49,16 @@ estimate (5.4) of [O'Donnell, Section 5.2][ODonnell2014] behind `I[Majₙ] ∼ �
   the cube for bounded continuous functions, events and functions of at most linear growth.
 * `Cslib.BitString.tendsto_expect_abs_inv_sqrt_mul_sum_signVal`: `E[|∑ᵢ xᵢ / √n|] → √(2 / π)`.
 
+## Usage
+
+The statements match an expectation written exactly as
+`𝔼 x : Fin n → Bool, g ((√n)⁻¹ * ∑ i, signVal (x i))`, with `n` cast to `ℝ`; for another finite
+index type, reindex to `Fin n` first, for example with `Fintype.expect_comp_arrowCongr`. The
+form for functions of at most linear growth admits unbounded `h` of either sign; the second
+moments it uses are `expect_sq_inv_sqrt_card_mul_sum_signVal_le`. The checked clients in
+`CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean` apply it to `z - |z|`, which is
+unbounded below, and derive that `E[|∑ᵢ xᵢ / √n|]` is eventually below `1`.
+
 ## References
 
 * [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014], Section 5.2.

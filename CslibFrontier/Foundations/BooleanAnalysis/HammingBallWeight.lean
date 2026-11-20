@@ -47,6 +47,15 @@ isoperimetric function `U = φ ∘ Φ⁻¹` (Definition 5.26); that form is not 
 * `Cslib.BitString.tendsto_expect_hammingBall`: `E[fₙ] → 1 - Φ(t)`.
 * `Cslib.BitString.tendsto_levelWeight_one_hammingBall`: `W¹[fₙ] → φ(t)²`.
 
+## Usage
+
+The limits are `Tendsto … atTop (𝓝 _)` in `n` for `fₙ` written exactly as above. The book writes
+the limit of the mean as the complementary cdf `Φ̄(t)` (Notation 5.14), which is `1 - Φ(t)` here.
+For another function invariant under permutations of the coordinates, apply
+`levelWeight_one_eq_sq_expect_mul_of_comp_perm` directly. The checked clients in
+`CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean` evaluate the exact identity at `n = 2`,
+`t = 0` against the two degree-one coefficients, and specialize the limits at `t = 0` and `t = 1`.
+
 ## References
 
 * [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014], Section 5.4.
