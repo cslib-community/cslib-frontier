@@ -44,9 +44,10 @@ affine lines and parameterized curves for correlated-agreement proximity gaps.
 * `Cslib.Crypto.Protocols.FRI.polyComp`, `Cslib.Crypto.Protocols.FRI.reconstructPoly`,
   `Cslib.Crypto.Protocols.FRI.foldPoly`: `a`-way polynomial decomposition, reconstruction, and
   polynomial folding.
-* `Cslib.Crypto.Protocols.FRI.foldComp`, `Cslib.Crypto.Protocols.FRI.foldFiber`,
-  `Cslib.Crypto.Protocols.FRI.foldWord`: general `a`-to-1 fiberwise IDFT decomposition, local
-  fiber folding evaluator, and Reed–Solomon word folding.
+* `Cslib.Crypto.Protocols.FRI.foldFiberComp`, `Cslib.Crypto.Protocols.FRI.foldComp`,
+  `Cslib.Crypto.Protocols.FRI.foldFiber`, `Cslib.Crypto.Protocols.FRI.foldWord`: general `a`-to-1
+  fiberwise IDFT interpolation coefficients, component words, local fiber folding evaluator, and
+  Reed–Solomon word folding.
 * `Cslib.Crypto.Protocols.FRI.pushWeight`: push-forward of a coordinate weight function across
   `a`-element fibers.
 * `Cslib.Crypto.Protocols.FRI.fold2Fiber`, `Cslib.Crypto.Protocols.FRI.fold2Even`,
@@ -354,23 +355,28 @@ section WordFolding
 
 variable {F : Type*} [Field F]
 
+/-- The `r`-th fiberwise IDFT / interpolation coefficient of a single `a`-element fiber
+`ys : Fin a → F` above target index `j : Fin N` in the coset `g * ⟨ω⟩` of size `a * N`
+([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, Eq. (8.1) on printed p. 36). -/
+@[expose] def foldFiberComp (g ω : F) {a N : ℕ} (ys : Fin a → F) (r : Fin a) (j : Fin N) : F :=
+  ((a : F) * (g * ω ^ j.val) ^ r.val)⁻¹ *
+    ∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) * ys t
+
 /-- The `r`-th fiberwise IDFT component word of `f : Fin (a * N) → F` on the powered coset
 `g^a * ⟨ω^a⟩` of size `N`. -/
 @[expose] def foldComp (g ω : F) {a N : ℕ} (f : Fin (a * N) → F) (r : Fin a) (j : Fin N) : F :=
-  ((a : F) * (g * ω ^ j.val) ^ r.val)⁻¹ *
-    ∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) * f (fiberIdx j t)
+  foldFiberComp g ω (fun t => f (fiberIdx j t)) r j
 
 /-- Local `a`-to-1 FRI folding formula evaluated on a single `a`-element fiber `ys : Fin a → F`
-above target index `j : Fin N` in the coset `g * ⟨ω⟩` of size `a * N` with challenge `z`. -/
+above target index `j : Fin N` in the coset `g * ⟨ω⟩` of size `a * N` with challenge `z`
+([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, Eq. (8.2) on printed p. 37). -/
 @[expose] def foldFiber (g ω : F) {a N : ℕ} (ys : Fin a → F) (j : Fin N) (z : F) : F :=
-  ∑ r : Fin a, z ^ r.val *
-    (((a : F) * (g * ω ^ j.val) ^ r.val)⁻¹ *
-      ∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) * ys t)
+  ∑ r : Fin a, z ^ r.val * foldFiberComp g ω ys r j
 
 /-- The `a`-to-1 FRI folding operator applied to a word `f : Fin (a * N) → F` at challenge `z : F`:
 evaluates the parameterized curve `∑ r : Fin a, z ^ r • foldComp g ω f r`. -/
 @[expose] def foldWord (g ω : F) {a N : ℕ} (f : Fin (a * N) → F) (z : F) : Fin N → F :=
-  fun j => ∑ r : Fin a, z ^ r.val * foldComp g ω f r j
+  fun j => foldFiber g ω (fun t => f (fiberIdx j t)) j z
 
 /-- `foldWord` evaluates pointwise via `foldFiber` on the `a`-element fiber over `j`. -/
 theorem foldWord_apply_eq_foldFiber (g ω : F) {a N : ℕ} (f : Fin (a * N) → F) (z : F)
@@ -382,7 +388,7 @@ theorem foldWord_apply_eq_foldFiber (g ω : F) {a N : ℕ} (f : Fin (a * N) → 
 theorem foldWord_eq_sum_smul (g ω : F) {a N : ℕ} (f : Fin (a * N) → F) (z : F) :
     foldWord g ω f z = ∑ r : Fin a, z ^ r.val • foldComp g ω f r := by
   ext j
-  simp only [foldWord, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
+  simp only [foldWord, foldFiber, foldComp, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
 
 /-- Character orthogonality for a primitive `a`-th root of unity `ζ`:
 `∑ t : Fin a, ζ ^ (u * t) * (ζ⁻¹) ^ (r * t) = if u = r then a else 0`. -/
@@ -459,7 +465,7 @@ theorem foldComp_eval {g ω : F} {a N : ℕ} (hg : g ≠ 0) (ha : (a : F) ≠ 0)
     rw [hpow, cosetPoint_fiberIdx g ω ha_pos j t]
     simp only [cosetPoint, mul_pow, ← pow_mul, mul_assoc]
     rw [mul_comm t.val u.val]
-  simp only [foldComp, hterm]
+  simp only [foldComp, foldFiberComp, hterm]
   have hswap :
       (∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) *
         ∑ u : Fin a, (g * ω ^ j.val) ^ u.val * (ω ^ N) ^ (u.val * t.val) *
@@ -488,7 +494,9 @@ theorem foldWord_eval {g ω : F} {a N : ℕ} (hg : g ≠ 0) (ha : (a : F) ≠ 0)
     (hω : IsPrimitiveRoot ω (a * N)) (p : F[X]) (z : F) (j : Fin N) :
     foldWord g ω (fun i => p.eval (cosetPoint g ω (a * N) i)) z j =
       (foldPoly a p z).eval (cosetPoint (g ^ a) (ω ^ a) N j) := by
-  simp only [foldWord, eval_foldPoly, foldComp_eval hg ha hN hω]
+  simp only [foldWord, foldFiber, eval_foldPoly]
+  exact Finset.sum_congr rfl fun r _ =>
+    congrArg (z ^ r.val * ·) (foldComp_eval hg ha hN hω p r j)
 
 /-- **Reed–Solomon closure under folding**: folding a codeword of
 `reedSolomon (cosetPoint g ω (a * N)) (a * k)` with any scalar `z : F` produces a codeword of
@@ -528,7 +536,7 @@ theorem reconstruct_foldComp {g ω : F} {a N : ℕ} (hg : g ≠ 0) (ha : (a : F)
         (a : F)⁻¹ * ∑ u : Fin a,
           (((ω ^ N)⁻¹) ^ (u.val * r.val) * (ω ^ N) ^ (t.val * r.val)) * f (fiberIdx j u) := by
     intro r
-    rw [cosetPoint_fiberIdx g ω ha_pos j t, foldComp]
+    rw [cosetPoint_fiberIdx g ω ha_pos j t, foldComp, foldFiberComp]
     simp only [cosetPoint, mul_inv, Finset.mul_sum]
     refine Finset.sum_congr rfl fun u _ => ?_
     have hcancel : (g * ω ^ j.val) ^ r.val * ((g * ω ^ j.val) ^ r.val)⁻¹ = 1 :=
@@ -712,8 +720,8 @@ private theorem pow_half_eq_neg_one {ω : F} {N : ℕ} (hN : 0 < N)
 theorem fold2Even_eq_foldComp {g ω : F} {N : ℕ} (f : Fin (2 * N) → F) :
     fold2Even f = foldComp g ω f ⟨0, by omega⟩ := by
   ext j
-  simp only [fold2Even, foldComp, Fin.sum_univ_two, fiberIdx, pow_zero, mul_one, zero_mul,
-    one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat]
+  simp only [fold2Even, foldComp, foldFiberComp, Fin.sum_univ_two, fiberIdx, pow_zero, mul_one,
+    zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat]
   rw [div_eq_inv_mul]
 
 /-- `fold2Odd` agrees with `foldComp` at component `1` for `a = 2`. -/
@@ -722,9 +730,9 @@ theorem fold2Odd_eq_foldComp {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiv
     fold2Odd g ω f = foldComp g ω f ⟨1, by omega⟩ := by
   ext j
   have hneg : ω ^ N = -1 := pow_half_eq_neg_one hN hω
-  simp only [fold2Odd, foldComp, cosetPoint, Fin.sum_univ_two, fiberIdx, pow_zero, pow_one,
-    zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one,
-    Nat.cast_ofNat, hneg, inv_neg, inv_one, neg_mul, ← sub_eq_add_neg]
+  simp only [fold2Odd, foldComp, foldFiberComp, cosetPoint, Fin.sum_univ_two, fiberIdx, pow_zero,
+    pow_one, zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat, hneg, inv_neg,
+    inv_one, neg_mul, ← sub_eq_add_neg]
   rw [div_eq_inv_mul]
 
 /-- At `a = 2`, the local `a`-to-1 fiber evaluator `foldFiber` coincides with `fold2Fiber`. -/
@@ -733,9 +741,9 @@ theorem foldFiber_two_eq_fold2Fiber {g ω : F} {N : ℕ} (hN : 0 < N)
     foldFiber g ω ys j z =
       fold2Fiber (ys 0) (ys 1) (cosetPoint g ω (2 * N) ⟨j.val, by omega⟩) z := by
   have hneg : ω ^ N = -1 := pow_half_eq_neg_one hN hω
-  simp only [foldFiber, fold2Fiber, cosetPoint, Fin.sum_univ_two, Fin.val_zero, Fin.val_one,
-    pow_zero, pow_one, one_mul, zero_mul, mul_one, Nat.cast_ofNat, hneg, inv_neg, inv_one,
-    neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
+  simp only [foldFiber, foldFiberComp, fold2Fiber, cosetPoint, Fin.sum_univ_two, Fin.val_zero,
+    Fin.val_one, pow_zero, pow_one, one_mul, zero_mul, mul_one, Nat.cast_ofNat, hneg, inv_neg,
+    inv_one, neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
 
 /-- The explicit 2-to-1 folding operator `fold2` coincides with `foldWord` at `a = 2`. -/
 theorem fold2_eq_foldWord {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))

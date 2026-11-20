@@ -58,25 +58,27 @@ homogeneous linear batching `f₀⁽⁰⁾ = 0` given by `FRIBatchStmt.linear`):
   `PublicCoinIOP.queries` has **exact** length
   `params.proofOracleQueries = kFinal + q * (aritySum + m + 2)` (specializing to
   `kFinal + q * (3 * m + 2)` for binary folding, with zero openings against round `0`). Outside
-  `PublicCoinIOP.queries`, `friSmoothBatchInputQueries` schedules `q` input positions at which
-  `t + 1` input symbols suffice (`friSmoothBatchDecide_congr_inputQueries` proves that agreement at
-  these scheduled positions determines `friSmoothBatchDecide`). Because a wrong-length answer list
-  or an unsuccessful earlier repetition can reject before inspecting later positions,
+  `PublicCoinIOP.queries`, `friSmoothBatchInputQueries` lists `q` scheduled input positions, with
+  multiplicity, at which `t + 1` input symbols suffice (`friSmoothBatchDecide_congr_inputQueries`
+  proves that agreement at these scheduled positions determines `friSmoothBatchDecide`). Because
+  `friSmoothBatchDecide` can reject on an unexpected answer-list length before accessing `stmt`,
+  repetitions short-circuit on earlier failures, and query challenges may repeat indices,
   `params.batchInputWordReads t = (t + 1) * q` records the full direct-read schedule / budget,
   giving the combined word-query budget
   `params.batchTotalWordQueries t = kFinal + q * (aritySum + m + t + 3)`.
 * **Tuple correlated-agreement languages and real-to-integer threshold bridges.**
-  `FRISmoothParams.batchProximityLang` / `FRIParams.batchProximityLang` express simultaneous
-  correlated agreement of `(stmt.base, stmt.terms)` with `params.initialCode` on at least
-  `2 ^ d - e` coordinates (matching `CslibFrontier/Foundations/Data/Code/ProximityGap/Curve.lean`),
-  while `batchCorrAgreeLang` states real-density correlated agreement `α ≤ (#D' : ℝ) / 2 ^ d`
-  (matching Theorem 8.3, p. 39). For `α ≤ 1`, the ceiling threshold `e = 2 ^ d - ⌈α * 2 ^ d⌉₊`
-  yields exact set equality `batchCorrAgreeLang = batchProximityLang`
-  (`smoothBatchCorrAgreeLang_eq_batchProximityLang`), with strict single-query ratio `< α` for
-  `0 < α ≤ 1` (`smoothBatchCeilThreshold_bounds`); for `0 ≤ α < 1`, the floor threshold
-  `B = ⌊α * 2 ^ d⌋₊`, `e = 2 ^ d - 1 - B` characterizes maximal correlated-agreement density `≤ α`
-  with strict Johnson slack `(e : ℝ) / 2 ^ d < 1 - α` even when `α * 2 ^ d ∈ ℤ`
-  (`smoothBatchFloorThreshold_bounds`).
+  The shared code-parameterized definitions `friBatchCompletenessRel`, `friBatchProximityLang`, and
+  `friBatchCorrAgreeLang` (instantiated at `params.initialCode` for both `FRISmoothParams` and
+  `FRIParams`) express honest tuple membership, simultaneous correlated agreement of
+  `(stmt.base, stmt.terms)` on at least `2 ^ d - e` coordinates (matching
+  `CslibFrontier/Foundations/Data/Code/ProximityGap/Curve.lean`), and real-density correlated
+  agreement `α ≤ (#D' : ℝ) / 2 ^ d` (matching Theorem 8.3, p. 39). One shared set of threshold
+  bridges covers both smooth and binary parameters: for `α ≤ 1`, the ceiling threshold
+  `e = 2 ^ d - ⌈α * 2 ^ d⌉₊` yields exact set equality `friBatchCorrAgreeLang_eq_proximityLang`,
+  with strict single-query ratio `< α` for `0 < α ≤ 1` (`friBatchCeilThreshold_bounds`); for
+  `0 ≤ α < 1`, the floor threshold `B = ⌊α * 2 ^ d⌋₊`, `e = 2 ^ d - 1 - B` characterizes maximal
+  correlated-agreement density `≤ α` with strict Johnson slack `(e : ℝ) / 2 ^ d < 1 - α` even when
+  `α * 2 ^ d ∈ ℤ` (`friBatchFloorThreshold_bounds`).
 
 ## Main definitions
 
@@ -86,7 +88,10 @@ homogeneous linear batching `f₀⁽⁰⁾ = 0` given by `FRIBatchStmt.linear`):
 * `Cslib.Crypto.Protocols.FRI.FRIBatchChal`, `Cslib.Crypto.Protocols.FRI.FRIBatchChal.toFRIChal`,
   `Cslib.Crypto.Protocols.FRI.friTailChals`: per-round public-coin challenge for batched FRI and
   challenge-tail projection to `FRIChal`.
-* `Cslib.Crypto.Protocols.FRI.FRISmoothParams.batchCompletenessRel`,
+* `Cslib.Crypto.Protocols.FRI.friBatchCompletenessRel`,
+  `Cslib.Crypto.Protocols.FRI.friBatchProximityLang`,
+  `Cslib.Crypto.Protocols.FRI.friBatchCorrAgreeLang`,
+  `Cslib.Crypto.Protocols.FRI.FRISmoothParams.batchCompletenessRel`,
   `Cslib.Crypto.Protocols.FRI.FRISmoothParams.batchProximityLang`,
   `Cslib.Crypto.Protocols.FRI.FRISmoothParams.batchCorrAgreeLang`,
   `Cslib.Crypto.Protocols.FRI.FRISmoothParams.batchInputWordReads`,
@@ -95,9 +100,10 @@ homogeneous linear batching `f₀⁽⁰⁾ = 0` given by `FRIBatchStmt.linear`):
   `Cslib.Crypto.Protocols.FRI.FRIParams.batchProximityLang`,
   `Cslib.Crypto.Protocols.FRI.FRIParams.batchCorrAgreeLang`,
   `Cslib.Crypto.Protocols.FRI.FRIParams.batchInputWordReads`,
-  `Cslib.Crypto.Protocols.FRI.FRIParams.batchTotalWordQueries`: batched completeness relations,
-  integer and real-density tuple correlated-agreement languages, and direct-read / combined
-  word-query budget abbreviations.
+  `Cslib.Crypto.Protocols.FRI.FRIParams.batchTotalWordQueries`: shared code-parameterized batched
+  completeness relation and integer / real-density tuple correlated-agreement languages, together
+  with smooth and binary parameter specializations and direct-read / combined word-query budget
+  abbreviations.
 * `Cslib.Crypto.Protocols.FRI.friSmoothBatchQueries`,
   `Cslib.Crypto.Protocols.FRI.friSmoothBatchInputQueries`,
   `Cslib.Crypto.Protocols.FRI.friSmoothBatchDecide`,
@@ -113,16 +119,19 @@ homogeneous linear batching `f₀⁽⁰⁾ = 0` given by `FRIBatchStmt.linear`):
 
 * `Cslib.Crypto.Protocols.FRI.card_friBatchChal`: exact challenge-space cardinality
   `|F| ^ (t + 1) * (2 ^ d) ^ q`.
-* `Cslib.Crypto.Protocols.FRI.mem_smoothBatchProximityLang_zero_iff`,
-  `Cslib.Crypto.Protocols.FRI.smoothBatchCorrAgreeLang_eq_batchProximityLang`,
-  `Cslib.Crypto.Protocols.FRI.smoothBatchCeilThreshold_bounds`,
-  `Cslib.Crypto.Protocols.FRI.smoothBatchFloorThreshold_bounds`,
+* `Cslib.Crypto.Protocols.FRI.eval_mem_of_friBatchCompletenessRel`,
+  `Cslib.Crypto.Protocols.FRI.mem_friBatchProximityLang_of_completenessRel`,
+  `Cslib.Crypto.Protocols.FRI.lt_two_pow_of_not_mem_friBatchProximityLang`,
+  `Cslib.Crypto.Protocols.FRI.mem_friBatchProximityLang_zero_iff`,
+  `Cslib.Crypto.Protocols.FRI.friBatchCorrAgreeLang_eq_proximityLang`,
+  `Cslib.Crypto.Protocols.FRI.friBatchCeilThreshold_bounds`,
+  `Cslib.Crypto.Protocols.FRI.friBatchFloorThreshold_bounds`,
   `Cslib.Crypto.Protocols.FRI.mem_batchProximityLang_zero_iff`,
   `Cslib.Crypto.Protocols.FRI.batchCorrAgreeLang_eq_batchProximityLang`,
   `Cslib.Crypto.Protocols.FRI.batchCeilThreshold_bounds`,
-  `Cslib.Crypto.Protocols.FRI.batchFloorThreshold_bounds`: `t = 0` equivalence with single-word
-  `proximityLang`, exact ceiling `Set` equality between `batchCorrAgreeLang` and
-  `batchProximityLang`, and zero-loss ceiling/floor real-to-integer threshold bridges.
+  `Cslib.Crypto.Protocols.FRI.batchFloorThreshold_bounds`: shared code-parameterized completeness,
+  `t = 0` single-word equivalence, exact ceiling `Set` equality, and zero-loss ceiling/floor
+  real-to-integer threshold bridges (together with binary `FRIParams` specializations).
 * `Cslib.Crypto.Protocols.FRI.friBatchIOP_eq_friSmoothBatchIOP`: exact equality between binary
   `friBatchIOP` and `friSmoothBatchIOP params.toSmooth`.
 * `Cslib.Crypto.Protocols.FRI.round_ne_zero_of_mem_friSmoothBatchQueries`,
@@ -276,85 +285,69 @@ section LanguagesAndThresholds
 
 variable {F : Type} [Field F]
 
-namespace FRISmoothParams
+/-- Honest completeness relation for batched FRI relative to an initial linear code
+`C : Submodule F (OracleTable d F)`: both `stmt.base` and all `t` generator words `stmt.terms j`
+belong to `C`. -/
+abbrev friBatchCompletenessRel {d : ℕ} (C : Submodule F (OracleTable d F)) (t : ℕ) :
+    FRIBatchStmt F d t → Unit → Prop :=
+  fun stmt _ => stmt.base ∈ C ∧ ∀ j : Fin t, stmt.terms j ∈ C
 
-/-- Honest completeness relation for smooth batched FRI: both `stmt.base` and all `t` generator
-words `stmt.terms j` belong to `params.initialCode`. -/
-@[expose] def batchCompletenessRel (params : FRISmoothParams F) (t : ℕ) :
-    FRIBatchStmt F params.d t → Unit → Prop :=
-  fun stmt _ => stmt.base ∈ params.initialCode ∧ ∀ j : Fin t, stmt.terms j ∈ params.initialCode
+/-- Every affine combination `stmt.eval x` of an honest batch statement lies in `C`. -/
+theorem eval_mem_of_friBatchCompletenessRel {d t : ℕ} {C : Submodule F (OracleTable d F)}
+    {stmt : FRIBatchStmt F d t} (hrel : friBatchCompletenessRel C t stmt ()) (x : Fin t → F) :
+    stmt.eval x ∈ C :=
+  C.add_mem hrel.1 (C.sum_mem fun j _ => C.smul_mem (x j) (hrel.2 j))
 
-/-- Every affine combination `stmt.eval x` of an honest batch statement lies in
-`params.initialCode`. -/
-theorem eval_mem_initialCode (params : FRISmoothParams F) {t : ℕ}
-    {stmt : FRIBatchStmt F params.d t} (hrel : params.batchCompletenessRel t stmt ())
-    (x : Fin t → F) :
-    stmt.eval x ∈ params.initialCode :=
-  params.initialCode.add_mem hrel.1
-    (params.initialCode.sum_mem fun j _ => params.initialCode.smul_mem (x j) (hrel.2 j))
-
-/-- Integer-threshold tuple correlated-agreement language for `(t + 1)`-word smooth batched FRI. -/
-@[expose] def batchProximityLang (params : FRISmoothParams F) (t e : ℕ) :
-    Set (FRIBatchStmt F params.d t) :=
-  {stmt | ∃ D' : Finset (Fin (2 ^ params.d)), 2 ^ params.d - e ≤ D'.card ∧
-    ∃ v₀ ∈ params.initialCode, ∃ v : Fin t → OracleTable params.d F,
-      (∀ j, v j ∈ params.initialCode) ∧
+/-- Integer-threshold tuple correlated-agreement language for `(t + 1)`-word batched FRI relative to
+an initial linear code `C`: `stmt.base` and all `t` words `stmt.terms j` simultaneously agree with
+codewords in `C` on a common subset `D' ⊆ Fin (2 ^ d)` of cardinality at least `2 ^ d - e`
+([BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 and Section 8.2). -/
+abbrev friBatchProximityLang {d : ℕ} (C : Submodule F (OracleTable d F)) (t e : ℕ) :
+    Set (FRIBatchStmt F d t) :=
+  {stmt | ∃ D' : Finset (Fin (2 ^ d)), 2 ^ d - e ≤ D'.card ∧
+    ∃ v₀ ∈ C, ∃ v : Fin t → OracleTable d F,
+      (∀ j, v j ∈ C) ∧
       ∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s}
 
-/-- Real-density tuple correlated-agreement language for `(t + 1)`-word smooth batched FRI. -/
-@[expose] def batchCorrAgreeLang (params : FRISmoothParams F) (t : ℕ) (α : ℝ) :
-    Set (FRIBatchStmt F params.d t) :=
-  {stmt | ∃ D' : Finset (Fin (2 ^ params.d)),
-    α ≤ (D'.card : ℝ) / (2 ^ params.d : ℝ) ∧
-    ∃ v₀ ∈ params.initialCode, ∃ v : Fin t → OracleTable params.d F,
-      (∀ j, v j ∈ params.initialCode) ∧
+/-- Real-density tuple correlated-agreement language for `(t + 1)`-word batched FRI relative to an
+initial linear code `C`: `stmt.base` and all `t` words `stmt.terms j` simultaneously agree with
+codewords in `C` on a common domain `D' ⊆ Fin (2 ^ d)` of relative density
+`α ≤ (#D' : ℝ) / 2 ^ d` ([BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed p. 39). -/
+abbrev friBatchCorrAgreeLang {d : ℕ} (C : Submodule F (OracleTable d F)) (t : ℕ) (α : ℝ) :
+    Set (FRIBatchStmt F d t) :=
+  {stmt | ∃ D' : Finset (Fin (2 ^ d)),
+    α ≤ (D'.card : ℝ) / (2 ^ d : ℝ) ∧
+    ∃ v₀ ∈ C, ∃ v : Fin t → OracleTable d F,
+      (∀ j, v j ∈ C) ∧
       ∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s}
 
-/-- Full direct-read schedule / input-symbol budget `(t + 1) * q` across `stmt.base` and
-`stmt.terms`. -/
-abbrev batchInputWordReads (params : FRISmoothParams F) (t : ℕ) : ℕ :=
-  (t + 1) * params.q
-
-/-- Combined word-query budget `batchInputWordReads t + proofOracleQueries =
-kFinal + q * (aritySum + m + t + 3)`. -/
-abbrev batchTotalWordQueries (params : FRISmoothParams F) (t : ℕ) : ℕ :=
-  params.batchInputWordReads t + params.proofOracleQueries
-
-theorem batchTotalWordQueries_eq (params : FRISmoothParams F) (t : ℕ) :
-    params.batchTotalWordQueries t =
-      params.kFinal + params.q * (params.aritySum + params.m + t + 3) := by
-  simp only [batchTotalWordQueries, batchInputWordReads, proofOracleQueries, singleRepQueries]
-  ring
-
-/-- Any statement satisfying `batchCompletenessRel` belongs to `batchProximityLang t e` for every
-`e : ℕ` (witnessed on `D' = Finset.univ`). -/
-theorem mem_batchProximityLang_of_batchCompletenessRel (params : FRISmoothParams F) {t : ℕ}
-    (e : ℕ) {stmt : FRIBatchStmt F params.d t} (hrel : params.batchCompletenessRel t stmt ()) :
-    stmt ∈ params.batchProximityLang t e := by
+/-- Any statement satisfying `friBatchCompletenessRel C t` belongs to `friBatchProximityLang C t e`
+for every `e : ℕ` (witnessed on `D' = Finset.univ`). -/
+theorem mem_friBatchProximityLang_of_completenessRel {d t : ℕ} {C : Submodule F (OracleTable d F)}
+    (e : ℕ) {stmt : FRIBatchStmt F d t} (hrel : friBatchCompletenessRel C t stmt ()) :
+    stmt ∈ friBatchProximityLang C t e := by
   refine ⟨Finset.univ, ?_, stmt.base, hrel.1, stmt.terms, hrel.2, fun _ _ => ⟨rfl, fun _ => rfl⟩⟩
   simp only [Finset.card_univ, Fintype.card_fin]
   exact Nat.sub_le _ _
 
-/-- Contrapositively, `stmt ∉ params.batchProximityLang t e` implies `e < 2 ^ params.d`. -/
-theorem lt_two_pow_of_not_mem_batchProximityLang (params : FRISmoothParams F) {t e : ℕ}
-    {stmt : FRIBatchStmt F params.d t} (hnot : stmt ∉ params.batchProximityLang t e) :
-    e < 2 ^ params.d := by
+/-- Contrapositively, `stmt ∉ friBatchProximityLang C t e` implies `e < 2 ^ d`. -/
+theorem lt_two_pow_of_not_mem_friBatchProximityLang {d t e : ℕ} {C : Submodule F (OracleTable d F)}
+    {stmt : FRIBatchStmt F d t} (hnot : stmt ∉ friBatchProximityLang C t e) :
+    e < 2 ^ d := by
   by_contra hge
-  have hsub : 2 ^ params.d - e = 0 := Nat.sub_eq_zero_of_le (Nat.le_of_not_lt hge)
-  exact hnot ⟨∅, by simp [hsub], 0, params.initialCode.zero_mem, fun _ => 0,
-    fun _ => params.initialCode.zero_mem, fun _ hs => False.elim (Finset.notMem_empty _ hs)⟩
+  have hsub : 2 ^ d - e = 0 := Nat.sub_eq_zero_of_le (Nat.le_of_not_lt hge)
+  exact hnot ⟨∅, by simp [hsub], 0, C.zero_mem, fun _ => 0,
+    fun _ => C.zero_mem, fun _ hs => False.elim (Finset.notMem_empty _ hs)⟩
 
-end FRISmoothParams
-
-/-- At batch size `t = 0`, smooth tuple correlated agreement `batchProximityLang 0 e` coincides
-with single-word `proximityLang e` on `stmt.base`. -/
-theorem mem_smoothBatchProximityLang_zero_iff [DecidableEq F] (params : FRISmoothParams F) (e : ℕ)
-    (stmt : FRIBatchStmt F params.d 0) :
-    stmt ∈ params.batchProximityLang 0 e ↔ stmt.base ∈ params.proximityLang e := by
+/-- At batch size `t = 0`, tuple correlated agreement `friBatchProximityLang C 0 e` coincides with
+single-word Hamming proximity `∃ c ∈ C, hammingDist stmt.base c ≤ e`. -/
+theorem mem_friBatchProximityLang_zero_iff [DecidableEq F] {d : ℕ}
+    (C : Submodule F (OracleTable d F)) (e : ℕ) (stmt : FRIBatchStmt F d 0) :
+    stmt ∈ friBatchProximityLang C 0 e ↔ ∃ c ∈ C, hammingDist stmt.base c ≤ e := by
   constructor
   · rintro ⟨D', hcard, v₀, hv₀, _, _, hagree⟩
     refine ⟨v₀, hv₀, ?_⟩
-    have hsub : D' ⊆ Finset.univ.filter (fun s : Fin (2 ^ params.d) => stmt.base s = v₀ s) :=
+    have hsub : D' ⊆ Finset.univ.filter (fun s : Fin (2 ^ d) => stmt.base s = v₀ s) :=
       fun s hs => Finset.mem_filter.mpr ⟨Finset.mem_univ s, (hagree s hs).1⟩
     have hle := hcard.trans (Finset.card_le_card hsub)
     have htot := card_filter_eq_add_hammingDist stmt.base v₀
@@ -368,13 +361,13 @@ theorem mem_smoothBatchProximityLang_zero_iff [DecidableEq F] (params : FRISmoot
     have hdist' : hammingDist stmt.base c ≤ e := hdist
     omega
 
-/-- **Exact ceiling `Set` equality (`α ≤ 1`)** for smooth batched FRI: for
-`e = 2 ^ d - ⌈α * 2 ^ d⌉₊`, `params.batchCorrAgreeLang t α = params.batchProximityLang t e`. -/
-theorem smoothBatchCorrAgreeLang_eq_batchProximityLang (params : FRISmoothParams F) (t : ℕ)
+/-- **Exact ceiling `Set` equality (`α ≤ 1`)**: for `e = 2 ^ d - ⌈α * 2 ^ d⌉₊`,
+`friBatchCorrAgreeLang C t α = friBatchProximityLang C t e`. -/
+theorem friBatchCorrAgreeLang_eq_proximityLang {d : ℕ} (C : Submodule F (OracleTable d F)) (t : ℕ)
     {α : ℝ} (hα_le : α ≤ 1) :
-    params.batchCorrAgreeLang t α =
-      params.batchProximityLang t (2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊) := by
-  set n : ℕ := 2 ^ params.d
+    friBatchCorrAgreeLang C t α =
+      friBatchProximityLang C t (2 ^ d - ⌈α * (2 ^ d : ℝ)⌉₊) := by
+  set n : ℕ := 2 ^ d
   have hnR_pos : (0 : ℝ) < (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]; positivity
   have hceil_le : ⌈α * (n : ℝ)⌉₊ ≤ n := by
     refine Nat.ceil_le.mpr ?_
@@ -382,28 +375,26 @@ theorem smoothBatchCorrAgreeLang_eq_batchProximityLang (params : FRISmoothParams
       _ = (n : ℝ) := one_mul _
   have hsub : n - (n - ⌈α * (n : ℝ)⌉₊) = ⌈α * (n : ℝ)⌉₊ := Nat.sub_sub_self hceil_le
   ext stmt
-  simp only [FRISmoothParams.batchCorrAgreeLang, FRISmoothParams.batchProximityLang,
-    Set.mem_ofPred_eq]
+  simp only [friBatchCorrAgreeLang, friBatchProximityLang, Set.mem_ofPred_eq]
   refine exists_congr fun D' => and_congr_left fun _ => ?_
   have hdiv : α ≤ (D'.card : ℝ) / (n : ℝ) ↔ α * (n : ℝ) ≤ (D'.card : ℝ) := by
     rw [le_div_iff₀ hnR_pos]
   have hceil : α * (n : ℝ) ≤ (D'.card : ℝ) ↔ ⌈α * (n : ℝ)⌉₊ ≤ D'.card :=
     Nat.ceil_le.symm
-  have hnR_eq : ((2 : ℝ) ^ params.d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
-  change α ≤ (D'.card : ℝ) / ((2 : ℝ) ^ params.d) ↔
-    n - (n - ⌈α * ((2 : ℝ) ^ params.d)⌉₊) ≤ D'.card
+  have hnR_eq : ((2 : ℝ) ^ d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
+  change α ≤ (D'.card : ℝ) / ((2 : ℝ) ^ d) ↔
+    n - (n - ⌈α * ((2 : ℝ) ^ d)⌉₊) ≤ D'.card
   rw [hnR_eq, hsub, hdiv, hceil]
 
-/-- **Ceiling threshold bounds (`0 < α ≤ 1`)** for smooth batched FRI. -/
-theorem smoothBatchCeilThreshold_bounds (params : FRISmoothParams F) {α : ℝ}
-    (hα_pos : 0 < α) (hα_le : α ≤ 1) :
-    let e := 2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊
-    e < 2 ^ params.d ∧
-      (((2 ^ params.d - e - 1 : ℕ) : ℝ) / (2 ^ params.d : ℝ)) < α ∧
-      (e : ℝ) / (2 ^ params.d : ℝ) ≤ 1 - α := by
-  set n : ℕ := 2 ^ params.d
+/-- **Ceiling threshold bounds (`0 < α ≤ 1`)** for domain size `2 ^ d`. -/
+theorem friBatchCeilThreshold_bounds (d : ℕ) {α : ℝ} (hα_pos : 0 < α) (hα_le : α ≤ 1) :
+    let e := 2 ^ d - ⌈α * (2 ^ d : ℝ)⌉₊
+    e < 2 ^ d ∧
+      (((2 ^ d - e - 1 : ℕ) : ℝ) / (2 ^ d : ℝ)) < α ∧
+      (e : ℝ) / (2 ^ d : ℝ) ≤ 1 - α := by
+  set n : ℕ := 2 ^ d
   have hnR_pos : (0 : ℝ) < (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]; positivity
-  have hnR_eq : ((2 : ℝ) ^ params.d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
+  have hnR_eq : ((2 : ℝ) ^ d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
   set C : ℕ := ⌈α * (n : ℝ)⌉₊
   have hαn_pos : 0 < α * (n : ℝ) := mul_pos hα_pos hnR_pos
   have hC_pos : 0 < C := Nat.ceil_pos.mpr hαn_pos
@@ -425,27 +416,26 @@ theorem smoothBatchCeilThreshold_bounds (params : FRISmoothParams F) {α : ℝ}
     have hge : α * (n : ℝ) ≤ (C : ℝ) := Nat.le_ceil _
     linarith
 
-/-- **Floor threshold bounds (`0 ≤ α < 1`)** for smooth batched FRI
+/-- **Floor threshold bounds (`0 ≤ α < 1`)** relative to an initial linear code `C`
 ([BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2, printed pp. 38–39, Eq. (8.5)). -/
-theorem smoothBatchFloorThreshold_bounds (params : FRISmoothParams F) (t : ℕ)
-    (stmt : FRIBatchStmt F params.d t) {α : ℝ}
-    (hα_nn : 0 ≤ α) (hα_lt : α < 1) :
-    let B := ⌊α * (2 ^ params.d : ℝ)⌋₊
-    let e := 2 ^ params.d - 1 - B
-    ((∀ (D' : Finset (Fin (2 ^ params.d))) (v₀ : OracleTable params.d F),
-        v₀ ∈ params.initialCode →
-        ∀ v : Fin t → OracleTable params.d F,
-          (∀ j, v j ∈ params.initialCode) →
+theorem friBatchFloorThreshold_bounds {d : ℕ} (C : Submodule F (OracleTable d F)) (t : ℕ)
+    (stmt : FRIBatchStmt F d t) {α : ℝ} (hα_nn : 0 ≤ α) (hα_lt : α < 1) :
+    let B := ⌊α * (2 ^ d : ℝ)⌋₊
+    let e := 2 ^ d - 1 - B
+    ((∀ (D' : Finset (Fin (2 ^ d))) (v₀ : OracleTable d F),
+        v₀ ∈ C →
+        ∀ v : Fin t → OracleTable d F,
+          (∀ j, v j ∈ C) →
           (∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s) →
-          (D'.card : ℝ) / (2 ^ params.d : ℝ) ≤ α) ↔
-      stmt ∉ params.batchProximityLang t e) ∧
-      B < 2 ^ params.d ∧
-      2 ^ params.d - e - 1 = B ∧
-      (B : ℝ) / (2 ^ params.d : ℝ) ≤ α ∧
-      (e : ℝ) / (2 ^ params.d : ℝ) < 1 - α := by
-  set n : ℕ := 2 ^ params.d
+          (D'.card : ℝ) / (2 ^ d : ℝ) ≤ α) ↔
+      stmt ∉ friBatchProximityLang C t e) ∧
+      B < 2 ^ d ∧
+      2 ^ d - e - 1 = B ∧
+      (B : ℝ) / (2 ^ d : ℝ) ≤ α ∧
+      (e : ℝ) / (2 ^ d : ℝ) < 1 - α := by
+  set n : ℕ := 2 ^ d
   have hnR_pos : (0 : ℝ) < (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]; positivity
-  have hnR_eq : ((2 : ℝ) ^ params.d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
+  have hnR_eq : ((2 : ℝ) ^ d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
   have hαn_nn : 0 ≤ α * (n : ℝ) := mul_nonneg hα_nn hnR_pos.le
   have hαn_lt : α * (n : ℝ) < (n : ℝ) := by
     calc α * (n : ℝ) < 1 * (n : ℝ) := mul_lt_mul_of_pos_right hα_lt hnR_pos
@@ -457,29 +447,29 @@ theorem smoothBatchFloorThreshold_bounds (params : FRISmoothParams F) (t : ℕ)
   have hne1 : n - e - 1 = B := by omega
   dsimp only
   simp only [hnR_eq]
-  change ((∀ (D' : Finset (Fin n)) (v₀ : OracleTable params.d F),
-        v₀ ∈ params.initialCode →
-        ∀ v : Fin t → OracleTable params.d F,
-          (∀ j, v j ∈ params.initialCode) →
+  change ((∀ (D' : Finset (Fin n)) (v₀ : OracleTable d F),
+        v₀ ∈ C →
+        ∀ v : Fin t → OracleTable d F,
+          (∀ j, v j ∈ C) →
           (∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s) →
           (D'.card : ℝ) / (n : ℝ) ≤ α) ↔
-      stmt ∉ params.batchProximityLang t e) ∧
+      stmt ∉ friBatchProximityLang C t e) ∧
       B < n ∧ n - e - 1 = B ∧ (B : ℝ) / (n : ℝ) ≤ α ∧ (e : ℝ) / (n : ℝ) < 1 - α
   have hcard_le_iff : ∀ D' : Finset (Fin n),
       (D'.card : ℝ) / (n : ℝ) ≤ α ↔ D'.card ≤ B := by
     intro D'
     rw [div_le_iff₀ hnR_pos, ← Nat.le_floor_iff hαn_nn]
   refine ⟨?_, hB_lt, hne1, ?_, ?_⟩
-  · simp only [FRISmoothParams.batchProximityLang, Set.mem_ofPred_eq]
-    change (∀ (D' : Finset (Fin n)) (v₀ : OracleTable params.d F),
-        v₀ ∈ params.initialCode →
-        ∀ v : Fin t → OracleTable params.d F,
-          (∀ j, v j ∈ params.initialCode) →
+  · simp only [friBatchProximityLang, Set.mem_ofPred_eq]
+    change (∀ (D' : Finset (Fin n)) (v₀ : OracleTable d F),
+        v₀ ∈ C →
+        ∀ v : Fin t → OracleTable d F,
+          (∀ j, v j ∈ C) →
           (∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s) →
           (D'.card : ℝ) / (n : ℝ) ≤ α) ↔
       ¬ ∃ D' : Finset (Fin n), n - e ≤ D'.card ∧
-        ∃ v₀ ∈ params.initialCode, ∃ v : Fin t → OracleTable params.d F,
-          (∀ j, v j ∈ params.initialCode) ∧
+        ∃ v₀ ∈ C, ∃ v : Fin t → OracleTable d F,
+          (∀ j, v j ∈ C) ∧
           ∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s
     rw [hne]
     constructor
@@ -498,13 +488,55 @@ theorem smoothBatchFloorThreshold_bounds (params : FRISmoothParams F) (t : ℕ)
       exact_mod_cast (show e + (B + 1) = n by omega)
     linarith
 
+namespace FRISmoothParams
+
+/-- Honest completeness relation for smooth batched FRI (`friBatchCompletenessRel` on
+`params.initialCode`). -/
+abbrev batchCompletenessRel (params : FRISmoothParams F) (t : ℕ) :
+    FRIBatchStmt F params.d t → Unit → Prop :=
+  friBatchCompletenessRel params.initialCode t
+
+/-- Integer-threshold tuple correlated-agreement language for `(t + 1)`-word smooth batched FRI
+(`friBatchProximityLang` on `params.initialCode`). -/
+noncomputable abbrev batchProximityLang (params : FRISmoothParams F) (t e : ℕ) :
+    Set (FRIBatchStmt F params.d t) :=
+  friBatchProximityLang params.initialCode t e
+
+/-- Real-density tuple correlated-agreement language for `(t + 1)`-word smooth batched FRI
+(`friBatchCorrAgreeLang` on `params.initialCode`). -/
+noncomputable abbrev batchCorrAgreeLang (params : FRISmoothParams F) (t : ℕ) (α : ℝ) :
+    Set (FRIBatchStmt F params.d t) :=
+  friBatchCorrAgreeLang params.initialCode t α
+
+/-- Full direct-read schedule / input-symbol budget `(t + 1) * q` across `stmt.base` and
+`stmt.terms`: `friSmoothBatchInputQueries` lists `q` scheduled input positions, with multiplicity,
+with `t + 1` input symbols sufficient at each (`friSmoothBatchDecide_congr_inputQueries`). Because
+`friSmoothBatchDecide` can reject on answer-list length before accessing `stmt`, repetitions
+short-circuit on earlier failures, and query challenges may repeat indices, `(t + 1) * q` is a
+schedule / upper-bound budget. -/
+abbrev batchInputWordReads (params : FRISmoothParams F) (t : ℕ) : ℕ :=
+  (t + 1) * params.q
+
+/-- Combined word-query budget `batchInputWordReads t + proofOracleQueries =
+kFinal + q * (aritySum + m + t + 3)`. -/
+abbrev batchTotalWordQueries (params : FRISmoothParams F) (t : ℕ) : ℕ :=
+  params.batchInputWordReads t + params.proofOracleQueries
+
+theorem batchTotalWordQueries_eq (params : FRISmoothParams F) (t : ℕ) :
+    params.batchTotalWordQueries t =
+      params.kFinal + params.q * (params.aritySum + params.m + t + 3) := by
+  simp only [batchTotalWordQueries, batchInputWordReads, proofOracleQueries, singleRepQueries]
+  ring
+
+end FRISmoothParams
+
 namespace FRIParams
 
-/-- Honest completeness relation for batched FRI: both `stmt.base` and all `t` generator words
-`stmt.terms j` belong to `params.initialCode`. -/
-@[expose] def batchCompletenessRel (params : FRIParams F) (t : ℕ) :
+/-- Honest completeness relation for batched FRI (`friBatchCompletenessRel` on
+`params.initialCode`). -/
+abbrev batchCompletenessRel (params : FRIParams F) (t : ℕ) :
     FRIBatchStmt F params.d t → Unit → Prop :=
-  fun stmt _ => stmt.base ∈ params.initialCode ∧ ∀ j : Fin t, stmt.terms j ∈ params.initialCode
+  friBatchCompletenessRel params.initialCode t
 
 /-- Every affine combination `stmt.eval x` of an honest batch statement lies in
 `params.initialCode`. -/
@@ -512,36 +544,26 @@ theorem eval_mem_initialCode (params : FRIParams F) {t : ℕ}
     {stmt : FRIBatchStmt F params.d t} (hrel : params.batchCompletenessRel t stmt ())
     (x : Fin t → F) :
     stmt.eval x ∈ params.initialCode :=
-  params.initialCode.add_mem hrel.1
-    (params.initialCode.sum_mem fun j _ => params.initialCode.smul_mem (x j) (hrel.2 j))
+  eval_mem_of_friBatchCompletenessRel hrel x
 
-/-- Integer-threshold tuple correlated-agreement language for `(t + 1)`-word batched FRI:
-`stmt.base` and all `t` words `stmt.terms j` simultaneously agree with codewords in
-`params.initialCode` on a common subset `D' ⊆ Fin (2 ^ d)` of cardinality at least `2 ^ d - e`
-(matching [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 and Section 8.2). -/
-@[expose] def batchProximityLang (params : FRIParams F) (t e : ℕ) :
+/-- Integer-threshold tuple correlated-agreement language for `(t + 1)`-word batched FRI
+(`friBatchProximityLang` on `params.initialCode`). -/
+noncomputable abbrev batchProximityLang (params : FRIParams F) (t e : ℕ) :
     Set (FRIBatchStmt F params.d t) :=
-  {stmt | ∃ D' : Finset (Fin (2 ^ params.d)), 2 ^ params.d - e ≤ D'.card ∧
-    ∃ v₀ ∈ params.initialCode, ∃ v : Fin t → OracleTable params.d F,
-      (∀ j, v j ∈ params.initialCode) ∧
-      ∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s}
+  friBatchProximityLang params.initialCode t e
 
-/-- Real-density tuple correlated-agreement language for `(t + 1)`-word batched FRI: `stmt.base` and
-all `t` words `stmt.terms j` simultaneously agree with codewords in `params.initialCode` on a common
-domain `D' ⊆ Fin (2 ^ d)` of relative density `α ≤ (#D' : ℝ) / 2 ^ d`
-([BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed p. 39). -/
-@[expose] def batchCorrAgreeLang (params : FRIParams F) (t : ℕ) (α : ℝ) :
+/-- Real-density tuple correlated-agreement language for `(t + 1)`-word batched FRI
+(`friBatchCorrAgreeLang` on `params.initialCode`). -/
+noncomputable abbrev batchCorrAgreeLang (params : FRIParams F) (t : ℕ) (α : ℝ) :
     Set (FRIBatchStmt F params.d t) :=
-  {stmt | ∃ D' : Finset (Fin (2 ^ params.d)),
-    α ≤ (D'.card : ℝ) / (2 ^ params.d : ℝ) ∧
-    ∃ v₀ ∈ params.initialCode, ∃ v : Fin t → OracleTable params.d F,
-      (∀ j, v j ∈ params.initialCode) ∧
-      ∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s}
+  friBatchCorrAgreeLang params.initialCode t α
 
 /-- Full direct-read schedule / input-symbol budget `(t + 1) * q` across `stmt.base` and
-`stmt.terms 0, …, stmt.terms (t - 1)`: `friBatchInputQueries` schedules `q` positions, with `t + 1`
-input symbols sufficient at each (`friBatchDecide_congr_inputQueries`). A call with a wrong-length
-answer list or an unsuccessful earlier repetition can reject before inspecting later positions. -/
+`stmt.terms 0, …, stmt.terms (t - 1)`: `friBatchInputQueries` lists `q` scheduled input positions,
+with multiplicity, with `t + 1` input symbols sufficient at each
+(`friBatchDecide_congr_inputQueries`). Because `friBatchDecide` can reject on answer-list length
+before accessing `stmt`, repetitions short-circuit on earlier failures, and query challenges may
+repeat indices, `(t + 1) * q` is a schedule / upper-bound budget. -/
 abbrev batchInputWordReads (params : FRIParams F) (t : ℕ) : ℕ :=
   (t + 1) * params.q
 
@@ -558,20 +580,18 @@ theorem batchTotalWordQueries_eq (params : FRIParams F) (t : ℕ) :
 
 @[simp]
 theorem toSmooth_batchCompletenessRel (params : FRIParams F) (t : ℕ) :
-    params.toSmooth.batchCompletenessRel t = params.batchCompletenessRel t := by
-  funext stmt _
-  simp only [FRISmoothParams.batchCompletenessRel, batchCompletenessRel,
-    params.toSmooth_initialCode]
+    params.toSmooth.batchCompletenessRel t = params.batchCompletenessRel t :=
+  congrArg (friBatchCompletenessRel · t) params.toSmooth_initialCode
 
 @[simp]
 theorem toSmooth_batchProximityLang (params : FRIParams F) (t e : ℕ) :
-    params.toSmooth.batchProximityLang t e = params.batchProximityLang t e := by
-  simp only [FRISmoothParams.batchProximityLang, batchProximityLang, params.toSmooth_initialCode]
+    params.toSmooth.batchProximityLang t e = params.batchProximityLang t e :=
+  congrArg (friBatchProximityLang · t e) params.toSmooth_initialCode
 
 @[simp]
 theorem toSmooth_batchCorrAgreeLang (params : FRIParams F) (t : ℕ) (α : ℝ) :
-    params.toSmooth.batchCorrAgreeLang t α = params.batchCorrAgreeLang t α := by
-  simp only [FRISmoothParams.batchCorrAgreeLang, batchCorrAgreeLang, params.toSmooth_initialCode]
+    params.toSmooth.batchCorrAgreeLang t α = params.batchCorrAgreeLang t α :=
+  congrArg (friBatchCorrAgreeLang · t α) params.toSmooth_initialCode
 
 @[simp]
 theorem toSmooth_batchInputWordReads (params : FRIParams F) (t : ℕ) :
@@ -584,52 +604,49 @@ theorem toSmooth_batchTotalWordQueries (params : FRIParams F) (t : ℕ) :
     params.toSmooth_proofOracleQueries]
 
 /-- Any statement satisfying `batchCompletenessRel` belongs to `batchProximityLang t e` for every
-`e : ℕ` (corollary of `FRISmoothParams.mem_batchProximityLang_of_batchCompletenessRel`). -/
+`e : ℕ` (specialization of `mem_friBatchProximityLang_of_completenessRel`). -/
 theorem mem_batchProximityLang_of_batchCompletenessRel (params : FRIParams F) {t : ℕ} (e : ℕ)
     {stmt : FRIBatchStmt F params.d t} (hrel : params.batchCompletenessRel t stmt ()) :
-    stmt ∈ params.batchProximityLang t e := by
-  rw [← params.toSmooth_batchProximityLang]
-  exact params.toSmooth.mem_batchProximityLang_of_batchCompletenessRel e
-    (by rwa [params.toSmooth_batchCompletenessRel])
+    stmt ∈ params.batchProximityLang t e :=
+  mem_friBatchProximityLang_of_completenessRel e hrel
 
 /-- Contrapositively, `stmt ∉ params.batchProximityLang t e` implies `e < 2 ^ params.d`
-(corollary of `FRISmoothParams.lt_two_pow_of_not_mem_batchProximityLang`). -/
+(specialization of `lt_two_pow_of_not_mem_friBatchProximityLang`). -/
 theorem lt_two_pow_of_not_mem_batchProximityLang (params : FRIParams F) {t e : ℕ}
     {stmt : FRIBatchStmt F params.d t} (hnot : stmt ∉ params.batchProximityLang t e) :
     e < 2 ^ params.d :=
-  params.toSmooth.lt_two_pow_of_not_mem_batchProximityLang
-    (by rwa [params.toSmooth_batchProximityLang])
+  lt_two_pow_of_not_mem_friBatchProximityLang hnot
 
 end FRIParams
 
 /-- At batch size `t = 0`, tuple correlated agreement `batchProximityLang 0 e` coincides with the
-single-word `proximityLang e` on `stmt.base` (corollary of
-`mem_smoothBatchProximityLang_zero_iff`). -/
+single-word `proximityLang e` on `stmt.base` (specialization of
+`mem_friBatchProximityLang_zero_iff`). -/
 theorem mem_batchProximityLang_zero_iff [DecidableEq F] (params : FRIParams F) (e : ℕ)
     (stmt : FRIBatchStmt F params.d 0) :
-    stmt ∈ params.batchProximityLang 0 e ↔ stmt.base ∈ params.proximityLang e := by
-  rw [← params.toSmooth_batchProximityLang, ← params.toSmooth_proximityLang]
-  exact mem_smoothBatchProximityLang_zero_iff params.toSmooth e stmt
+    stmt ∈ params.batchProximityLang 0 e ↔ stmt.base ∈ params.proximityLang e :=
+  mem_friBatchProximityLang_zero_iff params.initialCode e stmt
 
-/-- **Exact ceiling `Set` equality (`α ≤ 1`)** (corollary of
-`smoothBatchCorrAgreeLang_eq_batchProximityLang`). -/
+/-- **Exact ceiling `Set` equality (`α ≤ 1`)** (specialization of
+`friBatchCorrAgreeLang_eq_proximityLang`). -/
 theorem batchCorrAgreeLang_eq_batchProximityLang (params : FRIParams F) (t : ℕ)
     {α : ℝ} (hα_le : α ≤ 1) :
     params.batchCorrAgreeLang t α =
-      params.batchProximityLang t (2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊) := by
-  rw [← params.toSmooth_batchCorrAgreeLang, ← params.toSmooth_batchProximityLang]
-  exact smoothBatchCorrAgreeLang_eq_batchProximityLang params.toSmooth t hα_le
+      params.batchProximityLang t (2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊) :=
+  friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le
 
-/-- **Ceiling threshold bounds (`0 < α ≤ 1`)** (corollary of `smoothBatchCeilThreshold_bounds`). -/
+/-- **Ceiling threshold bounds (`0 < α ≤ 1`)** (specialization of `friBatchCeilThreshold_bounds`).
+-/
 theorem batchCeilThreshold_bounds (params : FRIParams F) {α : ℝ}
     (hα_pos : 0 < α) (hα_le : α ≤ 1) :
     let e := 2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊
     e < 2 ^ params.d ∧
       (((2 ^ params.d - e - 1 : ℕ) : ℝ) / (2 ^ params.d : ℝ)) < α ∧
       (e : ℝ) / (2 ^ params.d : ℝ) ≤ 1 - α :=
-  smoothBatchCeilThreshold_bounds params.toSmooth hα_pos hα_le
+  friBatchCeilThreshold_bounds params.d hα_pos hα_le
 
-/-- **Floor threshold bounds (`0 ≤ α < 1`)** (corollary of `smoothBatchFloorThreshold_bounds`). -/
+/-- **Floor threshold bounds (`0 ≤ α < 1`)** (specialization of `friBatchFloorThreshold_bounds`).
+-/
 theorem batchFloorThreshold_bounds (params : FRIParams F) (t : ℕ)
     (stmt : FRIBatchStmt F params.d t) {α : ℝ}
     (hα_nn : 0 ≤ α) (hα_lt : α < 1) :
@@ -645,9 +662,8 @@ theorem batchFloorThreshold_bounds (params : FRIParams F) (t : ℕ)
       B < 2 ^ params.d ∧
       2 ^ params.d - e - 1 = B ∧
       (B : ℝ) / (2 ^ params.d : ℝ) ≤ α ∧
-      (e : ℝ) / (2 ^ params.d : ℝ) < 1 - α := by
-  simpa only [params.toSmooth_initialCode, params.toSmooth_batchProximityLang] using
-    smoothBatchFloorThreshold_bounds params.toSmooth t stmt hα_nn hα_lt
+      (e : ℝ) / (2 ^ params.d : ℝ) < 1 - α :=
+  friBatchFloorThreshold_bounds params.initialCode t stmt hα_nn hα_lt
 
 end LanguagesAndThresholds
 
@@ -683,8 +699,8 @@ theorem length_friSmoothBatchQueries (params : FRISmoothParams F) (t : ℕ)
     (friSmoothBatchQueries params t chals).length = params.proofOracleQueries := by
   simp only [friSmoothBatchQueries, List.length_map, length_friSmoothQueries]
 
-/-- Schedule of `q` evaluation positions at which agreement of the `t + 1` input words
-`(stmt.base, stmt.terms)` suffices to determine `friSmoothBatchDecide`. -/
+/-- Schedule of `q` scheduled input positions, with multiplicity, at which agreement of the
+`t + 1` input words `(stmt.base, stmt.terms)` suffices to determine `friSmoothBatchDecide`. -/
 @[expose] def friSmoothBatchInputQueries (params : FRISmoothParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
     List (Fin (2 ^ params.d)) :=
@@ -807,7 +823,7 @@ theorem friSmoothBatchIOP_complete [DecidableEq F] (params : FRISmoothParams F) 
     exact iopProverOracles_friSmoothBatchIOP_succ params t stmt chals j
   rw [horacles]
   exact friSmoothIOP_complete params (stmt.eval (chals 0).batchCoeffs) ()
-    (params.eval_mem_initialCode hrel (chals 0).batchCoeffs) (friTailChals chals)
+    (eval_mem_of_friBatchCompletenessRel hrel (chals 0).batchCoeffs) (friTailChals chals)
 
 /-- **Perfect deterministic BCS completeness for smooth batched FRI**. -/
 theorem friSmoothBatchBCS_verify_prove_eq_true [DecidableEq F] (params : FRISmoothParams F)
@@ -838,20 +854,20 @@ theorem isCostBounded_bcsMTCost_friSmoothBatchVerifyROM [DecidableEq F]
   isCostBounded_bcsMTCost_bcsVerifyROM_of_queries_le (friSmoothBatchIOP params t) encSym stmt prf
     (fun chals => (length_friSmoothBatchIOP_queries params t stmt chals).le) hops
 
-/-- Committed-proof-oracle opening list of the batched FRI verifier: shifts every query `(j, idx)`
-of `friQueries params (friTailChals chals)` to `(j.succ, idx)` in `Fin (params.m + 2)`. Round `0` is
-never opened; all `params.proofOracleQueries = kFinal + q * (3 * m + 2)` openings target the
-committed prover tables `f⁽⁰⁾, …, f⁽ᵐ⁾` in rounds `1, …, m + 1`. -/
+/-- Committed-proof-oracle opening list of the batched FRI verifier (derived directly from
+`friSmoothBatchQueries params.toSmooth`). Round `0` is never opened; all
+`params.proofOracleQueries = kFinal + q * (3 * m + 2)` openings target the committed prover tables
+`f⁽⁰⁾, …, f⁽ᵐ⁾` in rounds `1, …, m + 1`. -/
 @[expose] def friBatchQueries (params : FRIParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
     List (Fin (params.m + 2) × Fin (2 ^ params.d)) :=
-  (friQueries params (friTailChals chals)).map fun (j, idx) => (j.succ, idx)
+  friSmoothBatchQueries params.toSmooth t chals
 
 /-- Exact equality between binary `friBatchQueries` and smooth `friSmoothBatchQueries`. -/
 theorem friBatchQueries_eq_friSmoothBatchQueries (params : FRIParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
-    friBatchQueries params t chals = friSmoothBatchQueries params.toSmooth t chals := by
-  simp only [friBatchQueries, friSmoothBatchQueries, friQueries_eq_friSmoothQueries]
+    friBatchQueries params t chals = friSmoothBatchQueries params.toSmooth t chals :=
+  rfl
 
 /-- No query in `friBatchQueries` ever opens the round-`0` announcement table (corollary of
 `round_ne_zero_of_mem_friSmoothBatchQueries`). -/
@@ -859,34 +875,33 @@ theorem round_ne_zero_of_mem_friBatchQueries (params : FRIParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t)
     {p : Fin (params.m + 2) × Fin (2 ^ params.d)} (hp : p ∈ friBatchQueries params t chals) :
     p.1 ≠ 0 :=
-  round_ne_zero_of_mem_friSmoothBatchQueries params.toSmooth t chals
-    (by rwa [← friBatchQueries_eq_friSmoothBatchQueries])
+  round_ne_zero_of_mem_friSmoothBatchQueries params.toSmooth t chals hp
 
 theorem length_friBatchQueries (params : FRIParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
     (friBatchQueries params t chals).length = params.proofOracleQueries := by
-  rw [friBatchQueries_eq_friSmoothBatchQueries, length_friSmoothBatchQueries,
-    params.toSmooth_proofOracleQueries]
+  rw [friBatchQueries, length_friSmoothBatchQueries, params.toSmooth_proofOracleQueries]
 
-/-- Schedule of `q` evaluation positions at which agreement of the `t + 1` input words
-`(stmt.base, stmt.terms 0, …, stmt.terms (t - 1))` suffices to determine `friBatchDecide` outside
-`PublicCoinIOP.queries`. -/
+/-- Schedule of `q` scheduled input positions, with multiplicity, at which agreement of the
+`t + 1` input words `(stmt.base, stmt.terms 0, …, stmt.terms (t - 1))` suffices to determine
+`friBatchDecide` outside `PublicCoinIOP.queries` (derived directly from
+`friSmoothBatchInputQueries params.toSmooth`). -/
 @[expose] def friBatchInputQueries (params : FRIParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
     List (Fin (2 ^ params.d)) :=
-  friInputQueries params (friTailChals chals)
+  friSmoothBatchInputQueries params.toSmooth t chals
 
 theorem length_friBatchInputQueries (params : FRIParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
     (friBatchInputQueries params t chals).length = params.q :=
   length_friSmoothBatchInputQueries params.toSmooth t chals
 
-/-- Batched FRI verifier decision procedure: delegates directly to `friDecide` on the affine
-combination `stmt.eval (chals 0).batchCoeffs` and challenge tail `friTailChals chals`. -/
+/-- Batched FRI verifier decision procedure (derived directly from
+`friSmoothBatchDecide params.toSmooth`). -/
 @[expose] def friBatchDecide [DecidableEq F] (params : FRIParams F) (t : ℕ)
     (stmt : FRIBatchStmt F params.d t)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) (answers : List F) : Bool :=
-  friDecide params (stmt.eval (chals 0).batchCoeffs) (friTailChals chals) answers
+  friSmoothBatchDecide params.toSmooth t stmt chals answers
 
 /-- Exact equality between binary `friBatchDecide` and smooth `friSmoothBatchDecide`. -/
 theorem friBatchDecide_eq_friSmoothBatchDecide [DecidableEq F] (params : FRIParams F) (t : ℕ)
@@ -894,7 +909,7 @@ theorem friBatchDecide_eq_friSmoothBatchDecide [DecidableEq F] (params : FRIPara
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) (answers : List F) :
     friBatchDecide params t stmt chals answers =
       friSmoothBatchDecide params.toSmooth t stmt chals answers :=
-  friDecide_eq_friSmoothDecide params (stmt.eval (chals 0).batchCoeffs) (friTailChals chals) answers
+  rfl
 
 /-- Input-query locality (corollary of `friSmoothBatchDecide_congr_inputQueries`). -/
 theorem friBatchDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F) (t : ℕ)
@@ -903,9 +918,8 @@ theorem friBatchDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F)
     (hagree : ∀ s ∈ friBatchInputQueries params t chals,
       stmt₁.base s = stmt₂.base s ∧ ∀ j : Fin t, stmt₁.terms j s = stmt₂.terms j s)
     (answers : List F) :
-    friBatchDecide params t stmt₁ chals answers = friBatchDecide params t stmt₂ chals answers := by
-  rw [friBatchDecide_eq_friSmoothBatchDecide, friBatchDecide_eq_friSmoothBatchDecide]
-  exact friSmoothBatchDecide_congr_inputQueries params.toSmooth t chals hagree answers
+    friBatchDecide params t stmt₁ chals answers = friBatchDecide params t stmt₂ chals answers :=
+  friSmoothBatchDecide_congr_inputQueries params.toSmooth t chals hagree answers
 
 /-- **Batched multi-round 2-to-1 FRI as a `(params.m + 2)`-round `PublicCoinIOP`**
 ([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, printed pp. 37–38). -/
@@ -925,12 +939,8 @@ theorem friBatchDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F)
 `friSmoothBatchIOP params.toSmooth t`. -/
 theorem friBatchIOP_eq_friSmoothBatchIOP [DecidableEq F] (params : FRIParams F) (t : ℕ) :
     friBatchIOP params t = friSmoothBatchIOP params.toSmooth t := by
-  simp only [friBatchIOP, friSmoothBatchIOP, friIOP_eq_friSmoothIOP]
-  congr 1
-  · funext _ chals
-    exact friBatchQueries_eq_friSmoothBatchQueries params t chals
-  · funext stmt chals answers
-    exact friBatchDecide_eq_friSmoothBatchDecide params t stmt chals answers
+  simp only [friBatchIOP, friSmoothBatchIOP, friIOP_eq_friSmoothIOP, friBatchQueries,
+    friBatchDecide]
 
 /-- Exact committed-proof-oracle opening count of `friBatchIOP` (corollary of
 `length_friSmoothBatchIOP_queries`). -/

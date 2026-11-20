@@ -28,7 +28,7 @@ coset (`d = 5`, `ω = 15` primitive `32`-nd root of unity since `15 ^ 16 ≡ -1 
      `proofOracleQueries = 85`, `totalWordQueries = 91`, `batchTotalWordQueries 2 = 103`,
      per-round curve budgets `(28, 2)` telescoping to `30 = 32 - 2`, round-`0` max `28`).
 2. **Smooth coset folding (`Folding.lean`) & honest prover (`Protocol.lean`):**
-   Certifies `cosetEval_pow_two_pow`, `foldFiber`, `foldWord_apply_eq_foldFiber`,
+   Certifies `cosetEval_pow_two_pow`, `foldFiberComp`, `foldFiber`, `foldWord_apply_eq_foldFiber`,
    `foldFiber_two_eq_fold2Fiber`, `friCumLog_eq_sum_fin`, `friSmoothHonestWord_mem_rsCode`,
    `friSmoothFinalCodeword_mem_rsCode`, exact query lengths (`length_friSmoothIOP_queries`,
    `length_friSmoothInputQueries`), input locality (`friSmoothDecide_congr_inputQueries`), IOP /
@@ -41,9 +41,9 @@ coset (`d = 5`, `ω = 15` primitive `32`-nd root of unity since `15 ^ 16 ≡ -1 
 4. **Batched smooth FRI (`t = 2`, `BatchProtocol.lean`):**
    Certifies round-`0` non-opening, exact opening counts, input locality, affine and homogeneous
    linear completeness, BCS / ROM completeness, Merkle cost, far-tuple non-membership, and all
-   language / ceiling / floor threshold bridges (`mem_smoothBatchProximityLang_zero_iff`,
-   `smoothBatchCorrAgreeLang_eq_batchProximityLang`, `smoothBatchCeilThreshold_bounds`,
-   `smoothBatchFloorThreshold_bounds`).
+   shared code-parameterized language / ceiling / floor threshold bridges
+   (`mem_friBatchProximityLang_zero_iff`, `friBatchCorrAgreeLang_eq_proximityLang`,
+   `friBatchCeilThreshold_bounds`, `friBatchFloorThreshold_bounds`).
 5. **Exact binary equivalence (`FRIParams.toSmooth`):**
    Verifies `friIOP params257 = friSmoothIOP params257.toSmooth`,
    `friBatchIOP params257 2 = friSmoothBatchIOP params257.toSmooth 2`, and exact malformed-list
@@ -174,6 +174,11 @@ example : friCumLog params257Fold8x2.stepLog 2 = ∑ k : Fin 2, params257Fold8x2
 example (πFinal : OracleTable 5 (ZMod 257)) :
     friSmoothFinalCodeword params257Fold4x4 πFinal ∈ params257Fold4x4.rsCode 2 :=
   friSmoothFinalCodeword_mem_rsCode params257Fold4x4 πFinal
+
+example (f : Fin (4 * 8) → ZMod 257) (r : Fin 4) (j : Fin 8) :
+    foldComp (1 : ZMod 257) 15 f r j =
+      foldFiberComp (1 : ZMod 257) 15 (fun t => f (fiberIdx j t)) r j :=
+  rfl
 
 example (f : Fin (4 * 8) → ZMod 257) (z : ZMod 257) (j : Fin 8) :
     foldWord (1 : ZMod 257) 15 f z j =
@@ -708,30 +713,28 @@ example (prf : BCSProof 4 (ZMod 257)) (hops : ∀ op ∈ prf.openings, op.path.l
   isCostBounded_bcsMTCost_friSmoothBatchVerifyROM params257Fold8x2 2 (encZMod (p := 257))
     honestBatchStmt32 prf hops
 
--- Language & threshold bridges for smooth batched FRI.
+-- Shared code-parameterized language & threshold bridges exercised on smooth batched FRI.
 example : honestBatchStmt32 ∈ params257Fold4x4.batchProximityLang 2 7 :=
-  params257Fold4x4.mem_batchProximityLang_of_batchCompletenessRel 7
-    honestBatchStmt32_completeRel_4x4
+  mem_friBatchProximityLang_of_completenessRel 7 honestBatchStmt32_completeRel_4x4
 
 example : 7 < 2 ^ params257Fold4x4.d :=
-  params257Fold4x4.lt_two_pow_of_not_mem_batchProximityLang
-    badBatchStmt32_not_mem_batchProximityLang_4x4
+  lt_two_pow_of_not_mem_friBatchProximityLang badBatchStmt32_not_mem_batchProximityLang_4x4
 
 example (stmt0 : FRIBatchStmt (ZMod 257) 5 0) :
     stmt0 ∈ params257Fold4x4.batchProximityLang 0 7 ↔
       stmt0.base ∈ params257Fold4x4.proximityLang 7 :=
-  mem_smoothBatchProximityLang_zero_iff params257Fold4x4 7 stmt0
+  mem_friBatchProximityLang_zero_iff params257Fold4x4.initialCode 7 stmt0
 
 example :
     params257Fold4x4.batchCorrAgreeLang 2 (3 / 4 : ℝ) =
       params257Fold4x4.batchProximityLang 2 (2 ^ 5 - ⌈(3 / 4 : ℝ) * (2 ^ 5 : ℝ)⌉₊) :=
-  smoothBatchCorrAgreeLang_eq_batchProximityLang params257Fold4x4 2 (by norm_num)
+  friBatchCorrAgreeLang_eq_proximityLang params257Fold4x4.initialCode 2 (by norm_num)
 
 example :
     let e := 2 ^ 5 - ⌈(3 / 4 : ℝ) * (2 ^ 5 : ℝ)⌉₊
     e < 2 ^ 5 ∧ (((2 ^ 5 - e - 1 : ℕ) : ℝ) / (2 ^ 5 : ℝ)) < (3 / 4 : ℝ) ∧
       (e : ℝ) / (2 ^ 5 : ℝ) ≤ 1 - (3 / 4 : ℝ) :=
-  smoothBatchCeilThreshold_bounds params257Fold4x4 (by norm_num) (by norm_num)
+  friBatchCeilThreshold_bounds 5 (by norm_num) (by norm_num)
 
 example :
     let B := ⌊(3 / 4 : ℝ) * (2 ^ 5 : ℝ)⌋₊
@@ -745,7 +748,8 @@ example :
       badBatchStmt32 ∉ params257Fold4x4.batchProximityLang 2 e) ∧
       B < 2 ^ 5 ∧ 2 ^ 5 - e - 1 = B ∧
       (B : ℝ) / (2 ^ 5 : ℝ) ≤ (3 / 4 : ℝ) ∧ (e : ℝ) / (2 ^ 5 : ℝ) < 1 - (3 / 4 : ℝ) :=
-  smoothBatchFloorThreshold_bounds params257Fold4x4 2 badBatchStmt32 (by norm_num) (by norm_num)
+  friBatchFloorThreshold_bounds params257Fold4x4.initialCode 2 badBatchStmt32
+    (by norm_num) (by norm_num)
 
 /-! ### Part 5: Exact Binary Specialization Equivalence (`FRIParams.toSmooth`) -/
 

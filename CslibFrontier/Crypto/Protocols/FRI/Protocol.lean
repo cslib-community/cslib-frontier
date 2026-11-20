@@ -22,10 +22,11 @@ import Mathlib.Data.List.OfFn
 This module instantiates multi-round Fast Reed–Solomon Interactive Oracle Proofs of Proximity
 (FRI) with arbitrary per-round strict 2-smooth folding arities `l⁽ⁱ⁾ = 2 ^ stepLog i ≥ 2`
 (`FRISmoothParams`, `friSmoothIOP`) together with the fixed 2-to-1 specialization (`FRIParams`,
-`friIOP`) ([BenSassonBentovHoreshRiabzev2018]; [BenSassonCarmonIshaiKoppartySaraf2020],
-Section 8.2 on printed pp. 36–38) directly as a `Cslib.Crypto.Protocols.BCS.PublicCoinIOP`
-compatible with the Ben-Sasson–Chiesa–Spooner (BCS) random-oracle compiler
-([BenSassonChiesaSpooner2016]).
+`friIOP`) ([BenSassonBentovHoreshRiabzev2018], with fixed localization parameter in the full
+version ECCC TR17-134, Remark 3.1, p. 13; [BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2 on
+printed pp. 36–38, Eqs. (8.1)–(8.3) for round-dependent arities and the interpolating coefficient
+map) directly as a `Cslib.Crypto.Protocols.BCS.PublicCoinIOP` compatible with the
+Ben-Sasson–Chiesa–Spooner (BCS) random-oracle compiler ([BenSassonChiesaSpooner2016]).
 
 ## Protocol layout
 
@@ -46,22 +47,28 @@ per-round log-arities `stepLog : Fin m → ℕ` (`1 ≤ stepLog i`, cumulative l
   final round `m` uses `queryIdxs`. Bundling all `q` independent query positions into the single
   final round preserves exponential `(1 - δ) ^ q` query-phase soundness under the uniform
   per-round escape bound of `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound`.
-* **Round-0 binding and query accounting.** The verifier reads the first `kFinal` entries of the
-  final oracle `π_m` to define a degree-`< kFinal` Reed–Solomon codeword by Lagrange interpolation,
-  and for each of the `q` queried starting positions `s : Fin (2 ^ d)` checks:
+* **Round-0 binding, final anchor convention, and query accounting.** Rather than sending explicit
+  final polynomial coefficients, the verifier reads the first `kFinal` entries of the final oracle
+  `π_m` as interpolation anchors to define a degree-`< kFinal` Reed–Solomon codeword by Lagrange
+  interpolation, and for each of the `q` queried starting positions `s : Fin (2 ^ d)` checks:
   1. explicit round-0 binding `π_0(s) = stmt(s)` against the input word `stmt`,
   2. all `m` local `l⁽ⁱ⁾`-to-1 coset folding equations (`foldFiber`) along the powering chain of `s`
      (opening all `l⁽ⁱ⁾` fiber points in `π_i` and `1` folded point in `π_{i + 1}`), and
   3. agreement of `π_m(s % 2 ^ (d - totalLog))` with the interpolated final codeword.
-  The committed-proof-oracle opening count exposed through `PublicCoinIOP.queries` is
+  The committed-proof-oracle opening list exposed through `PublicCoinIOP.queries` has exact length
   `params.proofOracleQueries = kFinal + q * (aritySum + m + 2)` (specializing to
   `kFinal + q * (3 * m + 2)` for 2-to-1 folding, which governs BCS Merkle verification cost).
-  Separately, `friSmoothCheckSingle` reads `stmt s` once per repetition outside
-  `PublicCoinIOP.queries`, contributing `params.inputWordReads = q` direct input-word reads
-  (tracked by `friSmoothInputQueries` and certified by `friSmoothDecide_congr_inputQueries`).
-  Counting both input-word and prover-table reads as in [BenSassonBentovHoreshRiabzev2018]
-  (pp. 14:3–14:4) gives `params.totalWordQueries = kFinal + q * (aritySum + m + 3)` total word
-  queries, independent of `2 ^ d`.
+  Separately, outside `PublicCoinIOP.queries`, `friSmoothInputQueries` (and `friInputQueries`)
+  lists `q` scheduled input positions, with multiplicity (`params.inputWordReads = q`, certified
+  sufficient by `friSmoothDecide_congr_inputQueries` / `friDecide_congr_inputQueries`). Because
+  `friSmoothDecide` can reject on an unexpected answer-list length before accessing `stmt`,
+  repetitions short-circuit on earlier failures (`&&`), and query challenges may repeat indices,
+  `params.inputWordReads = q` is a direct-read schedule / upper-bound budget rather than a count of
+  distinct reads performed on every execution. Pairing this input-read budget with the exact
+  committed-opening count gives the combined word-query budget
+  `params.totalWordQueries = kFinal + q * (aritySum + m + 3)` (`kFinal + q * (3 * m + 3)` for
+  2-to-1 folding, aligned with counting both input-word and prover-table queries in
+  [BenSassonBentovHoreshRiabzev2018], pp. 14:3–14:4), independent of `2 ^ d`.
 
 ## Main definitions
 
@@ -202,21 +209,23 @@ noncomputable abbrev initialCode (params : FRIParams F) : Submodule F (OracleTab
 @[expose] def completenessRel (params : FRIParams F) : OracleTable params.d F → Unit → Prop :=
   fun f₀ _ => f₀ ∈ params.initialCode
 
-/-- Number of committed-proof-oracle openings issued by the FRI verifier via
-`PublicCoinIOP.queries`: `kFinal + q * (3 * m + 2)`. This excludes the `q` direct input-word reads
-of `stmt` performed in `friCheckSingle` (tracked separately by `inputWordReads`) and is the opening
-count that governs BCS Merkle verification cost. -/
+/-- Exact length of the committed-proof-oracle opening list issued by the FRI verifier via
+`PublicCoinIOP.queries`: `kFinal + q * (3 * m + 2)`. This excludes the `q` scheduled input
+positions, with multiplicity, tracked by `inputWordReads`, and is the opening count that governs
+BCS Merkle verification cost. -/
 abbrev proofOracleQueries (params : FRIParams F) : ℕ :=
   params.kFinal + params.q * (3 * params.m + 2)
 
-/-- Number of direct input-word reads of `stmt` performed by the FRI verifier (`q`, one per query
-repetition in `friCheckSingle`, outside `PublicCoinIOP.queries`). -/
+/-- Direct input-word read budget: `q` scheduled input positions, with multiplicity (listed by
+`friInputQueries` outside `PublicCoinIOP.queries`). Because `friDecide` can reject on answer-list
+length before accessing `stmt`, repetitions short-circuit on earlier failures, and query challenges
+may repeat indices, `q` is a schedule / upper-bound budget. -/
 abbrev inputWordReads (params : FRIParams F) : ℕ :=
   params.q
 
-/-- Total number of word queries made by the FRI verifier across the input word `stmt` and the
-committed prover oracles: `inputWordReads + proofOracleQueries = kFinal + q * (3 * m + 3)`
-([BenSassonBentovHoreshRiabzev2018], pp. 14:3–14:4). -/
+/-- Combined word-query budget `inputWordReads + proofOracleQueries = kFinal + q * (3 * m + 3)`,
+pairing the `q` scheduled input positions (with multiplicity) with the exact committed-proof-oracle
+opening list length `proofOracleQueries` ([BenSassonBentovHoreshRiabzev2018], pp. 14:3–14:4). -/
 abbrev totalWordQueries (params : FRIParams F) : ℕ :=
   params.inputWordReads + params.proofOracleQueries
 
@@ -378,17 +387,21 @@ per folding round `i`, and `1` final-round entry (`aritySum + m + 2`). -/
 abbrev singleRepQueries (params : FRISmoothParams F) : ℕ :=
   params.aritySum + params.m + 2
 
-/-- Number of committed-proof-oracle openings issued by the smooth FRI verifier via
+/-- Exact length of the committed-proof-oracle opening list issued by the smooth FRI verifier via
 `PublicCoinIOP.queries`: `kFinal + q * (aritySum + m + 2)`. -/
 abbrev proofOracleQueries (params : FRISmoothParams F) : ℕ :=
   params.kFinal + params.q * params.singleRepQueries
 
-/-- Number of direct input-word reads of `stmt` performed by the smooth FRI verifier (`q`). -/
+/-- Direct input-word read budget: `q` scheduled input positions, with multiplicity (listed by
+`friSmoothInputQueries` outside `PublicCoinIOP.queries`). Because `friSmoothDecide` can reject on
+answer-list length before accessing `stmt`, repetitions short-circuit on earlier failures, and
+query challenges may repeat indices, `q` is a schedule / upper-bound budget. -/
 abbrev inputWordReads (params : FRISmoothParams F) : ℕ :=
   params.q
 
-/-- Total number of word queries across `stmt` and the committed prover oracles:
-`inputWordReads + proofOracleQueries = kFinal + q * (aritySum + m + 3)`. -/
+/-- Combined word-query budget `inputWordReads + proofOracleQueries =
+kFinal + q * (aritySum + m + 3)`, pairing the `q` scheduled input positions (with multiplicity)
+with the exact committed-proof-oracle opening list length `proofOracleQueries`. -/
 abbrev totalWordQueries (params : FRISmoothParams F) : ℕ :=
   params.inputWordReads + params.proofOracleQueries
 
@@ -944,7 +957,7 @@ theorem padOracle_friHonestWord_eq_smooth (params : FRIParams F) (f₀ : OracleT
                   rcases ht with ht | ht <;> simp only [ht, zero_mul, one_mul, add_zero] <;>
                     omega⟩)
             ⟨idx.val, hlt⟩ (zs (Fin.last j)) := by
-        simp only [foldFiber, hcj, hcj1, FRISmoothParams.arity, pow_one]
+        simp only [foldFiber, foldFiberComp, hcj, hcj1, FRISmoothParams.arity, pow_one]
         refine Finset.sum_congr rfl fun r _ => ?_
         congr 2
         refine Finset.sum_congr rfl fun t _ => ?_
@@ -1123,7 +1136,8 @@ theorem length_friSmoothQueries (params : FRISmoothParams F)
   simp only [friSmoothQueries, List.length_append, length_friSmoothHeaderQueries,
     length_friSmoothRepQueriesList, List.length_finRange, FRISmoothParams.proofOracleQueries]
 
-/-- List of input-word positions of `stmt` read directly by the smooth FRI verifier (`q`). -/
+/-- Schedule of `q` scheduled input positions, with multiplicity, at which `stmt` suffices to
+determine `friSmoothDecide` outside `PublicCoinIOP.queries`. -/
 @[expose] def friSmoothInputQueries (params : FRISmoothParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     List (Fin (2 ^ params.d)) :=
@@ -1201,9 +1215,9 @@ and final-codeword checks. -/
       friSmoothCheckRepsList params stmt headerVals chals as (ans.drop blockLen)
   | _, _ => false
 
-/-- Smooth FRI verifier decision procedure operating purely on `stmt` (read only at the `q`
-positions in `friSmoothInputQueries params chals`), `chals`, and the flat list of
-`params.proofOracleQueries` queried prover-oracle answers. -/
+/-- Smooth FRI verifier decision procedure operating purely on `stmt` (determined by the `q`
+scheduled input positions, with multiplicity, in `friSmoothInputQueries params chals`), `chals`,
+and the flat list of `params.proofOracleQueries` queried prover-oracle answers. -/
 @[expose] def friSmoothDecide [DecidableEq F] (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (answers : List F) : Bool :=
@@ -1239,8 +1253,8 @@ private theorem friSmoothCheckRepsList_congr_stmt [DecidableEq F] (params : FRIS
     rw [friSmoothCheckSingle_congr_stmt params headerVals chals _ (hagree a List.mem_cons_self),
       ih (fun b hb => hagree b (List.mem_cons_of_mem a hb))]
 
-/-- `friSmoothDecide` depends on the input word `stmt` only at the `params.inputWordReads = q`
-positions in `friSmoothInputQueries params chals`. -/
+/-- `friSmoothDecide` depends on the input word `stmt` only at the `q` scheduled input positions,
+with multiplicity, in `friSmoothInputQueries params chals` (`params.inputWordReads = q` budget). -/
 theorem friSmoothDecide_congr_inputQueries [DecidableEq F] (params : FRISmoothParams F)
     {stmt₁ stmt₂ : OracleTable params.d F}
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
@@ -1257,8 +1271,9 @@ theorem friSmoothDecide_congr_inputQueries [DecidableEq F] (params : FRISmoothPa
 * `m + 1` rounds over depth-`d` oracle tables `OracleTable d F`.
 * Honest prover sends `padOracle (friSmoothHonestWord ...)` using previous rounds' `foldScalar`s.
 * Verifier opens `params.proofOracleQueries = kFinal + q * (aritySum + m + 2)` entries in the
-  committed prover oracles, reads `params.inputWordReads = q` entries of `stmt`, and checks
-  round-0 binding, all `m` `l⁽ⁱ⁾`-to-1 folding checks, and the final degree-`< kFinal` check. -/
+  committed prover oracles, schedules `params.inputWordReads = q` input positions (with
+  multiplicity) of `stmt`, and checks round-0 binding, all `m` `l⁽ⁱ⁾`-to-1 folding checks, and the
+  final degree-`< kFinal` Lagrange-anchor check. -/
 @[expose] def friSmoothIOP [DecidableEq F] (params : FRISmoothParams F) :
     PublicCoinIOP (params.m + 1) params.d (OracleTable params.d F) Unit F
       (FRIChal F params.d params.q) where
@@ -1570,93 +1585,78 @@ variable {F : Type} [Field F]
     lt_of_lt_of_le (Nat.mod_lt _ (Nat.pow_pos (by omega)))
       (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩
 
-/-- Header queries reading the first `kFinal` entries of the final oracle `π_m`. -/
+/-- Header queries reading the first `kFinal` entries of the final oracle `π_m` (derived directly
+from `friSmoothHeaderQueries params.toSmooth`). -/
 @[expose] def friHeaderQueries (params : FRIParams F) :
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
-  List.ofFn fun t : Fin params.kFinal =>
-    (Fin.last params.m,
-      ⟨t.val, lt_of_lt_of_le (lt_of_lt_of_le t.isLt params.hkLe)
-        (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩)
+  friSmoothHeaderQueries params.toSmooth
 
 @[simp]
 theorem length_friHeaderQueries (params : FRIParams F) :
-    (friHeaderQueries params).length = params.kFinal := by
-  simp [friHeaderQueries]
+    (friHeaderQueries params).length = params.kFinal :=
+  length_friSmoothHeaderQueries params.toSmooth
 
-/-- Folding-chain queries along a list of rounds `rounds` followed by the final-round check at
-`friFinalIdx params s`. -/
+/-- Folding-chain queries along a list of rounds `rounds` followed by the final-round check
+(derived directly from `friSmoothFoldQueriesList params.toSmooth`). -/
 @[expose] def friFoldQueriesList (params : FRIParams F) (s : Fin (2 ^ params.d)) :
-    List (Fin params.m) → List (Fin (params.m + 1) × Fin (2 ^ params.d))
-  | [] => [(Fin.last params.m, friFinalIdx params s)]
-  | i :: is =>
-    (i.castSucc, friRoundPosIdx params i s) ::
-    (i.castSucc, friRoundNegIdx params i s) ::
-    (i.succ, friRoundPosIdx params i s) ::
-    friFoldQueriesList params s is
+    List (Fin params.m) → List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
+  friSmoothFoldQueriesList params.toSmooth s
 
 theorem length_friFoldQueriesList (params : FRIParams F) (s : Fin (2 ^ params.d))
     (rounds : List (Fin params.m)) :
     (friFoldQueriesList params s rounds).length = 3 * rounds.length + 1 := by
-  induction rounds with
-  | nil => rfl
-  | cons _ _ ih =>
-    simp only [friFoldQueriesList, List.length_cons, ih]
-    omega
+  rw [friFoldQueriesList, length_friSmoothFoldQueriesList]
+  simp [params.toSmooth_arity, List.map_const', List.sum_replicate, mul_comm]
 
-/-- All oracle queries for a single query repetition starting at `s : Fin (2 ^ d)`:
-round-0 binding query `(0, s)`, all `m` folding triples, and the final-round query. -/
+/-- All oracle queries for a single query repetition starting at `s : Fin (2 ^ d)` (derived
+directly from `friSmoothSingleQueries params.toSmooth`). -/
 @[expose] def friSingleQueries (params : FRIParams F) (s : Fin (2 ^ params.d)) :
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
-  (⟨0, Nat.zero_lt_succ params.m⟩, s) :: friFoldQueriesList params s (List.finRange params.m)
+  friSmoothSingleQueries params.toSmooth s
 
 @[simp]
 theorem length_friSingleQueries (params : FRIParams F) (s : Fin (2 ^ params.d)) :
     (friSingleQueries params s).length = 3 * params.m + 2 := by
-  simp only [friSingleQueries, List.length_cons, length_friFoldQueriesList, List.length_finRange]
+  rw [friSingleQueries, length_friSmoothSingleQueries, params.toSmooth_singleRepQueries]
 
-/-- Concatenated queries for a list of repetition indices `reps : List (Fin q)`. -/
+/-- Concatenated queries for a list of repetition indices `reps : List (Fin q)` (derived directly
+from `friSmoothRepQueriesList params.toSmooth`). -/
 @[expose] def friRepQueriesList (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    List (Fin params.q) → List (Fin (params.m + 1) × Fin (2 ^ params.d))
-  | [] => []
-  | a :: as =>
-    friSingleQueries params ((chals (Fin.last params.m)).queryIdxs a) ++
-      friRepQueriesList params chals as
+    List (Fin params.q) → List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
+  friSmoothRepQueriesList params.toSmooth chals
 
 theorem length_friRepQueriesList (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (reps : List (Fin params.q)) :
     (friRepQueriesList params chals reps).length = reps.length * (3 * params.m + 2) := by
-  induction reps with
-  | nil => simp [friRepQueriesList]
-  | cons _ _ ih =>
-    simp only [friRepQueriesList, List.length_append, length_friSingleQueries, ih, List.length_cons]
-    ring
+  rw [friRepQueriesList, length_friSmoothRepQueriesList, params.toSmooth_singleRepQueries]
 
 /-- Full committed-proof-oracle opening list of the FRI verifier: `kFinal` final-oracle
-interpolation anchors followed by `q` query repetitions. This excludes the `q` direct input-word
-reads of `stmt` tracked by `friInputQueries`. -/
+interpolation anchors followed by `q` query repetitions (derived directly from
+`friSmoothQueries params.toSmooth`). This excludes the `q` scheduled input positions, with
+multiplicity, tracked by `friInputQueries`. -/
 @[expose] def friQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
-  friHeaderQueries params ++ friRepQueriesList params chals (List.finRange params.q)
+  friSmoothQueries params.toSmooth chals
 
 theorem length_friQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     (friQueries params chals).length = params.proofOracleQueries := by
-  simp only [friQueries, List.length_append, length_friHeaderQueries, length_friRepQueriesList,
-    List.length_finRange, FRIParams.proofOracleQueries]
+  rw [friQueries, length_friSmoothQueries, params.toSmooth_proofOracleQueries]
 
-/-- List of input-word positions of `stmt` read directly by the FRI verifier (one per query
-repetition in `friCheckSingle`, outside `PublicCoinIOP.queries`). -/
+/-- Schedule of `q` scheduled input positions, with multiplicity, at which `stmt` suffices to
+determine `friDecide` outside `PublicCoinIOP.queries` (derived directly from
+`friSmoothInputQueries params.toSmooth`). -/
 @[expose] def friInputQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     List (Fin (2 ^ params.d)) :=
-  (List.finRange params.q).map (chals (Fin.last params.m)).queryIdxs
+  friSmoothInputQueries params.toSmooth chals
 
 theorem length_friInputQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    (friInputQueries params chals).length = params.inputWordReads := by
-  simp only [friInputQueries, List.length_map, List.length_finRange, FRIParams.inputWordReads]
+    (friInputQueries params chals).length = params.inputWordReads :=
+  length_friSmoothInputQueries params.toSmooth chals
 
 /-- Final-round Reed–Solomon codeword interpolated from the first `kFinal` entries of `πFinal`. -/
 @[expose] def friFinalCodeword (params : FRIParams F) (πFinal : OracleTable params.d F) :
@@ -1677,62 +1677,45 @@ theorem friFinalCodeword_mem_rsCode (params : FRIParams F) (πFinal : OracleTabl
   exact evalLagrange_mem_reedSolomon params.finalAnchorPoints_injective _ _
 
 /-- Check the folding chain and final Lagrange equation against the answer list for a single
-repetition starting at `s`. -/
+repetition starting at `s` (derived directly from `friSmoothCheckFoldList params.toSmooth`). -/
 @[expose] def friCheckFoldList [DecidableEq F] (params : FRIParams F)
     (headerVals : Fin params.kFinal → F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
-    (s : Fin (2 ^ params.d)) : List (Fin params.m) → List F → Bool
-  | [], [yFinal] =>
-    decide (yFinal = evalLagrange params.finalAnchorPoints headerVals
-      (params.eval params.m (friFinalFin params s)))
-  | i :: is, yPos :: yNeg :: yNext :: rest =>
-    decide (fold2Fiber yPos yNeg (params.eval i.val (friRoundPosFin params i s))
-      (chals i.castSucc).foldScalar = yNext) &&
-      friCheckFoldList params headerVals chals s is rest
-  | _, _ => false
+    (s : Fin (2 ^ params.d)) : List (Fin params.m) → List F → Bool :=
+  friSmoothCheckFoldList params.toSmooth headerVals chals s
 
 /-- Check a single repetition's answer block: round-0 binding to `stmt s` plus all folding and
-final-codeword checks. -/
+final-codeword checks (derived directly from `friSmoothCheckSingle params.toSmooth`). -/
 @[expose] def friCheckSingle [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F) (headerVals : Fin params.kFinal → F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
-    (s : Fin (2 ^ params.d)) : List F → Bool
-  | y0 :: rest =>
-    decide (y0 = stmt s) &&
-      friCheckFoldList params headerVals chals s (List.finRange params.m) rest
-  | [] => false
+    (s : Fin (2 ^ params.d)) : List F → Bool :=
+  friSmoothCheckSingle params.toSmooth stmt headerVals chals s
 
-/-- Check all repetitions in `reps` by consuming fixed-size blocks of length `3 * m + 2`. -/
+/-- Check all repetitions in `reps` by consuming fixed-size blocks of length `3 * m + 2` (derived
+directly from `friSmoothCheckRepsList params.toSmooth`). -/
 @[expose] def friCheckRepsList [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F) (headerVals : Fin params.kFinal → F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    List (Fin params.q) → List F → Bool
-  | [], [] => true
-  | a :: as, ans =>
-    let blockLen := 3 * params.m + 2
-    friCheckSingle params stmt headerVals chals ((chals (Fin.last params.m)).queryIdxs a)
-        (ans.take blockLen) &&
-      friCheckRepsList params stmt headerVals chals as (ans.drop blockLen)
-  | _, _ => false
+    List (Fin params.q) → List F → Bool :=
+  friSmoothCheckRepsList params.toSmooth stmt headerVals chals
 
-/-- FRI verifier decision procedure operating purely on `stmt` (read only at the `q` positions in
-`friInputQueries params chals`), `chals`, and the flat list of `params.proofOracleQueries` queried
-prover-oracle answers. -/
+/-- FRI verifier decision procedure operating purely on `stmt` (determined by the `q` scheduled
+input positions, with multiplicity, in `friInputQueries params chals`), `chals`, and the flat list
+of `params.proofOracleQueries` queried prover-oracle answers (derived directly from
+`friSmoothDecide params.toSmooth`). -/
 @[expose] def friDecide [DecidableEq F] (params : FRIParams F) (stmt : OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (answers : List F) : Bool :=
-  decide (answers.length = params.proofOracleQueries) &&
-    let headerVals : Fin params.kFinal → F := fun t => (answers.take params.kFinal).getD t.val 0
-    friCheckRepsList params stmt headerVals chals (List.finRange params.q)
-      (answers.drop params.kFinal)
+  friSmoothDecide params.toSmooth stmt chals answers
 
 /-- **Multi-round 2-to-1 FRI as a `PublicCoinIOP`**:
 * `m + 1` rounds over depth-`d` oracle tables `OracleTable d F`.
 * Honest prover sends `padOracle (friHonestWord ...)` using the previous rounds' `foldScalar`s.
 * Verifier opens `params.proofOracleQueries = kFinal + q * (3 * m + 2)` entries in the committed
-  prover oracles (via `queries`), reads `params.inputWordReads = q` entries of the input word `stmt`
-  (tracked by `friInputQueries`, for `params.totalWordQueries = kFinal + q * (3 * m + 3)` total
-  word queries), and checks round-0 binding to `stmt`, all `m` folding checks, and the final
-  degree-`< kFinal` Lagrange check. -/
+  prover oracles (via `queries`), schedules `params.inputWordReads = q` input positions, with
+  multiplicity, of `stmt` (tracked by `friInputQueries`, for the combined word-query budget
+  `params.totalWordQueries = kFinal + q * (3 * m + 3)`), and checks round-0 binding to `stmt`, all
+  `m` folding checks, and the final degree-`< kFinal` Lagrange-anchor check. -/
 @[expose] def friIOP [DecidableEq F] (params : FRIParams F) :
     PublicCoinIOP (params.m + 1) params.d (OracleTable params.d F) Unit F
       (FRIChal F params.d params.q) where
@@ -1809,82 +1792,17 @@ private theorem foldFiber_toSmooth_eq_fold2Fiber (params : FRIParams F) (i : Fin
         foldFiber (params.g ^ (2 ^ i.val)) (params.ω ^ (2 ^ i.val))
           (fun t : Fin 2 => ys ⟨t.val, by simp [t.isLt]⟩)
           (friFoldedFin params i s) z := by
-    simp only [foldFiber, friSmoothFoldedFin, friFoldedFin, hci, hci1, FRISmoothParams.arity,
-      pow_one]
+    simp only [foldFiber, foldFiberComp, friSmoothFoldedFin, friFoldedFin, hci, hci1,
+      FRISmoothParams.arity, pow_one]
     rfl
   rw [hrew, foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωi]
   simp [FRIParams.eval, cosetEval, cosetPoint, friFoldedFin, friRoundPosFin]
 
-private theorem friFoldQueriesList_eq_smooth (params : FRIParams F) (s : Fin (2 ^ params.d))
-    (rounds : List (Fin params.m)) :
-    friFoldQueriesList params s rounds = friSmoothFoldQueriesList params.toSmooth s rounds := by
-  induction rounds with
-  | nil =>
-    simp [friFoldQueriesList, friSmoothFoldQueriesList, friSmoothFinalIdx_toSmooth]
-  | cons i is ih =>
-    simp only [friFoldQueriesList, friSmoothFoldQueriesList, ih]
-    have hofFn :
-        (List.ofFn fun t : Fin (params.toSmooth.arity i) =>
-          (i.castSucc, friSmoothFiberIdx params.toSmooth i s t)) =
-        [(i.castSucc, friRoundPosIdx params i s), (i.castSucc, friRoundNegIdx params i s)] := by
-      change (List.ofFn fun t : Fin 2 =>
-        (i.castSucc, friSmoothFiberIdx params.toSmooth i s ⟨t.val, by simp [t.isLt]⟩)) = _
-      rw [List.ofFn_succ, List.ofFn_succ, List.ofFn_zero]
-      simp only [Fin.val_zero, Fin.val_succ, List.cons.injEq, Prod.mk.injEq, true_and, and_true]
-      exact ⟨friSmoothFiberIdx_toSmooth_zero params i s, friSmoothFiberIdx_toSmooth_one params i s⟩
-    rw [hofFn, friSmoothFoldedIdx_toSmooth]
-    rfl
-
-private theorem friCheckFoldList_eq_smooth [DecidableEq F] (params : FRIParams F)
-    (headerVals : Fin params.kFinal → F)
-    (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
-    (s : Fin (2 ^ params.d)) (rounds : List (Fin params.m)) (ans : List F) :
-    friCheckFoldList params headerVals chals s rounds ans =
-      friSmoothCheckFoldList params.toSmooth headerVals chals s rounds ans := by
-  induction rounds generalizing ans with
-  | nil =>
-    cases ans with
-    | nil => rfl
-    | cons yFinal rest =>
-      cases rest with
-      | nil =>
-        simp [friCheckFoldList, friSmoothCheckFoldList, eval_toSmooth_final]
-      | cons _ _ => rfl
-  | cons i is ih =>
-    cases ans with
-    | nil => rfl
-    | cons yPos r1 =>
-      cases r1 with
-      | nil => rfl
-      | cons yNeg r2 =>
-        cases r2 with
-        | nil => rfl
-        | cons yNext rest =>
-          simp only [friCheckFoldList, friSmoothCheckFoldList]
-          have hdrop : (yPos :: yNeg :: yNext :: rest).drop (params.toSmooth.arity i) =
-              yNext :: rest := rfl
-          have htake : (yPos :: yNeg :: yNext :: rest).take (params.toSmooth.arity i) =
-              [yPos, yNeg] := rfl
-          rw [hdrop, htake]
-          dsimp only
-          rw [foldFiber_toSmooth_eq_fold2Fiber params i
-            (fun t : Fin (params.toSmooth.arity i) => ([yPos, yNeg]).getD t.val 0) s
-            (chals i.castSucc).foldScalar, ih rest]
-          rfl
-
 /-- Exact equality between binary `friQueries` and smooth `friSmoothQueries params.toSmooth`. -/
 theorem friQueries_eq_friSmoothQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    friQueries params chals = friSmoothQueries params.toSmooth chals := by
-  have hrep : ∀ reps : List (Fin params.q),
-      friRepQueriesList params chals reps = friSmoothRepQueriesList params.toSmooth chals reps := by
-    intro reps
-    induction reps with
-    | nil => rfl
-    | cons a as ih =>
-      simp only [friRepQueriesList, friSmoothRepQueriesList, friSingleQueries,
-        friSmoothSingleQueries, friFoldQueriesList_eq_smooth, ih]
-  simp only [friQueries, friSmoothQueries, hrep, friHeaderQueries, friSmoothHeaderQueries]
+    friQueries params chals = friSmoothQueries params.toSmooth chals :=
+  rfl
 
 /-- Exact equality between binary `friDecide` and smooth `friSmoothDecide params.toSmooth` on
 all answer lists (including malformed lists). -/
@@ -1892,28 +1810,8 @@ theorem friDecide_eq_friSmoothDecide [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (answers : List F) :
     friDecide params stmt chals answers =
-      friSmoothDecide params.toSmooth stmt chals answers := by
-  have hsingle : ∀ (headerVals : Fin params.kFinal → F) (s : Fin (2 ^ params.d)) (ans : List F),
-      friCheckSingle params stmt headerVals chals s ans =
-        friSmoothCheckSingle params.toSmooth stmt headerVals chals s ans := by
-    intro headerVals s ans
-    cases ans with
-    | nil => rfl
-    | cons y0 rest =>
-      simp only [friCheckSingle, friSmoothCheckSingle, friCheckFoldList_eq_smooth]
-  have hreps : ∀ (headerVals : Fin params.kFinal → F) (reps : List (Fin params.q)) (ans : List F),
-      friCheckRepsList params stmt headerVals chals reps ans =
-        friSmoothCheckRepsList params.toSmooth stmt headerVals chals reps ans := by
-    intro headerVals reps
-    induction reps with
-    | nil =>
-      intro ans
-      cases ans <;> rfl
-    | cons a as ih =>
-      intro ans
-      simp only [friCheckRepsList, friSmoothCheckRepsList, params.toSmooth_singleRepQueries,
-        hsingle, ih]
-  simp only [friDecide, friSmoothDecide, params.toSmooth_proofOracleQueries, hreps]
+      friSmoothDecide params.toSmooth stmt chals answers :=
+  rfl
 
 /-- **Exact IOP equality**: binary 2-to-1 `friIOP params` coincides identically with
 `friSmoothIOP params.toSmooth` across `proveRound`, `queries`, and `decide`. -/
@@ -1925,13 +1823,9 @@ theorem friIOP_eq_friSmoothIOP [DecidableEq F] (params : FRIParams F) :
   cases h1
   cases h2
   congr 1
-  · funext j stmt _ prevChals
-    exact padOracle_friHonestWord_eq_smooth params stmt j.val (Nat.le_of_lt_succ j.isLt)
-      (fun i => (prevChals i).foldScalar)
-  · funext _ chals
-    exact friQueries_eq_friSmoothQueries params chals
-  · funext stmt chals answers
-    exact friDecide_eq_friSmoothDecide params stmt chals answers
+  funext j stmt _ prevChals
+  exact padOracle_friHonestWord_eq_smooth params stmt j.val (Nat.le_of_lt_succ j.isLt)
+    (fun i => (prevChals i).foldScalar)
 
 /-- Exact equivalence between binary `friSingleAccepts` and smooth
 `friSmoothSingleAccepts params.toSmooth`. -/
@@ -1950,20 +1844,21 @@ theorem friSingleAccepts_iff_friSmoothSingleAccepts (params : FRIParams F)
       oracles i.castSucc (friSmoothFiberIdx params.toSmooth i s t)) s
     (chals i.castSucc).foldScalar, friSmoothFiberIdx_toSmooth_zero, friSmoothFiberIdx_toSmooth_one]
 
-/-- `friDecide` depends on the input word `stmt` only at the `params.inputWordReads = q` positions
-in `friInputQueries params chals` (corollary of `friSmoothDecide_congr_inputQueries`). -/
+/-- `friDecide` depends on the input word `stmt` only at the `q` scheduled input positions, with
+multiplicity, in `friInputQueries params chals` (corollary of
+`friSmoothDecide_congr_inputQueries`). -/
 theorem friDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F)
     {stmt₁ stmt₂ : OracleTable params.d F}
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
     (hagree : ∀ s ∈ friInputQueries params chals, stmt₁ s = stmt₂ s)
     (answers : List F) :
-    friDecide params stmt₁ chals answers = friDecide params stmt₂ chals answers := by
-  rw [friDecide_eq_friSmoothDecide, friDecide_eq_friSmoothDecide]
-  exact friSmoothDecide_congr_inputQueries params.toSmooth chals hagree answers
+    friDecide params stmt₁ chals answers = friDecide params stmt₂ chals answers :=
+  friSmoothDecide_congr_inputQueries params.toSmooth chals hagree answers
 
 /-- Exact committed-proof-oracle opening count of `friIOP`:
 `params.proofOracleQueries = kFinal + q * (3 * m + 2)` for every statement and challenge vector
-(excluding the `params.inputWordReads = q` direct reads of `stmt` in `friCheckSingle`). -/
+(excluding the `params.inputWordReads = q` scheduled input positions, with multiplicity, tracked
+by `friInputQueries`). -/
 theorem length_friIOP_queries [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
