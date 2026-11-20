@@ -11334,9 +11334,10 @@ register_result "mpda-hole-bounded-not-scope-bounded" where
   topic := "automata theory"
   sources := [
     { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Proposition 2, second sentence",
-      locator := "arXiv:2002.05950v2, Section 2.1, Proposition 2 and the second and third \
-        paragraphs of its proof (the language L_bh), printed p. 6; contexts, rounds and scope as \
-        defined in Section 2, printed p. 4; holes as in Definition 1, printed p. 5" }
+      locator := "arXiv:2002.05950v2, Section 2.1, Proposition 2 (printed p. 6) and the \
+        strict-containment part of its proof (the language L_bh and the witnesses w_m), printed \
+        pp. 6-7; contexts, rounds and scope as defined in Section 2, printed p. 4; holes as in \
+        Definition 1, printed p. 5" }
   ]
   theorems := [Cslib.Automata.MPDA.HoleSeparation.holeBounded_two,
     Cslib.Automata.MPDA.HoleSeparation.not_scopeBounded,

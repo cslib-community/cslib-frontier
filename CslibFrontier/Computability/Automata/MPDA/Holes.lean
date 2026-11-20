@@ -65,11 +65,14 @@ variable {n : ℕ} {Γ α β : Type*}
 
 /-! ## Matching pushes and pops -/
 
-/-- The effect of an operation on the height of stack `i`. -/
-@[expose] def Op.net (i : Fin n) : Op n Γ → ℤ
+/-- The effect of an operation kind on the height of stack `i`. -/
+@[expose, simp] def OpKind.net (i : Fin n) : OpKind n → ℤ
   | .nop => 0
-  | .push j _ => if j = i then 1 else 0
-  | .pop j _ => if j = i then -1 else 0
+  | .push j => if j = i then 1 else 0
+  | .pop j => if j = i then -1 else 0
+
+/-- The effect of an operation on the height of stack `i`: that of its kind. -/
+@[expose] def Op.net (i : Fin n) (op : Op n Γ) : ℤ := op.kind.net i
 
 /-- The net change of the height of stack `i` along a sequence of transitions. -/
 @[expose] def net (i : Fin n) (w : List (α × Op n Γ)) : ℤ := (w.map fun μ => μ.2.net i).sum
@@ -102,12 +105,23 @@ theorem net_append (i : Fin n) (u w : List (α × Op n Γ)) :
     net i (u ++ w) = net i u + net i w := by
   simp [net]
 
+/-- On a sequence whose operations have the kinds of their letters, the net effect on a stack only
+depends on the letters. -/
+theorem net_eq_of_kind {κ : α → OpKind n} {w : List (α × Op n Γ)}
+    (hw : ∀ μ ∈ w, μ.2.kind = κ μ.1) (i : Fin n) :
+    net i w = ((w.map Prod.fst).map fun a => (κ a).net i).sum := by
+  unfold net
+  rw [List.map_map]
+  congr 1
+  exact List.map_congr_left fun μ hμ => by
+    simp only [Function.comp_apply, Op.net, hw μ hμ]
+
 private theorem Op.net_push_nonneg (i j : Fin n) (γ : Γ) : 0 ≤ (Op.push j γ).net i := by
-  simp only [Op.net]
+  simp only [Op.net, Op.kind, OpKind.net]
   split_ifs <;> simp
 
 theorem Op.net_pop (i j : Fin n) (γ γ' : Γ) : (Op.pop j γ).net i = -(Op.push j γ').net i := by
-  simp only [Op.net]
+  simp only [Op.net, Op.kind, OpKind.net]
   split_ifs <;> simp
 
 /-- A well-nested sequence leaves the height of every stack unchanged. -/
@@ -338,7 +352,7 @@ theorem OpenHolePush.sameHole_pred {w : List (α × Op n Γ)} {x q : ℕ} {i : F
     · simp [net]
     · rw [List.cons_append, List.nil_append, List.take_succ_cons, net_cons]
       have := hk k
-      simp only [Op.net, ite_true]
+      simp only [Op.net, Op.kind, OpKind.net, ite_true]
       omega
   -- The push at `q - 1` is a hole push: a well-nested continuation closing it would close the
   -- push at `q` as well.

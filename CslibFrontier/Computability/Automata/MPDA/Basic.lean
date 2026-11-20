@@ -30,14 +30,17 @@ The paper has a single initial state; we allow a set of initial states, as `NA` 
 ## Main definitions
 
 - `MPDA.Op`: the stack operations of an MPDA.
+- `MPDA.OpKind`, `MPDA.Op.kind`: the kind of a stack operation, forgetting the stack symbol.
 - `MPDA`: multistack pushdown automata.
 - `MPDA.Config`: configurations, consisting of a control state and the contents of all stacks.
 - `MPDA.configLTS`: the transition system on configurations.
 - An `Acceptor` instance for acceptance by final state and empty stacks.
+- `MPDA.IsVisibly`: every transition on a letter performs the operation kind of that letter.
 
 ## Main results
 
 - `MPDA.configLTS_mTr_state`: every run on configurations projects to a run of the control.
+- `MPDA.IsVisibly.kind_eq`: every operation of a run of a visibly MPDA has the kind of its letter.
 
 ## References
 
@@ -98,6 +101,26 @@ theorem Op.apply_push {i : Fin n} {γ : Γ} {σ σ' : Stacks n Γ} :
 theorem Op.apply_pop {i : Fin n} {γ : Γ} {σ σ' : Stacks n Γ} :
     (Op.pop i γ).Apply σ σ' ↔ σ = Function.update σ' i (γ :: σ' i) := Iff.rfl
 
+/-- The kind of a stack operation: a push on stack `i`, a pop from stack `i`, or no stack
+operation. A visibly pushdown alphabet assigns a kind to each letter. -/
+inductive OpKind (n : ℕ) where
+  /-- A push on stack `i`. -/
+  | push (i : Fin n)
+  /-- A pop from stack `i`. -/
+  | pop (i : Fin n)
+  /-- No stack operation. -/
+  | nop
+  deriving DecidableEq
+
+/-- The kind of an operation, forgetting its stack symbol. -/
+@[expose, simp] def Op.kind : Op n Γ → OpKind n
+  | .nop => .nop
+  | .push i _ => .push i
+  | .pop i _ => .pop i
+
+theorem Op.kind_eq_push {op : Op n Γ} {i : Fin n} : op.kind = .push i ↔ ∃ γ, op = .push i γ := by
+  cases op <;> simp
+
 /-- A configuration of an MPDA: a control state and the contents of all stacks. -/
 @[ext]
 structure Config (n : ℕ) (State Γ : Type*) where
@@ -125,6 +148,23 @@ theorem configLTS_mTr_state {M : MPDA n State Symbol Γ} {c c' : Config n State 
   induction h with
   | refl => exact .refl
   | stepL htr _ ih => exact .stepL (configLTS_tr.mp htr).1 ih
+
+/-- An MPDA reads the letters visibly for `κ` if every transition on a letter `a` performs an
+operation of kind `κ a`. -/
+@[expose] def IsVisibly (M : MPDA n State Symbol Γ) (κ : Symbol → OpKind n) : Prop :=
+  ∀ s a op s', M.Tr s (a, op) s' → op.kind = κ a
+
+/-- Every operation of a run of a visibly MPDA has the kind of its letter. -/
+theorem IsVisibly.kind_eq {M : MPDA n State Symbol Γ} {κ : Symbol → OpKind n}
+    (hM : M.IsVisibly κ) {c c' : Config n State Γ} {w : List (Symbol × Op n Γ)}
+    (h : M.configLTS.MTr c w c') : ∀ μ ∈ w, μ.2.kind = κ μ.1 := by
+  induction h with
+  | refl => simp
+  | stepL htr _ ih =>
+    intro μ hμ
+    rcases List.mem_cons.mp hμ with rfl | hμ
+    · exact hM _ _ _ _ (configLTS_tr.mp htr).1
+    · exact ih μ hμ
 
 /-- An MPDA accepts a word if it has a run labelled by that word that starts in an initial state
 with all stacks empty and ends in an accepting state with all stacks empty. -/

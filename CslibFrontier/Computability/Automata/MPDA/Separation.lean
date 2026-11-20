@@ -26,8 +26,6 @@ operation of the kind the letter prescribes.
 
 ## Main definitions
 
-- `MPDA.OpKind`, `MPDA.Op.kind`: the kind of a stack operation, forgetting the stack symbol.
-- `MPDA.IsVisibly`: every transition on a letter performs the operation kind of that letter.
 - `MPDA.HoleSeparation.language`: the language `L_bh`.
 
 ## Main results
@@ -60,64 +58,7 @@ namespace Cslib.Automata.MPDA
 
 variable {n : ℕ} {State Γ α : Type*}
 
-/-! ## Visibly MPDAs -/
-
-/-- The kind of a stack operation: a push on stack `i`, a pop from stack `i`, or no stack
-operation. A visibly pushdown alphabet assigns a kind to each letter. -/
-inductive OpKind (n : ℕ) where
-  /-- A push on stack `i`. -/
-  | push (i : Fin n)
-  /-- A pop from stack `i`. -/
-  | pop (i : Fin n)
-  /-- No stack operation. -/
-  | nop
-  deriving DecidableEq
-
-/-- The kind of an operation, forgetting its stack symbol. -/
-@[expose] def Op.kind : Op n Γ → OpKind n
-  | .nop => .nop
-  | .push i _ => .push i
-  | .pop i _ => .pop i
-
-/-- The effect of an operation kind on the height of stack `i`. -/
-@[expose] def OpKind.net (i : Fin n) : OpKind n → ℤ
-  | .nop => 0
-  | .push j => if j = i then 1 else 0
-  | .pop j => if j = i then -1 else 0
-
-theorem Op.net_eq_kind_net (i : Fin n) (op : Op n Γ) : op.net i = op.kind.net i := by
-  cases op <;> rfl
-
-theorem Op.kind_eq_push {op : Op n Γ} {i : Fin n} : op.kind = .push i ↔ ∃ γ, op = .push i γ := by
-  cases op <;> simp [Op.kind]
-
-/-- An MPDA reads the letters visibly for `κ` if every transition on a letter `a` performs an
-operation of kind `κ a`. -/
-@[expose] def IsVisibly (M : MPDA n State α Γ) (κ : α → OpKind n) : Prop :=
-  ∀ s a op s', M.Tr s (a, op) s' → op.kind = κ a
-
-/-- Every operation of a run of a visibly MPDA has the kind of its letter. -/
-theorem IsVisibly.kind_eq {M : MPDA n State α Γ} {κ : α → OpKind n} (hM : M.IsVisibly κ)
-    {c c' : Config n State Γ} {w : List (α × Op n Γ)} (h : M.configLTS.MTr c w c') :
-    ∀ μ ∈ w, μ.2.kind = κ μ.1 := by
-  induction h with
-  | refl => simp
-  | stepL htr _ ih =>
-    intro μ hμ
-    rcases List.mem_cons.mp hμ with rfl | hμ
-    · exact hM _ _ _ _ (configLTS_tr.mp htr).1
-    · exact ih μ hμ
-
-/-- On a sequence whose operations have the kinds of their letters, the net effect on a stack only
-depends on the letters. -/
-theorem net_eq_of_kind {κ : α → OpKind n} {w : List (α × Op n Γ)}
-    (hw : ∀ μ ∈ w, μ.2.kind = κ μ.1) (i : Fin n) :
-    net i w = ((w.map Prod.fst).map fun a => (κ a).net i).sum := by
-  unfold net
-  rw [List.map_map]
-  congr 1
-  exact List.map_congr_left fun μ hμ => by
-    simp only [Function.comp_apply, Op.net_eq_kind_net, hw μ hμ]
+/-! ## Contexts of visibly read factors -/
 
 /-- The stack an operation kind touches, if any. -/
 private def OpKind.stack : OpKind n → Option (Fin n)
@@ -302,10 +243,11 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
       simpa [List.append_assoc] using this
 
 /-- **`L_bh` is `2`-hole-bounded**, the hole bound in the second sentence of Proposition 2 of
-[AkshayGastinKrishnaRoychowdhury2020] (arXiv:2002.05950v2, Section 2.1, printed p. 6): every run of
-a visibly MPDA on a word of `L_bh` is `2`-hole-bounded. At each position, the only first pending
-hole pushes can be the first `a` and the first `b`: pushes inside groups are closed by well-nested
-continuations, and every other pending `a` or `b` belongs to the hole of the push before it. -/
+[AkshayGastinKrishnaRoychowdhury2020] (arXiv:2002.05950v2, Section 2.1, printed pp. 6-7): every
+run of a visibly MPDA on a word of `L_bh` is `2`-hole-bounded. At each position, the only first
+pending hole pushes can be the first `a` and the first `b`: pushes inside groups are closed by
+well-nested continuations, and every other pending `a` or `b` belongs to the hole of the push
+before it. -/
 theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     {w : List (Letter × Op 2 Γ)} (h : M.configLTS.MTr c w c') (hw : w.map Prod.fst ∈ language) :
     HoleBounded 2 w := by
@@ -440,7 +382,7 @@ private def altPos (m : ℕ) : ℕ → ℕ
   | k + 2 => 2 * m + k
 
 /-- **`L_bh` has unbounded scope**, the scope half of the second sentence of Proposition 2 of
-[AkshayGastinKrishnaRoychowdhury2020] (arXiv:2002.05950v2, Section 2.1, printed p. 6): a run of a
+[AkshayGastinKrishnaRoychowdhury2020] (arXiv:2002.05950v2, Section 2.1, printed pp. 6-7): a run of a
 visibly MPDA on `aᵐ bᵐ (c d)ᵐ` is not `K`-scope-bounded for `K < 2 * m`. The first `a` is popped by
 the last `c`, and the `2 * m + 1` positions of the first `a`, the first `b` and every `c` and `d`
 but the last `d` alternate between the two stacks, so they lie in pairwise distinct contexts. -/
@@ -549,8 +491,8 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
 
 /-- **Hole-bounded strictly contains scope-, context- and round-bounded**, the second sentence of
 Proposition 2 of [AkshayGastinKrishnaRoychowdhury2020] (arXiv:2002.05950v2, Section 2.1, printed
-p. 6) for visibly MPDAs: `L_bh` is `2`-hole-bounded (`holeBounded_two`), but for every `K` it has a
-word on which no run of a visibly MPDA is `K`-scope-, `K`-context- or `K`-round-bounded. In
+pp. 6-7) for visibly MPDAs: `L_bh` is `2`-hole-bounded (`holeBounded_two`), but for every `K` it
+has a word on which no run of a visibly MPDA is `K`-scope-, `K`-context- or `K`-round-bounded. In
 particular, every visibly MPDA accepting `L_bh` has, for every `K`, an accepting run that is
 `2`-hole-bounded but not `K`-scope-, context- or round-bounded. -/
 theorem exists_not_roundBounded (hM : M.IsVisibly kind) (K : ℕ) :

@@ -144,7 +144,7 @@ private theorem wellMatched_of_isContextOf {M : MPDA n State α Γ} {c c' : Conf
       have h₁ := hk k
       rcases Nat.eq_zero_or_pos (k - (w.extract (p + 1) m).length) with h | h
       · rw [h, List.take_zero, net_nil]
-        simp only [Op.net, ↓reduceIte]
+        simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte]
         omega
       · rw [List.take_of_length_le (l := w.extract (p + 1) m) (by omega),
           List.take_of_length_le (l := [(b, Op.pop i δ)]) (by rw [List.length_singleton]; omega),
@@ -231,7 +231,7 @@ private theorem not_isContext_extract_pop {M : MPDA n State α Γ} {c c' : Confi
           (show a + 1 ≤ m₁ by omega), net_append] at hnet
       obtain ⟨a', γ, hj'⟩ := hj
       rw [net_extract_succ hj'] at hnet
-      simp only [Op.net, ↓reduceIte] at hnet
+      simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte] at hnet
       omega
     obtain ⟨m, hm, hmatch⟩ :=
       exists_matches_of_net_neg hj (by have := hm₁.lt_length; omega) hsplit
@@ -348,7 +348,7 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     rw [← w.extract_append_extract (Nat.zero_le r₁) (show r₁ ≤ w.length by omega),
       ← w.extract_append_extract (show r₁ ≤ r₁ + 1 by omega) (show r₁ + 1 ≤ w.length by omega),
       net_append, net_append, net_extract_succ hr₁i'] at h₀
-    simp only [Op.net, ↓reduceIte] at h₀
+    simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte] at h₀
     omega
   obtain ⟨m₁, -, hm₁⟩ := exists_matches_of_net_neg hr₁i le_rfl hneg
   have hxm₁ : x < m₁ := hr₁pend.lt_of_matches hr₁i hm₁

@@ -132,7 +132,7 @@ private theorem crossing_holePush_left (hpq : p < q) (hqz : q < z) (hp : IsPushO
     net_append, net_append] at h₃
   obtain ⟨a, γ, hqa⟩ := hq
   rw [net_extract_succ hqa] at h₃
-  simp only [Op.net, ↓reduceIte] at h₃
+  simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte] at h₃
   omega
 
 /-- The inner push of a crossing is a hole push. -/
@@ -160,7 +160,7 @@ private theorem crossing_holePush_right (hij : i ≠ j) (hpq : p < q) (hqz : q <
   obtain ⟨a, δ, hqa⟩ := hq
   rw [net_extract_succ hqa] at hpnet h₁
   rw [net_extract_succ hzpop] at h₁
-  simp only [Op.net, Ne.symm hij, ↓reduceIte] at hpnet h₁
+  simp only [Op.net, Op.kind, OpKind.net, Ne.symm hij, ↓reduceIte] at hpnet h₁
   omega
 
 /-- Every open hole push lies in an open hole whose first pending push is on the same stack. -/
