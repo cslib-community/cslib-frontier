@@ -90,6 +90,14 @@ variable {seed : PMF ι} {hash : ι → X → Y} {ε ε' : ℝ≥0∞}
 theorem mono (hh : IsUniversalHash seed hash ε) (hε : ε ≤ ε') : IsUniversalHash seed hash ε' :=
   fun x x' hx => (hh x x' hx).trans hε
 
+/-- A pair of distinct inputs that collide at every key forces the universality bound to be at
+least one. -/
+theorem one_le_of_forall_eq (hh : IsUniversalHash seed hash ε) {x x' : X}
+    (hne : x ≠ x') (hcollision : ∀ i, hash i x = hash i x') : 1 ≤ ε := by
+  have h : seed.toOuterMeasure {i | hash i x = hash i x'} = 1 :=
+    (seed.toOuterMeasure_apply_eq_one_iff _).2 fun i _ => hcollision i
+  simpa only [h] using hh x x' hne
+
 /-- An injective input encoding preserves universality. -/
 theorem precompose (hh : IsUniversalHash seed hash ε) {encode : X' → X}
     (hencode : Function.Injective encode) :
