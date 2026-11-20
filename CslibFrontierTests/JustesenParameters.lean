@@ -43,11 +43,12 @@ example : fieldDegree (2 ^ 1024) 0 = 32 := by
     by_contra! h
     have hs : s = 0 := by omega
     subst s
-    norm_num at hpass
+    norm_num [dimension, scaleDegree] at hpass
   have hle : s ≤ 1 := by
     by_contra! h
     have hfirst := hsmall 1 h
-    norm_num at hfirst
+    norm_num [dimension, scaleDegree] at hfirst
   rw [hd, show s = 1 by omega]
+  rfl
 
 end CslibFrontierTests.JustesenParameters

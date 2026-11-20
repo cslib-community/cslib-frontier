@@ -43,26 +43,19 @@ private def threshold (p : ℕ × ℕ) : ℕ :=
   512 * (Nat.log2 (p.1 * (p.2 + 1)) + 1)
 
 private def atScale (T s : ℕ) : CapacityState :=
-  let b := 16 * (s + 1)
-  ⟨T, b, 2 ^ (b - 1)⟩
+  ⟨T, scaleDegree s, dimension s⟩
 
 private def advance (s : CapacityState) : CapacityState :=
   if s.power * s.degree < s.threshold then
     ⟨s.threshold, s.degree + 16, s.power * 65536⟩
   else s
 
-private theorem atScale_power_succ (T i : ℕ) :
-    (atScale T (i + 1)).power = (atScale T i).power * 65536 := by
-  change 2 ^ (16 * (i + 1 + 1) - 1) = 2 ^ (16 * (i + 1) - 1) * 65536
-  have he : 16 * (i + 1 + 1) - 1 = (16 * (i + 1) - 1) + 16 := by omega
-  rw [he, pow_add]
-  rfl
-
 private theorem advance_atScale_of_lt {T i : ℕ}
     (h : (atScale T i).power * (atScale T i).degree < T) :
     advance (atScale T i) = atScale T (i + 1) := by
   have h' : (atScale T i).power * (atScale T i).degree < (atScale T i).threshold := h
-  rw [advance, ite_eq_left h', ← atScale_power_succ]
+  rw [advance, ite_eq_left h']
+  simp only [atScale, dimension_succ]
   congr 1
 
 private theorem iterate_advance {T s : ℕ}
@@ -99,8 +92,9 @@ private theorem power_le {T s : ℕ}
   | succ i =>
     have h := hsmall i (by omega)
     have hp : (atScale T i).power ≤ (atScale T i).power * (atScale T i).degree :=
-      Nat.le_mul_of_pos_right _ (by simp [atScale])
-    rw [atScale_power_succ]
+      Nat.le_mul_of_pos_right _ (by simp [atScale, scaleDegree])
+    simp only [atScale] at h hp ⊢
+    rw [dimension_succ]
     omega
 
 private theorem length_iterate_le (p : ℕ × ℕ) (i : ℕ) :
@@ -120,7 +114,7 @@ private theorem length_iterate_le (p : ℕ × ℕ) (i : ℕ) :
     length_encNat_eq_size n ▸ Nat.size_le_self n
   have hpower := (hlen _).trans hp
   simp only [encCapacityState_apply, encCapacityStateFields, length_encPair]
-  dsimp only [atScale] at *
+  dsimp only [atScale, scaleDegree] at *
   have hd := hlen (16 * (min i s + 1))
   have ht := hlen (threshold p)
   omega
@@ -159,7 +153,7 @@ private theorem computed_inSpace :
     (.of_le_linear 40000000 40000000 fun _ => by omega)
 
 private theorem computed_eq_atScale (p : ℕ × ℕ) :
-    ∃ s, computed p = atScale (threshold p) s ∧ fieldDegree p.1 p.2 = 16 * (s + 1) := by
+    ∃ s, computed p = atScale (threshold p) s ∧ fieldDegree p.1 p.2 = scaleDegree s := by
   obtain ⟨s, hs, hd, hpass, hsmall⟩ := fieldDegree_spec p.1 p.2
   change s ≤ threshold p at hs
   refine ⟨s, ?_, hd⟩
@@ -188,11 +182,7 @@ theorem codeLength_inSpace :
   refine (budget_comp_linear hlength computed_inSpace).of_enc_eq ?_
   intro p
   obtain ⟨s, hs, hds⟩ := computed_eq_atScale p
-  rw [hs, codeLength, hds]
-  have he : 16 * (s + 1) = (16 * (s + 1) - 1) + 1 := by omega
-  have hp : 2 ^ (16 * (s + 1)) = 2 * 2 ^ (16 * (s + 1) - 1) := by
-    conv_lhs => rw [he]
-    rw [pow_succ']
-  simp only [hp, atScale]
+  rw [hs, codeLength, hds, pow_scaleDegree]
+  rfl
 
 end Cslib.Code.JustesenFamily
