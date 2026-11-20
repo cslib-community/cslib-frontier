@@ -418,7 +418,7 @@ theorem exists_recognizesInSpace_recompute {α β : Type} {enc : α ↪ List Boo
     (cfgSpace_desc_le ⟨ef, hef⟩ tm (enc a) (htm a).2.2 (u a))
   have hq := hcq m
   have hq1 : (encNat (M.query m + 1)).length ≤ (encNat (M.query m)).length + 1 :=
-    ComputableTidilyInO.length_encNat_add_le _ 1
+    length_encNat_add_le _ 1
   have hn : (encNat ((enc a).length + 1)).length ≤ Nat.log2 (enc a).length + 2 :=
     length_encNat_le_log2_add_two le_rfl
   have hl := hlog a

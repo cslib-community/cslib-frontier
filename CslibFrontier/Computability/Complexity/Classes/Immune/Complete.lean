@@ -122,6 +122,11 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
     -- the description of the reduction, padded with `m` zeros
     let pw (m : ℕ) : List Bool := frame (eDesc (desc eS eBit tm)) ++ List.replicate m false
     have hpw (m : ℕ) : m ≤ (pw m).length := by simp [pw]
+    have hpad : ComputableInPolyTime pw encUnary encBits :=
+      ComputableInPolyTime.bitsAppend (ComputableInPolyTime.const _)
+        (ComputableInPolyTime.bitsReplicate false)
+    have himage : ComputableInPolyTime (fun m => f (pw m)) encUnary encBits :=
+      hf.comp hpad
     obtain ⟨M₁, hM₁⟩ := Filter.eventually_atTop.mp (hG t ht)
     let M := max M₁ L
     have hsim (m : ℕ) (hm : M ≤ m) :
@@ -143,8 +148,13 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         not_le.mpr (hlong m hm), and_false, ite_false]
     refine ⟨{y | ∃ m, M ≤ m ∧ f (pw m) = y}, ?_, ?_, ?_⟩
     · -- a witness `m` is at most the length of `y`
+      have htest : ComputableInPolyTime
+          (fun q : List Bool × ℕ => decide (M ≤ q.2) && decide (f (pw q.2) = q.1))
+          (encPair encBits encUnary) encBool := by fun_prop
+      have hlist : ComputableInPolyTime (fun y : List Bool => List.range (y.length + 1))
+          encBits (encList encUnary) := by fun_prop
       refine ⟨fun y => (List.range (y.length + 1)).any fun m => decide (M ≤ m) &&
-        decide (f (pw m) = y), by fun_prop, fun y => ?_⟩
+        decide (f (pw m) = y), ComputableInPolyTime.anyWithInput hlist htest, fun y => ?_⟩
       simp only [Set.mem_ofPred_eq, List.any_eq_true, List.mem_range, Bool.and_eq_true,
         decide_eq_true_eq]
       constructor
