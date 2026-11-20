@@ -74,7 +74,8 @@ example :
 
 private abbrev Observables := Matrix (Fin 1) (Fin 1) ℂ
 
-private noncomputable def honestMeasurement (q : Question F 2) : Measurement (Answer F 2) Observables :=
+private noncomputable def honestMeasurement (q : Question F 2) :
+    Measurement (Answer F 2) Observables :=
   Measurement.const (honest (MvPolynomial.X 0) q)
 
 private noncomputable def honestStrategy :

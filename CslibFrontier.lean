@@ -334,6 +334,7 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PerfectPower
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyArray
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
+public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Count
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Model
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Program
@@ -549,6 +550,11 @@ public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
 public import CslibFrontier.Algorithms.WordRAM.KargerMinCut
 public import CslibFrontier.Algorithms.WordRAM.KargerStein
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Checker
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Program
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Propagate
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Scan
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Steps
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Coefficient
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Exec
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Flat
@@ -4140,6 +4146,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
 public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
+public import CslibFrontier.Computability.PCP.TwoProverGame.Sequential
 public import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 public import CslibFrontier.Computability.PCP.TwoProverGame.TensorStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
@@ -7150,6 +7157,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MeasurementMixture
+public import CslibFrontier.Foundations.Quantum.Algebra.SequentialDisturbance
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.TracialGNS
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson
