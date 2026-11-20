@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Automata.MPDA.WellNested
 public import Mathlib.Data.Fintype.Prod
 public import Mathlib.Data.Fintype.Sigma
 public import Mathlib.Order.FixedPoints
+public import CslibFrontier.Foundations.Relation.FiniteClosure
 import CslibFrontier.Foundations.Order.FiniteFixedPoint
 
 /-! # Computing well-nested reachability
@@ -29,6 +30,7 @@ point, and the number of iterations is not part of the statements here.
 ## Main definitions
 
 - `MPDA.wellNestedPairs`: the set `WR` of Algorithm 2, as a computable `Finset`.
+- `MPDA.atomicHoles`, `MPDA.holeSegments`: the sets `AHSᵢ` and `HSᵢ` of Algorithm 1.
 
 ## Main results
 
@@ -135,5 +137,51 @@ theorem mem_wellNestedPairs {s s' : State} :
   rfl
 
 end Compute
+
+/-! ## Hole segments -/
+
+section Holes
+
+variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
+  (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')]
+
+/-- The atomic hole segments `AHSᵢ` of stack `i` (Algorithm 1, lines 5–8, of
+[AkshayGastinKrishnaRoychowdhury2020]): the triples `(s, α, s')` such that a push of `α` on stack
+`i` from `s`, followed by a well-nested run, reaches `s'`. -/
+@[expose] def atomicHoles (i : Fin n) : Finset (State × Γ × State) :=
+  Finset.univ.filter fun t => ∃ (a : Symbol) (s₁ : State), M.Tr t.1 (a, .push i t.2.1) s₁ ∧
+    (s₁, t.2.2) ∈ M.wellNestedPairs
+
+theorem mem_atomicHoles {i : Fin n} {s s' : State} {γ : Γ} :
+    (s, γ, s') ∈ M.atomicHoles i ↔
+      ∃ (a : Symbol) (s₁ : State), M.Tr s (a, .push i γ) s₁ ∧ M.WellNestedReach s₁ s' := by
+  simp [atomicHoles, mem_wellNestedPairs]
+
+/-- An atomic hole segment is a push of `α` on stack `i` followed by a well-nested run. -/
+theorem mem_atomicHoles_iff_mTr {i : Fin n} {s s' : State} {γ : Γ} :
+    (s, γ, s') ∈ M.atomicHoles i ↔ ∃ (a : Symbol) (w : List (Symbol × Op n Γ)),
+      WellNested w ∧ M.MTr s ((a, .push i γ) :: w) s' := by
+  rw [mem_atomicHoles]
+  constructor
+  · rintro ⟨a, s₁, ht, hw⟩
+    obtain ⟨w, hw, hrun⟩ := wellNestedReach_iff.mp hw
+    exact ⟨a, w, hw, .stepL ht hrun⟩
+  · rintro ⟨a, w, hw, hrun⟩
+    obtain ⟨s₁, ht, hrun⟩ := LTS.MTr.cons_iff.mp hrun
+    exact ⟨a, s₁, ht, wellNestedReach_iff.mpr ⟨w, hw, hrun⟩⟩
+
+/-- The hole segments `HSᵢ` of stack `i` (Algorithm 1, line 9): the reflexive-transitive closure of
+the atomic hole segments, forgetting the pushed symbols. The source writes `TransitiveClosure`;
+the closure must be reflexive, since `AddPop` (Algorithm 4) splits off the only atomic segment of
+a hole through a triple `(i, s, s)`. -/
+@[expose] def holeSegments [DecidableEq Γ] (i : Fin n) : Finset (State × State) :=
+  Relation.reflTransGenFinset fun s s' => ∃ γ, (s, γ, s') ∈ M.atomicHoles i
+
+theorem mem_holeSegments [DecidableEq Γ] {i : Fin n} {s s' : State} :
+    (s, s') ∈ M.holeSegments i ↔
+      Relation.ReflTransGen (fun s s' => ∃ γ, (s, γ, s') ∈ M.atomicHoles i) s s' :=
+  Relation.mem_reflTransGenFinset _
+
+end Holes
 
 end Cslib.Automata.MPDA

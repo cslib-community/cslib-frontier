@@ -7462,6 +7462,7 @@ public import CslibFrontier.Foundations.Quantum.Register
 public import CslibFrontier.Foundations.Quantum.RegularCompression
 public import CslibFrontier.Foundations.Quantum.TensorPower
 public import CslibFrontier.Foundations.Relation.Acyclic
+public import CslibFrontier.Foundations.Relation.FiniteClosure
 public import CslibFrontier.Foundations.Relation.InductiveCounting
 public import CslibFrontier.Foundations.Relation.Layered
 public import CslibFrontier.Foundations.Relation.RelatesWithinSteps
