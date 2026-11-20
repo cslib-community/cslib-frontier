@@ -17,7 +17,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Substitution
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 

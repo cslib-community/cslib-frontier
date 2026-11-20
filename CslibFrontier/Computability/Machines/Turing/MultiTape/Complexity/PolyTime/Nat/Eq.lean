@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 public import CslibFrontier.Tactic.PolyTime.Init
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+
 /-!
 # Equality of unary naturals in polynomial time
 

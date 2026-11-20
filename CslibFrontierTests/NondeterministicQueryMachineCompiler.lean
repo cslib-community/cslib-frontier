@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Compiler
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.BranchReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 
 /-! Tests for the native compiler of nondeterministic query machines on looping recognizers and
@@ -97,5 +97,43 @@ example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k 
     rw [ownBit_replay_false] at hhalt
     exact absurd hhalt Bool.false_ne_true
   · exact ⟨fun _ => ⟨[], rfl, rfl⟩, fun _ => rfl⟩
+
+open NondeterministicQueryMachine in
+/-- For the initially halted input-dependent start, every halted full replay splits at the
+first choice boundary with the same choice bits and final configuration. -/
+example : ∃ (R : Routines ownBit id encBool (fun _ => 1)) (n : ℕ),
+    let initial := R.machine.initCfg (encBool true)
+    let boundary := wordsCfg (encBool true) (some (.choose : Native.State R.SI R.SP R.SF))
+      (R.boundary true false) []
+    Native.replayChoices R.I R.P R.F R.C initial (List.replicate n 0) = some ([], boundary) ∧
+      ∀ (indices : List ℕ) (bits : List Bool)
+        (final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) (encBool true)), final.Halted →
+        Native.replayChoices R.I R.P R.F R.C initial indices = some (bits, final) →
+        ∃ rest, indices = List.replicate n 0 ++ rest ∧
+          Native.replayChoices R.I R.P R.F R.C boundary rest = some (bits, final) := by
+  obtain ⟨R⟩ := ownBit.exists_routines (enc := encBool) (encS := encBool)
+    (ComputableInSpace.of_finite _) (ComputableInSpace.of_finite _)
+    (ComputableInSpace.of_finite _) (ComputableInSpace.of_finite _)
+    id (fun _ => 1) (fun _ => by simp)
+    ((ComputableInSpace.of_finite id).mono_le fun _ => by simp)
+    ⟨1, fun b choices => by simp⟩
+  obtain ⟨n, hprefix, hfactor⟩ := R.init_replay true
+  exact ⟨R, n, hprefix, fun indices bits final hhalt hr => (hfactor indices bits final hhalt).mp hr⟩
+
+open NondeterministicQueryMachine in
+/-- A pass from the live start of `firstBit` on `[true]` selects the finalizer with state `1`.
+The suffix retains the terminal configuration and all choices after the true selector. -/
+example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1)) :
+    ∃ first, ∀ (indices : List ℕ) (bits : List Bool)
+      (final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) [true]), final.Halted →
+      Native.replayChoices R.I R.P R.F R.C
+        (wordsCfg [true] (some .choose) (R.boundary 0 false) []) indices =
+        some (true :: bits, final) →
+      ∃ rest, indices = first ++ rest ∧ Native.replayChoices R.I R.P R.F R.C
+        (wordsCfg [true] (some (.finish R.F.q₀)) (R.boundary 1 false) []) rest =
+          some (bits, final) := by
+  obtain ⟨first, _, hfactor⟩ := R.pass_replay [true] 0
+    ((firstBit.withInit 0).reachable_init _) true false []
+  exact ⟨first, fun indices bits final hhalt hr => (hfactor indices bits final hhalt).mp hr⟩
 
 end CslibFrontierTests.NondeterministicQueryMachineCompiler

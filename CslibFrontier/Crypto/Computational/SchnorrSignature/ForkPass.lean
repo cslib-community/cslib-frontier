@@ -237,8 +237,8 @@ theorem computableInPolyTime_schnorrForkStep :
       (encList encBits) := by fun_prop
   have hcount : ComputableInPolyTime (fun x : StepInput => x.2.2.count)
       encStepInput encUnary := by fun_prop
-  have hanswer := ComputableTidilyInPolyTime.getElem? (encA := encBits) hanswers.tidy hcount.tidy
-  have hmiss := ComputableInPolyTime.optionElimWithInput hanswer.computableInPolyTime
+  have hanswer := ComputableInPolyTime.getElem? (encA := encBits) hanswers hcount
+  have hmiss := ComputableInPolyTime.optionElimWithInput hanswer
     (hskip.comp (hid.prod (ComputableInPolyTime.const [])))
     (body := fun x c => forkFreshFrom (x, c)) hfresh
   have hhit : ComputableInPolyTime (fun p : StepInput × SchnorrForkEntry =>
@@ -255,7 +255,7 @@ theorem computableInPolyTime_schnorrForkStep :
   have hsign' := hsign.comp (hid.prod hread)
   have hguard : ComputableInPolyTime (fun x : StepInput => x.2.1.1) encStepInput
       encBool := by fun_prop
-  exact .of_tidy (ComputableTidilyInPolyTime.cond hguard.tidy hhash.tidy hsign'.tidy)
+  exact (ComputableInPolyTime.ite' hguard hhash hsign')
 
 /-! ### The native pass -/
 

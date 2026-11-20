@@ -35,6 +35,7 @@ an exhaustive search over codes finds the irreducible polynomial of least code
 * `Cslib.polyOfBits`: the binary polynomial with a given coefficient list.
 * `Cslib.mulXMod`, `Cslib.modBits`: reduction modulo a binary
   polynomial.
+* `Cslib.modMulBits`: table-free modular multiplication.
 * `Cslib.isIrreducibleCode`: the irreducibility test by trial division.
 * `Cslib.leastIrreducibleCode`: the exhaustive search for the least code.
 * `Cslib.powerTable`: the remainders of the powers of `X`.
@@ -283,6 +284,23 @@ private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).len
   unfold modBits
   rw [hlen]
   exact (modStep_foldl l f _ _ (by simp; omega) (by simp)).2.1
+
+/-- Multiply two coefficient words modulo `g` by scanning the bits of `b`. The two live
+words hold successive shifts of `a` modulo `g` and the partial product. For a monic modulus,
+`a` should have length one less than `g`. -/
+def modMulBits (g a b : List Bool) : List Bool :=
+  (b.foldl (modStep g) (a, List.replicate (g.length - 1) false)).2
+
+/-- With `a` padded to the degree of the modulus, any prefix of the multiplier leaves two
+degree-sized words and its modular product is the product in the quotient. -/
+theorem modMulBits_spec (l a b : List Bool) (ha : a.length = l.length) :
+    (b.foldl (modStep (l ++ [true])) (a, List.replicate l.length false)).1.length = l.length ∧
+    (modMulBits (l ++ [true]) a b).length = l.length ∧
+    AdjoinRoot.mk (polyOfBits (l ++ [true])) (polyOfBits (modMulBits (l ++ [true]) a b)) =
+      AdjoinRoot.mk (polyOfBits (l ++ [true])) (polyOfBits a * polyOfBits b) := by
+  obtain ⟨hshift, hprod, _, hmul⟩ := modStep_foldl l b a (List.replicate l.length false) ha
+    List.length_replicate
+  simpa [modMulBits] using And.intro hshift (And.intro hprod hmul)
 
 private theorem mk_polyOfBits_one (l : List Bool) :
     AdjoinRoot.mk (polyOfBits (l ++ [true]))
