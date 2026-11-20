@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fin.Rev
 import Mathlib.Data.List.FinRange
@@ -45,6 +46,13 @@ open Code.JustesenFamily Finset
 @[expose] def accumulateWeightDigits {ℓ : ℕ} (digit : Fin ℓ → Bool) : ℕ :=
   Fin.foldl ℓ (fun a j => appendWeightDigit a (digit j)) 0
 
+/-- Extend the high-to-low accumulation by its last supplied digit. -/
+theorem accumulateWeightDigits_succ {n : ℕ} (digit : Fin (n + 1) → Bool) :
+    accumulateWeightDigits digit =
+      appendWeightDigit (accumulateWeightDigits fun i => digit i.castSucc)
+        (digit (Fin.last n)) := by
+  simp only [accumulateWeightDigits, Fin.foldl_succ_last]
+
 private theorem accumulate_eq_ofDigits {ℓ : ℕ} (digit : Fin ℓ → Bool) :
     accumulateWeightDigits digit = Nat.ofDigits 6 (List.ofFn fun j => (digit j).toNat).reverse := by
   rw [accumulateWeightDigits, Fin.foldl_eq_finRange_foldl, Nat.ofDigits_eq_foldr,
@@ -78,6 +86,14 @@ theorem accumulateWeightDigits_lt {ℓ : ℕ} (digit : Fin ℓ → Bool) :
   obtain ⟨j, rfl⟩ := List.mem_ofFn.mp (List.mem_reverse.mp hd)
   cases digit j <;> decide
 
+/-- Three binary bits per digit suffice for the unscaled base-six accumulator. -/
+theorem size_accumulateWeightDigits_le {n : ℕ} (digit : Fin n → Bool) :
+    (accumulateWeightDigits digit).size ≤ 3 * n := by
+  apply Nat.size_le.mpr
+  refine (accumulateWeightDigits_lt digit).trans_le ?_
+  rw [pow_mul]
+  exact Nat.pow_le_pow_left (by decide) n
+
 /-- After scanning the first `k` masked digits the unscaled accumulator is less than `6 ^ k`. -/
 theorem generatedWeightScan_prefix_lt {w n k : ℕ} (seed : Fin (codeLength w n) → Bool)
     (v : Fin w) (hk : k ≤ codeLength w n) :
@@ -91,12 +107,9 @@ theorem generatedWeightScan_prefix_log2_lt {w n k : ℕ} (seed : Fin (codeLength
     (v : Fin w) (hk : k ≤ codeLength w n) :
     Nat.log2 (Fin.foldl k (fun a j =>
       6 * a + (indexedCodewordMod v (j.castLE hk) && seed (j.castLE hk)).toNat) 0) < 3 * k + 1 := by
-  rw [Nat.log2_eq_log_two]
-  apply Nat.log_lt_of_lt_pow' (Nat.succ_ne_zero _)
-  exact (generatedWeightScan_prefix_lt seed v hk).trans_le (calc
-    6 ^ k ≤ (2 ^ 3) ^ k := Nat.pow_le_pow_left (by decide) _
-    _ = 2 ^ (3 * k) := by rw [pow_mul]
-    _ ≤ 2 ^ (3 * k + 1) := Nat.pow_le_pow_right (by decide) (Nat.le_succ _))
+  let digit (j : Fin k) := indexedCodewordMod v (j.castLE hk) && seed (j.castLE hk)
+  exact (Nat.log2_le_size (accumulateWeightDigits digit)).trans_lt
+    (Nat.lt_succ_of_le (size_accumulateWeightDigits_le digit))
 
 /-- Scan the seed through a read-only bit accessor. For a positive layer, evaluate code bits
 individually and accumulate the masked digits in base six. -/

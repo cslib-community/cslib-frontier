@@ -83,7 +83,7 @@ private theorem iterate_step (code : κ → ℕ → Bool) (q : Request κ) (k : 
   | zero => rfl
   | succ k ih =>
     rw [Function.iterate_succ_apply', ih]
-    simp only [step, accumulateRank, accumulateWeightDigits, Fin.foldl_succ_last,
+    simp only [step, accumulateRank, accumulateWeightDigits_succ,
       Fin.val_castSucc, Fin.val_last]
 
 private theorem step_inSpace (encContext : κ ↪ List Bool) (code : κ → ℕ → Bool)
@@ -111,10 +111,8 @@ private theorem length_iterate_le (encContext : κ ↪ List Bool) (code : κ →
   rw [iterate_step]
   have hcur : (encNat k).length ≤ k := length_encNat_eq_size k ▸ Nat.size_le_self k
   have hacc : (encNat (accumulateRank code {q with width := k})).length ≤ 3 * k := by
-    apply length_encNat_le_of_lt_two_pow
-    refine (accumulateWeightDigits_lt _).trans_le ?_
-    rw [pow_mul]
-    exact Nat.pow_le_pow_left (by decide) k
+    rw [length_encNat_eq_size]
+    exact size_accumulateWeightDigits_le _
   simp only [encRegisters_apply, encRegistersFields, encRequest_apply, encRequestFields,
     length_encPair]
   omega
