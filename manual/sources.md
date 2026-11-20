@@ -1515,6 +1515,11 @@ Dylan McKay, Cody D. Murray and R. Ryan Williams. *Weak Lower Bounds on Resource
 
 Karl Menger. "Zur allgemeinen Kurventheorie." *Fundamenta Mathematicae* 10, 96–115, 1927. Cited for attribution only: the paper was not consulted, and the formal statements follow [schrijver17](#schrijver17) and [diestel25](#diestel25).
 
+<a id="micciancioregev2007"></a>
+## micciancioregev2007
+
+Daniele Micciancio and Oded Regev. "Worst-Case to Average-Case Reductions Based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007. https://doi.org/10.1137/S0097539705447360 . Author's copy dated December 27, 2005 (`https://cseweb.ucsd.edu/~daniele/papers/Gaussian.pdf`, cross-checked against the December 14, 2005 copy at `https://cims.nyu.edu/~regev/papers/average.pdf`) inspected on 2026-11-20: Definition 2.1 (half-`L¹` statistical distance, pp. 5–6), Definition 3.1 (the smoothing parameter `η_ε(Λ)`, p. 10), Lemma 3.2 (`η_{2^{-n}}(Λ) ≤ √n / λ₁(Λ*)`, pp. 10–11), and Lemma 4.1 (p. 12). In `Gaussian.SmoothingParameter`, `ZLattice.smoothingParameter` uses the same reciprocal-width dual sum `ρ_{1/s}(L* \ {0})` and handles dimension zero explicitly (`η_ε(L) = 0`), while the quotient bridge retains Mathlib's full-`L¹` `tvDist` convention (twice the source's half-`L¹` distance `Δ`).
+
 <a id="mignonressayre04"></a>
 ## mignonressayre04
 
