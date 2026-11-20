@@ -34,7 +34,7 @@ example : oddOnes [true, false, true, true] = true ∧ oddOnes [true, true] = fa
 /-- Parity is decided in linear time and constant work space simultaneously. -/
 theorem oddOnes_mem_TISP : {w | oddOnes w = true} ∈ TISP encBits id fun _ => 0 :=
   setOf_mem_TISP_of_computableInO
-    (ComputableTidilyInO.foldl_bits_finite encBool (fun b x => b ^^ x) false).computableInO
+    (ComputableInO.foldl_bits_finite encBool (fun b x => b ^^ x) false)
     (fun _ => le_rfl) fun _ => le_rfl
 
 example : {w | oddOnes w = true} ∈ DTIME encBits id := TISP_subset_DTIME oddOnes_mem_TISP

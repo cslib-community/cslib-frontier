@@ -78,13 +78,13 @@ theorem computableInPolyTime_wordConstCode {α : Type} {enc : α ↪ List Bool}
   have hi : ComputableInPolyTime
       (fun p : α × ℕ => if (q p.1).testBit p.2 then n p.1 + 1 else n p.1)
       (encPair enc encUnary) encNat := by
-    have hn' := (hn.comp (fst enc encUnary)).tidy
-    have hq' := (hq.comp (fst enc encUnary)).tidy
-    have hi' := (snd enc encUnary).tidy
-    have ht := ComputableTidilyInPolyTime.binary_testBit hq' hi'
-    exact .of_tidy (ht.cond
-      (ComputableTidilyInPolyTime.binary_add.comp
-        (hn'.prod (ComputableTidilyInPolyTime.const 1))) hn')
+    have hn' := (hn.comp (fst enc encUnary))
+    have hq' := (hq.comp (fst enc encUnary))
+    have hi' := (snd enc encUnary)
+    have ht := ComputableInPolyTime.binary_testBit hq' hi'
+    exact (ht.ite'
+      (ComputableInPolyTime.binary_add.comp
+        (hn'.prod (ComputableInPolyTime.const 1))) hn')
   exact (const (encOut := encList encGate) [(Op.const false, []), (Op.const true, [])]).prod
     (mapWithInput (range.comp hw) hi)
 

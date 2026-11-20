@@ -106,9 +106,9 @@ example : ComputableInPolyTime
     (fun word : List Bool =>
       (fun choice w => if choice then w.reverse else w) word.isEmpty word)
     encBits encBits :=
-  .of_tidy (ComputableTidilyInPolyTime.finite_cases (tag := List.isEmpty)
+  ComputableInPolyTime.finite_cases (tag := List.isEmpty)
     (branch := fun choice word => if choice then word.reverse else word)
-    (by fun_prop) (fun choice => by cases choice <;> fun_prop))
+    (by fun_prop) (fun choice => by cases choice <;> fun_prop)
 
 -- Probabilistic branches may return both output and private state.
 example : IsPPTOn encBits (encPair encBits encBits)
@@ -125,8 +125,8 @@ private def encEmpty : Empty ↪ List Bool := ⟨Empty.elim, fun value => value.
 -- Empty finite control requires no fallback program or inhabited result type.
 example : ComputableInPolyTime
     (fun a : Empty => (a.elim : Empty → Empty) a) encEmpty encEmpty :=
-  .of_tidy (ComputableTidilyInPolyTime.finite_cases
-    (ComputableTidilyInPolyTime.id' (encIn := encEmpty)) (fun tag => tag.elim))
+  ComputableInPolyTime.finite_cases
+    (ComputableInPolyTime.id' (encIn := encEmpty)) (fun tag => tag.elim)
 
 example : IsPPTOn encEmpty encEmpty
     (fun a : Empty => (a.elim : Empty → ProbComp Empty) a) :=
