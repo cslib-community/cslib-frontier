@@ -15,7 +15,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Na
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Run
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 
 /-!
@@ -242,6 +242,10 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
 
 end Diagonal
 
+-- Decoder opacity removed its 77867 unfoldings, but the next hosted diagnostics still count
+-- 364160 reductions of Desc.tapes through the description encoding. Keep both implementations
+-- opaque here: only their named computability, encoding-length and resource contracts are used.
+attribute [local irreducible] ComputableInO Universal.decodeDesc Universal.eDesc in
 open Diagonal in
 /-- **The diagonal is decidable in exponential time**, within time `O(2 ^ (4 * n))` and space
 `O(2 ^ (2 * n))` on inputs of length `n`, charging decoding, the symbols, the clock, the universal
@@ -254,9 +258,15 @@ theorem computableInO_diagonal :
   have hdesc := (hdec.comp hu).inO
   have hsym := Universal.computableInO_map_eBit
   have hclock := (ComputableInDegree.two_pow_length encBits).inO_one
-  have hpre := hdesc.prod (hsym.prod hclock)
-  have hU := computableInO_universal.comp hpre
-  have h := computableInO_verdict.comp hU
+  have hpre : ComputableInO
+      (fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length))
+      encBits eIn _ _ := hdesc.prod (hsym.prod hclock)
+  have hU := computableInO_universal_polynomialBound.comp
+    (f := universal)
+    (g := fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hpre
+  have h := computableInO_verdict.comp
+    (f := verdict)
+    (g := fun x : List Bool => universal (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hU
   -- the sizes of the decoded description and of the result
   obtain ⟨cD, hcD⟩ := hdesc.length_le
   obtain ⟨cO, hcO⟩ := hU.length_le
@@ -277,7 +287,7 @@ theorem computableInO_diagonal :
       (hcD x) hN hL (by rw [length_encPair, length_encPair]; rfl) rfl hK hE
   refine h.mono (K * C) (fun x => ?_) fun x => ?_
   · obtain ⟨h₁, -⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₁ ⊢
+    simp only [encBits, Function.Embedding.refl_apply] at h₁ ⊢
     have hJ4 : 2 ^ (4 * x.length) = 2 ^ x.length * (2 ^ x.length) ^ 3 := by
       ring
     have := hC x.length
@@ -285,7 +295,7 @@ theorem computableInO_diagonal :
       _ ≤ K * (C * 2 ^ x.length * (2 ^ x.length) ^ 3) := by gcongr
       _ ≤ K * C * (2 ^ (4 * x.length) + 1) := by rw [hJ4]; nlinarith
   · obtain ⟨-, h₂⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₂ ⊢
+    simp only [encBits, Function.Embedding.refl_apply] at h₂ ⊢
     have hJ2 : 2 ^ (2 * x.length) = 2 ^ x.length * 2 ^ x.length := by rw [two_mul, pow_add]
     have := hC x.length
     calc _ ≤ K * (_ ^ 5 * 2 ^ x.length) := h₂

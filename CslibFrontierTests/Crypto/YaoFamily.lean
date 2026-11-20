@@ -41,7 +41,10 @@ def xorFamily (key t : List Bool) : List Bool := List.zipWith xor (key ++ key) (
 theorem xorFamily_polyTime :
     ComputableInPolyTime (fun p : List Bool × List Bool => xorFamily p.1 p.2)
       (encPair encBits encBits) encBits := by
-  polytime [xorFamily]
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBits)
+  exact ComputableInPolyTime.bitsZipWithInput xor
+    (hp.fst'.bitsAppend hp.fst')
+    ((hp.snd'.bitsAppend hp.snd').bitsAppend hp.snd')
 
 /-- The public parameters: the AND gate, with the garbler holding its first input. -/
 def andParams : Yao.Params (PointPermute.scheme xorFamily) := ⟨andGate, 1, by decide⟩

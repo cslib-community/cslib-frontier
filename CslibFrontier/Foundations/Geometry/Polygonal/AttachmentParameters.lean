@@ -21,6 +21,7 @@ every old segment and specify every added segment by its exact list position.
 
 ## Main results
 
+* `Cslib.Polygonal.Route.support_append`: exact support union for arbitrary routes.
 * `Cslib.Polygonal.Route.segments_foldl_append`: the exact number of segments after a word.
 * `Cslib.Polygonal.Route.foldl_append_eval_cases`: all-real evaluation and chain-position
   classification of every actual segment after a finite append word.
@@ -56,6 +57,26 @@ theorem append_eval_cases (p : Route) (b : ℂ) (i : Fin (p.append b).segments) 
   | cast j =>
     change Fin p.segments at j
     exact Or.inl ⟨j, eval_append_castSucc p b j t, position_append_castSucc p b j t⟩
+
+/-- Appending adds exactly the full closed segment from the previous finish to the
+new point. Closed routes and an unchanged finish are admitted without extra hypotheses. -/
+theorem support_append (p : Route) (b : ℂ) :
+    (p.append b).support = p.support ∪ segment ℝ p.finish b := by
+  ext z
+  rw [(p.append b).mem_support_iff, Set.mem_union]
+  constructor
+  · rintro ⟨i, t, ht, hz⟩
+    rcases append_eval_cases p b i t with ⟨j, heq, _⟩ | ⟨heq, _⟩
+    · exact Or.inl ((p.mem_support_iff z).mpr ⟨j, t, ht, heq.symm.trans hz⟩)
+    · right
+      rw [segment_eq_image_lineMap]
+      exact ⟨t, ht, heq.symm.trans hz⟩
+  · rintro (hz | hz)
+    · obtain ⟨i, t, ht, heq⟩ := (p.mem_support_iff z).mp hz
+      exact ⟨i.castSucc, t, ht, (eval_append_castSucc p b i t).trans heq⟩
+    · rw [segment_eq_image_lineMap] at hz
+      obtain ⟨t, ht, heq⟩ := hz
+      exact ⟨Fin.last p.segments, t, ht, (eval_append_last p b t).trans heq⟩
 
 /-- Attaching both ends retains every old parameter and distinguishes both new
 segments, even when the new route is closed. -/

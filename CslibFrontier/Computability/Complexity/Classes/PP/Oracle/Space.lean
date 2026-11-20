@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.Space
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Space
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Space
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain

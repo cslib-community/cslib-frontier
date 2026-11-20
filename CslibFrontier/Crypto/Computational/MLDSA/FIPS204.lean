@@ -256,10 +256,11 @@ private def boundedCoeff (η halfByte : ℕ) : Option (ZMod 8380417) :=
     if halfByte < 15 then some ((2 : ZMod 8380417) - ↑(halfByte % 5)) else none
   else if halfByte < 9 then some (4 - (halfByte : ZMod 8380417)) else none
 
-private def nonceSuffix (i : ℕ) : FixedBytes 2 := ![Fin.ofNat 256 i, Fin.ofNat 256 (i / 256)]
+/-- The two counter bytes absorbed by Algorithms 33 and 34, least significant byte first. -/
+def nonceSuffix (i : ℕ) : FixedBytes 2 := ![Fin.ofNat 256 i, Fin.ofNat 256 (i / 256)]
 
 /-- Algorithms 33 and 34 append the two-byte little-endian counter to the 64-byte seed. -/
-def nonceInput (seed : List Byte) (nonce : ℕ) : List Byte :=
+@[expose] def nonceInput (seed : List Byte) (nonce : ℕ) : List Byte :=
   seed ++ [nonceSuffix nonce 0, nonceSuffix nonce 1]
 
 /-- A nonce-tagged 64-byte expansion seed occupies 528 SHAKE input bits. -/
@@ -540,10 +541,12 @@ def Xofs.keyGen (H : Xofs) (s : Level) (seed : FixedBytes 32) : Option KeyPair :
   return ⟨pk, sk.encode⟩
 
 /-- Algorithm 6 gives the same keys or failure when the matrix stream, key expansion,
-66-byte secret-vector nonce reads and encoded-public-key hash reads agree. -/
+secret-vector nonce reads at the generated secret seed, and encoded-public-key hash reads agree. -/
 theorem Xofs.keyGen_congr_of_reads {H G : Xofs} (s : Level) (seed : FixedBytes 32)
     (matrixStream : G.h128 = H.h128) (seedRead : G.expandKeySeed s seed = H.expandKeySeed s seed)
-    (nonceRead : ∀ x : List Byte, x.length = 66 → G.h256.readBytes x 481 = H.h256.readBytes x 481)
+    (nonceRead : ∀ i : ℕ,
+      let x := nonceInput (((H.expandKeySeed s seed).drop 32).take 64) i
+      G.h256.readBytes x 481 = H.h256.readBytes x 481)
     (publicRead : ∀ x : List Byte, x.length = 32 + 320 * s.params.k →
       G.h256.readBytes x 64 = H.h256.readBytes x 64) : G.keyGen s seed = H.keyGen s seed := by
   let ex := H.expandKeySeed s seed
@@ -552,7 +555,7 @@ theorem Xofs.keyGen_congr_of_reads {H G : Xofs} (s : Level) (seed : FixedBytes 3
   have short (i : ℕ) : G.secretPoly s ((ex.drop 32).take 64) i =
       H.secretPoly s ((ex.drop 32).take 64) i := by
     unfold Xofs.secretPoly
-    rw [nonceRead _ (by simp [nonceInput, len])]
+    rw [nonceRead i]
   have pk (v : Fin s.params.k → Poly) :
       G.h256.readBytes (encodePublic s (ex.take 32) v) 64 =
         H.h256.readBytes (encodePublic s (ex.take 32) v) 64 := by
@@ -590,9 +593,10 @@ theorem Xofs.keyGen_congr_off_digest {H K : Xofs} (s : Level) (seed : FixedBytes
   · apply raw
     simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
     cases s <;> decide
-  · intro x hx
+  · intro nonce
     apply raw
-    rw [hx]
+    simp only [nonceInput, List.length_append, List.length_take, List.length_drop,
+      Xofs.expandKeySeed, H.h256.length_read, List.length_cons, List.length_nil]
     cases s <;> decide
   · intro x hx
     apply raw
@@ -613,7 +617,8 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
         H.h256.readBytes keys.publicKey 64,
         sk.s₁, sk.s₂, publicKeyLowPart s.params 13 sk.publicKey⟩ ∧
       (∀ i j, |(sk.s₁ i j).valMinAbs| ≤ s.params.η) ∧
-      (∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η) := by
+      (∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η) ∧
+      H.expandS s (((H.expandKeySeed s seed).drop 32).take 64) = some (sk.s₁, sk.s₂) := by
   unfold Xofs.keyGen Xofs.expandS Xofs.expandKeySeed at hg
   generalize hh : H.h256.read (keySeedInput s seed) 128 = expanded at hg
   have hex : expanded.length = 128 := by rw [← hh]; exact H.h256.length_read ..
@@ -645,7 +650,7 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
         simp only [ha, h₁, h₂, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
           materialized, Option.some.injEq, ht] at hg
         subst keys
-        refine ⟨rho, sk, hrho ▸ ha, ?_, ?_, sa, sb⟩
+        refine ⟨rho, sk, hrho ▸ ha, ?_, ?_, sa, sb, ?_⟩
         · rw [hrho]
         · rw [hrho]
           simp only [Xofs.expandKeySeed, hh]
@@ -656,6 +661,9 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
           · exact sa
           · exact sb
           · exact low
+        · rw [show H.expandKeySeed s seed = expanded from hh]
+          simp only [Xofs.expandS, h₁, h₂, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+          rfl
 
 /-- The encoded public key from Algorithm 6. -/
 def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) :=
