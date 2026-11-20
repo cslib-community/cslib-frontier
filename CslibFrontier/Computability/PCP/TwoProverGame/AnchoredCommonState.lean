@@ -136,26 +136,6 @@ theorem norm_sub_checked_common_le (S : RepeatedStrategy) (j : Free) (t : Saved 
   · simpa only [POVM.conjTranspose_sqrtEffect, POVM.sqrtEffect_mul_self] using h₀
   · simpa only [POVM.conjTranspose_sqrtEffect, POVM.sqrtEffect_mul_self] using h₁
 
-private theorem norm_sub_normalize_le {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
-    (f : E →L[ℝ] E) (v u : E) :
-    ‖f (NormedSpace.normalize v) - NormedSpace.normalize u‖ ≤
-      ‖f v - u‖ / ‖v‖ + |‖u‖ / ‖v‖ - 1| := by
-  let c := ‖v‖⁻¹
-  have hdiff : f (NormedSpace.normalize v) - c • u = c • (f v - u) := by
-    rw [NormedSpace.normalize, map_smul, smul_sub]
-  have hscale : c • u = (‖u‖ / ‖v‖) • NormedSpace.normalize u := by
-    rw [div_eq_mul_inv, mul_comm, ← smul_smul, NormedSpace.norm_smul_normalize]
-  have hrem : c • u - NormedSpace.normalize u = (‖u‖ / ‖v‖ - 1) • NormedSpace.normalize u := by
-    rw [sub_smul, one_smul, hscale]
-  have h := norm_sub_le (f (NormedSpace.normalize v) - c • u) (NormedSpace.normalize u - c • u)
-  have hc : 0 ≤ c := inv_nonneg.mpr (norm_nonneg _)
-  rw [sub_sub_sub_cancel_right, hdiff, norm_smul, Real.norm_eq_abs, abs_of_nonneg hc,
-    norm_sub_rev (NormedSpace.normalize u), hrem, norm_smul, Real.norm_eq_abs] at h
-  exact h.trans (by
-    rw [div_eq_inv_mul ‖f v - u‖]
-    exact add_le_add le_rfl
-      (mul_le_of_le_one_right (abs_nonneg _) (NormedSpace.norm_normalize_le_one u)))
-
 /-- The state obtained by applying the two local unitaries to the normalized doubly
 anchored branch is close to the normalized branch at the selected questions.
 The bound uses three unnormalized comparison errors divided by the same anchor norm,
@@ -175,7 +155,8 @@ theorem norm_sub_normalized_checked_common_le (S : RepeatedStrategy) (j : Free) 
           ‖act ((1 : Matrix ι ι ℂ) ⊗ₖ W) (φN y) - φN none‖) / γ +
       |‖φ x y‖ / γ - 1| := by
   intro φ φN γ η
-  have h := norm_sub_normalize_le ((act (U ⊗ₖ V)).restrictScalars ℝ) (φ none none) (φ x y)
+  have h := NormedSpace.norm_sub_normalize_le ((act (U ⊗ₖ V)).restrictScalars ℝ)
+    (φ none none) (φ x y)
   exact h.trans (add_le_add (div_le_div_of_nonneg_right
     (norm_sub_checked_common_le G α C S j t x y a b U V W hU hW hα) (norm_nonneg _)) le_rfl)
 

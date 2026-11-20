@@ -15,6 +15,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformati
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodNormalization
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCommonState
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPreparedState
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
@@ -11245,6 +11246,20 @@ register_result "anchored-normalized-common-state-pointwise" where
     to the normalized branch at the actual question pair. The two noisy mixture weights \
     give separate inverse square root coefficients. The proof covers singular filters. \
     Averaging the comparison and constructing the rounded strategy remain separate steps."
+
+register_result "anchored-mean-prepared-state" where
+  title := "Mean error of the prepared state under two-anchor conditioning"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.19 and its averaging step",
+      locator := "arXiv:1509.07466v2, §5.4, printed pp. 31–34, equations (74)–(81)" }
+  ]
+  theorems := [Cslib.PCP.AnchoredDependency.exists_good_prepared_state_coordinates]
+  scope := "An explicit uniform failure bound selects coordinates where separate local \
+    unitaries give a bounded mean error from the normalized branch at the selected questions. \
+    Each action depends only on the shared transcript and that player's question. The mean \
+    uses independent prior questions and the winning two-anchor remaining-transcript law. \
+    The answer measurements and exponential decay are separate steps."
 
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"

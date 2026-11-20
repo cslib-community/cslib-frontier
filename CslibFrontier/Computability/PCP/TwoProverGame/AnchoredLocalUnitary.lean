@@ -113,6 +113,19 @@ theorem localUnitaryError_le_two {V : Matrix κ κ ℂ} (hV : V ∈ unitaryGroup
   exact (add_le_add (NormedSpace.norm_normalize_le_one v)
     (NormedSpace.norm_normalize_le_one u)).trans_eq (by norm_num)
 
+/-- Before normalizing, the scaled unitary error is bounded by its normalized counterpart
+and the two relative norm deviations. -/
+theorem norm_right_sub_div_le {D E : Type*}
+    [Fintype D] [DecidableEq D] [Fintype E] [DecidableEq E]
+    {U : Matrix E E ℂ} (hU : U ∈ unitaryGroup E ℂ) (v u : EuclideanSpace ℂ (D × E))
+    {γ : ℝ} (hγ : 0 ≤ γ) :
+    ‖toEuclideanCLM (𝕜 := ℂ) ((1 : Matrix D D ℂ) ⊗ₖ U) v - u‖ / γ ≤
+      localUnitaryError U v u + |1 - ‖v‖ / γ| + |1 - ‖u‖ / γ| := by
+  let f := toEuclideanCLM (𝕜 := ℂ) ((1 : Matrix D D ℂ) ⊗ₖ U)
+  have hf := (mem_unitaryGroup_iff_forall_norm_toEuclideanCLM _).mp
+    (kronecker_mem_unitary (one_mem (unitaryGroup D ℂ)) hU)
+  exact NormedSpace.norm_sub_div_le_normalized_add (f.restrictScalars ℝ) hf v u hγ
+
 private theorem localUnitaryErrorSq_one_le (v u : EuclideanSpace ℂ (ι × κ)) :
     localUnitaryErrorSq 1 v u ≤ 4 := by
   rw [localUnitaryErrorSq, show (4 : ℝ) = 2 ^ 2 by norm_num]

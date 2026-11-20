@@ -182,6 +182,27 @@ def omitMessage (j : Free) (t : Info) : Saved j :=
 def restQuestions (j : Free) (r : Rest j) : Saved j :=
   ⟨r.questions, r.halves⟩
 
+/-- Restore the full checked transcript by inserting the selected noisy message. -/
+@[expose] def restoreCheckedTranscript (j : Free) (r : Rest j) (msg : Option X ⊕ Option Y) :
+    Info × ((C → A) × (C → B)) :=
+  (⟨r.questions, fun i => if hi : i = j then msg else r.halves ⟨i, hi⟩⟩,
+    (Prod.fst ∘ r.answers, Prod.snd ∘ r.answers))
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+/-- Forgetting the selected message after restoration leaves precisely the saved questions. -/
+theorem omitMessage_restoreCheckedTranscript (j : Free) (r : Rest j) (msg : Option X ⊕ Option Y) :
+    omitMessage C j (restoreCheckedTranscript C j r msg).1 = restQuestions C j r := by
+  unfold omitMessage restoreCheckedTranscript restQuestions
+  congr 1
+  funext i
+  exact dite_eq_right i.property
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+/-- Restoration records the supplied message at the selected coordinate. -/
+theorem halves_restoreCheckedTranscript (j : Free) (r : Rest j) (msg : Option X ⊕ Option Y) :
+    (restoreCheckedTranscript C j r msg).1.halves j = msg := by
+  simp only [restoreCheckedTranscript, dite_true]
+
 omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
 /-- The retained questions and checked answers determine the remaining transcript. -/
 theorem restQuestions_answers_injective (j : Free) :

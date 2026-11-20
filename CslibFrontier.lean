@@ -4127,6 +4127,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodNormaliz
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
+public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPreparedState
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance

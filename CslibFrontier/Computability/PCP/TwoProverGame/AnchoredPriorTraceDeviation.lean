@@ -59,11 +59,6 @@ local notation "Transcript" => ((Info × (C → A × B)) × (Free → PairQ))
 local notation "RepeatedStrategy" => QuantumStrategy (Fin n → Option X) (Fin n → Option Y)
   (Fin n → A) (Fin n → B) ι κ
 
-/-- Restore the full checked transcript by inserting the selected noisy message. -/
-@[expose] def restoreCheckedTranscript (j : Free) (r : Rest j) (msg : Message) : Label :=
-  (⟨r.questions, fun i => if hi : i = j then msg else r.halves ⟨i, hi⟩⟩,
-    (Prod.fst ∘ r.answers, Prod.snd ∘ r.answers))
-
 private theorem restoreCheckedTranscript_restTranscript (j : Free) (z : Transcript) :
     restoreCheckedTranscript C j (restTranscript C j z) (freeTrials C z j).1 =
       (let ((t, a), _) := z
@@ -164,11 +159,53 @@ theorem priorConditionalTraceNormSq_le [Fintype U] [DecidableEq U] (S : Repeated
     4 * (2 * (w * ε₁ + (1 + w) * (2 * ε₁ + ε₂))) by ring]
   exact mul_le_mul_of_nonneg_left hdist (by norm_num)
 
+/-- Average a score under the prior anchored questions independently of the remaining transcript. -/
+@[expose] noncomputable def anchoredPairRestScore (j : Free) (R : PMF (Rest j))
+    (score : PairQ → Rest j → ℝ) : ℝ :=
+  ∑ q, ((G.anchored α).questions q).toReal * ∑ r, (R r).toReal * score q r
+
+/-- A pointwise inequality on the support of the remaining transcript survives averaging. -/
+theorem anchoredPairRestScore_mono (j : Free) (R : PMF (Rest j))
+    {f g : PairQ → Rest j → ℝ} (h : ∀ q r, r ∈ R.support → f q r ≤ g q r) :
+    anchoredPairRestScore C G α j R f ≤ anchoredPairRestScore C G α j R g := by
+  unfold anchoredPairRestScore
+  refine sum_le_sum fun q _ => mul_le_mul_of_nonneg_left (sum_le_sum fun r _ => ?_)
+    ENNReal.toReal_nonneg
+  by_cases hr : r ∈ R.support
+  · exact mul_le_mul_of_nonneg_left (h q r hr) ENNReal.toReal_nonneg
+  · simp only [(PMF.apply_eq_zero_iff _ _).2 hr, ENNReal.toReal_zero, zero_mul, le_refl]
+
+/-- Averaging distributes over the sum of two scores. -/
+theorem anchoredPairRestScore_add (j : Free) (R : PMF (Rest j)) (f g : PairQ → Rest j → ℝ) :
+    anchoredPairRestScore C G α j R (fun q r => f q r + g q r) =
+      anchoredPairRestScore C G α j R f + anchoredPairRestScore C G α j R g := by
+  simp only [anchoredPairRestScore, mul_add, sum_add_distrib]
+
+/-- Constant factors pull out of the average of a score. -/
+theorem anchoredPairRestScore_mul (j : Free) (R : PMF (Rest j)) (c : ℝ) (f : PairQ → Rest j → ℝ) :
+    anchoredPairRestScore C G α j R (fun q r => c * f q r) =
+      c * anchoredPairRestScore C G α j R f := by
+  simp only [anchoredPairRestScore, mul_left_comm _ c, ← mul_sum]
+
+/-- The squared mean of a score is at most its second moment. -/
+theorem anchoredPairRestScore_sq_le (j : Free) (R : PMF (Rest j)) (f : PairQ → Rest j → ℝ) :
+    (anchoredPairRestScore C G α j R f) ^ 2 ≤
+      anchoredPairRestScore C G α j R (fun q r => (f q r) ^ 2) := by
+  let p (z : PairQ × Rest j) : ℝ := ((G.anchored α).questions z.1).toReal * (R z.2).toReal
+  have hp (z : PairQ × Rest j) : 0 ≤ p z := mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg
+  have hmass : ∑ z, p z = (1 : ℝ) := by
+    simp only [Fintype.sum_prod_type, p, ← mul_sum, sum_toReal, mul_one]
+  have h := Finset.sum_sq_le_sum_mul_sum_of_sq_le_mul (univ : Finset (PairQ × Rest j))
+    (r := fun z => p z * f z.1 z.2) (f := p) (g := fun z => p z * (f z.1 z.2) ^ 2)
+    (fun z _ => hp z) (fun z _ => mul_nonneg (hp z) (sq_nonneg _))
+    (fun z _ => by ring_nf; rfl)
+  rw [hmass, one_mul] at h
+  simpa only [Fintype.sum_prod_type, p, anchoredPairRestScore, mul_sum, mul_assoc] using h
+
 /-- Evaluate a tagged anchored redraw score with an independent remaining transcript. -/
 @[expose] noncomputable def taggedPairRestScore (j : Free) (R : PMF (Rest j))
     (read : PairQ → U) (tag : PairQ → Message) (score : Label → U → ℝ) : ℝ :=
-  ∑ q, ((G.anchored α).questions q).toReal * ∑ r,
-    (R r).toReal * score (restoreCheckedTranscript C j r (tag q)) (read q)
+  anchoredPairRestScore C G α j R fun q r => score (restoreCheckedTranscript C j r (tag q)) (read q)
 
 /-- Changing the independent remaining transcript costs at most the score bound
 times the statistical distance of the two remaining-transcript laws. -/
@@ -177,7 +214,7 @@ theorem taggedPairRestScore_le_add_dist (j : Free) (R R' : PMF (Rest j))
     {bound : ℝ} (hzero : ∀ t u, 0 ≤ score t u) (hbound : ∀ t u, score t u ≤ bound) :
     taggedPairRestScore C G α j R' read tag score ≤
       taggedPairRestScore C G α j R read tag score + bound * dist R R' := by
-  unfold taggedPairRestScore
+  unfold taggedPairRestScore anchoredPairRestScore
   calc
     _ ≤ ∑ q, ((G.anchored α).questions q).toReal *
         ((∑ r, (R r).toReal * score (restoreCheckedTranscript C j r (tag q)) (read q)) +
@@ -204,7 +241,7 @@ theorem taggedPairRestScore_le_add_dist (j : Free) (R R' : PMF (Rest j))
 theorem taggedPairCoordinateScore_nonneg (Q : PMF Transcript) (read : PairQ → U)
     (tag : PairQ → Message) (e : Fin m ≃ Free) (f : Fin m → Label → U → ℝ) (i : Fin m)
     (hf : ∀ t u, 0 ≤ f i t u) : 0 ≤ taggedPairCoordinateScore C G α Q read tag e f i := by
-  unfold taggedPairCoordinateScore taggedPairRestScore
+  unfold taggedPairCoordinateScore taggedPairRestScore anchoredPairRestScore
   exact sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg
     (sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg (hf _ _))
 
@@ -213,25 +250,7 @@ theorem taggedPairCoordinateScore_sq_le (Q : PMF Transcript) (read : PairQ → U
     (tag : PairQ → Message) (e : Fin m ≃ Free) (f : Fin m → Label → U → ℝ) (i : Fin m) :
     (taggedPairCoordinateScore C G α Q read tag e f i) ^ 2 ≤
       taggedPairCoordinateScore C G α Q read tag e (fun j t u => (f j t u) ^ 2) i := by
-  classical
-  let Samples := PairQ × Rest (e i)
-  let p (z : Samples) : ℝ :=
-    ((G.anchored α).questions z.1).toReal * ((Q.map (restTranscript C (e i))) z.2).toReal
-  let F (z : Samples) := f i (restoreCheckedTranscript C (e i) z.2 (tag z.1)) (read z.1)
-  have hp (z : Samples) : 0 ≤ p z := mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg
-  have hmass : ∑ z, p z = (1 : ℝ) := by
-    simp only [Samples, Fintype.sum_prod_type, p, ← mul_sum, sum_toReal, mul_one]
-  have he (g : Fin m → Label → U → ℝ) :
-      (∑ z : Samples, p z * g i (restoreCheckedTranscript C (e i) z.2 (tag z.1)) (read z.1)) =
-      taggedPairCoordinateScore C G α Q read tag e g i := by
-    simp only [Samples, Fintype.sum_prod_type, p, taggedPairCoordinateScore,
-      taggedPairRestScore, mul_sum, mul_assoc]
-  have h := Finset.sum_sq_le_sum_mul_sum_of_sq_le_mul (univ : Finset Samples)
-    (r := fun z => p z * F z) (f := p) (g := fun z => p z * (F z) ^ 2)
-    (fun z _ => hp z) (fun z _ => mul_nonneg (hp z) (sq_nonneg _))
-    (fun z _ => by ring_nf; rfl)
-  rw [hmass, one_mul] at h
-  simpa only [F, he f, he (fun i t u => (f i t u) ^ 2)] using h
+  exact anchoredPairRestScore_sq_le C G α (e i) (Q.map (restTranscript C (e i))) _
 
 private theorem taggedPairScore_sq_le (Q : PMF Transcript) (read : PairQ → U)
     (tag : PairQ → Message) (e : Fin m ≃ Free) (f : Fin m → Label → U → ℝ) :
@@ -258,7 +277,7 @@ theorem taggedPairScore_le_sqrt_add (Q : PMF Transcript) (read : PairQ → U)
   classical
   have hsum : taggedPairScore C G α Q read tag e score ≤
       taggedPairScore C G α Q read tag e main + taggedPairScore C G α Q read tag e penalty := by
-    unfold taggedPairScore taggedPairCoordinateScore taggedPairRestScore
+    unfold taggedPairScore taggedPairCoordinateScore taggedPairRestScore anchoredPairRestScore
     simp only [mul_sum, ← sum_add_distrib, ← mul_add]
     exact sum_le_sum fun i _ => sum_le_sum fun q _ => sum_le_sum fun r _ =>
       mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hpoint i _ _)
@@ -281,10 +300,9 @@ theorem taggedPairScore_mul (Q : PMF Transcript) (read : PairQ → U)
     (tag : PairQ → Message) (e : Fin m ≃ Free) (f : Fin m → Label → U → ℝ) (a : ℝ) :
     taggedPairScore C G α Q read tag e (fun i t u => a * f i t u) =
       a * taggedPairScore C G α Q read tag e f := by
-  simp only [taggedPairScore, taggedPairCoordinateScore, taggedPairRestScore, mul_sum]
-  refine sum_congr rfl fun i _ => sum_congr rfl fun q _ => sum_congr rfl fun r _ => ?_
-  ring
-
+  unfold taggedPairScore
+  rw [mul_sum]
+  exact sum_congr rfl fun i _ => anchoredPairRestScore_mul C G α (e i) _ a _
 
 private theorem taggedPairScore_fixedTag_le_of_erase
     (Q : PMF Transcript) (read : PairQ → U) (tag : PairQ → Message) (msg : Message)
@@ -297,7 +315,7 @@ private theorem taggedPairScore_fixedTag_le_of_erase
     (α : ℝ) * taggedPairScore C G α Q read (fun _ => msg) e f ≤
       taggedPairScore C G α Q read tag e f := by
   classical
-  unfold taggedPairScore taggedPairCoordinateScore taggedPairRestScore
+  unfold taggedPairScore taggedPairCoordinateScore taggedPairRestScore anchoredPairRestScore
   rw [mul_sum]
   refine sum_le_sum fun i _ => ?_
   let g (q : PairQ) : ℝ := ∑ r, ((Q.map (restTranscript C (e i))) r).toReal *
@@ -353,7 +371,8 @@ private theorem taggedPairScore_le_of_compare
     ((α : ℝ) / 4) * taggedPairScore C G α Q read tag e score ≤
       priorTrialScore C G α Q read e score := by
   classical
-  unfold taggedPairScore taggedPairCoordinateScore taggedPairRestScore priorTrialScore
+  unfold taggedPairScore taggedPairCoordinateScore taggedPairRestScore anchoredPairRestScore
+    priorTrialScore
   rw [mul_sum]
   refine sum_le_sum fun i _ => ?_
   let R := Q.map (restTranscript C (e i))
