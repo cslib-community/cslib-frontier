@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
+
 public import CslibFrontier.Algorithms.Lean.Knapsack.FPTAS
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
@@ -143,6 +145,7 @@ theorem computableInPolyTime_profitDP (hw : ComputableInPolyTime w encI encNat)
       (fun q : (ℕ × List ι) × Option (List ι) => selectStep w p q.1.1 q.1.2 q.2)
       (encPair (encPair encNat (encList encI)) (encOption (encList encI))) (encList encI) := by
     unfold selectStep
+    refine optionElimWithInput (snd _ _) ((fst _ _).snd') ?_
     fun_prop
   have h := foldlWith (encA := encOption (encList encI))
     (encL := encList (encOption (encList encI)))

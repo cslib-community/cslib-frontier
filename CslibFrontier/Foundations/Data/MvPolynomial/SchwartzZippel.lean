@@ -9,12 +9,12 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.MvPolynomial.SchwartzZippel
-public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
+public import CslibFrontier.Foundations.Data.MvPolynomial.Determinant
 import Mathlib.Algebra.MvPolynomial.Rename
 import Mathlib.Combinatorics.Nullstellensatz
 
 /-!
-# Schwartz–Zippel over any finite set of variables, and determinant degrees
+# Schwartz–Zippel over any finite set of variables
 
 Mathlib's `MvPolynomial.schwartz_zippel_totalDegree` bounds the proportion of the points of
 `S ^ n` at which a nonzero polynomial in the variables `Fin n` vanishes by `totalDegree / |S|`.
@@ -25,11 +25,6 @@ A nonzero polynomial of total degree below `|S|` does not vanish on all of `S ^ 
 (`MvPolynomial.exists_eval_ne_zero_of_totalDegree_lt_card`), a consequence of Mathlib's
 `MvPolynomial.eq_zero_of_eval_zero_at_prod_finset`.
 
-A determinant of polynomials of total degree at most `d` has total degree at most `|ι| * d`
-(`MvPolynomial.totalDegree_det_le`), since each term of the Leibniz expansion is a product of
-`|ι|` entries. Together with the Schwartz–Zippel bound it controls the probability that a
-polynomial determinant vanishes at a random point.
-
 ## Main results
 
 * `MvPolynomial.schwartz_zippel_totalDegree_fintype`: the Schwartz–Zippel lemma for variables
@@ -37,7 +32,6 @@ polynomial determinant vanishes at a random point.
 * `MvPolynomial.card_filter_eval_eq_zero_mul_card_le`: its counting form over a finite domain.
 * `MvPolynomial.exists_eval_ne_zero_of_totalDegree_lt_card`: a nonzero polynomial of total degree
   below `|S|` has a nonzero value at a point of `S ^ σ`.
-* `MvPolynomial.totalDegree_det_le`: the total degree of a polynomial determinant.
 -/
 
 public section
@@ -98,16 +92,5 @@ theorem exists_eval_ne_zero_of_totalDegree_lt_card {R σ : Type*} [CommRing R] [
   by_contra! h
   exact hp (eq_zero_of_eval_zero_at_prod_finset p (fun _ => S)
     (fun i => (degreeOf_le_totalDegree p i).trans_lt hS) h)
-
-/-- A determinant of polynomials of total degree at most `d` has total degree at most
-`|ι| * d`. -/
-theorem totalDegree_det_le {R σ ι : Type*} [CommRing R] [Fintype ι] [DecidableEq ι]
-    (A : Matrix ι ι (MvPolynomial σ R)) (d : ℕ) (hA : ∀ i j, (A i j).totalDegree ≤ d) :
-    A.det.totalDegree ≤ card ι * d := by
-  rw [Matrix.det_apply]
-  refine totalDegree_finsetSum_le fun σ _ => (totalDegree_smul_le _ _).trans ?_
-  refine (totalDegree_finsetProd _ _).trans ?_
-  calc ∑ i : ι, (A (σ i) i).totalDegree ≤ ∑ _i : ι, d := sum_le_sum fun i _ => hA _ _
-    _ = card ι * d := by simp
 
 end MvPolynomial

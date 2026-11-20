@@ -206,7 +206,7 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
               ((Unit × List Bool) × (ℕ × List (List Bool)))) × List Bool =>
             BitString.listRow q.1.1.1.1 q.1.2.2.1 q.1.1.2 :: q.1.2.2.2)
           (encPair EHandler encBits) (encList encBits) :=
-        (ComputableTidilyInPolyTime.cons encBits).computableInPolyTime.comp
+        (ComputableInPolyTime.cons encBits).comp
           (hc.prod (by dsimp only [EHandler, EState]; fun_prop))
       have hidx : ComputableInPolyTime
           (fun q : (((ℕ × List Bool) × List Bool) ×
@@ -285,8 +285,7 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
       (fun r : (((ℕ × List Bool) × List Bool) × (List Bool × (ℕ × List (List Bool)))) × List Bool =>
         r.2.drop 1)
       (encPair (encPair ECaller (encPair encBits EState)) encBits) encBits :=
-    ComputableTidilyInPolyTime.computableInPolyTime
-      (ComputableTidilyInPolyTime.dropUnary (encA := encBool) (encL := encBits)) |>.comp
+    (ComputableInPolyTime.dropUnary (encA := encBool) (encL := encBits)).comp
       ((by dsimp only [ECaller]; fun_prop : ComputableInPolyTime
         (fun r : (((ℕ × List Bool) × List Bool) ×
             (List Bool × (ℕ × List (List Bool)))) × List Bool => r.2)

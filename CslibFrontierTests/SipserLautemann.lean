@@ -67,7 +67,7 @@ def noisyHeadVerifier (p : List Bool × List Bool) : Bool :=
 
 @[fun_prop]
 theorem noisyHeadVerifier_polyTime :
-    ComputableTidilyInPolyTime noisyHeadVerifier (encPair encBits encBits) encBool := by
+    ComputableInPolyTime noisyHeadVerifier (encPair encBits encBits) encBool := by
   unfold noisyHeadVerifier
   fun_prop
 
@@ -103,7 +103,7 @@ theorem noisyHeadVerifier_decides :
     decide
 
 theorem noisyHead_mem_BPP : {x : List Bool | x.headD false = true} ∈ BPP encBits :=
-  ⟨Polynomial.C 2, noisyHeadVerifier, .of_tidy noisyHeadVerifier_polyTime,
+  ⟨Polynomial.C 2, noisyHeadVerifier, noisyHeadVerifier_polyTime,
     noisyHeadVerifier_decides⟩
 
 theorem noisyHead_mem_SigmaP_two : {x : List Bool | x.headD false = true} ∈ SigmaP 2 encBits :=
@@ -115,7 +115,6 @@ theorem noisyHead_mem_PiP_two : {x : List Bool | x.headD false = true} ∈ PiP 2
 theorem noisyHead_mem_PH : {x : List Bool | x.headD false = true} ∈ PH encBits :=
   BPP_subset_PH noisyHead_mem_BPP
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 -- Direct `fun_prop` synthesis on the Sipser-Lautemann matrix verifier for `noisyHeadVerifier`.
 example : ComputableInPolyTime
     (verifier encBits (Polynomial.C 2) noisyHeadVerifier)

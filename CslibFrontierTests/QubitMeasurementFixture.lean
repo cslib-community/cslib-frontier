@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialMeasurement
 public import Mathlib.Data.Fin.VecNotation
+import Mathlib.Algebra.Ring.Idempotent
 
 /-! # Computational and uniform qubit measurements for sequential tests -/
 
@@ -42,14 +43,12 @@ theorem uniformProjection_sq :
   fin_cases i <;> fin_cases j <;>
     norm_num [uniformProjection, Matrix.mul_apply, Fin.sum_univ_two]
 
-theorem complement_sq (e : Mat) (he₂ : e * e = e) : (1 - e) * (1 - e) = 1 - e := by
-  simp only [mul_sub, sub_mul, one_mul, mul_one, he₂, sub_self, sub_zero]
-
 def binary (e : Mat) (he : star e = e) (he₂ : e * e = e) : Measurement Bool Mat where
   effect b := if b then e else 1 - e
   nonneg b := by
     cases b
-    · simpa only [Bool.false_eq_true, ite_false, star_sub, star_one, he, complement_sq e he₂]
+    · have hc : (1 - e) * (1 - e) = 1 - e := (show IsIdempotentElem e from he₂).one_sub
+      simpa only [Bool.false_eq_true, ite_false, star_sub, star_one, he, hc]
         using star_mul_self_nonneg (1 - e)
     · simpa only [ite_true, he, he₂] using star_mul_self_nonneg e
   sum_effect := by simp
@@ -58,7 +57,7 @@ theorem binary_projective (e : Mat) (he : star e = e) (he₂ : e * e = e) :
     (binary e he he₂).IsProjective := by
   intro b
   cases b
-  · exact complement_sq e he₂
+  · exact (show IsIdempotentElem e from he₂).one_sub
   · exact he₂
 
 theorem pair_projective (D U : Measurement Bool Mat)
