@@ -48,15 +48,26 @@ structure QuantumSigningForger where
 
 namespace QuantumSigningForger
 
-private abbrev Width (C : QuantumSigningForger) :=
+/-- Qubits occupied by the address, response and work registers of the forger. -/
+abbrev Width (C : QuantumSigningForger) :=
   C.addressBits + 2 + 8 * C.responseBytes + C.workQubits
 
-private abbrev Device (C : QuantumSigningForger) := DeviceState (Width C) Unit Unit
+/-- State of the retained quantum registers between instructions and signing calls. -/
+abbrev Device (C : QuantumSigningForger) := DeviceState (Width C) Unit Unit
+
+/-- An adaptive program on the forger's quantum registers and classical signing service. -/
+abbrev Program (C : QuantumSigningForger) := ProbOracleComp (OracleSpec.sum
+  (fun _ : DeviceRequest (Width C) Empty => List Bool)
+  (fun _ : SigningQuery => Option (List Byte)))
+
+/-- The all-zero registers at the start of a native forgery experiment. -/
+noncomputable abbrev initialDevice (C : QuantumSigningForger) : Device C :=
+  ⟨pureState (ket ((fun _ => false), ())), isDensityMatrix_pureState (norm_ket _), ()⟩
 
 private abbrev State (C : QuantumSigningForger) := Device C × List Forgery
 
 private noncomputable def initial (C : QuantumSigningForger) : State C :=
-  (⟨pureState (ket ((fun _ => false), ())), isDensityMatrix_pureState (norm_ket _), ()⟩, [])
+  (C.initialDevice, [])
 
 private noncomputable def deviceCommand (C : QuantumSigningForger) (H : Xofs) {σ : Type}
     (cmd : DeviceRequest (Width C) Empty) : StateT (Device C × σ) PMF (List Bool) :=

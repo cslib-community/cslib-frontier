@@ -207,19 +207,19 @@ private theorem length_snd_popStep_le (p : FiniteConfig k Bool Control Operation
 variable [Finite Control]
 
 /-- An instruction against a list of answers is polynomial-time. -/
-private theorem computableTidilyInPolyTime_popStep [Fintype Operation] :
-    ComputableTidilyInPolyTime machine.popStep
+private theorem computableInPolyTime_popStep [Fintype Operation] :
+    ComputableInPolyTime machine.popStep
     (encPair encFiniteConfig encBits) (encPair encFiniteConfig encBits) := by
   unfold popStep
-  exact ComputableTidilyInPolyTime.cond
-    ((ComputableTidilyInPolyTime.of_finite Option.isSome).comp
-      (machine.pendingQuery_pt.tidy.comp (ComputableTidilyInPolyTime.fst _ _)))
-    ((machine.receiveBit_pt.tidy.comp ((ComputableTidilyInPolyTime.fst _ _).prod
-      ((ComputableTidilyInPolyTime.headD (encA := encBool) false).comp
-        (ComputableTidilyInPolyTime.snd _ _)))).prod
-      (ComputableTidilyInPolyTime.bitsTail.comp (ComputableTidilyInPolyTime.snd _ _)))
-    ((machine.localStep_pt.tidy.comp (ComputableTidilyInPolyTime.fst _ _)).prod
-      (ComputableTidilyInPolyTime.snd _ _))
+  exact ComputableInPolyTime.ite
+    ((ComputableInPolyTime.of_finite (encOut := encBool) Option.isSome).comp
+      (machine.pendingQuery_pt.comp (ComputableInPolyTime.fst _ _)))
+    ((machine.receiveBit_pt.comp ((ComputableInPolyTime.fst _ _).prod
+      ((ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp
+        (ComputableInPolyTime.snd _ _)))).prod
+      (ComputableInPolyTime.bitsTail.comp (ComputableInPolyTime.snd _ _)))
+    ((machine.localStep_pt.comp (ComputableInPolyTime.fst _ _)).prod
+      (ComputableInPolyTime.snd _ _))
 
 /-- **A clocked run against a list of answers is polynomial-time** in the encoded input and the
 list together. -/
@@ -229,20 +229,19 @@ theorem computableInPolyTime_popRun [Finite Operation] {α : Type} {input : α �
       (machine.popStep^[c * ((input x.1).length + 1) ^ d]
         (FiniteConfig.init machine.initial (input x.1), x.2)).1.tapes.output)
       (encPair input encBits) encBits := by
-  refine .of_tidy ?_
   let _ := Fintype.ofFinite Operation
   obtain ⟨cf, hcf⟩ := length_encFiniteConfig_le (k := k) (State := Control) (Oracle := Operation)
-  have hcount : ComputableTidilyInPolyTime (fun x : α × List Bool =>
+  have hcount : ComputableInPolyTime (fun x : α × List Bool =>
       c * ((input x.1).length + 1) ^ d) (encPair input encBits) encUnary :=
-    (((ComputableTidilyInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
-      (ComputableTidilyInPolyTime.encoding_length input)).comp
-        (ComputableTidilyInPolyTime.fst _ _)).of_enc_eq fun x => by simp
-  have hinit : ComputableTidilyInPolyTime
+    (((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
+      (ComputableInPolyTime.encoding_length input)).comp
+        (ComputableInPolyTime.fst _ _)).of_enc_eq fun x => by simp
+  have hinit : ComputableInPolyTime
       (fun x : α × List Bool =>
         (FiniteConfig.init (k := k) (Oracle := Operation) machine.initial (input x.1), x.2))
       (encPair input encBits) (encPair encFiniteConfig encBits) :=
-    (ComputableTidilyInPolyTime.finiteConfig_init (by fun_prop) _).prod
-      (ComputableTidilyInPolyTime.snd _ _)
+    (ComputableInPolyTime.finiteConfig_init (by fun_prop) _).prod
+      (ComputableInPolyTime.snd _ _)
   have hspace (x : α × List Bool) (i : ℕ) :
       FiniteConfig.SpaceBound (input x.1).length i 1
         (machine.popStep^[i] (FiniteConfig.init machine.initial (input x.1), x.2)).1 ∧
@@ -258,8 +257,8 @@ theorem computableInPolyTime_popRun [Finite Operation] {α : Type} {input : α �
       (fun x => 2 * (cf * ((encPair input encBits x).length +
         c * ((encPair input encBits x).length + 1) ^ d + 1 + 1)) + 1 +
           (encPair input encBits x).length) := by growth_poly
-  have hit := ComputableTidilyInPolyTime.iterate hcount hinit
-    machine.computableTidilyInPolyTime_popStep hbound fun x i hi => by
+  have hit := ComputableInPolyTime.iterate hcount hinit
+    machine.computableInPolyTime_popStep hbound fun x i hi => by
       obtain ⟨h₁, h₂⟩ := hspace x i
       have hx₁ : (input x.1).length ≤ (encPair input encBits x).length := by
         simp; omega
@@ -272,7 +271,7 @@ theorem computableInPolyTime_popRun [Finite Operation] {α : Type} {input : α �
           c * ((encPair input encBits x).length + 1) ^ d + 1 + 1 by omega))
       rw [length_encPair, encBits_apply]
       omega
-  have hout : ComputableTidilyInPolyTime
+  have hout : ComputableInPolyTime
       (fun p : FiniteConfig k Bool Control Operation × List Bool => p.1.tapes.output)
       (encPair encFiniteConfig encBits) encBits := by fun_prop
   exact hout.comp hit
@@ -329,7 +328,7 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
   let D : Decoder (encOption encBits) := Decoder.option Decoder.bits
   let cand : α × ℕ → Option (List Bool) := fun x => D.decode (sim (x.1, Nat.bits x.2))
   have hbits : ComputableInPolyTime (fun j : ℕ => Nat.bits j) encUnary encBits :=
-    (ComputableTidilyInPolyTime.unary_to_binary.of_enc_eq fun _ => rfl).computableInPolyTime
+    ComputableInPolyTime.unary_to_binary.of_enc_eq fun _ => rfl
   have hcand : ComputableInPolyTime cand (encPair enc encUnary) (encOption encBits) :=
     D.computableInPolyTime.comp (hsim.comp ((ComputableInPolyTime.fst _ _).prod
       (hbits.comp (ComputableInPolyTime.snd _ _))))
@@ -338,20 +337,20 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
         (Nat.bits j)).1 := by
     simp only [cand, hsim_eq, D.decode_enc]
   let ok : α × ℕ → Bool := fun x => (cand x).elim false fun w => V (x.1, w)
-  have hok : ComputableTidilyInPolyTime ok (encPair enc encUnary) encBool :=
-    ComputableTidilyInPolyTime.optionElimWithInput hcand.tidy (ComputableTidilyInPolyTime.const _)
-      (hV.tidy.comp (((ComputableTidilyInPolyTime.fst _ _).comp
-        (ComputableTidilyInPolyTime.fst _ _)).prod (ComputableTidilyInPolyTime.snd _ _)))
+  have hok : ComputableInPolyTime ok (encPair enc encUnary) encBool :=
+    ComputableInPolyTime.optionElimWithInput hcand (ComputableInPolyTime.const _)
+      (hV.comp (((ComputableInPolyTime.fst _ _).comp
+        (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)))
   let N : α → ℕ := fun a => P.eval (enc a).length
-  have hN : ComputableTidilyInPolyTime N enc encUnary :=
-    (ComputableTidilyInPolyTime.unary_eval P).comp
-      (ComputableTidilyInPolyTime.encoding_length enc)
+  have hN : ComputableInPolyTime N enc encUnary :=
+    (ComputableInPolyTime.unary_eval P).comp
+      (ComputableInPolyTime.encoding_length enc)
   let g : α → Option (List Bool) := fun a =>
     ((List.range (N a)).find? fun j => ok (a, j)).elim none fun j => cand (a, j)
   have hg : ComputableInPolyTime g enc (encOption encBits) :=
-    (ComputableTidilyInPolyTime.optionElimWithInput
-      (ComputableTidilyInPolyTime.findWithInput (ComputableTidilyInPolyTime.range.comp hN) hok)
-      (ComputableTidilyInPolyTime.const _) hcand.tidy).computableInPolyTime
+    ComputableInPolyTime.optionElimWithInput
+      (ComputableInPolyTime.findWithInput (ComputableInPolyTime.range.comp hN) hok)
+      (ComputableInPolyTime.const _) hcand
   refine mem_FPSearch.mpr ⟨hR, g, hg, fun a => ⟨fun w hw => ?_, fun hw ha => ?_⟩⟩
   · simp only [g] at hw
     cases hj : (List.range (N a)).find? (fun j => ok (a, j)) with

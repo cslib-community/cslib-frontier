@@ -6,9 +6,19 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
+import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
+import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
 import CslibFrontier.Probability.PairwiseIndependentHash.Retention
@@ -31,6 +41,7 @@ import CslibFrontier.Computability.Complexity.Classes.Advice.LengthComparison
 import CslibFrontier.Computability.Circuit.Boolean.Advice.Hierarchy
 import CslibFrontier.Algorithms.Lean.Arborescence.PolyTime
 import CslibFrontier.Algorithms.Lean.DFS.SCC
+import CslibFrontier.Algorithms.Lean.DyadicRecovery
 import CslibFrontier.Algorithms.Lean.MaxDicut.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
@@ -47,6 +58,7 @@ import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
+import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -275,6 +287,7 @@ import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
 import CslibFrontier.Crypto.Computational.OneWay.LengthPreserving
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
+import CslibFrontier.Crypto.Computational.OneWay.Repeated
 import CslibFrontier.Crypto.Computational.OneWay.WeakNotStrong
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
@@ -292,6 +305,7 @@ import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
 import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
@@ -415,6 +429,7 @@ import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExp
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
@@ -422,6 +437,7 @@ import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
+import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 
 /-!
 # Collected results
@@ -5554,6 +5570,21 @@ register_result "gap-two-csp-boolean-promise-p" where
     assignments of the declared vertices. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
 
+register_result "arora-barak-dyadic-prefix-recovery" where
+  title := "Polynomial-time rational recovery from a binary prefix"
+  topic := "algorithms"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 20, Exercise §11",
+      locator := "2007-01-08 public draft, printed p. 432 / PDF p. 448" }
+  ]
+  theorems := [Rat.recoverDyadicLogSq_eq_some, Rat.recoverDyadicLogSq_polyTime]
+  scope := "Rounds upward after doubling the logarithm. For positive denominator bound N, \
+    the precision is Nat.clog 2 (N ^ 2) fractional bits. The binary input encodes N and \
+    the half-open dyadic cell index, including the integer part for improper fractions. \
+    Terminating binary expansions use trailing zeros. The optional rational output uses \
+    a reduced binary numerator and denominator. The native multitape polynomial-time \
+    certificate covers the same decoder used in the recovery theorem."
+
 register_result "bareiss-rational-elimination" where
   title := "Exact rational Bareiss–Jordan Gaussian elimination and entry bounds"
   topic := "algorithms"
@@ -8647,9 +8678,92 @@ register_result "second-preimage-counting-and-inversion" where
     succProbability_inversionExperiment_uniform_le_add_card_div is the sharper \
     OWadv[A, H] ≤ SPRadv[B, H] + |T|/|M|, from which (8.22) follows. These are concrete bounds \
     for every A, with no cost model; B calls A once. The asymptotic part of 8.23(b), that \
-    second-preimage resistance implies one-wayness when s is super-poly, has a bit-string \
-    counterpart in Computational/SecondPreimageResistant/Relations.lean, which is not part of \
-    this entry; nor are 8.23(c)–(d)."
+    second-preimage resistance implies one-wayness when s is super-poly, is entry \
+    second-preimage-resistance-implies-one-way, and 8.23(c) is entry \
+    second-preimage-resistant-not-one-way; 8.23(d) is not part of this entry."
+
+register_result "second-preimage-resistance-implies-one-way" where
+  title := "A second-preimage resistant function that compresses by a super-polynomial factor is \
+    one-way"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Equation (8.17), second implication, and Exercise 8.23(b)",
+      locator := "Section 8.11.1, p. 337; Section 8.14, pp. 352–353" }
+  ]
+  theorems := [
+    Cslib.Crypto.SecondPreimageResistantOn.oneWayOn_of_outputLength
+  ]
+  scope := "H is one function on bit strings, evaluated in deterministic polynomial time, that \
+    maps n-bit inputs to outLen(n)-bit digests. Hypotheses: SecondPreimageResistantOn H valid \
+    and 2^outLen(n) / 2^n negligible. Conclusion: OneWayOn H valid, on the same answer domain. \
+    At valid n w = decide (w.length = n) both are Definition 8.6 (Section 8.11.1, p. 336) on \
+    M = {0,1}^n and T = {0,1}^outLen(n), with a uniform n-bit challenge and uniform strict PPT \
+    adversaries given n in unary; a wider valid strengthens both. The compression factor \
+    s(n) = |M| / |T| = 2^n / 2^outLen(n) is super-poly exactly when 1/s(n) is negligible; the \
+    source assumes |M| ≥ s·|T|, and here s is that ratio. The proof's B is \
+    inverterToSecondPreimage, which gives A the image of its challenge and returns A's answer, \
+    as in the exercise's hint; it is certified strict PPT (isPPT_inverterToSecondPreimage). \
+    Asymptotic; succProbability_inversionGameOn_le_secondPreimageGameOn_add, in the same \
+    module, is the bound OWadv[A, H] ≤ SPRadv[B, H] + 2^outLen(n) / 2^n, which implies (8.22), \
+    OWadv[A, H] ≤ 2·SPRadv[B, H] + 1/s; the finite form of (8.22) is entry \
+    second-preimage-counting-and-inversion."
+
+register_result "one-way-not-second-preimage-resistant" where
+  title := "Ignoring one input bit keeps a function one-way but makes second preimages easy"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "a one-way h′(m, b) := h(m) that is not 2nd-preimage resistant",
+      locator := "Section 8.11.1, p. 337" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneWayOn.ignoreHeadBit,
+    Cslib.Crypto.not_secondPreimageResistantOn_ignoreHeadBit
+  ]
+  scope := "h is one function on bit strings, evaluated in deterministic polynomial time, and h′ \
+    is ignoreHeadBit h, with h′(b :: m) = h(m): the source's h′(m, b) := h(m), with the extra \
+    bit first. OneWayOn.ignoreHeadBit: if OneWayOn h valid, then OneWayOn h′ valid, for an \
+    answer domain whose words at length n + 1 lose their head bit into words of the domain at \
+    length n. At valid n w = decide (w.length = n) this is Definition 8.6 (Section 8.11.1, \
+    p. 336) for h on M = {0,1}^n and for h′ on M × {0,1} = {0,1}^(n+1), with uniform \
+    challenges and uniform strict PPT inverters given the input length in unary, so h′ at \
+    length n + 1 corresponds to h at length n. The source says only that h′ is clearly \
+    one-way; the reduction here is ignoreHeadBitInverter, which runs the inverter for h′ at \
+    length n + 1 and returns the tail of its answer, certified strict PPT \
+    (isPPT_ignoreHeadBitInverter). not_secondPreimageResistantOn_ignoreHeadBit: for every h, \
+    h′ is not SecondPreimageResistantOn h′ valid for any valid that, for all large n, admits \
+    every n-bit word with its head bit flipped, as {0,1}^n does. The finder flipHeadBit answers \
+    the challenge b :: m with (1 − b) :: m, the source's (m, 1 − b), and wins with \
+    probability 1."
+
+register_result "second-preimage-resistant-not-one-way" where
+  title := "At a bounded compression factor, a second-preimage resistant function need not be \
+    one-way"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 8.23(c)", locator := "Section 8.14, p. 353" }
+  ]
+  theorems := [
+    Cslib.Crypto.SecondPreimageResistantOn.plantEasyBranch,
+    Cslib.Crypto.not_oneWayOn_plantEasyBranch
+  ]
+  scope := "For a function H on bit strings, evaluated in deterministic polynomial time, and \
+    k : ℕ, H′ = plantEasyBranch k H maps w to true :: (w without its first k bits) when those k \
+    bits are all false, and to false :: H(w) otherwise. \
+    SecondPreimageResistantOn.plantEasyBranch: if SecondPreimageResistantOn H valid, then \
+    SecondPreimageResistantOn H′ valid, on the same answer domain. not_oneWayOn_plantEasyBranch: \
+    for every H, H′ is not OneWayOn H′ valid for any valid that contains every n-bit word; \
+    plantEasyBranchInverter k, certified strict PPT (isPPT_plantEasyBranchInverter), answers \
+    with k false bits followed by the tail of its challenge and inverts with probability at \
+    least (1/2)^k at every length n ≥ k. At valid n w = decide (w.length = n) both notions are \
+    Definition 8.6 (Section 8.11.1, p. 336) on M = {0,1}^n, with uniform n-bit challenges and \
+    uniform strict PPT adversaries given n in unary. The exercise takes M := T × {1, …, 2s} \
+    and T′ := T × {0,1}: when H maps n-bit inputs to (n − k)-bit digests, 2s = 2^k, and H′ maps \
+    them to (n − k + 1)-bit digests (length_plantEasyBranch, same module), so H′ has \
+    compression ratio s = 2^(k−1), with s = 2 at k = 2. Only compression factors that are \
+    powers of two are covered. The two theorems hold for every H; the digest length only fixes \
+    the compression ratio."
 
 register_result "xor-tcr-from-second-preimage" where
   title := "Masking the input with the key turns a second-preimage-resistant hash into a target \
@@ -8674,6 +8788,38 @@ register_result "xor-tcr-from-second-preimage" where
     xorTargetToSecondPreimage, certified strict PPT (isPPT_xorTargetToSecondPreimage). \
     Asymptotic; succProbability_targetCollisionGame_xorTargetHash_le, in the same module, is \
     the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
+
+register_result "repeated-one-way" where
+  title := "A function that is one-way on its domain stays hard to invert when polynomially many \
+    instances are published and any others may be revealed"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 13.5",
+      locator := "Section 13.4.1, Attack Game 13.3 and Lemma 13.5, pp. 539–540" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneWayOn.repeatedInversion_negligible
+  ]
+  scope := "f is one function on bit strings, evaluated in deterministic polynomial time. \
+    Hypothesis: OneWayOn f valid for an answer domain valid that contains every n-bit word. At \
+    valid n w = decide (w.length = n) it is Definition 8.6 (Section 8.11.1, p. 336) on \
+    X = {0,1}^n, the lemma's standard one-way problem, with a uniform n-bit challenge and \
+    uniform strict PPT inverters given n in unary; a wider valid gives a stronger premise and a \
+    game that accepts more answers. Conclusion: for every number of instances t(n) computable \
+    in polynomial time from unary n, every uniform strict oracle-PPT adversary has negligible \
+    success in repeatedInversionGameOn f valid t, Attack Game 13.3 with x_1, …, x_t uniform \
+    n-bit words: the adversary receives n in unary and the framed list (y_1, …, y_t), a reveal \
+    query for slot j is answered with x_j, and the adversary wins with (ν, x) when it never \
+    revealed ν, valid n x and f(x) = y_ν. The source's t is a positive integer parameter; here \
+    it is a function of n, computable in polynomial time because the uniform reduction \
+    computes it, and t(n) = 0 is allowed, where the game is lost. Slots are 0-based and named \
+    by the length of the query word; a reveal outside 0, …, t(n) − 1 is answered with the empty \
+    word, and a claim outside it loses. The proof's B is repeatedInverter, certified strict PPT \
+    (isPPT_repeatedInverter); it forwards A's claimed preimage unchanged, and draws its guess ω \
+    with fair coins from the dyadic range dyadicSize(t(n)) = 2^(⌊log₂ t(n)⌋ + 1) instead of \
+    uniformly from 1, …, t, failing when ω ≥ t(n). Asymptotic; \
+    succProbability_repeatedInversionGameOn_le, in the same module, is the bound (13.6) with \
+    dyadicSize(t(n)) ≤ 2·t(n) in place of t: rOWadv[A, f, t] ≤ dyadicSize(t(n))·OWadv[B, f]."
 
 register_result "tcr-hash-and-sign-signature" where
   title := "Signing a fresh target collision resistant hash key with the message digest extends a \
@@ -10433,6 +10579,23 @@ register_result "partial-tag-encrypt-then-mac" where
     pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
     pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
 
+register_result "fixed-length-polynomial-universality" where
+  title := "Collision and difference bounds for fixed-length polynomial hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.16(a)–(b)",
+      locator := "v0.6, printed p. 281; Hfpoly in §7.2.1, equation (7.5), p. 257" }
+  ]
+  theorems := [
+    Cslib.Probability.isUniversalHash_coeffPolyHash,
+    Cslib.Probability.isDeltaUniversalHash_mul_coeffPolyHash
+  ]
+  scope := "For length-n coefficient vectors and an exactly uniform field element, the \
+    collision probability is at most (n − 1)/|F|. Multiplying the evaluation by the key bounds \
+    the probability of any specified difference by n/|F|. Both statements quantify over \
+    distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
+    without a growth condition. The zero-length vector has no distinct partner."
+
 register_result "ghash-gcm-length-block-xor-duf" where
   title := "GHASH on the bit-length version of GCM's line (∗) input, zero-padded with its \
     length block, is an ℓ/2^128-XOR-DUF for inputs of at most ℓ blocks, the length block \
@@ -10675,6 +10838,83 @@ register_result "abstract-dpll-learning-correctness" where
     Backjump and Learn use entailment by total assignments, which the §2.1 entailment implies, \
     so every step of the source is a step here."
 
+register_result "anchoring-classical-and-entangled-values" where
+  title := "Classical and entangled values after anchoring a two-prover game"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 1.2",
+      locator := "arXiv:1509.07466v2, printed p. 3 (anchoring in Definition 1.1)" }
+  ]
+  theorems := [
+    Cslib.PCP.TwoProverGame.value_anchored,
+    Cslib.PCP.TwoProverGame.quantumValue_anchored
+  ]
+  scope := "Anchoring replaces each player's question independently with probability α and \
+    accepts if either question is replaced. For finite games with nonempty answer alphabets, \
+    the classical and entangled rejection gaps both scale by (1 − α)², including α = 0 and α = 1. \
+    Entangled value is the supremum over finite-dimensional tensor strategies with arbitrary \
+    local POVMs. The strategy maps preserve both local dimensions."
+
+register_result "bvy-anchored-noisy-reveal-laws" where
+  title := "Conditional independence and the anchored marginal of the noisy reveal"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claims 4.1–4.2",
+      locator := "arXiv:1509.07466v2, §4.1, printed pp. 11–12" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.conditionalSnd_messagePair,
+    Cslib.PCP.AnchoredDependency.leftLaw_apply,
+    Cslib.PCP.AnchoredDependency.rightLaw_apply,
+    Cslib.PCP.AnchoredDependency.map_snd_leftLaw,
+    Cslib.PCP.AnchoredDependency.map_snd_rightLaw,
+    Cslib.PCP.AnchoredDependency.map_snd_law
+  ]
+  scope := "For any original joint question PMF, the weighted point masses factor into the message \
+    mass and two local conditional laws. The factorization expresses independence at supported \
+    messages. For either designated player, forgetting the message recovers the anchored question \
+    law, including anchor rates zero and one. Agreement of the left-message conditional with \
+    the original anchored conditional assumes a supported message and an interior anchor rate."
+
+register_result "bvy-anchored-conditioning-bounds" where
+  title := "Movement of free trials and question resampling after checked wins"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 4.6(1)–(2)",
+      locator := "arXiv:1509.07466v2, §4.3, printed pp. 14–15" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.sum_sq_dist_freeTrials_given_wins_le,
+    Cslib.PCP.AnchoredDependency.sum_dist_questions_given_wins_le
+  ]
+  scope := "Finite alphabets and tensor POVMs, with checked answers from the strategy that \
+    supplies the positive-probability checked-win event. The first bound sums squared distances \
+    and the second sums transcript and question-resampling distances. Distances are half-L1. \
+    The constants use natural logs with Pinsker’s factor 1/2 and the full checked-answer \
+    alphabet. Any checked set is allowed, including when no free coordinate remains."
+
+register_result "dpll-pigeonhole-refutation-size" where
+  title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"
+  topic := "SAT algorithms"
+  sources := [
+    { paper := BeyersdorffGalesiLauria2010, theorem := "Theorem 2",
+      locator := "White Rose eprint 74432 (manuscript of 2010-07-01), §4, printed p. 4; PDF p. 5; \
+        the bound 2^((n/2) log(n/2 + 1)) at the end of the proof, printed p. 6; PDF p. 7" }
+  ]
+  theorems := [
+    Cslib.Algorithms.Lean.DPLL.pow_half_le_size_refutation?_pigeonhole,
+    Cslib.Algorithms.Lean.DPLL.pow_half_le_size_solve_pigeonhole
+  ]
+  scope := "The source bound holds for every tree-like resolution refutation of PHP^m_n, m > n; \
+    these theorems apply it to the output of the library's DPLL solver on PHP^m_n relabelled \
+    along any injective numbering Fin m × Fin n → ℕ: the solver finds a refutation with at \
+    least (n/2 + 1)^(n/2) nodes and returns an LRAT certificate with at least that many steps \
+    (one per leaf of the refutation). The source's proof takes n even; the Lean bound uses \
+    floor division n/2 and has no parity hypothesis. Dantchev and Riis (CCC 2001) proved an \
+    earlier asymptotic 2^Ω(n log n) bound for regular tree resolution; it is historical \
+    context, not a source of this exact bound. These bound the output, not the running time; \
+    the running time on the word RAM is issue #6610."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"
@@ -10699,3 +10939,144 @@ register_result "synchronous-correlations-tracial-representation" where
     a normalized trace and projective measurements give commuting projective actions on its \
     GNS Hilbert space. The complex trace of the product equals the real probability coerced \
     to ℂ. The forward agreement and trace statements allow POVMs."
+
+register_result "synchronous-game-perfect-commuting-equivalence" where
+  title := "Perfect commuting strategies and tracial representations of synchronous game algebras"
+  topic := "nonlocal games"
+  sources := [
+    { paper := HeltonEtAl2019, theorem := "Theorem 3.2(3)",
+      locator := "published version, pp. 336–338 (game algebra in §3.1)" }
+  ]
+  theorems := [
+    Cslib.PCP.TwoProverGame.exists_isPerfectCommuting_iff,
+    Cslib.PCP.TwoProverGame.commutingWinProb_eq_one_iff_isPerfectCommuting
+  ]
+  scope := "The commuting case of Theorem 3.2. The strategy has zero probability at every \
+    rejected tuple. The unital star algebra has projection generators summing to one at each \
+    question and zero products at rejected tuples. A faithful tracial representation is obtained \
+    on the closed algebra of left GNS operators. The reverse construction uses commuting GNS \
+    actions and works with any tracial state. The real-valued score formulation requires full \
+    support on question pairs for the implication from score one to pointwise perfection."
+
+register_result "mpda-one-hole-is-no-hole" where
+  title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Theorem 2",
+      locator := "arXiv:2002.05950v2, Appendix G.1 \"Multi-Producer Consumer\", paragraph \
+        \"Hole Bound\", PDF p. 37; holes as in Definition 1, Section 2.1" }
+  ]
+  theorems := [Cslib.Automata.MPDA.holeBounded_one_iff_wellNested]
+  scope := "For every MPDA and every run of its configuration system from a control state with \
+    all stacks empty to a control state with all stacks empty, the label sequence of the run is \
+    1-hole-bounded exactly when it is well-nested. Open holes are counted through their first \
+    pending push that is not closed by a well-nested continuation, consecutive pending pushes \
+    of one stack separated by a well-nested factor belonging to the same hole. The paper states \
+    the theorem for accepting runs inside its multi-producer consumer example and proves it \
+    informally; the Lean statement is for all complete runs and does not need acceptance. \
+    Source check: independent agent review (codex-f4a705f4) on PR #6587, against \
+    arXiv:2002.05950v2 Definition 1, PDF pp. 5-6, and Appendix G.1, Theorem 2, PDF p. 37."
+
+register_result "quantum-relative-entropy-nonnegative" where
+  title := "Nonnegativity of quantum relative entropy for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.2",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 19" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_nonneg]
+  scope := "For arbitrary finite complex positive semidefinite trace-one matrices, including \
+    singular states, quantum relative entropy is nonnegative. The trace formula uses natural \
+    logarithms and requires support containment, stated as reverse kernel inclusion. When that \
+    containment fails, the divergence is positive infinity."
+
+register_result "quantum-relative-entropy-joint-convexity" where
+  title := "Joint convexity of quantum relative entropy"
+  topic := "quantum information"
+  sources := [
+    { paper := Ruskai2007, theorem := "Theorem 1",
+      locator := "arXiv:quant-ph/0604206v1, printed p. 2; proof in §§2.1–2.4" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_sum_smul_le]
+  scope := "Finite complex positive semidefinite matrix pairs with arbitrary nonnegative \
+    weights. The normalized weights give joint convexity; this homogeneous form also allows \
+    unnormalized weights and assigns positive infinity to a support mismatch. Zero-weight \
+    terms contribute zero. The natural-log formula uses the standard positive Umegaki sign \
+    as in equation (11), correcting the leading minus sign in the introductory equation (3)."
+
+register_result "classical-quantum-relative-entropy-chain" where
+  title := "Relative entropy chain rule for classical–quantum states"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.6",
+      locator := "arXiv:1509.07466v2, §5.1, printed pp. 19–20" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_classicalQuantumState]
+  scope := "For two probability-weighted families of finite-dimensional density matrices, \
+    the divergence of the block-diagonal states splits into the classical KL divergence and \
+    the source-weighted conditional divergences. The quantum coordinate comes first. Both \
+    terms use natural logarithms. Missing support gives positive infinity, and a zero-weight \
+    label contributes zero even when its conditional divergence is infinite."
+
+register_result "classical-quantum-mutual-information" where
+  title := "Mutual information of a classical–quantum state"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.7",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 20" }
+  ]
+  theorems := [Cslib.Quantum.mutualInformation_classicalQuantumState]
+  scope := "For finite label distributions and conditional complex density matrices, the \
+    mutual information to the product of the actual marginals equals the source-weighted \
+    divergence of the conditional states from their quantum marginal. The expression \
+    uses natural logarithms and extended divergence with zero contribution at null labels."
+
+register_result "uhlmann-finite-dimensional-local-overlap" where
+  title := "Uhlmann’s theorem for finite-dimensional purifications"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Theorem 5.11",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.exists_localUnitary_inner_eq_rootFidelity]
+  scope := "Two complex vectors on the same finite bipartite space, with possibly unequal \
+    local dimensions and possibly singular reduced states. A unitary on the right system \
+    gives a complex overlap equal to the real unsquared fidelity of the left reductions. \
+    Unit vectors recover the normalized purifications in the source."
+
+register_result "powers-stormer-finite-matrices" where
+  title := "Powers–Størmer inequality for finite matrices"
+  topic := "matrix analysis"
+  sources := [
+    { paper := SzaboWouters2025, theorem := "Lemma 1.19",
+      locator := "published version, §1, printed p. 1397 (tracial norms on p. 1390)" }
+  ]
+  theorems := [Matrix.trace_sub_mul_self_le_traceNorm_mul_self_sub]
+  scope := "For positive semidefinite complex matrices P and Q, the trace of (P − Q)² is \
+    bounded by the trace norm of P² − Q². Multiplying the tracial form by the dimension gives \
+    ordinary trace, with the empty-dimensional case giving zero on both sides. Singular \
+    matrices are allowed, and there is no trace-one assumption."
+
+register_result "fuchs-van-de-graaf-lower" where
+  title := "Lower Fuchs–van de Graaf inequality for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lower bound in equation (28)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.one_sub_rootFidelity_le_traceDistance]
+  scope := "Arbitrary finite-dimensional complex positive semidefinite trace-one matrices, \
+    including singular states. One minus the unsquared fidelity is bounded above by the \
+    trace distance, which is half the trace norm of the difference."
+
+register_result "fuchs-van-de-graaf-upper" where
+  title := "Upper Fuchs–van de Graaf inequality for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Upper bound in equation (28)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.traceDistance_le_sqrt_one_sub_rootFidelity_sq]
+  scope := "For finite complex positive semidefinite trace-one matrices, including singular \
+    states, trace distance is at most the square root of one minus squared root fidelity. \
+    Trace distance is half the trace norm of the difference, and root fidelity is unsquared."

@@ -27,7 +27,7 @@ private theorem rotateReflection_eq (n : ℕ) (v : Fin n) (d : Bool) :
   simp [rotateReflection, reflection, Nat.sub_sub, Nat.add_comm]
 
 private theorem isPolyTime_rotateReflection :
-    ComputableTidilyInPolyTime rotateReflection
+    ComputableInPolyTime rotateReflection
       (encPair encUnary (encPair encUnary encBool)) (encPair encUnary encBool) := by
   unfold rotateReflection
   fun_prop
@@ -82,7 +82,6 @@ example : exampleGraph.preprocessRelation constraintEval false
 example : exampleGraph.preprocessRelation constraintEval false
     ((0, false), whole false) true false = true := by decide
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 example : ComputableInPolyTime
     (fun p : Graph Bool × ((ℕ × Bool) × ConstraintGraph.PreprocessLabel Bool) =>
       p.1.preprocessRotation false rotateReflection p.2)
@@ -92,7 +91,6 @@ example : ComputableInPolyTime
   have h := isPolyTime_rotateReflection
   fun_prop
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 example : ComputableInPolyTime
     (fun g : Graph Bool => g.preprocessRotation false rotateReflection ((g.edges.length, false),
       cloud false))
@@ -101,7 +99,6 @@ example : ComputableInPolyTime
   have h := isPolyTime_rotateReflection
   fun_prop
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 private theorem isPolyTime_preprocessRotation_finEnum : ComputableInPolyTime
     (fun p : Graph Bool × ((ℕ × Bool) × ConstraintGraph.PreprocessLabel Bool) =>
       p.1.preprocessRotation false rotateReflection p.2)

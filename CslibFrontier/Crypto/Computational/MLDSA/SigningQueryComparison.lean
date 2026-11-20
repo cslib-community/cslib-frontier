@@ -226,6 +226,31 @@ private noncomputable def hit {C : QuantumSigningForger} {α V : Type} [Zero V] 
     (log : List Forgery) (tape : List V) (j : ℕ) : PMF Bool :=
   scored (queryPrefix prog j) H sign (fun found _ _ => detector C G H found) d log tape
 
+private theorem hit_mean_le {C : QuantumSigningForger} {α V ι : Type} [Zero V]
+    (p : PMF ι) (G : ι → Xofs) (H : Xofs) (prog : Program C α)
+    (sign : V → SigningQuery → Option (List Byte)) (dev : Device C) (log : List Forgery)
+    (tape : List V) (j : ℕ) {ε : ℝ≥0∞}
+    (bound : ∀ a : Option (Address C),
+      (p.bind fun i => PMF.pure (a.any (changed C (G i) H))) true ≤ ε) :
+    (p.bind fun i => hit prog (G i) H sign dev log tape j) true ≤ ε := by
+  simp only [hit, scored]
+  rw [PMF.bind_comm]
+  apply PMF.bind_apply_le_on_support
+  rintro ⟨found, ⟨st, hist⟩, rest⟩ _
+  simp only [detector, ← addressTest_law C _ found (st, hist), ← PMF.bind_pure_comp,
+    Function.comp_def]
+  rw [PMF.bind_comm]
+  exact PMF.bind_apply_le_on_support _ fun a _ => bound a
+
+private theorem gap_bind_mean {β : Type} [Fintype β] (p : PMF β) (x y : β → PMF Bool)
+    (B : β → ℝ) (h : ∀ b, gap (x b) (y b) ≤ B b) :
+    gap (p.bind x) (p.bind y) ≤ ∑ b, (p b).toReal * B b := by
+  unfold gap
+  simp only [PMF.bind_apply_toReal]
+  exact (PMF.sq_sqrt_mean_sub_le p _ _ (fun _ => ENNReal.toReal_nonneg)
+    (fun _ => ENNReal.toReal_nonneg)).trans (Finset.sum_le_sum fun b _ =>
+      mul_le_mul_of_nonneg_left (h b) ENNReal.toReal_nonneg)
+
 -- The same finite classical choice precedes both executions and every measured prefix.
 private theorem gap_bind_le {β : Type} [Finite β] (p : PMF β) (x y : β → PMF Bool)
     (hits : β → ℕ → PMF Bool) (n : ℕ)
@@ -233,17 +258,10 @@ private theorem gap_bind_le {β : Type} [Finite β] (p : PMF β) (x y : β → P
     gap (p.bind x) (p.bind y) ≤
       4 * n * ∑ j ∈ Finset.range n, ((p.bind fun b => hits b j) true).toReal := by
   let _ := Fintype.ofFinite β
-  unfold gap
-  simp only [PMF.bind_apply_toReal]
-  refine (PMF.sq_sqrt_mean_sub_le p _ _ (fun _ => ENNReal.toReal_nonneg)
-    (fun _ => ENNReal.toReal_nonneg)).trans ?_
-  calc
-    _ ≤ ∑ b, (p b).toReal * (4 * n * ∑ j ∈ Finset.range n, (hits b j true).toReal) :=
-      Finset.sum_le_sum fun b _ => mul_le_mul_of_nonneg_left (h b) ENNReal.toReal_nonneg
-    _ = _ := by
-      simp only [Finset.mul_sum]
-      rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun b _ => mul_left_comm ..
+  apply (gap_bind_mean p x y _ h).trans_eq
+  simp only [PMF.bind_apply_toReal, Finset.mul_sum]
+  rw [Finset.sum_comm]
+  exact Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun b _ => mul_left_comm ..
 
 private theorem gap_step {u v w h B : ℝ} (n : ℕ) (hB : 0 ≤ B)
     (one : (u - v) ^ 2 ≤ 4 * h) (rest : (v - w) ^ 2 ≤ 4 * n * B) :

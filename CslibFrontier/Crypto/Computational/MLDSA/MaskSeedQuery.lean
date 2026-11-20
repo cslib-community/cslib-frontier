@@ -35,10 +35,6 @@ namespace Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
 
 open Cslib.Probability Cslib.Quantum ExtendableOutput
 
-private abbrev Program (C : QuantumSigningForger) := ProbOracleComp (OracleSpec.sum
-  (fun _ : DeviceRequest (Width C) Empty => List Bool)
-  (fun _ : SigningQuery => Option (List Byte)))
-
 /-- A coherent raw XOF query, charged once against the device query budget. -/
 @[expose] def isXofQuery {width : ℕ} :
     ℕ ⊕ DeviceRequest width Empty ⊕ SigningQuery → Bool

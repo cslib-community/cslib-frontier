@@ -319,7 +319,7 @@ theorem computableInPolyTime_readNum {m j base : α → ℕ} {P : α → List �
       (idxOfWithInput (hP.comp (fst _ _))
         (unary_to_binary.comp (unary_add' (hbase.comp (fst _ _)) (snd _ _)))))
   have hbits := (bits_encList_polyTime encBool).2.comp hlist
-  have hnum := (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.bitsToNat).comp hbits
+  have hnum := (ComputableInPolyTime.bitsToNat).comp hbits
   simpa only [readNum, ← ofBits_eq_lsbValue, Function.comp_def] using hnum
 
 private theorem blockSrcNum' {q n : α → ℕ} (hq : ComputableInPolyTime q inp encUnary)
