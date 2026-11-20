@@ -19,7 +19,7 @@ extended as described below, producing the abstract syntax checked by
 `Cslib.Logic.PL.VeriPB.checkRed`:
 
 * an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPB`): an optional objective line
-  `min: ∑ wᵢ ℓᵢ ;` before the constraints (`Cslib.Logic.PL.VeriPB.Objective`), then one
+  `min: ∑ wᵢ ℓᵢ;` before the constraints (`Cslib.Logic.PL.VeriPB.Objective`), then one
   constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one of `>=`, `<=`, `=`, an equality counting as the
   two constraints `≥` and `≤` in this order; lines starting with `*` are comments;
 * a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
@@ -214,7 +214,7 @@ private def opbLines : List (List String) → Option (List PBConstr)
       | some (cs, [";"]), some F => some (cs ++ F)
       | _, _ => none
 
-/-- An objective line `min: ∑ wᵢ ℓᵢ ;`, given its tokens after `min:`. -/
+/-- An objective line `min: ∑ wᵢ ℓᵢ;`, given its tokens after `min:`. -/
 private def objective (ts : List String) : Option Objective :=
   match terms stdNames (ts.length + 1) ts [] 0 with
   | some (L, k, [";"]) => some ⟨L, k⟩
@@ -224,11 +224,11 @@ private def objective (ts : List String) : Option Objective :=
 structure OPB where
   /-- The constraints, an equality counting as two. -/
   constraints : List PBConstr
-  /-- The objective to minimize, from the line `min: … ;`. -/
+  /-- The objective to minimize, from the line `min: …;`. -/
   objective : Option Objective
 
 /-- **An OPB instance**: comment lines starting with `*`, an optional objective line
-`min: … ;` before the constraints, and one constraint per line. -/
+`min: …;` before the constraints, and one constraint per line. -/
 def parseOPB (s : String) : Option OPB :=
   let lines := ((s.splitOn "\n").map tokens).filter fun l =>
     match l.head? with
