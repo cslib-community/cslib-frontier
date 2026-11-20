@@ -7,13 +7,14 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
+public import CslibFrontier.Computability.PCP.TwoProverGame.TensorStrategy
 import CslibFrontier.Foundations.Quantum.POVM.Postprocessing
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Filter
 import CslibFrontier.Probability.PMF.Map
 
 /-!
-# Coordinate restriction for entangled parallel repetition
+# Entangled parallel repetition
 
 To play the last `n` coordinates of an `n + 1`-fold strategy, fix the two first questions
 in advance. Each player prepends their own fixed question, then drops the first outcome
@@ -28,6 +29,8 @@ nonempty repetition has entangled value at most that of the base game.
   of parallel repetition.
 * `Cslib.PCP.TwoProverGame.quantumValue_pow_le_of_pos` bounds any nonempty repetition by the
   original game.
+* `Cslib.PCP.TwoProverGame.pow_quantumValue_le_quantumValue_pow` gives the independent-play lower
+  bound.
 -/
 
 public section
@@ -60,6 +63,32 @@ theorem answers_restrictTail
     (S.restrictTail x₀ y₀).answers x y =
       (S.answers (Fin.cons x₀ x) (Fin.cons y₀ y)).map (Prod.map Fin.tail Fin.tail) := by
   simp only [answers, restrictTail, Quantum.POVM.kronecker_map, Quantum.POVM.measure_map]
+
+variable {ι' κ' : Type*} [Fintype ι'] [DecidableEq ι'] [Fintype κ'] [DecidableEq κ']
+
+/-- Play one strategy on the first coordinate and an independent strategy on the remaining
+coordinates. The two states occupy distinct registers on each side. -/
+noncomputable def cons (S : QuantumStrategy X Y A B ι κ)
+    (T : QuantumStrategy (Fin n → X) (Fin n → Y) (Fin n → A) (Fin n → B) ι' κ') :
+    QuantumStrategy (Fin (n + 1) → X) (Fin (n + 1) → Y)
+      (Fin (n + 1) → A) (Fin (n + 1) → B) (ι × ι') (κ × κ') where
+  state := (S.tensor T).state
+  norm_state := (S.tensor T).norm_state
+  alice x := ((S.tensor T).alice (x 0, Fin.tail x)).map fun p => Fin.cons p.1 p.2
+  bob y := ((S.tensor T).bob (y 0, Fin.tail y)).map fun p => Fin.cons p.1 p.2
+
+/-- Independent answer pairs are concatenated in coordinate order. -/
+theorem answers_cons (S : QuantumStrategy X Y A B ι κ)
+    (T : QuantumStrategy (Fin n → X) (Fin n → Y) (Fin n → A) (Fin n → B) ι' κ')
+    (x : Fin (n + 1) → X) (y : Fin (n + 1) → Y) :
+    (S.cons T).answers x y =
+      ((S.answers (x 0) (y 0)).bind fun ab => (T.answers (Fin.tail x) (Fin.tail y)).map (ab, ·)).map
+        (fun ⟨⟨a, b⟩, ⟨aTail, bTail⟩⟩ => (Fin.cons a aTail, Fin.cons b bTail)) := by
+  calc
+    _ = ((S.tensor T).answers (x 0, Fin.tail x) (y 0, Fin.tail y)).map
+            (Prod.map (fun p => Fin.cons p.1 p.2) (fun p => Fin.cons p.1 p.2)) := by
+      simp only [answers, cons, Quantum.POVM.kronecker_map, Quantum.POVM.measure_map]
+    _ = _ := by rw [answers_tensor, PMF.map_comp]; rfl
 
 end QuantumStrategy
 
@@ -198,6 +227,87 @@ theorem quantumValue_pow_one : (G.pow 1).quantumValue = G.quantumValue := by
 theorem quantumValue_pow_le_of_pos {n : ℕ} (hn : 0 < n) :
     (G.pow n).quantumValue ≤ G.quantumValue :=
   (G.quantumValue_pow_antitone hn).trans_eq G.quantumValue_pow_one
+
+/-- A first-coordinate strategy and an independent tail strategy win with the product of
+their winning probabilities. -/
+theorem quantumWinProb_pow_cons {ι' κ' : Type*}
+    [Fintype ι'] [DecidableEq ι'] [Fintype κ'] [DecidableEq κ'] [DecidableEq A] [DecidableEq B]
+    (S : QuantumStrategy X Y A B ι κ)
+    (T : QuantumStrategy (Fin n → X) (Fin n → Y) (Fin n → A) (Fin n → B) ι' κ') :
+    (G.pow (n + 1)).quantumWinProb (S.cons T) =
+      G.quantumWinProb S * (G.pow n).quantumWinProb T := by
+  let firstRound := G.questions.bind fun q => (S.answers q.1 q.2).map (q, ·)
+  let tailRound := (G.pow n).questions.bind fun q => (T.answers q.1 q.2).map (q, ·)
+  let consRound (z : ((X × Y) × A × B) ×
+      ((Fin n → X) × (Fin n → Y)) × (Fin n → A) × (Fin n → B)) :
+      ((Fin (n + 1) → X) × (Fin (n + 1) → Y)) × (Fin (n + 1) → A) × (Fin (n + 1) → B) :=
+    ((Fin.cons z.1.1.1 z.2.1.1, Fin.cons z.1.1.2 z.2.1.2),
+      Fin.cons z.1.2.1 z.2.2.1, Fin.cons z.1.2.2 z.2.2.2)
+  have hrounds : ((G.pow (n + 1)).questions.bind fun q =>
+      ((S.cons T).answers q.1 q.2).map (q, ·)) =
+      (firstRound.bind fun z => tailRound.map (z, ·)).map consRound := by
+    simp only [questions_pow_succ, firstRound, tailRound, PMF.bind_bind, PMF.map_bind,
+      PMF.bind_map, Function.comp_def, QuantumStrategy.answers_cons, Fin.cons_zero, Fin.tail_cons,
+      PMF.map_comp]
+    congr 1 with q : 1
+    exact PMF.bind_comm _ _ _
+  have haccept : consRound ⁻¹' {z | (G.pow (n + 1)).AcceptsRound z} =
+      {z | G.AcceptsRound z} ×ˢ {z | (G.pow n).AcceptsRound z} := by
+    ext ⟨⟨⟨x, y⟩, a, b⟩, ⟨x', y'⟩, a', b'⟩
+    change (∀ i : Fin (n + 1), G.accepts
+      (Fin.cons (α := fun _ => X) x x' i) (Fin.cons (α := fun _ => Y) y y' i)
+      (Fin.cons (α := fun _ => A) a a' i) (Fin.cons (α := fun _ => B) b b' i)) ↔
+      G.accepts x y a b ∧ ∀ i, G.accepts (x' i) (y' i) (a' i) (b' i)
+    rw [Fin.forall_fin_succ]
+    rfl
+  simp only [quantumWinProb, answersWinProb]
+  rw [hrounds, PMF.toOuterMeasure_map_apply, haccept,
+    Probability.PMF.toOuterMeasure_bind_pair_prod, ENNReal.toReal_mul]
+
+omit [Finite X] [Finite Y] in
+private theorem quantumValue_mul_le {v c : ℝ} (hv : 0 ≤ v) (hc : 0 ≤ c)
+    (h : ∀ {ι κ : Type} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq κ]
+      (S : QuantumStrategy X Y A B ι κ), G.quantumWinProb S * v ≤ c) :
+    G.quantumValue * v ≤ c := by
+  rcases hv.eq_or_lt with rfl | hp
+  · simpa using hc
+  · refine (le_div_iff₀ hp).mp (G.quantumValue_le (div_nonneg hc hv) ?_)
+    intro ι κ _ _ _ _ S
+    exact (le_div_iff₀ hp).mpr (h S)
+
+/-- Appending an independent coordinate gives a product lower bound for entangled value. -/
+theorem mul_quantumValue_pow_le_quantumValue_pow_succ (n : ℕ) :
+    G.quantumValue * (G.pow n).quantumValue ≤ (G.pow (n + 1)).quantumValue := by
+  classical
+  have h₀ := (G.pow (n + 1)).quantumValue_nonneg
+  refine G.quantumValue_mul_le (G.pow n).quantumValue_nonneg h₀ ?_
+  intro ι κ _ _ _ _ S
+  rw [mul_comm]
+  refine (G.pow n).quantumValue_mul_le (G.quantumWinProb_nonneg S) h₀ ?_
+  intro ι' κ' _ _ _ _ T
+  rw [mul_comm, ← G.quantumWinProb_pow_cons S T]
+  exact (G.pow (n + 1)).quantumWinProb_le_quantumValue (S.cons T)
+
+/-- The zero-coordinate game accepts vacuously and has entangled value one. -/
+@[simp] theorem quantumValue_pow_zero : (G.pow 0).quantumValue = 1 := by
+  classical
+  let a (_ : Fin 0 → X) := (Fin.elim0 : Fin 0 → A)
+  let b (_ : Fin 0 → Y) := (Fin.elim0 : Fin 0 → B)
+  have h : (G.pow 0).quantumWinProb (QuantumStrategy.ofDeterministic a b) = 1 := by
+    rw [quantumWinProb_ofDeterministic, ← G.winProbOn_univ, Finset.univ_eq_empty,
+      G.winProbOn_empty]
+  exact le_antisymm (G.pow 0).quantumValue_le_one
+    (h ▸ (G.pow 0).quantumWinProb_le_quantumValue (QuantumStrategy.ofDeterministic a b))
+
+/-- Independent play of all coordinates gives the usual product lower bound. -/
+theorem pow_quantumValue_le_quantumValue_pow (n : ℕ) :
+    G.quantumValue ^ n ≤ (G.pow n).quantumValue := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [pow_succ']
+    exact (mul_le_mul_of_nonneg_left ih G.quantumValue_nonneg).trans
+      (G.mul_quantumValue_pow_le_quantumValue_pow_succ n)
 
 end TwoProverGame
 

@@ -13,6 +13,7 @@ import CslibFrontier.Computability.PolyTime.CSP.Vars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -57,8 +58,31 @@ attribute [local fun_prop] computableInPolyTime_matchingScope
 /-- The complete generated explicit-table instance is native polynomial-time on every graph. -/
 theorem computableInPolyTime_matchingInstance :
     ComputableInPolyTime matchingInstance encGraph (encCSP CSP.encTable encNat) := by
+  have hvertices : ComputableInPolyTime (fun G : Graph => G.distinctVertices)
+      encGraph (encList encNat) := by
+    have hv : ComputableInPolyTime Graph.vertices encGraph (encList encNat) := by
+      fun_prop
+    exact (computableInPolyTime_selectDistinct encNat).comp
+      (hv.prod ((ComputableInPolyTime.bitsReplicate true).comp
+        ((ComputableInPolyTime.length_list encNat).comp hv)))
+  have hchoice : ComputableInPolyTime
+      (fun p : Graph × ℕ => Constraint.mk
+        (CSP.Table.exactlyOne (p.1.matchingScope p.2)) (p.1.matchingScope p.2))
+      (encPair encGraph encNat) (encConstraint CSP.encTable encNat) :=
+    encConstraint_mk_polyTime
+      (CSP.computableInPolyTime_tableExactlyOne.comp computableInPolyTime_matchingScope)
+      computableInPolyTime_matchingScope
+  have hport : ComputableInPolyTime (fun p : Graph × ℕ => [2 * p.2 + 1])
+      (encPair encGraph encNat) (encList encNat) := by
+    fun_prop
+  have hpin : ComputableInPolyTime
+      (fun p : Graph × ℕ => Constraint.mk (CSP.Table.pinTable false) [2 * p.2 + 1])
+      (encPair encGraph encNat) (encConstraint CSP.encTable encNat) :=
+    encConstraint_mk_polyTime (ComputableInPolyTime.const _) hport
   unfold matchingInstance
-  fun_prop
+  exact ComputableInPolyTime.listAppend'
+    (ComputableInPolyTime.mapWithInput hvertices hchoice)
+    (ComputableInPolyTime.mapWithInput hvertices hpin)
 
 attribute [local fun_prop] computableInPolyTime_matchingInstance
 

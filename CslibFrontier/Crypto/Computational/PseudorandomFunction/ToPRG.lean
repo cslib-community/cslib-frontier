@@ -97,13 +97,13 @@ theorem computableInPolyTime_prgFromPRF
   have hpts : ComputableInPolyTime
       (fun seed : List Bool => List.ofFn fun i : Fin (ℓ seed.length) => List.ofFn (x seed.length i))
       encBits (encList encBits) := hx.comp ComputableInPolyTime.length_bits
-  have hmapped : ComputableTidilyInPolyTime
+  have hmapped : ComputableInPolyTime
       (fun seed : List Bool =>
         (List.ofFn fun i : Fin (ℓ seed.length) => List.ofFn (x seed.length i)).map
           (family seed))
       encBits (encList encBits) :=
-    ComputableTidilyInPolyTime.mapWithInput hpts.tidy hfamily.tidy
-  exact .of_tidy (ComputableTidilyInPolyTime.bitsFlatten hmapped)
+    ComputableInPolyTime.mapWithInput hpts hfamily
+  exact (ComputableInPolyTime.bitsFlatten hmapped)
 
 end Construction
 

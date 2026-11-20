@@ -542,7 +542,7 @@ theorem isPolyTime_majorityTableVerifier (hV : V.PolyTime enc)
   have hcount := V.isPolyTime_tableAcceptCount hV hcoins
   have htwo : ComputableInPolyTime (fun _ : α × List Bool => 2) (encPair enc encBits) encUnary :=
     .const 2
-  exact .of_tidy (htotal.tidy.unary_lt' (htwo.unary_mul' hcount).tidy)
+  exact (htotal.unary_lt' (htwo.unary_mul' hcount))
 
 end PCPVerifier
 

@@ -292,7 +292,7 @@ theorem tweakWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : γ → 
     (hg : ComputableInPolyTime g encIn encUnary) (hs : ComputableInPolyTime s encIn encBool) :
     ComputableInPolyTime (fun a => tweakWord (k a) (g a) (s a)) encIn encBits := by
   have hs' : ComputableInPolyTime (fun a => (s a).toNat) encIn encUnary :=
-    ComputableTidilyInPolyTime.bool_toUnary.computableInPolyTime.comp hs
+    ComputableInPolyTime.bool_toUnary.comp hs
   unfold tweakWord
   polytime
 
@@ -376,8 +376,13 @@ private theorem offsets_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k w : �
       ComputableInPolyTime (fun x => 2 * w x + 1) encIn encUnary ∧
       ComputableInPolyTime (fun x => 2 * w x + 1 + (k x + 2)) encIn encUnary ∧
       ComputableInPolyTime (fun x => k x + 2) encIn encUnary ∧
-      ComputableInPolyTime (fun x => 2 * w x + 1 + 2 * (k x + 2)) encIn encUnary :=
-  ⟨by polytime, by polytime, by polytime, by polytime, by polytime⟩
+      ComputableInPolyTime (fun x => 2 * w x + 1 + 2 * (k x + 2)) encIn encUnary := by
+  have htwice := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hw
+  have hstart := ComputableInPolyTime.unary_add.comp (htwice.prod (.const 1))
+  have hwidth := ComputableInPolyTime.unary_add.comp (hk.prod (.const 2))
+  exact ⟨htwice, hstart, ComputableInPolyTime.unary_add.comp (hstart.prod hwidth), hwidth,
+    ComputableInPolyTime.unary_add.comp
+      (hstart.prod (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hwidth))⟩
 
 include hf in
 /-- One gate of `evalGateCut` is computed in polynomial time. -/
@@ -489,9 +494,9 @@ private theorem evalWord_polyTime :
     polytime
   have hfin : ComputableInPolyTime (fun p : List (List Bool) × ℕ => (p.1.drop p.2).flatten)
       (encPair (encList encBits) encUnary) encBits :=
-    (ComputableTidilyInPolyTime.bitsFlatten (ComputableTidilyInPolyTime.listDropWithInput
-      (ComputableTidilyInPolyTime.fst _ _)
-        (ComputableTidilyInPolyTime.snd _ _))).computableInPolyTime
+    (ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
+      (ComputableInPolyTime.fst _ _)
+        (ComputableInPolyTime.snd _ _)))
   exact hfin.comp (hfold.fst'.prod hc)
 
 /-! ### Bodies from gate data -/
@@ -635,7 +640,28 @@ private theorem encInfoWord_polyTime :
       ((List.range (2 * p.2.1)).map fun j => List.zipWith xor (inputWord p.1 p.2.2 (j / 2))
         (maskWord p.1 (offsetWord p.1 p.2.2) (j.testBit 0))).flatten)
       (encPair encUnary (encPair encUnary encBits)) encBits := by
-    polytime [inputWord, maskWord, offsetWord, BitString.listRow]
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encUnary (encPair encUnary encBits))
+    have hcount := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hp.snd'.fst'
+    have hlist := ComputableInPolyTime.range.comp hcount
+    have hx := ComputableInPolyTime.fst
+      (encPair encUnary (encPair encUnary encBits)) encUnary
+    have hj := ComputableInPolyTime.snd
+      (encPair encUnary (encPair encUnary encBits)) encUnary
+    have hk := hx.fst'
+    have hcoins := hx.snd'.snd'
+    have hone := ComputableInPolyTime.unary_add.comp (hk.prod (.const 1))
+    have hwidth := ComputableInPolyTime.unary_add.comp (hk.prod (.const 2))
+    have hin := ComputableInPolyTime.bitsRowWithInput hwidth
+      ((ComputableInPolyTime.unary_div_const 2).comp hj)
+      (hcoins.bitsDropWithInput hone)
+    have hoff := ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsRowWithInput hone (.const 0) hcoins) (.const [true])
+    have hmask := (ComputableInPolyTime.unary_testBit' hj (.const 0)).ite hoff
+      ((ComputableInPolyTime.bitsReplicate false).comp hwidth)
+    have hrow := ComputableInPolyTime.bitsZipWithInput xor hin hmask
+    simpa only [inputWord, maskWord, offsetWord, Function.comp_def] using
+      ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.mapWithInput hlist hrow)
   have heq : (fun x : ℕ × XorAndCircuit × List Bool => encInfoWord x.1 x.2.1.circuit x.2.2) =
       fun x => ((List.range (2 * x.2.1.circuit.n)).map fun j =>
         List.zipWith xor (inputWord x.1 x.2.2 (j / 2))

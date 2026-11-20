@@ -251,8 +251,15 @@ theorem computableInPolyTime_addCiphertexts :
     ComputableInPolyTime
       (fun ⟨pk, ct₁, ct₂⟩ => addCiphertexts pk ct₁ ct₂)
       (encPair encBits (encPair encBits encBits)) encBits := by
-  unfold addCiphertexts
-  fun_prop
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair encBits (encPair encBits encBits))
+  have hN := ComputableInPolyTime.bitsToNat.comp hp.fst'
+  have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'.fst'
+  have hy := ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'
+  simpa only [addCiphertexts, encNat_apply, pow_two, Function.comp_def] using
+    (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hx hy)
+      (ComputableInPolyTime.binary_mul' hN hN)).encoding_comp
 
 /-! ### Correctness and the additive homomorphism -/
 

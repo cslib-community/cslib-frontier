@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Data.List.SortedAssoc
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
+import CslibFrontier.Languages.Probabilistic.RandomOracle.ImageCollision
 import CslibFrontier.Languages.Probabilistic.RandomPermutation
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
@@ -76,7 +77,7 @@ public section
 
 namespace Cslib.Crypto.GenericGroup
 
-open Probability OracleComp
+open Probability OracleComp RandomOracle
 open scoped NNReal ENNReal
 
 variable {q : ℕ} {S : Type}
@@ -330,13 +331,6 @@ private def Clash (x : ι → ZMod q) (tab : Tab ι q) (K : (ι → ZMod q) × Z
 private instance (x : ι → ZMod q) (tab : Tab ι q) (K : (ι → ZMod q) × ZMod q) :
     Decidable (Clash x tab K) := by
   unfold Clash; infer_instance
-
-/-- Two distinct keys of the table agree at `x`. -/
-private def Collides (x : ι → ZMod q) (tab : Tab ι q) : Prop :=
-  ∃ e ∈ tab, ∃ e' ∈ tab, e.1 ≠ e'.1 ∧ ev x e.1 = ev x e'.1
-
-private instance (x : ι → ZMod q) (tab : Tab ι q) : Decidable (Collides x tab) := by
-  unfold Collides; infer_instance
 
 /-- A table whose values at `x` are distinct and whose labels are distinct: a partial bijection
 between values and labels. -/
@@ -707,18 +701,12 @@ private theorem symStep_map_fst (x : ι → ZMod q) (p : Prim ι q) (tab : Tab �
     · simp only [symStep, symOracle, h, PMF.map_comp]; rfl
     · simp only [symStep, symOracle, h, PMF.pure_map]; rfl
 
-omit [NeZero q] [DecidableEq ι] in
-private theorem Collides.mono {x : ι → ZMod q} {tab tab' : Tab ι q} (h : ∀ e ∈ tab, e ∈ tab')
-    (hc : Collides x tab) : Collides x tab' := by
-  obtain ⟨e, he, e', he', hne, heq⟩ := hc
-  exact ⟨e, h e he, e', h e' he', hne, heq⟩
-
 omit [DecidableEq ι] in
 /-- The symbolic step only adds to the table, and raises its flag only when the new table has two
 distinct keys that agree at `x`. -/
 private theorem symStep_support {x : ι → ZMod q} {tab : Tab ι q} (p : Prim ι q)
     {y : PrimSpec ι q p × (Tab ι q × Bool)} (hy : y ∈ (symStep x p tab).support) :
-    (∀ e ∈ tab, e ∈ y.2.1) ∧ (y.2.2 = true → Collides x y.2.1) := by
+    (∀ e ∈ tab, e ∈ y.2.1) ∧ (y.2.2 = true → HasImageCollision (ev x) y.2.1) := by
   cases p with
   | fwd K =>
     rcases h₁ : tab.lookup K with _ | ℓ
@@ -747,8 +735,9 @@ private theorem symStep_support {x : ι → ZMod q} {tab : Tab ι q} (p : Prim �
 omit [DecidableEq ι] in
 /-- A raised flag of the symbolic handler means that two distinct keys agree at `x`. -/
 private theorem symFlag_preserve (x : ι → ZMod q) (p : Prim ι q) (s : Tab ι q × Bool)
-    (hs : s.2 = true → Collides x s.1) (a : PrimSpec ι q p) (s' : Tab ι q × Bool)
-    (h : (a, s') ∈ (withBadFlag (symStep x) p s).support) : s'.2 = true → Collides x s'.1 := by
+    (hs : s.2 = true → HasImageCollision (ev x) s.1) (a : PrimSpec ι q p) (s' : Tab ι q × Bool)
+    (h : (a, s') ∈ (withBadFlag (symStep x) p s).support) :
+    s'.2 = true → HasImageCollision (ev x) s'.1 := by
   obtain ⟨tab, b⟩ := s
   simp only [withBadFlag, PMF.mem_support_map_iff] at h
   obtain ⟨y, hy, heq⟩ := h
@@ -1109,7 +1098,7 @@ private theorem real_le (x : ι → ZMod q) (W : (ι → ZMod q) → γ → (κ 
       ((OracleComp.interpret symOracle (primGame D)).run []).bind
           (fun y => PMF.pure (W x y.1.1 fun k => ev x (y.1.2 k))) true +
         ((OracleComp.interpret symOracle (primGame D)).run []).bind
-          (fun y => PMF.pure (decide (Collides x y.2))) true := by
+          (fun y => PMF.pure (decide (HasImageCollision (ev x) y.2))) true := by
   have hiub := OracleComp.identicalUntilBad_withBadFlag (realStep x) (symStep x)
     (realStep_agree x)
   have hfst := OracleComp.run_interpret_withBadFlag_map_fst (symStep x) symOracle
@@ -1117,11 +1106,12 @@ private theorem real_le (x : ι → ZMod q) (W : (ι → ZMod q) → γ → (κ 
   refine (hiub.bind_apply_le (primGame D) ([], false) _ true).trans ?_
   rw [hiub.bad_eq, ← hfst, PMF.bind_map, PMF.bind_map]
   refine add_le_add le_rfl (le_of_le_of_eq ?_ (PMF.bind_pure_decide_apply_true _
-    (fun y : (γ × (κ → (ι → ZMod q) × ZMod q)) × (Tab ι q × Bool) => Collides x y.2.1)).symm)
+    (fun y : (γ × (κ → (ι → ZMod q) × ZMod q)) × (Tab ι q × Bool) =>
+      HasImageCollision (ev x) y.2.1)).symm)
   refine PMF.toOuterMeasure_mono _ fun y hy => ?_
   exact OracleComp.run_interpret_invariant (withBadFlag (symStep x))
-    (fun s => s.2 = true → Collides x s.1) (symFlag_preserve x) (primGame D) ([], false)
-    (by simp) y.1 y.2 hy.2 hy.1
+    (fun s => s.2 = true → HasImageCollision (ev x) s.1) (symFlag_preserve x)
+    (primGame D) ([], false) (by simp) y.1 y.2 hy.2 hy.1
 
 end Games
 
@@ -1160,13 +1150,14 @@ private theorem toOuterMeasure_pairs_le [NeZero q] (hq : q.Prime)
 /-- A table with `n` entries has two distinct keys that agree at a uniform point with probability
 at most `n.choose 2 / q`. -/
 private theorem toOuterMeasure_collides_le [NeZero q] (hq : q.Prime) (tab : Tab ι q) :
-    (PMF.uniformOfFintype (ι → ZMod q)).toOuterMeasure {x | Collides x tab} ≤
+    (PMF.uniformOfFintype (ι → ZMod q)).toOuterMeasure {x | HasImageCollision (ev x) tab} ≤
       (tab.length.choose 2 : ℝ≥0∞) / q := by
   let s := (tab.map Prod.fst).toFinset
-  have hsub : {x | Collides x tab} ⊆ {x | ∃ K ∈ s, ∃ K' ∈ s, K ≠ K' ∧ ev x K = ev x K'} := by
-    rintro x ⟨e, he, e', he', hne, heq⟩
-    exact ⟨e.1, List.mem_toFinset.mpr (List.mem_map_of_mem he), e'.1,
-      List.mem_toFinset.mpr (List.mem_map_of_mem he'), hne, heq⟩
+  have hsub : {x | HasImageCollision (ev x) tab} ⊆
+      {x | ∃ K ∈ s, ∃ K' ∈ s, K ≠ K' ∧ ev x K = ev x K'} := by
+    intro x hx
+    change ∃ K ∈ s, ∃ K' ∈ s, K ≠ K' ∧ ev x K = ev x K'
+    simpa only [s, List.mem_toFinset] using (hasImageCollision_iff (ev x) tab).mp hx
   have hcard : s.card ≤ tab.length :=
     (List.toFinset_card_le (tab.map Prod.fst)).trans_eq (List.length_map _)
   refine (MeasureTheory.measure_mono hsub).trans ((toOuterMeasure_pairs_le hq s).trans ?_)
@@ -1213,7 +1204,7 @@ private theorem detGame_apply_le [NeZero q] (hq : q.Prime) {T : ℕ}
   calc _ ≤ ((PMF.uniformOfFintype (ι → ZMod q)).bind fun x =>
           symRun.bind fun y => PMF.pure (W x y.1.1 fun k => ev x (y.1.2 k))) true +
         ((PMF.uniformOfFintype (ι → ZMod q)).bind fun x =>
-          symRun.bind fun y => PMF.pure (decide (Collides x y.2))) true :=
+          symRun.bind fun y => PMF.pure (decide (HasImageCollision (ev x) y.2))) true :=
         PMF.bind_apply_le_add_on_support _ true fun x _ => real_le x W D
     _ ≤ (ε : ℝ≥0∞) +
         (((3 * T + Fintype.card ι + 1 + Fintype.card κ).choose 2 : ℕ) : ℝ≥0∞) / q := by
@@ -1221,7 +1212,8 @@ private theorem detGame_apply_le [NeZero q] (hq : q.Prime) {T : ℕ}
         refine add_le_add (PMF.bind_apply_le_on_support _ fun y _ => ?_)
           (PMF.bind_apply_le_on_support _ fun y hy => ?_)
         · exact uniform_bind_apply_true_le (hW y.1.1 y.1.2)
-        · rw [PMF.bind_pure_decide_apply_true _ (fun x : ι → ZMod q => Collides x y.2)]
+        · rw [PMF.bind_pure_decide_apply_true _
+            (fun x : ι → ZMod q => HasImageCollision (ev x) y.2)]
           refine (toOuterMeasure_collides_le hq y.2).trans ?_
           gcongr
           exact hlen y hy

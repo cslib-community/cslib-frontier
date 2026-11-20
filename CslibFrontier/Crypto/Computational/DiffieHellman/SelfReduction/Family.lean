@@ -730,7 +730,7 @@ theorem negligible_dlSelfReduceRetryAdversary_error
         {out | out = [] ∨ (ofBits out : ZMod (F.order (d n))) ≠ α n}).toNNReal := by
   have hgeom : Negligible fun n => ((2⁻¹ : ℝ≥0) ^ n) := by negligible
   have hpoly : PolynomiallyBounded fun n => 2 * invEps n + 1 :=
-    ((PolynomiallyBounded.const 2).mul hinvEps.tidy.polynomiallyBounded).add (.const 1)
+    ((PolynomiallyBounded.const 2).mul hinvEps.polynomiallyBounded).add (.const 1)
   have hmod : ∀ᶠ n in Filter.atTop, 1 / (2 ^ n : ℝ) ≤ 1 / (2 * (invEps n : ℝ)) := by
     filter_upwards [hpos, hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)]
       with n hn hlt
