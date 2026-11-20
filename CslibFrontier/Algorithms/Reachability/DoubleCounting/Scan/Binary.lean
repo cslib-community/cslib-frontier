@@ -231,10 +231,6 @@ theorem readEntries_eq_some_iff (k n : ℕ) (bits rest : List Bool)
 /-- Encode the branch in increasing vertex order. -/
 @[expose] def encode (b : Branch N) : List Bool := entries (List.ofFn b)
 
-/-- Destination budgets, independent of edge validity and the terminal tally. -/
-@[expose] def Bounded (k : ℕ) (b : Branch N) : Prop :=
-  ∀ v vs, b v = some vs → vs.length ≤ k
-
 /-- Whole-word decoder. Extra bits after the final vertex reject. -/
 @[expose] def decode (k : ℕ) (bits : List Bool) : Option (Branch N) := do
   let (ss, rest) ← readEntries k N bits
@@ -342,15 +338,6 @@ theorem replay_eq_some_iff (edge : Fin N → Fin N → Bool) (source target : Fi
   simp only [replay, Option.bind_eq_some_iff, decode_eq_some_iff]
   exact ⟨fun ⟨b, ⟨hb, he⟩, hr⟩ => ⟨b, hb, he, hr⟩,
     fun ⟨b, hb, he, hr⟩ => ⟨b, ⟨hb, he⟩, hr⟩⟩
-
-/-- Passing typed transcripts already meet the destination budget. -/
-theorem bounded_of_passes (source : Fin N) (k : ℕ) (b : Branch N)
-    {R : Fin N → Fin N → Prop} (h : Passes R source k (transcript source b)) :
-    Bounded k b := by
-  intro v vs hv
-  have hp : transcript source b v = some (source :: vs) := by simp [transcript, hv]
-  have hl := (h.1 v (source :: vs) hp).2
-  simpa [guessedLength, transcript, hv] using hl
 
 /-- With exact totals, binary success is precisely the existing passing-transcript contract.
 This statement retains the answer bit, including successful `false`. -/
