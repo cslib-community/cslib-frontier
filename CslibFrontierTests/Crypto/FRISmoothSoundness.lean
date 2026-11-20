@@ -51,7 +51,8 @@ adaptive two-channel BCS random-oracle definition and theorem across `Soundness.
    prover (`Pr = 1`) discharging contrapositive `friSmoothBatchIOP_sound_of_johnson` and `_eta`, a
    prefix-dependent adaptive prover (`adaptiveSmoothBatchProverGold`, deterministic: each
    conditional distribution is a point mass) with explicit witnesses that its output depends on
-   the transcript, and all adaptive two-channel BCS ROM bounds (`< 1 / 4` single-word, `< 1 / 3` batched at `σ = 32`).
+   the transcript, and all adaptive two-channel BCS ROM bounds (`< 1 / 4` single-word, `< 1 / 3`
+   batched at `σ = 32`).
 3. **Suite 3 (Binary-specialization soundness bridges):**
    Direct checks on `friDoomed_iff_friSmoothDoomed`, `friGoodStep_iff_friSmoothGoodStep`,
    `friCommitGame_eq_friSmoothCommitGame`, `weightedLineGapPerRound_iff_weightedCurveGapPerRound`,
