@@ -238,11 +238,12 @@ private theorem runWith_cappedHandler_eq {β : Type}
 
 end Helpers
 
-/-- Open stateful substitution when each call adds encoded state polynomially bounded in the caller
-and request alone. Because the outer program's query bound caps both the number of calls and every
-request length, the handler's encoded state stays polynomially bounded in the caller's input along
-every execution, and `IsOraclePPTOn.length_le` together with `ProbOracleComp.mem_support_iff_exists`
-gives a uniform polynomial bound on all replies, reducing the certificate to
+/-- Library infrastructure (no cited result): open stateful substitution when each call adds encoded
+state polynomially bounded in the caller and request alone. Because the outer program's query
+bound caps both the number of calls and every request length, the handler's encoded state stays
+polynomially bounded in the caller's input along every execution, and `IsOraclePPTOn.length_le`
+together with `ProbOracleComp.mem_support_iff_exists` gives a uniform polynomial bound on all
+replies, reducing the certificate to
 `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded`. -/
 theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     {Operation External α β Caller State : Type} [DecidableEq Operation] [DecidableEq External]
