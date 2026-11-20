@@ -32,9 +32,11 @@ noncomputable def echo : IndexedSignatureScheme where
   capacity_polyTime := ComputableInPolyTime.const _
   keyGen_ppt := (ComputableInPolyTime.const _).isPPTOn
   sign_ppt := by
-    apply ComputableInPolyTime.isPPTOn
-    polytime
-  verify_polyTime := by polytime
+    exact (ComputableInPolyTime.snd encBits (encPair encUnary encBits)).encoding_comp.isPPTOn
+  verify_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encBits encIndexedSignedMessage)
+    exact hp.snd'.snd'.snd'.beq (hp.snd'.fst'.prod hp.snd'.snd'.fst').encoding_comp
   verify_sign _ _ _ _ _ _ sig hsig := by
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hsig
     simp [hsig]

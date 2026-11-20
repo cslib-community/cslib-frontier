@@ -242,12 +242,27 @@ theorem OneWay.exists_far_indistinguishable_of_injective {f : List Bool → List
       return GoldreichLevin.paddedFunction f seed ++ [bit]) =
         hardCoreIdeal (GoldreichLevin.paddedFunction f) n := by
     simp [hardCoreIdeal_eq_bind, PMF.map, Function.comp_def]
+  have hsample := (ComputableInPolyTime.id' (encIn := encUnary)).sampleList
+  have hrealPPT := hsample.map (ComputableInPolyTime.bitsAppend hg
+    (ComputableInPolyTime.bitsCons hb (ComputableInPolyTime.const [])))
+  have hbit := isPPTOn_uniform_bool encBits
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBool)
+  have hpost : ComputableInPolyTime
+      (fun pair : List Bool × Bool => GoldreichLevin.paddedFunction f pair.1 ++ [pair.2])
+      (encPair encBits encBool) encBits :=
+    ComputableInPolyTime.bitsAppend (hg.comp hp.fst')
+      (ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const []))
+  have hcontinue : IsPPTOn encBits encBits (fun seed : List Bool =>
+      (fun bit => GoldreichLevin.paddedFunction f seed ++ [bit]) <$> ProbComp.uniform Bool) :=
+    hbit.map_with (f := fun seed bit => GoldreichLevin.paddedFunction f seed ++ [bit]) hpost
+  have hidealPPT := hsample.bind hcontinue
   refine ⟨fun n => (fun seed => GoldreichLevin.paddedFunction f seed ++
       [GoldreichLevin.paddedPredicate seed]) <$> BitString.sampleList n,
     fun n => do
       let seed ← BitString.sampleList n
       let bit ← ProbComp.uniform Bool
-      return GoldreichLevin.paddedFunction f seed ++ [bit], by ppt, by ppt, ?_, fun n ε => ?_⟩
+      return GoldreichLevin.paddedFunction f seed ++ [bit], hrealPPT, by
+        simpa only [bind_pure_comp] using hidealPPT, ?_, fun n ε => ?_⟩
   · simpa only [eval_map_sampleList, hideal] using
       (GoldreichLevin.padded_hardCore hf).indistinguishable
   · simp only [eval_map_sampleList, hideal]

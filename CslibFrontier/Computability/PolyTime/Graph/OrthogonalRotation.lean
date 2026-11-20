@@ -48,8 +48,7 @@ private theorem dartCount_polyTime :
     ComputableInPolyTime (fun p : Graph × OrthogonalDrawing => 2 * p.1.edges.length)
       encDrawingInput encUnary := by
   have he := encGraph_edges_polyTime (ComputableInPolyTime.fst encGraph encOrthogonalDrawing)
-  have hl := ((ComputableTidilyInPolyTime.length_list (encPair encNat encNat)).comp
-    he.tidy).computableInPolyTime
+  have hl := (ComputableInPolyTime.length_list (encPair encNat encNat)).comp he
   exact ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hl)
 
 private theorem endpoint_polyTime :
@@ -163,8 +162,9 @@ theorem computableInPolyTime_rotationCertificate :
   have hb : ComputableInPolyTime (fun p : Graph × OrthogonalDrawing =>
       (List.range (2 * p.1.edges.length)).map (clockwiseSuccessor p.1 p.2))
       encDrawingInput (encList encNat) := by
-    have h := ComputableInPolyTime.of_tidy
-      ((ComputableTidilyInPolyTime.map ComputableTidilyInPolyTime.unary_to_binary).comp hu.tidy)
+    have h := ComputableInPolyTime.mapWithInput (f := fun _ n => n) (encB := encNat) hu
+      (ComputableInPolyTime.unary_to_binary.comp
+        (ComputableInPolyTime.snd encDrawingInput encUnary))
     simpa only [Function.comp_def, List.map_id'] using h
   exact encRotationCertificate_mk_deg.computableInPolyTime.comp hb
 

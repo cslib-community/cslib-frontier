@@ -47,7 +47,7 @@ local notation "RawStrategy" => CommutingStrategy (Question F (n + 1)) (Question
     CommutingStrategy F (Point F n) (Option (BoundedPolynomial F n d))
       (PolynomialFunction F d) A :=
   sliceLineStrategy S.state M (decodedVertical S.bob d) fun t u a b =>
-    commute_decodedVertical S.bob d u ((M t).effect a) (hComm t u a) b
+    Measurement.commute_map_right _ (decodeVertical d u) _ (hComm t u a) b
 
 /-- The isolated slice mismatch for the decoded vertical line is bounded by the slice
 mismatch for Bob's point answer and the verifier's two branch losses. -/
@@ -180,9 +180,8 @@ private theorem completedPaste_disagreement_le (k : ℕ) [Nonempty (Fin k ↪ F)
   have hc : Commute ((evaluatePolynomialMeasurement P w).effect none)
       ((decodedPoint S.bob w).effect z) := by
     rw [evaluatePolynomialMeasurement_effect_none]
-    apply commute_decodedPoint
-    intro a
-    exact commute_pasteSlices k M hM _ (fun x q => hComm x (.point w) q a) none
+    exact Measurement.commute_map_right (S.bob (.point w)) decodePoint _
+      (fun a => commute_pasteSlices k M hM _ (fun x q => hComm x (.point w) q a) none) z
   rw [he, ← evaluatePolynomialMeasurement_effect_none P w]
   exact Measurement.one_sub_agreement_map_getD_le _ _ _ _ hc
 

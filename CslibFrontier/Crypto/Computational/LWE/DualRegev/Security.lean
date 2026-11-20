@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.LWE.DualRegev
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import Cslib.Probability.StatisticalDistance
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -511,7 +512,20 @@ theorem computableInPolyTime_syndromeEntry {inputs : α → SerializedKeyInputs}
     (hinputs : ComputableInPolyTime inputs input encSerializedKeyInputs)
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => syndromeEntry (m a) (w a) (inputs a) (j a)) input encNat := by
-  fun_prop [syndromeEntry]
+  have hp := ComputableInPolyTime.id' (encIn := encPair input encUnary)
+  have hbits := encSerializedKeyInputs_bits_polyTime hinputs
+  have hmatrix := encSerializedKeyInputs_publicPart_polyTime hinputs
+  have hrow := ComputableInPolyTime.listGetDWithInput (hmatrix.comp hp.fst') hp.snd' []
+  have hentry := ComputableInPolyTime.listGetDWithInput hrow (hj.comp hp.fst') 0
+  have hbit := (hbits.comp hp.fst').bitsGetDWithInput hp.snd' false
+  have hvalues := ComputableInPolyTime.mapWithInput
+    (f := fun a i => if (inputs a).bits.getD i false then
+      ((inputs a).publicPart.getD i []).getD (j a) 0 else 0)
+    (ComputableInPolyTime.range.comp hm)
+    (hbit.ite hentry (ComputableInPolyTime.const 0))
+  simpa only [syndromeEntry, Function.comp_def] using
+    ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_sum.comp hvalues)
+      (ComputableInPolyTime.binary_two_pow.comp hw)
 
 /-- Construct the serialized dual-Regev public-key word `[u; A]` in polynomial time. -/
 @[fun_prop]

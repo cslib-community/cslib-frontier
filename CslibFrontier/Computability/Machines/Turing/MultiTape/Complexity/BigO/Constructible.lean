@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
 import CslibFrontier.Foundations.Data.Nat.Bits.Halving
@@ -158,7 +159,8 @@ theorem unary_halvings {emit finish : ℕ → List Bool}
   obtain ⟨cE, hE, -⟩ := hemit
   obtain ⟨cF, hF, -⟩ := hfinish
   obtain ⟨c, h⟩ := ComputableInTimeAndSpace.iterate_unary_stream_sum
-    computableTidilyInTimeAndSpace_div_two.computableInTimeAndSpace hE hF
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace
+      computableTidilyInTimeAndSpace_div_two) hE hF
     (R := fun x i => (cE + 9) * (x.1 / 2 ^ i + 1)) (Q := fun x => cE * (x.1 + 1))
     (B := fun x => x.1)
     (fun x i _ => by
@@ -203,7 +205,8 @@ so the rounds cost `O(n)` in total. -/
 theorem unaryToNat : ComputableInO (fun n : ℕ => n) encUnary encNat (fun n => n) fun n => n := by
   have hlen (n : ℕ) : (encUnary n).length = n := by simp [encUnary_apply]
   have hbit : ComputableInO Nat.halfBit encUnary encBits (fun v => v) fun v => v :=
-    of_bounds computableTidilyInTimeAndSpace_halfBit.computableInTimeAndSpace 12
+    of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace
+      computableTidilyInTimeAndSpace_halfBit) 12
       (fun n => by rw [hlen]; omega) (fun _ => Nat.zero_le _) fun n => by
         unfold Nat.halfBit
         split_ifs <;> simp only [encBits_apply, List.length_nil, List.length_singleton] <;> omega
@@ -347,7 +350,7 @@ theorem ComputableInO.natToUnary : ComputableInO (fun n : ℕ => n) encNat encUn
     have h₂ := Universal.length_encNat_le n
     have h₃ := hgeom (encNat n).length
     nlinarith
-  refine (ComputableInO.of_bounds hK.computableInTimeAndSpace
+  refine (ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hK)
     (K * (2 * ci + 2 * ce + 5 * D + 20) + 1)
     (fun n => ?_) (fun n => ?_) fun n => ?_)
   · calc K * (2 * ci + 2 + (2 * ce + 2) + (encNat n).length +
