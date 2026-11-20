@@ -7222,6 +7222,7 @@ public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import CslibFrontier.Foundations.Quantum.POVM.Postprocessing
 public import CslibFrontier.Foundations.Quantum.Pauli
+public import CslibFrontier.Foundations.Quantum.PauliStoneVonNeumann
 public import CslibFrontier.Foundations.Quantum.PauliTwirl
 public import CslibFrontier.Foundations.Quantum.Register
 public import CslibFrontier.Foundations.Quantum.RegularCompression
