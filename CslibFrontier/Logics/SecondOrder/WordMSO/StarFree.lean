@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Languages.StarFree
 public import CslibFrontier.Logics.SecondOrder.WordMSO.FirstOrder
+import CslibFrontier.Foundations.Data.List.Extract
 import CslibFrontier.Logics.SecondOrder.WordMSO.Separation
 import CslibFrontier.Tactic.FinIndex
 
@@ -192,12 +193,6 @@ private theorem length_extract' (u : List α) (i j : ℕ) :
     (u.extract i j).length = min (j - i) (u.length - i) := by
   simp
 
-private theorem extract_split (u : List α) {i s j : ℕ} (his : i ≤ s) (hsj : s ≤ j) :
-    u.extract i j = u.extract i s ++ u.extract s j := by
-  simp only [List.extract_eq_take_drop]
-  have h : j - i = (s - i) + (j - s) := by omega
-  rw [h, List.take_add, List.drop_drop, Nat.add_sub_cancel' his]
-
 /-- A factor of `u` lies in `L * M` iff it splits, at some position of the factor, into a factor
 in `L` and a factor in `M`. -/
 private theorem extract_mem_mul {L M : _root_.Language α} (u : List α) {i j : ℕ} (hij : i ≤ j) :
@@ -208,7 +203,7 @@ private theorem extract_mem_mul {L M : _root_.Language α} (u : List α) {i j : 
     have hlen := congrArg List.length hxy
     rw [List.length_append, length_extract'] at hlen
     have hs : i + x.length ≤ j := by omega
-    have hsplit := extract_split u (Nat.le_add_right i x.length) hs
+    have hsplit := (u.extract_append_extract (Nat.le_add_right i x.length) hs).symm
     rw [hsplit] at hxy
     have hxl : x.length = (u.extract i (i + x.length)).length := by
       rw [length_extract']
@@ -216,7 +211,7 @@ private theorem extract_mem_mul {L M : _root_.Language α} (u : List α) {i j : 
     obtain ⟨h1, h2⟩ := List.append_inj hxy hxl
     exact ⟨_, Nat.le_add_right _ _, hs, h1 ▸ hx, h2 ▸ hy⟩
   · rintro ⟨s, his, hsj, hL, hM⟩
-    exact ⟨_, hL, _, hM, (extract_split u his hsj).symm⟩
+    exact ⟨_, hL, _, hM, u.extract_append_extract his hsj⟩
 
 /-- A factor of `u` is the one-letter word `a` iff the window has exactly one position, and `u`
 has the letter `a` there. -/

@@ -12,7 +12,6 @@ public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeS
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSlackBounds
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.Power
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -143,7 +142,8 @@ private theorem leafAndClmul_of_schedule (P : TreeSchedule) {n r L t : ℕ}
       refine Nat.clog_le_of_le_pow ?_
       have : 1 ≤ U_leaf := Nat.two_pow_pos _
       calc U_leaf + n_leaf + 1 ≤ 4 * U_leaf := by omega
-        _ = 2 ^ 2 * 2 ^ P.idBits P.depth := rfl
+        _ = 2 ^ 2 * 2 ^ P.idBits P.depth := by
+            dsimp only [U_leaf]; rw [show (4 : ℕ) = 2 ^ 2 by norm_num]
         _ = 2 ^ (P.idBits P.depth + 2) := by rw [← Nat.pow_add, Nat.add_comm]
     calc matchBits ≤ U_leaf * (2 * U_leaf) * 2 ^ (P.idBits P.depth + 2) :=
           Nat.mul_le_mul (Nat.mul_le_mul_left _ (by omega))
@@ -180,7 +180,8 @@ private theorem leafAndClmul_of_schedule (P : TreeSchedule) {n r L t : ℕ}
         have h1 : 1 ≤ (2 ^ (9 * s + 10)) ^ 2 := Nat.one_le_pow 2 _ (Nat.two_pow_pos _)
         have h2 := Nat.pow_le_pow_left hn_leaf_le 2
         omega
-      calc 2 * n_leaf ^ 2 + 2 ≤ 2 ^ 2 * (2 ^ (9 * s + 10)) ^ 2 := hsq
+      calc 2 * n_leaf ^ 2 + 2 ≤ 4 * (2 ^ (9 * s + 10)) ^ 2 := hsq
+        _ = 2 ^ 2 * (2 ^ (9 * s + 10)) ^ 2 := by rw [show (4 : ℕ) = 2 ^ 2 by norm_num]
         _ = 2 ^ (18 * s + 22) := by rw [← Nat.pow_mul, ← Nat.pow_add]; congr 1; ring
         _ ≤ 2 ^ (18 * s + 24) := Nat.pow_le_pow_right Nat.two_pos (by omega)
     have hcl_pow : Nat.clog 2 (2 * n_leaf ^ 2 + 2) ≤ 2 ^ (18 * s + 24) :=
@@ -201,7 +202,7 @@ private theorem leafAndClmul_of_schedule (P : TreeSchedule) {n r L t : ℕ}
             refine Nat.pow_le_pow_right Nat.two_pos ?_
             have h2_ge : 54 * s + 68 ≤ (3 * s - 7) * 2 ^ (9 * s + 10) := by
               have hpow10 : 1024 ≤ 2 ^ (9 * s + 10) :=
-                (by norm_num : 1024 = 2 ^ 10) ▸ Nat.pow_le_pow_right Nat.two_pos (by omega)
+                (by norm_num : 1024 ≤ 2 ^ 10).trans (Nat.pow_le_pow_right Nat.two_pos (by omega))
               calc 54 * s + 68 ≤ (3 * s - 7) * 1024 := by omega
                 _ ≤ (3 * s - 7) * 2 ^ (9 * s + 10) := Nat.mul_le_mul_left _ hpow10
             calc (45 * s + 55) * n_leaf + (54 * s + 68)
@@ -220,8 +221,8 @@ private theorem leafAndClmul_of_schedule (P : TreeSchedule) {n r L t : ℕ}
     have hcap_max : max P.cap 2 = n := by rw [hcap]; exact max_eq_left hn2
     have hcl_pad : Nat.clog 2 (max P.paddedUniv 2) ≤ L ^ 2 := by
       refine Nat.clog_le_of_le_pow (max_le hpad_L2 ?_)
-      exact (by norm_num : 2 = 2 ^ 1) ▸
-        Nat.pow_le_pow_right Nat.two_pos (Nat.one_le_pow 2 L (by omega))
+      exact (by norm_num : 2 ≤ 2 ^ 1).trans
+        (Nat.pow_le_pow_right Nat.two_pos (Nat.one_le_pow 2 L (by omega)))
     set q := L / 3
     have hq_ge : 800000 ≤ q := by omega
     have hpoly_q : (6 * L ^ 2 + 6) * L ≤ 2 ^ q := by
@@ -328,7 +329,8 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
             ≤ (4 * P.delta j + 1) * P.idBits (j - 1) :=
               P.waitingListBits_le_of_two_le (by omega) hjk
           _ ≤ (5 * t ^ 11) * (444 * t) := Nat.mul_le_mul (by omega) hid_prev
-          _ = 2220 * t ^ 12 := by rw [show t ^ 12 = t ^ 11 * t from pow_succ t 11]; ring
+          _ = 2220 * (t ^ 11 * t) := Nat.mul_mul_mul_comm 5 (t ^ 11) 444 t
+          _ = 2220 * t ^ 12 := by rw [← pow_succ]
           _ ≤ 2500 * t ^ 12 := by omega
       dsimp only [TreeSchedule.nodeMetaBits]
       rw [ite_eq_right (by omega), ite_eq_right (by omega)]
@@ -350,16 +352,16 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
           have hid2 : P.idBits j + 2 ≤ 446 * t := by omega
           have ht11 : 1 ≤ t ^ 11 := Nat.one_le_pow 11 t (by omega)
           calc succinctTableMetaBits (P.idBits j) (P.tableCap j)
-              ≤ (75 * P.tableCap j + 9) * (P.idBits j + 2) := by linarith
-            _ ≤ (75 * t ^ 11 + 9 * t ^ 11) * (446 * t) :=
-                Nat.mul_le_mul (by linarith) hid2
-            _ = 37464 * (t ^ 11 * t) := by ring
+              ≤ (75 * P.tableCap j + 9) * (P.idBits j + 2) := by rwa [Nat.add_mul]
+            _ ≤ (84 * t ^ 11) * (446 * t) :=
+                Nat.mul_le_mul (by omega) hid2
+            _ = 37464 * (t ^ 11 * t) := Nat.mul_mul_mul_comm 84 (t ^ 11) 446 t
             _ = 37464 * t ^ 12 := by rw [← pow_succ]
             _ ≤ 40000 * t ^ 12 := by omega
         calc P.nodeHashSeedBits j +
               waitingListBits (P.waitCap j) (P.idBits j) (P.idBits (j - 1)) +
               succinctTableMetaBits (P.idBits j) (P.tableCap j)
-            ≤ 45000 * t ^ 12 := by linarith
+            ≤ 45000 * t ^ 12 := by omega
           _ ≤ t ^ 2 * t ^ 12 := Nat.mul_le_mul_right _ h45000
           _ = t ^ 14 := (Nat.pow_add t 2 12).symm
           _ ≤ t ^ 15 := ht14_15
@@ -378,11 +380,11 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
               ((Nat.le_add_right _ _).trans (P.nHigh_le_two_pow_idBits P.depth (by omega) le_rfl))
           calc 2 * n' ≤ 2 * 2 ^ P.idBits P.depth := Nat.mul_le_mul_left 2 hn'_id
             _ = 2 ^ (P.idBits P.depth + 1) := (pow_succ' 2 _).symm
-        have hcl_leaf : Nat.clog 2 ((2 ^ P.idBits P.depth).choose n' * (2 * n') ^ n') ≤
+        have hcl_leaf : Nat.clog 2 (Nat.choose (2 ^ P.idBits P.depth) n' * (2 * n') ^ n') ≤
             889 * t ^ 12 := by
           have hch := (2 ^ P.idBits P.depth).choose_le_pow n'
           refine Nat.clog_le_of_le_pow ?_
-          calc (2 ^ P.idBits P.depth).choose n' * (2 * n') ^ n'
+          calc Nat.choose (2 ^ P.idBits P.depth) n' * (2 * n') ^ n'
               ≤ (2 ^ P.idBits P.depth) ^ n' * (2 ^ (P.idBits P.depth + 1)) ^ n' :=
                 Nat.mul_le_mul hch (Nat.pow_le_pow_left h2n'_id n')
             _ = 2 ^ ((2 * P.idBits P.depth + 1) * n') := by
@@ -392,12 +394,12 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
                 have hid2 : 2 * P.idBits P.depth + 1 ≤ 889 * t := by omega
                 calc (2 * P.idBits P.depth + 1) * n' ≤ (889 * t) * t ^ 11 :=
                       Nat.mul_le_mul hid2 hn'_le
-                  _ = 889 * (t * t ^ 11) := by ring
+                  _ = 889 * (t * t ^ 11) := Nat.mul_assoc 889 t (t ^ 11)
                   _ = 889 * t ^ 12 := by rw [← pow_succ']
         calc P.nodeHashSeedBits P.depth +
               waitingListBits (P.waitCap P.depth) (P.idBits P.depth) (P.idBits (P.depth - 1)) +
-              Nat.clog 2 ((2 ^ P.idBits P.depth).choose n' * (2 * n') ^ n')
-            ≤ 45000 * t ^ 12 := by linarith
+              Nat.clog 2 (Nat.choose (2 ^ P.idBits P.depth) n' * (2 * n') ^ n')
+            ≤ 45000 * t ^ 12 := by omega
           _ ≤ t ^ 2 * t ^ 12 := Nat.mul_le_mul_right _ h45000
           _ = t ^ 14 := (Nat.pow_add t 2 12).symm
           _ ≤ t ^ 15 := ht14_15
@@ -417,7 +419,7 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
           _ ≤ (3 * t) * t ^ 26 := by
               refine Nat.mul_le_mul_right _ ?_
               rw [Nat.card_Icc]; omega
-          _ = 3 * (t * t ^ 26) := by ring
+          _ = 3 * (t * t ^ 26) := Nat.mul_assoc 3 t (t ^ 26)
           _ = 3 * t ^ 27 := by rw [← pow_succ']
       have hid3 := (hid_j h3 3 le_rfl h3).2
       have ht31_sum : P.subtreeMetaBits 3 + P.idBits 3 ≤ t ^ 31 := by
@@ -428,7 +430,7 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
         calc P.subtreeMetaBits 3 + P.idBits 3
             ≤ 3 * t ^ 27 + 444 * t ^ 27 :=
               Nat.add_le_add hsum_le (hid3.trans (Nat.mul_le_mul_left 444 ht27))
-          _ = 447 * t ^ 27 := by ring
+          _ = 447 * t ^ 27 := (Nat.add_mul 3 444 (t ^ 27)).symm
           _ ≤ t ^ 4 * t ^ 27 := Nat.mul_le_mul_right _ h447
           _ = t ^ 31 := (Nat.pow_add t 4 27).symm
       omega
@@ -437,7 +439,10 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
         have hk_n : P.depth + 2 ≤ n := by
           have hk_L : P.depth ≤ L := hk_le_r.trans hr_le_L
           have hL_sq : L ^ 2 ≤ 2 ^ L := Nat.sq_le_two_pow (by omega)
-          have h2L : L + 2 ≤ L ^ 2 := by nlinarith
+          have h2L : L + 2 ≤ L ^ 2 := by
+            calc L + 2 ≤ 2 * L := by omega
+              _ ≤ L * L := Nat.mul_le_mul_right L (by omega)
+              _ = L ^ 2 := (sq L).symm
           exact (Nat.add_le_add_right hk_L 2).trans (h2L.trans (hL_sq.trans hn_2L))
         refine Nat.clog_le_of_le_pow ?_
         have hn_lt : n < 2 ^ (L + 1) := hL_eq ▸ Nat.lt_pow_succ_log_self Nat.one_lt_two n
@@ -595,8 +600,8 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
           (canonicalSchedule h).numNodes 3 ≤
           (2 * targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) 3) *
             (canonicalSchedule h).numNodes 3 := by
-        rw [hdiv_eq, canonicalSchedule_numNodes_eq h h3]
-        linarith
+        rw [hdiv_eq, canonicalSchedule_numNodes_eq h h3, Nat.mul_right_comm]
+        exact hNj_le.trans hhi3.le
       have hrat2 := Nat.le_of_mul_le_mul_right hmul_3 ((canonicalSchedule h).numNodes_pos 3)
       rw [targetSize_eq_levelScale_pow (by decide : 1 ≤ 3)] at hrat2
       exact hrat2.trans (hscale_t11 h3 3 le_rfl h3'))
@@ -670,8 +675,8 @@ private theorem redundancySlack_sub_one_of_schedule (P : TreeSchedule) {n r : �
       P.treeMetaBits := by
     dsimp only [TreeSchedule.redundancySlack]
     omega
-  rw [heq]
-  nlinarith
+  rw [heq, Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.add_mul]
+  omega
 
 /-- Total redundancy slack `(canonicalSchedule h).redundancySlack` is bounded uniformly across all
 `1 ≤ V` by `150000 * effRedundancy n R` across `ValidRegime`. -/
@@ -726,6 +731,7 @@ theorem totalTreeBits_le_infoBits_add {U V n R p_min q_min p_max q_max : ℕ}
   have hRe_pos : 1 ≤ effRedundancy n R := effRedundancy_pos h.redundancy_pos n
   have hRe_le : effRedundancy n R ≤ R := effRedundancy_le n R
   dsimp only [spaceConst]
-  linarith [Nat.mul_le_mul_left 150003 hRe_le]
+  have h150 := Nat.mul_le_mul_left 150003 hRe_le
+  omega
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

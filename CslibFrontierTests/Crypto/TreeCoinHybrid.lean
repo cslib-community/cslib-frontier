@@ -95,13 +95,28 @@ noncomputable def seededToy : IndexedSignatureScheme where
     let decoded := sigDec.decode sig
     (decoded.1 == pk) && (decoded.2.1 == u) && (decoded.2.2.1 == msg)
   capacity_polyTime := ComputableInPolyTime.const 2
-  keyGen_ppt := by ppt
+  keyGen_ppt := by
+    have hsample := (ComputableInPolyTime.const (encIn := encUnary) 2).sampleList
+    have hid := ComputableInPolyTime.id' (encIn := encBits)
+    simpa only [bind_pure_comp] using hsample.map (hid.prod hid)
   sign_ppt := by
-    unfold sigEnc
-    ppt
+    have hcoin := (ComputableInPolyTime.const (encIn := encIndexedSignInput) 1).sampleList
+    have hp := ComputableInPolyTime.id' (encIn := encPair encIndexedSignInput encBits)
+    have hpost : ComputableInPolyTime
+        (fun p : (List Bool × ℕ × List Bool) × List Bool =>
+          sigEnc (p.1.1, p.1.2.1, p.1.2.2, p.2))
+        (encPair encIndexedSignInput encBits) encBits :=
+      (hp.fst'.fst'.prod (hp.fst'.snd'.fst'.prod
+        (hp.fst'.snd'.snd'.prod hp.snd'))).encoding_comp
+    simpa only [bind_pure_comp] using
+      hcoin.map_with (f := fun input coins => sigEnc
+        (input.1, input.2.1, input.2.2, coins)) hpost
   verify_polyTime := by
-    have hdec := sigDec.computableInPolyTime
-    polytime
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encBits encIndexedSignedMessage)
+    have hdec := sigDec.computableInPolyTime.comp hp.snd'.snd'.snd'
+    exact ((hdec.fst'.beq hp.fst').bool_and' (hdec.snd'.fst'.beq hp.snd'.fst')).bool_and'
+      (hdec.snd'.snd'.fst'.beq hp.snd'.snd'.fst')
   verify_sign _ keys hkeys _ _ msg sig hsig := by
     simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hkeys hsig
@@ -162,10 +177,18 @@ def cheatForger : Forger := fun n pk =>
   pure (msg, encodeSignature [false] [] (sigEnc (rootPk, 0, msg, [false])))
 
 theorem isOraclePPT_cheatForger : IsOraclePPT (encPair encBits encBits) cheatForger := by
-  have hdec := keyDecoder.computableInPolyTime
   refine IsOraclePPTOn.isOraclePPT ?_
-  unfold cheatForger encodeSignature sigEnc
-  exact ComputableInPolyTime.isOraclePPTOn (by polytime)
+  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+  have hroot := (keyDecoder.computableInPolyTime.comp hp.snd').snd'
+  have hmsg := (ComputableInPolyTime.bitsReplicate false).comp hp.fst'
+  have hlast := (hroot.prod ((ComputableInPolyTime.const (encOut := encUnary) 0).prod
+    (hmsg.prod (ComputableInPolyTime.const (encOut := encBits) [false])))).encoding_comp
+  have hcerts := ComputableInPolyTime.const
+    (encIn := encPair encUnary encBits) (encOut := encList (encPair encBits encBits))
+    ([] : List (List Bool × List Bool))
+  have hsig := ((ComputableInPolyTime.const (encOut := encBits) [false]).prod
+    (hcerts.prod hlast)).encoding_comp
+  exact (hmsg.prod hsig).isOraclePPTOn
 
 -- At `M = 5` (outside `Set.range (coinParam oscBudget)`), `treeCoinAdversary` outputs `false`
 -- with success probability `0`.
@@ -204,7 +227,7 @@ def replayForger : Forger := fun n _ => do
 theorem isOraclePPT_replayForger : IsOraclePPT (encPair encBits encBits) replayForger := by
   refine IsOraclePPTOn.isOraclePPT ?_
   unfold replayForger
-  have hq := IsOraclePPTOn.query_take' (input := encPair encUnary encBits) ()
+  have hq := IsOraclePPTOn.query_take (input := encPair encUnary encBits) ()
     (request := fun p : ℕ × List Bool => List.replicate p.1 false)
     (limit := fun p => 2 * p.1 + 20) (by polytime) (by polytime)
   exact hq.bind_with
@@ -226,7 +249,8 @@ example (n : ℕ) : Game.succProbability (ProbComp.eval
     simp only [replayForger, OracleComp.interpret_bind,
       OracleComp.interpret_map, OracleComp.interpret_pure, ProbOracleComp.interpret_query,
       StateT.run_bind, StateT.run_map, StateT.run_pure] at hb
-    simp only [StateT.run, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
+    simp only [StateT.run, SignatureScheme.signingOracleOn, List.length_replicate,
+      beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
       PMF.mem_support_bind_iff, PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hb
     obtain ⟨_, -, _, ⟨_, ⟨_, ⟨_, -, rfl⟩, rfl⟩, rfl⟩, htrue⟩ := hb
     simp at htrue

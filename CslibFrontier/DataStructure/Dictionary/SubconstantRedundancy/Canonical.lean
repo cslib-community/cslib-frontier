@@ -272,7 +272,9 @@ theorem redundancyRatio_bounds (h : ValidRegime U V n R p_min q_min p_max q_max)
         _ = 2 ^ s := by rw [← Nat.pow_add]; congr 1; omega
     have h15 : (2 : ℕ) ^ 15 = 32768 := by decide
     rw [h15] at hmul
-    nlinarith
+    have hlin : 15 + d ≤ (15 + d) ^ 2 := Nat.le_self_pow (by decide) (15 + d)
+    have h32 := Nat.mul_le_mul_left 32768 hlin
+    omega
   have hn_large : 2 * 704 * s ≤ n := by
     have h1 : 2 * 704 * s ≤ 2 * L := by
       calc 2 * 704 * s ≤ 2 * 2 ^ s := by omega
@@ -311,8 +313,9 @@ theorem redundancyRatio_bounds (h : ValidRegime U V n R p_min q_min p_max q_max)
       refine Nat.le_of_lt_succ ((Nat.div_lt_iff_lt_mul hdiv_ge1).mpr ?_)
       have hdiv := Nat.div_add_mod n M
       have hmod := Nat.mod_lt n hM_pos
-      have h2M_n : 2 * M ≤ n := by omega
-      nlinarith
+      have hM_le : M ≤ M * (n / M) := Nat.le_mul_of_pos_right M hdiv_ge1
+      rw [Nat.succ_mul, Nat.mul_assoc 2]
+      omega
     have hr_le_2s : redundancyRatio n R ≤ 2 ^ s := by omega
     calc (redundancyRatio n R) ^ 10 ≤ (2 ^ s) ^ 10 := Nat.pow_le_pow_left hr_le_2s 10
       _ = 2 ^ (s * 10) := (Nat.pow_mul 2 s 10).symm
@@ -389,7 +392,10 @@ theorem treeDepth_le_redundancyRatio (h : ValidRegime U V n R p_min q_min p_max 
     · rw [← h_eq3]; decide
     · have hs4 : 4 ≤ Nat.logStar n := Nat.succ_le_of_lt h_gt3
       have hsq4 := Nat.sq_le_two_pow hs4
-      nlinarith
+      calc Nat.logStar n + 4 ≤ 4 * Nat.logStar n := by omega
+        _ ≤ Nat.logStar n * Nat.logStar n := Nat.mul_le_mul_right _ hs4
+        _ = (Nat.logStar n) ^ 2 := (sq _).symm
+        _ ≤ 2 ^ Nat.logStar n := hsq4
   omega
 
 theorem two_pow_eighteen_mul_log_univ_pow_le
@@ -698,7 +704,7 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
         have hpad : U + n ≤ 2 ^ branchBits n U r k 0 * T0 := by
           have := P.univ_le_padded
           dsimp only [P, canonicalSchedule, T0] at this ⊢
-          linarith
+          rwa [Nat.mul_assoc] at this
         exact (Nat.le_add_right U n).trans (hpad.trans (Nat.mul_le_mul_right T0 hB0_le))
       have hn_T0 : n ≤ T0 ^ q_min := by
         have hpow : n ^ q_min * n ≤ n ^ q_min * T0 ^ q_min := by
@@ -837,7 +843,7 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
     have hd_next_ge : 256 ^ 6 ≤ d_next := by
       dsimp only [d_next, delta]
       rw [Nat.le_nthRoot_iff (by decide)]
-      calc (256 ^ 6) ^ 3 = (256 ^ 9) ^ 2 := by decide
+      calc (256 ^ 6) ^ 3 = (256 ^ 9) ^ 2 := by rw [← Nat.pow_mul, ← Nat.pow_mul]
         _ ≤ x ^ 2 := Nat.pow_le_pow_left hx_ge 2
     have hx_eq : x = y / B := nFloor_succ_eq_div (by have := hS17 ℓ hlt_k; omega)
     have hy_bounds : B * x ≤ y ∧ y < B * (x + 1) := by
@@ -845,7 +851,8 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
       have hdiv := Nat.div_add_mod y B
       have hmod : y % B < B := Nat.mod_lt y (Nat.two_pow_pos _)
       rw [← hx_eq] at hdiv
-      nlinarith
+      rw [Nat.mul_add, Nat.mul_one]
+      omega
     have hm_lo' : (if ℓ = 0 then n - 1 else y - delta n U r k ℓ) ≤ m := hm_lo
     have hm_hi' : m ≤ (if ℓ = 0 then n else y + delta n U r k ℓ) := hm_hi
     have hm_bounds : B * x - (if ℓ = 0 then 1 else delta n U r k ℓ) ≤ m ∧
@@ -884,38 +891,43 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
         omega
       have hm_hi_r : (m : ℝ) ≤ (B : ℝ) * ((x : ℝ) + 1) +
           ((B * d_next / 10 : ℕ) : ℝ) + 1 := by
-        have hcast : ((B * (x + 1) + (B * d_next / 10 + 1) : ℕ) : ℝ) =
-            (B : ℝ) * ((x : ℝ) + 1) + ((B * d_next / 10 : ℕ) : ℝ) + 1 := by
-          push_cast; ring
         have h1r : (m : ℝ) ≤ ((B * (x + 1) + (B * d_next / 10 + 1) : ℕ) : ℝ) := by
           exact_mod_cast h1
-        linarith
-      linarith
+        push_cast at h1r
+        linarith only [h1r]
+      have hmul_eq : ((x : ℝ) + (d_next : ℝ) / 10 + 2) * (B : ℝ) =
+          (B : ℝ) * ((x : ℝ) + 1) + (B : ℝ) * (d_next : ℝ) / 10 + (B : ℝ) := by ring
+      linarith only [hm_hi_r, hdiv_r, hB1, hmul_eq]
     have hμ_lo : (x : ℝ) - (d_next : ℝ) / 10 - 2 ≤ μ := by
       dsimp only [μ]
       rw [le_div_iff₀ hB_pos]
       have hBx_ge : B * d_next / 10 + 1 ≤ B * x := by
         have hd_le_x : 2 * d_next ≤ x := two_mul_delta_le_nFloor_of_eight_le (h8_le.trans hx_ge)
         have hB1_nat : 1 ≤ B := Nat.two_pow_pos _
-        have : B * d_next / 10 + 1 ≤ B * d_next + 1 :=
-          Nat.add_le_add_right (Nat.div_le_self _ 10) 1
-        nlinarith
+        have hBd1 : 1 ≤ B * d_next := Nat.mul_pos hB1_nat (by omega)
+        have hdiv_le : B * d_next / 10 ≤ B * d_next := Nat.div_le_self _ 10
+        have h2Bd : 2 * (B * d_next) ≤ B * x := by
+          calc 2 * (B * d_next) = B * (2 * d_next) := by ring
+            _ ≤ B * x := Nat.mul_le_mul_left B hd_le_x
+        omega
       have h1 : B * x - (B * d_next / 10 + 1) ≤ m := by
         have := hm_bounds.1
         omega
       have hm_lo_r : (B : ℝ) * (x : ℝ) - ((B * d_next / 10 : ℕ) : ℝ) - 1 ≤ (m : ℝ) := by
-        have hcast : ((B * x - (B * d_next / 10 + 1) : ℕ) : ℝ) =
-            (B : ℝ) * (x : ℝ) - ((B * d_next / 10 : ℕ) : ℝ) - 1 := by
-          rw [Nat.cast_sub hBx_ge]; push_cast; ring
-        linarith [(by exact_mod_cast h1 : ((B * x - (B * d_next / 10 + 1) : ℕ) : ℝ) ≤ (m : ℝ))]
-      linarith
+        have h1r : ((B * x - (B * d_next / 10 + 1) : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast h1
+        rw [Nat.cast_sub hBx_ge] at h1r
+        push_cast at h1r
+        linarith only [h1r]
+      have hmul_eq : ((x : ℝ) - (d_next : ℝ) / 10 - 2) * (B : ℝ) =
+          (B : ℝ) * (x : ℝ) - (B : ℝ) * (d_next : ℝ) / 10 - 2 * (B : ℝ) := by ring
+      linarith only [hm_lo_r, hdiv_r, hB1, hmul_eq]
     have hμ_le_2x : μ ≤ 2 * (x : ℝ) := by
       have hd_r : (2 : ℝ) * (d_next : ℝ) ≤ (x : ℝ) := by
         exact_mod_cast two_mul_delta_le_nFloor_of_eight_le (h8_le.trans hx_ge)
       have hx_r : (100 : ℝ) ≤ (x : ℝ) := by
         have : 100 ≤ 256 ^ 9 := by decide
         exact_mod_cast this.trans hx_ge
-      linarith
+      linarith only [hμ_hi, hd_r, hx_r]
     have hdev_le : ((1 : ℝ) / 5) * μ ^ ((2 : ℝ) / 3) ≤ ((2 : ℝ) / 5) * ((d_next : ℝ) + 1) := by
       set u : ℝ := μ ^ ((1 : ℝ) / 3)
       have hu_pos : 0 < u := Real.rpow_pos_of_pos hμ_pos _
@@ -935,12 +947,14 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
           _ = μ ^ 2 := by rw [hu3]
           _ ≤ (2 * (x : ℝ)) ^ 2 := pow_le_pow_left₀ hμ_pos.le hμ_le_2x 2
           _ = 4 * (x : ℝ) ^ 2 := by ring
-          _ ≤ 8 * ((d_next : ℝ) + 1) ^ 3 := by nlinarith [sq_nonneg (x : ℝ)]
+          _ ≤ 8 * ((d_next : ℝ) + 1) ^ 3 := by linarith only [hx2_lt, sq_nonneg (x : ℝ)]
           _ = (2 * ((d_next : ℝ) + 1)) ^ 3 := by ring
       have hu2_le : u ^ 2 ≤ 2 * ((d_next : ℝ) + 1) :=
-        (pow_le_pow_iff_left₀ (by positivity) (by positivity) (by decide : 3 ≠ 0)).mp hcube
+        (pow_le_pow_iff_left₀ (sq_nonneg u)
+          (mul_nonneg zero_le_two (add_nonneg (Nat.cast_nonneg _) zero_le_one))
+          (by decide : 3 ≠ 0)).mp hcube
       rw [hu2]
-      linarith
+      linarith only [hu2_le]
     have hd_big : (10 : ℝ) ≤ (d_next : ℝ) := by
       have : 10 ≤ 256 ^ 6 := by decide
       exact_mod_cast this.trans hd_next_ge
@@ -957,12 +971,12 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
     refine ⟨?_, ?_⟩
     · have hgt : ((x - d_next : ℕ) : ℝ) < ((b_load + 1 : ℕ) : ℝ) := by
         rw [Nat.cast_sub hd_le_x, Nat.cast_add, Nat.cast_one]
-        linarith
+        linarith only [hb_lo, hμ_lo, hdev_le, hd_big]
       have hlt_nat : x - d_next < b_load + 1 := Nat.cast_lt.mp hgt
       omega
     · have hlt : (b_load : ℝ) < ((x + d_next + 1 : ℕ) : ℝ) := by
         push_cast
-        linarith
+        linarith only [hb_hi, hμ_hi, hdev_le, hd_big]
       have hlt_nat : b_load < x + d_next + 1 := Nat.cast_lt.mp hlt
       omega
 

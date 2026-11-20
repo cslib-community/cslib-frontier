@@ -71,14 +71,4 @@ theorem natTestBit :
 
 end ComputableInSpace
 
-namespace ComputableTidilyInSpace
-
-/-- **A bit of a binary natural**, `k.testBit j` from `(k, j)`. -/
-theorem natTestBit :
-    ComputableTidilyInSpace (fun q : ℕ × ℕ => q.1.testBit q.2) (encPair encNat encNat) encBool
-      fun q => 32 * ((encPair encNat encNat q).length + 1) :=
-  ComputableInSpace.natTestBit.tidy
-
-end ComputableTidilyInSpace
-
 end Turing.MultiTapeTM

@@ -20,9 +20,11 @@ import CslibFrontier.Tactic.EncLen
 
 Given a keyed `2n → n` collision-resistant compression family
 `h : List Bool → List Bool → List Bool`, the Merkle–Damgård transform ([BonehShoup2023],
-Section 8.4, Figure 8.5 and Theorem 8.3) constructs a collision-resistant hash family on
-arbitrary-length messages by iterating `h k` over a sequence of `n`-bit blocks starting from a
-fixed `n`-bit initialization vector `0^n`.
+Section 8.4, Figure 8.5) iterates `h k` over a sequence of `n`-bit blocks starting from a fixed
+`n`-bit initialization vector (`0^n` here). [BonehShoup2023], Theorem 8.3 (printed p. 297), proves
+the padded transform collision-resistant on messages of length at most a poly-bounded parameter
+`L`, not on all bit strings; the one-bit-per-block `merkleDamgard` below covers all bit strings,
+but it is not the transform of that theorem.
 
 We formalize the transform and its collision-extraction reduction at two levels:
 
@@ -735,7 +737,8 @@ theorem computableInPolyTime_extractMerkleDamgardCollision
     (computableInPolyTime_mdBlocks_comp hkl h2.fst')
     (computableInPolyTime_mdBlocks_comp hkl h2.snd')
 
-/-- **Deterministic Merkle–Damgård collision extraction ([BonehShoup2023], Theorem 8.3)**:
+/-- Deterministic collision extraction for the one-bit-per-block encoding `mdBlocks`, by the
+suffix-free argument used in the proof of [BonehShoup2023], Theorem 8.3 (Section 8.4, p. 297):
 for any key `k` of length `≥ 2` and any two distinct messages `m₁ ≠ m₂` with
 `merkleDamgard h k m₁ = merkleDamgard h k m₂`, `extractMerkleDamgardCollision h k m₁ m₂` outputs a
 valid `2 * k.length`-bit collision `(x₁, x₂)` for `h k`. -/
@@ -752,10 +755,13 @@ theorem isCollision_extractMerkleDamgardCollision
     (fun _ hb => length_of_mem_mdBlocks hb)
     hcol (not_suffix_mdBlocks hk hne) (not_suffix_mdBlocks hk hne.symm)
 
-/-- **Security of the Merkle–Damgård transform ([BonehShoup2023], Theorem 8.3)**:
-if `h` is a `2n → n` collision-resistant compression family (`CompressionFamily h`), then
-`merkleDamgard h` is collision-resistant on all arbitrary-length bit strings (`List Bool`). Here
-`merkleDamgard` is the one-bit-per-block instance, not the length-strengthened one. -/
+/-- Collision resistance of the one-bit-per-block domain extension `merkleDamgard`: if `h` is a
+`2n → n` collision-resistant compression family (`CompressionFamily h`), then `merkleDamgard h` is
+collision-resistant on all arbitrary-length bit strings (`List Bool`). This is not
+[BonehShoup2023], Theorem 8.3 (Section 8.4, p. 297), whose length-strengthened transform packs `n`
+message bits into each block and ends with a length block; that theorem is
+`CompressionFamily.collisionResistant_lengthStrengthenedMD`. The proof follows its argument: the
+encoding `mdBlocks` is suffix-free, so a digest collision yields a compression collision. -/
 theorem CompressionFamily.collisionResistant_merkleDamgard
     {h : List Bool → List Bool → List Bool} (hh : CompressionFamily h) :
     CollisionResistant (merkleDamgard h) := by

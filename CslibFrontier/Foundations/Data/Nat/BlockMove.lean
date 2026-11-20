@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-import Mathlib.Logic.Equiv.Fin.Basic
+public import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # Moving two adjacent finite blocks in raw natural indices
@@ -32,7 +32,8 @@ index past the three blocks. Zero-length blocks require no special input convent
   else if i < before + moved + after then i - moved
   else i
 
-private theorem blockMove_eq_finAddFlip (before moved after : ℕ)
+/-- On a bounded suffix index, the raw block move is the existing finite block exchange. -/
+theorem blockMove_eq_finAddFlip (before moved after : ℕ)
     (i : Fin (moved + after)) :
     blockMove before moved after (before + i.val) = before + (finAddFlip i).val := by
   unfold blockMove

@@ -161,8 +161,7 @@ theorem exec_digits {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))
       · simp [Bounded]
       · simpa using hc
       · simp [value]
-      · exact ⟨rfl, fun i _ _ hi => by
-          simp only [Data.set_regs, Function.update_apply, hi, ↓reduceIte]⟩
+      · exact frame_set_carry x (x.regs borrow) []
     | cons => simp_all
   | cons b bs ih =>
     cases ds with

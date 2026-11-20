@@ -585,7 +585,7 @@ theorem isPPT_hashedElGamalCipherToKDFHiddenBitDistinguisher {Msg : Type}
       (fun p : F.KDFInput × Bool =>
         F.hashedElGamalCipherToKDFDistinguisher encryptSym adversary p.2 p.1.secParam
           p.1.groupParameters p.1.leftPublic p.1.rightPublic p.1.key) :=
-    (IsPPTOn.cond' hp2 (hTrue.preprocess hp1) (hFalse.preprocess hp1)).congr
+    (IsPPTOn.cond hp2 (hTrue.preprocess hp1) (hFalse.preprocess hp1)).congr
       (fun ⟨_, bit⟩ => by cases bit <;> rfl)
   exact (isPPTOn_uniform_bool E0).bind_with
     (hStep.bind_with

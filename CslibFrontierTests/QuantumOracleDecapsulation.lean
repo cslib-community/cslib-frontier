@@ -135,8 +135,8 @@ theorem caller_isOraclePPTOn : IsOraclePPTOn encBits encBits caller := by
   have hpad : ComputableInPolyTime padReply encBits encBits := by
     unfold padReply
     fun_prop
-  exact (IsOraclePPTOn.query_take' () ComputableInPolyTime.id'
-    (ComputableInPolyTime.const 2)).map' hpad
+  exact (IsOraclePPTOn.query_take () ComputableInPolyTime.id'
+    (ComputableInPolyTime.const 2)).map hpad
 
 theorem caller_isQueryBounded (request : List Bool) : (caller request).IsQueryBounded 1 := by
   simpa only [caller, ProbOracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff] using

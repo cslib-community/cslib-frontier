@@ -111,11 +111,17 @@ def zeroFlipFinder (G : ShrinkingCollisionGrid) : TargetCollisionFinder where
 
 theorem isPPT_zeroFlipFinder (G : ShrinkingCollisionGrid) : (zeroFlipFinder G).IsPPT where
   choose := by
-    dsimp only [zeroFlipFinder]
-    ppt
+    have hlen := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
+      (computableInPolyTime_rompelBlockLen G)
+    exact (((ComputableInPolyTime.bitsReplicate false).comp hlen).prod
+      (ComputableInPolyTime.const [])).isPPTOn
   find := by
-    dsimp only [zeroFlipFinder]
-    ppt
+    have hp := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
+    have hlen := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
+      ((computableInPolyTime_rompelBlockLen G).comp hp)
+    exact (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.const [true])
+      ((ComputableInPolyTime.bitsReplicate false).comp
+        (hlen.unary_sub' (ComputableInPolyTime.const 1)))).isPPTOn
 
 example (G : ShrinkingCollisionGrid) :
     IsPPT encBits (rompelCompressionInverter G (zeroFlipFinder G)) :=
@@ -258,7 +264,6 @@ theorem succProbability_leakNonNScheme_longMsgForger (S : SignatureScheme) (n : 
         ProbComp.eval ((leakNonNScheme S).toSignatureScheme.eufCmaGame longMsgForger n) =
           PMF.pure false := by
       simp only [SignatureScheme.eufCmaGame, WordSignatureScheme.toSignatureScheme_keyGen,
-        WordSignatureScheme.toSignatureScheme_signingOracle,
         WordSignatureScheme.toSignatureScheme_verify, leakNonNScheme, longMsgForger,
         OracleComp.interpret_pure, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map,
         ProbComp.eval_pure, PMF.pure_bind, hbeq, Bool.false_and, PMF.bind_const]
@@ -288,13 +293,12 @@ theorem eufCMA_toSignatureScheme_leakNonNScheme {S : SignatureScheme} (hS : S.EU
         (fun p : ℕ × List Bool => (p.1, encPair encUnary encBits (p.1, p.2)))
         (encPair encUnary encBits) (encPair encUnary encBits) :=
       (ComputableInPolyTime.fst _ _).prod henc
-    exact hadversary.on.preprocess' hprep
+    exact hadversary.on.preprocess hprep
   have heq : ∀ n,
       ProbComp.eval ((leakNonNScheme S).toSignatureScheme.eufCmaGame adversary n) =
         ProbComp.eval (S.eufCmaGame wrapped n) := by
     intro n
     simp only [SignatureScheme.eufCmaGame, WordSignatureScheme.toSignatureScheme_keyGen,
-      WordSignatureScheme.toSignatureScheme_signingOracle,
       WordSignatureScheme.toSignatureScheme_verify, leakNonNScheme, wrapped, ProbComp.eval_bind,
       ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
     congr 1 with keys : 1

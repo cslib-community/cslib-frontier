@@ -765,7 +765,7 @@ class PublicationPermissionTests(unittest.TestCase):
         lean = jobs["lean-checks"]
         aggregator = jobs["ci-checks"]
         self.assertIn("env.CACHE_RECOVERY_GENERATION", lean)
-        self.assertIn("needs: [source-checks, lean-checks]", aggregator)
+        self.assertIn("needs: [select-checks, source-checks, lean-checks]", aggregator)
         self.assertIn("if: always()", aggregator)
         self.assertIn("publication: ${{ needs.lean-checks.outputs.publication }}", aggregator)
         for name in ("publish-gcs-cache", "publish-mit-cache"):
