@@ -203,8 +203,16 @@ private noncomputable def oneBitCipher : BlockCipher where
   blockLen_polyTime := ComputableInPolyTime.const 1
   encrypt _ key block := List.zipWith Bool.xor (key ++ [false]) block
   decrypt _ key block := List.zipWith Bool.xor (key ++ [false]) block
-  encrypt_polyTime := by polytime
-  decrypt_polyTime := by polytime
+  encrypt_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encUnary (encPair encBits encBits))
+    exact ComputableInPolyTime.bitsZipWithInput Bool.xor
+      (hp.snd'.fst'.bitsAppend (ComputableInPolyTime.const [false])) hp.snd'.snd'
+  decrypt_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encUnary (encPair encBits encBits))
+    exact ComputableInPolyTime.bitsZipWithInput Bool.xor
+      (hp.snd'.fst'.bitsAppend (ComputableInPolyTime.const [false])) hp.snd'.snd'
   length_encrypt _ key block _ hblock := by
     simp [List.length_zipWith, hblock]
   length_decrypt _ key block _ hblock := by

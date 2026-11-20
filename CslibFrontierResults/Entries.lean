@@ -16,6 +16,12 @@ import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
+import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
 import CslibFrontier.Probability.PairwiseIndependentHash.Retention
@@ -38,6 +44,7 @@ import CslibFrontier.Computability.Complexity.Classes.Advice.LengthComparison
 import CslibFrontier.Computability.Circuit.Boolean.Advice.Hierarchy
 import CslibFrontier.Algorithms.Lean.Arborescence.PolyTime
 import CslibFrontier.Algorithms.Lean.DFS.SCC
+import CslibFrontier.Algorithms.Lean.DyadicRecovery
 import CslibFrontier.Algorithms.Lean.MaxDicut.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
@@ -54,6 +61,7 @@ import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
+import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -432,6 +440,7 @@ import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
+import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 
 /-!
 # Collected results
@@ -5564,6 +5573,21 @@ register_result "gap-two-csp-boolean-promise-p" where
     assignments of the declared vertices. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
 
+register_result "arora-barak-dyadic-prefix-recovery" where
+  title := "Polynomial-time rational recovery from a binary prefix"
+  topic := "algorithms"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 20, Exercise §11",
+      locator := "2007-01-08 public draft, printed p. 432 / PDF p. 448" }
+  ]
+  theorems := [Rat.recoverDyadicLogSq_eq_some, Rat.recoverDyadicLogSq_polyTime]
+  scope := "Rounds upward after doubling the logarithm. For positive denominator bound N, \
+    the precision is Nat.clog 2 (N ^ 2) fractional bits. The binary input encodes N and \
+    the half-open dyadic cell index, including the integer part for improper fractions. \
+    Terminating binary expansions use trailing zeros. The optional rational output uses \
+    a reduced binary numerator and denominator. The native multitape polynomial-time \
+    certificate covers the same decoder used in the recovery theorem."
+
 register_result "bareiss-rational-elimination" where
   title := "Exact rational Bareiss–Jordan Gaussian elimination and entry bounds"
   topic := "algorithms"
@@ -10558,6 +10582,23 @@ register_result "partial-tag-encrypt-then-mac" where
     pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
     pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
 
+register_result "fixed-length-polynomial-universality" where
+  title := "Collision and difference bounds for fixed-length polynomial hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.16(a)–(b)",
+      locator := "v0.6, printed p. 281; Hfpoly in §7.2.1, equation (7.5), p. 257" }
+  ]
+  theorems := [
+    Cslib.Probability.isUniversalHash_coeffPolyHash,
+    Cslib.Probability.isDeltaUniversalHash_mul_coeffPolyHash
+  ]
+  scope := "For length-n coefficient vectors and an exactly uniform field element, the \
+    collision probability is at most (n − 1)/|F|. Multiplying the evaluation by the key bounds \
+    the probability of any specified difference by n/|F|. Both statements quantify over \
+    distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
+    without a growth condition. The zero-length vector has no distinct partner."
+
 register_result "ghash-gcm-length-block-xor-duf" where
   title := "GHASH on the bit-length version of GCM's line (∗) input, zero-padded with its \
     length block, is an ℓ/2^128-XOR-DUF for inputs of at most ℓ blocks, the length block \
@@ -10903,6 +10944,28 @@ register_result "bvy-checked-answer-weight-given-noisy-message" where
     For a left message, this weight splits into the anchor and ordinary branches at the \
     additional erasure rate α/2. Local dimensions may differ and the kernels are total."
 
+register_result "dpll-pigeonhole-refutation-size" where
+  title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"
+  topic := "SAT algorithms"
+  sources := [
+    { paper := BeyersdorffGalesiLauria2010, theorem := "Theorem 2",
+      locator := "White Rose eprint 74432 (manuscript of 2010-07-01), §4, printed p. 4; PDF p. 5; \
+        the bound 2^((n/2) log(n/2 + 1)) at the end of the proof, printed p. 6; PDF p. 7" }
+  ]
+  theorems := [
+    Cslib.Algorithms.Lean.DPLL.pow_half_le_size_refutation?_pigeonhole,
+    Cslib.Algorithms.Lean.DPLL.pow_half_le_size_solve_pigeonhole
+  ]
+  scope := "The source bound holds for every tree-like resolution refutation of PHP^m_n, m > n; \
+    these theorems apply it to the output of the library's DPLL solver on PHP^m_n relabelled \
+    along any injective numbering Fin m × Fin n → ℕ: the solver finds a refutation with at \
+    least (n/2 + 1)^(n/2) nodes and returns an LRAT certificate with at least that many steps \
+    (one per leaf of the refutation). The source's proof takes n even; the Lean bound uses \
+    floor division n/2 and has no parity hypothesis. Dantchev and Riis (CCC 2001) proved an \
+    earlier asymptotic 2^Ω(n log n) bound for regular tree resolution; it is historical \
+    context, not a source of this exact bound. These bound the output, not the running time; \
+    the running time on the word RAM is issue #6610."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"
@@ -10964,3 +11027,107 @@ register_result "mpda-one-hole-is-no-hole" where
     informally; the Lean statement is for all complete runs and does not need acceptance. \
     Source check: independent agent review (codex-f4a705f4) on PR #6587, against \
     arXiv:2002.05950v2 Definition 1, PDF pp. 5-6, and Appendix G.1, Theorem 2, PDF p. 37."
+
+register_result "quantum-relative-entropy-nonnegative" where
+  title := "Nonnegativity of quantum relative entropy for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.2",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 19" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_nonneg]
+  scope := "For arbitrary finite complex positive semidefinite trace-one matrices, including \
+    singular states, quantum relative entropy is nonnegative. The trace formula uses natural \
+    logarithms and requires support containment, stated as reverse kernel inclusion. When that \
+    containment fails, the divergence is positive infinity."
+
+register_result "quantum-relative-entropy-joint-convexity" where
+  title := "Joint convexity of quantum relative entropy"
+  topic := "quantum information"
+  sources := [
+    { paper := Ruskai2007, theorem := "Theorem 1",
+      locator := "arXiv:quant-ph/0604206v1, printed p. 2; proof in §§2.1–2.4" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_sum_smul_le]
+  scope := "Finite complex positive semidefinite matrix pairs with arbitrary nonnegative \
+    weights. The normalized weights give joint convexity; this homogeneous form also allows \
+    unnormalized weights and assigns positive infinity to a support mismatch. Zero-weight \
+    terms contribute zero. The natural-log formula uses the standard positive Umegaki sign \
+    as in equation (11), correcting the leading minus sign in the introductory equation (3)."
+
+register_result "classical-quantum-relative-entropy-chain" where
+  title := "Relative entropy chain rule for classical–quantum states"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.6",
+      locator := "arXiv:1509.07466v2, §5.1, printed pp. 19–20" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_classicalQuantumState]
+  scope := "For two probability-weighted families of finite-dimensional density matrices, \
+    the divergence of the block-diagonal states splits into the classical KL divergence and \
+    the source-weighted conditional divergences. The quantum coordinate comes first. Both \
+    terms use natural logarithms. Missing support gives positive infinity, and a zero-weight \
+    label contributes zero even when its conditional divergence is infinite."
+
+register_result "classical-quantum-mutual-information" where
+  title := "Mutual information of a classical–quantum state"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.7",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 20" }
+  ]
+  theorems := [Cslib.Quantum.mutualInformation_classicalQuantumState]
+  scope := "For finite label distributions and conditional complex density matrices, the \
+    mutual information to the product of the actual marginals equals the source-weighted \
+    divergence of the conditional states from their quantum marginal. The expression \
+    uses natural logarithms and extended divergence with zero contribution at null labels."
+
+register_result "uhlmann-finite-dimensional-local-overlap" where
+  title := "Uhlmann’s theorem for finite-dimensional purifications"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Theorem 5.11",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.exists_localUnitary_inner_eq_rootFidelity]
+  scope := "Two complex vectors on the same finite bipartite space, with possibly unequal \
+    local dimensions and possibly singular reduced states. A unitary on the right system \
+    gives a complex overlap equal to the real unsquared fidelity of the left reductions. \
+    Unit vectors recover the normalized purifications in the source."
+
+register_result "powers-stormer-finite-matrices" where
+  title := "Powers–Størmer inequality for finite matrices"
+  topic := "matrix analysis"
+  sources := [
+    { paper := SzaboWouters2025, theorem := "Lemma 1.19",
+      locator := "published version, §1, printed p. 1397 (tracial norms on p. 1390)" }
+  ]
+  theorems := [Matrix.trace_sub_mul_self_le_traceNorm_mul_self_sub]
+  scope := "For positive semidefinite complex matrices P and Q, the trace of (P − Q)² is \
+    bounded by the trace norm of P² − Q². Multiplying the tracial form by the dimension gives \
+    ordinary trace, with the empty-dimensional case giving zero on both sides. Singular \
+    matrices are allowed, and there is no trace-one assumption."
+
+register_result "fuchs-van-de-graaf-lower" where
+  title := "Lower Fuchs–van de Graaf inequality for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lower bound in equation (28)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.one_sub_rootFidelity_le_traceDistance]
+  scope := "Arbitrary finite-dimensional complex positive semidefinite trace-one matrices, \
+    including singular states. One minus the unsquared fidelity is bounded above by the \
+    trace distance, which is half the trace norm of the difference."
+
+register_result "fuchs-van-de-graaf-upper" where
+  title := "Upper Fuchs–van de Graaf inequality for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Upper bound in equation (28)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.traceDistance_le_sqrt_one_sub_rootFidelity_sq]
+  scope := "For finite complex positive semidefinite trace-one matrices, including singular \
+    states, trace distance is at most the square root of one minus squared root fidelity. \
+    Trace distance is half the trace norm of the difference, and root fidelity is unsquared."

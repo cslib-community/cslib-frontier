@@ -197,9 +197,8 @@ private theorem hx_twoWordPts :
     (ComputableInPolyTime.bitsReplicate false).comp hsucc
   have h1 : ComputableInPolyTime (fun n => true :: List.replicate n false) encUnary encBits :=
     (ComputableInPolyTime.const [true]).bitsAppend (ComputableInPolyTime.bitsReplicate false)
-  exact ComputableInPolyTime.of_tidy
-    (ComputableTidilyInPolyTime.cons' h0.tidy
-      (ComputableTidilyInPolyTime.cons' h1.tidy (.const [])))
+  exact (ComputableInPolyTime.cons' h0
+      (ComputableInPolyTime.cons' h1 (.const [])))
 
 -- Concrete evaluation of `prgFromPRF` with XOR masking.
 private def xorWordFamily (key query : List Bool) : List Bool := List.zipWith xor key query
@@ -250,7 +249,7 @@ private theorem hx_zeroPt :
   rw [heq]
   have h0 : ComputableInPolyTime (fun n => List.replicate n false) encUnary encBits :=
     ComputableInPolyTime.bitsReplicate false
-  exact ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.cons' h0.tidy (.const []))
+  exact ComputableInPolyTime.cons' h0 (.const [])
 
 -- A length-preserving `PseudorandomFunction` lacks stretch at `n = 0`, yet is covered by
 -- `indistinguishable_prgFromPRF`.

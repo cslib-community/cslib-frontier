@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Ladner.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Basic
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Kolmogorov.TimeBounded
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
