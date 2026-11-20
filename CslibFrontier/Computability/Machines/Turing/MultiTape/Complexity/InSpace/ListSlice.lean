@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import Mathlib.Data.List.GetD
@@ -114,12 +115,24 @@ theorem bitsDrop : ComputableInSpace (fun p : List Bool × ℕ => p.1.drop p.2)
     rw [List.tail_iterate]
 
 /-- Right shift a binary natural in space linear in the value and the binary offset.
-The remaining digits already form the canonical encoding, including the empty word for zero. -/
+The drop count is capped at the value's bit length. The suffix is already the canonical
+encoding, including the empty word for zero. -/
 theorem natShiftRight : ComputableInSpace (fun p : ℕ × ℕ => p.1 >>> p.2)
     (encPair encNat encNat) encNat (fun p => (encPair encNat encNat p).length) := by
-  have h := bitsDrop.of_encIn_eq (encIn' := encPair encNat encNat)
-    (fun p : ℕ × ℕ => (p.1.bits, p.2)) (fun _ => rfl)
-  exact h.of_enc_eq fun p => Nat.bits_shiftRight p.1 p.2
+  have hv := fst encNat encNat
+  have ho := snd encNat encNat
+  have hw := budget_comp_linear natSize hv
+  have hbits := hv.of_enc_eq (encC := encBits) (g := fun p => p.1.bits) (fun _ => rfl)
+  have hcount := budget_ite (budget_natLt ho hw) ho hw
+  refine (budget_comp_linear bitsDrop (budget_prod hbits hcount)).of_enc_eq fun p => ?_
+  simp only [decide_eq_true_eq]
+  change (p.1 >>> p.2).bits = p.1.bits.drop (if p.2 < p.1.size then p.2 else p.1.size)
+  have hmin : (if p.2 < p.1.size then p.2 else p.1.size) = min p.2 p.1.size := by
+    by_cases h : p.2 < p.1.size
+    · simp [h, Nat.min_eq_left h.le]
+    · simp [h, Nat.min_eq_right (Nat.le_of_not_gt h)]
+  rw [hmin, Nat.bits_shiftRight, ← Nat.size_eq_bits_len]
+  exact List.drop_eq_drop_min
 
 /-- Read the bit of a bit word at a binary index, or `fallback` beyond its end, in space linear in
 the word and index. -/
