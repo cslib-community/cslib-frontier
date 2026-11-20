@@ -111,9 +111,8 @@ theorem otp_nested_indistinguishable (n : ℕ) {σ : Type} (encσ : σ ↪ List 
         encBool encσ) := by
   have hencrypt : IsPPTOn (encPair encUnary (encPair encBool encBool)) encBool
       fun ⟨_, k, m⟩ => otpCipher.encrypt k m :=
-    (ComputableTidilyInPolyTime.computableInPolyTime
-      (ComputableTidilyInPolyTime.bool_xor.comp
-        (ComputableTidilyInPolyTime.snd encUnary (encPair encBool encBool)))).isPPTOn
+    (ComputableInPolyTime.bool_xor.comp
+      (ComputableInPolyTime.snd encUnary (encPair encBool encBool))).isPPTOn
   refine indistinguishable_nestedExperiment_of_oneTimeExperiment
     (fun _ => otpCipher) (fun _ => ProbComp.uniform Bool) (fun _ _ _ => true)
     (isPPTOn_uniform_bool encUnary) hencrypt (ComputableInPolyTime.const true)

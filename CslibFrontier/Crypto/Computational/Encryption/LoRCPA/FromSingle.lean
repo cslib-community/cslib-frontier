@@ -178,7 +178,7 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
   have hcondPair : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × ℕ => (p.2, Q p.1.1)) EIn (encPair encUnary encUnary) := by
     dsimp only [EIn]; fun_prop
-  have hcond := (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_lt).comp hcondPair
+  have hcond := (ComputableInPolyTime.unary_lt).comp hcondPair
   have hstart : IsPPTOn EIn encBits
       (fun p : (ℕ × List Bool) × ℕ => adversary.start p.1.1 p.1.2) :=
     hadversary.start.on.preprocess (by dsimp only [EIn]; fun_prop)
@@ -681,7 +681,7 @@ theorem WordINDCPA.wordLoRINDCPA
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (h : WordINDCPA keyGen encrypt) :
     WordLoRINDCPA keyGen encrypt Q :=
-  h.lorINDCPAOn (ComputableInPolyTime.of_tidy (by polytime)) hencrypt hctBound hctLen hQ
+  h.lorINDCPAOn ((by polytime)) hencrypt hctBound hctLen hQ
 
 end Cslib.Crypto.Encryption
 

@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import Mathlib.Analysis.InnerProductSpace.PiL2
-public import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Basic
+public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import Mathlib.LinearAlgebra.UnitaryGroup
 import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
 
@@ -133,18 +133,6 @@ namespace POVM
 open scoped MatrixOrder ComplexOrder
 
 variable (M : POVM A ι)
-
-/-- The square root `√E_a` of an effect. -/
-noncomputable def sqrtEffect (a : A) : Matrix ι ι ℂ :=
-  CFC.sqrt (M.effect a)
-
-omit [DecidableEq A] in
-theorem sqrtEffect_mul_self (a : A) : M.sqrtEffect a * M.sqrtEffect a = M.effect a :=
-  CFC.sqrt_mul_sqrt_self _ (Matrix.nonneg_iff_posSemidef.mpr (M.posSemidef a))
-
-omit [DecidableEq A] in
-theorem conjTranspose_sqrtEffect (a : A) : (M.sqrtEffect a)ᴴ = M.sqrtEffect a :=
-  (CFC.sqrt_nonneg (M.effect a)).isSelfAdjoint.star_eq
 
 /-- The **Naimark isometry** `V ψ = ∑_a √E_a ψ ⊗ |a⟩`. -/
 noncomputable def naimarkIsometry : Matrix (ι × A) ι ℂ :=

@@ -213,8 +213,16 @@ theorem computableInPolyTime_diagBits
     (hc : ComputableInPolyTime dhat (encPair encUnary encBits) encNat) :
     ComputableInPolyTime (diagBits dhat z) encUnary encBits := by
   have hstep : ComputableInPolyTime (diagStep dhat) encBits encBits := by
-    unfold diagStep
-    fun_prop
+    have hp := ComputableInPolyTime.id' (encIn := encBits)
+    have hn := ComputableInPolyTime.unary_add' ComputableInPolyTime.length_bits
+      (ComputableInPolyTime.const 2)
+    have ht := hc.comp (hn.prod (ComputableInPolyTime.bitsAppend hp
+      (ComputableInPolyTime.const [true])))
+    have hf := hc.comp (hn.prod (ComputableInPolyTime.bitsAppend hp
+      (ComputableInPolyTime.const [false])))
+    exact ComputableInPolyTime.bitsAppend hp
+      (ComputableInPolyTime.bitsCons (ComputableInPolyTime.binary_lt' ht hf)
+        (ComputableInPolyTime.const []))
   exact ComputableInPolyTime.iterate_of_bounded_growth (count := fun n => n)
     (init := fun _ => z) (by fun_prop) (by fun_prop) hstep (growth := 1)
     fun w => by simp [diagStep, encBits_apply]
