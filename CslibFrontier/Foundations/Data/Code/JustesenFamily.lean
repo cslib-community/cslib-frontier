@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Code.Justesen
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 import Mathlib.Data.Nat.Bitwise
@@ -376,8 +377,19 @@ theorem decodeIndex_eq_decodeCoordinate {w n : ℕ} (j : Fin (codeLength w n)) :
   decodeIndex_eq_unrankCoordinate
     (show Fin ((2 ^ fieldDegree w n - 1) * (2 * fieldDegree w n)) from j)
 
-private def nonzeroPointBits {b : ℕ} (i : Fin (2 ^ b - 1)) : BitString b :=
+/-- The power-basis bits of the positively numbered field point at zero-based rank `i`. -/
+def nonzeroPointBits {b : ℕ} (i : Fin (2 ^ b - 1)) : BitString b :=
   (BitString.equivFin b).symm ⟨i.val + 1, by have := i.isLt; omega⟩
+
+/-- On a valid index the little-endian word of the decoded point is the exact power-basis
+word passed to the indexed evaluator. -/
+theorem lowBits_decodeIndex_point {w n : ℕ} (j : Fin (codeLength w n)) :
+    BitString.lowBits (fieldDegree w n) (decodeIndex (fieldDegree w n) j.val).point =
+      List.ofFn (nonzeroPointBits (decodeCoordinate w n j).1) := by
+  rw [decodeIndex_eq_decodeCoordinate j]
+  obtain ⟨point, half, bit⟩ := decodeCoordinate w n j
+  exact BitString.lowBits_eq_ofFn_equivFin_symm (fieldDegree w n)
+    ⟨point.val + 1, by have := point.isLt; omega⟩
 
 /-- The codeword in executable coordinate order. Points are numbered as positive binary
 integers in power-basis coordinates. -/

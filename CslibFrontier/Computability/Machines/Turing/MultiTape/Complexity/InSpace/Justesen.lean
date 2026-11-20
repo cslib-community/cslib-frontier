@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Foundations.Data.Nat.BinarySize
@@ -20,8 +21,9 @@ The input consists of the binary width and horizon of a layered graph. Starting 
 sixteen, a counted loop raises the degree by sixteen and multiplies the retained power of two
 by a fixed factor, holding the state once the capacity suffices. The final degree and
 power give the field degree and exact seed length of the existing Justesen generator. Native
-space is linear in the encoded dimensions, including every live loop state. A binary
-degree and index also suffice to decode one coordinate in linear space.
+space is linear in the encoded dimensions, including every live loop state. The binary degree
+and index suffice to decode a coordinate. From the dimensions and index we can also produce
+the little-endian power-basis word of the nonzero field point in linear space.
 -/
 
 public section
@@ -200,5 +202,44 @@ theorem decodeIndex_inSpace :
   have hwithin := budget_natMod hindex hblock
   exact encCoordinateNumbers_mk_budget (budget_natSucc (budget_natDiv hindex hblock))
     (budget_natDiv hwithin hdegree) (budget_natMod hwithin hdegree)
+
+private theorem fieldDegree_le_codeLength_size (w n : ℕ) :
+    fieldDegree w n ≤ (codeLength w n).size := by
+  let b := fieldDegree w n
+  have hb : 1 ≤ b := Nat.one_le_iff_ne_zero.2 (fieldDegree_ne_zero w n)
+  have hpow : 2 ^ (b - 1) ≤ 2 ^ b - 1 := by
+    have hpos : 0 < 2 ^ (b - 1) := by positivity
+    have he : 2 ^ b = 2 ^ (b - 1) * 2 := by
+      rw [← pow_succ, Nat.sub_add_cancel hb]
+    omega
+  have hlen : 2 ^ (b - 1) ≤ codeLength w n :=
+    hpow.trans (by
+      change 2 ^ b - 1 ≤ (2 ^ b - 1) * (2 * b)
+      simpa only [mul_one] using Nat.mul_le_mul_left (2 ^ b - 1) (show 1 ≤ 2 * b by omega))
+  exact Nat.le_of_pred_lt (Nat.lt_size.2 hlen)
+
+/-- Produce the decoded field point as a little-endian coefficient word. The generator's
+degree is bounded by the binary length of its code length, so the complete live state fits
+space linear in the binary dimensions and index. -/
+theorem decodePointWord_inSpace :
+    ComputableInSpace
+      (fun (p : (ℕ × ℕ) × ℕ) =>
+        BitString.lowBits (fieldDegree p.1.1 p.1.2)
+          (decodeIndex (fieldDegree p.1.1 p.1.2) p.2).point)
+      (encPair (encPair encNat encNat) encNat) (encList encBool)
+      (fun p => (encPair (encPair encNat encNat) encNat p).length) := by
+  have hdims := fst (encPair encNat encNat) encNat
+  have hdegree := budget_comp_linear fieldDegree_inSpace hdims
+  have hindex := snd (encPair encNat encNat) encNat
+  have hnum := budget_comp_linear decodeIndex_inSpace (budget_prod hdegree hindex)
+  have hargs := budget_prod hdegree (encCoordinateNumbers_point_budget hnum)
+  have hlength := budget_comp_linear codeLength_inSpace hdims
+  have hdegreeLength :
+      (fun p : (ℕ × ℕ) × ℕ => fieldDegree p.1.1 p.1.2) ≼
+        fun p => (encPair (encPair encNat encNat) encNat p).length :=
+    (BigOLe.of_le fun p => by
+      rw [length_encNat_eq_size]
+      exact fieldDegree_le_codeLength_size p.1.1 p.1.2).trans hlength.length_le
+  exact budget_comp lowBits_inSpace hargs (hdegreeLength.add hargs.length_le)
 
 end Cslib.Code.JustesenFamily
