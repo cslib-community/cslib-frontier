@@ -56,8 +56,9 @@ The statements match an expectation written exactly as
 index type, reindex to `Fin n` first, for example with `Fintype.expect_comp_arrowCongr`. The
 form for functions of at most linear growth admits unbounded `h` of either sign; the second
 moments it uses are `expect_sq_inv_sqrt_card_mul_sum_signVal_le`. The checked clients in
-`CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean` apply it to `z - |z|`, which is
-unbounded below, and derive that `E[|∑ᵢ xᵢ / √n|]` is eventually below `1`.
+[CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean)
+apply it to `z - |z|`, which is unbounded below, and derive that `E[|∑ᵢ xᵢ / √n|]` is eventually
+below `1`.
 
 ## References
 

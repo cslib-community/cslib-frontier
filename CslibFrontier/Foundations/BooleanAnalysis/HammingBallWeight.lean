@@ -53,8 +53,9 @@ The limits are `Tendsto … atTop (𝓝 _)` in `n` for `fₙ` written exactly as
 the limit of the mean as the complementary cdf `Φ̄(t)` (Notation 5.14), which is `1 - Φ(t)` here.
 For another function invariant under permutations of the coordinates, apply
 `levelWeight_one_eq_sq_expect_mul_of_comp_perm` directly. The checked clients in
-`CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean` evaluate the exact identity at `n = 2`,
-`t = 0` against the two degree-one coefficients, and specialize the limits at `t = 0` and `t = 1`.
+[CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean)
+evaluate the exact identity at `n = 2`, `t = 0` against the two degree-one coefficients, and
+specialize the limits at `t = 0` and `t = 1`.
 
 ## References
 

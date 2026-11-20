@@ -41,9 +41,9 @@ The error term `O(n^{-1/2})` is not formalized.
 
 Majority is `majority n : BooleanFunction n`, true when at least `(n + 1) / 2` bits are true, and
 read as signs by `fun x => signVal (majority n x)`. The checked clients in
-`CslibFrontierTests/BooleanAnalysisMajorityInfluence.lean` compute `I[Maj₃] = 3 / 2` both through
-the identity and as the average sensitivity, and derive `I[Majₙ] / n → 0` and, along odd `n`,
-`I[Majₙ] < √n` eventually.
+[CslibFrontierTests/BooleanAnalysisMajorityInfluence.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisMajorityInfluence.lean)
+compute `I[Maj₃] = 3 / 2` both through the identity and as the average sensitivity, and derive
+`I[Majₙ] / n → 0` and, along odd `n`, `I[Majₙ] < √n` eventually.
 
 ## References
 
