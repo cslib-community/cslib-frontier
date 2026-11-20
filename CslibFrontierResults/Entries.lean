@@ -15,6 +15,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.TensorSelfImprovement
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
@@ -11049,6 +11050,23 @@ register_result "low-individual-degree-self-improvement-sdp" where
     failure effect completing them to measurements. The dual ranges over common operator \
     majorants. The optimum has equal primal and dual traces, no primal failure mass and \
     complementary slackness for each polynomial."
+
+register_result "low-individual-degree-symmetric-self-improvement" where
+  title := "Nonprojective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Lemma 9.1",
+      locator := "arXiv:2009.12982v1, pp. 67–68" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_symmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. The input may have a failure outcome if \
+    its successful agreement meets the stated premise. One local polynomial submeasurement \
+    and a positive common majorant give the completeness, point mismatch, successful \
+    self-consistency and dual gap bounds with error 100m(√ε + √δ + √(d/|F|)), using the actual \
+    axis and point-consistency losses. Projective rounding and induction remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6609#issuecomment-7014866968."
 
 register_result "mpda-one-hole-is-no-hole" where
   title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
