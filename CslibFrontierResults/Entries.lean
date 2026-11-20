@@ -10690,6 +10690,19 @@ register_result "fixed-length-polynomial-universality" where
     distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
     without a growth condition. The zero-length vector has no distinct partner."
 
+register_result "polynomial-hash-not-difference-universal" where
+  title := "The polynomial hash Hpoly fails difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Failure of difference universality for Hpoly (unnumbered)",
+      locator := "v0.6, Section 7.4, printed p. 269; Hpoly in Equation 7.3" }
+  ]
+  theorems := [Cslib.Probability.not_isDeltaUniversalHash_polyHash]
+  scope := "For a message length cap of at least one, the hashes of [1] and [0] differ by 1 \
+    at every key. This rules out statistical difference universality at any bound below 1. \
+    The book uses a uniform key over a prime field. The Lean proof allows any field and any \
+    probability mass function on its keys."
+
 register_result "ghash-gcm-length-block-xor-duf" where
   title := "GHASH on the bit-length version of GCM's line (∗) input, zero-padded with its \
     length block, is an ℓ/2^128-XOR-DUF for inputs of at most ℓ blocks, the length block \
