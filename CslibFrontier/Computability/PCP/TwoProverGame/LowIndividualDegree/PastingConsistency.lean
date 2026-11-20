@@ -187,19 +187,6 @@ noncomputable def isolatedSliceMismatch
     Measurement (Option F) A :=
   M.map (Option.map fun q => eval u q.val)
 
-omit [Field F] [Finite F] [StarModule ℂ A] [SelfAdjointDecompose A] in
-private theorem successfulMismatch_eq_event {X Y γ : Type*} [Fintype γ] [Fintype F] [DecidableEq F]
-    (T : CommutingStrategy X Y γ β A) (x : X) (y : Y) (f : γ → Option F) (g : β → F) :
-    Measurement.successfulMismatch T.state ((T.alice x).map f) ((T.bob y).map g) =
-      ((T.answers x y).toOuterMeasure {ab | ∃ a, f ab.1 = some a ∧ a ≠ g ab.2}).toReal := by
-  classical
-  rw [Cslib.Probability.PMF.toOuterMeasure_apply_toReal,
-    Fintype.sum_prod_type, Measurement.successfulMismatch_map_map]
-  refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
-  simp only [Set.mem_ofPred_eq, T.answers_apply, ENNReal.toReal_ofReal (T.prob_nonneg x y a b)]
-  unfold CommutingStrategy.prob
-  split_ifs <;> rfl
-
 private theorem exists_successful_ne {α γ : Type*} (f : α → γ) (a : Option α) (z : γ) :
     (∃ q, a = some q ∧ f q ≠ z) ↔ (∃ v, a.map f = some v ∧ v ≠ z) := by
   cases a <;> simp
@@ -213,7 +200,8 @@ theorem isolatedSliceMismatch_eq_successfulMismatch [Fintype F] [DecidableEq F]
     isolatedSliceMismatch T lineValue u t =
       Measurement.successfulMismatch T.state (evaluatePolynomialMeasurement (T.alice t) u)
         ((T.bob u).map (fun b => lineValue b t)) := by
-  rw [isolatedSliceMismatch, evaluatePolynomialMeasurement, successfulMismatch_eq_event]
+  rw [isolatedSliceMismatch, evaluatePolynomialMeasurement,
+    CommutingStrategy.successfulMismatch_map_map_eq_event]
   congr 2
   ext ⟨a, b⟩
   exact exists_successful_ne (fun q : BoundedPolynomial F m d => eval u q.val) a (lineValue b t)
@@ -234,7 +222,7 @@ theorem pastedLineMismatch_eq_successfulMismatch [Fintype F] [DecidableEq F] {k 
   rw [PMF.toOuterMeasure_map_apply, evaluatePolynomialMeasurement, pasteProjectiveSlices,
     pasteMeasurement]
   simp only [Measurement.map_map]
-  have h := successfulMismatch_eq_event (T.sequential k hM) x u
+  have h := (T.sequential k hM).successfulMismatch_map_map_eq_event x u
     (Option.map (fun q => eval (Fin.snoc u t) q.val) ∘ pasteOutcome x) (fun b => lineValue b t)
   refine Eq.trans ?_ h.symm
   congr 2
