@@ -49,9 +49,22 @@ variable {N : ℕ} {m : Type → Type*}
 destinations of its edges in order, without the initial source. -/
 abbrev Branch (N : ℕ) := Transcript (Fin N)
 
+/-- Destination budgets, independent of edge validity and the terminal tally. -/
+@[expose] def Bounded (k : ℕ) (b : Branch N) : Prop :=
+  ∀ v vs, b v = some vs → vs.length ≤ k
+
 /-- Recover the full vertex lists for the transcript contract. -/
 @[expose] def transcript (source : Fin N) (branch : Branch N) : Transcript (Fin N) :=
   fun v => (branch v).map (source :: ·)
+
+/-- Passing typed transcripts already meet the destination budget. -/
+theorem bounded_of_passes (source : Fin N) (k : ℕ) (b : Branch N)
+    {R : Fin N → Fin N → Prop} (h : Passes R source k (transcript source b)) :
+    Bounded k b := by
+  intro v vs hv
+  have hp : transcript source b v = some (source :: vs) := by simp [transcript, hv]
+  have hl := (h.1 v (source :: vs) hp).2
+  simpa [guessedLength, transcript, hv] using hl
 
 /-- Check one walk by reading its next destination or end marker. The read-only edge callback
 is invoked once per attempted edge, provided there is still budget. -/

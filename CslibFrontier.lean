@@ -301,9 +301,11 @@ public import CslibFrontier.Algorithms.Quantum.PeriodFinding
 public import CslibFrontier.Algorithms.Reachability.BreadthFirst
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Controller
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerBounds
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerReplay
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
 public import CslibFrontier.Algorithms.Reachability.InductiveCounting
 public import CslibFrontier.Algorithms.Reachability.InductiveCounting.Bounds
@@ -2151,6 +2153,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Ladner.Stages
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Closure
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Complement
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Counting
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.ClosureKernel
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.ConfigurationGraph
