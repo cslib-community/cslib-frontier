@@ -14,11 +14,11 @@ public import CslibFrontier.Crypto.Protocols.UC.MultiSession
 
 This module defines the named data structures (`SubSessionInput`, `SubSessionBackdoor`,
 `MultiSessionState`) and the lazy multi-session ideal functionality
-`IdealFunctionality.multiSession` (`F̂`), following Section 3 of [CanettiRabin2003] (CRYPTO 2003,
-LNCS 2729, composition operation `π^[ρ̂]` on pp. 272–273, `F̂` and Theorem 1 on p. 273;
-locators follow the CRYPTO 2003 proceedings version (LNCS 2729)), adapted to static corruptions
-and this library's call-bounded, pull-only UC execution model (see
-`Cslib.Crypto.Protocols.UC.Emulates` for the call-budget model vs. PPT ITMs).
+`IdealFunctionality.multiSession` (`F̂`), following Section 3 ("The Multi-session Extension of an
+Ideal Functionality" and Theorem 1 (Universal Composition with Joint State)) of
+[CanettiRabin2003] (CRYPTO 2003, LNCS 2729, pp. 265–281), adapted to static corruptions and this
+library's call-bounded, pull-only UC execution model (see `Cslib.Crypto.Protocols.UC.Emulates`
+for the call-budget model vs. PPT ITMs).
 
 The generic lazy-vs-eager parallel-package initialization theorem (`SSP.parFinLazy`,
 `SSP.run_parFinLazy_eq_parFin`) lives separately in `CslibFrontier.Crypto.Protocols.SSP.ParFinLazy`
@@ -29,22 +29,24 @@ without importing the UC ideal-functionality or execution modules.
 
 1. **Named structures (zero projection chains).** `SubSessionInput`, `SubSessionBackdoor`, and
    `MultiSessionState` replace raw nested products and options.
-2. **Lazy multi-session extension `F.multiSession` (p. 273).** For any `[DecidableEq SSID]`,
+2. **Lazy multi-session extension `F.multiSession` ([CanettiRabin2003], §3, "The Multi-session
+   Extension of an Ideal Functionality").** For any `[DecidableEq SSID]`,
    `IdealFunctionality.multiSession SSID F` stores `(secParam, corrupted, sessions)` and creates a
    fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor query
    for a given `ssid`, keeping distinct `ssid`s independent.
-3. **Pull-model interface and scheduling differences.** On p. 273 of [CanettiRabin2003], whenever
-   a copy of `F` sends `(ssid, v)` to some party `Pi`, `F̂` sends `(sid, ssid, v)` to `Pi` and
-   sends `ssid` to the adversary. Here, `IdealFunctionality.multiSession` returns an untagged
-   `Option SubOut` on the selected pull query `SubSessionInput SSID SubIn`, and provides an
-   explicitly queried backdoor interface (`SubSessionBackdoor SSID BackQ`) returning `BackR`
-   (exposing no raw copy state) rather than sending adversary notifications on honest-party
-   activations or outputs. Because the interfaces, scheduling, and call-bounded vs. PPT ITM
-   resource models differ, no implication between `Realizes` for this pull API and the source
-   premise is claimed here.
+3. **Pull-model interface and scheduling differences.** In [CanettiRabin2003], §3, "The
+   Multi-session Extension of an Ideal Functionality", whenever a copy of `F` sends `(ssid, v)` to
+   some party `Pi`, `F̂` sends `(sid, ssid, v)` to `Pi` and sends `ssid` to the adversary. Here,
+   `IdealFunctionality.multiSession` returns an untagged `Option SubOut` on the selected pull query
+   `SubSessionInput SSID SubIn`, and provides an explicitly queried backdoor interface
+   (`SubSessionBackdoor SSID BackQ`) returning `BackR` (exposing no raw copy state) rather than
+   sending adversary notifications on honest-party activations or outputs. Because the interfaces,
+   scheduling, and call-bounded vs. PPT ITM resource models differ, no implication between
+   `Realizes` for this pull API and the source premise is claimed here.
 4. **Scope and joint state vs. global setup.** Joint state here is internal to a single subroutine
-   protocol, not a GUC/EUC global setup shared outside it. Relabelling (composition operation on
-   pp. 272–273; `π̃` proof from p. 274) and joint-state composition remain open.
+   protocol, not a GUC/EUC global setup shared outside it. Relabelling (§3, "The Composition
+   Operation", and the proof of Theorem 1, definition of `π̃`) and joint-state composition remain
+   open.
 
 ## Main definitions
 
@@ -56,8 +58,9 @@ without importing the UC ideal-functionality or execution modules.
 ## References
 
 * [R. Canetti and T. Rabin, *Universal Composition with Joint State*][CanettiRabin2003], CRYPTO
-  2003, LNCS 2729, pp. 265–281 (composition operation, pp. 272–273; `F̂` and Theorem 1, p. 273;
-  Theorem 1 proof and `π̃`, from p. 274).
+  2003, LNCS 2729, pp. 265–281 (§3, "The Composition Operation"; §3, "The Multi-session Extension
+  of an Ideal Functionality"; Theorem 1 (Universal Composition with Joint State); and the proof of
+  Theorem 1, definition of `π̃`).
 -/
 
 public section
@@ -67,7 +70,8 @@ namespace Cslib.Crypto.Protocols.UC
 /-! ### Named structures and lazy multi-session functionality -/
 
 /-- A party input to a multi-session functionality or joint-state protocol: sub-session `ssid`
-with value `input` ([CanettiRabin2003], p. 273, the `(ssid, v)` part of `(sid, ssid, v)`). -/
+with value `input` ([CanettiRabin2003], §3, "The Multi-session Extension of an Ideal
+Functionality", the `(ssid, v)` part of `(sid, ssid, v)`). -/
 structure SubSessionInput (SSID SubIn : Type) : Type where
   /-- Sub-session identifier. -/
   ssid : SSID
@@ -95,9 +99,10 @@ structure MultiSessionState (n : ℕ) (SSID FState : Type) : Type where
 
 /-- Multi-session extension `F̂` of an ideal functionality `F` for any `[DecidableEq SSID]`:
 creates a fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor
-query for `ssid`, and activates that copy ([CanettiRabin2003], p. 273). Unlike the source's `F̂`
-(which sends `(sid, ssid, v)` to `Pi` and sends `ssid` to the adversary when a copy sends
-`(ssid, v)`), this pull API returns an untagged `Option SubOut` on the selected pull and
+query for `ssid`, and activates that copy ([CanettiRabin2003], §3, "The Multi-session Extension of
+an Ideal Functionality"). Unlike the source's `F̂` (which sends `(sid, ssid, v)` to `Pi` and sends
+`ssid` to the adversary when a copy sends `(ssid, v)`), this pull API returns an untagged
+`Option SubOut` on the selected pull and
 provides an explicitly queried backdoor interface (`SubSessionBackdoor SSID BackQ`) returning
 `BackR`, exposing no raw copy state. -/
 @[expose] def IdealFunctionality.multiSession {n : ℕ} {SubIn SubOut BackQ BackR : Type}
