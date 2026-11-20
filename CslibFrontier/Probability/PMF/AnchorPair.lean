@@ -81,18 +81,7 @@ theorem conditionalSnd_anchorPair_left_rate {X Y : Type*} (μ : PMF (X × Y))
     cases m <;> cases y <;>
       simp only [P, Q, c, d, anchorPair_apply, coin_apply, Option.isNone, ite_true,
         Bool.false_eq_true, ite_false] <;> ac_rfl
-  have hmarg : d * (P.map Prod.fst) m = c * (Q.map Prod.fst) m := by
-    rw [map_fst_apply, map_fst_apply, ← ENNReal.tsum_mul_left, ← ENNReal.tsum_mul_left]
-    exact tsum_congr hscale
-  have h0 : d * (P.map Prod.fst) m ≠ 0 := mul_ne_zero hα' ((PMF.mem_support_iff _ _).mp hm)
-  have hf : d * (P.map Prod.fst) m ≠ ⊤ :=
-    ENNReal.mul_ne_top (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)
-  ext y
-  apply (ENNReal.mul_right_inj h0 hf).mp
-  change (d * (P.map Prod.fst) m) * conditionalSnd P m y =
-    (d * (P.map Prod.fst) m) * conditionalSnd Q m y
-  rw [mul_assoc, marginal_mul_conditionalSnd, hmarg, mul_assoc, marginal_mul_conditionalSnd]
-  exact hscale y
+  exact conditionalSnd_eq_of_scaled_slices P Q m m d c hm hα' (PMF.apply_ne_top _ _) hscale
 
 /-- The second erase flag stays independent of any supported first outcome. -/
 theorem conditionalSnd_anchorPair_none {X Y : Type*} (μ : PMF (X × Y)) (α β : I) (m : Option X)
