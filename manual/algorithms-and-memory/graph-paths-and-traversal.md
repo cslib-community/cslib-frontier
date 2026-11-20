@@ -169,42 +169,6 @@ From the repository root, check it with
 These are finite probability bounds; they assert no machine uniformity, running time,
 or Exercise 8.44 concentration endpoint.
 
-## Min-isolating weights for layered digraphs
-
-Import [Layered.MinIsolation](../../CslibFrontier/Foundations/Combinatorics/Digraph/Layered/MinIsolation.lean)
-for `Cslib.LayeredDigraph.IsMinIsolating`. Each edge advances one layer, and path weight
-sums the internal vertices. The predicate requires a unique minimum-weight path for every
-reachable pair.
-
-Import [MinIsolation.Generator](../../CslibFrontier/Algorithms/Reachability/MinIsolation/Generator.lean)
-to obtain Hoza’s weights for a graph on `Fin (n + 1) × Fin w`, ordered as `(layer, column)`.
-Supply `hlayer : ∀ z, G.layer z = z.1.val`. The theorem
-`Hoza.exists_generatedWeight_isMinIsolating` supplies an isolating seed,
-`JustesenFamily.codeLength_bounds` bounds the seed length logarithmically, and
-`Hoza.generatedWeight_polynomial` bounds the weight magnitude. A
-[checked example](../../CslibFrontierTests/LayeredDigraph.lean) applies all three results.
-Native logspace certification for the evaluator remains open in
-[#6747](https://github.com/cslib-community/cslib-frontier/issues/6747).
-
-## Double counting for bounded reachability
-
-Import [DoubleCounting.lean](../../CslibFrontier/Algorithms/Reachability/DoubleCounting.lean)
-for the transcript contract of Reinhardt and Allender's bounded reachability scan.
-`Cslib.DoubleCounting.Passes` checks one skip or walk per vertex against the exact
-breadth-first round size and the sum of its shortest distances. Apply `isSome_iff`
-to recover whether a target is reachable in that round. Use `existsUnique_passes_iff`
-to reduce uniqueness of a passing transcript to uniqueness of the shortest walk to
-each round vertex. [DoubleCounting.Round](../../CslibFrontier/Algorithms/Reachability/DoubleCounting/Round.lean)
-proves the exact next tally when each new vertex is counted once. Given a unique current
-transcript, uniqueness extends exactly when each new vertex has one predecessor in the
-current round. Figure 2 counts qualifying predecessors, so its tally agrees when that
-predecessor check succeeds. A [checked diamond](../../CslibFrontierTests/LayeredDigraph.lean)
-queries a vertex outside the first round and proves that uniqueness fails in the second.
-The [native terminal test](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/LogSpace/DoubleCounting.lean)
-compares the two binary tallies in workspace linear in their encoded lengths. The machine
-that streams the guesses and preserves the transcript-to-branch correspondence is tracked
-in [#6747](https://github.com/cslib-community/cslib-frontier/issues/6747).
-
 ## Continuous metric graphs
 
 Import `CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Basic` ([Basic.lean](../../CslibFrontier/Foundations/Combinatorics/SimpleGraph/MetricGraph/Basic.lean)), along with [Geodesic.lean](../../CslibFrontier/Foundations/Combinatorics/SimpleGraph/MetricGraph/Geodesic.lean), [Maps.lean](../../CslibFrontier/Foundations/Combinatorics/SimpleGraph/MetricGraph/Maps.lean), [Subdivision.lean](../../CslibFrontier/Foundations/Combinatorics/SimpleGraph/MetricGraph/Subdivision.lean), [Realization.lean](../../CslibFrontier/Foundations/Combinatorics/SimpleGraph/MetricGraph/Realization.lean), [NearVertex.lean](../../CslibFrontier/Foundations/Combinatorics/SimpleGraph/MetricGraph/NearVertex.lean) and [Bipartite.lean](../../CslibFrontier/Foundations/Combinatorics/SimpleGraph/MetricGraph/Bipartite.lean). Public declarations live in `SimpleGraph` and `SimpleGraph.MetricGraph`.

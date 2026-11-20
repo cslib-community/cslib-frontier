@@ -21,6 +21,11 @@ Use a finite-label Justesen code in Hoza's base-six assignment. The seed length 
 logarithmic in the size of the layered vertex set, and the weights are polynomially
 bounded. Every layered digraph on the vertex set admits an isolating seed. These are
 the combinatorial and magnitude guarantees of [Hoza2026NLUL, Theorem 1.3].
+Use a graph on `Fin (n + 1) × Fin w`, with layer first and column second.
+Supply `hlayer : ∀ z, G.layer z = z.1.val`. The path weight sums only internal
+vertices. The seed length bound is `Code.JustesenFamily.codeLength_bounds`.
+`CslibFrontierTests.LayeredDigraph` checks the existence theorem, seed-length
+bound, and polynomial magnitude bound through ordinary imports.
 The native logspace bound on the evaluator is a separate obligation.
 
 ## Main definitions

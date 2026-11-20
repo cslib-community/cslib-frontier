@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.Code.Justesen
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
 import CslibFrontier.Foundations.Data.BitString.Binary
-import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
+import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.LinearAlgebra.Lagrange
 
@@ -25,7 +25,9 @@ Justesen family whose message capacity is at least 512 times the bit count
 is proportional to that bit count. The relative distance bound gives at least four times
 that bit count in differing coordinates for each pair of distinct labels.
 
-The executable coordinate evaluator uses Horner's rule over lists of field coefficient bits.
+The executable coordinate evaluators use Horner's rule over lists of field coefficient bits.
+`indexedCodewordMod` computes the same indexed bits using modular shifts, without building a
+multiplication table.
 A native logspace implementation is tracked in cslib-frontier #6747.
 
 ## Main definitions
@@ -33,6 +35,7 @@ A native logspace implementation is tracked in cslib-frontier #6747.
 * `Cslib.Code.JustesenFamily.codeword`: the binary word for a label in `Fin w`.
 * `Cslib.Code.JustesenFamily.codewordBit`: executable evaluation of a coordinate given the
   binary representation of its field point.
+* `Cslib.Code.JustesenFamily.indexedCodewordMod`: indexed evaluation by modular shifts.
 
 ## Main results
 
@@ -42,6 +45,7 @@ A native logspace implementation is tracked in cslib-frontier #6747.
   tie-event union bound.
 * `Cslib.Code.JustesenFamily.codewordBit_eq`: executable coordinate evaluation agrees with the
   algebraic codeword.
+* `Cslib.Code.JustesenFamily.indexedCodewordMod_eq`: agreement with the table-based evaluator.
 -/
 
 public section
@@ -216,66 +220,86 @@ theorem log_le_hammingDist {w n : ℕ} {v v' : Fin w} (hne : v ≠ v') :
   have hd := (length_bounds w n).1.trans (length_le_mul_hammingDist (n := n) hne)
   omega
 
-open BinaryField in
-private def hornerBits (b : ℕ) (tab : List (List (List Bool))) (x : List Bool)
+private def hornerBits (b : ℕ) (mul : List Bool → List Bool → List Bool) (x : List Bool)
     {k : ℕ} (coeff : Fin k → List Bool) : List Bool :=
-  Fin.foldr k (fun i acc => BitString.listXor b [coeff i, fieldMul tab acc x]) []
+  Fin.foldr k (fun i acc => BitString.listXor b [coeff i, mul acc x]) []
+
+private def codewordBitWith {w n : ℕ} (mul : List Bool → List Bool → List Bool)
+    (v : Fin w) (point : BitString (fieldDegree w n)) (half : Fin 2)
+    (j : Fin (fieldDegree w n)) : Bool :=
+  let x := List.ofFn point
+  let a := hornerBits (fieldDegree w n) mul x fun i => List.ofFn (coefficientBits (n := n) v i)
+  let block := if half = 0 then a else mul x a
+  block.getD j false
 
 open BinaryField in
 /-- Evaluate one coordinate using the power-basis bits of its field point. Half zero returns the
 Reed–Solomon evaluation, and half one returns the evaluation multiplied by the point. -/
 def codewordBit {w n : ℕ} (v : Fin w) (point : BitString (fieldDegree w n)) (half : Fin 2)
     (j : Fin (fieldDegree w n)) : Bool :=
-  let tab := fieldTable (fieldDegree w n)
-  let x := List.ofFn point
-  let a := hornerBits (fieldDegree w n) tab x fun i =>
-    List.ofFn (coefficientBits (n := n) v i)
-  let block := if half = 0 then a else fieldMul tab x a
-  block.getD j false
+  codewordBitWith (fieldMul (fieldTable (fieldDegree w n))) v point half j
 
 open BinaryField in
-private theorem fieldOfBits_hornerBits {b k : ℕ} {hb : b ≠ 0} {tab : List (List (List Bool))}
-    (htab : IsMulTable (basis hb) tab) (x : List Bool) (coeff : Fin k → List Bool) :
-    fieldOfBits (basis hb) (hornerBits b tab x coeff) =
+private theorem fieldOfBits_hornerBits {b k : ℕ} {hb : b ≠ 0}
+    {mul : List Bool → List Bool → List Bool}
+    (hmul : ∀ a b, fieldOfBits (basis hb) (mul a b) =
+      fieldOfBits (basis hb) a * fieldOfBits (basis hb) b)
+    (x : List Bool) (coeff : Fin k → List Bool) :
+    fieldOfBits (basis hb) (hornerBits b mul x coeff) =
       ∑ i, fieldOfBits (basis hb) (coeff i) * fieldOfBits (basis hb) x ^ i.val := by
   induction k with
   | zero => simp [hornerBits]
   | succ k ih =>
     unfold hornerBits
     simp only [Fin.foldr_succ, fieldOfBits_listXor, List.map_cons, List.map_nil, List.sum_cons,
-      List.sum_nil, add_zero, fieldOfBits_fieldMul htab]
+      List.sum_nil, add_zero, hmul]
     rw [show fieldOfBits (basis hb) (Fin.foldr k
-        (fun i acc => BitString.listXor b [coeff i.succ, fieldMul tab acc x]) []) = _ from
+        (fun i acc => BitString.listXor b [coeff i.succ, mul acc x]) []) = _ from
       ih (fun i => coeff i.succ)]
     simp only [Fin.sum_univ_succ, Fin.val_zero, pow_zero, mul_one, Fin.val_succ, pow_succ,
       Finset.sum_mul, mul_assoc]
 
 open BinaryField in
-private theorem fieldOfBits_evalBits {w n : ℕ} (v : Fin w) (point : BitString (fieldDegree w n)) :
+private theorem fieldOfBits_evalBits {w n : ℕ} {mul : List Bool → List Bool → List Bool}
+    (hmul : ∀ a b, fieldOfBits (basis (fieldDegree_ne_zero w n)) (mul a b) =
+      fieldOfBits (basis (fieldDegree_ne_zero w n)) a *
+        fieldOfBits (basis (fieldDegree_ne_zero w n)) b)
+    (v : Fin w) (point : BitString (fieldDegree w n)) :
     fieldOfBits (basis (fieldDegree_ne_zero w n))
-        (hornerBits (fieldDegree w n) (fieldTable (fieldDegree w n)) (List.ofFn point)
+        (hornerBits (fieldDegree w n) mul (List.ofFn point)
           fun i => List.ofFn (coefficientBits (n := n) v i)) =
       (message (n := n) v).val.eval ((equivBits (fieldDegree_ne_zero w n)).symm point) := by
-  rw [fieldOfBits_hornerBits (isMulTable_fieldTable (fieldDegree_ne_zero w n)),
+  rw [fieldOfBits_hornerBits hmul,
     eval_eq_sum_degreeLTEquiv (message (n := n) v).2]
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [fieldOfBits_ofFn, fieldOfBits_ofFn, message, LinearEquiv.apply_symm_apply]
 
 open BinaryField in
-/-- Executable coordinate evaluation agrees with the algebraic Justesen word. -/
-theorem codewordBit_eq {w n : ℕ} (v : Fin w) (u : (BinaryField (fieldDegree w n))ˣ)
+private theorem codewordBitWith_eq {w n : ℕ} {mul : List Bool → List Bool → List Bool}
+    (hmul : ∀ a b, fieldOfBits (basis (fieldDegree_ne_zero w n)) (mul a b) =
+      fieldOfBits (basis (fieldDegree_ne_zero w n)) a *
+        fieldOfBits (basis (fieldDegree_ne_zero w n)) b)
+    (v : Fin w) (u : (BinaryField (fieldDegree w n))ˣ)
     (half : Fin 2) (j : Fin (fieldDegree w n)) :
-    codewordBit v (equivBits (fieldDegree_ne_zero w n) u) half j = codeword v (u, (half, j)) := by
+    codewordBitWith mul v (equivBits (fieldDegree_ne_zero w n) u) half j =
+      codeword v (u, (half, j)) := by
   let hb := fieldDegree_ne_zero w n
   let point := equivBits hb (u : BinaryField (fieldDegree w n))
-  have ha := fieldOfBits_evalBits v point
+  have ha := fieldOfBits_evalBits hmul v point
   rw [AddEquiv.symm_apply_apply] at ha
-  unfold codewordBit codeword justesen concat wozencraft
+  unfold codewordBitWith codeword justesen concat wozencraft
   dsimp only
   split_ifs with h
   · rw [← equivBits_fieldOfBits hb, ha]
-  · rw [← equivBits_fieldOfBits hb, fieldOfBits_fieldMul (isMulTable_fieldTable hb),
+  · rw [← equivBits_fieldOfBits hb, hmul,
       fieldOfBits_ofFn, AddEquiv.symm_apply_apply, ha]
+
+open BinaryField in
+/-- Executable coordinate evaluation agrees with the algebraic Justesen word. -/
+theorem codewordBit_eq {w n : ℕ} (v : Fin w) (u : (BinaryField (fieldDegree w n))ˣ)
+    (half : Fin 2) (j : Fin (fieldDegree w n)) :
+    codewordBit v (equivBits (fieldDegree_ne_zero w n) u) half j = codeword v (u, (half, j)) :=
+  codewordBitWith_eq (fieldOfBits_fieldMul (isMulTable_fieldTable _)) v u half j
 
 /-- Length of the coordinate list in evaluation-point, half, and bit order. -/
 @[expose] def codeLength (w n : ℕ) : ℕ :=
@@ -293,6 +317,15 @@ integers in power-basis coordinates. -/
 def indexedCodeword {w n : ℕ} (v : Fin w) (j : Fin (codeLength w n)) : Bool :=
   let (point, half, bit) := decodeCoordinate w n j
   codewordBit v (nonzeroPointBits point) half bit
+
+open BinaryField in
+/-- Evaluate one indexed coordinate with modular shifts and XORs, holding only the modulus
+and individual field words. The multiplication kernel uses no precomputed table. -/
+def indexedCodewordMod {w n : ℕ} (v : Fin w) : Fin (codeLength w n) → Bool :=
+  let g := modulusBitsScan (fieldDegree w n)
+  fun j =>
+    let (point, half, bit) := decodeCoordinate w n j
+    codewordBitWith (fieldMulMod g) v (nonzeroPointBits point) half bit
 
 private theorem nonzeroPointBits_ne_zero {b : ℕ} (i : Fin (2 ^ b - 1)) :
     nonzeroPointBits i ≠ 0 := by
@@ -351,6 +384,19 @@ private theorem indexedCodeword_eq {w n : ℕ} (v : Fin w) (j : Fin (codeLength 
   obtain ⟨i, half, bit⟩ := coord
   simpa [pointEquiv, pointUnit] using
     codewordBit_eq v (pointUnit (fieldDegree_ne_zero w n) i) half bit
+
+open BinaryField in
+/-- Table-free evaluation returns the same bit in the existing indexed coordinate order. -/
+theorem indexedCodewordMod_eq {w n : ℕ} (v : Fin w) (j : Fin (codeLength w n)) :
+    indexedCodewordMod v j = indexedCodeword v j := by
+  unfold indexedCodewordMod indexedCodeword
+  obtain ⟨i, half, bit⟩ := decodeCoordinate w n j
+  let hb := fieldDegree_ne_zero w n
+  let u := pointUnit hb i
+  have hpoint : equivBits hb u = nonzeroPointBits i := by simp [u, pointUnit]
+  dsimp only
+  rw [modulusBitsScan_eq, ← hpoint, codewordBit_eq v u,
+    codewordBitWith_eq (fieldOfBits_fieldMulMod hb) v u]
 
 /-- The executable block length has the same quantitative bounds as the algebraic one. -/
 theorem codeLength_bounds (w n : ℕ) :

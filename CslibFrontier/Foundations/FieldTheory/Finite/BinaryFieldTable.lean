@@ -71,7 +71,7 @@ theorem polyOfBits_modulusBits {w : ℕ} (hw : w ≠ 0) :
   rw [modulusBits, polyOfBits_bits, polyOfCode_leastIrreducibleCode hw le_rfl]
 
 /-- The coefficient list of the modulus has length `w + 1` and ends with a one. -/
-private theorem exists_modulusBits_eq {w : ℕ} (hw : w ≠ 0) :
+theorem exists_modulusBits_eq {w : ℕ} (hw : w ≠ 0) :
     ∃ l : List Bool, modulusBits w = l ++ [true] ∧ l.length = w := by
   have hne : leastIrreducibleCode (2 ^ (w + 1)) w ≠ 0 := by
     intro h

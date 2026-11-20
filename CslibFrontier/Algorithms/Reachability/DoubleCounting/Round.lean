@@ -21,6 +21,12 @@ On a tied round the set-based tally still counts each newly reached vertex once.
 Under uniqueness in the current round, a new vertex has a unique shortest walk
 exactly when it has a unique predecessor in that round.
 
+The checked diamond in `CslibFrontierTests.LayeredDigraph` uses `isSome_iff`
+to query a vertex outside the first round, then uses the predecessor criterion
+to show that uniqueness fails in the second. `Scan` provides a streaming
+replay of the bounded scan, and the native `LogSpace.DoubleCounting` module
+certifies the terminal comparison of binary tallies.
+
 ## Main results
 
 * `Cslib.DoubleCounting.nextTally_eq_expected`: the scan computes the exact next tally.

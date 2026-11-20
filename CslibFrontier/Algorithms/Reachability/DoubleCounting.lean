@@ -41,7 +41,7 @@ public section
 
 namespace Cslib.DoubleCounting
 
-open Relation
+open Relation Finset
 
 variable {α : Type*} {r : α → α → Prop} {s v : α} {k : ℕ}
 
@@ -90,7 +90,7 @@ noncomputable def selected (w : Transcript α) : Finset α := by
   cases h : w v <;> simp [selected, h]
 
 /-- Number of edges guessed for a vertex. A skipped vertex contributes zero. -/
-def guessedLength (w : Transcript α) (v : α) : ℕ :=
+@[expose] def guessedLength (w : Transcript α) (v : α) : ℕ :=
   ((w v).getD []).length - 1
 
 /-- The two registers checked at the end of a scan. -/
@@ -104,8 +104,21 @@ structure Tally where
 @[expose] noncomputable def expected (r : α → α → Prop) (s : α) (k : ℕ) : Tally :=
   ⟨(round r s k).card, ∑ v ∈ round r s k, distance r s v⟩
 
+/-- The exact tally uses at most one count and at most `k` edges per vertex. -/
+theorem expected_bounds :
+    (expected r s k).count ≤ Fintype.card α ∧
+      (expected r s k).lengthSum ≤ Fintype.card α * k := by
+  have hc : (round r s k).card ≤ Fintype.card α := Finset.card_le_univ _
+  refine ⟨hc, ?_⟩
+  unfold expected
+  calc
+    ∑ v ∈ round r s k, distance r s v ≤ ∑ _ ∈ round r s k, k :=
+      sum_le_sum fun _ hv => (distance_spec (mem_round.mp hv)).2
+    _ = (round r s k).card * k := by simp
+    _ ≤ _ := Nat.mul_le_mul_right k hc
+
 /-- Terminal count and length sum of the chosen walks. -/
-noncomputable def observed (w : Transcript α) : Tally :=
+@[expose] noncomputable def observed (w : Transcript α) : Tally :=
   ⟨(selected w).card, ∑ v ∈ selected w, guessedLength w v⟩
 
 /-- The final test compares the two registers with their expected values. -/
@@ -120,7 +133,7 @@ theorem Tally.matches_iff (actual expected : Tally) :
 
 /-- The scan's terminal checks, using the correct count and distance sum as inputs.
 The chain condition also checks the initial and final vertices of each guess. -/
-def Passes (r : α → α → Prop) (s : α) (k : ℕ) (w : Transcript α) : Prop :=
+@[expose] def Passes (r : α → α → Prop) (s : α) (k : ℕ) (w : Transcript α) : Prop :=
   (∀ v p, w v = some p → p.IsChainFromTo r s v ∧ guessedLength w v ≤ k) ∧
   (observed w).matches (expected r s k)
 
@@ -249,5 +262,32 @@ theorem existsUnique_passes_iff :
       obtain ⟨_, _, huniq⟩ := h v hv
       rw [hq, hp, huniq q ⟨hqchain, hqlen⟩, huniq p ⟨hpchain, hplen⟩]
     · rw [hout' v hv, hout v hv]
+
+/-- At radius zero, only the source is reachable. -/
+theorem round_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
+    round r s 0 = {s} := by
+  classical
+  ext v
+  simp only [mem_round, reachableWithin_zero, Set.mem_singleton_iff, mem_singleton]
+
+/-- The initial tally counts the source, at distance zero. -/
+theorem expected_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
+    expected r s 0 = ⟨1, 0⟩ := by
+  have hmem : s ∈ round r s 0 := by simp [round_zero]
+  have hd := (distance_spec (mem_round.mp hmem)).2
+  simp [expected, round_zero, Nat.eq_zero_of_le_zero hd]
+
+/-- The only successful radius-zero transcript selects the singleton walk at the source. -/
+theorem existsUnique_passes_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
+    ∃! w, Passes r s 0 w := by
+  classical
+  rw [existsUnique_passes_iff, round_zero]
+  intro v hv
+  obtain rfl := mem_singleton.mp hv
+  have hmem : v ∈ round r v 0 := by simp [round_zero]
+  have hd := Nat.eq_zero_of_le_zero (distance_spec (mem_round.mp hmem)).2
+  refine ⟨[v], ⟨List.isChainFromTo_singleton, by simp [hd]⟩, fun p hp => ?_⟩
+  obtain ⟨a, rfl⟩ := List.length_eq_one_iff.mp (by simpa [hd] using hp.2)
+  simpa using hp.1.getLast_eq
 
 end Cslib.DoubleCounting

@@ -5,7 +5,7 @@ Authors: Christian Reitwiessner
 -/
 
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
-import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
+import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerReplay
 
 /-! A diamond with two distinct paths of different internal weights. -/
 
@@ -81,17 +81,7 @@ example : codeLength 2 2 ≤ 268435456 * (Nat.log 2 (2 * (2 + 1)) + 1) :=
 open Cslib.DoubleCounting Relation
 
 private theorem firstRound_unique : ∃! w, Passes diamond.Adj 0 1 w := by
-  have hzero : ∃! w, Passes diamond.Adj 0 0 w := by
-    apply existsUnique_passes_iff.mpr
-    intro v hv
-    have hv' : v = 0 := by simpa [mem_round] using hv
-    subst v
-    have hd := (distance_spec (mem_round.mp hv)).2
-    have hd' : distance diamond.Adj 0 0 = 0 := Nat.eq_zero_of_le_zero hd
-    refine ⟨[0], ⟨List.isChainFromTo_singleton, by simp [hd']⟩, ?_⟩
-    intro p hp
-    obtain ⟨a, rfl⟩ := List.length_eq_one_iff.mp (by simpa [hd'] using hp.2)
-    exact congrArg (fun v : Fin 4 => [v]) hp.1.head_eq
+  have hzero := existsUnique_passes_zero diamond.Adj (0 : Fin 4)
   obtain ⟨w, hw⟩ := hzero.exists
   apply (existsUnique_passes_succ_iff hw hzero).mpr
   intro v hv
@@ -128,5 +118,56 @@ example (w : Transcript (Fin 4)) (hw : Passes diamond.Adj 0 1 w) :
   have h₁ := hpred 1 (adj_of_layer (by decide)) (adj_of_layer (by decide))
   have h₂ := hpred 2 (adj_of_layer (by decide)) (adj_of_layer (by decide))
   exact (by decide : (1 : Fin 4) ≠ 2) (h₁.trans h₂.symm)
+
+-- Before radius two, the diamond reaches the source and then the two middle vertices.
+private def diamondScan : MembershipScan List 4 :=
+  fun k _ v => [decide (v = 0 ∨ (k > 0 ∧ v ≠ 3))]
+
+private def diamondEdge (u v : Fin 4) : List Bool :=
+  [decide (diamondLayer v = diamondLayer u + 1)]
+
+-- The second update flags the tied target and contributes exactly one new vertex.
+set_option linter.hashCommand false in
+#guard ((scanNextRound diamondEdge diamondScan 1 ⟨3, 2⟩).map
+  (fun a => (a.tally.count, a.tally.lengthSum, a.bad))) == [(4, 4, true)]
+
+set_option linter.hashCommand false in
+#guard runController diamondEdge diamondScan 3 == [some (.bad 2)]
+
+private def isolatedScan : MembershipScan List 2 := fun _ _ v => [v == 0]
+
+set_option linter.hashCommand false in
+#guard runController (fun _ _ => [false]) isolatedScan 0 == [some (.decided true)]
+
+set_option linter.hashCommand false in
+#guard runController (fun _ _ => [false]) isolatedScan 1 == [some (.decided false)]
+
+private abbrev emptyEdge : Fin 2 → Fin 2 → Prop := fun _ _ => False
+
+-- Supply the actual typed scan to the controller on a graph stable at round zero.
+example (target : Fin 2) : ∃ verdict,
+    runController (fun _ _ => [false]) (replayMembership (fun _ _ => false) 0) target =
+      [some verdict] ∧
+    match verdict with
+    | .bad _ => False
+    | .decided b => (b = true ↔ ReflTransGen emptyEdge 0 target) := by
+  classical
+  have hedge : (fun _ _ : Fin 2 => false = true) = emptyEdge := by
+    funext u v
+    simp
+  have hround (k : ℕ) : reachableWithin emptyEdge 0 k = {0} := by
+    induction k with
+    | zero => exact reachableWithin_zero
+    | succ k ih => simp [reachableWithin_succ, ih, emptyEdge]
+  obtain ⟨verdict, hrun, hspec⟩ := runController_replay_correct (fun _ _ : Fin 2 => false) 0 target
+  refine ⟨verdict, hrun, ?_⟩
+  rw [hedge] at hspec
+  cases verdict with
+  | bad j =>
+    apply hspec.2
+    have h0 := existsUnique_passes_zero emptyEdge 0
+    rw [existsUnique_passes_iff] at h0 ⊢
+    simpa [mem_round, hround] using h0
+  | decided _ => exact hspec.2
 
 end CslibFrontierTests.LayeredDigraph
