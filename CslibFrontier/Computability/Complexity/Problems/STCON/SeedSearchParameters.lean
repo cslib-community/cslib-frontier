@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredParameters
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision.HozaSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 
 /-!
 # Seed-search initialization from the original configuration-graph input
@@ -18,7 +20,8 @@ The native initializer counts the original input through the existing layered ST
 It retains the resulting graph parameters and computes the common subdivision size, seed width
 and exclusive rank limit from the graph's width and final layer. The encoded result fits in
 logarithmic space in the original word length. This prepares the parameters used by a later
-scanner that queries the original input.
+scanner that queries the original input. The same length bound controls the numeric seed
+limit, source count and subdivision carrier size by a polynomial in the original word length.
 -/
 
 public section
@@ -79,5 +82,37 @@ theorem length_configurationSeedSearchParameters_le_log (ntm : MultiTapeNTM k Bo
     (f := fun w : List Bool => layeredParameters ntm c w.length) (g := seedSearchParameters)
     (length_layeredParameters_le_log ntm c)
     seedSearchParameters_inSpace
+
+/-- The initialized seed limit, original-source count and subdivided vertex count are
+polynomial in the original input length. These numeric bounds can be used in a clock for
+the nested seed and source loops. -/
+theorem configurationSeedSearchParameters_polyBounded (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) :
+    PolyBounded List.length (fun w =>
+      (configurationSeedSearchParameters ntm c w).search.seedLimit) ∧
+    PolyBounded List.length (fun w =>
+      (configurationSeedSearchParameters ntm c w).search.subdivision.originalCount) ∧
+    PolyBounded List.length (fun w =>
+      (configurationSeedSearchParameters ntm c w).search.subdivision.vertexCount) := by
+  obtain ⟨C, hC⟩ := length_configurationSeedSearchParameters_le_log ntm c
+  have hpoly (f : SeedSearchParameters → ℕ)
+      (hf : ∀ p, (encNat (f p)).length ≤ (encSeedSearchParameters p).length) :
+      PolyBounded List.length (fun w => f (configurationSeedSearchParameters ntm c w)) := by
+    refine (PolyBounded.of_polynomiallyBounded List.length
+      (polynomiallyBounded_two_pow_mul_log C)).mono fun w => ?_
+    have hlen := (hf (configurationSeedSearchParameters ntm c w)).trans (hC w)
+    rw [length_encNat_eq_size, Nat.log2_eq_log_two] at hlen
+    exact (Nat.size_le.mp hlen).le
+  have hsub (p : SeedSearchParameters) :
+      (encSubdivisionSize p.search.subdivision).length ≤ (encSeedSearchParameters p).length :=
+    (encSeedSearchSize_subdivision_length_le p.search).trans
+      (encSeedSearchParameters_search_length_le p)
+  exact ⟨hpoly (fun p => p.search.seedLimit) fun p =>
+      (encSeedSearchSize_seedLimit_length_le p.search).trans
+        (encSeedSearchParameters_search_length_le p),
+    hpoly (fun p => p.search.subdivision.originalCount) fun p =>
+      (encSubdivisionSize_originalCount_length_le p.search.subdivision).trans (hsub p),
+    hpoly (fun p => p.search.subdivision.vertexCount) fun p =>
+      (encSubdivisionSize_vertexCount_length_le p.search.subdivision).trans (hsub p)⟩
 
 end Cslib.Complexity.STCON

@@ -38,4 +38,12 @@ example (w : List Bool) :
         Nat.card (Vertex (Fin ((I.n - 1) + 1) × Fin I.n) p.search.subdivision.chainBound) :=
   ⟨rfl, subdivisionSize_vertexCount _ _⟩
 
+-- One designated call and at most one call per original source, for each seed rank.
+example :
+    PolyBounded List.length fun w =>
+      let p := (configurationSeedSearchParameters ntm c w).search
+      p.seedLimit * (1 + p.subdivision.originalCount) := by
+  obtain ⟨hseed, hsource, _⟩ := configurationSeedSearchParameters_polyBounded ntm c
+  exact hseed.mul ((PolyBounded.const 1).add hsource)
+
 end CslibFrontierTests.STCONSeedSearchParameters
