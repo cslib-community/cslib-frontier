@@ -191,12 +191,13 @@ end Align
 section Sound
 
 variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ] [DecidableEq Γ]
-  {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
+  {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')] [DecidablePred (· ∈ M.start)]
 
 /-- **The soundness invariant**: for every realization of the hole triples of a reachable list,
 there is a hole derivation of a run of the MPDA, from an initial state with empty stacks to the
 last state of the list, whose chains push the realization's symbols. -/
-theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State} (hμ : M.Reachable K μ) :
+theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
+    (hμ : M.Reachable K M.initialLists μ) :
     ∀ rs : List (List (Γ × State)),
       List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r) rs μ.holes →
       ∃ s₀ ∈ M.start, ∃ (w : List (Symbol × Op n Γ)) (C : List (HoleChain n Γ)),
@@ -206,10 +207,15 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State} (hμ :
           C rs ∧
         M.configLTS.MTr ⟨s₀, Stacks.empty⟩ w ⟨μ.last, stacksOf C⟩ := by
   induction hμ with
-  | @init s hs =>
+  | @init μ hμ =>
     intro rs hrs
+    obtain ⟨hholes, s₀, hs₀, hwr⟩ := mem_initialLists.mp hμ
+    rw [hholes] at hrs
     cases hrs
-    exact ⟨s, hs, [], [], .nil, .nil, .nil, by rw [stacksOf_nil]; exact .refl⟩
+    obtain ⟨v, hv, hvrun⟩ := wellNestedReach_iff.mp ((mem_wellNestedPairs M).mp hwr)
+    refine ⟨s₀, hs₀, [] ++ v, [], .wellNested .nil hv, by rw [hholes]; exact .nil, .nil, ?_⟩
+    rw [stacksOf_nil]
+    exact hv.configLTS_mTr hvrun _
   | @step μ ν _ hν ih =>
     intro rs hrs
     simp only [successors, Finset.mem_union] at hν
@@ -314,14 +320,14 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State} (hμ :
 
 /-- **Soundness of Algorithm 1** of [AkshayGastinKrishnaRoychowdhury2020]: if the search answers
 `false`, some word has a `K`-hole-bounded accepting run. -/
-theorem exists_mem_boundedLanguage_of_isEmpty_eq_false [DecidablePred (· ∈ M.start)]
-    [DecidablePred (· ∈ M.accept)] {K : ℕ} (h : M.isEmpty K = false) :
-    ∃ x, x ∈ M.boundedLanguage (HoleBounded K) := by
-  unfold isEmpty at h
+theorem exists_mem_boundedLanguage_of_isEmpty_eq_false [DecidablePred (· ∈ M.accept)] {K : ℕ}
+    (h : M.isEmpty K = false) : ∃ x, x ∈ M.boundedLanguage (HoleBounded K) := by
+  unfold isEmpty isEmptyFrom at h
   rw [decide_eq_false_iff_not, not_not] at h
   obtain ⟨μ, hμ, hholes, f, hf, hwr⟩ := h
   obtain ⟨s₀, hs₀, w, C, hd, hst, -, hrun⟩ :=
-    (mem_explore.mp hμ).exists_holeDerivation [] (by rw [hholes]; exact .nil)
+    ((mem_explore fun ν hν => (mem_initialLists.mp hν).1).mp hμ).exists_holeDerivation []
+      (by rw [hholes]; exact .nil)
   rw [hholes] at hst
   obtain rfl : C = [] := by cases hst; rfl
   obtain ⟨v, hv, hvrun⟩ := wellNestedReach_iff.mp ((mem_wellNestedPairs M).mp hwr)

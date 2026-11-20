@@ -291,21 +291,43 @@ none, or the fuel runs out. -/
       let new := todo.biUnion (M.successors K) \ visited
       explore K k (visited ∪ new) new
 
-/-- The initial lists: an initial state and no holes. -/
-@[expose] def initialLists [DecidablePred (· ∈ M.start)] : Finset (HoleList n State) :=
+/-- The initial list of the search as printed in Algorithm 1 (line 10): an initial state and no
+holes. -/
+@[expose] def startLists [DecidablePred (· ∈ M.start)] : Finset (HoleList n State) :=
   (Finset.univ.filter (· ∈ M.start)).image fun s => ⟨[], s⟩
+
+/-- The initial lists of the repaired search: a state reached from an initial state by a
+well-nested run, and no holes. The search as printed starts from the initial state itself
+(`startLists`), and so misses runs whose first hole push follows a nonempty well-nested factor. -/
+@[expose] def initialLists [DecidablePred (· ∈ M.start)] : Finset (HoleList n State) :=
+  (Finset.univ.filter fun s => ∃ s₀, s₀ ∈ M.start ∧ (s₀, s) ∈ M.wellNestedPairs).image
+    fun s => ⟨[], s⟩
 
 /-- A bound on the number of lists with at most `K` holes, used as the fuel of the search. -/
 @[expose] def listBound (n : ℕ) (State : Type*) [Fintype State] (K : ℕ) : ℕ :=
   (n * Fintype.card State ^ 2 + 1) ^ K * Fintype.card State + 1
 
-/-- Algorithm 1 of [AkshayGastinKrishnaRoychowdhury2020]: `true` when no list without open holes
-reaches an accepting state through a well-nested run. The source checks the initial state before
-the loop (line 3) and each new list obtained by a pop (line 25); both checks are this one. -/
+/-- The search of Algorithm 1 from the lists `init`: `true` when no list reached without open
+holes reaches an accepting state through a well-nested run. The source checks the initial state
+before the loop (line 3) and each new list obtained by a pop (line 25); both checks are this
+one. -/
+@[expose] def isEmptyFrom [DecidablePred (· ∈ M.accept)] (init : Finset (HoleList n State))
+    (K : ℕ) : Bool :=
+  decide (¬∃ μ ∈ M.explore K (listBound n State K) init init,
+    μ.holes = [] ∧ ∃ f ∈ (Finset.univ.filter (· ∈ M.accept)), (μ.last, f) ∈ M.wellNestedPairs)
+
+/-- Algorithm 1 of [AkshayGastinKrishnaRoychowdhury2020], repaired: the search starts from the
+states reached from an initial state by a well-nested run (`initialLists`). -/
 @[expose] def isEmpty [DecidablePred (· ∈ M.start)] [DecidablePred (· ∈ M.accept)] (K : ℕ) :
     Bool :=
-  decide (¬∃ μ ∈ M.explore K (listBound n State K) M.initialLists M.initialLists,
-    μ.holes = [] ∧ ∃ f ∈ (Finset.univ.filter (· ∈ M.accept)), (μ.last, f) ∈ M.wellNestedPairs)
+  M.isEmptyFrom M.initialLists K
+
+/-- Algorithm 1 as printed in [AkshayGastinKrishnaRoychowdhury2020]: the search starts from the
+initial state (`startLists`). It misses runs whose first hole push follows a nonempty
+well-nested factor. -/
+@[expose] def isEmptyPrinted [DecidablePred (· ∈ M.start)] [DecidablePred (· ∈ M.accept)]
+    (K : ℕ) : Bool :=
+  M.isEmptyFrom M.startLists K
 
 end Search
 
@@ -314,22 +336,30 @@ end Search
 section Reach
 
 variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ] [DecidableEq Γ]
-  (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')] [DecidablePred (· ∈ M.start)]
+  (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')]
 
-/-- The lists the search of Algorithm 1 reaches: the initial lists, closed under `successors`. -/
-inductive Reachable (K : ℕ) : HoleList n State → Prop where
-  | init {s : State} : s ∈ M.start → Reachable K ⟨[], s⟩
-  | step {μ ν : HoleList n State} : Reachable K μ → ν ∈ M.successors K μ → Reachable K ν
+/-- The lists the search of Algorithm 1 reaches from the lists `init`: closed under
+`successors`. -/
+inductive Reachable (K : ℕ) (init : Finset (HoleList n State)) : HoleList n State → Prop where
+  | init {μ : HoleList n State} : μ ∈ init → Reachable K init μ
+  | step {μ ν : HoleList n State} : Reachable K init μ → ν ∈ M.successors K μ →
+    Reachable K init ν
 
 variable {M}
 
-omit [Fintype Symbol] [Fintype Γ] [DecidableEq Γ] [∀ s μ s', Decidable (M.Tr s μ s')] in
-theorem mem_initialLists {μ : HoleList n State} :
-    μ ∈ M.initialLists ↔ μ.holes = [] ∧ μ.last ∈ M.start := by
+omit [DecidableEq Γ] in
+theorem mem_initialLists [DecidablePred (· ∈ M.start)] {μ : HoleList n State} :
+    μ ∈ M.initialLists ↔
+      μ.holes = [] ∧ ∃ s₀ ∈ M.start, (s₀, μ.last) ∈ M.wellNestedPairs := by
   obtain ⟨holes, last⟩ := μ
   simp [initialLists, eq_comm, and_comm]
 
-omit [DecidablePred (· ∈ M.start)] in
+omit [Fintype Symbol] [Fintype Γ] [DecidableEq Γ] [∀ s μ s', Decidable (M.Tr s μ s')] in
+theorem mem_startLists [DecidablePred (· ∈ M.start)] {μ : HoleList n State} :
+    μ ∈ M.startLists ↔ μ.holes = [] ∧ μ.last ∈ M.start := by
+  obtain ⟨holes, last⟩ := μ
+  simp [startLists, eq_comm, and_comm]
+
 theorem length_holes_le_of_mem_successors {K : ℕ} {μ ν : HoleList n State}
     (hμ : μ.holes.length ≤ K) (hν : ν ∈ M.successors K μ) : ν.holes.length ≤ K := by
   simp only [successors, Finset.mem_union] at hν
@@ -350,11 +380,11 @@ theorem length_holes_le_of_mem_successors {K : ℕ} {μ ν : HoleList n State}
       rcases hν with ⟨t, -, rfl⟩ | ⟨t, -, rfl⟩ <;>
         simp only [List.length_append, List.length_cons] at hμ ⊢ <;> omega
 
-omit [DecidablePred (· ∈ M.start)] in
-theorem Reachable.length_le {K : ℕ} {μ : HoleList n State} (h : M.Reachable K μ) :
+theorem Reachable.length_le {K : ℕ} {init : Finset (HoleList n State)}
+    (hinit : ∀ μ ∈ init, μ.holes = []) {μ : HoleList n State} (h : M.Reachable K init μ) :
     μ.holes.length ≤ K := by
   induction h with
-  | init => simp
+  | init hμ => simp [hinit _ hμ]
   | step _ hν ih => exact length_holes_le_of_mem_successors ih hν
 
 /-- The lists with at most `K` holes, as a finite set. -/
@@ -379,23 +409,24 @@ private theorem card_listsUpTo_le (K : ℕ) :
 
 /-- A set of lists that contains the initial lists, is closed under `successors` and only contains
 reachable lists is the set of reachable lists. -/
-private theorem mem_iff_reachable_of_closed {K : ℕ} {visited : Finset (HoleList n State)}
-    (hreach : ∀ μ ∈ visited, M.Reachable K μ) (hinit : M.initialLists ⊆ visited)
+private theorem mem_iff_reachable_of_closed {K : ℕ} {init visited : Finset (HoleList n State)}
+    (hreach : ∀ μ ∈ visited, M.Reachable K init μ) (hinit : init ⊆ visited)
     (hclosed : ∀ μ ∈ visited, M.successors K μ ⊆ visited) (μ : HoleList n State) :
-    μ ∈ visited ↔ M.Reachable K μ := by
+    μ ∈ visited ↔ M.Reachable K init μ := by
   refine ⟨hreach μ, fun h => ?_⟩
   induction h with
-  | init hs => exact hinit (mem_initialLists.mpr ⟨rfl, hs⟩)
+  | init hμ => exact hinit hμ
   | step _ hν ih => exact hclosed _ ih hν
 
 /-- The worklist loop returns the reachable lists, as long as the fuel exceeds the number of lists
 that could still be added while work remains. -/
-private theorem mem_explore_iff {K : ℕ} (f : ℕ) :
+private theorem mem_explore_iff {K : ℕ} {init : Finset (HoleList n State)}
+    (hinit₀ : ∀ μ ∈ init, μ.holes = []) (f : ℕ) :
     ∀ (visited todo : Finset (HoleList n State)),
-      (∀ μ ∈ visited, M.Reachable K μ) → todo ⊆ visited → M.initialLists ⊆ visited →
+      (∀ μ ∈ visited, M.Reachable K init μ) → todo ⊆ visited → init ⊆ visited →
       (∀ μ ∈ visited, μ ∉ todo → M.successors K μ ⊆ visited) →
       (todo.Nonempty → (listsUpTo n State K).card < f + visited.card) →
-      ∀ μ, μ ∈ M.explore K f visited todo ↔ M.Reachable K μ := by
+      ∀ μ, μ ∈ M.explore K f visited todo ↔ M.Reachable K init μ := by
   induction f with
   | zero =>
     intro visited todo hreach htodo hinit hclosed hfuel μ
@@ -403,7 +434,7 @@ private theorem mem_explore_iff {K : ℕ} (f : ℕ) :
     · exact mem_iff_reachable_of_closed hreach hinit
         (fun ν hν => hclosed ν hν (Finset.notMem_empty _)) μ
     · have hcard : visited.card ≤ (listsUpTo n State K).card := Finset.card_le_card
-        fun ν hν => mem_listsUpTo_of_length_le (hreach ν hν).length_le
+        fun ν hν => mem_listsUpTo_of_length_le ((hreach ν hν).length_le hinit₀)
       have := hfuel hne
       omega
   | succ f ih =>
@@ -440,15 +471,11 @@ private theorem mem_explore_iff {K : ℕ} (f : ℕ) :
 
 /-- The search of Algorithm 1 returns exactly the reachable lists: the fuel `listBound` is never
 exhausted. -/
-theorem mem_explore {K : ℕ} {μ : HoleList n State} :
-    μ ∈ M.explore K (listBound n State K) M.initialLists M.initialLists ↔ M.Reachable K μ := by
-  refine mem_explore_iff _ _ _ (fun ν hν => ?_) subset_rfl subset_rfl
+theorem mem_explore {K : ℕ} {init : Finset (HoleList n State)}
+    (hinit : ∀ μ ∈ init, μ.holes = []) {μ : HoleList n State} :
+    μ ∈ M.explore K (listBound n State K) init init ↔ M.Reachable K init μ := by
+  refine mem_explore_iff hinit _ _ _ (fun ν hν => .init hν) subset_rfl subset_rfl
     (fun ν hν hνt => absurd hν hνt) (fun _ => ?_) μ
-  · obtain ⟨holes, last⟩ := ν
-    obtain ⟨h, hs⟩ := mem_initialLists.mp hν
-    simp only at h hs
-    subst h
-    exact .init hs
   · have := card_listsUpTo_le (n := n) (State := State) K
     omega
 
