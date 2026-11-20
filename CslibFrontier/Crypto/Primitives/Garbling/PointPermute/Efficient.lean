@@ -71,10 +71,13 @@ theorem labelWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → �
     {key t : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (hkey : ComputableInPolyTime key encIn encBits) (ht : ComputableInPolyTime t encIn encBits) :
     ComputableInPolyTime (fun a => labelWord family (k a) (key a) (t a)) encIn encBits := by
-  have h : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
-      labelWord family p.1 p.2.1 p.2.2) (encPair encUnary (encPair encBits encBits)) encBits := by
-    polytime [labelWord]
-  exact h.comp (hk.prod (hkey.prod ht))
+  have hwidth : ComputableInPolyTime (fun a => k a + 1) encIn encUnary := by fun_prop
+  have hfalse := hf.comp (hkey.prod (ComputableInPolyTime.bitsCons (.const false) ht))
+  have htrue := hf.comp (hkey.prod (ComputableInPolyTime.bitsCons (.const true) ht))
+  exact ComputableInPolyTime.bitsAppend
+    ((ComputableInPolyTime.bitsAppend hfalse
+      ((ComputableInPolyTime.bitsReplicate false).comp hwidth)).bitsTakeWithInput hwidth)
+    (ComputableInPolyTime.bitsCons (htrue.bitsGetDWithInput (.const 0) false) (.const []))
 
 /-- Tweaks are computed in polynomial time. -/
 theorem tweak_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g i a : γ → ℕ}
@@ -89,7 +92,7 @@ theorem wireWidth_polyTime {γ : Type} {encIn : γ ↪ List Bool} {n q : γ → 
     (hn : ComputableInPolyTime n encIn encUnary) (hq : ComputableInPolyTime q encIn encUnary) :
     ComputableInPolyTime (fun a => wireWidth (n a) (q a)) encIn encUnary :=
   ComputableInPolyTime.binary_size.comp
-    (ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp (by fun_prop))
+    (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
 
 /-- Permutation bits are read in polynomial time. -/
 theorem permOf_polyTime {γ : Type} {encIn : γ ↪ List Bool} {coins : γ → List Bool} {v : γ → ℕ}
@@ -106,12 +109,13 @@ theorem keyOf_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k wires v : γ �
     (hcoins : ComputableInPolyTime coins encIn encBits) (hv : ComputableInPolyTime v encIn encUnary)
     (hc : ComputableInPolyTime c encIn encBool) :
     ComputableInPolyTime (fun a => keyOf (k a) (wires a) (coins a) (v a) (c a)) encIn encBits := by
-  have h : ComputableInPolyTime (fun p : ℕ × ℕ × List Bool × ℕ × Bool =>
-      keyOf p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
-      (encPair encUnary (encPair encUnary (encPair encBits
-        (encPair encUnary encBool)))) encBits := by
-    polytime [keyOf, BitString.listRow]
-  exact h.comp (hk.prod (hwires.prod (hcoins.prod (hv.prod hc))))
+  have hwidth := ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 1)
+  have htwice := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hv
+  have hrow := hc.ite (ComputableInPolyTime.unary_add' htwice (.const 1)) htwice
+  have hoffset := ComputableInPolyTime.unary_mul' hrow hwidth
+  exact (ComputableInPolyTime.bitsAppend
+    ((hcoins.bitsDropWithInput hwires).bitsDropWithInput hoffset)
+    ((ComputableInPolyTime.bitsReplicate false).comp hwidth)).bitsTakeWithInput hwidth
 
 /-- Labels are read in polynomial time. -/
 theorem labelOf_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k wires v : γ → ℕ}
@@ -188,9 +192,9 @@ private theorem evalWord_polyTime :
     polytime
   have hfin : ComputableInPolyTime (fun p : List (List Bool) × ℕ => (p.1.drop p.2).flatten)
       (encPair (encList encBits) encUnary) encBits :=
-    (ComputableTidilyInPolyTime.bitsFlatten (ComputableTidilyInPolyTime.listDropWithInput
-      (ComputableTidilyInPolyTime.fst _ _)
-        (ComputableTidilyInPolyTime.snd _ _))).computableInPolyTime
+    (ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
+      (ComputableInPolyTime.fst _ _)
+        (ComputableInPolyTime.snd _ _)))
   exact hfin.comp (hfold.prod hc)
 
 /-! ### The body of a garbled function -/
@@ -325,15 +329,26 @@ private theorem rowCapped_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q
     (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => rowCapped (family := family) (k x) (n x) (q x) (coins x) (a x)
       (b x) (t x) (g x) (i x)) encIn encBits := by
-  have h : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ × List Bool) × (ℕ × ℕ × List Bool) × ℕ × ℕ =>
-        rowCapped (family := family) p.1.1 p.1.2.1 p.1.2.2.1 p.1.2.2.2 p.2.1.1 p.2.1.2.1
-          p.2.1.2.2 p.2.2.1 p.2.2.2)
-      (encPair (encPair encUnary (encPair encUnary (encPair encUnary encBits)))
-        (encPair (encPair encUnary (encPair encUnary encBits)) (encPair encUnary encUnary)))
-      encBits := by
-    polytime [rowCapped, labelOf]
-  exact h.comp ((hk.prod (hn.prod (hq.prod hcoins))).prod ((ha.prod (hb.prod ht)).prod
-    (hg.prod hi)))
+  have hwires := ComputableInPolyTime.unary_add' hn hq
+  have houtput := ComputableInPolyTime.unary_add' hn hg
+  have hbit1 : ComputableInPolyTime (fun x => (i x).testBit 1) encIn encBool := by fun_prop
+  have hbit0 : ComputableInPolyTime (fun x => (i x).testBit 0) encIn encBool := by fun_prop
+  have hleft := ComputableInPolyTime.bool_xor.comp
+    (hbit1.prod (permOf_polyTime hcoins ha))
+  have hright := ComputableInPolyTime.bool_xor.comp
+    (hbit0.prod (permOf_polyTime hcoins hb))
+  have hoffset := ComputableInPolyTime.unary_add'
+    (hleft.ite (.const 2) (.const 0)) (hright.ite (.const 1) (.const 0))
+  have hbit := ht.bitsGetDWithInput hoffset false
+  have hchoice := ComputableInPolyTime.bool_xor.comp
+    (hbit.prod (permOf_polyTime hcoins houtput))
+  exact ComputableInPolyTime.bitsZipWithInput xor
+    (labelOf_polyTime hk hwires hcoins houtput hchoice)
+    (ComputableInPolyTime.bitsZipWithInput xor
+      (labelWord_polyTime hf hk (keyOf_polyTime hk hwires hcoins ha hbit1)
+        (tweak_polyTime hk hg hi (.const 0)))
+      (labelWord_polyTime hf hk (keyOf_polyTime hk hwires hcoins hb hbit0)
+        (tweak_polyTime hk hg hi (.const 1))))
 
 /-- The input `(1^k, f, r)` of the garbler. -/
 private abbrev encGbInput : (ℕ × ValidCircuit × List Bool) ↪ List Bool :=
@@ -349,7 +364,7 @@ private theorem q_polyTime :
       encGbInput encUnary := by
   have hg : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.gateList)
       encGbInput (encList (encPair encNat (encPair encNat encBits))) := data_polyTime.snd'.snd'
-  exact (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hg
+  exact (ComputableInPolyTime.length_list _).comp hg
 
 private theorem q'_polyTime :
     ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.q) encGbInput encUnary :=
@@ -474,7 +489,7 @@ private theorem coins_polyTime :
   have hq : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.1.q)
       (encPair encUnary encValidCircuit) encUnary := by
     simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
-      (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hg
+      (ComputableInPolyTime.length_list _).comp hg
   have hn' : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.1.n)
       (encPair encUnary encValidCircuit) encUnary := hn
   have heq : (fun (k, f) => (scheme family).coins k f) = fun x : ℕ × ValidCircuit =>

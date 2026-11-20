@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.SuccessfulAgreement
 import CslibFrontier.Probability.PMF.Event
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
+import CslibFrontier.Probability.PMF.Map
 
 /-!
 # Commuting-operator strategies
@@ -117,6 +118,20 @@ theorem sum_prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
   simp only [sum_prob_bob, ← Complex.re_sum, ← map_sum, (S.alice x).sum_effect,
     AlgState.map_one, Complex.one_re]
 
+/-- Pull back each player's questions and post-process each player's outcomes independently. -/
+noncomputable def relabel {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
+    [IsOrderedAddMonoid 𝒜] (S : CommutingStrategy X Y A B 𝒜)
+    (qx : X' → X) (qy : Y' → Y) (fa : A → A') (fb : B → B') :
+    CommutingStrategy X' Y' A' B' 𝒜 := by
+  classical
+  exact
+    { state := S.state
+      alice := fun x => (S.alice (qx x)).map fa
+      bob := fun y => (S.bob (qy y)).map fb
+      commute := fun x y =>
+        Measurement.commute_map_map (S.alice (qx x)) (S.bob (qy y))
+          (S.commute (qx x) (qy y)) fa fb }
+
 end Ring
 
 section CFC
@@ -142,6 +157,27 @@ noncomputable def answers (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
 theorem answers_apply (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) (b : B) :
     S.answers x y (a, b) = ENNReal.ofReal (S.prob x y a b) := by
   rw [answers, PMF.ofFintype_apply]
+
+/-- The distribution of relabeled answers is the pushforward of the original
+distribution at the corresponding questions. -/
+theorem answers_relabel {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
+    [IsOrderedAddMonoid 𝒜] (S : CommutingStrategy X Y A B 𝒜)
+    (qx : X' → X) (qy : Y' → Y) (fa : A → A') (fb : B → B') (x : X') (y : Y') :
+    (S.relabel qx qy fa fb).answers x y =
+      (S.answers (qx x) (qy y)).map (Prod.map fa fb) := by
+  classical
+  ext ⟨a, b⟩
+  apply (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
+  rw [answers_apply, ENNReal.toReal_ofReal ((S.relabel qx qy fa fb).prob_nonneg x y a b),
+    Cslib.Probability.PMF.map_apply_toReal, Fintype.sum_prod_type]
+  simp only [relabel, prob, Measurement.map_effect, Finset.sum_mul, Finset.mul_sum, map_sum,
+    Complex.re_sum, Finset.sum_filter, Prod.map_apply, Prod.mk.injEq]
+  rw [Finset.sum_comm]
+  refine sum_congr rfl fun a' _ => sum_congr rfl fun b' _ => ?_
+  rw [answers_apply, ENNReal.toReal_ofReal (S.prob_nonneg (qx x) (qy y) a' b')]
+  simp only [prob, show (fa a' = a) ↔ (a = fa a') from eq_comm,
+    show (fb b' = b) ↔ (b = fb b') from eq_comm]
+  by_cases ha : a = fa a' <;> by_cases hb : b = fb b' <;> simp_all
 
 /-- Alice's answer marginal is her measurement law and is independent of Bob's question. -/
 theorem answers_map_fst (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :

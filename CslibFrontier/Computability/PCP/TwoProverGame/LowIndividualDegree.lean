@@ -53,7 +53,7 @@ abbrev Answer (F : Type*) (m : ℕ) := F ⊕ (Σ L : Finset (Point F m), L → F
 variable [Field F] [Fintype F] [DecidableEq F]
 
 /-- The affine image sent to the line player. -/
-def linePoints (u v : Point F m) : Finset (Point F m) :=
+@[expose] def linePoints (u v : Point F m) : Finset (Point F m) :=
   univ.image fun t : F => u + t • v
 
 theorem mem_linePoints (u v : Point F m) (t : F) : u + t • v ∈ linePoints u v :=
@@ -120,18 +120,24 @@ theorem LineHasDegree.exists_polynomial {u v : Point F m} {f : linePoints u v �
     exact congrArg f (Subtype.ext ht)
 
 /-- The line answer must have the right domain and degree, and agree with the point answer. -/
-def lineAgrees (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
+@[expose] def lineAgrees (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
     (a : Σ L : Finset (Point F m), L → F) (b : F) : Prop :=
   a.1 = L ∧ LineHasDegree a.2 d ∧ ∃ h : u ∈ a.1, a.2 ⟨u, h⟩ = b
 
-/-- The three branches' common acceptance predicate. -/
-def accepts (d : ℕ) : Question F m → Question F m → Answer F m → Answer F m → Prop
+/-- The acceptance predicate with axis degree bound `d` and diagonal degree bound `D`. -/
+@[expose] def acceptsWithDiagonalCap (d D : ℕ) :
+    Question F m → Question F m → Answer F m → Answer F m → Prop
   | .point _, .point _, .inl a, .inl b => a = b
   | .axis L, .point u, .inr a, .inl b | .point u, .axis L, .inl b, .inr a =>
     lineAgrees d L u a b
   | .diagonal L, .point u, .inr a, .inl b | .point u, .diagonal L, .inl b, .inr a =>
-    lineAgrees (m * d) L u a b
+    lineAgrees D L u a b
   | _, _, _, _ => False
+
+/-- The three branches' common acceptance predicate, with the diagonal bound from Figure 2. -/
+@[expose] def accepts (d : ℕ) :
+    Question F m → Question F m → Answer F m → Answer F m → Prop :=
+  acceptsWithDiagonalCap d (m * d)
 
 /-- Acceptance on an axis question and its paired point is determined by the legal line
 answer and its value at the point. -/
@@ -139,14 +145,14 @@ theorem exists_legal_of_accepts_axis_point (d : ℕ) (L : Finset (Point F m)) (u
     (a b : Answer F m) (h : accepts d (.axis L) (.point u) a b) :
     ∃ g z, a = .inr g ∧ b = .inl z ∧
       g.1 = L ∧ LineHasDegree g.2 d ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z := by
-  cases a <;> cases b <;> simp only [accepts] at h
+  cases a <;> cases b <;> simp only [accepts, acceptsWithDiagonalCap] at h
   exact ⟨_, _, rfl, rfl, h⟩
 
 /-- Accepted diagonal and point answers agree at the queried point. -/
 theorem exists_agree_of_accepts_point_diagonal (d : ℕ) (L : Finset (Point F m))
     (u : Point F m) (a b : Answer F m) (h : accepts d (.point u) (.diagonal L) a b) :
     ∃ g z, a = .inl z ∧ b = .inr g ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z := by
-  cases a <;> cases b <;> simp only [accepts] at h
+  cases a <;> cases b <;> simp only [accepts, acceptsWithDiagonalCap] at h
   exact ⟨_, _, rfl, rfl, h.2.2⟩
 
 theorem accepts_point_axis_iff (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
@@ -157,7 +163,7 @@ theorem accepts_point_axis_iff (d : ℕ) (L : Finset (Point F m)) (u : Point F m
 /-- Accepted point answers are equal field elements. -/
 theorem exists_eq_of_accepts_points (d : ℕ) (u v : Point F m) (a b : Answer F m)
     (h : accepts d (.point u) (.point v) a b) : ∃ c, a = .inl c ∧ b = .inl c := by
-  cases a <;> cases b <;> simp only [accepts] at h
+  cases a <;> cases b <;> simp only [accepts, acceptsWithDiagonalCap] at h
   exact ⟨_, rfl, congrArg Sum.inl h.symm⟩
 
 /-- Send the line and point to uniformly random opposite roles. -/
@@ -177,7 +183,7 @@ theorem exists_eq_of_accepts_points (d : ℕ) (u v : Point F m) (a b : Answer F 
       assignLineRoles (.axis (linePoints u (Pi.single i (1 : F)))) (.point u)
 
 /-- Extend a direction in the chosen prefix by zero on all remaining coordinates. -/
-def prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) : Point F m :=
+@[expose] def prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) : Point F m :=
   fun j => if h : j.val < i.val + 1 then v ⟨j.val, h⟩ else 0
 
 omit [Fintype F] [DecidableEq F] in
@@ -246,12 +252,28 @@ noncomputable def branchQuestions (n : ℕ) :
   | .consistency => consistencyQuestions
   | .diagonal => diagonalQuestions n
 
-/-- A verifier with its initial branch choice fixed. -/
-noncomputable def branchGame (n d : ℕ) (b : Branch) :
+/-- The conditional verifier at an explicit diagonal degree bound. -/
+noncomputable def branchGameWithDiagonalCap (n d D : ℕ) (b : Branch) :
     TwoProverGame (Question F (n + 1)) (Question F (n + 1))
       (Answer F (n + 1)) (Answer F (n + 1)) where
   questions := branchQuestions n b
-  accepts := accepts d
+  accepts := acceptsWithDiagonalCap d D
+
+/-- A verifier with its initial branch choice fixed. -/
+noncomputable def branchGame (n d : ℕ) (b : Branch) :
+    TwoProverGame (Question F (n + 1)) (Question F (n + 1))
+      (Answer F (n + 1)) (Answer F (n + 1)) :=
+  branchGameWithDiagonalCap n d ((n + 1) * d) b
+
+theorem branchGameWithDiagonalCap_questions (n d D : ℕ) (b : Branch) :
+    (branchGameWithDiagonalCap (F := F) n d D b).questions = branchQuestions n b := by
+  unfold branchGameWithDiagonalCap
+  rfl
+
+theorem branchGameWithDiagonalCap_accepts (n d D : ℕ) (b : Branch) :
+    (branchGameWithDiagonalCap (F := F) n d D b).accepts = acceptsWithDiagonalCap d D := by
+  unfold branchGameWithDiagonalCap
+  rfl
 
 theorem branchGame_questions (n d : ℕ) (b : Branch) :
     (branchGame (F := F) n d b).questions = branchQuestions n b := by
@@ -393,7 +415,7 @@ theorem winProb_branch_honest {n d : ℕ} (P : MvPolynomial (Fin (n + 1)) F)
       {q | accepts d q.1 q.2 (honest P q.1) (honest P q.2)} = 1 := by
     rw [PMF.toOuterMeasure_apply_eq_one_iff]
     exact fun _ hq => accepts_honest_of_mem_branch P hP b hq
-  unfold TwoProverGame.winProb branchGame
+  rw [TwoProverGame.winProb, branchGame_questions, branchGame_accepts]
   rw [h, ENNReal.toReal_one]
 
 /-- The honest strategy wins the low individual degree game with probability one. -/
