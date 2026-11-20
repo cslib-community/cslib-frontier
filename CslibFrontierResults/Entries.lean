@@ -9,6 +9,7 @@ import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
@@ -10894,6 +10895,22 @@ register_result "bvy-anchored-conditioning-bounds" where
     and the second sums transcript and question-resampling distances. Distances are half-L1. \
     The constants use natural logs with Pinsker’s factor 1/2 and the full checked-answer \
     alphabet. Any checked set is allowed, including when no free coordinate remains."
+
+register_result "bvy-two-anchor-transcript-comparisons" where
+  title := "Two-anchor transcript comparisons after checked wins"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 4.6(3)–(4)",
+      locator := "arXiv:1509.07466v2, §4.3, printed pp. 14–17, equations (6)–(11)" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.sum_dist_anchoredRest_given_wins
+  ]
+  scope := "For a positive-probability checked-win event under a finite tensor strategy with local \
+    POVMs, weight both summed half-L1 distances by w = α²/2. The bounds are (2+2w)ε₁+ε₂ \
+    and (1+w)(2ε₁+ε₂), with ε₁ and ε₂ the natural-log bounds from the winning probability \
+    and the full checked-answer alphabet. The weighted forms include endpoint anchor rates. \
+    A null observation uses the remaining transcript’s marginal fallback."
 
 register_result "dpll-pigeonhole-refutation-size" where
   title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"

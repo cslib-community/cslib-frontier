@@ -54,7 +54,7 @@ local notation "Rest" => Shared (Option X) (Option Y) A B C
 local notation "Transcript" => ((Info × (C → A × B)) × (Free → PairQ))
 
 /-- Keep the checked questions and answers and the messages at all other unchecked trials. -/
-def restTranscript (j : Free) (r : Transcript) : Rest j :=
+@[expose] def restTranscript (j : Free) (r : Transcript) : Rest j :=
   let ((t, v), _) := r
   Shared.ofRevealed j t v
 

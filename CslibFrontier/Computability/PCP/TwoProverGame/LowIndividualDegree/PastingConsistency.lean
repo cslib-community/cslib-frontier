@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
+public import CslibFrontier.Computability.PCP.TwoProverGame.Sequential
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Pasting
 public import CslibFrontier.Probability.PMF.Event
 public import Mathlib.Algebra.BigOperators.Expect
@@ -34,7 +34,7 @@ public section
 namespace Cslib.PCP.LowIndividualDegree
 
 open Finset MvPolynomial Cslib.Probability.PMF
-open scoped BigOperators
+open scoped BigOperators Real
 
 variable {F ι β : Type*} {m d : ℕ} [Field F]
 
@@ -146,6 +146,17 @@ open Cslib.Quantum
 variable {A : Type*} [Finite F] [Fintype β] [Ring A] [PartialOrder A] [StarRing A]
   [StarOrderedRing A] [Algebra ℂ A]
 
+/-- The isolated experiment with one slice question and one vertical-line question. -/
+def sliceLineStrategy (φ : AlgState A)
+    (M : F → Measurement (Option (BoundedPolynomial F m d)) A)
+    (B : (Fin m → F) → Measurement β A)
+    (hComm : ∀ t u a b, Commute ((M t).effect a) ((B u).effect b)) :
+    CommutingStrategy F (Fin m → F) (Option (BoundedPolynomial F m d)) β A where
+  state := φ
+  alice := M
+  bob := B
+  commute := hComm
+
 /-- The joint experiment in which Alice measures the slices in sequence and Bob answers
 a vertical-line question. Tuple repetitions are allowed here, so the same strategy
 defines the laws for both distinct and independent tuples. -/
@@ -153,13 +164,70 @@ noncomputable def transcriptLineStrategy (k : ℕ) (φ : AlgState A)
     (M : F → Measurement (Option (BoundedPolynomial F m d)) A)
     (hM : ∀ t, (M t).IsProjective) (B : (Fin m → F) → Measurement β A)
     (hComm : ∀ t u a b, Commute ((M t).effect a) ((B u).effect b)) :
-    CommutingStrategy (Fin k → F) (Fin m → F) (Fin k → Option (BoundedPolynomial F m d)) β A where
-  state := φ
-  alice x := Measurement.sequentialProjective (fun j => M (x j)) (fun j => hM (x j))
-  bob := B
-  commute x u g b :=
-    Measurement.sequentialProjective_commute _ _ _ (fun j a => hComm (x j) u a b) g
+    CommutingStrategy (Fin k → F) (Fin m → F) (Fin k → Option (BoundedPolynomial F m d)) β A :=
+  (sliceLineStrategy φ M B hComm).sequential k hM
+
+variable [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
+  [NonnegSpectrumClass ℝ A] [StarModule ℂ A] [SelfAdjointDecompose A]
+
+/-- The probability of mismatch at the intersection of the isolated slice and line.
+The failure outcome on Alice's side does not count as a mismatch. -/
+noncomputable def isolatedSliceMismatch
+    (S : CommutingStrategy F (Fin m → F) (Option (BoundedPolynomial F m d)) β A)
+    (lineValue : β → F → F) (u : Fin m → F) (t : F) : ℝ :=
+  ((S.answers t u).toOuterMeasure
+    {ab | ∃ q, ab.1 = some q ∧ eval u q.val ≠ lineValue ab.2 t}).toReal
+
+/-- The contribution of a selected transcript coordinate to vertical-line inconsistency
+is at most its isolated mismatch probability plus the disturbance of its prefix. -/
+theorem sequentialSliceLineMismatch_le
+    (S : CommutingStrategy F (Fin m → F) (Option (BoundedPolynomial F m d)) β A)
+    (hM : ∀ t, (S.alice t).IsProjective) {k : ℕ} (i : Fin k) (x : Fin k → F) (u : Fin m → F)
+    (lineValue : β → F → F) :
+    (((S.sequential k hM).answers x u).toOuterMeasure (sliceLineMismatch u x lineValue i)).toReal ≤
+      isolatedSliceMismatch S lineValue u (x i) +
+        2 * √(Measurement.prefixCommutatorDefect S.state (fun j => S.alice (x j)) i) := by
+  unfold isolatedSliceMismatch sliceLineMismatch
+  exact S.sequential_event_le hM x i u (fun a b =>
+    ∃ q, a = some q ∧ eval u q.val ≠ lineValue b (x i))
+
+/-- The average sequential mismatch is controlled by the isolated mismatch and the
+mean squared prefix commutator norm. -/
+theorem average_sequentialSliceLineMismatch_le [Fintype F]
+    (S : CommutingStrategy F (Fin m → F) (Option (BoundedPolynomial F m d)) β A)
+    (hM : ∀ t, (S.alice t).IsProjective) {k : ℕ} (i : Fin k) (lineValue : β → F → F) :
+    (𝔼 u : Fin m → F, 𝔼 x : Fin k → F,
+      (((S.sequential k hM).answers x u).toOuterMeasure (sliceLineMismatch u x lineValue i)).toReal)
+      ≤ (𝔼 u : Fin m → F, 𝔼 t : F, isolatedSliceMismatch S lineValue u t) +
+        2 * √(𝔼 x : Fin k → F, Measurement.prefixCommutatorDefect S.state
+          (fun j => S.alice (x j)) i) := by
+  unfold isolatedSliceMismatch sliceLineMismatch
+  exact S.average_sequential_event_le hM i
+    (fun t u a b => ∃ q, a = some q ∧ eval u q.val ≠ lineValue b t)
+
+/-- The pasted vertical-line comparison in terms of the isolated slice error and
+the commutator defects of the sequential measurements. The birthday term accounts
+for the use of distinct slice locations in the pasted readout. -/
+theorem average_sequential_pastedLineMismatch_le [Fintype F] (k : ℕ) [Nonempty (Fin k ↪ F)]
+    (S : CommutingStrategy F (Fin m → F) (Option (BoundedPolynomial F m d)) β A)
+    (hM : ∀ t, (S.alice t).IsProjective) (lineValue : β → F → F)
+    (hline : ∀ b, ∃ f : Polynomial F, f.natDegree ≤ d ∧ ∀ t, f.eval t = lineValue b t) :
+    letI : Fintype (Fin k ↪ F) := Fintype.ofFinite _
+    (𝔼 u : Fin m → F, 𝔼 x : Fin k ↪ F, 𝔼 t : F,
+      ((((S.sequential k hM).answers x u).map (Prod.map (pasteOutcome x) id)).toOuterMeasure
+        (pastedLineMismatch (d := d) u t lineValue)).toReal) ≤
+    (k.choose 2 : ℝ) / Fintype.card F +
+      k * (𝔼 u : Fin m → F, 𝔼 t : F, isolatedSliceMismatch S lineValue u t) +
+      ∑ i : Fin k, 2 * √(𝔼 x : Fin k → F, Measurement.prefixCommutatorDefect S.state
+        (fun j => S.alice (x j)) i) := by
+  refine (average_pastedLineMismatch_le k lineValue hline
+    (fun u x => (S.sequential k hM).answers x u)).trans ?_
+  rw [add_assoc]
+  apply add_le_add_right
+  refine (sum_le_sum fun i _ => average_sequentialSliceLineMismatch_le S hM i lineValue).trans_eq ?_
+  simp only [sum_add_distrib, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
 
 end Strategy
+
 
 end Cslib.PCP.LowIndividualDegree

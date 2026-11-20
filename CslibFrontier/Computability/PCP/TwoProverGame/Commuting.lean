@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
+public import CslibFrontier.Foundations.Quantum.Algebra.SuccessfulAgreement
+import CslibFrontier.Probability.PMF.Event
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
 
@@ -140,6 +142,21 @@ noncomputable def answers (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
 theorem answers_apply (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) (b : B) :
     S.answers x y (a, b) = ENNReal.ofReal (S.prob x y a b) := by
   rw [answers, PMF.ofFintype_apply]
+
+/-- The successful mismatch of decoded measurements is the joint probability
+that the first decoded answer succeeds and differs from the second. -/
+theorem successfulMismatch_map_map_eq_event {C : Type*} [Fintype C] [DecidableEq C]
+    [IsOrderedAddMonoid 𝒜] (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y)
+    (f : A → Option C) (g : B → C) :
+    Measurement.successfulMismatch S.state ((S.alice x).map f) ((S.bob y).map g) =
+      ((S.answers x y).toOuterMeasure {ab | ∃ c, f ab.1 = some c ∧ c ≠ g ab.2}).toReal := by
+  classical
+  rw [Measurement.successfulMismatch_map_map, Cslib.Probability.PMF.toOuterMeasure_apply_toReal,
+    Fintype.sum_prod_type]
+  simp only [Set.mem_ofPred_eq, answers_apply]
+  refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
+  rw [ENNReal.toReal_ofReal (S.prob_nonneg x y a b)]
+  rfl
 
 end CFC
 

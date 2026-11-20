@@ -59,6 +59,20 @@ variable [Field F] [Fintype F] [DecidableEq F]
 theorem mem_linePoints (u v : Point F m) (t : F) : u + t • v ∈ linePoints u v :=
   mem_image.mpr ⟨t, mem_univ t, rfl⟩
 
+/-- Moving the base point along an affine line leaves its set of points unchanged. -/
+theorem linePoints_translate_direction (u v : Point F m) (t : F) :
+    linePoints (u + t • v) v = linePoints u v := by
+  unfold linePoints
+  ext x
+  constructor
+  · rintro h
+    obtain ⟨s, _, rfl⟩ := mem_image.mp h
+    exact mem_image.mpr ⟨t + s, mem_univ _, by rw [add_smul, add_assoc]⟩
+  · rintro h
+    obtain ⟨s, _, rfl⟩ := mem_image.mp h
+    refine mem_image.mpr ⟨s - t, mem_univ _, ?_⟩
+    rw [add_assoc, ← add_smul, add_comm t (s - t), sub_add_cancel]
+
 /-- A function on a line has degree at most `d` if it admits a parameterization by such a
 univariate polynomial. This also describes the constant functions on singleton lines. -/
 @[expose] def LineHasDegree {L : Finset (Point F m)} (f : L → F) (d : ℕ) : Prop :=
@@ -132,6 +146,12 @@ theorem accepts_point_axis_iff (d : ℕ) (L : Finset (Point F m)) (u : Point F m
     (a b : Answer F m) :
     accepts d (.point u) (.axis L) a b ↔ accepts d (.axis L) (.point u) b a := by
   cases a <;> cases b <;> rfl
+
+/-- Accepted point answers are equal field elements. -/
+theorem exists_eq_of_accepts_points (d : ℕ) (u v : Point F m) (a b : Answer F m)
+    (h : accepts d (.point u) (.point v) a b) : ∃ c, a = .inl c ∧ b = .inl c := by
+  cases a <;> cases b <;> simp only [accepts] at h
+  exact ⟨_, rfl, congrArg Sum.inl h.symm⟩
 
 /-- Send the line and point to uniformly random opposite roles. -/
 @[expose] noncomputable def assignLineRoles (line point : Question F m) :
@@ -226,6 +246,11 @@ theorem branchGame_questions (n d : ℕ) (b : Branch) :
 
 theorem branchQuestions_axis (n : ℕ) :
     branchQuestions (F := F) n .axis = axisQuestions n := by
+  unfold branchQuestions
+  rfl
+
+theorem branchQuestions_consistency (n : ℕ) :
+    branchQuestions (F := F) n .consistency = consistencyQuestions := by
   unfold branchQuestions
   rfl
 

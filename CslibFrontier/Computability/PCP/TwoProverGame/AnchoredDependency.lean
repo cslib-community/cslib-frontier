@@ -36,6 +36,11 @@ variable {X Y : Type*}
 noncomputable def noise (α : I) : I :=
   ⟨(α : ℝ) / 2, by constructor <;> linarith [α.2.1, α.2.2]⟩
 
+/-- The extra erase probability as a real number. -/
+@[simp] theorem coe_noise (α : I) : (noise α : ℝ) = (α : ℝ) / 2 := by
+  unfold noise
+  rfl
+
 /-- The reveal's anchor probability is `(α - η) / (1 - η)` for `η = α / 2`. -/
 noncomputable def messageRate (α : I) : I :=
   ⟨(α : ℝ) / (2 - α), by
@@ -181,6 +186,73 @@ noncomputable def law (μ : PMF (X × Y)) (α : I) :
   (uniformOfFintype Bool).bind fun left =>
     if left then (leftLaw μ α).map (Prod.map Sum.inl id)
     else (rightLaw μ α).map (Prod.map Sum.inr id)
+
+private theorem law_inl_apply (μ : PMF (X × Y)) (α : I) (m : Option X)
+    (q : Option X × Option Y) :
+    law μ α (Sum.inl m, q) = (uniformOfFintype Bool) true * leftLaw μ α (m, q) := by
+  have hzero : ((rightLaw μ α).map (Prod.map Sum.inr id)) (Sum.inl m, q) = 0 := by
+    rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
+    rintro ⟨z, -, hz⟩
+    have h := congrArg (fun z : (Option X ⊕ Option Y) × (Option X × Option Y) => z.1) hz
+    cases h
+  rw [law, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
+  have hinj : Function.Injective (Prod.map (Sum.inl : Option X → Option X ⊕ Option Y)
+      (id : Option X × Option Y → Option X × Option Y)) :=
+    Sum.inl_injective.prodMap Function.injective_id
+  have hmap := map_apply_of_injective (leftLaw μ α) hinj (m, q)
+  simpa only [Bool.false_eq_true, ite_false, ite_true, hzero, mul_zero, add_zero,
+    Prod.map_apply, id_eq] using congrArg ((uniformOfFintype Bool) true * ·) hmap
+
+private theorem law_inr_apply (μ : PMF (X × Y)) (α : I) (m : Option Y)
+    (q : Option X × Option Y) :
+    law μ α (Sum.inr m, q) = (uniformOfFintype Bool) false * rightLaw μ α (m, q) := by
+  have hzero : ((leftLaw μ α).map (Prod.map Sum.inl id)) (Sum.inr m, q) = 0 := by
+    rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
+    rintro ⟨z, -, hz⟩
+    have h := congrArg (fun z : (Option X ⊕ Option Y) × (Option X × Option Y) => z.1) hz
+    cases h
+  rw [law, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
+  have hinj : Function.Injective (Prod.map (Sum.inr : Option Y → Option X ⊕ Option Y)
+      (id : Option X × Option Y → Option X × Option Y)) :=
+    Sum.inr_injective.prodMap Function.injective_id
+  have hmap := map_apply_of_injective (rightLaw μ α) hinj (m, q)
+  simpa only [Bool.false_eq_true, ite_false, ite_true, hzero, mul_zero, zero_add,
+    Prod.map_apply, id_eq] using congrArg ((uniformOfFintype Bool) false * ·) hmap
+
+/-- Conditional on each supported tagged message, the probability of two anchors is at
+least `α² / 2`. The mass form also holds for unsupported messages. -/
+theorem law_bothAnchors_le (μ : PMF (X × Y)) (α : I) (m : Option X ⊕ Option Y) :
+    ((law μ α).map Prod.fst) m * ENNReal.ofReal (noise α : ℝ) * ENNReal.ofReal (α : ℝ) ≤
+      law μ α (m, none, none) := by
+  have hleft (m : Option X) : ((leftLaw μ α).map Prod.fst) m =
+      ((messagePair μ α).map Prod.fst) m := by
+    simp only [leftLaw, map_fst_bind_pair]
+  have hright (m : Option Y) : ((rightLaw μ α).map Prod.fst) m =
+      ((messagePair (μ.map Prod.swap) α).map Prod.fst) m := by
+    rw [rightLaw, PMF.map_comp]
+    change ((leftLaw (μ.map Prod.swap) α).map Prod.fst) m = _
+    simp only [leftLaw, map_fst_bind_pair]
+  cases m with
+  | inl m =>
+    rw [map_fst_apply, law_inl_apply]
+    simp_rw [law_inl_apply]
+    rw [ENNReal.tsum_mul_left, ← map_fst_apply, hleft, mul_assoc, mul_assoc]
+    gcongr
+    by_cases hm : m ∈ ((messagePair μ α).map Prod.fst).support
+    · simpa only [mul_assoc] using leftLaw_bothAnchors_le μ α m hm
+    · rw [PMF.mem_support_iff, not_not] at hm
+      simp [hm]
+  | inr m =>
+    rw [map_fst_apply, law_inr_apply]
+    simp_rw [law_inr_apply]
+    rw [ENNReal.tsum_mul_left, ← map_fst_apply, hright, mul_assoc, mul_assoc]
+    gcongr
+    by_cases hm : m ∈ ((messagePair (μ.map Prod.swap) α).map Prod.fst).support
+    · rw [rightLaw, map_equiv_apply]
+      change _ ≤ leftLaw (μ.map Prod.swap) α (m, none, none)
+      simpa only [mul_assoc] using leftLaw_bothAnchors_le (μ.map Prod.swap) α m hm
+    · rw [PMF.mem_support_iff, not_not] at hm
+      simp [hm]
 
 /-- Forgetting both the designated player and the message gives the original anchored law. -/
 theorem map_snd_law (μ : PMF (X × Y)) (α : I) :
