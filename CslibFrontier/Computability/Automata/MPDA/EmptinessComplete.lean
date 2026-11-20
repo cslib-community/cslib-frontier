@@ -852,4 +852,136 @@ theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
 
 end PopStep
 
+/-! ## The hole step -/
+
+section HoleStep
+
+open Classical
+
+/-- A push pending before a push stays pending across it. -/
+theorem pendingAt_of_push {w : List (α × Op n Γ)} {p t : ℕ} {a : α} {i : Fin n} {γ : Γ}
+    (h : PendingAt w p (t - 1)) (hpt : p < t) (hwt : w[t]? = some (a, .push i γ)) :
+    PendingAt w p t := by
+  have htlen : t < w.length := (List.getElem?_eq_some_iff.mp hwt).1
+  refine h.extend (by omega) htlen fun j _ k => ?_
+  rw [show t - 1 + 1 = t by omega, List.extract_eq_singleton hwt]
+  rcases k with _ | k
+  · simp
+  · simp only [List.take_succ_cons, List.take_nil, net_cons, net_nil, add_zero]
+    simp only [Op.net, Op.kind, OpKind.net]
+    split_ifs <;> simp
+
+variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
+  [DecidableEq Γ] {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
+  [DecidablePred (· ∈ M.start)]
+
+/-- **The hole step**: at a hole push, the invariant moves to the end of the block of its greedy
+chain. The counting guard keeps the number of chains below `K`. -/
+theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
+    {a : Symbol} {i : Fin n} {γ : Γ} (hK : HoleBounded K w)
+    (hwt : w[t]? = some (a, .push i γ)) (hev : ¬WellMatched w t) (h : M.CInv K w f t) :
+    t < blockEnd w i t ∧ M.CInv K w f (blockEnd w i t) := by
+  have htlen : t < w.length := (List.getElem?_eq_some_iff.mp hwt).1
+  obtain ⟨μ, C, rs, c, hμ, hd, hrun, hst, hcont, hstk, hreal, hsym, hne, hhole, hcons⟩ := h
+  have hpush : IsPushOn w i t := ⟨a, γ, hwt⟩
+  have ht : IsHolePushOn w i t := ⟨hpush, hev⟩
+  have htake_len : (w.take t).length = t := by simp; omega
+  obtain ⟨hB, -⟩ := hd.invariant
+  obtain ⟨-, hB₂, hB₃, hB₄, hB₅⟩ := hB
+  rw [htake_len] at hB₂ hB₄
+  -- The old pushes, seen in `w`.
+  have hold : ∀ d ∈ C, ∀ e ∈ d.pushes, e.1 < t ∧ PendingAt w e.1 (t - 1) := by
+    intro d hd' e he
+    obtain ⟨⟨b, hb⟩, hpend⟩ := hB₂ d hd' e he
+    have hlt : e.1 < t := by
+      have := (List.getElem?_eq_some_iff.mp hb).1
+      rwa [htake_len] at this
+    refine ⟨hlt, ?_⟩
+    have := (pendingAt_append_iff (v := w.drop t)
+      (show t - 1 < (w.take t).length by omega)).mpr hpend
+    rwa [List.take_append_drop] at this
+  -- The counting guard.
+  have hguard : C.length + 1 ≤ openHoles w t := by
+    refine card_add_one_le_openHoles ht hne (fun d hd' e he => ⟨hhole d hd' e he,
+      pendingAt_of_push (hold d hd' e he).2 (hold d hd' e he).1 hwt, (hold d hd' e he).1⟩)
+      (fun q hq hpq => hB₄ q ?_) hB₅ (fun d hd' => (hB₃ d hd').pairwise) ?_
+    · have := hpq.anti (show q ≤ t - 1 by omega) (by omega)
+      rw [← pendingAt_append_iff (v := w.drop t) (show t - 1 < (w.take t).length by omega),
+        List.take_append_drop]
+      exact this
+    · intro d hd' e he r hr
+      obtain ⟨q₀, m, hm, hlt, hpend⟩ := hcons d hd'
+      have heL : e.1 ∈ chainFrom w d.stack q₀ := by
+        have : e.1 ∈ d.pushes.map Prod.fst := List.mem_map_of_mem he
+        rw [hm, List.mem_reverse] at this
+        exact List.mem_of_mem_take this
+      have hrL := mem_chainFrom_of_ext q₀ e.1 heL r hr
+      have hrt := hlt r hrL
+      refine ⟨hrt, fun hpr => ?_⟩
+      rw [← List.take_append_drop m (chainFrom w d.stack q₀), List.mem_append] at hrL
+      rcases hrL with hrL | hrL
+      · have : r ∈ d.pushes.map Prod.fst := by
+          rw [hm, List.mem_reverse]
+          exact hrL
+        obtain ⟨e', he', rfl⟩ := List.mem_map.mp this
+        exact ⟨e', he', rfl⟩
+      · exact absurd (hpr.anti (by omega) (by omega)) (hpend r hrL)
+  have hClt : C.length < K := by
+    have := hK t htlen
+    omega
+  -- The block of the greedy chain from `t`.
+  obtain ⟨c', r, ps, hblock, hpsfst, hpssnd, hr, hc', hrun', htlt, -⟩ :=
+    exists_block_run (M := M) t hpush c _ hrun
+  have hd' : HoleDerivation K (C ++ [⟨i, ps⟩]) (w.take (blockEnd w i t)) := by
+    rw [take_eq_take_append_extract htlt.le]
+    exact hd.hole hClt (by rw [htake_len]; exact hblock)
+  -- The step of the search.
+  have hlen : μ.holes.length = C.length := hstk.length_eq.symm
+  have hHS : (μ.last, c'.state) ∈ M.holeSegments i := by
+    rw [← hst]
+    exact mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
+  have hif : μ.holes.length < K := by omega
+  have hnext : M.Reachable K M.initialLists ⟨μ.holes ++ [(i, μ.last, c'.state)], c'.state⟩ := by
+    refine .step hμ ?_
+    unfold successors
+    simp only [hif, ↓reduceIte]
+    exact Finset.mem_union_left _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _,
+      Finset.mem_image.mpr ⟨(μ.last, c'.state), Finset.mem_filter.mpr ⟨hHS, rfl⟩, rfl⟩⟩)
+  refine ⟨htlt, ⟨μ.holes ++ [(i, μ.last, c'.state)], c'.state⟩, C ++ [⟨i, ps⟩], rs ++ [r], c',
+    hnext, hd', hrun', rfl, ?_, forall₂_append hstk (.cons rfl .nil),
+    forall₂_append hreal (.cons (by rw [← hst]; exact hr) .nil),
+    forall₂_append hsym (.cons hpssnd .nil), ?_, ?_, ?_⟩
+  · rw [hc', hcont, stacksOf_append_singleton, hpssnd]
+  · intro d hd'
+    rcases List.mem_append.mp hd' with hd' | hd'
+    · exact hne d hd'
+    · obtain rfl := List.mem_singleton.mp hd'
+      intro hps
+      have h₂ : t ∈ (chainFrom w i t).reverse := List.mem_reverse.mpr mem_chainFrom_self
+      rw [← hpsfst, show ps = [] from hps] at h₂
+      simp at h₂
+  · intro d hd' e he
+    rcases List.mem_append.mp hd' with hd' | hd'
+    · exact hhole d hd' e he
+    · obtain rfl := List.mem_singleton.mp hd'
+      have : e.1 ∈ chainFrom w i t := by
+        rw [← List.mem_reverse, ← hpsfst]
+        exact List.mem_map_of_mem he
+      by_cases het : e.1 = t
+      · rw [het]
+        exact ht
+      · exact (chainFrom_spec t e.1 this).2 het
+  · intro d hd'
+    rcases List.mem_append.mp hd' with hd' | hd'
+    · obtain ⟨q₀, m, hm, hlt, hpend⟩ := hcons d hd'
+      refine ⟨q₀, m, hm, fun r' hr' => by have := hlt r' hr'; omega,
+        fun r' hr' hr'' => hpend r' hr' ?_⟩
+      have := hlt r' (List.mem_of_mem_drop hr')
+      exact hr''.anti (by omega) (by omega)
+    · obtain rfl := List.mem_singleton.mp hd'
+      exact ⟨t, (chainFrom w i t).length, by rw [List.take_length]; exact hpsfst,
+        chainFrom_lt_blockEnd t htlen, by simp⟩
+
+end HoleStep
+
 end Cslib.Automata.MPDA
