@@ -192,4 +192,133 @@ decreasing_by
 
 end Chains
 
+/-! ## The counting guard -/
+
+section Guard
+
+variable {w : List (α × Op n Γ)}
+
+theorem pendingAt_self {i : Fin n} {t : ℕ} (h : IsPushOn w i t) : PendingAt w t t :=
+  ⟨le_rfl, h.lt_length, i, h, fun k => by
+    rw [List.extract_eq_take_drop, Nat.sub_self, List.take_zero, List.take_nil]
+    simp⟩
+
+theorem IsPushOn.stack_eq {i j : Fin n} {t : ℕ} (hi : IsPushOn w i t) (hj : IsPushOn w j t) :
+    i = j := by
+  obtain ⟨a, γ, ha⟩ := hi
+  obtain ⟨b, δ, hb⟩ := hj
+  rw [ha] at hb
+  simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hb
+  exact hb.2.1
+
+/-- Pushes of different chains are at different positions. -/
+theorem chains_ne {C : List (HoleChain n Γ)}
+    (horder : C.Pairwise fun c c' => ∀ e ∈ c.pushes, ∀ e' ∈ c'.pushes, e.1 < e'.1)
+    {c c' : HoleChain n Γ} (hc : c ∈ C) (hc' : c' ∈ C) (hne : c ≠ c') :
+    ∀ e ∈ c.pushes, ∀ e' ∈ c'.pushes, e.1 ≠ e'.1 := by
+  induction C with
+  | nil => simp at hc
+  | cons d C ih =>
+    rw [List.pairwise_cons] at horder
+    rcases List.mem_cons.mp hc with rfl | hc₁ <;> rcases List.mem_cons.mp hc' with rfl | hc₁'
+    · exact absurd rfl hne
+    · exact fun e he e' he' => (horder.1 c' hc₁' e he e' he').ne
+    · exact fun e he e' he' => (horder.1 c hc₁ e' he' e he).ne'
+    · exact ih horder.2 hc₁ hc₁'
+
+/-- **The counting guard**: a new hole push at `t` comes with at least one more open hole, in the
+sense of Definition 1, than there are open chains. -/
+theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin n}
+    (ht : IsHolePushOn w i t)
+    (hne : ∀ c ∈ C, c.pushes ≠ [])
+    (helem : ∀ c ∈ C, ∀ e ∈ c.pushes,
+      IsHolePushOn w c.stack e.1 ∧ PendingAt w e.1 t ∧ e.1 < t)
+    (hcover : ∀ q < t, PendingAt w q t → ∃ c ∈ C, ∃ e ∈ c.pushes, e.1 = q)
+    (horder : C.Pairwise fun c c' => ∀ e ∈ c.pushes, ∀ e' ∈ c'.pushes, e.1 < e'.1)
+    (hchain : ∀ c ∈ C, c.pushes.Pairwise fun e e' => e'.1 < e.1)
+    (hclosed : ∀ c ∈ C, ∀ e ∈ c.pushes, ∀ r, Ext w c.stack e.1 r →
+      r < t ∧ (PendingAt w r t → ∃ e' ∈ c.pushes, e'.1 = r)) :
+    C.length + 1 ≤ openHoles w t := by
+  classical
+  -- The oldest push of each chain.
+  let old : HoleChain n Γ → ℕ := fun c => (c.pushes.getLast?.map Prod.fst).getD 0
+  have hold : ∀ c ∈ C, ∃ e ∈ c.pushes, e.1 = old c ∧ ∀ e' ∈ c.pushes, e.1 ≤ e'.1 := by
+    intro c hc
+    obtain ⟨e, he⟩ := List.getLast?_isSome.mpr (hne c hc) |> Option.isSome_iff_exists.mp
+    refine ⟨e, List.mem_of_getLast? he, by simp [old, he], fun e' he' => ?_⟩
+    obtain ⟨l, hl⟩ := List.getLast?_eq_some_iff.mp he
+    have hpw := hchain c hc
+    rw [hl] at he' hpw
+    rcases List.mem_append.mp he' with he' | he'
+    · exact ((List.pairwise_append.mp hpw).2.2 e' he' e (by simp)).le
+    · simp at he'
+      rw [he']
+  -- If two pending pushes are joined like one hole, they lie in the same chain, the older first.
+  have hsame : ∀ p q, p < q → q < t → PendingAt w p t → PendingAt w q t →
+      (∃ j, IsPushOn w j p ∧ IsPushOn w j q) → (∃ j, IsHolePushOn w j q) →
+      WellNested (w.extract (p + 1) q) →
+      ∃ c ∈ C, (∃ e ∈ c.pushes, e.1 = p) ∧ ∃ e ∈ c.pushes, e.1 = q := by
+    intro p q hpq hqt hp hq ⟨j, hpj, hqj⟩ ⟨j', hqhole⟩ hwn
+    obtain ⟨c, hc, e, he, rfl⟩ := hcover p (by omega) hp
+    have hjc : c.stack = j := (helem c hc e he).1.1.stack_eq hpj
+    have hext : Ext w c.stack e.1 q := ⟨hpq, by
+      rw [hjc, hqj.stack_eq hqhole.1]
+      exact hqhole, hwn⟩
+    exact ⟨c, hc, ⟨e, he, rfl⟩, (hclosed c hc e he q hext).2 hq⟩
+  -- The counted pushes.
+  set S := {q | OpenHolePush w t q ∧ ¬∃ p, SameHole w t p q}
+  have hT : ((insert t ((C.map old).toFinset) : Finset ℕ) : Set ℕ) ⊆ S := by
+    intro q hq
+    simp only [Finset.coe_insert, Set.mem_insert_iff, Finset.mem_coe, List.mem_toFinset,
+      List.mem_map] at hq
+    rcases hq with hq | ⟨c, hc, rfl⟩
+    · rw [hq]
+      refine ⟨⟨⟨⟨i, ht.1⟩, ht.2⟩, pendingAt_self ht.1⟩, ?_⟩
+      rintro ⟨p, hpt, ⟨-, hp⟩, -, hstk, hwn⟩
+      obtain ⟨c, hc, e, he, rfl⟩ := hcover p hpt hp
+      obtain ⟨j, hpj, htj⟩ := hstk
+      have hjc : c.stack = j := (helem c hc e he).1.1.stack_eq hpj
+      have hext : Ext w c.stack e.1 t := ⟨hpt, by rw [hjc, htj.stack_eq ht.1]; exact ht, hwn⟩
+      exact absurd (hclosed c hc e he t hext).1 (lt_irrefl _)
+    · obtain ⟨e, he, hev, hmin⟩ := hold c hc
+      obtain ⟨hhole, hpend, het⟩ := helem c hc e he
+      rw [← hev]
+      refine ⟨⟨⟨⟨c.stack, hhole.1⟩, hhole.2⟩, hpend⟩, ?_⟩
+      rintro ⟨p, hpe, ⟨-, hp⟩, -, hstk, hwn⟩
+      obtain ⟨c', hc', ⟨f, hf, rfl⟩, ⟨g, hg, hge⟩⟩ :=
+        hsame p e.1 hpe het hp hpend hstk ⟨c.stack, hhole⟩ hwn
+      -- `e` lies in `c'`, so `c' = c` by the order of chains, and `f` is older than `e`.
+      have hcc : c' = c := by
+        by_contra hcc
+        exact chains_ne horder hc hc' (Ne.symm hcc) e he g hg hge.symm
+      subst hcc
+      have := hmin f hf
+      omega
+  have hfin : S.Finite := (Set.finite_le_nat t).subset fun q hq => hq.1.2.1
+  have hcard : (insert t ((C.map old).toFinset)).card = C.length + 1 := by
+    rw [Finset.card_insert_of_notMem, List.toFinset_card_of_nodup]
+    · simp
+    · -- The oldest pushes of distinct chains differ.
+      rw [List.nodup_map_iff_inj_on]
+      · intro c hc c' hc' hcc'
+        by_contra hne'
+        obtain ⟨e, he, hev, -⟩ := hold c hc
+        obtain ⟨e', he', hev', -⟩ := hold c' hc'
+        exact chains_ne horder hc hc' hne' e he e' he' (by omega)
+      · exact horder.imp_of_mem fun hc _ h heq => by
+          subst heq
+          obtain ⟨e, he, -, -⟩ := hold _ hc
+          exact lt_irrefl _ (h e he e he)
+    · simp only [List.mem_toFinset, List.mem_map, not_exists, not_and]
+      intro c hc hct
+      obtain ⟨e, he, hev, -⟩ := hold c hc
+      have := (helem c hc e he).2.2
+      omega
+  calc C.length + 1 = (insert t ((C.map old).toFinset)).card := hcard.symm
+    _ = ((insert t ((C.map old).toFinset) : Finset ℕ) : Set ℕ).ncard :=
+        (Set.ncard_coe_finset _).symm
+    _ ≤ S.ncard := Set.ncard_le_ncard hT hfin
+
+end Guard
+
 end Cslib.Automata.MPDA
