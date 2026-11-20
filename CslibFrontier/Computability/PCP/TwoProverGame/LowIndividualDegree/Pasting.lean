@@ -176,7 +176,7 @@ variable {A : Type*} [Ring A] [PartialOrder A] [IsOrderedAddMonoid A] [Finite F]
 
 /-- Coarse-grain the joint slice measurement by the pasting readout. Its `none` effect
 collects outcomes with too few successful slices or incompatible slice polynomials. -/
-noncomputable def pasteMeasurement (x : ι ↪ F)
+@[expose] noncomputable def pasteMeasurement (x : ι ↪ F)
     (M : Measurement (ι → Option (BoundedPolynomial F m d)) A) :
     Measurement (Option (BoundedPolynomial F (m + 1) d)) A := by
   classical
@@ -197,7 +197,7 @@ variable [StarRing A] [StarOrderedRing A]
 
 /-- Perform the completed slice measurements in index order and read out their pasted
 polynomial. The outcome `none` is the complementary effect of the pasted sub-measurement. -/
-noncomputable def pasteProjectiveSlices {k : ℕ} (x : Fin k ↪ F)
+@[expose] noncomputable def pasteProjectiveSlices {k : ℕ} (x : Fin k ↪ F)
     (M : F → Measurement (Option (BoundedPolynomial F m d)) A)
     (hM : ∀ t, (M t).IsProjective) : Measurement (Option (BoundedPolynomial F (m + 1) d)) A :=
   pasteMeasurement x (Measurement.sequentialProjective (fun j => M (x j)) (fun j => hM (x j)))
@@ -218,7 +218,7 @@ variable [Module ℝ A] [PosSMulMono ℝ A]
 
 /-- The pasted measurement with an explicit failure outcome. Sample an ordered tuple of
 distinct slices uniformly, perform their measurements and apply the polynomial readout. -/
-noncomputable def pasteSlices (k : ℕ) [Nonempty (Fin k ↪ F)]
+@[expose] noncomputable def pasteSlices (k : ℕ) [Nonempty (Fin k ↪ F)]
     (M : F → Measurement (Option (BoundedPolynomial F m d)) A)
     (hM : ∀ t, (M t).IsProjective) : Measurement (Option (BoundedPolynomial F (m + 1) d)) A := by
   classical
@@ -236,6 +236,21 @@ theorem pasteSlices_effect (k : ℕ) [Nonempty (Fin k ↪ F)]
   unfold pasteSlices
   let _ : Fintype (Fin k ↪ F) := Fintype.ofFinite _
   exact Measurement.mixture_effect _ _ _
+
+/-- Any operator commuting with the slice effects commutes with the averaged paste. -/
+theorem commute_pasteSlices (k : ℕ) [Nonempty (Fin k ↪ F)]
+    (M : F → Measurement (Option (BoundedPolynomial F m d)) A)
+    (hM : ∀ t, (M t).IsProjective) (e : A)
+    [SMulCommClass ℝ A A] [IsScalarTower ℝ A A]
+    (h : ∀ t a, Commute ((M t).effect a) e) (p : Option (BoundedPolynomial F (m + 1) d)) :
+    Commute ((pasteSlices k M hM).effect p) e := by
+  classical
+  let _ : Fintype (Fin k ↪ F) := Fintype.ofFinite _
+  rw [pasteSlices_effect]
+  refine Commute.sum_left _ _ _ fun x _ => Commute.smul_left ?_ _
+  rw [pasteProjectiveSlices, pasteMeasurement, Measurement.map_effect]
+  exact Commute.sum_left _ _ _ fun g _ =>
+    Measurement.sequentialProjective_commute _ _ _ (fun j a => h (x j) a) g
 
 end Measurement
 

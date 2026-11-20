@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
+public import CslibFrontier.Foundations.Quantum.Algebra.MeasurementMixture
 public import Mathlib.Data.Fintype.Option
 import Mathlib.Analysis.Real.Sqrt
 
@@ -64,6 +65,47 @@ theorem successfulMismatch_map_map {β γ : Type*} [Fintype β] [Fintype γ]
       | none => simp
       | some a =>
         simp [ne_comm, sum_ite_eq]
+
+/-- The successful mismatch averages over a classical choice of the first measurement. -/
+theorem successfulMismatch_mixture_left {ι : Type*} [Fintype ι] [IsOrderedAddMonoid A]
+    [PosSMulMono ℝ A] (φ : AlgState A) (p : PMF ι) (M : ι → Measurement (Option α) A)
+    (Q : Measurement α A) :
+    successfulMismatch φ (mixture p M) Q = ∑ i, (p i).toReal * successfulMismatch φ (M i) Q := by
+  have h (r : ℝ) (a b : A) : (φ ((r • a) * b)).re = r * (φ (a * b)).re := by
+    rw [← IsScalarTower.algebraMap_smul ℂ r a, smul_mul_assoc, map_smul, Complex.coe_algebraMap,
+      smul_eq_mul, Complex.re_ofReal_mul]
+  simp only [successfulMismatch, mixture_effect, sum_mul, map_sum, Complex.re_sum, h,
+    Finset.mul_sum]
+  exact sum_comm
+
+omit [Algebra ℂ A] in
+/-- Completing an optional measurement with a fallback adds the failure effect to
+the fallback outcome's successful effect. -/
+theorem map_getD_effect [DecidableEq α] [IsOrderedAddMonoid A]
+    (P : Measurement (Option α) A) (fallback a : α) :
+    (P.map (fun x => x.getD fallback)).effect a =
+      (if fallback = a then P.effect none else 0) + P.effect (some a) := by
+  simp only [map_effect, sum_filter, Fintype.sum_option, Option.getD_none, Option.getD_some,
+    sum_ite_eq', mem_univ, ite_true]
+
+/-- Replacing failure with a fixed outcome adds at most the original failure mass to
+the disagreement probability. -/
+theorem one_sub_agreement_map_getD_le [DecidableEq α] [IsOrderedAddMonoid A]
+    [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
+    [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint] [NonnegSpectrumClass ℝ A]
+    (φ : AlgState A) (P : Measurement (Option α) A) (Q : Measurement α A) (fallback : α)
+    (hc : Commute (P.effect none) (Q.effect fallback)) :
+    1 - agreement φ (P.map (fun a => a.getD fallback)) Q ≤
+      successfulMismatch φ P Q + (φ (P.effect none)).re := by
+  classical
+  have hsum : (φ (P.effect none)).re + ∑ a, (φ (P.effect (some a))).re = 1 := by
+    simpa only [Fintype.sum_option, Measurement.prob] using P.sum_prob φ
+  have hpos := φ.re_apply_nonneg (Commute.mul_nonneg (P.nonneg none) (Q.nonneg fallback) hc)
+  unfold agreement successfulMismatch
+  simp only [map_getD_effect, add_mul, mul_sub, mul_one, map_add, map_sub, Complex.add_re,
+    Complex.sub_re, sum_add_distrib, sum_sub_distrib, ite_mul, zero_mul, apply_ite, map_zero,
+    Complex.zero_re, sum_ite_eq, mem_univ, ite_true]
+  linarith
 
 variable [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
   [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint] [NonnegSpectrumClass ℝ A]
