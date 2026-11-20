@@ -81,7 +81,8 @@ theorem coe_iterate_reflTransGenStep (k : ℕ) :
   | succ k ih =>
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ← ih]
     ext p
-    simp [reflTransGenStep]
+    simp only [reflTransGenStep, Finset.coe_filter, Finset.mem_univ, true_and,
+      Set.mem_ofPred_eq]
     rfl
 
 theorem mem_reflTransGenFinset {a b : α} : (a, b) ∈ reflTransGenFinset r ↔ ReflTransGen r a b := by

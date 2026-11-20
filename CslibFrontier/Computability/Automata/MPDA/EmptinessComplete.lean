@@ -603,7 +603,7 @@ def CInv (K : ℕ) (w : List (Symbol × Op n Γ)) (f : State) (t : ℕ) : Prop :
     M.configLTS.MTr c (w.drop t) ⟨f, Stacks.empty⟩ ∧ c.state = μ.last ∧
     c.contents = stacksOf C ∧
     List.Forall₂ (fun c (h : HoleTriple n State) => c.stack = h.1) C μ.holes ∧
-    List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r) rs μ.holes ∧
+    List.Forall₂ (fun r ((i, s, s') : HoleTriple n State) => M.Realizes i s s' r) rs μ.holes ∧
     List.Forall₂ (fun c (r : List (Γ × State)) => c.pushes.map Prod.snd = r.map Prod.fst) C rs ∧
     (∀ c ∈ C, c.pushes ≠ []) ∧ (∀ c ∈ C, ∀ e ∈ c.pushes, IsHolePushOn w c.stack e.1) ∧
     ∀ c ∈ C, ∃ q₀ m, c.pushes.map Prod.fst = ((chainFrom w c.stack q₀).take m).reverse ∧

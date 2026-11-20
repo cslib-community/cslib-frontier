@@ -414,7 +414,9 @@ theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {�
       w.length + 1 by omega]
     rcases k with _ | k
     · simp
-    · simp [List.extract_eq_take_drop, net, Op.net]
+    · simp only [net, Op.net, OpKind.net, Op.kind, Int.reduceNeg, List.extract_eq_take_drop,
+        add_tsub_cancel_left, List.drop_left', List.take_succ_cons, List.take_nil, List.map_cons,
+        List.map_nil, List.sum_cons, List.sum_nil, add_zero]
       split_ifs <;> simp
   have hnew : PendingAt w' w.length (w'.length - 1) :=
     ⟨by omega, by omega, i, ⟨a, γ, by simp [w']⟩, fun k => by

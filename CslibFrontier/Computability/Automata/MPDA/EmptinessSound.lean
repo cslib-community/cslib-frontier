@@ -150,7 +150,7 @@ last state of the list, whose chains push the realization's symbols. -/
 theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
     (hμ : M.Reachable K M.initialLists μ) :
     ∀ rs : List (List (Γ × State)),
-      List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r) rs μ.holes →
+      List.Forall₂ (fun r ((i, s, s') : HoleTriple n State) => M.Realizes i s s' r) rs μ.holes →
       ∃ s₀ ∈ M.start, ∃ (w : List (Symbol × Op n Γ)) (C : List (HoleChain n Γ)),
         HoleDerivation K C w ∧
         List.Forall₂ (fun c (h : HoleTriple n State) => c.stack = h.1) C μ.holes ∧
@@ -204,9 +204,9 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
       have hpop : ∀ (s₂ : State) (γ : Γ) (s' : State) (rpre rpost : List (List (Γ × State)))
           (r : List (Γ × State)), (s₂, γ, s₃) ∈ M.atomicHoles i →
           (∃ b, M.Tr μ.last (b, .pop i γ) s') → rpre.length = pre.length →
-          List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r) rpre pre →
+          List.Forall₂ (fun r ((i, s, s') : HoleTriple n State) => M.Realizes i s s' r) rpre pre →
           M.Realizes i s₁ s₂ r →
-          List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r)
+          List.Forall₂ (fun r ((i, s, s') : HoleTriple n State) => M.Realizes i s s' r)
             rpost post →
           ∃ s₀ ∈ M.start, ∃ (w : List (Symbol × Op n Γ)) (Cpre Cpost : List (HoleChain n Γ))
             (ps : List (ℕ × Γ)), HoleDerivation K (Cpre ++ ⟨i, ps⟩ :: Cpost) w ∧
@@ -218,7 +218,7 @@ theorem Reachable.exists_holeDerivation {K : ℕ} {μ : HoleList n State}
               r.map Prod.fst) Cpost rpost ∧ ps.map Prod.snd = r.map Prod.fst ∧
             M.configLTS.MTr ⟨s₀, Stacks.empty⟩ w ⟨s', stacksOf (Cpre ++ ⟨i, ps⟩ :: Cpost)⟩ := by
         intro s₂ γ s' rpre rpost r hγ ⟨b, hb⟩ hlen hrpre hr hrpost
-        have hrs' : List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r)
+        have hrs' : List.Forall₂ (fun r ((i, s, s') : HoleTriple n State) => M.Realizes i s s' r)
             (rpre ++ ((γ, s₃) :: r) :: rpost) μ.holes := by
           rw [hμh]
           exact List.rel_append hrpre (.cons (.cons hr hγ) hrpost)

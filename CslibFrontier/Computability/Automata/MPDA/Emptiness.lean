@@ -150,8 +150,8 @@ variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
 [AkshayGastinKrishnaRoychowdhury2020]): the triples `(s, α, s')` such that a push of `α` on stack
 `i` from `s`, followed by a well-nested run, reaches `s'`. -/
 @[expose] def atomicHoles (i : Fin n) : Finset (State × Γ × State) :=
-  Finset.univ.filter fun t => ∃ (a : Symbol) (s₁ : State), M.Tr t.1 (a, .push i t.2.1) s₁ ∧
-    (s₁, t.2.2) ∈ M.wellNestedPairs
+  Finset.univ.filter fun (s, γ, s') => ∃ (a : Symbol) (s₁ : State), M.Tr s (a, .push i γ) s₁ ∧
+    (s₁, s') ∈ M.wellNestedPairs
 
 theorem mem_atomicHoles {i : Fin n} {s s' : State} {γ : Γ} :
     (s, γ, s') ∈ M.atomicHoles i ↔
@@ -270,11 +270,11 @@ also be removed. Without an open hole of stack `i` there is no successor. -/
   match splitLastHole i μ.holes with
   | none => ∅
   | some (pre, (s₁, s₃), post) =>
-    let ok : State × Γ × State × State → Prop := fun t =>
-      (s₁, t.1) ∈ M.holeSegments i ∧ (t.1, t.2.1, s₃) ∈ M.atomicHoles i ∧
-        (∃ b, M.Tr μ.last (b, .pop i t.2.1) t.2.2.1) ∧ (t.2.2.1, t.2.2.2) ∈ M.wellNestedPairs
-    (Finset.univ.filter ok).image (fun t => ⟨pre ++ (i, s₁, t.1) :: post, t.2.2.2⟩) ∪
-      ((Finset.univ.filter fun t => ok t ∧ t.1 = s₁).image fun t => ⟨pre ++ post, t.2.2.2⟩)
+    let ok : State × Γ × State × State → Prop := fun (s₂, γ, s', s'') =>
+      (s₁, s₂) ∈ M.holeSegments i ∧ (s₂, γ, s₃) ∈ M.atomicHoles i ∧
+        (∃ b, M.Tr μ.last (b, .pop i γ) s') ∧ (s', s'') ∈ M.wellNestedPairs
+    (Finset.univ.filter ok).image (fun (s₂, _, _, s'') => ⟨pre ++ (i, s₁, s₂) :: post, s''⟩) ∪
+      ((Finset.univ.filter fun t => ok t ∧ t.1 = s₁).image fun (_, _, _, s'') => ⟨pre ++ post, s''⟩)
 
 /-- The children of a list in the search: holes while fewer than `K` are open, and pops. -/
 @[expose] def successors (K : ℕ) (μ : HoleList n State) : Finset (HoleList n State) :=
