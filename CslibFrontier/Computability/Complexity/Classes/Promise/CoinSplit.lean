@@ -244,7 +244,14 @@ theorem coinSplit_mem_PromiseCoRP
   let V : (α × List Bool) × List Bool → Bool := fun q =>
     (q.1.2.length == p'.eval (encA q.1.1).length) && A' (q.1.1, q.1.2 ++ q.2)
   have hV : ComputableInPolyTime V (encPair (encPair encA encBits) encBits) encBool := by
-    polytime [V]
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair (encPair encA encBits) encBits)
+    have hlength := ComputableInPolyTime.length_bits.comp hp.fst'.snd'
+    have hbudget := (ComputableInPolyTime.unary_eval p').comp
+      ((ComputableInPolyTime.encoding_length encA).comp hp.fst'.fst')
+    have hcall := hA'.comp (hp.fst'.fst'.prod
+      (ComputableInPolyTime.bitsAppend hp.fst'.snd' hp.snd'))
+    exact ComputableInPolyTime.bool_and' (ComputableInPolyTime.unary_beq hlength hbudget) hcall
   rw [mem_PromiseCoRP_iff_exists_isPPTOn]
   refine ⟨fun q => (fun w => V (q, w)) <$> BitString.sampleList q.2.length,
     IsPPTOn.of_seeded ((ComputableInPolyTime.length_bits).comp (ComputableInPolyTime.snd _ _)) hV,
