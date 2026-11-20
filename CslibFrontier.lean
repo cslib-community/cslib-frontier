@@ -316,6 +316,7 @@ public import CslibFrontier.Algorithms.Reachability.InductiveCounting.Semantics
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.AllPairs
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Collisions
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Streaming
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Weights

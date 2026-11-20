@@ -92,13 +92,18 @@ theorem generatedWeightScan_prefix_log2_lt {w n k : ℕ} (seed : Fin (codeLength
     _ = 2 ^ (3 * k) := by rw [pow_mul]
     _ ≤ 2 ^ (3 * k + 1) := Nat.pow_le_pow_right (by decide) (Nat.le_succ _))
 
+/-- Apply Hoza's layer-dependent factor to an already accumulated base-six weight. The
+streaming scan handles the layer-zero case before calling this calculation. -/
+@[expose] def scaleAccumulatedWeight (layer accumulator : ℕ) : ℕ :=
+  6 ^ padicValNat 2 layer * accumulator
+
 /-- Scan the seed through a read-only bit accessor. For a positive layer, evaluate code bits
 individually and accumulate the masked digits in base six. -/
 def generatedWeightScan {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
     (z : Fin (n + 1) × Fin w) : ℕ :=
   if z.1.val = 0 then 0 else
     let code := indexedCodewordMod z.2
-    6 ^ padicValNat 2 z.1.val * accumulate fun j => code j && seed j
+    scaleAccumulatedWeight z.1.val (accumulate fun j => code j && seed j)
 
 /-- The scan uses the same seed and returns exactly the weight used by the isolation theorem. -/
 theorem generatedWeightScan_eq {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
@@ -107,7 +112,7 @@ theorem generatedWeightScan_eq {w n : ℕ} (seed : Fin (codeLength w n) → Bool
   rw [generatedWeightScan, generatedWeight, vertexWeight]
   split_ifs
   · rfl
-  · dsimp only
+  · dsimp only [scaleAccumulatedWeight]
     rw [accumulate_eq, mul_sum]
     refine sum_congr rfl fun j _ => ?_
     rw [indexedCodewordMod_eq, coefficient]
