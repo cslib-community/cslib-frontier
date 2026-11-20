@@ -35,6 +35,10 @@ work tapes of the machine. Acceptance requires both halting and an accepting sta
 * `Turing.NondeterministicQueryMachine.exists_runPath_iff`: paths are exactly finite replays.
 * `Turing.NondeterministicQueryMachine.accepts_iff_length`: an all-branches halting bound lets
   acceptance be checked at one common abstract time.
+* `Turing.NondeterministicQueryMachine.existsUnique_firstHalting_prefix`: a halted replay
+  has a unique first-halting prefix reaching the same state.
+* `Turing.NondeterministicQueryMachine.accepts_iff_exists_firstHalting`: acceptance is
+  witnessed by a trace that stops at its first halt.
 
 ## References
 
@@ -140,6 +144,54 @@ theorem run_append_of_halted {choices : List Bool}
     (h : M.halted (M.run input choices) = true) (more : List Bool) :
     M.run input (choices ++ more) = M.run input choices := by
   rw [run_append, M.replay_of_halted input h]
+
+/-- A replay ending halted has a unique prefix that first halts at its end. That prefix
+reaches the same state as the full replay. If the starting state is halted, the prefix is
+empty. -/
+theorem existsUnique_firstHalting_prefix {s : σ} {choices : List Bool}
+    (hh : M.halted (M.replay input choices s) = true) :
+    ∃! first : List Bool, first <+: choices ∧
+      M.halted (M.replay input first s) = true ∧
+      (∀ n < first.length, M.halted (M.replay input (first.take n) s) = false) ∧
+      M.replay input first s = M.replay input choices s := by
+  have hsome : ∃ n, M.halted (M.replay input (choices.take n) s) = true :=
+    ⟨choices.length, by simpa only [List.take_length] using hh⟩
+  have hselected := Nat.find_spec hsome
+  have hlen : (choices.take (Nat.find hsome)).length = Nat.find hsome :=
+    List.length_take_of_le (Nat.find_min' hsome (by simpa only [List.take_length] using hh))
+  refine ⟨choices.take (Nat.find hsome), ⟨List.take_prefix _ _, hselected, ?_, ?_⟩, ?_⟩
+  · intro n hn
+    rw [hlen] at hn
+    rw [List.take_take, Nat.min_eq_left hn.le]
+    exact Bool.eq_false_iff.mpr (Nat.find_min hsome hn)
+  · conv_rhs => rw [← List.take_append_drop (Nat.find hsome) choices]
+    rw [M.replay_append, M.replay_of_halted input hselected]
+  · rintro first ⟨hprefix, hhalt, hproper, _⟩
+    have heq := List.prefix_iff_eq_take.mp hprefix
+    have hmin : Nat.find hsome ≤ first.length := Nat.find_min' hsome (heq ▸ hhalt)
+    have hmax : first.length ≤ Nat.find hsome := by
+      by_contra! hlt
+      have hc := hproper (Nat.find hsome) hlt
+      rw [heq, List.take_take, Nat.min_eq_left hmin, hselected] at hc
+      cases hc
+    exact heq.trans (congrArg (fun n => choices.take n) (le_antisymm hmax hmin))
+
+/-- Every accepting query computation has a choice trace that ends at its first halt. -/
+theorem accepts_iff_exists_firstHalting :
+    M.Accepts input ↔ ∃ choices : List Bool,
+      M.halted (M.run input choices) = true ∧
+      (∀ n < choices.length, M.halted (M.run input (choices.take n)) = false) ∧
+      M.accept (M.run input choices) = true := by
+  constructor
+  · rintro ⟨choices, hhalt, haccept⟩
+    obtain ⟨first, ⟨_, hfirst, hproper, hstate⟩, _⟩ :=
+      M.existsUnique_firstHalting_prefix input hhalt
+    refine ⟨first, hfirst, hproper, ?_⟩
+    change M.accept (M.replay input first M.init) = true
+    rw [hstate]
+    exact haccept
+  · rintro ⟨choices, hhalt, _, haccept⟩
+    exact ⟨choices, hhalt, haccept⟩
 
 /-- Every finite relational path is a choice replay of the same length, and conversely. -/
 theorem exists_runPath_iff {s s' : σ} {n : ℕ} :
