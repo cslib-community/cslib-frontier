@@ -81,7 +81,11 @@ theorem lpNorm_rpow {p : ℝ} (hp : p ≠ 0) (f : α → ℝ) :
 
 /-- For a nonnegative function, `‖f‖_p = (𝔼_x f x ^ p) ^ (1 / p)` without absolute values; for
 a positive function and `p < 0` this is O'Donnell's negative-exponent "norm"
-[O'Donnell, Exercise 10.6][ODonnell2014]. -/
+[O'Donnell, Exercise 10.6][ODonnell2014], whose display on printed p. 314 of the arXiv edition
+prints the outer exponent as `-1 / p`; `1 / p` is the intended reading, under which a positive
+constant is its own norm. For `p < 0` and a function with zeros the two differ: `0 ^ p` is `0`
+here, so the indicator of half of a two-point type has `lpNorm (-1)` equal to `2`, while the
+book's norm, extended by limits, is `0`. -/
 theorem lpNorm_of_nonneg (p : ℝ) {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) :
     lpNorm p f = (𝔼 x, f x ^ p) ^ p⁻¹ := by
   simp only [lpNorm, abs_of_nonneg (hf _)]

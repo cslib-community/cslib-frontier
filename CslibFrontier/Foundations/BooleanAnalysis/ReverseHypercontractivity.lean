@@ -20,7 +20,9 @@ For nonnegative functions, the expectation of `f x g y` over a `ρ`-correlated p
 which is `𝔼_x f x · T_ρ g x`, is bounded *below* by a product of `L^p` "norms" with exponents
 at most `1` [O'Donnell, Remark 10.3 and Exercises 10.6–10.9][ODonnell2014]. Writing `‖f‖_p` for
 `Cslib.lpNorm`, which for a positive `f` and `p < 0` is the book's `𝔼[f ^ p] ^ (1 / p)`
-(`Cslib.lpNorm_of_nonneg`), this file proves:
+(`Cslib.lpNorm_of_nonneg`), this file proves the following for **finite, nonzero exponents**,
+with every function that carries a negative exponent assumed **positive**; the source's limit
+conventions are not covered (see the Scope section below):
 
 * the **Reverse Two-Function Hypercontractivity Theorem** `‖f‖_{1 + r} ‖g‖_{1 + s} ≤
   𝔼_x f x · T_ρ g x` for `0 ≤ ρ ≤ √(r s) ≤ 1`: for `-1 < r, s ≤ 0` and nonnegative `f` and `g`
@@ -69,37 +71,67 @@ indicators of `A` and `B` with `1 + r = a (1 - ρ ^ 2) / (a + ρ b)` and
 O'Donnell states the two-function theorem for all `r, s ≤ 0` with `√(r s) ≤ 1`, with `‖f‖_p` for
 `p ≤ 0` defined for positive `f` (as `𝔼[f ^ p] ^ (1 / p)` for `p < 0` and the geometric mean for
 `p = 0`) and extended to nonnegative `f` by limits, and the one-function theorem for all
-`-∞ ≤ q < p ≤ 1`. Covered here are the two-function theorem for all `r, s ≤ 0` other than `-1`
-with `0 ≤ ρ ≤ √(r s) ≤ 1`, and the one-function theorem for all `q < p ≤ 1` other than `0`. A
-function whose exponent is negative is assumed positive; a function whose exponent lies in
-`(0, 1]` may be nonnegative, where `Cslib.lpNorm` is the book's norm and no limit is needed.
+`-∞ ≤ q < p ≤ 1`. This file covers only finite, nonzero exponents: the two-function theorem for
+all `r, s ≤ 0` other than `-1` (so `1 + r` and `1 + s` are nonzero) with `0 ≤ ρ ≤ √(r s) ≤ 1`,
+and the one-function theorem for all finite `q < p ≤ 1` other than `0`. A function whose exponent
+is negative is assumed positive; a function whose exponent lies in `(0, 1]` may be nonnegative,
+where `Cslib.lpNorm` is the book's norm and no limit is needed.
 
-Not covered:
+Not covered, and tracked on [#2131](https://github.com/cslib-community/cslib-frontier/issues/2131),
+are the cases that need the source's limit conventions:
 
-* the exponents `p = 0`, `q = 0` and `q = -∞` (Exercise 10.7(c), (f)), beyond the one-bit
-  inequality for `q = 0` (`BitString.rpow_add_rpow_le_sq_sub_sq_mul_sq_rpow`). `Cslib.lpNorm 0` is
-  `1`, not the geometric mean, so `r = -1` and `s = -1` are excluded throughout;
-* nonnegative functions with a negative exponent: a function with a negative exponent is assumed
-  positive (Exercise 10.6(a) is not formalized).
+* the exponent `0` as the geometric mean (`p = 0`, `q = 0`, `r = -1`, `s = -1`) and `q = -∞`
+  (Exercise 10.7(c), (f)), beyond the one-bit inequality for `q = 0`
+  (`BitString.rpow_add_rpow_le_sq_sub_sq_mul_sq_rpow`). `Cslib.lpNorm 0` is `1`, not the geometric
+  mean;
+* functions with zeros carrying a negative exponent, whose book norm is defined by a limit
+  (Exercise 10.6(a) is not formalized). For such functions `Cslib.lpNorm` differs from the
+  book's extended norm, because Lean's `0 ^ p` is `0` for `p ≠ 0`: for the indicator of a half-cube,
+  `lpNorm (-1)` is `2`, while the book's norm is `0`.
 
-The case `ρ = 1` of the Small-Set Expansion Theorem is excluded: its bound is then `0` unless
-`a = b = 0`, while Lean's division by `0` would make the stated bound `1`.
+The Small-Set Expansion Theorem is proved for `ρ < 1`; the source's statement also includes the
+singular endpoint `ρ = 1`, where its bound is `0` unless `a = b = 0`, while Lean's division by `0`
+would make the stated bound `1`.
+
+**Source comparison.** The display defining the negative-exponent norm (printed p. 314, in
+Exercise 10.6, of the arXiv edition) prints the outer exponent as `-1 / p`; this file uses the
+intended `1 / p`, the reading under which a constant function `c > 0` has `‖c‖_p = c`.
+
+## Usage
+
+A `ρ`-correlated pair `(x, y)` on `ι → Bool` enters through the noise operator: the expectation
+of `f x g y` is `𝔼 x, f x * noiseOp ρ g x`, and the probability that `x ∈ A` and `y ∈ B` is
+`𝔼 x, A.indicator 1 x * noiseOp ρ (B.indicator 1) x`. `Cslib.lpNorm_indicator_one` turns the norm
+of an indicator into a power of its volume. The ingredients are not re-exported and must be
+imported separately: the reverse Hölder inequality from
+`CslibFrontier.Foundations.Analysis.ReverseHolder`, the one-bit inequalities from
+`CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint`, and the
+tensorization lemmas `BitString.le_expect_mul_noiseOp_of_unit` and
+`BitString.le_expect_mul_noiseOp_of_unit_of_pos` (which extend another one-bit lower bound to every
+cube) from `CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.Tensorization`. Checked
+instances of these theorems, including functions with zeros, the mixed cases at `r = -2`, and the
+small-set bound on opposite one-bit subcubes, are in
+[`CslibFrontierTests/BooleanAnalysisReverseHypercontractivity.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisReverseHypercontractivity.lean).
 
 ## Main results
+
+All exponents below are finite and nonzero, and a function carrying a negative exponent is
+positive.
 
 * `Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp`: the Reverse Two-Function
   Hypercontractivity Theorem for `-1 < r, s ≤ 0`.
 * `Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one`,
   `Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one`: the same
-  theorem for `r < -1 < s ≤ 0` and for `s < -1 < r ≤ 0`.
+  theorem for `r < -1 < s ≤ 0` with `f` positive and for `s < -1 < r ≤ 0` with `g` positive.
 * `Cslib.BitString.sq_expect_abs_mul_sq_expect_abs_le`: its case `r = s = -1/2`.
 * `Cslib.BitString.le_expect_mul_noiseOp_iff_lpNorm_le_lpNorm_noiseOp`: the equivalence of the
-  two-function and one-function forms.
+  two-function and one-function forms, for positive functions.
 * `Cslib.BitString.lpNorm_le_lpNorm_noiseOp`: the Reverse Hypercontractivity Theorem for
   `q < p`, `q ≠ 0` and `0 < p ≤ 1`.
-* `Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_neg`: the same theorem for `q < p < 0`.
+* `Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_neg`: the same theorem for `q < p < 0` with `f`
+  positive.
 * `Cslib.BitString.exp_le_expect_indicator_mul_noiseOp_indicator`: the Reverse Small-Set
-  Expansion Theorem.
+  Expansion Theorem for `ρ < 1`.
 
 ## References
 
@@ -117,10 +149,13 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-! ### Two-function reverse hypercontractivity -/
 
-/-- **The Reverse Two-Function Hypercontractivity Theorem**: for `-1 < r, s ≤ 0`,
-`0 ≤ ρ ≤ √(r s)` and nonnegative `f` and `g`, the expectation `𝔼_x f x · T_ρ g x` of `f x g y`
-over a `ρ`-correlated pair `(x, y)` is at least `‖f‖_{1 + r} ‖g‖_{1 + s}`
-[O'Donnell, Exercise 10.6][ODonnell2014]. -/
+/-- **The Reverse Two-Function Hypercontractivity Theorem for the exponents
+`1 + r, 1 + s ∈ (0, 1]`**: for `-1 < r, s ≤ 0`, `0 ≤ ρ ≤ √(r s)` and nonnegative `f` and `g`, the
+expectation `𝔼_x f x · T_ρ g x` of `f x g y` over a `ρ`-correlated pair `(x, y)` is at least
+`‖f‖_{1 + r} ‖g‖_{1 + s}` [O'Donnell, Exercise 10.6][ODonnell2014]. Both exponents are finite and
+positive, so no positivity of `f` or `g` is needed. The exponent `0` (`r = -1` or `s = -1`), which
+the source reads as the geometric mean, is not covered and is tracked on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
 theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp {r s ρ : ℝ} (hr : -1 < r) (hr' : r ≤ 0)
     (hs : -1 < s) (hs' : s ≤ 0) (hρ : 0 ≤ ρ) (hρ' : ρ ≤ √(r * s)) {f g : (ι → Bool) → ℝ}
     (hf : ∀ x, 0 ≤ f x) (hg : ∀ x, 0 ≤ g x) :
@@ -134,7 +169,8 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp {r s ρ : ℝ} (hr : -1 < r) (hr
 `0 ≤ ρ ≤ 1 / 2` and any real `f` and `g`, the expectation of `f x ^ 2 g y ^ 2` over a
 `ρ`-correlated pair `(x, y)` is at least `(𝔼 |f|) ^ 2 (𝔼 |g|) ^ 2`. This is the statement of
 [O'Donnell, Exercise 10.8][ODonnell2014] on every cube, derived from the general theorem rather
-than proved directly. -/
+than proved directly; the exercise's optional question about a direct proof for `k > 2` is not
+addressed. -/
 theorem sq_expect_abs_mul_sq_expect_abs_le {ρ : ℝ} (hρ : 0 ≤ ρ) (hρ' : ρ ≤ 1 / 2)
     (f g : (ι → Bool) → ℝ) :
     (𝔼 x, |f x|) ^ 2 * (𝔼 x, |g x|) ^ 2 ≤ 𝔼 x, f x ^ 2 * noiseOp ρ (fun y => g y ^ 2) x := by
@@ -190,13 +226,19 @@ theorem le_expect_mul_noiseOp_iff_lpNorm_le_lpNorm_noiseOp {r s ρ : ℝ} (hr : 
     rw [hconj'] at hH
     exact (mul_le_mul_of_nonneg_left (h g hg) (lpNorm_nonneg _ _)).trans hH
 
-/-- **The Reverse Two-Function Hypercontractivity Theorem for `r < -1`**: for `r < -1` and
-`-1 < s ≤ 0` with `r s ≤ 1`, `0 ≤ ρ ≤ √(r s)`, positive `f` and nonnegative `g`,
-`‖f‖_{1 + r} ‖g‖_{1 + s} ≤ 𝔼_x f x · T_ρ g x` [O'Donnell, Exercise 10.6][ODonnell2014]. On one
-bit it is the reverse two-point inequality `‖g‖_{1 + s} ≤ ‖T_ρ g‖_{1 + 1 / r}` for the exponents
-`0 < 1 + 1 / r ≤ 1 + s ≤ 1` (`BitString.lpNorm_le_lpNorm_noiseOp_of_unit`) followed by the reverse
-Hölder inequality, and it tensorizes by `BitString.le_expect_mul_noiseOp_of_unit_of_pos`. The case
-`s < -1 < r` is `BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one`.
+/-- **The Reverse Two-Function Hypercontractivity Theorem for `r < -1 < s ≤ 0`, with `f`
+positive**: for `r < -1` and `-1 < s ≤ 0` with `r s ≤ 1`, `0 ≤ ρ ≤ √(r s)`, positive `f` and
+nonnegative `g`, `‖f‖_{1 + r} ‖g‖_{1 + s} ≤ 𝔼_x f x · T_ρ g x`
+[O'Donnell, Exercise 10.6][ODonnell2014]. The exponent `1 + r` is finite and negative, so `f`, which
+carries it, is assumed positive; the source's extension to `f` with zeros by limits, and the
+exponent `0`, are not covered and are tracked on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
+
+On one bit it is the reverse two-point inequality `‖g‖_{1 + s} ≤ ‖T_ρ g‖_{1 + 1 / r}` for the
+exponents `0 < 1 + 1 / r ≤ 1 + s ≤ 1` (`BitString.lpNorm_le_lpNorm_noiseOp_of_unit`) followed by the
+reverse Hölder inequality, and it tensorizes by `BitString.le_expect_mul_noiseOp_of_unit_of_pos`.
+The case `s < -1 < r` is
+`BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one`.
 -/
 theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one {r s ρ : ℝ} (hr : r < -1)
     (hs : -1 < s) (hs' : s ≤ 0) (hrs : r * s ≤ 1) (hρ : 0 ≤ ρ) (hρ' : ρ ≤ √(r * s))
@@ -225,11 +267,16 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one {r s ρ : ℝ} (hr
   rw [hconj] at h2
   exact (mul_le_mul_of_nonneg_left h1 (lpNorm_nonneg _ _)).trans h2
 
-/-- **The Reverse Two-Function Hypercontractivity Theorem for `s < -1`**: for `-1 < r ≤ 0` and
-`s < -1` with `r s ≤ 1`, `0 ≤ ρ ≤ √(r s)`, nonnegative `f` and positive `g`,
-`‖f‖_{1 + r} ‖g‖_{1 + s} ≤ 𝔼_x f x · T_ρ g x` [O'Donnell, Exercise 10.6][ODonnell2014]. This is
-`BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one` with `f` and `g` exchanged,
-since `T_ρ` is self-adjoint (`BitString.expect_mul_noiseOp_comm`). -/
+/-- **The Reverse Two-Function Hypercontractivity Theorem for `s < -1 < r ≤ 0`, with `g`
+positive**: for `-1 < r ≤ 0` and `s < -1` with `r s ≤ 1`, `0 ≤ ρ ≤ √(r s)`, nonnegative `f` and
+positive `g`, `‖f‖_{1 + r} ‖g‖_{1 + s} ≤ 𝔼_x f x · T_ρ g x`
+[O'Donnell, Exercise 10.6][ODonnell2014]. The exponent `1 + s` is finite and negative, so `g`, which
+carries it, is assumed positive; the source's extension to `g` with zeros by limits, and the
+exponent `0`, are not covered and are tracked on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
+
+This is `BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one` with `f` and `g`
+exchanged, since `T_ρ` is self-adjoint (`BitString.expect_mul_noiseOp_comm`). -/
 theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one {r s ρ : ℝ}
     (hr : -1 < r) (hr' : r ≤ 0) (hs : s < -1) (hrs : r * s ≤ 1) (hρ : 0 ≤ ρ)
     (hρ' : ρ ≤ √(r * s)) {f g : (ι → Bool) → ℝ} (hf : ∀ x, 0 ≤ f x) (hg : ∀ x, 0 < g x) :
@@ -239,12 +286,16 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one {r s
   rw [mul_comm r s] at hrs hρ'
   exact lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one hs hr hr' hrs hρ hρ' hg hf
 
-/-- **The Reverse Hypercontractivity Theorem for positive `p`**: for `q < p` with `q ≠ 0` and
-`0 < p ≤ 1`, `0 ≤ ρ ≤ √((1 - p) / (1 - q))` and nonnegative `f`, `‖f‖_p ≤ ‖T_ρ f‖_q`. This is the
-theorem of [O'Donnell, Exercise 10.6][ODonnell2014] in the cases of Exercise 10.7(a), (b), (e),
-proved via Exercise 10.6(b):
-the two-function theorem with `r = 1 / (q - 1)` and `s = p - 1` is tested against
-`(T_ρ f) ^ (q - 1)`. Here `r` lies in `(-1, 0)` when `q < 0` and below `-1` when `0 < q`. -/
+/-- **The Reverse Hypercontractivity Theorem for `0 < p ≤ 1` and finite `q < p`, `q ≠ 0`**: for
+`q < p` with `q ≠ 0` and `0 < p ≤ 1`, `0 ≤ ρ ≤ √((1 - p) / (1 - q))` and nonnegative `f`,
+`‖f‖_p ≤ ‖T_ρ f‖_q`. This is the theorem of [O'Donnell, Exercise 10.6][ODonnell2014] for finite,
+nonzero exponents with a positive input exponent, in the cases of Exercise 10.7(a), (b), (e); the
+source's `q = 0` (the geometric mean) and `q = -∞` are not covered and are tracked on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
+
+It is proved via Exercise 10.6(b): the two-function theorem with `r = 1 / (q - 1)` and
+`s = p - 1` is tested against `(T_ρ f) ^ (q - 1)`. Here `r` lies in `(-1, 0)` when `q < 0` and
+below `-1` when `0 < q`. -/
 theorem lpNorm_le_lpNorm_noiseOp {p q ρ : ℝ} (hq : q ≠ 0) (hqp : q < p) (hp : 0 < p)
     (hp' : p ≤ 1) (hρ : 0 ≤ ρ) (hρ' : ρ ≤ √((1 - p) / (1 - q))) {f : (ι → Bool) → ℝ}
     (hf : ∀ x, 0 ≤ f x) :
@@ -282,10 +333,14 @@ theorem lpNorm_le_lpNorm_noiseOp {p q ρ : ℝ} (hq : q ≠ 0) (hqp : q < p) (hp
   rw [mul_comm (lpNorm q _)] at key
   exact le_of_mul_le_mul_left key hh
 
-/-- **The Reverse Hypercontractivity Theorem for negative `p`**: for `q < p < 0`,
-`0 ≤ ρ ≤ √((1 - p) / (1 - q))` and positive `f`, `‖f‖_p ≤ ‖T_ρ f‖_q`: the theorem of
-[O'Donnell, Exercise 10.6][ODonnell2014] in the cases of Exercise 10.7(d). By the equivalence of
-the two forms (Exercise 10.6(b)) it is the two-function theorem for
+/-- **The Reverse Hypercontractivity Theorem for finite `q < p < 0`, with `f` positive**: for
+`q < p < 0`, `0 ≤ ρ ≤ √((1 - p) / (1 - q))` and positive `f`, `‖f‖_p ≤ ‖T_ρ f‖_q`: the theorem of
+[O'Donnell, Exercise 10.6][ODonnell2014] in the cases of Exercise 10.7(d). The input exponent `p`
+is negative, so `f` is assumed positive; the source's extension to `f` with zeros by limits and
+`q = -∞` are not covered and are tracked on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
+
+By the equivalence of the two forms (Exercise 10.6(b)) it is the two-function theorem for
 `1 + r = q / (q - 1) ∈ (0, 1)` and `1 + s = p < 0`, which is
 `BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one`: the duality of the
 exercise, through the reverse Hölder inequality. -/
@@ -328,11 +383,13 @@ private theorem expect_indicator_mul_noiseOp_of_expect_eq_one {A : Set (ι → B
   have h := expect_mul_noiseOp_comm ρ (fun _ => (1 : ℝ)) (B.indicator 1)
   simpa only [one_mul, noiseOp_const] using h
 
-/-- **The Reverse Small-Set Expansion Theorem**: let `0 ≤ ρ < 1`, and let `A` and `B` have volumes
-`exp (-a ^ 2 / 2)` and `exp (-b ^ 2 / 2)` with `a, b ≥ 0`. Then the probability that `x ∈ A` and
-`y ∈ B` for a `ρ`-correlated pair `(x, y)`, which is `𝔼_x 1_A x · T_ρ 1_B x`, is at least
-`exp (-(a ^ 2 + 2 ρ a b + b ^ 2) / (2 (1 - ρ ^ 2)))`
-[O'Donnell, Remark 10.3 and Exercise 10.9][ODonnell2014]. -/
+/-- **The Reverse Small-Set Expansion Theorem for `ρ < 1`**: let `0 ≤ ρ < 1`, and let `A` and `B`
+have volumes `exp (-a ^ 2 / 2)` and `exp (-b ^ 2 / 2)` with `a, b ≥ 0`. Then the probability that
+`x ∈ A` and `y ∈ B` for a `ρ`-correlated pair `(x, y)`, which is `𝔼_x 1_A x · T_ρ 1_B x`, is at
+least `exp (-(a ^ 2 + 2 ρ a b + b ^ 2) / (2 (1 - ρ ^ 2)))`
+[O'Donnell, Remark 10.3 and Exercise 10.9][ODonnell2014]. The source's statement also includes the
+singular endpoint `ρ = 1`, which is not covered: there Lean's division by `0` would make the
+stated bound `1`. -/
 theorem exp_le_expect_indicator_mul_noiseOp_indicator {ρ a b : ℝ} (hρ : 0 ≤ ρ) (hρ' : ρ < 1)
     (ha : 0 ≤ a) (hb : 0 ≤ b) {A B : Set (ι → Bool)}
     (hA : 𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x = Real.exp (-(a ^ 2 / 2)))

@@ -112,6 +112,8 @@ import CslibFrontier.Computability.Circuit.Boolean.Razborov.MiddleSlice.P
 import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
+import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
+import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -11080,3 +11082,89 @@ register_result "fuchs-van-de-graaf-upper" where
   scope := "For finite complex positive semidefinite trace-one matrices, including singular \
     states, trace distance is at most the square root of one minus squared root fidelity. \
     Trace distance is half the trace norm of the difference, and root fidelity is unsquared."
+
+register_result "odonnell-reverse-two-point-inequality-positive-exponents" where
+  title := "Reverse two-point inequality for positive exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.7(a)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 315" }
+  ]
+  theorems := [
+    Cslib.BitString.rpow_add_rpow_le_rpow_add_rpow_rpow,
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_unit
+  ]
+  scope := "One uniformly random bit and exponents 0 < q ≤ p ≤ 1. The power form takes \
+    a + b x with |b| ≤ a and ρ² (1 − q) ≤ 1 − p; the norm form takes any nonnegative function \
+    of one bit and 0 ≤ ρ ≤ √((1 − p)/(1 − q)), and states ‖f‖_p ≤ ‖T_ρ f‖_q. Every ρ in that \
+    range is reached directly by comparing binomial series. The \
+    exponents q = 0 and q = −∞ are not covered."
+
+register_result "odonnell-reverse-two-function-hypercontractivity-nonzero-exponents" where
+  title := "Reverse Two-Function Hypercontractivity Theorem for finite nonzero exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Exercise 10.6 (Reverse Two-Function Hypercontractivity Theorem)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 314" }
+  ]
+  theorems := [
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp,
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one,
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one
+  ]
+  scope := "Uniform cube on any finite coordinate type, with the ρ-correlated pair given by \
+    the noise operator. Covers r, s ≤ 0 with r, s ≠ −1, so both exponents 1 + r and 1 + s are \
+    finite and nonzero, r s ≤ 1 and 0 ≤ ρ ≤ √(r s). For −1 < r, s ≤ 0 both functions are \
+    nonnegative. When one exponent is negative (r < −1 or s < −1), the function carrying it is \
+    positive and the other nonnegative. ‖f‖_p for p < 0 is 𝔼[f^p]^(1/p), reading the printed \
+    −1/p of the p. 314 display as 1/p. The exponent 0 as the geometric mean and zeros in a \
+    negative-exponent function through the source's limit convention (Exercise 10.6(a)) are not \
+    covered and are tracked on #2131."
+
+register_result "odonnell-reverse-two-function-hypercontractivity-neg-half" where
+  title := "Reverse two-function hypercontractivity at r = s = −1/2"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.8",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 315" }
+  ]
+  theorems := [Cslib.BitString.sq_expect_abs_mul_sq_expect_abs_le]
+  scope := "Uniform cube on any finite coordinate type, arbitrary real f and g, and \
+    0 ≤ ρ ≤ 1/2: (𝔼|f|)² (𝔼|g|)² is at most the expectation of f(x)² g(y)² over a ρ-correlated \
+    pair. This is the exercise's assertion, derived from the general two-function theorem rather \
+    than by the direct one-bit proof the exercise asks for. The optional question about a direct \
+    proof for k > 2 is not addressed."
+
+register_result "odonnell-reverse-hypercontractivity-nonzero-exponents" where
+  title := "Reverse Hypercontractivity Theorem for finite nonzero exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.6 (Reverse Hypercontractivity Theorem)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 314" }
+  ]
+  theorems := [
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp,
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_neg
+  ]
+  scope := "Uniform cube on any finite coordinate type: ‖f‖_p ≤ ‖T_ρ f‖_q for finite nonzero \
+    exponents q < p ≤ 1 and 0 ≤ ρ ≤ √((1 − p)/(1 − q)). For 0 < p ≤ 1 (with q < 0 or \
+    0 < q < p) f is nonnegative; for q < p < 0 f is positive. ‖f‖_p for p < 0 is \
+    𝔼[f^p]^(1/p), reading the printed −1/p of the p. 314 display as 1/p. The exponent 0 as the \
+    geometric mean, q = −∞, and zeros in f under a negative input exponent through the source's \
+    limit convention are not covered and are tracked on #2131."
+
+register_result "odonnell-reverse-small-set-expansion" where
+  title := "Reverse Small-Set Expansion Theorem for ρ < 1"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Remark 10.3 (Reverse Small-Set Expansion Theorem)",
+      locator := "arXiv:2105.10386v1, §10.1, printed p. 285; proof in Exercise 10.9, printed \
+        p. 315" }
+  ]
+  theorems := [Cslib.BitString.exp_le_expect_indicator_mul_noiseOp_indicator]
+  scope := "Uniform cube on any finite coordinate type; sets A and B of volumes exp(−a²/2) and \
+    exp(−b²/2) with a, b ≥ 0, and 0 ≤ ρ < 1. A ρ-correlated pair lands in A × B with \
+    probability at least exp(−(a² + 2ρab + b²)/(2(1 − ρ²))). The source's statement also \
+    includes the singular endpoint ρ = 1, which is not covered: there Lean's division by zero \
+    would make the stated bound 1."
