@@ -51,8 +51,14 @@ remain in #6747. Validate this client with
 
 [client]: https://github.com/cslib-community/cslib-frontier/blob/e2e7346ce2b373cb8557c04ff0d4e24b21ded9c4/CslibFrontierTests/IsolationSeedSearch.lean
 
+For implicitly indexed source lists, `runSeedSearchIndexed` requests the source at each
+position using a bounded cursor. It shares the seed loop and designated source handling with
+`runSeedSearch`. The exact equality to the list specification holds before assuming any
+controller contracts, so it covers rejection and repeated outcomes as well.
+
 ## Main results
 
+* `runSeedSearchIndexed_eq`: indexed and list traversal have identical monadic outcomes.
 * `testSeed_correct`: the tested sources have one exact outcome under the controller contract.
 * `runSeedSearch_correct`: a good seed exists, so search returns the least passing seed and
   its correct Boolean, with one successful branch in the list interpretation.
@@ -84,18 +90,49 @@ private def sourceGood (controller : Fin n → m (Option ControllerVerdict))
   | some (.bad _) => pure false
   | some (.decided _) => pure true
 
-/-- Test the designated source first, then the other listed sources in their given order.
-`none` is a bad seed; controller failure is an effectful rejected branch. -/
-def testSeed (controller : Fin n → m (Option ControllerVerdict))
-    (sources : List (Fin n)) (source : Fin n) :
-    m (Option Bool) := do
+-- Delay traversal until the designated controller has decided.
+private def testSeedWith (controller : Fin n → m (Option ControllerVerdict))
+    (source : Fin n) (checkOthers : Unit → m Bool) : m (Option Bool) := do
   match ← controller source with
   | none => failure
   | some (.bad _) => pure none
   | some (.decided answer) =>
-    if ← (sources.filter (fun u => u != source)).allM (sourceGood controller) then
-      pure (some answer)
-    else pure none
+    if ← checkOthers () then pure (some answer) else pure none
+
+/-- Test the designated source first, then the other listed sources in their given order.
+`none` is a bad seed; controller failure is an effectful rejected branch. -/
+def testSeed (controller : Fin n → m (Option ControllerVerdict))
+    (sources : List (Fin n)) (source : Fin n) : m (Option Bool) :=
+  testSeedWith controller source fun () =>
+    (sources.filter (fun u => u != source)).allM (sourceGood controller)
+
+private def checkSourcesFrom {count : ℕ} (controller : Fin n → m (Option ControllerVerdict))
+    (source : Fin n) (sourceAt : Fin count → Fin n) :
+    (remaining cursor : ℕ) → cursor + remaining ≤ count → m Bool
+  | 0, _, _ => pure true
+  | remaining + 1, cursor, h => do
+    let u := sourceAt ⟨cursor, by omega⟩
+    if u == source then
+      checkSourcesFrom controller source sourceAt remaining (cursor + 1) (by omega)
+    else if ← sourceGood controller u then
+      checkSourcesFrom controller source sourceAt remaining (cursor + 1) (by omega)
+    else pure false
+
+private theorem checkSourcesFrom_eq {count : ℕ}
+    (controller : Fin n → m (Option ControllerVerdict)) (source : Fin n)
+    (sourceAt : Fin count → Fin n) (remaining cursor : ℕ) (h : cursor + remaining ≤ count) :
+    checkSourcesFrom controller source sourceAt remaining cursor h =
+      ((List.ofFn fun i : Fin remaining => sourceAt ⟨cursor + i, by omega⟩).filter
+        (fun u => u != source)).allM (sourceGood controller) := by
+  induction remaining generalizing cursor with
+  | zero => simp [checkSourcesFrom]
+  | succ remaining ih =>
+    simp only [checkSourcesFrom, List.ofFn_succ, Fin.val_zero, Nat.add_zero, List.filter_cons]
+    rw [ih]
+    simp only [Fin.val_succ, Nat.add_assoc, Nat.add_comm 1]
+    by_cases heq : sourceAt ⟨cursor, by omega⟩ = source
+    · simp [heq]
+    · simp [heq, List.allM_cons]
 
 -- The bound is erased. Each continuation keeps only the next cursor and remaining count.
 private def findSeedFrom {N : ℕ} (test : Fin N → m (Option (SeedAnswer length))) :
@@ -120,16 +157,44 @@ private theorem findSeedFrom_eq {N : ℕ} (test : Fin N → m (Option (SeedAnswe
     funext answer
     cases answer <;> rfl
 
+private def runSeedSearchWith
+    (test : (Fin length → Bool) → m (Option Bool)) : m (Option (SeedAnswer length)) :=
+  findSeedFrom (fun i => do
+    let answer ← test ((BitString.equivFin length).symm i)
+    pure (answer.map fun b => ⟨i, b⟩)) (2 ^ length) 0 (by simp)
+
 /-- Enumerate every bit seed by increasing binary value, stopping at the first seed whose
 designated and listed source controllers all pass. A successful negative answer also stops
 the search. -/
 def runSeedSearch
     (controller : (Fin length → Bool) → Fin n → m (Option ControllerVerdict))
-    (sources : List (Fin n)) (source : Fin n) :
-    m (Option (SeedAnswer length)) :=
-  findSeedFrom (fun i => do
-    let answer ← testSeed (controller ((BitString.equivFin length).symm i)) sources source
-    pure (answer.map fun b => ⟨i, b⟩)) (2 ^ length) 0 (by simp)
+    (sources : List (Fin n)) (source : Fin n) : m (Option (SeedAnswer length)) :=
+  runSeedSearchWith fun seed => testSeed (controller seed) sources source
+
+/-- Search with sources supplied by their positions. The traversal keeps a cursor and
+remaining count, requesting each source only after the preceding checks have passed. -/
+def runSeedSearchIndexed {count : ℕ}
+    (controller : (Fin length → Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) : m (Option (SeedAnswer length)) :=
+  runSeedSearchWith fun seed =>
+    testSeedWith (controller seed) source fun () =>
+      checkSourcesFrom (controller seed) source sourceAt count 0 (by simp)
+
+/-- Indexed traversal gives the same ordered computation as enumerating the source list.
+In the list monad this preserves all outcomes and their multiplicities. -/
+theorem runSeedSearchIndexed_eq {count : ℕ}
+    (controller : (Fin length → Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) :
+    runSeedSearchIndexed controller sourceAt source =
+      runSeedSearch controller (List.ofFn sourceAt) source := by
+  unfold runSeedSearchIndexed runSeedSearch
+  congr 1
+  funext seed
+  unfold testSeed
+  apply congrArg (testSeedWith (controller seed) source)
+  funext _
+  rw [checkSourcesFrom_eq]
+  simp
 
 variable [LawfulMonad m]
 
@@ -164,7 +229,7 @@ theorem testSeed_correct {r : Fin n → Fin n → Prop} {target source : Fin n}
   | bad j =>
     have hnot : ¬ ((∀ i, ∃! w, Passes r source i w) ∧
         ∀ s ∈ sources, ∀ i, ∃! w, Passes r s i w) := fun h => hs (h.1 j)
-    simp [testSeed, hv, hnot]
+    simp [testSeed, testSeedWith, hv, hnot]
   | decided b =>
     have hb : b = decide (Relation.ReflTransGen r source target) :=
       Bool.eq_iff_iff.mpr (by simpa only [decide_eq_true_eq] using hs.2)
@@ -181,7 +246,7 @@ theorem testSeed_correct {r : Fin n → Fin n → Prop} {target source : Fin n}
         · exact h s ⟨hmem, heq⟩
       · intro h s hs
         exact h s hs.1
-    simp only [testSeed, hv, pure_bind, hsource', List.allM_pure, hall, hb,
+    simp only [testSeed, testSeedWith, hv, pure_bind, hsource', List.allM_pure, hall, hb,
       decide_eq_true_eq]
     by_cases h : ∀ s ∈ sources, ∀ j, ∃! w, Passes r s j w
     · rw [ite_eq_left h, ite_eq_left ⟨hs.1, h⟩]
@@ -241,7 +306,7 @@ theorem runSeedSearch_correct (sources : List (Fin n))
       (List.finRange (2 ^ length)).findSomeM? (fun i => do
         let answer ← testSeed (controller (bits i)) sources source
         pure (answer.map fun b => ⟨i, b⟩)) := by
-    simp only [runSeedSearch, findSeedFrom_eq, Nat.zero_add, List.finRange, bits]
+    simp only [runSeedSearch, runSeedSearchWith, findSeedFrom_eq, Nat.zero_add, List.finRange, bits]
   have hrun : runSeedSearch controller sources source =
       pure (((List.finRange (2 ^ length)).find? (fun j => decide (good j))).map makeAnswer) := by
     rw [hscan]
