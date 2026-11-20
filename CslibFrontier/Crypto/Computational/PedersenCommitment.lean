@@ -260,9 +260,9 @@ theorem encodePedersenCommit_encode (d : F.Desc) (h : F.Carrier d) (m r : ℕ) :
 theorem computableInPolyTime_encodePedersenCommit :
     ComputableInPolyTime F.encodePedersenCommit
       (encPair F.encDesc (encPair encBits (encPair encNat encNat))) encBits := by
-  have hgen := F.computableInPolyTime_generator.tidy
-  have hsmul := F.computableInPolyTime_smul.tidy
-  have hadd := F.computableInPolyTime_add.tidy
+  have hgen := F.computableInPolyTime_generator
+  have hsmul := F.computableInPolyTime_smul
+  have hadd := F.computableInPolyTime_add
   unfold encodePedersenCommit
   polytime
 

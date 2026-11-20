@@ -203,43 +203,44 @@ theorem decode_encode (d : Desc) (x : Carrier d) : decode d (encode d x) = some 
 /-- `SchnorrGroup.isElem` is computable in polynomial time. -/
 theorem computableInPolyTime_isElem :
     ComputableInPolyTime isElem (encPair encDesc encBits) encBool := by
-  have hval : ComputableTidilyInPolyTime (Subtype.val : Desc → ℕ × ℕ × ℕ) encDesc
+  have hval : ComputableInPolyTime (Subtype.val : Desc → ℕ × ℕ × ℕ) encDesc
       (encPair encNat (encPair encNat encNat)) :=
-    ComputableTidilyInPolyTime.of_eq fun _ => rfl
-  have hdesc := hval.comp (ComputableTidilyInPolyTime.fst encDesc encBits)
-  have hmod : ComputableTidilyInPolyTime (fun p : Desc × List Bool => p.1.modulus)
+    ComputableInPolyTime.of_eq fun _ => rfl
+  have hdesc := hval.comp (ComputableInPolyTime.fst encDesc encBits)
+  have hmod : ComputableInPolyTime (fun p : Desc × List Bool => p.1.modulus)
       (encPair encDesc encBits) encNat :=
     hdesc.fst'.of_enc_eq fun _ => rfl
-  have hord : ComputableTidilyInPolyTime (fun p : Desc × List Bool => p.1.order)
+  have hord : ComputableInPolyTime (fun p : Desc × List Bool => p.1.order)
       (encPair encDesc encBits) encNat :=
     hdesc.snd'.fst'.of_enc_eq fun _ => rfl
-  have ha : ComputableTidilyInPolyTime (fun p : Desc × List Bool => ofBits p.2)
+  have ha : ComputableInPolyTime (fun p : Desc × List Bool => ofBits p.2)
       (encPair encDesc encBits) encNat :=
-    ComputableTidilyInPolyTime.bitsToNat.comp (ComputableTidilyInPolyTime.snd encDesc encBits)
-  have hbeq : ComputableTidilyInPolyTime (fun p : Desc × List Bool => encNat (ofBits p.2) == p.2)
+    ComputableInPolyTime.bitsToNat.comp (ComputableInPolyTime.snd encDesc encBits)
+  have hbeq : ComputableInPolyTime (fun p : Desc × List Bool => encNat (ofBits p.2) == p.2)
       (encPair encDesc encBits) encBool :=
-    ComputableTidilyInPolyTime.beq
-      ((ComputableTidilyInPolyTime.encode encNat).comp ha)
-      (ComputableTidilyInPolyTime.snd encDesc encBits)
-  have h0 : ComputableTidilyInPolyTime (fun p : Desc × List Bool => decide (0 < ofBits p.2))
+    ComputableInPolyTime.beq
+      (((ComputableInPolyTime.of_eq (encIn := encNat) (encOut := encBits) (fun _ => rfl))).comp ha)
+      (ComputableInPolyTime.snd encDesc encBits)
+  have h0 : ComputableInPolyTime (fun p : Desc × List Bool => decide (0 < ofBits p.2))
       (encPair encDesc encBits) encBool :=
-    ComputableTidilyInPolyTime.binary_lt.comp
-      ((ComputableTidilyInPolyTime.const 0).prod ha)
-  have hlt : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_lt.comp
+      ((ComputableInPolyTime.const 0).prod ha)
+  have hlt : ComputableInPolyTime
       (fun p : Desc × List Bool => decide (ofBits p.2 < p.1.modulus))
       (encPair encDesc encBits) encBool :=
-    ComputableTidilyInPolyTime.binary_lt.comp (ha.prod hmod)
+    ComputableInPolyTime.binary_lt.comp (ha.prod hmod)
   have hpow : ComputableInPolyTime
       (fun p : Desc × List Bool => ofBits p.2 ^ p.1.order % p.1.modulus)
       (encPair encDesc encBits) encNat :=
-    ComputableInPolyTime.binary_powMod ha.computableInPolyTime hord.computableInPolyTime
-      hmod.computableInPolyTime fun p => p.1.2.prime_modulus.pos
-  have heq1 : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_powMod ha hord
+      hmod fun p => p.1.2.prime_modulus.pos
+  have heq1 : ComputableInPolyTime
       (fun p : Desc × List Bool => decide (ofBits p.2 ^ p.1.order % p.1.modulus = 1))
       (encPair encDesc encBits) encBool :=
-    (ComputableTidilyInPolyTime.decide_eq encNat).comp
-      (hpow.tidy.prod (ComputableTidilyInPolyTime.const 1))
-  exact (hbeq.bool_and' (h0.decide_and (hlt.decide_and heq1))).computableInPolyTime.of_enc_eq
+    ((ComputableInPolyTime.fst encNat encNat).decide_eq'
+      (ComputableInPolyTime.snd encNat encNat)).comp
+      (hpow.prod (ComputableInPolyTime.const 1))
+  exact (hbeq.bool_and' (h0.decide_and (hlt.decide_and heq1))).of_enc_eq
     fun p => by simp only [isElem]
 
 end SchnorrGroup

@@ -239,7 +239,7 @@ private theorem nativeTwoPow {encIn : α ↪ List Bool} {size T S width : α →
 
 private theorem polyEnumFromBudget :
     ComputableInPolyTime (fun n => BitString.enumList (Nat.log 2 n)) encUnary encWords := by
-  apply bitsEnumList_of_polyBounded (.of_tidy ComputableTidilyInPolyTime.unary_log_two)
+  apply bitsEnumList_of_polyBounded ComputableInPolyTime.unary_log_two
   refine (PolyBounded.self.add (.const 1)).mono fun n => ?_
   simp only [encUnary_apply, List.length_replicate]
   exact Nat.pow_log_le_add_one 2 n
@@ -248,16 +248,15 @@ private theorem polyQueryWidth (hV : V.PolyTime enc) :
     ComputableInPolyTime (fun p : α × List (List Bool) => V.queryWidth p.1 p.2)
       (encPair enc encWords) encUnary := by
   apply (unary_foldl_max 0).comp
-  exact of_tidy (ComputableTidilyInPolyTime.mapWith
-    (((length_list encNat).comp hV.queries).tidy)
-    (fst enc encWords).tidy (snd enc encWords).tidy)
+  exact ComputableInPolyTime.mapWith ((length_list encNat).comp hV.queries)
+    (fst enc encWords) (snd enc encWords)
 
 private theorem polyGraphFrom (hV : V.PolyTime enc) :
     ComputableInPolyTime (fun p : (α × List (List Bool)) × ℕ =>
       V.graphFrom p.1.1 (V.viewsFrom p.1.1 p.1.2 p.2))
       (encPair (encPair enc encWords) encUnary) encGraph := by
   have hlabel : ComputableInPolyTime label encView encNat :=
-    (of_tidy ComputableTidilyInPolyTime.bitsToNat).comp
+    ComputableInPolyTime.bitsToNat.comp
       (bitsAppend (of_eq fun _ => rfl) (const [true]))
   have hassigned : ComputableInPolyTime (fun p : α × (List Bool × List Bool) =>
       V.assigned p.1 p.2) (encPair enc encView) (encList (encPair encNat encBool)) := by
@@ -276,7 +275,7 @@ private theorem polyGraphFrom (hV : V.PolyTime enc) :
     unfold viewsForRandom
     have h := id' (encIn := encPair (encPair enc encUnary) encBits)
     have hw := (length_list encNat).comp (hV.queries.comp (h.fst'.fst'.prod h.snd'))
-    have hlog := (of_tidy ComputableTidilyInPolyTime.unary_log_two).comp h.fst'.snd'
+    have hlog := ComputableInPolyTime.unary_log_two.comp h.fst'.snd'
     have henum := bitsEnumList_of_polyBounded (unary_min' hw hlog)
       ((PolyBounded.self.add (.const 1)).mono fun p => by
         have hn := Nat.pow_log_le_add_one 2 p.1.2
@@ -286,12 +285,12 @@ private theorem polyGraphFrom (hV : V.PolyTime enc) :
           (encPair (encPair enc encUnary) encBits p).length + 1
         simp only [length_encPair, encUnary_apply, List.length_replicate]
         omega)
-    have hmap := ComputableTidilyInPolyTime.mapWith
-      (ComputableTidilyInPolyTime.id' (encIn := encView)) h.snd'.tidy henum.tidy
-    exact of_tidy (ComputableTidilyInPolyTime.filterWith hkeep.tidy h.fst'.fst'.tidy hmap)
+    have hmap := ComputableInPolyTime.mapWith
+      (ComputableInPolyTime.id' (encIn := encView)) h.snd' henum
+    exact ComputableInPolyTime.filterWith hkeep h.fst'.fst' hmap
   have h := id' (encIn := encPair (encPair enc encWords) encUnary)
-  have hviews := of_tidy (ComputableTidilyInPolyTime.flatMapWith hrow.tidy
-    (h.fst'.fst'.prod h.snd').tidy h.fst'.snd'.tidy)
+  have hviews := ComputableInPolyTime.flatMapWith hrow
+    (h.fst'.fst'.prod h.snd') h.fst'.snd'
   have hgraph : ComputableInPolyTime (fun p : α × List (List Bool × List Bool) =>
       V.graphFrom p.1 p.2) (encPair enc (encList encView)) encGraph := by
     unfold graphFrom
