@@ -8164,6 +8164,7 @@ public import CslibFrontier.Probability.Conditioning
 public import CslibFrontier.Probability.CorrelatedSampling
 public import CslibFrontier.Probability.CorrelatedSampling.Embeddability
 public import CslibFrontier.Probability.CorrelatedSampling.Embedding
+public import CslibFrontier.Probability.CorrelatedSampling.SharedSeed
 public import CslibFrontier.Probability.DDGTree
 public import CslibFrontier.Probability.DDGTree.Biased
 public import CslibFrontier.Probability.DDGTree.Digits
