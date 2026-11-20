@@ -46,9 +46,7 @@ example : readDestinations (N := 3) 1 [true, false, true] = none := by decide +k
 example : decode (N := 3) 1 (encode branch) = some branch := by
   apply decode_encode
   intro v vs hv
-  fin_cases v <;>
-    simp only [branch, Fin.isValue, ↓reduceIte, Option.some.injEq, reduceCtorEq] at hv <;>
-    subst vs <;> decide
+  fin_cases v <;> grind [branch]
 
 -- A real successful negative membership answer, proved through the public typed contract.
 private def initial : Scan.Branch 3 := fun v => if v = 0 then some [] else none
@@ -97,8 +95,6 @@ example : decodeVertex (N := 1) [true] = none := by decide +kernel
 example : (encode branch).length ≤ 3 * (1 * (Nat.size 3 + 1) + 2) := by
   apply length_encode_le
   intro v vs hv
-  fin_cases v <;>
-    simp only [branch, Fin.isValue, ↓reduceIte, Option.some.injEq, reduceCtorEq] at hv <;>
-    subst vs <;> decide
+  fin_cases v <;> grind [branch]
 
 end CslibFrontierTests.DoubleCountingScanBinary
