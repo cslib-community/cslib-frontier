@@ -8267,6 +8267,7 @@ public import CslibFrontier.Probability.MoserTardos.Coupling
 public import CslibFrontier.Probability.MoserTardos.Lopsided
 public import CslibFrontier.Probability.MoserTardos.Parallel
 public import CslibFrontier.Probability.MoserTardos.Symmetric
+public import CslibFrontier.Probability.MoserTardos.TotalVariation
 public import CslibFrontier.Probability.MoserTardos.Witness
 public import CslibFrontier.Probability.MutualInformation
 public import CslibFrontier.Probability.MutualInformation.DataProcessing
