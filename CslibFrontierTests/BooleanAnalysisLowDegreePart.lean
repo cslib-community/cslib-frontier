@@ -14,9 +14,9 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePart
 The low-degree part of a character keeps it exactly when its set is small, the low-degree part of
 `g = χ_{0} + χ_{0, 1}` up to degree `1` is `χ_{0}`, of degree at most `1`, with squared `L²` norm
 `1 ≤ ‖g‖₂ ^ 2 = 2`, and the sum of the degree-`0` and degree-`1` parts of `g`; the low-degree
-part up to the number of coordinates is the function itself. `L^p` norms increase with `p`, and the
-`L²` form of Exercise 9.8(a), Proposition 10.37 and Lemma 10.38 apply at `q = 4`, in particular to
-`g`. -/
+part up to the number of coordinates is the function itself. `L^p` norms increase with `p`; the
+`L²` form of Exercise 9.8(a), Proposition 10.37 and Lemma 10.38 apply at `q = 4`, and the `L²` form
+of Exercise 9.8(b) and Proposition 10.37 at `q = 3 / 2`, in particular to `g`. -/
 
 public section
 
@@ -129,6 +129,24 @@ example : 1 ≤ 2 * lpNorm 2 (noiseOp (1 / 2) g) := by
   have h := lpNorm_two_lowDegreePart_le_noiseOp (by norm_num : (0 : ℝ) < 1 / 2) (by norm_num) 1 g
   rw [lowDegreePart_one_g, lpNorm_chi] at h
   norm_num at h
+  exact h
+
+/-- `1 / √(3 / 2 - 1) = √2`. -/
+theorem one_div_sqrt_three_halves_sub_one : (1 : ℝ) / √(3 / 2 - 1) = √2 := by
+  rw [show (3 : ℝ) / 2 - 1 = 1 / 2 by norm_num, Real.sqrt_div' 1 (by norm_num), Real.sqrt_one,
+    one_div_one_div]
+
+/-- Proposition 10.37 at `q = 3 / 2`: `‖f^{≤k}‖_{3/2} ≤ √2 ^ k ‖f‖_{3/2}`. -/
+example (f : (Fin 3 → Bool) → ℝ) (k : ℕ) :
+    lpNorm (3 / 2) (lowDegreePart k f) ≤ √2 ^ k * lpNorm (3 / 2) f := by
+  have h := lpNorm_lowDegreePart_le_of_le_two (q := 3 / 2) (by norm_num) (by norm_num) k f
+  rwa [one_div_sqrt_three_halves_sub_one] at h
+
+/-- The `L²` form of Exercise 9.8(b) at `q = 3 / 2` and `k = 1` for `g`: its `L^{3/2}` norm is at
+least `1 / √2`. -/
+example : 1 ≤ √2 * lpNorm (3 / 2) g := by
+  have h := lpNorm_two_lowDegreePart_le_lpNorm (q := 3 / 2) (by norm_num) (by norm_num) 1 g
+  rw [lowDegreePart_one_g, lpNorm_chi, one_div_sqrt_three_halves_sub_one, pow_one] at h
   exact h
 
 end CslibFrontierTests.BooleanAnalysisLowDegreePart

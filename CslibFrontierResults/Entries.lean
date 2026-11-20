@@ -11511,11 +11511,12 @@ register_result "odonnell-low-degree-projection-lq" where
     { paper := ODonnell2014, theorem := "Proposition 10.37",
       locator := "arXiv:2105.10386v1, §10.4, printed p. 299" }
   ]
-  theorems := [Cslib.BitString.lpNorm_lowDegreePart_le]
+  theorems := [Cslib.BitString.lpNorm_lowDegreePart_le,
+    Cslib.BitString.lpNorm_lowDegreePart_le_of_le_two]
   scope := "Real functions f on the uniform cube over any finite coordinate type, every k ∈ ℕ, \
-    and f^{≤k} = ∑_{|S| ≤ k} f̂(S) χ_S: ‖f^{≤k}‖_q ≤ √(q − 1)^k ‖f‖_q for every real q ≥ 2. \
-    The same statement is Exercise 9.8(a) (§9.7, printed p. 271). The case 1 < q ≤ 2 of the \
-    proposition is not covered."
+    and f^{≤k} = ∑_{|S| ≤ k} f̂(S) χ_S: ‖f^{≤k}‖_q ≤ √(q − 1)^k ‖f‖_q for every real q ≥ 2, \
+    and ‖f^{≤k}‖_q ≤ (1/√(q − 1))^k ‖f‖_q for every real 1 < q ≤ 2. Both ranges are also \
+    Exercise 9.8(a) and (b) (§9.7, printed p. 271)."
 
 register_result "odonnell-low-degree-part-noise-lq" where
   title := "The low-degree part against the noise operator in L^q"

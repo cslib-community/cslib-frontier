@@ -31,14 +31,20 @@ For `q ≥ 2`, the generalized Bonami Lemma `‖g‖_q ≤ √(q - 1) ^ k ‖g�
 (`Cslib.lpNorm_le_lpNorm_of_exponent_le`) then gives `‖f^{≤k}‖_q ≤ √(q - 1) ^ k ‖f‖_q`
 (`BitString.lpNorm_lowDegreePart_le`): this is the case `q ≥ 2` of
 [O'Donnell, Proposition 10.37][ODonnell2014], which is also
-[O'Donnell, Exercise 9.8(a)][ODonnell2014]. The case `1 < q ≤ 2` of the proposition is not
-formalized here.
+[O'Donnell, Exercise 9.8(a)][ODonnell2014].
 
 For `0 < ρ ≤ 1`, the noise operator scales each coefficient of `f^{≤k}` by a factor at least
 `ρ ^ k`, so `‖f^{≤k}‖_2 ≤ (1 / ρ) ^ k ‖T_ρ f‖_2` (`BitString.lpNorm_two_lowDegreePart_le_noiseOp`),
 and the same chain gives `‖f^{≤k}‖_q ≤ (√(q - 1) / ρ) ^ k ‖T_ρ f‖_q` for every `q ≥ 2`
 (`BitString.lpNorm_lowDegreePart_le_noiseOp`). [O'Donnell, Lemma 10.38][ODonnell2014] is its case
 `q = 4`, `‖f^{≤k}‖_4 ≤ (√3 / ρ) ^ k ‖T_ρ f‖_4`.
+
+For `1 < q ≤ 2`, the direct proof that [O'Donnell, Exercise 9.8(b)][ODonnell2014] suggests takes
+`ρ = √(q - 1)` in the `L²` bound and applies the `(p, 2)`-Hypercontractivity Theorem at `p = q`,
+`‖T_ρ f‖_2 ≤ ‖f‖_q` (`BitString.lpNorm_two_noiseOp_le`), giving
+`‖f^{≤k}‖_2 ≤ (1 / √(q - 1)) ^ k ‖f‖_q` (`BitString.lpNorm_two_lowDegreePart_le_lpNorm`); as
+`‖f^{≤k}‖_q ≤ ‖f^{≤k}‖_2`, this is the case `1 < q ≤ 2` of Proposition 10.37,
+`‖f^{≤k}‖_q ≤ (1 / √(q - 1)) ^ k ‖f‖_q` (`BitString.lpNorm_lowDegreePart_le_of_le_two`).
 
 ## Main definitions
 
@@ -51,6 +57,9 @@ and the same chain gives `‖f^{≤k}‖_q ≤ (√(q - 1) / ρ) ^ k ‖T_ρ f�
   decomposition into degree-`j` parts, and its `L²` norm.
 * `Cslib.BitString.lpNorm_lowDegreePart_le_lpNorm_two`, `Cslib.BitString.lpNorm_lowDegreePart_le`:
   Exercise 9.8(a) and Proposition 10.37 for `q ≥ 2`.
+* `Cslib.BitString.lpNorm_two_lowDegreePart_le_lpNorm`,
+  `Cslib.BitString.lpNorm_lowDegreePart_le_of_le_two`: Exercise 9.8(b) and Proposition 10.37 for
+  `1 < q ≤ 2`.
 * `Cslib.BitString.lpNorm_lowDegreePart_le_noiseOp`: Lemma 10.38, for every `q ≥ 2`.
 
 ## Usage
@@ -58,12 +67,14 @@ and the same chain gives `‖f^{≤k}‖_q ≤ (√(q - 1) / ρ) ^ k ‖T_ρ f�
 For `f : (ι → Bool) → ℝ`, `lowDegreePart k f` is `f^{≤k}`; rewrite its coefficients with the simp
 lemma `fourierCoeff_lowDegreePart`, and pass `lowDegreePart_mem_lowDegree k f` to any result about
 functions of degree at most `k`. `lpNorm_lowDegreePart_le hq k f` bounds `‖f^{≤k}‖_q` for
-`hq : 2 ≤ q`; at `q = 4` the factor `√(4 - 1) ^ k` normalizes to `√3 ^ k` by `norm_num`.
+`hq : 2 ≤ q`, and `lpNorm_lowDegreePart_le_of_le_two hq hq2 k f` for `1 < q ≤ 2`; at `q = 4` the
+factor `√(4 - 1) ^ k` normalizes to `√3 ^ k` by `norm_num`.
 `lpNorm_lowDegreePart_le_noiseOp hq hρ hρ1 k f` compares with `T_ρ f` instead. The checked clients
 in
 [CslibFrontierTests/BooleanAnalysisLowDegreePart.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisLowDegreePart.lean)
 compute the low-degree parts of a character and of the two-bit function `χ_{0} + χ_{0, 1}`,
-compare `L¹` and `L²` norms, and instantiate Proposition 10.37 and Lemma 10.38 at `q = 4`.
+compare `L¹` and `L²` norms, and instantiate Proposition 10.37 at `q = 4` and `q = 3 / 2` and
+Lemma 10.38 at `q = 4`.
 
 ## References
 
@@ -182,5 +193,24 @@ theorem lpNorm_lowDegreePart_le_noiseOp {q ρ : ℝ} (hq : 2 ≤ q) (hρ : 0 < �
     _ ≤ √(q - 1) ^ k * ((1 / ρ) ^ k * lpNorm q (noiseOp ρ f)) := by
         gcongr; exact lpNorm_le_lpNorm_of_exponent_le two_pos hq _
     _ = (√(q - 1) / ρ) ^ k * lpNorm q (noiseOp ρ f) := by simp only [div_pow, one_pow]; ring
+
+/-- For `1 < q ≤ 2`, `‖f^{≤k}‖_2 ≤ (1 / √(q - 1)) ^ k ‖f‖_q`: the `L²` bound against the noise
+operator at `ρ = √(q - 1)` and the `(p, 2)`-Hypercontractivity Theorem at `p = q`,
+`‖T_ρ f‖_2 ≤ ‖f‖_q` (`BitString.lpNorm_two_noiseOp_le`). -/
+theorem lpNorm_two_lowDegreePart_le_lpNorm {q : ℝ} (hq : 1 < q) (hq2 : q ≤ 2) (k : ℕ)
+    (f : (ι → Bool) → ℝ) :
+    lpNorm 2 (lowDegreePart k f) ≤ (1 / √(q - 1)) ^ k * lpNorm q f := by
+  have hρ : 0 < √(q - 1) := Real.sqrt_pos.2 (by linarith)
+  have hρ1 : √(q - 1) ≤ 1 := Real.sqrt_le_one.2 (by linarith)
+  exact (lpNorm_two_lowDegreePart_le_noiseOp hρ hρ1 k f).trans
+    (by gcongr; exact lpNorm_two_noiseOp_le hq.le hq2 hρ.le le_rfl f)
+
+/-- **The low-degree part in `L^q`**, `1 < q ≤ 2` [O'Donnell, Proposition 10.37][ODonnell2014]
+[O'Donnell, Exercise 9.8(b)][ODonnell2014]: `‖f^{≤k}‖_q ≤ (1 / √(q - 1)) ^ k ‖f‖_q`. -/
+theorem lpNorm_lowDegreePart_le_of_le_two {q : ℝ} (hq : 1 < q) (hq2 : q ≤ 2) (k : ℕ)
+    (f : (ι → Bool) → ℝ) :
+    lpNorm q (lowDegreePart k f) ≤ (1 / √(q - 1)) ^ k * lpNorm q f :=
+  (lpNorm_le_lpNorm_of_exponent_le (by linarith) hq2 _).trans
+    (lpNorm_two_lowDegreePart_le_lpNorm hq hq2 k f)
 
 end Cslib.BitString
