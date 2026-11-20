@@ -363,9 +363,9 @@ private theorem polyBounded_supportCandidateStateBound {α : Type} {enc : α ↪
     (hcount : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => supportCandidateStateBound (width a) (bits a) (count a)) := by
-  have hw := hwidth.tidy.polyBounded
-  have hb := hbits.tidy.polyBounded
-  have hc := hcount.tidy.polyBounded
+  have hw := hwidth.polyBounded
+  have hb := hbits.polyBounded
+  have hc := hcount.polyBounded
   have hsum := (hw.add hb).add (PolyBounded.const 1)
   have hgate := (((PolyBounded.const 63).mul (hsum.mul hsum)).add
     ((PolyBounded.const 21).mul ((hb.add (.const 1)).mul (hb.add (.const 1))))).add
