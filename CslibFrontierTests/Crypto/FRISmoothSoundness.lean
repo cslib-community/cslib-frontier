@@ -49,8 +49,9 @@ adaptive two-channel BCS random-oracle definition and theorem across `Soundness.
    `friSmoothBatchBCS_romSoundness_bound_of_johnson_eta`,
    `FRI.friSmoothBatchBCS_romSoundness_bound_of_prover_verifier_of_johnson_eta`), an honest causal
    prover (`Pr = 1`) discharging contrapositive `friSmoothBatchIOP_sound_of_johnson` and `_eta`, a
-   genuinely prefix-dependent randomized adaptive prover (`adaptiveSmoothBatchProverGold`) with
-   explicit conditional-`PMF` inequality witnesses, and all adaptive two-channel BCS ROM bounds
+   prefix-dependent adaptive prover (`adaptiveSmoothBatchProverGold`, deterministic: each
+   conditional distribution is a point mass) with explicit witnesses that its output depends on the transcript,
+   and all adaptive two-channel BCS ROM bounds
    (`< 1 / 4` single-word, `< 1 / 3` batched at `σ = 32`).
 3. **Suite 3 (Binary-specialization soundness bridges):**
    Direct checks on `friDoomed_iff_friSmoothDoomed`, `friGoodStep_iff_friSmoothGoodStep`,
@@ -779,10 +780,10 @@ private theorem halpha_eta_gold :
   rw [sqrt_rate_gold]
   norm_num
 
-/-- **Genuinely prefix-dependent randomized adaptive prover** over `ZMod goldilocksP` (`d = 6`,
-`q = 5`, `t = 2`): varies its conditional output distribution across transcript lengths (`0` vs.
-`1`), round-`0` batching challenges (`c₀.batchCoeffs 0 = 0` vs. `≠ 0`), and prior oracles
-(`π₀ 0 = 0` vs. `≠ 0`). -/
+/-- **Prefix-dependent adaptive prover** over `ZMod goldilocksP` (`d = 6`, `q = 5`, `t = 2`). It is
+deterministic (every conditional distribution is a point mass), and its next oracle depends on the
+transcript length (`0` vs. `1`), the round-`0` batching challenge (`c₀.batchCoeffs 0 = 0` vs.
+`≠ 0`), and the prior oracle (`π₀ 0 = 0` vs. `≠ 0`). -/
 noncomputable def adaptiveSmoothBatchProverGold :
     InteractiveIOPProver 6 (ZMod goldilocksP) (FRIBatchChal (ZMod goldilocksP) 6 5 2)
   | [] => PMF.pure (fun _ => 0)
