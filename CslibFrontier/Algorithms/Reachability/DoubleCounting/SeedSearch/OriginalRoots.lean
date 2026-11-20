@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
+import CslibFrontier.Foundations.Relation.Transport
 
 /-!
 # Ordered isolation-seed search from the original roots
@@ -22,7 +23,7 @@ and the subdivision scan criterion give a passing seed for the ordered monadic s
 
 * `runGeneratedSeedSearch_correct`: under the exact controller contract, the ordered search
   has one outcome, selects the least min-isolating seed, and returns the reachability answer
-  in its indexed subdivision. Native loop and controller composition remain separate.
+  in the original graph. Native loop and controller composition remain separate.
 -/
 
 public section
@@ -34,7 +35,7 @@ open Code.JustesenFamily DoubleCounting LayeredDigraph.Subdivision
 variable {w h bound N : ℕ}
 
 /-- The indexed roots in row-major order, with one entry for each original vertex. -/
-def originalRootIDs (index : Vertex (Fin (h + 1) × Fin w) bound ≃ Fin N) : List (Fin N) :=
+@[expose] def originalRootIDs (index : Vertex (Fin (h + 1) × Fin w) bound ≃ Fin N) : List (Fin N) :=
   List.ofFn fun i : Fin ((h + 1) * w) => index (root bound (finProdFinEquiv.symm i))
 
 /-- Membership means being the root of an original vertex. -/
@@ -92,13 +93,17 @@ theorem runGeneratedSeedSearch_correct {m : Type → Type} [AlternativeMonad m] 
         pure (some result) ∧
       G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm result.seed)) ∧
       (∀ i < result.seed, ¬ G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm i))) ∧
-      (result.reachable = true ↔ Relation.ReflTransGen
-        (generatedSubdivisionAdj G index ((BitString.equivFin _).symm result.seed))
-        (index (root bound source)) (index (root bound target))) := by
+      (result.reachable = true ↔ Relation.ReflTransGen G.Adj source target) := by
   have hpass seed := root_passes_iff G index seed source (hb seed)
   obtain ⟨seed, hseed⟩ := exists_generatedWeight_isMinIsolating G hlayer
   obtain ⟨result, hrun, hgood, hleast, hreach⟩ :=
     runSeedSearch_correct (originalRootIDs index) hc ⟨seed, (hpass seed).mpr hseed⟩
-  exact ⟨result, hrun, (hpass _).mp hgood, fun i hi hs => hleast i hi ((hpass _).mpr hs), hreach⟩
+  let seed := (BitString.equivFin _).symm result.seed
+  have hindex := Relation.reflTransGen_equiv_iff index
+    (r := (graph G (generatedWeight seed) bound).Adj)
+    (s := generatedSubdivisionAdj G index seed)
+    (fun a b => by simp [generatedSubdivisionAdj]) (root bound source) (root bound target)
+  exact ⟨result, hrun, (hpass _).mp hgood, fun i hi hs => hleast i hi ((hpass _).mpr hs),
+    hreach.trans (hindex.symm.trans (reachable_root_iff (hb seed) source target))⟩
 
 end Cslib.Reachability.Hoza

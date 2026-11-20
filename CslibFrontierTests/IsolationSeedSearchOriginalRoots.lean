@@ -43,9 +43,10 @@ example (G : LayeredDigraph (Fin (0 + 1) × Fin 2)) (hlayer : ∀ v, G.layer v =
             (index (root 1 (0, 1))))) :
     ∃ result, runSeedSearch controller (originalRootIDs index) (index (root 1 (0, 0))) =
         [some result] ∧
-      G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm result.seed)) := by
-  obtain ⟨result, hresult, hisolation, _, _⟩ :=
+      G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm result.seed)) ∧
+      (result.reachable = true ↔ Relation.ReflTransGen G.Adj (0, 0) (0, 1)) := by
+  obtain ⟨result, hresult, hisolation, _, hreach⟩ :=
     runGeneratedSeedSearch_correct G hlayer index hb (0, 0) (0, 1) controller hc
-  exact ⟨result, hresult, hisolation⟩
+  exact ⟨result, hresult, hisolation, hreach⟩
 
 end CslibFrontierTests.IsolationSeedSearchOriginalRoots
