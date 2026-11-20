@@ -46,6 +46,12 @@ example : (prepare ⟨4, 3⟩).map State.cursor = some 0 := by decide +kernel
 example : (prepare ⟨4, 3⟩).map State.value = some 0 := by decide +kernel
 example : (prepare ⟨4, 3⟩).map State.truncated = some false := by decide +kernel
 
+-- A dispatch caller can recover both validation and the state-loading equation.
+example (p : Parameters) (s : State) (h : prepare p = some s) :
+    p.width = p.dimension.size ∧ s.cursor = 0 ∧ s.value = 0 ∧ s.truncated = false := by
+  obtain ⟨hw, rfl⟩ := (prepare_eq_some_iff p s).mp h
+  exact ⟨hw, rfl, rfl, rfl⟩
+
 -- The same dimension-independent reader handles the successfully loaded state.
 example : result ((machine 0).runFrom [false, true, true] initializedFour 3) = some 3 := by
   rw [result_prepare ⟨4, 3⟩ initializedFour prepare_four]

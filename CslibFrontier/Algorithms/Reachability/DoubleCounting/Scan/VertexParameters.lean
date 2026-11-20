@@ -71,7 +71,8 @@ An invalid width rejects before the reader can query the choice source. -/
 @[expose] def prepare (p : Parameters) : Option State :=
   if p.width = p.dimension.size then some (machine p.dimension).init else none
 
-private theorem prepare_spec (p : Parameters) (s : State) :
+/-- Successful preparation supplies both the checked width and the canonical initial state. -/
+theorem prepare_eq_some_iff (p : Parameters) (s : State) :
     prepare p = some s ↔ p.width = p.dimension.size ∧ s = (machine p.dimension).init := by
   by_cases h : p.width = p.dimension.size <;> simp [prepare, machine, h, eq_comm]
 
@@ -97,7 +98,7 @@ of the dimension, so no new scan or alternative ID implementation is introduced.
 theorem runFrom_prepare (p : Parameters) (s : State) (h : prepare p = some s)
     (w : List Bool) (t : ℕ) :
     (machine 0).runFrom w s t = (machine p.dimension).run w t := by
-  obtain ⟨_, rfl⟩ := (prepare_spec p s).mp h
+  obtain ⟨_, rfl⟩ := (prepare_eq_some_iff p s).mp h
   rfl
 
 /-- Validated runtime parameters give a logarithmic state bound for every reader clock,
@@ -120,7 +121,7 @@ theorem result_prepare (p : Parameters) (s : State) (h : prepare p = some s)
     result ((machine 0).runFrom w s p.width) =
       (Cslib.DoubleCounting.Scan.Binary.decodeVertex (N := p.dimension)
         (w.take p.dimension.size)).map Fin.val := by
-  rw [runFrom_prepare p s h, (prepare_spec p s).mp h |>.1]
+  rw [runFrom_prepare p s h, (prepare_eq_some_iff p s).mp h |>.1]
   exact result_eq_decodeVertex p.dimension w
 
 end Turing.DoubleCounting.VertexParameters
