@@ -428,8 +428,8 @@ theorem isPPTOn_collisionGame {H : List Bool → List Bool → List Bool}
       (encPair encUnary encBits) encBool)
     (ha : IsPPT (encPair encBits encBits) adversary) :
     IsPPTOn encUnary encBool (collisionGame H valid adversary) := by
-  have hHt := hH.tidy
-  have hvt := hvalid.tidy
+  have hHt := hH
+  have hvt := hvalid
   unfold collisionGame
   ppt
 
@@ -606,21 +606,14 @@ theorem validCompressionInput_eq_true_iff {n : ℕ} {x : List Bool} :
     validCompressionInput n x = true ↔ x.length = 2 * n :=
   beq_iff_eq
 
-@[local fun_prop]
-private theorem computableTidilyInPolyTime_validCompressionInput :
-    ComputableTidilyInPolyTime
+/-- Testing whether an input has length `2 * n` is computable in plain polynomial time. -/
+@[local fun_prop, program_certificate]
+theorem computableInPolyTime_validCompressionInput :
+    ComputableInPolyTime
       (fun p : ℕ × List Bool => validCompressionInput p.1 p.2)
       (encPair encUnary encBits) encBool := by
   unfold validCompressionInput
   polytime
-
-/-- Testing whether an input has length `2 * n` is computable in plain polynomial time. -/
-@[program_certificate]
-theorem computableInPolyTime_validCompressionInput :
-    ComputableInPolyTime
-      (fun p : ℕ × List Bool => validCompressionInput p.1 p.2)
-      (encPair encUnary encBits) encBool :=
-  .of_tidy computableTidilyInPolyTime_validCompressionInput
 
 /-- A keyed `2n → n` collision-resistant compression family: computable in deterministic
 polynomial time, mapping `2n`-bit inputs under an `n`-bit key to `n`-bit outputs, and

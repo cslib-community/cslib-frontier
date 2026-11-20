@@ -673,7 +673,7 @@ theorem computableInPolyTime_scopeWidthOn :
 theorem computableInPolyTime_sysMaxDegree :
     ComputableInPolyTime sysMaxDegree encSparseSystem encUnary := by
   let encM := encList encNat
-  exact (unary_foldl_max 0).comp' ((map (length_list encNat)).comp' (of_tidy (.flatten encM)))
+  exact (unary_foldl_max 0).comp' ((map (length_list encNat)).comp' (flatten encM))
 
 @[fun_prop]
 theorem computableInPolyTime_branchMaxFactorIncidence :

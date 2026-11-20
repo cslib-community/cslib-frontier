@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PolyTime.CSP.CrossAdjacentTransposition
+import CslibFrontier.Computability.PolyTime.CSP.StateSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Foundations.Data.Nat.BinarySize
@@ -272,7 +273,9 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
     simpa only [show (fun z => τ (2^(js.countP (fun j => decide (j+1<I.ports.length)))*z)) = σ
       from funext ha] using hr
 
-private theorem prefix_width (I : State Rel) (js : List ℕ) (W : ℕ)
+/-- Every successful request increases the maximum binary name width by at most one;
+invalid requests preserve the whole State. The bound includes unused boundary names. -/
+theorem name_width_transposeSchedule_le (I : State Rel) (js : List ℕ) (W : ℕ)
     (hW : ∀ z ∈ I.body.vars ++ I.ports, z.size ≤ W) :
     ∀ z ∈ (transposeSchedule g w I js).body.vars ++ (transposeSchedule g w I js).ports,
       z.size ≤ max W (2*g.numAux+7).size +
@@ -375,84 +378,6 @@ private theorem prefix_symbol_mass (encRel : Rel ↪ List Bool) (I : State Rel) 
   | zero => simp
   | succ k ih => simp [List.replicate_succ, List.flatten_cons, Nat.succ_mul, Nat.add_comm]
 
-private theorem input_components (encRel : Rel ↪ List Bool) (I : State Rel) :
-    let S := (encState encRel I).length
-    I.body.length ≤ S ∧ I.ports.length ≤ S ∧ I.rotation.successor.length ≤ S ∧
-      symbolMass encRel I.body ≤ S ∧ ∀ z ∈ I.body.vars ++ I.ports, z.size ≤ S := by
-  dsimp only
-  have hb : (encCSP encRel encNat I.body).length ≤ (encState encRel I).length := by
-    enc_len [encState_apply, encStateFields]
-  have hp : (encList encNat I.ports).length ≤ (encState encRel I).length := by
-    enc_len [encState_apply, encStateFields]
-  have hc : (encList encNat I.rotation.successor).length ≤ (encState encRel I).length := by
-    enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
-      Graph.encRotationCertificateFields]
-  refine ⟨(SizedListEncoding.length_le (encA := encConstraint encRel encNat)
-    (encL := encCSP encRel encNat) I.body).trans hb,
-    (SizedListEncoding.length_le (encA := encNat) (encL := encList encNat) I.ports).trans hp,
-      (SizedListEncoding.length_le (encA := encNat) (encL := encList encNat)
-      I.rotation.successor).trans hc, ?_, ?_⟩
-  · apply le_trans _ hb
-    calc
-      symbolMass encRel I.body = (I.body.map (fun c => (encRel c.rel).length)).sum := by
-        simp only [symbolMass, List.map_map, Function.comp_def]
-      _ ≤ (I.body.map (fun c => 2*(encConstraint encRel encNat c).length+1)).sum := by
-        apply List.sum_le_sum
-        intro c _
-        enc_len [encConstraint_apply]
-      _ = (encCSP encRel encNat I.body).length := by
-        simp only [encCSP, length_encList]
-  · intro z hz
-    rw [← Nat.size_eq_bits_len]
-    change (encNat z).length ≤ _
-    rcases List.mem_append.mp hz with hz | hz
-    · obtain ⟨c, hm, hv⟩ := List.mem_flatMap.mp hz
-      have hm' := SizedListEncoding.length_elem_le
-        (encA := encConstraint encRel encNat) (encL := encCSP encRel encNat) I.body c hm
-      have hv' := SizedListEncoding.length_elem_le
-        (encA := encNat) (encL := encList encNat) c.scope z hv
-      have hs : (encList encNat c.scope).length ≤ (encConstraint encRel encNat c).length := by
-        enc_len [encConstraint_apply]
-      exact hv'.trans (hs.trans (hm'.trans hb))
-    · exact (SizedListEncoding.length_elem_le
-        (encA := encNat) (encL := encList encNat) I.ports z hz).trans hp
-
-private theorem state_envelope (encRel : Rel ↪ List Bool) (J : State Rel) (L : ℕ)
-    (hq : J.body.length ≤ L) (hm : J.body.occurrences.length ≤ L)
-    (hp : J.ports.length ≤ L) (hd : J.rotation.successor.length ≤ L)
-    (hr : symbolMass encRel J.body ≤ L)
-    (hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L)
-    (hv : ∀ v ∈ J.rotation.successor, v.size ≤ L) :
-    (encState encRel J).length ≤ 64*(L+1)^3 := by
-  have hrow (c : Constraint Rel ℕ) (hc : c ∈ J.body) :
-      (encConstraint encRel encNat c).length ≤ 2*L+1+L*(2*L+1) := by
-    have hrel : (encRel c.rel).length ≤ L := by
-      have hx : (encRel c.rel).length ≤ symbolMass encRel J.body :=
-        List.le_sum_of_mem (List.mem_map.mpr
-          ⟨c.rel, List.mem_map.mpr ⟨c,hc,rfl⟩,rfl⟩)
-      exact hx.trans hr
-    have hn : c.scope.length ≤ L := by
-      have hx := List.le_sum_of_mem (List.mem_map.mpr ⟨c,hc,rfl⟩ :
-        c.scope.length ∈ J.body.map (fun d => d.scope.length))
-      have hx' : c.scope.length ≤ J.body.occurrences.length := by
-        simpa only [CSP.length_occurrences] using hx
-      exact hx'.trans hm
-    have hs := length_encList_le encNat c.scope (fun z hz => by
-      rw [encNat_apply, Nat.size_eq_bits_len]
-      exact hw z (List.mem_append_left _ (List.mem_flatMap.mpr ⟨c,hc,hz⟩)))
-    rw [encConstraint_apply, length_encPair]
-    nlinarith
-  have hb := length_encList_le (encConstraint encRel encNat) J.body hrow
-  have hports := length_encList_le encNat J.ports (fun z hz => by
-    rw [encNat_apply, Nat.size_eq_bits_len]
-    exact hw z (List.mem_append_right _ hz))
-  have htable := length_encList_le encNat J.rotation.successor (fun v hm => by
-    rw [encNat_apply, Nat.size_eq_bits_len]; exact hv v hm)
-  simp only [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
-    Graph.encRotationCertificateFields, length_encPair]
-  nlinarith [Nat.mul_le_mul_right (2*(2*L+1+L*(2*L+1))+1) hq,
-    Nat.mul_le_mul_right (2*L+1) hp, Nat.mul_le_mul_right (2*L+1) hd]
-
 private def templateBudget (encRel : Rel ↪ List Bool) : ℕ :=
   8 + g.body.length + g.body.occurrences.length + (2*g.numAux+7).size +
     ((g.body.map Constraint.rel).map (fun r => (encRel r).length)).sum
@@ -471,7 +396,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
   let L := 8*(C+1)*U
   let k := s.countP (fun j => decide (j+1<I.ports.length))
   let J := transposeSchedule g w I s
-  have hb := input_components encRel I
+  have hb := State.component_size_le_encoding encRel I
   have hk : k ≤ js.length := (List.countP_le_length).trans hs.length_le
   dsimp only [k] at hk
   have hc := components_transposeSchedule g w I s
@@ -512,7 +437,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
   have hpad : K ≤ L := by rw [hL]; omega
   have hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L := by
     intro z hz
-    have hx := prefix_width g w I s S hb.2.2.2.2 z hz
+    have hx := name_width_transposeSchedule_le g w I s S hb.2.2.2.2 z hz
     have hmax : max S (2*g.numAux+7).size ≤ K :=
       max_le (hSU.trans hUK) (hC.2.2.2.1.trans hCK)
     change z.size ≤ max S (2*g.numAux+7).size + k at hx
@@ -546,7 +471,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
         have hx := (ht.2 v hv).trans (Nat.size_le_self _)
         rw [hL]
         omega
-  exact state_envelope encRel J L (hq.trans hpad) (hm.trans hpad)
+  exact State.encoding_length_le encRel J L (hq.trans hpad) (hm.trans hpad)
     (hp.trans (hUK.trans hpad)) hD.1 (hr.trans hpad) hw hD.2
 
 
