@@ -309,6 +309,7 @@ public import CslibFrontier.Algorithms.Reachability.InductiveCounting.Semantics
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.AllPairs
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Collisions
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+public import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Weights
 public import CslibFrontier.Algorithms.Reachability.Reingold
 public import CslibFrontier.Algorithms.Reachability.ReingoldEval
@@ -3599,6 +3600,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Reachability
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ReachableViews
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Savitch
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
@@ -6247,6 +6249,7 @@ public import CslibFrontier.Foundations.Combinatorics.Digraph.Branching
 public import CslibFrontier.Foundations.Combinatorics.Digraph.Connectivity
 public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered
 public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered.MinIsolation
+public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered.Subdivision
 public import CslibFrontier.Foundations.Combinatorics.Digraph.MatrixTree
 public import CslibFrontier.Foundations.Combinatorics.ErdosSzekeres
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffineFamily
@@ -6362,6 +6365,7 @@ public import CslibFrontier.Foundations.Combinatorics.PerfectHashFamily.Defs
 public import CslibFrontier.Foundations.Combinatorics.PerfectHashFamily.LinearHash
 public import CslibFrontier.Foundations.Combinatorics.PessimisticEstimator
 public import CslibFrontier.Foundations.Combinatorics.PowersetTail
+public import CslibFrontier.Foundations.Combinatorics.Quiver.Path.Chain
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown

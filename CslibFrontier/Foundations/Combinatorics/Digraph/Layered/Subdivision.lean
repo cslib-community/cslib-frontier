@@ -19,7 +19,24 @@ public import Mathlib.SetTheory.Cardinal.NatCard
 A vertex of weight `w` is replaced by a chain of `w` edges, followed by the original
 outgoing edges. Slots beyond its weight are isolated. This prepares weighted paths for
 the unweighted scans in #6747. The subdivision is an ordinary digraph: weighted routes
-need not have equal lengths.
+need not have equal lengths. This vertex-chain variant is an original construction.
+
+`pathEquiv` identifies original paths with subdivided paths ending at any valid auxiliary
+offset. Expansion charges each departure vertex's weight plus one per original edge. For
+fixed endpoints the original layer difference fixes that edge count, so minimizing expanded
+length is equivalent to minimizing internal vertex weight. Original empty paths are handled
+separately: they expand only along the final partial source chain.
+
+## Main results
+
+* `pathEquiv`: exact path correspondence, including auxiliary targets.
+* `existsUnique_shortest_of_isMinIsolating`: unique unweighted shortest paths from each root.
+* `card_vertex`: exactly `Nat.card V * (bound + 1)` slots, giving polynomial size when the
+  original size and weight bound are polynomial.
+
+The consumer `CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision` transfers this
+to the existing scan transcript contract. Native adjacency certificates are in
+`CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision`.
 -/
 
 public section

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered.Subdivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.CallSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.CallBounds
 
@@ -18,9 +20,41 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 
 The request carries binary vertex labels and chain offsets, together with caller context
 such as dimensions and a seed. A fixed caller invokes the original graph's same-input edge
-callee, then combines its returned bit with the source vertex's weight. The original input
-is never stored in a caller state. Native certificates are relative to the supplied weight
-routine and original-edge callee; constructing Hoza's weight routine remains in #6747.
+callee, then combines its returned bit with the source vertex's weight. The adapter adds no
+copy of the original input; retained query/context storage is charged explicitly. Native
+certificates are relative to the supplied weight routine and original-edge callee;
+constructing Hoza's weight routine remains in #6747.
+
+## Applying the interface
+
+Import this module and use `Cslib.LayeredDigraph.Subdivision`. Supply a fixed original-edge
+`QueryMachine`, a compact-query-to-callee-state request function, a source-weight routine,
+and a decoder for the callee's returned state. `callback_runFrom` composes the actual
+same-input execution. `edgeQuery_agrees` supplies graph agreement from the original-edge
+answer and source weight. The request/context carries only what the caller chooses to retain;
+`query_length_le_log` charges that context explicitly and bounds polynomial coordinates by
+logarithmic storage.
+
+`callback_parts_inSpace` consumes native linear-workspace certificates for the weight,
+request and answer functions and the base callee's query/next/halted components. Callee
+emissions and final words are discarded. `callback_states_le` separately bounds every
+persistent encoded state through return by `2*C+D+6` when the pending query has at most `C`
+bits and each base-callee state has at most `D`. It includes the suspended caller and framing.
+Native component workspace is charged by the component certificates, not by this state bound.
+
+The [checked client][client] combines Hoza's generated weights with the unweighted transcript
+contract, exercises auxiliary and unused slots and a tied diamond, and composes an actual
+input-reading callee with graph agreement and the native certificate. Run
+`scripts/build.sh CslibFrontierTests.WeightedSubdivision --wfail --iofail`.
+
+[client]: https://github.com/cslib-community/cslib-frontier/blob/feat/6747-weighted-transport/CslibFrontierTests/WeightedSubdivision.lean
+
+## Main results
+
+* `edgeQuery_agrees`: the returned Boolean is the subdivision adjacency test.
+* `callback_runFrom`: actual same-input call/return semantics.
+* `callback_parts_inSpace`: native workspace certificates for all five components.
+* `callback_states_le` and `query_length_le_log`: explicit state and query-size accounting.
 -/
 
 public section
@@ -71,7 +105,7 @@ variable {Context τ : Type} (encContext : Context ↪ List Bool) (encT : τ ↪
 abbrev encCaller : Query Context ⊕ Bool ↪ List Bool := encSum (encQuery encContext) encBool
 
 /-- A caller that returns its state, emits no stream, and waits for its sole edge call. -/
-@[expose] def caller : QueryMachine (Query Context ⊕ Bool) where
+private def caller : QueryMachine (Query Context ⊕ Bool) where
   init := .inr false
   query _ := 0
   next p := p.1
@@ -80,16 +114,16 @@ abbrev encCaller : Query Context ⊕ Bool ↪ List Bool := encSum (encQuery encC
   finish _ := []
 
 /-- Pending queries always request the original edge callee; answer states never call. -/
-@[expose] def request (baseRequest : Query Context → τ) : Query Context ⊕ Bool → Option τ :=
+private def request (baseRequest : Query Context → τ) : Query Context ⊕ Bool → Option τ :=
   Sum.elim (fun q => some (baseRequest q)) (fun _ => none)
 
 /-- Return to the caller with the subdivision answer, using the supplied weight routine. -/
-@[expose] def resume (weight : Query Context → ℕ) (answer : τ → Bool)
+private def resume (weight : Query Context → ℕ) (answer : τ → Bool)
     (s : Query Context ⊕ Bool) (t : τ) : Query Context ⊕ Bool :=
   s.elim (fun q => .inr (edgeQuery q (weight q) (answer t))) Sum.inr
 
 /-- The native adjacency callback, with actual original-input reads delegated to `N`. -/
-@[expose] def callback (N : QueryMachine τ) (baseRequest : Query Context → τ)
+def callback (N : QueryMachine τ) (baseRequest : Query Context → τ)
     (weight : Query Context → ℕ) (answer : τ → Bool) :=
   (caller (Context := Context)).withCalls N (request baseRequest) (resume weight answer)
 
@@ -198,7 +232,7 @@ theorem callback_parts_inSpace (N : QueryMachine τ) (baseRequest : Query Contex
 
 /-- If the request has at most `C` bits and the base edge callee has at most `D` bits
 through its first halt, the whole call has at most `2*C+D+6` bits through its return.
-Thus logarithmic bounds compose without storing the original input. -/
+Thus logarithmic query and callee-state bounds compose, with retained context included in `C`. -/
 theorem callback_states_le (N : QueryMachine τ) (baseRequest : Query Context → τ)
     (weight : Query Context → ℕ) (answer : τ → Bool) (w : List Bool) (q : Query Context)
     (T C D : ℕ)
@@ -221,5 +255,24 @@ theorem callback_states_le (N : QueryMachine τ) (baseRequest : Query Context �
   change (encCallback encContext encT ((callback N baseRequest weight answer).runFrom w
     (.inl (.inl q)) t)).length ≤ 2 * (C + 2) + D + 2 at h
   omega
+
+private theorem query_length_le (q : Query Context) (L : ℕ)
+    (hf : (encNat q.fromLabel).length ≤ L) (ht : (encNat q.toLabel).length ≤ L)
+    (hi : (encNat q.fromOffset).length ≤ L) (hj : (encNat q.toOffset).length ≤ L) :
+    (encQuery encContext q).length ≤ 2 * (encContext q.context).length + 8 * L + 8 := by
+  enc_len [encQuery_apply, encQueryFields]
+
+/-- Polynomially bounded labels and offsets add only logarithmic storage to the explicitly
+charged context. In particular, a logarithmic seed/dimensions context stays logarithmic. -/
+theorem query_length_le_log (q : Query Context) (n d : ℕ)
+    (hf : q.fromLabel ≤ (n + 2) ^ d) (ht : q.toLabel ≤ (n + 2) ^ d)
+    (hi : q.fromOffset ≤ (n + 2) ^ d) (hj : q.toOffset ≤ (n + 2) ^ d) :
+    (encQuery encContext q).length ≤ 2 * (encContext q.context).length +
+      8 * ((d + 1) * (Nat.log2 (n + 1) + 1)) + 8 := by
+  exact query_length_le encContext q _
+    (length_encNat_le_of_le_pow (N := n + 1) hf)
+    (length_encNat_le_of_le_pow (N := n + 1) ht)
+    (length_encNat_le_of_le_pow (N := n + 1) hi)
+    (length_encNat_le_of_le_pow (N := n + 1) hj)
 
 end Cslib.LayeredDigraph.Subdivision
