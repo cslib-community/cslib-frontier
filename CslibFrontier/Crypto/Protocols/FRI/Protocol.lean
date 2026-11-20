@@ -24,9 +24,11 @@ This module instantiates multi-round Fast Reed–Solomon Interactive Oracle Proo
 (`FRISmoothParams`, `friSmoothIOP`) together with the fixed 2-to-1 specialization (`FRIParams`,
 `friIOP`) ([BenSassonBentovHoreshRiabzev2018], with fixed localization parameter in the full
 version ECCC TR17-134, Remark 3.1, p. 13; [BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2 on
-printed pp. 36–38, Eqs. (8.1)–(8.3) for round-dependent arities and the interpolating coefficient
-map) directly as a `Cslib.Crypto.Protocols.BCS.PublicCoinIOP` compatible with the
-Ben-Sasson–Chiesa–Spooner (BCS) random-oracle compiler ([BenSassonChiesaSpooner2016]).
+printed pp. 36–38 for round-dependent arities, with the fibers of Eq. (8.1), the interpolation map
+defined right after it, and its evaluation in Eq. (8.2) on printed p. 37, and the first-entries
+final anchor convention on printed p. 38) directly as a `Cslib.Crypto.Protocols.BCS.PublicCoinIOP`
+compatible with the Ben-Sasson–Chiesa–Spooner (BCS) random-oracle compiler
+([BenSassonChiesaSpooner2016]).
 
 ## Protocol layout
 
@@ -50,7 +52,9 @@ per-round log-arities `stepLog : Fin m → ℕ` (`1 ≤ stepLog i`, cumulative l
 * **Round-0 binding, final anchor convention, and query accounting.** Rather than sending explicit
   final polynomial coefficients, the verifier reads the first `kFinal` entries of the final oracle
   `π_m` as interpolation anchors to define a degree-`< kFinal` Reed–Solomon codeword by Lagrange
-  interpolation, and for each of the `q` queried starting positions `s : Fin (2 ^ d)` checks:
+  interpolation (the convention described on printed p. 38 of
+  [BenSassonCarmonIshaiKoppartySaraf2020]), and for each of the `q` queried starting positions
+  `s : Fin (2 ^ d)` checks:
   1. explicit round-0 binding `π_0(s) = stmt(s)` against the input word `stmt`,
   2. all `m` local `l⁽ⁱ⁾`-to-1 coset folding equations (`foldFiber`) along the powering chain of `s`
      (opening all `l⁽ⁱ⁾` fiber points in `π_i` and `1` folded point in `π_{i + 1}`), and
@@ -1797,21 +1801,6 @@ private theorem foldFiber_toSmooth_eq_fold2Fiber (params : FRIParams F) (i : Fin
     rfl
   rw [hrew, foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωi]
   simp [FRIParams.eval, cosetEval, cosetPoint, friFoldedFin, friRoundPosFin]
-
-/-- Exact equality between binary `friQueries` and smooth `friSmoothQueries params.toSmooth`. -/
-theorem friQueries_eq_friSmoothQueries (params : FRIParams F)
-    (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    friQueries params chals = friSmoothQueries params.toSmooth chals :=
-  rfl
-
-/-- Exact equality between binary `friDecide` and smooth `friSmoothDecide params.toSmooth` on
-all answer lists (including malformed lists). -/
-theorem friDecide_eq_friSmoothDecide [DecidableEq F] (params : FRIParams F)
-    (stmt : OracleTable params.d F)
-    (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (answers : List F) :
-    friDecide params stmt chals answers =
-      friSmoothDecide params.toSmooth stmt chals answers :=
-  rfl
 
 /-- **Exact IOP equality**: binary 2-to-1 `friIOP params` coincides identically with
 `friSmoothIOP params.toSmooth` across `proveRound`, `queries`, and `decide`. -/
