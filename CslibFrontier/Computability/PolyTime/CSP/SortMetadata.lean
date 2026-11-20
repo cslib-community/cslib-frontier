@@ -106,6 +106,14 @@ theorem components_sortBoundaryMetadata (I : State Rel) (keys : List ℕ)
   simpa only [sortBoundaryMetadata, ite_eq_left hl, requests_count I keys hl] using
     components_transposeSchedule g w I (compute keys).requests
 
+/-- The computed sorted metadata word has exactly the surviving boundary length on aligned
+input. This relates the actual computed keys to the actual sorted State, for run consumers. -/
+theorem sortedKeys_length_sortBoundaryMetadata (I : State Rel) (keys : List ℕ)
+    (hl : keys.length = I.ports.length) :
+    (compute keys).sortedKeys.length = (sortBoundaryMetadata g w I keys).ports.length := by
+  rw [(components_compute keys).1,List.length_insertionSort,
+    (components_sortBoundaryMetadata g w I keys hl).2.2.1,hl]
+
 /-- ONE satisfying output recovers source truth and the entire original-index-permuted
 value word. Every original name, including unused names, is read at `2^T*z`. No checker,
 arity, distinctness or semantic alignment premise besides the actual key/port length is

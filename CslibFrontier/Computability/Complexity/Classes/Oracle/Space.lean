@@ -14,7 +14,7 @@ import CslibFrontier.Computability.Complexity.Classes.Oracle.Deterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-!
 # Polynomial time relative to an oracle in polynomial space

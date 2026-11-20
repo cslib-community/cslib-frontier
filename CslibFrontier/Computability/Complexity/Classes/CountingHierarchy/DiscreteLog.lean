@@ -69,8 +69,7 @@ theorem modularLogSum_mem_CountingFunction :
       (fun x : (ℕ × ℕ × ℕ) × ℕ => decide
         (Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2 = x.1.2.2 % x.1.1))
       (encPair encNat3 encNat) encBool :=
-    ComputableInPolyTime.of_tidy
-      (ComputableTidilyInPolyTime.decide_eq' hpower.tidy htarget.tidy)
+    (ComputableInPolyTime.decide_eq' hpower htarget)
   have hterm : ComputableInPolyTime
       (fun x : (ℕ × ℕ × ℕ) × ℕ =>
         if Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2 = x.1.2.2 % x.1.1 then x.2 else 0)

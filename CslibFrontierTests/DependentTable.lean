@@ -7,6 +7,7 @@ Authors: Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-! Dependent and canonical-order finite tables with unbounded words, an empty alphabet, and no
 indices. -/
