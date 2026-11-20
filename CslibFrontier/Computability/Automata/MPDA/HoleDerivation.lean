@@ -165,7 +165,7 @@ section Counting
 
 variable {w : List (α × Op n Γ)} {x : ℕ} {K : ℕ} {C : List (HoleChain n Γ)}
 
-private theorem chained_pairwise {ps : List (ℕ × Γ)} (h : Chained w ps) :
+theorem Chained.pairwise {ps : List (ℕ × Γ)} (h : Chained w ps) :
     ps.Pairwise fun e e' => e'.1 < e.1 := by
   have : IsTrans (ℕ × Γ) (fun e e' => e'.1 < e.1) := ⟨fun _ _ _ h h' => h'.trans h⟩
   exact (h.imp fun _ _ h => h.1).pairwise
@@ -176,7 +176,7 @@ private theorem exists_older_neighbour {ps : List (ℕ × Γ)} (h : Chained w ps
     (he : e ∈ ps) (he' : e' ∈ ps) (hlt : e.1 < e'.1) :
     ∃ f ∈ ps, e.1 ≤ f.1 ∧ f.1 < e'.1 ∧ WellNested (w.extract (f.1 + 1) e'.1) := by
   obtain ⟨l₁, l₂, rfl⟩ := List.mem_iff_append.mp he'
-  have hpw := chained_pairwise h
+  have hpw := h.pairwise
   rw [List.pairwise_append, List.pairwise_cons] at hpw
   -- `e` comes after `e'`.
   have hel₂ : e ∈ l₂ := by
@@ -479,7 +479,7 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     · rcases List.mem_cons.mp hc with rfl | hc
       · rcases List.mem_cons.mp he with rfl | he
         · exact absurd rfl hne
-        · exact (List.pairwise_cons.mp (chained_pairwise (h₃ c₀ hc₀))).1 e he
+        · exact (List.pairwise_cons.mp ((h₃ c₀ hc₀).pairwise)).1 e he
       · exact absurd hci (hpost c hc)
   -- No push of stack `i` after `p` is pending: stack `i` is back at its height after `p`.
   have hnet : net i (w.extract (p + 1) w.length) = 0 := by
@@ -570,7 +570,7 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
       omega
     · simpa using hk₁
   have hps : ∀ e ∈ ps, e.1 < p :=
-    (List.pairwise_cons.mp (chained_pairwise (h₃ c₀ hc₀))).1
+    (List.pairwise_cons.mp ((h₃ c₀ hc₀).pairwise)).1
   -- Each push of the new chains is a push of the old chains other than `p`.
   have hmap : ∀ c ∈ pre ++ ⟨i, ps⟩ :: post, ∀ e ∈ c.pushes,
       ∃ c' ∈ pre ++ c₀ :: post, e ∈ c'.pushes ∧ c'.stack = c.stack ∧ e.1 ≠ p := by

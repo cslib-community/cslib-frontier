@@ -512,4 +512,138 @@ decreasing_by
 
 end Block
 
+/-! ## The completeness invariant -/
+
+section Invariant
+
+open Classical
+
+theorem chainFrom_lt_blockEnd {w : List (α × Op n Γ)} {i : Fin n} :
+    ∀ q, q < w.length → ∀ r ∈ chainFrom w i q, r < blockEnd w i q
+  | q, hq, r, hr => by
+    rw [chainFrom_eq] at hr
+    rw [blockEnd]
+    split_ifs at hr ⊢ with h
+    · have hspec := Nat.find_spec h
+      have hq₂ := hspec.2.1.1.lt_length
+      rcases List.mem_cons.mp hr with rfl | hr
+      · have := chainFrom_lt_blockEnd (i := i) (Nat.find h) hq₂ _ mem_chainFrom_self
+        have := hspec.1
+        omega
+      · exact chainFrom_lt_blockEnd (Nat.find h) hq₂ r hr
+    · obtain rfl := List.mem_singleton.mp hr
+      have := (wnEnd_spec (w := w) (p := r + 1) (by omega)).1
+      omega
+termination_by q => w.length - q
+decreasing_by
+  all_goals
+    have hspec := Nat.find_spec h
+    have := hspec.2.1.1.lt_length
+    have := hspec.1
+    omega
+
+theorem blockEnd_event {w : List (α × Op n Γ)} {i : Fin n} :
+    ∀ q, q < w.length → blockEnd w i q < w.length →
+      (¬∃ a, w[blockEnd w i q]? = some (a, .nop)) ∧ ¬WellMatched w (blockEnd w i q)
+  | q, hq, hlt => by
+    rw [blockEnd] at hlt ⊢
+    split_ifs at hlt ⊢ with h
+    · exact blockEnd_event (Nat.find h) (Nat.find_spec h).2.1.1.lt_length hlt
+    · exact wnEnd_event (by omega) hlt
+termination_by q => w.length - q
+decreasing_by
+  have hspec := Nat.find_spec h
+  have := hspec.2.1.1.lt_length
+  have := hspec.1
+  omega
+
+theorem eq_nil_of_stacksOf_eq_empty {C : List (HoleChain n Γ)} (hne : ∀ c ∈ C, c.pushes ≠ [])
+    (h : stacksOf C = Stacks.empty) : C = [] := by
+  induction C using List.reverseRecOn with
+  | nil => rfl
+  | append_singleton C d _ =>
+    exfalso
+    have := congrFun h d.stack
+    rw [stacksOf_append_singleton, Function.update_self] at this
+    obtain ⟨e, ps, hps⟩ := List.exists_cons_of_ne_nil (hne d (by simp))
+    simp [hps, Stacks.empty] at this
+
+theorem update_cons_injective {σ σ' : Stacks n Γ} {i : Fin n} {γ : Γ}
+    (h : Function.update σ i (γ :: σ i) = Function.update σ' i (γ :: σ' i)) : σ = σ' := by
+  funext j
+  by_cases hj : j = i
+  · subst hj
+    have := congrFun h j
+    simp only [Function.update_self, List.cons.injEq, true_and] at this
+    exact this
+  · have := congrFun h j
+    rwa [Function.update_of_ne hj, Function.update_of_ne hj] at this
+
+theorem reverse_take_eq_cons {β : Type*} {L : List β} {m : ℕ} (hm₁ : 1 ≤ m)
+    (hm₂ : m ≤ L.length) :
+    (L.take m).reverse = L[m - 1] :: (L.take (m - 1)).reverse := by
+  obtain ⟨k, rfl⟩ : ∃ k, m = k + 1 := ⟨m - 1, by omega⟩
+  rw [List.take_succ_eq_append_getElem (by omega), List.reverse_append]
+  simp
+
+variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
+  [DecidableEq Γ] (M : MPDA n State Symbol Γ) [∀ s μ s', Decidable (M.Tr s μ s')]
+  [DecidablePred (· ∈ M.start)]
+
+/-- The completeness invariant at an event `t` of a run reaching `f` with empty stacks: a reachable
+list of the search, a hole derivation of the run up to `t`, and the rest of the run, whose stacks
+hold the pushes of the chains; chains, hole triples and their realizations agree; and each chain
+is a prefix of a greedy chain whose other pushes are no longer pending. -/
+def CInv (K : ℕ) (w : List (Symbol × Op n Γ)) (f : State) (t : ℕ) : Prop :=
+  ∃ (μ : HoleList n State) (C : List (HoleChain n Γ)) (rs : List (List (Γ × State)))
+    (c : Config n State Γ),
+    M.Reachable K M.initialLists μ ∧ HoleDerivation K C (w.take t) ∧
+    M.configLTS.MTr c (w.drop t) ⟨f, Stacks.empty⟩ ∧ c.state = μ.last ∧
+    c.contents = stacksOf C ∧
+    List.Forall₂ (fun c (h : HoleTriple n State) => c.stack = h.1) C μ.holes ∧
+    List.Forall₂ (fun r (h : HoleTriple n State) => M.Realizes h.1 h.2.1 h.2.2 r) rs μ.holes ∧
+    List.Forall₂ (fun c (r : List (Γ × State)) => c.pushes.map Prod.snd = r.map Prod.fst) C rs ∧
+    (∀ c ∈ C, c.pushes ≠ []) ∧ (∀ c ∈ C, ∀ e ∈ c.pushes, IsHolePushOn w c.stack e.1) ∧
+    ∀ c ∈ C, ∃ q₀ m, c.pushes.map Prod.fst = ((chainFrom w c.stack q₀).take m).reverse ∧
+      (∀ r ∈ chainFrom w c.stack q₀, r < t) ∧
+      ∀ r ∈ (chainFrom w c.stack q₀).drop m, ¬PendingAt w r (t - 1)
+
+variable {M}
+
+/-- The invariant holds at the first event. -/
+theorem cinv_init {K : ℕ} {w : List (Symbol × Op n Γ)} {s₀ f : State} (hs₀ : s₀ ∈ M.start)
+    (hrun : M.configLTS.MTr ⟨s₀, Stacks.empty⟩ w ⟨f, Stacks.empty⟩) :
+    M.CInv K w f (wnEnd w 0) := by
+  obtain ⟨-, hle, hwn⟩ := wnEnd_spec (w := w) (p := 0) (Nat.zero_le _)
+  have hsplit : w = w.extract 0 (wnEnd w 0) ++ w.drop (wnEnd w 0) := by
+    rw [List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero, List.take_append_drop]
+  rw [hsplit] at hrun
+  obtain ⟨c, hpre, hrest⟩ := LTS.MTr.split hrun
+  obtain ⟨hctl, hcont⟩ := hwn.configLTS_mTr_iff.mp hpre
+  have hμ : (⟨[], c.state⟩ : HoleList n State) ∈ M.initialLists :=
+    mem_initialLists.mpr ⟨rfl, s₀, hs₀, (mem_wellNestedPairs M).mpr
+      (wellNestedReach_iff.mpr ⟨_, hwn, hctl⟩)⟩
+  have htake : w.take (wnEnd w 0) = [] ++ w.extract 0 (wnEnd w 0) := by
+    rw [List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero, List.nil_append]
+  refine ⟨⟨[], c.state⟩, [], [], c, .init hμ, htake ▸ .wellNested .nil hwn, hrest, rfl,
+    by rw [hcont, stacksOf_nil], .nil, .nil, .nil, by simp, by simp, by simp⟩
+
+/-- At the end of the run, the invariant gives an accepting list. -/
+theorem isEmpty_eq_false_of_cinv [DecidablePred (· ∈ M.accept)] {K : ℕ}
+    {w : List (Symbol × Op n Γ)} {f : State} (hf : f ∈ M.accept)
+    (h : M.CInv K w f w.length) : M.isEmpty K = false := by
+  obtain ⟨μ, C, rs, c, hμ, -, hrun, hst, hcont, hstk, -, -, hne, -, -⟩ := h
+  rw [List.drop_length] at hrun
+  obtain rfl := LTS.MTr.nil_eq _ hrun
+  obtain rfl := eq_nil_of_stacksOf_eq_empty hne hcont.symm
+  have hholes : μ.holes = [] := List.forall₂_nil_left_iff.mp hstk
+  unfold isEmpty isEmptyFrom
+  rw [decide_eq_false_iff_not, not_not]
+  refine ⟨μ, (mem_explore fun ν hν => (mem_initialLists.mp hν).1).mpr hμ, hholes, f,
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _, hf⟩, ?_⟩
+  rw [← hst]
+  exact (mem_wellNestedPairs M).mpr (.refl _)
+
+end Invariant
+
 end Cslib.Automata.MPDA
