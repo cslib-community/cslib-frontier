@@ -2,6 +2,43 @@
 
 Part of the [representative algorithm endpoints](algorithm-endpoints.md); the conventions and limitations stated there apply to this page.
 
+## Implicit layered reachability from native NL
+
+Import `CslibFrontier.Computability.Complexity.Classes.LogSpace.LayeredReachability` and use
+`Cslib.Complexity.exists_layered_reachability_of_mem_NL` for the layered configuration graph
+of a native NL witness. This is a prerequisite for [#6747](https://github.com/cslib-community/cslib-frontier/issues/6747),
+not NL = UL. The machine and polynomial exponent are fixed before the encoded input; arbitrary
+injective input encodings are supported. The construction reuses the existing accepting sink.
+
+For a graph `I` with `n` vertices, `STCON.LayeredGraphVertex I` has layers `0…n−1` and columns
+`Fin n`. Access them as `v.val.layer` and `v.val.vertex`.
+`Relation.LayeredVertex.boundedEquiv (Fin n) (n−1)` converts this carrier to the rectangular
+product `Fin ((n−1)+1) × Fin n`; `n` is positive because `I.s : Fin n`.
+`STCON.layeredRelation I` advances exactly one layer and either follows an original edge or
+waits in the same column. It has no self edges. The fixed endpoints are `layeredStart I` at
+layer zero and `layeredTarget I` at layer `n−1`. `layered_reachable_iff` preserves reachability,
+including empty paths and early arrival, using a short finite path rather than a machine-time
+hypothesis.
+
+The [query API](../../CslibFrontier/Computability/Complexity/Problems/STCON/LayeredQuery.lean)
+separates `layeredQueryRequest` (binary dimensions and coordinates, with no input bit),
+`layeredQueryIndex` (the original-input address), and `layeredEdgeQuery` (the Boolean answer
+after supplying the optional read symbol). The fixed
+[callee](../../CslibFrontier/Computability/Complexity/Problems/STCON/LayeredCallback.lean)
+`layeredCallback ntm` starts a call at `.inl request`, reads the original word and returns
+`.inr answer` in one abstract step. `layeredCallback_agrees` identifies this answer with graph
+adjacency. `layeredCallback_parts_inSpace` certifies native linear workspace for all five
+components; `layeredCallback_states_le_log` bounds every call state logarithmically in the
+original word length. The request is data, not part of the fixed machine code. The existing
+`QueryMachine.withCalls` compiler supports the same-input call. These certificates do not
+supply a complete streaming scan or its caller-state bounds; weight generation, scans and the
+final class-equality composition remain open in #6747.
+
+The [checked client](../../CslibFrontierTests/LayeredNLReachability.lean) contains the imports,
+empty-path, early-arrival and rejection cases, an actual native STCON witness, and a caller
+resuming with the adjacency answer after call entry, read and return. Validate it with
+`scripts/build.sh CslibFrontierTests.LayeredNLReachability --wfail --iofail`.
+
 ## Shortest paths and priority queues
 
 [abstracts/ComplexityAbstracts/DijkstraAbstract.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/abstracts/ComplexityAbstracts/DijkstraAbstract.lean) (retired; its bridge applied [LogLinear.lean](../../CslibFrontier/Algorithms/WordRAM/Dijkstra/LogLinear.lean) and [Fibonacci.lean](../../CslibFrontier/Algorithms/WordRAM/Dijkstra/Fibonacci.lean)) represents directed weighted multigraphs by adjacency lists with natural weights; parallel edges and self-loops are allowed. Output distance is an extended natural, encoded as zero for infinity and `d+1` for a finite distance. The word condition is `8*(n+m+2)*(W+2) < 2^w`.

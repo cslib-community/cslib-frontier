@@ -57,7 +57,7 @@ example : ∃ (k : ℕ) (State : Type) (inst : Fintype State) (ntm : MultiTapeNT
     letI := inst
     ∀ I, let J := configurationInstance ntm c (encSTCON I)
       Relation.ReflTransGen (layeredRelation J) (layeredStart J) (layeredTarget J) ↔ I ∈ STCON := by
-  obtain ⟨k, State, inst, ntm, c, _, _, _, h⟩ := exists_layered_reachability_of_mem_NL STCON.mem_NL
+  obtain ⟨k, State, inst, ntm, c, _, _, h⟩ := exists_layered_reachability_of_mem_NL STCON.mem_NL
   let : Fintype State := inst
   exact ⟨k, State, inst, ntm, c, fun I => (h I).1.symm⟩
 
@@ -65,5 +65,24 @@ example : ∃ (k : ℕ) (State : Type) (inst : Fintype State) (ntm : MultiTapeNT
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (B n : ℕ) :
     layeredEdgeQuery ntm ⟨B, n, 0, 0, 0, 0, none⟩ = false := by
   simp [layeredEdgeQuery]
+
+/-- A caller resumes with the answer after three abstract steps: call entry, the actual
+original-input read, and return. No copied input word or pre-read bit enters the request. -/
+example {σ State : Type} {k : ℕ} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (M : QueryMachine σ) (request : σ → Option (LayeredQuery ⊕ Bool))
+    (resume : σ → (LayeredQuery ⊕ Bool) → σ) (w : List Bool) (s : σ) (q : LayeredQuery)
+    (hs : M.halted s = false) (hr : request s = some (.inl q)) :
+    (M.withCalls (layeredCallback ntm) request resume).runFrom w (.inl s) 3 =
+      .inl (resume s (.inr (layeredEdgeQuery ntm
+        {q with symbol := w[layeredQueryIndex (k := k) q]?}))) := by
+  have h := QueryMachine.withCalls_runFrom_call M (layeredCallback ntm) request resume w
+    s (.inl q) 1 hs hr (by
+      intro i hi
+      have hi0 : i = 0 := by omega
+      subst i
+      rfl)
+    (by rw [show 1 = 0 + 1 from rfl, layeredCallback_runFrom]; rfl)
+  exact h.trans (congrArg (fun r => Sum.inl (resume s r))
+    (layeredCallback_runFrom ntm w q 0))
 
 end CslibFrontierTests.LayeredNLReachability

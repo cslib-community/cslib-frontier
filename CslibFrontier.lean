@@ -2947,6 +2947,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Layered
+public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredCallback
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredQuery
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Search

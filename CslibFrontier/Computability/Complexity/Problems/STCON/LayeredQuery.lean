@@ -74,13 +74,20 @@ the word; their adjacency test does not use the returned symbol. -/
   if q.fromLabel < vertexBound (k := k) q.radix then queryIndex (k := k) q.radix q.fromLabel
   else q.inputLength
 
-/-- Query parameters for two vertices of the configuration graph's layered version. Only
-the one requested symbol of the original word is read; the word is not stored in the result. -/
+/-- Construct a pending query from binary dimensions and vertex coordinates, without
+reading the original word. The symbol slot is a placeholder filled by the one-read callee. -/
+@[expose] noncomputable def layeredQueryRequest {k : ℕ} {State : Type} [Fintype State]
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool)
+    (a b : LayeredGraphVertex (configurationInstance ntm c w)) : LayeredQuery :=
+  ⟨radix (radixExponent State c) w.length, w.length,
+    a.val.layer, a.val.vertex.val, b.val.layer, b.val.vertex.val, none⟩
+
+/-- Mathematical query parameters with the symbol obtained from the original word. Native
+execution of this read is supplied by the uniform callee in `STCON.LayeredCallback`. -/
 @[expose] noncomputable def layeredQuery {k : ℕ} {State : Type} [Fintype State]
     (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool)
     (a b : LayeredGraphVertex (configurationInstance ntm c w)) : LayeredQuery :=
-  let q : LayeredQuery := ⟨radix (radixExponent State c) w.length, w.length,
-    a.val.layer, a.val.vertex.val, b.val.layer, b.val.vertex.val, none⟩
+  let q := layeredQueryRequest ntm c w a b
   {q with symbol := w[layeredQueryIndex (k := k) q]?}
 
 /-- The read-only callback agrees with the simple finite layered graph, including sink and
@@ -105,17 +112,17 @@ theorem layeredQuery_agrees (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : Lis
   · have hne : a.val.vertex.val ≠ N := Nat.ne_of_lt hu'
     by_cases hv' : b.val.vertex.val < N
     · have hne' : b.val.vertex.val ≠ N := Nat.ne_of_lt hv'
-      simp [layeredEdgeQuery, layeredQuery, layeredQueryIndex, layeredRelation,
+      simp [layeredEdgeQuery, layeredQuery, layeredQueryRequest, layeredQueryIndex, layeredRelation,
         Relation.LayeredVertex.Step,
         Relation.reflGen_iff, STCONInstance.Adj, configurationInstance, sinkAdj,
         hu, hv, hu', hv', hne, hne', B, N, Fin.ext_iff, and_assoc, hswap] at *
     · have hvN : b.val.vertex.val = N := by omega
-      simp [layeredEdgeQuery, layeredQuery, layeredQueryIndex, layeredRelation,
+      simp [layeredEdgeQuery, layeredQuery, layeredQueryRequest, layeredQueryIndex, layeredRelation,
         Relation.LayeredVertex.Step,
         Relation.reflGen_iff, STCONInstance.Adj, configurationInstance, sinkAdj,
         hu, hu', hne, hvN, B, N, Fin.ext_iff, and_assoc, hswap] at *
   · have huN : a.val.vertex.val = N := by omega
-    simp [layeredEdgeQuery, layeredQuery, layeredQueryIndex, layeredRelation,
+    simp [layeredEdgeQuery, layeredQuery, layeredQueryRequest, layeredQueryIndex, layeredRelation,
       Relation.LayeredVertex.Step,
       Relation.reflGen_iff, STCONInstance.Adj, configurationInstance, sinkAdj,
       hv, huN, he, hb, B, N, Fin.ext_iff, and_assoc, hswap] at *
@@ -186,8 +193,8 @@ theorem layeredQuery_length_le_log (q : LayeredQuery) (n d : ℕ)
 /-- Queries to actual graph vertices have logarithmic encoded length, uniformly over all
 vertex pairs, including the final layer and accepting sink. -/
 theorem length_layeredQuery_le_log (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool)
-    (a b : LayeredGraphVertex (configurationInstance ntm c w)) :
-    (encLayeredQuery (layeredQuery ntm c w a b)).length ≤
+    (a b : LayeredGraphVertex (configurationInstance ntm c w)) (symbol : Option Bool) :
+    (encLayeredQuery {layeredQueryRequest ntm c w a b with symbol := symbol}).length ≤
       12 * (radixExponent State c * Fintype.card (Register k) + 1) *
         (Nat.log2 (w.length + 1) + 1) + 8 := by
   let D := radixExponent State c
@@ -202,14 +209,14 @@ theorem length_layeredQuery_le_log (ntm : MultiTapeNTM k Bool State) (c : ℕ) (
   have hv : b.val.vertex.val ≤ vertexBound (k := k) (radix D w.length) :=
     Nat.le_of_lt_succ b.val.vertex.isLt
   apply layeredQuery_length_le_log
-  · simpa only [layeredQuery, D, vertexBound_eq_pow] using hB
-  · simpa only [layeredQuery, D, vertexBound_eq_pow] using hn
-  · simpa only [layeredQuery, D, configurationInstance, Nat.add_sub_cancel,
+  · simpa only [layeredQueryRequest, D, vertexBound_eq_pow] using hB
+  · simpa only [layeredQueryRequest, D, vertexBound_eq_pow] using hn
+  · simpa only [layeredQueryRequest, D, configurationInstance, Nat.add_sub_cancel,
       vertexBound_eq_pow] using a.property
-  · simpa only [layeredQuery, D, vertexBound_eq_pow] using hu
-  · simpa only [layeredQuery, D, configurationInstance, Nat.add_sub_cancel,
+  · simpa only [layeredQueryRequest, D, vertexBound_eq_pow] using hu
+  · simpa only [layeredQueryRequest, D, configurationInstance, Nat.add_sub_cancel,
       vertexBound_eq_pow] using b.property
-  · simpa only [layeredQuery, D, vertexBound_eq_pow] using hv
+  · simpa only [layeredQueryRequest, D, vertexBound_eq_pow] using hv
 
 
 end Cslib.Complexity.STCON
