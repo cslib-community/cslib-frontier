@@ -25,13 +25,13 @@ as letters `a` and as letters `b` in the prefix.
 
 ## Main definitions
 
-- `MPDA.boundedLanguage`: the words with an accepting run in a given class.
 - `MPDA.HoleSeparation.automaton`: the automaton.
 
 ## Main results
 
 - `MPDA.HoleSeparation.language_automaton`: it recognizes exactly `L_bh`.
-- `MPDA.HoleSeparation.holeBounded_strictlyContains`: the second sentence of Proposition 2 for
+- `MPDA.HoleSeparation.language_separates_holeBounded_scopeBounded`: `L_bh` separates hole-bounded
+  from scope-, context- and round-bounded languages, the second sentence of Proposition 2 for
   visibly MPDAs.
 
 ## References
@@ -441,25 +441,18 @@ private theorem accepts_of_mem_language {w : List Letter} (h : w ∈ language) :
 
 /-! ## The separation of languages -/
 
-/-- The language of the words with an accepting run satisfying `P`: acceptance restricted to the
-runs of a bounded class. -/
-@[expose] def _root_.Cslib.Automata.MPDA.boundedLanguage {n : ℕ} {State Symbol Γ : Type*}
-    (M : MPDA n State Symbol Γ) (P : List (Symbol × Op n Γ) → Prop) : Language Symbol :=
-  {w | ∃ s ∈ M.start, ∃ s' ∈ M.accept, ∃ μs : List (Symbol × Op n Γ), μs.map Prod.fst = w ∧
-    M.configLTS.MTr ⟨s, Stacks.empty⟩ μs ⟨s', Stacks.empty⟩ ∧ P μs}
-
 /-- `automaton` recognizes exactly `L_bh`. -/
 theorem language_automaton : Acceptor.language automaton = language :=
   Set.ext fun _ => ⟨mem_language_of_accepts, accepts_of_mem_language⟩
 
-/-- **Hole-bounded languages strictly contain scope-, context- and round-bounded ones**, the second
+/-- **`L_bh` separates hole-bounded from scope-, context- and round-bounded languages**, the second
 sentence of Proposition 2 of [AkshayGastinKrishnaRoychowdhury2020] (arXiv:2002.05950v2, Section
 2.1, printed pp. 6–7) for visibly MPDAs, with bounded acceptance. The language `L_bh` is the
 `2`-hole-bounded language of a finite visibly MPDA, which also recognizes exactly `L_bh`; and for
 every `K`, no visibly MPDA, finite or not, has `L_bh` as its `K`-scope-, `K`-context- or
 `K`-round-bounded language. The source states the separation for the visible operation sequence;
 whether it holds when stack operations are hidden is open (cslib-frontier issue #6712). -/
-theorem holeBounded_strictlyContains :
+theorem language_separates_holeBounded_scopeBounded :
     (∃ (State Sym : Type) (_ : Finite State) (_ : Finite Sym) (M : MPDA 2 State Letter Sym),
       M.IsVisibly kind ∧ Acceptor.language M = language ∧
         M.boundedLanguage (HoleBounded 2) = language) ∧

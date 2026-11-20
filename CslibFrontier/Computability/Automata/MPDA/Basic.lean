@@ -208,49 +208,73 @@ theorem configLTS_mTr_state {M : MPDA n State Symbol Γ} {c c' : Config n State 
   | refl => exact .refl
   | stepL htr _ ih => exact .stepL (configLTS_tr.mp htr).1 ih
 
-/-! ### Repeating a transition on two stacks -/
+/-! ### Repeating a transition -/
 
 section Repeat
 
-variable {M : MPDA 2 State Symbol Γ} {q : State} {x : Symbol} {γ : Γ}
+variable {M : MPDA n State Symbol Γ} {q : State} {x : Symbol} {i : Fin n} {γ : Γ}
 
-/-- Repeating a transition that pushes on stack `0` and stays in its state. -/
-theorem configLTS_mTr_replicate_push_zero (h : M.Tr q (x, .push 0 γ) q) (s₁ : List Γ) :
-    ∀ (k : ℕ) (s₀ : List Γ), M.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
-      (List.replicate k (x, .push 0 γ)) ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩
-  | 0, _ => .refl
-  | k + 1, s₀ => .stepL (configLTS_tr.mpr ⟨h, Op.apply_push_zero_pair.mpr rfl⟩) (by
-      have := configLTS_mTr_replicate_push_zero h s₁ k (γ :: s₀)
-      rwa [show List.replicate k γ ++ γ :: s₀ = List.replicate (k + 1) γ ++ s₀ by
-        rw [List.replicate_succ', List.append_assoc, List.singleton_append]] at this)
+/-- Repeating `k` times a transition that pushes `γ` on stack `i` and stays in its state. -/
+theorem configLTS_mTr_replicate_push (h : M.Tr q (x, .push i γ) q) :
+    ∀ (k : ℕ) (σ : Stacks n Γ), M.configLTS.MTr ⟨q, σ⟩ (List.replicate k (x, .push i γ))
+      ⟨q, Function.update σ i (List.replicate k γ ++ σ i)⟩
+  | 0, σ => by simp
+  | k + 1, σ => .stepL (configLTS_tr.mpr ⟨h, Op.apply_push.mpr rfl⟩) (by
+      have := configLTS_mTr_replicate_push h k (Function.update σ i (γ :: σ i))
+      rwa [Function.update_idem, Function.update_self, show List.replicate k γ ++ γ :: σ i =
+        List.replicate (k + 1) γ ++ σ i by
+          rw [List.replicate_succ', List.append_assoc, List.singleton_append]] at this)
 
-/-- Repeating a transition that pushes on stack `1` and stays in its state. -/
-theorem configLTS_mTr_replicate_push_one (h : M.Tr q (x, .push 1 γ) q) (s₀ : List Γ) :
-    ∀ (k : ℕ) (s₁ : List Γ), M.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
-      (List.replicate k (x, .push 1 γ)) ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩
-  | 0, _ => .refl
-  | k + 1, s₁ => .stepL (configLTS_tr.mpr ⟨h, Op.apply_push_one_pair.mpr rfl⟩) (by
-      have := configLTS_mTr_replicate_push_one h s₀ k (γ :: s₁)
-      rwa [show List.replicate k γ ++ γ :: s₁ = List.replicate (k + 1) γ ++ s₁ by
-        rw [List.replicate_succ', List.append_assoc, List.singleton_append]] at this)
-
-/-- Repeating a transition that pops from stack `0` and stays in its state. -/
-theorem configLTS_mTr_replicate_pop_zero (h : M.Tr q (x, .pop 0 γ) q) (s₁ : List Γ) :
-    ∀ (k : ℕ) (s₀ : List Γ), M.configLTS.MTr ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩
-      (List.replicate k (x, .pop 0 γ)) ⟨q, Stacks.pair s₀ s₁⟩
-  | 0, _ => .refl
-  | k + 1, s₀ => .stepL (configLTS_tr.mpr ⟨h, Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩)
-      (configLTS_mTr_replicate_pop_zero h s₁ k s₀)
-
-/-- Repeating a transition that pops from stack `1` and stays in its state. -/
-theorem configLTS_mTr_replicate_pop_one (h : M.Tr q (x, .pop 1 γ) q) (s₀ : List Γ) :
-    ∀ (k : ℕ) (s₁ : List Γ), M.configLTS.MTr ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩
-      (List.replicate k (x, .pop 1 γ)) ⟨q, Stacks.pair s₀ s₁⟩
-  | 0, _ => .refl
-  | k + 1, s₁ => .stepL (configLTS_tr.mpr ⟨h, Op.apply_pop_one_pair.mpr ⟨_, rfl, rfl⟩⟩)
-      (configLTS_mTr_replicate_pop_one h s₀ k s₁)
+/-- Repeating `k` times a transition that pops `γ` from stack `i` and stays in its state. -/
+theorem configLTS_mTr_replicate_pop (h : M.Tr q (x, .pop i γ) q) :
+    ∀ (k : ℕ) (σ : Stacks n Γ), M.configLTS.MTr ⟨q, Function.update σ i (List.replicate k γ ++ σ i)⟩
+      (List.replicate k (x, .pop i γ)) ⟨q, σ⟩
+  | 0, σ => by simp
+  | k + 1, σ => .stepL (s2 := ⟨q, Function.update σ i (List.replicate k γ ++ σ i)⟩)
+      (configLTS_tr.mpr ⟨h, Op.apply_pop.mpr (by
+        change Function.update σ i (List.replicate (k + 1) γ ++ σ i) =
+          Function.update (Function.update σ i (List.replicate k γ ++ σ i)) i
+            (γ :: Function.update σ i (List.replicate k γ ++ σ i) i)
+        rw [Function.update_self, Function.update_idem, List.replicate_succ, List.cons_append])⟩)
+      (configLTS_mTr_replicate_pop h k σ)
 
 end Repeat
+
+/-! ### Repeating a transition on two stacks -/
+
+section RepeatPair
+
+variable {M : MPDA 2 State Symbol Γ} {q : State} {x : Symbol} {γ : Γ}
+
+theorem configLTS_mTr_replicate_push_zero (h : M.Tr q (x, .push 0 γ) q) (s₁ : List Γ) (k : ℕ)
+    (s₀ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
+      (List.replicate k (x, .push 0 γ)) ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩ := by
+  have := configLTS_mTr_replicate_push h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 0 (List.replicate k γ ++ Stacks.pair s₀ s₁ 0) =
+    Stacks.pair (List.replicate k γ ++ s₀) s₁ from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+theorem configLTS_mTr_replicate_push_one (h : M.Tr q (x, .push 1 γ) q) (s₀ : List Γ) (k : ℕ)
+    (s₁ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩
+      (List.replicate k (x, .push 1 γ)) ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩ := by
+  have := configLTS_mTr_replicate_push h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 1 (List.replicate k γ ++ Stacks.pair s₀ s₁ 1) =
+    Stacks.pair s₀ (List.replicate k γ ++ s₁) from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+theorem configLTS_mTr_replicate_pop_zero (h : M.Tr q (x, .pop 0 γ) q) (s₁ : List Γ) (k : ℕ)
+    (s₀ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair (List.replicate k γ ++ s₀) s₁⟩
+      (List.replicate k (x, .pop 0 γ)) ⟨q, Stacks.pair s₀ s₁⟩ := by
+  have := configLTS_mTr_replicate_pop h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 0 (List.replicate k γ ++ Stacks.pair s₀ s₁ 0) =
+    Stacks.pair (List.replicate k γ ++ s₀) s₁ from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+theorem configLTS_mTr_replicate_pop_one (h : M.Tr q (x, .pop 1 γ) q) (s₀ : List Γ) (k : ℕ)
+    (s₁ : List Γ) : M.configLTS.MTr ⟨q, Stacks.pair s₀ (List.replicate k γ ++ s₁)⟩
+      (List.replicate k (x, .pop 1 γ)) ⟨q, Stacks.pair s₀ s₁⟩ := by
+  have := configLTS_mTr_replicate_pop h k (Stacks.pair s₀ s₁)
+  rwa [show Function.update (Stacks.pair s₀ s₁) 1 (List.replicate k γ ++ Stacks.pair s₀ s₁ 1) =
+    Stacks.pair s₀ (List.replicate k γ ++ s₁) from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
+
+end RepeatPair
 
 /-- An MPDA reads the letters visibly for `κ` if every transition on a letter `a` performs an
 operation of kind `κ a`. -/

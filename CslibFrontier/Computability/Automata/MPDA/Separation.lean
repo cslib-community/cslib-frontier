@@ -37,7 +37,7 @@ operation of the kind the letter prescribes.
 - `MPDA.HoleSeparation.exists_not_roundBounded`: hence for every `K`, `L_bh` has a word on which
   no run is `K`-scope-, context- or round-bounded.
 
-These are the run-level steps. `MPDA.HoleSeparation.holeBounded_strictlyContains` in
+These are the run-level steps. `MPDA.HoleSeparation.language_separates_holeBounded_scopeBounded` in
 `SeparationAutomaton.lean` combines them with a finite visibly MPDA recognizing exactly `L_bh` into
 the separation of languages.
 
@@ -496,8 +496,8 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
 /-- For every `K`, `L_bh` has a word on which no run of a visibly MPDA is `K`-scope-, `K`-context-
 or `K`-round-bounded. This is the run-level step of the second sentence of Proposition 2 of
 [AkshayGastinKrishnaRoychowdhury2020]; the separation of languages is
-`MPDA.HoleSeparation.holeBounded_strictlyContains`, which also shows that a finite visibly MPDA
-recognizes exactly `L_bh`. -/
+`MPDA.HoleSeparation.language_separates_holeBounded_scopeBounded`, which also shows that a finite
+visibly MPDA recognizes exactly `L_bh`. -/
 theorem exists_not_roundBounded (hM : M.IsVisibly kind) (K : ℕ) :
     ∃ v ∈ language, ∀ {c c' : Config 2 State Γ} {w : List (Letter × Op 2 Γ)},
       M.configLTS.MTr c w c' → w.map Prod.fst = v →
