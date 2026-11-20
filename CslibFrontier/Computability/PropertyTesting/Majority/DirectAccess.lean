@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Computability.PropertyTesting.Majority.Decision
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
@@ -82,13 +83,15 @@ private theorem isOraclePPTOn_majorityDirectAccess (k : ℕ) (δ : ℚ) :
   have hdecide : ComputableInPolyTime
       (fun p : (ℕ × List (List Bool)) × List (List Bool) => decideReplies k δ p.1.1 p.2)
       (encPair (encPair encNat wordsEncoding) wordsEncoding) encBool := by
-    unfold decideReplies
-    apply (computableInPolyTime_majoritySampleAccepts k δ).comp
-    apply ComputableInPolyTime.prod
-    · exact (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)
-    · apply ComputableInPolyTime.unary_to_binary.comp
-      apply ComputableInPolyTime.countPWithInput (ComputableInPolyTime.snd _ _)
-      exact (ComputableInPolyTime.headD false).comp (ComputableInPolyTime.snd _ _)
+    let encInput := encPair (encPair encNat wordsEncoding) wordsEncoding
+    have hlength := (ComputableInPolyTime.fst encNat wordsEncoding).comp
+      (ComputableInPolyTime.fst (encPair encNat wordsEncoding) wordsEncoding)
+    have hcount := ComputableInPolyTime.countPWithInput
+      (ComputableInPolyTime.snd (encPair encNat wordsEncoding) wordsEncoding)
+      ((ComputableInPolyTime.headD (encA := encBool) false).comp
+        (ComputableInPolyTime.snd encInput encBits))
+    exact (computableInPolyTime_majoritySampleAccepts k δ).comp
+      (hlength.prod (ComputableInPolyTime.unary_to_binary.comp hcount))
   unfold majorityDirectAccess
   exact IsOraclePPTOn.ite (by fun_prop)
     ((ComputableInPolyTime.const false).isOraclePPTOn)
@@ -121,9 +124,16 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
   have hlen' := hlen words (by simpa only [ProbOracleComp.support_sample] using hwords)
   have htraverse : ((validRequests n words).mapM readBit).IsQueryBounded
       ((validRequests n words).length * 1) :=
-    OracleComp.IsCostBounded.mapM fun word _ =>
-      (ProbOracleComp.IsQueryBounded.query ((), word)).map (List.take 1)
-  exact (htraverse.map (decideReplies k δ n)).mono
-    (by simpa only [Nat.mul_one, ← hlen'] using List.length_filter_le _ words)
+    OracleComp.IsCostBounded.mapM fun word _ => by
+      unfold readBit
+      rw [map_eq_bind_pure_comp]
+      simpa only [Nat.add_zero] using
+        (ProbOracleComp.IsQueryBounded.query ((), word)).bind
+          (fun reply => OracleComp.IsCostBounded.pure (reply.take 1) 0)
+  rw [map_eq_bind_pure_comp]
+  have hresult := htraverse.bind
+    (fun replies => OracleComp.IsCostBounded.pure (decideReplies k δ n replies) 0)
+  exact hresult.mono
+    (by simpa only [Nat.add_zero, Nat.mul_one, ← hlen'] using List.length_filter_le _ words)
 
 end Cslib.BitString
