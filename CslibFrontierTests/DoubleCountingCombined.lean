@@ -22,6 +22,14 @@ example : encInput ⟨⟨3, 2⟩, [true, false]⟩ =
     frame (VertexParameters.encParameters ⟨3, 2⟩) ++ [true, false] := rfl
 example : (start ⟨⟨3, 2⟩, []⟩).skip = 15 := by decide +kernel
 
+-- Public step computation needs no public feed helper.
+example : step (⟨0, ⟨3, 2, 0, 0, false⟩⟩, true) =
+    ⟨0, ⟨3, 2, 1, 1, false⟩⟩ := rfl
+example : step (⟨0, ⟨3, 2, 2, 1, false⟩⟩, true) =
+    ⟨0, ⟨3, 2, 2, 1, false⟩⟩ := rfl
+example : step (⟨1, ⟨3, 2, 0, 0, false⟩⟩, true) =
+    ⟨0, ⟨3, 2, 0, 0, false⟩⟩ := rfl
+
 example : run ⟨⟨3, 2⟩, [true, false]⟩ = some 2 := by decide +kernel
 example : run ⟨⟨3, 2⟩, [true, true]⟩ = none := by decide +kernel
 example : run ⟨⟨3, 2⟩, [false]⟩ = none := by decide +kernel

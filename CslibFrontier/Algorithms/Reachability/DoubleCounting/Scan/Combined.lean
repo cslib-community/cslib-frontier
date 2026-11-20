@@ -70,13 +70,15 @@ structure Context where
 /-- Framed binary skip counter followed by the existing reader-state encoding. -/
 enc_structure encContext : Context where skip : encNat, reader : encState
 
-private def rejected : State := ⟨0, 0, 0, 0, true⟩
+/-- Closed failed preparation state, exposed so ordinary-import `start` computes. -/
+@[expose] def rejected : State := ⟨0, 0, 0, 0, true⟩
 
 /-- Runtime preparation and the exact prefix offset; no choice suffix is copied. -/
 @[expose] def start (x : Input) : Context :=
-  ⟨2 * (encParameters x.parameters).length + 1, (prepare x.parameters).getD ⟨0, 0, 0, 0, true⟩⟩
+  ⟨2 * (encParameters x.parameters).length + 1, (prepare x.parameters).getD rejected⟩
 
-/-- Existing reader step with an explicitly supplied present bit. -/
+/-- Existing reader step with an explicitly supplied present bit. Its body is exposed so
+ordinary-import clients can evaluate `step`; Lean disallows private dependencies in that body. -/
 @[expose] def feed (s : State) (b : Bool) : State :=
   if (machine 0).halted s then s else (machine 0).next (s, some b)
 
@@ -264,7 +266,7 @@ theorem start_inSpace : ComputableInSpace start encInput encContext
   have hlen := budget_natAdd (budget_natAdd (budget_natAdd hn hn) hone) hw
   have hoff := budget_natAdd (budget_natAdd hlen hlen) hone
   have hprep := budget_comp_linear prepare_inSpace hp
-  have hload := budget_optionGetD (encB := encState) (⟨0, 0, 0, 0, true⟩ : State) hprep
+  have hload := budget_optionGetD (encB := encState) rejected hprep
   exact (encContext_mk_budget hoff hload).of_enc_eq fun x => by
     apply congrArg encContext
     simp only [start]
