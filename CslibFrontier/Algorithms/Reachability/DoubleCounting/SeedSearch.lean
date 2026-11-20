@@ -45,7 +45,7 @@ Native loop/state bounds, binary choice lowering, callbacks and first-halting co
 remain in #6747. Validate this client with
 `scripts/build.sh CslibFrontierTests.IsolationSeedSearch --wfail --iofail`.
 
-[client]: https://github.com/cslib-community/cslib-frontier/blob/feat/6747-seed-search/CslibFrontierTests/IsolationSeedSearch.lean
+[client]: https://github.com/cslib-community/cslib-frontier/blob/e2e7346ce2b373cb8557c04ff0d4e24b21ded9c4/CslibFrontierTests/IsolationSeedSearch.lean
 
 ## Main results
 
