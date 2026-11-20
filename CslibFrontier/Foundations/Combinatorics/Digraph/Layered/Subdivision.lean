@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered.MinIsolati
 public import Mathlib.Combinatorics.Quiver.Path.Weight
 public import Mathlib.Data.Fintype.Prod
 public import Mathlib.Data.Fintype.Fin
+public import Mathlib.SetTheory.Cardinal.NatCard
 
 /-!
 # Vertex-chain subdivision of a weighted layered graph
@@ -225,5 +226,134 @@ theorem normalForm (hw : ∀ v, weight v ≤ bound) {s : V} {v : Vertex V bound}
           subst bi
           conv_lhs => rw [ih]
           rfl
+
+/-- Original paths correspond bijectively to subdivided paths ending at any valid offset. -/
+noncomputable def pathEquiv (hw : ∀ v, weight v ≤ bound) (s : V) (v : Vertex V bound)
+    (hv : v.offset.val ≤ weight v.vertex) :
+    G.Path s v.vertex ≃ Path G weight bound (root bound s) v where
+  toFun p := @Quiver.Path.comp _ (toQuiver G weight bound) _ _ _ (expand hw p)
+    (chain v.vertex v.offset.val hv (Nat.le_of_lt_succ v.offset.isLt))
+  invFun := contract
+  left_inv p := by
+    rw [contract_comp, contract_chain, contract_expand]
+    rfl
+  right_inv p := (normalForm hw p).symm
+
+/-- The rectangular subdivision has at most the number of vertices times one plus the
+uniform weight bound; unused positions remain isolated. -/
+theorem card_vertex : Nat.card (Vertex V bound) = Nat.card V * (bound + 1) := by
+  rw [Nat.card_congr (equivProd V bound), Nat.card_prod, Nat.card_fin]
+
+private theorem length_chain (v : V) (i : ℕ) (hi : i ≤ weight v) (hb : i ≤ bound) :
+    @Quiver.Path.length _ (toQuiver G weight bound) _ _ (chain v i hi hb) = i := by
+  induction i with
+  | zero => rfl
+  | succ i ih =>
+    change @Quiver.Path.length _ (toQuiver G weight bound) _ _
+      (chain v i (by omega) (by omega)) + 1 = i + 1
+    rw [ih]
+
+/-- Expansion replaces departure weight by literal unweighted edges, with one extra edge
+per original edge. The formula includes the empty path. -/
+theorem length_expand (hw : ∀ v, weight v ≤ bound) {a b : V} (p : G.Path a b) :
+    @Quiver.Path.length _ (toQuiver G weight bound) _ _ (expand hw p) =
+      @Quiver.Path.addWeightOfEPs V G.toQuiver ℕ _ (fun v _ => weight v + 1) _ _ p := by
+  let _ := G.toQuiver
+  let _ := toQuiver G weight bound
+  induction p with
+  | nil => exact (Quiver.Path.addWeightOfEPs_nil _ _).symm
+  | @cons b c p e ih =>
+    change ((expand hw p).comp (chain b (weight b) le_rfl (hw b))).length + 1 = _
+    rw [Quiver.Path.length_comp, length_chain, ih, Quiver.Path.addWeightOfEPs_cons]
+    omega
+
+/-- The path bijection preserves length as departure cost plus the final partial chain. -/
+theorem length_pathEquiv (hw : ∀ v, weight v ≤ bound) (s : V) (v : Vertex V bound)
+    (hv : v.offset.val ≤ weight v.vertex) (p : G.Path s v.vertex) :
+    @Quiver.Path.length _ (toQuiver G weight bound) _ _ (pathEquiv hw s v hv p) =
+      @Quiver.Path.addWeightOfEPs V G.toQuiver ℕ _ (fun u _ => weight u + 1) _ _ p +
+        v.offset.val := by
+  let _ := toQuiver G weight bound
+  change @Quiver.Path.length _ (toQuiver G weight bound) _ _
+    (@Quiver.Path.comp _ (toQuiver G weight bound) _ _ _ _ _) = _
+  rw [Quiver.Path.length_comp, length_expand, length_chain]
+
+private theorem departureCost_eq {a b : V} (p : G.Path a b) (h : a ≠ b) :
+    @Quiver.Path.addWeightOfEPs V G.toQuiver ℕ _ (fun u _ => weight u + 1) _ _ p =
+      p.internalWeight weight + weight a + p.length := by
+  let _ := G.toQuiver
+  induction p with
+  | nil => exact (h rfl).elim
+  | @cons b c p e ih =>
+    by_cases hab : a = b
+    · subst b
+      have hp : p = Quiver.Path.nil :=
+        LayeredDigraph.Path.eq_of_layer_le_succ (Nat.le_succ _) _ _
+      subst p
+      simp [Quiver.Path.addWeightOfEPs_cons, Quiver.Path.addWeightOfEPs_nil,
+        LayeredDigraph.Path.internalWeight, LayeredDigraph.Path.internalVertices,
+        Quiver.Path.vertices_cons, Quiver.Path.vertices_nil, LayeredDigraph.Path.length]
+    · have hp : G.layer a < G.layer b := by
+        have hl := LayeredDigraph.Path.layer_end (G := G) p
+        change G.layer b = G.layer a + p.length at hl
+        have hn : p.length ≠ 0 := fun hz => hab (p.eq_of_length_zero hz)
+        omega
+      have he : G.layer b < G.layer c := by have := G.layer_adj e.down; omega
+      have hw := LayeredDigraph.Path.internalWeight_comp weight p
+        (LayeredDigraph.Path.ofAdj e.down) hp he
+      have hz : (LayeredDigraph.Path.ofAdj e.down).internalWeight weight = 0 := rfl
+      change LayeredDigraph.Path.internalWeight weight (p.cons e) = _ at hw
+      rw [hz, Nat.add_zero] at hw
+      rw [Quiver.Path.addWeightOfEPs_cons, ih hab, hw]
+      change _ = _ + weight a + (p.length + 1)
+      dsimp only [LayeredDigraph.Path.length] at *
+      omega
+
+/-- Min-isolation of the original vertex weights gives a unique shortest unweighted path
+from each original source to every reachable subdivision vertex, including auxiliary slots.
+Zero weights are allowed: the original outgoing edge still contributes one positive step. -/
+theorem existsUnique_shortest_of_isMinIsolating (hw : ∀ v, weight v ≤ bound)
+    (hG : G.IsMinIsolating weight) (s : V) (v : Vertex V bound)
+    (hv : Nonempty (Path G weight bound (root bound s) v)) :
+    ∃! p : Path G weight bound (root bound s) v,
+      ∀ q : Path G weight bound (root bound s) v,
+        @Quiver.Path.length _ (toQuiver G weight bound) _ _ p ≤
+          @Quiver.Path.length _ (toQuiver G weight bound) _ _ q := by
+  let _ := G.toQuiver
+  let _ := toQuiver G weight bound
+  obtain ⟨p₀⟩ := hv
+  let E := pathEquiv (G := G) hw s v (offset_le p₀)
+  by_cases heq : s = v.vertex
+  · have hall (p q : Path G weight bound (root bound s) v) : p = q := by
+      apply E.symm.injective
+      exact LayeredDigraph.Path.eq_of_layer_le_succ (by rw [heq]; exact Nat.le_succ _) _ _
+    exact ⟨p₀, fun q => (congrArg Quiver.Path.length (hall p₀ q)).le,
+      fun q _ => hall q p₀⟩
+  · have horder (p q : G.Path s v.vertex) :
+        (E p).length ≤ (E q).length ↔ p.internalWeight weight ≤ q.internalWeight weight := by
+      change (pathEquiv hw s v (offset_le p₀) p).length ≤
+        (pathEquiv hw s v (offset_le p₀) q).length ↔ _
+      rw [length_pathEquiv, length_pathEquiv, departureCost_eq p heq, departureCost_eq q heq]
+      have hp := LayeredDigraph.Path.layer_end p
+      have hq := LayeredDigraph.Path.layer_end q
+      have hlen : p.length = q.length := by
+        change G.layer v.vertex = G.layer s + p.length at hp
+        change G.layer v.vertex = G.layer s + q.length at hq
+        omega
+      dsimp only [LayeredDigraph.Path.length] at *
+      omega
+    obtain ⟨p, hp, huniq⟩ := hG s v.vertex ⟨contract p₀⟩
+    refine ⟨E p, ?_, ?_⟩
+    · intro q
+      have h := (horder p (E.symm q)).mpr (isMinOn_univ_iff.mp hp (E.symm q))
+      simpa only [E.apply_symm_apply] using h
+    · intro q hq
+      apply E.symm.injective
+      rw [E.symm_apply_apply]
+      apply huniq
+      apply isMinOn_univ_iff.mpr
+      intro r
+      apply (horder (E.symm q) r).mp
+      simpa only [E.apply_symm_apply] using hq (E r)
 
 end Cslib.LayeredDigraph.Subdivision
