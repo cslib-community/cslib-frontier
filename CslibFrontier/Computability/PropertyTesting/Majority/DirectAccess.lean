@@ -62,6 +62,30 @@ noncomputable def majorityDirectAccess (k : ℕ) (δ : ℚ) (n : ℕ) : WordOrac
     let words ← ProbOracleComp.sample (OracleComp.replicate k (sampleList (Nat.log 2 n + 1)))
     decideReplies k δ n <$> (validRequests n words).mapM readBit
 
+private theorem runWith_readBits {n : ℕ} (x : BitString n) (words : List (List Bool)) :
+    ProbOracleComp.runWith (majorityInputOracle x) (words.mapM readBit) () =
+      PMF.pure (words.map (fun word =>
+        [if h : ofBits word < n then x ⟨_, h⟩ else false]), ()) := by
+  induction words with
+  | nil => simp
+  | cons word words ih =>
+    simp [List.mapM_cons, readBit, majorityInputOracle, ih]
+
+/-- Under the indexed input handler, the direct-access program has the law of drawing its
+address words and applying the cutoff to the retained replies. -/
+private theorem runWith_majorityDirectAccess {n : ℕ} (hn : n ≠ 0)
+    (x : BitString n) (k : ℕ) (δ : ℚ) :
+    ProbOracleComp.runWith (majorityInputOracle x) (majorityDirectAccess k δ n) () =
+      (ProbComp.eval (OracleComp.replicate k (sampleList (Nat.log 2 n + 1)))).map
+        (fun words => (decideReplies k δ n ((validRequests n words).map fun word =>
+          [if h : ofBits word < n then x ⟨_, h⟩ else false]), ())) := by
+  rw [majorityDirectAccess, ite_eq_right hn, ProbOracleComp.runWith_sample_bind,
+    ← PMF.bind_pure_comp]
+  congr 1
+  funext words
+  rw [ProbOracleComp.runWith_map, runWith_readBits, PMF.pure_map]
+  rfl
+
 private theorem isOraclePPTOn_majorityDirectAccess (k : ℕ) (δ : ℚ) :
     IsOraclePPTOn encNat encBool (majorityDirectAccess k δ) := by
   let wordsEncoding := encList encBits
