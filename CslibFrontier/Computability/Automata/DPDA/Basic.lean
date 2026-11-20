@@ -27,6 +27,7 @@ generic. The DCFL predicate imposes finiteness.
 ## Main definitions
 
 * `Cslib.Automata.DPDA` and `DPDA.Config` describe machines and configurations.
+* `DPDA.Move` names the destination state and stack replacement in the transition table.
 * `DPDA.step?` computes the next configuration, if any, and `DPDA.Step` is its graph.
 * The `Acceptor` instance recognizes words by final state with the whole input consumed.
 
@@ -40,6 +41,13 @@ public section
 
 namespace Cslib.Automata
 
+/-- The result of a pushdown transition. -/
+structure DPDA.Move (State Γ : Type*) where
+  /-- The destination control state. -/
+  state : State
+  /-- The word replacing the stack top, with its new top first. -/
+  replacement : List Γ
+
 /-- A deterministic pushdown automaton with control states `State`, input symbols `Symbol`
 and stack symbols `Γ`. The first symbol in a replacement list becomes the new stack top. -/
 structure DPDA (State Symbol Γ : Type*) where
@@ -50,7 +58,7 @@ structure DPDA (State Symbol Γ : Type*) where
   /-- Accepting control states. -/
   accept : Set State
   /-- A partial transition on a state, stack top and optional input symbol. -/
-  transition : State → Γ → Option Symbol → Option (State × List Γ)
+  transition : State → Γ → Option Symbol → Option (DPDA.Move State Γ)
   /-- When an epsilon transition is available, no input transition is available. -/
   epsilon_exclusive : ∀ q γ a, (transition q γ none).isSome → transition q γ (some a) = none
 
@@ -78,33 +86,34 @@ structure Config (State Symbol Γ : Type*) where
   | [] => none
   | γ :: tail =>
     match M.transition c.state γ none with
-    | some (q, pushed) => some ⟨q, c.input, pushed ++ tail⟩
+    | some move => some ⟨move.state, c.input, move.replacement ++ tail⟩
     | none =>
       match c.input with
       | [] => none
       | a :: rest =>
-        (M.transition c.state γ (some a)).map fun (q, pushed) => ⟨q, rest, pushed ++ tail⟩
+        (M.transition c.state γ (some a)).map fun move =>
+          ⟨move.state, rest, move.replacement ++ tail⟩
 
 /-- The one-step transition relation on configurations. -/
 @[expose] def Step (M : DPDA State Symbol Γ) (c d : Config State Symbol Γ) : Prop :=
   M.step? c = some d
 
 /-- An epsilon transition updates the control and stack while preserving all unread input. -/
-theorem step_of_epsilon {M : DPDA State Symbol Γ} {q q' : State} {γ : Γ}
-    {input : List Symbol} {tail pushed : List Γ}
-    (h : M.transition q γ none = some (q', pushed)) :
-    M.Step ⟨q, input, γ :: tail⟩ ⟨q', input, pushed ++ tail⟩ := by
+theorem step_of_epsilon {M : DPDA State Symbol Γ} {q : State} {γ : Γ} {move : Move State Γ}
+    {input : List Symbol} {tail : List Γ}
+    (h : M.transition q γ none = some move) :
+    M.Step ⟨q, input, γ :: tail⟩ ⟨move.state, input, move.replacement ++ tail⟩ := by
   simp [Step, step?, h]
 
 /-- An input transition reads the next symbol and updates the control and stack. -/
-theorem step_of_symbol {M : DPDA State Symbol Γ} {q q' : State} {γ : Γ}
-    {a : Symbol} {input : List Symbol} {tail pushed : List Γ}
-    (h : M.transition q γ (some a) = some (q', pushed)) :
-    M.Step ⟨q, a :: input, γ :: tail⟩ ⟨q', input, pushed ++ tail⟩ := by
+theorem step_of_symbol {M : DPDA State Symbol Γ} {q : State} {γ : Γ} {move : Move State Γ}
+    {a : Symbol} {input : List Symbol} {tail : List Γ}
+    (h : M.transition q γ (some a) = some move) :
+    M.Step ⟨q, a :: input, γ :: tail⟩ ⟨move.state, input, move.replacement ++ tail⟩ := by
   have hε : M.transition q γ none = none := by
     cases he : M.transition q γ none with
     | none => rfl
-    | some move =>
+    | some _ =>
       have hn := M.epsilon_exclusive q γ a (by simp [he])
       rw [h] at hn
       contradiction
