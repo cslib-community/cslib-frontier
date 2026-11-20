@@ -65,7 +65,7 @@ def block (base pc : ℕ) (i : GenericRAM.Instr model r) : WordRAM.Program .stan
 
 /-- Compile a suffix whose first source instruction has index `pc`. -/
 def compileFrom (base : ℕ) : ℕ → GenericRAM.Program model r → WordRAM.Program .standard (r + 9) :=
-  WordRAM.Program.compileBlocks (block base)
+  Cslib.Program.compileBlocks (block base)
 
 private theorem size_arithmeticCode (f : Arithmetic) : (arithmeticCode (r := r) f).size ≤ 28 := by
   cases f <;> simp [arithmeticCode, Code.size, WordRAM.Signed.add, subtract, multiply, divide,
@@ -112,7 +112,7 @@ theorem length_block (base pc : ℕ) (i : GenericRAM.Instr model r) :
 @[simp]
 theorem length_compileFrom (base pc : ℕ) (p : GenericRAM.Program model r) :
     (compileFrom base pc p).length = 64 * p.length :=
-  WordRAM.Program.length_compileBlocks (fun pc i _ => length_block base pc i) pc
+  Cslib.Program.length_compileBlocks (fun pc i _ => length_block base pc i) pc
 
 private theorem contains_raw {base start : ℕ} {p : GenericRAM.Program model r}
     {q : WordRAM.Program .standard (r + 9)}

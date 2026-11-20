@@ -16,7 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-!
 # The time hierarchy theorem
@@ -252,18 +252,18 @@ theorem computableInO_timeDiagonal {J : ℕ → ℕ} (hJ : TimeConstructible J) 
     ComputableInO (timeDiagonal J) encBits encBool
       (fun x => (x.length + 1) ^ 5 * (J x.length + 1) ^ 3)
       fun x => (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 := by
-  have this : ComputableTidilyInO (timeDiagonal J) encBits encBool
+  have this : ComputableInO (timeDiagonal J) encBits encBool
       (fun x => (x.length + 1) ^ 5 * (J x.length + 1) ^ 3) fun x => (x.length + 1) ^ 5 *
       (J x.length + 1) ^ 3 := by
     obtain ⟨dd, ed, hdec⟩ := exists_computableInDegree_decodeDesc
-    have hu : ComputableTidilyInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
-      ComputableTidilyInO.of_linear (.of_unframe fun _ => rfl)
-    have hdesc := hdec.inO.tidy.comp hu
-    have hsym := Universal.computableInO_map_eBit.tidy
-    have hclock := hJ.computableInO.tidy
-    have hU := computableTidilyInO_universal.comp (hdesc.prod (hsym.prod hclock))
-    have h := computableInO_shortDesc.tidy.ite (computableInO_verdict.tidy.comp hU)
-      (ComputableTidilyInO.const (encMid := encBool) false)
+    have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
+      ComputableInO.of_linear (.of_unframe fun _ => rfl)
+    have hdesc := hdec.inO.comp hu
+    have hsym := Universal.computableInO_map_eBit
+    have hclock := hJ.computableInO
+    have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
+    have h := computableInO_shortDesc.ite (computableInO_verdict.comp hU)
+      (ComputableInO.const (encMid := encBool) false)
     obtain ⟨cD, hcD⟩ := hdesc.length_le
     obtain ⟨cO, hcO⟩ := hU.length_le
     obtain ⟨cA, hcA⟩ := PolynomiallyBounded.exists_le_mul_two_pow (p := fun u => (u + 1) ^ dd)
@@ -304,7 +304,7 @@ theorem computableInO_timeDiagonal {J : ℕ → ℕ} (hJ : TimeConstructible J) 
       · have := (hbounds x hs).2
         omega
       · omega
-  simpa only [computableInO_iff_computableTidilyInO] using this
+  exact this
 
 /-- **Diagonalization at arbitrarily large favorable lengths.** The clock need only dominate
 each linear bound infinitely often. A description can be padded to every sufficiently large

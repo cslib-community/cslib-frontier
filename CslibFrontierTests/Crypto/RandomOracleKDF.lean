@@ -299,10 +299,7 @@ theorem isPPT_echoGuessAdversary : echoGuessAdversary.IsPPT encBits := by
       (ComputableInPolyTime.replicate hn (ComputableInPolyTime.const false))
   have hslice : ComputableInPolyTime
       (fun p : ℕ × List Bool => (p.2 ++ List.replicate p.1 false).take p.1) E encBits := by
-    have hn' := hn.tidy
-    have hw' := hw.tidy
-    have hpad' := hpad.tidy
-    exact .of_tidy (by fun_prop)
+    exact by fun_prop
   refine hslice.isPPTOn.congr fun p => ?_
   simp only [echoGuessAdversary, id_eq, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map,
     BitString.ofFn_ofList_eq_take]
@@ -373,6 +370,6 @@ theorem negligible_roAdvantage_word_bitString_take {outLen : ℕ → ℕ}
         (fun s => List.ofFn (Fin.take n (Nat.le_add_right n n) s))
         (toRODistinguisher (fun n => n + n) outLen D n) :=
   secretGuessHard_bitString_take.negligible_roAdvantage
-    (.of_tidy (by fun_prop)) hout ⟨1, 1, fun n _ _ => by simp⟩ hD
+    (by fun_prop) hout ⟨1, 1, fun n _ _ => by simp⟩ hD
 
 end CslibFrontierTests.Crypto.RandomOracleKDF

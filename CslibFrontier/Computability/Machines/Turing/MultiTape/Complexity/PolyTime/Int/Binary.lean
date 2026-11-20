@@ -109,10 +109,6 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 private theorem intBin_code : ComputableInPolyTime encIntBin encIntBin encBits :=
   of_eq fun _ => rfl
 
-/-- The binary digits of a binary natural, as a raw bit string. -/
-private theorem natBits : ComputableInPolyTime Nat.bits encNat encBits :=
-  of_eq fun _ => rfl
-
 /-- Whether a binary integer is negative: the sign bit of its code. -/
 @[fun_prop]
 theorem intBin_isNeg :
@@ -394,69 +390,3 @@ theorem intBin_prod_range {α : Type} {enc : α ↪ List Bool}
     List.prod_toFinset (fun i => f (a, i)) (l := List.range (r a)) List.nodup_range
 
 end Turing.MultiTapeTM.ComputableInPolyTime
-
-/-! ### Tidy forms
-
-Tidy proofs in `Lyubashevsky.Efficient`, `Lyubashevsky.NativeExtract` and
-`ExactOne.DrawingPolyTime` still compose these rules; each is the plain rule above. -/
-
-namespace Turing.MultiTapeTM.ComputableTidilyInPolyTime
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_natAbs` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_natAbs : ComputableTidilyInPolyTime Int.natAbs encIntBin encNat :=
-  ComputableInPolyTime.intBin_natAbs.tidy
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_natCast` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_natCast : ComputableTidilyInPolyTime (fun n : ℕ => (n : ℤ)) encNat encIntBin :=
-  ComputableInPolyTime.intBin_natCast.tidy
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_sub` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_sub : ComputableTidilyInPolyTime (fun p : ℤ × ℤ => p.1 - p.2)
-    (encPair encIntBin encIntBin) encIntBin :=
-  ComputableInPolyTime.intBin_sub.tidy
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_mul` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_mul : ComputableTidilyInPolyTime (fun p : ℤ × ℤ => p.1 * p.2)
-    (encPair encIntBin encIntBin) encIntBin :=
-  ComputableInPolyTime.intBin_mul.tidy
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_pow` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_pow : ComputableTidilyInPolyTime (fun p : ℤ × ℕ => p.1 ^ p.2)
-    (encPair encIntBin encUnary) encIntBin :=
-  ComputableInPolyTime.intBin_pow.tidy
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_sum` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_sum : ComputableTidilyInPolyTime List.sum (encList encIntBin) encIntBin :=
-  ComputableInPolyTime.intBin_sum.tidy
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_add'` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_add' {α : Type} {input : α ↪ List Bool} {left right : α → ℤ}
-    (hleft : ComputableTidilyInPolyTime left input encIntBin)
-    (hright : ComputableTidilyInPolyTime right input encIntBin) :
-    ComputableTidilyInPolyTime (fun a => left a + right a) input encIntBin :=
-  ComputableInPolyTime.intBin_add.tidy.comp (hleft.prod hright)
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_sub'` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_sub' {α : Type} {input : α ↪ List Bool} {left right : α → ℤ}
-    (hleft : ComputableTidilyInPolyTime left input encIntBin)
-    (hright : ComputableTidilyInPolyTime right input encIntBin) :
-    ComputableTidilyInPolyTime (fun a => left a - right a) input encIntBin :=
-  intBin_sub.comp (hleft.prod hright)
-
-/-- `Turing.MultiTapeTM.ComputableInPolyTime.intBin_mul'` for tidy certificates. -/
-@[fun_prop]
-theorem intBin_mul' {α : Type} {input : α ↪ List Bool} {left right : α → ℤ}
-    (hleft : ComputableTidilyInPolyTime left input encIntBin)
-    (hright : ComputableTidilyInPolyTime right input encIntBin) :
-    ComputableTidilyInPolyTime (fun a => left a * right a) input encIntBin :=
-  intBin_mul.comp (hleft.prod hright)
-
-end Turing.MultiTapeTM.ComputableTidilyInPolyTime

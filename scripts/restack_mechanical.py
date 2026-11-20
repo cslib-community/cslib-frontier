@@ -11,13 +11,13 @@ that restack one command. It runs no code from the PR: only Git, this script and
 scripts. After fetching `origin/main` and the PR head, it
 
 1. runs `origin/main`'s `scripts/check_restack.py APPROVED HEAD` (with `--approved-base`) from a
-   temporary checkout of `origin/main`, and refuses unless the PR head is the approved change, or
-   an earlier restack of it, so that nothing unreviewed is restacked;
+   temporary checkout of `origin/main`, labels its output as the approval pre-check, and refuses
+   unless the PR head is the approved change or an earlier restack of it;
 2. lists the paths on which the head conflicts with `origin/main` under a plain text merge, as on
    GitHub, and refuses unless every one is an aggregate or `references.bib` (`--allow-clean` also
    restacks a PR with no conflict, for a lower PR that landed or a fix on `main` it needs);
-3. merges `origin/main` into the head with `git merge-tree`, without a worktree, using the two
-   drivers for that merge only: `origin/main`'s `scripts/resolve_aggregate_conflict.py` and
+3. merges `origin/main` into the head with `git merge-tree` from the temporary checkout, using
+   two drivers for that merge only: `origin/main`'s `scripts/resolve_aggregate_conflict.py` and
    `scripts/resolve_bib_conflict.py`, assigned by `origin/main`'s `.gitattributes`. A
    `references.bib` conflict that the driver refuses (both sides changed one entry) is refused;
 4. writes each aggregate exactly as `lake exe mk_all` would for the merged tree, as
@@ -181,14 +181,18 @@ def merge(root: Path, head: str, main: str, scripts: Path, branch: str) -> str:
     return new
 
 
-def run_check(main_checkout: Path, approved: str, new: str, approved_base: str | None) -> int:
+def run_check(main_checkout: Path, approved: str, new: str, approved_base: str | None,
+              *, approval_precheck: bool = False) -> int:
     """Run `origin/main`'s `check_restack.py` from its checkout and print its output."""
     command = [sys.executable, str(main_checkout / "scripts" / "check_restack.py"), approved, new]
     if approved_base:
         command += ["--approved-base", approved_base]
     result = subprocess.run(command, cwd=main_checkout, capture_output=True, text=True)
     output = (result.stdout + result.stderr).rstrip()
-    if output:
+    if approval_precheck:
+        for line in output.splitlines():
+            log(f"approval pre-check: {line}")
+    elif output:
         print(output, flush=True)
     return result.returncode
 
@@ -236,7 +240,7 @@ def restack(args: argparse.Namespace, root: Path, tmp: Path) -> int:
         raise Refused(f"GitHub reports head {old[:12]} but {head[:12]} was fetched; the PR moved "
                       "during the run, so rerun it")
     log(f"checking that PR #{number}'s head {head[:12]} is the approved change")
-    if run_check(main_checkout, approved, head, args.approved_base) != 0:
+    if run_check(main_checkout, approved, head, args.approved_base, approval_precheck=True) != 0:
         raise Refused(f"the head {head[:12]} is not the approved change {approved[:12]}, so it "
                       "needs review before a restack; nothing was merged")
     if git(root, "merge-base", "--is-ancestor", main, head, ok=(0, 1)).returncode == 0:
@@ -252,7 +256,7 @@ def restack(args: argparse.Namespace, root: Path, tmp: Path) -> int:
         return 0
     log(f"PR #{number} ({branch}, head {head[:12]}) conflicts with origin/main {main[:12]} in: "
         + (", ".join(sorted(conflicts)) or "nothing"))
-    new = merge(root, head, main, main_checkout / "scripts", branch)
+    new = merge(main_checkout, head, main, main_checkout / "scripts", branch)
     log(f"merged: new head {new}")
     if run_check(main_checkout, approved, new, args.approved_base) != 0:
         raise Refused("check_restack.py did not pass, so nothing is pushed; review its output")

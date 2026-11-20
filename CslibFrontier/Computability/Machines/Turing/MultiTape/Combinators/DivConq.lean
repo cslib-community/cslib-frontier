@@ -242,7 +242,7 @@ end DivConq
 
 namespace DivConq
 
-open ComputableTidilyInO
+open ComputableInO
 
 variable {α β γ : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool} {encG : γ ↪ List Bool}
 
@@ -256,18 +256,18 @@ private abbrev encFrame (encA : α ↪ List Bool) (encG : γ ↪ List Bool) : Fr
 
 /-- `Option.toList`, in linear time. -/
 private lemma toList_inO {δ : Type} {enc : δ ↪ List Bool} :
-    ComputableTidilyInO (Option.toList (α := δ)) (encOption enc) (encList enc)
+    ComputableInO (Option.toList (α := δ)) (encOption enc) (encList enc)
       (fun o => (encOption enc o).length) (fun o => (encOption enc o).length) := by
-  have htail : ComputableTidilyInO List.tail encBits encBits (fun w => w.length)
+  have htail : ComputableInO List.tail encBits encBits (fun w => w.length)
       (fun w => w.length) :=
     of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits) fun _ => rfl)
-  have hframe : ComputableTidilyInO frame encBits encBits (fun w => w.length)
+  have hframe : ComputableInO frame encBits encBits (fun w => w.length)
       (fun w => w.length) :=
     of_linear (.of_frame (f := frame) (encIn := encBits) (encMid := encBits) fun _ => rfl)
-  have hft : ComputableTidilyInO (fun w : List Bool => frame w.tail) encBits encBits
+  have hft : ComputableInO (fun w : List Bool => frame w.tail) encBits encBits
       (fun w => w.length) (fun w => w.length) :=
     (hframe.comp htail).mono 2 (fun w => by simp; omega) (fun w => by simp; omega)
-  have hw : ComputableTidilyInO (fun w : List Bool => if w.isEmpty then [] else frame w.tail)
+  have hw : ComputableInO (fun w : List Bool => if w.isEmpty then [] else frame w.tail)
       encBits encBits (fun w => w.length) (fun w => w.length) :=
     ((of_linear (.of_isEmpty (f := List.isEmpty) (encIn := encBits) fun _ => rfl)).ite
       (const (encMid := encBits) []) hft).mono 2 (fun w => by split_ifs <;> simp <;>
@@ -297,15 +297,15 @@ variable (D : DivConq α β γ) {Tt St Tb Sb Tl Sl : α → ℕ} {Tm Sm : α × 
 
 /-- The swap of the components of a pair, in linear time. -/
 private lemma swap_inO {σ τ : Type} {encS : σ ↪ List Bool} {encT : τ ↪ List Bool} :
-    ComputableTidilyInO (fun p : σ × τ => (p.2, p.1)) (encPair encS encT) (encPair encT encS)
+    ComputableInO (fun p : σ × τ => (p.2, p.1)) (encPair encS encT) (encPair encT encS)
       (fun p => (encPair encS encT p).length) (fun p => (encPair encS encT p).length) :=
   ((snd encS encT).prod (fst encS encT)).mono 2 (fun _ => by omega) (fun _ => by omega)
 
 /-- A call round, within the costs of its parts. -/
-private lemma roundCall_inO (hisBase : ComputableTidilyInO D.isBase encA encBool Tt St)
-    (hbase : ComputableTidilyInO D.base encA encB Tb Sb)
-    (hleft : ComputableTidilyInO D.left encA encA Tl Sl) :
-    ComputableTidilyInO D.roundCall (encPair (encOption (encFrame encA encG)) encA)
+private lemma roundCall_inO (hisBase : ComputableInO D.isBase encA encBool Tt St)
+    (hbase : ComputableInO D.base encA encB Tb Sb)
+    (hleft : ComputableInO D.left encA encA Tl Sl) :
+    ComputableInO D.roundCall (encPair (encOption (encFrame encA encG)) encA)
       (encPair (encList (encFrame encA encG)) (encVal encA encB))
       (fun p => (encPair (encOption (encFrame encA encG)) encA p).length + Tt p.2 + St p.2 +
         if D.isBase p.2 then Tb p.2 + Sb p.2 + (encB (D.base p.2)).length
@@ -317,11 +317,11 @@ private lemma roundCall_inO (hisBase : ComputableTidilyInO D.isBase encA encBool
   have hsnd := snd (encOption (encFrame encA encG)) encA
   have hc := hisBase.comp hsnd
   have hl := (toList_inO (enc := encFrame encA encG)).comp hfst
-  have hb := (ComputableInO.inr encA (encSum encB encB)).tidy.comp
-    ((ComputableInO.inl encB encB).tidy.comp (hbase.comp hsnd))
-  have hcons := (ComputableInDegree.cons (encFrame encA encG)).inO_one.tidy.comp
-    (((ComputableInO.inl encA encG).tidy.comp hsnd).prod hl)
-  have hlf := (ComputableInO.inl encA (encSum encB encB)).tidy.comp (hleft.comp hsnd)
+  have hb := (ComputableInO.inr encA (encSum encB encB)).comp
+    ((ComputableInO.inl encB encB).comp (hbase.comp hsnd))
+  have hcons := (ComputableInDegree.cons (encFrame encA encG)).inO_one.comp
+    (((ComputableInO.inl encA encG).comp hsnd).prod hl)
+  have hlf := (ComputableInO.inl encA (encSum encB encB)).comp (hleft.comp hsnd)
   refine (hc.ite (hl.prod hb) (hcons.prod hlf)).mono 8 (fun p => ?_) (fun p => ?_)
   all_goals
     obtain ⟨o, a⟩ := p
@@ -331,20 +331,20 @@ private lemma roundCall_inO (hisBase : ComputableTidilyInO D.isBase encA encBool
 
 /-- `fun b => ([], inr (inr b))`, in linear time. -/
 private lemma final_inO :
-    ComputableTidilyInO (fun b : β => (([] : List (Frame α γ)), (.inr (.inr b) : Val α β))) encB
+    ComputableInO (fun b : β => (([] : List (Frame α γ)), (.inr (.inr b) : Val α β))) encB
       (encPair (encList (encFrame encA encG)) (encVal encA encB)) (fun b => (encB b).length)
       (fun b => (encB b).length) :=
   ((const (encMid := encList (encFrame encA encG)) []).prod
-    ((ComputableInO.inr encA (encSum encB encB)).tidy.comp
-      (ComputableInO.inr encB encB).tidy)).mono 4 (fun b => by simp; omega)
+    ((ComputableInO.inr encA (encSum encB encB)).comp
+      (ComputableInO.inr encB encB))).mono 4 (fun b => by simp; omega)
     (fun b => by simp; omega)
 
 /-- A round on a returned solution, with the components swapped, within the costs of its
 parts. -/
 private lemma retSwap_inO
-    (hmid : ComputableTidilyInO D.mid (encPair encA encB) (encPair encA encG) Tm Sm)
-    (hjoin : ComputableTidilyInO D.join (encPair encG encB) encB Tj Sj) :
-    ComputableTidilyInO (fun q : β × Option (Frame α γ) => q.2.elim
+    (hmid : ComputableInO D.mid (encPair encA encB) (encPair encA encG) Tm Sm)
+    (hjoin : ComputableInO D.join (encPair encG encB) encB Tj Sj) :
+    ComputableInO (fun q : β × Option (Frame α γ) => q.2.elim
         (([] : List (Frame α γ)), (.inr (.inr q.1) : Val α β))
         (fun x => x.elim (fun a => ([.inr (D.mid (a, q.1)).2], .inl (D.mid (a, q.1)).1))
           (fun g => ([], .inr (.inl (D.join (g, q.1)))))))
@@ -360,19 +360,19 @@ private lemma retSwap_inO
           (fun g => Tj (g, q.1) + Sj (g, q.1) + (encB (D.join (g, q.1))).length))) := by
   -- the middle: the second subproblem is called, the saved data pushed
   have hm := hmid.comp (swap_inO (encS := encB) (encT := encA))
-  have hpush := (ComputableInDegree.cons (encFrame encA encG)).inO_one.tidy.comp
-    (((ComputableInO.inr encA encG).tidy.comp ((snd encA encG).comp hm)).prod
+  have hpush := (ComputableInDegree.cons (encFrame encA encG)).inO_one.comp
+    (((ComputableInO.inr encA encG).comp ((snd encA encG).comp hm)).prod
       ((const (encMid := encList (encFrame encA encG)) []).comp hm))
-  have hcall := (ComputableInO.inl encA (encSum encB encB)).tidy.comp ((fst encA encG).comp hm)
+  have hcall := (ComputableInO.inl encA (encSum encB encB)).comp ((fst encA encG).comp hm)
   have hM := hpush.prod hcall
   -- the combination
   have hj := hjoin.comp (swap_inO (encS := encB) (encT := encG))
   have hJ := (const (encMid := encList (encFrame encA encG)) []).prod
-    ((ComputableInO.inr encA (encSum encB encB)).tidy.comp
-      ((ComputableInO.inl encB encB).tidy.comp hj))
-  have hx := ComputableInO.sumElimSnd hM.computableInO hJ.computableInO
-  have h := ComputableInO.optionElimSnd (final_inO (encA := encA) (encG := encG)).computableInO hx
-  refine h.tidy.mono 16 (fun q => ?_) (fun q => ?_)
+    ((ComputableInO.inr encA (encSum encB encB)).comp
+      ((ComputableInO.inl encB encB).comp hj))
+  have hx := ComputableInO.sumElimSnd hM hJ
+  have h := ComputableInO.optionElimSnd (final_inO (encA := encA) (encG := encG)) hx
+  refine h.mono 16 (fun q => ?_) (fun q => ?_)
   all_goals
     obtain ⟨b, _ | _ | _⟩ := q <;>
     simp only [Function.comp_apply, length_encPair, encSum_inl, encSum_inr, List.length_cons,
@@ -381,12 +381,12 @@ private lemma retSwap_inO
     nlinarith
 
 /-- A round, within the costs of the parts of the recursion it runs. -/
-private lemma round_inO (hisBase : ComputableTidilyInO D.isBase encA encBool Tt St)
-    (hbase : ComputableTidilyInO D.base encA encB Tb Sb)
-    (hleft : ComputableTidilyInO D.left encA encA Tl Sl)
-    (hmid : ComputableTidilyInO D.mid (encPair encA encB) (encPair encA encG) Tm Sm)
-    (hjoin : ComputableTidilyInO D.join (encPair encG encB) encB Tj Sj) :
-    ComputableTidilyInO D.loop.round
+private lemma round_inO (hisBase : ComputableInO D.isBase encA encBool Tt St)
+    (hbase : ComputableInO D.base encA encB Tb Sb)
+    (hleft : ComputableInO D.left encA encA Tl Sl)
+    (hmid : ComputableInO D.mid (encPair encA encB) (encPair encA encG) Tm Sm)
+    (hjoin : ComputableInO D.join (encPair encG encB) encB Tj Sj) :
+    ComputableInO D.loop.round
       (encPair (encOption (encFrame encA encG)) (encVal encA encB))
       (encPair (encList (encFrame encA encG)) (encVal encA encB))
       (fun p => (encPair (encOption (encFrame encA encG)) (encVal encA encB) p).length + p.2.elim
@@ -406,11 +406,11 @@ private lemma round_inO (hisBase : ComputableTidilyInO D.isBase encA encBool Tt 
     (swap_inO (encS := encOption (encFrame encA encG)) (encT := encB))
   have hFin := ((toList_inO (enc := encFrame encA encG)).comp
     (fst (encOption (encFrame encA encG)) encB)).prod
-    ((ComputableInO.inr encA (encSum encB encB)).tidy.comp
-      ((ComputableInO.inr encB encB).tidy.comp (snd (encOption (encFrame encA encG)) encB)))
-  have hS := ComputableInO.sumElimSnd hRet.computableInO hFin.computableInO
-  have hR := ComputableInO.sumElimSnd hCall.computableInO hS
-  refine (hR.tidy.of_enc_eq fun p => ?_).mono 8 (fun p => ?_) (fun p => ?_)
+    ((ComputableInO.inr encA (encSum encB encB)).comp
+      ((ComputableInO.inr encB encB).comp (snd (encOption (encFrame encA encG)) encB)))
+  have hS := ComputableInO.sumElimSnd hRet hFin
+  have hR := ComputableInO.sumElimSnd hCall hS
+  refine (hR.of_enc_eq fun p => ?_).mono 8 (fun p => ?_) (fun p => ?_)
   · obtain ⟨o, a | b | b⟩ := p
     · rfl
     · rcases o with _ | a | g <;> rfl
@@ -425,17 +425,17 @@ private lemma round_inO (hisBase : ComputableTidilyInO D.isBase encA encBool Tt 
       enc_len [Function.comp_apply, Sum.elim_inr] at *
 
 /-- The halting test of the loop, in linear time. -/
-private lemma halt_inO : ComputableTidilyInO D.loop.halt (encVal encA encB) encBool
+private lemma halt_inO : ComputableInO D.loop.halt (encVal encA encB) encBool
     (fun v => (encVal encA encB v).length) (fun v => (encVal encA encB v).length) := by
-  have hw : ComputableTidilyInO (fun w : List Bool => (w.headD false, w.tail.headD false))
+  have hw : ComputableInO (fun w : List Bool => (w.headD false, w.tail.headD false))
       encBits (encPair encBool encBool) (fun w => w.length) (fun w => w.length) :=
-    ((ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.tidy.prod
-      ((ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.tidy.comp
+    ((ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.prod
+      ((ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.comp
         (of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits)
           fun _ => rfl)))).mono 3 (fun w => by simp [encBits]; omega)
       (fun w => by simp [encBits]; omega)
   refine (((ComputableInDegree.of_finite (encIn := encPair encBool encBool)
-    (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).inO_one.tidy.comp hw).comp
+    (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).inO_one.comp hw).comp
     (of_linear (.of_eq (f := fun v : Val α β => encVal encA encB v) (encIn := encVal encA encB)
       (encMid := encBits) fun _ => rfl))).of_enc_eq (fun v => ?_) |>.mono 4 (fun v => ?_)
       (fun v => ?_)
@@ -473,9 +473,9 @@ theorem ComputableInO.divConq {δ α β γ : Type} {encIn : δ ↪ List Bool}
       (fun x => (encIn x).length + Ti x + Si x + C x) := by
   classical
   -- the certificates of the loop
-  have hR := D.round_inO (encG := encG) hisBase.tidy hbase.tidy hleft.tidy hmid.tidy hjoin.tidy
+  have hR := D.round_inO (encG := encG) hisBase hbase hleft hmid hjoin
   have hH := D.halt_inO (encA := encA) (encB := encB)
-  have hI := (ComputableInO.inl encA (encSum encB encB)).tidy.comp hinit.tidy
+  have hI := (ComputableInO.inl encA (encSum encB encB)).comp hinit
   set encF := DivConq.encFrame encA encG with hencF
   set encV := DivConq.encVal encA encB with hencV
   -- the cost of a round
@@ -538,8 +538,8 @@ theorem ComputableInO.divConq {δ α β γ : Type} {encIn : δ ↪ List Bool}
   have hlen := fun x => DivConq.Eval.length_le (encA := encA) (encB := encB)
     (fun a ha => by have := hcb a ha; omega)
     (fun a b₁ b₂ ha => by have := hcn a b₁ b₂ ha; omega) (heval x)
-  have hSL := ComputableInO.stackLoop D.loop (fun x => m x + 1) hI.computableInO
-    hH.computableInO hR.computableInO
+  have hSL := ComputableInO.stackLoop D.loop (fun x => m x + 1) hI
+    hH hR
     (fun x i hi => by
       rcases Nat.lt_or_ge i (m x) with hi' | hi'
       · exact hh x i hi'
@@ -548,13 +548,13 @@ theorem ComputableInO.divConq {δ α β γ : Type} {encIn : δ ↪ List Bool}
     (fun x => by simp only [Function.comp_apply, hfinal x]; rfl)
     (fun x => by simp only [Function.comp_apply, hfinal x])
   -- the solution is the final value without its two tags
-  have hdrop : ComputableTidilyInO (fun v : DivConq.Val α β => (encV v).drop 2) encV encBits
+  have hdrop : ComputableInO (fun v : DivConq.Val α β => (encV v).drop 2) encV encBits
       (fun v => (encV v).length) (fun v => (encV v).length) := by
-    have htail : ComputableTidilyInO List.tail encBits encBits (fun w => w.length)
+    have htail : ComputableInO List.tail encBits encBits (fun w => w.length)
         (fun w => w.length) :=
-      ComputableTidilyInO.of_linear (ComputableInDegree.of_tail
+      ComputableInO.of_linear (ComputableInDegree.of_tail
         (f := List.tail) (encIn := encBits) (encMid := encBits) fun _ => rfl)
-    refine ((htail.comp htail).comp (ComputableTidilyInO.of_linear
+    refine ((htail.comp htail).comp (ComputableInO.of_linear
       (ComputableInDegree.of_eq (f := fun v => encV v) (encIn := encV)
         (encMid := encBits) fun _ => rfl))).of_enc_eq (fun v => ?_) |>.mono 3 (fun v => ?_)
         (fun v => ?_)
@@ -562,7 +562,7 @@ theorem ComputableInO.divConq {δ α β γ : Type} {encIn : δ ↪ List Bool}
       generalize encV v = w
       rcases w with _ | ⟨_, _ | ⟨_, _⟩⟩ <;> rfl
     all_goals simp; omega
-  refine ((hdrop.comp hSL.tidy).of_enc_eq (g := F) fun x => ?_).computableInO.mono 4000
+  refine ((hdrop.comp hSL).of_enc_eq (g := F) fun x => ?_).mono 4000
     (fun x => ?_) (fun x => ?_)
   · simp only [Function.comp_apply, hfinal, hencV, encSum_inr, encBits,
       Function.Embedding.refl_apply, List.drop_succ_cons, List.drop_zero]

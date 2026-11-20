@@ -16,6 +16,11 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.CutGerms
 Affected ends point from the corresponding new center to their own cut port. Unaffected
 ends retain their old argument, including when cutting the opposite end changes the
 length of a one-segment route. The selected edge keeps its ordered connector direction.
+
+## Interface laws
+
+* `germ_restoreLast_false`: a last attachment preserves the first outgoing germ.
+* `germ_restoreFirst_true`: a first attachment preserves the last outgoing germ.
 -/
 
 public section
@@ -24,12 +29,14 @@ namespace Cslib.Complexity.Graph.PolygonalDrawing
 
 open Polygonal RotationSystem
 
-private theorem germ_restoreLast_false (u v w : ℕ) (a b : ℂ) (p : Route) :
+/-- A conditional last attachment preserves the first outgoing germ. -/
+theorem germ_restoreLast_false (u v w : ℕ) (a b : ℂ) (p : Route) :
     (restoreLast u v w a b p).germ false = p.germ false := by
   unfold restoreLast
   split_ifs <;> simp only [Route.germ_append, Bool.false_eq_true, ↓reduceIte]
 
-private theorem germ_restoreFirst_true (u v w : ℕ) (a b : ℂ) (p : Route) :
+/-- A conditional first attachment preserves the last outgoing germ. -/
+theorem germ_restoreFirst_true (u v w : ℕ) (a b : ℂ) (p : Route) :
     (restoreFirst u v w a b p).germ true = p.germ true := by
   unfold restoreFirst
   split_ifs <;> simp only [Route.germ_prepend, ↓reduceIte]
