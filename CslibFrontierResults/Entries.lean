@@ -11079,6 +11079,23 @@ register_result "classical-quantum-tuple-mutual-information-chain" where
     with null prefixes weighted zero. The chain uses natural logarithms and includes the \
     empty tuple."
 
+register_result "quantum-raz-transcript-coordinate-information" where
+  title := "Quantum Raz's bound averaged over a classical transcript"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13 (proof step)",
+      locator := "arXiv:1509.07466v2, printed p. 24" }
+  ]
+  theorems := [Cslib.Quantum.sum_weighted_coordinate_mutualInformation_le_relativeEntropy]
+  scope := "For any joint law on a finite transcript and classical tuple with finite complex \
+    density blocks, the source-weighted sum of conditional coordinate mutual informations \
+    is bounded by the joint relative entropy. The reference may use a different transcript \
+    law and specifies independent coordinate laws and a quantum density for each transcript. \
+    The theorem uses natural logarithms and includes null labels, singular densities and the \
+    empty tuple. The anchored-game instantiation and the full Claim 5.13 remain open. \
+    Source check by codex-f4a705f4 at \
+    https://github.com/cslib-community/cslib-frontier/pull/6667#issuecomment-7021187449."
+
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"
   topic := "quantum information"

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumMarginal
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumConditioning
 public import CslibFrontier.Probability.Product
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
 
@@ -19,7 +20,7 @@ the sum of its coordinate mutual informations bounded by its relative entropy to
 any independent product of classical reference laws and a constant quantum reference.
 
 We split the first label off from the tail. Its conditional block retains the tail
-register, allowing the product-reference identity to separate the tail divergence.
+register, allowing the product-reference bound to separate the tail divergence.
 Discarding the tail from the first-label information gives the term needed for the
 induction. This proves [Bavarian, Vidick and Yuen, Lemma 5.10][BavarianVidickYuen2022]
 (arXiv:1509.07466v2, printed p. 21), with natural logarithms.
@@ -28,6 +29,8 @@ induction. This proves [Bavarian, Vidick and Yuen, Lemma 5.10][BavarianVidickYue
 
 * `sum_mutualInformation_classicalQuantumMarginal_le_relativeEntropy`: Quantum Raz's lemma
   for finite tuples and extended divergence.
+* `sum_weighted_coordinate_mutualInformation_le_relativeEntropy`: the coordinate bound averaged
+  over transcripts, with a different product reference at each transcript.
 -/
 
 public section
@@ -42,31 +45,12 @@ open Cslib.Probability.PMF (bind_map_prodMk_apply conditionalSnd
 variable {ι X Y Z : Type*} [Fintype ι] [DecidableEq ι]
 variable [Fintype X] [DecidableEq X] [Fintype Y] [DecidableEq Y]
 
-private def groupFirstLabel : (ι × (X × Y)) ≃ ((ι × Y) × X) where
-  toFun | (i, x, y) => ((i, y), x)
-  invFun | ((i, y), x) => (i, (x, y))
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-omit [Fintype ι] [DecidableEq ι] [Fintype X] [Fintype Y] in
-private theorem reindex_classicalQuantumState_prod
-    (p : PMF (X × Y)) (ρ : X × Y → Matrix ι ι ℂ) (q : PMF X) (r : X → PMF Y)
-    (h : ∀ x y, p (x, y) = q x * r x y) :
-    reindex groupFirstLabel groupFirstLabel (classicalQuantumState p ρ) =
-      classicalQuantumState q (fun x => classicalQuantumState (r x) (fun y => ρ (x, y))) := by
-  ext ⟨⟨i, y⟩, x⟩ ⟨⟨j, y'⟩, x'⟩
-  simp only [reindex_apply, submatrix_apply, groupFirstLabel, Equiv.coe_fn_symm_mk,
-    classicalQuantumState, blockDiagonal_apply]
-  by_cases hx : x = x' <;> by_cases hy : y = y'
-  · subst x' y'
-    simp only [↓reduceIte, h, ENNReal.toReal_mul, Matrix.smul_apply, blockDiagonal_apply_eq]
-    change (((q x).toReal * (r x y).toReal) • ρ (x, y)) i j =
-      ((q x).toReal • ((r x y).toReal • ρ (x, y))) i j
-    rw [smul_smul]
-  · subst x'
-    simp [hy, Matrix.smul_apply, blockDiagonal_apply]
-  · simp [hx]
-  · simp [hx]
+private theorem extended_klDiv_nonneg {T : Type*} [MeasurableSpace T] (p q : PMF T) :
+    (0 : WithTop ℝ) ≤ (if klDiv p.toMeasure q.toMeasure = ⊤ then ⊤
+      else ((klDiv p.toMeasure q.toMeasure).toReal : WithTop ℝ)) := by
+  split
+  · exact le_top
+  · exact_mod_cast ENNReal.toReal_nonneg
 
 omit [Fintype ι] [DecidableEq ι] in
 private theorem classicalQuantumState_map_fst_quantumMarginalGiven
@@ -119,14 +103,8 @@ private theorem head_information_add_tail_divergence_le
       classicalQuantumMarginal p ρ Prod.snd := trace_conditional_tail p ρ
   let : MeasurableSpace X := ⊤
   let : MeasurableSingletonClass X := ⟨fun _ => trivial⟩
-  let qprod := q.bind fun x => r.map (x, ·)
-  rw [← relativeEntropy_reindex (groupFirstLabel (ι := ι) (X := X) (Y := Y))
-    (isDensityMatrix_classicalQuantumState p hρ).posSemidef.isHermitian
-    (isDensityMatrix_classicalQuantumState qprod (fun _ => hσ)).posSemidef,
-    reindex_classicalQuantumState_prod p ρ μ (conditionalSnd p)
-      (fun x y => (marginal_mul_conditionalSnd p x y).symm),
-    reindex_classicalQuantumState_prod qprod (fun _ => σ) q (fun _ => r)
-      (fun x y => bind_map_prodMk_apply q (fun _ => r) (x, y))]
+  rw [show (fun _ : X × Y => σ) = (fun _ : X => σ) ∘ Prod.fst from rfl,
+    relativeEntropy_classicalQuantumState_prod_eq_grouped p hρ q (fun _ => r) (fun _ => hσ)]
   change _ ≤ relativeEntropy (classicalQuantumState μ A) (classicalQuantumState q (fun _ => B))
   have h := mutualInformation_add_relativeEntropy_le_relativeEntropy_classicalQuantumState_const
     μ q hA (isDensityMatrix_classicalQuantumState r (fun _ => hσ))
@@ -206,5 +184,31 @@ theorem sum_mutualInformation_classicalQuantumMarginal_le_relativeEntropy {n : �
     rw [htail] at htailBound
     exact (add_le_add_right htailBound _).trans
       (head_information_add_tail_divergence_le p' hρ' (q 0) r hσ)
+
+/-- **Quantum Raz's bound averaged over transcripts.** Conditional on each transcript,
+compare the tuple to an independent product law and the quantum state to a common
+reference. The source expectation of the sum of coordinate informations is bounded
+by the joint relative entropy, including at null transcripts and support mismatches. -/
+theorem sum_weighted_coordinate_mutualInformation_le_relativeEntropy {n : ℕ}
+    (W : Fin n → Type u) [∀ i, Fintype (W i)] [∀ i, DecidableEq (W i)]
+    (p : PMF (X × (∀ i, W i))) {ρ : X × (∀ i, W i) → Matrix ι ι ℂ}
+    (hρ : ∀ z, IsDensityMatrix (ρ z)) (q : PMF X) (r : X → ∀ i, PMF (W i))
+    {σ : X → Matrix ι ι ℂ} (hσ : ∀ x, IsDensityMatrix (σ x)) :
+    (∑ x, (((p.map Prod.fst) x).toReal : WithTop ℝ) *
+      ∑ i, mutualInformation
+        (classicalQuantumMarginal (conditionalSnd p x) (fun y => ρ (x, y)) (fun y => y i))) ≤
+      relativeEntropy (classicalQuantumState p ρ)
+        (classicalQuantumState (q.bind fun x => (pi (r x)).map (x, ·)) (σ ∘ Prod.fst)) := by
+  let : MeasurableSpace X := ⊤
+  let : MeasurableSingletonClass X := ⟨fun _ => trivial⟩
+  rw [relativeEntropy_classicalQuantumState_prod p hρ q (fun x => pi (r x)) hσ]
+  refine le_trans (sum_le_sum fun x _ => ?_)
+    (le_add_of_nonneg_left (extended_klDiv_nonneg (p.map Prod.fst) q))
+  have h := sum_mutualInformation_classicalQuantumMarginal_le_relativeEntropy W (conditionalSnd p x)
+    (fun y => hρ (x, y)) (r x) (hσ x)
+  have hweight : 0 ≤ ((p.map Prod.fst) x).toReal := ENNReal.toReal_nonneg
+  rcases hweight.eq_or_lt with hw | hw
+  · simp only [← hw, WithTop.coe_zero, zero_mul, le_refl]
+  · exact (WithTop.mul_right_strictMono (WithTop.coe_pos.mpr hw) WithTop.coe_ne_top).monotone h
 
 end Cslib.Quantum
