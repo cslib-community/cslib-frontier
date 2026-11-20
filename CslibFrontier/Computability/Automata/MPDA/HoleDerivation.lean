@@ -73,15 +73,16 @@ theorem PendingAt.anti (h : PendingAt w p x) (hpy : p ≤ y) (hyx : y ≤ x) : P
   exact hk _
 
 /-- A push pending at `x` stays pending at `y ≥ x` if no prefix of the factor after `x` pops below
-its initial height on any stack. -/
+its initial height on the stack of the push. -/
 theorem PendingAt.extend (h : PendingAt w p x) (hxy : x ≤ y) (hy : y < w.length)
-    (hk : ∀ (i : Fin n) k, 0 ≤ net i ((w.extract (x + 1) (y + 1)).take k)) : PendingAt w p y := by
+    (hk : ∀ (i : Fin n), (∃ a γ, w[p]? = some (a, .push i γ)) →
+      ∀ k, 0 ≤ net i ((w.extract (x + 1) (y + 1)).take k)) : PendingAt w p y := by
   obtain ⟨hpx, -, i, hp, hk'⟩ := h
   refine ⟨by omega, hy, i, hp, fun k => ?_⟩
   rw [← w.extract_append_extract (show p + 1 ≤ x + 1 by omega) (show x + 1 ≤ y + 1 by omega),
     List.take_append, net_append]
   have h₁ := hk' k
-  have h₂ := hk i (k - (w.extract (p + 1) (x + 1)).length)
+  have h₂ := hk i hp (k - (w.extract (p + 1) (x + 1)).length)
   by_cases hkl : k ≤ (w.extract (p + 1) (x + 1)).length
   · rw [show k - (w.extract (p + 1) (x + 1)).length = 0 by omega]
     simp only [List.take_zero, net_nil, add_zero]
@@ -257,5 +258,369 @@ theorem Snapshot.openHoles_le (h : Snapshot K w x C) : openHoles w x ≤ C.lengt
     _ = C.length := by rw [Set.ncard_coe_finset, Finset.card_range]
 
 end Counting
+
+/-! ## Hole derivations -/
+
+/-- A block of atomic hole segments of stack `i` starting at position `L`: pushes on stack `i`, each
+followed by a well-nested sequence. `ps` lists the positions and symbols of the pushes, newest
+first. -/
+inductive HoleBlock (i : Fin n) (L : ℕ) : List (α × Op n Γ) → List (ℕ × Γ) → Prop where
+  | nil : HoleBlock i L [] []
+  | snoc {v ws : List (α × Op n Γ)} {ps : List (ℕ × Γ)} {a : α} {γ : Γ} :
+    HoleBlock i L v ps → WellNested ws →
+      HoleBlock i L (v ++ (a, .push i γ) :: ws) ((L + v.length, γ) :: ps)
+
+/-- Hole derivations with at most `K` open holes: a well-nested block, a new hole as a block of
+atomic hole segments while fewer than `K` holes are open, a pop matching the newest push of the
+last open hole of its stack, or closing a hole without pending pushes. These are the steps of the
+search of Algorithm 1 of [AkshayGastinKrishnaRoychowdhury2020]. -/
+inductive HoleDerivation (K : ℕ) : List (HoleChain n Γ) → List (α × Op n Γ) → Prop where
+  | nil : HoleDerivation K [] []
+  | wellNested {C : List (HoleChain n Γ)} {w v : List (α × Op n Γ)} :
+    HoleDerivation K C w → WellNested v → HoleDerivation K C (w ++ v)
+  | hole {C : List (HoleChain n Γ)} {w v : List (α × Op n Γ)} {ps : List (ℕ × Γ)} {i : Fin n} :
+    HoleDerivation K C w → C.length < K → HoleBlock i w.length v ps →
+      HoleDerivation K (C ++ [⟨i, ps⟩]) (w ++ v)
+  | pop {pre post : List (HoleChain n Γ)} {w : List (α × Op n Γ)} {ps : List (ℕ × Γ)}
+    {i : Fin n} {p : ℕ} {γ : Γ} {b : α} :
+    HoleDerivation K (pre ++ ⟨i, (p, γ) :: ps⟩ :: post) w → (∀ c ∈ post, c.stack ≠ i) →
+      HoleDerivation K (pre ++ ⟨i, ps⟩ :: post) (w ++ [(b, .pop i γ)])
+  | close {pre post : List (HoleChain n Γ)} {w : List (α × Op n Γ)} {i : Fin n} :
+    HoleDerivation K (pre ++ ⟨i, []⟩ :: post) w → HoleDerivation K (pre ++ post) w
+
+/-- The open chains at the end of `w`: at most `K` chains of pushes pending at the last position,
+with no other pending push, consecutive pushes of a chain separated by well-nested factors, and
+the pushes of earlier chains before those of later ones. -/
+@[expose] def HoleBoundary (K : ℕ) (w : List (α × Op n Γ)) (C : List (HoleChain n Γ)) : Prop :=
+  C.length ≤ K ∧
+  (∀ c ∈ C, ∀ e ∈ c.pushes, (∃ a, w[e.1]? = some (a, .push c.stack e.2)) ∧
+    PendingAt w e.1 (w.length - 1)) ∧
+  (∀ c ∈ C, Chained w c.pushes) ∧
+  (∀ q, PendingAt w q (w.length - 1) → ∃ c ∈ C, ∃ e ∈ c.pushes, e.1 = q) ∧
+  C.Pairwise fun c c' => ∀ e ∈ c.pushes, ∀ e' ∈ c'.pushes, e.1 < e'.1
+
+section Invariant
+
+variable {K : ℕ} {w v : List (α × Op n Γ)} {C : List (HoleChain n Γ)}
+
+theorem chained_append {ps : List (ℕ × Γ)} (h : Chained w ps) (hps : ∀ e ∈ ps, e.1 < w.length) :
+    Chained (w ++ v) ps := by
+  induction ps with
+  | nil => exact .nil
+  | cons e t ih =>
+    rcases t with _ | ⟨e', t⟩
+    · exact .singleton _
+    · obtain ⟨⟨hlt, hwn⟩, ht⟩ := List.isChain_cons_cons.mp h
+      refine List.isChain_cons_cons.mpr ⟨⟨hlt, ?_⟩, ih ht fun e he => hps e (by simp_all)⟩
+      rwa [List.extract_append_right _ _ (by have := hps e (by simp); omega)]
+
+theorem Snapshot.append {x : ℕ} (h : Snapshot K w x C) (hx : x < w.length) :
+    Snapshot K (w ++ v) x C := by
+  obtain ⟨h₁, h₂, h₃, h₄⟩ := h
+  have hpos : ∀ c ∈ C, ∀ e ∈ c.pushes, e.1 < w.length := fun c hc e he => by
+    obtain ⟨⟨a, ha⟩, -⟩ := h₂ c hc e he
+    exact (List.getElem?_eq_some_iff.mp ha).1
+  refine ⟨h₁, fun c hc e he => ?_, fun c hc => chained_append (h₃ c hc) (hpos c hc), fun q hq => ?_⟩
+  · obtain ⟨⟨a, ha⟩, hp⟩ := h₂ c hc e he
+    exact ⟨⟨a, by rw [List.getElem?_append_left (hpos c hc e he), ha]⟩,
+      (pendingAt_append_iff hx).mpr hp⟩
+  · rcases h₄ q ((pendingAt_append_iff hx).mp hq) with h | ⟨a, b, haq, hqb, hb, hwn⟩
+    · exact .inl h
+    · refine .inr ⟨a, b, haq, hqb, by simp; omega, ?_⟩
+      rwa [List.extract_append_right _ _ hb]
+
+theorem HoleBoundary.snapshot (h : HoleBoundary K w C) : Snapshot K w (w.length - 1) C :=
+  ⟨h.1, h.2.1, h.2.2.1, fun q hq => .inl (h.2.2.2.1 q hq)⟩
+
+/-- The pushes of the chains lie in `w`. -/
+theorem HoleBoundary.lt_length (h : HoleBoundary K w C) {c : HoleChain n Γ} (hc : c ∈ C)
+    {e : ℕ × Γ} (he : e ∈ c.pushes) : e.1 < w.length := by
+  obtain ⟨⟨a, ha⟩, -⟩ := h.2.1 c hc e he
+  exact (List.getElem?_eq_some_iff.mp ha).1
+
+/-- Pushes pending at the end of `w` stay pending through a well-nested block. -/
+private theorem pendingAt_append_wellNested {q x : ℕ} (hv : WellNested v) (hw : w ≠ [])
+    (hq : PendingAt w q (w.length - 1)) (hx₁ : w.length ≤ x) (hx₂ : x < (w ++ v).length) :
+    PendingAt (w ++ v) q x := by
+  have hlen : 0 < w.length := List.length_pos_iff.mpr hw
+  refine ((pendingAt_append_iff (by omega)).mpr hq).extend (by omega) hx₂ fun i _ k => ?_
+  rw [show w.length - 1 + 1 = w.length + 0 by omega, show x + 1 = w.length + (x + 1 - w.length)
+    by omega, List.extract_append_left, List.extract_eq_take_drop, List.drop_zero,
+    List.take_take]
+  exact hv.net_take_nonneg i _
+
+theorem HoleBoundary.append_wellNested (h : HoleBoundary K w C) (hv : WellNested v) :
+    HoleBoundary K (w ++ v) C ∧
+      ∀ x, w.length ≤ x → x < (w ++ v).length → Snapshot K (w ++ v) x C := by
+  obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := h
+  have hb : HoleBoundary K w C := ⟨h₁, h₂, h₃, h₄, h₅⟩
+  rcases eq_or_ne v [] with rfl | hvne
+  · simp only [List.append_nil]
+    exact ⟨hb, fun x hx hx' => by omega⟩
+  have hvlen : 0 < v.length := List.length_pos_iff.mpr hvne
+  -- The chains stay pending through `v`.
+  have hpend : ∀ c ∈ C, ∀ e ∈ c.pushes, ∀ x, w.length ≤ x → x < (w ++ v).length →
+      PendingAt (w ++ v) e.1 x := by
+    intro c hc e he x hx₁ hx₂
+    have hw : w ≠ [] := List.ne_nil_of_length_pos (by have := hb.lt_length hc he; omega)
+    exact pendingAt_append_wellNested hv hw (h₂ c hc e he).2 hx₁ hx₂
+  have hpos := fun c hc e he => hb.lt_length (c := c) hc (e := e) he
+  have hpush : ∀ c ∈ C, ∀ e ∈ c.pushes, ∃ a, (w ++ v)[e.1]? = some (a, .push c.stack e.2) :=
+    fun c hc e he => by
+      obtain ⟨⟨a, ha⟩, -⟩ := h₂ c hc e he
+      exact ⟨a, by rw [List.getElem?_append_left (hpos c hc e he), ha]⟩
+  have hchain : ∀ c ∈ C, Chained (w ++ v) c.pushes := fun c hc =>
+    chained_append (h₃ c hc) (hpos c hc)
+  have hv' : (w ++ v).extract w.length (w ++ v).length = v := by
+    simp
+  -- Pending pushes before `v` are pushes of the chains.
+  have hold : ∀ q x, q < w.length → w.length ≤ x + 1 → PendingAt (w ++ v) q x →
+      ∃ c ∈ C, ∃ e ∈ c.pushes, e.1 = q := by
+    intro q x hq hx hp
+    exact h₄ q ((pendingAt_append_iff (by omega)).mp (hp.anti (by omega) (by omega)))
+  refine ⟨⟨h₁, fun c hc e he => ⟨hpush c hc e he, hpend c hc e he _ (by simp; omega)
+    (by simp; omega)⟩, hchain, fun q hq => ?_, h₅⟩, fun x hx₁ hx₂ => ⟨h₁,
+    fun c hc e he => ⟨hpush c hc e he, hpend c hc e he x hx₁ hx₂⟩, hchain, fun q hq => ?_⟩⟩
+  · by_cases hqw : q < w.length
+    · exact hold q _ hqw (by simp; omega) hq
+    · -- A pending push of `v` would be matched inside `v`.
+      exfalso
+      obtain ⟨-, -, i, ⟨a, γ, hqa⟩, -⟩ := id hq
+      obtain ⟨m, hm, hmb, -⟩ := exists_matches_of_wellNested (q := q) (i := i) (a := w.length)
+        (b := (w ++ v).length) (by rw [hv']; exact hv) le_rfl (by omega)
+        (by have := hq.1; have := hq.2.1; omega) ⟨a, γ, hqa⟩
+      exact not_pendingAt_of_matches hm (by omega) hq
+  · by_cases hqw : q < w.length
+    · exact .inl (hold q x hqw (by omega) hq)
+    · exact .inr ⟨w.length, (w ++ v).length, by omega, by have := hq.1; omega, le_rfl,
+        by rw [hv']; exact hv⟩
+
+/-- A push on stack `i` at the last position joins the newest chain. -/
+theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {γ : Γ}
+    (h : HoleBoundary K w (C ++ [⟨i, ps⟩]))
+    (hlink : ∀ e ∈ ps.head?, WellNested (w.extract (e.1 + 1) w.length)) :
+    HoleBoundary K (w ++ [(a, .push i γ)]) (C ++ [⟨i, (w.length, γ) :: ps⟩]) := by
+  obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := id h
+  set w' := w ++ [(a, Op.push i γ)]
+  have hlen : w'.length = w.length + 1 := by simp [w']
+  have hpos := fun c (hc : c ∈ C ++ [⟨i, ps⟩]) e (he : e ∈ c.pushes) => h.lt_length hc he
+  -- Old pending pushes stay pending.
+  have hold : ∀ q, PendingAt w q (w.length - 1) → PendingAt w' q (w'.length - 1) := by
+    intro q hq
+    have hw : 0 < w.length := by have := hq.2.1; omega
+    refine ((pendingAt_append_iff (by omega)).mpr hq).extend (by rw [hlen]; omega)
+      (by rw [hlen]; omega) fun j _ k => ?_
+    rw [hlen, show w.length - 1 + 1 = w.length by omega, show w.length + 1 - 1 + 1 =
+      w.length + 1 by omega]
+    rcases k with _ | k
+    · simp
+    · simp [List.extract_eq_take_drop, net, Op.net]
+      split_ifs <;> simp
+  have hnew : PendingAt w' w.length (w'.length - 1) :=
+    ⟨by omega, by omega, i, ⟨a, γ, by simp [w']⟩, fun k => by
+      rw [hlen, show w.length + 1 - 1 + 1 = w.length + 1 by omega, List.extract_eq_take_drop,
+        Nat.sub_self, List.take_zero, List.take_nil]
+      simp⟩
+  have hmem : ∀ c ∈ C ++ [⟨i, (w.length, γ) :: ps⟩], c ∈ C ∨ c = ⟨i, (w.length, γ) :: ps⟩ := by
+    intro c hc
+    simpa using hc
+  refine ⟨by simpa using h₁, fun c hc e he => ?_, fun c hc => ?_, fun q hq => ?_, ?_⟩
+  · rcases hmem c hc with hc | rfl
+    · obtain ⟨⟨a', ha⟩, hp⟩ := h₂ c (by simp [hc]) e he
+      exact ⟨⟨a', by rw [List.getElem?_append_left (hpos c (by simp [hc]) e he), ha]⟩,
+        hold _ hp⟩
+    · rcases List.mem_cons.mp he with rfl | he
+      · exact ⟨⟨a, by simp [w']⟩, hnew⟩
+      · obtain ⟨⟨a', ha⟩, hp⟩ := h₂ ⟨i, ps⟩ (by simp) e he
+        exact ⟨⟨a', by rw [List.getElem?_append_left (hpos ⟨i, ps⟩ (by simp) e he), ha]⟩,
+          hold _ hp⟩
+  · rcases hmem c hc with hc | rfl
+    · exact chained_append (h₃ c (by simp [hc])) (hpos c (by simp [hc]))
+    · have hps : Chained w' ps := chained_append (h₃ ⟨i, ps⟩ (by simp)) (hpos ⟨i, ps⟩ (by simp))
+      rcases ps with _ | ⟨e', t⟩
+      · exact .singleton _
+      · refine List.isChain_cons_cons.mpr ⟨⟨hpos ⟨i, e' :: t⟩ (by simp) e' (by simp), ?_⟩, hps⟩
+        rw [List.extract_append_right _ _ le_rfl]
+        exact hlink e' (by simp)
+  · by_cases hqw : q < w.length
+    · obtain ⟨c, hc, e, he, rfl⟩ := h₄ q ((pendingAt_append_iff (by omega)).mp
+        (hq.anti (y := w.length - 1) (by omega) (by rw [hlen]; omega)))
+      rcases List.mem_append.mp hc with hc | hc
+      · exact ⟨c, by simp [hc], e, he, rfl⟩
+      · obtain rfl := List.mem_singleton.mp hc
+        exact ⟨⟨i, (w.length, γ) :: ps⟩, by simp, e, List.mem_cons_of_mem _ he, rfl⟩
+    · exact ⟨⟨i, (w.length, γ) :: ps⟩, by simp, (w.length, γ), by simp,
+        by have := hq.1; rw [hlen] at this; omega⟩
+  · rw [List.pairwise_append] at h₅ ⊢
+    refine ⟨h₅.1, by simp, fun c hc c' hc' e he e' he' => ?_⟩
+    obtain rfl := List.mem_singleton.mp hc'
+    rcases List.mem_cons.mp he' with rfl | he'
+    · exact hpos c (by simp [hc]) e he
+    · exact h₅.2.2 c hc ⟨i, ps⟩ (by simp) e he e' he'
+
+/-- A pop on stack `i` matches the newest push of the last open hole of stack `i`. -/
+theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {p : ℕ} {γ : Γ}
+    {ps : List (ℕ × Γ)} {b : α} (h : HoleBoundary K w (pre ++ ⟨i, (p, γ) :: ps⟩ :: post))
+    (hpost : ∀ c ∈ post, c.stack ≠ i) :
+    HoleBoundary K (w ++ [(b, .pop i γ)]) (pre ++ ⟨i, ps⟩ :: post) := by
+  obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := id h
+  set c₀ : HoleChain n Γ := ⟨i, (p, γ) :: ps⟩
+  set w' := w ++ [(b, Op.pop i γ)]
+  have hlen : w'.length = w.length + 1 := by simp [w']
+  have hc₀ : c₀ ∈ pre ++ c₀ :: post := by simp
+  obtain ⟨⟨a₀, hp₀⟩, hpend₀⟩ := h₂ c₀ hc₀ (p, γ) (by simp [c₀])
+  have hpw : p < w.length := h.lt_length hc₀ (e := (p, γ)) (by simp [c₀])
+  rw [List.pairwise_append, List.pairwise_cons] at h₅
+  -- Every other push of stack `i` in the chains is older than `p`.
+  have holder : ∀ c ∈ pre ++ c₀ :: post, ∀ e ∈ c.pushes, c.stack = i → e.1 ≠ p → e.1 < p := by
+    intro c hc e he hci hne
+    rcases List.mem_append.mp hc with hc | hc
+    · exact h₅.2.2 c hc c₀ (by simp) e he (p, γ) (by simp [c₀])
+    · rcases List.mem_cons.mp hc with rfl | hc
+      · rcases List.mem_cons.mp he with rfl | he
+        · exact absurd rfl hne
+        · exact (List.pairwise_cons.mp (chained_pairwise (h₃ c₀ hc₀))).1 e he
+      · exact absurd hci (hpost c hc)
+  -- No push of stack `i` after `p` is pending: stack `i` is back at its height after `p`.
+  have hnet : net i (w.extract (p + 1) w.length) = 0 := by
+    obtain ⟨-, -, hk⟩ := hpend₀.of_isPushOn ⟨a₀, γ, hp₀⟩
+    rw [show w.length - 1 + 1 = w.length by omega] at hk
+    have hge := hk (w.extract (p + 1) w.length).length
+    rw [List.take_length] at hge
+    by_contra hne
+    obtain ⟨q, hq, ⟨a, δ, hqa⟩, hqk⟩ := exists_pending_push (u := w.extract (p + 1) w.length) hk
+      (lt_of_le_of_ne hge (Ne.symm hne))
+    have hqw : p + 1 + q < w.length := by
+      rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq
+      omega
+    have hqa' : w[p + 1 + q]? = some (a, .push i δ) := by
+      rw [List.extract_eq_take_drop, List.getElem?_take_of_lt (by
+        rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq; omega),
+        List.getElem?_drop] at hqa
+      exact hqa
+    have hqpend : PendingAt w (p + 1 + q) (w.length - 1) := by
+      refine ⟨by omega, by omega, i, ⟨a, δ, hqa'⟩, fun k => ?_⟩
+      have hd : (w.extract (p + 1) w.length).drop (q + 1) =
+          w.extract (p + 1 + q + 1) (w.length - 1 + 1) := by
+        rw [List.extract_eq_take_drop, List.extract_eq_take_drop, List.drop_take, List.drop_drop,
+          show w.length - (p + 1) - (q + 1) = w.length - 1 + 1 - (p + 1 + q + 1) by omega,
+          show p + 1 + (q + 1) = p + 1 + q + 1 by omega]
+      rw [← hd]
+      exact hqk k
+    obtain ⟨c, hc, e, he, he'⟩ := h₄ _ hqpend
+    obtain ⟨⟨a', hea⟩, -⟩ := h₂ c hc e he
+    have hci : c.stack = i := by
+      rw [he', hqa'] at hea
+      simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hea
+      exact hea.2.1.symm
+    have := holder c hc e he hci (by omega)
+    omega
+  -- The factor up to the pop is the factor up to the end of `w`, then the pop.
+  have hsplit : ∀ e, e ≤ w.length →
+      w'.extract e (w'.length - 1 + 1) = w.extract e w.length ++ [(b, .pop i γ)] := by
+    intro e he
+    rw [hlen, show w.length + 1 - 1 + 1 = w.length + 1 by omega,
+      ← w'.extract_append_extract he (Nat.le_succ _), List.extract_append_right _ _ le_rfl]
+    congr 1
+    simp [w', List.extract_eq_take_drop]
+  -- `p` is no longer pending after the pop.
+  have hpnot : ¬PendingAt w' p (w'.length - 1) := by
+    rintro ⟨-, -, j, ⟨a, δ, hj⟩, hk⟩
+    rw [List.getElem?_append_left hpw, hp₀] at hj
+    simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hj
+    obtain ⟨-, rfl, -⟩ := hj
+    have := hk ((w'.extract (p + 1) (w'.length - 1 + 1)).length)
+    rw [List.take_length, hsplit _ (by omega), net_append, hnet] at this
+    simp [net, Op.net, c₀] at this
+  -- The other pushes stay pending.
+  have hstay : ∀ c ∈ pre ++ c₀ :: post, ∀ e ∈ c.pushes, e.1 ≠ p →
+      PendingAt w' e.1 (w'.length - 1) := by
+    intro c hc e he hne
+    obtain ⟨⟨a, hea⟩, hep⟩ := h₂ c hc e he
+    have hew : e.1 < w.length := h.lt_length hc he
+    refine ⟨by omega, by omega, c.stack, ⟨a, e.2, by rw [List.getElem?_append_left hew, hea]⟩,
+      fun k => ?_⟩
+    obtain ⟨-, -, hk⟩ := hep.of_isPushOn ⟨a, e.2, hea⟩
+    rw [show w.length - 1 + 1 = w.length by omega] at hk
+    rw [hsplit _ (by omega), List.take_append, net_append]
+    have hk₁ := hk k
+    by_cases hkl : k ≤ (w.extract (e.1 + 1) w.length).length
+    · rw [show k - (w.extract (e.1 + 1) w.length).length = 0 by omega]
+      simpa using hk₁
+    rw [List.take_of_length_le (by omega)] at hk₁ ⊢
+    have hpopnet : net c.stack (List.take (k - (w.extract (e.1 + 1) w.length).length)
+        [(b, Op.pop i γ)]) = if c.stack = i then -1 else 0 := by
+      rw [List.take_of_length_le (by simp only [List.length_singleton]; omega)]
+      by_cases hci : c.stack = i
+      · simp [net, Op.net, hci]
+      · simp [net, Op.net, hci, Ne.symm hci]
+    rw [hpopnet]
+    split_ifs with hci
+    · -- Stack `i` is at least one above its height after `e`: the push at `p` is pending.
+      have hlt := holder c hc e he hci hne
+      have hsum : net i (w.extract (e.1 + 1) w.length) =
+          net i (w.extract (e.1 + 1) p) + 1 + net i (w.extract (p + 1) w.length) := by
+        rw [← w.extract_append_extract (show e.1 + 1 ≤ p by omega) (show p ≤ w.length by omega),
+          ← w.extract_append_extract (show p ≤ p + 1 by omega) (show p + 1 ≤ w.length by omega),
+          List.extract_eq_singleton hp₀]
+        simp [net, Op.net, add_assoc, c₀]
+      have hpre := hk (p - (e.1 + 1))
+      rw [w.take_extract (show e.1 + 1 ≤ p by omega) (show p ≤ w.length by omega)] at hpre
+      rw [hci] at hk₁ hpre ⊢
+      omega
+    · simpa using hk₁
+  have hps : ∀ e ∈ ps, e.1 < p :=
+    (List.pairwise_cons.mp (chained_pairwise (h₃ c₀ hc₀))).1
+  -- Each push of the new chains is a push of the old chains other than `p`.
+  have hmap : ∀ c ∈ pre ++ ⟨i, ps⟩ :: post, ∀ e ∈ c.pushes,
+      ∃ c' ∈ pre ++ c₀ :: post, e ∈ c'.pushes ∧ c'.stack = c.stack ∧ e.1 ≠ p := by
+    intro c hc e he
+    rcases List.mem_append.mp hc with hc | hc
+    · refine ⟨c, by simp [hc], he, rfl, ?_⟩
+      have := h₅.2.2 c hc c₀ (by simp) e he (p, γ) (by simp [c₀])
+      omega
+    · rcases List.mem_cons.mp hc with rfl | hc
+      · exact ⟨c₀, hc₀, List.mem_cons_of_mem _ he, rfl, by have := hps e he; omega⟩
+      · refine ⟨c, by simp [hc], he, rfl, ?_⟩
+        have := h₅.2.1.1 c hc (p, γ) (by simp [c₀]) e he
+        omega
+  refine ⟨by simpa using h₁, fun c hc e he => ?_, fun c hc => ?_, fun q hq => ?_, ?_⟩
+  · obtain ⟨c', hc', he', hst, hne⟩ := hmap c hc e he
+    obtain ⟨⟨a, hea⟩, -⟩ := h₂ c' hc' e he'
+    refine ⟨⟨a, ?_⟩, hstay c' hc' e he' hne⟩
+    rw [List.getElem?_append_left (h.lt_length hc' he'), hea, hst]
+  · have hpos : ∀ e ∈ c.pushes, e.1 < w.length := fun e he => by
+      obtain ⟨c', hc', he', -⟩ := hmap c hc e he
+      exact h.lt_length hc' he'
+    refine chained_append ?_ hpos
+    rcases List.mem_append.mp hc with hc | hc
+    · exact h₃ c (by simp [hc])
+    · rcases List.mem_cons.mp hc with rfl | hc
+      · exact (h₃ c₀ hc₀).tail
+      · exact h₃ c (by simp [hc])
+  · have hqw : q < w.length := by
+      by_contra hqw
+      obtain ⟨hqx, -, j, ⟨a, δ, hqa⟩, -⟩ := hq
+      rw [hlen] at hqx
+      obtain rfl : q = w.length := by omega
+      simp [w'] at hqa
+    obtain ⟨c, hc, e, he, rfl⟩ := h₄ q ((pendingAt_append_iff (by omega)).mp
+      (hq.anti (y := w.length - 1) (by omega) (by rw [hlen]; omega)))
+    have hne : e.1 ≠ p := fun h' => hpnot (h' ▸ hq)
+    rcases List.mem_append.mp hc with hc | hc
+    · exact ⟨c, by simp [hc], e, he, rfl⟩
+    · rcases List.mem_cons.mp hc with rfl | hc
+      · rcases List.mem_cons.mp he with rfl | he
+        · exact absurd rfl hne
+        · exact ⟨⟨i, ps⟩, by simp, e, he, rfl⟩
+      · exact ⟨c, by simp [hc], e, he, rfl⟩
+  · rw [List.pairwise_append, List.pairwise_cons]
+    refine ⟨h₅.1, ⟨fun c hc e he e' he' => h₅.2.1.1 c hc e (List.mem_cons_of_mem _ he) e' he',
+      h₅.2.1.2⟩, fun c hc c' hc' e he e' he' => ?_⟩
+    rcases List.mem_cons.mp hc' with rfl | hc'
+    · exact h₅.2.2 c hc c₀ (by simp) e he e' (List.mem_cons_of_mem _ he')
+    · exact h₅.2.2 c hc c' (by simp [hc']) e he e' he'
+
+end Invariant
 
 end Cslib.Automata.MPDA
