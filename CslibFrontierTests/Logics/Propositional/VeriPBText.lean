@@ -18,8 +18,9 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
 * the test instance `redundance_explicit_subproof` of the VeriPB repository (MIT/Apache-2.0), a
   symmetry-breaking `red` step with `proofgoal` blocks whose other goals are autoproven;
 
-and rejections: a dropped hint, a repeated deletion, a wrong formula size, an unsupported rule,
-and a conclusion that is not a contradiction. Parsing is tested on its own. The checks run by
+and rejections: a dropped hint, a repeated deletion, deletion inside a subproof, malformed or
+mismatched DIMACS headers, a wrong formula size, an unsupported rule, and a conclusion that is
+not a contradiction. Parsing is tested on its own. The checks run by
 `#guard`; the soundness theorems apply to any accepted pair of texts. -/
 
 set_option linter.hashCommand false
@@ -39,10 +40,6 @@ open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Text
 -- DIMACS clauses may span lines; the variable `v + 1` is `v`.
 #guard parseDIMACS "c comment\np cnf 2 2\n1 -2 0\n2\n0\n" ==
   some [[(0, true), (1, false)], [(1, true)]]
-
--- Names other than `xN` are numbered after every `xN`: here `y_1` is the fourth such token.
-#guard (Names.ofTokens 3 (tokens "red 1 _aux >= 1 : _aux -> 1 ; pol x7 y_1 +")).var? "y_1" ==
-  some 10
 
 /-! ### PHP(3, 2), cutting planes -/
 
@@ -197,86 +194,23 @@ end pseudo-Boolean proof;
 #guard checkDIMACS php43 php43Logged
 
 -- Dropping the last hint of the final `rup` leaves no conflict.
-#guard !checkDIMACS php43 "pseudo-Boolean proof version 3.0
-f 22;
-rup 1 ~x1 1 ~x2 >= 1 : ~ 5 6 11 12 2 3 20;
-rup 1 ~x1 1 x2 1 ~x3 >= 1 : ~ 6 5 17 18 2 3 14;
-rup 1 ~x1 1 x2 1 x3 1 ~x5 >= 1 : ~ 6 7 15 14 4 3 22;
-rup 1 ~x1 1 x2 1 x3 1 x5 >= 1 : ~ 7 6 5 2 21 20 4 3 16;
-rup 1 ~x1 1 x2 1 x3 >= 1 : ~ 26 25;
-deld 25;
-deld 26;
-rup 1 ~x1 1 x2 >= 1 : ~ 27 24;
-deld 24;
-deld 27;
-rup 1 ~x1 >= 1 : ~ 28 23;
-deld 23;
-deld 28;
-rup 1 x1 1 ~x2 1 ~x3 >= 1 : ~ 13 11 19 17 4 2 9;
-rup 1 x1 1 ~x2 1 x3 1 ~x4 >= 1 : ~ 12 13 8 9 3 4 22;
-rup 1 x1 1 ~x2 1 x3 1 x4 >= 1 : ~ 13 12 11 2 20 21 3 4 10;
-rup 1 x1 1 ~x2 1 x3 >= 1 : 29 ~ 32 31;
-deld 31;
-deld 32;
-rup 1 x1 1 ~x2 >= 1 : 29 ~ 33 30;
-deld 30;
-deld 33;
-rup 1 x1 1 x2 1 ~x4 >= 1 : 29 34 1 18 19 ~ 9 8 4 3 16;
-rup 1 x1 1 x2 1 x4 >= 1 : 29 34 1 17 18 19 35 2 14 15 3 4 10;
-rup 1 x1 1 x2 >= 1 : 29 34 1 17 18 19 35 2 14 15 3 4 10;
-deld 35;
-deld 36;
-rup 1 x1 >= 1 : 29 34 37;
-deld 34;
-deld 37;
-rup >= 1 : 29;
-deld 29;
-deld 38;
-output NONE ;
-conclusion UNSAT : 39;
-end pseudo-Boolean proof;
-"
+def php43DropHint : String := php43Kernel.replace "rup >= 1 : 29 38;" "rup >= 1 : 29;"
+
+#guard php43DropHint != php43Kernel
+#guard !checkDIMACS php43 php43DropHint
 
 -- A constraint cannot be deleted twice.
-#guard !checkDIMACS php43 "pseudo-Boolean proof version 3.0
-f 22;
-rup 1 ~x1 1 ~x2 >= 1 : ~ 5 6 11 12 2 3 20;
-rup 1 ~x1 1 x2 1 ~x3 >= 1 : ~ 6 5 17 18 2 3 14;
-rup 1 ~x1 1 x2 1 x3 1 ~x5 >= 1 : ~ 6 7 15 14 4 3 22;
-rup 1 ~x1 1 x2 1 x3 1 x5 >= 1 : ~ 7 6 5 2 21 20 4 3 16;
-rup 1 ~x1 1 x2 1 x3 >= 1 : ~ 26 25;
-deld 25;
-deld 26;
-rup 1 ~x1 1 x2 >= 1 : ~ 27 24;
-deld 24;
-deld 27;
-rup 1 ~x1 >= 1 : ~ 28 23;
-deld 23;
-deld 28;
-rup 1 x1 1 ~x2 1 ~x3 >= 1 : ~ 13 11 19 17 4 2 9;
-rup 1 x1 1 ~x2 1 x3 1 ~x4 >= 1 : ~ 12 13 8 9 3 4 22;
-rup 1 x1 1 ~x2 1 x3 1 x4 >= 1 : ~ 13 12 11 2 20 21 3 4 10;
-rup 1 x1 1 ~x2 1 x3 >= 1 : 29 ~ 32 31;
-deld 31;
-deld 32;
-rup 1 x1 1 ~x2 >= 1 : 29 ~ 33 30;
-deld 30;
-deld 33;
-rup 1 x1 1 x2 1 ~x4 >= 1 : 29 34 1 18 19 ~ 9 8 4 3 16;
-rup 1 x1 1 x2 1 x4 >= 1 : 29 34 1 17 18 19 35 2 14 15 3 4 10;
-rup 1 x1 1 x2 >= 1 : 29 34 1 17 18 19 35 2 14 15 3 4 10;
-deld 35;
-deld 36;
-rup 1 x1 >= 1 : 29 34 37;
-deld 34;
-deld 37;
-rup >= 1 : 29 38;
-deld 29;
-deld 38 38;
-output NONE ;
-conclusion UNSAT : 39;
-end pseudo-Boolean proof;
-"
+def php43DeleteTwice : String := php43Kernel.replace "deld 38;" "deld 38 38;"
+
+#guard php43DeleteTwice != php43Kernel
+#guard !checkDIMACS php43 php43DeleteTwice
+
+-- The DIMACS header must give the numbers of variables and clauses, and the clauses must match.
+#guard !checkDIMACS ("p cnf\n" ++ (php43.drop 12).toString) php43Kernel
+#guard parseDIMACS "p cnf\n0\n" == none
+#guard parseDIMACS "p cnf 2 1\n1 -2 0\n2 0\n" == none
+#guard parseDIMACS "p cnf 1 1\n1 -2 0\n" == none
+#guard (php43.take 12).toString == "p cnf 12 22\n"
 
 /-! ### Redundance-based strengthening -/
 
@@ -326,6 +260,14 @@ def rotationNoGoal1 : String :=
 -- database and not implied by `1` or by `~x1 >= 1`.
 #guard rotationNoGoal1 != rotationProof
 #guard !checkOPB rotation rotationNoGoal1
+
+-- Deletion is accepted only at top level: not inside a `proofgoal` block.
+def rotationNestedDel : String :=
+  rotationProof.replace "    pol 16 2 +;\n" "    deld 9;\n    pol 16 2 +;\n"
+
+#guard rotationNestedDel != rotationProof
+#guard (parseProof 7 6 rotationNestedDel).isNone
+#guard (parseProof 7 6 (rotationProof.replace "output NONE" "deld 9;\noutput NONE")).isSome
 
 /-! ### Soundness -/
 

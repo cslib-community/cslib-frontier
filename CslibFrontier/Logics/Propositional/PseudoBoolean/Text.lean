@@ -21,8 +21,9 @@ syntax checked by `Cslib.Logic.PL.VeriPB.checkRed`:
   with `⋈` one of `>=`, `<=`, `=`, an equality counting as the two constraints `≥` and `≤` in
   this order; lines starting with `*` are comments, and an objective line `min: … ;` is skipped,
   since a proof of `UNSAT` does not depend on it;
-* a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`), its clause `1 -2 3 0` read as
-  the constraint `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
+* a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
+  exactly `C` clauses over the variables `1, …, V`, its clause `1 -2 3 0` read as the constraint
+  `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
 * a kernel proof (`Cslib.Logic.PL.VeriPB.Text.parseProof`): the header
   `pseudo-Boolean proof version 3.0`, an optional `f N;` checked against the number of
   constraints, the derivation steps, `output NONE;`, `conclusion UNSAT : id;` and
@@ -34,19 +35,23 @@ may introduce other names; they are numbered after every `xN` of the formula and
 order of first appearance. How the proof's own variables are numbered does not matter for
 soundness, which concerns only the parsed formula.
 
-**Steps.** `pol`, `rup` with hints, `pbc` with its subproof, `red` with a witness and an
-optional subproof of `proofgoal` blocks (`#1` and constraint numbers), and the deletions `deld`
-and `delc` (read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del`). A `rup` without hints
-is read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. `core id` is skipped: the checker keeps no
-separate core set, and the conclusion `UNSAT` does not depend on it. Everything else (`pol`
+**Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
+witness and an optional subproof of `proofgoal` blocks (`#1` and constraint numbers), and the
+deletions `deld` and `delc`, read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del`.
+Deletion and `core` are accepted only at top level, as the format requires. `core id` is
+skipped: the checker keeps no separate core set, and the conclusion `UNSAT` does not depend on
+it. Two steps of the augmented format are also accepted: `del id`, read as the same deletion,
+and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
 operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, orders, `dom`,
 objectives, other outputs and conclusions) is rejected.
 
 **Soundness** (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB`,
 `Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkDIMACS`): if the checker accepts, the input
-parses to a formula with no 0/1 solution. This is the shape of the end-to-end theorem of CakePB
-for DIMACS input (§6.2 of the VeriPB/CakePB documentation for the SAT Competition 2026). The
-parsers themselves are trusted to read the files as intended.
+parses to a formula with no 0/1 solution. This is a guarantee about the text and the formula the
+parser returns: the parsers are trusted to read the files as intended, and nothing is said about
+compiled code. It is smaller than the end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB
+documentation for the SAT Competition 2026), which also covers the execution of its compiled
+machine code and the parsing of DIMACS input.
 
 ## Main definitions
 
@@ -57,7 +62,7 @@ parsers themselves are trusted to read the files as intended.
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB`,
-  `Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkDIMACS`: end-to-end soundness.
+  `Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkDIMACS`: soundness for the parsed formula.
 
 ## References
 
@@ -65,7 +70,7 @@ parsers themselves are trusted to read the files as intended.
   Combinatorial Optimisation*][BogaertsGochtMcCreeshNordstrom2023]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Logic.PL.VeriPB.Text
 
@@ -73,7 +78,7 @@ namespace Cslib.Logic.PL.VeriPB.Text
 
 /-- The tokens of a text: whitespace-separated, with `;` a token of its own and everything after
 `%` on a line a comment. -/
-def tokens (s : String) : List String :=
+private def tokens (s : String) : List String :=
   (s.splitOn "\n").flatMap fun line =>
     ((((line.splitOn "%").headD "").replace ";" " ; ").split Char.isWhitespace).toList.map
       (·.toString) |>.filter (· ≠ "")
@@ -97,7 +102,7 @@ def stdVar? (t : String) : Option ℕ :=
   else none
 
 /-- A variable name of the extended format: at least two characters, the first a letter or `_`. -/
-def isName (t : String) : Bool :=
+private def isName (t : String) : Bool :=
   2 ≤ t.length && (t.front.isAlpha || t.front == '_')
 
 /-- The variable names of a proof: the standard ones are numbered by their index, the others in
@@ -120,7 +125,7 @@ def Names.lit? (N : Names) (t : String) : Option (Literal ℕ) :=
   else (N.var? t).map ((·, true))
 
 /-- The names of the proof tokens `ts` over a formula whose variables are below `nvars`. -/
-def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
+private def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
   let bare := ts.map fun t => if t.startsWith "~" then (t.drop 1).toString else t
   ⟨(bare.filter fun t => isName t && (stdVar? t).isNone).dedup,
     (bare.filterMap stdVar?).foldr (fun v m => max (v + 1) m) nvars⟩
@@ -129,7 +134,8 @@ def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
 
 /-- The terms `a ℓ` of a constraint, up to the relation, as an integer linear form and the
 constant moved to the right-hand side by negative literals (`a ¬x = a - a x`). -/
-def terms (N : Names) : ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
+private def terms (N : Names) :
+    ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
   | 0, _, _, _ => none
   | fuel + 1, t :: ts, L, k =>
     if t == ">=" || t == "<=" || t == "=" then some (L, k, t :: ts)
@@ -148,7 +154,7 @@ def terms (N : Names) : ℕ → List String → List (ℕ × ℤ) → ℤ → Op
   | _ + 1, [], _, _ => none
 
 /-- A constraint `∑ aᵢ ℓᵢ ⋈ A`: one or two constraints `≥` (`=` gives two), and the rest. -/
-def constr (N : Names) (ts : List String) : Option (List PBConstr × List String) :=
+private def constr (N : Names) (ts : List String) : Option (List PBConstr × List String) :=
   match terms N (ts.length + 1) ts [] 0 with
   | some (L, k, rel :: d :: rest) =>
     match int? d with
@@ -162,7 +168,7 @@ def constr (N : Names) (ts : List String) : Option (List PBConstr × List String
   | _ => none
 
 /-- A single constraint `∑ aᵢ ℓᵢ >= A`, as in proof steps. -/
-def geq (N : Names) (ts : List String) : Option (PBConstr × List String) :=
+private def geq (N : Names) (ts : List String) : Option (PBConstr × List String) :=
   match ts.head? with
   | none => none
   | some _ =>
@@ -173,10 +179,10 @@ def geq (N : Names) (ts : List String) : Option (PBConstr × List String) :=
 /-! ### Formulas -/
 
 /-- The standard names, for formulas. -/
-def stdNames : Names := ⟨[], 0⟩
+private def stdNames : Names := ⟨[], 0⟩
 
 /-- The constraints of OPB lines, given as token lists. -/
-def opbLines : List (List String) → Option (List PBConstr)
+private def opbLines : List (List String) → Option (List PBConstr)
   | [] => some []
   | [] :: ls => opbLines ls
   | (t :: ts) :: ls =>
@@ -190,28 +196,33 @@ def opbLines : List (List String) → Option (List PBConstr)
 def parseOPB (s : String) : Option (List PBConstr) :=
   opbLines ((s.splitOn "\n").map fun line => tokens line)
 
-/-- The clauses of a DIMACS body: integers, each clause ended by `0`. -/
-def dimacsClauses : List String → List ℤ → Option (CNF ℕ)
+/-- The clauses of a DIMACS body over the variables `1, …, V`: nonzero integers of magnitude at
+most `V`, each clause ended by `0`. -/
+private def dimacsClauses (V : ℕ) : List String → List ℤ → Option (CNF ℕ)
   | [], [] => some []
   | [], _ :: _ => none
   | t :: ts, cur =>
     match int? t with
     | none => none
-    | some 0 => (dimacsClauses ts []).map (Clause.ofDIMACS cur.reverse :: ·)
-    | some i => dimacsClauses ts (i :: cur)
+    | some 0 => (dimacsClauses V ts []).map (Clause.ofDIMACS cur.reverse :: ·)
+    | some i => if i.natAbs ≤ V then dimacsClauses V ts (i :: cur) else none
 
-/-- **A DIMACS CNF formula**: a header `p cnf V C`, comment lines starting with `c`, then the
-clauses. -/
+/-- **A DIMACS CNF formula**: comment lines starting with `c`, the header `p cnf V C`, then
+exactly `C` clauses over the variables `1, …, V`. -/
 def parseDIMACS (s : String) : Option (CNF ℕ) :=
   let lines := (s.splitOn "\n").map tokens |>.filter fun l => l.head? != some "c"
   match lines with
-  | ("p" :: "cnf" :: _) :: body => dimacsClauses body.flatten []
+  | ["p", "cnf", V, C] :: body =>
+    match V.toNat?, C.toNat? with
+    | some V, some C =>
+      (dimacsClauses V body.flatten []).bind fun φ => if φ.length = C then some φ else none
+    | _, _ => none
   | _ => none
 
 /-! ### Proofs -/
 
 /-- Constraint numbers and `~` up to `;`, as RUP hints. -/
-def hints : List String → Option (List Hint × List String)
+private def hints : List String → Option (List Hint × List String)
   | ";" :: ts => some ([], ";" :: ts)
   | t :: ts =>
     (if t == "~" then some Hint.neg else (id? t).map Hint.id).bind fun h =>
@@ -219,18 +230,19 @@ def hints : List String → Option (List Hint × List String)
   | [] => none
 
 /-- Constraint numbers up to `;`. -/
-def ids : List String → Option (List ℕ × List String)
+private def ids : List String → Option (List ℕ × List String)
   | ";" :: ts => some ([], ";" :: ts)
   | t :: ts => (id? t).bind fun n => (ids ts).map fun (ns, rest) => (n :: ns, rest)
   | [] => none
 
 /-- Prepend an operation to the result of parsing the rest. -/
-def consOp (op : PolOp) : Option (List PolOp × List String) → Option (List PolOp × List String) :=
+private def consOp (op : PolOp) :
+    Option (List PolOp × List String) → Option (List PolOp × List String) :=
   Option.map fun (ops, rest) => (op :: ops, rest)
 
 /-- The operations of a `pol` step, up to `;`. A number followed by `*` or `d` is the operand of
 that operation, and a variable followed by `w` the variable of a weakening. -/
-def polOps (N : Names) : List String → Option (List PolOp × List String)
+private def polOps (N : Names) : List String → Option (List PolOp × List String)
   | ";" :: ts => some ([], ";" :: ts)
   | "+" :: ts => consOp .add (polOps N ts)
   | "s" :: ts => consOp .sat (polOps N ts)
@@ -247,7 +259,7 @@ def polOps (N : Names) : List String → Option (List PolOp × List String)
   | [] => none
 
 /-- The pairs `x -> b` of a witness, up to `:` or `;`; `b` is `0`, `1` or a literal. -/
-def witness (N : Names) : List String → Option (Witness × List String)
+private def witness (N : Names) : List String → Option (Witness × List String)
   | x :: "->" :: b :: ts =>
     (N.var? x).bind fun v =>
       (if b == "0" then some WVal.zero else if b == "1" then some WVal.one
@@ -256,13 +268,13 @@ def witness (N : Names) : List String → Option (Witness × List String)
   | ts => some ([], ts)
 
 /-- The end `qed [label] : id;` of a subproof, with the number of its contradiction. -/
-def qedId : List String → Option (ℕ × List String)
+private def qedId : List String → Option (ℕ × List String)
   | "qed" :: ":" :: n :: ";" :: ts => (id? n).map (·, ts)
   | "qed" :: _ :: ":" :: n :: ";" :: ts => (id? n).map (·, ts)
   | _ => none
 
 /-- The end `qed [label] [: id];` of a `red` subproof. -/
-def qedOpt : List String → Option (Option ℕ × List String)
+private def qedOpt : List String → Option (Option ℕ × List String)
   | "qed" :: ";" :: ts => some (none, ts)
   | "qed" :: ":" :: n :: ";" :: ts => (id? n).map (some ·, ts)
   | "qed" :: _ :: ";" :: ts => some (none, ts)
@@ -270,59 +282,51 @@ def qedOpt : List String → Option (Option ℕ × List String)
   | _ => none
 
 /-- A proof goal label: `#1` or a constraint number. -/
-def goalId (t : String) : Option GoalId :=
+private def goalId (t : String) : Option GoalId :=
   if t == "#1" then some .self else (id? t).map .db
 
 mutual
 
-/-- A derivation step, or `none` for a skipped `core` step; `fuel` bounds the nesting. -/
-def step (N : Names) : ℕ → List String → Option (Option Step × List String)
+/-- An implicational step: `pol`, `rup`, or `pbc` with its subproof; `fuel` bounds the
+nesting. -/
+private def step (N : Names) : ℕ → List String → Option (Step × List String)
   | 0, _ => none
   | _ + 1, "pol" :: ts =>
     match polOps N ts with
-    | some (ops, ";" :: rest) => some (some (.pol ops), rest)
+    | some (ops, ";" :: rest) => some (.pol ops, rest)
     | _ => none
   | _ + 1, "rup" :: ts =>
     match geq N ts with
-    | some (c, ";" :: rest) => some (some (.rupSearch c), rest)
+    | some (c, ";" :: rest) => some (.rupSearch c, rest)
     | some (c, ":" :: rest) =>
       match hints rest with
-      | some (hs, ";" :: rest) => some (some (.rup c hs), rest)
+      | some (hs, ";" :: rest) => some (.rup c hs, rest)
       | _ => none
     | _ => none
   | fuel + 1, "pbc" :: ts =>
     match geq N ts with
     | some (c, ":" :: "subproof" :: rest) =>
       match steps N fuel rest with
-      | some (sub, rest) => (qedId rest).map fun (q, rest) => (some (.pbc c sub q), rest)
+      | some (sub, rest) => (qedId rest).map fun (q, rest) => (.pbc c sub q, rest)
       | none => none
-    | _ => none
-  | _ + 1, "deld" :: ts | _ + 1, "delc" :: ts | _ + 1, "del" :: "id" :: ts =>
-    match ids ts with
-    | some (ns, ";" :: rest) => some (some (.del ns), rest)
-    | _ => none
-  | _ + 1, "core" :: "id" :: ts =>
-    match ids ts with
-    | some (_, ";" :: rest) => some (none, rest)
     | _ => none
   | _, _ => none
 
-/-- Derivation steps, up to a `qed` or a `proofgoal`. -/
-def steps (N : Names) : ℕ → List String → Option (List Step × List String)
+/-- Implicational steps, up to a `qed` or a `proofgoal`. -/
+private def steps (N : Names) : ℕ → List String → Option (List Step × List String)
   | 0, _ => none
   | fuel + 1, ts =>
     match ts with
     | "qed" :: _ | "proofgoal" :: _ => some ([], ts)
     | _ =>
       match step N fuel ts with
-      | some (s, rest) =>
-        (steps N fuel rest).map fun (ss, rest) => (s.toList ++ ss, rest)
+      | some (s, rest) => (steps N fuel rest).map fun (ss, rest) => (s :: ss, rest)
       | none => none
 
 end
 
 /-- The items of a `red` subproof, up to its closing `qed`. -/
-def redItems (N : Names) : ℕ → List String → Option (List RedItem × List String)
+private def redItems (N : Names) : ℕ → List String → Option (List RedItem × List String)
   | 0, _ => none
   | fuel + 1, "proofgoal" :: g :: ts =>
     (goalId g).bind fun g =>
@@ -334,13 +338,13 @@ def redItems (N : Names) : ℕ → List String → Option (List RedItem × List 
   | _ + 1, "qed" :: ts => some ([], "qed" :: ts)
   | fuel + 1, ts =>
     match step N fuel ts with
-    | some (s, rest) =>
-      (redItems N fuel rest).map fun (items, rest) =>
-        ((s.toList.map RedItem.step) ++ items, rest)
+    | some (s, rest) => (redItems N fuel rest).map fun (items, rest) => (.step s :: items, rest)
     | none => none
 
-/-- A top-level step: a `red` step, a derivation step, or `none` for a skipped one. -/
-def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
+/-- A top-level step: a `red` step, a deletion, an implicational step, or nothing for a skipped
+`core` step. Deletion and `core` are top-level only (§5.5 and §5.6 of the format
+documentation). -/
+private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
   | "red" :: ts =>
     match geq N ts with
     | some (c, ";" :: rest) => some ([.red c [] [] none], rest)
@@ -352,10 +356,18 @@ def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × L
           (qedOpt rest).map fun (q, rest) => ([.red c ω items q], rest)
       | _ => none
     | _ => none
-  | ts => (step N fuel ts).map fun (s, rest) => (s.toList.map .step, rest)
+  | "deld" :: ts | "delc" :: ts | "del" :: "id" :: ts =>
+    match ids ts with
+    | some (ns, ";" :: rest) => some ([.step (.del ns)], rest)
+    | _ => none
+  | "core" :: "id" :: ts =>
+    match ids ts with
+    | some (_, ";" :: rest) => some ([], rest)
+    | _ => none
+  | ts => (step N fuel ts).map fun (s, rest) => ([.step s], rest)
 
 /-- The top-level steps, up to `output`. -/
-def topSteps (N : Names) : ℕ → List String → Option (List TopStep × List String)
+private def topSteps (N : Names) : ℕ → List String → Option (List TopStep × List String)
   | 0, _ => none
   | _ + 1, "output" :: ts => some ([], "output" :: ts)
   | fuel + 1, ts =>
@@ -383,7 +395,7 @@ def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
 /-! ### The checkers -/
 
 /-- The number of variables of a formula: one more than its largest variable. -/
-def numVars (F : List PBConstr) : ℕ :=
+private def numVars (F : List PBConstr) : ℕ :=
   (F.flatMap PBConstr.terms).foldr (fun t m => max (PBConstr.termVar t + 1) m) 0
 
 /-- **Check a kernel proof of `UNSAT` for an OPB formula.** -/
@@ -404,7 +416,7 @@ def checkDIMACS (cnf pbp : String) : Bool :=
     | some P => checkRed (φ.map Clause.toPB) P
     | none => false
 
-/-- **End-to-end soundness for OPB**: an accepted proof means the formula parses and has no 0/1
+/-- **Soundness for OPB text**: an accepted proof means the formula parses and has no 0/1
 solution. -/
 theorem not_satisfiable_of_checkOPB {opb pbp : String} (h : checkOPB opb pbp = true) :
     ∃ F, parseOPB opb = some F ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ F, c.Holds σ := by
@@ -416,7 +428,7 @@ theorem not_satisfiable_of_checkOPB {opb pbp : String} (h : checkOPB opb pbp = t
     · exact ⟨F, hF, not_satisfiable_of_checkRed h⟩
     · cases h
 
-/-- **End-to-end soundness for DIMACS**: an accepted proof means the CNF parses and is
+/-- **Soundness for DIMACS text**: an accepted proof means the CNF parses and is
 unsatisfiable. -/
 theorem not_satisfiable_of_checkDIMACS {cnf pbp : String} (h : checkDIMACS cnf pbp = true) :
     ∃ φ, parseDIMACS cnf = some φ ∧ ¬ φ.Satisfiable := by
