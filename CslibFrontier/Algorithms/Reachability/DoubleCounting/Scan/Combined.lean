@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexPa
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FramePrefix
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
@@ -241,17 +242,9 @@ theorem prefix_length_le (x : Input) (j : ℕ) :
     omega
 
 private theorem parameters_inSpace : ComputableInSpace Input.parameters encInput encParameters
-    (fun x => (encParameters x.parameters).length) := by
-  let tr := Internal.FrameMachines.readFrameT true
-  have hr : ComputableInTimeAndSpace Input.parameters encInput encParameters
-      (fun x => 2 * (encInput x).length + 3) (fun _ => 0) := by
-    refine ⟨0, _, inferInstance, tr.toTM, fun x => ?_⟩
-    have he : tr.run tr.q₀ (encInput x) = encParameters x.parameters := by
-      simp [tr, Internal.FrameMachines.readFrameT_run_true, encInput_apply, encInputFields]
-    rw [← he]
-    exact tr.computesInTimeAndSpace_toTM _
-  exact of_inO (ComputableInO.of_bounds (T := fun x => (encInput x).length) hr 3 (fun _ => by omega)
-    (fun _ => by omega) (fun _ => by omega))
+    (fun x => (encParameters x.parameters).length) :=
+  ComputableInSpace.framedPrefix Input.parameters encInput encParameters Input.choices
+    (fun x => by simp [encInput_apply, encInputFields])
 
 /-- Native initialization reads only the small prefix into work space; its certificate does
 not charge or retain the choice suffix. -/
