@@ -66,7 +66,7 @@ private theorem isOraclePPTOn_majorityDirectAccess (k : ℕ) (δ : ℚ) :
   let wordsEncoding := encList encBits
   have hwidth : ComputableInPolyTime (fun n : ℕ => Nat.log 2 n + 1) encNat encUnary :=
     ComputableInPolyTime.unary_succ.comp ComputableInPolyTime.binary_log_two
-  have hsample : IsOraclePPTOn encNat wordsEncoding (fun n =>
+  have hsample : IsOraclePPTOn (Operation := Unit) encNat wordsEncoding (fun n =>
       ProbOracleComp.sample (OracleComp.replicate k (sampleList (Nat.log 2 n + 1)))) :=
     (hwidth.sampleList.replicate (ComputableInPolyTime.const k)).isOraclePPTOn
   have hrequests : ComputableInPolyTime (fun p : ℕ × List (List Bool) => validRequests p.1 p.2)
@@ -114,8 +114,9 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
     simp
   have hsample := ProbOracleComp.IsQueryBounded.sample (spec := fun _ : Unit × List Bool =>
     List Bool) coins
-  rw [← Nat.zero_add k]
-  apply hsample.bind_on_support
+  change (ProbOracleComp.sample coins >>= fun words =>
+    decideReplies k δ n <$> (validRequests n words).mapM readBit).IsQueryBounded k
+  refine Nat.zero_add k ▸ hsample.bind_on_support ?_
   intro words hwords
   have hlen' := hlen words (by simpa only [ProbOracleComp.support_sample] using hwords)
   have htraverse : ((validRequests n words).mapM readBit).IsQueryBounded
