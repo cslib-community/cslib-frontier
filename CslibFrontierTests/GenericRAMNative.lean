@@ -24,7 +24,7 @@ composition and automation, and distinct fault paths in checked scalar/instructi
 namespace CslibFrontierTests.GenericRAMNative
 
 open Cslib.GenericRAM Turing.MultiTapeTM
-open Turing.MultiTapeTM.ComputableTidilyInPolyTime
+open Turing.MultiTapeTM.ComputableInPolyTime
 open BoundedNat
 
 -- The bundle exists for an infinite runtime input domain, with every field polynomial.
@@ -78,9 +78,9 @@ example (p : ℕ × ℕ) :
 -- `fun_prop`).
 example (op : Cslib.WordRAM.StandardOp) (opAdd : Cslib.WordRAM.Basis.additive.Op)
     (opArith : Cslib.WordRAM.Basis.arithmetic.Op) :
-    ComputableTidilyInPolyTime (model.checkedOp ())
+    ComputableInPolyTime (model.checkedOp ())
       (encPair encNat (encPi encNat)) (encOption encNat) ∧
-    ComputableTidilyInPolyTime
+    ComputableInPolyTime
       (fun k => (model.checkedConstant 7 k).getD 0) encNat encNat ∧
     ComputableInPolyTime
       (Cslib.WordRAM.Basis.standard.genericModel.checkedOp (.bin .add))

@@ -1022,7 +1022,7 @@ theorem AdvicePRG.gmwView_negligible {α : Type} {enc : α ↪ List Bool}
     exact (((PolynomiallyBounded.const 2).mul hz).add (.const 1)).add hz'
   have hneg := hAdv.negligible_encoded hclock ha hw haux
   have hcount_poly :=
-    (((computableInPolyTime_totalLen hf).tidy.polyBounded).comp
+    (((computableInPolyTime_totalLen hf).polyBounded).comp
       ⟨_, ha, fun _ => le_rfl⟩).polynomiallyBounded
   have hloss : PolynomiallyBounded
       (fun n => dyadicSize (n + 1) * dyadicSize (totalLen (f (a n)))) :=
@@ -1118,7 +1118,7 @@ theorem gmwView_indistinguishable_gmwSimulator {α : Type} {enc : α ↪ List Bo
       ((hfst.prod ((ha.comp hfst).prod ((hw_comp.comp hfst).prod (hz.comp hfst)))).prod
         (.snd encUnary encBits))
   have hneg := (hG.indistinguishable.shift 7) red hred
-  have hcount_poly := ((computableInPolyTime_totalLen (hf.comp ha)).tidy).polynomiallyBounded
+  have hcount_poly := ((computableInPolyTime_totalLen (hf.comp ha))).polynomiallyBounded
   have hloss : PolynomiallyBounded
       (fun n => dyadicSize (n + 1) * dyadicSize (totalLen (f (a n)))) :=
     (dyadicSize_polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1))).mul

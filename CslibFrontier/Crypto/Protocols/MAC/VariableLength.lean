@@ -528,23 +528,81 @@ theorem IsPolyTimeEncoder.comp {E : Encoder} (hE : IsPolyTimeEncoder E)
 
 /-- `fullEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_fullEncoder : IsPolyTimeEncoder fullEncoder := by
+  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
+  dsimp only [encEncoderInput] at hp
+  have hw := hp.fst'
+  have hL := hp.snd'.fst'
+  have hr := hp.snd'.snd'.fst'
+  have hlen := hp.snd'.snd'.snd'.fst'
+  have hidx := hp.snd'.snd'.snd'.snd'.fst'
+  have hblock := hp.snd'.snd'.snd'.snd'.snd'
+  have hlenBits := ComputableInPolyTime.bitsLow hw
+    (ComputableInPolyTime.unary_to_binary.comp hlen)
+  have hidxBits := ComputableInPolyTime.bitsLow hw
+    (ComputableInPolyTime.unary_to_binary.comp hidx)
   unfold IsPolyTimeEncoder fullEncoder
-  fun_prop
+  have hprefix := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend hr hlenBits) hidxBits
+  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hprefix hblock)
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.unary_sub' hL
+        (ComputableInPolyTime.unary_mul' (.const 4) hw)))
 
 /-- `noIdentifierEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_noIdentifierEncoder : IsPolyTimeEncoder noIdentifierEncoder := by
+  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
+  dsimp only [encEncoderInput] at hp
+  have hw := hp.fst'
+  have hL := hp.snd'.fst'
+  have hlen := hp.snd'.snd'.snd'.fst'
+  have hidx := hp.snd'.snd'.snd'.snd'.fst'
+  have hblock := hp.snd'.snd'.snd'.snd'.snd'
+  have hlenBits := ComputableInPolyTime.bitsLow hw
+    (ComputableInPolyTime.unary_to_binary.comp hlen)
+  have hidxBits := ComputableInPolyTime.bitsLow hw
+    (ComputableInPolyTime.unary_to_binary.comp hidx)
   unfold IsPolyTimeEncoder noIdentifierEncoder
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hlenBits hidxBits) hblock)
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.unary_sub' hL
+        (ComputableInPolyTime.unary_mul' (.const 3) hw)))
 
 /-- `noLengthEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_noLengthEncoder : IsPolyTimeEncoder noLengthEncoder := by
+  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
+  dsimp only [encEncoderInput] at hp
+  have hw := hp.fst'
+  have hL := hp.snd'.fst'
+  have hr := hp.snd'.snd'.fst'
+  have hidx := hp.snd'.snd'.snd'.snd'.fst'
+  have hblock := hp.snd'.snd'.snd'.snd'.snd'
+  have hidxBits := ComputableInPolyTime.bitsLow hw
+    (ComputableInPolyTime.unary_to_binary.comp hidx)
   unfold IsPolyTimeEncoder noLengthEncoder
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hr hidxBits) hblock)
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.unary_sub' hL
+        (ComputableInPolyTime.unary_mul' (.const 3) hw)))
 
 /-- `noIndexEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_noIndexEncoder : IsPolyTimeEncoder noIndexEncoder := by
+  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
+  dsimp only [encEncoderInput] at hp
+  have hw := hp.fst'
+  have hL := hp.snd'.fst'
+  have hr := hp.snd'.snd'.fst'
+  have hlen := hp.snd'.snd'.snd'.fst'
+  have hblock := hp.snd'.snd'.snd'.snd'.snd'
+  have hlenBits := ComputableInPolyTime.bitsLow hw
+    (ComputableInPolyTime.unary_to_binary.comp hlen)
   unfold IsPolyTimeEncoder noIndexEncoder
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hr hlenBits) hblock)
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.unary_sub' hL
+        (ComputableInPolyTime.unary_mul' (.const 3) hw)))
 
 /-- `blockInputs E` is computable in polynomial time whenever `E` is polynomial-time. -/
 @[fun_prop]
@@ -1461,18 +1519,41 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
     funext n aux
     simp only [blockwiseBoundedReduction, bind_pure_comp]
   rw [heq]
-  refine ((hF.run_interpret_preprocess_open
-      (input := encPair encUnary encBits)
-      (prepare := fun c : ℕ × List Bool => (c.1, ([] : List Bool)))
-      (initial := fun _ : ℕ × List Bool => ([] : List (List Bool × Tag)))
-      (resources := fun c w =>
-        2 * (2 * w.length +
-          (2 * fieldWidth (M.msgLen c.1) + w.length * (2 * tagBound c.1 + 2) + 1) + 1) + 2)
-      (by fun_prop) (M.isOraclePPTOn_blockwiseBoundedSimulator hE htagBound) (by fun_prop)
-      (fun _ _ => True) (fun _ => trivial) (by fun_prop)
-      (fun c request log _ result hresult =>
-        ⟨trivial, M.blockwiseBoundedSimulator_bound c request log hresult⟩)).map_with
-    (by fun_prop)).isOraclePPT
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hprepare := hn.prod (ComputableInPolyTime.const (encOut := encBits) [])
+  have hrp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary encBits) encBits)
+  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp
+    (hmsgLen.comp hrp.fst'.fst')
+  have htag := htagBound.comp hrp.fst'.fst'
+  have hlength := ComputableInPolyTime.length_bits.comp hrp.snd'
+  have htagSize := ComputableInPolyTime.unary_add'
+    (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (.const 2) hwidth)
+      (ComputableInPolyTime.unary_mul' hlength
+        (ComputableInPolyTime.unary_add'
+          (ComputableInPolyTime.unary_mul' (.const 2) htag) (.const 2)))) (.const 1)
+  have hresources := ComputableInPolyTime.unary_add'
+    (ComputableInPolyTime.unary_mul' (.const 2)
+      (ComputableInPolyTime.unary_add'
+        (ComputableInPolyTime.unary_add'
+          (ComputableInPolyTime.unary_mul' (.const 2) hlength) htagSize) (.const 1))) (.const 2)
+  have hr := hF.run_interpret_preprocess_open
+    (input := encPair encUnary encBits)
+    (prepare := fun c : ℕ × List Bool => (c.1, ([] : List Bool)))
+    (initial := fun _ : ℕ × List Bool => ([] : List (List Bool × Tag)))
+    (resources := fun c w =>
+      2 * (2 * w.length +
+        (2 * fieldWidth (M.msgLen c.1) + w.length * (2 * tagBound c.1 + 2) + 1) + 1) + 2)
+    hprepare (M.isOraclePPTOn_blockwiseBoundedSimulator hE htagBound)
+    (ComputableInPolyTime.const (encOut := encLog) [])
+    (fun _ _ => True) (fun _ => trivial) hresources
+    (fun c request log _ result hresult =>
+      ⟨trivial, M.blockwiseBoundedSimulator_bound c request log hresult⟩)
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary encBits) (encPair encForgerOutput encLog))
+  exact (hr.map_with
+    (computableInPolyTime_freshBlockPair_comp hE
+      (hmsgLen.comp hp.fst'.fst') hp.snd'.snd' hp.snd'.fst'.fst' hp.snd'.fst'.snd')).isOraclePPT
 
 private theorem runWith_mapM_query_take {n : ℕ} {sk : List Bool} {tagBound : ℕ → ℕ}
     (htagBound : ∀ msg, msg.length = M.msgLen n →
@@ -1686,8 +1767,20 @@ theorem isOraclePPT_toForger_swapBlocksAdversary {replyBound : ℕ → ℕ → �
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
       map_eq_bind_pure_comp, Function.comp_def]
   rw [heq]
-  exact ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with
-    (by fun_prop)).isOraclePPT
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp (hmsgLen.comp hn)
+  have hfalse := (ComputableInPolyTime.bitsReplicate false).comp hwidth
+  have htrue := (ComputableInPolyTime.bitsReplicate true).comp hwidth
+  have hrequest := ComputableInPolyTime.bitsAppend hfalse htrue
+  have hlimit := hbound.comp
+    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest))
+  have hp := ComputableInPolyTime.fst (encPair encUnary encBits) encBits
+  have htag := tagDecoder.computableInPolyTime.comp
+    (ComputableInPolyTime.snd (encPair encUnary encBits) encBits)
+  have hmessage := ComputableInPolyTime.bitsAppend (htrue.comp hp) (hfalse.comp hp)
+  have hresult := hmessage.prod
+    (htag.fst'.prod ((ComputableInPolyTime.listReverse encBits).comp htag.snd'))
+  exact ((IsOraclePPTOn.query_take () hrequest hlimit).map_with hresult).isOraclePPT
 
 variable (M) in
 /-- `M.truncateAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
@@ -1713,8 +1806,19 @@ theorem isOraclePPT_toForger_truncateAdversary {replyBound : ℕ → ℕ → ℕ
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
       map_eq_bind_pure_comp, Function.comp_def]
   rw [heq]
-  exact ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with
-    (by fun_prop)).isOraclePPT
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp (hmsgLen.comp hn)
+  have hfalse := (ComputableInPolyTime.bitsReplicate false).comp hwidth
+  have htrue := (ComputableInPolyTime.bitsReplicate true).comp hwidth
+  have hrequest := ComputableInPolyTime.bitsAppend hfalse htrue
+  have hlimit := hbound.comp
+    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest))
+  have hp := ComputableInPolyTime.fst (encPair encUnary encBits) encBits
+  have htag := tagDecoder.computableInPolyTime.comp
+    (ComputableInPolyTime.snd (encPair encUnary encBits) encBits)
+  have hresult := (hfalse.comp hp).prod
+    (htag.fst'.prod (ComputableInPolyTime.listTakeWithInput htag.snd' (.const 1)))
+  exact ((IsOraclePPTOn.query_take () hrequest hlimit).map_with hresult).isOraclePPT
 
 variable (M) in
 /-- `M.mixBlocksAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
@@ -1749,27 +1853,30 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
       map_eq_bind_pure_comp, Function.comp_def]
   rw [heq]
-  have hq1 : IsOraclePPTOn (encPair encUnary encBits) encBits
-      (fun p : ℕ × List Bool =>
-        List.take
-          (replyBound p.1
-            (List.replicate (fieldWidth (M.msgLen p.1)) false ++
-              List.replicate (fieldWidth (M.msgLen p.1)) false).length) <$>
-          ProbOracleComp.query
-            ((), List.replicate (fieldWidth (M.msgLen p.1)) false ++
-              List.replicate (fieldWidth (M.msgLen p.1)) false)) :=
-    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
-  have hq2 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
-      (fun q : (ℕ × List Bool) × List Bool =>
-        List.take
-          (replyBound q.1.1
-            (List.replicate (fieldWidth (M.msgLen q.1.1)) true ++
-              List.replicate (fieldWidth (M.msgLen q.1.1)) true).length) <$>
-          ProbOracleComp.query
-            ((), List.replicate (fieldWidth (M.msgLen q.1.1)) true ++
-              List.replicate (fieldWidth (M.msgLen q.1.1)) true)) :=
-    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
-  exact (hq1.bind_with (hq2.map_with (by fun_prop))).isOraclePPT
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp (hmsgLen.comp hn)
+  have hfalse := (ComputableInPolyTime.bitsReplicate false).comp hwidth
+  have htrue := (ComputableInPolyTime.bitsReplicate true).comp hwidth
+  have hrequest₁ := ComputableInPolyTime.bitsAppend hfalse hfalse
+  have hrequest₂ := ComputableInPolyTime.bitsAppend htrue htrue
+  have hlimit₁ := hbound.comp
+    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest₁))
+  have hlimit₂ := hbound.comp
+    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest₂))
+  have hq1 := IsOraclePPTOn.query_take () hrequest₁ hlimit₁
+  have hcontext := ComputableInPolyTime.fst (encPair encUnary encBits) encBits
+  have hq2 := IsOraclePPTOn.query_take ()
+    (hrequest₂.comp hcontext) (hlimit₂.comp hcontext)
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair encUnary encBits) encBits) encBits)
+  have htag₁ := tagDecoder.computableInPolyTime.comp hp.fst'.snd'
+  have htag₂ := tagDecoder.computableInPolyTime.comp hp.snd'
+  have hmessage := (ComputableInPolyTime.bitsAppend hfalse htrue).comp hp.fst'.fst'
+  have htags := ComputableInPolyTime.listAppend encBits |>.comp
+    ((ComputableInPolyTime.listTakeWithInput htag₁.snd' (.const 1)).prod
+      (ComputableInPolyTime.listDropWithInput htag₂.snd' (.const 1)))
+  have hresult := hmessage.prod (htag₁.fst'.prod htags)
+  exact (hq1.bind_with (hq2.map_with hresult)).isOraclePPT
 
 /-- Without the block index (`noIndexEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/

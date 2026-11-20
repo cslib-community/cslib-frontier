@@ -10,6 +10,7 @@ module
 import CslibFrontier.DataStructure.AVLTree.PointerMachine
 import CslibFrontier.DataStructure.SearchTree.PointerMachine.Update
 import CslibFrontier.DataStructure.SearchTree.PointerMachine.Context
+import CslibFrontier.DataStructure.SearchTree.PointerMachine.Encoding
 
 /-! A linked three-node tree with an unrelated record, metadata and client registers.
 Both outcomes and empty-tree termination are tested, together with the logarithmic theorem. -/
@@ -120,3 +121,26 @@ example (query : ℕ) :
   · simp [State.setPtr, Represents, ancestors, contextParent, initial, label, root]
   · simp [State.setPtr, label]
   · rfl
+
+-- Canonical serialization agrees with the manually specified three-node input above.
+example : labelTree 0 (tree.map Label.data) = tree := rfl
+
+example : encodeHeap (regs := 1) (tree.map Label.data) 0 none =
+    (initial 0).heap.take 3 := rfl
+
+example : Represents (encodeHeap (regs := 1) (tree.map Label.data) 0 none) none tree := by
+  have eq : labelTree 0 (tree.map Label.data) = tree := rfl
+  simpa only [List.length_nil, List.nil_append, List.append_nil, eq] using
+    represents_encodeHeap (regs := 1) (tree.map Label.data) [] [] none
+
+example : AddressesDistinct tree := by
+  exact addressesDistinct_labelTree 0 (tree.map Label.data)
+
+-- The generic encoding creates valid parent/child links, including for an empty tree.
+example (t : BinaryTree (Fin 2 → model.Value)) :
+    (⟨0, fun _ => none, fun _ => 0, encodeHeap t 0 none⟩ :
+      State model (layout 1 1)).Valid := by
+  constructor
+  · simp
+  · simpa using encodeHeap_links (regs := 1) t 0 none (size := t.numNodes)
+      (by omega) (by simp)

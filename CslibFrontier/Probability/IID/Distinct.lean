@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Probability.IID.CollisionCount
 public import CslibFrontier.Probability.PMF.Event
+public import Mathlib.Algebra.BigOperators.Expect
+import CslibFrontier.Probability.PMF.UniformSubset
 import Mathlib.Data.Nat.Choose.Cast
 
 /-!
@@ -31,6 +33,7 @@ union bound without a uniformity assumption. This is the sampling estimate used 
 public section
 namespace Cslib.Probability.PMF
 open Finset
+open scoped BigOperators
 variable {α : Type*}
 
 /-- A sample tuple has no colliding pair precisely when all entries are distinct. -/
@@ -99,6 +102,45 @@ theorem iid_injective_pair_ge {β : Type*} [Finite β] (μ : PMF α) (ν : PMF �
   have heq : 2 - 2 * (k.choose 2 : ℝ) * ((k : ℝ) ^ 2)⁻¹ = 1 + (k : ℝ)⁻¹ := by
     rw [Nat.cast_choose_two]
     field_simp [hk']; ring
+  linarith
+
+/-- Averaging a bounded score over ordered distinct draws can increase its expectation
+by at most the birthday bound for independent uniform draws. -/
+theorem expect_embedding_le_expect_add [Fintype α] [Nonempty α] (k : ℕ)
+    [Nonempty (Fin k ↪ α)] (f : (Fin k → α) → ℝ) (h₀ : ∀ a, 0 ≤ f a) (h₁ : ∀ a, f a ≤ 1) :
+    letI : Fintype (Fin k ↪ α) := Fintype.ofFinite _
+    (𝔼 x : Fin k ↪ α, f x) ≤ (𝔼 a, f a) + (k.choose 2 : ℝ) / Fintype.card α := by
+  classical
+  let _ : Fintype (Fin k ↪ α) := Fintype.ofFinite _
+  let s := (univ : Finset (Fin k → α)).filter Function.Injective
+  have hs : s.Nonempty := by
+    let x := Classical.choice (inferInstance : Nonempty (Fin k ↪ α))
+    exact ⟨x, mem_filter.mpr ⟨mem_univ _, x.injective⟩⟩
+  have hrepr : (𝔼 x : Fin k ↪ α, f x) = 𝔼 a ∈ s, f a := by
+    refine Finset.expect_nbij (fun x : Fin k ↪ α => (x : Fin k → α))
+      (fun x _ => mem_filter.mpr ⟨mem_univ _, x.injective⟩) (fun _ _ => rfl)
+      (fun x _ y _ h => Function.Embedding.ext fun i => congrFun h i) ?_
+    intro a ha
+    exact ⟨⟨a, (mem_filter.mp ha).2⟩, mem_univ _, rfl⟩
+  change (𝔼 x : Fin k ↪ α, f x) ≤ _
+  rw [hrepr]
+  refine (expect_finset_le_expect_add_compl s hs f h₀ h₁).trans (add_le_add_right ?_ _)
+  have happly (a : α) : (uniformOfFintype α a).toReal ≤ (Fintype.card α : ℝ)⁻¹ := by
+    rw [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
+  have hcollision := iid_not_injective_le_of_mass_le (uniformOfFintype α) k happly
+  rw [iid_uniformOfFintype, ← div_eq_mul_inv] at hcollision
+  simpa only [s, mem_filter, mem_univ, true_and] using hcollision
+
+/-- Conditioning on distinct draws can decrease a bounded expectation by at most the
+birthday bound for independent uniform draws. -/
+theorem expect_le_expect_embedding_add [Fintype α] [Nonempty α] (k : ℕ)
+    [Nonempty (Fin k ↪ α)] (f : (Fin k → α) → ℝ) (h₀ : ∀ a, 0 ≤ f a) (h₁ : ∀ a, f a ≤ 1) :
+    letI : Fintype (Fin k ↪ α) := Fintype.ofFinite _
+    (𝔼 a, f a) ≤ (𝔼 x : Fin k ↪ α, f x) + (k.choose 2 : ℝ) / Fintype.card α := by
+  let _ : Fintype (Fin k ↪ α) := Fintype.ofFinite _
+  have h := expect_embedding_le_expect_add k (fun a => 1 - f a)
+    (fun a => sub_nonneg.mpr (h₁ a)) (fun a => sub_le_self _ (h₀ a))
+  simp only [Finset.expect_sub_distrib, Fintype.expect_const] at h
   linarith
 
 end Cslib.Probability.PMF

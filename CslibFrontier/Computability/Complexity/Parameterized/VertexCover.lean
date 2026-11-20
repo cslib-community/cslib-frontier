@@ -20,7 +20,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import Mathlib.Data.Nat.Bitwise
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
 
 /-!
 # Fixed-parameter tractability of vertex cover
