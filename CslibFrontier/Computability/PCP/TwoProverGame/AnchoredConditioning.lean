@@ -53,7 +53,7 @@ local notation "CheckedAnswers" => (C → A × B)
 local notation "Transcript" => ((Info × CheckedAnswers) × (Free → PairQ))
 
 /-- Draw the checked questions and the free-coordinate messages independently. -/
-noncomputable def infoLaw : PMF Info :=
+@[expose] noncomputable def infoLaw : PMF Info :=
   (pi fun _ : C => (G.anchored α).questions).bind fun checked =>
     (pi fun _ : Free => (law G.questions α).map Prod.fst).map fun messages =>
       ⟨checked, messages⟩
@@ -63,7 +63,7 @@ noncomputable def infoLaw : PMF Info :=
   conditionalSnd (law G.questions α) (t.halves j)
 
 /-- The law of the checked answers at a full tuple of questions. -/
-noncomputable def checkedAnswerLaw (S : RepeatedStrategy) (q : Fin n → PairQ) :
+@[expose] noncomputable def checkedAnswerLaw (S : RepeatedStrategy) (q : Fin n → PairQ) :
     PMF CheckedAnswers :=
   (S.answers (Prod.fst ∘ q) (Prod.snd ∘ q)).map fun (a, b) i => (a i, b i)
 

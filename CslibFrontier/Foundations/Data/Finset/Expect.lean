@@ -162,6 +162,14 @@ theorem expect_expect_update [DecidableEq ι] [Nonempty α] (F : (ι → α) →
     _ = 𝔼 p : (ι → α) × α, F p.1 := Fintype.expect_equiv e _ _ fun _ ↦ rfl
     _ = 𝔼 s, F s := Fintype.expect_comp_fst F
 
+/-- Two distinct coordinates of a uniform function are independent uniform samples. -/
+theorem expect_apply_pair [DecidableEq ι] [Nonempty α] (F : α → α → M) {i j : ι}
+    (hij : i ≠ j) : (𝔼 x : ι → α, F (x i) (x j)) = 𝔼 a : α, 𝔼 b : α, F a b := by
+  rw [← expect_expect_update (fun x : ι → α => F (x i) (x j)) j]
+  simp only [Function.update_of_ne hij, Function.update_self]
+  rw [← expect_expect_update (fun x : ι → α => 𝔼 b : α, F (x i) b) i]
+  simp only [Function.update_self, expect_const]
+
 /-- Renaming the coordinates preserves uniform averages over function types. -/
 theorem expect_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq ι] [DecidableEq κ]
     (e : ι ≃ κ) (h : (κ → α) → M) : 𝔼 x : ι → α, h (fun j => x (e.symm j)) = 𝔼 y, h y :=

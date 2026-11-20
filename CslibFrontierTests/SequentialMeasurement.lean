@@ -7,15 +7,15 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Foundations.Quantum.Algebra.SequentialDisturbance
+import CslibFrontier.Foundations.Quantum.Algebra.PrefixCommutator
 import CslibFrontierTests.QubitMeasurementFixture
 
 /-! # An interior coordinate of a sequential projective measurement -/
 
 set_option linter.privateModule false
 
-open Cslib.Quantum.Measurement
-open scoped ComplexOrder
+open Cslib.Quantum Cslib.Quantum.Measurement
+open scoped ComplexOrder BigOperators
 
 private def instructions (j : Fin 3) : Cslib.Quantum.Measurement Bool ℂ :=
   const (j == 1)
@@ -41,6 +41,28 @@ example :
   have h : (instructions 1).effect false = 0 := by simp [instructions, const]
   simp [h]
 
+
+private noncomputable def scalarState : AlgState ℂ where
+  toFun z := z
+  map_add' _ _ := rfl
+  map_smul' _ _ := rfl
+  monotone' _ _ h := h
+  map_one' := rfl
+
+/-- A two-measurement prefix has zero average commutator defect in the scalar strategy.
+The measured outcomes depend on the sampled questions. -/
+example :
+    (𝔼 x : Fin 3 → Fin 3,
+      prefixCommutatorDefect scalarState (instructions ∘ x) (2 : Fin 3)) = 0 := by
+  apply le_antisymm
+  · have hp (x y : Fin 3) :
+        pairCommutatorDefect scalarState (instructions x) (instructions y) = 0 :=
+      pairCommutatorDefect_eq_zero _ _ _ fun _ _ => Commute.all _ _
+    have h := average_prefixCommutatorDefect_le scalarState instructions instructions
+      projective projective (fun _ _ _ _ => Commute.all _ _) (2 : Fin 3)
+      (χ := 0) (ζ := 0) (by simp [hp]) (by simp)
+    simpa using h
+  · exact Finset.expect_nonneg fun _ _ => prefixCommutatorDefect_nonneg _ _ _
 open Cslib.Quantum Finset Matrix CslibFrontierTests.QubitMeasurementFixture
 open scoped MatrixOrder Matrix.Norms.L2Operator Real
 
@@ -88,21 +110,35 @@ private theorem isolated_score :
     EuclideanSpace.single, Matrix.mulVec, Matrix.vecMul, dotProduct,
     Fin.sum_univ_two, Fintype.sum_bool, diagonalProjection]
 
-private theorem prefix_defect :
-    Measurement.prefixCommutatorDefect φ qubitSequence 1 = 1 := by
+private theorem prefix_defect_eq_pair :
+    Measurement.prefixCommutatorDefect φ qubitSequence 1 =
+      Measurement.pairCommutatorDefect φ D U := by
   have h (p : Fin 1 → Bool) :
       Measurement.transcriptProduct (Measurement.before qubitSequence 1) p =
         U.effect (p 0) := by
     rw [Measurement.transcriptProduct_succ, Measurement.transcriptProduct_zero, mul_one]
     rfl
-  unfold Measurement.prefixCommutatorDefect
-  change (∑ a : Bool, ∑ p : Fin 1 → Bool, _) = 1
-  simp only [h]
+  unfold Measurement.prefixCommutatorDefect Measurement.transcriptCommutatorDefect
+    Measurement.pairCommutatorDefect
+  change (∑ a : Bool, ∑ p : Fin 1 → Bool, _) = _
+  simp only [h, (U.nonneg _).isSelfAdjoint.star_eq]
   simp_rw [← boolWord.symm.sum_comp]
-  simp only [boolWord, Equiv.symm_mk, Equiv.coe_fn_mk, Fintype.sum_bool]
-  norm_num [qubitSequence, U, D, binary, AlgState.norm_sq, φ, AlgState.vector_apply,
-    basisVector, EuclideanSpace.single, Matrix.star_apply, Matrix.mul_apply, Matrix.mulVec,
-    Matrix.vecMul, dotProduct, Fin.sum_univ_two, uniformProjection, diagonalProjection,
+  rfl
+
+private theorem pair_defect : Measurement.pairCommutatorDefect φ D U = 1 := by
+  norm_num [Measurement.pairCommutatorDefect, U, D, binary, AlgState.norm_sq, φ,
+    AlgState.vector_apply, basisVector, EuclideanSpace.single, Matrix.star_apply, Matrix.mul_apply,
+    Matrix.mulVec, Matrix.vecMul, dotProduct, Fin.sum_univ_two, Fintype.sum_bool, uniformProjection,
+    diagonalProjection, Matrix.one_apply]
+
+/-- The exposed formulas compute a nonzero algebraic commutator and a nonzero copy error. -/
+example : Measurement.pairCommutatorDefect φ D U = 1 ∧
+    Measurement.copyDefect φ D (Measurement.const true) = 2 := by
+  refine ⟨pair_defect, ?_⟩
+  norm_num [Measurement.copyDefect, D, Measurement.const, binary, AlgState.norm_sq, φ,
+    AlgState.vector_apply, basisVector, EuclideanSpace.single, Matrix.star_apply, Matrix.mul_apply,
+    Matrix.mulVec, Matrix.vecMul, dotProduct, Fin.sum_univ_two, Fintype.sum_bool,
+    diagonalProjection,
     Matrix.one_apply]
 
 /-- In the second measurement the selected score increases from zero to one half.
@@ -114,7 +150,7 @@ example : (1 / 2 : ℝ) ≤ 0 + 2 * √1 := by
       cases a
       · exact Commute.zero_right _
       · exact Commute.one_right _)
-  rw [weighted_score, isolated_score, prefix_defect] at h
+  rw [weighted_score, isolated_score, prefix_defect_eq_pair, pair_defect] at h
   exact h
 
 end Qubit

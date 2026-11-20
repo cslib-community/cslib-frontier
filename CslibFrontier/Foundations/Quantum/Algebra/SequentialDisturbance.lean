@@ -112,20 +112,25 @@ theorem weighted_sandwich_le (φ : AlgState A) (M : Measurement α A) (hM : M.Is
     hK, mul_one, show ∀ a, M.effect a * M.effect a = M.effect a from hM, X, Y] at hb
   simpa only [← Complex.re_sum, ← map_sum, ← sum_mul] using hb
 
-/-- The sum of squared commutator norms between the target projection and the adjoint
-of the preceding transcript product. Later measurements do not enter the defect. -/
+/-- Sum of squared commutator norms of the target effects with the adjoints of the
+transcript products. -/
+@[expose] noncomputable def transcriptCommutatorDefect {β : Type*} [Fintype β] {k : ℕ}
+    (φ : AlgState A) (E : Measurement β A) (M : Fin k → Measurement α A) : ℝ :=
+  ∑ a, ∑ p, φ.norm (E.effect a * star (transcriptProduct M p) -
+    star (transcriptProduct M p) * E.effect a) ^ 2
+
+/-- The commutator defect with the transcript preceding coordinate `i`. -/
 @[expose] noncomputable def prefixCommutatorDefect {k : ℕ} (φ : AlgState A)
     (M : Fin k → Measurement α A) (i : Fin k) : ℝ :=
-  ∑ a, ∑ p, φ.norm ((M i).effect a * star (transcriptProduct (before M i) p) -
-    star (transcriptProduct (before M i) p) * (M i).effect a) ^ 2
+  transcriptCommutatorDefect φ (M i) (before M i)
 
 theorem prefixCommutatorDefect_nonneg {k : ℕ} (φ : AlgState A)
     (M : Fin k → Measurement α A) (i : Fin k) : 0 ≤ prefixCommutatorDefect φ M i := by
-  unfold prefixCommutatorDefect
+  unfold prefixCommutatorDefect transcriptCommutatorDefect
   exact sum_nonneg fun _ _ => sum_nonneg fun _ _ => sq_nonneg _
 
 omit [Algebra ℂ A] [StarModule ℂ A] [SelfAdjointDecompose A] in
-private theorem star_transcriptProduct_commute {k : ℕ} (M : Fin k → Measurement α A)
+theorem star_transcriptProduct_commute {k : ℕ} (M : Fin k → Measurement α A)
     (W : A) (h : ∀ j a, Commute ((M j).effect a) W) (p : Fin k → α) :
     Commute (star (transcriptProduct M p)) W := by
   induction k with

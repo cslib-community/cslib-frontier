@@ -219,6 +219,58 @@ private theorem law_inr_apply (μ : PMF (X × Y)) (α : I) (m : Option Y)
   simpa only [Bool.false_eq_true, ite_false, ite_true, hzero, mul_zero, zero_add,
     Prod.map_apply, id_eq] using congrArg ((uniformOfFintype Bool) false * ·) hmap
 
+/-- Given a supported left message, the questions are sampled independently. -/
+theorem conditionalSnd_law_inl (μ : PMF (X × Y)) (α : I) (m : Option X)
+    (hm : Sum.inl m ∈ ((law μ α).map Prod.fst).support) :
+    conditionalSnd (law μ α) (Sum.inl m) =
+      (noisyQuestion α m).bind fun x =>
+        (conditionalSnd (messagePair μ α) m).map (x, ·) := by
+  have hcond : conditionalSnd (law μ α) (Sum.inl m) = conditionalSnd (leftLaw μ α) m := by
+    apply conditionalSnd_eq_of_scaled_slices _ _ _ _ 1 ((uniformOfFintype Bool) true) hm
+      one_ne_zero ENNReal.one_ne_top
+    intro q
+    rw [one_mul, law_inl_apply]
+  have hm' : m ∈ ((messagePair μ α).map Prod.fst).support := by
+    have hmass : ((law μ α).map Prod.fst) (Sum.inl m) =
+        (uniformOfFintype Bool) true * ((messagePair μ α).map Prod.fst) m := by
+      rw [map_fst_apply]
+      simp_rw [law_inl_apply]
+      rw [ENNReal.tsum_mul_left, ← map_fst_apply, leftLaw, map_fst_bind_pair]
+    rw [PMF.mem_support_iff, hmass, mul_ne_zero_iff] at hm
+    exact hm.2
+  rw [hcond, leftLaw]
+  exact conditionalSnd_bind_pair _ _ _ hm'
+
+/-- Given a supported right message, the questions are sampled independently. -/
+theorem conditionalSnd_law_inr (μ : PMF (X × Y)) (α : I) (m : Option Y)
+    (hm : Sum.inr m ∈ ((law μ α).map Prod.fst).support) :
+    conditionalSnd (law μ α) (Sum.inr m) =
+      (conditionalSnd (messagePair (μ.map Prod.swap) α) m).bind fun x =>
+        (noisyQuestion α m).map (x, ·) := by
+  have hr : rightLaw μ α =
+      ((messagePair (μ.map Prod.swap) α).map Prod.fst).bind fun r =>
+        ((conditionalSnd (messagePair (μ.map Prod.swap) α) r).bind fun x =>
+          (noisyQuestion α r).map (x, ·)).map (r, ·) := by
+    simp only [rightLaw, leftLaw, PMF.map_bind, PMF.map_comp, Function.comp_def]
+    congr 1 with r : 1
+    simp only [← PMF.bind_pure_comp, Function.comp_def]
+    exact PMF.bind_comm _ _ (fun y x => PMF.pure (r, x, y))
+  have hcond : conditionalSnd (law μ α) (Sum.inr m) = conditionalSnd (rightLaw μ α) m := by
+    apply conditionalSnd_eq_of_scaled_slices _ _ _ _ 1 ((uniformOfFintype Bool) false) hm
+      one_ne_zero ENNReal.one_ne_top
+    intro q
+    rw [one_mul, law_inr_apply]
+  have hm' : m ∈ ((messagePair (μ.map Prod.swap) α).map Prod.fst).support := by
+    have hmass : ((law μ α).map Prod.fst) (Sum.inr m) =
+        (uniformOfFintype Bool) false * ((messagePair (μ.map Prod.swap) α).map Prod.fst) m := by
+      rw [map_fst_apply]
+      simp_rw [law_inr_apply]
+      rw [ENNReal.tsum_mul_left, ← map_fst_apply, hr, map_fst_bind_pair]
+    rw [PMF.mem_support_iff, hmass, mul_ne_zero_iff] at hm
+    exact hm.2
+  rw [hcond, hr]
+  exact conditionalSnd_bind_pair _ _ _ hm'
+
 /-- Conditional on each supported tagged message, the probability of two anchors is at
 least `α² / 2`. The mass form also holds for unsupported messages. -/
 theorem law_bothAnchors_le (μ : PMF (X × Y)) (α : I) (m : Option X ⊕ Option Y) :

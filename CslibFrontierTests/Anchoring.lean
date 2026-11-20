@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 
@@ -92,4 +93,24 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   have h := (sum_dist_anchoredRest_given_wins chsh half {0} S hW).2
   have hw : (half : ℝ) ^ 2 / 2 = 1 / 8 := by norm_num [half]
   rw [hw] at h
+  linarith
+
+
+/-- A checked-answer branch of the two-copy experiment has a nonzero vector whenever
+the conditional law of the actual transcript gives those answers positive mass. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 2))
+    (j : {i : Fin 2 // i ∉ ({0} : Finset (Fin 2))})
+    (t : RestQuestions (Option Bool) (Option Bool) {0} j)
+    (ht : t ∈ (restQuestionsLaw chsh half {0} j).support)
+    (hq : (none, none) ∈ ((law chsh.questions half).map Prod.snd).support)
+    (hans : (fun _ => (true, true)) ∈
+      (conditionalSnd (observedCheckedAnswers chsh half {0} S j) ((none, none), t)).support) :
+    checkedVectorGivenRest chsh half {0} S j t (none, none)
+      (fun _ => true) (fun _ => true) ≠ 0 := by
+  have h := norm_checkedVectorGivenRest_sq_observed chsh half {0} S j t (none, none)
+    (fun _ => true) (fun _ => true) ht hq
+  have hmass := ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hans) (PMF.apply_ne_top _ _)
+  intro hz
+  rw [hz, norm_zero, zero_pow (by decide)] at h
   linarith

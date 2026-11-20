@@ -4121,6 +4121,7 @@ public import CslibFrontier.Computability.PCP.RegularConstraintGraph
 public import CslibFrontier.Computability.PCP.SelectedComposition
 public import CslibFrontier.Computability.PCP.ThreeSAT
 public import CslibFrontier.Computability.PCP.TwoProverGame
+public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
@@ -7160,6 +7161,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MeasurementMixture
+public import CslibFrontier.Foundations.Quantum.Algebra.PrefixCommutator
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialDisturbance
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.SuccessfulAgreement
@@ -7176,6 +7178,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.PartialTracePairing
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.QuantumPinsker
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
