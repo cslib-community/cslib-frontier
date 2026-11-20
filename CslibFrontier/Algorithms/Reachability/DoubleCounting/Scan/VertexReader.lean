@@ -23,7 +23,7 @@ on that prefix, including rejection of truncated words and out-of-range ranks.
 
 ## Main results
 
-* `run_prefix`, `halted_iff`, `query_run`: exact prefix registers and attempted-read count.
+* `run_eq_prefix`, `halted_iff`, `query_run`: exact prefix registers and attempted-read count.
 * `prefix_value_lt`: accumulator below `2 ^ min t N.size`, even on invalid choices.
 * `length_run_le`: all-clock binary-state bound, charging the retained dimension and width.
 * `result_eq_decodeVertex`: agreement with the existing codec, without a second encoding.
@@ -86,7 +86,7 @@ enc_structure encState : State where
   finish s := encOption encNat (result s)
 
 /-- Every live state contains precisely the numeric value of the prefix already read. -/
-theorem run_prefix (N : ℕ) (w : List Bool) (t : ℕ) (ht : t ≤ N.size) :
+private theorem run_prefix (N : ℕ) (w : List Bool) (t : ℕ) (ht : t ≤ N.size) :
     (machine N).run w t = ⟨N, N.size, t, binaryValue (w.take t), decide (w.length < t)⟩ := by
   induction t with
   | zero => simp [QueryMachine.run_zero, machine, binaryValue]
