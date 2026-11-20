@@ -102,6 +102,14 @@ theorem prod_filter_mem_eq_prod_filter_notMem {M : Type*} [CommMonoid M] [Fintyp
 
 end Finset
 
+/-- The uniform average of square roots is bounded by the square root of the average. -/
+theorem Fintype.expect_sqrt_le_sqrt_expect {ι : Type*} [Fintype ι]
+    (f : ι → ℝ) (hf : ∀ i, 0 ≤ f i) : (𝔼 i, √(f i)) ≤ √(𝔼 i, f i) := by
+  apply Real.le_sqrt_of_sq_le
+  simpa only [Real.sq_sqrt (hf _)] using Finset.sq_expect_le_expect_sq Finset.univ
+    (fun i => √(f i))
+
+
 namespace Real
 
 open Finset
@@ -352,6 +360,14 @@ theorem expect_add_sq_le {X Y : ι → 𝕜} {a b α β A : 𝕜} (ha : 0 ≤ a)
 end LinearOrderedField
 
 end Fintype
+
+/-- Averaging over a tuple is equivalent to averaging over its initial tuple and last entry. -/
+theorem Fintype.expect_fin_snoc {α M : Type*} [Fintype α] [AddCommMonoid M] [Module ℚ≥0 M]
+    {n : ℕ} (f : (Fin (n + 1) → α) → M) :
+    (𝔼 u : Fin n → α, 𝔼 t : α, f (Fin.snoc u t)) = 𝔼 v, f v := by
+  rw [Finset.expect_comm Finset.univ Finset.univ,
+    ← Fintype.expect_prod_type (fun p : α × (Fin n → α) => f (Fin.snoc p.2 p.1))]
+  exact Fintype.expect_equiv (Fin.snocEquiv (fun _ : Fin (n + 1) => α)) _ _ fun _ => rfl
 
 namespace Fin
 

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.CStar
 public import CslibFrontier.Foundations.Quantum.Algebra.PrefixCommutator
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Data.Fintype.Option
+import CslibFrontier.Probability.PMF.Event
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -43,7 +44,7 @@ variable {A α β κ : Type*} [CStarAlgebra A] [PartialOrder A] [StarOrderedRing
   [Fintype α] [Fintype β] [Fintype κ]
 
 /-- The sum of the successful effects within a completed measurement. -/
-def successfulEffect (M : Measurement (Option α) A) : A :=
+@[expose] def successfulEffect (M : Measurement (Option α) A) : A :=
   ∑ a, M.effect (some a)
 
 omit [StarOrderedRing A] in
@@ -51,6 +52,20 @@ theorem effect_none_eq_one_sub_successfulEffect (M : Measurement (Option α) A) 
     M.effect none = 1 - M.successfulEffect := by
   unfold successfulEffect
   exact eq_sub_of_add_eq (by simpa only [Fintype.sum_option] using M.sum_effect)
+
+omit [StarOrderedRing A] in
+/-- The expectation of the successful effect is the probability of a nonfailure outcome. -/
+theorem successfulEffect_eq_success_prob
+    (φ : AlgState A) (M : Measurement (Option α) A) :
+    (φ M.successfulEffect).re =
+      ((M.distribution φ).toOuterMeasure {q | q.isSome}).toReal := by
+  classical
+  simp only [Cslib.Probability.PMF.toOuterMeasure_apply_toReal, Fintype.sum_option,
+    Set.mem_ofPred_eq,
+    Option.isSome_none, Option.isSome_some, Bool.false_eq_true, ite_false, ite_true, zero_add,
+    Measurement.distribution_apply, ENNReal.toReal_ofReal (M.prob_nonneg φ _)]
+  unfold Measurement.successfulEffect Measurement.prob
+  rw [map_sum, Complex.re_sum]
 
 private theorem norm_sum_effect_mul_sq_le (φ : AlgState A)
     (M : Measurement β A) (hM : M.IsProjective) (ι : κ ↪ β) (X : κ → A) :
@@ -77,6 +92,12 @@ private theorem sum_norm_selected_effect_mul_sq_le (φ : AlgState A) (M : Measur
   calc
     _ = ∑ b ∈ univ.map ι, φ.norm (M.effect b * x) ^ 2 := by rw [sum_map]
     _ ≤ _ := sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => sq_nonneg _
+
+/-- Summing the successful projections does not increase the squared state norm. -/
+theorem sum_norm_some_effect_mul_sq_le (φ : AlgState A) (M : Measurement (Option α) A)
+    (hM : M.IsProjective) (x : A) :
+    (∑ a, φ.norm (M.effect (some a) * x) ^ 2) ≤ φ.norm x ^ 2 :=
+  sum_norm_selected_effect_mul_sq_le φ M hM Function.Embedding.some x
 
 /-- Commuting with each successful projection, together with a commuting copy for those
 projections, controls commutation with the total successful effect. -/

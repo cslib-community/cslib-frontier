@@ -70,7 +70,7 @@ private noncomputable def inconsistentSlices (i : Fin 3) :
   if i = 2 then some linearSlice else some zeroSlice
 
 /-- Once two zero slices force the zero polynomial, an incompatible third slice fails. -/
-example : pasteOutcome nodes inconsistentSlices = none := by
+private theorem inconsistentSlices_fail : pasteOutcome nodes inconsistentSlices = none := by
   cases h : pasteOutcome nodes inconsistentSlices with
   | none => rfl
   | some p =>
@@ -93,6 +93,21 @@ example : pasteOutcome nodes inconsistentSlices = none := by
     rw [hzero, map_zero] at hv'
     exact (X_ne_zero (R := F) (0 : Fin 1)) hv'.symm
 
+
+open scoped Classical in
+/-- The three incompatible slices can agree with a line at at most one prefix. -/
+example :
+    (Finset.univ.filter fun u => LocallyInterpolable nodes inconsistentSlices u).card ≤ 1 := by
+  have hcard : 1 < (successfulSlices inconsistentSlices).card := by
+    have h : successfulSlices inconsistentSlices = Finset.univ := by
+      ext i
+      by_cases hi : i = 2 <;> simp [inconsistentSlices, hi]
+    rw [h, Finset.card_univ]
+    decide
+  have h := card_locallyInterpolable_mul_card_le nodes inconsistentSlices hcard
+    inconsistentSlices_fail
+  simp only [ZMod.card, Nat.pow_one, Nat.one_mul] at h
+  omega
 
 private def twoNodes : Fin 2 ↪ F :=
   (Fin.castSuccEmb (n := 2)).trans nodes
@@ -334,3 +349,30 @@ example (φ : AlgState ℂ) :
     hpair hcopy hp
   norm_num [zeroVerifier_score] at h ⊢
   exact h
+
+open scoped Classical in
+/-- Even a successful slice cannot meet the degree-one threshold on a single
+sample. Completion puts the resulting unit failure effect on the chosen polynomial. -/
+example :
+    let M (_ : F) : Measurement (Option (BoundedPolynomial F 1 1)) ℂ :=
+      Measurement.const (some zeroSlice)
+    let hp (_ : F) := Measurement.isProjective_const (A := ℂ) (some zeroSlice)
+    (pasteSlices 1 M hp).effect none = 1 ∧
+      (completedPaste 1 M hp productPoly).effect productPoly = 1 := by
+  intro M hp
+  have hs (p : BoundedPolynomial F 2 1) : (pasteSlices 1 M hp).effect (some p) = 0 := by
+    rw [pasteSlices_effect]
+    refine Finset.sum_eq_zero fun x _ => ?_
+    rw [pasteProjectiveSlices_effect_some]
+    suffices hempty : (Finset.univ.filter fun g : Fin 1 → Option (BoundedPolynomial F 1 1) =>
+        1 < (successfulSlices g).card ∧ FitsSlices x g p) = ∅ by
+      rw [hempty, Finset.sum_empty, smul_zero]
+    apply Finset.eq_empty_iff_forall_notMem.mpr
+    intro g hg
+    have hcard := Finset.card_le_univ (successfulSlices g)
+    simp only [Fintype.card_fin] at hcard
+    exact (not_lt_of_ge hcard) (Finset.mem_filter.mp hg).2.1
+  have hf : (pasteSlices 1 M hp).effect none = 1 := by
+    rw [Measurement.effect_none_eq_one_sub_successfulEffect]
+    simp [Measurement.successfulEffect, hs]
+  exact ⟨hf, by rw [completedPaste_effect]; simp [hf, hs]⟩

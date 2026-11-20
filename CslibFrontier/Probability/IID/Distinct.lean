@@ -131,4 +131,16 @@ theorem expect_embedding_le_expect_add [Fintype α] [Nonempty α] (k : ℕ)
   rw [iid_uniformOfFintype, ← div_eq_mul_inv] at hcollision
   simpa only [s, mem_filter, mem_univ, true_and] using hcollision
 
+/-- Conditioning on distinct draws can decrease a bounded expectation by at most the
+birthday bound for independent uniform draws. -/
+theorem expect_le_expect_embedding_add [Fintype α] [Nonempty α] (k : ℕ)
+    [Nonempty (Fin k ↪ α)] (f : (Fin k → α) → ℝ) (h₀ : ∀ a, 0 ≤ f a) (h₁ : ∀ a, f a ≤ 1) :
+    letI : Fintype (Fin k ↪ α) := Fintype.ofFinite _
+    (𝔼 a, f a) ≤ (𝔼 x : Fin k ↪ α, f x) + (k.choose 2 : ℝ) / Fintype.card α := by
+  let _ : Fintype (Fin k ↪ α) := Fintype.ofFinite _
+  have h := expect_embedding_le_expect_add k (fun a => 1 - f a)
+    (fun a => sub_nonneg.mpr (h₁ a)) (fun a => sub_le_self _ (h₀ a))
+  simp only [Finset.expect_sub_distrib, Fintype.expect_const] at h
+  linarith
+
 end Cslib.Probability.PMF

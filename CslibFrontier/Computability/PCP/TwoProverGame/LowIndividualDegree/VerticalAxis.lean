@@ -63,13 +63,6 @@ theorem decodeVertical_agrees {d : ℕ} (u : Point F n) (t : F) {a b : Answer F 
   exact decodeAffinePolynomial_agrees _ _ t (fun _ => t)
     (by simpa only [verticalLine, ← snoc_eq_vertical_affine] using h) rfl
 
-omit [Field F] [DecidableEq F] in
-private theorem expect_snoc (f : Point F (n + 1) → ℝ) :
-    (𝔼 u : Point F n, 𝔼 t : F, f (Fin.snoc u t)) = 𝔼 w, f w := by
-  rw [expect_comm univ univ,
-    ← Fintype.expect_prod_type (fun p : F × Point F n => f (Fin.snoc p.2 p.1))]
-  exact Fintype.expect_equiv (Fin.snocEquiv (fun _ : Fin (n + 1) => F)) _ _ fun _ => rfl
-
 section Measurement
 
 variable [Ring A] [PartialOrder A] [IsOrderedAddMonoid A]
@@ -130,7 +123,7 @@ theorem verticalDisagreement_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ) 
       rw [linePoints_snoc_vertical]
       linarith
     _ ≤ _ := by
-      simp only [← Finset.mul_expect, expect_snoc, mul_assoc]
+      simp only [← Finset.mul_expect, Fintype.expect_fin_snoc, mul_assoc]
       exact mul_le_mul_of_nonneg_left (axisLossAt_le n d S (Fin.last n)) (by norm_num)
 
 section Norm
@@ -220,7 +213,7 @@ theorem bob_vertical_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ
       exact (pow_le_pow_left₀ (S.state.norm_nonneg _) h 2).trans (by
         nlinarith [sq_nonneg (S.state.norm (b - p) - S.state.norm (p - ℓ))])
     _ = 2 * (𝔼 w, point w) + 2 * (𝔼 u, 𝔼 t, line u t) := by
-      simp only [expect_add_distrib, ← Finset.mul_expect, expect_snoc]
+      simp only [expect_add_distrib, ← Finset.mul_expect, Fintype.expect_fin_snoc]
     _ ≤ _ := by
       have hp := decodedPoint_stateDist_le S d
       have hl := vertical_stateDist_le S d

@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Foundations.Quantum.Algebra.CompletedMeasurement
+import CslibFrontier.Foundations.Quantum.Algebra.SequentialBinomial
 import CslibFrontierTests.QubitMeasurementFixture
 
 /-! # An interior coordinate of a sequential projective measurement -/
@@ -76,6 +77,21 @@ example : successfulCopyDefect scalarState certainSuccess certainFailure = 1 ∧
   norm_num [certainSuccess, certainFailure, const, Fintype.sum_option, AlgState.norm_one,
     AlgState.norm_neg]
 
+
+/-- Two independent scalar questions have exactly the binomial effect for at least one success. -/
+example :
+    (𝔼 x : Fin 2 → Fin 3, ∑ g with 1 ≤ transcriptSuccessCount id g,
+      (scalarState ((sequentialProjective (instructions ∘ x) (fun j => projective (x j))).effect
+        g)).re) =
+      (scalarState (binomialAtLeast 2 1 (averageSuccessEffect instructions id))).re := by
+  have hp (x y : Fin 3) :
+      pairCommutatorDefect scalarState (instructions x) (instructions y) = 0 :=
+    pairCommutatorDefect_eq_zero _ _ _ fun _ _ => Commute.all _ _
+  have h := abs_sequentialSuccess_sub_binomialAtLeast_le scalarState instructions instructions
+    projective projective (fun _ _ _ _ => Commute.all _ _) id 2 1
+    (χ := 0) (ζ := 0) (by simp [hp]) (by simp)
+  simp only [mul_zero, add_zero, Real.sqrt_zero] at h
+  exact sub_eq_zero.mp (abs_eq_zero.mp (le_antisymm h (abs_nonneg _)))
 open Cslib.Quantum Finset Matrix CslibFrontierTests.QubitMeasurementFixture
 open scoped MatrixOrder Matrix.Norms.L2Operator Real
 
