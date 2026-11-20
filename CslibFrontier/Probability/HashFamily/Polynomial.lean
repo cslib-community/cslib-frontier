@@ -11,11 +11,14 @@ public import CslibFrontier.Probability.HashFamily
 public import Mathlib.Algebra.Field.Defs
 public import Mathlib.Algebra.Polynomial.Degree.Defs
 public import Mathlib.Algebra.Polynomial.Eval.Defs
+public import Mathlib.Data.ZMod.Defs
 public import Mathlib.LinearAlgebra.Pi
 import CslibFrontier.Foundations.Data.List.FoldlIdx
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Algebra.Polynomial.EraseLead
 import Mathlib.Algebra.Polynomial.Monic
+import Mathlib.Algebra.Ring.Int.Parity
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # Carter–Wegman polynomial evaluation
@@ -65,6 +68,9 @@ coefficient indices identifies the two APIs.
 * `Cslib.Probability.coeffPolyHash_eq_polynomialHash_rev`,
   `Cslib.Probability.polyHash_ofFn_eq`: bridges to the existing fixed- and variable-length APIs.
 * `Cslib.Probability.isUniversalHash_polyHash`: `polyHash` is `ℓ / |F|`-universal.
+* `Cslib.Probability.polyHash_two_blocks_eq_iff` and
+  `Cslib.Probability.not_isUniversalHash_polyHash_zmod_pow_two`: distinct two-block messages
+  are separated by some key. Modulo `2^(n+1)`, a three-block pair collides at every key.
 * `Cslib.Probability.isDeltaUniversalHash_xpolyHash`: `xpolyHash` is `(ℓ + 1) / |F|`-Δ-universal.
 
 ## References
@@ -205,8 +211,24 @@ theorem coeffPolyHash_eq_polynomialHash_rev (k : F) {n : ℕ} (x : Fin n → F) 
 
 /-- Boneh and Shoup's `Hpoly` ([BonehShoup2023], Equation 7.3): hash the message
 `(a₁, …, a_v)` with the key `k` to `k ^ v + a₁ k ^ (v - 1) + ⋯ + a_v`, by Horner's rule. -/
-def polyHash (k : F) (m : List F) : F :=
+def polyHash {F : Type*} [Semiring F] (k : F) (m : List F) : F :=
   m.foldl (fun acc a => acc * k + a) 1
+
+/-- Keys `0` and `1` separate two-block messages over any ring. This rules out the
+two-block collision at every key requested by [BonehShoup2023], Exercise 7.1 (v0.6, p. 277),
+for the hash of Equation 7.3. -/
+theorem polyHash_two_blocks_eq_iff {R : Type*} [Ring R] {a b c d : R} :
+    (∀ k, polyHash k [a, b] = polyHash k [c, d]) ↔ a = c ∧ b = d := by
+  constructor
+  · intro h
+    have hb : b = d := by
+      simpa only [polyHash, List.foldl_cons, List.foldl_nil, mul_zero, zero_add] using h 0
+    refine ⟨?_, hb⟩
+    have h1 : (1 + a) + b = (1 + c) + b := by
+      simpa only [polyHash, List.foldl_cons, List.foldl_nil, mul_one, ← hb] using h 1
+    exact add_left_cancel (add_right_cancel h1)
+  · rintro ⟨rfl, rfl⟩ k
+    rfl
 
 /-- Boneh and Shoup's `Hxpoly` ([BonehShoup2023], Equation 7.23): `k * polyHash k m`. -/
 def xpolyHash (k : F) (m : List F) : F :=
@@ -364,6 +386,41 @@ theorem isUniversalHash_polyHash [Fintype F] (ℓ : ℕ) :
       _ ≤ (toPoly m.1 - toPoly m'.1).natDegree := card_roots' _
       _ ≤ ℓ := (natDegree_sub_le _ _).trans <| max_le
           ((monic_toPoly m.1).2.trans_le m.2) ((monic_toPoly m'.1).2.trans_le m'.2)
+
+/-- For the hash of Equation 7.3 modulo `2^(n+1)`, the three-block messages
+`[2^n, -2^n, 0]` and `[0, 0, 0]` collide at every key. This gives the failure of
+universality sought by [BonehShoup2023], Exercise 7.1 (v0.6, p. 277), with three blocks
+in place of the requested two. The seed distribution can be arbitrary. -/
+theorem not_isUniversalHash_polyHash_zmod_pow_two (n : ℕ) {ℓ : ℕ} (hℓ : 3 ≤ ℓ)
+    (seed : PMF (ZMod (2 ^ (n + 1)))) {ε : ℝ≥0∞} (hε : ε < 1) :
+    ¬ IsUniversalHash seed
+      (fun k (m : {m : List (ZMod (2 ^ (n + 1))) // m.length ≤ ℓ}) => polyHash k m) ε := by
+  let c : ZMod (2 ^ (n + 1)) := ((2 ^ n : ℕ) : ZMod (2 ^ (n + 1)))
+  have hc : c ≠ 0 := by
+    have hpos : 0 < (2 : ℕ) ^ n := pow_pos (by decide) _
+    have hlt : (2 : ℕ) ^ n < 2 ^ (n + 1) :=
+      pow_lt_pow_right₀ (by decide) (Nat.lt_succ_self n)
+    intro h
+    exact hlt.not_ge (Nat.le_of_dvd hpos ((ZMod.natCast_eq_zero_iff _ _).mp h))
+  have hcollision (k : ZMod (2 ^ (n + 1))) :
+      polyHash k [c, -c, 0] = polyHash k [0, 0, 0] := by
+    obtain ⟨t, ht⟩ := Int.even_mul_pred_self (ZMod.cast k)
+    have hk : k * (k - 1) = (t : ZMod (2 ^ (n + 1))) + t := by
+      simpa only [Int.cast_mul, Int.cast_sub, Int.cast_one, Int.cast_add,
+        ZMod.intCast_zmod_cast] using congrArg (fun z : ℤ => (z : ZMod (2 ^ (n + 1)))) ht
+    have hc2 : c + c = 0 := by
+      dsimp only [c]
+      rw [← Nat.cast_add, ← Nat.mul_two, ← pow_succ, ZMod.natCast_self]
+    apply sub_eq_zero.mp
+    calc
+      polyHash k [c, -c, 0] - polyHash k [0, 0, 0] = c * (k * (k - 1)) := by
+        simp only [polyHash, List.foldl_cons, List.foldl_nil]
+        ring
+      _ = (c + c) * t := by rw [hk, mul_add, add_mul]
+      _ = 0 := by rw [hc2, zero_mul]
+  intro h
+  exact hε.not_ge (h.one_le_of_forall_eq (x := ⟨[c, -c, 0], hℓ⟩) (x' := ⟨[0, 0, 0], hℓ⟩)
+    (fun heq => hc (List.cons.inj (congrArg Subtype.val heq)).1) hcollision)
 
 private theorem card_mul_eval_sub_eq_le [Fintype F] [DecidableEq F] {p q : F[X]}
     (hpq : p ≠ q) (d : F) :

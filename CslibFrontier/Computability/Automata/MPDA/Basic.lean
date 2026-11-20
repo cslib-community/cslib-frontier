@@ -41,6 +41,8 @@ The paper has a single initial state; we allow a set of initial states, as `NA` 
 
 - `MPDA.configLTS_mTr_state`: every run on configurations projects to a run of the control.
 - `MPDA.IsVisibly.kind_eq`: every operation of a run of a visibly MPDA has the kind of its letter.
+- `MPDA.exists_inv_pair_of_configLTS_mTr`: an invariant of two-stack configurations and the input
+  read that every transition preserves holds along runs.
 
 ## References
 
@@ -180,6 +182,9 @@ inductive OpKind (n : ℕ) where
 theorem Op.kind_eq_push {op : Op n Γ} {i : Fin n} : op.kind = .push i ↔ ∃ γ, op = .push i γ := by
   cases op <;> simp
 
+theorem Op.kind_eq_pop {op : Op n Γ} {i : Fin n} : op.kind = .pop i ↔ ∃ γ, op = .pop i γ := by
+  cases op <;> simp
+
 /-- A configuration of an MPDA: a control state and the contents of all stacks. -/
 @[ext]
 structure Config (n : ℕ) (State Γ : Type*) where
@@ -275,6 +280,28 @@ theorem configLTS_mTr_replicate_pop_one (h : M.Tr q (x, .pop 1 γ) q) (s₀ : Li
     Stacks.pair s₀ (List.replicate k γ ++ s₁) from Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩] at this
 
 end RepeatPair
+
+/-- An invariant of the control state, the contents of two stacks and the input read so far
+that holds at the start of a run and is preserved by every transition holds at its end. -/
+theorem exists_inv_pair_of_configLTS_mTr {M : MPDA 2 State Symbol Γ}
+    (Inv : State → List Γ → List Γ → List Symbol → Prop)
+    (hstep : ∀ {q q' : State} {s₀ s₁ : List Γ} {u : List Symbol} {μ : Symbol × Op 2 Γ}
+      {σ : Stacks 2 Γ}, Inv q s₀ s₁ u → M.configLTS.Tr ⟨q, Stacks.pair s₀ s₁⟩ μ ⟨q', σ⟩ →
+        ∃ t₀ t₁, σ = Stacks.pair t₀ t₁ ∧ Inv q' t₀ t₁ (u ++ [μ.1]))
+    {q : State} {s₀ s₁ : List Γ} {μs : List (Symbol × Op 2 Γ)} {c : Config 2 State Γ}
+    (h : M.configLTS.MTr ⟨q, Stacks.pair s₀ s₁⟩ μs c) (h₀ : Inv q s₀ s₁ []) :
+    ∃ t₀ t₁, c.contents = Stacks.pair t₀ t₁ ∧ Inv c.state t₀ t₁ (μs.map Prod.fst) := by
+  induction μs using List.reverseRecOn generalizing c with
+  | nil =>
+    obtain rfl := LTS.MTr.nil_eq _ h
+    exact ⟨s₀, s₁, rfl, h₀⟩
+  | append_singleton μs μ ih =>
+    obtain ⟨⟨q', σ'⟩, h₁, h₂⟩ := LTS.MTr.split h
+    obtain ⟨t₀, t₁, hc', hinv⟩ := ih h₁
+    simp only at hc' hinv
+    subst hc'
+    obtain ⟨u₀, u₁, hσ, hinv'⟩ := hstep hinv ((LTS.MTr.singleton_iff _ _ _ _).mp h₂)
+    exact ⟨u₀, u₁, hσ, by simpa using hinv'⟩
 
 /-- An MPDA reads the letters visibly for `κ` if every transition on a letter `a` performs an
 operation of kind `κ a`. -/
