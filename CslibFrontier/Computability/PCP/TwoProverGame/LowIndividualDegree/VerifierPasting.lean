@@ -281,7 +281,9 @@ theorem average_completedPaste_disagreement_le_of_slice_majorants
   have hpair : (𝔼 x : F, 𝔼 y : F, Measurement.successfulPairDefect S.state (M x) (M y)) ≤
       commutatorError :=
     polynomialSlice_successfulPairDefect_le S.swap hPoint hLine d M R hM hR hCopies
-      Z hZ hbound (fun x w g _ => commute_decodedPoint _ _ _ (fun b => hComm x (.point w) g b) _)
+      Z hZ hbound (fun x w g a =>
+        Measurement.commute_map_right (S.bob (.point w)) decodePoint _
+          (fun b => hComm x (.point w) g b) a)
       hMZ hcopy hfail hpoint'
   exact average_completedPaste_disagreement_le_of_verifier k hk S M R hM hR hComm hCopies
     fallback hθ₀ hθ₁ hsize hmass hpair hcopy hpoint
