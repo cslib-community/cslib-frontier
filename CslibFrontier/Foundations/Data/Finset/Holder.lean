@@ -35,6 +35,7 @@ uniform-average forms are their instances at `s = univ`.
 * `Finset.expect_rpow_le_rpow_mul_rpow`: log-convexity of moments over a finset.
 * `Fintype.expect_mul_le_rpow_mul_rpow`: Hölder's inequality for uniform averages.
 * `Fintype.expect_rpow_le_rpow_mul_rpow`: log-convexity of moments.
+* `Fintype.expect_rpow_le_rpow_expect`: Jensen's inequality for sublinear powers.
 
 ## References
 
@@ -118,5 +119,14 @@ theorem expect_rpow_le_rpow_mul_rpow {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) {�
     (hθ₀ : 0 < θ) (hθ₁ : θ < 1) (hp : 0 ≤ p) (hq : 0 ≤ q) :
     𝔼 x, f x ^ (θ * p + (1 - θ) * q) ≤ (𝔼 x, f x ^ p) ^ θ * (𝔼 x, f x ^ q) ^ (1 - θ) :=
   Finset.expect_rpow_le_rpow_mul_rpow univ (fun x _ => hf x) hθ₀ hθ₁ hp hq
+
+/-- A sublinear power of a nonnegative function has average at most the
+same power of its average. -/
+theorem expect_rpow_le_rpow_expect [Nonempty α] {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) {p : ℝ}
+    (hp₀ : 0 < p) (hp₁ : p < 1) :
+    (𝔼 x, f x ^ p) ≤ (𝔼 x, f x) ^ p := by
+  have h := expect_rpow_le_rpow_mul_rpow hf (p := 1) (q := 0) hp₀ hp₁ zero_le_one le_rfl
+  simpa only [mul_one, mul_zero, add_zero, Real.rpow_one, Real.rpow_zero,
+    Fintype.expect_const, Real.one_rpow] using h
 
 end Fintype

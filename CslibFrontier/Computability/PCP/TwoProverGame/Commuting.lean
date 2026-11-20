@@ -15,6 +15,7 @@ import CslibFrontier.Probability.PMF.Event
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Foundations.Quantum.Algebra.TensorState
 
 /-!
 # Commuting-operator strategies
@@ -339,6 +340,22 @@ noncomputable def rightMeasurement (N : POVM B κ) : Measurement B (Matrix (ι �
   nonneg b := Matrix.nonneg_iff_posSemidef.mpr (PosSemidef.one.kronecker (N.posSemidef b))
   sum_effect := by rw [← one_kronecker_sum, N.sum_effect, one_kronecker_one]
 
+/-- A projective local measurement stays projective on the first tensor factor. -/
+theorem leftMeasurement_isProjective (M : POVM A ι) (h : M.toMeasurement.IsProjective) :
+    (leftMeasurement (κ := κ) M).IsProjective := by
+  intro a
+  change (M.effect a ⊗ₖ (1 : Matrix κ κ ℂ)) * (M.effect a ⊗ₖ 1) = M.effect a ⊗ₖ 1
+  rw [← mul_kronecker_mul, Matrix.one_mul]
+  exact congrArg (· ⊗ₖ (1 : Matrix κ κ ℂ)) (h a)
+
+/-- A projective local measurement stays projective on the second tensor factor. -/
+theorem rightMeasurement_isProjective (M : POVM B κ) (h : M.toMeasurement.IsProjective) :
+    (rightMeasurement (ι := ι) M).IsProjective := by
+  intro a
+  change ((1 : Matrix ι ι ℂ) ⊗ₖ M.effect a) * (1 ⊗ₖ M.effect a) = 1 ⊗ₖ M.effect a
+  rw [← mul_kronecker_mul, Matrix.one_mul]
+  exact congrArg ((1 : Matrix ι ι ℂ) ⊗ₖ ·) (h a)
+
 /-- A tensor-product strategy as a commuting-operator strategy on the matrix algebra of
 `ℂ^ι ⊗ ℂ^κ`: the effects `E ⊗ 1` and `1 ⊗ F` and the vector state of the shared state. -/
 noncomputable def toCommuting (S : QuantumStrategy X Y A B ι κ) :
@@ -380,6 +397,27 @@ theorem commutingWinProb_toCommuting (S : QuantumStrategy X Y A B ι κ) :
   congr 1
   funext x y
   exact QuantumStrategy.answers_toCommuting S x y
+
+/-- Exchanging the players of a symmetric tensor strategy preserves its score in
+any game with the same question and answer alphabets on both sides. -/
+theorem commutingWinProb_swap_of_symmetric {Q C J : Type*}
+    [Fintype C] [Fintype J] [DecidableEq J]
+    (G : TwoProverGame Q Q C C) (S : QuantumStrategy Q Q C C J J)
+    (hM : S.bob = S.alice) (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a)) :
+    G.commutingWinProb S.toCommuting.swap = G.commutingWinProb S.toCommuting := by
+  classical
+  have hprob (x y : Q) (a b : C) :
+      S.toCommuting.swap.prob x y a b = S.toCommuting.prob x y a b := by
+    rw [CommutingStrategy.prob_swap, QuantumStrategy.prob_toCommuting,
+      QuantumStrategy.prob_toCommuting]
+    simp only [QuantumStrategy.prob_eq, hM]
+    exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
+      ((S.alice y).effect b) ((S.alice x).effect a))
+  unfold commutingWinProb
+  congr 1
+  funext x y
+  ext ⟨a, b⟩
+  simp only [CommutingStrategy.answers_apply, hprob]
 
 end TwoProverGame
 

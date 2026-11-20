@@ -213,21 +213,6 @@ private theorem sandwichedPolynomial_right (M : Q → POVM Ans ι) (T : POVM Pol
     (fun q => QuantumStrategy.rightMeasurement (M q)) (QuantumStrategy.rightMeasurement T)
     (fun _ _ => rfl) (fun _ => rfl) a
 
-private theorem symmetric_winProb_swap
-    (S : QuantumStrategy Q Q Ans Ans ι ι) (hM : S.bob = S.alice)
-    (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a)) (b : Branch) :
-    (branchGame (F := F) n d b).commutingWinProb S.toCommuting.swap =
-      (branchGame (F := F) n d b).commutingWinProb S.toCommuting := by
-  classical
-  have hprob (x y : Q) (a b : Ans) :
-      S.toCommuting.swap.prob x y a b = S.toCommuting.prob x y a b := by
-    rw [CommutingStrategy.prob_swap, QuantumStrategy.prob_toCommuting,
-      QuantumStrategy.prob_toCommuting]
-    simp only [QuantumStrategy.prob_eq, hM]
-    exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
-      ((S.alice y).effect b) ((S.alice x).effect a))
-  simp only [TwoProverGame.commutingWinProb_eq_sum, hprob]
-
 private theorem selfImprovement_budget (m δ ε r : ℝ) (hm : 1 ≤ m)
     (hδ : 0 ≤ δ) (hε : 0 ≤ ε) (hr : 0 ≤ r) :
     let t := √ε + √δ + √r
@@ -309,18 +294,12 @@ theorem exists_symmetricSelfImprovement
   have hz : ζ = 100 * (m * t) := by
     change 100 * m * t = 100 * (m * t)
     ring
-  have hL (q : Q) : (C.alice q).IsProjective := by
-    intro a
-    have h := congrArg (kroneckerOne (κ := ι)) (hprojective q a)
-    change (kroneckerOne ((S.alice q).effect a)) * (kroneckerOne ((S.alice q).effect a)) =
-      kroneckerOne ((S.alice q).effect a)
-    simpa only [map_mul, POVM.toMeasurement_effect] using h
+  have hL (q : Q) : (C.alice q).IsProjective :=
+    QuantumStrategy.leftMeasurement_isProjective (S.alice q) (hprojective q)
   have hR (q : Q) : (C.bob q).IsProjective := by
-    intro a
-    have h := congrArg (oneKronecker (ι := ι)) (hprojective q a)
-    change (oneKronecker ((S.bob q).effect a)) * (oneKronecker ((S.bob q).effect a)) =
-      oneKronecker ((S.bob q).effect a)
-    simpa only [hM, map_mul, POVM.toMeasurement_effect] using h
+    change (QuantumStrategy.rightMeasurement (ι := ι) (S.bob q)).IsProjective
+    rw [hM]
+    exact QuantumStrategy.rightMeasurement_isProjective (S.alice q) (hprojective q)
   obtain ⟨T, Z, hZ, hmajor, hmass, hpoint, hgap, hstrong⟩ :=
     exists_tensorSelfImprovement S G η (fun _ => hR _) (fun _ => hL _)
       (fun _ => hR _) (fun _ => hL _) hinput
@@ -404,7 +383,7 @@ theorem exists_symmetricSelfImprovement
     rw [htrace] at hstrong
     have hxy (g : Poly) : Commute (L.effect (some g)) (R.effect (some g)) :=
       commute_kroneckerOne_oneKronecker (H.effect (some g)) (H.effect (some g))
-    simp only [← (hxy _).eq, symmetric_winProb_swap S hM hψ] at hstrong
+    simp only [← (hxy _).eq, TwoProverGame.commutingWinProb_swap_of_symmetric _ S hM hψ] at hstrong
     by_cases hsmall : r ≤ 1
     · refine hstrong.trans ?_
       change 5 * √(2 * δ) + 5 * √ξ + 2 * √ξ + m * d / Fintype.card F ≤ ζ
