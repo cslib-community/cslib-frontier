@@ -35,8 +35,16 @@ theorem length_xorKeyedEval (n : ℕ) (k x : List Bool) :
 theorem computableInPolyTime_xorKeyedEval :
     ComputableInPolyTime (fun ⟨n, k, x⟩ => xorKeyedEval n k x)
       (encPair encUnary (encPair encBits encBits)) encBits := by
-  unfold xorKeyedEval padOrTake
-  polytime
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair encUnary (encPair encBits encBits))
+  have hM := hp.fst'.unary_add' (ComputableInPolyTime.const 1)
+  have hleft := computableInPolyTime_padOrTake.comp
+    (hM.prod (hp.snd'.snd'.bitsTakeWithInput hM))
+  have hright := computableInPolyTime_padOrTake.comp
+    (hM.prod (hp.snd'.snd'.bitsDropWithInput hM))
+  exact ComputableInPolyTime.bitsZipWithInput Bool.xor
+    (ComputableInPolyTime.bitsZipWithInput Bool.xor hleft hright)
+    (computableInPolyTime_padOrTake.comp (hM.prod hp.snd'.fst'))
 
 /-- Concrete nonvacuous `KeyedCompressionFamily` (`keyLen n = n`, `blockLen n = n + 1`). -/
 def xorKeyedCompression : KeyedCompressionFamily where

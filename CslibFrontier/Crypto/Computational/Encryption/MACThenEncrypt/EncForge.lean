@@ -154,40 +154,40 @@ private theorem computableInPolyTime_mteMACPost {S : Type} (encS : S ↪ List Bo
         (E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1).isSome)
       EPost encBool :=
     hdec.optionIsSome
-  have hdecTidy : ComputableTidilyInPolyTime
+  have hdecPlain : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1)
       EPost (encOption encBits) :=
-    hdec.tidy
-  have hpt : ComputableTidilyInPolyTime
+    hdec
+  have hpt : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         (E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1).getD [])
       EPost encBits :=
-    hdecTidy.optionGetDWithInput (ComputableInPolyTime.const []).tidy
+    hdecPlain.optionGetDWithInput (ComputableInPolyTime.const [])
   have hmsgLen : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) => M.msgLen p.1.1.1)
       EPost encUnary :=
     M.msgLen_polyTime.comp (by dsimp only [EPost, ECaller]; fun_prop)
-  have hs : ComputableTidilyInPolyTime
+  have hs : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         (E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1).isSome)
-      EPost encBool := hdecSome.tidy
-  have hm : ComputableTidilyInPolyTime
+      EPost encBool := hdecSome
+  have hm : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) => M.msgLen p.1.1.1)
-      EPost encUnary := hmsgLen.tidy
-  have hmsg := ComputableTidilyInPolyTime.unframe.comp hpt
-  have htag := ComputableTidilyInPolyTime.dropFrame.comp hpt
-  have hframeEq := (hmsg.prod htag).encoded.beq hpt
-  have hlenEq := ((by fun_prop : ComputableTidilyInPolyTime (fun x : List Bool => x.length)
+      EPost encUnary := hmsgLen
+  have hmsg := ComputableInPolyTime.unframe.comp hpt
+  have htag := ComputableInPolyTime.dropFrame.comp hpt
+  have hframeEq := (hmsg.prod htag).encoding_comp.beq hpt
+  have hlenEq := ((by fun_prop : ComputableInPolyTime (fun x : List Bool => x.length)
     encBits encUnary).comp hmsg).beq hm
-  have hfallback : ComputableTidilyInPolyTime
+  have hfallback : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         ((if M.msgLen p.1.1.1 == 0 then [false] else []), ([] : List Bool)))
       EPost (encPair encBits encBits) :=
-    ((hm.beq (ComputableTidilyInPolyTime.const 0)).cond (ComputableTidilyInPolyTime.const [false])
-      (ComputableTidilyInPolyTime.const [])).prod (ComputableTidilyInPolyTime.const [])
-  exact (((hs.bool_and' hframeEq).bool_and' hlenEq).cond (hmsg.prod htag)
-    hfallback).computableInPolyTime
+    ((hm.beq (ComputableInPolyTime.const 0)).ite' (ComputableInPolyTime.const [false])
+      (ComputableInPolyTime.const [])).prod (ComputableInPolyTime.const [])
+  exact (((hs.bool_and' hframeEq).bool_and' hlenEq).ite' (hmsg.prod htag)
+    hfallback)
 
 /-- `mteToMACForger` is oracle PPT when the adversary is and `ptLen` and `tagBound` are
 polynomial-time computable. -/

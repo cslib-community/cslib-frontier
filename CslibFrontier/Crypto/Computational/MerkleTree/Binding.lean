@@ -378,8 +378,8 @@ theorem computableInPolyTime_merkleVerify
         decide (p.2.1.2 < 2 ^ p.1.2))
       (encPair (encPair encBits encUnary)
         (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encBool :=
-    .of_tidy (ComputableTidilyInPolyTime.binary_lt' hi.tidy
-      (ComputableInPolyTime.binary_two_pow.comp hd).tidy)
+    (ComputableInPolyTime.binary_lt' hi
+      (ComputableInPolyTime.binary_two_pow.comp hd))
   have hlength : ComputableInPolyTime
       (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) =>
         p.2.2.2.length == p.1.2)

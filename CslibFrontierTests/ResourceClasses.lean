@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.Classes.Inclusions
 import CslibFrontier.Computability.Complexity.Classes.Ladner
 import CslibFrontier.Computability.Complexity.Classes.ZPP
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-! The parametric time classes and their polynomial unions, exponential time, `ZPP`, and the
 inclusions between the standard classes, with concrete members witnessing that the classes are

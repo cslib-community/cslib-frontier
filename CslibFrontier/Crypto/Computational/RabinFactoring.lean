@@ -17,6 +17,7 @@ public import CslibFrontier.Crypto.Computational.QuadraticResiduosity
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import Cslib.Foundations.Data.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Crypto.Negligible.Basic
@@ -348,7 +349,11 @@ private theorem computableInPolyTime_crtStep {α : Type} {enc : α ↪ List Bool
     (ha' : ComputableInPolyTime a' enc encNat) :
     ComputableInPolyTime (fun x => crtStep (sp x) (sq x) (inv x) (a' x)) enc encNat := by
   unfold crtStep
-  fun_prop
+  exact ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.binary_mul'
+      (ComputableInPolyTime.binary_sub.comp
+        ((ComputableInPolyTime.binary_add.comp (hsp.prod ha')).prod
+          (ComputableInPolyTime.binary_mod' hsq ha'))) hinv) ha'
 
 private theorem computableInPolyTime_crtSqrt {α : Type} {enc : α ↪ List Bool}
     {y a b : α → ℕ}
@@ -426,7 +431,14 @@ theorem isPPTOn_rabinToFactor {A : ℕ → ℕ × ℕ → ProbComp ℕ}
       (IsPPTOn.preprocess hA
         (prepare := fun x : (ℕ × ℕ) × List Bool =>
           (x.1.1, (x.1.2, (ofBits x.2) ^ 2 % x.1.2)))
-        (by fun_prop)) ?_
+        (by
+          have hp := ComputableInPolyTime.id'
+            (encIn := encPair (encPair encUnary encNat) encBits)
+          have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'
+          have hy := ComputableInPolyTime.binary_mod'
+            (ComputableInPolyTime.binary_mul' hx hx) hp.fst'.snd'
+          simpa only [pow_two, Function.comp_def] using
+            hp.fst'.fst'.prod (hp.fst'.snd'.prod hy))) ?_
     have hno : ComputableInPolyTime
         (fun x : ((ℕ × ℕ) × List Bool) × ℕ => rabinFactorPair (ofBits x.1.2 + x.2) x.1.1.2)
         (encPair (encPair (encPair encUnary encNat) encBits) encNat) (encPair encNat encNat) :=
