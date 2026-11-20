@@ -96,8 +96,6 @@ end Events
 
 section Chains
 
-open Classical
-
 variable {w : List (α × Op n Γ)}
 
 /-- A push on stack `i` that is not closed by a well-nested continuation. -/
@@ -125,6 +123,7 @@ theorem Ext.eq_of_le {i : Fin n} {q r r' : ℕ} (h : Ext w i q r) (h' : Ext w i 
     (by omega) hpush
   exact hnot hwm
 
+open Classical in
 /-- The greedy chain from position `q`, oldest first: `q`, then the least extension, and so on. -/
 noncomputable def chainFrom (w : List (α × Op n Γ)) (i : Fin n) (q : ℕ) : List ℕ :=
   if h : ∃ r, Ext w i q r then q :: chainFrom w i (Nat.find h) else [q]
@@ -135,14 +134,17 @@ decreasing_by
   have := hspec.1
   omega
 
+open Classical in
 theorem chainFrom_eq {i : Fin n} {q : ℕ} : chainFrom w i q =
     if h : ∃ r, Ext w i q r then q :: chainFrom w i (Nat.find h) else [q] := by
   rw [chainFrom]
 
+open Classical in
 theorem mem_chainFrom_self {i : Fin n} {q : ℕ} : q ∈ chainFrom w i q := by
   rw [chainFrom_eq]
   split_ifs <;> simp
 
+open Classical in
 /-- Every element of the greedy chain after `q` is a hole push of stack `i`, and the elements
 increase. -/
 theorem chainFrom_spec {i : Fin n} :
@@ -168,6 +170,7 @@ decreasing_by
   have := hspec.1
   omega
 
+open Classical in
 /-- **Greedy chains are closed under extension**: an extension of an element of the chain is in
 the chain. -/
 theorem mem_chainFrom_of_ext {i : Fin n} : ∀ q, ∀ p ∈ chainFrom w i q, ∀ r, Ext w i p r →
@@ -251,8 +254,7 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
     rw [hl] at he' hpw
     rcases List.mem_append.mp he' with he' | he'
     · exact ((List.pairwise_append.mp hpw).2.2 e' he' e (by simp)).le
-    · simp at he'
-      rw [he']
+    · rw [List.mem_singleton.mp he']
   -- If two pending pushes are joined like one hole, they lie in the same chain, the older first.
   have hsame : ∀ p q, p < q → q < t → PendingAt w p t → PendingAt w q t →
       (∃ j, IsPushOn w j p ∧ IsPushOn w j q) → (∃ j, IsHolePushOn w j q) →
@@ -399,8 +401,7 @@ end Helpers
 
 section Block
 
-open Classical
-
+open Classical in
 /-- The end of the hole block of the greedy chain from `q`: after its last push, the longest
 well-nested factor. -/
 noncomputable def blockEnd (w : List (α × Op n Γ)) (i : Fin n) (q : ℕ) : ℕ :=
@@ -423,6 +424,7 @@ theorem Realizes.prepend {i : Fin n} {s s₁ t : State} {γ : Γ} {r : List (Γ 
   | nil => exact .cons .nil hγ
   | cons _ hγ' ih => exact .cons ih hγ'
 
+open Classical in
 /-- **The block of a greedy chain along a run**: from a push at `q`, the greedy chain is a hole
 block, the run through it realizes the hole triple from the state at `q` to the state at the end of
 the block, and pushes the chain's symbols on stack `i`. -/
@@ -516,8 +518,7 @@ end Block
 
 section Invariant
 
-open Classical
-
+open Classical in
 theorem chainFrom_lt_blockEnd {w : List (α × Op n Γ)} {i : Fin n} :
     ∀ q, q < w.length → ∀ r ∈ chainFrom w i q, r < blockEnd w i q
   | q, hq, r, hr => by
@@ -542,6 +543,7 @@ decreasing_by
     have := hspec.1
     omega
 
+open Classical in
 theorem blockEnd_event {w : List (α × Op n Γ)} {i : Fin n} :
     ∀ q, q < w.length → blockEnd w i q < w.length →
       (¬∃ a, w[blockEnd w i q]? = some (a, .nop)) ∧ ¬WellMatched w (blockEnd w i q)
@@ -649,8 +651,6 @@ end Invariant
 /-! ## The pop step -/
 
 section PopStep
-
-open Classical
 
 variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
   [DecidableEq Γ] {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
@@ -856,8 +856,6 @@ end PopStep
 
 section HoleStep
 
-open Classical
-
 /-- A push pending before a push stays pending across it. -/
 theorem pendingAt_of_push {w : List (α × Op n Γ)} {p t : ℕ} {a : α} {i : Fin n} {γ : Γ}
     (h : PendingAt w p (t - 1)) (hpt : p < t) (hwt : w[t]? = some (a, .push i γ)) :
@@ -988,8 +986,7 @@ end HoleStep
 
 section Complete
 
-open Classical
-
+open Classical in
 theorem blockEnd_le_length {w : List (α × Op n Γ)} {i : Fin n} :
     ∀ q, q < w.length → blockEnd w i q ≤ w.length
   | q, hq => by
@@ -1047,7 +1044,7 @@ theorem isEmpty_iff [DecidablePred (· ∈ M.accept)] {K : ℕ} :
     M.isEmpty K = true ↔ M.boundedLanguage (HoleBounded K) = 0 := by
   constructor
   · intro h
-    show _ = (∅ : Set _)
+    change _ = (∅ : Set _)
     refine Set.eq_empty_iff_forall_notMem.mpr fun x hx => ?_
     rw [isEmpty_eq_false_of_mem_boundedLanguage hx] at h
     exact Bool.false_ne_true h
