@@ -984,4 +984,80 @@ theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
 
 end HoleStep
 
+/-! ## Completeness -/
+
+section Complete
+
+open Classical
+
+theorem blockEnd_le_length {w : List (α × Op n Γ)} {i : Fin n} :
+    ∀ q, q < w.length → blockEnd w i q ≤ w.length
+  | q, hq => by
+    rw [blockEnd]
+    split_ifs with h
+    · exact blockEnd_le_length (Nat.find h) (Nat.find_spec h).2.1.1.lt_length
+    · exact (wnEnd_spec (by omega)).2.1
+termination_by q => w.length - q
+decreasing_by
+  have hspec := Nat.find_spec h
+  have := hspec.2.1.1.lt_length
+  have := hspec.1
+  omega
+
+variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
+  [DecidableEq Γ] {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
+  [DecidablePred (· ∈ M.start)]
+
+/-- From an event, or the end, the invariant reaches the end of the run. -/
+theorem cinv_length {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} (hK : HoleBounded K w) :
+    ∀ t, t ≤ w.length →
+      (t < w.length → (¬∃ a, w[t]? = some (a, .nop)) ∧ ¬WellMatched w t) →
+      M.CInv K w f t → M.CInv K w f w.length
+  | t, hle, hev, h => by
+    rcases lt_or_eq_of_le hle with hlt | rfl
+    · obtain ⟨hnop, hwm⟩ := hev hlt
+      obtain ⟨⟨a, op⟩, hwt⟩ : ∃ x, w[t]? = some x := ⟨_, List.getElem?_eq_getElem hlt⟩
+      cases op with
+      | nop => exact absurd ⟨a, hwt⟩ hnop
+      | push i γ =>
+        obtain ⟨ht', h'⟩ := cinv_hole hK hwt hwm h
+        have hle' := blockEnd_le_length (i := i) t hlt
+        exact cinv_length hK _ hle' (blockEnd_event t hlt) h'
+      | pop i γ =>
+        obtain ⟨ht', h'⟩ := cinv_pop hwt h
+        have hle' := (wnEnd_spec (w := w) (p := t + 1) (by omega)).2.1
+        exact cinv_length hK _ hle' (wnEnd_event (by omega)) h'
+    · exact h
+termination_by t => w.length - t
+
+/-- **Completeness of Algorithm 1** of [AkshayGastinKrishnaRoychowdhury2020], with the search
+started after a well-nested prefix: if some word has a `K`-hole-bounded accepting run, the search
+answers `false`. -/
+theorem isEmpty_eq_false_of_mem_boundedLanguage [DecidablePred (· ∈ M.accept)] {K : ℕ}
+    {x : List Symbol} (hx : x ∈ M.boundedLanguage (HoleBounded K)) : M.isEmpty K = false := by
+  obtain ⟨s₀, hs₀, f, hf, w, -, hrun, hK⟩ := hx
+  obtain ⟨-, hle, -⟩ := wnEnd_spec (w := w) (p := 0) (Nat.zero_le _)
+  exact isEmpty_eq_false_of_cinv hf
+    (cinv_length hK _ hle (wnEnd_event (Nat.zero_le _)) (cinv_init (K := K) hs₀ hrun))
+
+/-- **Theorem 1** of [AkshayGastinKrishnaRoychowdhury2020], for the search started after a
+well-nested prefix: the search answers `true` exactly when no word has a `K`-hole-bounded
+accepting run. -/
+theorem isEmpty_iff [DecidablePred (· ∈ M.accept)] {K : ℕ} :
+    M.isEmpty K = true ↔ M.boundedLanguage (HoleBounded K) = 0 := by
+  constructor
+  · intro h
+    show _ = (∅ : Set _)
+    refine Set.eq_empty_iff_forall_notMem.mpr fun x hx => ?_
+    rw [isEmpty_eq_false_of_mem_boundedLanguage hx] at h
+    exact Bool.false_ne_true h
+  · intro h
+    by_contra h'
+    obtain ⟨x, hx⟩ := exists_mem_boundedLanguage_of_isEmpty_eq_false
+      (Bool.eq_false_iff.mpr h')
+    rw [h] at hx
+    exact hx
+
+end Complete
+
 end Cslib.Automata.MPDA
