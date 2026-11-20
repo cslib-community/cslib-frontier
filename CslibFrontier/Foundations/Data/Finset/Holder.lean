@@ -129,4 +129,27 @@ theorem expect_rpow_le_rpow_expect [Nonempty α] {f : α → ℝ} (hf : ∀ x, 0
   simpa only [mul_one, mul_zero, add_zero, Real.rpow_one, Real.rpow_zero,
     Fintype.expect_const, Real.one_rpow] using h
 
+/-- A bound on a scaled mean is preserved under a sublinear power when the scale
+on the right is at least the scale on the left. -/
+theorem mul_expect_rpow_le_of_mul_expect_le [Nonempty α] {f : α → ℝ}
+    (hf : ∀ x, 0 ≤ f x) {m M e p : ℝ} (hm : 0 < m) (hmM : m ≤ M) (he : 0 ≤ e)
+    (hp₀ : 0 < p) (hp₁ : p < 1) (h : m * (𝔼 x, f x) ≤ M * e) :
+    m * (𝔼 x, f x ^ p) ≤ M * e ^ p := by
+  let c := M / m
+  have hc : 1 ≤ c := (le_div_iff₀ hm).2 (by simpa only [one_mul] using hmM)
+  have hmc : m * c = M := by dsimp only [c]; field_simp
+  have hav : (𝔼 x, f x) ≤ c * e := by
+    apply le_of_mul_le_mul_left _ hm
+    rw [← mul_assoc, hmc]
+    exact h
+  have hpow := (expect_rpow_le_rpow_expect hf hp₀ hp₁).trans
+    (Real.rpow_le_rpow (expect_nonneg fun x _ => hf x) hav hp₀.le)
+  calc
+    _ ≤ m * (c * e) ^ p := mul_le_mul_of_nonneg_left hpow hm.le
+    _ = (m * c ^ p) * e ^ p := by rw [Real.mul_rpow (zero_le_one.trans hc) he, mul_assoc]
+    _ ≤ (m * c) * e ^ p := by
+      gcongr
+      exact Real.rpow_le_self_of_one_le hc hp₁.le
+    _ = _ := by rw [hmc]
+
 end Fintype

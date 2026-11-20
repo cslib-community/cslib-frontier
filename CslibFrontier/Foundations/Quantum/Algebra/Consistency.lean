@@ -79,6 +79,21 @@ theorem agreement_map_map {β γ : Type*} [Fintype β] [Fintype γ] [DecidableEq
         split_ifs <;> simp
       simp only [hc, sum_ite_eq', mem_univ, ite_true, eq_comm]
 
+omit [StarRing A] [StarOrderedRing A] in
+/-- If only the first measurement is postprocessed, the second outcome is determined
+by the image of the first outcome under the relabeling. -/
+theorem agreement_map_left {β : Type*} [Fintype β] [DecidableEq β] [IsOrderedAddMonoid A]
+    (φ : AlgState A) (P : Measurement α A) (Q : Measurement β A) (f : α → β) :
+    agreement φ (P.map f) Q = ∑ a, (φ (P.effect a * Q.effect (f a))).re := by
+  have hId : Q.map id = Q := by
+    ext b
+    simp [map_effect, sum_filter]
+  calc
+    agreement φ (P.map f) Q = agreement φ (P.map f) (Q.map id) := by rw [hId]
+    _ = _ := by
+      rw [agreement_map_map]
+      simp
+
 variable [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
   [NonnegSpectrumClass ℝ A]
 

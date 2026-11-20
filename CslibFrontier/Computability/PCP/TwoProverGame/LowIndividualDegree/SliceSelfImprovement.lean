@@ -100,33 +100,14 @@ private theorem average_slice_budget
     3000 * (n + 2 : ℝ) * (ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ)) := by
   let m := (n + 1 : ℝ)
   let M := (n + 2 : ℝ)
-  let c := M / m
   have hm : 0 < m := by dsimp [m]; positivity
   have hmM : m ≤ M := by dsimp [m, M]; linarith
-  have hc : 1 ≤ c := (le_div_iff₀ hm).2 (by simpa only [one_mul] using hmM)
-  have hmcm : m * c = M := by dsimp only [c]; field_simp
-  have hav : (𝔼 x, εs x) ≤ c * ε := by
-    apply le_of_mul_le_mul_left _ hm
-    rw [← mul_assoc, hmcm]
-    exact haxis
-  have hεpow := (Fintype.expect_rpow_le_rpow_expect he
-    (p := 1 / 32) (by norm_num) (by norm_num)).trans
-    (Real.rpow_le_rpow (expect_nonneg fun x _ => he x) hav (by norm_num))
-  have hδpow := (Fintype.expect_rpow_le_rpow_expect hd
-    (p := 1 / 32) (by norm_num) (by norm_num)).trans
-    (Real.rpow_le_rpow (expect_nonneg fun x _ => hd x) hcons (by norm_num))
-  have hscale : m * ((𝔼 x, εs x ^ (1 / 32 : ℝ))) ≤ M * ε ^ (1 / 32 : ℝ) := by
-    calc
-      _ ≤ m * (c * ε) ^ (1 / 32 : ℝ) := mul_le_mul_of_nonneg_left hεpow hm.le
-      _ = (m * c ^ (1 / 32 : ℝ)) * ε ^ (1 / 32 : ℝ) := by
-        rw [Real.mul_rpow (zero_le_one.trans hc) hε, mul_assoc]
-      _ ≤ (m * c) * ε ^ (1 / 32 : ℝ) := by
-        gcongr
-        exact Real.rpow_le_self_of_one_le hc (by norm_num)
-      _ = _ := by rw [hmcm]
-  have hscaleδ : m * (𝔼 x, δs x ^ (1 / 32 : ℝ)) ≤ M * δ ^ (1 / 32 : ℝ) :=
-    (mul_le_mul_of_nonneg_left hδpow hm.le).trans
-      (mul_le_mul_of_nonneg_right hmM (Real.rpow_nonneg hδ _))
+  have hscale := Fintype.mul_expect_rpow_le_of_mul_expect_le he hm hmM hε
+    (p := 1 / 32) (by norm_num) (by norm_num) haxis
+  have hδ' := (mul_le_mul_of_nonneg_left hcons hm.le).trans
+    (mul_le_mul_of_nonneg_right hmM hδ)
+  have hscaleδ := Fintype.mul_expect_rpow_le_of_mul_expect_le hd hm hmM hδ
+    (p := 1 / 32) (by norm_num) (by norm_num) hδ'
   have hscaler := mul_le_mul_of_nonneg_right hmM (Real.rpow_nonneg hr (1 / 32 : ℝ))
   change (𝔼 x, 3000 * m * (εs x ^ (1 / 32 : ℝ) + δs x ^ (1 / 32 : ℝ) +
     r ^ (1 / 32 : ℝ))) ≤ 3000 * M * _
@@ -137,6 +118,23 @@ local notation "Q" => Question F (n + 2)
 local notation "Ans" => Answer F (n + 2)
 local notation "Poly" => BoundedPolynomial F (n + 1) d
 local notation "Result" => BoundedPolynomial F (n + 2) d
+
+/-- The disagreement bound for one paste in ambient dimension `m`.
+Here `ε, δ, γ` are the branch losses, `r` is the degree divided by the field
+size, `q` is the field size, and `σ` is the mean error of the input slices. -/
+@[expose] noncomputable def slicePastingError
+    (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ) : ℝ :=
+  let ζ := 3000 * m * (ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ))
+  let κ := σ + ζ
+  let verticalError := √(8 * m * ε + 4 * δ)
+  let commutatorError :=
+    32 * (4 * √(2 * ζ) + 2 * √(64 * m * γ) + 2 * √ζ + 2 * √ζ) +
+      30 * ζ + 20 * ((m - 1) * r)
+  let sliceError := √(162 * commutatorError + 176 * ζ)
+  κ / (1 - θ) + Real.exp (-(θ ^ 2 * k) / 2) +
+  (1 + √2) * (k * √(2 * ζ) + (k : ℝ) ^ 2 * sliceError) +
+  3 * ((k.choose 2 : ℝ) / q) + (m - 1) * r +
+  2 * k * ζ + (2 * k + 1 : ℝ) * verticalError + 2 * k * ((k - 1 : ℕ) : ℝ) * sliceError
 
 /-- One step of the symmetric low-individual-degree induction. From a polynomial
 measurement agreeing with the points on each slice, construct one complete
@@ -159,31 +157,21 @@ theorem exists_paste_of_slice_agreement
     let γ :=
       1 - (branchGameWithDiagonalCap (F := F) (n + 1) d D .diagonal).commutingWinProb C
     let r := (d : ℝ) / Fintype.card F
-    let ζ := 3000 * (n + 2 : ℝ) * (ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ))
-    let κ := (𝔼 x, σ x) + ζ
-    let verticalError := √(8 * (n + 2 : ℝ) * ε + 4 * δ)
-    let commutatorError :=
-      32 * (4 * √(2 * ζ) + 2 * √(64 * (n + 2 : ℝ) * γ) + 2 * √ζ + 2 * √ζ) +
-        30 * ζ + 20 * ((n + 1 : ℝ) * d / Fintype.card F)
-    let sliceError := √(162 * commutatorError + 176 * ζ)
     ∃ H : POVM Result ι,
       (𝔼 w : Point F (n + 2), (1 - Measurement.agreement C.state
         ((QuantumStrategy.rightMeasurement H).map (fun p => MvPolynomial.eval w p.val))
         (decodedPoint C.alice w))) ≤
-        κ / (1 - θ) + Real.exp (-(θ ^ 2 * k) / 2) +
-        (1 + √2) * (k * √(2 * ζ) + (k : ℝ) ^ 2 * sliceError) +
-        3 * ((k.choose 2 : ℝ) / Fintype.card F) + (n + 1 : ℝ) * d / Fintype.card F +
-        2 * k * ζ + (2 * k + 1 : ℝ) * verticalError + 2 * k * ((k - 1 : ℕ) : ℝ) * sliceError := by
+        slicePastingError (n + 2) k (Fintype.card F) ε δ γ r (𝔼 x, σ x) θ := by
   classical
-  intro C ε δ γ r ζ κ verticalError commutatorError sliceError
+  intro C ε δ γ r
+  let ζ := 3000 * (n + 2 : ℝ) * (ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ))
+  let κ := (𝔼 x, σ x) + ζ
   let T (x : F) := restrictSliceTensor S x
   let εs (x : F) := 1 - (branchGame (F := F) n d .axis).commutingWinProb (T x).toCommuting
   let δs (x : F) := 1 - (branchGame (F := F) n d .consistency).commutingWinProb (T x).toCommuting
   let ζs (x : F) :=
     3000 * (n + 1 : ℝ) * (εs x ^ (1 / 32 : ℝ) + δs x ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ))
-  have hstate (x : F) : (T x).toCommuting.state = C.state := by
-    change AlgState.vector (T x).state (T x).norm_state = AlgState.vector S.state S.norm_state
-    simp only [T, restrictSliceTensor_state]
+  have hstate (x : F) : (T x).toCommuting.state = C.state := restrictSliceTensor_joint_state S x
   have hpt (x : F) (u : Point F (n + 1)) :
       decodedPoint (T x).toCommuting.alice u = decodedPoint C.alice (Fin.snoc u x) := by
     change decodedPoint (restrictSliceTensor S x).toCommuting.alice u = _
@@ -285,7 +273,10 @@ theorem exists_paste_of_slice_agreement
   rw [show QuantumStrategy.rightMeasurement H = completedPaste k M hMpr fallback from
     rightMeasurement_completedPaste k P hP₀ fallback]
   have hn : (n + 1 : ℝ) + 1 = n + 2 := by ring
-  dsimp only [verticalError, commutatorError, sliceError, ε, δ, γ]
+  dsimp only [slicePastingError, ε, δ, γ, r]
+  simp only [show (n + 2 : ℝ) - 1 = n + 1 by ring,
+    show (n + 1 : ℝ) * ((d : ℝ) / Fintype.card F) =
+      (n + 1 : ℝ) * d / Fintype.card F from (mul_div_assoc _ _ _).symm]
   simpa only [Nat.cast_succ, hn, C, CommutingStrategy.swap] using hpaste
 
 end Cslib.PCP.LowIndividualDegree

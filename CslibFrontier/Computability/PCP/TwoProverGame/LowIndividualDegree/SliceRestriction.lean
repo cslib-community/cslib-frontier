@@ -141,6 +141,14 @@ noncomputable def restrictSliceTensor
   unfold restrictSliceTensor
   rfl
 
+/-- Restriction preserves the state in the commuting representation as well. -/
+theorem restrictSliceTensor_joint_state
+    (S : QuantumStrategy (Question F (m + 1)) (Question F (m + 1))
+      (Answer F (m + 1)) (Answer F (m + 1)) ι κ) (t : F) :
+    (restrictSliceTensor S t).toCommuting.state = S.toCommuting.state := by
+  unfold QuantumStrategy.toCommuting restrictSliceTensor
+  rfl
+
 /-- Equal local measurements remain equal upon restriction. -/
 theorem restrictSliceTensor_bob_eq_alice
     (S : QuantumStrategy (Question F (m + 1)) (Question F (m + 1))

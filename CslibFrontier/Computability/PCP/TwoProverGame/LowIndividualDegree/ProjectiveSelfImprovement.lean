@@ -123,16 +123,6 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
     simpa only [Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring]
       using hround
 
-private theorem polynomialEvaluation_agreement (φ : AlgState (Matrix (ι × ι) (ι × ι) ℂ))
-    (A : Measurement F (Matrix (ι × ι) (ι × ι) ℂ))
-    (H : Measurement (Option Poly) (Matrix (ι × ι) (ι × ι) ℂ)) (u : Point F (n + 1)) :
-    Measurement.agreement φ (A.map some) (evaluatePolynomialMeasurement H u) =
-      ∑ b, (φ (A.effect b * (evaluatePolynomialMeasurement H u).effect (some b))).re := by
-  have he (b : Option F) : (A.map some).effect b = b.elim 0 A.effect := by
-    cases b <;> simp [Measurement.map_effect, sum_filter]
-  simp only [Measurement.agreement, Fintype.sum_option, he, Option.elim_none, Option.elim_some,
-    zero_mul, map_zero, Complex.zero_re, zero_add]
-
 private theorem boundedness_le_evaluatedGap
     (φ : AlgState (Matrix (ι × ι) (ι × ι) ℂ))
     (A : Point F (n + 1) → Measurement F (Matrix (ι × ι) (ι × ι) ℂ))
@@ -252,7 +242,7 @@ private theorem exists_roundedSymmetricSelfImprovement
     have h := (Measurement.abs_agreement_sub_right_le C.state ((A u).map some)
       (evaluatePolynomialMeasurement HR u) (evaluatePolynomialMeasurement PR u)).trans
       (Real.sqrt_le_sqrt (hcoarse u))
-    rwa [polynomialEvaluation_agreement, polynomialEvaluation_agreement] at h
+    simpa only [Measurement.agreement_map_left] using h
   have hbad (N : Measurement (Option Poly) (Matrix (ι × ι) (ι × ι) ℂ))
       (hc : ∀ a u b, Commute ((A u).effect b) (N.effect a)) (u : Point F (n + 1)) :
       Measurement.successfulMismatch C.state (evaluatePolynomialMeasurement N u) (A u) =
