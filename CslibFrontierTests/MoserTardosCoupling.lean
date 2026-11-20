@@ -17,7 +17,8 @@ import CslibFrontier.Probability.MoserTardos.Coupling
 * Two tables that differ only at an entry the run never reads give the same log
   (`run_eq_of_agree`).
 * With no perturbation (`P = Q`), correlated sampling makes the two runs never diverge
-  (`correlated_diverge_le`).
+  (`correlated_diverge_le`), and they output the same good assignment
+  (`correlated_not_agreeGood_le`).
 * The symmetric weight bound for `d = 0`. -/
 
 set_option linter.privateModule false
@@ -69,6 +70,24 @@ example {V ι : Type*} [Fintype V] [DecidableEq V] [Finite ι] {α : V → Type*
     coupledTable (correlatedCoupling P P) {T | Diverge vbl r T} = 0 := by
   refine le_antisymm ?_ bot_le
   simpa using correlated_diverge_le P P vbl r A hAm hA Γ hΓ hΓd hP hp hr
+
+open scoped Cslib.Probability.PMF in
+/-- **No perturbation, same good output.** With the same distributions and a rule that stops only
+when no event occurs, the two runs almost surely output the same assignment avoiding every
+event. -/
+example {V ι : Type*} [Fintype V] [DecidableEq V] [Finite ι] {α : V → Type*}
+    [∀ v, Fintype (α v)] [∀ v, MeasurableSpace (α v)] [∀ v, MeasurableSingletonClass (α v)]
+    (P : ∀ v, PMF (α v)) (vbl : ι → Finset V) (r : List ι → (∀ v, α v) → Option ι)
+    (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
+    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (Γ : ι → Finset ι)
+    (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i) {d : ℕ}
+    (hΓd : ∀ i, (Γ i).card ≤ d) {p : ℝ}
+    (hP : ∀ i, (Measure.pi fun v => (P v).toMeasure).real (A i) ≤ p)
+    (hp : Real.exp 1 * p * (d + 1) ≤ 1) (hr : ∀ w a i, r w a = some i → a ∈ A i)
+    (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) :
+    coupledTable (correlatedCoupling P P) {T | ¬AgreeGood vbl r A T} = 0 := by
+  refine le_antisymm ?_ bot_le
+  simpa using correlated_not_agreeGood_le P P vbl r A hAm hA Γ hΓ hΓd hP hp hr hstop
 
 /-- With no neighbours, `e p ≤ 1` gives `p ≤ 1 / 2`. -/
 example {p : ℝ} (hp : Real.exp 1 * p * (0 + 1) ≤ 1) : p ≤ 1 / 2 := by

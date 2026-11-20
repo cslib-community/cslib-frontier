@@ -27,12 +27,17 @@ entries the first run reads agree (`run_eq_of_agree`). So the runs can differ on
 read by the first run is a disagreeing pair.
 
 Whether the first run ever reads entry `(v, k)` does not depend on that entry
-(`dependsOn_setOf_le_uses`), so it is independent of whether the pair at `(v, k)` disagrees. A
+(`dependsOn_le_uses`), so it is independent of whether the pair at `(v, k)` disagrees. A
 union bound over the entries read then bounds the probability that the runs differ by
-`∑ v, η v · E[N v]` (`measure_diverge_le`), where `η v` is the disagreement probability of the
+`∑ v, η v · E[N v]` (`coupledTable_diverge_le`), where `η v` is the disagreement probability of the
 coupling at `v` and `N v` is the number of samples of `v` that the first run reads. The bound
 counts samples actually read: comparing the two infinite tables would not work, since some entry
 eventually disagrees.
+
+When the rule stops only once no event occurs, the first run almost surely stops at a good
+assignment, and away from divergence the second run stops at the same step with the same
+assignment. So the two runs output the same assignment avoiding every event except with the
+divergence probability (`coupledTable_not_agreeGood_le`, `correlated_not_agreeGood_le`).
 
 The statement and its proof route are original (cslib-frontier issue #6718).
 
@@ -43,6 +48,8 @@ The statement and its proof route are original (cslib-frontier issue #6718).
 * `Cslib.Probability.MoserTardos.coupledTable`: a table of independent coupled pairs, with
   `fstTable` and `sndTable` the two runs' tables.
 * `Cslib.Probability.MoserTardos.Diverge`: the two runs' logs or assignments differ at some step.
+* `Cslib.Probability.MoserTardos.AgreeGood`: both runs stop at the same step with the same
+  assignment, which avoids every event.
 * `Cslib.Probability.MoserTardos.correlatedCoupling`: the coupling given by correlated sampling.
 
 ## Main results
@@ -59,15 +66,23 @@ The statement and its proof route are original (cslib-frontier issue #6718).
   `e p (d + 1) ≤ 1`, `Pr[diverge] ≤ 2 ∑ v, η v`.
 * `Cslib.Probability.MoserTardos.correlated_diverge_le`: with correlated sampling,
   `Pr[diverge] ≤ 4 ∑ v, d_TV(P v, Q v)`.
+* `Cslib.Probability.MoserTardos.coupledTable_not_agreeGood_le`: for a rule that stops only when
+  no event occurs, the runs fail to output the same good assignment with probability at most
+  `Pr[diverge]`.
+* `Cslib.Probability.MoserTardos.correlated_not_agreeGood_le`: with correlated sampling, the runs
+  output the same good assignment except with probability `4 ∑ v, d_TV(P v, Q v)`.
 
 ## Implementation notes
 
 The coordinates take values in countable types with the discrete measurable structure, so every
-event determined by finitely many table entries is measurable (`measurableSet_of_dependsOn`) and
-the rule needs no measurability assumption. The seed of `correlatedCoupling` is the library's
-finite correlated sampling, whose law is built from both `P v` and `Q v`. A protocol in which each
-party needs only its own distribution is milestone 2 of #6718. The hypothesis on `Q` needed for the
-second run to terminate is not used: the bound needs only the first run's expected sample counts.
+event determined by finitely many table entries is measurable (by a private lemma) and the rule
+needs no measurability assumption. The event `AgreeGood` need not be measurable; its complement
+is bounded through `measure_mono_ae`, which holds for outer measure. The seed of
+`correlatedCoupling` is the library's finite correlated sampling, whose law is built from both
+`P v` and `Q v`. A protocol in which each party needs only its own distribution is milestone 2 of
+#6718. The hypothesis on `Q` needed for the second run to terminate on its own is not used: the
+divergence bound needs only the first run's expected sample counts, and the second run stops
+whenever the runs agree.
 
 ## References
 
@@ -211,7 +226,7 @@ variable {ι : Type*} {Ω : ι → Type*} [∀ i, MeasurableSpace (Ω i)] [∀ i
 
 /-- With countable discrete coordinates, a set determined by finitely many coordinates is
 measurable. -/
-theorem measurableSet_of_dependsOn {A : Set (∀ i, Ω i)} {S : Finset ι}
+private theorem measurableSet_of_dependsOn {A : Set (∀ i, Ω i)} {S : Finset ι}
     (h : DependsOn (· ∈ A) (S : Set ι)) : MeasurableSet A := by
   have hA : A = S.restrict ⁻¹' (S.restrict '' A) := by
     ext x
@@ -379,11 +394,6 @@ theorem setOf_diverge_subset :
   simp only [current_apply]
   exact hagree n u
 
-omit [Fintype V] [DecidableEq V] in
-theorem measurableSet_coupled_dependsOn {A : Set (∀ p : V × ℕ, α p.1 × α p.1)} {S : Finset (V × ℕ)}
-    (h : DependsOn (· ∈ A) (S : Set (V × ℕ))) : MeasurableSet A :=
-  measurableSet_of_dependsOn h
-
 omit [Fintype V] in
 /-- **Independence of reading and disagreeing.** The probability that the first run reads entry
 `(v, k)` and the pair there disagrees factors. -/
@@ -403,8 +413,8 @@ theorem coupledTable_read_inter_disagree [Finite V] (v : V) (k : ℕ) :
   have hDdep : DependsOn (· ∈ D) (({(v, k)} : Finset (V × ℕ)) : Set (V × ℕ)) := fun T T' h => by
     simp only [D, Set.mem_ofPred_eq]
     rw [h (v, k) (by simp)]
-  have hEm : ∀ n, MeasurableSet (E n) := fun n => measurableSet_coupled_dependsOn (hEdep n)
-  have hDm : MeasurableSet D := measurableSet_coupled_dependsOn hDdep
+  have hEm : ∀ n, MeasurableSet (E n) := fun n => measurableSet_of_dependsOn (hEdep n)
+  have hDm : MeasurableSet D := measurableSet_of_dependsOn hDdep
   have hmono : Monotone E := fun n n' hnn' T hT =>
     le_trans hT (uses_run_mono (historyRule vbl r) (fstTable T) v hnn')
   have hind : ∀ n, coupledTable κ (E n ∩ D) = coupledTable κ (E n) * coupledTable κ D := by
@@ -519,6 +529,22 @@ theorem coupledTable_diverge_le_of_lll [Fintype ι] (A : ι → Set (∀ v, α v
         lintegral_finsetSum _ fun i _ => hgm i
     _ ≤ _ := sum_le_sum fun i _ => hgint i
 
+omit [Fintype V] [DecidableEq V] [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
+/-- The symmetric hypothesis `e p (d + 1) ≤ 1`, with at most `d` neighbours per event, gives the
+asymmetric one with the weights `x = 1 / (d + 2)`. -/
+private theorem lll_of_symm {A : ι → Set (∀ v, α v)} (m : Measure (∀ v, α v))
+    (Γ : ι → Finset ι) {d : ℕ} (hΓd : ∀ i, (Γ i).card ≤ d) {p : ℝ} (hP : ∀ i, m.real (A i) ≤ p)
+    (hp : Real.exp 1 * p * (d + 1) ≤ 1) :
+    (∀ _ : ι, 1 / (d + 2 : ℝ) ∈ Set.Ico 0 1) ∧
+      ∀ i, m.real (A i) ≤ 1 / (d + 2 : ℝ) * ∏ _j ∈ Γ i, (1 - 1 / (d + 2 : ℝ)) := by
+  have hd : (0 : ℝ) < d + 2 := by positivity
+  refine ⟨fun _ => ⟨by positivity, by rw [div_lt_one hd]; linarith⟩, fun i => ?_⟩
+  have h0 : 0 ≤ 1 - 1 / (d + 2 : ℝ) := by rw [sub_nonneg, div_le_one hd]; linarith
+  have h1 : 1 - 1 / (d + 2 : ℝ) ≤ 1 := by rw [sub_le_self_iff]; positivity
+  rw [prod_const]
+  exact (hP i).trans ((le_weight_of_exp_mul_le d hp).trans
+    (mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one h0 h1 (hΓd i)) (by positivity)))
+
 /-- **The symmetric case.** Suppose every event has at most `d` neighbours in `Γ` and probability
 at most `p` under the first run's distributions, with `e p (d + 1) ≤ 1`, and `r` only selects
 occurring events. Then each variable is read at most twice in expectation, and the two runs
@@ -532,16 +558,7 @@ theorem coupledTable_diverge_le_two_mul [Finite ι] (A : ι → Set (∀ v, α v
     coupledTable κ {T | Diverge vbl r T} ≤ 2 * ∑ v, κ v {x | x.1 ≠ x.2} := by
   have := Fintype.ofFinite ι
   have hd : (0 : ℝ) < d + 2 := by positivity
-  have hx : ∀ _ : ι, 1 / (d + 2 : ℝ) ∈ Set.Ico 0 1 := fun _ =>
-    ⟨by positivity, by rw [div_lt_one hd]; linarith⟩
-  have hP' : ∀ i, (Measure.pi fun v => (κ v).map Prod.fst).real (A i) ≤
-      1 / (d + 2 : ℝ) * ∏ _j ∈ Γ i, (1 - 1 / (d + 2 : ℝ)) := by
-    intro i
-    have h0 : 0 ≤ 1 - 1 / (d + 2 : ℝ) := by rw [sub_nonneg, div_le_one hd]; linarith
-    have h1 : 1 - 1 / (d + 2 : ℝ) ≤ 1 := by rw [sub_le_self_iff]; positivity
-    rw [prod_const]
-    exact (hP i).trans ((le_weight_of_exp_mul_le d hp).trans
-      (mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one h0 h1 (hΓd i)) (by positivity)))
+  obtain ⟨hx, hP'⟩ := lll_of_symm _ Γ hΓd hP hp
   refine (coupledTable_diverge_le_of_lll κ vbl r A hAm hA Γ hΓ hx hP' hr).trans ?_
   rw [mul_sum]
   refine sum_le_sum fun v _ => ?_
@@ -559,6 +576,54 @@ theorem coupledTable_diverge_le_two_mul [Finite ι] (A : ι → Set (∀ v, α v
         rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (by positivity),
           show ((d + 1 : ℕ) : ℝ) * (1 / (d + 1)) = 1 by push_cast; field_simp, ENNReal.ofReal_one]
         norm_num
+
+/-- The two runs on the coupled table `T` **agree on a good output**: after the same `n` steps
+both stop, with the same log and the same assignment, and no event `A i` occurs in it. -/
+@[expose] def AgreeGood (A : ι → Set (∀ v, α v)) (T : ∀ p : V × ℕ, α p.1 × α p.1) : Prop :=
+  ∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none ∧
+    historyRule vbl r (sndTable T) (run (historyRule vbl r) (sndTable T) n) = none ∧
+    run (historyRule vbl r) (fstTable T) n = run (historyRule vbl r) (sndTable T) n ∧
+    current vbl (fstTable T) (run (historyRule vbl r) (fstTable T) n) =
+      current vbl (sndTable T) (run (historyRule vbl r) (sndTable T) n) ∧
+    ∀ i, current vbl (fstTable T) (run (historyRule vbl r) (fstTable T) n) ∉ A i
+
+omit [Fintype V] [∀ v, MeasurableSpace (α v)] [∀ v, Countable (α v)]
+  [∀ v, MeasurableSingletonClass (α v)] in
+/-- If the runs do not diverge and the first run stops, both stop at the same step with the same
+assignment, and a rule that stops only when no event occurs leaves a good assignment. -/
+theorem agreeGood_of_not_diverge {A : ι → Set (∀ v, α v)} {T : ∀ p : V × ℕ, α p.1 × α p.1}
+    (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) (hT : ¬Diverge vbl r T)
+    (hfst : ∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none) :
+    AgreeGood vbl r A T := by
+  obtain ⟨n, hn⟩ := hfst
+  simp only [Diverge, not_exists, not_or, not_not] at hT
+  obtain ⟨hrun, hcur⟩ := hT n
+  refine ⟨n, hn, ?_, hrun, hcur, hstop _ _ hn⟩
+  simp only [historyRule] at hn ⊢
+  rwa [← hcur, ← hrun]
+
+omit [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
+/-- **The runs output the same good assignment.** Under the asymmetric local-lemma hypothesis for
+the first run's distributions, for a valid `r` that stops only when no event occurs, the two runs
+fail to stop together at one assignment avoiding every event with probability at most the
+divergence probability. The second run's termination is not assumed: it follows from agreement. -/
+theorem coupledTable_not_agreeGood_le [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
+    {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
+    (hP : ∀ i, (Measure.pi fun v => (κ v).map Prod.fst).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
+    (hr : ∀ w a i, r w a = some i → a ∈ A i) (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) :
+    coupledTable κ {T | ¬AgreeGood vbl r A T} ≤ coupledTable κ {T | Diverge vbl r T} := by
+  have hae : ∀ᵐ T ∂coupledTable κ,
+      ∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none := by
+    have h1 : ∀ᵐ T' ∂(coupledTable κ).map fstTable,
+        ∃ n, historyRule vbl r T' (run (historyRule vbl r) T' n) = none := by
+      rw [coupledTable_map_fstTable]
+      exact ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hx hP (historyRule_valid hr)
+    exact ae_of_ae_map (measurable_fstTable (V := V) (α := α)).aemeasurable h1
+  refine measure_mono_ae (hae.mono fun T hT h => ?_)
+  by_contra hd
+  exact h (agreeGood_of_not_diverge vbl r hstop hd hT)
 
 end Coupled
 
@@ -641,6 +706,26 @@ theorem correlated_diverge_le [Finite ι] (P Q : ∀ v, PMF (α v))
         rw [← ENNReal.ofReal_sum_of_nonneg fun v _ => by positivity, ← ENNReal.ofReal_ofNat 2,
           ← ENNReal.ofReal_mul (by norm_num), ← mul_sum, ← mul_assoc]
         norm_num
+
+open scoped Cslib.Probability.PMF in
+/-- **Replicable output under correlated sampling.** In the symmetric case, for a valid `r` that
+stops only when no event occurs, the two runs output the same assignment avoiding every event,
+except with probability at most `4 ∑ v, d_TV(P v, Q v)`. -/
+theorem correlated_not_agreeGood_le [Finite ι] (P Q : ∀ v, PMF (α v))
+    (vbl : ι → Finset V) (r : List ι → (∀ v, α v) → Option ι) (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i) {d : ℕ}
+    (hΓd : ∀ i, (Γ i).card ≤ d) {p : ℝ}
+    (hP : ∀ i, (Measure.pi fun v => (P v).toMeasure).real (A i) ≤ p)
+    (hp : Real.exp 1 * p * (d + 1) ≤ 1) (hr : ∀ w a i, r w a = some i → a ∈ A i)
+    (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) :
+    coupledTable (correlatedCoupling P Q) {T | ¬AgreeGood vbl r A T} ≤
+      ENNReal.ofReal (4 * ∑ v, dist (P v) (Q v)) := by
+  have hP' : ∀ i, (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.fst).real (A i) ≤ p :=
+    fun i => by simpa only [correlatedCoupling_map_fst] using hP i
+  obtain ⟨hx, hP''⟩ := lll_of_symm _ Γ hΓd hP' hp
+  exact (coupledTable_not_agreeGood_le _ vbl r A hAm hA Γ hΓ hx hP'' hr hstop).trans
+    (correlated_diverge_le P Q vbl r A hAm hA Γ hΓ hΓd hP hp hr)
 
 end Correlated
 
