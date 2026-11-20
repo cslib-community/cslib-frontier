@@ -19,7 +19,7 @@ Non-degenerate witnesses for
 
 * an echo handler that flips a private coin, forwards the request to an external stateful oracle,
   appends the coin and bounded external reply to its state, and replies with twice its prior
-  state (`state ++ state`), exercising a non-identity `reply` bound (`2 * k`);
+  state (`state ++ state`), without any user-supplied reply-length bound;
 * a fixed-request multi-call client (`echoRun`) certified with non-identity `prepare`, non-constant
   initial state, and a non-trivial invariant, together with an explicit calculation of its joint law
   against a stateful external counter oracle;
@@ -39,7 +39,7 @@ open Cslib Cslib.Probability Turing Turing.MultiTapeTM
 /-- An open stateful handler with private randomness and an external oracle call: on each call it
 samples a private coin `b`, queries the external oracle on `request.2` (reading at most
 `request.2.length` bits), appends `b :: ext` to its private state, and replies with twice its prior
-state (`state ++ state`), exercising a non-identity polynomial `reply` bound (`2 * k`). -/
+state (`state ++ state`). -/
 private noncomputable def echoHandler (_ : ℕ) (request : Unit × List Bool) (state : List Bool) :
     WordOracleComp Unit (List Bool × List Bool) := do
   let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
@@ -95,12 +95,11 @@ private theorem echoHandler_isOraclePPTOn :
       (hst.bitsAppend hst).prod (hst.bitsAppend (hcoinq.bitsCons hextq))
     exact hpost.isOraclePPTOn
 
-/-- Preservation, doubled-state reply length, and additive state growth for `echoHandler`. -/
+/-- Preservation and additive state growth for `echoHandler`. -/
 private theorem echoHandler_preserve {k n : ℕ} (request : Unit × List Bool) (state : List Bool)
     (hstate : k ≤ state.length) (result : List Bool × List Bool)
     (hresult : result ∈ OracleComp.support (echoHandler n request state)) :
     k ≤ result.2.length ∧
-      result.1.length ≤ 2 * state.length ∧
       result.2.length ≤ state.length + (request.2.length + 1) := by
   simp only [echoHandler, OracleComp.mem_supportWith_bind_iff,
     OracleComp.mem_supportWith_map_iff] at hresult
@@ -108,7 +107,7 @@ private theorem echoHandler_preserve {k n : ℕ} (request : Unit × List Bool) (
   obtain ⟨reply, -, rfl⟩ := hex
   simp only [List.length_append, List.length_cons]
   have htake := List.length_take_le request.2.length reply
-  exact ⟨by omega, by omega, by omega⟩
+  exact ⟨by omega, by omega⟩
 
 /-! ### Multi-call client with non-identity preparation and growing initial state -/
 
@@ -139,12 +138,9 @@ example : IsOraclePPTOn encUnary (encPair encBits encBits) echoRun := by
     (operationEncoding := encFinEnum Unit)
     (prepare := fun n => n + 1)
     (initial := fun n => List.replicate n false)
-    (reply := fun _ _ k => 2 * k)
     (growth := fun _ w => w.length + 1)
     (by fun_prop) echoHandler_isOraclePPTOn (ComputableInPolyTime.bitsReplicate false)
     (fun n state => n ≤ state.length) (fun n => by simp)
-    ((PolyBounded.const 2).mul PolyBounded.self |>.mono fun ⟨_, _, k⟩ => by
-      dsimp only; omega)
     (PolyBounded.self.mono fun ⟨_, w⟩ => by simp only [length_encPair, encBits_apply]; omega)
     (fun n request state hstate result hresult => by
       simpa only [encBits_apply] using
@@ -212,11 +208,9 @@ example : IsOraclePPTOn encUnary (encPair encBits encBits) varEchoRun := by
   refine varEchoClient_isOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     (operationEncoding := encFinEnum Unit)
     (prepare := id) (initial := fun _ => [])
-    (reply := fun _ _ k => 2 * k) (growth := fun _ w => w.length + 1)
+    (growth := fun _ w => w.length + 1)
     ComputableInPolyTime.id' echoHandler_isOraclePPTOn (.const [])
     (fun _ state => 0 ≤ state.length) (fun _ => Nat.zero_le _)
-    ((PolyBounded.const 2).mul PolyBounded.self |>.mono fun ⟨_, _, k⟩ => by
-      dsimp only; omega)
     (PolyBounded.self.mono fun ⟨_, w⟩ => by simp only [length_encPair, encBits_apply]; omega)
     (fun n request state _ result hresult => by
       simpa only [encBits_apply] using

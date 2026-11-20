@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.QueryBounds
 import CslibFrontier.Languages.Probabilistic.Oracle.QueryBoundedSimulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -21,23 +22,25 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 
 Library infrastructure (no cited result): extends
 `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded` to handlers whose
-reply length may depend polynomially on the current encoded state as well as the caller and request,
-while each call adds at most an encoded-state increment polynomially bounded in the caller and
+reply length may depend on the current encoded state as well as the caller and request, requiring
+only that each call adds at most an encoded-state increment polynomially bounded in the caller and
 request alone.
 
 Because `IsOraclePPTOn` on the outer program gives one polynomial `Q` bounding both the number of
 external queries and the length of every external request (`IsOraclePPTOn.query_bounds`), the
-handler's encoded state stays bounded by `|initial| + k * G` after `k ≤ Q` calls, and every reply
-along a real execution stays polynomially bounded in the caller's input. Adding an explicit call
-counter and capping both the call count and the request length at `Q` reduces the certificate to
+handler's encoded state stays bounded by `|initial| + k * G` after `k ≤ Q` calls. Combined with
+`IsOraclePPTOn.length_le`, `ProbOracleComp.mem_support_iff_exists`, and `finite_operations` on
+the handler certificate, every supported reply along a real execution stays polynomially bounded in
+the caller's input. Adding an explicit call counter and capping both the call count and the request
+length at `Q` reduces the certificate to
 `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded`, while query-bounded simulation shows
 that the cap never triggers along executions of the program.
 
 ## Main results
 
 * `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth`: open stateful
-  substitution when the reply allowance is polynomial in the caller, request and current state
-  length, and the state growth is additive and polynomial in the caller and request alone.
+  substitution when each call adds encoded state bounded by a polynomial in the caller and request
+  alone, without a user-supplied reply-length bound.
 -/
 
 public section
@@ -235,11 +238,11 @@ private theorem runWith_cappedHandler_eq {β : Type}
 
 end Helpers
 
-/-- Open stateful substitution when each reply may depend polynomially on the caller, the request
-and the handler's current state length, while each call adds encoded state polynomially bounded in
-the caller and the request alone. Because the outer program's query bound caps both the number of
-calls and every request length, the handler's encoded state stays polynomially bounded in the
-caller's input along every execution, reducing the certificate to
+/-- Open stateful substitution when each call adds encoded state polynomially bounded in the caller
+and request alone. Because the outer program's query bound caps both the number of calls and every
+request length, the handler's encoded state stays polynomially bounded in the caller's input along
+every execution, and `IsOraclePPTOn.length_le` together with `ProbOracleComp.mem_support_iff_exists`
+gives a uniform polynomial bound on all replies, reducing the certificate to
 `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded`. -/
 theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     {Operation External α β Caller State : Type} [DecidableEq Operation] [DecidableEq External]
@@ -249,7 +252,7 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     {handler : Caller → Operation × List Bool → State →
       WordOracleComp External (List Bool × State)}
     {prepare : Caller → α} {initial : Caller → State}
-    {reply : Caller → List Bool → ℕ → ℕ} {growth : Caller → List Bool → ℕ}
+    {growth : Caller → List Bool → ℕ}
     (hprogram : IsOraclePPTOn source output program)
     (hprepare : ComputableInPolyTime prepare input source)
     (hhandler : IsOraclePPTOn (encHandlerCall input operationEncoding stateEncoding)
@@ -257,14 +260,11 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
       (fun ⟨caller, request, state⟩ => handler caller request state))
     (hinitial : ComputableInPolyTime initial input stateEncoding)
     (invariant : Caller → State → Prop) (hinit : ∀ a, invariant a (initial a))
-    (hreply : PolyBounded (fun (⟨a, w, k⟩ : Caller × List Bool × ℕ) =>
-      (encPair input encBits (a, w)).length + k) (fun ⟨a, w, k⟩ => reply a w k))
     (hgrowth : PolyBounded (fun pair : Caller × List Bool => (encPair input encBits pair).length)
       (fun ⟨a, w⟩ => growth a w))
     (hpreserve : ∀ a request state, invariant a state →
       ∀ result ∈ OracleComp.support (handler a request state),
         invariant a result.2 ∧
-        result.1.length ≤ reply a request.2 (stateEncoding state).length ∧
         (stateEncoding result.2).length ≤ (stateEncoding state).length + growth a request.2) :
     IsOraclePPTOn input (encPair output stateEncoding) (fun a =>
       (OracleComp.interpret
@@ -291,15 +291,21 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     simp only [length_encPair, encBits_apply] at h
     exact h.trans (Nat.mul_le_mul_left gC
       (Nat.pow_le_pow_left (by omega) gD))
-  obtain ⟨rC, rD, hr_bound⟩ := hreply.exists_le
+  have : Finite Operation := hprogram.finite_operations
+  letI : Fintype Operation := Fintype.ofFinite Operation
+  let opMax : ℕ := Finset.univ.sup fun op : Operation => (operationEncoding op).length
+  have hopMax (op : Operation) : (operationEncoding op).length ≤ opMax :=
+    Finset.le_sup (Finset.mem_univ op)
+  obtain ⟨rC, rD, hr_bound⟩ := hhandler.length_le
   let maxState (a : Caller) : ℕ := (stateEncoding (initial a)).length + Q a * G a
   have hmaxState_poly : PolyBounded (fun a => (input a).length) maxState :=
     hinitial.polyBounded_length.add (hQ_poly.mul hG_poly)
   let R (a : Caller) : ℕ :=
-    rC * (2 * (input a).length + Q a + maxState a + 2) ^ rD
+    rC * (2 * (input a).length + 4 * opMax + 2 * Q a + maxState a + 9) ^ rD
   have hR_poly : PolyBounded (fun a => (input a).length) R :=
     (PolyBounded.const rC).mul
-      ((((((PolyBounded.const 2).mul .self).add hQ_poly).add hmaxState_poly).add (.const 2)).pow rD)
+      (((((((PolyBounded.const 2).mul .self).add (.const (4 * opMax))).add
+        ((PolyBounded.const 2).mul hQ_poly)).add hmaxState_poly).add (.const 9)).pow rD)
   let resources' (a : Caller) (_ : List Bool) : ℕ := R a + (2 * G a + 1)
   have hres'_caller : PolyBounded (fun a => (input a).length) (fun a => resources' a []) :=
     hR_poly.add (((PolyBounded.const 2).mul hG_poly).add (.const 1))
@@ -320,7 +326,7 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
       by_cases hguard : k < Q a ∧ request.2.length ≤ Q a
       · rw [cappedHandler, ite_eq_left hguard, OracleComp.mem_supportWith_map_iff] at hresult
         obtain ⟨res, hres, rfl⟩ := hresult
-        obtain ⟨hinv', hrep, hgro⟩ := hpreserve a request s hinv res hres
+        obtain ⟨hinv', hgro⟩ := hpreserve a request s hinv res hres
         have hG := hG_le a hguard.2
         have hstepLen : (stateEncoding res.2).length ≤
             (stateEncoding (initial a)).length + (k + 1) * G a := by
@@ -328,11 +334,21 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
             (hgro.trans (Nat.add_le_add_left hG _)).trans (Nat.add_le_add_right hlen _)
         have hsBound : (stateEncoding s).length ≤ maxState a :=
           hlen.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hkQ) _)
-        have hrepBound : res.1.length ≤ R a := by
-          refine hrep.trans ((hr_bound (a, request.2, (stateEncoding s).length)).trans ?_)
-          simp only [length_encPair, encBits_apply]
-          refine Nat.mul_le_mul_left rC (Nat.pow_le_pow_left ?_ rD)
+        obtain ⟨ExtState, oracle, ext, ext', hmem⟩ := ProbOracleComp.mem_support_iff_exists.mp hres
+        rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
+        have hresLen := hr_bound (a, request, s) ExtState oracle ext ext' res hmem
+        have hop := hopMax request.1
+        have hcallLen :
+            (encHandlerCall input operationEncoding stateEncoding (a, request, s)).length ≤
+              2 * (input a).length + 4 * opMax + 2 * Q a + maxState a + 8 := by
+          simp only [encHandlerCall, length_encPair, encBits_apply]
           omega
+        have hrep : res.1.length ≤ (encPair encBits stateEncoding res).length := by
+          simp only [length_encPair, encBits_apply]
+          omega
+        have hrepBound : res.1.length ≤ R a :=
+          hrep.trans (hresLen.trans (Nat.mul_le_mul_left rC
+            (Nat.pow_le_pow_left (by omega) rD)))
         have hstateEnc :
             (encPair stateEncoding encUnary (res.2, k + 1)).length ≤
               (encPair stateEncoding encUnary (s, k)).length + resources' a request.2 := by
