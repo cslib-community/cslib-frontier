@@ -120,8 +120,8 @@ theorem perfectPredictor_isPPT : perfectPredictor.IsPPT := by
       (fun _ => by decide)
   have hbit : ComputableInPolyTime
       (fun x : RSAInput => (rsaInvert 33 7 x.challenge).testBit 0) encRSAInput encBool :=
-    .of_tidy (ComputableTidilyInPolyTime.binary_testBit hinv.tidy
-      (ComputableTidilyInPolyTime.const 0))
+    (ComputableInPolyTime.binary_testBit hinv
+      (ComputableInPolyTime.const 0))
   exact hbit.isPPTOn
 
 /-- `lsbInverter perfectPredictor` is certified uniform strict PPT via `isPPT_lsbInverter`. -/

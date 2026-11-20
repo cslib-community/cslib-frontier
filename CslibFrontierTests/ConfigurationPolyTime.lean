@@ -31,7 +31,7 @@ example : ComputableInPolyTime
 -- Native observation and state guards do not expose the tuple encoding to clients.
 example : ComputableInPolyTime
     (fun cfg : Config => if cfg.tapes.state = none then cfg.tapes.output else cfg.tapes.input)
-    encFiniteConfig encBits := .of_tidy (by polytime)
+    encFiniteConfig encBits := by polytime
 
 -- Explicit lambdas, named projections and a captured configuration have the same certificates.
 example {α : Type} (input : α ↪ List Bool) (cfg : α → Config)
@@ -55,7 +55,7 @@ example : ComputableInPolyTime (FiniteConfig.init (k := 0) (Oracle := Empty) ())
 -- Installing a reply of arbitrary length is charged to the encoded input of the operation.
 example : ComputableInPolyTime
     (fun pair : Config × List Bool => pair.1.receive 1 0 (pair.2 ++ pair.2))
-    (encPair encFiniteConfig encBits) encFiniteConfig := .of_tidy (by polytime)
+    (encPair encFiniteConfig encBits) encFiniteConfig := by polytime
 
 -- One constant covers every input and every reply, including replies longer than the clock.
 example : ∃ c : ℕ, ∀ word answer : List Bool,

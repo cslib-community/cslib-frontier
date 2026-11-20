@@ -162,6 +162,35 @@ noncomputable def Xofs.fullPairExperiment (H : Xofs) (s : Level)
       let pair : MLDSA.SecretKey s.params := ⟨A, sk.s₁, sk.s₂⟩
       return run (fun j => sk.rho[j.val]!) pair.publicKey) : Option Game).getD (pure false)
 
+/-- Draw the FIPS seed and form the unrounded pair directly from the two expansions of Algorithm
+6. This is the same experiment as generating and decoding the private and public key bytes. -/
+theorem Xofs.fullPairExperiment_eq_expand (H : Xofs) (s : Level)
+    (run : FixedBytes 32 → MLDSA.PublicKey s.params → Game) :
+    H.fullPairExperiment s run = (PMF.uniformOfFintype (FixedBytes 32)).bind fun seed =>
+      let ex := H.expandKeySeed s seed
+      let rho := ex.take 32
+      ((do
+        let A ← H.expandA s rho
+        let (x, e) ← H.expandS s ((ex.drop 32).take 64)
+        return run (fun i => rho[i.val]!) ⟨A, ModuleLWE.sample A x e⟩) : Option Game).getD
+          (PMF.pure false) := by
+  unfold Xofs.fullPairExperiment Xofs.keyExperiment
+  apply congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32)) ·)
+  funext seed
+  cases kg : H.keyGen s seed with
+  | none =>
+    unfold Xofs.keyGen at kg
+    cases ha : H.expandA s ((H.expandKeySeed s seed).take 32) <;>
+      cases hs : H.expandS s (((H.expandKeySeed s seed).drop 32).take 64) <;>
+      simp_all
+  | some keys =>
+    obtain ⟨rho, sk, mat, pk, hd, _, _, exp⟩ := privateKey_of_keyGen kg
+    have seedEq : (H.expandKeySeed s seed).take 32 = rho.toList := by
+      rw [← publicSeed_of_keyGen kg, pk, take_encodePublic]
+    simp only [hd, seedEq, mat, exp, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+      Option.getD_some]
+    rfl
+
 namespace QuantumSigningForger
 
 /-- The final shared XOFs, public bytes, forgery and successful signing log, together with
@@ -352,15 +381,18 @@ private noncomputable def signingCall (s : Level) {base : Xofs} (tr : List Byte)
   return (w.reply, ⟨G, q.logReply w.reply st.log, writes,
     st.trace.append q w.point w.digest w.reply input rfl, exhausted, signed⟩)
 
-private noncomputable def runProgrammed (C : QuantumSigningForger) (s : Level) (H : Xofs)
-    (A : PublicMatrix s) (pk tr : List Byte) (draw : (H : Xofs) → PMF (Option (Terminal s H))) :
-    PMF (ProgrammedSigningResult C s H) := do
-  let commands := OracleComp.sumHandler (m := StateT (Device C × History s H tr) PMF)
+private noncomputable def programmedCommands (C : QuantumSigningForger) (s : Level) (H : Xofs)
+    (tr : List Byte) (draw : (H : Xofs) → PMF (Option (Terminal s H))) :=
+  OracleComp.sumHandler (m := StateT (Device C × History s H tr) PMF)
     (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
     (spec₂ := fun _ : SigningQuery => Option (List Byte))
     (fun cmd st => C.deviceCommand st.2.xofs cmd st)
     (fun q st => (signingCall s tr draw q st.2).map fun (r, history) => (r, st.1, history))
-  let (f, dev, state) ← ProbOracleComp.runWith commands (C.program pk)
+
+private noncomputable def runProgrammed (C : QuantumSigningForger) (s : Level) (H : Xofs)
+    (A : PublicMatrix s) (pk tr : List Byte) (draw : (H : Xofs) → PMF (Option (Terminal s H))) :
+    PMF (ProgrammedSigningResult C s H) := do
+  let (f, dev, state) ← ProbOracleComp.runWith (C.programmedCommands s H tr draw) (C.program pk)
     (C.initial.1, ⟨H, [], [], .initial, by simp, by simp⟩)
   return ⟨⟨state.xofs, A, pk, f, state.log⟩, tr, state.writes, state.trace, state.exhausted,
     state.signed, dev⟩
@@ -420,7 +452,7 @@ theorem freshMaskSigning_eq_publicPair_of_keyGen (C : QuantumSigningForger) {s :
       H.expandA s rho.toList = some sk.A ∧
       keys.publicKey = encodePublic s rho.toList sk.publicKey.t ∧
       C.freshMaskSigning s H keys = (C.publicPairSigning s H rho sk.publicKey).map some := by
-  obtain ⟨rho, sk, ha, hpk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
+  obtain ⟨rho, sk, ha, hpk, hd, h₁, h₂, _⟩ := privateKey_of_keyGen hg
   exact ⟨rho, sk, ha, hpk, C.freshMaskSigning_eq_of_decoded s H keys rho sk _ ha hpk hd h₁ h₂⟩
 
 /-- Fresh-digest **winning game** for the ideal-mask, fresh-digest signing hybrid: replace
@@ -441,7 +473,7 @@ theorem freshMask_newDigestGame_eq_publicPair (C : QuantumSigningForger) (s : Le
   cases hg : H.keyGen s seed with
   | none => rfl
   | some keys =>
-    obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
+    obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂, _⟩ := privateKey_of_keyGen hg
     have rho : (fun i : Fin 32 => ρ.toList[i.val]!) = ρ := by
       funext i
       simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]

@@ -188,8 +188,14 @@ theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encQBF encBits) encBool := by
   have hT : ComputableInPolyTime (fun x : QBF ℕ × List Bool =>
       trueVars x.1.distinctFreeVars x.2) (encPair encQBF encBits) (encList encNat) := by
-    unfold trueVars
-    fun_prop
+    have hp := ComputableInPolyTime.id' (encIn := encPair encQBF encBits)
+    have hvars := computableInPolyTime_distinctFreeVars.comp hp.fst'
+    apply ComputableInPolyTime.filterWithInput (test := fun p v =>
+      p.2.getD (p.1.distinctFreeVars.idxOf v) false) hvars
+    have hq := ComputableInPolyTime.id'
+      (encIn := encPair (encPair encQBF encBits) encNat)
+    exact hq.fst'.snd'.bitsGetDWithInput
+      ((hvars.comp hq.fst').idxOfWithInput hq.snd') false
   unfold verifier
   exact computableInPolyTime_evalTokens.comp ((ComputableInPolyTime.fst _ _).prod hT)
 

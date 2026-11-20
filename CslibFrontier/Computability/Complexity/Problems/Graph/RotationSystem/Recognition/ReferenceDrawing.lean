@@ -184,11 +184,6 @@ private theorem crossing_rankChord_iff {order : List ℕ} {e f : ℕ × ℕ}
   change ((between order e f.1 ^^ between order e f.2) : Prop) ↔ _
   rw [Bool.coe_xor_iff, hbetween, hbetween]
 
-private theorem subdivision_edge_ends (I : FixedRotationInput)
-    (e : Fin (subdivisionGraph I).edges.length) :
-    (subdivisionGraph I).edges[e] = (Dart.vertex (e, false), Dart.vertex (e, true)) := by
-  simp [Dart.vertex, Graph.edgeEndpoint]
-
 /-- The existing rank-interleaving bit is exactly a unique actual common interior point
 of the two indexed straight reference routes. Independence supplies all four cross-endpoint
 inequalities; validity supplies nondegenerate segments and actual reference-order membership. -/
@@ -203,7 +198,7 @@ theorem referenceDrawing_crossing_iff {I : FixedRotationInput} (hI : Valid I)
             ((referenceDrawing I).route e).finish ∧
           z ∈ openSegment ℝ ((referenceDrawing I).route f).start
             ((referenceDrawing I).route f).finish := by
-  rw [subdivision_edge_ends I e, subdivision_edge_ends I f] at hind ⊢
+  rw [Dart.edge_eq_vertices e, Dart.edge_eq_vertices f] at hind ⊢
   have he := subdivision_endpoint_spec hI e
   have hf := subdivision_endpoint_spec hI f
   exact crossing_rankChord_iff ⟨he.1 false, he.1 true⟩ ⟨hf.1 false, hf.1 true⟩ he.2 hf.2 hind

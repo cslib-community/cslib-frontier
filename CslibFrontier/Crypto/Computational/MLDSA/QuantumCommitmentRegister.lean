@@ -36,7 +36,7 @@ open Cslib.Probability Cslib.Quantum ExtendableOutput
 /-- Install a literal digest prefix on every SHAKE256 word of the FIPS commitment length,
 including words that are also queried in another role. Long-read suffixes and SHAKE128
 remain in the supplied XOF pair. -/
-def Xofs.withDigestRegister (H : Xofs) (s : Level)
+@[expose] def Xofs.withDigestRegister (H : Xofs) (s : Level)
     (D : BitString s.commitmentInputBits → BitString (8 * digestBytes s)) : Xofs :=
   { H with h256 := H.h256.withPrefixes fun x =>
       if x.length = s.commitmentInputBits then
@@ -57,9 +57,10 @@ theorem Xofs.keyGen_withDigestRegister (H : Xofs) (s : Level)
     apply off
     simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
     cases s <;> decide
-  · intro x hx
+  · intro nonce
     apply off
-    rw [hx]
+    simp only [nonceInput, List.length_append, List.length_take, List.length_drop,
+      Xofs.expandKeySeed, H.h256.length_read, List.length_cons, List.length_nil]
     cases s <;> decide
   · intro x hx
     apply off
@@ -70,6 +71,22 @@ theorem Xofs.keyGen_withDigestRegister (H : Xofs) (s : Level)
 def Xofs.readDigestRegister (H : Xofs) (s : Level) (x : BitString s.commitmentInputBits) :
     BitString (8 * digestBytes s) :=
   Keccak.fixedBytesEquivBitsLE _ (fun j => H.h256.byteAt (List.ofFn x) j)
+
+/-- Reading all commitment prefixes from the current streams and reinstalling them preserves every
+raw query, including SHAKE256 output beyond the digest. -/
+theorem Xofs.withDigestRegister_readDigestRegister (H : Xofs) (s : Level) :
+    H.withDigestRegister s (H.readDigestRegister s) = H := by
+  cases H with
+  | mk h128 h256 =>
+    unfold Xofs.withDigestRegister
+    congr 1
+    apply ExtendableOutput.ext_byteAt
+    intro x i
+    by_cases len : x.length = s.commitmentInputBits
+    · by_cases small : i < digestBytes s <;>
+        simp [Xofs.readDigestRegister, ExtendableOutput.byteAt_withPrefixes, len, FixedBytes.toList,
+          small, BitString.ofFn_ofList len]
+    · simp [ExtendableOutput.byteAt_withPrefixes, len]
 
 private def digestCells {a b : ℕ} (s : Level) (ha : s.commitmentInputBits ≤ a)
     (hb : digestBytes s ≤ b) : BitString s.commitmentInputBits × Fin (digestBytes s) ↪

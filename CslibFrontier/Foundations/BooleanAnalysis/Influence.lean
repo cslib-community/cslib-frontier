@@ -62,12 +62,15 @@ signs the squared norm at `x` is the number of bits whose flip changes the value
 
 * `Cslib.BitString.derivative_chi`, `Cslib.BitString.fourierCoeff_derivative`: the derivative of
   a character, and the Fourier coefficients of a derivative.
+* `Cslib.BitString.derivative_comp_arrowCongr`: the derivative commutes with renaming the
+  coordinates.
 * `Cslib.BitString.influence_eq_sum_fourierCoeff_sq`: the influence of `i` is the Fourier weight
   on the sets containing `i`.
 * `Cslib.BitString.influence_signVal`, `Cslib.BitString.influence_signVal_eq_dens`: the influence
   on a Boolean function is the probability that a flip changes its value.
 * `Cslib.BitString.influence_signVal_ne_zero_iff`: a coordinate has nonzero influence on a Boolean
   function exactly when flipping it changes the value on some input.
+* `Cslib.BitString.influence_comp_arrowCongr`: renaming the coordinates renames the influences.
 * `Cslib.BitString.totalInfluence_eq_sum_card_mul_fourierCoeff_sq`: the spectral formula for the
   total influence.
 * `Cslib.BitString.totalInfluence_eq_expect_sum_gradient_sq`: the total influence is the mean
@@ -149,6 +152,16 @@ theorem sq_derivative_signVal_eq_ite (f : (ι → Bool) → Bool) (i : ι) (x : 
   rw [derivative, ← if_congr (update_false_true_eq f i x) rfl rfl]
   cases f (update x i false) <;> cases f (update x i true) <;> norm_num
 
+/-- The derivative commutes with renaming the coordinates: differentiating `g` with its
+coordinates renamed by `e` in `i` is differentiating `g` in `e i`. -/
+theorem derivative_comp_arrowCongr {κ : Type*} [DecidableEq κ] (e : ι ≃ κ) (i : ι)
+    (g : (κ → Bool) → ℝ) (x : ι → Bool) :
+    derivative i (fun y : ι → Bool => g fun j => y (e.symm j)) x =
+      derivative (e i) g fun j => x (e.symm j) := by
+  simp only [derivative, ← comp_apply (f := update x i _), update_comp_equiv x e.symm,
+    Equiv.symm_symm]
+  rfl
+
 variable [Fintype ι]
 
 /-- **The Fourier expansion of a derivative**: differentiating in `i` keeps the sets containing
@@ -200,6 +213,14 @@ theorem influence_le_expect_sq (i : ι) (f : (ι → Bool) → ℝ) :
     influence i f ≤ 𝔼 x, f x ^ 2 := by
   rw [influence_eq_sum_fourierCoeff_sq, expect_sq_eq_sum_fourierCoeff_sq]
   exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => sq_nonneg _
+
+/-- **Relabelling the coordinates relabels the influences**: renaming the coordinates of `g` by
+`e`, the influence of `i` is the influence of `e i` on `g`. -/
+theorem influence_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] (e : ι ≃ κ) (i : ι)
+    (g : (κ → Bool) → ℝ) :
+    influence i (fun y : ι → Bool => g fun j => y (e.symm j)) = influence (e i) g := by
+  simp only [influence, derivative_comp_arrowCongr]
+  exact Fintype.expect_comp_arrowCongr e fun y => derivative (e i) g y ^ 2
 
 /-- The influence of `i` on a character is one if `i` is in its set, and zero otherwise. -/
 theorem influence_chi (i : ι) (S : Finset ι) :

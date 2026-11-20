@@ -227,8 +227,8 @@ private theorem dualChunkGates_inSpace {g : α → Boolean.Op × List ℕ}
     ComputableInSpace (fun x =>
       doubled (doubled (frame (encGate (dualGateDM true (g x))))) ++
         doubled (doubled (frame (encGate (dualGateDM false (g x)))))) encIn encBits Bs := by
-  have hrail (b : Bool) := budget_comp_linear doubled_inSpace
-    (budget_comp_linear doubled_inSpace
+  have hrail (b : Bool) := budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
+    (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
       (budget_comp_linear (ComputableInSpace.frame encGate) (dualGateDM_inSpace b hg hin)))
   refine ((hrail true).append (hrail false)
     (g := fun x => doubled (doubled (frame (encGate (dualGateDM true (g x))))) ++

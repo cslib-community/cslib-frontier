@@ -265,7 +265,7 @@ theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : Key
     {rnd : FixedBytes 32} (hg : H.keyGen s seed = some keys)
     (hs : H.sign s keys.secretKey f.message f.context rnd = some f.signature) :
     H.verify s keys.publicKey f.message f.context f.signature = some true := by
-  obtain ⟨rho, sk, hA, pk, decoded, _, short⟩ := privateKey_of_keyGen hg
+  obtain ⟨rho, sk, hA, pk, decoded, _, short, _⟩ := privateKey_of_keyGen hg
   have ctx : f.context.length ≤ 255 := by
     by_contra h
     simp [Xofs.sign, guard, h] at hs

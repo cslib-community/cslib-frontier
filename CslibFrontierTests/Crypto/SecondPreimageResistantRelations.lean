@@ -19,15 +19,15 @@ Checks for `CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations
 
 * Concrete evaluations of `ignoreHeadBit`, `flipHeadBit`, and `plantEasyBranch`.
 * The Section 8.11.1 separation (`not_secondPreimageResistant_ignoreHeadBit_id` and hypothesis-form
-  `OneWay.ignoreHeadBit`) and the bit-string Exercise 8.23(c) separation
-  (`secondPreimageResistant_plantEasyBranch_id`, `not_oneWay_plantEasyBranch_id`, and the
+  `OneWayOn.ignoreHeadBit`) and the bit-string Exercise 8.23(c) separation
+  (`secondPreimageResistant_plantEasyBranch_id`, `not_oneWayOn_plantEasyBranch_id`, and the
   compressing instance `exercise8_23c_compressing`).
 * Necessity of the super-polynomial compression premise in
-  `SecondPreimageResistantOn.oneWay_of_outputLength`: `id` is `SecondPreimageResistant` and
-  length-preserving (`outLen n = n`), yet `¬ OneWay id` because `2 ^ n / 2 ^ n = 1` is not
-  negligible (`not_oneWay_id`).
-* The composed `(8.17)` chain `HashFamily H → OneWay (keyDigest H)`, failure of `hpre` on
-  `{0,1}ⁿ` for `keyDigest`, and concrete `(n, d)` / `(n, r)` reduction bounds.
+  `SecondPreimageResistantOn.oneWayOn_of_outputLength`: `id` is `SecondPreimageResistant` and
+  length-preserving (`outLen n = n`), yet not one-way on `{0,1}ⁿ` because `2 ^ n / 2 ^ n = 1` is
+  not negligible (`not_oneWayOn_id`).
+* The composed `(8.17)` chain `HashFamily H → OneWay (keyDigest H)` and concrete `(n, d)` /
+  `(n, r)` reduction bounds.
 -/
 
 set_option linter.privateModule false
@@ -48,12 +48,16 @@ example : plantEasyBranch 2 id [false, false, true] = [true, true] := rfl
 
 example : plantEasyBranch 2 id [true, false, true] = [false, true, false, true] := rfl
 
-/-- **Necessity of compression in `SecondPreimageResistantOn.oneWay_of_outputLength`**: `id` is
-`SecondPreimageResistant` (see `CslibFrontierTests/Crypto/SecondPreimageResistant.lean`) and
-length-preserving (`outLen n = n`), yet `¬ OneWay id`. -/
 theorem not_oneWay_id : ¬ OneWay id :=
   not_oneWay_of_inverse id (fun _ y => y)
     (ComputableInPolyTime.id' (encIn := encBits)).isPPT (fun _ => rfl)
+
+/-- **Necessity of compression in `SecondPreimageResistantOn.oneWayOn_of_outputLength`**: `id` is
+`SecondPreimageResistant` (see `CslibFrontierTests/Crypto/SecondPreimageResistant.lean`) and
+length-preserving (`outLen n = n`), yet not one-way on `{0,1}ⁿ`: for an injective function,
+one-wayness on a domain containing the `n`-bit words is `OneWay`. -/
+theorem not_oneWayOn_id : ¬ OneWayOn id (fun n w => decide (w.length = n)) := fun h =>
+  not_oneWay_id (h.oneWay_of_injective Function.injective_id fun _ _ => decide_eq_true)
 
 /-- `ignoreHeadBit id` is not second-preimage resistant. -/
 theorem not_secondPreimageResistant_ignoreHeadBit_id :
@@ -80,8 +84,9 @@ theorem secondPreimageResistant_plantEasyBranch_id :
     SecondPreimageResistant (plantEasyBranch 2 id) :=
   secondPreimageResistantOn_plantEasyBranch_id _
 
-theorem not_oneWay_plantEasyBranch_id : ¬ OneWay (plantEasyBranch 2 id) :=
-  not_oneWay_plantEasyBranch 2 id
+theorem not_oneWayOn_plantEasyBranch_id :
+    ¬ OneWayOn (plantEasyBranch 2 id) (fun n w => decide (w.length = n)) :=
+  not_oneWayOn_plantEasyBranch 2 id fun _ _ => decide_eq_true
 
 /-- Separation witness between `SecondPreimageResistantOn` (Definition 8.6 on `{0,1}ⁿ`) and the
 any-length strengthening `SecondPreimageResistant`: strip a leading `false` bit. On fixed-length
@@ -181,12 +186,6 @@ theorem not_oneWay_stripFalseHead : ¬ OneWay stripFalseHead := by
   refine not_oneWay_of_inverse stripFalseHead (fun _ y => inv y) hinv_poly.isPPT fun x =>
     hright (stripFalseHead x)
 
-/-- `hpre` in `SecondPreimageResistantOn.oneWay_of_outputLength` fails on `{0,1}ⁿ` for
-`keyDigest`: 3-bit and 4-bit inputs share `n / 3 = 1` and collide when `H key _ = key`. -/
-example :
-    CollisionResistantToOneWay.keyDigest (fun key _ => key) [false, false, false] =
-      CollisionResistantToOneWay.keyDigest (fun key _ => key) [false, false, false, false] := rfl
-
 /-- Concrete compressing output-length check for `plantEasyBranch 2 (List.drop 2)` (`3 ↦ 2`). -/
 example : (plantEasyBranch 2 (List.drop 2) [false, false, true]).length = 2 := rfl
 
@@ -203,16 +202,16 @@ theorem length_plantEasyBranch_drop (w : List Bool) (hw : 2 ≤ w.length) :
 /-- **Exercise 8.23(c), compressing instance at `k = 2`**: given any `SecondPreimageResistant H`
 compressing `n`-bit inputs to `(n - 2)`-bit digests (`n ≥ 2`), `plantEasyBranch 2 H` maps
 `n`-bit inputs to `(n - 1)`-bit digests, remains `SecondPreimageResistant` (and
-`SecondPreimageResistantOn` on every `valid`), and is not `OneWay`. -/
+`SecondPreimageResistantOn` on every `valid`), and is not one-way on `{0,1}ⁿ`. -/
 theorem exercise8_23c_compressing {H : List Bool → List Bool} (hH : SecondPreimageResistant H)
     (hlen : ∀ w : List Bool, 2 ≤ w.length → (H w).length = w.length - 2)
     (valid : ℕ → List Bool → Bool) :
     (∀ w : List Bool, 2 ≤ w.length → (plantEasyBranch 2 H w).length = w.length - 1) ∧
       SecondPreimageResistantOn (plantEasyBranch 2 H) valid ∧
       SecondPreimageResistant (plantEasyBranch 2 H) ∧
-      ¬ OneWay (plantEasyBranch 2 H) := by
+      ¬ OneWayOn (plantEasyBranch 2 H) (fun n w => decide (w.length = n)) := by
   refine ⟨fun w hw => ?_, (hH.mono fun _ _ _ => rfl).plantEasyBranch 2,
-    hH.plantEasyBranch 2, not_oneWay_plantEasyBranch 2 H⟩
+    hH.plantEasyBranch 2, not_oneWayOn_plantEasyBranch 2 H fun _ _ => decide_eq_true⟩
   rw [length_plantEasyBranch]
   split_ifs
   · omega
@@ -220,13 +219,13 @@ theorem exercise8_23c_compressing {H : List Bool → List Bool} (hH : SecondPrei
     omega
 
 /-- Composed **(8.17)** chain
-`HashFamily H → SecondPreimageResistant (keyDigest H) → OneWay (keyDigest H)`.
-Routing `(8.17)` through `SecondPreimageResistant` (`valid := fun _ _ => true`) makes `hpre` hold
-by `rfl`. -/
+`HashFamily H → SecondPreimageResistant (keyDigest H) → OneWay (keyDigest H)`: second-preimage
+resistance on the domain that accepts every answer gives one-wayness on that domain, which is
+`OneWay`. -/
 example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
     OneWay (CollisionResistantToOneWay.keyDigest H) := by
-  refine hH.secondPreimageResistant_keyDigest.oneWay_of_outputLength
-    (outLen := fun n => 2 * (n / 3)) (fun n w hw => ?_) (fun _ _ _ _ _ => rfl) ?_
+  refine oneWayOn_true_iff.mp (hH.secondPreimageResistant_keyDigest.oneWayOn_of_outputLength
+    (outLen := fun n => 2 * (n / 3)) (fun n w hw => ?_) ?_)
   · simp [CollisionResistantToOneWay.keyDigest, hw, hH.length_eq, two_mul,
       Nat.min_eq_left (Nat.div_le_self n 3)]
   · have hhalf : Negligible fun n => (1 / 2 : ℝ≥0) ^ (n / 3) :=
@@ -244,37 +243,31 @@ example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
       _ ≤ (1 / 2 : ℝ≥0) ^ (n / 3) :=
             pow_le_pow_of_le_one zero_le (by norm_num) (by omega)
 
-/-- Section 8.11.1 separation applied to a `OneWay f` hypothesis: `ignoreHeadBit f` stays one-way
-while failing second-preimage resistance on `{0,1}ⁿ`. -/
-example {f : List Bool → List Bool} (hf : OneWay f) :
-    OneWay (ignoreHeadBit f) ∧
+/-- Section 8.11.1 separation on `{0,1}ⁿ`: if `f` is one-way there, `ignoreHeadBit f` stays
+one-way while failing second-preimage resistance. -/
+example {f : List Bool → List Bool} (hf : OneWayOn f fun n w => decide (w.length = n)) :
+    OneWayOn (ignoreHeadBit f) (fun n w => decide (w.length = n)) ∧
       ¬ SecondPreimageResistantOn (ignoreHeadBit f) (fun n w => decide (w.length = n)) :=
-  ⟨hf.ignoreHeadBit,
+  ⟨hf.ignoreHeadBit fun n w hw => by
+      simp only [decide_eq_true_eq, List.length_tail] at hw ⊢
+      omega,
     not_secondPreimageResistantOn_ignoreHeadBit f <|
       Filter.eventually_ge_atTop 1 |>.mono fun n hn x hlen => by
         cases x with
         | nil => simp at hlen; omega
         | cons b xs => simpa [flipHeadBit] using hlen⟩
 
-/-- Concrete `(n = 2, d = 1)` reduction bounds for `List.take 1` (`OWadv ≤ SPRadv + 2¹ / 2²` and
-`OWadv ≤ 2 · SPRadv + 2¹ / 2²`). -/
+/-- Concrete `(n = 2, d = 1)` reduction bound for `List.take 1` on `{0,1}²`:
+`OWadv ≤ SPRadv + 2¹ / 2²`. -/
 example (adversary : Inverter) :
-    Game.succProbability (ProbComp.eval (inversionGame (List.take 1) adversary 2)) ≤
+    Game.succProbability (ProbComp.eval
+      (inversionGameOn (List.take 1) (fun n w => decide (w.length = n)) adversary 2)) ≤
       Game.succProbability
         (ProbComp.eval
-          (secondPreimageGameOn (List.take 1) (fun _ _ => true)
-            (inverterToSecondPreimage (List.take 1) adversary) 2)) +
-        (2 : ℝ≥0) ^ 1 / (2 : ℝ≥0) ^ 2 ∧
-    Game.succProbability (ProbComp.eval (inversionGame (List.take 1) adversary 2)) ≤
-      2 * Game.succProbability
-        (ProbComp.eval
-          (secondPreimageGameOn (List.take 1) (fun _ _ => true)
+          (secondPreimageGameOn (List.take 1) (fun n w => decide (w.length = n))
             (inverterToSecondPreimage (List.take 1) adversary) 2)) +
         (2 : ℝ≥0) ^ 1 / (2 : ℝ≥0) ^ 2 :=
-  ⟨succProbability_inversionGame_le_secondPreimageGameOn_add
-      (fun w hw => by simp [hw]) (fun _ _ _ _ => rfl) adversary,
-    succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add
-      (fun w hw => by simp [hw]) (fun _ _ _ _ => rfl) adversary⟩
+  succProbability_inversionGameOn_le_secondPreimageGameOn_add (fun w hw => by simp [hw]) adversary
 
 /-- Concrete `(n = 2, r = 1)` zero-loss second-preimage bound for `keyDigest H`. -/
 example {H : List Bool → List Bool → List Bool}
