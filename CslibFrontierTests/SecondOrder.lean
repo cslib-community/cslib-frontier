@@ -46,23 +46,27 @@ example {L : Language} (M : Type) [L.Structure M] : ¬(allRelations (L := L)).Re
   obtain ⟨a, ha⟩ := empty
   exact ha
 
-/-- An edge requires that its right-hand relation contain the right-hand element. -/
-private def oneEdge {L : Language} (r : L.Relations 1) : SO.TCFormula Bool L 0 :=
+/-- An edge leaves a relation missing its element and enters one containing its element. -/
+private def oneEdge {L : Language} (r s : L.Relations 1) : SO.TCFormula Bool L 0 :=
   let arity : Unit → ℕ := fun _ => 1
+  let source : (L.sum (ESO.varLanguage (Sum.elim arity arity))).Relations 1 :=
+    .inr ⟨.inl (), rfl⟩
   let target : (L.sum (ESO.varLanguage (Sum.elim arity arity))).Relations 1 :=
     .inr ⟨.inr (), rfl⟩
-  .tc (k := 1) rfl inferInstance arity (fun _ => r) (fun _ => r)
+  .tc (k := 1) rfl inferInstance arity (fun _ => r) (fun _ => s)
     (fun _ => .var (.inl false)) (fun _ => .var (.inl true))
-    (.ofFirstOrder (target.boundedFormula₁ (.var (.inr 1))))
+    (.ofFirstOrder
+      ((source.boundedFormula₁ (.var (.inr 0))).not ⊓ target.boundedFormula₁ (.var (.inr 1))))
 
-example {L : Language} [L.Structure Bool] (r : L.Relations 1)
-    (h : Structure.RelMap r (fun _ => true)) :
-    (oneEdge r).Realize id Fin.elim0 := by
+example {L : Language} [L.Structure Bool] (r s : L.Relations 1)
+    (hempty : ∀ x : Fin 1 → Bool, ¬ Structure.RelMap r x) (h : Structure.RelMap s (fun _ => true)) :
+    (oneEdge r s).Realize id Fin.elim0 := by
   rw [oneEdge, SO.BoundedFormula.Realize]
   refine Relation.TransGen.single ?_
-  simp only [SO.BoundedFormula.Realize, Relations.boundedFormula₁, Relations.boundedFormula,
-    FirstOrder.Language.BoundedFormula.Realize]
-  change Structure.RelMap r _
+  simp only [SO.BoundedFormula.Realize, BoundedFormula.realize_inf,
+    Relations.boundedFormula₁, Relations.boundedFormula, BoundedFormula.Realize]
+  change ¬ Structure.RelMap r _ ∧ Structure.RelMap s _
+  refine ⟨hempty _, ?_⟩
   convert h using 1
   apply iff_of_eq
   congr 1

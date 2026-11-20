@@ -26,8 +26,16 @@ sentence embeds by applying one existential relation block to its first-order ma
 The transitive-closure extension lets an edge formula bind two tuples of elements and
 relations. An application holds when its endpoints are joined by a nonempty finite path
 in that edge relation
-[Ferrarotti, Van den Bussche and Virtema, §2][FerrarottiVanDenBusscheVirtema2018].
+[Ferrarotti, Van den Bussche and Virtema, §2, Definitions 3–4][FerrarottiVanDenBusscheVirtema2018].
 The syntax index enables this constructor only for SO(TC).
+
+Their setting uses finite nonempty carriers, relational vocabularies, and variable tuples
+as the TC endpoints. To instantiate that setting, take a relational input language, restrict
+the carriers to finite nonempty types, use `Term.var` at the individual endpoints, and
+interpret the relation endpoints as input symbols or relation variables in scope.
+Here `TCDefinable` also ranges over empty finite carriers, the vocabulary can include fixed
+function symbols, and an individual endpoint can be any first-order term. This development
+defines satisfaction and finite-structure definability. Complexity capture is a separate result.
 
 ## Main definitions
 
