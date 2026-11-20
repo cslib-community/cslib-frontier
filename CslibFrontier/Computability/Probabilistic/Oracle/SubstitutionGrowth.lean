@@ -292,10 +292,10 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     exact h.trans (Nat.mul_le_mul_left gC
       (Nat.pow_le_pow_left (by omega) gD))
   have : Finite Operation := hprogram.finite_operations
-  letI : Fintype Operation := Fintype.ofFinite Operation
+  let _ : Fintype Operation := Fintype.ofFinite Operation
   let opMax : ℕ := Finset.univ.sup fun op : Operation => (operationEncoding op).length
   have hopMax (op : Operation) : (operationEncoding op).length ≤ opMax :=
-    Finset.le_sup (Finset.mem_univ op)
+    Finset.le_sup (f := fun op : Operation => (operationEncoding op).length) (Finset.mem_univ op)
   obtain ⟨rC, rD, hr_bound⟩ := hhandler.length_le
   let maxState (a : Caller) : ℕ := (stateEncoding (initial a)).length + Q a * G a
   have hmaxState_poly : PolyBounded (fun a => (input a).length) maxState :=
