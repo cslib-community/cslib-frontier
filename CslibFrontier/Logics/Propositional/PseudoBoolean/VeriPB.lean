@@ -18,7 +18,7 @@ This file checks the fragment of the kernel proof format of VeriPB version 3.0
 * `pol`: a cutting-planes derivation in reverse Polish notation, over constraint numbers, literal
   axioms, addition, multiplication, division, saturation and weakening
   (`Cslib.Logic.PL.VeriPB.PolOp`);
-* `rup`: a constraint implied by reverse unit propagation, with or without hints
+* `rup`: a constraint implied by reverse unit propagation along ordered hints
   (`Cslib.Logic.PL.VeriPB.Hint`);
 * `pbc`: proof by contradiction, a subproof from the negated constraint that ends at a
   contradiction;
@@ -26,10 +26,24 @@ This file checks the fragment of the kernel proof format of VeriPB version 3.0
 
 with the conclusion `UNSAT` naming a contradiction (`Cslib.Logic.PL.VeriPB.Proof`). The steps are
 abstract syntax, not text: a step `pol 3 5 + 2 d;` is `.pol [.id 3, .id 5, .add, .div 2]`, the
-number operand of `*` and `d` written into the operation. The constraints of the formula are
-numbered `1, 2, …`, and every step, including the negated constraint of a `pbc` and the steps of
-its subproof, takes the next number. After a `pbc` the constraints of its subproof are dropped
-and the proved constraint takes the number after them.
+number operand of `*` and `d` written into the operation. As in the kernel format, that operand
+must be positive: a `pol` step multiplying or dividing by `0` is rejected. The constraints of the
+formula are numbered `1, 2, …`, and every step that derives a constraint, including the negated
+constraint of a `pbc` and the steps of its subproof, takes the next number. A deletion takes no
+number. After a `pbc` the constraints of its subproof are dropped and the proved constraint takes
+the number after them.
+
+**Scope.** Two points differ from the kernel format.
+* *RUP without hints.* The kernel format requires hints on `rup`. The step `rupSearch C`
+  (`Cslib.Logic.PL.VeriPB.Step.rupSearch`) is an extension outside the kernel format: it
+  propagates every constraint of the database until a conflict or a fixpoint, as the VeriPB tool
+  does for `rup C;` without hints.
+* *Deletion.* The kernel format distinguishes deleting derived constraints (`deld`) from deleting
+  constraints of the formula (`delc`) and checks each number against the matching set. Here `del`
+  is a single untyped deletion that removes whatever constraints carry the given numbers. Deleting
+  constraints only enlarges the set of solutions of the database, so this is sound for `UNSAT`,
+  the only conclusion checked here; the typed deletions matter for the guarantees of other
+  conclusions.
 
 **Unit propagation** on pseudo-Boolean constraints [Gocht and Nordström][GochtNordstrom2021]
 works on a trail of literals taken to be true. The *slack* of `∑ aᵢ ℓᵢ ≥ d` is the sum of the
@@ -37,8 +51,8 @@ coefficients of the terms whose literals the trail does not falsify, minus `d`. 
 is a conflict; otherwise every term not yet decided whose coefficient exceeds the slack must be
 true (`Cslib.Logic.PL.VeriPB.propagate`). A `rup` step for `C` with hints propagates the hinted
 constraints in order, `~` naming the negation of `C`, and succeeds at the first conflict; without
-hints it propagates all constraints and the negation of `C` until a conflict or until nothing
-changes.
+`rupSearch` it propagates all constraints and the negation of `C` until a conflict or until
+nothing changes.
 
 **Soundness** (`Cslib.Logic.PL.VeriPB.not_satisfiable_of_check`): every constraint the checker
 derives holds under every assignment satisfying the formula, so a checked proof of `UNSAT` shows
@@ -52,6 +66,9 @@ proofs.
 ## Main definitions
 
 * `Cslib.Logic.PL.VeriPB.propagate`: unit propagation of one constraint.
+* `Cslib.Logic.PL.VeriPB.rup`, `Cslib.Logic.PL.VeriPB.rupSearch`: RUP along hints, and the
+  hintless extension.
+* `Cslib.Logic.PL.VeriPB.namesContra`: a constraint number names a contradiction.
 * `Cslib.Logic.PL.VeriPB.Step`, `Cslib.Logic.PL.VeriPB.Proof`: kernel proofs.
 * `Cslib.Logic.PL.VeriPB.check`: the checker.
 
@@ -122,9 +139,6 @@ theorem lhs_eq_coeffSum_filter (σ : ℕ → Bool) (ts : List (ℕ × Literal �
     simp only [lhs_cons, List.filter_cons, termVal]
     cases Literal.eval σ t.2 <;> simp [ih]
 
-theorem filter_congr' {ts : List (ℕ × Literal ℕ)} {p q : ℕ × Literal ℕ → Bool}
-    (h : ∀ t ∈ ts, p t = q t) : ts.filter p = ts.filter q := List.filter_congr h
-
 /-- **Unit propagation is sound**: under an assignment consistent with the trail and satisfying
 `c`, propagation finds no conflict and the extended trail stays consistent. -/
 theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBConstr}
@@ -192,6 +206,19 @@ theorem AllHold.lookup {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (h : Al
   obtain ⟨e, he, rfl⟩ := Option.map_eq_some_iff.mp hc
   exact h e (List.mem_of_find?_eq_some he)
 
+/-- The constraint numbered `n` is a contradiction, as `conclusion UNSAT : n` and the end of a
+`pbc` subproof require. -/
+def namesContra (db : List (ℕ × PBConstr)) (n : ℕ) : Bool :=
+  (lookup db n).any fun c => decide c.IsContradiction
+
+/-- A database naming a contradiction has no solution. -/
+theorem AllHold.not_namesContra {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (h : AllHold σ db)
+    {n : ℕ} : namesContra db n = false := by
+  rw [Bool.eq_false_iff]
+  intro hq
+  obtain ⟨c, hc, hcon⟩ := (Option.any_eq_true _ _).mp hq
+  exact (of_decide_eq_true hcon).not_holds σ (h.lookup hc)
+
 /-! ### Reverse unit propagation -/
 
 /-- A RUP hint: the negated constraint `~`, or a constraint number. -/
@@ -234,12 +261,15 @@ def rupFix (cs : List PBConstr) : ℕ → List (Literal ℕ) → Bool
     | some ρ' => if ρ'.length = ρ.length then false else rupFix cs fuel ρ'
 
 /-- **RUP**: `c` follows from the database by unit propagation from its negation, along the
-hints when given. -/
-def rup (db : List (ℕ × PBConstr)) (c : PBConstr) : Option (List Hint) → Bool
-  | some hs => rupHints db c.negate hs []
-  | none =>
-    let cs := c.negate :: db.map (·.2)
-    rupFix cs ((cs.map (·.terms.length)).sum + 1) []
+hints. -/
+def rup (db : List (ℕ × PBConstr)) (c : PBConstr) (hs : List Hint) : Bool :=
+  rupHints db c.negate hs []
+
+/-- **RUP without hints**, an extension of the kernel format: propagate the negation of `c` and
+every constraint of the database until a conflict or a fixpoint. -/
+def rupSearch (db : List (ℕ × PBConstr)) (c : PBConstr) : Bool :=
+  let cs := c.negate :: db.map (·.2)
+  rupFix cs ((cs.map (·.terms.length)).sum + 1) []
 
 theorem rupHints_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {neg : PBConstr}
     (hdb : AllHold σ db) (hneg : neg.Holds σ) :
@@ -280,20 +310,24 @@ theorem rupFix_sound {σ : ℕ → Bool} {cs : List PBConstr} (hcs : ∀ c ∈ c
 
 /-- **RUP is sound**: a constraint accepted by RUP holds wherever the database does. -/
 theorem rup_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {c : PBConstr}
-    {hs : Option (List Hint)} (hdb : AllHold σ db) (h : rup db c hs = true) : c.Holds σ := by
+    {hs : List Hint} (hdb : AllHold σ db) (h : rup db c hs = true) : c.Holds σ := by
   by_contra hc
   have hneg : c.negate.Holds σ := (holds_negate σ c).mpr hc
   have hρ : Consistent σ [] := fun _ h => by simp at h
-  cases hs with
-  | some hs => simp [rup, rupHints_sound hdb hneg hs [] hρ] at h
-  | none =>
-    have hcs : ∀ c' ∈ c.negate :: db.map (·.2), c'.Holds σ := by
-      intro c' hc'
-      rcases List.mem_cons.mp hc' with rfl | hc'
-      · exact hneg
-      · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hc'
-        exact hdb e he
-    simp [rup, rupFix_sound hcs _ [] hρ] at h
+  simp [rup, rupHints_sound hdb hneg hs [] hρ] at h
+
+theorem rupSearch_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {c : PBConstr}
+    (hdb : AllHold σ db) (h : rupSearch db c = true) : c.Holds σ := by
+  by_contra hc
+  have hneg : c.negate.Holds σ := (holds_negate σ c).mpr hc
+  have hρ : Consistent σ [] := fun _ h => by simp at h
+  have hcs : ∀ c' ∈ c.negate :: db.map (·.2), c'.Holds σ := by
+    intro c' hc'
+    rcases List.mem_cons.mp hc' with rfl | hc'
+    · exact hneg
+    · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hc'
+      exact hdb e he
+  simp [rupSearch, rupFix_sound hcs _ [] hρ] at h
 
 /-! ### Cutting planes in reverse Polish notation -/
 
@@ -306,9 +340,9 @@ inductive PolOp where
   | lit (l : Literal ℕ)
   /-- `+`: add the top two constraints. -/
   | add
-  /-- `k *`: multiply the top constraint by `k`. -/
+  /-- `k *`: multiply the top constraint by `k`, which must be positive. -/
   | mul (k : ℕ)
-  /-- `k d`: divide the top constraint by `k`, rounding up. -/
+  /-- `k d`: divide the top constraint by `k`, rounding up; `k` must be positive. -/
   | div (k : ℕ)
   /-- `s`: saturate the top constraint. -/
   | sat
@@ -316,14 +350,15 @@ inductive PolOp where
   | weaken (v : ℕ)
   deriving DecidableEq, Repr
 
-/-- Run the operations of a `pol` step on a stack of constraints, top first. -/
+/-- Run the operations of a `pol` step on a stack of constraints, top first. A missing operand,
+an unknown constraint number, or a multiplication or division by `0` fails. -/
 def polEval (db : List (ℕ × PBConstr)) : List PolOp → List PBConstr → Option (List PBConstr)
   | [], st => some st
   | .id n :: ops, st => (lookup db n).bind fun c => polEval db ops (c :: st)
   | .lit l :: ops, st => polEval db ops (litAxiom l :: st)
   | .add :: ops, c₂ :: c₁ :: st => polEval db ops (c₁.add c₂ :: st)
-  | .mul k :: ops, c :: st => polEval db ops (c.mul k :: st)
-  | .div k :: ops, c :: st => polEval db ops (c.div k :: st)
+  | .mul (k + 1) :: ops, c :: st => polEval db ops (c.mul (k + 1) :: st)
+  | .div (k + 1) :: ops, c :: st => polEval db ops (c.div (k + 1) :: st)
   | .sat :: ops, c :: st => polEval db ops (c.saturate :: st)
   | .weaken v :: ops, c :: st => polEval db ops (c.weaken v :: st)
   | _, _ => none
@@ -342,12 +377,12 @@ theorem polEval_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (hdb : A
     simp only [List.forall_mem_cons] at hst
     exact polEval_sound hdb ops _ st'
       (List.forall_mem_cons.2 ⟨hst.2.1.add hst.1, hst.2.2⟩) h
-  | .mul k :: ops, c :: st, st', hst, h => by
+  | .mul (k + 1) :: ops, c :: st, st', hst, h => by
     simp only [List.forall_mem_cons] at hst
-    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.mul k, hst.2⟩) h
-  | .div k :: ops, c :: st, st', hst, h => by
+    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.mul (k + 1), hst.2⟩) h
+  | .div (k + 1) :: ops, c :: st, st', hst, h => by
     simp only [List.forall_mem_cons] at hst
-    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.div k, hst.2⟩) h
+    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.div (k + 1), hst.2⟩) h
   | .sat :: ops, c :: st, st', hst, h => by
     simp only [List.forall_mem_cons] at hst
     exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.saturate, hst.2⟩) h
@@ -358,8 +393,38 @@ theorem polEval_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (hdb : A
   | .add :: _, [_], _, _, h => by simp [polEval] at h
   | .mul _ :: _, [], _, _, h => by simp [polEval] at h
   | .div _ :: _, [], _, _, h => by simp [polEval] at h
+  | .mul 0 :: _, _ :: _, _, _, h => by simp [polEval] at h
+  | .div 0 :: _, _ :: _, _, _, h => by simp [polEval] at h
   | .sat :: _, [], _, _, h => by simp [polEval] at h
   | .weaken _ :: _, [], _, _, h => by simp [polEval] at h
+
+/-! ### Subproofs by contradiction -/
+
+/-- **A scoped subproof by contradiction** of `G`, the subproof given by its runner `run`: the
+negation of `G` takes the number `n`, the subproof runs from the database extended by it, and its
+result must name a contradiction `q`. Returns the next number after the subproof; the subproof's
+constraints are dropped. Used by `pbc` and by the `proofgoal` blocks of `red`. -/
+def subproofRefutes (run : List (ℕ × PBConstr) → ℕ → Option (List (ℕ × PBConstr) × ℕ))
+    (db : List (ℕ × PBConstr)) (n : ℕ) (G : PBConstr) (q : ℕ) : Option ℕ :=
+  match run ((n, G.negate) :: db) (n + 1) with
+  | some (db', n') => if namesContra db' q then some n' else none
+  | none => none
+
+/-- **A scoped subproof by contradiction is sound**: if the runner keeps every solution of the
+extended database, `G` holds under every solution of the database. -/
+theorem holds_of_subproofRefutes {σ : ℕ → Bool}
+    {run : List (ℕ × PBConstr) → ℕ → Option (List (ℕ × PBConstr) × ℕ)}
+    {db : List (ℕ × PBConstr)} {n n' : ℕ} {G : PBConstr} {q : ℕ}
+    (hrun : ∀ db' n'', AllHold σ ((n, G.negate) :: db) →
+      run ((n, G.negate) :: db) (n + 1) = some (db', n'') → AllHold σ db')
+    (hdb : AllHold σ db) (h : subproofRefutes run db n G q = some n') : G.Holds σ := by
+  by_contra hG
+  unfold subproofRefutes at h
+  split at h
+  · rename_i db' n'' hr
+    have hall := hrun db' n'' (List.forall_mem_cons.2 ⟨(holds_negate σ G).2 hG, hdb⟩) hr
+    simp [hall.not_namesContra] at h
+  · cases h
 
 /-! ### Steps and proofs -/
 
@@ -367,12 +432,16 @@ theorem polEval_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (hdb : A
 inductive Step where
   /-- `pol ops;`: a cutting-planes derivation, which must leave exactly one constraint. -/
   | pol (ops : List PolOp)
-  /-- `rup C : hints;`, or `rup C;` without hints. -/
-  | rup (c : PBConstr) (hints : Option (List Hint))
+  /-- `rup C : hints;`. -/
+  | rup (c : PBConstr) (hints : List Hint)
+  /-- `rup C;` without hints: an extension outside the kernel format, checked by propagating the
+  whole database (`Cslib.Logic.PL.VeriPB.rupSearch`). -/
+  | rupSearch (c : PBConstr)
   /-- `pbc C : subproof … qed : n;`: the subproof starts from the negation of `C` and must
   derive the contradiction numbered `n`. -/
   | pbc (c : PBConstr) (sub : List Step) (qed : ℕ)
-  /-- `del id ids;`: delete the constraints with these numbers. -/
+  /-- `del id ids;`: delete the constraints with these numbers. This untyped deletion stands for
+  both `deld` and `delc` and takes no number; it is sound only for `UNSAT`. -/
   | del (ids : List ℕ)
   deriving Repr
 
@@ -385,13 +454,10 @@ def runStep (db : List (ℕ × PBConstr)) (n : ℕ) : Step → Option (List (ℕ
     | some [c] => some ((n, c) :: db, n + 1)
     | _ => none
   | .rup c hs => if rup db c hs then some ((n, c.normalize) :: db, n + 1) else none
+  | .rupSearch c => if rupSearch db c then some ((n, c.normalize) :: db, n + 1) else none
   | .pbc c sub q =>
-    match runSteps ((n, c.negate) :: db) (n + 1) sub with
-    | some (db', n') =>
-      if (lookup db' q).any (fun c => decide c.IsContradiction) then
-        some ((n', c.normalize) :: db, n' + 1)
-      else none
-    | none => none
+    (subproofRefutes (fun db n => runSteps db n sub) db n c q).map
+      fun n' => ((n', c.normalize) :: db, n' + 1)
   | .del ids => some (db.filter fun e => !ids.contains e.1, n)
 
 /-- Run the steps in order. -/
@@ -422,7 +488,7 @@ def initDb (F : List PBConstr) : List (ℕ × PBConstr) :=
 contradiction. -/
 def check (F : List PBConstr) (P : Proof) : Bool :=
   match runSteps (initDb F) (F.length + 1) P.steps with
-  | some (db, _) => (lookup db P.conclusion).any fun c => decide c.IsContradiction
+  | some (db, _) => namesContra db P.conclusion
   | none => false
 
 /-! ### Soundness -/
@@ -447,22 +513,19 @@ theorem runStep_sound {σ : ℕ → Bool} :
       cases h
       exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rup_sound hdb hr), hdb⟩
     · cases h
-  | db, n, .pbc c sub q, db', n', hdb, h => by
+  | db, n, .rupSearch c, db', n', hdb, h => by
     simp only [runStep] at h
     split at h
-    · rename_i db'' n'' hsub
-      split at h
-      · rename_i hq
-        cases h
-        refine List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 ?_, hdb⟩
-        by_contra hc
-        have hext : AllHold σ ((n, c.negate) :: db) :=
-          List.forall_mem_cons.2 ⟨(holds_negate σ c).2 hc, hdb⟩
-        have hall := runSteps_sound _ _ sub db'' n'' hext hsub
-        obtain ⟨c', hc', hcon⟩ := (Option.any_eq_true _ _).mp hq
-        exact (of_decide_eq_true hcon).not_holds σ (hall.lookup hc')
-      · cases h
+    · rename_i hr
+      cases h
+      exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rupSearch_sound hdb hr), hdb⟩
     · cases h
+  | db, n, .pbc c sub q, db', n', hdb, h => by
+    simp only [runStep, Option.map_eq_some_iff] at h
+    obtain ⟨n'', hq, h⟩ := h
+    cases h
+    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (holds_of_subproofRefutes
+      (fun _ _ hext hsub => runSteps_sound _ _ sub _ _ hext hsub) hdb hq), hdb⟩
   | db, n, .del ids, db', n', hdb, h => by
     simp only [runStep, Option.some.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, -⟩ := h
@@ -501,8 +564,7 @@ theorem not_satisfiable_of_check {F : List PBConstr} {P : Proof} (h : check F P 
   split at h
   · rename_i db n hrun
     have hall := runSteps_sound _ _ _ db n (allHold_initDb hF) hrun
-    obtain ⟨c, hc, hcon⟩ := (Option.any_eq_true _ _).mp h
-    exact (of_decide_eq_true hcon).not_holds σ (hall.lookup hc)
+    simp [hall.not_namesContra] at h
   · cases h
 
 /-- **Soundness for CNF**: a CNF whose clauses, as pseudo-Boolean constraints, have a checked

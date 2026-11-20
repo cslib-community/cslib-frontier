@@ -287,30 +287,27 @@ namespace VeriPB
 
 open CuttingPlanes
 
-/-- `I` has a cutting planes derivation from `Γ`. -/
-def Der (Γ : Set (Ineq ℕ)) (I : Ineq ℕ) : Prop := ∃ ls, IsProof Γ ls ∧ I ∈ ls
+/-- `I` has a cutting planes derivation from `Γ` of some size: the size bounds of
+`Cslib.Logic.PL.CuttingPlanes.DerivableInSize` forgotten. -/
+abbrev Der (Γ : Set (Ineq ℕ)) (I : Ineq ℕ) : Prop := ∃ s, DerivableInSize Γ I s
 
 variable {Γ : Set (Ineq ℕ)} {I J : Ineq ℕ}
 
-theorem Der.hyp (h : I ∈ Γ) : Der Γ I := ⟨[I], IsProof.nil.hyp h, by simp⟩
+theorem Der.hyp (h : I ∈ Γ) : Der Γ I := ⟨_, .hyp h⟩
 
-theorem Der.nonneg (v : ℕ) : Der Γ (Ineq.nonneg v) := ⟨_, IsProof.nil.nonneg v, by simp⟩
+theorem Der.nonneg (v : ℕ) : Der Γ (Ineq.nonneg v) := ⟨_, .nonneg v⟩
 
-theorem Der.leOne (v : ℕ) : Der Γ (Ineq.leOne v) := ⟨_, IsProof.nil.leOne v, by simp⟩
+theorem Der.leOne (v : ℕ) : Der Γ (Ineq.leOne v) := ⟨_, .leOne v⟩
 
-theorem Der.add (hI : Der Γ I) (hJ : Der Γ J) : Der Γ (I + J) := by
-  obtain ⟨l₁, h₁, m₁⟩ := hI
-  obtain ⟨l₂, h₂, m₂⟩ := hJ
-  exact ⟨_, (h₁.append h₂).add (List.mem_append_left _ m₁) (List.mem_append_right _ m₂), by simp⟩
+theorem Der.add (hI : Der Γ I) (hJ : Der Γ J) : Der Γ (I + J) :=
+  let ⟨_, hI⟩ := hI; let ⟨_, hJ⟩ := hJ; ⟨_, hI.add hJ⟩
 
-theorem Der.smul (hI : Der Γ I) {k : ℕ} (hk : 0 < k) : Der Γ (k • I) := by
-  obtain ⟨l, h, m⟩ := hI
-  exact ⟨_, h.smul k hk m, by simp⟩
+theorem Der.smul (hI : Der Γ I) {k : ℕ} (hk : 0 < k) : Der Γ (k • I) :=
+  let ⟨_, hI⟩ := hI; ⟨_, hI.smul k hk⟩
 
 theorem Der.div (hI : Der Γ I) {k : ℕ} (hk : 0 < k) (hdvd : ∀ v, (k : ℤ) ∣ I.coeff v) :
-    Der Γ (I.div k) := by
-  obtain ⟨l, h, m⟩ := hI
-  exact ⟨_, h.div k hk hdvd m, by simp⟩
+    Der Γ (I.div k) :=
+  let ⟨_, hI⟩ := hI; ⟨_, hI.div k hk hdvd⟩
 
 theorem Der.of_eq (hI : Der Γ I) (h : I = J) : Der Γ J := h ▸ hI
 
@@ -552,14 +549,14 @@ theorem polEval_der {db : List (ℕ × PBConstr)} (hdb : ∀ e ∈ db, Der Γ e.
     simp only [List.forall_mem_cons] at hst
     exact polEval_der hdb ops _ st' (by simp_all [PolOp.IsCP])
       (List.forall_mem_cons.2 ⟨hst.2.1.add' hst.1, hst.2.2⟩) h
-  | .mul k :: ops, c :: st, st', hops, hst, h => by
+  | .mul (k + 1) :: ops, c :: st, st', hops, hst, h => by
     simp only [List.forall_mem_cons] at hst
     exact polEval_der hdb ops _ st' (by simp_all [PolOp.IsCP])
-      (List.forall_mem_cons.2 ⟨hst.1.mul' k, hst.2⟩) h
-  | .div k :: ops, c :: st, st', hops, hst, h => by
+      (List.forall_mem_cons.2 ⟨hst.1.mul' (k + 1), hst.2⟩) h
+  | .div (k + 1) :: ops, c :: st, st', hops, hst, h => by
     simp only [List.forall_mem_cons] at hst
     exact polEval_der hdb ops _ st' (by simp_all [PolOp.IsCP])
-      (List.forall_mem_cons.2 ⟨hst.1.div' k, hst.2⟩) h
+      (List.forall_mem_cons.2 ⟨hst.1.div' (k + 1), hst.2⟩) h
   | .sat :: _, _, _, hops, _, _ => by simp [PolOp.IsCP] at hops
   | .weaken v :: ops, c :: st, st', hops, hst, h => by
     simp only [List.forall_mem_cons] at hst
@@ -569,6 +566,8 @@ theorem polEval_der {db : List (ℕ × PBConstr)} (hdb : ∀ e ∈ db, Der Γ e.
   | .add :: _, [_], _, _, _, h => by simp [polEval] at h
   | .mul _ :: _, [], _, _, _, h => by simp [polEval] at h
   | .div _ :: _, [], _, _, _, h => by simp [polEval] at h
+  | .mul 0 :: _, _ :: _, _, _, _, h => by simp [polEval] at h
+  | .div 0 :: _, _ :: _, _, _, _, h => by simp [polEval] at h
   | .weaken _ :: _, [], _, _, _, h => by simp [polEval] at h
 
 theorem runSteps_der : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List Step)
@@ -598,6 +597,7 @@ theorem runSteps_der : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List St
         obtain ⟨rfl, -⟩ := h₁
         exact fun e he => hdb e (List.mem_of_mem_filter he)
       | rup => simp [Step.IsCP] at hss
+      | rupSearch => simp [Step.IsCP] at hss
       | pbc => simp [Step.IsCP] at hss
     · cases h
 
@@ -622,9 +622,7 @@ theorem exists_isProof_contra_of_check {F : List PBConstr} {P : Proof} (h : chec
     obtain ⟨c, hc, hcon⟩ := (Option.any_eq_true _ _).mp h
     unfold lookup at hc
     obtain ⟨e, he, rfl⟩ := Option.map_eq_some_iff.mp hc
-    obtain ⟨ls, hls, hmem⟩ := (hall e (List.mem_of_find?_eq_some he)).contra
-      (of_decide_eq_true hcon)
-    exact ⟨ls.length, ls, hls, hmem, le_rfl⟩
+    exact (hall e (List.mem_of_find?_eq_some he)).contra (of_decide_eq_true hcon)
   · cases h
 
 /-- **Cutting-planes proofs of CNFs**: for the clauses of a CNF, the refutation is one of
