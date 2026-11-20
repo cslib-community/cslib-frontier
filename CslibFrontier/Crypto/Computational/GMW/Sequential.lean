@@ -240,9 +240,9 @@ private theorem computableInPolyTime_seqStep {α : Type} {input : α ↪ List Bo
   have hlist := hst.snd'
   have hcoins := (ComputableInPolyTime.headD (encA := encProverCoins) ⟨[], []⟩).comp' hlist
   have hempty :=
-    (ComputableTidilyInPolyTime.listIsEmpty' encProverCoins).computableInPolyTime.comp' hlist
+    (ComputableInPolyTime.listIsEmpty' encProverCoins).comp' hlist
   have htail :=
-    (ComputableTidilyInPolyTime.listTail encProverCoins).computableInPolyTime.comp' hlist
+    (ComputableInPolyTime.listTail encProverCoins).comp' hlist
   exact hempty.ite' (.const ([], (false, [])))
     (hst.fst'.ite'
       ((computableInPolyTime_honestReply2 hs hφ hcoins
@@ -893,7 +893,7 @@ theorem isPPTOn_finishSessionRun {k : ℕ} {Control : Type} [Finite Control]
   have h1 := ComputableInPolyTime.fst encUnary (encPair encUnary encCfg)
   have h2 := ComputableInPolyTime.snd encUnary (encPair encUnary encCfg)
   have hout := ComputableInPolyTime.finiteCfg_output.comp'
-    (ComputableTidilyInPolyTime.finiteConfig_tapes.computableInPolyTime.comp'
+    (ComputableInPolyTime.finiteConfig_tapes.comp'
       (.snd encUnary encCfg))
   have hrun := isPPTOn_runEmptyOracle
     (((isOraclePPTOn_sessionStep machine).preprocess

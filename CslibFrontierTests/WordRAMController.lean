@@ -264,7 +264,7 @@ example (_f : ℕ → ℕ) : True := by
 example (_f : ℕ → ℕ)
     (_h : UniformComputableInPolyTime .standard _f (fun _ n => [n]) id) : True := by
   fail_if_success
-    have : Turing.MultiTapeTM.ComputableTidilyInPolyTime _f
+    have : Turing.MultiTapeTM.ComputableInPolyTime _f
         Turing.MultiTapeTM.encNat Turing.MultiTapeTM.encNat := by polytime
   trivial
 

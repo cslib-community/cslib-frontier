@@ -49,7 +49,9 @@ pigeons one at a time; only the explicit bound for each `h` is formalized.
 
 ## Main results
 
-* `Cslib.Logic.PL.CNF.Derivation.pow_le_size_pigeonhole`: `(n + 1 - h) ^ h` nodes for every `h`.
+* `Cslib.Logic.PL.CNF.Derivation.pow_le_leafCount_pigeonhole`,
+  `Cslib.Logic.PL.CNF.Derivation.pow_le_size_pigeonhole`: `(n + 1 - h) ^ h` leaves, and so nodes,
+  for every `h`.
 * `Cslib.Logic.PL.CNF.Derivation.pow_half_le_size_pigeonhole`: `(n / 2 + 1) ^ (n / 2)` nodes
   [BeyersdorffGalesiLauria2010, Theorem 2].
 * `Cslib.Logic.PL.CNF.pow_lt_two_mul_leafCount_pigeonhole`: the same bound for DPLL search trees.
@@ -425,12 +427,13 @@ private theorem μ_split {h : ℕ} (hhm : h ≤ m) (ρ : Fin m × Fin n → Opti
 
 namespace Derivation
 
-/-- **Tree-like resolution lower bound for the pigeonhole principle.** For `m > n` and every `h`,
-every tree-like resolution refutation of `PHP^m_n` has at least `(n + 1 - h) ^ h` nodes (the bound
-is `0` for `h > n`). This is the asymmetric Prover–Delayer argument of
-[BeyersdorffGalesiLauria2010, Theorem 2] with the threshold `n / 2` replaced by `h`. -/
-theorem pow_le_size_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n).Derivation []) :
-    (n + 1 - h) ^ h ≤ d.size := by
+/-- **Leaves of tree-like refutations of the pigeonhole principle.** For `m > n` and every `h`,
+every tree-like resolution refutation of `PHP^m_n` has at least `(n + 1 - h) ^ h` leaves (the
+bound is `0` for `h > n`). This is the asymmetric Prover–Delayer argument of
+[BeyersdorffGalesiLauria2010, Theorem 2] with the threshold `n / 2` replaced by `h`; the potential
+argument of their Theorem 1 counts leaves. -/
+theorem pow_le_leafCount_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n).Derivation []) :
+    (n + 1 - h) ^ h ≤ d.toDecisionTree.leafCount := by
   by_cases hhn : h ≤ n
   swap
   · rw [Nat.sub_eq_zero_of_le (by omega), zero_pow (by omega)]
@@ -438,7 +441,16 @@ theorem pow_le_size_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n).Der
   have hroot : μ h (fun _ : Fin m × Fin n => none) = (n + 1 - h) ^ h := by
     rw [μ_of_isMatching isMatching_none, potential_none (by omega)]
   rw [← hroot]
-  exact potential_none_le_size (μ h) (μ_split (by omega)) (μ_le_one hhn hnm) d
+  exact potential_le_leafCount (μ h) (μ_split (by omega)) (μ_le_one hhn hnm) d
+    (Clause.falsifiedBy_nil _)
+
+/-- **Tree-like resolution lower bound for the pigeonhole principle.** For `m > n` and every `h`,
+every tree-like resolution refutation of `PHP^m_n` has at least `(n + 1 - h) ^ h` nodes (the bound
+is `0` for `h > n`). This is the asymmetric Prover–Delayer argument of
+[BeyersdorffGalesiLauria2010, Theorem 2] with the threshold `n / 2` replaced by `h`. -/
+theorem pow_le_size_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n).Derivation []) :
+    (n + 1 - h) ^ h ≤ d.size :=
+  (pow_le_leafCount_pigeonhole h hnm d).trans d.leafCount_toDecisionTree_le_size
 
 /-- **Tree-like resolution needs `2 ^ Ω(n log n)` nodes for the pigeonhole principle**
 [BeyersdorffGalesiLauria2010, Theorem 2]: for `m > n`, every tree-like resolution refutation of
