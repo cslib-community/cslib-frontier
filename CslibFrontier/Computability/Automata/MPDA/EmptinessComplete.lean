@@ -646,4 +646,210 @@ theorem isEmpty_eq_false_of_cinv [DecidablePred (· ∈ M.accept)] {K : ℕ}
 
 end Invariant
 
+/-! ## The pop step -/
+
+section PopStep
+
+open Classical
+
+variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
+  [DecidableEq Γ] {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
+  [DecidablePred (· ∈ M.start)]
+
+/-- Split the left list of an aligned pair. -/
+theorem forall₂_split_middle_left {β γ' : Type*} {R : β → γ' → Prop} {pre post : List β} {x : β}
+    {l : List γ'} (h : List.Forall₂ R (pre ++ x :: post) l) :
+    ∃ a y b, l = a ++ y :: b ∧ a.length = pre.length ∧ List.Forall₂ R pre a ∧ R x y ∧
+      List.Forall₂ R post b := by
+  obtain ⟨a, y, b, rfl, hlen, ha, hy, hb⟩ := forall₂_split_middle h.flip
+  exact ⟨a, y, b, rfl, hlen, ha.flip, hy, hb.flip⟩
+
+theorem take_succ_of_getElem? {β : Type*} {w : List β} {t : ℕ} {x : β} (h : w[t]? = some x) :
+    w.take (t + 1) = w.take t ++ [x] := by
+  rw [List.take_add_one, h]
+  rfl
+
+theorem take_eq_take_append_extract {β : Type*} {w : List β} {a b : ℕ} (hab : a ≤ b) :
+    w.take b = w.take a ++ w.extract a b := by
+  rw [List.extract_eq_take_drop, ← List.take_add, show a + (b - a) = b by omega]
+
+theorem drop_eq_extract_append_drop {β : Type*} {w : List β} {a b : ℕ} (hab : a ≤ b) :
+    w.drop a = w.extract a b ++ w.drop b := by
+  rw [List.extract_eq_take_drop, show w.drop b = (w.drop a).drop (b - a) by
+    rw [List.drop_drop]; congr 1; omega, List.take_append_drop]
+
+/-- **The pop step**: at a pop, the invariant moves to the next event. -/
+theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t : ℕ}
+    {b : Symbol} {i : Fin n} {γ : Γ} (hwt : w[t]? = some (b, .pop i γ)) (h : M.CInv K w f t) :
+    t < wnEnd w (t + 1) ∧ M.CInv K w f (wnEnd w (t + 1)) := by
+  have htlen : t < w.length := (List.getElem?_eq_some_iff.mp hwt).1
+  obtain ⟨μ, C, rs, c, hμ, hd, hrun, hst, hcont, hstk, hreal, hsym, hne, hhole, hcons⟩ := h
+  set t' := wnEnd w (t + 1) with ht'
+  obtain ⟨ht1, ht'len, hwn⟩ := wnEnd_spec (w := w) (p := t + 1) (by omega)
+  -- The run: the pop, then a well-nested factor up to the next event.
+  have hdrop : w.drop t = (b, Op.pop i γ) :: w.drop (t + 1) := by
+    rw [List.drop_eq_getElem_cons htlen]
+    congr 1
+    exact (List.getElem?_eq_some_iff.mp hwt).2
+  rw [hdrop, drop_eq_extract_append_drop ht1] at hrun
+  obtain ⟨c₁, hpopT, hrest⟩ := LTS.MTr.cons_iff.mp hrun
+  obtain ⟨c₂, hwnrun, hrest⟩ := LTS.MTr.split hrest
+  obtain ⟨hTr, hApply⟩ := configLTS_tr.mp hpopT
+  obtain ⟨hwnctl, hc₂⟩ := hwn.configLTS_mTr_iff.mp hwnrun
+  have hApply' := Op.apply_pop.mp hApply
+  -- The last chain of stack `i` and its newest push.
+  have htop : stacksOf C i = γ :: c₁.contents i := by
+    rw [← hcont, hApply', Function.update_self]
+  obtain ⟨pre, post, p, ps, rfl, hpost⟩ := stacksOf_eq_cons hne htop
+  have hc₁ : c₁.contents = stacksOf (pre ++ ⟨i, ps⟩ :: post) := by
+    apply update_cons_injective (i := i) (γ := γ)
+    rw [← stacksOf_pop hpost, ← hcont, hApply']
+  -- Align the chains with the hole triples and the realizations.
+  obtain ⟨hpre, h₀, hpost', hμh, hlen, hstkpre, hh₀, hstkpost⟩ := forall₂_split_middle_left hstk
+  obtain ⟨rpre, r₀, rpost, rfl, hrlen, hsympre, hsym₀, hsympost⟩ := forall₂_split_middle_left hsym
+  rw [hμh] at hreal
+  obtain ⟨hrealpre, hrealrest⟩ := forall₂_split_at (hrlen.trans hlen.symm) hreal
+  cases hrealrest with
+  | cons hreal₀ hrealpost =>
+  obtain ⟨i₀, s₁, s₃⟩ := h₀
+  simp only at hh₀ hreal₀
+  subst hh₀
+  have hpost'' : ∀ h ∈ hpost', h.1 ≠ i := by
+    intro h hh
+    obtain ⟨d, hd', hdh⟩ := forall₂_exists_of_mem hstkpost.flip hh
+    rw [← hdh]
+    exact hpost d hd'
+  have hsplitLast := splitLastHole_eq_some_of (x := (s₁, s₃)) hpost'' hpre
+  -- The last atomic segment of the realization pushes `γ`.
+  cases hreal₀ with
+  | nil => simp at hsym₀
+  | @cons s₂ _ γ' r hr hγ' =>
+  simp only [List.map_cons, List.cons.injEq] at hsym₀
+  obtain ⟨rfl, hpsr⟩ := hsym₀
+  have hHS : (s₁, s₂) ∈ M.holeSegments i := mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
+  have hWR : (c₁.state, c₂.state) ∈ M.wellNestedPairs :=
+    (mem_wellNestedPairs M).mpr (wellNestedReach_iff.mpr ⟨_, hwn, hwnctl⟩)
+  -- The derivation up to the pop.
+  have hd₁ : HoleDerivation K (pre ++ ⟨i, ps⟩ :: post) (w.take (t + 1)) := by
+    rw [take_succ_of_getElem? hwt]
+    exact hd.pop hpost
+  -- Positions of the other chains, relative to `p`.
+  obtain ⟨hB, -⟩ := hd.invariant
+  obtain ⟨-, hB₂, hB₃, -, hB₅⟩ := hB
+  rw [List.pairwise_append, List.pairwise_cons] at hB₅
+  have hp_mem : (p, γ) ∈ (⟨i, (p, γ) :: ps⟩ : HoleChain n Γ).pushes := List.mem_cons_self
+  have hlt_pre : ∀ d ∈ pre, ∀ e ∈ d.pushes, e.1 < p := fun d hd' e he =>
+    hB₅.2.2 d hd' _ (by simp) e he _ hp_mem
+  have hgt_post : ∀ d ∈ post, ∀ e ∈ d.pushes, p < e.1 := fun d hd' e he =>
+    hB₅.2.1.1 d hd' _ hp_mem e he
+  have hlt_ps : ∀ e ∈ ps, e.1 < p := fun e he =>
+    (List.pairwise_cons.mp (Chained.pairwise (hB₃ ⟨i, (p, γ) :: ps⟩ (by simp)))).1 e he
+  -- `p` is no longer pending after the pop.
+  have hpnot : ¬PendingAt w p t := by
+    intro hp
+    obtain ⟨hB', -⟩ := hd₁.invariant
+    have hlen₁ : (w.take (t + 1)).length = t + 1 := by simp; omega
+    obtain ⟨d, hd', e, he, hep⟩ := hB'.2.2.2.1 p (by
+      rw [hlen₁, show t + 1 - 1 = t by omega]
+      exact (pendingAt_append_iff (v := w.drop (t + 1)) (by omega)).mp
+        (by rwa [List.take_append_drop]))
+    rcases List.mem_append.mp hd' with hd' | hd'
+    · have := hlt_pre d hd' e he
+      omega
+    · rcases List.mem_cons.mp hd' with rfl | hd'
+      · have := hlt_ps e he
+        omega
+      · have := hgt_post d hd' e he
+        omega
+  -- The new construction facts.
+  have hcons_old : ∀ d ∈ pre ++ post, ∃ q₀ m, d.pushes.map Prod.fst =
+      ((chainFrom w d.stack q₀).take m).reverse ∧ (∀ r ∈ chainFrom w d.stack q₀, r < t') ∧
+      ∀ r ∈ (chainFrom w d.stack q₀).drop m, ¬PendingAt w r (t' - 1) := by
+    intro d hd'
+    obtain ⟨q₀, m, hm, hlt, hpend⟩ := hcons d (by
+      rcases List.mem_append.mp hd' with hd' | hd' <;> simp [hd'])
+    refine ⟨q₀, m, hm, fun r hr => by have := hlt r hr; omega, fun r hr hr' => hpend r hr ?_⟩
+    have := hlt r (List.mem_of_mem_drop hr)
+    exact hr'.anti (by omega) (by omega)
+  obtain ⟨q₀, m₀, hm, hlt₀, hpend₀⟩ := hcons ⟨i, (p, γ) :: ps⟩ (by simp)
+  set L := chainFrom w i q₀
+  -- Normalize the count to at most the chain's length.
+  set m := min m₀ L.length with hmdef
+  have htake : L.take m = L.take m₀ := by
+    rcases le_total m₀ L.length with h | h <;> simp [m, h, List.take_of_length_le]
+  replace hpend₀ : ∀ r ∈ L.drop m, ¬PendingAt w r (t - 1) := by
+    intro r hr
+    rcases le_total m₀ L.length with h | h
+    · rw [hmdef, min_eq_left h] at hr
+      exact hpend₀ r hr
+    · simp [hmdef, min_eq_right h] at hr
+  rw [← htake] at hm
+  have hm₂ : m ≤ L.length := min_le_right _ _
+  have hm₁ : 1 ≤ m := by
+    have := congrArg List.length hm
+    simp only [List.length_map, List.length_cons, List.length_reverse, List.length_take] at this
+    omega
+  rw [reverse_take_eq_cons hm₁ hm₂] at hm
+  simp only [List.map_cons, List.cons.injEq] at hm
+  obtain ⟨hpL, hps⟩ := hm
+  have hcons_new : ∀ r ∈ L.drop (m - 1), ¬PendingAt w r (t' - 1) := by
+    intro r hr hr'
+    rw [List.drop_eq_getElem_cons (by omega), show m - 1 + 1 = m by omega] at hr
+    rcases List.mem_cons.mp hr with rfl | hr
+    · rw [← hpL] at hr'
+      have : p < t := hpL ▸ hlt₀ _ (List.getElem_mem (show m - 1 < L.length by omega))
+      exact hpnot (hr'.anti (by omega) (by omega))
+    · have := hlt₀ r (List.mem_of_mem_drop hr)
+      exact hpend₀ r hr (hr'.anti (by omega) (by omega))
+  -- The step of the search.
+  have hpopnext : ∀ ν, ν ∈ M.addPop i μ → M.Reachable K M.initialLists ν := fun ν hν =>
+    .step hμ (Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _, hν⟩))
+  have hok : (s₁, s₂) ∈ M.holeSegments i ∧ (s₂, γ, s₃) ∈ M.atomicHoles i ∧
+      (∃ b', M.Tr μ.last (b', .pop i γ) c₁.state) ∧ (c₁.state, c₂.state) ∈ M.wellNestedPairs :=
+    ⟨hHS, hγ', ⟨b, hst ▸ hTr⟩, hWR⟩
+  have htake' : w.take t' = w.take (t + 1) ++ w.extract (t + 1) t' :=
+    take_eq_take_append_extract ht1
+  refine ⟨by omega, ?_⟩
+  rcases eq_or_ne ps [] with rfl | hpsne
+  · -- The chain is now empty: close it.
+    obtain rfl : r = [] := by simpa using hpsr.symm
+    cases hr
+    refine ⟨⟨hpre ++ hpost', c₂.state⟩, pre ++ post, rpre ++ rpost, c₂, hpopnext _ ?_,
+      htake' ▸ hd₁.close.wellNested hwn, hrest, rfl, by rw [hc₂, hc₁, stacksOf_close],
+      forall₂_append hstkpre hstkpost, forall₂_append hrealpre hrealpost,
+      forall₂_append hsympre hsympost, fun d hd' => hne d (by
+        rcases List.mem_append.mp hd' with hd' | hd' <;> simp [hd']), fun d hd' => hhole d (by
+        rcases List.mem_append.mp hd' with hd' | hd' <;> simp [hd']), hcons_old⟩
+    unfold addPop
+    rw [hμh, hsplitLast]
+    exact Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(s₁, γ, c₁.state, c₂.state),
+      Finset.mem_filter.mpr ⟨Finset.mem_univ _, hok, rfl⟩, rfl⟩)
+  · -- The chain shrinks.
+    refine ⟨⟨hpre ++ (i, s₁, s₂) :: hpost', c₂.state⟩, pre ++ ⟨i, ps⟩ :: post,
+      rpre ++ r :: rpost, c₂, hpopnext _ ?_, htake' ▸ hd₁.wellNested hwn, hrest, rfl,
+      by rw [hc₂, hc₁], forall₂_append hstkpre (.cons rfl hstkpost),
+      forall₂_append hrealpre (.cons hr hrealpost), forall₂_append hsympre (.cons hpsr hsympost),
+      fun d hd' => ?_, fun d hd' e he => ?_, fun d hd' => ?_⟩
+    · unfold addPop
+      rw [hμh, hsplitLast]
+      exact Finset.mem_union_left _ (Finset.mem_image.mpr ⟨(s₂, γ, c₁.state, c₂.state),
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hok⟩, rfl⟩)
+    · rcases List.mem_append.mp hd' with hd' | hd'
+      · exact hne d (by simp [hd'])
+      · rcases List.mem_cons.mp hd' with rfl | hd'
+        · exact hpsne
+        · exact hne d (by simp [hd'])
+    · rcases List.mem_append.mp hd' with hd' | hd'
+      · exact hhole d (by simp [hd']) e he
+      · rcases List.mem_cons.mp hd' with rfl | hd'
+        · exact hhole ⟨i, (p, γ) :: ps⟩ (by simp) e (List.mem_cons_of_mem _ he)
+        · exact hhole d (by simp [hd']) e he
+    · rcases List.mem_append.mp hd' with hd' | hd'
+      · exact hcons_old d (by simp [hd'])
+      · rcases List.mem_cons.mp hd' with rfl | hd'
+        · exact ⟨q₀, m - 1, hps, fun r hr => by have := hlt₀ r hr; omega, hcons_new⟩
+        · exact hcons_old d (by simp [hd'])
+
+end PopStep
+
 end Cslib.Automata.MPDA

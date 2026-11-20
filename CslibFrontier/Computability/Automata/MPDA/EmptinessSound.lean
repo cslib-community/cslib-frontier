@@ -142,7 +142,7 @@ section Align
 
 variable {α β : Type*} {R : α → β → Prop}
 
-private theorem forall₂_split {l : List α} {pre post : List β}
+theorem forall₂_split {l : List α} {pre post : List β}
     (h : List.Forall₂ R l (pre ++ post)) :
     ∃ a b, l = a ++ b ∧ a.length = pre.length ∧ List.Forall₂ R a pre ∧ List.Forall₂ R b post := by
   refine ⟨l.take pre.length, l.drop pre.length, (List.take_append_drop _ _).symm, ?_,
@@ -151,7 +151,7 @@ private theorem forall₂_split {l : List α} {pre post : List β}
   simp at this ⊢
   omega
 
-private theorem forall₂_split_middle {l : List α} {pre post : List β} {x : β}
+theorem forall₂_split_middle {l : List α} {pre post : List β} {x : β}
     (h : List.Forall₂ R l (pre ++ x :: post)) :
     ∃ a y b, l = a ++ y :: b ∧ a.length = pre.length ∧ List.Forall₂ R a pre ∧ R y x ∧
       List.Forall₂ R b post := by
@@ -159,13 +159,13 @@ private theorem forall₂_split_middle {l : List α} {pre post : List β} {x : �
   cases hb with
   | cons hy hb => exact ⟨a, _, _, rfl, hlen, ha, hy, hb⟩
 
-private theorem forall₂_append {a a' : List α} {b b' : List β} (h : List.Forall₂ R a b)
+theorem forall₂_append {a a' : List α} {b b' : List β} (h : List.Forall₂ R a b)
     (h' : List.Forall₂ R a' b') : List.Forall₂ R (a ++ a') (b ++ b') := by
   induction h with
   | nil => exact h'
   | cons hab _ ih => exact .cons hab ih
 
-private theorem forall₂_exists_of_mem {a : List α} {b : List β} (h : List.Forall₂ R a b) {x : α}
+theorem forall₂_exists_of_mem {a : List α} {b : List β} (h : List.Forall₂ R a b) {x : α}
     (hx : x ∈ a) : ∃ y ∈ b, R x y := by
   induction h with
   | nil => simp at hx
@@ -176,7 +176,7 @@ private theorem forall₂_exists_of_mem {a : List α} {b : List β} (h : List.Fo
       exact ⟨y, List.mem_cons_of_mem _ hy, hxy'⟩
 
 /-- Split an aligned list at a prefix of known length. -/
-private theorem forall₂_split_at {a a' : List α} {b b' : List β} (hlen : a.length = b.length)
+theorem forall₂_split_at {a a' : List α} {b b' : List β} (hlen : a.length = b.length)
     (h : List.Forall₂ R (a ++ a') (b ++ b')) : List.Forall₂ R a b ∧ List.Forall₂ R a' b' := by
   have h₁ := List.forall₂_take a.length h
   have h₂ := List.forall₂_drop a.length h
