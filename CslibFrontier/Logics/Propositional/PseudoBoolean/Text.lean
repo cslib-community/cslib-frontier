@@ -14,8 +14,9 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 # A text front end for the VeriPB kernel-proof checker
 
 Parsers for the input formats of VeriPB [Bogaerts, Gocht, McCreesh and
-Nordström][BogaertsGochtMcCreeshNordstrom2023] and for kernel proofs, producing the abstract
-syntax checked by `Cslib.Logic.PL.VeriPB.checkRed`:
+Nordström][BogaertsGochtMcCreeshNordstrom2023] and for a fragment of the kernel proof format,
+extended as described below, producing the abstract syntax checked by
+`Cslib.Logic.PL.VeriPB.checkRed`:
 
 * an OPB formula (`Cslib.Logic.PL.VeriPB.Text.parseOPB`): one constraint `∑ aᵢ ℓᵢ ⋈ A;` per line
   with `⋈` one of `>=`, `<=`, `=`, an equality counting as the two constraints `≥` and `≤` in
@@ -24,10 +25,17 @@ syntax checked by `Cslib.Logic.PL.VeriPB.checkRed`:
 * a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
   exactly `C` clauses over the variables `1, …, V`, its clause `1 -2 3 0` read as the constraint
   `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
-* a kernel proof (`Cslib.Logic.PL.VeriPB.Text.parseProof`): the header
-  `pseudo-Boolean proof version 3.0`, an optional `f N;` checked against the number of
+* a proof (`Cslib.Logic.PL.VeriPB.Text.parseProof`): the header
+  `pseudo-Boolean proof version 3.0`, the line `f N;` checked against the number of
   constraints, the derivation steps, `output NONE;`, `conclusion UNSAT : id;` and
   `end pseudo-Boolean proof;`.
+
+**Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§2.1
+and §6.1 of the VeriPB/CakePB documentation for the SAT Competition 2026), with three
+extensions. First, the line `f N;` is optional: the kernel format requires it, but a proof
+without it is accepted and checked against the parsed formula. The other two extensions,
+`del id` and `rup` without hints, are described under **Steps**. So a proof accepted here need
+not be a kernel proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
@@ -56,7 +64,7 @@ machine code and the parsing of DIMACS input.
 ## Main definitions
 
 * `Cslib.Logic.PL.VeriPB.Text.parseOPB`, `Cslib.Logic.PL.VeriPB.Text.parseDIMACS`: formulas.
-* `Cslib.Logic.PL.VeriPB.Text.parseProof`: kernel proofs.
+* `Cslib.Logic.PL.VeriPB.Text.parseProof`: proofs in the supported fragment.
 * `Cslib.Logic.PL.VeriPB.Text.checkOPB`, `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`: the checkers.
 
 ## Main results
@@ -342,8 +350,8 @@ private def redItems (N : Names) : ℕ → List String → Option (List RedItem 
     | none => none
 
 /-- A top-level step: a `red` step, a deletion, an implicational step, or nothing for a skipped
-`core` step. Deletion and `core` are top-level only (§5.5 and §5.6 of the format
-documentation). -/
+`core` step. Deletion and `core` are top-level only: subproof scopes are specified in §5.5 of
+the format documentation, `core id` in §5.1, and the typed kernel deletions in §5.7.1. -/
 private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
   | "red" :: ts =>
     match geq N ts with
@@ -374,8 +382,8 @@ private def topSteps (N : Names) : ℕ → List String → Option (List TopStep 
     (topStep N fuel ts).bind fun (ss, rest) =>
       (topSteps N fuel rest).map fun (ss', rest) => (ss ++ ss', rest)
 
-/-- **A kernel proof of `UNSAT`** for a formula with `m` constraints over the variables below
-`nvars`. -/
+/-- **A proof of `UNSAT`** in the supported fragment (kernel proofs, with `f N;` optional) for a
+formula with `m` constraints over the variables below `nvars`. -/
 def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
   let ts := tokens s
   let N := Names.ofTokens nvars ts
@@ -398,7 +406,7 @@ def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
 private def numVars (F : List PBConstr) : ℕ :=
   (F.flatMap PBConstr.terms).foldr (fun t m => max (PBConstr.termVar t + 1) m) 0
 
-/-- **Check a kernel proof of `UNSAT` for an OPB formula.** -/
+/-- **Check a proof of `UNSAT` for an OPB formula**, in the supported fragment. -/
 def checkOPB (opb pbp : String) : Bool :=
   match parseOPB opb with
   | none => false
@@ -407,7 +415,7 @@ def checkOPB (opb pbp : String) : Bool :=
     | some P => checkRed F P
     | none => false
 
-/-- **Check a kernel proof of `UNSAT` for a DIMACS CNF formula.** -/
+/-- **Check a proof of `UNSAT` for a DIMACS CNF formula**, in the supported fragment. -/
 def checkDIMACS (cnf pbp : String) : Bool :=
   match parseDIMACS cnf with
   | none => false
