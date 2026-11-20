@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Counting
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Certificate
 import Mathlib.Tactic.FinCases
 
@@ -134,5 +135,31 @@ example (fuel : ℕ) :
   cases h with
   | halt h => cases h
   | step h _ => exact h rfl
+
+private def readBit : MultiTapeCTM 0 Bool Unit where
+  initial := ()
+  tr _ bit _ _ := [haltAction (bit.getD false)]
+
+open Cslib.Complexity Turing.MultiTapeTM in
+/-- A one-step native witness yields both UL and NL membership, with acceptance determined by
+the actual encoded input bit. -/
+example : ({true} : Set Bool) ∈ UL encBool ∧ ({true} : Set Bool) ∈ NL encBool := by
+  have hUL : ({true} : Set Bool) ∈ UL encBool := by
+    let f (b : Bool) : ℕ := if b then 1 else 0
+    refine ⟨f, ⟨0, Unit, inferInstance, readBit, 0, ?_⟩, ?_, ?_⟩
+    · intro a
+      refine ⟨?_, 1, ?_, ?_⟩
+      · intro p
+        simp [MultiTapeNTM.ComputationPath.space, MultiTapeNTM.RunPath.space]
+      · apply HaltsWithin.step (by cases a <;> decide)
+        intro index
+        apply HaltsWithin.halt
+        cases a <;> fin_cases index <;> rfl
+      · cases a <;> decide
+    · intro a
+      cases a <;> decide
+    · intro a
+      cases a <;> decide
+  exact ⟨hUL, UL_subset_NL hUL⟩
 
 end CslibFrontierTests.CountingBranches

@@ -2149,6 +2149,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Ladner.Stages
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Closure
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Complement
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Counting
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.ClosureKernel
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.ConfigurationGraph
