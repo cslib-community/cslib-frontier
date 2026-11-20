@@ -22,8 +22,8 @@ one-sided error convention of the [Complexity Zoo](https://complexityzoo.net/Com
 and the logspace circuit generator convention in [Cook, §2]
 (https://www.cs.utoronto.ca/~sacook/homepage/taxonomy.pdf).
 
-The logarithmic-depth specialization explicitly uses logspace uniformity. Cook's
-extended-connection uniformity at level one requires a separate definition.
+The logarithmic-depth specialization explicitly uses logspace uniformity. The
+extended-connection convention is developed in `Boolean.ExtendedConnection`.
 The `NonuniformRNC` levels drop the generator constraint altogether.
 
 ## Main definitions
@@ -68,7 +68,7 @@ abbrev LogSpaceUniformRNC1 : Set (Language Bool) := LogSpaceUniformRNCLevel 1
 /-- Languages decided by a nonuniform family of polynomial-size, bounded-fan-in circuits
 of depth `O((log n) ^ i)`. Members are accepted on at least half of the random strings.
 Nonmembers are rejected on every random string. -/
-def NonuniformRNCLevel (i : ℕ) : Set (Language Bool) :=
+@[expose] def NonuniformRNCLevel (i : ℕ) : Set (Language Bool) :=
   {L | ∃ (c : ℕ) (s r : ℕ → ℕ), PolynomiallyBounded s ∧ PolynomiallyBounded r ∧
     ∀ n, ∃ C : Circuit signature (n + r n) 1,
       C.depth ≤ c * (Nat.log 2 n + 1) ^ i ∧ C.size ≤ s n ∧ HasOneSidedError C L}
@@ -83,6 +83,6 @@ theorem logSpaceUniformRNCLevel_subset_nonuniformRNCLevel (i : ℕ) :
 def NonuniformRNC : Set (Language Bool) := ⋃ i, NonuniformRNCLevel i
 
 /-- The first randomized NC level, with logarithmic depth. -/
-def NonuniformRNC1 : Set (Language Bool) := NonuniformRNCLevel 1
+@[expose] def NonuniformRNC1 : Set (Language Bool) := NonuniformRNCLevel 1
 
 end Cslib.Circuits.Boolean

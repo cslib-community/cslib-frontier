@@ -1210,6 +1210,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Encoding.Certificate
 public import CslibFrontier.Computability.Circuit.Boolean.EncodingSize
 public import CslibFrontier.Computability.Circuit.Boolean.Equality
 public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
+public import CslibFrontier.Computability.Circuit.Boolean.ExtendedConnection
 public import CslibFrontier.Computability.Circuit.Boolean.FanInTwo
 public import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 public import CslibFrontier.Computability.Circuit.Boolean.FirstOrder
