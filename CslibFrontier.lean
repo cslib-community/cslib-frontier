@@ -2194,6 +2194,7 @@ public import CslibFrontier.Computability.Complexity.Classes.NP.SelfReduction
 public import CslibFrontier.Computability.Complexity.Classes.NP.StrictVerifier
 public import CslibFrontier.Computability.Complexity.Classes.NP.TruthTable
 public import CslibFrontier.Computability.Complexity.Classes.NP.Witness
+public import CslibFrontier.Computability.Complexity.Classes.NoninteractiveZeroKnowledge
 public import CslibFrontier.Computability.Complexity.Classes.Operators
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
