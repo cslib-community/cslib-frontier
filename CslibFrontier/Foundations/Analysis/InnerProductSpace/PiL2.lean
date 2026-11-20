@@ -40,29 +40,42 @@ theorem EuclideanSpace.star_dotProduct_self_eq_norm_sq (ψ : EuclideanSpace ℂ 
   rw [dotProduct_comm, ← EuclideanSpace.inner_eq_star_dotProduct, inner_self_eq_norm_sq_to_K]
   rfl
 
+private theorem gram_apply_eq_norm_sq {m : Type*} [Fintype m]
+    (M : Matrix m ι ℂ) (ψ : EuclideanSpace ℂ ι) :
+    star ψ.ofLp ⬝ᵥ ((Mᴴ * M) *ᵥ ψ.ofLp) =
+      (‖(WithLp.toLp 2 (M *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ : ℂ) ^ 2 := by
+  rw [← EuclideanSpace.star_dotProduct_self_eq_norm_sq, WithLp.ofLp_toLp, star_mulVec,
+    ← dotProduct_mulVec, mulVec_mulVec]
+
+/-- A positive semidefinite bound on Gram matrices gives a pointwise bound on vector norms. -/
+theorem Matrix.norm_toLp_mulVec_le_of_gram_le {l m : Type*} [Fintype l] [Fintype m]
+    {M : Matrix l ι ℂ} {N : Matrix m ι ℂ} {c : ℝ} (hc : 0 ≤ c)
+    (h : (c • (Nᴴ * N) - Mᴴ * M).PosSemidef) (ψ : EuclideanSpace ℂ ι) :
+    ‖(WithLp.toLp 2 (M *ᵥ ψ.ofLp) : EuclideanSpace ℂ l)‖ ≤
+      Real.sqrt c * ‖(WithLp.toLp 2 (N *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ := by
+  have h0 := (Complex.nonneg_iff.mp (h.dotProduct_mulVec_nonneg ψ.ofLp)).1
+  rw [sub_mulVec, dotProduct_sub, smul_mulVec, dotProduct_smul,
+    gram_apply_eq_norm_sq, gram_apply_eq_norm_sq, ← Complex.ofReal_pow, ← Complex.ofReal_pow,
+    Complex.sub_re, Complex.real_smul, Complex.mul_re] at h0
+  simp only [Complex.ofReal_re, Complex.ofReal_im, mul_zero, sub_zero] at h0
+  apply (sq_le_sq₀ (norm_nonneg _) (mul_nonneg (Real.sqrt_nonneg _) (norm_nonneg _))).mp
+  rw [mul_pow, Real.sq_sqrt hc]
+  exact sub_nonneg.mp h0
+
 /-- A matrix `M` with `Mᴴ M ≤ 1` does not increase norms: `‖M ψ‖ ≤ ‖ψ‖`. -/
 theorem Matrix.norm_toLp_mulVec_le_of_posSemidef [DecidableEq ι] {M : Matrix ι ι ℂ}
     (hM : (1 - Mᴴ * M).PosSemidef) (ψ : EuclideanSpace ℂ ι) :
     ‖(WithLp.toLp 2 (M *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)‖ ≤ ‖ψ‖ := by
-  have h0 := (Complex.nonneg_iff.mp (hM.dotProduct_mulVec_nonneg ψ.ofLp)).1
-  have hMv := EuclideanSpace.star_dotProduct_self_eq_norm_sq (WithLp.toLp 2 (M *ᵥ ψ.ofLp))
-  rw [WithLp.ofLp_toLp] at hMv
-  have hMM : star ψ.ofLp ⬝ᵥ ((Mᴴ * M) *ᵥ ψ.ofLp) =
-      star (M *ᵥ ψ.ofLp) ⬝ᵥ (M *ᵥ ψ.ofLp) := by
-    rw [← mulVec_mulVec, dotProduct_mulVec, star_mulVec]
-  rw [sub_mulVec, one_mulVec, dotProduct_sub, hMM, hMv,
-    EuclideanSpace.star_dotProduct_self_eq_norm_sq, ← Complex.ofReal_pow, ← Complex.ofReal_pow,
-    ← Complex.ofReal_sub, Complex.ofReal_re] at h0
-  exact (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp (by linarith)
+  have h : ((1 : ℝ) • ((1 : Matrix ι ι ℂ)ᴴ * 1) - Mᴴ * M).PosSemidef := by
+    simpa only [conjTranspose_one, one_mul, one_smul] using hM
+  simpa only [Real.sqrt_one, one_mulVec, WithLp.toLp_ofLp, one_mul] using
+    Matrix.norm_toLp_mulVec_le_of_gram_le zero_le_one h ψ
 
 /-- An isometry preserves the norm of vectors. -/
 theorem Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self {m n : Type*} [Fintype m] [Fintype n]
     [DecidableEq n] {K : Matrix m n ℂ} (hK : Kᴴ * K = 1) (ψ : EuclideanSpace ℂ n) :
     ‖(WithLp.toLp 2 (K *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ = ‖ψ‖ := by
-  have h : ((‖(WithLp.toLp 2 (K *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ ^ 2 : ℝ) : ℂ) =
-      ((‖ψ‖ ^ 2 : ℝ) : ℂ) := by
-    push_cast
-    rw [← EuclideanSpace.star_dotProduct_self_eq_norm_sq,
-      ← EuclideanSpace.star_dotProduct_self_eq_norm_sq, WithLp.ofLp_toLp, star_mulVec,
-      ← dotProduct_mulVec, mulVec_mulVec, hK, one_mulVec]
-  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp (Complex.ofReal_injective h)
+  have h := gram_apply_eq_norm_sq K ψ
+  rw [hK, one_mulVec, EuclideanSpace.star_dotProduct_self_eq_norm_sq,
+    ← Complex.ofReal_pow, ← Complex.ofReal_pow] at h
+  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp (Complex.ofReal_injective h.symm)

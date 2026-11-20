@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
+public import CslibFrontier.Computability.PCP.TwoProverGame.PlayerSwap
 import CslibFrontier.Probability.PMF.Filter
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.Product.Resample
@@ -230,6 +231,37 @@ theorem questionsGivenRest_omit (j : Free) (t : Info) (q : PairQ) :
   dsimp only
   rw [hk]
   congr 1
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+private theorem pairGiven_swap (i : Free) (t : Info) :
+    pairGiven G.swap α C i (swapInfo C t) = (pairGiven G α C i t).map Prod.swap := by
+  change conditionalSnd (law (G.questions.map Prod.swap) α) (Sum.swap (t.halves i)) = _
+  rw [← map_swap_law]
+  exact conditionalSnd_map_prodCongr (law G.questions α)
+    (Equiv.sumComm _ _) (Equiv.prodComm _ _) (t.halves i)
+
+omit [Fintype A] [Fintype B] in
+/-- Completing a remaining transcript commutes with exchanging the players. -/
+theorem questionsGivenRest_swap (j : Free) (t : Info) (q : PairQ) :
+    questionsGivenRest G.swap α C j (omitMessage C j (swapInfo C t)) q.swap =
+      (questionsGivenRest G α C j (omitMessage C j t) q).map (fun u => Prod.swap ∘ u) := by
+  rw [questionsGivenRest_omit, questionsGivenRest_omit, PMF.map_comp]
+  let p := Function.update (fun i => pairGiven G α C i t) j (PMF.pure q)
+  let p' := Function.update (fun i => pairGiven G.swap α C i (swapInfo C t)) j (PMF.pure q.swap)
+  change (pi p').map (swapInfo C t).combine = (pi p).map _
+  have hp : (fun i => (p i).map Prod.swap) = p' := by
+    funext i
+    by_cases hi : i = j
+    · subst i
+      simp [p, p']
+    · simpa only [p, p', Function.update_of_ne hi] using (pairGiven_swap G α C i t).symm
+  have hpi := pi_map p (fun _ => Prod.swap)
+  rw [hp] at hpi
+  rw [hpi, PMF.map_comp]
+  congr 1
+  funext u i
+  by_cases hi : i ∈ C <;>
+    simp [Function.comp_def, Revealed.combine, Equiv.piEquivPiSubtypeProd_symm_apply, hi, swapInfo]
 
 /-- Reassemble the checked and free parts of a full question tuple. -/
 @[expose] def appendQuestions {Q : Type*} (checked : C → Q) (free : Free → Q) : Fin n → Q :=

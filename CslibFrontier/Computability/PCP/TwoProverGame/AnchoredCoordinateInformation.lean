@@ -479,17 +479,6 @@ renumbered free questions. -/
 
 omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] [Fintype ι] [DecidableEq ι]
   [Fintype κ] [DecidableEq κ] in
-private theorem conditionalSnd_prodCongr_left {D E F : Type*} (P : PMF (D × F))
-    (f : D ≃ E) {d : D} (hd : d ∈ (P.map Prod.fst).support) :
-    conditionalSnd (P.map (f.prodCongr (Equiv.refl F))) (f d) = conditionalSnd P d := by
-  symm
-  apply conditionalSnd_eq_of_scaled_slices _ _ _ _ 1 1 hd one_ne_zero ENNReal.one_ne_top
-  intro x
-  rw [map_equiv_apply]
-  simp
-
-omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] [Fintype ι] [DecidableEq ι]
-  [Fintype κ] [DecidableEq κ] in
 private theorem mem_support_map_prodCongr_left {D E F : Type*} (P : PMF (D × F))
     (f : D ≃ E) {d : D} (hd : d ∈ (P.map Prod.fst).support) :
     f d ∈ ((P.map (f.prodCongr (Equiv.refl F))).map Prod.fst).support := by
@@ -604,7 +593,8 @@ theorem exists_bob_anchored_coordinateInformation_le_after_wins
       rw [hmarg, map_equiv_apply, Equiv.symm_apply_apply]
     rw [hmass']
     by_cases ht : t ∈ (P.map Prod.fst).support
-    · have hc := conditionalSnd_prodCongr_left P f ht
+    · have hc := conditionalSnd_map_prodCongr P f (Equiv.refl _) t
+      simp only [Equiv.coe_refl, PMF.map_id] at hc
       rw [← hPs] at hc
       rw [hc]
       rfl
@@ -683,7 +673,8 @@ theorem quantumMarginalGivenMap_aliceTranscriptProjection [DecidableEq X] {U : T
   rw [← hPs] at hbranch_s
   have hts := mem_support_map_prodCongr_left P labelSwap ht
   rw [← hPs] at hts
-  have hcond := conditionalSnd_prodCongr_left P labelSwap ht
+  have hcond := conditionalSnd_map_prodCongr P labelSwap (Equiv.refl _) (t, a, b)
+  simp only [Equiv.coe_refl, PMF.map_id] at hcond
   rw [← hPs] at hcond
   change conditionalSnd Ps (swapInfo C t, b, a) = conditionalSnd P (t, a, b) at hcond
   have hus : u ∈ ((conditionalSnd Ps (swapInfo C t, b, a)).map f).support := hcond.symm ▸ hu
@@ -741,7 +732,8 @@ theorem checkedVectorGivenAlice_purifies_winningMarginal [DecidableEq X]
   dsimp only at hbranch_s
   rw [← hPs] at hbranch_s
   have hts := mem_support_map_prodCongr_left P f ht
-  have hcond := conditionalSnd_prodCongr_left P f ht
+  have hcond := conditionalSnd_map_prodCongr P f (Equiv.refl _) (t, a, b)
+  simp only [Equiv.coe_refl, PMF.map_id] at hcond
   rw [← hPs] at hts hcond
   have hxs : x ∈ ((conditionalSnd Ps (f (t, a, b))).map (fun z => z i)).support :=
     hcond.symm ▸ hx

@@ -76,6 +76,36 @@ theorem conditionalSnd_apply (joint : PMF (α × β)) (a : α)
     posteriorDist_apply, bind_pair_apply, PMF.pure_apply]
   simp [tsum_prod', div_eq_mul_inv]
 
+/-- Conditional laws commute with bijective relabelling of both coordinates, including
+the marginal fallback at a null observation. -/
+theorem conditionalSnd_map_prodCongr {γ δ : Type*} (joint : PMF (α × β))
+    (e : α ≃ γ) (f : β ≃ δ) (a : α) :
+    conditionalSnd (joint.map (e.prodCongr f)) (e a) = (conditionalSnd joint a).map f := by
+  let J := joint.map (e.prodCongr f)
+  have hfst : J.map Prod.fst = (joint.map Prod.fst).map e := by
+    simp only [J, PMF.map_comp]
+    rfl
+  have hmass : (J.map Prod.fst) (e a) = (joint.map Prod.fst) a := by
+    rw [hfst, map_equiv_apply, Equiv.symm_apply_apply]
+  by_cases ha : a ∈ (joint.map Prod.fst).support
+  · have hJ : e a ∈ (J.map Prod.fst).support := by
+      simpa only [PMF.mem_support_iff, hmass] using ha
+    ext d
+    change conditionalSnd J (e a) d = _
+    rw [map_equiv_apply, conditionalSnd_apply J _ hJ,
+      conditionalSnd_apply joint _ ha, hmass, show J (e a, d) = joint (a, f.symm d) by
+        dsimp only [J]
+        rw [map_equiv_apply, Equiv.prodCongr_symm]
+        simp]
+  · have hJ : e a ∉ (J.map Prod.fst).support := by
+      simpa only [PMF.mem_support_iff, hmass] using ha
+    classical
+    change conditionalSnd J (e a) = (conditionalSnd joint a).map f
+    simp only [conditionalSnd, show e a ∉ (J.bind (fun p => PMF.pure p.1)).support from hJ,
+      show a ∉ (joint.bind (fun p => PMF.pure p.1)).support from ha, dite_false,
+      J, PMF.map_comp]
+    rfl
+
 /-- Multiplying by the marginal recovers the joint mass, also at zero-probability observations. -/
 theorem marginal_mul_conditionalSnd (joint : PMF (α × β)) (a : α) (b : β) :
     (joint.map Prod.fst) a * conditionalSnd joint a b = joint (a, b) := by

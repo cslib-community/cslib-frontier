@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCommonState
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodNormalization
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
@@ -592,3 +593,28 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   have h0 := zero_mem_of_uniform_failure_lt_one good (hprob.trans_lt hsmall)
   refine ⟨VA, VB, VAB, ?_, (hgood 0 h0).2⟩
   simpa only [C, acceptingGame_win_mass, ENNReal.toReal_one] using (hgood 0 h0).1
+
+open Matrix in
+open scoped Kronecker in
+/-- At anchor rate one half the two weights of the noisy left mixture are one quarter
+and three quarters. The prepared state comparison keeps both factors for unequal dimensions. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3))
+    (j : {i : Fin 2 // i ∉ ({0} : Finset (Fin 2))})
+    (t : RestQuestions (Option Bool) (Option Bool) ({0} : Finset (Fin 2)) j)
+    (a b : (↥({0} : Finset (Fin 2))) → Bool) :
+    let C : Finset (Fin 2) := {0}
+    let φ x y := checkedVectorGivenRest acceptingGame half C S j t (x, y) a b
+    let φN y := checkedVectorGivenBob acceptingGame half C S j t (.inl (some true)) y a b
+    let γ := ‖φ none none‖
+    ‖NormedSpace.normalize (φ none none) - NormedSpace.normalize (φ (some true) (some false))‖ ≤
+      (‖φ none none - φ none (some false)‖ + ‖φ none none - φ (some true) none‖ +
+        (Real.sqrt 4 + Real.sqrt (4 / 3)) * ‖φN (some false) - φN none‖) / γ +
+      |‖φ (some true) (some false)‖ / γ - 1| := by
+  intro C φ φN γ
+  have hα : 0 < (half : ℝ) := by norm_num [half]
+  have h := norm_sub_normalized_checked_common_le acceptingGame half C S j t
+    (some true) (some false) a b 1 1 1 (one_mem _) (one_mem _) hα
+  have h₀ : (noise half : ℝ)⁻¹ = 4 := by rw [coe_noise]; norm_num [half]
+  have h₁ : (1 - (noise half : ℝ))⁻¹ = 4 / 3 := by rw [coe_noise]; norm_num [half]
+  simpa only [one_kronecker_one, map_one, one_apply_eq_self, h₀, h₁] using h

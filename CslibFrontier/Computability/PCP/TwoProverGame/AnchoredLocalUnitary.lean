@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
-public import Mathlib.Analysis.Normed.Module.Normalize
+public import CslibFrontier.Foundations.Analysis.Normed.Normalize
 
 /-!
 # Local-unitary alignment under the tagged redraw
@@ -101,13 +101,6 @@ theorem localUnitaryError_nonneg (V : Matrix κ κ ℂ) (v u : EuclideanSpace �
   unfold localUnitaryError
   exact norm_nonneg _
 
-omit [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq κ] in
-private theorem norm_normalize_le_one {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
-    (v : E) : ‖NormedSpace.normalize v‖ ≤ 1 := by
-  by_cases hv : v = 0
-  · simp [hv]
-  · rw [NormedSpace.norm_normalize hv]
-
 /-- A unitary maps the normalized first branch into the closed unit ball. -/
 theorem localUnitaryError_le_two {V : Matrix κ κ ℂ} (hV : V ∈ unitaryGroup κ ℂ)
     (v u : EuclideanSpace ℂ (ι × κ)) : localUnitaryError V v u ≤ 2 := by
@@ -117,7 +110,8 @@ theorem localUnitaryError_le_two {V : Matrix κ κ ℂ} (hV : V ∈ unitaryGroup
   change ‖f (NormedSpace.normalize v) - NormedSpace.normalize u‖ ≤ 2
   refine (norm_sub_le _ _).trans ?_
   rw [(mem_unitaryGroup_iff_forall_norm_toEuclideanCLM M).mp hM (NormedSpace.normalize v)]
-  exact (add_le_add (norm_normalize_le_one v) (norm_normalize_le_one u)).trans_eq (by norm_num)
+  exact (add_le_add (NormedSpace.norm_normalize_le_one v)
+    (NormedSpace.norm_normalize_le_one u)).trans_eq (by norm_num)
 
 private theorem localUnitaryErrorSq_one_le (v u : EuclideanSpace ℂ (ι × κ)) :
     localUnitaryErrorSq 1 v u ≤ 4 := by

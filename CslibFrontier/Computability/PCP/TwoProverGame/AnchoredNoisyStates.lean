@@ -61,6 +61,13 @@ private theorem map_questionsGivenRest_congr {T : Type*} [Finite T] (f : PairQ �
   simp only [questionsGivenRest, map_pi_update_combine, h]
 
 omit [Fintype A] [Fintype B] in
+/-- Keeping Alice's selected question fixed keeps her entire conditional question law fixed. -/
+theorem aliceQuestionsGivenRest_congr (j : Free) (t : Saved j) (q q' : PairQ)
+    (h : q.1 = q'.1) :
+    aliceQuestionsGivenRest G α C j t q = aliceQuestionsGivenRest G α C j t q' :=
+  map_questionsGivenRest_congr G α C Prod.fst j t q q' h
+
+omit [Fintype A] [Fintype B] in
 /-- Keeping Bob's selected question fixed keeps his entire conditional question law fixed. -/
 theorem bobQuestionsGivenRest_congr (j : Free) (t : Saved j) (q q' : PairQ)
     (h : q.2 = q'.2) :
@@ -104,6 +111,20 @@ theorem conditionalSnd_observedCheckedAnswersByBob (S : RepeatedStrategy) (j : F
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩
   rw [hobs, conditionalSnd_bind_pair _ _ _ hs]
 
+omit [Fintype A] [Fintype B] in
+/-- A left-tagged message gives a coin mixture of the anchor and selected Alice question laws. -/
+theorem bind_aliceQuestionsGivenRest_inl (j : Free) (t : Saved j) (x : Option X) (y : Option Y) :
+    ((aliceGivenMessage G.questions α (.inl x)).bind fun x' =>
+      aliceQuestionsGivenRest G α C j t (x', y)) =
+      (coin (noise α)).bind fun erase =>
+        if erase then aliceQuestionsGivenRest G α C j t (none, none)
+        else aliceQuestionsGivenRest G α C j t (x, none) := by
+  simp only [aliceGivenMessage, noisyQuestion, PMF.bind_map, Function.comp_def]
+  congr 1 with erase : 1
+  cases erase
+  · exact aliceQuestionsGivenRest_congr G α C j t (x, y) (x, none) rfl
+  · exact aliceQuestionsGivenRest_congr G α C j t (none, y) (none, none) rfl
+
 /-- The checked-answer branch formed by averaging the hidden selected Alice question. -/
 noncomputable def checkedVectorGivenBob (S : RepeatedStrategy) (j : Free) (t : Saved j)
     (m : Message) (y : Option Y) (a : C → A) (b : C → B) : EuclideanSpace ℂ (ι × κ) :=
@@ -122,6 +143,15 @@ theorem checkedVectorGivenBob_eq (S : RepeatedStrategy) (j : Free) (t : Saved j)
   unfold checkedVectorGivenBob
   rfl
 
+/-- A fixed left anchor message makes the noisy Alice draw the anchor with probability one. -/
+theorem checkedVectorGivenBob_inl_none (S : RepeatedStrategy) (j : Free) (t : Saved j)
+    (y : Option Y) (a : C → A) (b : C → B) :
+    checkedVectorGivenBob G α C S j t (.inl none) y a b =
+      checkedVectorGivenRest G α C S j t (none, y) a b := by
+  rw [checkedVectorGivenBob_eq, bind_aliceQuestionsGivenRest_inl, checkedVectorGivenRest]
+  simp only [ite_self, PMF.bind_const,
+    aliceQuestionsGivenRest_congr G α C j t (none, y) (none, none) rfl]
+
 /-- The noisy branch at a selected Alice question, with Bob's system in the first
 tensor factor so that the retained state is its right partial trace. -/
 noncomputable def checkedVectorGivenAlice (S : RepeatedStrategy) (j : Free)
@@ -138,6 +168,26 @@ theorem checkedVectorGivenAlice_eq (S : RepeatedStrategy) (j : Free)
       checkedVectorGivenBob G.swap α C S.swap j (omitMessage C j ts) (ts.halves j) x b a := by
   unfold checkedVectorGivenAlice
   rfl
+
+/-- At the fixed right anchor message, Alice's noisy branch is the ordinary branch
+with Bob anchored, expressed in the exchanged tensor order. -/
+theorem checkedVectorGivenAlice_inr_none (S : RepeatedStrategy) (j : Free)
+    (t : Revealed (Option X) (Option Y) C) (x : Option X) (a : C → A) (b : C → B)
+    (hm : t.halves j = .inr none) :
+    (checkedVectorGivenAlice G α C S j t x a b).ofLp =
+      (checkedVectorGivenRest G α C S j (omitMessage C j t) (x, none) a b).ofLp ∘
+        Equiv.prodComm κ ι := by
+  have hm' : (swapInfo C t).halves j = .inl none := by
+    change Sum.swap (t.halves j) = _
+    rw [hm]
+    rfl
+  rw [checkedVectorGivenAlice_eq]
+  dsimp only
+  rw [hm', checkedVectorGivenBob_inl_none]
+  unfold checkedVectorGivenRest aliceQuestionsGivenRest bobQuestionsGivenRest
+  rw [show (none, x) = Prod.swap (x, (none : Option Y)) from rfl, questionsGivenRest_swap]
+  simp only [PMF.map_comp, Function.comp_def]
+  exact QuantumStrategy.averagedCheckedVector_swap S C _ _ a b
 
 /-- The branch has the correct checked-answer probability in the original transcript
 when Alice's question is hidden and the selected message and Bob's question are fixed. -/
@@ -167,17 +217,10 @@ theorem norm_checkedVectorGivenBob_sq_inl (S : RepeatedStrategy) (j : Free) (t :
     ‖checkedVectorGivenBob G α C S j t (.inl x) y a b‖ ^ 2 =
       (noise α : ℝ) * ‖checkedVectorGivenRest G α C S j t (none, y) a b‖ ^ 2 +
         (1 - (noise α : ℝ)) * ‖checkedVectorGivenRest G α C S j t (x, y) a b‖ ^ 2 := by
-  let L (x' : Option X) := aliceQuestionsGivenRest G α C j t (x', y)
-  have hL :
-      (fun erase : Bool => L (if erase then none else x)) =
-        fun erase => if erase then L none else L x := by
-    funext erase
-    cases erase <;> rfl
-  simp only [checkedVectorGivenBob, aliceGivenMessage, noisyQuestion, PMF.bind_map,
-    Function.comp_def, checkedVectorGivenRest]
-  change ‖S.averagedCheckedVector C ((coin (noise α)).bind fun erase =>
-    L (if erase then none else x)) _ a b‖ ^ 2 = _
-  rw [hL, QuantumStrategy.norm_averagedCheckedVector_sq_coin,
+  rw [checkedVectorGivenBob_eq, bind_aliceQuestionsGivenRest_inl,
+    QuantumStrategy.norm_averagedCheckedVector_sq_coin, checkedVectorGivenRest,
+    checkedVectorGivenRest, aliceQuestionsGivenRest_congr G α C j t (none, y) (none, none) rfl,
+    aliceQuestionsGivenRest_congr G α C j t (x, y) (x, none) rfl,
     bobQuestionsGivenRest_congr G α C j t (x, y) (none, y) rfl]
 
 end Cslib.PCP.AnchoredDependency

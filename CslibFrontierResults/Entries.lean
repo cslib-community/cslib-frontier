@@ -14,6 +14,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodNormalization
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCommonState
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
@@ -11230,6 +11231,20 @@ register_result "anchored-alignment-under-two-anchor-conditioning" where
     The alignment means use the filtered two-anchor kernel, and each alignment threshold \
     increases by at most twice the selected statistical-distance threshold. This step precedes \
     constructing the strategy and deriving an exponential decay estimate."
+
+register_result "anchored-normalized-common-state-pointwise" where
+  title := "Pointwise common-state comparison for anchored repetition"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.19, pointwise estimates",
+      locator := "arXiv:1509.07466v2, §5.4, printed pp. 31–33, equations (77)–(81)" }
+  ]
+  theorems := [Cslib.PCP.AnchoredDependency.norm_sub_normalized_checked_common_le]
+  scope := "For finite tensor strategies at positive anchor rate, the state prepared from \
+    the normalized doubly anchored branch by separate local actions is compared pointwise \
+    to the normalized branch at the actual question pair. The two noisy mixture weights \
+    give separate inverse square root coefficients. The proof covers singular filters. \
+    Averaging the comparison and constructing the rounded strategy remain separate steps."
 
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
