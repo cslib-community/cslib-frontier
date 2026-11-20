@@ -59,7 +59,7 @@ noncomputable def infoLaw : PMF Info :=
       ⟨checked, messages⟩
 
 /-- The prior question-pair law at an unchecked coordinate given the revealed information. -/
-noncomputable def pairGiven (j : Free) (t : Info) : PMF PairQ :=
+@[expose] noncomputable def pairGiven (j : Free) (t : Info) : PMF PairQ :=
   conditionalSnd (law G.questions α) (t.halves j)
 
 /-- The law of the checked answers at a full tuple of questions. -/
