@@ -19,7 +19,10 @@ import CslibFrontier.Probability.MoserTardos.Coupling
 * With no perturbation (`P = Q`), correlated sampling makes the two runs never diverge
   (`correlated_diverge_le`), and they output the same good assignment
   (`correlated_not_agreeGood_le`).
-* The symmetric weight bound for `d = 0`. -/
+* The symmetric weight bound for `d = 0`.
+* On a table where the coin always shows `true`, the run never stops, so the termination of the
+  second run needs the local-lemma hypothesis for its own distributions
+  (`coupledTable_ae_terminate`). -/
 
 set_option linter.privateModule false
 
@@ -46,6 +49,12 @@ example : run (historyRule vbl r) T₀ 4 = [(), ()] := by decide
 
 /-- It reads samples `0`, `1` and `2` only. -/
 example : ∀ n < 4, uses vbl (run (historyRule vbl r) T₀ n) () ≤ 2 := by decide
+
+/-- Without the local-lemma hypothesis, a run need not stop: on the all-`true` table (the table of
+a coin that always shows `true`) the rule resamples forever. -/
+example (n : ℕ) :
+    historyRule vbl r (fun _ => true) (run (historyRule vbl r) (fun _ => true) n) = some () := by
+  simp [historyRule, r, current_apply]
 
 /-- Flipping an entry the run never reads does not change the run. -/
 example : run (historyRule vbl r) T₀ 4 = run (historyRule vbl r) T₁ 4 :=

@@ -71,6 +71,9 @@ The statement and its proof route are original (cslib-frontier issue #6718).
   `Pr[diverge]`.
 * `Cslib.Probability.MoserTardos.correlated_not_agreeGood_le`: with correlated sampling, the runs
   output the same good assignment except with probability `4 ∑ v, d_TV(P v, Q v)`.
+* `Cslib.Probability.MoserTardos.coupledTable_ae_terminate`,
+  `Cslib.Probability.MoserTardos.correlated_ae_terminate`: if both runs' distributions satisfy the
+  local-lemma hypothesis, both runs stop almost surely.
 
 ## Implementation notes
 
@@ -80,9 +83,9 @@ needs no measurability assumption. The event `AgreeGood` need not be measurable;
 is bounded through `measure_mono_ae`, which holds for outer measure. The seed of
 `correlatedCoupling` is the library's finite correlated sampling, whose law is built from both
 `P v` and `Q v`. A protocol in which each party needs only its own distribution is milestone 2 of
-#6718. The hypothesis on `Q` needed for the second run to terminate on its own is not used: the
-divergence bound needs only the first run's expected sample counts, and the second run stops
-whenever the runs agree.
+#6718. The divergence and output bounds use no hypothesis on `Q`: they need only the first run's
+expected sample counts, and the second run stops whenever the runs agree. Termination of both runs
+on every table (`coupledTable_ae_terminate`) does need the local-lemma hypothesis for `Q` as well.
 
 ## References
 
@@ -625,6 +628,32 @@ theorem coupledTable_not_agreeGood_le [Finite ι] (A : ι → Set (∀ v, α v))
   by_contra hd
   exact h (agreeGood_of_not_diverge vbl r hstop hd hT)
 
+omit [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
+/-- **Both runs terminate.** If each run's distributions satisfy the asymmetric local-lemma
+hypothesis, with weights `x` and `y`, then almost surely both runs stop. The local-lemma
+hypothesis for the second run cannot be dropped: if its events have probability `1`, it never
+stops. -/
+theorem coupledTable_ae_terminate [Finite ι] (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
+    {x y : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1) (hy : ∀ i, y i ∈ Set.Ico 0 1)
+    (hP : ∀ i, (Measure.pi fun v => (κ v).map Prod.fst).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
+    (hQ : ∀ i, (Measure.pi fun v => (κ v).map Prod.snd).real (A i) ≤ y i * ∏ j ∈ Γ i, (1 - y j))
+    (hr : ∀ w a i, r w a = some i → a ∈ A i) :
+    ∀ᵐ T ∂coupledTable κ,
+      (∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none) ∧
+      ∃ n, historyRule vbl r (sndTable T) (run (historyRule vbl r) (sndTable T) n) = none := by
+  have h1 : ∀ᵐ T' ∂(coupledTable κ).map fstTable,
+      ∃ n, historyRule vbl r T' (run (historyRule vbl r) T' n) = none := by
+    rw [coupledTable_map_fstTable]
+    exact ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hx hP (historyRule_valid hr)
+  have h2 : ∀ᵐ T' ∂(coupledTable κ).map sndTable,
+      ∃ n, historyRule vbl r T' (run (historyRule vbl r) T' n) = none := by
+    rw [coupledTable_map_sndTable]
+    exact ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hy hQ (historyRule_valid hr)
+  exact (ae_of_ae_map (measurable_fstTable (V := V) (α := α)).aemeasurable h1).and
+    (ae_of_ae_map (measurable_sndTable (V := V) (α := α)).aemeasurable h2)
+
 end Coupled
 
 
@@ -726,6 +755,28 @@ theorem correlated_not_agreeGood_le [Finite ι] (P Q : ∀ v, PMF (α v))
   obtain ⟨hx, hP''⟩ := lll_of_symm _ Γ hΓd hP' hp
   exact (coupledTable_not_agreeGood_le _ vbl r A hAm hA Γ hΓ hx hP'' hr hstop).trans
     (correlated_diverge_le P Q vbl r A hAm hA Γ hΓ hΓd hP hp hr)
+
+omit [∀ v, MeasurableSingletonClass (α v)] in
+/-- **Both runs terminate under correlated sampling.** In the symmetric case for both `P` and `Q`,
+almost surely both runs stop. -/
+theorem correlated_ae_terminate [Finite ι] (P Q : ∀ v, PMF (α v))
+    (vbl : ι → Finset V) (r : List ι → (∀ v, α v) → Option ι) (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i) {d : ℕ}
+    (hΓd : ∀ i, (Γ i).card ≤ d) {p : ℝ}
+    (hP : ∀ i, (Measure.pi fun v => (P v).toMeasure).real (A i) ≤ p)
+    (hQ : ∀ i, (Measure.pi fun v => (Q v).toMeasure).real (A i) ≤ p)
+    (hp : Real.exp 1 * p * (d + 1) ≤ 1) (hr : ∀ w a i, r w a = some i → a ∈ A i) :
+    ∀ᵐ T ∂coupledTable (correlatedCoupling P Q),
+      (∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none) ∧
+      ∃ n, historyRule vbl r (sndTable T) (run (historyRule vbl r) (sndTable T) n) = none := by
+  have hP' : ∀ i, (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.fst).real (A i) ≤ p :=
+    fun i => by simpa only [correlatedCoupling_map_fst] using hP i
+  have hQ' : ∀ i, (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.snd).real (A i) ≤ p :=
+    fun i => by simpa only [correlatedCoupling_map_snd] using hQ i
+  obtain ⟨hx, hP''⟩ := lll_of_symm _ Γ hΓd hP' hp
+  obtain ⟨hy, hQ''⟩ := lll_of_symm _ Γ hΓd hQ' hp
+  exact coupledTable_ae_terminate _ vbl r A hAm hA Γ hΓ hx hy hP'' hQ'' hr
 
 end Correlated
 
