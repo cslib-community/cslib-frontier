@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Foundations.Data.Option
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF
@@ -1031,11 +1032,6 @@ private theorem computableInPolyTime_encPair_comp {α β₁ β₂ : Type}
 attribute [local fun_prop] computableInPolyTime_encPair_comp computableInPolyTime_simRun_comp
   computableInPolyTime_wordOf computableInPolyTime_fuelOf
 
-private theorem option_elim_eq_if_isSome {α β : Type*} (d : α) (o : Option α)
-    (no : β) (yes : α → β) :
-    o.elim no yes = if o.isSome then yes (o.getD d) else no := by
-  cases o <;> rfl
-
 /-- `oneTimeForger` is uniformly strict oracle PPT whenever `sigBound` is computable in plain
 polynomial time on unary `n`. -/
 theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
@@ -1046,7 +1042,7 @@ theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
   apply IsOraclePPTOn.isOraclePPT
   unfold oneTimeForger
   option_match_to_elim
-  simp only [option_elim_eq_if_isSome ([] : List Bool)]
+  simp only [Option.elim_eq_if_isSome ([] : List Bool)]
   ppt
 
 /-- Both stages of `tcrAdversary` are uniformly strict PPT. -/
@@ -1060,7 +1056,7 @@ theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
     unfold tcrAdversary
     dsimp only
     option_match_to_elim
-    simp only [option_elim_eq_if_isSome ([] : List Bool)]
+    simp only [Option.elim_eq_if_isSome ([] : List Bool)]
     ppt
 
 /-! ### Security bound and existential upgrades -/
