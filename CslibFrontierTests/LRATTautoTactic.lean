@@ -372,14 +372,24 @@ example : ∀ p : Fin 3 → Fin 2 → Prop,
     (p 0 1 ∧ p 1 1) ∨ (p 0 1 ∧ p 2 1) ∨ (p 1 1 ∧ p 2 1) := by
   lrat_tauto
 
--- A goal that is not a tautology is refuted by a valuation of its atoms.
+-- A goal that is not a tautology is refuted by an assignment to its atoms.
 /--
-error: lrat_tauto: the goal is not a tautology. It is false when
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment to its atoms, read as independent propositions:
   p := False
   q := True
 -/
 #guard_msgs in
 example : ∀ p q : Prop, (p → q) → q → p := by
+  lrat_tauto
+
+-- The assignment is to the atoms as opaque propositions: `n = n` is one atom, assigned `False`,
+-- though the goal holds.
+/--
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment to its atoms, read as independent propositions:
+  n = n := False
+-/
+#guard_msgs in
+example : ∀ n : ℕ, n = n := by
   lrat_tauto
 
 end CslibFrontierTests.LRATTautoTactic
