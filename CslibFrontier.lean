@@ -3208,6 +3208,7 @@ public import CslibFrontier.Computability.Kolmogorov.Uncomputability
 public import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
 public import CslibFrontier.Computability.Languages.DeterministicContextFree
+public import CslibFrontier.Computability.Languages.QuantumContextFree
 public import CslibFrontier.Computability.Languages.RegularLanguage
 public import CslibFrontier.Computability.Languages.Slice
 public import CslibFrontier.Computability.Languages.StarFree
