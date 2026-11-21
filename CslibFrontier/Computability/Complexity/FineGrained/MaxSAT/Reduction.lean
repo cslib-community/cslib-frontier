@@ -612,7 +612,7 @@ theorem FixedWidthSATSolver.exists_bruteForce (k : ℕ) :
     simpa only [encUnary_apply, List.length_replicate] using hnum_le φ
   have hrounds_len (φ : CNF ℕ) : (encNat (bfRounds φ)).length = φ.numVars + 1 := by
     dsimp only [bfRounds]
-    rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+    rw [length_encNat_two_pow]
   let B (φ : CNF ℕ) : ℕ :=
     2 * (2 * (encCNF φ).length + (cn * ((encCNF φ).length + 1) ^ en + 1) + 2) + 4
   have hstate (φ : CNF ℕ) (m : ℕ) (hm : m ≤ bfRounds φ) :

@@ -19,7 +19,6 @@ word. In particular, any data retained across a call is part of the explicit mac
 
 ## Main definitions
 
-* `Turing.QueryMachine.runFrom`: a run starting at a specified state.
 * `Turing.QueryMachine.withCalls`: state-returning calls on the original input.
 
 ## Main results
@@ -34,23 +33,6 @@ public section
 namespace Turing.QueryMachine
 
 variable {σ τ : Type*}
-
-/-- Run a query machine from an explicitly supplied state. -/
-@[expose] def runFrom (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) : σ :=
-  (M.step w)^[n] start
-
-@[simp] theorem runFrom_zero (M : QueryMachine σ) (w : List Bool) (start : σ) :
-    M.runFrom w start 0 = start := rfl
-
-theorem runFrom_succ (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) :
-    M.runFrom w start (n + 1) = M.step w (M.runFrom w start n) :=
-  Function.iterate_succ_apply' _ _ _
-
-theorem runFrom_add (M : QueryMachine σ) (w : List Bool) (start : σ) (m n : ℕ) :
-    M.runFrom w start (m + n) = M.runFrom w (M.runFrom w start m) n := by
-  induction n with
-  | zero => rfl
-  | succ n ih => rw [← Nat.add_assoc, runFrom_succ, ih, runFrom_succ]
 
 /-- Suspend the caller on a request and resume it with the callee's final state. Both machines
 read the same original input. Only ordinary caller steps emit output; call entry, callee steps,
