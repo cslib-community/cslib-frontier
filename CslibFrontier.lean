@@ -8446,6 +8446,7 @@ public import CslibFrontier.Probability.MinEntropy
 public import CslibFrontier.Probability.MinEntropy.Flat
 public import CslibFrontier.Probability.MinEntropy.LeftoverHash
 public import CslibFrontier.Probability.Minimax
+public import CslibFrontier.Probability.Minimax.Dantzig
 public import CslibFrontier.Probability.Minimax.Value
 public import CslibFrontier.Probability.MoserTardos
 public import CslibFrontier.Probability.MoserTardos.Coupling
