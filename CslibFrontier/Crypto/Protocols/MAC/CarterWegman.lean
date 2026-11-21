@@ -34,6 +34,7 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
+import CslibFrontier.Probability.HashFamily.UniformOffset
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Uniform
@@ -460,9 +461,8 @@ passing `(sign hash k r m, r)` to a continuation `f` is identical to sampling a 
 theorem bind_uniform_sign {α : Type*} [Fintype Y] [Nonempty Y] (hash : K → M → Y) (k : K) (m : M)
     (f : Y → Y → PMF α) :
     ((PMF.uniformOfFintype Y).bind fun r => f (sign hash k r m) r) =
-      (PMF.uniformOfFintype Y).bind fun t => f t (-hash k m + t) := by
-  conv_rhs => rw [← PMF.uniformOfFintype_bind_add_left (hash k m)]
-  simp only [sign, neg_add_cancel_left]
+      (PMF.uniformOfFintype Y).bind fun t => f t (-hash k m + t) :=
+  PMF.uniformOfFintype_bind_add_offset (hash k m) f
 
 /-- Under `IsDeltaUniversalHash seed hash ε`, for any fixed `(m, t)` and candidate `(m', t')`,
 the probability over `k ← seed` that `m' ≠ m` and `(m', t')` verifies against the reconstructed
@@ -471,12 +471,8 @@ private theorem seed_bind_verify_neg_add_le [DecidableEq M] [DecidableEq Y]
     {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) (m m' : M) (t t' : Y) :
     (seed.bind fun k =>
-      PMF.pure (decide (m' ≠ m) && verify hash k (-hash k m + t) m' t')) true ≤ ε := by
-  by_cases hm : m' = m
-  · simp [hm]
-  · simp only [decide_eq_true hm, Bool.true_and, verify_neg_add_decide,
-      bind_pure_decide_apply_true]
-    exact hh m' m hm (t' - t)
+      PMF.pure (decide (m' ≠ m) && verify hash k (-hash k m + t) m' t')) true ≤ ε :=
+  hh.bind_recovered_offset_le m m' t t'
 
 end Core
 
@@ -581,11 +577,22 @@ probability at most `ε`. -/
 theorem oneTimeGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) (forger : OneTimeForger M Y) :
     oneTimeGame seed hash forger true ≤ ε := by
-  rw [oneTimeGame_eq_bind_uniform]
+  simp only [oneTimeGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  have reorder :
+      (seed.bind fun k =>
+        (PMF.uniformOfFintype Y).bind fun r =>
+          forger.query.bind fun m =>
+            (forger.forge m (sign hash k r m)).bind fun p =>
+              PMF.pure (decide (p.1 ≠ m) && verify hash k r p.1 p.2)) =
+      forger.query.bind fun m =>
+        seed.bind fun k =>
+          (PMF.uniformOfFintype Y).bind fun r =>
+            (forger.forge m (sign hash k r m)).bind fun p =>
+              PMF.pure (decide (p.1 ≠ m) && verify hash k r p.1 p.2) := by
+    pmf_swap
+  rw [reorder]
   exact bind_apply_le_on_support forger.query fun m _ =>
-    bind_apply_le_on_support (PMF.uniformOfFintype Y) fun t _ =>
-      bind_apply_le_on_support (forger.forge m t) fun p _ =>
-        seed_bind_verify_neg_add_le hh m p.1 t p.2
+    hh.bind_uniform_offset_le m (forger.forge m) Prod.fst Prod.snd
 
 /-- **One-time Carter–Wegman SUF-CMA security**: under `IsDeltaUniversalHash seed hash ε`, every
 adaptive one-time forger has strong-forgery probability at most `ε`. -/

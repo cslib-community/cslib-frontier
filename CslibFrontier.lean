@@ -8346,6 +8346,7 @@ public import CslibFrontier.Probability.HashFamily.MultiplyShift
 public import CslibFrontier.Probability.HashFamily.Polynomial
 public import CslibFrontier.Probability.HashFamily.Transport
 public import CslibFrontier.Probability.HashFamily.Uniform
+public import CslibFrontier.Probability.HashFamily.UniformOffset
 public import CslibFrontier.Probability.HashIsolation
 public import CslibFrontier.Probability.Hellinger
 public import CslibFrontier.Probability.HypothesisSelection.LeCamBirge

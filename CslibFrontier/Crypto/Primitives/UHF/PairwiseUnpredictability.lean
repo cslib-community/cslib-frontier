@@ -10,8 +10,8 @@ module
 public import CslibFrontier.Crypto.Computational.TwoStage
 public import CslibFrontier.Probability.HashFamily
 import CslibFrontier.Languages.Probabilistic.Semantics
+import CslibFrontier.Probability.HashFamily.UniformOffset
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 
 /-!
@@ -117,32 +117,8 @@ theorem isPairwiseUnpredictable_add_uniform [AddGroup Y] [Fintype Y]
   rw [PMF.bind_comm]
   refine Probability.PMF.bind_apply_le_on_support _ fun ⟨m, state⟩ _ => ?_
   rw [← Probability.PMF.uniformOfFintype_prod K Y]
-  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  have changePad (k : K) :
-      ((PMF.uniformOfFintype Y).bind fun r =>
-        (ProbComp.eval (A.guess state (H k m + r))).bind fun guess =>
-          PMF.pure (decide (guess.message ≠ m ∧ H k guess.message + r = guess.digest))) =
-      (PMF.uniformOfFintype Y).bind fun t =>
-        (ProbComp.eval (A.guess state t)).bind fun guess =>
-          PMF.pure (decide (guess.message ≠ m ∧
-            H k guess.message - H k m = guess.digest - t)) := by
-    conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addLeft (H k m))]
-    simp only [Equiv.coe_addLeft]
-    congr 1 with r : 1
-    congr 1 with guess : 1
-    have compare : H k guess.message + r = guess.digest ↔
-        H k guess.message - H k m = guess.digest - (H k m + r) := by
-      rw [← add_sub_add_right_eq_sub (H k guess.message) (H k m) r, sub_left_inj]
-    exact congrArg PMF.pure (Bool.decide_congr (and_congr_right fun _ => compare))
-  simp_rw [changePad]
-  rw [PMF.bind_comm]
-  refine Probability.PMF.bind_apply_le_on_support _ fun t _ => ?_
-  rw [PMF.bind_comm]
-  refine Probability.PMF.bind_apply_le_on_support _ fun guess _ => ?_
-  rw [Probability.PMF.bind_pure_decide_apply_true]
-  by_cases hne : guess.message = m
-  · simp [hne]
-  · simpa only [ne_eq, hne, not_false_eq_true, true_and] using
-      h guess.message m hne (guess.digest - t)
+  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Bool.decide_and]
+  exact h.bind_uniform_offset_le m (fun t => ProbComp.eval (A.guess state t))
+    PredictionGuess.message PredictionGuess.digest
 
 end Cslib.Crypto.UHF

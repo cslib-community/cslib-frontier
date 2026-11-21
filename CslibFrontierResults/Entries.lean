@@ -10777,7 +10777,8 @@ register_result "difference-universal-hash-plus-uniform-is-puf" where
   scope := "One hash instance with a private finite uniform key. The new key includes an \
     independent uniform digest that is added to every evaluation. This preserves the bound \
     against all two-stage adversaries with private state in Attack Game 7.5. The Lean proof \
-    extends from cyclic groups to all finite additive groups."
+    extends from cyclic groups to all finite additive groups. Source check: outside-fleet \
+    agent review (coord-6b6b1583) on PR #6930 at 86b92c9ea6."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
