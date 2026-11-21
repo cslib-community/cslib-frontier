@@ -39,11 +39,14 @@ from a `PMF`, so the seed is finite here:
 The algorithm is `budgetedMoserTardos`. Its disagreement bound
 (`disagreeProb_budgetedMoserTardos_le`) needs the local-lemma hypothesis `e p (d + 1) ≤ 1` for
 the estimates of the datasets in a set `good`, and pays `Pr[S ∉ good]` for the others; it does not
-depend on the budget, the number of events or the dependency degree, since the timeout output is
-itself replicated. The budget enters through the timeout probability: a single run times out with
-probability at most `|ι| / ((d + 1) (B + 1))` (`seedTable_timeout_le`). A rule that stops only
-when no event occurs never outputs a bad assignment (`budgetedOutput_eq_some`), so the learner is
-accurate up to that timeout probability (`isAccurateOn_budgetedMoserTardos`,
+depend on the budget, the number of events or the dependency degree. Two runs whose histories
+agree through the budget give equal `Option` outputs, including a shared timeout `none`
+(`budgetedOutput_eq_of_not_diverge`). A run whose history diverges from the other's can time out
+on only one side, and that case is counted in the divergence probability. The budget enters
+through the timeout probability: a single run times out with probability at most
+`|ι| / ((d + 1) (B + 1))` (`seedTable_timeout_le`). A rule that stops only when no event occurs
+never outputs a bad assignment (`budgetedOutput_eq_some`), so the learner is accurate up to that
+timeout probability (`isAccurateOn_budgetedMoserTardos`,
 `isAccurate_budgetedMoserTardos`).
 
 The statement and its proof route are original (cslib-frontier issue #6718).
@@ -163,7 +166,7 @@ private def readSeed {β : V → Type*} (G : ∀ v, Enumeration (α v × Fin L) 
 `P v` by correlated sampling from the enumeration at `(v, min k B)`. A run budgeted to `B` steps
 reads only the entries with `k ≤ B`. -/
 def seedTable (P : ∀ v, GridDist (α v) L) (σ : BudgetSeed α L B) : ∀ p : V × ℕ, α p.1 :=
-  fun p => gridSample (P p.1) (σ (p.1, ⟨min p.2 B, Nat.lt_succ_of_le (min_le_right _ _)⟩))
+  readSeed B (fun v => gridSample (P v)) σ
 
 omit [NeZero L] in
 /-- **The seed is faithful on the first `B + 1` samples.** An event of the table that depends only
