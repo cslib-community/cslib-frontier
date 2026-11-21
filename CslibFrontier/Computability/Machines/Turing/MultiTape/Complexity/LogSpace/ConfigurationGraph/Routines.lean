@@ -130,10 +130,7 @@ theorem nextRegisters_budget {r : α → Register k → ℕ}
     | pos =>
       have hp := budget_natSucc (hr .inputPos)
       have hn' := budget_natSucc hn
-      exact (budget_ite (budget_natLt hp hn') hp hn').of_enc_eq fun a => by
-        simp only [nextRegisters, hm, inputMove, decide_eq_true_eq]
-        congr 1
-        split_ifs <;> omega
+      simpa only [nextRegisters, hm, inputMove] using budget_natMin hp hn'
   | control => exact budget_const _ hin
   | output =>
     cases ho : act.output with

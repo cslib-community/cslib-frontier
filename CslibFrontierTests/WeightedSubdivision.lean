@@ -4,12 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
-import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
-import Mathlib.Logic.Equiv.Fin.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision.HozaWeight
 
 /-! Checked generator-to-scan transport and a native callback reading the actual source word. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.WeightedSubdivision
 
@@ -69,25 +72,48 @@ private theorem run_readFirst (w : List Bool) :
       rfl) (by rfl)
   exact h
 
-/-- Instantiate the native composition certificate with an actual read-only callee and
-native source-label weight routine, rather than postulating a certified callback. -/
+open Cslib.Code.JustesenFamily in
+private noncomputable def rectangleCode (p : ℕ × ℕ) (i : ℕ) : Bool :=
+  if hcol : p.2 < 2 then
+    if hi : i < codeLength 2 2 then indexedCodewordMod ⟨p.2, hcol⟩ ⟨i, hi⟩ else false
+  else false
+
+open Cslib.Reachability.Hoza Cslib.Code.JustesenFamily in
+-- For valid rectangle coordinates the request computes the original generator's weight.
+example (seed : Fin (2 ^ codeLength 2 2)) (z : Fin 3 × Fin 2) :
+    sourceWeight (fun _ => 2) id (fun _ => codeLength 2 2) rectangleCode
+      ⟨seed.val, (finProdFinEquiv z).val, 0, 0, 0⟩ =
+      generatedWeight ((BitString.equivFin _).symm seed) z := by
+  refine sourceWeight_eq_generatedWeight (fun _ => 2) id (fun _ => codeLength 2 2)
+    rectangleCode seed.val seed z 0 0 0 rfl rfl rfl ?_
+  intro i
+  simp [rectangleCode, z.2.isLt, i.isLt]
+
+private def rankWeight : Query (ℕ × ℕ) → ℕ :=
+  sourceWeight Prod.fst Prod.snd (fun _ => 1) (fun _ _ => false)
+
+/-- The subdivision kernel accepts the native retained-rank source weight as its return
+routine. This example uses a one-bit seed and a constant code-bit routine. -/
 example :
+    let enc := encCallback (encPair encNat encNat) (encOption encBool)
     ComputableInSpace
-      (callback readFirst (fun _ : Query Unit => none) Query.fromLabel
+      (callback readFirst (fun _ : Query (ℕ × ℕ) => none) rankWeight
         (fun t => t.getD false)).next
-      (QueryMachine.encStateRead (encCallback encUnit (encOption encBool)))
-      (encCallback encUnit (encOption encBool))
-      (fun p =>
-        (QueryMachine.encStateRead (encCallback encUnit (encOption encBool)) p).length) := by
-  have hw := encQuery_fromLabel_budget encUnit
-    (budget_id (enc := encQuery encUnit) (.refl _))
+      (QueryMachine.encStateRead enc) enc
+      (fun p => (QueryMachine.encStateRead enc p).length) := by
+  let encCtx := encPair encNat encNat
+  have hw : ComputableInSpace rankWeight (encQuery encCtx) encNat
+      (fun q => (encQuery encCtx q).length) :=
+    sourceWeight_inSpace encCtx Prod.fst Prod.snd (fun _ => 1) (fun _ _ => false)
+      (fst encNat encNat) (snd encNat encNat) (budget_const 1 (.refl _))
+      (BigOLe.const 1 _) (budget_const false (.refl _))
   have ha := budget_optionGetD false
     (budget_id (enc := encOption encBool) (.refl _))
   have hnext := budget_optionSome (budget_optionGetD false
     (snd (encOption encBool) (encOption encBool)))
   have hhalt := budget_optionIsSome (budget_id (enc := encOption encBool) (.refl _))
-  exact (callback_parts_inSpace encUnit (encOption encBool) readFirst
-    (fun _ => none) Query.fromLabel (fun t => t.getD false)
+  exact (callback_parts_inSpace encCtx (encOption encBool) readFirst
+    (fun _ => none) rankWeight (fun t => t.getD false)
     (budget_const none (.refl _)) hw ha (budget_const 0 (.refl _)) hnext hhalt).2.1
 
 private def inputGraph (w : List Bool) : LayeredDigraph (Fin 2) where
