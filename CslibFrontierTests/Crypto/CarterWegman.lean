@@ -382,6 +382,13 @@ example (M : NonceMACScheme) (n : ℕ) (sk : List Bool) (request : Unit × List 
       pure ([], 2 ^ M.nonceLen n, issued) := by
   simp [NonceMACScheme.counterSigningOracle]
 
+-- A request of the wrong length is refused without using a counter value: the reply is the empty
+-- word and the state, counter included, is unchanged.
+example (M : NonceMACScheme) (n j : ℕ) (sk msg : List Bool) (hmsg : msg.length ≠ M.msgLen n)
+    (issued : List ((List Bool × List Bool) × List Bool)) :
+    M.counterSigningOracle n sk ((), msg) (j, issued) = pure ([], j, issued) := by
+  simp [NonceMACScheme.counterSigningOracle, hmsg]
+
 -- The counter game unfolds in a client: a forger that outputs a message of the wrong length
 -- without querying never wins.
 example (M : NonceMACScheme) (n : ℕ) (msg nonce tag : List Bool) (hmsg : msg.length ≠ M.msgLen n) :

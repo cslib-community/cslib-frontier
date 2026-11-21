@@ -172,9 +172,17 @@ theorem verify_sign (hlen : ∀ s msg, (H s msg).length = s.length) (n : ℕ)
 
 @[program_certificate]
 theorem isPPTOn_keyGen : IsPPTOn encUnary (encPair encBits encBits) (keyGen S) := by
+  change IsPPTOn encUnary (encPair encBits encBits) (fun n => keyGen S n)
   have hkg := S.keyGen_ppt
-  unfold keyGen
-  ppt
+  have hn := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary (encPair encBits encBits)) encBits)
+  have hout := (hp.fst'.snd'.fst'.prod hp.snd').encoding_comp.prod
+    (hp.fst'.snd'.snd'.prod hp.snd').encoding_comp
+  simpa only [keyGen, bind_pure_comp] using
+    hkg.bind_with (by
+      simpa only [bind_pure_comp] using
+        (ComputableInPolyTime.sampleList hn).map_with hout)
 
 @[program_certificate]
 theorem isPPTOn_sign
@@ -182,8 +190,8 @@ theorem isPPTOn_sign
       (encPair encBits encBits) encBits) :
     IsPPTOn (encPair encBits encBits) encBits (fun ⟨sk, msg⟩ => sign S H sk msg) := by
   have hsign := S.sign_ppt
-  have hHt := hH.tidy
-  have hdec := keyDecoder.computableInPolyTime.tidy
+  have hHt := hH
+  have hdec := keyDecoder.computableInPolyTime
   unfold sign
   ppt
 
@@ -410,7 +418,7 @@ theorem isOraclePPT_baseForger
 
 /-- When `bound` upper-bounds the bit-length of every signature in the support of
 `S.sign sk₀ (H s msg)` and `|H s msg| = n`, interpreting `hashSigningHandler` against
-`S.signingOracle sk₀` matches running `(scheme S H hH hlen).signingOracle ⟨sk₀, s⟩` while mapping
+`S.signingOracle n sk₀` matches running `(scheme S H hH hlen).signingOracle ⟨sk₀, s⟩` while mapping
 the recorded query log `queried` to `queried.map (H s)`. -/
 theorem eval_run_hashSigningHandler
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
@@ -422,7 +430,7 @@ theorem eval_run_hashSigningHandler
     {α : Type} (program : WordOracleComp Unit α) :
     (OracleComp.interpret
       (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-        (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+        (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
       ((OracleComp.interpret
         (OracleComp.sumHandler
           (fun j => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin j)))
@@ -439,7 +447,7 @@ theorem eval_run_hashSigningHandler
     (oracle' := fun (q : Unit × List Bool) (state : Unit × List (List Bool)) =>
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-          (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+          (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
         ((hashSigningHandler H s bound q).run state.1)).run state.2).map
           (fun result => (result.1.1, result.1.2, result.2)))
     (represent := fun queried => ((), queried.map (H s)))
@@ -452,7 +460,7 @@ theorem eval_run_hashSigningHandler
         PMF.map (fun result => (result.1.1, result.1.2, result.2))
           ((OracleComp.interpret
             (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
-              (fun q state => ProbComp.eval (S.signingOracle sk₀ q state)))
+              (fun q state => ProbComp.eval (S.signingOracle n sk₀ q state)))
             (do
               let sig ← List.take bound <$> ProbOracleComp.query ((), H s msg)
               return (sig, ()))).run (List.map (H s) queried))
@@ -460,7 +468,8 @@ theorem eval_run_hashSigningHandler
         ProbOracleComp.interpret_query, OracleComp.interpret_pure,
         StateT.run_bind, StateT.run_map, StateT.run_pure]
       simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracle,
-        scheme, sign_encPair, ProbComp.eval_bind, ProbComp.eval_pure,
+        SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, hmsg, beq_self_eq_true,
+        ↓reduceIte, scheme, sign_encPair, ProbComp.eval_bind, ProbComp.eval_pure,
         PMF.monad_map_eq_map, PMF.monad_pure_eq_pure, PMF.monad_bind_eq_bind,
         PMF.map_bind, PMF.bind_bind, PMF.pure_bind, PMF.pure_map, List.map_cons]
       refine PMF.bind_congr_on_support _ _ _ fun sig hsig => ?_
@@ -612,7 +621,8 @@ theorem succProbability_eufCmaGame_fixedCollisionForger
     simp only [WordSignatureScheme.eufCmaGame, fixedCollisionForger,
       OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_query,
       OracleComp.interpret_pure, StateT.run_bind, StateT.run_map, StateT.run_pure]
-    simp only [StateT.run, WordSignatureScheme.signingOracle, scheme, keyGen, sign_encPair,
+    simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracleOf,
+      SignatureScheme.signingOracleOn, ↓reduceIte, scheme, keyGen, sign_encPair,
       verify_encPair, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
       BitString.eval_sampleList, PMF.bind_bind, PMF.map_bind, PMF.pure_bind,
       PMF.pure_map]

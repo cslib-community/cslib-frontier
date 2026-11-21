@@ -44,8 +44,8 @@ data (`Cslib.Algorithms.WordRAM.PPSZ.addrTest`) and proves that it is `impliedTe
 namespace Cslib.Algorithms.WordRAM.PPSZ
 
 open Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.PPSZ
-open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClauses encodeClauses_cons
-  encodeClauses_nil length_encodeClause litCode_shiftRight litCode_and_one)
+open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClause_eq encodeClauses
+  encodeClauses_cons encodeClauses_nil length_encodeClause litCode_shiftRight litCode_and_one)
 open Cslib.Algorithms.WordRAM.PPZ (optCode PartialAt optCode_eq_one_sub_iff)
 
 variable {n : ℕ}
@@ -134,7 +134,7 @@ theorem holdsList_clauseOf {mem : ℕ → ℕ} :
 theorem mem_clauseAddr {mem : ℕ → ℕ} {a : ℕ} {φ : CNF (Fin n)}
     (hφ : HoldsList a (encodeClauses φ) mem) {p : ℕ} (hp : p ∈ clauseAddrs a φ) :
     mem p = (clauseOf a φ p).length := by
-  simpa [encodeClause] using (holdsList_clauseOf hφ hp).get 0 (by simp)
+  simpa [encodeClause_eq] using (holdsList_clauseOf hφ hp).get 0 (by simp)
 
 /-- The codes of the literals of the clause stored at a clause address. -/
 theorem map_range'_clauseOf {mem : ℕ → ℕ} {a : ℕ} {φ : CNF (Fin n)}
@@ -146,7 +146,7 @@ theorem map_range'_clauseOf {mem : ℕ → ℕ} {a : ℕ} {φ : CNF (Fin n)}
   intro i h1 h2
   simp only [List.getElem_map, List.getElem_range']
   have := hc.get (i + 1) (by simp at h2 ⊢; omega)
-  simpa [encodeClause, Nat.add_assoc, Nat.add_comm 1 i] using this
+  simpa [encodeClause_eq, Nat.add_assoc, Nat.add_comm 1 i] using this
 
 /-- **The odometer step of a clause address**: the next clause starts after the length word and
 the literals; after the last clause comes the end of the encoding. -/
@@ -209,24 +209,15 @@ complement `c ^^^ 1` of another. -/
 def compatCodes (tw : ℕ → ℕ) (x b : ℕ) (cs : List ℕ) : Bool :=
   cs.all fun c => litFine tw x b c && cs.all fun c' => c' != c ^^^ 1
 
-/-- The code of the complementary literal. -/
-theorem litCode_xor_one (l : Literal (Fin n)) : litCode l ^^^ 1 = litCode (l.1, !l.2) := by
-  obtain ⟨v, b⟩ := l
-  simp only [litCode]
-  cases b
-  · simp only [Bool.toNat_false, Nat.add_zero, Bool.not_false, Bool.toNat_true]
-    exact Nat.xor_one_of_even (even_two_mul _)
-  · simp only [Bool.toNat_true, Bool.not_true, Bool.toNat_false, Nat.add_zero]
-    rw [Nat.xor_one_of_odd (odd_two_mul_add_one _)]
-    omega
+/-- The code of the complementary literal
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy_xor_one`). -/
+theorem litCode_xor_one (l : Literal (Fin n)) : litCode l ^^^ 1 = litCode (l.1, !l.2) :=
+  ClauseCode.litCodeBy_xor_one _ _
 
-/-- Literal codes determine literals. -/
-theorem litCode_injective : Function.Injective (litCode (n := n)) := by
-  intro l l' h
-  have h1 := congrArg (· >>> 1) h
-  have h2 := congrArg (· &&& 1) h
-  simp only [litCode_shiftRight, litCode_and_one] at h1 h2
-  exact Prod.ext (Fin.ext h1) (by cases hl : l.2 <;> cases hl' : l'.2 <;> simp_all)
+/-- Literal codes determine literals
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy_injective`). -/
+theorem litCode_injective : Function.Injective (litCode (n := n)) :=
+  ClauseCode.litCodeBy_injective Fin.val_injective
 
 /-- **Compatibility through codes** is compatibility of the literals, with `x` set to `!b`. -/
 theorem compatCodes_map_litCode {mem : ℕ → ℕ} {Tb : ℕ} {τ : Fin n → Option Bool}

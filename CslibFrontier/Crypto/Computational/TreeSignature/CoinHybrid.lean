@@ -346,21 +346,32 @@ include hc in
 theorem evalDet_simulateTreeGame (adversary : Forger) (n : ℕ) (k : List Bool) :
     evalDet c (simulateTreeGame S T depth adversary n) =
       ProbComp.eval (treeGameWith S T depth (coinsOf c) k adversary n) := by
-  rw [treeGameWith, treeScheme, Forger.eval_eufCmaExperiment_restrict_toTyped]
+  rw [treeGameWith, Forger.eval_eufCmaExperiment_toTyped]
   simp only [pmf_norm, simulateTreeGame, evalDet_bind, evalDet_pure,
-    evalDet_nodeKeyO hc n k, ProbOracleComp.eval_run_interpret]
-  refine congrArg (fun p => PMF.bind p _) ?_
-  rw [evalDet, OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith
-    (OracleComp.sumHandler ProbComp.unifOracle (fun r : Unit × List Bool => PMF.pure (c r.2))))]
-  refine congrArg (fun h => (OracleComp.interpret (m := StateT (List (List Bool)) PMF) h
-    (adversary n _)).run []) ?_
-  funext q state
-  cases q with
-  | inl m => rfl
-  | inr request =>
-    change OracleComp.evalWith _ ((signHandler S T depth n request).run state) = _
-    simp only [signHandler, StateT.run, OracleComp.evalWith_bind, OracleComp.evalWith_pure]
-    rw [← evalDet, evalDet_signO hc n k]
+    evalDet_nodeKeyO hc n k, ProbOracleComp.eval_run_interpret, treeScheme,
+    Signature.Scheme.restrict_keyGen, Signature.Scheme.restrict_verify]
+  refine congrArg₂ PMF.bind ?_ (funext fun out => ?_)
+  · rw [evalDet, OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith
+      (OracleComp.sumHandler ProbComp.unifOracle (fun r : Unit × List Bool => PMF.pure (c r.2))))]
+    refine congrArg (fun h => (OracleComp.interpret (m := StateT (List (List Bool)) PMF) h
+      (adversary n _)).run []) ?_
+    funext q state
+    cases q with
+    | inl m => rfl
+    | inr request =>
+      change OracleComp.evalWith _ ((signHandler S T depth n request).run state) = _
+      simp only [signHandler, StateT.run, OracleComp.evalWith_bind, OracleComp.evalWith_pure]
+      rw [← evalDet, evalDet_signO hc n k]
+      -- The tree signer already answers `[]` off the `n`-bit words, as the restricted scheme does.
+      by_cases hmsg : request.2.length = n
+      · simp only [OracleComp.sumHandler, SignatureScheme.signingOracleOf,
+          SignatureScheme.signingOracleOn, Signature.Scheme.restrict, hmsg, beq_self_eq_true,
+          ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
+      · simp only [OracleComp.sumHandler, SignatureScheme.signingOracleOf,
+          SignatureScheme.signingOracleOn, Signature.Scheme.restrict, sign, keyDecoder.decode_enc,
+          hmsg, beq_iff_eq, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
+        rfl
+  · cases out.1.1.length == n <;> simp
 
 end Deterministic
 
@@ -407,13 +418,16 @@ theorem treeGameWith_congr (adversary : Forger) (n : ℕ) :
     ProbComp.eval (treeGameWith S T depth coins k adversary n) =
       ProbComp.eval (treeGameWith S T depth coins' k' adversary n) := by
   have horacle :
-      SignatureScheme.signingOracleOf (sign S T coins depth) (encPair encUnary encBits (n, k)) =
-        SignatureScheme.signingOracleOf (sign S T coins' depth)
+      SignatureScheme.signingOracleOf
+          (fun sk m => if (m.length == n) = true then sign S T coins depth sk m else pure default)
+          (encPair encUnary encBits (n, k)) =
+        SignatureScheme.signingOracleOf
+          (fun sk m => if (m.length == n) = true then sign S T coins' depth sk m else pure default)
           (encPair encUnary encBits (n, k')) := by
     funext request queried
-    simp only [SignatureScheme.signingOracleOf, sign_congr h]
-  simp only [treeGameWith, treeScheme, Forger.eval_eufCmaExperiment_restrict_toTyped, pure_bind,
-    nodeKey_congr h, horacle]
+    simp only [SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, sign_congr h]
+  simp only [treeGameWith, treeScheme, Forger.eval_eufCmaExperiment_toTyped,
+    Signature.Scheme.restrict, pure_bind, nodeKey_congr h, horacle]
 
 omit h in
 /-- Since `tableCoins` ignores the secret key, `treeGame` with `tableCoins` has the same law as
@@ -1034,7 +1048,7 @@ theorem coinParamInv_coinParam (budget : ℕ → ℕ) (n : ℕ) :
 theorem computableInPolyTime_coinParam {budget : ℕ → ℕ}
     (hbudget : ComputableInPolyTime budget encUnary encUnary) :
     ComputableInPolyTime (coinParam budget) encUnary encUnary :=
-  ComputableTidilyInPolyTime.unary_pair.computableInPolyTime.comp
+  ComputableInPolyTime.unary_pair.comp
     (ComputableInPolyTime.id'.prod (hbudget.unary_add' (.const 1)))
 
 theorem computableInPolyTime_coinParamInv {budget : ℕ → ℕ}

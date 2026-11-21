@@ -19,7 +19,6 @@ import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import CslibFrontier.Probability.PMF.UniformPoint
 import all CslibFrontier.Languages.Probabilistic.Presample
-import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
 
 /-!
 # Private signing-seed prediction and the key-generation query
@@ -32,8 +31,7 @@ only the quantum device can access that programmed input. Signing uses the indep
 mask-seed rows of `signingSeedPredictionGame`, including its fallback after the tape of `n`
 rows is exhausted. The background device predicts `K`
 with probability at most `2 / 2^256` and encounters a changed response at each fixed query
-with probability at most `1 / 2^256`. Before its first coherent query the original device
-also satisfies the prediction bound, with arbitrary prior classical signing requests.
+with probability at most `1 / 2^256`.
 
 For any retained density matrix independent of the hidden input seed, the mean squared
 amplitude displacement of one coherent query by the installed expansion is at most `4 / 2^256`.
@@ -262,7 +260,7 @@ private theorem rowSigner_plant (H : Xofs) (s : Level) (p : FixedBytes 96)
   have expansion (u v : FixedBytes 32) :
       (G u v).expandKeySeed s u = FixedBytes.toList (n := 128) (Fin.append p v) :=
     Xofs.expandKeySeed_withKeySeedExpansion H s u _
-  simp only [rowSigner, Xofs.keyGen, expansion, (fields K).1, (fields K).2.1,
+  simp only [rowSigner, Xofs.keyGen, Xofs.expandS, expansion, (fields K).1, (fields K).2.1,
     (fields K).2.2, (fields z).1, (fields z).2.1, (fields z).2.2,
     Xofs.expandA_congr (H := H) (K := G seed K) rfl,
     Xofs.expandA_congr (H := H) (K := G z z) rfl, short, pkHash,
@@ -410,63 +408,6 @@ theorem keySeedDeviceGame_false_le (C : QuantumSigningForger) (s : Level) (base 
   simpa only [B, Game.coe_succProbability, ENNReal.toReal_mul, ENNReal.toReal_inv,
     ENNReal.toReal_pow, ENNReal.toReal_ofNat, div_eq_mul_inv] using r
 
-private theorem before_first_query {C : QuantumSigningForger} {α : Type} (p : Program C α) :
-    OracleComp.QueriesSatisfy (fun q => isXofQuery (C := C) q = false)
-      (queryPrefix (C := C) p 0) := by
-  induction p with
-  | pure a => exact .pure _
-  | liftBind q k ih =>
-    cases h : isXofQuery (C := C) q with
-    | true => simp only [queryPrefix, h, beq_self_eq_true, Bool.and_self, ↓reduceIte]; exact .pure _
-    | false =>
-      simp only [queryPrefix, h, Bool.false_and, Bool.false_eq_true, ↓reduceIte,
-        Bool.toNat_false, Nat.sub_zero]
-      exact OracleComp.QueriesSatisfy.liftBind_iff.mpr ⟨h, ih⟩
-
-private theorem first_serviceAddress (C : QuantumSigningForger) (H : Xofs) (s : Level)
-    (seed : FixedBytes 32) (out : FixedBytes 128) (sv : Option RowSigner) {n : ℕ}
-    (rows : SigningMaskSeeds n) :
-    C.serviceAddress (H.withKeySeedExpansion s seed out) s sv rows 0 =
-      C.serviceAddress H s sv rows 0 := by
-  simp only [serviceAddress, addressLaw, withTrialSetup,
-    Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s seed out) rfl]
-  cases sv with
-  | none => rfl
-  | some sv =>
-    dsimp only
-    cases H.expandA s (sv.publicKey.take 32) with
-    | none => rfl
-    | some A =>
-      apply congrArg (fun p : StateT (State C × List Row) PMF Bool =>
-        ((p.run (C.initial, List.ofFn fun i μ => rows (i, μ))).map
-          (fun (found, st, _) => (found, st))).bind (addressRead C))
-      apply (before_first_query _).interpret_congr
-      rintro (coin | cmd | sign) h
-      · rfl
-      · cases cmd with
-        | query => exact Bool.noConfusion (show true = false from h)
-        | service op _ => exact op.elim
-        | gate _ | measure _ =>
-          funext st
-          obtain ⟨st, tape⟩ := st
-          simp only [OracleComp.withSampleListWhen, isSigningCall, Sum.elim_inr, Sum.elim_inl,
-            Bool.false_eq_true, ↓reduceIte, signingCommand, deviceCommand, OracleComp.sumHandler,
-            deviceHandler_gate, deviceHandler_measure, DeviceState.instruction_apply,
-            OracleGateCode.toPlacedGate?]
-      · rfl
-
-/-- Even with adaptive signing before the first coherent query, the original predictor
-in the independent-row game has success at most `2 / 2^256` when the oracle covers key expansion. -/
-theorem signingSeedPredictionGame_zero_le (C : QuantumSigningForger) (s : Level) (base : Xofs)
-    {a b : ℕ} (ha : 272 ≤ a) (hb : 128 ≤ b) (n : ℕ) :
-    (Game.succProbability (C.signingSeedPredictionGame s base a b n 0) : ℝ) ≤ 2 / 2 ^ 256 := by
-  rw [← C.keySeedDeviceGame_true s base ha hb]
-  have eq : C.keySeedDeviceGame s base a b n 0 true = C.keySeedDeviceGame s base a b n 0 false := by
-    simp only [keySeedDeviceGame, Bool.false_eq_true, ↓reduceIte, observations,
-      first_serviceAddress]
-  rw [eq]
-  exact C.keySeedDeviceGame_false_le s base a b n 0
-
 private def queriesKeySeed {C : QuantumSigningForger} (s : Level) (seed : FixedBytes 32)
     (addr : Option (Address C)) : Bool :=
   match addr with
@@ -554,36 +495,14 @@ theorem mean_keySeedQueryDisturbance_le (C : QuantumSigningForger) (s : Level) (
       xorQueryDisturbance
         ((H.withKeySeedExpansion s seed out).queryTable C.addressBits C.responseBytes)
         (H.queryTable C.addressBits C.responseBytes) A st.density ≤ 4 / 2 ^ 256 := by
-  classical
   intro A
-  let seeds := PMF.uniformOfFintype (FixedBytes 32)
-  let basis := POVM.basis.measureDensity st.density st.isDensityMatrix
-  let changed := fun (seed : FixedBytes 32) (z : (Fin (Width C) → Bool) × κ) =>
-    let x := (queryRegisters A z.1).1
-    decide ((H.withKeySeedExpansion s seed out).queryTable C.addressBits C.responseBytes x ≠
-      H.queryTable C.addressBits C.responseBytes x)
-  have hit : (seeds.bind fun seed => basis.map (changed seed)) true ≤ (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-    simp only [← PMF.bind_pure_comp, Function.comp_def]
-    rw [PMF.bind_comm]
-    apply PMF.bind_apply_le_on_support
-    intro z _
-    exact changed_keySeed_le C s H out (some (queryRegisters A z.1).1)
-  have mean := ENNReal.toReal_mono (by simp) hit
-  rw [Cslib.Probability.PMF.bind_apply_toReal] at mean
-  simp only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat] at mean
-  calc
-    _ ≤ ∑ seed, (seeds seed).toReal * (4 * ((basis.map (changed seed)) true).toReal) := by
-      apply Finset.sum_le_sum
-      intro seed _
-      exact mul_le_mul_of_nonneg_left (xorQueryDisturbance_le _ _ A st.isDensityMatrix)
-        ENNReal.toReal_nonneg
-    _ = 4 * ∑ seed, (seeds seed).toReal * ((basis.map (changed seed)) true).toReal := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_congr rfl fun _ _ => mul_left_comm ..
-    _ ≤ _ := by
-      simpa only [div_eq_mul_inv] using mul_le_mul_of_nonneg_left mean (by norm_num : 0 ≤ (4 : ℝ))
+  rw [div_eq_mul_inv]
+  apply mean_xorQueryDisturbance_le _ _ _ A st.isDensityMatrix
+  intro x
+  have h := changed_keySeed_le C s H out (some x)
+  simpa only [Option.any_some, ← PMF.bind_pure_comp, Function.comp_def, ENNReal.toReal_inv,
+    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using ENNReal.toReal_mono (by simp) h
 
-open scoped ComplexOrder in
 /-- Apply any binary measurement after the native query, allowing the measurement to depend on
 the hidden seed. For a seed-independent input state, the mean square change in the square root
 of the acceptance probability is at most `4 / 2^256`. -/
@@ -596,26 +515,9 @@ theorem mean_sq_sqrt_keySeedQuery_readout_le (C : QuantumSigningForger) (s : Lev
       (st.instruction (G.queryTable C.addressBits C.responseBytes) .query).density true
     ∑ seed : FixedBytes 32, ((PMF.uniformOfFintype (FixedBytes 32)) seed).toReal *
       (√(p seed (H.withKeySeedExpansion s seed out)) - √(p seed H)) ^ 2 ≤ 4 / 2 ^ 256 := by
-  classical
   intro p
-  let A := Fin.castLEEmb (Nat.le_add_right (C.addressBits + 2 + 8 * C.responseBytes) C.workQubits)
-  let U := fun (G : Xofs) => (onFirst (κ := κ)
-    (xorQuery (G.queryTable C.addressBits C.responseBytes) A).matrix).val
-  have born (seed) (G : Xofs) :
-      p seed G = (M seed).densityProb (densityConj (U G) st.density) true := by
-    simp only [p, DeviceState.instruction_apply, OracleGateCode.toPlacedGate?,
-      Nat.le_add_right, ↓reduceDIte, DeviceState.evolve_density, U, coe_onFirst, A]
-  refine le_trans (Finset.sum_le_sum fun seed _ => mul_le_mul_of_nonneg_left ?_
-    ENNReal.toReal_nonneg) (C.mean_keySeedQueryDisturbance_le s H out st)
-  let G := H.withKeySeedExpansion s seed out
-  let D := U G - U H
-  have diff := (M seed).abs_sqrt_densityProb_sub_le true st.isDensityMatrix.posSemidef (U G) (U H)
-  rw [← born, ← born] at diff
-  have pos := (st.isDensityMatrix.posSemidef.mul_mul_conjTranspose_same D).trace_nonneg
-  change _ ≤ (densityConj D st.density).trace.re
-  rw [← sq_abs, ← Real.sq_sqrt (show 0 ≤ (densityConj D st.density).trace.re by
-    simpa only [densityConj_apply] using (Complex.nonneg_iff.mp pos).1)]
-  exact pow_le_pow_left₀ (abs_nonneg _) diff 2
+  exact (st.mean_sq_sqrt_query_readout_sub_le _ M true _ _).trans
+    (C.mean_keySeedQueryDisturbance_le s H out st)
 
 end QuantumSigningForger
 

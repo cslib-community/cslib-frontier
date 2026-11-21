@@ -93,8 +93,7 @@ theorem natCast_mul_ofNat_eq (m k : ℕ) [k.AtLeastTwo] :
 /-- Certificate lemmas deriving `Cslib.PolynomiallyBounded` from unary polynomial-time hypotheses
 when their modules are imported. -/
 private meta def unaryPolyCertificateLemmas : List Name :=
-  [`Turing.MultiTapeTM.ComputableInPolyTime.polynomiallyBounded,
-   `Turing.MultiTapeTM.ComputableTidilyInPolyTime.polynomiallyBounded]
+  [`Turing.MultiTapeTM.ComputableInPolyTime.polynomiallyBounded]
 
 /-- Apply a unary polynomial-time certificate lemma `lem` to local hypothesis `h`, if it unifies. -/
 private meta def applyUnaryCertificate? (lem : Name) (h : Expr) : MetaM (Option Expr) := do

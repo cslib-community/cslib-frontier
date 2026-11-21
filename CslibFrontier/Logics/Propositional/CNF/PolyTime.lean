@@ -157,10 +157,18 @@ polynomial-time. -/
 theorem CNF.computableInPolyTime_distinctVars [DecidableEq V] (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.distinctVars (V := V))
       (encCNFOver enc) (encList enc) := by
-  have hrep : ComputableInPolyTime (fun n => List.replicate n true) encUnary encBits :=
-    of_eq fun _ => rfl
-  unfold CNF.distinctVars Cslib.Complexity.selectDistinct
-  fun_prop
+  have hvars := CNF.computableInPolyTime_vars enc
+  have hzip := (zipIdx enc).comp hvars
+  have hrep : ComputableInPolyTime
+      (fun φ : CNF V => List.replicate φ.vars.length true) (encCNFOver enc) encBits :=
+    (of_eq (f := fun n => List.replicate n true) (encIn := encUnary)
+      (encOut := encBits) fun _ => rfl).comp ((length_list enc).comp hvars)
+  have hindex := snd (encCNFOver enc) (encPair enc encUnary)
+  have hfirst := idxOfWithInput (hvars.comp (fst _ _)) hindex.fst'
+  have htest := bool_and'
+    (bitsGetDWithInput (hrep.comp (fst _ _)) hindex.snd' false)
+    (decide_eq' hfirst hindex.snd')
+  exact (map (fst enc encUnary)).comp (filterWithInput hzip htest)
 
 /-- The number of distinct variables of a formula, in unary, is polynomial-time. -/
 @[fun_prop]

@@ -115,6 +115,29 @@ private theorem resample_at_seed {a b : ℕ} {s : Level} (base : Xofs) (rho : Li
   rw [← PMF.uniformOfFintype_map_equiv (flatten s)] at eq
   simpa only [overwrite base _ rho ha hb, PMF.bind_map, finish, Function.comp_def] using eq
 
+/-- Resampling the SHAKE128 matrix rows at the public FIPS seed preserves every continuation
+of the joint XOFs and original 32-byte key seed, including later adaptive queries. -/
+theorem uniformPrefixes_resampleMatrix (base : Xofs) (s : Level) {a b : ℕ}
+    (ha : 272 ≤ a) (hb : 894 ≤ b) {α : Type} (run : Xofs → FixedBytes 32 → PMF α) :
+    let R := base.uniformPrefixes a b
+    let S := PMF.uniformOfFintype (FixedBytes 32)
+    (R.bind fun H => S.bind fun seed =>
+      (PMF.uniformOfFintype (MatrixPrefixes s)).bind fun t =>
+        run (H.withMatrixPrefixes s ((H.expandKeySeed s seed).take 32) t) seed) =
+      R.bind fun H => S.bind fun seed => run H seed := by
+  intro R S
+  let U := PMF.uniformOfFintype (Table a b)
+  simp only [R, independent_tables, PMF.bind_bind, PMF.bind_map, Function.comp_def]
+  apply congrArg (PMF.bind U ·)
+  funext t
+  rw [PMF.bind_comm U S, PMF.bind_comm U S]
+  apply congrArg (PMF.bind S ·)
+  funext seed
+  let G : Xofs := {base with h256 := install base.h256 t}
+  let rho := (G.expandKeySeed s seed).take 32
+  have len : rho.length ≤ 32 := List.length_take_le ..
+  exact resample_at_seed (s := s) G rho (by lia) hb (fun H => run H seed)
+
 private def readSetup (s : Level) (H : Xofs) (seed : FixedBytes 32) :
     Xofs × Option (PublicMatrix s × KeyPair) := (H, do
   let keys ← H.keyGen s seed
@@ -132,20 +155,9 @@ theorem uniformPrefixes_matrixSetup (base : Xofs) (s : Level) {a b : ℕ}
           let keys ← H.keyGen s seed
           let A ← H.expandA s (keys.publicKey.take 32)
           return (A, keys))) := by
-  let U := PMF.uniformOfFintype (Table a b)
-  let S := PMF.uniformOfFintype (FixedBytes 32)
-  simp only [independent_tables, matrixSetup, PMF.map, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, Function.comp_apply, PMF.pure_bind]
-  apply congrArg (fun f => U.bind f)
-  funext t₂
-  rw [PMF.bind_comm U S, PMF.bind_comm U S]
-  apply congrArg (fun f => S.bind f)
-  funext seed
-  let G : Xofs := {base with h256 := install base.h256 t₂}
-  let rho := (G.expandKeySeed s seed).take 32
-  have hlen : rho.length ≤ 32 := List.length_take_le ..
-  exact resample_at_seed (a := a) (s := s) G rho (by lia) hb
-    (fun H => PMF.pure (readSetup s H seed))
+  simpa only [matrixSetup, readSetup, PMF.map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    Function.comp_def] using
+    uniformPrefixes_resampleMatrix base s ha hb (fun H seed => PMF.pure (readSetup s H seed))
 
 namespace QuantumSigningForger
 

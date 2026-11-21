@@ -373,11 +373,10 @@ theorem computableInPolyTime_andExtractWord
     (hf₁ : ComputableInPolyTime f₁ (encExtractorWordInput enc₁.index) encBits) :
     ComputableInPolyTime (andExtractWord f₀ f₁)
       (encExtractorWordInput (enc₀.andProof enc₁).index) encBits := by
-  have hf₀' := hf₀.tidy
-  have hf₁' : ComputableTidilyInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
-    hI ▸ hf₁.tidy
+  have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
+    hI ▸ hf₁
   unfold andExtractWord Encoding.andProof encExtractorWordInput
-  exact ComputableInPolyTime.of_tidy (by fun_prop)
+  exact by fun_prop
 
 /-- `andExtractWord` realizes `andExtract` on `enc₀.andProof enc₁` when `f₀` and `f₁` realize
 `extract₀` and `extract₁` and share the same challenge encoding. -/
@@ -561,16 +560,14 @@ theorem computableInPolyTime_orExtractWord
     (hf₁ : ComputableInPolyTime f₁ (encExtractorWordInput enc₁.index) encBits) :
     ComputableInPolyTime (orExtractWord subWord f₀ f₁)
       (encExtractorWordInput (enc₀.orProof enc₁).index) encBits := by
-  have hsub' := hsub.tidy
-  have hf₀' := hf₀.tidy
-  have hf₁' : ComputableTidilyInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
-    hI ▸ hf₁.tidy
+  have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
+    hI ▸ hf₁
   let encIn := encExtractorWordInput enc₀.index
-  have hcond : ComputableTidilyInPolyTime
+  have hcond : ComputableInPolyTime
       (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         unframe input.2.2.2.2.1 == unframe input.2.2.2.2.2.2)
       encIn encBool := by fun_prop
-  have hthen : ComputableTidilyInPolyTime
+  have hthen : ComputableInPolyTime
       (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         true :: f₁ (input.1, dropFrame input.2.1, dropFrame input.2.2.1,
           subWord (input.1, input.2.2.2.1, unframe input.2.2.2.2.1),
@@ -578,14 +575,14 @@ theorem computableInPolyTime_orExtractWord
           subWord (input.1, input.2.2.2.2.2.1, unframe input.2.2.2.2.2.2),
           dropFrame (dropFrame input.2.2.2.2.2.2)))
       encIn encBits := by fun_prop
-  have helse : ComputableTidilyInPolyTime
+  have helse : ComputableInPolyTime
       (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         false :: f₀ (input.1, unframe input.2.1, unframe input.2.2.1,
           unframe input.2.2.2.2.1, unframe (dropFrame input.2.2.2.2.1),
           unframe input.2.2.2.2.2.2, unframe (dropFrame input.2.2.2.2.2.2)))
       encIn encBits := by fun_prop
   unfold orExtractWord Encoding.orProof
-  exact ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.cond hcond hthen helse)
+  exact ComputableInPolyTime.ite hcond hthen helse
 
 /-- `orExtractWord` realizes `orExtract` on `enc₀.orProof enc₁` with witness encoding `encSum`. -/
 theorem extractorRealizedBy_orExtractWord [∀ i, AddCommGroup (C i)] [∀ i, DecidableEq (C i)]
@@ -637,7 +634,8 @@ theorem EfficientSpecialSoundness.orProof
       (fun i => orRelation (R₀ i) (R₁ i))
       (enc₀.orProof enc₁) (fun i => encSum (encW₀ i) (encW₁ i))
       (fun i => orExtract (extract₀ i) (extract₁ i)) where
-  specialSoundness i := orProof_specialSoundness (h₀.specialSoundness i) (h₁.specialSoundness i)
+  specialSoundness i :=
+    orProofWith_specialSoundness (h₀.specialSoundness i) (h₁.specialSoundness i)
   polyTime := by
     obtain ⟨f₀, hf₀, hreal₀⟩ := h₀.polyTime
     obtain ⟨f₁, hf₁, hreal₁⟩ := h₁.polyTime
@@ -689,7 +687,6 @@ theorem isPPT_orSimulator [∀ i, Sub (C i)]
   obtain ⟨prog₁, hprog₁, hword₁⟩ := hppt₁.exists_word
   have hprog₁' : IsPPTOn (encSimulatorWordInput enc₀.index) (encPair encBits encBits) prog₁ :=
     hI ▸ hprog₁
-  have hsub' := hsub.tidy
   refine Simulator.IsPPT.of_word
     (program := orSimulateWord (fun i => enc₀.challenge i <$> sampleChallenge i)
       subWord prog₀ prog₁) ?_ ?_
@@ -706,7 +703,7 @@ theorem isPPT_orSimulator [∀ i, Sub (C i)]
         (encPair encBits encBits))
       (prepare := fun p : ((I × List Bool × List Bool) × List Bool) × List Bool × List Bool =>
         (p.1.1.1, dropFrame p.1.1.2.1, subWord (p.1.1.1, p.1.1.2.2, p.1.2)))
-      (ComputableInPolyTime.of_tidy (by fun_prop))).bind_with ?_
+      (by fun_prop)).bind_with ?_
     exact ComputableInPolyTime.isPPTOn (by fun_prop)
   · intro i ⟨y₀, y₁⟩ c
     simp only [orSimulator, orSimulateWord, Encoding.orProof, unframe_encPair, dropFrame_encPair,
@@ -817,43 +814,38 @@ theorem computableInPolyTime_parallelExtractWord
     ComputableInPolyTime (parallelExtractWord defaultWord f)
       (encExtractorWordInput (enc.parallelRepetition k).index) encBits := by
   let encIn := encExtractorWordInput enc.index
-  have hframes := computableInPolyTime_frames.tidy
-  have hdef' := hdef.tidy
-  have hf' := hf.tidy
   have hfind : ComputableInPolyTime
       (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         (List.range (frames input.2.2.2.1).length).find?
           (fun idx => (frames input.2.2.2.1).getD idx [] !=
             (frames input.2.2.2.2.2.1).getD idx []))
       encIn (encOption encUnary) := by
-    have hget1 : ComputableTidilyInPolyTime
+    have hget1 : ComputableInPolyTime
         (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
           (frames p.1.2.2.2.1).getD p.2 [])
         (encPair encIn encUnary) encBits := by fun_prop
-    have hget2 : ComputableTidilyInPolyTime
+    have hget2 : ComputableInPolyTime
         (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
           (frames p.1.2.2.2.2.1).getD p.2 [])
         (encPair encIn encUnary) encBits := by fun_prop
     simp only [bne]
-    exact ComputableInPolyTime.of_tidy
-      (ComputableTidilyInPolyTime.findWithInput (by fun_prop) (by fun_prop))
+    exact ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop)
   have hbody : ComputableInPolyTime
       (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
         f (p.1.1, p.1.2.1, (frames p.1.2.2.1).getD p.2 [], (frames p.1.2.2.2.1).getD p.2 [],
           (frames p.1.2.2.2.2.1).getD p.2 [], (frames p.1.2.2.2.2.2.1).getD p.2 [],
           (frames p.1.2.2.2.2.2.2).getD p.2 []))
-      (encPair encIn encUnary) encBits :=
-    ComputableInPolyTime.of_tidy (by fun_prop)
-  have hbody0' := hbody.tidy.comp (show ComputableTidilyInPolyTime
+      (encPair encIn encUnary) encBits := by fun_prop
+  have hbody0' := hbody.comp (show ComputableInPolyTime
       (fun input :
           I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         (input, 0)) encIn (encPair encIn encUnary) from by fun_prop)
-  have hlength : ComputableTidilyInPolyTime
+  have hlength : ComputableInPolyTime
       (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         (frames input.2.2.2.1).length) encIn encUnary := by fun_prop
-  have hcond := ComputableTidilyInPolyTime.unary_beq hlength
-    (ComputableTidilyInPolyTime.const 0)
-  have hdefault : ComputableTidilyInPolyTime
+  have hcond := ComputableInPolyTime.unary_beq hlength
+    (ComputableInPolyTime.const 0)
+  have hdefault : ComputableInPolyTime
       (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         defaultWord input.1) encIn encBits := by fun_prop
   have hfallback : ComputableInPolyTime
@@ -864,8 +856,7 @@ theorem computableInPolyTime_parallelExtractWord
             (frames input.2.2.2.1).getD 0 [], (frames input.2.2.2.2.1).getD 0 [],
             (frames input.2.2.2.2.2.1).getD 0 [], (frames input.2.2.2.2.2.2).getD 0 []))
       encIn encBits := by
-    apply ComputableInPolyTime.of_tidy
-    simpa only [beq_iff_eq, Function.comp_def] using hcond.cond hdefault hbody0'
+    simpa only [beq_iff_eq, Function.comp_def] using hcond.ite hdefault hbody0'
   unfold parallelExtractWord Encoding.parallelRepetition
   exact hfind.optionElimWithInput hfallback hbody
 
@@ -986,7 +977,7 @@ theorem isPPT_parallelSimulator
         (fun pairs : List (List Bool × List Bool) =>
           (encList encBits (pairs.map Prod.fst), encList encBits (pairs.map Prod.snd)))
         (encList (encPair encBits encBits)) (encPair encBits encBits) :=
-      ComputableInPolyTime.of_tidy (by fun_prop)
+      by fun_prop
     exact (IsPPTOn.mapMWith
       (program := fun (input : I × List Bool × List Bool) (c_j : List Bool) =>
         prog (input.1, input.2.1, c_j)) hstep hlist).map hpost
