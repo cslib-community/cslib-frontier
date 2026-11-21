@@ -410,14 +410,14 @@ private theorem computable_revealKeys {α K : Type} {encIn : α ↪ List Bool} {
   refine ComputableInPolyTime.finFn fun i => ?_
   have h : ComputableInPolyTime (fun a => if i = d a then none else some (ks a i)) encIn
       (encOption encK) := by
-    refine (ComputableTidilyInPolyTime.finite_cases hd.tidy
+    refine (ComputableInPolyTime.finite_cases hd
       (branch := fun d0 a => if i = d0 then none else some (ks a i))
-      fun d0 => ?_).computableInPolyTime
+      fun d0 => ?_)
     by_cases hi : i = d0
-    · simpa [hi] using ComputableTidilyInPolyTime.const (none : Option K)
+    · simpa [hi] using ComputableInPolyTime.const (none : Option K)
     · simpa [hi, Function.comp_def] using
-        (ComputableTidilyInPolyTime.optionSome encK).comp
-          ((ComputableInPolyTime.finFn_apply encK i).comp hks).tidy
+        (ComputableInPolyTime.optionSome encK).comp
+          ((ComputableInPolyTime.finFn_apply encK i).comp hks)
   simpa only [← revealKeys_apply] using h
 
 private theorem isPPTOn_replicateFin {α K : Type} {encIn : α ↪ List Bool} {encK : K ↪ List Bool}

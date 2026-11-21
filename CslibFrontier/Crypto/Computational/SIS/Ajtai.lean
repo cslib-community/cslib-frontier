@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.SIS.Basic
 public import CslibFrontier.Foundations.Data.BitString.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Game.Order
@@ -268,8 +269,17 @@ private theorem computableInPolyTime_encodeVec_binaryVec_sub :
       (List.range p.1).map fun i =>
         ((p.2.1.getD i false).toNat : ℤ) - ((p.2.2.getD i false).toNat : ℤ))
       (encPair encUnary (encPair encBits encBits)) (encList encIntBin) :=
-    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp (by fun_prop))
-      (ComputableInPolyTime.intBin_sub' (hbit.comp (by fun_prop)) (hbit.comp (by fun_prop)))
+    by
+      have hp := ComputableInPolyTime.id'
+        (encIn := encPair (encPair encUnary (encPair encBits encBits)) encUnary)
+      have hleft := hp.fst'.snd'.fst'.bitsGetDWithInput hp.snd' false
+      have hright := hp.fst'.snd'.snd'.bitsGetDWithInput hp.snd' false
+      exact ComputableInPolyTime.mapWithInput
+        (f := fun p i => ((p.2.1.getD i false).toNat : ℤ) -
+          ((p.2.2.getD i false).toNat : ℤ))
+        (ComputableInPolyTime.range.comp
+          (ComputableInPolyTime.fst encUnary (encPair encBits encBits)))
+        (ComputableInPolyTime.intBin_sub' (hbit.comp hleft) (hbit.comp hright))
   convert h.encoding_comp using 1
   funext ⟨m, s₁, s₂⟩
   refine congrArg (encList encIntBin) (List.ext_getElem (by simp) fun i _ _ => ?_)

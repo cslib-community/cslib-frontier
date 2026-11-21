@@ -11,10 +11,14 @@ public import CslibFrontier.Probability.HashFamily
 public import Mathlib.Algebra.Field.Defs
 public import Mathlib.Algebra.Polynomial.Degree.Defs
 public import Mathlib.Algebra.Polynomial.Eval.Defs
+public import Mathlib.Data.ZMod.Defs
 public import Mathlib.LinearAlgebra.Pi
 import CslibFrontier.Foundations.Data.List.FoldlIdx
 import Mathlib.Algebra.Polynomial.Roots
+import Mathlib.Algebra.Polynomial.EraseLead
 import Mathlib.Algebra.Polynomial.Monic
+import Mathlib.Algebra.Ring.Int.Parity
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # Carter–Wegman polynomial evaluation
@@ -27,8 +31,10 @@ Over a finite field `F`, a message `m = (a₁, …, a_v)` of length at most `ℓ
   family ([Vadhan2012], Section 3.5.5).
 * `coeffPolyHash k x = x₀ k ^ (n - 1) + ⋯ + x_(n - 1)` evaluates a fixed-length
   coefficient vector by `n` Horner multiply-add rounds from zero. If `k` is sampled uniformly
-  from a finite set injected into `F`, this family is `n / |S|`-universal
-  ([BaumEtAl2026FAEST], Section 4.2.1, printed pp. 22–23).
+  from a finite set injected into `F`, this family is `(n - 1) / |S|`-universal, sharpening
+  the `n / |S|` bound of [BaumEtAl2026FAEST], Section 4.2.1, printed pp. 22–23. Under full-field
+  sampling this is Boneh and Shoup's `Hfpoly` bound. Multiplying the evaluation by `k` gives their
+  `Hfxpoly`, which is `n / |F|`-Δ-universal ([BonehShoup2023], Exercise 7.16).
 * `polyHash k m = k ^ v + a₁ k ^ (v - 1) + ⋯ + a_v`, Boneh and Shoup's `Hpoly`
   ([BonehShoup2023], Equation 7.3). It is `ℓ / |F|`-universal ([BonehShoup2023], Lemma 7.2).
 * `xpolyHash k m = k * polyHash k m`, their `Hxpoly` ([BonehShoup2023], Equation 7.23). It is
@@ -57,9 +63,16 @@ coefficient indices identifies the two APIs.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash_of_embedding`: the evaluation point may be
   uniform in any finite set injected into the field.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash`: the full-field specialization.
+* `Cslib.Probability.not_isUniversalHash_coeffPolyHash_variableLength`: the same evaluator
+  has a probability-one collision when used across message lengths.
+* `Cslib.Probability.isDeltaUniversalHash_mul_coeffPolyHash`: multiplying the fixed-length
+  hash by its key bounds the probability of each hash difference.
 * `Cslib.Probability.coeffPolyHash_eq_polynomialHash_rev`,
   `Cslib.Probability.polyHash_ofFn_eq`: bridges to the existing fixed- and variable-length APIs.
 * `Cslib.Probability.isUniversalHash_polyHash`: `polyHash` is `ℓ / |F|`-universal.
+* `Cslib.Probability.polyHash_two_blocks_eq_iff` and
+  `Cslib.Probability.not_isUniversalHash_polyHash_zmod_pow_two`: distinct two-block messages
+  are separated by some key. Modulo `2^(n+1)`, a three-block pair collides at every key.
 * `Cslib.Probability.isDeltaUniversalHash_xpolyHash`: `xpolyHash` is `(ℓ + 1) / |F|`-Δ-universal.
 
 ## References
@@ -200,8 +213,24 @@ theorem coeffPolyHash_eq_polynomialHash_rev (k : F) {n : ℕ} (x : Fin n → F) 
 
 /-- Boneh and Shoup's `Hpoly` ([BonehShoup2023], Equation 7.3): hash the message
 `(a₁, …, a_v)` with the key `k` to `k ^ v + a₁ k ^ (v - 1) + ⋯ + a_v`, by Horner's rule. -/
-def polyHash (k : F) (m : List F) : F :=
+def polyHash {F : Type*} [Semiring F] (k : F) (m : List F) : F :=
   m.foldl (fun acc a => acc * k + a) 1
+
+/-- Keys `0` and `1` separate two-block messages over any ring. This rules out the
+two-block collision at every key requested by [BonehShoup2023], Exercise 7.1 (v0.6, p. 277),
+for the hash of Equation 7.3. -/
+theorem polyHash_two_blocks_eq_iff {R : Type*} [Ring R] {a b c d : R} :
+    (∀ k, polyHash k [a, b] = polyHash k [c, d]) ↔ a = c ∧ b = d := by
+  constructor
+  · intro h
+    have hb : b = d := by
+      simpa only [polyHash, List.foldl_cons, List.foldl_nil, mul_zero, zero_add] using h 0
+    refine ⟨?_, hb⟩
+    have h1 : (1 + a) + b = (1 + c) + b := by
+      simpa only [polyHash, List.foldl_cons, List.foldl_nil, mul_one, ← hb] using h 1
+    exact add_left_cancel (add_right_cancel h1)
+  · rintro ⟨rfl, rfl⟩ k
+    rfl
 
 /-- Boneh and Shoup's `Hxpoly` ([BonehShoup2023], Equation 7.23): `k * polyHash k m`. -/
 def xpolyHash (k : F) (m : List F) : F :=
@@ -292,17 +321,22 @@ private theorem coeffToPoly_injective (n : ℕ) :
   exact sub_left_injective (by simpa only [coeffToPoly] using h)
 
 private theorem natDegree_coeffToPoly_le {n : ℕ} (x : Fin n → F) :
-    (coeffToPoly x).natDegree ≤ n := by
-  exact (natDegree_sub_le _ _).trans <| by
-    rw [(monic_toPoly (List.ofFn x)).2, List.length_ofFn, natDegree_X_pow, max_self]
+    (coeffToPoly x).natDegree ≤ n - 1 := by
+  obtain ⟨hmon, hdeg⟩ := monic_toPoly (List.ofFn x)
+  rw [List.length_ofFn] at hdeg
+  have hp := eraseLead_add_C_mul_X_pow (toPoly (List.ofFn x))
+  rw [Monic.def.mp hmon, C_1, one_mul, hdeg] at hp
+  rw [coeffToPoly, ← hp, add_sub_cancel_right]
+  simpa only [hdeg] using eraseLead_natDegree_le (toPoly (List.ofFn x))
 
-/-- Polynomial evaluation at a point uniform in a finite subset of the field is universal with
-the conservative degree bound `n / |S|` ([BaumEtAl2026FAEST], Section 4.2.1, printed pp. 22–23).
-The injection makes the sampled evaluation points distinct; no field-uniformity is required. -/
+/-- Polynomial evaluation at a point uniform in a finite subset of the field is
+`(n - 1) / |S|`-universal. The injection makes the sampled evaluation points distinct. This
+sharpens the `n / |S|` bound of [BaumEtAl2026FAEST], Section 4.2.1, printed pp. 22–23. -/
 theorem isUniversalHash_coeffPolyHash_of_embedding {S : Type*} [Fintype S] [Nonempty S]
     (point : S ↪ F) (n : ℕ) :
     IsUniversalHash (PMF.uniformOfFintype S)
-      (fun s (x : Fin n → F) => coeffPolyHash (point s) x) (n / Fintype.card S) := by
+      (fun s (x : Fin n → F) => coeffPolyHash (point s) x)
+      ((↑(n - 1) : ℝ≥0∞) / Fintype.card S) := by
   classical
   exact IsUniversalHash.of_card_le fun x y hxy => by
     have hD : coeffToPoly x - coeffToPoly y ≠ 0 :=
@@ -322,15 +356,33 @@ theorem isUniversalHash_coeffPolyHash_of_embedding {S : Type*} [Fintype S] [None
         exact (Finset.mem_filter.mp hs).2
       _ ≤ (coeffToPoly x - coeffToPoly y).roots.card := Multiset.toFinset_card_le _
       _ ≤ (coeffToPoly x - coeffToPoly y).natDegree := card_roots' _
-      _ ≤ n := (natDegree_sub_le _ _).trans <|
+      _ ≤ n - 1 := (natDegree_sub_le _ _).trans <|
         max_le (natDegree_coeffToPoly_le x) (natDegree_coeffToPoly_le y)
 
-/-- Full-field coefficient evaluation is `n / |F|`-universal. -/
+/-- **Exercise 7.16(a)** ([BonehShoup2023], v0.6, p. 281). Boneh and Shoup's `Hfpoly`
+is `(n - 1) / |F|`-universal on length-`n` coefficient vectors for a uniform field element.
+The bound holds over any finite field, including the source's prime fields. At length zero the
+bound is zero, as there are no distinct coefficient vectors. -/
 theorem isUniversalHash_coeffPolyHash [Fintype F] (n : ℕ) :
     IsUniversalHash (PMF.uniformOfFintype F)
-      (fun k (x : Fin n → F) => coeffPolyHash k x) (n / Fintype.card F) := by
+      (fun k (x : Fin n → F) => coeffPolyHash k x) ((↑(n - 1) : ℝ≥0∞) / Fintype.card F) := by
   simpa using isUniversalHash_coeffPolyHash_of_embedding (F := F)
     (Function.Embedding.refl F) n
+
+/-- Boneh and Shoup's `Hfpoly` (Equation 7.5) fails statistical universality on
+variable-length messages ([BonehShoup2023], v0.6, Section 7.2.1, printed p. 257).
+The empty message and the one-block message `[0]` hash to zero for every key. This is
+the leading-zero collision from the source at the smallest length cap where it occurs.
+The result holds for any field and any seed distribution. -/
+theorem not_isUniversalHash_coeffPolyHash_variableLength (seed : PMF F) {ℓ : ℕ} (hℓ : 1 ≤ ℓ)
+    {ε : ℝ≥0∞} (hε : ε < 1) :
+    ¬ IsUniversalHash seed
+      (fun k (m : {m : List F // m.length ≤ ℓ}) =>
+        coeffPolyHash k (fun i : Fin m.val.length => m.val[i])) ε := by
+  intro h
+  refine hε.not_ge (h.one_le_of_forall_eq (x := ⟨[], Nat.zero_le _⟩) (x' := ⟨[0], hℓ⟩)
+    (by simp) fun k => ?_)
+  simp [coeffPolyHash, Fin.foldl_succ]
 
 /-- **`Hpoly` is `ℓ / |F|`-universal** ([BonehShoup2023], Lemma 7.2): two distinct messages of
 length at most `ℓ` collide only at the roots of the nonzero difference of their polynomials. -/
@@ -352,6 +404,82 @@ theorem isUniversalHash_polyHash [Fintype F] (ℓ : ℕ) :
       _ ≤ ℓ := (natDegree_sub_le _ _).trans <| max_le
           ((monic_toPoly m.1).2.trans_le m.2) ((monic_toPoly m'.1).2.trans_le m'.2)
 
+/-- For the hash of Equation 7.3 modulo `2^(n+1)`, the three-block messages
+`[2^n, -2^n, 0]` and `[0, 0, 0]` collide at every key. This gives the failure of
+universality sought by [BonehShoup2023], Exercise 7.1 (v0.6, p. 277), with three blocks
+in place of the requested two. The seed distribution can be arbitrary. -/
+theorem not_isUniversalHash_polyHash_zmod_pow_two (n : ℕ) {ℓ : ℕ} (hℓ : 3 ≤ ℓ)
+    (seed : PMF (ZMod (2 ^ (n + 1)))) {ε : ℝ≥0∞} (hε : ε < 1) :
+    ¬ IsUniversalHash seed
+      (fun k (m : {m : List (ZMod (2 ^ (n + 1))) // m.length ≤ ℓ}) => polyHash k m) ε := by
+  let c : ZMod (2 ^ (n + 1)) := ((2 ^ n : ℕ) : ZMod (2 ^ (n + 1)))
+  have hc : c ≠ 0 := by
+    have hpos : 0 < (2 : ℕ) ^ n := pow_pos (by decide) _
+    have hlt : (2 : ℕ) ^ n < 2 ^ (n + 1) :=
+      pow_lt_pow_right₀ (by decide) (Nat.lt_succ_self n)
+    intro h
+    exact hlt.not_ge (Nat.le_of_dvd hpos ((ZMod.natCast_eq_zero_iff _ _).mp h))
+  have hcollision (k : ZMod (2 ^ (n + 1))) :
+      polyHash k [c, -c, 0] = polyHash k [0, 0, 0] := by
+    obtain ⟨t, ht⟩ := Int.even_mul_pred_self (ZMod.cast k)
+    have hk : k * (k - 1) = (t : ZMod (2 ^ (n + 1))) + t := by
+      simpa only [Int.cast_mul, Int.cast_sub, Int.cast_one, Int.cast_add,
+        ZMod.intCast_zmod_cast] using congrArg (fun z : ℤ => (z : ZMod (2 ^ (n + 1)))) ht
+    have hc2 : c + c = 0 := by
+      dsimp only [c]
+      rw [← Nat.cast_add, ← Nat.mul_two, ← pow_succ, ZMod.natCast_self]
+    apply sub_eq_zero.mp
+    calc
+      polyHash k [c, -c, 0] - polyHash k [0, 0, 0] = c * (k * (k - 1)) := by
+        simp only [polyHash, List.foldl_cons, List.foldl_nil]
+        ring
+      _ = (c + c) * t := by rw [hk, mul_add, add_mul]
+      _ = 0 := by rw [hc2, zero_mul]
+  intro h
+  exact hε.not_ge (h.one_le_of_forall_eq (x := ⟨[c, -c, 0], hℓ⟩) (x' := ⟨[0, 0, 0], hℓ⟩)
+    (fun heq => hc (List.cons.inj (congrArg Subtype.val heq)).1) hcollision)
+
+private theorem card_mul_eval_sub_eq_le [Fintype F] [DecidableEq F] {p q : F[X]}
+    (hpq : p ≠ q) (d : F) :
+    (Finset.univ.filter fun k => k * p.eval k - k * q.eval k = d).card ≤
+      (p - q).natDegree + 1 := by
+  have hD : p - q ≠ 0 := sub_ne_zero.mpr hpq
+  let P := X * (p - q) - C d
+  have hP : P ≠ 0 := fun h => by
+    have hdeg := congrArg natDegree (sub_eq_zero.mp h)
+    rw [natDegree_X_mul hD, natDegree_C] at hdeg
+    exact Nat.succ_ne_zero _ hdeg
+  calc
+    _ ≤ P.roots.toFinset.card := by
+      refine Finset.card_le_card fun k hk => ?_
+      rw [Multiset.mem_toFinset, mem_roots hP, IsRoot.def]
+      simpa only [P, eval_sub, eval_mul, eval_X, eval_C, sub_eq_zero, mul_sub] using
+        (Finset.mem_filter.mp hk).2
+    _ ≤ P.roots.card := Multiset.toFinset_card_le _
+    _ ≤ P.natDegree := card_roots' _
+    _ ≤ (p - q).natDegree + 1 := by
+      unfold P
+      exact (natDegree_sub_le _ _).trans <|
+        max_le (by rw [natDegree_X_mul hD]) (by simp)
+
+/-- **Exercise 7.16(b)** ([BonehShoup2023], v0.6, p. 281). Boneh and Shoup's `Hfxpoly`,
+which multiplies `Hfpoly` by the key, is `n / |F|`-Δ-universal for length-`n` coefficient
+vectors and a uniform field element. The result also holds over non-prime finite fields. -/
+theorem isDeltaUniversalHash_mul_coeffPolyHash [Fintype F] (n : ℕ) :
+    IsDeltaUniversalHash (PMF.uniformOfFintype F)
+      (fun k (x : Fin n → F) => k * coeffPolyHash k x) (n / Fintype.card F) := by
+  classical
+  exact IsDeltaUniversalHash.of_card_le fun x y hxy d => by
+    have hn : 0 < n := Nat.pos_of_ne_zero fun h => by
+      subst n
+      exact hxy (Subsingleton.elim _ _)
+    have hdeg : (coeffToPoly x - coeffToPoly y).natDegree ≤ n - 1 :=
+      (natDegree_sub_le _ _).trans <|
+        max_le (natDegree_coeffToPoly_le x) (natDegree_coeffToPoly_le y)
+    simpa only [eval_coeffToPoly] using
+      (card_mul_eval_sub_eq_le ((coeffToPoly_injective n).ne hxy) d).trans
+        (show (coeffToPoly x - coeffToPoly y).natDegree + 1 ≤ n by omega)
+
 /-- **`Hxpoly` is `(ℓ + 1) / |F|`-Δ-universal** ([BonehShoup2023], Lemma 7.8): a difference `d`
 of the hashes of two distinct messages occurs only at the roots of the nonzero polynomial
 `X (f - g) - d` of degree at most `ℓ + 1`. -/
@@ -363,25 +491,11 @@ theorem isDeltaUniversalHash_xpolyHash [Fintype F] (ℓ : ℕ) :
   have h : IsDeltaUniversalHash (PMF.uniformOfFintype F)
       (fun k (m : {m : List F // m.length ≤ ℓ}) => xpolyHash k m)
       ((ℓ + 1 : ℕ) / Fintype.card F) := IsDeltaUniversalHash.of_card_le fun m m' hm d => by
-    have hD : toPoly m.1 - toPoly m'.1 ≠ 0 :=
-      sub_ne_zero.mpr (toPoly_injective.ne (Subtype.coe_injective.ne hm))
     have hdeg : (toPoly m.1 - toPoly m'.1).natDegree ≤ ℓ := (natDegree_sub_le _ _).trans <|
       max_le ((monic_toPoly m.1).2.trans_le m.2) ((monic_toPoly m'.1).2.trans_le m'.2)
-    have hE : X * (toPoly m.1 - toPoly m'.1) - C d ≠ 0 := fun h0 => by
-      have h1 := congrArg natDegree (sub_eq_zero.mp h0)
-      rw [natDegree_X_mul hD, natDegree_C] at h1
-      exact Nat.succ_ne_zero _ h1
-    calc (Finset.univ.filter fun k => xpolyHash k m.1 - xpolyHash k m'.1 = d).card
-        ≤ (X * (toPoly m.1 - toPoly m'.1) - C d).roots.toFinset.card := by
-          refine Finset.card_le_card fun k hk => ?_
-          rw [Multiset.mem_toFinset, mem_roots hE, IsRoot.def, eval_sub, eval_mul, eval_X,
-            eval_C, eval_sub, eval_toPoly, eval_toPoly, sub_eq_zero, mul_sub]
-          exact (Finset.mem_filter.mp hk).2
-      _ ≤ (X * (toPoly m.1 - toPoly m'.1) - C d).roots.card := Multiset.toFinset_card_le _
-      _ ≤ (X * (toPoly m.1 - toPoly m'.1) - C d).natDegree := card_roots' _
-      _ ≤ ℓ + 1 := (natDegree_sub_le _ _).trans <| max_le
-          (by rw [natDegree_X_mul hD]; exact Nat.succ_le_succ hdeg)
-          (by rw [natDegree_C]; exact Nat.zero_le _)
+    simpa only [eval_toPoly, xpolyHash] using!
+      (card_mul_eval_sub_eq_le (toPoly_injective.ne (Subtype.coe_injective.ne hm)) d).trans
+        (Nat.add_le_add_right hdeg 1)
   push_cast at h
   exact h
 

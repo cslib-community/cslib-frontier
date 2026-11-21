@@ -176,7 +176,7 @@ answer in a temporary register for the terminal branch. -/
 
 /-- Compile the whole source program to a finite standard word-RAM program. -/
 @[expose] def compile (code : List (Instr M L)) : Cslib.WordRAM.Program .standard (regCount L) :=
-  Cslib.WordRAM.Program.compileBlocks (S.block (S.blockSize code)) 0 code
+  Cslib.Program.compileBlocks (S.block (S.blockSize code)) 0 code
 
 /-- Uniform overhead per continuing source instruction, including terminal branches/jumps. -/
 @[expose] def overhead (code : List (Instr M L)) : ℕ :=
