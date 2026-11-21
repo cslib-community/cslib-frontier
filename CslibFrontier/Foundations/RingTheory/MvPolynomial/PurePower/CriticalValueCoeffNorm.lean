@@ -37,24 +37,25 @@ open scoped BigOperators
 private theorem pow_two_le_pow_two {a b : ℕ} (h : a ≤ b) : (2 : ℕ) ^ a ≤ 2 ^ b :=
   Nat.pow_le_pow_right (by decide) h
 
-private def systemCoeffNormExponent (n ell b : ℕ) : ℕ :=
+/-- A common binary norm allowance for the separated critical relations and objective. -/
+@[expose] def criticalSystemCoeffNormExponent (n ell b : ℕ) : ℕ :=
   (3 * n + 1).size + ((ell + 1).size + max ((ell + 1) * (n * (4 * ell).size)) b)
 
 /-- A binary coefficient-norm exponent for the symbolic critical-value polynomial of
 an input with arity `n`, pure-power degree `ell` and coefficient norm at most `2 ^ b`.
 Here `D` is the quotient dimension, `B` bounds the residue numerator degrees, and `R`
 is a binary norm exponent for both the lower relations and the deformed potential. -/
-def parametricValueCoeffNormExponent (n ell b : ℕ) : ℕ :=
+@[expose] def parametricValueCoeffNormExponent (n ell b : ℕ) : ℕ :=
   let D := ell ^ n
   let B := D * (ell + 1) + n * (ell - 1)
-  let R := systemCoeffNormExponent n ell b
+  let R := criticalSystemCoeffNormExponent n ell b
   (D + 1).size + ((B + 1).size * n + (n.size + ell.size + (R + 1)) * n + R * B + R) * D
 
 private theorem criticalSystem_norm_le {n ell b : ℕ} (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b) :
     let a (i : Fin n) := Polynomial.C (separatedCenters ell i : ℤ)
     let G := F.map Polynomial.C
-    let R := systemCoeffNormExponent n ell b
+    let R := criticalSystemCoeffNormExponent n ell b
     (∀ i, ParameterCoeffNorm.norm (criticalLower ell a Polynomial.X G i) ≤ 2 ^ R) ∧
     ParameterCoeffNorm.norm (deformedPolynomial ell a Polynomial.X G) ≤ 2 ^ R := by
   classical
@@ -160,7 +161,7 @@ theorem parametricValuePolynomial_bivariateCoeffNorm1_le {n ell b : ℕ} (hell :
   let G := F.map Polynomial.C
   let r := criticalLower (d + 1) a Polynomial.X G
   let v := deformedPolynomial (d + 1) a Polynomial.X G
-  let R := systemCoeffNormExponent n (d + 1) b
+  let R := criticalSystemCoeffNormExponent n (d + 1) b
   let D := (d + 1) ^ n
   let B := D * (d + 1 + 1) + n * d
   let A := (B + 1) ^ n * (n.factorial * ((d + 1) * (1 + 2 ^ R)) ^ n) * (2 ^ R) ^ B * 2 ^ R

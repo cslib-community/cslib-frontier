@@ -325,6 +325,7 @@ import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
@@ -7140,6 +7141,25 @@ register_result "ajtai-collision-sis" where
     hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
     Ajtai) is not formalized."
 
+register_result "micciancio-regev-sis-ell2-existence" where
+  title := "Existence of short integer solutions in the Euclidean norm"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 5.2",
+      locator := "December 27, 2005 copy (Gaussian.pdf), §5.1, printed p. 17" }
+  ]
+  theorems := [
+    Cslib.Crypto.SIS.exists_isEll2Solution
+  ]
+  scope := "Every matrix A ∈ ℤ_q^{n×m} with nonzero modulus q, m > 0, and real Euclidean bound \
+    β ≥ √m · q^{n / m} admits a nonzero integer kernel vector z with ‖z‖₂ ≤ β and \
+    A z ≡ 0 (mod q), proved by the pigeonhole principle on {0, …, ⌊q^{n/m}⌋}^m. Covers all \
+    natural numbers n (including n = 0) and all nonzero moduli q (including composite moduli \
+    and q = 1). Companion problem definitions (GIVP, GDD, IncGDD, SISEll2) and norm-comparison \
+    bridges to SIS live in CslibFrontier.Crypto.Computational.Lattice.GIVP and \
+    CslibFrontier.Crypto.Computational.SIS.Ell2; worst-case to average-case reductions (MR07 \
+    Theorem 5.9) are not formalized here."
+
 register_result "nested-encryption-semantic-security" where
   title := "Nested encryption is semantically secure when all keys but one are revealed, \
     provided encryption preserves challenge admissibility (corrected Theorem 2.12)"
@@ -10822,6 +10842,20 @@ register_result "pairwise-unpredictability-implies-universal-hashing" where
     second message and digest. The game rejects repeated messages. The collision implication \
     works with arbitrary digests, and the difference implication uses any additive group, \
     including the source’s cyclic and abelian cases."
+
+register_result "difference-universal-hash-plus-uniform-is-puf" where
+  title := "A difference-universal hash with a uniform offset is pairwise unpredictable"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 7.11",
+      locator := "v0.6, Section 7.6.2, printed p. 276; Equation 7.32" }
+  ]
+  theorems := [Cslib.Crypto.UHF.isPairwiseUnpredictable_add_uniform]
+  scope := "One hash instance with a private finite uniform key. The new key includes an \
+    independent uniform digest that is added to every evaluation. This preserves the bound \
+    against all two-stage adversaries with private state in Attack Game 7.5. The Lean proof \
+    extends from cyclic groups to all finite additive groups. Source check: outside-fleet \
+    agent review (coord-6b6b1583) on PR #6930 at 86b92c9ea6."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"

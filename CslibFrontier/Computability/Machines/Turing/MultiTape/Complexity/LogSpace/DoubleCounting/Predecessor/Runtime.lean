@@ -10,9 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor.Native
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.Offset
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FramePrefix
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
 /-!
 # Runtime predecessor context and original-input query transport
@@ -58,21 +56,9 @@ theorem load_inSpace : ComputableInSpace load encInput (encLocated State encStat
       (fun x => (encContext x.context).length + 1) :=
     (ComputableInSpace.framedPrefix Input.context encInput encContext Input.payload
       (fun x => by simp [encInput_apply, encInputFields])).mono_le (fun _ => by omega)
-  have hb : ComputableInSpace (fun x : Input => encContext x.context) encInput encBits
-      (fun x => (encContext x.context).length + 1) := hc.of_enc_eq (fun _ => rfl)
-  have hlen := (of_inO ComputableInO.lengthNat).weaken
-    (show (fun w : List Bool => w.length) ≼ fun w => (encBits w).length from
-      .of_le_linear 1 1 fun w => by simp [encBits_apply])
-  have hl := budget_comp_linear hlen hb
-  have one : ComputableInSpace (fun _ : Input => 1) encInput encNat
-      (fun x => (encContext x.context).length + 1) :=
-    (constZero 1).weaken (.of_le fun _ => by omega)
-  exact (encLocated_mk_budget State encState (budget_natAdd (budget_natAdd hl hl) one)
-    (budget_comp_linear initial_inSpace hc)).of_enc_eq fun x => by
-      apply congrArg (encLocated State encState)
-      simp only [load]
-      congr 1
-      omega
+  exact (encLocated_mk_budget State encState hc.frameLength
+    (budget_comp_linear initial_inSpace hc)).of_enc_eq fun _ => by
+      simp only [load, length_frame]
 
 /-- Dropping the loaded header leaves exactly the unchanged callback input word. -/
 theorem drop_payload (x : Input) : (encInput x).drop (load x).offset = x.payload := by

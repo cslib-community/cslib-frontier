@@ -10,6 +10,7 @@ module
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Languages.Probabilistic.Semantics
+import CslibFrontier.Probability.HashFamily.Polynomial
 import Mathlib.Algebra.Field.ZMod
 
 set_option linter.privateModule false
@@ -23,6 +24,9 @@ The prediction game reveals one digest and rejects a prediction for the queried 
 -/
 
 namespace Cslib.Crypto.UHF.Tests
+
+open Cslib.Probability
+open scoped ENNReal
 
 private def hash (_ : Unit) (m : Fin 3) : Bool := decide (m = 0)
 
@@ -58,5 +62,15 @@ example : ProbComp.eval (predictionExperiment (fun k : Bool => fun _ => k) (echo
 example : ProbComp.eval (predictionExperiment (fun k : Bool => fun _ => k) (echoGuess false))
     true = 0 := by
   simp [predictionExperiment, echoGuess, ProbComp.eval_uniform]
+
+/-- The bound for `Hxpoly` transfers to its masked family on bounded-length messages. -/
+example {F : Type} [Field F] [Fintype F] [DecidableEq F] (ℓ : ℕ) :
+    IsPairwiseUnpredictable
+      (fun (key : F × F) (m : {m : List F // m.length ≤ ℓ}) =>
+        xpolyHash key.1 m.val + key.2) ((ℓ + 1) / Fintype.card F) :=
+  isPairwiseUnpredictable_add_uniform
+    (K := F) (M := {m : List F // m.length ≤ ℓ}) (Y := F)
+    (H := fun k m => xpolyHash k m.val) (ε := (ℓ + 1) / Fintype.card F)
+    (isDeltaUniversalHash_xpolyHash (F := F) ℓ)
 
 end Cslib.Crypto.UHF.Tests

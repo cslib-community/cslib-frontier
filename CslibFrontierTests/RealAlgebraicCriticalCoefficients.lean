@@ -7,9 +7,10 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
-import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalParameterExclusion
-import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueCoeffNorm
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
 import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
@@ -244,20 +245,21 @@ example :
   refine ⟨parametricValuePolynomial_at_zero_separable (by decide : 1 ≤ 2) F hF, ?_⟩
   simp only [q, parametricValuePolynomial_map_eval₂, valuePolynomial_natDegree, pow_one]
 
--- Choose the parameter for a nonconstant one-variable input from its coefficient bound.
+-- Choose an integer parameter for a nonconstant input and apply both specialization bounds.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0
     let hF : F.totalDegree ≤ 2 := by simp [F]
-    let q := parametricValuePolynomial (by decide : 1 ≤ 2) F hF
     let H := parametricValueCoeffNormExponent 1 2 0
     let a : ℤ := 2 ^ (H + 1)
-    let u : ℝ := 2 ^ Polynomial.parameterExclusionExponent 2 H
-    let q' := q.map (Polynomial.eval₂RingHom (Int.castRingHom ℝ) u)
-    q'.Separable ∧ q'.eval (a : ℝ) ≠ 0 := by
-  intro F hF q H a u q'
-  exact parametricValuePolynomial_at_parameterExclusion (by decide : 1 ≤ 2) F hF
-    (parametricValuePolynomial_bivariateCoeffNorm1_le (by decide) F hF
-      (b := 0) (by simp [F, MvPolynomial.coeffNorm1_X]))
+    let s := criticalParameterExponent 1 2 0
+    let q := valuePolynomial (by decide : 1 ≤ 2) (fun i => (separatedCenters 2 i : ℤ))
+      (2 ^ s) F hF
+    let q' := q.map (Int.castRingHom ℝ)
+    q.coeffNorm1 ≤ 2 ^ (H + s * 12) ∧ q'.Separable ∧ q'.eval (a : ℝ) ≠ 0 := by
+  intro F hF H a s q q'
+  have hb : F.coeffNorm1 ≤ 2 ^ 0 := by simp [F, MvPolynomial.coeffNorm1_X]
+  exact ⟨coeffNorm1_valuePolynomial_at_pow_two_le (by decide) F hF hb s,
+    valuePolynomial_at_integerParameterExclusion (by decide) F hF hb⟩
 
 -- A finite list of parameter coefficients recovers the linear characteristic coefficient.
 example :
@@ -269,5 +271,37 @@ example :
   apply Polynomial.ofCoeffList_coeffsBelow
   exact (natDegree_parametricValuePolynomial_coeff_le (by decide : 2 ≤ 2) F hF 1).trans_lt
     (by decide)
+
+-- Feed a source-derived parameter residue to the evaluator for a nonconstant input.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let q := valuePolynomial (by decide : 1 ≤ 2) (fun i => (separatedCenters 2 i : ℤ))
+      (2 ^ criticalParameterExponent 1 2 0) F hF
+    criticalCoefficientValue 101 1 1 (criticalParameterResidue 101 1 2 0) 0
+      (fun y => y[0]?.getD 0) = ((q.map (Int.castRingHom (ZMod 101))).coeff 0).val := by
+  intro F hF q
+  exact criticalCoefficientValue_at_criticalParameterResidue 1 (by decide) F hF
+    (by decide) (by decide) _ (fun y => by simp [F])
+
+-- The deformation of a positive input attains each minimum and has no uniform bound.
+example :
+    let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2 + 1
+    let a : Fin 1 → ℝ := fun _ => 1
+    (∃ x, IsMinOn (fun y => eval y (deformedPolynomial 3 a 1 F)) Set.univ x) ∧
+      ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → ∃ x, eval x (deformedPolynomial 3 a u F) ≤ B := by
+  intro F a
+  have ha (i : Fin 1) : 0 ≤ a i := by simp [a]
+  have hF (x : Fin 1 → ℝ) : 0 ≤ eval x F := by
+    simp only [F, map_add, map_pow, eval_X, map_one]
+    positivity
+  refine ⟨exists_isMinOn_eval_deformedPolynomial 3 (by decide) (by decide) a ha F hF 1
+    zero_le_one, ?_⟩
+  intro hbounded
+  have hcriterion := exists_zero_iff_bounded_eval_deformedPolynomial 3
+    (by decide) (by decide) a ha F hF
+  obtain ⟨x, hx⟩ := hcriterion.mpr hbounded
+  simp only [F, map_add, map_pow, eval_X, map_one] at hx
+  nlinarith [sq_nonneg (x 0)]
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
