@@ -71,6 +71,17 @@ theorem withCalls_runFrom_call_encoding_le {s : σ} {start : τ} {T C D : ℕ}
 
 variable {M} {w}
 
+/-- Concatenate two encoded-state bounds at their actual shared run boundary. -/
+theorem runFrom_add_encoding_le (enc : σ ↪ List Bool) {B T U : ℕ} (s : σ)
+    (hT : ∀ t ≤ T, (enc (M.runFrom w s t)).length ≤ B)
+    (hU : ∀ t ≤ U, (enc (M.runFrom w (M.runFrom w s T) t)).length ≤ B) :
+    ∀ t ≤ T + U, (enc (M.runFrom w s t)).length ≤ B := by
+  intro t ht
+  by_cases h : t ≤ T
+  · exact hT t h
+  · rw [show t = T + (t - T) by omega, runFrom_add]
+    exact hU (t - T) (by omega)
+
 /-- A counter loop from `lo` towards `hi` is one run whose every clock is encoded in `B` bits.
 Each step from `c j` is a run encoded in `B` bits that either advances to `c (j + 1)`, when
 `hit j = none`, or stops at `found j a`, when `hit j = some a`. The loop reaches `c hi` with no
@@ -93,15 +104,6 @@ theorem exists_runFrom_search_encoding_le {α : Type*} (enc : σ ↪ List Bool) 
     rw [Nat.le_zero.mp ht]
     exact hlo
   | succ n ih =>
-    have hstep (T : ℕ) (target : σ) (hT : M.runFrom w (c lo) T = target)
-        (hTB : ∀ t ≤ T, (enc (M.runFrom w (c lo) t)).length ≤ B) (U : ℕ)
-        (hUB : ∀ t ≤ U, (enc (M.runFrom w target t)).length ≤ B) :
-        ∀ t ≤ T + U, (enc (M.runFrom w (c lo) t)).length ≤ B := by
-      intro t ht
-      by_cases htT : t ≤ T
-      · exact hTB t htT
-      · rw [show t = T + (t - T) by omega, runFrom_add, hT]
-        exact hUB (t - T) (by omega)
     cases hj : hit lo with
     | some a =>
       obtain ⟨T, hT, hTB⟩ := hsome lo a le_rfl (by omega) hj
@@ -112,7 +114,7 @@ theorem exists_runFrom_search_encoding_le {α : Type*} (enc : σ ↪ List Bool) 
         (fun j h₁ h₂ => hnone j (by omega) (by omega))
         (fun j a h₁ h₂ => hsome j a (by omega) (by omega))
       rw [show lo + (n + 1) = lo + 1 + n by omega]
-      refine ⟨T + U, ?_, hstep T _ hT hTB U hUB⟩
+      refine ⟨T + U, ?_, runFrom_add_encoding_le enc (c lo) hTB (by simpa only [hT] using hUB)⟩
       rw [runFrom_add, hT]
       refine hU.imp (fun h => ⟨h.1, fun j h₁ h₂ => ?_⟩) ?_
       · rcases Nat.eq_or_lt_of_le h₁ with rfl | h₁

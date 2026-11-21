@@ -364,12 +364,13 @@ theorem primrec_scfg_key :
   exact ((Primrec.of_equiv_symm (e := Key.equivTuple)).comp
     (Primrec.pair (Primrec.snd.comp Primrec.snd) (Primrec.pair hinp hwork))).of_eq fun _ => rfl
 
-theorem primrec_find_table :
-    Primrec₂ fun (table : List (Key × Act)) (k : Key) => table.find? (·.1 = k) := by
-  have hstep : Primrec₂ fun (p : List (Key × Act) × Key)
-      (ea : (Key × Act) × Option (Key × Act)) =>
+/-- A table lookup by a scanned-symbol key is primitive recursive in the table and key. -/
+theorem primrec_find_table {Entry : Type*} [Primcodable Entry] :
+    Primrec₂ fun (table : List (Key × Entry)) (k : Key) => table.find? (·.1 = k) := by
+  have hstep : Primrec₂ fun (p : List (Key × Entry) × Key)
+      (ea : (Key × Entry) × Option (Key × Entry)) =>
       if ea.1.1 = p.2 then some ea.1 else ea.2 := by
-    have heq : Primrec fun q : (List (Key × Act) × Key) × (Key × Act) × Option (Key × Act) =>
+    have heq : Primrec fun q : (List (Key × Entry) × Key) × (Key × Entry) × Option (Key × Entry) =>
         decide (q.2.1.1 = q.1.2) :=
       (Primrec.eq.comp (Primrec.fst.comp (Primrec.fst.comp Primrec.snd))
         (Primrec.snd.comp Primrec.fst)).decide
@@ -439,6 +440,11 @@ theorem primrec_step :
       unfold step
       cases c.state <;> rfl
 
+/-- Append the emitted symbol, if there is one, to a finite output word. -/
+theorem primrec_output_append :
+    Primrec₂ fun (out : List ℕ) (symbol : Option ℕ) => out ++ symbol.toList := by
+  exact Primrec.list_append.comp Primrec.fst (Primrec.optionToList.comp Primrec.snd)
+
 theorem primrec_stepOut :
     Primrec fun p : (Desc × List ℕ) × (SCfg × List ℕ) => stepOut p.1.1 p.1.2 p.2 := by
   have hst : Primrec fun p : (Desc × List ℕ) × (SCfg × List ℕ) =>
@@ -447,13 +453,9 @@ theorem primrec_stepOut :
       (g := fun p : (Desc × List ℕ) × (SCfg × List ℕ) => (p.1.1, p.1.2, p.2.1))
       (Primrec.pair (Primrec.fst.comp Primrec.fst)
         (Primrec.pair (Primrec.snd.comp Primrec.fst) (Primrec.fst.comp Primrec.snd)))
-  have htoList : Primrec fun o : Option ℕ => o.toList :=
-    (Primrec.option_casesOn .id (Primrec.const [])
-      (Primrec.list_cons.comp Primrec.snd (Primrec.const [])).to₂).of_eq fun o => by
-      cases o <;> rfl
   exact (Primrec.pair (Primrec.fst.comp hst)
-    (Primrec.list_append.comp (Primrec.snd.comp Primrec.snd)
-      (htoList.comp (Primrec.snd.comp hst)))).of_eq fun _ => rfl
+    (primrec_output_append.comp (Primrec.snd.comp Primrec.snd)
+      (Primrec.snd.comp hst))).of_eq fun _ => rfl
 
 theorem primrec_init : Primrec init := by
   have hrep : Primrec fun d : Desc => List.replicate d.tapes (⟨0, [], []⟩ : Tape) :=

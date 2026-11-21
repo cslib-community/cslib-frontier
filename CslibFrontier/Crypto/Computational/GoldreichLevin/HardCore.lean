@@ -13,6 +13,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 
 /-!
@@ -68,8 +69,11 @@ def paddedPredicate (seed : List Bool) : Bool :=
 theorem polyTime_paddedFunction {f : List Bool → List Bool}
     (hf : ComputableInPolyTime f encBits encBits) :
     ComputableInPolyTime (paddedFunction f) encBits encBits := by
-  unfold paddedFunction
-  polytime
+  have hhalf := (ComputableInPolyTime.unary_div_const 2).comp
+    ComputableInPolyTime.length_bits
+  exact ComputableInPolyTime.bitsAppend
+    (hf.comp (ComputableInPolyTime.id'.bitsTakeWithInput hhalf))
+    (ComputableInPolyTime.id'.bitsDropWithInput hhalf)
 
 /-- The hard-core predicate is an efficient dot product of the two halves. -/
 @[fun_prop]

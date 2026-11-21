@@ -412,6 +412,7 @@ private theorem computableInPolyTime_returnStep :
     ComputableInPolyTime (fun s : EvalState α =>
       (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0)))
       (encEvalState enc) (encEvalState enc) := by
+  have hinc := ComputableInPolyTime.increment
   fun_prop [returnStep]
 
 /-- Pushing a frame is polynomial-time. -/
@@ -458,12 +459,6 @@ private theorem computableInPolySpace_evalStep [Finite Control] :
   rw [evalStep_eq]
 
 omit hfuel in
-/-- A number at most `2 ^ L` has a binary encoding of length at most `L + 1`. -/
-private theorem length_encNat_le {m L : ℕ} (h : m ≤ 2 ^ L) : (encNat m).length ≤ L + 1 := by
-  rw [encNat_apply, Nat.size_eq_bits_len]
-  exact Nat.size_le.mpr (h.trans_lt (Nat.pow_lt_pow_right (by norm_num) (by lia)))
-
-omit hfuel in
 /-- **The states of the evaluation are of polynomial size.** -/
 theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
     (encEvalState enc ((evalStep enc M fuel)^[j] (a, [], none))).length ≤
@@ -479,15 +474,15 @@ theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
   have hframe : ∀ f ∈ st.1, (encFrame f).length ≤ 7 * fuel a + 10 := by
     intro f hf
     obtain ⟨hu, hw, hs, ha⟩ := hgood.frames f hf
-    have hs' := length_encNat_le hs
-    have ha' := length_encNat_le ha
+    have hs' := length_encNat_le_of_le_two_pow hs
+    have ha' := length_encNat_le_of_le_two_pow ha
     enc_len [encFrame, hu, hw] at hs' ha' ⊢
   have hlist := length_encList_le encFrame st.1 hframe
   have hdepth := Nat.mul_le_mul_right (2 * (7 * fuel a + 10) + 1) hgood.length
   have hret : (encOption encNat st.2).length ≤ fuel a + 2 := by
     rcases hst : st.2 with _ | v
     · simp
-    · have := length_encNat_le (hgood.value v hst)
+    · have := length_encNat_le_of_le_two_pow (hgood.value v hst)
       enc_len
   simp only [encEvalState, length_encPair]
   nlinarith

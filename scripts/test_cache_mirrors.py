@@ -1,4 +1,4 @@
-"""Exercise mirror order/deadlines with real loopback HTTP and a native-Lake facade."""
+"""Exercise mirror order and deadlines with loopback HTTP and Lake."""
 
 import ctypes
 import json
@@ -65,9 +65,9 @@ def run_git(root, env, *args, timestamp=None):
     return subprocess.check_output(["git", *args], cwd=root, env=env, text=True).strip()
 
 
-@unittest.skipUnless(os.name == "posix" and shutil.which("curl") and shutil.which("git"),
-                     "mirror integration requires POSIX, curl and git")
-class MirrorTests(unittest.TestCase):
+class MirrorFixture(unittest.TestCase):
+    fake_lake = True
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="cache mirror ")
         self.addCleanup(temporary.cleanup)
@@ -84,17 +84,25 @@ class MirrorTests(unittest.TestCase):
                         MIRROR_ARTIFACTS=str(self.artifacts), MIRROR_LOG=str(self.log),
                         COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT="2")
         self.git("init", "-q")
-        (self.root / "lean-toolchain").write_text("leanprover/lean4:fixture\n")
+        if self.fake_lake:
+            (self.root / "lean-toolchain").write_text("leanprover/lean4:fixture\n")
+        else:
+            shutil.copyfile(REPO / "lean-toolchain", self.root / "lean-toolchain")
         self.git("add", "lean-toolchain")
         self.git("commit", "-qm", "fixture")
         self.env["MIRROR_REVISION"] = self.git("rev-parse", "HEAD")
-        executable = self.root / "bin/lake"
-        executable.parent.mkdir()
-        executable.write_text(FAKE_LAKE)
-        executable.chmod(0o755)
-        self.env["PATH"] = str(executable.parent) + os.pathsep + self.env["PATH"]
+        if self.fake_lake:
+            executable = self.root / "bin/lake"
+            executable.parent.mkdir()
+            executable.write_text(FAKE_LAKE)
+            executable.chmod(0o755)
+            self.env["PATH"] = str(executable.parent) + os.pathsep + self.env["PATH"]
         self.requests = []
         self.revision_mappings = {}
+        self.artifact_payloads = {
+            "0000000000000001.art": b"completed first artifact",
+            "0000000000000002.art": b"completed second artifact",
+        }
         self.release = threading.Event()
         fixture = self
 
@@ -132,17 +140,22 @@ class MirrorTests(unittest.TestCase):
                         data = b"<html>maintenance</html>"
                     elif "/empty/" in self.path:
                         data = b""
+                    elif "/header-only/" in self.path:
+                        data = b'"2026-03-17"\n'
+                    elif "/unsupported-version/" in self.path:
+                        data = data.replace(b'"2026-03-17"', b'"1900-01-01"')
                     elif "/malformed/" in self.path:
                         data += b"not json\n"
                     elif "/malformed-current/" in self.path:
-                        data = b'"2026-03-17"\n["0000000000000001",BROKEN]\n'
-                elif self.path.endswith("0000000000000001.art"):
-                    data = b"completed first artifact"
-                elif self.path.endswith("0000000000000002.art") and "/partial/" not in self.path:
-                    data = b"completed second artifact"
+                        data = b'"2026-03-17"\n["0000000000000001","not-an-archive"]\n'
+                    elif "/duplicate-input/" in self.path:
+                        data = data.replace(b'["0000000000000002",', b'["0000000000000001",')
                 else:
-                    self.send_error(404)
-                    return
+                    name = self.path.rsplit("/", 1)[-1]
+                    data = fixture.artifact_payloads.get(name)
+                    if data is None or ("/partial/" in self.path and name == "0000000000000002.art"):
+                        self.send_error(404)
+                        return
                 self.send_response(200)
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
@@ -178,6 +191,10 @@ class MirrorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
 
+
+@unittest.skipUnless(os.name == "posix" and shutil.which("curl") and shutil.which("git"),
+                     "mirror integration requires POSIX, curl and git")
+class MirrorTests(MirrorFixture):
     def test_primary_success_does_not_contact_secondary(self):
         result = self.fetch("/primary", "/fallback")
         self.assertRegex(result.stdout, r"cache origin 1/2: completed in \d+\.\ds:")
@@ -276,19 +293,52 @@ class MirrorTests(unittest.TestCase):
 
     def test_malformed_primary_mapping_cannot_suppress_secondary(self):
         for missing in (False, True):
-            for primary in ("/html", "/empty", "/malformed"):
+            for primary in ("/html", "/empty", "/header-only", "/unsupported-version", "/malformed"):
                 with self.subTest(missing=missing, primary=primary):
                     self.log.unlink(missing_ok=True)
                     shutil.rmtree(self.artifacts, ignore_errors=True)
-                    self.fetch(primary, "/fallback", missing=missing)
+                    result = self.fetch(primary, "/fallback", missing=missing)
+                    self.assertIn("Unusable cached mapping", result.stdout)
+                    self.assertEqual(len(self.events()), 1)
                     self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
 
     def test_malformed_row_matching_a_current_trace_is_not_filtered_away(self):
         trace = self.root / ".lake/build/Current.trace"
         trace.parent.mkdir(parents=True)
         trace.write_text('{"depHash":"0000000000000001"}')
-        self.fetch("/malformed-current", "/fallback", missing=True)
+        result = self.fetch("/malformed-current", "/fallback", missing=True)
+        self.assertIn("unsupported mapping row 2", result.stdout)
+        self.assertEqual(len(self.events()), 1)
         self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+
+    def test_valid_mapping_with_all_outputs_current_completes_without_artifact_requests(self):
+        trace = self.root / ".lake/build/Current.trace"
+        trace.parent.mkdir(parents=True)
+        trace.write_text('{"depHash":"0000000000000001"}\n{"depHash":"0000000000000002"}')
+        result = self.fetch("/primary", "/fallback", missing=True)
+        self.assertIn("0 of them are not current", result.stdout)
+        self.assertIn("cache origin 1/2: completed", result.stdout)
+        self.assertEqual(len(self.events()), 1)
+        self.assertFalse(any(request.endswith(".art") or "/fallback/" in request
+                             for request in self.requests))
+
+    def test_duplicate_inputs_fall_back_even_if_filtered_as_current(self):
+        trace = self.root / ".lake/build/Current.trace"
+        trace.parent.mkdir(parents=True)
+        trace.write_text('{"depHash":"0000000000000001"}')
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.log.unlink(missing_ok=True)
+                self.requests.clear()
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/duplicate-input", "/fallback", missing=missing)
+                self.assertIn("duplicate input hash in mapping row 3", result.stdout)
+                self.assertEqual([event["endpoint"] for event in self.events()],
+                                 [self.base + "/fallback/a0"])
+                expected = {"0000000000000002.art"}
+                if not missing:
+                    expected.add("0000000000000001.art")
+                self.assertEqual({path.name for path in self.artifacts.iterdir()}, expected)
 
     def test_403_on_unpublished_revisions_continues_to_published_ancestor(self):
         # GCS with roles/storage.legacyObjectReader (read without list) answers missing objects
@@ -510,6 +560,56 @@ class MirrorTests(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("git"), "git is required")
+@unittest.skipUnless(all(shutil.which(tool) for tool in ("lake", "curl", "git")),
+                     "native mirror integration requires Lake, curl and Git")
+class RealLakeMirrorTests(MirrorFixture):
+    fake_lake = False
+
+    def test_html_mapping_falls_back_and_caches_real_output(self):
+        producer = self.root / "producer"
+        producer.mkdir()
+        shutil.copyfile(self.root / "lean-toolchain", producer / "lean-toolchain")
+        for directory in (producer, self.root):
+            (directory / "lakefile.toml").write_text(
+                'name = "fixture"\nenableArtifactCache = true\n[[lean_lib]]\nname = "Fixture"\n')
+            (directory / "Fixture.lean").write_text("def answer : Nat := 42\n")
+
+        mapping = producer / "mapping.jsonl"
+        archives = producer / "archives"
+
+        def lake_cache_dir(path):
+            if sys.platform == "cygwin":
+                return subprocess.check_output(["cygpath", "-am", str(path)], text=True).strip()
+            return str(path)
+
+        env = {**self.env, "LAKE_CACHE_DIR": lake_cache_dir(producer / "cache"), "LAKE_NO_CACHE": "false"}
+        subprocess.run(["lake", "build", "Fixture", "-o", "mapping.jsonl"],
+                       cwd=producer, env=env, check=True, timeout=60)
+        subprocess.run(["lake", "cache", "stage", "mapping.jsonl", "archives"],
+                       cwd=producer, env=env, check=True, timeout=30)
+        payloads = {archive.stem + ".art": archive.read_bytes()
+                    for archive in archives.glob("*.ltar")}
+        self.assertTrue(payloads, "Lake did not stage any artifacts")
+        self.artifact_payloads = payloads
+        revision = self.env["MIRROR_REVISION"]
+        self.revision_mappings[revision] = mapping.read_bytes()
+
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.requests.clear()
+                cache = self.root / f"consumer-cache-{missing}"
+                result = self.fetch("/html", "/by-rev", missing=missing,
+                                    LAKE_CACHE_DIR=lake_cache_dir(cache), LAKE_NO_CACHE="false",
+                                    COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT="10")
+                self.assertIn("cache origin 2/2: completed", result.stdout, result.stderr)
+                self.assertTrue(any(request.endswith(f"/{revision}.jsonl")
+                                    and request.startswith("/html/") for request in self.requests))
+                self.assertEqual({request.rsplit("/", 1)[-1] for request in self.requests
+                                  if request.startswith("/by-rev/a0/")}, payloads.keys())
+                self.assertEqual({path.stem + ".art": path.read_bytes()
+                                  for path in cache.rglob("*.ltar")}, payloads)
+
+
 class CandidateRevisionsTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="cache candidates ")

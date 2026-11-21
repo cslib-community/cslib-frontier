@@ -45,7 +45,7 @@ theorem hcapOne : ComputableInPolyTime (fun _ : ℕ => 2 ^ 1) encUnary encUnary 
 
 /-- Capacity `2 ^ Nat.clog 2 (n + 1)`, between `n + 1` and `2 * n + 1`. -/
 theorem hcapClog : ComputableInPolyTime (fun n => 2 ^ Nat.clog 2 (n + 1)) encUnary encUnary :=
-  .of_tidy (ComputableTidilyInPolyTime.unary_pow_clog_const (by polytime) 2 2)
+  (ComputableInPolyTime.unary_pow_clog_const (by polytime) 2 2)
 
 example : (scheme lamportId truncHash (fun n => Nat.clog 2 (n + 1)) computableInPolyTime_truncHash
     length_truncHash hcapClog).capacity 5 = 8 := by

@@ -54,33 +54,13 @@ variable {n : ℕ} {Γ α β : Type*}
 
 /-! ## Factors -/
 
-private theorem take_extract (w : List β) {a b c : ℕ} (hab : a ≤ b) (hbc : b ≤ c) :
-    (w.extract a c).take (b - a) = w.extract a b := by
-  unfold List.extract
-  rw [List.take_take, Nat.min_eq_left (by omega)]
-
-private theorem extract_succ {w : List β} {a : ℕ} {μ : β} (h : w[a]? = some μ) :
-    w.extract a (a + 1) = [μ] := by
-  obtain ⟨ha, rfl⟩ := List.getElem?_eq_some_iff.mp h
-  unfold List.extract
-  rw [List.drop_eq_getElem_cons ha, Nat.add_sub_cancel_left]
-  rfl
-
-private theorem net_extract_succ {w : List (α × Op n Γ)} {a : ℕ} {μ : α × Op n Γ}
+theorem net_extract_succ {w : List (α × Op n Γ)} {a : ℕ} {μ : α × Op n Γ}
     (h : w[a]? = some μ) (i : Fin n) : net i (w.extract a (a + 1)) = μ.2.net i := by
-  rw [extract_succ h, net_cons, net_nil, add_zero]
+  rw [List.extract_eq_singleton h, net_cons, net_nil, add_zero]
 
 /-! ## Unpacking matches and pending pushes -/
 
-private theorem IsPushOn.unique {w : List (α × Op n Γ)} {i j : Fin n} {p : ℕ}
-    (hi : IsPushOn w i p) (hj : IsPushOn w j p) : i = j := by
-  obtain ⟨a, γ, h⟩ := hi
-  obtain ⟨a', γ', h'⟩ := hj
-  rw [h] at h'
-  simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at h'
-  exact h'.2.1
-
-private theorem Matches.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p m : ℕ}
+theorem Matches.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p m : ℕ}
     (h : Matches w p m) (hp : IsPushOn w i p) :
     p < m ∧ (∃ b γ, w[m]? = some (b, .pop i γ)) ∧
       (∀ k, 0 ≤ net i ((w.extract (p + 1) m).take k)) ∧ net i (w.extract (p + 1) m) = 0 := by
@@ -88,7 +68,7 @@ private theorem Matches.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p m 
   obtain rfl := hp.unique hj
   exact ⟨hpm, hm, hk, hnet⟩
 
-private theorem PendingAt.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p x : ℕ}
+theorem PendingAt.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p x : ℕ}
     (h : PendingAt w p x) (hp : IsPushOn w i p) :
     p ≤ x ∧ x < w.length ∧ ∀ k, 0 ≤ net i ((w.extract (p + 1) (x + 1)).take k) := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
@@ -97,10 +77,10 @@ private theorem PendingAt.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p 
 
 /-- If the stack `i` returns to its height before position `m`, where it pops, then the factor
 up to `m'` pops below that height. -/
-private theorem net_neg_of_pop {w : List (α × Op n Γ)} {i : Fin n} {a m m' : ℕ} {b : α} {γ : Γ}
+theorem net_neg_of_pop {w : List (α × Op n Γ)} {i : Fin n} {a m m' : ℕ} {b : α} {γ : Γ}
     (ham : a ≤ m) (hmm' : m < m') (hm : w[m]? = some (b, .pop i γ))
     (hnet : net i (w.extract a m) = 0) : net i ((w.extract a m').take (m + 1 - a)) < 0 := by
-  rw [take_extract w (by omega) (by omega), ← w.extract_append_extract ham (Nat.le_succ m),
+  rw [w.take_extract (by omega) (by omega), ← w.extract_append_extract ham (Nat.le_succ m),
     net_append, hnet, net_extract_succ hm]
   simp [Op.net]
 
@@ -135,16 +115,16 @@ private theorem crossing_holePush_left (hpq : p < q) (hqz : q < z) (hp : IsPushO
   obtain rfl := hm.unique hpz
   obtain ⟨-, -, hqk⟩ := hqp.of_isPushOn hq
   have h₁ := hws.net_take_nonneg j (q - p)
-  rw [take_extract w hpq.le (by omega)] at h₁
+  rw [w.take_extract hpq.le (by omega)] at h₁
   have h₂ := hqk (m + 1 - (q + 1))
-  rw [take_extract w (by omega) le_rfl] at h₂
+  rw [w.take_extract (by omega) le_rfl] at h₂
   have h₃ := hws.net_eq_zero j
   rw [← w.extract_append_extract (show p ≤ q by omega) (show q ≤ m + 1 by omega),
     ← w.extract_append_extract (show q ≤ q + 1 by omega) (show q + 1 ≤ m + 1 by omega),
     net_append, net_append] at h₃
   obtain ⟨a, γ, hqa⟩ := hq
   rw [net_extract_succ hqa] at h₃
-  simp only [Op.net, ↓reduceIte] at h₃
+  simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte] at h₃
   omega
 
 /-- The inner push of a crossing is a hole push. -/
@@ -159,10 +139,10 @@ private theorem crossing_holePush_right (hij : i ≠ j) (hpq : p < q) (hqz : q <
     by_contra hcon
     exact absurd (hqk _) (not_le.mpr (net_neg_of_pop (by omega) (by omega) hmpop hmnet))
   have h₁ := hws.net_take_nonneg i (z + 1 - q)
-  rw [take_extract w (by omega) (by omega)] at h₁
+  rw [w.take_extract (by omega) (by omega)] at h₁
   obtain ⟨-, ⟨b', γ', hzpop⟩, hpk, hpnet⟩ := hpz.of_isPushOn hp
   have h₂ := hpk (q - (p + 1))
-  rw [take_extract w (by omega) (by omega)] at h₂
+  rw [w.take_extract (by omega) (by omega)] at h₂
   rw [← w.extract_append_extract (show p + 1 ≤ q by omega) (show q ≤ z by omega),
     ← w.extract_append_extract (show q ≤ q + 1 by omega) (show q + 1 ≤ z by omega),
     net_append, net_append] at hpnet
@@ -172,7 +152,7 @@ private theorem crossing_holePush_right (hij : i ≠ j) (hpq : p < q) (hqz : q <
   obtain ⟨a, δ, hqa⟩ := hq
   rw [net_extract_succ hqa] at hpnet h₁
   rw [net_extract_succ hzpop] at h₁
-  simp only [Op.net, Ne.symm hij, ↓reduceIte] at hpnet h₁
+  simp only [Op.net, Op.kind, OpKind.net, Ne.symm hij, ↓reduceIte] at hpnet h₁
   omega
 
 /-- Every open hole push lies in an open hole whose first pending push is on the same stack. -/
@@ -204,7 +184,7 @@ private theorem Crossing.two_le_openHoles (hij : i ≠ j) (hpq : p < q) (hqz : q
   have hqx : PendingAt w q (z - 1) := by
     refine ⟨by omega, by omega, j, hq, fun k => ?_⟩
     rw [show z - 1 + 1 = z by omega,
-      ← take_extract w (show q + 1 ≤ z by omega) (Nat.le_succ z), List.take_take]
+      ← w.take_extract (show q + 1 ≤ z by omega) (Nat.le_succ z), List.take_take]
     exact hqk _
   obtain ⟨r, hr, hri, hrl⟩ :=
     exists_first_openHolePush ⟨crossing_holePush_left hpq hqz hp hq hpz hqp, hpx⟩ hp
@@ -254,14 +234,14 @@ private theorem PendingAt.append_left (h : PendingAt v p x) (l : List (α × Op 
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨by omega, by simp; omega, j, IsPushOn.append_left hj l, ?_⟩
   rw [show l.length + p + 1 = l.length + (p + 1) by omega,
-    show l.length + x + 1 = l.length + (x + 1) by omega, extract_append_left]
+    show l.length + x + 1 = l.length + (x + 1) by omega, List.extract_append_left]
   exact hk
 
 private theorem PendingAt.append_right (h : PendingAt v p x) (r : List (α × Op n Γ)) :
     PendingAt (v ++ r) p x := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨hpx, by simp; omega, j, IsPushOn.append_right hj r, ?_⟩
-  rw [extract_append_right _ _ (by omega)]
+  rw [List.extract_append_right _ _ (by omega)]
   exact hk
 
 private theorem Crossing.append_left (h : Crossing v) (l : List (α × Op n Γ)) :
@@ -283,7 +263,7 @@ end Shift
 
 /-- A sequence is balanced if no prefix pops below the initial height of any stack and every stack
 returns to its initial height. The label sequences of complete runs are balanced. -/
-private def Balanced (w : List (α × Op n Γ)) : Prop :=
+@[expose] def Balanced (w : List (α × Op n Γ)) : Prop :=
   ∀ i, net i w = 0 ∧ ∀ k, 0 ≤ net i (w.take k)
 
 private theorem Op.net_cases (i : Fin n) (op : Op n Γ) :
@@ -306,7 +286,7 @@ private theorem take_eq_extract (w : List β) (b : ℕ) : w.take b = w.extract 0
 
 /-- The first point where the height of stack `i`, starting at `d`, drops below zero is a pop on
 stack `i`. -/
-private theorem exists_first_pop (i : Fin n) :
+theorem exists_first_pop (i : Fin n) :
     ∀ (v : List (α × Op n Γ)) (d : ℕ), (d : ℤ) + net i v < 0 →
       ∃ u b δ u', v = u ++ (b, Op.pop i δ) :: u' ∧ (d : ℤ) + net i u = 0 ∧
         ∀ k, 0 ≤ (d : ℤ) + net i (u.take k)
@@ -351,7 +331,7 @@ private theorem exists_first_pop (i : Fin n) :
 
 /-- If no prefix of `u` pops below the initial height of stack `j` and `u` ends strictly above it,
 then some push on stack `j` in `u` is still pending at the end of `u`. -/
-private theorem exists_pending_push {j : Fin n} {u : List (α × Op n Γ)}
+theorem exists_pending_push {j : Fin n} {u : List (α × Op n Γ)}
     (hk : ∀ k, 0 ≤ net j (u.take k)) (hpos : 0 < net j u) :
     ∃ q < u.length, IsPushOn u j q ∧ ∀ k, 0 ≤ net j ((u.drop (q + 1)).take k) := by
   classical
@@ -409,7 +389,7 @@ private theorem PendingAt.cons {v : List (α × Op n Γ)} {p x : ℕ} (h : Pendi
     (μ : α × Op n Γ) : PendingAt (μ :: v) (p + 1) (x + 1) := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨by omega, by simp; omega, j, IsPushOn.cons hj μ, ?_⟩
-  rw [extract_cons_succ]
+  rw [List.extract_cons_succ]
   exact hk
 
 /-- A push pending at `x` stays pending across a transition that does not pop its stack. -/
@@ -420,7 +400,7 @@ private theorem PendingAt.succ {w : List (α × Op n Γ)} {j : Fin n} {p x : ℕ
   have hlen := (List.getElem?_eq_some_iff.mp hμ).1
   refine ⟨by omega, hlen, j, hp, fun k => ?_⟩
   rw [← w.extract_append_extract (show p + 1 ≤ x + 1 by omega) (Nat.le_succ (x + 1)),
-    extract_succ hμ, List.take_append, net_append]
+    List.extract_eq_singleton hμ, List.take_append, net_append]
   have h₁ := hk k
   have h₂ : 0 ≤ net j (List.take (k - (w.extract (p + 1) (x + 1)).length) [μ]) := by
     rcases k - (w.extract (p + 1) (x + 1)).length with _ | m
@@ -491,7 +471,7 @@ private theorem configLTS_mTr_length {M : MPDA n State α Γ} {c c' : Config n S
       omega
 
 /-- The label sequence of a run from empty stacks to empty stacks is balanced. -/
-private theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}
+theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}
     {w : List (α × Op n Γ)}
     (h : M.configLTS.MTr ⟨s, Stacks.empty⟩ w ⟨s', Stacks.empty⟩) : Balanced w := by
   intro i
@@ -509,8 +489,7 @@ private theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State
 
 /-! ## Complete runs without crossings are well-nested -/
 
-/-- A balanced run without crossings is well-nested. -/
-private theorem wellNested_of_not_crossing {M : MPDA n State α Γ} :
+private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
     ∀ (N : ℕ) (w : List (α × Op n Γ)) (c c' : Config n State Γ), w.length ≤ N →
       M.configLTS.MTr c w c' → Balanced w → ¬Crossing w → WellNested w
   | 0, [], _, _, _, _, _, _ => .nil
@@ -520,8 +499,8 @@ private theorem wellNested_of_not_crossing {M : MPDA n State α Γ} :
     have hlen' : w'.length ≤ N := by simp at hlen; omega
     cases op with
     | nop =>
-      refine .nop (wellNested_of_not_crossing N w' c₁ c' hlen' hrun' (fun j => ⟨?_, fun k => ?_⟩)
-        fun h => hcr (h.append_left [(a, .nop)]))
+      refine .nop (wellNested_of_not_crossing_aux N w' c₁ c' hlen' hrun'
+        (fun j => ⟨?_, fun k => ?_⟩) fun h => hcr (h.append_left [(a, .nop)]))
       · have := (hbal j).1
         rwa [net_cons, show (Op.nop : Op n Γ).net j = 0 from rfl, zero_add] at this
       · have := (hbal j).2 (k + 1)
@@ -605,7 +584,7 @@ private theorem wellNested_of_not_crossing {M : MPDA n State α Γ} :
       -- The interior `u` is well-nested by induction, so it leaves the stacks unchanged.
       have hlu : u.length ≤ N := by simp at hlen; omega
       have hwu : WellNested u :=
-        wellNested_of_not_crossing N u c₁ c₂ hlu hrunu (fun j => ⟨hunet j, hupre j⟩)
+        wellNested_of_not_crossing_aux N u c₁ c₂ hlu hrunu (fun j => ⟨hunet j, hupre j⟩)
           fun h => hcr ((h.append_right ((b, .pop i δ) :: u')).append_left [(a, .push i γ)])
       -- Hence the pop matches the symbol of the push.
       have hδ : δ = γ := by
@@ -618,10 +597,16 @@ private theorem wellNested_of_not_crossing {M : MPDA n State α Γ} :
       subst hδ
       have hlu' : u'.length ≤ N := by simp at hlen; omega
       exact .pushPop hwu
-        (wellNested_of_not_crossing N u' c₃ c' hlu' hrunu' hbal' fun h => by
+        (wellNested_of_not_crossing_aux N u' c₃ c' hlu' hrunu' hbal' fun h => by
           apply hcr
           rw [e]
           exact h.append_left _)
+
+/-- A balanced run without crossings is well-nested. -/
+theorem wellNested_of_not_crossing {M : MPDA n State α Γ} {c c' : Config n State Γ}
+    {w : List (α × Op n Γ)} (h : M.configLTS.MTr c w c') (hb : Balanced w) (hc : ¬Crossing w) :
+    WellNested w :=
+  wellNested_of_not_crossing_aux w.length w c c' le_rfl h hb hc
 
 /-! ## One hole is no hole -/
 
@@ -632,7 +617,7 @@ theorem holeBounded_one_iff_wellNested {M : MPDA n State α Γ} {s s' : State}
     {w : List (α × Op n Γ)}
     (h : M.configLTS.MTr ⟨s, Stacks.empty⟩ w ⟨s', Stacks.empty⟩) :
     HoleBounded 1 w ↔ WellNested w :=
-  ⟨fun hb => wellNested_of_not_crossing w.length w _ _ le_rfl h (balanced_of_configLTS_mTr h)
+  ⟨fun hb => wellNested_of_not_crossing h (balanced_of_configLTS_mTr h)
       fun hc => hc.not_holeBounded_one hb,
     fun hw => hw.holeBounded_zero.mono (Nat.zero_le 1)⟩
 
