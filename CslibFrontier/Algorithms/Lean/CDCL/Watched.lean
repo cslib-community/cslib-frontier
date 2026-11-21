@@ -1668,7 +1668,9 @@ activity below the increment divided by their number. Kept in any case are the c
 reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
 @[expose] def WExec.reduceIds (S : WExec φ) : List ℕ :=
   let act := S.red.act
-  let learnts := S.store.clauses.toList.filter fun e => isLearntId φ.length e.1
+  -- computed once, not in each test
+  let n := φ.length
+  let learnts := S.store.clauses.toList.filter fun e => isLearntId n e.1
   let sorted := sortBy (fun a b =>
     if (a.2.length ≤ 2) == (b.2.length ≤ 2) then act.get a.1 ≤ act.get b.1 else b.2.length ≤ 2)
     learnts
@@ -1680,7 +1682,7 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   -- marked once, so that each clause chosen is tested in constant time
   let kept := Assign.marks (XTrail.reasonIds S.exec.trail ++ S.short.map Prod.fst)
   -- LRAT checkers such as drat-trim's `lrat-check` reject a number deleted twice
-  dedupVars <| (chosen.map Prod.fst).filter fun i => isLearntId φ.length i && !kept.assigned i
+  dedupVars <| (chosen.map Prod.fst).filter fun i => isLearntId n i && !kept.assigned i
 
 /-- The number of learned clauses in the store, those numbered above `n` (`isLearntId`). Reduction
 and simplification set the count of learned clauses from the rebuilt store, instead of subtracting
