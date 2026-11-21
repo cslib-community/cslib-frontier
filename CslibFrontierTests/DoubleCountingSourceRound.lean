@@ -38,14 +38,27 @@ example :
     tieRound.halted q = true ∧ (answer q).map (·.bad) = some true ∧
       (answer q).map (·.tally.count) = some 3 := by decide +kernel
 
-/-- A tied result is a successful scan occurrence with its full updated tally. -/
-example : replayScan context reply start id [] (List.replicate 16 false) =
-    some (⟨⟨3, 1⟩, true⟩, []) := by
-  apply (firstHalting_iff_replayScan context reply start id _ _ _).mp
-  refine ⟨⟨by decide +kernel, ?_⟩, by rfl⟩
+private theorem tie_firstHalting :
+    tieRound.FirstHalting [] (List.replicate 16 false) tieRound.init := by
+  refine ⟨by decide +kernel, ?_⟩
   intro n hn
   simp only [List.length_replicate] at hn
   interval_cases n <;> decide +kernel
+
+/-- A tied result is a successful scan occurrence with its full updated tally. -/
+example : replayScan context reply start id [] (List.replicate 16 false) =
+    some (⟨⟨3, 1⟩, true⟩, []) :=
+  (firstHalting_iff_replayScan context reply start id _ _ _).mp ⟨tie_firstHalting, rfl⟩
+
+/-- A tied round remains successful and has only one complete selector list. -/
+example : {bits : List Bool | tieRound.FirstHalting [] bits tieRound.init ∧
+    (answer (tieRound.run [] bits)).isSome} = {List.replicate 16 false} := by
+  have hu := subsingleton_successful_firstHalting context reply start id [] (by
+    intro req _ left hl right hr
+    have hempty (bits : List Bool) :=
+      reply.firstHalting_iff_nil_of_halted [] bits (start context req) rfl
+    exact ((hempty left).mp hl.1).trans ((hempty right).mp hr.1).symm)
+  exact hu.eq_singleton_of_mem ⟨tie_firstHalting, rfl⟩
 
 private def rejectRound := machine context reply
   (fun ctx request => match request with
