@@ -12390,7 +12390,7 @@ register_result "odonnell-invariance-principle-sums" where
   sources := [
     { paper := ODonnell2014,
       theorem := "Invariance Principle for Sums of Random Variables",
-      locator := "arXiv:2105.10386v1, §11.5, printed p. 355" }
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 354 (proof pp. 354–355)" }
   ]
   theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le]
   scope := "Product laws Measure.pi μ and Measure.pi ν over any finite index type ι, for \
@@ -12409,7 +12409,7 @@ register_result "odonnell-invariance-sums-lipschitz" where
   sources := [
     { paper := ODonnell2014, theorem := "Corollary 11.59",
       locator := "arXiv:2105.10386v1, §11.5, printed p. 356; moving-average smoothing cf. \
-        §11.7, Exercise 11.40, printed p. 380" }
+        §11.8, Exercise 11.40, printed p. 380" }
   ]
   theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le_of_lipschitzWith]
   scope := "Same product-law hypotheses on μ i and ν i in L³ with equal first and second \
@@ -12427,8 +12427,8 @@ register_result "odonnell-invariance-sums-levy-distance" where
   topic := "analysis of Boolean functions"
   sources := [
     { paper := ODonnell2014, theorem := "Corollary 11.61",
-      locator := "arXiv:2105.10386v1, §11.5, printed p. 356; proof method in §11.7, Exercise \
-        11.42, printed p. 380" }
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 357; proof method in §11.8, Exercise \
+        11.42, printed p. 381" }
   ]
   theorems := [
     ProbabilityTheory.measureReal_sum_le_le_add,
@@ -12453,7 +12453,7 @@ register_result "odonnell-invariance-sums-berry-esseen-fourth-root" where
   sources := [
     { paper := ODonnell2014, theorem := "Corollary 11.62",
       locator := "arXiv:2105.10386v1, §11.5, printed p. 357; Berry–Esseen setting on printed \
-        p. 350 and eq. (11.28) on printed p. 356" }
+        p. 350 and eq. (11.28) on printed p. 355" }
   ]
   theorems := [ProbabilityTheory.abs_measureReal_sum_le_sub_cdf_le]
   scope := "Product law Measure.pi μ over any finite index type ι, for coordinate probability \
@@ -12479,7 +12479,7 @@ register_result "odonnell-invariance-multilinear-levy-distance" where
   sources := [
     { paper := ODonnell2014,
       theorem := "Corollary 11.70, first statement, and Exercise 11.44",
-      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.7, Exercise 11.44, printed \
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
         p. 381" }
   ]
   theorems := [
@@ -12487,11 +12487,11 @@ register_result "odonnell-invariance-multilinear-levy-distance" where
     ProbabilityTheory.measureReal_multilinearEval_le_sub_le
   ]
   scope := "Product laws Measure.pi μ and Measure.pi ν over any finite coordinate type ι \
-    whose coordinate probability measures satisfy Hypothesis 11.65 (HasInvarianceMoments: mean \
-    0, second moment 1, L⁴ norm at most 9^(1/4)), and formal multilinear coefficients \
-    c : Finset ι → ℝ of degree at most k (∀ S, k < #S → c S = 0), variance \
-    ∑_{S ≠ ∅} c S ^ 2 ≤ 1, and coordinate influences multilinearInfluence c t ≤ ε (ε ≥ 0): \
-    for every u : ℝ, (Measure.pi μ).real {z | multilinearEval c z ≤ u} ≤ \
+    whose coordinate probability measures satisfy Hypothesis 11.65 (HasInvarianceMoments: in \
+    L⁴ with mean 0, variance 1, third moment 0, and fourth moment at most 9), and formal \
+    multilinear coefficients c : Finset ι → ℝ of degree at most k (∀ S, k < #S → c S = 0), \
+    variance ∑_{S ≠ ∅} c S ^ 2 ≤ 1, and coordinate influences multilinearInfluence c t ≤ ε \
+    (ε ≥ 0): for every u : ℝ, (Measure.pi μ).real {z | multilinearEval c z ≤ u} ≤ \
     (Measure.pi ν).real {z | multilinearEval c z ≤ u + δ} + δ and \
     (Measure.pi ν).real {z | multilinearEval c z ≤ u − δ} − δ ≤ \
     (Measure.pi μ).real {z | multilinearEval c z ≤ u} with δ = 4 · 2ᵏ · ε^(1/5) (explicit \
@@ -12509,7 +12509,7 @@ register_result "odonnell-invariance-boolean-cube-levy-distance" where
   sources := [
     { paper := ODonnell2014,
       theorem := "Corollary 11.70, first statement (Boolean-cube form), and Exercise 11.44",
-      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.7, Exercise 11.44, printed \
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
         p. 381" }
   ]
   theorems := [
@@ -12518,12 +12518,13 @@ register_result "odonnell-invariance-boolean-cube-levy-distance" where
   ]
   scope := "Uniform cube on any finite coordinate type ι: for f : (ι → Bool) → ℝ with \
     totalDegree f ≤ k, variance 𝔼 x, (f x − 𝔼 y, f y) ^ 2 ≤ 1, and influence i f ≤ ε (ε ≥ 0) \
-    for every i, and independent coordinates y under Measure.pi μ with each μ i satisfying \
-    Hypothesis 11.65 (HasInvarianceMoments), (dens {x | f x ≤ u} : ℝ) ≤ \
+    for every i, and independent comparison coordinates y under Measure.pi μ with each μ i \
+    satisfying Hypothesis 11.65 (HasInvarianceMoments: in L⁴ with mean 0, variance 1, third \
+    moment 0, and fourth moment at most 9), (dens {x | f x ≤ u} : ℝ) ≤ \
     (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u + δ} + δ and \
     (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u − δ} − δ ≤ \
     (dens {x | f x ≤ u} : ℝ) for every u : ℝ, with δ = 4 · 2ᵏ · ε^(1/5). Specializes \
-    odonnell-invariance-multilinear-levy-distance to uniform signs on the μ side via \
+    odonnell-invariance-multilinear-levy-distance to uniform signs on the first side via \
     measureReal_pi_rademacher_multilinearEval_le. The second statement of Corollary 11.70 \
     (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
     outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
