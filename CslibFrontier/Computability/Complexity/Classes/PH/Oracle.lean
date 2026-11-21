@@ -99,10 +99,14 @@ theorem oracleTranscriptNo_mem_PiP {t : ℕ} {Control Operation : Type}
   have hreq := machine.replayPrefix_pendingRequest_pt.comp hreplay
   let G : Set ((α × List Bool) × ℕ) := {y | y.1.2.getD y.2 false = true ∨
     (machine.pendingQuery (machine.replayPrefix (enc y.1.1) y.1.2 y.2)).isSome = false}
+  have hbit := ComputableInPolyTime.bitsGetDWithInput
+    (ComputableInPolyTime.fst (encPair enc encBits) encUnary).snd'
+    (ComputableInPolyTime.snd (encPair enc encBits) encUnary) false
   have hG : G ∈ P (encPair (encPair enc encBits) encUnary) :=
     ⟨fun y => y.1.2.getD y.2 false ||
       !(machine.pendingQuery (machine.replayPrefix (enc y.1.1) y.1.2 y.2)).isSome,
-      by fun_prop, by simp [G]⟩
+      ComputableInPolyTime.bool_or' hbit (ComputableInPolyTime.bool_not.comp hquery),
+      by simp [G]⟩
   have hR := (show PolyTimeReducible _ encBits
     {y : (α × List Bool) × ℕ |
       machine.pendingRequest (machine.replayPrefix (enc y.1.1) y.1.2 y.2) ∈ Aᶜ} Aᶜ from

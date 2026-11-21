@@ -11,31 +11,31 @@ The list and the bit to search for are both runtime inputs; empty lists are perm
 
 namespace CslibFrontierTests.PolyTimeScans
 
-open Turing.MultiTapeTM ComputableTidilyInPolyTime
+open Turing.MultiTapeTM ComputableInPolyTime
 
 private abbrev rawInput := encPair encBits encBool
 private abbrev framedInput := encPair (encList encBool) encBool
 
 /-- A captured bit controls the predicate uniformly for every raw input word. -/
-theorem raw_count : ComputableTidilyInPolyTime
+theorem raw_count : ComputableInPolyTime
     (fun p : List Bool × Bool => p.1.countP fun b => b == p.2) rawInput encUnary :=
   countPWith (encA := encBool) (encP := encBool)
     (of_finite (fun p : Bool × Bool => p.2 == p.1)) (snd _ _) (fst _ _)
 
 /-- The same counting rule applies directly to framed lists. -/
-theorem framed_count : ComputableTidilyInPolyTime
+theorem framed_count : ComputableInPolyTime
     (fun p : List Bool × Bool => p.1.countP fun b => b == p.2) framedInput encUnary :=
   countPWith (encA := encBool) (encP := encBool)
     (of_finite (fun p : Bool × Bool => p.2 == p.1)) (snd _ _) (fst _ _)
 
 /-- A matching bit can be sought without converting a raw word to a framed list. -/
-theorem raw_any : ComputableTidilyInPolyTime
+theorem raw_any : ComputableInPolyTime
     (fun p : List Bool × Bool => p.1.any fun b => b == p.2) rawInput encBool :=
   anyWithEncoding (encA := encBool) (encP := encBool)
     (of_finite (fun p : Bool × Bool => p.2 == p.1)) (snd _ _) (fst _ _)
 
 /-- The same universal scan applies to raw words. -/
-theorem raw_all : ComputableTidilyInPolyTime
+theorem raw_all : ComputableInPolyTime
     (fun p : List Bool × Bool => p.1.all fun b => b == p.2) rawInput encBool :=
   allWithEncoding (encA := encBool) (encP := encBool)
     (of_finite (fun p : Bool × Bool => p.2 == p.1)) (snd _ _) (fst _ _)
