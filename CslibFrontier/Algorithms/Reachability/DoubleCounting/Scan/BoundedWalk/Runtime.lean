@@ -19,9 +19,7 @@ and preserves first-halting selector lists and unused fuel. The encoded state ad
 binary dimension and context to the existing bound on every branch.
 
 The `entry_budget` certificate loads the runtime context, binary dimension, and registers.
-Native space certificates also cover the query position, halt flag, and unused fuel.
-The active adjacency-call transition has a shared space certificate in `BoundedWalk`.
-Dispatching all phases from the encoded runtime state remains open in #6747.
+Native space certificates cover the query position, phase transition, halt flag, and unused fuel.
 -/
 
 public section
@@ -189,12 +187,51 @@ theorem run_eq {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : List Bo
 /-- Decode the optional unused fuel from the runtime walk state. -/
 def remainingFuel (s : State κ τ) : Option ℕ := BoundedWalk.remainingFuel s.walk
 
+private theorem stateFields_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    {encContext : κ ↪ List Bool} {encCallee : τ ↪ List Bool} {state : α → State κ τ}
+    (hs : ComputableInSpace state encIn (encState encContext encCallee) budget) :
+    ComputableInSpace (fun a => ((state a).context, (state a).size,
+      BoundedWalk.encState encCallee (state a).walk))
+      encIn (encPair encContext (encPair encNat encBits)) budget :=
+  hs.of_enc_eq fun _ => rfl
+
 private theorem walkWord_inSpace (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool) :
     ComputableInSpace (fun s => BoundedWalk.encState encCallee s.walk)
       (encState encContext encCallee) encBits
       (fun s => (encState encContext encCallee s).length) :=
-  (snd' (snd encContext (encPair encNat encBits))).of_encIn_eq
-    (fun s : State κ τ => (s.context, s.size, BoundedWalk.encState encCallee s.walk)) fun _ => rfl
+  snd' (snd' (stateFields_budget (of_inO (ComputableInO.of_eq fun _ => rfl))))
+
+/-- Framed runtime state and optional read reply, followed by the selector bit. -/
+abbrev encStep (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool) :
+    (State κ τ × Option Bool × Bool) ↪ List Bool :=
+  encPair (encState encContext encCallee) (encPair (encOption encBool) encBool)
+
+/-- A single runtime transition uses space linear in the encoded state, reply, and selector.
+It retains the context and dimension and dispatches the existing bounded-walk update. -/
+theorem next_inSpace (initial : State κ τ) (encContext : κ ↪ List Bool)
+    (encCallee : τ ↪ List Bool)
+    (hstart : ComputableInSpace (fun (ctx, src, dst) => start ctx src dst)
+      (BoundedWalk.encStartRequest encContext) encCallee
+      (fun p => (BoundedWalk.encStartRequest encContext p).length))
+    (hnext : ComputableInSpace edge.next (QueryMachine.encStateRead encCallee) encCallee
+      (fun p => (QueryMachine.encStateRead encCallee p).length))
+    (hhalted : ComputableInSpace edge.halted encCallee encBool (fun s => (encCallee s).length))
+    (hverdict : ComputableInSpace verdict encCallee encBool (fun s => (encCallee s).length)) :
+    ComputableInSpace (machine edge start verdict clock initial).next
+      (encStep encContext encCallee) (encState encContext encCallee)
+      (fun p => (encStep encContext encCallee p).length) := by
+  let encReply := encPair (encOption encBool) encBool
+  have hs := stateFields_budget (fst (encState encContext encCallee) encReply)
+  have hcontext := fst' hs
+  have hdim := fst' (snd' hs)
+  have hinput := snd (encState encContext encCallee) encReply
+  have hstep := BoundedWalk.advance_budget (state := fun p => p.1.walk) clock hstart hnext
+    hhalted hverdict hcontext hdim (fun p => p.1.positive) (snd' (snd' hs))
+    (fst' hinput) (snd' hinput)
+  refine (state_budget (positive := fun p => p.1.positive)
+    encContext encCallee hcontext hdim hstep).of_enc_eq ?_
+  rintro ⟨state, reply, selector⟩
+  simp only [machine, innerMachine, typedMachine, BoundedWalk.machine_next]
 
 /-- Read the active adjacency query position from a runtime state in linear space. -/
 theorem query_inSpace (initial : State κ τ) (encContext : κ ↪ List Bool)

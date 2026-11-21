@@ -320,4 +320,19 @@ example :
   dsimp only [M]
   rw [Runtime.machine_next_choice]
 
+/-- The complete runtime transition accepts any encoded phase, including after re-entry
+at a different dimension and with an input-dependent callee reply. -/
+example :
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let enc := Runtime.encStep encBool (encOption encBool)
+    ComputableInSpace (Runtime.machine edge runtimeStart verdict 1 initial).next
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro initial enc
+  have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
+      (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
+  exact Runtime.next_inSpace edge runtimeStart verdict 1 initial encBool (encOption encBool)
+    (budget_finite (fun b : Bool => if b then none else some false)
+      (fst encBool (encPair encNat encNat)))
+    edgeNext_inSpace (budget_optionIsSome hresult) (budget_optionGetD false hresult)
+
 end CslibFrontierTests.DoubleCountingBoundedWalk
