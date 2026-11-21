@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.BranchReplay
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CallReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 
@@ -207,10 +208,8 @@ example (R : Routines ownBit id encBool (fun _ => 1)) :
     rfl
   obtain ⟨fuel, hclock⟩ := R.exists_runsInTime true hhalt
   refine ⟨fuel, (R.acceptCount_eq_one_iff true hclock).mpr ?_⟩
-  refine ⟨[], ⟨⟨rfl, fun n h => by simp at h⟩, rfl⟩, ?_⟩
-  rintro bits ⟨⟨_, hprefix⟩, _⟩
-  by_contra hne
-  exact Bool.noConfusion (hprefix 0 (List.length_pos_iff.mpr hne))
+  have hnil := fun bits => ownBit.firstHalting_iff_nil_of_halted (encBool true) bits true rfl
+  exact ⟨[], ⟨(hnil []).mpr rfl, rfl⟩, fun bits h => (hnil bits).mp h.1⟩
 
 open NondeterministicQueryMachine in
 /-- Both selectors produce the same state transition at each of the two passes.
