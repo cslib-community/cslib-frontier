@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
-import CslibFrontier.Foundations.Data.List.Lookup
 
 /-! # LRAT certificates built step by step
 
@@ -199,6 +198,72 @@ theorem chunkGet_chunkIndexOf {α : Type} : ∀ (db : List (ℕ × α)) (i : ℕ
 
 /-! ### Hints built by resolution -/
 
+/-- A hinted clause whose literals other than `l` are false propagates `l`. -/
+theorem propagateHints_cons_unit {db : List (ℕ × Clause ℕ)} {t : List (Literal ℕ)} {r : ℕ}
+    {hs : List ℕ} {R : Clause ℕ} {l : Literal ℕ} (hR : db.find? (·.1 == r) = some (r, R))
+    (hfalse : ∀ y ∈ R, y ≠ l → y.negate ∈ t) (h : propagateHints db (l :: t) hs = true) :
+    propagateHints db t (r :: hs) = true := by
+  rw [propagateHints_cons, hR]
+  dsimp only
+  have hopen : ∀ y ∈ R.filter (fun y => !t.contains y.negate), y = l := fun y hy => by
+    obtain ⟨hy, hyt⟩ := List.mem_filter.1 hy
+    by_contra hne
+    exact absurd (hfalse y hy hne) (by simpa using hyt)
+  split
+  · rfl
+  · rename_i a as has
+    obtain rfl : a = l := hopen a (has ▸ List.mem_cons_self)
+    rw [ite_eq_left (List.all_eq_true.2 fun y hy => by
+      simpa using hopen y (has ▸ List.mem_cons_of_mem _ hy))]
+    exact h
+
+/-- **Unit propagation along hints succeeds from more literals.** -/
+theorem propagateHints_mono {db : List (ℕ × Clause ℕ)} :
+    ∀ {t t' : List (Literal ℕ)} {hs : List ℕ}, (∀ l ∈ t, l ∈ t') →
+      propagateHints db t hs = true → propagateHints db t' hs = true
+  | _, _, [], _, h => by simp [propagateHints_nil] at h
+  | t, t', i :: hs, ht, h => by
+    rw [propagateHints_cons] at h ⊢
+    cases hf : db.find? (·.1 == i) with
+    | none => simp [hf] at h
+    | some e =>
+      simp only [hf] at h ⊢
+      -- the literals left open from `t'` are left open from `t`
+      have hsub : ∀ y ∈ e.2.filter (fun y => !t'.contains y.negate),
+          y ∈ e.2.filter (fun y => !t.contains y.negate) := fun y hy => by
+        obtain ⟨hy, hyt⟩ := List.mem_filter.1 hy
+        refine List.mem_filter.2 ⟨hy, ?_⟩
+        cases hc : t.contains y.negate
+        · rfl
+        · exact absurd (ht _ (List.contains_iff_mem.1 hc)) (by simpa using hyt)
+      split at h
+      · rename_i hnil
+        have : e.2.filter (fun y => !t'.contains y.negate) = [] :=
+          List.eq_nil_iff_forall_not_mem.2 fun y hy => by
+            have := hsub y hy
+            rw [hnil] at this
+            exact absurd this List.not_mem_nil
+        rw [this]
+      · rename_i l ls hls
+        split at h
+        · rename_i hall
+          have hl : ∀ y ∈ e.2.filter (fun y => !t'.contains y.negate), y = l := fun y hy => by
+            have := hsub y hy
+            rw [hls] at this
+            rcases List.mem_cons.1 this with rfl | h'
+            · rfl
+            · simpa using List.all_eq_true.1 hall y h'
+          split
+          · rfl
+          · rename_i a as has
+            obtain rfl : a = l := hl a (has ▸ List.mem_cons_self)
+            rw [ite_eq_left (List.all_eq_true.2 fun y hy => by
+              simpa using hl y (has ▸ List.mem_cons_of_mem _ hy))]
+            exact propagateHints_mono (fun x hx => by
+              rcases List.mem_cons.1 hx with rfl | hx
+              · exact List.mem_cons_self
+              · exact List.mem_cons_of_mem _ (ht x hx)) h
+        · simp at h
 /-- **Hints refuting the clauses containing `C`**: from the negation of any clause containing the
 literals `C`, unit propagation along `hints` in `db` reaches a conflict. -/
 def RupHints (db : List (ℕ × Clause ℕ)) (C : Literal ℕ → Prop) (hints : List ℕ) : Prop :=
@@ -225,21 +290,8 @@ refuting `C`, after `r`, refute `C'`: the clause `R` propagates `l`, and then th
 holds. -/
 theorem resolve (h : RupHints db C hints) {r : ℕ} {R : Clause ℕ} {l : Literal ℕ}
     (hR : db.find? (·.1 == r) = some (r, R)) (hRC : ∀ y ∈ R, y ≠ l → C' y)
-    (hC : ∀ y, C y → y = l.negate ∨ C' y) : RupHints db C' (r :: hints) := fun t ht => by
-  rw [propagateHints_cons, hR]
-  dsimp only
-  -- the literals of `R` left open by `t` are all `l`
-  have hopen : ∀ y ∈ R.filter (fun y => !t.contains y.negate), y = l := fun y hy => by
-    obtain ⟨hy, hyt⟩ := List.mem_filter.1 hy
-    by_contra hne
-    exact absurd (ht y (hRC y hy hne)) (by simpa using hyt)
-  split
-  · rfl
-  · rename_i a as has
-    obtain rfl : a = l := hopen a (has ▸ List.mem_cons_self)
-    rw [ite_eq_left (List.all_eq_true.2 fun y hy => by
-      simpa using hopen y (has ▸ List.mem_cons_of_mem _ hy))]
-    refine h _ fun y hy => ?_
+    (hC : ∀ y, C y → y = l.negate ∨ C' y) : RupHints db C' (r :: hints) := fun t ht =>
+  propagateHints_cons_unit hR (fun y hy hne => ht y (hRC y hy hne)) <| h _ fun y hy => by
     rcases hC y hy with rfl | hy
     · simp [Std.Sat.Literal.negate]
     · exact List.mem_cons_of_mem _ (ht y hy)
@@ -448,20 +500,6 @@ theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉
   · subst he
     simp [hi]
   · simp [he]
-
-/-- **Unit propagation along hints on the log's database**, as `propagateHints`, reading the
-hinted clauses from the index: the same worker (`Cslib.Logic.PL.CNF.propagateWith`) with another
-lookup. -/
-def propagate (log : LRATLog φ) : List (Literal ℕ) → List ℕ → Bool :=
-  propagateWith log.clause?
-
-theorem propagate_eq (log : LRATLog φ) (t : List (Literal ℕ)) (hs : List ℕ) :
-    log.propagate t hs = propagateHints log.db t hs := by
-  unfold propagate propagateHints
-  congr 1
-  funext h
-  rw [log.clause?_eq h, List.lookup_eq_map_find?]
-  exact congrArg _ (congrArg (List.find? · _) (funext fun _ => BEq.comm))
 
 /-- **Closing the log** with an empty-clause step, given hints along which unit propagation
 reaches a conflict from no assumption. -/

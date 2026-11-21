@@ -1937,10 +1937,15 @@ most `bound` conflicts. -/
           (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)
+        have hbelow : Reasons T₁.exec.log sp.below := (hT.exec.split_reasons hsp).append_right.tail
+        have hnd : (Trail.vars (XTrail.trail sp.below)).Nodup := by
+          have := hT.exec.split_nodup hsp
+          rw [trail_level, vars_append] at this
+          exact this.of_append_right
         let L := match T₁.opts.ccminMode with
           | .none => L₀
-          | .basic => L₀.minimize sp.below (recursive := false)
-          | .recursive => L₀.minimize sp.below (recursive := true)
+          | .basic => L₀.minimize hbelow hnd (recursive := false)
+          | .recursive => L₀.minimize hbelow hnd (recursive := true)
         let k₀ := (dedupLits L₀.clause).length
         have hspec := WExec.afterConflict_spec hT₁ he hconf hsp L k₀
         loop φ limit bound fuel (T₁.afterConflict sp L k₀) hspec.1 (by
