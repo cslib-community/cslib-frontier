@@ -170,6 +170,28 @@ theorem replayChoices_choose {input : List Bool} (cfg : Cfg k Bool (State SI SP 
   rw [replayChoices, hstep]
   cases b <;> simp [Option.bind, atChoice, hcfg]
 
+/-- A halted replay from a choice boundary must record a genuine choice. -/
+theorem replayChoices_choose_ne_nil {input : List Bool}
+    {cfg final : Cfg k Bool (State SI SP SF) input} {indices : List ℕ} {bits : List Bool}
+    (hcfg : cfg.state = some .choose)
+    (hr : replayChoices I P F C cfg indices = some (bits, final))
+    (hhalt : final.Halted) : bits ≠ [] := by
+  cases indices with
+  | nil =>
+    have hf := congrArg (fun x => x.map (fun p => p.2.state)) hr
+    simp only [replayChoices_nil, Option.map_some] at hf
+    rw [hcfg, hhalt] at hf
+    cases hf
+  | cons j indices =>
+    rw [replayChoices] at hr
+    obtain ⟨next, _, hrest⟩ := Option.bind_eq_some_iff.mp hr
+    obtain ⟨⟨trace, last⟩, _, heq⟩ := Option.map_eq_some_iff.mp hrest
+    have he := congrArg Prod.fst heq
+    simp only [atChoice, hcfg, ↓reduceIte] at he
+    intro hnil
+    rw [hnil] at he
+    cases he
+
 /-- A live native step outside a choice boundary has one occurrence and records no bit. -/
 theorem replayChoices_step_zero {input : List Bool}
     {cfg next : Cfg k Bool (State SI SP SF) input}
