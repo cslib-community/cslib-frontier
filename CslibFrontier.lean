@@ -6939,6 +6939,7 @@ public import CslibFrontier.Foundations.Geometry.Orthogonal.Subdivision
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Trim
 public import CslibFrontier.Foundations.Geometry.Polygonal.AngleOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
+public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularSpokes
 public import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleConnector
