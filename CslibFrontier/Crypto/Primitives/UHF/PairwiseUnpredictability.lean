@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Crypto.Computational.TwoStage
 public import CslibFrontier.Probability.HashFamily
 import CslibFrontier.Languages.Probabilistic.Semantics
+import CslibFrontier.Probability.HashFamily.UniformOffset
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 
 /-!
@@ -30,11 +32,13 @@ adversary chooses another message and tries to predict its digest.
 * `Cslib.Crypto.UHF.IsPairwiseUnpredictable.isUniversalHash` and
   `Cslib.Crypto.UHF.IsPairwiseUnpredictable.isDeltaUniversalHash`: the bound also holds
   for collisions and for predicted hash differences.
+* `Cslib.Crypto.UHF.isPairwiseUnpredictable_add_uniform`: adding an independent uniform
+  digest to a difference-universal family gives pairwise unpredictability (Lemma 7.11).
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
-  Section 7.6.1.
+  Sections 7.6.1–7.6.2.
 -/
 
 public section
@@ -99,5 +103,22 @@ theorem IsPairwiseUnpredictable.isDeltaUniversalHash [AddGroup Y]
     IsDeltaUniversalHash (PMF.uniformOfFintype K) H ε := by
   intro m m' hne d
   simpa only [sub_eq_iff_eq_add] using prediction_le h hne (d + ·)
+
+/-- **Lemma 7.11** ([BonehShoup2023], v0.6, Section 7.6.2, printed p. 276). Add an
+independent uniform digest to every hash evaluation. If the original family is
+`ε`-difference universal, the resulting family is `ε`-pairwise unpredictable. The challenger
+uses a uniform key in the product of the original key and digest spaces. The argument works
+for finite additive groups, including the source's cyclic groups. -/
+theorem isPairwiseUnpredictable_add_uniform [AddGroup Y] [Fintype Y]
+    (h : IsDeltaUniversalHash (PMF.uniformOfFintype K) H ε) :
+    IsPairwiseUnpredictable (fun (key : K × Y) m => H key.1 m + key.2) ε := by
+  intro σ A
+  simp only [predictionExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  rw [PMF.bind_comm]
+  refine Probability.PMF.bind_apply_le_on_support _ fun ⟨m, state⟩ _ => ?_
+  rw [← Probability.PMF.uniformOfFintype_prod K Y]
+  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Bool.decide_and]
+  exact h.bind_uniform_offset_le m (fun t => ProbComp.eval (A.guess state t))
+    PredictionGuess.message PredictionGuess.digest
 
 end Cslib.Crypto.UHF
