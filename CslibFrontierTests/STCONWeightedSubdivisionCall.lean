@@ -153,6 +153,39 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   exact ⟨hbefore, hhalt, hadj, hspace,
     configurationJustesenSubdivisionEdge_firstHalting_iff ntm c w seed u v⟩
 
+-- A vertex has no edge to itself. The parser returns false and preserves a nonempty suffix.
+-- Changing only the return selector makes that same parse fail.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (u : Fin size.vertexCount),
+      let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
+      let entry := some (justesenSubdivisionEdgeStart (ctx, u.val, u.val))
+      let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+      M.readReply (Option.map callbackVerdict) w entry [false, false, false, false, true] =
+        some (false, [true]) ∧
+      M.readReply (Option.map callbackVerdict) w entry [false, false, false, true, true] =
+        none := by
+  intro I size seed u ctx entry M
+  let v := (configurationSubdivisionIndex ntm c w).symm u
+  have hno : ¬ (graph (layeredDigraph I)
+      (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj v v := by
+    rintro (⟨_, hopen, _⟩ | ⟨_, _, hedge⟩)
+    · omega
+    · have hl := (layeredDigraph I).layer_adj hedge
+      omega
+  have hreply bits := configurationJustesenSubdivisionEdge_readReply_iff
+    ntm c w seed u u bits [true] false
+  refine ⟨(hreply _).mpr ⟨rfl, iff_of_false (by decide) hno⟩, ?_⟩
+  cases h : M.readReply (Option.map callbackVerdict) w entry [false, false, false, true, true] with
+  | none => rfl
+  | some reply =>
+    obtain ⟨hit, rest⟩ := reply
+    have hbits := ((configurationJustesenSubdivisionEdge_readReply_iff
+      ntm c w seed u u _ rest hit).mp h).1
+    cases hbits
+
 -- The clock covers arbitrary selectors, and an initial wrong selector may be padded.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ∃ C, ∀ w : List Bool,
