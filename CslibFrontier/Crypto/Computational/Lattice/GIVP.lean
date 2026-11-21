@@ -7,7 +7,9 @@ Authors: Mayank Rathee
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.Lattice.ShortestVector
+public import CslibFrontier.Init
+public import Mathlib.Analysis.Normed.Module.Basic
+public import Mathlib.LinearAlgebra.Dimension.Finrank
 
 /-!
 # Generalized independent vectors and guaranteed distance decoding
@@ -18,8 +20,9 @@ single-lattice predicate style as `CslibFrontier/Crypto/Computational/Lattice/Sh
 
 * `GIVP^φ_γ` ([MicciancioRegev2007], Definition 2.6, §2, p. 7): given a lattice `L`, find
   `n = rank L` linearly independent vectors of `L`, each of norm at most `γ · φ(L)`
-  (`Cslib.Crypto.GIVP.IsSolution`). When `φ(L) = λ_n(L)`, this is `Cslib.Crypto.SIVP.IsSolution`
-  (`Cslib.Crypto.GIVP.isSolution_successiveMinimum_iff`).
+  (`Cslib.Crypto.GIVP.IsSolution`). `SIVP_γ` in
+  `CslibFrontier/Crypto/Computational/Lattice/ShortestVector.lean` is the specialization
+  `φ(L) = λ_n(L)`.
 * `GDD^φ_γ` ([MicciancioRegev2007], Definition 2.7, §2, p. 7): given a lattice `L` and a target
   point `t`, find a lattice point `x ∈ L` within distance `γ · φ(L)` of `t`
   (`Cslib.Crypto.GDD.IsSolution`).
@@ -45,7 +48,6 @@ is efficient.
 ## Main results
 
 * `Cslib.Crypto.GDD.IsSolution.mono`: monotonicity of `GDD^φ_γ` solutions in `γ`.
-* `Cslib.Crypto.GIVP.isSolution_successiveMinimum_iff`: `GIVP^{λ_n}_γ` coincides with `SIVP_γ`.
 * `Cslib.Crypto.GIVP.IsSolution.mono`: monotonicity of `GIVP^φ_γ` solutions in `γ`.
 * `Cslib.Crypto.GIVP.IsSolution.of_param_le`: transferring `GIVP^φ_γ` solutions across a parameter
   comparison `φ L ≤ c · ψ L`.
@@ -60,7 +62,7 @@ public section
 
 namespace Cslib.Crypto
 
-open ZLattice Module
+open Module
 
 section GDD
 
@@ -88,9 +90,11 @@ variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
 
 /-- `v` solves the generalized independent vectors problem `GIVP^φ_γ` on `L`: its `n = rank L`
 vectors are linearly independent over `ℝ`, lie in `L`, and each have norm at most `γ · φ(L)`
-([MicciancioRegev2007], Definition 2.6, §2, p. 7). As in `SIVP.IsSolution`, indexing by
-`Fin (finrank ℤ L)` fixes the number of vectors to the rank of `L`; on a `ℤ`-submodule that is not
-finitely generated `finrank ℤ L` is `0`, so the predicate is meant for discrete lattices. -/
+([MicciancioRegev2007], Definition 2.6, §2, p. 7). The family is indexed by `Fin (finrank ℤ L)`,
+so a solver cannot return fewer vectors than the rank; for a full-rank lattice `n` is the dimension
+of the space (`ZLattice.rank`). For a discrete lattice in a finite-dimensional space `finrank ℤ L`
+is its rank; on a `ℤ`-submodule that is not finitely generated `finrank ℤ L` is the junk value `0`,
+so the predicate is meant for discrete lattices. -/
 structure GIVP.IsSolution (φ : Submodule ℤ E → ℝ) (γ : ℝ) (L : Submodule ℤ E)
     (v : Fin (finrank ℤ L) → E) : Prop where
   /-- The vectors are linearly independent over `ℝ`. -/
@@ -99,14 +103,6 @@ structure GIVP.IsSolution (φ : Submodule ℤ E → ℝ) (γ : ℝ) (L : Submodu
   mem : ∀ i, v i ∈ L
   /-- Every vector has norm at most `γ · φ(L)`. -/
   norm_le : ∀ i, ‖v i‖ ≤ γ * φ L
-
-/-- Taking `φ(L) = λ_n(L)` (`ZLattice.successiveMinimum L (finrank ℤ L)`), `GIVP^φ_γ` coincides
-with `SIVP_γ` ([MicciancioRegev2007], §2, p. 7). -/
-theorem GIVP.isSolution_successiveMinimum_iff (γ : ℝ) (L : Submodule ℤ E)
-    (v : Fin (finrank ℤ L) → E) :
-    GIVP.IsSolution (fun L => successiveMinimum L (finrank ℤ L)) γ L v ↔ SIVP.IsSolution γ L v :=
-  ⟨fun h => ⟨h.linearIndependent, h.mem, h.norm_le⟩,
-    fun h => ⟨h.linearIndependent, h.mem, h.norm_le⟩⟩
 
 /-- Enlarging the approximation factor `γ` preserves `GIVP^φ_γ` solutions when `0 ≤ φ L`. -/
 theorem GIVP.IsSolution.mono {φ : Submodule ℤ E → ℝ} {γ γ' : ℝ} {L : Submodule ℤ E}

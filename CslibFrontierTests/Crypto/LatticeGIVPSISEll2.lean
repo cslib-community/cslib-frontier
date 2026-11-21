@@ -8,26 +8,29 @@ module
 
 public import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Computational.Lattice.GIVP
+import CslibFrontier.Crypto.Computational.Lattice.ShortestVector
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
 
 /-!
 # Tests for `GIVP`, `GDD`, `IncGDD`, and `ℓ₂`-SIS
 
 Ordinary `module` client verifying the public interfaces of
-`CslibFrontier/Crypto/Computational/Lattice/GIVP.lean` and
+`CslibFrontier/Crypto/Computational/Lattice/GIVP.lean`,
+`CslibFrontier/Crypto/Computational/Lattice/ShortestVector.lean`, and
 `CslibFrontier/Crypto/Computational/SIS/Ell2.lean`:
 
-1. Concrete `GIVP`, `GDD`, and `IncGDD` witnesses on `ℤ² ⊂ EuclideanSpace ℝ (Fin 2)` (including
-   the `GIVP`/`SIVP` equivalence, parameter transfer, off-lattice `GDD`, a non-isotropic
-   `IncGDD` basis with `‖S‖ = 3`, and a rank-`0` boundary check).
+1. Concrete `GIVP`, `SIVP`, `GDD`, and `IncGDD` witnesses on `ℤ² ⊂ EuclideanSpace ℝ (Fin 2)`
+   (including `SIVP.IsSolution` as the definitional `φ = λ_n` specialization of `GIVP.IsSolution`,
+   parameter transfer, off-lattice `GDD`, a non-isotropic `IncGDD` basis with `‖S‖ = 3`, and a
+   rank-`0` boundary check).
 2. Concrete `ℓ₂`-SIS checks: MR07 Lemma 5.2 (`SIS.exists_isEll2Solution`), the integer
-   sum-of-squares characterization (`SIS.isEll2Solution_nat_iff`), negative-bound rejection,
-   the trivial `β = q` regime, `ℓ_∞`/`ℓ₂` sharpness separation on `![1, 1]`, nonvacuity of
-   `SISEll2` (`not_sisEll2_zeroRowSIS`), and chaining `SISEll2.toSIS` into
-   `SIS.collisionResistantForOn_ajtaiWordHash`.
+   sum-of-squares characterization (`SIS.isEll2Solution_nat_iff`), real-bound monotonicity
+   (`sisEll2Advantage_mono`), negative-bound rejection, the trivial `β = q` regime, `ℓ_∞`/`ℓ₂`
+   sharpness separation on `![1, 1]`, and chaining `SISEll2.toSIS` into
+   `SIS.collisionResistantForOn_ajtaiWordHash`. Nonvacuity of `SISEll2` is proved in
+   `CslibFrontierTests/Crypto/ModuleSIS.lean` (`not_sisEll2_zeroRowSIS`) by reusing `zeroRowSIS`
+   and `not_sis_zeroRowSIS` through `SISEll2.toSIS`.
 -/
 
 namespace CslibFrontierTests.Crypto.LatticeGIVPSISEll2
@@ -79,24 +82,26 @@ private theorem minimum_stdEuc : minimum stdEuc = 1 :=
         ((EuclideanSpace.basisFun (Fin 2) ℝ).toBasis.ne_zero 0))
     ((le_minimum_iff stdEuc_ne_bot).2 fun _ => one_le_norm_stdEuc)
 
-/-- The standard basis solves `GIVP^{λ₂}_1` and equivalently `SIVP_1` on `ℤ²`. -/
+/-- The standard basis solves `GIVP^{λ₂}_1` on `ℤ²`, which is definitionally `SIVP_1`
+(`SIVP.IsSolution`), and `SIVP.IsSolution.mono` / `SIVP.IsSolution.one_le` apply directly. -/
 example :
     GIVP.IsSolution (fun L => successiveMinimum L (Module.finrank ℤ L)) 1 stdEuc
       (fun i => EuclideanSpace.basisFun (Fin 2) ℝ (Fin.cast finrank_stdEuc i)) ∧
-    SIVP.IsSolution 1 stdEuc
+    SIVP.IsSolution 2 stdEuc
       (fun i => EuclideanSpace.basisFun (Fin 2) ℝ (Fin.cast finrank_stdEuc i)) := by
   have hmin : 1 ≤ successiveMinimum stdEuc (Module.finrank ℤ stdEuc) := by
     rw [finrank_stdEuc]
     calc (1 : ℝ) = minimum stdEuc := minimum_stdEuc.symm
       _ ≤ _ := minimum_le_successiveMinimum stdEuc stdEuc_ne_bot (by norm_num) (by simp)
-  have hGIVP :
-      GIVP.IsSolution (fun L => successiveMinimum L (Module.finrank ℤ L)) 1 stdEuc
+  have hSIVP :
+      SIVP.IsSolution 1 stdEuc
         (fun i => EuclideanSpace.basisFun (Fin 2) ℝ (Fin.cast finrank_stdEuc i)) := by
     refine ⟨(EuclideanSpace.basisFun (Fin 2) ℝ).toBasis.linearIndependent.comp _
       (Fin.cast_injective _), fun i => Submodule.subset_span ⟨_, rfl⟩, fun i => ?_⟩
     rw [one_mul, norm_basisFun]
     exact hmin
-  exact ⟨hGIVP, (GIVP.isSolution_successiveMinimum_iff 1 stdEuc _).1 hGIVP⟩
+  have _ : (1 : ℝ) ≤ 1 := hSIVP.one_le (by simp)
+  exact ⟨hSIVP, hSIVP.mono (by norm_num)⟩
 
 /-- `GIVP.IsSolution.mono` and `GIVP.IsSolution.of_param_le` transfer bounds across parameters. -/
 example :
@@ -205,7 +210,8 @@ private abbrev toyMat : Matrix (Fin 1) (Fin 2) (ZMod 3) := !![1, 2]
 
 /-- Concrete instantiation of MR07 Lemma 5.2 (`SIS.exists_isEll2Solution`): for `n = 1, m = 2,
 q = 3`, `√2 · 3^{1/2} = √6`, so `toyMat` admits an `ℓ₂`-SIS solution of norm at most `√6`. -/
-example : ∃ z : Fin 2 → ℤ, SIS.IsEll2Solution toyMat (Real.sqrt 6) z := by
+public theorem exists_isEll2Solution_toyMat :
+    ∃ z : Fin 2 → ℤ, SIS.IsEll2Solution !![(1 : ZMod 3), 2] (Real.sqrt 6) z := by
   refine SIS.exists_isEll2Solution (by norm_num : 0 < 2) toyMat ?_
   have h3 : (3 : ℝ) ^ ((1 : ℝ) / 2) = Real.sqrt 3 := by
     rw [Real.sqrt_eq_rpow]
@@ -218,7 +224,8 @@ example : SIS.IsEll2Solution toyMat (2 : ℕ) ![1, 1] :=
   (SIS.isEll2Solution_nat_iff toyMat 2 ![1, 1]).2 (by decide)
 
 /-- Sharpness separation between `ℓ_∞` and `ℓ₂`: `![1, 1]` is an `ℓ_∞`-SIS solution at bound `1`
-and an `ℓ₂`-SIS solution at bound `√2`, but not an `ℓ₂`-SIS solution at bound `1`. -/
+and an `ℓ₂`-SIS solution at non-integer real bound `√2`, but not an `ℓ₂`-SIS solution at bound
+`1`. -/
 example :
     SIS.IsSolution toyMat 1 ![1, 1] ∧
     SIS.IsEll2Solution toyMat (Real.sqrt 2) ![1, 1] ∧
@@ -231,6 +238,13 @@ example :
     decide
   exact ⟨hinf, hell2, hnot⟩
 
+/-- Non-integer real-bound monotonicity of `sisEll2Advantage` and comparison with `sisAdvantage`. -/
+example (S : Matrix (Fin 1) (Fin 2) (ZMod 3) → ProbComp (Fin 2 → ℤ)) :
+    sisEll2Advantage 3 1 S ≤ sisEll2Advantage 3 (Real.sqrt 2) S ∧
+    sisAdvantage 3 1 S ≤ sisEll2Advantage 3 (Real.sqrt 2) S :=
+  ⟨sisEll2Advantage_mono 3 (by rw [Real.le_sqrt (by norm_num) (by norm_num)]; norm_num) S,
+    sisAdvantage_le_sisEll2Advantage 3 (by simp) S⟩
+
 /-- Negative Euclidean bounds admit no `ℓ₂`-SIS solutions. -/
 example (z : Fin 2 → ℤ) : ¬SIS.IsEll2Solution toyMat (-1) z := fun hz =>
   not_lt_of_ge hz.2.1 (lt_of_lt_of_le (by norm_num : (-1 : ℝ) < 0) (norm_nonneg _))
@@ -242,31 +256,6 @@ example (A : Matrix (Fin 1) (Fin 2) (ZMod 3)) : SIS.IsEll2Solution A (3 : ℕ) !
   refine ⟨by decide, by decide, ?_⟩
   have hzero : (Int.cast ∘ (![3, 0] : Fin 2 → ℤ) : Fin 2 → ZMod 3) = 0 := by decide
   rw [hzero, Matrix.mulVec_zero]
-
-/-- Degenerate `SISParams` with `0` rows, `1` column, modulus `3`, and bound `1`. -/
-@[expose] public def zeroRowSIS : SISParams where
-  n _ := 0
-  m _ := 1
-  q _ := 3
-  β _ := 1
-  hq _ := inferInstance
-
-/-- The constant solver answering the all-ones vector. -/
-private def onesSolver : zeroRowSIS.Solver := fun _ _ => pure 1
-
-/-- With zero rows, `onesSolver` wins `sisEll2Experiment` with probability `1` and is a constant
-strict PPT machine, so `SISEll2` is not vacuous. -/
-public theorem not_sisEll2_zeroRowSIS : ¬SISEll2 zeroRowSIS := fun h => by
-  have hwin (κ : ℕ) :
-      sisEll2Advantage (zeroRowSIS.q κ) (zeroRowSIS.β κ : ℝ) (onesSolver κ) = 1 := by
-    have hsol (A : Matrix (Fin 0) (Fin 1) (ZMod 3)) : SIS.IsEll2Solution A (1 : ℕ) 1 :=
-      (SIS.isEll2Solution_nat_iff A 1 1).2 ⟨by decide, by decide, funext fun i => i.elim0⟩
-    unfold sisEll2Advantage sisEll2Experiment onesSolver zeroRowSIS
-    dsimp only
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, hsol, decide_true,
-      PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
-  refine not_negligible_const one_ne_zero ((h onesSolver ?_).congr hwin)
-  exact (ComputableInPolyTime.const (SIS.encodeVec (1 : Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
 
 /-- Polynomial `SISParams` family with `m = (κ + 1)(κ + 3)` and Euclidean bound `β = κ + 3 ≥ √m`,
 so `SISEll2` directly implies `ℓ_∞`-`SIS` at bound `1` and Ajtai collision resistance. -/

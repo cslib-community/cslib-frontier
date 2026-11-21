@@ -195,7 +195,8 @@ structure SISParams where
   m : ℕ → ℕ
   /-- Modulus at each security parameter. -/
   q : ℕ → ℕ
-  /-- Infinity-norm bound on solution coordinates. -/
+  /-- Norm bound on solution vectors, interpreted according to the norm-specific SIS game (`ℓ_∞` in
+  `SIS`, Euclidean `ℓ₂` in Euclidean-norm variants). -/
   β : ℕ → ℕ
   /-- Every modulus is nonzero. -/
   hq : ∀ security, NeZero (q security)

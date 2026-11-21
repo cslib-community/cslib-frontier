@@ -263,9 +263,13 @@ ways.
 * The bound `P.β κ` is a natural number rather than an arbitrary positive real function `β(n)`,
   because `SISEll2` reuses `SISParams` directly. Real Euclidean bounds are supported at the
   fixed-instance level by `SIS.IsEll2Solution`, `sisEll2Experiment`, and `sisEll2Advantage`.
-* The parameter family `P` is arbitrary as a function of a separate security parameter `κ`, whereas
-  [MicciancioRegev2007] takes `n` as the security parameter and assumes `m, q = poly(n)` and
-  `β ≥ √m · q^{n/m}` (Lemma 5.2, p. 17) so that solutions exist.
+* The parameter family `P` is an arbitrary schedule indexed by a separate security parameter `κ`,
+  whereas [MicciancioRegev2007], Definition 5.3 (§5.1, p. 17), takes the number of equations `n`
+  as the security parameter and allows arbitrary `n`-indexed functions `q(n)`, `m(n)`, and `β(n)`
+  (noting on p. 17 that polynomial instance size requires `m(n) = n^{O(1)}` while `q(n)` and `β(n)`
+  may be exponentially large, that taking `q(n)` and `β(n)` polynomially bounded as well is the
+  typical choice of interest, and that the Lemma 5.2 threshold `β ≥ √m · q^{n/m}` is a sufficient
+  guarantee that solutions exist rather than part of Definition 5.3).
 * Solvers are uniform classical strict PPT programs (`SISParams.Solver.IsPPT`) whose success
   probability must be negligible in `κ`, matching `SIS`. -/
 def SISEll2 (P : SISParams) : Prop :=
