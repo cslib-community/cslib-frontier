@@ -4,6 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+
+-- `import all`: the `decide` checks below evaluate `stepTop`, whose body is not exposed, and its
+-- private helpers.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
@@ -13,6 +18,8 @@ formula; the same step with a witness that does not repair, or with an unproved 
 and, with an objective, a `red` step whose witness raises the objective, accepted without the
 objective and rejected with it; and an `EQUIENUMERABLE` output section, checked by `decide`, with
 its soundness theorems applied. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 

@@ -823,9 +823,24 @@ end pseudo-Boolean proof;
   some (.bounds (some 1) 3 (some 1) none)
 -- Without the constant, the objective `0` is not `x1` on the core (VeriPB rejects).
 #guard (checkOPB twoOpt (objuConstProof.replace "-1 x1 1 ;" "-1 x1 ;")).isNone
--- A constraint still needs its relation: a constant is no constraint.
-#guard (checkOPB twoOpt "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n"
-  |>.isNone)
+-- A constraint still needs its relation: a constant is no constraint (VeriPB and CakePB reject
+-- the instance).
+#guard (parseOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n").isNone
+#guard (parseOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n").isSome
+-- `min:` ends in an optional constant: `x1 + 5`, and `~x1 + 3`, that is `-x1 + 4`.
+#guard (parseOPB "min: 1 x1 5 ;\n1 x1 >= 1 ;\n").map (·.objective) == some (some ⟨[(0, 1)], 5⟩)
+#guard (parseOPB "min: 1 ~x1 3 ;\n1 x1 >= 1 ;\n").map (·.objective) == some (some ⟨[(0, -1)], 4⟩)
+-- The constant shifts the optimum: minimizing `x1 + 5` under `x1 >= 1` gives `6` (VeriPB and
+-- CakePB accept).
+#guard checkOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 5 ;\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
+  "pseudo-Boolean proof version 3.0
+f 2;
+soli x1 x2;
+rup >= 1 : 3 1;
+output NONE;
+conclusion BOUNDS 6 : 4 6;
+end pseudo-Boolean proof;
+" == some (.bounds (some 6) 4 (some 6) none)
 
 /-- Minimize `x1 + x2` subject to `x1 + x2 >= 1` and `~x2 >= 1`. -/
 def cancelOpt : String := "* #variable= 2 #constraint= 2
@@ -952,23 +967,35 @@ end pseudo-Boolean proof;
 #guard (checkOPB enum3 delcPresProof).isNone
 #guard checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" delcPresProof == some .noClaim
 
-/-- `x4` is preserved but appears neither in the constraints nor in the proof. The names of the
-proof are numbered after it, so the witness `aux -> 1` leaves the preserved set alone (VeriPB
-and CakePB accept). Numbered after the variables of the constraints alone, `aux` would be
-variable `3`, that is `x4`. -/
+/-- `x4` is preserved but appears neither in the constraints nor in the proof. -/
 def presOnly : String := "* #variable= 4 #constraint= 1
 preserved: x1 x4 ;
 1 x1 >= 1 ;
 "
 
-#guard checkOPB presOnly "pseudo-Boolean proof version 3.0
+/-- A `red` step on the proof's own name `aux`. -/
+def presOnlyProof : String := "pseudo-Boolean proof version 3.0
 f 1;
 red 1 aux >= 1 : aux -> 1 : subproof
 qed;
 output NONE;
 conclusion NONE;
 end pseudo-Boolean proof;
-" == some .noClaim
+"
+
+/-- The variable of the witness of a proof consisting of one `red` step. -/
+def redVar : Option RedProof → Option ℕ
+  | some ⟨[.red _ [(v, _)] _ _], _⟩ => some v
+  | _ => none
+
+-- The proof's names other than `xN` are numbered in order from the base, each at its last
+-- occurrence: `version`, `red`, `aux`, …, as `pseudo-Boolean` and `proof` recur at the end. So
+-- numbered after the constraints alone (base `1`), `aux` is variable `3`, that is the preserved
+-- `x4`; numbered after the preserved set too (base `4`), it is `6`.
+#guard redVar (parseProof 1 1 presOnlyProof) == some 3
+#guard redVar (parseProof 1 4 presOnlyProof) == some 6
+-- So the witness `aux -> 1` leaves the preserved set alone (VeriPB and CakePB accept).
+#guard checkOPB presOnly presOnlyProof == some .noClaim
 
 /-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. A witness that moves only the unpreserved `x3`
 is allowed (VeriPB and CakePB accept). -/
