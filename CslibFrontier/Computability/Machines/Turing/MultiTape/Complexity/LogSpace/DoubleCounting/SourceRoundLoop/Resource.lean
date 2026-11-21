@@ -33,6 +33,18 @@ variable {κ τ μ : Type}
 @[expose] def roundContext (size source : κ → ℕ) (r : Registers κ) : SourceRound.Context :=
   ⟨size r.context, source r.context, r.radius, r.tally⟩
 
+/-- Read the round arguments in workspace linear in the suspended loop registers. -/
+theorem roundContext_inSpace (size source : κ → ℕ) (encContext : κ ↪ List Bool)
+    (hsize : ComputableInSpace size encContext encNat (fun c => (encContext c).length))
+    (hsource : ComputableInSpace source encContext encNat (fun c => (encContext c).length)) :
+    ComputableInSpace (roundContext size source) (encRegisters encContext)
+      SourceRound.encContext (fun r => (encRegisters encContext r).length) := by
+  have hr := budget_id (enc := encRegisters encContext) (.refl _)
+  have hc := encRegisters_context_budget encContext hr
+  exact SourceRound.encContext_mk_budget (budget_comp_linear hsize hc)
+    (budget_comp_linear hsource hc) (encRegisters_radius_budget encContext hr)
+    (encRegisters_tally_budget encContext hr)
+
 /-- Prepare the source-round entry in workspace linear in the suspended loop registers. -/
 theorem roundEntry_inSpace (size source : κ → ℕ) (encContext : κ ↪ List Bool)
     (encCallee : τ ↪ List Bool)
@@ -40,13 +52,9 @@ theorem roundEntry_inSpace (size source : κ → ℕ) (encContext : κ ↪ List 
     (hsource : ComputableInSpace source encContext encNat (fun c => (encContext c).length)) :
     ComputableInSpace (fun r => SourceRound.entry (roundContext size source r))
       (encRegisters encContext) (SourceRound.encMachineState τ encCallee)
-      (fun r => (encRegisters encContext r).length) := by
-  have hr := budget_id (enc := encRegisters encContext) (.refl _)
-  have hc := encRegisters_context_budget encContext hr
-  have hctx := SourceRound.encContext_mk_budget (budget_comp_linear hsize hc)
-    (budget_comp_linear hsource hc) (encRegisters_radius_budget encContext hr)
-    (encRegisters_tally_budget encContext hr)
-  exact budget_comp_linear (SourceRound.entry_inSpace encCallee) hctx
+      (fun r => (encRegisters encContext r).length) :=
+  budget_comp_linear (SourceRound.entry_inSpace encCallee)
+    (roundContext_inSpace size source encContext hsize hsource)
 
 /-- Reachable scalar loop boundaries have the original context and polynomial count and sum. -/
 @[expose] def Admissible (context : κ) (size limit : ℕ) (r : Registers κ) : Prop :=

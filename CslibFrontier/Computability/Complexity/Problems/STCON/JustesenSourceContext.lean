@@ -21,7 +21,8 @@ carrier as the adjacency callback.
 ## Main definitions
 
 * `Cslib.Complexity.STCON.JustesenSourceContext`: the data retained across source rounds.
-* `Cslib.Complexity.STCON.justesenSourceMembershipStart`: the final membership entry.
+* `Cslib.Complexity.STCON.justesenRoundMembershipStart`: membership at a requested vertex.
+* `Cslib.Complexity.STCON.justesenSourceMembershipStart`: membership at the designated target.
 * `Cslib.Complexity.STCON.justesenSourceMembershipMachine`: the fixed re-entrant tally.
 
 ## Main results
@@ -81,11 +82,33 @@ theorem encJustesenSourceContext_size_budget {α : Type} {enc : α ↪ List Bool
     (encJustesenSubdivisionContext_subdivision_budget
       (encJustesenSourceContext_adjacency_budget hctx))
 
+/-- Enter membership at the candidate vertex, using the round's current tally. -/
+@[expose] def justesenRoundMembershipStart (adjacency : JustesenSubdivisionContext)
+    (ctx : SourceRound.Context) (target : ℕ) :
+    MembershipTally.RetainedState JustesenSubdivisionContext JustesenSubdivisionState :=
+  MembershipTally.retainedInitial adjacency
+    ⟨ctx.size, ctx.source, target, ctx.radius, ctx.expected⟩
+
+/-- Membership entry uses the shared budget of its adjacency, round, and target producers. -/
+theorem justesenRoundMembershipStart_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {adjacency : α → JustesenSubdivisionContext} {ctx : α → SourceRound.Context}
+    {target : α → ℕ} (hadj : ComputableInSpace adjacency enc encJustesenSubdivisionContext S)
+    (hctx : ComputableInSpace ctx enc SourceRound.encContext S)
+    (htarget : ComputableInSpace target enc encNat S) :
+    ComputableInSpace (fun a => justesenRoundMembershipStart (adjacency a) (ctx a) (target a))
+      enc (MembershipTally.encRetainedState encJustesenSubdivisionContext
+        encJustesenSubdivisionState) S :=
+  MembershipTally.retainedInitial_budget encJustesenSubdivisionContext encJustesenSubdivisionState
+    hadj (MembershipTally.encContext_mk_budget (SourceRound.encContext_size_budget hctx)
+      (SourceRound.encContext_source_budget hctx) htarget
+      (SourceRound.encContext_radius_budget hctx) (SourceRound.encContext_expected_budget hctx))
+
 /-- Enter final membership at the loop's current radius and verified tally. -/
 @[expose] def justesenSourceMembershipStart (r : SourceRoundLoop.Registers JustesenSourceContext) :
     MembershipTally.RetainedState JustesenSubdivisionContext JustesenSubdivisionState :=
-  MembershipTally.retainedInitial r.context.adjacency
-    ⟨r.context.size, r.context.sourceID, r.context.targetID, r.radius, r.tally⟩
+  justesenRoundMembershipStart r.context.adjacency
+    (SourceRoundLoop.roundContext JustesenSourceContext.size JustesenSourceContext.sourceID r)
+    r.context.targetID
 
 /-- Final membership entry uses linear workspace in the encoded source-loop registers. -/
 theorem justesenSourceMembershipStart_inSpace :
@@ -96,15 +119,25 @@ theorem justesenSourceMembershipStart_inSpace :
   intro E
   have hr := budget_id (enc := E) (.refl _)
   have hctx := SourceRoundLoop.encRegisters_context_budget encJustesenSourceContext hr
-  have hparams := MembershipTally.encContext_mk_budget
-    (encJustesenSourceContext_size_budget hctx)
-    (encJustesenSourceContext_sourceID_budget hctx) (encJustesenSourceContext_targetID_budget hctx)
-    (SourceRoundLoop.encRegisters_radius_budget encJustesenSourceContext hr)
-    (SourceRoundLoop.encRegisters_tally_budget encJustesenSourceContext hr)
-  exact MembershipTally.retainedInitial_budget encJustesenSubdivisionContext
-    encJustesenSubdivisionState (encJustesenSourceContext_adjacency_budget hctx) hparams
+  have hid := budget_id (enc := encJustesenSourceContext) (.refl _)
+  have hround := SourceRoundLoop.roundContext_inSpace
+    JustesenSourceContext.size JustesenSourceContext.sourceID encJustesenSourceContext
+    (encJustesenSourceContext_size_budget hid) (encJustesenSourceContext_sourceID_budget hid)
+  exact justesenRoundMembershipStart_budget (encJustesenSourceContext_adjacency_budget hctx)
+    hround (encJustesenSourceContext_targetID_budget hctx)
 
 variable {k : ℕ} {State : Type} [Fintype State]
+
+/-- A round's membership request keeps the round parameters and changes the query target. -/
+theorem justesenRoundMembershipMachine_withInit
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) (rank : ℕ)
+    (ctx : SourceRound.Context) (target : ℕ) :
+    (justesenSourceMembershipMachine ntm c).withInit
+      (justesenRoundMembershipStart (configurationJustesenSubdivisionContext ntm c w rank)
+        ctx target) =
+      configurationJustesenMembershipTally ntm c w rank
+        ⟨ctx.size, ctx.source, target, ctx.radius, ctx.expected⟩ :=
+  configurationJustesenMembershipTally_withInit ntm c [] w 0 rank _ _
 
 /-- Re-entry in the final membership call uses the source scan's word, rank, and tally. -/
 theorem justesenSourceMembershipMachine_withInit
@@ -118,9 +151,8 @@ theorem justesenSourceMembershipMachine_withInit
           ⟨(configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount,
             source, target, radius, totals⟩ := by
   intro ctx
-  unfold justesenSourceMembershipMachine
-  simp only [justesenSourceMembershipStart, ctx, configurationJustesenSourceContext_size]
-  exact configurationJustesenMembershipTally_withInit ntm c [] w 0 rank _ _
+  simp only [justesenSourceMembershipStart, ctx, justesenRoundMembershipMachine_withInit,
+    SourceRoundLoop.roundContext, configurationJustesenSourceContext_size]
 
 open NondeterministicQueryMachine in
 /-- A final membership return consumes the canonical typed tally selectors and the false

@@ -112,6 +112,26 @@ private theorem run_skip {n : ℕ} (edge : Fin n → Fin n → Bool) (source tar
   rw [Scan.run_eq_finish, hprefix]
   rfl
 
+/-- A round's membership entry queries its candidate on the original word. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let n := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source candidate : Fin n),
+      let ctx : SourceRound.Context := ⟨n, source.val, 0, ⟨0, 0⟩⟩
+      let adjacency := configurationJustesenSubdivisionContext ntm c w seed.val
+      let entry := justesenRoundMembershipStart adjacency ctx candidate.val
+      let M := (justesenSourceMembershipMachine ntm c).withInit entry
+      let bits := MembershipTally.selectors (BoundedWalk.selectors 3) (fun _ : Fin n => none)
+      M.FirstHalting w bits M.init ∧ MembershipTally.retainedReply (M.run w bits) = some false := by
+  intro I n seed source candidate ctx adjacency entry M bits
+  dsimp only [M, entry, adjacency]
+  rw [justesenRoundMembershipMachine_withInit]
+  refine (configurationJustesenMembershipTally_firstHalting_iff ntm c w seed source candidate
+    0 ⟨0, 0⟩ bits false).mpr ⟨fun _ => none, ⟨rfl, run_skip _ _ _⟩, ?_⟩
+  exact fun _ h =>
+    MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm
+
 /-- The final callback returns a passing negative reply and preserves the next selectors. -/
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
     (c : ℕ) (w : List Bool) :
