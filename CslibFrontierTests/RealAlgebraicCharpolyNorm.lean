@@ -6,6 +6,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (tests)
 
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ParameterExclusion
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.CoeffNorm
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantCoeffNorm
@@ -41,27 +42,60 @@ theorem quadraticQuotient :
     (d := 1) (Ω := 1) (V := 1) (R := 1) (by decide) _ (by simp) (by simp [coeffNorm1_parameter])
     (by decide) _ (by simp) (by simp) (by decide)
 
-private noncomputable def quadratic : Polynomial (Polynomial ℤ) := X ^ 2 + C X
+private noncomputable def quadratic : Polynomial (Polynomial ℤ) := X ^ 2 + C (X - 1)
 
-private theorem quadratic_degree : quadratic.natDegree ≤ 2 := by
-  exact (natDegree_add_le _ _).trans (by simp)
+private theorem quadratic_degree : quadratic.natDegree = 2 := natDegree_X_pow_add_C
 
-private theorem quadratic_norm : quadratic.bivariateCoeffNorm1 ≤ 2 := by
+private theorem quadratic_norm : quadratic.bivariateCoeffNorm1 ≤ 3 := by
   have hX : (X ^ 2 : Polynomial (Polynomial ℤ)).bivariateCoeffNorm1 ≤ 1 := by
     simpa only [one_mul, bivariateCoeffNorm1_one] using
       bivariateCoeffNorm1_mul_X_pow_le (1 : Polynomial (Polynomial ℤ)) 2
-  have hC : (C (X : ℤ[X])).bivariateCoeffNorm1 = 1 :=
-    (bivariateCoeffNorm1_C _).trans coeffNorm1_parameter
-  exact (bivariateCoeffNorm1_add_le _ _).trans (Nat.add_le_add hX hC.le)
+  have hC : (C (X - 1 : ℤ[X])).bivariateCoeffNorm1 ≤ 2 := by
+    rw [bivariateCoeffNorm1_C]
+    simpa only [coeffNorm1_parameter, coeffNorm1_one] using coeffNorm1_sub_le (X : ℤ[X]) 1
+  exact (bivariateCoeffNorm1_add_le _ _).trans (Nat.add_le_add hX hC)
 
-/-- Substituting `-2` for the outer variable of `Y² + U` retains a polynomial in `U`. -/
-private theorem quadraticValueSection : (quadratic.eval (C (-2))).coeffNorm1 ≤ 8 :=
+/-- Substituting `-2` for the outer variable of `Y² + U - 1` retains a polynomial in `U`. -/
+private theorem quadraticValueSection : (quadratic.eval (C (-2))).coeffNorm1 ≤ 12 :=
   (coeffNorm1_eval_C_le quadratic (-2) (by decide)).trans
-    (Nat.mul_le_mul quadratic_norm (Nat.pow_le_pow_right (by decide) quadratic_degree))
+    (Nat.mul_le_mul quadratic_norm (Nat.pow_le_pow_right (by decide) quadratic_degree.le))
 
 /-- The derivative-resultant estimate applies to the same nonconstant parameter family. -/
 private theorem quadraticDerivativeResultant :
-    (quadratic.resultant quadratic.derivative).coeffNorm1 ≤ 6144 :=
-  coeffNorm1_resultant_derivative_le quadratic quadratic_degree quadratic_norm
+    (quadratic.resultant quadratic.derivative).coeffNorm1 ≤ 31104 :=
+  coeffNorm1_resultant_derivative_le quadratic quadratic_degree.le quadratic_norm
+
+private theorem quadraticResultant : quadratic.resultant quadratic.derivative = 4 * (X - 1) := by
+  have hd : quadratic.derivative = C 2 * X := by
+    simp only [quadratic, derivative_add, derivative_X_sq, derivative_C, add_zero]
+  have hX : quadratic.resultant X 2 1 = quadratic.coeff 0 := by
+    have h := resultant_X_pow_right quadratic 2 1 quadratic_degree.le
+    rw [show (X : Polynomial (Polynomial ℤ)) ^ (1 : ℕ) = X from pow_one _,
+      Nat.mul_one, neg_one_sq, one_mul, pow_one] at h
+    exact h
+  rw [hd, quadratic_degree, natDegree_C_mul_X 2 (by norm_num), resultant_C_mul_right, hX]
+  norm_num [quadratic]
+
+/-- The derivative resultant has a positive real root at `U = 1`. -/
+private theorem quadraticResultantRoot :
+    (quadratic.resultant quadratic.derivative).eval₂ (Int.castRingHom ℝ) 1 = 0 := by
+  rw [quadraticResultant]
+  simp
+
+/-- The computed cutoff and parameter avoid both polynomials for `Y² + U - 1`. -/
+private theorem quadraticParameterExclusion :
+    let u : ℝ := 2 ^ parameterExclusionExponent 2 2
+    (quadratic.eval (C 8)).eval₂ (Int.castRingHom ℝ) u ≠ 0 ∧
+      (quadratic.resultant quadratic.derivative).eval₂ (Int.castRingHom ℝ) u ≠ 0 := by
+  have hp : quadratic ≠ 0 := by
+    intro h
+    have hdeg := quadratic_degree
+    rw [h, natDegree_zero] at hdeg
+    omega
+  have hres : quadratic.resultant quadratic.derivative ≠ 0 := by
+    rw [quadraticResultant]
+    exact mul_ne_zero (by norm_num) (by simpa only [C_1] using X_sub_C_ne_zero (1 : ℤ))
+  exact eval₂_ne_zero_at_parameterExclusion hp hres quadratic_degree.le
+    (quadratic_norm.trans (by decide))
 
 end CslibFrontierTests.RealAlgebraicCharpolyNorm

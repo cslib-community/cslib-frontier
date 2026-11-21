@@ -38,7 +38,7 @@ open scoped BigOperators
 @[expose] def separatedCenters {n : ℕ} (ell : ℕ) (i : Fin n) : ℕ :=
   (4 * ell) ^ (i.val + 1)
 
-variable {S : Type*} [CommRing S] {n : ℕ}
+variable {S T : Type*} [CommRing S] [CommRing T] {n : ℕ}
 
 open Classical in
 /-- The sum of separated pure-power potentials. -/
@@ -56,6 +56,27 @@ open Classical in
 @[expose] noncomputable def criticalLower (ell : ℕ) (a : Fin n → S) (u : S)
     (F : MvPolynomial (Fin n) S) (i : Fin n) : MvPolynomial (Fin n) S :=
   C (a i ^ ell) - C u * pderiv i F
+
+/-- Coefficient maps transport the separated potential. -/
+theorem potentialPolynomial_map (φ : S →+* T) (ell : ℕ) (a : Fin n → S) :
+    (potentialPolynomial ell a).map φ = potentialPolynomial ell (fun i => φ (a i)) := by
+  classical
+  simp only [potentialPolynomial, map_sum, map_add, map_sub, map_mul, map_pow, map_X,
+    map_C, map_natCast]
+
+/-- Coefficient maps transport the lower critical relations. -/
+theorem criticalLower_map (φ : S →+* T) (ell : ℕ) (a : Fin n → S) (u : S)
+    (F : MvPolynomial (Fin n) S) (i : Fin n) :
+    (criticalLower ell a u F i).map φ =
+      criticalLower ell (fun j => φ (a j)) (φ u) (F.map φ) i := by
+  simp only [criticalLower, map_sub, map_mul, map_C, map_pow, pderiv_map]
+
+/-- Coefficient maps transport the deformed potential. -/
+theorem deformedPolynomial_map (φ : S →+* T) (ell : ℕ) (a : Fin n → S) (u : S)
+    (F : MvPolynomial (Fin n) S) :
+    (deformedPolynomial ell a u F).map φ =
+      deformedPolynomial ell (fun i => φ (a i)) (φ u) (F.map φ) := by
+  simp only [deformedPolynomial, map_add, potentialPolynomial_map, map_mul, map_C, map_natCast]
 
 /-- The potential has separated pure-power partial derivatives. -/
 theorem pderiv_potentialPolynomial (ell : ℕ) (a : Fin n → S) (j : Fin n) :
