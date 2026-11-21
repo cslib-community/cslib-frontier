@@ -40,6 +40,30 @@ example {b : ℕ} (h₀ : P.instr b = .assign 1 (const 3) (b + 1))
   cp_step
   cp_step
 
+-- A block certificate can supply each instruction without an extra local `have`.
+example {b : ℕ} (hi : ∀ i, i < 2 → P.instr (b + i) = .assign 1 (const i) (b + i + 1))
+    (regs : List ℕ) (hB : ∀ r ∈ regs, r ≤ B) :
+    P.Reaches w (P.Running B) (b, regs) (b + 2, (regs.set 1 0).set 1 1) := by
+  fail_if_success cp_step using hi 1 (by decide)
+  cp_step using hi 0 (by decide)
+  cp_step using hi 1 (by decide)
+
+-- The user discharger proves a nonlinear register envelope without changing its bound.
+example {b next n : ℕ} (hi : P.instr b = .assign 0 (const 0) next)
+    (hb : n * (n + 1) ≤ B) :
+    P.Reaches w (P.Running B) (b, [n ^ 2 + n]) (next, [0]) := by
+  fail_if_success cp_step
+  cp_step (disch :=
+    intro r hr
+    rcases List.mem_singleton.mp hr with rfl
+    simpa only [Nat.mul_add, Nat.mul_one, pow_two] using hb)
+
+-- Symbolic oblivious registers use the optional module's rule and retain the non-choice premise.
+example {b next r : ℕ} (hi : P.instr b = .assign 1 (add (reg r) (const 1)) next)
+    (hr : r ≠ 0) (regs : List ℕ) (hB : ∀ x ∈ regs, x ≤ B) :
+    P.Reaches w (P.Oblivious B) (b, regs) (next, regs.set 1 (regs.getD r 0 + 1)) := by
+  cp_step
+
 -- A comparison decided by the value of a register, and a label written `c + 1 + 1`.
 example {c : ℕ} (h₀ : P.instr (c + 1 + 1) = .lt (reg 0) (const 3) (c + 3) (c + 4))
     (regs : List ℕ) (hB : ∀ r ∈ regs, r ≤ B) (h0 : regs.getD 0 0 = 5) :

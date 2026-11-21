@@ -120,17 +120,18 @@ private def closeSide (g : MVarId) : TacticM Bool := do
   if ← g.isAssigned then return true
   if (boundList? (← instantiateMVars (← g.getType))).isSome then return ← closeBound g
   if ← byAssumption g then return true
+  let readsChoice := mkCIdent `Turing.CounterProgram.Expr.readsChoice
   closesWith (← `(tactic| first
     | exact Nat.zero_le _
     | decide
     | omega
-    | (simp only [Turing.CounterProgram.Expr.readsChoice, Bool.or_eq_false_iff,
-        beq_eq_false_iff_ne, ne_eq] <;> omega))) g
+    | (simp only [$readsChoice:ident, Bool.or_eq_false_iff,
+        beq_eq_false_iff_ne, ne_eq, and_true, true_and] <;> omega))) g
 
 /-- Apply the rule `rule` to `g` if the instruction at the label of `g` is that of the rule: by a
 hypothesis, or, when `eval` is set, by evaluation. Returns the side conditions and the goal after
 the step. -/
-private def tryRule (g : MVarId) (eval : Bool) (rule : Name) :
+private def tryRule (g : MVarId) (eval : Bool) (instr? : Option Term) (rule : Name) :
     TacticM (Option (Array MVarId × MVarId)) := do
   unless (← getEnv).contains rule do return none
   let s ← saveState
@@ -143,8 +144,14 @@ private def tryRule (g : MVarId) (eval : Bool) (rule : Name) :
     let explicit := (args.zip binfos).filterMap fun (a, b) => if b.isExplicit then some a else none
     let some hinstr := explicit[0]? | s.restore; return none
     let some next := explicit.back? | s.restore; return none
-    let closed ← if eval then attempt do hinstr.mvarId!.refl; return true
-      else byAssumption hinstr.mvarId!
+    let closed ← match instr? with
+      | some h => closesWith (← `(tactic| exact $h)) hinstr.mvarId!
+      | none =>
+        if eval then
+          attempt do
+            hinstr.mvarId!.refl
+            return true
+        else byAssumption hinstr.mvarId!
     unless closed do
       s.restore
       return none
@@ -263,6 +270,11 @@ conditionals.
   (`regs.getD 0 0 = n`) and the input bit read (`w[k]? = some true`), or simprocs such as
   `Nat.reduceDiv`. A fact about expressions that `cp_simps` evaluates, such as
   `(const 0).eval regs < e.eval regs ↔ p`, is passed as `↓h`, to apply before they are evaluated.
+* `cp_step [h₁, h₂] using instr` supplies the instruction equation directly, for example an
+  instance `hcode 8 (by omega)` of a block certificate. It is elaborated against the rule's
+  instruction premise, so its arguments can be inferred from the current configuration.
+* `cp_step (disch := tac)` tries `tac` on side conditions the standard bound and arithmetic
+  procedures cannot prove. The step still fails if any side condition remains unproved.
 
 A conditional label `if c then l₁ else l₂` is decided when `c` or `¬c` is a hypothesis or, for a
 comparison of natural numbers or integers, follows by `omega`: that of the configuration before
@@ -278,9 +290,9 @@ configurations (`Reaches.assign`, `Reaches.lt`, `Reaches.read`), and, when their
 imported, of oblivious configurations (`Reaches.oassign`, `Reaches.olt`, `Reaches.oread`) and of
 shifted instructions (`Reaches.sassign`, `Reaches.slt`). A label left undecided, or as a `match`
 on the bit read, stops `cp_step` with a diagnostic: split into cases first. -/
-syntax (name := cpStep) "cp_step"
+syntax (name := cpStep) "cp_step" (Lean.Parser.Tactic.discharger)?
   (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>
-    Lean.Parser.Tactic.simpLemma),* "]")? : tactic
+    Lean.Parser.Tactic.simpLemma),* "]")? (" using " term)? : tactic
 
 /-- Simplify the configuration in `g` after a step, with the given simp lemmas `args`. -/
 private def simpNext (g : MVarId) (args : Array Syntax) : TacticM (List MVarId) := do
@@ -290,7 +302,7 @@ private def simpNext (g : MVarId) (args : Array Syntax) : TacticM (List MVarId) 
     Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, $args,*])) g
 
 elab_rules : tactic
-  | `(tactic| cp_step $[[$args,*]]?) => withMainContext do
+  | `(tactic| cp_step $[$disch?:discharger]? $[[$args,*]]? $[using $instr?]?) => withMainContext do
     let args := args.map (·.getElems.map (·.raw)) |>.getD #[]
     let g ← getMainGoal
     unless (← whnfR (← instantiateMVars (← g.getType))).isAppOf ``Turing.CounterProgram.Reaches do
@@ -302,7 +314,7 @@ elab_rules : tactic
     let mut found : Option (Name × Array MVarId × MVarId) := none
     for eval in [false, true] do
       for rule in rules do
-        if let some r ← tryRule g eval rule then
+        if let some r ← tryRule g eval instr? rule then
           found := some (rule, r)
           break
       if found.isSome then break
@@ -317,7 +329,14 @@ elab_rules : tactic
           an assignment, comparison or read `i` with its rule imported, and a label that is not a \
           conditional."
     for side in sides do
-      unless ← closeSide side do
+      let closed ← closeSide side
+      let closed ← if closed then pure true else
+        match disch? with
+        | some d => do
+          let tac : TSyntax ``Lean.Parser.Tactic.tacticSeq := ⟨d.raw[3]⟩
+          closesWith (← `(tactic| ($tac))) side
+        | none => pure false
+      unless closed do
         throwError "cp_step: could not prove the side condition{indentExpr (← instantiateMVars
           (← side.getType))}\nof `{rule}`. Add it as a hypothesis."
     let gs ← simpNext next args
