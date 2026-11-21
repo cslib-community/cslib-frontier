@@ -10933,6 +10933,18 @@ register_result "difference-universal-hash-modulus-reduction" where
     The first bound holds for any positive moduli and both allow arbitrary seed laws. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6969 at 28fa1e301d."
 
+register_result "polynomial-difference-universality-reduced-modulus" where
+  title := "The Hxpoly hash is difference universal after modulus reduction"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.23(b)",
+      locator := "v0.6, printed p. 284" }
+  ]
+  theorems := [Cslib.Probability.isDeltaUniversalHash_xpolyHashMod]
+  scope := "Messages are lists of at most ℓ blocks modulo N. Lift each block to its canonical \
+    residue modulo the prime p, evaluate Hxpoly with a uniform key modulo p, and reduce its \
+    digest modulo N. The difference bound is 4(ℓ + 1)/N for positive N ≤ p, including N = 1."
+
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
   topic := "cryptography"

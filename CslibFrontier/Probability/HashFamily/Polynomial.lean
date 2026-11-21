@@ -9,11 +9,13 @@ module
 
 public import CslibFrontier.Probability.HashFamily
 public import Mathlib.Algebra.Field.Defs
+public import Mathlib.Algebra.Field.ZMod
 public import Mathlib.Algebra.Polynomial.Degree.Defs
 public import Mathlib.Algebra.Polynomial.Eval.Defs
 public import Mathlib.Data.ZMod.Defs
 public import Mathlib.LinearAlgebra.Pi
 import CslibFrontier.Foundations.Data.List.FoldlIdx
+import CslibFrontier.Probability.HashFamily.Transport
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Algebra.Polynomial.EraseLead
 import Mathlib.Algebra.Polynomial.Monic
@@ -55,6 +57,7 @@ coefficient indices identifies the two APIs.
 * `Cslib.Probability.coeffPolyHashLinear`: coefficient evaluation as a linear map.
 * `Cslib.Probability.polyHash`, `Cslib.Probability.xpolyHash`: variable-length polynomial
   evaluation hashes.
+* `Cslib.Probability.xpolyHashMod`: `Hxpoly` with input blocks and output modulo `N`.
 
 ## Main results
 
@@ -74,6 +77,8 @@ coefficient indices identifies the two APIs.
   `Cslib.Probability.not_isUniversalHash_polyHash_zmod_pow_two`: distinct two-block messages
   are separated by some key. Modulo `2^(n+1)`, a three-block pair collides at every key.
 * `Cslib.Probability.isDeltaUniversalHash_xpolyHash`: `xpolyHash` is `(ℓ + 1) / |F|`-Δ-universal.
+* `Cslib.Probability.isDeltaUniversalHash_xpolyHashMod`: the reduced hash is
+  `4 * (ℓ + 1) / N`-Δ-universal for `N ≤ p`.
 * `Cslib.Probability.not_isDeltaUniversalHash_polyHash`: a one-block pair has the same hash
   difference under every key.
 
@@ -237,6 +242,12 @@ theorem polyHash_two_blocks_eq_iff {R : Type*} [Ring R] {a b c d : R} :
 /-- Boneh and Shoup's `Hxpoly` ([BonehShoup2023], Equation 7.23): `k * polyHash k m`. -/
 def xpolyHash (k : F) (m : List F) : F :=
   k * polyHash k m
+
+/-- Lift the canonical input blocks modulo `N` to the prime field modulo `p`,
+evaluate `Hxpoly`, and reduce the result modulo `N`.
+[BonehShoup2023], v0.6, Exercise 7.23(b), printed p. 284. -/
+def xpolyHashMod {p N : ℕ} [Fact p.Prime] (k : ZMod p) (m : List (ZMod N)) : ZMod N :=
+  ZMod.cast (xpolyHash k (m.map (ZMod.cast : ZMod N → ZMod p)))
 
 open Polynomial
 
@@ -500,6 +511,24 @@ theorem isDeltaUniversalHash_xpolyHash [Fintype F] (ℓ : ℕ) :
         (Nat.add_le_add_right hdeg 1)
   push_cast at h
   exact h
+
+/-- **Exercise 7.23(b)** ([BonehShoup2023], v0.6, printed p. 284).
+For `0 < N ≤ p`, a private uniform key modulo the prime `p` gives the difference bound
+`4 * (ℓ + 1) / N` for messages of at most `ℓ` blocks modulo `N`. -/
+theorem isDeltaUniversalHash_xpolyHashMod {p N : ℕ} [Fact p.Prime] [NeZero N]
+    (hNp : N ≤ p) (ℓ : ℕ) :
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod p))
+      (fun k (m : {m : List (ZMod N) // m.length ≤ ℓ}) => xpolyHashMod k m.val)
+      (4 * (ℓ + 1) / N) := by
+  let lift (m : {m : List (ZMod N) // m.length ≤ ℓ}) : {m : List (ZMod p) // m.length ≤ ℓ} :=
+    ⟨m.val.map ZMod.cast, by simpa only [List.length_map] using m.property⟩
+  have hlift : Function.Injective lift := by
+    intro m m' h
+    apply Subtype.ext
+    exact List.map_injective_iff.mpr (ZMod.cast_injective_of_le hNp) (congrArg Subtype.val h)
+  have h := (isDeltaUniversalHash_xpolyHash (F := ZMod p) ℓ).precompose hlift
+  rw [ZMod.card p] at h
+  exact h.zmod_cast_div hNp
 
 /-- Boneh and Shoup's `Hpoly` fails `ε`-difference universality for every `ε < 1` as soon
 as one-block messages are allowed ([BonehShoup2023], v0.6, Section 7.4, p. 269). The hashes of
