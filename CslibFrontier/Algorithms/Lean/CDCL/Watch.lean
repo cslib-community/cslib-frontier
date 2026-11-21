@@ -227,19 +227,20 @@ it is skipped if its blocker is true; otherwise its clause is read. -/
 @[expose]
 def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (w : Watcher) : Visit :=
   if A.holds w.blocker then .skip
-  else
-    match S.clauses[w.clause]? with
-    | some (id, w₁ :: w₂ :: rest) =>
-      if w₁ = u ∨ w₂ = u then
-        let other := if w₁ = u then w₂ else w₁
+  else if hk : w.clause < S.clauses.size then
+    match S.clauses[w.clause] with
+    | (id, w₁ :: w₂ :: rest) =>
+      if Assign.litEq w₁ u || Assign.litEq w₂ u then
+        let other := if Assign.litEq w₁ u then w₂ else w₁
         if A.holds other then .keep other
         else
-          match rest.find? (fun x => !A.holds x.negate) with
+          match rest.find? (fun x => !A.isFalse x) with
           | some x => .move (id, other :: x :: u :: rest.erase x) x other
           | none =>
-            if A.holds other.negate then .conflict id else .unit other id
+            if A.isFalse other then .conflict id else .unit other id
       else .drop
     | _ => .drop
+  else .drop
 
 /-- **Moving a watch**: the clause at position `k` becomes `c`, and the watch list of `x` gets a
 watcher of it with the blocker `b`. The two arrays are taken out of the store first, so that they
@@ -278,14 +279,20 @@ are updated in place when the store is not shared. -/
 theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.Agrees M)
     (u : Literal ℕ) (w : Watcher) : VisitSpec S M u w (S.visit A u w) := by
   unfold visit
-  simp only [hA.holds_iff, ← List.contains_iff_mem]
+  simp only [hA.holds_iff, hA.isFalse_iff, ← List.contains_iff_mem, Assign.litEq_eq_decide,
+    Bool.or_eq_true, decide_eq_true_eq]
   by_cases hb : (Trail.lits M).contains w.blocker = true
   · simp only [hb, ↓reduceIte, VisitSpec]
     simpa using hb
   simp only [hb, Bool.false_eq_true, ↓reduceIte]
   split
-  · rename_i id w₁ w₂ rest hk
-    obtain ⟨hk', hget⟩ := Array.getElem?_eq_some_iff.1 hk
+  swap
+  · rename_i hk'
+    intro hk
+    exact absurd hk hk'
+  rename_i hk'
+  split
+  · rename_i id w₁ w₂ rest hget
     by_cases hu : w₁ = u ∨ w₂ = u
     · simp only [hu, ↓reduceIte]
       by_cases htrue : (Trail.lits M).contains (if w₁ = u then w₂ else w₁) = true
@@ -297,10 +304,10 @@ theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.
           have hxmem := List.mem_of_find?_eq_some hx
           have hxval := List.find?_some hx
           exact ⟨hk', id, w₁, w₂, rest, hget, hu, hxmem,
-            fun h => by simp [(hA.holds_iff _).2 h] at hxval, rfl, rfl⟩
+            fun h => by simp [(hA.isFalse_iff _).2 h] at hxval, rfl, rfl⟩
         · rename_i hnone
           have hall : ∀ x ∈ rest, x.negate ∈ Trail.lits M := fun x hx => by
-            simpa [hA.holds_iff] using List.find?_eq_none.1 hnone x hx
+            simpa [hA.isFalse_iff] using List.find?_eq_none.1 hnone x hx
           by_cases hfalse : (Trail.lits M).contains
               (Std.Sat.Literal.negate (if w₁ = u then w₂ else w₁)) = true
           · simp only [hfalse, ↓reduceIte]
@@ -316,9 +323,8 @@ theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.
       push Not at hu
       exact hu
   · rename_i hne
-    intro hk' v₁ v₂ rest' hc
-    exact absurd (by rw [Array.getElem?_eq_getElem hk', ← hc])
-      (hne (S.clauses[w.clause].1) v₁ v₂ rest')
+    intro _ v₁ v₂ rest' hc
+    exact absurd (by rw [← hc]) (hne (S.clauses[w.clause].1) v₁ v₂ rest')
 
 /-! ### Changing the trail and the clauses -/
 

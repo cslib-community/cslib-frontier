@@ -21,15 +21,17 @@ without repeated variables has an array agreeing with it (`Assign.agrees_ofTrail
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CDCL.Assign`: the value of each variable, if any.
-* `Cslib.Algorithms.Lean.CDCL.Assign.holds`, `Cslib.Algorithms.Lean.CDCL.Assign.falsifies`: whether
-  a literal is true, and whether a clause is false.
+* `Cslib.Algorithms.Lean.CDCL.Assign.holds`, `Cslib.Algorithms.Lean.CDCL.Assign.isFalse`,
+  `Cslib.Algorithms.Lean.CDCL.Assign.falsifies`: whether a literal is true or false, and whether a
+  clause is false.
 * `Cslib.Algorithms.Lean.CDCL.Assign.Agrees`: the array holds the literals of a trail.
 
 ## Main results
 
 * `Cslib.Algorithms.Lean.CDCL.Assign.Agrees.holds_iff`,
+  `Cslib.Algorithms.Lean.CDCL.Assign.Agrees.isFalse_iff`,
   `Cslib.Algorithms.Lean.CDCL.Assign.Agrees.assigned_iff`: a literal holds when it is on the trail,
-  and a variable is assigned when it is a variable of the trail.
+  is false when its negation is, and a variable is assigned when it is a variable of the trail.
 -/
 
 @[expose] public section
@@ -48,8 +50,38 @@ namespace Assign
 /-- The value of the variable `v`, `none` past the end of the array. -/
 def value (A : Assign) (v : ℕ) : Option Bool := A.vals.getD v none
 
-/-- **Whether the literal `l` is true.** -/
-def holds (A : Assign) (l : Literal ℕ) : Bool := A.value l.1 == some l.2
+/-- **Whether the literal `l` is true.** (Matching on the value, rather than comparing it with
+`some l.2`, builds no option at run time.) -/
+def holds (A : Assign) (l : Literal ℕ) : Bool :=
+  match A.value l.1 with
+  | some b => b == l.2
+  | none => false
+
+/-- **Whether the literal `l` is false**: `holds` of its negation, without building the negation. -/
+def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
+  match A.value l.1 with
+  | some b => b != l.2
+  | none => false
+
+/-- **Whether two literals are equal**, comparing the variables and the signs directly, without
+the generic calls of the instance on pairs. -/
+def litEq (a b : Literal ℕ) : Bool := a.1 == b.1 && a.2 == b.2
+
+theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
+  obtain ⟨_, _⟩ := a; obtain ⟨_, _⟩ := b; simp only [litEq, Prod.mk.injEq, Bool.decide_and]; rfl
+
+theorem holds_eq_true (A : Assign) (l : Literal ℕ) : A.holds l = true ↔ A.value l.1 = some l.2 := by
+  unfold holds
+  split <;> simp_all
+
+theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) : A.isFalse l = A.holds l.negate := by
+  unfold isFalse holds
+  obtain ⟨v, x⟩ := l
+  simp only [Std.Sat.Literal.negate]
+  generalize A.value v = o
+  rcases o with _ | b
+  · rfl
+  · cases b <;> cases x <;> rfl
 
 /-- **Whether the variable `v` is assigned.** -/
 def assigned (A : Assign) (v : ℕ) : Bool := (A.value v).isSome
@@ -149,8 +181,13 @@ variable {A : Assign} {M : Trail}
 /-- **A literal holds exactly when it is on the trail.** -/
 theorem Agrees.holds_iff (h : A.Agrees M) (l : Literal ℕ) :
     A.holds l = true ↔ l ∈ Trail.lits M := by
-  simp only [holds, beq_iff_eq]
+  rw [holds_eq_true]
   exact h l.1 l.2
+
+/-- **A literal is false exactly when its negation is on the trail.** -/
+theorem Agrees.isFalse_iff (h : A.Agrees M) (l : Literal ℕ) :
+    A.isFalse l = true ↔ l.negate ∈ Trail.lits M := by
+  rw [isFalse_eq_holds_negate, h.holds_iff]
 
 /-- **A variable is assigned exactly when it is a variable of the trail.** -/
 theorem Agrees.assigned_iff (h : A.Agrees M) (v : ℕ) :
@@ -215,11 +252,11 @@ theorem Agrees.drop {N M₀ : Trail} (h : A.Agrees (N ++ M₀))
     · exact .inr
 
 /-- **Whether the clause `c` is false**: every literal is false. -/
-def falsifies (A : Assign) (c : Clause ℕ) : Bool := c.all fun l => A.holds l.negate
+def falsifies (A : Assign) (c : Clause ℕ) : Bool := c.all fun l => A.isFalse l
 
 theorem Agrees.falsifies_iff (h : A.Agrees M) (c : Clause ℕ) :
     A.falsifies c = true ↔ Trail.Falsifies M c := by
-  simp only [falsifies, List.all_eq_true, h.holds_iff]
+  simp only [falsifies, List.all_eq_true, h.isFalse_iff]
 
 /-- **Assigning a trail** without repeated variables on top of an empty array, one with no value
 anywhere, gives an array agreeing with the trail. -/
