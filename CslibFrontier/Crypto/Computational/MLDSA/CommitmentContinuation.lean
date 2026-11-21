@@ -175,28 +175,36 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
   | liftBind q k m _ ih =>
     obtain ⟨fits, cont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp calls
     rcases q with coin | cmd | ask
-    · simp only [scored_coin (C := C) (coin := coin) (k := k), isXofQuery,
+    · simp only [scored_eq_measured, measured_coin (C := C) (coin := coin) (k := k), isXofQuery,
         Bool.toNat_false, Nat.add_zero]
+      simp only [← scored_eq_measured]
       apply PMF.meanAbsDiffAt_bind_le μ (ProbComp.unifOracle coin) true
       exact fun i => ih i (cont i) d log tape
     · cases cmd with
       | service op _ => exact op.elim
       | gate g =>
         let next := d.instruction (base.queryTable C.addressBits C.responseBytes) (.gate g)
-        simpa only [scored_gate (C := C) (code := g) (k := k), next,
-          DeviceState.instruction_apply, OracleGateCode.toPlacedGate?,
-          isXofQuery, isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false, Nat.sub_zero,
-          Nat.add_zero] using ih [] (cont []) next log tape
+        have hnext := ih [] (cont []) next log tape
+        simp only [isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false, Nat.sub_zero]
+          at hnext
+        simp only [scored_eq_measured, measured_gate (C := C) (g := g) (k := k),
+          DeviceState.instruction_apply, OracleGateCode.toPlacedGate?, isXofQuery,
+          Bool.toNat_false, Nat.add_zero]
+        simpa only [← scored_eq_measured, next, DeviceState.instruction_apply,
+          OracleGateCode.toPlacedGate?] using hnext
       | measure wire =>
         obtain ⟨ν, next, hm⟩ := measure_map d wire
-        simp only [scored_measure (C := C) (wire := wire) (k := k), hm, PMF.bind_map,
-          Function.comp_def, isXofQuery,
-          Bool.toNat_false, Nat.add_zero]
+        simp only [scored_eq_measured, measured_measure (C := C) (wire := wire) (k := k), hm,
+          PMF.bind_map, Function.comp_def, isXofQuery, Bool.toNat_false, Nat.add_zero]
+        simp only [← scored_eq_measured]
         apply PMF.meanAbsDiffAt_bind_le μ ν true
         exact fun b => ih [b] (cont [b]) (next b) log tape
       | query =>
         let tail y st := scored (k []) (write y) (sign' y) (test' y) st log tape
-        have readout (y) := scored_readout (k []) (write y) (sign' y) (test' y) log tape
+        have readout (y) : ∃ M : Test C, ∀ st, tail y st = observe M st := by
+          obtain ⟨M, hM⟩ := measured_readout (tapeReply (sign' y)) (fun _ => write y)
+            (fun _ _ => by simp [tapeReply]) (k []) (fun x st => test' y x st.1 st.2) (log, tape)
+          exact ⟨M, fun st => (scored_eq_measured ..).trans (hM st)⟩
         choose M law using readout
         have one : PMF.meanAbsDiffAt μ true (fun y => tail y (stepState (write y) d))
             (fun y => tail y (stepState base d)) ≤ Q := by
@@ -204,7 +212,9 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
         have rest := ih [] (cont []) (stepState base d) log tape
         simp only [isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false,
           Nat.sub_zero] at rest
-        simp only [scored_query (C := C) (k := k), isXofQuery, Bool.toNat_true, Nat.cast_add_one]
+        simp only [scored_eq_measured, measured_query (C := C) (k := k), isXofQuery,
+          Bool.toNat_true, Nat.cast_add_one]
+        simp only [← scored_eq_measured]
         exact (PMF.meanAbsDiffAt_triangle μ true _ _ _).trans
           ((add_le_add one rest).trans_eq (by ring))
     · let sig := sign (tape.headD 0) ask
@@ -214,8 +224,9 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
         (meanGap_of_agree μ _ _ {y | sig' y ≠ sig} fun y h => by
           rw [show sig' y = sig from not_not.mp h]).trans (signing _ ask)
       have rest := ih sig (cont sig) d (ask.logReply sig log) tape.tail
-      simp only [scored_sign (C := C) (ask := ask) (k := k), isXofQuery,
-        Bool.toNat_false, Nat.add_zero]
+      simp only [scored_eq_measured, measured_sign (C := C) (ask := ask) (k := k), tapeReply,
+        PMF.pure_bind, isXofQuery, Bool.toNat_false, Nat.add_zero]
+      simp only [← scored_eq_measured]
       have len : n = n - 1 + 1 := by
         change 1 ≤ n at fits
         lia
