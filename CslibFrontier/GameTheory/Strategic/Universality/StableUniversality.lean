@@ -719,19 +719,26 @@ theorem stablyIsomorphic_rename_castSucc (F : Fin m → MvPolynomial (Fin n) ℝ
 /-- **Theorem 1 of [Datta2003]** (arXiv:math/0301001, p. 1): every real algebraic set
 `V = {x ∈ ℝⁿ | F₀(x) = ⋯ = F_{m-1}(x) = 0}` is stably isomorphic to the set of totally mixed Nash
 equilibria of a game with the three players `Who` (Alice, Bob and Critter), and to that of a game
-in which every player has two pure strategies. The isomorphisms are explicit
-(`hornerHomeomorph`, `binaryHomeomorph`), with the change of variables repaired as described in
-the module documentation. -/
+in which every player has two pure strategies. Every player has a pure strategy, and the binary
+game has a player, so an empty `V` is not matched by a degenerate game. The isomorphisms are
+explicit (`hornerHomeomorph`, `binaryHomeomorph`), with the change of variables repaired as
+described in the module documentation. For `n = 0` the binary form first adds a dummy variable
+(`stablyIsomorphic_rename_castSucc`). -/
 theorem universality (F : Fin m → MvPolynomial (Fin n) ℝ) :
     (∃ (S : Who → Type) (_ : ∀ w, Fintype (S w)) (_ : ∀ w, DecidableEq (S w))
-        (G : CostGame Who S),
+        (_ : ∀ w, Nonempty (S w)) (G : CostGame Who S),
         StablyIsomorphic {x : Fin n → ℝ | ∀ j, eval x (F j) = 0}
           {x : (Σ w, S w) → ℝ | G.IsTotallyMixedNash (Sigma.curry x)}) ∧
-      ∃ (P : Type) (_ : Fintype P) (_ : DecidableEq P) (G : CostGame P fun _ => Bool),
+      ∃ (P : Type) (_ : Fintype P) (_ : DecidableEq P) (_ : Nonempty P)
+        (G : CostGame P fun _ => Bool),
         StablyIsomorphic {x : Fin n → ℝ | ∀ j, eval x (F j) = 0}
-          {x : (Σ _ : P, Bool) → ℝ | G.IsTotallyMixedNash (Sigma.curry x)} :=
-  ⟨⟨_, inferInstance, inferInstance, hornerGame F, stablyIsomorphic_hornerGame F⟩,
-    _, inferInstance, inferInstance, binaryGame fun j => rename Fin.castSucc (F j),
-    (stablyIsomorphic_rename_castSucc F).trans (stablyIsomorphic_binaryGame _ n.succ_pos)⟩
+          {x : (Σ _ : P, Bool) → ℝ | G.IsTotallyMixedNash (Sigma.curry x)} := by
+  refine ⟨⟨_, inferInstance, inferInstance, fun _ => ⟨none⟩, hornerGame F,
+    stablyIsomorphic_hornerGame F⟩, ?_⟩
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · exact ⟨_, inferInstance, inferInstance, ⟨.inl 0⟩, binaryGame fun j => rename Fin.castSucc (F j),
+      (stablyIsomorphic_rename_castSucc F).trans (stablyIsomorphic_binaryGame _ Nat.one_pos)⟩
+  · exact ⟨_, inferInstance, inferInstance, ⟨.inl ⟨0, hn⟩⟩, binaryGame F,
+      stablyIsomorphic_binaryGame F hn⟩
 
 end Cslib.GameTheory.DattaUniversality
