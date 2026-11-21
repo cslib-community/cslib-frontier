@@ -327,6 +327,7 @@ public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedD
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedRank
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedWeight
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Streaming
+public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.WeightDimensions
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Weights
 public import CslibFrontier.Algorithms.Reachability.Reingold
