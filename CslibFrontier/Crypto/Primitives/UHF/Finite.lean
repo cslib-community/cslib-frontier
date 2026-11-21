@@ -7,14 +7,21 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Probability.HashFamily
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Computability.Probabilistic.BoundedUniform
+import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Collisions
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
+import Mathlib.Data.List.GetD
 import Mathlib.Data.List.MinMax
 
 /-!
@@ -41,13 +48,13 @@ keeps the uniform key private. An adversary is a closed probabilistic program wi
 * `Cslib.Crypto.UHF.bestCollisionGuess_wins`: exhaustive search finds a guess that exceeds
   the proposed bound whenever a distinct pair does (Exercise 7.3).
 * `Cslib.Crypto.UHF.eval_multiQueryExperiment_le_collisionPairReduction`: the finite-game
-  advantage bound for the explicit wrapper, using ideal uniform index draws.
+  advantage bound for the explicit wrapper, using bounded fair-bit sampling.
+* `Cslib.Crypto.UHF.isPPTOn_collisionPairReduction`: the wrapper preserves strict PPT.
 * `Cslib.Crypto.UHF.eval_multiQueryExperiment_le`: the statistical `C(Q, 2) * ε` bound
   for lists of length at most `Q`.
 
 The results here concern one key distribution and one hash function at a time. Computational
-security for efficient adversary families and the computational reduction of Lemma 7.1 are
-tracked in #5790.
+security for efficient adversary families is tracked in #5790.
 
 ## References
 
@@ -59,7 +66,7 @@ public section
 
 namespace Cslib.Crypto.UHF
 
-open Cslib.Probability
+open Cslib.Probability Turing.MultiTapeTM
 open scoped ENNReal
 
 variable {K M Y : Type}
@@ -70,6 +77,11 @@ structure CollisionGuess (M : Type) where
   first : M
   /-- The second message. -/
   second : M
+
+/-- Frame the first collision message and then write the encoding of the second message. -/
+enc_structure encCollisionGuess (encM : M ↪ List Bool) : CollisionGuess M where
+  first : encM,
+  second : encM
 
 /-- The messages and the predicted difference of their hashes. -/
 structure DifferenceGuess (M Y : Type) extends CollisionGuess M where
@@ -200,66 +212,173 @@ and rewards only pairs with `m ≠ m'` and `H k m = H k m'`, so duplicate messag
   let k ← ProbComp.uniform K
   return decide (∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m')
 
+private def decodeCollisionPair (fallback : M) (ms : List M) (slot : ℕ) : CollisionGuess M :=
+  let width := ms.length - 1
+  let i := slot / width
+  let j := slot % width
+  ⟨ms.getD i fallback, ms.getD (if j < i then j else j + 1) fallback⟩
+
 private noncomputable def sampleCollisionPair (fallback : M) (ms : List M) :
     ProbComp (CollisionGuess M) :=
-  if h : ms = [] then pure ⟨fallback, fallback⟩ else
-    haveI : NeZero ms.length := ⟨fun hlen => h (List.length_eq_zero_iff.mp hlen)⟩
-    do
-      let ij ← ProbComp.uniform (Fin ms.length × Fin ms.length)
-      return ⟨ms[ij.1.val], ms[ij.2.val]⟩
+  (fun slot => slot.elim ⟨fallback, fallback⟩ (decodeCollisionPair fallback ms)) <$>
+    ProbComp.sampleUniformInterval (ms.length * (ms.length - 1)) ms.length
 
-/-- Run the multi-query adversary and sample two positions independently and uniformly from its
-list. Repeated messages lose in Attack Game 7.1. An empty list gives the repeated dummy message.
-The index sampler is ideal. -/
+/-- Run the multi-query adversary and sample an ordered pair of distinct positions with bounded
+fair-bit rejection sampling. A list of length `s` allows `s` attempts. If the attempts fail
+or there are fewer than two positions, return a repeated dummy message. -/
 noncomputable def collisionPairReduction (fallback : M) (A : ProbComp (List M)) :
     ProbComp (CollisionGuess M) := do
   let ms ← A
   sampleCollisionPair fallback ms
+
+open ComputableInPolyTime in
+/-- Bounded sampling and unary list access preserve strict PPT for a multi-query adversary.
+The certificate charges the framed input list and uses at most its length in attempts. -/
+theorem isPPTOn_collisionPairReduction {I : Type} {encI : I ↪ List Bool}
+    {encM : M ↪ List Bool} {A : I → ProbComp (List M)}
+    (hA : IsPPTOn encI (encList encM) A) (fallback : M) :
+    IsPPTOn encI (encCollisionGuess encM) (fun x => collisionPairReduction fallback (A x)) := by
+  let encL := encList encM
+  let encO := encPair encL (encOption encUnary)
+  have hlen := length_list encM
+  have hbound := hlen.unary_mul' (hlen.unary_sub' (.const 1))
+  have hdecode : ComputableInPolyTime (fun p : List M × ℕ => decodeCollisionPair fallback p.1 p.2)
+      (encPair encL encUnary) (encCollisionGuess encM) := by
+    let encQR := encPair encUnary encUnary
+    have hinputList := fst encL encUnary
+    have hslot := snd encL encUnary
+    have hwidth := (hlen.comp hinputList).unary_sub' (.const 1)
+    have hdivMod := unary_divMod.comp (hslot.prod hwidth)
+    have hlist := fst encL encQR
+    have hqr := snd encL encQR
+    have hi := (fst encUnary encUnary).comp hqr
+    have hj := (snd encUnary encUnary).comp hqr
+    have hskip := (unary_lt' hj hi).ite hj (hj.unary_add' (.const 1))
+    have hlookup := encCollisionGuess_mk_polyTime encM
+      (listGetDWithInput hlist hi fallback) (listGetDWithInput hlist hskip fallback)
+    refine (hlookup.comp (hinputList.prod hdivMod)).of_enc_eq fun p => ?_
+    simp only [decodeCollisionPair, Function.comp_apply, decide_eq_true_eq]
+  have hresult : ComputableInPolyTime
+      (fun p : List M × Option ℕ =>
+        p.2.elim ⟨fallback, fallback⟩ (decodeCollisionPair fallback p.1))
+      encO (encCollisionGuess encM) :=
+    optionElimWithInput (snd encL (encOption encUnary))
+      (.const (CollisionGuess.mk fallback fallback))
+      (hdecode.comp (((fst encL (encOption encUnary)).comp (fst encO encUnary)).prod
+        (snd encO encUnary)))
+  exact hA.bind ((isPPTOn_sampleUniformInterval hbound hlen).map_with hresult)
+
+private def pairSlot (s i j : ℕ) : ℕ :=
+  i * (s - 1) + if j < i then j else j - 1
+
+private theorem pairSlot_spec {s i j : ℕ} (hi : i < s) (hj : j < s) (hne : i ≠ j) :
+    pairSlot s i j < s * (s - 1) ∧
+      pairSlot s i j / (s - 1) = i ∧
+      (if pairSlot s i j % (s - 1) < i then pairSlot s i j % (s - 1)
+        else pairSlot s i j % (s - 1) + 1) = j := by
+  let offset := if j < i then j else j - 1
+  have hoff : offset < s - 1 := by
+    dsimp only [offset]
+    split <;> omega
+  have hwidth : 0 < s - 1 := Nat.zero_lt_of_lt hoff
+  have hquot : pairSlot s i j / (s - 1) = i := by
+    change (i * (s - 1) + offset) / (s - 1) = i
+    rw [Nat.mul_comm i (s - 1), Nat.mul_add_div hwidth, Nat.div_eq_of_lt hoff, Nat.add_zero]
+  have hrem : pairSlot s i j % (s - 1) = offset := by
+    change (i * (s - 1) + offset) % (s - 1) = offset
+    rw [Nat.mul_comm i (s - 1), Nat.mul_add_mod, Nat.mod_eq_of_lt hoff]
+  change i * (s - 1) + offset < s * (s - 1) ∧ _ ∧ _
+  refine ⟨?_, hquot, ?_⟩
+  · calc
+      _ < (i + 1) * (s - 1) := by rw [Nat.add_mul, Nat.one_mul]; omega
+      _ ≤ _ := Nat.mul_le_mul_right _ (by omega)
+  · rw [hrem]
+    dsimp only [offset]
+    split_ifs <;> omega
+
+private theorem inv_sq_le_sampleUniformInterval_pair {s slot : ℕ} (hs : 2 ≤ s)
+    (hslot : slot < s * (s - 1)) :
+    ((s : ℝ≥0∞) ^ 2)⁻¹ ≤ ProbComp.eval (ProbComp.sampleUniformInterval (s * (s - 1)) s)
+      (some slot) := by
+  have hs' : 0 < (s : ℝ) := by exact_mod_cast (by omega : 0 < s)
+  have hs1 : 1 < (s : ℝ) := by exact_mod_cast (by omega : 1 < s)
+  have hpos : 0 < s * (s - 1) := Nat.mul_pos (by omega) (by omega)
+  have hsmall : (1 / 2 : ℝ) ^ s ≤ 1 / (s : ℝ) := by
+    rw [div_pow, one_pow]
+    exact one_div_le_one_div_of_le hs' (by exact_mod_cast (Nat.lt_two_pow_self (n := s)).le)
+  refine le_trans ?_ (ProbComp.le_eval_sampleUniformInterval_some hpos s hslot)
+  rw [← ENNReal.ofReal_toReal (ENNReal.inv_ne_top.mpr
+    (pow_ne_zero _ (by exact_mod_cast (by omega : s ≠ 0))))]
+  apply ENNReal.ofReal_le_ofReal
+  simp only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_natCast,
+    Nat.cast_mul, Nat.cast_sub (by omega : 1 ≤ s), Nat.cast_one]
+  rw [← one_div]
+  calc
+    _ = (1 - 1 / (s : ℝ)) / ((s : ℝ) * (s - 1)) := by
+      field_simp [hs'.ne', (sub_pos.mpr hs1).ne']
+    _ ≤ _ := div_le_div_of_nonneg_right (sub_le_sub_left hsmall 1)
+      (mul_nonneg hs'.le (sub_nonneg.mpr hs1.le))
+
+private theorem two_inv_sq_le_sampleCollisionPair [DecidableEq M] [DecidableEq Y]
+    (H : K → M → Y) (k : K) (fallback : M) (ms : List M)
+    (h : ∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m') :
+    2 * ((ms.length : ℝ≥0∞) ^ 2)⁻¹ ≤ ((ProbComp.eval (sampleCollisionPair fallback ms)).bind
+      fun g => PMF.pure (decide (g.first ≠ g.second ∧ H k g.first = H k g.second))) true := by
+  obtain ⟨m, hm, m', hm', hne, hd⟩ := h
+  obtain ⟨i, hi, hi'⟩ := List.mem_iff_getElem.mp hm
+  obtain ⟨j, hj, hj'⟩ := List.mem_iff_getElem.mp hm'
+  have hij : i ≠ j := by
+    intro he
+    subst j
+    exact hne (hi'.symm.trans hj')
+  have hlen : 2 ≤ ms.length := by omega
+  obtain ⟨ha, ha₁, ha₂⟩ := pairSlot_spec hi hj hij
+  obtain ⟨hb, hb₁, hb₂⟩ := pairSlot_spec hj hi hij.symm
+  let a := pairSlot ms.length i j
+  let b := pairSlot ms.length j i
+  have hab : a ≠ b := fun he => hij (ha₁.symm.trans
+    ((congrArg (fun x => x / (ms.length - 1)) he).trans hb₁))
+  have hdecode {slot first second : ℕ} (hfirst : first < ms.length)
+      (hsecond : second < ms.length) (hquot : slot / (ms.length - 1) = first)
+      (hrem : (if slot % (ms.length - 1) < first then slot % (ms.length - 1)
+        else slot % (ms.length - 1) + 1) = second) :
+      decodeCollisionPair fallback ms slot = ⟨ms[first], ms[second]⟩ := by
+    simp only [decodeCollisionPair, hquot, hrem,
+      List.getD_eq_getElem _ _ hfirst, List.getD_eq_getElem _ _ hsecond]
+  have hga : decodeCollisionPair fallback ms a = ⟨m, m'⟩ := by
+    simpa only [hi', hj'] using hdecode (slot := a) hi hj ha₁ ha₂
+  have hgb : decodeCollisionPair fallback ms b = ⟨m', m⟩ := by
+    simpa only [hi', hj'] using hdecode (slot := b) hj hi hb₁ hb₂
+  simp only [sampleCollisionPair, ProbComp.eval_map, PMF.bind_map, Function.comp_def,
+    Probability.PMF.bind_pure_decide_apply_true]
+  let p := ProbComp.eval (ProbComp.sampleUniformInterval (ms.length * (ms.length - 1)) ms.length)
+  let pair : Finset (Option ℕ) := {some a, some b}
+  have hsum : 2 * ((ms.length : ℝ≥0∞) ^ 2)⁻¹ ≤ p.toOuterMeasure pair := by
+    have hab' : some a ∉ ({some b} : Finset (Option ℕ)) := by simpa using hab
+    rw [PMF.toOuterMeasure_apply_finset]
+    simp only [pair, Finset.sum_insert hab', Finset.sum_singleton, two_mul]
+    exact add_le_add (inv_sq_le_sampleUniformInterval_pair hlen ha)
+      (inv_sq_le_sampleUniformInterval_pair hlen hb)
+  refine hsum.trans (p.toOuterMeasure.mono fun slot hslot => ?_)
+  simp only [pair, Finset.mem_coe, Finset.mem_insert, Finset.mem_singleton] at hslot
+  rcases hslot with rfl | rfl
+  · simp [hga, hne, hd]
+  · simp [hgb, hne.symm, hd.symm]
 
 private theorem collision_indicator_le_samplePair [DecidableEq M] [DecidableEq Y]
     (H : K → M → Y) (k : K) (fallback : M) (ms : List M) {Q : ℕ} (hlen : ms.length ≤ Q) :
     PMF.pure (decide (∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m')) true ≤
       ((Q : ℝ≥0∞) ^ 2 / 2) * ((ProbComp.eval (sampleCollisionPair fallback ms)).bind
         fun g => PMF.pure (decide (g.first ≠ g.second ∧ H k g.first = H k g.second))) true := by
-  classical
   by_cases h : ∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m'
   · have hnil : ms ≠ [] := by
       rintro rfl
       simp at h
-    have : NeZero ms.length := ⟨fun hlen => hnil (List.length_eq_zero_iff.mp hlen)⟩
-    have hcollision := h
-    rcases h with ⟨m, hm, m', hm', hne, hd⟩
-    obtain ⟨i, hi, hi'⟩ := List.mem_iff_getElem.mp hm
-    obtain ⟨j, hj, hj'⟩ := List.mem_iff_getElem.mp hm'
-    let a : Fin ms.length := ⟨i, hi⟩
-    let b : Fin ms.length := ⟨j, hj⟩
-    have hab : a ≠ b := by
-      intro he
-      have hget := congrArg (fun t : Fin ms.length => ms[t.val]) he
-      exact hne (hi'.symm.trans (hget.trans hj'))
-    simp only [hcollision, decide_true, PMF.pure_apply_self, sampleCollisionPair,
-      dite_eq_right hnil, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-      PMF.bind_bind,
-      PMF.pure_bind, Probability.PMF.bind_pure_decide_apply_true]
-    let wins (ij : Fin ms.length × Fin ms.length) :=
-      ms[ij.1.val] ≠ ms[ij.2.val] ∧ H k ms[ij.1.val] = H k ms[ij.2.val]
-    let winning := Finset.univ.filter wins
-    have hcard : 2 ≤ winning.card := by
-      rw [← Finset.card_pair (a := (a, b)) (b := (b, a)) (by simp [hab])]
-      refine Finset.card_le_card fun ij hmem => ?_
-      simp only [Finset.mem_insert, Finset.mem_singleton] at hmem
-      rcases hmem with rfl | rfl
-      · simp [winning, wins, a, b, hi', hj', hne, hd]
-      · simp [winning, wins, a, b, hi', hj', hne.symm, hd.symm]
-    rw [Probability.PMF.toOuterMeasure_uniformOfFintype]
-    change 1 ≤ ((Q : ℝ≥0∞) ^ 2 / 2) * (winning.card *
-      (Fintype.card (Fin ms.length × Fin ms.length) : ℝ≥0∞)⁻¹)
-    simp only [Fintype.card_prod, Fintype.card_fin, Nat.cast_mul]
-    rw [← pow_two]
     have hpos : (ms.length : ℝ≥0∞) ^ 2 ≠ 0 :=
-      pow_ne_zero _ (Nat.cast_ne_zero.mpr (NeZero.ne _))
+      pow_ne_zero _ (Nat.cast_ne_zero.mpr fun he => hnil (List.length_eq_zero_iff.mp he))
     have hfin : (ms.length : ℝ≥0∞) ^ 2 ≠ ⊤ :=
       ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
+    simp only [h, decide_true, PMF.pure_apply_self]
     calc
       1 = (((ms.length : ℝ≥0∞) ^ 2) / 2) * (2 * ((ms.length : ℝ≥0∞) ^ 2)⁻¹) := by
         rw [div_eq_mul_inv]
@@ -272,15 +391,15 @@ private theorem collision_indicator_le_samplePair [DecidableEq M] [DecidableEq Y
               ENNReal.mul_inv_cancel (by norm_num) (by norm_num), mul_one]
       _ ≤ _ := by
         gcongr
-        exact_mod_cast hcard
+        exact two_inv_sq_le_sampleCollisionPair H k fallback ms h
   · simp [h]
 
 /-- A finite-game step toward Lemma 7.1 ([BonehShoup2023], v0.6, printed pp. 254–255).
 If the multi-query adversary outputs at most `Q` messages, its collision probability is at most
 `Q ^ 2 / 2` times that of the explicit single-pair wrapper. Whenever the list contains a
-collision, both orders of a colliding pair can be drawn. This argument uses ideal uniform
-index draws for one uniform-key instance. The computational-family conclusion of Lemma 7.1
-also needs a polynomial-time implementation of the index sampler and wrapper (#5790). -/
+collision, both orders of a colliding pair have enough sampling mass to give the bound. The
+wrapper has a strict PPT certificate. The computational-family conclusion of Lemma 7.1
+remains open in #5790. -/
 theorem eval_multiQueryExperiment_le_collisionPairReduction [Fintype K] [Nonempty K]
     [DecidableEq M] [DecidableEq Y] (H : K → M → Y) (fallback : M)
     (A : ProbComp (List M)) {Q : ℕ} (hA : ∀ ms ∈ (ProbComp.eval A).support, ms.length ≤ Q) :
