@@ -49,6 +49,18 @@ example :
   have h := subdivisionDart_subdivisionDartEquiv_symm threeSpokeStar 3 (by decide) d
   exact (congrArg E.direction h.symm).trans (hdir (f.symm d).val)
 
+-- A positive small radius controls whole end pieces, including at the three-spoke center.
+example :
+    ∃ E : PolygonalDrawing (subdivisionGraph threeSpokeStar), E.IsEmbedding ∧
+      ∀ d : Dart threeSpokeStar.graph,
+        (E.route (subdivisionDart threeSpokeStar d).1).support ⊆
+          Metric.ball ((PolygonalDrawing.star 3).vertex d.vertex) (1 / 100) := by
+  have hI : Valid threeSpokeStar := (validate_eq_true_iff _).mp (by decide)
+  obtain ⟨E, hE, _, _, hball⟩ :=
+    exists_subdivision_embedding_in_balls hI (PolygonalDrawing.star 3)
+      (PolygonalDrawing.star_isEmbedding 3) (ρ := 1 / 100) (by norm_num)
+  exact ⟨E, hE, hball⟩
+
 private def loop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [none]⟩
 
 private def loopEdge : Fin loop.graph.edges.length := ⟨0, by decide⟩

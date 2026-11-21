@@ -2989,6 +2989,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSe
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionCall
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionEndpoints
 public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionCall
+public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionSpace
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Writer
 public import CslibFrontier.Computability.Complexity.Problems.SetCover
 public import CslibFrontier.Computability.Complexity.Problems.SharpCycle
@@ -7354,6 +7355,7 @@ public import CslibFrontier.Foundations.Quantum.Bell
 public import CslibFrontier.Foundations.Quantum.Bipartite
 public import CslibFrontier.Foundations.Quantum.DensityMatrix
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumInformationChain
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Linear
