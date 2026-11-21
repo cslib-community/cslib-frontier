@@ -24,10 +24,11 @@ weigh exponentially less. The solver decides an unassigned variable of greatest 
 
 Activities and the increment are natural numbers, so the kernel can run the solver. The decay
 step sets the increment to `inc + inc / 19`, with integer division, in place of MiniSat's
-floating-point `inc / 0.95`. As in MiniSat, when an activity exceeds a limit (here `2 ^ 60`) all
-activities and the increment are scaled down (here by `2 ^ 20`, with truncation). The increment
-starts at `2 ^ 40`. An activity is then at most the limit plus the increment, and the increment at
-most `20 / 19` times the limit, so every value stays below `2 ^ 62`: compiled code keeps them as
+floating-point `inc / 0.95`. As in MiniSat, when an activity reaches a limit (here `2 ^ 60`, tested
+by a shift so that no large literal is built at run time) all activities and the increment are
+scaled down (here by `2 ^ 20`, with truncation). The increment starts at `2 ^ 40`. An activity is
+then below the limit plus the increment, and the increment at most `20 / 19` times the limit, so
+every value stays below `2 ^ 62`: compiled code keeps them as
 unboxed machine integers, with no arbitrary-precision arithmetic. The truncations can make the
 increment grow less than by `1 / 0.95` and turn different activities into ties (an activity more
 than about `2 ^ 60` times smaller than the increment becomes `0`), so decisions can differ from
@@ -106,17 +107,14 @@ def Activity.init (n : ℕ) : Activity := ⟨Array.replicate n 0, 2 ^ 40⟩
 /-- The activity of the variable `v`. -/
 def Activity.get (A : Activity) (v : ℕ) : ℕ := A.score.getD v 0
 
-/-- The activity above which every activity is scaled down. -/
-def Activity.limit : ℕ := 2 ^ 60
-
-/-- **Bumping** `v`: its activity grows by the increment; if it exceeds the limit, every activity
+/-- **Bumping** `v`: its activity grows by the increment; if it reaches `2 ^ 60`, every activity
 and the increment are divided by `2 ^ 20`. The activities are an array indexed by variable: for
 `v` beyond its end, `Array.modify` leaves it unchanged, so bumping `v` does nothing and its
 activity stays `0`. The solver's variables are all within the array (`WExec.init` sizes it by the
 largest variable of the formula). -/
 def Activity.bumpVar (A : Activity) (v : ℕ) : Activity :=
   let score := A.score.modify v (· + A.inc)
-  if Activity.limit < score.getD v 0 then ⟨score.map (· >>> 20), A.inc >>> 20⟩
+  if score.getD v 0 >>> 60 != 0 then ⟨score.map (· >>> 20), A.inc >>> 20⟩
   else ⟨score, A.inc⟩
 
 /-- **After a conflict**: bump each variable met by the analysis once, then set the increment to
