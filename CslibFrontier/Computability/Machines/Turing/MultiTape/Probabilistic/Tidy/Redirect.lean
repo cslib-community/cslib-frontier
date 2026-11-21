@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.OutputToTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.RunsWords
 public import Cslib.Foundations.Data.Fin.Tuple
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.SuppCases
 
@@ -128,8 +129,7 @@ noncomputable def outputToWord (machine : MultiTapePTM k Bool State Operation) :
 /-- Redirecting the output of a blank `wordsCfg` configuration adds a blank last work tape. -/
 private theorem outCfg_wordsCfg_nil (x : List Bool) (q : Option State) :
     outCfg (wordsCfg x q (fun _ : Fin k => []) []) = wordsCfg x q (fun _ => []) [] := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> induction l using Fin.lastCases <;>
-    simp [outCfg, wordsCfg]
+  tm_step [outCfg]
 
 /-- Rewinding the last work tape of `outCfg (wordsCfg x _ (fun _ => []) w)` in `r + 2` steps for
 any `w.length ≤ r` leaves `w` on the last work tape and halts. -/
@@ -140,7 +140,7 @@ private theorem runFrom_rewindLast {w : List Bool} {r : ℕ} (hr : w.length ≤ 
   let cfg := outCfg (wordsCfg x (some (rewindWork Bool).q₀) (fun _ : Fin k => []) w)
   have hone : oneTapeCfg (Fin.last k) cfg =
       ⟨some (rewindWork Bool).q₀, 1, fun _ => tapeOfList w, fun _ => (w.length : ℤ), []⟩ := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, cfg]
+    tm_step [oneTapeCfg, cfg]
   have hrun₀ : (rewindWork Bool).runFrom (oneTapeCfg (Fin.last k) cfg) (w.length + 2) =
       ⟨none, 1, fun _ => tapeOfList w, fun _ => 0, []⟩ := by
     rw [hone]
@@ -149,8 +149,7 @@ private theorem runFrom_rewindLast {w : List Bool} {r : ℕ} (hr : w.length ≤ 
       ⟨none, 1, fun _ => tapeOfList w, fun _ => 0, []⟩ := by
     rw [runFrom_eq_of_halt _ _ (by omega : w.length + 2 ≤ r + 2) (by rw [hrun₀]), hrun₀]
   rw [runFrom_tapeEmb, hrun, embed_tapeEmb]
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> induction l using Fin.lastCases <;>
-    simp [wordsCfg]
+  tm_step
 
 /-- If `machine` computes `program` tidily in `time` steps and every supported output of `program`
 has length at most `l`, then `machine.outputToWord` writes `program`'s output onto its new last
@@ -279,7 +278,7 @@ private theorem runFrom_markFlag (write : Option Bool)
     ⟨some (markWork Bool write).q₀, ip, Fin.append WS ![vip, flag], fun _ => 0, out⟩
   have hone : oneTapeCfg (Fin.natAdd k 1) cfg =
       ⟨some (markWork Bool write).q₀, ip, fun _ => flag, fun _ => 0, out⟩ := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, cfg, Fin.append_right]
+    tm_step [oneTapeCfg, cfg]
   change (markFlag k write).runFrom cfg 2 = _
   rw [markFlag, runFrom_tapeEmb, hone, runFrom_markWork, embed_tapeEmb]
   refine Cfg.ext rfl rfl ?_ ?_ rfl

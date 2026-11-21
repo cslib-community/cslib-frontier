@@ -4071,10 +4071,13 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBoun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.SingleTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.StepMachine.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.StepMachine.Comp
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TrackedRun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Basic

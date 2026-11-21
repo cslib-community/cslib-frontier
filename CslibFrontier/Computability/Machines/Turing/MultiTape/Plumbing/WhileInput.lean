@@ -13,6 +13,8 @@ module
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Cursor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RepeatUntilBlank
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Repeating a machine while the input head reads a symbol
@@ -90,9 +92,8 @@ lemma step_check (p : Fin (input.length + 2)) (ws : Fin k → List Symbol) (out 
     (whileInput tm).step (wordsCfgAt input p (some (.inr ())) ws out) =
       wordsCfgAt input p ((inputSymbolAt input p).map fun _ => .inl tm.q₀) ws out := by
   rw [step_of_state rfl, inputSymbol_eq_inputSymbolAt]
-  refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-    (simp [whileInput, combine, adaptedTr, inputTest, Action.apply, moveInputPos_zero]) <;>
-    rfl
+  cases h : inputSymbolAt input p <;>
+    tm_step [combine, adaptedTr, inputTest, wordsCfgAt, h]
 
 /-- One round: from the test with the input head on a symbol, the loop runs `tm` once and is back
 at the test, after at most `τ + 1` steps and with its heads within `[-σ, σ]`. -/
@@ -113,8 +114,7 @@ lemma exists_runFrom_round {c : Cfg k Symbol (State ⊕ Unit) input} {t : ℕ}
     rfl
   have hround : (whileInput tm).runFrom (wordsCfgAt input p (some (.inr ())) w out) (u + 1) =
       wordsCfgAt input p' (some (.inr ())) w' out' := by
-    rw [Nat.add_comm, runFrom_add, runFrom_one, hstart,
-      hhalt.runFrom_combine_left (handOver_some ()) le_rfl,
+    rw [runFrom_succ_eq_step, hstart, hhalt.runFrom_combine_left (handOver_some ()) le_rfl,
       ← hhalt.runFrom_eq hu, hrun]
     rfl
   refine ⟨u, hu, by rw [runFrom_add, hc.reaches, hround], fun l => ?_⟩
@@ -122,7 +122,7 @@ lemma exists_runFrom_round {c : Cfg k Symbol (State ⊕ Unit) input} {t : ℕ}
   refine Finset.union_subset (hc.confined l) (visitedByTapeHead_subset _ fun m hm => ?_)
   rcases m with _ | m
   · simp [runFrom]
-  · rw [Nat.add_comm, runFrom_add, runFrom_one, hstart]
+  · rw [runFrom_succ_eq_step, hstart]
     obtain hlt | rfl := (Nat.lt_succ_iff.mp hm).lt_or_eq
     · rw [hhalt.runFrom_combine_left (handOver_some ()) hlt.le]
       exact visitedByTapeHead_subset_Icc _ rfl ((space_mono tm _ hu).trans hsp)
