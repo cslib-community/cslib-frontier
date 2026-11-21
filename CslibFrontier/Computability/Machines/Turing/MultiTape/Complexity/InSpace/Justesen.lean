@@ -359,12 +359,11 @@ def FieldContext.decodeWord (ctx : FieldContext) (index : ℕ) : CoordinateWord 
 /-- The prepared point word and both indexes agree with the existing Justesen coordinate. -/
 theorem fieldContext_decodeWord_eq {w n : ℕ} (j : Fin (codeLength w n)) :
     (fieldContext w n).decodeWord j.val =
-      let coord := decodeCoordinate w n j
-      ⟨List.ofFn (nonzeroPointBits coord.1), coord.2.1.val, coord.2.2.val⟩ := by
+      let (point, half, bit) := decodeCoordinate w n j
+      ⟨List.ofFn (nonzeroPointBits point), half.val, bit.val⟩ := by
   have hlen : (fieldContext w n).modulus.length = fieldDegree w n + 1 := by
-    obtain ⟨word, hword, hsize⟩ := BinaryField.exists_modulusBits_eq (fieldDegree_ne_zero w n)
     change (BinaryField.modulusBitsScan (fieldDegree w n)).length = _
-    rw [BinaryField.modulusBitsScan_eq, hword, List.length_append, List.length_singleton, hsize]
+    rw [BinaryField.modulusBitsScan_eq, BinaryField.length_modulusBits (fieldDegree_ne_zero w n)]
   unfold FieldContext.decodeWord
   rw [hlen, Nat.add_sub_cancel]
   have hpoint := lowBits_decodeIndex_point j

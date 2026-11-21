@@ -52,8 +52,8 @@ example {w n : ℕ} (j : Fin (codeLength w n)) :
 /-- The decoder result supplies the point word and both code-coordinate indexes. -/
 example {w n : ℕ} (j : Fin (codeLength w n)) :
     (fieldContext w n).decodeWord j.val =
-      let coord := decodeCoordinate w n j
-      ⟨List.ofFn (nonzeroPointBits coord.1), coord.2.1.val, coord.2.2.val⟩ :=
+      let (point, half, bit) := decodeCoordinate w n j
+      ⟨List.ofFn (nonzeroPointBits point), half.val, bit.val⟩ :=
   fieldContext_decodeWord_eq j
 
 /-- A native caller can retain the field context with the prepared coordinate. -/
