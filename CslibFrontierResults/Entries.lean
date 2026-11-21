@@ -74,6 +74,7 @@ import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
+import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -10825,6 +10826,20 @@ register_result "difference-universal-hash-plus-uniform-is-puf" where
     against all two-stage adversaries with private state in Attack Game 7.5. The Lean proof \
     extends from cyclic groups to all finite additive groups. Source check: outside-fleet \
     agent review (coord-6b6b1583) on PR #6930 at 86b92c9ea6."
+
+register_result "one-time-mac-from-pairwise-unpredictable-hash" where
+  title := "A pairwise-unpredictable hash gives a one-time MAC"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 7.12",
+      locator := "v0.6, Section 7.6.3, printed p. 276" }
+  ]
+  theorems := [Cslib.Crypto.oneTimeForgeExperiment_hash_le]
+  scope := "One signing response under a private uniform key from a finite key space. \
+    Signing returns the hash digest and verification checks equality. The forgery pair must \
+    be fresh. A valid pair with the queried message would repeat the correct tag, so a \
+    successful forgery gives a prediction for a distinct message. The bound covers all \
+    two-stage adversaries with arbitrary private state and no runtime restriction."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"

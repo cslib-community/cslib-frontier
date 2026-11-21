@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
+import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
 import Mathlib.Algebra.Field.ZMod
@@ -72,5 +73,15 @@ example {F : Type} [Field F] [Fintype F] [DecidableEq F] (ℓ : ℕ) :
     (K := F) (M := {m : List F // m.length ≤ ℓ}) (Y := F)
     (H := fun k m => xpolyHash k m.val) (ε := (ℓ + 1) / Fintype.card F)
     (isDeltaUniversalHash_xpolyHash (F := F) ℓ)
+
+private def repeatWithWrongTag : TwoStage Unit Bool Bool (Bool × Bool) Unit where
+  choose _ := pure (false, ())
+  guess _ tag := pure (false, !tag)
+
+/-- A fresh pair with the queried message and a different tag fails equality verification. -/
+example : ProbComp.eval
+    (oneTimeForgeExperiment (pure ()) (fun _ _ => pure true)
+      (fun _ _ t => decide (true = t)) repeatWithWrongTag) true = 0 := by
+  simp [oneTimeForgeExperiment, repeatWithWrongTag]
 
 end Cslib.Crypto.UHF.Tests
