@@ -104,11 +104,8 @@ private def hornerAdvance (s : HornerState) : HornerState :=
 private theorem listXor_eq_zipWith {width : ℕ} {u v : List Bool}
     (hu : u.length = width) (hv : v.length = width) :
     BitString.listXor width [u, v] = u.zipWith xor v := by
-  apply List.ext_getElem (by simp [hu, hv])
-  intro i hi _
-  have hi' : i < width := by simpa using hi
-  simp [BitString.listXor, List.getElem?_eq_getElem (hu ▸ hi'),
-    List.getElem?_eq_getElem (hv ▸ hi')]
+  rw [BitString.listXor_pair, BitString.ofFn_add, BitString.ofFn_ofList hu,
+    BitString.ofFn_ofList hv]
 
 private theorem hornerAdvance_inSpace :
     ComputableInSpace hornerAdvance encHornerState encHornerState
