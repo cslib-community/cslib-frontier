@@ -62,6 +62,31 @@ example :
   exact NondeterministicQueryMachine.firstHalting_append_singleton _ [] [false, false] false
     rfl rfl
 
+/-- A growing round, a stable round and a passing negative have one complete selector list. -/
+example :
+    let scan := machine (start () 2) round id growingRound done (fun _ => ())
+      (fun _ => some false)
+    {bits : List Bool | scan.FirstHalting [] bits scan.init ∧
+      scan.accept (scan.run [] bits) = true} = {[false, false, false]} := by
+  let scan := machine (start () 2) round id growingRound done (fun _ => ())
+    (fun _ => some false)
+  let traces : Set (List Bool) :=
+    {bits | scan.FirstHalting [] bits scan.init ∧ scan.accept (scan.run [] bits) = true}
+  change traces = _
+  have hu := subsingleton_successful_firstHalting (start () 2) round id growingRound
+    done (fun _ => ()) (fun _ => some false) [] (fun _ => True) trivial
+    (fun _ _ _ _ _ _ _ _ => trivial)
+    (fun r _ _ _ hx _ hy =>
+      ((round.firstHalting_iff_nil_of_halted [] _ r rfl).mp hx.1).trans
+        ((round.firstHalting_iff_nil_of_halted [] _ r rfl).mp hy.1).symm)
+    (fun _ _ _ _ hx _ hy =>
+      ((done.firstHalting_iff_nil_of_halted [] _ () rfl).mp hx.1).trans
+        ((done.firstHalting_iff_nil_of_halted [] _ () rfl).mp hy.1).symm)
+  have hmem : [false, false, false] ∈ traces :=
+    ⟨NondeterministicQueryMachine.firstHalting_append_singleton scan [] [false, false] false
+      rfl rfl, rfl⟩
+  exact hu.eq_singleton_of_mem hmem
+
 private def stableRound (r : Registers Unit) : Option RoundUpdate := some ⟨r.tally, false⟩
 
 open Turing.DoubleCounting in
@@ -83,7 +108,7 @@ example (input : List Bool) :
     (machine (start () 2) round id growingRound done (fun _ => ())
       (fun _ => some false)).HaltsWithin input 3 :=
   haltsWithin (start () 2) round id growingRound done (fun _ => ()) (fun _ => some false) input
-    (fun _ => True) trivial (fun _ _ _ _ _ _ _ => trivial)
+    (fun _ => True) trivial (fun _ _ _ _ _ _ _ _ => trivial)
     0 0 (fun _ _ _ _ => rfl) (fun _ _ _ _ => rfl)
 
 private def stableReply (_ : Unit) : Option RoundUpdate := some ⟨⟨1, 0⟩, false⟩
@@ -121,7 +146,7 @@ private theorem nativeRoutines : Nonempty
       ?_ (encRegisters encUnit initialRegisters).length 0 0
       (by rintro _ rfl; exact le_rfl) (fun _ _ _ => Nat.zero_le 0)
       (fun _ _ _ => Nat.zero_le 0) bits).trans ?_
-    · intro r hr _ a ha _ hc
+    · intro r hr _ _ a ha _ hc
       subst r
       have he : a = ⟨⟨1, 0⟩, false⟩ := Option.some.inj ha.symm
       subst a

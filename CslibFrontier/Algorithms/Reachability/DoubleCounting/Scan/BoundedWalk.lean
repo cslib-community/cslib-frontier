@@ -1496,11 +1496,9 @@ theorem native_firstHalting_accept_iff (registers : α → Registers N)
         (walkM readNext (fun u v => pure (adjacent u v))
           (registers a).target (registers a).fuel (registers a).current tail).1 = some left := by
   let walk := machine edge start verdict clock (registers a)
+  rw [R.existsUnique_accepting_replay_iff]
   constructor
-  · rintro ⟨_, ⟨final, hreplay, hhalts, hout⟩, _⟩
-    obtain ⟨hfirst, houtput⟩ := R.replay_correct a hreplay hhalts
-    have haccept : walk.accept (walk.run (encIn a) bits) = true :=
-      List.cons.inj (houtput.symm.trans hout) |>.1
+  · rintro ⟨hfirst, haccept⟩
     change (remainingFuel (walk.run (encIn a) bits)).isSome = true at haccept
     obtain ⟨left, hl⟩ := Option.isSome_iff_exists.mp haccept
     obtain ⟨tail, hbits, hwalk⟩ :=
@@ -1510,16 +1508,11 @@ theorem native_firstHalting_accept_iff (registers : α → Registers N)
   · rintro ⟨tail, left, rfl, hs⟩
     obtain ⟨hfirst, hresult⟩ := firstHalting_selectors edge start verdict clock (registers a)
       (encIn a) adjacent hclock hedge tail hs
-    obtain ⟨indices, ⟨final, hreplay, hhalts⟩, hunique⟩ :=
-      (R.existsUnique_replay_iff a (selectors clock tail)).mpr hfirst
-    have hout := (R.replay_correct a hreplay hhalts).2
     have haccept : walk.accept (walk.run (encIn a) (selectors clock tail)) = true := by
       change (remainingFuel _).isSome = true
       rw [hresult]
       rfl
-    have hout' := hout.trans (congrArg (fun b => [b]) haccept)
-    exact ⟨indices, ⟨final, hreplay, hhalts, hout'⟩,
-      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
+    exact ⟨hfirst, haccept⟩
 
 end Native
 

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.HorizontalTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Points
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
@@ -362,5 +363,27 @@ example : ((Route.line 0 0).plateauShear 0 1 10).support = {(10 : ℂ)} := by
     simpa using Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10
       (z := 0) (by norm_num)
   simp only [segment_same, Set.image_singleton, he]
+
+-- Two nonparallel walls cut the original spoke at distinct parameters.
+example :
+    let D := PolygonalDrawing.star 1
+    let c : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap - AffineMap.const ℝ ℂ (1 / 3)
+    let d : ℂ →ᵃ[ℝ] ℝ := Complex.imCLM.toLinearMap.toAffineMap - AffineMap.const ℝ ℂ (2 / 3)
+    let edge : Fin (starGraph 1).edges.length := ⟨0, by decide +kernel⟩
+    (∀ f ∈ [c, d], (0 : ℝ) ∈ Set.Ioo (f (D.route edge).finish) (f (D.route edge).start)) ∧
+      ∃ E : PolygonalDrawing (starGraph 1), E.IsEmbedding ∧ E.vertex = D.vertex ∧
+        (∀ e, (E.route e).support = (D.route e).support) ∧
+        ∀ e (i : Fin (E.route e).segments) f, f ∈ [c, d] →
+          0 ∉ Set.Ioo (min (f ((E.route e).point i.castSucc)) (f ((E.route e).point i.succ)))
+            (max (f ((E.route e).point i.castSucc)) (f ((E.route e).point i.succ))) := by
+  dsimp only
+  refine ⟨?_, (PolygonalDrawing.star_isEmbedding 1).exists_wall_refinement _⟩
+  intro f hf
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
+  rcases hf with rfl | rfl
+  · change (0 : ℝ) - 1 / 3 < 0 ∧ (0 : ℝ) < ((0 : ℕ) : ℝ) + 1 - 1 / 3
+    constructor <;> norm_num
+  · change (0 : ℝ) - 2 / 3 < 0 ∧ (0 : ℝ) < 1 - 2 / 3
+    constructor <;> norm_num
 
 end CslibFrontierTests.PolygonalHorizontalTransport

@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.HashFamily
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Collisions
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 import Mathlib.Data.List.MinMax
@@ -28,6 +29,7 @@ keeps the uniform key private. An adversary is a closed probabilistic program wi
 * `Cslib.Crypto.UHF.collisionExperiment`: the single-pair collision game (Attack Game 7.1).
 * `Cslib.Crypto.UHF.multiQueryExperiment`: the multi-query collision game (Attack Game 7.2).
 * `Cslib.Crypto.UHF.differenceExperiment`: the difference-prediction game (Attack Game 7.3).
+* `Cslib.Crypto.UHF.collisionPairReduction`: turns a list of guesses into one pair.
 * `Cslib.Crypto.UHF.bestCollisionGuess`: exhaustive search for a pair with maximal collision
   probability in an enumeration of the message space.
 
@@ -38,6 +40,8 @@ keeps the uniform key private. An adversary is a closed probabilistic program wi
   predicates are equivalent to bounding the corresponding advantage for every adversary.
 * `Cslib.Crypto.UHF.bestCollisionGuess_wins`: exhaustive search finds a guess that exceeds
   the proposed bound whenever a distinct pair does (Exercise 7.3).
+* `Cslib.Crypto.UHF.eval_multiQueryExperiment_le_collisionPairReduction`: the finite-game
+  advantage bound for the explicit wrapper, using ideal uniform index draws.
 * `Cslib.Crypto.UHF.eval_multiQueryExperiment_le`: the statistical `C(Q, 2) * ε` bound
   for lists of length at most `Q`.
 
@@ -196,6 +200,104 @@ and rewards only pairs with `m ≠ m'` and `H k m = H k m'`, so duplicate messag
   let k ← ProbComp.uniform K
   return decide (∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m')
 
+private noncomputable def sampleCollisionPair (fallback : M) (ms : List M) :
+    ProbComp (CollisionGuess M) :=
+  if h : ms = [] then pure ⟨fallback, fallback⟩ else
+    haveI : NeZero ms.length := ⟨fun hlen => h (List.length_eq_zero_iff.mp hlen)⟩
+    do
+      let ij ← ProbComp.uniform (Fin ms.length × Fin ms.length)
+      return ⟨ms[ij.1.val], ms[ij.2.val]⟩
+
+/-- Run the multi-query adversary and sample two positions independently and uniformly from its
+list. Repeated messages lose in Attack Game 7.1. An empty list gives the repeated dummy message.
+The index sampler is ideal. -/
+noncomputable def collisionPairReduction (fallback : M) (A : ProbComp (List M)) :
+    ProbComp (CollisionGuess M) := do
+  let ms ← A
+  sampleCollisionPair fallback ms
+
+private theorem collision_indicator_le_samplePair [DecidableEq M] [DecidableEq Y]
+    (H : K → M → Y) (k : K) (fallback : M) (ms : List M) {Q : ℕ} (hlen : ms.length ≤ Q) :
+    PMF.pure (decide (∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m')) true ≤
+      ((Q : ℝ≥0∞) ^ 2 / 2) * ((ProbComp.eval (sampleCollisionPair fallback ms)).bind
+        fun g => PMF.pure (decide (g.first ≠ g.second ∧ H k g.first = H k g.second))) true := by
+  classical
+  by_cases h : ∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m'
+  · have hnil : ms ≠ [] := by
+      rintro rfl
+      simp at h
+    have : NeZero ms.length := ⟨fun hlen => hnil (List.length_eq_zero_iff.mp hlen)⟩
+    have hcollision := h
+    rcases h with ⟨m, hm, m', hm', hne, hd⟩
+    obtain ⟨i, hi, hi'⟩ := List.mem_iff_getElem.mp hm
+    obtain ⟨j, hj, hj'⟩ := List.mem_iff_getElem.mp hm'
+    let a : Fin ms.length := ⟨i, hi⟩
+    let b : Fin ms.length := ⟨j, hj⟩
+    have hab : a ≠ b := by
+      intro he
+      have hget := congrArg (fun t : Fin ms.length => ms[t.val]) he
+      exact hne (hi'.symm.trans (hget.trans hj'))
+    simp only [hcollision, decide_true, PMF.pure_apply_self, sampleCollisionPair,
+      dite_eq_right hnil, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+      PMF.bind_bind,
+      PMF.pure_bind, Probability.PMF.bind_pure_decide_apply_true]
+    let wins (ij : Fin ms.length × Fin ms.length) :=
+      ms[ij.1.val] ≠ ms[ij.2.val] ∧ H k ms[ij.1.val] = H k ms[ij.2.val]
+    let winning := Finset.univ.filter wins
+    have hcard : 2 ≤ winning.card := by
+      rw [← Finset.card_pair (a := (a, b)) (b := (b, a)) (by simp [hab])]
+      refine Finset.card_le_card fun ij hmem => ?_
+      simp only [Finset.mem_insert, Finset.mem_singleton] at hmem
+      rcases hmem with rfl | rfl
+      · simp [winning, wins, a, b, hi', hj', hne, hd]
+      · simp [winning, wins, a, b, hi', hj', hne.symm, hd.symm]
+    rw [Probability.PMF.toOuterMeasure_uniformOfFintype]
+    change 1 ≤ ((Q : ℝ≥0∞) ^ 2 / 2) * (winning.card *
+      (Fintype.card (Fin ms.length × Fin ms.length) : ℝ≥0∞)⁻¹)
+    simp only [Fintype.card_prod, Fintype.card_fin, Nat.cast_mul]
+    rw [← pow_two]
+    have hpos : (ms.length : ℝ≥0∞) ^ 2 ≠ 0 :=
+      pow_ne_zero _ (Nat.cast_ne_zero.mpr (NeZero.ne _))
+    have hfin : (ms.length : ℝ≥0∞) ^ 2 ≠ ⊤ :=
+      ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
+    calc
+      1 = (((ms.length : ℝ≥0∞) ^ 2) / 2) * (2 * ((ms.length : ℝ≥0∞) ^ 2)⁻¹) := by
+        rw [div_eq_mul_inv]
+        symm
+        calc
+          _ = (2 * 2⁻¹) * (((ms.length : ℝ≥0∞) ^ 2) * ((ms.length : ℝ≥0∞) ^ 2)⁻¹) := by
+            ring
+          _ = 1 := by
+            rw [ENNReal.mul_inv_cancel hpos hfin,
+              ENNReal.mul_inv_cancel (by norm_num) (by norm_num), mul_one]
+      _ ≤ _ := by
+        gcongr
+        exact_mod_cast hcard
+  · simp [h]
+
+/-- A finite-game step toward Lemma 7.1 ([BonehShoup2023], v0.6, printed pp. 254–255).
+If the multi-query adversary outputs at most `Q` messages, its collision probability is at most
+`Q ^ 2 / 2` times that of the explicit single-pair wrapper. Whenever the list contains a
+collision, both orders of a colliding pair can be drawn. This argument uses ideal uniform
+index draws for one uniform-key instance. The computational-family conclusion of Lemma 7.1
+also needs a polynomial-time implementation of the index sampler and wrapper (#5790). -/
+theorem eval_multiQueryExperiment_le_collisionPairReduction [Fintype K] [Nonempty K]
+    [DecidableEq M] [DecidableEq Y] (H : K → M → Y) (fallback : M)
+    (A : ProbComp (List M)) {Q : ℕ} (hA : ∀ ms ∈ (ProbComp.eval A).support, ms.length ≤ Q) :
+    ProbComp.eval (multiQueryExperiment H A) true ≤ ((Q : ℝ≥0∞) ^ 2 / 2) *
+      ProbComp.eval (collisionExperiment H (collisionPairReduction fallback A)) true := by
+  simp only [multiQueryExperiment, collisionExperiment, collisionPairReduction,
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind]
+  rw [PMF.bind_apply, PMF.bind_apply, ← ENNReal.tsum_mul_left]
+  simp_rw [mul_left_comm ((Q : ℝ≥0∞) ^ 2 / 2)]
+  refine Probability.PMF.tsum_mul_mono_support _ fun ms hms => ?_
+  rw [PMF.bind_comm (ProbComp.eval (sampleCollisionPair fallback ms)), PMF.bind_apply,
+    PMF.bind_apply, ← ENNReal.tsum_mul_left]
+  refine tsum_le_tsum fun k => ?_
+  rw [mul_left_comm]
+  gcongr
+  exact collision_indicator_le_samplePair H k fallback ms (hA ms hms)
+
 /-- The `ε`-bounded case of [BonehShoup2023], Lemma 7.1, a step toward the lemma, not the cited
 result: against an `ε`-bounded UHF (`IsUniversalHash` for the uniform key, the `ε`-UHF of
 Definition 7.2), an adversary whose supported output lists have length at most `Q` wins Attack
@@ -203,7 +305,7 @@ Game 7.2 with probability at most `Q.choose 2 * ε`. Only the key type has to be
 assumes only a computational UHF and bounds the multi-query advantage by `Q ^ 2 / 2` times the
 advantage of an efficient wrapper in Attack Game 7.1; here the hash is `ε`-bounded against every
 adversary, efficient or not, for one fixed instance, with any `ε` (Definition 7.2 calls it
-statistical only when `ε` is negligible), and no wrapper is built (#5790). -/
+statistical only when `ε` is negligible), and the proof uses a union bound (#5790). -/
 theorem eval_multiQueryExperiment_le [Fintype K] [Nonempty K] [DecidableEq M] [DecidableEq Y]
     {H : K → M → Y} {ε : ℝ≥0∞} (hH : IsUniversalHash (PMF.uniformOfFintype K) H ε)
     {B : ProbComp (List M)} {Q : ℕ} (hB : ∀ ms ∈ (ProbComp.eval B).support, ms.length ≤ Q) :

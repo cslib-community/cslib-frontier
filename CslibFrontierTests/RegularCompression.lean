@@ -47,6 +47,13 @@ example (f : G → Matrix ι ι ℂ) (ψ : EuclideanSpace ℂ ι) :
       EuclideanSpace ℂ ι)‖ ^ 2) / (Fintype.card G) ^ 2 :=
   sum_norm_regularIsometry_mul_sub_eq f ψ
 
+open scoped BigOperators in
+/-- The compression bound holds in every state. -/
+example (f : G → Matrix ι ι ℂ) (hf : ∀ x, (f x)ᴴ * f x = 1) (φ : AlgState (Matrix ι ι ℂ)) :
+    𝔼 y, φ.norm (f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f) ^ 2 ≤
+      𝔼 x, 𝔼 y, φ.norm (f x * f y - f (x * y)) ^ 2 :=
+  expect_norm_sub_compress_sq_le f φ hf
+
 /-- The averaged compression bound in the state-dependent norm of a vector state. -/
 example (f : G → Matrix ι ι ℂ) (hf : ∀ x, (f x)ᴴ * f x = 1) (ψ : EuclideanSpace ℂ ι)
     (hψ : ‖ψ‖ = 1) :
@@ -75,12 +82,9 @@ theorem pauliRep_mul (x y : Multiplicative (ZMod 2)) :
   rcases hcases x with rfl | rfl <;> rcases hcases y with rfl | rfl <;>
     simp [h₁, hX, hsq, pauliX_mul_self]
 
-/-- The Pauli representation of `ℤ/2` is recovered exactly by the compression, in every
-vector. -/
-example (ψ : EuclideanSpace ℂ Bool) (y : Multiplicative (ZMod 2)) :
-    pauliRep y *ᵥ ψ.ofLp =
-      ((regularIsometry pauliRep)ᴴ * regularRep y * regularIsometry pauliRep) *ᵥ ψ.ofLp :=
-  mulVec_eq_compress_of_mul pauliRep pauliRep_unitary ψ
-    (fun x y => by rw [pauliRep_mul]) y
+/-- The Pauli representation of `ℤ/2` is recovered exactly by the compression. -/
+example (y : Multiplicative (ZMod 2)) :
+    (regularIsometry pauliRep)ᴴ * regularRep y * regularIsometry pauliRep = pauliRep y :=
+  compress_eq_of_mul pauliRep pauliRep_unitary pauliRep_mul y
 
 end CslibFrontierTests.RegularCompression

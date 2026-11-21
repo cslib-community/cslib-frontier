@@ -598,20 +598,29 @@ private def readRequest {τ : Type} (N : NondeterministicQueryMachine τ)
     | false :: bits => N.readReply finish input (start ctx req) bits
     | _ => none
 
+private theorem readRequest_of_success {τ : Type} (N : NondeterministicQueryMachine τ)
+    (start : Context → Request → τ) (finish : τ → Option Bool)
+    (input : List Bool) (ctx : Context) (req : Request)
+    (bits rest : List Bool) (hit : Bool)
+    (hread : (readRequest N start finish input ctx req).run bits = some (hit, rest)) :
+    ∃ tail, bits = false :: tail ∧
+      N.readReply finish input (start ctx req) tail = some (hit, rest) := by
+  rcases bits with _ | ⟨_ | _, tail⟩
+  · cases hread
+  · exact ⟨tail, rfl, hread⟩
+  · cases hread
+
 private theorem readRequest_length_lt {τ : Type} (N : NondeterministicQueryMachine τ)
     (start : Context → Request → τ) (finish : τ → Option Bool)
     (input : List Bool) (ctx : Context) (req : Request)
     (bits rest : List Bool) (hit : Bool)
     (hread : (readRequest N start finish input ctx req).run bits = some (hit, rest)) :
     rest.length < bits.length := by
-  cases bits with
-  | nil => cases hread
-  | cons b bits =>
-    cases b
-    · obtain ⟨callBits, rfl, _, _⟩ := (N.readReply_iff finish input bits _ hit rest).mp hread
-      simp
-      omega
-    · cases hread
+  obtain ⟨tail, rfl, htail⟩ :=
+    readRequest_of_success N start finish input ctx req bits rest hit hread
+  obtain ⟨callBits, rfl, _, _⟩ := (N.readReply_iff finish input tail _ hit rest).mp htail
+  simp
+  omega
 
 private theorem successful_request_iff {τ : Type} (ctx : Context)
     (N : NondeterministicQueryMachine τ) (start : Context → Request → τ) (finish : τ → Option Bool)
@@ -734,11 +743,7 @@ private theorem firstHalting_iff_remaining {τ : Type} (ctx : Context)
           exact ⟨hf', hfinal.symm ▸ ha⟩
     | true =>
       have hh : M.halted ⟨q, none⟩ = true := hlive
-      have hnil : M.FirstHalting input bits ⟨q, none⟩ ↔ bits = [] := by
-        cases bits with
-        | nil => simp [NondeterministicQueryMachine.FirstHalting, hh]
-        | cons b bits => simp [M.firstHalting_cons_iff, hh]
-      rw [hnil, M.replay_of_halted input hh]
+      rw [M.firstHalting_iff_nil_of_halted input bits ⟨q, none⟩ hh, M.replay_of_halted input hh]
       cases hr : q.rejected with
       | true =>
         simp [answer, result, hr, rem, remaining, StateT.run]
@@ -935,6 +940,60 @@ private theorem request_inRange {q : State} (hlive : halted q = false)
     · simpa only [request, hq, hphase, Bool.false_eq_true, ite_false, Request.InRange] using
         And.intro hj hi
     · simpa only [request, hq, hphase, ite_true, Request.InRange] using hj
+
+/-- A round has at most one successful first-halting selector list when every in-range request
+has at most one first-halting callback trace with a reply. A tied update still counts as success. -/
+theorem subsingleton_successful_firstHalting {τ : Type} (ctx : Context)
+    (N : NondeterministicQueryMachine τ) (start : Context → Request → τ)
+    (finish : τ → Option Bool) (input : List Bool)
+    (hrequest : ∀ req, req.InRange ctx.size →
+      {bits : List Bool | N.FirstHalting input bits (start ctx req) ∧
+        (finish (N.replay input bits (start ctx req))).isSome}.Subsingleton) :
+    let M := machine ctx N start finish
+    {bits : List Bool | M.FirstHalting input bits M.init ∧
+      (answer (M.run input bits)).isSome}.Subsingleton := by
+  let M := machine ctx N start finish
+  have aux (left right : List Bool) (q : State) (hctx : q.context = ctx)
+      (hp : PredecessorBounded q)
+      (hl : M.FirstHalting input left ⟨q, none⟩ ∧
+        (answer (M.replay input left ⟨q, none⟩)).isSome)
+      (hr : M.FirstHalting input right ⟨q, none⟩ ∧
+        (answer (M.replay input right ⟨q, none⟩)).isSome) :
+      left = right := by
+    induction left using (measure (List.length : List Bool → ℕ)).wf.induction
+      generalizing q right with
+    | h left ih =>
+      cases hh : halted q with
+      | true =>
+        exact ((M.firstHalting_iff_nil_of_halted input _ ⟨q, none⟩ hh).mp hl.1).trans
+          ((M.firstHalting_iff_nil_of_halted input _ ⟨q, none⟩ hh).mp hr.1).symm
+      | false =>
+        obtain ⟨hit, suffix, hlread, hlf, hlend⟩ :=
+          (successful_request_iff ctx N start finish input q left _ hh hl.1.1 hl.2).mp
+            ⟨hl.1, rfl⟩
+        obtain ⟨hit', suffix', hrread, hrf, hrend⟩ :=
+          (successful_request_iff ctx N start finish input q right _ hh hr.1.1 hr.2).mp
+            ⟨hr.1, rfl⟩
+        have hlen := readRequest_length_lt N start finish input q.context (request q)
+          left suffix hit hlread
+        have hv := request_inRange hh hp
+        rw [hctx] at hv
+        obtain ⟨l, hlentry, hlreply⟩ :=
+          readRequest_of_success N start finish input q.context _ _ _ _ hlread
+        obtain ⟨r, hrentry, hrreply⟩ :=
+          readRequest_of_success N start finish input q.context _ _ _ _ hrread
+        rw [hctx] at hlreply hrreply
+        obtain ⟨callBits, hlsplit, hrsplit, _, rfl⟩ :=
+          N.readReply_commonPrefix finish input (start ctx (request q))
+            (hrequest (request q) hv) hlreply hrreply
+        have hs : suffix = suffix' :=
+          ih suffix hlen suffix' (advance q (some hit)) ((advance_context _ _).trans hctx)
+            (advance_predecessorBounded hh hp _) ⟨hlf, hlend ▸ hl.2⟩ ⟨hrf, hrend ▸ hr.2⟩
+        rw [hlentry, hrentry, hlsplit, hrsplit, hs]
+  change {bits : List Bool | M.FirstHalting input bits M.init ∧
+    (answer (M.run input bits)).isSome}.Subsingleton
+  intro left hl right hr
+  exact aux left right (initial ctx) rfl (by simp [PredecessorBounded, initial]) hl hr
 
 /-- Every suspended callee came from an in-range request on the original round context and input. -/
 theorem run_callee_replay {τ : Type} (ctx : Context)

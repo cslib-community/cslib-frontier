@@ -81,6 +81,31 @@ private theorem test_instruction {C : QuantumSigningForger} (H : Xofs) (code : O
     simp only [POVM.measureDensity_apply, POVM.densityProb_comap, DeviceState.instruction_apply,
       h, DeviceState.evolve_density, U, coe_onFirst]
 
+-- Pull a readout back through one actual device instruction, with the rest of the
+-- computation allowed to depend on a measured reply.
+private theorem device_readout {C : QuantumSigningForger} {σ : Type} (G : Xofs)
+    (cmd : DeviceRequest (Width C) Empty) (s : σ) (tail : List Bool → Device C → Game)
+    (test : ∀ r, ∃ M : Test C, ∀ d : Device C,
+      tail r d = M.measureDensity d.density d.isDensityMatrix) :
+    ∃ E : Test C, ∀ d : Device C,
+      ((C.deviceCommand G cmd (d, s)).bind fun (r, st, _) => tail r st) =
+        E.measureDensity d.density d.isDensityMatrix := by
+  choose M law using test
+  cases cmd with
+  | service op _ => exact op.elim
+  | gate g =>
+    simpa only [deviceCommand, deviceHandler_gate, pmf_norm, Function.comp_def, law] using
+      test_instruction G (.gate g) (M [])
+  | query =>
+    simpa only [deviceCommand, deviceHandler_query, pmf_norm, Function.comp_def, law] using
+      test_instruction G .query (M [])
+  | measure wire =>
+    let f := fun (z : (Fin (Width C) → Bool) × Unit) => z.1 wire
+    refine ⟨POVM.afterRead f (fun y => M [y]), fun d => ?_⟩
+    simp only [deviceCommand, deviceHandler_measure, pmf_norm, Function.comp_def, law,
+      POVM.measureDensity_afterRead]
+    exact DeviceState.measure_bind (fun x => x wire) d
+      (fun y st => (M [y]).measureDensity st.density st.isDensityMatrix)
 private noncomputable def basisScore {C : QuantumSigningForger}
     (f : (Fin (Width C) → Bool) × Unit → Bool) : Test C :=
   POVM.afterRead f (fun y => POVM.const y)
@@ -239,6 +264,14 @@ private theorem measured_coin {α : Type} {coin : ℕ} {k : Fin (coin + 1) → P
   rw [measured_step]
   simp [OracleComp.sumHandler, pmf_norm]
 
+private theorem measured_device {α : Type} {cmd : DeviceRequest (Width C) Empty}
+    {k : List Bool → Program C α} (test : α → σ → Test C) (d : Device C) (st : σ) :
+    measured sign raw (OracleComp.query (.inr (.inl cmd)) >>= k) test d st =
+      (C.deviceCommand (raw st) cmd (d, st)).bind
+        fun (r, dev, _) => measured sign raw (k r) test dev st := by
+  rw [measured_step]
+  simp [statefulSigningCommands, OracleComp.sumHandler, deviceCommand, pmf_norm, Function.comp_def]
+
 private theorem measured_gate {α : Type} {g : PhaseGateCode} {k : List Bool → Program C α}
     (test : α → σ → Test C) (d : Device C) (st : σ) :
     measured sign raw (OracleComp.query (.inr (.inl (.gate g))) >>= k) test d st =
@@ -285,30 +318,18 @@ private theorem measured_readout {α : Type}
   | liftBind q k ih =>
     choose M eq using ih
     change ∃ M : Test C, ∀ d, measured _ _ (OracleComp.query q >>= k) _ d st = _
-    simp only [measured_step, statefulSigningCommands, OracleComp.sumHandler]
     rcases q with coin | cmd | ask
     · exact ⟨POVM.mixture (ProbComp.unifOracle coin) (fun i => M i st), fun d => by
-        simp only [PMF.bind_map, Function.comp_def, eq, POVM.measureDensity_mixture]⟩
-    · cases cmd with
-      | service op _ => exact op.elim
-      | gate g =>
-        simpa only [deviceCommand, deviceHandler_gate, PMF.pure_map, PMF.pure_bind, eq,
-          StateT.run] using test_instruction (raw st) (.gate g) (M [] st)
-      | query =>
-        simpa only [deviceCommand, deviceHandler_query, PMF.pure_map, PMF.pure_bind, eq,
-          StateT.run] using test_instruction (raw st) .query (M [] st)
-      | measure wire =>
-        let f := fun (z : (Fin (Width C) → Bool) × Unit) => z.1 wire
-        refine ⟨POVM.afterRead f (fun y => M [y] st), fun d => ?_⟩
-        simp only [deviceCommand, deviceHandler_measure, PMF.bind_map,
-          Function.comp_def, eq, POVM.measureDensity_afterRead]
-        exact DeviceState.measure_bind (fun x => x wire) d
-          (fun y dev => (M [y] st).measureDensity dev.density dev.isDensityMatrix)
-    · let p := sign ask st
+        simp only [measured_coin sign raw (coin := coin) (k := k), eq,
+          POVM.measureDensity_mixture]⟩
+    · simp only [measured_device sign raw (cmd := cmd) (k := k)]
+      exact device_readout (raw st) cmd st _ (fun r => ⟨M r st, eq r st⟩)
+    · simp only [measured_sign sign raw (ask := ask) (k := k)]
+      let p := sign ask st
       obtain ⟨r, law⟩ := support_law p
       let _ := (finiteSign ask st).fintype
       refine ⟨POVM.mixture r (fun z => M z.1.1 z.1.2), fun d => ?_⟩
-      simp only [PMF.bind_map, Function.comp_def, eq, POVM.measureDensity_mixture]
+      simp only [eq, POVM.measureDensity_mixture]
       change p.bind _ = _
       conv_lhs => rw [← law, PMF.bind_map]
       rfl
@@ -456,6 +477,17 @@ private theorem scored_eq_measured {C : QuantumSigningForger} {α V : Type} [Zer
   change _ = ((OracleComp.interpret g p).run (reassoc ((d, log), tape))).bind _
   rw [← law, PMF.bind_map]
   rfl
+
+-- Pull the terminal effect back through the actual adaptive program. Fixing the log and tape
+-- leaves a single measurement that works for every density matrix on the retained register.
+private theorem scored_readout {C : QuantumSigningForger} {α V : Type} [Zero V]
+    (prog : Program C α) (H : Xofs) (sign : V → SigningQuery → Option (List Byte))
+    (test : α → List Forgery → List V → Test C) (log : List Forgery) (tape : List V) :
+    ∃ M : Test C, ∀ d : Device C,
+      scored prog H sign test d log tape = M.measureDensity d.density d.isDensityMatrix := by
+  obtain ⟨M, hM⟩ := measured_readout (tapeReply sign) (fun _ => H)
+    (fun _ _ => by simp [tapeReply]) prog (fun x st => test x st.1 st.2) (log, tape)
+  exact ⟨M, fun d => (scored_eq_measured ..).trans (hM d)⟩
 
 private theorem scored_gap_le {C : QuantumSigningForger} {α V : Type} [Zero V]
     {prog : Program C α} {m : ℕ}

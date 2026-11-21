@@ -359,6 +359,13 @@ theorem haltsWithin {N : ℕ} (ctx : κ) (r : Registers N) (input : List Bool) :
   exact BoundedWalk.haltsWithin edge (fun u v => start ctx u.val v.val) verdict clock r
     input selectors hlen
 
+/-- Encoded-state bound for the runtime walk, including the framed context, binary dimension,
+and an adjacency state of at most `calleeBound` bits. -/
+@[expose] def stateBound (dimension fuel clock contextLength calleeBound : ℕ) : ℕ :=
+  2 * contextLength + 14 * (encNat dimension).length +
+    4 * (Nat.log2 dimension.size + 1) + 4 * (encNat fuel).length +
+    2 * (encNat clock).length + calleeBound + 23
+
 /-- Every runtime branch adds only the framed context and binary dimension to the bounded walk's
 retained state, including on rejection and during an adjacency call. -/
 theorem length_run_le {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : List Bool)
@@ -368,10 +375,8 @@ theorem length_run_le {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : 
     let initial := entry edge start verdict clock ctx r
     (encState encContext encCallee ((machine edge start verdict clock initial).run
       input selectors)).length ≤
-        2 * (encContext ctx).length + 14 * (encNat N).length +
-          4 * (Nat.log2 N.size + 1) + 4 * (encNat r.fuel).length +
-          2 * (encNat clock).length + calleeBound + 23 := by
-  dsimp only
+      stateBound N r.fuel clock (encContext ctx).length calleeBound := by
+  dsimp only [stateBound]
   rw [run_eq, length_encState]
   have h := BoundedWalk.length_run_le edge (fun u v => start ctx u.val v.val) verdict clock r
     input encCallee calleeBound hcallee selectors

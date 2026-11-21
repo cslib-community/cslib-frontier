@@ -79,6 +79,7 @@ import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.HashFamily.Transport
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
+import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
@@ -10880,6 +10881,19 @@ register_result "one-time-mac-from-pairwise-unpredictable-hash" where
     successful forgery gives a prediction for a distinct message. The bound covers all \
     two-stage adversaries with arbitrary private state and no runtime restriction. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6949 at 269b724487."
+
+register_result "xpoly-hash-prediction" where
+  title := "One revealed Hxpoly digest lets the adversary predict another"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.29",
+      locator := "v0.6, printed p. 285" }
+  ]
+  theorems := [Cslib.Crypto.UHF.eval_predictionExperiment_xpolyHash]
+  scope := "The first query is the empty message, with digest equal to the key. The second \
+    message is the singleton zero, and the adversary predicts the square of the first digest. \
+    The attack wins with probability one for any finite field and any length bound of at \
+    least one. Both stages have strict PPT certificates at each prime modulus."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
