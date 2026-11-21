@@ -19,7 +19,7 @@ public import Mathlib.Data.Nat.Log
 
 This module formalizes the finite geometric shortening step, exact executable rational orthogonal
 target construction, Hadamard potential-drop iteration bound, and deterministic oracle-loop
-soundness underlying [MicciancioRegev2007], Lemma 5.10 (December 27, 2005 author's copy, §5.2,
+soundness underlying [MicciancioRegev2007], Lemma 5.10 (December 27, 2005 author's copy, §5.3,
 p. 24).
 
 Given a full-rank family `S` of `n = rank L` linearly independent vectors in a lattice `L`, either
@@ -79,7 +79,7 @@ only; probabilistic amplification, strict-PPT accounting, and the asymptotic `GI
 ## References
 
 * [D. Micciancio and O. Regev, *Worst-Case to Average-Case Reductions Based on Gaussian
-  Measures*][MicciancioRegev2007], Lemma 5.10 (December 27, 2005 author's copy, §5.2, p. 24).
+  Measures*][MicciancioRegev2007], Lemma 5.10 (December 27, 2005 author's copy, §5.3, p. 24).
 -/
 
 public section
