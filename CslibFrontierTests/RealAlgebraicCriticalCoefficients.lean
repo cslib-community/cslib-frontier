@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.InitialCriticalSeparability
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.SeparatedCriticalValues
 import Mathlib.Tactic.NormNum
@@ -226,5 +227,16 @@ example :
   have he := eq_of_eval_potentialPolynomial_eq_of_pow_eq_one (by decide : 1 ≤ 2) hz hw h
   have h0 := congrFun he 0
   norm_num at h0
+
+-- The initial characteristic polynomial in one variable has two simple roots.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let q := (parametricValuePolynomial (by decide : 1 ≤ 2) F hF).map
+      (Polynomial.eval₂RingHom (Int.castRingHom ℂ) 0)
+    q.Separable ∧ q.natDegree = 2 := by
+  intro F hF q
+  refine ⟨parametricValuePolynomial_at_zero_separable (by decide : 1 ≤ 2) F hF, ?_⟩
+  simp only [q, parametricValuePolynomial_map_eval₂, valuePolynomial_natDegree, pow_one]
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
