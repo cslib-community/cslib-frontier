@@ -673,8 +673,7 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
     IsOraclePPT encBool (extendOneTimeCPAAdversary ctBound adversary) := by
   have h := isOraclePPT_oneTimeFilter
     (accept := fun n req => (unframe req).length == n && (dropFrame req).length == n)
-    (post := (· ++ [false])) (slack := 1) (by fun_prop) hctBound (by fun_prop)
-    (fun raw => by simp) hadversary
+    (post := (· ++ [false])) (by fun_prop) hctBound (by fun_prop) hadversary
   have heq : ∀ n, extendOneTimeCPAHandler n (ctBound n) =
       fun request alreadyQueried =>
         if !alreadyQueried &&

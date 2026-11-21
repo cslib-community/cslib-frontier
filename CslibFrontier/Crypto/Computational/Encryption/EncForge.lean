@@ -9,12 +9,8 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
@@ -126,7 +122,7 @@ theorem isPPTOn_run_encForgeOracle (E : SymmetricCipher) {adversary : CIAdversar
           (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
             (E.encForgeOracle caller.1 caller.2)) (adversary caller.1 [])).run []) :=
   E.isPPTOn_run_loggingEncryptionOracle (allow := fun _ => true) (by fun_prop)
-    (logEntry := fun m _ => m) (by fun_prop) (fun _ _ => Nat.le_add_right _ _) hadversary
+    (logEntry := fun m _ => m) (by fun_prop) hadversary
 
 private theorem computableInPolyTime_encForgePost (E : SymmetricCipher) :
     ComputableInPolyTime

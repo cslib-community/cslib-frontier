@@ -610,16 +610,15 @@ noncomputable def cpaLimitToOneQuery (ctBound : ℕ → ℕ) (adversary : Oracle
 
 /-- Running a `WordOracleComp Unit` adversary through a single-query `Bool`-state filter oracle
 that forwards a request when `!alreadyQueried && accept n req`, truncates the oracle reply to
-`ctBound n` bits, and applies `post` (growing length by at most `slack` bits) preserves strict
+`ctBound n` bits, and applies a polynomial-time postprocessing map `post` preserves strict
 oracle-PPT admissibility (`IsOraclePPT`). -/
 theorem isOraclePPT_oneTimeFilter {β : Type} {encOut : β ↪ List Bool}
     {accept : ℕ → List Bool → Bool} {ctBound : ℕ → ℕ}
-    {post : List Bool → List Bool} {slack : ℕ}
+    {post : List Bool → List Bool}
     (haccept : ComputableInPolyTime (fun p : ℕ × List Bool => accept p.1 p.2)
       (encPair encUnary encBits) encBool)
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary)
     (hpost : ComputableInPolyTime post encBits encBits)
-    (hpostLen : ∀ raw, (post raw).length ≤ raw.length + slack)
     {adversary : ℕ → List Bool → WordOracleComp Unit β}
     (hadversary : IsOraclePPT encOut adversary) :
     IsOraclePPT encOut (fun n _ => do
@@ -634,6 +633,7 @@ theorem isOraclePPT_oneTimeFilter {β : Type} {encOut : β ↪ List Bool}
               pure ([], alreadyQueried)))
         (adversary n [])).run false
       return out.1) := by
+  obtain ⟨c, d, hpostLen⟩ := hpost.polyBounded_length.exists_le
   let EIn := encPair (encPair encUnary encBits)
     (encPair (encPair (encFinEnum Unit) encBits) encBool)
   have hcond : ComputableInPolyTime
@@ -669,7 +669,7 @@ theorem isOraclePPT_oneTimeFilter {β : Type} {encOut : β ↪ List Bool}
           pure ([], p.2.2)) :=
     IsOraclePPTOn.cond hcond hquery hnoReply
   have hres : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + slack + 1)
+      (fun pair : (ℕ × List Bool) × List Bool => c * (ctBound pair.1.1 + 1) ^ d + 1)
       (encPair (encPair encUnary encBits) encBits) encUnary := by
     fun_prop
   have hrun : IsOraclePPTOn (encPair encUnary encBits) (encPair encOut encBool)
@@ -687,16 +687,19 @@ theorem isOraclePPT_oneTimeFilter {β : Type} {encOut : β ↪ List Bool}
     apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
       (initial := fun _ => false)
-      (resources := fun caller _ => ctBound caller.1 + slack + 1)
+      (resources := fun caller _ => c * (ctBound caller.1 + 1) ^ d + 1)
       (by fun_prop) hhandler (ComputableInPolyTime.const false)
       (fun _ _ => True) (fun _ => trivial) hres
     intro caller request alreadyQueried _ result hresult
     split_ifs at hresult with hlenEq
     · obtain ⟨ct, hct, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       obtain ⟨rawCt, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hct
-      have hlen : (post (List.take (ctBound caller.1) rawCt)).length ≤
-          ctBound caller.1 + slack :=
-        (hpostLen _).trans (Nat.add_le_add_right (List.length_take_le _ _) slack)
+      have hlen := hpostLen (List.take (ctBound caller.1) rawCt)
+      simp only [encBits_apply] at hlen
+      have hbound : (post (List.take (ctBound caller.1) rawCt)).length ≤
+          c * (ctBound caller.1 + 1) ^ d :=
+        hlen.trans (Nat.mul_le_mul_left c
+          (Nat.pow_le_pow_left (Nat.add_le_add_right (List.length_take_le _ _) 1) d))
       exact ⟨trivial, by lia, by simp [encBool_apply]⟩
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
@@ -709,8 +712,7 @@ theorem isOraclePPT_cpaLimitToOneQuery {ctBound : ℕ → ℕ}
     IsOraclePPT encBool (cpaLimitToOneQuery ctBound adversary) := by
   have h := isOraclePPT_oneTimeFilter
     (accept := fun n req => (unframe req).length == n && (dropFrame req).length == n)
-    (post := id) (slack := 0) (by fun_prop) hctBound (by fun_prop)
-    (fun _ => Nat.le_refl _) hadversary
+    (post := id) (by fun_prop) hctBound (by fun_prop) hadversary
   have heq : ∀ n, cpaOneTimeFilterHandler n (ctBound n) =
       fun request alreadyQueried =>
         if !alreadyQueried &&
@@ -1006,8 +1008,8 @@ private theorem ciGame_eq_on (E : SymmetricCipher) : E.ciGame = E.ciGameOn (fun 
 
 /-- Running an oracle-PPT adversary against a stateful encryption oracle gated by
 `allow log && (request.2.length == n)` that encrypts `request.2` and prepends
-`logEntry request.2 ct` to the word log is uniformly strict PPT in `(n, k)`. -/
-@[program_certificate]
+`logEntry request.2 ct` to the word log is uniformly strict PPT in `(n, k)` whenever `allow` and
+`logEntry` are computable in polynomial time. -/
 theorem isPPTOn_run_loggingEncryptionOracle (E : SymmetricCipher)
     {β : Type} {encOut : β ↪ List Bool}
     {allow : List (List Bool) → Bool}
@@ -1015,7 +1017,6 @@ theorem isPPTOn_run_loggingEncryptionOracle (E : SymmetricCipher)
     {logEntry : List Bool → List Bool → List Bool}
     (hlogEntry : ComputableInPolyTime (fun p : List Bool × List Bool => logEntry p.1 p.2)
       (encPair encBits encBits) encBits)
-    (hlogLen : ∀ m ct, (logEntry m ct).length ≤ m.length + ct.length)
     {adversary : ℕ → List Bool → WordOracleComp Unit β}
     (hadversary : IsOraclePPT encOut adversary) :
     IsPPTOn (encPair encUnary encBits) (encPair encOut (encList encBits))
@@ -1030,6 +1031,7 @@ theorem isPPTOn_run_loggingEncryptionOracle (E : SymmetricCipher)
                 return ([], log)))
           (adversary caller.1 [])).run []) := by
   obtain ⟨c, d, hlen⟩ := E.encrypt_ppt.length_le
+  obtain ⟨c₂, d₂, hlogLen⟩ := hlogEntry.polyBounded_length.exists_le
   let EIn := encPair (encPair encUnary encBits)
     (encPair (encPair (encFinEnum Unit) encBits) (encList encBits))
   have hcond : ComputableInPolyTime
@@ -1077,8 +1079,9 @@ theorem isPPTOn_run_loggingEncryptionOracle (E : SymmetricCipher)
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
     (resources := fun caller query =>
-      2 * (c * (2 * caller.1 + 2 * caller.2.length + query.length + 4) ^ d) +
-        2 * query.length + 2)
+      c * (2 * caller.1 + 2 * caller.2.length + query.length + 4) ^ d +
+        2 * (c₂ * (2 * query.length +
+          c * (2 * caller.1 + 2 * caller.2.length + query.length + 4) ^ d + 3) ^ d₂) + 2)
     (by fun_prop) hhandler (by fun_prop)
     (fun _ _ => True) (fun _ => trivial) (by fun_prop)
   intro caller request queried _ result hresult
@@ -1090,7 +1093,12 @@ theorem isPPTOn_run_loggingEncryptionOracle (E : SymmetricCipher)
     simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply] at hctLen
     have hbound : ct.length ≤ c * (2 * caller.1 + 2 * caller.2.length + request.2.length + 4) ^ d :=
       hctLen.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by lia) d))
-    have hlenEntry := hlogLen request.2 ct
+    have hEntry := hlogLen (request.2, ct)
+    simp only [length_encPair, encBits_apply] at hEntry
+    have hEntryBound : (logEntry request.2 ct).length ≤
+        c₂ * (2 * request.2.length +
+          c * (2 * caller.1 + 2 * caller.2.length + request.2.length + 4) ^ d + 3) ^ d₂ :=
+      hEntry.trans (Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left (by lia) d₂))
     refine ⟨trivial, by lia, ?_⟩
     simp only [encList_cons, List.length_append, length_frame, encBits_apply]
     lia
@@ -1109,7 +1117,7 @@ theorem isPPTOn_run_ciEncryptionOracle (E : SymmetricCipher) {adversary : CIAdve
           (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
             (E.ciEncryptionOracle caller.1 caller.2)) (adversary caller.1 [])).run []) :=
   E.isPPTOn_run_loggingEncryptionOracle (allow := fun _ => true) (by fun_prop)
-    (logEntry := fun _ ct => ct) (by fun_prop) (fun _ _ => Nat.le_add_left _ _) hadversary
+    (logEntry := fun _ ct => ct) (by fun_prop) hadversary
 
 private theorem computableInPolyTime_ciPost (E : SymmetricCipher) :
     ComputableInPolyTime
@@ -1234,7 +1242,7 @@ theorem isPPTOn_run_oneTimeCIEncryptionOracle (E : SymmetricCipher) {adversary :
             (E.oneTimeCIEncryptionOracle caller.1 caller.2)) (adversary caller.1 [])).run []) := by
   rw [oneTimeCIEncryptionOracle_eq_on]
   exact E.isPPTOn_run_loggingEncryptionOracle (allow := List.isEmpty) (by fun_prop)
-    (logEntry := fun _ ct => ct) (by fun_prop) (fun _ _ => Nat.le_add_left _ _) hadversary
+    (logEntry := fun _ ct => ct) (by fun_prop) hadversary
 
 /-- The one-time ciphertext-integrity experiment is uniformly strict PPT in the unary security
 parameter. -/
@@ -1307,8 +1315,8 @@ theorem isOraclePPT_ciLimitToOneQuery {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary)
     {adversary : CIAdversary} (hadversary : IsOraclePPT encBits adversary) :
     IsOraclePPT encBits (ciLimitToOneQuery ctBound adversary) :=
-  isOraclePPT_oneTimeFilter (accept := fun n req => req.length == n) (post := id) (slack := 0)
-    (by fun_prop) hctBound (by fun_prop) (fun _ => Nat.le_refl _) hadversary
+  isOraclePPT_oneTimeFilter (accept := fun n req => req.length == n) (post := id)
+    (by fun_prop) hctBound (by fun_prop) hadversary
 
 /-- When `ctBound n` bounds all ciphertext lengths produced by `E.encrypt n k` on `n`-bit messages,
 running `ciLimitToOneQuery ctBound adversary` in `ciGame` has the exact same output distribution as
