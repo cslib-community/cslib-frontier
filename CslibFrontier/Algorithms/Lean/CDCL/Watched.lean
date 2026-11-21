@@ -1006,16 +1006,7 @@ theorem solveCompact_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT
     exact this
 
 /-- **The solver on renamed variables decides satisfiability.** -/
-theorem isSat_solveCompact_iff (φ : CNF ℕ) : (solveCompact φ).isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : solveCompact φ with
-    | sat σ => exact ⟨σ, solveCompact_sat hs⟩
-    | unsat cert => simp [hs, DPLL.Result.isSat] at h
-  · intro h
-    cases hs : solveCompact φ with
-    | sat σ => rfl
-    | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveCompact_unsat hs))
+theorem isSat_solveCompact_iff (φ : CNF ℕ) : (solveCompact φ).isSat = true ↔ φ.Satisfiable :=
+  DPLL.Result.isSat_iff (fun _ => solveCompact_sat) (fun _ => solveCompact_unsat)
 
 end Cslib.Algorithms.Lean.CDCL
