@@ -237,4 +237,35 @@ example :
       sampleQuotientModS :=
   isPPTOn_sampleQuotientModS
 
+example {z : ℤ} (hz : z ∈ (ProbComp.eval (sampleZ concreteSampleZInput)).support) :
+    |z| ≤ 6 := by
+  have h := mem_support_sampleZ_abs_sub_le concreteSampleZInput hz
+  have hfloor : concreteSampleZInput.center.floor = 0 := by
+    dsimp only [concreteSampleZInput]
+    rw [show (1 / 3 : ℚ).floor = Int.floor (1 / 3 : ℚ) from rfl, Int.floor_eq_iff]
+    norm_num
+  have hrad :
+      (Nat.sqrt ((concreteSampleZInput.tail ^ 2 * concreteSampleZInput.sSq.num.natAbs) /
+        concreteSampleZInput.sSq.den) + 2 : ℤ) = 6 := by
+    dsimp only [concreteSampleZInput]
+    have hnum : (4 : ℚ).num = 4 := rfl
+    have hden : (4 : ℚ).den = 1 := rfl
+    rw [hnum, hden, show 2 ^ 2 * Int.natAbs 4 / 1 = 4 * 4 by norm_num, Nat.sqrt_eq]
+    norm_num
+  rw [hfloor, sub_zero, hrad] at h
+  exact h
+
+example {p : List ℤ × List ℤ}
+    (hp : p ∈ (ProbComp.eval (sampleGridGaussian concreteGridInput)).support) :
+    ∃ r' : List ℤ, r'.length = 2 ∧ p = gridReduceInt 2 2 basisI2 r' :=
+  mem_support_sampleGridGaussian concreteGridInput hp
+
+example {v : List ℤ}
+    (hv : v ∈ (ProbComp.eval (sampleQuotientModS
+      { dim := 2, basis := basisI2, sublattice := sublatticeDiag23, extraBits := 10 })).support) :
+    ∃ x : List ℕ, x.length = 2 ∧ v = quotientReduceInt 2 basisI2 sublatticeDiag23 x := by
+  rcases mem_support_sampleQuotientModS _ hv with rfl | hx
+  · exact ⟨[0, 0], rfl, by decide⟩
+  · exact hx
+
 end CslibFrontierTests.DiscreteGaussian1D

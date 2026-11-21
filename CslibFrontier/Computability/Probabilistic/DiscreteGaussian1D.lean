@@ -108,15 +108,22 @@ certificates:
   for `sampleQuotientModS` against `PMF.piFin` of `PMF.uniformOfFintype (ZMod D)` pushed forward
   by `quotientReduceInt`.
 
+* `Cslib.Probability.mem_support_sampleZ_abs_sub_le`,
+  `Cslib.Probability.mem_support_sampleGridGaussian`,
+  `Cslib.Probability.mem_support_sampleQuotientModS`: unconditional 100%-support bounds and
+  reduction-image characterizations for downstream strict-PPT iteration invariants.
+
 ## References
 
 * [GentryPeikertVaikuntanathan2008], Section 4.1, Lemma 4.3 (p. 15) and Lemma 4.2 (p. 14) of the
   August 25, 2008 full version: 1-D discrete Gaussian sampling over `ℤ` via rejection sampling
   on `[c - s · t, c + s · t]`. The present module implements the capped-trial strict-PPT variant
   (explicit `maxTrials` cap and finite dyadic precision `prec`, with an explicit timeout term
-  rather than expected-time rejection) and uses the dual-mass premise `ρ_{1/s}(ℤ* \ {0}) ≤ ε`.
-* [MicciancioRegev2007], Section 2.2 (p. 8) and Lemma 5.7 (p. 20) of the December 27, 2005
-  author's copy: grid Gaussian reduction and uniform coset sampling in `L(B) ∩ P(S)`.
+  rather than expected-time rejection) and provides both the dual-mass premise
+  `ρ_{1/s}(ℤ* \ {0}) ≤ ε` and the smoothing-parameter `η_ε(ℤ) ≤ s` form.
+* [MicciancioRegev2007], Section 2 (p. 8), Lemma 5.7 (p. 20), and Lemma 5.8 proof step 1 (p. 21)
+  of the December 27, 2005 author's copy: fine-grid Gaussian discretization, grid Gaussian
+  reduction, and uniform coset sampling in `L(B) ∩ P(S)`.
 -/
 
 public section
@@ -2588,6 +2595,23 @@ theorem closeTo_eval_sampleZ_discreteGaussian_of_smoothingParameter_le
   closeTo_eval_sampleZ_discreteGaussian inp hsSq hs1 ht hε.le hε_le
     ((ZLattice.smoothingParameter_le_iff intLatticeReal (by positivity) hε).mp hη) hprec
 
+/-- Every point in the support of `sampleZ inp` lies within the bounded integer search radius
+around `inp.center.floor` (including the timeout fallback `inp.center.floor`). -/
+theorem mem_support_sampleZ_abs_sub_le (inp : SampleZInput) {z : ℤ}
+    (hz : z ∈ (ProbComp.eval (sampleZ inp)).support) :
+    |z - inp.center.floor| ≤
+      (Nat.sqrt ((inp.tail ^ 2 * inp.sSq.num.natAbs) / inp.sSq.den) + 2 : ℤ) := by
+  rw [eval_sampleZ_eq_map_runCapped] at hz
+  obtain ⟨i, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hz
+  dsimp only [finToInt]
+  rw [ratFloor_eq_ratFloor]
+  have hi : i.val < 2 * sampleZRadius inp + 1 := i.isLt
+  have hR : (sampleZRadius inp : ℤ) =
+      (Nat.sqrt ((inp.tail ^ 2 * inp.sSq.num.natAbs) / inp.sSq.den) + 2 : ℤ) := by
+    unfold sampleZRadius; push_cast; rfl
+  rw [abs_le]
+  omega
+
 /-! ### 7. `List.mapM` bridge to `PMF.piFin` -/
 
 private theorem eval_mapM_range {β : Type} :
@@ -2831,9 +2855,9 @@ structure GridSampleInput where
 
 namespace GridSampleInput
 
-/-- Framing encoding of `GridSampleInput`. -/
+/-- Framing encoding of `GridSampleInput` (binary `modulus` to permit super-polynomial `q`). -/
 enc_structure enc : GridSampleInput where
-  dim : encUnary, modulus : encUnary, basis : IntTable.enc, sSq : encRat,
+  dim : encUnary, modulus : encNat, basis : IntTable.enc, sSq : encRat,
   target : (encList encRat), tail : encUnary, prec : encUnary, maxTrials : encUnary
 
 end GridSampleInput
@@ -2884,13 +2908,13 @@ private theorem computableInPolyTime_gridReduceInt :
   have hdim : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.1.dim)
       encIn encUnary := by fun_prop
   have hmod : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.1.modulus)
-      encIn encUnary := by fun_prop
+      encIn encNat := by fun_prop
   have hB : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.1.basis)
       encIn IntTable.enc := by fun_prop
   have hr' : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.2)
       encIn (encList encIntBin) := snd GridSampleInput.enc (encList encIntBin)
   have hq : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => (p.1.modulus : ℤ))
-      encIn encIntBin := (hmod.trans unary_to_binary).trans intBin_natCast
+      encIn encIntBin := hmod.trans intBin_natCast
   have hrhs := computableInPolyTime_gridRhs hdim hq hr'
   have hbk := computableInPolyTime_solveFloorMul hdim hB hrhs
   have hmain := computableInPolyTime_gridPost hdim hq hr' hbk
@@ -2918,14 +2942,14 @@ theorem isPPTOn_sampleGridGaussian :
       (encPair GridSampleInput.enc encUnary) SampleZInput.enc := by
     let encP := encPair GridSampleInput.enc encUnary
     have hmod : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.modulus)
-        encP encUnary := by fun_prop
+        encP encNat := by fun_prop
     have hsSq : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.sSq)
         encP encRat := by fun_prop
     have htargetList : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.target)
         encP (encList encRat) := by fun_prop
     have hqRat : ComputableInPolyTime (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ))
         encP encRat :=
-      rat_intCast.comp (intBin_natCast.comp (unary_to_binary.comp hmod))
+      rat_intCast.comp (intBin_natCast.comp hmod)
     have hqSq : ComputableInPolyTime (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ) ^ 2)
         encP encRat := by
       have : (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ) ^ 2) =
@@ -3039,6 +3063,17 @@ theorem closeTo_eval_sampleGridGaussian_pi_of_smoothingParameter_le
           + (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * (inp.tail : ℝ) ^ 2))))) :=
   closeTo_eval_sampleGridGaussian_pi inp hsSq hq hqs1 ht hε.le hε_le
     ((ZLattice.smoothingParameter_le_iff intLatticeReal (by positivity) hε).mp hη) hprec
+
+/-- Every output pair in the support of `sampleGridGaussian inp` is the exact `gridReduceInt`
+image of some length-`inp.dim` integer vector. -/
+theorem mem_support_sampleGridGaussian (inp : GridSampleInput) {p : List ℤ × List ℤ}
+    (hp : p ∈ (ProbComp.eval (sampleGridGaussian inp)).support) :
+    ∃ r' : List ℤ, r'.length = inp.dim ∧
+      p = gridReduceInt inp.dim inp.modulus inp.basis r' := by
+  unfold sampleGridGaussian at hp
+  rw [bind_pure_comp, ProbComp.eval_map, eval_mapM_range, PMF.map_comp] at hp
+  obtain ⟨r, _, hr⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
+  exact ⟨List.ofFn r, List.length_ofFn, hr.symm⟩
 
 /-- Input specification for the HNF-free quotient sampler `sampleQuotientModS`. -/
 structure QuotientSampleInput where
@@ -3309,5 +3344,20 @@ theorem closeTo_eval_sampleQuotientModS_pi (inp : QuotientSampleInput)
     exact (ZMod.val_natCast_of_lt hlt).symm
   rw [heval]
   exact hpi.map _
+
+/-- Every vector in the support of `sampleQuotientModS inp` is either the zero fallback (when
+`quotientIndex = 0`) or the exact `quotientReduceInt` image of some length-`inp.dim` list. -/
+theorem mem_support_sampleQuotientModS (inp : QuotientSampleInput) {v : List ℤ}
+    (hv : v ∈ (ProbComp.eval (sampleQuotientModS inp)).support) :
+    v = List.replicate inp.dim 0 ∨
+      ∃ x : List ℕ, x.length = inp.dim ∧
+        v = quotientReduceInt inp.dim inp.basis inp.sublattice x := by
+  unfold sampleQuotientModS at hv
+  dsimp only at hv
+  rw [bind_pure_comp, ProbComp.eval_map, eval_mapM_range, PMF.map_comp] at hv
+  obtain ⟨r, _, hr⟩ := (PMF.mem_support_map_iff _ _ _).mp hv
+  by_cases hD : quotientIndex inp.basis inp.sublattice = 0
+  · left; simpa [hD] using hr.symm
+  · right; exact ⟨List.ofFn r, List.length_ofFn, by simpa [hD] using hr.symm⟩
 
 end Cslib.Probability
