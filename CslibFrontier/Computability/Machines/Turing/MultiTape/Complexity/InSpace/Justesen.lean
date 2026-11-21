@@ -341,7 +341,8 @@ private theorem fieldParameters_inSpace :
     rw [hs, coefficientCount_eq, hd]
     rfl
 
-private theorem length_fieldContext_modulus (w n : ℕ) :
+/-- The prepared modulus stores one bit per coefficient, including the leading term. -/
+theorem length_fieldContext_modulus (w n : ℕ) :
     (fieldContext w n).modulus.length = fieldDegree w n + 1 := by
   change (BinaryField.modulusBitsScan (fieldDegree w n)).length = _
   rw [BinaryField.modulusBitsScan_eq, BinaryField.length_modulusBits (fieldDegree_ne_zero w n)]
