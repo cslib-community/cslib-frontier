@@ -8,8 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
-import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalParameterExclusion
-import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueCoeffNorm
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
 import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
@@ -244,20 +243,21 @@ example :
   refine ⟨parametricValuePolynomial_at_zero_separable (by decide : 1 ≤ 2) F hF, ?_⟩
   simp only [q, parametricValuePolynomial_map_eval₂, valuePolynomial_natDegree, pow_one]
 
--- Choose the parameter for a nonconstant one-variable input from its coefficient bound.
+-- Choose an integer parameter for a nonconstant input and apply both specialization bounds.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0
     let hF : F.totalDegree ≤ 2 := by simp [F]
-    let q := parametricValuePolynomial (by decide : 1 ≤ 2) F hF
     let H := parametricValueCoeffNormExponent 1 2 0
     let a : ℤ := 2 ^ (H + 1)
-    let u : ℝ := 2 ^ Polynomial.parameterExclusionExponent 2 H
-    let q' := q.map (Polynomial.eval₂RingHom (Int.castRingHom ℝ) u)
-    q'.Separable ∧ q'.eval (a : ℝ) ≠ 0 := by
-  intro F hF q H a u q'
-  exact parametricValuePolynomial_at_parameterExclusion (by decide : 1 ≤ 2) F hF
-    (parametricValuePolynomial_bivariateCoeffNorm1_le (by decide) F hF
-      (b := 0) (by simp [F, MvPolynomial.coeffNorm1_X]))
+    let s := Polynomial.parameterExclusionExponent 2 H
+    let q := valuePolynomial (by decide : 1 ≤ 2) (fun i => (separatedCenters 2 i : ℤ))
+      (2 ^ s) F hF
+    let q' := q.map (Int.castRingHom ℝ)
+    q.coeffNorm1 ≤ 2 ^ (H + s * 12) ∧ q'.Separable ∧ q'.eval (a : ℝ) ≠ 0 := by
+  intro F hF H a s q q'
+  have hb : F.coeffNorm1 ≤ 2 ^ 0 := by simp [F, MvPolynomial.coeffNorm1_X]
+  exact ⟨coeffNorm1_valuePolynomial_at_pow_two_le (by decide) F hF hb s,
+    valuePolynomial_at_integerParameterExclusion (by decide) F hF hb⟩
 
 -- A finite list of parameter coefficients recovers the linear characteristic coefficient.
 example :

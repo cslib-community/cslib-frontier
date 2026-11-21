@@ -325,6 +325,7 @@ import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
@@ -7082,6 +7083,25 @@ register_result "ajtai-collision-sis" where
     for expected time T(n, m, q); (5) the cost of sampling the key and of evaluating the \
     hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
     Ajtai) is not formalized."
+
+register_result "micciancio-regev-sis-ell2-existence" where
+  title := "Existence of short integer solutions in the Euclidean norm"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 5.2",
+      locator := "December 27, 2005 copy (Gaussian.pdf), §5.1, printed p. 17" }
+  ]
+  theorems := [
+    Cslib.Crypto.SIS.exists_isEll2Solution
+  ]
+  scope := "Every matrix A ∈ ℤ_q^{n×m} with nonzero modulus q, m > 0, and real Euclidean bound \
+    β ≥ √m · q^{n / m} admits a nonzero integer kernel vector z with ‖z‖₂ ≤ β and \
+    A z ≡ 0 (mod q), proved by the pigeonhole principle on {0, …, ⌊q^{n/m}⌋}^m. Covers all \
+    natural numbers n (including n = 0) and all nonzero moduli q (including composite moduli \
+    and q = 1). Companion problem definitions (GIVP, GDD, IncGDD, SISEll2) and norm-comparison \
+    bridges to SIS live in CslibFrontier.Crypto.Computational.Lattice.GIVP and \
+    CslibFrontier.Crypto.Computational.SIS.Ell2; worst-case to average-case reductions (MR07 \
+    Theorem 5.9) are not formalized here."
 
 register_result "nested-encryption-semantic-security" where
   title := "Nested encryption is semantically secure when all keys but one are revealed, \

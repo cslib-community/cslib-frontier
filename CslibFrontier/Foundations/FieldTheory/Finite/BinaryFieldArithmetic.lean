@@ -73,6 +73,12 @@ to its degree. A caller can reuse the same modulus across many products. -/
   let word (x : List Bool) := List.ofFn fun i : Fin (g.length - 1) => x.getD i false
   modMulBits g (word a) (word b)
 
+/-- The product always has the supplied modulus's coordinate width. -/
+@[simp] theorem length_fieldMulMod (g a b : List Bool) :
+    (fieldMulMod g a b).length = g.length - 1 := by
+  unfold fieldMulMod
+  exact length_modMulBits _ _ _ (by simp)
+
 private theorem mk_polyOfBits_word {w : ℕ} (hw : w ≠ 0) (a : List Bool) :
     AdjoinRoot.mk (leastIrreducible w)
         (polyOfBits (List.ofFn fun i : Fin w => a.getD i false)) =
