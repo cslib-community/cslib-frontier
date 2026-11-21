@@ -360,7 +360,7 @@ private def qedOpt : List String → Option (Option ℕ × List String)
 
 /-- A proof goal label: `#1`, `#2` (the objective) or a constraint number. -/
 private def goalId (t : String) : Option GoalId :=
-  if t == "#1" then some .self else if t == "#2" then some .obj else (id? t).map .db
+  if t == "#1" then some (.hash 1) else if t == "#2" then some (.hash 2) else (id? t).map .db
 
 /-- The literals of a logged solution, up to `;`. -/
 private def lits (N : Names) : List String → Option (List (Literal ℕ) × List String)
