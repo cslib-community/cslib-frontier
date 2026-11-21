@@ -175,7 +175,7 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
     intro d _
     by_cases hd32 : d < 32
     · interval_cases d <;> decide
-    · simp only [Bool.or_eq_true, decide_eq_true_eq]
+    · simp only [divisorPasses, Bool.or_eq_true, decide_eq_true_eq]
       left
       right
       rw [h283_log]

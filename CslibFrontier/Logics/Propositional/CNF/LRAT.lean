@@ -91,10 +91,14 @@ def CNF.checkLRATAux : List (ℕ × Clause ℕ) → List LRAT.IntAction → Bool
   | _, .addRat .. :: _ => false
   | db, .del ids :: rest => checkLRATAux (db.filter fun e => !ids.toList.contains e.1) rest
 
+/-- The numbered clauses the checker starts from: clause `i` of `φ` has the number `i + 1`. -/
+def CNF.lratDB (φ : CNF ℕ) : List (ℕ × Clause ℕ) :=
+  φ.zipIdx.map fun e => (e.2 + 1, e.1)
+
 /-- **The LRAT checker**: the clauses of `φ` are numbered from `1`, and the certificate must reach
 an empty-clause step through RUP steps and deletions. -/
 def CNF.checkLRAT (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
-  checkLRATAux (φ.zipIdx.map fun e => (e.2 + 1, e.1)) cert.toList
+  checkLRATAux φ.lratDB cert.toList
 
 /-! ### Soundness -/
 
@@ -178,7 +182,7 @@ theorem CNF.not_satisfiable_of_checkLRAT {φ : CNF ℕ} {cert : Array LRAT.IntAc
   rintro ⟨σ, hσ⟩
   refine false_of_checkLRATAux (σ := σ) ?_ h
   intro e he
-  obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+  obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
   exact (CNF.eval_eq_true_iff σ φ).1 hσ _
     (List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp))
 

@@ -558,11 +558,19 @@ private theorem isOraclePPTOn_aeToCCAHandler {ctBound : ℕ → ℕ} {decBound :
         (fun reply => (reply, ())) <$>
           (List.take (decBound p.1.1 p.2.1.2) <$> ProbOracleComp.query (true, p.2.1.2))) := by
     ppt
+  have hp := ComputableInPolyTime.id' (encIn := EIn)
+  have hmessage := hp.snd'.fst'.snd'
+  have hn := hp.fst'.fst'
+  have hframed := ComputableInPolyTime.frame.comp hmessage
+  have hzero := (ComputableInPolyTime.bitsReplicate false).comp hn
+  have hrequest := ComputableInPolyTime.bitsAppend hframed hzero
+  have hquery := IsOraclePPTOn.query_take false hrequest (hctBound.comp hn)
+  have hreply := ComputableInPolyTime.id' (encIn := encBits)
   have hencQuery : IsOraclePPTOn EIn (encPair encBits (encFinEnum Unit))
       (fun p : (ℕ × List Bool) × ((Bool × List Bool) × Unit) =>
         (fun ct => (ct, ())) <$> (List.take (ctBound p.1.1) <$>
-          ProbOracleComp.query (false, frame p.2.1.2 ++ List.replicate p.1.1 false))) := by
-    ppt
+          ProbOracleComp.query (false, frame p.2.1.2 ++ List.replicate p.1.1 false))) :=
+    hquery.map (hreply.prod (ComputableInPolyTime.const ()))
   unfold aeToCCAHandler
   exact IsOraclePPTOn.cond hop hdecQuery hencQuery
 

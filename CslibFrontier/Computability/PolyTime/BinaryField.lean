@@ -93,7 +93,7 @@ theorem computableInPolyTime_bits_unary :
 @[fun_prop]
 theorem computableInPolyTime_isIrreducibleCode :
     ComputableInPolyTime isIrreducibleCode encUnary encBool := by
-  unfold isIrreducibleCode
+  unfold isIrreducibleCode divisorPasses
   have := computableInPolyTime_bits_unary
   fun_prop
 

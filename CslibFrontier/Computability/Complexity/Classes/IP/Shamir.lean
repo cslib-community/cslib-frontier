@@ -216,7 +216,8 @@ private theorem isOraclePPTOn_patchWord {A : Set α} {w : List Bool}
     {verifier : α → WordOracleComp Unit Bool} (hV : IsOraclePPTOn enc encBool verifier) :
     IsOraclePPTOn enc encBool (patchWord A enc w verifier) :=
   IsOraclePPTOn.cond
-    (((ComputableTidilyInPolyTime.encode enc).computableInPolyTime).decide_eq' (.const w))
+    ((ComputableInPolyTime.of_eq (encIn := enc) (encOut := encBits)
+      (fun _ => rfl)).decide_eq' (.const w))
     (ComputableInPolyTime.const (decide (∃ x ∈ A, enc x = w))).isOraclePPTOn hV
 
 private noncomputable def patchWords (A : Set α) (enc : α ↪ List Bool) :

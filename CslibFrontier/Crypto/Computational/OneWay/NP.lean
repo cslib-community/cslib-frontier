@@ -143,7 +143,16 @@ theorem computableInPolyTime_preimagePrefixVerifier
       decide (p.1.2.2.length ≤ p.1.1) &&
         f (p.1.2.2 ++ p.2.take (p.1.1 - p.1.2.2.length)) == p.1.2.1)
     (encPair encPreimagePrefix encBits) encBool
-  fun_prop
+  have hp := ComputableInPolyTime.id' (encIn := encPair encPreimagePrefix encBits)
+  have hn := hp.fst'.fst'
+  have hprefix := hp.fst'.snd'.snd'
+  have hlength := ComputableInPolyTime.length_bits.comp hprefix
+  have hrest := ComputableInPolyTime.bitsTakeWithInput hp.snd'
+    (ComputableInPolyTime.unary_sub' hn hlength)
+  have himage := hf.comp (ComputableInPolyTime.bitsAppend hprefix hrest)
+  exact ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.unary_le.comp (hlength.prod hn))
+    (himage.beq hp.fst'.snd'.fst')
 
 /-- **The preimage-prefix problem is in `NP`** for every function computable in polynomial
 time. -/
