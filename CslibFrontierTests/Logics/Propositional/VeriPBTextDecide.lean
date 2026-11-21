@@ -6,6 +6,7 @@ Authors: Matthew Doty
 
 module
 
+import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 -- `import all`: the kernel evaluates the parsers and checkers of `Text` and the step `stepTop` of
 -- `Redundance`, whose bodies are not exposed, to decide the acceptance of the fixtures.
@@ -14,7 +15,8 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! Decided text clients of the VeriPB output and conclusion theorems: the acceptance of the
 `decision_output` and `optimization_output_opposing_lits_objective` fixtures of the VeriPB
-repository is checked by `decide +kernel`, and the soundness theorems are applied to it. -/
+repository, and of the PHP(3, 2) proof with symmetry breaking by `dom`, is checked by
+`decide +kernel`, and the soundness theorems are applied to it. -/
 
 set_option linter.privateModule false
 
@@ -59,5 +61,14 @@ example : ∃ I f, parseOPB amo3Opt = some I ∧ I.objective = some f ∧
   obtain ⟨l, hl, hle⟩ := hlb σ hσ
   cases hl
   exact hle
+
+/-- The PHP(3, 2) proof with symmetry breaking by `dom` under the order `lex4` is accepted with
+`UNSAT : 16`. -/
+theorem domPhp32_accepted : (checkOPBOutput php32 domPhp32).map (·.1) = some (.unsat 16) := by
+  decide +kernel
+
+-- So PHP(3, 2) has no solution.
+example : ∃ I, parseOPB php32 = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ I.constraints, c.Holds σ :=
+  not_satisfiable_of_checkOPB domPhp32_accepted
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText

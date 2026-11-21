@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.POVM
+public import CslibFrontier.Foundations.Data.BitString.Sign
+public import CslibFrontier.Foundations.Algebra.Star.Unitary
 public import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
 /-!
@@ -48,6 +50,7 @@ measurement is projective (`Cslib.Quantum.Measurement.observable_mul_self`).
 * `Cslib.Quantum.Measurement.sum_prob`: the outcome probabilities sum to `1`.
 * `Cslib.Quantum.Measurement.distribution_map`: post-processing pushes the distribution forward.
 * `Cslib.Quantum.Measurement.star_observable_mul_self_le_one`: the observable is a contraction.
+* `Cslib.Quantum.Measurement.observable_map`: the observable of a post-processed measurement.
 -/
 
 @[expose] public section
@@ -245,6 +248,21 @@ theorem star_observable_mul_self_le_one (M : Measurement Bool A) :
   exact add_nonneg (add_nonneg (add_nonneg hc hc) hc) hc
 
 end Observable
+
+/-- The observable of a projective two-outcome measurement is unitary. -/
+theorem IsProjective.observable_mem_unitary {A : Type*} [Ring A] [StarRing A] [PartialOrder A]
+    [StarOrderedRing A] {M : Measurement Bool A} (hM : M.IsProjective) :
+    M.observable ∈ unitary A :=
+  M.isSelfAdjoint_observable.mem_unitary_of_mul_self (observable_mul_self hM)
+
+/-- The observable of a post-processed measurement: `∑_r (-1)^{g(r)} M_r`. -/
+theorem observable_map {α A : Type*} [Fintype α] [Ring A] [StarRing A] [PartialOrder A]
+    [StarOrderedRing A] [Algebra ℂ A] (M : Measurement α A) (g : α → Bool) :
+    (M.map g).observable = ∑ r, (Cslib.BitString.signVal (g r) : ℂ) • M.effect r := by
+  classical
+  simp only [observable, map_effect, sum_filter, ← sum_sub_distrib]
+  refine sum_congr rfl fun r _ => ?_
+  cases g r <;> simp [Cslib.BitString.signVal]
 
 end Measurement
 

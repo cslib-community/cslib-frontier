@@ -367,16 +367,7 @@ theorem native_firstHalting_accept_iff {α : Type} {enc : α ↪ List Bool}
       Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (enc a)) indices =
         some (choices, final) ∧ final.Halted ∧ final.output = [true]) ↔
     choices = [false] ∨ ∃ v : Fin (dimension a), choices = true :: vertex v := by
-  rw [← firstHalting_accept_iff (dimension a) (enc a) choices]
-  constructor
-  · rintro ⟨_, ⟨final, hreplay, hhalt, hout⟩, _⟩
-    obtain ⟨hfirst, houtput⟩ := R.replay_correct a hreplay hhalt
-    exact ⟨hfirst, List.cons.inj (houtput.symm.trans hout) |>.1⟩
-  · rintro ⟨hfirst, haccept⟩
-    obtain ⟨indices, ⟨final, hreplay, hhalt⟩, hunique⟩ :=
-      (R.existsUnique_replay_iff a choices).mpr hfirst
-    have hout := (R.replay_correct a hreplay hhalt).2
-    exact ⟨indices, ⟨final, hreplay, hhalt, hout.trans (congrArg (fun b => [b]) haccept)⟩,
-      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
+  exact (R.existsUnique_accepting_replay_iff a choices).trans
+    (firstHalting_accept_iff (dimension a) (enc a) choices)
 
 end Turing.DoubleCounting.NondeterministicChoice

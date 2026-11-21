@@ -522,6 +522,13 @@ noncomputable def successfulBranches (edge : Fin N → Fin N → Bool) (source t
     cases h : b.val v <;> simp [transcript, h]
   right_inv w := Subtype.ext (transcript_tail edge source k w.val w.property)
 
+/-- At the exact round totals, a unique passing transcript gives a unique successful branch,
+including when the branch answers false. -/
+theorem existsUnique_successful_branch (edge : Fin N → Fin N → Bool) (source target : Fin N)
+    (k : ℕ) (h : ∃! w, Passes (fun u v => edge u v = true) source k w) :
+    ∃! b, (run edge source target k (expected (fun u v => edge u v = true) source k) b).isSome :=
+  (successfulBranches edge source target k).existsUnique_subtype_congr.mpr h
+
 private theorem candidate_registers_le (edge : Fin N → Fin N → Bool)
     (source target : Fin N) (k : ℕ) (branch : Branch N) (v : Fin N)
     (r : Result) (hr : candidate edge source target k branch v = some r) :

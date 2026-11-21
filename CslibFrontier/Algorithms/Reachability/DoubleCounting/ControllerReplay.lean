@@ -65,20 +65,16 @@ theorem replayMembership_eq_singleton (edge : Fin n → Fin n → Bool) (s v : F
     replayMembership edge s k (expected (fun u w => edge u w = true) s k) v =
       [by classical exact decide (v ∈ round (fun u w => edge u w = true) s k)] := by
   classical
-  obtain ⟨w, hw, huniq⟩ := h
-  let e := Scan.successfulBranches edge s v k
-  let b : Successful edge s v k := e.symm ⟨w, hw⟩
-  have hsub : Subsingleton (Successful edge s v k) := ⟨fun x y => by
-    apply e.injective
-    apply Subtype.ext
-    exact (huniq (e x).val (e x).property).trans (huniq (e y).val (e y).property).symm⟩
+  obtain ⟨branch, hbranch, hunique⟩ := Scan.existsUnique_successful_branch edge s v k h
+  let b : Successful edge s v k := ⟨branch, hbranch⟩
   let _ := finite_successful edge s v k
   let _ := Fintype.ofFinite (Successful edge s v k)
   unfold replayMembership
   rw [ite_eq_left rfl]
   have hU : (Finset.univ : Finset (Successful edge s v k)) = {b} := by
     ext x
-    simp [hsub.elim x b]
+    have hx : x = b := Subtype.ext (hunique x.val x.property)
+    simp [hx]
   rw [hU]
   simp only [Finset.toList_singleton, List.map_singleton, List.cons.injEq, and_true]
   obtain ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp b.property

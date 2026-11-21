@@ -51,7 +51,8 @@ The finite seed is what makes the protocol usable where randomness must be a `PM
 ## References
 
 * [T. Holenstein, *Parallel repetition: simplifications and the no-signaling case*]
-  [Holenstein2009], Lemma 5.2: the protocol with a continuous seed, sampled with replacement.
+  [Holenstein2009], §5, Figure 1 and the proof of Lemma 5.2, pp. 152–153: the protocol with a
+  continuous seed, sampled with replacement.
 -/
 
 public section
