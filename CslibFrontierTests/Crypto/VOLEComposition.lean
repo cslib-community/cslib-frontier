@@ -81,6 +81,6 @@ theorem collisionAttack_with_failures :
   rw [Signature.succProbability_collisionAttack_uniform refusesTrue hfunctional]
   norm_num [Signature.signingCorrectnessExperiment, refusesTrue, Experiment.succProbability,
     Game.succProbability, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-    PMF.bind_apply, PMF.uniformOfFintype_apply, tsum_bool]
+    PMF.bind_apply, PMF.uniformOfFintype_apply, tsum_bool, ENNReal.toNNReal_ofNat]
 
 end CslibFrontierTests.Crypto.VOLEComposition

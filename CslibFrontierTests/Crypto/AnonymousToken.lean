@@ -6,8 +6,8 @@ Authors: Samuel Schlesinger
 
 module
 
-import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
-import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
 
 /-!
 # Clients of extracted anonymous-token certification and credit accounting
