@@ -15,8 +15,6 @@ public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
 ## Main results
 
-* `ZLattice.gaussianMass_zero_sub_one_eq_tsum`: the centered mass minus one is the actual
-  Gaussian sum over nonzero lattice points.
 * `ZLattice.abs_gaussianMass_normalized_sub_one_le`: normalized mass at every center differs
   from one by at most the nonzero reciprocal-width dual mass.
 * `ZLattice.gaussianMass_mem_Icc_of_dual_mass_le`: a bound on that actual dual mass gives
@@ -42,33 +40,6 @@ open Module ProbabilityTheory MeasureTheory
 open scoped RealInnerProductSpace
 
 namespace ZLattice
-
-section Discrete
-
-variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
-variable [FiniteDimensional ℝ E] (L : Submodule ℤ E) [DiscreteTopology L]
-
-/-- Removing the zero term from the convergent Gaussian sum subtracts exactly one. -/
-theorem gaussianMass_zero_sub_one_eq_tsum (s : ℝ) (hs : 0 < s) :
-    gaussianMass L s 0 - 1 = ∑' z : ↥{z : L | z ≠ 0}, gaussianWeight s (z : E) := by
-  classical
-  have h := (summable_gaussianWeight L s hs 0).sum_add_tsum_compl (s := {0})
-  have hset : (↑({0} : Finset L) : Set L)ᶜ = {z | z ≠ 0} := by ext z; simp
-  rw [hset] at h
-  have hsum : 1 + (∑' z : ↥{z : L | z ≠ 0}, gaussianWeight s (z : E)) =
-      gaussianMass L s 0 := by
-    simpa only [Finset.sum_singleton, Submodule.coe_zero, sub_zero, gaussianWeight,
-      norm_zero, zero_pow (by decide : 2 ≠ 0), mul_zero, zero_div, Real.exp_zero,
-      Finset.coe_singleton, Set.mem_compl_iff, Set.mem_singleton_iff, gaussianMass] using h
-  linarith
-
-/-- The mass of the nonzero lattice points is nonnegative. -/
-theorem gaussianMass_zero_sub_one_nonneg (s : ℝ) (hs : 0 < s) :
-    0 ≤ gaussianMass L s 0 - 1 := by
-  rw [gaussianMass_zero_sub_one_eq_tsum L s hs]
-  exact tsum_nonneg fun z ↦ (gaussianWeight_pos s (z : E)).le
-
-end Discrete
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
 variable [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]

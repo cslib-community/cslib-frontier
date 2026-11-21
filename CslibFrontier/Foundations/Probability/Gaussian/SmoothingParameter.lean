@@ -69,7 +69,7 @@ public section
 noncomputable section
 
 open Filter Module ProbabilityTheory
-open scoped ENNReal Pointwise RealInnerProductSpace Topology
+open scoped Pointwise RealInnerProductSpace Topology
 
 namespace ZLattice
 
@@ -216,19 +216,6 @@ private theorem gaussianWeight_one_div (s : ℝ) (x : E) :
   · congr 1
     field_simp
 
-private theorem gaussianMass_zero_sub_one_eq_tsum_aux (M : Submodule ℤ E) [DiscreteTopology M]
-    (s : ℝ) (hs : 0 < s) :
-    gaussianMass M s 0 - 1 = ∑' z : ↥{z : M | z ≠ 0}, gaussianWeight s (z : E) := by
-  classical
-  have h := (summable_gaussianWeight M s hs 0).sum_add_tsum_compl (s := {0})
-  have hset : (↑({0} : Finset M) : Set M)ᶜ = {z | z ≠ 0} := by ext z; simp
-  rw [hset] at h
-  have hsum : 1 + (∑' z : ↥{z : M | z ≠ 0}, gaussianWeight s (z : E)) = gaussianMass M s 0 := by
-    simpa only [Finset.sum_singleton, Submodule.coe_zero, sub_zero, gaussianWeight,
-      norm_zero, zero_pow (by decide : 2 ≠ 0), mul_zero, zero_div, Real.exp_zero,
-      Finset.coe_singleton, Set.mem_compl_iff, Set.mem_singleton_iff, gaussianMass] using h
-  linarith
-
 private theorem summable_dual_nonzero {s : ℝ} (hs : 0 < s) :
     Summable (fun w : ↥{w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L | w ≠ 0} ↦
       gaussianWeight (1 / s) (w : E)) := by
@@ -266,8 +253,8 @@ private theorem dualMass_strictAnti [Nontrivial E] {s₁ s₂ : ℝ} (hs₁ : 0 
   let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
   have : DiscreteTopology D := discreteTopology_dualSubmodule L
   have hs₂ : 0 < s₂ := hs₁.trans h
-  rw [gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s₂) (one_div_pos.mpr hs₂),
-    gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s₁) (one_div_pos.mpr hs₁)]
+  rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s₂) (one_div_pos.mpr hs₂),
+    gaussianMass_zero_sub_one_eq_tsum D (1 / s₁) (one_div_pos.mpr hs₁)]
   obtain ⟨w₀, hw₀⟩ := exists_dual_ne_zero L
   have hle : ∀ w : ↥{w : D | w ≠ 0},
       gaussianWeight (1 / s₂) (w : E) ≤ gaussianWeight (1 / s₁) (w : E) :=
@@ -308,7 +295,7 @@ private theorem continuousAt_dualMass {s₀ : ℝ} (hs₀ : 0 < s₀) :
     hcont_tsum.continuousAt hnhds
   refine hca.congr ?_
   filter_upwards [hnhds] with s hs
-  exact (gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) (one_div_pos.mpr (ha.trans_le hs))).symm
+  exact (gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr (ha.trans_le hs))).symm
 
 private theorem tendsto_dualMass_atTop :
     Tendsto
@@ -337,7 +324,7 @@ private theorem tendsto_dualMass_atTop :
   rw [tsum_zero] at hlim
   refine hlim.congr' ?_
   filter_upwards [eventually_gt_atTop (0 : ℝ)] with s hs
-  exact (gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) (one_div_pos.mpr hs)).symm
+  exact (gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr hs)).symm
 
 private theorem nonempty_smoothingSet {ε : ℝ} (hε : 0 < ε) :
     {s : ℝ | 0 < s ∧
@@ -362,7 +349,7 @@ private theorem exists_pos_lt_dualMass [Nontrivial E] (ε : ℝ) :
   have hM : 0 < M := by positivity
   let δ : ℝ := 1 / M
   refine ⟨δ, one_div_pos.mpr hM, fun s hs hsδ ↦ ?_⟩
-  rw [gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) (one_div_pos.mpr hs)]
+  rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr hs)]
   let emb : Fin N → ↥{w : D | w ≠ 0} := fun k ↦
     ⟨(k.1 + 1) • w₀, by
       intro h0
@@ -611,7 +598,6 @@ theorem smoothingParameter_le_sqrt_div_minimum_dual :
     have : Nontrivial E := Module.nontrivial_of_finrank_pos hnpos
     let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
     have : DiscreteTopology D := discreteTopology_dualSubmodule L
-    have : IsZLattice ℝ D := isZLattice_dualSubmodule L
     have hDne : D ≠ ⊥ := by
       obtain ⟨w, hw⟩ := exists_dual_ne_zero L
       intro hbot
@@ -626,39 +612,15 @@ theorem smoothingParameter_le_sqrt_div_minimum_dual :
       minimum_le_norm w.property (fun h0 ↦ hw (Subtype.ext h0))
     let _ : MeasurableSpace E := borel E
     have : BorelSpace E := ⟨rfl⟩
-    have hs' : 0 < 1 / s := one_div_pos.mpr hs
-    have hdual : gaussianMass D (1 / s) 0 - 1 ≤ (1 / 2 : ℝ) ^ finrank ℝ E := by
-      have htail := discreteGaussian_zero_norm_ge_le D (1 / s) hs' (minimum D) ha.le
-      have hsq : s ^ 2 * minimum D ^ 2 = (finrank ℝ E : ℝ) := by
-        dsimp only [s]
-        rw [div_pow, Real.sq_sqrt (Nat.cast_nonneg _), div_mul_cancel₀ _ (sq_pos_of_pos ha).ne']
-      have hexp : -3 * Real.pi * minimum D ^ 2 / (4 * (1 / s) ^ 2) =
-          -3 * Real.pi * (finrank ℝ E : ℝ) / 4 := by
-        have h1 : -3 * Real.pi * minimum D ^ 2 / (4 * (1 / s) ^ 2) =
-            -3 * Real.pi * (s ^ 2 * minimum D ^ 2) / 4 := by field_simp
-        rw [h1, hsq]
-      rw [hexp] at htail
-      have hsubset : {w : D | w ≠ 0} ⊆ {w : D | minimum D ≤ ‖(w : E)‖} := fun w hw ↦ hgap w hw
-      have hprob : (discreteGaussian D (1 / s) hs' 0).toOuterMeasure {w : D | w ≠ 0} ≤
-          ENNReal.ofReal ((1 / 2 : ℝ) ^ finrank ℝ E / (1 + (1 / 2 : ℝ) ^ finrank ℝ E)) :=
-        ((discreteGaussian D (1 / s) hs' 0).toOuterMeasure.mono hsubset).trans
-          (htail.trans (ENNReal.ofReal_le_ofReal (two_pow_mul_exp_le_half_pow_div _ hnpos)))
-      have hm : 0 < gaussianMass D (1 / s) 0 := gaussianMass_pos D (1 / s) hs' 0
-      have hnonzero :
-          (discreteGaussian D (1 / s) hs' 0).toOuterMeasure {w : D | w ≠ 0} =
-            ENNReal.ofReal ((gaussianMass D (1 / s) 0 - 1) / gaussianMass D (1 / s) 0) := by
-        rw [PMF.toOuterMeasure_apply,
-          ← tsum_subtype {w : D | w ≠ 0} (discreteGaussian D (1 / s) hs' 0),
-          gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) hs', ← tsum_div_const,
-          ENNReal.ofReal_tsum_of_nonneg
-            (fun w ↦ div_nonneg (gaussianWeight_pos _ _).le hm.le)
-            ((summable_dual_nonzero L hs).div_const _)]
-        refine tsum_congr fun w ↦ ?_
-        rw [discreteGaussian_apply, sub_zero, ENNReal.ofReal_div_of_pos hm]
-      rw [hnonzero, ENNReal.ofReal_le_ofReal_iff (by positivity)] at hprob
-      have he : 0 < 1 + (1 / 2 : ℝ) ^ finrank ℝ E := by positivity
-      have hmul := (div_le_div_iff₀ hm he).mp hprob
-      nlinarith
+    have hsq : s ^ 2 * minimum D ^ 2 = (finrank ℝ E : ℝ) := by
+      dsimp only [s]
+      rw [div_pow, Real.sq_sqrt (Nat.cast_nonneg _), div_mul_cancel₀ _ (sq_pos_of_pos ha).ne']
+    have hwidth : 2 ^ finrank ℝ E * Real.exp (-3 * Real.pi * s ^ 2 * minimum D ^ 2 / 4) ≤
+        (1 / 2 : ℝ) ^ finrank ℝ E / (1 + (1 / 2 : ℝ) ^ finrank ℝ E) := by
+      rw [mul_assoc (-3 * Real.pi), hsq]
+      exact two_pow_mul_exp_le_half_pow_div (finrank ℝ E) hnpos
+    have hdual := gaussianMass_dual_sub_one_le_of_gap L s hs (minimum D) ha hgap
+      ((1 / 2 : ℝ) ^ finrank ℝ E) (by positivity) hwidth
     exact smoothingParameter_le_of_dual_mass_le L hs hdual
 
 end FullRank
