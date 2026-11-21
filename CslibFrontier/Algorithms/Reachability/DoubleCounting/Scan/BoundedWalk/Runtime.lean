@@ -121,6 +121,15 @@ def machine (initial : State κ τ) : NondeterministicQueryMachine (State κ τ)
   halted s := BoundedWalk.halted s.walk
   accept s := (innerMachine edge start verdict clock s).accept s.walk
 
+/-- The choice update uses the retained context to initiate an adjacency call. -/
+theorem machine_next_choice (initial : State κ τ) {N : ℕ} (ctx : κ) (hp : 0 < N)
+    (r : Registers N) (s : NondeterministicChoice.State) (answer : Option Bool)
+    (selector : Bool) :
+    (machine edge start verdict clock initial).next (⟨ctx, N, hp, .choose r s⟩, answer, selector) =
+      ⟨ctx, N, hp, BoundedWalk.advanceChoice
+        (fun u v => start ctx u.val v.val) clock r s answer selector⟩ := by
+  simp only [machine, innerMachine, typedMachine, BoundedWalk.machine_next_choice]
+
 /-- The active-call update retains the runtime context and dimension. -/
 theorem machine_next_call (initial : State κ τ) {N : ℕ} (ctx : κ) (hp : 0 < N)
     (r : Registers N) (v : Fin N) (remaining : ℕ) (s : τ) (answer : Option Bool)
