@@ -458,6 +458,7 @@ import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
 import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
+import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
 /-!
 # Collected results
@@ -11523,3 +11524,23 @@ register_result "odonnell-transitive-symmetric-influence" where
     functions by the n equal influences, instead of the book's route through f̂(i) and Parseval. \
     Monotone is for Bool's order false < true; under true ↦ −1 this is the book's \
     coordinatewise order on inputs and outputs."
+
+-- https://github.com/cslib-community/cslib-frontier/pull/6844
+register_result "micciancio-regev-smoothing-parameter-dual-minimum" where
+  title := "Smoothing parameter upper bound from the dual first minimum"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.2",
+      locator := "December 27, 2005 author's copy, Section 3, pp. 10–11; Definition 3.1, p. 10" }
+  ]
+  theorems := [ZLattice.smoothingParameter_le_sqrt_div_minimum_dual]
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E of dimension n = finrank ℝ E, η_{2^{-n}}(L) ≤ √n / λ₁(L*), where \
+    ZLattice.smoothingParameter L ε is the infimum of s > 0 with nonzero reciprocal-width dual \
+    Gaussian mass ρ_{1/s}(L* \\ {0}) ≤ ε and λ₁(L*) is ZLattice.minimum of the dual lattice \
+    LinearMap.BilinForm.dualSubmodule (innerₗ E) L. Holds uniformly in all dimensions including \
+    n = 0 (where both sides are 0) and requires no MeasurableSpace instance on E; the proof \
+    applies the doubled-width centered discrete-Gaussian tail bound on L* rather than \
+    Banaszczyk's Lemma 1.5(i) directly. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6844 against the December 27, 2005 author's copy, \
+    pp. 10–11: https://github.com/cslib-community/cslib-frontier/pull/6844."
