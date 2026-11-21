@@ -1023,7 +1023,8 @@ theorem segments_plateauShear_eq {h r : ℝ} (hr : 0 < r) (p : Route) {d : ℝ} 
   · rw [ite_eq_right hu, rawShear_segments, sourceSamples_length_eq_sum, Nat.add_sub_cancel]
     apply Finset.sum_congr rfl
     intro i _
-    simp only [sourceBlock, List.length_map, List.length_dropLast, segmentCuts_length_eq, strictCuts]
+    simp only [sourceBlock, List.length_map, List.length_dropLast,
+      segmentCuts_length_eq, strictCuts]
     omega
 
 /-- Actual continuum parameter transport. The old interval is strictly positive and lies
