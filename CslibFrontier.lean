@@ -3924,6 +3924,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Universal
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeOracleProgram
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeOracleProgram.Forget
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeOracleProgram.Static
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
