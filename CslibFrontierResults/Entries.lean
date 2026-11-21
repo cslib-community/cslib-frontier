@@ -12139,4 +12139,7 @@ register_result "mpda-hole-bounded-emptiness" where
     has no push and no pop, so the variant only opens empty holes there, and the well-nested \
     acceptance check of line 3 cannot pass the crossing pushes and pops. Theorem 1 states \
     termination and correctness; the complexity bound given in the paragraph after it and \
-    witness generation are not formalized. Source check: pending."
+    witness generation are not formalized. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, against arXiv:2002.05950v2, printed \
+    pp. 5, 8, 10 and 22-23: \
+    https://github.com/cslib-community/cslib-frontier/pull/6748#pullrequestreview-5998692474."
