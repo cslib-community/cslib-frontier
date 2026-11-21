@@ -458,6 +458,7 @@ import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExp
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Computability.Automata.MPDA.EmptinessComplete
 import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
@@ -10919,6 +10920,20 @@ register_result "difference-universal-hash-modulus-switching" where
     seed law under 2(p − 1) < N, which includes the source condition 2p ≤ N. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6961 at b5de2d09e6."
 
+register_result "difference-universal-hash-modulus-reduction" where
+  title := "A difference bound after reducing hash digests modulo a smaller modulus"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.22(b)",
+      locator := "v0.6, printed p. 283" }
+  ]
+  theorems := [Cslib.Probability.IsDeltaUniversalHash.zmod_cast_bound,
+    Cslib.Probability.IsDeltaUniversalHash.zmod_cast_div]
+  scope := "Reducing canonical residues from modulus p to modulus N multiplies the original \
+    difference bound by at most 2(p/N + 1). An original bound α/p gives 4α/N for N ≤ p. \
+    The first bound holds for any positive moduli and both allow arbitrary seed laws. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6969 at 28fa1e301d."
+
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
   topic := "cryptography"
@@ -12174,3 +12189,43 @@ register_result "adler-feasibility-game-integer" where
     exist by symmetric-game-minimax. Not formalized: Adler's strongly polynomial resource \
     claims, the algebraic-data bound, the reduction of a pair of dual programs to one \
     feasibility problem (p. 167), the Cook-type reduction (Section 3.2) and Section 4."
+
+register_result "mpda-hole-bounded-emptiness" where
+  title := "Repaired Algorithm 1 decides K-hole-bounded emptiness of an MPDA"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Theorem 1",
+      locator := "arXiv:2002.05950v2, Section 3, Theorem 1 (printed p. 10) and its proof; \
+        Algorithm 1 (printed p. 8) with AddHole and AddPop as Algorithms 3 and 4 in Appendix B \
+        (printed p. 23); well-nested reachability WR as Algorithm 2 and Lemma 1; holes as in \
+        Definition 1, printed p. 5" }
+  ]
+  theorems := [Cslib.Automata.MPDA.isEmpty_iff,
+    Cslib.Automata.MPDA.isEmpty_eq_false_of_mem_boundedLanguage]
+  scope := "For every MPDA with finitely many control states, input letters and stack symbols, \
+    decidable transitions and initial and final states, and every K, including K = 0 (the \
+    source states Theorem 1 for positive K): repaired Algorithm 1, isEmpty K, answers true \
+    exactly when no word has an accepting run from an initial state with empty stacks to a final \
+    state with empty stacks whose transition sequence is K-hole-bounded. The search is the \
+    worklist loop of Algorithm 1 over lists of hole triples with at most K holes, with WR, the \
+    atomic hole segments AHS_i and the hole segments HS_i computed as finite fixed points, and \
+    with the loop's fuel bounded by the number of such lists. Repaired Algorithm 1 differs from \
+    the printed algorithm in two ways. First, HS_i is the reflexive-transitive closure of AHS_i, \
+    where line 9 takes the transitive closure. This lets AddPop remove a hole whose last atomic \
+    segment is popped. It also lets AddHole open a hole (i, s, s) without taking a transition, \
+    even from a state with no push: such a hole is realized by the empty factor, while \
+    Definition 1 counts nonempty factors; it only uses up one of the K holes, and the soundness \
+    proof allows the empty realization. Second, the search starts from the lists [s] with s \
+    reached from an initial state by a well-nested run, not from the initial state alone (line \
+    10 of Algorithm 1, printed p. 8). Starting from the initial state alone, with the reflexive \
+    HS_i and otherwise as isEmpty, is not complete: the module client test \
+    CslibFrontierTests.MPDA.Emptiness defines this printed-start variant and gives a two-stack \
+    MPDA whose run nop push0 push1 pop0 pop1 is accepting and 2-hole-bounded, on which the \
+    printed-start variant answers true and repaired Algorithm 1 false. There the initial state \
+    has no push and no pop, so the variant only opens empty holes there, and the well-nested \
+    acceptance check of line 3 cannot pass the crossing pushes and pops. Theorem 1 states \
+    termination and correctness; the complexity bound given in the paragraph after it and \
+    witness generation are not formalized. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, against arXiv:2002.05950v2, printed \
+    pp. 5, 8, 10 and 22-23: \
+    https://github.com/cslib-community/cslib-frontier/pull/6748#pullrequestreview-5998692474."

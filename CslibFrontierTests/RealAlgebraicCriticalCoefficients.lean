@@ -9,8 +9,9 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
-import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalValueCutoff
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -357,22 +358,59 @@ example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
     (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
   exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
 
--- The chosen parameter and coefficient budget detect the zero of the square input.
+-- The square input gives a root below the cutoff in the chosen integer characteristic polynomial.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
     let H := parametricValueCoeffNormExponent 1 3 0
-    criticalMinimumValue 3 (fun i => (separatedCenters 3 i : ℝ))
-      (F.map (Int.castRingHom ℝ)) (2 ^ criticalParameterExponent 1 3 0) < 2 ^ (H + 1) := by
-  intro F H
-  have hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
+    let hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
+    let q := valuePolynomial (by decide : 1 ≤ 3) (fun i => (separatedCenters 3 i : ℤ))
+      (2 ^ criticalParameterExponent 1 3 0) F hF
+    ∃ η : ℝ, η < 2 ^ (H + 1) ∧ (q.map (Int.castRingHom ℝ)).IsRoot η := by
+  intro F H hF q
   have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
     simpa only [F, map_pow, map_X, eval_X] using sq_nonneg (x 0)
   have hb : F.coeffNorm1 ≤ 2 ^ 0 := by
     simpa only [F, MvPolynomial.coeffNorm1_X, one_pow, pow_zero] using
       MvPolynomial.coeffNorm1_pow_le (X (0 : Fin 1) : MvPolynomial (Fin 1) ℤ) 2
-  have hH := parametricValuePolynomial_bivariateCoeffNorm1_le (by decide : 2 ≤ 3) F hF hb
-  apply (exists_zero_iff_criticalMinimumValue_lt_at_parameterExclusion
-    (by decide) (by decide) F hF hFn hH).mp
+  apply (exists_zero_iff_exists_root_lt_at_integerParameterExclusion
+    (by decide) (by decide) F hF hb hFn).mp
   exact ⟨0, by simp [F]⟩
+
+-- In the quotient by X₀ = 2, the simple real root of multiplication by X₀ is realized.
+example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1) ℝ) = 2 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) ℝ := fun _ => C 2
+  have hr (i : Fin 1) : (r i).totalDegree < 1 := by
+    simp only [r, totalDegree_C, Nat.zero_lt_one]
+  let M := multiplicationMatrix (by decide : 1 ≤ 1) r hr
+  have hm : M (X 0) = algebraMap ℝ (Matrix (NormalIndex 1 1) (NormalIndex 1 1) ℝ) 2 := by
+    rw [← M.commutes, MvPolynomial.algebraMap_eq]
+    apply multiplicationMatrix_eq_of_projection_eq
+    simpa only [pow_one, r] using projection_X_pow 1 r 0
+  have hdim : Fintype.card (NormalIndex 1 1) = 1 := by simp [NormalIndex]
+  have hsimple : (M (X 0)).charpoly.rootMultiplicity 2 = 1 := by
+    rw [hm, Matrix.algebraMap_eq_diagonal, Matrix.charpoly_diagonal]
+    simp only [Pi.algebraMap_apply, Algebra.algebraMap_self_apply, Finset.prod_const,
+      Finset.card_univ, hdim, pow_one, Polynomial.rootMultiplicity_X_sub_C_self]
+  obtain ⟨x, hx, hv⟩ :=
+    exists_common_zero_of_rootMultiplicity_multiplicationMatrix_eq_one (by decide) r hr
+      (X 0) hsimple
+  have hx₀ : x 0 = 2 := by
+    simpa only [r, aeval_C, Algebra.algebraMap_self_apply, pow_one] using (hx 0).symm
+  exact ⟨x, hx₀, hv⟩
+
+-- The two roots of x² − 1 have distinct positive-order derivative signs.
+example :
+    let p : Polynomial ℝ := Polynomial.X ^ 2 - 1
+    (fun i : Fin 2 => p.derivativeSign (-1) (i.val + 1)) ≠
+      (fun i : Fin 2 => p.derivativeSign 1 (i.val + 1)) := by
+  intro p hsign
+  have hc : p.coeff 2 = 1 := by
+    simp [p, Polynomial.coeff_X_pow, Polynomial.coeff_one]
+  have hp : p ≠ 0 := fun h => by simp [h] at hc
+  have hD : p.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
+  have hneg : p.IsRoot (-1) := by norm_num [p, Polynomial.IsRoot.def]
+  have hpos : p.IsRoot 1 := by norm_num [p, Polynomial.IsRoot.def]
+  have heq := p.injOn_derivativeSign_roots hp hD hneg hpos hsign
+  norm_num at heq
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

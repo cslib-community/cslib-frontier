@@ -60,14 +60,6 @@ theorem net_extract_succ {w : List (α × Op n Γ)} {a : ℕ} {μ : α × Op n �
 
 /-! ## Unpacking matches and pending pushes -/
 
-private theorem IsPushOn.unique {w : List (α × Op n Γ)} {i j : Fin n} {p : ℕ}
-    (hi : IsPushOn w i p) (hj : IsPushOn w j p) : i = j := by
-  obtain ⟨a, γ, h⟩ := hi
-  obtain ⟨a', γ', h'⟩ := hj
-  rw [h] at h'
-  simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at h'
-  exact h'.2.1
-
 theorem Matches.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p m : ℕ}
     (h : Matches w p m) (hp : IsPushOn w i p) :
     p < m ∧ (∃ b γ, w[m]? = some (b, .pop i γ)) ∧

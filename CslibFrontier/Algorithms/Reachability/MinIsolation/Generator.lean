@@ -28,7 +28,8 @@ Supply `hlayer : ∀ z, G.layer z = z.1.val`. The path weight sums only internal
 vertices. The seed length bound is `Code.JustesenFamily.codeLength_bounds`.
 `CslibFrontierTests.LayeredDigraph` checks the existence theorem, seed-length
 bound, and polynomial magnitude bound through ordinary imports.
-The native logspace bound on the evaluator is a separate obligation.
+The native evaluator space bound is proved separately in
+`Cslib.Reachability.Hoza.SeedWeight.Dimensions.generatedWeight_computesInTimeAndSpace`.
 
 ## Main definitions
 

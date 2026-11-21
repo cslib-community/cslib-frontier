@@ -151,6 +151,23 @@ theorem replay_append (choices more : List Bool) (s : σ) :
     M.replay input (choices ++ more) s = M.replay input more (M.replay input choices s) :=
   List.foldl_append
 
+/-- A wrapper that forwards the callee's live steps on the same input also forwards a replay
+whose strict prefixes remain live. The final callee state may be halted. -/
+theorem replay_map_of_live {τ : Type*} (callee : NondeterministicQueryMachine τ)
+    (wrap : τ → σ)
+    (hstep : ∀ s bit, callee.halted s = false →
+      M.step input (wrap s) bit = wrap (callee.step input s bit))
+    (bits : List Bool) (s : τ)
+    (hlive : ∀ n < bits.length, callee.halted (callee.replay input (bits.take n) s) = false) :
+    M.replay input bits (wrap s) = wrap (callee.replay input bits s) := by
+  induction bits generalizing s with
+  | nil => rfl
+  | cons bit bits ih =>
+    have hs : callee.halted s = false := hlive 0 (by simp)
+    rw [M.replay_cons, callee.replay_cons, hstep s bit hs, ih]
+    intro n hn
+    simpa only [List.take_succ_cons, callee.replay_cons] using hlive (n + 1) (by simpa using hn)
+
 @[simp]
 theorem run_nil : M.run input [] = M.init := rfl
 
