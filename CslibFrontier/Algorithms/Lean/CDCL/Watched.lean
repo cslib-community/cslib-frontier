@@ -969,17 +969,8 @@ theorem solve_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAct
     exact hcert
 
 /-- **The solver decides satisfiability.** -/
-theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : solve φ with
-    | sat σ => exact ⟨σ, solve_sat hs⟩
-    | unsat cert => simp [hs, DPLL.Result.isSat] at h
-  · intro h
-    cases hs : solve φ with
-    | sat σ => rfl
-    | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solve_unsat hs))
+theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable :=
+  DPLL.Result.isSat_iff (fun _ => solve_sat) (fun _ => solve_unsat)
 
 /-! ### Renaming the variables first -/
 
