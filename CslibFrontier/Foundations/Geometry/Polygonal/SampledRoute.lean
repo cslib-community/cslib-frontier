@@ -30,7 +30,7 @@ open Filter Set
 open scoped Topology
 
 /-- Connect successive uniform samples of `γ` on `[0,1]` by straight segments. -/
-@[expose] noncomputable def sampled (γ : ℝ → ℂ) (m : ℕ) : Route :=
+noncomputable def sampled (γ : ℝ → ℂ) (m : ℕ) : Route :=
   ⟨m, fun i => γ ((i.val : ℝ) / (m + 1 : ℝ))⟩
 
 /-- Sampling retains the initial endpoint. -/
