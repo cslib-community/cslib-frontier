@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 
 /-!
 # A text front end for the VeriPB kernel-proof checker
@@ -18,17 +18,20 @@ Nordström][BogaertsGochtMcCreeshNordstrom2023] and for a fragment of the kernel
 extended as described below, producing the abstract syntax checked by
 `Cslib.Logic.PL.VeriPB.checkRed`:
 
-* an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPB`): an optional objective line
-  `min: ∑ wᵢ ℓᵢ;` and an optional preserved-set line `preserved: x₁ … ;`, in either order,
-  before the constraints (`Cslib.Logic.PL.VeriPB.Objective`), then one
+* an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPB`, `Cslib.Logic.PL.VeriPB.Instance`): an
+  optional objective line `min: ∑ wᵢ ℓᵢ [k];`, with an optional constant `k`, and an optional
+  preserved-set line `preserved: x₁ … xₙ;`, in either order, before the constraints
+  (`Cslib.Logic.PL.VeriPB.Objective`), then one
   constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one of `>=`, `<=`, `=`, an equality counting as the
   two constraints `≥` and `≤` in this order; lines starting with `*` are comments;
 * a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
   exactly `C` clauses over the variables `1, …, V`, its clause `1 -2 3 0` read as the constraint
   `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
-* a proof (`Cslib.Logic.PL.VeriPB.Text.parseProof`): the header
-  `pseudo-Boolean proof version 3.0`, the line `f N;` checked against the number of
-  constraints, the derivation steps, `output NONE;`, a conclusion `UNSAT : id`, `SAT [: ρ]`,
+* a proof: the header `pseudo-Boolean proof version 3.0`, the line `f N;` checked against the
+  number of constraints, the derivation steps, an output section (§4.2), `NONE` (for
+  `Cslib.Logic.PL.VeriPB.Text.parseProof`) or a guarantee `DERIVABLE`, `EQUISATISFIABLE`,
+  `EQUIOPTIMAL` or `EQUIENUMERABLE` with `FILE` or `IMPLICIT` (CakePB parses only `FILE`), a
+  conclusion `UNSAT : id`, `SAT [: ρ]`,
   `BOUNDS lb : id ub [: ρ]` (§4.3, with `INF` for an infinite bound), `ENUMERATION_PARTIAL n`,
   `ENUMERATION_COMPLETE n : id` or `NONE`, and
   `end pseudo-Boolean proof;`.
@@ -44,7 +47,8 @@ under **Steps**. So a proof accepted here need not be a kernel proof.
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
 may introduce other names; they are numbered after every `xN` of the formula and the proof, in
 order of first appearance. How the proof's own variables are numbered does not matter for
-soundness, which concerns only the parsed formula.
+the conclusions, which concern only the parsed formula. An output formula is read with the names
+of its proof, the names of the proof and of the output text being numbered together.
 
 **Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
 witness and an optional subproof of `proofgoal` blocks (`#1`, `#2` for the objective, and
@@ -59,8 +63,14 @@ the format requires. Two steps of the augmented format are also accepted: `del i
 untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts
 as unchecked), and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`.
 Everything else (`pol` operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and
-`ia`, orders, `dom`, the preserved-set rules, `del spec`, levels, other outputs, and the
-conclusion `UNSAT` without an ID) is rejected.
+`ia`, orders, `dom`, the preserved-set rules, `del spec`, levels, and the conclusion `UNSAT`
+without an ID) is rejected.
+
+**Output sections.** `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput` takes the output formula of
+`output g FILE;` as a third text, and checks the section with
+`Cslib.Logic.PL.VeriPB.checkRedOutput`; `FILE` needs that text and `IMPLICIT` takes none.
+`Cslib.Logic.PL.VeriPB.Text.checkOPB` takes no output text, so it accepts `NONE` and `IMPLICIT`
+sections only.
 
 **Soundness.** The checkers return the conclusion of an accepted proof. If it is `UNSAT`, the
 input parses to a formula with no 0/1 solution
@@ -74,7 +84,9 @@ instance with an objective `f` whose every solution has value at least `lb` and,
 if `ENUMERATION_PARTIAL n` or `ENUMERATION_COMPLETE n : q`, to an instance with a preserved set
 whose solutions have at least, or exactly, `n` distinct projections to it
 (`Cslib.Logic.PL.VeriPB.Text.le_encard_of_checkOPB_enumPartial`,
-`Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`). `NONE` claims nothing.
+`Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`). `NONE` claims nothing. An
+accepted output section gives its guarantee between the instance and the output formula
+(`Cslib.Logic.PL.VeriPB.Text.semOutput_of_checkOPBOutput`).
 This is a guarantee about the text and the formula the parser returns: the parsers are trusted
 to read the files as intended, and nothing is said about compiled code. It is smaller than the
 end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
@@ -82,10 +94,11 @@ which also covers the execution of its compiled machine code and the parsing of 
 
 ## Main definitions
 
-* `Cslib.Logic.PL.VeriPB.Text.OPB`, `Cslib.Logic.PL.VeriPB.Text.parseOPB`,
-  `Cslib.Logic.PL.VeriPB.Text.parseDIMACS`: instances and formulas.
+* `Cslib.Logic.PL.VeriPB.Text.parseOPB`, `Cslib.Logic.PL.VeriPB.Text.parseDIMACS`: instances
+  and formulas.
 * `Cslib.Logic.PL.VeriPB.Text.parseProof`: proofs in the supported fragment.
-* `Cslib.Logic.PL.VeriPB.Text.checkOPB`, `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`: the checkers.
+* `Cslib.Logic.PL.VeriPB.Text.checkOPB`, `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`,
+  `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`: the checkers.
 
 ## Main results
 
@@ -94,6 +107,7 @@ which also covers the execution of its compiled machine code and the parsing of 
 * `Cslib.Logic.PL.VeriPB.Text.exists_satisfies_of_checkOPB`,
   `Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`: soundness of `SAT`.
 * `Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`: soundness of `BOUNDS`.
+* `Cslib.Logic.PL.VeriPB.Text.semOutput_of_checkOPBOutput`: soundness of output sections.
 
 ## References
 
@@ -164,7 +178,8 @@ private def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
 /-! ### Constraints -/
 
 /-- The terms `a ℓ` of a constraint or an objective, up to the relation, `;` or `:`, as an integer
-linear form and the constant contributed by negative literals (`a ¬x = a - a x`). -/
+linear form and a constant: that contributed by negative literals (`a ¬x = a - a x`) and, in an
+objective, a final constant term. -/
 private def terms (N : Names) :
     ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
   | 0, _, _, _ => none
@@ -177,10 +192,13 @@ private def terms (N : Names) :
         | none => (1, t :: ts)
       match rest with
       | u :: rest =>
-        match N.lit? u with
-        | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
-        | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
-        | none => none
+        -- A coefficient before `;` or `:` is the constant of an objective.
+        if (int? t).isSome && (u == ";" || u == ":") then some (L, k + a, u :: rest)
+        else
+          match N.lit? u with
+          | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
+          | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
+          | none => none
       | [] => none
   | _ + 1, [], _, _ => none
 
@@ -210,45 +228,36 @@ private def geq (N : Names) (ts : List String) : Option (PBConstr × List String
 
 /-! ### Formulas -/
 
-/-- The standard names, for formulas. -/
-private def stdNames : Names := ⟨[], 0⟩
-
 /-- The constraints of OPB lines, given as token lists. -/
-private def opbLines : List (List String) → Option (List PBConstr)
+private def opbLines (N : Names) : List (List String) → Option (List PBConstr)
   | [] => some []
-  | [] :: ls => opbLines ls
+  | [] :: ls => opbLines N ls
   | (t :: ts) :: ls =>
-    if t.startsWith "*" then opbLines ls
+    if t.startsWith "*" then opbLines N ls
     else
-      match constr stdNames (t :: ts), opbLines ls with
+      match constr N (t :: ts), opbLines N ls with
       | some (cs, [";"]), some F => some (cs ++ F)
       | _, _ => none
 
-/-- An objective line `min: ∑ wᵢ ℓᵢ;`, given its tokens after `min:`. -/
-private def objective (ts : List String) : Option Objective :=
-  match terms stdNames (ts.length + 1) ts [] 0 with
+/-- An objective line `min: ∑ wᵢ ℓᵢ [k];`, given its tokens after `min:`, with an optional
+constant `k`. -/
+private def objective (N : Names) (ts : List String) : Option Objective :=
+  match terms N (ts.length + 1) ts [] 0 with
   | some (L, k, [";"]) => some ⟨L, k⟩
   | _ => none
 
-/-- An OPB instance: its constraints and its objective, if any. -/
-structure OPB where
-  /-- The constraints, an equality counting as two. -/
-  constraints : List PBConstr
-  /-- The objective to minimize, from the line `min: …;`. -/
-  objective : Option Objective
-  /-- The preserved set of a projected enumeration, from the line `preserved: …;` (§5.8.3). -/
-  preserved : Option (List ℕ) := none
-
 /-- The variables of a `preserved:` line, up to `;`. -/
-private def presVars : List String → Option (List ℕ)
+private def presVars (N : Names) : List String → Option (List ℕ)
   | [";"] => some []
-  | t :: ts => (stdVar? t).bind fun v => (presVars ts).map (v :: ·)
+  | t :: ts => (N.var? t).bind fun v => (presVars N ts).map (v :: ·)
   | [] => none
 
-/-- **An OPB instance**: comment lines starting with `*`, an optional objective line
-`min: …;` and an optional preserved-set line `preserved: …;`, in either order, before the
-constraints, and one constraint per line. -/
-def parseOPB (s : String) : Option OPB :=
+/-- **An OPB instance** (`Cslib.Logic.PL.VeriPB.Instance`): comment lines starting with `*`, an
+optional objective line `min: …;` and an optional preserved-set line `preserved: …;`, in either
+order, before the constraints, and one constraint per line. Variables are read with the names
+`N`: by default only the standard names `xN`, as for an input; an output formula is read with the
+names of its proof. -/
+def parseOPB (s : String) (N : Names := ⟨[], 0⟩) : Option Instance :=
   let lines := ((s.splitOn "\n").map tokens).filter fun l =>
     match l.head? with
     | none => false
@@ -256,13 +265,13 @@ def parseOPB (s : String) : Option OPB :=
   match lines with
   | ("min:" :: ts) :: ("preserved:" :: ps) :: ls
   | ("preserved:" :: ps) :: ("min:" :: ts) :: ls =>
-    (objective ts).bind fun f => (presVars ps).bind fun P =>
-      (opbLines ls).map (⟨·, some f, some P⟩)
+    (objective N ts).bind fun f => (presVars N ps).bind fun P =>
+      (opbLines N ls).map (⟨·, some f, some P⟩)
   | ("min:" :: ts) :: ls =>
-    (objective ts).bind fun f => (opbLines ls).map (⟨·, some f, none⟩)
+    (objective N ts).bind fun f => (opbLines N ls).map (⟨·, some f, none⟩)
   | ("preserved:" :: ps) :: ls =>
-    (presVars ps).bind fun P => (opbLines ls).map (⟨·, none, some P⟩)
-  | ls => (opbLines ls).map (⟨·, none, none⟩)
+    (presVars N ps).bind fun P => (opbLines N ls).map (⟨·, none, some P⟩)
+  | ls => (opbLines N ls).map (⟨·, none, none⟩)
 
 /-- The clauses of a DIMACS body over the variables `1, …, V`: nonzero integers of magnitude at
 most `V`, each clause ended by `0`. -/
@@ -520,25 +529,52 @@ private def conclusion (N : Names) : List String → Option Conclusion
       (asgOpt N ts).map (.bounds lb q ub ·)
   | _ => none
 
-/-- **A proof** in the supported fragment (kernel proofs, with `f N;` optional) for a formula
-with `m` constraints over the variables below `nvars`. -/
-def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
-  let ts := tokens s
-  let N := Names.ofTokens nvars ts
-  let fuel := ts.length + 1
+/-- An output guarantee other than `NONE` (§4.2). -/
+private def guarantee? : String → Option Guarantee
+  | "DERIVABLE" => some .derivable
+  | "EQUISATISFIABLE" => some .equisatisfiable
+  | "EQUIOPTIMAL" => some .equioptimal
+  | "EQUIENUMERABLE" => some .equienumerable
+  | _ => none
+
+/-- An output section after `output`, up to its `;`: `NONE`, or a guarantee with `FILE`
+(`true`) or `IMPLICIT` (`false`), and the rest. -/
+private def outputSection : List String → Option (Option (Guarantee × Bool) × List String)
+  | "NONE" :: ";" :: rest => some (none, rest)
+  | g :: k :: ";" :: rest =>
+    (guarantee? g).bind fun g =>
+      if k == "FILE" then some (some (g, true), rest)
+      else if k == "IMPLICIT" then some (some (g, false), rest)
+      else none
+  | _ => none
+
+/-- A proof given as tokens, read with the names `N`, for a formula with `m` constraints: the
+proof and its output section, `none` for `output NONE;`. -/
+private def proofIn (m : ℕ) (N : Names) (ts : List String) :
+    Option (RedProof × Option (Guarantee × Bool)) :=
   match ts with
   | "pseudo-Boolean" :: "proof" :: "version" :: "3.0" :: rest =>
     let rest := match rest with
       | "f" :: n :: ";" :: rest => if n.toNat? == some m then some rest else none
       | rest => some rest
     rest.bind fun rest =>
-      match topSteps N fuel rest with
-      | some (ss, "output" :: "NONE" :: ";" :: "conclusion" :: rest) =>
-        match rest.reverse with
-        | ";" :: "proof" :: "pseudo-Boolean" :: "end" :: concl =>
-          (conclusion N concl.reverse).map (⟨ss, ·⟩)
+      match topSteps N (ts.length + 1) rest with
+      | some (ss, "output" :: rest) =>
+        match outputSection rest with
+        | some (out, "conclusion" :: rest) =>
+          match rest.reverse with
+          | ";" :: "proof" :: "pseudo-Boolean" :: "end" :: concl =>
+            (conclusion N concl.reverse).map fun c => (⟨ss, c⟩, out)
+          | _ => none
         | _ => none
       | _ => none
+  | _ => none
+
+/-- **A proof** in the supported fragment (kernel proofs, with `f N;` optional) with the output
+section `output NONE;`, for a formula with `m` constraints over the variables below `nvars`. -/
+def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
+  match proofIn m (Names.ofTokens nvars (tokens s)) (tokens s) with
+  | some (P, none) => some P
   | _ => none
 
 /-! ### The checkers -/
@@ -549,12 +585,33 @@ private def numVars (F : List PBConstr) (obj : Option Objective) : ℕ :=
   (F.flatMap PBConstr.terms).foldr (fun t m => max (PBConstr.termVar t + 1) m)
     ((obj.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m) 0)
 
-/-- **Check a proof for an OPB instance**, in the supported fragment: the conclusion, if the
-proof is accepted. -/
-def checkOPB (opb pbp : String) : Option Conclusion :=
+/-- **Check a proof with an output section for an OPB instance**, in the supported fragment,
+with the output formula `out` for `output g FILE;`: the conclusion and the output, `none` for
+`output NONE;`, if the proof is accepted (`Cslib.Logic.PL.VeriPB.checkRedOutput`). The output
+formula is read with the names of the proof, the names of both texts being numbered together.
+`FILE` needs an output formula and `IMPLICIT` none; `NONE` ignores it. -/
+def checkOPBOutput (opb pbp : String) (out : Option String := none) :
+    Option (Conclusion × Option Output) :=
   (parseOPB opb).bind fun I =>
-    (parseProof I.constraints.length (numVars I.constraints I.objective) pbp).bind fun P =>
-      if checkRed I.constraints I.objective P I.preserved then some P.conclusion else none
+    let N := Names.ofTokens (numVars I.constraints I.objective)
+      (tokens pbp ++ (out.map tokens).getD [])
+    (proofIn I.constraints.length N (tokens pbp)).bind fun (P, sec) =>
+      match sec, out with
+      | none, _ =>
+        if checkRed I.constraints I.objective P I.preserved then some (P.conclusion, none) else none
+      | some (g, true), some t =>
+        (parseOPB t N).bind fun O =>
+          (checkRedOutput I.constraints I.objective P I.preserved ⟨g, some O⟩).map
+            fun o => (P.conclusion, some o)
+      | some (g, false), none =>
+        (checkRedOutput I.constraints I.objective P I.preserved ⟨g, none⟩).map
+          fun o => (P.conclusion, some o)
+      | some _, _ => none
+
+/-- **Check a proof for an OPB instance**, in the supported fragment: the conclusion, if the
+proof is accepted, with an output section `NONE` or `IMPLICIT`. -/
+def checkOPB (opb pbp : String) : Option Conclusion :=
+  (checkOPBOutput opb pbp).map (·.1)
 
 /-- **Check a proof for a DIMACS CNF formula**, in the supported fragment: the conclusion, if
 the proof is accepted. -/
@@ -563,16 +620,56 @@ def checkDIMACS (cnf pbp : String) : Option Conclusion :=
     (parseProof φ.length (numVars (φ.map Clause.toPB) none) pbp).bind fun P =>
       if checkRed (φ.map Clause.toPB) none P then some P.conclusion else none
 
+/-- What an accepted proof with an output section gives: the parsed instance, and a proof of it,
+accepted by the checker with the returned conclusion and with the returned output, if any. -/
+private theorem of_checkOPBOutput {opb pbp : String} {out : Option String} {c : Conclusion}
+    {o : Option Output} (h : checkOPBOutput opb pbp out = some (c, o)) :
+    ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
+      P.conclusion = c ∧ ∀ o' ∈ o, ∃ g O, checkRedOutput I.constraints I.objective P I.preserved
+        ⟨g, O⟩ = some o' ∧ ∀ t ∈ out, ∃ O' N, O = some O' ∧ parseOPB t N = some O' := by
+  simp only [checkOPBOutput, Option.bind_eq_some_iff] at h
+  obtain ⟨I, hI, ⟨P, sec⟩, -, h⟩ := h
+  split at h
+  · split at h
+    · cases h
+      exact ⟨I, P, hI, ‹_›, rfl, fun _ h => by cases h⟩
+    · cases h
+  · obtain ⟨O, hO, h⟩ := Option.bind_eq_some_iff.1 h
+    obtain ⟨o', ho', h⟩ := Option.map_eq_some_iff.1 h
+    cases h
+    exact ⟨I, P, hI, checkRed_of_checkRedOutput ho', rfl, fun _ h => by
+      cases h; exact ⟨_, some O, ho', fun t' ht' => by cases ht'; exact ⟨O, _, rfl, hO⟩⟩⟩
+  · obtain ⟨o', ho', h⟩ := Option.map_eq_some_iff.1 h
+    cases h
+    exact ⟨I, P, hI, checkRed_of_checkRedOutput ho', rfl, fun _ h => by
+      cases h; exact ⟨_, none, ho', fun t' ht' => by cases ht'⟩⟩
+  · cases h
+
 private theorem exists_checkRed_of_checkOPB {opb pbp : String} {c : Conclusion}
     (h : checkOPB opb pbp = some c) :
     ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
       P.conclusion = c := by
-  simp only [checkOPB, Option.bind_eq_some_iff] at h
-  obtain ⟨I, hI, P, -, h⟩ := h
-  split at h
-  · cases h
-    exact ⟨I, P, hI, ‹_›, rfl⟩
-  · cases h
+  rw [checkOPB, Option.map_eq_some_iff] at h
+  obtain ⟨⟨c', o⟩, h', rfl⟩ := h
+  obtain ⟨I, P, hI, hP, hc, -⟩ := of_checkOPBOutput h'
+  exact ⟨I, P, hI, hP, hc⟩
+
+/-- **Soundness of the output section for OPB text**: if a proof with an output section is
+accepted, the instance parses, the guarantee holds between it and the output formula for the
+returned bound (`Cslib.Logic.PL.VeriPB.semOutput`), and the bound is at least the value of some
+solution of the instance. For `FILE` the output formula is the output text, read with some names
+(those of the proof, in which a standard name `xN` is the variable `N - 1`). The conclusion is
+sound as for `Cslib.Logic.PL.VeriPB.Text.checkOPB`. -/
+theorem semOutput_of_checkOPBOutput {opb pbp : String} {out : Option String} {c : Conclusion}
+    {o : Output} (h : checkOPBOutput opb pbp out = some (c, some o)) :
+    ∃ I, parseOPB opb = some I ∧ semOutput I o.bound o.formula o.guarantee ∧
+      (∀ u ∈ o.bound, ∃ σ, (∀ c ∈ I.constraints, c.Holds σ) ∧ objValue I.objective σ ≤ u) ∧
+      ∀ t ∈ out, ∃ N, parseOPB t N = some o.formula := by
+  obtain ⟨I, P, hI, -, -, ho⟩ := of_checkOPBOutput h
+  obtain ⟨g, O, ho, hO⟩ := ho o rfl
+  refine ⟨I, hI, semOutput_of_checkRedOutput ho, exists_le_of_checkRedOutput ho, fun t ht => ?_⟩
+  obtain ⟨O', N, rfl, hN⟩ := hO t ht
+  exact ⟨N, (output_of_checkRedOutput ho).2 O' rfl ▸ hN⟩
 
 /-- **Soundness of `UNSAT` for OPB text**: an accepted proof of `UNSAT` means the instance parses
 and its constraints have no 0/1 solution. -/

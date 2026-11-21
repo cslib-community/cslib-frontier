@@ -130,33 +130,46 @@ The conclusions (§4.3; `Cslib.Logic.PL.VeriPB.Conclusion`):
 §4.3 gives `BOUNDS` for optimization problems; accepting `UNSAT` and `SAT` under an objective as
 well is an extension of this checker.
 
-**The invariants.** Each step keeps two invariants (`Cslib.Logic.PL.VeriPB.stepTop_inv`,
-`Cslib.Logic.PL.VeriPB.stepTop_reaches`), as CakePB's `check_csteps_correct` does (CakeML
-commit `14856fcf`).
+**The invariants.** Each step keeps the invariants below (`Cslib.Logic.PL.VeriPB.stepTop_inv`,
+`Cslib.Logic.PL.VeriPB.stepTop_reachesOn`, `Cslib.Logic.PL.VeriPB.stepTop_enumInv`,
+`Cslib.Logic.PL.VeriPB.stepTop_covers`), as CakePB's `check_csteps_correct` does (CakeML
+commit `14856fcf`); they hold after every run (`Cslib.Logic.PL.VeriPB.invariants_of_runTop`).
 * *The core invariant* (`Cslib.Logic.PL.VeriPB.Inv`). The core set lies in the database. In
   strengthening-to-core mode, the core set implies the database, which justifies the smaller
   goal set of `red` there; this is `valid_conf` of CakePB. While `chk` holds, every solution of
-  the core set gives a solution of the input formula with no larger objective value. Adding core
-  constraints only shrinks the solutions of the core. A checked deletion of `C` repairs a
-  solution of the remaining core into one of the whole core without raising the objective, and
+  the core set gives a solution of the input formula with no larger objective value and the same
+  projection to the preserved set. Adding core constraints only shrinks the solutions of the
+  core. A checked deletion of `C` repairs a solution of the remaining core into one of the whole
+  core without raising the objective, with a witness that leaves the preserved set alone, and
   `obju` keeps the objective's values on the core. So `bound` is at least the input value of
   some input solution.
-* *The lower-bound invariant* (`Cslib.Logic.PL.VeriPB.Reaches`). For a value `w`, either some
-  solution of the database has objective at most `w`, or `dbound` is at most `w`.
+* *The lower-bound invariant* (`Cslib.Logic.PL.VeriPB.ReachesOn`). For a value `w` and an
+  assignment `σ₀`, either some solution of the database that agrees with `σ₀` on the preserved
+  set has objective at most `w`, or `dbound` is at most `w`
+  (`Cslib.Logic.PL.VeriPB.Reaches` forgets the projection).
   * An implicational step keeps every solution, and a deletion enlarges the set of solutions.
-  * A `red` step repairs a solution without raising the objective. In strengthening-to-core
-    mode, the repaired solution satisfies the core, hence the database.
+  * A `red` step repairs a solution without raising the objective or moving a preserved
+    variable. In strengthening-to-core mode, the repaired solution satisfies the core, hence the
+    database.
   * `soli ρ` removes only solutions of objective at least `f(ρ)`, and lowers `dbound` to `f(ρ)`;
     `obji v` removes only solutions of objective at least `v`, and lowers `dbound` to `v`.
 
-  Every solution `σ` of the formula meets this invariant initially for `w = f(σ)`, which gives
-  the lower bounds. It is CakePB's invariant `bimp_obj`.
+  Every solution `σ` of the formula meets this invariant initially for `w = f(σ)` and `σ₀ = σ`,
+  which gives the lower bounds. It is CakePB's invariant `bimp_obj`.
 
+  These two invariants are CakePB's `bimp_pres_obj`. For each bound `v` on the objective,
+  `bimp_pres_obj` gives injections between the projections to the preserved set of the solutions
+  of value at most `v`: forward from the input to the database below `dbound`, and backward from
+  the core set to the input while `chk` holds. Here the preserved set does not change and
+  witnesses leave it alone, so both injections are the identity on projections, and the
+  invariants state them as inclusions of projected solution sets. The backward inclusion holds
+  for every `v`, not only below `bound` as in CakePB.
+  The output sections (`CslibFrontier.Logics.Propositional.PseudoBoolean.Output`) rest on them.
 * *The enumeration invariants*, the counting half of CakePB's `check_csteps_correct`.
   * Backward (`Cslib.Logic.PL.VeriPB.EnumInv`): the logged projections are distinct, and each is
-    the projection of an input solution. While `chk` holds, every core solution agrees on `P`
-    with an input solution, and its projection has not been logged. `solx` keeps this, because
-    its exclusion constraint removes exactly the projection it logs.
+    the projection of an input solution. While `chk` holds, no core solution has a logged
+    projection. `solx` keeps this, because its exclusion constraint removes exactly the
+    projection it logs.
   * Forward (`Cslib.Logic.PL.VeriPB.Covers`): without an objective, the projection of every input
     solution is that of a database solution, or has been logged. Witnesses keep projections, and
     an exclusion constraint removes only a logged projection.
@@ -189,8 +202,9 @@ covers only proofs without them.
 * `Cslib.Logic.PL.VeriPB.Witness.holds_substC`: `σ ⊨ D|ω` iff `σ ∘ ω ⊨ D`.
 * `Cslib.Logic.PL.VeriPB.redCheck_sound`, `Cslib.Logic.PL.VeriPB.redCheckOn_sound`: a checked
   `red` step repairs a solution of the database without raising the objective.
-* `Cslib.Logic.PL.VeriPB.stepTop_inv`, `Cslib.Logic.PL.VeriPB.stepTop_reaches`: the
-  invariants.
+* `Cslib.Logic.PL.VeriPB.stepTop_inv`, `Cslib.Logic.PL.VeriPB.stepTop_reachesOn`,
+  `Cslib.Logic.PL.VeriPB.stepTop_reaches`: the core and lower-bound invariants;
+  `Cslib.Logic.PL.VeriPB.invariants_of_runTop`: all invariants after a run.
 * `Cslib.Logic.PL.VeriPB.not_satisfiable_of_checkRed`,
   `Cslib.Logic.PL.VeriPB.not_satisfiable_cnf_of_checkRed`: soundness for `UNSAT`.
 * `Cslib.Logic.PL.VeriPB.exists_satisfies_of_checkRed`: soundness for `SAT`.
@@ -1191,9 +1205,12 @@ structure Inv (F : List PBConstr) (obj : Option Objective) (s : State) : Prop wh
   /-- In strengthening-to-core mode, the core set implies the database (§5.6). -/
   imp : s.tcb = true → ∀ τ, AllHold τ s.core → AllHold τ s.db
   /-- While no unchecked deletion has happened, every solution of the core set gives a solution
-  of `F` whose input objective value is at most its current objective value. -/
+  of `F` whose input objective value is at most its current objective value, and which agrees with
+  it on the preserved set: CakePB's backward `bimp_pres_obj`, the injection being the identity on
+  projections. -/
   chk : s.chk = true → ∀ τ, AllHold τ s.core →
-    ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ objValue obj σ ≤ objValue s.obj τ
+    ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ objValue obj σ ≤ objValue s.obj τ ∧
+      ∀ P ∈ s.pres, proj P σ = proj P τ
   /-- The bound `bound` is at least the input objective value of a solution of `F`. -/
   wit : ∀ v ∈ s.bound, ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ objValue obj σ ≤ v
 
@@ -1201,7 +1218,7 @@ theorem inv_init (F : List PBConstr) (obj : Option Objective) (pres : Option (Li
     Inv F obj (State.init F obj pres) where
   sub _ he := he
   imp h := by simp [State.init] at h
-  chk _ τ hτ := ⟨τ, holds_of_allHold_initDb hτ, le_rfl⟩
+  chk _ τ hτ := ⟨τ, holds_of_allHold_initDb hτ, le_rfl, fun _ _ => rfl⟩
   wit v hv := by simp [State.init] at hv
 
 private theorem mem_lowerTo {d : Option ℤ} {u v : ℤ} (h : v ∈ lowerTo d u) : v = u ∨ v ∈ d := by
@@ -1224,8 +1241,9 @@ private theorem wit_log {F : List PBConstr} {obj : Option Objective} {s : State}
   split at hv
   · rename_i hc
     rcases mem_lowerTo hv with rfl | h
-    · exact hs.chk hc _ fun e he =>
+    · obtain ⟨σ, hσ, hle, -⟩ := hs.chk hc _ fun e he =>
         holds_of_solves hρ (List.mem_map_of_mem (f := (·.2)) (hs.sub e he))
+      exact ⟨σ, hσ, hle⟩
     · exact hs.wit v h
   · split at hv
     · rename_i _ hF
@@ -1379,9 +1397,12 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
             have : τ' = τ := by rcases hτ' with rfl | rfl <;> simp [hω, Witness.apply_nil]
             subst this
             exact allHold_filter (hs.imp ht τ' hall) _
-          · obtain ⟨τ', -, hall, hle⟩ := hback τ hτ
-            obtain ⟨σ, hσ, hle'⟩ := hs.chk hc τ' hall
-            exact ⟨σ, hσ, hle'.trans hle⟩
+          · obtain ⟨τ', hτ', hall, hle⟩ := hback τ hτ
+            obtain ⟨σ, hσ, hle', hp⟩ := hs.chk hc τ' hall
+            refine ⟨σ, hσ, hle'.trans hle, fun P hP => (hp P hP).trans ?_⟩
+            rcases hτ' with rfl | rfl
+            · rfl
+            · exact proj_apply_of_presFree (redCheckOn_of_redCheckP hred).1 τ P hP
         · cases h
       · cases h
     · cases h
@@ -1425,8 +1446,8 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         simp only [Option.some.injEq] at h
         subst h
         refine ⟨hs.sub, hs.imp, fun hc τ hτ => ?_, hs.wit⟩
-        obtain ⟨σ, hσ, hle⟩ := hs.chk hc τ hτ
-        refine ⟨σ, hσ, ?_⟩
+        obtain ⟨σ, hσ, hle, hp⟩ := hs.chk hc τ hτ
+        refine ⟨σ, hσ, ?_, hp⟩
         rw [hf] at hle
         simp only [objValue] at hle ⊢
         rw [objuCheck_sound hτ hobj]
@@ -1457,6 +1478,19 @@ most `w`, or the bound `dbound` is at most `w`. -/
 def Reaches (w : ℤ) (s : State) : Prop :=
   (∃ τ, AllHold τ s.db ∧ objValue s.obj τ ≤ w) ∨ ∃ d ∈ s.dbound, d ≤ w
 
+/-- **The projected lower-bound invariant** for the variables `P`, a value `w` and an assignment
+`σ₀`: some solution of the database that agrees with `σ₀` on `P` has objective at most `w`, or the
+bound `dbound` is at most `w`. Over the solutions `σ₀` of the input, with `w` the value of `σ₀`
+and `P` the preserved set, this is CakePB's forward `bimp_pres_obj` from the input to the
+database below `dbound`, the injection being the identity on projections. -/
+def ReachesOn (P : List ℕ) (w : ℤ) (σ₀ : ℕ → Bool) (s : State) : Prop :=
+  (∃ τ, AllHold τ s.db ∧ objValue s.obj τ ≤ w ∧ proj P τ = proj P σ₀) ∨ ∃ d ∈ s.dbound, d ≤ w
+
+/-- The lower-bound invariant is the projected one for no variable. -/
+theorem reaches_iff_reachesOn_nil {w : ℤ} {σ₀ : ℕ → Bool} {s : State} :
+    Reaches w s ↔ ReachesOn [] w σ₀ s := by
+  simp [Reaches, ReachesOn, proj]
+
 private theorem exists_mem_lowerTo {d : Option ℤ} {w : ℤ} (u : ℤ) (h : ∃ v ∈ d, v ≤ w) :
     ∃ v ∈ lowerTo d u, v ≤ w := by
   obtain ⟨v, hv, hw⟩ := h
@@ -1469,18 +1503,13 @@ private theorem lowerTo_le (d : Option ℤ) (u : ℤ) : ∃ v ∈ lowerTo d u, v
   · exact ⟨u, rfl, le_rfl⟩
   · exact ⟨_, rfl, min_le_right _ _⟩
 
-/-- A step that only deletes from the database keeps the lower-bound invariant. -/
-private theorem reaches_filter {w : ℤ} {s : State}
-    (p : ℕ × PBConstr → Bool) (hs : Reaches w s) :
-    Reaches w { s with db := s.db.filter p } := by
-  rcases hs with ⟨τ, hτ, hw⟩ | hb
-  · exact .inl ⟨τ, allHold_filter hτ p, hw⟩
-  · exact .inr hb
-
-/-- **Each step keeps the lower-bound invariant**, for every value `w`. -/
-theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {s s' : State}
-    {t : TopStep} (hinv : Inv F obj s) (hs : Reaches w s)
-    (h : stepTop F obj s t = some s') : Reaches w s' := by
+/-- **Each step keeps the projected lower-bound invariant**, for every value `w`, every
+assignment `σ₀`, and variables `P` kept by every witness that leaves the preserved set alone: the
+preserved set itself, or no variable. -/
+theorem stepTop_reachesOn {F : List PBConstr} {obj : Option Objective} {P : List ℕ} {w : ℤ}
+    {σ₀ : ℕ → Bool} {s s' : State} {t : TopStep} (hinv : Inv F obj s)
+    (hP : ∀ ω, presFree s.pres ω = true → ∀ τ, proj P (Witness.apply τ ω) = proj P τ)
+    (hs : ReachesOn P w σ₀ s) (h : stepTop F obj s t = some s') : ReachesOn P w σ₀ s' := by
   cases t with
   | step st =>
     simp only [stepTop] at h
@@ -1490,8 +1519,8 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
       · cases h
       · simp only [Option.some.injEq] at h
         subst h
-        rcases hs with ⟨τ, hτ, hw⟩ | hb
-        · exact .inl ⟨τ, runStep_sound _ _ _ _ _ hτ h₁, hw⟩
+        rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
+        · exact .inl ⟨τ, runStep_sound _ _ _ _ _ hτ h₁, hw, hp⟩
         · exact .inr hb
     · cases h
   | red c ω items q =>
@@ -1501,19 +1530,24 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
       simp only [Option.some.injEq] at h
       subst h
       generalize (if items.isSome = true then n₁ else s.next) = m
-      rcases hs with ⟨τ, hτ, hw⟩ | hb
+      obtain ⟨hfree, h₁⟩ := redCheckOn_of_redCheckP h₁
+      rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
       · have hgs : AllHold τ (if s.tcb then s.core else s.db) := by
           split
           · exact allHold_mono hinv.sub hτ
           · exact hτ
-        obtain ⟨τ', -, hτ', hle⟩ := redCheckOn_sound hτ hgs (redCheckOn_of_redCheckP h₁).2
+        obtain ⟨τ', hτ'eq, hτ', hle⟩ := redCheckOn_sound hτ hgs h₁
         refine .inl ⟨τ', List.forall_mem_cons.2
-          ⟨(hτ' (n₁, c.normalize) List.mem_cons_self : c.normalize.Holds τ'), ?_⟩, hle.trans hw⟩
-        have hτ'' := fun e he => hτ' e (List.mem_cons_of_mem _ he)
-        split at hτ''
-        · rename_i ht
-          exact hinv.imp ht τ' hτ''
-        · exact hτ''
+          ⟨(hτ' (n₁, c.normalize) List.mem_cons_self : c.normalize.Holds τ'), ?_⟩, hle.trans hw,
+          ?_⟩
+        · have hτ'' := fun e he => hτ' e (List.mem_cons_of_mem _ he)
+          split at hτ''
+          · rename_i ht
+            exact hinv.imp ht τ' hτ''
+          · exact hτ''
+        · rcases hτ'eq with rfl | rfl
+          · exact hp
+          · exact (hP ω hfree τ).trans hp
       · exact .inr hb
     · cases h
   | sol ρ =>
@@ -1532,18 +1566,18 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
       split at h
       · simp only [Option.some.injEq] at h
         subst h
-        simp only [Reaches, State.log, hf] at hs ⊢
-        by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧
+        simp only [ReachesOn, State.log, hf] at hs ⊢
+        by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧ proj P τ = proj P σ₀ ∧
             f.eval τ < f.eval (assignOf ρ)
-        · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
+        · obtain ⟨τ, hτ, hw, hp, hlt⟩ := hlt
           exact .inl ⟨τ, List.forall_mem_cons.2
-            ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw⟩
-        · rcases hs with ⟨τ, hτ, hw⟩ | hb
+            ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw, hp⟩
+        · rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
           · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound (objValue (some f) (assignOf ρ))
             refine .inr ⟨v, hv, ?_⟩
             have hge : f.eval (assignOf ρ) ≤ f.eval τ := by
               by_contra hc
-              exact hlt ⟨τ, hτ, hw, by omega⟩
+              exact hlt ⟨τ, hτ, hw, hp, by omega⟩
             simp only [objValue] at hle hw
             omega
           · exact .inr (exists_mem_lowerTo _ hb)
@@ -1553,15 +1587,18 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
     simp only [stepTop] at h
     split at h
     · simp only [Option.some.injEq] at h
-      exact h ▸ reaches_filter _ hs
+      subst h
+      rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
+      · exact .inl ⟨τ, allHold_filter hτ _, hw, hp⟩
+      · exact .inr hb
     · cases h
   | delc ids =>
     simp only [stepTop] at h
     split at h
     · simp only [Option.some.injEq] at h
       subst h
-      rcases hs with ⟨τ, hτ, hw⟩ | hb
-      · exact .inl ⟨τ, allHold_filter hτ _, hw⟩
+      rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
+      · exact .inl ⟨τ, allHold_filter hτ _, hw, hp⟩
       · exact .inr hb
     · cases h
   | delcChecked i ω items q =>
@@ -1571,8 +1608,8 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
       · split at h
         · simp only [Option.some.injEq] at h
           subst h
-          rcases hs with ⟨τ, hτ, hw⟩ | hb
-          · exact .inl ⟨τ, allHold_filter hτ _, hw⟩
+          rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
+          · exact .inl ⟨τ, allHold_filter hτ _, hw, hp⟩
           · exact .inr hb
         · cases h
       · cases h
@@ -1594,17 +1631,18 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
     · rename_i f hf
       simp only [Option.some.injEq] at h
       subst h
-      simp only [Reaches, hf] at hs ⊢
-      by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧ f.eval τ < u
-      · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
+      simp only [ReachesOn, hf] at hs ⊢
+      by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧ proj P τ = proj P σ₀ ∧
+          f.eval τ < u
+      · obtain ⟨τ, hτ, hw, hp, hlt⟩ := hlt
         exact .inl ⟨τ, List.forall_mem_cons.2
-          ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw⟩
-      · rcases hs with ⟨τ, hτ, hw⟩ | hb
+          ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw, hp⟩
+      · rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
         · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound u
           refine .inr ⟨v, hv, ?_⟩
           have hge : u ≤ f.eval τ := by
             by_contra hc
-            exact hlt ⟨τ, hτ, hw, by omega⟩
+            exact hlt ⟨τ, hτ, hw, hp, by omega⟩
           simp only [objValue] at hw
           omega
         · exact .inr (exists_mem_lowerTo u hb)
@@ -1617,9 +1655,9 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
       · rename_i n' hobj
         simp only [Option.some.injEq] at h
         subst h
-        simp only [Reaches, hf] at hs ⊢
-        rcases hs with ⟨τ, hτ, hw⟩ | hb
-        · refine .inl ⟨τ, hτ, ?_⟩
+        simp only [ReachesOn, hf] at hs ⊢
+        rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
+        · refine .inl ⟨τ, hτ, ?_, hp⟩
           simp only [objValue] at hw ⊢
           rw [objuCheck_sound (allHold_mono hinv.sub hτ) hobj]
           exact hw
@@ -1629,13 +1667,13 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
   | solx ρ =>
     simp only [stepTop] at h
     split at h
-    · rename_i P hP hobj
+    · rename_i Q hQ hobj
       split at h
       · simp only [Option.some.injEq] at h
         subst h
-        rcases hs with ⟨τ, hτ, hw⟩ | hb
-        · by_cases hex : (exclusion P ρ).Holds τ
-          · exact .inl ⟨τ, List.forall_mem_cons.2 ⟨hex, hτ⟩, hw⟩
+        rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
+        · by_cases hex : (exclusion Q ρ).Holds τ
+          · exact .inl ⟨τ, List.forall_mem_cons.2 ⟨hex, hτ⟩, hw, hp⟩
           · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound (objValue s.obj (assignOf ρ))
             refine .inr ⟨v, hv, ?_⟩
             simp only [hobj, objValue] at hle hw
@@ -1643,6 +1681,13 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
         · exact .inr (exists_mem_lowerTo _ hb)
       · cases h
     · cases h
+
+/-- **Each step keeps the lower-bound invariant**, for every value `w`. -/
+theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {s s' : State}
+    {t : TopStep} (hinv : Inv F obj s) (hs : Reaches w s)
+    (h : stepTop F obj s t = some s') : Reaches w s' :=
+  (reaches_iff_reachesOn_nil (σ₀ := fun _ => false)).2 (stepTop_reachesOn hinv
+    (fun _ _ _ => rfl) (reaches_iff_reachesOn_nil.1 hs) h)
 
 /-- A property kept by every step is kept by the checker. -/
 theorem runTop_induct {F : List PBConstr} {obj : Option Objective} {P : State → Prop}
@@ -1663,17 +1708,17 @@ theorem runTop_induct {F : List PBConstr} {obj : Option Objective} {P : State �
 /-- **The backward enumeration invariant** for the formula `F`, the input objective `obj` and
 the preserved set `pres`.
 * The preserved set is `pres`, and without an input objective there is no current one.
-* While no unchecked deletion has happened, every solution of the core set agrees on `pres`
-  with a solution of `F`, and its projection has not been logged.
+* While no unchecked deletion has happened, the projection of no solution of the core set has
+  been logged.
 * The logged projections are distinct, and each is the projection of a solution of `F`.
 
-This is the counting half of CakePB's `check_csteps_correct` that `ENUMERATION` uses. -/
+With the core invariant (`Cslib.Logic.PL.VeriPB.Inv.chk`), by which every solution of the core
+set agrees on `pres` with a solution of `F`, this is the counting half of CakePB's
+`check_csteps_correct` that `ENUMERATION` uses. -/
 structure EnumInv (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
     (s : State) : Prop where
   pres_eq : s.pres = pres
   obj_none : obj = none → s.obj = none
-  agree : s.chk = true → ∀ τ, AllHold τ s.core → ∀ P ∈ pres,
-    ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ proj P σ = proj P τ
   nodup : s.logged.Nodup
   logsol : ∀ l ∈ s.logged, ∀ P ∈ pres, ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ proj P σ = l
   logcore : s.chk = true → ∀ τ, AllHold τ s.core → ∀ P ∈ pres, proj P τ ∉ s.logged
@@ -1682,7 +1727,6 @@ theorem enumInv_init (F : List PBConstr) (obj : Option Objective) (pres : Option
     EnumInv F obj pres (State.init F obj pres) where
   pres_eq := rfl
   obj_none h := h
-  agree _ τ hτ _ _ := ⟨τ, holds_of_allHold_initDb hτ, rfl⟩
   nodup := List.nodup_nil
   logsol l hl := by simp [State.init] at hl
   logcore _ _ _ _ _ h := by simp [State.init] at h
@@ -1698,11 +1742,6 @@ private theorem enumInv_of {F : List PBConstr} {obj : Option Objective} {pres : 
     EnumInv F obj pres s' where
   pres_eq := hpres.trans he.pres_eq
   obj_none h := hobj (he.obj_none h)
-  agree hc τ hτ P hP := by
-    obtain ⟨hc0, hback⟩ := hcore hc
-    obtain ⟨τ', hτ', hag⟩ := hback τ hτ
-    obtain ⟨σ, hσ, hp⟩ := he.agree hc0 τ' hτ' P hP
-    exact ⟨σ, hσ, hp.trans (hag P hP)⟩
   nodup := hlog ▸ he.nodup
   logsol l hl P hP := he.logsol l (hlog ▸ hl) P hP
   logcore hc τ hτ P hP := by
@@ -1848,13 +1887,13 @@ theorem stepTop_enumInv {F : List PBConstr} {obj : Option Objective} {pres : Opt
           exact (Option.mem_some_iff.1 hP').symm
         have hρ : AllHold (assignOf ρ) s.core := fun e he =>
           holds_of_solves hsol (List.mem_map_of_mem (f := (·.2)) (hinv.sub e he))
-        refine ⟨he.pres_eq, he.obj_none, fun hc τ hτ P' hP' =>
-          he.agree hc τ (fun e he => hτ e (List.mem_cons_of_mem _ he)) P' hP',
+        refine ⟨he.pres_eq, he.obj_none,
           List.nodup_cons.2 ⟨he.logcore hchk _ hρ P hPp, he.nodup⟩, fun l hl P' hP' => ?_,
           fun hc τ hτ P' hP' => ?_⟩
         · rw [hpres P' hP']
           rcases List.mem_cons.1 hl with rfl | hl
-          · exact he.agree hchk _ hρ P hPp
+          · obtain ⟨σ, hσ, -, hp⟩ := hinv.chk hchk _ hρ
+            exact ⟨σ, hσ, hp P hP⟩
           · exact he.logsol l hl P hPp
         · rw [hpres P' hP']
           have hex : (exclusion P ρ).Holds τ := hτ _ List.mem_cons_self
@@ -2022,6 +2061,36 @@ theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {σ₀ : ℕ
       · cases h
     · cases h
 
+/-- **The invariants of a run.** The state after running the steps from the formula `F`, the
+objective `obj` and the preserved set `pres` meets the core invariant and the backward
+enumeration invariant; and, for every solution `σ` of `F`, the forward enumeration invariant and
+the projected lower-bound invariant at the value of `σ`, for the preserved set and for no
+variable. -/
+theorem invariants_of_runTop {F : List PBConstr} {obj : Option Objective}
+    {pres : Option (List ℕ)} {ss : List TopStep} {s : State}
+    (h : runTop F obj (State.init F obj pres) ss = some s) :
+    Inv F obj s ∧ EnumInv F obj pres s ∧ ∀ σ, (∀ c ∈ F, c.Holds σ) →
+      Covers σ s ∧ ∀ P, (P = [] ∨ pres = some P) → ReachesOn P (objValue obj σ) σ s := by
+  have hie := runTop_induct (P := fun s => Inv F obj s ∧ EnumInv F obj pres s)
+    (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_enumInv hs.1 hs.2 ht⟩) _ _ s
+    ⟨inv_init F obj pres, enumInv_init F obj pres⟩ h
+  refine ⟨hie.1, hie.2, fun σ hσ => ⟨?_, fun P hP => ?_⟩⟩
+  · exact (runTop_induct (P := fun s => Inv F obj s ∧ Covers σ s)
+      (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_covers hs.1 hs.2 ht⟩) _ _ s
+      ⟨inv_init F obj pres, fun _ _ _ => .inl ⟨σ, allHold_initDb hσ, rfl⟩⟩ h).2
+  · have hfree : ∀ s : State, EnumInv F obj pres s → ∀ ω, presFree s.pres ω = true →
+        ∀ τ, proj P (Witness.apply τ ω) = proj P τ := by
+      intro s he ω hω τ
+      rcases hP with rfl | hP
+      · rfl
+      · exact proj_apply_of_presFree hω τ P (by rw [he.pres_eq, hP]; rfl)
+    exact (runTop_induct (P := fun s => Inv F obj s ∧ EnumInv F obj pres s ∧
+        ReachesOn P (objValue obj σ) σ s)
+      (fun s _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_enumInv hs.1 hs.2.1 ht,
+        stepTop_reachesOn hs.1 (hfree s hs.2.1) hs.2.2 ht⟩) _ _ s
+      ⟨inv_init F obj pres, enumInv_init F obj pres,
+        .inl ⟨σ, allHold_initDb hσ, le_rfl, rfl⟩⟩ h).2.2
+
 /-! ### Soundness of the conclusions -/
 
 variable {pres : Option (List ℕ)}
@@ -2035,11 +2104,8 @@ private theorem reaches_of_checkRed {F : List PBConstr} {obj : Option Objective}
   unfold checkRed at h
   split at h
   · rename_i s hrun
-    refine ⟨s, h, runTop_induct (fun _ _ _ => stepTop_inv) _ _ s (inv_init F obj pres) hrun,
-      fun σ hσ => ?_⟩
-    exact (runTop_induct (P := fun s => Inv F obj s ∧ Reaches (objValue obj σ) s)
-      (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_reaches hs.1 hs.2 ht⟩) _ _ s
-      ⟨inv_init F obj pres, .inl ⟨σ, allHold_initDb hσ, le_rfl⟩⟩ hrun).2
+    obtain ⟨hinv, -, hσ⟩ := invariants_of_runTop hrun
+    exact ⟨s, h, hinv, fun σ hσF => reaches_iff_reachesOn_nil.2 ((hσ σ hσF).2 [] (.inl rfl))⟩
   · cases h
 
 /-- **Soundness for `UNSAT`**: a formula with a checked proof of `UNSAT` has no solution. -/
@@ -2185,12 +2251,8 @@ private theorem enum_of_checkRed {F : List PBConstr} {obj : Option Objective} {P
   unfold checkRed at h
   split at h
   · rename_i s hrun
-    refine ⟨s, h, (runTop_induct (P := fun s => Inv F obj s ∧ EnumInv F obj pres s)
-      (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_enumInv hs.1 hs.2 ht⟩) _ _ s
-      ⟨inv_init F obj pres, enumInv_init F obj pres⟩ hrun).2, fun σ hσ => ?_⟩
-    exact (runTop_induct (P := fun s => Inv F obj s ∧ Covers σ s)
-      (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_covers hs.1 hs.2 ht⟩) _ _ s
-      ⟨inv_init F obj pres, fun _ _ _ => .inl ⟨σ, allHold_initDb hσ, rfl⟩⟩ hrun).2
+    obtain ⟨-, he, hσ⟩ := invariants_of_runTop hrun
+    exact ⟨s, h, he, fun σ hσF => (hσ σ hσF).1⟩
   · cases h
 
 /-- An accepted `ENUMERATION` conclusion needs a preserved set. -/
