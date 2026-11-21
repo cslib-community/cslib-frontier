@@ -25,8 +25,12 @@ and its rules have the same names and premises.
 
 The tactic `wram_exec` applies these rules along the syntax of the program. It is meant for the
 straight-line glue of correctness proofs, between loops and calls of subprograms with their own
-specifications: it executes data instructions and conditionals, and stops at a loop, at a random
-sample and at a program given by name, leaving the goal `WP w c y Q` with the data `y` reached.
+specifications: it executes data instructions and conditionals, and stops at a loop that may
+iterate, at a random sample and at an unlisted named program, leaving the goal `WP w c y Q`
+with the data `y` reached.
+Pass a named program among the hints to execute it: `wram_exec [program, h₁, h₂]`. Other named
+callees remain closed. A loop whose condition is provably false exits, charging both control
+instructions; a loop that may iterate still needs its invariant or specification.
 `Cslib.WordRAM.WP.of_execWithin` then continues from a specification of `c`, and `wram_exec`
 resumes on the remaining program; on a `WP.Exact` goal, `Cslib.WordRAM.WP.Exact.of_exec` continues
 from an exact specification. At a loop whose condition holds, `Cslib.WordRAM.WP.loop_iter` continues
@@ -224,6 +228,11 @@ theorem loop_iter {body : Code B r} (hc : cond.Holds x)
   let ⟨_, T₁, he₁, _, T₂, he₂, hz⟩ := h
   ⟨_, T₁ + T₂ + 2, ExecWithin.loop_iter hc he₁ he₂, Nat.add_comm T₁ T₂ ▸ hz⟩
 
+/-- Exit a loop whose condition is false, charging its two control instructions. -/
+theorem loop_exit {body : Code B r} (hc : ¬cond.Holds x) (h : Q x 2) :
+    WP w (.loop cond body) x Q :=
+  of_execWithin (ExecWithin.loop_exit hc) h
+
 /-! ### Data instructions
 
 Each rule names the values the instruction reads (`hi`, `hj`, `hs`, `ha`) and computes (`hv`),
@@ -389,6 +398,11 @@ theorem loop_iter {body : Code B r} (hc : cond.Holds x)
     WP.Exact w (.loop cond body) x Q :=
   let ⟨_, T₁, he₁, _, T₂, he₂, hz⟩ := h
   ⟨_, T₁ + T₂ + 2, .loop_iter hc he₁ he₂, Nat.add_comm T₁ T₂ ▸ hz⟩
+
+/-- Exit a loop whose condition is false in exactly two control instructions. -/
+theorem loop_exit {body : Code B r} (hc : ¬cond.Holds x) (h : Q x 2) :
+    WP.Exact w (.loop cond body) x Q :=
+  of_exec (Exec.loop_exit hc) h
 
 section Ops
 
@@ -698,6 +712,7 @@ attribute [wram_simps] Data.set_regs_self Data.set_regs_of_ne Data.set_mem Data.
   BinOp.eval BinOp.evalExact fits_zero Nat.add_zero Nat.zero_add Nat.add_sub_cancel
   Nat.add_sub_cancel_left Nat.sub_zero Nat.sub_self Nat.lt_irrefl Nat.not_lt_zero Nat.zero_lt_succ
   Nat.add_one_ne_zero not_true_eq_false not_false_eq_true and_self and_true true_and
+  Cond.holds_lt Cond.holds_eq
 
 /-- `simp` procedure evaluating an operation `B.interp w f vals` of a basis given by a definition,
 such as `Basis.additive`, when it unfolds to a value `some v` (`WP.alu`). It is a pre-procedure
@@ -805,9 +820,7 @@ meta def opRule? (o : Expr) : Option Name :=
   | some ``Op.bin => some ``WP.bin
   | some ``Op.width => some ``WP.width
   | some ``Op.exactWidth => some ``WP.exactWidth
-  -- `Op.addAdditive` is defined in `WordRAM.Allocation`, which this module does not import, so its
-  -- name is not resolved here; `CslibFrontierTests/WordRAMSymbolicExec.lean` runs it.
-  | some ``Op.alu | some `Cslib.WordRAM.Op.addAdditive => some ``WP.alu
+  | some ``Op.alu => some ``WP.alu
   | some ``Op.exactBin =>
     match (o.getArg! 1).constName? with
     | some ``BinOp.sub => some ``WP.exactSub
@@ -837,7 +850,11 @@ meta partial def walk (cfg : Config) (g : MVarId) : TacticM (Array MVarId) := g.
   match code.getAppFn.constName? with
   | some ``Code.seq => step cfg g (rule ``WP.seq)
   | some ``Code.op =>
-    match opRule? (code.getArg! 2) with
+    let op := code.getArg! 2
+    let r? ← match opRule? op with
+      | some r => pure (some r)
+      | none => opRule? <$> whnf op
+    match r? with
     | some r => step cfg g (rule r)
     | none => return #[g]
   | some ``Code.branch =>
@@ -845,7 +862,21 @@ meta partial def walk (cfg : Config) (g : MVarId) : TacticM (Array MVarId) := g.
     | some ``Cond.lt => branch cfg g (rule ``WP.branch_lt)
     | some ``Cond.eq => branch cfg g (rule ``WP.branch_eq)
     | _ => return #[g]
-  | _ => return #[g]
+  | some ``Code.loop =>
+    let holds ← mkAppM ``Cond.Holds #[code.getArg! 2, tgt.getArg! 4]
+    if (← tryProve cfg (closesWith cfg.disch) (mkNot holds)).1.isSome then
+      step cfg g (rule ``WP.loop_exit)
+    else
+      return #[g]
+  | _ =>
+    -- Only the caller's simp hints can open a named routine. In particular, unfolding a caller
+    -- does not unfold every callee it contains, so `wram_call` can still consume its contract.
+    let res ← simpExpr cfg code
+    if res.expr == code then return #[g]
+    let target := mkAppN tgt.getAppFn (tgt.getAppArgs.set! 3 res.expr)
+    let motive ← withLocalDeclD `code (← inferType code) fun c =>
+      mkLambdaFVars #[c] (mkAppN tgt.getAppFn (tgt.getAppArgs.set! 3 c))
+    walk cfg (← g.replaceTargetEq target (← mkCongrArg motive (← res.getProof)))
 
 /-- Apply the rule `rule` to `g`: evaluate the values it reads, prove or leave its side
 conditions, and continue with its continuation `h`. -/
@@ -1037,7 +1068,8 @@ meta def WP.Exec.withSimpContext {α : Type} (disch : TSyntax ``Lean.Parser.Tact
 the data instructions and conditionals of `c` in order, with the data in closed form, until the
 end of the program, where `t ≤ T ∧ P y` (respectively `t ≤ T ∧ y' = y`, or `Q y t`) remains for
 the data `y` and instruction count `t` reached; a leading bound `t ≤ T` is closed by `omega` when
-it can. It stops at a loop, a random sample or a program given by name, leaving `WP w c' y Q'`:
+it can. It stops at a loop that may iterate, a random sample or an unlisted named program,
+leaving `WP w c' y Q'`:
 continue with `refine WP.of_execWithin h ?_` from a specification `h` of `c'`, then `wram_exec`
 again. Unfold programs given by name to execute them instead.
 
@@ -1046,8 +1078,11 @@ On the exact-count goals `∃ y, Exec w c x y T ∧ P y`, `Exec w c x y T` and
 `t = T` is closed by `omega` when it can, and `refine WP.Exact.of_exec h ?_` continues from an
 exact specification `h` at a stop.
 
-* `wram_exec [h₁, h₂]` adds simp lemmas for the values read, typically the contents of the
+* `wram_exec [program, h₁, h₂]` unfolds the supplied program definitions and adds simp lemmas for
+  the values read, typically the contents of the
   registers of `x`, such as `x.regs zeroP = 0`, and the memory cells it reads.
+  Callees not listed remain closed for their contracts. Named data operations are reduced to
+  the existing instruction rules, including `Op.alu` for user-defined bases.
 * `wram_exec (disch := tac)` sets the discharger, by default `fits` on a word-size bound and
   `omega` on anything else. It proves side conditions
   (`Fits w v`, `b ≤ a` for an exact subtraction, a nonzero divisor), decides conditions of
@@ -1060,7 +1095,8 @@ A conditional neither `simp` nor the discharger decides splits into both alterna
 `pos` and `neg`, with the hypothesis `hc` on the compared values; `wram_exec -split` stops at it
 instead, leaving `WP w (.branch …) y Q'`, for instance to join the alternatives with `WP.cut`.
 Side conditions that remain are left as goals after the main ones, tagged by the premise they come
-from (`hfit`, `hle`, `hb`). -/
+from (`hfit`, `hle`, `hb`). A loop whose guard is false exits in two instructions; other loops
+remain as goals without attempting an iteration. -/
 syntax (name := wramExec) "wram_exec" Lean.Parser.Tactic.optConfig (Lean.Parser.Tactic.discharger)?
   (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>
     Lean.Parser.Tactic.simpLemma),* "]")? : tactic

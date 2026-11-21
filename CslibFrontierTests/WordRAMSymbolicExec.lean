@@ -48,15 +48,13 @@ def straight : Code .standard 4 := ram[
 
 /-- The conditional is decided, and the bound of six instructions is exact. -/
 example (x : Data 4) : ∃ y, ExecWithin 8 straight x y 6 ∧ y.mem 5 = 7 ∧ y.regs c = 7 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
   wram_simp
 
 /-- The data reached, stated in closed form. -/
 example (x : Data 4) :
     ExecWithin 8 straight x (((((x.set b 5).set c 7).set c 12).set c 7).write 5 7) 6 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
 
 /-- A fitting condition that neither `simp` nor the discharger proves remains as a goal, tagged
 `hfit`, after the main goal. -/
@@ -300,19 +298,16 @@ example (w p : ℕ) (x : Data 4) (hx : x.Bounded w) (hp : Fits w p) :
 /-- The exact count of six instructions, and the data reached, from `Exec`. -/
 example (x : Data 4) :
     Exec 8 straight x (((((x.set b 5).set c 7).set c 12).set c 7).write 5 7) 6 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
 
 /-- The exact count with a property of the data reached. -/
 example (x : Data 4) : ∃ y, Exec 8 straight x y 6 ∧ y.mem 5 = 7 ∧ y.regs c = 7 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
   wram_simp
 
 /-- A wrong exact count remains as a goal: the program takes six instructions, not seven. -/
 example (x : Data 4) (h : (6 : ℕ) = 7) : ∃ y, Exec 8 straight x y 7 ∧ y.mem 5 = 7 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
   exact ⟨h, by wram_simp⟩
 
 /-- Both alternatives of a conditional, with their own exact counts; side conditions with free
@@ -371,13 +366,13 @@ the loop from the data it reaches is the induction hypothesis, applied with `wra
 theorem moveLoop_exec (w : ℕ) : ∀ n m : ℕ, ∀ x : Data 4, x.regs a = n → x.regs b = 1 →
     x.regs c = m → x.regs d = 0 → Fits w (n + m) →
     ∃ y, Exec w moveLoop x y (4 * n + 2) ∧ y.regs c = n + m
-  | 0, m, x, ha, _, hc, hd, _ =>
-    ⟨x, .loop_exit (by simp [Cond.holds_lt, ha, hd]), by rw [hc]; omega⟩
+  | 0, m, x, ha, _, hc, hd, _ => by
+    wram_exec [moveLoop, ha, hd]
+    wram_simp [hc]
   | n + 1, m, x, ha, hb, hc, hd, hfit => by
     refine WP.Exact.exists_exec (WP.Exact.loop_iter (by simp [Cond.holds_lt, ha, hd]) ?_)
     wram_exec [ha, hb, hc]
-    wram_call (moveLoop_exec w n (m + 1) _ (by wram_simp) (by wram_simp [hb]) (by wram_simp)
-      (by wram_simp [hd]) (by fits)) with y hy
+    wram_call (moveLoop_exec w n (m + 1) ..) [hb, hd] with y hy
     exact ⟨by omega, by omega⟩
 
 /-- The same rule for a bound, `WP.loop_iter`. -/
@@ -385,10 +380,29 @@ example (w : ℕ) (x : Data 4) (ha : x.regs a = 1) (hb : x.regs b = 1) (hc : x.r
     (hd : x.regs d = 0) (hfit : Fits w 1) :
     ∃ y, ExecWithin w moveLoop x y 7 ∧ y.regs c = 1 := by
   refine WP.exists_execWithin (WP.loop_iter (by simp [Cond.holds_lt, ha, hd]) ?_)
-  wram_exec [ha, hb, hc]
-  refine WP.of_execWithin
-    (ExecWithin.loop_exit (by simp only [Cond.holds_lt, not_lt]; wram_simp [hd])) ?_
+  wram_exec [ha, hb, hc, hd]
   wram_simp
+
+/-- A separately named arithmetic operation uses the existing exact-addition rule. -/
+private def customAdd (dst i j : Fin 4) : Op .exact 4 := .exactBin .add dst i j
+
+example (w : ℕ) (x : Data 4) (h : Fits w (x.regs a + x.regs b)) :
+    ∃ y, Exec w (.op (customAdd c a b)) x y 1 ∧ y.regs c = x.regs a + x.regs b := by
+  wram_exec
+  wram_simp
+
+/-- Exiting a loop retains its exact two-instruction charge. -/
+example (w : ℕ) (x : Data 4) (h : ¬x.regs a < x.regs b) :
+    Exec w (.loop (.lt a b) (.op (.copy a b)) : Code .standard 4) x x 2 := by
+  wram_exec [h]
+
+example (w : ℕ) (x : Data 4) (h : ¬x.regs a < x.regs b) :
+    ¬Exec w (.loop (.lt a b) (.op (.copy a b)) : Code .standard 4) x x 1 := by
+  intro he
+  have hx : Exec w (.loop (.lt a b) (.op (.copy a b)) : Code .standard 4) x x 2 := by
+    wram_exec [h]
+  have := (Exec.unique he hx).2
+  omega
 
 /-! ## Failures -/
 

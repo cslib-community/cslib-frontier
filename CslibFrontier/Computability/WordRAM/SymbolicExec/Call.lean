@@ -24,6 +24,12 @@ outside-register frame. Both forms normalize memory and register projections of 
 including the facts passed to the continuation. The supplied contract retains all word-fit,
 alias, memory and frame obligations.
 
+Write `wram_call (routine_spec args ..) [h₁, h₂] with y post` to infer the caller state and
+prove the remaining premises with the `wram_simp` rules, supplied hints and the default `fits`/
+`omega` discharger. Explicit `?_` holes work too. `wram_call (disch := tac) …` supplies a
+different discharger; any premise it cannot prove remains after the continuation. The same
+options apply to renamed and canonical calls. The routine's premises are never dropped.
+
 An existing time-indexed `WP` specification is also accepted; its continuation binds the returned
 data, the instruction allowance and its postcondition. At a `WP.Exact` goal, which counts
 instructions exactly, the contract states an exact count, `∃ y, Exec w c x y T ∧ P y`, or is a
@@ -62,17 +68,28 @@ theorem WP.Exact.of_spec {B : Basis} {r w T : ℕ} {c : Code B r} {x : Data r}
   exact WP.Exact.of_exec hy (hQ y hP)
 
 /-- Apply a fixed-time or time-indexed routine contract and expose its continuation.
-Only bank-view projections are normalized; the callee program remains closed. -/
-syntax (name := wramCall) "wram_call " term:max " with" (ppSpace colGt rintroPat)+ : tactic
+Holes in the contract are simplified with `wram_simp` and the supplied lemmas, then passed to
+the discharger (by default `fits` or `omega`). Unsolved premises follow the continuation.
+Only bank-view projections are normalized in the continuation; the callee remains closed. -/
+syntax (name := wramCall) "wram_call " (Lean.Parser.Tactic.discharger)? term:max
+  (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>
+    Lean.Parser.Tactic.simpLemma),* "]")? " with" (ppSpace colGt rintroPat)+ : tactic
 
 namespace WramCall
 
 open Lean Meta Elab Tactic
 
+/-- Refine a contract application while retaining its unsolved `_` and `..` arguments as
+premises. The caller's state is inferred from the goal before these premises are simplified. -/
+private meta def refineContract (tac : TSyntax `tactic) : TacticM Unit :=
+  match tac with
+  | `(tactic| refine $e) => refineCore e `wram_call (allowNaturalHoles := true)
+  | _ => evalTactic tac
+
 /-- The error raised by `tac`, or `none` if it succeeds; the state is restored either way. -/
 private meta def errorOf (tac : TSyntax `tactic) : TacticM (Option MessageData) := do
   let s ← saveState
-  try withoutRecover (evalTactic tac); s.restore; return none
+  try withoutRecover (refineContract tac); s.restore; return none
   catch ex => s.restore; return some ex.toMessageData
 
 /-- The head constant of the contract `h`'s type, with that type for display, when `h` elaborates
@@ -109,26 +126,49 @@ private meta def explain (h : Term) (rules : Name → Option (MessageData × Lis
 
 /-- Refine the goal with the first of `tacs` that succeeds and run `cont`; if none succeeds,
 explain the failure with `rules` (see `explain`). -/
-meta def run (h : Term) (tacs : List (TSyntax `tactic)) (cont : TSyntax `tactic)
+meta def run (h : Term) (tacs : List (TSyntax `tactic))
+    (disch : TSyntax ``Lean.Parser.Tactic.tacticSeq) (args : Array Syntax) (cont : TSyntax `tactic)
     (rules : Name → Option (MessageData × List (Name × Syntax))) : TacticM Unit := do
+  let tail := (← getGoals).tail
   let rec go : List (TSyntax `tactic) → TacticM Unit
     | [] => do throwError (← explain h rules)
     | tac :: tacs => do
       let s ← saveState
-      try withoutRecover (evalTactic tac)
+      try withoutRecover (refineContract tac)
       catch _ => s.restore; go tacs
   go tacs
+  let goals := (← getGoals).take ((← getGoals).length - tail.length)
+  let some continuation := goals.getLast? | throwError "wram_call: no continuation"
+  let premises := goals.dropLast
+  let sideGoals ← IO.mkRef #[]
+  unless premises.isEmpty do
+    WP.Exec.withSimpContext disch args fun ctx simprocs simpDischarge => do
+      let steps ← IO.mkRef 0
+      let cfg : WP.Exec.Config :=
+        { ctx, simprocs, simpDischarge, disch := ← `(tactic| ($disch)), sideGoals,
+          steps, split := false }
+      for g in premises do
+        unless ← g.isAssigned do
+          g.withContext do
+            if ← isProp (← g.getType) then
+              WP.Exec.sidePremise cfg (← g.getTag) (mkMVar g)
+            else
+              sideGoals.modify (·.push g)
+  setGoals [continuation]
   evalTactic cont
+  setGoals ((← getGoals) ++ (← sideGoals.get).toList ++ tail)
 
 end WramCall
 
+open Lean Elab Tactic in
 elab_rules : tactic
-  | `(tactic| wram_call $h with $pats*) => do
+  | `(tactic| wram_call $[$d?:discharger]? $h $[[$args,*]]? with $pats*) => do
     let ofSpec ← `(tactic| refine Cslib.WordRAM.WP.of_spec $h ?_)
     let mono ← `(tactic| refine Cslib.WordRAM.WP.mono $h ?_)
     let exactOfSpec ← `(tactic| refine Cslib.WordRAM.WP.Exact.of_spec $h ?_)
     let exactMono ← `(tactic| refine Cslib.WordRAM.WP.Exact.mono $h ?_)
     WramCall.run h [ofSpec, mono, exactOfSpec, exactMono]
+      (← liftMacroM <| WP.Exec.dischOf d?) (args.map (·.getElems.map (·.raw)) |>.getD #[])
       (← `(tactic|
         (rintro $pats*
          try simp only [Cslib.WordRAM.Data.comap_regs, Cslib.WordRAM.Data.comap_mem] at *)))
@@ -145,16 +185,21 @@ elab_rules : tactic
 tactic_extension wramCall
 
 @[tactic_alt wramCall]
-syntax (name := wramCallRenamed) "wram_call " term:max &" renamed " term:max " with"
+syntax (name := wramCallRenamed) "wram_call " (Lean.Parser.Tactic.discharger)?
+  term:max &" renamed " term:max
+  (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>
+    Lean.Parser.Tactic.simpLemma),* "]")? " with"
   (ppSpace colGt rintroPat)+ : tactic
 
+open Lean Elab Tactic in
 elab_rules : tactic
-  | `(tactic| wram_call $h renamed $hf with $pats*) => do
+  | `(tactic| wram_call $[$d?:discharger]? $h renamed $hf $[[$args,*]]? with $pats*) => do
     let within ← `(tactic|
       refine Cslib.WordRAM.WP.of_spec (Cslib.WordRAM.ExecWithin.rename_post $hf $h) ?_)
     let exact ← `(tactic|
       refine Cslib.WordRAM.WP.Exact.of_spec (Cslib.WordRAM.Exec.rename_post $hf $h) ?_)
     WramCall.run h [within, exact]
+      (← liftMacroM <| WP.Exec.dischOf d?) (args.map (·.getElems.map (·.raw)) |>.getD #[])
       (← `(tactic|
         (rintro $pats*
          try simp only [Cslib.WordRAM.Data.comap_regs, Cslib.WordRAM.Data.comap_mem] at *)))

@@ -55,7 +55,7 @@ example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
       y.regs 3 = 9 ∧ ∀ a, a ≠ 9 → y.mem a = x.mem a := by
   unfold caller
   wram_exec [h9]
-  wram_call (readThird_spec _ (h9.of_le (by omega))) renamed bank_injective with
+  wram_call (readThird_spec ..) renamed bank_injective with
     y ⟨⟨hm, hv⟩, hf⟩
   have h3 : y.regs 3 = 9 := hf 3 (by
     intro j hj
@@ -67,6 +67,14 @@ example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
   wram_simp [hm, h3]
   intro a ha
   wram_simp [ha, hm]
+
+/-- Unproved contract premises remain after the continuation; disabling the discharger does
+not discard the routine's fitting obligation. -/
+example {w : ℕ} (x : Data 2) (h9 : Fits w 9) :
+    WP w readThird x (fun y t => t = 2 ∧ y.regs 1 = x.mem 3) := by
+  wram_call (disch := fail) (readThird_spec ..) with y ⟨_, hy⟩
+  · exact ⟨trivial, hy⟩
+  · exact h9.of_le (by omega)
 
 /-- Existing time-indexed specifications retain their returned charge in the continuation. -/
 example {w k : ℕ} {c : Code .standard 4} {x : Data 4}

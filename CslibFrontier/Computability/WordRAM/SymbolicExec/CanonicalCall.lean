@@ -68,13 +68,18 @@ simproc ↓ [wram_simps] Data.reduceExtendRegs (Data.regs _ _) := fun e => do
 tactic_extension wramCall
 
 @[tactic_alt wramCall]
-syntax (name := wramCallCanonical) "wram_call " term:max &" canonical " term:max " with"
+syntax (name := wramCallCanonical) "wram_call " (Lean.Parser.Tactic.discharger)?
+  term:max &" canonical " term:max
+  (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>
+    Lean.Parser.Tactic.simpLemma),* "]")? " with"
   (ppSpace colGt rintroPat)+ : tactic
 
+open Lean Elab Tactic in
 elab_rules : tactic
-  | `(tactic| wram_call $h canonical $hf with $pats*) => do
+  | `(tactic| wram_call $[$d?:discharger]? $h canonical $hf $[[$args,*]]? with $pats*) => do
     let ofSpec ← `(tactic| refine Cslib.WordRAM.WP.of_spec_rename $hf $h ?_)
     WramCall.run h [ofSpec]
+      (← liftMacroM <| WP.Exec.dischOf d?) (args.map (·.getElems.map (·.raw)) |>.getD #[])
       (← `(tactic|
         (rintro $pats*
          try simp only [Cslib.WordRAM.Data.comap_regs, Cslib.WordRAM.Data.comap_mem] at *)))

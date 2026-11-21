@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 public import CslibFrontier.Computability.WordRAM.Notation
 public import Mathlib.Data.Nat.Log
 
@@ -64,21 +65,9 @@ theorem exec {w : ℕ} (x : Data 4) (h2 : Fits w 2) (hn : Fits w (x.regs arg))
     have hpos : 0 < Nat.log 2 (y.regs arg) := Nat.log_pos (by decide) (by omega)
     have hdiv : Fits w (y.regs arg / 2) := hn.of_le ((Nat.div_le_self _ _).trans harg)
     have hinc : Fits w (y.regs result + 1) := hout.of_le (by omega)
-    refine ⟨?z, ?run, ?inv, ?decrease⟩
-    case run => ram_eval [body, ho, ht, hdiv, hinc, arg, result, one, two, Fin.mk.injEq]
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [Function.update_apply] using ho
-      · simpa +decide [Function.update_apply] using ht
-      · simpa +decide [Function.update_apply] using (Nat.div_le_self (y.regs arg) 2).trans harg
-      · change y.regs result + 1 + Nat.log 2 (y.regs arg / 2) = Nat.log 2 (x.regs arg)
-        rw [Nat.log_div_base]
-        omega
-      · exact hm
-    case decrease =>
-      change Nat.log 2 (y.regs arg / 2) < Nat.log 2 (y.regs arg)
-      rw [Nat.log_div_base]
-      omega
+    wram_exec [body, ho, ht]
+    wram_simp [I, ho, ht, hm, Nat.log_div_base]
+    omega
   let x₀ := ((x.set result 0).set one 1).set two 2
   have hx₀ : I x₀ := by simp +decide [I, x₀, arg, result, one, two]
   obtain ⟨y, he, hy, hc⟩ := ExecWithin.loop_invariant I
@@ -88,14 +77,10 @@ theorem exec {w : ℕ} (x : Data 4) (h2 : Fits w 2) (hn : Fits w (x.regs arg))
     have hle : y.regs arg ≤ 1 := by simpa only [Cond.holds_lt, ho, not_lt] using hc
     exact Nat.log_eq_zero_iff.mpr (Or.inl (by omega))
   refine ⟨y, ?_, by omega, hm, ho, ht⟩
-  have h1 : Fits w 1 := h2.of_le (by decide)
-  have hinit : ExecWithin (B := .standard) w (ram[ result ← #0; one ← #1; two ← #2 ]) x x₀ 3 := by
-    ram_eval [x₀, h1, h2]
-  convert hinit.seq he using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, arg, result, one, two,
-      ↓reduceIte]
-    omega
+  wram_exec [program]
+  refine WP.of_execWithin he ?_
+  wram_simp [x₀]
+  omega
 
 /-- Run the routine on any injectively chosen registers. -/
 theorem exec_rename {r w : ℕ} (f : Fin 4 → Fin r) (hf : f.Injective) (x : Data r)
@@ -132,21 +117,14 @@ theorem shiftLoop_exec {r w n : ℕ} {one rem idx : Fin r} (hor : one ≠ rem) (
       rw [Nat.shiftRight_eq_div_pow, pow_one]
     have hlog_step : Nat.log 2 (y.regs rem) = Nat.log 2 (y.regs rem / 2) + 1 :=
       Nat.log_of_one_lt_of_le (by decide) (by omega)
-    let z₁ := y.set rem (y.regs rem / 2)
-    have h1 : z₁.regs one = 1 := by simp only [z₁, Data.set_regs, Function.update_of_ne hor, hy1]
-    have hi : z₁.regs idx = y.regs idx := by
-      simp only [z₁, Data.set_regs, Function.update_of_ne hri.symm]
-    have e1 : ExecWithin (B := .standard) w ram[rem ← rem >>> one] y z₁ 1 := by
-      simpa [z₁, BinOp.eval, hy1, hshr_eq] using
-        ExecWithin.bin (f := .shiftRight) (d := rem) (i := rem) (j := one) (x := y)
-          (by simpa [BinOp.eval, hy1, hshr_eq] using hn_fit.of_le (by omega))
-    have e2 := ExecWithin.bin (f := .add) (d := idx) (i := idx) (j := one) (x := z₁)
-      (by simpa [BinOp.eval, hi, h1] using hlg_fit.of_le (by omega))
-    simp only [BinOp.eval, hi, h1] at e2
-    refine ⟨_, e1.seq e2, ⟨hym, fun i hir hii => ?_, ?_, ?_, ?_⟩, ?_⟩
-    · simp only [z₁, Data.set_regs, Function.update_of_ne hii, Function.update_of_ne hir]
+    have hfit_rem : Fits w (y.regs rem / 2) := hn_fit.of_le (by omega)
+    have hfit_idx : Fits w (y.regs idx + 1) := hlg_fit.of_le (by omega)
+    wram_exec [hy1, hshr_eq]
+    refine ⟨⟨hym, ?_, ?_, ?_, ?_⟩, ?_⟩
+    · intro i hir hii
+      wram_simp [hir, hii]
       exact hyf i hir hii
-    all_goals simp only [z₁, Data.set_regs, Function.update_self, Function.update_of_ne hri]
+    all_goals wram_simp
     all_goals omega
   have hx : I x := ⟨rfl, fun _ _ _ => rfl, by omega, hrem.le, by rw [hidx, hrem, zero_add]⟩
   obtain ⟨y, he, ⟨hym, hyf, hyr_ge, _, hy_sum⟩, hnc⟩ :=

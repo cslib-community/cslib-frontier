@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 public import CslibFrontier.Computability.WordRAM.Notation
 public import Mathlib.Data.Nat.Sqrt
 import Mathlib.Tactic.Linarith
@@ -78,20 +79,9 @@ theorem exec {w : ℕ} (x : Data 6) (hfit : Fits w (4 * x.regs arg + 4)) :
       change (y.regs next + 1) * (y.regs next + 1) ≤ 4 * n + 4
       have hnn : y.regs next ≤ n := hnext.trans hsle
       nlinarith)
-    refine ⟨?z, ?run, ?inv, ?decrease⟩
-    case run => ram_eval [body, ho, hstep, hsquare, root, next, square, one, Fin.mk.injEq]
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [Function.update_apply] using ha
-      · simpa +decide [Function.update_apply] using ho
-      · simpa +decide [Function.update_apply] using hb
-      · rfl
-      · rfl
-      · exact hnext
-      · exact hm
-    case decrease =>
-      change Nat.sqrt n - y.regs next < Nat.sqrt n - y.regs root
-      omega
+    wram_exec [body, ho]
+    wram_simp [I, ha, ho, hb, hm]
+    omega
   let x₀ := ((((x.set root 0).set next 1).set square 1).set one 1).set bound (n + 1)
   have hx₀ : I x₀ := by simp +decide [I, x₀, n, root, next, square, one, bound, arg]
   obtain ⟨y, he, hy, hc⟩ := ExecWithin.loop_invariant I
@@ -103,16 +93,11 @@ theorem exec {w : ℕ} (x : Data 6) (hfit : Fits w (4 * x.regs arg + 4)) :
   have hout : y.regs root = Nat.sqrt n := by
     have h := Nat.sqrt_lt.mpr hlarge
     omega
-  have hbfit : Fits w (x.regs arg + 1) := hfit.of_le (by omega)
-  have hinit : ExecWithin (B := .standard) w
-      (ram[ root ← #0; next ← #1; square ← #1; one ← #1; bound ← arg + one ]) x x₀ 5 := by
-    ram_eval [x₀, n, hbfit, root, next, square, one, bound, arg, Fin.mk.injEq]
   refine ⟨y, ?_, hout, ha, hm, ho⟩
-  convert hinit.seq he using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, root, next, square, one,
-      bound, arg, n, ↓reduceIte, Nat.sub_zero]
-    omega
+  wram_exec [program]
+  refine WP.of_execWithin he ?_
+  wram_simp [x₀, n]
+  omega
 
 /-- Run successive squares on any injectively chosen registers. -/
 theorem exec_rename {r w : ℕ} (f : Fin 6 → Fin r) (hf : f.Injective) (x : Data r)

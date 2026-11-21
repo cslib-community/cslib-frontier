@@ -46,7 +46,7 @@ example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
       ∀ a, a ≠ 3 → a ≠ 9 → y.mem a = x.mem a := by
   unfold caller
   wram_exec [h9]
-  wram_call (writeSeven_spec _ (h9.of_le (by omega))) canonical
+  wram_call (writeSeven_spec ..) canonical
     (by decide : bank.Injective) with y ⟨hm, hv, ha⟩
   wram_exec [hv]
   wram_simp [hm, hv, ha, Function.update_apply]

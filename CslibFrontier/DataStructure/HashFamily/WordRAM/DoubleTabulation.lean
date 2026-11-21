@@ -864,13 +864,11 @@ private theorem innerLoop_exec {w base c d b U r2 r4 r5 : ℕ} {x_init : Data 12
         dsimp only [space]
         omega)
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
-    unfold innerBody
-    wram_exec [h3, h6, h7, h8, h10, hch_eq, hmem_at, hxor_eq, hshift_eq,
+    wram_exec [innerBody, h3, h6, h7, h8, h10, hch_eq, hmem_at, hxor_eq, hshift_eq,
       show base + (j.val * c + i) * 2 ^ b + ch.val = topAddr base c b ⟨i, hi_lt⟩ j ch from rfl]
-    wram_call (ih (i + 1) _ (by omega) (by exact hmem) (by wram_simp [h0]) (by wram_simp [h1])
-      (by wram_simp [h2]) (by wram_simp; ring) (by wram_simp [h4]) (by wram_simp [h5])
-      (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp [h10]) (by wram_simp [h11]))
-      with y hy
+    wram_call (disch := first | fits | omega | ring)
+      (ih (i + 1) ..)
+      [hmem, h0, h1, h2, h4, h5, h10, h11] with y hy
     exact ⟨by omega, hy⟩
 
 private theorem outerLoop_exec {w base c d b U M : ℕ} {x_init : Data 12}
@@ -940,21 +938,18 @@ private theorem outerLoop_exec {w base c d b U M : ℕ} {x_init : Data 12}
             Nat.add_le_add_left (Nat.mul_le_mul_right _ hj_succ) _
         _ = base + (c + 1) * d * 2 ^ b := by ring
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
-    unfold outerBody
-    wram_exec [h1]
+    wram_exec [outerBody, h1]
     wram_call (innerLoop_exec (r2 := (outerPrefixXor T₁ T₂ u j (by omega)).val)
       (r4 := base + c * d * 2 ^ b + j * 2 ^ b) (r5 := base + c * d * 2 ^ b + d * 2 ^ b)
-      htop u ⟨j, hj_lt⟩ hfit_space hfit_pow_b hfit_u c 0 _ (by omega) (by exact hmem)
-      (by wram_simp [h0]) (by wram_simp [h1]) (by wram_simp [h2]) (by wram_simp [h3])
-      (by wram_simp [h4]) (by wram_simp [h5]) (by wram_simp)
-      (by wram_simp [Nat.zero_mul, Nat.shiftRight_zero])
-      (by wram_simp [val_innerPrefixXor_zero]) (by wram_simp [h10]) (by wram_simp [h11]))
+      htop u ⟨j, hj_lt⟩ hfit_space hfit_pow_b hfit_u c 0 ..)
+      [hmem, h0, h1, h2, h3, h4, h5, h10, h11, Nat.zero_mul, Nat.shiftRight_zero,
+        val_innerPrefixXor_zero]
       with s4 ⟨hs4_mem, hs4_0, hs4_1, hs4_2, hs4_3, hs4_4, hs4_5, hs4_8, hs4_10, hs4_11⟩
     wram_exec [hs4_2, hs4_4, hs4_8, hs4_10, hs4_mem, hyj, hmem_bot, hxor_outer,
       show base + c * d * 2 ^ b + j * 2 ^ b + yj.val = botAddr base c d b ⟨j, hj_lt⟩ yj from rfl]
-    wram_call (ih (j + 1) _ (by omega) (by exact hs4_mem) (by wram_simp [hs4_0])
-      (by wram_simp [hs4_1]) (by wram_simp) (by wram_simp [hs4_3]) (by wram_simp [hs4_4]; ring)
-      (by wram_simp [hs4_5]) (by wram_simp [hs4_10]) (by wram_simp [hs4_11])) with y hy
+    wram_call (disch := first | fits | omega | ring)
+      (ih (j + 1) ..)
+      [hs4_mem, hs4_0, hs4_1, hs4_3, hs4_4, hs4_5, hs4_10, hs4_11] with y hy
     exact ⟨by ring, hy⟩
 
 /-- **Exact deterministic `Exec` correctness and complexity of `evalCode c d b`**:
