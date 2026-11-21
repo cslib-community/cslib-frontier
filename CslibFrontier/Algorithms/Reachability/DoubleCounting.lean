@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Relation.InductiveCounting
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Nat.Find
+import Mathlib.Logic.Equiv.List
 
 /-!
 # Double-counting certificates for bounded reachability
@@ -289,5 +290,53 @@ theorem existsUnique_passes_zero {α : Type*} [Fintype α] (r : α → α → Pr
   refine ⟨[v], ⟨List.isChainFromTo_singleton, by simp [hd]⟩, fun p hp => ?_⟩
   obtain ⟨a, rfl⟩ := List.length_eq_one_iff.mp (by simpa [hd] using hp.2)
   simpa using hp.1.getLast_eq
+
+private theorem chainMap {γ δ : Type*} {R : γ → γ → Prop} {S : δ → δ → Prop}
+    (f : γ → δ) (hf : ∀ u v, R u v → S (f u) (f v)) {u v : γ} {xs : List γ}
+    (h : xs.IsChainFromTo R u v) : (xs.map f).IsChainFromTo S (f u) (f v) := by
+  induction h using List.IsChainFromTo.head_induction_on with
+  | h_refl => exact List.isChainFromTo_singleton
+  | h_head hab _ ih => exact ih.cons (hf _ _ hab)
+
+/-- Relabeling the graph preserves the existence of a unique passing transcript.
+In particular, a finite carrier can be indexed by consecutive vertex IDs. -/
+theorem existsUnique_passes_reindex {α β : Type*} [Fintype α] [Fintype β] (index : α ≃ β)
+    (r : α → α → Prop) (s : α) (k : ℕ) :
+    (∃! t, Passes r s k t) ↔
+      ∃! t, Passes (fun u v => r (index.symm u) (index.symm v)) (index s) k t := by
+  let r' (u v : β) := r (index.symm u) (index.symm v)
+  have toIndex (u v : α) (h : r u v) : r' (index u) (index v) := by simpa [r'] using h
+  have fromIndex (u v : β) : r' u v → r (index.symm u) (index.symm v) := id
+  have steps (v : α) (d : ℕ) :
+      RelatesInSteps r s v d ↔ RelatesInSteps r' (index s) (index v) d := by
+    refine ⟨RelatesInSteps.map index toIndex, fun h => ?_⟩
+    simpa only [Equiv.symm_apply_apply] using h.map index.symm fromIndex
+  have memRound (v : α) : v ∈ round r s k ↔ index v ∈ round r' (index s) k := by
+    simp only [mem_round]
+    exact exists_congr fun d => and_congr_right fun _ => steps v d
+  have dist (v : α) (hv : v ∈ round r s k) :
+      distance r s v = distance r' (index s) (index v) := by
+    have ha := (distance_spec (mem_round.mp hv)).1
+    have hb := (distance_spec (mem_round.mp ((memRound v).mp hv))).1
+    exact le_antisymm (distance_le ((steps v _).mpr hb)) (distance_le ((steps v _).mp ha))
+  have shortest (v : α) (hv : v ∈ round r s k) :
+      (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = distance r s v + 1) ↔
+        ∃! p : List β, p.IsChainFromTo r' (index s) (index v) ∧
+          p.length = distance r' (index s) (index v) + 1 := by
+    apply index.listEquivOfEquiv.existsUnique_congr
+    intro xs
+    change (_ ∧ _) ↔ (xs.map index).IsChainFromTo r' (index s) (index v) ∧
+      (xs.map index).length = distance r' (index s) (index v) + 1
+    rw [List.length_map, ← dist v hv]
+    refine and_congr_left fun _ => ⟨chainMap index toIndex, fun h => ?_⟩
+    simpa [List.map_map, Function.comp_def] using chainMap index.symm fromIndex h
+  rw [existsUnique_passes_iff, existsUnique_passes_iff]
+  change (∀ v ∈ round r s k, _) ↔ ∀ v ∈ round r' (index s) k, _
+  constructor
+  · intro h v hv
+    have hm := (memRound (index.symm v)).mpr (by simpa using hv)
+    simpa using (shortest (index.symm v) hm).mp (h _ hm)
+  · intro h v hv
+    exact (shortest v hv).mpr (h _ ((memRound v).mp hv))
 
 end Cslib.DoubleCounting

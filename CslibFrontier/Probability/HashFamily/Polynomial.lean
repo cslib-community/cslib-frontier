@@ -63,6 +63,8 @@ coefficient indices identifies the two APIs.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash_of_embedding`: the evaluation point may be
   uniform in any finite set injected into the field.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash`: the full-field specialization.
+* `Cslib.Probability.not_isUniversalHash_coeffPolyHash_variableLength`: the same evaluator
+  has a probability-one collision when used across message lengths.
 * `Cslib.Probability.isDeltaUniversalHash_mul_coeffPolyHash`: multiplying the fixed-length
   hash by its key bounds the probability of each hash difference.
 * `Cslib.Probability.coeffPolyHash_eq_polynomialHash_rev`,
@@ -72,6 +74,8 @@ coefficient indices identifies the two APIs.
   `Cslib.Probability.not_isUniversalHash_polyHash_zmod_pow_two`: distinct two-block messages
   are separated by some key. Modulo `2^(n+1)`, a three-block pair collides at every key.
 * `Cslib.Probability.isDeltaUniversalHash_xpolyHash`: `xpolyHash` is `(ℓ + 1) / |F|`-Δ-universal.
+* `Cslib.Probability.not_isDeltaUniversalHash_polyHash`: a one-block pair has the same hash
+  difference under every key.
 
 ## References
 
@@ -367,6 +371,21 @@ theorem isUniversalHash_coeffPolyHash [Fintype F] (n : ℕ) :
   simpa using isUniversalHash_coeffPolyHash_of_embedding (F := F)
     (Function.Embedding.refl F) n
 
+/-- Boneh and Shoup's `Hfpoly` (Equation 7.5) fails statistical universality on
+variable-length messages ([BonehShoup2023], v0.6, Section 7.2.1, printed p. 257).
+The empty message and the one-block message `[0]` hash to zero for every key. This is
+the leading-zero collision from the source at the smallest length cap where it occurs.
+The result holds for any field and any seed distribution. -/
+theorem not_isUniversalHash_coeffPolyHash_variableLength (seed : PMF F) {ℓ : ℕ} (hℓ : 1 ≤ ℓ)
+    {ε : ℝ≥0∞} (hε : ε < 1) :
+    ¬ IsUniversalHash seed
+      (fun k (m : {m : List F // m.length ≤ ℓ}) =>
+        coeffPolyHash k (fun i : Fin m.val.length => m.val[i])) ε := by
+  intro h
+  refine hε.not_ge (h.one_le_of_forall_eq (x := ⟨[], Nat.zero_le _⟩) (x' := ⟨[0], hℓ⟩)
+    (by simp) fun k => ?_)
+  simp [coeffPolyHash, Fin.foldl_succ]
+
 /-- **`Hpoly` is `ℓ / |F|`-universal** ([BonehShoup2023], Lemma 7.2): two distinct messages of
 length at most `ℓ` collide only at the roots of the nonzero difference of their polynomials. -/
 theorem isUniversalHash_polyHash [Fintype F] (ℓ : ℕ) :
@@ -481,5 +500,16 @@ theorem isDeltaUniversalHash_xpolyHash [Fintype F] (ℓ : ℕ) :
         (Nat.add_le_add_right hdeg 1)
   push_cast at h
   exact h
+
+/-- Boneh and Shoup's `Hpoly` fails `ε`-difference universality for every `ε < 1` as soon
+as one-block messages are allowed ([BonehShoup2023], v0.6, Section 7.4, p. 269). The hashes of
+`[1]` and `[0]` differ by `1` at every key. The source works over prime fields with a uniform
+key, and the same pair works over any field for any seed distribution. -/
+theorem not_isDeltaUniversalHash_polyHash (seed : PMF F) {ℓ : ℕ} (hℓ : 1 ≤ ℓ)
+    {ε : ℝ≥0∞} (hε : ε < 1) :
+    ¬ IsDeltaUniversalHash seed
+      (fun k (m : {m : List F // m.length ≤ ℓ}) => polyHash k m) ε :=
+  not_isDeltaUniversalHash_of_sub_const (x := ⟨[1], hℓ⟩) (x' := ⟨[0], hℓ⟩)
+    (by simp) 1 (fun k => by simp [polyHash, add_comm]) hε
 
 end Cslib.Probability

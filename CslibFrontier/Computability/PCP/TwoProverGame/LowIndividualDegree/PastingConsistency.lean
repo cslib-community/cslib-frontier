@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Sequential
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Pasting
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.CompletedMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.SuccessfulAgreement
 public import CslibFrontier.Probability.PMF.Event
@@ -179,21 +180,6 @@ noncomputable def isolatedSliceMismatch
     (lineValue : β → F → F) (u : Fin m → F) (t : F) : ℝ :=
   ((S.answers t u).toOuterMeasure
     {ab | ∃ q, ab.1 = some q ∧ eval u q.val ≠ lineValue ab.2 t}).toReal
-
-/-- Evaluate the polynomial outcomes of a measurement at a point, preserving failure. -/
-@[expose] noncomputable def evaluatePolynomialMeasurement [Fintype F] [DecidableEq F]
-    (M : Measurement (Option (BoundedPolynomial F m d)) A) (u : Fin m → F) :
-    Measurement (Option F) A :=
-  M.map (Option.map fun q => eval u q.val)
-
-omit [Algebra ℂ A] [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
-  [NonnegSpectrumClass ℝ A] [StarModule ℂ A] [SelfAdjointDecompose A] in
-@[simp] theorem evaluatePolynomialMeasurement_effect_none [Fintype F] [DecidableEq F]
-    (M : Measurement (Option (BoundedPolynomial F m d)) A) (u : Fin m → F) :
-    (evaluatePolynomialMeasurement M u).effect none = M.effect none := by
-  classical
-  rw [evaluatePolynomialMeasurement, Measurement.map_effect, sum_filter, Fintype.sum_option]
-  simp
 
 private theorem exists_successful_ne {α γ : Type*} (f : α → γ) (a : Option α) (z : γ) :
     (∃ q, a = some q ∧ f q ≠ z) ↔ (∃ v, a.map f = some v ∧ v ≠ z) := by
