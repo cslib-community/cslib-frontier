@@ -69,7 +69,7 @@ theorem bounded_of_passes (source : Fin N) (k : ℕ) (b : Branch N)
 
 /-- Check one walk by reading its next destination or end marker. The read-only edge callback
 is invoked once per attempted edge, provided there is still budget. -/
-def walkM [Monad m] (next : m (Option (Fin N))) (edge : Fin N → Fin N → m Bool)
+@[expose] def walkM [Monad m] (next : m (Option (Fin N))) (edge : Fin N → Fin N → m Bool)
     (target : Fin N) : ℕ → Fin N → m (Option ℕ)
   | fuel, current => do
     match ← next with
@@ -80,7 +80,7 @@ def walkM [Monad m] (next : m (Option (Fin N))) (edge : Fin N → Fin N → m Bo
       | fuel + 1 => if ← edge current v then walkM next edge target fuel v else return none
 
 /-- Replay the next destination from a segment, or its end marker. -/
-def readNext : StateM (List (Fin N)) (Option (Fin N)) := fun
+@[expose] def readNext : StateM (List (Fin N)) (Option (Fin N)) := fun
   | [] => (none, [])
   | v :: vs => (some v, vs)
 

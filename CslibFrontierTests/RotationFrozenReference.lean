@@ -133,6 +133,38 @@ example (z w : ℂ)
   have hgap := hsep a.vertex (by decide +kernel) b.vertex (by decide +kernel) (by decide +kernel)
   linarith only [ha.2, hb.1, hgap]
 
+-- One map fixes both centers while halving both complete, oppositely oriented spokes.
+example :
+    ∃ F : ℂ → ℂ, Function.Injective F ∧
+      F (referencePoint bothFixed 0) = referencePoint bothFixed 0 ∧
+      F (referencePoint bothFixed 1) = referencePoint bothFixed 1 ∧
+      (∀ z ∈ ((referenceDrawing bothFixed).route ⟨0, by decide⟩).support,
+        F z = referencePoint bothFixed 0 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 0)) ∧
+      ∀ z ∈ ((referenceDrawing bothFixed).route ⟨5, by decide⟩).support,
+        F z = referencePoint bothFixed 1 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 1) := by
+  let a : Dart bothFixed.graph := (⟨0, by decide⟩, false)
+  let b : Dart bothFixed.graph := (⟨1, by decide⟩, true)
+  obtain ⟨F, _, hcenter, hspoke, _⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  have ha : a.vertex = 0 := by decide +kernel
+  have hb : b.vertex = 1 := by decide +kernel
+  have hFa := hspoke a (by decide +kernel)
+  have hFb := hspoke b (by decide +kernel)
+  rw [ha] at hFa
+  rw [hb] at hFb
+  exact ⟨F, F.injective, hcenter 0 (by decide +kernel), hcenter 1 (by decide +kernel), hFa, hFb⟩
+
+-- A vertical segment in the compressed plane needs no subdivision, even on a cut line.
+example (z w : ℂ) (h : z.re = w.re) (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
+    ∃ F : ℂ ≃ₜ ℂ, F (referencePoint bothFixed 0) = referencePoint bothFixed 0 ∧
+      F.symm (AffineMap.lineMap z w t) = AffineMap.lineMap (F.symm z) (F.symm w) t := by
+  obtain ⟨F, _, hcenter, _, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  refine ⟨F, hcenter 0 (by decide +kernel), hline z w ?_ t ht⟩
+  intro x _
+  rw [h, min_self, max_self]
+  exact fun hx => (not_lt_of_ge hx.1.le) hx.2
+
 /-- Removing every edge keeps the entire frame as distinct isolated points. -/
 theorem all_free_frame :
     let J : FixedRotationInput := ⟨⟨[0, 1, 2], [(0, 1)]⟩, [none, none, none]⟩

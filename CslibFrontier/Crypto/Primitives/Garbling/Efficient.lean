@@ -348,7 +348,8 @@ enc_structure encPrvView : PrvView where
 enc_structure encQuery (Fn : Type) (encFn : Fn ↪ List Bool) : Query Fn where
   fn : encFn, input : encBits
 
-/-- The state after a `prv.sim` adversary's choice stage: `((1^k, aux), (query, state))`. -/
+/-- Library construction (no cited definition): the state after a `prv.sim` adversary's choice
+stage: `((1^k, aux), (query, state))`. -/
 abbrev encPrvChosen {Fn σ : Type} (encFn : Fn ↪ List Bool) (encσ : σ ↪ List Bool) :
     ((ℕ × List Bool) × (Query Fn × σ)) ↪ List Bool :=
   encPair (encPair encUnary encBits) (encPair (encQuery Fn encFn) encσ)
@@ -426,14 +427,15 @@ theorem isOraclePPT_prvSimReduction_of_bounded
       let coins ← ProbOracleComp.sample (BitString.sampleList (coinLen (k, query.fn)))
       cont k query state coins) (hcoins.bind_with hcont)
 
-/-- One word-oracle step querying `req` and appending the reply truncated to `len` bits. -/
+/-- Library construction (no cited definition): one word-oracle step querying `req` and appending
+the reply truncated to `len` bits. -/
 @[expose] noncomputable def replyStepWord (len : ℕ) (req : List Bool) (rs : List (List Bool)) :
     Probability.WordOracleComp Unit (List (List Bool)) :=
   (fun reply => rs ++ [reply]) <$> (List.take len <$> ProbOracleComp.query
     (spec := fun _ : Unit × List Bool => List Bool) ((), req))
 
-/-- One `replyStepWord` step is uniform strict oracle PPT whenever the request and length bound are
-computed in polynomial time. -/
+/-- Library infrastructure (no cited result): one `replyStepWord` step is uniform strict oracle
+PPT whenever the request and length bound are computed in polynomial time. -/
 theorem isOraclePPTOn_replyStepWord {γ : Type} {encIn : γ ↪ List Bool}
     {len : γ → ℕ} {req : γ × List (List Bool) → List Bool}
     (hlen : ComputableInPolyTime len encIn encUnary)

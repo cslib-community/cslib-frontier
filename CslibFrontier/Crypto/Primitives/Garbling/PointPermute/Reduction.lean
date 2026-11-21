@@ -1024,30 +1024,17 @@ private theorem isOraclePPTOn_prvSimGuess :
   exact hrs.bind_with (hB.guess.preprocess hprep).isOraclePPTOn
 
 include hf hB in
-/-- The reduction after `B`'s choice: on a valid query draw the step, the garbler's coins and the
-filler labels, collect the answers and run the guess on the hybrid view; otherwise run the guess
-on `⊥`. -/
-private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
+/-- **Efficiency of the reduction.** For every family computed in polynomial time, every uniform
+strict PPT `prv.sim` adversary `B` and every step range `P` computed in polynomial time in unary,
+`prvSimReduction family B P` is uniform strict oracle PPT. -/
+theorem isOraclePPT_prvSimReduction {P : ℕ → ℕ}
     (hP : ComputableInPolyTime P encUnary encUnary) :
-    IsOraclePPTOn (encPrvChosen encValidCircuit encσ) encBool
-      (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
-        if p.2.1.input.length = p.2.1.fn.1.n then do
-          let j ← ProbOracleComp.sample (ProbComp.sampleDyadicIndex (P p.1.1))
-          let kc ← ProbOracleComp.sample
-            (BitString.sampleList ((p.2.1.fn.1.n + p.2.1.fn.1.q) * (2 * (p.1.1 + 1) + 1)))
-          let sc ← ProbOracleComp.sample
-            (BitString.sampleList (simCoinLen p.1.1 p.2.1.fn.1.n p.2.1.fn.1.q))
-          let rs ← OracleComp.iterate (8 * p.2.1.fn.1.q) (replyStep p.1.1) []
-          ProbOracleComp.sample ((B p.1.1).guess p.2.2
-            (some (hybViewWord family p.1.1 p.2.1.fn.1 p.2.1.input j kc sc rs)))
-        else ProbOracleComp.sample ((B p.1.1).guess p.2.2 none)) := by
+    IsOraclePPT encBool (prvSimReduction family B P) := by
   let E := encPrvChosen encValidCircuit encσ
   have hk : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) => p.1.1) E
       encUnary := (ComputableInPolyTime.fst _ _).fst'
   have hquery : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) => p.2.1)
       E (encQuery ValidCircuit encValidCircuit) := (ComputableInPolyTime.snd _ _).fst'
-  have hstate : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) => p.2.2)
-      E encσ := (ComputableInPolyTime.snd _ _).snd'
   have hfn := encQuery_fn_polyTime _ _ hquery
   have hx := encQuery_input_polyTime _ _ hquery
   have hd := circuitData_polyTime.comp hfn
@@ -1059,11 +1046,7 @@ private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
       (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
   have hcond : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
       decide (p.2.1.input.length = p.2.1.fn.1.n)) E encBool :=
-    (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx)
-      hn)
-  have hnone := (hB.guess.preprocess (hk.prod (hstate.prod
-    (ComputableInPolyTime.const (encIn := E) (encOut := encOption encPrvView) none)))).isOraclePPTOn
-    (Operation := Unit)
+    ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx) hn
   have hj := (isPPTOn_sampleDyadicIndex (hP.comp hk)).isOraclePPTOn (Operation := Unit)
   have hlen : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ =>
       (p.1.2.1.fn.1.n + p.1.2.1.fn.1.q) * (2 * (p.1.1.1 + 1) + 1)) (encPair E encUnary)
@@ -1084,23 +1067,17 @@ private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
     unfold simCoinLen
     polytime
   have hsc := (isPPTOn_sampleList.preprocess hsimLen).isOraclePPTOn (Operation := Unit)
-  refine IsOraclePPTOn.ite hcond ?_ hnone
-  refine hj.bind_with ?_
-  refine hkc.bind_with ?_
-  refine hsc.bind_with ?_
-  exact isOraclePPTOn_prvSimGuess hf hB
-
-include hf hB in
-/-- **Efficiency of the reduction.** For every family computed in polynomial time, every uniform
-strict PPT `prv.sim` adversary `B` and every step range `P` computed in polynomial time in unary,
-`prvSimReduction family B P` is uniform strict oracle PPT. -/
-theorem isOraclePPT_prvSimReduction {P : ℕ → ℕ}
-    (hP : ComputableInPolyTime P encUnary encUnary) :
-    IsOraclePPT encBool (prvSimReduction family B P) := by
-  have hchoose := (hB.choose.preprocess (prepare := fun a : ℕ × List Bool => (a.1, ()))
-    ((ComputableInPolyTime.fst encUnary encBits).prod
-      (ComputableInPolyTime.const ()))).isOraclePPTOn (Operation := Unit)
-  exact hchoose.bind_with (isOraclePPTOn_prvSimBranch hf hB hP)
+  exact isOraclePPT_prvSimReduction_of_guard hB
+    (fun _ query => query.input.length = query.fn.1.n) hcond
+    (fun k query state => do
+      let j ← ProbOracleComp.sample (ProbComp.sampleDyadicIndex (P k))
+      let kc ← ProbOracleComp.sample
+        (BitString.sampleList ((query.fn.1.n + query.fn.1.q) * (2 * (k + 1) + 1)))
+      let sc ← ProbOracleComp.sample (BitString.sampleList (simCoinLen k query.fn.1.n query.fn.1.q))
+      let rs ← OracleComp.iterate (8 * query.fn.1.q) (replyStep k) []
+      ProbOracleComp.sample ((B k).guess state
+        (some (hybViewWord family k query.fn.1 query.input j kc sc rs))))
+    (hj.bind_with (hkc.bind_with (hsc.bind_with (isOraclePPTOn_prvSimGuess hf hB))))
 
 end Efficiency
 

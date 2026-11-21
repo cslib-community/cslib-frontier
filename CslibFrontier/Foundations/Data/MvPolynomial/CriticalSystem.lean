@@ -52,6 +52,14 @@ open Classical in
     (F : MvPolynomial (Fin n) S) : MvPolynomial (Fin n) S :=
   potentialPolynomial ell a + C ((ell + 1 : ℕ) * u) * F
 
+/-- At each point, the deformed value is affine in the deformation parameter. -/
+theorem eval_deformedPolynomial (ell : ℕ) (a x : Fin n → S) (u : S)
+    (F : MvPolynomial (Fin n) S) :
+    eval x (deformedPolynomial ell a u F) =
+      eval x (potentialPolynomial ell a) + u * ((ell + 1 : ℕ) * eval x F) := by
+  rw [deformedPolynomial, map_add, map_mul, eval_C]
+  ring
+
 /-- The lower part of the pure-power critical relation. -/
 @[expose] noncomputable def criticalLower (ell : ℕ) (a : Fin n → S) (u : S)
     (F : MvPolynomial (Fin n) S) (i : Fin n) : MvPolynomial (Fin n) S :=
