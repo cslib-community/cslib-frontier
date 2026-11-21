@@ -18,7 +18,8 @@ adjacency context taken from its entry state. It makes the same original-input r
 and preserves first-halting selector lists and unused fuel. The encoded state adds the
 binary dimension and context to the existing bound on every branch.
 
-The query position, halt flag and returned fuel have native space certificates.
+The `entry_budget` certificate loads the runtime context, binary dimension, and registers.
+Native space certificates also cover the query position, halt flag, and unused fuel.
 Native compilation of the state-changing step remains in #6747.
 -/
 
@@ -77,6 +78,29 @@ private def innerMachine (s : State κ τ) :=
 /-- Enter the runtime machine at the existing bounded walk's initial registers. -/
 def entry {N : ℕ} (ctx : κ) (r : Registers N) : State κ τ :=
   ⟨ctx, N, Nat.zero_lt_of_lt r.current.isLt, (typedMachine edge start verdict clock ctx r).init⟩
+
+/-- Load a runtime walk entry within a common budget for the retained context, binary
+dimension, valid binary endpoints, and fuel. The entry computes the destination reader
+width from the dimension. -/
+theorem entry_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool)
+    {context : α → κ} {dimension : α → ℕ} {registers : (a : α) → Registers (dimension a)}
+    (hcontext : ComputableInSpace context encIn encContext budget)
+    (hdim : ComputableInSpace dimension encIn encNat budget)
+    (hcurrent : ComputableInSpace (fun a => (registers a).current.val) encIn encNat budget)
+    (htarget : ComputableInSpace (fun a => (registers a).target.val) encIn encNat budget)
+    (hfuel : ComputableInSpace (fun a => (registers a).fuel) encIn encNat budget) :
+    ComputableInSpace (fun a => entry edge start verdict clock (context a) (registers a))
+      encIn (encState encContext encCallee) budget := by
+  have hregisters : ComputableInSpace (fun a => encRegisters (dimension a) (registers a))
+      encIn encBits budget :=
+    (budget_prod hcurrent (budget_prod htarget hfuel)).of_enc_eq fun _ => rfl
+  have hchoice := BoundedWalk.choiceWord_budget hregisters (NondeterministicChoice.init_budget hdim)
+  refine (budget_prod hcontext (budget_prod hdim hchoice)).of_enc_eq fun a => ?_
+  change (frame (encContext (context a)) ++ (frame (encNat (dimension a)) ++
+    BoundedWalk.encState encCallee ((BoundedWalk.machine edge
+      (fun u v => start (context a) u.val v.val) verdict clock (registers a)).init))) = _
+  simp only [BoundedWalk.encState_init, encPair_apply, encBits_apply]
 
 /-- One same-input transition machine selects the walk's context and dimension from its
 current state, including during a suspended adjacency call. -/

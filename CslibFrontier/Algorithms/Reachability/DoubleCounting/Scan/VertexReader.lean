@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
@@ -35,8 +36,8 @@ also charges the simulation's input-position counter, giving space
 query-machine components and the final range check are supplied. The ordinary-import client
 is `CslibFrontierTests.DoubleCountingVertexReader`.
 
-The machine starts with dimension and width already loaded. Computing that initialization
-uniformly from a variable dimension is not certified here.
+The entry certificate `init_budget` loads a supplied binary dimension and computes its width
+in the same space budget.
 
 This is original infrastructure for [#6747](https://github.com/cslib-community/cslib-frontier/issues/6747).
 The input is a read-only word supplying the choices. Generating nondeterministic bits, composing
@@ -172,6 +173,15 @@ theorem result_eq_decodeVertex (N : ℕ) (w : List Bool) :
   · have hl : (w.take N.size).length ≠ N.size := by simp [List.length_take]; omega
     simp [show w.length < N.size by omega]
 
+/-- Initialize the vertex reader from a binary dimension computed within the input budget. -/
+theorem init_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    {dimension : α → ℕ} (hdim : ComputableInSpace dimension encIn encNat budget) :
+    ComputableInSpace (fun a => (machine (dimension a)).init) encIn encState budget :=
+  encState_mk_budget hdim (budget_comp_linear natSize hdim)
+    ((constZero 0).mono_le fun _ => Nat.zero_le _)
+    ((constZero 0).mono_le fun _ => Nat.zero_le _)
+    ((constZero false).mono_le fun _ => Nat.zero_le _)
+
 /-- The actual input query is a native binary-register projection. -/
 theorem query_inSpace (N : ℕ) :
     ComputableInSpace (machine N).query encState encNat (fun s => (encState s).length) :=
@@ -234,8 +244,7 @@ theorem output_eq (N : ℕ) (w : List Bool) (t : ℕ) :
   simp [QueryMachine.output, machine]
 
 /-- For each fixed dimension, the existing query-machine simulation certifies actual native
-reading and decoding of one ID prefix. The bound also charges the input-position machinery.
-Loading a variable dimension and computing its width in a uniform scanner remain in #6747. -/
+reading and decoding of one ID prefix. The bound also charges the input-position machinery. -/
 theorem native_decoder (N : ℕ) :
     ∃ time c, ComputableInTimeAndSpace
       (fun w : List Bool =>

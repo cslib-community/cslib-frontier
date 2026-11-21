@@ -11934,25 +11934,21 @@ register_result "banaszczyk-shifted-gaussian-tail" where
     s 0, extending Regev2009 Lemma 2.5 (which is centered at v = 0) to arbitrary shifts v : E."
 
 register_result "micciancio-regev-discrete-gaussian-norm-tail" where
-  title := "Discrete Gaussian sample-norm tail bound (dual-mass step)"
+  title := "Discrete Gaussian sample-norm tail bound above the smoothing parameter"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.4 (dual-mass step)",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.4",
       locator := "author's copy of December 27, 2005, §4, printed p. 15" }
   ]
   theorems := [
-    ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le
+    ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_smoothingParameter_le
   ]
-  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.4 (not the η_ε(L) ≤ s endpoint, \
-    which awaits ZLattice.smoothingParameter): for any full-rank discrete lattice L in a \
-    finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
-    n = 0), width s > 0, arbitrary center v : E, and real ε < 1 satisfying the dual-mass bound \
-    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 ≤ ε (the dual-mass condition unpacked \
-    from s ≥ η_ε(L) when ε > 0; 0 ≤ ε follows automatically), the discrete Gaussian probability \
-    (discreteGaussian L s hs v).toOuterMeasure {z : L | s √n < ‖(z : E) − v‖} is strictly less \
-    than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviations from the source: (1) proves \
-    the dual-mass step directly rather than the η_ε(L) ≤ s endpoint; (2) sharpens the source's \
-    non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) constant to strict \
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (of dimension n = finrank ℝ E, including n = 0), real 0 < ε < 1, width s > 0 \
+    satisfying ZLattice.smoothingParameter L ε ≤ s, and arbitrary center v : E, the discrete \
+    Gaussian probability (discreteGaussian L s hs v).toOuterMeasure {z : L | s √n < ‖(z : E) − v‖} \
+    is strictly less than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviation from the \
+    source: sharpens the source's non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) constant to strict \
     ((1 + ε) / (1 − ε)) · (1 / 4) ^ n via the factor-of-2-free shifted Banaszczyk bound \
     (1 / 4 instead of 1 / 2)."
 
@@ -11965,21 +11961,23 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
   ]
   theorems := [
     ZLattice.tvDist_gaussian_shift_quotient_le,
-    ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le
+    ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le
   ]
-  scope := "MicciancioRegev2007 Lemma 4.1 in two parts. (a) Dual-mass form of the first sentence: \
-    for any full-rank discrete lattice L in a finite-dimensional real inner product space E with \
-    Borel measurable structure, fundamental domain F for L, width s > 0, and arbitrary center \
-    c : E, the quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total \
-    variation distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the \
-    normalized quotient Haar measure. (b) Smoothing-parameter corollary for the centered Gaussian \
-    (c = 0): for ε > 0 and ZLattice.smoothingParameter L ε ≤ s, the same total variation distance \
-    is at most ε. Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ \
-    distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to the \
-    source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}), and tvDist ≤ ε in (b) is the source's \
-    Δ ≤ ε / 2 (identical constants, not looser); (2) stated on the quotient group E ⧸ L with \
-    normalized restricted volume on an arbitrary fundamental domain F rather than a basis \
-    parallelepiped P(B); (3) the η_ε specialization is registered for the centered Gaussian only."
+  scope := "MicciancioRegev2007 Lemma 4.1 in both sentences stated in the source. (a) Dual-mass \
+    bound (tvDist_gaussian_shift_quotient_le): for any full-rank discrete lattice L in a \
+    finite-dimensional real inner product space E with Borel measurable structure, fundamental \
+    domain F for L, width s > 0, and arbitrary center c : E, the quotient pushforward of the \
+    shifted continuous Gaussian D_{s, c} to E ⧸ L has total variation distance at most \
+    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the normalized quotient Haar \
+    measure. (b) Smoothing-parameter bound \
+    (tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le): for ε > 0 and \
+    ZLattice.smoothingParameter L ε ≤ s, the same total variation distance is at most ε. \
+    Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ distance \
+    tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to the source's \
+    half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}), and tvDist ≤ ε is the source's Δ ≤ ε / 2 \
+    (identical constants, not looser); (2) stated on the quotient group E ⧸ L with normalized \
+    restricted volume on an arbitrary fundamental domain F rather than a basis parallelepiped \
+    P(B)."
 
 register_result "classical-quantum-tuple-mutual-information-chain" where
   title := "Mutual information chain rule for finite classical tuples and a quantum register"
@@ -12014,51 +12012,46 @@ register_result "micciancio-regev-indep-sum-sq-norm" where
     generalizing ℝⁿ to any real Hilbert space E)."
 
 register_result "micciancio-regev-discrete-gaussian-directional-moments" where
-  title := "Directional first and second moments of discrete Gaussians (dual-mass step)"
+  title := "Directional first and second moments of discrete Gaussians above twice the \
+    smoothing parameter"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.2 (dual-mass step)",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.2",
       locator := "author's copy of December 27, 2005, §4, printed pp. 13–14" }
   ]
   theorems := [
-    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le,
-    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le
+    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le_of_smoothingParameter_le,
+    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le_of_smoothingParameter_le
   ]
-  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.2 (not the 2 · η_ε(L) ≤ s endpoint, \
-    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
-    finite-dimensional real inner product space E (including dimension 0), width s > 0, center \
-    c : E, unit vector u : E (‖u‖ = 1), and real ε < 1 satisfying \
-    gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
-    when ε > 0; 0 ≤ ε follows automatically), |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫]| ≤ (ε / (1 − ε)) s \
-    and |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫²] − s² / (2π)| ≤ (ε / (1 − ε)) s². Deviations from the \
-    source: (1) states the smoothing hypothesis directly in dual-mass form rather than via \
-    η_ε(L); (2) uses standard Gaussian scale s > 0 rather than s = 1; (3) uses the exact \
-    probability-weighted tsum form (bridged to Bochner integrals over \
-    (discreteGaussian L s hs c).toMeasure by integral_sub_discreteGaussian_eq_tsum and \
-    integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (including dimension 0), real 0 < ε < 1, width s > 0 satisfying \
+    2 · ZLattice.smoothingParameter L ε ≤ s, center c : E, and unit vector u : E (‖u‖ = 1), \
+    matches MicciancioRegev2007 Lemma 4.2 directly in probability-weighted directional tsum form: \
+    |∑' x : L, (discreteGaussian L s hs c x).toReal · ⟪(x : E) − c, u⟫| ≤ (ε / (1 − ε)) s and \
+    |(∑' x : L, (discreteGaussian L s hs c x).toReal · ⟪(x : E) − c, u⟫²) − s² / (2π)| ≤ \
+    (ε / (1 − ε)) s²."
 
 register_result "micciancio-regev-discrete-gaussian-moments" where
-  title := "Mean-norm and expected squared-norm bounds for discrete Gaussians (dual-mass step)"
+  title := "Mean-norm and expected squared-norm bounds for discrete Gaussians above twice the \
+    smoothing parameter"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.3 (dual-mass step)",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.3",
       locator := "author's copy of December 27, 2005, §4, printed p. 14" }
   ]
   theorems := [
-    ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le,
-    ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le
+    ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le_of_smoothingParameter_le,
+    ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le_of_smoothingParameter_le
   ]
-  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.3 (not the 2 · η_ε(L) ≤ s endpoint, \
-    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
-    finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
-    n = 0), width s > 0, center c : E, and real ε < 1 satisfying \
-    gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
-    when ε > 0; 0 ≤ ε follows automatically), ‖𝔼_{x ~ D_{L, s, c}}[x − c]‖² ≤ \
-    (ε / (1 − ε))² s² n and 𝔼_{x ~ D_{L, s, c}}[‖x − c‖²] ≤ (1 / (2π) + ε / (1 − ε)) s² n. \
-    Deviations from the source: (1) states the smoothing hypothesis directly in dual-mass form \
-    rather than via η_ε(L); (2) uses general width s > 0 rather than s = 1; (3) uses the exact \
-    probability-weighted tsum form (bridged to Bochner integrals by \
-    integral_sub_discreteGaussian_eq_tsum and integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (of dimension n = finrank ℝ E, including n = 0), real 0 < ε < 1, width s > 0 \
+    satisfying 2 · ZLattice.smoothingParameter L ε ≤ s, and center c : E, matches \
+    MicciancioRegev2007 Lemma 4.3 directly in probability-weighted tsum form: \
+    ‖∑' x : L, (discreteGaussian L s hs c x).toReal • ((x : E) − c)‖² ≤ (ε / (1 − ε))² s² n and \
+    ∑' x : L, (discreteGaussian L s hs c x).toReal · ‖(x : E) − c‖² ≤ \
+    (1 / (2π) + ε / (1 − ε)) s² n (bridged directly to Bochner integrals over \
+    (discreteGaussian L s hs c).toMeasure by integral_sub_discreteGaussian_eq_tsum and \
+    integral_norm_sub_sq_discreteGaussian_eq_tsum)."
 
 -- https://github.com/cslib-community/cslib-frontier/pull/6844
 register_result "micciancio-regev-smoothing-parameter-dual-minimum" where
@@ -12094,19 +12087,18 @@ register_result "micciancio-regev-shifted-gaussian-mass-le-zero" where
     (IsZLattice ℝ L) or MeasurableSpace E hypothesis is required; the proof projects c \
     orthogonally onto Submodule.span ℝ (L : Set E) and applies Poisson summation on the span."
 
-register_result "micciancio-regev-smoothing-dual-mass-lambda-n" where
-  title := "Dual-mass form of the Micciancio–Regev λ_n smoothing bound"
+register_result "micciancio-regev-smoothing-parameter-lambda-n" where
+  title := "Smoothing parameter upper bound from the nth successive minimum"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 3.3 (dual-mass step)",
-      locator := "December 27, 2005 author's copy (Gaussian.pdf), §3, printed pp. 11–12" }
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.3",
+      locator := "author's copy of December 27, 2005, §3, printed pp. 11–12" }
   ]
-  theorems := [ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum]
-  scope := "Dual-mass step toward Micciancio–Regev Lemma 3.3: for every full-rank discrete \
-    lattice L in a finite-dimensional real inner product space E of dimension n = finrank ℝ E \
-    (including n = 0), every ε > 0, and every s > 0 with \
-    √(ln(2n(1 + 1/ε)) / π) · λ_n(L) ≤ s, this theorem proves the nonzero reciprocal-width dual \
-    mass inequality gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε, stopping one \
-    step before wrapping that dual-mass condition into the smoothing-parameter infimum \
-    η_ε(L) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no MeasurableSpace E hypothesis. The \
-    asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is not formalized here."
+  theorems := [
+    ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum
+  ]
+  scope := "For every full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E of dimension n = finrank ℝ E (including n = 0) and every ε > 0, \
+    ZLattice.smoothingParameter L ε ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no \
+    MeasurableSpace E hypothesis. The asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is \
+    not formalized here."

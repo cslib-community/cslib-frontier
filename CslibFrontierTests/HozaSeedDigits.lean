@@ -108,4 +108,19 @@ example {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × F
   refine ⟨load_inSpace, hhalt, hfinish.trans ?_⟩
   exact congrArg encNat (SeedWeight.weight_eq_generatedWeight seed z)
 
+open Cslib.Code.JustesenFamily SeedWeight.Runtime in
+/-- The compiled machine computes the existing generated weight on a prepared canonical request. -/
+example {w n : ℕ} (z : Fin (n + 1) × Fin w) :
+    let pack : (Fin (codeLength w n) → Bool) ↪ Input :=
+      ⟨fun seed => ⟨⟨fieldContext w n, z.1.val, z.2.val⟩, List.ofFn seed⟩,
+        fun _ _ h => List.ofFn_injective (congrArg Input.seed h)⟩
+    ComputableInSpace (fun seed => generatedWeight seed z) (pack.trans encInput) encNat
+      (fun seed => (encInput (pack seed)).length + 1) := by
+  intro pack
+  have hnative := SeedWeight.Runtime.weight_inSpace.of_encIn_eq
+    (encIn' := pack.trans encInput) pack (fun _ => rfl)
+  refine hnative.of_enc_eq ?_
+  intro seed
+  exact congrArg encNat (SeedWeight.weight_eq_generatedWeight seed z).symm
+
 end CslibFrontierTests.HozaSeedDigits

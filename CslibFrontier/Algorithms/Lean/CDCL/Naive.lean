@@ -668,10 +668,11 @@ theorem findUnit_spec {M : Trail} {db : List (ℕ × Clause ℕ)} {e : ℕ × Cl
 def Exec.propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=
   ⟨.implied l e.1 :: S.trail, S.db, S.log⟩
 
-theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
-    (h : findUnit (XTrail.trail S.trail) S.db = some (e, l)) :
+/-- UnitPropagate with a clause of the database keeps the invariant and lowers the rank. -/
+theorem Exec.propagate_spec' {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
+    (he : e ∈ S.db) (hl : l ∈ e.2) (hundef : l.1 ∉ Trail.vars (XTrail.trail S.trail))
+    (hfalse : ∀ l' ∈ e.2, l' ≠ l → l'.negate ∈ Trail.lits (XTrail.trail S.trail)) :
     (S.propagate e l).Inv ∧ rank φ.vars (S.propagate e l).state < rank φ.vars S.state := by
-  obtain ⟨he, hl, hundef, hfalse⟩ := findUnit_spec h
   have hc : e.2 ∈ S.clauses := List.mem_map.2 ⟨e, he, rfl⟩
   have hstep : BasicStep (.run (XTrail.trail S.trail) S.clauses)
       (.run (⟨l, false⟩ :: XTrail.trail S.trail) S.clauses) :=
@@ -685,6 +686,12 @@ theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {
   | cons x N =>
     simp only [Exec.propagate, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
     exact hS.below N d M₁ hN.2 c hc'
+
+theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
+    (h : findUnit (XTrail.trail S.trail) S.db = some (e, l)) :
+    (S.propagate e l).Inv ∧ rank φ.vars (S.propagate e l).state < rank φ.vars S.state := by
+  obtain ⟨he, hl, hundef, hfalse⟩ := findUnit_spec h
+  exact Exec.propagate_spec' hS he hl hundef hfalse
 
 /-- **Decide**: add the variable `x` as a decision, `true` first. -/
 def Exec.decide (S : Exec φ) (x : ℕ) : Exec φ :=
@@ -791,15 +798,7 @@ theorem solve_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAct
     exact hcert
 
 /-- **The solver decides satisfiability.** -/
-theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : solve φ with
-    | sat σ => exact ⟨σ, solve_sat hs⟩
-    | unsat cert => simp [hs, DPLL.Result.isSat] at h
-  · intro h
-    cases hs : solve φ with
-    | sat σ => rfl
-    | unsat cert => exact absurd h (not_satisfiable_of_checkLRAT (solve_unsat hs))
+theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable :=
+  DPLL.Result.isSat_iff (fun _ => solve_sat) (fun _ => solve_unsat)
 
 end Cslib.Algorithms.Lean.CDCL

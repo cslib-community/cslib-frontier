@@ -10,6 +10,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoeff
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalValueCutoff
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -355,5 +356,23 @@ example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
   have hcut := Polynomial.bounded_root_branch_iff_lt hP
     (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
   exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
+
+-- The chosen parameter and coefficient budget detect the zero of the square input.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
+    let H := parametricValueCoeffNormExponent 1 3 0
+    criticalMinimumValue 3 (fun i => (separatedCenters 3 i : ℝ))
+      (F.map (Int.castRingHom ℝ)) (2 ^ criticalParameterExponent 1 3 0) < 2 ^ (H + 1) := by
+  intro F H
+  have hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
+  have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
+    simpa only [F, map_pow, map_X, eval_X] using sq_nonneg (x 0)
+  have hb : F.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [F, MvPolynomial.coeffNorm1_X, one_pow, pow_zero] using
+      MvPolynomial.coeffNorm1_pow_le (X (0 : Fin 1) : MvPolynomial (Fin 1) ℤ) 2
+  have hH := parametricValuePolynomial_bivariateCoeffNorm1_le (by decide : 2 ≤ 3) F hF hb
+  apply (exists_zero_iff_criticalMinimumValue_lt_at_parameterExclusion
+    (by decide) (by decide) F hF hFn hH).mp
+  exact ⟨0, by simp [F]⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
