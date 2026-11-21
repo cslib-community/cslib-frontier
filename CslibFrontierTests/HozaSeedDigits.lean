@@ -8,7 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
-import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedDigits
+import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedWeight
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 
 /-! Checked ordinary-import seed read, masking, and final scaling. -/
@@ -61,5 +61,20 @@ example {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × F
       generatedWeight seed z := by
   rw [SeedDigits.run_at_end, ← generatedWeightScan_eq]
   exact SeedDigits.scaledMaskedPrefix_eq_generatedWeightScan seed z code hcode
+
+open Cslib.Code.JustesenFamily in
+/-- The concrete pass returns the weight at layer one and meets its bound on that same run. -/
+example (seed : Fin (codeLength 1 1) → Bool) :
+    let z : Fin (1 + 1) × Fin 1 := (1, 0)
+    let ctx : SeedWeight.Context := ⟨fieldContext 1 1, 1, 0⟩
+    let raw := List.ofFn seed
+    let M := SeedWeight.machine ctx
+    let enc := SeedDigits.encState SeedWeight.Context SeedWeight.encContext
+    M.output raw (raw.length + 1) = encNat (generatedWeight seed z) ∧
+      (∀ t, (enc (M.run raw t)).length ≤
+        2 * (SeedWeight.encContext ctx).length + 8 * raw.length + 4) ∧
+      ComputableInSpace (SeedWeight.weight ctx) encBits encNat List.length :=
+  ⟨(SeedWeight.generatedWeight_output seed (1, 0)).2.2, SeedWeight.length_run_le _ _,
+    SeedWeight.weight_inSpace _⟩
 
 end CslibFrontierTests.HozaSeedDigits
