@@ -342,7 +342,7 @@ an `SIS.IsSolution` for `expandModuleMatrix A`. -/
 theorem isSolution_expandModuleMatrix_iff {d k n q β : ℕ}
     (A : Matrix (Fin d) (Fin k) (Fin n → ZMod q)) (z : Fin k → Fin n → ℤ) :
     SIS.IsSolution (expandModuleMatrix A) β (flattenPolyVec z) ↔ IsSolution A β z := by
-  simp only [SIS.IsSolution, IsSolution, flattenPolyVec_ne_zero_iff,
+  simp only [SIS.IsSolution, IsSolution, InKernelLattice, flattenPolyVec_ne_zero_iff,
     forall_abs_flattenPolyVec_le_iff, intCast_comp_flattenPolyVec,
     expandModuleMatrix_mulVec_eq_zero_iff]
 
