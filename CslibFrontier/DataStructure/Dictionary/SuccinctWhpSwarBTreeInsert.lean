@@ -63,6 +63,21 @@ open scoped BigOperators
 
 /-! ## Section 1: Inductive correctness and potential bound for `descendSplitToLeaf` -/
 
+/-- Replacing child `r` of `cs` with `T'` shifts the total child potential by `T'.potential` minus
+`(cs r).potential`. -/
+private theorem sum_potential_update_add {n : ℕ} (cs : Fin n → BTreeTree) (r : Fin n)
+    (T' : BTreeTree) (tMin : ℕ) :
+    ∑ i, (Function.update cs r T' i).potential tMin + (cs r).potential tMin =
+      ∑ i, (cs i).potential tMin + T'.potential tMin := by
+  have h1 := Finset.add_sum_erase univ
+    (fun i => (Function.update cs r T' i).potential tMin) (mem_univ r)
+  have h2 := Finset.add_sum_erase univ (fun i => (cs i).potential tMin) (mem_univ r)
+  have her : ∑ i ∈ univ.erase r, (Function.update cs r T' i).potential tMin =
+      ∑ i ∈ univ.erase r, (cs i).potential tMin :=
+    sum_congr rfl fun i hi => by rw [Function.update_of_ne (mem_erase.mp hi).1]
+  rw [← h1, ← h2, her, Function.update_self]
+  omega
+
 /-- Lift an inductive insertion result `(sl', T_c')` on child `r_b` of a valid branch
 `.branch idx m cs_b` to the whole branch, preserving `ValidSubtree` and the local excess-key split
 potential inequality. -/
@@ -127,16 +142,8 @@ private theorem lift_branch_child_insert {isRoot : Bool} {fpBits W_val tMin idx 
       · rw [Function.update_of_ne hi] at hvi
         left; exact mem_insert_of_mem (mem_biUnion.mpr ⟨i, mem_univ i, hvi⟩)
   · simp only [BTreeTree.potential]
-    have hsum1 := Finset.add_sum_erase univ (fun i => (cs' i).potential tMin) (mem_univ r_b)
-    have hsum2 := Finset.add_sum_erase univ (fun i => (cs_b i).potential tMin) (mem_univ r_b)
-    have her_eq : ∑ i ∈ univ.erase r_b, (cs' i).potential tMin =
-        ∑ i ∈ univ.erase r_b, (cs_b i).potential tMin :=
-      sum_congr rfl fun i hi => by
-        dsimp only [cs']
-        rw [Function.update_of_ne (mem_erase.mp hi).1]
-    rw [← hsum1, ← hsum2, her_eq]
     dsimp only [cs']
-    rw [Function.update_self]
+    have hsum := sum_potential_update_add cs_b r_b T_c' tMin
     omega
   · dsimp only [ValidSubtree]
     rw [hidx_eq]
@@ -420,6 +427,35 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
           (hhtR.trans (hht r_fin)) (fun k _ => hht k)
       have hht_mid (i : Fin (cnt + 2)) : (cs_mid i).height = (cs_mid 0).height :=
         (heightOld i).trans (heightOld 0).symm
+      have hclo_le : ∀ k ≤ r,
+          childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) k =
+            childLo W_key lo nd.keysWord k := fun k hk => by
+        unfold childLo
+        split_ifs with hk0
+        · rfl
+        · rw [laneGet_wordInsertAt hsep_lt_W]; simp only [show k - 1 < r by omega, ↓reduceIte]
+      have hchi_r : childHi W_key hi (cnt + 1)
+          (wordInsertAt W_key r sep nd.keysWord) r = sep := by
+        unfold childHi
+        have h1 : r < cnt + 1 := by omega
+        simp only [h1, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, lt_irrefl]
+      have hclo_r1 : childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) (r + 1) =
+          sep + 1 := by
+        unfold childLo
+        simp only [Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel,
+          laneGet_wordInsertAt hsep_lt_W, lt_irrefl]
+      have hchi_r1 : childHi W_key hi (cnt + 1)
+          (wordInsertAt W_key r sep nd.keysWord) (r + 1) =
+          childHi W_key hi cnt nd.keysWord r := by
+        unfold childHi
+        by_cases hrc : r < cnt
+        · have h1 : r + 1 < cnt + 1 := by omega
+          have h2 : ¬(r + 1 < r) := by omega
+          have h3 : r + 1 ≠ r := by omega
+          simp only [h1, hrc, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, h2, h3,
+            Nat.add_sub_cancel]
+        · have h1 : ¬(r + 1 < cnt + 1) := by omega
+          simp only [h1, hrc, ↓reduceIte]
       have hv_mid : ValidSubtree isRoot fpBits W_val tMin sl_mid.alloc sl_mid.nodes lo hi
           mapFn (.branch idx (cnt + 1) cs_mid) := by
         dsimp only [ValidSubtree]
@@ -558,13 +594,6 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
           intro i
           dsimp only [parentNd']
           rw [laneGet_wordInsertAt hright_lt_val]
-          have hclo_le : ∀ k ≤ r,
-              childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) k =
-                childLo W_key lo nd.keysWord k := fun k hk => by
-            unfold childLo
-            split_ifs with hk0
-            · rfl
-            · rw [laneGet_wordInsertAt hsep_lt_W]; simp [show k - 1 < r by omega]
           by_cases hi1 : i.val < r
           · rw [hcs_lt i hi1]
             have hir1 : i.val < r + 1 := by omega
@@ -585,34 +614,12 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
             · rw [hcs_eq_r i hi2, hi2]
               have hr1_lt : r < r + 1 := Nat.lt_succ_self r
               refine ⟨by simp [hr1_lt, hval_r, hrtL], ?_⟩
-              have hchi_eq : childHi W_key hi (cnt + 1)
-                  (wordInsertAt W_key r sep nd.keysWord) r = sep := by
-                unfold childHi
-                have h1 : r < cnt + 1 := by omega
-                simp only [h1, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, lt_irrefl]
-              rw [hclo_le r le_rfl, hchi_eq]
+              rw [hclo_le r le_rfl, hchi_r]
               exact hvL
             · by_cases hi3 : i.val = r + 1
               · rw [hcs_eq_r1 i hi3, hi3]
                 refine ⟨by simp [hrtR], ?_⟩
-                have hclo_eq : childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) (r + 1) =
-                    sep + 1 := by
-                  unfold childLo
-                  simp only [Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel,
-                    laneGet_wordInsertAt hsep_lt_W, lt_irrefl]
-                have hchi_eq : childHi W_key hi (cnt + 1)
-                    (wordInsertAt W_key r sep nd.keysWord) (r + 1) =
-                    childHi W_key hi cnt nd.keysWord r := by
-                  unfold childHi
-                  by_cases hrc : r < cnt
-                  · have h1 : r + 1 < cnt + 1 := by omega
-                    have h2 : ¬(r + 1 < r) := by omega
-                    have h3 : r + 1 ≠ r := by omega
-                    simp only [h1, hrc, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, h2, h3,
-                      Nat.add_sub_cancel]
-                  · have h1 : ¬(r + 1 < cnt + 1) := by omega
-                    simp only [h1, hrc, ↓reduceIte]
-                rw [hclo_eq, hchi_eq]
+                rw [hclo_r1, hchi_r1]
                 exact hvR
               · rw [hcs_gt i (by omega)]
                 have hnir1 : ¬(i.val < r + 1) := by omega
@@ -649,15 +656,7 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
         simp only [BTreeTree.potential]
         rw [Fin.sum_univ_succAbove _ r1]
         simp only [cs_mid, Fin.insertNth_apply_same, Fin.insertNth_apply_succAbove]
-        have hsum1 := Finset.add_sum_erase univ
-          (fun k => (Function.update cs r_fin leftT k).potential tMin) (mem_univ r_fin)
-        have hsum2 := Finset.add_sum_erase univ
-          (fun k => (cs k).potential tMin) (mem_univ r_fin)
-        have her_eq : ∑ k ∈ univ.erase r_fin,
-            (Function.update cs r_fin leftT k).potential tMin =
-            ∑ k ∈ univ.erase r_fin, (cs k).potential tMin :=
-          sum_congr rfl fun k hk => by rw [Function.update_of_ne (mem_erase.mp hk).1]
-        rw [← hsum1, ← hsum2, her_eq, Function.update_self]
+        have hsum := sum_potential_update_add cs r_fin leftT tMin
         omega
       -- Now descend into the non-full target child `r_next` of `T_mid` on `sl_mid`!
       obtain ⟨hr_mid_le, hclo_mid_q, hq_chi_mid, hother_mid⟩ :=
@@ -674,38 +673,9 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
         dsimp only [parentNd'] at hq_ne
         by_cases hsq : sep < q
         · simp only [hsq, ↓reduceIte] at hq_ne
-          have h1 : childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) (r + 1) ≤ q := by
-            unfold childLo
-            simp only [Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel,
-              laneGet_wordInsertAt hsep_lt_W, lt_irrefl]
-            omega
-          have h2 : q ≤ childHi W_key hi (cnt + 1)
-              (wordInsertAt W_key r sep nd.keysWord) (r + 1) := by
-            unfold childHi
-            by_cases hrc : r < cnt
-            · have ha : r + 1 < cnt + 1 := by omega
-              have hb : ¬(r + 1 < r) := by omega
-              have hc : r + 1 ≠ r := by omega
-              simp only [ha, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, hb, hc,
-                Nat.add_sub_cancel]
-              unfold childHi at hq_chi; simpa [hrc] using hq_chi
-            · have ha : ¬(r + 1 < cnt + 1) := by omega
-              simp only [ha, ↓reduceIte]; exact hqhi
-          exact hq_ne h1 h2 rfl
+          exact hq_ne (by rw [hclo_r1]; omega) (by rwa [hchi_r1]) rfl
         · simp only [hsq, ↓reduceIte] at hq_ne
-          have h1 : childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) r ≤ q := by
-            unfold childLo
-            split_ifs with hr0
-            · exact hqlo
-            · rw [laneGet_wordInsertAt hsep_lt_W]; simp only [show r - 1 < r by omega, ↓reduceIte]
-              unfold childLo at hclo_q; simpa [hr0] using hclo_q
-          have h2 : q ≤ childHi W_key hi (cnt + 1)
-              (wordInsertAt W_key r sep nd.keysWord) r := by
-            unfold childHi
-            have ha : r < cnt + 1 := by omega
-            simp only [ha, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, lt_irrefl]
-            omega
-          exact hq_ne h1 h2 rfl
+          exact hq_ne (by rwa [hclo_le r le_rfl]) (by rw [hchi_r]; omega) rfl
       have hnext_rt : (if sep < q then rightIdx else childIdx) = (cs_mid r_next).rootIdx := by
         by_cases hsq : sep < q
         · simp only [hsq, ↓reduceIte] at hr_next_val ⊢
@@ -718,12 +688,8 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
         by_cases hsq : sep < q
         · simp only [hsq, ↓reduceIte]; dsimp only [sl_mid]; omega
         · simp only [hsq, ↓reduceIte]; dsimp only [sl_mid]; omega
-      have hnext_ht : (cs_mid r_next).height = (cs r_fin).height := by
-        by_cases hsq : sep < q
-        · simp only [hsq, ↓reduceIte] at hr_next_val
-          rw [hcs_eq_r1 r_next hr_next_val, hhtR]
-        · simp only [hsq, ↓reduceIte] at hr_next_val
-          rw [hcs_eq_r r_next hr_next_val, hhtL]
+      have hnext_ht : (cs_mid r_next).height = (cs r_fin).height :=
+        (heightOld r_next).trans (hht r_fin).symm
       have hchi_mid_le :
           childHi W_key hi (cnt + 1) (sl_mid.nodes idx).keysWord r_next.val ≤ hi := by
         obtain ⟨_, _, _, _, _, _, _, hhi_m, hmono_m, _⟩ := hv_mid
