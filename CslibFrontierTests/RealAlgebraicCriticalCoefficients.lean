@@ -375,4 +375,26 @@ example :
     (by decide) (by decide) F hF hFn hH).mp
   exact ⟨0, by simp [F]⟩
 
+-- In the quotient by X₀ = 2, the simple real root of multiplication by X₀ is realized.
+example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1) ℝ) = 2 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) ℝ := fun _ => C 2
+  have hr (i : Fin 1) : (r i).totalDegree < 1 := by
+    simp only [r, totalDegree_C, Nat.zero_lt_one]
+  let M := multiplicationMatrix (by decide : 1 ≤ 1) r hr
+  have hm : M (X 0) = algebraMap ℝ (Matrix (NormalIndex 1 1) (NormalIndex 1 1) ℝ) 2 := by
+    rw [← M.commutes, MvPolynomial.algebraMap_eq]
+    apply multiplicationMatrix_eq_of_projection_eq
+    simpa only [pow_one, r] using projection_X_pow 1 r 0
+  have hdim : Fintype.card (NormalIndex 1 1) = 1 := by simp [NormalIndex]
+  have hsimple : (M (X 0)).charpoly.rootMultiplicity 2 = 1 := by
+    rw [hm, Matrix.algebraMap_eq_diagonal, Matrix.charpoly_diagonal]
+    simp only [Pi.algebraMap_apply, Algebra.algebraMap_self_apply, Finset.prod_const,
+      Finset.card_univ, hdim, pow_one, Polynomial.rootMultiplicity_X_sub_C_self]
+  obtain ⟨x, hx, hv⟩ :=
+    exists_common_zero_of_rootMultiplicity_multiplicationMatrix_eq_one (by decide) r hr
+      (X 0) hsimple
+  have hx₀ : x 0 = 2 := by
+    simpa only [r, aeval_C, Algebra.algebraMap_self_apply, pow_one] using (hx 0).symm
+  exact ⟨x, hx₀, hv⟩
+
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
