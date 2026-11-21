@@ -26,12 +26,14 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   that does not solve the input, `deld`, unchecked and checked `delc`, `core id`,
   strengthening-to-core mode, and the numbering of `red` and `delc` with and without subproofs,
   each compared with VeriPB 3.0.2 and CakePB;
+* `obji`: a lower bound from an asserted value with no logged solution, alone and after `soli`;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
 certified only by a solution logged after unchecked deletion that fails the input, a typed
 deletion of the wrong kind, a checked deletion with a failing witness, a witness or an unchecked
-deletion that strengthening-to-core mode forbids, a dropped
+deletion that strengthening-to-core mode forbids, an upper bound, a lower bound above the asserted
+value or `UNSAT` resting on `obji` alone, a dropped
 hint, a repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a
 wrong formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
 tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
@@ -582,6 +584,53 @@ def tcbDeleteProof : String := tcbProof.replace
 
 #guard (tcbDeleteProof.splitOn "delc 1;").length == 2
 #guard checkOPB one tcbDeleteProof == some .sat
+
+/-! ### Bounds without a solution
+
+`obji v` adds the improving constraint `f ≤ v - 1` without logging a solution (§5.8.2). It
+lowers the value that the lower bounds are checked against to `v`, but certifies no upper bound,
+and rules out `UNSAT`. VeriPB 3.0.2 and CakePB give the same verdicts as this checker on every
+fixture below. -/
+
+/-- On `cover`, `obji 1` asserts `f ≤ 0`, constraint `3`, which contradicts constraint `1` by
+RUP. So every solution has value at least `1`, with no solution logged. -/
+def objiProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+obji 1;
+rup >= 1 : 3 1;
+output NONE;
+conclusion BOUNDS 1 : 4 INF;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB cover objiProof == some (.bounds (some 1) 4 none)
+-- `obji` certifies no upper bound.
+#guard (checkOPB cover (objiProof.replace "4 INF" "4 1")).isNone
+-- The lower bound may not exceed the asserted value.
+#guard (checkOPB cover (objiProof.replace "BOUNDS 1" "BOUNDS 2")).isNone
+-- After `obji`, a contradiction proves no unsatisfiability: the formula has solutions of value
+-- at least `1`.
+#guard (checkOPB cover
+  (objiProof.replace "conclusion BOUNDS 1 : 4 INF;" "conclusion UNSAT : 4;")).isNone
+-- With a logged solution of value `1` first, its improving constraint and that of `obji` are
+-- constraints `3` and `4`, and the optimum `1` is certified.
+#guard checkOPB cover ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
+  "rup >= 1 : 3 1;\noutput NONE;\nconclusion BOUNDS 1 : 4 INF;"
+  "rup >= 1 : 4 1;\noutput NONE;\nconclusion BOUNDS 1 : 5 1;") ==
+  some (.bounds (some 1) 5 (some 1))
+/-- `obji` needs an objective: on the decision problem `coverDecision`, this proof is rejected,
+while it is accepted without `obji 1` (VeriPB and CakePB agree). -/
+def objiDecision : String := "pseudo-Boolean proof version 3.0
+f 2;
+obji 1;
+sol x2;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB coverDecision (objiDecision.replace "obji 1;\n" "") == some .sat
+#guard (checkOPB coverDecision objiDecision).isNone
 
 /-! ### Soundness -/
 

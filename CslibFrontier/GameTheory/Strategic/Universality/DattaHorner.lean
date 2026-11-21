@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Strategic.Universality.DattaThree
+public import Mathlib.Topology.Algebra.Ring.Real
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -139,6 +140,13 @@ noncomputable def horner (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) (k :
 
 theorem horner_zero (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) : horner F x 0 0 = eval x F := by
   simp [horner, eval_eq', expoPow]
+
+/-- Each Horner value is a polynomial, hence continuous, function of the point. -/
+theorem continuous_horner (F : MvPolynomial (Fin n) ℝ) (k : ℕ) (e : Fin n →₀ ℕ) :
+    Continuous fun x => horner F x k e := by
+  simp only [horner, expoPow]
+  exact continuous_finsetSum _ fun f _ => continuous_const.mul
+    (continuous_finsetProd _ fun i _ => (continuous_apply i).pow _)
 
 theorem horner_of_le (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) {k : ℕ} (hk : n ≤ k)
     (e : Fin n →₀ ℕ) : horner F x k e = F.coeff e := by
