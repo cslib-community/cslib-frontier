@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredParameters
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision.HozaSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
@@ -22,6 +23,7 @@ and exclusive rank limit from the graph's width and final layer. The encoded res
 logarithmic space in the original word length. This prepares the parameters used by a later
 scanner that queries the original input. The same length bound controls the numeric seed
 limit, source count and subdivision carrier size by a polynomial in the original word length.
+The same square dimensions initialize the Justesen field context in native logarithmic space.
 -/
 
 public section
@@ -29,7 +31,7 @@ public section
 namespace Cslib.Complexity.STCON
 
 open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeTM.ComputableInSpace
-open Reachability.Hoza
+open Reachability.Hoza Cslib.Code.JustesenFamily
 
 /-- Compact parameters for the original graph and its seed search. -/
 structure SeedSearchParameters where
@@ -46,14 +48,18 @@ enc_structure encSeedSearchParameters : SeedSearchParameters where
 @[expose] def seedSearchParameters (p : LayeredParameters) : SeedSearchParameters :=
   ⟨p, seedSearchSize p.width (p.width - 1)⟩
 
+private theorem widthHorizon_inSpace :
+    ComputableInSpace (fun p : LayeredParameters => (p.width, p.width - 1))
+      encLayeredParameters (encPair encNat encNat) (fun p => (encLayeredParameters p).length) := by
+  have hw := encLayeredParameters_width_budget (budget_id (.refl _))
+  exact budget_prod hw (budget_natPred hw)
+
 /-- The arithmetic stage needs only space linear in the compact graph parameters. -/
 theorem seedSearchParameters_inSpace :
     ComputableInSpace seedSearchParameters encLayeredParameters encSeedSearchParameters
       (fun p => (encLayeredParameters p).length) := by
   have hid := budget_id (BigOLe.refl fun p => (encLayeredParameters p).length)
-  have hw := encLayeredParameters_width_budget hid
-  have hdims := budget_prod hw (budget_natPred hw)
-  have hs := budget_comp_linear seedSearchSize_inSpace hdims
+  have hs := budget_comp_linear seedSearchSize_inSpace widthHorizon_inSpace
   exact encSeedSearchParameters_mk_budget hid hs
 
 variable {k : ℕ} {State : Type} [Fintype State]
@@ -82,6 +88,34 @@ theorem length_configurationSeedSearchParameters_le_log (ntm : MultiTapeNTM k Bo
     (f := fun w : List Bool => layeredParameters ntm c w.length) (g := seedSearchParameters)
     (length_layeredParameters_le_log ntm c)
     seedSearchParameters_inSpace
+
+/-- Prepare the Justesen field data for the square layering of the configuration graph. -/
+@[expose] noncomputable def configurationFieldContext (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) : FieldContext :=
+  let width := (layeredParameters ntm c w.length).width
+  fieldContext width (width - 1)
+
+private theorem layeredFieldContext_inSpace :
+    ComputableInSpace (fun p : LayeredParameters => fieldContext p.width (p.width - 1))
+      encLayeredParameters encFieldContext (fun p => (encLayeredParameters p).length) :=
+  budget_comp_linear fieldContext_inSpace widthHorizon_inSpace
+
+/-- The actual Justesen field context can be initialized in native logarithmic workspace
+from the original read-only word. -/
+theorem configurationFieldContext_inLogSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ComputableInLogSpace (configurationFieldContext ntm c) encBits encFieldContext :=
+  comp_logSpace_of_length_log (f := fun w : List Bool => layeredParameters ntm c w.length)
+    (layeredParameters_inLogSpace ntm c) (length_layeredParameters_le_log ntm c)
+    layeredFieldContext_inSpace
+
+/-- The prepared field context occupies logarithmically many bits for the original word. -/
+theorem length_configurationFieldContext_le_log (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      (encFieldContext (configurationFieldContext ntm c w)).length ≤
+        C * (Nat.log2 w.length + 1) :=
+  length_log_of_inSpace (encIn := encBits)
+    (f := fun w : List Bool => layeredParameters ntm c w.length)
+    (length_layeredParameters_le_log ntm c) layeredFieldContext_inSpace
 
 /-- The initialized seed limit, original-source count and subdivided vertex count are
 polynomial in the original input length. These numeric bounds can be used in a clock for
