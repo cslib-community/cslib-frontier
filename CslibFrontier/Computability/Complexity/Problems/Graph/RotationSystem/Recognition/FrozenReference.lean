@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 import Mathlib.Data.List.NodupEquivFin
 import Mathlib.Data.List.GetD
+import Mathlib.Topology.Algebra.InfiniteSum.Basic
 
 /-!
 # The actual frozen part of the reference drawing
@@ -59,6 +60,7 @@ public section
 namespace Cslib.Complexity.Graph.RotationRecognition
 
 open Polygonal
+open scoped BigOperators
 
 private abbrev centerBlock (I : FixedRotationInput) (v : ℕ) : List ℕ :=
   v :: ((fixedWord I v).reverse.map fun d => I.graph.vertices.length + d)
@@ -225,6 +227,182 @@ theorem exists_frozen_reference_strips {I : FixedRotationInput} (hI : Valid I) :
     have h := eval_re_mem_original_interval hI d hd i ht
     obtain ⟨hv, _, _, hmem, _⟩ := fixed_end_reference_spec hI d hd
     exact ⟨h.1, h.2.trans_lt (hbound _ _ hv hmem)⟩
+
+private noncomputable def stripRamp (a b c x : ℝ) : ℝ :=
+  min (max 0 (x - a)) (max 0 (((b - a) / (c - b)) * (c - x)))
+
+private theorem stripRamp_nonneg (a b c x : ℝ) : 0 ≤ stripRamp a b c x :=
+  le_min (le_max_left _ _) (le_max_left _ _)
+
+private theorem stripRamp_eq_zero {a b c x : ℝ} (hab : a < b) (hbc : b < c)
+    (hx : x ∉ Set.Ioo a c) : stripRamp a b c x = 0 := by
+  by_cases hax : a < x
+  · have hcx : c ≤ x := le_of_not_gt fun h => hx ⟨hax, h⟩
+    have hk := div_nonneg (sub_nonneg.mpr hab.le) (sub_nonneg.mpr hbc.le)
+    rw [stripRamp, max_eq_left (mul_nonpos_of_nonneg_of_nonpos hk (sub_nonpos.mpr hcx)),
+      min_eq_right (le_max_left _ _)]
+  · rw [stripRamp, max_eq_left (sub_nonpos.mpr (le_of_not_gt hax)),
+      min_eq_left (le_max_left _ _)]
+
+private theorem stripRamp_eq_sub {a b c x : ℝ} (hab : a < b) (hbc : b < c)
+    (hx : x ∈ Set.Icc a b) : stripRamp a b c x = x - a := by
+  have hk := div_nonneg (sub_nonneg.mpr hab.le) (sub_nonneg.mpr hbc.le)
+  have hb : ((b - a) / (c - b)) * (c - b) = b - a :=
+    div_mul_cancel₀ _ (sub_ne_zero.mpr hbc.ne')
+  have hle := mul_le_mul_of_nonneg_left (sub_le_sub_left hx.2 c) hk
+  rw [stripRamp, max_eq_right (sub_nonneg.mpr hx.1)]
+  apply min_eq_left
+  exact (show x - a ≤ ((b - a) / (c - b)) * (c - x) by linarith only [hx.2, hb, hle]).trans
+    (le_max_right _ _)
+
+private theorem stripRamp_increment {a b c x y : ℝ} (hab : a < b) (hbc : b < c)
+    (hxy : x ≤ y) : stripRamp a b c y ≤ stripRamp a b c x + (y - x) := by
+  let k := (b - a) / (c - b)
+  have hk : 0 ≤ k := div_nonneg (sub_nonneg.mpr hab.le) (sub_nonneg.mpr hbc.le)
+  have hdiff := sub_nonneg.mpr hxy
+  have hRise : max 0 (y - a) ≤ max 0 (x - a) + (y - x) := by
+    apply max_le
+    · exact add_nonneg (le_max_left _ _) hdiff
+    · have h := le_max_right (0 : ℝ) (x - a)
+      linarith only [h]
+  have hFall : max 0 (k * (c - y)) ≤ max 0 (k * (c - x)) :=
+    max_le_max le_rfl (mul_le_mul_of_nonneg_left (sub_le_sub_left hxy c) hk)
+  change min (max 0 (y - a)) (max 0 (k * (c - y))) ≤
+    min (max 0 (x - a)) (max 0 (k * (c - x))) + (y - x)
+  rcases le_total (max 0 (x - a)) (max 0 (k * (c - x))) with h | h
+  · rw [min_eq_left h]
+    exact (min_le_left _ _).trans hRise
+  · rw [min_eq_right h]
+    exact (min_le_right _ _).trans (hFall.trans (le_add_of_nonneg_right hdiff))
+
+private noncomputable def stripPlateau (a b x : ℝ) : ℝ :=
+  min (max 0 (min 1 (8 * (x - a) + 1))) (max 0 (min 1 (8 * (b - x) + 1)))
+
+private theorem stripPlateau_eq_zero {a b x : ℝ}
+    (hx : x ∉ Set.Ioo (a - 1 / 8) (b + 1 / 8)) : stripPlateau a b x = 0 := by
+  by_cases hax : a - 1 / 8 < x
+  · have hbx : b + 1 / 8 ≤ x := le_of_not_gt fun h => hx ⟨hax, h⟩
+    have h : 8 * (b - x) + 1 ≤ 0 := by linarith only [hbx]
+    rw [stripPlateau, max_eq_left ((min_le_right _ _).trans h), min_eq_right (le_max_left _ _)]
+  · have hax' := le_of_not_gt hax
+    have h : 8 * (x - a) + 1 ≤ 0 := by linarith only [hax']
+    rw [stripPlateau, max_eq_left ((min_le_right _ _).trans h), min_eq_left (le_max_left _ _)]
+
+private theorem stripPlateau_eq_one {a b x : ℝ} (hx : x ∈ Set.Icc a b) :
+    stripPlateau a b x = 1 := by
+  have ha : 1 ≤ 8 * (x - a) + 1 := by linarith only [hx.1]
+  have hb : 1 ≤ 8 * (b - x) + 1 := by linarith only [hx.2]
+  rw [stripPlateau, min_eq_left ha, min_eq_left hb, max_eq_right zero_le_one, min_self]
+
+/-- A continuous injective plane map fixes all original reference centers and shrinks
+every point of every full frozen spoke about its center by the same positive factor.
+It compresses horizontal distances within each star's strip and interpolates toward
+the identity in the gap. The vertical coordinate has constant slope globally, with
+a strip-dependent offset so the restriction to each star is a homothety. -/
+theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid I)
+    {s : ℝ} (hs : s ∈ Set.Ioc 0 1) :
+    ∃ F : ℂ → ℂ, Function.Injective F ∧ Continuous F ∧
+      (∀ v ∈ I.graph.vertices, F (referencePoint I v) = referencePoint I v) ∧
+      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+        ∀ z ∈ ((referenceDrawing I).route (subdivisionDart I d).1).support,
+          F z = referencePoint I d.vertex + s • (z - referencePoint I d.vertex) := by
+  classical
+  obtain ⟨right, hright, hsep, hstrip⟩ := exists_frozen_reference_strips hI
+  let V := I.graph.vertices.toFinset
+  let a (v : ℕ) := (referencePoint I v).re
+  let band (v : ℕ) := Set.Ioo (a v - 1 / 8) (right v + 1 / 8)
+  let ramp (v : ℕ) := stripRamp (a v) (right v) (right v + 1 / 8)
+  let offset (v : ℕ) (x : ℝ) := ((1 - s) * (referencePoint I v).im) *
+    stripPlateau (a v) (right v) x
+  have hmem {v : ℕ} : v ∈ V ↔ v ∈ I.graph.vertices := List.mem_toFinset
+  have hgap (v : ℕ) : right v < right v + 1 / 8 := by linarith
+  have hband {u v : ℕ} {x : ℝ} (hu : u ∈ V) (hv : v ∈ V) (hne : u ≠ v)
+      (hxu : x ∈ band u) (hxv : x ∈ band v) : False := by
+    change a u - 1 / 8 < x ∧ x < right u + 1 / 8 at hxu
+    change a v - 1 / 8 < x ∧ x < right v + 1 / 8 at hxv
+    rcases lt_or_gt_of_ne hne with h | h
+    · have h' : right u + 1 / 4 < a v := hsep u (hmem.mp hu) v (hmem.mp hv) h
+      linarith only [h', hxu.2, hxv.1]
+    · have h' : right v + 1 / 4 < a u := hsep v (hmem.mp hv) u (hmem.mp hu) h
+      linarith only [h', hxv.2, hxu.1]
+  have hramp {v : ℕ} (hv : v ∈ V) {x : ℝ} (hx : x ∉ band v) : ramp v x = 0 :=
+    stripRamp_eq_zero (hright v (hmem.mp hv)) (hgap v)
+      (fun h => hx ⟨by linarith only [h.1], h.2⟩)
+  have hoffset {v : ℕ} {x : ℝ} (hx : x ∉ band v) : offset v x = 0 := by
+    rw [offset, stripPlateau_eq_zero hx, mul_zero]
+  have hsum (k : ℕ → ℝ → ℝ) (hzero : ∀ v ∈ V, ∀ x ∉ band v, k v x = 0)
+      {v : ℕ} (hv : v ∈ V) {x : ℝ} (hx : x ∈ band v) :
+      (∑ w ∈ V, k w x) = k v x := by
+    apply Finset.sum_eq_single v
+    · exact fun w hw hne => hzero w hw x (fun hxw => hband hw hv hne hxw hx)
+    · exact fun h => (h hv).elim
+  let f (x : ℝ) := x - (1 - s) * (∑ v ∈ V, ramp v x)
+  let g (x : ℝ) := ∑ v ∈ V, offset v x
+  have hmono : StrictMono f := by
+    intro x y hxy
+    have hfx : f x ≤ x := sub_le_self _ (mul_nonneg (sub_nonneg.mpr hs.2)
+      (Finset.sum_nonneg fun v _ => stripRamp_nonneg (a v) (right v) (right v + 1 / 8) x))
+    by_cases hy : ∃ v ∈ V, y ∈ band v
+    · obtain ⟨v, hv, hyv⟩ := hy
+      have hy' : f y = y - (1 - s) * ramp v y := by
+        rw [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hyv]
+      have hx' : f x ≤ x - (1 - s) * ramp v x := by
+        by_cases hx : x ∈ band v
+        · rw [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hx]
+        · rwa [hramp hv hx, mul_zero, sub_zero]
+      have hstep : ramp v y ≤ ramp v x + (y - x) :=
+        stripRamp_increment (hright v (hmem.mp hv)) (hgap v) hxy.le
+      have hmul := mul_le_mul_of_nonneg_left hstep (sub_nonneg.mpr hs.2)
+      rw [hy']
+      nlinarith only [hx', hmul, mul_pos hs.1 (sub_pos.mpr hxy)]
+    · have hz : (∑ v ∈ V, ramp v y) = 0 :=
+        Finset.sum_eq_zero fun v hv => hramp hv (fun h => hy ⟨v, hv, h⟩)
+      exact hfx.trans_lt (by simpa only [f, hz, mul_zero, sub_zero] using hxy)
+  let F (z : ℂ) : ℂ := ⟨f z.re, s * z.im + g z.re⟩
+  have hF : Function.Injective F := by
+    intro z w h
+    have hre : z.re = w.re := hmono.injective (congrArg Complex.re h)
+    have him : s * z.im + g z.re = s * w.im + g w.re := congrArg Complex.im h
+    rw [hre] at him
+    exact Complex.ext hre (mul_left_cancel₀ hs.1.ne' (add_right_cancel him))
+  have hf : Continuous f :=
+    continuous_id.sub (continuous_const.mul (continuous_finsetSum _ fun v _ => by
+      unfold ramp stripRamp
+      fun_prop))
+  have hg : Continuous g := continuous_finsetSum _ fun v _ => by
+    unfold offset stripPlateau
+    fun_prop
+  have hcont : Continuous F := by
+    change Continuous (fun z : ℂ =>
+      Complex.equivRealProdCLM.symm (f z.re, s * z.im + g z.re))
+    exact Complex.equivRealProdCLM.symm.continuous.comp
+      ((hf.comp Complex.continuous_re).prodMk
+        ((continuous_const.mul Complex.continuous_im).add (hg.comp Complex.continuous_re)))
+  have hlocal {v : ℕ} (hv : v ∈ V) {z : ℂ} (hz : z.re ∈ Set.Icc (a v) (right v)) :
+      F z = referencePoint I v + s • (z - referencePoint I v) := by
+    have hz' : z.re ∈ band v := ⟨by linarith only [hz.1], by linarith only [hz.2]⟩
+    have hre : f z.re = z.re - (1 - s) * (z.re - a v) := by
+      rw [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hz', ramp,
+        stripRamp_eq_sub (hright v (hmem.mp hv)) (hgap v) hz]
+    have him : g z.re = (1 - s) * (referencePoint I v).im := by
+      rw [g, hsum offset (fun _ _ _ h => hoffset h) hv hz', offset, stripPlateau_eq_one hz, mul_one]
+    apply Complex.ext
+    · change f z.re = (referencePoint I v + s • (z - referencePoint I v)).re
+      rw [hre, Complex.add_re, Complex.smul_re, Complex.sub_re]
+      change z.re - (1 - s) * (z.re - (referencePoint I v).re) = _
+      ring
+    · change s * z.im + g z.re = (referencePoint I v + s • (z - referencePoint I v)).im
+      rw [him, Complex.add_im, Complex.smul_im, Complex.sub_im]
+      ring
+  refine ⟨F, hF, hcont, ?_, ?_⟩
+  · intro v hv
+    simpa only [sub_self, smul_zero, add_zero] using
+      hlocal (z := referencePoint I v) (hmem.mpr hv) ⟨le_rfl, (hright v hv).le⟩
+  · intro d hd z hz
+    have hv : d.vertex ∈ V :=
+      hmem.mpr (hI.1 ▸ List.mem_range.mpr (fixed_end_reference_spec hI d hd).1)
+    have hz' := hstrip d hd z hz
+    exact hlocal hv ⟨hz'.1, hz'.2.le⟩
 
 private theorem same_center_contacts {I : FixedRotationInput} (hI : Valid I)
     (a b : Dart I.graph) (ha : (I.orders.getD a.vertex none).isSome = true)

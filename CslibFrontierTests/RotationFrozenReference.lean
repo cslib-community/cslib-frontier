@@ -133,6 +133,27 @@ example (z w : ℂ)
   have hgap := hsep a.vertex (by decide +kernel) b.vertex (by decide +kernel) (by decide +kernel)
   linarith only [ha.2, hb.1, hgap]
 
+-- One map fixes both centers while halving both complete, oppositely oriented spokes.
+example :
+    ∃ F : ℂ → ℂ, Function.Injective F ∧
+      F (referencePoint bothFixed 0) = referencePoint bothFixed 0 ∧
+      F (referencePoint bothFixed 1) = referencePoint bothFixed 1 ∧
+      (∀ z ∈ ((referenceDrawing bothFixed).route ⟨0, by decide⟩).support,
+        F z = referencePoint bothFixed 0 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 0)) ∧
+      ∀ z ∈ ((referenceDrawing bothFixed).route ⟨5, by decide⟩).support,
+        F z = referencePoint bothFixed 1 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 1) := by
+  let a : Dart bothFixed.graph := (⟨0, by decide⟩, false)
+  let b : Dart bothFixed.graph := (⟨1, by decide⟩, true)
+  obtain ⟨F, hF, _, hcenter, hspoke⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  have ha : a.vertex = 0 := by decide +kernel
+  have hb : b.vertex = 1 := by decide +kernel
+  have hFa := hspoke a (by decide +kernel)
+  have hFb := hspoke b (by decide +kernel)
+  rw [ha] at hFa
+  rw [hb] at hFb
+  exact ⟨F, hF, hcenter 0 (by decide +kernel), hcenter 1 (by decide +kernel), hFa, hFb⟩
+
 /-- Removing every edge keeps the entire frame as distinct isolated points. -/
 theorem all_free_frame :
     let J : FixedRotationInput := ⟨⟨[0, 1, 2], [(0, 1)]⟩, [none, none, none]⟩
