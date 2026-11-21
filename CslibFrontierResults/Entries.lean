@@ -323,6 +323,7 @@ import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Computational.SIS.Ell2
+import CslibFrontier.Crypto.Computational.SIS.MR07Core
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
@@ -11880,3 +11881,69 @@ register_result "micciancio-regev-discrete-gaussian-moments" where
     rather than via η_ε(L); (2) uses general width s > 0 rather than s = 1; (3) uses the exact \
     probability-weighted tsum form (bridged to Bochner integrals by \
     integral_sub_discreteGaussian_eq_tsum and integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+
+register_result "micciancio-regev-grid-sampling-step" where
+  title := "Discrete-grid Gaussian sampling lemma for full-rank integer lattices"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 5.7 (discrete-grid step)",
+      locator := "author's copy of December 27, 2005, §5.2, printed pp. 20–21" }
+  ]
+  theorems := [
+    Cslib.Crypto.SIS.MR07.idealGridSample_eq_bind_discreteGaussian,
+    Cslib.Crypto.SIS.MR07.idealGridSample_fst_closeTo_uniform
+  ]
+  scope := "Discrete-grid formulation of MicciancioRegev2007 Lemma 5.7 on G_q = (1 / q) ℤⁿ for \
+    any full-rank integer lattice L(B) ⊂ ℝⁿ (B.det ≠ 0, q > 0), width s > 0, arbitrary shift t, \
+    and dual-mass premise gaussianMass (dualSubmodule (innerₗ _) (intLattice B)) (1 / s) 0 − 1 ≤ \
+    ε < 1. Proves exact conditional law y | c ~ D_{L(B), s, t + c} with zero measure-zero \
+    conditioning and CloseTo half-L¹ closeness ε / (2 (1 − ε)) of the marginal of c to uniform on \
+    GridRep B q (G_q ∩ P(B), exact cardinality q^n |det B|). Deviations from the source: works on \
+    the fine discrete grid G_q rather than continuous ℝⁿ, uses the dual-mass premise directly \
+    instead of η_ε(L(B)) ≤ s, and uses the ideal discrete Gaussian PMF (strict-PPT sampler \
+    realization is separate)."
+
+register_result "micciancio-regev-combining-step" where
+  title := "Discrete-grid combining procedure and HNF-free quotient sampling"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 5.8 (discrete-grid step)",
+      locator := "author's copy of December 27, 2005, §5.2, printed pp. 20–22" }
+  ]
+  theorems := [
+    Cslib.Crypto.SIS.MR07.map_quotientHom_uniform_eq_uniform_sublatticeQuot,
+    Cslib.Crypto.SIS.MR07.idealCombine_matrix_eq_uniform,
+    Cslib.Crypto.SIS.MR07.combineOutput_mem_intLattice,
+    Cslib.Crypto.SIS.MR07.combineOutput_mem_intLattice_and_norm_sub_le
+  ]
+  scope := "Discrete-grid formulation of MicciancioRegev2007 Lemma 5.8 for any full-rank integer \
+    sublattice pair L(S) ≤ L(B) in ℝⁿ (B.det ≠ 0, S.det ≠ 0) and nonzero modulus q. Proves exact \
+    uniformity of the HNF-free quotient surjection (ZMod D)ⁿ ↠ L(B) ∩ P(S) with D = |det(B⁻¹ S)|, \
+    exact uniformity of the combined matrix A ∈ (ZMod q)^{n × m} when C ~ U(GridRep B q)^m and \
+    V ~ U(SublatticeQuot B S)^m, unconditional membership combineOutput ∈ L(B) for every integer \
+    vector z, and ‖combineOutput − ∑ z_i c_i‖ ≤ √m · n · ‖intCol S‖ · ‖z‖₂ / q whenever A z ≡ 0 \
+    (mod q). Deviations from the source: works on the discrete grid G_q rather than continuous \
+    P(B), uses a deterministic quotient surjection instead of Hermite normal form, and states the \
+    norm bound with Mathlib's Pi supremum norm ‖intCol S‖."
+
+register_result "micciancio-regev-incgdd-finite-step" where
+  title := "Finite single-call reduction step from IncGDD to ℓ₂-SIS"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Theorem 5.9 (finite distributional step)",
+      locator := "author's copy of December 27, 2005, §5.3, printed pp. 22–24" }
+  ]
+  theorems := [
+    Cslib.Crypto.SIS.MR07.incGDD_succProb_of_sisEll2,
+    Cslib.Crypto.SIS.MR07.incGDD_succProb_of_closeTo
+  ]
+  scope := "Non-asymptotic single-call distributional reduction step toward MicciancioRegev2007 \
+    Theorem 5.9 for full-rank integer lattices L(S) ≤ L(B) in ℝⁿ (n, m ≥ 1, β ≥ 1, g > 0, r > 0, \
+    0 ≤ ε ≤ 1 / (400 · max 1 √m), g · n · √m · β ≤ q) under the dual-mass premise \
+    gaussianMass (dualSubmodule (innerₗ _) (intLattice B)) (2 / (2 r / (β √n))) 0 − 1 ≤ ε. \
+    Establishes unconditional output membership in L(B) (idealIncGDDStep_support_mem_intLattice), \
+    a single-call IncGDD success lower bound (1 / 3) · (sisEll2Advantage / (2 · ⌊β⌋ · m) − \
+    m · ε / (2 (1 − ε))) for any fixed solver F, and a CloseTo statistical-distance transfer to \
+    any approximate sampler μ. Strict-PPT sampler realization, independent amplification, \
+    iterative basis shortening, and asymptotic Theorem 5.9 / Corollary 5.13 / Theorem 5.16 \
+    hardness reductions are outside this entry and proved separately."

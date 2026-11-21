@@ -5340,6 +5340,7 @@ public import CslibFrontier.Crypto.Computational.SIS.MLKEM.PRFExpansion
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.PRFSecurity
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.SeedExpansion
+public import CslibFrontier.Crypto.Computational.SIS.MR07Core
 public import CslibFrontier.Crypto.Computational.SIS.Module
 public import CslibFrontier.Crypto.Computational.SIS.Module.ApproximateSampling
 public import CslibFrontier.Crypto.Computational.SIS.Module.MatrixSampling
