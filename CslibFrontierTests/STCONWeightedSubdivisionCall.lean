@@ -101,7 +101,8 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
         ⟨s.targetID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).2⟩
       let M := justesenWeightedSubdivisionCallback ntm
       let start := justesenSubdivisionEdgeStart (ctx, u.val, v.val)
-      M.halted (M.runFrom w start 3) = true ∧
+      (∀ t < 3, M.halted (M.runFrom w start t) = false) ∧
+        M.halted (M.runFrom w start 3) = true ∧
         (callbackVerdict (M.runFrom w start 3) = true ↔
           (graph (layeredDigraph I)
             (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj
@@ -111,6 +112,6 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   obtain ⟨C, hC⟩ := configurationJustesenSubdivisionEdge_contract ntm c
   refine ⟨C, fun w => ?_⟩
   intro I s size index seed ctx u v M start
-  exact (hC w seed u v).2
+  exact hC w seed u v
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall
