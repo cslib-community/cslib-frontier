@@ -10918,6 +10918,19 @@ register_result "difference-universal-hash-modulus-switching" where
     seed law under 2(p − 1) < N, which includes the source condition 2p ≤ N. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6961 at b5de2d09e6."
 
+register_result "difference-universal-hash-modulus-reduction" where
+  title := "A difference bound after reducing hash digests modulo a smaller modulus"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.22(b)",
+      locator := "v0.6, printed p. 283" }
+  ]
+  theorems := [Cslib.Probability.IsDeltaUniversalHash.zmod_cast_bound,
+    Cslib.Probability.IsDeltaUniversalHash.zmod_cast_div]
+  scope := "Reducing canonical residues from modulus p to modulus N multiplies the original \
+    difference bound by at most 2(p/N + 1). An original bound α/p gives 4α/N for N ≤ p. \
+    The first bound holds for any positive moduli and both allow arbitrary seed laws."
+
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
   topic := "cryptography"

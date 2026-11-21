@@ -113,6 +113,17 @@ example :
   norm_num at h
   exact h
 
+local instance : Fact (Nat.Prime 11) := ⟨by decide⟩
+
+/-- Reducing `Hxpoly` digests modulo 11 to residues modulo 9 gives a bound below one. -/
+example :
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 11) // m.length ≤ 1}) => (ZMod.cast (xpolyHash k m.val) : ZMod 9))
+      (8 / 9) := by
+  have h := (isDeltaUniversalHash_xpolyHash (F := ZMod 11) 1).zmod_cast_div (N := 9) (by decide)
+  norm_num at h
+  exact h
+
 /-! ### Multiply-shift on `4`-bit words -/
 
 /-- Multiply-shift evaluations and collision counts on `4`-bit words: half of the eight
