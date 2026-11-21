@@ -98,7 +98,7 @@ example :
 open Cslib.Code.JustesenFamily SeedWeight.Runtime in
 /-- The loaded executor returns the generator's weight from the original framed seed input. -/
 example {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w) :
-    let x : Input := ⟨⟨fieldContext w n, z.1.val, z.2.val⟩, List.ofFn seed⟩
+    let x := canonicalInput seed z
     let last := executor.runFrom (encInput x) (load x) (x.seed.length + 1)
     ComputableInSpace load encInput encRuntimeState
       (fun x => (SeedWeight.encContext x.context).length) ∧
@@ -108,19 +108,18 @@ example {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × F
   refine ⟨load_inSpace, hhalt, hfinish.trans ?_⟩
   exact congrArg encNat (SeedWeight.weight_eq_generatedWeight seed z)
 
-open Cslib.Code.JustesenFamily SeedWeight.Runtime in
-/-- The compiled machine computes the existing generated weight on a prepared canonical request. -/
-example {w n : ℕ} (z : Fin (n + 1) × Fin w) :
-    let pack : (Fin (codeLength w n) → Bool) ↪ Input :=
-      ⟨fun seed => ⟨⟨fieldContext w n, z.1.val, z.2.val⟩, List.ofFn seed⟩,
-        fun _ _ h => List.ofFn_injective (congrArg Input.seed h)⟩
-    ComputableInSpace (fun seed => generatedWeight seed z) (pack.trans encInput) encNat
-      (fun seed => (encInput (pack seed)).length + 1) := by
-  intro pack
-  have hnative := SeedWeight.Runtime.weight_inSpace.of_encIn_eq
-    (encIn' := pack.trans encInput) pack (fun _ => rfl)
-  refine hnative.of_enc_eq ?_
-  intro seed
-  exact congrArg encNat (SeedWeight.weight_eq_generatedWeight seed z).symm
+open Turing Cslib.Code.JustesenFamily SeedWeight.Runtime in
+/-- An ordinary-import caller obtains the native dimension budget at a nonzero layer. -/
+example :
+    ∃ (time : Input → ℕ) (C k : ℕ) (State : Type) (_ : Finite State)
+        (tm : MultiTapeTM k Bool State),
+      ∀ seed : Fin (codeLength 1 1) → Bool,
+        let z : Fin 2 × Fin 1 := (1, 0)
+        let x := canonicalInput seed z
+        let budget := C * ((encPair encNat encNat (1, 1)).length + 1)
+        tm.ComputesInTimeAndSpace (encInput x) (encNat (generatedWeight seed z)) (time x) budget ∧
+          (encNat (generatedWeight seed z)).length ≤ budget := by
+  obtain ⟨time, C, k, State, hfinite, tm, h⟩ := generatedWeight_computesInTimeAndSpace
+  exact ⟨time, C, k, State, hfinite, tm, fun seed => h (w := 1) (n := 1) seed (1, 0)⟩
 
 end CslibFrontierTests.HozaSeedDigits
