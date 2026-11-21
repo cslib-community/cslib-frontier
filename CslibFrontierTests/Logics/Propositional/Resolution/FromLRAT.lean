@@ -74,7 +74,9 @@ example : (match CDCL.solve php with
   decide +kernel
 
 -- CaDiCaL's certificate for PHP(5, 4): 45 clauses, 380 hints and 55 steps.
-#guard match CNF.LRAT.php.lratToProof CNF.LRAT.phpCert with
+/-- info: true -/
+#guard_msgs in
+#eval match CNF.LRAT.php.lratToProof CNF.LRAT.phpCert with
   | some ls => checkProof CNF.LRAT.php ls && ls.contains [] && ls.length == 377
   | none => false
 
