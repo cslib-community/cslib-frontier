@@ -38,8 +38,8 @@ This module formalizes conditional entropy-preserving pseudorandom generators
 [Y. Liu and R. Pass, *On One-Way Functions and Kolmogorov Complexity*][LiuPass2020]. All section,
 definition, theorem, lemma, and page locators follow the full version `arXiv:2009.11514v1`
 (and ECCC TR20-052): Section 5 (Definition 5.1, §5.1, p. 11; Lemma 5.1, §5.3, p. 14; Lemma 5.2,
-§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (pp. 21–24). Note that in
-`arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
+§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (printed pp. 21–23, PDF pp. 22–24). Note that
+in `arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
 `Fact` share a separate section counter.
 
 ## Main definitions
@@ -85,11 +85,18 @@ $(\mu, \gamma)$-condEP-PRG with entropy-loss constant $\alpha$ if:
 2. $G$ stretches every $n$-bit seed $z \in \{0, 1\}^n$ to length
    $n + \gamma \lfloor \log_2 n \rfloor$,
 3. there exists a sequence of nonempty conditioning events $E_n \subseteq \{0, 1\}^n$ such that:
-   - **(Conditional pseudorandomness):** For every strict PPT distinguisher $\mathcal{A}$,
+   - **(Conditional pseudorandomness):** For every uniform strict PPT distinguisher $\mathcal{A}$,
      eventually in $n$, the distinguishing advantage between $G(U_n \mid E_n)$ and
-     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$,
+     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$ (`≤ μ n`; note that
+     [LiuPass2020], Definition 2.6, p. 9 writes strict `< μ(n)`),
    - **(Conditional entropy preservation):** Eventually in $n$, the Shannon entropy of
-     $G(U_n \mid E_n)$ is at least $n - \alpha \lfloor \log_2 n \rfloor$. -/
+     $G(U_n \mid E_n)$ (base 2) is at least $n - \alpha \lfloor \log_2 n \rfloor$.
+
+Deviations from Definition 5.1: `γ` and `α` are natural numbers with `Nat.log 2 n` (`⌊log₂ n⌋`) in
+place of real constants and `log n`; `α` is an explicit parameter of `CondEPPRG` rather than
+existentially quantified; `E n` is explicitly required to be nonempty; distinguishers are uniform
+strict PPT (`IsPPT encBool`) rather than general PPT machines clocked only in `1^n`; and the
+distinguishing bound uses `≤ μ n` instead of `< μ(n)`. -/
 def CondEPPRG (G : List Bool → List Bool) (μ : ℕ → ℝ) (γ α : ℕ) : Prop :=
   ComputableInPolyTime G encBits encBits ∧
   (∀ z : List Bool, (G z).length = z.length + γ * Nat.log 2 z.length) ∧
@@ -634,7 +641,7 @@ private def rawGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_co
     h2 ++ LinearHash.wordHash (l2 + mActual d γ k n) h2 x
 
 /-- Full deterministic conditional entropy-preserving generator `G` ([Liu and Pass, Proof of
-Theorem 5.5, §5.3, p. 15 and Appendix A, pp. 21–24 of arXiv:2009.11514v1][LiuPass2020]),
+Theorem 5.5, §5.3, pp. 15–16 and Appendix A, pp. 21–23 of arXiv:2009.11514v1][LiuPass2020]),
 normalized to output length `z.length + γ * Nat.log 2 z.length` on every input `z`. -/
 private def fullGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_core γ : ℕ)
     (z : List Bool) : List Bool :=
@@ -926,7 +933,7 @@ private theorem fullGen_packSeedWords (g : List Bool → List Bool) (imgLen : �
   rw [hr_dec, htake1, htake2, htake3, hdrop3]
 
 /-- Conditioning event $E_n \subseteq \mathrm{BitString}\; n$ at seed length $n$
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 of arXiv:2009.11514v1][LiuPass2020]). -/
 private noncomputable def condSeedSet (imgLen : ℕ → ℕ) (d γ_core : ℕ)
     (S : ∀ k, Finset (BitString k)) (r : ∀ k, Fin (k + 1)) (n : ℕ) :
     Finset (BitString n) := by
@@ -1119,7 +1126,7 @@ private noncomputable def unifCoreDist (k imgLen_k m1 m2 c2 : ℕ) :
 
 /-- Statistical distance between `coreLHLDist` and `unifCoreDist` is bounded by the sum of the
 fiber leftover-hash error on $x$ and the image leftover-hash error on $f(x)$
-([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 21–22 of
+([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 22–23 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem dist_coreLHLDist_unifCoreDist_le {k imgLen_k m1 m2 c2 : ℕ}
     (f : BitString k → BitString imgLen_k) (r : Fin (k + 1))
@@ -1327,7 +1334,7 @@ private theorem unifCoreDist_bind_packLHL (k imgLen_k m1 m2 c2 padLen m_lhl : �
 /-- Conditional entropy preservation for `fullGen` on `condSeedSet`:
 when `coreLHLDist` is within `1 / (lhlPrefixLen d k n) ^ 2` of `unifCoreDist`, the Shannon
 entropy of `fullGen` on `condSeedSet` is at least `lhlPrefixLen d k n - 2`
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 and Lemma 2.2, §2.5, p. 9 of
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 and Lemma 2.2, §2.5, p. 9 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem entropy_fullGen_condSeedSet_ge (g : List Bool → List Bool) (imgLen : ℕ → ℕ)
     (d γ_core γ : ℕ) (S : ∀ k, Finset (BitString k)) (hS : ∀ k, (S k).Nonempty)
@@ -1853,7 +1860,7 @@ private theorem sum_mul_sum_mul_sum_comm {α β γ : Type*} [Fintype α] [Fintyp
 
 /-- Single-step hybrid prediction-to-inversion inequality on the fiber of `x₀` for fixed auxiliary
 words `pad`, `h1`, `z_tail`, `coins` and polarity `pol`
-([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 23–24 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 22–23 of arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem fiber_step_diff_le {k imgLen_k : ℕ}
     (f : BitString k → BitString imgLen_k) (x₀ : BitString k)
     (evaluate : (ℕ × List Bool) → List Bool → Bool) (pol : Bool)

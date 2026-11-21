@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryIrreducible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FindCode
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
@@ -18,13 +19,15 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 /-!
 # Outer binary-field modulus search in native space
 
-Given a native irreducibility test linear in the binary candidate length, search in increasing
-code order for the existing field modulus of the requested degree. The binary upper bound
-and each live candidate have length at most linear in the degree. The output is the modulus
-coefficient word, least significant coefficient first.
+Search in increasing code order for the existing field modulus of the requested degree,
+using the native binary irreducibility test. The binary upper bound and each live candidate
+have length at most linear in the degree. The output is the modulus coefficient word,
+least significant coefficient first.
 
 ## Main results
 
+* `Turing.BinaryField.modulusBitsScan_inSpace`: native modulus search in space linear in
+  the numeric degree.
 * `Turing.BinaryField.modulusBitsScan_inSpace_of_irreducible`: native space for the modulus
   search given the irreducibility test certificate.
 -/
@@ -66,5 +69,10 @@ theorem modulusBitsScan_inSpace_of_irreducible
   exact (budget_optionGetD 0 hscan).of_enc_eq fun w => by
     rw [modulusBitsScan_eq_findCode]
     rfl
+
+/-- The native binary irreducibility test gives modulus search in space linear in the degree. -/
+theorem modulusBitsScan_inSpace :
+    ComputableInSpace modulusBitsScan encNat encBits (fun w => w + 1) :=
+  modulusBitsScan_inSpace_of_irreducible isIrreducibleCode_inSpace
 
 end Turing.BinaryField

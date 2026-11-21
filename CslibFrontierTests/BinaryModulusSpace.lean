@@ -32,12 +32,12 @@ example : modulusBitsScan 0 = [] := by
   rw [modulusBitsScan_eq_findCode]
   decide
 
-/-- A supplied binary irreducibility certificate yields a modulus word paired with its degree. -/
-example (ht : ComputableInSpace isIrreducibleCode encNat encBool (fun m => (encNat m).length)) :
+/-- Native modulus search can retain the degree in the same linear space bound. -/
+example :
     ComputableInSpace (fun w => (w, modulusBitsScan w)) encNat (encPair encNat encBits)
       (fun w => w + 1) := by
   have hin : (fun w => (encNat w).length) ≼ fun w => w + 1 :=
     .of_le fun w => (length_encNat_le_self w).trans (Nat.le_succ w)
-  exact budget_prod (budget_id hin) (modulusBitsScan_inSpace_of_irreducible ht)
+  exact budget_prod (budget_id hin) modulusBitsScan_inSpace
 
 end CslibFrontierTests.BinaryModulusSpace
