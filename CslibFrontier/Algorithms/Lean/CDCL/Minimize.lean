@@ -121,38 +121,29 @@ variable {log₀ : LRATLog φ} {A M₀ : Trail}
 
 /-- **Minimizing a learned clause**, whose false literals are on the trail `T`, recursively if
 `recursive` (MiniSat's `ccmin_mode = 2`) and otherwise in the basic way (`ccmin_mode = 1`): the
-learned clause without its redundant literals, added to the log as a RUP step hinting the reasons
-of the derived literals and then the learned clause. The learned clause is kept if nothing is
-redundant, or if the RUP check fails. -/
+learned clause without its redundant literals, with the hints of the reasons of the derived literals
+and then those of the learned clause. The learned clause is kept if nothing is redundant, or if the
+RUP check fails. -/
 def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) (recursive : Bool := true) :
     Learned log₀ A M₀ :=
   let C := dedupLits L.clause
-  let r := minimizeRedundant L.log T C L.lit recursive
+  let r := minimizeRedundant log₀ T C L.lit recursive
   if r.1.isEmpty then L
   else
     let D := L.lit :: C.filter fun y => y != L.lit && !r.1.contains y
-    let hints := derivedHints T r.2 ++ [L.id]
+    let hints := derivedHints T r.2 ++ L.hints
     have hsub : ∀ y ∈ D, y ∈ L.clause := fun y hy => by
       rcases List.mem_cons.1 hy with rfl | hy
       · exact L.mem
       · exact (mem_dedupKey litKey_injective).1 (List.mem_filter.1 hy).1
-    if hprop : L.log.propagate (D.map Std.Sat.Literal.negate) hints = true then
-      { log := L.log.addRup D hints (L.log.propagate_eq _ _ ▸ hprop) fun l hl =>
-          LRATLog.vars_mem_of_clause? L.clause?_eq l (hsub l hl)
-        id := L.log.next
+    if hprop : log₀.propagate (D.map Std.Sat.Literal.negate) hints = true then
+      { L with
         clause := D
-        lit := L.lit
-        seen := L.seen
-        used := L.used
-        seen_mem := L.seen_mem
-        marks := L.marks
-        marks_none := L.marks_none
-        clause?_eq := LRATLog.clause?_addRup
+        hints := hints
+        rup := log₀.propagate_eq _ _ ▸ hprop
+        vars_mem := fun l hl => L.vars_mem l (hsub l hl)
         mem := List.mem_cons_self
-        false_below := fun y hy hne => L.false_below y (hsub y hy) hne
-        undef := L.undef
-        above := L.above
-        ext := L.ext.trans LRATLog.extends_addRup }
+        false_below := fun y hy hne => L.false_below y (hsub y hy) hne }
     else L
 
 end Cslib.Algorithms.Lean.CDCL

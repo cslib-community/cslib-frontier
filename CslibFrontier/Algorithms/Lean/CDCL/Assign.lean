@@ -107,6 +107,11 @@ theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
       · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : A.vals.size ≤ w)]
         split <;> rfl
 
+theorem assigned_set (A : Assign) (v w : ℕ) (x : Option Bool) :
+    (A.set v x).assigned w = if w = v then x.isSome else A.assigned w := by
+  simp only [assigned, value_set]
+  split <;> rfl
+
 theorem value_clear (A : Assign) (v w : ℕ) :
     (A.clear v).value w = if w = v then none else A.value w := by
   unfold clear value
