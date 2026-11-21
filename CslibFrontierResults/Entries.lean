@@ -10884,7 +10884,8 @@ register_result "difference-universal-hash-modulus-switching" where
   theorems := [Cslib.Probability.IsDeltaUniversalHash.zmod_cast]
   scope := "Take the canonical representatives of the original digests modulo p and cast \
     them to residues modulo N. The result preserves the difference bound for an arbitrary \
-    seed law under 2(p − 1) < N, which includes the source condition 2p ≤ N."
+    seed law under 2(p − 1) < N, which includes the source condition 2p ≤ N. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6961 at b5de2d09e6."
 
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
