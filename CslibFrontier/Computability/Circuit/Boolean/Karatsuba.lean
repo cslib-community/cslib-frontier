@@ -281,11 +281,12 @@ theorem gates_of_two_le {w : ℕ} (hw : 2 ≤ w) :
 
 /-! ### The synthesis bound -/
 
--- The availability premises below are closed by `synthesis_union`, which matches syntactic
--- members of the accumulated union `s ∪ T₁ ∪ ⋯ ∪ T₁₅` at reducible transparency. They call it
--- rather than `synthesis_available`, which costs the same here, so that a premise that leaves
--- this shape fails at once instead of falling back to the general search, which exhausts the
--- heartbeat budget on this chain.
+-- Keep the arithmetic stages named and compose only free rewiring rules to find their inputs.
+-- The availability search sees the builder's unions without unfolding the word operations.
+local macro "karatsuba_step " b:ident " to " targets:term:max " using " rule:term : tactic =>
+  `(tactic| synthesis_step (disch := synthesis_available [wordWires_subset_iff.mp,
+      wordWires_setWidth_subset, wordWires_shiftLeft_subset, wordWires_ofBool])
+    $b to $targets using $rule)
 
 private theorem synthesis_wideMul {n : ℕ} (w : ℕ) : ∀ (s : Set (BooleanFunction n))
     (a b : BitString n → BitVec w), wordWires a ⊆ s → wordWires b ⊆ s →
@@ -338,93 +339,53 @@ private theorem synthesis_wideMul {n : ℕ} (w : ℕ) : ∀ (s : Set (BooleanFun
       ⟨⟨m, by omega⟩, rfl⟩
     have hcb : (fun x => midCarry m (b x)) ∈ wordWires fun x => midSum m (b x) :=
       ⟨⟨m, by omega⟩, rfl⟩
-    -- Each step adds its targets to the available family; `synthesis_union` locates earlier ones.
-    have S0 : Synthesis interpretation s s 0 := Synthesis.of_subset Set.Subset.rfl
-    have S1 := S0.extend (wordWires fun x => z0 m (a x) (b x))
-      (ih m hmw s (fun x => low m (a x)) (fun x => low m (b x)) hloa hlob hz)
-    have S2 := S1.extend (wordWires fun x => z2 m (a x) (b x))
-      (ih m hmw _ (fun x => high m (a x)) (fun x => high m (b x))
-        (hhia.trans (by synthesis_union)) (hhib.trans (by synthesis_union)) (by synthesis_union))
-    have S3 := S2.extend (wordWires fun x => midSum m (a x))
-      (Synthesis.word_add (fun x => (low m (a x)).setWidth (m + 1))
+    let build := Synthesis.Builder.start interpretation s
+    karatsuba_step build to (wordWires fun x => z0 m (a x) (b x)) using
+      ih m hmw _ (fun x => low m (a x)) (fun x => low m (b x))
+    karatsuba_step build to (wordWires fun x => z2 m (a x) (b x)) using
+      ih m hmw _ (fun x => high m (a x)) (fun x => high m (b x))
+    karatsuba_step build to (wordWires fun x => midSum m (a x)) using
+      Synthesis.word_add (fun x => (low m (a x)).setWidth (m + 1))
         (fun x => (high m (a x)).setWidth (m + 1))
-        (wordWires_subset_iff.mp ((wordWires_setWidth_subset hloa hz).trans (by synthesis_union)))
-        (wordWires_subset_iff.mp ((wordWires_setWidth_subset hhia hz).trans (by synthesis_union))))
-    have S4 := S3.extend (wordWires fun x => midSum m (b x))
-      (Synthesis.word_add (fun x => (low m (b x)).setWidth (m + 1))
+    karatsuba_step build to (wordWires fun x => midSum m (b x)) using
+      Synthesis.word_add (fun x => (low m (b x)).setWidth (m + 1))
         (fun x => (high m (b x)).setWidth (m + 1))
-        (wordWires_subset_iff.mp ((wordWires_setWidth_subset hlob hz).trans (by synthesis_union)))
-        (wordWires_subset_iff.mp ((wordWires_setWidth_subset hhib hz).trans (by synthesis_union))))
-    have S5 := S4.extend (wordWires fun x => z1 m (a x) (b x))
-      (ih m hmw _ (fun x => midRem m (a x)) (fun x => midRem m (b x))
-        (hra (by synthesis_union) (by synthesis_union))
-        (hrb (by synthesis_union) (by synthesis_union)) (by synthesis_union))
-    have S6 := S5.extend (wordWires fun x => mask m (a x) (b x))
-      (Synthesis.word_mask (f := fun x => midCarry m (a x)) (b := fun x => midRem m (b x))
-        (by synthesis_union) (hrb (by synthesis_union) (by synthesis_union)))
-    have S7 := S6.extend (wordWires fun x => mask m (b x) (a x))
-      (Synthesis.word_mask (f := fun x => midCarry m (b x)) (b := fun x => midRem m (a x))
-        (by synthesis_union) (hra (by synthesis_union) (by synthesis_union)))
-    have S8 := S7.extend {fun x => midCarry m (a x) && midCarry m (b x)}
-      ((Synthesis.of_mem (I := interpretation) (f := fun x => midCarry m (a x))
-        (by synthesis_union)).and
-          (Synthesis.of_mem (f := fun x => midCarry m (b x)) (by synthesis_union)))
-    have hcc : (fun x => (midCarry m (a x) && midCarry m (b x))) ∈
-        ({fun x => midCarry m (a x) && midCarry m (b x)} : Set (BooleanFunction n)) := rfl
-    have S9 := S8.extend (wordWires fun x => p1 m (a x) (b x))
-      (Synthesis.word_add (fun x => (z1 m (a x) (b x)).setWidth (w + w))
+    karatsuba_step build to (wordWires fun x => z1 m (a x) (b x)) using
+      ih m hmw _ (fun x => midRem m (a x)) (fun x => midRem m (b x))
+    karatsuba_step build to (wordWires fun x => mask m (a x) (b x)) using
+      Synthesis.word_mask (f := fun x => midCarry m (a x)) (b := fun x => midRem m (b x))
+    karatsuba_step build to (wordWires fun x => mask m (b x) (a x)) using
+      Synthesis.word_mask (f := fun x => midCarry m (b x)) (b := fun x => midRem m (a x))
+    let build := build.add ((Synthesis.of_mem (I := interpretation)
+      (f := fun x => midCarry m (a x)) (by synthesis_available)).and
+      (Synthesis.of_mem (f := fun x => midCarry m (b x)) (by synthesis_available)))
+    karatsuba_step build to (wordWires fun x => p1 m (a x) (b x)) using
+      Synthesis.word_add (fun x => (z1 m (a x) (b x)).setWidth (w + w))
         (fun x => (mask m (a x) (b x)).setWidth (w + w) <<< m)
-        (wordWires_subset_iff.mp (wordWires_setWidth_subset
-          (value := fun x => z1 m (a x) (b x)) (by synthesis_union) (by synthesis_union)))
-        (wordWires_subset_iff.mp (wordWires_shiftLeft_subset (wordWires_setWidth_subset
-          (value := fun x => mask m (a x) (b x)) (by synthesis_union) (by synthesis_union))
-          (by synthesis_union))))
-    have S10 := S9.extend (wordWires fun x => p2 m (a x) (b x))
-      (Synthesis.word_add (fun x => p1 m (a x) (b x))
+    karatsuba_step build to (wordWires fun x => p2 m (a x) (b x)) using
+      Synthesis.word_add (fun x => p1 m (a x) (b x))
         (fun x => (mask m (b x) (a x)).setWidth (w + w) <<< m)
-        (wordWires_subset_iff.mp (by synthesis_union))
-        (wordWires_subset_iff.mp (wordWires_shiftLeft_subset (wordWires_setWidth_subset
-          (value := fun x => mask m (b x) (a x)) (by synthesis_union) (by synthesis_union))
-          (by synthesis_union))))
-    have S11 := S10.extend (wordWires fun x => p m (a x) (b x))
-      (Synthesis.word_add (fun x => p2 m (a x) (b x))
+    karatsuba_step build to (wordWires fun x => p m (a x) (b x)) using
+      Synthesis.word_add (fun x => p2 m (a x) (b x))
         (fun x =>
           (BitVec.ofBool (midCarry m (a x) && midCarry m (b x))).setWidth (w + w) <<< (m + m))
-        (wordWires_subset_iff.mp (by synthesis_union))
-        (wordWires_subset_iff.mp (wordWires_shiftLeft_subset (wordWires_setWidth_subset
-          (wordWires_ofBool (f := fun x => midCarry m (a x) && midCarry m (b x))
-            (by synthesis_union))
-          (by synthesis_union)) (by synthesis_union))))
-    have S12 := S11.extend (wordWires fun x => q1 m (a x) (b x))
-      (Synthesis.word_sub (fun x => p m (a x) (b x))
+    karatsuba_step build to (wordWires fun x => q1 m (a x) (b x)) using
+      Synthesis.word_sub (fun x => p m (a x) (b x))
         (fun x => (z0 m (a x) (b x)).setWidth (w + w))
-        (wordWires_subset_iff.mp (by synthesis_union))
-        (wordWires_subset_iff.mp (wordWires_setWidth_subset
-          (value := fun x => z0 m (a x) (b x)) (by synthesis_union) (by synthesis_union))))
-    have S13 := S12.extend (wordWires fun x => q m (a x) (b x))
-      (Synthesis.word_sub (fun x => q1 m (a x) (b x))
+    karatsuba_step build to (wordWires fun x => q m (a x) (b x)) using
+      Synthesis.word_sub (fun x => q1 m (a x) (b x))
         (fun x => (z2 m (a x) (b x)).setWidth (w + w))
-        (wordWires_subset_iff.mp (by synthesis_union))
-        (wordWires_subset_iff.mp (wordWires_setWidth_subset
-          (value := fun x => z2 m (a x) (b x)) (by synthesis_union) (by synthesis_union))))
-    have S14 := S13.extend (wordWires fun x => r1 m (a x) (b x))
-      (Synthesis.word_add (fun x => (z0 m (a x) (b x)).setWidth (w + w))
+    karatsuba_step build to (wordWires fun x => r1 m (a x) (b x)) using
+      Synthesis.word_add (fun x => (z0 m (a x) (b x)).setWidth (w + w))
         (fun x => q m (a x) (b x) <<< m)
-        (wordWires_subset_iff.mp (wordWires_setWidth_subset
-          (value := fun x => z0 m (a x) (b x)) (by synthesis_union) (by synthesis_union)))
-        (wordWires_subset_iff.mp (wordWires_shiftLeft_subset (g := fun x => q m (a x) (b x))
-          (by synthesis_union) (by synthesis_union))))
-    have S15 := S14.extend (wordWires fun x => r m (a x) (b x))
-      (Synthesis.word_add (fun x => r1 m (a x) (b x))
+    karatsuba_step build to (wordWires fun x => r m (a x) (b x)) using
+      Synthesis.word_add (fun x => r1 m (a x) (b x))
         (fun x => (z2 m (a x) (b x)).setWidth (w + w) <<< (m + m))
-        (wordWires_subset_iff.mp (by synthesis_union))
-        (wordWires_subset_iff.mp (wordWires_shiftLeft_subset (wordWires_setWidth_subset
-          (value := fun x => z2 m (a x) (b x)) (by synthesis_union) (by synthesis_union))
-          (by synthesis_union))))
     have hr : (fun x => wideMul (a x) (b x)) = fun x => r m (a x) (b x) :=
       funext fun x => (r_eq m (a x) (b x) hw2 hmW).symm
     rw [hr]
-    refine S15.mono Set.Subset.rfl Set.subset_union_right ?_
+    refine build.finish (by synthesis_available) ?_
+    dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]
     rw [gates_of_two_le hw, ← hm]
     omega
 

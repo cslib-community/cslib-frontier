@@ -105,27 +105,19 @@ theorem full_recombination (tailDim : ℕ) (rowDim : Fin N → ℕ)
   let build := Builder.start (fullInterpretation (k := 2)) src
   let build := build.add (full_const (k := 2) (s := build.wires) (0 : F))
   let build := build.add (full_const (k := 2) (s := build.wires) (1 : F))
-  let build := build.add (full_stack (src := build.wires) tailDim rowDim M χ
-    (fun i row c => Set.mem_union_left _ (Set.mem_union_left _ (hM i row c)))
-    (fun i => Set.mem_union_left _ (Set.mem_union_left _ (hχ i))))
-  have hA : ∀ k c, A k c ∈ build.wires := fun k c => Set.mem_union_right _ ⟨(k, c), rfl⟩
+  synthesis_step build using full_stack tailDim rowDim M χ
   have hb : ∀ c, b c ∈ build.wires := by
     intro c
-    by_cases hc : c = 0
-    · simp only [b, ite_eq_left hc]
-      exact Set.mem_union_left _ (Set.mem_union_right _ rfl)
-    · simp only [b, ite_eq_right hc]
-      exact Set.mem_union_left _ (Set.mem_union_left _ (Set.mem_union_right _ rfl))
-  let build := build.add (full_vecMulSolve A b hA hb)
+    dsimp only [b]
+    split_ifs <;> synthesis_available
+  synthesis_step build using full_vecMulSolve A b
   refine build.finish ?_ ?_
   · rintro _ ⟨⟨i, row⟩, rfl⟩
     refine Set.mem_union_right _ ⟨e ⟨i, row⟩, funext fun x => ?_⟩
     have hbx : (fun l => b l x) =
         (MonotoneSpanProgram.mk tailDim rowDim fun i row c => M i row c x).target := by
       funext l
-      by_cases hl : l = 0
-      · simp [b, MonotoneSpanProgram.target, hl]
-      · simp [b, MonotoneSpanProgram.target, hl]
+      by_cases hl : l = 0 <;> simp [b, MonotoneSpanProgram.target, hl]
     simp only [MonotoneSpanProgram.recombination, hbx, e, A]
   · have hmul : (∑ i, rowDim i) * (tailDim + 2) = (∑ i, rowDim i) * (tailDim + 1) + ∑ i, rowDim i :=
       Nat.mul_succ _ _
@@ -151,13 +143,10 @@ theorem full_nullVector (tailDim : ℕ) (rowDim : Fin N → ℕ)
       (univ.filter fun i => χ i x ≠ 0) k c
   let build := Builder.start (fullInterpretation (k := 2)) src
   let build := build.add (full_stack tailDim rowDim M χ hM hχ)
-  have hA : ∀ k c, A k c ∈ build.wires := fun k c => Set.mem_union_right _ ⟨(k, c), rfl⟩
-  let build := build.add (full_kernelVecAt A hA 0)
-  refine build.finish ?_ ?_
-  · rintro _ ⟨c, rfl⟩
-    exact Set.mem_union_right _ ⟨c, rfl⟩
-  · dsimp +zetaDelta [Builder.add, Builder.start]
-    omega
+  synthesis_step build using full_kernelVecAt A (j := 0)
+  refine build.finish (by synthesis_available) ?_
+  dsimp +zetaDelta [Builder.add, Builder.start]
+  omega
 
 /-- A field-gate circuit for `P_L` for each shape of program, a step toward the efficiency claim
 of [BonehShoup2023], Theorem 22.14(b) (p. 981), not that claim. For a program with
@@ -181,8 +170,6 @@ theorem full_normalForm (tailDim : ℕ) (rowDim : Fin N → ℕ)
       (univ.filter fun i => χ i x ≠ 0) c
   let build := Builder.start (fullInterpretation (k := 2)) src
   let build := build.add (full_nullVector tailDim rowDim M χ hM hχ)
-  have hv : ∀ c, v c ∈ build.wires := fun c => Set.mem_union_right _ ⟨c, rfl⟩
-  have hM' : ∀ i row c, M i row c ∈ build.wires := fun i row c => Set.mem_union_left _ (hM i row c)
   -- the new first columns
   let col : ((i : Fin N) × Fin (rowDim i)) → (Fin N' → F) → F := fun p x =>
     ∑ c, M p.1 p.2 c x * v c x
@@ -190,24 +177,17 @@ theorem full_normalForm (tailDim : ℕ) (rowDim : Fin N → ℕ)
     col (fun _ => 2 * (tailDim + 1) + 1) fun p => by
       simpa only [card_univ, Fintype.card_fin] using
         full_dot (s := build.wires) univ (fun c => M p.1 p.2 c) v
-          (fun c _ => hM' _ _ c) (fun c _ => hv c))
+          (by synthesis_available) (by synthesis_available))
   refine build.finish ?_ ?_
   · rintro _ ⟨⟨⟨i, row⟩, c⟩, rfl⟩
     refine Fin.cases ?_ (fun c => ?_) c
     · refine Set.mem_union_right _ ⟨⟨i, row⟩, funext fun x => ?_⟩
       exact (MonotoneSpanProgram.mulRight_shearMatrix_matrix_zero
         (MonotoneSpanProgram.mk tailDim rowDim fun i row c => M i row c x) _ i row).symm
-    · have hfun : (fun x => ((MonotoneSpanProgram.mk tailDim rowDim fun i row c =>
-          M i row c x).normalForm (univ.filter fun i => χ i x ≠ 0)).matrix i row c.succ) =
-            M i row c.succ :=
-        funext fun x => MonotoneSpanProgram.normalForm_matrix_succ
-          (MonotoneSpanProgram.mk tailDim rowDim fun i row c => M i row c x) _ i row c
-      have hmem : (fun x => ((MonotoneSpanProgram.mk tailDim rowDim fun i row c =>
-          M i row c x).normalForm (univ.filter fun i => χ i x ≠ 0)).matrix i row c.succ) ∈
-            src := by
-        rw [hfun]
-        exact hM i row c.succ
-      exact Set.mem_union_left _ (Set.mem_union_left _ hmem)
+    · convert (show M i row c.succ ∈ build.wires by synthesis_available) using 1
+      funext x
+      exact MonotoneSpanProgram.normalForm_matrix_succ
+        (MonotoneSpanProgram.mk tailDim rowDim fun i row c => M i row c x) _ i row c
   · have hmul : (∑ i, rowDim i) * (3 * tailDim + 4) =
         (∑ i, rowDim i) * (tailDim + 1) + (∑ i, rowDim i) * (2 * (tailDim + 1) + 1) := by
       rw [← Nat.mul_add]

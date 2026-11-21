@@ -275,34 +275,24 @@ theorem full_kernelVec (A : Fin r → Fin n → (Fin N → F) → F) (hA : ∀ k
     Synthesis (fullInterpretation (k := 2)) s
       (Set.range fun l x => kernelVec (fun k l => A k l x) l) (kernelVecCost r n) := by
   let K : Fin n → Fin n → (Fin N → F) → F := fun i l x => kernelBasis (fun k l => A k l x) i l
-  have h₁ := full_kernelBasisUpTo A hA r
-  set s₁ := s ∪ Set.range fun il : Fin n × Fin n =>
-    fun x => kernelBasisUpTo (fun k l => A k l x) r il.1 il.2
-  have hK : ∀ i l, K i l ∈ s₁ := fun i l => Set.mem_union_right _ ⟨(i, l), rfl⟩
+  let build := Builder.start (fullInterpretation (k := 2)) s
+  let build := build.add (full_kernelBasis A hA)
   -- the nonzero indicators of the members
   let c : Fin n → (Fin N → F) → F := fun i x => if (fun l => K i l x) = 0 then 0 else 1
-  have h₂ := family (I := fullInterpretation (k := 2)) (s := s₁) c (fun _ => n + 1)
-    (fun i => full_nonzero (K i) (hK i))
-  set s₂ := s₁ ∪ Set.range c
+  let build := build.add (family (I := fullInterpretation (k := 2)) (s := build.wires)
+    c (fun _ => n + 1) fun i => full_nonzero (K i) (by synthesis_available))
   -- their first nonzero entry
   let sel : Fin n → (Fin N → F) → F := fun i x => firstFlags (fun j => c j x) i
-  have h₃ := full_firstFlags (s := s₂) c fun i => Set.mem_union_right _ ⟨i, rfl⟩
-  set s₃ := s₂ ∪ Set.range sel
+  synthesis_step build using full_firstFlags c
   -- the selected member
-  have h₄ := family (I := fullInterpretation (k := 2)) (s := s₃)
-    (fun l x => ∑ i, sel i x * K i l x) (fun _ => 2 * n + 1)
-    (fun l => by
-      simpa [card_univ] using full_dot (s := s₃) univ sel (fun i => K i l)
-        (fun i _ => Set.mem_union_right _ ⟨i, rfl⟩)
-        (fun i _ => Set.mem_union_left _ (Set.mem_union_left _ (hK i l))))
-  have htotal := h₁.trans (h₂.trans (h₃.trans h₄))
-  refine htotal.mono Set.Subset.rfl ?_ ?_
-  · rintro _ ⟨l, rfl⟩
-    refine ⟨l, funext fun x => ?_⟩
-    have hc : (fun j => c j x) = fun i => if kernelBasis (fun k l => A k l x) i = 0 then 0 else 1 :=
-      rfl
-    simp only [sel, K, kernelVec, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, hc]
-  · simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, kernelVecCost]
+  let build := build.add (family (I := fullInterpretation (k := 2)) (s := build.wires)
+    (fun l x => ∑ i, sel i x * K i l x) (fun _ => 2 * n + 1) fun l =>
+      full_dot_univ sel (fun i => K i l) (by synthesis_available) (by synthesis_available))
+  refine build.finish ?_ ?_
+  · simp only [kernelVec, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
+    synthesis_available
+  · dsimp +zetaDelta [Builder.add, Builder.start]
+    simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, kernelVecCost]
     nlinarith
 
 end Synthesis

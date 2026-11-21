@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Circuit.Boolean.Word
+import CslibFrontier.Computability.Circuit.Boolean.Word.Rewire
 import CslibFrontier.Tactic.Synthesis
 import Mathlib.Tactic.FinCases
 
@@ -117,8 +117,14 @@ example {α : Type} (X Y s T₁ T₂ T₃ : Set α) (hX : X ⊆ T₂) (hY : Y �
     X ⊆ s ∪ T₁ ∪ T₂ ∪ T₃ ∧ Y ⊆ s ∪ T₁ ∪ T₂ ∪ T₃ :=
   ⟨by synthesis_union, by synthesis_union⟩
 
+-- A retained singleton and a pair-indexed family can be reused directly.
+example {α : Type} (f : α) (s t : Set α) : f ∈ s ∪ {f} ∪ t := by synthesis_union
+
+example {α β γ : Type} (f : α → β → γ) (a : α) (b : β) (s : Set γ) :
+    f a b ∈ s ∪ Set.range (fun p : α × β => f p.1 p.2) := by synthesis_available
+
 -- `synthesis_union` alone does not unfold `Builder.add`, so it cannot see the sources inside a
--- builder's `wires`; `synthesis_available` falls back to the general search.
+-- builder's `wires`; `synthesis_available` exposes that field before searching.
 example {n k w : ℕ} (records : Fin k → BitString n → BitVec w) (j : Fin k) :
     let b := (Synthesis.Builder.start interpretation (⋃ i, wordWires (records i))).add
       (Synthesis.const false)
@@ -126,5 +132,57 @@ example {n k w : ℕ} (records : Fin k → BitString n → BitVec w) (j : Fin k)
   intro b
   fail_if_success synthesis_union
   synthesis_available
+
+-- Construct a realistic chain outside the lookup's small budget.
+private def wordBuilder {n w : ℕ} (a b : BitString n → BitVec w)
+    (s : Set (BooleanFunction n)) (ha : wordWires a ⊆ s) (hb : wordWires b ⊆ s) :
+    Synthesis.Builder interpretation s := by
+  have ha' : ∀ j : Fin w, (fun x => (a x).getLsbD j.val) ∈ s := fun j => ha ⟨j, rfl⟩
+  have hb' : ∀ j : Fin w, (fun x => (b x).getLsbD j.val) ∈ s := fun j => hb ⟨j, rfl⟩
+  let build := Synthesis.Builder.start interpretation s
+  synthesis_step build using Synthesis.word_add a b
+  synthesis_step build using Synthesis.word_sub a b
+  synthesis_step build using Synthesis.word_not a
+  synthesis_step build using Synthesis.word_not b
+  synthesis_step build using Synthesis.word_add b a
+  synthesis_step build using Synthesis.word_sub b a
+  synthesis_step build using Synthesis.word_add a a
+  synthesis_step build using Synthesis.word_sub a a
+  synthesis_step build using Synthesis.word_add b b
+  synthesis_step build using Synthesis.word_sub b b
+  exact build
+
+-- The same fast source lookup works through a chain of builders. Reducing the builders must
+-- leave the word operations opaque.
+set_option maxHeartbeats 3000 in
+-- Keep the same small budget as the direct-union test above.
+example {n w : ℕ} (a b : BitString n → BitVec w) (s : Set (BooleanFunction n))
+    (ha : wordWires a ⊆ s) (hb : wordWires b ⊆ s) (i : ℕ)
+    (hi : (fun x => (b x).getLsbD i) ∈ s) :
+    wordWires a ⊆ (wordBuilder a b s ha hb).wires ∧
+      (fun x => (b x).getLsbD i) ∈ (wordBuilder a b s ha hb).wires :=
+  ⟨by synthesis_available, by synthesis_available⟩
+
+private def sumWord {n w : ℕ} (a b : BitString n → BitVec w) : BitString n → BitVec w :=
+  fun x => a x + b x
+
+-- Named outputs keep the arithmetic opaque; extending and shifting their bits costs no gates.
+example {n w v k : ℕ} (a b : BitString n → BitVec w) (s : Set (BooleanFunction n))
+    (ha : wordWires a ⊆ s) (hb : wordWires b ⊆ s) (hz : (fun _ => false) ∈ s) :
+    Synthesis interpretation s (wordWires fun x => (sumWord a b x).setWidth v <<< k)
+      (12 * w + 1) := by
+  let build := Synthesis.Builder.start interpretation s
+  synthesis_step (disch := synthesis_available [wordWires_subset_iff.mp]) build
+    to (wordWires (sumWord a b)) using Synthesis.word_add a b
+  refine build.finish ?_ (by change 0 + (12 * w + 1) ≤ _; omega)
+  synthesis_available [wordWires_shiftLeft_subset, wordWires_setWidth_subset]
+
+-- A rewiring rule cannot provide the padding constant when it was never made available.
+example {n w : ℕ} (a : BitString n → BitVec w) (s : Set (BooleanFunction n))
+    (_ha : wordWires a ⊆ s) : True := by
+  fail_if_success
+    have : wordWires (fun x => (a x).setWidth (w + 1)) ⊆ s := by
+      synthesis_available [wordWires_setWidth_subset]
+  trivial
 
 end CslibFrontierTests.SynthesisBuilder
