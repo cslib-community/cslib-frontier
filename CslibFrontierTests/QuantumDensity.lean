@@ -250,10 +250,20 @@ example : relativeEntropy
   simp [PMF.pure_apply, relativeEntropy_orthogonal_qubit_states]
 
 -- A deterministic classical label carries no information about its quantum block.
-example : mutualInformation
+private theorem mutualInformation_deterministic_label : mutualInformation
     (classicalQuantumState (PMF.pure false) (fun x => pureState (ket x))) = 0 := by
   rw [mutualInformation_classicalQuantumState _ (fun x => isDensityMatrix_pureState (norm_ket x)),
     partialTraceRight_classicalQuantumState, Fintype.sum_bool, Fintype.sum_bool]
   simp [PMF.pure_apply]
+
+-- A common reference orthogonal to the only active conditional state puts the
+-- infinity in the marginal-divergence term of the decomposition.
+example : relativeEntropy
+    (partialTraceRight (classicalQuantumState (PMF.pure false) (fun x => pureState (ket x))))
+    (pureState (ket true)) = ⊤ := by
+  have h := sum_weighted_relativeEntropy_eq_mutualInformation_add (PMF.pure false)
+    (fun x => isDensityMatrix_pureState (norm_ket x)) (pureState (ket true))
+  rw [mutualInformation_deterministic_label, zero_add, Fintype.sum_bool] at h
+  simpa [PMF.pure_apply, relativeEntropy_orthogonal_qubit_states] using h.symm
 
 end CslibFrontierTests.QuantumDensity
