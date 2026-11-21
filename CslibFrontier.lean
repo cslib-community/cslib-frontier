@@ -7325,6 +7325,7 @@ public import CslibFrontier.Foundations.NumberTheory.Padics.AdjoinRootReduction
 public import CslibFrontier.Foundations.NumberTheory.Padics.AdjoinRootValuation
 public import CslibFrontier.Foundations.NumberTheory.Padics.RatValuation
 public import CslibFrontier.Foundations.NumberTheory.Primality.EulerLiars
+public import CslibFrontier.Foundations.NumberTheory.Primality.Miller
 public import CslibFrontier.Foundations.NumberTheory.Primality.RabinMonier
 public import CslibFrontier.Foundations.NumberTheory.Primality.StrongLiars
 public import CslibFrontier.Foundations.NumberTheory.Primality.Witness
