@@ -38,8 +38,8 @@ This module formalizes conditional entropy-preserving pseudorandom generators
 [Y. Liu and R. Pass, *On One-Way Functions and Kolmogorov Complexity*][LiuPass2020]. All section,
 definition, theorem, lemma, and page locators follow the full version `arXiv:2009.11514v1`
 (and ECCC TR20-052): Section 5 (Definition 5.1, §5.1, p. 11; Lemma 5.1, §5.3, p. 14; Lemma 5.2,
-§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (pp. 21–24). Note that in
-`arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
+§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (printed pp. 21–23, PDF pp. 22–24). Note that
+in `arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
 `Fact` share a separate section counter.
 
 ## Main definitions
@@ -641,7 +641,7 @@ private def rawGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_co
     h2 ++ LinearHash.wordHash (l2 + mActual d γ k n) h2 x
 
 /-- Full deterministic conditional entropy-preserving generator `G` ([Liu and Pass, Proof of
-Theorem 5.5, §5.3, p. 15 and Appendix A, pp. 21–24 of arXiv:2009.11514v1][LiuPass2020]),
+Theorem 5.5, §5.3, p. 15 and Appendix A, pp. 21–23 of arXiv:2009.11514v1][LiuPass2020]),
 normalized to output length `z.length + γ * Nat.log 2 z.length` on every input `z`. -/
 private def fullGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_core γ : ℕ)
     (z : List Bool) : List Bool :=
