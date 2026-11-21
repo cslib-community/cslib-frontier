@@ -308,6 +308,7 @@ public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerRep
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexReader
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch.OriginalRoots
 public import CslibFrontier.Algorithms.Reachability.InductiveCounting
@@ -2986,6 +2987,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchPa
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSetup
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionCall
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionEndpoints
+public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionCall
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Writer
 public import CslibFrontier.Computability.Complexity.Problems.SetCover
 public import CslibFrontier.Computability.Complexity.Problems.SharpCycle
@@ -7291,6 +7293,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseOperator
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSemigroup
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSmooth
+public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 public import CslibFrontier.Foundations.Probability.Gaussian.OrnsteinUhlenbeck
 public import CslibFrontier.Foundations.Probability.Gaussian.Periodization
 public import CslibFrontier.Foundations.Probability.Gaussian.Poisson

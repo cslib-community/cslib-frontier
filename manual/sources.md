@@ -139,6 +139,11 @@ Moshe Babaioff, John Chuang and Michal Feldman. "Incentives in Peer-to-Peer Syst
 
 János Balogh, József Békési, György Dósa, Leah Epstein and Asaf Levin. *A new lower bound for classic online bin packing*. arXiv:1807.05554v1, 2018. https://arxiv.org/abs/1807.05554 ; published in *Algorithmica* 83(7), 2047–2062, 2021, https://doi.org/10.1007/s00453-021-00818-7 (bibliographic data from the Crossref record; the locators follow arXiv v1). Worker w156-ff read the arXiv version on 2026-11-08 UTC. Section 1 reports that Yao's first lower bound on the asymptotic competitive ratio uses at most three types of items, `1/7 + ε`, `1/3 + ε` and `1/2 + ε`; it does not state the value of that bound. It also reports the later bounds of Brown and Liang (`1.53635`), van Vliet (`1.5401474`) and Balogh, Békési and Galambos (`248/161`). The library's [OnlineLowerBound](../CslibFrontier/Algorithms/Lean/BinPacking/OnlineLowerBound.lean) module takes its item types from this report.
 
+<a id="banaszczyk1993"></a>
+## banaszczyk1993
+
+Wojciech Banaszczyk. "New Bounds in Some Transference Theorems in the Geometry of Numbers." *Mathematische Annalen* 296(4), 625–635, 1993. https://doi.org/10.1007/BF01445125 . Verified locator for the shifted Gaussian tail bound: Lemma 1.5(ii), printed p. 630 (with the centered case in Lemma 1.5(i) and mass-scaling in Lemma 1.4). The formalized statements in `Gaussian.OffCenterTail` also cross-reference [micciancioregev2007](#micciancioregev2007) Lemma 2.10 and Regev (JACM 2009, `Regev2009` in `references.bib`) Lemmas 2.4–2.5.
+
 <a id="barak-steurer16"></a>
 ## barak-steurer16
 
@@ -1514,6 +1519,11 @@ Dylan McKay, Cody D. Murray and R. Ryan Williams. *Weak Lower Bounds on Resource
 ## menger27
 
 Karl Menger. "Zur allgemeinen Kurventheorie." *Fundamenta Mathematicae* 10, 96–115, 1927. Cited for attribution only: the paper was not consulted, and the formal statements follow [schrijver17](#schrijver17) and [diestel25](#diestel25).
+
+<a id="micciancioregev2007"></a>
+## micciancioregev2007
+
+Daniele Micciancio and Oded Regev. "Worst-Case to Average-Case Reductions Based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007. https://doi.org/10.1137/S0097539705447360 . Author's copy dated December 27, 2005 (`https://cseweb.ucsd.edu/~daniele/papers/Gaussian.pdf`) inspected on 2026-11-20: Lemma 2.9 (shifted-vs-centered mass monotonicity, p. 9), Lemma 2.10 (Banaszczyk's centered and shifted Gaussian tails, p. 9), Lemma 4.1 (uniformity modulo a lattice for arbitrary centers, p. 12), and Lemma 4.4 (off-center discrete Gaussian sample-norm tail bound, p. 15). In `Gaussian.OffCenterTail`, the shifted tail sharpens eq. (6) of Lemma 2.10 by removing the factor of `2`, and `ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le` proves the dual-mass step toward Lemma 4.4 (not the `η_ε(L) ≤ s` endpoint), strengthening `(1 / 2) ^ n` to strict `(1 / 4) ^ n`. In `Gaussian.Quotient`, `ZLattice.tvDist_gaussian_shift_quotient_le` uses Mathlib's full-`L¹` `tvDist` convention (twice the source's half-`L¹` statistical distance `Δ`).
 
 <a id="mignonressayre04"></a>
 ## mignonressayre04
