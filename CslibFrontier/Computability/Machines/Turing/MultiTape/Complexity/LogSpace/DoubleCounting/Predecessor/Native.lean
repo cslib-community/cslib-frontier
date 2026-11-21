@@ -104,6 +104,34 @@ theorem Returns.exists_run_encoding_le {τ : Type} (encT : τ ↪ List Bool)
         (.inl (Predecessor.initial ctx)) hUB
       simpa only [hU] using hcall
 
+/-- A stopped return trace gives a first halt with the same complete prefix bound. -/
+theorem Returns.exists_firstHalt_encoding_le {τ : Type} (encT : τ ↪ List Bool)
+    {ctx : Context} {N : QueryMachine τ} {start : State → τ} {answer : τ → Option Bool}
+    {w : List Bool} {q : State} (h : Returns ctx N start answer w q) (hstop : halted q = true)
+    (D : ℕ)
+    (hc : ∀ p : State, p.context = ctx → Bounded p → halted p = false → ∀ T,
+      (∀ i < T, N.halted (N.runFrom w (start p) i) = false) →
+      N.halted (N.runFrom w (start p) T) = true →
+      ∀ i ≤ T, (encT (N.runFrom w (start p) i)).length ≤ D) :
+    let Q := computingMachine ctx N start answer
+    ∃ T, Q.halted (Q.run w T) = true ∧ (∀ i < T, Q.halted (Q.run w i) = false) ∧
+      Q.run w T = .inl q ∧ ∀ i ≤ T, (encMachineState encT (Q.run w i)).length ≤
+        4 * (encContext ctx).length + 8 * (Nat.log2 ctx.size + 1) + D + 16 := by
+  let Q := computingMachine ctx N start answer
+  obtain ⟨T, hT, hB⟩ := h.exists_run_encoding_le encT D hc
+  change Q.run w T = .inl q at hT
+  have stopped : ∃ i, Q.halted (Q.run w i) = true := ⟨T, by rw [hT]; exact hstop⟩
+  let clock := Nat.find stopped
+  have hhalt : Q.halted (Q.run w clock) = true := Nat.find_spec stopped
+  have hle : clock ≤ T := Nat.find_min' stopped (by rw [hT]; exact hstop)
+  refine ⟨clock, hhalt, ?_, (Q.run_eq_of_le w hhalt hle).symm.trans hT, ?_⟩
+  · intro i hi
+    cases h : Q.halted (Q.run w i) with
+    | false => rfl
+    | true => exact False.elim (Nat.find_min stopped hi h)
+  · intro i hi
+    exact hB i (hi.trans hle)
+
 /-- Compile the actual predecessor routine to a native computation, for a fixed explicit
 context and supplied same-input callees. Space charges original-input positions and the whole
 suspended caller/callee frame. Native time is independent and existential; no runtime polynomial
@@ -140,44 +168,24 @@ theorem compute_of_callees {α τ : Type} {n : ℕ} (enc : α ↪ List Bool)
       (fun a => c * S a) := by
   classical
   let Q := computingMachine ctx N start answer
-  have cert (a : α) : ∃ T q, Returns ctx N start answer (enc a) q ∧ halted q = true ∧
-      Q.run (enc a) T = .inl q ∧
+  have cert (a : α) : ∃ T, Q.halted (Q.run (enc a) T) = true ∧
+      (∀ i < T, Q.halted (Q.run (enc a) i) = false) ∧
+      encCountResult (countPredecessors (edge a) (member a) v) = Q.output (enc a) T ∧
       ∀ i ≤ T, (encMachineState encT (Q.run (enc a) i)).length ≤ S a := by
     obtain ⟨q, htrace, hstop⟩ := exists_stopped_returns ctx N start answer (enc a) (ht a)
-    obtain ⟨T, hT, hB⟩ := htrace.exists_run_encoding_le encT (D a) (hb a)
-    refine ⟨T, q, htrace, hstop, hT, ?_⟩
-    intro i hi
-    exact (hB i hi).trans (hframe a)
-  have stops (a : α) : ∃ T, Q.halted (Q.run (enc a) T) = true := by
-    obtain ⟨T, q, _, hstop, hT, _⟩ := cert a
-    exact ⟨T, by rw [hT]; exact hstop⟩
-  let time (a : α) := Nat.find (stops a)
-  have hhalt (a : α) : Q.halted (Q.run (enc a) (time a)) = true := Nat.find_spec (stops a)
-  have hpre (a : α) (i : ℕ) (hi : i < time a) : Q.halted (Q.run (enc a) i) = false := by
-    cases h : Q.halted (Q.run (enc a) i) with
-    | false => rfl
-    | true => exact False.elim (Nat.find_min (stops a) hi h)
-  have hf (a : α) : encCountResult (countPredecessors (edge a) (member a) v) =
-      Q.output (enc a) (time a) := by
-    obtain ⟨T, q, htrace, hstop, hT, _⟩ := cert a
-    have hQT : Q.halted (Q.run (enc a) T) = true := by rw [hT]; exact hstop
-    have hle : time a ≤ T := Nat.find_min' (stops a) hQT
-    have hstate : Q.run (enc a) (time a) = .inl q :=
-      (Q.run_eq_of_le (enc a) (hhalt a) hle).symm.trans hT
+    obtain ⟨T, hhalt, hpre, hT, hB⟩ :=
+      htrace.exists_firstHalt_encoding_le encT hstop (D a) (hb a)
+    refine ⟨T, hhalt, hpre, ?_, fun i hi => (hB i hi).trans (hframe a)⟩
     have hresult := result_of_returns (edge a) (member a) v hsize htrace hstop (hc a)
     rw [Q.output_eq_finish_of_emit_nil (enc a) (computingMachine_emit_eq_nil ctx N start answer),
-      hstate]
+      hT]
     exact congrArg encCountResult hresult.symm
+  choose time hhalt hpre hf hB using cert
   apply Q.computableInSpace (machine_query_inSpace encT ctx N start answer hq hs)
     (machine_next_inSpace encT ctx N start answer hn hh hs ha)
     (machine_emit_inSpace encT ctx N start answer hs)
     (machine_halted_inSpace encT ctx N start answer) (finishResult_inSpace encT)
     time hhalt hpre hf S hlog
-  refine ⟨1, ?_⟩
-  intro a i hi
-  obtain ⟨T, q, _, hstop, hT, hB⟩ := cert a
-  have hQT : Q.halted (Q.run (enc a) T) = true := by rw [hT]; exact hstop
-  have hle : time a ≤ T := Nat.find_min' (stops a) hQT
-  simpa only [Nat.one_mul] using hB i (hi.trans hle)
+  exact ⟨1, by simpa only [Nat.one_mul] using hB⟩
 
 end Turing.DoubleCounting.Predecessor

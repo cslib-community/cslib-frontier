@@ -12,7 +12,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FramePrefix
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
-import Mathlib.Data.Nat.Find
 
 /-!
 # Runtime predecessor context and original-input query transport
@@ -139,44 +138,39 @@ theorem compute_of_callees {α τ : Type} {n : α → ℕ} (enc : α ↪ List Bo
   let E := executor N start answer
   let encE := encLocated (State ⊕ (State × τ)) (encMachineState encT)
   let run (a : α) := E.runFrom (enc a) (entry τ (input a))
-  have cert (a : α) : ∃ T q, Returns (input a).context N start answer (input a).payload q ∧
-      halted q = true ∧ run a T = ⟨(load (input a)).offset, .inl q⟩ ∧
+  have hemit (p) : E.emit p = [] :=
+    computingMachine_emit_eq_nil dummy N start answer (p.1.inner, p.2)
+  have cert (a : α) : ∃ T, E.halted (run a T) = true ∧
+      (∀ i < T, E.halted (run a i) = false) ∧
+      encCountResult (countPredecessors (edge a) (member a) (v a)) =
+        E.outputFrom (enc a) (entry τ (input a)) T ∧
       ∀ i ≤ T, (encE (run a i)).length ≤ S a := by
     obtain ⟨q, htrace, hstop⟩ := exists_stopped_returns _ _ _ _ _ (ht a)
-    obtain ⟨T, hT, hB⟩ := htrace.exists_run_encoding_le encT (D a) (hb a)
+    obtain ⟨T, hhalt, hpre, hT, hB⟩ :=
+      htrace.exists_firstHalt_encoding_le encT hstop (D a) (hb a)
+    let inner := computingMachine (input a).context N start answer
     have transport (i : ℕ) :
-        run a i = ⟨(load (input a)).offset, (machine (input a).context N start answer).runFrom
-          (input a).payload (.inl (initial (input a).context)) i⟩ := by
+        run a i = ⟨(load (input a)).offset, inner.run (input a).payload i⟩ := by
       unfold run E
       rw [layout, executor_runFrom]
       rfl
-    refine ⟨T, q, htrace, hstop, by rw [transport, hT], ?_⟩
-    intro i hi
-    rw [transport, QueryMachine.length_encLocated]
-    exact (Nat.add_le_add_left (hB i hi) _).trans (hframe a)
-  have stops (a : α) : ∃ T, E.halted (run a T) = true := by
-    obtain ⟨T, q, _, hstop, hT, _⟩ := cert a
-    exact ⟨T, by rw [hT]; exact hstop⟩
-  let clock (a : α) := Nat.find (stops a)
-  have hhalt (a : α) : E.halted (run a (clock a)) = true := Nat.find_spec (stops a)
-  have hpre (a : α) (i : ℕ) (hi : i < clock a) : E.halted (run a i) = false := by
-    cases h : E.halted (run a i) with
-    | false => rfl
-    | true => exact False.elim (Nat.find_min (stops a) hi h)
-  have hemit (p) : E.emit p = [] :=
-    computingMachine_emit_eq_nil dummy N start answer (p.1.inner, p.2)
-  have hf (a : α) : encCountResult (countPredecessors (edge a) (member a) (v a)) =
-      E.outputFrom (enc a) (entry τ (input a)) (clock a) := by
-    obtain ⟨T, q, htrace, hstop, hT, _⟩ := cert a
-    have hle : clock a ≤ T := Nat.find_min' (stops a) (by rw [hT]; exact hstop)
-    let started := { E with init := entry τ (input a) }
-    have hstate : run a (clock a) = ⟨(load (input a)).offset, .inl q⟩ :=
-      (started.run_eq_of_le (enc a) (hhalt a) hle).symm.trans hT
-    rw [E.outputFrom_eq_finish_of_emit_nil _ hemit]
-    change _ = E.finish (run a (clock a))
-    rw [hstate]
-    exact congrArg encCountResult
-      (result_of_returns (edge a) (member a) (v a) (hsize a) htrace hstop (hc a)).symm
+    refine ⟨T, by rw [transport]; exact hhalt,
+      fun i hi => by rw [transport]; exact hpre i hi, ?_, ?_⟩
+    · rw [E.outputFrom_eq_finish_of_emit_nil _ hemit]
+      change _ = E.finish (run a T)
+      rw [transport, hT]
+      exact congrArg encCountResult
+        (result_of_returns (edge a) (member a) (v a) (hsize a) htrace hstop (hc a)).symm
+    · have htransport := inner.withOffset_runFrom_encoding_le (encMachineState encT)
+        (encInput (input a)) (load (input a)).offset (.inl (initial (input a).context))
+        (4 * (encContext (input a).context).length +
+          8 * (Nat.log2 (input a).context.size + 1) + D a + 16) T
+        (by rw [drop_payload]; exact hB)
+      intro i hi
+      have h := htransport i hi
+      rw [← layout a] at h
+      exact h.trans (hframe a)
+  choose clock hhalt hpre hf hB using cert
   have hinit := (entry_inSpace encT).of_encIn_eq input layout
   apply E.computableInSpaceFrom
     (Q.withOffset_query_inSpace _ (machine_query_inSpace encT dummy N start answer hq hs))
@@ -185,10 +179,6 @@ theorem compute_of_callees {α τ : Type} {n : α → ℕ} (enc : α ↪ List Bo
     (Q.withOffset_halted_inSpace _ (machine_halted_inSpace encT dummy N start answer))
     (Q.withOffset_finish_inSpace _ (finishResult_inSpace encT))
     clock S (hinit.mono_le (fun a => by have h := hframe a; omega)) hhalt hpre hf hlog
-  refine ⟨1, ?_⟩
-  intro a i hi
-  obtain ⟨T, q, _, hstop, hT, hB⟩ := cert a
-  have hle : clock a ≤ T := Nat.find_min' (stops a) (by rw [hT]; exact hstop)
-  simpa only [Nat.one_mul] using hB i (hi.trans hle)
+  exact ⟨1, by simpa only [Nat.one_mul] using hB⟩
 
 end Turing.DoubleCounting.Predecessor.Runtime
