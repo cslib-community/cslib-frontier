@@ -228,8 +228,8 @@ example : (CDCL.solveWith {} rootSat).2.simplified = 1 ∧
   decide
 
 /-- When the learned clause is the conflict clause, its number is both the learned one and among
-the clauses met: it is bumped once, by the increment `2 ^ 100`, not twice. -/
-example : ((CDCL.Reduction.init 3 3).learn [5] 5 6 false).act.get 5 = 2 ^ 100 := by
+the clauses met: it is bumped once, by the increment `2 ^ 40`, not twice. -/
+example : ((CDCL.Reduction.init 3 3).learn [5] 5 6 false).act.get 5 = 2 ^ 40 := by
   decide
 
 /-- The formula `a ∨ b`, `¬a ∨ b`: its clauses are numbered `1` and `2`. -/
