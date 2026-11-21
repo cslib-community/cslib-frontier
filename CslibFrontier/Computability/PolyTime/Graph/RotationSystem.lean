@@ -199,6 +199,8 @@ private theorem componentBool_polyTime {α : Type} {enc : α ↪ List Bool}
 attribute [local fun_prop] componentBool_polyTime
 
 private theorem reverseIndex_polyTime : ComputableInPolyTime reverseIndex encNat encNat := by
+  have hmod : ComputableInPolyTime (fun i : ℕ => i % 2) encNat encNat :=
+    ComputableInPolyTime.binary_mod' ComputableInPolyTime.id' (ComputableInPolyTime.const 2)
   unfold reverseIndex
   fun_prop
 
