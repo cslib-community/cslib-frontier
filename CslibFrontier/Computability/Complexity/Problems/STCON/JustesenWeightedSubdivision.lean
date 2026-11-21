@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.DeterministicCall
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.JustesenBit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
@@ -268,5 +269,23 @@ theorem configurationJustesenSubdivisionEdge_contract
       _ ≤ C * (D * (Nat.log2 w.length + 1) + (Nat.log2 w.length + 1)) :=
         Nat.mul_le_mul_left C (Nat.add_le_add_right hctx _)
       _ = _ := by rw [Nat.mul_assoc, Nat.add_mul, Nat.one_mul]
+
+/-- At valid initialized ranks and endpoints, the weighted edge callback has one successful
+first-halting selector list. That list takes all three deterministic steps on the original word. -/
+theorem configurationJustesenSubdivisionEdge_firstHalting_iff
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (u v : Fin size.vertexCount)
+      (bits : List Bool),
+      let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
+      let entry := some (justesenSubdivisionEdgeStart (ctx, u.val, v.val))
+      let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+      M.FirstHalting w bits entry ∧ (M.replay w bits entry).isSome ↔ bits = [false, false, false] :=
+  fun seed u v bits => by
+    obtain ⟨_, hcall⟩ := configurationJustesenSubdivisionEdge_contract ntm c
+    obtain ⟨hbefore, hhalt, _, _⟩ := hcall w seed u v
+    exact (justesenWeightedSubdivisionCallback ntm).withRejectingChoice_firstHalting_iff
+      w _ 3 hbefore hhalt bits
 
 end Cslib.Complexity.STCON

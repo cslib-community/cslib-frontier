@@ -125,12 +125,17 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
           (graph (layeredDigraph I)
             (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj
               (index.symm u) (index.symm v)) ∧
-        ∀ t ≤ 3, (encJustesenSubdivisionState (M.runFrom w start t)).length ≤
-          C * (Nat.log2 w.length + 1) := by
+        (∀ t ≤ 3, (encJustesenSubdivisionState (M.runFrom w start t)).length ≤
+          C * (Nat.log2 w.length + 1)) ∧
+        (∀ bits, M.withRejectingChoice.FirstHalting w bits (some start) ∧
+          (M.withRejectingChoice.replay w bits (some start)).isSome ↔
+            bits = [false, false, false]) := by
   obtain ⟨C, hC⟩ := configurationJustesenSubdivisionEdge_contract ntm c
   refine ⟨C, fun w => ?_⟩
   intro I s size index seed ctx u v M start
-  exact hC w seed u v
+  obtain ⟨hbefore, hhalt, hadj, hspace⟩ := hC w seed u v
+  exact ⟨hbefore, hhalt, hadj, hspace,
+    configurationJustesenSubdivisionEdge_firstHalting_iff ntm c w seed u v⟩
 
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     PolyBounded List.length (configurationJustesenBoundedWalkClock ntm c) :=
