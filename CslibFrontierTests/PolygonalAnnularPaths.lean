@@ -7,12 +7,12 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (ordinary annular routing client)
 
-public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
-public import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
+public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularSpokes
+import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
 import Mathlib.Analysis.SpecialFunctions.Complex.Circle
 import Mathlib.Tactic.FinCases
 
-/-! Matched continuous annular paths for exchanged antipodes and a clockwise cyclic shift. -/
+/-! Continuous annular paths for exchanged antipodes and polygonal spokes for a cyclic shift. -/
 
 public section
 
@@ -68,7 +68,7 @@ theorem antipodal_paths :
     apply Fin.rev_involutive.injective
     apply port_angles_injective (r := 2) (by norm_num)
     simpa only [q, Function.comp_apply, sub_zero] using h
-  obtain ⟨γ, hcont, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 1 0 (r := 1) (R := 2)
+  obtain ⟨γ, hcont, _, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 1 0 (r := 1) (R := 2)
     zero_lt_one (by norm_num) p q hp hq hp' hq' (two_port_order _) (two_port_order _)
   refine ⟨γ, hcont, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simpa [p, ports] using hstart 0
@@ -142,38 +142,19 @@ private theorem threePorts_angle {r : ℝ} (hr : 0 < r) (shift : Bool) (i : Fin 
     ((threePorts r shift i - 0).arg : Real.Angle) = threeAngles shift i := by
   rw [sub_zero, threePorts, Complex.arg_real_mul _ hr, Real.Angle.arg_toCircle]
 
--- The matching shifts a whole three-entry clockwise word across the angle cut.
-private theorem cyclic_shift_paths :
-    ∃ γ : Fin 3 → ℝ → ℂ, (∀ i, Continuous (γ i)) ∧
-      (∀ i, γ i 0 = threePorts 1 false i) ∧ (∀ i, γ i 1 = threePorts 2 true i) ∧
-      (∀ i t, t ∈ Set.Icc 0 1 → ‖γ i t‖ = AffineMap.lineMap (1 : ℝ) 2 t) ∧
-      Set.InjOn (fun x : Fin 3 × ℝ => γ x.1 x.2) {x | x.2 ∈ Set.Icc 0 1} := by
+-- The inner rays and the shifted outer ports form one embedded three-spoke fan.
+example : ∃ T : Fin 3 → Route,
+    (∀ i, (T i).start = 0 ∧ (T i).finish = threePorts 2 true i ∧
+      (T i).germ false = threePorts 1 false i ∧ (T i).IsSimple ∧
+      (T i).support \ Metric.ball 0 2 = {threePorts 2 true i}) ∧
+    Pairwise (fun i j => (T i).support ∩ (T j).support = {0}) := by
   have htwo : (0 : ℝ) < 2 := by norm_num
-  obtain ⟨γ, hcont, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 2 0
+  simpa only [sub_zero] using exists_annular_spokes 2 0
     zero_lt_one (by norm_num) (threePorts 1 false) (threePorts 2 true)
     (threePorts_norm zero_lt_one false) (threePorts_norm htwo true)
     (by simpa only [threePorts_angle zero_lt_one] using threeAngles_injective false)
     (by simpa only [threePorts_angle htwo] using threeAngles_injective true)
     (by simpa only [threePorts_angle zero_lt_one] using threeAngles_order false)
     (by simpa only [threePorts_angle htwo] using threeAngles_order true)
-  exact ⟨γ, hcont, hstart, hfinish, by simpa only [sub_zero] using hnorm, hinj⟩
-
--- The same three matching pairs can use finite routes with pairwise disjoint supports.
-example : ∃ P : Fin 3 → Route,
-    (∀ i, (P i).start = threePorts 1 false i) ∧
-    (∀ i, (P i).finish = threePorts 2 true i) ∧
-    Pairwise (fun i j => Disjoint (P i).support (P j).support) := by
-  obtain ⟨γ, hcont, hstart, hfinish, _, hinj⟩ := cyclic_shift_paths
-  have hsep : Pairwise (fun i j => Disjoint (γ i '' Set.Icc 0 1) (γ j '' Set.Icc 0 1)) := by
-    intro i j hij
-    apply Set.disjoint_left.mpr
-    rintro _ ⟨s, hs, rfl⟩ ⟨t, ht, heq⟩
-    have h : (i, s) = (j, t) := hinj hs ht heq.symm
-    exact hij (congrArg Prod.fst h)
-  obtain ⟨m, hm⟩ :=
-    (Route.eventually_pairwise_disjoint_sampled γ (fun i => (hcont i).continuousOn) hsep).exists
-  exact ⟨fun i => Route.sampled (γ i) m,
-    fun i => (Route.sampled_start (γ i) m).trans (hstart i),
-    fun i => (Route.sampled_finish (γ i) m).trans (hfinish i), hm⟩
 
 end CslibFrontierTests.PolygonalAnnularPaths

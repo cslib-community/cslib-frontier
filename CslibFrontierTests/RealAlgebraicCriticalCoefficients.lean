@@ -8,9 +8,14 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
+import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.InitialCriticalSeparability
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.SeparatedCriticalValues
+import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -226,5 +231,43 @@ example :
   have he := eq_of_eval_potentialPolynomial_eq_of_pow_eq_one (by decide : 1 ≤ 2) hz hw h
   have h0 := congrFun he 0
   norm_num at h0
+
+-- The initial characteristic polynomial in one variable has two simple roots.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let q := (parametricValuePolynomial (by decide : 1 ≤ 2) F hF).map
+      (Polynomial.eval₂RingHom (Int.castRingHom ℂ) 0)
+    q.Separable ∧ q.natDegree = 2 := by
+  intro F hF q
+  refine ⟨parametricValuePolynomial_at_zero_separable (by decide : 1 ≤ 2) F hF, ?_⟩
+  simp only [q, parametricValuePolynomial_map_eval₂, valuePolynomial_natDegree, pow_one]
+
+-- Choose an integer parameter for a nonconstant input and apply both specialization bounds.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let H := parametricValueCoeffNormExponent 1 2 0
+    let a : ℤ := 2 ^ (H + 1)
+    let s := Polynomial.parameterExclusionExponent 2 H
+    let q := valuePolynomial (by decide : 1 ≤ 2) (fun i => (separatedCenters 2 i : ℤ))
+      (2 ^ s) F hF
+    let q' := q.map (Int.castRingHom ℝ)
+    q.coeffNorm1 ≤ 2 ^ (H + s * 12) ∧ q'.Separable ∧ q'.eval (a : ℝ) ≠ 0 := by
+  intro F hF H a s q q'
+  have hb : F.coeffNorm1 ≤ 2 ^ 0 := by simp [F, MvPolynomial.coeffNorm1_X]
+  exact ⟨coeffNorm1_valuePolynomial_at_pow_two_le (by decide) F hF hb s,
+    valuePolynomial_at_integerParameterExclusion (by decide) F hF hb⟩
+
+-- A finite list of parameter coefficients recovers the linear characteristic coefficient.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let p := (parametricValuePolynomial (by decide : 1 ≤ 2) F hF).coeff 1
+    Polynomial.ofCoeffList (p.coeffsBelow 7) = p := by
+  intro F hF p
+  apply Polynomial.ofCoeffList_coeffsBelow
+  exact (natDegree_parametricValuePolynomial_coeff_le (by decide : 2 ≤ 2) F hF 1).trans_lt
+    (by decide)
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

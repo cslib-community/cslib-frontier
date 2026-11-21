@@ -242,8 +242,11 @@ noncomputable def rabinInversionGame (gen : BlumGen) (A : ℕ → ℕ × ℕ →
   let x' ← ProbComp.eval (A n (desc.modulus, y))
   return decide (x' ^ 2 % desc.modulus = y)
 
-/-- The Rabin one-wayness assumption for `gen`: every uniform PPT inverter has negligible
-probability of finding a modular square root of `x ^ 2 % N`. -/
+/-- The Rabin one-wayness assumption for `gen` ([KatzLindell2020], Section 15.5.2; locator not
+independently inspected in the 3rd-edition PDF): every uniform strict PPT inverter has negligible
+probability of finding a modular square root of `x ^ 2 % N` on Blum moduli drawn from `gen`, with
+the preimage `x` drawn from a uniform bit string of length `2 * N.bits.length` reduced modulo `N`
+rather than a uniform unit in `ℤ_N^*`. -/
 def RabinOneWay (gen : BlumGen) : Prop :=
   ∀ A : ℕ → ℕ × ℕ → ProbComp ℕ,
     IsPPTOn encModulusChallengeInput encNat

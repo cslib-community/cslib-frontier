@@ -80,6 +80,8 @@ to all words (`IsPPTOn.exists_extension`).
 
 ## References
 
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
+  Section 10.3, Attack Game 10.3 and Definition 10.5 (pp. 404–405).
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*][KatzLindell2020],
   Section 9.2.4, Definition 9.46 (The RSA Assumption) and Section 15.1.1, Definition 15.1
   (Trapdoor Permutations; RSA example on p. 526).
@@ -370,8 +372,10 @@ theorem rsaInversionGame_eq (gen : RSAGen) (inverter : RSAInverter) (n : ℕ) :
   simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   rfl
 
-/-- The RSA assumption for `gen`: every PPT inverter recovers a uniform residue from its RSA
-image with negligible probability. -/
+/-- The RSA assumption for `gen` ([BonehShoup2023], Attack Game 10.3 and Definition 10.5,
+pp. 404–405): every uniform strict PPT inverter recovers a uniform residue `x ∈ Fin N` from its
+RSA image `x ^ e mod N` with negligible probability. Keys are drawn from an arbitrary
+`gen : RSAGen` family rather than `RSAGen(ℓ, e)`. -/
 def RSAOneWay (gen : RSAGen) : Prop :=
   ∀ inverter : RSAInverter, inverter.IsPPT →
     Negligible fun n => Game.succProbability (rsaInversionGame gen inverter n)

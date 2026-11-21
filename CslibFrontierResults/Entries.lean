@@ -310,6 +310,7 @@ import CslibFrontier.Crypto.Computational.OneWay.Repeated
 import CslibFrontier.Crypto.Computational.OneWay.WeakNotStrong
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
+import CslibFrontier.Crypto.Computational.OneWayToSignature
 import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
@@ -324,6 +325,7 @@ import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
@@ -7082,6 +7084,25 @@ register_result "ajtai-collision-sis" where
     hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
     Ajtai) is not formalized."
 
+register_result "micciancio-regev-sis-ell2-existence" where
+  title := "Existence of short integer solutions in the Euclidean norm"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 5.2",
+      locator := "December 27, 2005 copy (Gaussian.pdf), §5.1, printed p. 17" }
+  ]
+  theorems := [
+    Cslib.Crypto.SIS.exists_isEll2Solution
+  ]
+  scope := "Every matrix A ∈ ℤ_q^{n×m} with nonzero modulus q, m > 0, and real Euclidean bound \
+    β ≥ √m · q^{n / m} admits a nonzero integer kernel vector z with ‖z‖₂ ≤ β and \
+    A z ≡ 0 (mod q), proved by the pigeonhole principle on {0, …, ⌊q^{n/m}⌋}^m. Covers all \
+    natural numbers n (including n = 0) and all nonzero moduli q (including composite moduli \
+    and q = 1). Companion problem definitions (GIVP, GDD, IncGDD, SISEll2) and norm-comparison \
+    bridges to SIS live in CslibFrontier.Crypto.Computational.Lattice.GIVP and \
+    CslibFrontier.Crypto.Computational.SIS.Ell2; worst-case to average-case reductions (MR07 \
+    Theorem 5.9) are not formalized here."
+
 register_result "nested-encryption-semantic-security" where
   title := "Nested encryption is semantically secure when all keys but one are revealed, \
     provided encryption preserves challenge admissibility (corrected Theorem 2.12)"
@@ -9244,6 +9265,43 @@ register_result "winternitz-domination-free" where
     sampling. The Winternitz signature scheme and Theorem 14.4 are not formalized. In the same \
     module, winternitzDigitList_polyTime computes the encoding in polynomial time, and \
     winternitzDigits_one_eq_one_iff_mem_optSet relates the case d = 1 to P_opt (p. 593)."
+
+register_result "lamport-one-time-signature" where
+  title := "Lamport's one-time signature scheme is secure from any one-way function on its domain"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Section 14.1, basic Lamport signature system S_L (Theorem 14.1 is the one-bit \
+        case; security follows from Theorem 14.2)",
+      locator := "Section 14.1, pp. 584–585; Theorem 14.2, p. 587" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneWayOn.oneTimeEUFCMA_lamport
+  ]
+  scope := "Basic Lamport one-time signature scheme S_L (lamportScheme f hf) built from one \
+    unkeyed function f on bit strings, evaluated in deterministic polynomial time. Parameter \
+    setting: message length v = n equals the security parameter and domain X = {0,1}^n, with \
+    public keys, secret keys, and signatures encoded via encList encBits. Hypothesis: OneWayOn f \
+    valid for an answer domain valid : ℕ → List Bool → Bool containing every n-bit word; at \
+    valid n w = decide (w.length = n) this is Definition 8.6 (Section 8.11.1, p. 336) on \
+    X = {0,1}^n against uniform strict PPT inverters given n in unary, and a wider valid \
+    strengthens the premise. lamportVerify checks both that each revealed signature block has \
+    length msg.length (lies in {0,1}^n) and that its f-image equals the corresponding public-key \
+    slot. Decoding note: the total decoder frames accepts incomplete or non-canonical final \
+    frames (e.g. [true, false] and [true, false, true] alongside the canonical \
+    [true, false, false] for [[false]]); this is sound for OneTimeEUFCMA because a forgery must \
+    be on a fresh message and lamportInverter uses the same frames decoder, though signatures \
+    are malleable on a fixed message (not SUF-CMA). Conclusion: OneTimeEUFCMA (Definition 14.1, \
+    p. 583; Attack Game 13.1, pp. 529–530, with at most one signing query) against uniform \
+    strict oracle-PPT forgers; wrong-length signing queries are answered with the empty word and \
+    neither signed nor recorded. Edge case n = 0 is admitted: M = {[]}, pk = sk = sig = [], and \
+    both games can be won with probability 1. Reduction: lamportInverter, certified strict PPT \
+    (isPPT_lamportInverter), embeds the challenge y at a slot guess sampled with fair coins from \
+    0, …, dyadicSize (2 * n) − 1 where dyadicSize m = 2^(⌊log₂ m⌋ + 1). Asymptotic; \
+    succProbability_eufOneTimeGame_lamport_le, in the same module, gives the concrete bound \
+    SIGadv[A, S_L] ≤ dyadicSize (2 * n) · OWadv[B, f] for every one-query adversary A and every \
+    n (with B scored on valid via inversionGameOn, loss factor dyadicSize (2 * n) ≤ 4 * n for \
+    n ≥ 1 and 2 at n = 0, replacing the source's 2 * n)."
 
 register_result "optimized-lamport-containment-free" where
   title := "The checksum encoding P_opt of optimized Lamport signatures is containment free"
