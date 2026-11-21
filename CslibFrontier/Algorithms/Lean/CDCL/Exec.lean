@@ -11,10 +11,11 @@ public import CslibFrontier.Algorithms.Lean.CDCL.System
 public import CslibFrontier.Logics.Propositional.Resolution.LRATLog
 public import CslibFrontier.Algorithms.Lean.DPLL
 
-/-! # A naive CDCL solver with LRAT certificates
+/-! # The state and moves of the CDCL solver
 
-An executable instance of abstract DPLL with learning (`Cslib.Algorithms.Lean.CDCL.Step`), which
-returns a model or an LRAT certificate (`Cslib.Algorithms.Lean.CDCL.solve`).
+The state of the executable CDCL solver (`Cslib.Algorithms.Lean.CDCL.solve`), an instance of
+abstract DPLL with learning (`Cslib.Algorithms.Lean.CDCL.Step`), with its moves and their
+invariant. Finding a conflict or a unit clause is left to the solver, which uses watched literals.
 
 **State.** The solver keeps a trail of decisions and of implied literals carrying the number of
 their *reason*, a clause of the log (`Cslib.Algorithms.Lean.CDCL.XEntry`), the numbered clauses of
@@ -27,7 +28,7 @@ with:
 * every clause of the database is in the log under its number;
 * no clause of the database is false on the part of the trail below a decision.
 
-**Moves** (`Cslib.Algorithms.Lean.CDCL.loop`):
+**Moves.**
 
 * If a clause is false and the trail has no decision, resolving it with the reasons of the trail,
   newest first, derives the empty clause (`Cslib.Algorithms.Lean.CDCL.refute`); the log, closed at
@@ -38,33 +39,32 @@ with:
   asserting clause: the analysed clause always has a literal false at the current level, and at
   the decision only the decision's negation can be one. The solver backjumps below the newest
   decision, adds the asserting literal with the learned clause as its reason, and learns the
-  clause (Backjump and Learn).
-* Otherwise it propagates a unit clause (UnitPropagate) if there is one, decides the first
-  variable of the database not yet assigned, `true` first (Decide), or returns the trail as a
-  model.
+  clause (Backjump and Learn, `Cslib.Algorithms.Lean.CDCL.Exec.afterConflict`).
+* UnitPropagate (`Cslib.Algorithms.Lean.CDCL.Exec.propagate`) and Decide
+  (`Cslib.Algorithms.Lean.CDCL.Exec.decide`).
 
 Every move is a Basic DPLL step, or Backjump followed by Learn, of the abstract system, and so
-lowers its rank (`Cslib.Algorithms.Lean.CDCL.rank`); recursion is structural on a bound on the
-rank, which provably never runs out, and the kernel can run the solver. Every learned clause, and
-every intermediate resolvent of the analysis, enters the certificate as a RUP step hinting the two
-clauses it resolves, so the checker accepts the certificate by construction
+lowers its rank (`Cslib.Algorithms.Lean.CDCL.rank`). Every learned clause, and every intermediate
+resolvent of the analysis, enters the certificate as a RUP step hinting the two clauses it
+resolves, so the checker accepts the certificate by construction
 (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
 
-**Scope.** This is the naive milestone of the MiniSat port: clauses are scanned in full instead of
-watched, decisions follow a fixed order, Backjump returns to just below the newest decision
+**Scope.** Decisions follow a fixed order, Backjump returns to just below the newest decision
 rather than to the second-highest level of the learned clause, intermediate resolvents are never
-deleted, and there are no restarts. These are later milestones.
+deleted, and there are no restarts. These are later milestones of the MiniSat port.
 
 ## Main definitions
 
+* `Cslib.Algorithms.Lean.CDCL.Exec`, `Cslib.Algorithms.Lean.CDCL.Exec.Inv`: the state and its
+  invariant.
 * `Cslib.Algorithms.Lean.CDCL.analyze`: first-UIP conflict analysis.
-* `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.solve`: the solver.
+* `Cslib.Algorithms.Lean.CDCL.refute`: the certificate when there is no decision.
 
 ## Main results
 
-* `Cslib.Algorithms.Lean.CDCL.solve_sat`, `Cslib.Algorithms.Lean.CDCL.solve_unsat`: both answers are
-  correct.
-* `Cslib.Algorithms.Lean.CDCL.isSat_solve_iff`: the solver decides satisfiability.
+* `Cslib.Algorithms.Lean.CDCL.Exec.afterConflict_spec`,
+  `Cslib.Algorithms.Lean.CDCL.Exec.propagate_spec`, `Cslib.Algorithms.Lean.CDCL.Exec.decide_spec`:
+  the moves keep the invariant and lower the rank.
 
 ## References
 
@@ -518,10 +518,6 @@ theorem Exec.init_inv (φ : CNF ℕ) : (Exec.init φ).Inv := by
 
 /-! ### Steps of the solver -/
 
-/-- A solver state with the invariant and a smaller rank than `S`. -/
-abbrev Exec.Next (S : Exec φ) :=
-  {S' : Exec φ // S'.Inv ∧ rank φ.vars S'.state < rank φ.vars S.state}
-
 theorem XTrail.trail_of_split {M : XTrail} {sp : Split} (hsp : XTrail.split M = some sp) :
     XTrail.trail M = XTrail.trail sp.above ++ ⟨sp.decision, true⟩ :: XTrail.trail sp.below := by
   rw [(XTrail.split_eq_some hsp).1]
@@ -636,18 +632,6 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
       rank φ.vars (.run (XTrail.trail S.trail) S.clauses)
     exact (LearnOrForget.rank_eq (.inl hlearn)).trans_lt (hbj.rank_lt hS.run)
 
-/-- **Conflict, analysis, Backjump and Learn**: with the clause `e` of the database false and the
-trail split at its newest decision, learn the first-UIP clause and go back below the decision,
-adding its asserting literal with the learned clause as reason. -/
-def Exec.backjump (S : Exec φ) (hS : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.db)
-    (hconf : Trail.Falsifies (XTrail.trail S.trail) e.2) (sp : Split)
-    (hsp : XTrail.split S.trail = some sp) : S.Next :=
-  let L := analyze S.log sp.decision sp.below (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])
-    sp.above (fun _ h => h) S.log (LRATLog.Extends.refl _) e.1 e.2
-    (hS.db_log e he) (hS.split_reasons hsp) (XTrail.split_eq_some hsp).2
-    (XTrail.falsifies_of_split hsp hconf) (hS.split_cur hsp he hconf) (hS.split_nodup hsp)
-  ⟨S.afterConflict sp L, Exec.afterConflict_spec hS he hconf hsp L⟩
-
 /-- A unit clause of the database: a numbered clause with every literal but one false on the trail,
 that literal being undefined. -/
 def findUnit (M : Trail) (db : List (ℕ × Clause ℕ)) : Option ((ℕ × Clause ℕ) × Literal ℕ) :=
@@ -668,10 +652,11 @@ theorem findUnit_spec {M : Trail} {db : List (ℕ × Clause ℕ)} {e : ℕ × Cl
 def Exec.propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=
   ⟨.implied l e.1 :: S.trail, S.db, S.log⟩
 
+/-- UnitPropagate with a clause of the database keeps the invariant and lowers the rank. -/
 theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
-    (h : findUnit (XTrail.trail S.trail) S.db = some (e, l)) :
+    (he : e ∈ S.db) (hl : l ∈ e.2) (hundef : l.1 ∉ Trail.vars (XTrail.trail S.trail))
+    (hfalse : ∀ l' ∈ e.2, l' ≠ l → l'.negate ∈ Trail.lits (XTrail.trail S.trail)) :
     (S.propagate e l).Inv ∧ rank φ.vars (S.propagate e l).state < rank φ.vars S.state := by
-  obtain ⟨he, hl, hundef, hfalse⟩ := findUnit_spec h
   have hc : e.2 ∈ S.clauses := List.mem_map.2 ⟨e, he, rfl⟩
   have hstep : BasicStep (.run (XTrail.trail S.trail) S.clauses)
       (.run (⟨l, false⟩ :: XTrail.trail S.trail) S.clauses) :=
@@ -708,98 +693,5 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
   | cons y N =>
     simp only [Exec.decide, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
     exact hS.below N d M₁ hN.2 c hc'
-
-theorem Exec.Inv.rank_pos {S : Exec φ} (hS : S.Inv) : 0 < rank φ.vars S.state := by
-  have := hS.run.measure_le
-  simp only [Exec.state, rank]
-  omega
-
-/-! ### The solver -/
-
-/-- The answer of the solver, with its correctness: a model, or an LRAT certificate accepted by
-the checker. -/
-inductive Answer (φ : CNF ℕ) : Type
-  /-- A model. -/
-  | sat (σ : ℕ → Bool) (h : φ.eval σ = true)
-  /-- An accepted certificate. -/
-  | unsat (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) (h : φ.checkLRAT cert = true)
-
-/-- **The CDCL loop.** With a false clause and no decision, derive the empty clause and return the
-certificate; with a false clause, analyze, backjump and learn; otherwise propagate a unit clause,
-or decide the first unassigned variable, or return the trail as a model when every variable is
-assigned. Every move lowers the rank, so `fuel` never runs out. -/
-def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : Exec φ) → S.Inv → rank φ.vars S.state ≤ fuel → Answer φ
-  | 0, _, hS, hfuel => absurd hfuel (by have := hS.rank_pos; omega)
-  | fuel + 1, S, hS, hfuel =>
-    match hconf : S.db.find? (fun e => decide (Trail.Falsifies (XTrail.trail S.trail) e.2)) with
-    | some e =>
-      have he : e ∈ S.db := List.mem_of_find?_eq_some hconf
-      have hce : Trail.Falsifies (XTrail.trail S.trail) e.2 := by
-        have := List.find?_some hconf
-        simpa only [decide_eq_true_eq] using this
-      match hsp : XTrail.split S.trail with
-      | none =>
-        let r := refute S.trail S.log e.1 e.2 (hS.db_log e he) hS.reasons
-          (XTrail.split_eq_none hsp) hce
-        .unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq)
-      | some sp =>
-        let S' := S.backjump hS e he hce sp hsp
-        loop φ fuel S'.1 S'.2.1 (by have := S'.2.2; omega)
-    | none =>
-      have hnoconf : ∀ c ∈ S.clauses, ¬ Trail.Falsifies (XTrail.trail S.trail) c := by
-        intro c hc hfalse
-        obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
-        exact List.find?_eq_none.1 hconf e he (decide_eq_true hfalse)
-      match hu : findUnit (XTrail.trail S.trail) S.db with
-      | some (e, l) =>
-        have hspec := Exec.propagate_spec hS hu
-        loop φ fuel (S.propagate e l) hspec.1 (by have := hspec.2; omega)
-      | none =>
-        match hx : S.clauses.vars.find? (fun x => !(Trail.vars (XTrail.trail S.trail)).contains x)
-        with
-        | some x =>
-          have hspec := Exec.decide_spec hS hnoconf (List.mem_of_find?_eq_some hx)
-            (by simpa using List.find?_some hx)
-          loop φ fuel (S.decide x) hspec.1 (by have := hspec.2; omega)
-        | none =>
-          .sat (Trail.assignment (XTrail.trail S.trail)) (hS.run.eval_model hnoconf fun x hxV => by
-            simpa using List.find?_eq_none.1 hx x hxV)
-
-/-- **The CDCL solver**: a model, or an LRAT certificate of unsatisfiability. -/
-def solve (φ : CNF ℕ) : DPLL.Result :=
-  match loop φ (rank φ.vars (Exec.init φ).state) (Exec.init φ) (Exec.init_inv φ) le_rfl with
-  | .sat σ _ => .sat σ
-  | .unsat cert _ => .unsat cert
-
-/-- **The models returned by the solver are models.** -/
-theorem solve_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solve φ = .sat σ) : φ.eval σ = true := by
-  unfold solve at h
-  split at h
-  · rename_i hσ _
-    cases h
-    exact hσ
-  · cases h
-
-/-- **The certificates returned by the solver are accepted by the LRAT checker.** -/
-theorem solve_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
-    (h : solve φ = .unsat cert) : φ.checkLRAT cert = true := by
-  unfold solve at h
-  split at h
-  · cases h
-  · rename_i hcert _
-    cases h
-    exact hcert
-
-/-- **The solver decides satisfiability.** -/
-theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : solve φ with
-    | sat σ => exact ⟨σ, solve_sat hs⟩
-    | unsat cert => simp [hs, DPLL.Result.isSat] at h
-  · intro h
-    cases hs : solve φ with
-    | sat σ => rfl
-    | unsat cert => exact absurd h (not_satisfiable_of_checkLRAT (solve_unsat hs))
 
 end Cslib.Algorithms.Lean.CDCL
