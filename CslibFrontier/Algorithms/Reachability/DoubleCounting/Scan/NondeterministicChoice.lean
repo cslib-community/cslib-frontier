@@ -167,6 +167,14 @@ theorem firstHalting_stop_iff (N : ℕ) (input choices : List Bool) :
         rfl
     · simp [run_continue]
 
+private theorem result_run_continue (N : ℕ) (input bits : List Bool)
+    (hlen : bits.length = N.size) :
+    VertexReader.result ((machine N).run input (true :: bits)).reader =
+      (decodeVertex (N := N) bits).map Fin.val := by
+  rw [run_continue]
+  change VertexReader.result ((VertexReader.machine N).run bits bits.length) = _
+  rw [hlen, VertexReader.result_eq_decodeVertex, List.take_of_length_le hlen.le]
+
 /-- A first halt yields a valid rank while reading precisely for the canonical continue marker
 and vertex ID. This gives both directions of the trace correspondence for each vertex. -/
 theorem firstHalting_vertex_iff (N : ℕ) (input choices : List Bool) (v : Fin N) :
@@ -179,18 +187,19 @@ theorem firstHalting_vertex_iff (N : ℕ) (input choices : List Bool) (v : Fin N
   | cons bit bits =>
     cases bit
     · simp [run_stop]
-    · rw [firstHalting_continue_iff, run_continue]
-      simp only [true_and, List.cons.injEq]
+    · have hreading : ((machine N).run input (true :: bits)).reading = true := by
+        rw [run_continue]
+      simp only [firstHalting_continue_iff, hreading, true_and, List.cons.injEq]
       constructor
       · rintro ⟨hlen, hresult⟩
-        rw [hlen, VertexReader.result_eq_decodeVertex, List.take_of_length_le hlen.le] at hresult
+        rw [result_run_continue N input bits hlen] at hresult
         obtain ⟨u, hu, huv⟩ := Option.map_eq_some_iff.mp hresult
         have he : u = v := Fin.ext huv
         exact (decodeVertex_eq_some_iff bits v).mp (he ▸ hu)
       · rintro rfl
         refine ⟨length_vertex v, ?_⟩
-        rw [length_vertex, VertexReader.result_eq_decodeVertex,
-          List.take_of_length_le (length_vertex v).le, (decodeVertex_eq_some_iff _ v).mpr rfl]
+        rw [result_run_continue N input _ (length_vertex v),
+          (decodeVertex_eq_some_iff _ v).mpr rfl]
         rfl
 
 /-- The accepted first-halting traces are precisely the canonical destination-boundary choices. -/
@@ -213,10 +222,7 @@ theorem firstHalting_accept_iff (N : ℕ) (input choices : List Bool) :
         · simp [run_stop] at hread
         · have hlen := (firstHalting_continue_iff N input bits).mp hfirst
           have hisSome := hread.2
-          rw [run_continue] at hisSome
-          change (VertexReader.result ((VertexReader.machine N).run bits bits.length)).isSome =
-            true at hisSome
-          rw [hlen, VertexReader.result_eq_decodeVertex, List.take_of_length_le hlen.le] at hisSome
+          rw [result_run_continue N input bits hlen] at hisSome
           obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp (by simpa using hisSome :
             (decodeVertex (N := N) bits).isSome = true)
           exact Or.inr ⟨v, congrArg (true :: ·) ((decodeVertex_eq_some_iff bits v).mp hv)⟩
