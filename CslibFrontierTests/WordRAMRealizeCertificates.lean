@@ -92,6 +92,52 @@ example (m : ℕ → Memory.Prog ℕ) (P : ℕ → ℕ → Memory.State → Prop
   realize [hTotal trivial]
   exact h
 
+-- A family is specialized independently at each call, with the selected domain retained.
+example (m : Fin 3 → ℕ → Memory.Prog ℕ) (P : Fin 3 → ℕ → ℕ → Memory.State → Prop)
+    (cert : ∀ i, Realizes .exact (m i) word word (P i) (fun _ _ => 0)) :
+    Realizes .exact (fun n : ℕ => m 2 n) word word (P 2) (fun _ _ => 0) := by
+  realize [cert]
+  exact h
+
+-- A failed early candidate cannot prevent a later matching certificate from being used.
+example (m : ℕ → Memory.Prog ℕ)
+    (_wrong : Realizes .standard m word word (fun _ _ _ => True) (fun _ _ => 0))
+    (right : Realizes .exact m word word (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact m word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize
+
+/--
+error: realize: unsupported client form
+  m d
+Expected `bind`, `pure`, a memory query, `if` on a word comparison,
+a `match` on an optional answer, `iterate` or `boundedWhile`.
+Write recursion on a runtime value as one of these loops.
+A matching method certificate was rejected:
+certificate `_wrong`: realize: the method's basis differs
+-/
+#guard_msgs (whitespace := lax) in
+example (m : ℕ → Memory.Prog ℕ)
+    (_wrong : Realizes .standard m word word (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact m word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize
+
+-- Quantified premises not determined by the call are never silently invented.
+example (m : ℕ → Memory.Prog ℕ) (P : Prop)
+    (_needsProof : P → Realizes .exact m word word (fun _ _ _ => True) (fun _ _ => 0)) : True := by
+  fail_if_success
+    have _ : Realizes .exact m word word (fun _ _ _ => True) (fun _ _ => 0) := by
+      realize [_needsProof]
+  trivial
+
+-- A separate native program for each index is not a uniform program for runtime indices.
+example (m : ℕ → ℕ → Memory.Prog ℕ)
+    (_cert : ∀ i, Realizes .exact (m i) word word (fun _ _ _ => True) (fun _ _ => 0)) : True := by
+  fail_if_success
+    have _ : Realizes .exact (fun d : ℕ × ℕ => m d.1 d.2) pairWords word
+        (fun _ _ _ => True) (fun _ _ => 0) := by
+      realize [_cert]
+  trivial
+
 -- Supplied frontier-bounded certificates use the existing bounded frontend and static wiring.
 example (m : ℕ → Memory.Prog ℕ) (P : ℕ → ℕ → Memory.State → Prop)
     (hm : True → RealizesBounded .exact m word word P (fun _ _ => 0)) :

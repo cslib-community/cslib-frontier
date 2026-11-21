@@ -78,7 +78,11 @@ its whole encoded argument with a charged `pure` step. This also supports custom
 without requiring a `WordEncoding` instance for the method's argument type.
 
 `realize [certificate₁, …]` first adds the supplied proof terms as local facts in list order,
-then runs the same tactic. Existing local certificates retain priority.
+then runs the same tactic. Existing local certificates retain priority. Certificate families
+may leave static parameters quantified when matching the called method determines them; no runtime
+value or undetermined proof is guessed. Enable `trace.realize.calls` to inspect rejected
+certificates. If syntax-directed realization also fails, the error includes the most relevant
+matching certificate rejection.
 
 Each certificate is stated for the client form as written, with its domain in the client's terms
 (`certify`), so certificates compose syntactically. A bind's continuation domain is stated at the
@@ -95,6 +99,8 @@ public meta section
 namespace Cslib.Tactic.Realize
 
 open Lean Meta Elab Tactic Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
+
+initialize registerTraceClass `realize.calls
 
 /-- The live words of a realization environment. -/
 private structure Env where
@@ -936,18 +942,24 @@ private def reindexCall (env : Env) (d arg certificate : Expr) (positions : Arra
 wiring; otherwise a certified `pure` stage computes the argument in the callee's encoding. -/
 private def tryRealizeCall (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Expr)
     (body : Expr) (output? : Option Expr) (stage : Expr → Expr → TermElabM Out) :
-    TermElabM (Option Out) := do
+    TermElabM (Option Out × Option MessageData) := do
+  let mut failure? := none
+  let mut best := 0
+  let tracing ← isTracingEnabledFor `realize.calls
   for decl in ← getLCtx do
     if decl.isImplementationDetail then continue
     let ty ← instantiateMVars decl.type
-    unless ty.isAppOfArity ``Realizes 10 do continue
+    unless ty.getForallBody.isAppOfArity ``Realizes 10 do continue
     let saved ← saveState
+    let (params, _, ty) ← forallMetaTelescope ty
+    let certificate := mkAppN decl.toExpr params
+    let args := ty.getAppArgs
+    let arg ← callArgument args[2]!
+    let called := (mkApp args[5]! arg).headBeta
+    let relevance := if called.getAppFn == body.getAppFn then 1 else 0
     try
-      let args := ty.getAppArgs
       unless ← withReducible (isDefEq args[4]! ctx.basis) do
         throwError "realize: the method's basis differs"
-      let arg ← callArgument args[2]!
-      let called := (mkApp args[5]! arg).headBeta
       -- Solve dependent arguments in binder order without unfolding a matching method head.
       let matched ← if called.getAppFn == body.getAppFn &&
           called.getAppNumArgs == body.getAppNumArgs then
@@ -965,18 +977,25 @@ private def tryRealizeCall (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Exp
         throwError "realize: the method does not match"
       let arg ← instantiateMVars arg
       if arg.hasMVar then throwError "realize: the method argument is undetermined"
-      discard <| checkOutput decl.toExpr output?
+      discard <| checkOutput certificate output?
+      let certificate ← instantiateMVars certificate
+      if certificate.hasMVar then
+        throwError "realize: certificate parameters remain undetermined; \
+          supply an explicit application"
+      if certificate.containsFVar d.fvarId! then
+        throwError "realize: certificate parameters depend on runtime data; \
+          provide a uniform certificate"
       let k ← encodingWidth args[6]!
       let coords ← encodingAtoms args[6]! arg k
       let positions ← coords.mapM fun a => liftMetaM (findAtom atoms a)
       if positions.all Option.isSome then
-        return some (← reindexCall env d arg decl.toExpr (positions.map Option.get!))
+        return (some (← reindexCall env d arg certificate (positions.map Option.get!)), none)
       -- Stage the typed argument, rather than guessing an inverse for its encoding. The pure
       -- bind reduces to the original call, and the existing glue rule charges its computation.
       let hP ← stage arg args[6]!
       let env' ← extend env args[2]! args[6]! k
       let hQ ← withLocalDeclD `x env'.ty fun x => do
-        reindexCall env' x (← mkAppM ``Prod.snd #[x]) decl.toExpr
+        reindexCall env' x (← mkAppM ``Prod.snd #[x]) certificate
           ((Array.range k).map (env.k + ·))
       let (reply, next) ← withLocalDeclD `s (mkConst ``Memory.State) fun s => do
         return (← mkLambdaFVars #[d, s] arg, ← mkLambdaFVars #[d, s] s)
@@ -985,9 +1004,18 @@ private def tryRealizeCall (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Exp
         withLocalDeclD `s (mkConst ``Memory.State) fun s => do
           mkLambdaFVars #[w, d, s] (mkAnd (hP.safe.beta #[w, d, s])
             (← reducePairs (mkApp3 args[8]! w arg s)))
-      return some { proof, output := hQ.output, safe, work := ← certificateWork proof }
-    catch _ => saved.restore
-  return none
+      return (some { proof, output := hQ.output, safe, work := ← certificateWork proof }, none)
+    catch ex =>
+      let message? ← if tracing || relevance > best then
+        some <$> addMessageContext m!"certificate `{decl.userName}`: {ex.toMessageData}"
+        else pure none
+      saved.restore
+      if let some message := message? then
+        trace[realize.calls] "{message}"
+        if relevance > best then
+          best := relevance
+          failure? := some message
+  return (none, failure?)
 
 /-- Lift returned selections through their constructor/application context. Only the listed
 equalities are used: arithmetic and method definitions are left for their existing rules. -/
@@ -1068,11 +1096,17 @@ private partial def realizeProg (ctx : Ctx) (env : Env) (prog : Expr) (output? :
     let stage (a output : Expr) : TermElabM Out := do
       let body ← mkAppOptM ``Pure.pure #[mkConst ``Memory.Prog, none, none, a]
       realizeBody ctx env d atoms body (some output)
-    if let some out ← tryRealizeCall ctx env d atoms (prog.beta #[d]).headBeta output? stage then
+    let (call?, failure?) ← tryRealizeCall ctx env d atoms (prog.beta #[d]).headBeta output? stage
+    if let some out := call? then
       return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
-    let body ← normBody (prog.beta #[d]).headBeta
-    let out ← realizeBody ctx env d atoms body output?
-    return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
+    try
+      let body ← normBody (prog.beta #[d]).headBeta
+      let out ← realizeBody ctx env d atoms body output?
+      return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
+    catch ex =>
+      if let some failure := failure? then
+        throwError "{ex.toMessageData}\nA matching method certificate was rejected:\n{failure}"
+      throw ex
 
 /-- Certify the body of a client for the environment variable `d`. -/
 private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Expr)
