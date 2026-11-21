@@ -207,10 +207,10 @@ def mulXMod (g r : List Bool) : List Bool :=
   (if (false :: r).getD (g.length - 1) false then (false :: r).zipWith xor g
     else false :: r).take (g.length - 1)
 
-private theorem length_mulXMod (l r : List Bool) (h : r.length = l.length) :
-    (mulXMod (l ++ [true]) r).length = l.length := by
+private theorem length_mulXMod (g r : List Bool) (h : r.length = g.length - 1) :
+    (mulXMod g r).length = g.length - 1 := by
   unfold mulXMod
-  split_ifs <;> simp [h]
+  split_ifs <;> simp only [List.length_take, List.length_zipWith, List.length_cons, h] <;> omega
 
 private theorem mk_polyOfBits_mulXMod (l r : List Bool) (h : r.length = l.length) :
     AdjoinRoot.mk (polyOfBits (l ++ [true])) (polyOfBits (mulXMod (l ++ [true]) r)) =
@@ -237,6 +237,12 @@ def modStep (g : List Bool) (state : List Bool × List Bool) (b : Bool) :
     List Bool × List Bool :=
   (mulXMod g state.1, if b then state.2.zipWith xor state.1 else state.2)
 
+private theorem length_modStep_acc (g p a : List Bool) (b : Bool)
+    (hp : p.length = g.length - 1) (ha : a.length = g.length - 1) :
+    (modStep g (p, a) b).2.length = g.length - 1 := by
+  unfold modStep
+  split <;> simp [hp, ha]
+
 /-- The remainder of the polynomial with coefficient list `f` modulo the one with coefficient list
 `g`, as a coefficient list of length `g.length - 1`: the sum of the remainders of the powers
 `X ^ j` with `f j = 1`, computed by repeated multiplication by `X` modulo `g`. -/
@@ -258,9 +264,11 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
   induction f generalizing p a with
   | nil => simp [hp, ha]
   | cons b f ih =>
-    have hp' := length_mulXMod l p hp
+    have hp' : (mulXMod (l ++ [true]) p).length = l.length := by
+      simpa using length_mulXMod (l ++ [true]) p (by simpa using hp)
     have ha' : (if b then a.zipWith xor p else a).length = l.length := by
-      split_ifs <;> simp [ha, hp]
+      simpa [modStep] using length_modStep_acc (l ++ [true]) p a b
+        (by simpa using hp) (by simpa using ha)
     obtain ⟨h1, h2, h3, h4⟩ := ih _ _ hp' ha'
     refine ⟨h1, h2, ?_, ?_⟩
     · rw [List.foldl_cons, modStep, h3, map_mul, mk_polyOfBits_mulXMod l p hp, map_mul,
@@ -290,6 +298,19 @@ words hold successive shifts of `a` modulo `g` and the partial product. For a mo
 `a` should have length one less than `g`. -/
 def modMulBits (g a b : List Bool) : List Bool :=
   (b.foldl (modStep g) (a, List.replicate (g.length - 1) false)).2
+
+/-- Multiplication retains the modulus width for any supplied modulus if the first operand
+already has that width. -/
+theorem length_modMulBits (g a b : List Bool) (ha : a.length = g.length - 1) :
+    (modMulBits g a b).length = g.length - 1 := by
+  have h (bits shift acc : List Bool) (hs : shift.length = g.length - 1)
+      (ha : acc.length = g.length - 1) :
+      (bits.foldl (modStep g) (shift, acc)).2.length = g.length - 1 := by
+    induction bits generalizing shift acc with
+    | nil => exact ha
+    | cons bit bits ih =>
+      exact ih _ _ (length_mulXMod g shift hs) (length_modStep_acc g shift acc bit hs ha)
+  exact h b a _ ha (by simp)
 
 /-- With `a` padded to the degree of the modulus, any prefix of the multiplier leaves two
 degree-sized words and its modular product is the product in the quotient. -/
