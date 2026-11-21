@@ -186,4 +186,39 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
     exact ⟨fun _ => none, ⟨rfl, false, run_skip _ _ _⟩, fun _ h =>
       MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm⟩
 
+/-- A supplied round and concrete final membership can share the existing source-loop
+transition and query certificates. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    {ρ : Type} (encRound : ρ ↪ List Bool)
+    (initial : SourceRoundLoop.Registers JustesenSourceContext)
+    (round : NondeterministicQueryMachine ρ)
+    (roundStart : SourceRoundLoop.Registers JustesenSourceContext → ρ)
+    (roundReply : ρ → Option RoundUpdate) :
+    let R := SourceRoundLoop.encRegisters encJustesenSourceContext
+    let encMember := MembershipTally.encRetainedState encJustesenSubdivisionContext
+      encJustesenSubdivisionState
+    let E := SourceRoundLoop.encState encJustesenSourceContext encRound encMember
+    let encRoundStep := encPair encRound encReadChoice
+    let encStep := encPair E encReadChoice
+    let M := SourceRoundLoop.machine initial round roundStart roundReply
+      (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
+      MembershipTally.retainedReply
+    ComputableInSpace round.query encRound encNat (fun s => (encRound s).length) →
+    ComputableInSpace roundStart R encRound (fun r => (R r).length) →
+    ComputableInSpace roundReply encRound (encOption encRoundUpdate)
+      (fun s => (encRound s).length) →
+    ComputableInSpace round.halted encRound encBool (fun s => (encRound s).length) →
+    ComputableInSpace round.next encRoundStep encRound (fun p => (encRoundStep p).length) →
+    ComputableInSpace M.query E encNat (fun s => (E s).length) ∧
+      ComputableInSpace M.next encStep E (fun p => (encStep p).length) := by
+  intro R encMember E encRoundStep encStep M hquery hstart hreply hhalt hnext
+  obtain ⟨hq, hn, hh, hr⟩ := justesenSourceMembershipMachine_parts_inSpace ntm c
+  exact ⟨SourceRoundLoop.query_inSpace encJustesenSourceContext encRound encMember
+      initial round roundStart roundReply (justesenSourceMembershipMachine ntm c)
+      justesenSourceMembershipStart MembershipTally.retainedReply hquery hq,
+    SourceRoundLoop.next_inSpace encJustesenSourceContext encRound encMember
+      initial round roundStart roundReply (justesenSourceMembershipMachine ntm c)
+      justesenSourceMembershipStart MembershipTally.retainedReply
+      hstart justesenSourceMembershipStart_inSpace hreply hr hhalt hh hnext hn⟩
+
 end CslibFrontierTests.STCONJustesenTally

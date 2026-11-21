@@ -91,12 +91,6 @@ theorem justesenSourceMembershipStart_inSpace :
 
 variable {k : ℕ} {State : Type} [Fintype State]
 
-/-- The source loop supplies the actual tally entry through its current registers. -/
-noncomputable def justesenSourceMembershipMachine (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
-    NondeterministicQueryMachine
-      (MembershipTally.RetainedState JustesenSubdivisionContext JustesenSubdivisionState) :=
-  configurationJustesenMembershipTally ntm c [] 0 ⟨0, 0, 0, 0, ⟨0, 0⟩⟩
-
 /-- Re-entry in the final membership call uses the source scan's word, rank, and tally. -/
 theorem justesenSourceMembershipMachine_withInit
     (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool)

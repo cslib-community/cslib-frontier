@@ -21,6 +21,9 @@ to every bounded walk, so the typed scan uses the subdivision adjacency for the 
 
 ## Main results
 
+* `Cslib.Complexity.STCON.justesenSourceMembershipMachine_parts_inSpace`: linear-space
+  operation certificates for the source loop's re-entrant tally.
+
 * `Cslib.Complexity.STCON.configurationJustesenMembershipTally_firstHalting_iff`: exact
   first-halting selector and membership-reply correspondence for the weighted tally.
 * `Cslib.Complexity.STCON.configurationJustesenMembershipTally_existsUnique_firstHalting`:
@@ -58,6 +61,45 @@ noncomputable def configurationJustesenMembershipTally (ntm : MultiTapeNTM k Boo
   MembershipTally.retainedMachine (justesenWeightedSubdivisionCallback ntm)
     (fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)) callbackVerdict 3
     (tallyWalkInitial ntm c) (configurationJustesenSubdivisionContext ntm c w rank) params
+
+/-- The source loop supplies the actual tally entry through its current registers. -/
+@[expose] noncomputable def justesenSourceMembershipMachine
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    NondeterministicQueryMachine
+      (MembershipTally.RetainedState JustesenSubdivisionContext JustesenSubdivisionState) :=
+  configurationJustesenMembershipTally ntm c [] 0 ⟨0, 0, 0, 0, ⟨0, 0⟩⟩
+
+open NondeterministicQueryMachine (encReadChoice) in
+/-- The fixed callback's query, transition, halt, and optional reply run in linear
+workspace in their encoded operation requests. -/
+theorem justesenSourceMembershipMachine_parts_inSpace
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    let M := justesenSourceMembershipMachine ntm c
+    let E := MembershipTally.encRetainedState encJustesenSubdivisionContext
+      encJustesenSubdivisionState
+    let encStep := encPair E encReadChoice
+    ComputableInSpace M.query E encNat (fun s => (E s).length) ∧
+      ComputableInSpace M.next encStep E (fun p => (encStep p).length) ∧
+      ComputableInSpace M.halted E encBool (fun s => (E s).length) ∧
+      ComputableInSpace MembershipTally.retainedReply E (encOption encBool)
+        (fun s => (E s).length) := by
+  intro M E encStep
+  let edge := justesenWeightedSubdivisionCallback ntm
+  let start := fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)
+  let initial := tallyWalkInitial ntm c
+  let ctx := configurationJustesenSubdivisionContext ntm c [] 0
+  let params : MembershipTally.Context := ⟨0, 0, 0, 0, ⟨0, 0⟩⟩
+  let encCtx := encJustesenSubdivisionContext
+  let encCallee := encJustesenSubdivisionState
+  obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm
+  exact ⟨MembershipTally.retainedMachine_query_inSpace edge start callbackVerdict 3
+      initial ctx encCtx encCallee params hq,
+    MembershipTally.retainedMachine_next_inSpace edge start callbackVerdict 3
+      initial ctx encCtx encCallee params justesenSubdivisionEdgeStart_inSpace hn hh
+      (callbackVerdict_inSpace _ _),
+    MembershipTally.retainedMachine_halted_inSpace edge start callbackVerdict 3
+      initial ctx encCtx encCallee params,
+    MembershipTally.retainedReply_inSpace encCtx encCallee⟩
 
 /-- Changing the original word, rank, and query parameters changes only the tally entry. -/
 theorem configurationJustesenMembershipTally_withInit (ntm : MultiTapeNTM k Bool State) (c : ℕ)
