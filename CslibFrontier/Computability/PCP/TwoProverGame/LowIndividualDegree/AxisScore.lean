@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree
+public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import Mathlib.Algebra.BigOperators.Expect
 import CslibFrontier.Probability.PMF.Expect
@@ -59,6 +60,22 @@ theorem acceptScore_le_one
   split_ifs
   · exact le_rfl
   · exact S.prob_nonneg _ _ _ _
+
+/-- A pair of answer decoders agreeing on each accepted answer pair has agreement
+at least the verifier acceptance score. -/
+theorem acceptScore_le_decodedAgreement {B : Type*} [Fintype B] [DecidableEq B]
+    (S : CommutingStrategy (Question F m) (Question F m) (Answer F m) (Answer F m) A)
+    (d : ℕ) (x y : Question F m) (f g : Answer F m → B)
+    (hagree : ∀ a b, accepts d x y a b → f a = g b) :
+    acceptScore S d x y ≤
+      Cslib.Quantum.Measurement.agreement S.state ((S.alice x).map f) ((S.bob y).map g) := by
+  classical
+  simp only [acceptScore, Cslib.Quantum.Measurement.agreement_map_map]
+  refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
+  by_cases h : accepts d x y a b
+  · simp only [ite_eq_left h, hagree a b h, ite_true, CommutingStrategy.prob, le_refl]
+  · rw [ite_eq_right h]
+    exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
 
 private theorem branchWinProb_eq_weighted {n : ℕ} (d : ℕ) (b : Branch)
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
