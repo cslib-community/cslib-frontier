@@ -2764,9 +2764,11 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RestorationSimplicity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restriction
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RouteSupports
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SegmentArrangement
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitLayout
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SquareMove
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
