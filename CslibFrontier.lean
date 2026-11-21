@@ -7257,6 +7257,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.HermiteExpansion
 public import CslibFrontier.Foundations.Probability.Gaussian.MassBounds
 public import CslibFrontier.Foundations.Probability.Gaussian.Measure
 public import CslibFrontier.Foundations.Probability.Gaussian.Moments
+public import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
 public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseOperator
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSemigroup
