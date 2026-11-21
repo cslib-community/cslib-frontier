@@ -83,8 +83,11 @@ whose projection to `P` differs from that of `ρ` (`Cslib.Logic.PL.VeriPB.exclus
 CakePB, `solx` needs no objective and no earlier unchecked deletion, and the witnesses of `red`
 and of checked deletion must leave the variables of `P` alone (`Cslib.Logic.PL.VeriPB.presFree`,
 CakePB's `check_pres`). `ENUMERATION_PARTIAL n` claims `n` distinct projections of solutions;
-`ENUMERATION_COMPLETE n : q` claims exactly `n`, with the contradiction `q`. The rules that
-change the preserved set (`preserved_add`, `preserved_rm`, §5.10) are not supported.
+`ENUMERATION_COMPLETE n : q` claims exactly `n`, with the contradiction `q`. Both need a
+preserved set, even for `n = 0`: VeriPB 3.0.2 and CakePB accept `ENUMERATION_* 0` without a
+`preserved:` line, and this checker rejects it. A variable listed twice in the preserved set
+counts once. The rules that change the preserved set (`preserved_add`, `preserved_rm`, §5.10) are
+not supported.
 
 **Core and derived constraints** (§3.4). The database is split into a *core set* and a *derived
 set* (`Cslib.Logic.PL.VeriPB.State`). The input constraints start in the core. Implicational
@@ -190,6 +193,10 @@ covers only proofs without them.
   core set, and one top-level step.
 * `Cslib.Logic.PL.VeriPB.Objective.add`, `Cslib.Logic.PL.VeriPB.objuCheck`: the sum of
   objectives and the check of an objective update `obju`.
+* `Cslib.Logic.PL.VeriPB.proj`, `Cslib.Logic.PL.VeriPB.exclusion`,
+  `Cslib.Logic.PL.VeriPB.presFree`, `Cslib.Logic.PL.VeriPB.projections`: projections to the
+  preserved set, the solution-excluding constraint of `solx`, witnesses that leave the preserved
+  set alone, and the projected solutions that `ENUMERATION` counts.
 
 ## Main results
 
@@ -208,7 +215,12 @@ covers only proofs without them.
   `Cslib.Logic.PL.VeriPB.not_satisfiable_of_checkRed_bounds`,
   `Cslib.Logic.PL.VeriPB.exists_eval_le_of_checkRed`: soundness for `BOUNDS`, its lower bound,
   infinite lower bound and upper bound.
-* `Cslib.Logic.PL.VeriPB.le_encard_of_checkRed_enum`,
+* `Cslib.Logic.PL.VeriPB.holds_exclusion`: the solution-excluding constraint holds exactly off the
+  logged projection.
+* `Cslib.Logic.PL.VeriPB.stepTop_enumInv`, `Cslib.Logic.PL.VeriPB.stepTop_covers`: the
+  enumeration invariants.
+* `Cslib.Logic.PL.VeriPB.isSome_of_checkRed_enum`,
+  `Cslib.Logic.PL.VeriPB.le_encard_of_checkRed_enum`,
   `Cslib.Logic.PL.VeriPB.encard_eq_of_checkRed_enumComplete`: soundness for `ENUMERATION`.
 * `Cslib.Logic.PL.VeriPB.checkRed_map_step`: without `red` and solutions, the checker of
   `Cslib.Logic.PL.VeriPB.check`.
@@ -636,9 +648,12 @@ def solves (ρ : List (Literal ℕ)) (cs : List PBConstr) : Bool :=
   ρ.all (fun l => !ρ.contains (Std.Sat.Literal.negate l)) &&
     cs.all fun c => decide (c.degree ≤ coeffSum (c.terms.filter fun t => ρ.contains t.2))
 
+/-- `ρ` assigns every variable of `P`, as `solx` requires in the kernel format (§6.1). -/
+def assignsAll (ρ : List (Literal ℕ)) (P : List ℕ) : Bool :=
+  P.all fun x => ρ.contains (x, true) || ρ.contains (x, false)
+
 /-- `ρ` assigns every variable of the objective, as `soli` requires (§5.8.2). -/
-def assigns (ρ : List (Literal ℕ)) (f : Objective) : Bool :=
-  f.lin.all fun e => ρ.contains (e.1, true) || ρ.contains (e.1, false)
+def assigns (ρ : List (Literal ℕ)) (f : Objective) : Bool := assignsAll ρ (f.lin.map (·.1))
 
 /-- Lower the bound `d`, if any, to `v`. -/
 def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
@@ -648,15 +663,12 @@ def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v)
 /-- The values of the preserved variables `P` under `σ`: the projection of `σ` to `P`. -/
 def proj (P : List ℕ) (σ : ℕ → Bool) : List Bool := P.map σ
 
-/-- `ρ` assigns every variable of `P`, as `solx` requires in the kernel format (§6.1). -/
-def assignsAll (ρ : List (Literal ℕ)) (P : List ℕ) : Bool :=
-  P.all fun x => ρ.contains (x, true) || ρ.contains (x, false)
-
 /-- **The solution-excluding constraint** of `ρ` over `P` (§5.8.3): `∑ x` over the variables of
 `P` false in `ρ`, plus `∑ ¬x` over those true, at least `1`. It holds exactly at the assignments
-whose projection to `P` differs from that of `ρ`. -/
+whose projection to `P` differs from that of `ρ`. A variable listed twice in `P` gives one term, so
+the constraint is normalized: `preserved:` is a set (VeriPB and CakePB). -/
 def exclusion (P : List ℕ) (ρ : List (Literal ℕ)) : PBConstr :=
-  ⟨P.map fun x => (1, (x, !assignOf ρ x)), 1⟩
+  ⟨P.dedup.map fun x => (1, (x, !assignOf ρ x)), 1⟩
 
 /-- The witness `ω` leaves the preserved variables, if any, alone (CakePB's `check_pres`). -/
 def presFree (pres : Option (List ℕ)) (ω : Witness) : Bool :=
@@ -714,14 +726,16 @@ def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : Lis
              else if solves ρ (F.map normalize) then lowerTo s.bound (objValue obj (assignOf ρ))
              else s.bound }
 
+/-- Add the constraint `c` to the database and the core set at the next number, as `soli`, `obji`
+and `solx` do (§5.8). -/
+def State.addCore (s : State) (c : PBConstr) : State :=
+  { s with db := (s.next, c) :: s.db, core := (s.next, c) :: s.core, next := s.next + 1 }
+
 /-- Assert the value `v` of the objective `f` in the state `s`, the effect shared by `soli` and
 `obji` (§5.8.2): the objective-improving constraint `f ≤ v - 1` joins the database and the core set
 at the next number, and the bound `dbound` is lowered to `v`. -/
 def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
-  { s with
-    db := (s.next, (f.improving v).normalize) :: s.db,
-    core := (s.next, (f.improving v).normalize) :: s.core,
-    next := s.next + 1, dbound := lowerTo s.dbound v }
+  { s.addCore (f.improving v).normalize with dbound := lowerTo s.dbound v }
 
 /-- The constraint numbers that a step deletes. -/
 def Step.delIds : Step → List ℕ
@@ -820,9 +834,8 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     match s.pres, s.obj with
     | some P, none =>
       if s.chk && solves ρ (s.db.map (·.2)) && assignsAll ρ P then
-        some { s.log F obj ρ with
-          db := (s.next, exclusion P ρ) :: s.db, core := (s.next, exclusion P ρ) :: s.core,
-          next := s.next + 1, logged := proj P (assignOf ρ) :: s.logged }
+        some { (s.log F obj ρ).addCore (exclusion P ρ) with
+          logged := proj P (assignOf ρ) :: s.logged }
       else none
     | _, _ => none
 
@@ -1117,7 +1130,7 @@ theorem objuCheck_sound {σ : ℕ → Bool} {core : List (ℕ × PBConstr)} {n n
 
 /-! ### Preserved sets: soundness -/
 
-theorem redCheckOn_of_redCheckP {pres : Option (List ℕ)} {obj : Option Objective}
+private theorem redCheckOn_of_redCheckP {pres : Option (List ℕ)} {obj : Option Objective}
     {db₀ gs : List (ℕ × PBConstr)} {n n' : ℕ} {c : PBConstr} {ω : Witness}
     {items : List RedItem} {qed : Option ℕ}
     (h : redCheckP pres obj db₀ gs n c ω items qed = some n') :
@@ -1157,7 +1170,7 @@ theorem holds_exclusion (σ : ℕ → Bool) (P : List ℕ) (ρ : List (Literal �
         ← ih]
       cases σ x <;> cases assignOf ρ x <;> simp
   rw [Holds, exclusion, key]
-  simp [proj, List.map_inj_left]
+  simp [proj, List.map_inj_left, List.mem_dedup]
 
 /-! ### The invariants -/
 
@@ -1273,8 +1286,8 @@ private theorem wit_log {F : List PBConstr} {obj : Option Objective} {s : State}
 
 /-- Asserting an objective value keeps the core invariant: the improving constraint joins both the
 core set and the database, and `bound` is unchanged. -/
-private theorem inv_improve {F : List PBConstr} {obj : Option Objective} {s : State}
-    {f : Objective} {v : ℤ} (hs : Inv F obj s) : Inv F obj (s.improve f v) where
+private theorem inv_addCore {F : List PBConstr} {obj : Option Objective} {s : State}
+    {c : PBConstr} (hs : Inv F obj s) : Inv F obj (s.addCore c) where
   sub e he := by
     rcases List.mem_cons.1 he with rfl | he
     · exact List.mem_cons_self
@@ -1283,6 +1296,12 @@ private theorem inv_improve {F : List PBConstr} {obj : Option Objective} {s : St
     hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
   chk hc τ hτ := hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
   wit := hs.wit
+
+/-- Asserting an objective value keeps the core invariant. -/
+private theorem inv_improve {F : List PBConstr} {obj : Option Objective} {s : State}
+    {f : Objective} {v : ℤ} (hs : Inv F obj s) : Inv F obj (s.improve f v) :=
+  have h := inv_addCore (c := (f.improving v).normalize) hs
+  ⟨h.sub, h.imp, h.chk, h.wit⟩
 
 /-- The core set after a checked deletion of `i` gives back the whole core set once the deleted
 constraint `c` holds. -/
@@ -1474,19 +1493,15 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
   | solx ρ =>
     simp only [stepTop] at h
     split at h
-    · rename_i P
+    · rename_i P hP hobj
       split at h
       · rename_i hok
         simp only [Option.some.injEq] at h
         subst h
         simp only [Bool.and_eq_true] at hok
-        refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, wit_log hs hok.1.2⟩
-        · rcases List.mem_cons.1 he with rfl | he
-          · exact List.mem_cons_self
-          · exact List.mem_cons_of_mem _ (hs.sub e he)
-        · exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
-            hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
-        · exact hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+        have h := inv_addCore (s := s.log F obj ρ) (c := exclusion P ρ)
+          ⟨hs.sub, hs.imp, hs.chk, wit_log hs hok.1.2⟩
+        exact ⟨h.sub, h.imp, h.chk, h.wit⟩
       · cases h
     · cases h
 
@@ -1519,7 +1534,7 @@ solution of the database of value below `u` satisfies the improving constraint, 
 `u`, the new bound, is at most `w`. -/
 private theorem reaches_improve {f : Objective} {w u : ℤ} {s : State} (hf : s.obj = some f)
     (hs : Reaches w s) : Reaches w (s.improve f u) := by
-  simp only [Reaches, State.improve, hf] at hs ⊢
+  simp only [Reaches, State.improve, State.addCore, hf] at hs ⊢
   by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧ f.eval τ < u
   · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
     exact .inl ⟨τ, List.forall_mem_cons.2
@@ -1983,7 +1998,7 @@ theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {σ₀ : ℕ
       · simp only [Option.some.injEq] at h
         subst h
         intro ho
-        simp [State.improve, State.log, hf] at ho
+        simp [State.improve, State.addCore, State.log, hf] at ho
       · cases h
     · cases h
   | deld ids =>
@@ -2029,7 +2044,7 @@ theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {σ₀ : ℕ
       simp only [Option.some.injEq] at h
       subst h
       intro ho
-      simp [State.improve, hf] at ho
+      simp [State.improve, State.addCore, hf] at ho
     · cases h
   | obju diff g sub =>
     simp only [stepTop] at h
@@ -2242,8 +2257,8 @@ theorem isSome_of_checkRed_enum {F : List PBConstr} {obj : Option Objective} {P 
 
 /-- **Soundness of the enumeration count**: if the checker accepts
 `conclusion ENUMERATION_PARTIAL n` or `conclusion ENUMERATION_COMPLETE n : q` for the formula
-`F` with the preserved set `P`, then `F` has at least `n` solutions with distinct projections to
-`P`. -/
+`F` with the preserved set `Pres`, then `F` has at least `n` solutions with distinct projections
+to `Pres`. -/
 theorem le_encard_of_checkRed_enum {F : List PBConstr} {obj : Option Objective} {P : RedProof}
     {Pres : List ℕ} {n : ℕ} (h : checkRed F obj P (some Pres) = true)
     (hc : P.conclusion = .enumPartial n ∨ ∃ q, P.conclusion = .enumComplete n q) :
@@ -2261,8 +2276,8 @@ theorem le_encard_of_checkRed_enum {F : List PBConstr} {obj : Option Objective} 
     _ ≤ _ := Set.encard_le_encard hsub
 
 /-- **Soundness of a complete enumeration**: if the checker accepts
-`conclusion ENUMERATION_COMPLETE n : q` for the formula `F` with the preserved set `P`, then the
-solutions of `F` have exactly `n` distinct projections to `P`. -/
+`conclusion ENUMERATION_COMPLETE n : q` for the formula `F` with the preserved set `Pres`, then
+the solutions of `F` have exactly `n` distinct projections to `Pres`. -/
 theorem encard_eq_of_checkRed_enumComplete {F : List PBConstr} {obj : Option Objective}
     {P : RedProof} {Pres : List ℕ} {n q : ℕ} (h : checkRed F obj P (some Pres) = true)
     (hc : P.conclusion = .enumComplete n q) : (projections F Pres).encard = n := by
