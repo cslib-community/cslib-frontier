@@ -110,11 +110,14 @@ whole-protocol uniform escape and two-channel BCS random-oracle composition step
   `Cslib.Crypto.Protocols.FRI.friBatchDoomed`,
   `Cslib.Crypto.Protocols.FRI.friBatchGoodStep`: transcript-tail projection and smooth / binary
   round-by-round doomed and good-step predicates.
-* `Cslib.Crypto.Protocols.FRI.SmoothBatchRound0GapBound`,
+* `Cslib.Crypto.Protocols.FRI.FRIBatchRound0GapBound`,
+  `Cslib.Crypto.Protocols.FRI.FRIBatchRound0Escape`,
+  `Cslib.Crypto.Protocols.FRI.SmoothBatchRound0GapBound`,
   `Cslib.Crypto.Protocols.FRI.SmoothBatchRound0Escape`,
   `Cslib.Crypto.Protocols.FRI.friSmoothBatchJohnsonRound0Bound` (and binary counterparts
-  `BatchRound0GapBound`, `BatchRound0Escape`, `friBatchJohnsonRound0Bound`): integer and `ℝ≥0∞`
-  round-`0` unweighted affine-word escape contracts and explicit-constant Johnson round-`0` budget.
+  `BatchRound0GapBound`, `BatchRound0Escape`, `friBatchJohnsonRound0Bound`): code-parameterized,
+  smooth, and binary integer / `ℝ≥0∞` round-`0` unweighted affine-word escape contracts and
+  explicit-constant Johnson round-`0` budget.
 * `Cslib.Crypto.Protocols.FRI.friSmoothBatchRBRError` &
   `Cslib.Crypto.Protocols.FRI.friBatchRBRError`: uniform per-round escape error combining round-`0`
   batching escape `ε_batch` with `friSmoothRBRError` / `friRBRError`.
@@ -132,7 +135,7 @@ whole-protocol uniform escape and two-channel BCS random-oracle composition step
   `Cslib.Crypto.Protocols.FRI.friSmoothBatchQueryRound_escape_le`,
   `Cslib.Crypto.Protocols.FRI.friSmoothBatchCommitRound_escape_le_of_weightedCurveGap`: marginal
   challenge laws and 1-line smooth tail escape reductions (with binary corollaries).
-* `Cslib.Crypto.Protocols.FRI.smoothBatchRound0Escape_of_gapBound`,
+* `Cslib.Crypto.Protocols.FRI.friBatchRound0Escape_of_gapBound`,
   `Cslib.Crypto.Protocols.FRI.friSmoothBatchRound0_escape_le_of_escape`,
   `Cslib.Crypto.Protocols.FRI.smoothBatchRound0GapBound_of_unique`,
   `Cslib.Crypto.Protocols.FRI.smoothBatchRound0Escape_of_unique`,
@@ -463,52 +466,55 @@ section SmoothRound0ContractsAndDischarges
 
 variable {F : Type} [Field F]
 
-/-- **Polymorphic integer smooth round-0 batching proximity-gap contract**: for every false tuple
-`stmt ∉ params.batchProximityLang t e`, any set `T` of batching vectors `x : Fin t → F` whose
-affine evaluation `stmt.eval x` achieves unweighted agreement `> 2 ^ d - e - 1` with
-`params.initialCode` satisfies `|F| * #T ≤ B_batch * |F| ^ t`. -/
-@[expose] def SmoothBatchRound0GapBound [Fintype F] [DecidableEq F] (params : FRISmoothParams F)
-    (t e B_batch : ℕ) : Prop :=
-  ∀ stmt ∉ params.batchProximityLang t e, ∀ T : Finset (Fin t → F),
-    (∀ x ∈ T, ∃ c ∈ params.initialCode,
-      2 ^ params.d - e - 1 <
-        (Finset.univ.filter fun s : Fin (2 ^ params.d) => stmt.eval x s = c s).card) →
+/-- **Code-parameterized integer round-0 batching proximity-gap contract** relative to an initial
+linear code `C : Submodule F (OracleTable d F)`: for every false tuple
+`stmt ∉ friBatchProximityLang C t e`, any set `T` of batching vectors `x : Fin t → F` whose affine
+evaluation `stmt.eval x` achieves unweighted agreement `> 2 ^ d - e - 1` with `C` satisfies
+`|F| * #T ≤ B_batch * |F| ^ t`. -/
+@[expose] def FRIBatchRound0GapBound [Fintype F] [DecidableEq F] {d : ℕ}
+    (C : Submodule F (OracleTable d F)) (t e B_batch : ℕ) : Prop :=
+  ∀ stmt ∉ friBatchProximityLang C t e, ∀ T : Finset (Fin t → F),
+    (∀ x ∈ T, ∃ c ∈ C,
+      2 ^ d - e - 1 <
+        (Finset.univ.filter fun s : Fin (2 ^ d) => stmt.eval x s = c s).card) →
     Fintype.card F * T.card ≤ B_batch * Fintype.card F ^ t
 
-theorem SmoothBatchRound0GapBound.mono [Fintype F] [DecidableEq F] {params : FRISmoothParams F}
-    {t e B₁ B₂ : ℕ} (h : SmoothBatchRound0GapBound params t e B₁) (hle : B₁ ≤ B₂) :
-    SmoothBatchRound0GapBound params t e B₂ :=
+theorem FRIBatchRound0GapBound.mono [Fintype F] [DecidableEq F] {d : ℕ}
+    {C : Submodule F (OracleTable d F)} {t e B₁ B₂ : ℕ}
+    (h : FRIBatchRound0GapBound C t e B₁) (hle : B₁ ≤ B₂) :
+    FRIBatchRound0GapBound C t e B₂ :=
   fun stmt hnot T hT => (h stmt hnot T hT).trans (Nat.mul_le_mul_right _ hle)
 
-/-- **Polymorphic `ℝ≥0∞` smooth round-0 batching escape contract**: for every false tuple
-`stmt ∉ params.batchProximityLang t e`, a uniformly sampled batching vector `x : Fin t → F` lands at
-unweighted agreement `> 2 ^ d - e - 1` with `params.initialCode` with probability at most
-`ε_batch`. -/
-@[expose] def SmoothBatchRound0Escape [Fintype F] [DecidableEq F] (params : FRISmoothParams F)
-    (t e : ℕ) (ε_batch : ℝ≥0∞) : Prop :=
-  ∀ stmt ∉ params.batchProximityLang t e,
+/-- **Code-parameterized `ℝ≥0∞` round-0 batching escape contract** relative to an initial linear
+code `C : Submodule F (OracleTable d F)`: for every false tuple
+`stmt ∉ friBatchProximityLang C t e`, a uniformly sampled batching vector `x : Fin t → F` lands at
+unweighted agreement `> 2 ^ d - e - 1` with `C` with probability at most `ε_batch`. -/
+@[expose] def FRIBatchRound0Escape [Fintype F] [DecidableEq F] {d : ℕ}
+    (C : Submodule F (OracleTable d F)) (t e : ℕ) (ε_batch : ℝ≥0∞) : Prop :=
+  ∀ stmt ∉ friBatchProximityLang C t e,
     (PMF.uniformOfFintype (Fin t → F)).toOuterMeasure
-      {x : Fin t → F | ∃ c ∈ params.initialCode,
-        2 ^ params.d - e - 1 <
-          (Finset.univ.filter fun s : Fin (2 ^ params.d) => stmt.eval x s = c s).card} ≤ ε_batch
+      {x : Fin t → F | ∃ c ∈ C,
+        2 ^ d - e - 1 <
+          (Finset.univ.filter fun s : Fin (2 ^ d) => stmt.eval x s = c s).card} ≤ ε_batch
 
-theorem SmoothBatchRound0Escape.mono [Fintype F] [DecidableEq F] {params : FRISmoothParams F}
-    {t e : ℕ} {ε₁ ε₂ : ℝ≥0∞} (h : SmoothBatchRound0Escape params t e ε₁) (hle : ε₁ ≤ ε₂) :
-    SmoothBatchRound0Escape params t e ε₂ :=
+theorem FRIBatchRound0Escape.mono [Fintype F] [DecidableEq F] {d : ℕ}
+    {C : Submodule F (OracleTable d F)} {t e : ℕ} {ε₁ ε₂ : ℝ≥0∞}
+    (h : FRIBatchRound0Escape C t e ε₁) (hle : ε₁ ≤ ε₂) :
+    FRIBatchRound0Escape C t e ε₂ :=
   fun stmt hnot => (h stmt hnot).trans hle
 
-/-- Convert an integer `SmoothBatchRound0GapBound` budget `B_batch` into `SmoothBatchRound0Escape`
-with escape bound `(B_batch : ℝ≥0∞) / |F|`. -/
-theorem smoothBatchRound0Escape_of_gapBound [Fintype F] [DecidableEq F]
-    (params : FRISmoothParams F) {t e B_batch : ℕ}
-    (hgap : SmoothBatchRound0GapBound params t e B_batch) :
-    SmoothBatchRound0Escape params t e ((B_batch : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
+/-- Convert a code-parameterized integer `FRIBatchRound0GapBound` budget `B_batch` into
+`FRIBatchRound0Escape` with escape bound `(B_batch : ℝ≥0∞) / |F|`. -/
+theorem friBatchRound0Escape_of_gapBound [Fintype F] [DecidableEq F] {d : ℕ}
+    (C : Submodule F (OracleTable d F)) {t e B_batch : ℕ}
+    (hgap : FRIBatchRound0GapBound C t e B_batch) :
+    FRIBatchRound0Escape C t e ((B_batch : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
   classical
   intro stmt hnot
   set P : (Fin t → F) → Prop := fun x =>
-    ∃ c ∈ params.initialCode,
-      2 ^ params.d - e - 1 <
-        (Finset.univ.filter fun s : Fin (2 ^ params.d) => stmt.eval x s = c s).card
+    ∃ c ∈ C,
+      2 ^ d - e - 1 <
+        (Finset.univ.filter fun s : Fin (2 ^ d) => stmt.eval x s = c s).card
   have hcard_bound :
       Fintype.card F * (Finset.univ.filter P).card ≤
         B_batch * Fintype.card (Fin t → F) := by
@@ -516,6 +522,18 @@ theorem smoothBatchRound0Escape_of_gapBound [Fintype F] [DecidableEq F]
     exact hgap stmt hnot (Finset.univ.filter P) fun _ hx => (Finset.mem_filter.mp hx).2
   exact PMF.toOuterMeasure_uniformOfFintype_le_div (α := Fin t → F) (P := P) Fintype.card_pos
     hcard_bound
+
+/-- **Polymorphic integer smooth round-0 batching proximity-gap contract** (specialization of
+`FRIBatchRound0GapBound` to `params.initialCode`). -/
+abbrev SmoothBatchRound0GapBound [Fintype F] [DecidableEq F] (params : FRISmoothParams F)
+    (t e B_batch : ℕ) : Prop :=
+  FRIBatchRound0GapBound params.initialCode t e B_batch
+
+/-- **Polymorphic `ℝ≥0∞` smooth round-0 batching escape contract** (specialization of
+`FRIBatchRound0Escape` to `params.initialCode`). -/
+abbrev SmoothBatchRound0Escape [Fintype F] [DecidableEq F] (params : FRISmoothParams F)
+    (t e : ℕ) (ε_batch : ℝ≥0∞) : Prop :=
+  FRIBatchRound0Escape params.initialCode t e ε_batch
 
 /-- **Conditional step (smooth round-0 batching escape bound assuming
 `SmoothBatchRound0Escape`)**: for any false tuple `stmt ∉ params.batchProximityLang t e` and any
@@ -701,7 +719,8 @@ theorem smoothBatchRound0Escape_of_unique [Fintype F] [DecidableEq F]
     (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) :
     SmoothBatchRound0Escape params t e ((2 ^ params.d : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
   simpa only [Nat.cast_pow, Nat.cast_ofNat] using
-    smoothBatchRound0Escape_of_gapBound params (smoothBatchRound0GapBound_of_unique params t huniq)
+    friBatchRound0Escape_of_gapBound params.initialCode
+      (smoothBatchRound0GapBound_of_unique params t huniq)
 
 /-- **Unconditional explicit-parameter Johnson `SmoothBatchRound0GapBound`** for `(t + 1)`-word
 smooth batched FRI (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on
@@ -753,7 +772,7 @@ theorem smoothBatchRound0Escape_of_johnson_discrete [Fintype F] [DecidableEq F]
     (hbound : ProximityGap.johnsonCurveBound (2 ^ params.d) m₀
       (params.dim 0 - 1) D₀ 1 (2 ^ params.d) ≤ B_batch) :
     SmoothBatchRound0Escape params t e ((B_batch : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) :=
-  smoothBatchRound0Escape_of_gapBound params
+  friBatchRound0Escape_of_gapBound params.initialCode
     (smoothBatchRound0GapBound_of_johnson_discrete params t hm₀ hk_le hinterp hroot hbound)
 
 /-- Explicit Siegel integer round-`0` batching budget for `(t + 1)`-word smooth FRI in the Johnson
@@ -972,44 +991,38 @@ variable {F : Type} [Field F]
   else
     True
 
-/-- **Polymorphic integer round-0 batching proximity-gap contract**. -/
-@[expose] def BatchRound0GapBound [Fintype F] [DecidableEq F] (params : FRIParams F)
+/-- **Polymorphic integer round-0 batching proximity-gap contract** (specialization of
+`FRIBatchRound0GapBound` to `params.initialCode`). -/
+abbrev BatchRound0GapBound [Fintype F] [DecidableEq F] (params : FRIParams F)
     (t e B_batch : ℕ) : Prop :=
-  ∀ stmt ∉ params.batchProximityLang t e, ∀ T : Finset (Fin t → F),
-    (∀ x ∈ T, ∃ c ∈ params.initialCode,
-      2 ^ params.d - e - 1 <
-        (Finset.univ.filter fun s : Fin (2 ^ params.d) => stmt.eval x s = c s).card) →
-    Fintype.card F * T.card ≤ B_batch * Fintype.card F ^ t
+  FRIBatchRound0GapBound params.initialCode t e B_batch
 
 theorem BatchRound0GapBound.mono [Fintype F] [DecidableEq F] {params : FRIParams F}
     {t e B₁ B₂ : ℕ} (h : BatchRound0GapBound params t e B₁) (hle : B₁ ≤ B₂) :
     BatchRound0GapBound params t e B₂ :=
-  fun stmt hnot T hT => (h stmt hnot T hT).trans (Nat.mul_le_mul_right _ hle)
+  FRIBatchRound0GapBound.mono h hle
 
-/-- **Polymorphic `ℝ≥0∞` round-0 batching escape contract**. -/
-@[expose] def BatchRound0Escape [Fintype F] [DecidableEq F] (params : FRIParams F)
+/-- **Polymorphic `ℝ≥0∞` round-0 batching escape contract** (specialization of
+`FRIBatchRound0Escape` to `params.initialCode`). -/
+abbrev BatchRound0Escape [Fintype F] [DecidableEq F] (params : FRIParams F)
     (t e : ℕ) (ε_batch : ℝ≥0∞) : Prop :=
-  ∀ stmt ∉ params.batchProximityLang t e,
-    (PMF.uniformOfFintype (Fin t → F)).toOuterMeasure
-      {x : Fin t → F | ∃ c ∈ params.initialCode,
-        2 ^ params.d - e - 1 <
-          (Finset.univ.filter fun s : Fin (2 ^ params.d) => stmt.eval x s = c s).card} ≤ ε_batch
+  FRIBatchRound0Escape params.initialCode t e ε_batch
 
 theorem BatchRound0Escape.mono [Fintype F] [DecidableEq F] {params : FRIParams F}
     {t e : ℕ} {ε₁ ε₂ : ℝ≥0∞} (h : BatchRound0Escape params t e ε₁) (hle : ε₁ ≤ ε₂) :
     BatchRound0Escape params t e ε₂ :=
-  fun stmt hnot => (h stmt hnot).trans hle
+  FRIBatchRound0Escape.mono h hle
 
 /-- Explicit Siegel integer round-`0` batching budget for `(t + 1)`-word binary FRI in the Johnson
 regime with multiplicity slack `mJ`: `(1800 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) / params.dim 0`.
 -/
 abbrev friBatchJohnsonRound0Bound (params : FRIParams F) (mJ : ℕ) : ℕ :=
-  (1800 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) / params.dim 0
+  friSmoothBatchJohnsonRound0Bound params.toSmooth mJ
 
 /-- Uniform per-round escape error for `(params.m + 2)`-round `friBatchIOP`. -/
-@[expose] noncomputable def friBatchRBRError [Fintype F] (params : FRIParams F) (ε_batch : ℝ≥0∞)
+noncomputable abbrev friBatchRBRError [Fintype F] (params : FRIParams F) (ε_batch : ℝ≥0∞)
     (e B_commit : ℕ) : ℝ≥0∞ :=
-  max ε_batch (friRBRError params e B_commit)
+  friSmoothBatchRBRError params.toSmooth ε_batch e B_commit
 
 /-- Exact equivalence between binary `friBatchDoomed` and smooth `friSmoothBatchDoomed` at
 `params.toSmooth`. -/
@@ -1041,14 +1054,12 @@ private theorem batchRound0GapBound_iff_smooth [Fintype F] [DecidableEq F] (para
     (t e B_batch : ℕ) :
     BatchRound0GapBound params t e B_batch ↔
       SmoothBatchRound0GapBound params.toSmooth t e B_batch := by
-  simp only [BatchRound0GapBound, SmoothBatchRound0GapBound, params.toSmooth_batchProximityLang,
-    params.toSmooth_initialCode]
+  simp only [BatchRound0GapBound, SmoothBatchRound0GapBound, params.toSmooth_initialCode]
 
 private theorem batchRound0Escape_iff_smooth [Fintype F] [DecidableEq F] (params : FRIParams F)
     (t e : ℕ) (ε_batch : ℝ≥0∞) :
     BatchRound0Escape params t e ε_batch ↔ SmoothBatchRound0Escape params.toSmooth t e ε_batch := by
-  simp only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_batchProximityLang,
-    params.toSmooth_initialCode]
+  simp only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_initialCode]
 
 /-- For `e < 2 ^ d`, the empty prefix is doomed at `B = 2 ^ d - e - 1` if and only if
 `stmt ∉ params.batchProximityLang t e`. -/
@@ -1155,9 +1166,7 @@ theorem friBatchCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableE
 theorem batchRound0Escape_of_gapBound [Fintype F] [DecidableEq F] (params : FRIParams F)
     {t e B_batch : ℕ} (hgap : BatchRound0GapBound params t e B_batch) :
     BatchRound0Escape params t e ((B_batch : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) :=
-  (batchRound0Escape_iff_smooth params t e _).mpr
-    (smoothBatchRound0Escape_of_gapBound params.toSmooth
-      ((batchRound0GapBound_iff_smooth params t e B_batch).mp hgap))
+  friBatchRound0Escape_of_gapBound params.initialCode hgap
 
 /-- **Conditional step (round-0 batching escape bound assuming `BatchRound0Escape`)**. -/
 theorem friBatchRound0_escape_le_of_escape [Fintype F] [DecidableEq F] (params : FRIParams F)
@@ -1234,11 +1243,6 @@ theorem batchRound0GapBound_of_johnson [Fintype F] [DecidableEq F]
         Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ))) :
     BatchRound0GapBound params t e (friBatchJohnsonRound0Bound params mJ) := by
   rw [batchRound0GapBound_iff_smooth]
-  have hbound_eq : friSmoothBatchJohnsonRound0Bound params.toSmooth mJ =
-      friBatchJohnsonRound0Bound params mJ := by
-    simp only [friSmoothBatchJohnsonRound0Bound, friBatchJohnsonRound0Bound,
-      params.toSmooth_dim (Nat.zero_le _)]
-  rw [← hbound_eq]
   exact smoothBatchRound0GapBound_of_johnson params.toSmooth t hmJ
     (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using he)
 

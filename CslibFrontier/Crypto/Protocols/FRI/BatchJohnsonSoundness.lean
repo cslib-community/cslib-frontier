@@ -524,35 +524,6 @@ private theorem friSmoothBatchRBRError_ceil_le [Fintype F] (params : FRISmoothPa
   simp only [friSmoothBatchRBRError, friSmoothRBRError]
   exact max_le_max le_rfl (max_le_max le_rfl (query_pow_le_ofReal_pow hq_lt))
 
-private theorem toSmooth_first_sub_le_half (params : FRIParams F) :
-    2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog) ≤ 2 ^ (params.d - 1) := by
-  rw [params.toSmooth_firstStepLog]
-  rcases Nat.eq_zero_or_pos params.d with hd | hd
-  · simp [hd]
-  · have hsplit : 2 ^ params.d = 2 * 2 ^ (params.d - 1) := by
-      have : params.d = (params.d - 1) + 1 := by omega
-      conv_lhs => rw [this, pow_succ']
-    omega
-
-private theorem toSmooth_johnsonCommitBound_le (params : FRIParams F) (mJ : ℕ) :
-    friSmoothJohnsonCommitBound params.toSmooth mJ ≤ friJohnsonCommitBound params mJ := by
-  rw [friSmoothJohnsonCommitBound, friJohnsonCommitBound, params.toSmooth_dim (Nat.zero_le _)]
-  refine Nat.div_le_div_right ?_
-  have h1 : 2 * (2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog)) ≤ 2 ^ params.d := by
-    have := toSmooth_first_sub_le_half params
-    rcases Nat.eq_zero_or_pos params.d with hd | hd
-    · simp [hd, params.toSmooth_firstStepLog]
-    · have hsplit : 2 ^ params.d = 2 * 2 ^ (params.d - 1) := by
-        have : params.d = (params.d - 1) + 1 := by omega
-        conv_lhs => rw [this, pow_succ']
-      omega
-  calc 1800 * (mJ + 1) ^ 6 * (2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog)) *
-        (2 ^ params.d) ^ 2
-      = 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2 *
-          (2 * (2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog))) := by ring
-    _ ≤ 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2 * 2 ^ params.d := Nat.mul_le_mul_left _ h1
-    _ = 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3 := by ring
-
 end Helpers
 
 /-! ### Section 3: Unconditional Smooth Unique-Decoding Batched FRI Soundness & BCS ROM -/
@@ -1536,14 +1507,14 @@ section BinaryBatchJohnsonCorollaries
 variable {F : Type} [Field F]
 
 /-- Per-round escape budget vector for `(params.m + 2)`-round `friBatchIOP`. -/
-@[expose] noncomputable def friBatchRoundEscape (params : FRIParams F) (ε_batch : ℝ≥0∞)
+noncomputable abbrev friBatchRoundEscape (params : FRIParams F) (ε_batch : ℝ≥0∞)
     (e : ℕ) (ε_commit : Fin params.m → ℝ≥0∞) : Fin (params.m + 2) → ℝ≥0∞ :=
-  Fin.cases ε_batch (friRoundEscape params e ε_commit)
+  friSmoothBatchRoundEscape params.toSmooth ε_batch e ε_commit
 
 /-- Summed interactive batched FRI soundness error. -/
-@[expose] noncomputable def friBatchSumError (params : FRIParams F) (ε_batch : ℝ≥0∞)
+noncomputable abbrev friBatchSumError (params : FRIParams F) (ε_batch : ℝ≥0∞)
     (e : ℕ) (ε_commit : Fin params.m → ℝ≥0∞) : ℝ≥0∞ :=
-  ε_batch + friSumError params e ε_commit
+  friSmoothBatchSumError params.toSmooth ε_batch e ε_commit
 
 /-- Post-commit single-query acceptance predicate for an `(m + 1)`-round batched commit prefix
 `pref` and final committed oracle `πFinal`. -/
@@ -1676,8 +1647,8 @@ theorem friBatchCommitGame_le_of_escape [Fintype F] [DecidableEq F]
       ε_batch + ∑ i : Fin params.m, ε_commit i := by
   rw [friBatchCommitGame_eq_friSmoothBatchCommitGame]
   have hbatch' : SmoothBatchRound0Escape params.toSmooth t e ε_batch := by
-    simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_batchProximityLang,
-      params.toSmooth_initialCode] using hbatch
+    simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_initialCode] using
+      hbatch
   exact friSmoothBatchCommitGame_le_of_escape params.toSmooth t hbatch'
     ((weightedLineEscapePerRound_iff_weightedCurveEscapePerRound params _ _).mp hesc)
     (by rwa [params.toSmooth_batchProximityLang]) P
@@ -1696,8 +1667,8 @@ theorem friBatchIOP_interactiveGame_le_of_escape [Fintype F] [DecidableEq F]
       friBatchSumError params ε_batch e ε_commit := by
   rw [friBatchIOP_eq_friSmoothBatchIOP]
   have hbatch' : SmoothBatchRound0Escape params.toSmooth t e ε_batch := by
-    simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_batchProximityLang,
-      params.toSmooth_initialCode] using hbatch
+    simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_initialCode] using
+      hbatch
   exact friSmoothBatchIOP_interactiveGame_le_of_escape params.toSmooth t hbatch'
     ((weightedLineEscapePerRound_iff_weightedCurveEscapePerRound params _ _).mp hesc)
     (by rwa [params.toSmooth_batchProximityLang]) P
@@ -1874,7 +1845,14 @@ theorem friBatchBCS_corrAgree_romSoundness_bound_of_unique [Fintype F] [Decidabl
   rw [friBatchIOP_eq_friSmoothBatchIOP, ← params.toSmooth_batchCorrAgreeLang] at hMT ⊢
   refine (friSmoothBatchBCS_corrAgree_romSoundness_bound_of_unique params.toSmooth t
     (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using hα) hα_le hdec σ hFS hMT).trans ?_
-  have hle := toSmooth_first_sub_le_half params
+  have hle : 2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog) ≤ 2 ^ (params.d - 1) := by
+    have h2 := two_mul_toSmooth_first_sub_le params
+    cases hd : params.d with
+    | zero => simp only [Nat.zero_sub, pow_zero, Nat.sub_self, Nat.zero_le]
+    | succ k =>
+      rw [hd, pow_succ'] at h2
+      simp only [Nat.add_sub_cancel]
+      omega
   gcongr
 
 /-- **Explicit-parameter Guruswami–Sudan step toward batched FRI commit-phase soundness**
@@ -1945,7 +1923,8 @@ theorem friBatchIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [Decidabl
     (weightedLineEscapePerRound_of_gapPerRound params
       (weightedLineGapPerRound_of_johnson_discrete params he_lt mRound DRound hm hk_le hinterp
         hroot)) hfar P).trans_eq ?_
-  rw [friBatchSumError, friSumError, ← add_assoc, add_sum_natCast_div_ennreal]
+  rw [friBatchSumError, friSmoothBatchSumError, friSmoothSumError, ← add_assoc,
+    add_sum_natCast_div_ennreal]
 
 /-- **Explicit-parameter Guruswami–Sudan adaptive two-channel batched BCS-FRI ROM soundness**
 ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]). -/
@@ -2367,7 +2346,7 @@ theorem friBatchBCS_corrAgree_romSoundness_bound_of_johnson [Fintype F] [Decidab
   refine (friSmoothBatchBCS_corrAgree_romSoundness_bound_of_johnson params.toSmooth t hmJ
     (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using hα) hα_le hdec σ hFS hMT).trans ?_
   rw [params.toSmooth_dim (Nat.zero_le _)]
-  have hle := toSmooth_johnsonCommitBound_le params mJ
+  have hle := friSmoothJohnsonCommitBound_toSmooth_le params mJ
   gcongr
 
 /-- **Original explicit-constant real-`α` Johnson adaptive two-channel batched BCS-FRI ROM soundness
@@ -2406,7 +2385,7 @@ theorem friBatchBCS_corrAgree_romSoundness_bound_of_prover_verifier_of_johnson
     params.toSmooth t hmJ (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using hα) hα_le
     hdec σ hMT hFS hops).trans ?_
   rw [params.toSmooth_dim (Nat.zero_le _)]
-  have hle := toSmooth_johnsonCommitBound_le params mJ
+  have hle := friSmoothJohnsonCommitBound_toSmooth_le params mJ
   gcongr
 
 end BinaryBatchJohnsonCorollaries

@@ -62,8 +62,7 @@ unchanged public binary signatures.
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.FRI.FRISmoothParams.fiberDomainEquiv`,
-  `Cslib.Crypto.Protocols.FRI.friSmoothTargetWord`,
+* `Cslib.Crypto.Protocols.FRI.friSmoothTargetWord`,
   `Cslib.Crypto.Protocols.FRI.friSmoothPreWeight`,
   `Cslib.Crypto.Protocols.FRI.friSmoothOracleFilterWeight`,
   `Cslib.Crypto.Protocols.FRI.friSmoothNextWeight`,
@@ -134,7 +133,7 @@ variable {F : Type} [Field F]
 
 /-- Equivalence between `Fin (params.arity i * params.domainSize (i.val + 1))` and
 `Fin (params.domainSize i.val)` for a smooth folding round `i : Fin params.m`. -/
-@[expose] def FRISmoothParams.fiberDomainEquiv (params : FRISmoothParams F) (i : Fin params.m) :
+private abbrev FRISmoothParams.fiberDomainEquiv (params : FRISmoothParams F) (i : Fin params.m) :
     Fin (params.arity i * params.domainSize (i.val + 1)) ≃ Fin (params.domainSize i.val) :=
   finCongr (params.domainSize_eq_arity_mul_succ i).symm
 
@@ -219,22 +218,20 @@ if `k ≥ pref.length`. -/
   | some (_, c) => c.foldScalar
   | none => 0
 
-/-- Read the final round's `q` query starting indices from a smooth transcript (defaulting to `0`).
--/
-@[expose] def prefSmoothFinalQueryIdxs (params : FRISmoothParams F)
-    (pref : List (OracleTable params.d F × FRIChal F params.d params.q)) :
-    Fin params.q → Fin (2 ^ params.d) :=
-  match pref[params.m]? with
+/-- Read the `k`-th round's `q` query starting indices from a transcript prefix, defaulting to `0`
+if `k ≥ pref.length`. -/
+@[expose] def prefQueryIdxs {d q : ℕ}
+    (pref : List (OracleTable d F × FRIChal F d q)) (k : ℕ) :
+    Fin q → Fin (2 ^ d) :=
+  match pref[k]? with
   | some (_, c) => c.queryIdxs
   | none => fun _ => ⟨0, Nat.pow_pos (by omega)⟩
 
 /-- Read the final round's `q` query starting indices from a transcript, defaulting to `0`. -/
-@[expose] def prefFinalQueryIdxs (params : FRIParams F)
+abbrev prefFinalQueryIdxs (params : FRIParams F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q)) :
     Fin params.q → Fin (2 ^ params.d) :=
-  match pref[params.m]? with
-  | some (_, c) => c.queryIdxs
-  | none => fun _ => ⟨0, Nat.pow_pos (by omega)⟩
+  prefQueryIdxs pref params.m
 
 theorem prefOracle_append_left {d q : ℕ}
     (pref extra : List (OracleTable d F × FRIChal F d q)) {k : ℕ} (hk : k < pref.length) :
@@ -258,27 +255,20 @@ theorem prefFoldScalar_append_self {d q : ℕ}
   simp only [prefFoldScalar, List.getElem?_append_right le_rfl, Nat.sub_self,
     List.getElem?_cons_zero]
 
-private theorem prefSmoothFinalQueryIdxs_append_self (params : FRISmoothParams F)
-    (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
-    (hlen : pref.length = params.m) (π : OracleTable params.d F)
-    (c : FRIChal F params.d params.q) :
-    prefSmoothFinalQueryIdxs params (pref ++ [(π, c)]) = c.queryIdxs := by
-  simp only [prefSmoothFinalQueryIdxs, ← hlen, List.getElem?_append_right le_rfl, Nat.sub_self,
+omit [Field F] in
+private theorem prefQueryIdxs_append_self {m d q : ℕ}
+    (pref : List (OracleTable d F × FRIChal F d q))
+    (hlen : pref.length = m) (π : OracleTable d F) (c : FRIChal F d q) :
+    prefQueryIdxs (pref ++ [(π, c)]) m = c.queryIdxs := by
+  simp only [prefQueryIdxs, ← hlen, List.getElem?_append_right le_rfl, Nat.sub_self,
     List.getElem?_cons_zero]
-
-private theorem prefFinalQueryIdxs_eq_smooth (params : FRIParams F)
-    (pref : List (OracleTable params.d F × FRIChal F params.d params.q)) :
-    prefFinalQueryIdxs params pref = prefSmoothFinalQueryIdxs params.toSmooth pref := by
-  simp only [prefFinalQueryIdxs, prefSmoothFinalQueryIdxs]
-  cases pref[params.m]? <;> rfl
 
 theorem prefFinalQueryIdxs_append_self (params : FRIParams F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
     (hlen : pref.length = params.m) (π : OracleTable params.d F)
     (c : FRIChal F params.d params.q) :
-    prefFinalQueryIdxs params (pref ++ [(π, c)]) = c.queryIdxs := by
-  rw [prefFinalQueryIdxs_eq_smooth]
-  exact prefSmoothFinalQueryIdxs_append_self params.toSmooth pref hlen π c
+    prefFinalQueryIdxs params (pref ++ [(π, c)]) = c.queryIdxs :=
+  prefQueryIdxs_append_self pref hlen π c
 
 theorem prefOracle_ofFn {m d q : ℕ}
     (oracles : Fin (m + 1) → OracleTable d F) (chals : Fin (m + 1) → FRIChal F d q)
@@ -293,22 +283,20 @@ theorem prefFoldScalar_ofFn {m d q : ℕ}
       (chals ⟨k, hk⟩).foldScalar := by
   simp only [prefFoldScalar, List.getElem?_ofFn, hk, ↓reduceDIte]
 
-private theorem prefSmoothFinalQueryIdxs_ofFn (params : FRISmoothParams F)
-    (oracles : Fin (params.m + 1) → OracleTable params.d F)
-    (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    prefSmoothFinalQueryIdxs params
-        (List.ofFn fun j : Fin (params.m + 1) => (oracles j, chals j)) =
-      (chals (Fin.last params.m)).queryIdxs := by
-  simp only [prefSmoothFinalQueryIdxs, List.getElem?_ofFn, Nat.lt_succ_self, ↓reduceDIte, Fin.last]
+omit [Field F] in
+private theorem prefQueryIdxs_ofFn {m d q : ℕ}
+    (oracles : Fin (m + 1) → OracleTable d F) (chals : Fin (m + 1) → FRIChal F d q) :
+    prefQueryIdxs (List.ofFn fun j : Fin (m + 1) => (oracles j, chals j)) m =
+      (chals (Fin.last m)).queryIdxs := by
+  simp only [prefQueryIdxs, List.getElem?_ofFn, Nat.lt_succ_self, ↓reduceDIte, Fin.last]
 
 theorem prefFinalQueryIdxs_ofFn (params : FRIParams F)
     (oracles : Fin (params.m + 1) → OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     prefFinalQueryIdxs params
         (List.ofFn fun j : Fin (params.m + 1) => (oracles j, chals j)) =
-      (chals (Fin.last params.m)).queryIdxs := by
-  rw [prefFinalQueryIdxs_eq_smooth]
-  exact prefSmoothFinalQueryIdxs_ofFn params.toSmooth oracles chals
+      (chals (Fin.last params.m)).queryIdxs :=
+  prefQueryIdxs_ofFn oracles chals
 
 /-- Equivalence between `Fin (2 * 2 ^ (d - (j + 1)))` and `Fin (2 ^ (d - j))` for `j < d`. -/
 @[expose] def reindexDoubleEquiv {d j : ℕ} (hj : j < d) :
@@ -339,7 +327,8 @@ for round `i ≥ 1`. -/
     let ir : Fin params.m := ⟨i, Nat.lt_of_succ_le hi⟩
     foldWord (params.g ^ (2 ^ params.cumLog i)) (params.ω ^ (2 ^ params.cumLog i))
       (fun idx : Fin (params.arity ir * params.domainSize (i + 1)) =>
-        restrictOracle (i := params.cumLog i) (prefOracle pref i) (params.fiberDomainEquiv ir idx))
+        restrictOracle (i := params.cumLog i) (prefOracle pref i)
+          (finCongr (params.domainSize_eq_arity_mul_succ ir).symm idx))
       (prefFoldScalar pref i)
 
 /-- Pre-filter integer fiber weight `W̃_i : Fin (params.domainSize i) → ℕ` along a smooth transcript
@@ -358,7 +347,8 @@ filtered weight. -/
     let prevOracle := restrictOracle (i := params.cumLog i) (prefOracle pref i)
     let filt : Fin (params.domainSize i) → ℕ :=
       fun y => if prevOracle y = prevTarget y then prevWeight y else 0
-    pushWeight (a := params.arity ir) (fun idx => filt (params.fiberDomainEquiv ir idx))
+    pushWeight (a := params.arity ir)
+      (fun idx => filt (finCongr (params.domainSize_eq_arity_mul_succ ir).symm idx))
 
 /-- Filtered smooth round-`i` weight for an explicit prover oracle `π`: retains `friSmoothPreWeight`
 on coordinates where `π` agrees with `friSmoothTargetWord`, and zeroes all other coordinates. -/
@@ -381,7 +371,7 @@ on coordinates where `π` agrees with `friSmoothTargetWord`, and zeroes all othe
   let ir : Fin params.m := ⟨i, hi⟩
   pushWeight (a := params.arity ir)
     (fun idx => friSmoothOracleFilterWeight params stmt pref i hi.le π
-      (params.fiberDomainEquiv ir idx))
+      (finCongr (params.domainSize_eq_arity_mul_succ ir).symm idx))
 
 private theorem friSmoothTargetWord_append (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
@@ -1024,7 +1014,7 @@ private theorem friSmoothCommitDoomed_congr_round [DecidableEq F] (params : FRIS
     friSmoothCommitDoomed params B stmt pref pref.length h
   else if pref.length = params.m + 1 then
     ∃ a : Fin params.q,
-      ¬ friSmoothTranscriptSingleAccepts params stmt pref (prefSmoothFinalQueryIdxs params pref a)
+      ¬ friSmoothTranscriptSingleAccepts params stmt pref (prefQueryIdxs pref params.m a)
   else
     True
 
@@ -1080,7 +1070,7 @@ theorem friSmoothIOP_rbrSound [DecidableEq F] (params : FRISmoothParams F) (e : 
     have hnotle : ¬ pref.length ≤ params.m := by omega
     simp only [friSmoothDoomed, hnotle, ↓reduceDIte] at hdoomed
     simp only [hlen, ↓reduceIte] at hdoomed
-    rw [prefSmoothFinalQueryIdxs_ofFn params oracles chals] at hdoomed
+    rw [prefQueryIdxs_ofFn oracles chals] at hdoomed
     obtain ⟨a, ha⟩ := hdoomed
     cases hacc : iopVerify (friSmoothIOP params) stmt chals oracles
     · rfl
@@ -1168,7 +1158,7 @@ theorem friSmoothQueryRound_escape_le [Fintype F] [DecidableEq F] (params : FRIS
     have hnotle' : ¬ (pref ++ [(π, c)]).length ≤ params.m := by omega
     simp only [Set.mem_ofPred_eq, friSmoothGoodStep, hle, ↓reduceIte, friSmoothDoomed, hnotle',
       ↓reduceDIte]
-    simp only [hlen', ↓reduceIte, prefSmoothFinalQueryIdxs_append_self params pref hlen π c,
+    simp only [hlen', ↓reduceIte, prefQueryIdxs_append_self pref hlen π c,
       not_exists, not_not, friSmoothTranscriptSingleAccepts_append_iff params stmt pref hlen π c,
       goodS, Finset.mem_filter, Finset.mem_univ, true_and]
   rw [hbad_eq]
@@ -2089,30 +2079,25 @@ theorem WeightedLineEscapePerRound.mono [Fintype F] [DecidableEq F] {params : FR
   fun i W hW_le hW_sum u₀ u₁ hno => (hesc i W hW_le hW_sum u₀ u₁ hno).trans (hle i)
 
 /-- Per-round escape budget vector for single-word `(m + 1)`-round `friIOP`. -/
-@[expose] noncomputable def friRoundEscape (params : FRIParams F) (e : ℕ)
+noncomputable abbrev friRoundEscape (params : FRIParams F) (e : ℕ)
     (ε_commit : Fin params.m → ℝ≥0∞) (j : Fin (params.m + 1)) : ℝ≥0∞ :=
-  if hj : j.val < params.m then
-    ε_commit ⟨j.val, hj⟩
-  else
-    (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q
+  friSmoothRoundEscape params.toSmooth e ε_commit j
 
 /-- Summed interactive binary FRI soundness error
 `(∑ i : Fin m, ε_commit i) + ((2 ^ d - e - 1) / 2 ^ d) ^ q`. -/
-@[expose] noncomputable def friSumError (params : FRIParams F) (e : ℕ)
+noncomputable abbrev friSumError (params : FRIParams F) (e : ℕ)
     (ε_commit : Fin params.m → ℝ≥0∞) : ℝ≥0∞ :=
-  (∑ i : Fin params.m, ε_commit i) +
-    (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q
+  friSmoothSumError params.toSmooth e ε_commit
 
 /-- Uniform per-round escape error `sup_j (friRoundEscape params e ε_commit j)`. -/
-@[expose] noncomputable def friSupRBRError (params : FRIParams F) (e : ℕ)
+noncomputable abbrev friSupRBRError (params : FRIParams F) (e : ℕ)
     (ε_commit : Fin params.m → ℝ≥0∞) : ℝ≥0∞ :=
-  Finset.univ.sup (friRoundEscape params e ε_commit)
+  friSmoothSupRBRError params.toSmooth e ε_commit
 
 /-- Uniform per-round escape error for binary FRI. -/
-@[expose] noncomputable def friRBRError [Fintype F] (params : FRIParams F)
+noncomputable abbrev friRBRError [Fintype F] (params : FRIParams F)
     (e B_commit : ℕ) : ℝ≥0∞ :=
-  max ((B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞))
-    ((((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q)
+  friSmoothRBRError params.toSmooth e B_commit
 
 /-- Single-word binary FRI commit-phase game. -/
 @[expose] noncomputable def friCommitGame [Fintype F] (params : FRIParams F)
@@ -2203,6 +2188,38 @@ private theorem friTargetWord_apply_eq_smooth (params : FRIParams F)
             fiberIdx, toSmoothDomEquiv_val, hdom]
         simp only [restrictOracle, hdom, hidx]
 
+private theorem pushWeight_toSmooth_eq_add (params : FRIParams F) {k : ℕ} (hkm : k < params.m)
+    (f : Fin (2 ^ (params.d - k)) → ℕ)
+    (g : Fin (params.toSmooth.domainSize k) → ℕ)
+    (hfg : ∀ y, f y = g (toSmoothDomEquiv params hkm.le y))
+    (j : Fin (2 ^ (params.d - (k + 1)))) :
+    let hkd : k < params.d := lt_of_lt_of_le hkm params.hm
+    f (reindexDouble hkd ⟨j.val, by omega⟩) +
+        f (reindexDouble hkd ⟨j.val + 2 ^ (params.d - (k + 1)), by omega⟩) =
+      pushWeight (a := params.toSmooth.arity ⟨k, hkm⟩)
+        (fun idx => g (params.toSmooth.fiberDomainEquiv ⟨k, hkm⟩ idx))
+        (toSmoothDomEquiv params hkm j) := by
+  have hkd : k < params.d := lt_of_lt_of_le hkm params.hm
+  have hdom1 : params.toSmooth.domainSize (k + 1) = 2 ^ (params.d - (k + 1)) :=
+    params.toSmooth_domainSize hkm
+  simp only [pushWeight]
+  change _ = ∑ t : Fin 2, _
+  rw [Fin.sum_univ_two]
+  have h0 :
+      toSmoothDomEquiv params hkm.le (reindexDouble hkd ⟨j.val, by omega⟩) =
+        params.toSmooth.fiberDomainEquiv ⟨k, hkm⟩
+          (fiberIdx (toSmoothDomEquiv params hkm j) (0 : Fin 2)) := by
+    apply Fin.ext
+    simp [toSmoothDomEquiv, FRISmoothParams.fiberDomainEquiv, reindexDouble, fiberIdx]
+  have h1 :
+      toSmoothDomEquiv params hkm.le
+          (reindexDouble hkd ⟨j.val + 2 ^ (params.d - (k + 1)), by omega⟩) =
+        params.toSmooth.fiberDomainEquiv ⟨k, hkm⟩
+          (fiberIdx (toSmoothDomEquiv params hkm j) (1 : Fin 2)) := by
+    apply Fin.ext
+    simp [toSmoothDomEquiv, FRISmoothParams.fiberDomainEquiv, reindexDouble, fiberIdx, hdom1]
+  rw [hfg, hfg, h0, h1]
+
 private theorem friPreWeight_apply_eq_smooth [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q)) :
@@ -2212,32 +2229,22 @@ private theorem friPreWeight_apply_eq_smooth [DecidableEq F] (params : FRIParams
   | 0, _, _ => rfl
   | k + 1, hi, j => by
     have hkm : k < params.m := Nat.lt_of_succ_le hi
-    have hkd : k < params.d := lt_of_lt_of_le hkm params.hm
-    have hdom1 : params.toSmooth.domainSize (k + 1) = 2 ^ (params.d - (k + 1)) :=
-      params.toSmooth_domainSize hi
-    have ih := friPreWeight_apply_eq_smooth params stmt pref k hkm.le
-    have htarg := friTargetWord_apply_eq_smooth params stmt pref k hkm.le
-    simp only [friPreWeight, friSmoothPreWeight, pushWeight]
-    change _ = ∑ t : Fin 2, _
-    rw [Fin.sum_univ_two]
-    have h0 :
-        toSmoothDomEquiv params hkm.le (reindexDouble hkd ⟨j.val, by omega⟩) =
-          params.toSmooth.fiberDomainEquiv ⟨k, hkm⟩
-            (fiberIdx (toSmoothDomEquiv params hi j) (0 : Fin 2)) := by
-      apply Fin.ext
-      simp [toSmoothDomEquiv, FRISmoothParams.fiberDomainEquiv, reindexDouble, fiberIdx]
-    have h1 :
-        toSmoothDomEquiv params hkm.le
-            (reindexDouble hkd ⟨j.val + 2 ^ (params.d - (k + 1)), by omega⟩) =
-          params.toSmooth.fiberDomainEquiv ⟨k, hkm⟩
-            (fiberIdx (toSmoothDomEquiv params hi j) (1 : Fin 2)) := by
-      apply Fin.ext
-      simp [toSmoothDomEquiv, FRISmoothParams.fiberDomainEquiv, reindexDouble, fiberIdx, hdom1]
-    have hrest : ∀ y : Fin (2 ^ (params.d - k)),
-        restrictOracle (i := k) (prefOracle pref k) y =
-          restrictOracle (i := params.toSmooth.cumLog k) (prefOracle pref k)
-            (toSmoothDomEquiv params hkm.le y) := fun _ => rfl
-    simp only [ih, htarg, hrest, h0, h1]
+    simp only [friPreWeight, friSmoothPreWeight]
+    refine pushWeight_toSmooth_eq_add params hkm
+      (fun y =>
+        if restrictOracle (i := k) (prefOracle pref k) y =
+            friTargetWord params stmt pref k hkm.le y then
+          friPreWeight params stmt pref k hkm.le y
+        else 0)
+      (fun y =>
+        if restrictOracle (i := params.toSmooth.cumLog k) (prefOracle pref k) y =
+            friSmoothTargetWord params.toSmooth stmt pref k hkm.le y then
+          friSmoothPreWeight params.toSmooth stmt pref k hkm.le y
+        else 0)
+      (fun y => ?_) j
+    simp only [friPreWeight_apply_eq_smooth params stmt pref k hkm.le y,
+      friTargetWord_apply_eq_smooth params stmt pref k hkm.le y]
+    rfl
 
 private theorem friOracleFilterWeight_apply_eq_smooth [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
@@ -2257,80 +2264,18 @@ private theorem friNextWeight_apply_eq_smooth [DecidableEq F] (params : FRIParam
     (i : ℕ) (hi : i < params.m) (π : OracleTable params.d F)
     (j : Fin (2 ^ (params.d - (i + 1)))) :
     friNextWeight params stmt pref i hi π j =
-      friSmoothNextWeight params.toSmooth stmt pref i hi π (toSmoothDomEquiv params hi j) := by
-  have hjd : i < params.d := lt_of_lt_of_le hi params.hm
-  have hdom1 : params.toSmooth.domainSize (i + 1) = 2 ^ (params.d - (i + 1)) :=
-    params.toSmooth_domainSize hi
-  simp only [friNextWeight, friSmoothNextWeight, pushWeight,
-    friOracleFilterWeight_apply_eq_smooth params stmt pref i hi.le π]
-  change _ = ∑ t : Fin 2, _
-  rw [Fin.sum_univ_two]
-  have h0 :
-      toSmoothDomEquiv params hi.le (reindexDouble hjd ⟨j.val, by omega⟩) =
-        params.toSmooth.fiberDomainEquiv ⟨i, hi⟩
-          (fiberIdx (toSmoothDomEquiv params hi j) (0 : Fin 2)) := by
-    apply Fin.ext
-    simp [toSmoothDomEquiv, FRISmoothParams.fiberDomainEquiv, reindexDouble, fiberIdx]
-  have h1 :
-      toSmoothDomEquiv params hi.le
-          (reindexDouble hjd ⟨j.val + 2 ^ (params.d - (i + 1)), by omega⟩) =
-        params.toSmooth.fiberDomainEquiv ⟨i, hi⟩
-          (fiberIdx (toSmoothDomEquiv params hi j) (1 : Fin 2)) := by
-    apply Fin.ext
-    simp [toSmoothDomEquiv, FRISmoothParams.fiberDomainEquiv, reindexDouble, fiberIdx, hdom1]
-  simp only [h0, h1]
-
-private theorem foldFiber_toSmooth_step_eq (params : FRIParams F) (k : Fin params.m)
-    (π : OracleTable params.d F) (s : Fin (2 ^ params.d)) (z : F) :
-    foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog k.val))
-        (params.ω ^ (2 ^ params.toSmooth.cumLog k.val))
-        (fun t : Fin (params.toSmooth.arity k) => π (friSmoothFiberIdx params.toSmooth k s t))
-        (friSmoothFoldedFin params.toSmooth k s) z =
-      fold2Fiber (π (friRoundPosIdx params k s)) (π (friRoundNegIdx params k s))
-        (params.eval k.val (friRoundPosFin params k s)) z := by
-  have hck : params.toSmooth.cumLog k.val = k.val := params.toSmooth_cumLog k.isLt.le
-  have hck1 : params.toSmooth.cumLog (k.val + 1) = k.val + 1 := params.toSmooth_cumLog k.isLt
-  have hkd : k.val < params.d := lt_of_lt_of_le k.isLt params.hm
-  have hsplit : 2 ^ (params.d - k.val) = 2 * 2 ^ (params.d - (k.val + 1)) :=
-    params.domainSize_eq_two_mul_succ hkd
-  have hωk : IsPrimitiveRoot (params.ω ^ (2 ^ k.val)) (2 * 2 ^ (params.d - (k.val + 1))) :=
-    hsplit ▸ isPrimitiveRoot_pow_two_pow params.hω hkd.le
-  have h0 : friSmoothFiberIdx params.toSmooth k s ⟨0, by simp⟩ = friRoundPosIdx params k s := by
-    apply Fin.ext
-    simp [friSmoothFiberIdx, hck1, friRoundPosIdx]
-  have h1 : friSmoothFiberIdx params.toSmooth k s ⟨1, by simp⟩ = friRoundNegIdx params k s := by
-    apply Fin.ext
-    simp [friSmoothFiberIdx, hck1, friRoundNegIdx]
-  have hrew :
-      foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog k.val))
-          (params.ω ^ (2 ^ params.toSmooth.cumLog k.val))
-          (fun t : Fin (params.toSmooth.arity k) => π (friSmoothFiberIdx params.toSmooth k s t))
-          (friSmoothFoldedFin params.toSmooth k s) z =
-        foldFiber (params.g ^ (2 ^ k.val)) (params.ω ^ (2 ^ k.val))
-          (fun t : Fin 2 => π (friSmoothFiberIdx params.toSmooth k s ⟨t.val, by simp [t.isLt]⟩))
-          (friFoldedFin params k s) z := by
-    simp only [foldFiber, foldFiberComp, friSmoothFoldedFin, friFoldedFin, hck, hck1]
-    rfl
-  rw [hrew, foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωk]
-  simp only [Fin.val_zero, Fin.val_one, h0, h1, FRIParams.eval, cosetEval, cosetPoint,
-    friFoldedFin, friRoundPosFin]
-
-private theorem friSmoothFoldedIdx_toSmooth_eq (params : FRIParams F) (k : Fin params.m)
-    (s : Fin (2 ^ params.d)) :
-    friSmoothFoldedIdx params.toSmooth k s = friRoundPosIdx params k s := by
-  apply Fin.ext
-  simp [friSmoothFoldedIdx, friRoundPosIdx, params.toSmooth_cumLog k.isLt]
+      friSmoothNextWeight params.toSmooth stmt pref i hi π (toSmoothDomEquiv params hi j) :=
+  pushWeight_toSmooth_eq_add params hi _ _
+    (friOracleFilterWeight_apply_eq_smooth params stmt pref i hi.le π) j
 
 private theorem friSmoothFinal_toSmooth_eq (params : FRIParams F)
     (πFinal : OracleTable params.d F) (s : Fin (2 ^ params.d)) :
     friSmoothFinalIdx params.toSmooth s = friFinalIdx params s ∧
     friSmoothFinalCodeword params.toSmooth πFinal (friSmoothFinalFin params.toSmooth s) =
-      friFinalCodeword params πFinal (friFinalFin params s) := by
-  have hcm : params.toSmooth.cumLog params.m = params.m := params.toSmooth_cumLog le_rfl
-  refine ⟨Fin.ext (by simp [friSmoothFinalIdx, friFinalIdx, params.toSmooth_totalLog]), ?_⟩
-  simp only [friSmoothFinalCodeword, friFinalCodeword, params.toSmooth_finalAnchorPoints,
-    FRISmoothParams.eval, FRIParams.eval, cosetEval, cosetPoint, friSmoothFinalFin, friFinalFin,
-    params.toSmooth_totalLog]
+      friFinalCodeword params πFinal (friFinalFin params s) :=
+  ⟨friSmoothFinalIdx_toSmooth params s, by
+    simp only [friSmoothFinalCodeword, friFinalCodeword, params.toSmooth_finalAnchorPoints,
+      eval_toSmooth_final]⟩
 
 private theorem friPrefixPasses_iff_smooth (params : FRIParams F) (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -2339,7 +2284,8 @@ private theorem friPrefixPasses_iff_smooth (params : FRIParams F) (stmt : Oracle
       friSmoothPrefixPasses params.toSmooth stmt pref i s := by
   simp only [friPrefixPasses, friSmoothPrefixPasses]
   refine and_congr_right fun _ => forall_congr' fun k => imp_congr_right fun _ => ?_
-  rw [foldFiber_toSmooth_step_eq, friSmoothFoldedIdx_toSmooth_eq]
+  rw [foldFiber_toSmooth_eq_fold2Fiber, friSmoothFiberIdx_toSmooth_zero,
+    friSmoothFiberIdx_toSmooth_one, friSmoothFoldedIdx_toSmooth]
 
 private theorem friTranscriptSingleAccepts_iff_smooth (params : FRIParams F)
     (stmt : OracleTable params.d F)
@@ -2362,7 +2308,8 @@ theorem friFinalPasses_iff_friSmoothFinalPasses (params : FRIParams F)
   obtain ⟨hidx, hcw⟩ := friSmoothFinal_toSmooth_eq params πFinal s
   simp only [friFinalPasses, friSmoothFinalPasses, hidx, hcw]
   refine and_congr_right fun _ => and_congr_left fun _ => forall_congr' fun k => ?_
-  rw [foldFiber_toSmooth_step_eq, friSmoothFoldedIdx_toSmooth_eq]
+  rw [foldFiber_toSmooth_eq_fold2Fiber, friSmoothFiberIdx_toSmooth_zero,
+    friSmoothFiberIdx_toSmooth_one, friSmoothFoldedIdx_toSmooth]
 
 private theorem friCommitDoomed_iff_smooth [DecidableEq F] (params : FRIParams F) (B : ℕ)
     (stmt : OracleTable params.d F)
@@ -2407,10 +2354,9 @@ theorem friDoomed_iff_friSmoothDoomed [DecidableEq F] (params : FRIParams F) (B 
   unfold friDoomed friSmoothDoomed
   split_ifs with h1 h2
   · exact friCommitDoomed_iff_smooth params B stmt pref pref.length h1
-  · rw [prefFinalQueryIdxs_eq_smooth]
-    exact exists_congr fun a =>
+  · exact exists_congr fun a =>
       not_congr (friTranscriptSingleAccepts_iff_smooth params stmt pref
-        (prefSmoothFinalQueryIdxs params.toSmooth pref a))
+        (prefQueryIdxs pref params.m a))
   · exact Iff.rfl
 
 /-- Exact equivalence between binary `friGoodStep` and smooth `friSmoothGoodStep` at
@@ -2447,6 +2393,20 @@ theorem friCommitGame_eq_friSmoothCommitGame [Fintype F] (params : FRIParams F) 
     simp only [Finset.mem_filter, Finset.mem_univ, true_and,
       friFinalPasses_iff_friSmoothFinalPasses]
   exact congrArg Finset.card hfilt
+
+private theorem forall_fin_toSmooth_arity_iff (params : FRIParams F) (i : Fin params.m)
+    (P : Fin (params.toSmooth.arity i) → Prop) :
+    (∀ r : Fin (params.toSmooth.arity i), P r) ↔ P ⟨0, by simp⟩ ∧ P ⟨1, by simp⟩ := by
+  constructor
+  · intro h
+    exact ⟨h ⟨0, by simp⟩, h ⟨1, by simp⟩⟩
+  · rintro ⟨h0, h1⟩ r
+    have hr : r.val = 0 ∨ r.val = 1 := by
+      have hlt : r.val < 2 := by simpa only [params.toSmooth_arity i] using r.isLt
+      omega
+    rcases hr with hr0 | hr1
+    · exact (Fin.ext hr0 : r = ⟨0, by simp⟩) ▸ h0
+    · exact (Fin.ext hr1 : r = ⟨1, by simp⟩) ▸ h1
 
 private theorem curveSum_toSmooth_eq_line {α : Type*} (params : FRIParams F) (i : Fin params.m)
     (u : Fin (params.toSmooth.arity i) → α → F) (z : F) :
@@ -2517,23 +2477,8 @@ private theorem curveToLineRound_transport [DecidableEq F] (params : FRIParams F
       ext y
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, u₀, u₁, v, e, Function.comp_apply,
         Equiv.apply_symm_apply]
-      constructor
-      · rintro ⟨h0, h1⟩ r
-        have hr : r.val = 0 ∨ r.val = 1 := by
-          have hlt : r.val < 2 := by simpa only [params.toSmooth_arity i] using r.isLt
-          omega
-        rcases hr with hr0 | hr1
-        · have hreq : r = ⟨0, by simp⟩ := Fin.ext hr0
-          rw [hreq]
-          simpa only [Fin.val_zero, ↓reduceIte, Function.comp_apply] using h0
-        · have hreq : r = ⟨1, by simp⟩ := Fin.ext hr1
-          rw [hreq]
-          simpa only [Fin.val_one, Nat.one_ne_zero, ↓reduceIte, Function.comp_apply] using h1
-      · intro hall
-        refine ⟨?_, ?_⟩
-        · simpa only [Fin.val_zero, ↓reduceIte, Function.comp_apply] using hall ⟨0, by simp⟩
-        · simpa only [Fin.val_one, Nat.one_ne_zero, ↓reduceIte, Function.comp_apply] using
-            hall ⟨1, by simp⟩
+      rw [forall_fin_toSmooth_arity_iff params i]
+      simp only [Nat.one_ne_zero, ↓reduceIte, Function.comp_apply]
     rw [heq]
     exact hno v hv
   · ext z
@@ -2603,23 +2548,8 @@ private theorem lineToCurveRound_transport [DecidableEq F] (params : FRIParams F
       ext y
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, u, v₀, v₁, e, Function.comp_apply,
         Equiv.apply_symm_apply]
-      constructor
-      · intro hall
-        refine ⟨?_, ?_⟩
-        · simpa only [Fin.val_zero, ↓reduceIte, Function.comp_apply] using hall ⟨0, by simp⟩
-        · simpa only [Fin.val_one, Nat.one_ne_zero, ↓reduceIte, Function.comp_apply] using
-            hall ⟨1, by simp⟩
-      · rintro ⟨h0, h1⟩ r
-        have hr : r.val = 0 ∨ r.val = 1 := by
-          have hlt : r.val < 2 := by simpa only [params.toSmooth_arity i] using r.isLt
-          omega
-        rcases hr with hr0 | hr1
-        · have hreq : r = ⟨0, by simp⟩ := Fin.ext hr0
-          rw [hreq]
-          simpa only [Fin.val_zero, ↓reduceIte, Function.comp_apply] using h0
-        · have hreq : r = ⟨1, by simp⟩ := Fin.ext hr1
-          rw [hreq]
-          simpa only [Fin.val_one, Nat.one_ne_zero, ↓reduceIte, Function.comp_apply] using h1
+      rw [forall_fin_toSmooth_arity_iff params i]
+      simp only [Nat.one_ne_zero, ↓reduceIte, Function.comp_apply]
     rw [heq]
     exact hno v₀ hv₀ v₁ hv₁
   · ext z
@@ -2711,7 +2641,7 @@ private theorem uniqueLineGapHypothesis_to_smooth [DecidableEq F] (params : FRIP
   obtain ⟨D', v₀, hv₀, v₁, hv₁, hD'_card, hD'_agree⟩ := hgap i u₀ u₁ Z hZ' hclose'
   let v : Fin (params.toSmooth.arity i) → Fin (params.toSmooth.domainSize (i.val + 1)) → F :=
     fun r => if r.val = 0 then v₀ ∘ eqv.symm else v₁ ∘ eqv.symm
-  refine ⟨D'.image eqv, v, fun r => ?_, ?_, fun y hy r => ?_⟩
+  refine ⟨D'.image eqv, v, fun r => ?_, ?_, fun y hy => ?_⟩
   · dsimp only [v]
     split_ifs
     · exact (mem_rsCode_iff_toSmooth params i.isLt v₀).mp hv₀
@@ -2719,18 +2649,9 @@ private theorem uniqueLineGapHypothesis_to_smooth [DecidableEq F] (params : FRIP
   · rw [Finset.card_image_of_injective D' eqv.injective, hdom, hcum]
     exact hD'_card
   · obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hy
-    obtain ⟨h0, h1⟩ := hD'_agree j hj
-    have hr : r.val = 0 ∨ r.val = 1 := by
-      have hlt : r.val < 2 := by simpa only [FRISmoothParams.arity, pow_one] using r.isLt
-      omega
-    rcases hr with hr0 | hr1
-    · have : r = ⟨0, by simp⟩ := Fin.ext hr0
-      subst this
-      simpa only [v, u₀, Function.comp_apply, Equiv.symm_apply_apply, ↓reduceIte] using h0
-    · have : r = ⟨1, by simp⟩ := Fin.ext hr1
-      subst this
-      simpa only [v, u₁, Function.comp_apply, Equiv.symm_apply_apply, Nat.one_ne_zero,
-        ↓reduceIte] using h1
+    refine (forall_fin_toSmooth_arity_iff params i _).mpr ?_
+    simpa only [v, u₀, u₁, Function.comp_apply, Equiv.symm_apply_apply, Fin.val_zero, Fin.val_one,
+      Nat.one_ne_zero, ↓reduceIte] using hD'_agree j hj
 
 end BinaryTranscriptAndBridges
 

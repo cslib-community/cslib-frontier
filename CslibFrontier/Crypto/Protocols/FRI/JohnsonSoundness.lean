@@ -23,9 +23,9 @@ of `CslibFrontier.Crypto.Protocols.FRI.Soundness` unconditionally for the single
 (and its binary 2-to-1 specialization `Cslib.Crypto.Protocols.FRI.friIOP`) in both the
 unique-decoding regime and the Johnson-bound regime, combining
 `Cslib.Code.exists_correlatedAgreement_curve_unique`
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1]) and
+([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5 and 6.1]) and
 `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1 and 7.2]) with
+([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5, 6.2, and 7.2]) with
 `Cslib.Crypto.Protocols.FRI.friSmoothIOP_rbrSound`, the per-round commit and summed interactive IOP
 soundness providers (`friSmoothCommitGame_le_of_weightedCurveGapPerRound`,
 `friSmoothIOP_interactiveGame_le_of_weightedCurveGapPerRound`), and the two-channel BCS
@@ -205,7 +205,9 @@ private theorem sum_fin_arity_sub_one_succ {α : Type*} {a : ℕ} (ha : 1 ≤ a)
     fun r => z ^ (eqA r).val • u (eqA r) from hfun]
   exact Equiv.sum_comp eqA (fun r : Fin a => z ^ r.val • u r)
 
-private theorem two_mul_toSmooth_first_sub_le (params : FRIParams F) :
+/-- At `params.toSmooth`, twice the round-`0` smooth folding drop
+`2 ^ d - 2 ^ (d - firstStepLog)` is bounded by `2 ^ d`. -/
+theorem two_mul_toSmooth_first_sub_le (params : FRIParams F) :
     2 * (2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog)) ≤ 2 ^ params.d := by
   rw [params.toSmooth_firstStepLog]
   rcases Nat.eq_zero_or_pos params.d with hd | hd
@@ -233,8 +235,8 @@ variable {F : Type} [Field F]
 
 /-- **Unconditional per-round unique-decoding `WeightedCurveGapPerRound`** across all `m`
 single-word smooth FRI folding rounds (instantiating
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1] for degree-`(l⁽ⁱ⁾ - 1)` curves at each round
-via `FRISmoothParams.two_mul_div_add_dim_le`).
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5 and 6.1] for degree-`(l⁽ⁱ⁾ - 1)` curves at
+each round via `FRISmoothParams.two_mul_div_add_dim_le`).
 
 Discharges `UniqueCurveGapHypothesis` directly from
 `Cslib.Code.exists_correlatedAgreement_curve_unique` over any field `F` of characteristic `≠ 2`,
@@ -332,7 +334,7 @@ theorem friSmoothIOP_interactiveGame_le_of_unique [Fintype F] [DecidableEq F]
 
 /-- **Unconditional round-by-round soundness of single-word `friSmoothIOP` in the unique-decoding
 regime** ([BenSassonBentovHoreshRiabzev2018];
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1]). -/
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5 and 6.1]). -/
 theorem friSmoothIOP_rbrSound_of_unique [Fintype F] [DecidableEq F] (params : FRISmoothParams F)
     {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) :
     IOPRoundByRoundSoundness (friSmoothIOP params) (params.proximityLang e)
@@ -512,9 +514,9 @@ theorem sum_friSmoothJohnsonRoundEscape_le [Fintype F] (params : FRISmoothParams
   rw [hnumR, friSmoothJohnsonCommitError]
   field_simp
 
-/-- **Unconditional per-round discrete Johnson-bound `WeightedCurveGapPerRound`** across all `m`
-single-word smooth FRI folding rounds (instantiating
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1 and 7.2] per round with exact degree-`(l⁽ⁱ⁾-1)`
+/-- **Explicit-parameter Guruswami–Sudan per-round `WeightedCurveGapPerRound`** across all `m`
+single-word smooth FRI folding rounds (in the setting of
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5, 6.2, and 7.2], with exact degree-`(l⁽ⁱ⁾ - 1)`
 `Cslib.Code.ProximityGap.johnsonCurveBound` budgets). -/
 theorem weightedCurveGapPerRound_of_johnson_discrete [DecidableEq F]
     (params : FRISmoothParams F) {e : ℕ} (he : e < 2 ^ params.d)
@@ -583,8 +585,8 @@ theorem weightedCurveGapPerRound_of_johnson_discrete [DecidableEq F]
   dsimp only [B_W] at hle_B
   omega
 
-/-- **Unconditional discrete Johnson-bound `WeightedCurveGapBound`** for all `m` single-word smooth
-FRI folding rounds, derived as a monotonicity corollary of
+/-- **Explicit-parameter Guruswami–Sudan uniform `WeightedCurveGapBound`** for all `m` single-word
+smooth FRI folding rounds, derived as a monotonicity corollary of
 `weightedCurveGapPerRound_of_johnson_discrete`. -/
 theorem weightedCurveGapBound_of_johnson_discrete [DecidableEq F]
     (params : FRISmoothParams F) {e B_commit : ℕ} (he : e < 2 ^ params.d)
@@ -606,8 +608,8 @@ theorem weightedCurveGapBound_of_johnson_discrete [DecidableEq F]
   (weightedCurveGapPerRound_of_johnson_discrete params he mRound DRound hm hk_le hinterp hroot).mono
     hbound
 
-/-- **Unconditional summed commit-phase soundness of single-word `friSmoothIOP` with discrete
-Guruswami–Sudan parameters**. -/
+/-- **Explicit-parameter Guruswami–Sudan step toward summed commit-phase soundness of single-word
+`friSmoothIOP`**. -/
 theorem friSmoothCommitGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
     (params : FRISmoothParams F) {e : ℕ} (he : e < 2 ^ params.d)
     (mRound DRound : Fin params.m → ℕ)
@@ -633,8 +635,8 @@ theorem friSmoothCommitGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
     hfar P).trans_eq ?_
   exact sum_natCast_div_ennreal Finset.univ _ _
 
-/-- **Unconditional summed interactive soundness of single-word `friSmoothIOP` with discrete
-Guruswami–Sudan parameters**. -/
+/-- **Explicit-parameter Guruswami–Sudan step toward summed interactive soundness of single-word
+`friSmoothIOP`**. -/
 theorem friSmoothIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
     (params : FRISmoothParams F) {e : ℕ} (he : e < 2 ^ params.d)
     (mRound DRound : Fin params.m → ℕ)
@@ -661,10 +663,10 @@ theorem friSmoothIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [Decidab
     hfar P).trans_eq ?_
   rw [friSmoothSumError, sum_natCast_div_ennreal]
 
-/-- **Unconditional per-round smooth Johnson-bound `WeightedCurveGapPerRound`** across all `m`
-single-word smooth FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (instantiating
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 5.1, and 7.2] per round with this library's
-explicit Siegel constants).
+/-- **Original explicit-constant per-round Johnson-bound `WeightedCurveGapPerRound`** across all `m`
+single-word smooth FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (in the setting of
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5, 6.2, and 7.2], using this library's explicit
+Siegel constants).
 
 Reuses `Cslib.Code.ProximityGap.johnson_curve_params_bound` (at degree `r = params.arity i - 1 ≥ 1`)
 and `Cslib.Code.ProximityGap.johnsonCurveBound_mul_le` at every round `i : Fin params.m`, retaining
@@ -807,10 +809,12 @@ theorem weightedCurveGapPerRound_of_johnson [DecidableEq F]
     exact_mod_cast hmul_R
   exact (Nat.le_div_iff_mul_le hk₀_pos).mpr hmul_nat
 
-/-- **Unconditional closed-form uniform Johnson-bound `WeightedCurveGapBound`** for all `m`
+/-- **Original explicit-constant uniform Johnson-bound `WeightedCurveGapBound`** for all `m`
 single-word smooth FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)`
-(`friSmoothJohnsonCommitBound params mJ`), obtained as a monotonicity corollary of
-`weightedCurveGapPerRound_of_johnson` and `friSmoothJohnsonRoundBound_le_commitBound`. -/
+(`friSmoothJohnsonCommitBound params mJ`, in the setting of
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5, 6.2, and 7.2]), obtained as a monotonicity
+corollary of `weightedCurveGapPerRound_of_johnson` and `friSmoothJohnsonRoundBound_le_commitBound`.
+-/
 theorem weightedCurveGapBound_of_johnson [DecidableEq F]
     (params : FRISmoothParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
@@ -869,10 +873,10 @@ theorem weightedCurveGapBound_of_johnson_eta [DecidableEq F]
         field_simp
         ring
 
-/-- **Unconditional summed commit-phase soundness of single-word `friSmoothIOP` up to the Johnson
-bound** (using this library's explicit telescoping Siegel commit error
-`friSmoothJohnsonCommitError params mJ`, bounded independently of `m` and per-round arities
-`l⁽ⁱ⁾`). -/
+/-- **Original explicit-constant Johnson summed commit-phase soundness of single-word
+`friSmoothIOP`** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], using this library's
+explicit telescoping Siegel commit error `friSmoothJohnsonCommitError params mJ`, bounded
+independently of `m` and per-round arities `l⁽ⁱ⁾`). -/
 theorem friSmoothCommitGame_le_of_johnson [Fintype F] [DecidableEq F]
     (params : FRISmoothParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
@@ -886,9 +890,10 @@ theorem friSmoothCommitGame_le_of_johnson [Fintype F] [DecidableEq F]
     (weightedCurveGapPerRound_of_johnson params hmJ he) hfar P).trans
     (sum_friSmoothJohnsonRoundEscape_le params mJ)
 
-/-- **Unconditional summed interactive soundness of single-word `friSmoothIOP` up to the Johnson
-bound** (using `friSmoothJohnsonCommitError params mJ` plus query error
-`((2 ^ d - e - 1) / 2 ^ d) ^ q`, bounded independently of `m` and per-round arities `l⁽ⁱ⁾`). -/
+/-- **Original explicit-constant Johnson summed interactive soundness of single-word
+`friSmoothIOP`** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], using
+`friSmoothJohnsonCommitError params mJ` plus query error `((2 ^ d - e - 1) / 2 ^ d) ^ q`, bounded
+independently of `m` and per-round arities `l⁽ⁱ⁾`). -/
 theorem friSmoothIOP_interactiveGame_le_of_johnson [Fintype F] [DecidableEq F]
     (params : FRISmoothParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
@@ -903,9 +908,9 @@ theorem friSmoothIOP_interactiveGame_le_of_johnson [Fintype F] [DecidableEq F]
     (weightedCurveGapPerRound_of_johnson params hmJ he) hfar P).trans
     (add_le_add (sum_friSmoothJohnsonRoundEscape_le params mJ) le_rfl)
 
-/-- **Unconditional round-by-round soundness of single-word `friSmoothIOP` up to the Johnson
-bound** ([BenSassonBentovHoreshRiabzev2018];
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 5.1, and 7.2]). -/
+/-- **Original explicit-constant Johnson round-by-round soundness of single-word `friSmoothIOP`**
+(in the setting of [BenSassonBentovHoreshRiabzev2018] and
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.5, 6.2, and 7.2]). -/
 theorem friSmoothIOP_rbrSound_of_johnson [Fintype F] [DecidableEq F] (params : FRISmoothParams F)
     {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
@@ -922,7 +927,7 @@ theorem friSmoothIOP_rbrSound_of_johnson [Fintype F] [DecidableEq F] (params : F
   ⟨friSmoothIOP_rbrSound params e,
     friSmoothRBREscape_of_weightedCurveGap params (weightedCurveGapBound_of_johnson params hmJ he)⟩
 
-/-- **Unconditional adaptive smooth BCS-FRI ROM soundness up to the Johnson bound**
+/-- **Original explicit-constant Johnson adaptive two-channel smooth BCS-FRI ROM soundness**
 ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]), composing `weightedCurveGapBound_of_johnson`
 with `friSmoothBCS_romSoundness_bound_of_weightedCurveGap`. -/
 theorem friSmoothBCS_romSoundness_bound_of_johnson [Fintype F] [DecidableEq F]
@@ -949,8 +954,8 @@ theorem friSmoothBCS_romSoundness_bound_of_johnson [Fintype F] [DecidableEq F]
   friSmoothBCS_romSoundness_bound_of_weightedCurveGap params
     (weightedCurveGapBound_of_johnson params hmJ he) hdec σ hFS hMT
 
-/-- **Unconditional adaptive smooth BCS-FRI ROM soundness with separate prover/verifier Merkle
-budgets up to the Johnson bound** ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]). -/
+/-- **Original explicit-constant Johnson adaptive two-channel smooth BCS-FRI ROM soundness with
+separate prover/verifier Merkle budgets** ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]). -/
 theorem friSmoothBCS_romSoundness_bound_of_prover_verifier_of_johnson [Fintype F] [DecidableEq F]
     (params : FRISmoothParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
@@ -1147,7 +1152,9 @@ private theorem friJohnsonRoundBound_eq_smooth (params : FRIParams F) (mJ : ℕ)
     Nat.reduceSub, one_mul, params.toSmooth_domainSize i.isLt, FRIParams.domainSize,
     params.toSmooth_dim (Nat.zero_le _)]
 
-private theorem friSmoothJohnsonCommitBound_toSmooth_le (params : FRIParams F) (mJ : ℕ) :
+/-- At `params.toSmooth`, the smooth uniform Johnson commit budget is bounded above by the binary
+`friJohnsonCommitBound`. -/
+theorem friSmoothJohnsonCommitBound_toSmooth_le (params : FRIParams F) (mJ : ℕ) :
     friSmoothJohnsonCommitBound params.toSmooth mJ ≤ friJohnsonCommitBound params mJ := by
   rw [friSmoothJohnsonCommitBound, friJohnsonCommitBound, params.toSmooth_dim (Nat.zero_le _)]
   refine Nat.div_le_div_right ?_
@@ -1213,7 +1220,7 @@ theorem sum_friJohnsonRoundEscape_le [Fintype F] (params : FRIParams F) (mJ : �
   refine (Finset.sum_congr rfl fun i _ => ?_).trans_le h
   rw [friJohnsonRoundBound_eq_smooth]
 
-/-- **Unconditional per-round discrete Johnson-bound `WeightedLineGapPerRound`** across all `m`
+/-- **Explicit-parameter Guruswami–Sudan per-round `WeightedLineGapPerRound`** across all `m`
 single-word binary FRI folding rounds (corollary of `weightedCurveGapPerRound_of_johnson_discrete`).
 -/
 theorem weightedLineGapPerRound_of_johnson_discrete [DecidableEq F]
@@ -1245,8 +1252,8 @@ theorem weightedLineGapPerRound_of_johnson_discrete [DecidableEq F]
   simp only [params.toSmooth_domainSize i.isLt, FRIParams.domainSize, params.toSmooth_dim i.isLt,
     params.toSmooth_arity i, Nat.reduceSub, le_rfl]
 
-/-- **Unconditional discrete Johnson-bound `WeightedLineGapBound`** for all `m` single-word FRI
-folding rounds, derived as a monotonicity corollary of
+/-- **Explicit-parameter Guruswami–Sudan uniform `WeightedLineGapBound`** for all `m` single-word
+FRI folding rounds, derived as a monotonicity corollary of
 `weightedLineGapPerRound_of_johnson_discrete`. -/
 theorem weightedLineGapBound_of_johnson_discrete [DecidableEq F]
     (params : FRIParams F) {e B_commit : ℕ} (he : e < 2 ^ params.d)
@@ -1266,8 +1273,8 @@ theorem weightedLineGapBound_of_johnson_discrete [DecidableEq F]
   (weightedLineGapPerRound_of_johnson_discrete params he mRound DRound hm hk_le hinterp hroot).mono
     hbound
 
-/-- **Unconditional summed commit-phase soundness of single-word `friIOP` with discrete
-Guruswami–Sudan parameters**. -/
+/-- **Explicit-parameter Guruswami–Sudan step toward summed commit-phase soundness of single-word
+`friIOP`**. -/
 theorem friCommitGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (he : e < 2 ^ params.d)
     (mRound DRound : Fin params.m → ℕ)
@@ -1291,8 +1298,8 @@ theorem friCommitGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
     hfar P).trans_eq ?_
   exact sum_natCast_div_ennreal Finset.univ _ _
 
-/-- **Unconditional summed interactive soundness of single-word `friIOP` with discrete
-Guruswami–Sudan parameters**. -/
+/-- **Explicit-parameter Guruswami–Sudan step toward summed interactive soundness of single-word
+`friIOP`**. -/
 theorem friIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (he : e < 2 ^ params.d)
     (mRound DRound : Fin params.m → ℕ)
@@ -1315,9 +1322,9 @@ theorem friIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [DecidableEq F
   refine (friIOP_interactiveGame_le_of_weightedLineGapPerRound params
     (weightedLineGapPerRound_of_johnson_discrete params he mRound DRound hm hk_le hinterp hroot)
     hfar P).trans_eq ?_
-  rw [friSumError, sum_natCast_div_ennreal]
+  rw [friSumError, friSmoothSumError, sum_natCast_div_ennreal]
 
-/-- **Unconditional geometric per-round Johnson-bound `WeightedLineGapPerRound`** across all `m`
+/-- **Original explicit-constant per-round Johnson-bound `WeightedLineGapPerRound`** across all `m`
 single-word binary FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (corollary of
 `weightedCurveGapPerRound_of_johnson`). -/
 theorem weightedLineGapPerRound_of_johnson [DecidableEq F]
@@ -1334,7 +1341,7 @@ theorem weightedLineGapPerRound_of_johnson [DecidableEq F]
   refine (weightedCurveGapPerRound_of_johnson params.toSmooth hmJ he').mono fun i => ?_
   rw [friJohnsonRoundBound_eq_smooth]
 
-/-- **Unconditional closed-form uniform Johnson-bound `WeightedLineGapBound`** for all `m`
+/-- **Original explicit-constant uniform Johnson-bound `WeightedLineGapBound`** for all `m`
 single-word FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (`friJohnsonCommitBound params
 mJ`), obtained as a monotonicity corollary of `weightedLineGapPerRound_of_johnson` and
 `friJohnsonRoundBound_le_commitBound`. -/
@@ -1381,7 +1388,7 @@ theorem weightedLineGapBound_of_johnson_eta [DecidableEq F]
     _ ≤ 57600 * (2 ^ params.d : ℝ) * ((2 ^ params.d : ℝ) ^ 2) := by gcongr
     _ = 57600 * ((2 ^ params.d : ℝ) ^ 3) := by ring
 
-/-- **Unconditional summed commit-phase soundness of single-word `friIOP` up to the Johnson bound**
+/-- **Original explicit-constant Johnson summed commit-phase soundness of single-word `friIOP`**
 (using `friJohnsonCommitError params mJ`, bounded independently of `m`). -/
 theorem friCommitGame_le_of_johnson [Fintype F] [DecidableEq F]
     (params : FRIParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
@@ -1396,7 +1403,7 @@ theorem friCommitGame_le_of_johnson [Fintype F] [DecidableEq F]
     (weightedLineGapPerRound_of_johnson params hmJ he) hfar P).trans
     (sum_friJohnsonRoundEscape_le params mJ)
 
-/-- **Unconditional summed interactive soundness of single-word `friIOP` up to the Johnson bound**
+/-- **Original explicit-constant Johnson summed interactive soundness of single-word `friIOP`**
 (using `friJohnsonCommitError params mJ` plus query error `((2 ^ d - e - 1) / 2 ^ d) ^ q`). -/
 theorem friIOP_interactiveGame_le_of_johnson [Fintype F] [DecidableEq F]
     (params : FRIParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
@@ -1412,8 +1419,8 @@ theorem friIOP_interactiveGame_le_of_johnson [Fintype F] [DecidableEq F]
     (weightedLineGapPerRound_of_johnson params hmJ he) hfar P).trans
     (add_le_add (sum_friJohnsonRoundEscape_le params mJ) le_rfl)
 
-/-- **Unconditional round-by-round soundness of single-word `friIOP` up to the Johnson bound**
-([BenSassonBentovHoreshRiabzev2018];
+/-- **Original explicit-constant Johnson round-by-round soundness of single-word `friIOP`**
+(in the setting of [BenSassonBentovHoreshRiabzev2018] and
 [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 5.1, and 7.2]). -/
 theorem friIOP_rbrSound_of_johnson [Fintype F] [DecidableEq F] (params : FRIParams F)
     {e mJ : ℕ} (hmJ : 1 ≤ mJ)
@@ -1431,7 +1438,7 @@ theorem friIOP_rbrSound_of_johnson [Fintype F] [DecidableEq F] (params : FRIPara
   ⟨friIOP_rbrSound params e,
     friRBREscape_of_weightedLineGap params (weightedLineGapBound_of_johnson params hmJ he)⟩
 
-/-- **Unconditional adaptive BCS-FRI ROM soundness up to the Johnson bound**
+/-- **Original explicit-constant Johnson adaptive two-channel BCS-FRI ROM soundness**
 ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]), composing `weightedLineGapBound_of_johnson`
 with `friBCS_romSoundness_bound_of_weightedLineGap`. -/
 theorem friBCS_romSoundness_bound_of_johnson [Fintype F] [DecidableEq F]
@@ -1458,8 +1465,8 @@ theorem friBCS_romSoundness_bound_of_johnson [Fintype F] [DecidableEq F]
   friBCS_romSoundness_bound_of_weightedLineGap params
     (weightedLineGapBound_of_johnson params hmJ he) hdec σ hFS hMT
 
-/-- **Unconditional adaptive BCS-FRI ROM soundness with separate prover/verifier Merkle budgets up
-to the Johnson bound** ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]). -/
+/-- **Original explicit-constant Johnson adaptive two-channel BCS-FRI ROM soundness with separate
+prover/verifier Merkle budgets** ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]). -/
 theorem friBCS_romSoundness_bound_of_prover_verifier_of_johnson [Fintype F] [DecidableEq F]
     (params : FRIParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
