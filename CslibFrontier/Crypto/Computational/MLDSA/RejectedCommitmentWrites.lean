@@ -438,20 +438,20 @@ private theorem scored_no_sign (C : QuantumSigningForger) (s : Level) (base : Xo
     obtain ⟨fits, tail⟩ := OracleComp.IsCostBounded.liftBind_iff.mp nosign
     simp only [PFunctor.FreeM.bind_eq_bind]
     rcases cmd with coin | cmd | ask
-    · simp only [expansionContinuation, scored_coin (C := C) (coin := coin) (k := k),
+    · simp only [expansionContinuation, scored_eq_measured,
+        measured_coin (C := C) (coin := coin) (k := k),
         ProbOracleComp.runWith, OracleComp.runWith_bind, OracleComp.runWith_query,
         OracleComp.sumHandler, PMF.bind_map, PMF.bind_bind, Function.comp_def]
-      exact congrArg (PMF.bind _ ·) (funext fun i => ih i (tail i) d st)
+      exact congrArg (PMF.bind _ ·)
+        (funext fun i => (scored_eq_measured ..).symm.trans (ih i (tail i) d st))
     · simp only [ProbOracleComp.runWith, OracleComp.runWith_bind, OracleComp.runWith_query,
-        OracleComp.sumHandler]
-      simp only [programmedCommands, OracleComp.sumHandler, PMF.bind_map, PMF.bind_bind,
-        Function.comp_def, expansionContinuation, scored_step (C := C) (q := .inr (.inl cmd))
-          (k := k), OracleComp.withSampleListWhen,
-        isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.false_eq_true, ↓reduceIte,
-        signingCommand, deviceCommand, StateT.run, pmf_norm]
+        OracleComp.sumHandler, programmedCommands, statefulSigningCommands,
+        expansionContinuation, scored_eq_measured,
+        measured_step (C := C) (q := .inr (.inl cmd)) (k := k), deviceCommand,
+        PMF.bind_map, PMF.bind_bind, Function.comp_def, pmf_norm]
       apply congrArg (PMF.bind _ ·)
       funext ⟨bits, next⟩
-      exact ih bits (tail bits) next st
+      exact (scored_eq_measured ..).symm.trans (ih bits (tail bits) next st)
     · simp [isSigningCall] at fits
 
 /-- For a forger whose first instruction requests the only signature, the terminal-write
@@ -477,9 +477,10 @@ theorem freshDigestSigningCall_eq_freshMaskSigning_of_single_call
     cases ha : H.expandA s sk.rho with
     | none => simp [ha, pmf_norm]
     | some A =>
-      simp only [ha, runProgrammed, first, ProbOracleComp.runWith, OracleComp.runWith_bind,
-        OracleComp.runWith_query, OracleComp.sumHandler, programmedCommands, PMF.map_bind,
-        PMF.bind_map, Function.comp_def, pmf_norm]
+      simp only [ha, runProgrammed, runSigningProgram, first, ProbOracleComp.runWith,
+        OracleComp.runWith_bind, OracleComp.runWith_query, OracleComp.sumHandler,
+        programmedCommands, statefulSigningCommands, PMF.map_bind, PMF.bind_map,
+        Function.comp_def, pmf_norm]
       apply congrArg (PMF.bind _ ·)
       funext ⟨r, state⟩
       exact scored_no_sign C s G A keys sk (k r) (last r) C.initialDevice state

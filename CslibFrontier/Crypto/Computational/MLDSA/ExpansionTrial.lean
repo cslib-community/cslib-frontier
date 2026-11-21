@@ -333,8 +333,11 @@ private theorem prefixRun_eq {V : Type} (C : QuantumSigningForger) (s : Level) (
       (l : List Forgery) (r : Row s) (t : List (Row s)) :
       full (.signing q k) d l (r :: t) = C.expansionContinuation s G A keys
         (k (G.signWithExpansionRow s keys.secretKey q r)) d
-        (q.logReply (G.signWithExpansionRow s keys.secretKey q r) l) t :=
-    scored_sign (ask := q) (k := k) ..
+        (q.logReply (G.signWithExpansionRow s keys.secretKey q r) l) t := by
+    simp only [full, resumeProgram, expansionContinuation, scored_eq_measured]
+    change measured _ _ (OracleComp.query (.inr (.inr q)) >>= k) _ _ _ = _
+    simp only [measured_sign (C := C) (ask := q) (k := k), tapeReply, List.headD_cons,
+      List.tail_cons, PMF.pure_bind]
   have ref (t : List (Row s)) : C.prefixRun s G keys prog pre.length dev log t full =
       C.expansionContinuation s G A keys prog dev log t := by
     conv_rhs => rw [← C.cut_resume prog pre.length]

@@ -8,10 +8,12 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 -- `#guard` evaluates the checkers and the fixtures at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 
@@ -53,6 +55,11 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   each compared with VeriPB and CakePB, and the public order and dominance API (`Order.defCheck`,
   `Order.Le`, `LoadedOrder.isPreorder`, `domCheck`, `domCheck_sound`) under the ordinary imports
   of this module;
+* orders with auxiliary variables and a specification (§5.3): a one-bit order through an
+  auxiliary variable, with `dom` and `red` steps using `scope leq` and `scope geq`, an optimality
+  proof by `dom` under it, and the elaborated `lex10` instances of the VeriPB repository, each
+  compared with VeriPB and CakePB, and the order checks `eord_def` and `eord_loaded`
+  (§5.11.3), which neither tool implements;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
@@ -67,7 +74,11 @@ unchecked deletion, or uses a witness that moves a preserved variable, a transit
 fails, an order that is transitive but not reflexive, a `dom` step with an unproved negated order,
 a failing order or objective goal, an unproved core goal, a witness moving a preserved variable,
 or no loaded order, a `red` step with a failing order goal, an unchecked deletion with a nonempty
-derived set while an order is loaded, auxiliary variables and specifications, a dropped hint, a
+derived set while an order is loaded, a negated order refuted outside `scope geq` or in
+`scope leq`, auxiliary variables that are not fresh in `dom` or in a `red` step touching the
+order, an order loaded over an auxiliary variable, a specification step with a witness on a
+non-auxiliary variable or a failing witness, missing or clashing fresh auxiliary variables of a
+transitivity proof, an order check that does not match, a dropped hint, a
 repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a wrong
 formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
 tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
@@ -1188,6 +1199,12 @@ end pseudo-Boolean proof;
 #guard (checkOPB php32 ((domPhp32.replace "x3 x4;\n" "x3 x4;\npol 1 4 +;\ncore id 10;\n").replace
   "pol 10 11 +;\nqed : 12;" "pol 11 12 +;\nqed : 13;" |>.replace "14 + 15 +;\n" "15 + 16 +;\n"
   |>.replace "UNSAT : 16" "UNSAT : 17")).isNone
+-- Goal `#2`, the negated order, proved in `scope leq` does not count, even though `lex4` has no
+-- specification: all three reject. In `scope geq` it counts: all three accept.
+#guard (checkOPB php32 (domPhp32.replace "proofgoal #2\npol 10 11 +;\nqed : 12;\n"
+  "scope leq\nproofgoal #2\npol 10 11 +;\nqed : 12;\nend;\n")).isNone
+#guard checkOPB php32 (domPhp32.replace "proofgoal #2\npol 10 11 +;\nqed : 12;\n"
+  "scope geq\nproofgoal #2\npol 10 11 +;\nqed : 12;\nend;\n") == some (.unsat 16)
 -- Without its subproof, goal `#2`, the negated order, is not proved: all three reject.
 #guard (checkOPB php32 (domPhp32.replace "proofgoal #2\npol 10 11 +;\nqed : 12;\n" "")).isNone
 -- A witness that leaves `x2` alone: the negated order is no longer refuted, and all three
@@ -1195,9 +1212,13 @@ end pseudo-Boolean proof;
 #guard (checkOPB php32 (domPhp32.replace " x2 -> x4 " " ")).isNone
 -- A transitivity proof that does not end at a contradiction: all three reject.
 #guard (checkOPB php32 (domPhp32.replace "qed : 4;" "qed : 3;")).isNone
--- An auxiliary variable or a specification is not supported (VeriPB and CakePB support both).
+-- An auxiliary variable needs as many `fresh_aux_1` and `fresh_aux_2` variables in the
+-- transitivity proof, as CakePB's `check_ws` requires: CakePB and this checker reject, VeriPB
+-- accepts.
 #guard (checkOPB php32 (domPhp32.replace "aux;" "aux $a1;")).isNone
-#guard (checkOPB php32 (domPhp32.replace "end;\ndef\n" "end;\nspec\nend;\ndef\n")).isNone
+-- An empty `spec` section is the empty specification: all three accept.
+#guard checkOPB php32 (domPhp32.replace "end;\ndef\n" "end;\nspec\nend;\ndef\n") ==
+  some (.unsat 16)
 
 /-- `u1 ≤ v1` on one bit, numbered as `lex4`. -/
 def simpleOrder : String := "def_order simple
@@ -1438,24 +1459,301 @@ end pseudo-Boolean proof;
 -- reject: the optimum `1` is reached only at `x1`, which the lex-leader constraint excludes.
 #guard (checkOPB (sym2.replace "+1 x2 ;" "+2 x2 ;") domObjProof).isNone
 
+/-! ### Orders with auxiliary variables and a specification (§5.3)
+
+The one-bit order `notAux`, defined through the auxiliary variable `$a1`, with `dom` and `red`
+steps in its scopes, and the elaborated `lex10` instances of the VeriPB repository. Each fixture
+was also run through VeriPB 3.0.2 and CakePB, on VeriPB's elaboration when VeriPB accepted. -/
+
+-- The order is accepted by all three tools.
+#guard checkOPB emptyOpb (withNotAux 0 "") == some .noClaim
+
+/-- `dom ~x1 + x2 >= 1` (that is `x1 ≤ x2`) with the swap, under `notAux` over `x1`, with the
+subproof items `sub`. `¬C` is `1`. In `scope geq`, `S⪯(z, z↾ω, a)` takes `2`, `3`, and goal
+`#2` adds `O⪯(z, z↾ω, a)`; goal `#1`, `$a1 + x1 >= 1`, follows from `¬C`. -/
+def domSwap (sub : String) : String :=
+  withNotAux 0 ("load_order notaux x1;
+dom 1 ~x1 1 x2 >= 1 : x1 -> x2 x2 -> x1 : subproof
+" ++ sub ++ "qed;
+")
+
+-- Goal `#2` in `scope geq`: its premise `4`, with `3` and `¬C`, is a contradiction. All three
+-- accept.
+#guard checkOPB emptyOpb (domSwap "scope geq
+proofgoal #2
+pol 4 3 + 1 +;
+qed : 5;
+end;
+") == some .noClaim
+-- Goal `#1` proved in `scope leq` from the premises `2`, `3` of `S⪯(z↾ω, z, a)`, then goal `#2`
+-- in `scope geq`, numbered on: all three accept, as with the scopes in the other order.
+#guard checkOPB emptyOpb (domSwap "scope leq
+proofgoal #1
+pol 4 1 +;
+qed : 5;
+end;
+scope geq
+proofgoal #2
+pol 8 7 + 1 +;
+qed : 9;
+end;
+") == some .noClaim
+#guard checkOPB emptyOpb (domSwap "scope geq
+proofgoal #2
+pol 4 3 + 1 +;
+qed : 5;
+end scope geq;
+scope leq
+proofgoal #1
+pol 8 1 +;
+qed : 9;
+end scope;
+") == some .noClaim
+-- A scope may be entered twice: all three accept.
+#guard checkOPB emptyOpb (domSwap "scope geq
+end;
+scope geq
+proofgoal #2
+pol 6 5 + 1 +;
+qed : 7;
+end;
+") == some .noClaim
+-- Outside `scope geq`, `S⪯(z, z↾ω, a)` is missing, and goal `#2` is not refuted: all three
+-- reject.
+#guard (checkOPB emptyOpb (domSwap "proofgoal #2
+pol 2 1 +;
+qed : 3;
+")).isNone
+-- In `scope leq`, goal `#2` does not count (its premises there are `S⪯(z↾ω, z, a)`): all three
+-- reject.
+#guard (checkOPB emptyOpb (domSwap "scope leq
+proofgoal #2
+pol 4 3 + 1 +;
+qed : 5;
+end;
+")).isNone
+-- Goal `#1` proved in `scope geq` does not count either, but it is autoproven from `¬C`. CakePB
+-- and this checker accept; VeriPB rejects the block itself.
+#guard checkOPB emptyOpb (domSwap "scope geq
+proofgoal #1
+pol 4 1 +;
+qed : 5;
+proofgoal #2
+pol 6 3 + 1 +;
+qed : 7;
+end;
+") == some .noClaim
+-- `$a1` in the database: it is not fresh, so `dom` is rejected by all three (CakePB's
+-- `check_fresh_aspo`).
+#guard (checkOPB emptyOpb (withNotAux 0 "red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+load_order notaux x1;
+dom 1 ~x1 1 x2 >= 1 : x1 -> x2 x2 -> x1 : subproof
+scope geq
+proofgoal #2
+pol 5 4 + 2 +;
+qed : 6;
+end;
+qed;
+")).isNone
+-- `red ~x1 >= 1 : x1 -> 0`, its order goal `#2` proved in `scope leq` from the premise `2`,
+-- `$a1 >= 1`, of `S⪯(0, x1, a)`: all three accept, also with the goal autoproven.
+#guard checkOPB emptyOpb (withNotAux 0 "load_order notaux x1;
+red 1 ~x1 >= 1 : x1 -> 0 : subproof
+scope leq
+proofgoal #2
+pol 2 4 +;
+qed : 5;
+end;
+qed;
+") == some .noClaim
+#guard checkOPB emptyOpb (withNotAux 0 "load_order notaux x1;
+red 1 ~x1 >= 1 : x1 -> 0 : subproof
+qed;
+") == some .noClaim
+-- With `$a1` in the database, a `red` step that leaves the order alone and uses no scope needs no
+-- freshness: all three accept. One that touches the order does: CakePB and this checker reject,
+-- VeriPB accepts.
+#guard checkOPB emptyOpb (withNotAux 0 "red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+load_order notaux x1;
+red 1 x2 >= 1 : x2 -> 1 : subproof
+qed;
+") == some .noClaim
+#guard (checkOPB emptyOpb (withNotAux 0 "red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+load_order notaux x1;
+red 1 ~x1 >= 1 : x1 -> 0 : subproof
+qed;
+")).isNone
+-- A checked deletion that touches the order needs the auxiliary variables fresh only in its
+-- premises, the remaining core set: with `$a1` in a derived constraint, VeriPB and this checker
+-- accept, CakePB rejects (its `check_fresh_aspo` scans the whole database).
+#guard checkOPB "* #variable= 1 #constraint= 1\n+1 x1 >= 1 ;\n"
+  (withNotAux 1 "load_order notaux ~x1;
+red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+delc 1 : x1 -> 1 : subproof
+qed;
+") == some .noClaim
+-- With `$a1` in the database, a `red` step that leaves the order alone but enters `scope leq`
+-- needs freshness too: CakePB and this checker reject, VeriPB accepts.
+#guard (checkOPB emptyOpb (withNotAux 0 "red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+load_order notaux x1;
+red 1 x2 >= 1 : x2 -> 1 : subproof
+scope leq
+end;
+qed;
+")).isNone
+-- A `proofgoal` outside the scopes counts, also when its premise list is the specification's:
+-- under an order whose specification is `>= 0`, the core goal `1` of `dom x1 >= 1 : x1 -> 0`
+-- has the negation `>= 0`. All three accept.
+#guard checkOPB "* #variable= 1 #constraint= 1\n+1 x1 >= 1 ;\n" "pseudo-Boolean proof version 3.0
+f 1;
+def_order simple
+vars
+left u1;
+right v1;
+aux;
+end;
+spec
+red >= 0 : : subproof
+qed;
+end;
+def
+1 ~u1 1 v1 >= 1;
+end;
+transitivity
+vars
+fresh_right w1;
+end;
+proof
+proofgoal #1
+pol 4 5 + 6 +;
+qed : 7;
+qed;
+end;
+reflexivity
+proof
+proofgoal #1
+qed : 9;
+qed;
+end;
+end;
+load_order simple ~x1;
+dom 1 x1 >= 1 : x1 -> 0 : subproof
+proofgoal 1
+pol 1 2 +;
+qed : 4;
+proofgoal #2
+pol 1 2 +;
+qed : 6;
+qed;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" == some .noClaim
+-- Without an order, `scope leq` adds nothing: all three accept.
+#guard checkOPB emptyOpb "pseudo-Boolean proof version 3.0
+f 0;
+red 1 ~x1 >= 1 : x1 -> 0 : subproof
+scope leq
+end;
+qed;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" == some .noClaim
+-- An order cannot be loaded over an auxiliary variable: all three reject.
+#guard (checkOPB emptyOpb (withNotAux 0 "load_order notaux $a1;
+")).isNone
+-- A specification step whose witness sets `u1`, not an auxiliary variable, and one whose witness
+-- does not repair it: all three reject.
+#guard (checkOPB emptyOpb
+  (withNotAux 0 "" |>.replace " : $a1 -> 1 : subproof" " : u1 -> 0 : subproof")).isNone
+#guard (checkOPB emptyOpb
+  (withNotAux 0 "" |>.replace "1 u1 >= 1 : $a1 -> 1" "1 u1 >= 1 : $a1 -> 0")).isNone
+-- A specification step without its subproof, `red C : ω;`, is not kernel format: CakePB and this
+-- checker reject it, VeriPB (which reads the augmented format) accepts.
+#guard (checkOPB emptyOpb (withNotAux 0 "" |>.replace
+  "red 1 $a1 1 u1 >= 1 : $a1 -> 1 : subproof\nqed;" "red 1 $a1 1 u1 >= 1 : $a1 -> 1;")).isNone
+-- Without `fresh_aux_1` and `fresh_aux_2`, or with `fresh_aux_1` reusing `$a1`, the transitivity
+-- check fails (CakePB's `check_ws`): CakePB and this checker reject, VeriPB accepts.
+#guard (checkOPB emptyOpb
+  (withNotAux 0 "" |>.replace "fresh_aux_1 $b1;\nfresh_aux_2 $c1;\n" "")).isNone
+#guard (checkOPB emptyOpb (withNotAux 0 "" |>.replace "fresh_aux_1 $b1;" "fresh_aux_1 $a1;")).isNone
+-- A transitivity proof that ends at no contradiction, and a reflexivity proof that uses the
+-- premise `1` of the transitivity proof: all three reject.
+#guard (checkOPB emptyOpb (withNotAux 0 "" |>.replace "qed : 10;" "qed : 9;")).isNone
+#guard (checkOPB emptyOpb (withNotAux 0 "" |>.replace "pol 11 13 +;" "pol 1 13 +;")).isNone
+
+-- All three accept, and reject for the objective `x1 + 2 x2`, which the swap can raise.
+#guard checkOPB sym2Aux domAuxObjProof == some (.bounds (some 1) 9 (some 1) none)
+#guard (checkOPB (sym2Aux.replace "+1 x2 ;" "+2 x2 ;") domAuxObjProof).isNone
+
+-- The `lex10` instances of the VeriPB repository, elaborated: all three accept.
+#guard checkOPB lex10Opb lex10Dom == some .noClaim
+#guard checkOPB lex10RedOpb lex10Red == some .noClaim
+#guard checkOPB lex10RedOpb lex10RedSub == some .noClaim
+
+/-! #### Syntactic order equivalence (§5.11.3)
+
+`eord_def` and `eord_loaded` are documented in §5.11.3 but implemented by neither tool: VeriPB
+3.0.2 reports that their rules are not implemented, and CakePB does not parse them. This checker
+follows the documentation. -/
+
+/-- `eord_def notaux` with the given specification lines. -/
+def eordNotAux (spec : String) : String := "eord_def notaux
+vars
+left u1;
+right v1;
+aux $a1;
+end;
+spec
+" ++ spec ++ "end;
+def
+1 $a1 1 v1 >= 1;
+end;
+end;
+"
+
+-- The definition matches, up to the order of terms; the same constraints in the other order do
+-- not.
+#guard checkOPB emptyOpb (withNotAux 0 (eordNotAux "1 u1 1 $a1 >= 1;\n1 ~$a1 1 ~u1 >= 1;\n")) ==
+  some .noClaim
+#guard (checkOPB emptyOpb (withNotAux 0 (eordNotAux "1 ~$a1 1 ~u1 >= 1;\n1 $a1 1 u1 >= 1;\n"))
+  ).isNone
+-- The loaded order and its literals match, but not other literals, nor after unloading.
+#guard checkOPB emptyOpb (withNotAux 0 "load_order notaux x1;\neord_loaded notaux x1;\n") ==
+  some .noClaim
+#guard (checkOPB emptyOpb (withNotAux 0 "load_order notaux x1;\neord_loaded notaux ~x1;\n")
+  ).isNone
+#guard (checkOPB emptyOpb
+  (withNotAux 0 "load_order notaux x1;\nload_order;\neord_loaded notaux x1;\n")).isNone
+
 /-! ### The order and dominance API under ordinary imports
 
 This module imports `Text`, and with it `Redundance`, by ordinary imports: the checks below use
 only the public API, through `#guard`, exposed bodies and the soundness theorems. -/
 
 -- `lex2` and its proofs come from `CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures`.
-#guard lex2.defCheck [14, 15] lex2Trans lex2Refl
+#guard lex2.defCheck [] ⟨[14, 15], [], []⟩ lex2Trans lex2Refl
 
 -- The relation itself unfolds through exposed bodies: `01 ⪯ 10`, and not `10 ⪯ 01`.
 example : lex2.Le [false, true] [true, false] := by decide
 example : ¬ lex2.Le [true, false] [false, true] := by decide
+-- With an auxiliary variable, `∃ ρ, S⪯(x, y, ρ) ∧ O⪯(x, y, ρ)` is decided by trying its values,
+-- also under ordinary imports: `0 ⪯ 1`, and not `1 ⪯ 0`, for `notAuxO`.
+example : notAuxO.Le [false] [true] := by decide
+example : ¬ notAuxO.Le [true] [false] := by decide
 
 -- A passing `def_order` check gives a preorder on assignments, for any literals of the right
 -- length.
-example {O : Order} {w : List ℕ} {tp rp : OrderProof} (h : O.defCheck w tp rp = true)
-    (z : List (Literal ℕ)) (hz : z.length = O.left.length) :
-    IsPreorder (ℕ → Bool) (LoadedOrder.Le ⟨O, z⟩) :=
-  LoadedOrder.isPreorder ⟨Order.good_of_defCheck h, hz⟩
+example {O : Order} {sp : List SpecStep} {w : TransVars} {tp rp : OrderProof}
+    (h : O.defCheck sp w tp rp = true) (z : List (Literal ℕ)) (hz : z.length = O.left.length)
+    (ha : ∀ l ∈ z, l.1 ∉ O.aux) : IsPreorder (ℕ → Bool) (LoadedOrder.Le ⟨O, z⟩) :=
+  LoadedOrder.isPreorder ⟨Order.good_of_defCheck h, hz, ha⟩
 
 /-- `lex2` loaded over `x0, x1`. -/
 def lex2Z : LoadedOrder := ⟨lex2, [(0, true), (1, true)]⟩

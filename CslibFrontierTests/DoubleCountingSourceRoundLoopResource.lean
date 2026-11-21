@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop.Replay
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop.Retained
 
 /-! A concrete single-round machine composed with the multi-round source loop. -/
 
@@ -145,5 +146,111 @@ example : ∃ R : Routines scan (fun _ : List Bool => scan.init) encBits nativeB
   refine ⟨.decided false, (firstHalting_iff_replayRounds (start () 1) round roundStart
     SourceRound.answer callback memberEntry (fun _ => some false) [] _ _).mp ⟨?_, rfl⟩⟩
   exact scan.firstHalting_append_singleton [] [false, false, false] false rfl rfl
+
+private def retainedSize (_ : Bool) : ℕ := 1
+
+private def retainedSource (_ : Bool) : ℕ := 0
+
+private def optionalCallback : NondeterministicQueryMachine (Option Bool) where
+  init := none
+  query _ := 0
+  next p := p.1
+  halted _ := true
+  accept := Option.isSome
+
+private def retainedStart (enabled : Bool) (_ : SourceRound.Context)
+    (_ : SourceRound.Request) : Option Bool :=
+  if enabled then some true else none
+
+private def retainedLoop :=
+  machine (start false 1)
+    (retainedRound retainedSize retainedSource optionalCallback retainedStart id (start false 1))
+    (retainedRoundEntry retainedSize retainedSource) (SourceRound.answer ∘ Prod.snd)
+    callback (fun _ => ()) (fun _ => some true)
+
+/-- The same source loop re-enters with new immutable context and obtains a round reply. -/
+example :
+    let selectors := [false, false, false, false]
+    retainedLoop.run [] selectors = .inr none ∧
+      (retainedLoop.withInit (enterRound (retainedRoundEntry retainedSize retainedSource)
+        (start true 1))).run [] selectors =
+        .inr (some (.decided true)) := ⟨rfl, rfl⟩
+
+/-- Re-entry uses the scalar round's strict first-halting condition. -/
+example (bits : List Bool) :
+    let r := start true 1
+    let round := retainedRound retainedSize retainedSource optionalCallback retainedStart id
+      (start false 1)
+    let entry := retainedRoundEntry retainedSize retainedSource r
+    round.FirstHalting [] bits entry ↔
+      (SourceRound.machine (roundContext retainedSize retainedSource r) optionalCallback
+        (retainedStart true) id).FirstHalting [] bits
+        (SourceRound.entry (roundContext retainedSize retainedSource r)) := by
+  dsimp only
+  rw [← firstHalting_withInit, retainedRound_withInit]
+  exact retainedRound_firstHalting retainedSize retainedSource optionalCallback retainedStart id
+    (start true 1) [] bits
+
+example :
+    ComputableInSpace (retainedRoundEntry (τ := Option Bool) retainedSize retainedSource)
+      (encRegisters encBool)
+      (encPair encBool (SourceRound.encMachineState (Option Bool) (encOption encBool)))
+      (fun r => (encRegisters encBool r).length) :=
+  retainedRoundEntry_inSpace retainedSize retainedSource encBool (encOption encBool)
+    (budget_const 1 (.refl _)) (budget_const 0 (.refl _))
+
+/-- Certify the transition of the context-dependent round plugged into the source loop. -/
+example :
+    let encCallee := encOption encBool
+    let encRound := encPair encBool (SourceRound.encMachineState (Option Bool) encCallee)
+    let encStep := encPair encRound encReadChoice
+    let round := retainedRound retainedSize retainedSource optionalCallback retainedStart id
+      (start false 1)
+    ComputableInSpace round.next encStep encRound (fun p => (encStep p).length) := by
+  dsimp only
+  refine retainedRound_next_inSpace retainedSize retainedSource optionalCallback retainedStart id
+    (start false 1) encBool (encOption encBool) ?_ ?_ ?_ ?_
+  · exact budget_ite (fst encBool SourceRound.encState)
+      (budget_const (some true) (.refl _)) (budget_const none (.refl _))
+  · exact of_inO (ComputableInDegree.id' (enc := encOption encBool)).inO_one
+  · exact budget_const true (.refl _)
+  · exact fst (encOption encBool) encReadChoice
+
+/-- Both retained entries have one round clock and admit a bound on every selector prefix. -/
+example (enabled : Bool) (input bits : List Bool) :
+    let r := start enabled 1
+    let round := retainedRound retainedSize retainedSource optionalCallback retainedStart id r
+    let encRound := encPair encBool
+      (SourceRound.encMachineState (Option Bool) (encOption encBool))
+    round.HaltsWithin input (SourceRound.roundClock 1 0) ∧
+      (encRound (round.run input bits)).length ≤
+        2 * (encBool enabled).length + 1 +
+          SourceRound.roundStateBound (roundContext retainedSize retainedSource r) 2 := by
+  dsimp only
+  constructor
+  · exact retainedRound_haltsWithin retainedSize retainedSource optionalCallback retainedStart id
+      (start enabled 1) input 0 (fun _ _ _ _ => rfl)
+  · refine retainedRound_length_run_le retainedSize retainedSource optionalCallback retainedStart id
+      (start enabled 1) encBool (encOption encBool) input bits 2 ?_
+    intro req _ choices
+    rw [optionalCallback.replay_of_halted input rfl choices]
+    cases enabled
+    · exact (show (encOption encBool none).length ≤ 2 by decide)
+    · exact (show (encOption encBool (some true)).length ≤ 2 by decide)
+
+/-- The retained round and final membership share an all-branch loop clock. -/
+example (input : List Bool) : retainedLoop.HaltsWithin input
+    (1 * (SourceRound.roundClock 1 0 + 1) + 0 + 1) := by
+  unfold retainedLoop
+  apply SourceRoundLoop.haltsWithin _ _ _ _ _ _ _ _
+    (Admissible false 1 1) (start_admissible false 1 1)
+    (retainedRound_admissible_closed retainedSize retainedSource optionalCallback retainedStart id
+      false 1 input) (SourceRound.roundClock 1 0) 0
+  · intro r _
+    rw [retainedRound_withInit]
+    exact retainedRound_haltsWithin retainedSize retainedSource optionalCallback retainedStart id
+      r input 0 (fun _ _ _ _ => rfl)
+  · intro _ _ _ _
+    rfl
 
 end CslibFrontierTests.DoubleCountingSourceRoundLoopResource

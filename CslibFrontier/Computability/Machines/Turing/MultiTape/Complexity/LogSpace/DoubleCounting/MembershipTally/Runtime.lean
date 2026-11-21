@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedW
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.MembershipTally
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Retain
 
 /-!
 # Membership tallies with a runtime bounded walk
@@ -206,15 +207,16 @@ def retainedInitial (walkContext : κ) (ctx : Context) : RetainedState κ τ :=
 /-- Decode the terminal membership reply from the retained tally. -/
 def retainedReply (s : RetainedState κ τ) : Option Bool := reply s.tally
 
+private def retainedStateEquiv : RetainedState κ τ ≃ κ × State (Runtime.State κ τ) where
+  toFun s := (s.walkContext, s.tally)
+  invFun p := ⟨p.1, p.2⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
 /-- Run the existing tally with the adjacency context taken from its state. -/
 def retainedMachine (ctx : Context) : NondeterministicQueryMachine (RetainedState κ τ) :=
-  let tallyFor k := withRuntimeWalk edge start verdict clock initialWalk k ctx
-  { init := retainedInitial context ctx
-    query := fun s => (tallyFor s.walkContext).query s.tally
-    next := fun (s, answer, choice) =>
-      { s with tally := (tallyFor s.walkContext).next (s.tally, answer, choice) }
-    halted := fun s => (tallyFor s.walkContext).halted s.tally
-    accept := fun s => (tallyFor s.walkContext).accept s.tally }
+  NondeterministicQueryMachine.retain retainedStateEquiv
+    (fun k => withRuntimeWalk edge start verdict clock initialWalk k ctx) context
 
 /-- Native acceptance records successful tally completion, including a false reply. -/
 theorem retainedMachine_accept (ctx : Context) (s : RetainedState κ τ) :
@@ -226,31 +228,20 @@ theorem retainedMachine_withInit (ctx newCtx : Context) (newContext : κ) :
     (retainedMachine edge start verdict clock initialWalk context ctx).withInit
       (retainedInitial newContext newCtx) =
     retainedMachine edge start verdict clock initialWalk newContext newCtx := by
-  unfold retainedMachine withRuntimeWalk NondeterministicQueryMachine.withInit
-  rfl
-
-private theorem retainedMachine_step (ctx : Context) (input : List Bool)
-    (s : RetainedState κ τ) (choice : Bool) :
-    (retainedMachine edge start verdict clock initialWalk context ctx).step input s choice =
-      ⟨s.walkContext,
-        (withRuntimeWalk edge start verdict clock initialWalk s.walkContext ctx).step
-          input s.tally choice⟩ := by
-  rcases s with ⟨k, t⟩
-  by_cases h : (withRuntimeWalk edge start verdict clock initialWalk k ctx).halted t = true <;>
-    simp [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read, retainedMachine, h]
+  unfold retainedMachine
+  rw [show retainedInitial newContext newCtx = retainedStateEquiv.symm (newContext, initial newCtx)
+    from rfl, NondeterministicQueryMachine.retain_withInit]
+  simp only [withRuntimeWalk_withInit]
 
 /-- Replay preserves the retained context and forwards exactly the same selectors and input. -/
 theorem retainedMachine_replay (ctx : Context) (input bits : List Bool) (s : RetainedState κ τ) :
     (retainedMachine edge start verdict clock initialWalk context ctx).replay input bits s =
       ⟨s.walkContext,
         (withRuntimeWalk edge start verdict clock initialWalk s.walkContext ctx).replay
-          input bits s.tally⟩ := by
-  induction bits generalizing s with
-  | nil =>
-    cases s
-    rfl
-  | cons choice choices ih =>
-    simp only [NondeterministicQueryMachine.replay_cons, retainedMachine_step, ih]
+          input bits s.tally⟩ :=
+  NondeterministicQueryMachine.replay_retain retainedStateEquiv
+    (fun k => withRuntimeWalk edge start verdict clock initialWalk k ctx)
+    context s.walkContext input bits s.tally
 
 /-- The first-halting selectors and reply agree with the tally at the retained adjacency context. -/
 theorem retainedMachine_firstHalting_reply_iff (ctx : Context) (input bits : List Bool)
@@ -259,8 +250,11 @@ theorem retainedMachine_firstHalting_reply_iff (ctx : Context) (input bits : Lis
     let T := withRuntimeWalk edge start verdict clock initialWalk context ctx
     M.FirstHalting input bits M.init ∧ retainedReply (M.run input bits) = some hit ↔
       T.FirstHalting input bits T.init ∧ reply (T.run input bits) = some hit := by
-  dsimp only [NondeterministicQueryMachine.FirstHalting, NondeterministicQueryMachine.run]
-  simp only [retainedMachine_replay, retainedReply]
+  dsimp only
+  refine and_congr (NondeterministicQueryMachine.firstHalting_retain retainedStateEquiv
+    (fun k => withRuntimeWalk edge start verdict clock initialWalk k ctx)
+    context context input bits _) ?_
+  rw [NondeterministicQueryMachine.run, retainedMachine_replay]
   rfl
 
 /-- A unique passing transcript at the exact round totals gives one successful retained

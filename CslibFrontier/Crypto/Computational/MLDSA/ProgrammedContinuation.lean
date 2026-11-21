@@ -66,12 +66,13 @@ private theorem simulated_eq_run (C : QuantumSigningForger) (s : Level) (H base 
       simp only [PMF.bind_map, Function.comp_def]
       exact congrArg (PMF.bind _ ·) (funext fun i => ih i D dev st current)
     · change (C.deviceCommand (H.withDigestRegister s D) cmd (dev, st.log)).bind _ = _
-      simp only [programmedCommands, deviceCommand, OracleComp.sumHandler, PMF.bind_map,
-        Function.comp_def, current]
+      simp only [programmedCommands, statefulSigningCommands, deviceCommand, OracleComp.sumHandler,
+        PMF.bind_map, Function.comp_def, current]
       apply congrArg (PMF.bind _ ·)
       funext ⟨r, next⟩
       exact ih r D next st current
-    · simp only [programmedCommands, OracleComp.sumHandler, PMF.bind_map, Function.comp_def]
+    · simp only [programmedCommands, statefulSigningCommands, OracleComp.sumHandler, PMF.bind_map,
+        Function.comp_def]
       let next r (t : History s base sk.tr) :=
         (ProbOracleComp.runWith (C.programmedCommands s base sk.tr (freshMaskDraw s A sk))
           (k r) (dev, t)).bind fun (f, _, u) => PMF.pure (SignedMatrixTrial.newDigestWin
@@ -235,8 +236,8 @@ private theorem simulated_eq_publicPair (C : QuantumSigningForger) (s : Level) (
   change _ = (C.runProgrammed s G pair.A pk (G.h256.readBytes pk 64)
     (publicDraw s pair.publicKey)).map (·.trial.newDigestWin)
   rw [key]
-  simp only [runProgrammed, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind,
-    PMF.pure_map]
+  simp only [runProgrammed, runSigningProgram, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.map_bind, PMF.pure_map]
   exact runs
 
 /-- A fresh mask chooses one commitment in the initial SHAKE table. Even when every subsequent

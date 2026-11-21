@@ -361,7 +361,7 @@ private theorem seeded_all_simulated (C : QuantumSigningForger) (s : Level) (bas
       C.initialDevice [] =
       (C.freshMaskSigning s G keys).map _
     change decodePrivate s keys.secretKey = some sk at key
-    simp only [freshMaskSigning, key, expand, runProgrammed,
+    simp only [freshMaskSigning, key, expand, runProgrammed, runSigningProgram,
       PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
     exact law
 
