@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.FiniteAngleOrder
 import Mathlib.Analysis.SpecialFunctions.Complex.Circle
+import Mathlib.LinearAlgebra.AffineSpace.Ordered
 import Mathlib.Topology.Algebra.Affine
 
 /-!
@@ -25,17 +26,6 @@ public section
 namespace Cslib.Polygonal
 
 open AffineMap
-
-private theorem lineMap_lt_lineMap_of_mem_Icc {a b c d t : ℝ}
-    (ht : t ∈ Set.Icc 0 1) (ha : a < c) (hb : b < d) :
-    lineMap a b t < lineMap c d t := by
-  rcases eq_or_lt_of_le ht.1 with h | h
-  · rw [← h, lineMap_apply_zero, lineMap_apply_zero]
-    exact ha
-  · simp only [lineMap_apply_ring]
-    exact add_lt_add_of_le_of_lt
-      (mul_le_mul_of_nonneg_left ha.le (sub_nonneg.mpr ht.2))
-      (mul_lt_mul_of_pos_left hb h)
 
 private theorem norm_mul_circle_exp_of_angle {x : ℂ} {a : ℝ}
     (ha : (a : Real.Angle) = x.arg) : (‖x‖ : ℂ) * (Circle.exp a : ℂ) = x := by
@@ -98,16 +88,16 @@ theorem exists_annular_paths (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR :
     have hst : s = t := by
       have heq : lineMap r R s = lineMap r R t :=
         (hnorm i s hs).symm.trans ((congrArg (fun x : ℂ => ‖x - z‖) he).trans (hnorm j t ht))
-      rw [lineMap_apply_ring', lineMap_apply_ring'] at heq
-      exact mul_right_cancel₀ (sub_ne_zero.mpr hrR.ne') (add_right_cancel heq)
+      exact (show StrictMono (lineMap r R) from
+        fun _ _ h => (lineMap_lt_lineMap_iff_of_lt' hrR).mpr h).injective heq
     subst t
     have hcircle : Circle.exp (angle i s) = Circle.exp (angle j s) := by
       apply Subtype.ext
       exact mul_left_cancel₀ (by exact_mod_cast (hrad s hs).ne') (add_left_cancel he)
     have hin (k : Fin (n + 1)) : angle k s ∈
         Set.Ico (lineMap a b s) (lineMap a b s + 2 * Real.pi) := by
-      refine ⟨(lineMap_lt_lineMap_of_mem_Icc hs (hP k).1 (hQ k).1).le, ?_⟩
-      have h := lineMap_lt_lineMap_of_mem_Icc hs (hP k).2 (hQ k).2
+      refine ⟨(lineMap_strict_mono_endpoints (hP k).1 (hQ k).1 hs.1 hs.2).le, ?_⟩
+      have h := lineMap_strict_mono_endpoints (hP k).2 (hQ k).2 hs.1 hs.2
       have heq : lineMap (a + 2 * Real.pi) (b + 2 * Real.pi) s =
           lineMap a b s + 2 * Real.pi := by
         simp only [lineMap_apply_ring]
@@ -116,7 +106,7 @@ theorem exists_annular_paths (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR :
     have hangle : angle i s = angle j s :=
       Circle.exp_injOn_Ico (by linarith) (hin i) (hin j) hcircle
     have hlt {i j : Fin (n + 1)} (h : i < j) : angle j s < angle i s :=
-      lineMap_lt_lineMap_of_mem_Icc hs ((hPlt j i).mpr h) ((hQlt j i).mpr h)
+      lineMap_strict_mono_endpoints ((hPlt j i).mpr h) ((hQlt j i).mpr h) hs.1 hs.2
     have hij : i = j := by
       rcases lt_trichotomy i j with h | h | h
       · exact ((hlt h).ne hangle.symm).elim

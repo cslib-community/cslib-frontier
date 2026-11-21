@@ -8,9 +8,10 @@ module
 -- upstream: local-only (ordinary annular routing client)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
+import Mathlib.Analysis.SpecialFunctions.Complex.Circle
 import Mathlib.Tactic.FinCases
 
-/-! Two antipodal ports exchange rays as the radius doubles. -/
+/-! Matched continuous annular paths for exchanged antipodes and a clockwise cyclic shift. -/
 
 public section
 
@@ -48,7 +49,8 @@ private theorem two_port_order (dir : Fin 2 → Real.Angle) :
 /-- The two exchanged antipodal pairs have disjoint continuous paths. -/
 theorem antipodal_paths :
     ∃ γ : Fin 2 → ℝ → ℂ,
-      γ 0 0 = 1 ∧ γ 1 0 = -1 ∧ γ 0 1 = -2 ∧ γ 1 1 = 2 ∧
+      (∀ i, Continuous (γ i)) ∧ γ 0 0 = 1 ∧ γ 1 0 = -1 ∧ γ 0 1 = -2 ∧ γ 1 1 = 2 ∧
+      (∀ i t, t ∈ Set.Icc 0 1 → ‖γ i t‖ = AffineMap.lineMap (1 : ℝ) 2 t) ∧
       ∀ s t, s ∈ Set.Icc (0 : ℝ) 1 → t ∈ Set.Icc (0 : ℝ) 1 → γ 0 s ≠ γ 1 t := by
   let p := ports 1
   let q := ports 2 ∘ Fin.rev
@@ -65,15 +67,94 @@ theorem antipodal_paths :
     apply Fin.rev_involutive.injective
     apply port_angles_injective (r := 2) (by norm_num)
     simpa only [q, Function.comp_apply, sub_zero] using h
-  obtain ⟨γ, _, hstart, hfinish, _, hinj⟩ := exists_annular_paths 1 0 (r := 1) (R := 2)
+  obtain ⟨γ, hcont, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 1 0 (r := 1) (R := 2)
     zero_lt_one (by norm_num) p q hp hq hp' hq' (two_port_order _) (two_port_order _)
-  refine ⟨γ, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨γ, hcont, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simpa [p, ports] using hstart 0
   · simpa [p, ports] using hstart 1
   · simpa [q, ports, Fin.rev] using hfinish 0
   · simpa [q, ports, Fin.rev] using hfinish 1
+  · simpa only [sub_zero] using hnorm
   · intro s t hs ht heq
     have h : ((0 : Fin 2), s) = (1, t) := hinj hs ht heq
     exact (by decide : (0 : Fin 2) ≠ 1) (congrArg Prod.fst h)
+
+private noncomputable def threeAngles (shift : Bool) (i : Fin 3) : ℝ :=
+  if i = 0 then (if shift then 0 else Real.pi / 2)
+  else if i = 1 then (if shift then -(Real.pi / 2) else 0)
+  else if shift then Real.pi / 2 else -(Real.pi / 2)
+
+private theorem threeAngles_mem (shift : Bool) (i : Fin 3) :
+    threeAngles shift i ∈ Set.Ioo (-Real.pi) (-Real.pi + 2 * Real.pi) := by
+  cases shift <;> fin_cases i <;> constructor <;> norm_num [threeAngles] <;>
+    linarith [Real.pi_pos]
+
+private theorem threeAngles_injective (shift : Bool) :
+    Function.Injective (fun i => (threeAngles shift i : Real.Angle)) := by
+  let : Fact ((0 : ℝ) < 2 * Real.pi) := ⟨Real.two_pi_pos⟩
+  intro i j heq
+  have he := AddCircle.injOn_coe_Ico (2 * Real.pi) (-Real.pi)
+    (Set.Ioo_subset_Ico_self (threeAngles_mem shift i))
+    (Set.Ioo_subset_Ico_self (threeAngles_mem shift j)) heq
+  cases shift <;> fin_cases i <;> fin_cases j
+  all_goals first
+    | rfl
+    | norm_num [threeAngles] at he
+      done
+    | norm_num [threeAngles] at he
+      linarith [Real.pi_pos]
+
+private theorem threeAngles_order (shift : Bool) :
+    ∀ i j, i ≠ Fin.last 2 → j ≠ Fin.last 2 → i ≠ j →
+      (sbtw (threeAngles shift (Fin.last 2) : Real.Angle) (threeAngles shift i : Real.Angle)
+        (threeAngles shift j : Real.Angle) ↔ j.val < i.val) := by
+  have hlo : -(Real.pi / 2) < 0 := neg_neg_of_pos (half_pos Real.pi_pos)
+  have hhi : 0 < Real.pi / 2 := half_pos Real.pi_pos
+  have hbase : sbtw ((-(Real.pi / 2) : ℝ) : Real.Angle) (0 : ℝ) (Real.pi / 2 : ℝ) := by
+    have hm := threeAngles_mem false
+    have ha : -(Real.pi / 2) ∈ Set.Ioo (-Real.pi) (-Real.pi + 2 * Real.pi) := by
+      simpa [threeAngles] using hm 2
+    have hb : (0 : ℝ) ∈ Set.Ioo (-Real.pi) (-Real.pi + 2 * Real.pi) := by
+      simpa [threeAngles] using hm 1
+    have hc : Real.pi / 2 ∈ Set.Ioo (-Real.pi) (-Real.pi + 2 * Real.pi) := by
+      simpa [threeAngles] using hm 0
+    exact (sbtw_angle_iff_cyclic_lt ha hb hc hlo.ne hhi.ne (hlo.trans hhi).ne).mpr
+      (Or.inl ⟨hlo, hhi⟩)
+  have hclock : sbtw (threeAngles shift (Fin.last 2) : Real.Angle)
+      (threeAngles shift 1 : Real.Angle) (threeAngles shift 0 : Real.Angle) := by
+    cases shift
+    · simpa [threeAngles, Fin.last] using hbase
+    · simpa [threeAngles, Fin.last] using hbase.cyclic_right
+  intro i j hi hj hij
+  fin_cases i <;> fin_cases j <;> try contradiction
+  · exact iff_of_false hclock.cyclic_left.not_sbtw (by decide)
+  · exact iff_of_true hclock (by decide)
+
+private noncomputable def threePorts (r : ℝ) (shift : Bool) (i : Fin 3) : ℂ :=
+  (r : ℂ) * ((threeAngles shift i : Real.Angle).toCircle : ℂ)
+
+private theorem threePorts_norm {r : ℝ} (hr : 0 < r) (shift : Bool) (i : Fin 3) :
+    ‖threePorts r shift i - 0‖ = r := by
+  simp [threePorts, Complex.norm_real, Real.norm_of_nonneg hr.le]
+
+private theorem threePorts_angle {r : ℝ} (hr : 0 < r) (shift : Bool) (i : Fin 3) :
+    ((threePorts r shift i - 0).arg : Real.Angle) = threeAngles shift i := by
+  rw [sub_zero, threePorts, Complex.arg_real_mul _ hr, Real.Angle.arg_toCircle]
+
+-- The matching shifts a whole three-entry clockwise word across the angle cut.
+example :
+    ∃ γ : Fin 3 → ℝ → ℂ, (∀ i, Continuous (γ i)) ∧
+      (∀ i, γ i 0 = threePorts 1 false i) ∧ (∀ i, γ i 1 = threePorts 2 true i) ∧
+      (∀ i t, t ∈ Set.Icc 0 1 → ‖γ i t‖ = AffineMap.lineMap (1 : ℝ) 2 t) ∧
+      Set.InjOn (fun x : Fin 3 × ℝ => γ x.1 x.2) {x | x.2 ∈ Set.Icc 0 1} := by
+  have htwo : (0 : ℝ) < 2 := by norm_num
+  obtain ⟨γ, hcont, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 2 0
+    zero_lt_one (by norm_num) (threePorts 1 false) (threePorts 2 true)
+    (threePorts_norm zero_lt_one false) (threePorts_norm htwo true)
+    (by simpa only [threePorts_angle zero_lt_one] using threeAngles_injective false)
+    (by simpa only [threePorts_angle htwo] using threeAngles_injective true)
+    (by simpa only [threePorts_angle zero_lt_one] using threeAngles_order false)
+    (by simpa only [threePorts_angle htwo] using threeAngles_order true)
+  exact ⟨γ, hcont, hstart, hfinish, by simpa only [sub_zero] using hnorm, hinj⟩
 
 end CslibFrontierTests.PolygonalAnnularPaths
