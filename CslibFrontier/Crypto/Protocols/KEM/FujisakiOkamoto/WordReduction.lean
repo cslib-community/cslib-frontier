@@ -264,8 +264,8 @@ theorem IsEfficient.computableInPolyTime_isHQuery {P : WordPKE} (hP : P.IsEffici
       (encPair encUnary encBits) encBool :=
     ComputableInPolyTime.unary_le' (ComputableInPolyTime.length_bits.comp hdec.snd'.snd')
       (hP.ctLen.comp (ComputableInPolyTime.fst _ _))
-  exact (ComputableTidilyInPolyTime.bool_and' (ComputableTidilyInPolyTime.bool_and' hcanon.tidy
-    hmsg.tidy) hct.tidy).computableInPolyTime
+  exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hcanon
+    hmsg) hct)
 
 /-! ### Certificates -/
 

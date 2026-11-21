@@ -15,6 +15,9 @@ namespace CslibFrontierTests.GGM
 
 open Turing.MultiTapeTM Cslib Cslib.Crypto Cslib.Probability
 
+-- Search compares certificate programs and encodings without unfolding machine witnesses.
+attribute [local irreducible] ComputableInPolyTime
+
 example : GGM.eval (fun seed => seed ++ seed.reverse ++ [true]) [false, true] [true, false] =
     [true, false] := by decide
 

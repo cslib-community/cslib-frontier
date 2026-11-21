@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.DiscreteLog
 public import Mathlib.Algebra.Module.ZMod
 public import Mathlib.Data.ZMod.Units
 public import Mathlib.GroupTheory.OrderOfElement
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -208,9 +209,15 @@ theorem computableInPolyTime_generator :
 /-- Multiplication modulo `p` is computable in polynomial time. -/
 theorem computableInPolyTime_add :
     ComputableInPolyTime add (encPair encDesc (encPair encBits encBits)) encBits := by
-  have := computableInPolyTime_val
-  unfold add Desc.modulus rawModulus
-  fun_prop
+  change ComputableInPolyTime (fun p => add p) _ _
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair encDesc (encPair encBits encBits))
+  have hd := computableInPolyTime_val.comp hp.fst'
+  have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'.fst'
+  have hy := ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'
+  simpa only [add, Desc.modulus, rawModulus, encNat_apply, Function.comp_def] using
+    (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hx hy) hd.fst').encoding_comp
 
 /-- Exponentiation modulo `p` is computable in polynomial time, by square-and-multiply. -/
 theorem computableInPolyTime_smul :

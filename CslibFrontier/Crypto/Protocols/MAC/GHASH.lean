@@ -146,12 +146,9 @@ theorem isDeltaUniversalHash_ghash [Fintype F] {X : Type*} (enc : X → List F)
 `[0]` collide under every key. -/
 theorem not_isUniversalHash_ghash [Fintype F] (hℓ : 1 ≤ ℓ) {ε : ℝ≥0∞} (hε : ε < 1) :
     ¬ IsUniversalHash (PMF.uniformOfFintype F)
-      (fun k (z : {z : List F // z.length ≤ ℓ}) => ghash k z) ε := fun hh => by
-  have h := hh ⟨[], Nat.zero_le _⟩ ⟨[0], hℓ⟩ (by simp)
-  have hset : {k : F | ghash k ([] : List F) = ghash k [0]} = Set.univ :=
-    Set.eq_univ_of_forall fun k => by simp [ghash_cons_zero]
-  rw [hset, (PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr (Set.subset_univ _)] at h
-  exact absurd (h.trans_lt hε) (lt_irrefl 1)
+      (fun k (z : {z : List F // z.length ≤ ℓ}) => ghash k z) ε := fun hh =>
+  hε.not_ge (hh.one_le_of_forall_eq (x := ⟨[], Nat.zero_le _⟩) (x' := ⟨[0], hℓ⟩)
+    (by simp) (fun k => by simp [ghash_cons_zero]))
 
 /-! ### GHASH on bit strings -/
 
