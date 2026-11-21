@@ -29,6 +29,7 @@ rejects the source scan.
 * `subsingleton_successful_firstHalting` composes callback occurrence uniqueness.
 * `firstHalting_iff_replayRounds` identifies successful selector streams with replay of the
   existing fuel-bounded loop.
+* `replayRounds_correct` gives the mathematical verdict of a successful full-fuel replay.
 * `haltsWithin` and `length_run_le` charge the retained registers and supplied callback bounds
   on every branch.
 * `exists_routines` compiles the loop with supplied native callbacks and
@@ -421,6 +422,108 @@ theorem subsingleton_successful_firstHalting (P : Registers κ → Prop) (hp : P
       memberReply input left v).mp ⟨hl.1, hv⟩)
     ((firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
       memberReply input right v').mp ⟨hr.1, hv'⟩)
+
+section Verdict
+
+open Relation
+
+variable {n : ℕ} {r : Fin n → Fin n → Prop} {source target : Fin n} (context : κ)
+  (hround : ∀ fuel k, (∃! w, Passes r source k w) → ∀ bits a rest,
+    readReply round roundReply input (roundStart ⟨context, fuel, k, expected r source k⟩) bits =
+      some (a, rest) →
+    a.tally = expected r source (k + 1) ∧
+      (a.bad = false ↔ ∃! w, Passes r source (k + 1) w))
+  (hmember : ∀ fuel k, (∃! w, Passes r source k w) → ∀ bits hit rest,
+    readReply member memberReply input (memberStart ⟨context, fuel, k, expected r source k⟩)
+      bits = some (hit, rest) → (hit = true ↔ target ∈ Cslib.DoubleCounting.round r source k))
+
+include hround hmember in
+private theorem replayRounds_eq_runRounds {edge : Fin n → Fin n → Id Bool}
+    {membership : MembershipScan Id n}
+    (he : ∀ u v, edge u v = pure (by classical exact decide (r u v)))
+    (hm : ∀ k, (∃! w, Passes r source k w) → ∀ v,
+      membership k (expected r source k) v =
+        pure (by classical exact decide (v ∈ Cslib.DoubleCounting.round r source k)))
+    (fuel k : ℕ) (hpass : ∃! w, Passes r source k w)
+    (bits rest : List Bool) (out : Option ControllerVerdict)
+    (h : replayRounds round roundStart roundReply member memberStart memberReply input
+      ⟨context, fuel, k, expected r source k⟩ bits = some (out, rest)) :
+    runRounds edge membership target fuel k (expected r source k) = out := by
+  classical
+  induction fuel generalizing k bits with
+  | zero =>
+    change some (none, bits) = some (out, rest) at h
+    exact congrArg Prod.fst (Option.some.inj h)
+  | succ fuel ih =>
+    rw [replayRounds_step round roundStart roundReply member memberStart memberReply
+      input _ bits (Nat.succ_ne_zero fuel)] at h
+    cases hread : readReply round roundReply input
+        (roundStart ⟨context, fuel + 1, k, expected r source k⟩) bits with
+    | none => simp [hread] at h
+    | some result =>
+      obtain ⟨a, suffix⟩ := result
+      have ⟨ha, hab⟩ := hround (fuel + 1) k hpass bits a suffix hread
+      obtain ⟨reference, href, ht, hb⟩ := scanNextRound_correct he (hm k hpass) hpass
+      have hflag : reference.bad = a.bad := by
+        apply Bool.not_inj
+        apply Bool.eq_iff_iff.mpr
+        simpa only [Bool.not_eq_true_eq_eq_false] using hb.trans hab.symm
+      have heq : reference = a := by
+        cases reference
+        cases a
+        exact congrArg₂ RoundUpdate.mk (ht.trans ha.symm) hflag
+      simp only [hread] at h
+      simp only [runRounds, runRoundsWith, href, heq, pure_bind]
+      by_cases hbad : a.bad = true
+      · rw [ite_eq_left hbad] at h ⊢
+        exact congrArg Prod.fst (Option.some.inj h)
+      · rw [ite_eq_right hbad] at h ⊢
+        by_cases hstable : (a.tally.count == (expected r source k).count) = true
+        · rw [ite_eq_left hstable] at h ⊢
+          obtain ⟨⟨hit, tail⟩, hhit, hout⟩ := Option.map_eq_some_iff.mp h
+          have hbit := hmember (fuel + 1) k hpass suffix hit tail hhit
+          have hm' : membership k (expected r source k) target = hit := by
+            rw [hm k hpass]
+            change decide (target ∈ Cslib.DoubleCounting.round r source k) = hit
+            apply Bool.eq_iff_iff.mpr
+            simpa only [decide_eq_true_eq] using hbit.symm
+          rw [hm']
+          exact congrArg Prod.fst hout
+        · rw [ite_eq_right hstable] at h ⊢
+          rw [ha] at h ⊢
+          have hnext := hab.mp (Bool.eq_false_iff.mpr hbad)
+          exact ih (k + 1) hnext suffix h
+
+include hround hmember in
+/-- With full vertex-count fuel, a successful replay reports the first tied round, or
+correctly decides reachability when every round is unique. The callback contracts only
+concern successful replies at exact totals and a unique current round. -/
+theorem replayRounds_correct {bits rest : List Bool} {verdict : ControllerVerdict}
+    (h : replayRounds round roundStart roundReply member memberStart memberReply input
+      (start context n) bits = some (some verdict, rest)) :
+    match verdict with
+    | .bad k => (∀ j < k, ∃! w, Passes r source j w) ∧ ¬ (∃! w, Passes r source k w)
+    | .decided hit =>
+      (∀ k, ∃! w, Passes r source k w) ∧ (hit = true ↔ ReflTransGen r source target) := by
+  classical
+  let edge (u v : Fin n) : Id Bool := decide (r u v)
+  let membership : MembershipScan Id n :=
+    fun k _ v => decide (v ∈ Cslib.DoubleCounting.round r source k)
+  have he (u v : Fin n) : edge u v = pure (decide (r u v)) := rfl
+  have hm k (_ : ∃! w, Passes r source k w) (v : Fin n) :
+      membership k (expected r source k) v =
+        pure (decide (v ∈ Cslib.DoubleCounting.round r source k)) := rfl
+  obtain ⟨reference, href, hspec⟩ := runController_correct (target := target) he hm
+  have hzero := expected_zero r source
+  have hrun := replayRounds_eq_runRounds round roundStart roundReply member memberStart
+    memberReply input context hround hmember he hm n 0 (existsUnique_passes_zero r source)
+    bits rest (some verdict) (by simpa only [hzero, start] using h)
+  rw [hzero, ← runController, href] at hrun
+  have heq := Option.some.inj hrun
+  subst reference
+  cases verdict <;> exact hspec
+
+end Verdict
 
 /-- A round fuel bound, the common round clock and the final membership clock bound every
 source branch. Both return selectors and all rejections are charged to the same clock. -/
