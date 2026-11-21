@@ -6264,6 +6264,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RatPoly
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RootBound
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Sturm
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign

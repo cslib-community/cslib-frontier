@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ConjugateProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
@@ -723,5 +724,61 @@ example :
       (mul_ne_zero (Polynomial.X_sub_C_ne_zero _) (Polynomial.X_sub_C_ne_zero _)),
     Polynomial.roots_X_sub_C, Polynomial.roots_X_sub_C, Multiset.map_add, Multiset.prod_add]
   norm_num
+
+-- The determinant in the zero-variable quotient comes from its one characteristic root.
+example :
+    let r : Fin 0 → MvPolynomial (Fin 0) ℤ := 0
+    let μ := multiplicationMatrix (ell := 1) (by decide) r (fun i => i.elim0)
+    let g : Polynomial ℤ := Polynomial.X - Polynomial.C 1
+    (μ (Polynomial.aeval (MvPolynomial.C (2 : ℤ)) g)).det = 1 := by
+  intro r μ g
+  let M := μ (MvPolynomial.C (2 : ℤ))
+  have hM : M = Matrix.diagonal (fun _ => (2 : ℤ)) := by
+    change μ (MvPolynomial.C (2 : ℤ)) = _
+    rw [← MvPolynomial.algebraMap_eq, μ.commutes, Matrix.algebraMap_eq_diagonal]
+    rfl
+  have hchar : M.charpoly = Polynomial.X - Polynomial.C 2 := by
+    rw [hM, Matrix.charpoly_diagonal, Fintype.prod_unique]
+  have hcharMap : M.charpoly.map (algebraMap ℤ ℚ) = Polynomial.X - Polynomial.C 2 := by
+    rw [hchar, Polynomial.map_sub, Polynomial.map_X, Polynomial.map_C, map_ofNat]
+  have hg : (g.map (algebraMap ℤ ℚ)).Splits := by
+    simpa [g] using Polynomial.Splits.X_sub_C (1 : ℚ)
+  have h := Matrix.algebraMap_det_aeval_eq_prod_aroots_toFinset (K := ℚ) M g hg
+    (hcharMap ▸ Polynomial.Splits.X_sub_C (2 : ℚ))
+    (hcharMap ▸ Polynomial.separable_X_sub_C (x := (2 : ℚ)))
+  rw [hchar, Polynomial.aroots_X_sub_C] at h
+  have hval : Polynomial.aeval (algebraMap ℤ ℚ 2) g = 1 := by
+    norm_num [g, Polynomial.aeval_def, algebraMap_int_eq]
+  rw [Multiset.toFinset_singleton, Finset.prod_singleton, hval] at h
+  have hcast : ((Polynomial.aeval M g).det : ℚ) = 1 := by
+    simpa only [algebraMap_int_eq, Int.coe_castRingHom] using h
+  have hsrc : (Polynomial.aeval M g).det = 1 := by exact_mod_cast hcast
+  simpa only [M, Polynomial.aeval_algHom_apply] using hsrc
+
+-- The actual rank-one quotient determinant detects the root of its characteristic polynomial.
+example :
+    let r : Fin 0 → MvPolynomial (Fin 0) ℤ := 0
+    let μ := multiplicationMatrix (ell := 1) (by decide) r (fun i => i.elim0)
+    let p := (μ 0).charpoly
+    ∃ e : ℕ, e ≤ 1 ∧
+      (μ (Polynomial.aeval (0 : MvPolynomial (Fin 0) ℤ) (Polynomial.shiftedRootLabel 1 e
+        (Polynomial.sparseIntegerRootLabel p 1 0 0 ([] : List (Fin 1 × SignType)))))).det < 0 := by
+  intro r μ p
+  let M := μ 0
+  have hcard : Fintype.card (NormalIndex 0 1) = 1 := Fintype.card_unique
+  have hchar : M.charpoly = Polynomial.X := by
+    simp only [M, map_zero, Matrix.charpoly_zero, hcard, pow_one]
+  have hMb : M.charpoly.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [hchar, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
+      (Polynomial.coeffNorm1_X_mul 1).le
+  have hsep : (M.charpoly.map (algebraMap ℤ ℂ)).Separable := by
+    rw [hchar, Polynomial.map_X]
+    exact Polynomial.separable_X
+  have h := Matrix.exists_eval₂_pos_at_charpoly_root_iff_neg_shiftedRootLabel_det M
+    (q := 1) (N := 0) (by decide) hcard.le (by decide) (by simp) hMb (by simp) hsep
+  obtain ⟨L, hL, e, he, hneg⟩ := h.mp ⟨0, by simp [hchar], by simp⟩
+  have hnil := List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hL)
+  subst L
+  exact ⟨e, he, by simpa only [p, M, Polynomial.aeval_algHom_apply] using hneg⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
