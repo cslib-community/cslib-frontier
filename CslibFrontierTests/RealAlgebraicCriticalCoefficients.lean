@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
@@ -330,5 +331,29 @@ example :
   have hroot := isRoot_valuePolynomial_criticalMinimumValue (by decide : 1 ≤ 3)
     (by decide) 0 (fun _ => le_rfl) F hF hFn 1 zero_le_one
   rwa [hvalue] at hroot
+
+-- For the branch y = u, the finite test compares u = 4 with the cutoff y = 2.
+example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
+  let P : Polynomial (Polynomial ℤ) := Polynomial.X - Polynomial.C Polynomial.X
+  have hlead : P.leadingCoeff = 1 := Polynomial.leadingCoeff_X_sub_C _
+  have hP : P ≠ 0 := by
+    intro hz
+    simp [hz] at hlead
+  have hroot (u : ℝ) :
+      P.eval₂ (Polynomial.eval₂RingHom (Int.castRingHom ℝ) u) u = 0 := by
+    simp [P]
+  have hR : (P.leadingCoeff.coeffNorm1 : ℝ) + 1 ≤ ((2 : ℤ) : ℝ) := by
+    norm_num [hlead, Polynomial.coeffNorm1_one]
+  have hX : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
+    simpa using Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
+  have hU : ((P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 : ℝ) + 1 ≤ 4 := by
+    have hbound := Polynomial.coeffNorm1_sub_le Polynomial.X (Polynomial.C (2 : ℤ))
+    rw [hX, Polynomial.coeffNorm1_C] at hbound
+    have hnorm : (P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 ≤ 3 := by
+      simpa [P] using hbound
+    exact_mod_cast (Nat.add_le_add_right hnorm 1)
+  have hcut := Polynomial.bounded_root_branch_iff_lt hP
+    (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
+  exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
