@@ -135,8 +135,10 @@ refute `O⪯(z, z↾ω, a)`. So `α ∘ ω` satisfies the core set and is strict
 strengthening-to-core mode.
 
 **Scopes** (§5.5). The constraints of a scope are dropped after it; only the numbering advances.
-A block in a scope records the scope's premises before its own, so a goal counts where those
-premises hold. Scopes do not nest, and each may be entered more than once, as in VeriPB 3.0.2 and
+Each refuted `proofgoal` block is tagged with its scope, and a goal counts only when proved
+outside the scopes or in a scope where it may be proved, as CakePB's `extract_scoped_pids`: for
+`red`, `scope leq`; for `dom`, `scope geq` for goal `#N + 1` and `scope leq` for the others.
+Scopes do not nest, and each may be entered more than once, as in VeriPB 3.0.2 and
 CakePB. A goal proved in a scope where it does not count is not rejected but left to the other
 coverage rules, as in CakePB; VeriPB 3.0.2 rejects it.
 
@@ -1180,50 +1182,57 @@ private def pushAll : List (ℕ × PBConstr) → ℕ → List PBConstr → List 
   | db, n, [] => (db, n)
   | db, n, p :: ps => pushAll ((n, p) :: db) (n + 1) ps
 
+/-- A refuted premise list of a subproof, tagged with the scope it was refuted in: `none` outside
+the scopes, `some false` in `scope leq` and `some true` in `scope geq`. -/
+private abbrev Tagged := Option Bool × List PBConstr
+
 mutual
 
-/-- Run one item of a subproof (`Cslib.Logic.PL.VeriPB.runGoals`): a step, a `proofgoal` block,
-whose premise list, after `pre`, is recorded once it is refuted, or a scope. -/
+/-- Run one item of a subproof (`Cslib.Logic.PL.VeriPB.runGoals`) in the scope `cur`: a step, a
+`proofgoal` block, whose premise list is recorded with the tag `cur` once it is refuted, or a
+scope, allowed only outside the scopes. -/
 private def runItem (goal : GoalId → Option (List PBConstr)) :
-    (Bool → Option (List PBConstr)) → List PBConstr → List (ℕ × PBConstr) → ℕ → RedItem →
-      List (List PBConstr) → Option (List (ℕ × PBConstr) × ℕ × List (List PBConstr))
+    (Bool → Option (List PBConstr)) → Option Bool → List (ℕ × PBConstr) → ℕ → RedItem →
+      List Tagged → Option (List (ℕ × PBConstr) × ℕ × List Tagged)
   | _, _, db, n, .step s, proved => (runStep db n s).map fun (db', n') => (db', n', proved)
-  | _, pre, db, n, .goal g sub q, proved =>
+  | _, cur, db, n, .goal g sub q, proved =>
     match goal g with
     | none => none
     | some ps =>
       match runSteps (pushAll db n ps).1 (pushAll db n ps).2 sub with
-      | some (db', n') => if namesContra db' q then some (db, n', (pre ++ ps) :: proved) else none
+      | some (db', n') => if namesContra db' q then some (db, n', (cur, ps) :: proved) else none
       | none => none
-  | scope, pre, db, n, .scope b inner, proved =>
-    match scope b with
-    | none => none
-    | some S =>
-      match runGoals goal (fun _ => none) (pre ++ S) (pushAll db n S).1 (pushAll db n S).2 inner
-          proved with
-      | some (_, n', proved') => some (db, n', proved')
+  | scope, cur, db, n, .scope b inner, proved =>
+    if cur.isNone then
+      match scope b with
       | none => none
+      | some S =>
+        match runGoals goal scope (some b) (pushAll db n S).1 (pushAll db n S).2 inner proved with
+        | some (_, n', proved') => some (db, n', proved')
+        | none => none
+    else none
 
-/-- Run the items of a subproof whose goal labels name the premises `goal` of their `proofgoal`
-blocks, collecting the premise lists that the blocks refute. A block's constraints are dropped
-after it; only the numbering advances. A scope `scope leq` (`false`) or `scope geq` (`true`) adds
-the premises `scope geq`, if it is allowed, and the blocks inside it record them, `pre`, before
-their own premises; its constraints are dropped after it, and scopes do not nest. -/
+/-- Run the items of a subproof in the scope `cur` (`none` at its top), whose goal labels name the
+premises `goal` of their `proofgoal` blocks, collecting the premise lists that the blocks refute,
+tagged with their scope, as CakePB's `extract_scoped_pids` keeps the scope of each proof goal. A
+block's constraints are dropped after it; only the numbering advances. A scope `scope leq`
+(`false`) or `scope geq` (`true`) adds the premises `scope b`, if it is allowed; its constraints
+are dropped after it, and scopes do not nest. -/
 private def runGoals (goal : GoalId → Option (List PBConstr)) :
-    (Bool → Option (List PBConstr)) → List PBConstr → List (ℕ × PBConstr) → ℕ → List RedItem →
-      List (List PBConstr) → Option (List (ℕ × PBConstr) × ℕ × List (List PBConstr))
+    (Bool → Option (List PBConstr)) → Option Bool → List (ℕ × PBConstr) → ℕ → List RedItem →
+      List Tagged → Option (List (ℕ × PBConstr) × ℕ × List Tagged)
   | _, _, db, n, [], proved => some (db, n, proved)
-  | scope, pre, db, n, it :: items, proved =>
-    match runItem goal scope pre db n it proved with
-    | some (db', n', proved') => runGoals goal scope pre db' n' items proved'
+  | scope, cur, db, n, it :: items, proved =>
+    match runItem goal scope cur db n it proved with
+    | some (db', n', proved') => runGoals goal scope cur db' n' items proved'
     | none => none
 
 end
 
-/-- The refuted premise lists with the premises `S` of a scope removed where they come first: the
-lists a scope refuted, read where `S` holds. -/
-private def stripPre (S : List PBConstr) (proved : List (List PBConstr)) : List (List PBConstr) :=
-  proved.map fun ps => if S.isPrefixOf ps then ps.drop S.length else ps
+/-- The premise lists refuted outside the scopes or in the scope `b`: those that count for a goal
+proved there (CakePB's `extract_scoped_pids` and `find_scope_1`). -/
+private def visible (b : Bool) (proved : List Tagged) : List (List PBConstr) :=
+  (proved.filter fun e => e.1.all (· == b)).map (·.2)
 
 /-- No scopes: `scope` allows none. -/
 private def noScope : Bool → Option (List PBConstr) := fun _ => none
@@ -1281,12 +1290,6 @@ private def redScope (ord : Option LoadedOrder) (ω : Witness) : Bool → Option
   | false => some (((ord.map (·.leSpec ω)).getD []).map normalize)
   | true => none
 
-/-- The refuted premise lists of a `red` subproof read where `S⪯(z↾ω, z, a)` holds, if a scope
-is used (`hs`). -/
-private def redProved (ord : Option LoadedOrder) (ω : Witness) (hs : Bool)
-    (proved : List (List PBConstr)) : List (List PBConstr) :=
-  if hs then stripPre (((ord.map (·.leSpec ω)).getD []).map normalize) proved else proved
-
 /-- The end of a `red` subproof with premises `db₀` and goals for the constraints `gs`: the
 closing constraint is a contradiction, or every goal is covered. The order goals are also covered
 when the witness leaves the variables of the order alone (§5.5.1, item 1c). A goal proved in the
@@ -1294,10 +1297,10 @@ scope `scope leq` counts. If a scope is used (`hs`) or the witness touches the o
 auxiliary variables must be fresh, as in CakePB's `check_red`. -/
 private def redOk (obj : Option Objective) (ord : Option LoadedOrder) (db₀ gs : List (ℕ × PBConstr))
     (ω : Witness) (c : PBConstr) (hs : Bool) (db' : List (ℕ × PBConstr))
-    (proved : List (List PBConstr)) : Option ℕ → Bool
+    (proved : List Tagged) : Option ℕ → Bool
   | some q => namesContra db' q
   | none =>
-    let proved := redProved ord ω hs proved
+    let proved := visible false proved
     ord.all (fun L => !(hs || !L.untouched ω) || L.fresh (db₀ ++ gs) obj c ω) &&
       goalCovered db₀ proved c.negate (Witness.substC ω c) &&
       ord.all (fun L => L.untouched ω || (L.leGoals ω).all (goalCovered db₀ proved c.negate)) &&
@@ -1311,8 +1314,9 @@ the order goals `O⪯(z↾ω, z, a)` must be covered too, and the scope `scope l
 `S⪯(z↾ω, z, a)` to the premises (§5.4.1). -/
 def redCheckOn (obj : Option Objective) (ord : Option LoadedOrder) (db₀ gs : List (ℕ × PBConstr))
     (n : ℕ) (c : PBConstr) (ω : Witness) (items : List RedItem) (qed : Option ℕ) : Option ℕ :=
-  match runGoals (goalOf obj ord db₀ ω c) (redScope ord ω) [] ((n, c.negate) :: db₀) (n + 1)
-      items [] with
+  match runGoals (goalOf obj ord db₀ ω c)
+      (if items.any RedItem.isScope then redScope ord ω else noScope) none ((n, c.negate) :: db₀)
+      (n + 1) items [] with
   | none => none
   | some (db', n', proved) =>
     if redOk obj ord db₀ gs ω c (items.any RedItem.isScope) db' proved qed then some n' else none
@@ -1369,9 +1373,10 @@ goal `#2` is `f ≥ f'`, both derived from the core set `core` alone. Returns th
 the subproof. -/
 def objuCheck (core : List (ℕ × PBConstr)) (n : ℕ) (f f' : Objective) (items : List RedItem) :
     Option ℕ :=
-  match runGoals (objuGoal f f') noScope [] core n items [] with
+  match runGoals (objuGoal f f') noScope none core n items [] with
   | some (_, n', proved) =>
-    if objuCovered core proved (f'.geGoal f) && objuCovered core proved (f.geGoal f') then
+    if objuCovered core (visible false proved) (f'.geGoal f) &&
+        objuCovered core (visible false proved) (f.geGoal f') then
       some n'
     else none
   | none => none
@@ -1441,10 +1446,11 @@ private def hashGoalsOk (gs : List PBConstr) (db' : List (ℕ × PBConstr))
 number is `n` (`Cslib.Logic.PL.VeriPB.hashGoalsOk`). Returns the next number after the proof. -/
 private def hashGoalsCheck (db : List (ℕ × PBConstr)) (n : ℕ) (gs : List PBConstr)
     (p : OrderProof) : Option ℕ :=
-  match runGoals (fun | .hash k => (hashAt gs k).map negGoal | .db _ => none) noScope [] db n
+  match runGoals (fun | .hash k => (hashAt gs k).map negGoal | .db _ => none) noScope none db n
       p.items [] with
   | none => none
-  | some (db', n', proved) => if hashGoalsOk gs db' proved p.qed then some n' else none
+  | some (db', n', proved) =>
+    if hashGoalsOk gs db' (visible false proved) p.qed then some n' else none
 
 namespace Order
 
@@ -1521,14 +1527,13 @@ private def domScope (L : LoadedOrder) (ω : Witness) : Bool → Option (List PB
 proved outside the scopes or in `scope geq`; the others when proved outside the scopes or in
 `scope leq`. -/
 private def domOk (obj : Option Objective) (L : LoadedOrder) (db core : List (ℕ × PBConstr))
-    (ω : Witness) (c : PBConstr) (db' : List (ℕ × PBConstr)) (proved : List (List PBConstr)) :
+    (ω : Witness) (c : PBConstr) (db' : List (ℕ × PBConstr)) (proved : List Tagged) :
     Option ℕ → Bool
   | some q => namesContra db' q
   | none =>
-    let ge := (L.geGoals ω).map normalize
-    let proved' := stripPre ((L.leSpec ω).map normalize) proved
-    (proved.contains ge || proved.contains ((L.geSpec ω).map normalize ++ ge)) &&
-      (L.leGoals ω).all (goalCovered db proved' c.negate) && substCovered obj db core ω c proved'
+    (visible true proved).contains ((L.geGoals ω).map normalize) &&
+      (L.leGoals ω).all (goalCovered db (visible false proved) c.negate) &&
+      substCovered obj db core ω c (visible false proved)
 
 /-- **The dominance check** of `dom C : ω` (§5.4.2) for the loaded order `L`, the database `db`
 and its core set `core`, as CakePB's `Dom` step of `check_cstep`. The witness must leave the
@@ -1551,7 +1556,7 @@ def domCheck (pres : Option (List ℕ)) (obj : Option Objective) (L : LoadedOrde
     match runGoals (fun
         | .hash k => hashAt (domHashPremises obj L ω) k
         | .db i => (lookup core i).map fun D => negGoal (Witness.substC ω D))
-      (domScope L ω) [] ((n, c.negate) :: db) (n + 1) items [] with
+      (domScope L ω) none ((n, c.negate) :: db) (n + 1) items [] with
     | none => none
     | some (db', n', proved) => if domOk obj L db core ω c db' proved qed then some n' else none
   else none
@@ -1945,22 +1950,34 @@ private theorem allHold_pushAll {σ : ℕ → Bool} :
       (List.forall_mem_cons.2 ⟨hps p List.mem_cons_self, hdb⟩)
       fun q hq => hps q (List.mem_cons_of_mem _ hq)
 
+/-- The premises of the scope `sc` hold at `σ`: always outside the scopes, and in the scope `b`
+when `scope b` gives premises that hold. -/
+private def ScopeHolds (scope : Bool → Option (List PBConstr)) (σ : ℕ → Bool) :
+    Option Bool → Prop
+  | none => True
+  | some b => ∀ S, scope b = some S → ∀ p ∈ S, p.Holds σ
+
+/-- The tagged premise lists that `σ` refutes wherever the premises of their scope hold. -/
+private def RefutedIn (scope : Bool → Option (List PBConstr)) (σ : ℕ → Bool)
+    (proved : List Tagged) : Prop :=
+  ∀ e ∈ proved, ScopeHolds scope σ e.1 → ¬ ∀ p ∈ e.2, p.Holds σ
+
 mutual
 
 private theorem runItem_sound {σ : ℕ → Bool} {goal : GoalId → Option (List PBConstr)} :
-    ∀ (scope : Bool → Option (List PBConstr)) (pre : List PBConstr) (db : List (ℕ × PBConstr))
-      (n : ℕ) (it : RedItem) (proved : List (List PBConstr)) (db' : List (ℕ × PBConstr))
-      (n' : ℕ) (proved' : List (List PBConstr)),
-      ((∀ p ∈ pre, p.Holds σ) → AllHold σ db) → Refuted σ proved →
-      runItem goal scope pre db n it proved = some (db', n', proved') →
-      ((∀ p ∈ pre, p.Holds σ) → AllHold σ db') ∧ Refuted σ proved'
-  | _, pre, db, n, .step s, proved, db', n', proved', hdb, hp, h => by
+    ∀ (scope : Bool → Option (List PBConstr)) (cur : Option Bool) (db : List (ℕ × PBConstr))
+      (n : ℕ) (it : RedItem) (proved : List Tagged) (db' : List (ℕ × PBConstr))
+      (n' : ℕ) (proved' : List Tagged),
+      (ScopeHolds scope σ cur → AllHold σ db) → RefutedIn scope σ proved →
+      runItem goal scope cur db n it proved = some (db', n', proved') →
+      (ScopeHolds scope σ cur → AllHold σ db') ∧ RefutedIn scope σ proved'
+  | _, cur, db, n, .step s, proved, db', n', proved', hdb, hp, h => by
     simp only [runItem, Option.map_eq_some_iff] at h
     obtain ⟨⟨db₁, n₁⟩, h₁, h⟩ := h
     simp only [Prod.mk.injEq] at h
     obtain ⟨rfl, -, rfl⟩ := h
-    exact ⟨fun hpre => runStep_sound _ _ _ _ _ (hdb hpre) h₁, hp⟩
-  | _, pre, db, n, .goal g sub q, proved, db', n', proved', hdb, hp, h => by
+    exact ⟨fun hsc => runStep_sound _ _ _ _ _ (hdb hsc) h₁, hp⟩
+  | _, cur, db, n, .goal g sub q, proved, db', n', proved', hdb, hp, h => by
     simp only [runItem] at h
     split at h
     · cases h
@@ -1971,62 +1988,79 @@ private theorem runItem_sound {σ : ℕ → Bool} {goal : GoalId → Option (Lis
         · rename_i hq
           simp only [Option.some.injEq, Prod.mk.injEq] at h
           obtain ⟨rfl, -, rfl⟩ := h
-          refine ⟨hdb, List.forall_mem_cons.2 ⟨fun hall => ?_, hp⟩⟩
-          have h₁ := allHold_pushAll db n ps (hdb fun p hp => hall p (List.mem_append_left _ hp))
-            fun p hp => hall p (List.mem_append_right _ hp)
+          refine ⟨hdb, List.forall_mem_cons.2 ⟨fun hsc hall => ?_, hp⟩⟩
+          have h₁ := allHold_pushAll db n ps (hdb hsc) hall
           simp [(runSteps_sound _ _ sub _ _ h₁ h₂).not_namesContra] at hq
         · cases h
       · cases h
-  | scope, pre, db, n, .scope b inner, proved, db', n', proved', hdb, hp, h => by
+  | scope, cur, db, n, .scope b inner, proved, db', n', proved', hdb, hp, h => by
     simp only [runItem] at h
     split at h
-    · cases h
-    · rename_i S hS
+    · rename_i hcur
+      cases cur with
+      | some _ => simp at hcur
+      | none =>
       split at h
-      · rename_i db₂ n₂ proved₂ h₂
-        simp only [Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, -, rfl⟩ := h
-        exact ⟨hdb, (runGoals_sound _ (pre ++ S) _ _ inner proved db₂ n₂ proved₂
-          (fun hpre => allHold_pushAll db n S (hdb fun p hp => hpre p (List.mem_append_left _ hp))
-            fun p hp => hpre p (List.mem_append_right _ hp)) hp h₂).2⟩
       · cases h
+      · rename_i S hS
+        split at h
+        · rename_i db₂ n₂ proved₂ h₂
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, -, rfl⟩ := h
+          exact ⟨hdb, (runGoals_sound _ (some b) _ _ inner proved db₂ n₂ proved₂
+            (fun hsc => allHold_pushAll db n S (hdb trivial) (hsc S hS)) hp h₂).2⟩
+        · cases h
+    · cases h
 
 private theorem runGoals_sound {σ : ℕ → Bool} {goal : GoalId → Option (List PBConstr)} :
-    ∀ (scope : Bool → Option (List PBConstr)) (pre : List PBConstr) (db : List (ℕ × PBConstr))
-      (n : ℕ) (items : List RedItem) (proved : List (List PBConstr)) (db' : List (ℕ × PBConstr))
-      (n' : ℕ) (proved' : List (List PBConstr)),
-      ((∀ p ∈ pre, p.Holds σ) → AllHold σ db) → Refuted σ proved →
-      runGoals goal scope pre db n items proved = some (db', n', proved') →
-      ((∀ p ∈ pre, p.Holds σ) → AllHold σ db') ∧ Refuted σ proved'
+    ∀ (scope : Bool → Option (List PBConstr)) (cur : Option Bool) (db : List (ℕ × PBConstr))
+      (n : ℕ) (items : List RedItem) (proved : List Tagged) (db' : List (ℕ × PBConstr))
+      (n' : ℕ) (proved' : List Tagged),
+      (ScopeHolds scope σ cur → AllHold σ db) → RefutedIn scope σ proved →
+      runGoals goal scope cur db n items proved = some (db', n', proved') →
+      (ScopeHolds scope σ cur → AllHold σ db') ∧ RefutedIn scope σ proved'
   | _, _, db, n, [], proved, db', n', proved', hdb, hp, h => by
     simp only [runGoals, Option.some.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, -, rfl⟩ := h
     exact ⟨hdb, hp⟩
-  | scope, pre, db, n, it :: items, proved, db', n', proved', hdb, hp, h => by
+  | scope, cur, db, n, it :: items, proved, db', n', proved', hdb, hp, h => by
     simp only [runGoals] at h
     split at h
     · rename_i db₁ n₁ proved₁ h₁
-      have := runItem_sound scope pre db n it proved db₁ n₁ proved₁ hdb hp h₁
-      exact runGoals_sound scope pre db₁ n₁ items proved₁ db' n' proved' this.1 this.2 h
+      have := runItem_sound scope cur db n it proved db₁ n₁ proved₁ hdb hp h₁
+      exact runGoals_sound scope cur db₁ n₁ items proved₁ db' n' proved' this.1 this.2 h
     · cases h
 
 end
 
-/-- Where the premises `S` of a scope hold, the lists it refuted, with `S` removed, are refuted. -/
-private theorem Refuted.stripPre {σ : ℕ → Bool} {proved : List (List PBConstr)}
-    (hp : Refuted σ proved) {S : List PBConstr} (hS : ∀ p ∈ S, p.Holds σ) :
-    Refuted σ (stripPre S proved) := by
-  intro ps' hps' hall
-  obtain ⟨ps, hps, rfl⟩ := List.mem_map.1 hps'
-  split at hall
-  · rename_i hpre
-    have he := List.prefix_iff_eq_append.1 (List.isPrefixOf_iff_prefix.1 hpre)
-    refine hp _ hps fun p hp' => ?_
-    rw [← he] at hp'
-    rcases List.mem_append.1 hp' with h | h
-    · exact hS p h
-    · exact hall p h
-  · exact hp _ hps hall
+/-- **A top-level run is sound**: an assignment of the premises refutes, wherever the premises of
+their scope hold, the lists the subproof refuted, and satisfies its final database. -/
+private theorem runGoals_top {σ : ℕ → Bool} {goal : GoalId → Option (List PBConstr)}
+    {scope : Bool → Option (List PBConstr)} {db db' : List (ℕ × PBConstr)} {n n' : ℕ}
+    {items : List RedItem} {proved : List Tagged} (hdb : AllHold σ db)
+    (h : runGoals goal scope none db n items [] = some (db', n', proved)) :
+    AllHold σ db' ∧ RefutedIn scope σ proved := by
+  obtain ⟨h₁, h₂⟩ := runGoals_sound scope none db n items [] db' n' proved (fun _ => hdb)
+    (by simp [RefutedIn]) h
+  exact ⟨h₁ trivial, h₂⟩
+
+/-- Where the premises of the scope `b` hold, the lists visible in it are refuted. -/
+private theorem RefutedIn.visible {scope : Bool → Option (List PBConstr)} {σ : ℕ → Bool}
+    {proved : List Tagged} (hp : RefutedIn scope σ proved) {b : Bool}
+    (hb : ScopeHolds scope σ (some b)) : Refuted σ (visible b proved) := by
+  intro ps hps
+  obtain ⟨e, he, rfl⟩ := List.mem_map.1 hps
+  obtain ⟨he, hb'⟩ := List.mem_filter.1 he
+  refine hp e he ?_
+  rcases e with ⟨_ | b', ps⟩
+  · trivial
+  · simp only [Option.all_some, beq_iff_eq] at hb'
+    subst hb'
+    exact hb
+
+/-- Without scopes, every list is refuted. -/
+private theorem scopeHolds_noScope (σ : ℕ → Bool) (b : Bool) :
+    ScopeHolds noScope σ (some b) := fun S h => by simp [noScope] at h
 
 /-- The goals shared by `red` and `dom` hold at `σ ∘ ω`. -/
 private theorem substCovered_sound {σ : ℕ → Bool} {obj : Option Objective}
@@ -2079,24 +2113,27 @@ of `C` and the goal constraints, with no larger objective value; and the order g
 unless the witness leaves the order alone. -/
 private theorem redOk_sound {σ : ℕ → Bool} {obj : Option Objective} {ord : Option LoadedOrder}
     {db₀ gs : List (ℕ × PBConstr)} {n n' : ℕ} {c : PBConstr} {ω : Witness}
-    {items : List RedItem} {db' : List (ℕ × PBConstr)} {proved : List (List PBConstr)}
+    {items : List RedItem} {db' : List (ℕ × PBConstr)} {proved : List Tagged}
     (hdb : AllHold σ db₀) (hgs : AllHold σ gs) (hnegC : c.negate.Holds σ)
     (hS : items.any RedItem.isScope = true →
       ∀ p ∈ ((ord.map (·.leSpec ω)).getD []).map normalize, p.Holds σ)
-    (hrun : runGoals (goalOf obj ord db₀ ω c) (redScope ord ω) [] ((n, c.negate) :: db₀) (n + 1)
-      items [] = some (db', n', proved))
+    (hrun : runGoals (goalOf obj ord db₀ ω c)
+      (if items.any RedItem.isScope then redScope ord ω else noScope) none
+      ((n, c.negate) :: db₀) (n + 1) items [] = some (db', n', proved))
     (hok : redOk obj ord db₀ gs ω c (items.any RedItem.isScope) db' proved none = true) :
     c.Holds (Witness.apply σ ω) ∧ AllHold (Witness.apply σ ω) gs ∧
       objValue obj (Witness.apply σ ω) ≤ objValue obj σ ∧
       ∀ L ∈ ord, L.untouched ω = true ∨ ∀ G ∈ L.leGoals ω, G.Holds σ := by
   have hneg : AllHold σ ((n, c.negate) :: db₀) := List.forall_mem_cons.2 ⟨hnegC, hdb⟩
-  obtain ⟨-, hp⟩ := runGoals_sound _ [] _ _ _ [] db' n' proved (fun _ => hneg)
-    (by simp [Refuted]) hrun
-  have hp' : Refuted σ (redProved ord ω (items.any RedItem.isScope) proved) := by
-    unfold redProved
+  obtain ⟨-, hp⟩ := runGoals_top hneg hrun
+  have hp' : Refuted σ (visible false proved) := by
+    refine hp.visible ?_
     split
-    · exact hp.stripPre (hS ‹_›)
-    · exact hp
+    · rename_i hs
+      intro S hS'
+      simp only [redScope, Option.some.injEq] at hS'
+      exact hS'.symm ▸ hS hs
+    · exact scopeHolds_noScope σ false
   simp only [redOk, Bool.and_eq_true] at hok
   obtain ⟨⟨⟨-, hself⟩, hord⟩, hsub⟩ := hok
   obtain ⟨hgs', hobj⟩ := substCovered_sound hdb hgs hp' hnegC hsub
@@ -2137,9 +2174,8 @@ theorem redCheckOn_sound {σ : ℕ → Bool} {obj : Option Objective} {ord : Opt
   cases qed with
   | some q =>
     have hneg : AllHold σ ((n, c.negate) :: db₀) := List.forall_mem_cons.2 ⟨hnegC, hdb⟩
-    obtain ⟨hall, -⟩ := runGoals_sound _ [] _ _ _ [] db' n' proved (fun _ => hneg)
-      (by simp [Refuted]) hrun
-    simp [redOk, (hall (by simp)).not_namesContra] at hok
+    obtain ⟨hall, -⟩ := runGoals_top hneg hrun
+    simp [redOk, hall.not_namesContra] at hok
   | none =>
   cases hord : ord with
   | none =>
@@ -2254,8 +2290,8 @@ theorem objuCheck_sound {σ : ℕ → Bool} {core : List (ℕ × PBConstr)} {n n
   unfold objuCheck at h
   split at h
   · rename_i db' n'' proved hrun
-    obtain ⟨-, hp⟩ := runGoals_sound _ [] _ _ _ [] db' n'' proved (fun _ => hcore)
-      (by simp [Refuted]) hrun
+    obtain ⟨-, hp⟩ := runGoals_top hcore hrun
+    replace hp := hp.visible (scopeHolds_noScope σ false)
     split at h
     · rename_i hok
       simp only [Bool.and_eq_true] at hok
@@ -2320,9 +2356,8 @@ private theorem hashGoalsCheck_sound {σ : ℕ → Bool} {db : List (ℕ × PBCo
   split at h
   · cases h
   rename_i db' n'' proved hrun
-  obtain ⟨hall, hp⟩ := runGoals_sound _ [] _ _ _ [] db' n'' proved (fun _ => hdb)
-    (by simp [Refuted]) hrun
-  replace hall := hall (by simp)
+  obtain ⟨hall, hp⟩ := runGoals_top hdb hrun
+  replace hp := hp.visible (scopeHolds_noScope σ false)
   split at h
   · rename_i hok
     intro G hG
@@ -2582,7 +2617,7 @@ theorem domCheck_sound {σ : ℕ → Bool} {pres : Option (List ℕ)} {obj : Opt
   -- At every assignment agreeing with `σ` off the auxiliary variables, the run refutes `proved`.
   have hagree : ∀ ρ : List Bool, AllHold (assignOn L.order.aux ρ σ) db ∧
       AllHold (assignOn L.order.aux ρ σ) core ∧ c.negate.Holds (assignOn L.order.aux ρ σ) ∧
-      Refuted (assignOn L.order.aux ρ σ) proved := by
+      RefutedIn (domScope L ω) (assignOn L.order.aux ρ σ) proved := by
     intro ρ
     obtain ⟨hdb', hc', -⟩ := LoadedOrder.fresh_agree hfresh
       (fun v hv => assignOn_of_not_mem hv ρ σ)
@@ -2590,20 +2625,18 @@ theorem domCheck_sound {σ : ℕ → Bool} {pres : Option (List ℕ)} {obj : Opt
       (hdb' e he).2 (List.mem_append.1 he |>.elim (hdb e) (hcore e))
     have hneg : c.negate.Holds (assignOn L.order.aux ρ σ) := by
       rw [holds_negate, hc']; exact hc
-    obtain ⟨-, hp⟩ := runGoals_sound _ [] _ _ _ [] db' n'' proved
-      (fun _ => List.forall_mem_cons.2 ⟨hneg, fun e he => hall e (List.mem_append_left _ he)⟩)
-      (by simp [Refuted]) hrun
+    obtain ⟨-, hp⟩ := runGoals_top
+      (List.forall_mem_cons.2 ⟨hneg, fun e he => hall e (List.mem_append_left _ he)⟩) hrun
     exact ⟨fun e he => hall e (List.mem_append_left _ he),
       fun e he => hall e (List.mem_append_right _ he), hneg, hp⟩
   cases qed with
   | some q =>
     have hneg : AllHold σ ((n, c.negate) :: db) :=
       List.forall_mem_cons.2 ⟨(holds_negate σ c).2 hc, hdb⟩
-    obtain ⟨hall, -⟩ := runGoals_sound _ [] _ _ _ [] db' n'' proved (fun _ => hneg)
-      (by simp [Refuted]) hrun
-    simp [domOk, (hall (by simp)).not_namesContra] at hok
+    obtain ⟨hall, -⟩ := runGoals_top hneg hrun
+    simp [domOk, hall.not_namesContra] at hok
   | none =>
-  simp only [domOk, Bool.and_eq_true, Bool.or_eq_true, List.all_eq_true] at hok
+  simp only [domOk, Bool.and_eq_true, List.all_eq_true] at hok
   obtain ⟨⟨hgeq, hle⟩, hsub⟩ := hok
   -- The goals other than `#N + 1`, at values of the auxiliary variables satisfying
   -- `S⪯(z↾ω, z, a)`.
@@ -2611,7 +2644,9 @@ theorem domCheck_sound {σ : ℕ → Bool} {pres : Option (List ℕ)} {obj : Opt
   have hag : ∀ v ∉ L.order.aux, assignOn L.order.aux ρ σ v = σ v := fun v hv =>
     assignOn_of_not_mem hv ρ σ
   obtain ⟨hdb', hcore', hneg', hp⟩ := hagree ρ
-  have hp' := hp.stripPre (S := (L.leSpec ω).map normalize) fun p hp => by
+  have hp' := hp.visible (b := false) fun S hS p hp => by
+    simp only [domScope, Option.some.injEq] at hS
+    subst hS
     obtain ⟨G, hG, rfl⟩ := List.mem_map.1 hp
     exact (holds_normalize _ _).2 (hspec G hG)
   obtain ⟨hcoreτ, hobjτ⟩ := substCovered_sound hdb' hcore' hp' hneg' hsub
@@ -2629,14 +2664,14 @@ theorem domCheck_sound {σ : ℕ → Bool} {pres : Option (List ℕ)} {obj : Opt
     obtain ⟨-, -, -, hp''⟩ := hagree ρ'
     have hnorm : ∀ G ∈ L.geSpec ω ++ L.geGoals ω, G.normalize.Holds (assignOn L.order.aux ρ' σ) :=
       fun G hG' => (holds_normalize _ _).2 (hG G hG')
-    rcases hgeq with hge' | hge'
-    · refine hp'' _ (List.contains_iff_mem.1 hge') fun G hG' => ?_
-      obtain ⟨G', hGm, rfl⟩ := List.mem_map.1 hG'
-      exact hnorm G' (List.mem_append_right _ hGm)
-    · refine hp'' _ (List.contains_iff_mem.1 hge') fun G hG' => ?_
-      rcases List.mem_append.1 hG' with hG' | hG' <;> obtain ⟨G', hGm, rfl⟩ := List.mem_map.1 hG'
-      · exact hnorm G' (List.mem_append_left _ hGm)
-      · exact hnorm G' (List.mem_append_right _ hGm)
+    have hp₁ := hp''.visible (b := true) fun S hS p hp => by
+      simp only [domScope, Option.some.injEq] at hS
+      subst hS
+      obtain ⟨G', hGm, rfl⟩ := List.mem_map.1 hp
+      exact hnorm G' (List.mem_append_left _ hGm)
+    refine hp₁ _ (List.contains_iff_mem.1 hgeq) fun G hG' => ?_
+    obtain ⟨G', hGm, rfl⟩ := List.mem_map.1 hG'
+    exact hnorm G' (List.mem_append_right _ hGm)
 
 /-- **CakePB's `sat_obj_po`** for the preserved set `pres`, the loaded order `L` and the
 objective `obj`: every solution `τ` of `C` gives a solution of `D` below `τ` in the order, of no
