@@ -181,31 +181,6 @@ section Law
 
 variable {Ω β : Type*} [MeasurableSpace Ω] [Fintype β]
 
-/-- A finite-valued function with measurable fibres has fibre probabilities summing to one. -/
-private theorem sum_measure_fiber (μ : Measure Ω) [IsProbabilityMeasure μ] (f : Ω → β)
-    (hf : ∀ b, MeasurableSet (f ⁻¹' {b})) : ∑ b, μ (f ⁻¹' {b}) = 1 := by
-  rw [sum_measure_preimage_singleton univ fun b _ => hf b, coe_univ, Set.preimage_univ,
-    measure_univ]
-
-/-- The law of a finite-valued function with measurable fibres gives each set the probability of
-its preimage. -/
-private theorem toOuterMeasure_ofFintype_fiber (μ : Measure Ω) (f : Ω → β)
-    (hf : ∀ b, MeasurableSet (f ⁻¹' {b})) (h : ∑ b, μ (f ⁻¹' {b}) = 1) (s : Set β) :
-    (PMF.ofFintype (fun b => μ (f ⁻¹' {b})) h).toOuterMeasure s = μ (f ⁻¹' s) := by
-  classical
-  rw [PMF.toOuterMeasure_apply, tsum_fintype]
-  calc ∑ b, s.indicator (PMF.ofFintype (fun b => μ (f ⁻¹' {b})) h) b
-      = ∑ b ∈ s.toFinset, μ (f ⁻¹' {b}) := by
-        rw [← sum_filter_add_sum_filter_not univ (· ∈ s)]
-        simp only [Set.indicator, PMF.ofFintype_apply]
-        rw [sum_ite_of_true (fun b hb => (mem_filter.1 hb).2),
-          sum_ite_of_false (fun b hb => (mem_filter.1 hb).2), sum_const_zero, add_zero]
-        congr 1
-        ext b
-        simp
-    _ = μ (f ⁻¹' s) := by
-        rw [sum_measure_preimage_singleton _ fun b _ => hf b, Set.coe_toFinset]
-
 /-- **Coupling inequality for measures.** If `p` and `q` are the laws of two finite-valued
 functions `f` and `g` on one probability space, their statistical distance is at most the
 probability that `f` and `g` differ. -/
@@ -213,17 +188,13 @@ private theorem dist_le_measure_ne (μ : Measure Ω) [IsProbabilityMeasure μ] (
     (hf : ∀ b, MeasurableSet (f ⁻¹' {b})) (hg : ∀ b, MeasurableSet (g ⁻¹' {b})) (p q : PMF β)
     (hp : ∀ b, p b = μ (f ⁻¹' {b})) (hq : ∀ b, q b = μ (g ⁻¹' {b})) :
     dist p q ≤ (μ {x | f x ≠ g x}).toReal := by
-  classical
+  let _ : MeasurableSpace β := ⊤
   set F : Ω → β × β := fun x => (f x, g x)
-  have hF : ∀ c, MeasurableSet (F ⁻¹' {c}) := fun c => by
-    have : F ⁻¹' {c} = f ⁻¹' {c.1} ∩ g ⁻¹' {c.2} := by
-      ext x
-      simp [F, Prod.ext_iff]
-    rw [this]
-    exact (hf _).inter (hg _)
-  set ω := PMF.ofFintype (fun c => μ (F ⁻¹' {c})) (sum_measure_fiber μ F hF)
-  have hω : ∀ s, ω.toOuterMeasure s = μ (F ⁻¹' s) :=
-    toOuterMeasure_ofFintype_fiber μ F hF (sum_measure_fiber μ F hF)
+  have hF : Measurable F := (measurable_to_countable' hf).prodMk (measurable_to_countable' hg)
+  set ω := (μ.map F).toPMF
+  have hω : ∀ s, ω.toOuterMeasure s = μ (F ⁻¹' s) := fun s => by
+    rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (Set.to_countable s).measurableSet,
+      Measure.toPMF_toMeasure, Measure.map_apply hF (Set.to_countable s).measurableSet]
   have h1 : ω.map Prod.fst = p := PMF.ext fun b => by
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply, hω, hp]
     rfl
@@ -257,7 +228,7 @@ theorem outputLaw_apply (P : ∀ v, PMF (α v)) (o : Option (∀ v, α v)) :
 /-- **Termination.** Under the local-lemma hypothesis, for a rule that only selects occurring
 events, the output law puts no mass on non-termination. -/
 theorem outputLaw_none [Finite ι] (P : ∀ v, PMF (α v)) (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
     (hP : ∀ i, (Measure.pi fun v => (P v).toMeasure).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
@@ -265,7 +236,8 @@ theorem outputLaw_none [Finite ι] (P : ∀ v, PMF (α v)) (A : ι → Set (∀ 
     outputLaw vbl r P none = 0 := by
   rw [outputLaw_apply]
   refine measure_mono_null (fun T hT => ?_)
-    (ae_iff.1 (ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hx hP (historyRule_valid hr)))
+    (ae_iff.1 (ae_exists_run_eq_none _ vbl A (fun i => measurableSet_of_dependsOn (hA i)) hA Γ hΓ hx
+      hP (historyRule_valid hr)))
   simp only [Set.mem_preimage, Set.mem_singleton_iff, output_eq_none_iff] at hT
   simpa only [Set.mem_ofPred_eq, not_exists] using hT
 
@@ -317,7 +289,7 @@ laws of the runs with `P` and with `Q` satisfy `d_TV(MT(P), MT(Q)) ≤ 2 ∑ v, 
 independently of `d` and of the number of events. No hypothesis on `Q` is needed: the output
 `none` records non-termination. -/
 theorem dist_outputLaw_le_two_mul [Finite ι] (P Q : ∀ v, PMF (α v)) (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i) {d : ℕ}
     (hΓd : ∀ i, (Γ i).card ≤ d) {p : ℝ}
     (hP : ∀ i, (Measure.pi fun v => (P v).toMeasure).real (A i) ≤ p)
@@ -335,7 +307,8 @@ theorem dist_outputLaw_le_two_mul [Finite ι] (P Q : ∀ v, PMF (α v)) (A : ι 
       rw [← hω₃, ← PMF.toMeasure_apply_eq_toOuterMeasure, ENNReal.ofReal_toReal
         (measure_ne_top _ _)]
   refine (dist_outputLaw_le vbl r P Q _ hκP hκQ).trans ?_
-  have h := coupledTable_diverge_le_two_mul _ vbl r A hAm hA Γ hΓ hΓd hP' hp hr
+  have h := coupledTable_diverge_le_two_mul _ vbl r A (fun i => measurableSet_of_dependsOn (hA i))
+    hA Γ hΓ hΓd hP' hp hr
   simp only [hdis] at h
   rw [← ENNReal.ofReal_sum_of_nonneg fun v _ => dist_nonneg, ← ENNReal.ofReal_ofNat 2,
     ← ENNReal.ofReal_mul (by norm_num)] at h

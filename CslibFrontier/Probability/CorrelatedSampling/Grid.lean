@@ -205,7 +205,7 @@ theorem count_le (P : GridDist α L) (x : α) : P.count x ≤ L := by
 end GridDist
 
 /-- The cells `{(x, u) : u < k x}` of the counts `k`. -/
-def cells (k : α → ℕ) : Finset (α × Fin L) := univ.filter fun p => p.2.val < k p.1
+private def cells (k : α → ℕ) : Finset (α × Fin L) := univ.filter fun p => p.2.val < k p.1
 
 /-- The cells of `x` number `min L (k x)`. -/
 private theorem card_cells_filter_fst (k : α → ℕ) (x : α) :
