@@ -66,7 +66,7 @@ variable (hash : List Bool → List Bool → List Bool)
 /-! ### Lengths of labels -/
 
 /-- A defaulted lookup in words of at most `k + 2` bits has at most `k + 2` bits. -/
-private theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
+theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
     (hws : ∀ w ∈ ws, w.length ≤ k + 2) (i : ℕ) : (ws.getD i []).length ≤ k + 2 := by
   rw [List.getD_eq_getElem?_getD]
   cases h : ws[i]? with
@@ -353,7 +353,7 @@ private theorem zeroStep_polyTime :
   polytime [zeroStep, zeroGate]
 
 /-- A label read at a wire number written in binary, capped by the number of labels. -/
-private theorem labelAt_polyTime {γ : Type} {encIn : γ ↪ List Bool}
+theorem labelAt_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     {labels : γ → List (List Bool)} {u : γ → List Bool}
     (hlabels : ComputableInPolyTime labels encIn (encList encBits))
     (hu : ComputableInPolyTime u encIn encBits) :
@@ -362,7 +362,7 @@ private theorem labelAt_polyTime {γ : Type} {encIn : γ ↪ List Bool}
   polytime
 
 /-- The sum of two words, cut to `k + 2` bits. -/
-private theorem xorCut_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
+theorem xorCut_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
     {a b : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (ha : ComputableInPolyTime a encIn encBits) (hb : ComputableInPolyTime b encIn encBits) :
     ComputableInPolyTime (fun x => (List.zipWith xor (a x) (b x)).take (k x + 2)) encIn
@@ -632,10 +632,14 @@ private theorem fnWord_polyTime :
   simp only [fnWord_eq]
   exact henc.comp (hhead.prod hbody)
 
-/-- The encoding information is computed in polynomial time. -/
-private theorem encInfoWord_polyTime :
-    ComputableInPolyTime (fun x : ℕ × XorAndCircuit × List Bool =>
-      encInfoWord x.1 x.2.1.circuit x.2.2) encGbInput encBits := by
+/-- Encoding information `encInfoWord` is computed in polynomial time from the security
+parameter, the input count `f.n`, and the coins. -/
+theorem encInfoWord_polyTime_of {γ : Type} {encIn : γ ↪ List Bool}
+    {k : γ → ℕ} {f : γ → ConventionalCircuit} {coins : γ → List Bool}
+    (hk : ComputableInPolyTime k encIn encUnary)
+    (hn : ComputableInPolyTime (fun x => (f x).n) encIn encUnary)
+    (hcoins : ComputableInPolyTime coins encIn encBits) :
+    ComputableInPolyTime (fun x => encInfoWord (k x) (f x) (coins x)) encIn encBits := by
   have hrange : ComputableInPolyTime (fun p : ℕ × ℕ × List Bool =>
       ((List.range (2 * p.2.1)).map fun j => List.zipWith xor (inputWord p.1 p.2.2 (j / 2))
         (maskWord p.1 (offsetWord p.1 p.2.2) (j.testBit 0))).flatten)
@@ -662,15 +666,21 @@ private theorem encInfoWord_polyTime :
     have hrow := ComputableInPolyTime.bitsZipWithInput xor hin hmask
     simpa only [inputWord, maskWord, offsetWord, Function.comp_def] using
       ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.mapWithInput hlist hrow)
-  have heq : (fun x : ℕ × XorAndCircuit × List Bool => encInfoWord x.1 x.2.1.circuit x.2.2) =
-      fun x => ((List.range (2 * x.2.1.circuit.n)).map fun j =>
-        List.zipWith xor (inputWord x.1 x.2.2 (j / 2))
-          (maskWord x.1 (offsetWord x.1 x.2.2) (j.testBit 0))).flatten := by
+  have heq : (fun x => encInfoWord (k x) (f x) (coins x)) =
+      fun x => ((List.range (2 * (f x).n)).map fun j =>
+        List.zipWith xor (inputWord (k x) (coins x) (j / 2))
+          (maskWord (k x) (offsetWord (k x) (coins x)) (j.testBit 0))).flatten := by
     funext x
     rw [encInfoWord, List.map_range_eq_ofFn]
   rw [heq]
-  exact hrange.comp ((ComputableInPolyTime.fst _ _).prod (data_polyTime.fst'.prod
-    (ComputableInPolyTime.snd encUnary (encPair encXorAndCircuit encBits)).snd'))
+  exact hrange.comp (hk.prod (hn.prod hcoins))
+
+/-- The encoding information is computed in polynomial time. -/
+private theorem encInfoWord_polyTime :
+    ComputableInPolyTime (fun x : ℕ × XorAndCircuit × List Bool =>
+      encInfoWord x.1 x.2.1.circuit x.2.2) encGbInput encBits :=
+  encInfoWord_polyTime_of (ComputableInPolyTime.fst _ _) data_polyTime.fst'
+    (ComputableInPolyTime.snd encUnary (encPair encXorAndCircuit encBits)).snd'
 
 include hf in
 /-- The decoding information is computed in polynomial time. -/

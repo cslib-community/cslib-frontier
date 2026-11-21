@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Reduction
+public import CslibFrontier.Foundations.Combinatorics.Digraph.Layered
 public import CslibFrontier.Foundations.Relation.Layered
+import CslibFrontier.Foundations.Relation.Transport
 import Mathlib.SetTheory.Cardinal.NatCard
 import Mathlib.Tactic.Linarith
 
@@ -23,9 +25,18 @@ target is equivalent to the original STCON answer, including paths that terminat
 For a native logarithmic-space witness, both the width and the number of layers are polynomial
 in input length. This is the layered-reachability prerequisite of #6747, not NL = UL.
 
+The same layered graph can also be viewed on coordinates `(layer, column)` for use with
+vertex weights. Both views use the same edges and fixed endpoints.
+
+## Main definitions
+
+* `Cslib.Complexity.STCON.layeredCoordinates`: layer-first coordinates of bounded vertices.
+* `Cslib.Complexity.STCON.layeredDigraph`: the rectangular view of the layered graph.
+
 ## Main results
 
 * `Cslib.Complexity.STCON.layered_reachable_iff`: exact reachability between fixed endpoints.
+* `Cslib.Complexity.STCON.layeredDigraph_reachable_iff`: the same criterion on coordinates.
 * `Cslib.Complexity.STCON.card_configurationLayered_le_pow`: a polynomial bound on graph size.
 -/
 
@@ -69,6 +80,32 @@ theorem layered_reachable_iff (I : STCONInstance) :
   rw [Relation.LayeredVertex.reachable_iff]
   exact (Relation.reflTransGen_iff_relatesWithinSteps (r := I.Adj)
     (by rw [Nat.card_fin]; have := I.s.isLt; omega)).symm
+
+/-- Convert a bounded layered STCON vertex to its layer index followed by its original column. -/
+abbrev layeredCoordinates (I : STCONInstance) :
+    LayeredGraphVertex I ≃ Fin ((I.n - 1) + 1) × Fin I.n :=
+  Relation.LayeredVertex.boundedEquiv (Fin I.n) (I.n - 1)
+
+/-- The bounded STCON layering on layer-first rectangular coordinates. Its edges are those of
+`layeredRelation`, transported by `layeredCoordinates`. -/
+@[expose] def layeredDigraph (I : STCONInstance) :
+    LayeredDigraph (Fin ((I.n - 1) + 1) × Fin I.n) where
+  Adj a b := layeredRelation I ((layeredCoordinates I).symm a) ((layeredCoordinates I).symm b)
+  layer a := a.1.val
+  layer_adj h := h.1
+
+/-- Reachability between the rectangular images of the fixed layered endpoints decides
+the original STCON instance. -/
+theorem layeredDigraph_reachable_iff (I : STCONInstance) :
+    let e := layeredCoordinates I
+    Relation.ReflTransGen (layeredDigraph I).Adj (e (layeredStart I)) (e (layeredTarget I)) ↔
+      I ∈ STCON := by
+  let e := layeredCoordinates I
+  have hedge (a b : LayeredGraphVertex I) :
+      layeredRelation I a b ↔ (layeredDigraph I).Adj (e a) (e b) := by
+    change _ ↔ layeredRelation I (e.symm (e a)) (e.symm (e b))
+    rw [e.symm_apply_apply, e.symm_apply_apply]
+  exact (Relation.reflTransGen_equiv_iff e hedge _ _).symm.trans (layered_reachable_iff I)
 
 /-- A width-`n` graph has `n` layers in the construction. Its finite rectangular vertex set
 therefore has `n²` vertices. -/
