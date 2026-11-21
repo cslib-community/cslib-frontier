@@ -311,7 +311,7 @@ end Assign
 /-! ### Removing repetitions in linear time -/
 
 /-- The elements of `xs` not yet marked in `m` by their keys, in order, after `acc` reversed. -/
-def dedupKeyGo {α : Type} (key : α → ℕ) : List α → Array Bool → List α → List α
+@[specialize] def dedupKeyGo {α : Type} (key : α → ℕ) : List α → Array Bool → List α → List α
   | [], _, acc => acc.reverse
   | x :: xs, m, acc =>
     if m.getD (key x) false then dedupKeyGo key xs m acc
@@ -323,7 +323,7 @@ this takes time and space `O(xs.length + greatest key + 1)`: linear in the list 
 dense, as they are for literals once `solveCompact` has renamed the variables to `0, …, k - 1`, but
 not for sparse keys. With an injective key, the elements are those of `xs` (`mem_dedupKey`), each
 once (`nodup_dedupKey`). -/
-def dedupKey {α : Type} (key : α → ℕ) (xs : List α) : List α :=
+@[specialize] def dedupKey {α : Type} (key : α → ℕ) (xs : List α) : List α :=
   dedupKeyGo key xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false) []
 
 theorem lt_foldl_max {α : Type} (key : α → ℕ) :

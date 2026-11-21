@@ -55,7 +55,8 @@ abbrev clauseIds (L : List Watcher) : List ℕ := L.map Watcher.clause
 @[expose] def watchList (W : Array (List Watcher)) (i : ℕ) : List Watcher := W.getD i []
 
 /-- Applying `f` to the watch list at index `i`, growing the array if needed. -/
-@[expose] def modifyWatch (W : Array (List Watcher)) (i : ℕ) (f : List Watcher → List Watcher) :
+@[expose, inline]
+def modifyWatch (W : Array (List Watcher)) (i : ℕ) (f : List Watcher → List Watcher) :
     Array (List Watcher) :=
   let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []
   W'.modify i f
