@@ -4,7 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
-import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+module
+
+-- `import all`: the `decide` checks below evaluate `stepTop`, whose body is not exposed, and its
+-- private helpers.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
 database whose witness repairs a solution violating the new constraint; a symmetry-breaking `red`
@@ -12,6 +16,8 @@ step with the swap witness `x0 ↔ x1` and all its proof goals, accepted and use
 formula; the same step with a witness that does not repair, or with an unproved goal, rejected;
 and, with an objective, a `red` step whose witness raises the objective, accepted without the
 objective and rejected with it. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 
