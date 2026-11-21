@@ -185,6 +185,6 @@ theorem size_program (κ : ℕ) :
 
 /-- Only the current index and address scratch among registers 109–127 change during a root. -/
 theorem body_preserves : ∀ i : Fin 128,
-    109 ≤ i.val → i ≠ current → i ≠ address → body.Preserves i := by decide
+    109 ≤ i.val → i ≠ current → i ≠ address → body.Preserves i := by decide +kernel
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Preprocessing

@@ -302,7 +302,8 @@ private theorem clockedPort_map_val {M N dOther stepClock aVal pVal aBound pBoun
       else none := by
   have hmap : rawPort.map (fun (b, q) => (b.val, q.val)) =
       (rawPort.map fun bq => (bq.1.val, bq.2)).map fun (bVal, q) => (bVal, q.val) := by
-    cases rawPort <;> rfl
+    rw [Option.map_map]
+    rfl
   rw [hmap, hval]
   by_cases hc : cond
   · rw [ite_eq_left hc, ite_eq_left ⟨ha_lt, hp_lt, hc⟩]

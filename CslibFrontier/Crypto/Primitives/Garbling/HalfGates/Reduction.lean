@@ -1006,9 +1006,9 @@ private theorem isOraclePPTOn_reductionStep :
   have hrE := ComputableInPolyTime.snd (encPair E encBits) encBits
   have hand := andState_polyTime hf (hk.comp hfst₂) (hg.comp hfst₂) (ha.comp hfst₂)
     (hb.comp hfst₂) hrG hrE (hst.comp hfst₂)
-  refine IsOraclePPTOn.cond' hcond ?_ hxor.isOraclePPTOn
-  refine IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take' () hreqG hlim) ?_
-  exact IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take' () (hreqE.comp hfst₁)
+  refine IsOraclePPTOn.cond hcond ?_ hxor.isOraclePPTOn
+  refine IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take () hreqG hlim) ?_
+  exact IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take () (hreqE.comp hfst₁)
     (hlim.comp hfst₁)) hand.isOraclePPTOn
 
 include hf in
@@ -1018,7 +1018,7 @@ private theorem isOraclePPTOn_reductionStep_comp {γ : Type} {encIn : γ ↪ Lis
     {d : γ → GateLoopData} (hd : ComputableInPolyTime d encIn encGateLoopData) :
     IsOraclePPTOn (encPair encIn encGateLoopState) encGateLoopState
       (fun p : γ × GateLoopState => reductionStep hash (d p.1) p.2) :=
-  (isOraclePPTOn_reductionStep hf).preprocess'
+  (isOraclePPTOn_reductionStep hf).preprocess
     ((hd.comp (ComputableInPolyTime.fst encIn encGateLoopState)).prod
       (ComputableInPolyTime.snd encIn encGateLoopState))
 
@@ -1140,7 +1140,7 @@ private theorem isOraclePPTOn_prvSimGuess :
   have hstep := isOraclePPTOn_reductionStep_comp hf hdata
   have hgrowth : ComputableInPolyTime (fun k : ℕ => 8 * (k + 2) + 8) encUnary encUnary := by
     polytime
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth'
+  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth
     (growth := fun p : ((ℕ × List Bool) × (Query XorAndCircuit × σ)) × List Bool =>
       8 * (p.1.1.1 + 2) + 8) hq hinit hstep
     ((hgrowth.comp hk).polyBounded_length.mono fun p => by simp)
@@ -1200,7 +1200,7 @@ private theorem isOraclePPTOn_prvSimBranch :
   have hlen : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query XorAndCircuit × σ) =>
       p.2.1.fn.circuit.n * (p.1.1 + 2)) E encUnary := by polytime
   have hcoins := (isPPTOn_sampleList.preprocess hlen).isOraclePPTOn (Operation := Unit)
-  exact IsOraclePPTOn.ite' hcond (hcoins.bind_with (isOraclePPTOn_prvSimGuess hf hB)) hnone
+  exact IsOraclePPTOn.ite hcond (hcoins.bind_with (isOraclePPTOn_prvSimGuess hf hB)) hnone
 
 include hf hB in
 /-- **Efficiency of the reduction.** For every hash family computed in polynomial time and every

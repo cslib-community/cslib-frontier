@@ -8,6 +8,8 @@ Authors: Erik Demaine
 
 import CslibFrontier.Algorithms.ExactTriangle.CountPrime
 import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Program
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 # Complete native modular-count execution regressions

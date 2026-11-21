@@ -29,57 +29,15 @@ open Cslib.BitString
 
 variable {F : CSP Table ℕ}
 
-/-- Every nonconnector port of the actual contracted edge instance is a surviving old port. -/
-theorem exists_oldPort (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool) (vs : List ℕ)
-    (o : Occurrence (contract f vs)) (ho : o.var ∉ connectors F vs) :
-    ∃ p : Occurrence F, ∃ hp : p.var ∉ vs, oldPort f vs p hp = o := by
-  have hv : o.var ∈ F.vars.toFinset \ vs.toFinset := by
-    have hm : o.var ∈ (F.vars.toFinset \ vs.toFinset) ∪ (connectors F vs).toFinset := by
-      rw [← vars_contract f vs]
-      exact List.mem_toFinset.mpr o.var_mem
-    exact (mem_union.mp hm).resolve_right (by simpa using ho)
-  obtain ⟨p, hpv⟩ := (exists_occurrence_iff o.var).mpr (List.mem_toFinset.mp (mem_sdiff.mp hv).1)
-  have hp : p.var ∉ vs := by simpa only [hpv, List.mem_toFinset] using (mem_sdiff.mp hv).2
-  have hq : (hF.partner p).var ∉ vs := by rwa [← hF.partner_variable p]
-  let a := oldPort f vs p hp
-  let b := oldPort f vs (hF.partner p) hq
-  have hab : b.var = a.var := by
-    rw [oldPort_var, oldPort_var]
-    exact (hF.partner_variable p).symm
-  have hne : b ≠ a := by
-    intro he
-    exact hF.partner_constraint_ne p
-      (Fin.ext (congrArg (fun a : Occurrence (contract f vs) => a.1.val) he).symm)
-  have hoa : o.var = a.var := by rw [oldPort_var, hpv]
-  rcases (edge_contract hF f vs).eq_or_eq_of_two hoa hab hne with he | he
-  · exact ⟨p, hp, he.symm⟩
-  · exact ⟨hF.partner p, hq, he.symm⟩
-
 /-- A connector port at an old constraint is exactly that constraint's terminal fresh port.
 The central alternative is excluded by its appended constraint index. -/
 theorem exists_connectorPort (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool)
     (vs : List ℕ) (o : Occurrence (contract f vs)) (ho : o.var ∈ connectors F vs)
     (hindex : o.1.val < F.length) :
     ∃ i : Fin F.length, ∃ hi : i ∈ touched F vs, connectorPort f vs i hi = o := by
-  obtain ⟨i, hi, he⟩ := List.mem_map.mp ho
-  obtain ⟨k, hk, hki⟩ := List.mem_iff_getElem.mp hi
-  let a := connectorPort f vs i hi
-  let b := centralPort f vs ⟨k, by simpa only [length_connectors] using hk⟩
-  have hab : b.var = a.var := by
-    rw [centralPort_var, connectorPort_var]
-    simp only [connectors, List.getElem_map, hki]
-  have hne : b ≠ a := by
-    intro hh
-    have hh := congrArg (fun a : Occurrence (contract f vs) => a.1.val) hh
-    change F.length = i.val at hh
-    have := i.isLt
-    omega
-  have hoa : o.var = a.var := by rw [connectorPort_var]; exact he.symm
-  rcases (edge_contract hF f vs).eq_or_eq_of_two hoa hab hne with heq | heq
-  · exact ⟨i, hi, heq.symm⟩
-  · have hh := congrArg (fun a : Occurrence (contract f vs) => a.1.val) heq
-    change o.1.val = F.length at hh
-    omega
+  rcases exists_connectorPort_or_centralPort hF f vs o ho with h | ⟨k, rfl⟩
+  · exact h
+  · exact absurd hindex (Nat.lt_irrefl F.length)
 
 /-- Find an original outside port by scanning actual original incidences. -/
 @[expose] def restorePort (f : OccurrenceLabeling F Bool) (vs : List ℕ)
@@ -197,12 +155,9 @@ theorem mem_restoreWalk_edges (hF : EdgeInstance F) (f : OccurrenceLabeling F Bo
     o ∈ (restoreWalk f vs fallback p).edges ↔ oldPort f vs o ho ∈ p.edges := by
   rw [restoreWalk, Walk.edges_mapPorts, List.mem_map]
   constructor
-  · rintro ⟨q, hq, heq⟩
-    obtain ⟨hrq, herq⟩ := restorePortOr_spec hF f vs fallback q (hno q hq)
-    have he : (⟨restorePortOr f vs fallback q, hrq⟩ : {a : Occurrence F // a.var ∉ vs}) =
-        ⟨o, ho⟩ := Subtype.ext heq
-    have hh := (congrArg (fun a => oldPort f vs a.val a.property) he).symm.trans herq
-    exact hh ▸ hq
+  · rintro ⟨q, hq, rfl⟩
+    obtain ⟨_, herq⟩ := restorePortOr_spec hF f vs fallback q (hno q hq)
+    rwa [herq]
   · intro hm
     exact ⟨oldPort f vs o ho, hm, restorePortOr_oldPort hF f vs fallback o ho⟩
 

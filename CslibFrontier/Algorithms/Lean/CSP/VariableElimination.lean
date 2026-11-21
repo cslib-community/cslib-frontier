@@ -15,6 +15,7 @@ import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.List.Dedup
 import Mathlib.Tactic.Ring
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Variable elimination in a supplied order over explicit factor tables
@@ -618,55 +619,43 @@ section TimeMCost
 
 variable {R V : Type}
 
+@[time_simps]
 private theorem ret_evalScopeIdxM (d : ℕ) (σ : V → ℕ) :
-    ∀ vs : List V, (evalScopeIdxM d σ vs).ret = Nat.ofDigits d (vs.map σ)
-  | [] => rfl
-  | v :: vs => by simp [evalScopeIdxM, ret_evalScopeIdxM d σ vs, Nat.ofDigits_cons]
+    ∀ vs : List V, (evalScopeIdxM d σ vs).ret = Nat.ofDigits d (vs.map σ) := by
+  time_spec evalScopeIdxM
 
+@[time_simps]
 private theorem time_evalScopeIdxM (d : ℕ) (σ : V → ℕ) :
-    ∀ vs : List V, (evalScopeIdxM d σ vs).time = vs.length
-  | [] => rfl
-  | v :: vs => by simp [evalScopeIdxM, time_evalScopeIdxM d σ vs]
+    ∀ vs : List V, (evalScopeIdxM d σ vs).time = vs.length := by
+  time_spec evalScopeIdxM
 
+@[time_simps]
 private theorem ret_evalFactorProdM [Semiring R] (d : ℕ) (σ : V → ℕ) :
     ∀ fs : List (FactorTable R V),
-      (evalFactorProdM d σ fs).ret = (fs.map fun f => f.evalAt d σ).prod
-  | [] => rfl
-  | f :: fs => by
-      simp [evalFactorProdM, ret_evalScopeIdxM, FactorTable.evalAt, ret_evalFactorProdM d σ fs]
+      (evalFactorProdM d σ fs).ret = (fs.map fun f => f.evalAt d σ).prod := by
+  time_spec evalFactorProdM
 
+@[time_simps]
 private theorem time_evalFactorProdM [Semiring R] (d : ℕ) (σ : V → ℕ) :
     ∀ fs : List (FactorTable R V),
-      (evalFactorProdM d σ fs).time = fs.length + (fs.map fun f => f.scope.length).sum
-  | [] => rfl
-  | f :: fs => by
-      simp only [evalFactorProdM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        time_evalScopeIdxM, List.length_cons, List.map_cons, List.sum_cons,
-        time_evalFactorProdM d σ fs]
-      omega
+      (evalFactorProdM d σ fs).time = fs.length + (fs.map fun f => f.scope.length).sum := by
+  time_spec evalFactorProdM
 
 private theorem ret_sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
     (bucket : List (FactorTable R V)) :
     ∀ c : ℕ,
       (sumVarValuesM d x σ bucket c).ret =
         ∑ a ∈ Finset.range c,
-          (bucket.map fun f => f.evalAt d fun v => if v = x then a else σ v).prod
-  | 0 => rfl
-  | c + 1 => by
-      simp [sumVarValuesM, ret_sumVarValuesM d x σ bucket c, ret_evalFactorProdM,
-        Finset.sum_range_succ]
+          (bucket.map fun f => f.evalAt d fun v => if v = x then a else σ v).prod := by
+  time_spec sumVarValuesM [Finset.sum_range_succ]
 
+@[time_simps]
 private theorem time_sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
     (bucket : List (FactorTable R V)) :
     ∀ c : ℕ,
       (sumVarValuesM d x σ bucket c).time =
-        c * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum)
-  | 0 => by simp [sumVarValuesM]
-  | c + 1 => by
-      simp only [sumVarValuesM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        time_evalFactorProdM, time_sumVarValuesM d x σ bucket c]
-      rw [Nat.add_mul, Nat.one_mul]
-      omega
+        c * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum) := by
+  time_spec sumVarValuesM [Nat.succ_mul]
 
 private theorem ret_sumVarValuesM_eq_fin [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
     (bucket : List (FactorTable R V)) :
@@ -674,6 +663,7 @@ private theorem ret_sumVarValuesM_eq_fin [Semiring R] [DecidableEq V] (d : ℕ) 
       ∑ a : Fin d, (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else σ v).prod := by
   rw [ret_sumVarValuesM, ← Fin.sum_univ_eq_sum_range]
 
+@[time_simps]
 private theorem ret_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
     (outScope : List V) (bucket : List (FactorTable R V)) :
     ∀ m : ℕ,
@@ -685,8 +675,7 @@ private theorem ret_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x :
   | 0 => by ext <;> simp [buildOutEntriesM]
   | m + 1 => by
       have ih := ret_buildOutEntriesM d x outScope bucket m
-      simp only [buildOutEntriesM, TimeM.ret_bind, TimeM.ret_pure, ih,
-        ret_sumVarValuesM_eq_fin]
+      simp only [buildOutEntriesM, time_simps, ih, ret_sumVarValuesM_eq_fin]
       ext i hi₁ hi₂
       · simp
       · simp only [Array.getElem_push, Array.size_ofFn] at hi₁ ⊢
@@ -700,33 +689,21 @@ private theorem time_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x 
     (outScope : List V) (bucket : List (FactorTable R V)) :
     ∀ m : ℕ,
       (buildOutEntriesM d x outScope bucket m).time =
-        m * (outScope.length + d * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum))
-  | 0 => by simp [buildOutEntriesM]
-  | m + 1 => by
-      simp only [buildOutEntriesM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        time_sumVarValuesM, time_buildOutEntriesM d x outScope bucket m]
-      rw [Nat.add_mul, Nat.one_mul]
-      omega
+        m * (outScope.length +
+          d * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum)) := by
+  time_spec buildOutEntriesM [Nat.succ_mul]
 
 /-- The executable `elimVarM` step computes `elimVar`. -/
+@[time_simps]
 theorem ret_elimVarM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (s : ElimState R V) :
     (elimVarM d x s).ret = elimVar d x s := by
-  by_cases hx : x ∈ s.remaining
-  · simp only [elimVarM, elimVar, hx, ↓reduceIte]
-    split_ifs with hb
-    · simp
-    · simp only [elimBucketTable, TimeM.ret_bind, TimeM.ret_pure,
-        ret_buildOutEntriesM]
-  · simp [elimVarM, elimVar, hx]
+  time_spec elimVarM [elimVar]
 
 /-- The executable `eliminateOrderM` algorithm returns the exact state of `eliminateOrder`. -/
 theorem ret_eliminateOrderM [Semiring R] [DecidableEq V] (d : ℕ) :
     ∀ (order : List V) (s : ElimState R V),
-      (eliminateOrderM d order s).ret = eliminateOrder d order s
-  | [], _ => rfl
-  | x :: xs, s => by
-      simp only [eliminateOrderM, eliminateOrder, TimeM.ret_bind, ret_elimVarM,
-        ret_eliminateOrderM d xs]
+      (eliminateOrderM d order s).ret = eliminateOrder d order s := by
+  time_spec eliminateOrderM
 
 /-- The executable `eliminateOrderM` returns `F.partitionFunctionOn wt declared.toFinset` when
 `order` covers `declared`. -/
@@ -1225,8 +1202,7 @@ theorem time_eliminateOrderM_le {R V : Type} [Semiring R] [DecidableEq V] {d : �
         have hlen' : (elimVar d x s).live.length ≤ init.live.length :=
           le_trans (length_elimVar_live_le d x s) hlen
         have htail := ih (elimVar d x s) hlen' hs' fun st hst => hW st (by simp [traceOrder, hst])
-        simp only [eliminateOrderM, TimeM.time_bind, List.length_cons, traceOrder, List.map_cons,
-          List.sum_cons, ret_elimVarM]
+        simp only [eliminateOrderM, time_simps, traceOrder]
         calc (elimVarM d x s).time + (eliminateOrderM d xs (elimVar d x s)).time
             ≤ (init.live.length + 1 +
                   d ^ W * (W + ((stepStats d x s).bucketFactors * (max S₀ W + 1) + 1))) +

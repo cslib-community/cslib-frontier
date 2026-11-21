@@ -534,6 +534,53 @@ theorem wellFormedPadded_rehashSubtree
     ext x
     simp only [SeedAssignment.mem_activeAt_iff,
       (SeedAssignment.primCoordAt_congr_ancestors hj v (fun i hi => hanc_le i hi.le) x).1]
+  have hdom_outside : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+      {pred pred' : Fin P.paddedUniv → Prop} [DecidablePred pred] [DecidablePred pred'],
+      ¬ P.InSubtree ℓ₀ u₀ j v →
+      (∀ x ∈ seeds'.activeAt S j hj v, pred x ↔ pred' x) →
+      ((st.seeds.activeAt S j hj v).filter pred).image (st.seeds.idAt j hj1 hj) =
+        ((seeds'.activeAt S j hj v).filter pred').image (seeds'.idAt j hj1 hj) := by
+    intro j hj1 hj v _ _ _ _ hsub hpred
+    obtain ⟨hact_eq, hce⟩ := hcoord_outside hj1 hj v hsub
+    rw [← hact_eq, filter_congr hpred]
+    exact image_congr fun x hx =>
+      congrArg (fun c => c.2.1)
+        (hce x (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
+  have hquery_outside : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+      {x : Fin P.paddedUniv} {vx : Fin P.valBound},
+      ¬ P.InSubtree ℓ₀ u₀ j v → d x = some vx → seeds'.nodeAt j hj x = v → storeLvl x = j →
+      st.nodeQuery scheme j hj1 hj v (seeds'.idAt j hj1 hj x) =
+        some (seeds'.quotAt j hj1 hj x, vx) := by
+    intro j hj1 hj v x vx hsub hdx hnx hsl
+    have hc := (hcoord_outside hj1 hj v hsub).2 x hnx
+    have hnx_old : st.seeds.nodeAt j hj x = v := by
+      rw [← st.seeds.levelCoordEquiv_fst hj1 hj x, ← hc,
+        seeds'.levelCoordEquiv_fst hj1 hj x, hnx]
+    have hid_eq : seeds'.idAt j hj1 hj x = st.seeds.idAt j hj1 hj x :=
+      congrArg (fun c => c.2.1) hc
+    have hqt_eq : seeds'.quotAt j hj1 hj x = st.seeds.quotAt j hj1 hj x :=
+      congrArg (fun c => c.2.2) hc
+    rw [hid_eq, hqt_eq, hwf.query_eq_of_storeLvl j hj1 hj v x vx hdx hnx_old hsl]
+  have hwait_lookup_outside :
+      ∀ {j : ℕ} (hj2 : 2 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+        {x : Fin P.paddedUniv},
+        ¬ P.InSubtree ℓ₀ u₀ j v → x ∈ seeds'.activeAt S j hj v → storeLvl x < j →
+        (st.nodeWait j hj2 hj v).lookup (seeds'.idAt j (by omega) hj x) =
+          some (seeds'.idAt (j - 1) (by omega) (by omega) x) := by
+    intro j hj2 hj v x hsub hx hsl
+    obtain ⟨hact_eq, hce⟩ := hcoord_outside (by omega) hj v hsub
+    have hnot_prev : ¬ P.InSubtree ℓ₀ u₀ (j - 1) (P.ancestorAt (by omega) v) :=
+      P.not_inSubtree_ancestor_of_not_inSubtree (by omega) hsub
+    obtain ⟨_, hce_prev⟩ := hcoord_outside (by omega) (by omega) _ hnot_prev
+    have hnx := (SeedAssignment.mem_activeAt_iff.mp hx).2
+    have hc := hce x hnx
+    have hc_prev := hce_prev x (by rw [← hnx, seeds'.ancestorAt_nodeAt])
+    have hid_eq : seeds'.idAt j (by omega) hj x = st.seeds.idAt j (by omega) hj x :=
+      congrArg (fun c => c.2.1) hc
+    have hid_p : seeds'.idAt (j - 1) (by omega) (by omega) x =
+        st.seeds.idAt (j - 1) (by omega) (by omega) x :=
+      congrArg (fun c => c.2.1) hc_prev
+    rw [hid_eq, hid_p, hwf.wait_lookup_eq j hj2 hj v x (hact_eq ▸ hx) hsl]
   by_cases h0 : ℓ₀ = 0
   · refine ⟨canonLvl, ?_⟩
     dsimp only [rehashSubtree]; rw [dite_eq_left h0]; exact hwf_canon
@@ -542,10 +589,12 @@ theorem wellFormedPadded_rehashSubtree
       let h1d : 1 ≤ P.depth := Nat.one_le_of_lt P.two_le_depth
       let storeLvl' : Fin P.paddedUniv → ℕ := fun x =>
         if seeds'.nodeAt 1 h1d x = u₀ then canonLvl x else storeLvl x
-      have hn1_eq : ∀ x, seeds'.nodeAt 1 h1d x = st.seeds.nodeAt 1 h1d x := fun x => by
-        let v := seeds'.nodeAt 1 h1d x
-        exact ((SeedAssignment.primCoordAt_congr_ancestors h1d v
-          (fun i hi => houtside i (hi.le.trans h1d) _ fun ⟨hg, _⟩ => by omega) x).1.mp rfl).symm
+      have hsl_out1 : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) {v : Fin (P.numNodes j)},
+          ¬ P.InSubtree 1 u₀ j v → ∀ {x}, seeds'.nodeAt j hj x = v → storeLvl' x = storeLvl x := by
+        intro j hj1 hj v hsub x hnx
+        have hn1 : seeds'.nodeAt 1 h1d x ≠ u₀ := fun h =>
+          hsub ⟨hj1, by rw [← hnx, seeds'.ancestorAt_nodeAt hj1 hj x, h]⟩
+        dsimp only [storeLvl']; rw [ite_eq_right hn1]
       set st_fin := st.rehashSubtree hwf 1 hℓ₀ u₀ seeds' houtside hgood'
       have hdom_q_fin : ∀ (j : ℕ) (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
           st_fin.nodeDom j hj1 hj v =
@@ -605,19 +654,9 @@ theorem wellFormedPadded_rehashSubtree
                 rw [← seeds'.ancestorAt_nodeAt hj1 hj x, (SeedAssignment.mem_activeAt_iff.mp hx).2,
                   hanc]
               dsimp only [storeLvl']; rw [ite_eq_left hn1]
-            · obtain ⟨hact_eq, hce⟩ := hcoord_outside hj1 hj v hsub
-              rw [hwf.dom_eq j hj1 hj v, ← hact_eq]
-              have hf : ((seeds'.activeAt S j hj v).filter fun x => storeLvl x = j) =
-                  (seeds'.activeAt S j hj v).filter fun x => storeLvl' x = j :=
-                filter_congr fun x hx => by
-                  have hn1 : seeds'.nodeAt 1 h1d x ≠ u₀ := fun h =>
-                    hsub ⟨hj1, by rw [← (SeedAssignment.mem_activeAt_iff.mp hx).2,
-                      seeds'.ancestorAt_nodeAt hj1 hj x, h]⟩
-                  dsimp only [storeLvl']; rw [ite_eq_right hn1]
-              rw [hf]
-              refine image_congr fun x hx => ?_
-              exact congrArg (fun c => c.2.1)
-                (hce x (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
+            · rw [hwf.dom_eq j hj1 hj v]
+              exact hdom_outside hj1 hj v hsub fun x hx =>
+                by rw [hsl_out1 hj1 hj hsub (SeedAssignment.mem_activeAt_iff.mp hx).2]
           query_eq_of_storeLvl := fun j hj1 hj v x vx hdx hnx hsl => by
             rw [hseeds_fin] at hnx ⊢
             rw [(hdom_q_fin j hj1 hj v).2]
@@ -629,20 +668,8 @@ theorem wellFormedPadded_rehashSubtree
               have hq := hwf_canon.query_eq_of_storeLvl j hj1 hj v x vx hdx
                 (by rw [hseeds_canon]; exact hnx) hsl
               rwa [hseeds_canon] at hq
-            · obtain ⟨_, hce⟩ := hcoord_outside hj1 hj v hsub
-              have hn1 : seeds'.nodeAt 1 h1d x ≠ u₀ := fun h =>
-                hsub ⟨hj1, by rw [← hnx, seeds'.ancestorAt_nodeAt hj1 hj x, h]⟩
-              dsimp only [storeLvl'] at hsl; rw [ite_eq_right hn1] at hsl
-              have hc := hce x hnx
-              have hnx_old : st.seeds.nodeAt j hj x = v := by
-                rw [← st.seeds.levelCoordEquiv_fst hj1 hj x, ← hc,
-                  seeds'.levelCoordEquiv_fst hj1 hj x, hnx]
-              have hq := hwf.query_eq_of_storeLvl j hj1 hj v x vx hdx hnx_old hsl
-              have hid_eq : seeds'.idAt j hj1 hj x = st.seeds.idAt j hj1 hj x :=
-                congrArg (fun c => c.2.1) hc
-              have hqt_eq : seeds'.quotAt j hj1 hj x = st.seeds.quotAt j hj1 hj x :=
-                congrArg (fun c => c.2.2) hc
-              rw [hid_eq, hqt_eq, hq]
+            · rw [hsl_out1 hj1 hj hsub hnx] at hsl
+              exact hquery_outside hj1 hj v hsub hdx hnx hsl
           inner_full := fun j hj2 hlt v => by
             dsimp only [st_fin, rehashSubtree]
             rw [dite_eq_right (by omega), dite_eq_left rfl]
@@ -660,19 +687,9 @@ theorem wellFormedPadded_rehashSubtree
                 rw [← seeds'.ancestorAt_nodeAt h1j hj x, (SeedAssignment.mem_activeAt_iff.mp hx).2,
                   hanc]
               dsimp only [storeLvl']; rw [ite_eq_left hn1]
-            · obtain ⟨hact_eq, hce⟩ := hcoord_outside (by omega) hj v hsub
-              rw [hwf.wait_dom_eq j hj2 hj v, ← hact_eq]
-              have hf : ((seeds'.activeAt S j hj v).filter fun x => storeLvl x < j) =
-                  (seeds'.activeAt S j hj v).filter fun x => storeLvl' x < j :=
-                filter_congr fun x hx => by
-                  have hn1 : seeds'.nodeAt 1 (by omega) x ≠ u₀ := fun h =>
-                    hsub ⟨by omega, by rw [← (SeedAssignment.mem_activeAt_iff.mp hx).2,
-                      seeds'.ancestorAt_nodeAt (by omega) hj x, h]⟩
-                  dsimp only [storeLvl']; rw [ite_eq_right hn1]
-              rw [hf]
-              refine image_congr fun x hx => ?_
-              exact congrArg (fun c => c.2.1)
-                (hce x (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
+            · rw [hwf.wait_dom_eq j hj2 hj v]
+              exact hdom_outside (by omega) hj v hsub fun x hx =>
+                by rw [hsl_out1 (by omega) hj hsub (SeedAssignment.mem_activeAt_iff.mp hx).2]
           wait_lookup_eq := fun j hj2 hj v x hx hsl => by
             rw [hseeds_fin] at hx ⊢
             rw [hw_fin]
@@ -685,28 +702,18 @@ theorem wellFormedPadded_rehashSubtree
               have hw := hwf_canon.wait_lookup_eq j hj2 hj v x
                 (by rw [hseeds_canon]; exact hx) hsl
               rwa [hseeds_canon] at hw
-            · obtain ⟨hact_eq, hce⟩ := hcoord_outside (by omega) hj v hsub
-              have hnot_prev : ¬ P.InSubtree 1 u₀ (j - 1) (P.ancestorAt (by omega) v) :=
-                P.not_inSubtree_ancestor_of_not_inSubtree (by omega) hsub
-              obtain ⟨_, hce_prev⟩ := hcoord_outside (by omega) (by omega) _ hnot_prev
-              have hnx := (SeedAssignment.mem_activeAt_iff.mp hx).2
-              have hn1 : seeds'.nodeAt 1 h1d x ≠ u₀ := fun h =>
-                hsub ⟨by omega, by rw [← hnx, seeds'.ancestorAt_nodeAt (by omega) hj x, h]⟩
-              dsimp only [storeLvl'] at hsl; rw [ite_eq_right hn1] at hsl
-              have hc := hce x hnx
-              have hc_prev := hce_prev x (by rw [← hnx, seeds'.ancestorAt_nodeAt])
-              have hx_old : x ∈ st.seeds.activeAt S j hj v := hact_eq ▸ hx
-              have hw := hwf.wait_lookup_eq j hj2 hj v x hx_old hsl
-              have hid_eq : seeds'.idAt j (by omega) hj x = st.seeds.idAt j (by omega) hj x :=
-                congrArg (fun c => c.2.1) hc
-              have hid_p : seeds'.idAt (j - 1) (by omega) (by omega) x =
-                  st.seeds.idAt (j - 1) (by omega) (by omega) x :=
-                congrArg (fun c => c.2.1) hc_prev
-              rw [hid_eq, hid_p, hw] }⟩
+            · rw [hsl_out1 (by omega) hj hsub (SeedAssignment.mem_activeAt_iff.mp hx).2] at hsl
+              exact hwait_lookup_outside hj2 hj v hsub hx hsl }⟩
     · have h2₀ : 2 ≤ ℓ₀ := by omega
       have h1lt₀ : 1 < ℓ₀ := by omega
       let storeLvl' := rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
       have hvsl' := validStoreLvl_rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
+      have hsl_out2 : ∀ {j : ℕ} (hj : j ≤ P.depth) {v : Fin (P.numNodes j)},
+          ¬ P.InSubtree ℓ₀ u₀ j v → (¬ ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀) →
+            ∀ {x}, x ∈ seeds'.activeAt S j hj v → storeLvl' x = storeLvl x := by
+        intro j hj v hsub hanc_ex x hx
+        have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj v hsub hanc_ex hx
+        dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
       set st_fin := st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood'
       have h2_out : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
           ¬ P.InSubtree ℓ₀ u₀ j v → (¬ ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀) →
@@ -794,17 +801,9 @@ theorem wellFormedPadded_rehashSubtree
               dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
               dsimp only
               rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv, dom_buildInnerOfStoreLvl]
-          · obtain ⟨hact_eq, hce⟩ := hcoord_outside hj1 hj v hsub
-            rw [(h2_out hj1 hj v hsub hanc_ex).1, hwf.dom_eq j hj1 hj v, ← hact_eq]
-            have hf : ((seeds'.activeAt S j hj v).filter fun x => storeLvl x = j) =
-                (seeds'.activeAt S j hj v).filter fun x => storeLvl' x = j :=
-              filter_congr fun x hx => by
-                have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj v hsub hanc_ex hx
-                dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
-            rw [hf]
-            refine image_congr fun x hx =>
-              congrArg (fun c => c.2.1)
-                (hce x (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
+          · rw [(h2_out hj1 hj v hsub hanc_ex).1, hwf.dom_eq j hj1 hj v]
+            exact hdom_outside hj1 hj v hsub fun x hx =>
+              by rw [hsl_out2 hj hsub hanc_ex hx]
       · rw [hseeds_fin] at hnx ⊢
         have hx_act : x ∈ seeds'.activeAt S j hj v :=
           SeedAssignment.mem_activeAt_iff.mpr ⟨(P.mem_paddedDom_iff d x).mpr (by simp [hdx]), hnx⟩
@@ -829,19 +828,8 @@ theorem wellFormedPadded_rehashSubtree
               dsimp only; rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv]
               exact query_buildInnerOfStoreLvl hgood' hvsl' hj1 (by omega) hlt v hdx hnx hsl
           · rw [(h2_out hj1 hj v hsub hanc_ex).2]
-            have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj v hsub hanc_ex hx_act
-            dsimp only [storeLvl', rehashStoreLvlTwo] at hsl; rw [dite_eq_right hxA] at hsl
-            obtain ⟨_, hce⟩ := hcoord_outside hj1 hj v hsub
-            have hc := hce x hnx
-            have hnx_old : st.seeds.nodeAt j hj x = v := by
-              rw [← st.seeds.levelCoordEquiv_fst hj1 hj x, ← hc,
-                seeds'.levelCoordEquiv_fst hj1 hj x, hnx]
-            have hq := hwf.query_eq_of_storeLvl j hj1 hj v x vx hdx hnx_old hsl
-            have hid_eq : seeds'.idAt j hj1 hj x = st.seeds.idAt j hj1 hj x :=
-              congrArg (fun c => c.2.1) hc
-            have hqt_eq : seeds'.quotAt j hj1 hj x = st.seeds.quotAt j hj1 hj x :=
-              congrArg (fun c => c.2.2) hc
-            rw [hid_eq, hqt_eq, hq]
+            rw [hsl_out2 hj hsub hanc_ex hx_act] at hsl
+            exact hquery_outside hj1 hj v hsub hdx hnx hsl
       · dsimp only [st_fin, rehashSubtree]
         rw [dite_eq_right h0, dite_eq_right h1]
         dsimp only
@@ -864,19 +852,10 @@ theorem wellFormedPadded_rehashSubtree
             rw [nodeWait_inner st_fin hj2 hlt hj]
             dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]; dsimp only
             rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv, wait_dom_buildInnerOfStoreLvl]
-          · obtain ⟨hact_eq, hce⟩ := hcoord_outside (by omega) hj v hsub
-            rw [hw2_out hj2 hj v hsub hanc_ex, hwf.wait_dom_eq j hj2 hj v, ← hact_eq]
-            have hf : ((seeds'.activeAt S j hj v).filter fun x => storeLvl x < j) =
-                (seeds'.activeAt S j hj v).filter fun x => storeLvl' x < j :=
-              filter_congr fun x hx => by
-                have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj v hsub hanc_ex hx
-                dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
-            rw [hf]
-            refine image_congr fun x hx =>
-              congrArg (fun c => c.2.1)
-                (hce x (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
+          · rw [hw2_out hj2 hj v hsub hanc_ex, hwf.wait_dom_eq j hj2 hj v]
+            exact hdom_outside (by omega) hj v hsub fun x hx =>
+              by rw [hsl_out2 hj hsub hanc_ex hx]
       · rw [hseeds_fin] at hx ⊢
-        have hnx := (SeedAssignment.mem_activeAt_iff.mp hx).2
         by_cases hsub : P.InSubtree ℓ₀ u₀ j v
         · obtain ⟨h0j, hanc_v⟩ := hsub
           rw [(h2_sub (by omega) hj v ⟨h0j, hanc_v⟩).2.2 hj2]
@@ -893,21 +872,8 @@ theorem wellFormedPadded_rehashSubtree
             rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv]
             exact wait_lookup_buildInnerOfStoreLvl hgood' hvsl' hj2 hlt v hx hsl
           · rw [hw2_out hj2 hj v hsub hanc_ex]
-            have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj v hsub hanc_ex hx
-            dsimp only [storeLvl', rehashStoreLvlTwo] at hsl; rw [dite_eq_right hxA] at hsl
-            obtain ⟨hact_eq, hce⟩ := hcoord_outside (by omega) hj v hsub
-            have hnot_prev : ¬ P.InSubtree ℓ₀ u₀ (j - 1) (P.ancestorAt (by omega) v) :=
-              P.not_inSubtree_ancestor_of_not_inSubtree (by omega) hsub
-            obtain ⟨_, hce_prev⟩ := hcoord_outside (by omega) (by omega) _ hnot_prev
-            have hc := hce x hnx
-            have hc_prev := hce_prev x (by rw [← hnx, seeds'.ancestorAt_nodeAt])
-            have hw := hwf.wait_lookup_eq j hj2 hj v x (hact_eq ▸ hx) hsl
-            have hid_eq : seeds'.idAt j (by omega) hj x = st.seeds.idAt j (by omega) hj x :=
-              congrArg (fun c => c.2.1) hc
-            have hid_p : seeds'.idAt (j - 1) (by omega) (by omega) x =
-                st.seeds.idAt (j - 1) (by omega) (by omega) x :=
-              congrArg (fun c => c.2.1) hc_prev
-            rw [hid_eq, hid_p, hw]
+            rw [hsl_out2 hj hsub hanc_ex hx] at hsl
+            exact hwait_lookup_outside hj2 hj v hsub hx hsl
 
 end TreeSchedule.TreeState
 

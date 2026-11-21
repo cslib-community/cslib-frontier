@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.POVM
-public import CslibFrontier.Foundations.Quantum.DensityMatrix
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
+import all Mathlib.Analysis.Matrix.Order
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefTrace
 
 /-!
@@ -67,6 +68,43 @@ theorem sum_densityProb (M : POVM A ι) (ρ : Matrix ι ι ℂ) :
   simp only [densityProb, ← Complex.re_sum, ← Matrix.trace_sum, ← Matrix.sum_mul,
     M.sum_effect, Matrix.one_mul]
 
+open scoped MatrixOrder in
+/-- For any two linear maps applied to the same positive input, the square roots of the
+weights of any final measurement outcome differ by at most the input-weighted norm of the
+difference of the maps. The input may be mixed or subnormalized. -/
+theorem abs_sqrt_densityProb_sub_le {α ι κ : Type*}
+    [Fintype α] [Fintype ι] [Fintype κ] [DecidableEq κ] (M : POVM α κ) (a : α)
+    {ρ : Matrix ι ι ℂ} (hρ : ρ.PosSemidef) (U V : Matrix κ ι ℂ) :
+    |√(M.densityProb (densityConj U ρ) a) - √(M.densityProb (densityConj V ρ) a)| ≤
+      √(densityConj (U - V) ρ).trace.re := by
+  classical
+  obtain ⟨L, hL⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp (M.posSemidef a).nonneg
+  let _ := Matrix.toMatrixSeminormedAddCommGroup κ ρ hρ
+  have born (W : Matrix κ ι ℂ) :
+      √(M.densityProb (densityConj W ρ) a) = ‖L * W‖ := by
+    rw [densityConj_apply]
+    change √(M.effect a * (W * ρ * Wᴴ)).trace.re =
+      √((L * W) * ρ * (L * W)ᴴ).trace.re
+    rw [hL, star_eq_conjTranspose, conjTranspose_mul, Matrix.mul_assoc Lᴴ L, trace_mul_comm Lᴴ]
+    simp only [Matrix.mul_assoc]
+  have psd := hρ.mul_mul_conjTranspose_same (U - V)
+  have le : M.densityProb (densityConj (U - V) ρ) a ≤ (densityConj (U - V) ρ).trace.re := by
+    rw [← M.sum_densityProb, densityConj_apply]
+    exact Finset.single_le_sum (fun i _ => M.densityProb_nonneg psd i) (Finset.mem_univ a)
+  calc
+    _ = |‖L * U‖ - ‖L * V‖| := by rw [born, born]
+    _ ≤ ‖L * U - L * V‖ := abs_norm_sub_norm_le ..
+    _ = √(M.densityProb (densityConj (U - V) ρ) a) := by rw [born, Matrix.mul_sub]
+    _ ≤ _ := Real.sqrt_le_sqrt le
+
+/-- Pulling back a measurement by a unitary gives the Born weights of the evolved input. -/
+theorem densityProb_comap {U : Matrix ι ι ℂ} (hU : U ∈ unitaryGroup ι ℂ) (M : POVM A ι)
+    (ρ : Matrix ι ι ℂ) (a : A) :
+    (M.comap U hU).densityProb ρ a = M.densityProb (densityConj U ρ) a := by
+  simp only [comap, densityProb, densityConj_apply, Matrix.mul_assoc]
+  rw [Matrix.trace_mul_comm]
+  simp only [Matrix.mul_assoc]
+
 /-- POVM probabilities are additive in the state matrix. -/
 theorem densityProb_add (M : POVM A ι) (ρ σ : Matrix ι ι ℂ) (a : A) :
     M.densityProb (ρ + σ) a = M.densityProb ρ a + M.densityProb σ a := by
@@ -88,6 +126,15 @@ noncomputable def measureDensity (M : POVM A ι) (ρ : Matrix ι ι ℂ)
     (hρ : IsDensityMatrix ρ) (a : A) :
     M.measureDensity ρ hρ a = ENNReal.ofReal (M.densityProb ρ a) := by
   rw [measureDensity, PMF.ofFintype_apply]
+
+/-- A fixed-outcome POVM returns that outcome on every density matrix. -/
+@[simp] theorem measureDensity_const [DecidableEq A] (a : A) (ρ : Matrix ι ι ℂ)
+    (hρ : IsDensityMatrix ρ) : (const a).measureDensity ρ hρ = PMF.pure a := by
+  ext b
+  by_cases h : b = a
+  · subst b
+    simp [measureDensity_apply, densityProb, const, hρ.trace_eq_one]
+  · simp [measureDensity_apply, densityProb, const, h, PMF.pure_apply]
 
 /-- The trace pairing with a pure-state projector equals the vector-state probability. -/
 @[simp] theorem densityProb_pureState (M : POVM A ι) (ψ : EuclideanSpace ℂ ι) (a : A) :

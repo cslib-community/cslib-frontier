@@ -70,7 +70,7 @@ theorem preprocess {f : β → γ} {g : α → β} (hf : ComputableInPolyTimeWit
     (hg : Turing.MultiTapeTM.ComputableInPolyTime g input middle) :
     ComputableInPolyTimeWithOracle A (fun a => f (g a)) input output :=
   let ⟨program, hprogram, heq⟩ := hf
-  ⟨fun a => program (g a), hprogram.preprocess' hg, fun a => heq (g a)⟩
+  ⟨fun a => program (g a), hprogram.preprocess hg, fun a => heq (g a)⟩
 
 /-- Polynomial-time postprocessing of the result, which may also use the argument. -/
 theorem map_with {f : α → β} {g : α → β → γ}
@@ -80,7 +80,7 @@ theorem map_with {f : α → β} {g : α → β → γ}
     ComputableInPolyTimeWithOracle A (fun a => g a (f a)) input output := by
   obtain ⟨program, hprogram, heq⟩ := hf
   refine ⟨fun a => g a <$> program a, ?_, fun a => ?_⟩
-  · simpa only [OracleComp.interpret_map] using hprogram.map_with' hg
+  · simpa only [OracleComp.interpret_map] using hprogram.map_with hg
   · rw [OracleComp.interpret_map, heq]
     rfl
 
@@ -90,7 +90,7 @@ theorem map {f : α → β} {g : β → γ} (hf : ComputableInPolyTimeWithOracle
     ComputableInPolyTimeWithOracle A (fun a => g (f a)) input output := by
   obtain ⟨program, hprogram, heq⟩ := hf
   refine ⟨fun a => g <$> program a, ?_, fun a => ?_⟩
-  · simpa only [OracleComp.interpret_map] using hprogram.map' hg
+  · simpa only [OracleComp.interpret_map] using hprogram.map hg
   · rw [OracleComp.interpret_map, heq]
     rfl
 
@@ -105,8 +105,8 @@ theorem prod {f : α → β} {g : α → γ}
     let b ← first a
     (fun c => (b, c)) <$> second a, ?_, fun a => ?_⟩
   · simp only [OracleComp.interpret_bind, OracleComp.interpret_map]
-    exact hfirst.bind_with ((hsecond.preprocess'
-      (ComputableInPolyTime.fst input middle)).map_with'
+    exact hfirst.bind_with ((hsecond.preprocess
+      (ComputableInPolyTime.fst input middle)).map_with
       (((ComputableInPolyTime.snd input middle).comp (.fst _ _)).prod (.snd _ _)))
   · simp only [OracleComp.interpret_bind, OracleComp.interpret_map, hfirst_eq, hsecond_eq]
     rfl

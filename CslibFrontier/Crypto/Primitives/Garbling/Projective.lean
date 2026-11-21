@@ -70,7 +70,27 @@ is projective in the sense of [BellareHoangRogaway2012], §3.2, in one fixed lay
 theorem projectiveEncode_polyTime :
     ComputableInPolyTime (fun (e, x) => projectiveEncode e x) (encPair encBits encBits)
       encBits := by
-  polytime [projectiveEncode, projectiveToken, BitString.listRow]
+  have htoken : ComputableInPolyTime
+      (fun p : (List Bool × List Bool) × ℕ =>
+        projectiveToken p.1.1 p.1.2.length p.2 (p.1.2.getD p.2 false))
+      (encPair (encPair encBits encBits) encUnary) encBits := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair (encPair encBits encBits) encUnary)
+    have he := hp.fst'.fst'
+    have hx := hp.fst'.snd'
+    have hn := ComputableInPolyTime.length_bits.comp hx
+    have hwidth := ComputableInPolyTime.unary_div'
+      (ComputableInPolyTime.length_bits.comp he)
+      (ComputableInPolyTime.unary_mul' (.const 2) hn)
+    have hbit := ComputableInPolyTime.bitsGetDWithInput hx hp.snd' false
+    have hrow := ComputableInPolyTime.unary_mul' (.const 2) hp.snd'
+    exact ComputableInPolyTime.bitsRowWithInput hwidth
+      (hbit.ite (ComputableInPolyTime.unary_add' hrow (.const 1)) hrow) he
+  have htokens := ComputableInPolyTime.mapWith htoken
+    (ComputableInPolyTime.id' (encIn := encPair encBits encBits))
+    (show ComputableInPolyTime (fun p : List Bool × List Bool => List.range p.2.length)
+      (encPair encBits encBits) (encList encUnary) from by fun_prop)
+  exact ComputableInPolyTime.bitsFlatten htokens
 
 /-- The projective encoding of `x` is the concatenation of the tokens of its bits. -/
 theorem projectiveEncode_eq_flatten_ofFn (e x : List Bool) :

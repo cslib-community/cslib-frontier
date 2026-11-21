@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.TimeM.Loops
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 public import CslibFrontier.Foundations.BooleanAnalysis.SubsetZeta
 public import CslibFrontier.Foundations.Data.BitString.Binary
 
@@ -154,8 +155,7 @@ cell. -/
 
 @[simp] theorem time_passM {n : ℕ} (c : R) (i : Fin n) (t : Vector M (2 ^ n)) :
     (passM c i t).time = 2 ^ n := by
-  simp only [passM, time_vectorOfFnM, time_bind, time_tick, time_pure, add_zero, sum_const,
-    card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
+  simp only [passM, time_simps, sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
 
 /-- Yates's algorithm takes `n * 2 ^ n` ticks. -/
 @[simp] theorem time_transformM {n : ℕ} (c : R) (t : Vector M (2 ^ n)) :
@@ -164,7 +164,8 @@ cell. -/
     List.length_finRange]
 
 /-- The fast zeta transform takes `n * 2 ^ n` ticks. -/
-@[simp] theorem time_zetaM {n : ℕ} (t : Vector M (2 ^ n)) : (zetaM t).time = n * 2 ^ n :=
+@[simp, time_simps]
+theorem time_zetaM {n : ℕ} (t : Vector M (2 ^ n)) : (zetaM t).time = n * 2 ^ n :=
   time_transformM _ t
 
 theorem getElem_ret_passM {n : ℕ} (c : R) (i : Fin n) (t : Vector M (2 ^ n))
@@ -172,7 +173,7 @@ theorem getElem_ret_passM {n : ℕ} (c : R) (i : Fin n) (t : Vector M (2 ^ n))
     (k : ℕ) (hk : k < 2 ^ n) :
     (passM c i t).ret[k] = yatesPass c i F (maskSet n k) := by
   rw [passM, ret_vectorOfFnM, Vector.getElem_ofFn]
-  simp only [ret_bind, ret_pure, yatesPass, mem_maskSet]
+  simp only [time_simps, yatesPass, mem_maskSet]
   split_ifs with h
   · rw [hF, hF, maskSet_xor_two_pow h]
   · rw [hF]

@@ -612,7 +612,7 @@ theorem FixedWidthSATSolver.exists_bruteForce (k : ℕ) :
     simpa only [encUnary_apply, List.length_replicate] using hnum_le φ
   have hrounds_len (φ : CNF ℕ) : (encNat (bfRounds φ)).length = φ.numVars + 1 := by
     dsimp only [bfRounds]
-    rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+    rw [length_encNat_two_pow]
   let B (φ : CNF ℕ) : ℕ :=
     2 * (2 * (encCNF φ).length + (cn * ((encCNF φ).length + 1) ^ en + 1) + 2) + 4
   have hstate (φ : CNF ℕ) (m : ℕ) (hm : m ≤ bfRounds φ) :
@@ -743,21 +743,7 @@ private theorem computableInPolyTime_thresholdQueries :
       (fun F : StructInstance =>
         (List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩)
       encStructInstance (encList encCNF) := by
-  have hm : ComputableInPolyTime (fun F : StructInstance => F.clauses.length)
-      encStructInstance encUnary :=
-    (length_list (encList (encPair encNat encBool))).comp
-      (encStructInstance_clauses_polyTime ComputableInPolyTime.id')
-  have hrange : ComputableInPolyTime
-      (fun F : StructInstance => List.range (F.clauses.length + 2))
-      encStructInstance (encList encUnary) :=
-    range.comp (unary_add' hm (const 2))
-  have hthresh : ComputableInPolyTime
-      (fun p : StructInstance × ℕ => thresholdToCNF ⟨p.1, p.2⟩)
-      (encPair encStructInstance encUnary) encCNF :=
-    computableInPolyTime_thresholdToCNF.comp
-      (encThresholdQuery_mk_polyTime (fst encStructInstance encUnary)
-        (snd encStructInstance encUnary))
-  exact mapWithInput (f := fun F q => thresholdToCNF ⟨F, q⟩) hrange hthresh
+  fun_prop
 
 /-- **Native MAX-SAT optimization from a supplied fixed-width SAT solver (`3 ≤ k`).** -/
 theorem FixedWidthSATSolver.exists_optimum_algorithm {k : ℕ} (hk : 3 ≤ k)

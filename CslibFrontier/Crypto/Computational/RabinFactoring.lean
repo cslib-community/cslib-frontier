@@ -17,6 +17,8 @@ public import CslibFrontier.Crypto.Computational.QuadraticResiduosity
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import Cslib.Foundations.Data.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
@@ -240,8 +242,11 @@ noncomputable def rabinInversionGame (gen : BlumGen) (A : ℕ → ℕ × ℕ →
   let x' ← ProbComp.eval (A n (desc.modulus, y))
   return decide (x' ^ 2 % desc.modulus = y)
 
-/-- The Rabin one-wayness assumption for `gen`: every uniform PPT inverter has negligible
-probability of finding a modular square root of `x ^ 2 % N`. -/
+/-- The Rabin one-wayness assumption for `gen` ([KatzLindell2020], Section 15.5.2; locator not
+independently inspected in the 3rd-edition PDF): every uniform strict PPT inverter has negligible
+probability of finding a modular square root of `x ^ 2 % N` on Blum moduli drawn from `gen`, with
+the preimage `x` drawn from a uniform bit string of length `2 * N.bits.length` reduced modulo `N`
+rather than a uniform unit in `ℤ_N^*`. -/
 def RabinOneWay (gen : BlumGen) : Prop :=
   ∀ A : ℕ → ℕ × ℕ → ProbComp ℕ,
     IsPPTOn encModulusChallengeInput encNat
@@ -293,28 +298,6 @@ def factorToRabin (F : ℕ → ℕ → ProbComp (ℕ × ℕ)) (n : ℕ) (Ny : �
   else
     return 0
 
-private theorem blum_pow_add_one_div_four_sq {p y : ℕ} (hp : p.Prime) (hp3 : p % 4 = 3)
-    (hsq : ∃ x : ℕ, x ^ 2 ≡ y [MOD p]) :
-    (y ^ ((p + 1) / 4) % p) ^ 2 ≡ y [MOD p] := by
-  rcases hsq with ⟨x, hx⟩
-  have : Fact p.Prime := ⟨hp⟩
-  rw [← ZMod.natCast_eq_natCast_iff] at hx ⊢
-  push_cast at hx ⊢
-  rw [ZMod.natCast_mod, Nat.cast_pow, ← hx]
-  by_cases hx0 : (x : ZMod p) = 0
-  · have hpos : 0 < (p + 1) / 4 := by omega
-    rw [hx0, zero_pow (by norm_num), zero_pow (Nat.ne_of_gt hpos), zero_pow (by norm_num)]
-  · have h4 : 4 * ((p + 1) / 4) = p + 1 := by omega
-    calc
-      (((x : ZMod p) ^ 2) ^ ((p + 1) / 4)) ^ 2
-          = (x : ZMod p) ^ (4 * ((p + 1) / 4)) := by ring
-      _ = (x : ZMod p) ^ (p + 1) := by rw [h4]
-      _ = (x : ZMod p) ^ (p - 1) * (x : ZMod p) ^ 2 := by
-        have hp1 : 1 ≤ p := hp.one_lt.le
-        rw [← pow_add, show p - 1 + 2 = p + 1 by omega]
-      _ = 1 * (x : ZMod p) ^ 2 := by rw [ZMod.pow_card_sub_one_eq_one hx0]
-      _ = (x : ZMod p) ^ 2 := one_mul _
-
 private theorem crt_combine_sq_modEq {a b y : ℕ} (ha : a.Prime) (hb : b.Prime) (hab : a ≠ b)
     (ha3 : a % 4 = 3) (hb3 : b % 4 = 3) (hsq : ∃ x : ℕ, x ^ 2 ≡ y [MOD a * b]) :
     let sp := y ^ ((a + 1) / 4) % a
@@ -328,8 +311,10 @@ private theorem crt_combine_sq_modEq {a b y : ℕ} (ha : a.Prime) (hb : b.Prime)
   rcases hsq with ⟨x, hx⟩
   have hsq_a : ∃ z : ℕ, z ^ 2 ≡ y [MOD a] := ⟨x, hx.of_dvd (dvd_mul_right a b)⟩
   have hsq_b : ∃ z : ℕ, z ^ 2 ≡ y [MOD b] := ⟨x, hx.of_dvd (dvd_mul_left b a)⟩
-  have hsp : sp ^ 2 ≡ y [MOD a] := blum_pow_add_one_div_four_sq ha ha3 hsq_a
-  have hsq' : sq ^ 2 ≡ y [MOD b] := blum_pow_add_one_div_four_sq hb hb3 hsq_b
+  have hsp : sp ^ 2 ≡ y [MOD a] :=
+    Complexity.ModularSquareRoot.pow_add_one_div_four_sq_modEq ha ha3 hsq_a
+  have hsq' : sq ^ 2 ≡ y [MOD b] :=
+    Complexity.ModularSquareRoot.pow_add_one_div_four_sq_modEq hb hb3 hsq_b
   have hmod_b : sq + b * u ≡ sq [MOD b] := by
     rw [Nat.ModEq, Nat.add_mul_mod_self_left]
   have hmod_a : sq + b * u ≡ sp [MOD a] := by
@@ -367,7 +352,11 @@ private theorem computableInPolyTime_crtStep {α : Type} {enc : α ↪ List Bool
     (ha' : ComputableInPolyTime a' enc encNat) :
     ComputableInPolyTime (fun x => crtStep (sp x) (sq x) (inv x) (a' x)) enc encNat := by
   unfold crtStep
-  fun_prop
+  exact ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.binary_mul'
+      (ComputableInPolyTime.binary_sub.comp
+        ((ComputableInPolyTime.binary_add.comp (hsp.prod ha')).prod
+          (ComputableInPolyTime.binary_mod' hsq ha'))) hinv) ha'
 
 private theorem computableInPolyTime_crtSqrt {α : Type} {enc : α ↪ List Bool}
     {y a b : α → ℕ}
@@ -445,13 +434,20 @@ theorem isPPTOn_rabinToFactor {A : ℕ → ℕ × ℕ → ProbComp ℕ}
       (IsPPTOn.preprocess hA
         (prepare := fun x : (ℕ × ℕ) × List Bool =>
           (x.1.1, (x.1.2, (ofBits x.2) ^ 2 % x.1.2)))
-        (by fun_prop)) ?_
+        (by
+          have hp := ComputableInPolyTime.id'
+            (encIn := encPair (encPair encUnary encNat) encBits)
+          have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'
+          have hy := ComputableInPolyTime.binary_mod'
+            (ComputableInPolyTime.binary_mul' hx hx) hp.fst'.snd'
+          simpa only [pow_two, Function.comp_def] using
+            hp.fst'.fst'.prod (hp.fst'.snd'.prod hy))) ?_
     have hno : ComputableInPolyTime
         (fun x : ((ℕ × ℕ) × List Bool) × ℕ => rabinFactorPair (ofBits x.1.2 + x.2) x.1.1.2)
         (encPair (encPair (encPair encUnary encNat) encBits) encNat) (encPair encNat encNat) :=
       hpair (by fun_prop) (by fun_prop)
     exact hno.isPPTOn
-  exact (IsPPTOn.cond' hcond hyes.isPPTOn hno_branch).congr
+  exact (IsPPTOn.cond hcond hyes.isPPTOn hno_branch).congr
     (fun _ => by simp only [decide_eq_true_eq])
 
 /-- On a nontrivial factorization `a * b = N` of a Blum modulus, `crtSqrt` returns a square root of
