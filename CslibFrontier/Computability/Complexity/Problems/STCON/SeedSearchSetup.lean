@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch.OriginalRoots
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchParameters
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionEndpoints
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
@@ -26,6 +27,7 @@ namespace Cslib.Complexity.STCON
 
 open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeTM.ComputableInSpace
 open Reachability.Hoza Cslib.LayeredDigraph.Subdivision
+open _root_.Turing.QueryMachine.Subdivision
 
 /-- The retained parameters and fixed endpoints for the subdivision scan. -/
 structure SeedSearchSetup where
@@ -59,6 +61,23 @@ private theorem setup_inSpace :
     (budget_comp_linear (fst encNat encNat) he) (budget_comp_linear (snd encNat encNat) he)
   have h := budget_comp_linear hmk (budget_prod hid hids)
   exact h
+
+/-- Convert a row-major original-source position to its offset-zero subdivision ID. -/
+def SeedSearchSetup.originalSourceID (s : SeedSearchSetup) (position : ℕ) : ℕ :=
+  rootID position s.parameters.search.subdivision.chainBound
+
+/-- Lookup uses linear native workspace in the encoded setup and binary source position. -/
+theorem originalSourceID_inSpace :
+    ComputableInSpace (fun p : SeedSearchSetup × ℕ => p.1.originalSourceID p.2)
+      (encPair encSeedSearchSetup encNat) encNat
+      (fun p => (encPair encSeedSearchSetup encNat p).length) := by
+  have hsetup := fst encSeedSearchSetup encNat
+  have hp := encSeedSearchSetup_parameters_budget hsetup
+  have hs := encSeedSearchParameters_search_budget hp
+  have hb := encSubdivisionSize_chainBound_budget (encSeedSearchSize_subdivision_budget hs)
+  exact (budget_comp_linear rootID_inSpace
+    (budget_prod (snd encSeedSearchSetup encNat) hb)).of_enc_eq fun p => by
+      rw [SeedSearchSetup.originalSourceID]
 
 variable {k : ℕ} {State : Type} [Fintype State]
 
@@ -100,6 +119,49 @@ theorem configurationSeedSearchSetup_endpoints_lt_vertexCount (ntm : MultiTapeNT
   rw [hparams, hcount]
   rw [(Prod.mk.inj hids).1, (Prod.mk.inj hids).2]
   exact ⟨(index _).isLt, (index _).isLt⟩
+
+/-- The retained source count is the size of the row-major original vertex carrier. -/
+theorem configurationSeedSearchSetup_originalCount (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let s := configurationSeedSearchSetup ntm c w
+    s.parameters.search.subdivision.originalCount = ((I.n - 1) + 1) * I.n := by
+  obtain ⟨hparams, _⟩ := configurationSeedSearchSetup_endpoints ntm c w
+  dsimp only at hparams ⊢
+  rw [hparams]
+  exact Nat.mul_comm _ _
+
+/-- A source position in the initialized setup gives exactly the root used by the indexed
+seed-search correctness theorem. -/
+theorem configurationSeedSearchSetup_originalSourceID_eq (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let s := configurationSeedSearchSetup ntm c w
+    let index := subdivisionIndex I s.parameters.search.subdivision.chainBound
+    ∀ position : Fin (((I.n - 1) + 1) * I.n),
+      s.originalSourceID position.val = (originalRootID index position).val := by
+  dsimp only
+  intro position
+  rw [SeedSearchSetup.originalSourceID, originalRootID, subdivisionIndex_apply]
+  change rootID position.val _ = (flatIndex _ _
+    (root _ (finProdFinEquiv (finProdFinEquiv.symm position)))).val
+  rw [Equiv.apply_symm_apply, rootID_eq_flatIndex]
+
+/-- Every valid original-source position maps into the initialized subdivision carrier. -/
+theorem configurationSeedSearchSetup_originalSourceID_lt_vertexCount
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let s := configurationSeedSearchSetup ntm c w
+    ∀ {position : ℕ}, position < s.parameters.search.subdivision.originalCount →
+      s.originalSourceID position < s.parameters.search.subdivision.vertexCount := by
+  obtain ⟨hparams, _⟩ := configurationSeedSearchSetup_endpoints ntm c w
+  dsimp only at hparams ⊢
+  intro position hpos
+  rw [hparams] at hpos
+  rw [SeedSearchSetup.originalSourceID, hparams, rootID]
+  let p := (configurationSeedSearchParameters ntm c w).search.subdivision
+  change (p.chainBound + 1) * position < p.originalCount * (p.chainBound + 1)
+  rw [Nat.mul_comm p.originalCount (p.chainBound + 1)]
+  exact Nat.mul_lt_mul_of_pos_left hpos (Nat.succ_pos _)
 
 /-- The entire setup is computed natively in logarithmic workspace on the original input. -/
 theorem configurationSeedSearchSetup_inLogSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
