@@ -5,6 +5,7 @@ Authors: Matthew Doty
 -/
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 
 /-! The text front end of the VeriPB kernel-proof checker on proofs elaborated to the kernel format
 by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate`):
@@ -1021,42 +1022,6 @@ of the proof, and `output g IMPLICIT;` takes the core set itself (§4.2). The ve
 compared with VeriPB 3.0.2 and CakePB (CakeML commit `14856fcf`), run on the same texts; CakePB
 supports only `FILE`, and this checker follows its `check_output` where the two tools differ. -/
 
-/-- The test instance `decision_output` of the VeriPB repository (MIT/Apache-2.0): three
-pairwise at-most-one clauses. -/
-def amo3 : String := "* #variable= 3 #constraint= 3
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-"
-
-/-- Its proof, elaborated by VeriPB: the cardinality constraint `4`, a fresh variable `y1` defined
-by the `red` steps `6` and `8`, and the constraint `9`; the core set is `1`–`4`, `8` and `9`. -/
-def amo3Proof : String := "pseudo-Boolean proof version 3.0
-f 3;
-pol 1 2 + 3 + 2 d;
-core id 4;
-red 1 ~x1 1 ~x2 1 ~x3 3 ~y1 >= 3 : y1 -> 0 : subproof
-qed;
-red 1 x1 1 x2 1 x3 1 y1 >= 1 : y1 -> 1 : subproof
-qed;
-core id 8;
-pol 4 2 * 6 + 3 d;
-core id 9;
-output EQUISATISFIABLE FILE;
-conclusion NONE;
-end pseudo-Boolean proof;
-"
-
-/-- The output formula of `decision_output`: the core set, in another order. -/
-def amo3Out : String := "* #variable= 4 #constraint= 7
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 >= 2 ;
-1 x1 1 x2 1 x3 1 y1 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 1 ~y1 >= 3 ;
-"
-
 -- All three tools accept, also with the terms of a constraint reordered.
 #guard (checkOPBOutput amo3 amo3Proof amo3Out).map (·.2.map (·.guarantee)) ==
   some (some .equisatisfiable)
@@ -1100,54 +1065,6 @@ def amo3Out : String := "* #variable= 4 #constraint= 7
 #guard (checkOPBOutput amo3 ((amo3Proof.replace "output" "sol ~x1 ~x2 ~x3 y1;\noutput").replace
   "EQUISATISFIABLE" "DERIVABLE") amo3Out).isNone
 
-/-- The test instance `optimization_output_opposing_lits_objective` of the VeriPB repository:
-`amo3`, maximizing the number of true variables. -/
-def amo3Opt : String := "* #variable= 3 #constraint= 3
-min: 1 ~x1 1 ~x2 1 ~x3 ;
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-"
-
-/-- Its proof, elaborated by VeriPB: the objective becomes `y1 + 2` (`obju`), and the optimal
-solution, of value `2`, is logged; the improving constraint `14` is `~y1 >= 2`. -/
-def amo3OptProof : String := "pseudo-Boolean proof version 3.0
-f 3;
-pol 1 2 + 3 + 2 d;
-core id 4;
-red 1 ~x1 1 ~x2 1 ~x3 3 ~y1 >= 3 : y1 -> 0 : subproof
-qed;
-red 1 x1 1 x2 1 x3 1 y1 >= 1 : y1 -> 1 : subproof
-qed;
-core id 8;
-pol 4 2 * 6 + 3 d;
-core id 9;
-obju new 1 y1 2 : subproof
-  proofgoal #1
-    pol 10 8 + ;
-  qed : 11;
-  proofgoal #2
-    pol 12 9 + ;
-  qed : 13;
-qed;
-soli x1 ~x2 ~x3 ~y1;
-output EQUIOPTIMAL FILE;
-conclusion BOUNDS 2 : 14 2;
-end pseudo-Boolean proof;
-"
-
-/-- The output formula, with the objective `y1 + 2x1 + 2~x1`, that is `y1 + 2`. -/
-def amo3OptOut : String := "* #variable= 4 #constraint= 8
-min: 1 y1 2 x1 2 ~x1 ;
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 >= 2 ;
-1 x1 1 x2 1 x3 1 y1 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 1 ~y1 >= 3 ;
-1 ~y1 >= 2 ;
-"
-
 -- All three tools accept, for values below the bound `2`, also with the objective written
 -- `y1 + 2`, and the conclusion is checked as well.
 #guard (checkOPBOutput amo3Opt amo3OptProof amo3OptOut).map
@@ -1179,14 +1096,28 @@ def amo3OptImplicit : String :=
   (amo3OptProof.replace "FILE" "IMPLICIT").replace "BOUNDS 2 : 14 2" "NONE"
 
 #guard (checkOPBOutput amo3Opt amo3OptImplicit).map (·.2.map (·.bound)) == some (some (some 2))
--- `EQUIOPTIMAL` and `EQUIENUMERABLE` need `bound` at most `dbound`. An `obji` below the logged
--- value, or in place of the logged solution, breaks it (CakePB rejects both, with the output
--- formula given as a file; VeriPB accepts both).
+-- `EQUIOPTIMAL` needs `bound` at most `dbound`. An `obji` below the logged value, or in place of
+-- the logged solution, breaks it (CakePB rejects both, with the output formula given as a file;
+-- VeriPB accepts both).
 #guard (checkOPBOutput amo3Opt (amo3OptImplicit.replace "soli x1 ~x2 ~x3 ~y1;"
   "soli x1 ~x2 ~x3 ~y1;\nobji 1;")).isNone
 #guard (checkOPBOutput amo3Opt (amo3OptImplicit.replace "soli x1 ~x2 ~x3 ~y1;" "obji 2;")).isNone
-#guard (checkOPBOutput amo3Opt ((amo3OptImplicit.replace "soli x1 ~x2 ~x3 ~y1;"
-  "soli x1 ~x2 ~x3 ~y1;\nobji 1;").replace "EQUIOPTIMAL" "EQUIENUMERABLE")).isNone
+
+/-- `amo3Opt` preserving `x1`, `x2` and `x3`. -/
+def amo3OptPres : String := amo3Opt.replace "min: 1 ~x1 1 ~x2 1 ~x3 ;"
+  "min: 1 ~x1 1 ~x2 1 ~x3 ;\npreserved: x1 x2 x3 ;"
+
+/-- `amo3OptImplicit` with an `EQUIENUMERABLE` output section. -/
+def amo3OptEnum : String := amo3OptImplicit.replace "EQUIOPTIMAL" "EQUIENUMERABLE"
+
+-- With the preserved set, `EQUIENUMERABLE` is accepted below the bound `2` (CakePB accepts with
+-- the output formula as a file; VeriPB rejects after a logged solution), and the same proof with
+-- only an `obji` below the logged value added is rejected, as then `bound` exceeds `dbound`
+-- (CakePB rejects).
+#guard (checkOPBOutput amo3OptPres amo3OptEnum).map (·.2.map (·.bound)) ==
+  some (some (some 2))
+#guard (checkOPBOutput amo3OptPres
+  (amo3OptEnum.replace "soli x1 ~x2 ~x3 ~y1;" "soli x1 ~x2 ~x3 ~y1;\nobji 1;")).isNone
 
 /-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. -/
 def enumOut : String := "* #variable= 3 #constraint= 1
@@ -1261,23 +1192,8 @@ example (h : checkOPB enum3 enumPartialProof = some (.enumPartial 2)) :
       (2 : ℕ∞) ≤ (projections I.constraints P).encard :=
   le_encard_of_checkOPB_enumPartial h
 
--- An accepted output section: the guarantee holds between the instance and the output formula.
-example (o : Output) (h : checkOPBOutput amo3 amo3Proof amo3Out = some (.noClaim, some o)) :
-    ∃ I, parseOPB amo3 = some I ∧ semOutput I o.bound o.formula o.guarantee ∧
-      (∀ u ∈ o.bound, ∃ σ, (∀ c ∈ I.constraints, c.Holds σ) ∧ objValue I.objective σ ≤ u) ∧
-      ∀ t ∈ some amo3Out, ∃ N, N.Separates I t ∧ parseOPB t N = some o.formula :=
-  semOutput_of_checkOPBOutput h
-
--- The conclusion of a proof with an output formula is sound as well: the optimum of `amo3Opt` is
--- `2`.
-example (h : (checkOPBOutput amo3Opt amo3OptProof amo3OptOut).map (·.1) =
-    some (.bounds (some 2) 14 (some 2) none)) :
-    ∃ I f, parseOPB amo3Opt = some I ∧ I.objective = some f ∧
-    (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) →
-      ∃ l, some 2 = some l ∧ l ≤ f.eval σ) ∧
-    ∀ u, some 2 = some u →
-      ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u :=
-  bounds_of_checkOPB h
+-- The output and `FILE` conclusion clients, with their acceptance decided in the kernel, are in
+-- `CslibFrontierTests.Logics.Propositional.VeriPBTextDecide`.
 
 -- An accepted pair of texts is an unsatisfiable formula.
 example (h : checkDIMACS php43 php43Kernel = some (.unsat 39)) :
