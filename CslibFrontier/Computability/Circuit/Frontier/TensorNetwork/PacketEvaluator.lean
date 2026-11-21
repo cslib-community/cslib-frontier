@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.KernelP
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEntry
 public import CslibFrontier.Computability.PolyTime.GaloisRingArithmetic
 public import CslibFrontier.Foundations.NumberTheory.Padics.RatValuation
+import CslibFrontier.Foundations.Data.Fin.Prod
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Data.List.GetD
 
@@ -473,16 +474,6 @@ theorem val_modeValueList (i : ℕ) (differ : Bool) (cols : List (ℕ × Bool)) 
   · rw [val_pow, val_intConst, Int.cast_natCast]
   · exact val_zero
 
-/-- The tile of the dense index `b + nb y₀` of a mode `(y₀, b)`. -/
-private theorem finProdFinEquiv_div {m n : ℕ} (Z : Fin m × Fin n) :
-    (finProdFinEquiv Z : ℕ) / n = Z.1 :=
-  congrArg (fun W => (W.1 : ℕ)) (finProdFinEquiv.symm_apply_apply Z)
-
-/-- The exponent of the dense index `b + nb y₀` of a mode `(y₀, b)`. -/
-private theorem finProdFinEquiv_mod {m n : ℕ} (Z : Fin m × Fin n) :
-    (finProdFinEquiv Z : ℕ) % n = Z.2 :=
-  congrArg (fun W => (W.2 : ℕ)) (finProdFinEquiv.symm_apply_apply Z)
-
 /-- The terms of the affine factor of a row port `r = (x, Y_x)`: its local term at `none`, and
 the coefficient of the mode `(k / nb, k % nb)` at `some k` (zero when there are no exponents,
 `nb = 0`, so that the exponent `k % nb` stays below `nb`). -/
@@ -513,7 +504,7 @@ theorem val_rowTermList {a L i : ℕ} (hL : L = 2 ^ a) (hia : i < a) {t : ℤ}
   | some Z =>
     simp only [Function.comp_apply, Option.map_some, rowTermList, packetRowTerm, affineSign,
       Function.Embedding.trans_apply, Equiv.coe_toEmbedding, Fin.valEmbedding_apply,
-      finProdFinEquiv_div, finProdFinEquiv_mod,
+      finProdFinEquiv_val_div, finProdFinEquiv_val_mod,
       Nat.pos_iff_ne_zero.mp (Nat.zero_lt_of_lt Z.2.isLt), ↓reduceIte]
     have h := val_modeCoeffList (p := p) (fl := fl) hL hia ht hti hti' differ hr Z ζ
     split_ifs
@@ -567,7 +558,7 @@ private theorem toFinset_filter_range (i nb : ℕ) (P : ℕ → Bool) :
   · rintro ⟨hk, h⟩
     exact ⟨finProdFinEquiv.symm ⟨k, hk⟩, h, congrArg Fin.val (finProdFinEquiv.apply_symm_apply _)⟩
   · rintro ⟨Z, h, rfl⟩
-    exact ⟨(finProdFinEquiv Z).isLt, by rw [finProdFinEquiv_div]; exact h⟩
+    exact ⟨(finProdFinEquiv Z).isLt, by rw [finProdFinEquiv_val_div]; exact h⟩
 
 /-- **The entry of a packet vertex on coefficient lists** (§D.4.6, p. 63): coefficient extraction
 along the row terms, at the exponents `β` of the modes targeting the group, times the powers of
@@ -605,7 +596,7 @@ theorem val_packetEntryList {a L i : ℕ} (hL : L = 2 ^ a) (hia : i < a) {t : �
       toFinset_filter_range, prod_map]
     refine prod_congr rfl fun Z _ => ?_
     simp only [Function.comp_apply, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
-      Fin.valEmbedding_apply, finProdFinEquiv_div, finProdFinEquiv_mod]
+      Fin.valEmbedding_apply, finProdFinEquiv_val_div, finProdFinEquiv_val_mod]
     rw [val_pow, val_modeValueList]
 
 /-- **Packet entries in every ring receiving `A_p`.** Along a ring map `ψ : A_p → S` with `2`

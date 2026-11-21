@@ -22,9 +22,9 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
-import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Streaming polynomial-space exhaustive counting and finite-threshold fallback absorption
@@ -201,13 +201,7 @@ private theorem length_prefix_accumulator_le (pred : P → List Bool → Bool) (
   have hx_le : x.1 ≤ (encPair encUnary encP x).length := by enc_len
   have hz_le : (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2 ≤ 2 ^ x.1 :=
     (prefix_count_le_index pred x j).trans hj
-  have hlen_z :
-      (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤ x.1 + 1 := by
-    have hm : (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤
-        (encNat (2 ^ x.1)).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hz_le
-    rw [BooleanFold.length_clock] at hm
-    exact hm
+  have hlen_z := length_encNat_le_of_le_two_pow hz_le
   enc_len [prefix_payload_eq]
 
 private theorem countPredicateCertificate_bounds {pred : P → List Bool → Bool}
