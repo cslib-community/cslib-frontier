@@ -349,6 +349,7 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
       have hx' : f x ≤ x - (1 - s) * ramp v x := by
         by_cases hx : x ∈ band v
         · simp only [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hx]
+          exact le_rfl
         · rwa [hramp hv hx, mul_zero, sub_zero]
       have hstep : ramp v y ≤ ramp v x + (y - x) :=
         stripRamp_increment (hright v (hmem.mp hv)) (hgap v) hxy.le
@@ -383,7 +384,9 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
     have hz' : z.re ∈ band v := ⟨by linarith only [hz.1], by linarith only [hz.2]⟩
     have hre : f z.re = z.re - (1 - s) * (z.re - a v) := by
       simp only [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hz']
-      simp only [ramp, stripRamp_eq_sub (hright v (hmem.mp hv)) (hgap v) hz]
+      have hexact : stripRamp (a v) (right v) (right v + 1 / 8) z.re = z.re - a v :=
+        stripRamp_eq_sub (hright v (hmem.mp hv)) (hgap v) hz
+      simp only [ramp, hexact]
     have him : g z.re = (1 - s) * (referencePoint I v).im := by
       simp only [g, hsum offset (fun _ _ _ h => hoffset h) hv hz']
       simp only [offset, stripPlateau_eq_one hz, mul_one]
