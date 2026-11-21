@@ -6,20 +6,22 @@ Authors: Karn Seth
 
 module
 
-import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator
+import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction
 import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Tests for Free-XOR garbling as a scheme family
 
 A client of `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme`,
-`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient` and
-`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator` under module encapsulation.
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient`,
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator` and
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction` under module encapsulation.
 
 We build two multi-gate circuits combining AND, OR and XOR gates with the same topology and XOR
 gate positions, verify that `phiXor` identifies them while hiding non-XOR gate truth tables, check
-garbling, evaluation and decoding across all eight inputs, and check the simulator's efficiency,
-layout and decoding.
+garbling, evaluation and decoding across all eight inputs, check the simulator's efficiency,
+layout and decoding, and instantiate the reduction legality and oracle-PPT certificates on a
+stateful strict PPT adversary.
 -/
 
 set_option linter.privateModule false
@@ -140,5 +142,34 @@ example : PointPermute.decodeWord simView.decInfo
     (FreeXOR.evalWord toyHash simView.fn simView.input) = some [true, false] := by
   simp only [simView, FreeXOR.simViewWord, FreeXOR.evalWord, PointPermute.fnDecoder.decode_enc]
   decide
+
+/-- The query of the stateful `prv.sim` adversary: `validCircuit₁` on `[true, false, true]`. -/
+private def query : Query ValidCircuit := ⟨validCircuit₁, [true, false, true]⟩
+
+/-- Stateful guess function: reads the saved bit and the first decoding bit, or `false` on `⊥`. -/
+private def advGuess (state : Bool) (view : Option PrvView) : Bool :=
+  view.elim false fun v => state && v.decInfo.getD 0 false
+
+/-- A stateful uniform strict PPT `prv.sim` adversary against Free-XOR garbling. -/
+private def adversary : ℕ → PrvSimAdversary ValidCircuit Bool := fun _ =>
+  ⟨fun () => pure (query, true), fun state view => pure (advGuess state view)⟩
+
+open Turing.MultiTapeTM in
+/-- The adversary is uniform strict PPT. -/
+private theorem adversary_isPPT : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit)
+    (encOption encPrvView) encBool encBool adversary where
+  choose := ComputableInPolyTime.isPPTOn (ComputableInPolyTime.const _)
+  guess := ComputableInPolyTime.isPPTOn
+    (f := fun ((_, state, view) : ℕ × Bool × Option PrvView) => advGuess state view)
+    (by polytime [advGuess])
+
+/-- The reduction for `adversary` is uniform strict oracle PPT. -/
+example : IsOraclePPT Turing.MultiTapeTM.encBool (FreeXOR.prvSimReduction toyHash adversary) :=
+  FreeXOR.isOraclePPT_prvSimReduction toyHash_polyTime adversary_isPPT
+
+/-- The reduction asks each tweak at most once at every security level. -/
+example (k : ℕ) :
+    CCR.IsTweakUnique ((CCR.codec k).adapt (FreeXOR.prvSimReduction toyHash adversary k [])) :=
+  FreeXOR.isTweakUnique_prvSimReduction toyHash adversary k
 
 end CslibFrontierTests.Crypto.GarblingFreeXORFamily

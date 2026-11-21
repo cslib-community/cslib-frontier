@@ -815,6 +815,28 @@ private theorem simRowNonXor_polyTime :
   dsimp only [Function.comp_def]
   simp only [decide_eq_true_eq]
 
+/-- Library infrastructure (no cited result): polynomial-time gate-row prefixing shared between
+the Free-XOR simulator and CCR reduction. -/
+theorem rowData_polyTime {γ : Type} {encIn : γ ↪ List Bool}
+    {g i : γ → ℕ} {free body : γ → List Bool}
+    (hfree : ComputableInPolyTime free encIn encBits)
+    (hg : ComputableInPolyTime g encIn encUnary)
+    (hi : ComputableInPolyTime i encIn encUnary)
+    (hbody : ComputableInPolyTime body encIn encBits) :
+    ComputableInPolyTime (fun x =>
+      (if i x = 0 then [(free x).getD (g x) false] else []) ++
+        if (free x).getD (g x) false then [] else body x) encIn encBits := by
+  have hisXor := ComputableInPolyTime.bitsGetDWithInput hfree hg false
+  have hi0 : ComputableInPolyTime (fun x => decide (i x = 0)) encIn encBool := by polytime
+  have hsing : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits := by polytime
+  have hpre : ComputableInPolyTime (fun x => if i x = 0 then [(free x).getD (g x) false] else [])
+      encIn encBits := by
+    have h := ComputableInPolyTime.ite' hi0 (hsing.comp hisXor) (ComputableInPolyTime.const [])
+    convert h using 2
+    simp only [Function.comp_def, decide_eq_true_eq]
+  have hpost := ComputableInPolyTime.ite' hisXor (ComputableInPolyTime.const []) hbody
+  exact ComputableInPolyTime.bitsAppend hpre hpost
+
 include hf in
 private theorem simRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     {k n q g a b i : γ → ℕ} {free coins : γ → List Bool} {labels : γ → List (List Bool)}
@@ -826,21 +848,10 @@ private theorem simRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     (hb : ComputableInPolyTime b encIn encUnary) (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => simRowData hash (k x) (n x) (q x) (free x) (labels x)
       (coins x) (g x) (a x) (b x) (i x)) encIn encBits := by
-  have hisXor := ComputableInPolyTime.bitsGetDWithInput hfree hg false
-  have hi0 : ComputableInPolyTime (fun x => decide (i x = 0)) encIn encBool := by polytime
-  have hsing : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits := by polytime
-  have hpre : ComputableInPolyTime (fun x => if i x = 0 then [(free x).getD (g x) false] else [])
-      encIn encBits := by
-    have h := ComputableInPolyTime.ite' hi0 (hsing.comp hisXor) (ComputableInPolyTime.const [])
-    rwa [show (fun x => if decide (i x = 0) = true then ((fun b => [b]) ∘ fun x =>
-        (free x).getD (g x) false) x else []) =
-      (fun x => if i x = 0 then [(free x).getD (g x) false] else []) from
-      funext fun x => by simp] at h
   have hbody := (simRowNonXor_polyTime hf).comp
     (((hk.prod (hn.prod hq)).prod (hfree.prod (hlabels.prod hcoins))).prod
       (hg.prod (ha.prod (hb.prod hi))))
-  have hpost := ComputableInPolyTime.ite' hisXor (ComputableInPolyTime.const []) hbody
-  exact ComputableInPolyTime.bitsAppend hpre hpost
+  exact rowData_polyTime hfree hg hi hbody
 
 include hf in
 private theorem simViewWord_polyTime :
