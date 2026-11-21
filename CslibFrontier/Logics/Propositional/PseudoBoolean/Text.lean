@@ -132,34 +132,88 @@ namespace Cslib.Logic.PL.VeriPB.Text
 
 /-! ### Tokens -/
 
+/-! The lexer works on the characters of a text by structural recursion, without `String.splitOn`,
+`String.toNat?` and the other `String` operations that the kernel cannot evaluate, so that
+`decide` can check concrete texts. -/
+
+/-- The pieces of a list of characters between the characters satisfying `p`. -/
+private def splitChars (p : Char → Bool) : List Char → List (List Char)
+  | [] => [[]]
+  | c :: cs =>
+    if p c then [] :: splitChars p cs
+    else
+      match splitChars p cs with
+      | l :: ls => (c :: l) :: ls
+      | [] => [[c]]
+
+/-- The lines of a text. -/
+def lines (s : String) : List String := (splitChars (· == '\n') s.toList).map String.ofList
+
+/-- The token in progress, its characters reversed, if any. -/
+private def flushToken (cur : List Char) : List String :=
+  if cur.isEmpty then [] else [String.ofList cur.reverse]
+
+/-- The tokens of a line without its comment: whitespace-separated, with `;` a token of its own.
+`cur` is the token in progress, reversed. -/
+private def lexLine : List Char → List Char → List String
+  | [], cur => flushToken cur
+  | c :: cs, cur =>
+    if c.isWhitespace then flushToken cur ++ lexLine cs []
+    else if c == ';' then flushToken cur ++ ";" :: lexLine cs []
+    else lexLine cs (c :: cur)
+
 /-- The tokens of a text: whitespace-separated, with `;` a token of its own and everything after
 `%` on a line a comment. -/
 def tokens (s : String) : List String :=
-  (s.splitOn "\n").flatMap fun line =>
-    ((((line.splitOn "%").headD "").replace ";" " ; ").split Char.isWhitespace).toList.map
-      (·.toString) |>.filter (· ≠ "")
+  (splitChars (· == '\n') s.toList).flatMap fun line => lexLine (line.takeWhile (· != '%')) []
+
+/-- The value of decimal digits after the value `n` of those before them. -/
+private def digits : List Char → ℕ → Option ℕ
+  | [], n => some n
+  | c :: cs, n => if c.isDigit then digits cs (10 * n + (c.toNat - '0'.toNat)) else none
+
+/-- A natural number: one or more decimal digits. -/
+def nat? (t : String) : Option ℕ :=
+  match t.toList with
+  | [] => none
+  | cs => digits cs 0
+
+/-- The rest of `t` after its first character, if that is `c`. -/
+private def dropChar? (c : Char) (t : String) : Option String :=
+  match t.toList with
+  | d :: cs => if d == c then some (String.ofList cs) else none
+  | [] => none
+
+/-- `t` starts with the character `c`. -/
+private def startsWithChar (c : Char) (t : String) : Bool := t.toList.head? == some c
 
 /-- An integer, with an optional sign `+` or `-`. -/
 def int? (t : String) : Option ℤ :=
-  if t.startsWith "+" then ((t.drop 1).toString.toNat?).map Int.ofNat else t.toInt?
+  match dropChar? '+' t, dropChar? '-' t with
+  | some r, _ => (nat? r).map Int.ofNat
+  | none, some r => (nat? r).map fun n => -(n : ℤ)
+  | none, none => (nat? t).map Int.ofNat
 
 /-- A positive constraint number. -/
 def id? (t : String) : Option ℕ :=
-  match t.toNat? with
+  match nat? t with
   | some (n + 1) => some (n + 1)
   | _ => none
 
 /-- The number `N - 1` of a standard variable name `xN`, `N ≥ 1`. -/
 def stdVar? (t : String) : Option ℕ :=
-  if t.startsWith "x" then
-    match (t.drop 1).toString.toNat? with
+  match dropChar? 'x' t with
+  | some r =>
+    match nat? r with
     | some (n + 1) => some n
     | _ => none
-  else none
+  | none => none
 
 /-- A variable name of the extended format: at least two characters, the first a letter or `_`. -/
 private def isName (t : String) : Bool :=
-  2 ≤ t.length && (t.front.isAlpha || t.front == '_')
+  match t.toList with
+  | c :: _ :: _ => c.isAlpha || c == '_'
+  | _ => false
 
 /-- The variable names of a proof: the standard ones are numbered by their index, the others in
 order of first appearance after `base`. -/
@@ -177,11 +231,12 @@ def Names.var? (N : Names) (t : String) : Option ℕ :=
 
 /-- A literal token `x` or `~x`. -/
 def Names.lit? (N : Names) (t : String) : Option (Literal ℕ) :=
-  if t.startsWith "~" then (N.var? (t.drop 1).toString).map ((·, false))
-  else (N.var? t).map ((·, true))
+  match dropChar? '~' t with
+  | some r => (N.var? r).map ((·, false))
+  | none => (N.var? t).map ((·, true))
 
 /-- A token without the `~` of a negative literal. -/
-def bareName (t : String) : String := if t.startsWith "~" then (t.drop 1).toString else t
+def bareName (t : String) : String := (dropChar? '~' t).getD t
 
 /-- **The names `N` read the output text `t` of the instance `I` without aliasing.** The
 non-standard names are distinct and none is a standard name `xN`; they are numbered from
@@ -267,7 +322,7 @@ private def opbLines (N : Names) : List (List String) → Option (List PBConstr)
   | [] => some []
   | [] :: ls => opbLines N ls
   | (t :: ts) :: ls =>
-    if t.startsWith "*" then opbLines N ls
+    if startsWithChar '*' t then opbLines N ls
     else
       match constr N (t :: ts), opbLines N ls with
       | some (cs, [";"]), some F => some (cs ++ F)
@@ -299,10 +354,10 @@ order, before the constraints, and one constraint per line. Variables are read w
 `N`: by default only the standard names `xN`, as for an input; an output formula is read with the
 names of its proof. -/
 def parseOPB (s : String) (N : Names := ⟨[], 0⟩) : Option Instance :=
-  let lines := ((s.splitOn "\n").map tokens).filter fun l =>
+  let lines := ((lines s).map tokens).filter fun l =>
     match l.head? with
     | none => false
-    | some t => !t.startsWith "*"
+    | some t => !startsWithChar '*' t
   match lines with
   | ("min:" :: ts) :: ("preserved:" :: ps) :: ls
   | ("preserved:" :: ps) :: ("min:" :: ts) :: ls =>
@@ -328,10 +383,10 @@ private def dimacsClauses (V : ℕ) : List String → List ℤ → Option (CNF �
 /-- **A DIMACS CNF formula**: comment lines starting with `c`, the header `p cnf V C`, then
 exactly `C` clauses over the variables `1, …, V`. -/
 def parseDIMACS (s : String) : Option (CNF ℕ) :=
-  let lines := (s.splitOn "\n").map tokens |>.filter fun l => l.head? != some "c"
+  let lines := (lines s).map tokens |>.filter fun l => l.head? != some "c"
   match lines with
   | ["p", "cnf", V, C] :: body =>
-    match V.toNat?, C.toNat? with
+    match nat? V, nat? C with
     | some V, some C =>
       (dimacsClauses V body.flatten []).bind fun φ => if φ.length = C then some φ else none
     | _, _ => none
@@ -364,8 +419,8 @@ private def polOps (N : Names) : List String → Option (List PolOp × List Stri
   | ";" :: ts => some ([], ";" :: ts)
   | "+" :: ts => consOp .add (polOps N ts)
   | "s" :: ts => consOp .sat (polOps N ts)
-  | t :: "*" :: ts => (t.toNat?).bind fun k => consOp (.mul k) (polOps N ts)
-  | t :: "d" :: ts => (t.toNat?).bind fun k => consOp (.div k) (polOps N ts)
+  | t :: "*" :: ts => (nat? t).bind fun k => consOp (.mul k) (polOps N ts)
+  | t :: "d" :: ts => (nat? t).bind fun k => consOp (.div k) (polOps N ts)
   | t :: "w" :: ts =>
     match N.lit? t with
     | some (v, true) => consOp (.weaken v) (polOps N ts)
@@ -554,9 +609,9 @@ private def asgOpt (N : Names) : List String → Option (Option (List (Literal �
 private def conclusion (N : Names) : List String → Option Conclusion
   | ["UNSAT", ":", q, ";"] => (id? q).map .unsat
   | ["NONE", ";"] => some .noClaim
-  | ["ENUMERATION_PARTIAL", n, ";"] => n.toNat?.map .enumPartial
+  | ["ENUMERATION_PARTIAL", n, ";"] => (nat? n).map .enumPartial
   | ["ENUMERATION_COMPLETE", n, ":", q, ";"] =>
-    n.toNat?.bind fun n => (id? q).map (.enumComplete n)
+    (nat? n).bind fun n => (id? q).map (.enumComplete n)
   | "SAT" :: ts => (asgOpt N ts).map .sat
   | "BOUNDS" :: lb :: ":" :: q :: ub :: ts =>
     (bound? lb).bind fun lb => (id? q).bind fun q => (bound? ub).bind fun ub =>
@@ -589,7 +644,7 @@ private def proofIn (m : ℕ) (N : Names) (ts : List String) :
   match ts with
   | "pseudo-Boolean" :: "proof" :: "version" :: "3.0" :: rest =>
     let rest := match rest with
-      | "f" :: n :: ";" :: rest => if n.toNat? == some m then some rest else none
+      | "f" :: n :: ";" :: rest => if nat? n == some m then some rest else none
       | rest => some rest
     rest.bind fun rest =>
       match topSteps N (ts.length + 1) rest with
