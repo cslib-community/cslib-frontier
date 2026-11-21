@@ -149,22 +149,6 @@ private theorem request_bounded (base : Xofs) (key : List Byte) (q : SigningQuer
   · exact (base.signInternalReads_bounded ..).interpret (bounded_read256 s extra base)
   · exact .pure _ _
 
-private theorem eval_loop (H : Xofs) (sk : PrivateKey s) (A : PublicMatrix s) (m : List Bool)
-    (seed : List Byte) (fuel κ : ℕ) :
-    (OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
-      (signingQueries s sk A m seed (recordReply s) fuel κ)).map FixedBytes.toList =
-      OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
-        (signingQueries s sk A m seed id fuel κ) := by
-  induction fuel generalizing κ with
-  | zero => rfl
-  | succ n ih =>
-    simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query, id_eq]
-    split
-    · rfl
-    · rename_i sig he
-      exact recordReply_some s (length_finishSigningAttempt (H.h256.length_read ..) he)
-    · apply ih
-
 /-- At every table, the measured request returns exactly Algorithm 2's bytes under the shared
 pair of XOFs, including malformed inputs, XOF exhaustion and exhausting the retry cap. -/
 theorem evalPure_signingRequestQueries (base : Xofs)
@@ -176,19 +160,10 @@ theorem evalPure_signingRequestQueries (base : Xofs)
   by_cases hc : q.context.length ≤ 255
   · simp only [signingRequestQueries, hc, ↓reduceIte, eval_shared_reads, Xofs.sign,
       guard, Option.pure_def, Option.bind_eq_bind, Option.bind_some]
-    rw [← Xofs.evalPure_signInternalReads]
-    unfold Xofs.signInternalReads
-    cases hs : decodePrivate s key with
+    rw [base.evalPure_signInternalReads_of_h128 H rfl]
+    cases hs : H.signInternal s key (formatMessage q.message q.context) rnd with
     | none => rfl
-    | some sk =>
-      dsimp only
-      rw [show (sharedXofs s extra base T).expandA s sk.rho = base.expandA s sk.rho from
-        Xofs.expandA_congr (K := sharedXofs s extra base T) (H := base) rfl ..]
-      cases ha : base.expandA s sk.rho with
-      | none => rfl
-      | some A =>
-        simp only [OracleComp.evalPure_bind, OracleComp.evalPure_query]
-        exact eval_loop s H sk A _ _ 814 0
+    | some sig => exact recordReply_some s (H.length_signInternal hs)
   · simp [signingRequestQueries, Xofs.sign, hc, guard]
 
 /-- A retained-state interaction with a finite classical outward history and a coherent FIPS
@@ -261,32 +236,27 @@ theorem completeSigningTrial_expandMask (base : Xofs) (sk : PrivateKey s) (A : P
   let y := ringVectorCoeffs (H.expandMask s seed nonce)
   let w := moduleSISMap A y
   let d := registerBytes s (T (commitmentAddress s extra m w))
-  let raw := H.h256.read (commitmentInput s (highBitsVec s.params w) (List.ofFn m)) (digestBytes s)
-  let expand (bytes : List Byte) :=
-    sampleInBallBytes s (H.h256.read (Keccak.bytesToBitsLE bytes) 221)
-  have dig : raw = d := commitmentDigest_sharedXofs s extra base T m w
-  rw [← eval_loop s H sk A (List.ofFn m) seed (fuel + 1) nonce]
-  apply congrArg (Option.map FixedBytes.toList)
-  unfold completeSigningTrial trialResult
-  simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query,
-    tabulateRingVector_eq, Xofs.sampleInBall, ExtendableOutput.readBytes]
-  rw [evalPure_expandMaskReads]
-  dsimp only [ExtendableOutput.Request.answer]
-  change OracleComp.evalPure T (finishRequest s extra base sk A m seed fuel (nonce + s.params.ℓ)
-    (finishSigningAttempt s sk y w d (expand d))) =
-    OracleComp.evalPure (ExtendableOutput.Request.answer H.h256) (match
-      finishSigningAttempt s sk y w raw (expand raw) with
-      | none => pure (recordReply s none)
-      | some (some sig) => pure (recordReply s (some sig))
-      | some none =>
-        signingQueries s sk A (List.ofFn m) seed (recordReply s) fuel (nonce + s.params.ℓ))
+  have dig : H.commitmentDigest s (highBitsVec s.params w) (List.ofFn m) = d :=
+    commitmentDigest_sharedXofs s extra base T m w
+  rw [evalPure_signingQueries_succ]
+  dsimp only
   rw [dig]
-  cases h : finishSigningAttempt s sk y w d (expand d) with
+  unfold completeSigningTrial trialResult
+  dsimp only
+  cases h : finishSigningAttempt s sk y w d (H.sampleInBall s d) with
   | none => rfl
   | some reply =>
     cases reply with
-    | none => exact eval_shared_reads s extra base T _
-    | some => rfl
+    | none =>
+      simp only [finishRequest, eval_shared_reads]
+      rw [evalPure_signingQueries]
+      cases hrem : OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
+          (signingQueries s sk A (List.ofFn m) seed id fuel (nonce + s.params.ℓ)) with
+      | none => rfl
+      | some sig => exact recordReply_some s (length_of_evalPure_signingQueries hrem)
+    | some sig =>
+      exact recordReply_some s (length_finishSigningAttempt
+        (by rw [← dig]; exact length_commitmentDigest (H := H) ..) h)
 
 /-- The three commitment-table treatments for the distinguished trial. -/
 inductive TrialRefresh where
