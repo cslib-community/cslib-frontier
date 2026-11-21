@@ -228,9 +228,12 @@ private theorem find?_zipIdx_idxOf {c : Clause ℕ} :
 
 /-- **The checker accepts the certificate of every tree-like refutation.** -/
 theorem Derivation.checkLRAT_toLRAT (d : φ.Derivation []) : φ.checkLRAT d.toLRAT = true := by
-  have hgood : LRATGood φ (φ.length + 1) ((φ.zipIdx).map fun e => (e.2 + 1, e.1)) := by
-    refine ⟨fun e he => ?_, fun c hc => by simpa using find?_zipIdx_idxOf φ 0 hc⟩
-    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+  have hgood : LRATGood φ (φ.length + 1) φ.lratDB := by
+    refine ⟨fun e he => ?_, fun c hc => by
+      have := find?_zipIdx_idxOf φ 0 hc
+      simp only [Nat.add_zero] at this
+      exact this⟩
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
     have := List.snd_lt_add_of_mem_zipIdx hp
     simp only at this ⊢
     omega

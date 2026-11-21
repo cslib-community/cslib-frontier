@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Streaming first-match search on Boolean words
@@ -346,12 +347,12 @@ theorem exists_computableInO_of_visit_bounds {test : C × List Bool → Bool}
       (hn.add (PolyBounded.const 1)))
   refine ⟨fun p => overhead p + workspace p, htime.add hspace, hfinal.mono_le ?_ ?_⟩
   · intro p
-    simp only [Function.comp_apply, BooleanFold.length_clock]
+    simp only [Function.comp_apply, length_encNat_two_pow]
     dsimp only [overhead, workspace, stateSize, size]
     have hcount : (1 : ℕ) ≤ 2 ^ p.2 + 1 := Nat.le_add_left 1 _
     nlinarith
   · intro p
-    simp only [Function.comp_apply, BooleanFold.length_clock]
+    simp only [Function.comp_apply, length_encNat_two_pow]
     dsimp only [overhead, workspace, stateSize, size]
     omega
 
