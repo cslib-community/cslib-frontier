@@ -1515,6 +1515,11 @@ Dylan McKay, Cody D. Murray and R. Ryan Williams. *Weak Lower Bounds on Resource
 
 Karl Menger. "Zur allgemeinen Kurventheorie." *Fundamenta Mathematicae* 10, 96–115, 1927. Cited for attribution only: the paper was not consulted, and the formal statements follow [schrijver17](#schrijver17) and [diestel25](#diestel25).
 
+<a id="micciancioregev2007"></a>
+## micciancioregev2007
+
+Daniele Micciancio and Oded Regev. "Worst-Case to Average-Case Reductions Based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007. https://doi.org/10.1137/S0097539705447360 . Author's copy dated December 27, 2005 (`https://cseweb.ucsd.edu/~daniele/papers/Gaussian.pdf`) inspected on 2026-11-21: Definition 2.6 (`GIVP^φ_γ`, §2, p. 7), Definition 2.7 (`GDD^φ_γ`, §2, p. 7), Definition 5.1 (`ℓ₂`-SIS, §5.1, p. 17), Lemma 5.2 (existence of `ℓ₂`-SIS solutions for `β ≥ √m · q^{n/m}`, §5.1, p. 17), Definition 5.3 (`SIS_{q, m, β}` ensemble, §5.1, p. 17), and Definition 5.6 (`IncGDD^φ_{γ, g}`, §5.2, p. 19). In `Lattice.GIVP`, `IncGDD.IsSolution` uses Mathlib's canonical `Pi` supremum norm `‖S‖` (`max_i ‖S i‖` in positive rank, `0` in rank `0`). In `SIS.Ell2`, `SISEll2` reuses `SISParams` (integer `P.β`) and `SISParams.Solver.IsPPT`, while `SIS.IsEll2Solution`, `sisEll2Experiment`, and `sisEll2Advantage` accept arbitrary real bounds `β : ℝ`.
+
 <a id="mignonressayre04"></a>
 ## mignonressayre04
 
