@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerRep
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import Mathlib.Data.List.FinRange
 public import Mathlib.Data.List.Monad
+import CslibFrontier.Foundations.Control.Monad.Clock
 import Mathlib.Data.Fin.Tuple.Basic
 
 /-!
@@ -59,6 +60,7 @@ controller contracts, so it covers rejection and repeated outcomes as well.
 ## Main results
 
 * `runSeedSearchIndexed_eq`: indexed and list traversal have identical monadic outcomes.
+* `runSeedSearchIndexed_clock`: bounds the controller clock, including a rejecting call.
 * `testSeed_correct`: the tested sources have one exact outcome under the controller contract.
 * `runSeedSearch_correct`: a good seed exists, so search returns the least passing seed and
   its correct Boolean, with one successful branch in the list interpretation.
@@ -195,6 +197,82 @@ theorem runSeedSearchIndexed_eq {count : ℕ}
   funext _
   rw [checkSourcesFrom_eq]
   simp
+
+/-- The indexed search spends at most one designated call and one call per source position
+for each candidate seed. A rejecting call still advances the measured state clock. This
+bounds the supplied callback cost in the rejecting state monad. -/
+theorem runSeedSearchIndexed_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (cost : ℕ)
+    (controller : (Fin length → Bool) → Fin n → OptionT (StateM σ) (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n)
+    (hc : ∀ seed u s, clock ((controller seed u).run s).2 ≤ clock s + cost) (s : σ) :
+    clock ((runSeedSearchIndexed controller sourceAt source).run s).2 ≤
+      clock s + 2 ^ length * ((1 + count) * cost) := by
+  have hgood seed u t :
+      clock ((sourceGood (controller seed) u).run t).2 ≤ clock t + cost := by
+    unfold sourceGood
+    rw [← Nat.add_zero cost]
+    apply bind_optionT_clock clock cost 0 _ _ (hc seed u)
+    intro verdict state
+    cases verdict with
+    | none => exact Nat.le_refl _
+    | some verdict => cases verdict <;> exact Nat.le_refl _
+  have hothers (seed : Fin length → Bool) (remaining cursor : ℕ)
+      (h : cursor + remaining ≤ count) (t : σ) :
+      clock ((checkSourcesFrom (controller seed) source sourceAt remaining cursor h).run t).2 ≤
+        clock t + remaining * cost := by
+    induction remaining generalizing cursor t with
+    | zero => simp [checkSourcesFrom, pure, OptionT.pure, OptionT.run, OptionT.mk, StateT.pure]
+    | succ remaining ih =>
+      simp only [checkSourcesFrom, Nat.succ_mul]
+      split
+      · exact (ih _ _ _).trans (Nat.add_le_add_left (Nat.le_add_right _ _) _)
+      · rw [Nat.add_comm (remaining * cost)]
+        apply bind_optionT_clock clock cost (remaining * cost) _ _ (hgood seed _)
+        intro good state
+        cases good
+        · exact Nat.le_add_right _ _
+        · exact ih _ _ _
+  have htest seed t :
+      clock ((testSeedWith (controller seed) source (fun () =>
+        checkSourcesFrom (controller seed) source sourceAt count 0 (by simp))).run t).2 ≤
+        clock t + (1 + count) * cost := by
+    rw [Nat.add_mul, Nat.one_mul]
+    unfold testSeedWith
+    apply bind_optionT_clock clock cost (count * cost) _ _ (hc seed source)
+    intro verdict state
+    cases verdict with
+    | none => exact Nat.le_add_right _ _
+    | some verdict =>
+      cases verdict with
+      | bad _ => exact Nat.le_add_right _ _
+      | decided _ =>
+        rw [← Nat.add_zero (count * cost)]
+        apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers seed count 0 (by simp))
+        intro good t
+        cases good <;> exact Nat.le_refl _
+  let test (i : Fin (2 ^ length)) : OptionT (StateM σ) (Option (SeedAnswer length)) := do
+    let seed := (BitString.equivFin length).symm i
+    let answer ← testSeedWith (controller seed) source (fun () =>
+      checkSourcesFrom (controller seed) source sourceAt count 0 (by simp))
+    pure (answer.map fun b => ⟨i, b⟩)
+  let budget := (1 + count) * cost
+  have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
+    unfold test
+    rw [← Nat.add_zero budget]
+    exact bind_optionT_clock clock budget 0 _ _ (htest _) (fun _ _ => Nat.le_refl _) t
+  have hloop (remaining cursor : ℕ) (h : cursor + remaining ≤ 2 ^ length) (t : σ) :
+      clock ((findSeedFrom test remaining cursor h).run t).2 ≤
+        clock t + remaining * budget := by
+    induction remaining generalizing cursor t with
+    | zero => simp [findSeedFrom, pure, OptionT.pure, OptionT.run, OptionT.mk, StateT.pure]
+    | succ remaining ih =>
+      rw [findSeedFrom, Nat.succ_mul, Nat.add_comm (remaining * budget)]
+      apply bind_optionT_clock clock budget (remaining * budget) _ _ (hstep _)
+      intro answer state
+      cases answer with
+      | none => exact ih _ _ _
+      | some _ => exact Nat.le_add_right _ _
+  exact hloop (2 ^ length) 0 (by simp) s
 
 variable [LawfulMonad m]
 

@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
+import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
 import CslibFrontier.Computability.Complexity.Reduction.LinearApproximation
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
@@ -71,6 +72,7 @@ import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Crypto.Primitives.UHF.Finite
+import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -463,6 +465,9 @@ import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
 import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
+import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
+import CslibFrontier.Foundations.Probability.Gaussian.Quotient
+
 import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
 /-!
@@ -10699,6 +10704,37 @@ register_result "single-pair-hash-game-bounds" where
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
 
+register_result "pairwise-unpredictability-implies-universal-hashing" where
+  title := "Pairwise unpredictability implies universality and difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Consequences of Definition 7.7 (unnumbered)",
+      locator := "v0.6, Section 7.6.1, printed p. 275; Attack Game 7.5 and Definition 7.7" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isUniversalHash,
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isDeltaUniversalHash
+  ]
+  scope := "A finite uniform private key and a single adaptive prediction. The two-stage \
+    adversary may save arbitrary private state and receives the first hash before choosing its \
+    second message and digest. The game rejects repeated messages. The collision implication \
+    works with arbitrary digests, and the difference implication uses any additive group, \
+    including the source’s cyclic and abelian cases."
+
+register_result "variable-length-polynomial-not-universal" where
+  title := "The coefficient hash Hfpoly fails universality on variable-length messages"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Failure of universality for Hfpoly (unnumbered)",
+      locator := "v0.6, Section 7.2.1, Equation 7.5 and its discussion, printed p. 257" }
+  ]
+  theorems := [Cslib.Probability.not_isUniversalHash_coeffPolyHash_variableLength]
+  scope := "The hash reads a bounded-length list in coefficient order using the fixed-length \
+    evaluator initialized at zero. The empty list and the singleton zero collide at every key \
+    whenever the length cap is at least one. This is the source’s leading-zero example at the \
+    smallest length cap. The theorem rules out every statistical bound below 1 and extends \
+    from uniform prime-field keys to any field and any key probability mass function."
+
 register_result "fixed-length-polynomial-universality" where
   title := "Collision and difference bounds for fixed-length polynomial hashing"
   topic := "cryptography"
@@ -10715,6 +10751,20 @@ register_result "fixed-length-polynomial-universality" where
     the probability of any specified difference by n/|F|. Both statements quantify over \
     distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
     without a growth condition. The zero-length vector has no distinct partner."
+
+register_result "polynomial-hash-not-difference-universal" where
+  title := "The polynomial hash Hpoly fails difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Failure of difference universality for Hpoly (unnumbered)",
+      locator := "v0.6, Section 7.4, printed p. 269; Hpoly in Equation 7.3" }
+  ]
+  theorems := [Cslib.Probability.not_isDeltaUniversalHash_polyHash]
+  scope := "For a message length cap of at least one, the hashes of [1] and [0] differ by 1 \
+    at every key. This rules out statistical difference universality at any bound below 1. \
+    The book uses a uniform key over a prime field. The Lean proof allows any field and any \
+    probability mass function on its keys."
 
 register_result "ghash-gcm-length-block-xor-duf" where
   title := "GHASH on the bit-length version of GCM's line (∗) input, zero-padded with its \
@@ -11285,6 +11335,28 @@ register_result "bvy-checked-answer-marginal-entropy" where
     information bounds, and local-unitary estimates remain open. Outside source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6665#issuecomment-7020963630."
 
+register_result "bvy-checked-answer-register-entropy-budget" where
+  title := "Entropy budget for a retained label and checked-answer event"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13 (proof step)",
+      locator := "arXiv:1509.07466v2, printed pp. 23–24" }
+  ]
+  theorems := [
+    Cslib.PCP.QuantumStrategy.trace_checkedAnswerRegister,
+    Cslib.PCP.QuantumStrategy.checkedAnswerRegister_le_card_smul,
+    Cslib.PCP.QuantumStrategy.relativeEntropy_normalize_checkedAnswerRegister_le
+  ]
+  scope := "Event/reference budget in the proof of Claim 5.13. Given a finite retained label, \
+    the two local question laws are independent conditional on that label. The restricted \
+    Born-law state has trace equal to the label-dependent event probability P. For P > 0 \
+    and nonempty full checked-answer alphabet Z, the normalized state has relative entropy \
+    at most log |Z| − log P nats against the reference with uniform checked answers and \
+    the original label distribution. Both states retain the label. Instantiation with the \
+    anchored sampler and the averaged coordinate-information bound remain open. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6666#issuecomment-7021086979."
+
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"
   topic := "quantum information"
@@ -11669,6 +11741,77 @@ register_result "odonnell-reverse-small-set-expansion" where
     probability at least exp(−(a² + 2ρab + b²)/(2(1 − ρ²))). The source's statement also \
     includes the singular endpoint ρ = 1, which is not covered: there Lean's division by zero \
     would make the stated bound 1."
+
+register_result "banaszczyk-shifted-gaussian-tail" where
+  title := "Shifted Banaszczyk Gaussian tail bound for lattices"
+  topic := "cryptography"
+  sources := [
+    { paper := Banaszczyk1993, theorem := "Lemma 1.5(ii)", locator := "printed p. 630" },
+    { paper := MicciancioRegev2007, theorem := "Lemma 2.10",
+      locator := "author's copy of December 27, 2005, §2, eq. (6), printed p. 9" },
+    { paper := Regev2009, theorem := "Lemma 2.5",
+      locator := "author's version of May 2, 2009, §2, printed p. 16" }
+  ]
+  theorems := [
+    ZLattice.tsum_gaussianWeight_norm_sub_gt_lt,
+    ZLattice.tsum_gaussianWeight_norm_sub_gt_sqrt_lt
+  ]
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (of dimension n = finrank ℝ E, including n = 0), width s > 0, arbitrary shift v : E, \
+    and c > 1 / √(2π), the unnormalized Gaussian mass of L − v strictly outside radius c s √n is \
+    strictly less than (c √(2πe) exp(−π c²)) ^ n · gaussianMass L s 0 \
+    (tsum_gaussianWeight_norm_sub_gt_lt). Sharper than Banaszczyk1993 Lemma 1.5(ii) and \
+    MicciancioRegev2007 Lemma 2.10 eq. (6): removes the factor of 2 on the right-hand side via \
+    Poisson positivity (ρ_{t, v}(L) ≤ ρ_t(L)), subsuming the centered case Lemma 1.5(i) / eq. (5) \
+    at v = 0, and allows arbitrary width s > 0 rather than s = 1. At c = 1, \
+    tsum_gaussianWeight_norm_sub_gt_sqrt_lt gives strict tail mass < (1 / 4) ^ n · gaussianMass L \
+    s 0, extending Regev2009 Lemma 2.5 (which is centered at v = 0) to arbitrary shifts v : E."
+
+register_result "micciancio-regev-discrete-gaussian-norm-tail" where
+  title := "Discrete Gaussian sample-norm tail bound (dual-mass step)"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.4 (dual-mass step)",
+      locator := "author's copy of December 27, 2005, §4, printed p. 15" }
+  ]
+  theorems := [
+    ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le
+  ]
+  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.4 (not the η_ε(L) ≤ s endpoint, \
+    which awaits ZLattice.smoothingParameter): for any full-rank discrete lattice L in a \
+    finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
+    n = 0), width s > 0, arbitrary center v : E, and real ε < 1 satisfying the dual-mass bound \
+    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 ≤ ε (the dual-mass condition unpacked \
+    from s ≥ η_ε(L) when ε > 0; 0 ≤ ε follows automatically), the discrete Gaussian probability \
+    (discreteGaussian L s hs v).toOuterMeasure {z : L | s √n < ‖(z : E) − v‖} is strictly less \
+    than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviations from the source: (1) proves \
+    the dual-mass step directly rather than the η_ε(L) ≤ s endpoint; (2) sharpens the source's \
+    non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) constant to strict \
+    ((1 + ε) / (1 − ε)) · (1 / 4) ^ n via the factor-of-2-free shifted Banaszczyk bound \
+    (1 / 4 instead of 1 / 2)."
+
+register_result "micciancio-regev-gaussian-quotient-uniformity" where
+  title := "Shifted continuous Gaussian modulo a lattice is close to uniform"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.1",
+      locator := "author's copy of December 27, 2005, §4, printed p. 12" }
+  ]
+  theorems := [
+    ZLattice.tvDist_gaussian_shift_quotient_le
+  ]
+  scope := "Dual-mass form (first sentence) of MicciancioRegev2007 Lemma 4.1 (a step toward the \
+    s ≥ η_ε(L) corollary once ZLattice.smoothingParameter is in scope): for any full-rank \
+    discrete lattice L in a finite-dimensional real inner product space E with Borel measurable \
+    structure, fundamental domain F for L, width s > 0, and arbitrary center c : E, the \
+    quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total variation \
+    distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the normalized \
+    quotient Haar measure. Conventions and deviations from the source: (1) Mathlib's tvDist is \
+    the full-L¹ distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly \
+    equivalent to the source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}) (identical constant, \
+    not looser); (2) stated on the quotient group E ⧸ L with normalized restricted volume on an \
+    arbitrary fundamental domain F rather than a basis parallelepiped P(B); (3) omits the \
+    'In particular, s ≥ η_ε(B) ⇒ Δ ≤ ε / 2' specialization until smoothingParameter lands."
 
 -- https://github.com/cslib-community/cslib-frontier/pull/6844
 register_result "micciancio-regev-smoothing-parameter-dual-minimum" where

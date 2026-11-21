@@ -35,8 +35,18 @@ example {w n : ℕ} (G : LayeredDigraph (Fin (n + 1) × Fin w))
     ∃ seed : Fin (codeLength w n) → Bool, G.IsMinIsolating (generatedWeight seed) :=
   ⟨codeLength_inSpace, exists_generatedWeight_isMinIsolating G hlayer⟩
 
+/-- The Horner caller can retain the selected modulus and coefficient count together. -/
+example (hmodulus : ComputableInSpace BinaryField.modulusBitsScan encNat encBits (fun d => d + 1)) :
+    ComputableInSpace
+      (fun p : ℕ × ℕ => ((fieldContext p.1 p.2).modulus, (fieldContext p.1 p.2).count))
+      (encPair encNat encNat) (encPair encBits encNat)
+      (fun p => (encPair encNat encNat p).length) :=
+  let hctx := fieldContext_inSpace_of_modulus hmodulus
+  ComputableInSpace.budget_prod (encFieldContext_modulus_budget hctx)
+    (encFieldContext_count_budget hctx)
+
 /-- At this input width the initial degree is too small, so the selected degree advances. -/
-example : fieldDegree (2 ^ 1024) 0 = 32 := by
+example : fieldDegree (2 ^ 1024) 0 = 32 ∧ coefficientCount (2 ^ 1024) 0 = 2 ^ 31 := by
   obtain ⟨s, -, hd, hpass, hsmall⟩ := fieldDegree_spec (2 ^ 1024) 0
   simp only [Nat.zero_add, mul_one, Nat.log2_two_pow] at hpass hsmall
   have hnonzero : 0 < s := by
@@ -48,7 +58,9 @@ example : fieldDegree (2 ^ 1024) 0 = 32 := by
     by_contra! h
     have hfirst := hsmall 1 h
     norm_num [dimension, scaleDegree] at hfirst
-  rw [hd, show s = 1 by omega]
-  rfl
+  have hd32 : fieldDegree (2 ^ 1024) 0 = 32 := by
+    rw [hd, show s = 1 by omega]
+    rfl
+  exact ⟨hd32, by rw [coefficientCount_eq, hd32]⟩
 
 end CslibFrontierTests.JustesenParameters
