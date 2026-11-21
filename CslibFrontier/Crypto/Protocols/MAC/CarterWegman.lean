@@ -41,6 +41,7 @@ import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Uniform
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
 
@@ -2002,11 +2003,9 @@ theorem eval_prfRealGame_prfNonceToPrfDistinguisher
     NonceMACScheme.sufCmaGame, M, carterWegmanNonceMAC, Functor.map_map,
     OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_sample,
     ProbOracleComp.interpret_query, ProbComp.interpret_unifFin]
-  pmf_hoist (ProbComp.eval (seed n))
-  refine PMF.bind_congr_on_support _ _ _ fun k _ => ?_
-  refine PMF.bind_congr_on_support _ _ _ fun prfKey hprfKey => ?_
-  rw [BitString.eval_sampleList] at hprfKey
-  have hprfLen : prfKey.length = n := BitString.length_of_mem_support_uniformList hprfKey
+  peel_binds prfKey k
+  rw [BitString.eval_sampleList] at prfKey_mem
+  have hprfLen : prfKey.length = n := BitString.length_of_mem_support_uniformList prfKey_mem
   rw [interpret_deterministic_run_interpret]
   have hhandler :
       (fun request state =>
@@ -3195,11 +3194,9 @@ theorem eval_prfRealGame_prfRandomNonceToPrfDistinguisher
     MACScheme.sufCmaGame, M, carterWegmanRandomMAC]
   simp only [pmf_norm, Functor.map_map, OracleComp.interpret_bind, OracleComp.interpret_map,
     ProbOracleComp.interpret_sample, ProbOracleComp.interpret_query, ProbComp.interpret_unifFin]
-  pmf_hoist (ProbComp.eval (seed n))
-  refine PMF.bind_congr_on_support _ _ _ fun k _ => ?_
-  refine PMF.bind_congr_on_support _ _ _ fun prfKey hprfKey => ?_
-  rw [BitString.eval_sampleList] at hprfKey
-  have hprfLen : prfKey.length = n := BitString.length_of_mem_support_uniformList hprfKey
+  peel_binds prfKey k
+  rw [BitString.eval_sampleList] at prfKey_mem
+  have hprfLen : prfKey.length = n := BitString.length_of_mem_support_uniformList prfKey_mem
   rw [interpret_deterministic_run_interpret, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.eval_run_interpret_eq_runWith]
   have hstep :

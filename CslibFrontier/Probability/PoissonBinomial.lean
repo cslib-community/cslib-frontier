@@ -15,6 +15,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.PMFSwap
 import Mathlib.Data.Nat.Choose.Basic
 
 /-!
@@ -147,53 +148,18 @@ theorem poissonBinomial_append (ps qs : List I) :
       (poissonBinomial ps).bind fun a => (poissonBinomial qs).map fun b => a + b := by
   induction ps with
   | nil =>
-    rw [List.nil_append, poissonBinomial_nil, PMF.pure_bind]
-    have hmap : PMF.map (fun b : ℕ => 0 + b) (poissonBinomial qs) =
-        PMF.map id (poissonBinomial qs) := by
-      congr 1
-      ext b
-      exact Nat.zero_add b
-    rw [hmap, PMF.map_id]
+    simp only [List.nil_append, poissonBinomial_nil, PMF.pure_bind, Nat.zero_add]
+    exact (PMF.map_id (poissonBinomial qs)).symm
   | cons p ps ih =>
-    rw [List.cons_append, poissonBinomial_cons, ih, poissonBinomial_cons, PMF.bind_bind]
-    refine congr_arg (PMF.bind (coin p)) (funext fun b => ?_)
-    cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      have hid : ((poissonBinomial ps).map fun k => k) = poissonBinomial ps := PMF.map_id _
-      rw [hid, PMF.map_bind]
-      refine congr_arg (PMF.bind (poissonBinomial ps)) (funext fun a => ?_)
-      exact PMF.map_id _
-    · simp only [↓reduceIte]
-      conv_lhs => rw [PMF.map_bind]
-      conv_rhs => rw [PMF.bind_map]
-      refine congr_arg (PMF.bind (poissonBinomial ps)) (funext fun a => ?_)
-      rw [PMF.map_comp]
-      refine congr_arg (fun f => PMF.map f (poissonBinomial qs)) (funext fun c => ?_)
-      dsimp only [Function.comp_apply]
-      omega
+    simp only [List.cons_append, poissonBinomial_cons, ih]
+    pmf_swap with b a c
+    cases b <;> simp only [Bool.false_eq_true, ↓reduceIte, Nat.add_right_comm]
 
 private theorem poissonBinomial_swap (p q : I) (ps : List I) :
     poissonBinomial (p :: q :: ps) = poissonBinomial (q :: p :: ps) := by
-  rw [poissonBinomial_cons, poissonBinomial_cons, poissonBinomial_cons, poissonBinomial_cons]
-  have rewrite_pair (x y : I) :
-      ((coin x).bind fun b₁ =>
-          PMF.map (fun k => if b₁ then k + 1 else k)
-            ((coin y).bind fun b₂ => PMF.map (fun k => if b₂ then k + 1 else k)
-              (poissonBinomial ps))) =
-        (coin x).bind fun b₁ => (coin y).bind fun b₂ =>
-          (poissonBinomial ps).map fun k =>
-            k + (if b₁ then 1 else 0) + (if b₂ then 1 else 0) := by
-    refine congr_arg (PMF.bind (coin x)) (funext fun b₁ => ?_)
-    rw [PMF.map_bind]
-    refine congr_arg (PMF.bind (coin y)) (funext fun b₂ => ?_)
-    rw [PMF.map_comp]
-    refine congr_arg (fun f => PMF.map f (poissonBinomial ps)) (funext fun k => ?_)
-    cases b₁ <;> cases b₂ <;> simp [add_assoc]
-  rw [rewrite_pair p q, rewrite_pair q p, PMF.bind_comm (coin p) (coin q)]
-  refine congr_arg (PMF.bind (coin q)) (funext fun b₂ => ?_)
-  refine congr_arg (PMF.bind (coin p)) (funext fun b₁ => ?_)
-  refine congr_arg (fun f => PMF.map f (poissonBinomial ps)) (funext fun k => ?_)
-  omega
+  simp only [poissonBinomial_cons]
+  pmf_swap with b₂ b₁ k
+  cases b₁ <;> cases b₂ <;> rfl
 
 /-- Reordering the trial probabilities does not change `poissonBinomial`. -/
 theorem poissonBinomial_perm {ps qs : List I} (h : ps.Perm qs) :

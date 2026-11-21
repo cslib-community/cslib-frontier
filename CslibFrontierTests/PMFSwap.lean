@@ -84,21 +84,7 @@ example (c : PMF α) (f : α → α → α → α → α → α → PMF β) :
         c.bind fun b₆ => f b₆ b₅ b₄ b₃ b₂ b₁ := by
   pmf_swap
 
--- Monad notation must be normalized first.
-/--
-error: pmf_swap: both sides must be chains of `PMF.bind`; normalize them with `simp only [pmf_norm]` first.
-Left side:
-  do
-    let a ← p
-    let b ← q
-    pure (f a b)
-Right side:
-  do
-    let b ← q
-    let a ← p
-    pure (f a b)
--/
-#guard_msgs in
+-- Monad notation is normalized without a separate simplifier call.
 example (p : PMF α) (q : PMF β) (f : α → β → γ) :
     (do let a ← p; let b ← q; pure (f a b) : PMF γ) =
       (do let b ← q; let a ← p; pure (f a b) : PMF γ) := by
@@ -110,6 +96,18 @@ example (p : PMF α) (q : PMF β) (f : α → β → γ) :
       (do let b ← q; let a ← p; pure (f a b) : PMF γ) := by
   simp only [pmf_norm]
   pmf_swap
+
+-- Nested binds and maps are reassociated before matching independent samples.
+example (p : PMF α) (q : PMF β) (r : PMF γ) (f : α → β → γ → δ) :
+    ((p.bind fun a => q.map fun b => (a, b)).bind fun ab => r.map fun c => f ab.1 ab.2 c) =
+      r.bind fun c => q.bind fun b => p.map fun a => f a b c := by
+  pmf_swap
+
+-- Named peeling retains right-side binder order after monadic normalization.
+example (p : PMF α) (q : PMF β) (f g : α → β → PMF γ) (h : ∀ a b, f a b = g a b) :
+    (do let a ← p; let b ← q; f a b) = (do let b ← q; let a ← p; g a b) := by
+  pmf_swap with b a
+  exact h a b
 
 -- Samples without a counterpart on the other side.
 /--
@@ -201,6 +199,20 @@ example (p : PMF β) (q : PMF δ) (f : β → δ → α → PMF γ) :
     (p.bind fun b => step fun a => q.bind fun d => f b d a) =
       q.bind fun d => step fun a => p.bind fun b => f b d a := by
   pmf_swap
+
+include hstep in
+-- A custom sampler can be hoisted across several PMF draws using its supplied rule.
+example (p : PMF β) (q : PMF δ) (f : β → δ → α → PMF γ) :
+    (p.bind fun b => q.bind fun d => step (f b d)) =
+      step fun a => p.bind fun b => q.bind fun d => f b d a := by
+  pmf_hoist [hstep] step
+
+include hstep in
+-- The same interface moves an ordinary distribution past a custom sampler.
+example (p : PMF β) (q : PMF δ) (f : β → δ → α → PMF γ) :
+    (p.bind fun b => step fun a => q.bind fun d => f b d a) =
+      q.bind fun d => p.bind fun b => step fun a => f b d a := by
+  pmf_hoist [hstep] q
 
 end Comm
 
