@@ -61,12 +61,14 @@ def remainingFuel : State N τ → Option ℕ
   | .done answer => answer
   | _ => none
 
-private def halted : State N τ → Bool
+/-- Detect the terminal phase, including rejecting halts. -/
+def halted : State N τ → Bool
   | .done _ => true
   | _ => false
 
-private def query (edge : QueryMachine τ) : State N τ → ℕ
-  | .call _ _ _ s => edge.query s
+/-- Return the active callee's input position, or zero outside a call. -/
+def query (calleeQuery : τ → ℕ) : State N τ → ℕ
+  | .call _ _ _ s => calleeQuery s
   | _ => 0
 
 private def advance (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
@@ -97,10 +99,24 @@ for its calls. Each call uses the clock even if the subroutine halts earlier. -/
 def machine (edge : QueryMachine τ) (start : Fin N → Fin N → τ) (verdict : τ → Bool)
     (clock : ℕ) (initial : Registers N) : NondeterministicQueryMachine (State N τ) where
   init := boundary initial
-  query := query edge
+  query := query edge.query
   next := advance edge start verdict clock
   halted := halted
   accept s := (remainingFuel s).isSome
+
+/-- The walk machine uses the same query observer at every entry. -/
+theorem machine_query (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
+    (verdict : τ → Bool) (clock : ℕ) (initial : Registers N) :
+    (machine edge start verdict clock initial).query = query edge.query := by
+  unfold machine
+  rfl
+
+/-- The walk machine detects halt using only the phase. -/
+theorem machine_halted (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
+    (verdict : τ → Bool) (clock : ℕ) (initial : Registers N) :
+    (machine edge start verdict clock initial).halted = halted := by
+  unfold machine
+  rfl
 
 /-- Changing the walk registers at entry leaves all transitions and verdicts unchanged. -/
 theorem machine_withInit (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
@@ -995,16 +1011,11 @@ private theorem readState_budget
     ComputableInSpace (fun a => readState (state a)) encIn (encReadState encCallee) budget :=
   hstate.of_enc_eq fun a => by cases state a <;> rfl
 
-variable {callStart : (a : α) → Fin (dimension a) → Fin (dimension a) → τ}
-  {callVerdict : τ → Bool} {callClock : ℕ} {registers : (a : α) → Registers (dimension a)}
-
 /-- Decode the active query position from a walk state whose carrier may depend on the input. -/
-theorem query_budget {callee : QueryMachine τ}
-    (hquery : ComputableInSpace callee.query encCallee encNat (fun s => (encCallee s).length))
+theorem query_budget {calleeQuery : τ → ℕ}
+    (hquery : ComputableInSpace calleeQuery encCallee encNat (fun s => (encCallee s).length))
     (hstate : ComputableInSpace (fun a => encState encCallee (state a)) encIn encBits budget) :
-    ComputableInSpace
-      (fun a => (machine callee (callStart a) callVerdict callClock (registers a)).query (state a))
-      encIn encNat budget := by
+    ComputableInSpace (fun a => query calleeQuery (state a)) encIn encNat budget := by
   have hcall := budget_comp_linear hquery
     (snd' (snd' (snd encBits (encPair encNat (encPair encNat encCallee)))))
   have h := sumElim
@@ -1014,11 +1025,9 @@ theorem query_budget {callee : QueryMachine τ}
     fun a => by cases state a <;> rfl
 
 /-- Detect a terminal walk state within the budget for its encoded word. -/
-theorem halted_budget {callee : QueryMachine τ}
+theorem halted_budget
     (hstate : ComputableInSpace (fun a => encState encCallee (state a)) encIn encBits budget) :
-    ComputableInSpace
-      (fun a => (machine callee (callStart a) callVerdict callClock (registers a)).halted (state a))
-      encIn encBool budget := by
+    ComputableInSpace (fun a => halted (state a)) encIn encBool budget := by
   have h := sumElim
     (budget_const (encIn := encBits) (encB := encBool) false (.refl _))
     (sumElim (budget_const (encIn := encReadCall encCallee) (encB := encBool) false (.refl _))

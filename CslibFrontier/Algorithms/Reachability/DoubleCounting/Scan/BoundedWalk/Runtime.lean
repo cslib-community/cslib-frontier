@@ -82,10 +82,10 @@ def entry {N : ℕ} (ctx : κ) (r : Registers N) : State κ τ :=
 current state, including during a suspended adjacency call. -/
 def machine (initial : State κ τ) : NondeterministicQueryMachine (State κ τ) where
   init := initial
-  query s := (innerMachine edge start verdict clock s).query s.walk
+  query s := BoundedWalk.query edge.query s.walk
   next := fun (s, reply, selector) =>
     {s with walk := (innerMachine edge start verdict clock s).next (s.walk, reply, selector)}
-  halted s := (innerMachine edge start verdict clock s).halted s.walk
+  halted s := BoundedWalk.halted s.walk
   accept s := (innerMachine edge start verdict clock s).accept s.walk
 
 /-- Entering the same machine with different registers does not change its transition rules. -/
@@ -108,9 +108,9 @@ private theorem step_eq {N : ℕ} (initial : State κ τ) (ctx : κ) (hp : 0 < N
       ⟨ctx, N, hp, (typedMachine edge start verdict clock ctx r).step input s bit⟩ := by
   rw [← innerMachine_withInit edge start verdict clock ctx hp s r,
     NondeterministicQueryMachine.step_withInit]
-  unfold NondeterministicQueryMachine.step NondeterministicQueryMachine.read machine
-  dsimp only
-  split <;> rfl
+  simp only [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read, machine,
+    innerMachine, typedMachine, BoundedWalk.machine_query, BoundedWalk.machine_halted]
+  by_cases h : BoundedWalk.halted s = true <;> simp [h]
 
 private theorem replay_eq {N : ℕ} (initial : State κ τ) (ctx : κ) (hp : 0 < N) (r : Registers N)
     (input selectors : List Bool) (s : BoundedWalk.State N τ) :
@@ -170,13 +170,7 @@ private theorem halted_run_eq {N : ℕ} (ctx : κ) (r : Registers N) (input sele
     M.halted (M.run input selectors) = B.halted (B.run input selectors) := by
   dsimp only
   rw [run_eq]
-  let s := (typedMachine edge start verdict clock ctx r).run input selectors
-  let hp : 0 < N := Nat.zero_lt_of_lt r.current.isLt
-  change (innerMachine edge start verdict clock ⟨ctx, N, hp, s⟩).halted s =
-    (typedMachine edge start verdict clock ctx r).halted s
-  have hh := congrArg (fun m : NondeterministicQueryMachine (BoundedWalk.State N τ) => m.halted s)
-    (innerMachine_withInit edge start verdict clock ctx hp s r)
-  simpa only [NondeterministicQueryMachine.withInit] using hh
+  simp only [machine, typedMachine, BoundedWalk.machine_halted]
 
 /-- Runtime re-entry preserves both terminal halting and liveness of every strict prefix. -/
 theorem firstHalting_iff {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : List Bool) :
