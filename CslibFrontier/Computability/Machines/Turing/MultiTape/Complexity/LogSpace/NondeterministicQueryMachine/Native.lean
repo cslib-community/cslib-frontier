@@ -13,7 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Rep
 /-!
 # Native control for binary-choice query passes
 
-An initializer runs once, followed by one or more passes. At each pass boundary one native
+An initializer runs once, followed by zero or more passes. At each pass boundary one native
 binary choice selects a deterministic pass routine. A blank continuation tape selects the
 finalizer; a nonblank one starts another pass. All routing steps preserve every tape and head.
 
@@ -45,7 +45,7 @@ inductive State (SI : Type) (SP : Bool → Type) (SF : Type) where
   | choose
   /-- The selected deterministic pass is running. -/
   | pass (choice : Bool) (q : SP choice)
-  /-- Read the continuation tape after a pass. -/
+  /-- Read the continuation tape after initialization or a pass. -/
   | check
   /-- The finalizer is running. -/
   | finish (q : SF)
@@ -74,9 +74,9 @@ def relabelAction {S S' : Type} (φ : Option S → Option S') (a : Turing.Action
 def routeAction {S : Type} (q : Option S) : Turing.Action k Bool S :=
   ⟨0, fun _ => (none, 0), none, q⟩
 
-/-- Embed initializer states, sending its halt to the first binary-choice boundary. -/
+/-- Embed initializer states, sending its halt to the deterministic continuation check. -/
 def initState : Option SI → Option (State SI SP SF) :=
-  fun q => some (q.elim .choose .init)
+  fun q => some (q.elim .check .init)
 
 /-- Embed pass states, sending the halt to the continuation check. -/
 def passState (b : Bool) : Option (SP b) → Option (State SI SP SF) :=
