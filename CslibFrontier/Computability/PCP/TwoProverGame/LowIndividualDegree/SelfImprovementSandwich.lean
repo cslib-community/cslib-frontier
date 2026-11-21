@@ -142,20 +142,6 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
   exact add_le_add (mul_le_mul_of_nonneg_left hcopy (by norm_num))
     (mul_le_mul_of_nonneg_left hvar (by norm_num))
 
-private theorem abs_sum_effect_mul_le {β : Type*} [Fintype β] (φ : AlgState A)
-    (T : Measurement β A) (D : β → A) :
-    |∑ g, (φ (T.effect g * D g)).re| ≤
-      √(∑ g, (φ (star (D g) * T.effect g * D g)).re) := by
-  choose K hK using fun g => CStarAlgebra.nonneg_iff_eq_star_mul_self.mp (T.nonneg g)
-  have hn : (∑ g, φ.norm (K g) ^ 2) = 1 := by
-    simp only [AlgState.norm_sq, ← hK, ← Complex.re_sum, ← map_sum, T.sum_effect,
-      φ.map_one, Complex.one_re]
-  have h := φ.abs_sum_re_star_mul_le K (fun g => K g * D g)
-  rw [hn, Real.sqrt_one, one_mul] at h
-  have he (g) : star (K g) * (K g * D g) = T.effect g * D g := by
-    rw [← mul_assoc, ← hK]
-  simpa only [AlgState.norm_sq, star_mul, mul_assoc, he] using h
-
 omit [DecidableEq F] in
 private theorem state_successfulMass_sandwichedPolynomial_eq (φ : AlgState A)
     (R : Point F m → Measurement F A) (T : Measurement (BoundedPolynomial F m d) A) :
@@ -199,7 +185,8 @@ theorem abs_successfulMass_sandwichedPolynomial_sub_majorant_le (φ : AlgState A
     change |(∑ g, (φ (Rg u g * (1 * T.effect g) * Rg u g)).re) -
       ∑ g, (φ (Lg u g * (1 * T.effect g) * Lg u g)).re| ≤ _ at hquad
     simp only [one_mul, hex] at hquad
-    have hlin := (abs_sum_effect_mul_le φ T (fun g => Rg u g - Lg u g)).trans hweighted
+    have hlin := (φ.abs_sum_weighted_mul_le T T.effect (fun g => Rg u g - Lg u g)
+      T.nonneg (fun _ => le_rfl)).trans hweighted
     simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib] at hlin
     rw [abs_sub_comm] at hlin
     have hstep := (abs_sub_le (∑ g, (φ (Rg u g * T.effect g * Rg u g)).re)
@@ -254,6 +241,18 @@ theorem successfulMass_sandwichedPolynomial_lower_bound (φ : AlgState A)
   have hm := abs_successfulMass_sandwichedPolynomial_sub_majorant_le φ L R T hL hLT Z hslack
   linarith only [hscore, (abs_le.mp hm).1]
 
+/-- Compute point disagreement directly in terms of the polynomial outcomes. -/
+theorem successfulMismatch_evaluate_eq_sum (φ : AlgState A)
+    (P : Measurement (Option (BoundedPolynomial F m d)) A)
+    (u : Point F m) (Q : Measurement F A) :
+    successfulMismatch φ (evaluatePolynomialMeasurement P u) Q =
+      ∑ g, (φ (P.effect (some g) * (1 - Q.effect (eval u g.val)))).re := by
+  unfold successfulMismatch
+  simp only [evaluatePolynomialMeasurement_effect_some, sum_mul, map_sum, Complex.re_sum]
+  conv_rhs => rw [← sum_fiberwise univ (fun g : BoundedPolynomial F m d => eval u g.val)]
+  refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => ?_
+  rw [(mem_filter.mp hg).2]
+
 /-- The successful outcomes of the sandwiched polynomial measurement disagree with
 the projective point answers by at most the copy and variance error budget. -/
 theorem average_successfulMismatch_sandwichedPolynomial_le (φ : AlgState A)
@@ -278,12 +277,8 @@ theorem average_successfulMismatch_sandwichedPolynomial_le (φ : AlgState A)
       ((hCR u v g _).mul_right (hCT u g)).mul_right (hCR u v g _)).smul_right _
   have hgroup (u : Point F m) : successfulMismatch φ (evaluatePolynomialMeasurement H u) (L u) =
       ∑ g, (φ (C u g * H.effect (some g))).re := by
-    unfold successfulMismatch
-    simp only [evaluatePolynomialMeasurement_effect_some, sum_mul, map_sum, Complex.re_sum]
-    conv_rhs => rw [← sum_fiberwise univ (fun g : BoundedPolynomial F m d => eval u g.val)]
-    refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => ?_
-    rw [(hCH u g).eq]
-    simp only [C, (mem_filter.mp hg).2]
+    rw [successfulMismatch_evaluate_eq_sum]
+    exact sum_congr rfl fun g _ => congrArg (fun x => (φ x).re) (hCH u g).eq.symm
   have hzero (u : Point F m) (g : BoundedPolynomial F m d) :
       (L u).effect (eval u g.val) * C u g * (L u).effect (eval u g.val) * T.effect g = 0 := by
     dsimp only [C]
