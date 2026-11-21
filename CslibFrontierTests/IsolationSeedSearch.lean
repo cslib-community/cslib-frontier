@@ -5,6 +5,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
 import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
 /-! Ordered seeds, all-source checks, rejection and multiplicity, plus actual controller replay. -/
 
@@ -14,6 +15,25 @@ set_option linter.hashCommand false
 namespace CslibFrontierTests.IsolationSeedSearch
 
 open Cslib.DoubleCounting
+
+open Turing.MultiTapeTM in
+-- A tested seed uses at most the seed width. Either loop register can reach the inclusive bound.
+example (width : ℕ) (candidate : Fin (2 ^ width)) (cursor remaining : ℕ)
+    (h : cursor + remaining ≤ 2 ^ width) :
+    (encNat candidate.val).length ≤ width ∧
+      (encNat cursor).length ≤ width + 1 ∧ (encNat remaining).length ≤ width + 1 := by
+  have hnext : (2 : ℕ) ^ width < 2 ^ (width + 1) := by
+    rw [pow_succ]
+    have := Nat.two_pow_pos width
+    omega
+  exact ⟨length_encNat_le_of_lt_two_pow candidate.isLt,
+    length_encNat_le_of_lt_two_pow (lt_of_le_of_lt (by omega) hnext),
+    length_encNat_le_of_lt_two_pow (lt_of_le_of_lt (by omega) hnext)⟩
+
+open Turing.MultiTapeTM in
+-- In particular, the initial remaining count does not fit in the candidate's width.
+example (width : ℕ) : width < (encNat (2 ^ width)).length := by
+  rw [encNat_apply, Nat.size_eq_bits_len, Nat.lt_size]
 
 private def badThenNegative (seed : Fin 1 → Bool) (_ : Fin 2) : List (Option ControllerVerdict) :=
   if seed 0 then [some (.decided false)] else [some (.bad 1)]
@@ -45,6 +65,59 @@ private def originalRoots (seed : Fin 1 → Bool) (s : Fin 3) : List (Option Con
 
 -- Source 1 rejects seed zero. Auxiliary source 2 is deliberately outside the original-root list.
 #guard runSeedSearch originalRoots [0, 1] 0 = [some ⟨1, false⟩]
+
+-- The indexed source range omits the auxiliary ID.
+#guard runSeedSearchIndexed originalRoots (fun i : Fin 2 => i.castSucc) 0 = [some ⟨1, false⟩]
+
+-- The designated source is in the indexed range. Checking it twice would yield four results.
+#guard runSeedSearchIndexed
+  (fun (_ : Fin 0 → Bool) s =>
+    if s = (0 : Fin 2) then [some (.decided false), some (.decided false)]
+    else [some (.decided true)])
+  id 0 = [some ⟨0, false⟩, some ⟨0, false⟩]
+
+-- Two passing occurrences at a nondesignated source give two results.
+#guard runSeedSearchIndexed
+  (fun (_ : Fin 1 → Bool) s =>
+    if s = (0 : Fin 2) then [some (.decided false)]
+    else [some (.decided true), some (.decided true)])
+  id 0 = [some ⟨0, false⟩, some ⟨0, false⟩]
+
+-- Failure at a reached source rejects the branch instead of advancing to the next seed.
+#guard runSeedSearchIndexed
+  (fun (_ : Fin 1 → Bool) s =>
+    if s = (0 : Fin 2) then [some (.decided true)] else [none]) id 0 = []
+
+private def tickVerdict (answer : Option (Option ControllerVerdict)) :
+    OptionT (StateM ℕ) (Option ControllerVerdict) :=
+  OptionT.mk fun clock => (answer, clock + 1)
+
+-- A failed nondesignated call still counts, and the branch rejects without trying another seed.
+#guard
+  let result := (runSeedSearchIndexed
+    (fun (_ : Fin 1 → Bool) s =>
+      tickVerdict (if s = (0 : Fin 2) then some (some (.decided true)) else none))
+    id 0).run 0
+  result.1.isNone && result.2 == 2
+
+private def countedAnswer (seed : Fin 1 → Bool) (_ : Fin 2) :
+    OptionT (StateM ℕ) (Option ControllerVerdict) :=
+  tickVerdict (some (some (.decided (seed 0))))
+
+-- The false answer stops enumeration after one seed and does not repeat the designated call.
+#guard
+  let result := (runSeedSearchIndexed countedAnswer id 0).run 0
+  match result.1 with
+  | some (some answer) => answer.seed.val == 0 && !answer.reachable && result.2 == 2
+  | _ => false
+
+example (start : ℕ) :
+    ((runSeedSearchIndexed countedAnswer id 0).run start).2 ≤ start + 6 :=
+  runSeedSearchIndexed_clock id 1 countedAnswer id 0 (fun _ _ _ => le_rfl) start
+
+-- Exhausting the counter returns one unsuccessful search result, distinct from branch rejection.
+#guard runSeedSearch
+  (fun (_ : Fin 2 → Bool) (_ : Fin 1) => [some (ControllerVerdict.bad 1)]) [] 0 = [none]
 
 private def emptySeed (_ : Fin 0 → Bool) (_ : Fin 1) : List (Option ControllerVerdict) :=
   [some (.decided false)]

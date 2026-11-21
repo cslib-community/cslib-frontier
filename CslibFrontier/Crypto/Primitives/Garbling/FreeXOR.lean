@@ -460,7 +460,7 @@ theorem Garbled.run_garbleWith
 /-- The simulated view for the output `y`, the active labels `A` and the filler rows `R`: the row
 named by the active colours holds the gate's active label under its mask, and every other row is
 filler. -/
-def simulateWith (τ : Circuit.Topology n m s) (free : Fin s → Bool) (H : K → T → K × Bool)
+@[expose] def simulateWith (τ : Circuit.Topology n m s) (free : Fin s → Bool) (H : K → T → K × Bool)
     (tw : GarbledSlot τ free → T) (y : Fin m → Bool) (A : Wire n s → K × Bool)
     (R : GarbledRow τ free → K × Bool) : View τ free K where
   table r := if r.2 = (fun k => (A (τ.wires r.gate k)).2) then
@@ -469,25 +469,31 @@ def simulateWith (τ : Circuit.Topology n m s) (free : Fin s → Bool) (H : K �
   input i := A (.input i)
   decoding o := (A (τ.outputs o)).2 + y o
 
+/-- The propagated labels are fixed by one evaluation round of the simulated view. -/
+theorem evalStep_simulateWith {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
+    (free : Fin s → Bool) (H : K → T → K × Bool) (tw : GarbledSlot τ free → T)
+    (y : Fin m → Bool) (base : Wire n s → K × Bool) (R : GarbledRow τ free → K × Bool)
+    (w : Wire n s) :
+    evalStep τ free H tw (simulateWith τ free H tw y (propagate τ free base) R).table
+        (simulateWith τ free H tw y (propagate τ free base) R).input (propagate τ free base) w =
+      propagate τ free base w := by
+  cases w with
+  | input i => rfl
+  | gate g =>
+    by_cases hg : free g = false
+    · simp only [evalStep, dite_eq_left hg, simulateWith, ite_true]
+      exact add_sub_cancel_right _ _
+    · simp only [evalStep, dite_eq_right hg]
+      exact (propagate_gate_of_free hτ base (by simpa using hg)).symm
+
 /-- Simulated views decode to the output, when the active labels are propagated. -/
 theorem View.run_simulateWith {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
     (free : Fin s → Bool) (H : K → T → K × Bool) (tw : GarbledSlot τ free → T)
     (y : Fin m → Bool) (base : Wire n s → K × Bool) (R : GarbledRow τ free → K × Bool) :
     (simulateWith τ free H tw y (propagate τ free base) R).run H tw = y := by
-  have hA : ∀ w, evalStep τ free H tw (simulateWith τ free H tw y (propagate τ free base) R).table
-      (simulateWith τ free H tw y (propagate τ free base) R).input (propagate τ free base) w =
-        propagate τ free base w := by
-    intro w
-    cases w with
-    | input i => rfl
-    | gate g =>
-      by_cases hg : free g = false
-      · simp only [evalStep, dite_eq_left hg, simulateWith, ite_true]
-        exact add_sub_cancel_right _ _
-      · simp only [evalStep, dite_eq_right hg]
-        exact (propagate_gate_of_free hτ base (by simpa using hg)).symm
   funext o
-  rw [View.run, evaluate_eq_of_evalStep hτ free H tw _ _ _ hA]
+  rw [View.run, evaluate_eq_of_evalStep hτ free H tw _ _ _
+    (evalStep_simulateWith hτ free H tw y base R)]
   simp only [decode, Function.comp_apply, simulateWith]
   rw [← add_assoc, BooleanRing.add_self, zero_add]
 
@@ -648,7 +654,7 @@ variable [Fintype K] [Nonempty K] (D : View C.topology free K → ProbComp Bool)
 
 /-- The simulator: uniform base labels, propagated to every wire, and uniform filler rows. It sees
 only the topology, the free gates, the hash, the tweaks and the output. -/
-noncomputable def simulate (τ : Circuit.Topology n m s) (free : Fin s → Bool)
+@[expose] noncomputable def simulate (τ : Circuit.Topology n m s) (free : Fin s → Bool)
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (y : Fin m → Bool) :
     ProbComp (View τ free K) := do
   let base ← ProbComp.uniform (Wire n s → K × Bool)

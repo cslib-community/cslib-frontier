@@ -44,9 +44,14 @@ open Finset Function
 
 variable {V P : Type*} {ℓ : ℕ}
 
+/-- Apply Hoza's layer-dependent factor to an already accumulated base-six weight. The
+vertex weight and streaming scan handle the layer-zero case separately. -/
+@[expose] def scaleAccumulatedWeight (layer accumulator : ℕ) : ℕ :=
+  6 ^ padicValNat 2 layer * accumulator
+
 /-- The coefficient of one codeword bit in a positive layer. -/
 @[expose] def coefficient (i : ℕ) (j : Fin ℓ) : ℕ :=
-  6 ^ padicValNat 2 i * 6 ^ (ℓ - (j.val + 1))
+  scaleAccumulatedWeight i (6 ^ (ℓ - (j.val + 1)))
 
 /-- The vertex weight in [Hoza2026NLUL, Eq. (1)]. Layer zero has weight zero. -/
 @[expose] def vertexWeight (code : V → Fin ℓ → Bool) (seed : Fin ℓ → Bool)
@@ -97,12 +102,12 @@ private theorem intervalWeight_update_bounds (code : V → Fin ℓ → Bool) (se
       (∑ i ∈ (Icc a b).erase mid, (6 : ℕ) ^ multiplicity 2 i) * 6 ^ (ℓ - (j.val + 1)) := by
     rw [sum_mul]
     refine sum_le_sum fun i _ => ?_
-    cases code (column i) j <;> simp [coefficient, Nat.padicValNat_def]
+    cases code (column i) j <;> simp [coefficient, scaleAccumulatedWeight, Nat.padicValNat_def]
   have htail := Nat.two_mul_sum_six_pow_multiplicity_erase_le ha hm hmax
   have hscaled := Nat.mul_le_mul_right (6 ^ (ℓ - (j.val + 1))) htail
   rw [Nat.mul_assoc] at hscaled
   have hdouble := (Nat.mul_le_mul_left 2 hsum).trans hscaled
-  simp only [coefficient, Nat.padicValNat_def] at *
+  simp only [coefficient, scaleAccumulatedWeight, Nat.padicValNat_def] at *
   omega
 
 /-- The minimum weight of a member of a nonempty finite path family. -/
