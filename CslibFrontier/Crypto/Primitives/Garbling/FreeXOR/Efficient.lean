@@ -95,7 +95,7 @@ theorem isXorTable_polyTime : ComputableInPolyTime isXorTable encBits encBool :=
 /-- Library construction (no cited definition): XOR-gate flags projected from four-bit gate
 records `(A, B, tt)` via `isXorTable`. -/
 @[expose] def xorFlags (gates : List (ℕ × ℕ × List Bool)) : List Bool :=
-  gates.map fun g => isXorTable g.2.2
+  gates.map fun (_, _, tt) => isXorTable tt
 
 /-- Library infrastructure (no cited result): `xorFlags` on a valid circuit's gate list equals
 `(phiXor.phi f).free`. -/
@@ -109,7 +109,7 @@ theorem xorFlags_polyTime :
   have hcast : ComputableInPolyTime (fun l : List Bool => l) (encList encBool) encBits := by
     polytime
   have hmap : ComputableInPolyTime (fun gates : List (ℕ × ℕ × List Bool) =>
-      gates.map fun g => isXorTable g.2.2)
+      gates.map fun (_, _, tt) => isXorTable tt)
       (encList (encPair encNat (encPair encNat encBits))) (encList encBool) := by
     polytime [isXorTable]
   exact hcast.comp hmap
