@@ -67,10 +67,20 @@ theorem valuePolynomial_map (φ : S →+* T) (hell : 1 ≤ ell) (a : Fin n → S
 
 /-- The separated critical-value polynomial with a symbolic deformation parameter.
 The outer indeterminate is the critical value, and the inner indeterminate is the parameter. -/
-noncomputable def parametricValuePolynomial (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
+@[expose] noncomputable def parametricValuePolynomial (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
     (hF : F.totalDegree ≤ ell) : Polynomial (Polynomial ℤ) :=
   valuePolynomial hell (fun i => Polynomial.C (separatedCenters ell i : ℤ)) Polynomial.X
     (F.map Polynomial.C) ((totalDegree_map_le Polynomial.C F).trans hF)
+
+/-- The symbolic critical-value polynomial is monic. -/
+theorem parametricValuePolynomial_monic (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
+    (hF : F.totalDegree ≤ ell) : (parametricValuePolynomial hell F hF).Monic :=
+  valuePolynomial_monic hell _ _ _ _
+
+/-- The outer degree of the symbolic critical-value polynomial is the quotient dimension. -/
+theorem parametricValuePolynomial_natDegree (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
+    (hF : F.totalDegree ≤ ell) : (parametricValuePolynomial hell F hF).natDegree = ell ^ n :=
+  valuePolynomial_natDegree hell _ _ _ _
 
 /-- Substitution of the deformation parameter gives the characteristic polynomial in the
 normalized critical quotient over the target ring, with the same separated centers. -/

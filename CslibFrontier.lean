@@ -308,6 +308,9 @@ public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerRep
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Combined
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.OffsetReader
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexParameters
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexReader
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch.OriginalRoots
@@ -2821,6 +2824,8 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferencePatchAssembly
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRegularization
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokeEmbedding
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokes
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Split
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SplitFeasibility
@@ -3640,6 +3645,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor.Native
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor.Runtime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.HaltingTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.InductiveCounting
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.InductiveCounting.Bounds
@@ -4502,6 +4510,8 @@ public import CslibFrontier.Computability.PropertyTesting.Distribution.Uniformit
 public import CslibFrontier.Computability.PropertyTesting.Linearity
 public import CslibFrontier.Computability.PropertyTesting.LinearityLowerBound
 public import CslibFrontier.Computability.PropertyTesting.Majority
+public import CslibFrontier.Computability.PropertyTesting.Majority.Decision
+public import CslibFrontier.Computability.PropertyTesting.Majority.DirectAccess
 public import CslibFrontier.Computability.PropertyTesting.Monotonicity.Basic
 public import CslibFrontier.Computability.PropertyTesting.Monotonicity.EdgeTester
 public import CslibFrontier.Computability.QueryComplexity.AdjacentPair
@@ -5791,6 +5801,7 @@ public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.Quotient
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.SlotArray
 public import CslibFrontier.DataStructure.BPlusTree.Basic
 public import CslibFrontier.DataStructure.BPlusTree.Height
+public import CslibFrontier.DataStructure.BPlusTree.Insert
 public import CslibFrontier.DataStructure.BPlusTree.Lookup
 public import CslibFrontier.DataStructure.BPlusTree.MinMax
 public import CslibFrontier.DataStructure.BPlusTree.OfSortedList
@@ -6883,6 +6894,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.MixedOperator
 public import CslibFrontier.Foundations.Data.MvPolynomial.PDerivConst
 public import CslibFrontier.Foundations.Data.MvPolynomial.PDerivDegree
 public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
+public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterDegree
 public import CslibFrontier.Foundations.Data.MvPolynomial.PartialDerivatives
 public import CslibFrontier.Foundations.Data.MvPolynomial.PartialEval
 public import CslibFrontier.Foundations.Data.MvPolynomial.PowerSum
@@ -7064,6 +7076,7 @@ public import CslibFrontier.Foundations.Geometry.Orthogonal.Subdivision
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Trim
 public import CslibFrontier.Foundations.Geometry.Polygonal.AngleOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
+public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularSpokes
 public import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleConnector
@@ -7145,6 +7158,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockEmbedding
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BranchingProgramDeterminant
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.CauchyBinet
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.CoeffNorm
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.ParameterDegree
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.TraceExponential
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.ClosedSubmatrix
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.CoinStep
@@ -7432,7 +7446,11 @@ public import CslibFrontier.Foundations.RingTheory.Derivation.Wronskian
 public import CslibFrontier.Foundations.RingTheory.GaloisRing
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Basis
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalParameterExclusion
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueCoeffNorm
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.InitialCriticalSeparability
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Jacobian
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Kernel
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
@@ -7444,6 +7462,7 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Specia
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Trace
 public import CslibFrontier.Foundations.RingTheory.Polynomial.Hermite
 public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantCoeffNorm
+public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantSpecialization
 public import CslibFrontier.Foundations.RingTheory.PowerSeries.Constants
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.Principal
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.SeparatedSums

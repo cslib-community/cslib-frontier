@@ -1423,7 +1423,7 @@ Richard J. Lipton and Neal E. Young. *Simple Strategies for Large Zero-Sum Games
 <a id="liupass20"></a>
 ## liupass20
 
-Yanyi Liu and Rafael Pass. *On One-way Functions and Kolmogorov Complexity*. FOCS 2020, 1243–1254. https://doi.org/10.1109/FOCS46700.2020.00118 . Definition/theorem locators refer to the full version https://arxiv.org/abs/2009.11514v1 , §§2.3 and 3, pp. 8–9.
+Yanyi Liu and Rafael Pass. *On One-way Functions and Kolmogorov Complexity*. FOCS 2020, 1243–1254. https://doi.org/10.1109/FOCS46700.2020.00118 . Definition/theorem locators refer to the full version https://arxiv.org/abs/2009.11514v1 (24 PDF pages; unnumbered title page is PDF p. 1, so printed pp. 1–23 are PDF pp. 2–24; PDF SHA-256 `22fd253c7f5720739d07771b4c9a6c9639a29350abdab7192a57ee0fd3039919`). Inspected on 2026-11-21 for Section 2.1 Definition 2.2 (`α`-weak and weak one-way function, p. 7), Section 2.4 Definition 2.6 (`μ(·)`-indistinguishability, p. 9), Section 2.5 (Shannon entropy `H(X)`, p. 9), Section 5.1 Definition 5.1 (`μ-condEP-PRG`, p. 11), Section 5.3 (pp. 14–16), and Appendix A (pp. 21–23). Theorem 3.1 and other §§2.3 and 3 locators remain attributed to `arXiv:2009.11514v1` (pp. 8–9).
 
 <a id="liupass2021crypto"></a>
 ## liupass2021crypto

@@ -64,10 +64,8 @@ theorem coeffNorm1_charpoly_coeff_le_of_trace_pow (M : Matrix ι ι (Polynomial 
     (ht : ∀ j, 1 ≤ j → j ≤ Fintype.card ι → coeffNorm1 ((M ^ j).trace) ≤ A ^ j)
     (k : ℕ) : coeffNorm1 (M.charpoly.coeff k) ≤ A ^ (Fintype.card ι - k) := by
   by_cases hk : k ≤ Fintype.card ι
-  · have h := coeffNorm1_charpolyRev_coeff_le M A ht _ (Nat.sub_le _ k)
-    rw [← reverse_charpoly, coeff_reverse, charpoly_natDegree_eq_dim,
-      revAt_le (Nat.sub_le _ _), Nat.sub_sub_self hk] at h
-    exact h
+  · rw [← coeff_charpolyRev_card_sub M k hk]
+    exact coeffNorm1_charpolyRev_coeff_le M A ht _ (Nat.sub_le _ k)
   · rw [coeff_eq_zero_of_natDegree_lt (by rw [charpoly_natDegree_eq_dim]; omega), coeffNorm1_zero]
     exact Nat.zero_le _
 

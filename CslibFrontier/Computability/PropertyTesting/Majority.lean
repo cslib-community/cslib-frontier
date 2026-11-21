@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.LocalTest.DecisionTree
+public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Threshold
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
@@ -35,10 +36,13 @@ does not certify running time in the direct-access model of Definition 10.10.
 ## Main definitions
 
 * `Cslib.BitString.majorityTester`: the local test with a rational tolerance.
+* `Cslib.BitString.majoritySampleAccepts`: the natural number comparison used after sampling.
 
 ## Main results
 
 * `Cslib.BitString.majorityTester_spec`: completeness, soundness and worst-case probe cost.
+* `Cslib.BitString.majorityTester_passes_iff_sampleAccepts`: a pointwise bridge from binary
+  addresses and a sampled count to the local test's verdict.
 * `Cslib.BitString.exists_majorityTester_probeBound`: a fixed probe count works at every length
   for each positive real distance.
 -/
@@ -50,19 +54,16 @@ namespace Cslib.BitString
 open Finset Cslib.PCP
 open scoped BigOperators
 
-private def sampleIndex {n : ℕ} (r : BitString (Nat.log 2 n + 1)) :
-    Fin (2 ^ (Nat.log 2 n + 1)) := equivFin _ r
-
 private def sampleAnswers {n k : ℕ} (r : Fin k → BitString (Nat.log 2 n + 1))
     (a : BitString k) : BitString k :=
-  fun i => if (sampleIndex (n := n) (r i)).val < n then a i else false
+  fun i => if (equivFin _ (r i)).val < n then a i else false
 
 /-- Sample one binary address per probe. For an out-of-range address the query uses index
 zero and its answer is discarded. Accept when the resulting fraction of ones is at least
 the minimum padded member density minus one quarter of the tolerance. -/
 def majorityTester (n k : ℕ) [NeZero n] (δ : ℚ) :
     LocalTest (Fin n) (Fin k → BitString (Nat.log 2 n + 1)) (Fin k) Bool where
-  query r i := if h : (sampleIndex (n := n) (r i)).val < n then ⟨_, h⟩ else 0
+  query r i := if h : (equivFin _ (r i)).val < n then ⟨_, h⟩ else 0
   Accepts r a := ((n / 2 + 1 : ℕ) : ℚ) / (2 ^ (Nat.log 2 n + 1) : ℕ) -
     δ / 4 ≤ (weight (sampleAnswers r a) : ℚ) / k
 
@@ -72,6 +73,59 @@ def majorityTester (n k : ℕ) [NeZero n] (δ : ℚ) :
   change Decidable (((n / 2 + 1 : ℕ) : ℚ) / (2 ^ (Nat.log 2 n + 1) : ℕ) -
     δ / 4 ≤ (weight (sampleAnswers r a) : ℚ) / k)
   infer_instance
+
+private theorem sampleAnswers_query {n k : ℕ} [NeZero n] (δ : ℚ) (x : BitString n)
+    (r : Fin k → BitString (Nat.log 2 n + 1)) (i : Fin k) :
+    sampleAnswers r (fun j => x ((majorityTester n k δ).query r j)) i =
+      zeroExtend x (equivFin _ (r i)) := by
+  by_cases h : (equivFin _ (r i)).val < n <;>
+    simp [sampleAnswers, majorityTester, zeroExtend, h]
+
+/-- The sampler's decision from the input length and the count of sampled ones, using only
+natural number arithmetic. The numerator of the tolerance is interpreted as nonnegative. -/
+@[expose] def majoritySampleAccepts (n k : ℕ) (δ : ℚ) (ones : ℕ) : Prop :=
+  4 * δ.den * k * (n / 2 + 1) ≤
+    2 ^ (Nat.log 2 n + 1) * (4 * δ.den * ones + δ.num.toNat * k)
+
+instance (n k : ℕ) (δ : ℚ) (ones : ℕ) :
+    Decidable (majoritySampleAccepts n k δ ones) := by
+  unfold majoritySampleAccepts
+  infer_instance
+
+/-- For each fixed seed, counting ones returned at its binary addresses (with out-of-range
+addresses answered by zero) and applying the natural comparison gives the same verdict as
+the local test. -/
+theorem majorityTester_passes_iff_sampleAccepts {n k : ℕ} [NeZero n] {δ : ℚ}
+    (hk : 0 < k) (hδ : 0 ≤ δ) (x : BitString n) (r : Fin k → BitString (Nat.log 2 n + 1)) :
+    (majorityTester n k δ).Passes x r ↔
+      majoritySampleAccepts n k δ (weight fun i => zeroExtend x (equivFin _ (r i))) := by
+  let M := 2 ^ (Nat.log 2 n + 1)
+  let s := weight (fun i => zeroExtend x (equivFin _ (r i)))
+  let b := n / 2 + 1
+  have hs : weight (sampleAnswers r (fun i => x ((majorityTester n k δ).query r i))) = s :=
+    congrArg weight (funext (sampleAnswers_query δ x r))
+  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ _ ↔ _
+  rw [hs, majoritySampleAccepts]
+  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ (s : ℚ) / k ↔
+    4 * δ.den * k * b ≤ M * (4 * δ.den * s + δ.num.toNat * k)
+  have hnum : ((δ.num.toNat : ℕ) : ℚ) = δ.num := by
+    exact_mod_cast Int.toNat_of_nonneg (Rat.num_nonneg.mpr hδ)
+  have hden : (0 : ℚ) < δ.den := by exact_mod_cast δ.den_pos
+  have hk' : (0 : ℚ) < k := by exact_mod_cast hk
+  have hM : (0 : ℚ) < (M : ℕ) := by dsimp [M]; positivity
+  have hδ' : δ = (δ.num.toNat : ℚ) / δ.den := by rw [hnum, Rat.num_div_den]
+  have hscale : (0 : ℚ) < 4 * δ.den * k * (M : ℕ) := by positivity
+  rw [sub_le_iff_le_add, ← mul_le_mul_iff_of_pos_right hscale]
+  have hleft : (b : ℚ) / (M : ℕ) * (4 * δ.den * k * (M : ℕ)) = 4 * δ.den * k * b := by
+    field_simp
+  have hright : ((s : ℚ) / k + δ / 4) * (4 * δ.den * k * (M : ℕ)) =
+      (M : ℚ) * (4 * δ.den * s + δ.num.toNat * k) := by
+    have hquarter : δ / 4 = ((δ.num.toNat : ℚ) / δ.den) / 4 :=
+      congrArg (fun q : ℚ => q / 4) hδ'
+    rw [hquarter]
+    field_simp
+  rw [hleft, hright]
+  norm_cast
 
 private theorem exists_majority_close {n : ℕ} (hn : 0 < n) (x : BitString n) :
     ∃ y : BitString n, strictMajority n y = true ∧
@@ -138,12 +192,9 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
     congr 1
     apply sum_congr rfl
     intro i _
-    change (if r i ∈ A then (1 : ℝ) else 0) =
-      ((if (equivFin w (r i)).val < n then x ((majorityTester n k δ).query r i)
-        else false).toNat : ℝ)
-    by_cases hi : (equivFin w (r i)).val < n
-    · cases hx : x ⟨_, hi⟩ <;> simp [A, x', zeroExtend, majorityTester, sampleIndex, w, hi, hx]
-    · simp [A, x', zeroExtend, hi]
+    rw [sampleAnswers_query]
+    change (if r i ∈ A then (1 : ℝ) else 0) = (x' (equivFin w (r i))).toNat
+    cases h : x' (equivFin w (r i)) <;> simp [A, h]
   have hpasses (r : Fin k → BitString w) :
       (majorityTester n k δ).Passes x r ↔
         ((n / 2 + 1 : ℕ) : ℝ) / M - (δ : ℝ) / 4 ≤ empiricalMass A r := by
