@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Correct
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
-import Mathlib.Tactic
 
 /-!
 # Size of encoded deterministic machines

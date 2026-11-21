@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Probability.StochasticDomination.Adapted
 import CslibFrontier.Probability.PMF.Map
-import Mathlib.Tactic
 
 /-!
 # Sequential count bounds on supported prefixes

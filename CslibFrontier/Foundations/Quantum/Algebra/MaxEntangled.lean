@@ -25,13 +25,9 @@ are `0`-close in the vector state of `Φ`
 `⟨Φ|O ⊗ Oᵀ|Φ⟩ = Tr(OO)/|ι| = 1`. This is the agreement that makes the strategies of nonlocal games
 built from operator solutions perfect.
 
-A measurement in the matrix algebra is a positive-operator-valued measurement
-(`Cslib.Quantum.Measurement.toPOVM`).
-
 ## Main definitions
 
 * `Cslib.Quantum.kroneckerOne`, `Cslib.Quantum.oneKronecker`: the local embeddings.
-* `Cslib.Quantum.Measurement.toPOVM`: a measurement of matrices as a POVM.
 
 ## Main results
 
@@ -88,18 +84,6 @@ theorem commute_kroneckerOne_oneKronecker (M : Matrix ι ι ℂ) (N : Matrix κ 
   simp only [kroneckerOne_apply, oneKronecker_apply, Commute, SemiconjBy, ← mul_kronecker_mul,
     Matrix.mul_one, Matrix.one_mul]
 
-/-- A measurement in the matrix algebra as a positive-operator-valued measurement. -/
-noncomputable def Measurement.toPOVM {α : Type*} [Fintype α] (M : Measurement α (Matrix ι ι ℂ)) :
-    POVM α ι where
-  effect := M.effect
-  posSemidef a := Matrix.nonneg_iff_posSemidef.mp (M.nonneg a)
-  sum_effect := M.sum_effect
-
-@[simp]
-theorem Measurement.toPOVM_effect {α : Type*} [Fintype α] (M : Measurement α (Matrix ι ι ℂ))
-    (a : α) : M.toPOVM.effect a = M.effect a :=
-  rfl
-
 namespace AlgState
 
 /-- **The transpose trick**: on the maximally entangled state, a `±1` observable `O` of the
@@ -137,7 +121,7 @@ theorem kroneckerOne_approx_oneKronecker_transpose [Nonempty ι] {O : Matrix ι 
   have hsq : star (X - Y) * (X - Y) = 1 + 1 - (O ⊗ₖ Oᵀ + O ⊗ₖ Oᵀ) := by
     rw [star_sub, hX, hY, sub_mul, mul_sub, mul_sub, hXX, hYY, hXY, hYX]
     abel
-  rw [Approx, norm_eq_sqrt, show kroneckerOne O - oneKronecker Oᵀ = X - Y from rfl, hsq]
+  rw [approx_iff, norm_eq_sqrt, show kroneckerOne O - oneKronecker Oᵀ = X - Y from rfl, hsq]
   simp [map_sub, map_add, hcorr]
 
 end AlgState

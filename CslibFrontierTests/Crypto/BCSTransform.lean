@@ -115,11 +115,11 @@ example (chals : Fin 2 → Bool) :
 def toyExtract (_ : Bool) (oracles : Fin 2 → OracleTable 1 Bool) : Bool :=
   oracles ⟨0, by decide⟩ ⟨0, by decide⟩
 
--- 1. Perfect completeness applied to `toyIOP`.
-example (H : List Bool → List Bool → List Bool) (k : List Bool)
-    (hFS : Bool → List (List Bool) → Bool) (x : Bool) :
+-- 1. Perfect completeness applied to `toyIOP`, for a hash whose digests have one length.
+example (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (hFS : Bool → List (List Bool) → Bool) (x : Bool) :
     bcsVerify toyIOP H k encSym hFS x (bcsProve toyIOP H k encSym hFS x x) = true :=
-  bcsVerify_bcsProve_eq_true toyIOP_complete H k encSym hFS rfl
+  bcsVerify_bcsProve_eq_true toyIOP_complete H k hlen encSym hFS rfl
 
 -- 2. Concrete evaluation of `bcsProve` and `bcsVerify`.
 example :
@@ -237,7 +237,7 @@ theorem isPPTOn_cheatingTableAdversary :
     IsPPTOn (encPair encUnary encBits) (encBCSTableCommitOutput 1 1 Bool Bool encBool encBool)
       (fun ⟨n, k⟩ => cheatingTableAdversary n k) :=
   (computableInPolyTime_cheatingTableOutput.comp
-    (ComputableInPolyTime.snd encUnary encBits)).tidy.isPPTOn
+    (ComputableInPolyTime.snd encUnary encBits)).isPPTOn
 
 -- 5. Poly-time certificate for `bcsExtractTableCollision`, concrete extraction and edge case, and
 -- `isPPT_bcsTableCollisionFinder`.

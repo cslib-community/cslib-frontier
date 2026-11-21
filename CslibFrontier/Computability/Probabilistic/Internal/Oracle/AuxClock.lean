@@ -19,6 +19,8 @@ import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Computability.Probabilistic.PPT.AuxClock.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Normalization
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+
 /-! # Internal primary-input clock and auxiliary-prefix machines
 
 The public auxiliary-clock contracts are defined in `PPT.AuxClock.Basic`; this module keeps
@@ -100,7 +102,7 @@ theorem IsOraclePPTOn.take_aux {program : α → List Bool → WordOracleComp Op
     (h : IsOraclePPTOn (encPair input encBits) output (fun (a, z) => program a z)) (c d : ℕ) :
     IsOraclePPTOn (encPair input encBits) output
       (fun (a, z) => program a (z.take (c * ((input a).length + 1) ^ d))) :=
-  h.preprocess' (computableInPolyTime_take_aux input c d)
+  h.preprocess (computableInPolyTime_take_aux input c d)
 
 /-! ### Upgrading prefix-truncated `IsOraclePPTOn` / `IsPPTOn` programs to
 `IsOraclePPTWithAux` / `IsPPTWithAux` -/
@@ -723,7 +725,7 @@ theorem IsPPTWithAux.preprocess {γ : Type} {middle : β ↪ List Bool} {out : �
   have hbound : ComputableInPolyTime
       (fun a : α => c * ((middle (prepare a)).length + 1) ^ d) input encUnary := by
     fun_prop
-  obtain ⟨C, D, hle⟩ := hbound.tidy.polyBounded.exists_le
+  obtain ⟨C, D, hle⟩ := hbound.polyBounded.exists_le
   have hppt : IsPPTOn (encPair input encBits) out (fun (a, z) => program (prepare a) z) :=
     h.isPPTOn.preprocess (prepare := fun (a, z) => (prepare a, z)) (by fun_prop)
   exact (hppt.isPPTWithAux_take C D).congr fun a z => htake (prepare a) z (hle a)
@@ -739,9 +741,9 @@ theorem IsOraclePPTWithAux.preprocess {γ : Type} {middle : β ↪ List Bool} {o
   have hbound : ComputableInPolyTime
       (fun a : α => c * ((middle (prepare a)).length + 1) ^ d) input encUnary := by
     fun_prop
-  obtain ⟨C, D, hle⟩ := hbound.tidy.polyBounded.exists_le
+  obtain ⟨C, D, hle⟩ := hbound.polyBounded.exists_le
   have hppt : IsOraclePPTOn (encPair input encBits) out (fun (a, z) => program (prepare a) z) :=
-    h.isOraclePPTOn.preprocess' (prepare := fun (a, z) => (prepare a, z)) (by fun_prop)
+    h.isOraclePPTOn.preprocess (prepare := fun (a, z) => (prepare a, z)) (by fun_prop)
   exact (hppt.isOraclePPTWithAux_take C D).congr fun a z State oracle s =>
     htake (prepare a) z (hle a) State oracle s
 

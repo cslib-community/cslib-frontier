@@ -166,12 +166,12 @@ theorem isQueryBounded_lpTree : OracleComp.IsQueryBounded lpTree 2 := by
   · exact .liftBind (n := 0) lpMsgTwo _ fun _ => .pure _ 0
   · exact .liftBind (n := 0) lpMsgEmpty _ fun _ => .pure _ 0
 
-/-- Non-vacuous instance of the length-prepended CBC-MAC bound: two queries of at most three
-blocks with 8-bit blocks give `2 ^ 2 · (3 + 1) ^ 2 / 2 ^ 8 = 1 / 4`. -/
+/-- Non-vacuous instance of the length-prepended CBC-MAC uniform-random-function step (#6046): two
+queries of at most three blocks with 8-bit blocks give `2 ^ 2 · (3 + 1) ^ 2 / 2 ^ 8 = 1 / 4`. -/
 example :
-    |lengthPrependedRealSuccess encode83 (PMF.pure lpTree) -
+    |lengthPrependedUniformFunctionSuccess encode83 (PMF.pure lpTree) -
         lengthPrependedIdealSuccess 8 3 (PMF.pure lpTree)| ≤ 1 / 4 :=
-  (abs_lengthPrependedRealSuccess_sub_lengthPrependedIdealSuccess_le 8 2 3
+  (abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le 8 2 3
       blockCountBlock_injective_8_3 (PMF.pure lpTree) fun tree htree => by
         have hEq : tree = lpTree :=
           (PMF.mem_support_pure_iff _ _).1 ((PMF.mem_support_iff _ _).2 htree)

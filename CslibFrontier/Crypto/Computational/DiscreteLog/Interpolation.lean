@@ -200,9 +200,9 @@ theorem computableInPolyTime_lagrangeWeightNat {α : Type} {input : α ↪ List 
         encNat := by fun_prop
     have hq' := F.computableInPolyTime_order.comp hd'
     have hex := computableInPolyTime_extractNat hd' hj' hx' hv hv
-    exact (ComputableTidilyInPolyTime.ite_decide
-      (ComputableTidilyInPolyTime.decide_eq' (hv.binary_mod' hq').tidy (hj'.binary_mod' hq').tidy)
-      hacc.tidy ((hacc.binary_mul' hex).binary_mod' hq').tidy).computableInPolyTime
+    exact (ComputableInPolyTime.ite_decide
+      (ComputableInPolyTime.decide_eq' (hv.binary_mod' hq') (hj'.binary_mod' hq'))
+      hacc ((hacc.binary_mul' hex).binary_mod' hq'))
   · intro a state value _
     split_ifs
     · exact Nat.le_add_right _ _

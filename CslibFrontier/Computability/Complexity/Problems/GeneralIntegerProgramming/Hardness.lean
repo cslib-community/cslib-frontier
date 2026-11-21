@@ -131,7 +131,7 @@ theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :
       rcases hz j with h | h <;> simp [h]
     apply Int.ofNat_inj.mp
     push_cast
-    simpa only [heq] using h' 
+    simpa only [heq] using h'
   · rintro ⟨x, hx⟩
     refine ⟨fun j => ((x j).toNat : ℤ), fun j => ?_, fun c hc => ?_⟩
     · have h := Bool.toNat_le (x j)

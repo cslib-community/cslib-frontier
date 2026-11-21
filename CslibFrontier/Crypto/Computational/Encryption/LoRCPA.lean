@@ -445,8 +445,8 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
         encrypt (security q.1.1) (pk q.1.1)
           (if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
       else pure []) :=
-    IsPPTOn.cond' hvalid_q (hencrypt.preprocess hencArg)
-      (ComputableInPolyTime.const []).tidy.isPPTOn
+    IsPPTOn.cond hvalid_q (hencrypt.preprocess hencArg)
+      (ComputableInPolyTime.const []).isPPTOn
   have hcons := hencCond.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2))
     (by dsimp only [stepMidEnc, encLoRLoopState, encChoiceOut]; fun_prop)
   have hstep : IsPPTOn (encPair input encLoRLoopState) encLoRLoopState
@@ -454,14 +454,14 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
     simpa only [lorStepOn, bind_pure_comp] using hquery.bind_with hcons
   obtain ⟨stBound, hstBound, hstLen⟩ := hadversary.state_growth
   have hsecPoly : PolyBounded (fun a : α => (input a).length) security :=
-    hsecurity.tidy.polyBounded
+    hsecurity.polyBounded
   have hstPoly := (PolyBounded.of_polynomiallyBounded security hstBound).comp hsecPoly
   have hctPoly := (PolyBounded.of_polynomiallyBounded security hctBound).comp hsecPoly
   have hgrowthPoly : PolyBounded (fun a : α => (input a).length)
       (fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1) :=
     (((PolyBounded.const 2).mul hstPoly).add ((PolyBounded.const 2).mul hctPoly)).add
       (PolyBounded.const 1)
-  refine IsPPTOn.iterateWith_of_bounded_growth hcount.tidy hinitial.tidy hstep hgrowthPoly ?_
+  refine IsPPTOn.iterateWith_of_bounded_growth hcount hinitial hstep hgrowthPoly ?_
   intro a loopState next hnext
   simp only [lorStepOn, apply_ite ProbComp.eval, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hnext

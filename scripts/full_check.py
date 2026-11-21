@@ -4,7 +4,7 @@
 Usage: python3 scripts/full_check.py [--base REF]
 
 `ci-checks` in `.github/workflows/lean_action_ci.yml` is the repository's only required status
-check. It requires the parallel `source-checks` and `lean-checks` jobs to succeed. `STEPS` repeats
+check. It requires source checks and the selected Lean validation. `STEPS` repeats
 each step of those jobs that can run on a contributor's machine, preserving each job's order and
 using CI's commands, so that a local full check fails where pull-request CI would. Steps that
 compare a change with its base use the merge base of REF (default `origin/main`) with `HEAD`, and
@@ -140,6 +140,8 @@ CI_ONLY = {
     "Named assumptions report": "main pushes only; reports and always succeeds",
     "Repeated-proof-block notice (advisory)":
         "advisory; never fails the job. Run `scripts/proof_copies.py --base REF` to see it",
+    "Sample runner disk use": "hosted-runner disk telemetry",
+    "Report runner disk use": "hosted-runner disk telemetry",
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",
     "Restore .lake from the Actions cache": "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore Mathlib cache with retries": "CI cache; check.sh runs scripts/cache/ensure.sh",
@@ -147,6 +149,8 @@ CI_ONLY = {
         "merge groups only; downloads an ancestor's merge-group artifact through the GitHub API",
     "Stop after an unconfirmed ancestor-handoff shutdown":
         "merge groups only; fails the job when the ancestor handoff step exits 125",
+    "Restore PR base merge-group build outputs":
+        "main-targeting PRs only; restores the merge-group artifact for the checked-out base parent",
     "Restore build outputs from the remote cache":
         "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore validated merge-group build outputs":

@@ -24,7 +24,7 @@ import CslibFrontier.Tactic.PMFSwap
 
 This module formalizes the Random Oracle Model (ROM) IND-CCA security experiments, eager/lazy
 equivalence, keyless oracle simulator, and IND-CPA reduction hit-probability bounds for the
-domain-separated implicit-rejection Fujisaki–Okamoto transform `FO-notbot` (`Scheme.keyGenNotBot`,
+implicit-rejection Fujisaki–Okamoto transform `FO-notbot` (`Scheme.keyGenNotBot`,
 `Scheme.encapsNotBot`, `Scheme.decapsNotBot`) from
 `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto`
 ([HofheinzHoevelmannsKiltz2017], IACR ePrint 2017/604 full version dated 2 November 2021, §2.1,
@@ -43,9 +43,8 @@ the full version of [HofheinzHoevelmannsKiltz2017] served by IACR ePrint 2017/60
 * **§3.1, Figure 5**: derandomization and mandatory re-encryption check `T[PKE, G]` (`encT`,
   `decT`).
 * **§3.2.2, Figure 12**: implicit-rejection KEM `FO-notbot = U-notbot ∘ T` (`ImplicitSK`,
-  `Scheme.keyGenNotBot`, `Scheme.encapsNotBot`, `Scheme.decapsNotBot`), with the deliberate
-  domain-separated random oracle `H : Bool × M × CT → K` (`false` for valid key derivations
-  `H(false, m, c)` and `true` for implicit-rejection fallback queries `H(true, fallback, c)`) and
+  `Scheme.keyGenNotBot`, `Scheme.encapsNotBot`, `Scheme.decapsNotBot`), with the same key oracle
+  for both `H(m, c)` and the implicit-rejection key `H(fallback, c)`, and
   arbitrary `Scheme` samplers `sampleCoins`, `sampleMsg`, `sampleKey`.
 
 In addition to the `ExplicitCoinPKE` and `Scheme` modeling choices documented in
@@ -80,7 +79,7 @@ On top of those definitions, this module formalizes:
    `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot`.
 2. **Keyless ROM simulator and IND-CPA reduction** (`Scheme.simHandler`,
    `Scheme.romCpaReduction`, `Scheme.simFilterOwExperiment`). Neither is a verbatim construction
-   from [HofheinzHoevelmannsKiltz2017]; both are adapted to domain-separated `FO-notbot`.
+   from [HofheinzHoevelmannsKiltz2017]; they combine the `T` and `U-notbot` proofs.
    `simHandler` is adapted from the `G`/`H` simulations in two proofs of the full version: the
    proof of Theorem 3.2 (§3.1, IND-CPA security of the PKE implies OW-PCVA security of
    `T[PKE, G]`), which answers `G` lazily, and the proof of Theorem 3.4 (§3.2.2, IND-CCA security
@@ -180,8 +179,8 @@ variable {PK SK M R CT K : Type}
 /-! ### Section 1: ROM Queries, Executable IND-CCA Game, Simulator, and CPA Reduction -/
 
 /-- Oracle query sum type for the ROM IND-CCA game of `FO-notbot`: random oracle `G : M → R`,
-random oracle `H : Bool × M × CT → K` (domain-separated by a Boolean tag `false` for
-key derivation `H(false, m, c)` and `true` for implicit-rejection fallback `H(true, s, c)`),
+random oracle `H : Bool × M × CT → K` (its `false` slice is the scheme’s shared key oracle;
+the typed adversary can also query an independent auxiliary slice),
 and the decapsulation oracle `Decaps : CT → Option K`. -/
 inductive ROQuery (M CT : Type) where
   /-- Query the coin-derivation random oracle `G : M → R`. -/
@@ -418,7 +417,8 @@ decapsulation `decapsNotBotM` against the lazy random oracles `G` and `H`. -/
 def roHandler (S : Scheme PK SK M R CT K) (dk : ImplicitSK PK SK M) (cStar : CT)
     (q : ROQuery M CT) : StateT (ROCache M R CT K) ProbComp (ROResp R K q) :=
   ROQuery.dispatch (roHashG S.pke.sampleCoins) (roHashH S.sampleKey)
-    (fun c => some <$> S.decapsNotBotM (roHashG S.pke.sampleCoins) (roHashH S.sampleKey) dk c)
+    (fun c => some <$> S.decapsNotBotM (roHashG S.pke.sampleCoins)
+      (fun mc => roHashH S.sampleKey (false, mc)) dk c)
     cStar q
 
 /-- The executable ROM IND-CCA security game for `FO-notbot` with bit `b : Bool` (standard KEM
@@ -462,11 +462,11 @@ noncomputable def keyTable [Finite K] (S : Scheme PK SK M R CT K) (X : Type) [Fi
   pi fun _ => ProbComp.eval S.sampleKey
 
 /-- Stateless handler for `S.eagerIndCcaGame`: `G` and `H` are complete functions and
-decapsulation queries for `c ≠ cStar` evaluate `S.decapsNotBot G H dk c`. -/
+decapsulation of `c ≠ cStar` uses the shared key oracle `fun mc => H (false, mc)`. -/
 noncomputable def eagerHandler (S : Scheme PK SK M R CT K) (G : M → R) (H : Bool × M × CT → K)
     (dk : ImplicitSK PK SK M) (cStar : CT) (q : ROQuery M CT) : PMF (ROResp R K q) :=
   ROQuery.dispatch (PMF.pure ∘ G) (PMF.pure ∘ H)
-    (fun c => PMF.pure (some (S.decapsNotBot G H dk c))) cStar q
+    (fun c => PMF.pure (some (S.decapsNotBot G (fun mc => H (false, mc)) dk c))) cStar q
 
 /-- The eager random-oracle IND-CCA game for `FO-notbot` (standard KEM IND-CCA experiment, not
 separately located in the source map above), defined directly from `S.keyGenNotBot`,
@@ -477,7 +477,7 @@ noncomputable def eagerIndCcaGame [Fintype M] [Finite R] [Fintype CT] [Finite K]
   let (pk, dk) ← ProbComp.eval S.keyGenNotBot
   let G ← S.coinTable
   let H ← S.keyTable (Bool × M × CT)
-  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G H pk)
+  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G (fun mc => H (false, mc)) pk)
   let kRand ← ProbComp.eval S.sampleKey
   let kStar := if b then kRand else kReal
   OracleComp.interpret (S.eagerHandler G H dk cStar) (A ⟨pk, cStar, kStar⟩)
@@ -488,7 +488,7 @@ queries can be answered from `H_q(c)` without the secret key `sk`; its consisten
 game is proved in the `NotBot` modules. The `H_q` table is adapted from the proof of the §3.2.2
 IND-CCA theorem for `U-notbot` in [HofheinzHoevelmannsKiltz2017] (IACR ePrint 2017/604, full version
 dated 2 November 2021), with that proof's plaintext check replaced by the re-encryption check of `T`
-and with `H` domain-separated. -/
+and the auxiliary slice answered from the raw table. -/
 def simHashH (S : Scheme PK SK M R CT K) (pk : PK)
     (x : Bool × M × CT) : StateT (SimState M R CT K) ProbComp K :=
   match x with
@@ -519,13 +519,13 @@ def simFilterHandler (S : Scheme PK SK M R CT K) (d : List (M × R) → CT → B
     StateT (SimState M R CT K) ProbComp (ROResp R K q) :=
   S.simFilterDispatch (S.simHashH pk) d cStar q
 
-/-- Stateful oracle handler for a keyless ROM simulator of the domain-separated `FO-notbot` IND-CCA
+/-- Stateful oracle handler for a keyless ROM simulator of the `FO-notbot` IND-CCA
 game, designed to answer decapsulation queries for `c ≠ cStar` directly from `H_q(c)` without using
 `sk` (consistency with the real game is proved in the `NotBot` modules). It is not a verbatim
 construction from [HofheinzHoevelmannsKiltz2017] (IACR ePrint 2017/604, full version dated
 2 November 2021): it is adapted from the lazy `G` simulation in the proof of the §3.1 theorem for
 `T` (IND-CPA implies OW-PCVA) and the `H`/decapsulation simulation in the proof of the §3.2.2
-IND-CCA theorem for `U-notbot`, combined for `FO-notbot` with domain-separated `H`. -/
+IND-CCA theorem for `U-notbot`, combined for `FO-notbot`. -/
 def simHandler (S : Scheme PK SK M R CT K) (pk : PK) (cStar : CT) (q : ROQuery M CT) :
     StateT (SimState M R CT K) ProbComp (ROResp R K q) :=
   S.simFilterHandler (fun _ _ => true) pk cStar q
@@ -630,7 +630,7 @@ noncomputable def eagerRomIndCcaExperiment [Fintype M] [Finite R] [Fintype CT] [
   let (pk, dk) ← ProbComp.eval keyGen
   let G ← S.coinTable
   let H ← S.keyTable (Bool × M × CT)
-  let (cStar, kReal) ← ProbComp.eval (S.encapsBot G H pk)
+  let (cStar, kReal) ← ProbComp.eval (S.encapsBot G (fun mc => H (false, mc)) pk)
   let kRand ← ProbComp.eval S.sampleKey
   let kStar := if b then kRand else kReal
   OracleComp.interpret (romEagerHandler G H (decaps pk dk) cStar) (A ⟨pk, cStar, kStar⟩)
@@ -653,7 +653,7 @@ omit [DecidableEq M] in
 /-- Interpreting `decapsNotBotM` against oracle calls runs it against the interpreted calls. -/
 theorem interpret_decapsNotBotM {ι : Type} {spec : OracleSpec ι} {n : Type → Type}
     [Monad n] [LawfulMonad n] (oracle : (q : ι) → n (spec q)) (S : Scheme PK SK M R CT K)
-    (G : M → OracleComp spec R) (H : Bool × M × CT → OracleComp spec K)
+    (G : M → OracleComp spec R) (H : M × CT → OracleComp spec K)
     (dk : ImplicitSK PK SK M) (c : CT) :
     OracleComp.interpret oracle (S.decapsNotBotM G H dk c) =
       S.decapsNotBotM (fun m => OracleComp.interpret oracle (G m))
@@ -670,7 +670,7 @@ omit [DecidableEq M] in
 /-- Interpreting `decapsBotM` against oracle calls runs it against the interpreted calls. -/
 theorem interpret_decapsBotM {ι : Type} {spec : OracleSpec ι} {n : Type → Type}
     [Monad n] [LawfulMonad n] (oracle : (q : ι) → n (spec q)) (S : Scheme PK SK M R CT K)
-    (G : M → OracleComp spec R) (H : Bool × M × CT → OracleComp spec K) (pk : PK) (sk : SK)
+    (G : M → OracleComp spec R) (H : M × CT → OracleComp spec K) (pk : PK) (sk : SK)
     (c : CT) :
     OracleComp.interpret oracle (S.decapsBotM G H pk sk c) =
       S.decapsBotM (fun m => OracleComp.interpret oracle (G m))
@@ -784,7 +784,7 @@ omit [DecidableEq M] in
 def notBotDecaps (S : Scheme PK SK M R CT K) (dk : ImplicitSK PK SK M) (c : CT) :
     OracleComp (ROSpec M R CT K) (Option K) :=
   some <$> S.decapsNotBotM (fun m => OracleComp.query (spec := ROSpec M R CT K) (Sum.inl m))
-    (fun x => OracleComp.query (spec := ROSpec M R CT K) (Sum.inr x)) dk c
+    (fun x => OracleComp.query (spec := ROSpec M R CT K) (Sum.inr (false, x))) dk c
 
 /-- `roHandler` is the lazy handler of `romProgram` with `FO-notbot` decapsulation. -/
 theorem roHandler_eq_romHandler (S : Scheme PK SK M R CT K) (dk : ImplicitSK PK SK M)
@@ -798,11 +798,12 @@ omit [DecidableEq M] in
 theorem eagerHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (cStar : CT) :
     S.eagerHandler G H dk cStar = romEagerHandler G H (S.notBotDecaps dk) cStar := by
-  have hd (c : CT) : PMF.pure (some (S.decapsNotBot G H dk c)) = OracleComp.interpret
+  have hd (c : CT) : PMF.pure (some (S.decapsNotBot G (fun mc => H (false, mc)) dk c)) =
+      OracleComp.interpret
       (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
       (S.notBotDecaps dk c) := by
     simp only [notBotDecaps, interp_norm, interpret_decapsNotBotM]
-    change _ = some <$> S.decapsNotBotM (m := PMF) (pure ∘ G) (pure ∘ H) dk c
+    change _ = some <$> S.decapsNotBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) dk c
     rw [decapsNotBotM_pure, map_pure]
     rfl
   funext q

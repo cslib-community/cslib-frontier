@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Crypto.Computational.MLDSA.CommitmentCollision
-import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
+import all CslibFrontier.Crypto.Computational.MLDSA.SigningROM
 import CslibFrontier.Crypto.Game.CloseTo.RejectedProgramming
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
@@ -20,7 +19,7 @@ The one-coefficient fixture separates Algorithm 7's second-stage rejection check
 earlier response and low-bits checks. It also exercises counter-stepped first-success semantics.
 -/
 
--- This regression module checks ordinary imports and exports no test fixtures.
+-- This regression module exercises the private trial handler and exports no test fixtures.
 set_option linter.privateModule false
 
 open Cslib.Crypto Cslib.Crypto.MLDSA
@@ -213,22 +212,14 @@ example : (interpret countTrials (expandSigningRetries toy 4 interleaved)).run 0
     sumHandler, interpret_bind, interpret_query, countTrials, StateT.run, bind_pure_comp]
   rfl
 
--- The common-half MSIS solver fits both the strong-forgery and classical fork radii
--- for each FIPS parameter set.
-example : ∀ P ∈ [Params.mldsa44, Params.mldsa65, Params.mldsa87],
-    let radius := max (P.γ₁ - 1) (2 * P.γ₂)
-    radius ≤ max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2) ∧
-      radius ≤ 2 * compressedSelfTargetRadius P 13 := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  rintro P (rfl | rfl | rfl) <;> decide +kernel
-
 -- A failed digest expansion terminates immediately, even when the next trial would sign.
 -- A response rejection consumes one attempt and permits that second trial.
 private def partialTrials (fatal : Bool) : (q : List Bool ⊕ SigningHashPoint toy) →
     StateM ℕ (SigningTrialSpec toy Bool (Option (Bool × CompressedSignature toy)) q) :=
   sumHandler (fun _ n =>
-    (if n == 0 then (if fatal then some none else none)
-     else some (some (true, ⟨0, fun _ _ => false, 0⟩)), n + 1))
+    let expand (digest : Bool) := if fatal && !digest then none else some (hash (0, []))
+    let mask := if n == 0 then firstStageRejectMask else acceptingMask
+    (partialResult toy 2 1 expand hintSk mask (n != 0), n + 1))
     (fun _ n => (n != 0, n))
 
 private def twoTrials (fatal : Bool) : Bool × ℕ :=

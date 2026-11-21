@@ -225,6 +225,10 @@ theorem validProg_writeGM {U V w n_max h_space base idx val : ℕ} {s : Memory.S
 
 /-! ## Section 2: Slot resolution, tail pool, and slab pool operations -/
 
+-- The remaining proofs compose the validity lemmas above. Keep unification from
+-- unfolding the client history while matching a subprogram with its certificate.
+attribute [local irreducible] ValidProg
+
 theorem validProg_readBucketCount {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s : Memory.State}
     (hw : 0 < w) (hb : d.2 < numBuckets n_max) :
     ValidProg w (dictFrontier U V w n_max h_space d.1) s

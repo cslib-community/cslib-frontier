@@ -17,7 +17,8 @@ A predicate that looks only at the first `n` entries of a word of length `m ≥ 
 (every) such word exactly when it holds for some (every) word of length `n`: a short word is the
 prefix of its padding (`List.exists_length_eq_take_iff`, `List.forall_length_eq_take_iff`).
 Complexity-class arguments use this to pad certificate blocks to longer, uniform or easily computed
-lengths and let the verifier cut them back.
+lengths and let the verifier cut them back. A Boolean check over a list can also be split into
+independent checks on the prefix and the remaining entries (`List.all_eq_true_of_take_drop`).
 
 ## Main results
 
@@ -28,6 +29,11 @@ lengths and let the verifier cut them back.
 public section
 
 namespace List
+
+/-- A Boolean check succeeds on the whole list if it succeeds on both sides of a cut. -/
+theorem all_eq_true_of_take_drop {α : Type*} {xs : List α} {p : α → Bool} (n : ℕ)
+    (head : (xs.take n).all p = true) (tail : (xs.drop n).all p = true) : xs.all p = true := by
+  rw [← take_append_drop n xs, all_append, head, tail, Bool.true_and]
 
 variable {α : Type*} [Nonempty α] {n m : ℕ} {P : List α → Prop}
 

@@ -269,10 +269,8 @@ theorem exists_collision_of_micaliVerifyPure_of_rejects
     have hacc : V.accepts x (micaliExtractProof V tr x proof.root) ρ = true := by
       refine accepts_kilianProof hver (fun o ho => ?_) hρ hlen
       have hleaf := hall o ho
-      have hi : kilianPosition V x o.1 < 2 ^ kilianDepth V x := by
-        have hm := merkleVerify_of_mem_kilianOpenings hver ho
-        simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hm
-        exact hm.1.2
+      have hi : kilianPosition V x o.1 < 2 ^ kilianDepth V x :=
+        (merkleVerify_eq_true_iff.mp (merkleVerify_of_mem_kilianOpenings hver ho)).2.1
       rw [getD_micaliExtractCompactTable, getD_extractTableFromTrace hi, hleaf,
         Option.getD_some, List.headD_cons]
     rw [hacc] at hrej
@@ -894,18 +892,11 @@ theorem micaliProofBits_micaliProvePure_le {hTree : List Bool → List Bool}
   have hstep_eq : merklePathStep (fun _ => hTree) [] = merklePathStep H k₀ := by
     funext st
     simp [merklePathStep, hparents]
-  have hcommit : kilianCommit (fun _ => hTree) V [] x table = kilianCommit H V k₀ x table := by
-    simp [kilianCommit, merkleRoot, merkleLevel, merkleLeafLevel, hparents, hH_eq]
   have hrespond (ρs : List (List Bool)) :
       kilianRespond (fun _ => hTree) V [] x table ρs = kilianRespond H V k₀ x table ρs := by
     simp [kilianRespond, kilianOpen, merklePath, merkleLeafLevel, hstep_eq, hH_eq]
-  have hroot : (kilianCommit (fun _ => hTree) V [] x table).length ≤ σ := by
-    rw [hcommit, kilianCommit, merkleRoot]
-    cases h : merkleLevel H k₀ (kilianLeaves (kilianTable V x table))
-        (Nat.clog 2 (kilianLeaves (kilianTable V x table)).length) with
-    | nil => simp
-    | cons y ys =>
-      rw [List.headD_cons, length_of_mem_merkleLevel hlenH (h ▸ List.mem_cons_self), hk₀]
+  have hroot : (kilianCommit (fun _ => hTree) V [] x table).length ≤ σ :=
+    (length_merkleRoot (H := fun _ => hTree) (k := []) hlen _).le
   have hresp := kilianResponseBits_kilianRespond_le hlenH (k := k₀) (table := table) hq hρs
   have hdepth : (hFS (x, kilianCommit (fun _ => hTree) V [] x table)).length *
       (q * (1 + kilianDepth V x * k₀.length)) ≤

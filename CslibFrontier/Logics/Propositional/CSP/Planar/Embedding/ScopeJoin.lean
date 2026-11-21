@@ -189,7 +189,8 @@ theorem constraint_scopeJoinOccurrenceEquiv (F H : CSP Rel V) (r : Rel)
     try { have := a.1.isLt; have := b.1.isLt; omega } <;>
     try { have := a.1.isLt; omega } <;> try { have := b.1.isLt; omega } <;> omega
 
-private theorem argumentSuccessor_source (F H : CSP Rel V) (r : Rel)
+/-- The source body/probe coordinates retain each original directed argument successor. -/
+theorem argumentSuccessor_scopeJoinSourceEquiv (F H : CSP Rel V) (r : Rel)
     (x : Fin m → V) (y : Fin n → V)
     (a : (F.Occurrence ⊕ Fin m) ⊕ (H.Occurrence ⊕ Fin n)) :
     argumentSuccessor (scopeJoinSourceEquiv F H r x y a) =
@@ -271,7 +272,7 @@ theorem argumentSuccessor_scopeJoinOccurrenceEquiv (F H : CSP Rel V) (r : Rel)
   classical
   obtain ⟨a, rfl⟩ := (scopeJoinSourceEquiv F H r x y).surjective o
   rw [← (scopeJoinSourceEquiv F H r x y).injective.map_swap]
-  rw [argumentSuccessor_source]
+  rw [argumentSuccessor_scopeJoinSourceEquiv]
   simp only [scopeJoinOccurrenceEquiv, Equiv.trans_apply, Equiv.symm_apply_apply]
   exact (argumentSuccessor_target_splice F H r x y a).symm
 

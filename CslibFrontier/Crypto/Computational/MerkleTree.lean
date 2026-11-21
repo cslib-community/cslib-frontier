@@ -54,6 +54,12 @@ to the depth `d` and check `i < 2 ^ d`:
   `2 ^ path.length`;
 * the root does not fix the number of leaves: `[a, b, c]` and `[a, b, c, []]` have the same root.
 
+To bind under collision resistance of the hash on its domain only, the leaves and the pairs of
+digests (`isDigestPair`, [BonehShoup2023], Section 8.9), a verifier must also check that every
+label is a digest: then every hash input met while recomputing a root is the leaf or a pair of
+digests (`eq_or_isDigestPair_of_mem_merkleInputs`), and so is every collision that
+`extractMerkleCollision` finds (`mem_merkleInputs_of_extractMerkleCollision`).
+
 The root, the path, root recomputation and extraction have plain polynomial-time certificates for
 hash families whose digests have the length of the key. Positions are unary in these
 certificates, which suits trees with polynomially many leaves.
@@ -67,6 +73,7 @@ certificates, which suits trees with polynomially many leaves.
 * `Cslib.Crypto.merkleInputs`, `Cslib.Crypto.merkleRootOfPath`: the hash inputs met while
   recomputing a root from an opening, and the recomputed root.
 * `Cslib.Crypto.extractMerkleCollision`: the first differing pair of hash inputs of two openings.
+* `Cslib.Crypto.isDigestPair`: the hash inputs of internal nodes, pairs of digests.
 
 ## Main results
 
@@ -75,6 +82,9 @@ certificates, which suits trees with polynomially many leaves.
 * `Cslib.Crypto.merkleRootOfPath_merklePath`: an honest opening recomputes the root.
 * `Cslib.Crypto.isCollision_extractMerkleCollision`: a second opening of a position yields a
   collision.
+* `Cslib.Crypto.eq_or_isDigestPair_of_mem_merkleInputs`,
+  `Cslib.Crypto.mem_merkleInputs_of_extractMerkleCollision`: the hash inputs of an opening whose
+  labels are digests lie in the hash's domain, and so do the collisions extracted from it.
 * `Cslib.Crypto.computableInPolyTime_merkleRoot`, `Cslib.Crypto.computableInPolyTime_merklePath`,
   `Cslib.Crypto.computableInPolyTime_merkleInputs`,
   `Cslib.Crypto.computableInPolyTime_merkleRootOfPath`,
@@ -224,21 +234,21 @@ theorem length_merklePath (leaves : List (List Bool)) (i : ℕ) :
     (merklePath H k leaves i).length = Nat.clog 2 leaves.length := by
   simp [merklePath_eq]
 
-/-- Hashed leaves have the length of the key when the hash's digests do. -/
-theorem length_of_mem_merkleLeafLevel (hlen : ∀ k x, (H k x).length = k.length)
+/-- Hashed leaves have `ℓ` bits when every digest of `H k` does. -/
+theorem length_of_mem_merkleLeafLevel {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
     {leaves : List (List Bool)} {y : List Bool} (hy : y ∈ merkleLeafLevel H k leaves) :
-    y.length = k.length := by
+    y.length = ℓ := by
   simp only [merkleLeafLevel, List.mem_map] at hy
   obtain ⟨_, _, rfl⟩ := hy
-  exact hlen _ _
+  exact hlen _
 
-/-- Parents have the length of the key when the hash's digests do. -/
-theorem length_of_mem_merkleParents (hlen : ∀ k x, (H k x).length = k.length)
+/-- Parents have `ℓ` bits when every digest of `H k` does. -/
+theorem length_of_mem_merkleParents {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
     {level : List (List Bool)} {y : List Bool} (hy : y ∈ merkleParents H k level) :
-    y.length = k.length := by
+    y.length = ℓ := by
   simp only [merkleParents, List.mem_map] at hy
   obtain ⟨_, _, rfl⟩ := hy
-  exact hlen _ _
+  exact hlen _
 
 /-! ### Correctness of honest openings -/
 
@@ -385,6 +395,71 @@ theorem isCollision_extractMerkleCollision {leaf₁ leaf₂ : List Bool} {i : �
   rw [extractMerkleCollision, merkleInputs, merkleInputs, hfind, Option.getD_some]
   simp [isCollision, hne', hhash]
 
+/-! ### The hash inputs of a tree -/
+
+/-- `x` pairs two `ℓ`-bit words: `x = encPair encBits encBits (l, r)` with `l` and `r` of `ℓ` bits
+(`isDigestPair_eq_true_iff`). For `ℓ` the digest length, these are the hash inputs of internal
+nodes, the pairs of digests `Y²` in the domain of the hash of [BonehShoup2023], Section 8.9. -/
+def isDigestPair (ℓ : ℕ) (x : List Bool) : Bool :=
+  (unframe x).length == ℓ && (dropFrame x).length == ℓ &&
+    encPair encBits encBits (unframe x, dropFrame x) == x
+
+/-- A pairing is a digest pair exactly when both components have `ℓ` bits. -/
+theorem isDigestPair_encPair (ℓ : ℕ) (l r : List Bool) :
+    isDigestPair ℓ (encPair encBits encBits (l, r)) = (l.length == ℓ && r.length == ℓ) := by
+  simp [isDigestPair, encPair_apply]
+
+/-- The digest pairs are exactly the pairings of two `ℓ`-bit words. -/
+theorem isDigestPair_eq_true_iff {ℓ : ℕ} {x : List Bool} :
+    isDigestPair ℓ x = true ↔
+      ∃ l r, l.length = ℓ ∧ r.length = ℓ ∧ encPair encBits encBits (l, r) = x := by
+  constructor
+  · intro h
+    simp only [isDigestPair, Bool.and_eq_true, beq_iff_eq] at h
+    exact ⟨_, _, h.1.1, h.1.2, h.2⟩
+  · rintro ⟨l, r, hl, hr, rfl⟩
+    rw [isDigestPair_encPair, hl, hr, beq_self_eq_true, Bool.and_self]
+
+/-- **Every hash input of an opening lies in the hash's domain**: when every digest of `H k` and
+every label of `path` has `ℓ` bits, each hash input met while recomputing a root is the opened
+leaf or a pair of `ℓ`-bit digests. -/
+theorem eq_or_isDigestPair_of_mem_merkleInputs {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
+    {leaf : List Bool} {i : ℕ} {path : List (List Bool)} (hpath : ∀ s ∈ path, s.length = ℓ)
+    {x : List Bool} (hx : x ∈ merkleInputs H k leaf i path) :
+    x = leaf ∨ isDigestPair ℓ x = true := by
+  suffices h : ∀ (path : List (List Bool)) (state : List (List Bool) × ℕ),
+      (∀ s ∈ path, s.length = ℓ) → (∀ y ∈ state.1, y = leaf ∨ isDigestPair ℓ y = true) →
+        ∀ y ∈ (path.foldl (merkleInputsStep H k) state).1, y = leaf ∨ isDigestPair ℓ y = true from
+    h path ([leaf], i) hpath (by simp) x hx
+  intro path
+  induction path with
+  | nil => exact fun _ _ hstate => hstate
+  | cons s path ih =>
+    intro state hs hstate
+    refine ih _ (fun t ht => hs t (List.mem_cons_of_mem _ ht)) fun y hy => ?_
+    simp only [merkleInputsStep, List.mem_cons] at hy
+    rcases hy with rfl | hy
+    · right
+      split <;> rw [isDigestPair_encPair] <;> simp [hlen, hs s List.mem_cons_self]
+    · exact hstate y hy
+
+/-- The two words found by `extractMerkleCollision`, when they differ, are hash inputs of the two
+openings. -/
+theorem mem_merkleInputs_of_extractMerkleCollision {leaf₁ leaf₂ : List Bool} {i : ℕ}
+    {path₁ path₂ : List (List Bool)}
+    (hne : (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).1 ≠
+      (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).2) :
+    (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).1 ∈ merkleInputs H k leaf₁ i path₁ ∧
+      (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).2 ∈
+        merkleInputs H k leaf₂ i path₂ := by
+  unfold extractMerkleCollision at hne ⊢
+  cases hfind : ((merkleInputs H k leaf₁ i path₁).zip (merkleInputs H k leaf₂ i path₂)).find?
+      (fun p => p.1 != p.2) with
+  | none => simp [hfind] at hne
+  | some p =>
+    rw [Option.getD_some]
+    exact List.of_mem_zip (List.mem_of_find?_eq_some hfind)
+
 /-! ### Polynomial time -/
 
 section PolyTime
@@ -402,12 +477,12 @@ private def LevelInv (key : List Bool) (L : ℕ) (level : List (List Bool)) : Pr
 private theorem levelInv_merkleLeafLevel (hlen : ∀ k x, (H k x).length = k.length)
     (key : List Bool) (leaves : List (List Bool)) :
     LevelInv key leaves.length (merkleLeafLevel H key leaves) :=
-  ⟨fun _ hy => length_of_mem_merkleLeafLevel hlen hy, (length_merkleLeafLevel leaves).le⟩
+  ⟨fun _ hy => length_of_mem_merkleLeafLevel (hlen key) hy, (length_merkleLeafLevel leaves).le⟩
 
 private theorem LevelInv.merkleParents {key : List Bool} {L : ℕ} {level : List (List Bool)}
     (h : LevelInv key L level) (hlen : ∀ k x, (H k x).length = k.length) :
     LevelInv key L (Cslib.Crypto.merkleParents H key level) :=
-  ⟨fun _ hy => length_of_mem_merkleParents hlen hy,
+  ⟨fun _ hy => length_of_mem_merkleParents (hlen key) hy,
     (length_merkleParents level).le.trans ((Nat.div_le_self _ _).trans h.2)⟩
 
 private theorem length_encList_level_le {L : ℕ} {key : List Bool} {level : List (List Bool)}
@@ -661,7 +736,8 @@ theorem computableInPolyTime_merkleInputs
             encPair encBits encBits (H p.1.1 (p.1.2.1.headD []), p.2)
           else encPair encBits encBits (p.2, H p.1.1 (p.1.2.1.headD [])))
         (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits) encBits := by
-      polytime
+      exact ComputableInPolyTime.ite_decide
+        ((ComputableInPolyTime.unary_mod' hidx (.const 2)).decide_eq' (.const 0)) hleft hright
     unfold merkleInputsStep
     exact (ComputableInPolyTime.cons' hnext hinputs).prod
       ((ComputableInPolyTime.unary_div_const 2).comp hidx)

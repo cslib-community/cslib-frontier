@@ -51,20 +51,20 @@ theorem card_eq_of_bijPebbleWins {k n : ℕ} {S : Set (Fin k)} {a : Fin k → M}
 
 /-- Exactly `m` elements: a one-variable counting sentence of quantifier rank `1`. -/
 def hasCard (L : Language) (m : ℕ) : FiniteVariable.CountingFormula L 1 :=
-  .exactly m 0 ⊤
+  FiniteVariable.CountingFormula.exactly m 0 ⊤
 
 theorem realize_hasCard [Finite M] (m : ℕ) (a : Fin 1 → M) :
     (hasCard L m).Realize a ↔ Nat.card M = m := by
   rw [hasCard, FiniteVariable.CountingFormula.realize_exactly_iff_ncard]
-  simp only [FiniteVariable.CountingFormula.realize_top, Set.ofPred_true, Set.ncard_univ]
+  simp only [FiniteVariable.GenFormula.realize_top, Set.ofPred_true, Set.ncard_univ]
 
 theorem quantifierRank_hasCard (m : ℕ) : (hasCard L m).quantifierRank = 1 := by
   rw [hasCard, FiniteVariable.CountingFormula.quantifierRank_exactly,
-    FiniteVariable.CountingFormula.quantifierRank_top]
+    FiniteVariable.GenFormula.quantifierRank_top]
 
 theorem freeVars_hasCard (m : ℕ) : (hasCard L m).freeVars = ∅ := by
   rw [hasCard, FiniteVariable.CountingFormula.freeVars_exactly,
-    FiniteVariable.CountingFormula.freeVars_top, Finset.erase_empty]
+    FiniteVariable.GenFormula.freeVars_top, Finset.erase_empty]
 
 /-- The same conclusion through the counting logic: a won one-round bijective `1`-pebble game
 makes the two finite structures agree on `hasCard (Nat.card M)`. -/
@@ -134,10 +134,9 @@ example (a : Fin 1 → Fin 3) (b : Fin 1 → Fin 2) :
 /-- The embedding of `FO^k` into `C^k` in action: the first-order sentence "some element exists"
 becomes a counting sentence with the same truth value, rank and free variables. -/
 example (a : Fin 1 → Fin 3) :
-    ((FiniteVariable.Formula.ex 0 ⊤ : FiniteVariable.Formula Language.empty 1).toCounting).Realize
-      a := by
-  rw [FiniteVariable.Formula.realize_toCounting, FiniteVariable.Formula.realize_ex]
-  exact ⟨0, (FiniteVariable.Formula.realize_top _).2 trivial⟩
+    ((show FiniteVariable.Formula Language.empty 1 from .ex 0 ⊤).toCounting).Realize a := by
+  rw [FiniteVariable.Formula.realize_toCounting, FiniteVariable.GenFormula.realize_ex]
+  exact ⟨0, (FiniteVariable.GenFormula.realize_top _).2 trivial⟩
 
 /-! ### `C₆` and two triangles agree on `C²` -/
 

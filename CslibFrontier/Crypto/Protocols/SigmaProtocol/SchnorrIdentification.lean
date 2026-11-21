@@ -19,9 +19,18 @@ one-way game for this key generator is the discrete-logarithm experiment for `g`
 wins when it outputs some `α'` with `α' • g = u`. When `g` generates a group of prime order `q`,
 this `α'` is the sampled `α`.
 
-The two theorems here are the exact forms of Boneh and Shoup's Theorems 19.1 and 19.5 at a fixed
-group. They make no efficiency or hardness claim; the discrete-logarithm assumption and the
-asymptotic security statement need a group family with efficient operations.
+The two theorems here are ideal-sampling steps toward Boneh and Shoup's Theorems 19.1 and 19.5,
+not the cited results. At a fixed group, with the key drawn from `ZMod q` at the `PMF` level
+(`schnorrKeyGen`), they state the relations of those theorems' "in particular" clauses, the bound
+(19.2) and the equality `ID2adv[A, I_sch] = ID1adv[B, I_sch]`, for reductions written out here.
+They prove neither that these reductions are efficient nor an asymptotic security statement, which
+needs a group family with efficient operations and, for Theorem 19.1, the discrete-logarithm
+assumption (#5293). Over a `PrimeOrderGroupFamily` with fair-coin key generation, the asymptotic
+theorems are `PrimeOrderGroupFamily.negligible_schnorrDirectProbGame` and
+`PrimeOrderGroupFamily.negligible_schnorrEavesdropProbGame` (eavesdropping security under the
+discrete-logarithm assumption) in `CslibFrontier/Crypto/Computational/SchnorrEavesdrop.lean`; the
+rewinding adversary and the simulated-view impersonator are certified by
+`PrimeOrderGroupFamily.isPPTOn_rewind` and `PrimeOrderGroupFamily.isPPT_toDirect`.
 As for the identification experiments they instantiate, the group and challenge types are in
 `Type`.
 
@@ -29,12 +38,12 @@ As for the identification experiments they instantiate, the group and challenge 
 
 * `SigmaProtocol.schnorrKeyGen`: a uniform secret `α` and the public key `α • g`.
 
-## Main results
+## Ideal-sampling steps toward Theorems 19.1 and 19.5
 
-* `SigmaProtocol.schnorr_succProbability_directAttack_le`: `ε ≤ 1 / N + √ε'`, with `ε'` the
-  rewinding extractor's discrete-logarithm success probability (Theorem 19.1).
-* `SigmaProtocol.schnorr_eavesdropAttack_eq_directAttack`: an eavesdropper is no stronger than
-  the direct impersonator that simulates its views (Theorem 19.5).
+* `SigmaProtocol.schnorr_succProbability_directAttack_le_ideal`: `ε ≤ 1 / N + √ε'`, with `ε'` the
+  rewinding extractor's discrete-logarithm success probability (the bound (19.2) of Theorem 19.1).
+* `SigmaProtocol.schnorr_eavesdropAttack_eq_directAttack_ideal`: an eavesdropper is no stronger than
+  the direct impersonator that simulates its views (the equality of Theorem 19.5).
 
 ## References
 
@@ -64,20 +73,32 @@ theorem mem_support_schnorrKeyGen {g : G} {key : ZMod q × G}
 
 variable [DecidableEq G] [Fintype C] [Nonempty C] {ι : C ↪ ZMod q} {g : G}
 
-/-- **Schnorr identification against direct attacks** ([BonehShoup2023], Theorem 19.1, exact
-form): an impersonator's success probability is at most `1 / N + √ε'`, where `ε'` is the
-probability that rewinding it computes a discrete logarithm of the key and `N` is the number of
-challenges. -/
-theorem schnorr_succProbability_directAttack_le [Fact q.Prime] (A : Impersonator G G C (ZMod q)) :
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.1, not the cited result: at a fixed
+group, with the key drawn at the `PMF` level by `schnorrKeyGen`, an impersonator's success
+probability is at most `1 / N + √ε'` (the bound (19.2)), where `ε'` is the probability that
+rewinding it computes a discrete logarithm of the key and `N` is the number of challenges. Missing
+are the efficiency of the rewinding adversary `A.rewind (linearExtract ι)` and the asymptotic
+statement (#5293). Over a `PrimeOrderGroupFamily`, `PrimeOrderGroupFamily.isPPTOn_rewind`
+certifies the rewinding adversary and `PrimeOrderGroupFamily.negligible_schnorrDirectProbGame` is
+the asymptotic theorem. -/
+theorem schnorr_succProbability_directAttack_le_ideal [Fact q.Prime]
+    (A : Impersonator G G C (ZMod q)) :
     (Game.succProbability ((schnorr ι g).directAttack (schnorrKeyGen g) A) : ℝ) ≤
       1 / Fintype.card C + √(Game.succProbability
         (oneWayGame (schnorrKeyGen g) (fun α u => α • g = u) (A.rewind (linearExtract ι)))) :=
   succProbability_directAttack_le (schnorr_specialSoundness.specialSoundOn _) A
 
-/-- **Schnorr identification against eavesdropping** ([BonehShoup2023], Theorem 19.5, exact
-form): an eavesdropper succeeds with exactly the probability of the direct impersonator that
-simulates its `Q` conversations. -/
-theorem schnorr_eavesdropAttack_eq_directAttack {Q : ℕ}
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.5, not the cited result: at a fixed
+group, with the key drawn at the `PMF` level by `schnorrKeyGen`, an eavesdropper succeeds with
+exactly the probability of the direct impersonator that simulates its `Q` conversations (the
+equality `ID2adv[A, I_sch] = ID1adv[B, I_sch]`). Missing is the efficiency of that simulated-view
+impersonator, `A.withSimulatedViews (linearSimulate …)`, whose simulator draws its response
+uniformly from `ZMod q` at the `PMF` level; nothing here certifies it as an efficient wrapper
+around `A` (#5293). Over a `PrimeOrderGroupFamily`, `PrimeOrderGroupFamily.isPPT_toDirect`
+certifies a simulated-view impersonator whose simulator samples with fair coins, and
+`PrimeOrderGroupFamily.negligible_schnorrEavesdropProbGame` proves eavesdropping security under the
+discrete-logarithm assumption. -/
+theorem schnorr_eavesdropAttack_eq_directAttack_ideal {Q : ℕ}
     (A : Impersonator (G × (Fin Q → G × C × ZMod q)) G C (ZMod q)) :
     (schnorr ι g).eavesdropAttack (schnorrKeyGen g) Q A =
       (schnorr ι g).directAttack (schnorrKeyGen g)

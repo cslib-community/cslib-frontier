@@ -40,14 +40,14 @@ Formalizes the computational form of [BonehShoup2023], Section 8.10.1 (Attack Ga
 fourth motivating example, computational unpredictability of a secret source, pp. 325–326) and
 Section 8.10.2 (Theorem 8.10, pp. 331–332) over `secLen n`-bit secrets and `outLen n`-bit keys.
 
-Whereas `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle` states the eager-table
-(`uniformOfFintype (S → T)`) concrete bounds and the information-theoretic (unbounded-guesser)
-asymptotic transfer of Theorem 8.10 for arbitrary finite nonempty `S` and `T`, this module
-constructs the elementary lazy-simulation wrappers `lazyROToListGuess` and `lazyROToGuess` over
-associative-list caches (`cachedRandomFunctionOracle`), proves their uniform strict PPT
-certificates from a word-oracle distinguisher's `IsOraclePPTOn` certificate, and derives the
-asymptotic random-oracle KDF security transfer under the standard computational unpredictability
-assumption `SecretGuessHard`.
+Whereas `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle` states eager-table
+(`uniformOfFintype (S → T)`) concrete bounds and an information-theoretic (unbounded-guesser)
+asymptotic transfer for arbitrary finite nonempty `S` and `T`, as steps toward Theorem 8.10,
+this module constructs the elementary lazy-simulation wrappers `lazyROToListGuess` and
+`lazyROToGuess` over associative-list caches (`cachedRandomFunctionOracle`), proves their uniform
+strict PPT certificates from a word-oracle distinguisher's `IsOraclePPTOn` certificate, and derives
+the asymptotic random-oracle KDF security transfer under the standard computational
+unpredictability assumption `SecretGuessHard`.
 
 ## Differences from the printed book
 
@@ -449,8 +449,6 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
       (fun c : (ℕ × X) × List Bool =>
         (((D c.1.1 c.1.2 c.2).runState
           fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen c.1.1) (outLen c.1.1) q).run [])) := by
-    have hsec' := hsec.tidy
-    have hout' := hout.tidy
     apply hD.isPPTOn_runState (operationEncoding := encFinEnum Unit)
       (prepare := fun c : (ℕ × X) × List Bool => (c.1.1, c.1.2, c.2))
       (resources := fun c q => 4 * q.length + 2 * outLen c.1.1 + 3)
@@ -557,11 +555,14 @@ theorem isPPT_lazyROToGuess {X : Type} {encX : X ↪ List Bool} {width Q secLen 
   simp only [lazyROToGuess, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
     PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, ofFn_getD, hrep]
 
-/-- **Lazy singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2,
-pp. 331–332): when `D n (info n s) z` makes at most `Q n` oracle queries on every supported secret
-`s` and `outLen n`-bit key `z`, the random-oracle KDF distinguishing advantage is at most
+/-- **Concrete variant of the singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023],
+§8.10.2, pp. 331–332), with an additive index-sampling bias: when `D n (info n s) z` makes at most
+`Q n` oracle queries on every supported secret `s` and `outLen n`-bit key `z`, the random-oracle
+KDF distinguishing advantage is at most
 `Q n * guessAdvantage (sample n) (info n) (lazyROToGuess width Q secLen outLen D n) +
-Q n / 2 ^ width n`, where `Q n / 2 ^ width n` is the fair-coin modular index-sampling bias. -/
+Q n / 2 ^ width n`. The extra term `Q n / 2 ^ width n` is the bias of the finite fair-coin
+modular index sampling, where the book picks the index exactly uniformly;
+`SecretGuessHard.negligible_roAdvantage` absorbs it. -/
 theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X : Type}
     (width Q secLen outLen : ℕ → ℕ) (sample : ∀ n, PMF (BitString (secLen n)))
     (info : ∀ n, BitString (secLen n) → X) (D : WordRODistinguisher X) (n : ℕ)
@@ -635,8 +636,7 @@ theorem SecretGuessHard.negligible_roAdvantage {X : Type} {encX : X ↪ List Boo
   let M : ℕ → ℕ := fun n => 2 * n + 2 * (ci * (n + 1) ^ di) + outLen n + 2
   let Q : ℕ → ℕ := fun n => cD * (M n + 1) ^ dD
   have hQ : ComputableInPolyTime Q encUnary encUnary := by
-    have hout' := hout.tidy
-    exact .of_tidy (by fun_prop)
+    fun_prop
   have hDz : ∀ n, ∀ s ∈ (sample n).support, ∀ z : List Bool, z.length = outLen n →
       (D n (info n s) z).IsQueryBounded (Q n) := by
     intro n s hs z hz
