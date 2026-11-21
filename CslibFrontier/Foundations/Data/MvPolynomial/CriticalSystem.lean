@@ -57,7 +57,8 @@ open Classical in
     (F : MvPolynomial (Fin n) S) (i : Fin n) : MvPolynomial (Fin n) S :=
   C (a i ^ ell) - C u * pderiv i F
 
-private theorem potentialPolynomial_map (φ : S →+* T) (ell : ℕ) (a : Fin n → S) :
+/-- Coefficient maps transport the separated potential. -/
+theorem potentialPolynomial_map (φ : S →+* T) (ell : ℕ) (a : Fin n → S) :
     (potentialPolynomial ell a).map φ = potentialPolynomial ell (fun i => φ (a i)) := by
   classical
   simp only [potentialPolynomial, map_sum, map_add, map_sub, map_mul, map_pow, map_X,

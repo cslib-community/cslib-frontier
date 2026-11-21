@@ -14,14 +14,15 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 
 /-!
-# Linear workspace for table-free binary-field multiplication
+# Linear workspace for table-free binary-polynomial operations
 
 This is a scalar kernel for the generator, not its native logspace certificate (#6747).
 `fieldMulMod_inSpace` concerns the existing total evaluator, including padding and truncation,
 with no irreducibility or nonempty-word assumptions. Coefficients are little-endian Boolean
 lists. Each bit uses the existing framed-list encoding; its length is three times the word
-length. The modulus and operands are retained while the multiplication fold executes. The
-fold rule charges the callee as well as both live coefficient words at every prefix.
+length. The modulus and operands are retained while the multiplication fold executes. Remainder uses
+the same fold and native step, initialized with the coefficient word for one instead of an
+operand. The fold rule charges the callee as well as both live coefficient words at every prefix.
 
 This is an original resource analysis of the existing executable algorithm. Modulus search,
 binary dimension processing, Horner composition and seed-tape queries remain under #6747.
@@ -31,6 +32,8 @@ binary dimension processing, Horner composition and seed-tape queries remain und
 * `Turing.BinaryField.fieldMulMod_inSpace`: native linear workspace for the supplied modulus
   and two coefficient words, including their normalization.
 * `Turing.BinaryField.xor_inSpace`: coefficient-wise XOR in linear workspace.
+* `Turing.BinaryField.modBits_inSpace`: native linear workspace for the existing total
+  supplied-modulus remainder scan.
 -/
 
 public section
@@ -214,6 +217,43 @@ private theorem fold_agrees (g bits : List Bool) (s : Registers) :
   | nil => rfl
   | cons bit bits ih => exact ih (advance g s bit)
 
+-- Shared by multiplication and remainder: the original modStep fold, with both live words
+-- bounded at every prefix and the retained modulus charged in each scalar invocation.
+private theorem fold_inSpace {α : Type} {encIn : α ↪ List Bool}
+    {g bits : α → List Bool} {initial : α → Registers}
+    (hg : ComputableInSpace g encIn encCoefficients (fun p => (encIn p).length))
+    (hbits : ComputableInSpace bits encIn encCoefficients (fun p => (encIn p).length))
+    (hinit : ComputableInSpace initial encIn encRegisters (fun p => (encIn p).length))
+    (hwords : ∀ p, (initial p).shift.length ≤ (g p).length - 1 ∧
+      (initial p).product.length ≤ (g p).length - 1)
+    (hmodulus : ∀ p, 3 * (g p).length ≤ (encIn p).length)
+    (hmultiplier : ∀ p, (encCoefficients (bits p)).length ≤ (encIn p).length) :
+    ComputableInSpace (fun p => ((bits p).foldl (advance (g p)) (initial p)).product)
+      encIn encCoefficients (fun p => (encIn p).length) := by
+  have hstates (p : α) (i : ℕ) :
+      (encRegisters (((bits p).take i).foldl (advance (g p)) (initial p))).length ≤
+          9 * (g p).length + 1 := by
+    have h := fold_lengths (g p) ((bits p).take i) (initial p) ((g p).length - 1)
+      (hwords p).1 (hwords p).2 le_rfl
+    simp only [encRegisters_apply, encRegistersFields, length_encPair, coefficients_length]
+    omega
+  have hfold := foldlWith hg hbits hinit advance_inSpace
+    (Q := fun p => 24 * ((encIn p).length + 1))
+    (B := fun p => 9 * (g p).length + 1)
+    (fun p i _ => by
+      have h := hstates p i
+      have hm := hmodulus p
+      simp only [length_encPair, coefficients_length, encBool_apply, List.length_singleton]
+      omega)
+    (fun p i _ => hstates p i)
+  exact (encRegisters_product_budget hfold).weaken
+    (.of_le_linear 100 100 fun p => by
+      have hm := hmodulus p
+      have hb := hmultiplier p
+      rw [coefficients_length] at hb
+      simp only [coefficients_length]
+      omega)
+
 /-- The existing table-free evaluator is computable by a native machine in workspace linear
 in its three framed coefficient words. This includes all intermediate fold states and scalar
 callees, with no assumptions about the supplied modulus. -/
@@ -231,32 +271,71 @@ theorem fieldMulMod_inSpace :
   have hzero := budget_comp_linear pad_inSpace
     (budget_prod ht (budget_const (encB := encCoefficients) [] (.refl _)))
   have hinit := encRegisters_mk_budget hleft hzero
-  have hstates (p : MulInput) (i : ℕ) :
-      (encRegisters (((pad p.modulus.tail p.right).take i).foldl (advance p.modulus)
-        ⟨pad p.modulus.tail p.left, pad p.modulus.tail []⟩)).length ≤
-          9 * p.modulus.length + 1 := by
-    have h := fold_lengths p.modulus ((pad p.modulus.tail p.right).take i)
-      ⟨pad p.modulus.tail p.left, pad p.modulus.tail []⟩ (p.modulus.length - 1)
-      (by simp [pad_length]) (by simp [pad_length]) le_rfl
-    simp only [encRegisters_apply, encRegistersFields, length_encPair, coefficients_length]
-    omega
-  have hfold := foldlWith hg hright hinit advance_inSpace
-    (Q := fun p => 24 * ((encMulInput p).length + 1))
-    (B := fun p => 9 * p.modulus.length + 1)
-    (fun p i hi => by
-      have h := hstates p i
-      simp only [length_encPair, coefficients_length, encBool_apply, List.length_singleton]
-      have hm : 3 * p.modulus.length ≤ (encMulInput p).length := by
-        simp only [encMulInput_apply, encMulInputFields, length_encPair, coefficients_length]
-        omega
+  have hout := fold_inSpace hg hright hinit
+    (fun p => by simp [pad_length])
+    (fun p => by
+      simp only [encMulInput_apply, encMulInputFields, length_encPair, coefficients_length]
       omega)
-    (fun p i _ => hstates p i)
-  have hout := encRegisters_product_budget hfold
-  refine (hout.weaken (.of_le_linear 100 100 fun p => ?_)).of_enc_eq fun p => ?_
-  · simp only [encMulInput_apply, encMulInputFields, length_encPair, coefficients_length,
-      pad_length, List.length_tail]
-    omega
-  · rw [fold_agrees, fieldMulMod, modMulBits, pad_nil]
-    simp only [pad_eq, List.length_tail, Fin.val_cast]
+    (fun p => by
+      simp only [coefficients_length, pad_length, List.length_tail,
+        encMulInput_apply, encMulInputFields, length_encPair]
+      omega)
+  refine hout.of_enc_eq fun p => ?_
+  rw [fold_agrees, fieldMulMod, modMulBits, pad_nil]
+  simp only [pad_eq, List.length_tail, Fin.val_cast]
+
+/-- Arguments to the supplied-modulus polynomial-remainder evaluator. -/
+structure RemainderInput where
+  /-- Little-endian modulus coefficients, with no monicity assumption. -/
+  modulus : List Bool
+  /-- Little-endian coefficients to scan. -/
+  dividend : List Bool
+
+/-- Modulus followed by dividend, both framed Boolean lists; the modulus field is additionally
+framed by the record encoding. Each coefficient contributes three symbols before record framing. -/
+enc_structure encRemainderInput : RemainderInput where
+  modulus : encCoefficients, dividend : encCoefficients
+
+private theorem pad_one (template : List Bool) :
+    pad template [true] =
+      (true :: List.replicate (template.length - 1) false).take template.length := by
+  cases template with
+  | nil => rfl
+  | cons bit tail =>
+    change true :: pad tail [] = (true :: List.replicate tail.length false).take (tail.length + 1)
+    rw [pad_nil]
+    simp
+
+/-- Native linear workspace for the existing total supplied-modulus `modBits` evaluator.
+The modulus is retained throughout the scan; at every prefix both registers have at most
+`modulus.length - 1` coefficients. The native fold also charges each shift/XOR callee.
+For monic moduli, algebraic remainder agreement is supplied by `Cslib.mk_polyOfBits_modBits`;
+no algebraic meaning is asserted here for malformed modulus words. -/
+theorem modBits_inSpace :
+    ComputableInSpace (fun p : RemainderInput => modBits p.modulus p.dividend)
+      encRemainderInput encCoefficients (fun p => (encRemainderInput p).length) := by
+  have hid : ComputableInSpace (fun p : RemainderInput => p)
+      encRemainderInput encRemainderInput (fun p => (encRemainderInput p).length) :=
+    of_inO ComputableInO.id'
+  have hg := encRemainderInput_modulus_budget hid
+  have hf := encRemainderInput_dividend_budget hid
+  have ht := budget_tail hg
+  have hone := budget_comp_linear pad_inSpace
+    (budget_prod ht (budget_const (encB := encCoefficients) [true] (.refl _)))
+  have hzero := budget_comp_linear pad_inSpace
+    (budget_prod ht (budget_const (encB := encCoefficients) [] (.refl _)))
+  have hinit := encRegisters_mk_budget hone hzero
+  have hout := fold_inSpace hg hf hinit
+    (fun p => by simp [pad_length])
+    (fun p => by
+      simp only [encRemainderInput_apply, encRemainderInputFields,
+        length_encPair, coefficients_length]
+      omega)
+    (fun p => by
+      simp only [encRemainderInput_apply, encRemainderInputFields, length_encPair]
+      omega)
+  refine hout.of_enc_eq fun p => ?_
+  rw [fold_agrees, modBits, pad_one, pad_nil]
+  simp only [List.length_tail, Nat.sub_sub]
 
 end Turing.BinaryField

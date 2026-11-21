@@ -79,9 +79,10 @@ The statement and its proof route are original (cslib-frontier issue #6718).
 ## Implementation notes
 
 The coordinates take values in countable types with the discrete measurable structure, so every
-event determined by finitely many table entries is measurable (by a private lemma) and the rule
-needs no measurability assumption. The event `AgreeGood` need not be measurable; its complement
-is bounded through `measure_mono_ae`, which holds for outer measure.
+event determined by finitely many table entries is measurable
+(`MeasureTheory.measurableSet_of_dependsOn`) and the rule needs no measurability assumption. The
+event `AgreeGood` need not be measurable; its complement is bounded through `measure_mono_ae`,
+which holds for outer measure.
 
 `correlatedCoupling` is Holenstein's protocol (`Cslib.Probability.CorrelatedSampling.seed`): the
 seed at each table entry is a sequence of uniform points of `α v × [0, 1]` whose law depends only
@@ -230,25 +231,6 @@ theorem dependsOn_le_uses [Fintype V] (r : List ι → (∀ v, α v) → Option 
     omega
 
 end Rule
-
-section Measurable
-
-variable {ι : Type*} {Ω : ι → Type*} [∀ i, MeasurableSpace (Ω i)] [∀ i, Countable (Ω i)]
-  [∀ i, MeasurableSingletonClass (Ω i)]
-
-/-- With countable discrete coordinates, a set determined by finitely many coordinates is
-measurable. -/
-private theorem measurableSet_of_dependsOn {A : Set (∀ i, Ω i)} {S : Finset ι}
-    (h : DependsOn (· ∈ A) (S : Set ι)) : MeasurableSet A := by
-  have hA : A = S.restrict ⁻¹' (S.restrict '' A) := by
-    ext x
-    refine ⟨fun hx => ⟨x, hx, rfl⟩, fun ⟨y, hy, hxy⟩ => ?_⟩
-    have := h (x := y) (y := x) fun i hi => congrFun hxy ⟨i, hi⟩
-    simpa [this] using hy
-  rw [hA]
-  exact Finset.measurable_restrict S (Set.to_countable _).measurableSet
-
-end Measurable
 
 open scoped Classical in
 /-- **Tail sum.** For a monotone count `U`, the number of `k` with `k ≤ U n` for some `n` is at most
@@ -548,7 +530,7 @@ theorem coupledTable_diverge_le_of_lll [Fintype ι] (A : ι → Set (∀ v, α v
 omit [Fintype V] [DecidableEq V] [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
 /-- The symmetric hypothesis `e p (d + 1) ≤ 1`, with at most `d` neighbours per event, gives the
 asymmetric one with the weights `x = 1 / (d + 2)`. -/
-private theorem lll_of_symm {A : ι → Set (∀ v, α v)} (m : Measure (∀ v, α v))
+theorem lll_of_symm {A : ι → Set (∀ v, α v)} (m : Measure (∀ v, α v))
     (Γ : ι → Finset ι) {d : ℕ} (hΓd : ∀ i, (Γ i).card ≤ d) {p : ℝ} (hP : ∀ i, m.real (A i) ≤ p)
     (hp : Real.exp 1 * p * (d + 1) ≤ 1) :
     (∀ _ : ι, 1 / (d + 2 : ℝ) ∈ Set.Ico 0 1) ∧
