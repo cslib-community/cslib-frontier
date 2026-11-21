@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.BoundedPolynomial
 public import CslibFrontier.Foundations.Data.MvPolynomial.InterpolateLast
 public import CslibFrontier.Foundations.Quantum.Algebra.MeasurementMixture
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialMeasurement
@@ -26,8 +27,6 @@ with all remaining outcomes assigned to failure.
 
 ## Main definitions
 
-* `Cslib.PCP.LowIndividualDegree.BoundedPolynomial`: polynomials of individual degree at most
-  a given bound.
 * `Cslib.PCP.LowIndividualDegree.pasteOutcome`: the partial polynomial readout.
 * `Cslib.PCP.LowIndividualDegree.pasteMeasurement`: the measurement after readout.
 * `Cslib.PCP.LowIndividualDegree.pasteSlices`: the readout averaged over distinct slice tuples.
@@ -46,30 +45,7 @@ namespace Cslib.PCP.LowIndividualDegree
 
 open Finset MvPolynomial Cslib.Quantum
 
-/-- A polynomial whose degree in every coordinate is at most `d`. -/
-abbrev BoundedPolynomial (F : Type*) [CommSemiring F] (m d : ℕ) :=
-  {p : MvPolynomial (Fin m) F // ∀ i, p.degreeOf i ≤ d}
-
 variable {F ι : Type*} {m d : ℕ} [Field F]
-
-instance [Finite F] : Finite (BoundedPolynomial F m d) := by
-  classical
-  let exponents (a : Fin m → Fin (d + 1)) : Fin m →₀ ℕ :=
-    Finsupp.equivFunOnFinite.symm (fun i => (a i).val)
-  let encode (p : BoundedPolynomial F m d) (a : Fin m → Fin (d + 1)) :=
-    p.val.coeff (exponents a)
-  refine Finite.of_injective encode fun p q h => Subtype.ext (MvPolynomial.ext _ _ fun e => ?_)
-  by_cases he : ∀ i, e i ≤ d
-  · let a (i : Fin m) : Fin (d + 1) := ⟨e i, Nat.lt_succ_of_le (he i)⟩
-    have ha : exponents a = e := Finsupp.equivFunOnFinite_symm_coe e
-    simpa only [encode, ha] using congrFun h a
-  · have zeroCoeff (r : BoundedPolynomial F m d) : r.val.coeff e = 0 := by
-      rw [← notMem_support_iff]
-      exact fun hs => he fun i => (le_degreeOf_of_mem_support i hs).trans (r.prop i)
-    rw [zeroCoeff p, zeroCoeff q]
-
-noncomputable instance [Finite F] : Fintype (BoundedPolynomial F m d) :=
-  Fintype.ofFinite _
 
 /-- Restrict a bounded polynomial to a last-coordinate slice. -/
 @[expose] noncomputable def BoundedPolynomial.specialize (x : F)

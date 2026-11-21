@@ -95,15 +95,9 @@ theorem acceptScore_le_verticalAgreement (S : CommutingStrategy Q Q Ans Ans A)
     acceptScore S d (.point (Fin.snoc u t)) (.axis (verticalLine u)) ≤
       Measurement.agreement S.state (decodedPoint S.alice (Fin.snoc u t))
         ((decodedVertical S.bob d u).map (fun f => f.value t)) := by
-  classical
-  simp only [acceptScore, decodedPoint, decodedVertical, Measurement.map_map,
-    Measurement.agreement_map_map]
-  refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
-  by_cases h : accepts d (.point (Fin.snoc u t)) (.axis (verticalLine u)) a b
-  · have he := decodeVertical_agrees u t ((accepts_point_axis_iff d _ _ a b).mp h)
-    simp only [ite_eq_left h, Function.comp_apply, he, ite_true, CommutingStrategy.prob, le_refl]
-  · rw [ite_eq_right h]
-    exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
+  rw [decodedPoint, decodedVertical, Measurement.map_map]
+  exact acceptScore_le_decodedAgreement S d _ _ _ _ fun a b h =>
+    (decodeVertical_agrees u t ((accepts_point_axis_iff d _ _ a b).mp h)).symm
 
 /-- The average decoded vertical disagreement with Alice receiving the point is at most
 twice the ambient dimension times the original axis-branch loss. The factor two
@@ -130,7 +124,8 @@ section Norm
 
 variable [StarModule ℂ A] [SelfAdjointDecompose A]
 
-private theorem decodedPoint_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ) :
+/-- The distance between the two point answers is controlled by the consistency branch. -/
+theorem decodedPoint_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ) :
     (𝔼 u : Point F (n + 1), ∑ a,
       S.state.norm ((decodedPoint S.bob u).effect a - (decodedPoint S.alice u).effect a) ^ 2) ≤
     2 * (1 - (branchGame (F := F) n d .consistency).commutingWinProb S) := by

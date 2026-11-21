@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplay
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Finite
@@ -213,11 +214,7 @@ private theorem fixedActionTick_inSpace (a : Option (Action k Bool Q)) :
       | pos =>
         have hpos := budget_natSucc (inputPos_inSpace (k := k) (Q := Q))
         have hN := budget_natSucc (inputLength_inSpace (k := k) (Q := Q))
-        refine (budget_ite (budget_natLt hpos hN) hpos hN).of_enc_eq ?_
-        intro s
-        simp only [MultiTapeNTM.ConfigurationGraph.inputMove, Bool.decide_iff]
-        congr 1
-        split <;> omega
+        simpa only [MultiTapeNTM.ConfigurationGraph.inputMove, hd] using budget_natMin hpos hN
     have hh : ComputableInSpace (fun s : Config k Q =>
         fun h => move (s.heads h) (a.workTapes h).2) encConfig (encPi encNat)
         (fun s => (encConfig s).length) := by
