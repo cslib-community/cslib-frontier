@@ -478,6 +478,7 @@ import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+
 /-!
 # Collected results
 
@@ -12036,4 +12037,4 @@ register_result "micciancio-regev-incgdd-finite-step" where
     m · ε / (2 (1 − ε))) for any fixed solver F, and a CloseTo statistical-distance transfer to \
     any approximate sampler μ. Strict-PPT sampler realization, independent amplification, \
     iterative basis shortening, and asymptotic Theorem 5.9 / Corollary 5.13 / Theorem 5.16 \
-    hardness reductions are outside this entry and proved separately."
+    hardness reductions are not formalized here."

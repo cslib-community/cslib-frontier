@@ -36,7 +36,7 @@ incremental guaranteed distance decoding (`IncGDD`) to the Euclidean short integ
 
 Strict-PPT sampler realization, independent amplification, iterative basis shortening, and the
 asymptotic worst-case-to-average-case theorems (`Theorem 5.9`, `Corollary 5.13`, `Theorem 5.16`)
-are proved separately on top of this core.
+are not formalized here; they are separate work built on this core.
 
 ## Main definitions
 
@@ -2070,7 +2070,7 @@ private theorem exists_guess_of_isEll2Solution {n m q : ℕ} {A : Matrix (Fin n)
 
 /-- Single-call finite reduction step from `IncGDD` to `ℓ₂`-SIS using ideal discrete-grid samplers.
 This is the finite distributional core step toward [MicciancioRegev2007], Theorem 5.9 (pp. 22–24);
-strict-PPT realization and amplification are proved separately. -/
+strict-PPT realization and amplification are not formalized here. -/
 @[expose] noncomputable def idealIncGDDStep {n m q : ℕ} [NeZero q]
     (B S : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0) (_hS : S.det ≠ 0)
     (_hSB : intLattice S ≤ intLattice B)
@@ -2332,7 +2332,8 @@ private theorem cond_gaussian_sum_le_prob_ge_one_third
 
 /-- Non-asymptotic single-call success lower bound (finite MR07 Theorem 5.9 step, `Gaussian.pdf`
 pp. 22–24). Uses ideal discrete-grid samplers on `G_q = (1/q) ℤⁿ` and dual-mass premise
-`ρ_{2/s}(L(B)* \ {0}) ≤ ε`; strict-PPT realization and amplification are proved separately. -/
+`ρ_{2/s}(L(B)* \ {0}) ≤ ε`; strict-PPT realization and amplification are not formalized
+here. -/
 theorem incGDD_succProb_of_sisEll2
     {n m q : ℕ} [NeZero q] (hn : 1 ≤ n) (hm : 1 ≤ m)
     (B S : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0) (hS : S.det ≠ 0)
