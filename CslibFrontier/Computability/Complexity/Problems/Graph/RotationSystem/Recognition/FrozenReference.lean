@@ -323,7 +323,8 @@ private theorem stripRamp_affine_on {a b c x y : ℝ} (hab : a < b) (hbc : b < c
       stripRamp_eq_zero hab hbc (Set.notMem_Ioo_of_le (hz.2.trans h))
   rcases interval_on_one_side hb with h' | h'
   · refine ⟨1, -a, fun z hz => ?_⟩
-    simpa only [one_mul, sub_eq_add_neg] using stripRamp_eq_sub hab hbc ⟨h.trans hz.1, hz.2.trans h'⟩
+    simpa only [one_mul, sub_eq_add_neg] using
+      stripRamp_eq_sub hab hbc ⟨h.trans hz.1, hz.2.trans h'⟩
   rcases interval_on_one_side hc with h'' | h''
   · refine ⟨-((b - a) / (c - b)), ((b - a) / (c - b)) * c, fun z hz => ?_⟩
     rw [stripRamp_eq_fall hab hbc ⟨h'.trans hz.1, hz.2.trans h''⟩]
@@ -357,7 +358,7 @@ private theorem stripPlateau_affine_on {a b x y : ℝ} (hab : a ≤ b)
     have hl : 0 ≤ 8 * (b - z) + 1 := by linarith only [hz.2.trans h''']
     have hu : 8 * (b - z) + 1 ≤ 1 := by linarith only [h''.trans hz.1]
     have hr : 1 ≤ 8 * (z - a) + 1 := by linarith only [hab.trans (h''.trans hz.1)]
-    simp only [stripPlateau, min_eq_right hu, max_eq_right hl, min_eq_left hr,
+    simp only [stripPlateau, max_eq_right hl, min_eq_left hr,
       max_eq_right zero_le_one, min_eq_right hu]
     ring
   · refine ⟨0, 0, fun z hz => ?_⟩
@@ -548,8 +549,9 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
     have hG : g (AffineMap.lineMap z.re w.re t) = AffineMap.lineMap (g z.re) (g w.re) t := by
       apply sum_map_lineMap
       intro v hv
-      obtain ⟨m, d, h⟩ := stripPlateau_affine_on (x := z.re) (y := w.re)
-        (hright v (hmem.mp hv)).le (hlocalCut hv (by simp [knots])) (hlocalCut hv (by simp [knots]))
+      obtain ⟨m, d, h⟩ := stripPlateau_affine_on (a := a v) (b := right v)
+        (x := z.re) (y := w.re) (hright v (hmem.mp hv)).le
+        (hlocalCut hv (by simp [knots])) (hlocalCut hv (by simp [knots]))
         (hlocalCut hv (by simp [knots])) (hlocalCut hv (by simp [knots]))
       let c := (1 - s) * (referencePoint I v).im
       apply map_lineMap_of_affine_on (t := t) _ ht
