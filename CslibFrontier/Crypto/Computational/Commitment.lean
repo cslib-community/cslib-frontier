@@ -594,12 +594,12 @@ theorem PseudorandomGenerator.naorGenerableStatefulHiding
   exact negligible_of_le (hfalse.add htrue) fun n =>
     advantage_commitmentHidingGame_naorCommit_le generator (length n) receiver (aux n) n
 
-/-- Stateful-receiver computational hiding for `naorCommit generator` against randomized stateful
-PPT receivers given any polynomially bounded auxiliary input family `aux : ℕ → List Bool`, from a
-nonuniform pseudorandom generator (`NonuniformPRG`). Formalizes Naor's PRG-based commitment hiding
-(after [Naor1991], Section 3; exact Section 3 source-locator verification and results inventory
-registration (`CslibFrontierResults.Entries`) remain open pending inspection of `bit.pdf`,
-#6256 / #5293). -/
+/-- Step toward Naor's PRG-based bit commitment secrecy proof (after [Naor1991]), not the cited
+result: for any nonuniform pseudorandom generator (`NonuniformPRG`), `naorCommit generator`
+satisfies `StatefulHiding` against randomized stateful PPT receivers given any polynomially bounded
+auxiliary input family `aux : ℕ → List Bool`. Exact source-locator verification beyond Section 2
+(`pp. 3–4` of `bit.pdf`) and results inventory registration (`CslibFrontierResults.Entries`) remain
+open pending inspection of `bit.pdf` (#6256 / #5293). -/
 theorem NonuniformPRG.naorStatefulHiding
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length) :
@@ -1309,12 +1309,13 @@ theorem OneWay.exists_generableBitCommitmentScheme {f : List Bool → List Bool}
   obtain ⟨generator, hG⟩ := hf.exists_pseudorandomGenerator_three_mul
   exact ⟨hG.naorGenerableBitCommitment (fun n => Nat.le_succ (3 * n))⟩
 
-/-- Packaged Naor bit commitment scheme built from any nonuniform pseudorandom generator
-(`NonuniformPRG`) with stretch at least `3 * n`, providing `StatefulHiding` against randomized
-stateful PPT receivers given arbitrary polynomially bounded auxiliary input. Formalizes Naor's
-PRG-based commitment construction (after [Naor1991], Section 3; exact Section 3 source-locator
-verification and results inventory registration (`CslibFrontierResults.Entries`) remain open
-pending inspection of `bit.pdf`, #6256 / #5293). -/
+/-- Step toward Naor's PRG-based bit commitment construction (after [Naor1991]), not the cited
+result: packages `naorCommit generator` from any nonuniform pseudorandom generator (`NonuniformPRG`)
+with stretch at least `3 * n` into a `BitCommitmentScheme` providing `StatefulHiding` against
+randomized stateful PPT receivers given arbitrary polynomially bounded auxiliary input. Exact
+source-locator verification beyond Section 2 (`pp. 3–4` of `bit.pdf`) and results inventory
+registration (`CslibFrontierResults.Entries`) remain open pending inspection of `bit.pdf`
+(#6256 / #5293). -/
 def NonuniformPRG.naorBitCommitment
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length)
@@ -1323,13 +1324,14 @@ def NonuniformPRG.naorBitCommitment
   toGenerableBitCommitmentScheme := hG.toPRG.naorGenerableBitCommitment hstretch
   stateful_hiding := hG.naorStatefulHiding
 
-/-- Existence of a statistically binding, computationally hiding `BitCommitmentScheme` (with
-`StatefulHiding` against randomized stateful PPT receivers given arbitrary polynomially bounded
-auxiliary input) from any nonuniform one-way function (`NonuniformOneWay`). Composes the nonuniform
-OWF-to-PRG step (`NonuniformOneWay.exists_nonuniformPRG_three_mul`, [HILL1999]) with
-`NonuniformPRG.naorBitCommitment` (after [Naor1991], Section 3; exact Section 3 source-locator
-verification and results inventory registration (`CslibFrontierResults.Entries`) remain open
-pending inspection of `bit.pdf`, #6256 / #5293). -/
+/-- Step toward bit commitments from nonuniform one-way functions (after [Naor1991]), not the cited
+result: proves `Nonempty BitCommitmentScheme` (with `StatefulHiding` against randomized stateful PPT
+receivers given arbitrary polynomially bounded auxiliary input) from any nonuniform one-way function
+(`NonuniformOneWay`), composing the nonuniform OWF-to-PRG step
+(`NonuniformOneWay.exists_nonuniformPRG_three_mul`, [HILL1999]) with
+`NonuniformPRG.naorBitCommitment`. Exact source-locator verification beyond Section 2 (`pp. 3–4` of
+`bit.pdf`) and results inventory registration (`CslibFrontierResults.Entries`) remain open pending
+inspection of `bit.pdf` (#6256 / #5293). -/
 theorem NonuniformOneWay.exists_bitCommitmentScheme {f : List Bool → List Bool}
     (hf : NonuniformOneWay f) :
     Nonempty BitCommitmentScheme := by
