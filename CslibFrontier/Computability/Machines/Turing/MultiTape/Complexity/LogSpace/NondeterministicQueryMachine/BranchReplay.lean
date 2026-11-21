@@ -23,7 +23,8 @@ and emits the abstract state's verdict.
 choice traces (`FirstHalting`) correspond exactly to unique halted native occurrence traces,
 with the same verdict. An initially halted source reaches the finalizer without any choice.
 `branchCount_eq_encard_firstHalting` counts the first-halting traces by verdict at a sufficient
-native clock. The full native class-equality theorem remains in #6747.
+native clock. `acceptCount_eq_one_iff` specializes this count to uniqueness of accepting traces.
+The full native class-equality theorem remains in #6747.
 `existsUnique_accepting_replay_iff` specializes the replay correspondence to acceptance.
 -/
 
@@ -481,5 +482,18 @@ theorem branchCount_eq_encard_firstHalting (a : α) {fuel : ℕ}
     let i : (terminal : Set (List ℕ)) := ⟨indices, hmem⟩
     refine ⟨i, Subtype.ext ?_⟩
     exact congrArg Prod.fst (Option.some.inj ((hreplay i).symm.trans hr))
+
+/-- At a sufficient native clock, exactly one abstract accepting first halt gives exactly
+one accepting native branch, and conversely. -/
+theorem acceptCount_eq_one_iff (a : α) {fuel : ℕ}
+    (hclock : R.machine.RunsInTime (enc a) fuel) :
+    (Native.countingMachine R.I R.P R.F R.C).acceptCount fuel (R.machine.initCfg (enc a)) = 1 ↔
+      ∃! bits, M.FirstHalting (enc a) bits (start a) ∧
+        M.accept (M.replay (enc a) bits (start a)) = true := by
+  unfold MultiTapeCTM.acceptCount
+  rw [← Nat.cast_inj (R := ℕ∞), Nat.cast_one, R.branchCount_eq_encard_firstHalting a hclock,
+    Set.encard_eq_one]
+  simp only [Set.eq_singleton_iff_unique_mem, Set.mem_ofPred_eq, beq_iff_eq, List.cons.injEq,
+    and_true, ExistsUnique]
 
 end Turing.NondeterministicQueryMachine.Routines

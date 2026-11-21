@@ -216,6 +216,11 @@ def retainedMachine (ctx : Context) : NondeterministicQueryMachine (RetainedStat
     halted := fun s => (tallyFor s.walkContext).halted s.tally
     accept := fun s => (tallyFor s.walkContext).accept s.tally }
 
+/-- Native acceptance records successful tally completion, including a false reply. -/
+theorem retainedMachine_accept (ctx : Context) (s : RetainedState κ τ) :
+    (retainedMachine edge start verdict clock initialWalk context ctx).accept s =
+      (retainedReply s).isSome := by rfl
+
 /-- Changing both the adjacency context and the query at entry preserves the transitions. -/
 theorem retainedMachine_withInit (ctx newCtx : Context) (newContext : κ) :
     (retainedMachine edge start verdict clock initialWalk context ctx).withInit

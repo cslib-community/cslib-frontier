@@ -168,4 +168,35 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
     exact ⟨fun _ => none, ⟨rfl, false, run_skip _ _ _⟩, fun _ h =>
       MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm⟩
 
+/-- At exact radius-zero totals the compiled tally has one accepting native branch across
+all selector lists, at a clock obtained from the concrete selector bound. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) {rank budget : List Bool → ℕ} {params : List Bool → MembershipTally.Context}
+    (R : Routines (configurationJustesenMembershipTally ntm c [] 0 ⟨0, 0, 0, 0, ⟨0, 0⟩⟩)
+      (fun w => MembershipTally.retainedInitial
+        (configurationJustesenSubdivisionContext ntm c (encBits w) (rank w)) (params w))
+      encBits budget) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount),
+      rank w = seed.val →
+      params w = ⟨size.vertexCount, source.val, target.val, 0, ⟨1, 0⟩⟩ →
+      ∃ fuel, R.machine.RunsInTime (encBits w) fuel ∧
+        (Native.countingMachine R.I R.P R.F R.C).acceptCount fuel
+          (R.machine.initCfg (encBits w)) = 1 := by
+  intro I size seed source target hrank hparams
+  obtain ⟨fuel, hclock⟩ := R.exists_runsInTime w
+    (time := configurationJustesenMembershipTallyClock ntm c w) (by
+      rw [encBits_apply, configurationJustesenMembershipTally_withInit, hrank, hparams]
+      exact configurationJustesenMembershipTally_haltsWithin_clock ntm c w
+        seed source target 0 ⟨1, 0⟩ (Nat.zero_le _))
+  refine ⟨fuel, hclock, ?_⟩
+  refine configurationJustesenMembershipTally_acceptCount_eq_one ntm c R w hclock
+    seed source target 0 hrank ?_ (existsUnique_passes_zero
+      (fun u v => configurationJustesenSubdivisionAdjacent ntm c w seed u v = true) source)
+  change params w = ⟨size.vertexCount, source.val, target.val, 0,
+    expected (fun u v => configurationJustesenSubdivisionAdjacent ntm c w seed u v = true)
+      source 0⟩
+  rwa [expected_zero]
+
 end CslibFrontierTests.STCONJustesenTally
