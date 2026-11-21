@@ -27,6 +27,8 @@ The round reuses the scalar controller while retaining that data on every branch
 
 * `Turing.DoubleCounting.SourceRoundLoop.retainedRoundEntry_inSpace`: linear workspace for entry.
 * `Turing.DoubleCounting.SourceRoundLoop.retainedRound_firstHalting`: agreement with scalar replay.
+* `Turing.DoubleCounting.SourceRoundLoop.retainedRound_haltsWithin`: a clock for every branch.
+* `Turing.DoubleCounting.SourceRoundLoop.retainedRound_length_run_le`: encoded prefix-state bound.
 -/
 
 public section
@@ -111,5 +113,37 @@ theorem retainedRound_firstHalting (r : Registers κ) (input bits : List Bool) :
   firstHalting_retain (Equiv.refl _) (fun k =>
     SourceRound.machine (roundContext size source r) callee (calleeStart k) calleeReply)
     r.context r.context input bits (SourceRound.entry (roundContext size source r))
+
+/-- A common callback clock bounds every retained round branch, including rejection. -/
+theorem retainedRound_haltsWithin (r : Registers κ) (input : List Bool) (clock : ℕ)
+    (hclock : ∀ req, req.InRange (size r.context) →
+      callee.HaltsFrom input (calleeStart r.context (roundContext size source r) req) clock) :
+    (retainedRound size source callee calleeStart calleeReply r).HaltsWithin input
+      (SourceRound.roundClock (size r.context) clock) := by
+  intro bits hlen
+  rw [retainedRound_run]
+  exact SourceRound.haltsWithin (roundContext size source r) callee (calleeStart r.context)
+    calleeReply input clock hclock bits hlen
+
+/-- The retained round charges one framed copy of the context in addition to the scalar state. -/
+@[expose] def retainedRoundStateBound (encContext : κ ↪ List Bool) (r : Registers κ)
+    (calleeBound : ℕ) : ℕ :=
+  2 * (encContext r.context).length + 1 +
+    SourceRound.roundStateBound (roundContext size source r) calleeBound
+
+/-- The workspace bound includes both the immutable context and the suspended scalar round.
+It holds for every selector prefix, including selectors that cause rejection. -/
+theorem retainedRound_length_run_le (r : Registers κ) (encContext : κ ↪ List Bool)
+    (encCallee : τ ↪ List Bool) (input bits : List Bool) (calleeBound : ℕ)
+    (hcallee : ∀ req, req.InRange (size r.context) → ∀ choices,
+      (encCallee (callee.replay input choices
+        (calleeStart r.context (roundContext size source r) req))).length ≤ calleeBound) :
+    (encPair encContext (SourceRound.encMachineState τ encCallee)
+      ((retainedRound size source callee calleeStart calleeReply r).run input bits)).length ≤
+      retainedRoundStateBound size source encContext r calleeBound := by
+  rw [retainedRound_run, length_encPair, retainedRoundStateBound]
+  exact Nat.add_le_add_left
+    (SourceRound.length_encMachineState_run_le encCallee (roundContext size source r)
+      callee (calleeStart r.context) calleeReply input bits calleeBound hcallee) _
 
 end Turing.DoubleCounting.SourceRoundLoop

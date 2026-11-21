@@ -216,4 +216,26 @@ example :
   · exact budget_const true (.refl _)
   · exact fst (encOption encBool) encReadChoice
 
+/-- Both retained entries have one round clock and admit a bound on every selector prefix. -/
+example (enabled : Bool) (input bits : List Bool) :
+    let r := start enabled 1
+    let round := retainedRound retainedSize retainedSource optionalCallback retainedStart id r
+    let encRound := encPair encBool
+      (SourceRound.encMachineState (Option Bool) (encOption encBool))
+    round.HaltsWithin input (SourceRound.roundClock 1 0) ∧
+      (encRound (round.run input bits)).length ≤
+        2 * (encBool enabled).length + 1 +
+          SourceRound.roundStateBound (roundContext retainedSize retainedSource r) 2 := by
+  dsimp only
+  constructor
+  · exact retainedRound_haltsWithin retainedSize retainedSource optionalCallback retainedStart id
+      (start enabled 1) input 0 (fun _ _ _ _ => rfl)
+  · refine retainedRound_length_run_le retainedSize retainedSource optionalCallback retainedStart id
+      (start enabled 1) encBool (encOption encBool) input bits 2 ?_
+    intro req _ choices
+    rw [optionalCallback.replay_of_halted input rfl choices]
+    cases enabled
+    · exact (show (encOption encBool none).length ≤ 2 by decide)
+    · exact (show (encOption encBool (some true)).length ≤ 2 by decide)
+
 end CslibFrontierTests.DoubleCountingSourceRoundLoopResource
