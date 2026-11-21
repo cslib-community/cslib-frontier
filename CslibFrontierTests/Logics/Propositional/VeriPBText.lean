@@ -655,8 +655,10 @@ def objiConcl (c : String) : String := objiProof.replace "BOUNDS 1 : 4 INF" c
 #guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x1 ~x2 ~x3")).isNone
 -- `x2` leaves `x1` and `x3` unassigned (VeriPB rejects; CakePB sets them false and accepts).
 #guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x2")).isNone
--- After `INF` the assignment is not checked (VeriPB and CakePB accept).
-#guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 INF : ~x1 x2 ~x3")).isSome
+-- After `INF` the assignment is not checked: `~x1 ~x2 ~x3` violates the input, yet the
+-- conclusion is accepted with no finite upper bound (VeriPB and CakePB accept).
+#guard checkOPB cover (objiConcl "BOUNDS 1 : 4 INF : ~x1 ~x2 ~x3") ==
+  some (.bounds (some 1) 4 none (some [(0, false), (1, false), (2, false)]))
 -- `NONE` claims nothing.
 #guard checkOPB cover "pseudo-Boolean proof version 3.0
 f 2;
