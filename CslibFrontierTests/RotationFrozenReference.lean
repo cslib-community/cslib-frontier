@@ -120,6 +120,19 @@ example {s t : ℝ} (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) :
     norm_num [Dart.vertex, Cslib.Complexity.Graph.edgeEndpoint, subdivisionGraph, subdivide,
       bothFixed, input] at hv
 
+-- The reference spoke on the left stays a positive horizontal distance from the right one.
+example (z w : ℂ)
+    (hz : z ∈ ((referenceDrawing bothFixed).route ⟨0, by decide⟩).support)
+    (hw : w ∈ ((referenceDrawing bothFixed).route ⟨5, by decide⟩).support) :
+    z.re + 1 / 4 < w.re := by
+  let a : Dart bothFixed.graph := (⟨0, by decide⟩, false)
+  let b : Dart bothFixed.graph := (⟨1, by decide⟩, true)
+  obtain ⟨right, _, hsep, hstrip⟩ := exists_frozen_reference_strips valid_bothFixed
+  have ha := hstrip a (by decide +kernel) z hz
+  have hb := hstrip b (by decide +kernel) w hw
+  have hgap := hsep a.vertex (by decide +kernel) b.vertex (by decide +kernel) (by decide +kernel)
+  linarith only [ha.2, hb.1, hgap]
+
 /-- Removing every edge keeps the entire frame as distinct isolated points. -/
 theorem all_free_frame :
     let J : FixedRotationInput := ⟨⟨[0, 1, 2], [(0, 1)]⟩, [none, none, none]⟩
