@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Relation.RelatesWithinSteps
+import CslibFrontier.Foundations.Relation.Transport
 import Mathlib.SetTheory.Cardinal.NatCard
 
 /-!
@@ -85,7 +86,7 @@ theorem reachable_iff (a b : α) :
 abbrev Bounded (α : Type*) (T : ℕ) := {v : LayeredVertex α // v.layer ≤ T}
 
 /-- The finite window as a bounded layer index and an original vertex. -/
-def boundedEquiv (α : Type*) (T : ℕ) : Bounded α T ≃ Fin (T + 1) × α where
+@[expose] def boundedEquiv (α : Type*) (T : ℕ) : Bounded α T ≃ Fin (T + 1) × α where
   toFun v := (⟨v.val.layer, by have := v.property; omega⟩, v.val.vertex)
   invFun v := ⟨⟨v.1.val, v.2⟩, Nat.le_of_lt_succ v.1.isLt⟩
   left_inv v := by cases v with | mk v h => cases v; rfl
@@ -102,18 +103,15 @@ theorem card_bounded {α : Type*} (T : ℕ) : Nat.card (Bounded α T) = (T + 1) 
 theorem bounded_reachable_iff (a b : Bounded α T) :
     ReflTransGen (fun u v : Bounded α T => Step r T u.val v.val) a b ↔
       ReflTransGen (Step r T) a.val b.val := by
-  constructor
-  · exact ReflTransGen.lift Subtype.val (fun _ _ h => h) _ _
-  · intro h
-    have lift (v : LayeredVertex α) (hv : ReflTransGen (Step r T) a.val v) :
-        ∀ hb : v.layer ≤ T,
-          ReflTransGen (fun u v : Bounded α T => Step r T u.val v.val) a ⟨v, hb⟩ := by
-      induction hv with
-      | refl => intro hb; exact .refl
-      | @tail u v h he ih =>
-        intro hb
-        exact (ih (Nat.le_of_lt he.2.1)).tail he
-    exact lift b.val h b.property
+  apply reflTransGen_onFun_iff Subtype.val_injective
+  intro v hv
+  have hbound : v.layer ≤ T := by
+    cases hv with
+    | refl => exact a.property
+    | tail _ hstep =>
+      rw [hstep.1]
+      exact Nat.succ_le_of_lt hstep.2.1
+  exact ⟨⟨v, hbound⟩, rfl⟩
 
 end LayeredVertex
 

@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.IntervalCases
@@ -155,6 +156,25 @@ example : query input = true :=
   query_eq_true_of_positioned_frozen_embedding input_valid (drawing true)
     (drawing_embedding true) (drawing_vertices true) (drawing_frozen true)
 
+-- The same nonzero-row fixture works from an embedding away from the reference position.
+example : ∃ D : PolygonalDrawing (subdivisionGraph input), D.IsEmbedding ∧
+    D.vertex 0 ≠ (referenceDrawing input).vertex 0 ∧ query input = true := by
+  have hq : ∀ w ∈ (subdivisionGraph input).vertices, w ≠ 0 →
+      (-1 : ℂ) ≠ (drawing false).vertex w := by
+    intro w _ _ he
+    have hre : (-1 : ℝ) = (w : ℝ) := congrArg Complex.re he
+    have hw : 0 ≤ (w : ℝ) := Nat.cast_nonneg _
+    linarith
+  obtain ⟨D, hD, hV, _, _, _, _⟩ :=
+    (drawing_embedding false).exists_single_vertex_transport (by decide) 0 (by decide) _ hq
+  have hzero : D.vertex 0 = (-1 : ℂ) := by
+    simpa only [ite_true] using hV 0 (by decide)
+  refine ⟨D, hD, ?_, query_eq_true_of_unfrozen_embedding input_valid (by decide) D hD⟩
+  rw [hzero, ← drawing_vertices false 0 (by decide)]
+  intro he
+  have hre := congrArg Complex.re he
+  norm_num [drawing, P, parabolaPoint] at hre
+
 example : ¬MoveEquations (frame input) (fun _ _ => false) := by
   intro h
   have hrow := h ((((3, 1), false) : Segment), 2) (by decide)
@@ -300,8 +320,16 @@ private theorem empty_embedding : (referenceDrawing emptyInput).IsEmbedding wher
   edge_contacts := by intro e; exact Fin.elim0 e
 
 example : query emptyInput = true :=
-  query_eq_true_of_positioned_frozen_embedding empty_valid _ empty_embedding
-    (fun _ _ => rfl) (fun _ _ => rfl)
+  query_eq_true_of_unfrozen_embedding empty_valid (by decide) _ empty_embedding
+
+-- The original star is supplied before any edges are subdivided or vertices positioned.
+private def freeStar : FixedRotationInput :=
+  ⟨Graph.RotationSystem.starGraph 3, [none, none, none, none]⟩
+
+example : query freeStar = true := by
+  have hI : Valid freeStar := (validate_eq_true_iff freeStar).mp (by decide)
+  exact query_eq_true_of_unfrozen_original_embedding hI (by decide) _
+    (PolygonalDrawing.star_isEmbedding 3)
 
 -- The shared append-support property includes degenerate and already closed routes.
 example : ((Route.line (0 : ℂ) 0).append 0).support = {0} := by

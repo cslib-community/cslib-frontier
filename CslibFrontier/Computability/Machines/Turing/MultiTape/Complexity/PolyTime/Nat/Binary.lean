@@ -122,28 +122,6 @@ private lemma bitwise_eq (op : Bool → Bool → Bool) (h0 : op false false = fa
   · exact (Nat.lt_size_self p.1).trans_le (Nat.pow_le_pow_right (by lia) (by lia))
   · exact (Nat.lt_size_self p.2).trans_le (Nat.pow_le_pow_right (by lia) (by lia))
 
-private lemma ofBits_tail (w : List Bool) : ofBits w.tail = ofBits w / 2 := by
-  cases w with
-  | nil => simp [ofBits]
-  | cons b w =>
-    simp only [List.tail_cons, ofBits, List.foldr_cons, Nat.bit_val]
-    cases b <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> lia
-
-private lemma ofBits_drop (w : List Bool) (k : ℕ) : ofBits (w.drop k) = ofBits w / 2 ^ k := by
-  induction k generalizing w with
-  | zero => simp
-  | succ k ih =>
-    rw [← List.drop_tail, ih, ofBits_tail, Nat.div_div_eq_div_mul, Nat.pow_succ']
-
-/-- Right shift drops at most the dividend's bit length of least-significant digits. -/
-private lemma shiftRight_eq_ofBits_drop (p : ℕ × ℕ) :
-    p.1 >>> p.2 = ofBits (p.1.bits.drop (min p.1.bits.length p.2)) := by
-  have hdrop : p.1.bits.drop (min p.1.bits.length p.2) = p.1.bits.drop p.2 := by
-    rcases le_total p.1.bits.length p.2 with h | h
-    · rw [Nat.min_eq_left h, List.drop_eq_nil_of_le le_rfl, List.drop_eq_nil_of_le h]
-    · rw [Nat.min_eq_right h]
-  rw [hdrop, ofBits_drop, ofBits, Nat.foldr_bit_bits, Nat.shiftRight_eq_div_pow]
-
 end Turing.MultiTapeTM.BinarySub
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
@@ -297,9 +275,10 @@ theorem binary_shiftRight : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 >>> 
   have hlen : ComputableInPolyTime (fun p : ℕ × ℕ => p.1.bits.length)
       (encPair encNat encNat) encUnary := (length encBool).comp hbits
   have hdrop := bitsDropWithInput hbits (binary_min_unary' hlen (snd encNat encNat))
-  convert bitsToNat.comp hdrop using 1
-  funext p
-  exact BinarySub.shiftRight_eq_ofBits_drop p
+  refine hdrop.of_enc_eq fun p => ?_
+  change (p.1 >>> p.2).bits = p.1.bits.drop (min p.1.bits.length p.2)
+  rw [Nat.bits_shiftRight, Nat.min_comm]
+  exact List.drop_eq_drop_min
 
 end Turing.MultiTapeTM.ComputableInPolyTime
 

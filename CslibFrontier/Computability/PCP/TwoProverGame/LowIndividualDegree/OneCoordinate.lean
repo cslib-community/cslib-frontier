@@ -95,22 +95,11 @@ theorem exists_polynomial_measurements_one (S : CommutingStrategy Q Q Ans Ans 饾
     refine sum_le_sum fun u _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
     apply div_le_div_of_nonneg_right _ (by norm_num)
     apply add_le_add
-    路 simp only [acceptScore, R, Measurement.map_map, Measurement.agreement_map_map]
-      refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
-      by_cases h : accepts d (.point u) (.axis univ) a b
-      路 have h' := decodePolynomial_agrees ((accepts_point_axis_iff d univ u a b).mp h)
-        simp only [ite_eq_left h, Function.comp_apply, h'.symm, ite_true, CommutingStrategy.prob]
-        exact le_rfl
-      路 rw [ite_eq_right h]
-        exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
-    路 simp only [acceptScore, P, Measurement.map_map, Measurement.agreement_map_map]
-      refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
-      by_cases h : accepts d (.axis univ) (.point u) a b
-      路 have h' := decodePolynomial_agrees h
-        simp only [ite_eq_left h, Function.comp_apply, h', ite_true, CommutingStrategy.prob]
-        exact le_rfl
-      路 rw [ite_eq_right h]
-        exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
+    路 simp only [R, Measurement.map_map]
+      exact acceptScore_le_decodedAgreement S d _ _ _ _ fun a b h =>
+        (decodePolynomial_agrees ((accepts_point_axis_iff d univ u a b).mp h)).symm
+    路 simp only [P, Measurement.map_map]
+      exact acceptScore_le_decodedAgreement S d _ _ _ _ fun _ _ h => decodePolynomial_agrees h
 
 end Soundness
 

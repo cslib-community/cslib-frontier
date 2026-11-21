@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test suite)
 
 import CslibFrontier.Crypto.Primitives.UHF.Finite
+import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Languages.Probabilistic.Semantics
 import Mathlib.Algebra.Field.ZMod
 
@@ -18,6 +19,7 @@ set_option linter.privateModule false
 
 The collision and difference experiments reject repeated messages, and the exhaustive search
 examines all distinct pairs. A nonzero difference checks the order of the two hashes.
+The prediction game reveals one digest and rejects a prediction for the queried message.
 -/
 
 namespace Cslib.Crypto.UHF.Tests
@@ -44,5 +46,17 @@ example :
     ProbComp.eval (differenceExperiment (fun (_ : Unit) (m : ZMod 3) => m)
       (pure ⟨⟨0, 0⟩, 0⟩)) true = 0 := by
   simp [differenceExperiment, ProbComp.eval_uniform]
+
+private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
+  choose _ := pure (false, ())
+  guess _ digest := pure ⟨target, digest⟩
+
+example : ProbComp.eval (predictionExperiment (fun k : Bool => fun _ => k) (echoGuess true))
+    true = 1 := by
+  simp [predictionExperiment, echoGuess, ProbComp.eval_uniform, ENNReal.mul_inv_cancel]
+
+example : ProbComp.eval (predictionExperiment (fun k : Bool => fun _ => k) (echoGuess false))
+    true = 0 := by
+  simp [predictionExperiment, echoGuess, ProbComp.eval_uniform]
 
 end Cslib.Crypto.UHF.Tests
