@@ -6186,7 +6186,11 @@ public import CslibFrontier.Foundations.Algebra.Negacyclic
 public import CslibFrontier.Foundations.Algebra.Order.Star.Pi
 public import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
 public import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+public import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignApproximation
+public import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
+public import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProductBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.LagrangeInversion
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.AlgebraicValueBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BitBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.CoeffNormBound
@@ -6194,10 +6198,13 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Isolation
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ParameterExclusion
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RatPoly
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RootBound
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Sturm
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalIsolation
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalRatPoly
+public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
+public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 public import CslibFrontier.Foundations.Algebra.Quaternion.BpInfinity
 public import CslibFrontier.Foundations.Algebra.Shear
 public import CslibFrontier.Foundations.Algebra.Star.FreeSelfAdjoint
@@ -6269,6 +6276,7 @@ public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
 public import CslibFrontier.Foundations.Analysis.RateExponent
 public import CslibFrontier.Foundations.Analysis.ReverseHolder
 public import CslibFrontier.Foundations.Analysis.RootError
+public import CslibFrontier.Foundations.Analysis.SignLabelScore
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Basic
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Elementary
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Multiplication
@@ -7508,6 +7516,7 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Trace
 public import CslibFrontier.Foundations.RingTheory.Polynomial.Hermite
 public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantSpecialization
+public import CslibFrontier.Foundations.RingTheory.Polynomial.ValueResultant
 public import CslibFrontier.Foundations.RingTheory.PowerSeries.Constants
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.Principal
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.SeparatedSums
