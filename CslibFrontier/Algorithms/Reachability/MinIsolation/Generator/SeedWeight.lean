@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedDigits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.Offset
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FramePrefix
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.JustesenBit
 
 /-!
@@ -20,6 +22,11 @@ and the vertex column, and apply the layer scaling to the base-six sum. The impl
 shares the seed-digit loop and replaces only its final output. The query state bound
 charges the prepared field context and seed length separately. With a fixed prepared
 context, the entire raw-seed computation has a native linear-workspace certificate.
+
+The runtime entry loads a prepared context from the framed input prefix. Its offset executor
+agrees with the direct weight pass on the unchanged seed suffix. Native initialization and
+executor components are certified separately. Composing them into one native execution and
+preparing the field context from graph dimensions remain open in #6747.
 -/
 
 public section
@@ -183,5 +190,102 @@ theorem generatedWeight_run_length_le_encodedDimensions :
     _ ≤ _ := by
       rw [← Nat.mul_assoc]
       exact Nat.mul_le_mul_right _ (le_max_right _ _)
+
+namespace Runtime
+
+open QueryMachine (Located encLocated encLocated_mk_budget)
+
+private abbrev ScanState := SeedDigits.State Context
+
+private abbrev encScanState := SeedDigits.encState Context encContext
+
+/-- A framed binary offset and the complete encoded weight-pass state. -/
+abbrev encRuntimeState :=
+  encLocated (SeedDigits.State Context) (SeedDigits.encState Context encContext)
+
+/-- A prepared weight context and its read-only seed word. -/
+structure Input where
+  /-- Field information and vertex coordinates for this weight. -/
+  context : Context
+  /-- Seed bits in query order. -/
+  seed : List Bool
+
+/-- Framed weight context followed by the raw seed without an extra frame. -/
+enc_structure encInput : Input where
+  context : encContext, seed : encBits
+
+/-- Start the weight pass at the first seed cell, with the context in its initial registers. -/
+def load (x : Input) : Located (SeedDigits.State Context) :=
+  ⟨(frame (encContext x.context)).length, ⟨x.context, 0, 0, false⟩⟩
+
+private abbrev headerBudget (x : Input) : ℕ := (encContext x.context).length
+
+private theorem context_inSpace :
+    ComputableInSpace Input.context encInput encContext headerBudget :=
+  ComputableInSpace.framedPrefix Input.context encInput encContext Input.seed
+    (fun x => by simp [encInput_apply, encInputFields])
+
+private theorem initialRegisters_inSpace :
+    ComputableInSpace (fun x : Input => (load x).inner) encInput encScanState headerBudget := by
+  have hzero : ComputableInSpace (fun _ : Input => 0) encInput encNat headerBudget :=
+    (constZero (encIn := encInput) (encB := encNat) 0).weaken
+      (.of_le fun _ => Nat.zero_le _)
+  have hflag : ComputableInSpace (fun _ : Input => false) encInput encBool headerBudget :=
+    (constZero (encIn := encInput) (encB := encBool) false).weaken
+      (.of_le fun _ => Nat.zero_le _)
+  exact SeedDigits.encState_mk_budget Context encContext context_inSpace hzero hzero hflag
+
+/-- Native initialization charges the prepared header's length, independently of seed length. -/
+theorem load_inSpace :
+    ComputableInSpace load encInput encRuntimeState (fun x => (encContext x.context).length) :=
+  encLocated_mk_budget ScanState encScanState context_inSpace.frameLength initialRegisters_inSpace
+
+/-- Dropping the initialized offset leaves exactly the original seed bits. -/
+theorem drop_seed (x : Input) : (encInput x).drop (load x).offset = x.seed := by
+  simp [load, encInput_apply, encInputFields, encPair_apply, encBits_apply]
+
+private def dummy : Context := ⟨⟨0, 0, []⟩, 0, 0⟩
+
+/-- The offset weight executor. Use the loaded state as the entry to its run. -/
+def executor : QueryMachine (Located (SeedDigits.State Context)) :=
+  (machine dummy).withOffset
+
+/-- The runtime executor from the loaded state matches the direct seed pass at every clock. -/
+theorem executor_runFrom (x : Input) (t : ℕ) :
+    executor.runFrom (encInput x) (load x) t =
+      ⟨(load x).offset, (machine x.context).run x.seed t⟩ := by
+  change (machine dummy).withOffset.runFrom (encInput x)
+    ⟨(load x).offset, (machine x.context).init⟩ t = _
+  rw [QueryMachine.withOffset_runFrom, drop_seed]
+  rfl
+
+/-- All native components charge space linear in the encoded located state or state and reply. -/
+theorem executor_parts_inSpace :
+    let e := encRuntimeState
+    let eR := QueryMachine.encStateRead e
+    ComputableInSpace executor.query e encNat (fun s => (e s).length) ∧
+    ComputableInSpace executor.next eR e (fun p => (eR p).length) ∧
+    ComputableInSpace executor.emit eR encBits (fun p => (eR p).length) ∧
+    ComputableInSpace executor.halted e encBool (fun s => (e s).length) ∧
+    ComputableInSpace executor.finish e encBits (fun s => (e s).length) := by
+  obtain ⟨hq, hn, he, hh, hf⟩ := parts_inSpace dummy
+  exact ⟨QueryMachine.withOffset_query_inSpace _ _ hq,
+    QueryMachine.withOffset_next_inSpace _ _ hn, QueryMachine.withOffset_emit_inSpace _ _ he,
+    QueryMachine.withOffset_halted_inSpace _ _ hh, QueryMachine.withOffset_finish_inSpace _ _ hf⟩
+
+
+/-- The loaded executor halts at the end of the seed with the native pass's scaled weight. -/
+theorem executor_finish (x : Input) :
+    let last := executor.runFrom (encInput x) (load x) (x.seed.length + 1)
+    executor.halted last = true ∧ executor.finish last = encNat (weight x.context x.seed) := by
+  dsimp only
+  rw [executor_runFrom]
+  have hend : (machine x.context).run x.seed (x.seed.length + 1) =
+      ⟨x.context, x.seed.length, SeedDigits.maskedPrefix (codeBit x.context) x.seed
+        x.seed.length, true⟩ := SeedDigits.run_at_end codeBit x.context x.seed
+  rw [hend]
+  exact ⟨rfl, rfl⟩
+
+end Runtime
 
 end Cslib.Reachability.Hoza.SeedWeight
