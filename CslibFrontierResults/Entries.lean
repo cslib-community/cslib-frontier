@@ -72,6 +72,7 @@ import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
+import CslibFrontier.Probability.HashFamily.Transport
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
@@ -10872,6 +10873,18 @@ register_result "fixed-length-polynomial-universality" where
     the probability of any specified difference by n/|F|. Both statements quantify over \
     distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
     without a growth condition. The zero-length vector has no distinct partner."
+
+register_result "difference-universal-hash-modulus-switching" where
+  title := "Transferring residues to a larger modulus preserves difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.22(a)",
+      locator := "v0.6, printed p. 283" }
+  ]
+  theorems := [Cslib.Probability.IsDeltaUniversalHash.zmod_cast]
+  scope := "Take the canonical representatives of the original digests modulo p and cast \
+    them to residues modulo N. The result preserves the difference bound for an arbitrary \
+    seed law under 2(p − 1) < N, which includes the source condition 2p ≤ N."
 
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
