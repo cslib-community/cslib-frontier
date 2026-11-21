@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk.Runtime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.MembershipTally
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 
 /-!
@@ -37,7 +38,12 @@ tally also loads the adjacency context from its own entry state.
   clock and encoded-state bound for all branches starting from a valid source.
 * `Turing.DoubleCounting.MembershipTally.retainedMachine_replay`: every selector prefix agrees
   with the tally for the retained adjacency context.
-* The retained entry, query, halt, and reply operations have linear-space certificates.
+* The retained entry, transition, query, halt, and reply operations have linear-space
+  certificates.
+* `Turing.DoubleCounting.MembershipTally.retainedMachine_exists_routines`: compile the tally
+  with input-dependent entry parameters and the all-branch encoded-state bound.
+* `Turing.DoubleCounting.MembershipTally.retainedMachine_native_firstHalting_iff`: one
+  accepting native occurrence list for the selectors of each passing typed tally.
 -/
 
 public section
@@ -331,6 +337,149 @@ theorem retainedReply_inSpace :
   (budget_comp_linear (reply_inSpace (Runtime.encState encK encCallee))
     (tally_inSpace encK encCallee)).of_enc_eq fun _ => rfl
 
+private theorem enterRuntimeWalk_inSpace :
+    let encIn := encPair encK encRegisters
+    ComputableInSpace (fun p : κ × Registers => enterRuntimeWalk edge start verdict clock p.1 p.2)
+      encIn (Runtime.encState encK encCallee) (fun p => (encIn p).length) := by
+  let encIn := encPair encK encRegisters
+  let dimension (p : κ × Registers) :=
+    if 0 < p.2.context.size then p.2.context.size else 1
+  have hdpos (p : κ × Registers) : 0 < dimension p := by
+    unfold dimension
+    split <;> omega
+  have hcontext := fst encK encRegisters
+  have hregisters := snd encK encRegisters
+  have hquery := encRegisters_context_budget hregisters
+  have hsize := encContext_size_budget hquery
+  have hsource := encContext_source_budget hquery
+  have hcursor := encRegisters_cursor_budget hregisters
+  have hfuel := encContext_radius_budget hquery
+  have hzero := budget_const (encIn := encIn) (encB := encNat) 0 (.refl _)
+  have hone := budget_const (encIn := encIn) (encB := encNat) 1 (.refl _)
+  have hdimension : ComputableInSpace dimension encIn encNat (fun p => (encIn p).length) :=
+    budget_iteProp (budget_natLt hzero hsize) hsize hone
+  have hentry := Runtime.entryRanks_budget edge start verdict clock encK encCallee
+    hdpos hcontext hdimension hsource hcursor hfuel
+  have hreject := Runtime.state_budget encK encCallee
+    (walk := fun _ => .done none) (positive := fun _ => Nat.zero_lt_one) hcontext hone
+    (budget_const (encB := encBits)
+      (BoundedWalk.encState (N := 1) encCallee (.done none)) (.refl _))
+  have hvalid := budget_boolAnd (budget_natLt hsource hsize) (budget_natLt hcursor hsize)
+  refine (budget_ite hvalid hentry hreject).of_enc_eq ?_
+  rintro ⟨context, r⟩
+  simp only [Bool.and_eq_true, decide_eq_true_eq, enterRuntimeWalk]
+  by_cases h : r.context.source < r.context.size ∧ r.cursor < r.context.size
+  · have hpos := Nat.zero_lt_of_lt h.1
+    rw [dite_eq_left h, ite_eq_left h]
+    simp only [dimension, ite_eq_left hpos]
+    rw [Runtime.entryRanks_eq_entry edge start verdict clock context hpos
+      ⟨⟨r.context.source, h.1⟩, ⟨r.cursor, h.2⟩, r.context.radius⟩]
+  · rw [dite_eq_right h, ite_eq_right h]
+
+open NondeterministicQueryMachine (encReadChoice) in
+/-- Step the retained tally in linear workspace from the adjacency callback certificates. -/
+theorem retainedMachine_next_inSpace (ctx : Context)
+    (hstart : ComputableInSpace (fun (k, u, v) => start k u v)
+      (BoundedWalk.encStartRequest encK) encCallee
+      (fun p => (BoundedWalk.encStartRequest encK p).length))
+    (hnext : ComputableInSpace edge.next (QueryMachine.encStateRead encCallee) encCallee
+      (fun p => (QueryMachine.encStateRead encCallee p).length))
+    (hhalted : ComputableInSpace edge.halted encCallee encBool (fun s => (encCallee s).length))
+    (hverdict : ComputableInSpace verdict encCallee encBool (fun s => (encCallee s).length)) :
+    let encStep := encPair E encReadChoice
+    ComputableInSpace (retainedMachine edge start verdict clock initialWalk context ctx).next
+      encStep E (fun p => (encStep p).length) := by
+  let W := Runtime.machine edge start verdict clock initialWalk
+  have hstep := next_withParameter_inSpace encK (Runtime.encState encK encCallee)
+    ctx W (enterRuntimeWalk edge start verdict clock) Runtime.remainingFuel
+    (enterRuntimeWalk_inSpace edge start verdict clock encK encCallee)
+    (Runtime.next_inSpace edge start verdict clock initialWalk encK encCallee hstart hnext
+      hhalted hverdict)
+    (Runtime.halted_inSpace edge start verdict clock initialWalk encK encCallee)
+    (Runtime.remainingFuel_inSpace encK encCallee)
+  have hs := fst E encReadChoice
+  have hk := encRetainedState_walkContext_budget encK encCallee hs
+  have ht := encRetainedState_tally_budget encK encCallee hs
+  have hp := budget_prod ht (budget_prod hk (snd E encReadChoice))
+  exact (encRetainedState_mk_budget encK encCallee hk
+    (budget_comp_linear hstep hp)).of_enc_eq fun _ => rfl
+
+/-- The tally accepts exactly when its terminal state carries a membership reply. -/
+theorem retainedMachine_accept_inSpace (ctx : Context) :
+    ComputableInSpace (retainedMachine edge start verdict clock initialWalk context ctx).accept
+      E encBool (fun s => (E s).length) :=
+  (budget_optionIsSome (retainedReply_inSpace encK encCallee)).of_enc_eq fun _ => rfl
+
+open NondeterministicQueryMachine in
+/-- Compile the retained tally using the state bound for every selector branch. -/
+theorem retainedMachine_exists_routines {α : Type} (enc : α ↪ List Bool) (S : α → ℕ)
+    (ctx : Context) (walkContext : α → κ) (params : α → Context)
+    (hcontext : ComputableInSpace walkContext enc encK S)
+    (hparams : ComputableInSpace params enc encContext S)
+    (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
+    (hstart : ComputableInSpace (fun (k, u, v) => start k u v)
+      (BoundedWalk.encStartRequest encK) encCallee
+      (fun p => (BoundedWalk.encStartRequest encK p).length))
+    (hq : ComputableInSpace edge.query encCallee encNat (fun s => (encCallee s).length))
+    (hn : ComputableInSpace edge.next (QueryMachine.encStateRead encCallee) encCallee
+      (fun p => (QueryMachine.encStateRead encCallee p).length))
+    (hh : ComputableInSpace edge.halted encCallee encBool (fun s => (encCallee s).length))
+    (hv : ComputableInSpace verdict encCallee encBool (fun s => (encCallee s).length))
+    (hsource : ∀ a, (params a).source < (params a).size)
+    (calleeBound : α → ℕ)
+    (hcallee : ∀ a, ∀ u v : Fin (params a).size, ∀ t ≤ clock,
+      (encCallee (edge.runFrom (enc a) (start (walkContext a) u.val v.val) t)).length ≤
+        calleeBound a)
+    (hstate : ∀ a,
+      retainedStateBound clock (params a) (encK (walkContext a)).length (calleeBound a) ≤ S a) :
+    Nonempty (Routines (retainedMachine edge start verdict clock initialWalk context ctx)
+      (fun a => retainedInitial (walkContext a) (params a)) enc S) := by
+  refine (retainedMachine edge start verdict clock initialWalk context ctx).exists_routines
+    (retainedMachine_query_inSpace edge start verdict clock initialWalk context encK encCallee
+      ctx hq)
+    (retainedMachine_next_inSpace edge start verdict clock initialWalk context encK encCallee ctx
+      hstart hn hh hv)
+    (retainedMachine_halted_inSpace edge start verdict clock initialWalk context encK encCallee ctx)
+    (retainedMachine_accept_inSpace edge start verdict clock initialWalk context encK encCallee ctx)
+    _ S hlog (retainedInitial_budget encK encCallee hcontext hparams) ⟨1, ?_⟩
+  intro a bits
+  rw [retainedMachine_withInit, Nat.one_mul]
+  exact (retainedMachine_length_run_le edge start verdict clock initialWalk (walkContext a)
+    encK encCallee (params a) (hsource a) (enc a) (calleeBound a) (hcallee a) bits).trans
+    (hstate a)
+
 end RetainedSpace
+
+open NondeterministicQueryMachine in
+/-- Native accepting occurrences record exactly the selectors of passing typed tallies
+at the input's retained context, with one occurrence list per selector list. -/
+theorem retainedMachine_native_firstHalting_iff {α : Type}
+    {enc : α ↪ List Bool} {S : α → ℕ} {N : ℕ}
+    (ctx : Context) (walkContext : α → κ) (params : α → Context)
+    (R : Routines (retainedMachine edge start verdict clock initialWalk context ctx)
+      (fun a => retainedInitial (walkContext a) (params a)) enc S)
+    (a : α) (adjacent : Fin N → Fin N → Bool) (source target : Fin N) (radius : ℕ)
+    (expected : Tally) (bits : List Bool)
+    (hparams : params a = ⟨N, source.val, target.val, radius, expected⟩)
+    (hclock : ∀ u v : Fin N,
+      edge.halted (edge.runFrom (enc a) (start (walkContext a) u.val v.val) clock) = true)
+    (hedge : ∀ u v : Fin N,
+      verdict (edge.runFrom (enc a) (start (walkContext a) u.val v.val) clock) = adjacent u v) :
+    (∃! indices, ∃ final,
+      Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (enc a)) indices =
+        some (bits, final) ∧ final.Halted ∧ final.output = [true]) ↔
+      ∃! branch, bits = selectors (BoundedWalk.selectors clock) branch ∧
+        ∃ hit, Scan.run adjacent source target radius expected branch = some hit := by
+  apply native_firstHalting_iff_of_reply R a bits retainedReply (BoundedWalk.selectors clock)
+    (BoundedWalk.eq_of_selectors_prefix clock) adjacent source target radius expected (fun _ => rfl)
+  intro hit
+  have hM := retainedMachine_withInit edge start verdict clock initialWalk context ctx (params a)
+    (walkContext a)
+  rw [hparams] at hM
+  have hspec := (retainedMachine_firstHalting_reply_iff edge start verdict clock initialWalk
+    (walkContext a) ⟨N, source.val, target.val, radius, expected⟩ (enc a) bits hit).trans
+    (withRuntimeWalk_firstHalting_iff edge start verdict clock initialWalk (walkContext a)
+      (enc a) adjacent source target radius expected hclock hedge bits hit)
+  simpa only [← hM, init_withInit, firstHalting_withInit, run_withInit, hparams] using hspec
 
 end Turing.DoubleCounting.MembershipTally
