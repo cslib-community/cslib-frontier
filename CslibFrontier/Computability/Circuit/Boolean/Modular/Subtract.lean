@@ -64,7 +64,8 @@ def subtract (w : ℕ) : Circuit signature (w + w) w :=
   (Circuit.wiring signature (fun i : Fin w => i.castSucc)).comp
     ((carryLookahead w).comp (subtractInputs w))
 
-private theorem val_not (b : BitString w) :
+/-- Complementing every bit subtracts the word from the maximum representable value. -/
+theorem val_not (b : BitString w) :
     (BitString.equivFin w (fun i => !b i) : ℕ) = 2 ^ w - 1 - (BitString.equivFin w b : ℕ) := by
   have h : word (fun i => !b i) = ~~~word b := by
     apply BitVec.eq_of_getLsbD_eq

@@ -57,7 +57,7 @@ theorem getD_groupsOf (r s a : ℕ) (seed : BalancedSchedules.SeededLabels.Seed 
     rw [he]
 
 /-- The two endpoint keys used by the native child, in the actual numbered parent edge order. -/
-noncomputable def ends : List (ℕ × ℕ) := List.ofFn fun e : Fin (edgeCount k q copies) =>
+@[expose] noncomputable def ends : List (ℕ × ℕ) := List.ofFn fun e : Fin (edgeCount k q copies) =>
   ((explicitVertexEquiv k q copies (.inl (rowOf machine input b σ code e))).val,
     (explicitVertexEquiv k q copies (.inr (colOf k q copies e))).val)
 

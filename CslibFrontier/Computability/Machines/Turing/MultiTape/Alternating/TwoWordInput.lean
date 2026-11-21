@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ExtendTapes
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RunsBetweenOutput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.PreparePair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.FromLeftBlank
@@ -75,6 +76,48 @@ private theorem selected {r K : ℕ} {i j : Fin K} (hij : i ≠ j) {x y : List B
     cases m using Fin.lastCases with
     | last => simp [tapes, first, Ne.symm hi] at hm
     | cast m => simp [tapes, first, Fin.castAdd_ne_natAdd] at hm
+
+/-- Run a deterministic continuation on a pair from the ordinary input tape. The continuation
+starts with its two selected work words at their origins and the physical source input at its
+first cell. Its output and time are preserved after one linear input preparation. -/
+theorem exists_prepend_deterministic {K : ℕ} {S α β : Type} [Finite S]
+    (enc₁ : α ↪ List Bool) (enc₂ : β ↪ List Bool) (i j : Fin K) (hij : i ≠ j)
+    (next : MultiTapeTM K Bool S) :
+    ∃ (u : ℕ) (Q : Type) (_ : Finite Q) (tm : MultiTapeTM u Bool Q) (c : ℕ),
+      ∀ (p : α × β) (t : ℕ),
+        let input := encPair enc₁ enc₂ p
+        let init := wordsCfg input (some next.q₀) (words i j (enc₁ p.1) (enc₂ p.2)) []
+        ∀ (final : Cfg K Bool Unit input), next.runFrom init t = final.withState none →
+        let time := c * (input.length + 1) + t
+        tm.ComputesInTimeAndSpace input final.output time (u * (time + 1)) := by
+  obtain ⟨r, P, hP, prep, c, hp⟩ := PairEncoding.exists_prepare enc₁ enc₂ (encPair enc₁ enc₂)
+  let E := tapes r i j hij
+  let load := prep.extendTapes E
+  let B : Fin K ↪ Fin (r + K) := Fin.natAddEmb r
+  let sub := next.extendTapes B
+  refine ⟨_, _, inferInstance, load.seq sub, c, ?_⟩
+  intro p t input init final hnext time
+  let blank := fun _ : Fin (r + K) => ([] : List Bool)
+  obtain ⟨ws, emitted, hr, ⟨⟨hws, hem⟩, hrest⟩, _⟩ :=
+    transformsTapes_iff_runFrom.mp ((hp p).extendTapes E) input blank [] ⟨rfl, rfl⟩
+  subst emitted
+  let mid : Cfg (r + K) Bool Unit input := wordsCfg input none ws []
+  have hv : viewCfg B (mid.withState (some sub.q₀)) = init := by
+    refine Cfg.ext rfl rfl ?_ rfl rfl
+    funext l z
+    change tapeOfList (ws (Fin.natAdd r l)) z = _
+    rw [selected hij hws hrest l]
+    rfl
+  let out := embed B final mid.workTapes mid.workTapePos
+  have hs : sub.runFrom (mid.withState (some sub.q₀)) t = out.withState none := by
+    rw [show sub = next.extendTapes B from rfl, runFrom_extendTapes, hv, hnext]
+    rfl
+  have hall : RunsBetween (load.seq sub) (tapesCfg input blank 0 0 []) out time
+      ((r + K) * (time + 1)) := by
+    apply RunsBetween.of_runFrom
+    rw [tapesCfg_zero_withState]
+    exact runFrom_seq hr rfl hs rfl
+  exact hall.computesInTimeAndSpace
 
 /-- Pay for the external input layout and run the same alternating computation from a
 standard blank-work-tape start. Both projections and both rewinds are included. -/
