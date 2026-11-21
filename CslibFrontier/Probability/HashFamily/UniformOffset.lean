@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Probability.HashFamily
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
+import CslibFrontier.Probability.Uniform
 
 /-!
 # Prediction after a uniform additive offset
@@ -27,14 +27,11 @@ namespace Cslib.Probability
 
 open scoped ENNReal
 
-/-- A continuation that sees both a uniformly shifted value and its offset can instead sample the
-shifted value uniformly and recover the offset. -/
-theorem PMF.uniformOfFintype_bind_add_offset {Y A : Type*} [AddGroup Y] [Fintype Y]
-    (value : Y) (f : Y → Y → PMF A) :
-    ((PMF.uniformOfFintype Y).bind fun offset => f (value + offset) offset) =
-      (PMF.uniformOfFintype Y).bind fun t => f t (-value + t) := by
-  conv_rhs => rw [← PMF.uniformOfFintype_bind_equiv (Equiv.addLeft value)]
-  simp only [Equiv.coe_addLeft, neg_add_cancel_left]
+/-- With the offset recovered from the first shifted digest, a second shifted digest equals the
+prediction exactly when the original digests have the predicted difference. -/
+theorem add_recovered_offset_eq_iff {Y : Type*} [AddGroup Y] (first second t t' : Y) :
+    second + (-first + t) = t' ↔ second - first = t' - t := by
+  rw [← add_assoc, ← sub_eq_add_neg, eq_sub_iff_add_eq.symm]
 
 namespace IsDeltaUniversalHash
 
@@ -49,14 +46,11 @@ theorem bind_recovered_offset_le (h : IsDeltaUniversalHash seed hash ε)
       PMF.pure (decide (m' ≠ m) && decide (hash k m' + (-hash k m + t) = t'))) true ≤ ε := by
   by_cases hne : m' = m
   · simp [hne]
-  · have htest (k : K) : hash k m' + (-hash k m + t) = t' ↔
-        hash k m' - hash k m = t' - t := by
-      rw [← add_assoc, ← sub_eq_add_neg, eq_sub_iff_add_eq.symm]
-    have heq (k : K) :
+  · have heq (k : K) :
         (decide (m' ≠ m) && decide (hash k m' + (-hash k m + t) = t')) =
           decide (hash k m' - hash k m = t' - t) := by
       rw [show decide (m' ≠ m) = true from decide_eq_true hne, Bool.true_and]
-      exact Bool.decide_congr (htest k)
+      exact Bool.decide_congr (add_recovered_offset_eq_iff (hash k m) (hash k m') t t')
     simp_rw [heq]
     rw [PMF.bind_pure_decide_apply_true]
     exact h m' m hne (t' - t)
