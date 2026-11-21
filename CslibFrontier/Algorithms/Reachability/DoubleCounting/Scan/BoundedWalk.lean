@@ -249,8 +249,12 @@ private def stateView (N : ℕ) (τ : Type) :
 private abbrev encChoose (N : ℕ) :=
   encPair (encRegisters N) NondeterministicChoice.encState
 
+private abbrev encCallFields {ρ ν : Type} (encReg : ρ ↪ List Bool)
+    (encDest : ν ↪ List Bool) (encCallee : τ ↪ List Bool) :=
+  encPair encReg (encPair encDest (encPair encNat encCallee))
+
 private abbrev encCall (N : ℕ) (encCallee : τ ↪ List Bool) :=
-  encPair (encRegisters N) (encPair (encVertex N) (encPair encNat encCallee))
+  encCallFields (encRegisters N) (encVertex N) encCallee
 
 private abbrev encView (N : ℕ) (encCallee : τ ↪ List Bool) :=
   encSum (encChoose N) (encSum (encCall N encCallee) (encOption encNat))
@@ -967,40 +971,95 @@ private theorem callNext_inSpace (encCallee : τ ↪ List Bool)
     (.call r v ticks callee, answer, selector)) = _
   cases selector <;> cases ticks <;> rfl
 
-/-- The walk reads the original input at the active adjacency query position. -/
-theorem query_inSpace (encCallee : τ ↪ List Bool)
-    (hquery : ComputableInSpace edge.query encCallee encNat (fun s => (encCallee s).length)) :
-    ComputableInSpace (M).query (encState encCallee) encNat
-      (fun s => (encState encCallee s).length) := by
+section ReadState
+
+/-- The dependent vertices are represented by the same register words and binary IDs. -/
+private abbrev ReadState (τ : Type) := List Bool ⊕
+  ((List Bool × ℕ × ℕ × τ) ⊕ Option ℕ)
+
+private def readState : State N τ → ReadState τ
+  | .choose r s => .inl (encChoose N (r, s))
+  | .call r v ticks s => .inr (.inl (encRegisters N r, v.val, ticks, s))
+  | .done reply => .inr (.inr reply)
+
+private abbrev encReadCall (encCallee : τ ↪ List Bool) :=
+  encCallFields encBits encNat encCallee
+
+private abbrev encReadState (encCallee : τ ↪ List Bool) :=
+  encSum encBits (encSum (encReadCall encCallee) (encOption encNat))
+
+variable {dimension : α → ℕ} {state : (a : α) → State (dimension a) τ}
+
+private theorem readState_budget
+    (hstate : ComputableInSpace (fun a => encState encCallee (state a)) encIn encBits budget) :
+    ComputableInSpace (fun a => readState (state a)) encIn (encReadState encCallee) budget :=
+  hstate.of_enc_eq fun a => by cases state a <;> rfl
+
+variable {callStart : (a : α) → Fin (dimension a) → Fin (dimension a) → τ}
+  {callVerdict : τ → Bool} {callClock : ℕ} {registers : (a : α) → Registers (dimension a)}
+
+/-- Decode the active query position from a walk state whose carrier may depend on the input. -/
+theorem query_budget {callee : QueryMachine τ}
+    (hquery : ComputableInSpace callee.query encCallee encNat (fun s => (encCallee s).length))
+    (hstate : ComputableInSpace (fun a => encState encCallee (state a)) encIn encBits budget) :
+    ComputableInSpace
+      (fun a => (machine callee (callStart a) callVerdict callClock (registers a)).query (state a))
+      encIn encNat budget := by
   have hcall := budget_comp_linear hquery
-    (snd' (snd' (snd (encRegisters N) (encPair (encVertex N) (encPair encNat encCallee)))))
+    (snd' (snd' (snd encBits (encPair encNat (encPair encNat encCallee)))))
   have h := sumElim
-    (budget_const (encIn := encChoose N) 0 (.refl _))
+    (budget_const (encIn := encBits) 0 (.refl _))
     (sumElim hcall (budget_const (encIn := encOption encNat) 0 (.refl _)))
-  exact (h.of_encIn_eq (stateView N τ) (fun _ => rfl)).of_enc_eq fun s => by cases s <;> rfl
+  exact (budget_comp_linear h (readState_budget hstate)).of_enc_eq
+    fun a => by cases state a <;> rfl
 
-/-- Detect the walk’s terminal state in linear workspace. -/
-theorem halted_inSpace (encCallee : τ ↪ List Bool) :
-    ComputableInSpace (M).halted (encState encCallee) encBool
-      (fun s => (encState encCallee s).length) := by
+/-- Detect a terminal walk state within the budget for its encoded word. -/
+theorem halted_budget {callee : QueryMachine τ}
+    (hstate : ComputableInSpace (fun a => encState encCallee (state a)) encIn encBits budget) :
+    ComputableInSpace
+      (fun a => (machine callee (callStart a) callVerdict callClock (registers a)).halted (state a))
+      encIn encBool budget := by
   have h := sumElim
-    (budget_const (encIn := encChoose N) (encB := encBool) false (.refl _))
-    (sumElim (budget_const (encIn := encCall N encCallee) (encB := encBool) false (.refl _))
+    (budget_const (encIn := encBits) (encB := encBool) false (.refl _))
+    (sumElim (budget_const (encIn := encReadCall encCallee) (encB := encBool) false (.refl _))
       (budget_const (encIn := encOption encNat) (encB := encBool) true (.refl _)))
-  exact (h.of_encIn_eq (stateView N τ) (fun _ => rfl)).of_enc_eq fun s => by cases s <;> rfl
+  exact (budget_comp_linear h (readState_budget hstate)).of_enc_eq
+    fun a => by cases state a <;> rfl
 
-/-- Decode unused fuel at success, with no result on live or rejected states. -/
-theorem remainingFuel_inSpace (encCallee : τ ↪ List Bool) :
-    ComputableInSpace (remainingFuel (N := N) (τ := τ)) (encState encCallee) (encOption encNat)
-      (fun s => (encState encCallee s).length) := by
+/-- Decode unused fuel from a completed walk, including a runtime-dependent carrier. -/
+theorem remainingFuel_budget
+    (hstate : ComputableInSpace (fun a => encState encCallee (state a)) encIn encBits budget) :
+    ComputableInSpace (fun a => remainingFuel (state a)) encIn (encOption encNat) budget := by
   have hid : ComputableInSpace id (encOption encNat) (encOption encNat)
       (fun s => (encOption encNat s).length) :=
     of_inO ComputableInDegree.id'.inO_one
   have h := sumElim
-    (budget_const (encIn := encChoose N) (encB := encOption encNat) none (.refl _))
-    (sumElim
-      (budget_const (encIn := encCall N encCallee) (encB := encOption encNat) none (.refl _)) hid)
-  exact (h.of_encIn_eq (stateView N τ) (fun _ => rfl)).of_enc_eq fun s => by cases s <;> rfl
+    (budget_const (encIn := encBits) (encB := encOption encNat) none (.refl _))
+    (sumElim (budget_const (encIn := encReadCall encCallee) (encB := encOption encNat)
+      none (.refl _)) hid)
+  exact (budget_comp_linear h (readState_budget hstate)).of_enc_eq
+    fun a => by cases state a <;> rfl
+
+end ReadState
+
+/-- The walk reads the original input at the active adjacency query position. -/
+theorem query_inSpace (encCallee : τ ↪ List Bool)
+    (hquery : ComputableInSpace edge.query encCallee encNat (fun s => (encCallee s).length)) :
+    ComputableInSpace (M).query (encState encCallee) encNat
+      (fun s => (encState encCallee s).length) :=
+  query_budget (state := id) hquery (of_inO (ComputableInO.of_eq fun _ => rfl))
+
+/-- Detect the walk’s terminal state in linear workspace. -/
+theorem halted_inSpace (encCallee : τ ↪ List Bool) :
+    ComputableInSpace (M).halted (encState encCallee) encBool
+      (fun s => (encState encCallee s).length) :=
+  halted_budget (state := id) (of_inO (ComputableInO.of_eq fun _ => rfl))
+
+/-- Decode unused fuel at success, with no result on live or rejected states. -/
+theorem remainingFuel_inSpace (encCallee : τ ↪ List Bool) :
+    ComputableInSpace (remainingFuel (N := N) (τ := τ)) (encState encCallee) (encOption encNat)
+      (fun s => (encState encCallee s).length) :=
+  remainingFuel_budget (state := id) (of_inO (ComputableInO.of_eq fun _ => rfl))
 
 private theorem accept_inSpace (encCallee : τ ↪ List Bool) :
     ComputableInSpace (M).accept (encState encCallee) encBool

@@ -18,15 +18,15 @@ adjacency context taken from its entry state. It makes the same original-input r
 and preserves first-halting selector lists and unused fuel. The encoded state adds the
 binary dimension and context to the existing bound on every branch.
 
-This module supplies the runtime state and replay relation. Native compilation of the
-runtime transitions remains a separate step in #6747.
+The query position, halt flag and returned fuel have native space certificates.
+Native compilation of the state-changing step remains in #6747.
 -/
 
 public section
 
 namespace Turing.DoubleCounting.BoundedWalk.Runtime
 
-open MultiTapeTM
+open MultiTapeTM ComputableInSpace
 
 /-- A walk and its retained vertex count and adjacency context. A walk starts with a vertex,
 so the carrier is nonempty. -/
@@ -131,6 +131,37 @@ theorem run_eq {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : List Bo
 
 /-- Decode the optional unused fuel from the runtime walk state. -/
 def remainingFuel (s : State κ τ) : Option ℕ := BoundedWalk.remainingFuel s.walk
+
+private theorem walkWord_inSpace (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool) :
+    ComputableInSpace (fun s => BoundedWalk.encState encCallee s.walk)
+      (encState encContext encCallee) encBits
+      (fun s => (encState encContext encCallee s).length) :=
+  (snd' (snd encContext (encPair encNat encBits))).of_encIn_eq
+    (fun s : State κ τ => (s.context, s.size, BoundedWalk.encState encCallee s.walk)) fun _ => rfl
+
+/-- Read the active adjacency query position from a runtime state in linear space. -/
+theorem query_inSpace (initial : State κ τ) (encContext : κ ↪ List Bool)
+    (encCallee : τ ↪ List Bool)
+    (hquery : ComputableInSpace edge.query encCallee encNat (fun s => (encCallee s).length)) :
+    ComputableInSpace (machine edge start verdict clock initial).query
+      (encState encContext encCallee) encNat
+      (fun s => (encState encContext encCallee s).length) :=
+  BoundedWalk.query_budget (state := State.walk) hquery (walkWord_inSpace encContext encCallee)
+
+/-- Detect a terminal runtime state in linear space. -/
+theorem halted_inSpace (initial : State κ τ) (encContext : κ ↪ List Bool)
+    (encCallee : τ ↪ List Bool) :
+    ComputableInSpace (machine edge start verdict clock initial).halted
+      (encState encContext encCallee) encBool
+      (fun s => (encState encContext encCallee s).length) :=
+  BoundedWalk.halted_budget (state := State.walk) (walkWord_inSpace encContext encCallee)
+
+/-- Decode the optional unused fuel from a runtime state in linear space. -/
+theorem remainingFuel_inSpace (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool) :
+    ComputableInSpace (remainingFuel (κ := κ) (τ := τ))
+      (encState encContext encCallee) (encOption encNat)
+      (fun s => (encState encContext encCallee s).length) :=
+  BoundedWalk.remainingFuel_budget (state := State.walk) (walkWord_inSpace encContext encCallee)
 
 private theorem halted_run_eq {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : List Bool) :
     let initial := entry edge start verdict clock ctx r

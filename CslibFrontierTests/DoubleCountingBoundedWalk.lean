@@ -166,6 +166,25 @@ example : ∃ R : Routines (machine edge start verdict 1 moving)
 private def runtimeStart (enabled : Bool) (_ _ : ℕ) : Option Bool :=
   if enabled then none else some false
 
+private def indexedEdge : QueryMachine (Option Bool) :=
+  { edge with query := fun s => (s.getD false).toNat }
+
+/-- A single set of read certificates covers every runtime dimension and state. -/
+example :
+    let initial := Runtime.entry indexedEdge runtimeStart verdict 1 false moving
+    let M := Runtime.machine indexedEdge runtimeStart verdict 1 initial
+    let enc := Runtime.encState encBool (encOption encBool)
+    let size s := (enc s).length
+    ComputableInSpace M.query enc encNat size ∧
+      ComputableInSpace M.halted enc encBool size ∧
+      ComputableInSpace Runtime.remainingFuel enc (encOption encNat) size := by
+  intro initial M enc size
+  refine ⟨Runtime.query_inSpace indexedEdge runtimeStart verdict 1 initial encBool
+    (encOption encBool) ?_,
+    Runtime.halted_inSpace indexedEdge runtimeStart verdict 1 initial encBool (encOption encBool),
+    Runtime.remainingFuel_inSpace encBool (encOption encBool)⟩
+  exact of_finite (fun s : Option Bool => (s.getD false).toNat)
+
 /-- The same runtime transition machine re-enters a four-vertex graph and reads the original
 input while running the selected one-edge walk. -/
 example :
