@@ -41,9 +41,7 @@ private theorem all_range_eq_isNone_findCode (p : ℕ → Bool) (n : ℕ) :
   simp [List.all_eq_true, Option.isNone_iff_eq_none]
 
 private def isIrreducibleCodeScan (m : ℕ) : Bool :=
-  decide (2 ≤ m) && (findCode (fun d =>
-    !(decide (d < 2) || decide (Nat.log 2 m / 2 < Nat.log 2 d) ||
-      (modBits d.bits m.bits).any id)) 0 m).isNone
+  decide (2 ≤ m) && (findCode (fun d => !divisorPasses m d) 0 m).isNone
 
 private theorem isIrreducibleCodeScan_eq (m : ℕ) :
     isIrreducibleCodeScan m = isIrreducibleCode m := by

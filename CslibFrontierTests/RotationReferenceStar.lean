@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionContraction
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRecut
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 
@@ -123,7 +124,7 @@ example :
             (referenceDrawing doubleLoop).direction (subdivisionDart doubleLoop d.val) ∧
           (T d).IsSimple ∧ (T d).support \ Metric.ball (D.vertex 0) 1 = {D.cutPort 1 d.val}) ∧
         Pairwise (fun d e => (T d).support ∩ (T e).support = {D.vertex 0})) ∧
-      ∃ ρ > (0 : ℝ), ∃ E F : PolygonalDrawing (subdivisionGraph doubleLoop),
+      (∃ ρ > (0 : ℝ), ∃ E F : PolygonalDrawing (subdivisionGraph doubleLoop),
         F.IsEmbedding ∧ F.vertex = E.vertex ∧ F.vertex 0 = D.vertex 0 ∧
         (∀ e, (subdivisionEdgeIndex doubleLoop e).piece = 1 → F.route e = E.route e) ∧
         (∀ d : Dart doubleLoop.graph,
@@ -133,7 +134,16 @@ example :
         ∃ A : PolygonalDrawing doubleLoop.graph, A.IsEmbedding ∧ A.vertex = F.vertex ∧
           (∀ i, (A.route i).support = ⋃ k : Fin 3,
             (F.route (⟨i, k⟩ : SubdivisionEdgeIndex doubleLoop).edge).support) ∧
-          ∀ d : Dart doubleLoop.graph, A.germ d = F.germ (subdivisionDart doubleLoop d) := by
+          ∀ d : Dart doubleLoop.graph, A.germ d = F.germ (subdivisionDart doubleLoop d)) ∧
+      ∃ s ∈ Set.Ioo (0 : ℝ) 1, ∃ G : PolygonalDrawing (subdivisionGraph doubleLoop), G.IsEmbedding ∧
+        G.vertex 0 = referencePoint doubleLoop 0 ∧
+        let left := subdivisionDart doubleLoop (firstLoop, false)
+        let right := subdivisionDart doubleLoop (firstLoop, true)
+        let a := referencePoint doubleLoop 0
+        let u := a + s • (referenceDrawing doubleLoop).germ left
+        let v := a + s • (referenceDrawing doubleLoop).germ right
+        G.vertex left.reverse.vertex = u ∧ G.vertex right.reverse.vertex = v ∧ u ≠ v ∧
+          G.route left.1 = Route.line a u ∧ G.route right.1 = Route.line v a := by
   have hI : Valid doubleLoop := (validate_eq_true_iff _).mp (by decide +kernel)
   let c : RotationCertificate := ⟨[1, 2, 3, 0]⟩
   have hrot : RotationCertificate.verifyRotation doubleLoop.graph c = true := by decide +kernel
@@ -149,7 +159,7 @@ example :
     simpa [doubleLoop, incidenceVertices] using hv
   have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r hends hg hloop
   have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
-  refine ⟨D, hD, ?_, ?_, ?_⟩
+  refine ⟨D, hD, ?_, ?_, ?_, ?_⟩
   · have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
       hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
       (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
@@ -181,5 +191,18 @@ example :
       refine ⟨hports d, ?_⟩
       simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_real_mul _ ha]
     · exact exists_contracted_subdivision_embedding hI hF
+  · obtain ⟨ε, hε, hscale⟩ :=
+      exists_subdivision_embedding_with_scaled_reference_spokes hI hD
+        (PolygonalDrawing.bouquet_realizes r hloop) hfix
+    have hs : ε / 2 ∈ Set.Ioo (0 : ℝ) ε := ⟨half_pos hε.1, half_lt_self hε.1⟩
+    obtain ⟨G, hG, hposition, hspoke⟩ := hscale (ε / 2) hs
+    obtain ⟨hleft, hl⟩ := hspoke (firstLoop, false) (by decide +kernel)
+    obtain ⟨hright, hr⟩ := hspoke (firstLoop, true) (by decide +kernel)
+    refine ⟨ε / 2, ⟨hs.1, hs.2.trans_le hε.2⟩, G, hG, hposition 0 (by decide +kernel),
+      hleft, hright, ?_, hl, hr⟩
+    have hn : G.vertex (subdivisionDart doubleLoop (firstLoop, false)).reverse.vertex ≠
+        G.vertex (subdivisionDart doubleLoop (firstLoop, true)).reverse.vertex :=
+      hG.vertex_ne (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    exact fun h => hn (hleft.trans (h.trans hright.symm))
 
 end Cslib.Tests.RotationReferenceStar
