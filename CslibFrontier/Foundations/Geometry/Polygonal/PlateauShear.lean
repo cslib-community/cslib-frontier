@@ -434,6 +434,17 @@ private theorem sourceSamples_ends (p : Route) (h r : ℝ) :
 
 -- The two source descriptions at a shared old knot are retained; only their geometric
 -- endpoint equality is used. No lookup by geometric point value occurs here.
+private theorem final_cut_endpoint (h r : ℝ) (a b : ℂ) :
+    let C := cuts h r a b
+    C[C.length - 2 + 1]'(by
+      have hlen := cuts_length_bounds h r a b
+      dsimp only
+      omega) = 1 := by
+  dsimp only
+  have hlen := cuts_length_bounds h r a b
+  have hidx : (cuts h r a b).length - 2 + 1 = (cuts h r a b).length - 1 := by omega
+  simpa only [hidx] using (segmentCuts_first_last (levels h r) a.im b.im).2
+
 private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
     {x y : Fin p.segments × ℝ} (hxy : (x, y) ∈ (sourceSamples p h r).consecutivePairs) :
     ∃ (i : Fin p.segments) (k : ℕ)
@@ -481,9 +492,7 @@ private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
       subst y
       let C := cuts h r (p.point i.castSucc) (p.point i.succ)
       have hlen := cuts_length_bounds h r (p.point i.castSucc) (p.point i.succ)
-      have hend : C[C.length - 2 + 1]'(by dsimp [C]; omega) = 1 := by
-        simpa only [show C.length - 2 + 1 = C.length - 1 by dsimp [C]; omega] using
-          (segmentCuts_first_last (levels h r) (p.point i.castSucc).im (p.point i.succ).im).2
+      have hend := final_cut_endpoint h r (p.point i.castSucc) (p.point i.succ)
       refine ⟨i, C.length - 2, by dsimp [C]; omega, rfl, ?_, rfl, ?_⟩
       · rw [hend]
         simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one,
@@ -508,9 +517,7 @@ private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
       let i := Fin.last p.bends
       let C := cuts h r (p.point i.castSucc) (p.point i.succ)
       have hlen := cuts_length_bounds h r (p.point i.castSucc) (p.point i.succ)
-      have hend : C[C.length - 2 + 1]'(by dsimp [C]; omega) = 1 := by
-        simpa only [show C.length - 2 + 1 = C.length - 1 by dsimp [C]; omega] using
-          (segmentCuts_first_last (levels h r) (p.point i.castSucc).im (p.point i.succ).im).2
+      have hend := final_cut_endpoint h r (p.point i.castSucc) (p.point i.succ)
       refine ⟨i, C.length - 2, by dsimp [C]; omega, rfl, ?_, rfl, ?_⟩
       · rw [hend]
       · dsimp only [sourcePosition, Route.position, i, Fin.val_last]
