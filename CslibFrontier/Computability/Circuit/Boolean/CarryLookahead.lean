@@ -156,7 +156,8 @@ def step (k distance : ℕ) : Circuit signature (k + k) (k + k) :=
 @[circuit_bound] theorem depth_step_le (k distance : ℕ) : (step k distance).depth ≤ 2 := by
   circuit_bound [step, generateFormula, propagateFormula]
 
-private theorem readRow_step (row : BitString (k + k)) (i distance : ℕ) :
+/-- One doubling layer combines a cell with its distant predecessor, with identity padding. -/
+theorem readRow_step (row : BitString (k + k)) (i distance : ℕ) :
     readRow ((step k distance).eval interpretation row) i =
       if i < k then
         combine (readRow row i) (readRow row (i + distance))
@@ -279,7 +280,8 @@ def finish (w : ℕ) :
 def inputCarry {w : ℕ} (u : BitString (w + w + 1)) (i : ℕ) : Bool :=
   BitVec.carry i (word (u ∘ leftInput w)) (word (u ∘ rightInput w)) (u (Fin.last (w + w)))
 
-private theorem readRow_initial {w : ℕ} (u : BitString (w + w + 1)) (i : Fin (w + 1)) :
+/-- Initial carry summaries read the two input words or the incoming carry. -/
+theorem readRow_initial {w : ℕ} (u : BitString (w + w + 1)) (i : Fin (w + 1)) :
     readRow ((initial w).eval interpretation u) i.val =
       if h : i.val < w then
         (u (leftInput w ⟨w - 1 - i.val, by omega⟩) &&

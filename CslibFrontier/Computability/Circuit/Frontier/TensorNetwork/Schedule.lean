@@ -622,47 +622,24 @@ theorem exists_activeBounds (C : ℕ) : ∃ s₀, ∀ s, s₀ ≤ s →
 
 /-! ### The mode count -/
 
-/-- **The mode count (D.15)** at an active call: if the node `t` of valuation `i ≤ a` satisfies
-the precision bound (D.11) `p_t u ≤ 34 M D_t` with `u ≥ 1`, and the packing has `#P 2 ^ a ≤ 3 M`
-packets (Lemma D.3 (1)), then there are at most `2 ^ e_d` tuples of exponents of the modes
-`P × Fin (2 ^ (i + 1)) × Fin p_t` (packet, tile, `b`) of weight `b + 1` below `p_t`. There are
-`#P 2 ^ (i + 1) ≤ 6 M / D_t` modes of each weight (D.13). -/
-theorem card_modeBudget_le {C s d M p : ℕ} (hA : Active C s d M p) (hs : 2 ≤ s)
-    (hu : 1 ≤ taper s d) {i h : ℕ} (hi : i ≤ slotBits s d)
+/-- The square root of the product of the number of colours and the node precision is
+geometrically summable along an active contraction branch. -/
+theorem sqrt_modeBudget_le {C s d M p : ℕ} (hA : Active C s d M p) (hs : 2 ≤ s)
+    (hu : 1 ≤ taper s d) {i h packets : ℕ} (hi : i ≤ slotBits s d)
     (hpt : nodePrecision p h (slotBits s d) M i * taper s d ≤
-      34 * M * 2 ^ (slotBits s d - i))
-    {P : Type*} [Fintype P] [DecidableEq P]
-    (hP : Fintype.card P * 2 ^ slotBits s d ≤ 3 * M) :
-    #(TensorNetwork.modeBudget
-        (fun Z : P × Fin (2 ^ (i + 1)) × Fin (nodePrecision p h (slotBits s d) M i) =>
-          (Z.2.2 : ℕ) + 1)
-        (nodePrecision p h (slotBits s d) M i)) ≤ 2 ^ branchExponent C s d := by
+      34 * M * 2 ^ (slotBits s d - i)) (hP : packets * 2 ^ slotBits s d ≤ 3 * M) :
+    Nat.sqrt (packets * 2 ^ (i + 1) * nodePrecision p h (slotBits s d) M i) ≤
+      15360 * C * s / (Nat.sqrt (Nat.log 2 s) * 8 ^ d) := by
   set a := slotBits s d
   set pt := nodePrecision p h a M i
   set u := taper s d
-  set m := Fintype.card P * 2 ^ (i + 1)
+  set m := packets * 2 ^ (i + 1)
   set σ := Nat.sqrt (Nat.log 2 s)
-  -- At most `m` modes of each weight.
-  have hfib : ∀ j, #{Z : P × Fin (2 ^ (i + 1)) × Fin pt | (Z.2.2 : ℕ) + 1 = j} ≤ m := by
-    intro j
-    calc #{Z : P × Fin (2 ^ (i + 1)) × Fin pt | (Z.2.2 : ℕ) + 1 = j}
-        ≤ #(univ : Finset (P × Fin (2 ^ (i + 1)))) := by
-          refine card_le_card_of_injOn (fun Z => (Z.1, Z.2.1)) (fun _ _ => mem_univ _) ?_
-          intro Z hZ Z' hZ' hZZ
-          have hZ := (mem_filter.1 (mem_coe.1 hZ)).2
-          have hZ' := (mem_filter.1 (mem_coe.1 hZ')).2
-          simp only [Prod.mk.injEq] at hZZ
-          exact Prod.ext hZZ.1 (Prod.ext hZZ.2 (Fin.ext (by omega)))
-      _ = m := by simp [m]
-  have hcard := card_le_two_pow_of_sum_mul_lt (fun _ => Nat.succ_pos _) hfib
-    (S := TensorNetwork.modeBudget _ pt) fun β hβ =>
-      (TensorNetwork.mem_modeBudget (fun _ => Nat.succ_pos _)).1 hβ
-  refine hcard.trans (Nat.pow_le_pow_right two_pos ?_)
   -- `⌊√(m p_t)⌋ ⌊√u⌋ ≤ 15 M`.
   set x := Nat.sqrt (m * pt)
   set y := Nat.sqrt u
   have hmD : m * 2 ^ (a - i) ≤ 6 * M := by
-    have : m * 2 ^ (a - i) = 2 * (Fintype.card P * 2 ^ a) := by
+    have : m * 2 ^ (a - i) = 2 * (packets * 2 ^ a) := by
       rw [show a = i + (a - i) by omega, Nat.add_sub_cancel_left]
       simp only [m, pow_succ, pow_add]
       ring
@@ -681,17 +658,55 @@ theorem card_modeBudget_le {C s d M p : ℕ} (hA : Active C s d M p) (hs : 2 ≤
     exact (Nat.pow_le_pow_iff_left (by norm_num)).1 h3
   have hσ : σ ≤ 2 ^ (10 + d) * y := sqrt_log_two_le_mul_sqrt_taper hu
   have hσ1 : 1 ≤ σ := Nat.one_le_sqrt_log_two hs
-  have hx : x ≤ 15360 * C * s / (σ * 8 ^ d) := by
-    rw [Nat.le_div_iff_mul_le (by positivity)]
-    calc x * (σ * 8 ^ d) ≤ x * (2 ^ (10 + d) * y * 8 ^ d) := by gcongr
-      _ = x * y * 2 ^ 10 * (2 ^ d * 8 ^ d) := by rw [pow_add]; ring
-      _ ≤ 15 * M * 2 ^ 10 * 16 ^ d := by
-          rw [← mul_pow]
-          exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hxy)
-      _ = 15360 * (16 ^ d * M) := by ring
-      _ ≤ 15360 * (C * s) := Nat.mul_le_mul_left _ hA.edges_le
-      _ = 15360 * C * s := by ring
-  change 4 * x + 4 ≤ 4 * (15360 * C * s / (σ * 8 ^ d)) + 4
+  change x ≤ 15360 * C * s / (σ * 8 ^ d)
+  rw [Nat.le_div_iff_mul_le (by positivity)]
+  calc x * (σ * 8 ^ d) ≤ x * (2 ^ (10 + d) * y * 8 ^ d) := by gcongr
+    _ = x * y * 2 ^ 10 * (2 ^ d * 8 ^ d) := by rw [pow_add]; ring
+    _ ≤ 15 * M * 2 ^ 10 * 16 ^ d := by
+        rw [← mul_pow]
+        exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hxy)
+    _ = 15360 * (16 ^ d * M) := by ring
+    _ ≤ 15360 * (C * s) := Nat.mul_le_mul_left _ hA.edges_le
+    _ = 15360 * C * s := by ring
+
+/-- **The mode count (D.15)** at an active call: if the node `t` of valuation `i ≤ a` satisfies
+the precision bound (D.11) `p_t u ≤ 34 M D_t` with `u ≥ 1`, and the packing has `#P 2 ^ a ≤ 3 M`
+packets (Lemma D.3 (1)), then there are at most `2 ^ e_d` tuples of exponents of the modes
+`P × Fin (2 ^ (i + 1)) × Fin p_t` (packet, tile, `b`) of weight `b + 1` below `p_t`. There are
+`#P 2 ^ (i + 1) ≤ 6 M / D_t` modes of each weight (D.13). -/
+theorem card_modeBudget_le {C s d M p : ℕ} (hA : Active C s d M p) (hs : 2 ≤ s)
+    (hu : 1 ≤ taper s d) {i h : ℕ} (hi : i ≤ slotBits s d)
+    (hpt : nodePrecision p h (slotBits s d) M i * taper s d ≤
+      34 * M * 2 ^ (slotBits s d - i))
+    {P : Type*} [Fintype P] [DecidableEq P]
+    (hP : Fintype.card P * 2 ^ slotBits s d ≤ 3 * M) :
+    #(TensorNetwork.modeBudget
+        (fun Z : P × Fin (2 ^ (i + 1)) × Fin (nodePrecision p h (slotBits s d) M i) =>
+          (Z.2.2 : ℕ) + 1)
+        (nodePrecision p h (slotBits s d) M i)) ≤ 2 ^ branchExponent C s d := by
+  set a := slotBits s d
+  set pt := nodePrecision p h a M i
+  set m := Fintype.card P * 2 ^ (i + 1)
+  set σ := Nat.sqrt (Nat.log 2 s)
+  -- At most `m` modes of each weight.
+  have hfib : ∀ j, #{Z : P × Fin (2 ^ (i + 1)) × Fin pt | (Z.2.2 : ℕ) + 1 = j} ≤ m := by
+    intro j
+    calc #{Z : P × Fin (2 ^ (i + 1)) × Fin pt | (Z.2.2 : ℕ) + 1 = j}
+        ≤ #(univ : Finset (P × Fin (2 ^ (i + 1)))) := by
+          refine card_le_card_of_injOn (fun Z => (Z.1, Z.2.1)) (fun _ _ => mem_univ _) ?_
+          intro Z hZ Z' hZ' hZZ
+          have hZ := (mem_filter.1 (mem_coe.1 hZ)).2
+          have hZ' := (mem_filter.1 (mem_coe.1 hZ')).2
+          simp only [Prod.mk.injEq] at hZZ
+          exact Prod.ext hZZ.1 (Prod.ext hZZ.2 (Fin.ext (by omega)))
+      _ = m := by simp [m]
+  have hcard := card_le_two_pow_of_sum_mul_lt (fun _ => Nat.succ_pos _) hfib
+    (S := TensorNetwork.modeBudget _ pt) fun β hβ =>
+      (TensorNetwork.mem_modeBudget (fun _ => Nat.succ_pos _)).1 hβ
+  refine hcard.trans (Nat.pow_le_pow_right two_pos ?_)
+  have hx : Nat.sqrt (m * pt) ≤ 15360 * C * s / (σ * 8 ^ d) :=
+    sqrt_modeBudget_le hA hs hu hi hpt hP
+  change 4 * Nat.sqrt (m * pt) + 4 ≤ 4 * (15360 * C * s / (σ * 8 ^ d)) + 4
   omega
 
 /-- At an active call satisfying the certificate, `s ≥ 2`. -/

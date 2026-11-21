@@ -601,15 +601,43 @@ the packet and slot of each `(row, column)` edge. -/
   let d := p % (r * r) ^ a / (r * r) ^ i % (r * r)
   (min (d / r) (d % r), max (d / r) (d % r))
 
-section PacketBridge
+section LocalPlacement
 
-variable {m nR nC a r : ℕ} (rowOf : Fin m → Fin nR) (colOf : Fin m → Fin nC)
-  (ρ : Fin nR → Fin a → Fin r) (κ : Fin nC → Fin a → Fin r)
+variable {E R C : Type*} [Fintype E] [LinearOrder E] {a r : ℕ}
+  (rowOf : E → R) (colOf : E → C) (ρ : R → Fin a → Fin r) (κ : C → Fin a → Fin r)
 
 /-- A digit of a word. -/
 private theorem getD_scheduleToWord (w : Fin a → Fin r) (i : Fin a) :
     (scheduleToWord w).getD i 0 = (w i : ℕ) := by
   rw [scheduleToWord, List.getD_ofFn]
+
+/-- The local binary slot formula gives the edge’s exact slot in the ordered packing. -/
+theorem slotOf_eq (e : E) :
+    slotOf a (scheduleToWord (ρ (rowOf e))) (scheduleToWord (κ (colOf e)))
+        (classIndex rowOf colOf ρ κ e) = ((Packing.ofLabels rowOf colOf ρ κ).slot e : ℕ) := by
+  simp only [slotOf, List.sum_map_range, Packing.ofLabels, BitString.val_equivFin_eq_sum,
+    slotBits, getD_scheduleToWord, Fin.val_inj, Fin.val_fin_lt]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  split_ifs <;> simp_all
+
+/-- The local packet formula gives the edge’s exact packet number in the ordered packing. -/
+theorem packetOf_eq (e : E) :
+    packetOf a r (scheduleToWord (ρ (rowOf e))) (scheduleToWord (κ (colOf e)))
+        (classIndex rowOf colOf ρ κ e) = ((Packing.ofLabels rowOf colOf ρ κ).packet e : ℕ) := by
+  simp only [packetOf, List.sum_map_range, Packing.ofLabels, packetEquiv, packetData,
+    Equiv.trans_apply, Equiv.prodCongr_apply, Prod.map, Equiv.refl_apply,
+    finProdFinEquiv_apply_val, finFunctionFinEquiv_apply, Equiv.arrowCongr_apply,
+    Function.comp_def, getD_scheduleToWord, Equiv.refl_symm]
+  congr 1
+  refine Finset.sum_congr rfl fun i _ => ?_
+  by_cases h : (classIndex rowOf colOf ρ κ e).testBit i <;> simp [h, Fin.val_max, Fin.val_min]
+
+end LocalPlacement
+
+section PacketBridge
+
+variable {m nR nC a r : ℕ} (rowOf : Fin m → Fin nR) (colOf : Fin m → Fin nC)
+  (ρ : Fin nR → Fin a → Fin r) (κ : Fin nC → Fin a → Fin r)
 
 /-- A running maximum is the maximum of the start and the list. -/
 private theorem foldl_max_eq (l : List ℕ) (b : ℕ) :
@@ -667,27 +695,6 @@ private theorem maxLoadOf_eq :
   rw [maxLoadOf, foldl_max_eq, maxLoad, Finset.sup_def, Fin.univ_val_map, Multiset.sup_coe,
     List.map_ofFn]
   simp only [Function.comp_def, Nat.zero_max, Nat.bot_eq_zero]
-
-/-- The slots. -/
-private theorem slotOf_eq (e : Fin m) :
-    slotOf a (scheduleToWord (ρ (rowOf e))) (scheduleToWord (κ (colOf e)))
-        (classIndex rowOf colOf ρ κ e) = ((Packing.ofLabels rowOf colOf ρ κ).slot e : ℕ) := by
-  simp only [slotOf, List.sum_map_range, Packing.ofLabels, BitString.val_equivFin_eq_sum,
-    slotBits, getD_scheduleToWord, Fin.val_inj, Fin.val_fin_lt]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  split_ifs <;> simp_all
-
-/-- The packets. -/
-private theorem packetOf_eq (e : Fin m) :
-    packetOf a r (scheduleToWord (ρ (rowOf e))) (scheduleToWord (κ (colOf e)))
-        (classIndex rowOf colOf ρ κ e) = ((Packing.ofLabels rowOf colOf ρ κ).packet e : ℕ) := by
-  simp only [packetOf, List.sum_map_range, Packing.ofLabels, packetEquiv, packetData,
-    Equiv.trans_apply, Equiv.prodCongr_apply, Prod.map, Equiv.refl_apply,
-    finProdFinEquiv_apply_val, finFunctionFinEquiv_apply, Equiv.arrowCongr_apply,
-    Function.comp_def, getD_scheduleToWord, Equiv.refl_symm]
-  congr 1
-  refine Finset.sum_congr rfl fun i _ => ?_
-  by_cases h : (classIndex rowOf colOf ρ κ e).testBit i <;> simp [h, Fin.val_max, Fin.val_min]
 
 /-- **The packing for given words** is `Packing.ofLabels`. -/
 theorem packingOfWords_eq [NeZero r] :
@@ -761,11 +768,12 @@ in binary. -/
 @[expose] def encPlacements : ℕ × List (ℕ × ℕ) ↪ List Bool :=
   encPair encNat (encList (encPair encNat encNat))
 
-/-- The inputs `((a, r), (ρ, κ), c)` of `slotOf` and `packetOf`, with `c` in unary. -/
-private abbrev encEdgeIn : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ ↪ List Bool :=
-  encPair (encPair (encPair encUnary encNat) (encPair (encList encNat) (encList encNat))) encUnary
+/-- Inputs `((a, r), (ρ, κ), c)` with unary label length and binary class rank. -/
+abbrev encEdgeIn : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ ↪ List Bool :=
+  encPair (encPair (encPair encUnary encNat) (encPair (encList encNat) (encList encNat))) encNat
 
-private theorem computableInPolyTime_slotOf :
+/-- Compute the slot from the two local label words and binary class rank. -/
+theorem computableInPolyTime_slotOf :
     ComputableInPolyTime (fun q : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ =>
       slotOf q.1.1.1 q.1.2.1 q.1.2.2 q.2) encEdgeIn encNat := by
   unfold slotOf
@@ -777,7 +785,7 @@ private theorem computableInPolyTime_slotOf :
   have hy : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ =>
       p.1.1.2.2.getD p.2 0) encI encNat := by fun_prop
   have hc : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ => p.1.2)
-      encI encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
+      encI encNat := by fun_prop
   have hi : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ => p.2)
       encI encUnary := by fun_prop
   have hbit := (ComputableInPolyTime.decide_eq' hx hy).ite'
@@ -786,7 +794,8 @@ private theorem computableInPolyTime_slotOf :
     fun p => ?_
   simp only [decide_eq_true_eq, Function.comp_apply]
 
-private theorem computableInPolyTime_packetOf :
+/-- Compute the packet from the two local label words and binary class rank. -/
+theorem computableInPolyTime_packetOf :
     ComputableInPolyTime (fun q : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ =>
       packetOf q.1.1.1 q.1.1.2 q.1.2.1 q.1.2.2 q.2) encEdgeIn encNat := by
   unfold packetOf
@@ -795,7 +804,7 @@ private theorem computableInPolyTime_packetOf :
   have hrr : ComputableInPolyTime (fun q : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ => q.1.1.2 * q.1.1.2)
       encEdgeIn encNat := ComputableInPolyTime.binary_mul' hr hr
   have hc : ComputableInPolyTime (fun q : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ => q.2)
-      encEdgeIn encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
+      encEdgeIn encNat := by fun_prop
   have ha : ComputableInPolyTime (fun q : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ => q.1.1.1)
       encEdgeIn encUnary := by fun_prop
   have hblock : ComputableInPolyTime (fun q : ((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ =>
@@ -814,7 +823,7 @@ private theorem computableInPolyTime_packetOf :
   have hi : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ => p.2)
       encI encUnary := by fun_prop
   have hc' : ComputableInPolyTime (fun p : (((ℕ × ℕ) × (List ℕ × List ℕ)) × ℕ) × ℕ => p.1.2)
-      encI encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
+      encI encNat := by fun_prop
   have hterm := (ComputableInPolyTime.binary_testBit hc' hi).ite'
     (ComputableInPolyTime.binary_add' hmin (ComputableInPolyTime.binary_mul' hr' hmax))
     (ComputableInPolyTime.binary_add' hmax (ComputableInPolyTime.binary_mul' hr' hmin))
@@ -922,7 +931,11 @@ theorem computableInPolyTime_packingOfWords :
   let encQ := encPair encWordsInput (encPair (encPair (encList encNat) (encList encNat)) encUnary)
   have hin : ComputableInPolyTime
       (fun p : WordsInput × ((List ℕ × List ℕ) × ℕ) => ((p.1.1.1, p.2.1), p.2.2))
-      encQ encEdgeIn := by unfold encQ encWordsInput encEdgeIn; fun_prop
+      encQ encEdgeIn := by
+    apply ComputableInPolyTime.prod
+    · unfold encQ encWordsInput
+      fun_prop
+    · exact ComputableInPolyTime.unary_to_binary.comp (by unfold encQ; fun_prop)
   have hstep := (computableInPolyTime_packetOf.prod computableInPolyTime_slotOf).comp hin
   have hmap := ComputableInPolyTime.mapWithInput
     (f := fun (y : WordsInput) (q : (List ℕ × List ℕ) × ℕ) =>
