@@ -134,16 +134,7 @@ theorem coeffNorm1_rename_le (f : ι → κ) (p : MvPolynomial ι ℤ) :
 
 /-- A partial derivative increases the norm by at most the total degree. -/
 theorem coeffNorm1_pderiv_le (p : MvPolynomial ι ℤ) (i : ι) :
-    coeffNorm1 (pderiv i p) ≤ p.totalDegree * coeffNorm1 p := by
-  classical
-  conv_lhs => rw [p.as_sum, map_sum]
-  apply (coeffNorm1_sum_le _ _).trans
-  rw [coeffNorm1, Finset.mul_sum]
-  apply Finset.sum_le_sum
-  intro m hm
-  rw [pderiv_monomial, coeffNorm1_monomial, Int.natAbs_mul, Int.natAbs_natCast]
-  rw [Nat.mul_comm (p.coeff m).natAbs]
-  apply Nat.mul_le_mul_right
-  exact (Finsupp.single_eval_le_sum m rfl (fun _ => Nat.zero_le _) i).trans (le_totalDegree hm)
+    coeffNorm1 (pderiv i p) ≤ p.totalDegree * coeffNorm1 p :=
+  sum_pderiv_le_of_subadditive Int.natAbs_zero Int.natAbs_add_le p i
 
 end MvPolynomial

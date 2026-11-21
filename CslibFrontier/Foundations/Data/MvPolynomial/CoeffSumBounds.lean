@@ -8,12 +8,15 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.MvPolynomial.Basic
+public import Mathlib.Algebra.MvPolynomial.Degrees
+public import Mathlib.Algebra.MvPolynomial.PDeriv
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-! # Weighted coefficient sums of multivariate polynomials
 
 Subadditive and submultiplicative coefficient weights pass to the sum over the monomials.
-The same bounds apply to absolute values of integers and to norms of polynomial coefficients.
+For a subadditive weight, partial derivatives increase the sum by at most the total degree.
+These bounds apply to absolute values of integers and to norms of polynomial coefficients.
 -/
 
 public section
@@ -62,5 +65,33 @@ theorem sum_mul_le_of_submultiplicative [CommSemiring S] [PartialOrder S] [IsOrd
       sum_le_sum fun i _ => sum_le_sum fun j _ =>
         (sum_monomial_eq h0).trans_le (hmul _ _)
     _ = N p * N q := (sum_mul_sum _ _ _ _).symm
+
+/-- A partial derivative increases the sum of subadditive coefficient weights
+by at most the total degree. -/
+theorem sum_pderiv_le_of_subadditive {ν : R → ℕ}
+    (h0 : ν 0 = 0) (hadd : ∀ a b, ν (a + b) ≤ ν a + ν b)
+    (p : MvPolynomial ι R) (i : ι) :
+    ((pderiv i p).coeff.sum fun _ a => ν a) ≤ p.totalDegree * (p.coeff.sum fun _ a => ν a) := by
+  classical
+  have hsmul (a : R) (k : ℕ) : ν (k • a) ≤ k * ν a := by
+    induction k with
+    | zero => simp [h0]
+    | succ k ih =>
+      rw [succ_nsmul, Nat.succ_mul]
+      exact (hadd _ _).trans (Nat.add_le_add_right ih _)
+  let N (q : MvPolynomial ι R) := q.coeff.sum fun _ a => ν a
+  have hN0 : N 0 = 0 := by simp [N, MvPolynomial.sum_def]
+  change N (pderiv i p) ≤ p.totalDegree * N p
+  conv_lhs => rw [p.as_sum, map_sum]
+  refine (le_sum_of_subadditive N hN0.le (sum_add_le_of_subadditive h0 hadd) _ _).trans ?_
+  change _ ≤ p.totalDegree * ∑ m ∈ p.support, ν (p.coeff m)
+  rw [Finset.mul_sum]
+  apply sum_le_sum
+  intro m hm
+  rw [pderiv_monomial, show N (monomial (m - Finsupp.single i 1) (p.coeff m * m i)) =
+    ν (p.coeff m * m i) from sum_monomial_eq h0]
+  rw [mul_comm (p.coeff m), ← nsmul_eq_mul]
+  exact (hsmul _ _).trans (Nat.mul_le_mul_right _
+    ((Finsupp.single_eval_le_sum m rfl (fun _ => Nat.zero_le _) i).trans (le_totalDegree hm)))
 
 end MvPolynomial

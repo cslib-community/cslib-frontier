@@ -472,6 +472,8 @@ import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
 import CslibFrontier.Foundations.Probability.IndependentSumNorm
 
+import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
+
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 
@@ -11803,20 +11805,22 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
       locator := "author's copy of December 27, 2005, §4, printed p. 12" }
   ]
   theorems := [
-    ZLattice.tvDist_gaussian_shift_quotient_le
+    ZLattice.tvDist_gaussian_shift_quotient_le,
+    ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le
   ]
-  scope := "Dual-mass form (first sentence) of MicciancioRegev2007 Lemma 4.1 (a step toward the \
-    s ≥ η_ε(L) corollary once ZLattice.smoothingParameter is in scope): for any full-rank \
-    discrete lattice L in a finite-dimensional real inner product space E with Borel measurable \
-    structure, fundamental domain F for L, width s > 0, and arbitrary center c : E, the \
-    quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total variation \
-    distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the normalized \
-    quotient Haar measure. Conventions and deviations from the source: (1) Mathlib's tvDist is \
-    the full-L¹ distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly \
-    equivalent to the source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}) (identical constant, \
-    not looser); (2) stated on the quotient group E ⧸ L with normalized restricted volume on an \
-    arbitrary fundamental domain F rather than a basis parallelepiped P(B); (3) omits the \
-    'In particular, s ≥ η_ε(B) ⇒ Δ ≤ ε / 2' specialization until smoothingParameter lands."
+  scope := "MicciancioRegev2007 Lemma 4.1 in two parts. (a) Dual-mass form of the first sentence: \
+    for any full-rank discrete lattice L in a finite-dimensional real inner product space E with \
+    Borel measurable structure, fundamental domain F for L, width s > 0, and arbitrary center \
+    c : E, the quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total \
+    variation distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the \
+    normalized quotient Haar measure. (b) Smoothing-parameter corollary for the centered Gaussian \
+    (c = 0): for ε > 0 and ZLattice.smoothingParameter L ε ≤ s, the same total variation distance \
+    is at most ε. Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ \
+    distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to the \
+    source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}), and tvDist ≤ ε in (b) is the source's \
+    Δ ≤ ε / 2 (identical constants, not looser); (2) stated on the quotient group E ⧸ L with \
+    normalized restricted volume on an arbitrary fundamental domain F rather than a basis \
+    parallelepiped P(B); (3) the η_ε specialization is registered for the centered Gaussian only."
 
 register_result "classical-quantum-tuple-mutual-information-chain" where
   title := "Mutual information chain rule for finite classical tuples and a quantum register"
@@ -11896,6 +11900,26 @@ register_result "micciancio-regev-discrete-gaussian-moments" where
     rather than via η_ε(L); (2) uses general width s > 0 rather than s = 1; (3) uses the exact \
     probability-weighted tsum form (bridged to Bochner integrals by \
     integral_sub_discreteGaussian_eq_tsum and integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+
+-- https://github.com/cslib-community/cslib-frontier/pull/6844
+register_result "micciancio-regev-smoothing-parameter-dual-minimum" where
+  title := "Smoothing parameter upper bound from the dual first minimum"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.2",
+      locator := "December 27, 2005 author's copy, Section 3, pp. 10–11; Definition 3.1, p. 10" }
+  ]
+  theorems := [ZLattice.smoothingParameter_le_sqrt_div_minimum_dual]
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E of dimension n = finrank ℝ E, η_{2^{-n}}(L) ≤ √n / λ₁(L*), where \
+    ZLattice.smoothingParameter L ε is the infimum of s > 0 with nonzero reciprocal-width dual \
+    Gaussian mass ρ_{1/s}(L* \\ {0}) ≤ ε and λ₁(L*) is ZLattice.minimum of the dual lattice \
+    LinearMap.BilinForm.dualSubmodule (innerₗ E) L. Holds uniformly in all dimensions including \
+    n = 0 (where both sides are 0) and requires no MeasurableSpace instance on E; the proof \
+    applies the doubled-width centered discrete-Gaussian tail bound on L* rather than \
+    Banaszczyk's Lemma 1.5(i) directly. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6844 against the December 27, 2005 author's copy, \
+    pp. 10–11: https://github.com/cslib-community/cslib-frontier/pull/6844."
 
 register_result "micciancio-regev-shifted-gaussian-mass-le-zero" where
   title := "Shifted lattice Gaussian mass is maximized at the origin"

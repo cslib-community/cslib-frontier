@@ -106,4 +106,9 @@ theorem prod_le {J : Type*} (s : Finset J) (p : J → MvPolynomial ι (Polynomia
     norm (∏ j ∈ s, p j) ≤ ∏ j ∈ s, norm (p j) :=
   Finset.le_prod_of_submultiplicative norm one.le mul_le s p
 
+/-- An outer partial derivative increases the norm by at most the outer total degree. -/
+theorem pderiv_le (p : MvPolynomial ι (Polynomial ℤ)) (i : ι) :
+    norm (pderiv i p) ≤ p.totalDegree * norm p :=
+  sum_pderiv_le_of_subadditive Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_add_le p i
+
 end MvPolynomial.ParameterCoeffNorm
