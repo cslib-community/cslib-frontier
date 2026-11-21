@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
 public import Mathlib.Algebra.MvPolynomial.Supported
+public import Mathlib.Algebra.MvPolynomial.Degrees
+public import Mathlib.Data.Finsupp.Interval
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
 import Mathlib.Tactic.LinearCombination
@@ -20,26 +22,31 @@ import Mathlib.Tactic.Ring
 # A three-player universality game
 
 An original three-player variant of the construction in the proof of Theorem 5 of [Datta2003]
-(statement p. 4, proof pp. 4–6). Let
-`F₀, …, F_{m-1}` be polynomials in `n` variables whose degree in each variable is at most `d`. There
-is a game with three players, Alice, Bob and Critter, with `n + 1`, `(d + 1)ⁿ + 1` and
-`(d + 1)ⁿ + m + 1` pure strategies, whose totally mixed Nash equilibria are the points `x` of the
-open simplex `{x | 0 < xᵢ, ∑ xᵢ < 1}` with `F_j(x) = 0`, encoded together with the monomials `xᵉ`
-and, when `m > n`, `m - n` free probabilities of Critter.
+(statement p. 4, proof pp. 4–6). Let `F₀, …, F_{m-1}` be polynomials in `n` variables, and let
+`E` be a finite set of exponent vectors that is closed downwards (coordinatewise) and contains the
+exponents of every monomial of every `F_j`. There is a game with three players, Alice, Bob and
+Critter, with `n + 1`, `|E| + 1` and `|E| + m + 1` pure strategies, whose totally mixed Nash
+equilibria are the points `x` of the open simplex `{x | 0 < xᵢ, ∑ xᵢ < 1}` with `F_j(x) = 0`,
+encoded together with the monomials `xᵉ`, `e ∈ E`, and, when `m > n`, `m - n` free probabilities
+of Critter.
+
+The smallest admissible table is the **sparse table** `sparseTable F`: the exponents lying
+coordinatewise below some monomial of some `F_j` (`sparseTable_subset`). The full box `{0, …, d}ⁿ`
+is admissible when every `F_j` has degree at most `d` in every variable.
 
 ## The construction
 
 Every player has a reference strategy (`none`, `CostGame.simplexGame`). The non-reference
 strategies (`DattaThree.Strat`) are:
 * for Alice, `i < n`, whose probability is `xᵢ`;
-* for Bob, the exponent vectors `e ∈ {0, …, d}ⁿ`, whose probability stands for `xᵉ / K` with
-  `K = (d + 1)ⁿ + 1` (`bobScale`);
-* for Critter, the exponent vectors `e` and the equations `j < m`.
+* for Bob, the exponent vectors `e ∈ E`, whose probability stands for `xᵉ / K` with `K = |E| + 1`
+  (`bobScale`);
+* for Critter, the exponent vectors `e ∈ E` and the equations `j < m`.
 
 Each player's indifference equations involve only the other two players:
 * Critter's equation for `e` is the **monomial chain** `K b_e = a_l · K b_{e - 1_l}`, where `l` is a
-  variable with `e_l ≥ 1`, and `K b_0 = 1` (`chainEq`). By induction on the total degree they
-  force `b_e = xᵉ / K`.
+  variable with `e_l ≥ 1`, and `K b_0 = 1` (`chainEq`). Since `E` is closed downwards,
+  `e - 1_l ∈ E`. By induction on the total degree the chain forces `b_e = xᵉ / K`.
 * Critter's equation for `j` is `F_j` with each monomial `xᵉ` replaced by `K b_e` (`encode`),
   which is affine in Bob's block.
 * Bob's equation for `e` and, for `j < min(m, n)`, Alice's equation for `j` fix Critter's
@@ -49,25 +56,29 @@ Each player's indifference equations involve only the other two players:
 **Differences from the source.** The monomial table is this library's, not Datta's. Datta
 writes each `F_j` by Horner's rule as a chain of bilinear equations, one per step, with affine
 rescalings of Bob's coordinates, which gives the strategy counts `n + 1`, `D − m + 1` and `D + 1`
-with `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`. Here the `F_j` share one table of monomials, so the scaling
-`1 / K` keeps Bob's probabilities in the open simplex without affine shifts. The counts differ
-from the paper's; they do not matter for universality. When every `F_j` has degree `d` in every
-variable, write `N = (d + 1)ⁿ`. Then the paper gives Bob and Critter `m (N − 1)` and `m N`
-strategies, and this game gives them `N + 1` and `N + m + 1`. So this game is smaller exactly when
-`(m − 1) N > m + 1`; it is larger for one equation, and for two linear equations in one variable.
-On sparse systems it can be exponentially larger. Datta fixes Critter's probabilities at
-`1 / D` (p. 6), which leaves Critter's reference strategy with probability `0` when `m ≤ n`;
-dividing by the number of Critter's strategies avoids this. The exact Horner construction and
+with `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, where `d_ij` is the degree of `xᵢ` in `F_j`. Here the `F_j`
+share one table of monomials, so the scaling `1 / K` keeps Bob's probabilities in the open simplex
+without affine shifts. With the sparse table, `|sparseTable F| + m ≤ D + 2`
+(`card_sparseTable_add_le`), so Bob and Critter have at most `D − m + 3` and `D + 3` strategies:
+at most two more than in the paper, and possibly fewer when the `F_j` share monomials or are
+sparse within their degree boxes. With the full box `{0, …, d}ⁿ`, write `N = (d + 1)ⁿ`; Bob and
+Critter have `N + 1` and `N + m + 1` strategies, and the sparse table is never larger
+(`card_sparseTable_le_pow`). Datta fixes Critter's probabilities at `1 / D` (p. 6), which leaves
+Critter's reference strategy with probability `0` when `m ≤ n`; dividing by the number of
+Critter's strategies avoids this. The exact Horner construction and
 counts stay open in #6701.
 
 ## Main definitions
 
-* `Cslib.GameTheory.DattaThree.game F`: the game.
+* `Cslib.GameTheory.DattaThree.game E F`: the game on the table `E`.
+* `Cslib.GameTheory.DattaThree.sparseTable F`: the smallest admissible table.
 
 ## Main results
 
 * `Cslib.GameTheory.DattaThree.isTotallyMixedNash_game_iff`: its totally mixed Nash equilibria.
 * `Cslib.GameTheory.DattaThree.card_strategies`: the numbers of pure strategies.
+* `Cslib.GameTheory.DattaThree.card_sparseTable_add_le`: the sparse table against Datta's `D`.
+* `Cslib.GameTheory.DattaThree.card_sparseTable_le_pow`: the sparse table against the full box.
 
 ## References
 
@@ -89,177 +100,242 @@ inductive Who
 
 instance : Fintype Who := ⟨{.alice, .bob, .critter}, fun w => by cases w <;> simp⟩
 
-/-- Exponent vectors of `n` variables with entries at most `d`. -/
-abbrev Expo (n d : ℕ) : Type := Fin n → Fin (d + 1)
+variable {n m : ℕ}
 
-/-- The non-reference pure strategies of each player. -/
-abbrev Strat (n d m : ℕ) : Who → Type
+/-- The non-reference pure strategies of each player, for the table of exponents `E`. -/
+abbrev Strat (E : Finset (Fin n →₀ ℕ)) (m : ℕ) : Who → Type
   | .alice => Fin n
-  | .bob => Expo n d
-  | .critter => Expo n d ⊕ Fin m
+  | .bob => E
+  | .critter => E ⊕ Fin m
 
-variable {n d m : ℕ}
+variable {E : Finset (Fin n →₀ ℕ)}
 
-instance instFintypeStrat : ∀ w, Fintype (Strat n d m w)
+instance instFintypeStrat : ∀ w, Fintype (Strat E m w)
   | .alice => inferInstanceAs (Fintype (Fin n))
-  | .bob => inferInstanceAs (Fintype (Expo n d))
-  | .critter => inferInstanceAs (Fintype (Expo n d ⊕ Fin m))
+  | .bob => inferInstanceAs (Fintype E)
+  | .critter => inferInstanceAs (Fintype (E ⊕ Fin m))
 
-instance instDecidableEqStrat : ∀ w, DecidableEq (Strat n d m w)
+instance instDecidableEqStrat : ∀ w, DecidableEq (Strat E m w)
   | .alice => inferInstanceAs (DecidableEq (Fin n))
-  | .bob => inferInstanceAs (DecidableEq (Expo n d))
-  | .critter => inferInstanceAs (DecidableEq (Expo n d ⊕ Fin m))
+  | .bob => inferInstanceAs (DecidableEq E)
+  | .critter => inferInstanceAs (DecidableEq (E ⊕ Fin m))
 
 /-- The coordinates of a profile: one per non-reference strategy. -/
-abbrev Coord (n d m : ℕ) : Type := Σ w, Strat n d m w
+abbrev Coord (E : Finset (Fin n →₀ ℕ)) (m : ℕ) : Type := Σ w, Strat E m w
 
 /-- Alice's coordinate `i`, standing for `xᵢ`. -/
-abbrev aCoord (i : Fin n) : Coord n d m := ⟨.alice, i⟩
+abbrev aCoord (i : Fin n) : Coord E m := ⟨.alice, i⟩
 
 /-- Bob's coordinate `e`, standing for `xᵉ / K`. -/
-abbrev bCoord (e : Expo n d) : Coord n d m := ⟨.bob, e⟩
+abbrev bCoord (e : E) : Coord E m := ⟨.bob, e⟩
 
 /-- Critter's coordinate `s`. -/
-abbrev cCoord (s : Expo n d ⊕ Fin m) : Coord n d m := ⟨.critter, s⟩
+abbrev cCoord (s : E ⊕ Fin m) : Coord E m := ⟨.critter, s⟩
 
-/-- The scale `K = (d + 1)ⁿ + 1` of Bob's coordinates: Bob's number of pure strategies. -/
-noncomputable abbrev bobScale (n d : ℕ) : ℝ := (d + 1 : ℝ) ^ n + 1
+/-- The scale `K = |E| + 1` of Bob's coordinates: Bob's number of pure strategies. -/
+noncomputable abbrev bobScale (E : Finset (Fin n →₀ ℕ)) : ℝ := #E + 1
 
-/-- The probability `1 / ((d + 1)ⁿ + m + 1)` at which Critter's coordinates are fixed: one over
+/-- The probability `1 / (|E| + m + 1)` at which Critter's coordinates are fixed: one over
 Critter's number of pure strategies. -/
-noncomputable abbrev critterWeight (n d m : ℕ) : ℝ := 1 / ((d + 1 : ℝ) ^ n + m + 1)
+noncomputable abbrev critterWeight (E : Finset (Fin n →₀ ℕ)) (m : ℕ) : ℝ := 1 / (#E + m + 1)
 
 /-- The monomial `xᵉ = ∏ xᵢ ^ eᵢ`. -/
-@[expose] noncomputable def expoPow (x : Fin n → ℝ) (e : Expo n d) : ℝ := ∏ i, x i ^ (e i : ℕ)
-
-/-- `e` with entry `l` lowered by one. -/
-def lower (e : Expo n d) (l : Fin n) : Expo n d :=
-  update e l ⟨(e l : ℕ) - 1, lt_of_le_of_lt (Nat.sub_le _ _) (e l).2⟩
-
-/-- The total degree of `e`. -/
-def weight (e : Expo n d) : ℕ := ∑ i, (e i : ℕ)
+@[expose] noncomputable def expoPow (x : Fin n → ℝ) (e : Fin n →₀ ℕ) : ℝ := ∏ i, x i ^ e i
 
 /-- Critter's monomial chain equation for `e`: `K b_e - K a_l b_{e - 1_l}` for a variable `l` with
-`e_l ≥ 1`, and `K b_0 - 1`. -/
-noncomputable def chainEq (e : Expo n d) : MvPolynomial (Coord n d m) ℝ :=
-  if h : ∃ l, (e l : ℕ) ≠ 0 then
-    C (bobScale n d) * X (bCoord e) -
-      C (bobScale n d) * (X (aCoord h.choose) * X (bCoord (lower e h.choose)))
-  else C (bobScale n d) * X (bCoord e) - 1
+`e_l ≥ 1` and `e - 1_l ∈ E`, and `K b_e - 1` if there is none. -/
+noncomputable def chainEq (e : E) : MvPolynomial (Coord E m) ℝ :=
+  if h : ∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E then
+    C (bobScale E) * X (bCoord e) -
+      C (bobScale E) * (X (aCoord h.choose) * X (bCoord ⟨_, h.choose_spec.2⟩))
+  else C (bobScale E) * X (bCoord e) - 1
 
-/-- The exponent vector of a monomial, with entries cut off at `d`. -/
-def toExpo (s : Fin n →₀ ℕ) : Expo n d := fun i => ⟨min (s i) d, by omega⟩
-
-/-- The encoding of `F` in Bob's block: each monomial `xˢ` becomes `K b_s`. -/
-noncomputable def encode (F : MvPolynomial (Fin n) ℝ) : MvPolynomial (Coord n d m) ℝ :=
-  ∑ s ∈ F.support, C (F.coeff s * bobScale n d) * X (bCoord (toExpo s))
+/-- The encoding of `F` in Bob's block: each monomial `xᵉ`, `e ∈ E`, becomes `K b_e`. -/
+noncomputable def encode (F : MvPolynomial (Fin n) ℝ) : MvPolynomial (Coord E m) ℝ :=
+  ∑ e : E, C (F.coeff e * bobScale E) * X (bCoord e)
 
 /-- The indifference equations of the three players. -/
 noncomputable def equation (F : Fin m → MvPolynomial (Fin n) ℝ) :
-    ∀ w, Strat n d m w → MvPolynomial (Coord n d m) ℝ
-  | .alice, i => if h : i.val < m then X (cCoord (.inr ⟨i, h⟩)) - C (critterWeight n d m) else 0
-  | .bob, e => X (cCoord (.inl e)) - C (critterWeight n d m)
+    ∀ w, Strat E m w → MvPolynomial (Coord E m) ℝ
+  | .alice, i => if h : i.val < m then X (cCoord (.inr ⟨i, h⟩)) - C (critterWeight E m) else 0
+  | .bob, e => X (cCoord (.inl e)) - C (critterWeight E m)
   | .critter, .inl e => chainEq e
   | .critter, .inr j => encode (F j)
 
-/-- **The three-player game** for the system `F`. -/
-noncomputable def game (F : Fin m → MvPolynomial (Fin n) ℝ) :
-    CostGame Who (fun w => Option (Strat n d m w)) :=
-  CostGame.simplexGame (equation (d := d) F)
+/-- **The three-player game** for the system `F` on the table of exponents `E`. -/
+noncomputable def game (E : Finset (Fin n →₀ ℕ)) (F : Fin m → MvPolynomial (Fin n) ℝ) :
+    CostGame Who (fun w => Option (Strat E m w)) :=
+  CostGame.simplexGame (equation (E := E) F)
 
-/-- Alice, Bob and Critter have `n + 1`, `(d + 1)ⁿ + 1` and `(d + 1)ⁿ + m + 1` pure strategies. -/
+/-- Alice, Bob and Critter have `n + 1`, `|E| + 1` and `|E| + m + 1` pure strategies. -/
 theorem card_strategies :
-    Fintype.card (Option (Strat n d m .alice)) = n + 1 ∧
-      Fintype.card (Option (Strat n d m .bob)) = (d + 1) ^ n + 1 ∧
-      Fintype.card (Option (Strat n d m .critter)) = (d + 1) ^ n + m + 1 := by
+    Fintype.card (Option (Strat E m .alice)) = n + 1 ∧
+      Fintype.card (Option (Strat E m .bob)) = #E + 1 ∧
+      Fintype.card (Option (Strat E m .critter)) = #E + m + 1 := by
   refine ⟨?_, ?_, ?_⟩ <;>
     simp [Fintype.card_option, Fintype.card_sum]
 
+/-! ### The sparse table -/
+
+/-- The **sparse table** of `F`: the exponent vectors lying coordinatewise below the exponents of
+some monomial of some `F j`. -/
+noncomputable def sparseTable (F : Fin m → MvPolynomial (Fin n) ℝ) : Finset (Fin n →₀ ℕ) :=
+  univ.biUnion fun j => (F j).support.biUnion Iic
+
+theorem mem_sparseTable {F : Fin m → MvPolynomial (Fin n) ℝ} {e : Fin n →₀ ℕ} :
+    e ∈ sparseTable F ↔ ∃ j, ∃ s ∈ (F j).support, e ≤ s := by
+  simp [sparseTable]
+
+theorem isLowerSet_sparseTable (F : Fin m → MvPolynomial (Fin n) ℝ) :
+    IsLowerSet (sparseTable F : Set (Fin n →₀ ℕ)) := fun _ _ hba ha => by
+  obtain ⟨j, s, hs, has⟩ := mem_sparseTable.1 ha
+  exact mem_sparseTable.2 ⟨j, s, hs, hba.trans has⟩
+
+theorem support_subset_sparseTable (F : Fin m → MvPolynomial (Fin n) ℝ) (j : Fin m) :
+    (F j).support ⊆ sparseTable F := fun s hs => mem_sparseTable.2 ⟨j, s, hs, le_rfl⟩
+
+/-- The sparse table is the smallest table that is closed downwards and contains every monomial
+of every `F j`. -/
+theorem sparseTable_subset {F : Fin m → MvPolynomial (Fin n) ℝ}
+    (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) (hF : ∀ j, (F j).support ⊆ E) :
+    sparseTable F ⊆ E := fun e he => by
+  obtain ⟨j, s, hs, hes⟩ := mem_sparseTable.1 he
+  exact hE hes (hF j hs)
+
+private theorem card_Iic_eq_prod (f : Fin n →₀ ℕ) : #(Iic f) = ∏ i, (1 + f i) := by
+  rw [Finsupp.card_Iic]
+  refine prod_subset (subset_univ _) (fun i _ hi => ?_) |>.trans (prod_congr rfl fun i _ => ?_)
+  · simp [Finsupp.notMem_support_iff.1 hi]
+  · simp [add_comm]
+
+/-- The vector of degrees `(degreeOf i F)ᵢ` of `F` in each variable. -/
+private noncomputable def degreeVec (F : MvPolynomial (Fin n) ℝ) : Fin n →₀ ℕ :=
+  Finsupp.equivFunOnFinite.symm fun i => degreeOf i F
+
+private theorem le_degreeVec {F : MvPolynomial (Fin n) ℝ} {s : Fin n →₀ ℕ} (hs : s ∈ F.support) :
+    s ≤ degreeVec F := fun i => by
+  simpa [degreeVec] using monomial_le_degreeOf i hs
+
+/-- **The sparse table against Datta's count.** With `d_ij = degreeOf i (F j)` and Datta's
+`D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, this says `|sparseTable F| + m ≤ D + 2`: Bob's and Critter's
+`|E| + 1` and `|E| + m + 1` strategies exceed Datta's `D − m + 1` and `D + 1` by at most `2`. -/
+theorem card_sparseTable_add_le (F : Fin m → MvPolynomial (Fin n) ℝ) :
+    #(sparseTable F) + m ≤ 1 + ∑ j, ∏ i, (1 + degreeOf i (F j)) := by
+  classical
+  have hsub : sparseTable F ⊆ insert 0 (univ.biUnion fun j => (Iic (degreeVec (F j))).erase 0) :=
+    fun e he => by
+      obtain ⟨j, s, hs, hes⟩ := mem_sparseTable.1 he
+      by_cases h0 : e = 0
+      · exact mem_insert.2 (.inl h0)
+      · exact mem_insert_of_mem (mem_biUnion.2 ⟨j, mem_univ j,
+          mem_erase.2 ⟨h0, mem_Iic.2 (hes.trans (le_degreeVec hs))⟩⟩)
+  have hcard : ∀ j, #((Iic (degreeVec (F j))).erase 0) + 1 = ∏ i, (1 + degreeOf i (F j)) :=
+    fun j => by
+      rw [card_erase_add_one (mem_Iic.2 zero_le), card_Iic_eq_prod]
+      simp [degreeVec]
+  calc #(sparseTable F) + m
+      ≤ 1 + ∑ j, #((Iic (degreeVec (F j))).erase 0) + ∑ _j : Fin m, 1 := by
+        simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
+        gcongr
+        exact (card_le_card hsub).trans ((card_insert_le _ _).trans (by
+          rw [add_comm]; gcongr; exact card_biUnion_le))
+    _ = 1 + ∑ j, ∏ i, (1 + degreeOf i (F j)) := by
+        rw [add_assoc, ← sum_add_distrib]
+        simp only [hcard]
+
+/-- **The sparse table against the full box.** If every `F j` has degree at most `d` in every
+variable, the sparse table has at most `(d + 1)ⁿ` elements. -/
+theorem card_sparseTable_le_pow {F : Fin m → MvPolynomial (Fin n) ℝ} {d : ℕ}
+    (hF : ∀ j i, degreeOf i (F j) ≤ d) : #(sparseTable F) ≤ (d + 1) ^ n := by
+  have hsub : sparseTable F ⊆ Iic (Finsupp.equivFunOnFinite.symm fun _ => d) := fun e he => by
+    obtain ⟨j, s, hs, hes⟩ := mem_sparseTable.1 he
+    exact mem_Iic.2 fun i => (hes i).trans (by simpa using (degreeOf_le_iff.1 (hF j i)) s hs)
+  refine (card_le_card hsub).trans_eq ?_
+  rw [card_Iic_eq_prod]
+  simp [add_comm]
+
 /-! ### The monomial chain -/
 
-theorem bobScale_pos : 0 < bobScale n d := by positivity
+theorem bobScale_pos : 0 < bobScale E := by positivity
 
-theorem critterWeight_pos : 0 < critterWeight n d m := by positivity
+theorem critterWeight_pos : 0 < critterWeight E m := by positivity
 
-theorem expoPow_lower (x : Fin n → ℝ) {e : Expo n d} {l : Fin n} (hl : (e l : ℕ) ≠ 0) :
-    expoPow x e = x l * expoPow x (lower e l) := by
-  unfold expoPow lower
-  rw [← mul_prod_erase _ _ (mem_univ l), ← mul_prod_erase _ _ (mem_univ l)]
-  rw [update_self, ← mul_assoc, ← pow_succ', Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.2 hl)]
-  congr 1
-  refine prod_congr rfl fun i hi => ?_
-  rw [update_of_ne (ne_of_mem_erase hi)]
+theorem expoPow_sub_single (x : Fin n → ℝ) {e : Fin n →₀ ℕ} {l : Fin n} (hl : e l ≠ 0) :
+    expoPow x e = x l * expoPow x (e - Finsupp.single l 1) := by
+  conv_lhs => rw [← tsub_add_cancel_of_le (Finsupp.single_le_iff.2 (Nat.one_le_iff_ne_zero.2 hl))]
+  simp only [expoPow, Finsupp.add_apply, pow_add, prod_mul_distrib, Finsupp.single_apply, pow_ite,
+    pow_one, pow_zero, prod_ite_eq, mem_univ, ite_true]
+  ring
 
-theorem weight_lower_lt {e : Expo n d} {l : Fin n} (hl : (e l : ℕ) ≠ 0) :
-    weight (lower e l) < weight e := by
-  unfold weight lower
+private theorem sum_sub_single_lt {e : Fin n →₀ ℕ} {l : Fin n} (hl : e l ≠ 0) :
+    ∑ i, (e - Finsupp.single l 1 : Fin n →₀ ℕ) i < ∑ i, e i := by
   refine sum_lt_sum (fun i _ => ?_) ⟨l, mem_univ l, ?_⟩
-  · by_cases hi : i = l
-    · subst hi
-      simp
-    · simp [update_of_ne hi]
-  · simp only [update_self]
+  · simp
+  · simp only [Finsupp.tsub_apply, Finsupp.single_eq_same]
     omega
 
-theorem expoPow_of_forall_eq_zero (x : Fin n → ℝ) {e : Expo n d} (he : ∀ l, (e l : ℕ) = 0) :
-    expoPow x e = 1 := by
-  simp [expoPow, he]
+theorem expoPow_zero (x : Fin n → ℝ) : expoPow x 0 = 1 := by
+  simp [expoPow]
 
-/-- The monomial chain forces `K b_e = xᵉ`. -/
-theorem bobScale_mul_eq_expoPow {q : Coord n d m → ℝ}
-    (h : ∀ e, eval q (chainEq (m := m) e) = 0) (e : Expo n d) :
-    bobScale n d * q (bCoord e) = expoPow (fun i => q (aCoord i)) e := by
-  induction hk : weight e using Nat.strong_induction_on generalizing e with
+/-- On a table closed downwards, the only `e` without a lowered neighbour in the table is `0`. -/
+private theorem eq_zero_of_forall_sub_single_notMem (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)))
+    {e : E} (h : ¬∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E) : e.1 = 0 := by
+  ext l
+  by_contra hl
+  exact h ⟨l, hl, hE tsub_le_self e.2⟩
+
+/-- On a table closed downwards, the monomial chain forces `K b_e = xᵉ`. -/
+theorem bobScale_mul_eq_expoPow (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) {q : Coord E m → ℝ}
+    (h : ∀ e, eval q (chainEq (m := m) e) = 0) (e : E) :
+    bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e := by
+  induction hk : ∑ i, e.1 i using Nat.strong_induction_on generalizing e with
   | _ k ih =>
     have he := h e
     unfold chainEq at he
     split_ifs at he with hne
     · have hl := hne.choose_spec
-      have hrec := ih _ (hk ▸ weight_lower_lt hl) (lower e hne.choose) rfl
-      rw [expoPow_lower _ hl, ← hrec]
+      have hrec := ih _ (hk ▸ sum_sub_single_lt hl.1) ⟨_, hl.2⟩ rfl
+      rw [expoPow_sub_single _ hl.1, ← hrec]
       simp only [map_sub, map_mul, eval_C, eval_X] at he
       linarith
-    · simp only [not_exists, not_not] at hne
-      rw [expoPow_of_forall_eq_zero _ hne]
+    · rw [eq_zero_of_forall_sub_single_notMem hE hne, expoPow_zero]
       simp only [map_sub, map_mul, eval_C, eval_X, map_one] at he
       linarith
 
-theorem eval_chainEq_of_eq {q : Coord n d m → ℝ}
-    (h : ∀ e, bobScale n d * q (bCoord e) = expoPow (fun i => q (aCoord i)) e) (e : Expo n d) :
+theorem eval_chainEq_of_eq (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) {q : Coord E m → ℝ}
+    (h : ∀ e, bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e) (e : E) :
     eval q (chainEq (m := m) e) = 0 := by
   unfold chainEq
   split_ifs with hne
   · simp only [map_sub, map_mul, eval_C, eval_X]
-    linear_combination h e - q (aCoord hne.choose) * h (lower e hne.choose) +
-      expoPow_lower (fun i => q (aCoord i)) hne.choose_spec
-  · simp only [not_exists, not_not] at hne
+    linear_combination h e - q (aCoord hne.choose) * h ⟨_, hne.choose_spec.2⟩ +
+      expoPow_sub_single (fun i => q (aCoord i)) hne.choose_spec.1
+  · have he := h e
+    rw [eq_zero_of_forall_sub_single_notMem hE hne, expoPow_zero] at he
     simp only [map_sub, map_mul, eval_C, eval_X, map_one]
-    linear_combination h e + expoPow_of_forall_eq_zero (fun i => q (aCoord i)) hne
+    linear_combination he
 
 /-- Under the monomial chain, the encoding of `F` evaluates to `F(x)`. -/
-theorem eval_encode {F : MvPolynomial (Fin n) ℝ} (hF : ∀ s ∈ F.support, ∀ i, s i ≤ d)
-    {q : Coord n d m → ℝ}
-    (h : ∀ e, bobScale n d * q (bCoord e) = expoPow (fun i => q (aCoord i)) e) :
+theorem eval_encode {F : MvPolynomial (Fin n) ℝ} (hF : F.support ⊆ E) {q : Coord E m → ℝ}
+    (h : ∀ e, bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e) :
     eval q (encode F) = eval (fun i => q (aCoord i)) F := by
-  rw [encode, map_sum, eval_eq']
-  refine sum_congr rfl fun s hs => ?_
+  rw [encode, map_sum, eval_eq', sum_subset hF fun s _ hs => by
+    rw [notMem_support_iff.1 hs, zero_mul], ← sum_coe_sort E]
+  refine sum_congr rfl fun e _ => ?_
   simp only [map_mul, eval_C, eval_X]
   rw [mul_assoc, h, expoPow]
-  congr 1
-  refine prod_congr rfl fun i _ => ?_
-  simp [toExpo, min_eq_left (hF s hs i)]
 
 /-! ### Shape of the equations -/
 
-private theorem C_mem_supported {s : Set (Coord n d m)} (c : ℝ) :
+private theorem C_mem_supported {s : Set (Coord E m)} (c : ℝ) :
     MvPolynomial.C c ∈ supported ℝ s := by
   rw [← algebraMap_eq]
   exact Subalgebra.algebraMap_mem _ c
 
 /-- Each player's equations only involve the other players. -/
 theorem mem_supported_equation (F : Fin m → MvPolynomial (Fin n) ℝ) (w : Who)
-    (t : Strat n d m w) : equation (d := d) F w t ∈ supported ℝ {v | v.1 ≠ w} := by
-  have hX : ∀ v : Coord n d m, v.1 ≠ w → X v ∈ supported ℝ {v : Coord n d m | v.1 ≠ w} :=
+    (t : Strat E m w) : equation F w t ∈ supported ℝ {v | v.1 ≠ w} := by
+  have hX : ∀ v : Coord E m, v.1 ≠ w → X v ∈ supported ℝ {v : Coord E m | v.1 ≠ w} :=
     fun v hv => (X_mem_supported).2 hv
   rcases w with _ | _ | _
   · simp only [equation]
@@ -276,12 +352,12 @@ theorem mem_supported_equation (F : Fin m → MvPolynomial (Fin n) ℝ) (w : Who
     · exact sum_mem fun s _ => mul_mem (C_mem_supported _) (hX _ nofun)
 
 theorem notMem_vars_equation (F : Fin m → MvPolynomial (Fin n) ℝ) (w : Who)
-    (t : Strat n d m w) : ∀ v ∈ (equation (d := d) F w t).vars, v.1 ≠ w := fun _ hv =>
+    (t : Strat E m w) : ∀ v ∈ (equation F w t).vars, v.1 ≠ w := fun _ hv =>
   (mem_supported.1 (mem_supported_equation F w t)) hv
 
 theorem isBlockAffine_equation (F : Fin m → MvPolynomial (Fin n) ℝ) (w : Who)
-    (t : Strat n d m w) : IsBlockAffine (equation (d := d) F w t) := by
-  have hCX : ∀ (c : ℝ) (v : Coord n d m), IsBlockAffine (C c * X v) := fun c v =>
+    (t : Strat E m w) : IsBlockAffine (equation F w t) := by
+  have hCX : ∀ (c : ℝ) (v : Coord E m), IsBlockAffine (C c * X v) := fun c v =>
     (IsBlockAffine.C c).mul (IsBlockAffine.X v) fun w hw => by rw [vars_C] at hw; simp at hw
   rcases w with _ | _ | _
   · simp only [equation]
@@ -295,60 +371,64 @@ theorem isBlockAffine_equation (F : Fin m → MvPolynomial (Fin n) ℝ) (w : Who
       · refine (hCX _ _).sub ((IsBlockAffine.C _).mul ((IsBlockAffine.X _).mul
           (IsBlockAffine.X _) ?_) fun v hv => by rw [vars_C] at hv; simp at hv)
         simp [vars_X]
-      · exact (hCX _ _).sub (by simpa using IsBlockAffine.C (T := Strat n d m) 1)
+      · exact (hCX _ _).sub (by simpa using IsBlockAffine.C (T := Strat E m) 1)
     · exact IsBlockAffine.sum fun s _ => hCX _ _
 
 /-! ### The totally mixed equilibria -/
 
-theorem expoPow_pos {x : Fin n → ℝ} (hx : ∀ i, 0 < x i) (e : Expo n d) : 0 < expoPow x e :=
+theorem expoPow_pos {x : Fin n → ℝ} (hx : ∀ i, 0 < x i) (e : Fin n →₀ ℕ) : 0 < expoPow x e :=
   prod_pos fun i _ => pow_pos (hx i) _
 
 theorem expoPow_le_one {x : Fin n → ℝ} (hx : ∀ i, 0 ≤ x i) (hx1 : ∀ i, x i ≤ 1)
-    (e : Expo n d) : expoPow x e ≤ 1 :=
+    (e : Fin n →₀ ℕ) : expoPow x e ≤ 1 :=
   prod_le_one₀ (fun i _ => pow_nonneg (hx i) _) fun i _ => pow_le_one₀ (hx i) (hx1 i)
 
 /-- Bob's weights `xᵉ / K` sum to less than `1` on the open simplex. -/
 theorem sum_expoPow_div_lt_one {x : Fin n → ℝ} (hx : ∀ i, 0 < x i) (hx1 : ∑ i, x i < 1) :
-    ∑ e : Expo n d, expoPow x e / bobScale n d < 1 := by
+    ∑ e : E, expoPow x e / bobScale E < 1 := by
   have hle : ∀ i, x i ≤ 1 := fun i =>
     (single_le_sum (fun j _ => (hx j).le) (mem_univ i)).trans hx1.le
-  calc ∑ e : Expo n d, expoPow x e / bobScale n d
-      ≤ ∑ _e : Expo n d, 1 / bobScale n d :=
+  calc ∑ e : E, expoPow x e / bobScale E
+      ≤ ∑ _e : E, 1 / bobScale E :=
         sum_le_sum fun e _ => div_le_div_of_nonneg_right
           (expoPow_le_one (fun i => (hx i).le) hle e) bobScale_pos.le
-    _ = (d + 1 : ℝ) ^ n / bobScale n d := by
+    _ = #E / bobScale E := by
         simp [div_eq_mul_inv]
     _ < 1 := by
         rw [div_lt_one bobScale_pos]
         linarith
 
 /-- **The three-player construction** (original variant of the proof of Theorem 5 of
-[Datta2003]). If each `F j` has degree at most `d` in every variable, the totally mixed Nash
-equilibria of the three-player game are the profiles `simplexProfile q` such that:
+[Datta2003]). If the table `E` is closed downwards and contains the exponents of every monomial of
+every `F j`, the totally mixed Nash equilibria of the three-player game are the profiles
+`simplexProfile q` such that:
 * Alice's weights `x = q ∘ aCoord` lie in the open simplex and solve every `F j = 0`;
-* Bob plays each monomial `xᵉ / K`;
+* Bob plays each monomial `xᵉ / K`, `e ∈ E`;
 * Critter plays `1 / (number of Critter's strategies)` on its strategies for the exponent vectors
   and for the equations `j < n`;
-* Critter's remaining weights are positive, and all of Critter's weights sum to less than `1`. -/
-theorem isTotallyMixedNash_game_iff {F : Fin m → MvPolynomial (Fin n) ℝ}
-    (hF : ∀ j, ∀ s ∈ (F j).support, ∀ i, s i ≤ d) (q : Coord n d m → ℝ) :
-    (game (d := d) F).IsTotallyMixedNash (simplexProfile q) ↔
+* Critter's remaining weights are positive, and all of Critter's weights sum to less than `1`.
+
+`sparseTable F` is the smallest such table (`isLowerSet_sparseTable`,
+`support_subset_sparseTable`, `sparseTable_subset`). -/
+theorem isTotallyMixedNash_game_iff (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)))
+    {F : Fin m → MvPolynomial (Fin n) ℝ} (hF : ∀ j, (F j).support ⊆ E) (q : Coord E m → ℝ) :
+    (game E F).IsTotallyMixedNash (simplexProfile q) ↔
       ((∀ i, 0 < q (aCoord i)) ∧ ∑ i, q (aCoord i) < 1 ∧
         ∀ j, eval (fun i => q (aCoord i)) (F j) = 0) ∧
-      (∀ e, q (bCoord e) = expoPow (fun i => q (aCoord i)) e / bobScale n d) ∧
-      (∀ e, q (cCoord (.inl e)) = critterWeight n d m) ∧
-      (∀ j : Fin m, j.val < n → q (cCoord (.inr j)) = critterWeight n d m) ∧
+      (∀ e : E, q (bCoord e) = expoPow (fun i => q (aCoord i)) e / bobScale E) ∧
+      (∀ e, q (cCoord (.inl e)) = critterWeight E m) ∧
+      (∀ j : Fin m, j.val < n → q (cCoord (.inr j)) = critterWeight E m) ∧
       (∀ j, 0 < q (cCoord (.inr j))) ∧ ∑ s, q (cCoord s) < 1 := by
   rw [game, CostGame.isTotallyMixedNash_simplexGame_iff (isBlockAffine_equation F)
     (notMem_vars_equation F)]
-  have hb : (∀ e, q (bCoord e) = expoPow (fun i => q (aCoord i)) e / bobScale n d) ↔
-      ∀ e, bobScale n d * q (bCoord e) = expoPow (fun i => q (aCoord i)) e := by
+  have hb : (∀ e : E, q (bCoord e) = expoPow (fun i => q (aCoord i)) e / bobScale E) ↔
+      ∀ e : E, bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e := by
     refine forall_congr' fun e => ?_
     rw [eq_div_iff bobScale_pos.ne', mul_comm]
   rw [hb]
   constructor
   · rintro ⟨hpos, hsum, heq⟩
-    have hchain := bobScale_mul_eq_expoPow fun e => heq .critter (.inl e)
+    have hchain := bobScale_mul_eq_expoPow hE fun e => heq .critter (.inl e)
     refine ⟨⟨fun i => hpos _, hsum .alice, fun j => ?_⟩, hchain, fun e => ?_, fun j hj => ?_,
       fun j => hpos _, hsum .critter⟩
     · rw [← eval_encode (hF j) hchain]
@@ -370,7 +450,7 @@ theorem isTotallyMixedNash_game_iff {F : Fin m → MvPolynomial (Fin n) ℝ}
         · exact hcpos j
     · rcases w with _ | _ | _
       · exact hasum
-      · have := sum_expoPow_div_lt_one (d := d) ha hasum
+      · have := sum_expoPow_div_lt_one (E := E) ha hasum
         refine lt_of_eq_of_lt (sum_congr rfl fun e _ => ?_) this
         rw [eq_div_iff bobScale_pos.ne', mul_comm]
         exact hchain e
@@ -382,7 +462,7 @@ theorem isTotallyMixedNash_game_iff {F : Fin m → MvPolynomial (Fin n) ℝ}
         · simp
       · simp [equation, hcb]
       · rcases t with e | j
-        · exact eval_chainEq_of_eq hchain e
+        · exact eval_chainEq_of_eq hE hchain e
         · simp only [equation]
           rw [eval_encode (hF j) hchain, hF0]
 
