@@ -74,8 +74,8 @@ private theorem refutableInSize_of_checkLRAT_relabel {V : Type*} [DecidableEq V]
 /-- **Accepted LRAT certificates for the pigeonhole formulas are exponentially long.** For an
 injective map `f` numbering the variables of `PHP^{n+1}_n`, every certificate that
 `Cslib.Logic.PL.CNF.checkLRAT` accepts for the relabelled formula, with `H` hints and `S` steps,
-satisfies `2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + min H (S · (n + 1) n)`. This is Haken's theorem
-(`Cslib.Logic.PL.CNF.two_pow_le_of_refutableInSize_pigeonhole`) through the translation to
+satisfies `2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + min H (S · (n + 1) n)`. A corollary of Haken's
+theorem (`Cslib.Logic.PL.CNF.two_pow_le_of_refutableInSize_pigeonhole`) through the translation to
 resolution (`Cslib.Logic.PL.CNF.refutableInSize_of_checkLRAT`). -/
 theorem two_pow_le_of_checkLRAT_pigeonhole {n : ℕ} {f : Fin (n + 1) × Fin n → ℕ}
     (hf : Function.Injective f) {cert : Array LRAT.IntAction}
@@ -94,7 +94,7 @@ theorem two_pow_le_of_checkLRAT_pigeonhole {n : ℕ} {f : Fin (n + 1) × Fin n �
 `Cslib.Logic.PL.CNF.checkLRAT` accepts for it, numbered along `Fin.val`, with `H` hints and `S`
 steps, satisfies `exp (n / (960 · 36000²)) ≤ 2 ^ 120 · n + min H (S · m)`. The formula is the
 Tseitin formula of an expander, as in `Cslib.Logic.PL.CNF.exists_forall_refutableInSize_exp_le`,
-whose resolution lower bound this is through the translation to resolution
+of whose resolution lower bound this is a corollary through the translation to resolution
 (`Cslib.Logic.PL.CNF.refutableInSize_of_checkLRAT`). -/
 theorem exists_forall_checkLRAT_exp_le :
     ∀ n ≥ 4392000, ∃ m ≤ 120 * n, ∃ φ : CNF (Fin m),

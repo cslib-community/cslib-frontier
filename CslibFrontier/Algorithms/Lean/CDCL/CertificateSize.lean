@@ -57,9 +57,10 @@ private theorem exists_solve_eq_unsat {φ : CNF ℕ} (h : ¬ φ.Satisfiable) :
 /-- **The CDCL solver's certificates for the pigeonhole formulas are exponentially long.** For an
 injective map `f` numbering the variables of `PHP^{n+1}_n`, the solver returns a certificate for
 the relabelled formula, and with `H` hints and `S` steps it satisfies
-`2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + min H (S · (n + 1) n)`. This is Haken's theorem through the
-translation of certificates to resolution (`Cslib.Logic.PL.CNF.two_pow_le_of_checkLRAT_pigeonhole`);
-it bounds the output, not the running time. -/
+`2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + min H (S · (n + 1) n)`. A corollary of Haken's theorem
+through the translation of certificates to resolution
+(`Cslib.Logic.PL.CNF.two_pow_le_of_checkLRAT_pigeonhole`); it bounds the output, not the running
+time. -/
 theorem two_pow_le_solve_pigeonhole {n : ℕ} {f : Fin (n + 1) × Fin n → ℕ}
     (hf : Function.Injective f) :
     ∃ cert, solve ((pigeonhole (n + 1) n).relabel f) = .unsat cert ∧
@@ -73,8 +74,8 @@ theorem two_pow_le_solve_pigeonhole {n : ℕ} {f : Fin (n + 1) × Fin n → ℕ}
 long.** For every `n ≥ 4392000` there is an unsatisfiable formula with `m ≤ 120 n` variables and at
 most `2 ^ 120 · n` clauses, of width at most `120`, on which, numbered along `Fin.val`, the solver
 returns a certificate with `H` hints and `S` steps satisfying
-`exp (n / (960 · 36000²)) ≤ 2 ^ 120 · n + min H (S · m)`. This is the bound of Ben-Sasson and
-Wigderson through the translation of certificates to resolution
+`exp (n / (960 · 36000²)) ≤ 2 ^ 120 · n + min H (S · m)`. A corollary of the bound of Ben-Sasson
+and Wigderson through the translation of certificates to resolution
 (`Cslib.Logic.PL.CNF.exists_forall_checkLRAT_exp_le`); it bounds the output, not the running
 time. -/
 theorem exists_solve_exp_le :
