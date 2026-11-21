@@ -962,23 +962,35 @@ end pseudo-Boolean proof;
 #guard (checkOPB enum3 delcPresProof).isNone
 #guard checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" delcPresProof == some .noClaim
 
-/-- `x4` is preserved but appears neither in the constraints nor in the proof. The names of the
-proof are numbered after it, so the witness `aux -> 1` leaves the preserved set alone (VeriPB
-and CakePB accept). Numbered after the variables of the constraints alone, `aux` would be
-variable `3`, that is `x4`. -/
+/-- `x4` is preserved but appears neither in the constraints nor in the proof. -/
 def presOnly : String := "* #variable= 4 #constraint= 1
 preserved: x1 x4 ;
 1 x1 >= 1 ;
 "
 
-#guard checkOPB presOnly "pseudo-Boolean proof version 3.0
+/-- A `red` step on the proof's own name `aux`. -/
+def presOnlyProof : String := "pseudo-Boolean proof version 3.0
 f 1;
 red 1 aux >= 1 : aux -> 1 : subproof
 qed;
 output NONE;
 conclusion NONE;
 end pseudo-Boolean proof;
-" == some .noClaim
+"
+
+/-- The variable of the witness of a proof consisting of one `red` step. -/
+def redVar : Option RedProof → Option ℕ
+  | some ⟨[.red _ [(v, _)] _ _], _⟩ => some v
+  | _ => none
+
+-- The proof's names other than `xN` are numbered in order from the base, each at its last
+-- occurrence: `version`, `red`, `aux`, …, as `pseudo-Boolean` and `proof` recur at the end. So
+-- numbered after the constraints alone (base `1`), `aux` is variable `3`, that is the preserved
+-- `x4`; numbered after the preserved set too (base `4`), it is `6`.
+#guard redVar (parseProof 1 1 presOnlyProof) == some 3
+#guard redVar (parseProof 1 4 presOnlyProof) == some 6
+-- So the witness `aux -> 1` leaves the preserved set alone (VeriPB and CakePB accept).
+#guard checkOPB presOnly presOnlyProof == some .noClaim
 
 /-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. A witness that moves only the unpreserved `x3`
 is allowed (VeriPB and CakePB accept). -/
