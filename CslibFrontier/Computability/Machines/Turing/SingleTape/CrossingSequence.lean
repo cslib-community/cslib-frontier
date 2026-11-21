@@ -103,7 +103,7 @@ variable (tm) in
   ⟨some tm.q₀, 0, (BiTape.mk₁ l).read⟩
 
 /-- A finite configuration agrees with an absolute one. -/
-def Agrees (c : tm.Cfg) (a : tm.AbsCfg) : Prop :=
+@[expose] def Agrees (c : tm.Cfg) (a : tm.AbsCfg) : Prop :=
   c.state = a.state ∧ c.BiTape.Represents a.cells a.pos
 
 theorem agrees_init (l : List Symbol) : Agrees (tm.initCfg l) (tm.absInit l) := by
