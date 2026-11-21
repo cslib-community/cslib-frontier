@@ -367,6 +367,9 @@ structure WExec (φ : CNF ℕ) where
   act : Activity
   /-- The variable order of VSIDS, a heap of the variables by activity. -/
   order : VarOrder
+  /-- The variables certainly in the variable order (MiniSat's `inHeap`): a backjump puts back only
+  the variables undone that are not marked. -/
+  inOrder : Array Bool
   /-- The saved phases, which choose the polarities of the decisions. -/
   phase : Phases
   /-- The reduction of the learned clauses. -/
@@ -391,21 +394,26 @@ structure WExec (φ : CNF ℕ) where
 abbrev WExec.M (S : WExec φ) : Trail := XTrail.trail S.exec.trail
 
 /-- **The invariant of the variable order** over the variables of `φ`. -/
-abbrev WExec.OrderInv (S : WExec φ) : Prop := S.order.Inv S.act φ.vars S.M S.occurs.assigned
+abbrev WExec.OrderInv (S : WExec φ) : Prop :=
+  S.order.Inv S.inOrder S.act φ.vars S.M S.occurs.assigned
 
 /-- The invariant of the variable order survives assigning more variables. -/
 theorem WExec.OrderInv.extend {S S' : WExec φ} (h : S.OrderInv) (horder : S'.order = S.order)
+    (hI : S'.inOrder = S.inOrder)
     (hact : S'.act = S.act) (hocc : S'.occurs = S.occurs)
     (hM : ∀ v ∈ Trail.vars S.M, v ∈ Trail.vars S'.M) : S'.OrderInv := by
-  refine ⟨horder ▸ h.wf, horder ▸ h.vars, fun v hv hvM hvo => ?_⟩
+  refine ⟨horder ▸ h.wf, horder ▸ h.vars, fun v hv hvM hvo => ?_, by
+    rw [horder, hI, hact]; exact h.marked⟩
   rw [horder, hact]
   exact h.covers v hv (fun h' => hvM (hM v h')) (hocc ▸ hvo)
 
 /-- The invariant of the variable order survives admitting fewer variables. -/
 theorem WExec.OrderInv.restrict {S S' : WExec φ} (h : S.OrderInv) (horder : S'.order = S.order)
+    (hI : S'.inOrder = S.inOrder)
     (hact : S'.act = S.act) (hM : S'.M = S.M)
     (hocc : ∀ v, S'.occurs.assigned v = true → S.occurs.assigned v = true) : S'.OrderInv := by
-  refine ⟨horder ▸ h.wf, horder ▸ h.vars, fun v hv hvM hvo => ?_⟩
+  refine ⟨horder ▸ h.wf, horder ▸ h.vars, fun v hv hvM hvo => ?_, by
+    rw [horder, hI, hact]; exact h.marked⟩
   rw [horder, hact]
   exact h.covers v hv (hM ▸ hvM) (hocc v hvo)
 
@@ -429,15 +437,20 @@ structure WExec.Inv (S : WExec φ) : Prop where
 variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
 @[expose] def varSlots (φ : CNF ℕ) : ℕ := φ.vars.foldl (fun m v => max m (v + 1)) 0
 
+/-- The initial variable order and its marks: with VSIDS, every variable of `φ`, inserted and
+marked. -/
+@[expose] def WExec.initOrder (φ : CNF ℕ) (o : Options) : VarOrder × Array Bool :=
+  if o.vsids then
+    VarOrder.add Batteries.BinaryHeap.emptyF (Array.replicate (varSlots φ) false)
+      (Activity.init (varSlots φ)) (dedupVars φ.vars)
+  else (Batteries.BinaryHeap.emptyF, #[])
+
 /-- The initial state, with the options `o`. -/
 @[expose] def WExec.init (φ : CNF ℕ) (o : Options) : WExec φ :=
   ⟨Exec.init φ, ⟨#[]⟩, Assign.marks φ.vars, WatchStore.build ⟨#[]⟩ φ.lratDB, [],
     φ.lratDB.filter fun e => e.2.dedup.length < 2,
     Activity.init (varSlots φ),
-    if o.vsids then
-      VarOrder.insertVars Batteries.BinaryHeap.emptyF (Activity.init (varSlots φ))
-        (dedupVars φ.vars)
-    else Batteries.BinaryHeap.emptyF,
+    (WExec.initOrder φ o).1, (WExec.initOrder φ o).2,
     Phases.init (varSlots φ), Reduction.init φ.length o.learntsDivisor, 0, 0, o, {},
     ⟨⟨#[]⟩, fun v => by simp [Assign.value]⟩⟩
 
@@ -456,10 +469,10 @@ theorem WExec.init_inv (φ : CNF ℕ) (o : Options) : (WExec.init φ o).Inv wher
     change (Assign.marks φ.vars).assigned v = true ↔ v ∈ (Exec.init φ).clauses.vars
     rw [Exec.clauses_init, Assign.assigned_marks]
   order hv := by
-    change VarOrder.Inv (if o.vsids then _ else _) _ _ _ _
+    change VarOrder.Inv (WExec.initOrder φ o).1 (WExec.initOrder φ o).2 _ _ _ _
     have hv' : o.vsids = true := hv
-    simp only [hv', ↓reduceIte]
-    exact VarOrder.inv_insertVars_empty _ _ _ _
+    simp only [WExec.initOrder, hv', ↓reduceIte]
+    exact VarOrder.inv_add_empty _ _ _ _ _
 
 /-- The number of variables of `φ`, bounding the length of the trail. -/
 abbrev nvars (φ : CNF ℕ) : ℕ := φ.vars.dedup.length
@@ -905,7 +918,7 @@ theorem WExec.ProcInv.unit {S : WExec φ} {t l : Literal ℕ} {id : ℕ} {w : Wa
     refine ⟨hspec.1, h.sound, h.nodup, h.long, h.covers, h.listed, h.blocker_mem, h.pending,
       fun k' hk' hk'' => ?_, fun e he v₁ v₂ rest' hc' h₁ h₂ => ?_, h.short_mem, h.short_covers,
       ?_, ?_, ?_, List.mem_cons_of_mem _ h.t_mem,
-      fun hv => (h.order hv).extend rfl rfl rfl fun v hv => List.mem_cons_of_mem _ hv,
+      fun hv => (h.order hv).extend rfl rfl rfl rfl fun v hv => List.mem_cons_of_mem _ hv,
       by rw [hM]; exact h.assign.cons (not_mem_vars_of_undef hl hln) false, h.occurs⟩
     · obtain ⟨b, hb, hbM⟩ := h.visited k' hk' hk''
       exact ⟨b, hb, by rw [hlits]; exact List.mem_cons_of_mem _ hbM⟩
@@ -1076,21 +1089,26 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
 /-- The activities after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
 @[expose] def WExec.bumped (S : WExec φ) (vs : List ℕ) : Activity := bumpedWith S.opts S.act vs
 
-/-- The variable order `H` after a conflict meeting the variables `vs` and undoing the entries `U`,
-with VSIDS: the variables met and those undone are inserted with their activities `A`. The order
-keeps stale entries; past eight entries per variable it is rebuilt from the variables of `φ`. -/
-@[expose] def reorderedWith (φ : CNF ℕ) (o : Options) (H : VarOrder) (A : Activity) (vs : List ℕ)
-    (U : XTrail) : VarOrder :=
+/-- The variable order `H` and its marks `I` after a conflict meeting the variables `vs` and undoing
+the entries `U`, with VSIDS: the variables met, whose activities `A` grew, are inserted again, and
+those undone are inserted if they are not marked, as MiniSat's `insertVarOrder` skips a variable in
+its heap; all of them are then marked. The order keeps stale entries; past eight entries per
+variable it is rebuilt from the variables of `φ`. -/
+@[expose] def reorderedWith (φ : CNF ℕ) (o : Options) (H : VarOrder) (I : Array Bool)
+    (A : Activity) (vs : List ℕ) (U : XTrail) : VarOrder × Array Bool :=
   if o.vsids then
     if 8 * A.score.size < H.size then
-      VarOrder.insertVars Batteries.BinaryHeap.emptyF A (dedupVars φ.vars)
-    else H.insertVars A (vs ++ Trail.vars (XTrail.trail U))
-  else H
+      VarOrder.add Batteries.BinaryHeap.emptyF (Array.replicate I.size false) A (dedupVars φ.vars)
+    else
+      let p := VarOrder.add H I A vs
+      VarOrder.addMissing p.1 p.2 A (Trail.vars (XTrail.trail U))
+  else (H, I)
 
-/-- The variable order after a conflict meeting the variables `vs` and undoing the entries `U`,
-with VSIDS: the variables met and those undone are inserted with their activities `A`. -/
-@[expose] def WExec.reordered (S : WExec φ) (A : Activity) (vs : List ℕ) (U : XTrail) : VarOrder :=
-  reorderedWith φ S.opts S.order A vs U
+/-- The variable order and its marks after a conflict meeting the variables `vs` and undoing the
+entries `U` (`reorderedWith`). -/
+@[expose] def WExec.reordered (S : WExec φ) (A : Activity) (vs : List ℕ) (U : XTrail) :
+    VarOrder × Array Bool :=
+  reorderedWith φ S.opts S.order S.inOrder A vs U
 
 /-- The phases `P` after undoing the entries `U`: those of the literals undone are saved, if phase
 saving is on. -/
@@ -1214,6 +1232,7 @@ are built once, read by the backjump and cleared after it. -/
   let short := S.short
   let act := S.act
   let order := S.order
+  let inOrder := S.inOrder
   let phase := S.phase
   let red := S.red
   let level := S.level
@@ -1224,7 +1243,7 @@ are built once, read by the backjump and cleared after it. -/
   let j := exec.jump sp marks.assigned
   let U := j.1
   let A := bumpedWith opts act L.seen
-  let order := reorderedWith φ opts order A (dedupVars L.seen) U
+  let order := reorderedWith φ opts order inOrder A (dedupVars L.seen) U
   let phase := savedWith opts phase U
   let assign := backjumpedWith assign U L.lit
   let occurs := occurs.mark (L.clause.map Prod.fst)
@@ -1234,12 +1253,12 @@ are built once, read by the backjump and cleared after it. -/
   if 2 ≤ k then
     let red := reducedWith opts red L.used L.id L.log.next (isLearntId φ.length L.id)
     let store := store.addClause L.id (learnedWatched L.clause L.lit)
-    ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order, phase, red,
-      level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
+    ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order.1, order.2,
+      phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
   else
     let red := reducedWith opts red L.used L.id L.log.next false
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], (L.id, L.clause) :: short, A,
-      order, phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
+      order.1, order.2, phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
@@ -1297,52 +1316,74 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
   -- the variables met and undone are put back in the order; the others keep their entries, and
   -- bumping did not raise their activities
   have horder : S.opts.vsids = true → ∀ T : WExec φ,
-      T.order = S.reordered (S.bumped L.seen) (dedupVars L.seen) U → T.act = S.bumped L.seen →
+      T.order = (S.reordered (S.bumped L.seen) (dedupVars L.seen) U).1 →
+      T.inOrder = (S.reordered (S.bumped L.seen) (dedupVars L.seen) U).2 →
+      T.act = S.bumped L.seen →
       T.exec = S.exec.afterConflict sp L (jumpMarked sp L) →
       T.occurs = S.occurs.mark (L.clause.map Prod.fst) → T.OrderInv := by
-    intro hv T hTo hTa hTe hTocc
+    intro hv T hTo hTI hTa hTe hTocc
     have hS' := hS.order hv
     simp only [WExec.reordered, reorderedWith, WExec.bumped, bumpedWith, hv, ↓reduceIte]
-      at hTo hTa
+      at hTo hTI hTa
     split at hTo
-    · rw [WExec.OrderInv, hTo, hTa]
-      exact VarOrder.inv_insertVars_empty _ _ _ _
+    · rename_i hbig
+      simp only [hbig, ↓reduceIte] at hTI
+      rw [WExec.OrderInv, hTo, hTI, hTa]
+      exact VarOrder.inv_add_empty _ _ _ _ _
+    rename_i hbig
+    simp only [hbig, ↓reduceIte] at hTI
+    rw [WExec.OrderInv, hTo, hTI, hTa]
+    -- the variables met are inserted again, with their bumped activities; the others' activities
+    -- did not grow, so their marks stay sound
+    set A' := S.act.bump L.seen with hA'
+    have hlow : ∀ v, v ∉ dedupVars L.seen → A'.get v ≤ S.act.get v := fun v hv =>
+      Activity.get_bump_le fun h => hv ((mem_dedupKey Function.injective_id).2 h)
+    have h₁ := VarOrder.added_add S.order S.inOrder A' (dedupVars L.seen)
+    obtain ⟨hcov₁, hmk₁⟩ := VarOrder.add_spec S.order S.inOrder A' (dedupVars L.seen)
+    have hmarked₁ : VarOrder.Marked (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).1 A'
+        (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).2 := fun v hv => by
+      by_cases hvs : v ∈ dedupVars L.seen
+      · exact hcov₁ v hvs
+      · rcases hmk₁ v hv with h | h
+        · exact absurd h hvs
+        · obtain ⟨k, hk, hmem⟩ := hS'.marked v h
+          exact ⟨k, (hlow v hvs).trans hk, h₁.mem_old _ hmem⟩
+    have h₂ := VarOrder.added_addMissing (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).1
+      (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).2 A' (Trail.vars (XTrail.trail U))
     have hTM : T.M = ⟨L.lit, false⟩ :: XTrail.trail K := by
       change XTrail.trail T.exec.trail = _; rw [hTe]; rfl
-    refine ⟨hTo ▸ VarOrder.insertVars_wf hS'.wf, fun e he => ?_, fun v hv hvM hvo => ?_⟩
-    · rw [hTo] at he
-      rcases VarOrder.mem_insertVars.1 he with he | ⟨v, hv, rfl⟩
-      · exact hS'.vars e he
-      · rcases List.mem_append.1 hv with hv | hv
+    refine ⟨h₂.wf (h₁.wf hS'.wf), fun e he => ?_, fun v hv hvM hvo => ?_, h₂.marked hmarked₁⟩
+    · rcases h₂.mem_new e he with he | ⟨v, hv, rfl⟩
+      · rcases h₁.mem_new e he with he | ⟨v, hv, rfl⟩
+        · exact hS'.vars e he
         · exact L.seen_mem v ((mem_dedupKey Function.injective_id).1 hv)
-        · refine hS.exec.run.subset v ?_
-          change v ∈ Trail.vars S.M
-          rw [hMUK, vars_append]
-          exact List.mem_append_left _ hv
-    · rw [hTo, hTa]
-      by_cases hvs : v ∈ dedupVars L.seen ++ Trail.vars (XTrail.trail U)
-      · exact ⟨_, le_rfl, VarOrder.mem_insertVars.2 (.inr ⟨v, hvs, rfl⟩)⟩
-      · simp only [List.mem_append, not_or] at hvs
-        have hvM' : v ∉ Trail.vars S.M := by
-          rw [hMUK, vars_append, List.mem_append, not_or]
-          refine ⟨hvs.2, fun h => hvM ?_⟩
-          rw [hTM]
-          exact List.mem_cons_of_mem _ h
-        -- the variables of the learned clause are all assigned after the backjump
-        have hvo' : S.occurs.assigned v = true := by
-          rw [hTocc, Assign.assigned_mark] at hvo
-          refine hvo.resolve_left fun hvC => hvM ?_
-          obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hvC
-          rw [hTM]
-          by_cases hyl : y = L.lit
-          · subst hyl; exact List.mem_cons_self
-          · have := Trail.mem_vars_of_mem_lits (hfalseK y hy hyl)
-            simp only [Std.Sat.Literal.negate] at this
-            exact List.mem_cons_of_mem _ this
-        obtain ⟨k, hk, hmem⟩ := hS'.covers v hv hvM' hvo'
-        exact ⟨k, (Activity.get_bump_le fun h =>
-          hvs.1 ((mem_dedupKey Function.injective_id).2 h)).trans hk,
-          VarOrder.mem_insertVars.2 (.inl hmem)⟩
+      · refine hS.exec.run.subset v ?_
+        change v ∈ Trail.vars S.M
+        rw [hMUK, vars_append]
+        exact List.mem_append_left _ hv
+    · by_cases hvs : v ∈ dedupVars L.seen
+      · obtain ⟨k, hk, hmem⟩ := hcov₁ v hvs
+        exact ⟨k, hk, h₂.mem_old _ hmem⟩
+      by_cases hvU : v ∈ Trail.vars (XTrail.trail U)
+      · exact h₂.covers hmarked₁ v hvU
+      have hvM' : v ∉ Trail.vars S.M := by
+        rw [hMUK, vars_append, List.mem_append, not_or]
+        refine ⟨hvU, fun h => hvM ?_⟩
+        rw [hTM]
+        exact List.mem_cons_of_mem _ h
+      -- the variables of the learned clause are all assigned after the backjump
+      have hvo' : S.occurs.assigned v = true := by
+        rw [hTocc, Assign.assigned_mark] at hvo
+        refine hvo.resolve_left fun hvC => hvM ?_
+        obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hvC
+        rw [hTM]
+        by_cases hyl : y = L.lit
+        · subst hyl; exact List.mem_cons_self
+        · have := Trail.mem_vars_of_mem_lits (hfalseK y hy hyl)
+          simp only [Std.Sat.Literal.negate] at this
+          exact List.mem_cons_of_mem _ this
+      obtain ⟨k, hk, hmem⟩ := hS'.covers v hv hvM' hvo'
+      exact ⟨k, (hlow v hvs).trans hk, h₂.mem_old _ (h₁.mem_old _ hmem)⟩
   have hoccurs : ∀ v, (S.occurs.mark (L.clause.map Prod.fst)).assigned v = true ↔
       v ∈ (S.exec.afterConflictWith L K).clauses.vars := fun v => by
     rw [Assign.assigned_mark, hS.occurs v]
@@ -1378,7 +1419,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       rw [← hc, hperm.mem_iff, mem_dedupKey litKey_injective]
     refine ⟨⟨hspec.1, ?_, fun e' he' => ?_, fun e' he' hl => ?_, List.nodup_singleton _,
       fun x hx => by rw [List.mem_singleton] at hx; subst hx; exact hlitM', hqueue,
-      fun hv => horder hv _ rfl rfl rfl rfl, hassign, hoccurs⟩, ?_⟩
+      fun hv => horder hv _ rfl rfl rfl rfl rfl, hassign, hoccurs⟩, ?_⟩
     · have := hstore.addClause (id := L.id) (C := L.clause) hnd hmem hlitneg
       rw [← hc] at this
       exact this
@@ -1392,7 +1433,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     rw [length_dedupLits] at hlen
     refine ⟨⟨hspec.1, ?_, fun e' he' => ?_, fun e' he' hl => ?_, List.nodup_singleton _,
       fun x hx => by rw [List.mem_singleton] at hx; subst hx; exact hlitM', hqueue,
-      fun hv => horder hv _ rfl rfl rfl rfl, hassign, hoccurs⟩, ?_⟩
+      fun hv => horder hv _ rfl rfl rfl rfl rfl, hassign, hoccurs⟩, ?_⟩
     · exact hstore.consShort (L.id, L.clause) (by simp only; omega)
     · rw [hdb']
       rcases List.mem_cons.1 he' with rfl | he'
@@ -1451,26 +1492,27 @@ theorem WExec.measure_push_lt {S S' : WExec φ} (hq : S.queue = []) (hq' : S'.qu
 /-- The polarity of a decision on `x`: its saved phase, or `false` without phase saving. -/
 @[expose] def WExec.polarity (S : WExec φ) (x : ℕ) : Bool := S.opts.phaseSaving && S.phase.get x
 
-/-- `pickVar` with the variable order `ord` given apart from the state, so that the solver can
-take the order out of the state and pop it in place. -/
-@[expose] def WExec.pickVarIn (S : WExec φ) (ord : VarOrder) : Option ℕ × VarOrder :=
+/-- `pickVar` with the variable order `ord` and its marks `I` given apart from the state, so that
+the solver can take them out of the state and pop the order in place. -/
+@[expose] def WExec.pickVarIn (S : WExec φ) (ord : VarOrder) (I : Array Bool) : VarOrder.Popped :=
   if S.opts.vsids then
-    match VarOrder.pop S.act S.assign S.occurs.assigned (ord.size + 1) ord with
-    | (some x, H) => (some x, H)
-    | (none, H) => (S.act.pick S.assign S.exec.clauses.vars, H)
-  else ((Activity.init 0).pick S.assign S.exec.clauses.vars, ord)
+    match VarOrder.pop S.act S.assign S.occurs.assigned (ord.size + 1) ord I with
+    | ⟨some x, H, I⟩ => ⟨some x, H, I⟩
+    | ⟨none, H, I⟩ => ⟨S.act.pick S.assign S.exec.clauses.vars, H, I⟩
+  else ⟨(Activity.init 0).pick S.assign S.exec.clauses.vars, ord, I⟩
 
 /-- **The decision variable**, and the variable order after choosing it. With VSIDS, it is popped
 from the variable order (`Cslib.Algorithms.Lean.CDCL.VarOrder.pop`); should the order run out, the
 unassigned variables of the database are scanned for one of greatest activity. Without VSIDS, it is
 the first unassigned variable of the database. -/
-@[expose] def WExec.pickVar (S : WExec φ) : Option ℕ × VarOrder := S.pickVarIn S.order
+@[expose] def WExec.pickVar (S : WExec φ) : VarOrder.Popped := S.pickVarIn S.order S.inOrder
 
-/-- **Decide** the variable `x`, at an empty queue, with the variable order `H`. -/
-@[expose] def WExec.decide (S : WExec φ) (x : ℕ) (H : VarOrder) : WExec φ :=
+/-- **Decide** the variable `x`, at an empty queue, with the variable order `H` and its marks
+`I`. -/
+@[expose] def WExec.decide (S : WExec φ) (x : ℕ) (H : VarOrder) (I : Array Bool) : WExec φ :=
   { S with
     exec := S.exec.decide x (S.polarity x), assign := S.assign.assign (x, S.polarity x)
-    queue := [(x, S.polarity x)], order := H, level := S.level + 1
+    queue := [(x, S.polarity x)], order := H, inOrder := I, level := S.level + 1
     stats := S.stats.decision }
 
 /-- The variables of the database are variables of `φ`. -/
@@ -1481,74 +1523,77 @@ theorem Exec.Inv.mem_vars_of_clauses {S : Exec φ} (hS : S.Inv) {x : ℕ}
 
 /-- **The decision variable** is an unassigned variable of the database. -/
 theorem WExec.Inv.pickVar_some {S : WExec φ} (hS : S.Inv) {x : ℕ} {H : VarOrder}
-    (h : S.pickVar = (some x, H)) : x ∈ S.exec.clauses.vars ∧ x ∉ Trail.vars S.M := by
+    {I : Array Bool} (h : S.pickVar = ⟨some x, H, I⟩) :
+    x ∈ S.exec.clauses.vars ∧ x ∉ Trail.vars S.M := by
   unfold WExec.pickVar WExec.pickVarIn at h
   split at h
   · rename_i hv
-    obtain ⟨-, -, hpop, -⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order
-      (hS.order hv).wf (hS.order hv).vars (hS.order hv).covers
-    generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order = r
-      at h hpop
-    obtain ⟨_ | y, H'⟩ := r
-    · exact Activity.pick_some hS.assign (congrArg Prod.fst h)
-    · simp only [Prod.mk.injEq, Option.some.injEq] at h
+    obtain ⟨-, -, hpop, -, -⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order S.inOrder
+      (hS.order hv).wf (hS.order hv).vars (hS.order hv).covers (hS.order hv).marked
+    generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order
+      S.inOrder = r at h hpop
+    obtain ⟨_ | y, H', I'⟩ := r
+    · exact Activity.pick_some hS.assign (congrArg VarOrder.Popped.var h)
+    · simp only [VarOrder.Popped.mk.injEq, Option.some.injEq] at h
       obtain ⟨rfl, -⟩ := h
       obtain ⟨-, hyM, hyo, -⟩ := hpop y rfl
       exact ⟨(hS.occurs y).1 hyo, hyM⟩
-  · exact Activity.pick_some hS.assign (congrArg Prod.fst h)
+  · exact Activity.pick_some hS.assign (congrArg VarOrder.Popped.var h)
 
 /-- Without a decision variable, every variable of the database is assigned. -/
-theorem WExec.Inv.pickVar_none {S : WExec φ} (hS : S.Inv) {H : VarOrder}
-    (h : S.pickVar = (none, H)) :
+theorem WExec.Inv.pickVar_none {S : WExec φ} (hS : S.Inv) {H : VarOrder} {I : Array Bool}
+    (h : S.pickVar = ⟨none, H, I⟩) :
     ∀ x ∈ S.exec.clauses.vars, x ∈ Trail.vars S.M := by
   unfold WExec.pickVar WExec.pickVarIn at h
   split at h
-  · generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order = r at h
-    obtain ⟨_ | y, H'⟩ := r
-    · exact Activity.pick_none hS.assign (congrArg Prod.fst h)
+  · generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order
+      S.inOrder = r at h
+    obtain ⟨_ | y, H', I'⟩ := r
+    · exact Activity.pick_none hS.assign (congrArg VarOrder.Popped.var h)
     · simp at h
-  · exact Activity.pick_none hS.assign (congrArg Prod.fst h)
+  · exact Activity.pick_none hS.assign (congrArg VarOrder.Popped.var h)
 
 /-- **With VSIDS, the decision variable has the greatest activity** among the unassigned variables
 of the database. -/
 theorem WExec.Inv.pickVar_max {S : WExec φ} (hS : S.Inv) (hv : S.opts.vsids = true) {x : ℕ}
-    {H : VarOrder} (h : S.pickVar = (some x, H)) :
+    {H : VarOrder} {I : Array Bool} (h : S.pickVar = ⟨some x, H, I⟩) :
     ∀ y ∈ S.exec.clauses.vars, y ∉ Trail.vars S.M → S.act.get y ≤ S.act.get x := by
   unfold WExec.pickVar WExec.pickVarIn at h
   simp only [hv, ↓reduceIte] at h
-  obtain ⟨-, -, hpop, -⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order
-    (hS.order hv).wf (hS.order hv).vars (hS.order hv).covers
-  generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order = r at h hpop
-  obtain ⟨_ | y, H'⟩ := r
-  · exact fun z hz hzM => Activity.pick_max hS.assign (congrArg Prod.fst h) hz hzM
-  · simp only [Prod.mk.injEq, Option.some.injEq] at h
+  obtain ⟨-, -, hpop, -, -⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order S.inOrder
+    (hS.order hv).wf (hS.order hv).vars (hS.order hv).covers (hS.order hv).marked
+  generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order
+    S.inOrder = r at h hpop
+  obtain ⟨_ | y, H', I'⟩ := r
+  · exact fun z hz hzM => Activity.pick_max hS.assign (congrArg VarOrder.Popped.var h) hz hzM
+  · simp only [VarOrder.Popped.mk.injEq, Option.some.injEq] at h
     obtain ⟨rfl, -⟩ := h
     exact fun z hz hzM => (hpop _ rfl).2.2.2 z (hS.exec.mem_vars_of_clauses hz) hzM
       ((hS.occurs z).2 hz)
 
 /-- After deciding the decision variable, the variable order keeps its invariant. -/
 theorem WExec.Inv.pickVar_order {S : WExec φ} (hS : S.Inv) {x : ℕ} {H : VarOrder}
-    (h : S.pickVar = (some x, H)) (hv : (S.decide x H).opts.vsids = true) :
-    (S.decide x H).OrderInv := by
+    {I : Array Bool} (h : S.pickVar = ⟨some x, H, I⟩) (hv : (S.decide x H I).opts.vsids = true) :
+    (S.decide x H I).OrderInv := by
   change S.opts.vsids = true at hv
   have hS' := hS.order hv
-  obtain ⟨hwf, hV, -, hcov⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order hS'.wf
-    hS'.vars hS'.covers
-  have hM : ∀ v, v ∉ Trail.vars (S.decide x H).M → v ∉ Trail.vars S.M ∧ v ≠ x := fun v hv' =>
+  obtain ⟨hwf, hV, -, hcov, hmk⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order
+    S.inOrder hS'.wf hS'.vars hS'.covers hS'.marked
+  have hM : ∀ v, v ∉ Trail.vars (S.decide x H I).M → v ∉ Trail.vars S.M ∧ v ≠ x := fun v hv' =>
     ⟨fun h' => hv' (List.mem_cons_of_mem _ h'), fun h' => hv' (h' ▸ List.mem_cons_self)⟩
-  change VarOrder.Inv H S.act φ.vars (S.decide x H).M S.occurs.assigned
+  change VarOrder.Inv H I S.act φ.vars (S.decide x H I).M S.occurs.assigned
   unfold WExec.pickVar WExec.pickVarIn at h
   simp only [hv, ↓reduceIte] at h
-  generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order = r
-    at h hwf hV hcov
-  obtain ⟨_ | y, H'⟩ := r
-  · simp only [Prod.mk.injEq] at h
-    obtain ⟨-, rfl⟩ := h
-    exact ⟨hwf, hV, fun v hv' hvM hvo => hcov v hv' (hM v hvM).1 hvo (by simp)⟩
-  · simp only [Prod.mk.injEq, Option.some.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+  generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.size + 1) S.order
+    S.inOrder = r at h hwf hV hcov hmk
+  obtain ⟨_ | y, H', I'⟩ := r
+  · simp only [VarOrder.Popped.mk.injEq] at h
+    obtain ⟨-, rfl, rfl⟩ := h
+    exact ⟨hwf, hV, fun v hv' hvM hvo => hcov v hv' (hM v hvM).1 hvo (by simp), hmk⟩
+  · simp only [VarOrder.Popped.mk.injEq, Option.some.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
     exact ⟨hwf, hV, fun v hv' hvM hvo =>
-      hcov v hv' (hM v hvM).1 hvo (by simpa using (hM v hvM).2.symm)⟩
+      hcov v hv' (hM v hvM).1 hvo (by simpa using (hM v hvM).2.symm), hmk⟩
 
 /-- With the queue empty, no clause of the database is false if no short clause is. -/
 theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
@@ -1560,6 +1605,12 @@ theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
   · exact (hq ▸ hS.store).not_falsifies hS.exec.run.nodup he hlen
   · exact hshort e (hS.short_covers e he (by omega))
 
+/-- The variable order and its marks at a restart: with VSIDS, the variables of the trail that are
+not marked are inserted and marked. -/
+@[expose] def WExec.restartOrder (S : WExec φ) : VarOrder × Array Bool :=
+  if S.opts.vsids then VarOrder.addMissing S.order S.inOrder S.act (Trail.vars S.M)
+  else (S.order, S.inOrder)
+
 /-- **Restart**, at an empty queue: back to the root of the trail, with VSIDS putting the variables
 of the trail back in the variable order. With phase saving on, the phases of the trail's literals
 are saved first, as MiniSat's `cancelUntil(0)` saves those it undoes; the root's literals stay
@@ -1570,7 +1621,8 @@ assigned, so only the saved phases of the undone ones are read later. -/
     exec := e
     assign := Assign.ofTrail (XTrail.trail e.trail)
     level := 0
-    order := if S.opts.vsids then S.order.insertVars S.act (Trail.vars S.M) else S.order
+    order := (S.restartOrder).1
+    inOrder := (S.restartOrder).2
     phase := if S.opts.phaseSaving then S.phase.save S.M else S.phase
     stats := { S.stats with restarts := S.stats.restarts + 1 } }
 
@@ -1591,18 +1643,18 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
   swap
   · change S.opts.vsids = true at hv
     have hS' := hS.order hv
-    have ho : S.restart.order = S.order.insertVars S.act (Trail.vars S.M) := by
-      simp [WExec.restart, hv]
-    refine ⟨ho ▸ VarOrder.insertVars_wf hS'.wf, fun e he => ?_, fun v hv' hvM hvo => ?_⟩
-    · rw [ho] at he
-      rcases VarOrder.mem_insertVars.1 he with he | ⟨v, hv'', rfl⟩
+    have h₂ := VarOrder.added_addMissing S.order S.inOrder S.act (Trail.vars S.M)
+    change VarOrder.Inv S.restartOrder.1 S.restartOrder.2 S.act φ.vars S.restart.M
+      S.occurs.assigned
+    simp only [WExec.restartOrder, hv, ↓reduceIte]
+    refine ⟨h₂.wf hS'.wf, fun e he => ?_, fun v hv' hvM hvo => ?_, h₂.marked hS'.marked⟩
+    · rcases h₂.mem_new e he with he | ⟨v, hv'', rfl⟩
       · exact hS'.vars e he
       · exact hS.exec.run.subset v hv''
-    · rw [ho]
-      by_cases hvS : v ∈ Trail.vars S.M
-      · exact ⟨_, le_rfl, VarOrder.mem_insertVars.2 (.inr ⟨v, hvS, rfl⟩)⟩
+    · by_cases hvS : v ∈ Trail.vars S.M
+      · exact h₂.covers hS'.marked v hvS
       · obtain ⟨k, hk, hmem⟩ := hS'.covers v hv' hvS hvo
-        exact ⟨k, hk, VarOrder.mem_insertVars.2 (.inl hmem)⟩
+        exact ⟨k, hk, h₂.mem_old _ hmem⟩
   rcases XTrail.root_split S.exec.trail with h | ⟨N, d, hN⟩
   · have : S.restart.M = S.M := by
       change XTrail.trail (XTrail.root S.exec.trail) = _; rw [h]
@@ -1676,7 +1728,8 @@ theorem WExec.Inv.forgetRebuilt {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
     obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
     exact List.mem_map.2 ⟨e, (hdb e he).1, rfl⟩
   refine ⟨⟨hexec, ?_, fun e he => ?_, fun e he hlen => ?_, hS.queue_nodup, hS.queue_trail,
-    hS.queue_above, fun hv => (hS.order hv).restrict rfl rfl rfl fun v hv' => (hS.occurs v).2 (by
+    hS.queue_above, fun hv => (hS.order hv).restrict rfl rfl rfl rfl fun v hv' =>
+      (hS.occurs v).2 (by
       obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 ((Assign.assigned_marks _ v).1 hv')
       exact CNF.mem_vars.2 ⟨c, hsub c hc, b, hb⟩), hS.assign,
     fun v => Assign.assigned_marks _ v⟩, fun c hc => hnoconf c (hsub c hc), rfl⟩
@@ -2000,7 +2053,7 @@ a restarted state has fewer conflicts than that. -/
         have hspec := Exec.propagate_spec hS.exec (hS.short_mem e he) hl hundef hfalse
         .move (S.propagateShort e l)
           (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef (fun hv =>
-            (hS.order hv).extend rfl rfl rfl fun v hv => List.mem_cons_of_mem _ hv) rfl rfl)
+            (hS.order hv).extend rfl rfl rfl rfl fun v hv => List.mem_cons_of_mem _ hv) rfl rfl)
           (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
           (by
             have : (S.propagateShort e l).stats.conflicts = S.stats.conflicts := rfl
@@ -2023,19 +2076,20 @@ a restarted state has fewer conflicts than that. -/
         | false =>
         -- the variable order is taken out of the state, so that popping updates it in place
         let ord := S₁.order
-        let S₂ : WExec φ := { S₁ with order := Batteries.BinaryHeap.emptyF }
-        match hx : S₂.pickVarIn ord with
-        | (some x, H) =>
-          have hx' : S₁.pickVar = (some x, H) := hx
+        let io := S₁.inOrder
+        let S₂ : WExec φ := { S₁ with order := Batteries.BinaryHeap.emptyF, inOrder := #[] }
+        match hx : S₂.pickVarIn ord io with
+        | ⟨some x, H, I⟩ =>
+          have hx' : S₁.pickVar = ⟨some x, H, I⟩ := hx
           have ⟨hxV, hundef⟩ := hS₁.pickVar_some hx'
           have hspec := Exec.decide_spec hS₁.exec hnoconf₁ hxV hundef (S₁.polarity x)
-          .move (S₂.decide x H)
+          .move (S₂.decide x H I)
             (hS₁.push hq₁ hspec.1 rfl rfl rfl rfl rfl hundef (hS₁.pickVar_order hx') rfl rfl)
-            (by have := WExec.measure_push_lt (S' := S₂.decide x H) hq₁ rfl hspec.2; omega)
+            (by have := WExec.measure_push_lt (S' := S₂.decide x H I) hq₁ rfl hspec.2; omega)
             (by
-              have : (S₂.decide x H).stats.conflicts = S₁.stats.conflicts := rfl
+              have : (S₂.decide x H I).stats.conflicts = S₁.stats.conflicts := rfl
               omega)
-        | (none, _) =>
+        | ⟨none, _, _⟩ =>
           .done (.sat (Trail.assignment S₂.M)
             (hS₁.exec.run.eval_model hnoconf₁ (hS₁.pickVar_none hx)), S₂.stats)
 
