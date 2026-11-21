@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.SmallSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import Mathlib.Data.Nat.Size
+import Mathlib.Tactic.Ring
 
 /-!
 # Logspace functions compose
@@ -28,6 +29,9 @@ rule of `fun_prop` for `ComputableInLogSpace`.
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInLogSpace.comp`: logspace functions compose.
+* `Turing.MultiTapeTM.comp_logSpace_of_length_log`: a logspace producer of short values
+  composes with a linear-space consumer.
+* `Turing.MultiTapeTM.length_log_of_inSpace`: the composed output is short.
 * `Turing.MultiTapeTM.ComputableInLogSpace.comp'`,
   `Turing.MultiTapeTM.ComputableInLogSpace.bool_not`: composition and negation in the form used by
   `fun_prop`.
@@ -96,5 +100,73 @@ theorem ComputableInLogSpace.comp' {g : β → γ} {f : α → β}
 theorem ComputableInLogSpace.bool_not {c : α → Bool} (hc : ComputableInLogSpace c encIn encBool) :
     ComputableInLogSpace (fun a => !c a) encIn encBool :=
   (ComputableInLogSpace.of_finite (encIn := encBool) not).comp' hc
+
+/-- Compose a `ComputableInLogSpace` producer whose encoded output has logarithmic length with a
+`ComputableInSpace` consumer running in space linear in its input length. -/
+theorem comp_logSpace_of_length_log {α β γ : Type}
+    {encIn : α ↪ List Bool} {encMid : β ↪ List Bool} {encOut : γ ↪ List Bool}
+    {f : α → β} {g : β → γ}
+    (hf : ComputableInLogSpace f encIn encMid)
+    (hlen : ∃ C, ∀ a, (encMid (f a)).length ≤ C * (Nat.log2 (encIn a).length + 1))
+    (hg : ComputableInSpace g encMid encOut fun b => (encMid b).length) :
+    ComputableInLogSpace (fun a => g (f a)) encIn encOut := by
+  obtain ⟨C, hC⟩ := hlen
+  obtain ⟨tf, cf, hf⟩ := hf
+  obtain ⟨tg, cg, hg, -⟩ := hg
+  obtain ⟨c, h⟩ := hf.comp_space hg
+  refine ⟨_, c * (cf + cg * (C + 1) + 2 + (C + 1) + 1),
+    h.mono (fun _ => le_rfl) fun a => ?_⟩
+  dsimp only
+  let L := Nat.log2 (encIn a).length + 1
+  have hL : 1 ≤ L := Nat.le_add_left _ _
+  have hCa : (encMid (f a)).length ≤ C * L := hC a
+  have hm_len : (encMid (f a)).length + 1 ≤ (C + 1) * L :=
+    calc (encMid (f a)).length + 1
+        ≤ C * L + L := Nat.add_le_add hCa hL
+      _ = (C + 1) * L := by ring
+  have hm_bits : (encNat ((encMid (f a)).length + 1)).length ≤ (C + 1) * L :=
+    (length_encNat_le_of_lt_two_pow Nat.lt_two_pow_self).trans hm_len
+  have hn_bits : (encNat ((encIn a).length + 1)).length ≤ 2 * L := by
+    have := length_encNat_le_log2_add_two
+      (j := (encIn a).length + 1) (N := (encIn a).length) le_rfl
+    dsimp only [L]
+    omega
+  have hsg : cg * ((encMid (f a)).length + 1) ≤ cg * (C + 1) * L :=
+    calc cg * ((encMid (f a)).length + 1)
+        ≤ cg * ((C + 1) * L) := Nat.mul_le_mul_left cg hm_len
+      _ = cg * (C + 1) * L := by ring
+  rw [Nat.mul_assoc]
+  refine Nat.mul_le_mul_left c ?_
+  calc cf * L + cg * ((encMid (f a)).length + 1) +
+          (encNat ((encIn a).length + 1)).length +
+          (encNat ((encMid (f a)).length + 1)).length + 1
+      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L :=
+        Nat.add_le_add
+          (Nat.add_le_add
+            (Nat.add_le_add (Nat.add_le_add le_rfl hsg) hn_bits)
+            hm_bits)
+          hL
+    _ = (cf + cg * (C + 1) + 2 + (C + 1) + 1) * L := by ring
+
+/-- A linear-space `ComputableInSpace` function preserves logarithmic encoded-output length. -/
+theorem length_log_of_inSpace {α β γ : Type}
+    {encIn : α ↪ List Bool} {encMid : β ↪ List Bool} {encOut : γ ↪ List Bool}
+    {f : α → β} {g : β → γ}
+    (hlen : ∃ C, ∀ a, (encMid (f a)).length ≤ C * (Nat.log2 (encIn a).length + 1))
+    (hg : ComputableInSpace g encMid encOut fun b => (encMid b).length) :
+    ∃ C', ∀ a, (encOut (g (f a))).length ≤ C' * (Nat.log2 (encIn a).length + 1) := by
+  obtain ⟨C, hC⟩ := hlen
+  obtain ⟨_, cg, -, hglen⟩ := hg
+  refine ⟨cg * (C + 1), fun a => ?_⟩
+  let L := Nat.log2 (encIn a).length + 1
+  have hL : 1 ≤ L := Nat.le_add_left _ _
+  have hm : (encMid (f a)).length + 1 ≤ (C + 1) * L :=
+    calc (encMid (f a)).length + 1
+        ≤ C * L + L := Nat.add_le_add (hC a) hL
+      _ = (C + 1) * L := by ring
+  calc (encOut (g (f a))).length
+      ≤ cg * ((encMid (f a)).length + 1) := hglen (f a)
+    _ ≤ cg * ((C + 1) * L) := Nat.mul_le_mul_left cg hm
+    _ = cg * (C + 1) * L := by ring
 
 end Turing.MultiTapeTM

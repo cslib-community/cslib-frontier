@@ -216,6 +216,12 @@ theorem abs_sum_re_star_mul_le_of_normalized_right {ι : Type*} [Fintype ι]
   simpa only [Real.sqrt_one, mul_one] using
     mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hY) (Real.sqrt_nonneg _)
 
+/-- A bound `x⋆x ≤ y` bounds the state norm: `‖x‖²_φ ≤ Re φ(y)`. -/
+theorem norm_sq_le_of_star_mul_le (φ : AlgState A) {x y : A} (h : star x * x ≤ y) :
+    φ.norm x ^ 2 ≤ (φ y).re := by
+  rw [norm_sq]
+  exact φ.re_apply_mono h
+
 /-- A contraction, `a⋆a ≤ 1`, has state norm at most `1`. -/
 theorem norm_le_one (φ : AlgState A) {a : A} (h : star a * a ≤ 1) : φ.norm a ≤ 1 := by
   rw [norm_eq_sqrt, Real.sqrt_le_one]
