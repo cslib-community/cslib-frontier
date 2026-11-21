@@ -109,7 +109,7 @@ variable {α β : Type}
 
 /-- A leaf with the given entries, split when it has more than `2 * t - 1` of them: the first
 `t` entries stay on the left, the rest go right, and the first key on the right is copied up as
-the separator. The `[]` branch is unreachable for `t ≥ 1`. -/
+the separator. The `[]` branch is unreachable. -/
 @[expose] def ofLeaf (t : ℕ) (entries : List (α × β)) : InsertResult α β :=
   if entries.length ≤ 2 * t - 1 then tree (.leaf entries)
   else match entries.drop t with
@@ -118,7 +118,7 @@ the separator. The `[]` branch is unreachable for `t ≥ 1`. -/
 
 /-- A node with contents `first` and `rest`, split when it has more than `2 * t - 1` separators:
 the first `t` branches stay on the left, the separator of the next one moves up, and its child
-starts the right node. The `[]` branch is unreachable for `t ≥ 1`. -/
+starts the right node. The `[]` branch is unreachable. -/
 @[expose] def ofNode (t : ℕ) (first : BPlusTree α β) (rest : List (Branch α β)) :
     InsertResult α β :=
   if rest.length ≤ 2 * t - 1 then tree (.node first rest)

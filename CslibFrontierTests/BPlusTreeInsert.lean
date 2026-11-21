@@ -44,15 +44,19 @@ example : IsWF 2 wide := by decide
 
 /-! ### The empty tree and small minimum degrees -/
 
-example : (insert 2 1 "a" (.leaf [])).leaves = [[(1, "a")]] := by decide
+/-- Insertion into the empty tree gives a one-entry leaf. -/
+example :
+    (insert 2 1 "a" (.leaf [])).leaves = [[(1, "a")]] ∧ (insert 2 1 "a" (.leaf [])).height = 1 := by
+  decide
 
 /-- Below minimum degree `2` insertion still evaluates and keeps the entries. -/
 example :
     (insert 0 1 "a" (.leaf [])).toList = [(1, "a")] ∧
-      (insert 1 2 "b" (.leaf [(1, "a")])).toList = [(1, "a"), (2, "b")] := by
+      (insert 1 2 "b" (.leaf [(1, "a")])).toList = [(1, "a"), (2, "b")] ∧
+      (insert 1 2 "b" gap).toList = [(1, "a"), (2, "b"), (3, "c")] := by
   decide
 
-/-! ### Leaves -/
+/-! ### Leaves and the separator search -/
 
 /-- A root leaf of four entries splits: the left leaf keeps `t = 2` entries and the first key of
 the right leaf is copied up. -/
