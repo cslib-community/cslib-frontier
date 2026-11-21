@@ -10,8 +10,10 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.PrescribedOrder
-public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restriction
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Basic
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Angle
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
 import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Nodup
