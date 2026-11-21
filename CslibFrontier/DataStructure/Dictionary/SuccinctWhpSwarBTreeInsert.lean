@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpParams
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTreeSpec
+import CslibFrontier.Foundations.Data.Finset.ApplyUpdate
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
@@ -69,13 +70,8 @@ private theorem sum_potential_update_add {n : ℕ} (cs : Fin n → BTreeTree) (r
     (T' : BTreeTree) (tMin : ℕ) :
     ∑ i, (Function.update cs r T' i).potential tMin + (cs r).potential tMin =
       ∑ i, (cs i).potential tMin + T'.potential tMin := by
-  have h1 := Finset.add_sum_erase univ
-    (fun i => (Function.update cs r T' i).potential tMin) (mem_univ r)
-  have h2 := Finset.add_sum_erase univ (fun i => (cs i).potential tMin) (mem_univ r)
-  have her : ∑ i ∈ univ.erase r, (Function.update cs r T' i).potential tMin =
-      ∑ i ∈ univ.erase r, (cs i).potential tMin :=
-    sum_congr rfl fun i hi => by rw [Function.update_of_ne (mem_erase.mp hi).1]
-  rw [← h1, ← h2, her, Function.update_self]
+  rw [Finset.sum_apply_update_of_mem (mem_univ r) (fun _ T => T.potential tMin) cs T',
+    ← Finset.add_sum_erase univ (fun i => (cs i).potential tMin) (mem_univ r)]
   omega
 
 /-- Lift an inductive insertion result `(sl', T_c')` on child `r_b` of a valid branch
