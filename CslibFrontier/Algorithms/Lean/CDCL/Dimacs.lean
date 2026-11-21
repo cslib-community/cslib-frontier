@@ -32,8 +32,9 @@ variable `10⁶` gets one literal, not one for each smaller name.
 ## Main statements
 
 * `Cslib.Algorithms.Lean.CDCL.mem_occurringVars`, `Cslib.Algorithms.Lean.CDCL.nodup_occurringVars`,
-  `Cslib.Algorithms.Lean.CDCL.pairwise_occurringVars`: the model lists exactly the variables of
-  the formula, each once, in increasing order.
+  `Cslib.Algorithms.Lean.CDCL.pairwise_occurringVars`: the variable list passed to `modelLines`
+  holds exactly the variables of the formula, each once, in increasing order. The `v` lines
+  rendered from it are covered only by the checked examples.
 * `Cslib.Algorithms.Lean.CDCL.satisfiable_of_answerFor_code`: exit code `10` only for a satisfiable
   formula.
 * `Cslib.Algorithms.Lean.CDCL.checkLRAT_of_answerFor_cert`: the certificate given is accepted by
@@ -107,17 +108,17 @@ private theorem pairwise_eraseReps {l : List ℕ} (h : l.Pairwise (· ≤ ·)) :
   | nil => exact List.Pairwise.nil
   | cons a as => exact pairwise_eraseRepsLoop (List.pairwise_singleton _ a) h
 
-/-- **The model lists the variables of the formula.** -/
+/-- **The variables passed to `modelLines` are those of the formula.** -/
 theorem mem_occurringVars {φ : CNF ℕ} {v : ℕ} : v ∈ occurringVars φ ↔ v ∈ φ.vars := by
   rw [occurringVars, mem_eraseReps, List.mem_mergeSort]
 
-/-- **The model lists each variable once**, in increasing order. -/
+/-- **The variables passed to `modelLines` increase**, so each appears once. -/
 theorem pairwise_occurringVars (φ : CNF ℕ) : (occurringVars φ).Pairwise (· < ·) :=
   pairwise_eraseReps <| (List.pairwise_mergeSort (le := fun a b : ℕ => decide (a ≤ b))
     (fun _ _ _ h₁ h₂ => decide_eq_true (le_trans (of_decide_eq_true h₁) (of_decide_eq_true h₂)))
     (fun a b => by simpa using le_total a b) φ.vars).imp of_decide_eq_true
 
-/-- **The model lists no variable twice.** -/
+/-- **The variables passed to `modelLines` have no repeats.** -/
 theorem nodup_occurringVars (φ : CNF ℕ) : (occurringVars φ).Nodup :=
   (pairwise_occurringVars φ).imp Nat.ne_of_lt
 
