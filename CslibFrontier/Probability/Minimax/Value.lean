@@ -41,7 +41,9 @@ normalized by its value, is the canonical program `max {∑ i, x i | 0 ≤ x, �
 and the column player's is its dual, and the argument runs over every linearly ordered field. So a
 game with entries in `ℚ` has a rational value and rational optimal strategies. The theorem proves
 that optimal strategies exist; the source's clause that they can be computed efficiently is not
-formalized here. The hypothesis form of the minimax theorem used by Yao's principle,
+formalized here. `Cslib.Algorithms.Lean.Simplex.solveGame` computes the value and optimal
+strategies with the simplex method (Bland's rule), with no bound on its running time. The
+hypothesis form of the minimax theorem used by Yao's principle,
 `Convexity.StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le`, is derived from it in
 `CslibFrontier.Probability.Minimax`.
 
@@ -87,6 +89,26 @@ existence theorem; see the module documentation for its relation to mathlib4#393
   (∃ p : StdSimplex K I, ∀ j, ∑ i, p.weights i * M i j ≤ v) ∧
     ∃ q : StdSimplex K J, ∀ i, v ≤ ∑ j, q.weights j * M i j
 
+omit [IsStrictOrderedRing K] in
+/-- A point of the standard simplex given by its weight vector. -/
+private theorem exists_stdSimplex_weights_eq {ι : Type*} [Fintype ι] {w : ι → K}
+    (hw0 : ∀ k, 0 ≤ w k) (hw1 : ∑ k, w k = 1) : ∃ p : StdSimplex K ι, ⇑p.weights = w := by
+  have : w ∈ Set.range fun p : StdSimplex K ι => (p.weights : ι → K) := by
+    rw [StdSimplex.range_toFun_comp_weights]
+    exact ⟨Set.mem_iInter.2 hw0, hw1⟩
+  exact this
+
+omit [IsStrictOrderedRing K] in
+/-- Weight vectors `p` and `q` of mixed strategies, with `p` paying at most `v` against every
+column and `q` collecting at least `v` against every row, witness that `v` is the value. -/
+theorem IsMinimaxValue.of_weights {M : I → J → K} {v : K} {p : I → K} {q : J → K}
+    (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∑ i, p i = 1) (hp : ∀ j, ∑ i, p i * M i j ≤ v)
+    (hq0 : ∀ j, 0 ≤ q j) (hq1 : ∑ j, q j = 1) (hq : ∀ i, v ≤ ∑ j, q j * M i j) :
+    IsMinimaxValue M v := by
+  obtain ⟨p', rfl⟩ := exists_stdSimplex_weights_eq hp0 hp1
+  obtain ⟨q', rfl⟩ := exists_stdSimplex_weights_eq hq0 hq1
+  exact ⟨⟨p', hp⟩, q', hq⟩
+
 /-- If `p` pays at most `c` against every column, it pays at most `c` against every mixed column
 strategy. -/
 private theorem sum_mul_sum_le {M : I → J → K} {c : K} {p : I → K} (q : J → K)
@@ -131,11 +153,8 @@ private theorem exists_weights_eq_div {ι : Type*} [Fintype ι] {w : ι → K} (
     (hV : 0 < ∑ k, w k) (s : K) :
     ∃ p : StdSimplex K ι, ∀ a : ι → K,
       ∑ k, p.weights k * a k = (∑ k, w k * (a k + s)) / ∑ k, w k - s := by
-  obtain ⟨p, hp⟩ : (fun k => w k / ∑ k, w k) ∈
-      Set.range fun p : StdSimplex K ι => (p.weights : ι → K) := by
-    rw [StdSimplex.range_toFun_comp_weights]
-    exact ⟨Set.mem_iInter.2 fun k => div_nonneg (hw k) hV.le, by
-      rw [Set.mem_ofPred_eq, ← sum_div, div_self hV.ne']⟩
+  obtain ⟨p, hp⟩ := exists_stdSimplex_weights_eq (w := fun k => w k / ∑ k, w k)
+    (fun k => div_nonneg (hw k) hV.le) (by rw [← sum_div, div_self hV.ne'])
   refine ⟨p, fun a => ?_⟩
   simp only [hp, div_mul_eq_mul_div, ← sum_div, mul_add, sum_add_distrib, ← sum_mul]
   rw [add_div, mul_div_cancel_left₀ _ hV.ne', add_sub_cancel_right]
