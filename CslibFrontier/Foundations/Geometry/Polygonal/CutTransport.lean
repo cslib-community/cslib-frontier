@@ -289,7 +289,7 @@ private theorem mapAtCuts_segments (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[
 /-- Each old indexed segment contributes one piece plus the number of its strict cuts. -/
 theorem segments_mapAtCuts_eq (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ) :
     (p.mapAtCuts S c F).segments = ∑ i : Fin p.segments,
-      1 + (segmentInteriorCuts S (c (p.point i.castSucc)) (c (p.point i.succ))).card := by
+      (1 + (segmentInteriorCuts S (c (p.point i.castSucc)) (c (p.point i.succ))).card) := by
   rw [mapAtCuts_segments, sourceSamples_length_eq_sum, Nat.add_sub_cancel]
   apply Finset.sum_congr rfl
   intro i _
