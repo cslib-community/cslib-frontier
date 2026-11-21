@@ -208,6 +208,13 @@ theorem length_configurationSeedSearchSetup_le_log (ntm : MultiTapeNTM k Bool St
   length_log_of_inSpace (encIn := encBits) (f := configurationSeedSearchParameters ntm c)
     (g := setup) (length_configurationSeedSearchParameters_le_log ntm c) setup_inSpace
 
+/-- The retained subdivision parameters fit within the encoded seed-search setup. -/
+theorem encSeedSearchSetup_subdivision_length_le (s : SeedSearchSetup) :
+    (encSubdivisionSize s.parameters.search.subdivision).length ≤ (encSeedSearchSetup s).length :=
+  (encSeedSearchSize_subdivision_length_le s.parameters.search).trans
+    ((encSeedSearchParameters_search_length_le s.parameters).trans
+      (encSeedSearchSetup_parameters_length_le s))
+
 /-- All valid requests to the initialized scan have logarithmic overhead over their explicitly
 charged context. The same bound covers the decoded requests passed into the callback. -/
 theorem length_configurationSubdivisionRequest_le {Context : Type}
@@ -226,10 +233,7 @@ theorem length_configurationSubdivisionRequest_le {Context : Type}
   let size := s.parameters.search.subdivision
   let q : FlatQuery Context := ⟨ctx, size.chainBound, u, v⟩
   let budget := (encContext ctx).length + (Nat.log2 w.length + 1)
-  have hsize : (encSubdivisionSize size).length ≤ (encSeedSearchSetup s).length :=
-    (encSeedSearchSize_subdivision_length_le s.parameters.search).trans
-      ((encSeedSearchParameters_search_length_le s.parameters).trans
-        (encSeedSearchSetup_parameters_length_le s))
+  have hsize := encSeedSearchSetup_subdivision_length_le s
   have hb := (encSubdivisionSize_chainBound_length_le size).trans hsize
   have hvertex := (encSubdivisionSize_vertexCount_length_le size).trans hsize
   have hs := hK w

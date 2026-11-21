@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenBoundedWalk
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 
 /-! Ordinary-import clients for weighted STCON adjacency and the flat scan interface. -/
@@ -113,5 +113,24 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   refine ⟨C, fun w => ?_⟩
   intro I s size index seed ctx u v M start
   exact hC w seed u v
+
+open Cslib.DoubleCounting.Scan Turing.DoubleCounting.BoundedWalk in
+-- At the designated source the canonical zero-edge walk first halts and returns its unused fuel.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let setup := configurationSeedSearchSetup ntm c w
+    let size := setup.parameters.search.subdivision
+    let seed : Fin (2 ^ codeLength I.n (I.n - 1)) := ⟨0, Nat.pow_pos (by decide)⟩
+    let source : Fin size.vertexCount :=
+      ⟨setup.sourceID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1⟩
+    let r : Registers size.vertexCount := ⟨source, source, 0⟩
+    let M := configurationJustesenBoundedWalk ntm c w seed.val r
+    let bits := selectors (N := size.vertexCount) 3 []
+    M.FirstHalting w bits M.init ∧ Runtime.remainingFuel (M.run w bits) = some 0 := by
+  intro I setup size seed source r M bits
+  apply (configurationJustesenBoundedWalk_firstHalting_iff ntm c w seed r bits 0).mpr
+  refine ⟨[], rfl, ?_⟩
+  simp [r, walkM, readNext, bind, StateT.bind, pure, StateT.pure]
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall
