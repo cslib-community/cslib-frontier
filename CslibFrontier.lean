@@ -2974,6 +2974,7 @@ public import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord.Simul
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCounting
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingClockBound
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingContext
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingCost
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingFromLeaves
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingFromParameters
@@ -3005,6 +3006,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuessVerify
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Marking
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingRank
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StateSimulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TruthTable
@@ -3102,6 +3105,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointQuery
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointResolveShort
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootPredecessorContext
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootPredecessorGraph
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootPredecessorQuery
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleBits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleColumn
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleCounter
@@ -3369,6 +3375,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DP
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Nat
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.PairDegree
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
@@ -3870,6 +3877,8 @@ public import CslibFrontier.Computability.PolyTime.PacketPacking
 public import CslibFrontier.Computability.PolyTime.ParityFactorEval
 public import CslibFrontier.Computability.PolyTime.PessimisticEstimator
 public import CslibFrontier.Computability.PolyTime.SeededPredecessor
+public import CslibFrontier.Computability.PolyTime.SeededPredecessorFinish
+public import CslibFrontier.Computability.PolyTime.SeededRankCapacity
 public import CslibFrontier.Computability.PolyTime.SparseMonomialJet
 public import CslibFrontier.Computability.PolyTime.TrinomialArithmetic
 public import CslibFrontier.Computability.PolyTime.TrinomialParameters
@@ -5334,6 +5343,7 @@ public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SeededPacketLabels
 public import CslibFrontier.Foundations.Combinatorics.SeededPacking
 public import CslibFrontier.Foundations.Combinatorics.SeededPackingRank
+public import CslibFrontier.Foundations.Combinatorics.SeededPackingRank.Balance
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWilson
 public import CslibFrontier.Foundations.Combinatorics.SetPartition.Basic

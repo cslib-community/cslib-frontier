@@ -90,7 +90,7 @@ theorem computableInPolyTime_test : ComputableInPolyTime test encInput encBool :
 
 /-- Construct the supplied local data from actual edge endpoints and a valid shared seed.
 This mathematical constructor makes no claim about the cost of computing the endpoints. -/
-def ofEdges {R C : Type*} {n : ℕ} (U a : ℕ) (vertex : R ⊕ C ↪ Fin U)
+@[expose] def ofEdges {R C : Type*} {n : ℕ} (U a : ℕ) (vertex : R ⊕ C ↪ Fin U)
     (rowOf : Fin n → R) (colOf : Fin n → C)
     (seed : BalancedSchedules.SeededLabels.Seed U (6 * a)) (e candidate : Fin n) : Input where
   universeSize := U
