@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
 public import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
+import CslibFrontier.Foundations.Geometry.Polygonal.RadialOrder
 import Mathlib.Analysis.SpecialFunctions.Complex.Circle
 import Mathlib.Tactic.FinCases
 
@@ -19,6 +20,7 @@ public section
 namespace CslibFrontierTests.PolygonalAnnularPaths
 
 open Cslib.Polygonal
+open scoped NNReal
 
 private noncomputable def ports (r : ℝ) (i : Fin 2) : ℂ :=
   if i = 0 then (r : ℂ) else ((-r : ℝ) : ℂ)
@@ -68,7 +70,7 @@ theorem antipodal_paths :
     apply Fin.rev_involutive.injective
     apply port_angles_injective (r := 2) (by norm_num)
     simpa only [q, Function.comp_apply, sub_zero] using h
-  obtain ⟨γ, hcont, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 1 0 (r := 1) (R := 2)
+  obtain ⟨γ, hcont, _, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 1 0 (r := 1) (R := 2)
     zero_lt_one (by norm_num) p q hp hq hp' hq' (two_port_order _) (two_port_order _)
   refine ⟨γ, hcont, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simpa [p, ports] using hstart 0
@@ -145,35 +147,40 @@ private theorem threePorts_angle {r : ℝ} (hr : 0 < r) (shift : Bool) (i : Fin 
 -- The matching shifts a whole three-entry clockwise word across the angle cut.
 private theorem cyclic_shift_paths :
     ∃ γ : Fin 3 → ℝ → ℂ, (∀ i, Continuous (γ i)) ∧
+      (∀ i, ∃ K : ℝ≥0, LipschitzOnWith K (γ i) (Set.Icc 0 1)) ∧
       (∀ i, γ i 0 = threePorts 1 false i) ∧ (∀ i, γ i 1 = threePorts 2 true i) ∧
       (∀ i t, t ∈ Set.Icc 0 1 → ‖γ i t‖ = AffineMap.lineMap (1 : ℝ) 2 t) ∧
       Set.InjOn (fun x : Fin 3 × ℝ => γ x.1 x.2) {x | x.2 ∈ Set.Icc 0 1} := by
   have htwo : (0 : ℝ) < 2 := by norm_num
-  obtain ⟨γ, hcont, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 2 0
+  obtain ⟨γ, hcont, hlip, hstart, hfinish, hnorm, hinj⟩ := exists_annular_paths 2 0
     zero_lt_one (by norm_num) (threePorts 1 false) (threePorts 2 true)
     (threePorts_norm zero_lt_one false) (threePorts_norm htwo true)
     (by simpa only [threePorts_angle zero_lt_one] using threeAngles_injective false)
     (by simpa only [threePorts_angle htwo] using threeAngles_injective true)
     (by simpa only [threePorts_angle zero_lt_one] using threeAngles_order false)
     (by simpa only [threePorts_angle htwo] using threeAngles_order true)
-  exact ⟨γ, hcont, hstart, hfinish, by simpa only [sub_zero] using hnorm, hinj⟩
+  exact ⟨γ, hcont, hlip, hstart, hfinish, by simpa only [sub_zero] using hnorm, hinj⟩
 
--- The same three matching pairs can use finite routes with pairwise disjoint supports.
+-- The same three matching pairs admit simple routes with disjoint supports on one mesh.
 example : ∃ P : Fin 3 → Route,
     (∀ i, (P i).start = threePorts 1 false i) ∧
     (∀ i, (P i).finish = threePorts 2 true i) ∧
-    Pairwise (fun i j => Disjoint (P i).support (P j).support) := by
-  obtain ⟨γ, hcont, hstart, hfinish, _, hinj⟩ := cyclic_shift_paths
+    (∀ i, (P i).IsSimple) ∧ Pairwise (fun i j => Disjoint (P i).support (P j).support) := by
+  obtain ⟨γ, hcont, hlip, hstart, hfinish, hnorm, hinj⟩ := cyclic_shift_paths
   have hsep : Pairwise (fun i j => Disjoint (γ i '' Set.Icc 0 1) (γ j '' Set.Icc 0 1)) := by
     intro i j hij
     apply Set.disjoint_left.mpr
     rintro _ ⟨s, hs, rfl⟩ ⟨t, ht, heq⟩
     have h : (i, s) = (j, t) := hinj hs ht heq.symm
     exact hij (congrArg Prod.fst h)
-  obtain ⟨m, hm⟩ :=
-    (Route.eventually_pairwise_disjoint_sampled γ (fun i => (hcont i).continuousOn) hsep).exists
+  choose K hK using hlip
+  have hout (i : Fin 3) := Route.eventually_sampled_outward (γ i) 0 (hK i)
+    (r := 1) (R := 2) zero_lt_one (by norm_num) (by simpa only [sub_zero] using hnorm i)
+  have hdisj := Route.eventually_pairwise_disjoint_sampled γ (fun i => (hcont i).continuousOn) hsep
+  obtain ⟨m, hs, hm⟩ := ((Filter.eventually_all.mpr hout).and hdisj).exists
   exact ⟨fun i => Route.sampled (γ i) m,
     fun i => (Route.sampled_start (γ i) m).trans (hstart i),
-    fun i => (Route.sampled_finish (γ i) m).trans (hfinish i), hm⟩
+    fun i => (Route.sampled_finish (γ i) m).trans (hfinish i),
+    fun i => (Route.sampled (γ i) m).isSimple_of_outward 0 (hs i), hm⟩
 
 end CslibFrontierTests.PolygonalAnnularPaths
