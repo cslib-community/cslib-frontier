@@ -67,7 +67,8 @@ without a solution (§5.8.2).
 **Core and derived constraints** (§3.4). The database is split into a *core set* and a *derived
 set* (`Cslib.Logic.PL.VeriPB.State`). The input constraints start in the core. Implicational
 steps and `red` add derived constraints. `soli` adds its improving constraint to the core, and
-`core id` moves constraints there (§5.1). Deletion is typed (§5.7.1):
+`core id` moves constraints there; promoting a core constraint again is a no-op (§5.1, as
+CakePB's `do_transfer`). Deletion is typed (§5.7.1):
 * `deld` deletes derived constraints only.
 * `delc` deletes core constraints without a check. Such an *unchecked deletion* clears the flag
   `chk`.
@@ -78,10 +79,12 @@ steps and `red` add derived constraints. `soli` adds its improving constraint to
 
 In *strengthening-to-core mode* (§5.6), switched on by `strengthening_to_core on`, which moves
 every constraint to the core, `red` adds core constraints, and its goals cover only the core set
-and not the derived set. In this mode a checked deletion takes no witness, and an unchecked core
-deletion needs an empty derived set (§5.7.4). The untyped deletion `del id` of the augmented
-format (`Cslib.Logic.PL.VeriPB.Step.del`, §5.7.2) is unchecked when it deletes a core constraint,
-and this checker rejects such a deletion in strengthening-to-core mode.
+and not the derived set. In this mode a checked deletion is a proof by contradiction: it takes no
+witness and its subproof must end in a contradiction `qed : n`, as CakePB requires
+(`check_tcb_idopt`); VeriPB 3.0.2 also accepts a subproof without it. An unchecked core deletion
+needs an empty derived set (§5.7.4). The untyped deletion `del id` of the augmented format
+(`Cslib.Logic.PL.VeriPB.Step.del`, §5.7.2) is unchecked when it deletes a core constraint, and this
+checker rejects such a deletion in strengthening-to-core mode.
 
 **Solutions and conclusions.** The checker keeps a bound and a logged solution, as CakePB keeps
 `dbound` and `bound` (`update_dbound`, `update_bound` and `check_hconcl` in
@@ -574,13 +577,21 @@ def State.init (F : List PBConstr) : State :=
 
 /-- Log the solution `ρ` of the database in the state `s` for the formula `F`: it competes for
 `dbound` with its value, and for `witness` if no unchecked deletion has happened or it solves `F`.
-Any other
-solution never displaces a witness. -/
+Any other solution never displaces a witness. -/
 def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : List (Literal ℕ)) :
     State :=
   { s with dbound := lowerTo s.dbound (objValue obj (assignOf ρ)),
            witness := if s.chk || solves ρ (F.map normalize) then record obj s.witness ρ
              else s.witness }
+
+/-- Assert the value `v` of the objective `f` in the state `s`, the effect shared by `soli` and
+`obji` (§5.8.2): the objective-improving constraint `f ≤ v - 1` joins the database and the core set
+at the next number, and the bound `dbound` is lowered to `v`. -/
+def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
+  { s with
+    db := (s.next, (f.improving v).normalize) :: s.db,
+    core := (s.next, (f.improving v).normalize) :: s.core,
+    next := s.next + 1, dbound := lowerTo s.dbound v }
 
 /-- The constraint numbers that a step deletes. -/
 def Step.delIds : Step → List ℕ
@@ -598,8 +609,11 @@ def Step.delIds : Step → List ℕ
 * `deld` deletes derived constraints; `delc` deletes core constraints unchecked, which in
   strengthening-to-core mode needs an empty derived set (§5.7.4).
 * A checked `delc` of a core constraint `C` is a redundance check of `C` against the remaining
-  core set alone, as in CakePB; in strengthening-to-core mode its witness must be empty (§5.7.4).
-* `core id` moves constraints to the core set; `strengthening_to_core on` moves all of them. -/
+  core set alone, as in CakePB; in strengthening-to-core mode it is a proof by contradiction: its
+  witness must be empty and its subproof must close with a contradiction `qed : n` (§5.7.4, as
+  CakePB's `check_tcb_idopt`).
+* `core id` moves constraints to the core set and needs at least one ID; promoting a constraint
+  already in the core set changes nothing (§5.1). `strengthening_to_core on` moves all of them. -/
 def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep → Option State
   | .step st =>
     match runStep s.db s.next st with
@@ -623,10 +637,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     match obj with
     | some f =>
       if solves ρ (s.db.map (·.2)) && assigns ρ f then
-        some { s.log F obj ρ with
-          db := (s.next, (f.improving (f.eval (assignOf ρ))).normalize) :: s.db,
-          core := (s.next, (f.improving (f.eval (assignOf ρ))).normalize) :: s.core,
-          next := s.next + 1 }
+        some ((s.log F obj ρ).improve f (f.eval (assignOf ρ)))
       else none
     | none => none
   | .deld ids =>
@@ -644,7 +655,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
   | .delcChecked i ω sub q =>
     match lookup s.core i with
     | some c =>
-      if s.core.all (fun e => e.1 != i || e.2 == c) && (!s.tcb || ω.isEmpty) then
+      if s.core.all (fun e => e.1 != i || e.2 == c) && (!s.tcb || ω.isEmpty && q.isSome) then
         match redCheckOn obj (s.core.filter (·.1 != i)) (s.core.filter (·.1 != i)) s.next c ω
             (sub.getD []) q with
         | some n' =>
@@ -655,18 +666,15 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
       else none
     | none => none
   | .core ids =>
-    if ids.all fun i => (lookup s.db i).isSome then
-      some { s with core := s.db.filter (fun e => ids.contains e.1) ++ s.core }
+    if !ids.isEmpty && ids.all fun i => (lookup s.db i).isSome then
+      some { s with
+        core := s.db.filter (fun e => ids.contains e.1 && !s.core.contains e) ++ s.core }
     else none
   | .strengthenToCore b =>
     some (if b then { s with core := s.db, tcb := true } else { s with tcb := false })
   | .obji v =>
     match obj with
-    | some f =>
-      some { s with
-        db := (s.next, (f.improving v).normalize) :: s.db,
-        core := (s.next, (f.improving v).normalize) :: s.core,
-        next := s.next + 1, dbound := lowerTo s.dbound v }
+    | some f => some (s.improve f v)
     | none => none
 
 /-- Run the top-level steps for the input formula `F` and the objective `obj`. -/
@@ -705,7 +713,9 @@ state `s` (§4.3). The lower bound: for `INF`, `q` is a contradiction, no soluti
 no `obji` step was taken; otherwise `lb` is at most the bound `dbound`, and `q` is a
 contradiction or weakly syntactically implies `f ≥ lb`. The upper bound, unless `INF`: the
 assignment `ρ`, if given, solves `F`, assigns every variable of `f` and has value `ub`; otherwise
-the witness has value `ub`. As in VeriPB, an assignment after `INF` is not checked. -/
+the witness (the best certifying logged solution, `Cslib.Logic.PL.VeriPB.State.witness`) has
+value `ub`. The witness need not solve the input formula itself; it guarantees that some input
+solution has value at most `ub`. As in VeriPB, an assignment after `INF` is not checked. -/
 def boundsOk (F : List PBConstr) (f : Objective) (s : State) (lb : Option ℤ) (q : ℕ)
     (ub : Option ℤ) (asg : Option (List (Literal ℕ))) : Bool :=
   (match lb with
@@ -720,8 +730,10 @@ def boundsOk (F : List PBConstr) (f : Objective) (s : State) (lb : Option ℤ) (
 
 /-- **The check of a conclusion** for the formula `F` and the objective `obj` in the final state
 `s` (§4.3).
-* `UNSAT : q` needs the contradiction `q`, and `dbound` unset.
-* `SAT : ρ` needs `ρ` to solve `F`; `SAT` alone needs a witness.
+* `UNSAT : q` needs the contradiction `q`, and `dbound` unset: no logged solution and no `obji`
+  step.
+* `SAT : ρ` needs `ρ` to solve `F`; `SAT` alone needs a witness, a certifying logged solution,
+  which guarantees some input solution but need not be one itself.
 * `BOUNDS` needs an objective and `Cslib.Logic.PL.VeriPB.boundsOk`.
 * `NONE` claims nothing and is always accepted once the steps check.
 
@@ -1019,6 +1031,19 @@ private theorem wit_log {F : List PBConstr} {obj : Option Objective} {s : State}
     · exact hs.wit ρ' h
   · exact hs.wit ρ' hρ'
 
+/-- Asserting an objective value keeps the core invariant: the improving constraint joins both the
+core set and the database, and the witness is unchanged. -/
+private theorem inv_improve {F : List PBConstr} {obj : Option Objective} {s : State}
+    {f : Objective} {v : ℤ} (hs : Inv F obj s) : Inv F obj (s.improve f v) where
+  sub e he := by
+    rcases List.mem_cons.1 he with rfl | he
+    · exact List.mem_cons_self
+    · exact List.mem_cons_of_mem _ (hs.sub e he)
+  imp ht τ hτ := List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
+    hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
+  chk hc τ hτ := hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+  wit := hs.wit
+
 /-- The core set after a checked deletion of `i` gives back the whole core set once the deleted
 constraint `c` holds. -/
 private theorem allHold_core_of_filter {τ : ℕ → Bool} {core : List (ℕ × PBConstr)} {i : ℕ}
@@ -1099,13 +1124,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         simp only [Option.some.injEq] at h
         subst h
         simp only [Bool.and_eq_true] at hρ
-        refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, wit_log hs hρ.1⟩
-        · rcases List.mem_cons.1 he with rfl | he
-          · exact List.mem_cons_self
-          · exact List.mem_cons_of_mem _ (hs.sub e he)
-        · exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
-            hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
-        · exact hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+        exact inv_improve ⟨hs.sub, hs.imp, hs.chk, wit_log hs hρ.1⟩
       · cases h
     · cases h
   | deld ids =>
@@ -1159,7 +1178,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
           · have hω : ω = [] := by
               rcases hok.2 with hf | hω
               · simp [hf] at ht
-              · exact List.isEmpty_iff.1 hω
+              · exact List.isEmpty_iff.1 hω.1
             obtain ⟨τ', hτ', hall, -⟩ := hback τ hτ
             have : τ' = τ := by rcases hτ' with rfl | rfl <;> simp [hω, Witness.apply_nil]
             subst this
@@ -1193,13 +1212,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
     split at h
     · simp only [Option.some.injEq] at h
       subst h
-      refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit⟩
-      · rcases List.mem_cons.1 he with rfl | he
-        · exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (hs.sub e he)
-      · exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
-          hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
-      · exact hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+      exact inv_improve hs
     · cases h
 
 /-- **The lower-bound invariant** for a value `w`: some solution of the database has objective at
@@ -1218,6 +1231,32 @@ private theorem lowerTo_le (d : Option ℤ) (u : ℤ) : ∃ v ∈ lowerTo d u, v
   cases d
   · exact ⟨u, rfl, le_rfl⟩
   · exact ⟨_, rfl, min_le_right _ _⟩
+
+/-- Logging a solution keeps the lower-bound invariant: it only lowers `dbound`. -/
+private theorem reaches_log {F : List PBConstr} {obj : Option Objective} {w : ℤ} {s : State}
+    {ρ : List (Literal ℕ)} (hs : Reaches obj w s) : Reaches obj w (s.log F obj ρ) := by
+  rcases hs with hτ | hb
+  · exact .inl hτ
+  · exact .inr (exists_mem_lowerTo _ hb)
+
+/-- Asserting the value `u` of the objective keeps the lower-bound invariant: a solution of the
+database of value below `u` satisfies the improving constraint, and otherwise `u`, the new bound,
+is at most `w`. -/
+private theorem reaches_improve {f : Objective} {w u : ℤ} {s : State}
+    (hs : Reaches (some f) w s) : Reaches (some f) w (s.improve f u) := by
+  by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧ f.eval τ < u
+  · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
+    exact .inl ⟨τ, List.forall_mem_cons.2
+      ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw⟩
+  · rcases hs with ⟨τ, hτ, hw⟩ | hb
+    · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound u
+      refine .inr ⟨v, hv, ?_⟩
+      have hge : u ≤ f.eval τ := by
+        by_contra hc
+        exact hlt ⟨τ, hτ, hw, by omega⟩
+      simp only [objValue] at hw
+      omega
+    · exact .inr (exists_mem_lowerTo u hb)
 
 /-- A step that only deletes from the database keeps the lower-bound invariant. -/
 private theorem reaches_filter {obj : Option Objective} {w : ℤ} {s : State}
@@ -1271,9 +1310,7 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
     split at h
     · simp only [Option.some.injEq] at h
       subst h
-      rcases hs with hτ | hb
-      · exact .inl hτ
-      · exact .inr (exists_mem_lowerTo _ hb)
+      exact reaches_log hs
     · cases h
   | soli ρ =>
     simp only [stepTop] at h
@@ -1282,20 +1319,7 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
       split at h
       · simp only [Option.some.injEq] at h
         subst h
-        by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧
-            f.eval τ < f.eval (assignOf ρ)
-        · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
-          exact .inl ⟨τ, List.forall_mem_cons.2
-            ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw⟩
-        · rcases hs with ⟨τ, hτ, hw⟩ | hb
-          · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound (objValue (some f) (assignOf ρ))
-            refine .inr ⟨v, hv, ?_⟩
-            have hge : f.eval (assignOf ρ) ≤ f.eval τ := by
-              by_contra hc
-              exact hlt ⟨τ, hτ, hw, by omega⟩
-            simp only [objValue] at hle hw
-            omega
-          · exact .inr (exists_mem_lowerTo _ hb)
+        exact reaches_improve (reaches_log hs)
       · cases h
     · cases h
   | deld ids =>
@@ -1343,19 +1367,7 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
     · rename_i f
       simp only [Option.some.injEq] at h
       subst h
-      by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧ f.eval τ < u
-      · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
-        exact .inl ⟨τ, List.forall_mem_cons.2
-          ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw⟩
-      · rcases hs with ⟨τ, hτ, hw⟩ | hb
-        · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound u
-          refine .inr ⟨v, hv, ?_⟩
-          have hge : u ≤ f.eval τ := by
-            by_contra hc
-            exact hlt ⟨τ, hτ, hw, by omega⟩
-          simp only [objValue] at hw
-          omega
-        · exact .inr (exists_mem_lowerTo u hb)
+      exact reaches_improve hs
     · cases h
 
 /-- A property kept by every step is kept by the checker. -/

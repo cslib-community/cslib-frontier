@@ -108,24 +108,12 @@ theorem layeredQuery_agrees (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : Lis
   have hb : bad (k := k) (State := State) B w.length N = false := by
     simp [bad, hvalid]
   have hswap (u v : ℕ) : u = v ↔ v = u := eq_comm
-  by_cases hu' : a.val.vertex.val < N
-  · have hne : a.val.vertex.val ≠ N := Nat.ne_of_lt hu'
-    by_cases hv' : b.val.vertex.val < N
-    · have hne' : b.val.vertex.val ≠ N := Nat.ne_of_lt hv'
-      simp [layeredEdgeQuery, layeredQuery, layeredQueryRequest, layeredQueryIndex, layeredRelation,
-        Relation.LayeredVertex.Step,
-        Relation.reflGen_iff, STCONInstance.Adj, configurationInstance, sinkAdj,
-        hu, hv, hu', hv', hne, hne', B, N, Fin.ext_iff, and_assoc, hswap] at *
-    · have hvN : b.val.vertex.val = N := by omega
-      simp [layeredEdgeQuery, layeredQuery, layeredQueryRequest, layeredQueryIndex, layeredRelation,
-        Relation.LayeredVertex.Step,
-        Relation.reflGen_iff, STCONInstance.Adj, configurationInstance, sinkAdj,
-        hu, hu', hne, hvN, B, N, Fin.ext_iff, and_assoc, hswap] at *
-  · have huN : a.val.vertex.val = N := by omega
+  have huLt : a.val.vertex.val < N ↔ a.val.vertex.val ≠ N := by omega
+  have hvLt : b.val.vertex.val < N ↔ b.val.vertex.val ≠ N := by omega
+  by_cases hu' : a.val.vertex.val = N <;> by_cases hv' : b.val.vertex.val = N <;>
     simp [layeredEdgeQuery, layeredQuery, layeredQueryRequest, layeredQueryIndex, layeredRelation,
-      Relation.LayeredVertex.Step,
-      Relation.reflGen_iff, STCONInstance.Adj, configurationInstance, sinkAdj,
-      hv, huN, he, hb, B, N, Fin.ext_iff, and_assoc, hswap] at *
+      Relation.LayeredVertex.Step, Relation.reflGen_iff, STCONInstance.Adj, configurationInstance,
+      sinkAdj, hu, hv, huLt, hvLt, hu', hv', he, hb, B, N, Fin.ext_iff, and_assoc, hswap]
 
 
 /-- Native evaluation of the adjacency callback uses linear workspace in the short binary
