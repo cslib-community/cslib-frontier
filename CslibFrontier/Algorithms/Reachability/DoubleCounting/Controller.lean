@@ -197,17 +197,23 @@ inductive ControllerVerdict where
   | decided (reachable : Bool)
   deriving DecidableEq, Repr
 
-/-- Fuel-bounded round loop used by `runController`. -/
-@[expose] def runRounds {m : Type → Type} [Monad m] {n : ℕ}
-    (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (target : Fin n) :
+/-- Run the fuel-bounded controller with a supplied round and final membership action. -/
+@[expose] def runRoundsWith {m : Type → Type} [Monad m]
+    (nextRound : ℕ → ℕ → Tally → m RoundUpdate) (member : ℕ → ℕ → Tally → m Bool) :
     ℕ → ℕ → Tally → m (Option ControllerVerdict)
   | 0, _, _ => pure none
   | fuel + 1, k, t => do
-    let a ← scanNextRound edge member k t
+    let a ← nextRound (fuel + 1) k t
     if a.bad then return some (.bad (k + 1))
     if a.tally.count == t.count then
-      return some (.decided (← member k t target))
-    runRounds edge member target fuel (k + 1) a.tally
+      return some (.decided (← member (fuel + 1) k t))
+    runRoundsWith nextRound member fuel (k + 1) a.tally
+
+/-- Fuel-bounded round loop used by `runController`. -/
+@[expose] def runRounds {m : Type → Type} [Monad m] {n : ℕ}
+    (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (target : Fin n) :
+    ℕ → ℕ → Tally → m (Option ControllerVerdict) :=
+  runRoundsWith (fun _ => scanNextRound edge member) (fun _ k t => member k t target)
 
 /-- Run at most one update per vertex, starting with the source alone. The correctness
 theorem excludes fuel exhaustion when the callback contract holds. -/
@@ -255,13 +261,14 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
     obtain ⟨a, ha, ht, hb⟩ := scanNextRound_correct he (hm k hk) hk
     cases hbad : a.bad with
     | true =>
-      refine ⟨.bad (k + 1), by simp [runRounds, ha, hbad], fun i hi => hgood i (by omega), ?_⟩
+      refine ⟨.bad (k + 1), by simp [runRounds, runRoundsWith, ha, hbad],
+        fun i hi => hgood i (by omega), ?_⟩
       exact fun h => by simpa [hbad] using hb.mpr h
     | false =>
       by_cases hs : (expected r s (k + 1)).count = (expected r s k).count
       · have hstable := stable_of_count_eq hs
         refine ⟨.decided (decide (target ∈ round r s k)), ?_, ?_, ?_⟩
-        · simp [runRounds, ha, hbad, ht, hs, hm k hk]
+        · simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hm k hk]
         · intro j
           rw [existsUnique_passes_iff]
           intro v hv
@@ -276,7 +283,8 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
           · exact hb.mp hbad
           · exact hgood j (by omega)
         obtain ⟨verdict, hv, hspec⟩ := ih (k + 1) (by omega) (by omega) hgood'
-        exact ⟨verdict, by simp [runRounds, ha, hbad, ht, hs, hv], hspec⟩
+        simp only [runRounds] at hv
+        exact ⟨verdict, by simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hv], hspec⟩
 
 /-- Under the adjacency and unique membership-replay contracts, the controller returns the
 first nonunique round, or the reachability answer when all rounds are unique. Fuel suffices

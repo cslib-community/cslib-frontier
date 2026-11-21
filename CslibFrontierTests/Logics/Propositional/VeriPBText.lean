@@ -1669,24 +1669,12 @@ end;
 This module imports `Text`, and with it `Redundance`, by ordinary imports: the checks below use
 only the public API, through `#guard`, exposed bodies and the soundness theorems. -/
 
-/-- The lexicographic order on two bits, `(u1, u2) ⪯ (v1, v2)` when `2 u1 + u2 ≤ 2 v1 + v2`, over
-the variables `10`–`13`. -/
-def lexTwo : Order :=
-  ⟨[10, 11], [12, 13], [], [],
-    [⟨[(2, (10, false)), (1, (11, false)), (2, (12, true)), (1, (13, true))], 3⟩]⟩
-
-/-- Its transitivity proof with the fresh right variables `14`, `15`. -/
-def lexTwoTrans : OrderProof :=
-  ⟨[.goal (.hash 1) [.pol [.id 1, .id 2, .add, .id 3, .add]] 4], none⟩
-
-/-- Its reflexivity proof. -/
-def lexTwoRefl : OrderProof := ⟨[.goal (.hash 1) [] 5], none⟩
-
-#guard lexTwo.defCheck [] ⟨[14, 15], [], []⟩ lexTwoTrans lexTwoRefl
+-- `lex2` and its proofs come from `CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures`.
+#guard lex2.defCheck [] ⟨[14, 15], [], []⟩ lex2Trans lex2Refl
 
 -- The relation itself unfolds through exposed bodies: `01 ⪯ 10`, and not `10 ⪯ 01`.
-example : lexTwo.Le [false, true] [true, false] := by decide
-example : ¬ lexTwo.Le [true, false] [false, true] := by decide
+example : lex2.Le [false, true] [true, false] := by decide
+example : ¬ lex2.Le [true, false] [false, true] := by decide
 
 -- A passing `def_order` check gives a preorder on assignments, for any literals of the right
 -- length.
@@ -1695,8 +1683,8 @@ example {O : Order} {sp : List SpecStep} {w : TransVars} {tp rp : OrderProof}
     (ha : ∀ l ∈ z, l.1 ∉ O.aux) : IsPreorder (ℕ → Bool) (LoadedOrder.Le ⟨O, z⟩) :=
   LoadedOrder.isPreorder ⟨Order.good_of_defCheck h, hz, ha⟩
 
-/-- `lexTwo` loaded over `x0, x1`. -/
-def lexTwoZ : LoadedOrder := ⟨lexTwo, [(0, true), (1, true)]⟩
+/-- `lex2` loaded over `x0, x1`. -/
+def lex2Z : LoadedOrder := ⟨lex2, [(0, true), (1, true)]⟩
 
 /-- `x0 + x1 >= 1`, as the database `1`. -/
 def symDb : List (ℕ × PBConstr) := [(1, ⟨[(1, (0, true)), (1, (1, true))], 1⟩)]
@@ -1704,7 +1692,7 @@ def symDb : List (ℕ × PBConstr) := [(1, ⟨[(1, (0, true)), (1, (1, true))], 
 /-- `dom ~x0 + x1 >= 1 : x0 -> x1 x1 -> x0`, its goal `#2` refuted from `¬C` (`2`) and the
 premise `3`. -/
 def symDom (pres : Option (List ℕ)) (core : List (ℕ × PBConstr)) : Option ℕ :=
-  domCheck pres none lexTwoZ symDb core 2 ⟨[(1, (0, false)), (1, (1, true))], 1⟩
+  domCheck pres none lex2Z symDb core 2 ⟨[(1, (0, false)), (1, (1, true))], 1⟩
     [(0, .lit (1, true)), (1, .lit (0, true))] [.goal (.hash 2) [.pol [.id 2, .id 3, .add]] 4]
     none
 
