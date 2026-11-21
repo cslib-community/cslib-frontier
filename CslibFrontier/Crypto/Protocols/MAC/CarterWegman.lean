@@ -77,7 +77,7 @@ This module formalizes:
    `oneTimeStrongGame`, `oneTimeStrongGame_eq_oneTimeGame`, `oneTimeGame_le`,
    `oneTimeStrongGame_le`)**: because each `(k, r, m)` admits a unique valid tag, strong
    unforgeability (`(m', t') ≠ (m, t)`) and ordinary unforgeability (`m' ≠ m`) coincide and are
-   bounded by `ε` ([BonehShoup2023], Section 7.6, Lemma 7.11 and Theorem 7.12).
+   bounded by `ε` in the Carter–Wegman instance of [BonehShoup2023], Theorem 7.12.
 4. **Adaptive multi-query issued-counter / issued-slot Carter–Wegman MAC (`CounterForger`,
    `counterSlotGame`, `counterGame`, `counterStrongGame`, `counterStrongGame_eq_counterSlotGame`,
    `counterSlotGame_le`, `counterGame_le`, `counterStrongGame_le`)**: when each signing query draws
@@ -232,8 +232,8 @@ This module formalizes:
   forgery probability.
 * `Cslib.Crypto.Protocols.CarterWegman.oneTimeStrongGame_eq_oneTimeGame`,
   `Cslib.Crypto.Protocols.CarterWegman.oneTimeGame_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.oneTimeStrongGame_le`: Boneh–Shoup Section 7.6, Lemma 7.11
-  and Theorem 7.12 (`≤ ε`).
+  `Cslib.Crypto.Protocols.CarterWegman.oneTimeStrongGame_le`: the Carter–Wegman instance of
+  Boneh–Shoup Theorem 7.12 (`≤ ε`).
 * `Cslib.Crypto.Protocols.CarterWegman.run_interpret_counterRealHandler`: simulation equivalence
   between real and simulated signing handlers under transcript mapping.
 * `Cslib.Crypto.Protocols.CarterWegman.counterStrongGame_eq_counterSlotGame`,
@@ -522,7 +522,7 @@ structure OneTimeForger (M Y : Type) where
   /-- Forgery distribution given the queried message `m` and its tag `t`. -/
   forge : M → Y → PMF (M × Y)
 
-/-- The adaptive one-time EUF-CMA experiment ([BonehShoup2023], Section 7.6, Lemma 7.11 and
+/-- The adaptive one-time EUF-CMA experiment for Carter–Wegman ([BonehShoup2023],
 Theorem 7.12): the forger wins if `m' ≠ m` and `verify hash k r m' t' = true`. -/
 noncomputable def oneTimeGame (seed : PMF K) (hash : K → M → Y) (forger : OneTimeForger M Y) :
     PMF Bool := do
@@ -573,8 +573,9 @@ theorem oneTimeGame_eq_bind_uniform (seed : PMF K) (hash : K → M → Y)
         PMF.pure (decide (p.1 ≠ m) && verify hash k r p.1 p.2)]
   pmf_swap
 
-/-- **One-time Carter–Wegman EUF-CMA security** ([BonehShoup2023], Section 7.6, Lemma 7.11 and
-Theorem 7.12; [WegmanCarter1981]): if `hash` is `ε`-almost-Δ-universal under `seed`
+/-- **One-time Carter–Wegman EUF-CMA security** (the Carter–Wegman instance of
+[BonehShoup2023], Theorem 7.12; [WegmanCarter1981]): if `hash` is `ε`-almost-Δ-universal under
+`seed`
 (`IsDeltaUniversalHash seed hash ε`), then every adaptive one-time forger succeeds with
 probability at most `ε`. -/
 theorem oneTimeGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
