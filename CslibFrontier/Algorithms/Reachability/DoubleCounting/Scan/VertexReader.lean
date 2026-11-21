@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
@@ -35,8 +36,8 @@ also charges the simulation's input-position counter, giving space
 query-machine components and the final range check are supplied. The ordinary-import client
 is `CslibFrontierTests.DoubleCountingVertexReader`.
 
-The machine starts with dimension and width already loaded. Computing that initialization
-uniformly from a variable dimension is not certified here.
+The entry certificate `init_budget` loads a supplied binary dimension and computes its width
+in the same space budget.
 
 This is original infrastructure for [#6747](https://github.com/cslib-community/cslib-frontier/issues/6747).
 The input is a read-only word supplying the choices. Generating nondeterministic bits, composing
@@ -76,13 +77,16 @@ enc_structure encState : State where
 @[expose] def result (s : State) : Option ℕ :=
   if !s.truncated && decide (s.value < s.limit) then some s.value else none
 
+/-- The reader has attempted the number of reads in its retained width. -/
+@[expose] def isHalted (s : State) : Bool := decide (s.width ≤ s.cursor)
+
 /-- Read one ID prefix and output its optional binary rank after the fixed number of reads. -/
 @[expose] def machine (N : ℕ) : QueryMachine State where
   init := ⟨N, N.size, 0, 0, false⟩
   query := State.cursor
   next := fun (s, bit) => advance s bit
   emit _ := []
-  halted s := decide (s.width ≤ s.cursor)
+  halted := isHalted
   finish s := encOption encNat (result s)
 
 /-- Every live state contains precisely the numeric value of the prefix already read. -/
@@ -96,14 +100,14 @@ private theorem run_prefix (N : ℕ) (w : List Bool) (t : ℕ) (ht : t ≤ N.siz
     by_cases hw : t < w.length
     · have hg := List.getElem?_eq_getElem hw
       have he := List.take_succ_eq_append_getElem hw
-      simp only [QueryMachine.step, QueryMachine.read, machine, hl, decide_false,
+      simp only [QueryMachine.step, QueryMachine.read, machine, isHalted, hl, decide_false,
         Bool.false_eq_true,
         ite_false, advance, hg, Option.isSome_some, Option.getD_some, ite_true,
         Bool.not_true, Bool.or_false, he, binaryValue_snoc,
         show ¬w.length < t by omega, show ¬w.length < t + 1 by omega]
     · have hg : w[t]? = none := List.getElem?_eq_none_iff.mpr (by omega)
       have he : w.take (t + 1) = w.take t := by simp [List.take_add_one, hg]
-      simp [QueryMachine.step, QueryMachine.read, machine, hl, advance, hg, he,
+      simp [QueryMachine.step, QueryMachine.read, machine, isHalted, hl, advance, hg, he,
         show w.length < t + 1 by omega]
 
 /-- Exactly the declared width of attempted reads occurs before the first halt, even when
@@ -112,10 +116,10 @@ theorem halted_iff (N : ℕ) (w : List Bool) (t : ℕ) :
     (machine N).halted ((machine N).run w t) = true ↔ N.size ≤ t := by
   apply QueryMachine.halted_run_iff
   · rw [run_prefix N w _ le_rfl]
-    simp [machine]
+    simp [machine, isHalted]
   · intro t ht
     rw [run_prefix N w t (by omega)]
-    simp [machine, show ¬N.size ≤ t by omega]
+    simp [machine, isHalted, show ¬N.size ≤ t by omega]
 
 /-- The live query index is exactly the number of bits already attempted. -/
 theorem query_run (N : ℕ) (w : List Bool) (t : ℕ) (ht : t < N.size) :
@@ -172,25 +176,40 @@ theorem result_eq_decodeVertex (N : ℕ) (w : List Bool) :
   · have hl : (w.take N.size).length ≠ N.size := by simp [List.length_take]; omega
     simp [show w.length < N.size by omega]
 
+/-- Initialize the vertex reader from a binary dimension computed within the input budget. -/
+theorem init_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    {dimension : α → ℕ} (hdim : ComputableInSpace dimension encIn encNat budget) :
+    ComputableInSpace (fun a => (machine (dimension a)).init) encIn encState budget :=
+  encState_mk_budget hdim (budget_comp_linear natSize hdim)
+    ((constZero 0).mono_le fun _ => Nat.zero_le _)
+    ((constZero 0).mono_le fun _ => Nat.zero_le _)
+    ((constZero false).mono_le fun _ => Nat.zero_le _)
+
 /-- The actual input query is a native binary-register projection. -/
 theorem query_inSpace (N : ℕ) :
     ComputableInSpace (machine N).query encState encNat (fun s => (encState s).length) :=
   encState_cursor_budget (of_inO (ComputableInO.of_eq fun _ => rfl))
 
 /-- The halt comparison uses the retained width, with no dimension-dependent constant. -/
-theorem halted_inSpace (N : ℕ) :
-    ComputableInSpace (machine N).halted encState encBool (fun s => (encState s).length) := by
+theorem isHalted_inSpace :
+    ComputableInSpace isHalted encState encBool (fun s => (encState s).length) := by
   have hid := of_inO (ComputableInO.of_eq (encIn := encState) (encMid := encState) fun _ => rfl)
   exact (budget_finite (encC := encBool) Bool.not
     (budget_natLt (encState_cursor_budget hid) (encState_width_budget hid))).of_enc_eq
       fun s => by
         by_cases h : s.cursor < s.width
-        · simp [machine, h, show ¬s.width ≤ s.cursor by omega]
-        · simp [machine, h, show s.width ≤ s.cursor by omega]
+        · simp [isHalted, h, show ¬s.width ≤ s.cursor by omega]
+        · simp [isHalted, h, show s.width ≤ s.cursor by omega]
+
+/-- The machine's halt predicate uses the reader-state comparison. -/
+theorem halted_inSpace (N : ℕ) :
+    ComputableInSpace (machine N).halted encState encBool (fun s => (encState s).length) :=
+  isHalted_inSpace
 
 /-- Native transition computation uses only binary addition and finite option/flag operations. -/
-theorem next_inSpace (N : ℕ) :
-    ComputableInSpace (machine N).next (QueryMachine.encStateRead encState) encState
+theorem advance_inSpace :
+    ComputableInSpace (fun p : State × Option Bool => advance p.1 p.2)
+      (QueryMachine.encStateRead encState) encState
       (fun p => (QueryMachine.encStateRead encState p).length) := by
   have hs := fst encState (encOption encBool)
   have hb := snd encState (encOption encBool)
@@ -205,7 +224,13 @@ theorem next_inSpace (N : ℕ) :
     (fun ((f, present) : Bool × Bool) => f || !present) (budget_prod hf hsome)
   exact (encState_mk_budget (encState_limit_budget hs) (encState_width_budget hs)
     (budget_natSucc hc) hval hflag).of_enc_eq
-    fun p => by simp [machine, advance, two_mul]
+    fun p => by simp [advance, two_mul]
+
+/-- The machine's next state uses the certified reader update. -/
+theorem next_inSpace (N : ℕ) :
+    ComputableInSpace (machine N).next (QueryMachine.encStateRead encState) encState
+      (fun p => (QueryMachine.encStateRead encState p).length) :=
+  advance_inSpace
 
 /-- The rank check and optional binary result are native scalar operations. -/
 theorem result_inSpace :
@@ -230,12 +255,11 @@ theorem finish_inSpace (N : ℕ) :
 
 /-- Only the final optional rank is emitted. -/
 theorem output_eq (N : ℕ) (w : List Bool) (t : ℕ) :
-    (machine N).output w t = encOption encNat (result ((machine N).run w t)) := by
-  simp [QueryMachine.output, machine]
+    (machine N).output w t = encOption encNat (result ((machine N).run w t)) :=
+  (machine N).output_eq_finish_of_emit_nil w (fun _ => rfl) t
 
 /-- For each fixed dimension, the existing query-machine simulation certifies actual native
-reading and decoding of one ID prefix. The bound also charges the input-position machinery.
-Loading a variable dimension and computing its width in a uniform scanner remain in #6747. -/
+reading and decoding of one ID prefix. The bound also charges the input-position machinery. -/
 theorem native_decoder (N : ℕ) :
     ∃ time c, ComputableInTimeAndSpace
       (fun w : List Bool =>

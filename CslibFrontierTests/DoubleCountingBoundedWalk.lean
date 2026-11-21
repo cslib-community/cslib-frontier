@@ -7,7 +7,7 @@ Authors: Erik Demaine, Christian Reitwiessner
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk
+import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk.Runtime
 
 /-! # Bounded walk on the original input
 
@@ -117,6 +117,11 @@ example :
   ⟨init_budget edge start verdict 1 (of_inO ComputableInDegree.id'.inO_one),
     remainingFuel_inSpace (encOption encBool)⟩
 
+private theorem edgeNext_inSpace :
+    ComputableInSpace edge.next (QueryMachine.encStateRead (encOption encBool))
+      (encOption encBool) (fun p => (QueryMachine.encStateRead (encOption encBool) p).length) :=
+  budget_optionSome (budget_optionGetD false (snd (encOption encBool) (encOption encBool)))
+
 /-- The same walk has native routines with one space envelope for all selector paths. -/
 private theorem routines : Nonempty (Routines (machine edge start verdict 1 moving)
     (fun _ : List Bool => (machine edge start verdict 1 moving).init) encBits budget) := by
@@ -127,12 +132,9 @@ private theorem routines : Nonempty (Routines (machine edge start verdict 1 movi
     budget_const none (.refl _)
   have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
       (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
-  have hnext : ComputableInSpace edge.next (QueryMachine.encStateRead (encOption encBool))
-      (encOption encBool) (fun p => (QueryMachine.encStateRead (encOption encBool) p).length) :=
-    budget_optionSome (budget_optionGetD false (snd (encOption encBool) (encOption encBool)))
   refine Turing.DoubleCounting.BoundedWalk.exists_routines edge start verdict 1 moving
-    (encOption encBool) hstart (budget_const 0 (.refl _)) hnext (budget_optionIsSome hresult)
-    (budget_optionGetD false hresult) (fun _ => moving) ?_ ?_ ?_ ?_
+    (encOption encBool) hstart (budget_const 0 (.refl _)) edgeNext_inSpace
+    (budget_optionIsSome hresult) (budget_optionGetD false hresult) (fun _ => moving) ?_ ?_ ?_ ?_
   · exact (ComputableInSpace.constZero moving).mono_le fun _ => Nat.zero_le _
   · intro input
     rw [budget, encBits_apply]
@@ -162,5 +164,201 @@ example : ∃ R : Routines (machine edge start verdict 1 moving)
   refine (native_firstHalting_accept_iff edge start verdict 1 moving (fun _ => moving) R
     [true] (fun _ _ => true) (edge_halts [true]) (edge_agrees [true]) _).mpr ⟨[1], 0, rfl, ?_⟩
   simp [walkM, readNext, bind, StateT.bind, pure, StateT.pure, moving]
+
+private def runtimeStart (enabled : Bool) (_ _ : ℕ) : Option Bool :=
+  if enabled then none else some false
+
+private def indexedEdge : QueryMachine (Option Bool) :=
+  { edge with query := fun s => (s.getD false).toNat }
+
+/-- A single set of read certificates covers every runtime dimension and state. -/
+example :
+    let initial := Runtime.entry indexedEdge runtimeStart verdict 1 false moving
+    let M := Runtime.machine indexedEdge runtimeStart verdict 1 initial
+    let enc := Runtime.encState encBool (encOption encBool)
+    let size s := (enc s).length
+    ComputableInSpace M.query enc encNat size ∧
+      ComputableInSpace M.halted enc encBool size ∧
+      ComputableInSpace Runtime.remainingFuel enc (encOption encNat) size := by
+  intro initial M enc size
+  refine ⟨Runtime.query_inSpace indexedEdge runtimeStart verdict 1 initial encBool
+    (encOption encBool) ?_,
+    Runtime.halted_inSpace indexedEdge runtimeStart verdict 1 initial encBool (encOption encBool),
+    Runtime.remainingFuel_inSpace encBool (encOption encBool)⟩
+  exact of_finite (fun s : Option Bool => (s.getD false).toNat)
+
+/-- The same runtime transition machine re-enters a four-vertex graph and reads the original
+input while running the selected one-edge walk. -/
+example :
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let r : Registers 4 := ⟨0, 1, 1⟩
+    let next := Runtime.entry edge runtimeStart verdict 1 true r
+    let M := Runtime.machine edge runtimeStart verdict 1 initial
+    let bits := selectors (N := 4) 1 [1]
+    M.FirstHalting [true] bits next ∧
+      Runtime.remainingFuel (M.replay [true] bits next) = some 0 := by
+  intro initial r next M bits
+  have hhalt (u v : Fin 4) :
+      edge.halted (edge.runFrom [true] (runtimeStart true u.val v.val) 1) = true := by rfl
+  have hedge (u v : Fin 4) :
+      verdict (edge.runFrom [true] (runtimeStart true u.val v.val) 1) = true := by rfl
+  have hresult :
+      (walkM readNext (fun _ _ => pure true) r.target r.fuel r.current [1]).1 = some 0 := by
+    simp [r, walkM, readNext, bind, StateT.bind, pure, StateT.pure]
+  exact (Runtime.firstHalting_remainingFuel_iff edge runtimeStart verdict 1 initial true r [true]
+    (fun _ _ => true) hhalt hedge bits 0).mpr ⟨[1], rfl, hresult⟩
+
+/-- The runtime state envelope also covers arbitrary rejecting selector prefixes. -/
+example (input bits : List Bool) :
+    let r : Registers 4 := ⟨0, 1, 1⟩
+    let initial := Runtime.entry edge runtimeStart verdict 1 true r
+    let M := Runtime.machine edge runtimeStart verdict 1 initial
+    M.HaltsWithin input 12 ∧
+      (Runtime.encState encBool (encOption encBool) (M.run input bits)).length ≤ 83 := by
+  intro r initial M
+  have hcallee (u v : Fin 4) (t : ℕ) (_ : t ≤ 1) :
+      (encOption encBool (edge.runFrom input (runtimeStart true u.val v.val) t)).length ≤ 2 := by
+    cases edge.runFrom input (runtimeStart true u.val v.val) t with
+    | none => decide
+    | some answer => cases answer <;> decide
+  refine ⟨Runtime.haltsWithin edge runtimeStart verdict 1 true r input,
+    (Runtime.length_run_le edge runtimeStart verdict 1 true r input bits encBool
+      (encOption encBool) 2 hcallee).trans ?_⟩
+  decide
+
+private def runtimeDimension (p : Bool × ℕ) := if p.1 then 4 else 2
+
+private def runtimeRegisters (p : Bool × ℕ) : Registers (runtimeDimension p) :=
+  ⟨⟨0, by dsimp [runtimeDimension]; cases p.1 <;> decide⟩,
+    ⟨if p.1 then 3 else 1, by dsimp [runtimeDimension]; cases p.1 <;> decide⟩, p.2⟩
+
+/-- A single native entry routine loads a two- or four-vertex graph and the supplied fuel. -/
+example :
+    let enc := encPair encBool encNat
+    ComputableInSpace (fun p => Runtime.entry edge runtimeStart verdict 1 p.1 (runtimeRegisters p))
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc
+  have hcontext := fst encBool encNat
+  refine Runtime.entry_budget edge runtimeStart verdict 1 encBool (encOption encBool)
+    hcontext (budget_finite (fun b : Bool => if b then 4 else 2) hcontext)
+    ?_ ?_ (snd encBool encNat)
+  · exact budget_const 0 (.refl _)
+  · exact budget_finite (fun b : Bool => if b then 3 else 1) hcontext
+
+private theorem runtimeDimension_pos (p : Bool × ℕ) : 0 < runtimeDimension p := by
+  unfold runtimeDimension
+  cases p.1 <;> decide
+
+/-- The binary entry accepts a caller-supplied rank and fuel at either runtime dimension. -/
+example :
+    let enc := encPair encBool (encPair encNat encNat)
+    ComputableInSpace
+      (fun (enabled, rank, fuel) => Runtime.entryRanks edge runtimeStart verdict 1 enabled
+        (runtimeDimension_pos (enabled, 0)) rank (if enabled then 3 else 1) fuel)
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc
+  have hcontext := fst encBool (encPair encNat encNat)
+  have hdata := snd encBool (encPair encNat encNat)
+  exact Runtime.entryRanks_budget edge runtimeStart verdict 1 encBool (encOption encBool)
+    (fun p => runtimeDimension_pos (p.1, 0)) hcontext
+    (budget_finite (fun b : Bool => if b then 4 else 2) hcontext) (fst' hdata)
+    (budget_finite (fun b : Bool => if b then 3 else 1) hcontext) (snd' hdata)
+
+example (p : Bool × ℕ) :
+    let r := runtimeRegisters p
+    Runtime.entryRanks edge runtimeStart verdict 1 p.1 (runtimeDimension_pos p)
+      r.current.val r.target.val r.fuel = Runtime.entry edge runtimeStart verdict 1 p.1 r :=
+  Runtime.entryRanks_eq_entry edge runtimeStart verdict 1 p.1 (runtimeDimension_pos p)
+    (runtimeRegisters p)
+
+example :
+    Registers.ofRanks (N := 2) (by decide) 5 4 7 = ⟨1, 0, 7⟩ :=
+  rfl
+
+/-- The same native call update works at two dimensions with a runtime clock remainder. -/
+example :
+    let enc := encPair encBool encNat
+    let dest (p : Bool × ℕ) := (runtimeRegisters p).target
+    let callee (p : Bool × ℕ) := if p.1 then some true else none
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let M := Runtime.machine edge runtimeStart verdict 1 initial
+    ComputableInSpace (fun p => M.next
+      (⟨p.1, runtimeDimension p, Nat.zero_lt_of_lt (dest p).isLt,
+        .call (runtimeRegisters p) (dest p) p.2 (callee p)⟩, some p.1, false))
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc dest callee initial M
+  have hflag := fst encBool encNat
+  have hclock := snd encBool encNat
+  have hdim := budget_finite (encC := encNat) (fun b : Bool => if b then 4 else 2) hflag
+  have hdest := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 1) hflag
+  have hregisters := registersWord_budget (r := runtimeRegisters)
+    (budget_const 0 (.refl _)) hdest hclock
+  have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
+      (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
+  have hcallee := budget_finite (encC := encOption encBool)
+    (fun b : Bool => if b then some true else none) hflag
+  have hwalk := advanceCall_budget (r := runtimeRegisters) (v := dest)
+    edgeNext_inSpace (budget_optionIsSome hresult) (budget_optionGetD false hresult)
+    hdim hregisters hdest hclock hcallee (budget_optionSome hflag)
+    (budget_const false (.refl _))
+  refine (Runtime.state_budget (positive := fun p => Nat.zero_lt_of_lt (dest p).isLt)
+    encBool (encOption encBool) hflag hdim hwalk).of_enc_eq fun p => ?_
+  dsimp only [M]
+  rw [Runtime.machine_next_call]
+  rfl
+
+/-- One choice certificate covers a valid rank at width three and an out-of-range rank
+at width two, with fuel and adjacency context supplied by the caller. -/
+example :
+    let enc := encPair encBool encNat
+    let reader (p : Bool × ℕ) : Turing.DoubleCounting.NondeterministicChoice.State :=
+      let width := if p.1 then 3 else 2
+      ⟨true, false, ⟨runtimeDimension p, width, width, width, false⟩⟩
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let M := Runtime.machine edge runtimeStart verdict 1 initial
+    ComputableInSpace (fun p => M.next
+      (⟨p.1, runtimeDimension p, Nat.zero_lt_of_lt (runtimeRegisters p).current.isLt,
+        .choose (runtimeRegisters p) (reader p)⟩, none, false))
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc reader initial M
+  have hctx := fst encBool encNat
+  have hdim := budget_finite (encC := encNat) (fun b : Bool => if b then 4 else 2) hctx
+  have hwidth := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 2) hctx
+  have hdest := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 1) hctx
+  have hregisters := registersWord_budget (r := runtimeRegisters)
+    (budget_const 0 (.refl _)) hdest (snd encBool encNat)
+  have hreader : ComputableInSpace reader enc Turing.DoubleCounting.NondeterministicChoice.encState
+      (fun p => (enc p).length) := Turing.DoubleCounting.NondeterministicChoice.encState_mk_budget
+    (budget_const true (.refl _)) (budget_const false (.refl _))
+    (Turing.DoubleCounting.VertexReader.encState_mk_budget hdim hwidth hwidth hwidth
+      (budget_const false (.refl _)))
+  have hstart (v : (p : Bool × ℕ) → Fin (runtimeDimension p))
+      (_ : ComputableInSpace (fun p => (v p).val) enc encNat (fun p => (enc p).length)) :
+      ComputableInSpace (fun p => runtimeStart p.1 (runtimeRegisters p).current.val (v p).val)
+        enc (encOption encBool) (fun p => (enc p).length) :=
+    budget_finite (fun b : Bool => if b then none else some false) hctx
+  have hwalk := advanceChoice_budget (dimension := runtimeDimension) (r := runtimeRegisters)
+    (reader := reader) (start := fun p u v => runtimeStart p.1 u.val v.val) 1
+    hdim hregisters hreader (budget_const false (.refl _)) hstart
+  refine (Runtime.state_budget
+    (positive := fun p => Nat.zero_lt_of_lt (runtimeRegisters p).current.isLt)
+    encBool (encOption encBool) hctx hdim hwalk).of_enc_eq fun p => ?_
+  dsimp only [M]
+  rw [Runtime.machine_next_choice]
+
+/-- The complete runtime transition accepts any encoded phase, including after re-entry
+at a different dimension and with an input-dependent callee reply. -/
+example :
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let enc := Runtime.encStep encBool (encOption encBool)
+    ComputableInSpace (Runtime.machine edge runtimeStart verdict 1 initial).next
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro initial enc
+  have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
+      (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
+  exact Runtime.next_inSpace edge runtimeStart verdict 1 initial encBool (encOption encBool)
+    (budget_finite (fun b : Bool => if b then none else some false)
+      (fst encBool (encPair encNat encNat)))
+    edgeNext_inSpace (budget_optionIsSome hresult) (budget_optionGetD false hresult)
 
 end CslibFrontierTests.DoubleCountingBoundedWalk

@@ -33,6 +33,37 @@ open scoped BigOperators
 
 namespace Fintype
 
+private theorem expect_expect_norm_sub_sq_le_two {A E : Type*}
+    [Fintype A] [Nonempty A] [SeminormedAddCommGroup E] [InnerProductSpace ℝ E] (f : A → E) :
+    (𝔼 u, 𝔼 v, ‖f u - f v‖ ^ 2) ≤ 2 * (𝔼 u, ‖f u‖ ^ 2) := by
+  have hi : 0 ≤ (𝔼 u, 𝔼 v, inner ℝ (f u) (f v)) := by
+    rw [Fintype.expect_eq_sum_div_card]
+    refine div_nonneg ?_ (by positivity)
+    simp only [Fintype.expect_eq_sum_div_card, ← sum_div, ← inner_sum, ← sum_inner]
+    exact div_nonneg real_inner_self_nonneg (by positivity)
+  simp only [norm_sub_sq_real, expect_add_distrib, expect_sub_distrib, Fintype.expect_const,
+    ← mul_expect]
+  linarith only [hi]
+
+/-- A function constant along an update fiber bounds the squared change from
+resampling that fiber, with a factor of two from the two independent samples. -/
+theorem expect_expect_norm_sub_update_sq_le_two {I A E : Type*}
+    [Fintype I] [DecidableEq I] [Fintype A] [Nonempty A]
+    [SeminormedAddCommGroup E] [InnerProductSpace ℝ E]
+    (i : I) (f g : (I → A) → E) (hg : ∀ u a, g (update u i a) = g u) :
+    (𝔼 u, 𝔼 a, ‖f (update u i a) - f u‖ ^ 2) ≤ 2 * (𝔼 u, ‖f u - g u‖ ^ 2) := by
+  let p (u : I → A) := 𝔼 a, ‖f (update u i a) - f u‖ ^ 2
+  let q (u : I → A) := ‖f u - g u‖ ^ 2
+  change (𝔼 u, p u) ≤ 2 * (𝔼 u, q u)
+  rw [← expect_expect_update p i, ← expect_expect_update q i, mul_expect]
+  refine expect_le_expect fun u _ => ?_
+  simp only [p, q, update_idem, hg]
+  have hf (a b : A) : f (update u i b) - f (update u i a) =
+      (f (update u i b) - g u) - (f (update u i a) - g u) := by abel
+  simp only [hf]
+  rw [expect_comm]
+  exact expect_expect_norm_sub_sq_le_two (fun a => f (update u i a) - g u)
+
 /-- Mean squared distance of two independent uniform tuples is at most the sum of
 the mean squared changes on independently resampling each coordinate. -/
 theorem expect_expect_norm_sub_sq_le_sum_expect_expect_norm_sub_update_sq

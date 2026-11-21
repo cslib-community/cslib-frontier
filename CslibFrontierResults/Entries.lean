@@ -18,7 +18,11 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSelfImprovement
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSoundness
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SymmetricSoundness
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.TensorSelfImprovement
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
@@ -72,8 +76,10 @@ import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
+import CslibFrontier.Probability.HashFamily.Transport
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
+import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
@@ -457,11 +463,13 @@ import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExp
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Computability.Automata.MPDA.EmptinessComplete
 import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
 import CslibFrontier.Computability.Automata.MPDA.Separation
 import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
+import CslibFrontier.Computability.Automata.MPDA.Witness
 import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
@@ -481,6 +489,7 @@ import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+import CslibFrontier.Probability.Minimax.Dantzig
 
 /-!
 # Collected results
@@ -10873,6 +10882,19 @@ register_result "one-time-mac-from-pairwise-unpredictable-hash" where
     two-stage adversaries with arbitrary private state and no runtime restriction. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6949 at 269b724487."
 
+register_result "xpoly-hash-prediction" where
+  title := "One revealed Hxpoly digest lets the adversary predict another"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.29",
+      locator := "v0.6, printed p. 285" }
+  ]
+  theorems := [Cslib.Crypto.UHF.eval_predictionExperiment_xpolyHash]
+  scope := "The first query is the empty message, with digest equal to the key. The second \
+    message is the singleton zero, and the adversary predicts the square of the first digest. \
+    The attack wins with probability one for any finite field and any length bound of at \
+    least one. Both stages have strict PPT certificates at each prime modulus."
+
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
   topic := "cryptography"
@@ -10903,6 +10925,58 @@ register_result "fixed-length-polynomial-universality" where
     the probability of any specified difference by n/|F|. Both statements quantify over \
     distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
     without a growth condition. The zero-length vector has no distinct partner."
+
+register_result "difference-universal-hash-modulus-switching" where
+  title := "Transferring residues to a larger modulus preserves difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.22(a)",
+      locator := "v0.6, printed p. 283" }
+  ]
+  theorems := [Cslib.Probability.IsDeltaUniversalHash.zmod_cast]
+  scope := "Take the canonical representatives of the original digests modulo p and cast \
+    them to residues modulo N. The result preserves the difference bound for an arbitrary \
+    seed law under 2(p − 1) < N, which includes the source condition 2p ≤ N. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6961 at b5de2d09e6."
+
+register_result "difference-universal-hash-modulus-reduction" where
+  title := "A difference bound after reducing hash digests modulo a smaller modulus"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.22(b)",
+      locator := "v0.6, printed p. 283" }
+  ]
+  theorems := [Cslib.Probability.IsDeltaUniversalHash.zmod_cast_bound,
+    Cslib.Probability.IsDeltaUniversalHash.zmod_cast_div]
+  scope := "Reducing canonical residues from modulus p to modulus N multiplies the original \
+    difference bound by at most 2(p/N + 1). An original bound α/p gives 4α/N for N ≤ p. \
+    The first bound holds for any positive moduli and both allow arbitrary seed laws. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6969 at 28fa1e301d."
+
+register_result "polynomial-difference-universality-reduced-modulus" where
+  title := "The Hxpoly hash is difference universal after modulus reduction"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.23(b)",
+      locator := "v0.6, printed p. 284" }
+  ]
+  theorems := [Cslib.Probability.isDeltaUniversalHash_xpolyHashMod]
+  scope := "Messages are lists of at most ℓ blocks modulo N. Lift each block to its canonical \
+    residue modulo the prime p, evaluate Hxpoly with a uniform key modulo p, and reduce its \
+    digest modulo N. The difference bound is 4(ℓ + 1)/N for positive N ≤ p, including N = 1. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6985 at 55552a3b06."
+
+register_result "polynomial-universality-reduced-modulus" where
+  title := "The reduced Hpoly hash has a collision bound of 4ℓ/N"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.23(d)",
+      locator := "v0.6, printed p. 284" }
+  ]
+  theorems := [Cslib.Probability.isUniversalHash_polyHashMod]
+  scope := "Messages have at most ℓ blocks modulo N. With a uniform key modulo prime p, \
+    evaluate Hxpoly on the prefix, reduce its digest modulo N, and add the last block \
+    modulo N. The empty message hashes to zero. The collision bound is 4ℓ/N for positive N ≤ p."
 
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
@@ -11328,6 +11402,46 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
 
+register_result "low-individual-degree-projective-self-improvement" where
+  title := "Projective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 9.4 (restates Theorem 6.2)",
+      locator := "arXiv:2009.12982v1, §9.3, pp. 80–82" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_projectiveSymmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. Input failure is allowed under the \
+    successful agreement premise. The projective output is on the original local space and \
+    has an explicit failure outcome. The theorem bounds completeness loss, point mismatch, \
+    successful squared-distance consistency and the majorant-weighted failure probability by \
+    3000m(ε^(1/32) + δ^(1/32) + (d/|F|)^(1/32)), using the actual axis and point-consistency \
+    losses. The subsequent low-degree induction and soundness remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6612#issuecomment-7016129909."
+
+register_result "low-individual-degree-projective-soundness" where
+  title := "Quantitative soundness for projective low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 3.10",
+      locator := "arXiv:2009.12982v1, p. 15 and the proof in §6" }
+  ]
+  theorems := [
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs,
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs_of_winProb
+  ]
+  scope := "Quantitative variant of Theorem 3.10 for finite projective tensor strategies over \
+    a finite field, with k ≥ md. The original spaces may differ, and no symmetry is assumed. \
+    The two projective polynomial POVMs are on the original local spaces. Let r = d/|F| and \
+    σ = 320000 m² (100000 k² m R + exp(-k/(80000 m²))), where R sums the 1/128 powers of \
+    the axis, consistency and diagonal losses and of r. Let ζ = σ + √(4(σ + δ)) + mr, \
+    where δ is the consistency loss. Each opposite-player point disagreement is bounded by \
+    σ + √(8ζ + 4√(18ζ)), and full-polynomial disagreement by ζ + 2√(18ζ). The branchwise \
+    result allows an independent diagonal cutoff. The full-score result uses the Figure 2 \
+    cutoff and substitutes three times the full loss for each branch loss. Outside source \
+    check: https://github.com/cslib-community/cslib-frontier/pull/6621#issuecomment-7016634350."
+
 register_result "low-individual-degree-self-improvement-sdp" where
   title := "Strong duality for the low-individual-degree self-improvement SDP"
   topic := "nonlocal games"
@@ -11341,6 +11455,41 @@ register_result "low-individual-degree-self-improvement-sdp" where
     failure effect completing them to measurements. The dual ranges over common operator \
     majorants. The optimum has equal primal and dual traces, no primal failure mass and \
     complementary slackness for each polynomial."
+
+register_result "low-individual-degree-symmetric-self-improvement" where
+  title := "Nonprojective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Lemma 9.1",
+      locator := "arXiv:2009.12982v1, pp. 67–68" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_symmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. The input may have a failure outcome if \
+    its successful agreement meets the stated premise. One local polynomial submeasurement \
+    and a positive common majorant give the completeness, point mismatch, successful \
+    self-consistency and dual gap bounds with error 100m(√ε + √δ + √(d/|F|)), using the actual \
+    axis and point-consistency losses. Projective rounding and induction remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6609#issuecomment-7014866968."
+
+register_result "low-individual-degree-symmetric-soundness" where
+  title := "Quantitative symmetric soundness for the low-individual-degree test"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 6.1",
+      locator := "arXiv:2009.12982v1, p. 51 and the induction in §6.2, pp. 57–61" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_polynomial_POVM_of_symmetric]
+  scope := "Quantitative variant of Theorem 6.1 with its own explicit error function. The model \
+    is a finite tensor strategy over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. For dimension m and k ≥ md, a complete \
+    local POVM on polynomials of individual degree at most d has mean disagreement at most \
+    160000 m² (100000 k² m R + exp(-k/(80000 m²))). Here R sums the 1/128 powers of the three \
+    branch losses and the ratio d/|F|. The diagonal cutoff is independent and can be set to md \
+    for the Figure 2 verifier. The output can be nonprojective. Nonsymmetric strategies are a \
+    separate result. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6618#issuecomment-7016417669."
 
 register_result "mpda-one-hole-is-no-hole" where
   title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
@@ -11920,25 +12069,21 @@ register_result "banaszczyk-shifted-gaussian-tail" where
     s 0, extending Regev2009 Lemma 2.5 (which is centered at v = 0) to arbitrary shifts v : E."
 
 register_result "micciancio-regev-discrete-gaussian-norm-tail" where
-  title := "Discrete Gaussian sample-norm tail bound (dual-mass step)"
+  title := "Discrete Gaussian sample-norm tail bound above the smoothing parameter"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.4 (dual-mass step)",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.4",
       locator := "author's copy of December 27, 2005, §4, printed p. 15" }
   ]
   theorems := [
-    ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le
+    ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_smoothingParameter_le
   ]
-  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.4 (not the η_ε(L) ≤ s endpoint, \
-    which awaits ZLattice.smoothingParameter): for any full-rank discrete lattice L in a \
-    finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
-    n = 0), width s > 0, arbitrary center v : E, and real ε < 1 satisfying the dual-mass bound \
-    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 ≤ ε (the dual-mass condition unpacked \
-    from s ≥ η_ε(L) when ε > 0; 0 ≤ ε follows automatically), the discrete Gaussian probability \
-    (discreteGaussian L s hs v).toOuterMeasure {z : L | s √n < ‖(z : E) − v‖} is strictly less \
-    than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviations from the source: (1) proves \
-    the dual-mass step directly rather than the η_ε(L) ≤ s endpoint; (2) sharpens the source's \
-    non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) constant to strict \
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (of dimension n = finrank ℝ E, including n = 0), real 0 < ε < 1, width s > 0 \
+    satisfying ZLattice.smoothingParameter L ε ≤ s, and arbitrary center v : E, the discrete \
+    Gaussian probability (discreteGaussian L s hs v).toOuterMeasure {z : L | s √n < ‖(z : E) − v‖} \
+    is strictly less than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviation from the \
+    source: sharpens the source's non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) constant to strict \
     ((1 + ε) / (1 − ε)) · (1 / 4) ^ n via the factor-of-2-free shifted Banaszczyk bound \
     (1 / 4 instead of 1 / 2)."
 
@@ -11951,21 +12096,23 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
   ]
   theorems := [
     ZLattice.tvDist_gaussian_shift_quotient_le,
-    ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le
+    ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le
   ]
-  scope := "MicciancioRegev2007 Lemma 4.1 in two parts. (a) Dual-mass form of the first sentence: \
-    for any full-rank discrete lattice L in a finite-dimensional real inner product space E with \
-    Borel measurable structure, fundamental domain F for L, width s > 0, and arbitrary center \
-    c : E, the quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total \
-    variation distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the \
-    normalized quotient Haar measure. (b) Smoothing-parameter corollary for the centered Gaussian \
-    (c = 0): for ε > 0 and ZLattice.smoothingParameter L ε ≤ s, the same total variation distance \
-    is at most ε. Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ \
-    distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to the \
-    source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}), and tvDist ≤ ε in (b) is the source's \
-    Δ ≤ ε / 2 (identical constants, not looser); (2) stated on the quotient group E ⧸ L with \
-    normalized restricted volume on an arbitrary fundamental domain F rather than a basis \
-    parallelepiped P(B); (3) the η_ε specialization is registered for the centered Gaussian only."
+  scope := "MicciancioRegev2007 Lemma 4.1 in both sentences stated in the source. (a) Dual-mass \
+    bound (tvDist_gaussian_shift_quotient_le): for any full-rank discrete lattice L in a \
+    finite-dimensional real inner product space E with Borel measurable structure, fundamental \
+    domain F for L, width s > 0, and arbitrary center c : E, the quotient pushforward of the \
+    shifted continuous Gaussian D_{s, c} to E ⧸ L has total variation distance at most \
+    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the normalized quotient Haar \
+    measure. (b) Smoothing-parameter bound \
+    (tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le): for ε > 0 and \
+    ZLattice.smoothingParameter L ε ≤ s, the same total variation distance is at most ε. \
+    Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ distance \
+    tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to the source's \
+    half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}), and tvDist ≤ ε is the source's Δ ≤ ε / 2 \
+    (identical constants, not looser); (2) stated on the quotient group E ⧸ L with normalized \
+    restricted volume on an arbitrary fundamental domain F rather than a basis parallelepiped \
+    P(B)."
 
 register_result "classical-quantum-tuple-mutual-information-chain" where
   title := "Mutual information chain rule for finite classical tuples and a quantum register"
@@ -12000,51 +12147,46 @@ register_result "micciancio-regev-indep-sum-sq-norm" where
     generalizing ℝⁿ to any real Hilbert space E)."
 
 register_result "micciancio-regev-discrete-gaussian-directional-moments" where
-  title := "Directional first and second moments of discrete Gaussians (dual-mass step)"
+  title := "Directional first and second moments of discrete Gaussians above twice the \
+    smoothing parameter"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.2 (dual-mass step)",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.2",
       locator := "author's copy of December 27, 2005, §4, printed pp. 13–14" }
   ]
   theorems := [
-    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le,
-    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le
+    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le_of_smoothingParameter_le,
+    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le_of_smoothingParameter_le
   ]
-  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.2 (not the 2 · η_ε(L) ≤ s endpoint, \
-    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
-    finite-dimensional real inner product space E (including dimension 0), width s > 0, center \
-    c : E, unit vector u : E (‖u‖ = 1), and real ε < 1 satisfying \
-    gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
-    when ε > 0; 0 ≤ ε follows automatically), |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫]| ≤ (ε / (1 − ε)) s \
-    and |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫²] − s² / (2π)| ≤ (ε / (1 − ε)) s². Deviations from the \
-    source: (1) states the smoothing hypothesis directly in dual-mass form rather than via \
-    η_ε(L); (2) uses standard Gaussian scale s > 0 rather than s = 1; (3) uses the exact \
-    probability-weighted tsum form (bridged to Bochner integrals over \
-    (discreteGaussian L s hs c).toMeasure by integral_sub_discreteGaussian_eq_tsum and \
-    integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (including dimension 0), real 0 < ε < 1, width s > 0 satisfying \
+    2 · ZLattice.smoothingParameter L ε ≤ s, center c : E, and unit vector u : E (‖u‖ = 1), \
+    matches MicciancioRegev2007 Lemma 4.2 directly in probability-weighted directional tsum form: \
+    |∑' x : L, (discreteGaussian L s hs c x).toReal · ⟪(x : E) − c, u⟫| ≤ (ε / (1 − ε)) s and \
+    |(∑' x : L, (discreteGaussian L s hs c x).toReal · ⟪(x : E) − c, u⟫²) − s² / (2π)| ≤ \
+    (ε / (1 − ε)) s²."
 
 register_result "micciancio-regev-discrete-gaussian-moments" where
-  title := "Mean-norm and expected squared-norm bounds for discrete Gaussians (dual-mass step)"
+  title := "Mean-norm and expected squared-norm bounds for discrete Gaussians above twice the \
+    smoothing parameter"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.3 (dual-mass step)",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.3",
       locator := "author's copy of December 27, 2005, §4, printed p. 14" }
   ]
   theorems := [
-    ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le,
-    ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le
+    ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le_of_smoothingParameter_le,
+    ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le_of_smoothingParameter_le
   ]
-  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.3 (not the 2 · η_ε(L) ≤ s endpoint, \
-    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
-    finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
-    n = 0), width s > 0, center c : E, and real ε < 1 satisfying \
-    gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
-    when ε > 0; 0 ≤ ε follows automatically), ‖𝔼_{x ~ D_{L, s, c}}[x − c]‖² ≤ \
-    (ε / (1 − ε))² s² n and 𝔼_{x ~ D_{L, s, c}}[‖x − c‖²] ≤ (1 / (2π) + ε / (1 − ε)) s² n. \
-    Deviations from the source: (1) states the smoothing hypothesis directly in dual-mass form \
-    rather than via η_ε(L); (2) uses general width s > 0 rather than s = 1; (3) uses the exact \
-    probability-weighted tsum form (bridged to Bochner integrals by \
-    integral_sub_discreteGaussian_eq_tsum and integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (of dimension n = finrank ℝ E, including n = 0), real 0 < ε < 1, width s > 0 \
+    satisfying 2 · ZLattice.smoothingParameter L ε ≤ s, and center c : E, matches \
+    MicciancioRegev2007 Lemma 4.3 directly in probability-weighted tsum form: \
+    ‖∑' x : L, (discreteGaussian L s hs c x).toReal • ((x : E) − c)‖² ≤ (ε / (1 − ε))² s² n and \
+    ∑' x : L, (discreteGaussian L s hs c x).toReal · ‖(x : E) − c‖² ≤ \
+    (1 / (2π) + ε / (1 − ε)) s² n (bridged directly to Bochner integrals over \
+    (discreteGaussian L s hs c).toMeasure by integral_sub_discreteGaussian_eq_tsum and \
+    integral_norm_sub_sq_discreteGaussian_eq_tsum)."
 
 -- https://github.com/cslib-community/cslib-frontier/pull/6844
 register_result "micciancio-regev-smoothing-parameter-dual-minimum" where
@@ -12080,19 +12222,161 @@ register_result "micciancio-regev-shifted-gaussian-mass-le-zero" where
     (IsZLattice ℝ L) or MeasurableSpace E hypothesis is required; the proof projects c \
     orthogonally onto Submodule.span ℝ (L : Set E) and applies Poisson summation on the span."
 
-register_result "micciancio-regev-smoothing-dual-mass-lambda-n" where
-  title := "Dual-mass form of the Micciancio–Regev λ_n smoothing bound"
+register_result "micciancio-regev-smoothing-parameter-lambda-n" where
+  title := "Smoothing parameter upper bound from the nth successive minimum"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 3.3 (dual-mass step)",
-      locator := "December 27, 2005 author's copy (Gaussian.pdf), §3, printed pp. 11–12" }
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.3",
+      locator := "author's copy of December 27, 2005, §3, printed pp. 11–12" }
   ]
-  theorems := [ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum]
-  scope := "Dual-mass step toward Micciancio–Regev Lemma 3.3: for every full-rank discrete \
-    lattice L in a finite-dimensional real inner product space E of dimension n = finrank ℝ E \
-    (including n = 0), every ε > 0, and every s > 0 with \
-    √(ln(2n(1 + 1/ε)) / π) · λ_n(L) ≤ s, this theorem proves the nonzero reciprocal-width dual \
-    mass inequality gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε, stopping one \
-    step before wrapping that dual-mass condition into the smoothing-parameter infimum \
-    η_ε(L) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no MeasurableSpace E hypothesis. The \
-    asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is not formalized here."
+  theorems := [
+    ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum
+  ]
+  scope := "For every full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E of dimension n = finrank ℝ E (including n = 0) and every ε > 0, \
+    ZLattice.smoothingParameter L ε ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no \
+    MeasurableSpace E hypothesis. The asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is \
+    not formalized here."
+
+register_result "symmetric-game-minimax" where
+  title := "Every symmetric zero-sum game has a solution"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Theorem 1", locator := "Section 1, p. 166" }
+  ]
+  theorems := [
+    Cslib.Probability.exists_isSymmetricGameSolution
+  ]
+  scope := "Every skew-symmetric matrix P (Pᵀ = -P) over every linearly ordered field, indexed by \
+    a nonempty finite type, has a solution in the sense of Adler's (3): a vector z with z ≥ 0, \
+    ∑ z = 1 and P z ≥ 0, over the same field. The source states it over ℝ. Proved from the \
+    library's minimax theorem (exists_isMinimaxValue), which is itself proved from \
+    linear-programming duality, so it is not an independent route to duality."
+
+register_result "dantzig-game-lp-readoff" where
+  title := "Dantzig's game: optimal solutions or infeasibility read off a solution"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Theorem 2(b)–(c)", locator := "Section 1, p. 166" },
+    { paper := Dantzig1951, theorem := unverified, locator := unverified }
+  ]
+  theorems := [
+    Cslib.Probability.IsSymmetricGameSolution.optimal_of_dantzigGame,
+    Cslib.Probability.IsSymmetricGameSolution.not_feasible_of_dantzigGame
+  ]
+  scope := "Over every linearly ordered field, for the program min {c ⬝ x | A x ≥ b, x ≥ 0} and \
+    its dual max {y ⬝ b | yᵀ A ≤ c, y ≥ 0} (Adler's (1)–(2)) and their Dantzig game (4), with \
+    finite index types. For a solution (y, x, t) of the game: if t > 0, then x / t and y / t are \
+    feasible and optimal (2(b)); if c ⬝ x < y ⬝ b, then the primal or the dual is infeasible \
+    (2(c)). Theorem 2(a), t (y ⬝ b - c ⬝ x) = 0, is the step mul_sub_eq_zero_of_dantzigGame. \
+    Nothing is concluded from a solution with t = 0 = y ⬝ b - c ⬝ x (the gap noted on p. 166); \
+    the repair is registered only for feasibility problems with integer data \
+    (adler-feasibility-game-integer). Dantzig (1951) is cited through Adler and was not inspected."
+
+register_result "adler-bounded-feasibility-game" where
+  title := "The Dantzig game of a bounded feasibility problem has no solution with t = 0"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Proposition 6", locator := "Section 3.1, p. 171" }
+  ]
+  theorems := [
+    Cslib.Probability.IsSymmetricGameSolution.pos_of_feasibilityGame_bounded
+  ]
+  scope := "Over every linearly ordered field, for every A, b with finite index types and every \
+    β: every solution (y, v, x, u, t) of the Dantzig game associated with the bounded problem \
+    F(Â, b̂(β)) (A x = b, ∑ x + s = β, x, s ≥ 0; the game is the Dantzig game of Adler's \
+    auxiliary program min u of Section 2, p. 168) has t > 0. The source assumes β > 0; the \
+    statement does not."
+
+register_result "adler-feasibility-game-integer" where
+  title := "Linear feasibility with integer data reduces to one symmetric zero-sum game"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Propositions 4, 6 and 7 (Karp-type reduction)",
+      locator := "Section 3.1, pp. 170–172" }
+  ]
+  theorems := [
+    Cslib.Probability.resolves_of_feasibilityGame_bounded
+  ]
+  scope := "Integer data only: A an integer matrix and b an integer vector, with finite index \
+    types and entries of absolute value at most B, solved over any linearly ordered field. For \
+    every β ≥ card n · (card n)! · (card m · B² + 1)^(card n) (Leibniz bound from Cramer's rule, \
+    Matrix.exists_int_nonneg_mulVec_eq, in place of Adler's Hadamard bound m(√m θ)^m + 1), every \
+    solution (y, v, x, u, t) of the Dantzig game associated with F(Â, b̂(β)), a game with \
+    card m + card n + 5 pure strategies, has t > 0; if u = 0 the first card n coordinates of \
+    x / t solve A x = b, x ≥ 0, and if u > 0 the system has no solution. Solutions of the game \
+    exist by symmetric-game-minimax. Not formalized: Adler's strongly polynomial resource \
+    claims, the algebraic-data bound, the reduction of a pair of dual programs to one \
+    feasibility problem (p. 167), the Cook-type reduction (Section 3.2) and Section 4."
+
+register_result "mpda-hole-bounded-emptiness" where
+  title := "Repaired Algorithm 1 decides K-hole-bounded emptiness of an MPDA"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Theorem 1",
+      locator := "arXiv:2002.05950v2, Section 3, Theorem 1 (printed p. 10) and its proof; \
+        Algorithm 1 (printed p. 8) with AddHole and AddPop as Algorithms 3 and 4 in Appendix B \
+        (printed p. 23); well-nested reachability WR as Algorithm 2 and Lemma 1; holes as in \
+        Definition 1, printed p. 5" }
+  ]
+  theorems := [Cslib.Automata.MPDA.isEmpty_iff,
+    Cslib.Automata.MPDA.isEmpty_eq_false_of_mem_boundedLanguage]
+  scope := "For every MPDA with finitely many control states, input letters and stack symbols, \
+    decidable transitions and initial and final states, and every K, including K = 0 (the \
+    source states Theorem 1 for positive K): repaired Algorithm 1, isEmpty K, answers true \
+    exactly when no word has an accepting run from an initial state with empty stacks to a final \
+    state with empty stacks whose transition sequence is K-hole-bounded. The search is the \
+    worklist loop of Algorithm 1 over lists of hole triples with at most K holes, with WR, the \
+    atomic hole segments AHS_i and the hole segments HS_i computed as finite fixed points, and \
+    with the loop's fuel bounded by the number of such lists. Repaired Algorithm 1 differs from \
+    the printed algorithm in two ways. First, HS_i is the reflexive-transitive closure of AHS_i, \
+    where line 9 takes the transitive closure. This lets AddPop remove a hole whose last atomic \
+    segment is popped. It also lets AddHole open a hole (i, s, s) without taking a transition, \
+    even from a state with no push: such a hole is realized by the empty factor, while \
+    Definition 1 counts nonempty factors; it only uses up one of the K holes, and the soundness \
+    proof allows the empty realization. Second, the search starts from the lists [s] with s \
+    reached from an initial state by a well-nested run, not from the initial state alone (line \
+    10 of Algorithm 1, printed p. 8). Starting from the initial state alone, with the reflexive \
+    HS_i and otherwise as isEmpty, is not complete: the module client test \
+    CslibFrontierTests.MPDA.Emptiness defines this printed-start variant and gives a two-stack \
+    MPDA whose run nop push0 push1 pop0 pop1 is accepting and 2-hole-bounded, on which the \
+    printed-start variant answers true and repaired Algorithm 1 false. There the initial state \
+    has no push and no pop, so the variant only opens empty holes there, and the well-nested \
+    acceptance check of line 3 cannot pass the crossing pushes and pops. Theorem 1 states \
+    termination and correctness; the complexity bound given in the paragraph after it is \
+    not formalized, and witness generation is the entry mpda-hole-bounded-witness. Source \
+    check: outside-fleet agent review (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, \
+    against arXiv:2002.05950v2, printed pp. 5, 8, 10 and 22-23: \
+    https://github.com/cslib-community/cslib-frontier/pull/6748#pullrequestreview-5998692474."
+
+register_result "mpda-hole-bounded-witness" where
+  title := "Generating a K-hole-bounded accepting run of an MPDA from the emptiness search"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Section 4 (witness generation)",
+      locator := "arXiv:2002.05950v2, Section 4 \"Generating a Witness\", printed p. 11; \
+        Appendix C, Algorithm 5 (well-nested witness generation, printed p. 24) and Algorithm 6 \
+        (non-well-nested witness generation, printed p. 25)" }
+  ]
+  theorems := [Cslib.Automata.MPDA.isSome_witness_iff, Cslib.Automata.MPDA.witness_spec]
+  scope := "For every MPDA whose control states, input letters and stack symbols are FinEnum \
+    types, with decidable transitions and initial and final states, and every K: the executable \
+    function witness K returns a sequence of transitions exactly when the search isEmpty K of \
+    the mpda-hole-bounded-emptiness entry answers false, and every returned sequence labels a \
+    run from an initial state with empty stacks to a final state with empty stacks and is \
+    K-hole-bounded. By Theorem 1 it therefore returns a run exactly when the K-hole-bounded \
+    language is not empty. The returned run need not be shortest. The run is built backwards \
+    from an accepting list as in Algorithm 6: each open hole carries its atomic hole segments, \
+    newest first, which play the role of the source's witness stacks, and each step back over \
+    AddPop or AddHole appends the corresponding pop or block. Two deviations. First, Algorithm \
+    5 is repaired: as printed, its last case may recurse on the pair it was called on, so the \
+    recursion need not terminate; the Lean search wnWitness recurses with fuel, and with the \
+    fuel used to compute WR it succeeds exactly on the pairs of WR. Second, the source \
+    backtracks along a recorded BFS tree; the Lean search recomputes the rounds of the search \
+    until they stabilize and takes each predecessor from the previous round, so it needs no \
+    parent pointers. The module client test CslibFrontierTests.MPDA.Witness evaluates the \
+    witness on a two-stack MPDA whose accepting runs all have two holes: none for K = 1, an \
+    accepting run for K = 2. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6997 at cf522d35ed, against arXiv:2002.05950v2, printed \
+    pp. 11-12 and 24-25: \
+    https://github.com/cslib-community/cslib-frontier/pull/6997#pullrequestreview-6007294100."

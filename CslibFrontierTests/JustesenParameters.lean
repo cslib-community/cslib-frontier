@@ -81,4 +81,18 @@ example (seed : Fin (codeLength 1 1) → Bool) :
     rfl
   · exact (SeedWeight.generatedWeight_output seed (1, 0)).2.2
 
+open Turing SeedWeight.Dimensions in
+/-- One native machine computes the weight from the raw input at layer one for every seed. -/
+example :
+    ∃ (time : Input → ℕ) (C k : ℕ) (State : Type) (_ : Finite State)
+        (tm : MultiTapeTM k Bool State),
+      ∀ seed : Fin (codeLength 1 1) → Bool,
+        let x := canonicalInput seed (1, 0)
+        let budget := C * ((encPair encNat encNat (1, 1)).length + 1)
+        tm.ComputesInTimeAndSpace (encInput x) (encNat (generatedWeight seed (1, 0)))
+          (time x) budget ∧
+          (encNat (generatedWeight seed (1, 0))).length ≤ budget := by
+  obtain ⟨time, C, k, State, hfinite, tm, h⟩ := generatedWeight_computesInTimeAndSpace
+  exact ⟨time, C, k, State, hfinite, tm, fun seed => h (w := 1) (n := 1) seed (1, 0)⟩
+
 end CslibFrontierTests.JustesenParameters

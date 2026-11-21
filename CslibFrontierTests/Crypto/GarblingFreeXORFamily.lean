@@ -182,6 +182,26 @@ private theorem capacity_adversary {q : Query ValidCircuit} {state : Bool}
   obtain ⟨rfl, -⟩ := h
   decide
 
+/-- At `k = 5`, `prvSimReduction` enters the guarded branch and issues `16` oracle requests (`8` for
+each of `validCircuit₁`'s two non-XOR gates). -/
+example {State : Type} (oracle : Unit × List Bool → StateT State PMF (List Bool)) (s : State) :
+    ∃ result s' transcript,
+      (result, s', transcript) ∈
+        (ProbOracleComp.runWith (OracleComp.withTranscript oracle)
+          (FreeXOR.prvSimReduction toyHash adversary 5 []) (s, [])).support ∧
+      transcript.length = 16 := by
+  obtain ⟨⟨result, s', transcript⟩, hmem⟩ := PMF.support_nonempty
+    (ProbOracleComp.runWith (OracleComp.withTranscript oracle)
+      (FreeXOR.prvSimReduction toyHash adversary 5 []) (s, []))
+  obtain ⟨q, st, hq, hlen⟩ :=
+    FreeXOR.exists_of_mem_support_runWith_prvSimReduction toyHash adversary 5 oracle hmem
+  simp only [adversary, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
+    Prod.mk.injEq] at hq
+  obtain ⟨rfl, -⟩ := hq
+  refine ⟨result, s', transcript, hmem, ?_⟩
+  rw [hlen]
+  decide
+
 /-- At `k = 5`, the `prv.sim` advantage of `adversary` equals the CCR advantage of
 `prvSimReduction`. -/
 example : prvSimAdvantage (FreeXOR.scheme toyHash) FreeXOR.phiXor 5

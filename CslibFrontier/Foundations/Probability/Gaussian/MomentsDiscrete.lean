@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
 public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
+public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.IndependentSumNorm
 public import Mathlib.MeasureTheory.Function.LpSpace.Basic
 
@@ -33,24 +34,30 @@ Lemma 2.11) lives in `CslibFrontier.Foundations.Probability.IndependentSumNorm`.
   `ZLattice.summable_discreteGaussian_mul_inner_sub_sq`: summability of directional first and
   second moments for any discrete `ℤ`-submodule at positive width.
 * `ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le`,
-  `ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le`: dual-mass step toward
+  `ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le`,
+  `ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le_of_smoothingParameter_le`,
+  `ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le_of_smoothingParameter_le`:
   [MicciancioRegev2007], Lemma 4.2 (pp. 13–14), bounding directional mean and second moment
-  around `s² / (2π)` under `ρ_{2/s}(L* \ {0}) ≤ ε < 1` (rather than the `η_ε` endpoint).
+  around `s² / (2π)` in both dual-mass form (`ρ_{2/s}(L* \ {0}) ≤ ε < 1`) and
+  smoothing-parameter form (`2 * η_ε(L) ≤ s`, `0 < ε < 1`).
 * `ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le`,
-  `ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le`: dual-mass step toward
+  `ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le`,
+  `ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le_of_smoothingParameter_le`,
+  `ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le_of_smoothingParameter_le`:
   [MicciancioRegev2007], Lemma 4.3 (p. 14), bounding the squared norm of the mean vector and
-  the expected squared norm.
+  the expected squared norm in both dual-mass and `2 * η_ε(L) ≤ s` forms.
 * `ZLattice.memLp_sub_discreteGaussian`, `ZLattice.integral_sub_discreteGaussian_eq_tsum`,
   `ZLattice.integral_norm_sub_sq_discreteGaussian_eq_tsum`: `MemLp 2` and Bochner integral
   bridges for `(discreteGaussian L s hs c).toMeasure`.
 
 ## References
 
-* [MicciancioRegev2007], Lemma 4.2 (pp. 13–14) and Lemma 4.3 (p. 14) of the December 27, 2005
-  author version.
+* [MicciancioRegev2007], Definition 3.1 (p. 10), Lemma 4.2 (pp. 13–14), and Lemma 4.3 (p. 14) of
+  the December 27, 2005 author version.
 
-The moment bounds are stated in dual-mass form `gaussianMass D (2 / s) 0 - 1 ≤ ε`, which is the
-dual-mass step unpacked from `2 * η_ε(L) ≤ s` (rather than the `η_ε`-parameterized endpoint).
+The moment bounds are provided in both dual-mass form `gaussianMass D (2 / s) 0 - 1 ≤ ε` (which
+also covers `ε = 0` in dimension zero) and smoothing-parameter form
+`2 * smoothingParameter L ε ≤ s` (for `0 < ε < 1`).
 -/
 
 public section
@@ -981,6 +988,69 @@ theorem tsum_discreteGaussian_mul_norm_sub_sq_le
     _ = (finrank ℝ E : ℝ) * ((1 / (2 * Real.pi) + ε / (1 - ε)) * s ^ 2) := by
       simp [Finset.sum_const, nsmul_eq_mul]
     _ = (1 / (2 * Real.pi) + ε / (1 - ε)) * s ^ 2 * finrank ℝ E := by ring
+
+private theorem dual_mass_two_div_le_of_two_mul_smoothingParameter_le
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    {s ε : ℝ} (hs : 0 < s) (hε0 : 0 < ε) (hη : 2 * smoothingParameter L ε ≤ s) :
+    gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (2 / s) 0 - 1 ≤ ε := by
+  have h := (smoothingParameter_le_iff L (half_pos hs) hε0).mp (by linarith)
+  simpa only [one_div_div] using h
+
+/-- Micciancio–Regev Lemma 4.2 (first directional moment, [MicciancioRegev2007], pp. 13–14 of
+the December 27, 2005 author version): for any full-rank discrete lattice `L`, width `s > 0`,
+center `c`, unit vector `u`, and `0 < ε < 1` with `2 * η_ε(L) ≤ s`,
+`|𝔼_{x ~ D_{L,s,c}}[⟪x - c, u⟫]| ≤ ε / (1 - ε) * s`. Holds in all dimensions including `0`. -/
+theorem abs_tsum_discreteGaussian_mul_inner_sub_le_of_smoothingParameter_le
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (s : ℝ) (hs : 0 < s) (c u : E) (hu : ‖u‖ = 1)
+    (ε : ℝ) (hε0 : 0 < ε) (hε : ε < 1) (hη : 2 * smoothingParameter L ε ≤ s) :
+    |∑' x : L, (discreteGaussian L s hs c x).toReal * ⟪(x : E) - c, u⟫| ≤
+      ε / (1 - ε) * s :=
+  abs_tsum_discreteGaussian_mul_inner_sub_le L s hs c u hu ε hε
+    (dual_mass_two_div_le_of_two_mul_smoothingParameter_le L hs hε0 hη)
+
+/-- Micciancio–Regev Lemma 4.2 (second directional moment, [MicciancioRegev2007], pp. 13–14 of
+the December 27, 2005 author version): for any full-rank discrete lattice `L`, width `s > 0`,
+center `c`, unit vector `u`, and `0 < ε < 1` with `2 * η_ε(L) ≤ s`,
+`|𝔼_{x ~ D_{L,s,c}}[⟪x - c, u⟫²] - s² / (2π)| ≤ ε / (1 - ε) * s²`. Holds in all dimensions
+including `0`. -/
+theorem abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le_of_smoothingParameter_le
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (s : ℝ) (hs : 0 < s) (c u : E) (hu : ‖u‖ = 1)
+    (ε : ℝ) (hε0 : 0 < ε) (hε : ε < 1) (hη : 2 * smoothingParameter L ε ≤ s) :
+    |(∑' x : L, (discreteGaussian L s hs c x).toReal * ⟪(x : E) - c, u⟫ ^ 2) -
+        s ^ 2 / (2 * Real.pi)| ≤
+      ε / (1 - ε) * s ^ 2 :=
+  abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le L s hs c u hu ε hε
+    (dual_mass_two_div_le_of_two_mul_smoothingParameter_le L hs hε0 hη)
+
+/-- Micciancio–Regev Lemma 4.3 (squared norm of mean, [MicciancioRegev2007], p. 14 of the
+December 27, 2005 author version): for any full-rank discrete lattice `L`, width `s > 0`,
+center `c`, and `0 < ε < 1` with `2 * η_ε(L) ≤ s`,
+`‖𝔼_{x ~ D_{L,s,c}}[x - c]‖² ≤ (ε / (1 - ε))² * s² * finrank ℝ E`. Holds in all dimensions
+including `0`. -/
+theorem norm_tsum_discreteGaussian_smul_sub_sq_le_of_smoothingParameter_le
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (s : ℝ) (hs : 0 < s) (c : E)
+    (ε : ℝ) (hε0 : 0 < ε) (hε : ε < 1) (hη : 2 * smoothingParameter L ε ≤ s) :
+    ‖∑' x : L, (discreteGaussian L s hs c x).toReal • ((x : E) - c)‖ ^ 2 ≤
+      (ε / (1 - ε)) ^ 2 * s ^ 2 * finrank ℝ E :=
+  norm_tsum_discreteGaussian_smul_sub_sq_le L s hs c ε hε
+    (dual_mass_two_div_le_of_two_mul_smoothingParameter_le L hs hε0 hη)
+
+/-- Micciancio–Regev Lemma 4.3 (expected squared norm, [MicciancioRegev2007], p. 14 of the
+December 27, 2005 author version): for any full-rank discrete lattice `L`, width `s > 0`,
+center `c`, and `0 < ε < 1` with `2 * η_ε(L) ≤ s`,
+`𝔼_{x ~ D_{L,s,c}}[‖x - c‖²] ≤ (1 / (2π) + ε / (1 - ε)) * s² * finrank ℝ E`. Holds in all
+dimensions including `0`. -/
+theorem tsum_discreteGaussian_mul_norm_sub_sq_le_of_smoothingParameter_le
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (s : ℝ) (hs : 0 < s) (c : E)
+    (ε : ℝ) (hε0 : 0 < ε) (hε : ε < 1) (hη : 2 * smoothingParameter L ε ≤ s) :
+    (∑' x : L, (discreteGaussian L s hs c x).toReal * ‖(x : E) - c‖ ^ 2) ≤
+      (1 / (2 * Real.pi) + ε / (1 - ε)) * s ^ 2 * finrank ℝ E :=
+  tsum_discreteGaussian_mul_norm_sub_sq_le L s hs c ε hε
+    (dual_mass_two_div_le_of_two_mul_smoothingParameter_le L hs hε0 hη)
 
 end DiscreteMoments
 
