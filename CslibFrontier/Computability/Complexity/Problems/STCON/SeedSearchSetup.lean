@@ -120,6 +120,23 @@ theorem configurationSeedSearchSetup_vertexCount (ntm : MultiTapeNTM k Bool Stat
   rw [card_vertex, Nat.card_prod, Nat.card_fin, Nat.card_fin] at h
   exact h
 
+/-- The row-major numbering with codomain the carrier size returned by the initializer. -/
+noncomputable def configurationSubdivisionIndex (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    Vertex (Fin ((I.n - 1) + 1) × Fin I.n) size.chainBound ≃ Fin size.vertexCount :=
+  (subdivisionIndex _ _).trans (finCongr (configurationSeedSearchSetup_vertexCount ntm c w).symm)
+
+/-- The initialized numbering preserves the numeric ID of each row-major slot. -/
+theorem configurationSubdivisionIndex_val (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ a : Vertex (Fin ((I.n - 1) + 1) × Fin I.n) size.chainBound,
+      (configurationSubdivisionIndex ntm c w a).val = (subdivisionIndex I size.chainBound a).val :=
+  fun _ => rfl
+
 /-- The two fixed endpoint IDs are valid positions in the returned scan carrier. -/
 theorem configurationSeedSearchSetup_endpoints_lt_vertexCount (ntm : MultiTapeNTM k Bool State)
     (c : ℕ) (w : List Bool) :
