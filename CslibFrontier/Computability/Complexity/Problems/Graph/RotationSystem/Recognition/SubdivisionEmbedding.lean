@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restriction
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
 import Mathlib.Analysis.Normed.Module.Convex
@@ -21,7 +22,9 @@ Each original edge is cut near its two ends. Its three pieces give the actual ro
 of the indexed recognition subdivision, including for loops and parallel edges.
 Membership in a piece transfers to an original route parameter, which distinguishes
 shared cut points from other contacts. The end pieces fit inside any prescribed
-positive radius around their original vertices. This is original finite geometry.
+positive radius around their original vertices. For sufficiently small radii,
+the fresh vertices are the actual common-radius cut ports of the original routes.
+This is original finite geometry.
 -/
 
 public section
@@ -34,8 +37,12 @@ private abbrev Edge (G : Graph) := Fin G.edges.length
 
 private noncomputable abbrev CutTime := Set.Ioo (0 : ℝ) (1 / 2)
 
-private theorem cut_small (cut : CutTime) : cut.val + cut.val < 1 := by
-  linarith [cut.property.2]
+private noncomputable abbrev EndCuts := Bool → CutTime
+
+private noncomputable abbrev CutTable (I : FixedRotationInput) := Edge I.graph → EndCuts
+
+private theorem cut_small (cut : EndCuts) : (cut false).val + (cut true).val < 1 := by
+  linarith [(cut false).property.2, (cut true).property.2]
 
 private theorem cut_mem (cut : CutTime) : cut.val ∈ Set.Ioo (0 : ℝ) 1 :=
   ⟨cut.property.1, by linarith [cut.property.2]⟩
@@ -81,12 +88,12 @@ private theorem name_cases {I : FixedRotationInput} {v : ℕ}
     · exact Or.inr ⟨i, false, by dsimp [fresh, i, d] at *; omega⟩
     · exact Or.inr ⟨i, true, by dsimp [fresh, i, d] at *; omega⟩
 
-private noncomputable def cutPoint (cut : CutTime) {I : FixedRotationInput}
+private noncomputable def cutPoint {I : FixedRotationInput} (cut : CutTable I)
     (D : PolygonalDrawing I.graph) (i : Edge I.graph) (b : Bool) : ℂ :=
-  (D.route i).eval ((D.route i).endSegment b) (Route.endTime b cut.val)
+  (D.route i).eval ((D.route i).endSegment b) (Route.endTime b (cut i b).val)
 
-private noncomputable def place (cut : CutTime)
-    {I : FixedRotationInput} (D : PolygonalDrawing I.graph)
+private noncomputable def place {I : FixedRotationInput} (cut : CutTable I)
+    (D : PolygonalDrawing I.graph)
     (v : ℕ) : ℂ :=
   if v < I.graph.vertices.length then D.vertex v
   else
@@ -95,11 +102,12 @@ private noncomputable def place (cut : CutTime)
       cutPoint cut D ⟨d / 2, h⟩ (decide (d % 2 = 1))
     else D.vertex v
 
-private theorem place_old (cut : CutTime) {I : FixedRotationInput} (D : PolygonalDrawing I.graph)
+private theorem place_old {I : FixedRotationInput} (cut : CutTable I) (D : PolygonalDrawing I.graph)
     {v : ℕ} (hv : v < I.graph.vertices.length) : place cut D v = D.vertex v := by
   simp [place, hv]
 
-private theorem place_fresh (cut : CutTime) {I : FixedRotationInput} (D : PolygonalDrawing I.graph)
+private theorem place_fresh {I : FixedRotationInput} (cut : CutTable I)
+    (D : PolygonalDrawing I.graph)
     (i : Edge I.graph) (b : Bool) : place cut D (fresh I i b) = cutPoint cut D i b := by
   have hq : (fresh I i b - I.graph.vertices.length) / 2 = i.val := by
     cases b <;> simp only [fresh, Bool.toNat_false, Bool.toNat_true] <;> omega
@@ -137,11 +145,13 @@ private theorem dart_node {I : FixedRotationInput} (e : Edge (subdivisionGraph I
   · exact congrArg Prod.fst hpair
   · exact (congrArg Prod.snd hpair).trans hright
 
-private theorem piece_endpoint (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
+private theorem piece_endpoint {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     (D : PolygonalDrawing I.graph) (i : Edge I.graph) (k : Fin 3) (b : Bool) :
-    ((D.route i).trisect cut.val cut.val k).endpoint b = place cut D (node I i (boundary k b)) := by
+    ((D.route i).trisect (cut i false).val (cut i true).val k).endpoint b =
+      place cut D (node I i (boundary k b)) := by
   have placed (a : Fin 4) :
-      (D.route i).trisectionPoints cut.val cut.val a = place cut D (node I i a) := by
+      (D.route i).trisectionPoints (cut i false).val (cut i true).val a =
+        place cut D (node I i a) := by
     have hold (b : Bool) :
         (D.route i).endpoint b = place cut D (Dart.vertex (i, b)) := by
       rw [D.endpoint_eq, place_old cut D (endpoint_lt hI i b)]
@@ -153,12 +163,12 @@ private theorem piece_endpoint (cut : CutTime) {I : FixedRotationInput} (hI : Va
   rw [Route.endpoint_trisect]
   exact placed (boundary k b)
 
-private noncomputable def drawing (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
+private noncomputable def drawing {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     (D : PolygonalDrawing I.graph) : PolygonalDrawing (subdivisionGraph I) where
   vertex := place cut D
   route := fun e =>
     let d := subdivisionEdgeIndex I e
-    (D.route d.original).trisect cut.val cut.val d.piece
+    (D.route d.original).trisect (cut d.original false).val (cut d.original true).val d.piece
   endpoint_eq := by
     intro e b
     rw [dart_node]
@@ -189,9 +199,10 @@ private theorem cutSample_not_end (cut : CutTime) (p : Route) (b c : Bool) :
     ¬(cutSample cut p b).atEnd c :=
   p.not_atEnd_near_end b c (cut_mem cut)
 
-private theorem cutSample_position (cut : CutTime) (p : Route) (b : Bool) :
-    (cutSample cut p b).position = p.trisectionBounds cut.val cut.val (cutBoundary b) := by
-  change p.position (p.endSegment b) (Route.endTime b cut.val) = _
+private theorem cutSample_position (cut : EndCuts) (p : Route) (b : Bool) :
+    (cutSample (cut b) p b).position =
+      p.trisectionBounds (cut false).val (cut true).val (cutBoundary b) := by
+  change p.position (p.endSegment b) (Route.endTime b (cut b).val) = _
   rw [p.position_near_end]
   cases b <;> rfl
 
@@ -225,31 +236,32 @@ private theorem sample_contact {I : FixedRotationInput} {D : PolygonalDrawing I.
     · exact Or.inr ⟨true, false, hx, hy, names hx hy⟩
   · exact Or.inr (hD.edge_contacts i j hij x.index y.index x.time y.time x.inside y.inside he)
 
-private structure Trace (cut : CutTime) (p : Route) (k : Fin 3)
-    (i : Fin (p.trisect cut.val cut.val k).segments) (u : ℝ) where
+private structure Trace (cut : EndCuts) (p : Route) (k : Fin 3)
+    (i : Fin (p.trisect (cut false).val (cut true).val k).segments) (u : ℝ) where
   source : Sample p
-  value_eq : source.value = (p.trisect cut.val cut.val k).eval i u
+  value_eq : source.value = (p.trisect (cut false).val (cut true).val k).eval i u
   interval : source.position ∈
-    Set.Icc (p.trisectionBounds cut.val cut.val k.castSucc)
-      (p.trisectionBounds cut.val cut.val k.succ)
-  atLower : source.position = p.trisectionBounds cut.val cut.val k.castSucc →
-    (p.trisect cut.val cut.val k).AtEnd i u false
-  atUpper : source.position = p.trisectionBounds cut.val cut.val k.succ →
-    (p.trisect cut.val cut.val k).AtEnd i u true
+    Set.Icc (p.trisectionBounds (cut false).val (cut true).val k.castSucc)
+      (p.trisectionBounds (cut false).val (cut true).val k.succ)
+  atLower : source.position = p.trisectionBounds (cut false).val (cut true).val k.castSucc →
+    (p.trisect (cut false).val (cut true).val k).AtEnd i u false
+  atUpper : source.position = p.trisectionBounds (cut false).val (cut true).val k.succ →
+    (p.trisect (cut false).val (cut true).val k).AtEnd i u true
 
-private theorem trace_exists (cut : CutTime) (p : Route) (k : Fin 3)
-    (i : Fin (p.trisect cut.val cut.val k).segments) (u : ℝ) (hu : u ∈ Set.Icc 0 1) :
+private theorem trace_exists (cut : EndCuts) (p : Route) (k : Fin 3)
+    (i : Fin (p.trisect (cut false).val (cut true).val k).segments) (u : ℝ) (hu : u ∈ Set.Icc 0 1) :
     Nonempty (Trace cut p k i u) := by
   obtain ⟨j, r, hr, he, hp, hl, hh⟩ :=
-    p.exists_trisect_eval cut.property.1 cut.property.1 (cut_small cut) k i u hu
+    p.exists_trisect_eval (cut false).property.1 (cut true).property.1 (cut_small cut) k i u hu
   exact ⟨⟨⟨j, r, hr⟩, he, hp, hl.mp, hh.mp⟩⟩
 
-private theorem Trace.at_boundary (cut : CutTime) {p : Route} {k : Fin 3}
-    {i : Fin (p.trisect cut.val cut.val k).segments} {u : ℝ}
+private theorem Trace.at_boundary (cut : EndCuts) {p : Route} {k : Fin 3}
+    {i : Fin (p.trisect (cut false).val (cut true).val k).segments} {u : ℝ}
     (L : Trace cut p k i u) (a : Fin 4)
-    (he : L.source.position = p.trisectionBounds cut.val cut.val a) :
-    ∃ b, (p.trisect cut.val cut.val k).AtEnd i u b ∧ boundary k b = a := by
-  have hm := p.strictMono_trisectionBounds cut.property.1 cut.property.1 (cut_small cut)
+    (he : L.source.position = p.trisectionBounds (cut false).val (cut true).val a) :
+    ∃ b, (p.trisect (cut false).val (cut true).val k).AtEnd i u b ∧ boundary k b = a := by
+  have hm := p.strictMono_trisectionBounds
+    (cut false).property.1 (cut true).property.1 (cut_small cut)
   obtain ⟨hl, hu⟩ := L.interval
   rw [he] at hl hu
   have hlo := hm.le_iff_le.mp hl
@@ -264,40 +276,42 @@ private theorem Trace.at_boundary (cut : CutTime) {p : Route} {k : Fin 3}
     subst a
     exact ⟨true, L.atUpper he, rfl⟩
 
-private theorem Trace.at_original_end (cut : CutTime) {p : Route} {k : Fin 3}
-    {i : Fin (p.trisect cut.val cut.val k).segments} {u : ℝ}
+private theorem Trace.at_original_end (cut : EndCuts) {p : Route} {k : Fin 3}
+    {i : Fin (p.trisect (cut false).val (cut true).val k).segments} {u : ℝ}
     (L : Trace cut p k i u) (b : Bool) (hb : L.source.atEnd b) :
-    ∃ c, (p.trisect cut.val cut.val k).AtEnd i u c ∧ boundary k c = originalBoundary b :=
+    ∃ c, (p.trisect (cut false).val (cut true).val k).AtEnd i u c ∧
+      boundary k c = originalBoundary b :=
   Trace.at_boundary cut L (originalBoundary b) (by cases b <;> exact hb)
 
-private theorem interval_contact (cut : CutTime) (p : Route) {k l : Fin 3} (hne : k ≠ l) {w : ℝ}
-    (hk : w ∈ Set.Icc (p.trisectionBounds cut.val cut.val k.castSucc)
-      (p.trisectionBounds cut.val cut.val k.succ))
-    (hl : w ∈ Set.Icc (p.trisectionBounds cut.val cut.val l.castSucc)
-      (p.trisectionBounds cut.val cut.val l.succ)) :
-    ∃ a, w = p.trisectionBounds cut.val cut.val a := by
-  have hm := (p.strictMono_trisectionBounds cut.property.1 cut.property.1 (cut_small cut)).monotone
+private theorem interval_contact (cut : EndCuts) (p : Route) {k l : Fin 3} (hne : k ≠ l) {w : ℝ}
+    (hk : w ∈ Set.Icc (p.trisectionBounds (cut false).val (cut true).val k.castSucc)
+      (p.trisectionBounds (cut false).val (cut true).val k.succ))
+    (hl : w ∈ Set.Icc (p.trisectionBounds (cut false).val (cut true).val l.castSucc)
+      (p.trisectionBounds (cut false).val (cut true).val l.succ)) :
+    ∃ a, w = p.trisectionBounds (cut false).val (cut true).val a := by
+  have hm := (p.strictMono_trisectionBounds
+    (cut false).property.1 (cut true).property.1 (cut_small cut)).monotone
   have ordered {a b : Fin 3} (hab : a < b)
-      (hx : w ≤ p.trisectionBounds cut.val cut.val a.succ)
-      (hy : p.trisectionBounds cut.val cut.val b.castSucc ≤ w) :
-      w = p.trisectionBounds cut.val cut.val a.succ :=
+      (hx : w ≤ p.trisectionBounds (cut false).val (cut true).val a.succ)
+      (hy : p.trisectionBounds (cut false).val (cut true).val b.castSucc ≤ w) :
+      w = p.trisectionBounds (cut false).val (cut true).val a.succ :=
     le_antisymm hx ((hm (show a.succ ≤ b.castSucc from hab)).trans hy)
   rcases lt_or_gt_of_ne hne with hkl | hlk
   · exact ⟨k.succ, ordered hkl hk.2 hl.1⟩
   · exact ⟨l.succ, ordered hlk hl.2 hk.1⟩
 
-private theorem fresh_ne_old (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
+private theorem fresh_ne_old {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) {v : ℕ}
     (hv : v < I.graph.vertices.length) (i : Edge I.graph) (b : Bool) :
     place cut D (fresh I i b) ≠ place cut D v := by
   rw [place_fresh, place_old cut D hv]
   intro he
-  let x := cutSample cut (D.route i) b
+  let x := cutSample (cut i b) (D.route i) b
   obtain ⟨c, hc, _⟩ :=
     hD.vertex_contacts i x.index x.time x.inside v (old_mem hI hv) he
-  exact cutSample_not_end cut _ b c hc
+  exact cutSample_not_end (cut i b) _ b c hc
 
-private theorem place_injective (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
+private theorem place_injective {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) :
     Set.InjOn (place cut D) {v | v ∈ (subdivisionGraph I).vertices} := by
   intro u hu v hv he
@@ -308,43 +322,45 @@ private theorem place_injective (cut : CutTime) {I : FixedRotationInput} (hI : V
   · exact (fresh_ne_old cut hI hD hu' j c he.symm).elim
   · exact (fresh_ne_old cut hI hD hv' i b he).elim
   · rw [place_fresh, place_fresh] at he
-    rcases sample_contact hI hD (cutSample cut (D.route i) b) (cutSample cut (D.route j) c) he with
+    rcases sample_contact hI hD (cutSample (cut i b) (D.route i) b)
+        (cutSample (cut j c) (D.route j) c) he with
       ⟨hij, hp⟩ | ⟨a, _, ha, _, _⟩
     · subst j
       rw [cutSample_position, cutSample_position] at hp
       have hk := (D.route i).strictMono_trisectionBounds
-        cut.property.1 cut.property.1 (cut_small cut)
+        (cut i false).property.1 (cut i true).property.1 (cut_small (cut i))
       have hb := hk.injective hp
       rw [← cut_node I i b, ← cut_node I i c, hb]
-    · exact (cutSample_not_end cut _ b a ha).elim
+    · exact (cutSample_not_end (cut i b) _ b a ha).elim
 
-private theorem vertex_contacts (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
+private theorem vertex_contacts {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding)
     (e : Edge (subdivisionGraph I)) (i : Fin ((drawing cut hI D).route e).segments)
     (t : ℝ) (ht : t ∈ Set.Icc 0 1) (v : ℕ) (hv : v ∈ (subdivisionGraph I).vertices)
     (he : ((drawing cut hI D).route e).eval i t = (drawing cut hI D).vertex v) :
     ∃ b, ((drawing cut hI D).route e).AtEnd i t b ∧ Dart.vertex (e, b) = v := by
   let d := subdivisionEdgeIndex I e
-  obtain ⟨L⟩ := trace_exists cut (D.route d.original) d.piece i t ht
+  obtain ⟨L⟩ := trace_exists (cut d.original) (D.route d.original) d.piece i t ht
   have hv' : L.source.value = place cut D v := L.value_eq.trans he
   rcases name_cases hv with hold | ⟨j, b, rfl⟩
   · rw [place_old cut D hold] at hv'
     obtain ⟨b, hb, hn⟩ := hD.vertex_contacts d.original L.source.index L.source.time
       L.source.inside v (old_mem hI hold) hv'
-    obtain ⟨c, hc, hcut⟩ := Trace.at_original_end cut L b hb
+    obtain ⟨c, hc, hcut⟩ := Trace.at_original_end (cut d.original) L b hb
     refine ⟨c, hc, ?_⟩
     rw [dart_node, hcut, original_node]
     exact hn
   · rw [place_fresh] at hv'
-    rcases sample_contact hI hD L.source (cutSample cut (D.route j) b) hv' with
+    rcases sample_contact hI hD L.source (cutSample (cut j b) (D.route j) b) hv' with
       ⟨hij, hp⟩ | ⟨_, c, _, hc, _⟩
     · subst j
       obtain ⟨c, hc, hp'⟩ :=
-        Trace.at_boundary cut L (cutBoundary b) (hp.trans (cutSample_position cut _ b))
+        Trace.at_boundary (cut d.original) L (cutBoundary b)
+          (hp.trans (cutSample_position (cut d.original) _ b))
       exact ⟨c, hc, by rw [dart_node, hp', cut_node]⟩
-    · exact (cutSample_not_end cut _ b c hc).elim
+    · exact (cutSample_not_end (cut j b) _ b c hc).elim
 
-private theorem edge_contacts (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
+private theorem edge_contacts {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding)
     (e f : Edge (subdivisionGraph I)) (hef : e ≠ f)
     (i : Fin ((drawing cut hI D).route e).segments) (j : Fin ((drawing cut hI D).route f).segments)
@@ -354,8 +370,8 @@ private theorem edge_contacts (cut : CutTime) {I : FixedRotationInput} (hI : Val
       Dart.vertex (e, b) = Dart.vertex (f, c) := by
   let a := subdivisionEdgeIndex I e
   let b := subdivisionEdgeIndex I f
-  obtain ⟨L⟩ := trace_exists cut (D.route a.original) a.piece i s hs
-  obtain ⟨M⟩ := trace_exists cut (D.route b.original) b.piece j t ht
+  obtain ⟨L⟩ := trace_exists (cut a.original) (D.route a.original) a.piece i s hs
+  obtain ⟨M⟩ := trace_exists (cut b.original) (D.route b.original) b.piece j t ht
   have heq := L.value_eq.trans (he.trans M.value_eq.symm)
   rcases sample_contact hI hD L.source M.source heq with ⟨hi, hp⟩ | ⟨b, c, hb, hc, hn⟩
   · have hpiece : a.piece ≠ b.piece := by
@@ -366,73 +382,130 @@ private theorem edge_contacts (cut : CutTime) {I : FixedRotationInput} (hI : Val
       have hf' : f.val = 3 * b.original.val + b.piece.val := subdivisionEdgeIndex_val I f
       exact he'.trans (by rw [hi, h, ← hf'])
     have hfint : L.source.position ∈ Set.Icc
-        ((D.route a.original).trisectionBounds cut.val cut.val b.piece.castSucc)
-        ((D.route a.original).trisectionBounds cut.val cut.val b.piece.succ) := by
+        ((D.route a.original).trisectionBounds (cut a.original false).val
+          (cut a.original true).val b.piece.castSucc)
+        ((D.route a.original).trisectionBounds (cut a.original false).val
+          (cut a.original true).val b.piece.succ) := by
       rw [hp, hi]
       exact M.interval
-    obtain ⟨k, hk⟩ := interval_contact cut (D.route a.original) hpiece L.interval hfint
-    have hM : M.source.position = (D.route b.original).trisectionBounds cut.val cut.val k := by
+    obtain ⟨k, hk⟩ := interval_contact (cut a.original) (D.route a.original) hpiece L.interval hfint
+    have hM : M.source.position =
+        (D.route b.original).trisectionBounds
+          (cut b.original false).val (cut b.original true).val k := by
       calc
         _ = L.source.position := hp.symm
-        _ = (D.route a.original).trisectionBounds cut.val cut.val k := hk
+        _ = (D.route a.original).trisectionBounds
+          (cut a.original false).val (cut a.original true).val k := hk
         _ = _ := by rw [hi]
-    obtain ⟨b, hb, hbe⟩ := Trace.at_boundary cut L k hk
-    obtain ⟨c, hc, hcf⟩ := Trace.at_boundary cut M k hM
-    exact ⟨b, c, hb, hc, by rw [dart_node e, dart_node f, hbe, hcf, hi]⟩
-  · obtain ⟨b', hb', hbe⟩ := Trace.at_original_end cut L b hb
-    obtain ⟨c', hc', hcf⟩ := Trace.at_original_end cut M c hc
+    obtain ⟨side, hb, hbe⟩ := Trace.at_boundary (cut a.original) L k hk
+    obtain ⟨other, hc, hcf⟩ := Trace.at_boundary (cut b.original) M k hM
+    exact ⟨side, other, hb, hc, by rw [dart_node e, dart_node f, hbe, hcf, hi]⟩
+  · obtain ⟨b', hb', hbe⟩ := Trace.at_original_end (cut a.original) L b hb
+    obtain ⟨c', hc', hcf⟩ := Trace.at_original_end (cut (subdivisionEdgeIndex I f).original) M c hc
     refine ⟨b', c', hb', hc', ?_⟩
     rw [dart_node e, dart_node f, hbe, hcf, original_node, original_node]
     exact hn
 
-private theorem cut_endpoint (cut : CutTime) (p : Route) (b : Bool) :
-    (p.cutEnds cut.val cut.val).endpoint b = p.endpoint b + cut.val • p.germ b := by
-  rw [p.endpoint_cutEnds, p.eval_near_end, ite_self]
+private theorem cut_endpoint (cut : EndCuts) (p : Route) (b : Bool) :
+    (p.cutEnds (cut false).val (cut true).val).endpoint b =
+      p.endpoint b + (cut b).val • p.germ b := by
+  cases b <;> rw [p.endpoint_cutEnds, p.eval_near_end] <;> rfl
 
-private theorem drawing_germ (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
+private theorem drawing_germ {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     (D : PolygonalDrawing I.graph) (d : Dart I.graph) :
-    (drawing cut hI D).germ (subdivisionDart I d) = cut.val • D.germ d := by
+    (drawing cut hI D).germ (subdivisionDart I d) = (cut d.1 d.2).val • D.germ d := by
   rcases d with ⟨i, b⟩
   change ((D.route (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).original).trisect
-    cut.val cut.val (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).piece).germ b =
-      cut.val • (D.route i).germ b
+    (cut (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).original false).val
+    (cut (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).original true).val
+    (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).piece).germ b =
+      (cut i b).val • (D.route i).germ b
   rw [subdivisionEdgeIndex_subdivisionDart]
   let p := D.route i
   cases b
-  · change (Route.line p.start (p.cutEnds cut.val cut.val).start).germ false = _
+  · change (Route.line p.start (p.cutEnds (cut i false).val (cut i true).val).start).germ false = _
     rw [Route.germ_line]
-    change (p.cutEnds cut.val cut.val).endpoint false - p.endpoint false = _
+    change (p.cutEnds (cut i false).val (cut i true).val).endpoint false - p.endpoint false = _
     rw [cut_endpoint, add_sub_cancel_left]
-  · change (Route.line (p.cutEnds cut.val cut.val).finish p.finish).germ true = _
+  · change (Route.line (p.cutEnds (cut i false).val (cut i true).val).finish p.finish).germ true = _
     rw [Route.germ_line]
-    change (p.cutEnds cut.val cut.val).endpoint true - p.endpoint true = _
+    change (p.cutEnds (cut i false).val (cut i true).val).endpoint true - p.endpoint true = _
     rw [cut_endpoint, add_sub_cancel_left]
 
-private theorem drawing_end_support (cut : CutTime) {I : FixedRotationInput} (hI : Valid I)
-    (D : PolygonalDrawing I.graph) (d : Dart I.graph) {ρ : ℝ} (hρ : 0 < ρ)
-    (hsize : cut.val * ‖D.germ d‖ < ρ) :
-    ((drawing cut hI D).route (subdivisionDart I d).1).support ⊆
-      Metric.ball (D.vertex d.vertex) ρ := by
-  rcases d with ⟨i, b⟩
-  let p := D.route i
-  let z := D.vertex (Dart.vertex (i, b))
-  change ((D.route (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).original).trisect
-    cut.val cut.val (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).piece).support ⊆
-      Metric.ball z ρ
-  rw [subdivisionEdgeIndex_subdivisionDart]
-  have hz : p.endpoint b = z := D.endpoint_eq i b
-  have hc : p.endpoint b ∈ Metric.ball z ρ := by rw [hz]; exact Metric.mem_ball_self hρ
-  have hx : (p.cutEnds cut.val cut.val).endpoint b ∈ Metric.ball z ρ := by
-    rw [Metric.mem_ball, dist_eq_norm, cut_endpoint, hz, add_sub_cancel_left, norm_smul,
-      Real.norm_of_nonneg cut.property.1.le]
-    exact hsize
-  cases b
-  · change (Route.line p.start (p.cutEnds cut.val cut.val).start).support ⊆ Metric.ball z ρ
-    rw [Route.support_line]
-    exact (convex_ball z ρ).segment_subset hc hx
-  · change (Route.line (p.cutEnds cut.val cut.val).finish p.finish).support ⊆ Metric.ball z ρ
-    rw [Route.support_line]
-    exact (convex_ball z ρ).segment_subset hx hc
+/-- Subdivide the routes at their actual common-radius cut ports. Every sufficiently small
+positive radius works, so two embeddings at the same vertex positions can use the same
+circles. The end pieces are contained in their respective closed balls. -/
+theorem exists_subdivision_embedding_at_cutPorts {I : FixedRotationInput} (hI : Valid I)
+    (D : PolygonalDrawing I.graph) (hD : D.IsEmbedding) :
+    ∃ ε > (0 : ℝ), ∀ ρ ∈ Set.Ioo (0 : ℝ) ε,
+      ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
+        (∀ v ∈ I.graph.vertices, E.vertex v = D.vertex v) ∧
+        (∀ d : Dart I.graph, E.direction (subdivisionDart I d) = D.direction d) ∧
+        (∀ d : Dart I.graph, E.vertex (subdivisionDart I d).reverse.vertex = D.cutPort ρ d) ∧
+        ∀ d : Dart I.graph, (E.route (subdivisionDart I d).1).support ⊆
+          Metric.closedBall (D.vertex d.vertex) ρ := by
+  let lengths := insert (1 : ℝ) (Finset.univ.image fun d : Dart I.graph => ‖D.germ d‖)
+  have hnonempty : lengths.Nonempty := ⟨1, Finset.mem_insert_self _ _⟩
+  let m := lengths.min' hnonempty
+  have hm : 0 < m := by
+    apply (Finset.lt_min'_iff lengths hnonempty).2
+    intro x hx
+    rcases Finset.mem_insert.mp hx with rfl | hx
+    · exact zero_lt_one
+    · obtain ⟨d, _, rfl⟩ := Finset.mem_image.mp hx
+      exact norm_pos_iff.mpr (hD.germ_ne_zero d)
+  refine ⟨m / 2, half_pos hm, fun ρ hρ => ?_⟩
+  have htime (d : Dart I.graph) : ρ / ‖D.germ d‖ ∈ Set.Ioo (0 : ℝ) (1 / 2) := by
+    have hd : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
+    have hmd : m ≤ ‖D.germ d‖ := Finset.min'_le _ _ (Finset.mem_insert_of_mem
+      (Finset.mem_image.mpr ⟨d, Finset.mem_univ _, rfl⟩))
+    exact ⟨div_pos hρ.1 hd, (div_lt_iff₀ hd).mpr (by linarith [hρ.2])⟩
+  let cut : CutTable I := fun i b => ⟨ρ / ‖D.germ (i, b)‖, htime (i, b)⟩
+  refine ⟨drawing cut hI D, ⟨place_injective cut hI hD, ?_, vertex_contacts cut hI hD,
+    edge_contacts cut hI hD⟩, ?_, ?_, ?_, ?_⟩
+  · intro e
+    let i := (subdivisionEdgeIndex I e).original
+    exact (hD.simple i).trisect
+      (cut i false).property.1 (cut i true).property.1 (cut_small (cut i)) _
+  · intro v hv
+    apply place_old
+    rw [hI.1] at hv
+    exact List.mem_range.mp hv
+  · intro d
+    simp only [PolygonalDrawing.direction, drawing_germ, Complex.real_smul,
+      Complex.arg_real_mul _ (cut d.1 d.2).property.1]
+  · intro d
+    rw [(subdivisionDart_endpoints I d).2]
+    have hname : I.graph.vertices.length + d.index = fresh I d.1 d.2 := by
+      simp only [fresh, Dart.index, Nat.add_assoc]
+    rw [hname]
+    exact (place_fresh cut D d.1 d.2).trans (D.cutPort_eq_eval ρ d).symm
+  · intro d
+    rcases d with ⟨i, b⟩
+    let p := D.route i
+    let z := D.vertex (Dart.vertex (i, b))
+    let a := subdivisionEdgeIndex I (subdivisionDart I (i, b)).1
+    change ((D.route a.original).trisect (cut a.original false).val
+      (cut a.original true).val a.piece).support ⊆ Metric.closedBall z ρ
+    dsimp only [a]
+    rw [subdivisionEdgeIndex_subdivisionDart]
+    have hc : p.endpoint b ∈ Metric.closedBall z ρ := by
+      have he : p.endpoint b = z := D.endpoint_eq i b
+      rw [he]
+      exact Metric.mem_closedBall_self hρ.1.le
+    have hx : (p.cutEnds (cut i false).val (cut i true).val).endpoint b ∈
+        Metric.closedBall z ρ := by
+      have he : (p.cutEnds (cut i false).val (cut i true).val).endpoint b = D.cutPort ρ (i, b) := by
+        rw [cut_endpoint (cut i), D.endpoint_eq, PolygonalDrawing.cutPort]
+        rfl
+      rw [he, Metric.mem_closedBall, hD.dist_cutPort hρ.1.le]
+    cases b
+    · change (Route.line p.start (p.cutEnds (cut i false).val (cut i true).val).start).support ⊆ _
+      rw [Route.support_line]
+      exact (convex_closedBall z ρ).segment_subset hc hx
+    · change (Route.line (p.cutEnds (cut i false).val (cut i true).val).finish p.finish).support ⊆ _
+      rw [Route.support_line]
+      exact (convex_closedBall z ρ).segment_subset hx hc
 
 /-- The subdivision end pieces can be confined to any common positive radius around
 their original vertices, while preserving original positions and outgoing directions. -/
@@ -443,34 +516,11 @@ theorem exists_subdivision_embedding_in_balls {I : FixedRotationInput} (hI : Val
       (∀ d : Dart I.graph, E.direction (subdivisionDart I d) = D.direction d) ∧
       ∀ d : Dart I.graph,
         (E.route (subdivisionDart I d).1).support ⊆ Metric.ball (D.vertex d.vertex) ρ := by
-  let bound : ℝ := ∑ d : Dart I.graph, ‖D.germ d‖
-  have hbound : 0 ≤ bound := Finset.sum_nonneg (fun _ _ => norm_nonneg _)
-  have hden : 0 < bound + 1 := by linarith
-  have hdiv : 0 < ρ / (bound + 1) := div_pos hρ hden
-  let t : CutTime := ⟨min (1 / 3) (ρ / (bound + 1)), lt_min (by norm_num) hdiv,
-    (min_le_left _ _).trans_lt (by norm_num)⟩
-  have hsize (d : Dart I.graph) : t.val * ‖D.germ d‖ < ρ := by
-    have hle : ‖D.germ d‖ ≤ bound :=
-      Finset.single_le_sum (fun d' _ => norm_nonneg (D.germ d')) (Finset.mem_univ d)
-    calc
-      _ ≤ (ρ / (bound + 1)) * ‖D.germ d‖ :=
-        mul_le_mul_of_nonneg_right (min_le_right _ _) (norm_nonneg _)
-      _ < (ρ / (bound + 1)) * (bound + 1) := mul_lt_mul_of_pos_left (by linarith) hdiv
-      _ = ρ := div_mul_cancel₀ _ hden.ne'
-  refine ⟨drawing t hI D, ⟨place_injective t hI hD, ?_, vertex_contacts t hI hD,
-    edge_contacts t hI hD⟩, ?_, ?_, ?_⟩
-  · intro e
-    exact (hD.simple (subdivisionEdgeIndex I e).original).trisect
-      t.property.1 t.property.1 (cut_small t) _
-  · intro v hv
-    apply place_old
-    rw [hI.1] at hv
-    exact List.mem_range.mp hv
-  · intro d
-    simp only [PolygonalDrawing.direction, drawing_germ, Complex.real_smul,
-      Complex.arg_real_mul _ t.property.1]
-  · intro d
-    exact drawing_end_support t hI D d hρ (hsize d)
+  obtain ⟨ε, hε, h⟩ := exists_subdivision_embedding_at_cutPorts hI D hD
+  obtain ⟨r, hpos, hlt⟩ := exists_between (lt_min hε hρ)
+  obtain ⟨E, hE, hV, hdir, _, hsupport⟩ := h r ⟨hpos, hlt.trans_le (min_le_left _ _)⟩
+  exact ⟨E, hE, hV, hdir, fun d => (hsupport d).trans
+    (Metric.closedBall_subset_ball (hlt.trans_le (min_le_right _ _)))⟩
 
 /-- An embedding of the original listed graph yields an embedding of its recognition
 subdivision, with the original declared vertex positions retained. Two interior points

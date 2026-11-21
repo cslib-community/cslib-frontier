@@ -61,6 +61,21 @@ example :
       (PolygonalDrawing.star_isEmbedding 3) (ρ := 1 / 100) (by norm_num)
   exact ⟨E, hE, hball⟩
 
+-- The selected leaf of every original dart is on the same prescribed radius.
+example :
+    ∃ (ρ : ℝ) (E : PolygonalDrawing (subdivisionGraph threeSpokeStar)),
+      0 < ρ ∧ E.IsEmbedding ∧ ∀ d : Dart threeSpokeStar.graph,
+        dist (E.vertex (subdivisionDart threeSpokeStar d).reverse.vertex)
+          ((PolygonalDrawing.star 3).vertex d.vertex) = ρ := by
+  have hI : Valid threeSpokeStar := (validate_eq_true_iff _).mp (by decide)
+  have hD := PolygonalDrawing.star_isEmbedding 3
+  obtain ⟨ε, hε, h⟩ := exists_subdivision_embedding_at_cutPorts hI (PolygonalDrawing.star 3) hD
+  have hρ : ε / 2 ∈ Set.Ioo (0 : ℝ) ε := ⟨half_pos hε, half_lt_self hε⟩
+  obtain ⟨E, hE, _, _, hports, _⟩ := h (ε / 2) hρ
+  refine ⟨ε / 2, E, hρ.1, hE, fun d => ?_⟩
+  rw [hports]
+  exact hD.dist_cutPort hρ.1.le d
+
 private def loop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [none]⟩
 
 private def loopEdge : Fin loop.graph.edges.length := ⟨0, by decide⟩
