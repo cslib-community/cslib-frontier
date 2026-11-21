@@ -29,7 +29,8 @@ carrier as the adjacency callback.
 
 * `Cslib.Complexity.STCON.justesenSourceMembershipStart_inSpace`: construct the final
   membership entry in linear workspace in the encoded loop registers.
-* `Cslib.Complexity.STCON.justesenSourceMembership_readReply_iff`: a complete typed scan and
+* `Cslib.Complexity.STCON.justesenRoundMembership_readReply_iff` and
+  `Cslib.Complexity.STCON.justesenSourceMembership_readReply_iff`: a complete typed scan and
   the return selector give the same reply and leave the same suffix.
 * `Cslib.Complexity.STCON.justesenSourceMembership_bounds`: a common selector clock and
   logarithmic state bound at every admissible loop entry.
@@ -155,6 +156,49 @@ theorem justesenSourceMembershipMachine_withInit
     SourceRoundLoop.roundContext, configurationJustesenSourceContext_size]
 
 open NondeterministicQueryMachine in
+/-- A round membership return consumes the canonical typed tally selectors and the false
+return selector. The Boolean scan reply and the unused suffix are returned unchanged. -/
+theorem justesenRoundMembership_readReply_iff
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount)
+      (radius : ℕ) (totals : Tally) (bits : List Bool) (hit : Bool) (suffix : List Bool),
+      let ctx : SourceRound.Context := ⟨size.vertexCount, source.val, radius, totals⟩
+      let adjacency := configurationJustesenSubdivisionContext ntm c w seed.val
+      let entry := justesenRoundMembershipStart adjacency ctx target.val
+      (justesenSourceMembershipMachine ntm c).readReply MembershipTally.retainedReply
+        w entry bits = some (hit, suffix) ↔
+      ∃ branch,
+        bits = MembershipTally.selectors (BoundedWalk.selectors 3) branch ++ false :: suffix ∧
+        Scan.run (configurationJustesenSubdivisionAdjacent ntm c w seed)
+          source target radius totals branch = some hit := by
+  intro I size seed source target radius totals bits hit suffix ctx adjacency entry
+  rw [readReply_iff]
+  let M := justesenSourceMembershipMachine ntm c
+  have hspec (callBits : List Bool) :
+      M.FirstHalting w callBits entry ∧
+        MembershipTally.retainedReply (M.replay w callBits entry) = some hit ↔
+      ∃! branch, callBits = MembershipTally.selectors (BoundedWalk.selectors 3) branch ∧
+        Scan.run (configurationJustesenSubdivisionAdjacent ntm c w seed)
+          source target radius totals branch = some hit := by
+    let entered := M.withInit entry
+    change entered.FirstHalting w callBits entered.init ∧
+      MembershipTally.retainedReply (entered.run w callBits) = some hit ↔ _
+    dsimp only [entered, M, entry, adjacency, ctx]
+    rw [justesenRoundMembershipMachine_withInit]
+    exact configurationJustesenMembershipTally_firstHalting_iff ntm c w seed source target
+      radius totals callBits hit
+  constructor
+  · rintro ⟨callBits, hbits, hfirst, hreply⟩
+    obtain ⟨branch, ⟨rfl, hscan⟩, _⟩ := (hspec callBits).mp ⟨hfirst, hreply⟩
+    exact ⟨branch, hbits, hscan⟩
+  · rintro ⟨branch, hbits, hscan⟩
+    refine ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, ?_⟩⟩
+    exact fun _ h =>
+      MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm
+
+open NondeterministicQueryMachine in
 /-- A final membership return consumes the canonical typed tally selectors and the false
 return selector. The Boolean scan reply and the unused suffix are returned unchanged. -/
 theorem justesenSourceMembership_readReply_iff
@@ -173,21 +217,9 @@ theorem justesenSourceMembership_readReply_iff
         Scan.run (configurationJustesenSubdivisionAdjacent ntm c w seed)
           source target radius totals branch = some hit := by
   intro I size seed source target fuel radius totals bits hit suffix ctx entry
-  rw [readReply_iff]
-  have hspec (callBits : List Bool) :=
-    configurationJustesenMembershipTally_firstHalting_iff ntm c w seed source target
-      radius totals callBits hit
-  dsimp only at hspec
-  simp only [← justesenSourceMembershipMachine_withInit ntm c w seed.val source.val target.val
-    fuel radius totals, init_withInit, firstHalting_withInit, run_withInit] at hspec
-  constructor
-  · rintro ⟨callBits, hbits, hfirst, hreply⟩
-    obtain ⟨branch, ⟨rfl, hscan⟩, _⟩ := (hspec callBits).mp ⟨hfirst, hreply⟩
-    exact ⟨branch, hbits, hscan⟩
-  · rintro ⟨branch, hbits, hscan⟩
-    refine ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, ?_⟩⟩
-    exact fun _ h =>
-      MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm
+  simpa only [entry, ctx, justesenSourceMembershipStart, SourceRoundLoop.roundContext,
+    configurationJustesenSourceContext_size] using
+    justesenRoundMembership_readReply_iff ntm c w seed source target radius totals bits hit suffix
 
 open NondeterministicQueryMachine in
 /-- A unique passing transcript at the exact totals gives one successful selector list for
