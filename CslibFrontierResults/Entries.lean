@@ -72,6 +72,7 @@ import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Crypto.Primitives.UHF.Finite
+import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -10698,6 +10699,23 @@ register_result "single-pair-hash-game-bounds" where
     to the pairwise bounds for distinct messages. Given a complete message enumeration, the \
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
+
+register_result "pairwise-unpredictability-implies-universal-hashing" where
+  title := "Pairwise unpredictability implies universality and difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Consequences of Definition 7.7 (unnumbered)",
+      locator := "v0.6, Section 7.6.1, printed p. 275; Attack Game 7.5 and Definition 7.7" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isUniversalHash,
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isDeltaUniversalHash
+  ]
+  scope := "A finite uniform private key and a single adaptive prediction. The two-stage \
+    adversary may save arbitrary private state and receives the first hash before choosing its \
+    second message and digest. The game rejects repeated messages. The collision implication \
+    works with arbitrary digests, and the difference implication uses any additive group, \
+    including the source’s cyclic and abelian cases."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
