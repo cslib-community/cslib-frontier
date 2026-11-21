@@ -6377,6 +6377,8 @@ public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.Quotient
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Code
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.SlotArray
 public import CslibFrontier.DataStructure.BPlusTree.Basic
+public import CslibFrontier.DataStructure.BPlusTree.Erase.Basic
+public import CslibFrontier.DataStructure.BPlusTree.Erase.MinMax
 public import CslibFrontier.DataStructure.BPlusTree.Height
 public import CslibFrontier.DataStructure.BPlusTree.Insert
 public import CslibFrontier.DataStructure.BPlusTree.Lookup
