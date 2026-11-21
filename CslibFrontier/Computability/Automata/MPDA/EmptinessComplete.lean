@@ -210,14 +210,6 @@ theorem pendingAt_self {i : Fin n} {t : ℕ} (h : IsPushOn w i t) : PendingAt w 
     rw [List.extract_eq_take_drop, Nat.sub_self, List.take_zero, List.take_nil]
     simp⟩
 
-theorem IsPushOn.stack_eq {i j : Fin n} {t : ℕ} (hi : IsPushOn w i t) (hj : IsPushOn w j t) :
-    i = j := by
-  obtain ⟨a, γ, ha⟩ := hi
-  obtain ⟨b, δ, hb⟩ := hj
-  rw [ha] at hb
-  simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hb
-  exact hb.2.1
-
 /-- Pushes of different chains are at different positions. -/
 theorem chains_ne {C : List (HoleChain n Γ)}
     (horder : C.Pairwise fun c c' => ∀ e ∈ c.pushes, ∀ e' ∈ c'.pushes, e.1 < e'.1)
@@ -266,9 +258,9 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
       ∃ c ∈ C, (∃ e ∈ c.pushes, e.1 = p) ∧ ∃ e ∈ c.pushes, e.1 = q := by
     intro p q hpq hqt hp hq ⟨j, hpj, hqj⟩ ⟨j', hqhole⟩ hwn
     obtain ⟨c, hc, e, he, rfl⟩ := hcover p (by omega) hp
-    have hjc : c.stack = j := (helem c hc e he).1.1.stack_eq hpj
+    have hjc : c.stack = j := (helem c hc e he).1.1.unique hpj
     have hext : Ext w c.stack e.1 q := ⟨hpq, by
-      rw [hjc, hqj.stack_eq hqhole.1]
+      rw [hjc, hqj.unique hqhole.1]
       exact hqhole, hwn⟩
     exact ⟨c, hc, ⟨e, he, rfl⟩, (hclosed c hc e he q hext).2 hq⟩
   -- The counted pushes.
@@ -283,8 +275,8 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
       rintro ⟨p, hpt, ⟨-, hp⟩, -, hstk, hwn⟩
       obtain ⟨c, hc, e, he, rfl⟩ := hcover p hpt hp
       obtain ⟨j, hpj, htj⟩ := hstk
-      have hjc : c.stack = j := (helem c hc e he).1.1.stack_eq hpj
-      have hext : Ext w c.stack e.1 t := ⟨hpt, by rw [hjc, htj.stack_eq ht.1]; exact ht, hwn⟩
+      have hjc : c.stack = j := (helem c hc e he).1.1.unique hpj
+      have hext : Ext w c.stack e.1 t := ⟨hpt, by rw [hjc, htj.unique ht.1]; exact ht, hwn⟩
       exact absurd (hclosed c hc e he t hext).1 (lt_irrefl _)
     · obtain ⟨e, he, hev, hmin⟩ := hold c hc
       obtain ⟨hhole, hpend, het⟩ := helem c hc e he
