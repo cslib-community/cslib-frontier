@@ -147,7 +147,8 @@ theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : 
     · subst hlv
       simp [Std.Sat.Literal.negate]
     · simp [hT l (Clause.mem_resolvent.2 (.inr ⟨hl, hlv⟩))]
-  simp only [propagateHints, h₁]
+  rw [propagateHints_cons]
+  simp only [h₁]
   split
   · rfl
   · rename_i l ls hls
@@ -155,7 +156,9 @@ theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : 
     have hall : ls.all (· == l) = true := List.all_eq_true.2 fun l' hl' => by
       simp [hl, hopen l' (hls ▸ List.mem_cons_of_mem _ hl')]
     subst hl
-    simp only [hall, ↓reduceIte, h₂, hclosed]
+    simp only [hall, ↓reduceIte]
+    rw [propagateHints_cons]
+    simp only [h₂, hclosed]
 
 /-- A database that numbers every clause of the formula as `checkLRAT` does, and every other
 entry below `k`. -/
@@ -238,7 +241,8 @@ theorem Derivation.checkLRAT_toLRAT (d : φ.Derivation []) : φ.checkLRAT d.toLR
     simp only at this ⊢
     omega
   obtain ⟨db, hrun, hid, -, -, -, -⟩ := d.checkLRATAux_lratSteps _ _ (by omega) hgood
-  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints, hid]
+  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints_cons,
+    hid]
   rfl
 
 end CNF

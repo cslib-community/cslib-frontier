@@ -5,13 +5,14 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
 import CslibFrontier.Foundations.Probability.Gaussian.Convolution
 import CslibFrontier.Foundations.Probability.Gaussian.Projection
 import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
 
@@ -33,6 +34,8 @@ Exercises the opaque `ZLattice.smoothingParameter` API from an ordinary `module`
 3. **Dimension-0 lattice in `EuclideanSpace ℝ (Fin 0)`:** `smoothingParameter = 0` for all `ε`
    (positive and negative), order characterizations, and Lemma 3.2.
 -/
+
+set_option linter.privateModule false
 
 open Module ProbabilityTheory MeasureTheory
 open scoped ENNReal Pointwise RealInnerProductSpace
@@ -180,13 +183,9 @@ example : (1 / 2 : ℝ) ≤ ZLattice.smoothingParameter L 1 :=
 
 /-- Two-sided concrete bracket `1/2 < η_{1/2}(2ℤ) ≤ 2`, exercising both directions of
 `smoothingParameter_le_iff` and MR07 Lemma 3.2. -/
-public theorem smoothingParameter_twoZ_bounds :
-    (1 / 2 : ℝ) < ZLattice.smoothingParameter (Submodule.span ℤ (Set.range
-      ((Basis.singleton Unit ℝ).isUnitSMul
-        (fun _ ↦ (show (2 : ℝ) ≠ 0 by norm_num).isUnit)))) (1 / 2) ∧
-    ZLattice.smoothingParameter (Submodule.span ℤ (Set.range
-      ((Basis.singleton Unit ℝ).isUnitSMul
-        (fun _ ↦ (show (2 : ℝ) ≠ 0 by norm_num).isUnit)))) (1 / 2) ≤ 2 := by
+example :
+    (1 / 2 : ℝ) < ZLattice.smoothingParameter L (1 / 2) ∧
+      ZLattice.smoothingParameter L (1 / 2) ≤ 2 := by
   refine ⟨?_, eta_half_le_two⟩
   by_contra hle
   have hmass := (ZLattice.smoothingParameter_le_iff L (by norm_num) (by norm_num)).mp
@@ -228,14 +227,26 @@ private theorem basis_domain_op {E : Type*} [NormedAddCommGroup E] [InnerProduct
       (ZSpan.fundamentalDomain b) volume :=
   isAddFundamentalDomain_op_iff.mpr (ZSpan.isAddFundamentalDomain' b volume)
 
-/-- Bridge 2 (`Quotient`): full-`L¹` distance of the centered Gaussian mod `2ℤ` from uniform. -/
+/-- Bridge 2 (`Quotient`, MR07 Lemma 4.1 at `c = 0`): full-`L¹` distance of the centered Gaussian
+mod `2ℤ` from uniform above `η_{1/2}(2ℤ) ≤ 2`. -/
 example : tvDist
     (Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L.toAddSubgroup)
       (volume.withDensity (fun x : ℝ ↦ ENNReal.ofReal (gaussianWeight 2 x / 2))))
     ((1 / 2 : ℝ≥0∞) • Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L.toAddSubgroup)
       (volume.restrict (ZSpan.fundamentalDomain twoBasis))) ≤ 1 / 2 := by
-  have h := ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le L 2 (by norm_num)
+  have h := ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le L 2 (by norm_num) 0
     (basis_domain_op twoBasis) (1 / 2) (by norm_num) eta_half_le_two
+  simpa [covolume_two] using h
+
+/-- Bridge 2b (`Quotient`, MR07 Lemma 4.1): full-`L¹` distance of an off-center Gaussian
+(`c = 1 / 3`) mod `2ℤ` from uniform above `η_{1/2}(2ℤ) ≤ 2`. -/
+example : tvDist
+    (Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L.toAddSubgroup)
+      (volume.withDensity (fun x : ℝ ↦ ENNReal.ofReal (gaussianWeight 2 (x - 1 / 3) / 2))))
+    ((1 / 2 : ℝ≥0∞) • Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L.toAddSubgroup)
+      (volume.restrict (ZSpan.fundamentalDomain twoBasis))) ≤ 1 / 2 := by
+  have h := ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le L 2 (by norm_num)
+    (1 / 3) (basis_domain_op twoBasis) (1 / 2) (by norm_num) eta_half_le_two
   simpa [covolume_two] using h
 
 /-- Concrete bound `η_{1/4}(2ℤ) ≤ 3` (discharging `ε < 1/2` for Bridges 3–5). -/

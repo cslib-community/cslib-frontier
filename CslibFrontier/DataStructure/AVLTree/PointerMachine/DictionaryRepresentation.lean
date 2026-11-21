@@ -144,4 +144,27 @@ theorem stores_updatePayload (zero : M.Value) (tree : BinaryTree (Label M 2))
     · apply support
       simpa [Function.update_of_ne eq] using hk
 
+/-- After inserting the query key, writing a value at its node updates the represented memory
+at that key and leaves every other cell unchanged. -/
+theorem stores_insert_updatePayload {regs : ℕ} {encode : ℕ → M.Value}
+    {s t : State M (layout 2 (regs + 2))} {before after : BinaryTree (Label M 2)}
+    {original : AVLTree M.Value} {memory : M.Value → M.Value}
+    (rep : Represents s.heap none before) (matched : Matches encode 1 before original)
+    (valid : original.Valid) (stored : Stores (encode 0) before memory)
+    (result : InsertResult encode 1 (fun _ => 3) s t before after original)
+    (p : PosNum) (label : Label M 2) (found : after.get p = some label)
+    (key : label.data 0 = s.data 0) (value : M.Value) :
+    Stores (encode 0) (updateData after label.address 2 value)
+      (Function.update memory (s.data 0) value) := by
+  refine stores_updatePayload (encode 0) after memory (s.data 0) value p label
+    (result.matched.keys.symm ▸ (valid_insert valid (s.data 0)).ordered) result.distinct
+    found key (payload_except_insert rep stored result) ?_
+  intro k hk
+  have old := stored.support k hk
+  rw [matched.keys] at old
+  rw [result.matched.keys]
+  change k ∈ (AVLTree.insert (s.data 0) original).elements
+  rw [elements_insert]
+  exact Finset.mem_insert_of_mem old
+
 end Cslib.DataStructure.AVLTree.PointerMachine.Dictionary

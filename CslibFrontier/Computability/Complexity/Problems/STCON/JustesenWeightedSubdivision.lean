@@ -51,6 +51,16 @@ structure JustesenSubdivisionContext where
 enc_structure encJustesenSubdivisionContext : JustesenSubdivisionContext where
   parameters : encSeedSearchParameters, field : encFieldContext, rank : encNat
 
+/-- Project the retained subdivision size within the context's workspace budget. -/
+theorem encJustesenSubdivisionContext_subdivision_budget
+    {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    {ctx : α → JustesenSubdivisionContext}
+    (hctx : ComputableInSpace ctx encIn encJustesenSubdivisionContext budget) :
+    ComputableInSpace (fun a => (ctx a).parameters.search.subdivision)
+      encIn encSubdivisionSize budget :=
+  encSeedSearchSize_subdivision_budget
+    (encSeedSearchParameters_search_budget (encJustesenSubdivisionContext_parameters_budget hctx))
+
 /-- Initialize the context for weighted adjacency from the original word and candidate rank. -/
 @[expose] noncomputable def configurationJustesenSubdivisionContext
     (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) (rank : ℕ) :
@@ -122,9 +132,7 @@ theorem justesenSubdivisionEdgeStart_inSpace :
   let encIDs := encPair encNat encNat
   have hctx := fst encJustesenSubdivisionContext encIDs
   have hids := snd encJustesenSubdivisionContext encIDs
-  have hparameters := encJustesenSubdivisionContext_parameters_budget hctx
-  have hsize := encSeedSearchSize_subdivision_budget (encSeedSearchParameters_search_budget
-    hparameters)
+  have hsize := encJustesenSubdivisionContext_subdivision_budget hctx
   have hquery := encFlatQuery_mk_budget encJustesenSubdivisionContext hctx
     (encSubdivisionSize_chainBound_budget hsize)
     (budget_comp_linear (fst encNat encNat) hids)

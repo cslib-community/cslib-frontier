@@ -79,6 +79,46 @@ end Measurement
 
 namespace AlgState
 
+/-- A weighted sum grouped by a common outcome map is bounded by the unweighted
+squared state norm. The total weight of each fiber is a measurement effect. -/
+theorem sum_weighted_conj_le_sum_norm_sq (φ : AlgState A) (T : Measurement β A)
+    (f : β → α) (D : α → A) :
+    (∑ b, (φ (star (D (f b)) * T.effect b * D (f b))).re) ≤ ∑ a, φ.norm (D a) ^ 2 := by
+  classical
+  rw [← sum_fiberwise univ f (fun b => (φ (star (D (f b)) * T.effect b * D (f b))).re)]
+  refine sum_le_sum fun a _ => ?_
+  have he : (∑ b with f b = a, (φ (star (D (f b)) * T.effect b * D (f b))).re) =
+      (φ (star (D a) * (T.map f).effect a * D a)).re := by
+    rw [Measurement.map_effect, mul_sum, sum_mul, map_sum, Complex.re_sum]
+    exact sum_congr rfl fun b hb => by rw [(mem_filter.mp hb).2]
+  rw [he, AlgState.norm_sq]
+  simpa only [mul_one] using φ.re_apply_mono
+    (star_left_conjugate_le_conjugate ((T.map f).effect_le_one a) (D a))
+
+/-- Positive weights dominated by measurement effects bound a weighted linear
+score by the weighted squared state norm of its argument. -/
+theorem abs_sum_weighted_mul_le (φ : AlgState A) (T : Measurement β A) (W D : β → A)
+    (hW : ∀ b, 0 ≤ W b) (hle : ∀ b, W b ≤ T.effect b) :
+    |∑ b, (φ (W b * D b)).re| ≤
+      √(∑ b, (φ (star (D b) * T.effect b * D b)).re) := by
+  choose K hK using fun b => CStarAlgebra.nonneg_iff_eq_star_mul_self.mp (hW b)
+  have hnorm (b : β) (x : A) : φ.norm (K b * x) ^ 2 = (φ (star x * W b * x)).re := by
+    rw [AlgState.norm_sq, hK b, star_mul]
+    simp only [mul_assoc]
+  have hn : (∑ b, φ.norm (K b) ^ 2) ≤ 1 := by
+    simp only [AlgState.norm_sq, ← hK, ← Complex.re_sum, ← map_sum]
+    exact φ.re_apply_le_one ((sum_le_sum fun b _ => hle b).trans_eq T.sum_effect)
+  have hd : (∑ b, φ.norm (K b * D b) ^ 2) ≤
+      ∑ b, (φ (star (D b) * T.effect b * D b)).re := by
+    simp only [hnorm]
+    exact sum_le_sum fun b _ => φ.re_apply_mono (star_left_conjugate_le_conjugate (hle b) (D b))
+  have h := (φ.abs_sum_re_star_mul_le K (fun b => K b * D b)).trans
+    (mul_le_mul (Real.sqrt_le_sqrt hn) (Real.sqrt_le_sqrt hd)
+      (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))
+  have he (b : β) : star (K b) * (K b * D b) = W b * D b := by
+    rw [← mul_assoc, ← hK]
+  simpa only [he, Real.sqrt_one, one_mul] using h
+
 private theorem abs_sum_norm_sq_sub_le (φ : AlgState A) (X Y : β → A)
     (hX : ∑ b, φ.norm (X b) ^ 2 ≤ 1) (hY : ∑ b, φ.norm (Y b) ^ 2 ≤ 1) :
     |(∑ b, φ.norm (X b) ^ 2) - ∑ b, φ.norm (Y b) ^ 2| ≤
