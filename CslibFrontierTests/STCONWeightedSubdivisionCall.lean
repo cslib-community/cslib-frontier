@@ -141,4 +141,26 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   refine ⟨hrun.1, hrun.2, ?_, hstates [false, true]⟩
   simpa only [r, Nat.zero_mul, Nat.zero_add] using hclock
 
+open Turing.DoubleCounting.BoundedWalk in
+-- The binary rank is supplied by a logspace caller. The zero registers are valid at every size.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    {rank : List Bool → ℕ} (hrank : ComputableInLogSpace rank encBits encNat)
+    (hvalid : ∀ w, rank w < (configurationSeedSearchParameters ntm c w).search.seedLimit) :
+    let dimension (w : List Bool) :=
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+    let registers (w : List Bool) : Registers (dimension w) :=
+      let zero : Fin (dimension w) := ⟨0, Nat.lt_of_le_of_lt (Nat.zero_le _)
+        (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1⟩
+      ⟨zero, zero, 0⟩
+    ComputableInSpace (fun w => (configurationJustesenBoundedWalk ntm c w (rank w)
+      (registers w)).init) encBits
+      (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState)
+      (fun w => Nat.log2 w.length) := by
+  intro dimension registers
+  have hz : ComputableInSpace (fun _ : List Bool => 0) encBits encNat
+      (fun w => Nat.log2 w.length) :=
+    (constZero 0).mono_le fun _ => Nat.zero_le _
+  exact configurationJustesenBoundedWalk_init_inSpace ntm c
+    (r := registers) hrank hvalid hz hz hz
+
 end CslibFrontierTests.STCONWeightedSubdivisionCall

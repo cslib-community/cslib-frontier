@@ -17,7 +17,8 @@ The retained-dimension walk calls the initialized Justesen subdivision adjacency
 original input. Successful first halts correspond to canonical selector lists for typed
 walks on the generated subdivision. For fuel at most the subdivision vertex count, the
 common walk clock bounds all branches and every encoded prefix has logarithmic length
-in the original input.
+in the original input. The native entry certificate computes the initialized context and
+reader width using that logarithmic budget.
 -/
 
 public section
@@ -43,6 +44,51 @@ noncomputable def configurationJustesenBoundedWalk (ntm : MultiTapeNTM k Bool St
   let start := fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)
   let ctx := configurationJustesenSubdivisionContext ntm c w rank
   Runtime.machine edge start callbackVerdict 3 (Runtime.entry edge start callbackVerdict 3 ctx r)
+
+/-- The initial state is computed from the original encoded word and a valid seed rank.
+The binary endpoint and fuel producers use the same logarithmic workspace budget. -/
+theorem configurationJustesenBoundedWalk_init_inSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    {α : Type} {encIn : α ↪ List Bool} {rank : α → ℕ}
+    {r : (a : α) → Registers
+      (configurationSeedSearchSetup ntm c (encIn a)).parameters.search.subdivision.vertexCount}
+    (hrank : ComputableInLogSpace rank encIn encNat)
+    (hrank_lt : ∀ a, rank a <
+      (configurationSeedSearchParameters ntm c (encIn a)).search.seedLimit)
+    (hcurrent : ComputableInSpace (fun a => (r a).current.val) encIn encNat
+      (fun a => Nat.log2 (encIn a).length))
+    (htarget : ComputableInSpace (fun a => (r a).target.val) encIn encNat
+      (fun a => Nat.log2 (encIn a).length))
+    (hfuel : ComputableInSpace (fun a => (r a).fuel) encIn encNat
+      (fun a => Nat.log2 (encIn a).length)) :
+    ComputableInSpace
+      (fun a => (configurationJustesenBoundedWalk ntm c (encIn a) (rank a) (r a)).init)
+      encIn (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState)
+      (fun a => Nat.log2 (encIn a).length) := by
+  let ctx (a : α) := configurationJustesenSubdivisionContext ntm c (encIn a) (rank a)
+  let budget (a : α) := Nat.log2 (encIn a).length
+  have hword : ComputableInLogSpace (fun a => encIn a) encIn encBits :=
+    ComputableInLogSpace.of_eq fun _ => rfl
+  obtain ⟨t, C, hspace⟩ := configurationJustesenSubdivisionContext_inLogSpace ntm c hword hrank
+  obtain ⟨D, hlen⟩ := length_configurationJustesenSubdivisionContext_le_log ntm c
+  have hctx : ComputableInSpace ctx encIn encJustesenSubdivisionContext budget :=
+    ⟨t, max C D,
+      hspace.mono (fun _ => le_rfl) fun _ => Nat.mul_le_mul_right _ (le_max_left C D),
+      fun a => (hlen (encIn a) (rank a) (hrank_lt a)).trans
+        (Nat.mul_le_mul_right _ (le_max_right C D))⟩
+  have hsize := encSeedSearchSize_subdivision_budget
+    (encSeedSearchParameters_search_budget (encJustesenSubdivisionContext_parameters_budget hctx))
+  have hdim : ComputableInSpace
+      (fun a =>
+        (configurationSeedSearchSetup ntm c (encIn a)).parameters.search.subdivision.vertexCount)
+      encIn encNat budget :=
+    (encSubdivisionSize_vertexCount_budget hsize).of_enc_eq fun a => by
+      simp only [(configurationSeedSearchSetup_endpoints ntm c (encIn a)).1,
+        ctx, configurationJustesenSubdivisionContext]
+  have hentry := Runtime.entry_budget (justesenWeightedSubdivisionCallback ntm)
+    (fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)) callbackVerdict 3
+    encJustesenSubdivisionContext encJustesenSubdivisionState hctx hdim hcurrent htarget hfuel
+  exact hentry.of_enc_eq fun _ => by
+    simp only [configurationJustesenBoundedWalk, Runtime.machine_init, ctx]
 
 /-- A successful first halt uses exactly the canonical selectors of a typed walk on the
 Justesen-weighted subdivision, and returns the same unused fuel. -/
