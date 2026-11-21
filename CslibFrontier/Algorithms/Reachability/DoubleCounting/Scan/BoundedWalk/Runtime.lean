@@ -20,7 +20,8 @@ binary dimension and context to the existing bound on every branch.
 
 The `entry_budget` certificate loads the runtime context, binary dimension, and registers.
 Native space certificates also cover the query position, halt flag, and unused fuel.
-Native compilation of the state-changing step remains in #6747.
+The active adjacency-call transition has a shared space certificate in `BoundedWalk`.
+Dispatching all phases from the encoded runtime state remains open in #6747.
 -/
 
 public section
@@ -67,6 +68,19 @@ theorem length_encState (encContext : κ ↪ List Bool) (encCallee : τ ↪ List
   simp only [List.length_append, length_frame]
   omega
 
+/-- Frame the retained context and vertex count around a supplied encoded walk state. -/
+theorem state_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool)
+    {context : α → κ} {dimension : α → ℕ} {walk : (a : α) → BoundedWalk.State (dimension a) τ}
+    {positive : ∀ a, 0 < dimension a}
+    (hcontext : ComputableInSpace context encIn encContext budget)
+    (hdim : ComputableInSpace dimension encIn encNat budget)
+    (hwalk : ComputableInSpace (fun a => BoundedWalk.encState encCallee (walk a))
+      encIn encBits budget) :
+    ComputableInSpace (fun a => State.mk (context a) (dimension a) (positive a) (walk a))
+      encIn (encState encContext encCallee) budget :=
+  (budget_prod hcontext (budget_prod hdim hwalk)).of_enc_eq fun _ => rfl
+
 variable (edge : QueryMachine τ) (start : κ → ℕ → ℕ → τ) (verdict : τ → Bool) (clock : ℕ)
 
 private def typedMachine {N : ℕ} (ctx : κ) (r : Registers N) :=
@@ -92,15 +106,10 @@ theorem entry_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ
     (hfuel : ComputableInSpace (fun a => (registers a).fuel) encIn encNat budget) :
     ComputableInSpace (fun a => entry edge start verdict clock (context a) (registers a))
       encIn (encState encContext encCallee) budget := by
-  have hregisters : ComputableInSpace (fun a => encRegisters (dimension a) (registers a))
-      encIn encBits budget :=
-    (budget_prod hcurrent (budget_prod htarget hfuel)).of_enc_eq fun _ => rfl
+  have hregisters := BoundedWalk.registersWord_budget (r := registers) hcurrent htarget hfuel
   have hchoice := BoundedWalk.choiceWord_budget hregisters (NondeterministicChoice.init_budget hdim)
-  refine (budget_prod hcontext (budget_prod hdim hchoice)).of_enc_eq fun a => ?_
-  change (frame (encContext (context a)) ++ (frame (encNat (dimension a)) ++
-    BoundedWalk.encState encCallee ((BoundedWalk.machine edge
-      (fun u v => start (context a) u.val v.val) verdict clock (registers a)).init))) = _
-  simp only [BoundedWalk.encState_init, encPair_apply, encBits_apply]
+  refine state_budget encContext encCallee hcontext hdim (hchoice.of_enc_eq fun a => ?_)
+  simp only [typedMachine, encBits_apply, BoundedWalk.encState_init]
 
 /-- One same-input transition machine selects the walk's context and dimension from its
 current state, including during a suspended adjacency call. -/
@@ -111,6 +120,15 @@ def machine (initial : State κ τ) : NondeterministicQueryMachine (State κ τ)
     {s with walk := (innerMachine edge start verdict clock s).next (s.walk, reply, selector)}
   halted s := BoundedWalk.halted s.walk
   accept s := (innerMachine edge start verdict clock s).accept s.walk
+
+/-- The active-call update retains the runtime context and dimension. -/
+theorem machine_next_call (initial : State κ τ) {N : ℕ} (ctx : κ) (hp : 0 < N)
+    (r : Registers N) (v : Fin N) (remaining : ℕ) (s : τ) (answer : Option Bool)
+    (selector : Bool) :
+    (machine edge start verdict clock initial).next
+        (⟨ctx, N, hp, .call r v remaining s⟩, answer, selector) =
+      ⟨ctx, N, hp, BoundedWalk.advanceCall edge verdict r v remaining s answer selector⟩ := by
+  simp only [machine, innerMachine, typedMachine, BoundedWalk.machine_next_call]
 
 /-- Entering the same machine with different registers does not change its transition rules. -/
 theorem machine_withInit (initial state : State κ τ) :

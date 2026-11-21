@@ -71,6 +71,15 @@ def query (calleeQuery : τ → ℕ) : State N τ → ℕ
   | .call _ _ _ s => calleeQuery s
   | _ => 0
 
+/-- Update an active adjacency call. A completed successful call moves to its destination
+and starts a fresh choice. -/
+def advanceCall (edge : QueryMachine τ) (verdict : τ → Bool) (r : Registers N) (v : Fin N)
+    (remaining : ℕ) (s : τ) (answer : Option Bool) (selector : Bool) : State N τ :=
+  if selector then .done none
+  else match remaining with
+    | 0 => if edge.halted s && verdict s then boundary { r with current := v } else .done none
+    | steps + 1 => .call r v steps (if edge.halted s then s else edge.next (s, answer))
+
 private def advance (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
     (verdict : τ → Bool) (clock : ℕ) : State N τ × Option Bool × Bool → State N τ
   | (.choose r s, answer, selector) =>
@@ -87,11 +96,7 @@ private def advance (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
         | _, _ => .done none
     else .choose r (choice.next (s, answer, selector))
   | (.call r v remaining s, answer, selector) =>
-    if selector then .done none
-    else match remaining with
-      | 0 => if edge.halted s && verdict s then boundary { r with current := v }
-             else .done none
-      | steps + 1 => .call r v steps (if edge.halted s then s else edge.next (s, answer))
+    advanceCall edge verdict r v remaining s answer selector
   | (.done r, _, _) => .done r
 
 /-- The bounded walk with a supplied same-input adjacency subroutine and a common clock
@@ -116,6 +121,15 @@ theorem machine_halted (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
     (verdict : τ → Bool) (clock : ℕ) (initial : Registers N) :
     (machine edge start verdict clock initial).halted = halted := by
   unfold machine
+  rfl
+
+/-- On an active call the machine uses the call update for any initialization. -/
+theorem machine_next_call (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
+    (verdict : τ → Bool) (clock : ℕ) (initial r : Registers N) (v : Fin N)
+    (remaining : ℕ) (s : τ) (answer : Option Bool) (selector : Bool) :
+    (machine edge start verdict clock initial).next (.call r v remaining s, answer, selector) =
+      advanceCall edge verdict r v remaining s answer selector := by
+  unfold machine advance
   rfl
 
 /-- Changing the walk registers at entry leaves all transitions and verdicts unchanged. -/
@@ -193,7 +207,7 @@ private theorem rank_decreases (s : State N τ) (selector : Bool)
         omega
   | call r v remaining s =>
     simp only [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read,
-      machine, halted, Bool.false_eq_true, ite_false, advance]
+      machine, halted, Bool.false_eq_true, ite_false, advance, advanceCall]
     cases selector
     · cases remaining
       · by_cases hs' : (edge.halted s && verdict s) = true
@@ -352,7 +366,7 @@ private theorem step_reachable (s : State N τ) (selector : Bool)
     cases selector
     · cases ticks
       · simp only [NondeterministicQueryMachine.step, machine, halted, Bool.false_eq_true,
-          ite_false, advance]
+          ite_false, advance, advanceCall]
         split
         · exact boundary_reachable edge start clock initial input _ hfuel
         · exact fun _ h => by simp at h
@@ -551,7 +565,7 @@ private theorem replay_edge (adjacent : Fin N → Fin N → Bool)
       replay_call edge start verdict clock initial input,
       show List.replicate 1 false = [false] by rfl, NondeterministicQueryMachine.replay_cons,
       NondeterministicQueryMachine.replay_nil]
-    simp [NondeterministicQueryMachine.step, machine, halted, advance, hclock, hedge]
+    simp [NondeterministicQueryMachine.step, machine, halted, advance, advanceCall, hclock, hedge]
 
 private theorem replay_boundary (adjacent : Fin N → Fin N → Bool)
     (hclock : ∀ u v, edge.halted (edge.runFrom input (start u v) clock) = true)
@@ -713,9 +727,10 @@ private theorem successful_call (r : Registers N) (v : Fin N) (ticks : ℕ) (s :
       · by_cases h : (edge.halted s && verdict s) = true
         · have hv := (Bool.and_eq_true_iff.mp h).2
           exact ⟨rest, rfl, hv, by
-            simpa [NondeterministicQueryMachine.step, machine, halted, advance, h] using hr⟩
+            simpa [NondeterministicQueryMachine.step, machine, halted, advance, advanceCall, h]
+              using hr⟩
         · have hstep : (M).step input (.call r v 0 s) false = .done none := by
-            simp [NondeterministicQueryMachine.step, machine, halted, advance, h]
+            simp [NondeterministicQueryMachine.step, machine, halted, advance, advanceCall, h]
           rw [hstep, (M).replay_of_halted input (show (M).halted (.done none) = true by rfl)] at hr
           cases hr
       · have hstep : (M).step input (.call r v 0 s) true = .done none := rfl
@@ -813,7 +828,8 @@ private theorem successful_walk (adjacent : Fin N → Fin N → Bool)
               NondeterministicQueryMachine.replay_nil] at hsuffix'
             have hcallback := hclock r.current v
             simp only [NondeterministicQueryMachine.step, machine, halted, Bool.false_eq_true,
-              ite_false, advance, hcallback, hgood, Bool.and_self, ite_true] at hsuffix'
+              ite_false, advance, advanceCall, hcallback, hgood, Bool.and_self, ite_true]
+              at hsuffix'
             obtain ⟨tail, htail, hwalk⟩ := ih k (by omega) _ _ hsuffix' hnext rfl
             refine ⟨v :: tail, ?_, ?_⟩
             · simp only [selectors, htail, List.replicate_succ, List.cons_append, List.append_assoc]
@@ -861,6 +877,14 @@ open MultiTapeTM ComputableInSpace
 
 variable {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ} {encCallee : τ ↪ List Bool}
 
+/-- Assemble a walk's binary register word even when the vertex count depends on the input. -/
+theorem registersWord_budget {dimension : α → ℕ} {r : (a : α) → Registers (dimension a)}
+    (hcurrent : ComputableInSpace (fun a => (r a).current.val) encIn encNat budget)
+    (htarget : ComputableInSpace (fun a => (r a).target.val) encIn encNat budget)
+    (hfuel : ComputableInSpace (fun a => (r a).fuel) encIn encNat budget) :
+    ComputableInSpace (fun a => encRegisters (dimension a) (r a)) encIn encBits budget :=
+  (budget_prod hcurrent (budget_prod htarget hfuel)).of_enc_eq fun _ => rfl
+
 /-- Build choice-phase words from registers and a reader supplied within the same budget.
 The register word can encode a carrier that varies with the input. -/
 theorem choiceWord_budget {r : α → List Bool} {s : α → NondeterministicChoice.State}
@@ -887,6 +911,22 @@ theorem init_budget (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
     ((ComputableInSpace.constZero (NondeterministicChoice.machine N).init).mono_le
       fun _ => Nat.zero_le _)
 
+private abbrev encCallWord (encCallee : τ ↪ List Bool) :=
+  encCallFields encBits encNat encCallee
+
+private theorem callWord_budget {dimension : α → ℕ} {r : (a : α) → Registers (dimension a)}
+    {v : (a : α) → Fin (dimension a)} {ticks : α → ℕ} {s : α → τ}
+    (hr : ComputableInSpace (fun a => encRegisters (dimension a) (r a)) encIn encBits budget)
+    (hv : ComputableInSpace (fun a => (v a).val) encIn encNat budget)
+    (hticks : ComputableInSpace ticks encIn encNat budget)
+    (hs : ComputableInSpace s encIn encCallee budget) :
+    ComputableInSpace (fun a => encState encCallee (.call (r a) (v a) (ticks a) (s a)))
+      encIn encBits budget :=
+  let right := encSum (encCallWord encCallee) (encOption encNat)
+  (budget_comp_linear (of_inO (ComputableInO.inr encBits right))
+    (budget_comp_linear (of_inO (ComputableInO.inl (encCallWord encCallee) (encOption encNat)))
+      (budget_prod hr (budget_prod hv (budget_prod hticks hs))))).of_enc_eq fun _ => rfl
+
 private theorem call_budget {r : α → Registers N} {v : α → Fin N} {ticks : α → ℕ} {s : α → τ}
     (hr : ComputableInSpace r encIn (encRegisters N) budget)
     (hv : ComputableInSpace v encIn (encVertex N) budget)
@@ -894,19 +934,23 @@ private theorem call_budget {r : α → Registers N} {v : α → Fin N} {ticks :
     (hs : ComputableInSpace s encIn encCallee budget) :
     ComputableInSpace (fun a => State.call (r a) (v a) (ticks a) (s a)) encIn
       (encState encCallee) budget :=
-  let right := encSum (encCall N encCallee) (encOption encNat)
-  (budget_comp_linear (of_inO (ComputableInO.inr (encChoose N) right))
-    (budget_comp_linear (of_inO (ComputableInO.inl (encCall N encCallee) (encOption encNat)))
-      (budget_prod hr (budget_prod hv (budget_prod hticks hs))))).of_enc_eq fun _ => rfl
+  (callWord_budget (r := r) (v := v) (hr.of_enc_eq fun _ => rfl)
+    (hv.of_enc_eq fun _ => rfl) hticks hs).of_enc_eq fun _ => rfl
+
+private theorem doneWord_budget {dimension : α → ℕ} {f : α → Option ℕ}
+    (hf : ComputableInSpace f encIn (encOption encNat) budget) :
+    ComputableInSpace
+      (fun a => encState encCallee (.done (N := dimension a) (f a))) encIn encBits budget :=
+  let right := encSum (encCallWord encCallee) (encOption encNat)
+  (budget_comp_linear (of_inO (ComputableInO.inr encBits right))
+    (budget_comp_linear (of_inO (ComputableInO.inr (encCallWord encCallee) (encOption encNat)))
+      hf)).of_enc_eq fun _ => rfl
 
 private theorem done_budget {f : α → Option ℕ}
     (hf : ComputableInSpace f encIn (encOption encNat) budget) :
     ComputableInSpace (fun a => State.done (N := N) (τ := τ) (f a)) encIn
       (encState encCallee) budget :=
-  let right := encSum (encCall N encCallee) (encOption encNat)
-  (budget_comp_linear (of_inO (ComputableInO.inr (encChoose N) right))
-    (budget_comp_linear (of_inO (ComputableInO.inr (encCall N encCallee) (encOption encNat)))
-      hf)).of_enc_eq fun _ => rfl
+  (doneWord_budget (dimension := fun _ => N) (encCallee := encCallee) hf).of_enc_eq fun _ => rfl
 
 variable (edge : QueryMachine τ) (start : Fin N → Fin N → τ) (verdict : τ → Bool)
   (clock : ℕ) (initial : Registers N)
@@ -971,6 +1015,52 @@ private theorem chooseNext_inSpace (encCallee : τ ↪ List Bool)
       · by_cases he : r.current = r.target <;> simp [hh', hs', Fin.val_inj, he]
     · simp [hh']
 
+/-- Certify the call update from the encoded registers, destination, clock and callee.
+The dimension may vary at each input. A return initializes the next destination reader
+within the same budget. -/
+theorem advanceCall_budget {edge : QueryMachine τ} {verdict : τ → Bool} {dimension : α → ℕ}
+    {r : (a : α) → Registers (dimension a)} {v : (a : α) → Fin (dimension a)}
+    {ticks : α → ℕ} {callee : α → τ} {answer : α → Option Bool} {selector : α → Bool}
+    (hnext : ComputableInSpace edge.next (QueryMachine.encStateRead encCallee) encCallee
+      (fun p => (QueryMachine.encStateRead encCallee p).length))
+    (hhalted : ComputableInSpace edge.halted encCallee encBool (fun s => (encCallee s).length))
+    (hverdict : ComputableInSpace verdict encCallee encBool (fun s => (encCallee s).length))
+    (hdim : ComputableInSpace dimension encIn encNat budget)
+    (hr : ComputableInSpace (fun a => encRegisters (dimension a) (r a)) encIn encBits budget)
+    (hv : ComputableInSpace (fun a => (v a).val) encIn encNat budget)
+    (hticks : ComputableInSpace ticks encIn encNat budget)
+    (hcallee : ComputableInSpace callee encIn encCallee budget)
+    (hanswer : ComputableInSpace answer encIn (encOption encBool) budget)
+    (hselector : ComputableInSpace selector encIn encBool budget) :
+    ComputableInSpace (fun a => encState encCallee
+      (advanceCall edge verdict (r a) (v a) (ticks a) (callee a) (answer a) (selector a)))
+      encIn encBits budget := by
+  have hregs : ComputableInSpace (fun a => ((r a).current.val, (r a).target.val, (r a).fuel))
+      encIn (encPair encNat (encPair encNat encNat)) budget := hr.of_enc_eq fun _ => rfl
+  have hhalt := budget_comp_linear hhalted hcallee
+  have hvd := budget_comp_linear hverdict hcallee
+  have hstep := budget_comp_linear hnext (budget_prod hcallee hanswer)
+  have hcontinue := callWord_budget (r := r) (v := v) hr hv (budget_natPred hticks)
+    (budget_ite hhalt hcallee hstep)
+  have hresume := choiceWord_budget
+    (registersWord_budget (r := fun a => { r a with current := v a })
+      hv (fst' (snd' hregs)) (snd' (snd' hregs))) (NondeterministicChoice.init_budget hdim)
+  have hreject := doneWord_budget (dimension := dimension) (encCallee := encCallee)
+    (encIn := encIn) (budget := budget)
+    ((ComputableInSpace.constZero none).mono_le fun _ => Nat.zero_le _)
+  refine (budget_ite hselector hreject
+    (budget_ite (budget_natIsZero hticks)
+      (budget_ite (budget_boolAnd hhalt hvd) hresume hreject) hcontinue)).of_enc_eq ?_
+  intro a
+  cases selector a <;> cases ticks a <;> try rfl
+  by_cases h : (edge.halted (callee a) && verdict (callee a)) = true
+  · let r' := { r a with current := v a }
+    have hword : encState encCallee (boundary r') =
+        choiceWord (encRegisters (dimension a) r')
+          (NondeterministicChoice.machine (dimension a)).init := rfl
+    simpa [advanceCall, h, r'] using hword
+  · simp [advanceCall, h]
+
 private theorem callNext_inSpace (encCallee : τ ↪ List Bool)
     (hnext : ComputableInSpace edge.next (QueryMachine.encStateRead encCallee) encCallee
       (fun p => (QueryMachine.encStateRead encCallee p).length))
@@ -990,23 +1080,17 @@ private theorem callNext_inSpace (encCallee : τ ↪ List Bool)
   have hticks := fst' hstep
   have hcallee := snd' hstep
   have hanswer := snd (encCall N encCallee) encAnswer
-  have hhalt := budget_comp_linear hhalted hcallee
-  have hvd := budget_comp_linear hverdict hcallee
-  have hstep' := budget_comp_linear hnext (budget_prod hcallee (fst' hanswer))
-  have hcontinue := call_budget hr hv (budget_natPred hticks) (budget_ite hhalt hcallee hstep')
-  have hresume := choose_budget (encCallee := encCallee)
-    (encRegisters_mk_budget N hv (encRegisters_target_budget N hr) (encRegisters_fuel_budget N hr))
-    (budget_const (C).init (.refl _))
-  have hreject := done_budget (N := N) (encCallee := encCallee)
-    (budget_const (encIn := encPair (encCall N encCallee) encAnswer)
-      (encB := encOption encNat) none (.refl _))
-  refine (budget_ite (snd' hanswer) hreject
-    (budget_ite (budget_natIsZero hticks)
-      (budget_ite (budget_boolAnd hhalt hvd) hresume hreject) hcontinue)).of_enc_eq ?_
-  rintro ⟨⟨r, v, ticks, callee⟩, answer, selector⟩
-  change encState encCallee (advance edge start verdict clock
-    (.call r v ticks callee, answer, selector)) = _
-  cases selector <;> cases ticks <;> rfl
+  let enc := encPair (encCall N encCallee) encAnswer
+  let r (p : (Registers N × Fin N × ℕ × τ) × Option Bool × Bool) := p.1.1
+  let v (p : (Registers N × Fin N × ℕ × τ) × Option Bool × Bool) :=
+    match p with | ⟨⟨_, v, _, _⟩, _⟩ => v
+  have hdim := budget_const (encIn := enc) (encB := encNat) N (.refl _)
+  have hrWord : ComputableInSpace (fun p => encRegisters N (r p)) enc encBits
+      (fun p => (enc p).length) := hr.of_enc_eq fun _ => rfl
+  have hvWord : ComputableInSpace (fun p => (v p).val) enc encNat
+      (fun p => (enc p).length) := hv.of_enc_eq fun _ => rfl
+  exact (advanceCall_budget (r := r) (v := v) hnext hhalted hverdict hdim hrWord hvWord
+    hticks hcallee (fst' hanswer) (snd' hanswer)).of_enc_eq fun _ => rfl
 
 section ReadState
 
@@ -1019,11 +1103,8 @@ private def readState : State N τ → ReadState τ
   | .call r v ticks s => .inr (.inl (encRegisters N r, v.val, ticks, s))
   | .done reply => .inr (.inr reply)
 
-private abbrev encReadCall (encCallee : τ ↪ List Bool) :=
-  encCallFields encBits encNat encCallee
-
 private abbrev encReadState (encCallee : τ ↪ List Bool) :=
-  encSum encBits (encSum (encReadCall encCallee) (encOption encNat))
+  encSum encBits (encSum (encCallWord encCallee) (encOption encNat))
 
 variable {dimension : α → ℕ} {state : (a : α) → State (dimension a) τ}
 
@@ -1051,7 +1132,7 @@ theorem halted_budget
     ComputableInSpace (fun a => halted (state a)) encIn encBool budget := by
   have h := sumElim
     (budget_const (encIn := encBits) (encB := encBool) false (.refl _))
-    (sumElim (budget_const (encIn := encReadCall encCallee) (encB := encBool) false (.refl _))
+    (sumElim (budget_const (encIn := encCallWord encCallee) (encB := encBool) false (.refl _))
       (budget_const (encIn := encOption encNat) (encB := encBool) true (.refl _)))
   exact (budget_comp_linear h (readState_budget hstate)).of_enc_eq
     fun a => by cases state a <;> rfl
@@ -1065,7 +1146,7 @@ theorem remainingFuel_budget
     of_inO ComputableInDegree.id'.inO_one
   have h := sumElim
     (budget_const (encIn := encBits) (encB := encOption encNat) none (.refl _))
-    (sumElim (budget_const (encIn := encReadCall encCallee) (encB := encOption encNat)
+    (sumElim (budget_const (encIn := encCallWord encCallee) (encB := encOption encNat)
       none (.refl _)) hid)
   exact (budget_comp_linear h (readState_budget hstate)).of_enc_eq
     fun a => by cases state a <;> rfl

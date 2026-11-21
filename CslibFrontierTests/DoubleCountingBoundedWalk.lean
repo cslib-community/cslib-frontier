@@ -117,6 +117,11 @@ example :
   ⟨init_budget edge start verdict 1 (of_inO ComputableInDegree.id'.inO_one),
     remainingFuel_inSpace (encOption encBool)⟩
 
+private theorem edgeNext_inSpace :
+    ComputableInSpace edge.next (QueryMachine.encStateRead (encOption encBool))
+      (encOption encBool) (fun p => (QueryMachine.encStateRead (encOption encBool) p).length) :=
+  budget_optionSome (budget_optionGetD false (snd (encOption encBool) (encOption encBool)))
+
 /-- The same walk has native routines with one space envelope for all selector paths. -/
 private theorem routines : Nonempty (Routines (machine edge start verdict 1 moving)
     (fun _ : List Bool => (machine edge start verdict 1 moving).init) encBits budget) := by
@@ -127,12 +132,9 @@ private theorem routines : Nonempty (Routines (machine edge start verdict 1 movi
     budget_const none (.refl _)
   have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
       (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
-  have hnext : ComputableInSpace edge.next (QueryMachine.encStateRead (encOption encBool))
-      (encOption encBool) (fun p => (QueryMachine.encStateRead (encOption encBool) p).length) :=
-    budget_optionSome (budget_optionGetD false (snd (encOption encBool) (encOption encBool)))
   refine Turing.DoubleCounting.BoundedWalk.exists_routines edge start verdict 1 moving
-    (encOption encBool) hstart (budget_const 0 (.refl _)) hnext (budget_optionIsSome hresult)
-    (budget_optionGetD false hresult) (fun _ => moving) ?_ ?_ ?_ ?_
+    (encOption encBool) hstart (budget_const 0 (.refl _)) edgeNext_inSpace
+    (budget_optionIsSome hresult) (budget_optionGetD false hresult) (fun _ => moving) ?_ ?_ ?_ ?_
   · exact (ComputableInSpace.constZero moving).mono_le fun _ => Nat.zero_le _
   · intro input
     rw [budget, encBits_apply]
@@ -244,5 +246,40 @@ example :
     ?_ ?_ (snd encBool encNat)
   · exact budget_const 0 (.refl _)
   · exact budget_finite (fun b : Bool => if b then 3 else 1) hcontext
+
+/-- The same native call update works at two dimensions with a runtime clock remainder. -/
+example :
+    let enc := encPair encBool encNat
+    let dimension (p : Bool × ℕ) := if p.1 then 4 else 2
+    let dest (p : Bool × ℕ) : Fin (dimension p) :=
+      ⟨if p.1 then 3 else 1, by dsimp [dimension]; cases p.1 <;> decide⟩
+    let r (p : Bool × ℕ) : Registers (dimension p) :=
+      ⟨⟨0, by dsimp [dimension]; cases p.1 <;> decide⟩, dest p, p.2⟩
+    let callee (p : Bool × ℕ) := if p.1 then some true else none
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let M := Runtime.machine edge runtimeStart verdict 1 initial
+    ComputableInSpace (fun p => M.next
+      (⟨p.1, dimension p, Nat.zero_lt_of_lt (dest p).isLt,
+        .call (r p) (dest p) p.2 (callee p)⟩, some p.1, false))
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc dimension dest r callee initial M
+  have hflag := fst encBool encNat
+  have hclock := snd encBool encNat
+  have hdim := budget_finite (encC := encNat) (fun b : Bool => if b then 4 else 2) hflag
+  have hdest := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 1) hflag
+  have hregisters := registersWord_budget (r := r) (budget_const 0 (.refl _)) hdest hclock
+  have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
+      (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
+  have hcallee := budget_finite (encC := encOption encBool)
+    (fun b : Bool => if b then some true else none) hflag
+  have hwalk := advanceCall_budget (r := r) (v := dest)
+    edgeNext_inSpace (budget_optionIsSome hresult) (budget_optionGetD false hresult)
+    hdim hregisters hdest hclock hcallee (budget_optionSome hflag)
+    (budget_const false (.refl _))
+  refine (Runtime.state_budget (positive := fun p => Nat.zero_lt_of_lt (dest p).isLt)
+    encBool (encOption encBool) hflag hdim hwalk).of_enc_eq fun p => ?_
+  dsimp only [M]
+  rw [Runtime.machine_next_call]
+  rfl
 
 end CslibFrontierTests.DoubleCountingBoundedWalk
