@@ -569,7 +569,7 @@ def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : Lis
              else s.witness }
 
 /-- The constraint numbers that a step deletes. -/
-def Step.delIds : Step → List ℕ
+private def Step.delIds : Step → List ℕ
   | .del ids => ids
   | _ => []
 
@@ -589,6 +589,7 @@ def Step.delIds : Step → List ℕ
   CakePB's `check_tcb_idopt`).
 * `core id` moves constraints to the core set and needs at least one ID; promoting a constraint
   already in the core set changes nothing (§5.1). `strengthening_to_core on` moves all of them. -/
+@[no_expose]
 def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep → Option State
   | .step st =>
     match runStep s.db s.next st with
