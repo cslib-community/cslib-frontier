@@ -57,6 +57,16 @@ namespace Cslib.Logic.SO
 
 open FirstOrder Language Structure CategoryTheory
 
+/-- A tuple of elements and relations of specified arities. -/
+abbrev MixedTuple (M : Type w') (k : ℕ) {ι : Type} (arity : ι → ℕ) :=
+  (Fin k → M) × (∀ i : ι, Set (Fin (arity i) → M))
+
+/-- Evaluate element terms and relation symbols as a mixed tuple. -/
+def MixedTuple.realize {L : Language.{u, v}} {α : Type w} {M : Type w'} [L.Structure M]
+    {k : ℕ} {ι : Type} {arity : ι → ℕ} (terms : Fin k → L.Term α)
+    (relations : ∀ i, L.Relations (arity i)) (env : α → M) : MixedTuple M k arity :=
+  (fun i => (terms i).realize env, fun i => {x | RelMap (relations i) x})
+
 /-- A second-order formula with free element variables `α`, `n` bound element variables,
 and vocabulary `L`. Relation binders extend the vocabulary for their body. -/
 inductive BoundedFormula (allowTC : Bool) (α : Type w) :
@@ -93,18 +103,16 @@ def Realize : {L : Language.{u, v}} → {n : ℕ} → BoundedFormula allowTC α 
     ∀ R : ∀ i : ι, Set (Fin (arity i) → M),
       letI := ESO.varLanguage.structure R
       ψ.Realize free bound
-  | _, _, .tc (ι := ι) (k := k) _ _ arity sourceRelations targetRelations
+  | _, _, .tc (k := k) _ _ arity sourceRelations targetRelations
       sourceTerms targetTerms edge, _, free, bound =>
-    let step (a b : (Fin k → M) × (∀ i : ι, Set (Fin (arity i) → M))) : Prop :=
+    let step (a b : MixedTuple M k arity) : Prop :=
       letI := ESO.varLanguage.structure (arity := Sum.elim arity arity) fun
         | .inl i => a.2 i
         | .inr i => b.2 i
       edge.Realize free (Fin.append (Fin.append bound a.1) b.1)
     Relation.TransGen step
-      (fun i => (sourceTerms i).realize (Sum.elim free bound),
-        fun i => {x | RelMap (sourceRelations i) x})
-      (fun i => (targetTerms i).realize (Sum.elim free bound),
-        fun i => {x | RelMap (targetRelations i) x})
+      (MixedTuple.realize sourceTerms sourceRelations (Sum.elim free bound))
+      (MixedTuple.realize targetTerms targetRelations (Sum.elim free bound))
 
 /-- Negation of a second-order formula. -/
 def neg (φ : BoundedFormula allowTC α L n) : BoundedFormula allowTC α L n :=
