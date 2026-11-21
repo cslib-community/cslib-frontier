@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedRank
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
 public import Mathlib.Logic.Equiv.Fin.Basic
+import CslibFrontier.Foundations.Data.Fin.Prod
 
 /-!
 # Retained-rank source weights for subdivision
@@ -53,10 +54,8 @@ theorem sourceWeight_eq_generatedWeight {w n : ℕ} (width rank seedWidth : Cont
     sourceWeight width rank seedWidth code
       ⟨ctx, (finProdFinEquiv z).val, target, fromOffset, toOffset⟩ =
         generatedWeight ((BitString.equivFin _).symm seed) z := by
-  have hz := finProdFinEquiv.symm_apply_apply z
-  have hl : (finProdFinEquiv z).val / w = z.1.val := congrArg (fun p => p.1.val) hz
-  have hc : (finProdFinEquiv z).val % w = z.2.val := congrArg (fun p => p.2.val) hz
-  simp only [sourceWeight, weightRequest, hw, hr, hs, hl, hc]
+  simp only [sourceWeight, weightRequest, hw, hr, hs,
+    finProdFinEquiv_val_div, finProdFinEquiv_val_mod]
   exact SeedRank.weightRank_eq_generatedWeight code (ctx, z.2.val) seed z hcode
 
 /-- The source weight is an admissible native component of the subdivision callback.

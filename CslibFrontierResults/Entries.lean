@@ -22,6 +22,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImp
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumInformationChain
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Foundations.Quantum.Orthogonalization
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
@@ -72,6 +73,7 @@ import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Crypto.Primitives.UHF.Finite
+import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -472,6 +474,10 @@ import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
 import CslibFrontier.Foundations.Probability.IndependentSumNorm
 
+import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
+
+import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 /-!
 # Collected results
 
@@ -10725,6 +10731,23 @@ register_result "single-pair-hash-game-bounds" where
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
 
+register_result "pairwise-unpredictability-implies-universal-hashing" where
+  title := "Pairwise unpredictability implies universality and difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Consequences of Definition 7.7 (unnumbered)",
+      locator := "v0.6, Section 7.6.1, printed p. 275; Attack Game 7.5 and Definition 7.7" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isUniversalHash,
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isDeltaUniversalHash
+  ]
+  scope := "A finite uniform private key and a single adaptive prediction. The two-stage \
+    adversary may save arbitrary private state and receives the first hash before choosing its \
+    second message and digest. The game rejects repeated messages. The collision implication \
+    works with arbitrary digests, and the difference implication uses any additive group, \
+    including the source’s cyclic and abelian cases."
+
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
   topic := "cryptography"
@@ -11802,20 +11825,36 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
       locator := "author's copy of December 27, 2005, §4, printed p. 12" }
   ]
   theorems := [
-    ZLattice.tvDist_gaussian_shift_quotient_le
+    ZLattice.tvDist_gaussian_shift_quotient_le,
+    ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le
   ]
-  scope := "Dual-mass form (first sentence) of MicciancioRegev2007 Lemma 4.1 (a step toward the \
-    s ≥ η_ε(L) corollary once ZLattice.smoothingParameter is in scope): for any full-rank \
-    discrete lattice L in a finite-dimensional real inner product space E with Borel measurable \
-    structure, fundamental domain F for L, width s > 0, and arbitrary center c : E, the \
-    quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total variation \
-    distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the normalized \
-    quotient Haar measure. Conventions and deviations from the source: (1) Mathlib's tvDist is \
-    the full-L¹ distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly \
-    equivalent to the source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}) (identical constant, \
-    not looser); (2) stated on the quotient group E ⧸ L with normalized restricted volume on an \
-    arbitrary fundamental domain F rather than a basis parallelepiped P(B); (3) omits the \
-    'In particular, s ≥ η_ε(B) ⇒ Δ ≤ ε / 2' specialization until smoothingParameter lands."
+  scope := "MicciancioRegev2007 Lemma 4.1 in two parts. (a) Dual-mass form of the first sentence: \
+    for any full-rank discrete lattice L in a finite-dimensional real inner product space E with \
+    Borel measurable structure, fundamental domain F for L, width s > 0, and arbitrary center \
+    c : E, the quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total \
+    variation distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the \
+    normalized quotient Haar measure. (b) Smoothing-parameter corollary for the centered Gaussian \
+    (c = 0): for ε > 0 and ZLattice.smoothingParameter L ε ≤ s, the same total variation distance \
+    is at most ε. Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ \
+    distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to the \
+    source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}), and tvDist ≤ ε in (b) is the source's \
+    Δ ≤ ε / 2 (identical constants, not looser); (2) stated on the quotient group E ⧸ L with \
+    normalized restricted volume on an arbitrary fundamental domain F rather than a basis \
+    parallelepiped P(B); (3) the η_ε specialization is registered for the centered Gaussian only."
+
+register_result "classical-quantum-tuple-mutual-information-chain" where
+  title := "Mutual information chain rule for finite classical tuples and a quantum register"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Chain equality in equation (27)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 21" }
+  ]
+  theorems := [Cslib.Quantum.mutualInformation_classicalQuantumState_eq_sum_coordinates]
+  scope := "Arbitrary finite tuples whose coordinate alphabets may differ, with any joint \
+    probability mass function and finite complex density matrices as conditional blocks. \
+    The coordinate terms average conditional mutual information over preceding labels, \
+    with null prefixes weighted zero. The chain uses natural logarithms and includes the \
+    empty tuple."
 
 register_result "micciancio-regev-indep-sum-sq-norm" where
   title := "Expected squared norm of linear combinations of independent random vectors"
@@ -11881,6 +11920,57 @@ register_result "micciancio-regev-discrete-gaussian-moments" where
     rather than via η_ε(L); (2) uses general width s > 0 rather than s = 1; (3) uses the exact \
     probability-weighted tsum form (bridged to Bochner integrals by \
     integral_sub_discreteGaussian_eq_tsum and integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+
+-- https://github.com/cslib-community/cslib-frontier/pull/6844
+register_result "micciancio-regev-smoothing-parameter-dual-minimum" where
+  title := "Smoothing parameter upper bound from the dual first minimum"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.2",
+      locator := "December 27, 2005 author's copy, Section 3, pp. 10–11; Definition 3.1, p. 10" }
+  ]
+  theorems := [ZLattice.smoothingParameter_le_sqrt_div_minimum_dual]
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E of dimension n = finrank ℝ E, η_{2^{-n}}(L) ≤ √n / λ₁(L*), where \
+    ZLattice.smoothingParameter L ε is the infimum of s > 0 with nonzero reciprocal-width dual \
+    Gaussian mass ρ_{1/s}(L* \\ {0}) ≤ ε and λ₁(L*) is ZLattice.minimum of the dual lattice \
+    LinearMap.BilinForm.dualSubmodule (innerₗ E) L. Holds uniformly in all dimensions including \
+    n = 0 (where both sides are 0) and requires no MeasurableSpace instance on E; the proof \
+    applies the doubled-width centered discrete-Gaussian tail bound on L* rather than \
+    Banaszczyk's Lemma 1.5(i) directly. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6844 against the December 27, 2005 author's copy, \
+    pp. 10–11: https://github.com/cslib-community/cslib-frontier/pull/6844."
+
+register_result "micciancio-regev-shifted-gaussian-mass-le-zero" where
+  title := "Shifted lattice Gaussian mass is maximized at the origin"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 2.9",
+      locator := "December 27, 2005 author's copy (Gaussian.pdf), §2, printed p. 9" }
+  ]
+  theorems := [ZLattice.gaussianMass_le_gaussianMass_zero]
+  scope := "For every discrete ℤ-submodule L of a finite-dimensional real inner product space E, \
+    every width s > 0, and every center c : E, the shifted lattice Gaussian mass satisfies \
+    gaussianMass L s c ≤ gaussianMass L s 0. Strict generalization of Lemma 2.9: no full-rank \
+    (IsZLattice ℝ L) or MeasurableSpace E hypothesis is required; the proof projects c \
+    orthogonally onto Submodule.span ℝ (L : Set E) and applies Poisson summation on the span."
+
+register_result "micciancio-regev-smoothing-dual-mass-lambda-n" where
+  title := "Dual-mass form of the Micciancio–Regev λ_n smoothing bound"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.3 (dual-mass step)",
+      locator := "December 27, 2005 author's copy (Gaussian.pdf), §3, printed pp. 11–12" }
+  ]
+  theorems := [ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum]
+  scope := "Dual-mass step toward Micciancio–Regev Lemma 3.3: for every full-rank discrete \
+    lattice L in a finite-dimensional real inner product space E of dimension n = finrank ℝ E \
+    (including n = 0), every ε > 0, and every s > 0 with \
+    √(ln(2n(1 + 1/ε)) / π) · λ_n(L) ≤ s, this theorem proves the nonzero reciprocal-width dual \
+    mass inequality gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε, stopping one \
+    step before wrapping that dual-mass condition into the smoothing-parameter infimum \
+    η_ε(L) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no MeasurableSpace E hypothesis. The \
+    asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is not formalized here."
 
 register_result "micciancio-regev-grid-sampling-step" where
   title := "Discrete-grid Gaussian sampling lemma for full-rank integer lattices"
