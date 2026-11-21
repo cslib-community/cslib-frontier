@@ -4,14 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
-import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
 database whose witness repairs a solution violating the new constraint; a symmetry-breaking `red`
 step with the swap witness `x0 ↔ x1` and all its proof goals, accepted and used to refute a
 formula; the same step with a witness that does not repair, or with an unproved goal, rejected;
 and, with an objective, a `red` step whose witness raises the objective, accepted without the
-objective and rejected with it. -/
+objective and rejected with it; and an `EQUIENUMERABLE` output section, checked by `decide`, with
+its soundness theorems applied. -/
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 
@@ -160,6 +161,38 @@ def NX0 : PBConstr := ⟨[(1, (0, false))], 1⟩
 -- `red ~x0 >= 1 : x0 -> 0 x1 -> 1` does not raise the objective under `x0 >= 1`: its goal `#2`,
 -- `x0 + x1 >= 1`, follows from `x0 >= 1` by adding a literal axiom.
 example : redCheck (some f) (initDb H) 3 NX0 [(0, .zero), (1, .one)] [] none = some 4 := by
+  decide
+
+/-! ### An output section -/
+
+/-- `G` preserving `x1`: the input. -/
+def GI : Instance := ⟨G, none, some [1]⟩
+
+/-- The output formula: `x0 >= 1` and `x1 >= 1`, preserving `x1`. -/
+def GO : Instance := ⟨[D, ⟨[(1, (1, true))], 1⟩], none, some [1]⟩
+
+/-- `red x0 >= 1 : x0 -> 1` moves only the unpreserved `x0`; `core id 2` puts it in the core set,
+which is then the output formula. -/
+def outProof : RedProof := ⟨[.red D setX0 none none, .core [2]], .noClaim⟩
+
+/-- The `EQUIENUMERABLE` output of `outProof`, with an infinite bound. -/
+def outGO : Output := ⟨.equienumerable, GO, none⟩
+
+theorem checkRedOutput_outProof :
+    checkRedOutput G none outProof (some [1]) ⟨.equienumerable, some GO⟩ = some outGO := by
+  decide
+
+-- Its guarantee: below any bound, the solutions of `G` and of `GO` project alike to `x1`.
+example : semOutput GI none GO .equienumerable :=
+  semOutput_of_checkRedOutput checkRedOutput_outProof
+
+-- So `G` and `GO` have the same projected solutions.
+example : projections G [1] = projections GO.constraints [1] :=
+  projections_eq_of_checkRedOutput checkRedOutput_outProof rfl rfl
+
+-- `x0` is not preserved in the input, so `EQUIENUMERABLE` with `x0` preserved is rejected.
+example : checkRedOutput G none outProof (some [1])
+    ⟨.equienumerable, some { GO with preserved := some [0, 1] }⟩ = none := by
   decide
 
 end CslibFrontierTests.Logics.Propositional.VeriPBRed
