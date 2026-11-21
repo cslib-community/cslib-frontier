@@ -12,13 +12,16 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubd
 import CslibFrontier.Foundations.Data.Nat.Log
 
 /-!
-# Live states of weighted adjacency from initialized scan IDs
+# Weighted adjacency from initialized scan IDs
 
 ## Main results
 
 * `Cslib.Complexity.STCON.configurationWeightedSubdivisionCallback_states_le`: for any
   two in-range scan IDs, the weighted callback's live state through return fits in linear
   space in its retained context plus logarithmic overhead in the original input length.
+* `Cslib.Complexity.STCON.configurationWeightedSubdivisionCallback_agrees`: the same call
+  from two initialized scan IDs first halts with the generated subdivision edge verdict,
+  given the Justesen code-bit agreement.
 -/
 
 public section
@@ -27,8 +30,49 @@ namespace Cslib.Complexity.STCON
 
 open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeNTM.ConfigurationGraph
 open _root_.Turing.QueryMachine.Subdivision
+open Cslib.Code.JustesenFamily Cslib.Reachability.Hoza Cslib.LayeredDigraph.Subdivision
 
 variable {k : ℕ} {State Context : Type} [Fintype State]
+
+private theorem subdivisionIndex_symm_val (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ i : Fin size.vertexCount,
+      (subdivisionIndex I size.chainBound ((configurationSubdivisionIndex ntm c w).symm i)).val =
+        i.val := by
+  intro I size i
+  rw [← configurationSubdivisionIndex_val ntm c w, Equiv.apply_symm_apply]
+
+/-- From two IDs in the initialized carrier, the weighted callback first halts at clock
+three and returns the generated subdivision edge verdict, provided the code bits for
+the source column agree with the Justesen code. -/
+theorem configurationWeightedSubdivisionCallback_agrees (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (ctx : Context) (params : Context → LayeredParameters)
+    (rank seedWidth : Context → ℕ) (code : Context × ℕ → ℕ → Bool)
+    (hp : params ctx = layeredParameters ntm c w.length) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    let index := configurationSubdivisionIndex ntm c w
+    ∀ (u v : Fin size.vertexCount) (seed : Fin (2 ^ codeLength I.n (I.n - 1))),
+      rank ctx = seed.val → seedWidth ctx = codeLength I.n (I.n - 1) →
+      (∀ i : Fin (codeLength I.n (I.n - 1)),
+        code (ctx, (index.symm u).vertex.2.val) i.val =
+          indexedCodewordMod (index.symm u).vertex.2 i) →
+      let M := weightedSubdivisionCallback ntm params rank seedWidth code
+      let start := flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩
+      (∀ t < 3, M.halted (M.runFrom w start t) = false) ∧
+      ∃ answer, M.runFrom w start 3 = .inl (.inr answer) ∧
+        M.halted (M.runFrom w start 3) = true ∧
+        (answer = true ↔ (graph (layeredDigraph I)
+          (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj
+          (index.symm u) (index.symm v)) := by
+  intro I size index u v seed hr hs hc
+  have h := weightedSubdivisionCallback_agrees ntm c w ctx params rank seedWidth code hp
+    (index.symm u) (index.symm v) seed hr hs hc
+  dsimp only at h
+  rw [subdivisionIndex_symm_val, subdivisionIndex_symm_val] at h
+  exact h
 
 /-- The scan can charge the suspended original-edge call and decoded request to the same
 budget at every clock through return. The retained context is charged separately. -/
@@ -47,17 +91,13 @@ theorem configurationWeightedSubdivisionCallback_states_le (ntm : MultiTapeNTM k
   obtain ⟨R, hR⟩ := length_configurationSubdivisionRequest_le ntm c encContext
   let D := 12 * (radixExponent State c * Fintype.card (Register k) + 1)
   refine ⟨2 * R + 2 * D + 16, fun w ctx hp u v hu hv t ht => ?_⟩
-  let I := configurationInstance ntm c w
-  let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
-  let index := subdivisionIndex I size.chainBound
-  let a := index.symm ⟨u, (configurationSeedSearchSetup_vertexCount ntm c w) ▸ hu⟩
-  let b := index.symm ⟨v, (configurationSeedSearchSetup_vertexCount ntm c w) ▸ hv⟩
-  have ha : (index a).val = u := Fin.val_eq_of_eq (index.apply_symm_apply _)
-  have hb : (index b).val = v := Fin.val_eq_of_eq (index.apply_symm_apply _)
+  let index := configurationSubdivisionIndex ntm c w
+  let a := index.symm ⟨u, hu⟩
+  let b := index.symm ⟨v, hv⟩
   have h := weightedSubdivisionCallback_states_le ntm c w encContext ctx params
     rank seedWidth code hp a b t ht
   dsimp only at h
-  rw [ha, hb] at h
+  rw [subdivisionIndex_symm_val, subdivisionIndex_symm_val] at h
   have hreq := (hR w ctx u v hu hv).2
   let L := Nat.log2 w.length + 1
   let budget := (encContext ctx).length + L

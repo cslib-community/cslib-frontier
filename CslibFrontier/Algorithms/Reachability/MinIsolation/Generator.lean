@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.Code.JustesenFamily
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 import Mathlib.Algebra.Order.Ring.GeomSum
 import Mathlib.Data.Fintype.BigOperators
+import Mathlib.NumberTheory.Padics.PadicVal.Basic
 import Mathlib.Tactic.Ring
 
 /-!
@@ -116,13 +117,8 @@ theorem exists_generatedWeight_isMinIsolating {w n : ℕ}
 
 private theorem layerValuation_le_log {layer limit : ℕ} (h : layer ≤ limit) :
     padicValNat 2 layer ≤ Nat.log 2 limit := by
-  by_cases hz : layer = 0
-  · simp [hz, Nat.padicValNat_def]
-  · apply Nat.le_log_of_pow_le (by decide)
-    have hdiv : 2 ^ padicValNat 2 layer ∣ layer := by
-      rw [Nat.padicValNat_def]
-      exact pow_multiplicity_dvd _ _
-    exact (Nat.le_of_dvd (Nat.pos_of_ne_zero hz) hdiv).trans h
+  rw [Nat.padicValNat_def]
+  exact (multiplicity_le_nat_log layer).trans (Nat.log_mono_right h)
 
 /-- The executable weights have polynomial magnitude in the number of potential vertices. -/
 private theorem generatedWeight_lt_pow {w n C : ℕ} (seed : Fin (codeLength w n) → Bool)
@@ -161,7 +157,8 @@ of the final layer. -/
 theorem generatedWeight_lt_bound {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
     (z : Fin (n + 1) × Fin w) : generatedWeight seed z < generatedWeightBound w n := by
   have hv := layerValuation_le_log (Nat.le_of_lt_succ z.1.isLt)
-  rw [← Nat.log2_eq_log_two, Nat.log2_eq_size_sub_one] at hv
+  rw [← Nat.log2_eq_log_two] at hv
+  have hsize := hv.trans (Nat.log2_le_size n)
   exact (vertexWeight_lt_pow indexedCodeword seed z.1.val z.2).trans_le
     (Nat.pow_le_pow_right (by decide) (by omega))
 

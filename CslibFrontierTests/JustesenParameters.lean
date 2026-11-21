@@ -36,12 +36,12 @@ example {w n : ℕ} (G : LayeredDigraph (Fin (n + 1) × Fin w))
   ⟨codeLength_inSpace, exists_generatedWeight_isMinIsolating G hlayer⟩
 
 /-- The Horner caller can retain the selected modulus and coefficient count together. -/
-example (hmodulus : ComputableInSpace BinaryField.modulusBitsScan encNat encBits (fun d => d + 1)) :
+example :
     ComputableInSpace
       (fun p : ℕ × ℕ => ((fieldContext p.1 p.2).modulus, (fieldContext p.1 p.2).count))
       (encPair encNat encNat) (encPair encBits encNat)
       (fun p => (encPair encNat encNat p).length) :=
-  let hctx := fieldContext_inSpace_of_modulus hmodulus
+  let hctx := fieldContext_inSpace
   ComputableInSpace.budget_prod (encFieldContext_modulus_budget hctx)
     (encFieldContext_count_budget hctx)
 

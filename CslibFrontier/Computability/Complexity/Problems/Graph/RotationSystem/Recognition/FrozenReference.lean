@@ -182,6 +182,50 @@ private theorem eval_re_mem_original_interval {I : FixedRotationInput} (hI : Val
   rw [heval]
   simpa only [a, b, referencePoint, parabolaPoint, segment_eq_Icc hle] using hre
 
+/-- Every original center has a right bound strictly beyond its whole frozen star.
+The bounds leave a positive gap before the next center, even when either center is
+isolated. The support condition includes both orientations and all segment parameters. -/
+theorem exists_frozen_reference_strips {I : FixedRotationInput} (hI : Valid I) :
+    ∃ right : ℕ → ℝ,
+      (∀ v ∈ I.graph.vertices, (referencePoint I v).re < right v) ∧
+      (∀ u ∈ I.graph.vertices, ∀ v ∈ I.graph.vertices, u < v →
+        right u + 1 / 4 < (referencePoint I v).re) ∧
+      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+        ∀ z ∈ ((referenceDrawing I).route (subdivisionDart I d).1).support,
+          z.re ∈ Set.Ico (referencePoint I d.vertex).re (right d.vertex) := by
+  let right (v : ℕ) : ℝ := if v + 1 < I.graph.vertices.length then
+    (referencePoint I (v + 1)).re - 1 / 2
+    else (referenceOrder I).length
+  have hname (v : ℕ) (hv : v ∈ I.graph.vertices) : v < I.graph.vertices.length := by
+    rw [hI.1] at hv
+    exact List.mem_range.mp hv
+  have hbound (v x : ℕ) (hv : v < I.graph.vertices.length) (hx : x ∈ centerBlock I v) :
+      (referencePoint I x).re < right v := by
+    by_cases hn : v + 1 < I.graph.vertices.length
+    · have hr := centerBlocks_separated hI hv hn (Nat.lt_succ_self v) hx List.mem_cons_self
+      have hg : ((referenceOrder I).idxOf x : ℝ) + 1 ≤ (referenceOrder I).idxOf (v + 1) := by
+        exact_mod_cast hr
+      simp only [right, ite_eq_left hn, referencePoint, parabolaPoint]
+      linarith only [hg]
+    · simp only [right, ite_eq_right hn, referencePoint, parabolaPoint]
+      exact Nat.cast_lt.mpr (List.idxOf_lt_length_of_mem (centerBlock_mem_reference hv hx))
+  refine ⟨right, fun v hv => hbound v v (hname v hv) List.mem_cons_self, ?_, ?_⟩
+  · intro u hu v hv huv
+    have hn := (Nat.succ_le_of_lt huv).trans_lt (hname v hv)
+    have hr : (referenceOrder I).idxOf (u + 1) ≤ (referenceOrder I).idxOf v := by
+      rcases eq_or_lt_of_le (Nat.succ_le_of_lt huv) with he | he
+      · rw [show u + 1 = v from he]
+      · exact (centerBlocks_separated hI hn (hname v hv) he
+          List.mem_cons_self List.mem_cons_self).le
+    simp only [right, ite_eq_left hn, referencePoint, parabolaPoint]
+    have hr' := Nat.cast_le (α := ℝ) |>.mpr hr
+    linarith only [hr']
+  · intro d hd z hz
+    obtain ⟨i, t, ht, rfl⟩ := (Route.mem_support_iff _ _).mp hz
+    have h := eval_re_mem_original_interval hI d hd i ht
+    obtain ⟨hv, _, _, hmem, _⟩ := fixed_end_reference_spec hI d hd
+    exact ⟨h.1, h.2.trans_lt (hbound _ _ hv hmem)⟩
+
 private theorem same_center_contacts {I : FixedRotationInput} (hI : Valid I)
     (a b : Dart I.graph) (ha : (I.orders.getD a.vertex none).isSome = true)
     (hv : a.vertex = b.vertex)
@@ -227,15 +271,14 @@ private theorem separated_blocks_no_contact {I : FixedRotationInput} (hI : Valid
     ((referenceDrawing I).route (subdivisionDart I a).1).eval i s ≠
       ((referenceDrawing I).route (subdivisionDart I b).1).eval j t := by
   intro heq
-  have ha' := fixed_end_reference_spec hI a ha
-  have hb' := fixed_end_reference_spec hI b hb
-  have hrea := eval_re_mem_original_interval hI a ha i hs
-  have hreb := eval_re_mem_original_interval hI b hb j ht
-  have hsep := centerBlocks_separated hI ha'.1 hb'.1 hab ha'.2.2.2.1
-    List.mem_cons_self
-  have hsep' := Nat.cast_lt (α := ℝ) |>.mpr hsep
-  have hre := congrArg Complex.re heq
-  linarith only [hrea.2, hreb.1, hsep', hre]
+  obtain ⟨right, _, hsep, hstrip⟩ := exists_frozen_reference_strips hI
+  have haS := hstrip a ha _ ((referenceDrawing I).route _ |>.at_mem_support i hs)
+  have hbS := hstrip b hb _ ((referenceDrawing I).route _ |>.at_mem_support j ht)
+  have hdecl (d : Dart I.graph) (hd : (I.orders.getD d.vertex none).isSome) :
+      d.vertex ∈ I.graph.vertices :=
+    hI.1 ▸ List.mem_range.mpr (fixed_end_reference_spec hI d hd).1
+  have hgap := hsep _ (hdecl a ha) _ (hdecl b hb) hab
+  linarith only [haS.2, hbS.1, hgap, congrArg Complex.re heq]
 
 /-- Distinct actual stored frozen routes meet only at a common named endpoint. The two
 parameters range over the entire closed unit intervals, including endpoint-zero branches. -/
