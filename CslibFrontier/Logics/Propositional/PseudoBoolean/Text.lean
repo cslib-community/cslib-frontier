@@ -46,16 +46,17 @@ soundness, which concerns only the parsed formula.
 
 **Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
 witness and an optional subproof of `proofgoal` blocks (`#1`, `#2` for the objective, and
-constraint numbers), the solution-logging steps `sol` and `soli` (§5.8), `core id` (§5.1),
-`strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
-constraints, the unchecked `delc` of core constraints, and the checked `delc id : ω` of one core
-constraint, with an optional subproof. Deletion, `core`, strengthening-to-core and solution
-logging are accepted only at top level, as the format requires. Two steps of the augmented
+constraint numbers), the solution-logging steps `sol` and `soli` and the bound `obji` (§5.8),
+`core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1):
+`deld` of derived constraints, the unchecked `delc` of core constraints, and the checked
+`delc id : ω` of one core constraint, with an optional subproof. Deletion, `core`,
+strengthening-to-core, solution logging and `obji` are accepted only at top level, as the format
+requires. Two steps of the augmented
 format are also accepted: `del id`, read as the untyped deletion
 `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts as unchecked),
 and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
 operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, orders, `dom`,
-`solx`, `obji`, `obju`, `del spec`, levels, other outputs and conclusions, and the optional
+`solx`, `obju`, `del spec`, levels, other outputs and conclusions, and the optional
 assignments of `SAT` and `BOUNDS`) is rejected.
 
 **Soundness.** The checkers return the conclusion of an accepted proof. If it is `UNSAT`, the
@@ -438,6 +439,7 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
     match lits N ts with
     | some (ρ, ";" :: rest) => some ([.soli ρ], rest)
     | _ => none
+  | "obji" :: v :: ";" :: rest => (int? v).map fun v => ([.obji v], rest)
   | "core" :: "id" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.core ns], rest)

@@ -499,21 +499,23 @@ noncomputable def oneTimeGame (seed : PMF K) (hash : K → M → Y) (forger : On
 /-- The adaptive one-time SUF-CMA (strong unforgeability) experiment:
 the forger wins if `(m', t') ≠ (m, sign hash k r m)` and `verify hash k r m' t' = true`. -/
 noncomputable def oneTimeStrongGame (seed : PMF K) (hash : K → M → Y)
-    (forger : OneTimeForger M Y) : PMF Bool := do
-  let k ← seed
-  let r ← PMF.uniformOfFintype Y
-  let m ← forger.query
-  let t := sign hash k r m
-  let p ← forger.forge m t
-  return (decide (p ≠ (m, t)) && verify hash k r p.1 p.2)
+    (forger : OneTimeForger M Y) : PMF Bool :=
+  oneTimeForgeExperiment
+    (seed.bind fun k => (PMF.uniformOfFintype Y).map fun r => (k, r))
+    (fun key m => PMF.pure (sign hash key.1 key.2 m))
+    (fun key => verify hash key.1 key.2)
+    (forger.query.map fun m => (m, m)) forger.forge
 
 /-- Strong unforgeability and ordinary unforgeability coincide for the one-time Carter–Wegman MAC,
 because each `(k, r, m)` admits a unique valid tag. -/
 theorem oneTimeStrongGame_eq_oneTimeGame (seed : PMF K) (hash : K → M → Y)
     (forger : OneTimeForger M Y) :
     oneTimeStrongGame seed hash forger = oneTimeGame seed hash forger := by
-  dsimp only [oneTimeStrongGame, oneTimeGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  simp only [oneTimeStrongGame, oneTimeForgeExperiment, oneTimeGame, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.bind_map, Function.comp_def, PMF.pure_bind]
   congr 1 with k : 1; congr 1 with r : 1; congr 1 with m : 1; congr 1 with p : 1
+  rcases p with ⟨m', t'⟩
+  simp only [freshPair, List.mem_singleton]
   rw [decide_ne_pair_and_verify_eq]
 
 /-- The queried message `m`, uniform tag `t`, and candidate forgery `p = (m', t')` can be sampled

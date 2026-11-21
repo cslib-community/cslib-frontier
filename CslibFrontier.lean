@@ -308,6 +308,7 @@ public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerRep
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Combined
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.NondeterministicChoice
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.OffsetReader
@@ -328,6 +329,7 @@ public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedD
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedRank
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedWeight
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Streaming
+public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.WeightDimensions
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Weights
 public import CslibFrontier.Algorithms.Reachability.Reingold
@@ -5627,6 +5629,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
 public import CslibFrontier.Crypto.Protocols.KEM.MLKEM
 public import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
 public import CslibFrontier.Crypto.Protocols.MAC.GHASH
+public import CslibFrontier.Crypto.Protocols.MAC.OneTime
 public import CslibFrontier.Crypto.Protocols.MAC.PolynomialEvaluation
 public import CslibFrontier.Crypto.Protocols.MAC.VariableLength
 public import CslibFrontier.Crypto.Protocols.MPC.Advantage
@@ -6196,6 +6199,7 @@ public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.PointCou
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.QuadraticTwist
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.VariableChange
 public import CslibFrontier.Foundations.AlgebraicGeometry.Semialgebraic
+public import CslibFrontier.Foundations.AlgebraicGeometry.StableIsomorphism
 public import CslibFrontier.Foundations.Analysis.Asymptotics.CostBound
 public import CslibFrontier.Foundations.Analysis.Asymptotics.Exponential
 public import CslibFrontier.Foundations.Analysis.Asymptotics.PolyErr
@@ -7548,6 +7552,7 @@ public import CslibFrontier.GameTheory.Strategic.Universality.DattaHorner
 public import CslibFrontier.GameTheory.Strategic.Universality.DattaThree
 public import CslibFrontier.GameTheory.Strategic.Universality.Realize
 public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
+public import CslibFrontier.GameTheory.Strategic.Universality.StableUniversality
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Languages.Probabilistic.BitString

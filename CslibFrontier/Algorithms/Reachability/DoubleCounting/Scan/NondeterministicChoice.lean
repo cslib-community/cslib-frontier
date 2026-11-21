@@ -104,7 +104,8 @@ private theorem replay_reading (N : ℕ) (input consumed bits : List Bool) :
     simp only [List.length_cons]
     omega
 
-private theorem run_continue (N : ℕ) (input bits : List Bool) :
+/-- A continue marker starts the fixed-width reader on the remaining selector bits. -/
+theorem run_continue (N : ℕ) (input bits : List Bool) :
     (machine N).run input (true :: bits) =
       ⟨true, false, (VertexReader.machine N).run bits bits.length⟩ := by
   simpa [NondeterministicQueryMachine.run, NondeterministicQueryMachine.replay_cons,
@@ -115,7 +116,8 @@ private theorem run_stop (N : ℕ) (input bits : List Bool) :
   rw [NondeterministicQueryMachine.run, NondeterministicQueryMachine.replay_cons]
   exact (machine N).replay_of_halted input rfl bits
 
-private theorem firstHalting_continue_iff (N : ℕ) (input bits : List Bool) :
+/-- A continuation first halts after exactly the fixed width of the vertex reader. -/
+theorem firstHalting_continue_iff (N : ℕ) (input bits : List Bool) :
     (machine N).FirstHalting input (true :: bits) (machine N).init ↔ bits.length = N.size := by
   have hh (bs : List Bool) :
       (machine N).halted ((machine N).run input (true :: bs)) = true ↔ N.size ≤ bs.length := by
@@ -167,7 +169,8 @@ theorem firstHalting_stop_iff (N : ℕ) (input choices : List Bool) :
         rfl
     · simp [run_continue]
 
-private theorem result_run_continue (N : ℕ) (input bits : List Bool)
+/-- At the fixed width, the continuation returns the canonical range-checked decoder. -/
+theorem result_run_continue (N : ℕ) (input bits : List Bool)
     (hlen : bits.length = N.size) :
     VertexReader.result ((machine N).run input (true :: bits)).reader =
       (decodeVertex (N := N) bits).map Fin.val := by
