@@ -127,7 +127,7 @@ theorem machine_next_choice (initial : State κ τ) {N : ℕ} (ctx : κ) (hp : 0
     (selector : Bool) :
     (machine edge start verdict clock initial).next (⟨ctx, N, hp, .choose r s⟩, answer, selector) =
       ⟨ctx, N, hp, BoundedWalk.advanceChoice
-        (fun u v => start ctx u.val v.val) clock r s answer selector⟩ := by
+        (fun u v => start ctx u.val v.val) clock r s selector⟩ := by
   simp only [machine, innerMachine, typedMachine, BoundedWalk.machine_next_choice]
 
 /-- The active-call update retains the runtime context and dimension. -/

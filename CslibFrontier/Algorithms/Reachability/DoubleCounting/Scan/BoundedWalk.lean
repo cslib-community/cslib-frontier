@@ -83,9 +83,8 @@ def advanceCall (edge : QueryMachine τ) (verdict : τ → Bool) (r : Registers 
 /-- Consume a destination selector or route a completed choice. A valid continuation
 spends one edge of fuel and enters the supplied adjacency subroutine. -/
 def advanceChoice (start : Fin N → Fin N → τ) (clock : ℕ) (r : Registers N)
-    (s : NondeterministicChoice.State) (answer : Option Bool) (selector : Bool) : State N τ :=
-  let choice := NondeterministicChoice.machine N
-  if choice.halted s then
+    (s : NondeterministicChoice.State) (selector : Bool) : State N τ :=
+  if NondeterministicChoice.isHalted s then
     if selector then .done none
     else if s.stopped then .done (if r.current = r.target then some r.fuel else none)
     else
@@ -95,11 +94,11 @@ def advanceChoice (start : Fin N → Fin N → τ) (clock : ℕ) (r : Registers 
           .call { r with fuel := fuel } ⟨v, hv⟩ clock (start r.current ⟨v, hv⟩)
         else .done none
       | _, _ => .done none
-  else .choose r (choice.next (s, answer, selector))
+  else .choose r (NondeterministicChoice.advance s selector)
 
 private def advance (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
     (verdict : τ → Bool) (clock : ℕ) : State N τ × Option Bool × Bool → State N τ
-  | (.choose r s, answer, selector) => advanceChoice start clock r s answer selector
+  | (.choose r s, _, selector) => advanceChoice start clock r s selector
   | (.call r v remaining s, answer, selector) =>
     advanceCall edge verdict r v remaining s answer selector
   | (.done r, _, _) => .done r
@@ -133,7 +132,7 @@ theorem machine_next_choice (edge : QueryMachine τ) (start : Fin N → Fin N �
     (verdict : τ → Bool) (clock : ℕ) (initial r : Registers N)
     (s : NondeterministicChoice.State) (answer : Option Bool) (selector : Bool) :
     (machine edge start verdict clock initial).next (.choose r s, answer, selector) =
-      advanceChoice start clock r s answer selector := by
+      advanceChoice start clock r s selector := by
   unfold machine advance
   rfl
 
@@ -209,14 +208,14 @@ private theorem rank_decreases (s : State N τ) (selector : Bool)
       have hstopped : choice.stopped = false := by
         cases hs' : choice.stopped
         · rfl
-        · simp [NondeterministicChoice.machine, hs'] at h
+        · simp [NondeterministicChoice.isHalted, hs'] at h
       cases hreading : choice.reading
       · cases selector <;>
-          simp [NondeterministicChoice.machine, hreading, widthInvariant, rank, hs, hstopped]
+          simp [NondeterministicChoice.advance, hreading, widthInvariant, rank, hs, hstopped]
       · have hlt : choice.reader.cursor < N.size := by
-          simpa [NondeterministicChoice.machine, VertexReader.machine, hreading, hstopped, hs]
+          simpa [NondeterministicChoice.isHalted, VertexReader.isHalted, hreading, hstopped, hs]
             using h
-        simp [NondeterministicChoice.machine, hreading, widthInvariant, rank,
+        simp [NondeterministicChoice.advance, hreading, widthInvariant, rank,
           VertexReader.advance, hs, hstopped]
         omega
   | call r v remaining s =>
@@ -333,8 +332,9 @@ local notation "C" => NondeterministicChoice.machine N
 private theorem step_choose {r : Registers N} {s : NondeterministicChoice.State}
     (hlive : (C).halted s = false) (selector : Bool) :
     (M).step input (.choose r s) selector = .choose r ((C).step input s selector) := by
+  have hchoice : NondeterministicChoice.isHalted s = false := hlive
   simp only [NondeterministicQueryMachine.step, machine, halted, Bool.false_eq_true, ite_false,
-    advance, advanceChoice, hlive]
+    advance, advanceChoice, hlive, hchoice]
   rfl
 
 private theorem step_call_succ (r : Registers N) (v : Fin N) (ticks : ℕ) (s : τ) :
@@ -358,7 +358,8 @@ private theorem step_reachable (s : State N τ) (selector : Bool)
   | choose r choice =>
     obtain ⟨hfuel, bits, rfl⟩ := hs
     by_cases hc : (C).halted ((C).run input bits) = true
-    · simp only [NondeterministicQueryMachine.step, machine, halted, Bool.false_eq_true,
+    · change NondeterministicChoice.isHalted ((C).run input bits) = true at hc
+      simp only [NondeterministicQueryMachine.step, machine, halted, Bool.false_eq_true,
         ite_false, advance, advanceChoice, hc, ite_true]
       cases selector
       · simp only [Bool.false_eq_true, ite_false]
@@ -526,6 +527,7 @@ private theorem route_stop (r : Registers N) (s : NondeterministicChoice.State)
     (hh : (C).halted s = true) (hs : s.stopped = true) :
     (M).step input (.choose r s) false =
       .done (if r.current = r.target then some r.fuel else none) := by
+  change NondeterministicChoice.isHalted s = true at hh
   simp [NondeterministicQueryMachine.step, machine, halted, advance, advanceChoice, hh, hs]
 
 private theorem route_vertex (r : Registers N) (s : NondeterministicChoice.State)
@@ -535,6 +537,7 @@ private theorem route_vertex (r : Registers N) (s : NondeterministicChoice.State
       match r.fuel with
       | 0 => .done none
       | fuel + 1 => .call { r with fuel := fuel } v clock (start r.current v) := by
+  change NondeterministicChoice.isHalted s = true at hh
   cases hf : r.fuel <;> simp [NondeterministicQueryMachine.step, machine, halted,
     advance, advanceChoice,
     hh, hs, hv, hf, v.isLt]
@@ -547,6 +550,7 @@ private theorem route_invalid (r : Registers N) (s : NondeterministicChoice.Stat
     (hh : (C).halted s = true) (hs : s.stopped = false)
     (hv : VertexReader.result s.reader = none) :
     (M).step input (.choose r s) false = .done none := by
+  change NondeterministicChoice.isHalted s = true at hh
   cases hf : r.fuel <;>
     simp [NondeterministicQueryMachine.step, machine, halted, advance, advanceChoice,
       hh, hs, hv, hf]
@@ -791,8 +795,9 @@ private theorem successful_walk (adjacent : Fin N → Fin N → Bool)
         have haccept : (C).accept s = true := by
           cases hs : s.stopped
           · have hreading : s.reading = true := by
-              simpa [NondeterministicChoice.machine, hs] using
-                (Bool.and_eq_true_iff.mp (by simpa [NondeterministicChoice.machine, hs] using hh)).1
+              change NondeterministicChoice.isHalted s = true at hh
+              exact (Bool.and_eq_true_iff.mp (by
+                simpa [NondeterministicChoice.isHalted, hs] using hh)).1
             cases hv : VertexReader.result s.reader
             · change (M).replay input rest ((M).step input (.choose r s) false) = _ at hret
               rw [route_invalid edge start verdict clock initial input r s hh hs hv,
@@ -848,7 +853,7 @@ private theorem successful_walk (adjacent : Fin N → Fin N → Bool)
             · unfold walkResult at hwalk ⊢
               rw [walkM, hfuel]
               simpa [bind, StateT.bind, readNext, pure, StateT.pure, he] using hwalk
-      · have hh : (C).halted ((C).run input pre) = true := hfirst.1
+      · have hh : NondeterministicChoice.isHalted ((C).run input pre) = true := hfirst.1
         have hstep : (M).step input (.choose r ((C).run input pre)) true = .done none := by
           simp [NondeterministicQueryMachine.step, machine, halted, advance, advanceChoice, hh]
         change (M).replay input rest ((M).step input (.choose r ((C).run input pre)) true) = _
@@ -973,23 +978,22 @@ certificate prepares the callee for any candidate whose binary ID fits the budge
 theorem advanceChoice_budget {dimension : α → ℕ} {r : (a : α) → Registers (dimension a)}
     {reader : α → NondeterministicChoice.State}
     {start : (a : α) → Fin (dimension a) → Fin (dimension a) → τ}
-    (clock : ℕ) {answer : α → Option Bool} {selector : α → Bool}
+    (clock : ℕ) {selector : α → Bool}
     (hdim : ComputableInSpace dimension encIn encNat budget)
     (hr : ComputableInSpace (fun a => encRegisters (dimension a) (r a)) encIn encBits budget)
     (hreader : ComputableInSpace reader encIn NondeterministicChoice.encState budget)
-    (hanswer : ComputableInSpace answer encIn (encOption encBool) budget)
     (hselector : ComputableInSpace selector encIn encBool budget)
     (hstart : ∀ v : (a : α) → Fin (dimension a),
       ComputableInSpace (fun a => (v a).val) encIn encNat budget →
       ComputableInSpace (fun a => start a (r a).current (v a)) encIn encCallee budget) :
     ComputableInSpace (fun a => encState encCallee
-      (advanceChoice (start a) clock (r a) (reader a) (answer a) (selector a)))
+      (advanceChoice (start a) clock (r a) (reader a) (selector a)))
       encIn encBits budget := by
   have hregs := registerFields_budget hr
   have hcurrent := fst' hregs
   have htarget := fst' (snd' hregs)
   have hfuel := snd' (snd' hregs)
-  have hh := budget_comp_linear (NondeterministicChoice.halted_inSpace 0) hreader
+  have hh := budget_comp_linear NondeterministicChoice.isHalted_inSpace hreader
   have hstop := NondeterministicChoice.encState_stopped_budget hreader
   have hvOpt := budget_comp_linear VertexReader.result_inSpace
     (NondeterministicChoice.encState_reader_budget hreader)
@@ -1016,28 +1020,21 @@ theorem advanceChoice_budget {dimension : α → ℕ} {r : (a : α) → Register
       (budget_ite (budget_boolAnd (budget_boolNot (budget_natIsZero hfuel)) hvalid)
         hcall hreject))
   have hread := choiceWord_budget hr
-    (budget_comp_linear (NondeterministicChoice.next_inSpace 0)
-      (budget_prod hreader (budget_prod hanswer hselector)))
+    (budget_comp_linear NondeterministicChoice.advance_inSpace (budget_prod hreader hselector))
   refine (budget_ite hh hroute hread).of_enc_eq ?_
   intro a
-  have hhalted :
-      (NondeterministicChoice.machine (dimension a)).halted (reader a) =
-        (NondeterministicChoice.machine 0).halted (reader a) := rfl
-  cases hh' : (NondeterministicChoice.machine 0).halted (reader a)
-  · have hnext : (NondeterministicChoice.machine (dimension a)).next
-        (reader a, answer a, selector a) =
-          (NondeterministicChoice.machine 0).next (reader a, answer a, selector a) := rfl
-    simp [advanceChoice, hhalted, hh', encState_choice, hnext]
+  cases hh' : NondeterministicChoice.isHalted (reader a)
+  · simp [advanceChoice, hh', encState_choice]
   · cases selector a
     · cases hst : (reader a).stopped
       · cases hf : (r a).fuel <;> cases ho : VertexReader.result (reader a).reader
-        all_goals try (solve | simp [advanceChoice, hhalted, hh', hst, hf, ho])
+        all_goals try (solve | simp [advanceChoice, hh', hst, hf, ho])
         rename_i dest
         by_cases hdest : dest < dimension a <;>
-          simp [advanceChoice, hhalted, hh', hst, hf, ho, hdest, v, Nat.mod_eq_of_lt]
+          simp [advanceChoice, hh', hst, hf, ho, hdest, v, Nat.mod_eq_of_lt]
       · by_cases he : (r a).current = (r a).target <;>
-          simp [advanceChoice, hhalted, hh', hst, Fin.val_inj, he]
-    · simp [advanceChoice, hhalted, hh']
+          simp [advanceChoice, hh', hst, Fin.val_inj, he]
+    · simp [advanceChoice, hh']
 
 private theorem chooseNext_inSpace (encCallee : τ ↪ List Bool)
     (hstart : ComputableInSpace (fun p : Fin N × Fin N => start p.1 p.2)
@@ -1064,7 +1061,7 @@ private theorem chooseNext_inSpace (encCallee : τ ↪ List Bool)
     budget_comp_linear hstart (budget_prod (encRegisters_current_budget N hr)
       (hv.of_enc_eq fun _ => rfl))
   exact (advanceChoice_budget (r := r) (start := fun _ => start) clock hdim hrWord hs
-    (fst' hans) (snd' hans) hcall).of_enc_eq fun _ => rfl
+    (snd' hans) hcall).of_enc_eq fun _ => rfl
 
 /-- Certify the call update from the encoded registers, destination, clock and callee.
 The dimension may vary at each input. A return initializes the next destination reader

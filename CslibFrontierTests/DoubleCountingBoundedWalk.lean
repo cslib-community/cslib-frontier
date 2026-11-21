@@ -313,7 +313,7 @@ example :
     budget_finite (fun b : Bool => if b then none else some false) hctx
   have hwalk := advanceChoice_budget (dimension := runtimeDimension) (r := runtimeRegisters)
     (reader := reader) (start := fun p u v => runtimeStart p.1 u.val v.val) 1
-    hdim hregisters hreader (budget_const none (.refl _)) (budget_const false (.refl _)) hstart
+    hdim hregisters hreader (budget_const false (.refl _)) hstart
   refine (Runtime.state_budget
     (positive := fun p => Nat.zero_lt_of_lt (runtimeRegisters p).current.isLt)
     encBool (encOption encBool) hctx hdim hwalk).of_enc_eq fun p => ?_
