@@ -36,49 +36,48 @@ extended as described below, producing the abstract syntax checked by
   `ENUMERATION_COMPLETE n : id` or `NONE`, and
   `end pseudo-Boolean proof;`.
 
-**Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1
-of the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented
-format. First, the line `f N;` is optional, as in the general format (§4.1). The kernel format
-requires it as the first command after the header (§6.1), but a proof without it is accepted and
-checked against the parsed formula. Second, `red`, `dom`, the checked `delc`, `obju` and the `red`
-steps of a specification may omit their subproof, and a goal is also autoproven when it is a
-constraint of the database up to the order of its terms (`Cslib.Logic.PL.VeriPB.sameUpToOrder`);
-the strict kernel format requires the subproof (§6.1). Third, in `def_order` the `aux` line and
-the `reflexivity` section are optional, a missing reflexivity proof leaving only trivially true
-goals; the kernel format requires both (§6.1). The remaining extensions, `del id` and `rup`
-without hints, are described under **Steps**. So a proof accepted here need not be a kernel proof.
+**Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1 of
+the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented format.
+First, the line `f N;` is optional, as in the general format (§4.1). The kernel format requires it
+as the first command after the header (§6.1), but a proof without it is accepted and checked against
+the parsed formula. Second, `red`, `dom`, the checked `delc` and `obju` may omit their subproof, and
+a goal is also autoproven when it is a constraint of the database up to the order of its terms
+(`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the subproof (§6.1). The
+`red` steps of a specification must have their subproof, as in CakePB. Third, in `def_order` the
+`aux` line and the `reflexivity` section are optional, a missing reflexivity proof leaving only
+trivially true goals; the kernel format requires both (§6.1). The remaining extensions, `del id` and
+`rup` without hints, are described under **Steps**. So a proof accepted here need not be a kernel
+proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
-may introduce other names; they are numbered after every `xN` of the formula and the proof, in
-order of first appearance; so are the auxiliary variables `$a` of orders (§5.3), which are names
-like any other here, the checker testing their freshness where it matters. How the proof's own
-variables are numbered does not matter for
-the conclusions, which concern only the parsed formula. An output formula is read with the names
-of its proof, the names of the proof and of the output text being numbered together.
+may introduce other names; they are numbered after every `xN` of the formula and the proof, in order
+of first appearance; so are the auxiliary variables `$a` of orders (§5.3), which are names like any
+other here, the checker testing their freshness where it matters. How the proof's own variables are
+numbered does not matter for the conclusions, which concern only the parsed formula. An output
+formula is read with the names of its proof, the names of the proof and of the output text being
+numbered together.
 
-**Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` and `dom`
-with a witness and an optional subproof of `proofgoal` blocks (labelled `#k` or by constraint
-numbers) and the scopes `scope leq` and `scope geq`, each closed by `end;`, `end scope;` or
-`end scope leq;` (`geq`), the orders of `def_order` (a `vars` section with `left`, `right` and
-an `aux` line, which the kernel format requires and is optional here, an optional `spec` section
-of `red` steps, a `def` section, a `transitivity` section with `fresh_right` variables, the
-`fresh_aux_1` and `fresh_aux_2` variables if there are auxiliary variables, and a `proof`, an
-optional `reflexivity` section; §5.3), `load_order` with and without literals, the order
-checks `eord_def` and `eord_loaded` (§5.11.3), the
-solution-logging steps `sol`, `soli` and `solx` and the bound `obji` (§5.8), the objective update
-`obju new` or `obju diff` with an objective in the OPB syntax, an optional constant included, and
-an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id` (§5.1),
-`strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
-constraints, the unchecked `delc` of core constraints, and the checked
-`delc id : ω` of one core constraint, with an optional subproof. Orders, `dom`, deletion, `core`,
-strengthening-to-core, solution logging, `obji` and `obju` are accepted only at top level, as
-the format requires. Two steps of the augmented format are also accepted: `del id`, read as the
-untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts
-as unchecked), and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`.
-Everything else (`pol` operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and
-`ia`, the preserved-set rules, `del spec`, levels, and the conclusion `UNSAT` without an ID) is
-rejected.
+**Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` and `dom` with a
+witness and an optional subproof of `proofgoal` blocks (labelled `#k` or by constraint numbers) and
+the scopes `scope leq` and `scope geq`, each closed by `end;`, `end scope;` or `end scope leq;`
+(`geq`), the orders of `def_order` (a `vars` section with `left`, `right` and an `aux` line, which
+the kernel format requires and is optional here, an optional `spec` section of `red` steps with
+subproofs, a `def` section, a `transitivity` section with `fresh_right` variables, the `fresh_aux_1`
+and `fresh_aux_2` variables if there are auxiliary variables, and a `proof`, an optional
+`reflexivity` section; §5.3), `load_order` with and without literals, the order checks `eord_def`
+and `eord_loaded` (§5.11.3), the solution-logging steps `sol`, `soli` and `solx` and the bound
+`obji` (§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax,
+an optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id`
+(§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
+constraints, the unchecked `delc` of core constraints, and the checked `delc id : ω` of one core
+constraint, with an optional subproof. Orders, `dom`, deletion, `core`, strengthening-to-core,
+solution logging, `obji` and `obju` are accepted only at top level, as the format requires. Two
+steps of the augmented format are also accepted: `del id`, read as the untyped deletion
+`Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts as unchecked), and
+`rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
+operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, the preserved-set
+rules, `del spec`, levels, and the conclusion `UNSAT` without an ID) is rejected.
 
 **Output sections.** `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput` takes the output formula of
 `output g FILE;` as a third text, and checks the section with
@@ -601,19 +600,20 @@ private def orderVars (N : Names) (ts : List String) :
   let ts ← endOf "vars" ts
   pure ((u, v, a), ts)
 
-/-- The lines of a `spec` section of `def_order` (§5.3), up to its `end`: `red C : ω;` or
-`red C : ω : subproof … qed [: n];`, the constraint and its justification. -/
+/-- The lines of a `spec` section of `def_order` (§5.3), up to its `end`:
+`red C : ω : subproof … qed [: n];`, the constraint and its justification. As in CakePB's
+parser, each line needs its subproof, possibly empty; `red C : ω;` is rejected. -/
 private def specLines (N : Names) : ℕ → List String →
     Option (List (PBConstr × SpecStep) × List String)
   | 0, _ => none
   | _ + 1, "end" :: ts => some ([], "end" :: ts)
   | fuel + 1, "red" :: ts =>
     match geq N ts with
-    | some (c, ";" :: rest) =>
-      (specLines N fuel rest).map fun (ls, rest) => ((c, ⟨[], none, none⟩) :: ls, rest)
     | some (c, ":" :: rest) =>
       (witnessTail N fuel rest).bind fun ((ω, sub, q), rest) =>
-        (specLines N fuel rest).map fun (ls, rest) => ((c, ⟨ω, sub, q⟩) :: ls, rest)
+        if sub.isSome then
+          (specLines N fuel rest).map fun (ls, rest) => ((c, ⟨ω, sub, q⟩) :: ls, rest)
+        else none
     | _ => none
   | _ + 1, _ => none
 

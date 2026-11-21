@@ -1610,6 +1610,10 @@ end pseudo-Boolean proof;
   (withNotAux 0 "" |>.replace " : $a1 -> 1 : subproof" " : u1 -> 0 : subproof")).isNone
 #guard (checkOPB emptyOpb
   (withNotAux 0 "" |>.replace "1 u1 >= 1 : $a1 -> 1" "1 u1 >= 1 : $a1 -> 0")).isNone
+-- A specification step without its subproof, `red C : ω;`, is not kernel format: CakePB and this
+-- checker reject it, VeriPB (which reads the augmented format) accepts.
+#guard (checkOPB emptyOpb (withNotAux 0 "" |>.replace
+  "red 1 $a1 1 u1 >= 1 : $a1 -> 1 : subproof\nqed;" "red 1 $a1 1 u1 >= 1 : $a1 -> 1;")).isNone
 -- Without `fresh_aux_1` and `fresh_aux_2`, or with `fresh_aux_1` reusing `$a1`, the transitivity
 -- check fails (CakePB's `check_ws`): CakePB and this checker reject, VeriPB accepts.
 #guard (checkOPB emptyOpb
