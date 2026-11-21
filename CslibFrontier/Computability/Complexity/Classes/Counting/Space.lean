@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle.Space
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Space
 public import CslibFrontier.Computability.Complexity.Classes.ModP
 public import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
@@ -51,19 +52,8 @@ variable {α : Type} {enc : α ↪ List Bool}
 
 /-- Majority counting is decidable in polynomial space by evaluating the exact count in binary
 and comparing it with the threshold [AroraBarak09]. -/
-theorem PP_subset_PSPACE : PP enc ⊆ PSPACE enc := by
-  intro A hA
-  obtain ⟨f, hf, p, hA⟩ := mem_PP_iff_exists_SharpP.mp hA
-  have hpow : ComputableInPolyTime (fun a => 2 ^ p.eval (enc a).length) enc encNat :=
-    ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
-  have hdouble : ComputableInPolyTime (fun n : ℕ => 2 * n) encNat encNat := by
-    fun_prop
-  have htest := (ComputableInPolySpace.of_polyTime
-    ComputableInPolyTime.binary_lt).comp
-      ((ComputableInPolySpace.of_polyTime hpow).prod
-        ((ComputableInPolySpace.of_polyTime hdouble).comp
-          (SharpP.computableInPolySpace hf)))
-  exact ⟨_, htest, fun a => by simpa using hA a⟩
+theorem PP_subset_PSPACE : PP enc ⊆ PSPACE enc :=
+  (PP_subset_PPWithOracle ∅ enc).trans (PPWithOracle_subset_PSPACE (P_subset_PSPACE empty_mem_P))
 
 /-- Testing whether a fixed modulus divides a #P count is in polynomial space. A quotient has
 at most one more bit than the verifier's certificate length, even for moduli zero and one. -/
