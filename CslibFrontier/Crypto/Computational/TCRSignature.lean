@@ -29,6 +29,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
+import CslibFrontier.Tactic.OptionMatch
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
@@ -1030,6 +1031,11 @@ private theorem computableInPolyTime_encPair_comp {α β₁ β₂ : Type}
 attribute [local fun_prop] computableInPolyTime_encPair_comp computableInPolyTime_simRun_comp
   computableInPolyTime_wordOf computableInPolyTime_fuelOf
 
+private theorem option_elim_eq_if_isSome {α β : Type*} (d : α) (o : Option α)
+    (no : β) (yes : α → β) :
+    o.elim no yes = if o.isSome then yes (o.getD d) else no := by
+  cases o <;> rfl
+
 /-- `oneTimeForger` is uniformly strict oracle PPT whenever `sigBound` is computable in plain
 polynomial time on unary `n`. -/
 theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
@@ -1038,38 +1044,10 @@ theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
     (machine : MultiTapePTM k Bool Control Unit) (c d : ℕ) :
     IsOraclePPT (encPair encBits encBits) (oneTimeForger H sigBound machine c d) := by
   apply IsOraclePPTOn.isOraclePPT
-  have hnorm : IsOraclePPTOn (Operation := Unit)
-      (encPair encUnary encBits) (encPair encBits encBits)
-      (fun p : ℕ × List Bool =>
-        let n := otsParamInv H p.1
-        if otsParam H n = p.1 then do
-          let word := simWordOf n p.2
-          let fuel := simFuelOf c d n p.2
-          let coins ← ProbOracleComp.sample (BitString.sampleList fuel)
-          let hashKey ← ProbOracleComp.sample (BitString.sampleList (H.keyLen n))
-          let r0 := simRun machine word [] coins
-          if r0.2.isSome then do
-            let ots ← List.take (sigBound n) <$>
-              ProbOracleComp.query ((), otsMsg H n hashKey (H.eval n hashKey (r0.2.getD [])))
-            let reply := (encPair encBits encBits (hashKey, ots)).take fuel
-            let r1 := simRun machine word reply coins
-            let out := outDecoder.decode r1.1
-            return otsForgeryOf H n out.2.1 out.2.2
-          else
-            let out := outDecoder.decode r0.1
-            return otsForgeryOf H n out.2.1 out.2.2
-        else
-          pure ([], [])) := by
-    dsimp only
-    ppt
-  refine hnorm.congr fun ⟨M, otvk⟩ State oracle s =>
-    congrArg (fun prog => ProbOracleComp.runWith oracle prog s) ?_
-  dsimp only [oneTimeForger]
-  split_ifs with hM
-  · refine congrArg (Bind.bind _) (funext fun coins =>
-      congrArg (Bind.bind _) (funext fun hashKey => ?_))
-    cases (simRun machine (simWordOf (otsParamInv H M) otvk) [] coins).2 <;> rfl
-  · rfl
+  unfold oneTimeForger
+  option_match_to_elim
+  simp only [option_elim_eq_if_isSome ([] : List Bool)]
+  ppt
 
 /-- Both stages of `tcrAdversary` are uniformly strict PPT. -/
 theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
@@ -1079,28 +1057,11 @@ theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
   choose := by
     ppt [tcrAdversary]
   find := by
-    have hnorm : IsPPTOn (encPair encUnary (encPair encBits encBits)) encBits
-        (fun p : ℕ × List Bool × List Bool =>
-          let saved := stateDecoder.decode p.2.1
-          let keys := saved.1
-          let coins := saved.2
-          let word := simWordOf p.1 keys.1
-          let fuel := simFuelOf c d p.1 keys.1
-          let r0 := simRun machine word [] coins
-          if r0.2.isSome then do
-            let ots ← S.sign keys.2
-              (otsMsg H p.1 p.2.2 (H.eval p.1 p.2.2 (r0.2.getD [])))
-            let reply := (encPair encBits encBits (p.2.2, ots)).take fuel
-            let r1 := simRun machine word reply coins
-            return (outDecoder.decode r1.1).2.1
-          else
-            return (outDecoder.decode r0.1).2.1) := by
-      dsimp only
-      ppt
-    refine hnorm.congr fun p => congrArg ProbComp.eval ?_
-    dsimp only [tcrAdversary]
-    cases (simRun machine (simWordOf p.1 (stateDecoder.decode p.2.1).1.1) []
-        (stateDecoder.decode p.2.1).2).2 <;> rfl
+    unfold tcrAdversary
+    dsimp only
+    option_match_to_elim
+    simp only [option_elim_eq_if_isSome ([] : List Bool)]
+    ppt
 
 /-! ### Security bound and existential upgrades -/
 
