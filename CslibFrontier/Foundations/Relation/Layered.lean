@@ -86,7 +86,7 @@ theorem reachable_iff (a b : α) :
 abbrev Bounded (α : Type*) (T : ℕ) := {v : LayeredVertex α // v.layer ≤ T}
 
 /-- The finite window as a bounded layer index and an original vertex. -/
-def boundedEquiv (α : Type*) (T : ℕ) : Bounded α T ≃ Fin (T + 1) × α where
+@[expose] def boundedEquiv (α : Type*) (T : ℕ) : Bounded α T ≃ Fin (T + 1) × α where
   toFun v := (⟨v.val.layer, by have := v.property; omega⟩, v.val.vertex)
   invFun v := ⟨⟨v.1.val, v.2⟩, Nat.le_of_lt_succ v.1.isLt⟩
   left_inv v := by cases v with | mk v h => cases v; rfl
