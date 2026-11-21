@@ -24,13 +24,13 @@ import Mathlib.Analysis.SpecificLimits.Normed
 This module proves two core lattice Gaussian estimates from [MicciancioRegev2007]:
 
 1. **Shifted mass is maximized at the origin** ([MicciancioRegev2007], Lemma 2.9, p. 9 of the
-   Dec. 14, 2005 preprint): for every discrete `ℤ`-submodule `L` of a finite-dimensional real
-   inner product space, every `s > 0`, and every center `c`,
+   December 27, 2005 author's copy): for every discrete `ℤ`-submodule `L` of a finite-dimensional
+   real inner product space, every `s > 0`, and every center `c`,
    `gaussianMass L s c ≤ gaussianMass L s 0` (`ZLattice.gaussianMass_le_gaussianMass_zero`). The
    proof projects `c` orthogonally onto `Submodule.span ℝ (L : Set E)` and applies Poisson
    summation there, so no full-rank or `MeasurableSpace` hypothesis is required.
 2. **Dual-mass form of the `λ_n` smoothing bound** (step toward [MicciancioRegev2007], Lemma 3.3,
-   p. 11 of the Dec. 14, 2005 preprint): for every full-rank discrete lattice `L` in a
+   pp. 11–12 of the December 27, 2005 author's copy): for every full-rank discrete lattice `L` in a
    finite-dimensional real inner product space `E` of dimension `n = finrank ℝ E`, every `ε > 0`,
    and every width `s > 0` satisfying `√(ln (2 n (1 + 1 / ε)) / π) * λ_n(L) ≤ s`, the nonzero
    reciprocal-width dual mass satisfies `ρ_{1/s}(L* \ {0}) ≤ ε`
@@ -48,9 +48,8 @@ This module proves two core lattice Gaussian estimates from [MicciancioRegev2007
 
 ## References
 
-* [D. Micciancio and O. Regev, *Worst-case to Average-case Reductions based on Gaussian
-  Measures*][MicciancioRegev2007], Lemma 2.9 (p. 9) and Lemma 3.3 (p. 11) of the Dec. 14, 2005
-  author preprint.
+* [MicciancioRegev2007], Lemma 2.9 (p. 9) and Lemma 3.3 (pp. 11–12) of the December 27, 2005
+  author's copy (`SIAM J. Comput.` 37(1):267–302, 2007).
 -/
 
 public section
@@ -90,9 +89,8 @@ private theorem gaussianMass_le_gaussianMass_zero_of_isZLattice
   rwa [hcancel] at hmul
 
 /-- Shifted lattice Gaussian mass is maximized at the origin ([MicciancioRegev2007], Lemma 2.9,
-p. 9 of the Dec. 14, 2005 preprint). Holds for every discrete `ℤ`-submodule `L` of a
-finite-dimensional real inner product space (not necessarily full-rank) without requiring
-`MeasurableSpace E`. -/
+p. 9 of the author's copy). Holds for every discrete `ℤ`-submodule `L` of a finite-dimensional
+real inner product space (not necessarily full-rank) without requiring `MeasurableSpace E`. -/
 theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
     [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
     (L : Submodule ℤ E) [DiscreteTopology L] (s : ℝ) (hs : 0 < s) (c : E) :
@@ -496,7 +494,7 @@ private theorem dual_hyperplane_compl_le
     Real.one_lt_exp_iff.mpr (by positivity)
   exact solve_ratio_bound hexp_gt hsplit hbound_ne
 
-/-- Dual-mass form of [MicciancioRegev2007], Lemma 3.3 (p. 11 of the Dec. 14, 2005 preprint),
+/-- Dual-mass form of [MicciancioRegev2007], Lemma 3.3 (pp. 11–12 of the author's copy),
 serving as a step toward the smoothing-parameter inequality
 `η_ε(L) ≤ √(ln (2 n (1 + 1 / ε)) / π) · λ_n(L)`.
 
