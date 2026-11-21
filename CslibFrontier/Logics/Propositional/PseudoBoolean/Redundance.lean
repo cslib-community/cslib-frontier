@@ -615,7 +615,7 @@ def assigns (ρ : List (Literal ℕ)) (f : Objective) : Bool :=
   f.lin.all fun e => ρ.contains (e.1, true) || ρ.contains (e.1, false)
 
 /-- Lower the bound `d`, if any, to `v`. -/
-def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
+private def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
 
 /-! ### Proofs and the checker -/
 
@@ -652,6 +652,7 @@ def State.init (F : List PBConstr) (obj : Option Objective) : State :=
 objective `obj`. Its value under the current objective lowers `dbound`. It lowers `bound` too
 if no unchecked deletion has happened, at that value, or else if it solves `F`, at its value
 under the input objective. Any other solution leaves `bound` unchanged. -/
+@[no_expose]
 def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : List (Literal ℕ)) :
     State :=
   { s with dbound := lowerTo s.dbound (objValue s.obj (assignOf ρ)),
@@ -663,14 +664,14 @@ def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : Lis
 /-- Assert the value `v` of the objective `f` in the state `s`, the effect shared by `soli` and
 `obji` (§5.8.2): the objective-improving constraint `f ≤ v - 1` joins the database and the core set
 at the next number, and the bound `dbound` is lowered to `v`. -/
-def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
+private def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
   { s with
     db := (s.next, (f.improving v).normalize) :: s.db,
     core := (s.next, (f.improving v).normalize) :: s.core,
     next := s.next + 1, dbound := lowerTo s.dbound v }
 
 /-- The constraint numbers that a step deletes. -/
-def Step.delIds : Step → List ℕ
+private def Step.delIds : Step → List ℕ
   | .del ids => ids
   | _ => []
 
@@ -690,6 +691,7 @@ def Step.delIds : Step → List ℕ
   CakePB's `check_tcb_idopt`).
 * `core id` moves constraints to the core set and needs at least one ID; promoting a constraint
   already in the core set changes nothing (§5.1). `strengthening_to_core on` moves all of them. -/
+@[no_expose]
 def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep → Option State
   | .step st =>
     match runStep s.db s.next st with
