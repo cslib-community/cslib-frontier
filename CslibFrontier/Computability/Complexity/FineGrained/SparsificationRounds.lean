@@ -57,8 +57,7 @@ theorem rounds_add_one_le (M : ℕ) (φ : CNF ℕ) : rounds M φ + 1 ≤ 5 * 2 ^
 /-- The binary round counter has `n / M + 3` digits. -/
 theorem length_encNat_rounds (M : ℕ) (φ : CNF ℕ) :
     (encNat (rounds M φ)).length = φ.numVars / M + 3 := by
-  rw [rounds, CNF.length_distinctVars, encNat_two_pow, List.length_append,
-    List.length_replicate, List.length_singleton]
+  rw [rounds, CNF.length_distinctVars, length_encNat_two_pow]
 
 /-- The round count is computable in polynomial time. -/
 theorem computableInPolyTime_rounds (M : ℕ) :
