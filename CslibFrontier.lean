@@ -8184,6 +8184,7 @@ public import CslibFrontier.Logics.Propositional.QBF.Blocks
 public import CslibFrontier.Logics.Propositional.Resolution
 public import CslibFrontier.Logics.Propositional.Resolution.CliqueColoring
 public import CslibFrontier.Logics.Propositional.Resolution.ExistentialPebble
+public import CslibFrontier.Logics.Propositional.Resolution.FromLRAT
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.Extraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.MonotoneExtraction
