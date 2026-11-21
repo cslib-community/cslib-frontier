@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FindCode
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
@@ -42,9 +43,8 @@ private theorem modulusTest_inSpace
   have hlog := budget_natPred (budget_comp_linear natSize hm)
   have hdegree := budget_natEq hlog (fst encNat encNat)
   have hirr := budget_comp_linear ht hm
-  exact (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
-    (budget_prod hdegree hirr)).of_enc_eq fun p => by
-      simp only [← Nat.log2_eq_log_two, Nat.log2_eq_size_sub_one, beq_eq_decide]
+  exact (budget_boolAnd hdegree hirr).of_enc_eq fun p => by
+    simp only [← Nat.log2_eq_log_two, Nat.log2_eq_size_sub_one, beq_eq_decide]
 
 /-- Given native binary irreducibility testing, select the existing modulus in space linear
 in the numeric degree. The input is the binary degree and the output is its raw

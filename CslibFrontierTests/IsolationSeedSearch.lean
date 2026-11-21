@@ -88,6 +88,33 @@ private def originalRoots (seed : Fin 1 → Bool) (s : Fin 3) : List (Option Con
   (fun (_ : Fin 1 → Bool) s =>
     if s = (0 : Fin 2) then [some (.decided true)] else [none]) id 0 = []
 
+private def tickVerdict (answer : Option (Option ControllerVerdict)) :
+    OptionT (StateM ℕ) (Option ControllerVerdict) :=
+  OptionT.mk fun clock => (answer, clock + 1)
+
+-- A failed nondesignated call still counts, and the branch rejects without trying another seed.
+#guard
+  let result := (runSeedSearchIndexed
+    (fun (_ : Fin 1 → Bool) s =>
+      tickVerdict (if s = (0 : Fin 2) then some (some (.decided true)) else none))
+    id 0).run 0
+  result.1.isNone && result.2 == 2
+
+private def countedAnswer (seed : Fin 1 → Bool) (_ : Fin 2) :
+    OptionT (StateM ℕ) (Option ControllerVerdict) :=
+  tickVerdict (some (some (.decided (seed 0))))
+
+-- The false answer stops enumeration after one seed and does not repeat the designated call.
+#guard
+  let result := (runSeedSearchIndexed countedAnswer id 0).run 0
+  match result.1 with
+  | some (some answer) => answer.seed.val == 0 && !answer.reachable && result.2 == 2
+  | _ => false
+
+example (start : ℕ) :
+    ((runSeedSearchIndexed countedAnswer id 0).run start).2 ≤ start + 6 :=
+  runSeedSearchIndexed_clock id 1 countedAnswer id 0 (fun _ _ _ => le_rfl) start
+
 -- Exhausting the counter returns one unsuccessful search result, distinct from branch rejection.
 #guard runSeedSearch
   (fun (_ : Fin 2 → Bool) (_ : Fin 1) => [some (ControllerVerdict.bad 1)]) [] 0 = [none]

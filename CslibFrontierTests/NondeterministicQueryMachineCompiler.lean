@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.BranchReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 
 /-! Tests for the native compiler of nondeterministic query machines on looping recognizers and
 input-dependent start states. -/
@@ -195,36 +196,75 @@ example (R : Routines ownBit id encBool (fun _ => 1)) {indices : List ℕ}
   (R.replay_correct true hr hhalt).2
 
 open NondeterministicQueryMachine in
-/-- Regression for the former unconditional first choice: an already accepting source has
-exactly one accepting native occurrence at a sufficient clock, rather than two selectors. -/
+/-- An already accepting source has exactly one accepting native occurrence at a sufficient clock,
+corresponding to its empty first-halting trace. -/
 example (R : Routines ownBit id encBool (fun _ => 1)) :
     ∃ fuel, (Native.countingMachine R.I R.P R.F R.C).branchCount
       (fun out => out == [true]) fuel (R.machine.initCfg (encBool true)) = 1 := by
-  obtain ⟨indices, ⟨final, hr, hhalt⟩, _⟩ :=
-    (R.existsUnique_replay_iff true []).mpr ⟨rfl, fun n h => by simp at h⟩
-  have hout : final.output = [true] := (R.replay_correct true hr hhalt).2
-  have hrun := congrArg (Option.map Prod.snd) hr
-  rw [Native.map_snd_replayChoices] at hrun
-  change (Native.countingMachine R.I R.P R.F R.C).runBranch _ indices = some final at hrun
-  have hmem := (MultiTapeCTM.mem_branches_iff
-    (Native.countingMachine R.I R.P R.F R.C) (R.machine.initCfg (encBool true))
-    indices.length indices).mpr ⟨le_rfl, final, hrun, hhalt⟩
-  have hpos : 0 < (Native.countingMachine R.I R.P R.F R.C).branchCount
-      (fun out => out == [true]) indices.length (R.machine.initCfg (encBool true)) := by
-    apply Finset.card_pos.mpr
-    refine ⟨indices, Finset.mem_filter.mpr ⟨hmem, ?_⟩⟩
-    change ((Native.countingMachine R.I R.P R.F R.C).runBranch
-      (R.machine.initCfg (encBool true)) indices).any (fun last => last.output == [true]) = true
-    rw [hrun]
-    change (final.output == [true]) = true
-    rw [hout]
+  have hhalt : (ownBit.withInit true).HaltsWithin (encBool true) 0 := by
+    intro choices hlength
+    obtain rfl := List.length_eq_zero_iff.mp hlength
     rfl
-  have hle := Native.branchCount_le_one_of_choiceTrace R.I R.P R.F R.C
-    (R.machine.initCfg (encBool true)) indices.length (fun out => out == [true]) [] (by
-      intro is trace last hreplay hlast _
+  obtain ⟨fuel, hclock⟩ := R.exists_runsInTime true hhalt
+  have htraces :
+      {bits : List Bool | ownBit.FirstHalting (encBool true) bits true ∧
+        ([ownBit.accept (ownBit.replay (encBool true) bits true)] == [true])} = {[]} := by
+    ext bits
+    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff]
+    constructor
+    · rintro ⟨⟨_, hprefix⟩, _⟩
       by_contra hne
-      have h := (R.replay_correct true hreplay hlast).1.2 0 (List.length_pos_iff.mpr hne)
-      exact Bool.noConfusion h)
-  exact ⟨indices.length, by omega⟩
+      exact Bool.noConfusion (hprefix 0 (List.length_pos_iff.mpr hne))
+    · rintro rfl
+      exact ⟨⟨rfl, fun n h => by simp at h⟩, rfl⟩
+  have hcount := R.branchCount_eq_encard_firstHalting true hclock (fun out => out == [true])
+  simp only [id_eq, htraces, Set.encard_singleton] at hcount
+  exact ⟨fuel, by exact_mod_cast hcount⟩
+
+open NondeterministicQueryMachine in
+/-- Both selectors produce the same state transition at each of the two passes.
+There are nevertheless four accepting occurrences at any sufficient native clock. -/
+example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    (input : List Bool) {fuel : ℕ} (hclock : R.machine.RunsInTime input fuel) :
+    (Native.countingMachine R.I R.P R.F R.C).branchCount (fun out => out == [true]) fuel
+      (R.machine.initCfg input) = 4 := by
+  have hatTwo (bits : List Bool) (h : bits.length = 2) : twoPass.replay input bits 0 = 2 := by
+    obtain ⟨b, c, rfl⟩ := List.length_eq_two.mp h
+    rfl
+  have hlive (bits : List Bool) (h : bits.length < 2) :
+      twoPass.halted (twoPass.replay input bits 0) = false := by
+    cases bits with
+    | nil => rfl
+    | cons b tail =>
+      have hlen : tail.length = 0 := by simp only [List.length_cons] at h; omega
+      obtain rfl := List.length_eq_zero_iff.mp hlen
+      rfl
+  have hset :
+      {bits : List Bool | twoPass.FirstHalting input bits 0 ∧
+        ([twoPass.accept (twoPass.replay input bits 0)] == [true])} =
+      {bits : List Bool | bits.length = 2} := by
+    ext bits
+    simp only [Set.mem_ofPred_eq, FirstHalting]
+    constructor
+    · rintro ⟨⟨hh, hp⟩, _⟩
+      have hlo : 2 ≤ bits.length := by
+        by_contra! h
+        rw [hlive bits h] at hh
+        cases hh
+      have hhi : bits.length ≤ 2 := by
+        by_contra! h
+        have hs := hp 2 h
+        rw [hatTwo _ (List.length_take_of_le hlo)] at hs
+        cases hs
+      exact le_antisymm hhi hlo
+    · intro h
+      rw [hatTwo bits h]
+      refine ⟨⟨rfl, fun n hn => hlive _ ?_⟩, rfl⟩
+      rw [List.length_take_of_le hn.le, ← h]
+      exact hn
+  have hcount := R.branchCount_eq_encard_firstHalting input hclock
+    (fun out => out == [true])
+  rw [encBits_apply, hset, Cslib.BitString.encard_setOf_length_eq] at hcount
+  exact_mod_cast hcount
 
 end CslibFrontierTests.NondeterministicQueryMachineCompiler

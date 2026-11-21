@@ -9,7 +9,7 @@ module
 
 import CslibFrontier.Algorithms.Reachability.DoubleCounting.SeedSearch.OriginalRoots
 
-/-! Checked original-root coverage for the ordered isolation-seed search. -/
+/-! Checked original-root coverage for the indexed isolation-seed search. -/
 
 set_option linter.privateModule false
 
@@ -41,12 +41,11 @@ example (G : LayeredDigraph (Fin (0 + 1) × Fin 2)) (hlayer : ∀ v, G.layer v =
       | .decided b => (∀ j, ∃! p, Passes (generatedSubdivisionAdj G index seed) s j p) ∧
           (b = true ↔ Relation.ReflTransGen (generatedSubdivisionAdj G index seed) s
             (index (root 1 (0, 1))))) :
-    ∃ result, runSeedSearch controller (originalRootIDs index) (index (root 1 (0, 0))) =
+    ∃ result, runSeedSearchIndexed controller (originalRootID index) (index (root 1 (0, 0))) =
         [some result] ∧
       G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm result.seed)) ∧
-      (result.reachable = true ↔ Relation.ReflTransGen G.Adj (0, 0) (0, 1)) := by
-  obtain ⟨result, hresult, hisolation, _, hreach⟩ :=
-    runGeneratedSeedSearch_correct G hlayer index hb (0, 0) (0, 1) controller hc
-  exact ⟨result, hresult, hisolation, hreach⟩
+      (∀ i < result.seed, ¬ G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm i))) ∧
+      (result.reachable = true ↔ Relation.ReflTransGen G.Adj (0, 0) (0, 1)) :=
+  runGeneratedSeedSearch_correct G hlayer index hb (0, 0) (0, 1) controller hc
 
 end CslibFrontierTests.IsolationSeedSearchOriginalRoots
