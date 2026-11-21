@@ -1298,10 +1298,8 @@ theorem shoupIrreducibleBits_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
     rw [hkv_eq]
     exact length_kernelVecBits (q + 1) M
   have hkv_ne0 : polyOfBits kv ≠ 0 := by
-    rw [Ne, polyOfBits_eq_zero_iff]
-    intro hall
     obtain ⟨b, hb, hb'⟩ := List.any_eq_true.mp hkv_any
-    exact Bool.true_eq_false.mp (hb'.symm.trans (hall b hb))
+    exact polyOfBits_ne_zero_of_mem (by simpa using hb' ▸ hb)
   have hkv_mul : rowsToZModMatrix (q * m) (q + 1) M *ᵥ bitsToZModVec (q + 1) kv = 0 := by
     rw [hkv_eq]
     exact mulVec_kernelVecBits M hM_len hM_mem

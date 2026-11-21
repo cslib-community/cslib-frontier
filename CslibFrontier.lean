@@ -3010,6 +3010,8 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenBoundedWalk
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenMembershipTally
+public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceContext
+public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceContext.Scheduler
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision.Replay
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Layered
@@ -5304,6 +5306,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
 public import CslibFrontier.Crypto.Computational.MLDSA.ProgrammedContinuation
+public import CslibFrontier.Crypto.Computational.MLDSA.PublicKeyHash
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
@@ -5315,8 +5318,13 @@ public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
+public import CslibFrontier.Crypto.Computational.MLDSA.RepresentativeOverlap
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
+public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
+public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowServices
+public import CslibFrontier.Crypto.Computational.MLDSA.SharedKeyGame
+public import CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
 public import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 public import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
@@ -5567,6 +5575,7 @@ public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.Modes
 public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.ByteString.Blocks
+public import CslibFrontier.Crypto.Primitives.ByteString.Uniform
 public import CslibFrontier.Crypto.Primitives.CorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Adaptive
 public import CslibFrontier.Crypto.Primitives.Garbling.Arithmetic.AffineLabel
@@ -6369,6 +6378,7 @@ public import CslibFrontier.Foundations.Analysis.LpNormMeasure
 public import CslibFrontier.Foundations.Analysis.MarkovBrothersInequality
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateDerivative
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalDeterminantFeasibility
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalValueCutoff

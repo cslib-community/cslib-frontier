@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceContext.Scheduler
 meta import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 
 /-! Ordinary-import clients for the binary seed and source scheduler. -/
@@ -95,5 +95,36 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
         (fun bits u => scanner ⟨s, (Cslib.BitString.equivFin _ bits).val, u.val⟩)
         (fun j => ⟨s.originalSourceID j.val, hr _ j.isLt⟩) ⟨s.sourceID, hs⟩ :=
   runSeedSchedulerFor_eq _ _ _ scanner
+
+open Cslib.Code.JustesenFamily ComputableInSpace in
+/-- The scheduler's binary request can feed the context adapter under the existing budget. -/
+example :
+    let encArgs := encPair encSeedSearchSetup (encPair encNat (encOption encNat))
+    let E := encPair encArgs encFieldContext
+    ComputableInSpace (fun p => justesenSourceContextOfRequest (seedScanRequest p.1) p.2)
+      E encJustesenSourceContext (fun p => (E p).length) := by
+  intro encArgs E
+  exact justesenSourceContextOfRequest_budget
+    (budget_comp_linear seedScanRequest_inSpace (fst encArgs encFieldContext))
+    (snd encArgs encFieldContext)
+
+/-- Both scheduler entries use the original word's weighted adjacency and designated target.
+Only the selected source ID differs. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (rank position : ℕ) :
+    let s := configurationSeedSearchSetup ntm c w
+    let field := configurationFieldContext ntm c w
+    let designated := justesenSourceContextOfRequest (seedScanRequest (s, rank, none)) field
+    let indexed := justesenSourceContextOfRequest (seedScanRequest (s, rank, some position)) field
+    designated.adjacency = configurationJustesenSubdivisionContext ntm c w rank ∧
+      indexed.adjacency = designated.adjacency ∧
+      designated.sourceID = s.sourceID ∧ indexed.sourceID = s.originalSourceID position ∧
+      designated.targetID = s.targetID ∧ indexed.targetID = s.targetID := by
+  intro s field designated indexed
+  dsimp only [designated, indexed]
+  rw [← seedSchedulerFrame_designated_request,
+    ← seedSchedulerFrame_indexed_request s rank position false]
+  exact ⟨justesenSourceContextOfRequest_adjacency_eq ntm c w rank s.sourceID,
+    rfl, rfl, rfl, rfl, rfl⟩
 
 end CslibFrontierTests.STCONSeedScheduler

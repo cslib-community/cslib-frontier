@@ -386,4 +386,55 @@ example :
   · change (0 : ℝ) - 2 / 3 < 0 ∧ (0 : ℝ) < 1 - 2 / 3
     constructor <;> norm_num
 
+private noncomputable def stretch (cut x : ℝ) : ℝ := x + max 0 (x - cut)
+
+private theorem stretch_strictMono (cut : ℝ) : StrictMono (stretch cut) := by
+  intro x y hxy
+  exact add_lt_add_of_lt_of_le hxy (max_le_max_left 0 (sub_le_sub_right hxy.le cut))
+
+private theorem stretch_interpolation (cut x y t : ℝ) (ht : t ∈ Set.Icc 0 1)
+    (hcut : 0 ∉ Set.Ioo (min (x - cut) (y - cut)) (max (x - cut) (y - cut))) :
+    stretch cut (AffineMap.lineMap x y t) =
+      AffineMap.lineMap (stretch cut x) (stretch cut y) t := by
+  have hsides : (0 ≤ x - cut ∧ 0 ≤ y - cut) ∨ (x - cut ≤ 0 ∧ y - cut ≤ 0) := by
+    simpa only [Set.mem_Ioo, not_and_or, not_lt, le_min_iff, max_le_iff] using hcut
+  have hn : 0 ≤ 1 - t := sub_nonneg.mpr ht.2
+  rcases hsides with ⟨hx, hy⟩ | ⟨hx, hy⟩
+  · have hm : 0 ≤ AffineMap.lineMap x y t - cut := by
+      rw [AffineMap.lineMap_apply_ring]
+      nlinarith only [mul_nonneg hn hx, mul_nonneg ht.1 hy]
+    simp only [stretch, max_eq_right hm, max_eq_right hx, max_eq_right hy]
+    simp only [AffineMap.lineMap_apply_ring]
+    ring
+  · have hm : AffineMap.lineMap x y t - cut ≤ 0 := by
+      rw [AffineMap.lineMap_apply_ring]
+      nlinarith only [mul_nonpos_of_nonneg_of_nonpos hn hx,
+        mul_nonpos_of_nonneg_of_nonpos ht.1 hy]
+    simp only [stretch, max_eq_left hm, max_eq_left hx, max_eq_left hy, add_zero]
+
+-- Stretch the two coordinates across distinct cuts through the original oblique spoke.
+example :
+    let D := PolygonalDrawing.star 1
+    let F (z : ℂ) : ℂ := ⟨stretch (1 / 3) z.re, stretch (2 / 3) z.im⟩
+    ∃ E : PolygonalDrawing (starGraph 1), E.IsEmbedding ∧ E.vertex = F ∘ D.vertex ∧
+      ∀ e, (E.route e).support = F '' (D.route e).support := by
+  let F (z : ℂ) : ℂ := ⟨stretch (1 / 3) z.re, stretch (2 / 3) z.im⟩
+  let re : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap
+  let im : ℂ →ᵃ[ℝ] ℝ := Complex.imCLM.toLinearMap.toAffineMap
+  let c := re - AffineMap.const ℝ ℂ (1 / 3)
+  let d := im - AffineMap.const ℝ ℂ (2 / 3)
+  have hinj : Function.Injective F := by
+    intro a b hab
+    exact Complex.ext ((stretch_strictMono (1 / 3)).injective (congrArg Complex.re hab))
+      ((stretch_strictMono (2 / 3)).injective (congrArg Complex.im hab))
+  apply (PolygonalDrawing.star_isEmbedding 1).exists_image_across_walls [c, d] hinj
+  intro a b hcut t ht
+  apply Complex.ext
+  · change stretch (1 / 3) (re (AffineMap.lineMap a b t)) = re (AffineMap.lineMap (F a) (F b) t)
+    rw [AffineMap.apply_lineMap re a b t, AffineMap.apply_lineMap re (F a) (F b) t]
+    exact stretch_interpolation _ _ _ _ ht (hcut c (by simp))
+  · change stretch (2 / 3) (im (AffineMap.lineMap a b t)) = im (AffineMap.lineMap (F a) (F b) t)
+    rw [AffineMap.apply_lineMap im a b t, AffineMap.apply_lineMap im (F a) (F b) t]
+    exact stretch_interpolation _ _ _ _ ht (hcut d (by simp))
+
 end CslibFrontierTests.PolygonalHorizontalTransport

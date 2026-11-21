@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenMembershipTally
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceContext
 
 /-! Re-enter the Justesen tally at a variable seed and check replay and encoded length. -/
 
@@ -45,27 +45,28 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
     ⟨branch, ⟨rfl, hscan⟩, fun other h =>
       MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm⟩
 
-/-- The exact radius-zero totals give one successful selector list at any valid seed
-and endpoints. -/
+/-- Final membership at the loop's initial exact totals has one successful selector list
+at any valid seed and endpoints. -/
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
     (c : ℕ) (w : List Bool) :
     let I := configurationInstance ntm c w
     let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
-    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount),
-      let params : MembershipTally.Context :=
-        ⟨size.vertexCount, source.val, target.val, 0, ⟨1, 0⟩⟩
-      let base := configurationJustesenMembershipTally ntm c [] 0 ⟨0, 0, 0, 0, ⟨0, 0⟩⟩
-      let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
-      let M := base.withInit (MembershipTally.retainedInitial ctx params)
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount)
+      (fuel : ℕ),
+      let ctx : JustesenSourceContext :=
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+      let regs := SourceRoundLoop.start ctx fuel
+      let base := justesenSourceMembershipMachine ntm c
+      let M := base.withInit (justesenSourceMembershipStart regs)
       ∃! bits, M.FirstHalting w bits M.init ∧
         (MembershipTally.retainedReply (M.run w bits)).isSome := by
-  intro I size seed source target params base ctx M
-  dsimp only [M, base, ctx]
-  rw [configurationJustesenMembershipTally_withInit]
+  intro I size seed source target fuel ctx regs base M
+  dsimp only [M, base, regs, SourceRoundLoop.start, ctx]
+  rw [justesenSourceMembershipMachine_withInit]
   let adjacent := configurationJustesenSubdivisionAdjacent ntm c w seed
-  simpa only [expected_zero, params, adjacent] using
-    configurationJustesenMembershipTally_existsUnique_firstHalting ntm c w seed source target 0
-      (existsUnique_passes_zero (fun u v => adjacent u v = true) source)
+  simpa only [expected_zero, adjacent] using
+    configurationJustesenMembershipTally_existsUnique_firstHalting ntm c w
+      seed source target 0 (existsUnique_passes_zero (fun u v => adjacent u v = true) source)
 
 /-- A common polynomial clock and logarithmic state bound apply after re-entry at
 the radius and tally limits. -/
@@ -110,6 +111,67 @@ private theorem run_skip {n : ℕ} (edge : Fin n → Fin n → Bool) (source tar
       rfl
   rw [Scan.run_eq_finish, hprefix]
   rfl
+
+/-- A round's membership entry queries its candidate and preserves the caller's suffix. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let n := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source candidate : Fin n),
+      let ctx : SourceRound.Context := ⟨n, source.val, 0, ⟨0, 0⟩⟩
+      let adjacency := configurationJustesenSubdivisionContext ntm c w seed.val
+      let entry := justesenRoundMembershipStart adjacency ctx candidate.val
+      let bits := MembershipTally.selectors (BoundedWalk.selectors 3) (fun _ : Fin n => none)
+      (justesenSourceMembershipMachine ntm c).readReply MembershipTally.retainedReply
+        w entry (bits ++ [false, true]) = some (false, [true]) := by
+  intro I n seed source candidate ctx adjacency entry bits
+  exact (justesenRoundMembership_readReply_iff ntm c w seed source candidate
+    0 ⟨0, 0⟩ _ false [true]).mpr ⟨fun _ => none, rfl, run_skip _ _ _⟩
+
+/-- The final callback returns a passing negative reply and preserves the next selectors. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount),
+      let ctx : JustesenSourceContext :=
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+      let entry := justesenSourceMembershipStart ⟨ctx, 1, 0, ⟨0, 0⟩⟩
+      let bits := MembershipTally.selectors (BoundedWalk.selectors 3)
+        (fun _ : Fin size.vertexCount => none)
+      (justesenSourceMembershipMachine ntm c).readReply MembershipTally.retainedReply
+        w entry (bits ++ [false, true, false]) = some (false, [true, false]) := by
+  intro I size seed source target ctx entry bits
+  exact (justesenSourceMembership_readReply_iff ntm c w seed source target 1 0 ⟨0, 0⟩
+    _ false [true, false]).mpr ⟨fun _ => none, rfl, run_skip _ _ _⟩
+
+/-- Exact radius-zero membership at a different target returns false and preserves
+the caller's suffix. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount),
+      target ≠ source → ∀ suffix : List Bool,
+      let adjacent := configurationJustesenSubdivisionAdjacent ntm c w seed
+      let edge := fun u v => adjacent u v = true
+      let ctx : JustesenSourceContext :=
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+      let entry := justesenSourceMembershipStart ⟨ctx, 1, 0, expected edge source 0⟩
+      let M := justesenSourceMembershipMachine ntm c
+      ∃ bits, M.readReply MembershipTally.retainedReply w entry bits = some (false, suffix) := by
+  intro I size seed source target hne suffix adjacent edge ctx entry M
+  obtain ⟨callBits, ⟨hfirst, hret⟩, _⟩ := justesenSourceMembership_existsUnique_firstHalting
+    ntm c w seed source target 1 0 (existsUnique_passes_zero edge source)
+  obtain ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp hret
+  let bits := callBits ++ false :: suffix
+  have hparsed := (readReply_iff M MembershipTally.retainedReply w bits entry hit suffix).mpr
+    ⟨callBits, rfl, hfirst, hhit⟩
+  have hspec := justesenSourceMembership_readReply_correct ntm c w seed source target
+    1 0 bits hit suffix hparsed
+  have hfalse : hit = false := Bool.eq_false_iff.mpr fun htrue =>
+    hne (by simpa only [Relation.reachableWithin_zero, Set.mem_singleton_iff] using hspec.mp htrue)
+  exact ⟨bits, hfalse ▸ hparsed⟩
 
 /-- Compile queries at seed zero using the designated endpoints computed from the original
 word. The same machine has a native workspace bound, halts on every input, and has one
@@ -167,5 +229,66 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       0 ⟨0, 0⟩ _ rfl rfl).mpr
     exact ⟨fun _ => none, ⟨rfl, false, run_skip _ _ _⟩, fun _ h =>
       MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm⟩
+
+/-- The final membership callback fits its bounds at the source loop's scalar limits,
+even for a tally larger than any exact round total. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let I := configurationInstance ntm c w
+      let n := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+      ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin n),
+        let ctx : JustesenSourceContext :=
+          ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+        let r : SourceRoundLoop.Registers JustesenSourceContext :=
+          ⟨ctx, 0, n, ⟨1 + n * n, n * n * n⟩⟩
+        let M := justesenSourceMembershipMachine ntm c
+        let entry := justesenSourceMembershipStart r
+        (M.withInit entry).HaltsWithin w (configurationJustesenMembershipTallyClock ntm c w) ∧
+          ∀ bits, (MembershipTally.encRetainedState encJustesenSubdivisionContext
+            encJustesenSubdivisionState (M.replay w bits entry)).length ≤
+              C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, h⟩ := justesenSourceMembership_bounds ntm c
+  refine ⟨C, fun w => ?_⟩
+  intro I n seed source target ctx r M entry
+  have hsize : ctx.size = n :=
+    configurationJustesenSourceContext_size ntm c w seed.val source.val target.val
+  have hr : SourceRoundLoop.Admissible ctx ctx.size n r := by
+    simp only [SourceRoundLoop.Admissible, r, hsize, Nat.zero_add, and_self, le_refl]
+  exact h w seed source target n le_rfl r hr
+
+/-- A supplied round and concrete final membership can share the existing source-loop
+transition and query certificates. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    {ρ : Type} (encRound : ρ ↪ List Bool)
+    (initial : SourceRoundLoop.Registers JustesenSourceContext)
+    (round : NondeterministicQueryMachine ρ)
+    (roundStart : SourceRoundLoop.Registers JustesenSourceContext → ρ)
+    (roundReply : ρ → Option RoundUpdate) :
+    let R := SourceRoundLoop.encRegisters encJustesenSourceContext
+    let encMember := MembershipTally.encRetainedState encJustesenSubdivisionContext
+      encJustesenSubdivisionState
+    let E := SourceRoundLoop.encState encJustesenSourceContext encRound encMember
+    let encRoundStep := encPair encRound encReadChoice
+    let encStep := encPair E encReadChoice
+    let M := SourceRoundLoop.machine initial round roundStart roundReply
+      (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
+      MembershipTally.retainedReply
+    ComputableInSpace round.query encRound encNat (fun s => (encRound s).length) →
+    ComputableInSpace roundStart R encRound (fun r => (R r).length) →
+    ComputableInSpace roundReply encRound (encOption encRoundUpdate)
+      (fun s => (encRound s).length) →
+    ComputableInSpace round.halted encRound encBool (fun s => (encRound s).length) →
+    ComputableInSpace round.next encRoundStep encRound (fun p => (encRoundStep p).length) →
+    ComputableInSpace M.query E encNat (fun s => (E s).length) ∧
+      ComputableInSpace M.next encStep E (fun p => (encStep p).length) := by
+  intro R encMember E encRoundStep encStep M hquery hstart hreply hhalt hnext
+  obtain ⟨hq, hn, hh, hr⟩ := justesenSourceMembershipMachine_parts_inSpace ntm c
+  exact ⟨SourceRoundLoop.query_inSpace encJustesenSourceContext encRound encMember
+      initial round roundStart roundReply (justesenSourceMembershipMachine ntm c)
+      justesenSourceMembershipStart MembershipTally.retainedReply hquery hq,
+    SourceRoundLoop.next_inSpace encJustesenSourceContext encRound encMember
+      initial round roundStart roundReply (justesenSourceMembershipMachine ntm c)
+      justesenSourceMembershipStart MembershipTally.retainedReply
+      hstart justesenSourceMembershipStart_inSpace hreply hr hhalt hh hnext hn⟩
 
 end CslibFrontierTests.STCONJustesenTally

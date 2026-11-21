@@ -240,14 +240,16 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
   | liftBind q k m _ ih =>
     obtain ⟨fits, cont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp calls
     rcases q with coin | cmd | ask
-    · simp only [scored_coin (C := C) (coin := coin) (k := k), isXofQuery,
+    · simp only [scored_eq_measured, measured_coin (C := C) (coin := coin) (k := k), isXofQuery,
         Bool.toNat_false, Nat.add_zero]
+      simp only [← scored_eq_measured]
       apply PMF.meanAbsDiffAt_bind_le μ (ProbComp.unifOracle coin) true
       exact fun i => ih i (cont i) d log tape
-    · simp only [scored_device (C := C) (cmd := cmd) (k := k)]
+    · simp only [scored_eq_measured, measured_device (C := C) (cmd := cmd) (k := k)]
+      simp only [← scored_eq_measured]
       let left y r dev := scored (k r) (write y) (sign' y) (test' y) dev log tape
       let right y r dev := scored (k r) base sign (test y) dev log tape
-      apply (device_meanGap_le μ base write cmd left right d log
+      apply (device_meanGap_le μ base write cmd left right d (log, tape)
         (B := m * Q + n * S + T) (fun y r => scored_readout ..) (coherent d) ?_).trans_eq
       · rw [Nat.cast_add]
         ring
@@ -261,8 +263,9 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
         (meanGap_of_agree μ _ _ {y | sig' y ≠ sig} fun y h => by
           rw [show sig' y = sig from not_not.mp h]).trans (signing _ ask)
       have rest := ih sig (cont sig) d (ask.logReply sig log) tape.tail
-      simp only [scored_sign (C := C) (ask := ask) (k := k), isXofQuery,
-        Bool.toNat_false, Nat.add_zero]
+      simp only [scored_eq_measured, measured_sign (C := C) (ask := ask) (k := k), tapeReply,
+        PMF.pure_bind, isXofQuery, Bool.toNat_false, Nat.add_zero]
+      simp only [← scored_eq_measured]
       have len : n = n - 1 + 1 := by
         change 1 ≤ n at fits
         lia
