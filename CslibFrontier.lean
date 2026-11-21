@@ -2986,6 +2986,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SATUNSAT
 public import CslibFrontier.Computability.Complexity.Problems.STCON
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
+public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Layered
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredCallback
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredParameters
