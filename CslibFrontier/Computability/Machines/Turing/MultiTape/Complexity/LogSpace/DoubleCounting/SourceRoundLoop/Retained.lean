@@ -146,4 +146,14 @@ theorem retainedRound_length_run_le (r : Registers κ) (encContext : κ ↪ List
     (SourceRound.length_encMachineState_run_le encCallee (roundContext size source r)
       callee (calleeStart r.context) calleeReply input bits calleeBound hcallee) _
 
+/-- Continuing retained rounds preserve the same loop invariant as scalar rounds. -/
+theorem retainedRound_admissible_closed (context : κ) (limit : ℕ) (input : List Bool) :
+    Closed (retainedRound size source callee calleeStart calleeReply (start context limit))
+      (retainedRoundEntry size source) (SourceRound.answer ∘ Prod.snd) input
+      (Admissible context (size context) limit) := by
+  intro r hr hpositive bits a hanswer _ _
+  rw [← run_withInit, retainedRound_withInit, retainedRound_run] at hanswer
+  exact admissible_advance_of_round_answer size source callee (calleeStart r.context)
+    calleeReply hr hpositive input bits hanswer
+
 end Turing.DoubleCounting.SourceRoundLoop

@@ -238,4 +238,19 @@ example (enabled : Bool) (input bits : List Bool) :
     · exact (show (encOption encBool none).length ≤ 2 by decide)
     · exact (show (encOption encBool (some true)).length ≤ 2 by decide)
 
+/-- The retained round and final membership share an all-branch loop clock. -/
+example (input : List Bool) : retainedLoop.HaltsWithin input
+    (1 * (SourceRound.roundClock 1 0 + 1) + 0 + 1) := by
+  unfold retainedLoop
+  apply SourceRoundLoop.haltsWithin _ _ _ _ _ _ _ _
+    (Admissible false 1 1) (start_admissible false 1 1)
+    (retainedRound_admissible_closed retainedSize retainedSource optionalCallback retainedStart id
+      false 1 input) (SourceRound.roundClock 1 0) 0
+  · intro r _
+    rw [retainedRound_withInit]
+    exact retainedRound_haltsWithin retainedSize retainedSource optionalCallback retainedStart id
+      r input 0 (fun _ _ _ _ => rfl)
+  · intro _ _ _ _
+    rfl
+
 end CslibFrontierTests.DoubleCountingSourceRoundLoopResource
