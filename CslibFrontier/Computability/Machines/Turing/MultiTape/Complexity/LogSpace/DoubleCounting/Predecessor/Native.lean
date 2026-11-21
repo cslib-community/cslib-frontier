@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor
-import Mathlib.Data.Nat.Find
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.FirstHalt
 
 /-!
 # Native compilation of predecessor counting with supplied callees
@@ -120,17 +120,11 @@ theorem Returns.exists_firstHalt_encoding_le {τ : Type} (encT : τ ↪ List Boo
   let Q := computingMachine ctx N start answer
   obtain ⟨T, hT, hB⟩ := h.exists_run_encoding_le encT D hc
   change Q.run w T = .inl q at hT
-  have stopped : ∃ i, Q.halted (Q.run w i) = true := ⟨T, by rw [hT]; exact hstop⟩
-  let clock := Nat.find stopped
-  have hhalt : Q.halted (Q.run w clock) = true := Nat.find_spec stopped
-  have hle : clock ≤ T := Nat.find_min' stopped (by rw [hT]; exact hstop)
-  refine ⟨clock, hhalt, ?_, (Q.run_eq_of_le w hhalt hle).symm.trans hT, ?_⟩
-  · intro i hi
-    cases h : Q.halted (Q.run w i) with
-    | false => rfl
-    | true => exact False.elim (Nat.find_min stopped hi h)
-  · intro i hi
-    exact hB i (hi.trans hle)
+  have hbound : Q.halted (Q.run w T) = true := by rw [hT]; exact hstop
+  obtain ⟨clock, hle, hhalt, hpre, hstate⟩ :=
+    Q.exists_first_halt_le w Q.init T hbound
+  have hclock : Q.run w clock = .inl q := hstate.trans hT
+  exact ⟨clock, hhalt, hpre, hclock, fun i hi => hB i (hi.trans hle)⟩
 
 /-- Compile the actual predecessor routine to a native computation, for a fixed explicit
 context and supplied same-input callees. Space charges original-input positions and the whole
