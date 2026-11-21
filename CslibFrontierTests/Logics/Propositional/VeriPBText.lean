@@ -818,9 +818,24 @@ end pseudo-Boolean proof;
   some (.bounds (some 1) 3 (some 1) none)
 -- Without the constant, the objective `0` is not `x1` on the core (VeriPB rejects).
 #guard (checkOPB twoOpt (objuConstProof.replace "-1 x1 1 ;" "-1 x1 ;")).isNone
--- A constraint still needs its relation: a constant is no constraint.
-#guard (checkOPB twoOpt "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n"
-  |>.isNone)
+-- A constraint still needs its relation: a constant is no constraint (VeriPB and CakePB reject
+-- the instance).
+#guard (parseOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n").isNone
+#guard (parseOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n").isSome
+-- `min:` ends in an optional constant: `x1 + 5`, and `~x1 + 3`, that is `-x1 + 4`.
+#guard (parseOPB "min: 1 x1 5 ;\n1 x1 >= 1 ;\n").map (·.objective) == some (some ⟨[(0, 1)], 5⟩)
+#guard (parseOPB "min: 1 ~x1 3 ;\n1 x1 >= 1 ;\n").map (·.objective) == some (some ⟨[(0, -1)], 4⟩)
+-- The constant shifts the optimum: minimizing `x1 + 5` under `x1 >= 1` gives `6` (VeriPB and
+-- CakePB accept).
+#guard checkOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 5 ;\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
+  "pseudo-Boolean proof version 3.0
+f 2;
+soli x1 x2;
+rup >= 1 : 3 1;
+output NONE;
+conclusion BOUNDS 6 : 4 6;
+end pseudo-Boolean proof;
+" == some (.bounds (some 6) 4 (some 6) none)
 
 /-- Minimize `x1 + x2` subject to `x1 + x2 >= 1` and `~x2 >= 1`. -/
 def cancelOpt : String := "* #variable= 2 #constraint= 2
