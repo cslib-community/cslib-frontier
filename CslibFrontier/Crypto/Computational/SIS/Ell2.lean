@@ -79,14 +79,14 @@ nonzero, has `‖z‖₂ ≤ β`, and satisfies `A z ≡ 0 (mod q)` ([Micciancio
 §5.1, p. 17). Since `0 ≤ ‖z‖₂`, negative values of `β` admit no solutions. -/
 def IsEll2Solution {q : ℕ} {ρ ι : Type*} [Fintype ι] (A : Matrix ρ ι (ZMod q)) (β : ℝ)
     (z : ι → ℤ) : Prop :=
-  z ≠ 0 ∧ ‖WithLp.toLp 2 (fun i => (z i : ℝ))‖ ≤ β ∧ A *ᵥ (Int.cast ∘ z) = 0
+  z ≠ 0 ∧ ‖WithLp.toLp 2 (fun i => (z i : ℝ))‖ ≤ β ∧ InKernelLattice A z
 
 /-- For a natural-number bound `β`, `SIS.IsEll2Solution A β z` is equivalent to the decidable
 integer inequality `∑ i, z i ^ 2 ≤ β ^ 2` alongside `z ≠ 0` and `A z ≡ 0 (mod q)`. -/
 theorem isEll2Solution_nat_iff {q : ℕ} {ρ ι : Type*} [Fintype ι]
     (A : Matrix ρ ι (ZMod q)) (β : ℕ) (z : ι → ℤ) :
     IsEll2Solution A (β : ℝ) z ↔
-      z ≠ 0 ∧ (∑ i : ι, z i ^ 2) ≤ (β : ℤ) ^ 2 ∧ A *ᵥ (Int.cast ∘ z) = 0 := by
+      z ≠ 0 ∧ (∑ i : ι, z i ^ 2) ≤ (β : ℤ) ^ 2 ∧ InKernelLattice A z := by
   refine and_congr_right fun _ => and_congr_left fun _ => ?_
   rw [← sq_le_sq₀ (norm_nonneg _) (Nat.cast_nonneg β), EuclideanSpace.norm_sq_eq]
   have hsum : ∑ i : ι, ‖(z i : ℝ)‖ ^ 2 = ((∑ i : ι, z i ^ 2 : ℤ) : ℝ) := by
@@ -168,12 +168,12 @@ theorem exists_isEll2Solution {q n m : ℕ} [NeZero q] (hm : 0 < m)
     have hyi : (y i : ℕ) ≤ K := Nat.lt_succ_iff.mp (y i).isLt
     simp only [z, abs_le]
     omega
-  have hz_ker : A *ᵥ (Int.cast ∘ z) = 0 := by
+  have hz_ker : InKernelLattice A z := by
     have hcast : (Int.cast ∘ z : Fin m → ZMod q) =
         (fun i => ((x i : ℕ) : ZMod q)) - (fun i => ((y i : ℕ) : ZMod q)) := by
       funext i
       simp [z]
-    rw [hcast, Matrix.mulVec_sub]
+    rw [InKernelLattice, hcast, Matrix.mulVec_sub]
     exact sub_eq_zero.mpr hf
   have hsol : IsSolution A K z := ⟨hz_ne, hz_inf, hz_ker⟩
   have hK_le : (K : ℝ) ≤ (q : ℝ) ^ ((n : ℝ) / m) :=
