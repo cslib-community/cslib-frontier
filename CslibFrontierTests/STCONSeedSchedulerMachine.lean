@@ -102,4 +102,20 @@ example (skipped indexed : SeedSchedulerFrame) (hneedsScan : indexed.needsScan =
   rw [show resume start skipped none = _ from henter, hscan, hparse]
   simp [resumed, scheduler, start]
 
+open MultiTapeTM ComputableInSpace in
+/-- All scheduler observations fit within the budget of the live state producer. -/
+example {α σ : Type} {enc : α ↪ List Bool} {S : α → ℕ} (encScan : σ ↪ List Bool)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict)
+    (hquery : ComputableInSpace scan.query encScan encNat (fun s => (encScan s).length))
+    {state : α → State σ} (hstate : ComputableInSpace state enc (encState encScan) S) :
+    let M := machine setup scan start verdict
+    ComputableInSpace (fun a => M.query (state a)) enc encNat S ∧
+      ComputableInSpace (fun a => M.halted (state a)) enc encBool S ∧
+      ComputableInSpace (fun a => reply (state a)) enc (encOption (encOption encAnswer)) S ∧
+      ComputableInSpace (fun a => M.accept (state a)) enc encBool S := by
+  obtain ⟨hq, hh, hr, ha⟩ := observations_inSpace encScan setup scan start verdict hquery
+  exact ⟨budget_comp_linear hq hstate, budget_comp_linear hh hstate,
+    budget_comp_linear hr hstate, budget_comp_linear ha hstate⟩
+
 end CslibFrontierTests.STCONSeedSchedulerMachine

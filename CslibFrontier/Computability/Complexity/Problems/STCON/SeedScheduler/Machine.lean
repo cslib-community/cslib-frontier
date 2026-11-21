@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CallReplay
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 
 /-!
 # Same-input seed scheduler
@@ -27,6 +28,8 @@ skipped designated root.
 
 ## Main results
 
+* `SeedSchedulerMachine.observations_inSpace`: query, halt, terminal reply, and acceptance
+  use space linear in the encoded state.
 * `SeedSchedulerMachine.step_liveScan`: a live scan takes the callback's step on the same input.
 * `SeedSchedulerMachine.firstHalting_scan_iff`: split a successful scan and the resumed trace.
 * `SeedSchedulerMachine.firstHalting_skip_iff`: split a skipped root's false selector and suffix.
@@ -100,6 +103,41 @@ def machine {σ : Type} (setup : SeedSearchSetup) (scan : NondeterministicQueryM
     | .inl _ => false
     | .inr _ => true
   accept s := ((reply s).join.map Answer.reachable).getD false
+
+open _root_.Turing.MultiTapeTM.ComputableInSpace in
+/-- Query, read the phase tag or terminal reply, and test acceptance in space linear in
+the encoded scheduler state. Only the active scan's query uses a supplied certificate. -/
+theorem observations_inSpace {σ : Type} (encScan : σ ↪ List Bool) (setup : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict)
+    (hquery : ComputableInSpace scan.query encScan encNat (fun s => (encScan s).length)) :
+    let E := encState encScan
+    let M := machine setup scan start verdict
+    ComputableInSpace M.query E encNat (fun s => (E s).length) ∧
+      ComputableInSpace M.halted E encBool (fun s => (E s).length) ∧
+      ComputableInSpace reply E (encOption (encOption encAnswer)) (fun s => (E s).length) ∧
+      ComputableInSpace M.accept E encBool (fun s => (E s).length) := by
+  intro E M
+  let live := encSum encSeedSchedulerFrame (encPair encSeedSchedulerFrame encScan)
+  let terminal := encOption (encOption encAnswer)
+  have hquerySkip := budget_const (encIn := encSeedSchedulerFrame) (encB := encNat) 0 (.refl _)
+  have hqueryScan := budget_comp_linear hquery (snd encSeedSchedulerFrame encScan)
+  have hqueryTerminal := budget_const (encIn := terminal) (encB := encNat) 0 (.refl _)
+  have hqueryMachine : ComputableInSpace M.query E encNat (fun s => (E s).length) :=
+    (sumElim (sumElim hquerySkip hqueryScan) hqueryTerminal).of_enc_eq fun
+      | .inl (.inl _) | .inl (.inr _) | .inr _ => rfl
+  have hhaltLive := budget_const (encIn := live) (encB := encBool) false (.refl _)
+  have hhaltTerminal := budget_const (encIn := terminal) (encB := encBool) true (.refl _)
+  have hhalt : ComputableInSpace M.halted E encBool (fun s => (E s).length) :=
+    (sumElim hhaltLive hhaltTerminal).of_enc_eq fun | .inl _ | .inr _ => rfl
+  have hreplyLive := budget_const (encIn := live) (encB := terminal) none (.refl _)
+  have hreplyTerminal := budget_id (enc := terminal) (.refl _)
+  have hreply : ComputableInSpace reply E terminal (fun s => (E s).length) :=
+    (sumElim hreplyLive hreplyTerminal).of_enc_eq fun | .inl _ | .inr _ => rfl
+  have hanswer := encAnswer_reachable_budget (budget_id (enc := encAnswer) (.refl _))
+  have haccept := budget_comp_linear (optionElim false (optionElim false hanswer)) hreply
+  exact ⟨hqueryMachine, hhalt, hreply, haccept.of_enc_eq fun
+    | .inl _ | .inr none | .inr (some none) | .inr (some (some _)) => rfl⟩
 
 /-- The live callback sees the original query answer and selector, and its caller frame
 is unchanged by the step. -/
