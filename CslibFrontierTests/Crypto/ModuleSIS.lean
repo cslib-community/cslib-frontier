@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Computational.LWE.Module
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
@@ -16,8 +17,8 @@ import CslibFrontier.Tactic.PPT
 Concrete evaluations and nonvacuity checks for:
 1. `SIS.IsResidueSolution` over a composite modulus (`ZMod 6`), Ajtai collisions and their
    short differences, collisions of Ajtai's hash family on words, the side conditions of its
-   collision-resistance theorem for a polynomial family, nonvacuity of `SIS`, and a zero-row
-   family on which the family's collision resistance fails.
+   collision-resistance theorem for a polynomial family, nonvacuity of `SIS` and `SISEll2`, and a
+   zero-row family on which the family's collision resistance fails.
 2. Negacyclic convolution `negacyclicMul` and `rotMatrix` in `R[X] / (X^n + 1)`.
 3. `ModuleSIS.IsSolution`, `expandModuleMatrix`, `flattenPolyVec`,
    `ModuleSIS.isSolution_expandModuleMatrix_iff`, `ModuleLWE.flattenPolyVec_sample`, and
@@ -112,6 +113,11 @@ theorem not_sis_zeroRowSIS : ¬SIS zeroRowSIS := fun h => by
       PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
   refine not_negligible_const one_ne_zero ((h onesSolver ?_).congr hwin)
   exact (ComputableInPolyTime.const (SIS.encodeVec (1 : Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
+
+/-- At `m = 1`, `SISEll2.toSIS` reduces `SISEll2 zeroRowSIS` directly to `SIS zeroRowSIS`, so
+`SISEll2` is not vacuous. -/
+theorem not_sisEll2_zeroRowSIS : ¬SISEll2 zeroRowSIS := fun h =>
+  not_sis_zeroRowSIS <| h.toSIS (β₁ := zeroRowSIS.β) fun _ => by simp [zeroRowSIS]
 
 /-- The collision finder that always answers the words `0` and `1`. -/
 def zeroRowFinder : CollisionFinderFor zeroRowSIS.Input := fun _ _ => pure ([false], [true])

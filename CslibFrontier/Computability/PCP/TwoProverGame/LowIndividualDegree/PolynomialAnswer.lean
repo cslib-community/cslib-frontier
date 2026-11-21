@@ -80,6 +80,19 @@ theorem PolynomialFunction.value_eq_eval {d : ℕ} (p : PolynomialFunction F d) 
   unfold value
   rfl
 
+/-- The values at field elements determine a polynomial function. -/
+theorem PolynomialFunction.value_injective {d : ℕ} :
+    Function.Injective (PolynomialFunction.value : PolynomialFunction F d → F → F) := by
+  intro f g h
+  apply Subtype.ext
+  funext x
+  have hx (j : Fin 1) : x.val 0 = x.val j := congrArg x.val (Subsingleton.elim _ _)
+  have h' := congrFun h (x.val 0)
+  rw [PolynomialFunction.value_eq_eval, PolynomialFunction.value_eq_eval] at h'
+  have he : (fun _ : Fin 1 => x.val 0) = x.val := funext hx
+  rw [he] at h'
+  simpa only [PolynomialFunction.eval, Subtype.eta] using h'
+
 theorem PolynomialFunction.exists_polynomial_value {d : ℕ} (p : PolynomialFunction F d) :
     ∃ f : Polynomial F, f.natDegree ≤ d ∧ ∀ t, f.eval t = p.value t := by
   obtain ⟨f, hf, he⟩ := p.exists_polynomial
@@ -124,6 +137,12 @@ noncomputable def decodeAffinePolynomial {m : ℕ} (d : ℕ) (u v : Point F m)
 def decodePoint {m : ℕ} : Answer F m → F
   | .inl z => z
   | .inr _ => 0
+
+omit [Fintype F] [DecidableEq F] in
+@[simp] theorem decodePoint_inl {m : ℕ} (a : F) :
+    decodePoint (m := m) (Sum.inl a) = a := by
+  unfold decodePoint
+  rfl
 
 /-- The affine decoder agrees with any accepted point answer on the queried line. -/
 theorem decodeAffinePolynomial_agrees {m d : ℕ} (u v : Point F m) (t : F) (z : Point F 1)

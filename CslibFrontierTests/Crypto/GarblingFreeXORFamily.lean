@@ -20,9 +20,9 @@ A client of `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme`,
 
 We build two multi-gate circuits combining AND, OR and XOR gates with the same topology and XOR
 gate positions, verify that `phiXor` identifies them while hiding non-XOR gate truth tables, check
-garbling, evaluation and decoding across all eight inputs, check the simulator's layout and
-decoding, and instantiate the reduction certificates and `CircularCorrelationRobust.prvSim_freeXOR`
-on a stateful strict PPT adversary.
+garbling, evaluation and decoding across all eight inputs, check the simulator's efficiency,
+layout and decoding, and instantiate the reduction certificates and
+`CircularCorrelationRobust.prvSim_freeXOR` on a stateful strict PPT adversary.
 -/
 
 set_option linter.privateModule false
