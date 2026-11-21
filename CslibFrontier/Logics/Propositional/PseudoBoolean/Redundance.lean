@@ -540,7 +540,7 @@ def record (obj : Option Objective) (best : Option (List (Literal ℕ))) (ρ : L
   | none => some ρ
 
 /-- Lower the bound `d`, if any, to `v`. -/
-def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
+private def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
 
 /-! ### Proofs and the checker -/
 
@@ -572,6 +572,7 @@ def State.init (F : List PBConstr) : State :=
 /-- Log the solution `ρ` of the database in the state `s` for the formula `F`: it competes for
 `dbound` with its value, and for `witness` if no unchecked deletion has happened or it solves `F`.
 Any other solution never displaces a witness. -/
+@[no_expose]
 def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : List (Literal ℕ)) :
     State :=
   { s with dbound := lowerTo s.dbound (objValue obj (assignOf ρ)),
@@ -581,7 +582,7 @@ def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : Lis
 /-- Assert the value `v` of the objective `f` in the state `s`, the effect shared by `soli` and
 `obji` (§5.8.2): the objective-improving constraint `f ≤ v - 1` joins the database and the core set
 at the next number, and the bound `dbound` is lowered to `v`. -/
-def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
+private def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
   { s with
     db := (s.next, (f.improving v).normalize) :: s.db,
     core := (s.next, (f.improving v).normalize) :: s.core,
