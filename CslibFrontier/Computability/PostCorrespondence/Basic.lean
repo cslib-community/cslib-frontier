@@ -1,13 +1,13 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Computability.WordRewrite
 public import CslibFrontier.Foundations.Data.List.Append
 public import Mathlib.Computability.Primrec.List
 public import Mathlib.Computability.Reduce
@@ -56,19 +56,6 @@ namespace Cslib.PostCorrespondence
 variable {α : Type*}
 
 /-! ### Dominoes and instances -/
-
--- Exposed so that `decide` can evaluate the derived `DecidableEq` instance in client modules.
-@[expose] public section DominoDef
-
-/-- A domino: a pair of words, its top and its bottom. -/
-structure Domino (α : Type*) where
-  /-- The top word. -/
-  top : List α
-  /-- The bottom word. -/
-  bottom : List α
-deriving DecidableEq
-
-end DominoDef
 
 /-- The concatenation of the top words of a sequence of dominoes. -/
 @[expose] def tops (ds : List (Domino α)) : List α := ds.flatMap Domino.top
