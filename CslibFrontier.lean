@@ -5264,6 +5264,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Roots
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204SigningROM
 public import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
