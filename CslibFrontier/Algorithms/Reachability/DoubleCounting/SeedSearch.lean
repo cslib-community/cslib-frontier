@@ -94,36 +94,38 @@ private def sourceGood (controller : Fin n → m (Option ControllerVerdict))
 
 -- Delay traversal until the designated controller has decided.
 private def testSeedWith (controller : Fin n → m (Option ControllerVerdict))
-    (source : Fin n) (checkOthers : Unit → m Bool) : m (Option Bool) := do
+    (source : Fin n) (checkOthers : Bool → m Bool) : m (Option Bool) := do
   match ← controller source with
   | none => failure
   | some (.bad _) => pure none
   | some (.decided answer) =>
-    if ← checkOthers () then pure (some answer) else pure none
+    if ← checkOthers answer then pure (some answer) else pure none
 
 /-- Test the designated source first, then the other listed sources in their given order.
 `none` is a bad seed; controller failure is an effectful rejected branch. -/
 def testSeed (controller : Fin n → m (Option ControllerVerdict))
     (sources : List (Fin n)) (source : Fin n) : m (Option Bool) :=
-  testSeedWith controller source fun () =>
+  testSeedWith controller source fun _ =>
     (sources.filter (fun u => u != source)).allM (sourceGood controller)
 
-private def checkSourcesFrom {count : ℕ} (controller : Fin n → m (Option ControllerVerdict))
+private def checkSourcesFrom {count : ℕ}
+    (controller : Fin count → Fin n → m (Option ControllerVerdict))
     (source : Fin n) (sourceAt : Fin count → Fin n) :
     (remaining cursor : ℕ) → cursor + remaining ≤ count → m Bool
   | 0, _, _ => pure true
   | remaining + 1, cursor, h => do
-    let u := sourceAt ⟨cursor, by omega⟩
+    let position : Fin count := ⟨cursor, by omega⟩
+    let u := sourceAt position
     if u == source then
       checkSourcesFrom controller source sourceAt remaining (cursor + 1) (by omega)
-    else if ← sourceGood controller u then
+    else if ← sourceGood (controller position) u then
       checkSourcesFrom controller source sourceAt remaining (cursor + 1) (by omega)
     else pure false
 
 private theorem checkSourcesFrom_eq {count : ℕ}
     (controller : Fin n → m (Option ControllerVerdict)) (source : Fin n)
     (sourceAt : Fin count → Fin n) (remaining cursor : ℕ) (h : cursor + remaining ≤ count) :
-    checkSourcesFrom controller source sourceAt remaining cursor h =
+    checkSourcesFrom (fun _ => controller) source sourceAt remaining cursor h =
       ((List.ofFn fun i : Fin remaining => sourceAt ⟨cursor + i, by omega⟩).filter
         (fun u => u != source)).allM (sourceGood controller) := by
   induction remaining generalizing cursor with
@@ -160,9 +162,9 @@ private theorem findSeedFrom_eq {N : ℕ} (test : Fin N → m (Option (SeedAnswe
     cases answer <;> rfl
 
 private def runSeedSearchWith
-    (test : (Fin length → Bool) → m (Option Bool)) : m (Option (SeedAnswer length)) :=
+    (test : Fin (2 ^ length) → m (Option Bool)) : m (Option (SeedAnswer length)) :=
   findSeedFrom (fun i => do
-    let answer ← test ((BitString.equivFin length).symm i)
+    let answer ← test i
     pure (answer.map fun b => ⟨i, b⟩)) (2 ^ length) 0 (by simp)
 
 /-- Enumerate every bit seed by increasing binary value, stopping at the first seed whose
@@ -171,16 +173,45 @@ the search. -/
 def runSeedSearch
     (controller : (Fin length → Bool) → Fin n → m (Option ControllerVerdict))
     (sources : List (Fin n)) (source : Fin n) : m (Option (SeedAnswer length)) :=
-  runSeedSearchWith fun seed => testSeed (controller seed) sources source
+  runSeedSearchWith fun i =>
+    testSeed (controller ((BitString.equivFin length).symm i)) sources source
+
+/-- Run the seed and source counters with a callback on the binary seed number, the
+optional source position and retained designated answer, and the source ID. The absent
+position denotes the designated scan. The callback's effects preserve branch multiplicity. -/
+def runSeedScheduler {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) : m (Option (SeedAnswer length)) :=
+  runSeedSearchWith fun i =>
+    testSeedWith (scan i none) source fun answer =>
+      checkSourcesFrom (fun position => scan i (some (position, answer))) source sourceAt count 0
+        (by simp)
 
 /-- Search with sources supplied by their positions. The traversal keeps a cursor and
 remaining count, requesting each source only after the preceding checks have passed. -/
 def runSeedSearchIndexed {count : ℕ}
     (controller : (Fin length → Bool) → Fin n → m (Option ControllerVerdict))
     (sourceAt : Fin count → Fin n) (source : Fin n) : m (Option (SeedAnswer length)) :=
-  runSeedSearchWith fun seed =>
-    testSeedWith (controller seed) source fun () =>
-      checkSourcesFrom (controller seed) source sourceAt count 0 (by simp)
+  runSeedScheduler (fun i _ => controller ((BitString.equivFin length).symm i)) sourceAt source
+
+/-- The indexed search is the specialization that reads the binary seed by its bits. -/
+theorem runSeedSearchIndexed_eq_scheduler {count : ℕ}
+    (controller : (Fin length → Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) :
+    runSeedSearchIndexed controller sourceAt source =
+      runSeedScheduler (fun i _ => controller ((BitString.equivFin length).symm i))
+        sourceAt source := by
+  unfold runSeedSearchIndexed
+  rfl
+
+/-- A scanner that depends only on the seed number and source ID gives the same computation
+as the indexed search with the corresponding bit-seed callback. -/
+theorem runSeedScheduler_eq {count : ℕ}
+    (scan : Fin (2 ^ length) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) :
+    runSeedScheduler (fun i _ => scan i) sourceAt source =
+      runSeedSearchIndexed (fun bits => scan (BitString.equivFin length bits)) sourceAt source := by
+  simp [runSeedSearchIndexed]
 
 /-- Indexed traversal gives the same ordered computation as enumerating the source list.
 In the list monad this preserves all outcomes and their multiplicities. -/
@@ -189,11 +220,11 @@ theorem runSeedSearchIndexed_eq {count : ℕ}
     (sourceAt : Fin count → Fin n) (source : Fin n) :
     runSeedSearchIndexed controller sourceAt source =
       runSeedSearch controller (List.ofFn sourceAt) source := by
-  unfold runSeedSearchIndexed runSeedSearch
+  unfold runSeedSearchIndexed runSeedScheduler runSeedSearch
   congr 1
-  funext seed
+  funext i
   unfold testSeed
-  apply congrArg (testSeedWith (controller seed) source)
+  apply congrArg (testSeedWith (controller ((BitString.equivFin length).symm i)) source)
   funext _
   rw [checkSourcesFrom_eq]
   simp
@@ -201,24 +232,26 @@ theorem runSeedSearchIndexed_eq {count : ℕ}
 /-- The indexed search spends at most one designated call and one call per source position
 for each candidate seed. A rejecting call still advances the measured state clock. This
 bounds the supplied callback cost in the rejecting state monad. -/
-theorem runSeedSearchIndexed_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (cost : ℕ)
-    (controller : (Fin length → Bool) → Fin n → OptionT (StateM σ) (Option ControllerVerdict))
+theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (cost : ℕ)
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n →
+      OptionT (StateM σ) (Option ControllerVerdict))
     (sourceAt : Fin count → Fin n) (source : Fin n)
-    (hc : ∀ seed u s, clock ((controller seed u).run s).2 ≤ clock s + cost) (s : σ) :
-    clock ((runSeedSearchIndexed controller sourceAt source).run s).2 ≤
+    (hc : ∀ i phase u s, clock ((scan i phase u).run s).2 ≤ clock s + cost) (s : σ) :
+    clock ((runSeedScheduler scan sourceAt source).run s).2 ≤
       clock s + 2 ^ length * ((1 + count) * cost) := by
-  have hgood seed u t :
-      clock ((sourceGood (controller seed) u).run t).2 ≤ clock t + cost := by
+  have hgood i phase u t :
+      clock ((sourceGood (scan i phase) u).run t).2 ≤ clock t + cost := by
     unfold sourceGood
     rw [← Nat.add_zero cost]
-    apply bind_optionT_clock clock cost 0 _ _ (hc seed u)
+    apply bind_optionT_clock clock cost 0 _ _ (hc i phase u)
     intro verdict state
     cases verdict with
     | none => exact Nat.le_refl _
     | some verdict => cases verdict <;> exact Nat.le_refl _
-  have hothers (seed : Fin length → Bool) (remaining cursor : ℕ)
+  have hothers i answer (remaining cursor : ℕ)
       (h : cursor + remaining ≤ count) (t : σ) :
-      clock ((checkSourcesFrom (controller seed) source sourceAt remaining cursor h).run t).2 ≤
+      clock ((checkSourcesFrom (fun position => scan i (some (position, answer)))
+        source sourceAt remaining cursor h).run t).2 ≤
         clock t + remaining * cost := by
     induction remaining generalizing cursor t with
     | zero => simp [checkSourcesFrom, pure, OptionT.pure, OptionT.run, OptionT.mk, StateT.pure]
@@ -227,33 +260,34 @@ theorem runSeedSearchIndexed_clock {σ : Type} {count : ℕ} (clock : σ → ℕ
       split
       · exact (ih _ _ _).trans (Nat.add_le_add_left (Nat.le_add_right _ _) _)
       · rw [Nat.add_comm (remaining * cost)]
-        apply bind_optionT_clock clock cost (remaining * cost) _ _ (hgood seed _)
+        apply bind_optionT_clock clock cost (remaining * cost) _ _ (hgood i _ _)
         intro good state
         cases good
         · exact Nat.le_add_right _ _
         · exact ih _ _ _
-  have htest seed t :
-      clock ((testSeedWith (controller seed) source (fun () =>
-        checkSourcesFrom (controller seed) source sourceAt count 0 (by simp))).run t).2 ≤
+  have htest i t :
+      clock ((testSeedWith (scan i none) source (fun answer =>
+        checkSourcesFrom (fun position => scan i (some (position, answer)))
+          source sourceAt count 0 (by simp))).run t).2 ≤
         clock t + (1 + count) * cost := by
     rw [Nat.add_mul, Nat.one_mul]
     unfold testSeedWith
-    apply bind_optionT_clock clock cost (count * cost) _ _ (hc seed source)
+    apply bind_optionT_clock clock cost (count * cost) _ _ (hc i none source)
     intro verdict state
     cases verdict with
     | none => exact Nat.le_add_right _ _
     | some verdict =>
       cases verdict with
       | bad _ => exact Nat.le_add_right _ _
-      | decided _ =>
+      | decided answer =>
         rw [← Nat.add_zero (count * cost)]
-        apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers seed count 0 (by simp))
+        apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers i answer count 0 (by simp))
         intro good t
         cases good <;> exact Nat.le_refl _
   let test (i : Fin (2 ^ length)) : OptionT (StateM σ) (Option (SeedAnswer length)) := do
-    let seed := (BitString.equivFin length).symm i
-    let answer ← testSeedWith (controller seed) source (fun () =>
-      checkSourcesFrom (controller seed) source sourceAt count 0 (by simp))
+    let answer ← testSeedWith (scan i none) source (fun answer =>
+      checkSourcesFrom (fun position => scan i (some (position, answer)))
+        source sourceAt count 0 (by simp))
     pure (answer.map fun b => ⟨i, b⟩)
   let budget := (1 + count) * cost
   have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
@@ -273,6 +307,17 @@ theorem runSeedSearchIndexed_clock {σ : Type} {count : ℕ} (clock : σ → ℕ
       | none => exact ih _ _ _
       | some _ => exact Nat.le_add_right _ _
   exact hloop (2 ^ length) 0 (by simp) s
+
+/-- The indexed search spends at most one designated call and one call per source position
+for each candidate seed, including a rejecting call. -/
+theorem runSeedSearchIndexed_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (cost : ℕ)
+    (controller : (Fin length → Bool) → Fin n → OptionT (StateM σ) (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n)
+    (hc : ∀ seed u s, clock ((controller seed u).run s).2 ≤ clock s + cost) (s : σ) :
+    clock ((runSeedSearchIndexed controller sourceAt source).run s).2 ≤
+      clock s + 2 ^ length * ((1 + count) * cost) :=
+  runSeedScheduler_clock clock cost (fun i _ => controller ((BitString.equivFin length).symm i))
+    sourceAt source (fun i _ => hc ((BitString.equivFin length).symm i)) s
 
 variable [LawfulMonad m]
 
