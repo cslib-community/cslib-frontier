@@ -906,6 +906,64 @@ end pseudo-Boolean proof;
   "red 1 ~x1 >= 1 : x1 -> 0 : subproof\nqed;").replace "PARTIAL 2" "PARTIAL 1")).isNone
 -- Without a preserved set there is nothing to enumerate.
 #guard (checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" enumPartialProof).isNone
+-- A variable listed twice is preserved once: the exclusions stay normalized and the proof
+-- still checks (VeriPB and CakePB accept).
+#guard checkOPB (enum3.replace "preserved: x1 x2" "preserved: x1 x1 x2") enumProof ==
+  some (.enumComplete 3 7)
+-- An empty preserved set has one projection; the exclusion of `solx x1` is `0 >= 1`
+-- (VeriPB and CakePB accept).
+#guard checkOPB (enum3.replace "preserved: x1 x2" "preserved:") "pseudo-Boolean proof version 3.0
+f 1;
+solx x1;
+output NONE;
+conclusion ENUMERATION_COMPLETE 1 : 2;
+end pseudo-Boolean proof;
+" == some (.enumComplete 1 2)
+#guard (parseOPB (enum3.replace "preserved: x1 x2" "preserved:")).map (·.preserved) ==
+  some (some [])
+/-- `solx x1 x2` with no conclusion. -/
+def solxNone : String := "pseudo-Boolean proof version 3.0
+f 1;
+solx x1 x2;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB enum3 solxNone == some .noClaim
+-- `solx` is not allowed under an objective (VeriPB and CakePB reject).
+#guard (checkOPB (enum3.replace "preserved:" "min: 1 x1 ;\npreserved:") solxNone).isNone
+/-- A checked deletion whose witness moves a preserved variable. -/
+def delcPresProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+delc 1 : x1 -> 1 : subproof
+qed delc;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+-- VeriPB and CakePB reject it with `x1` preserved, and accept it without a preserved set.
+#guard (checkOPB enum3 delcPresProof).isNone
+#guard checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" delcPresProof == some .noClaim
+
+/-- `x4` is preserved but appears neither in the constraints nor in the proof. The names of the
+proof are numbered after it, so the witness `aux -> 1` leaves the preserved set alone (VeriPB
+and CakePB accept). Numbered after the variables of the constraints alone, `aux` would be
+variable `3`, that is `x4`. -/
+def presOnly : String := "* #variable= 4 #constraint= 1
+preserved: x1 x4 ;
+1 x1 >= 1 ;
+"
+
+#guard checkOPB presOnly "pseudo-Boolean proof version 3.0
+f 1;
+red 1 aux >= 1 : aux -> 1 : subproof
+qed;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" == some .noClaim
 
 /-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. A witness that moves only the unpreserved `x3`
 is allowed (VeriPB and CakePB accept). -/
@@ -935,6 +993,18 @@ example (h : checkOPB cover coverProof = some (.bounds (some 1) 6 (some 1) none)
     ∀ u, some 1 = some u →
       ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u :=
   bounds_of_checkOPB h
+
+-- An accepted complete enumeration counts the projections of the solutions to the preserved set.
+example (h : checkOPB enum3 enumProof = some (.enumComplete 3 7)) :
+    ∃ I P, parseOPB enum3 = some I ∧ I.preserved = some P ∧
+      (projections I.constraints P).encard = 3 :=
+  encard_eq_of_checkOPB_enumComplete h
+
+-- An accepted partial enumeration bounds that count from below.
+example (h : checkOPB enum3 enumPartialProof = some (.enumPartial 2)) :
+    ∃ I P, parseOPB enum3 = some I ∧ I.preserved = some P ∧
+      (2 : ℕ∞) ≤ (projections I.constraints P).encard :=
+  le_encard_of_checkOPB_enumPartial h
 
 -- An accepted pair of texts is an unsatisfiable formula.
 example (h : checkDIMACS php43 php43Kernel = some (.unsat 39)) :
