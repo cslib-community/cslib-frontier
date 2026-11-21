@@ -147,7 +147,7 @@ private def splitChars (p : Char → Bool) : List Char → List (List Char)
       | [] => [[c]]
 
 /-- The lines of a text. -/
-def lines (s : String) : List String := (splitChars (· == '\n') s.toList).map String.ofList
+private def lines (s : String) : List String := (splitChars (· == '\n') s.toList).map String.ofList
 
 /-- The token in progress, its characters reversed, if any. -/
 private def flushToken (cur : List Char) : List String :=
@@ -173,7 +173,7 @@ private def digits : List Char → ℕ → Option ℕ
   | c :: cs, n => if c.isDigit then digits cs (10 * n + (c.toNat - '0'.toNat)) else none
 
 /-- A natural number: one or more decimal digits. -/
-def nat? (t : String) : Option ℕ :=
+private def nat? (t : String) : Option ℕ :=
   match t.toList with
   | [] => none
   | cs => digits cs 0

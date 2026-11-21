@@ -1600,6 +1600,28 @@ private theorem reachesOn_improve {f : Objective} {P : List ℕ} {w u : ℤ} {σ
       omega
     · exact .inr (exists_mem_lowerTo u hb)
 
+/-- A solution of the database survives a checked `red` step: the repaired valuation, `τ` itself
+or `τ ∘ ω`, satisfies the new constraint and the whole database, in strengthening-to-core mode by
+the core invariant, without a larger objective value. -/
+private theorem red_repair {F : List PBConstr} {obj : Option Objective} {s : State}
+    {c : PBConstr} {ω : Witness} {items : List RedItem} {q : Option ℕ} {n₁ : ℕ} (m : ℕ)
+    {τ : ℕ → Bool} (hinv : Inv F obj s) (hτ : AllHold τ s.db)
+    (h₁ : redCheckOn s.obj s.db (if s.tcb then s.core else s.db) s.next c ω items q = some n₁) :
+    ∃ τ', (τ' = τ ∨ τ' = Witness.apply τ ω) ∧ AllHold τ' ((m, c.normalize) :: s.db) ∧
+      objValue s.obj τ' ≤ objValue s.obj τ := by
+  have hgs : AllHold τ (if s.tcb then s.core else s.db) := by
+    split
+    · exact allHold_mono hinv.sub hτ
+    · exact hτ
+  obtain ⟨τ', hτ'eq, hτ', hle⟩ := redCheckOn_sound hτ hgs h₁
+  refine ⟨τ', hτ'eq, List.forall_mem_cons.2
+    ⟨(hτ' (n₁, c.normalize) List.mem_cons_self : c.normalize.Holds τ'), ?_⟩, hle⟩
+  have hτ'' := fun e he => hτ' e (List.mem_cons_of_mem _ he)
+  split at hτ''
+  · rename_i ht
+    exact hinv.imp ht τ' hτ''
+  · exact hτ''
+
 /-- **Each step keeps the projected lower-bound invariant**, for every value `w`, every
 assignment `σ₀`, and variables `P` kept by every witness that leaves the preserved set alone: the
 preserved set itself, or no variable. -/
@@ -1629,22 +1651,11 @@ theorem stepTop_reachesOn {F : List PBConstr} {obj : Option Objective} {P : List
       generalize (if items.isSome = true then n₁ else s.next) = m
       obtain ⟨hfree, h₁⟩ := redCheckOn_of_redCheckP h₁
       rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
-      · have hgs : AllHold τ (if s.tcb then s.core else s.db) := by
-          split
-          · exact allHold_mono hinv.sub hτ
-          · exact hτ
-        obtain ⟨τ', hτ'eq, hτ', hle⟩ := redCheckOn_sound hτ hgs h₁
-        refine .inl ⟨τ', List.forall_mem_cons.2
-          ⟨(hτ' (n₁, c.normalize) List.mem_cons_self : c.normalize.Holds τ'), ?_⟩, hle.trans hw,
-          ?_⟩
-        · have hτ'' := fun e he => hτ' e (List.mem_cons_of_mem _ he)
-          split at hτ''
-          · rename_i ht
-            exact hinv.imp ht τ' hτ''
-          · exact hτ''
-        · rcases hτ'eq with rfl | rfl
-          · exact hp
-          · exact (hP ω hfree τ).trans hp
+      · obtain ⟨τ', hτ'eq, hτ', hle⟩ := red_repair m hinv hτ h₁
+        refine .inl ⟨τ', hτ', hle.trans hw, ?_⟩
+        rcases hτ'eq with rfl | rfl
+        · exact hp
+        · exact (hP ω hfree τ).trans hp
       · exact .inr hb
     · cases h
   | sol ρ =>
@@ -2022,21 +2033,11 @@ theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {σ₀ : ℕ
       generalize (if items.isSome = true then n₁ else s.next) = m
       obtain ⟨hfree, h₁⟩ := redCheckOn_of_redCheckP h₁
       refine covers_of hs rfl id (fun _ h => h) fun _ P hP τ hτ => .inl ?_
-      have hgs : AllHold τ (if s.tcb then s.core else s.db) := by
-        split
-        · exact allHold_mono hinv.sub hτ
-        · exact hτ
-      obtain ⟨τ', hτ'eq, hτ', -⟩ := redCheckOn_sound hτ hgs h₁
-      refine ⟨τ', List.forall_mem_cons.2
-        ⟨(hτ' (n₁, c.normalize) List.mem_cons_self : c.normalize.Holds τ'), ?_⟩, ?_⟩
-      · have hτ'' := fun e he => hτ' e (List.mem_cons_of_mem _ he)
-        split at hτ''
-        · rename_i ht
-          exact hinv.imp ht τ' hτ''
-        · exact hτ''
-      · rcases hτ'eq with rfl | rfl
-        · rfl
-        · exact proj_apply_of_presFree hfree τ P hP
+      obtain ⟨τ', hτ'eq, hτ', -⟩ := red_repair m hinv hτ h₁
+      refine ⟨τ', hτ', ?_⟩
+      rcases hτ'eq with rfl | rfl
+      · rfl
+      · exact proj_apply_of_presFree hfree τ P hP
     · cases h
   | sol ρ =>
     simp only [stepTop] at h
