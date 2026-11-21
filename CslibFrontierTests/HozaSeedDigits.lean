@@ -77,4 +77,22 @@ example (seed : Fin (codeLength 1 1) → Bool) :
   ⟨(SeedWeight.generatedWeight_output seed (1, 0)).2.2, SeedWeight.length_run_le _ _,
     SeedWeight.weight_inSpace _⟩
 
+open Cslib.Code.JustesenFamily in
+/-- A uniform dimension budget bounds the live states and the actual emitted word. -/
+example :
+    ∃ C : ℕ, ∀ {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w),
+      let ctx : SeedWeight.Context := ⟨fieldContext w n, z.1.val, z.2.val⟩
+      let raw := List.ofFn seed
+      let M := SeedWeight.machine ctx
+      let enc := SeedDigits.encState SeedWeight.Context SeedWeight.encContext
+      let budget := (encPair encNat encNat (w, n)).length + 1
+      (∀ t, (enc (M.run raw t)).length ≤ C * budget) ∧
+        (M.output raw (raw.length + 1)).length ≤ C * budget := by
+  obtain ⟨C, hC⟩ := SeedWeight.generatedWeight_run_length_le_encodedDimensions
+  refine ⟨C, fun seed z => ?_⟩
+  obtain ⟨hstate, hweight⟩ := hC seed z
+  refine ⟨hstate, ?_⟩
+  rw [(SeedWeight.generatedWeight_output seed z).2.2]
+  exact hweight
+
 end CslibFrontierTests.HozaSeedDigits

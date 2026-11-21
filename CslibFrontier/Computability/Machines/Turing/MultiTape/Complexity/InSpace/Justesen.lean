@@ -331,21 +331,44 @@ theorem fieldContext_eq (w n : ℕ) :
       ⟨fieldDegree w n, coefficientCount w n, BinaryField.modulusBitsScan (fieldDegree w n)⟩ := by
   rw [fieldContext]
 
+private theorem fieldParameters_inSpace :
+    ComputableInSpace (fun p : ℕ × ℕ => (fieldDegree p.1 p.2, coefficientCount p.1 p.2))
+      encDimensions encDimensions (fun p => (encDimensions p).length) := by
+  have hstate := budget_id (BigOLe.refl fun s => (encCapacityState s).length)
+  have hselect := budget_prod (encCapacityState_degree_budget hstate)
+    (encCapacityState_power_budget hstate)
+  exact (budget_comp_linear hselect computed_inSpace).of_enc_eq fun p => by
+    obtain ⟨s, hs, hd⟩ := computed_eq_atScale p
+    rw [hs, coefficientCount_eq, hd]
+    rfl
+
+private theorem length_fieldContext_modulus (w n : ℕ) :
+    (fieldContext w n).modulus.length = fieldDegree w n + 1 := by
+  change (BinaryField.modulusBitsScan (fieldDegree w n)).length = _
+  rw [BinaryField.modulusBitsScan_eq, BinaryField.length_modulusBits (fieldDegree_ne_zero w n)]
+
+/-- The prepared field context, including the modulus word, has linear encoded length
+in the binary graph dimensions. -/
+theorem length_fieldContext_le_encodedDimensions :
+    (fun p : ℕ × ℕ => (encFieldContext (fieldContext p.1 p.2)).length) ≼
+      fun p => (encPair encNat encNat p).length := by
+  have h := (fieldParameters_inSpace.length_le.const_mul 2).add fieldDegree_le_linear
+  refine (BigOLe.of_le_linear 1 3 ?_).trans h
+  intro p
+  have hmod := length_fieldContext_modulus p.1 p.2
+  have hdeg : (fieldContext p.1 p.2).degree = fieldDegree p.1 p.2 := rfl
+  have hcount : (fieldContext p.1 p.2).count = coefficientCount p.1 p.2 := rfl
+  simp only [encFieldContext_apply, encFieldContextFields, encBits_apply, length_encPair,
+    encDimensions, hmod, hdeg, hcount, one_mul]
+  omega
+
 /-- The native initializer uses workspace linear in the encoded binary dimensions.
 One capacity run supplies the degree and coefficient count, and the native modulus search
 uses workspace linear in that degree. -/
 theorem fieldContext_inSpace :
     ComputableInSpace (fun p : ℕ × ℕ => fieldContext p.1 p.2)
       (encPair encNat encNat) encFieldContext (fun p => (encPair encNat encNat p).length) := by
-  have hstate := budget_id (BigOLe.refl fun s => (encCapacityState s).length)
-  have hselect := budget_prod (encCapacityState_degree_budget hstate)
-    (encCapacityState_power_budget hstate)
-  have hparams : ComputableInSpace (fun p : ℕ × ℕ => (fieldDegree p.1 p.2,
-      coefficientCount p.1 p.2)) encDimensions encDimensions (fun p => (encDimensions p).length) :=
-    (budget_comp_linear hselect computed_inSpace).of_enc_eq fun p => by
-      obtain ⟨s, hs, hd⟩ := computed_eq_atScale p
-      rw [hs, coefficientCount_eq, hd]
-      rfl
+  have hparams := fieldParameters_inSpace
   let B (p : ℕ × ℕ) := p.1 + (encDimensions p).length
   have hin : (fun p => (encDimensions p).length) ≼ B := .of_le fun p => by
     change _ ≤ p.1 + _
@@ -369,11 +392,8 @@ theorem fieldContext_decodeWord_eq {w n : ℕ} (j : Fin (codeLength w n)) :
     (fieldContext w n).decodeWord j.val =
       let (point, half, bit) := decodeCoordinate w n j
       ⟨List.ofFn (nonzeroPointBits point), half.val, bit.val⟩ := by
-  have hlen : (fieldContext w n).modulus.length = fieldDegree w n + 1 := by
-    change (BinaryField.modulusBitsScan (fieldDegree w n)).length = _
-    rw [BinaryField.modulusBitsScan_eq, BinaryField.length_modulusBits (fieldDegree_ne_zero w n)]
   unfold FieldContext.decodeWord
-  rw [hlen, Nat.add_sub_cancel]
+  rw [length_fieldContext_modulus, Nat.add_sub_cancel]
   have hpoint := lowBits_decodeIndex_point j
   have hcoord := decodeIndex_eq_decodeCoordinate j
   unfold decodeCoordinateWord
