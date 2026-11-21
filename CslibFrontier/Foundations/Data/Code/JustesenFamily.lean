@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Code.Justesen
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 import Mathlib.Data.Nat.Bitwise
@@ -144,16 +145,25 @@ theorem fieldDegree_spec (w n : ℕ) :
         512 * target w n ≤ capacity s ∧ ∀ j < s, capacity j < 512 * target w n
       from ⟨scale w n, hle, rfl, target_le_capacity w n, fun _ hj => hmin hj⟩)
 
+/-- Number of coefficient blocks in the outer Reed–Solomon message at the selected scale. -/
+def coefficientCount (w n : ℕ) : ℕ := dimension (scale w n)
+
+/-- The coefficient count is the power of two retained by the capacity loop. -/
+theorem coefficientCount_eq (w n : ℕ) :
+    coefficientCount w n = 2 ^ (fieldDegree w n - 1) := by
+  unfold coefficientCount dimension fieldDegree
+  rfl
+
 /-- Code coordinates are a nonzero evaluation point, a Wozencraft half, and a bit within it. -/
 abbrev Coordinate (w n : ℕ) : Type :=
   (BinaryField (fieldDegree w n))ˣ × (Fin 2 × Fin (fieldDegree w n))
 
-private def coefficientBits {w n : ℕ} (v : Fin w) (i : Fin (dimension (scale w n))) :
+private def coefficientBits {w n : ℕ} (v : Fin w) (i : Fin (coefficientCount w n)) :
     BitString (fieldDegree w n) :=
   fun j => v.val.testBit (finProdFinEquiv (i, j))
 
 private noncomputable def message {w n : ℕ} (v : Fin w) :
-    degreeLT (BinaryField (fieldDegree w n)) (dimension (scale w n)) :=
+    degreeLT (BinaryField (fieldDegree w n)) (coefficientCount w n) :=
   (degreeLTEquiv _ _).symm fun i =>
     (BinaryField.equivBits (fieldDegree_ne_zero w n)).symm (coefficientBits v i)
 
@@ -170,7 +180,7 @@ private theorem message_injective (w n : ℕ) :
   intro j
   by_cases hj : j < capacity (scale w n)
   · obtain ⟨⟨i, k⟩, hik⟩ :=
-      (finProdFinEquiv (m := dimension (scale w n)) (n := fieldDegree w n)).surjective ⟨j, hj⟩
+      (finProdFinEquiv (m := coefficientCount w n) (n := fieldDegree w n)).surjective ⟨j, hj⟩
     have he := (degreeLTEquiv _ _).symm.injective h
     have hi := (BinaryField.equivBits (fieldDegree_ne_zero w n)).symm.injective (congrFun he i)
     simpa only [coefficientBits, congrArg Fin.val hik] using congrFun hi k
@@ -257,8 +267,7 @@ private def codewordBitWith {w n : ℕ} (mul : List Bool → List Bool → List 
     (j : Fin (fieldDegree w n)) : Bool :=
   let x := List.ofFn point
   let a := hornerBits (fieldDegree w n) mul x fun i => List.ofFn (coefficientBits (n := n) v i)
-  let block := if half = 0 then a else mul x a
-  block.getD j false
+  wozencraftBitWith mul x a half j
 
 open BinaryField in
 /-- Evaluate one coordinate using the power-basis bits of its field point. Half zero returns the
@@ -315,8 +324,9 @@ private theorem codewordBitWith_eq {w n : ℕ} {mul : List Bool → List Bool �
   let point := equivBits hb (u : BinaryField (fieldDegree w n))
   have ha := fieldOfBits_evalBits hmul v point
   rw [AddEquiv.symm_apply_apply] at ha
-  unfold codewordBitWith codeword justesen concat wozencraft
+  unfold codewordBitWith wozencraftBitWith codeword justesen concat wozencraft
   dsimp only
+  simp only [Fin.val_eq_zero_iff]
   split_ifs with h
   · rw [← equivBits_fieldOfBits hb, ha]
   · rw [← equivBits_fieldOfBits hb, hmul,
@@ -333,12 +343,62 @@ theorem codewordBit_eq {w n : ℕ} (v : Fin w) (u : (BinaryField (fieldDegree w 
 @[expose] def codeLength (w n : ℕ) : ℕ :=
   (2 ^ fieldDegree w n - 1) * (2 * fieldDegree w n)
 
-private def decodeCoordinate (w n : ℕ) :
-    Fin (codeLength w n) ≃ Fin (2 ^ fieldDegree w n - 1) × (Fin 2 × Fin (fieldDegree w n)) :=
+private def unrankCoordinate (points degree : ℕ) :
+    Fin (points * (2 * degree)) ≃ Fin points × (Fin 2 × Fin degree) :=
   finProdFinEquiv.symm.trans (Equiv.prodCongr (Equiv.refl _) finProdFinEquiv.symm)
 
-private def nonzeroPointBits {b : ℕ} (i : Fin (2 ^ b - 1)) : BitString b :=
+/-- Unrank an executable codeword index in point, half, then bit order. -/
+def decodeCoordinate (w n : ℕ) :
+    Fin (codeLength w n) ≃ Fin (2 ^ fieldDegree w n - 1) × (Fin 2 × Fin (fieldDegree w n)) :=
+  unrankCoordinate (2 ^ fieldDegree w n - 1) (fieldDegree w n)
+
+/-- The numeric fields of one executable Justesen codeword coordinate. -/
+structure CoordinateNumbers where
+  /-- The positive binary number of the field point. -/
+  point : ℕ
+  /-- The zero-based Wozencraft half. -/
+  half : ℕ
+  /-- The zero-based bit within that half. -/
+  bit : ℕ
+
+/-- Decode a binary index at the supplied degree. The index runs through all bits in a half,
+then both halves at a point, before advancing to the next nonzero point. -/
+@[expose] def decodeIndex (degree index : ℕ) : CoordinateNumbers :=
+  let block := 2 * degree
+  let withinPoint := index % block
+  ⟨index / block + 1, withinPoint / degree, withinPoint % degree⟩
+
+private theorem decodeIndex_eq_unrankCoordinate {points degree : ℕ}
+    (j : Fin (points * (2 * degree))) :
+    decodeIndex degree j.val =
+      let (point, half, bit) := unrankCoordinate points degree j
+      ⟨point.val + 1, half.val, bit.val⟩ := by
+  dsimp only [decodeIndex, unrankCoordinate]
+  simp only [Equiv.trans_apply, finProdFinEquiv_symm_apply, Equiv.prodCongr_apply, Prod.map,
+    Equiv.refl_apply, Fin.coe_divNat, Fin.coe_modNat]
+
+/-- On valid indices the numeric decoder reads the same coordinate as the equivalence used
+by the indexed evaluator. The point field uses the positive numbering of the field words. -/
+theorem decodeIndex_eq_decodeCoordinate {w n : ℕ} (j : Fin (codeLength w n)) :
+    decodeIndex (fieldDegree w n) j.val =
+      let (point, half, bit) := decodeCoordinate w n j
+      ⟨point.val + 1, half.val, bit.val⟩ :=
+  decodeIndex_eq_unrankCoordinate
+    (show Fin ((2 ^ fieldDegree w n - 1) * (2 * fieldDegree w n)) from j)
+
+/-- The power-basis bits of the positively numbered field point at zero-based rank `i`. -/
+def nonzeroPointBits {b : ℕ} (i : Fin (2 ^ b - 1)) : BitString b :=
   (BitString.equivFin b).symm ⟨i.val + 1, by have := i.isLt; omega⟩
+
+/-- On a valid index the little-endian word of the decoded point is the exact power-basis
+word passed to the indexed evaluator. -/
+theorem lowBits_decodeIndex_point {w n : ℕ} (j : Fin (codeLength w n)) :
+    BitString.lowBits (fieldDegree w n) (decodeIndex (fieldDegree w n) j.val).point =
+      List.ofFn (nonzeroPointBits (decodeCoordinate w n j).1) := by
+  rw [decodeIndex_eq_decodeCoordinate j]
+  obtain ⟨point, half, bit⟩ := decodeCoordinate w n j
+  exact BitString.lowBits_eq_ofFn_equivFin_symm (fieldDegree w n)
+    ⟨point.val + 1, by have := point.isLt; omega⟩
 
 /-- The codeword in executable coordinate order. Points are numbered as positive binary
 integers in power-basis coordinates. -/

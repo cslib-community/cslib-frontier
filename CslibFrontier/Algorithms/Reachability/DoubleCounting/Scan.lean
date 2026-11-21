@@ -505,42 +505,22 @@ private theorem walkM_clock {σ : Type} (clock : σ → ℕ)
     clock (walkM next edge target k current s).2 ≤ clock s + (2 * k + 1) := by
   induction k generalizing current s with
   | zero =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      cases v <;> exact h
+    rw [walkM, show 2 * 0 + 1 = 1 + 0 by rfl]
+    apply bind_stateM_clock clock 1 0 _ _ hn
+    intro result t
+    cases result <;> exact le_rfl
   | succ k ih =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      change clock t ≤ clock s + 1 at h
-      cases v with
-      | none =>
-        change clock t ≤ _
-        omega
-      | some v =>
-        change clock ((edge current v >>= fun answer =>
-          if answer then walkM next edge target k v else pure none) t).2 ≤ _
-        have hedge := he current v t
-        simp only [bind, StateT.bind]
-        cases ha : edge current v t with
-        | mk answer t' =>
-          rw [ha] at hedge
-          change clock t' ≤ clock t + 1 at hedge
-          cases answer with
-          | false =>
-            change clock t' ≤ _
-            omega
-          | true =>
-            change clock (walkM next edge target k v t').2 ≤ _
-            have hrest := ih v t'
-            omega
+    rw [walkM, show 2 * (k + 1) + 1 = 1 + (1 + (2 * k + 1)) by omega]
+    apply bind_stateM_clock clock 1 (1 + (2 * k + 1)) _ _ hn
+    intro result t
+    cases result with
+    | none => exact Nat.le_add_right (clock t) _
+    | some v =>
+      apply bind_stateM_clock clock 1 (2 * k + 1) _ _ (he current v)
+      intro answer u
+      cases answer with
+      | false => exact Nat.le_add_right (clock u) _
+      | true => exact ih v u
 
 /-- All branches use at most `N * (2 * k + 2)` callback actions when each selection,
 destination read, or adjacency query advances the clock by at most one. This bound includes

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import Mathlib.Data.Sym.Sym2
 import Mathlib.Data.List.Basic
 import Mathlib.Data.List.GetD
+import Mathlib.Logic.Equiv.Fin.Basic
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -59,25 +60,54 @@ theorem subdivide_getElem? (I : FixedRotationInput)
   rw [hsub, List.getElem?_append_left (by simp [emit])]
   simp [emit, entries, List.getElem_zipIdx]
 
-private theorem subdivision_edge_cases (I : FixedRotationInput)
+/-- The original occurrence and the position of a stored subdivision edge within it. -/
+structure SubdivisionEdgeIndex (I : FixedRotationInput) where
+  /-- The original indexed edge occurrence. -/
+  original : Fin I.graph.edges.length
+  /-- The first, middle or last piece, in traversal order. -/
+  piece : Fin 3
+
+private theorem subdivision_edge_lt (I : FixedRotationInput)
     (e : Fin (subdivisionGraph I).edges.length) :
-    ∃ (i : Fin I.graph.edges.length) (k : Fin 3), e.val = 3 * i.val + k.val ∧
-      (subdivisionGraph I).edges[e] =
-        ([(I.graph.edges[i].1, I.graph.vertices.length + 2 * i.val),
-          (I.graph.vertices.length + 2 * i.val, I.graph.vertices.length + 2 * i.val + 1),
-          (I.graph.vertices.length + 2 * i.val + 1, I.graph.edges[i].2)] :
-            List (ℕ × ℕ))[k] := by
-  have he : e.val < (subdivide I).length := by
-    simpa only [subdivisionGraph, List.length_map] using e.isLt
-  have hsize : e.val < 3 * I.graph.edges.length := by
-    simpa only [length_subdivide] using he
-  let i : Fin I.graph.edges.length := ⟨e.val / 3, by omega⟩
-  let k : Fin 3 := ⟨e.val % 3, Nat.mod_lt _ (by decide)⟩
-  have hindex : 3 * i.val + k.val = e.val := by dsimp [i, k]; omega
+    e.val < (subdivide I).length := by
+  simpa only [subdivisionGraph, List.length_map] using e.isLt
+
+/-- Decode a stored subdivision edge in the same order as the three-piece blocks. -/
+def subdivisionEdgeIndex (I : FixedRotationInput) (e : Fin (subdivisionGraph I).edges.length) :
+    SubdivisionEdgeIndex I :=
+  let packed : Fin (I.graph.edges.length * 3) := ⟨e.val, by
+    simpa only [length_subdivide, Nat.mul_comm] using subdivision_edge_lt I e⟩
+  let parts := finProdFinEquiv.symm packed
+  ⟨parts.1, parts.2⟩
+
+/-- The decoded original occurrence and piece reconstruct the stored index. -/
+theorem subdivisionEdgeIndex_val (I : FixedRotationInput)
+    (e : Fin (subdivisionGraph I).edges.length) :
+    e.val = 3 * (subdivisionEdgeIndex I e).original.val + (subdivisionEdgeIndex I e).piece.val := by
+  change e.val = 3 * (e.val / 3) + e.val % 3
+  rw [Nat.add_comm, Nat.mod_add_div]
+
+/-- The ordered source or fresh vertex names at the ends of the decoded piece. -/
+@[expose] def SubdivisionEdgeIndex.endpoints {I : FixedRotationInput} (d : SubdivisionEdgeIndex I) :
+    ℕ × ℕ :=
+  let i := d.original
+  ([(I.graph.edges[i].1, I.graph.vertices.length + 2 * i.val),
+    (I.graph.vertices.length + 2 * i.val, I.graph.vertices.length + 2 * i.val + 1),
+    (I.graph.vertices.length + 2 * i.val + 1, I.graph.edges[i].2)] :
+      List (ℕ × ℕ))[d.piece]
+
+/-- The ordered endpoints of a stored subdivision edge are its decoded endpoints. -/
+theorem subdivision_edge_endpoints (I : FixedRotationInput)
+    (e : Fin (subdivisionGraph I).edges.length) :
+    (subdivisionGraph I).edges[e] = (subdivisionEdgeIndex I e).endpoints := by
+  have he := subdivisionEdgeIndex_val I e
+  generalize subdivisionEdgeIndex I e = d at he ⊢
+  obtain ⟨i, k⟩ := d
   have hlookup := subdivide_getElem? I i k
-  rw [hindex] at hlookup
-  have hget := Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)
-  refine ⟨i, k, hindex.symm, ?_⟩
+  change e.val = 3 * i.val + k.val at he
+  rw [← he] at hlookup
+  have hget :=
+    Option.some.inj ((List.getElem?_eq_getElem (subdivision_edge_lt I e)).symm.trans hlookup)
   change ((subdivide I).map Segment.endpoints)[e.val] = _
   rw [List.getElem_map, hget]
   generalize k = k'
@@ -89,14 +119,25 @@ theorem subdivisionGraph_edge_injective {I : FixedRotationInput} (hI : Valid I) 
     Function.Injective (fun e : Fin (subdivisionGraph I).edges.length =>
       (s(((subdivisionGraph I).edges[e]).1, ((subdivisionGraph I).edges[e]).2) : Sym2 ℕ)) := by
   intro e f h
-  obtain ⟨i, k, he, hep⟩ := subdivision_edge_cases I e
-  obtain ⟨j, l, hf, hfp⟩ := subdivision_edge_cases I f
+  generalize hIe : subdivisionEdgeIndex I e = de
+  generalize hIf : subdivisionEdgeIndex I f = df
+  obtain ⟨i, k⟩ := de
+  obtain ⟨j, l⟩ := df
+  have he : e.val = 3 * i.val + k.val := by
+    simpa only [hIe] using subdivisionEdgeIndex_val I e
+  have hf : f.val = 3 * j.val + l.val := by
+    simpa only [hIf] using subdivisionEdgeIndex_val I f
+  have hep := subdivision_edge_endpoints I e
+  have hfp := subdivision_edge_endpoints I f
+  rw [hIe] at hep
+  rw [hIf] at hfp
   have hi := hI.edge_endpoints_lt (List.getElem_mem i.isLt)
   have hj := hI.edge_endpoints_lt (List.getElem_mem j.isLt)
   have hp := Sym2.eq_iff.mp h
   rw [hep, hfp] at hp
   fin_cases k <;> fin_cases l <;>
-    simp only [Fin.getElem_fin, List.getElem_cons_zero, List.getElem_cons_succ] at hp
+    simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
+      List.getElem_cons_succ] at hp
   all_goals rcases hp with hp | hp <;> apply Fin.ext <;> omega
 
 end Cslib.Complexity.Graph.RotationRecognition
