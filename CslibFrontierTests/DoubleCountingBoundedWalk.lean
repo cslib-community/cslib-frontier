@@ -230,16 +230,18 @@ example (input bits : List Bool) :
       (encOption encBool) 2 hcallee).trans ?_⟩
   decide
 
+private def runtimeDimension (p : Bool × ℕ) := if p.1 then 4 else 2
+
+private def runtimeRegisters (p : Bool × ℕ) : Registers (runtimeDimension p) :=
+  ⟨⟨0, by dsimp [runtimeDimension]; cases p.1 <;> decide⟩,
+    ⟨if p.1 then 3 else 1, by dsimp [runtimeDimension]; cases p.1 <;> decide⟩, p.2⟩
+
 /-- A single native entry routine loads a two- or four-vertex graph and the supplied fuel. -/
 example :
     let enc := encPair encBool encNat
-    let dimension (p : Bool × ℕ) := if p.1 then 4 else 2
-    let registers (p : Bool × ℕ) : Registers (dimension p) :=
-      ⟨⟨0, by dsimp [dimension]; cases p.1 <;> decide⟩,
-        ⟨if p.1 then 3 else 1, by dsimp [dimension]; cases p.1 <;> decide⟩, p.2⟩
-    ComputableInSpace (fun p => Runtime.entry edge runtimeStart verdict 1 p.1 (registers p))
+    ComputableInSpace (fun p => Runtime.entry edge runtimeStart verdict 1 p.1 (runtimeRegisters p))
       enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
-  intro enc dimension registers
+  intro enc
   have hcontext := fst encBool encNat
   refine Runtime.entry_budget edge runtimeStart verdict 1 encBool (encOption encBool)
     hcontext (budget_finite (fun b : Bool => if b then 4 else 2) hcontext)
@@ -250,29 +252,26 @@ example :
 /-- The same native call update works at two dimensions with a runtime clock remainder. -/
 example :
     let enc := encPair encBool encNat
-    let dimension (p : Bool × ℕ) := if p.1 then 4 else 2
-    let dest (p : Bool × ℕ) : Fin (dimension p) :=
-      ⟨if p.1 then 3 else 1, by dsimp [dimension]; cases p.1 <;> decide⟩
-    let r (p : Bool × ℕ) : Registers (dimension p) :=
-      ⟨⟨0, by dsimp [dimension]; cases p.1 <;> decide⟩, dest p, p.2⟩
+    let dest (p : Bool × ℕ) := (runtimeRegisters p).target
     let callee (p : Bool × ℕ) := if p.1 then some true else none
     let initial := Runtime.entry edge runtimeStart verdict 1 false moving
     let M := Runtime.machine edge runtimeStart verdict 1 initial
     ComputableInSpace (fun p => M.next
-      (⟨p.1, dimension p, Nat.zero_lt_of_lt (dest p).isLt,
-        .call (r p) (dest p) p.2 (callee p)⟩, some p.1, false))
+      (⟨p.1, runtimeDimension p, Nat.zero_lt_of_lt (dest p).isLt,
+        .call (runtimeRegisters p) (dest p) p.2 (callee p)⟩, some p.1, false))
       enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
-  intro enc dimension dest r callee initial M
+  intro enc dest callee initial M
   have hflag := fst encBool encNat
   have hclock := snd encBool encNat
   have hdim := budget_finite (encC := encNat) (fun b : Bool => if b then 4 else 2) hflag
   have hdest := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 1) hflag
-  have hregisters := registersWord_budget (r := r) (budget_const 0 (.refl _)) hdest hclock
+  have hregisters := registersWord_budget (r := runtimeRegisters)
+    (budget_const 0 (.refl _)) hdest hclock
   have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
       (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
   have hcallee := budget_finite (encC := encOption encBool)
     (fun b : Bool => if b then some true else none) hflag
-  have hwalk := advanceCall_budget (r := r) (v := dest)
+  have hwalk := advanceCall_budget (r := runtimeRegisters) (v := dest)
     edgeNext_inSpace (budget_optionIsSome hresult) (budget_optionGetD false hresult)
     hdim hregisters hdest hclock hcallee (budget_optionSome hflag)
     (budget_const false (.refl _))
@@ -281,5 +280,59 @@ example :
   dsimp only [M]
   rw [Runtime.machine_next_call]
   rfl
+
+/-- One choice certificate covers a valid rank at width three and an out-of-range rank
+at width two, with fuel and adjacency context supplied by the caller. -/
+example :
+    let enc := encPair encBool encNat
+    let reader (p : Bool × ℕ) : Turing.DoubleCounting.NondeterministicChoice.State :=
+      let width := if p.1 then 3 else 2
+      ⟨true, false, ⟨runtimeDimension p, width, width, width, false⟩⟩
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let M := Runtime.machine edge runtimeStart verdict 1 initial
+    ComputableInSpace (fun p => M.next
+      (⟨p.1, runtimeDimension p, Nat.zero_lt_of_lt (runtimeRegisters p).current.isLt,
+        .choose (runtimeRegisters p) (reader p)⟩, none, false))
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc reader initial M
+  have hctx := fst encBool encNat
+  have hdim := budget_finite (encC := encNat) (fun b : Bool => if b then 4 else 2) hctx
+  have hwidth := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 2) hctx
+  have hdest := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 1) hctx
+  have hregisters := registersWord_budget (r := runtimeRegisters)
+    (budget_const 0 (.refl _)) hdest (snd encBool encNat)
+  have hreader : ComputableInSpace reader enc Turing.DoubleCounting.NondeterministicChoice.encState
+      (fun p => (enc p).length) := Turing.DoubleCounting.NondeterministicChoice.encState_mk_budget
+    (budget_const true (.refl _)) (budget_const false (.refl _))
+    (Turing.DoubleCounting.VertexReader.encState_mk_budget hdim hwidth hwidth hwidth
+      (budget_const false (.refl _)))
+  have hstart (v : (p : Bool × ℕ) → Fin (runtimeDimension p))
+      (_ : ComputableInSpace (fun p => (v p).val) enc encNat (fun p => (enc p).length)) :
+      ComputableInSpace (fun p => runtimeStart p.1 (runtimeRegisters p).current.val (v p).val)
+        enc (encOption encBool) (fun p => (enc p).length) :=
+    budget_finite (fun b : Bool => if b then none else some false) hctx
+  have hwalk := advanceChoice_budget (dimension := runtimeDimension) (r := runtimeRegisters)
+    (reader := reader) (start := fun p u v => runtimeStart p.1 u.val v.val) 1
+    hdim hregisters hreader (budget_const false (.refl _)) hstart
+  refine (Runtime.state_budget
+    (positive := fun p => Nat.zero_lt_of_lt (runtimeRegisters p).current.isLt)
+    encBool (encOption encBool) hctx hdim hwalk).of_enc_eq fun p => ?_
+  dsimp only [M]
+  rw [Runtime.machine_next_choice]
+
+/-- The complete runtime transition accepts any encoded phase, including after re-entry
+at a different dimension and with an input-dependent callee reply. -/
+example :
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let enc := Runtime.encStep encBool (encOption encBool)
+    ComputableInSpace (Runtime.machine edge runtimeStart verdict 1 initial).next
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro initial enc
+  have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
+      (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
+  exact Runtime.next_inSpace edge runtimeStart verdict 1 initial encBool (encOption encBool)
+    (budget_finite (fun b : Bool => if b then none else some false)
+      (fst encBool (encPair encNat encNat)))
+    edgeNext_inSpace (budget_optionIsSome hresult) (budget_optionGetD false hresult)
 
 end CslibFrontierTests.DoubleCountingBoundedWalk

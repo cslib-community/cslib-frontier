@@ -41,7 +41,9 @@ normalized by its value, is the canonical program `max {∑ i, x i | 0 ≤ x, �
 and the column player's is its dual, and the argument runs over every linearly ordered field. So a
 game with entries in `ℚ` has a rational value and rational optimal strategies. The theorem proves
 that optimal strategies exist; the source's clause that they can be computed efficiently is not
-formalized here. The hypothesis form of the minimax theorem used by Yao's principle,
+formalized here. `Cslib.Algorithms.Lean.Simplex.solveGame` computes the value and optimal
+strategies with the simplex method (Bland's rule), with no bound on its running time. The
+hypothesis form of the minimax theorem used by Yao's principle,
 `Convexity.StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le`, is derived from it in
 `CslibFrontier.Probability.Minimax`.
 
@@ -87,6 +89,26 @@ existence theorem; see the module documentation for its relation to mathlib4#393
   (∃ p : StdSimplex K I, ∀ j, ∑ i, p.weights i * M i j ≤ v) ∧
     ∃ q : StdSimplex K J, ∀ i, v ≤ ∑ j, q.weights j * M i j
 
+omit [IsStrictOrderedRing K] in
+/-- A point of the standard simplex given by its weight vector. -/
+private theorem exists_stdSimplex_weights_eq {ι : Type*} [Fintype ι] {w : ι → K}
+    (hw0 : ∀ k, 0 ≤ w k) (hw1 : ∑ k, w k = 1) : ∃ p : StdSimplex K ι, ⇑p.weights = w := by
+  have : w ∈ Set.range fun p : StdSimplex K ι => (p.weights : ι → K) := by
+    rw [StdSimplex.range_toFun_comp_weights]
+    exact ⟨Set.mem_iInter.2 hw0, hw1⟩
+  exact this
+
+omit [IsStrictOrderedRing K] in
+/-- Weight vectors `p` and `q` of mixed strategies, with `p` paying at most `v` against every
+column and `q` collecting at least `v` against every row, witness that `v` is the value. -/
+theorem IsMinimaxValue.of_weights {M : I → J → K} {v : K} {p : I → K} {q : J → K}
+    (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∑ i, p i = 1) (hp : ∀ j, ∑ i, p i * M i j ≤ v)
+    (hq0 : ∀ j, 0 ≤ q j) (hq1 : ∑ j, q j = 1) (hq : ∀ i, v ≤ ∑ j, q j * M i j) :
+    IsMinimaxValue M v := by
+  obtain ⟨p', rfl⟩ := exists_stdSimplex_weights_eq hp0 hp1
+  obtain ⟨q', rfl⟩ := exists_stdSimplex_weights_eq hq0 hq1
+  exact ⟨⟨p', hp⟩, q', hq⟩
+
 /-- If `p` pays at most `c` against every column, it pays at most `c` against every mixed column
 strategy. -/
 private theorem sum_mul_sum_le {M : I → J → K} {c : K} {p : I → K} (q : J → K)
@@ -125,20 +147,44 @@ theorem IsMinimaxValue.unique {M : I → J → K} {v w : K} (hv : IsMinimaxValue
   have h₄ := le_sum_mul_sum _ p'.weights_nonneg p'.total_of_fintype hq
   linarith
 
-/-- Normalizing a nonnegative vector `w` with positive sum `V` gives a mixed strategy, whose
-average of `a` is `(∑ k, w k * (a k + s)) / V - s` for every shift `s`. -/
-private theorem exists_weights_eq_div {ι : Type*} [Fintype ι] {w : ι → K} (hw : 0 ≤ w)
-    (hV : 0 < ∑ k, w k) (s : K) :
-    ∃ p : StdSimplex K ι, ∀ a : ι → K,
-      ∑ k, p.weights k * a k = (∑ k, w k * (a k + s)) / ∑ k, w k - s := by
-  obtain ⟨p, hp⟩ : (fun k => w k / ∑ k, w k) ∈
-      Set.range fun p : StdSimplex K ι => (p.weights : ι → K) := by
-    rw [StdSimplex.range_toFun_comp_weights]
-    exact ⟨Set.mem_iInter.2 fun k => div_nonneg (hw k) hV.le, by
-      rw [Set.mem_ofPred_eq, ← sum_div, div_self hV.ne']⟩
-  refine ⟨p, fun a => ?_⟩
-  simp only [hp, div_mul_eq_mul_div, ← sum_div, mul_add, sum_add_distrib, ← sum_mul]
-  rw [add_div, mul_div_cancel_left₀ _ hV.ne', add_sub_cancel_right]
+omit [LinearOrder K] [IsStrictOrderedRing K] in
+/-- Dividing a vector `w` with sum `V ≠ 0` by `V` turns the shifted payoff
+`∑ k, w k * (a k + s)` into `(∑ k, w k * (a k + s)) / V - s`. -/
+private theorem sum_div_mul_eq {ι : Type*} [Fintype ι] (w a : ι → K) {V : K} (hV : V ≠ 0)
+    (hw : ∑ k, w k = V) (s : K) :
+    ∑ k, w k / V * a k = (∑ k, w k * (a k + s)) / V - s := by
+  simp only [mul_add, sum_add_distrib, ← sum_mul, hw, add_div, div_mul_eq_mul_div, ← sum_div]
+  rw [mul_div_cancel_left₀ _ hV, add_sub_cancel_right]
+
+/-- **Optimal strategies from the canonical pair of a game.** Let `x ≥ 0` be feasible for
+`max {∑ i, x i | 0 ≤ x, ∑ i, x i * (M i j + s) ≤ 1}` and `y ≥ 0` for its dual
+`min {∑ j, y j | 0 ≤ y, 1 ≤ ∑ j, y j * (M i j + s)}`, with the same objective value `V`. Then
+`V > 0` (as `y = 0` violates the dual constraint of any row), `x / V` and `y / V` are mixed
+strategies, `x / V` pays at most `1 / V - s` against every column and `y / V` collects at least
+`1 / V - s` against every row; so `1 / V - s` is the value (`IsMinimaxValue.of_weights`). This is
+the read-off step of `exists_isMinimaxValue`, also used by the simplex solver
+`Cslib.Algorithms.Lean.Simplex.solveGame`. -/
+theorem strategies_of_canonical_pair [Nonempty I] {M : I → J → K} {s V : K} {x : I → K}
+    {y : J → K} (hx : 0 ≤ x) (hxM : ∀ j, ∑ i, x i * (M i j + s) ≤ 1) (hy : 0 ≤ y)
+    (hyM : ∀ i, 1 ≤ ∑ j, y j * (M i j + s)) (hxV : ∑ i, x i = V) (hyV : ∑ j, y j = V) :
+    (∀ i, 0 ≤ x i / V) ∧ ∑ i, x i / V = 1 ∧ (∀ j, ∑ i, x i / V * M i j ≤ 1 / V - s) ∧
+      (∀ j, 0 ≤ y j / V) ∧ ∑ j, y j / V = 1 ∧ ∀ i, 1 / V - s ≤ ∑ j, y j / V * M i j := by
+  obtain ⟨i₀⟩ := ‹Nonempty I›
+  -- the common optimum `V` is positive, since `y = 0` violates the constraint of row `i₀`
+  have hV : 0 < V := by
+    refine hyV ▸ (sum_nonneg fun j _ => hy j).lt_of_ne fun h => ?_
+    have := hyM i₀
+    rw [sum_eq_zero fun j _ => by rw [(sum_eq_zero_iff_of_nonneg fun j _ => hy j).1 h.symm j
+      (mem_univ j), zero_mul]] at this
+    exact zero_lt_one.not_ge this
+  refine ⟨fun i => div_nonneg (hx i) hV.le, by rw [← sum_div, hxV, div_self hV.ne'], fun j => ?_,
+    fun j => div_nonneg (hy j) hV.le, by rw [← sum_div, hyV, div_self hV.ne'], fun i => ?_⟩
+  · rw [sum_div_mul_eq x (M · j) hV.ne' hxV s]
+    gcongr
+    exact hxM j
+  · rw [sum_div_mul_eq y (M i) hV.ne' hyV s]
+    gcongr
+    exact hyM i
 
 /-- **Every finite zero-sum game has a value**, over every linearly ordered field [vonNeumann1928]:
 there are mixed strategies `p`, `q` and `v : K` with `∑ i, p i * M i j ≤ v` for every column `j`
@@ -167,22 +213,8 @@ theorem exists_isMinimaxValue [Nonempty I] [Nonempty J] (M : I → J → K) :
   replace hAx (j : J) : ∑ i, x i * (M i j + s) ≤ 1 := by
     simpa only [Matrix.mulVec, dotProduct, Matrix.of_apply, Pi.one_apply, mul_comm] using hAx j
   replace hyA (i : I) : 1 ≤ ∑ j, y j * (M i j + s) := hyA i
-  -- the common optimum `V` is positive, since `y = 0` violates the constraint of row `i₀`
-  have hV : 0 < ∑ j, y j := by
-    refine (sum_nonneg fun j _ => hy j).lt_of_ne fun h => ?_
-    have := hyA i₀
-    rw [sum_eq_zero fun j _ => by rw [(sum_eq_zero_iff_of_nonneg fun j _ => hy j).1 h.symm j
-      (mem_univ j), zero_mul]] at this
-    exact zero_lt_one.not_ge this
-  obtain ⟨p, hp⟩ := exists_weights_eq_div hx (hxy ▸ hV) s
-  obtain ⟨q, hq⟩ := exists_weights_eq_div hy hV s
-  refine ⟨1 / ∑ j, y j - s, ⟨p, fun j => ?_⟩, q, fun i => ?_⟩
-  · rw [hp, ← hxy]
-    gcongr
-    exact hAx j
-  · rw [hq]
-    gcongr
-    exact hyA i
+  obtain ⟨hp0, hp1, hp, hq0, hq1, hq⟩ := strategies_of_canonical_pair hx hAx hy hyA hxy.symm rfl
+  exact ⟨_, .of_weights hp0 hp1 hp hq0 hq1 hq⟩
 
 /-- Against any mixed row strategy `p`, some column collects at least the value. -/
 theorem IsMinimaxValue.exists_le {M : I → J → K} {v : K} (hv : IsMinimaxValue M v) {p : I → K}

@@ -132,7 +132,7 @@ private theorem feed_run (N : ℕ) (w : List Bool) (j : ℕ) (hj : j ≤ w.lengt
 private theorem fold_rejected (bits : List Bool) : bits.foldl feed rejected = rejected := by
   induction bits with
   | nil => rfl
-  | cons b bits ih => simpa [feed, rejected, machine] using ih
+  | cons b bits ih => simpa [feed, rejected, machine, VertexReader.isHalted] using ih
 
 private theorem prefix_eq (x : Input) (j : ℕ) :
     (encInput x |>.take j).foldl (fun s b => step (s, b)) (start x) =
