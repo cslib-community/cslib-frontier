@@ -14,6 +14,10 @@ namespace CslibFrontierTests.PRGStretch
 
 open Cslib Cslib.Crypto Cslib.Probability Turing.MultiTapeTM
 
+assert_not_exists Turing.MultiTapeTM.ComputableTidilyInPolyTime
+assert_not_exists Turing.MultiTapeTM.ComputableInPolyTime.tidy
+assert_not_exists Turing.MultiTapeTM.ComputableInPolyTime.of_tidy
+
 -- A toy expander exercises seed retention and suffix order; no security is claimed for it.
 private def expand (seed : List Bool) : List Bool := seed ++ [false]
 
@@ -63,8 +67,7 @@ example (generator : List Bool â†’ List Bool) (adversary : Distinguisher) (n : â
 -- A captured loop may add an input-dependent block at each iteration.
 example : ComputableInPolyTime
     (fun word : List Bool => (fun state => state ++ word)^[word.length] []) encBits encBits := by
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.iterateWith_of_bounded_growth
+  apply ComputableInPolyTime.iterateWith_of_bounded_growth
     (par := id) (step := fun word state => state ++ word) (growth := List.length)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     (by

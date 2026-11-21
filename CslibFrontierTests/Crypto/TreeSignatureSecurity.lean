@@ -51,9 +51,11 @@ noncomputable def echo : IndexedSignatureScheme where
   capacity_polyTime := ComputableInPolyTime.const 2
   keyGen_ppt := (ComputableInPolyTime.const ([], [])).isPPTOn
   sign_ppt := by
-    apply ComputableInPolyTime.isPPTOn
-    polytime
-  verify_polyTime := by polytime
+    exact (ComputableInPolyTime.snd encBits (encPair encUnary encBits)).encoding_comp.isPPTOn
+  verify_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encBits encIndexedSignedMessage)
+    exact hp.snd'.snd'.snd'.beq (hp.snd'.fst'.prod hp.snd'.snd'.fst').encoding_comp
   verify_sign _ _ _ _ _ _ sig hsig := by
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hsig
     simp [hsig]
@@ -252,8 +254,15 @@ def zeroQueryEchoForger : Forger := fun n _ =>
 theorem isOraclePPT_zeroQueryEchoForger :
     IsOraclePPT (encPair encBits encBits) zeroQueryEchoForger := by
   refine IsOraclePPTOn.isOraclePPT ?_
-  unfold zeroQueryEchoForger encodeSignature
-  exact ComputableInPolyTime.isOraclePPTOn (by polytime)
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hmsg := (ComputableInPolyTime.bitsReplicate false).comp hn
+  have hlast := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg).encoding_comp
+  have hcerts := ComputableInPolyTime.const
+    (encIn := encPair encUnary encBits) (encOut := encList (encPair encBits encBits))
+    ([] : List (List Bool × List Bool))
+  have hsig := ((ComputableInPolyTime.const (encOut := encBits) [false]).prod
+    (hcerts.prod hlast)).encoding_comp
+  exact (hmsg.prod hsig).isOraclePPTOn
 
 -- Nonvacuity of `indexedForger` via `succProbability_lazyTreeGame_le`: `zeroQueryEchoForger` wins
 -- `lazyTreeGame` with probability `1` (`Q = 0`, `slotBound = 0`, `dyadicSize 0 = 2`), so

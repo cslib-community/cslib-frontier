@@ -76,7 +76,7 @@ pair of instance and random string.
 
 namespace Cslib.Complexity
 
-open Finset Turing.MultiTapeTM
+open Finset Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
 namespace Toda
 
@@ -147,8 +147,18 @@ private theorem computableInPolyTime_notVerifier (ℓ ρ : Polynomial ℕ)
     {W : α × List Bool → Bool}
     (hW : ComputableInPolyTime W (encPair enc encBits) encBool) :
     ComputableInPolyTime (notVerifier enc ℓ ρ W) (encPair enc encBits) encBool := by
+  have ha := fst enc encBits
+  have hw := snd enc encBits
+  have hlen := (encoding_length enc).comp ha
+  have hn := unary_add.comp
+    (((unary_eval ℓ).comp hlen).prod ((unary_eval ρ).comp hlen))
+  have hpref := bitsTake.comp (hw.prod hn)
+  have htail := bitsDropWithInput hw hn
   unfold notVerifier succVerifier
-  fun_prop
+  apply computableInPolyTime_succTest (hw := htail)
+  exact hW.comp
+    ((ha.comp (fst _ _)).prod
+      (bitsAppend (hpref.comp (fst _ _)) (snd _ _)))
 
 /-- **Negation** adds one witness, with the same error. -/
 theorem IsRandomParityRep.not {ℓ e ρ ζ : Polynomial ℕ} {W : α × List Bool → Bool}
@@ -220,8 +230,11 @@ theorem computableInPolyTime_trialVerifier {W : α × List Bool → Bool}
     (hblock : ComputableInPolyTime block input encBits) :
     ComputableInPolyTime (fun x => trialVerifier W (a x) (u x) (r x) (M x) (level x)
       (seed x) (block x)) input encBool  := by
-  unfold trialVerifier
-  fun_prop
+  have htake := bitsTake.comp (hblock.prod hM)
+  have hdrop := bitsDropWithInput hblock hM
+  have htest := computableInPolyTime_hashesToZero hlevel hseed htake
+  exact bool_and' htest
+    (hW.comp (ha.prod (bitsAppend (bitsAppend (bitsAppend hu htake) hr) hdrop)))
 
 @[fun_prop]
 theorem computableInPolyTime_trialsVerifier {W : α × List Bool → Bool}
@@ -429,10 +442,14 @@ theorem PH_subset_BPOp_ParityP : PH enc ⊆ BPOp enc (ParityP (encPair enc encBi
   refine ⟨ρ, L', ?_, fun a => ?_⟩
   · -- the inner problem is in `⊕P`, after padding the witnesses
     refine mem_ParityP.2 ⟨ζ, padVerifier (fun x => ζ.eval (enc x.1).length)
-      (fun x => W (x.1.1, x.1.2 ++ x.2)), by fun_prop, fun x => ?_⟩
-    rw [acceptCount_padVerifier_of_le _ _ (a := x)
-      (Polynomial.eval_mono _ (length_le_encPair_left _ _ x))]
-    rfl
+      (fun x => W (x.1.1, x.1.2 ++ x.2)), ?_, fun x => ?_⟩
+    · apply computableInPolyTime_padVerifier
+      · exact (unary_eval ζ).comp ((encoding_length enc).comp (fst enc encBits))
+      · exact hW.comp
+          (((fst _ _).fst').prod (bitsAppend ((fst _ _).snd') (snd _ _)))
+    · rw [acceptCount_padVerifier_of_le _ _ (a := x)
+        (Polynomial.eval_mono _ (length_le_encPair_left _ _ x))]
+      rfl
   · -- error `1 / 4` is bounded error
     have ha := h a [] (by simp)
     simp only [Polynomial.eval_ofNat, List.nil_append] at ha

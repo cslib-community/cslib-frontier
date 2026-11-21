@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Algorithms.Lean.MaxFlow.AugmentingPath
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Foundations.Data.Fin.Prod
 
 /-!
 # Searching for bipartite perfect matchings
@@ -87,9 +88,8 @@ private theorem matchingWord_spec (A : List (List Bool)) :
       (maximumMatching (tableWord A) A.length).any (fun e =>
         decide (e.1 = (finProdFinEquiv (i, j)).val / A.length ∧
           e.2 = (finProdFinEquiv (i, j)).val % A.length)) = true ↔ (i, j) ∈ M := by
-    simp [M, finProdFinEquiv, Nat.add_mul_div_left, Nat.div_eq_of_lt j.isLt,
-      Nat.mod_eq_of_lt j.isLt, Nat.pos_of_ne_zero (Nat.ne_zero_of_lt j.isLt),
-      List.any_eq_true]
+    simp only [finProdFinEquiv_val_div, finProdFinEquiv_val_mod]
+    simp [M, List.any_eq_true]
   rw [matchingWord, List.map_range_eq_ofFn, ZeroOnePermanent.verifier_ofFn]
   simp only [hbit]
   constructor

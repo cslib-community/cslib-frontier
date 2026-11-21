@@ -205,11 +205,11 @@ private theorem poly_slots (L : ℕ) :
     ?_ (growth := fun g => (encUGGraph L g).length) (.self) fun g n e he => ?_
   · have hn : ComputableInPolyTime
         (fun q : (Bool × ℕ) × Edge (Fin L → Fin L) => q.1.2)
-        (encFoldStep encBool encUnary (encUGEdge L)) encUnary :=
+        (encPair (encPair encBool encUnary) (encUGEdge L)) encUnary :=
       (fst _ _).snd'
     have he : ComputableInPolyTime
         (fun q : (Bool × ℕ) × Edge (Fin L → Fin L) => q.2)
-        (encFoldStep encBool encUnary (encUGEdge L)) (encUGEdge L) :=
+        (encPair (encPair encBool encUnary) (encUGEdge L)) (encUGEdge L) :=
       snd _ _
     exact unary_max.comp
       (hn.prod (unary_add.comp
@@ -616,7 +616,7 @@ private theorem poly_scan (L : ℕ) :
   have hstep : ComputableInPolyTime
       (fun r : (Bool × State (Fin L)) × Edge (Fin L → Fin L) =>
         visit (List.finRange L) r.1.2 r.2)
-      (encFoldStep encBool (encUGState L) (encUGEdge L)) (encUGState L) := by
+      (encPair (encPair encBool (encUGState L)) (encUGEdge L)) (encUGState L) := by
     simpa only [Function.comp_def] using (poly_visit L).comp ((fst _ _).snd'.prod (snd _ _))
   have hbody : ComputableInPolyTime
       (fun q : (Graph (Fin L → Fin L) × State (Fin L)) × ℕ =>
@@ -712,29 +712,29 @@ private theorem poly_settle (L : ℕ) [NeZero L] :
           (encOption (encUGFn L)) := of_finite _
       have hc : ComputableInPolyTime
           (fun q : (Fin L × List (Option (Fin L → Fin L))) × ℕ => q.1.1)
-          (encFoldStep (encFinEnum (Fin L)) (encUGTable L) encUnary)
+          (encPair (encPair (encFinEnum (Fin L)) (encUGTable L)) encUnary)
           (encFinEnum (Fin L)) :=
         (fst _ _).fst'
       have ht : ComputableInPolyTime
           (fun q : (Fin L × List (Option (Fin L → Fin L))) × ℕ => q.1.2)
-          (encFoldStep (encFinEnum (Fin L)) (encUGTable L) encUnary)
+          (encPair (encPair (encFinEnum (Fin L)) (encUGTable L)) encUnary)
           (encUGTable L) :=
         (fst _ _).snd'
       have hv : ComputableInPolyTime
           (fun q : (Fin L × List (Option (Fin L → Fin L))) × ℕ => q.2)
-          (encFoldStep (encFinEnum (Fin L)) (encUGTable L) encUnary)
+          (encPair (encPair (encFinEnum (Fin L)) (encUGTable L)) encUnary)
           encUnary :=
         snd _ _
       have hget : ComputableInPolyTime
           (fun q : (Fin L × List (Option (Fin L → Fin L))) × ℕ => q.1.2.getD q.2 none)
-          (encFoldStep (encFinEnum (Fin L)) (encUGTable L) encUnary)
+          (encPair (encPair (encFinEnum (Fin L)) (encUGTable L)) encUnary)
           (encOption (encUGFn L)) := by
         simpa only [Function.comp_def] using
           (listGetD (encA := encOption (encUGFn L)) (encL := encUGTable L) none).comp (ht.prod hv)
       have hval : ComputableInPolyTime
           (fun q : (Fin L × List (Option (Fin L → Fin L))) × ℕ =>
             freeze q.1.1 (q.1.2.getD q.2 none))
-          (encFoldStep (encFinEnum (Fin L)) (encUGTable L) encUnary)
+          (encPair (encPair (encFinEnum (Fin L)) (encUGTable L)) encUnary)
           (encOption (encUGFn L)) := by
         simpa only [Function.comp_def] using hfreeze.comp (hc.prod hget)
       exact ComputableInPolyTime.listSetWithInput (encOption (encUGFn L)) ht hv hval

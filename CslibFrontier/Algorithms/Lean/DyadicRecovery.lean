@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryLog
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
@@ -27,17 +28,23 @@ import Mathlib.NumberTheory.DiophantineApproximation.Basic
 /-!
 # Continued-fraction recovery from dyadic prefixes
 
-A step towards [Arora and Barak][AroraBarak07], web draft 2007-01-08, Chapter 20, Exercise §11
-(printed p. 432, PDF p. 448). Under the terminating-zero convention, the first
-`2 * Nat.clog 2 N` fractional bits specify a half-open dyadic cell. For numbers at least one,
-the cell index also includes the integer part. The decoder tests the included left endpoint
+[Arora and Barak][AroraBarak07], web draft 2007-01-08, Chapter 20, Exercise §11
+(printed p. 432, PDF p. 448), asks for polynomial-time recovery of the unknown coprime pair
+`j, r ≤ N` from the first `2 log N` bits of `j/r`. The draft leaves rounding implicit.
+For positive `N`, `Nat.clog 2 (N ^ 2)` gives the ceiling of twice the base-two logarithm:
+it is the least fractional bit count with dyadic cell width at most `1 / N ^ 2`.
+We use half-open cells (terminating-zero expansions), with the integer part included in
+the cell index for numbers at least one. The result encodes the reduced numerator and
+denominator, available as `Rat.num` and `Rat.den`; the numerator may exceed `N`.
+The original decoder uses `2 * Nat.clog 2 N` fractional bits.
+
+The decoder tests the included left endpoint
 directly. Every interior point with denominator at most `N` satisfies Legendre's strict bound
 at the midpoint, even when the bound at the left endpoint fails.
 
-Write `t = (2 * k + 1).size + (2 * M).size + 1` for the Euclidean step budget, where
-`M = 2 ^ (2 * Nat.clog 2 N)`. The search tests at most `t + 2` candidates, with
-`t + 2 ≤ k.size + 2 * N.size + 6`. Each convergent at index `i` takes `i + 1` quotients and
-`i` rational updates.
+At scale `M`, write `t = (2 * k + 1).size + (2 * M).size + 1` for the Euclidean step
+budget. The search tests at most `t + 2` candidates. At scale `2 ^ bits` this is at most
+`k.size + bits + 6`. Each convergent at index `i` takes `i + 1` quotients and `i` rational updates.
 The machine evaluates the recurrence from the innermost quotient outwards. It recomputes
 the Euclidean pair from the midpoint for each quotient, keeping a unary index and one
 reduced rational in the outer loop. Each intermediate reduced numerator and denominator
@@ -46,13 +53,17 @@ also charges construction of the candidate list and the denominator and endpoint
 
 ## Main definitions
 
-* `Rat.recoverDyadic`: the decoder returning an optional reduced rational.
+* `Rat.recoverDyadicLogSq`: recovery using the ceiling of twice the base-two logarithm.
+* `Rat.recoverDyadic`: recovery using twice the ceiling of the base-two logarithm.
 
 ## Main results
 
 * `Rat.recoverDyadic_mem_cell`: every returned rational satisfies the cell and denominator tests.
 * `Rat.recoverDyadic_eq_some`: recovery of any promised rational in the cell.
-* `Rat.recoverDyadic_polyTime`: a native polynomial-time certificate on binary inputs.
+* `Rat.recoverDyadicLogSq_eq_some` and `Rat.recoverDyadicLogSq_mem_cell`: correctness for
+  `recoverDyadicLogSq`.
+* `Rat.recoverDyadic_polyTime` and `Rat.recoverDyadicLogSq_polyTime`: native polynomial-time
+  certificates on binary inputs.
 -/
 
 public section
@@ -117,15 +128,13 @@ private theorem length_cellCandidates (M k : ℕ) :
   simp only [cellCandidates, List.length_cons, List.length_map, List.length_range,
     gcdCount, Nat.size_eq_bits_len]
 
-private theorem length_dyadicCandidates_le (N k : ℕ) :
-    (cellCandidates (2 ^ (2 * Nat.clog 2 N)) k).length ≤ k.size + 2 * N.size + 6 := by
+private theorem length_cellCandidates_pow_le (bits k : ℕ) :
+    (cellCandidates (2 ^ bits) k).length ≤ k.size + bits + 6 := by
   have hk : (2 * k + 1).size ≤ k.size + 1 := by
     apply Nat.size_le.mpr
     rw [pow_succ]
     have := Nat.lt_size_self k
     omega
-  have hN : Nat.clog 2 N ≤ N.size :=
-    Nat.clog_le_of_le_pow (Nat.lt_size_self N).le
   rw [length_cellCandidates, ← pow_succ', Nat.size_pow]
   omega
 
@@ -172,14 +181,22 @@ private theorem euclidConvergent_height_size (i : ℕ) (p : ℕ × ℕ) :
 private def inCell (N M k : ℕ) (q : ℚ) : Bool :=
   decide (q.den ≤ N ∧ (k : ℚ) / M ≤ q ∧ q < (k + 1 : ℚ) / M)
 
+private def recoverInCell (N M k : ℕ) : Option ℚ :=
+  (cellCandidates M k).find? (inCell N M k)
+
 /-- Recover a fraction of denominator at most `N` from the dyadic cell indexed by `k`.
 For a number in `[0, 1)`, `k` is the natural represented by the first
 `2 * Nat.clog 2 N` fractional bits, with leading zeros allowed. At a dyadic boundary, use the
 expansion ending in zeros. More generally, add the integer part times the cell scale to `k`.
 Return `none` when no fraction of denominator at most `N` lies in the cell. -/
 def recoverDyadic (N k : ℕ) : Option ℚ :=
-  let M := 2 ^ (2 * Nat.clog 2 N)
-  (cellCandidates M k).find? (inCell N M k)
+  recoverInCell N (2 ^ (2 * Nat.clog 2 N)) k
+
+/-- Recover a reduced rational of denominator at most `N` using `Nat.clog 2 (N ^ 2)`
+fractional bits. The index `k` uses the terminating-zero and integer-part conventions
+of `recoverDyadic`. Return `none` if the cell contains no such rational. -/
+def recoverDyadicLogSq (N k : ℕ) : Option ℚ :=
+  recoverInCell N (2 ^ Nat.clog 2 (N ^ 2)) k
 
 private theorem mem_cellCandidates {N M k : ℕ} {q : ℚ}
     (hM : 0 < M) (hscale : N ^ 2 ≤ M) (hq : q.den ≤ N)
@@ -241,15 +258,31 @@ private theorem eq_of_mem_cell {N M k : ℕ} {q r : ℚ} (hscale : N ^ 2 ≤ M)
   exact (hwidth.trans_le (one_div_le_one_div_of_le (pow_pos hN _)
     (by exact_mod_cast hscale))).not_ge hsep
 
+private theorem recoverInCell_mem_cell {N M k : ℕ} {q : ℚ}
+    (h : recoverInCell N M k = some q) :
+    q.den ≤ N ∧ (k : ℚ) / M ≤ q ∧ q < (k + 1 : ℚ) / M := by
+  unfold recoverInCell at h
+  have ht := List.find?_some h
+  unfold inCell at ht
+  exact of_decide_eq_true ht
+
+private theorem recoverInCell_eq_some {N M k : ℕ} {q : ℚ}
+    (hM : 0 < M) (hscale : N ^ 2 ≤ M) (hq : q.den ≤ N)
+    (hlo : (k : ℚ) / M ≤ q) (hhi : q < (k + 1 : ℚ) / M) :
+    recoverInCell N M k = some q := by
+  have hm := mem_cellCandidates hM hscale hq hlo hhi
+  have hp : inCell N M k q = true := decide_eq_true ⟨hq, hlo, hhi⟩
+  change (cellCandidates M k).find? (inCell N M k) = some q
+  rcases he : (cellCandidates M k).find? (inCell N M k) with _ | r
+  · exact (List.find?_eq_none.mp he q hm hp).elim
+  · exact congrArg some (eq_of_mem_cell hscale (List.find?_some he) hp)
+
 /-- A returned rational passes the denominator bound and both endpoint tests. -/
 theorem recoverDyadic_mem_cell {N k : ℕ} {q : ℚ} (h : recoverDyadic N k = some q) :
     q.den ≤ N ∧ (k : ℚ) / (2 : ℚ) ^ (2 * Nat.clog 2 N) ≤ q ∧
       q < (k + 1 : ℚ) / (2 : ℚ) ^ (2 * Nat.clog 2 N) := by
-  unfold recoverDyadic at h
-  have ht := List.find?_some h
-  unfold inCell at ht
-  have hq := of_decide_eq_true ht
-  simpa only [Nat.cast_pow, Nat.cast_ofNat] using hq
+  simpa only [Nat.cast_pow, Nat.cast_ofNat] using
+    recoverInCell_mem_cell (M := 2 ^ (2 * Nat.clog 2 N)) h
 
 /-- The decoder recovers any reduced rational of denominator at most `N` in the half-open
 cell specified by the prefix. `Rat.num` and `Rat.den` give its reduced numerator and denominator. -/
@@ -257,20 +290,30 @@ theorem recoverDyadic_eq_some {N k : ℕ} {q : ℚ} (hq : q.den ≤ N)
     (hlo : (k : ℚ) / (2 : ℚ) ^ (2 * Nat.clog 2 N) ≤ q)
     (hhi : q < (k + 1 : ℚ) / (2 : ℚ) ^ (2 * Nat.clog 2 N)) :
     recoverDyadic N k = some q := by
-  let M := 2 ^ (2 * Nat.clog 2 N)
-  have hM : 0 < M := by positivity
-  have hscale : N ^ 2 ≤ M := by
-    dsimp only [M]
+  have hscale : N ^ 2 ≤ 2 ^ (2 * Nat.clog 2 N) := by
     rw [mul_comm 2, pow_mul]
     exact Nat.pow_le_pow_left (Nat.le_pow_clog (by decide) N) 2
-  have hlo' : (k : ℚ) / M ≤ q := by simpa only [M, Nat.cast_pow, Nat.cast_ofNat] using hlo
-  have hhi' : q < (k + 1 : ℚ) / M := by simpa only [M, Nat.cast_pow, Nat.cast_ofNat] using hhi
-  have hm := mem_cellCandidates hM hscale hq hlo' hhi'
-  have hp : inCell N M k q = true := decide_eq_true ⟨hq, hlo', hhi'⟩
-  change (cellCandidates M k).find? (inCell N M k) = some q
-  rcases he : (cellCandidates M k).find? (inCell N M k) with _ | r
-  · exact (List.find?_eq_none.mp he q hm hp).elim
-  · exact congrArg some (eq_of_mem_cell hscale (List.find?_some he) hp)
+  apply recoverInCell_eq_some (by positivity) hscale hq
+  · simpa only [Nat.cast_pow, Nat.cast_ofNat] using hlo
+  · simpa only [Nat.cast_pow, Nat.cast_ofNat] using hhi
+
+/-- A returned rational passes the denominator bound and both endpoint tests. -/
+theorem recoverDyadicLogSq_mem_cell {N k : ℕ} {q : ℚ} (h : recoverDyadicLogSq N k = some q) :
+    q.den ≤ N ∧ (k : ℚ) / (2 : ℚ) ^ Nat.clog 2 (N ^ 2) ≤ q ∧
+      q < (k + 1 : ℚ) / (2 : ℚ) ^ Nat.clog 2 (N ^ 2) := by
+  simpa only [Nat.cast_pow, Nat.cast_ofNat] using
+    recoverInCell_mem_cell (M := 2 ^ Nat.clog 2 (N ^ 2)) h
+
+/-- The decoder recovers any reduced rational of denominator at most `N` in the half-open
+cell specified by the prefix. `Rat.num` and `Rat.den` give its reduced numerator and denominator. -/
+theorem recoverDyadicLogSq_eq_some {N k : ℕ} {q : ℚ} (hq : q.den ≤ N)
+    (hlo : (k : ℚ) / (2 : ℚ) ^ Nat.clog 2 (N ^ 2) ≤ q)
+    (hhi : q < (k + 1 : ℚ) / (2 : ℚ) ^ Nat.clog 2 (N ^ 2)) :
+    recoverDyadicLogSq N k = some q := by
+  have hscale : N ^ 2 ≤ 2 ^ Nat.clog 2 (N ^ 2) := Nat.le_pow_clog (by decide) _
+  apply recoverInCell_eq_some (by positivity) hscale hq
+  · simpa only [Nat.cast_pow, Nat.cast_ofNat] using hlo
+  · simpa only [Nat.cast_pow, Nat.cast_ofNat] using hhi
 
 open Turing.MultiTapeTM
 open Turing.MultiTapeTM.ComputableInPolyTime
@@ -382,21 +425,18 @@ private theorem cellCandidates_polyTime :
   have hcons := cons' hlo hlist
   exact hcons
 
-private theorem scale_polyTime :
-    ComputableInPolyTime (fun N : ℕ => 2 ^ (2 * Nat.clog 2 N)) encNat encNat :=
-  binary_two_pow.comp (unary_mul' (const 2) binary_clog_two)
-
-private theorem inDyadicCell_polyTime :
+private theorem inDyadicCell_polyTime {scale : ℕ → ℕ}
+    (hscale : ComputableInPolyTime scale encNat encNat) :
     ComputableInPolyTime
       (fun p : (ℕ × ℕ) × ℚ =>
         let input := p.1
-        inCell input.1 (2 ^ (2 * Nat.clog 2 input.1)) input.2 p.2)
+        inCell input.1 (scale input.1) input.2 p.2)
       (encPair encEuclidPair encRat) encBool := by
   have hin := fst encEuclidPair encRat
   have hN := hin.fst'
   have hk := hin.snd'
   have hq := snd encEuclidPair encRat
-  have hM := natCastRat_polyTime.comp (scale_polyTime.comp hN)
+  have hM := natCastRat_polyTime.comp (hscale.comp hN)
   have hkRat := natCastRat_polyTime.comp hk
   have hlo := rat_div' hkRat hM
   have hhi := rat_div' (rat_add' hkRat (const 1)) hM
@@ -404,23 +444,39 @@ private theorem inDyadicCell_polyTime :
   exact decide_and (binary_le' (rat_den.comp hq) hN)
     (decide_and (rat_le' hlo hq) (rat_lt' hq hhi))
 
+private theorem recoverInCell_polyTime {scale : ℕ → ℕ}
+    (hscale : ComputableInPolyTime scale encNat encNat) :
+    ComputableInPolyTime (fun p : ℕ × ℕ => recoverInCell p.1 (scale p.1) p.2)
+      encEuclidPair (encOption encRat) := by
+  have hargs : ComputableInPolyTime (fun p : ℕ × ℕ => (scale p.1, p.2))
+      encEuclidPair encEuclidPair :=
+    (hscale.comp (fst encNat encNat)).prod (snd encNat encNat)
+  have hcandidates := cellCandidates_polyTime.comp hargs
+  have hfound := findWithInput
+    (test := fun (p : ℕ × ℕ) => inCell p.1 (scale p.1) p.2)
+    hcandidates (inDyadicCell_polyTime hscale)
+  exact hfound
+
 /-- Recover a reduced rational in polynomial time from the binary denominator bound and cell
 index. The machine tests the included endpoint and the same midpoint convergents as
 `recoverDyadic`, returning an optional signed binary numerator and binary denominator. -/
 @[fun_prop]
 theorem recoverDyadic_polyTime :
     ComputableInPolyTime (fun p : ℕ × ℕ => recoverDyadic p.1 p.2)
+      (encPair encNat encNat) (encOption encRat) :=
+  recoverInCell_polyTime (scale := fun N => 2 ^ (2 * Nat.clog 2 N))
+    (binary_two_pow.comp (unary_mul' (const 2) binary_clog_two))
+
+/-- Polynomial-time recovery at the precision rounded after doubling, from the binary bound
+and cell index to an optional reduced rational encoded as in `recoverDyadic_polyTime`. -/
+@[fun_prop]
+theorem recoverDyadicLogSq_polyTime :
+    ComputableInPolyTime (fun p : ℕ × ℕ => recoverDyadicLogSq p.1 p.2)
       (encPair encNat encNat) (encOption encRat) := by
-  have hscale : ComputableInPolyTime (fun p : ℕ × ℕ => 2 ^ (2 * Nat.clog 2 p.1))
-      encEuclidPair encNat :=
-    scale_polyTime.comp (fst encNat encNat)
-  have hargs : ComputableInPolyTime (fun p : ℕ × ℕ => (2 ^ (2 * Nat.clog 2 p.1), p.2))
-      encEuclidPair encEuclidPair :=
-    hscale.prod (snd encNat encNat)
-  have hcandidates := cellCandidates_polyTime.comp hargs
-  have hfound := findWithInput
-    (test := fun (p : ℕ × ℕ) => inCell p.1 (2 ^ (2 * Nat.clog 2 p.1)) p.2)
-    hcandidates inDyadicCell_polyTime
-  exact hfound
+  have hsquare : ComputableInPolyTime (fun N : ℕ => N ^ 2) encNat encNat := by
+    rw [show (fun N : ℕ => N ^ 2) = (fun N => N * N) from funext fun N => pow_two N]
+    fun_prop
+  exact recoverInCell_polyTime (scale := fun N => 2 ^ Nat.clog 2 (N ^ 2))
+    (binary_two_pow.comp (binary_clog_two.comp hsquare))
 
 end Rat
