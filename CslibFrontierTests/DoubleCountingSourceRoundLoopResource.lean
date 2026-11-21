@@ -20,6 +20,21 @@ open Turing MultiTapeTM ComputableInSpace NondeterministicQueryMachine
 open Turing.DoubleCounting
 open Turing.DoubleCounting.SourceRoundLoop
 
+/-- The caller retains its counter and supplies a continuation for each verdict branch. -/
+example :
+    let E := encPair encNat (encOption encVerdict)
+    ComputableInSpace (fun p : ℕ × Option Cslib.DoubleCounting.ControllerVerdict =>
+      match p.2 with
+      | none => none
+      | some (.bad radius) => some (p.1 + radius)
+      | some (.decided answer) => some (if answer then p.1 else p.1 + 1))
+      E (encOption encNat) (fun p => (E p).length) := by
+  have hmissing := budget_const (encIn := encNat) (encB := encOption encNat) none (.refl _)
+  have hadd := budget_natAdd (fst encNat encNat) (snd encNat encNat)
+  have hcounter := fst encNat encBool
+  have hdecided := budget_ite (snd encNat encBool) hcounter (budget_natSucc hcounter)
+  exact verdictElimSnd_inSpace hmissing (budget_optionSome hadd) (budget_optionSome hdecided)
+
 private def callback : NondeterministicQueryMachine Unit where
   init := ()
   query := fun _ => 0

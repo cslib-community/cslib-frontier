@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
+public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
@@ -51,7 +52,9 @@ is a binary norm exponent for both the lower relations and the deformed potentia
   let R := criticalSystemCoeffNormExponent n ell b
   (D + 1).size + ((B + 1).size * n + (n.size + ell.size + (R + 1)) * n + R * B + R) * D
 
-private theorem criticalSystem_norm_le {n ell b : ℕ} (hell : 1 ≤ ell)
+/-- The symbolic critical relations and objective share the coefficient-norm budget
+`criticalSystemCoeffNormExponent n ell b`. -/
+theorem criticalSystem_norm_le {n ell b : ℕ} (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b) :
     let a (i : Fin n) := Polynomial.C (separatedCenters ell i : ℤ)
     let G := F.map Polynomial.C

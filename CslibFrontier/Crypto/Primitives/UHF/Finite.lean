@@ -53,8 +53,8 @@ keeps the uniform key private. An adversary is a closed probabilistic program wi
 * `Cslib.Crypto.UHF.eval_multiQueryExperiment_le`: the statistical `C(Q, 2) * ε` bound
   for lists of length at most `Q`.
 
-The results here concern one key distribution and one hash function at a time. Computational
-security for efficient adversary families is tracked in #5790.
+The results here concern one key distribution and one hash function at a time. The computational
+collision games and asymptotic implication are in `Crypto.Primitives.UHF.Computational`.
 
 ## References
 
@@ -398,8 +398,8 @@ private theorem collision_indicator_le_samplePair [DecidableEq M] [DecidableEq Y
 If the multi-query adversary outputs at most `Q` messages, its collision probability is at most
 `Q ^ 2 / 2` times that of the explicit single-pair wrapper. Whenever the list contains a
 collision, both orders of a colliding pair have enough sampling mass to give the bound. The
-wrapper has a strict PPT certificate. The computational-family conclusion of Lemma 7.1
-remains open in #5790. -/
+wrapper has a strict PPT certificate. `Crypto.Primitives.UHF.Computational` lifts this bound to
+public setup and proves the asymptotic implication. -/
 theorem eval_multiQueryExperiment_le_collisionPairReduction [Fintype K] [Nonempty K]
     [DecidableEq M] [DecidableEq Y] (H : K → M → Y) (fallback : M)
     (A : ProbComp (List M)) {Q : ℕ} (hA : ∀ ms ∈ (ProbComp.eval A).support, ms.length ≤ Q) :

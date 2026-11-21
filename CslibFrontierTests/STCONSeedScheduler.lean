@@ -46,6 +46,40 @@ set_option linter.hashCommand false in
 #guard (runSeedSchedulerFor setup sourceValid rootValid scan).map
     (Option.map fun a => (a.seed.val, a.reachable)) == List.replicate 4 (some (1, false))
 
+-- Skip the designated root, try the other root, and restart after the bad verdict.
+-- The next seed keeps its designated negative answer even though its other root is positive.
+set_option linter.hashCommand false in
+#guard
+  let run := do
+    let designated ← seedSchedulerCandidate setup 0
+    let .inl skip ← seedSchedulerStep designated (some (.decided false)) | none
+    if skip.needsScan then none else
+    let .inl indexed ← seedSchedulerStep skip none | none
+    if !indexed.needsScan || indexed.request.sourceID != 2 then none else
+    let .inl next ← seedSchedulerStep indexed (some (.bad 0)) | none
+    if next.request.seed != 1 || !next.needsScan then none else
+    let .inl skip ← seedSchedulerStep next (some (.decided false)) | none
+    let .inl indexed ← seedSchedulerStep skip none | none
+    let .inr answer ← seedSchedulerStep indexed (some (.decided true)) | none
+    pure answer
+  run == some (some false)
+
+set_option linter.hashCommand false in
+#guard
+  match seedSchedulerCandidate setup 3 with
+  | none => false
+  | some last =>
+    (seedSchedulerStep last none).isNone &&
+      (match seedSchedulerStep last (some (.bad 0)) with
+       | some (.inr none) => true
+       | _ => false)
+
+example {f g : SeedSchedulerFrame} {reply : Option ControllerVerdict}
+    (hf : f.Valid) (h : seedSchedulerStep f reply = some (.inl g)) :
+    g.Valid ∧ g.request.setup = f.request.setup :=
+  let progress := seedSchedulerStep_progress hf h
+  ⟨progress.1, progress.2.1⟩
+
 private def rejecting (_ : SeedSchedulerFrame) :
     OptionT (StateM ℕ) (Option ControllerVerdict) :=
   OptionT.mk fun t => (none, t + 1)

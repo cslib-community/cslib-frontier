@@ -1119,7 +1119,7 @@ theorem subsingleton_successful_firstHalting {τ : Type} (ctx : Context)
         obtain ⟨r, hrentry, hrreply⟩ :=
           readRequest_of_success N start finish input q.context _ _ _ _ hrread
         rw [hctx] at hlreply hrreply
-        obtain ⟨callBits, hlsplit, hrsplit, _, rfl⟩ :=
+        obtain ⟨callBits, hlsplit, hrsplit, _, _, rfl⟩ :=
           N.readReply_commonPrefix finish input (start ctx (request q))
             (hrequest (request q) hv) hlreply hrreply
         have hs : suffix = suffix' :=

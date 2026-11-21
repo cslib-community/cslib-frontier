@@ -132,8 +132,10 @@ Lake's global artifact store, so the normal example, build and render commands s
 
 Only successful API documentation runs on `main` save this entry, after the Guide and generated
 links have passed, and only when the exact entry was absent. PRs and other branches only read.
-The key includes the OS, architecture and exact runner-image version, Lean toolchain, root and
-Guide lockfiles/configuration, and the cache action/helper itself. It has no commit or run ID
+The key includes the OS, architecture, and base runner image family (`RUNNER_OS`, `RUNNER_ARCH`,
+`ImageOS` — excluding patch `ImageVersion` rollouts so routine Ubuntu image patches do not bust
+the cache), Lean toolchain, root and Guide lockfiles/configuration, and the cache action/helper
+itself. It has no commit or run ID
 and no less-specific fallback: a new compatible configuration gets one immutable entry, rather
 than a new copy for every PR. `CACHE_RECOVERY_GENERATION` invalidates these entries too, and
 `DISABLE_CACHE_RESTORE=true` or `1` disables both their restore and save. An unavailable cache
@@ -169,23 +171,26 @@ five seconds and the largest decrease. Compare warm PRs, cold pin builds, merge 
 publication before setting the repository variable `SDK_CLEANUP_MIN_GIB`. Keep margin for short
 peaks between samples. Unset the variable to restore the default.
 
-## Runner for `main` builds
+## Runner for `main` and merge-group builds
 
 The `lean-checks` job of a push to `main` runs on the runner named by the repository variable
-`MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`). Pull
-requests, merge groups and manual runs always use the standard `ubuntu-24.04` runner, as does
-`main` while the variable is unset. The `main` run saves the `.lake` snapshot and stages the
-remote-cache publication, so a faster one publishes caches for more landed commits; the cache
-keys depend on the operating system and architecture, not the runner size, so standard runners
-restore what it saves.
+`MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`), and a
+`merge_group` run optionally runs on the runner named by `MERGE_GROUP_RUNNER` when set. Pull
+requests and manual runs always use the standard `ubuntu-24.04` runner, as do `main` and merge
+groups while their respective variable is unset. The `main` run saves the `.lake` snapshot and
+stages the remote-cache publication, so a faster one publishes caches for more landed commits;
+setting `MERGE_GROUP_RUNNER` likewise drains queued merge batches sooner when queue wait rises.
+The cache keys depend on the operating system, architecture and base image family (`ImageOS`), not
+the runner size or image patch version, so standard and larger runners share both `.lake`
+snapshots and merge-group handoffs.
 
 Larger runners are billed per minute even in public repositories. If the organization's Actions
 budget is exhausted or the runner is unavailable, the job fails before a runner is allocated:
-`main` shows a failed run and publishes no cache, while merging continues. Delete the variable
-(`gh variable delete MAIN_BUILD_RUNNER`) to return `main` to the standard runner without a
-commit. A pull request from a branch of this repository runs its own copy of the workflow, so
-this expression does not stop a branch from naming a billed runner; restrict the runner group in
-the organization's settings for that.
+`main` shows a failed run and publishes no cache, while merging continues. Delete either variable
+(`gh variable delete MAIN_BUILD_RUNNER` / `gh variable delete MERGE_GROUP_RUNNER`) to return that
+event to the standard runner without a commit. A pull request from a branch of this repository
+runs its own copy of the workflow, so this expression does not stop a branch from naming a billed
+runner; restrict the runner group in the organization's settings for that.
 
 ## Merge-queue handoff
 
@@ -198,7 +203,9 @@ The handoff accepts only the latest run's current successful attempt of `lean_ac
 this repository, triggered by `merge_group` for the exact landed commit. It checks the source,
 run and attempt, toolchain, Lake configuration, dependency manifest and runner platform before
 installing outputs. Native validation tools are included, so unlike the public per-module cache,
-this handoff requires a matching runner OS, architecture and image version. The artifact name
+this handoff requires a matching runner OS, architecture and base image family (`ImageOS`,
+excluding `ImageVersion` patch builds so standard and larger `ubuntu-24.04` runners share
+handoffs across concurrent minor image rollouts). The artifact name
 includes a hash of the expected source, configuration, platform and recovery generation. Readers
 select a compatible artifact before downloading it and independently check the downloaded
 metadata and archive. Artifacts produced before this naming change miss until they expire.
@@ -206,8 +213,9 @@ A missing artifact, a rerun
 still in progress, a changed commit or incompatible metadata leaves the normal build in place.
 It never waits for another run to finish and does not reuse artifacts from pull-request runs.
 
-`scripts/cache_handoff.py` writes a gzip-compressed tar archive with four pigz workers when
-available and Python gzip otherwise. It records the archive digest and provenance, validates
+`scripts/cache_handoff.py` writes and unpacks a gzip-compressed tar archive through `pigz` (up to
+8 workers matching `os.cpu_count()`) when available, falling back to Python gzip/tarfile
+otherwise. It records the archive digest and provenance, validates
 the complete archive before restoration, and swaps the root build directory without modifying
 existing hard-linked cache objects. Merge groups do not publish to GCS: the normal successful
 `main` run remains the only public-cache writer. This makes its outputs available sooner to
@@ -278,10 +286,12 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   code), hashes and traces. It omits only `ir/**/*.setup.json` and `ir/**/*.irsetup.json`: Lake's
   transient compiler setup inputs. Lake writes these inside a compilation action and does not
   require them to reuse completed modules. Other JSON files are retained. File-type/link checks
-  still cover omitted entries. The payload limits are 300,000 files, 12 GiB unpacked and 4 GiB
-  compressed; a full build measured 101,848 files, 4.64 GB and 1.67 GB on November 8, 2026. The
-  earlier 100,000-file, 4 GiB and 1 GiB limits had been outgrown, which silently disabled the
-  handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit miss or any
+  still cover omitted entries. The payload limits are 500,000 files, 20 GiB unpacked and 8 GiB
+  compressed (`480`s download timeout); a full build measured 172,812 files, 7.53 GB unpacked and
+  2.64 GB compressed on November 21, 2026 (up from 101,848 files, 4.64 GB and 1.67 GB on
+  November 8, 2026). The earlier limits had been outgrown or approached, which could silently
+  disable the handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit
+  miss or any
   other unavailable handoff is a workflow warning on the run summary.
 - **Kill switch.** Setting the repository variable `DISABLE_BUILD_HANDOFF` to `1` or `true`
   (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables merge-group staging and all handoff

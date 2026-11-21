@@ -101,9 +101,12 @@ class PrepareRunnerTests(unittest.TestCase):
         self.assertLess(workflow.index("scripts/ci/prepare-runner.sh"),
                         workflow.index("- name: Restore .lake from the Actions cache"))
 
-    def test_only_pushes_to_main_can_select_the_billed_runner(self):
-        selected = ("${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && "
-                    "vars.MAIN_BUILD_RUNNER || 'ubuntu-24.04' }}")
+    def test_only_main_pushes_and_merge_groups_can_select_a_billed_runner(self):
+        selected = (
+            "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && "
+            "vars.MAIN_BUILD_RUNNER || github.event_name == 'merge_group' && "
+            "vars.MERGE_GROUP_RUNNER || 'ubuntu-24.04' }}"
+        )
         for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
             for line in path.read_text().splitlines():
                 if line.strip().startswith("runs-on:"):
@@ -113,6 +116,7 @@ class PrepareRunnerTests(unittest.TestCase):
         lean = (ROOT / ".github/workflows/lean_action_ci.yml").read_text()
         job = lean.split("  lean-checks:\n", 1)[1].split("\n  ci-checks:\n", 1)[0]
         self.assertIn(f"    runs-on: {selected}\n", job)
+        self.assertNotIn("pull_request", selected)
 
 
 if __name__ == "__main__":

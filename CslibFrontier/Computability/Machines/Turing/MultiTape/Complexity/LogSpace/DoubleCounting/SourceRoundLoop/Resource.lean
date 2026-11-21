@@ -159,7 +159,7 @@ private theorem singleRound_withInit (r : Registers κ) :
 theorem admissible_closed (input : List Bool) :
     Closed (singleRound) (entryRound) SourceRound.answer input
       (Admissible context (size context) limit) := by
-  intro r hr hpositive bits a hanswer _ _
+  intro r hr hpositive bits a _ hanswer _ _
   have hreentry := singleRound_withInit size source callee calleeStart calleeReply context limit r
   rw [← run_withInit, hreentry] at hanswer
   exact admissible_advance_of_round_answer size source callee calleeStart calleeReply

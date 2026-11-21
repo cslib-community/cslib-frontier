@@ -415,7 +415,7 @@ class HandoffTests(unittest.TestCase):
         changes = (lambda meta: meta.update(source_sha="f" * 40),
                    lambda meta: meta["inputs"].update({"lean-toolchain": "different"}),
                    lambda meta: meta["platform"].update(RUNNER_ARCH="ARM64"),
-                   lambda meta: meta["platform"].update(ImageVersion="different"),
+                   lambda meta: meta["platform"].update(ImageOS="ubuntu22"),
                    lambda meta: meta["producer"].update(run_attempt=2),
                    lambda meta: meta["archive"].update(sha256="0" * 64),
                    lambda meta: meta["archive"].update(files=handoff.MAX_FILES + 1))
@@ -564,11 +564,57 @@ class HandoffTests(unittest.TestCase):
                                          timeout=handoff.DOWNLOAD_SECONDS)
 
     def test_limits_hold_a_measured_full_build(self):
-        # A full build measured on 2026-11-08; the limits must keep headroom above it.
-        files, unpacked, packed = 101_848, 4_639_707_458, 1_665_078_866
+        # Full build measured on 2026-11-21 (`merge_group` handoff); limits must keep headroom.
+        files, unpacked, packed = 172_812, 7_531_960_728, 2_637_860_662
         self.assertGreaterEqual(handoff.MAX_FILES, 2 * files)
         self.assertGreaterEqual(handoff.MAX_BYTES, 2 * unpacked)
         self.assertGreaterEqual(handoff.MAX_ARCHIVE_BYTES, 2 * packed)
+
+    def test_cross_image_version_on_same_os_shares_handoff(self):
+        self.pack()
+        (self.build / "lib/lean/Example.olean").write_bytes(b"old")
+        self.env["ImageVersion"] = "20261116.376.1"
+        self.restore()
+        self.assertEqual((self.build / "lib/lean/Example.olean").read_bytes(), b"compiled")
+
+    def test_unpack_succeeds_with_and_without_pigz_and_rejects_corrupt_stream(self):
+        self.pack()
+        archive = self.output / "build.tar.gz"
+        context = handoff.source_context(self.root, self.env, "merge_group")
+        run = self.api.runs[0]
+        for use_pigz in (True, False):
+            dest = self.base / f"unpack-{use_pigz}"
+            dest.mkdir()
+            with patch.object(handoff.shutil, "which",
+                              return_value=shutil.which("pigz") if use_pigz else None):
+                unpacked = handoff.unpack(self.output, dest, context, run)
+            self.assertEqual((unpacked / "lib/lean/Example.olean").read_bytes(), b"compiled")
+        # Truncated archive fails under both pigz and stdlib tarfile; flipped CRC is caught by
+        # pigz stream verification (and `unpack` verifies full SHA-256 before reading in all modes).
+        raw = archive.read_bytes()
+        truncated = self.base / "truncated.tar.gz"
+        truncated.write_bytes(raw[:max(1, len(raw) // 2)])
+        for use_pigz in (True, False):
+            with self.subTest(case="truncated", use_pigz=use_pigz), \
+                 patch.object(handoff.shutil, "which",
+                              return_value=shutil.which("pigz") if use_pigz else None), \
+                 self.assertRaises((tarfile.TarError, EOFError, OSError)):
+                with handoff.open_gzip_tar_reader(truncated) as bundle:
+                    for member in bundle:
+                        f = bundle.extractfile(member)
+                        if f is not None:
+                            f.read()
+        if shutil.which("pigz"):
+            bad_crc = self.base / "badcrc.tar.gz"
+            flipped = bytearray(raw)
+            flipped[-6] ^= 0xFF
+            bad_crc.write_bytes(bytes(flipped))
+            with self.assertRaises(tarfile.ReadError):
+                with handoff.open_gzip_tar_reader(bad_crc) as bundle:
+                    for member in bundle:
+                        f = bundle.extractfile(member)
+                        if f is not None:
+                            f.read()
 
 
 class AncestorAPI:
@@ -712,14 +758,23 @@ class AncestorHandoffTests(unittest.TestCase):
                 self.restore()
                 self.assertEqual(self.downloads, [202])
 
-    def test_nearer_build_from_another_runner_image_is_skipped_before_downloading(self):
+    def test_nearer_build_from_another_runner_os_is_skipped_before_downloading(self):
         self.history(2)
         self.handoff(2)
-        with patch.dict(self.env, {"ImageVersion": "next-image"}):
+        with patch.dict(self.env, {"ImageOS": "ubuntu22"}):
             self.handoff(1)
         self.restore()
         self.assertEqual(self.downloads, [202])
         self.assertEqual((self.build / self.olean).read_bytes(), b"built 2 back")
+
+    def test_nearer_build_with_different_image_patch_version_is_reused(self):
+        self.history(2)
+        self.handoff(2)
+        with patch.dict(self.env, {"ImageVersion": "20261116.376.1"}):
+            self.handoff(1)
+        self.restore()
+        self.assertEqual(self.downloads, [201])
+        self.assertEqual((self.build / self.olean).read_bytes(), b"built 1 back")
 
     def test_a_later_failed_run_of_the_ancestor_overrides_its_old_success(self):
         self.history(2)
@@ -785,7 +840,7 @@ class AncestorHandoffTests(unittest.TestCase):
                    lambda meta: meta.update(repository="other/repo"),
                    lambda meta: meta.update(cache_recovery_generation="1"),
                    lambda meta: meta["inputs"].update({"lakefile.toml": "different"}),
-                   lambda meta: meta["platform"].update(ImageVersion="different"),
+                   lambda meta: meta["platform"].update(ImageOS="ubuntu22"),
                    lambda meta: meta["producer"].update(run_attempt=2),
                    lambda meta: meta["producer"].update(event="push"),
                    lambda meta: meta["archive"].update(sha256="0" * 64))
@@ -793,7 +848,7 @@ class AncestorHandoffTests(unittest.TestCase):
             (self.output / "metadata.json").write_bytes(original)
             self.metadata(change)
             self.assert_miss("mismatch|Invalid archive", self.download)
-        self.env["ImageVersion"] = "20261101.1"
+        self.env["ImageOS"] = "ubuntu22"
         (self.output / "metadata.json").write_bytes(original)
         self.assert_miss("compatible run-attempt")
 
