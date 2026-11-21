@@ -159,6 +159,57 @@ theorem uniformPrefixes_matrixSetup (base : Xofs) (s : Level) {a b : ℕ}
     Function.comp_def] using
     uniformPrefixes_resampleMatrix base s ha hb (fun H seed => PMF.pure (readSetup s H seed))
 
+/-- The mass of a successful Algorithm 6 setup at any particular matrix is at most its
+uniform mass. The comparison averages over the seed and raw XOFs and retains setup failure. -/
+theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 272 ≤ a) (hb : 894 ≤ b) (A : PublicMatrix s) :
+    let matrices := (base.uniformPrefixes a b).bind fun H =>
+      (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+        let keys ← H.keyGen s seed
+        H.expandA s (keys.publicKey.take 32)
+    matrices (some A) ≤ PMF.uniformOfFintype (PublicMatrix s) A := by
+  classical
+  intro matrices
+  let R := base.uniformPrefixes a b
+  let U := PMF.uniformOfFintype (PublicMatrix s)
+  let f (x : Xofs × Option (PublicMatrix s × KeyPair)) := x.2.map Prod.fst
+  let setup := R.bind fun H => matrixSetup H s
+  have eq : setup.map f = matrices := by
+    rw [show setup = _ from uniformPrefixes_matrixSetup base s ha hb]
+    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, matrices]
+    apply congrArg (PMF.bind R ·)
+    funext H
+    apply congrArg (PMF.map · _)
+    funext seed
+    simp only [f]
+    cases H.keyGen s seed with
+    | none => rfl
+    | some k =>
+      simp only [Option.bind_eq_bind, Option.bind_some]
+      cases H.expandA s (k.publicKey.take 32) <;> rfl
+  rw [← eq]
+  have on (H : Xofs) : (matrixSetup H s).map f (some A) ≤ (U.map some) (some A) := by
+    rw [← uniform_programmedMatrixSetup, PMF.map_bind]
+    change _ ≤ U.bind (fun B => PMF.pure (some B)) (some A)
+    apply PMF.bind_apply_mono_on_support
+    intro B _
+    by_cases h : A = B
+    · subst B
+      simpa only [PMF.pure_apply_self] using
+        PMF.coe_le_one (((programmedMatrixSetup H s A).eval).map f) (some A)
+    · rw [PMF.pure_apply, ite_eq_right (show some A ≠ some B from fun e => h (Option.some.inj e))]
+      apply le_of_eq
+      apply (PMF.apply_eq_zero_iff _ _).mpr
+      intro hit
+      obtain ⟨⟨G, o⟩, mem, val⟩ := (PMF.mem_support_map_iff ..).mp hit
+      rcases o with _ | ⟨B', keys⟩
+      · cases val
+      · have same := (keyGen_of_mem_programmedMatrixSetup mem).2.1
+        exact h ((Option.some.inj val).symm.trans same)
+  have h := PMF.bind_apply_mono_on_support R (some A) (fun H _ => on H)
+  simpa [setup, PMF.map_bind, U, PMF.map_apply] using h
+
+
 namespace QuantumSigningForger
 
 private theorem forgery_from_setup (C : QuantumSigningForger) (s : Level) (H : Xofs)

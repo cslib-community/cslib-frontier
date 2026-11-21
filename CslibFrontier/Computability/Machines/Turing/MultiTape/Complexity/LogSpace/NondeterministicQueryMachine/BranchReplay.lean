@@ -24,6 +24,7 @@ choice traces (`FirstHalting`) correspond exactly to unique halted native occurr
 with the same verdict. An initially halted source reaches the finalizer without any choice.
 `branchCount_eq_encard_firstHalting` counts the first-halting traces by verdict at a sufficient
 native clock. The full native class-equality theorem remains in #6747.
+`existsUnique_accepting_replay_iff` specializes the replay correspondence to acceptance.
 -/
 
 public section
@@ -405,6 +406,24 @@ theorem existsUnique_replay_iff (a : α) (bits : List Bool) :
     refine ⟨List.replicate n 0 ++ rest, ⟨final, hr, hhalt⟩, ?_⟩
     rintro indices ⟨final', hr', hhalt'⟩
     exact Native.eq_occurrences_of_replayChoices R.I R.P R.F R.C hr' hr hhalt' hhalt
+
+/-- A fixed selector list has exactly one accepting native occurrence list iff its
+abstract replay first halts at the end of that list and accepts. -/
+theorem existsUnique_accepting_replay_iff (a : α) (bits : List Bool) :
+    (∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
+      (R.machine.initCfg (enc a)) indices = some (bits, final) ∧
+      final.Halted ∧ final.output = [true]) ↔
+    M.FirstHalting (enc a) bits (start a) ∧ M.accept (M.replay (enc a) bits (start a)) = true := by
+  constructor
+  · rintro ⟨_, ⟨final, hreplay, hhalt, hout⟩, _⟩
+    obtain ⟨hfirst, houtput⟩ := R.replay_correct a hreplay hhalt
+    exact ⟨hfirst, (List.cons.inj (houtput.symm.trans hout)).1⟩
+  · rintro ⟨hfirst, haccept⟩
+    obtain ⟨indices, ⟨final, hreplay, hhalt⟩, hunique⟩ :=
+      (R.existsUnique_replay_iff a bits).mpr hfirst
+    have hout := (R.replay_correct a hreplay hhalt).2
+    exact ⟨indices, ⟨final, hreplay, hhalt, by rwa [haccept] at hout⟩,
+      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
 
 /-- At a sufficient native clock, the counted occurrences for a
 verdict are in bijection with the first-halting abstract choice traces for that verdict. The

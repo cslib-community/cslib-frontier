@@ -99,13 +99,13 @@ private theorem update_then_write (D : I → V) (x i : I) (v w : V) :
 
 -- A later terminal write at the sampled address removes the earlier change on both branches.
 private theorem terminalRetries_stable (μ : PMF Y) (ν : PMF V) (addr : Y → I)
-    (out : Y → V → Option (Option R)) (done : (I → V) → Option R → Game) {B : ℝ}
+    {target : Y → I} (out : Y → V → Option (Option R)) (done : (I → V) → Option R → Game) {B : ℝ}
     (tail : ∀ D (rep : Y → V) r,
-      PMF.meanAbsDiffAt μ true (fun y => done (Function.update D (addr y) (rep y)) r)
+      PMF.meanAbsDiffAt μ true (fun y => done (Function.update D (target y) (rep y)) r)
         (fun _ => done D r) ≤ B)
     (fuel : ℕ) (D : I → V) (rep : Y → V) :
     PMF.meanAbsDiffAt μ true (fun y => runRetries μ ν addr out done false fuel
-        (Function.update D (addr y) (rep y)))
+        (Function.update D (target y) (rep y)))
       (fun _ => runRetries μ ν addr out done false fuel D) ≤ B := by
   induction fuel generalizing D with
   | zero => exact tail D rep none
@@ -185,6 +185,18 @@ private theorem installedAttempt_eq (s : Level) (H : Xofs) (A : PublicMatrix s)
     tabulateRingVector_eq, digest_at H s _ _ List.length_ofFn, maskCommitmentAddress,
     Function.update_self, challenge_off, attemptResult, digestBytesAt]
 
+-- The continuation sees the final digest register on every exit, including exhaustion.
+private noncomputable def registerRequest (s : Level) (H : Xofs) (A : PublicMatrix s)
+    (sk : PrivateKey s) (q : SigningQuery)
+    (D : BitString s.commitmentInputBits → BitString (8 * digestBytes s)) (keepRejected : Bool)
+    (done : (BitString s.commitmentInputBits → BitString (8 * digestBytes s)) →
+      Option (List Byte) → Game) : Game :=
+  if 255 < q.context.length then done D none else
+    let m := BitString.ofList 512 ((H.withDigestRegister s D).representativeFromTr sk.tr
+      (formatMessage q.message q.context))
+    runRegisterRetries (signingMaskLaw s.params (by cases s <;> decide)) (PMF.uniformOfFintype _)
+      (maskCommitmentAddress s A m) (installedAttempt s H A sk m) done keepRejected 814 D
+
 /-- Resume the current signing request from its decoded key and matrix. Each attempt draws a
 fresh mask and digest. The two rules differ only on norm or hint rejection. Sparse-challenge
 exhaustion is terminal and publishes the attempted digest, as does a successful signature. -/
@@ -193,13 +205,8 @@ private noncomputable def retryCall (C : QuantumSigningForger) (s : Level) (H : 
     (D : BitString s.commitmentInputBits → BitString (8 * digestBytes s)) (keepRejected : Bool)
     (k : Option (List Byte) → C.Program Forgery) (dev : C.Device) (log : List Forgery)
     (rows : List (FixedBytes 2 → FixedBytes (maskPolyBytes s))) : Game :=
-  let done T r := C.expansionContinuation s (H.withDigestRegister s T) A keys (k r) dev
-    (q.logReply r log) rows
-  if 255 < q.context.length then done D none else
-    let m := BitString.ofList 512 ((H.withDigestRegister s D).representativeFromTr sk.tr
-      (formatMessage q.message q.context))
-    runRegisterRetries (signingMaskLaw s.params (by cases s <;> decide)) (PMF.uniformOfFintype _)
-      (maskCommitmentAddress s A m) (installedAttempt s H A sk m) done keepRejected 814 D
+  registerRequest s H A sk q D keepRejected fun T r =>
+    C.expansionContinuation s (H.withDigestRegister s T) A keys (k r) dev (q.logReply r log) rows
 
 /-- Erasing every rejected digest of one entire capped FIPS signing request changes the
 fresh-digest forgery probability by at most 814 times the native future-observation bound.
@@ -217,7 +224,7 @@ private theorem abs_retryCall_keep_sub_erase_le (C : QuantumSigningForger) (s : 
     |(p true : ℝ) - (p false : ℝ)| ≤ 814 * (4 * qH * √δ + (815 * qS + 2) * δ) := by
   classical
   intro δ p
-  simp only [p, Game.coe_succProbability, retryCall, installedAttempt_eq]
+  simp only [p, Game.coe_succProbability, retryCall, registerRequest, installedAttempt_eq]
   split
   · simp only [sub_self, abs_zero]
     positivity
@@ -316,15 +323,16 @@ private theorem erase_eq_freshMaskDraw (s : Level) (H : Xofs) (A : PublicMatrix 
       | none => exact ih
       | some t => simp only [PMF.pure_bind, ret]
 
-private theorem erase_eq_signingCall (C : QuantumSigningForger) (s : Level) (H base : Xofs)
-    (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (q : SigningQuery)
+private theorem registerRequest_eq_signingCall (s : Level) (H base : Xofs)
+    (A : PublicMatrix s) (sk : PrivateKey s) (q : SigningQuery)
     (D : BitString s.commitmentInputBits → BitString (8 * digestBytes s))
     (st : History s base sk.tr) (current : st.xofs = H.withDigestRegister s D)
-    (k : Option (List Byte) → C.Program Forgery) (dev : C.Device)
-    (rows : List (FixedBytes 2 → FixedBytes (maskPolyBytes s))) :
-    C.retryCall s H A keys sk q D false k dev st.log rows =
-      (signingCall s sk.tr (freshMaskDraw s A sk) q st).bind fun (r, state) =>
-        C.expansionContinuation s state.xofs A keys (k r) dev state.log rows := by
+    (done : (BitString s.commitmentInputBits → BitString (8 * digestBytes s)) →
+      Option (List Byte) → Game) (next : Option (List Byte) → History s base sk.tr → Game)
+    (agree : ∀ T r state, state.xofs = H.withDigestRegister s T →
+      state.log = q.logReply r st.log → done T r = next r state) :
+    registerRequest s H A sk q D false done =
+      (signingCall s sk.tr (freshMaskDraw s A sk) q st).bind fun (r, state) => next r state := by
   classical
   obtain ⟨X, log, writes, hist, exhausted, signed⟩ := st
   change X = H.withDigestRegister s D at current
@@ -334,24 +342,25 @@ private theorem erase_eq_signingCall (C : QuantumSigningForger) (s : Level) (H b
   let m := BitString.ofList 512 (G.representativeFromTr sk.tr fmt)
   have mEq : List.ofFn m = G.representativeFromTr sk.tr fmt := BitString.ofFn_ofList
     (by simp only [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read])
-  let done T r := C.expansionContinuation s (H.withDigestRegister s T) A keys (k r) dev
-    (q.logReply r log) rows
   by_cases ctx : 255 < q.context.length
-  · simp only [retryCall, signingCall, ctx, ↓reduceIte, PMF.monad_pure_eq_pure,
-      PMF.pure_bind, SigningQuery.logReply]
-  · simp only [retryCall, signingCall, ctx, ↓reduceIte, installedAttempt_eq, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, PMF.bind_bind]
+  · simp only [registerRequest, signingCall, ctx, ↓reduceIte, PMF.monad_pure_eq_pure, PMF.pure_bind]
+    exact agree D none _ rfl rfl
+  · simp only [registerRequest, signingCall, ctx, ↓reduceIte, installedAttempt_eq,
+      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind]
     have runs := erase_eq_freshMaskDraw s H A sk m D done (List.range 814)
     rw [List.length_range] at runs
     refine runs.trans ?_
     apply congrArg (PMF.bind ((List.range 814).findSomeM? fun _ => freshMaskDraw s A sk G) ·)
     funext t
     cases t with
-    | none => simp only [PMF.pure_bind, done, SigningQuery.logReply]
+    | none =>
+      simp only [PMF.pure_bind]
+      exact agree D none _ rfl rfl
     | some t =>
+      simp only [PMF.pure_bind]
+      apply agree _ _ _ _ rfl
       have length := commitmentInput_length s t.point (μ := List.ofFn m) List.length_ofFn
-      simp only [PMF.pure_bind, done, Xofs.withDigestRegister_update]
-      rw [BitString.ofFn_ofList length, mEq]
+      rw [Xofs.withDigestRegister_update, BitString.ofFn_ofList length, mEq]
 
 /-- Compare the two ways to handle rejected commitment writes in one hedged signing request
 after masks and digests have been refreshed. With `keepRejected = false` the request is served
@@ -402,12 +411,17 @@ theorem abs_freshDigestSigningCall_keep_sub_erase_le (C : QuantumSigningForger) 
     | some A =>
       let G := H.withDigestRegister s D
       let st : History s G sk.tr := ⟨G, log, [], .initial, by simp, by simp⟩
-      have same := erase_eq_signingCall C s H G A keys sk q D st rfl k dev rows
+      have same := registerRequest_eq_signingCall s H G A sk q D st rfl
+        (fun T r => C.expansionContinuation s (H.withDigestRegister s T) A keys
+          (k r) dev (q.logReply r st.log) rows)
+        (fun r state => C.expansionContinuation s state.xofs A keys (k r) dev state.log rows)
+        (fun T r state table log => by rw [table, log])
       have bound := abs_retryCall_keep_sub_erase_le C s H A keys sk q D k dev st.log rows hash calls
       dsimp only at bound
+      unfold retryCall at bound
       rw [same] at bound
-      simpa only [hm, Option.pure_def, Option.bind_eq_bind, Option.bind_some, Option.getD_some,
-        Bool.false_eq_true, ↓reduceIte, st, G] using bound
+      simpa only [retryCall, hm, Option.pure_def, Option.bind_eq_bind, Option.bind_some,
+        Option.getD_some, Bool.false_eq_true, ↓reduceIte, st, G] using bound
 
 private theorem scored_no_sign (C : QuantumSigningForger) (s : Level) (base : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (prog : C.Program Forgery)

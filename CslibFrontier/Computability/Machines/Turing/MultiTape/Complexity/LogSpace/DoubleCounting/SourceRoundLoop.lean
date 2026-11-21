@@ -847,19 +847,14 @@ theorem native_firstHalting_accept_iff {α : Type} {enc : α ↪ List Bool} {S :
   have haccept (s : State κ ρ μ) :
       (M).accept s = true ↔ ∃ verdict, s = .inr (some verdict) := by
     rcases s with _ | (_ | verdict) <;> simp [machine, reply]
+  rw [routines.existsUnique_accepting_replay_iff]
   constructor
-  · rintro ⟨_, ⟨final, hreplay, hhalt, hout⟩, _⟩
-    obtain ⟨hfirst, houtput⟩ := routines.replay_correct a hreplay hhalt
-    obtain ⟨verdict, hresult⟩ := (haccept _).mp (List.cons.inj (houtput.symm.trans hout)).1
+  · rintro ⟨hfirst, htrue⟩
+    obtain ⟨verdict, hresult⟩ := (haccept _).mp htrue
     exact ⟨verdict, (hspec verdict).mp ⟨hfirst, hresult⟩⟩
   · rintro ⟨verdict, hrun⟩
     obtain ⟨hfirst, hresult⟩ := (hspec verdict).mpr hrun
-    obtain ⟨indices, ⟨final, hreplay, hhalt⟩, hunique⟩ :=
-      (routines.existsUnique_replay_iff a bits).mpr hfirst
-    have hout := (routines.replay_correct a hreplay hhalt).2
-    have ha := (haccept _).mpr ⟨verdict, hresult⟩
-    exact ⟨indices, ⟨final, hreplay, hhalt, by rwa [ha] at hout⟩,
-      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
+    exact ⟨hfirst, (haccept _).mpr ⟨verdict, hresult⟩⟩
 
 end Native
 

@@ -233,4 +233,40 @@ theorem sum_norm_sub_sq_le_of_agreement (φ : AlgState A) (P Q : Measurement α 
     ∑ a, φ.norm (P.effect a - Q.effect a) ^ 2 ≤ 2 * ε := by
   linarith [sum_norm_sub_sq_le φ P Q h]
 
+/-- If two binary measurements have commuting effects, the squared distance between their
+observables is at most four times the probability that they disagree. -/
+theorem norm_observable_sub_sq_le (φ : AlgState A) (P Q : Measurement Bool A)
+    (h : ∀ a, Commute (P.effect a) (Q.effect a)) :
+    φ.norm (P.observable - Q.observable) ^ 2 ≤ 4 * (1 - agreement φ P Q) := by
+  have htrue (M : Measurement Bool A) : M.effect true = 1 - M.effect false := by
+    have hsum := M.sum_effect
+    rw [Fintype.sum_bool] at hsum
+    exact eq_sub_of_add_eq hsum
+  have hneg : P.effect true - Q.effect true = -(P.effect false - Q.effect false) := by
+    rw [htrue P, htrue Q]
+    abel
+  have hobs : P.observable - Q.observable = (2 : ℂ) • (P.effect false - Q.effect false) := by
+    rw [observable, observable, sub_sub_sub_comm, hneg, sub_neg_eq_add, two_smul]
+  have hdist := sum_norm_sub_sq_le φ P Q h
+  rw [Fintype.sum_bool, hneg, φ.norm_neg] at hdist
+  rw [hobs, φ.norm_smul]
+  norm_num
+  nlinarith
+
+/-- The squared distance of a binary observable from the identity is bounded by
+four times its true outcome probability. -/
+theorem norm_observable_sub_one_sq_le (φ : AlgState A) (M : Measurement Bool A) :
+    φ.norm (M.observable - 1) ^ 2 ≤ 4 * M.prob φ true := by
+  let constant : Measurement Bool A := const false
+  have hcomm (b : Bool) : Commute (M.effect b) (constant.effect b) := by
+    cases b <;> simp [constant, const]
+  have h := norm_observable_sub_sq_le φ M constant hcomm
+  have hobs : constant.observable = 1 := by simp [constant, const, observable]
+  have hagree : agreement φ M constant = M.prob φ false := by
+    simp [agreement, constant, const, prob]
+  rw [hobs, hagree] at h
+  have htotal := M.sum_prob φ
+  rw [Fintype.sum_bool] at htotal
+  linarith
+
 end Cslib.Quantum.Measurement

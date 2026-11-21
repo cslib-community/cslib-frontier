@@ -69,6 +69,18 @@ private theorem scored_coin {C : QuantumSigningForger} {α V : Type} [Zero V]
   simp [OracleComp.withSampleListWhen, isSigningCall, signingCommand, OracleComp.sumHandler,
     StateT.lift, StateT.run, pmf_norm]
 
+private theorem scored_device {C : QuantumSigningForger} {α V : Type} [Zero V]
+    {cmd : DeviceRequest (Width C) Empty} {k : List Bool → Program C α}
+    (H : Xofs) (sign : V → SigningQuery → Option (List Byte))
+    (test : α → List Forgery → List V → Test C) (d : Device C) (log : List Forgery)
+    (tape : List V) :
+    scored (OracleComp.query (.inr (.inl cmd)) >>= k) H sign test d log tape =
+      (C.deviceCommand H cmd (d, log)).bind
+        fun (r, st, _) => scored (k r) H sign test st log tape := by
+  rw [scored_step]
+  simp [OracleComp.withSampleListWhen, isSigningCall, signingCommand, deviceCommand,
+    OracleComp.sumHandler, StateT.run, pmf_norm, Function.comp_def]
+
 private theorem scored_gate {C : QuantumSigningForger} {α V : Type} [Zero V]
     {code : PhaseGateCode} {k : List Bool → Program C α}
     (T : Xofs) (sign : V → SigningQuery → Option (List Byte))
@@ -151,6 +163,32 @@ private theorem test_instruction {C : QuantumSigningForger} (H : Xofs) (code : O
     simp only [POVM.measureDensity_apply, POVM.densityProb_comap, DeviceState.instruction_apply,
       h, DeviceState.evolve_density, U, coe_onFirst]
 
+-- Pull a readout back through one actual device instruction, with the rest of the
+-- computation allowed to depend on a measured reply.
+private theorem device_readout {C : QuantumSigningForger} {σ : Type} (G : Xofs)
+    (cmd : DeviceRequest (Width C) Empty) (s : σ) (tail : List Bool → Device C → Game)
+    (test : ∀ r, ∃ M : Test C, ∀ d : Device C,
+      tail r d = M.measureDensity d.density d.isDensityMatrix) :
+    ∃ E : Test C, ∀ d : Device C,
+      ((C.deviceCommand G cmd (d, s)).bind fun (r, st, _) => tail r st) =
+        E.measureDensity d.density d.isDensityMatrix := by
+  choose M law using test
+  cases cmd with
+  | service op _ => exact op.elim
+  | gate g =>
+    simpa only [deviceCommand, deviceHandler_gate, pmf_norm, Function.comp_def, law] using
+      test_instruction G (.gate g) (M [])
+  | query =>
+    simpa only [deviceCommand, deviceHandler_query, pmf_norm, Function.comp_def, law] using
+      test_instruction G .query (M [])
+  | measure wire =>
+    let f := fun (z : (Fin (Width C) → Bool) × Unit) => z.1 wire
+    refine ⟨POVM.afterRead f (fun y => M [y]), fun d => ?_⟩
+    simp only [deviceCommand, deviceHandler_measure, pmf_norm, Function.comp_def, law,
+      POVM.measureDensity_afterRead]
+    exact DeviceState.measure_bind (fun x => x wire) d
+      (fun y st => (M [y]).measureDensity st.density st.isDensityMatrix)
+
 -- Pull the terminal effect back through the actual adaptive program. Fixing the log and tape
 -- leaves a single measurement that works for every density matrix on the retained register.
 private theorem scored_readout {C : QuantumSigningForger} {α V : Type} [Zero V]
@@ -168,21 +206,8 @@ private theorem scored_readout {C : QuantumSigningForger} {α V : Type} [Zero V]
     rcases q with coin | cmd | ask
     · exact ⟨POVM.mixture (ProbComp.unifOracle coin) (fun i => M i log tape), fun d => by
         simp only [scored_coin (C := C) (k := k) (coin := coin), eq, POVM.measureDensity_mixture]⟩
-    · cases cmd with
-      | service op _ => exact op.elim
-      | gate g =>
-        simpa only [scored_gate (C := C) (k := k) (code := g), eq] using
-          test_instruction H (.gate g) (M [] log tape)
-      | query =>
-        simpa only [scored_query (C := C) (k := k), eq] using
-          test_instruction H .query (M [] log tape)
-      | measure wire =>
-        let f := fun (z : (Fin (Width C) → Bool) × Unit) => z.1 wire
-        refine ⟨POVM.afterRead f (fun y => M [y] log tape), fun d => ?_⟩
-        simp only [scored_measure (C := C) (k := k) (wire := wire), eq,
-          POVM.measureDensity_afterRead]
-        exact DeviceState.measure_bind (fun x => x wire) d
-          (fun y dev => (M [y] log tape).measureDensity dev.density dev.isDensityMatrix)
+    · simp only [scored_device (C := C) (cmd := cmd) (k := k)]
+      exact device_readout H cmd log _ (fun r => ⟨M r log tape, eq r log tape⟩)
     · exact ⟨_, fun d => by rw [scored_sign (C := C) (k := k) (ask := ask), eq]⟩
 
 private noncomputable def basisScore {C : QuantumSigningForger}
