@@ -29,7 +29,7 @@ not the exercise itself. `Cslib.Crypto.Encryption.hybrid_indcca2On` adds the two
 DEM side, `SymmetricCipher.ctSpace` models the ciphertext space `C` and `OneTimeINDCCA` answers
 decryption queries outside `C` with the rejection `[]` (`decrypt_eq_none_of_ctSpace_eq_false`), so
 on an efficiently recognizable `C` it matches Attack Game 9.2 (Definition 9.6, printed pp. 362–363).
-The full exercise stays open on the KEM side (`#5293`, `#5686`).
+The full exercise stays open on the KEM side (#5293, #5686).
 
 ## Main definitions
 
@@ -497,15 +497,15 @@ theorem isPPTOn_hybridDEMGame (E : SymmetricCipher)
 
 /-- One-time symmetric CCA security of `E` makes the two DEM intermediate games `hybridDEMGame`
 indistinguishable with loss one: the DEM hop toward [BonehShoup2023], Exercise 12.5(a), not the
-cited result, which also needs the two KEM hops (`#5293`, `#5686`).
+cited result, which also needs the two KEM hops (#5293, #5686).
 
 `Cslib.Crypto.Encryption.hybrid_indcca2On` composes this hop with the two KEM hops. The source's
 1CCA security (Definition 9.6, printed p. 363) rests on Attack Game 9.2, whose decryption queries
 lie in the ciphertext space `C` (printed p. 362). Here `SymmetricCipher.ctSpace` represents `C`,
 and `decrypt_eq_none_of_ctSpace_eq_false` forces rejection (`[] = encOption encBits none`) on words
 outside `C`; when `E.ctSpace` is efficiently recognizable, an adversary can simulate those
-rejections itself, matching `OneTimeINDCCA` on `C`. Note that `ctSpace` defaults to
-`fun _ _ => true` (accepting every word) unless specialized on a cipher. -/
+rejections itself, so `OneTimeINDCCA` matches the source's 1CCA game on `C`. Note that `ctSpace`
+defaults to `fun _ _ => true` (accepting every word) unless specialized on a cipher. -/
 theorem _root_.Cslib.Crypto.SymmetricCipher.OneTimeINDCCA.indistinguishable_hybridDEMGame
     {E : SymmetricCipher} (hsecure : E.OneTimeINDCCA)
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}

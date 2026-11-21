@@ -24,8 +24,8 @@ drawn from `sampleMsg`; `PKE.owAdvantage` is the adversary's success probability
 the uniform law on a cyclic group through a generator. The book's `x̂ ∈ ℛ` is read as `x̂ ∈ 𝒳`.
 Definition 12.5 (one way: negligible advantage for every efficient adversary) is not stated here
 as a predicate; `CDH.elGamal_oneWay` states it for the fair-coin scheme `elGamalProbExplicitCoinPKE`
-(with `CDH.elGamal_oneWay_ideal` as the ideal-sampling step using exactly uniform exponents and
-typed adversaries).
+and typed adversaries (with `CDH.elGamal_oneWay_ideal` as the ideal-sampling step using exactly
+uniform exponents).
 
 ## Main definitions
 

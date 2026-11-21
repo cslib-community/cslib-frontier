@@ -31,10 +31,10 @@ On the KEM side, `kemCCARealGame` and `kemCCAIdealGame` strengthen the exercise'
 distinct ways: the distinguisher receives `(pk, (k, ct))`, where the printed challenger sends only
 the key and the encapsulation (#5293), and it may submit any word other than the challenge for
 decapsulation, where the exercise's queries lie in `C_kem` (#5686).
-On the DEM side, `SymmetricCipher.ctSpace` models the ciphertext space `C`
-(`decrypt_eq_none_of_ctSpace_eq_false` answers queries outside `C` with the rejection `[]`), so
-`SymmetricCipher.OneTimeINDCCA` matches Attack Game 9.2 (printed p. 362) on an efficiently
-recognizable `C` (default `C = all words`).
+On the DEM side, `SymmetricCipher.ctSpace` models the ciphertext space `C` (by
+`decrypt_eq_none_of_ctSpace_eq_false`, `decrypt` returns `none` outside `C`, which the oracle
+encodes as `[]`), so `SymmetricCipher.OneTimeINDCCA` matches Attack Game 9.2 (printed p. 362) on
+an efficiently recognizable `C` (default `C` is all words).
 
 The source's uniform key space is represented by uniform `keyLen n`-bit seeds followed by `F n`.
 An exact sampler identity relates this distribution to `E.keyGen n`; no uniformity of encoded
@@ -708,8 +708,7 @@ not the cited result, because its KEM premise gives the distinguisher `pk` and a
 decapsulation queries outside `C_kem` (#5293, #5686).
 
 The proof constructs both reductions, `hybridToKEMCCAHiddenBit` and `hybridToOneTimeCCAAdversary`,
-with their efficiency certificates. The premises differ from the exercise's (printed p. 513) as
-follows.
+with their efficiency certificates. Relative to the exercise's premises (printed p. 513):
 * KEM: in `kemCCARealGame` and `kemCCAIdealGame` the distinguisher receives `(pk, (k, ct))`, where
   the printed challenger sends only the key and the encapsulation (#5293), and it may submit any
   word other than the challenge for decapsulation, where the exercise's queries lie in `C_kem`

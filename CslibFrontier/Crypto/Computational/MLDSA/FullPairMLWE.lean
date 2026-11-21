@@ -36,7 +36,8 @@ open Cslib.Probability
 
 Caution: this splitter routes solely by bit length (`x.length = 528`). It is safe only for key
 generation (`fullPairExperiment`); do not apply it to signing or verification, where pure-mode
-`representativeInput tr (formatMessage [] [])` is also 66 bytes (528 bits). -/
+`representativeInput tr (formatMessage [] [])` (for 64-byte `tr`) and Algorithm 34's `maskPoly`
+(`ExpandMask`) queries are also 66 bytes (528 bits). -/
 def Xofs.withExpandSStream (H secret : Xofs) : Xofs :=
   {H with h256 := {
     read x n := if x.length = 528 then secret.h256.read x n else H.h256.read x n
