@@ -77,10 +77,18 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   configurationJustesenSubdivisionContext_inLogSpace ntm c
     (ComputableInLogSpace.snd encNat encBits) (ComputableInLogSpace.fst encNat encBits)
 
--- The initialized endpoint query gets the exact edge and the live-state bound from the
--- same concrete callback and flat request.
+-- A suspended caller can enter the same machine with new binary IDs and decode its reply.
+example :
+    let enc := encPair encJustesenSubdivisionContext (encPair encNat encNat)
+    ComputableInSpace justesenSubdivisionEdgeStart enc encJustesenSubdivisionState
+      (fun p => (enc p).length) ∧
+    ComputableInSpace callbackVerdict encJustesenSubdivisionState encBool
+      (fun s => (encJustesenSubdivisionState s).length) :=
+  ⟨justesenSubdivisionEdgeStart_inSpace, callbackVerdict_inSpace _ _⟩
+
+-- At the designated endpoints the decoded bit and every prefix fit the same call contract.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
-    ∃ C D, ∀ w : List Bool,
+    ∃ C, ∀ w : List Bool,
       let I := configurationInstance ntm c w
       let s := configurationSeedSearchSetup ntm c w
       let size := s.parameters.search.subdivision
@@ -92,23 +100,18 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       let v : Fin size.vertexCount :=
         ⟨s.targetID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).2⟩
       let M := justesenWeightedSubdivisionCallback ntm
-      let start := flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩
+      let start := justesenSubdivisionEdgeStart (ctx, u.val, v.val)
       (∀ t < 3, M.halted (M.runFrom w start t) = false) ∧
-        (∃ answer, M.runFrom w start 3 = .inl (.inr answer) ∧
-          M.halted (M.runFrom w start 3) = true ∧
-          (answer = true ↔ (graph (layeredDigraph I)
+        M.halted (M.runFrom w start 3) = true ∧
+        (callbackVerdict (M.runFrom w start 3) = true ↔
+          (graph (layeredDigraph I)
             (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj
-            (index.symm u) (index.symm v))) ∧
-        (encJustesenSubdivisionContext ctx).length ≤ D * (Nat.log2 w.length + 1) ∧
-        ∀ t ≤ 3, (encCallback encJustesenSubdivisionContext encLayeredCallback
-          (M.runFrom w start t)).length ≤
-          C * ((encJustesenSubdivisionContext ctx).length + (Nat.log2 w.length + 1)) := by
-  obtain ⟨C, hC⟩ := configurationJustesenWeightedSubdivisionCallback_states_le ntm c
-  obtain ⟨D, hD⟩ := length_configurationJustesenSubdivisionContext_le_log ntm c
-  refine ⟨C, D, fun w => ?_⟩
-  intro I s size index seed ctx u v
-  obtain ⟨hbefore, hreturn⟩ := configurationJustesenWeightedSubdivisionCallback_agrees
-    ntm c w u v seed
-  exact ⟨hbefore, hreturn, hD w seed.val seed.isLt, hC w ctx rfl u.val v.val u.isLt v.isLt⟩
+              (index.symm u) (index.symm v)) ∧
+        ∀ t ≤ 3, (encJustesenSubdivisionState (M.runFrom w start t)).length ≤
+          C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hC⟩ := configurationJustesenSubdivisionEdge_contract ntm c
+  refine ⟨C, fun w => ?_⟩
+  intro I s size index seed ctx u v M start
+  exact hC w seed u v
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall

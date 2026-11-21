@@ -260,6 +260,18 @@ use binary encodings, and the call stores the supplied callee encoding. -/
 def encState (encCallee : τ ↪ List Bool) : State N τ ↪ List Bool :=
   encOfEquiv (stateView N τ) (encView N encCallee)
 
+/-- A choice-phase word tags the framed register word followed by the destination reader. -/
+def choiceWord (registers : List Bool) (reader : NondeterministicChoice.State) : List Bool :=
+  encSum (encPair encBits NondeterministicChoice.encState) encBits (.inl (registers, reader))
+
+/-- A walk entry encodes the supplied registers and the initial destination reader. -/
+theorem encState_init (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
+    (verdict : τ → Bool) (clock : ℕ) (r : Registers N) (encCallee : τ ↪ List Bool) :
+    encState encCallee (machine edge start verdict clock r).init =
+      choiceWord (encRegisters N r) (NondeterministicChoice.machine N).init := by
+  unfold machine boundary encState choiceWord
+  rfl
+
 variable (edge : QueryMachine τ) (start : Fin N → Fin N → τ) (verdict : τ → Bool)
   (clock : ℕ) (initial : Registers N) (input : List Bool)
 
@@ -829,12 +841,21 @@ open MultiTapeTM ComputableInSpace
 
 variable {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ} {encCallee : τ ↪ List Bool}
 
+/-- Build choice-phase words from registers and a reader supplied within the same budget.
+The register word can encode a carrier that varies with the input. -/
+theorem choiceWord_budget {r : α → List Bool} {s : α → NondeterministicChoice.State}
+    (hr : ComputableInSpace r encIn encBits budget)
+    (hs : ComputableInSpace s encIn NondeterministicChoice.encState budget) :
+    ComputableInSpace (fun a => choiceWord (r a) (s a)) encIn encBits budget :=
+  (budget_comp_linear (of_inO (ComputableInO.inl
+    (encPair encBits NondeterministicChoice.encState) encBits)) (budget_prod hr hs)).of_enc_eq
+      fun _ => rfl
+
 private theorem choose_budget {r : α → Registers N} {s : α → NondeterministicChoice.State}
     (hr : ComputableInSpace r encIn (encRegisters N) budget)
     (hs : ComputableInSpace s encIn NondeterministicChoice.encState budget) :
     ComputableInSpace (fun a => State.choose (r a) (s a)) encIn (encState encCallee) budget :=
-  (budget_comp_linear (of_inO (ComputableInO.inl (encChoose N)
-    (encSum (encCall N encCallee) (encOption encNat)))) (budget_prod hr hs)).of_enc_eq fun _ => rfl
+  (choiceWord_budget (hr.of_enc_eq fun _ => rfl) hs).of_enc_eq fun _ => rfl
 
 /-- Load a walk boundary from certified endpoint and fuel registers. -/
 theorem init_budget (edge : QueryMachine τ) (start : Fin N → Fin N → τ)

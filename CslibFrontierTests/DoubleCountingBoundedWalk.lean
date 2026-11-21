@@ -7,7 +7,7 @@ Authors: Erik Demaine, Christian Reitwiessner
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk
+import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk.Runtime
 
 /-! # Bounded walk on the original input
 
@@ -162,5 +162,68 @@ example : ∃ R : Routines (machine edge start verdict 1 moving)
   refine (native_firstHalting_accept_iff edge start verdict 1 moving (fun _ => moving) R
     [true] (fun _ _ => true) (edge_halts [true]) (edge_agrees [true]) _).mpr ⟨[1], 0, rfl, ?_⟩
   simp [walkM, readNext, bind, StateT.bind, pure, StateT.pure, moving]
+
+private def runtimeStart (enabled : Bool) (_ _ : ℕ) : Option Bool :=
+  if enabled then none else some false
+
+/-- The same runtime transition machine re-enters a four-vertex graph and reads the original
+input while running the selected one-edge walk. -/
+example :
+    let initial := Runtime.entry edge runtimeStart verdict 1 false moving
+    let r : Registers 4 := ⟨0, 1, 1⟩
+    let next := Runtime.entry edge runtimeStart verdict 1 true r
+    let M := (Runtime.machine edge runtimeStart verdict 1 initial).withInit next
+    let bits := selectors (N := 4) 1 [1]
+    M.FirstHalting [true] bits next ∧ Runtime.remainingFuel (M.run [true] bits) = some 0 := by
+  intro initial r next M bits
+  have hhalt (u v : Fin 4) :
+      edge.halted (edge.runFrom [true] (runtimeStart true u.val v.val) 1) = true := by rfl
+  have hedge (u v : Fin 4) :
+      verdict (edge.runFrom [true] (runtimeStart true u.val v.val) 1) = true := by rfl
+  have hresult :
+      (walkM readNext (fun _ _ => pure true) r.target r.fuel r.current [1]).1 = some 0 := by
+    simp [r, walkM, readNext, bind, StateT.bind, pure, StateT.pure]
+  obtain ⟨hfirst, hfuel⟩ := (firstHalting_remainingFuel_iff edge
+    (fun u v : Fin 4 => runtimeStart true u.val v.val) verdict 1 r [true]
+    (fun _ _ => true) hhalt hedge bits 0).mpr ⟨[1], rfl, hresult⟩
+  dsimp only [M]
+  rw [Runtime.machine_withInit]
+  exact ⟨(Runtime.firstHalting_iff edge runtimeStart verdict 1 true r [true] bits).mpr hfirst,
+    (Runtime.remainingFuel_run edge runtimeStart verdict 1 true r [true] bits).trans hfuel⟩
+
+/-- The runtime state envelope also covers arbitrary rejecting selector prefixes. -/
+example (input bits : List Bool) :
+    let r : Registers 4 := ⟨0, 1, 1⟩
+    let initial := Runtime.entry edge runtimeStart verdict 1 true r
+    let M := Runtime.machine edge runtimeStart verdict 1 initial
+    M.HaltsWithin input 12 ∧
+      (Runtime.encState encBool (encOption encBool) (M.run input bits)).length ≤ 83 := by
+  intro r initial M
+  have hcallee (u v : Fin 4) (t : ℕ) (_ : t ≤ 1) :
+      (encOption encBool (edge.runFrom input (runtimeStart true u.val v.val) t)).length ≤ 2 := by
+    cases edge.runFrom input (runtimeStart true u.val v.val) t with
+    | none => decide
+    | some answer => cases answer <;> decide
+  refine ⟨Runtime.haltsWithin edge runtimeStart verdict 1 true r input,
+    (Runtime.length_run_le edge runtimeStart verdict 1 true r input bits encBool
+      (encOption encBool) 2 hcallee).trans ?_⟩
+  decide
+
+/-- A single native entry routine loads a two- or four-vertex graph and the supplied fuel. -/
+example :
+    let enc := encPair encBool encNat
+    let dimension (p : Bool × ℕ) := if p.1 then 4 else 2
+    let registers (p : Bool × ℕ) : Registers (dimension p) :=
+      ⟨⟨0, by dsimp [dimension]; cases p.1 <;> decide⟩,
+        ⟨if p.1 then 3 else 1, by dsimp [dimension]; cases p.1 <;> decide⟩, p.2⟩
+    ComputableInSpace (fun p => Runtime.entry edge runtimeStart verdict 1 p.1 (registers p))
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc dimension registers
+  have hcontext := fst encBool encNat
+  refine Runtime.entry_budget edge runtimeStart verdict 1 encBool (encOption encBool)
+    hcontext (budget_finite (fun b : Bool => if b then 4 else 2) hcontext)
+    ?_ ?_ (snd encBool encNat)
+  · exact budget_const 0 (.refl _)
+  · exact budget_finite (fun b : Bool => if b then 3 else 1) hcontext
 
 end CslibFrontierTests.DoubleCountingBoundedWalk

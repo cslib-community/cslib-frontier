@@ -9,8 +9,11 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedDigits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.Offset
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FramePrefix
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.JustesenBit
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
 /-!
 # A native weight pass on a read-only Justesen seed
@@ -20,6 +23,13 @@ and the vertex column, and apply the layer scaling to the base-six sum. The impl
 shares the seed-digit loop and replaces only its final output. The query state bound
 charges the prepared field context and seed length separately. With a fixed prepared
 context, the entire raw-seed computation has a native linear-workspace certificate.
+
+The runtime entry loads a prepared context from the framed input prefix. Its offset executor
+agrees with the direct weight pass on the unchanged seed suffix. One native machine loads
+the header and executes this pass, using workspace linear in the encoded request and
+returning the binary weight. For canonical seeds and vertices, the compiled machine's workspace
+and output length are linear in the encoded binary dimensions. The input still contains the
+prepared field context.
 -/
 
 public section
@@ -183,5 +193,221 @@ theorem generatedWeight_run_length_le_encodedDimensions :
     _ ≤ _ := by
       rw [← Nat.mul_assoc]
       exact Nat.mul_le_mul_right _ (le_max_right _ _)
+
+namespace Runtime
+
+open QueryMachine (Located encLocated encLocated_mk_budget)
+
+private abbrev ScanState := SeedDigits.State Context
+
+private abbrev encScanState := SeedDigits.encState Context encContext
+
+/-- A framed binary offset and the complete encoded weight-pass state. -/
+abbrev encRuntimeState :=
+  encLocated (SeedDigits.State Context) (SeedDigits.encState Context encContext)
+
+/-- A prepared weight context and its read-only seed word. -/
+structure Input where
+  /-- Field information and vertex coordinates for this weight. -/
+  context : Context
+  /-- Seed bits in query order. -/
+  seed : List Bool
+
+/-- Framed weight context followed by the raw seed without an extra frame. -/
+enc_structure encInput : Input where
+  context : encContext, seed : encBits
+
+private theorem length_encInput (x : Input) :
+    (encInput x).length = 2 * (encContext x.context).length + 1 + x.seed.length := by
+  simp only [encInput_apply, encInputFields, length_encPair, encBits_apply]
+
+/-- Start the weight pass at the first seed cell, with the context in its initial registers. -/
+def load (x : Input) : Located (SeedDigits.State Context) :=
+  ⟨(frame (encContext x.context)).length, ⟨x.context, 0, 0, false⟩⟩
+
+private abbrev headerBudget (x : Input) : ℕ := (encContext x.context).length
+
+private theorem context_inSpace :
+    ComputableInSpace Input.context encInput encContext headerBudget :=
+  ComputableInSpace.framedPrefix Input.context encInput encContext Input.seed
+    (fun x => by simp [encInput_apply, encInputFields])
+
+private theorem initialRegisters_inSpace :
+    ComputableInSpace (fun x : Input => (load x).inner) encInput encScanState headerBudget := by
+  have hzero : ComputableInSpace (fun _ : Input => 0) encInput encNat headerBudget :=
+    (constZero (encIn := encInput) (encB := encNat) 0).weaken
+      (.of_le fun _ => Nat.zero_le _)
+  have hflag : ComputableInSpace (fun _ : Input => false) encInput encBool headerBudget :=
+    (constZero (encIn := encInput) (encB := encBool) false).weaken
+      (.of_le fun _ => Nat.zero_le _)
+  exact SeedDigits.encState_mk_budget Context encContext context_inSpace hzero hzero hflag
+
+/-- Native initialization charges the prepared header's length, independently of seed length. -/
+theorem load_inSpace :
+    ComputableInSpace load encInput encRuntimeState (fun x => (encContext x.context).length) :=
+  encLocated_mk_budget ScanState encScanState context_inSpace.frameLength initialRegisters_inSpace
+
+/-- Dropping the initialized offset leaves exactly the original seed bits. -/
+theorem drop_seed (x : Input) : (encInput x).drop (load x).offset = x.seed := by
+  simp [load, encInput_apply, encInputFields, encPair_apply, encBits_apply]
+
+private def dummy : Context := ⟨⟨0, 0, []⟩, 0, 0⟩
+
+/-- The offset weight executor. Use the loaded state as the entry to its run. -/
+def executor : QueryMachine (Located (SeedDigits.State Context)) :=
+  (machine dummy).withOffset
+
+/-- The runtime executor from the loaded state matches the direct seed pass at every clock. -/
+theorem executor_runFrom (x : Input) (t : ℕ) :
+    executor.runFrom (encInput x) (load x) t =
+      ⟨(load x).offset, (machine x.context).run x.seed t⟩ := by
+  change (machine dummy).withOffset.runFrom (encInput x)
+    ⟨(load x).offset, (machine x.context).init⟩ t = _
+  rw [QueryMachine.withOffset_runFrom, drop_seed]
+  rfl
+
+/-- All native components charge space linear in the encoded located state or state and reply. -/
+theorem executor_parts_inSpace :
+    let e := encRuntimeState
+    let eR := QueryMachine.encStateRead e
+    ComputableInSpace executor.query e encNat (fun s => (e s).length) ∧
+    ComputableInSpace executor.next eR e (fun p => (eR p).length) ∧
+    ComputableInSpace executor.emit eR encBits (fun p => (eR p).length) ∧
+    ComputableInSpace executor.halted e encBool (fun s => (e s).length) ∧
+    ComputableInSpace executor.finish e encBits (fun s => (e s).length) := by
+  obtain ⟨hq, hn, he, hh, hf⟩ := parts_inSpace dummy
+  exact ⟨QueryMachine.withOffset_query_inSpace _ _ hq,
+    QueryMachine.withOffset_next_inSpace _ _ hn, QueryMachine.withOffset_emit_inSpace _ _ he,
+    QueryMachine.withOffset_halted_inSpace _ _ hh, QueryMachine.withOffset_finish_inSpace _ _ hf⟩
+
+
+/-- The loaded executor halts at the end of the seed with the native pass's scaled weight. -/
+theorem executor_finish (x : Input) :
+    let last := executor.runFrom (encInput x) (load x) (x.seed.length + 1)
+    executor.halted last = true ∧ executor.finish last = encNat (weight x.context x.seed) := by
+  dsimp only
+  rw [executor_runFrom]
+  have hend : (machine x.context).run x.seed (x.seed.length + 1) =
+      ⟨x.context, x.seed.length, SeedDigits.maskedPrefix (codeBit x.context) x.seed
+        x.seed.length, true⟩ := SeedDigits.run_at_end codeBit x.context x.seed
+  rw [hend]
+  exact ⟨rfl, rfl⟩
+
+/-- One native machine loads the framed context and runs the weight pass on the original word.
+The binary result and workspace are both linear in the encoded prepared request. -/
+theorem weight_inSpace :
+    ComputableInSpace (fun x : Input => SeedWeight.weight x.context x.seed)
+      encInput encNat (fun x => (encInput x).length + 1) := by
+  let budget (x : Input) := (encInput x).length + 1
+  let time (x : Input) := x.seed.length + 1
+  have hlength (x : Input) :
+      budget x = 2 * (encContext x.context).length + 1 + x.seed.length + 1 := by
+    simp only [budget, length_encInput]
+  have hload : ComputableInSpace load encInput encRuntimeState budget :=
+    load_inSpace.mono_le fun x => by rw [hlength]; omega
+  have hlog (x : Input) : Nat.log2 (encInput x).length + 1 ≤ budget x :=
+    Nat.add_le_add_right (Nat.log2_le_self _) _
+  have hstate (x : Input) (t : ℕ) :
+      (encRuntimeState (executor.runFrom (encInput x) (load x) t)).length ≤ 8 * budget x := by
+    rw [executor_runFrom, QueryMachine.length_encLocated, hlength]
+    dsimp only [QueryMachine.Located.offset, QueryMachine.Located.inner]
+    have hoff : (encNat (load x).offset).length ≤ 2 * (encContext x.context).length + 2 := by
+      refine (length_encNat_le_log2 le_rfl).trans ?_
+      simpa only [load, length_frame, Nat.add_assoc] using
+        Nat.add_le_add_right (Nat.log2_le_self (load x).offset) 1
+    have h := length_run_le x.context x.seed t
+    omega
+  have hlive (x : Input) (t : ℕ) (ht : t < time x) :
+      executor.halted (executor.runFrom (encInput x) (load x) t) = false := by
+    rw [executor_runFrom]
+    exact (SeedDigits.run_withFinish codeBit x.context x.seed finishWeight).1 t ht
+  have hout (x : Input) :
+      encNat (SeedWeight.weight x.context x.seed) =
+        executor.outputFrom (encInput x) (load x) (time x) :=
+    (executor_finish x).2.symm.trans
+      (executor.outputFrom_eq_finish_of_emit_nil (encInput x) (fun _ => rfl) (load x)
+        (time x)).symm
+  obtain ⟨hq, hn, he, hh, hf⟩ := executor_parts_inSpace
+  obtain ⟨runtime, C, hrun⟩ := executor.computableInSpaceFrom
+    (enc := encInput) (encS := encRuntimeState) (encOut := encNat)
+    hq hn he hh hf time budget hload (fun x => (executor_finish x).1) hlive hout hlog
+    ⟨8, fun x t _ => hstate x t⟩
+  obtain ⟨D, hD⟩ := hf.length_le
+  refine ⟨runtime, max C (D * 8), hrun.mono (fun _ => le_rfl) ?_, ?_⟩
+  · intro x
+    exact Nat.mul_le_mul (Nat.le_max_left _ _) (Nat.le_succ _)
+  · intro x
+    let last := executor.runFrom (encInput x) (load x) (time x)
+    have h := hD last
+    change (encBits (executor.finish last)).length ≤ D * ((encRuntimeState last).length + 1) at h
+    have hfinish : executor.finish last = encNat (SeedWeight.weight x.context x.seed) :=
+      (executor_finish x).2
+    rw [encBits_apply, hfinish] at h
+    change _ ≤ max C (D * 8) * (budget x + 1)
+    calc
+      _ ≤ D * ((encRuntimeState last).length + 1) := h
+      _ ≤ D * (8 * (budget x + 1)) := Nat.mul_le_mul_left D (by
+        have hs := hstate x (time x)
+        change (encRuntimeState last).length ≤ _ at hs
+        omega)
+      _ = (D * 8) * (budget x + 1) := (Nat.mul_assoc _ _ _).symm
+      _ ≤ _ := Nat.mul_le_mul_right _ (Nat.le_max_right _ _)
+
+/-- The prepared request for a canonical seed in increasing index order and a valid vertex. -/
+@[expose] def canonicalInput {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
+    (z : Fin (n + 1) × Fin w) : Input :=
+  ⟨⟨fieldContext w n, z.1.val, z.2.val⟩, List.ofFn seed⟩
+
+private theorem length_canonicalInput_le_encodedDimensions :
+    ∃ C : ℕ, ∀ {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w),
+      (encInput (canonicalInput seed z)).length + 2 ≤
+        C * ((encPair encNat encNat (w, n)).length + 1) := by
+  obtain ⟨A, hA⟩ := generatedWeight_run_length_le_encodedDimensions
+  have hseed : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
+      fun p => (encPair encNat encNat p).length := ⟨_, codeLength_le_encodedDimensions⟩
+  obtain ⟨S, hS⟩ := hseed
+  refine ⟨2 * A + S + 3, fun {w n} seed z => ?_⟩
+  let x := canonicalInput seed z
+  let dim := (encPair encNat encNat (w, n)).length + 1
+  let start : SeedDigits.State Context := ⟨x.context, 0, 0, false⟩
+  have hstate : (encScanState start).length ≤ A * dim := (hA seed z).1 0
+  have hctx : (encContext x.context).length ≤ A * dim :=
+    (SeedDigits.encState_context_length_le Context encContext start).trans hstate
+  have hraw : x.seed.length ≤ S * dim := by
+    simpa only [x, canonicalInput, List.length_ofFn, dim] using hS (w, n)
+  have hpos : 1 ≤ dim := Nat.le_add_left _ _
+  change (encInput x).length + 2 ≤ (2 * A + S + 3) * dim
+  rw [length_encInput]
+  simp only [Nat.add_mul, Nat.mul_assoc]
+  omega
+
+/-- One native machine computes the generated weight on each prepared canonical request.
+Both workspace and binary output length are linear in the encoded graph dimensions.
+The runtime bound is existential and indexed by the prepared request. -/
+theorem generatedWeight_computesInTimeAndSpace :
+    ∃ (time : Input → ℕ) (C k : ℕ) (State : Type) (_ : Finite State)
+        (tm : MultiTapeTM k Bool State),
+      ∀ {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w),
+        let x := canonicalInput seed z
+        let budget := C * ((encPair encNat encNat (w, n)).length + 1)
+        tm.ComputesInTimeAndSpace (encInput x) (encNat (generatedWeight seed z)) (time x) budget ∧
+          (encNat (generatedWeight seed z)).length ≤ budget := by
+  obtain ⟨time, A, hrun, hlength⟩ := weight_inSpace
+  obtain ⟨k, State, hfinite, tm, hrun⟩ := hrun
+  obtain ⟨C, hC⟩ := length_canonicalInput_le_encodedDimensions
+  refine ⟨time, A * C, k, State, hfinite, tm, ?_⟩
+  intro w n seed z x budget
+  have hword : encNat (SeedWeight.weight x.context x.seed) = encNat (generatedWeight seed z) :=
+    congrArg encNat (weight_eq_generatedWeight seed z)
+  have hbound : A * ((encInput x).length + 2) ≤ budget := by
+    dsimp only [budget]
+    rw [Nat.mul_assoc]
+    exact Nat.mul_le_mul_left A (hC seed z)
+  obtain ⟨houtput, htime, hspace⟩ := hrun x
+  refine ⟨⟨hword ▸ houtput, htime, hspace.mono hbound⟩, ?_⟩
+  rw [← hword]
+  exact (hlength x).trans hbound
+
+end Runtime
 
 end Cslib.Reachability.Hoza.SeedWeight

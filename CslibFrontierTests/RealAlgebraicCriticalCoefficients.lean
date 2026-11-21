@@ -8,7 +8,9 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalValueCutoff
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -330,5 +332,69 @@ example :
   have hroot := isRoot_valuePolynomial_criticalMinimumValue (by decide : 1 ≤ 3)
     (by decide) 0 (fun _ => le_rfl) F hF hFn 1 zero_le_one
   rwa [hvalue] at hroot
+
+-- For the branch y = u, the finite test compares u = 4 with the cutoff y = 2.
+example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
+  let P : Polynomial (Polynomial ℤ) := Polynomial.X - Polynomial.C Polynomial.X
+  have hlead : P.leadingCoeff = 1 := Polynomial.leadingCoeff_X_sub_C _
+  have hP : P ≠ 0 := by
+    intro hz
+    simp [hz] at hlead
+  have hroot (u : ℝ) :
+      P.eval₂ (Polynomial.eval₂RingHom (Int.castRingHom ℝ) u) u = 0 := by
+    simp [P]
+  have hR : (P.leadingCoeff.coeffNorm1 : ℝ) + 1 ≤ ((2 : ℤ) : ℝ) := by
+    norm_num [hlead, Polynomial.coeffNorm1_one]
+  have hX : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
+    simpa using Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
+  have hU : ((P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 : ℝ) + 1 ≤ 4 := by
+    have hbound := Polynomial.coeffNorm1_sub_le Polynomial.X (Polynomial.C (2 : ℤ))
+    rw [hX, Polynomial.coeffNorm1_C] at hbound
+    have hnorm : (P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 ≤ 3 := by
+      simpa [P] using hbound
+    exact_mod_cast (Nat.add_le_add_right hnorm 1)
+  have hcut := Polynomial.bounded_root_branch_iff_lt hP
+    (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
+  exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
+
+-- The chosen parameter and coefficient budget detect the zero of the square input.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
+    let H := parametricValueCoeffNormExponent 1 3 0
+    criticalMinimumValue 3 (fun i => (separatedCenters 3 i : ℝ))
+      (F.map (Int.castRingHom ℝ)) (2 ^ criticalParameterExponent 1 3 0) < 2 ^ (H + 1) := by
+  intro F H
+  have hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
+  have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
+    simpa only [F, map_pow, map_X, eval_X] using sq_nonneg (x 0)
+  have hb : F.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [F, MvPolynomial.coeffNorm1_X, one_pow, pow_zero] using
+      MvPolynomial.coeffNorm1_pow_le (X (0 : Fin 1) : MvPolynomial (Fin 1) ℤ) 2
+  have hH := parametricValuePolynomial_bivariateCoeffNorm1_le (by decide : 2 ≤ 3) F hF hb
+  apply (exists_zero_iff_criticalMinimumValue_lt_at_parameterExclusion
+    (by decide) (by decide) F hF hFn hH).mp
+  exact ⟨0, by simp [F]⟩
+
+-- In the quotient by X₀ = 2, the simple real root of multiplication by X₀ is realized.
+example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1) ℝ) = 2 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) ℝ := fun _ => C 2
+  have hr (i : Fin 1) : (r i).totalDegree < 1 := by
+    simp only [r, totalDegree_C, Nat.zero_lt_one]
+  let M := multiplicationMatrix (by decide : 1 ≤ 1) r hr
+  have hm : M (X 0) = algebraMap ℝ (Matrix (NormalIndex 1 1) (NormalIndex 1 1) ℝ) 2 := by
+    rw [← M.commutes, MvPolynomial.algebraMap_eq]
+    apply multiplicationMatrix_eq_of_projection_eq
+    simpa only [pow_one, r] using projection_X_pow 1 r 0
+  have hdim : Fintype.card (NormalIndex 1 1) = 1 := by simp [NormalIndex]
+  have hsimple : (M (X 0)).charpoly.rootMultiplicity 2 = 1 := by
+    rw [hm, Matrix.algebraMap_eq_diagonal, Matrix.charpoly_diagonal]
+    simp only [Pi.algebraMap_apply, Algebra.algebraMap_self_apply, Finset.prod_const,
+      Finset.card_univ, hdim, pow_one, Polynomial.rootMultiplicity_X_sub_C_self]
+  obtain ⟨x, hx, hv⟩ :=
+    exists_common_zero_of_rootMultiplicity_multiplicationMatrix_eq_one (by decide) r hr
+      (X 0) hsimple
+  have hx₀ : x 0 = 2 := by
+    simpa only [r, aeval_C, Algebra.algebraMap_self_apply, pow_one] using (hx 0).symm
+  exact ⟨x, hx₀, hv⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

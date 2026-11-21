@@ -109,6 +109,13 @@ def withInit (s : σ) : NondeterministicQueryMachine σ := { M with init := s }
 theorem withInit_init : M.withInit M.init = M := rfl
 
 @[simp]
+theorem init_withInit (s : σ) : (M.withInit s).init = s := rfl
+
+@[simp]
+theorem firstHalting_withInit (s : σ) :
+    (M.withInit s).FirstHalting = M.FirstHalting := rfl
+
+@[simp]
 theorem step_withInit (s : σ) : (M.withInit s).step = M.step := rfl
 
 @[simp]

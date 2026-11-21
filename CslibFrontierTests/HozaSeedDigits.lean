@@ -95,4 +95,31 @@ example :
   rw [(SeedWeight.generatedWeight_output seed z).2.2]
   exact hweight
 
+open Cslib.Code.JustesenFamily SeedWeight.Runtime in
+/-- The loaded executor returns the generator's weight from the original framed seed input. -/
+example {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w) :
+    let x := canonicalInput seed z
+    let last := executor.runFrom (encInput x) (load x) (x.seed.length + 1)
+    ComputableInSpace load encInput encRuntimeState
+      (fun x => (SeedWeight.encContext x.context).length) ∧
+      executor.halted last = true ∧ executor.finish last = encNat (generatedWeight seed z) := by
+  intro x last
+  obtain ⟨hhalt, hfinish⟩ := executor_finish x
+  refine ⟨load_inSpace, hhalt, hfinish.trans ?_⟩
+  exact congrArg encNat (SeedWeight.weight_eq_generatedWeight seed z)
+
+open Turing Cslib.Code.JustesenFamily SeedWeight.Runtime in
+/-- An ordinary-import caller obtains the native dimension budget at a nonzero layer. -/
+example :
+    ∃ (time : Input → ℕ) (C k : ℕ) (State : Type) (_ : Finite State)
+        (tm : MultiTapeTM k Bool State),
+      ∀ seed : Fin (codeLength 1 1) → Bool,
+        let z : Fin 2 × Fin 1 := (1, 0)
+        let x := canonicalInput seed z
+        let budget := C * ((encPair encNat encNat (1, 1)).length + 1)
+        tm.ComputesInTimeAndSpace (encInput x) (encNat (generatedWeight seed z)) (time x) budget ∧
+          (encNat (generatedWeight seed z)).length ≤ budget := by
+  obtain ⟨time, C, k, State, hfinite, tm, h⟩ := generatedWeight_computesInTimeAndSpace
+  exact ⟨time, C, k, State, hfinite, tm, fun seed => h (w := 1) (n := 1) seed (1, 0)⟩
+
 end CslibFrontierTests.HozaSeedDigits
