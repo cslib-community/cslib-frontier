@@ -151,7 +151,7 @@ theorem retainedRound_admissible_closed (context : κ) (limit : ℕ) (input : Li
     Closed (retainedRound size source callee calleeStart calleeReply (start context limit))
       (retainedRoundEntry size source) (SourceRound.answer ∘ Prod.snd) input
       (Admissible context (size context) limit) := by
-  intro r hr hpositive bits a hanswer _ _
+  intro r hr hpositive bits a _ hanswer _ _
   rw [← run_withInit, retainedRound_withInit, retainedRound_run] at hanswer
   exact admissible_advance_of_round_answer size source callee (calleeStart r.context)
     calleeReply hr hpositive input bits hanswer
