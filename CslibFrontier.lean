@@ -6364,6 +6364,7 @@ public import CslibFrontier.Foundations.Analysis.LpNormMeasure
 public import CslibFrontier.Foundations.Analysis.MarkovBrothersInequality
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateDerivative
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalDeterminantFeasibility
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalValueCutoff
