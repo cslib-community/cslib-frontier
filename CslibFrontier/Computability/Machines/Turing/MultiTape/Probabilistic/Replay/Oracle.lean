@@ -177,43 +177,38 @@ variable [Finite Control] [Fintype Operation]
 @[fun_prop] theorem replyStep_pt : ComputableInPolyTime
     (fun p : FiniteConfig k Bool Control Operation × Bool => machine.replyStep p.1 p.2)
     (encPair encFiniteConfig encBool) encFiniteConfig := by
-  exact .of_tidy <| ComputableTidilyInPolyTime.cond
-    ((ComputableTidilyInPolyTime.of_finite Option.isSome).comp
-      (machine.pendingQuery_pt.tidy.comp (.fst encFiniteConfig encBool)))
-    machine.receiveBit_pt.tidy (machine.localStep_pt.tidy.comp (.fst encFiniteConfig encBool))
+  exact ComputableInPolyTime.ite
+    ((ComputableInPolyTime.of_finite
+      (encIn := encFinite (Option (Operation × Control))) (encOut := encBool) Option.isSome).comp
+      (machine.pendingQuery_pt.comp (.fst encFiniteConfig encBool)))
+    machine.receiveBit_pt (machine.localStep_pt.comp (.fst encFiniteConfig encBool))
 
 /-- Deterministic oracle replay is polynomial-time in the encoded input and transcript. -/
 @[fun_prop] theorem replayConfig_pt : ComputableInPolyTime
     (fun p : List Bool × List Bool => machine.replayConfig p.1 p.2)
     (encPair encBits encBits) encFiniteConfig := by
   obtain ⟨c, hc⟩ := length_encFiniteConfig_le (k := k) (State := Control) (Oracle := Operation)
-  have hinit : ComputableTidilyInPolyTime
+  have hinit : ComputableInPolyTime
       (fun p : List Bool × List Bool => FiniteConfig.init (k := k) (Oracle := Operation)
         machine.initial p.1) (encPair encBits encBits) encFiniteConfig := by fun_prop
   have hin : PolyBounded (fun p : List Bool × List Bool =>
       (encPair encBits encBits p).length) (fun p => p.1.length) :=
-    (ComputableTidilyInPolyTime.fst encBits encBits).polyBounded_length
+    (ComputableInPolyTime.fst encBits encBits).polyBounded_length
   have hans : PolyBounded (fun p : List Bool × List Bool =>
       (encPair encBits encBits p).length) (fun p => p.2.length) :=
-    (ComputableTidilyInPolyTime.snd encBits encBits).polyBounded_length
+    (ComputableInPolyTime.snd encBits encBits).polyBounded_length
   have hb := (PolyBounded.const c).mul (((hin.add hans).add (.const 1)).add (.const 1))
-  exact .of_tidy <| ComputableTidilyInPolyTime.foldl' (.snd encBits encBits) hinit
-    machine.replyStep_pt.tidy hb
+  exact ComputableInPolyTime.foldl' (.snd encBits encBits) hinit
+    machine.replyStep_pt hb
     (fun p i _ => (hc _ _ _ _ (machine.spaceBound_replayConfig p.1 (p.2.take i))).trans
       (Nat.mul_le_mul_left c (by simp only [List.length_take]; omega)))
-
-/-- Prefix replay is jointly polynomial-time in input, transcript and unary instruction index. -/
-@[local fun_prop] private theorem replayPrefix_pt : ComputableTidilyInPolyTime
-    (fun p : (List Bool × List Bool) × ℕ => machine.replayPrefix p.1.1 p.1.2 p.2)
-    encReplayArgs encFiniteConfig := by
-  exact machine.replayConfig_pt.tidy.comp (g := fun p : (List Bool × List Bool) × ℕ =>
-    (p.1.1, p.1.2.take p.2)) (by fun_prop)
 
 /-- Prefix replay is jointly polynomial-time in input, transcript and unary instruction index. -/
 @[fun_prop] theorem computableInPolyTime_replayPrefix : ComputableInPolyTime
     (fun p : (List Bool × List Bool) × ℕ => machine.replayPrefix p.1.1 p.1.2 p.2)
     encReplayArgs encFiniteConfig :=
-  machine.replayPrefix_pt.computableInPolyTime
+  machine.replayConfig_pt.comp (g := fun p : (List Bool × List Bool) × ℕ =>
+    (p.1.1, p.1.2.take p.2)) (by fun_prop)
 
 end PolyTime
 
@@ -226,10 +221,10 @@ variable [Finite Control] [Finite Operation]
     (fun p : List Bool × List Bool => machine.replayOutput p.1 p.2)
     (encPair encBits encBits) encBits := by
   let _ := Fintype.ofFinite Operation
-  have hout : ComputableTidilyInPolyTime
+  have hout : ComputableInPolyTime
       (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output)
       encFiniteConfig encBits := by fun_prop
-  exact (hout.comp machine.replayConfig_pt.tidy).computableInPolyTime
+  exact hout.comp machine.replayConfig_pt
 
 /-- The next query in a guessed-reply execution is uniformly polynomial-time. -/
 @[fun_prop] theorem replayPrefix_pendingRequest_pt : ComputableInPolyTime

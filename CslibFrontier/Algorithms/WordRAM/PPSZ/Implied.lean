@@ -70,8 +70,8 @@ stores the word of `implied φ s τ x`.
 namespace Cslib.Algorithms.WordRAM.PPSZ
 
 open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.PPSZ
-open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClauses litCode_lt
-  litCode_shiftRight litCode_and_one encodeClauses_cons length_encodeClause)
+open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClause_eq encodeClauses
+  litCode_lt litCode_shiftRight litCode_and_one encodeClauses_cons length_encodeClause)
 open Cslib.Algorithms.WordRAM.PPZ (optCode PartialAt)
 open Cslib.Algorithms.WordRAM.PPZ.Reg
 
@@ -907,10 +907,10 @@ private theorem mem_litAddr_lt {mem : ℕ → ℕ} {C : ℕ} {φ : CNF (Fin n)}
   have hc := holdsList_clauseOf hφ ha
   simp only [litAddrs, List.mem_range'_1] at hp
   obtain ⟨i, rfl⟩ : ∃ i, p = a + 1 + i := ⟨p - (a + 1), by omega⟩
-  have := hc.get (i + 1) (by simp [encodeClause]; omega)
+  have := hc.get (i + 1) (by simp [encodeClause_eq]; omega)
   rw [show a + (i + 1) = a + 1 + i by omega] at this
   rw [this]
-  simp only [encodeClause, List.getElem_cons_succ, List.getElem_map]
+  simp only [encodeClause_eq, List.getElem_cons_succ, List.getElem_map]
   exact litCode_lt _
 
 /-- The literal addresses of a clause address lie in the encoding of the clauses. -/
