@@ -35,12 +35,9 @@ private abbrev Successful (edge : Fin n → Fin n → Bool) (s v : Fin n) (k : �
 private theorem finite_successful (edge : Fin n → Fin n → Bool) (s v : Fin n) (k : ℕ) :
     Finite (Successful edge s v k) := by
   have : Finite {p : List (Fin n) // p.length ≤ k} := (List.finite_length_le _ _).to_subtype
-  have hlen (b : Successful edge s v k) (u : Fin n) (p : List (Fin n))
-      (h : b.val u = some p) : p.length ≤ k := by
+  have hlen (b : Successful edge s v k) : Scan.Bounded k b.val := by
     obtain ⟨hit, hh⟩ := Option.isSome_iff_exists.mp b.property
-    have hp := (Scan.run_eq_some_iff edge s v k b hit).mp hh |>.1
-    have hb : Scan.transcript s b u = some (s :: p) := by simp [Scan.transcript, h]
-    simpa [guessedLength, hb] using (hp.1 u (s :: p) hb).2
+    exact Scan.bounded_of_passes s k b.val ((Scan.run_eq_some_iff edge s v k b hit).mp hh).1
   let embed (b : Successful edge s v k) (u : Fin n) :
       Option {p : List (Fin n) // p.length ≤ k} :=
     (b.val u).pmap Subtype.mk (fun p hp => hlen b u p (Option.mem_def.mp hp))

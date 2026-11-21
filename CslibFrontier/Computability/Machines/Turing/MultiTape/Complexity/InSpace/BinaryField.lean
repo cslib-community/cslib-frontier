@@ -31,6 +31,7 @@ binary dimension processing, Horner composition and seed-tape queries remain und
 
 * `Turing.BinaryField.fieldMulMod_inSpace`: native linear workspace for the supplied modulus
   and two coefficient words, including their normalization.
+* `Turing.BinaryField.xor_inSpace`: coefficient-wise XOR in linear workspace.
 * `Turing.BinaryField.modBits_inSpace`: native linear workspace for the existing total
   supplied-modulus remainder scan.
 -/
@@ -107,7 +108,9 @@ private theorem zip_xor (a b : List Bool) :
   | nil => rfl
   | cons bit a ih => cases b <;> simp [MultiTapeTM.zipFold, ih]
 
-private theorem xor_inSpace :
+/-- Coefficient-wise XOR uses linear workspace in the encoded pair of coefficient words.
+The output ends at the shorter word. -/
+theorem xor_inSpace :
     ComputableInSpace (fun p : List Bool × List Bool => p.1.zipWith xor p.2)
       (encPair encCoefficients encCoefficients) encCoefficients
       (fun p => (encPair encCoefficients encCoefficients p).length) := by
