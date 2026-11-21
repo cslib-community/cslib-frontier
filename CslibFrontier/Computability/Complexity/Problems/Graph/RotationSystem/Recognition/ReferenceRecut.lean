@@ -9,18 +9,24 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokeEmbedding
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionContraction
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEmbedding
+import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import Mathlib.Order.Filter.Finite
 
+import Mathlib.Tactic.FinCases
+
 /-!
-# Recognition subdivisions with short reference spokes
+# Recognition subdivisions with literal reference spokes
 
 Place the original centers at their reference points, align the prescribed outgoing rays,
 and cut the recovered routes again. With one sufficiently small factor common to all fixed
 darts, their retained end routes are literally the scaled straight reference spokes. The
 other routes still form an actual subdivision embedding, including at either end of a loop.
+Inverse strip compression then restores each frozen route as a single literal reference segment.
 This is original geometry.
 -/
 
@@ -94,5 +100,150 @@ theorem exists_subdivision_embedding_with_scaled_reference_spokes
   dsimp only at h ⊢
   rw [hAcenter _ hv, hfactor_eq d hd, smul_smul, div_mul_cancel₀ _ (hfactor_pos d).ne'] at h
   exact h
+
+private theorem frozen_edge_has_fixed_dart {I : FixedRotationInput}
+    (e : Fin (subdivisionGraph I).edges.length)
+    (he : ((subdivide I)[e.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen = true) :
+    ∃ d : Dart I.graph, (I.orders.getD d.vertex none).isSome = true ∧
+      (subdivisionDart I d).1 = e := by
+  let i := (subdivisionEdgeIndex I e).original
+  let k := (subdivisionEdgeIndex I e).piece
+  have hpos : e.val = 3 * i.val + k.val := subdivisionEdgeIndex_val I e
+  have hbound : e.val < (subdivide I).length := by
+    simpa only [subdivisionGraph, List.length_map] using e.isLt
+  have hget := subdivide_getElem? I i k
+  rw [← hpos, List.getElem?_eq_getElem hbound] at hget
+  have hf := (congrArg Segment.frozen (Option.some.inj hget)).symm.trans he
+  generalize k = j at hpos hf
+  fin_cases j
+  · refine ⟨(i, false), ?_, Fin.ext hpos.symm⟩
+    rw [← congrArg Prod.fst (Dart.edge_eq_vertices i)]
+    exact hf
+  · exact Bool.noConfusion (show false = true from hf)
+  · refine ⟨(i, true), ?_, Fin.ext hpos.symm⟩
+    rw [← congrArg Prod.snd (Dart.edge_eq_vertices i)]
+    exact hf
+
+/-- A realization of the prescribed rotation admits a subdivision embedding at the original
+reference centers with every frozen edge equal to its complete literal reference route.
+The endpoints of those routes are therefore at their exact reference coordinates. -/
+theorem exists_subdivision_embedding_with_frozen_reference_routes
+    {I : FixedRotationInput} (hI : Valid I) {D : PolygonalDrawing I.graph}
+    (hD : D.IsEmbedding) {r : RotationSystem I.graph} (hReal : D.Realizes r)
+    (hfixed : Realizes I r) :
+    ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
+      (∀ v ∈ I.graph.vertices, E.vertex v = referencePoint I v) ∧
+      ∀ e : Fin (subdivisionGraph I).edges.length,
+        ((subdivide I)[e.val]'(by
+          simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen = true →
+        E.route e = (referenceDrawing I).route e := by
+  classical
+  obtain ⟨ε, hε, hrecut⟩ := exists_subdivision_embedding_with_scaled_reference_spokes
+    hI hD hReal hfixed
+  let s := ε / 2
+  have hs : s ∈ Set.Ioo (0 : ℝ) ε := ⟨half_pos hε.1, half_lt_self hε.1⟩
+  obtain ⟨P, hP, hcenter, hspoke⟩ := hrecut s hs
+  obtain ⟨F, cuts, hFcenter, hFspoke, hline⟩ :=
+    exists_frozen_reference_compression hI (s := s) ⟨hs.1, hs.2.le.trans hε.2⟩
+  let c : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap
+  let Q := referenceDrawing I
+  let frozen (e : Fin (subdivisionGraph I).edges.length) :=
+    ((subdivide I)[e.val]'(by simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen =
+      true
+  have hparam (e : Fin (subdivisionGraph I).edges.length) (he : frozen e) :
+      let a := (Q.route e).start
+      let b := (Q.route e).finish
+      P.route e = Route.line (F a) (F b) ∧
+        ∀ t ∈ Set.Icc (0 : ℝ) 1,
+          F (AffineMap.lineMap a b t) = AffineMap.lineMap (F a) (F b) t := by
+    obtain ⟨d, hd, rfl⟩ := frozen_edge_has_fixed_dart e he
+    let f := (subdivisionDart I d).1
+    let a := (Q.route f).start
+    let b := (Q.route f).finish
+    let o := referencePoint I d.vertex
+    let T : ℂ →ᵃ[ℝ] ℂ := AffineMap.homothety o s
+    have hQ : Q.route f = Route.line a b := rfl
+    have hFt (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
+        F (AffineMap.lineMap a b t) = T (AffineMap.lineMap a b t) := by
+      have hm : AffineMap.lineMap a b t ∈ (Q.route f).support := by
+        rw [hQ, Route.support_line]
+        exact lineMap_mem_segment ℝ a b ht
+      rw [hFspoke d hd _ hm, AffineMap.homothety_apply]
+      change o + s • (AffineMap.lineMap a b t - o) = s • (AffineMap.lineMap a b t - o) + o
+      exact add_comm _ _
+    have ha : F a = T a := by
+      simpa only [AffineMap.lineMap_apply_zero] using hFt 0 ⟨le_rfl, zero_le_one⟩
+    have hb : F b = T b := by
+      simpa only [AffineMap.lineMap_apply_one] using hFt 1 ⟨zero_le_one, le_rfl⟩
+    have ho : (Q.route f).endpoint d.2 = o :=
+      (Q.endpoint_eq f d.2).trans (congrArg (referencePoint I) (subdivisionDart_endpoints I d).1)
+    have hg : Q.germ (subdivisionDart I d) = if d.2 then a - b else b - a := by
+      change (Q.route f).germ d.2 = _
+      rw [hQ, Route.germ_line]
+    refine ⟨?_, fun t ht => ?_⟩
+    · have hp := (hspoke d hd).2
+      change P.route f = _ at hp ⊢
+      rw [hp, ha, hb, hg]
+      cases htag : d.2
+      · have hae : a = o := by
+          simpa only [htag, Route.endpoint, Bool.false_eq_true, ↓reduceIte] using ho
+        simp only [htag, Bool.false_eq_true, ↓reduceIte, hae, AffineMap.homothety_apply,
+          vsub_eq_sub, vadd_eq_add, sub_self, smul_zero, zero_add, add_comm]
+      · have hbe : b = o := by simpa only [htag, Route.endpoint, ↓reduceIte] using ho
+        simp only [htag, ↓reduceIte, hbe, AffineMap.homothety_apply, vsub_eq_sub, vadd_eq_add,
+          sub_self, smul_zero, zero_add, add_comm]
+    · calc
+        F (AffineMap.lineMap a b t) = T (AffineMap.lineMap a b t) := hFt t ht
+        _ = AffineMap.lineMap (T a) (T b) t := AffineMap.apply_lineMap T a b t
+        _ = _ := by rw [← ha, ← hb]
+  let M := P.mapAtCuts (c := c) hline
+  let E : PolygonalDrawing (subdivisionGraph I) :=
+    { vertex := M.vertex
+      route e := if frozen e then Q.route e else M.route e
+      endpoint_eq := fun e side => by
+        by_cases he : frozen e
+        · have h := (hparam e he).1
+          have heq := P.endpoint_eq e side
+          rw [h] at heq
+          have hx : F ((Q.route e).endpoint side) = P.vertex (Dart.vertex (e, side)) := by
+            cases side <;> exact heq
+          change (if frozen e then Q.route e else M.route e).endpoint side =
+            F.symm (P.vertex (Dart.vertex (e, side)))
+          rw [if_pos he, ← hx, F.symm_apply_apply]
+        · simpa only [if_neg he] using M.endpoint_eq e side }
+  have hSimple (e : Fin (subdivisionGraph I).edges.length) : (E.route e).IsSimple := by
+    by_cases he : frozen e
+    · simpa only [E, if_pos he] using referenceDrawing_simple hI e
+    · simpa only [E, if_neg he] using (hP.mapAtCuts (c := c) hline F.symm.injective).simple e
+  refine ⟨E, hP.of_route_map F.symm.injective (fun _ => rfl) hSimple ?_, ?_, ?_⟩
+  · intro e i
+    by_cases he : frozen e
+    · obtain ⟨hshort, hFt⟩ := hparam e he
+      revert i
+      simp only [E, if_pos he]
+      intro i
+      rw [hshort]
+      refine ⟨0, 0, 1, le_rfl, zero_lt_one, le_rfl, ?_⟩
+      intro t ht
+      have ht' : AffineMap.lineMap (0 : ℝ) 1 t = t := by
+        simp only [AffineMap.lineMap_apply_ring, mul_zero, mul_one, zero_add]
+      rw [ht']
+      change (Route.line (Q.route e).start (Q.route e).finish).eval i t = _ ∧ _
+      refine ⟨?_, fun side => ?_⟩
+      · rw [Route.eval_line, Route.eval_line, ← hFt t ht, F.symm_apply_apply]
+      · exact (Route.atEnd_line_iff _ _ i t side).trans (Route.atEnd_line_iff _ _ 0 t side).symm
+    · revert i
+      simp only [E, if_neg he]
+      intro i
+      obtain ⟨j, a, b, ha, hab, hb, _, h⟩ :=
+        Route.eval_mapAtCuts (c := c) hline (P.route e) i
+      exact ⟨j, a, b, ha, hab, hb, h⟩
+  · intro v hv
+    change F.symm (P.vertex v) = _
+    rw [hcenter v hv, ← hFcenter v hv, F.symm_apply_apply]
+  · intro e he
+    change (if frozen e then Q.route e else M.route e) = Q.route e
+    exact if_pos he
 
 end Cslib.Complexity.Graph.RotationRecognition
