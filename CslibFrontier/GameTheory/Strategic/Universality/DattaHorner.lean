@@ -594,6 +594,22 @@ private theorem add_single_le {d e : Fin n →₀ ℕ} {k : Fin n} (he : e ≤ d
     omega
   · simpa [Finsupp.single_apply, hi] using he i
 
+/-- The first successor of a node `(k, e)`, read at `level k (e + 1_k)`, is a node. -/
+private theorem mem_nodes_of_level_add_single {d : Fin n →₀ ℕ} {p : Node n} (hp : p ∈ nodes d)
+    {i : Fin n} (hi : level d p.var (p.expo + Finsupp.single p.var 1) = some i) :
+    ⟨i, p.expo + Finsupp.single p.var 1⟩ ∈ nodes d := by
+  obtain ⟨hle, hlt, hz⟩ := mem_nodes.1 hp
+  refine mem_nodes_of_level (add_single_le hle hlt) (fun i' hi' => ?_) hi
+  have := hz i' (by rw [Fin.lt_def]; exact hi')
+  have hne : p.var ≠ i' := fun h => by subst h; omega
+  simp [this, hne]
+
+/-- The second successor of a node `(k, e)`, read at `level (k + 1) e`, is a node. -/
+private theorem mem_nodes_of_level_succ {d : Fin n →₀ ℕ} {p : Node n} (hp : p ∈ nodes d)
+    {i : Fin n} (hi : level d (p.var + 1) p.expo = some i) : ⟨i, p.expo⟩ ∈ nodes d := by
+  obtain ⟨hle, -, hz⟩ := mem_nodes.1 hp
+  exact mem_nodes_of_level hle (fun i' hi' => hz i' (by rw [Fin.lt_def]; omega)) hi
+
 /-- **The chain determines the node values.** If every chain equation of `F j` holds, every node
 of `F j` has value `horner (F j) x k e`; the root has value `0`, so `F j (x) = 0`. -/
 theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
@@ -605,18 +621,14 @@ theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
   | _ t iht =>
   induction hs : degreeVec (F j) k - e k using Nat.strong_induction_on generalizing e with
   | _ s ihs =>
-  obtain ⟨hle, hlt, hz⟩ := mem_nodes.1 hp
-  simp only at hle hlt hz
+  have hlt : e k < degreeVec (F j) k := (mem_nodes.1 hp).2.1
   have hce := hc _ hp
   rw [chainEq, map_sub, sub_eq_zero] at hce
   rw [hce, map_add, map_mul, eval_X, horner_eq (F j) _ k e]
   simp only
   congr 2
   · refine eval_term fun i hi => ?_
-    have hmem := mem_nodes_of_level (add_single_le hle hlt) (fun i' hi' => by
-      have := hz i' (by rw [Fin.lt_def]; exact hi')
-      have hne : k ≠ i' := fun h => by subst h; omega
-      simp [this, hne]) hi
+    have hmem := mem_nodes_of_level_add_single hp hi
     rcases eq_or_lt_of_le (le_of_level_eq_some hi).1 with hik | hik
     · have : k = i := Fin.ext hik
       subst this
@@ -625,7 +637,7 @@ theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
       omega
     · exact iht _ (by omega) i _ hmem rfl
   · refine eval_term fun i hi => ?_
-    have hmem := mem_nodes_of_level hle (fun i' hi' => hz i' (by rw [Fin.lt_def]; omega)) hi
+    have hmem := mem_nodes_of_level_succ hp hi
     exact iht _ (by have := (le_of_level_eq_some hi).1; omega) i _ hmem rfl
 
 /-! ### Bob's weights -/
@@ -743,15 +755,9 @@ theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
         exact this
     have hchain : ∀ j, ∀ p ∈ nodes (degreeVec (F j)), eval q (chainEq F j p) = 0 := by
       intro j p hp
-      obtain ⟨hle, hlt, hz⟩ := mem_nodes.1 hp
       rw [chainEq, map_sub, map_add, map_mul, eval_X, hval j p hp,
-        eval_term fun i hi => hval j _ (mem_nodes_of_level (add_single_le hle hlt) (fun i' hi' => by
-          have := hz i' (by rw [Fin.lt_def]; exact hi')
-          have hne : p.var ≠ i' := fun h => by subst h; omega
-          simp [this, hne]) hi),
-        eval_term fun i hi => hval j _ (mem_nodes_of_level hle
-          (fun i' hi' => hz i' (by rw [Fin.lt_def]; omega)) hi),
-        sub_eq_zero]
+        eval_term fun i hi => hval j _ (mem_nodes_of_level_add_single hp hi),
+        eval_term fun i hi => hval j _ (mem_nodes_of_level_succ hp hi), sub_eq_zero]
       exact horner_eq (F j) _ p.var p.expo
     have hxle : ∀ i, q (aCoord i) ≤ 1 := fun i =>
       (single_le_sum (fun j _ => (ha j).le) (mem_univ i)).trans hasum.le
