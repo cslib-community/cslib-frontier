@@ -22,6 +22,11 @@ For `V = {-1} ⊂ ℝ`, given by `t + 1 = 0`, the box coordinate of `-1` is
 box. Datta's map `t ↦ t / (1 − t²)` instead gives the cleared equation `t + 1 − t² = 0`, whose
 extra root `(1 + √5) / 2` survives the rescaling into the box (the counterexample
 `V = {(−1, 0)}` of the issue's source notes).
+
+Both homeomorphisms applied to the point `-1` give actual totally mixed Nash equilibria: in the
+binary game the variable player plays `true`, and in the three-player game Alice plays her
+strategy `0`, with probability `(3 − √5) / 2`. `StablyIsomorphic.nonempty_iff` transfers the
+nonemptiness of `V` to the binary game's equilibrium set.
 -/
 
 set_option linter.privateModule false
@@ -54,5 +59,49 @@ example : -toUnit (-1) ^ 2 + 3 * toUnit (-1) - 1 = 0 ∧
   refine ⟨?_, ratioCoord_toUnit _⟩
   rw [toUnit_neg_one]
   nlinarith
+
+/-! ### An actual equilibrium -/
+
+open MvPolynomial Cslib
+
+/-- `t + 1`, whose zero set is `V = {-1}`. -/
+noncomputable def plusOne : Fin 1 → MvPolynomial (Fin 1) ℝ := fun _ => X 0 + 1
+
+/-- The point `-1` of `V`, with no free coordinates (`m − n = 0`). -/
+noncomputable def pt : {z : Fin 1 ⊕ Fin (1 - 1) → ℝ |
+    z ∘ Sum.inl ∈ {x | ∀ j, eval x (plusOne j) = 0}} :=
+  ⟨Sum.elim (fun _ => -1) Fin.elim0, fun _ => by simp [plusOne]⟩
+
+/-- The binary homeomorphism sends `-1` to a totally mixed Nash equilibrium of `binaryGame`, in
+which the variable player plays `true` with probability `toUnit (-1) = (3 − √5) / 2`. -/
+example : (binaryGame plusOne).IsTotallyMixedNash
+      (Sigma.curry ((binaryHomeomorph plusOne one_pos).toHomeomorph pt).1) ∧
+    ((binaryHomeomorph plusOne one_pos).toHomeomorph pt).1
+      ⟨Cslib.GameTheory.DattaBinary.var 0, true⟩ = (3 - √5) / 2 := by
+  refine ⟨((binaryHomeomorph plusOne one_pos).toHomeomorph pt).2, ?_⟩
+  rw [coe_binaryHomeomorph_apply]
+  simp [Sigma.uncurry, Cslib.GameTheory.binaryProfile, binaryPoint, pt, toUnit_neg_one]
+
+/-- The point `-1` of `V`, with no free Critter coordinates (`Extra 1 1` is empty). -/
+noncomputable def ptH : {z : Fin 1 ⊕ Extra 1 1 → ℝ |
+    z ∘ Sum.inl ∈ {x | ∀ j, eval x (plusOne j) = 0}} :=
+  ⟨Sum.elim (fun _ => -1) fun j => absurd j.2 (by omega), fun _ => by simp [plusOne]⟩
+
+/-- The three-player homeomorphism sends `-1` to a totally mixed Nash equilibrium of
+`hornerGame`, in which Alice plays her strategy `0` with probability `(3 − √5) / 2`. -/
+example : (hornerGame plusOne).IsTotallyMixedNash
+      (Sigma.curry ((hornerHomeomorph plusOne).toHomeomorph ptH).1) ∧
+    ((hornerHomeomorph plusOne).toHomeomorph ptH).1 ⟨.alice, some 0⟩ = (3 - √5) / 2 := by
+  refine ⟨((hornerHomeomorph plusOne).toHomeomorph ptH).2, ?_⟩
+  rw [coe_hornerHomeomorph_apply, ← toUnit_neg_one]
+  simp [Sigma.uncurry, Cslib.GameTheory.simplexProfile, hornerPoint, simplexPoint,
+    toUnit, ptH]
+
+/-- `V` is nonempty, so the equilibrium set of `binaryGame` is too
+(`StablyIsomorphic.nonempty_iff`). -/
+example : {x : (Σ _ : Cslib.GameTheory.DattaBinary.Player 1 (boxDegree plusOne) 1, Bool) → ℝ |
+    (binaryGame plusOne).IsTotallyMixedNash (Sigma.curry x)}.Nonempty :=
+  (StablyIsomorphic.nonempty_iff (stablyIsomorphic_binaryGame plusOne one_pos)).1
+    ⟨fun _ => -1, fun _ => by simp [plusOne]⟩
 
 end CslibFrontierTests.GameTheory.StableUniversality
