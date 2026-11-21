@@ -148,4 +148,17 @@ theorem coeffNorm1_eval_C_le (P : Polynomial (Polynomial ℤ)) (a : ℤ) (ha : 1
           exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right ha (le_natDegree_of_mem_supp i hi))
     _ = _ := by rw [← sum_mul, bivariateCoeffNorm1]
 
+/-- Specializing the coefficient variable increases the norm by at most the absolute
+value of the specialization raised to a uniform bound on its degree in the coefficients. -/
+theorem coeffNorm1_map_evalRingHom_le (P : Polynomial (Polynomial ℤ)) (a : ℤ)
+    (ha : 1 ≤ a.natAbs) {D : ℕ} (hD : ∀ i, (P.coeff i).natDegree ≤ D) :
+    (P.map (evalRingHom a)).coeffNorm1 ≤ P.bivariateCoeffNorm1 * a.natAbs ^ D := by
+  rw [coeffNorm1_eq_sum_of_support_subset (support_map_subset _ _)]
+  simp only [coeff_map, coe_evalRingHom]
+  calc
+    _ ≤ ∑ i ∈ P.support, (P.coeff i).coeffNorm1 * a.natAbs ^ D := by
+      refine sum_le_sum fun i _ => (natAbs_eval_le_coeffNorm1 _ a ha).trans ?_
+      exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right ha (hD i))
+    _ = _ := by rw [← sum_mul, bivariateCoeffNorm1]
+
 end Polynomial
