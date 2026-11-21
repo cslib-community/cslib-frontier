@@ -43,7 +43,8 @@ abbrev encCountResult : Option ℕ ↪ List Bool := encOption encNat
     (start : State → τ) (answer : τ → Option Bool) : QueryMachine (State ⊕ (State × τ)) :=
   { machine ctx N start answer with finish := finishResult }
 
-private theorem finishResult_inSpace {τ : Type} (encT : τ ↪ List Bool) :
+/-- The final optional count costs space linear in the complete predecessor state. -/
+theorem finishResult_inSpace {τ : Type} (encT : τ ↪ List Bool) :
     ComputableInSpace (finishResult (τ := τ)) (encMachineState encT) encBits
       (fun q => (encMachineState encT q).length) := by
   have hid := of_inO (ComputableInDegree.id' (enc := encState)).inO_one
@@ -53,6 +54,16 @@ private theorem finishResult_inSpace {τ : Type} (encT : τ ↪ List Bool) :
   have hleft : ComputableInSpace (fun q => encCountResult (result q)) encState encBits
       (fun q => (encState q).length) := hresult.of_enc_eq fun _ => rfl
   exact (sumElim hleft (budget_const [] (.refl _))).of_enc_eq fun q => by cases q <;> rfl
+
+/-- The result word is produced at finish, with no step emissions. -/
+theorem computingMachine_emit_eq_nil {τ : Type} (ctx : Context) (N : QueryMachine τ)
+    (start : State → τ) (answer : τ → Option Bool)
+    (p : (State ⊕ (State × τ)) × Option Bool) :
+    (computingMachine ctx N start answer).emit p = [] := by
+  rcases p with ⟨q | ⟨q, t⟩, b⟩
+  · cases h : request start q <;>
+      simp [computingMachine, machine, QueryMachine.withCalls, h, caller]
+  · rfl
 
 /-- Concatenating actual calls retains the per-call bound at every clock of the whole run.
 Only first-halting callee segments need the supplied bound. -/
@@ -146,11 +157,6 @@ theorem compute_of_callees {α τ : Type} {n : ℕ} (enc : α ↪ List Bool)
     cases h : Q.halted (Q.run (enc a) i) with
     | false => rfl
     | true => exact False.elim (Nat.find_min (stops a) hi h)
-  have hemit (p : (State ⊕ (State × τ)) × Option Bool) : Q.emit p = [] := by
-    rcases p with ⟨q | ⟨q, t⟩, b⟩
-    · cases h : request start q <;>
-        simp [Q, computingMachine, machine, QueryMachine.withCalls, h, caller]
-    · rfl
   have hf (a : α) : encCountResult (countPredecessors (edge a) (member a) v) =
       Q.output (enc a) (time a) := by
     obtain ⟨T, q, htrace, hstop, hT, _⟩ := cert a
@@ -159,7 +165,8 @@ theorem compute_of_callees {α τ : Type} {n : ℕ} (enc : α ↪ List Bool)
     have hstate : Q.run (enc a) (time a) = .inl q :=
       (Q.run_eq_of_le (enc a) (hhalt a) hle).symm.trans hT
     have hresult := result_of_returns (edge a) (member a) v hsize htrace hstop (hc a)
-    rw [Q.output_eq_finish_of_emit_nil (enc a) hemit, hstate]
+    rw [Q.output_eq_finish_of_emit_nil (enc a) (computingMachine_emit_eq_nil ctx N start answer),
+      hstate]
     exact congrArg encCountResult hresult.symm
   apply Q.computableInSpace (machine_query_inSpace encT ctx N start answer hq hs)
     (machine_next_inSpace encT ctx N start answer hn hh hs ha)
