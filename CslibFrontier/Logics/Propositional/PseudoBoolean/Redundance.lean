@@ -1832,9 +1832,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
       | none => none
     | none => none
   | .epreserved vs =>
-    match s.pres with
-    | some P => if vs.all P.contains && P.all vs.contains then some s else none
-    | none => none
+    if s.pres.any fun P => vs.all P.contains && P.all vs.contains then some s else none
   | .dom c ω sub q =>
     match s.order with
     | some L =>
@@ -3197,16 +3195,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
           exact ⟨σ, h₁, h₂, fun h => by simp at h⟩, hs.wit⟩
       · cases h
     · cases h
-  | epreserved _ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact hs
-      · cases h
-    · cases h
-  | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact hs
   | dom c ω items q =>
@@ -3505,16 +3494,7 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
           · exact hag v hv
       · cases h
     · cases h
-  | epreserved _ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact ho
-      · cases h
-    · cases h
-  | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact ho
   | dom c ω items q =>
@@ -3814,16 +3794,7 @@ theorem stepTop_reachesOn {F : List PBConstr} {obj : Option Objective} {P : List
         · exact .inr h₁
       · cases h
     · cases h
-  | epreserved _ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact hs
-      · cases h
-    · cases h
-  | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact hs
   | dom c ω items q =>
@@ -4114,16 +4085,7 @@ theorem stepTop_enumInv {F : List PBConstr} {obj : Option Objective} {pres : Opt
           he.logsol, fun _ h => by simp at h⟩
       · cases h
     · cases h
-  | epreserved _ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact he
-      · cases h
-    · cases h
-  | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact he
   | dom c ω items q =>
@@ -4324,16 +4286,7 @@ theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {pres : Opti
         · exact .inr h₁
       · cases h
     · cases h
-  | epreserved _ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact hs
-      · cases h
-    · cases h
-  | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact hs
   | dom c ω items q =>
