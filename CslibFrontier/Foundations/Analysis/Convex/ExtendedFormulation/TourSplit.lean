@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Reduction
 public import Mathlib.Combinatorics.SimpleGraph.Basic
+import CslibFrontier.Foundations.Data.Fin.Order
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -857,16 +858,6 @@ private theorem splitTour_block_walk {W : Type*} [Fintype W] [DecidableEq W]
       cases hbad
   exact ⟨hmid, hout, w', hww', hw', hw'1⟩
 
-private theorem exists_interval_lt {pos : ℕ → ℕ} (hpos0 : pos 0 = 0) {k n : ℕ} (hn : n < pos k) :
-    ∃ r < k, pos r ≤ n ∧ n < pos (r + 1) := by
-  induction k with
-  | zero => omega
-  | succ k ih =>
-      by_cases hk : n < pos k
-      · obtain ⟨r, hr, hlo, hhi⟩ := ih hk
-        exact ⟨r, Nat.lt_succ_of_lt hr, hlo, hhi⟩
-      · exact ⟨k, Nat.lt_succ_self k, Nat.le_of_not_lt hk, hn⟩
-
 /-- Every undirected tour of `paddedSplitGraph v₀ pad adjD` (`|W| ≥ 2`) induces a directed
 Hamiltonian tour of `(W, adjD)` matching the inter-gadget arcs. -/
 theorem exists_dirTour_of_paddedSplitTour {W : Type*} [Fintype W] [Nonempty W] [DecidableEq W]
@@ -1039,8 +1030,13 @@ theorem exists_dirTour_of_paddedSplitTour {W : Type*} [Fintype W] [Nonempty W] [
       simp only [Sym2.eq_iff, reduceCtorEq, and_false, false_and, or_self] at h
   constructor
   · rintro ⟨i, hi⟩
-    obtain ⟨r, hr, hlo, hhi⟩ :=
-      exists_interval_lt (pos := pos) rfl (show i.1 < pos m by rw [hpos_m]; exact i.2)
+    obtain ⟨r, hlo, hhi⟩ := Fin.exists_le_lt_adjacent
+      (f := fun j : Fin (m + 1) => pos j.val) (x := i.val)
+      (by change pos 0 ≤ i.val; change 0 ≤ i.val; omega)
+      (by change i.val < pos m; rw [hpos_m]; exact i.isLt)
+    rcases r with ⟨r, hr⟩
+    change pos r ≤ i.val at hlo
+    change i.val < pos (r + 1) at hhi
     rw [← splitStep_fin v₀ pad σ i, ← splitStep_succ_fin v₀ pad (by omega) σ i] at hi
     have hwalk := splitTour_block_walk v₀ pad adjD hM3 σ hadj (pos r) (vert r)
       (seq r).2.1 (seq r).2.2

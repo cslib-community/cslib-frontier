@@ -48,3 +48,29 @@ example : ComputableInPolyTime (fun p : ℕ × ℕ => Rat.recoverDyadic p.1 p.2)
 /-- info: true -/
 #guard_msgs in
 #eval Rat.recoverDyadic 1 0 == some 0 && Rat.recoverDyadic 7 (64 + 45) == some (12 / 7)
+
+-- Four fractional bits cannot distinguish 3/4 from 4/5 at bound five.
+example : (3 * 16 / 4 : ℕ) = 4 * 16 / 5 := by decide
+
+-- At bound five, rounding after doubling uses five bits (01100 for 2/5).
+example : Nat.clog 2 (5 ^ 2) = 5 ∧ 2 * Nat.clog 2 5 = 6 := by decide
+
+example : ComputableInPolyTime (fun p : ℕ × ℕ => Rat.recoverDyadicLogSq p.1 p.2)
+      (encPair encNat encNat) (encOption encRat) ∧
+    (Rat.recoverDyadicLogSq 5 12).map (fun q => (q.num, q.den)) = some (2, 5) := by
+  refine ⟨Rat.recoverDyadicLogSq_polyTime, ?_⟩
+  let q : ℚ := ⟨2, 5, by decide, by decide⟩
+  have hq : (2 : ℚ) / 5 = q := q.num_div_den
+  have h : Rat.recoverDyadicLogSq 5 12 = some q := by
+    apply Rat.recoverDyadicLogSq_eq_some
+    · decide
+    · rw [← hq, show Nat.clog 2 (5 ^ 2) = 5 by decide]
+      norm_num
+    · rw [← hq, show Nat.clog 2 (5 ^ 2) = 5 by decide]
+      norm_num
+  rw [h]
+  rfl
+
+/-- info: true -/
+#guard_msgs in
+#eval Rat.recoverDyadicLogSq 5 12 == some (2 / 5) && Rat.recoverDyadic 5 25 == some (2 / 5)
