@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Data.List.ConsecutivePairs
 import CslibFrontier.Foundations.Data.List.FlatMapPositions
+import Mathlib.Analysis.Convex.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
@@ -401,6 +402,10 @@ private theorem mapAtCuts_adjacent (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[
       Complex.sub_re, Complex.ofReal_re]
 
 
+private theorem lineMap_mem_unit {a b t : ℝ} (ha : 0 ≤ a) (hab : a ≤ b) (hb : b ≤ 1)
+    (ht : t ∈ Set.Icc 0 1) : AffineMap.lineMap a b t ∈ Set.Icc 0 1 :=
+  (convex_Icc (𝕜 := ℝ) (0 : ℝ) 1).lineMap_mem ⟨ha, hab.trans hb⟩ ⟨ha.trans hab, hb⟩ ht
+
 section Interpolation
 
 variable {S : Finset ℝ} {c : ℂ →ᵃ[ℝ] ℝ} {F : ℂ → ℂ}
@@ -516,14 +521,8 @@ protected theorem IsSimple.mapAtCuts {p : Route} (hp : p.IsSimple)
   intro i j s t hs ht heq
   obtain ⟨k, α, β, hα, hαβ, hβ, _hlevels, hi, hip⟩ := mapAtCuts_parameter hF p i
   obtain ⟨l, γ, δ, hγ, hγδ, hδ, _hlevels, hj, hjp⟩ := mapAtCuts_parameter hF p j
-  have hs' : AffineMap.lineMap α β s ∈ Set.Icc (0 : ℝ) 1 := by
-    have hm := lineMap_mem_segment ℝ α β hs
-    rw [segment_eq_Icc hαβ.le] at hm
-    exact ⟨hα.trans hm.1, hm.2.trans hβ⟩
-  have ht' : AffineMap.lineMap γ δ t ∈ Set.Icc (0 : ℝ) 1 := by
-    have hm := lineMap_mem_segment ℝ γ δ ht
-    rw [segment_eq_Icc hγδ.le] at hm
-    exact ⟨hγ.trans hm.1, hm.2.trans hδ⟩
+  have hs' := lineMap_mem_unit hα hαβ.le hβ hs
+  have ht' := lineMap_mem_unit hγ hγδ.le hδ ht
   have he := hInjective ((hi s hs).symm.trans (heq.trans (hj t ht)))
   rcases hp k l _ _ hs' ht' he with he | ⟨he₀, he₁⟩ | ⟨he₁, he₀⟩
   · left
@@ -550,10 +549,7 @@ theorem endpoint_mapAtCuts (p : Route) (b : Bool) :
   have he : (mapAtCuts p S c F).AtEnd i t b := by
     cases b <;> simp [Route.AtEnd, Route.position, i, t, Route.segments]
   obtain ⟨j, α, β, hα, hαβ, hβ, _hlevels, hj, hjp⟩ := mapAtCuts_parameter hF p i
-  have hu : AffineMap.lineMap α β t ∈ Set.Icc (0 : ℝ) 1 := by
-    have hm := lineMap_mem_segment ℝ α β ht
-    rw [segment_eq_Icc hαβ.le] at hm
-    exact ⟨hα.trans hm.1, hm.2.trans hβ⟩
+  have hu := lineMap_mem_unit hα hαβ.le hβ ht
   have hje : p.AtEnd j (AffineMap.lineMap α β t) b :=
     (hjp t).symm.trans ((mapAtCuts_atEnd p S c F i ht b).mp he)
   rw [← (mapAtCuts p S c F).at_eq_endpoint i ht b he, hj t ht,
@@ -703,10 +699,7 @@ theorem support_mapAtCuts (p : Route) :
   · intro hz
     obtain ⟨i, t, ht, heq⟩ := ((mapAtCuts p S c F).mem_support_iff z).mp hz
     obtain ⟨j, α, β, hα, hαβ, hβ, _hlevels, hj, _⟩ := mapAtCuts_parameter hF p i
-    have hu : AffineMap.lineMap α β t ∈ Set.Icc (0 : ℝ) 1 := by
-      have hm := lineMap_mem_segment ℝ α β ht
-      rw [segment_eq_Icc hαβ.le] at hm
-      exact ⟨hα.trans hm.1, hm.2.trans hβ⟩
+    have hu := lineMap_mem_unit hα hαβ.le hβ ht
     exact ⟨_, p.at_mem_support j hu, (hj t ht).symm.trans heq⟩
   · rintro ⟨w, hw, rfl⟩
     obtain ⟨j, t, ht, rfl⟩ := (p.mem_support_iff w).mp hw
