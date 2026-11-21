@@ -139,6 +139,17 @@ Emissions stop at the first halt, including when `start` is already halted. -/
 def outputFrom (start : σ) (t : ℕ) : List Bool :=
   ({ M with init := start } : QueryMachine σ).output w t
 
+/-- With empty step emissions, the output consists of the final word. -/
+theorem output_eq_finish_of_emit_nil (hemit : ∀ p, M.emit p = []) (t : ℕ) :
+    M.output w t = M.finish (M.run w t) := by
+  simp only [output, hemit, ite_self, List.map_const', List.flatten_replicate_nil,
+    List.nil_append]
+
+/-- A run from a supplied start state with empty emissions returns its final word. -/
+theorem outputFrom_eq_finish_of_emit_nil (hemit : ∀ p, M.emit p = []) (start : σ) (t : ℕ) :
+    M.outputFrom w start t = M.finish (M.runFrom w start t) :=
+  ({ M with init := start } : QueryMachine σ).output_eq_finish_of_emit_nil w hemit t
+
 /-- Before the first halt, every scheduled step contributes its emission. -/
 theorem output_eq_of_not_halted {t : ℕ}
     (h : ∀ i < t, M.halted (M.run w i) = false) :

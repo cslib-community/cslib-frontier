@@ -76,13 +76,6 @@ private theorem eval_potential_eq_sum (ell : ℕ) (a x : Fin n → ℝ) :
   simp only [potentialPolynomial, map_sum, map_add, map_sub, map_mul, map_pow, eval_X, eval_C,
     potentialTerm]
 
-private theorem eval_deformed_eq (ell : ℕ) (a x : Fin n → ℝ) (u : ℝ)
-    (F : MvPolynomial (Fin n) ℝ) :
-    eval x (deformedPolynomial ell a u F) =
-      eval x (potentialPolynomial ell a) + u * ((ell + 1 : ℕ) * eval x F) := by
-  rw [deformedPolynomial, map_add, map_mul, eval_C]
-  ring
-
 /-- With nonnegative centers and an even leading exponent, the real potential is nonnegative. -/
 theorem eval_potentialPolynomial_nonneg (ell : ℕ) (he : Even (ell + 1))
     (a : Fin n → ℝ) (ha : ∀ i, 0 ≤ a i) (x : Fin n → ℝ) :
@@ -111,7 +104,7 @@ theorem isCompact_sublevel_eval_potentialPolynomial (ell : ℕ) (hell : 1 ≤ el
 private theorem eval_potential_le_eval_deformed (ell : ℕ) (a x : Fin n → ℝ)
     (F : MvPolynomial (Fin n) ℝ) (hF : 0 ≤ eval x F) {u : ℝ} (hu : 0 ≤ u) :
     eval x (potentialPolynomial ell a) ≤ eval x (deformedPolynomial ell a u F) := by
-  rw [eval_deformed_eq]
+  rw [eval_deformedPolynomial]
   exact le_add_of_nonneg_right (by positivity)
 
 /-- Perturbing by a nonnegative multiple of a nonnegative polynomial preserves compact
@@ -149,7 +142,7 @@ theorem exists_zero_iff_bounded_eval_deformedPolynomial (ell : ℕ) (hell : 1 �
   constructor
   · rintro ⟨x, hx⟩
     refine ⟨eval x (potentialPolynomial ell a), fun u _ => ⟨x, ?_⟩⟩
-    rw [eval_deformed_eq, hx, mul_zero, mul_zero, add_zero]
+    rw [eval_deformedPolynomial, hx, mul_zero, mul_zero, add_zero]
   · rintro ⟨B, hB⟩
     obtain ⟨x₀, hx₀⟩ := hB 0 le_rfl
     have hx₀' := (eval_potential_le_eval_deformed ell a x₀ F (hF x₀) le_rfl).trans hx₀
@@ -168,7 +161,7 @@ theorem exists_zero_iff_bounded_eval_deformedPolynomial (ell : ℕ) (hell : 1 �
     have hle : u * c ≤ u * ((ell + 1 : ℕ) * eval y F) :=
       mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hmin hyK) (by positivity)) hu
     have hu_eq : u * c = B + 1 := div_mul_cancel₀ _ hc.ne'
-    rw [eval_deformed_eq] at hy
+    rw [eval_deformedPolynomial] at hy
     linarith [eval_potentialPolynomial_nonneg ell he a ha y]
 
 end MvPolynomial.CriticalSystem

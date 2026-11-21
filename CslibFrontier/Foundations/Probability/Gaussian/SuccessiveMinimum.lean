@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Analysis.Lattice.Minimum
 public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
+public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import Mathlib.Analysis.InnerProductSpace.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.LinearAlgebra.BilinearForm.DualLattice
@@ -18,22 +19,24 @@ import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import Mathlib.Analysis.SpecificLimits.Normed
 
 /-!
-# Successive-minimum dual-mass smoothing bound
+# Successive-minimum smoothing parameter bound
 
-This module proves the dual-mass form of the `λ_n` smoothing bound (a step toward
-[MicciancioRegev2007], Lemma 3.3, pp. 11–12 of the December 27, 2005 author's copy): for every
-full-rank discrete lattice `L` in a finite-dimensional real inner product space `E` of dimension
-`n = finrank ℝ E`, every `ε > 0`, and every width `s > 0` satisfying
-`√(ln (2 n (1 + 1 / ε)) / π) * λ_n(L) ≤ s`, the nonzero reciprocal-width dual mass satisfies
-`ρ_{1/s}(L* \ {0}) ≤ ε` (`ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`). This proves
-the dual-mass inequality one step before wrapping it into the smoothing-parameter infimum
-`η_ε(L) ≤ √(ln (2 n (1 + 1 / ε)) / π) * λ_n(L)`; the asymptotic `ω(log n)` / negligible-`ε` remark
-of Lemma 3.3 is not formalized here.
+This module proves [MicciancioRegev2007], Lemma 3.3 (pp. 11–12 of the December 27, 2005 author's
+copy): for every full-rank discrete lattice `L` in a finite-dimensional real inner product space
+`E` of dimension `n = finrank ℝ E` and every `ε > 0`,
+`η_ε(L) ≤ √(ln (2 n (1 + 1 / ε)) / π) * λ_n(L)`
+(`ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum`), together with its underlying
+dual-mass inequality `ρ_{1/s}(L* \ {0}) ≤ ε` for every width `s > 0` above that threshold
+(`ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`). Both results hold in every
+dimension including zero and require no `MeasurableSpace E` instance. The asymptotic `ω(log n)` /
+negligible-`ε` remark of Lemma 3.3 is not formalized here.
 
 ## Main results
 
-* `ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`: dual-mass step toward the
+* `ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`: dual-mass core of the
   Micciancio–Regev `λ_n` smoothing bound, including dimension zero.
+* `ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum`: Micciancio–Regev Lemma 3.3,
+  `η_ε(L) ≤ √(ln (2 n (1 + 1 / ε)) / π) * λ_n(L)`, including dimension zero.
 
 ## References
 
@@ -570,6 +573,39 @@ theorem gaussianMass_dual_sub_one_le_of_successiveMinimum
           _ = 2 * (finrank ℝ E : ℝ) * 1 := (mul_one _).symm
       exact le_of_mul_le_mul_left this h2n
     exact (div_le_one hε).mp hdiv
+
+/-- Micciancio–Regev Lemma 3.3 ([MicciancioRegev2007], pp. 11–12 of the December 27, 2005 author's
+copy): for every full-rank discrete lattice `L` in a finite-dimensional real inner product space of
+dimension `n = finrank ℝ E` and every `ε > 0`,
+`η_ε(L) ≤ √(ln (2 n (1 + 1 / ε)) / π) * λ_n(L)`. Holds in every dimension including zero (where
+both sides vanish); the asymptotic `ω(log n)` / negligible-`ε` remark is not formalized here. -/
+theorem smoothingParameter_le_sqrt_log_mul_successiveMinimum
+    {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (ε : ℝ) (hε : 0 < ε) :
+    smoothingParameter L ε ≤
+      Real.sqrt (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) / Real.pi) *
+        successiveMinimum L (finrank ℝ E) := by
+  by_cases hn : finrank ℝ E = 0
+  · have : Subsingleton E := finrank_zero_iff.mp hn
+    simp [smoothingParameter_eq_zero_of_subsingleton, hn]
+  · have hnpos : 0 < finrank ℝ E := Nat.pos_of_ne_zero hn
+    have : Nontrivial E := finrank_pos_iff.mp hnpos
+    have hLne : L ≠ ⊥ := fun hbot ↦
+      top_ne_bot (by rw [← IsZLattice.span_top (K := ℝ) (L := L), hbot]; simp)
+    have hlam : 0 < successiveMinimum L (finrank ℝ E) :=
+      (minimum_pos hLne).trans_le (minimum_le_successiveMinimum L hLne hnpos le_rfl)
+    have harg : 1 < 2 * (finrank ℝ E : ℝ) * (1 + 1 / ε) := by
+      have hn1 : (1 : ℝ) ≤ (finrank ℝ E : ℝ) := by exact_mod_cast hnpos
+      have hinv : 0 < 1 / ε := one_div_pos.mpr hε
+      nlinarith
+    have hsqrt : 0 < Real.sqrt (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) / Real.pi) :=
+      Real.sqrt_pos.mpr (div_pos (Real.log_pos harg) Real.pi_pos)
+    let s := Real.sqrt (Real.log (2 * (finrank ℝ E : ℝ) * (1 + 1 / ε)) / Real.pi) *
+      successiveMinimum L (finrank ℝ E)
+    have hs : 0 < s := mul_pos hsqrt hlam
+    exact smoothingParameter_le_of_dual_mass_le L hs
+      (gaussianMass_dual_sub_one_le_of_successiveMinimum L ε hε s hs le_rfl)
 
 end SuccessiveMinimumBound
 

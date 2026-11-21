@@ -145,10 +145,10 @@ theorem RoundCall.result_mem {n fuel k : ℕ} {edge : Fin n → Fin n → List B
   | initial => exact hr
   | next h ha hbad hcount ih =>
     apply ih
-    simp only [runRounds, List.bind_eq_flatMap, List.mem_flatMap]
+    simp only [runRounds, runRoundsWith, List.bind_eq_flatMap, List.mem_flatMap]
     refine ⟨_, ha, ?_⟩
     simpa only [hbad, Bool.false_eq_true, ↓reduceIte, beq_iff_eq,
-      hcount] using hr
+      hcount, runRounds] using hr
 
 /-- All reachable round boundaries, including those before a later rejection, have bounded
 radius and scalar registers for arbitrary replies. The sum bound is deliberately conservative. -/

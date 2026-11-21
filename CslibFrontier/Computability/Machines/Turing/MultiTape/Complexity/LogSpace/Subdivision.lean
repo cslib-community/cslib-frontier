@@ -131,6 +131,20 @@ def callback (N : QueryMachine τ) (baseRequest : Query Context → τ)
 /-- Caller and suspended-callee states, with the caller framed while a call is active. -/
 abbrev encCallback := QueryMachine.encWithCalls (encCaller encContext) encT
 
+/-- Read the returned subdivision answer. States that have yet to return give `false`. -/
+@[expose] def callbackVerdict :
+    (Query Context ⊕ Bool) ⊕ ((Query Context ⊕ Bool) × τ) → Bool :=
+  Sum.elim (Sum.elim (fun _ => false) id) (fun _ => false)
+
+/-- Decoding the returned Boolean uses linear native workspace in the callback state. -/
+theorem callbackVerdict_inSpace :
+    ComputableInSpace callbackVerdict (encCallback encContext encT) encBool
+      (fun s => (encCallback encContext encT s).length) := by
+  have hcaller : ComputableInSpace (Sum.elim (fun _ => false) id) (encCaller encContext) encBool
+      (fun s => (encCaller encContext s).length) :=
+    sumElim (budget_const false (.refl _)) (budget_id (.refl _))
+  exact sumElim hcaller (budget_const false (.refl _))
+
 /-- Running the supplied read-only callee returns the subdivision answer after its own
 first-halting time plus call entry and return. No answer bit is assumed in the initial query. -/
 theorem callback_runFrom (N : QueryMachine τ) (baseRequest : Query Context → τ)
