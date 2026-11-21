@@ -129,6 +129,34 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   exact (justesenSourceMembership_readReply_iff ntm c w seed source target 1 0 ⟨0, 0⟩
     _ false [true, false]).mpr ⟨fun _ => none, rfl, run_skip _ _ _⟩
 
+/-- Exact radius-zero membership at a different target returns false and preserves
+the caller's suffix. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount),
+      target ≠ source → ∀ suffix : List Bool,
+      let adjacent := configurationJustesenSubdivisionAdjacent ntm c w seed
+      let edge := fun u v => adjacent u v = true
+      let ctx : JustesenSourceContext :=
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+      let entry := justesenSourceMembershipStart ⟨ctx, 1, 0, expected edge source 0⟩
+      let M := justesenSourceMembershipMachine ntm c
+      ∃ bits, M.readReply MembershipTally.retainedReply w entry bits = some (false, suffix) := by
+  intro I size seed source target hne suffix adjacent edge ctx entry M
+  obtain ⟨callBits, ⟨hfirst, hret⟩, _⟩ := justesenSourceMembership_existsUnique_firstHalting
+    ntm c w seed source target 1 0 (existsUnique_passes_zero edge source)
+  obtain ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp hret
+  let bits := callBits ++ false :: suffix
+  have hparsed := (readReply_iff M MembershipTally.retainedReply w bits entry hit suffix).mpr
+    ⟨callBits, rfl, hfirst, hhit⟩
+  have hspec := justesenSourceMembership_readReply_correct ntm c w seed source target
+    1 0 bits hit suffix hparsed
+  have hfalse : hit = false := Bool.eq_false_iff.mpr fun htrue =>
+    hne (by simpa only [Relation.reachableWithin_zero, Set.mem_singleton_iff] using hspec.mp htrue)
+  exact ⟨bits, hfalse ▸ hparsed⟩
+
 /-- Compile queries at seed zero using the designated endpoints computed from the original
 word. The same machine has a native workspace bound, halts on every input, and has one
 accepting occurrence for the passing negative selector list. -/

@@ -32,6 +32,10 @@ carrier as the adjacency callback.
   the return selector give the same reply and leave the same suffix.
 * `Cslib.Complexity.STCON.justesenSourceMembership_bounds`: a common selector clock and
   logarithmic state bound at every admissible loop entry.
+* `Cslib.Complexity.STCON.justesenSourceMembership_existsUnique_firstHalting`: one
+  successful selector list at a unique passing transcript.
+* `Cslib.Complexity.STCON.justesenSourceMembership_readReply_correct`: a successful reply at
+  the exact round totals reports bounded reachability.
 -/
 
 public section
@@ -152,6 +156,58 @@ theorem justesenSourceMembership_readReply_iff
     refine ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, ?_⟩⟩
     exact fun _ h =>
       MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm
+
+open NondeterministicQueryMachine in
+/-- A unique passing transcript at the exact totals gives one successful selector list for
+the source loop's final membership callback. -/
+theorem justesenSourceMembership_existsUnique_firstHalting
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount)
+      (fuel radius : ℕ),
+      let adjacent := configurationJustesenSubdivisionAdjacent ntm c w seed
+      let edge := fun u v => adjacent u v = true
+      (∃! transcript, Passes edge source radius transcript) →
+      let ctx : JustesenSourceContext :=
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+      let entry := justesenSourceMembershipStart ⟨ctx, fuel, radius, expected edge source radius⟩
+      let M := justesenSourceMembershipMachine ntm c
+      ∃! bits, M.FirstHalting w bits entry ∧
+        (MembershipTally.retainedReply (M.replay w bits entry)).isSome := by
+  intro I size seed source target fuel radius adjacent edge hpass ctx entry M
+  let entered := M.withInit entry
+  change ∃! bits, entered.FirstHalting w bits entered.init ∧
+    (MembershipTally.retainedReply (entered.run w bits)).isSome
+  dsimp only [entered, M, entry]
+  rw [justesenSourceMembershipMachine_withInit]
+  exact configurationJustesenMembershipTally_existsUnique_firstHalting ntm c w
+    seed source target radius hpass
+
+open NondeterministicQueryMachine in
+/-- At the exact totals, a parsed final reply is true precisely when the target is reachable
+from the source within the current radius. -/
+theorem justesenSourceMembership_readReply_correct
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount)
+      (fuel radius : ℕ) (bits : List Bool) (hit : Bool) (suffix : List Bool),
+      let adjacent := configurationJustesenSubdivisionAdjacent ntm c w seed
+      let edge := fun u v => adjacent u v = true
+      let ctx : JustesenSourceContext :=
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+      let entry := justesenSourceMembershipStart ⟨ctx, fuel, radius, expected edge source radius⟩
+      (justesenSourceMembershipMachine ntm c).readReply MembershipTally.retainedReply
+        w entry bits = some (hit, suffix) →
+      (hit ↔ target ∈ Relation.reachableWithin edge source radius) := by
+  intro I size seed source target fuel radius bits hit suffix adjacent edge ctx entry hreply
+  obtain ⟨branch, _, hscan⟩ :=
+    (justesenSourceMembership_readReply_iff ntm c w seed source target fuel radius
+      (expected edge source radius) bits hit suffix).mp hreply
+  exact Scan.hit_iff_reachable adjacent source target radius branch hit (by
+    rw [Scan.runM_replay]
+    exact hscan)
 
 open NondeterministicQueryMachine in
 /-- The final membership callback has a common selector clock and logarithmic encoded-state
