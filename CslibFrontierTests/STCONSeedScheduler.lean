@@ -96,6 +96,14 @@ example :
   exact (budget_comp_linear hmap hentry).of_enc_eq fun p => by
     cases seedSchedulerCandidate p.1 p.2 <;> rfl
 
+open ComputableInSpace in
+/-- The scheduler can advance without a reply within the budget of the live frame. -/
+example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {frame : α → SeedSchedulerFrame}
+    (hframe : ComputableInSpace frame enc encSeedSchedulerFrame S) :
+    ComputableInSpace (fun a => seedSchedulerStep (frame a) none)
+      enc encSeedSchedulerStepResult S :=
+  budget_comp_linear seedSchedulerStep_noReply_inSpace hframe
+
 private def rejecting (_ : SeedSchedulerFrame) :
     OptionT (StateM ℕ) (Option ControllerVerdict) :=
   OptionT.mk fun t => (none, t + 1)
