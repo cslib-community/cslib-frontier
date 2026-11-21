@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 
 /-! # Inverting support memberships with `supp_cases` and `supp_norm` -/
 
@@ -61,6 +62,15 @@ example (c : Prop) [Decidable c] (hc : c) (μ ν : PMF ℕ) (x : ℕ)
     (h : x ∈ (if c then μ else ν).support) : x ∈ μ.support := by
   supp_cases h [hc]
   assumption
+
+-- An undecided dependent conditional keeps the proof needed by its selected distribution.
+example (c : Prop) [Decidable c] (μ : c → PMF ℕ) (ν : ¬c → PMF ℕ) (x : ℕ)
+    (hμ : ∀ hc a, a ∈ (μ hc).support → a < 5)
+    (hν : ∀ hc a, a ∈ (ν hc).support → a < 3)
+    (h : x ∈ (if hc : c then (μ hc).map (· + 1) else ν hc).support) : x < 6 := by
+  supp_cases h with ⟨hc, a, ha, rfl⟩ | ⟨hc, hx⟩
+  · exact Nat.add_lt_add_right (hμ hc a ha) 1
+  · exact (hν hc x hx).trans (by decide)
 
 -- An impossible returned value closes the goal.
 example (μ : PMF ℕ) (h : (0, 2) ∈ (μ.map fun a => (a, 1)).support) : False := by
@@ -120,6 +130,24 @@ example {ι : Type} {spec : OracleSpec ι} (possible : (q : ι) → Set (spec q)
     (h : x ∈ OracleComp.supportWith possible (f <$> OracleComp.query q)) :
     ∃ a ∈ possible q, f a = x := by
   supp_cases h with ⟨a, ha, rfl⟩
+  exact ⟨a, ha, rfl⟩
+
+-- A dependent query retains both its condition proof and its restricted reply membership.
+example (c : Prop) [Decidable c] (q : c → ℕ) (possible : ℕ → Set ℕ) (x : ℕ)
+    (hbound : ∀ hc a, a ∈ possible (q hc) → a ≤ 7)
+    (h : x ∈ OracleComp.supportWith possible
+      (if hc : c then OracleComp.query (q hc) else pure 0)) : x ≤ 7 := by
+  supp_cases h with ⟨hc, hx⟩ | ⟨-, rfl⟩
+  · exact hbound hc x hx
+  · decide
+
+-- Stateful normalization stops at an opaque subprogram and preserves its joint support witness.
+example {State : Type} (oracle : Unit → StateT State PMF ℕ)
+    (program : ProbOracleComp (fun _ : Unit => ℕ) ℕ) (initial final : State) (x : ℕ)
+    (h : (x, final) ∈ (ProbOracleComp.runWith oracle
+      (do let a ← program; pure (a + 1)) initial).support) :
+    ∃ a, (a, final) ∈ (ProbOracleComp.runWith oracle program initial).support ∧ x = a + 1 := by
+  supp_cases h [runWith_norm] with ⟨⟨a, next⟩, ha, rfl, rfl⟩
   exact ⟨a, ha, rfl⟩
 
 -- The law of a closed program is inverted through its `PMF` normal form.

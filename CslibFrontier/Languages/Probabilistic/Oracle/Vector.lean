@@ -11,6 +11,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Running and counting queries of `OracleComp.pi` and `OracleComp.replicate`
@@ -133,22 +135,13 @@ theorem length_transcript_pi_query {m : ℕ} {State : Type}
     transcript.length = m := by
   induction m generalizing s s' transcript with
   | zero =>
-    simp only [OracleComp.pi_zero, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
-      Prod.mk.injEq] at hmem
-    rcases hmem with ⟨-, -, rfl⟩
+    supp_cases hmem [OracleComp.pi_zero, runWith_norm]
     rfl
   | succ m ih =>
-    simp only [OracleComp.pi_succ, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_map, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-    obtain ⟨⟨first, s₁, seen⟩, hfirst, ⟨rest, s₂, total⟩, hrest, heq⟩ := hmem
-    simp only [Prod.map, id_eq, Prod.mk.injEq] at heq
-    rcases heq with ⟨-, rfl, rfl⟩
-    simp only [OracleComp.withTranscript, PMF.mem_support_map_iff] at hfirst
-    obtain ⟨⟨ans, next⟩, -, hfirst_eq⟩ := hfirst
-    cases hfirst_eq
-    rw [ProbOracleComp.run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hrest
-    obtain ⟨⟨rest', final, fresh⟩, hfresh, hrest_eq⟩ := hrest
-    cases hrest_eq
+    supp_cases hmem [OracleComp.pi_succ, runWith_norm, OracleComp.withTranscript] with
+      ⟨_, ⟨⟨ans, next⟩, -, rfl⟩, ⟨rest, s₂, total⟩, hrest, -, rfl, rfl⟩
+    rw [ProbOracleComp.run_interpret_withTranscript_append] at hrest
+    supp_cases hrest with ⟨⟨rest', final, fresh⟩, hfresh, rfl, rfl, rfl⟩
     have hlen := ih (fun i => q i.succ) hfresh
     simp [hlen]
 
