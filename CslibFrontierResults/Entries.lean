@@ -11807,8 +11807,7 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
     Borel measurable structure, fundamental domain F for L, width s > 0, and arbitrary center \
     c : E, the quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total \
     variation distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the \
-    normalized quotient Haar measure; the premise is the dual-lattice Gaussian mass, not the \
-    smoothing parameter. (b) Smoothing-parameter corollary for the centered Gaussian (c = 0): \
+    normalized quotient Haar measure. (b) Smoothing-parameter corollary for the centered Gaussian (c = 0): \
     for ε > 0 and ZLattice.smoothingParameter L ε ≤ s, the same total variation distance is at \
     most ε. Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ \
     distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to \
