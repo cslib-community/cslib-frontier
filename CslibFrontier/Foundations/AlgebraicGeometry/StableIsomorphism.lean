@@ -93,6 +93,24 @@ noncomputable def ofInverse (f : (σ → ℝ) → τ → ℝ) (g : (τ → ℝ) 
       refine ⟨z ∘ Sum.inl, hgz ▸ hg _ hz, ?_⟩
       rw [← hgz, hfg _ hz, hgz, Sum.elim_comp_inl_inr]
 
+@[simp] theorem coe_ofInverse_apply (f : (σ → ℝ) → τ → ℝ) (g : (τ → ℝ) → σ → ℝ)
+    (hf : ∀ x ∈ A, f x ∈ B) (hg : ∀ y ∈ B, g y ∈ A) (hgf : ∀ x ∈ A, g (f x) = x)
+    (hfg : ∀ y ∈ B, f (g y) = y) (hfc : ContinuousOn f A) (hgc : ContinuousOn g B)
+    (hgraph : IsSemialgebraic {z : σ ⊕ τ → ℝ | z ∘ Sum.inr ∈ B ∧ g (z ∘ Sum.inr) = z ∘ Sum.inl})
+    (x : A) :
+    ((ofInverse f g hf hg hgf hfg hfc hgc hgraph).toHomeomorph x : τ → ℝ) = f x := by
+  unfold ofInverse
+  rfl
+
+@[simp] theorem coe_ofInverse_symm_apply (f : (σ → ℝ) → τ → ℝ) (g : (τ → ℝ) → σ → ℝ)
+    (hf : ∀ x ∈ A, f x ∈ B) (hg : ∀ y ∈ B, g y ∈ A) (hgf : ∀ x ∈ A, g (f x) = x)
+    (hfg : ∀ y ∈ B, f (g y) = y) (hfc : ContinuousOn f A) (hgc : ContinuousOn g B)
+    (hgraph : IsSemialgebraic {z : σ ⊕ τ → ℝ | z ∘ Sum.inr ∈ B ∧ g (z ∘ Sum.inr) = z ∘ Sum.inl})
+    (y : B) :
+    ((ofInverse f g hf hg hgf hfg hfc hgc hgraph).toHomeomorph.symm y : σ → ℝ) = g y := by
+  unfold ofInverse
+  rfl
+
 /-- **Renaming the coordinates** of a semialgebraic set `A ⊆ σ → ℝ` along `e : σ ≃ τ` is a
 semialgebraic isomorphism onto `{y | y ∘ e ∈ A}`. -/
 noncomputable def reindex [Finite σ] (e : σ ≃ τ) (hA : IsSemialgebraic A) :

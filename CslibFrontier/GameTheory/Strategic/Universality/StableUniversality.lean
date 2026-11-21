@@ -305,7 +305,7 @@ abbrev binaryPlayer {d : ℕ} : Fin n ⊕ Fin (m - n) → DattaBinary.Player n d
 
 /-- The change of variables, from `V × ℝ^{m − n}` to profiles: the variable and extra players play
 `toUnit (z k)`, and the chain players the powers of the variables. -/
-noncomputable def binaryPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
+@[expose] noncomputable def binaryPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
     (z : Fin n ⊕ Fin (m - n) → ℝ) : DattaBinary.Player n (boxDegree F) m → ℝ
   | .inl i => toUnit (z (.inl i))
   | .inr (.inl c) => toUnit (z (.inl c.1)) ^ (c.2.val + 1)
@@ -381,6 +381,12 @@ noncomputable def binaryHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) (hn 
       cases b
       · exact continuous_const.sub (hq v)
       · exact hq v)
+
+theorem coe_binaryHomeomorph_apply (F : Fin m → MvPolynomial (Fin n) ℝ) (hn : 0 < n)
+    (z : {z : Fin n ⊕ Fin (m - n) → ℝ | z ∘ Sum.inl ∈ {x | ∀ j, eval x (F j) = 0}}) :
+    ((binaryHomeomorph F hn).toHomeomorph z : _ → ℝ) =
+      Sigma.uncurry (binaryProfile (binaryPoint F z)) := by
+  simp [binaryHomeomorph, ofRatio]
 
 end Binary
 
@@ -667,6 +673,12 @@ noncomputable def hornerHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) :
       obtain ⟨w, _ | t⟩ := v
       · exact continuous_const.sub (continuous_finsetSum _ fun t _ => hq ⟨w, t⟩)
       · exact hq ⟨w, t⟩)
+
+theorem coe_hornerHomeomorph_apply (F : Fin m → MvPolynomial (Fin n) ℝ)
+    (z : {z : Fin n ⊕ Extra n m → ℝ | z ∘ Sum.inl ∈ {x | ∀ j, eval x (F j) = 0}}) :
+    ((hornerHomeomorph F).toHomeomorph z : _ → ℝ) =
+      Sigma.uncurry (simplexProfile (hornerPoint F z)) := by
+  simp [hornerHomeomorph, ofRatio]
 
 end Horner
 
