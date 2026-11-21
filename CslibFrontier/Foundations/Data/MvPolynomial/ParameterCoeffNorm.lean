@@ -71,6 +71,17 @@ theorem coeff_le (p : MvPolynomial ι (Polynomial ℤ)) (m : ι →₀ ℕ) :
     Finsupp.single_eval_le_sum p.coeff (g := Polynomial.coeffNorm1)
       Polynomial.coeffNorm1_zero (fun _ => Nat.zero_le _) m
 
+/-- Specializing the coefficient parameter multiplies the norm bound by at most
+`a.natAbs ^ D` when every parameter coefficient has degree at most `D`. -/
+theorem coeffNorm1_map_evalRingHom_le (p : MvPolynomial ι (Polynomial ℤ)) (a : ℤ)
+    (ha : 1 ≤ a.natAbs) {D : ℕ} (hD : ∀ m, (p.coeff m).natDegree ≤ D) :
+    (p.map (Polynomial.evalRingHom a)).coeffNorm1 ≤ norm p * a.natAbs ^ D := by
+  rw [MvPolynomial.coeffNorm1_eq_sum_of_support_subset _ _ (support_map_subset _ _),
+    norm, Finset.sum_mul]
+  simp only [coeff_map, Polynomial.coe_evalRingHom]
+  refine Finset.sum_le_sum fun m _ => (Polynomial.natAbs_eval_le_coeffNorm1 _ a ha).trans ?_
+  exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right ha (hD m))
+
 /-- The parameter coefficient norm satisfies the triangle inequality. -/
 theorem add_le (p q : MvPolynomial ι (Polynomial ℤ)) : norm (p + q) ≤ norm p + norm q :=
   sum_add_le_of_subadditive Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_add_le p q

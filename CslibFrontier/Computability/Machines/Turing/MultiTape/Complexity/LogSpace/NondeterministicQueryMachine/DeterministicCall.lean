@@ -24,6 +24,7 @@ namespace Turing.QueryMachine
 variable {σ : Type*}
 
 /-- Run the deterministic query machine with one permitted selector per live step. -/
+@[expose]
 def withRejectingChoice (M : QueryMachine σ) : NondeterministicQueryMachine (Option σ) where
   init := some M.init
   query := fun s => s.elim 0 M.query
@@ -37,6 +38,12 @@ private theorem step_false (M : QueryMachine σ) (input : List Bool) (s : σ) :
     simp [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read,
       withRejectingChoice, QueryMachine.step, QueryMachine.read, h]
 
+private theorem step_true_of_live (M : QueryMachine σ) (input : List Bool) {s : Option σ}
+    (hlive : M.withRejectingChoice.halted s = false) :
+    M.withRejectingChoice.step input s true = none := by
+  rw [NondeterministicQueryMachine.step, hlive]
+  rfl
+
 /-- An all-false replay from an explicit entry state performs the same original-input run. -/
 theorem withRejectingChoice_replay_false (M : QueryMachine σ) (input : List Bool)
     (s : σ) (t : ℕ) :
@@ -48,6 +55,31 @@ theorem withRejectingChoice_replay_false (M : QueryMachine σ) (input : List Boo
     rw [List.replicate_succ', NondeterministicQueryMachine.replay_append, ih,
       NondeterministicQueryMachine.replay_cons, NondeterministicQueryMachine.replay_nil,
       step_false, runFrom_succ]
+
+/-- An arbitrary selector replay either rejects or reaches the deterministic state at the
+same clock. Selectors after the deterministic halt leave the state fixed. -/
+theorem withRejectingChoice_replay_eq_none_or_runFrom (M : QueryMachine σ) (input : List Bool)
+    (s : σ) (bits : List Bool) :
+    M.withRejectingChoice.replay input bits (some s) = none ∨
+      M.withRejectingChoice.replay input bits (some s) = some (M.runFrom input s bits.length) := by
+  induction bits using List.reverseRecOn with
+  | nil => exact Or.inr rfl
+  | append_singleton pre choice ih =>
+    rw [NondeterministicQueryMachine.replay_append, NondeterministicQueryMachine.replay_cons,
+      NondeterministicQueryMachine.replay_nil, List.length_append, List.length_singleton,
+      runFrom_succ]
+    rcases ih with hreject | hrun
+    · rw [hreject]
+      exact Or.inl (M.withRejectingChoice.step_of_halted input (s := none) rfl choice)
+    · rw [hrun]
+      cases choice with
+      | false => exact Or.inr (step_false M input _)
+      | true =>
+        cases hh : M.halted (M.runFrom input s pre.length)
+        · exact Or.inl (step_true_of_live M input hh)
+        · right
+          rw [M.withRejectingChoice.step_of_halted input (s := some _) hh true]
+          simp only [QueryMachine.step, hh, ite_true]
 
 private theorem replicate_of_success (M : QueryMachine σ) (input : List Bool)
     (bits : List Bool) (s : Option σ)
@@ -64,10 +96,7 @@ private theorem replicate_of_success (M : QueryMachine σ) (input : List Bool)
     | false =>
       exact congrArg (List.cons false) (ih _ htail hsuccess)
     | true =>
-      have hreject : B.step input s true = none := by
-        rw [NondeterministicQueryMachine.step, hlive]
-        rfl
-      rw [hreject, B.replay_of_halted input (s := none) rfl] at hsuccess
+      rw [step_true_of_live M input hlive, B.replay_of_halted input (s := none) rfl] at hsuccess
       cases hsuccess
 
 /-- A deterministic first halt at time `t` has exactly the all-false selector word of length

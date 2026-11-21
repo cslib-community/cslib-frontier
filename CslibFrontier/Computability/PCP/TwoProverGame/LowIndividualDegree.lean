@@ -354,7 +354,8 @@ theorem answersWinProb_game (n d : ℕ)
       ((branchGame (F := F) n d .axis).answersWinProb ans +
         (branchGame (F := F) n d .consistency).answersWinProb ans +
         (branchGame (F := F) n d .diagonal).answersWinProb ans) / 3 := by
-  unfold TwoProverGame.answersWinProb game branchGame
+  simp only [TwoProverGame.answersWinProb_eq, TwoProverGame.acceptsRound_eq]
+  unfold game branchGame
   rw [PMF.bind_bind, Cslib.Probability.PMF.toOuterMeasure_bind_toReal]
   exact average_branches _
 

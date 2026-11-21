@@ -382,18 +382,21 @@ private noncomputable def signingCall (s : Level) {base : Xofs} (tr : List Byte)
     st.trace.append q w.point w.digest w.reply input rfl, exhausted, signed⟩)
 
 private noncomputable def programmedCommands (C : QuantumSigningForger) (s : Level) (H : Xofs)
-    (tr : List Byte) (draw : (H : Xofs) → PMF (Option (Terminal s H))) :=
-  OracleComp.sumHandler (m := StateT (Device C × History s H tr) PMF)
-    (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
-    (spec₂ := fun _ : SigningQuery => Option (List Byte))
-    (fun cmd st => C.deviceCommand st.2.xofs cmd st)
-    (fun q st => (signingCall s tr draw q st.2).map fun (r, history) => (r, st.1, history))
+    (tr : List Byte) (draw : (G : Xofs) → PMF (Option (Terminal s G)))
+    (raw : History s H tr → Xofs := (·.xofs)) :=
+  C.statefulSigningCommands raw (signingCall s tr draw)
+
+private noncomputable def runSigningProgram (C : QuantumSigningForger) (s : Level) (H : Xofs)
+    (tr : List Byte) (draw : (G : Xofs) → PMF (Option (Terminal s G))) {α : Type}
+    (p : ProbOracleComp (OracleSpec.sum (fun _ : DeviceRequest (Width C) Empty => List Bool)
+      (fun _ : SigningQuery => Option (List Byte))) α) : PMF (α × Device C × History s H tr) :=
+  ProbOracleComp.runWith (C.programmedCommands s H tr draw) p
+    (C.initial.1, ⟨H, [], [], .initial, by simp, by simp⟩)
 
 private noncomputable def runProgrammed (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (pk tr : List Byte) (draw : (H : Xofs) → PMF (Option (Terminal s H))) :
     PMF (ProgrammedSigningResult C s H) := do
-  let (f, dev, state) ← ProbOracleComp.runWith (C.programmedCommands s H tr draw) (C.program pk)
-    (C.initial.1, ⟨H, [], [], .initial, by simp, by simp⟩)
+  let (f, dev, state) ← C.runSigningProgram s H tr draw (C.program pk)
   return ⟨⟨state.xofs, A, pk, f, state.log⟩, tr, state.writes, state.trace, state.exhausted,
     state.signed, dev⟩
 

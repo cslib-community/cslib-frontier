@@ -143,6 +143,7 @@ theorem readReply_commonPrefix {β γ : Type} (callee : NondeterministicQueryMac
     (ha : readReply callee ret input s left = some (a, rest))
     (ha' : readReply callee ret input s right = some (a', rest')) :
     ∃ callBits, left = callBits ++ false :: rest ∧ right = callBits ++ false :: rest' ∧
+      callee.FirstHalting input callBits s ∧
       ret (callee.replay input callBits s) = some a ∧ a = a' := by
   obtain ⟨callBits, hleft, hf, hret⟩ :=
     (readReply_iff _ _ _ _ _ _ _).mp ha
@@ -150,7 +151,7 @@ theorem readReply_commonPrefix {β γ : Type} (callee : NondeterministicQueryMac
     (readReply_iff _ _ _ _ _ _ _).mp ha'
   have he : callBits = other := hu ⟨hf, by simp [hret]⟩ ⟨hf', by simp [hret']⟩
   subst other
-  exact ⟨callBits, hleft, hright, hret, Option.some.inj (hret.symm.trans hret')⟩
+  exact ⟨callBits, hleft, hright, hf, hret, Option.some.inj (hret.symm.trans hret')⟩
 
 /-- A successful first halt of a caller suspended at a same-input callback decomposes into
 the callback's successful reply and a successful first halt of the resumed caller. -/

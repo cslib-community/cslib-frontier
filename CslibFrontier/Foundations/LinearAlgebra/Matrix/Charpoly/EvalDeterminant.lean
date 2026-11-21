@@ -7,6 +7,7 @@ module
 -- upstream: candidate (Mathlib, matrix characteristic polynomial)
 
 public import CslibFrontier.Init
+public import Mathlib.FieldTheory.Separable
 public import Mathlib.LinearAlgebra.Matrix.Charpoly.Basic
 public import Mathlib.RingTheory.Polynomial.Resultant.Basic
 import Mathlib.Tactic.Ring
@@ -17,9 +18,11 @@ import Mathlib.Tactic.Ring
 Factoring the test polynomial gives a resultant with the characteristic
 polynomial. When the characteristic polynomial also splits, the determinant
 is the product of the test values at its roots, counted with multiplicity.
+After a coefficient extension in which the characteristic polynomial is
+separable, the product can be taken over distinct roots.
 
-Adapted from `NormPolynomialEvaluation` in lean-canny at
-`970f28a5ecefc1327402ade16c068aa4b1b2c183`, using the matrix directly.
+Adapted from `NormPolynomialEvaluation` and `QuotientRealSpectralProduct` in
+lean-canny at `970f28a5ecefc1327402ade16c068aa4b1b2c183`, using the matrix directly.
 -/
 
 public section
@@ -27,6 +30,8 @@ public section
 namespace Matrix
 
 open Polynomial
+
+section Field
 
 variable {ι K : Type*} [Fintype ι] [DecidableEq ι] [Field K]
 
@@ -65,5 +70,30 @@ theorem det_aeval_eq_prod_charpoly_roots (M : Matrix ι ι K) (g : Polynomial K)
     (Polynomial.aeval M g).det = (M.charpoly.roots.map g.eval).prod := by
   rw [det_aeval_eq_charpoly_resultant M g hg, resultant_eq_prod_eval _ _ _ le_rfl hM,
     M.charpoly_monic.leadingCoeff, one_pow, one_mul]
+
+end Field
+
+/-- Extend coefficients to a field in which both polynomials split. If the
+characteristic polynomial is separable there, the image of the source determinant
+is the product of the test values over distinct characteristic roots. -/
+theorem algebraMap_det_aeval_eq_prod_aroots_toFinset {ι R K : Type*} [Fintype ι] [DecidableEq ι]
+    [CommRing R] [Field K] [DecidableEq K] [Algebra R K] (M : Matrix ι ι R) (g : Polynomial R)
+    (hg : (g.map (algebraMap R K)).Splits) (hM : (M.charpoly.map (algebraMap R K)).Splits)
+    (hsep : (M.charpoly.map (algebraMap R K)).Separable) :
+    algebraMap R K (Polynomial.aeval M g).det =
+      ∏ z ∈ (M.charpoly.aroots K).toFinset, Polynomial.aeval z g := by
+  classical
+  let f := algebraMap R K
+  have hmap : f.mapMatrix (Polynomial.aeval M g) =
+      Polynomial.aeval (M.map f) (g.map f) := by
+    apply Polynomial.map_aeval_eq_aeval_map
+    apply RingHom.ext
+    intro c
+    exact (Matrix.map_algebraMap c f (map_zero f) (by simp [f])).symm
+  rw [RingHom.map_det, hmap]
+  have hs : (M.map f).charpoly.Splits := by rwa [Matrix.charpoly_map]
+  rw [det_aeval_eq_prod_charpoly_roots _ _ hg hs, Matrix.charpoly_map]
+  rw [Finset.prod_eq_multiset_prod, Multiset.toFinset_val, (Polynomial.nodup_roots hsep).dedup]
+  simp only [Polynomial.aeval_def, Polynomial.eval_map, f]
 
 end Matrix
