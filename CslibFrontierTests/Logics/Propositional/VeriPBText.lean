@@ -502,6 +502,11 @@ end pseudo-Boolean proof;
 "
 
 #guard checkOPB one coreProof == some (.sat none)
+-- Promoting a core constraint again is a no-op (VeriPB and CakePB accept).
+#guard checkOPB one (coreProof.replace "core id 2;" "core id 2 2;\ncore id 1 2;") ==
+  some (.sat none)
+-- `core id` needs at least one ID (§5.1; VeriPB 3.0.2 and CakePB accept the empty list).
+#guard (checkOPB one (coreProof.replace "core id 2;" "core id 2;\ncore id ;")).isNone
 -- `~x1` is not a solution of the database (VeriPB and CakePB reject).
 #guard (checkOPB one (coreProof.replace "sol x1;" "sol ~x1;")).isNone
 -- Without `core id`, constraint `2` is derived and `delc` cannot delete it (VeriPB rejects; CakePB
@@ -565,6 +570,15 @@ end pseudo-Boolean proof;
 -- In the mode, a checked deletion takes no witness (VeriPB and CakePB reject).
 #guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
   "delc 1 : x1 -> 1 : subproof\nqed delc;\nsol ~x1;")).isNone
+/-- In the mode, a checked deletion is a proof by contradiction: its subproof must close with a
+contradiction `qed : n` (§5.7.4; CakePB's `check_tcb_idopt`). VeriPB and CakePB accept this proof;
+without `: 4`, CakePB rejects it and VeriPB accepts it. -/
+def tcbCheckedProof : String := tcbProof.replace
+  "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
+  "pol 1 x2 + ;\ncore id 2;\ndelc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;\nsol x1;"
+
+#guard checkOPB one tcbCheckedProof == some (.sat none)
+#guard (checkOPB one (tcbCheckedProof.replace "qed delc : 4;" "qed delc;")).isNone
 -- In the mode, an unchecked core deletion needs an empty derived set (VeriPB and CakePB reject).
 #guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
   "pol 1 x2 + ;\ndelc 1;\nsol x1;")).isNone
@@ -585,15 +599,8 @@ lowers the value that the lower bounds are checked against to `v`, but certifies
 and rules out `UNSAT`. VeriPB 3.0.2 and CakePB give the same verdicts as this checker on every
 fixture below. -/
 
-/-- Minimize `x1 + x2 + x3` subject to `x1 + x2 >= 1` and `x2 + x3 >= 1`; the optimum is `1`. -/
-def cov : String := "* #variable= 3 #constraint= 2
-min: 1 x1 1 x2 1 x3 ;
-1 x1 1 x2 >= 1 ;
-1 x2 1 x3 >= 1 ;
-"
-
-/-- `obji 1` asserts `f ≤ 0`, constraint `3`, which contradicts constraint `1` by RUP. So every
-solution has value at least `1`, with no solution logged. -/
+/-- On `cover`, `obji 1` asserts `f ≤ 0`, constraint `3`, which contradicts constraint `1` by
+RUP. So every solution has value at least `1`, with no solution logged. -/
 def objiProof : String := "pseudo-Boolean proof version 3.0
 f 2;
 obji 1;
@@ -603,23 +610,34 @@ conclusion BOUNDS 1 : 4 INF;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB cov objiProof == some (.bounds (some 1) 4 none none)
+#guard checkOPB cover objiProof == some (.bounds (some 1) 4 none none)
 -- `obji` certifies no upper bound.
-#guard (checkOPB cov (objiProof.replace "4 INF" "4 1")).isNone
+#guard (checkOPB cover (objiProof.replace "4 INF" "4 1")).isNone
 -- The lower bound may not exceed the asserted value.
-#guard (checkOPB cov (objiProof.replace "BOUNDS 1" "BOUNDS 2")).isNone
+#guard (checkOPB cover (objiProof.replace "BOUNDS 1" "BOUNDS 2")).isNone
 -- After `obji`, a contradiction proves no unsatisfiability: the formula has solutions of value
 -- at least `1`.
-#guard (checkOPB cov
+#guard (checkOPB cover
   (objiProof.replace "conclusion BOUNDS 1 : 4 INF;" "conclusion UNSAT : 4;")).isNone
 -- With a logged solution of value `1` first, its improving constraint and that of `obji` are
 -- constraints `3` and `4`, and the optimum `1` is certified.
-#guard checkOPB cov ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
+#guard checkOPB cover ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
   "rup >= 1 : 3 1;\noutput NONE;\nconclusion BOUNDS 1 : 4 INF;"
   "rup >= 1 : 4 1;\noutput NONE;\nconclusion BOUNDS 1 : 5 1;") ==
   some (.bounds (some 1) 5 (some 1) none)
--- `obji` needs an objective.
-#guard (checkOPB "* #variable= 1 #constraint= 1\n1 x1 >= 1 ;\n" objiProof).isNone
+/-- `obji` needs an objective: on the decision problem `coverDecision`, this proof is rejected,
+while it is accepted without `obji 1` (VeriPB and CakePB agree). -/
+def objiDecision : String := "pseudo-Boolean proof version 3.0
+f 2;
+obji 1;
+sol x2;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB coverDecision (objiDecision.replace "obji 1;\n" "") == some (.sat none)
+#guard (checkOPB coverDecision objiDecision).isNone
 
 /-! ### Stated assignments and `NONE`
 
@@ -632,18 +650,20 @@ same verdicts as this checker, except where noted. -/
 def objiConcl (c : String) : String := objiProof.replace "BOUNDS 1 : 4 INF" c
 
 -- The optimal solution `~x1 x2 ~x3`, stated, certifies the upper bound with nothing logged.
-#guard checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : ~x1 x2 ~x3") ==
+#guard checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : ~x1 x2 ~x3") ==
   some (.bounds (some 1) 4 (some 1) (some [(0, false), (1, true), (2, false)]))
 -- `x1 x2 ~x3` solves the input but has value `2`.
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x1 x2 ~x3")).isNone
+#guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x1 x2 ~x3")).isNone
 -- `x1 ~x2 ~x3` violates `x2 + x3 >= 1`.
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x1 ~x2 ~x3")).isNone
+#guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x1 ~x2 ~x3")).isNone
 -- `x2` leaves `x1` and `x3` unassigned (VeriPB rejects; CakePB sets them false and accepts).
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x2")).isNone
--- After `INF` the assignment is not checked (VeriPB and CakePB accept).
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 INF : ~x1 x2 ~x3")).isSome
+#guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x2")).isNone
+-- After `INF` the assignment is not checked: `~x1 ~x2 ~x3` violates the input, yet the
+-- conclusion is accepted with no finite upper bound (VeriPB and CakePB accept).
+#guard checkOPB cover (objiConcl "BOUNDS 1 : 4 INF : ~x1 ~x2 ~x3") ==
+  some (.bounds (some 1) 4 none (some [(0, false), (1, false), (2, false)]))
 -- `NONE` claims nothing.
-#guard checkOPB cov "pseudo-Boolean proof version 3.0
+#guard checkOPB cover "pseudo-Boolean proof version 3.0
 f 2;
 obji 1;
 output NONE;

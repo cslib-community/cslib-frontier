@@ -11,6 +11,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 import CslibFrontier.Foundations.Quantum.Naimark
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 
 /-! # Naimark dilation
 

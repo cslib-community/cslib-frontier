@@ -8,6 +8,9 @@ module
 -- upstream: candidate (Mathlib, pure-power polynomial residues and traces)
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.MvPolynomial.PDerivDegree
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.Data.MvPolynomial.Determinant
 public import Mathlib.Algebra.MvPolynomial.PDeriv
 public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 
@@ -46,5 +49,19 @@ theorem jacobian_map (φ : S →+* T) (ell : ℕ) (r : Fin n → MvPolynomial (F
   change (pderiv j (X i ^ ell - r i)).map φ = _
   rw [← pderiv_map]
   simp only [map_sub, map_pow, map_X, Matrix.of_apply]
+
+/-- Lower relations of degree at most `d` give a Jacobian of degree at most `n * d`. -/
+theorem totalDegree_jacobian_le (d : ℕ) (r : Fin n → MvPolynomial (Fin n) S)
+    (hr : ∀ i, (r i).totalDegree ≤ d) :
+    (jacobian (d + 1) r).totalDegree ≤ n * d := by
+  classical
+  unfold jacobian
+  refine (totalDegree_det_le _ d ?_).trans_eq (by rw [Fintype.card_fin])
+  intro i j
+  have hX : (X i ^ (d + 1) : MvPolynomial (Fin n) S).totalDegree ≤ d + 1 := by
+    exact (totalDegree_pow _ _).trans (by
+      simpa only [mul_one] using Nat.mul_le_mul_left (d + 1) (totalDegree_X_le (R := S) i))
+  have hf := (totalDegree_sub _ _).trans (max_le hX ((hr i).trans (Nat.le_succ d)))
+  exact (totalDegree_pderiv_le _ j).trans (by omega)
 
 end MvPolynomial.PurePower

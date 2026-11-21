@@ -536,6 +536,12 @@ theorem Circuit.ofPhaseCodes_map (gs : List GateCode) :
   simp only [Circuit.ofPhaseCodes, Circuit.ofCodes, List.filterMap_map]
   rfl
 
+/-- Treating ordinary gate codes as phase-gate codes preserves acceptance probability. -/
+theorem PhaseGateCode.acceptProb_ofCodes (m : ℕ) (gs : List GateCode) (x : List Bool) :
+    PhaseGateCode.acceptProb m (gs.map fun g => (false, g)) x =
+      Cslib.Quantum.acceptProb m gs x := by
+  simp only [PhaseGateCode.acceptProb, Cslib.Quantum.acceptProb, Circuit.ofPhaseCodes_map]
+
 /-! ### Uniform families with phase gates -/
 
 /-- The encoding of gate codes with phase gates `(p, g)`: the phase flag, then the gate code `g`
@@ -611,9 +617,7 @@ none. -/
 
 @[simp] theorem acceptProb_toPhaseFamily (F : UniformCircuitFamily) (x : List Bool) :
     F.toPhaseFamily.acceptProb x = F.acceptProb x := by
-  simp only [UniformPhaseCircuitFamily.acceptProb, PhaseGateCode.acceptProb, toPhaseFamily,
-    Circuit.ofPhaseCodes_map]
-  rfl
+  exact PhaseGateCode.acceptProb_ofCodes _ _ _
 
 end UniformCircuitFamily
 

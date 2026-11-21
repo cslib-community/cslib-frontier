@@ -435,7 +435,7 @@ theorem length_encCappedNatAcc_le_of_le_two_pow {acc : CappedNatAcc} {k : ℕ}
     (htot : acc.total ≤ acc.cap) (hcap : acc.cap ≤ 2 ^ k) :
     (encCappedNatAcc acc).length ≤ 3 * (k + 1) + 2 := by
   have hpow : (encNat (2 ^ k)).length = k + 1 := by
-    rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+    rw [length_encNat_two_pow]
   have hc : (encNat acc.cap).length ≤ k + 1 := hpow ▸ length_encNat_mono hcap
   have ht : (encNat acc.total).length ≤ k + 1 :=
     hpow ▸ length_encNat_mono (htot.trans hcap)

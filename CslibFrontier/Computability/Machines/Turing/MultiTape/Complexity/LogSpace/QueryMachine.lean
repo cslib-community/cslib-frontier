@@ -106,6 +106,23 @@ def step (s : σ) : σ := if M.halted s then s else M.next (s, M.read w s)
 /-- The state after `t` steps on the input `w`. -/
 def run (t : ℕ) : σ := (M.step w)^[t] M.init
 
+/-- Run a query machine from an explicitly supplied state. -/
+def runFrom (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) : σ :=
+  (M.step w)^[n] start
+
+@[simp] theorem runFrom_zero (M : QueryMachine σ) (w : List Bool) (start : σ) :
+    M.runFrom w start 0 = start := rfl
+
+theorem runFrom_succ (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) :
+    M.runFrom w start (n + 1) = M.step w (M.runFrom w start n) :=
+  Function.iterate_succ_apply' _ _ _
+
+theorem runFrom_add (M : QueryMachine σ) (w : List Bool) (start : σ) (m n : ℕ) :
+    M.runFrom w start (m + n) = M.runFrom w (M.runFrom w start m) n := by
+  induction n with
+  | zero => rfl
+  | succ n ih => rw [← Nat.add_assoc, runFrom_succ, ih, runFrom_succ]
+
 /-- The output of a run halted by step `t`: emissions stop at the first halted state, then the
 final word is appended. Once the run has halted, increasing `t` leaves the output unchanged. -/
 def output (t : ℕ) : List Bool :=
