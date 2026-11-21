@@ -325,6 +325,7 @@ import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
@@ -379,6 +380,7 @@ import CslibFrontier.GameTheory.Strategic.Correlated
 import CslibFrontier.GameTheory.Strategic.Nash
 import CslibFrontier.GameTheory.Strategic.Semialgebraic
 import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
+import CslibFrontier.GameTheory.Strategic.Universality.DattaHorner
 import CslibFrontier.GameTheory.Strategic.Universality.Realize
 import CslibFrontier.Logics.Propositional.CNF.TruthTable
 import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
@@ -3263,6 +3265,31 @@ register_result "nash-realize-coefficients" where
     = 0 recovers them, and the totally mixed equilibria are the positive normalized profiles at \
     which every g i a vanishes. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6703#pullrequestreview-5993269399"
+
+register_result "nash-three-player-horner" where
+  title := "The Horner-chain three-player game in the proof of Datta's Theorem 5"
+  topic := "game theory"
+  sources := [
+    { paper := Datta2003, theorem := "Theorem 5 (construction in the proof)",
+      locator := "arXiv:math/0301001, §3, statement p. 4, proof pp. 4–6" }
+  ]
+  theorems := [
+    Cslib.GameTheory.DattaHorner.isTotallyMixedNash_game_iff,
+    Cslib.GameTheory.DattaHorner.card_strategies
+  ]
+  scope := "The explicit three-player game built from the Horner chains of a finite family of \
+    real polynomials F j in n variables, one block-affine equation per chain node. Its totally \
+    mixed Nash equilibria are exactly the profiles whose first player's weights x lie in the \
+    open simplex and solve every F j = 0, with the other two players' weights fixed by the \
+    rescaled Horner values of x and by one over the third player's number of strategies, apart \
+    from max(m − n, 0) free weights. This characterizes the equilibria of one game; it is not \
+    the stable semialgebraic isomorphism of Theorem 5, which is tracked in #6701. Two source \
+    repairs: the fixed weights are one over the third player's number of strategies, not 1/D, \
+    which would give its reference strategy weight 0 when m ≤ n; and D is the actual number \
+    ∑ⱼ (∏ᵢ (1 + d_ij) − 1) of chain equations, m − 1 less than the printed −1 + ∑ⱼ ∏ᵢ (1 + d_ij). \
+    The counts n + 1, D − m + 1 and D + 1 assume every F j involves a variable; a constant F j \
+    has no chain. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6824#pullrequestreview-6000819371"
 
 register_result "correlated-equilibrium-hierarchy" where
   title := "Pure Nash, mixed Nash, correlated and coarse correlated equilibria are nested"
@@ -7082,6 +7109,25 @@ register_result "ajtai-collision-sis" where
     for expected time T(n, m, q); (5) the cost of sampling the key and of evaluating the \
     hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
     Ajtai) is not formalized."
+
+register_result "micciancio-regev-sis-ell2-existence" where
+  title := "Existence of short integer solutions in the Euclidean norm"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 5.2",
+      locator := "December 27, 2005 copy (Gaussian.pdf), §5.1, printed p. 17" }
+  ]
+  theorems := [
+    Cslib.Crypto.SIS.exists_isEll2Solution
+  ]
+  scope := "Every matrix A ∈ ℤ_q^{n×m} with nonzero modulus q, m > 0, and real Euclidean bound \
+    β ≥ √m · q^{n / m} admits a nonzero integer kernel vector z with ‖z‖₂ ≤ β and \
+    A z ≡ 0 (mod q), proved by the pigeonhole principle on {0, …, ⌊q^{n/m}⌋}^m. Covers all \
+    natural numbers n (including n = 0) and all nonzero moduli q (including composite moduli \
+    and q = 1). Companion problem definitions (GIVP, GDD, IncGDD, SISEll2) and norm-comparison \
+    bridges to SIS live in CslibFrontier.Crypto.Computational.Lattice.GIVP and \
+    CslibFrontier.Crypto.Computational.SIS.Ell2; worst-case to average-case reductions (MR07 \
+    Theorem 5.9) are not formalized here."
 
 register_result "nested-encryption-semantic-security" where
   title := "Nested encryption is semantically secure when all keys but one are revealed, \

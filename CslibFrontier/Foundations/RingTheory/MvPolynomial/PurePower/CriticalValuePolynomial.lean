@@ -93,4 +93,14 @@ theorem parametricValuePolynomial_map_eval₂ (hell : 1 ≤ ell) (F : MvPolynomi
     Polynomial.eval₂_C, Polynomial.eval₂_X, Int.coe_castRingHom, Int.cast_natCast,
     MvPolynomial.map_map, Polynomial.eval₂RingHom_comp_C]
 
+/-- Evaluating the parameter at an integer gives the actual integer quotient polynomial. -/
+theorem parametricValuePolynomial_map_evalRingHom (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (u : ℤ) :
+    (parametricValuePolynomial hell F hF).map (Polynomial.evalRingHom u) =
+      valuePolynomial hell (fun i => (separatedCenters ell i : ℤ)) u F hF := by
+  have heval : Polynomial.eval₂RingHom (RingHom.id ℤ) u = Polynomial.evalRingHom u :=
+    RingHom.ext fun _ => Polynomial.eval₂_id
+  simpa only [Int.castRingHom_int, heval, MvPolynomial.map_id, Int.cast_id] using
+    parametricValuePolynomial_map_eval₂ hell F hF u
+
 end MvPolynomial.CriticalSystem
