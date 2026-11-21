@@ -95,4 +95,29 @@ example : IsWF 2 (insert 2 4 "d" twoLevels) := by decide
 example : (insert 2 4 "d" twoLevels).toList = SortedAssoc.insert 4 "d" twoLevels.toList := by
   decide
 
+/-! ### Theorem instances -/
+
+example : (insert 2 4 "d" twoLevels).toList = SortedAssoc.insert 4 "d" twoLevels.toList :=
+  toList_insert isWF_twoLevels 4 "d"
+
+example : IsWF 2 (insert 2 4 "d" twoLevels) := isWF_twoLevels.insert 4 "d"
+
+example :
+    (insert 2 4 "d" twoLevels).height =
+      match insertOrSplit 2 4 "d" twoLevels with
+      | .tree _ => twoLevels.height
+      | .split .. => twoLevels.height + 1 :=
+  height_insert isWF_twoLevels 4 "d"
+
+example : (insert 2 4 "d" twoLevels).height ≤ twoLevels.height + 1 :=
+  height_insert_le isWF_twoLevels 4 "d"
+
+example : twoLevels.height ≤ (insert 2 4 "d" twoLevels).height :=
+  height_le_height_insert isWF_twoLevels 4 "d"
+
+example :
+    (insert 2 4 "d" twoLevels).size =
+      if (lookup 4 twoLevels).isSome then twoLevels.size else twoLevels.size + 1 :=
+  size_insert isWF_twoLevels 4 "d"
+
 end CslibFrontierTests.BPlusTreeInsert
