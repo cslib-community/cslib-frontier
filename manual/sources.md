@@ -1405,6 +1405,11 @@ Carsten Lund, Lance Fortnow, Howard Karloff and Noam Nisan. *Algebraic Methods f
 
 Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . Bibliographic metadata checked; secondary search summaries indicate Definition 3.1 (affine sources), Lemma 3.9 (affine conditioning), Lemma 3.10 (block decomposition), Theorem 7.13 (sumset extractor), and Corollary 7.14 in preprint versions, while the full primary PDF was not read line by line, so individual numbered locators in `AffineSource.lean` remain unverified against the typeset FOCS version.
 
+<a id="liliangyuzhou2023"></a>
+## liliangyuzhou2023
+
+Tianxiao Li, Jingxun Liang, Huacheng Yu, and Renfei Zhou. *Tight Cell-Probe Lower Bounds for Dynamic Succinct Dictionaries*. FOCS 2023, 1842–1862. https://doi.org/10.1109/FOCS57990.2023.00112 . Section, theorem, lemma, claim, equation, and page locators follow https://arxiv.org/abs/2306.02253v3 (where printed page `p` is PDF page `p + 1`).
+
 <a id="lindell17"></a>
 ## lindell17
 

@@ -127,6 +127,15 @@ Import `CslibFrontier.DataStructure.PackedLane` ([PackedLane.lean](../../CslibFr
 
 Explicit adaptations and scope boundaries: SOSA 2024 assumes zero-space oracle access to fully random hash functions on `w`-bit keys (`w = Θ(log n)`) without values, uses Four-Russians subtabulation for B-tree nodes, and buffers `n^{1/4}` updates in `√n`-tries; here `SuccinctWhpParams` budgets explicit `BitPackedDoubleTabulation` seeds above `whpThreshold c` (with a deterministic bit-packed array below `whpThreshold c`), supports arbitrary `n_max ≤ U`, values `Fin V`, and word widths `w` via Feistel quotienting and front-yard/backyard pools, uses SWAR parallel rank with top-down split-only lazy-deletion B+-trees, and uses `2 ^ bCharWhp`-ary tries over polylogarithmic epochs `qEpochWhp`. These modules are pure mathematical models and space-parameter proofs; high-probability tail composition, fallback state transitions, and Word-RAM `Memory.Prog` / `SubroutineCode` compilation remain in subsequent milestones of [#5356](https://github.com/cslib-community/cslib-frontier/issues/5356).
 
+### Cell-probe lower bounds for dynamic succinct dictionaries
+
+[`CslibFrontier.DataStructure.Dictionary.CellProbe.LowerBound`](../../CslibFrontier/DataStructure/Dictionary/CellProbe/LowerBound.lean) (building on [`HardDist`](../../CslibFrontier/DataStructure/Dictionary/CellProbe/HardDist.lean), [`MetaTree`](../../CslibFrontier/DataStructure/Dictionary/CellProbe/MetaTree.lean), [`Consistency`](../../CslibFrontier/DataStructure/Dictionary/CellProbe/Consistency.lean), [`InnerGame`](../../CslibFrontier/DataStructure/Dictionary/CellProbe/InnerGame.lean), and [`OuterGame`](../../CslibFrontier/DataStructure/Dictionary/CellProbe/OuterGame.lean)) formalizes the dynamic succinct dictionary cell-probe lower bounds of Li, Liang, Yu, and Zhou [liliangyuzhou2023][liliangyuzhou2023] (`arXiv:2306.02253v3`, Theorems 1.1–1.3) against `Dynamic.spec U V n` (`benchmarkBits U V n = log₂ C(U, n) + n * log₂ V`, bridged from `Dynamic.optBits` via `optBits_le_benchmarkBits_add` and `optBits_two_pow_le_benchmarkBits_add_one`):
+
+- **Query-inclusive trade-offs (`insertQueryDeleteDist`, length `4 * n`):** for `U ≥ max (4 * n) ⌈n ^ (1 + α)⌉`, `V ≥ 1`, and `w ≤ c_w * (log₂ U + log₂ V)`, deterministic step-indexed `IndexedScheme`s and zero-error oblivious `CellProbe.Randomized.Scheme`s incur `Ω(n * k)` expected cell probes under `R ≤ c_R * n * max (Nat.iterLog k n) 1` bits of redundancy (`expectedSeqProbes_ge_of_iterLog_redundancy`, specializing to `Ω(n * log* n)` in `expectedSeqProbes_ge_iterLogStar`), `Ω(n * log₂(n / max R 1))` under `R ≤ n` (`expectedSeqProbes_ge_of_sublinear_redundancy`, vanishing at `R = n`), and `Ω(n * (log* n + max 0 (log₂(n / max R 1))))` across `R ≤ c_R * n` (`expectedSeqProbes_ge_iterLogStar_add_log_div`).
+- **Update-only trade-offs (`insertDeleteDist`, length `3 * n`, correctness up to `3 * n + 1`):** for `3 * n ≤ U` and `U ^ (2 + α_V) ≤ V * n ^ 2`, `expectedSeqProbes_update_ge_iterLog`, `expectedSeqProbes_update_ge_iterLogStar`, `expectedSeqProbes_update_ge_sublinear`, and `expectedSeqProbes_update_ge_iterLogStar_add_log_div` prove the matching lower bounds without queries.
+
+See [Adaptive cell-probe trees and schemes](../circuits-logic-and-other-models/query-and-communication.md#adaptive-cell-probe-trees-and-schemes) for the inner/outer communication games, formalization adaptations, Las Vegas / boundary conventions, and checked clients ([`DictLowerBoundMultilevel.lean`](../../CslibFrontierTests/DictLowerBoundMultilevel.lean)).
+
 ### FKS two-level perfect hashing (static, abstract cost model)
 
 Import `CslibFrontier.DataStructure.Dictionary.PerfectHashing.Construction` ([Construction.lean](../../CslibFrontier/DataStructure/Dictionary/PerfectHashing/Construction.lean)), which re-exports the table layer. [CslibFrontierTests/PerfectHashing.lean](../../CslibFrontierTests/PerfectHashing.lean) is a complete checked client: it instantiates a family, builds and checks a concrete table, and applies the construction theorems.
@@ -257,6 +266,7 @@ The source draws independent reals in `[0, 1]`. Restricted to the live vertices,
 [clrs09]: ../sources.md#clrs09
 [fks84]: ../sources.md#fks84
 [freivalds79]: ../sources.md#freivalds79
+[liliangyuzhou2023]: ../sources.md#liliangyuzhou2023
 [mitzenmacherupfal17]: ../sources.md#mitzenmacherupfal17
 [thorup13]: ../sources.md#thorup13
 [wattenhofer16]: ../sources.md#wattenhofer16
