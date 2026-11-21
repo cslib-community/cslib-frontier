@@ -56,6 +56,8 @@ can be exponentially longer than what clause learning needs.
 
 * `Cslib.Algorithms.Lean.DPLL.solve_sat`, `Cslib.Algorithms.Lean.DPLL.solve_unsat`: both answers
   are correct.
+* `Cslib.Algorithms.Lean.DPLL.Result.isSat_iff`: an answer whose model satisfies the formula and
+  whose certificate the LRAT checker accepts decides satisfiability.
 * `Cslib.Algorithms.Lean.DPLL.isSat_solve_iff`: the solver decides satisfiability.
 * `Cslib.Algorithms.Lean.DPLL.OpenVars.fresh`: the search branches only on unassigned variables.
 * `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff`: the checker is complete.
@@ -257,6 +259,19 @@ def Result.isSat : Result → Bool
   | .sat _ => true
   | .unsat _ => false
 
+/-- **A sound answer decides satisfiability**: if a model in the answer satisfies `φ` and a
+certificate in it is accepted by the LRAT checker on `φ`, the answer is a model exactly when `φ` is
+satisfiable. -/
+theorem Result.isSat_iff {φ : CNF ℕ} {r : Result}
+    (hsat : ∀ σ, r = .sat σ → φ.eval σ = true)
+    (hunsat : ∀ cert, r = .unsat cert → φ.checkLRAT cert = true) :
+    r.isSat = true ↔ φ.Satisfiable := by
+  cases r with
+  | sat σ => exact ⟨fun _ => ⟨σ, hsat σ rfl⟩, fun _ => rfl⟩
+  | unsat cert =>
+    exact ⟨fun h => absurd h Bool.false_ne_true,
+      fun h => absurd h (not_satisfiable_of_checkLRAT (hunsat cert rfl))⟩
+
 /-- A derivation of a clause falsified by the empty partial assignment derives the empty
 clause. -/
 def refutationOf {φ : CNF ℕ} : (c : Clause ℕ) → φ.Derivation c →
@@ -290,16 +305,8 @@ theorem solve_unsat {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : solve φ =
     exact (refutationOf c d hc).checkLRAT_toLRAT
 
 /-- **The solver decides satisfiability.** -/
-theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : solve φ with
-    | sat σ => exact ⟨σ, solve_sat hs⟩
-    | unsat cert => simp [hs, Result.isSat] at h
-  · intro h
-    cases hs : solve φ with
-    | sat σ => rfl
-    | unsat cert => exact absurd h (not_satisfiable_of_checkLRAT (solve_unsat hs))
+theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable :=
+  Result.isSat_iff (fun _ => solve_sat) (fun _ => solve_unsat)
 
 /-- **The LRAT checker is complete**: a formula has a certificate that the checker accepts exactly
 when it is unsatisfiable. -/

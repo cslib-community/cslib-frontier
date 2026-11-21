@@ -8,7 +8,10 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
-import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -284,24 +287,130 @@ example :
   exact criticalCoefficientValue_at_criticalParameterResidue 1 (by decide) F hF
     (by decide) (by decide) _ (fun y => by simp [F])
 
--- The deformation of a positive input attains each minimum and has no uniform bound.
+-- The minima of a positive input vary continuously and monotonically, and are unbounded.
 example :
     let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2 + 1
     let a : Fin 1 → ℝ := fun _ => 1
-    (∃ x, IsMinOn (fun y => eval y (deformedPolynomial 3 a 1 F)) Set.univ x) ∧
-      ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → ∃ x, eval x (deformedPolynomial 3 a u F) ≤ B := by
+    ContinuousOn (criticalMinimumValue 3 a F) (Set.Ici 0) ∧
+      MonotoneOn (criticalMinimumValue 3 a F) (Set.Ici 0) ∧
+      ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → criticalMinimumValue 3 a F u ≤ B := by
   intro F a
   have ha (i : Fin 1) : 0 ≤ a i := by simp [a]
   have hF (x : Fin 1 → ℝ) : 0 ≤ eval x F := by
     simp only [F, map_add, map_pow, eval_X, map_one]
     positivity
-  refine ⟨exists_isMinOn_eval_deformedPolynomial 3 (by decide) (by decide) a ha F hF 1
-    zero_le_one, ?_⟩
+  refine ⟨continuousOn_criticalMinimumValue (by decide) (by decide) a ha F hF,
+    monotoneOn_criticalMinimumValue (by decide) (by decide) a ha F hF, ?_⟩
   intro hbounded
-  have hcriterion := exists_zero_iff_bounded_eval_deformedPolynomial 3
+  have hcriterion := exists_zero_iff_bounded_criticalMinimumValue (ell := 3)
     (by decide) (by decide) a ha F hF
   obtain ⟨x, hx⟩ := hcriterion.mpr hbounded
   simp only [F, map_add, map_pow, eval_X, map_one] at hx
   nlinarith [sq_nonneg (x 0)]
+
+-- The deformation of x² at zero center and parameter one has minimum zero.
+example :
+    let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2
+    let hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
+    (valuePolynomial (by decide : 1 ≤ 3) 0 1 F hF).IsRoot 0 := by
+  intro F hF
+  have heval (x : Fin 1 → ℝ) :
+      eval x (deformedPolynomial 3 0 1 F) = x 0 ^ 4 + 4 * x 0 ^ 2 := by
+    norm_num [eval_deformedPolynomial, potentialPolynomial, F, Fin.sum_univ_one]
+  have hmin : IsMinOn (fun x => eval x (deformedPolynomial 3 0 1 F)) Set.univ 0 := by
+    intro x _
+    change eval (0 : Fin 1 → ℝ) (deformedPolynomial 3 0 1 F) ≤
+      eval x (deformedPolynomial 3 0 1 F)
+    rw [heval, heval]
+    norm_num
+    positivity
+  have hvalue : criticalMinimumValue 3 0 F 1 = 0 := by
+    rw [criticalMinimumValue_eq_of_isMinOn 3 0 F 1 hmin, heval]
+    norm_num
+  have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x F := by
+    simp only [F, map_pow, eval_X]
+    exact sq_nonneg _
+  have hroot := isRoot_valuePolynomial_criticalMinimumValue (by decide : 1 ≤ 3)
+    (by decide) 0 (fun _ => le_rfl) F hF hFn 1 zero_le_one
+  rwa [hvalue] at hroot
+
+-- For the branch y = u, the finite test compares u = 4 with the cutoff y = 2.
+example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
+  let P : Polynomial (Polynomial ℤ) := Polynomial.X - Polynomial.C Polynomial.X
+  have hlead : P.leadingCoeff = 1 := Polynomial.leadingCoeff_X_sub_C _
+  have hP : P ≠ 0 := by
+    intro hz
+    simp [hz] at hlead
+  have hroot (u : ℝ) :
+      P.eval₂ (Polynomial.eval₂RingHom (Int.castRingHom ℝ) u) u = 0 := by
+    simp [P]
+  have hR : (P.leadingCoeff.coeffNorm1 : ℝ) + 1 ≤ ((2 : ℤ) : ℝ) := by
+    norm_num [hlead, Polynomial.coeffNorm1_one]
+  have hX : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
+    simpa using Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
+  have hU : ((P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 : ℝ) + 1 ≤ 4 := by
+    have hbound := Polynomial.coeffNorm1_sub_le Polynomial.X (Polynomial.C (2 : ℤ))
+    rw [hX, Polynomial.coeffNorm1_C] at hbound
+    have hnorm : (P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 ≤ 3 := by
+      simpa [P] using hbound
+    exact_mod_cast (Nat.add_le_add_right hnorm 1)
+  have hcut := Polynomial.bounded_root_branch_iff_lt hP
+    (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
+  exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
+
+-- The square input gives a root below the cutoff in the chosen integer characteristic polynomial.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
+    let H := parametricValueCoeffNormExponent 1 3 0
+    let hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
+    let q := valuePolynomial (by decide : 1 ≤ 3) (fun i => (separatedCenters 3 i : ℤ))
+      (2 ^ criticalParameterExponent 1 3 0) F hF
+    ∃ η : ℝ, η < 2 ^ (H + 1) ∧ (q.map (Int.castRingHom ℝ)).IsRoot η := by
+  intro F H hF q
+  have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
+    simpa only [F, map_pow, map_X, eval_X] using sq_nonneg (x 0)
+  have hb : F.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [F, MvPolynomial.coeffNorm1_X, one_pow, pow_zero] using
+      MvPolynomial.coeffNorm1_pow_le (X (0 : Fin 1) : MvPolynomial (Fin 1) ℤ) 2
+  apply (exists_zero_iff_exists_root_lt_at_integerParameterExclusion
+    (by decide) (by decide) F hF hb hFn).mp
+  exact ⟨0, by simp [F]⟩
+
+-- In the quotient by X₀ = 2, the simple real root of multiplication by X₀ is realized.
+example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1) ℝ) = 2 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) ℝ := fun _ => C 2
+  have hr (i : Fin 1) : (r i).totalDegree < 1 := by
+    simp only [r, totalDegree_C, Nat.zero_lt_one]
+  let M := multiplicationMatrix (by decide : 1 ≤ 1) r hr
+  have hm : M (X 0) = algebraMap ℝ (Matrix (NormalIndex 1 1) (NormalIndex 1 1) ℝ) 2 := by
+    rw [← M.commutes, MvPolynomial.algebraMap_eq]
+    apply multiplicationMatrix_eq_of_projection_eq
+    simpa only [pow_one, r] using projection_X_pow 1 r 0
+  have hdim : Fintype.card (NormalIndex 1 1) = 1 := by simp [NormalIndex]
+  have hsimple : (M (X 0)).charpoly.rootMultiplicity 2 = 1 := by
+    rw [hm, Matrix.algebraMap_eq_diagonal, Matrix.charpoly_diagonal]
+    simp only [Pi.algebraMap_apply, Algebra.algebraMap_self_apply, Finset.prod_const,
+      Finset.card_univ, hdim, pow_one, Polynomial.rootMultiplicity_X_sub_C_self]
+  obtain ⟨x, hx, hv⟩ :=
+    exists_common_zero_of_rootMultiplicity_multiplicationMatrix_eq_one (by decide) r hr
+      (X 0) hsimple
+  have hx₀ : x 0 = 2 := by
+    simpa only [r, aeval_C, Algebra.algebraMap_self_apply, pow_one] using (hx 0).symm
+  exact ⟨x, hx₀, hv⟩
+
+-- The two roots of x² − 1 have distinct positive-order derivative signs.
+example :
+    let p : Polynomial ℝ := Polynomial.X ^ 2 - 1
+    (fun i : Fin 2 => p.derivativeSign (-1) (i.val + 1)) ≠
+      (fun i : Fin 2 => p.derivativeSign 1 (i.val + 1)) := by
+  intro p hsign
+  have hc : p.coeff 2 = 1 := by
+    simp [p, Polynomial.coeff_X_pow, Polynomial.coeff_one]
+  have hp : p ≠ 0 := fun h => by simp [h] at hc
+  have hD : p.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
+  have hneg : p.IsRoot (-1) := by norm_num [p, Polynomial.IsRoot.def]
+  have hpos : p.IsRoot 1 := by norm_num [p, Polynomial.IsRoot.def]
+  have heq := p.injOn_derivativeSign_roots hp hD hneg hpos hsign
+  norm_num at heq
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

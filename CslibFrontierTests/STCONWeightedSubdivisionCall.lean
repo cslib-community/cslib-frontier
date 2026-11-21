@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 
 /-! Ordinary-import clients for weighted STCON adjacency and the flat scan interface. -/
 
@@ -68,8 +69,24 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       (root bound (layeredCoordinates _ (layeredTarget _))) seed rfl rfl hbits
   exact ⟨hbefore, answer, hrun, hhalt, hedge⟩
 
--- The initialized endpoint query gets the exact edge and the live-state bound from the
--- same concrete callback and flat request.
+-- The native initializer reads a framed binary rank followed by the original word.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ComputableInLogSpace
+      (fun p : ℕ × List Bool => configurationJustesenSubdivisionContext ntm c p.2 p.1)
+      (encPair encNat encBits) encJustesenSubdivisionContext :=
+  configurationJustesenSubdivisionContext_inLogSpace ntm c
+    (ComputableInLogSpace.snd encNat encBits) (ComputableInLogSpace.fst encNat encBits)
+
+-- A suspended caller can enter the same machine with new binary IDs and decode its reply.
+example :
+    let enc := encPair encJustesenSubdivisionContext (encPair encNat encNat)
+    ComputableInSpace justesenSubdivisionEdgeStart enc encJustesenSubdivisionState
+      (fun p => (enc p).length) ∧
+    ComputableInSpace callbackVerdict encJustesenSubdivisionState encBool
+      (fun s => (encJustesenSubdivisionState s).length) :=
+  ⟨justesenSubdivisionEdgeStart_inSpace, callbackVerdict_inSpace _ _⟩
+
+-- At the designated endpoints the decoded bit and every prefix fit the same call contract.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ∃ C, ∀ w : List Bool,
       let I := configurationInstance ntm c w
@@ -77,28 +94,24 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       let size := s.parameters.search.subdivision
       let index := configurationSubdivisionIndex ntm c w
       let seed : Fin (2 ^ codeLength I.n (I.n - 1)) := ⟨0, Nat.pow_pos (by decide)⟩
-      let ctx : JustesenSubdivisionContext :=
-        ⟨configurationSeedSearchParameters ntm c w, fieldContext I.n (I.n - 1), seed.val⟩
+      let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
       let u : Fin size.vertexCount :=
         ⟨s.sourceID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1⟩
       let v : Fin size.vertexCount :=
         ⟨s.targetID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).2⟩
       let M := justesenWeightedSubdivisionCallback ntm
-      let start := flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩
+      let start := justesenSubdivisionEdgeStart (ctx, u.val, v.val)
       (∀ t < 3, M.halted (M.runFrom w start t) = false) ∧
-        (∃ answer, M.runFrom w start 3 = .inl (.inr answer) ∧
-          M.halted (M.runFrom w start 3) = true ∧
-          (answer = true ↔ (graph (layeredDigraph I)
+        M.halted (M.runFrom w start 3) = true ∧
+        (callbackVerdict (M.runFrom w start 3) = true ↔
+          (graph (layeredDigraph I)
             (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj
-            (index.symm u) (index.symm v))) ∧
-        ∀ t ≤ 3, (encCallback encJustesenSubdivisionContext encLayeredCallback
-          (M.runFrom w start t)).length ≤
-          C * ((encJustesenSubdivisionContext ctx).length + (Nat.log2 w.length + 1)) := by
-  obtain ⟨C, hC⟩ := configurationJustesenWeightedSubdivisionCallback_states_le ntm c
+              (index.symm u) (index.symm v)) ∧
+        ∀ t ≤ 3, (encJustesenSubdivisionState (M.runFrom w start t)).length ≤
+          C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hC⟩ := configurationJustesenSubdivisionEdge_contract ntm c
   refine ⟨C, fun w => ?_⟩
-  intro I s size index seed ctx u v
-  obtain ⟨hbefore, hreturn⟩ := configurationJustesenWeightedSubdivisionCallback_agrees
-    ntm c w u v seed
-  exact ⟨hbefore, hreturn, hC w ctx rfl u.val v.val u.isLt v.isLt⟩
+  intro I s size index seed ctx u v M start
+  exact hC w seed u v
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall
