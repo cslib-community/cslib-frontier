@@ -202,7 +202,7 @@ theorem sparseTable_subset {F : Fin m → MvPolynomial (Fin n) ℝ}
   obtain ⟨j, s, hs, hes⟩ := mem_sparseTable.1 he
   exact hE hes (hF j hs)
 
-theorem card_Iic_eq_prod (f : Fin n →₀ ℕ) : #(Iic f) = ∏ i, (1 + f i) := by
+private theorem card_Iic_eq_prod (f : Fin n →₀ ℕ) : #(Iic f) = ∏ i, (1 + f i) := by
   rw [Finsupp.card_Iic]
   refine prod_subset (subset_univ _) (fun i _ hi => ?_) |>.trans (prod_congr rfl fun i _ => ?_)
   · simp [Finsupp.notMem_support_iff.1 hi]
@@ -267,7 +267,7 @@ theorem expoPow_sub_single (x : Fin n → ℝ) {e : Fin n →₀ ℕ} {l : Fin n
     pow_one, pow_zero, prod_ite_eq, mem_univ, ite_true]
   ring
 
-theorem sum_sub_single_lt {e : Fin n →₀ ℕ} {l : Fin n} (hl : e l ≠ 0) :
+private theorem sum_sub_single_lt {e : Fin n →₀ ℕ} {l : Fin n} (hl : e l ≠ 0) :
     ∑ i, (e - Finsupp.single l 1 : Fin n →₀ ℕ) i < ∑ i, e i := by
   refine sum_lt_sum (fun i _ => ?_) ⟨l, mem_univ l, ?_⟩
   · simp
@@ -278,8 +278,8 @@ theorem expoPow_zero (x : Fin n → ℝ) : expoPow x 0 = 1 := by
   simp [expoPow]
 
 /-- On a table closed downwards, the only `e` without a lowered neighbour in the table is `0`. -/
-theorem eq_zero_of_forall_sub_single_notMem (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) {e : E}
-    (h : ¬∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E) : e.1 = 0 := by
+private theorem eq_zero_of_forall_sub_single_notMem (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)))
+    {e : E} (h : ¬∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E) : e.1 = 0 := by
   ext l
   by_contra hl
   exact h ⟨l, hl, hE tsub_le_self e.2⟩
