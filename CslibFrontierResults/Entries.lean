@@ -10694,7 +10694,8 @@ register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Failure of difference universality for Hpoly (unnumbered)",
+    { paper := BonehShoup2023,
+      theorem := "Failure of difference universality for Hpoly (unnumbered)",
       locator := "v0.6, Section 7.4, printed p. 269; Hpoly in Equation 7.3" }
   ]
   theorems := [Cslib.Probability.not_isDeltaUniversalHash_polyHash]
