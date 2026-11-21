@@ -1580,6 +1580,16 @@ load_order notaux x1;
 red 1 ~x1 >= 1 : x1 -> 0 : subproof
 qed;
 ")).isNone
+-- A checked deletion that touches the order needs the auxiliary variables fresh only in its
+-- premises, the remaining core set: with `$a1` in a derived constraint, VeriPB and this checker
+-- accept, CakePB rejects (its `check_fresh_aspo` scans the whole database).
+#guard checkOPB "* #variable= 1 #constraint= 1\n+1 x1 >= 1 ;\n"
+  (withNotAux 1 "load_order notaux ~x1;
+red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+delc 1 : x1 -> 1 : subproof
+qed;
+") == some .noClaim
 -- Without an order, `scope leq` adds nothing: all three accept.
 #guard checkOPB emptyOpb "pseudo-Boolean proof version 3.0
 f 0;
