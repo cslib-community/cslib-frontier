@@ -1746,36 +1746,44 @@ round-0 binding `oracles 0 s = stmt s`, all `m` 2-to-1 folding checks along the 
   oracles (Fin.last params.m) (friFinalIdx params s) =
     friFinalCodeword params (oracles (Fin.last params.m)) (friFinalFin params s)
 
-private theorem friSmoothFoldedIdx_toSmooth (params : FRIParams F) (i : Fin params.m)
+/-- At `params.toSmooth`, the smooth folded target index `friSmoothFoldedIdx` equals the binary
+positive index `friRoundPosIdx`. -/
+theorem friSmoothFoldedIdx_toSmooth (params : FRIParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) :
     friSmoothFoldedIdx params.toSmooth i s = friRoundPosIdx params i s := by
   apply Fin.ext
   simp [friSmoothFoldedIdx, friRoundPosIdx, params.toSmooth_cumLog i.isLt]
 
-private theorem friSmoothFiberIdx_toSmooth_zero (params : FRIParams F) (i : Fin params.m)
+/-- At `params.toSmooth`, fiber point `0` of `friSmoothFiberIdx` equals `friRoundPosIdx`. -/
+theorem friSmoothFiberIdx_toSmooth_zero (params : FRIParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) :
     friSmoothFiberIdx params.toSmooth i s ⟨0, by simp⟩ = friRoundPosIdx params i s := by
   apply Fin.ext
   simp [friSmoothFiberIdx, friRoundPosIdx, params.toSmooth_cumLog i.isLt]
 
-private theorem friSmoothFiberIdx_toSmooth_one (params : FRIParams F) (i : Fin params.m)
+/-- At `params.toSmooth`, fiber point `1` of `friSmoothFiberIdx` equals `friRoundNegIdx`. -/
+theorem friSmoothFiberIdx_toSmooth_one (params : FRIParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) :
     friSmoothFiberIdx params.toSmooth i s ⟨1, by simp⟩ = friRoundNegIdx params i s := by
   apply Fin.ext
   simp [friSmoothFiberIdx, friRoundNegIdx, params.toSmooth_cumLog i.isLt]
 
-private theorem friSmoothFinalIdx_toSmooth (params : FRIParams F) (s : Fin (2 ^ params.d)) :
+/-- At `params.toSmooth`, the smooth final-domain index `friSmoothFinalIdx` equals `friFinalIdx`. -/
+theorem friSmoothFinalIdx_toSmooth (params : FRIParams F) (s : Fin (2 ^ params.d)) :
     friSmoothFinalIdx params.toSmooth s = friFinalIdx params s := by
   apply Fin.ext
   simp [friSmoothFinalIdx, friFinalIdx, params.toSmooth_totalLog]
 
-private theorem eval_toSmooth_final (params : FRIParams F) (s : Fin (2 ^ params.d)) :
+/-- At `params.toSmooth`, final-round domain evaluation coincides with `FRIParams.eval`. -/
+theorem eval_toSmooth_final (params : FRIParams F) (s : Fin (2 ^ params.d)) :
     params.toSmooth.eval params.m (friSmoothFinalFin params.toSmooth s) =
       params.eval params.m (friFinalFin params s) := by
   simp [FRISmoothParams.eval, FRIParams.eval, friSmoothFinalFin, friFinalFin, cosetEval,
     cosetPoint, params.toSmooth_totalLog]
 
-private theorem foldFiber_toSmooth_eq_fold2Fiber (params : FRIParams F) (i : Fin params.m)
+/-- At `params.toSmooth`, the general smooth fiber fold `foldFiber` coincides with binary
+`fold2Fiber`. -/
+theorem foldFiber_toSmooth_eq_fold2Fiber (params : FRIParams F) (i : Fin params.m)
     (ys : Fin (params.toSmooth.arity i) → F) (s : Fin (2 ^ params.d)) (z : F) :
     foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog i.val))
         (params.ω ^ (2 ^ params.toSmooth.cumLog i.val)) ys

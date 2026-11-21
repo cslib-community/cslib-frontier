@@ -156,7 +156,7 @@ theorem polyBounded_length_encNat_SharpSAT :
   have h1 : (encNat (SharpSAT φ)).length ≤ (encNat (2 ^ φ.numVars)).length :=
     length_encNat_mono (CNF.modelCount_le_two_pow_numVars φ)
   have h2 : (encNat (2 ^ φ.numVars)).length = φ.numVars + 1 := by
-    rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+    rw [length_encNat_two_pow]
   have h3 : φ.numVars ≤ (encCNF φ).length := φ.numVars_le_length_vars.trans (SAT.length_vars_le φ)
   rw [pow_one]
   omega
@@ -302,8 +302,7 @@ theorem SharpSAT_computableInExpTime_one :
       List.countP_le_length.trans (by simp)
     have hm_len : (encNat m).length ≤ φ.numVars + 1 := by
       have h1 := length_encNat_mono hm
-      rw [rounds, φ.length_distinctVars, encNat_two_pow, List.length_append,
-        List.length_replicate, List.length_singleton] at h1
+      rw [rounds, φ.length_distinctVars, length_encNat_two_pow] at h1
       exact h1
     have hacc_len : (encNat ((List.range m).countP
         fun r => φ.eval (bitsAssignment φ.distinctVars r))).length ≤ φ.numVars + 1 :=
@@ -339,8 +338,7 @@ theorem SharpSAT_computableInExpTime_one :
     have hr_poly : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length)
         (fun φ => (encNat (rounds φ)).length) :=
       PolyBounded.of_forall_le 2 1 fun φ => by
-        rw [rounds, φ.length_distinctVars, encNat_two_pow, List.length_append,
-          List.length_replicate, List.length_singleton, pow_one]
+        rw [rounds, φ.length_distinctVars, length_encNat_two_pow, pow_one]
         have := φ.numVars_le_length_vars.trans (SAT.length_vars_le φ)
         omega
     exact (((hB_poly.add (.const 1)).pow ds).add hB_poly).add ((hr_poly.add (.const 1)).pow 2)
