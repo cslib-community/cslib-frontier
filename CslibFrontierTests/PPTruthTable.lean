@@ -23,6 +23,9 @@ open Turing.MultiTapeTM Cslib.Complexity
 
 namespace CslibFrontierTests.PPTruthTable
 
+-- Keep certificate search at the function-level API, without expanding machine witnesses.
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 def headTrue : Set (List Bool) := {w | w.getD 0 false = true}
 
 def secondTrue : Set (List Bool) := {w | w.getD 1 false = true}

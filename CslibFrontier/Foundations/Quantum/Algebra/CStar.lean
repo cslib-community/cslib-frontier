@@ -103,6 +103,14 @@ theorem IsProjective.mul_eq_zero (hM : M.IsProjective) {a b : α} (hab : a ≠ b
   rw [hterm, star_mul_self_eq_zero] at hb
   rw [← hsa a, ← hsa b, ← star_mul, hb, star_zero]
 
+/-- Two outcomes of one projective measurement commute. -/
+theorem IsProjective.commute_effect (hM : M.IsProjective) (a b : α) :
+    Commute (M.effect a) (M.effect b) := by
+  by_cases h : a = b
+  · subst b
+    exact Commute.refl _
+  · exact (hM.mul_eq_zero h).trans (hM.mul_eq_zero (Ne.symm h)).symm
+
 /-- Functions of a projective measurement multiply pointwise:
 `(∑_a f(a) E_a)(∑_a g(a) E_a) = ∑_a f(a) g(a) E_a`. -/
 theorem IsProjective.sum_smul_mul_sum_smul (hM : M.IsProjective) (f g : α → ℂ) :

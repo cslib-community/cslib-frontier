@@ -54,9 +54,9 @@ if needed, for `false`, and stores the word of `Cslib.Complexity.PPZ.forced φ �
 namespace Cslib.Algorithms.WordRAM.PPZ
 
 open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.PPZ
-open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClauses litCode_shiftRight
-  litCode_and_one length_encodeClause encodeClauses_cons encodeClauses_nil litCode_lt
-  one_sub_toNat_xor toNat_or toNat_xor_le_one)
+open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClause_eq encodeClauses
+  litCode_shiftRight litCode_and_one length_encodeClause encodeClauses_cons encodeClauses_nil
+  litCode_lt one_sub_toNat_xor toNat_or toNat_xor_le_one)
 
 variable {n : ℕ}
 
@@ -369,10 +369,10 @@ theorem clauseLoop_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (ψ 
     obtain ⟨hpc, hpψ⟩ := holdsList_append_iff.mp hp
     simp only [List.length_append, length_encodeClause] at hend hpψ ⊢
     have hlen : y.mem (y.regs ptr) = c.length := by
-      simpa [encodeClause] using hpc.get 0 (by simp)
+      simpa [encodeClause_eq] using hpc.get 0 (by simp)
     have hlits : HoldsList (y.regs ptr + 1) (c.map litCode) y.mem :=
       ((holdsList_append_iff (xs := [c.length]) (ys := c.map litCode)).mp
-        (by simpa [encodeClause] using hpc)).2
+        (by simpa [encodeClause_eq] using hpc)).2
     have hf2 : Fits w (y.regs ptr + 1 + c.length) := hce.of_le (by omega)
     have hu : Fits w ((c.any (litHas x b)).toNat &&& (c.all (litOk τ x b)).toNat) :=
       hf.fits.of_le (by rw [toNat_and]; have := Bool.toNat_le (c.any (litHas x b) &&
