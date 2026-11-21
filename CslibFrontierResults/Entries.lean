@@ -10929,7 +10929,8 @@ register_result "difference-universal-hash-modulus-reduction" where
     Cslib.Probability.IsDeltaUniversalHash.zmod_cast_div]
   scope := "Reducing canonical residues from modulus p to modulus N multiplies the original \
     difference bound by at most 2(p/N + 1). An original bound α/p gives 4α/N for N ≤ p. \
-    The first bound holds for any positive moduli and both allow arbitrary seed laws."
+    The first bound holds for any positive moduli and both allow arbitrary seed laws. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6969 at 28fa1e301d."
 
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
