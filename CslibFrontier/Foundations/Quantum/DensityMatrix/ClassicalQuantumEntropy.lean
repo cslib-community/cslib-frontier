@@ -347,6 +347,16 @@ theorem mutualInformation_classicalQuantumState_eq_coe_sum (p : PMF X)
   exact sum_weighted_relativeEntropy_eq_coe p fun _ hx =>
     supportLE_partialTraceRight_classicalQuantumState p hρ hx
 
+/-- A deterministic classical label carries no information about its quantum register. -/
+theorem mutualInformation_classicalQuantumState_pure (x : X)
+    {ρ : X → Matrix ι ι ℂ} (hρ : ∀ z, IsDensityMatrix (ρ z)) :
+    mutualInformation (classicalQuantumState (PMF.pure x) ρ) = 0 := by
+  have hquantum : partialTraceRight (classicalQuantumState (PMF.pure x) ρ) = ρ x := by
+    rw [partialTraceRight_classicalQuantumState]
+    simp [PMF.pure_apply, apply_ite, ite_smul, eq_comm]
+  rw [mutualInformation_classicalQuantumState _ hρ, hquantum]
+  simp [PMF.pure_apply, apply_ite, ite_mul, eq_comm]
+
 variable {Y : Type*} [Fintype Y] [DecidableEq Y]
 
 open Cslib.Probability.PMF
@@ -356,6 +366,15 @@ open Cslib.Probability.PMF
 noncomputable def quantumMarginalGiven (p : PMF (X × Y)) (ρ : X × Y → Matrix ι ι ℂ) (x : X) :
     Matrix ι ι ℂ :=
   partialTraceRight (classicalQuantumState (conditionalSnd p x) (fun y => ρ (x, y)))
+
+omit [Fintype X] [DecidableEq X] [DecidableEq ι] in
+/-- Conditional quantum marginals of density matrices are density matrices, including at a
+zero-mass first label. -/
+theorem isDensityMatrix_quantumMarginalGiven (p : PMF (X × Y))
+    {ρ : X × Y → Matrix ι ι ℂ} (hρ : ∀ z, IsDensityMatrix (ρ z)) (x : X) :
+    IsDensityMatrix (quantumMarginalGiven p ρ x) :=
+  (isDensityMatrix_classicalQuantumState (conditionalSnd p x) fun y =>
+    hρ (x, y)).partialTraceRight
 
 omit [Fintype ι] [DecidableEq ι] in
 /-- Averaging the conditional quantum marginals recovers the original quantum marginal. -/
@@ -382,9 +401,7 @@ theorem mutualInformation_classicalQuantumState_prod (p : PMF (X × Y))
   let μ := partialTraceRight (classicalQuantumState p ρ)
   let ν := p.map Prod.fst
   let μx := quantumMarginalGiven p ρ
-  have hμx (x : X) : IsDensityMatrix (μx x) :=
-    (isDensityMatrix_classicalQuantumState (conditionalSnd p x) fun y =>
-      hρ (x, y)).partialTraceRight
+  have hμx (x : X) : IsDensityMatrix (μx x) := isDensityMatrix_quantumMarginalGiven p hρ x
   have hsplit (x : X) (hx : x ∈ ν.support) :
       (∑ y, (conditionalSnd p x y).toReal * relativeEntropyReal (ρ (x, y)) μ) =
         relativeEntropyReal (μx x) μ +

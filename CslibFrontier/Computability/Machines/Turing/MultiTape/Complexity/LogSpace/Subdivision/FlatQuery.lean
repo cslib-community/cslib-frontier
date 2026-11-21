@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import Mathlib.Logic.Equiv.Fin.Basic
+import CslibFrontier.Foundations.Data.Fin.Prod
 
 /-!
 # Flat IDs for subdivision edge requests
@@ -79,15 +80,8 @@ theorem decodeFlatQuery_flatIndex {n : ℕ} (ctx : Context) (bound : ℕ)
     (a b : Vertex (Fin n) bound) :
     decodeFlatQuery ⟨ctx, bound, (flatIndex n bound a).val, (flatIndex n bound b).val⟩ =
       ⟨ctx, a.vertex.val, b.vertex.val, a.offset.val, b.offset.val⟩ := by
-  have coords (v : Vertex (Fin n) bound) :
-      ((flatIndex n bound v).val / (bound + 1), (flatIndex n bound v).val % (bound + 1)) =
-        (v.vertex.val, v.offset.val) := by
-    have he : finProdFinEquiv.symm (flatIndex n bound v) = (v.vertex, v.offset) := by
-      simp [flatIndex]
-    exact congrArg (fun p : Fin n × Fin (bound + 1) => (p.1.val, p.2.val)) he
-  obtain ⟨hal, hab⟩ := Prod.mk.inj (coords a)
-  obtain ⟨hbl, hbb⟩ := Prod.mk.inj (coords b)
-  simp only [decodeFlatQuery, hal, hab, hbl, hbb]
+  simp only [decodeFlatQuery, flatIndex, Equiv.trans_apply, finProdFinEquiv_val_div,
+    finProdFinEquiv_val_mod, equivProd_apply]
 
 /-- Decoding fits in linear space in the retained context and binary request. -/
 theorem decodeFlatQuery_inSpace (encContext : Context ↪ List Bool) :

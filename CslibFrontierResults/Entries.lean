@@ -22,6 +22,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImp
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumInformationChain
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Foundations.Quantum.Orthogonalization
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
@@ -72,6 +73,7 @@ import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Crypto.Primitives.UHF.Finite
+import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -10704,6 +10706,23 @@ register_result "single-pair-hash-game-bounds" where
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
 
+register_result "pairwise-unpredictability-implies-universal-hashing" where
+  title := "Pairwise unpredictability implies universality and difference universality"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Consequences of Definition 7.7 (unnumbered)",
+      locator := "v0.6, Section 7.6.1, printed p. 275; Attack Game 7.5 and Definition 7.7" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isUniversalHash,
+    Cslib.Crypto.UHF.IsPairwiseUnpredictable.isDeltaUniversalHash
+  ]
+  scope := "A finite uniform private key and a single adaptive prediction. The two-stage \
+    adversary may save arbitrary private state and receives the first hash before choosing its \
+    second message and digest. The game rejects repeated messages. The collision implication \
+    works with arbitrary digests, and the difference implication uses any additive group, \
+    including the source’s cyclic and abelian cases."
+
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
   topic := "cryptography"
@@ -11795,6 +11814,20 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
     not looser); (2) stated on the quotient group E ⧸ L with normalized restricted volume on an \
     arbitrary fundamental domain F rather than a basis parallelepiped P(B); (3) omits the \
     'In particular, s ≥ η_ε(B) ⇒ Δ ≤ ε / 2' specialization until smoothingParameter lands."
+
+register_result "classical-quantum-tuple-mutual-information-chain" where
+  title := "Mutual information chain rule for finite classical tuples and a quantum register"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Chain equality in equation (27)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 21" }
+  ]
+  theorems := [Cslib.Quantum.mutualInformation_classicalQuantumState_eq_sum_coordinates]
+  scope := "Arbitrary finite tuples whose coordinate alphabets may differ, with any joint \
+    probability mass function and finite complex density matrices as conditional blocks. \
+    The coordinate terms average conditional mutual information over preceding labels, \
+    with null prefixes weighted zero. The chain uses natural logarithms and includes the \
+    empty tuple."
 
 register_result "micciancio-regev-indep-sum-sq-norm" where
   title := "Expected squared norm of linear combinations of independent random vectors"
