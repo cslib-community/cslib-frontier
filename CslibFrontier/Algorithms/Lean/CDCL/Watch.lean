@@ -357,8 +357,12 @@ the other as blocker. -/
 @[expose] def WatchStore.addClause (S : WatchStore) (id : ℕ) (c : Clause ℕ) : WatchStore :=
   match c with
   | w₁ :: w₂ :: _ =>
-    ⟨S.clauses.push (id, c), addWatch (addWatch S.watches (litKey w₁) ⟨S.clauses.size, w₂⟩)
-      (litKey w₂) ⟨S.clauses.size, w₁⟩⟩
+    -- the position is read and the arrays taken out of the store first, so that the push and the
+    -- watch lists update them in place when the store is not shared
+    let k := S.clauses.size
+    let clauses := S.clauses
+    let watches := S.watches
+    ⟨clauses.push (id, c), addWatch (addWatch watches (litKey w₁) ⟨k, w₂⟩) (litKey w₂) ⟨k, w₁⟩⟩
   | _ => S
 
 /-- Adding a clause of the database, without repetitions, whose first watched literal is not
