@@ -438,7 +438,6 @@ private theorem final_cut_endpoint (h r : ℝ) (a b : ℂ) :
     let C := cuts h r a b
     C[C.length - 2 + 1]'(by
       have hlen := cuts_length_bounds h r a b
-      dsimp only
       omega) = 1 := by
   dsimp only
   have hlen := cuts_length_bounds h r a b
