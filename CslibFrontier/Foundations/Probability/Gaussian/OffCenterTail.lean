@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
 public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
+public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import Mathlib.Probability.Moments.SubGaussian
 
 import CslibFrontier.Foundations.Probability.Gaussian.DiscreteTail
@@ -30,12 +31,16 @@ import Mathlib.Probability.ProbabilityMassFunction.Integrals
   [MicciancioRegev2007], Lemma 2.10, eq. (6), by removing the factor of `2`).
 * `ZLattice.tsum_gaussianWeight_norm_sub_gt_sqrt_lt`: shifted [Regev2009], Lemma 2.5 (`c = 1`),
   bounding the tail mass strictly below `(1 / 4) ^ (finrank ℝ E) * gaussianMass L s 0`.
-* `ZLattice.gaussianMass_div_le_of_dual_mass_le`: under `ρ_{1/s}(L* \ {0}) ≤ ε < 1`, the ratio
-  of Gaussian masses at any two centers is at most `(1 + ε) / (1 - ε)`.
-* `ZLattice.discreteGaussian_norm_sub_gt_lt_of_dual_mass_le` and
-  `ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le`: dual-mass step toward the
-  `η_ε`-form of [MicciancioRegev2007], Lemma 4.4 (p. 15), sharpening `(1 / 2) ^ n` to strict
-  `(1 / 4) ^ n`.
+* `ZLattice.gaussianMass_div_le_of_dual_mass_le`,
+  `ZLattice.gaussianMass_div_le_of_smoothingParameter_le`: under `ρ_{1/s}(L* \ {0}) ≤ ε < 1`
+  (or `η_ε(L) ≤ s` with `0 < ε < 1`), the ratio of Gaussian masses at any two centers is at most
+  `(1 + ε) / (1 - ε)`.
+* `ZLattice.discreteGaussian_norm_sub_gt_lt_of_dual_mass_le`,
+  `ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le`,
+  `ZLattice.discreteGaussian_norm_sub_gt_lt_of_smoothingParameter_le`,
+  `ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_smoothingParameter_le`: dual-mass and
+  `η_ε`-parameterized forms of [MicciancioRegev2007], Lemma 4.4 (p. 15), sharpening `(1 / 2) ^ n`
+  to strict `(1 / 4) ^ n`.
 * `ZLattice.summable_gaussianWeight_mul_exp_inner`, `ZLattice.tsum_gaussianWeight_mul_exp_inner`:
   exact directional exponential moment by completing the square.
 * `ZLattice.hasSubgaussianMGF_inner_discreteGaussian_zero`: any linear projection of a centered
@@ -43,20 +48,24 @@ import Mathlib.Probability.ProbabilityMassFunction.Integrals
 * `ZLattice.tsum_gaussianWeight_abs_inner_sub_ge_le`,
   `ZLattice.discreteGaussian_zero_abs_inner_ge_le`,
   `ZLattice.discreteGaussian_abs_inner_sub_ge_le_of_dual_mass_le`,
-  `ZLattice.discreteGaussian_real_abs_sub_ge_le_of_dual_mass_le`: one-dimensional directional
-  and scalar discrete Gaussian Chernoff tails.
+  `ZLattice.discreteGaussian_real_abs_sub_ge_le_of_dual_mass_le`,
+  `ZLattice.discreteGaussian_abs_inner_sub_ge_le_of_smoothingParameter_le`,
+  `ZLattice.discreteGaussian_real_abs_sub_ge_le_of_smoothingParameter_le`: one-dimensional
+  directional and scalar discrete Gaussian Chernoff tails in both dual-mass and `η_ε(L) ≤ s`
+  forms.
 
 ## References
 
 * [Banaszczyk1993], Lemma 1.5(ii) (printed p. 630).
-* [MicciancioRegev2007], Lemma 2.9 (p. 9), Lemma 2.10 (p. 9), and Lemma 4.4 (p. 15) of the
-  December 27, 2005 author version.
+* [MicciancioRegev2007], Lemma 2.9 (p. 9), Lemma 2.10 (p. 9), Definition 3.1 (p. 10), and
+  Lemma 4.4 (p. 15) of the December 27, 2005 author version.
 * [Regev2009], Lemmas 2.4–2.5 (p. 16 of the May 2, 2009 author version).
 
-The smoothing hypotheses are stated in dual-mass form `gaussianMass D (1 / s) 0 - 1 ≤ ε`, which
-is the dual-mass step unpacked from `η_ε(L) ≤ s` (rather than the `η_ε`-parameterized endpoint
-itself). The dual-mass sample-norm step strengthens the constant of [MicciancioRegev2007],
-Lemma 4.4 from `2 ^ (-n)` to strict `(1 / 4) ^ n`, matching `Gaussian.CenteredTail`.
+The smoothing hypotheses are stated in both dual-mass form `gaussianMass D (1 / s) 0 - 1 ≤ ε`
+(which also covers `ε = 0` in dimension zero) and smoothing-parameter form
+`smoothingParameter L ε ≤ s` (for `0 < ε < 1`). Both sample-norm tail forms strengthen the
+constant of [MicciancioRegev2007], Lemma 4.4 from `2 ^ (-n)` to strict `(1 / 4) ^ n`, matching
+`Gaussian.CenteredTail`.
 -/
 
 public section
@@ -165,34 +174,6 @@ private theorem discreteGaussian_toOuterMeasure_eq
     _ = ENNReal.ofReal ((∑' z : S, gaussianWeight s ((z : E) - v)) / gaussianMass L s v) := by
       rw [tsum_div_const]
 
-/-- Local full-rank form of [MicciancioRegev2007], Lemma 2.9 (`ρ_{s, v}(L) ≤ ρ_s(L)`), kept
-private here to avoid duplicating M2's public `ZLattice.gaussianMass_le_gaussianMass_zero`. -/
-private theorem gaussianMass_le_zero
-    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
-    (s : ℝ) (hs : 0 < s) (v : E) :
-    gaussianMass L s v ≤ gaussianMass L s 0 := by
-  let _ : MeasurableSpace E := borel E
-  have _ : BorelSpace E := ⟨rfl⟩
-  let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
-  have : DiscreteTopology D := discreteTopology_dualSubmodule L
-  have h1 := (abs_le.mp (abs_gaussianMass_normalized_sub_one_le L s hs v)).2
-  have h0 : gaussianMass L s 0 = s ^ finrank ℝ E / covolume L * gaussianMass D (1 / s) 0 := by
-    apply Complex.ofReal_injective
-    simpa only [inner_zero_left, neg_zero, Real.fourierChar.map_zero_eq_one, Circle.coe_one,
-      one_mul, mul_one, gaussianMass, sub_zero, Complex.ofReal_mul, Complex.ofReal_div,
-      Complex.ofReal_pow, Complex.ofReal_tsum] using gaussianMass_eq_tsum_dual L s hs 0
-  have hc := covolume_pos L volume
-  have hp : 0 < s ^ finrank ℝ E := pow_pos hs _
-  have hle : covolume L / s ^ finrank ℝ E * gaussianMass L s v ≤ gaussianMass D (1 / s) 0 := by
-    linarith
-  have hmul := mul_le_mul_of_nonneg_left hle (div_pos hp hc).le
-  rw [← h0] at hmul
-  have hcancel :
-      s ^ finrank ℝ E / covolume L * (covolume L / s ^ finrank ℝ E * gaussianMass L s v) =
-        gaussianMass L s v := by
-    field_simp
-  rwa [hcancel] at hmul
-
 end DiscreteHelpers
 
 section BanaszczykTail
@@ -282,7 +263,7 @@ theorem tsum_gaussianWeight_norm_sub_gt_lt
       have hdiv := gaussianMass_zero_div_le L s hs t hst.le
       have hzero : gaussianMass L t 0 ≤ (t / s) ^ finrank ℝ E * gaussianMass L s 0 :=
         (div_le_iff₀ (gaussianMass_pos L s hs 0)).mp hdiv
-      exact (gaussianMass_le_zero L t ht v).trans hzero
+      exact (gaussianMass_le_gaussianMass_zero L t ht v).trans hzero
     have hconst :
         Real.exp (-κ * R ^ 2) * (t / s) ^ finrank ℝ E =
           (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^
@@ -443,6 +424,40 @@ theorem discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le
   exact h.trans_le (ENNReal.ofReal_le_ofReal (mul_le_mul_of_nonneg_left
     (pow_le_pow_left₀ (by positivity) banaszczykConstant_one_lt_quarter.le _) hratio_nn))
 
+/-- Above the smoothing parameter `η_ε(L) ≤ s` with `0 < ε < 1`, the ratio of Gaussian masses at
+any two centers is at most `(1 + ε) / (1 - ε)`. -/
+theorem gaussianMass_div_le_of_smoothingParameter_le
+    (s : ℝ) (hs : 0 < s) (ε : ℝ) (hε0 : 0 < ε) (hεlt : ε < 1)
+    (hη : smoothingParameter L ε ≤ s) (c₁ c₂ : E) :
+    gaussianMass L s c₁ / gaussianMass L s c₂ ≤ (1 + ε) / (1 - ε) :=
+  gaussianMass_div_le_of_dual_mass_le L s hs ε hεlt
+    ((smoothingParameter_le_iff L hs hε0).mp hη) c₁ c₂
+
+/-- General-radius off-center discrete Gaussian norm tail bound above the smoothing parameter
+`η_ε(L) ≤ s` (`0 < ε < 1`, `c > 1 / √(2π)`). -/
+theorem discreteGaussian_norm_sub_gt_lt_of_smoothingParameter_le
+    (s : ℝ) (hs : 0 < s) (v : E) (c : ℝ) (hc : 1 / Real.sqrt (2 * Real.pi) < c)
+    (ε : ℝ) (hε0 : 0 < ε) (hεlt : ε < 1) (hη : smoothingParameter L ε ≤ s) :
+    (discreteGaussian L s hs v).toOuterMeasure
+      {z : L | c * s * Real.sqrt (finrank ℝ E) < ‖(z : E) - v‖} <
+      ENNReal.ofReal ((1 + ε) / (1 - ε) *
+        (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^
+          finrank ℝ E) :=
+  discreteGaussian_norm_sub_gt_lt_of_dual_mass_le L s hs v c hc ε hεlt
+    ((smoothingParameter_le_iff L hs hε0).mp hη)
+
+/-- Off-center discrete Gaussian norm tail bound above the smoothing parameter `η_ε(L) ≤ s`
+([MicciancioRegev2007], Lemma 4.4, p. 15 of the December 27, 2005 author's copy, sharpened from
+`2 ^ (-n)` to strict `(1 / 4) ^ n`). -/
+theorem discreteGaussian_norm_sub_gt_sqrt_lt_of_smoothingParameter_le
+    (s : ℝ) (hs : 0 < s) (v : E) (ε : ℝ) (hε0 : 0 < ε) (hεlt : ε < 1)
+    (hη : smoothingParameter L ε ≤ s) :
+    (discreteGaussian L s hs v).toOuterMeasure
+      {z : L | s * Real.sqrt (finrank ℝ E) < ‖(z : E) - v‖} <
+      ENNReal.ofReal ((1 + ε) / (1 - ε) * (1 / 4 : ℝ) ^ finrank ℝ E) :=
+  discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le L s hs v ε hεlt
+    ((smoothingParameter_le_iff L hs hε0).mp hη)
+
 end BanaszczykTail
 
 section OneDimensionalTails
@@ -496,12 +511,12 @@ completing-the-square MGF identity (`tsum_gaussianWeight_mul_exp_inner`) and shi
 mass monotonicity ([MicciancioRegev2007], Lemma 2.9, p. 9). -/
 theorem hasSubgaussianMGF_inner_discreteGaussian_zero
     [MeasurableSpace E] [BorelSpace E]
-    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (L : Submodule ℤ E) [DiscreteTopology L]
     (s : ℝ) (hs : 0 < s) (u : E) :
     HasSubgaussianMGF (fun z : L ↦ ⟪(z : E), u⟫)
       (((s * ‖u‖) ^ 2 / (2 * Real.pi)).toNNReal)
       (discreteGaussian L s hs 0).toMeasure := by
-  have _ : Countable L := inferInstance
+  have _ : Countable L := TopologicalSpace.separableSpace_iff_countable.mp inferInstance
   have hm := gaussianMass_pos L s hs 0
   have hint (t : ℝ) :
       Integrable (fun z : L ↦ Real.exp (t * ⟪(z : E), u⟫))
@@ -539,10 +554,10 @@ theorem hasSubgaussianMGF_inner_discreteGaussian_zero
   simp only [sub_zero, zero_add] at htsum
   rw [htsum, Real.coe_toNNReal _ (by positivity), mul_div_assoc]
   exact mul_le_of_le_one_right (Real.exp_pos _).le
-    ((div_le_one hm).mpr (gaussianMass_le_zero L s hs _))
+    ((div_le_one hm).mpr (gaussianMass_le_gaussianMass_zero L s hs _))
 
 private theorem tsum_gaussianWeight_inner_sub_ge_le
-    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (L : Submodule ℤ E) [DiscreteTopology L]
     (s : ℝ) (hs : 0 < s) (c : E) {u : E} (hu : u ≠ 0) {t : ℝ} (ht : 0 ≤ t) :
     (∑' z : ↥{z : L | t * s * ‖u‖ ≤ ⟪(z : E) - c, u⟫}, gaussianWeight s ((z : E) - c)) ≤
       Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0 := by
@@ -609,13 +624,13 @@ private theorem tsum_gaussianWeight_inner_sub_ge_le
     _ = Real.exp (-Real.pi * t ^ 2) *
           gaussianMass L s (c + (lam * s ^ 2 / (2 * Real.pi)) • u) := by rw [h3]
     _ ≤ Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0 :=
-      mul_le_mul_of_nonneg_left (gaussianMass_le_zero L s hs _) (Real.exp_pos _).le
+      mul_le_mul_of_nonneg_left (gaussianMass_le_gaussianMass_zero L s hs _) (Real.exp_pos _).le
 
 /-- Unnormalized two-sided one-dimensional directional tail of a shifted lattice Gaussian:
 for any nonzero `u` and `t ≥ 0`, the mass of `{z ∈ L | t * s * ‖u‖ ≤ |⟪z - c, u⟫|}` is at most
 `2 * exp (-π * t²) * gaussianMass L s 0`. -/
 theorem tsum_gaussianWeight_abs_inner_sub_ge_le
-    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (L : Submodule ℤ E) [DiscreteTopology L]
     (s : ℝ) (hs : 0 < s) (c : E) {u : E} (hu : u ≠ 0) {t : ℝ} (ht : 0 ≤ t) :
     (∑' z : ↥{z : L | t * s * ‖u‖ ≤ |⟪(z : E) - c, u⟫|}, gaussianWeight s ((z : E) - c)) ≤
       2 * Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0 := by
@@ -662,7 +677,7 @@ theorem tsum_gaussianWeight_abs_inner_sub_ge_le
 /-- Two-sided one-dimensional directional tail of a centered discrete Gaussian (no smoothing
 hypothesis needed). -/
 theorem discreteGaussian_zero_abs_inner_ge_le
-    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (L : Submodule ℤ E) [DiscreteTopology L]
     (s : ℝ) (hs : 0 < s) {u : E} (hu : u ≠ 0) {t : ℝ} (ht : 0 ≤ t) :
     (discreteGaussian L s hs 0).toOuterMeasure
       {z : L | t * s * ‖u‖ ≤ |⟪(z : E), u⟫|} ≤
@@ -721,6 +736,29 @@ theorem discreteGaussian_real_abs_sub_ge_le_of_dual_mass_le
     ext z
     simp only [Set.mem_ofPred_eq, norm_one, mul_one, RCLike.inner_apply, conj_trivial, one_mul]
   rwa [hset] at h
+
+/-- One-dimensional directional off-center discrete Gaussian tail bound above `η_ε(L) ≤ s`
+(`0 < ε < 1`, `u ≠ 0`, `t ≥ 0`). -/
+theorem discreteGaussian_abs_inner_sub_ge_le_of_smoothingParameter_le
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    (s : ℝ) (hs : 0 < s) (c : E) {u : E} (hu : u ≠ 0) {t : ℝ} (ht : 0 ≤ t)
+    (ε : ℝ) (hε0 : 0 < ε) (hεlt : ε < 1) (hη : smoothingParameter L ε ≤ s) :
+    (discreteGaussian L s hs c).toOuterMeasure
+      {z : L | t * s * ‖u‖ ≤ |⟪(z : E) - c, u⟫|} ≤
+      ENNReal.ofReal ((1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * t ^ 2))) :=
+  discreteGaussian_abs_inner_sub_ge_le_of_dual_mass_le L s hs c hu ht ε hεlt
+    ((smoothingParameter_le_iff L hs hε0).mp hη)
+
+/-- Scalar one-dimensional off-center discrete Gaussian tail bound above `η_ε(L) ≤ s`
+(`0 < ε < 1`, `t ≥ 0`). -/
+theorem discreteGaussian_real_abs_sub_ge_le_of_smoothingParameter_le
+    (L : Submodule ℤ ℝ) [DiscreteTopology L] [IsZLattice ℝ L]
+    (s : ℝ) (hs : 0 < s) (c : ℝ) {t : ℝ} (ht : 0 ≤ t)
+    (ε : ℝ) (hε0 : 0 < ε) (hεlt : ε < 1) (hη : smoothingParameter L ε ≤ s) :
+    (discreteGaussian L s hs c).toOuterMeasure {z : L | t * s ≤ |(z : ℝ) - c|} ≤
+      ENNReal.ofReal ((1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * t ^ 2))) :=
+  discreteGaussian_real_abs_sub_ge_le_of_dual_mass_le L s hs c ht ε hεlt
+    ((smoothingParameter_le_iff L hs hε0).mp hη)
 
 end OneDimensionalTails
 

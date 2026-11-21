@@ -33,6 +33,9 @@ measurability and the existing nonzero dual Gaussian mass.
 * `ZLattice.eventually_tvDist_gaussian_quotient_le`: every positive error is eventually achieved.
 * `ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le`: smoothing-parameter conversion
   of `tvDist_gaussian_quotient_le` via `smoothingParameter_le_iff`.
+* `ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le`: smoothing-parameter
+  conversion of `tvDist_gaussian_shift_quotient_le` ([MicciancioRegev2007], Lemma 4.1, arbitrary
+  center `c`, full-L1 `tvDist ≤ ε`).
 
 ## References
 
@@ -41,8 +44,8 @@ May 2, 2009 author version. The source's statistical distance on that page is fu
 range `[0, 2]`, matching Mathlib's `tvDist`. The arbitrary-center quotient bound formalizes
 [MicciancioRegev2007], Lemma 4.1 (p. 12 of the December 27, 2005 author version), where the
 source's half-L1 statistical distance `Δ ≤ (1 / 2) * ρ_{1/s}(L* \ {0})` corresponds to
-`tvDist = 2 * Δ ≤ ρ_{1/s}(L* \ {0})`. The quotient statements use the actual nonzero dual mass;
-the centered bound is also restated under `η_ε(L) ≤ s` via `ZLattice.smoothingParameter`
+`tvDist = 2 * Δ ≤ ρ_{1/s}(L* \ {0})`. Both the centered and arbitrary-center quotient bounds are
+stated in dual-mass form and restated under `η_ε(L) ≤ s` via `ZLattice.smoothingParameter`
 ([MicciancioRegev2007], Definition 3.1, p. 10). They are not a sampler or the quantum reduction.
 -/
 
@@ -280,5 +283,21 @@ theorem tvDist_gaussian_quotient_le_of_smoothingParameter_le (s : ℝ) (hs : 0 <
       ((ENNReal.ofReal (covolume L))⁻¹ •
         Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup) (volume.restrict F)) ≤ ε :=
   (tvDist_gaussian_quotient_le L s hs hF).trans ((smoothingParameter_le_iff L hs hε).mp hη)
+
+/-- Smoothing-parameter conversion of `tvDist_gaussian_shift_quotient_le`: full-`L¹` distance of an
+arbitrary-center continuous Gaussian modulo `L` from normalized quotient Haar measure above the
+smoothing parameter ([MicciancioRegev2007], Lemma 4.1, p. 12 of the December 27, 2005 author's
+copy; full-`L¹` `tvDist ≤ ε` corresponds to half-`L¹` statistical distance `Δ ≤ ε / 2`). -/
+theorem tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le (s : ℝ) (hs : 0 < s) (c : E)
+    {F : Set E} (hF : IsAddFundamentalDomain L.toAddSubgroup.op F volume)
+    (ε : ℝ) (hε : 0 < ε) (hη : smoothingParameter L ε ≤ s) :
+    tvDist
+      (Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup)
+        (volume.withDensity
+          (fun x : E ↦ ENNReal.ofReal (gaussianWeight s (x - c) / s ^ finrank ℝ E))))
+      ((ENNReal.ofReal (covolume L))⁻¹ •
+        Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup) (volume.restrict F)) ≤ ε :=
+  (tvDist_gaussian_shift_quotient_le L s hs c hF).trans
+    ((smoothingParameter_le_iff L hs hε).mp hη)
 
 end ZLattice

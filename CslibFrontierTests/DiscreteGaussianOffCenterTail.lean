@@ -15,8 +15,9 @@ import Mathlib.Analysis.Real.Pi.Bounds
 
 /-!
 Non-vacuous `module` client tests for off-center Banaszczyk tails, one-dimensional discrete
-Gaussian bounds, the dual-mass step toward MR07 Lemma 4.4, and arbitrary-center quotient uniformity
-(MR07 Lemma 4.1) on concrete lattices in dimensions 1, 2, and 0.
+Gaussian bounds, MR07 Lemma 4.4 (both dual-mass and `η_ε(L) ≤ s` forms), and arbitrary-center
+quotient uniformity (MR07 Lemma 4.1, both dual-mass and `η_ε(L) ≤ s` forms) on concrete lattices
+in dimensions 1, 2, and 0.
 -/
 
 open Module ProbabilityTheory MeasureTheory
@@ -235,6 +236,63 @@ example :
     (basis_domain_op twoBasis)).trans dual_small1
   simpa only [finrank_self, pow_one] using h
 
+private theorem eta_half_le_two_L1 : ZLattice.smoothingParameter L1 (1 / 2) ≤ 2 :=
+  ZLattice.smoothingParameter_le_of_dual_mass_le L1 (by norm_num) dual_small1
+
+/-- Smoothing-parameter (`η_ε`) corollaries on `2ℤ` at `v = 1, s = 2, ε = 1 / 2` (mass ratio,
+MR07 Lemma 4.4, general-radius Banaszczyk tail, 1-D scalar tail, and MR07 Lemma 4.1). -/
+example : ZLattice.gaussianMass L1 2 0 / ZLattice.gaussianMass L1 2 1 ≤ 3 := by
+  have h := ZLattice.gaussianMass_div_le_of_smoothingParameter_le L1 2 (by norm_num)
+    (1 / 2) (by norm_num) (by norm_num) eta_half_le_two_L1 0 1
+  norm_num at h
+  exact h
+
+example :
+    (ZLattice.discreteGaussian L1 2 (by norm_num) 1).toOuterMeasure {z : L1 | 2 < ‖(z : ℝ) - 1‖} <
+      ENNReal.ofReal (3 / 4) := by
+  have h := ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_smoothingParameter_le L1 2
+    (by norm_num) 1 (1 / 2) (by norm_num) (by norm_num) eta_half_le_two_L1
+  have hnum : (1 + (1 / 2 : ℝ)) / (1 - 1 / 2) * (1 / 4 : ℝ) ^ finrank ℝ ℝ = 3 / 4 := by
+    norm_num [finrank_self]
+  rw [hnum] at h
+  simpa only [finrank_self, Nat.cast_one, Real.sqrt_one, mul_one] using h
+
+example :
+    (ZLattice.discreteGaussian L1 2 (by norm_num) 1).toOuterMeasure {z : L1 | 4 < ‖(z : ℝ) - 1‖} <
+      ENNReal.ofReal
+        (3 * (2 * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * 2 ^ 2))) := by
+  have hc : 1 / Real.sqrt (2 * Real.pi) < 2 := by
+    have h1 : 1 / Real.sqrt (2 * Real.pi) < 1 :=
+      (div_lt_one (Real.sqrt_pos.mpr (by positivity))).mpr
+        (Real.lt_sqrt_of_sq_lt (by linarith [Real.pi_gt_three]))
+    linarith
+  have h := ZLattice.discreteGaussian_norm_sub_gt_lt_of_smoothingParameter_le L1 2 (by norm_num)
+    1 2 hc (1 / 2) (by norm_num) (by norm_num) eta_half_le_two_L1
+  have h3 : (1 + (1 / 2 : ℝ)) / (1 - 1 / 2) = 3 := by norm_num
+  simpa only [finrank_self, Nat.cast_one, Real.sqrt_one, mul_one, pow_one, h3,
+    show (2 : ℝ) * 2 = 4 by norm_num] using h
+
+example :
+    (ZLattice.discreteGaussian L1 2 (by norm_num) 1).toOuterMeasure {z : L1 | 4 ≤ |(z : ℝ) - 1|} ≤
+      ENNReal.ofReal (6 * Real.exp (-4 * Real.pi)) := by
+  have h := ZLattice.discreteGaussian_real_abs_sub_ge_le_of_smoothingParameter_le L1 2
+    (by norm_num) 1 (t := 2) (by norm_num) (1 / 2) (by norm_num) (by norm_num) eta_half_le_two_L1
+  have hnum : (1 + (1 / 2 : ℝ)) / (1 - 1 / 2) * (2 * Real.exp (-Real.pi * 2 ^ 2)) =
+      6 * Real.exp (-4 * Real.pi) := by ring_nf
+  simpa only [show (2 : ℝ) * 2 = 4 by norm_num, hnum] using h
+
+example :
+    tvDist
+      (Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L1.toAddSubgroup)
+        (volume.withDensity (fun x : ℝ ↦ ENNReal.ofReal (gaussianWeight 2 (x - 1) / 2))))
+      ((ENNReal.ofReal (ZLattice.covolume L1))⁻¹ •
+        Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L1.toAddSubgroup)
+          (volume.restrict (ZSpan.fundamentalDomain twoBasis))) ≤
+      1 / 2 := by
+  have h := ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le L1 2 (by norm_num)
+    1 (basis_domain_op twoBasis) (1 / 2) (by norm_num) eta_half_le_two_L1
+  simpa only [finrank_self, pow_one] using h
+
 /-! ### Dimension 2: `ℤ² ⊂ EuclideanSpace ℝ (Fin 2)` at off-lattice center `(1/2, 1/3)` -/
 
 private abbrev E2 := EuclideanSpace ℝ (Fin 2)
@@ -361,6 +419,44 @@ example :
       1 / 4 :=
   (ZLattice.tvDist_gaussian_shift_quotient_le L2 2 (by norm_num) v2
     (basis_domain_op stdBasis2)).trans dual_small2
+
+private theorem eta_quarter_le_two_L2 : ZLattice.smoothingParameter L2 (1 / 4) ≤ 2 :=
+  ZLattice.smoothingParameter_le_of_dual_mass_le L2 (by norm_num) dual_small2
+
+/-- End-to-end `η_ε` corollaries on `ℤ²` at off-lattice center `(1/2, 1/3)`, `s = 2`,
+`ε = 1 / 4`: MR07 Lemma 4.4, non-axis directional 1-D tail, and MR07 Lemma 4.1. -/
+example :
+    (ZLattice.discreteGaussian L2 2 (by norm_num) v2).toOuterMeasure
+      {z : L2 | 2 * Real.sqrt 2 < ‖(z : E2) - v2‖} < ENNReal.ofReal (5 / 48) := by
+  have h := ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_smoothingParameter_le L2 2
+    (by norm_num) v2 (1 / 4) (by norm_num) (by norm_num) eta_quarter_le_two_L2
+  have hdim : finrank ℝ E2 = 2 := by simp [E2]
+  have hnum : (1 + (1 / 4 : ℝ)) / (1 - 1 / 4) * (1 / 4 : ℝ) ^ 2 = 5 / 48 := by norm_num
+  simpa only [hdim, Nat.cast_ofNat, hnum] using h
+
+example :
+    (ZLattice.discreteGaussian L2 2 (by norm_num) v2).toOuterMeasure
+      {z : L2 | 4 * Real.sqrt 2 ≤ |⟪(z : E2) - v2, u2⟫|} ≤
+      ENNReal.ofReal (10 / 3 * Real.exp (-4 * Real.pi)) := by
+  have h := ZLattice.discreteGaussian_abs_inner_sub_ge_le_of_smoothingParameter_le L2 2
+    (by norm_num) v2 u2_ne_zero (t := 2) (by norm_num) (1 / 4) (by norm_num) (by norm_num)
+    eta_quarter_le_two_L2
+  have hrad : (2 : ℝ) * 2 * ‖u2‖ = 4 * Real.sqrt 2 := by rw [norm_u2]; ring
+  have hnum : (1 + (1 / 4 : ℝ)) / (1 - 1 / 4) * (2 * Real.exp (-Real.pi * 2 ^ 2)) =
+      10 / 3 * Real.exp (-4 * Real.pi) := by ring_nf
+  simpa only [hrad, hnum] using h
+
+example :
+    tvDist
+      (Measure.map (QuotientAddGroup.mk : E2 → E2 ⧸ L2.toAddSubgroup)
+        (volume.withDensity
+          (fun x : E2 ↦ ENNReal.ofReal (gaussianWeight 2 (x - v2) / 2 ^ finrank ℝ E2))))
+      ((ENNReal.ofReal (ZLattice.covolume L2))⁻¹ •
+        Measure.map (QuotientAddGroup.mk : E2 → E2 ⧸ L2.toAddSubgroup)
+          (volume.restrict (ZSpan.fundamentalDomain stdBasis2))) ≤
+      1 / 4 :=
+  ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le L2 2 (by norm_num) v2
+    (basis_domain_op stdBasis2) (1 / 4) (by norm_num) eta_quarter_le_two_L2
 
 /-! ### Dimension 0: `EuclideanSpace ℝ (Fin 0)` -/
 
