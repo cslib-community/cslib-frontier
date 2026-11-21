@@ -10,7 +10,8 @@ module
 public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
 public import Mathlib.Algebra.MvPolynomial.Supported
 public import Mathlib.Algebra.MvPolynomial.Degrees
-public import Mathlib.Data.Finsupp.Interval
+public import CslibFrontier.Foundations.Data.Finsupp.Interval
+public import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
 import Mathlib.Tactic.LinearCombination
@@ -203,23 +204,6 @@ theorem sparseTable_subset {F : Fin m → MvPolynomial (Fin n) ℝ}
   obtain ⟨j, s, hs, hes⟩ := mem_sparseTable.1 he
   exact hE hes (hF j hs)
 
-private theorem card_Iic_eq_prod (f : Fin n →₀ ℕ) : #(Iic f) = ∏ i, (1 + f i) := by
-  rw [Finsupp.card_Iic]
-  refine prod_subset (subset_univ _) (fun i _ hi => ?_) |>.trans (prod_congr rfl fun i _ => ?_)
-  · simp [Finsupp.notMem_support_iff.1 hi]
-  · simp [add_comm]
-
-/-- The vector of degrees `(degreeOf i F)ᵢ` of `F` in each variable. -/
-noncomputable def degreeVec (F : MvPolynomial (Fin n) ℝ) : Fin n →₀ ℕ :=
-  Finsupp.equivFunOnFinite.symm fun i => degreeOf i F
-
-@[simp] theorem degreeVec_apply (F : MvPolynomial (Fin n) ℝ) (i : Fin n) :
-    degreeVec F i = degreeOf i F := by simp [degreeVec]
-
-theorem le_degreeVec {F : MvPolynomial (Fin n) ℝ} {s : Fin n →₀ ℕ} (hs : s ∈ F.support) :
-    s ≤ degreeVec F := fun i => by
-  simpa using monomial_le_degreeOf i hs
-
 /-- **The sparse table against Datta's count.** With `d_ij = degreeOf i (F j)` and the paper's
 printed `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, this says `|sparseTable F| + m ≤ D + 2`: Bob's and Critter's
 `|E| + 1` and `|E| + m + 1` strategies exceed the printed `D − m + 1` and `D + 1` by at most `2`.
@@ -237,8 +221,8 @@ theorem card_sparseTable_add_le (F : Fin m → MvPolynomial (Fin n) ℝ) :
           mem_erase.2 ⟨h0, mem_Iic.2 (hes.trans (le_degreeVec hs))⟩⟩)
   have hcard : ∀ j, #((Iic (degreeVec (F j))).erase 0) + 1 = ∏ i, (1 + degreeOf i (F j)) :=
     fun j => by
-      rw [card_erase_add_one (mem_Iic.2 zero_le), card_Iic_eq_prod]
-      simp [degreeVec]
+      rw [card_erase_add_one (mem_Iic.2 zero_le), Finsupp.card_Iic_eq_prod]
+      simp
   calc #(sparseTable F) + m
       ≤ 1 + ∑ j, #((Iic (degreeVec (F j))).erase 0) + ∑ _j : Fin m, 1 := by
         simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
@@ -257,7 +241,7 @@ theorem card_sparseTable_le_pow {F : Fin m → MvPolynomial (Fin n) ℝ} {d : �
     obtain ⟨j, s, hs, hes⟩ := mem_sparseTable.1 he
     exact mem_Iic.2 fun i => (hes i).trans (by simpa using (degreeOf_le_iff.1 (hF j i)) s hs)
   refine (card_le_card hsub).trans_eq ?_
-  rw [card_Iic_eq_prod]
+  rw [Finsupp.card_Iic_eq_prod]
   simp [add_comm]
 
 /-! ### The monomial chain -/
@@ -334,9 +318,8 @@ theorem eval_encode {F : MvPolynomial (Fin n) ℝ} (hF : F.support ⊆ E) {q : C
 /-! ### Shape of the equations -/
 
 private theorem C_mem_supported {s : Set (Coord E m)} (c : ℝ) :
-    MvPolynomial.C c ∈ supported ℝ s := by
-  rw [← algebraMap_eq]
-  exact Subalgebra.algebraMap_mem _ c
+    MvPolynomial.C c ∈ supported ℝ s :=
+  mem_supported.2 (by simp [vars_C])
 
 /-- Each player's equations only involve the other players. -/
 theorem mem_supported_equation (F : Fin m → MvPolynomial (Fin n) ℝ) (w : Who)

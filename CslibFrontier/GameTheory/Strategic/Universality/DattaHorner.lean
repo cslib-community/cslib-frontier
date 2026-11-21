@@ -120,7 +120,7 @@ public section
 namespace Cslib.GameTheory.DattaHorner
 
 open MvPolynomial Finset Function
-open DattaThree (Who expoPow degreeVec)
+open DattaThree (Who expoPow)
 
 variable {n m : ℕ}
 
@@ -276,7 +276,7 @@ theorem mem_nodes_of_level {d : Fin n →₀ ℕ} {k : ℕ} {e : Fin n →₀ �
 /-- The chain of the degree vector `d` has `∏ᵢ (1 + d i) − 1` nodes: `(k, e) ↦ e + 1_k` is a
 bijection onto the nonzero exponents of the box. -/
 theorem card_nodes (d : Fin n →₀ ℕ) : #(nodes d) + 1 = ∏ i, (1 + d i) := by
-  rw [← DattaThree.card_Iic_eq_prod, ← card_erase_add_one (mem_Iic.2 zero_le)]
+  rw [← Finsupp.card_Iic_eq_prod, ← card_erase_add_one (mem_Iic.2 zero_le)]
   congr 1
   refine card_bij (fun p _ => p.expo + Finsupp.single p.var 1) (fun p hp => ?_)
     (fun p hp p' hp' h => ?_) fun g hg => ?_
@@ -457,7 +457,7 @@ theorem card_bobNodes_add (hF : ∀ j, ∃ i, degreeOf i (F j) ≠ 0) :
       ext p
       simp [hroot, eq_comm, and_comm]
     have h1 := card_nodes (degreeVec (F j))
-    simp only [DattaThree.degreeVec_apply] at h1
+    simp only [degreeVec_apply] at h1
     have h2 := card_erase_add_one hr
     rw [hfilter]
     omega
@@ -478,9 +478,8 @@ theorem card_strategies (hF : ∀ j, ∃ i, degreeOf i (F j) ≠ 0) :
 /-! ### Shape of the equations -/
 
 private theorem C_mem_supported {s : Set (Coord F)} (c : ℝ) :
-    MvPolynomial.C c ∈ supported ℝ s := by
-  rw [← algebraMap_eq]
-  exact Subalgebra.algebraMap_mem _ c
+    MvPolynomial.C c ∈ supported ℝ s :=
+  mem_supported.2 (by simp [vars_C])
 
 theorem term_mem_supported (j : Fin m) (k : ℕ) (e : Fin n →₀ ℕ) :
     term F j k e ∈ supported ℝ {v : Coord F | v.1 = .bob} := by
