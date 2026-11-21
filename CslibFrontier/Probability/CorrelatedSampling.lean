@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import Cslib.Probability.StatisticalDistance
+public import CslibFrontier.Probability.StatisticalDistance
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
@@ -427,22 +427,7 @@ theorem agree_ge (i j : I) :
     sum_weight_region_inter, sum_weight_region_union, ENNReal.toReal_mul, ENNReal.toReal_inv,
     ENNReal.coe_toReal, ENNReal.coe_toReal, NNReal.coe_sum, NNReal.coe_sum, ← div_eq_mul_inv]
   simp only [NNReal.coe_min, NNReal.coe_max, ENNReal.coe_toNNReal_eq_toReal]
-  -- `∑ min + ∑ max = 2` and `∑ max - ∑ min = 2δ`.
-  have hsum := Cslib.Probability.PMF.sum_toReal (P i)
-  have hsum' := Cslib.Probability.PMF.sum_toReal (P j)
-  have hadd : ∑ s, min (P i s).toReal (P j s).toReal + ∑ s, max (P i s).toReal (P j s).toReal =
-      2 := by
-    rw [← sum_add_distrib]
-    simp only [min_add_max, sum_add_distrib, hsum, hsum']
-    norm_num
-  have hsub' : ∑ s, max (P i s).toReal (P j s).toReal - ∑ s, min (P i s).toReal (P j s).toReal =
-      2 * dist (P i) (P j) := by
-    rw [← sum_sub_distrib, Cslib.Probability.PMF.dist_eq]
-    simp only [max_sub_min_eq_abs']
-    ring
-  have hmin : ∑ s, min (P i s).toReal (P j s).toReal = 1 - dist (P i) (P j) := by linarith
-  have hmax : ∑ s, max (P i s).toReal (P j s).toReal = 1 + dist (P i) (P j) := by linarith
-  rw [hmin, hmax]
+  rw [Cslib.Probability.PMF.sum_min_toReal, Cslib.Probability.PMF.sum_max_toReal]
 
 open scoped Cslib.Probability.PMF in
 /-- **Correlated sampling, disagreement.** The outputs of parties `i` and `j` differ with

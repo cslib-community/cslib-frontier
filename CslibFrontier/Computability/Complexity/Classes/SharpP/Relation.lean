@@ -98,8 +98,19 @@ theorem searchCount_mem_SharpP {R : α → List Bool → Prop} (hR : R ∈ FNP e
   have hpad : ComputableInPolyTime
       (fun x : α × List Bool => paddedSolution (q.eval (enc x.1).length) (unframe x.2))
       (encPair enc encBits) encBits := by
-    unfold paddedSolution
-    fun_prop
+    have ha : ComputableInPolyTime (fun x : α × List Bool => x.1)
+        (encPair enc encBits) enc := fst enc encBits
+    have hw := unframe.comp (snd enc encBits)
+    have hf := frame.comp hw
+    have hn := (unary_eval q).comp ((encoding_length enc).comp ha)
+    have hlen := length_bits.comp hf
+    have hpadding : ComputableInPolyTime
+        (fun x : α × List Bool => List.replicate
+          (q.eval (enc x.1).length -
+            (Turing.MultiTapeTM.frame (Turing.MultiTapeTM.unframe x.2)).length)
+          false) (encPair enc encBits) encBits := by
+      exact (bitsReplicate false).comp (unary_sub' hn hlen)
+    exact bitsAppend hf hpadding
   refine ⟨q, V', bool_and' (decide_eq' hpad (snd _ _))
     (hV.comp ((fst _ _).prod (unframe.comp (snd _ _)))), fun a => ?_⟩
   let S : List Bool → Prop := fun w => w.length = q.eval (enc a).length ∧ V' (a, w) = true

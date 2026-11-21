@@ -890,9 +890,8 @@ example :
     Turing.MultiTapeTM.ComputableInPolyTime.id'
     Turing.MultiTapeTM.ComputableInPolyTime.id'
     Turing.MultiTapeTM.ComputableInPolyTime.id'
-    (Turing.MultiTapeTM.ComputableInPolyTime.of_tidy
-      (Turing.MultiTapeTM.ComputableTidilyInPolyTime.bitsTail.comp
-        (Turing.MultiTapeTM.ComputableTidilyInPolyTime.snd
+    ((Turing.MultiTapeTM.ComputableInPolyTime.bitsTail.comp
+        (Turing.MultiTapeTM.ComputableInPolyTime.snd
           Turing.MultiTapeTM.encUnary Turing.MultiTapeTM.encBits)))
 
 /-! The family input records keep the former `Sigma` words. -/

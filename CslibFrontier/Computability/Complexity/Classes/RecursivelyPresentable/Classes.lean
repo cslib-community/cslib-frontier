@@ -482,7 +482,7 @@ private theorem computableInPolyTime_phEvalCap :
   have hkm : ComputableInPolyTime (fun s : CapInput => s.1.1.1.1 * s.1.2) encCapInput encUnary :=
     ComputableInPolyTime.unary_mul.comp (hk.prod hM)
   have hlog : ComputableInPolyTime (fun s : CapInput => Nat.log 2 s.2) encCapInput encUnary :=
-    (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_log_two).comp hs2
+    (ComputableInPolyTime.unary_log_two).comp hs2
   have hcw : ComputableInPolyTime capWidth encCapInput encUnary :=
     ComputableInPolyTime.unary_sub.comp
       (hkm.prod (ComputableInPolyTime.unary_sub.comp (hkm.prod hlog)))

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Algebra.MvPolynomial.SchwartzZippel
 public import CslibFrontier.Foundations.Data.MvPolynomial.Determinant
+import CslibFrontier.Foundations.Data.MvPolynomial.Shift
 import Mathlib.Algebra.MvPolynomial.Rename
 import Mathlib.Combinatorics.Nullstellensatz
 
@@ -83,6 +84,19 @@ theorem card_filter_eval_eq_zero_mul_card_le {R : Type*} [CommRing R] [IsDomain 
   rw [piFinset_univ, card_univ, div_le_div_iff₀ (pow_pos hq n) hq] at hsz
   have : (#{x | eval x p = 0} * card R : ℚ≥0) ≤ d * card R ^ n := hsz.trans (by gcongr)
   exact_mod_cast this
+
+/-- Two distinct polynomials of individual degree at most `d` in `n` variables
+can agree on at most a fraction `n * d / |R|` of the evaluation points. -/
+theorem card_filter_eval_eq_mul_card_le {R : Type*} [CommRing R] [IsDomain R] [Fintype R]
+    [DecidableEq R] {n d : ℕ} {p q : MvPolynomial (Fin n) R} (hne : p ≠ q)
+    (hp : ∀ i, p.degreeOf i ≤ d) (hq : ∀ i, q.degreeOf i ≤ d) :
+    #{x | eval x p = eval x q} * card R ≤ (n * d) * card R ^ n := by
+  have hdeg : (p - q).totalDegree ≤ n * d := by
+    refine (totalDegree_le_card_mul_of_degreeOf_le fun i =>
+      (degreeOf_sub_le i _ _).trans (max_le (hp i) (hq i))).trans_eq ?_
+    rw [Fintype.card_fin]
+  simpa only [map_sub, sub_eq_zero] using
+    card_filter_eval_eq_zero_mul_card_le (sub_ne_zero.mpr hne) hdeg
 
 /-- A nonzero polynomial over an integral domain whose total degree is below `|S|` has a nonzero
 value at some point of `S ^ σ`. -/
