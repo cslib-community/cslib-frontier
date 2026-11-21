@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: local-only (test suite)
 
-import CslibFrontier.Crypto.Primitives.UHF.Finite
+import CslibFrontier.Crypto.Primitives.UHF.Computational
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
@@ -69,6 +69,34 @@ example : IsPPTOn encUnit (encCollisionGuess encBool)
     (fun _ => collisionPairReduction false (pure [false, true, false])) :=
   isPPTOn_collisionPairReduction (encM := encBool) (A := fun _ : Unit => pure [false, true, false])
     (ComputableInPolyTime.const [false, true, false]).isPPTOn false
+
+private def unitSetup (_ : ℕ) : ProbComp Unit := pure ()
+
+private def boolHash (_ : ℕ) (_ : Unit) (_ : Unit) (m : Bool) : Bool := m
+
+open Turing.MultiTapeTM in
+/-- An injective hash on both Boolean messages is secure in the asymptotic game. -/
+example : IsMultiQueryUHF encUnit encBool unitSetup (fun _ _ _ => true) boolHash := by
+  have h : IsComputationalUHF encUnit encBool unitSetup (fun _ _ _ => true) boolHash := by
+    apply Game.Indistinguishable.of_negligible_succProbability
+    intro A _
+    have hfalse (n : ℕ) : collisionGame unitSetup (fun _ _ _ => true) boolHash A n =
+        PMF.pure false := by
+      simp [collisionGame, unitSetup, boolHash, ProbComp.eval_uniform]
+      exact PMF.map_const _ _
+    simp [hfalse, Game.succProbability]
+  exact h.isMultiQueryUHF (ComputableInPolyTime.const ()).isPPTOn false
+
+/-- A collision in a repeated-message list counts exactly when both messages are valid. -/
+example (n : ℕ) :
+    multiQueryGame unitSetup (fun _ _ _ => true)
+      (fun _ _ (_ : Unit) (_ : Bool) => false) (fun _ => pure [false, true, false]) n =
+        PMF.pure true ∧
+    multiQueryGame unitSetup (fun _ _ m => m)
+      (fun _ _ (_ : Unit) (_ : Bool) => false) (fun _ => pure [false, true, false]) n =
+        PMF.pure false := by
+  simp [multiQueryGame, unitSetup, ProbComp.eval_uniform]
+  exact ⟨PMF.map_const _ _, PMF.map_const _ _⟩
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
