@@ -10,6 +10,9 @@ Containments, separations, closure properties, complete problems and reductions 
 
 ### Structure, time and space
 
+- **Real-algebraic counting bounds** ([#6560](https://github.com/cslib-community/cslib-frontier/issues/6560)): port lean-canny's ETR/∃ℝ containment in C₂₆P and existential–universal real truth in C₆₀P, with PSPACE corollaries.
+  Extract reusable implicit-polynomial, coefficient and trace algorithms while preserving uniformity, encodings and full evaluator costs.
+
 - **Planar Boolean CSP dichotomy** ([#3091](https://github.com/cslib-community/cslib-frontier/issues/3091)): extend the native Boolean classification to ordered planar instances of arbitrary fixed relation arity, preserving individual incidence occurrences and cyclic argument order.
   The endpoint must prove the embedding and recognition interface, the cyclic-difference reduction, the even delta-matroid edge-CSP algorithm and planar hardness transfer internally, including the additional self-complementary tractable family.
   Supplied-embedding or matching-realizable-only milestones leave it open.
@@ -40,11 +43,19 @@ Containments, separations, closure properties, complete problems and reductions 
   Koucký–Mertz–Pyne–Sami's [*Collapsing Catalytic Classes*](https://arxiv.org/abs/2504.08444) with its parameter ranges and oracle promises: `CL = CNL = CPrL = CBPL`, compress-or-compute simulation, catalytic Savitch and complementation, randomized space–catalyst tradeoffs, hierarchy collapses and lossy-space consequences.
 - **Robust catalytic extensions** ([#2521](https://github.com/cslib-community/cslib-frontier/issues/2521)): the Koucký–Mertz–Sami [robust catalytic extensions](https://arxiv.org/abs/2605.09648), tracked separately from KMPS.
   Their broader collapse is conditional on an explicit circuit-hardness assumption, and their resetting-error and time regimes are kept distinct from the unconditional KMPS results.
+- **Unambiguous logarithmic space** ([#6747](https://github.com/cslib-community/cslib-frontier/issues/6747)): formalize Hoza’s [NL = UL, ECCC TR26-323](https://eccc.weizmann.ac.il/report/2026/323/), including the explicit logarithmic-space min-isolating weight generator and the native class equality for arbitrary injective input encodings.
+  Compose native layered reachability, weighted graph transport, streaming Reinhardt–Allender scans and branch-preserving compilation with polynomial termination and logarithmic workspace.
 - **Classical randomized-space proof reuse** ([#1444](https://github.com/cslib-community/cslib-frontier/issues/1444)): audit and simplify the existing `RL ⊆ NL ⊆ DSPACE(log² n)` proof in [LogSpace/Savitch.lean](../CslibFrontier/Computability/Complexity/Classes/LogSpace/Savitch.lean).
   Reuse support semantics, midpoint reachability, compact configuration graphs and native space simulation; share lemmas and refactor real clients while preserving encodings and workspace bounds.
   `RL = L` remains unresolved; this classical-first milestone has no preprint-estimator dependency.
 - **Further classical randomized logspace** ([#459](https://github.com/cslib-community/cslib-frontier/issues/459)): two-sided `BPL` amplification, the random-walk proof of `USTCON ∈ RL`, Nisan's generator with its read-once fooling theorem ([#3187](https://github.com/cslib-community/cslib-frontier/issues/3187)), space-efficient computation and configuration-graph bridge, `BPL ⊆ DSPACE(log² n)`, and Saks–Zhou's `BPL ⊆ DSPACE(log^{3/2} n)`.
   The Saks–Zhou iteration as pure mathematics is [#3247](https://github.com/cslib-community/cslib-frontier/issues/3247); these two-sided results are separate from the one-sided Savitch milestone.
+- **Hoza's `NL = UL`** ([#6747](https://github.com/cslib-community/cslib-frontier/issues/6747)):
+  certify the executable weight generator in native logarithmic space, implement the
+  Reinhardt–Allender validation and reachability scans with unique output branches, and
+  compose them with seed enumeration and an NL-complete layered reachability encoding.
+  The [bounded-round transcript contract](../CslibFrontier/Algorithms/Reachability/DoubleCounting.lean)
+  isolates the guarantees needed to stream and verify the guessed paths.
 - **Reingold:** a symmetric-machine model of SL, and the edge-list encoding of USTCON by a logspace reduction.
 - **Williams's `TIME[t] ⊆ SPACE[√(t log t)]`** ([#888](https://github.com/cslib-community/cslib-frontier/issues/888)): the native inclusion for arbitrary injective input encodings and every `t(n) ≥ n`, without time constructibility, via Tree Evaluation, together with the time–space separation corollaries ([WilliamsSeparation.lean](../CslibFrontier/Computability/Complexity/Classes/TimeSpace/WilliamsSeparation.lean), including linear space `SPACE(n) ⊄ TIME(n^{2-ε})` and `TIME(n^2 / (log₂ n + 1)^2) ⊂ SPACE(n)`).
   Cook–Mertz malformed-input handling and the refined `O(ℓ + H log(ℓ + 2))` bound remain open on [#2855](https://github.com/cslib-community/cslib-frontier/issues/2855).

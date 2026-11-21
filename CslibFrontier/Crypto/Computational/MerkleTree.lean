@@ -736,7 +736,8 @@ theorem computableInPolyTime_merkleInputs
             encPair encBits encBits (H p.1.1 (p.1.2.1.headD []), p.2)
           else encPair encBits encBits (p.2, H p.1.1 (p.1.2.1.headD [])))
         (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits) encBits := by
-      polytime
+      exact ComputableInPolyTime.ite_decide
+        ((ComputableInPolyTime.unary_mod' hidx (.const 2)).decide_eq' (.const 0)) hleft hright
     unfold merkleInputsStep
     exact (ComputableInPolyTime.cons' hnext hinputs).prod
       ((ComputableInPolyTime.unary_div_const 2).comp hidx)

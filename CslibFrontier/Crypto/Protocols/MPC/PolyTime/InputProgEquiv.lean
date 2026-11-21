@@ -58,7 +58,7 @@ open Cslib.Probability Cslib.ProbComp Cslib.Circuits Turing.MultiTapeTM
 namespace PolyTimeRunner
 
 open Cslib.Circuits Cslib.Circuits.Boolean
-open Turing.MultiTapeTM ComputableTidilyInPolyTime
+open Turing.MultiTapeTM ComputableInPolyTime
 
 /-! ### Section 4C: Equivalence of Word-Level Runners with `Protocol.runEncoded` and
 `gmwOT14RandomizedSim` -/
