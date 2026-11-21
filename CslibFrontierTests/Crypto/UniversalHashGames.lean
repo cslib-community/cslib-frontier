@@ -63,6 +63,13 @@ example :
     (by simp)
   simpa [multiQueryExperiment, ProbComp.eval_uniform] using h
 
+open Turing.MultiTapeTM in
+/-- The actual wrapper on the repeated-message list is strict PPT. -/
+example : IsPPTOn encUnit (encCollisionGuess encBool)
+    (fun _ => collisionPairReduction false (pure [false, true, false])) :=
+  isPPTOn_collisionPairReduction (encM := encBool) (A := fun _ : Unit => pure [false, true, false])
+    (ComputableInPolyTime.const [false, true, false]).isPPTOn false
+
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
   guess _ digest := pure ⟨target, digest⟩

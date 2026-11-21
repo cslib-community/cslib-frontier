@@ -88,7 +88,7 @@ private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
         G.h256.readBytes (encodePublic s (e.take 32) t) 64 := by
     apply h.bytes256 _ (by lia)
     have := (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha
-    simp only [encodePublic, List.length_append, List.length_take, length_packCoeffs]
+    simp only [length_encodePublic, List.length_take]
     lia
   simp only [Xofs.keyGen, Xofs.expandS, exp, ← show e = G.expandKeySeed s seed from rfl,
     mat, secret, pk]
@@ -190,7 +190,7 @@ private theorem verify (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
     (ctx sig : List Byte) : H.verify s key msg ctx sig = G.verify s key msg ctx sig := by
   apply Xofs.verify_congr_of_reads
   · exact h.matrix ha hb (by simp)
-  · exact fun _ => h.challenge ha hb
+  · exact fun _ hd => h.challenge ha hb hd.le
   · intro hc hk
     have hash := h.bytes256 (xs := key)
       (hk ▸ (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha) (n := 64) (by lia)

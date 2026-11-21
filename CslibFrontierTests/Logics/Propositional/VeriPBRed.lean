@@ -10,6 +10,7 @@ module
 -- private helpers.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
+import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
@@ -30,7 +31,8 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
-open CslibFrontierTests.Logics.Propositional.VeriPBText (lex2 lex2Trans lex2Refl)
+open CslibFrontierTests.Logics.Propositional.VeriPBText (lex2 lex2Trans lex2Refl notAuxO notAuxSpec
+  notAuxTrans notAuxRefl)
 
 /-! ### Repairing a solution -/
 
@@ -61,13 +63,13 @@ example : (∀ c ∈ G, c.Holds (Witness.apply σ₀ setX0)) ∧ D.Holds (Witnes
 -- constraint `2`, as in VeriPB.
 example : runTop G none (State.init G none none) [.red D setX0 none none] =
     some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false, none, none, [], [],
-      none⟩ := by
+      none, none⟩ := by
   decide
 
 -- With a subproof, even an empty one, `¬D` takes `2` and `D` takes `3`.
 example : runTop G none (State.init G none none) [.red D setX0 (some []) none] =
     some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false, none, none, [], [],
-      none⟩ := by
+      none, none⟩ := by
   decide
 
 /-! ### Promoting to the core -/
@@ -81,7 +83,7 @@ example : runTop G none (State.init G none none) [.core [1], .core [1]] =
 -- A derived constraint is promoted once.
 example : runTop G none (State.init G none none) [.red D setX0 none none, .core [2, 2], .core [2]] =
     some ⟨(2, D.normalize) :: initDb G, 3, none, none, (2, D.normalize) :: initDb G, true,
-      false, none, none, [], [], none⟩ := by
+      false, none, none, [], [], none, none⟩ := by
   decide
 
 -- `core id` needs at least one ID.
@@ -184,34 +186,57 @@ example : redCheck (some f) (initDb H) 3 NX0 [(0, .zero), (1, .one)] [] none = s
 The order `lex2` and its proofs are shared with the text tests
 (`CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures`). -/
 
-example : lex2.defCheck [14, 15] lex2Trans lex2Refl = true := by decide
+/-- The fresh right variables `14`, `15`, and no fresh auxiliary variables. -/
+def lex2W : TransVars := ⟨[14, 15], [], []⟩
+
+example : lex2.defCheck [] lex2W lex2Trans lex2Refl = true := by decide
 
 /-- The check gives a genuine preorder on assignments, for the order loaded over `x0, x1`. -/
 theorem lex2_isPreorder : IsPreorder (ℕ → Bool) (LoadedOrder.Le ⟨lex2, [(0, true), (1, true)]⟩) :=
-  LoadedOrder.isPreorder ⟨Order.good_of_defCheck (w := [14, 15]) (trans := lex2Trans)
-    (refl := lex2Refl) (by decide), rfl⟩
+  LoadedOrder.isPreorder ⟨Order.good_of_defCheck (sp := []) (w := lex2W) (trans := lex2Trans)
+    (refl := lex2Refl) (by decide), rfl, by simp [lex2]⟩
 
 -- The relation `u1 ∨ v1` is not transitive (nor reflexive): the same transitivity proof fails.
-example : Order.defCheck ⟨[10], [12], [⟨[(1, (10, true)), (1, (12, true))], 1⟩]⟩ [14]
-    lex2Trans lex2Refl = false := by
+example : Order.defCheck ⟨[10], [12], [], [], [⟨[(1, (10, true)), (1, (12, true))], 1⟩]⟩ []
+    ⟨[14], [], []⟩ lex2Trans lex2Refl = false := by
   decide
 
 -- Fresh right variables must be fresh.
-example : lex2.defCheck [12, 15] lex2Trans lex2Refl = false := by decide
+example : lex2.defCheck [] ⟨[12, 15], [], []⟩ lex2Trans lex2Refl = false := by decide
 
 /-- The strict order `u1 < v1` on one bit, `~u1 + v1 >= 2`. It is transitive, vacuously: its
 premises `u < v` and `v < w` sum to the contradiction `4` already. It is not reflexive. -/
-def ltBit : Order := ⟨[10], [12], [⟨[(1, (10, false)), (1, (12, true))], 2⟩]⟩
+def ltBit : Order := ⟨[10], [12], [], [], [⟨[(1, (10, false)), (1, (12, true))], 2⟩]⟩
 
 /-- Its transitivity proof: `1 + 2` is a contradiction. -/
 def ltBitTrans : OrderProof := ⟨[.goal (.hash 1) [.pol [.id 1, .id 2, .add]] 4], none⟩
 
 -- The transitivity check passes, and only the reflexivity check fails: the negation `5` of the
 -- goal `~u1 + u1 >= 2` is not a contradiction.
-example : (ltBit.transCheck [14] ltBitTrans).isSome = true ∧
+example : (ltBit.transCheck ⟨[14], [], []⟩ ltBitTrans).isSome = true ∧
     ltBit.reflCheck 5 ⟨[.goal (.hash 1) [] 5], none⟩ = false ∧
-    ltBit.defCheck [14] ltBitTrans ⟨[.goal (.hash 1) [] 5], none⟩ = false := by
+    ltBit.defCheck [] ⟨[14], [], []⟩ ltBitTrans ⟨[.goal (.hash 1) [] 5], none⟩ = false := by
   decide
+
+example : notAuxO.defCheck notAuxSpec ⟨[14], [21], [22]⟩ notAuxTrans notAuxRefl = true := by
+  decide
+-- The fresh auxiliary variables must be fresh, and as many as `a`; the specification must be
+-- derived by witnesses on `a`.
+example : notAuxO.defCheck notAuxSpec ⟨[14], [20], [22]⟩ notAuxTrans notAuxRefl = false ∧
+    notAuxO.defCheck notAuxSpec ⟨[14], [], []⟩ notAuxTrans notAuxRefl = false ∧
+    notAuxO.defCheck [⟨[(10, .one)], some [], none⟩, ⟨[(20, .zero)], some [], none⟩]
+      ⟨[14], [21], [22]⟩ notAuxTrans notAuxRefl = false := by
+  decide
+
+-- The relation `∃ ρ, S⪯(x, y, ρ) ∧ O⪯(x, y, ρ)` is decided by trying the values of `$a1`:
+-- `0 ⪯ 1` and `1 ⪯ 1`, and not `1 ⪯ 0`.
+example : notAuxO.Le [false] [true] ∧ notAuxO.Le [true] [true] := by decide
+example : ¬ notAuxO.Le [true] [false] := by decide
+
+/-- The check gives a preorder on assignments, for `notAuxO` loaded over `x0`. -/
+theorem notAux_isPreorder : IsPreorder (ℕ → Bool) (LoadedOrder.Le ⟨notAuxO, [(0, true)]⟩) :=
+  LoadedOrder.isPreorder ⟨Order.good_of_defCheck (sp := notAuxSpec) (w := ⟨[14], [21], [22]⟩)
+    (trans := notAuxTrans) (refl := notAuxRefl) (by decide), rfl, by decide⟩
 
 /-- `x0 + x1 >= 1`, symmetric under swapping `x0` and `x1`. -/
 def S : List PBConstr := [⟨[(1, (0, true)), (1, (1, true))], 1⟩]
@@ -226,7 +251,7 @@ adds `O⪯(z, z↾ω)`, which is `lead` itself, as `3`, and `2 + 3` is the contr
 objective, goal `#3` is `f|ω ≤ f`. `lead` is `5`. Then `soli ~x0 x1` logs the value `1` and adds
 the improving constraint `6`, `f ≤ 0`, which with `1` gives the contradiction `7`. -/
 def domProof : RedProof :=
-  ⟨[.defOrder "lex2" lex2 [14, 15] lex2Trans lex2Refl, .loadOrder "lex2" [(0, true), (1, true)],
+  ⟨[.defOrder "lex2" lex2 [] lex2W lex2Trans lex2Refl, .loadOrder "lex2" [(0, true), (1, true)],
     .dom lead swap (some [.goal (.hash 2) [.pol [.id 2, .id 3, .add]] 4]) none,
     .soli [(0, false), (1, true)], .step (.pol [.id 1, .id 6, .add])],
     .bounds (some 1) 7 (some 1) none⟩
@@ -253,7 +278,7 @@ example : checkRed S (some fSym) ⟨domProof.steps.drop 2, domProof.conclusion�
 -- `z↾ω ⪯ z` becomes `x0 ≤ x1`, which `¬lead` contradicts, goal `#2` is no longer refuted, and the
 -- step is rejected.
 example : checkRed S (some fSym)
-    ⟨[.defOrder "lex2" lex2 [14, 15] lex2Trans lex2Refl, .loadOrder "lex2" [(1, true), (0, true)],
+    ⟨[.defOrder "lex2" lex2 [] lex2W lex2Trans lex2Refl, .loadOrder "lex2" [(1, true), (0, true)],
       .dom lead swap (some [.goal (.hash 2) [.pol [.id 2, .id 3, .add]] 4]) none],
       .noClaim⟩ = false := by
   decide

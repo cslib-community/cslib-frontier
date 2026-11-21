@@ -338,6 +338,52 @@ theorem answer_inSpace {τ : Type} (encT : τ ↪ List Bool) :
   exact (budget_ite (encState_rejected_budget hc) (budget_const none (.refl _))
     (budget_optionSome (encState_update_budget hc))).of_enc_eq fun _ => rfl
 
+/-- Step the scalar round with an extra immutable parameter for callback entry. -/
+theorem machine_next_withParameter_inSpace {κ τ : Type} (encK : κ ↪ List Bool)
+    (encT : τ ↪ List Bool)
+    (ctx : Context) (N : NondeterministicQueryMachine τ)
+    (start : κ → Context → Request → τ) (finish : τ → Option Bool)
+    (hs : ComputableInSpace (fun (k, q) => start k q.context (request q))
+      (encPair encK encState) encT (fun p => (encPair encK encState p).length))
+    (hf : ComputableInSpace finish encT (encOption encBool) (fun t => (encT t).length))
+    (hh : ComputableInSpace N.halted encT encBool (fun t => (encT t).length))
+    (hn : ComputableInSpace N.next (encPair encT encReadChoice) encT
+      (fun p => (encPair encT encReadChoice p).length)) :
+    let encStep := encPair (encPair encK (encMachineState τ encT)) encReadChoice
+    ComputableInSpace (fun ((k, q), read, choice) => (machine ctx N (start k) finish).next
+      (q, read, choice)) encStep (encMachineState τ encT) (fun p => (encStep p).length) := by
+  let encCaller := encPair (encPair encK encState) encReadChoice
+  have hcaller := fst (encPair encK encState) encReadChoice
+  have hstate := snd' hcaller
+  have hchoice := snd' (snd (encPair encK encState) encReadChoice)
+  have henter := encMachineState_mk_budget τ encT hstate
+    (budget_optionSome (budget_comp_linear hs hcaller))
+  have hreject := encMachineState_mk_budget τ encT (budget_comp_linear reject_inSpace hstate)
+    (budget_const none (.refl _))
+  have hbetween := budget_ite hchoice hreject henter
+  have hframe := fst encCaller encT
+  have hcallee := snd encCaller encT
+  have hcontroller := snd' (fst' hframe)
+  have hreadChoice := snd' hframe
+  have hreturn := budget_comp_linear advance_inSpace
+    (budget_prod hcontroller (budget_comp_linear hf hcallee))
+  have hreturned := encMachineState_mk_budget τ encT hreturn (budget_const none (.refl _))
+  have hcontinue := encMachineState_mk_budget τ encT hcontroller
+    (budget_optionSome (budget_comp_linear hn (budget_prod hcallee hreadChoice)))
+  have hactive := budget_ite (budget_comp_linear hh hcallee)
+    (budget_ite (snd' hreadChoice) (budget_comp_linear hreject hframe) hreturned) hcontinue
+  let encRound := encPair encK (encMachineState τ encT)
+  have hround := fst encRound encReadChoice
+  have hmachine := snd' hround
+  have hpair := budget_prod
+    (budget_prod (budget_prod (fst' hround) (encMachineState_controller_budget τ encT hmachine))
+      (snd encRound encReadChoice))
+    (encMachineState_callee_budget τ encT hmachine)
+  refine (budget_comp_linear (optionElimSnd hbetween hactive) hpair).of_enc_eq ?_
+  rintro ⟨⟨k, ⟨q, _ | t⟩⟩, read, choice⟩
+  · cases choice <;> rfl
+  · cases choice <;> cases N.halted t <;> rfl
+
 /-- Advance the suspended caller or the active callee in linear space in their joint encoding. -/
 theorem machine_next_inSpace {τ : Type} (encT : τ ↪ List Bool)
     (ctx : Context) (N : NondeterministicQueryMachine τ)
@@ -351,34 +397,14 @@ theorem machine_next_inSpace {τ : Type} (encT : τ ↪ List Bool)
     ComputableInSpace (machine ctx N start finish).next
       (encPair (encMachineState τ encT) encReadChoice) (encMachineState τ encT)
       (fun p => (encPair (encMachineState τ encT) encReadChoice p).length) := by
-  let encCaller := encPair encState encReadChoice
-  have hcaller := fst encState encReadChoice
-  have hchoice := snd' (snd encState encReadChoice)
-  have henter := encMachineState_mk_budget τ encT hcaller
-    (budget_optionSome (budget_comp_linear hs hcaller))
-  have hreject := encMachineState_mk_budget τ encT (budget_comp_linear reject_inSpace hcaller)
-    (budget_const none (.refl _))
-  have hbetween := budget_ite hchoice hreject henter
-  have hframe := fst encCaller encT
-  have hcallee := snd encCaller encT
-  have hcontroller := fst' hframe
-  have hreadChoice := snd' hframe
-  have hreturn := budget_comp_linear advance_inSpace
-    (budget_prod hcontroller (budget_comp_linear hf hcallee))
-  have hreturned := encMachineState_mk_budget τ encT hreturn (budget_const none (.refl _))
-  have hcontinue := encMachineState_mk_budget τ encT hcontroller
-    (budget_optionSome (budget_comp_linear hn (budget_prod hcallee hreadChoice)))
-  have hactive := budget_ite (budget_comp_linear hh hcallee)
-    (budget_ite (snd' hreadChoice) (budget_comp_linear hreject hframe) hreturned) hcontinue
-  have hmachine := fst (encMachineState τ encT) encReadChoice
-  have hpair := budget_prod
-    (budget_prod (encMachineState_controller_budget τ encT hmachine)
-      (snd (encMachineState τ encT) encReadChoice))
-    (encMachineState_callee_budget τ encT hmachine)
-  refine (budget_comp_linear (optionElimSnd hbetween hactive) hpair).of_enc_eq ?_
-  rintro ⟨⟨q, _ | t⟩, read, choice⟩
-  · cases choice <;> rfl
-  · cases choice <;> cases N.halted t <;> rfl
+  have hentry := budget_comp_linear hs (snd encUnit encState)
+  have hnext := machine_next_withParameter_inSpace encUnit encT ctx N (fun _ => start) finish
+    hentry hf hh hn
+  have hstep := budget_prod
+    (budget_prod (budget_const (encB := encUnit) () (.refl _))
+      (fst (encMachineState τ encT) encReadChoice))
+    (snd (encMachineState τ encT) encReadChoice)
+  exact (budget_comp_linear hnext hstep).of_enc_eq fun _ => rfl
 
 open NondeterministicQueryMachine in
 /-- Compile one round with a supplied input-dependent initializer and native same-input callbacks.
@@ -674,6 +700,116 @@ def replayScan {τ : Type} (ctx : Context) (N : NondeterministicQueryMachine τ)
     (fun u v : Fin ctx.size => readRequest N start finish input ctx (.edge u v))
     (fun _ _ v => readRequest N start finish input ctx (.member v))
     ctx.radius ctx.expected).run bits
+
+-- Forget the selector suffix while keeping failure possible.
+private def ReturnsOnSuccess {σ α : Type} (run : StateT σ Option α) (value : α) : Prop :=
+  ∀ before actual after, run.run before = some (actual, after) → actual = value
+
+private theorem returns_pure {σ α : Type} (value : α) :
+    ReturnsOnSuccess (pure value : StateT σ Option α) value :=
+  fun _ _ _ h => congrArg Prod.fst (Option.some.inj h).symm
+
+private theorem returns_bind {σ α β : Type} {run : StateT σ Option α}
+    {next : α → StateT σ Option β} {a : α} {b : β}
+    (hrun : ReturnsOnSuccess run a) (hnext : ReturnsOnSuccess (next a) b) :
+    ReturnsOnSuccess (run >>= next) b := by
+  intro before actual after h
+  change (run.run before).bind (fun p => (next p.1).run p.2) = some (actual, after) at h
+  obtain ⟨⟨value, middle⟩, hv, hn⟩ := Option.bind_eq_some_iff.mp h
+  obtain rfl := hrun before value middle hv
+  exact hnext middle actual after hn
+
+private theorem returns_foldlM {σ α : Type} {n : ℕ}
+    (step : α → Fin n → StateT σ Option α) (spec : α → Fin n → α) (initial : α)
+    (hstep : ∀ a i, ReturnsOnSuccess (step a i) (spec a i)) :
+    ReturnsOnSuccess (Fin.foldlM n step initial) (Fin.foldlM (m := Id) n spec initial) := by
+  induction n with
+  | zero =>
+    simp only [Fin.foldlM_zero]
+    exact returns_pure initial
+  | succ n ih =>
+    simp only [Fin.foldlM_succ_last]
+    exact returns_bind (ih (fun a i => step a i.castSucc) (fun a i => spec a i.castSucc)
+      (fun a i => hstep a i.castSucc)) (hstep _ (Fin.last n))
+
+private theorem replayScan_returns {τ : Type} (ctx : Context)
+    (N : NondeterministicQueryMachine τ) (start : Context → Request → τ)
+    (finish : τ → Option Bool) (input : List Bool)
+    (edge : Fin ctx.size → Fin ctx.size → Bool) (member : Fin ctx.size → Bool)
+    (hedge : ∀ u v : Fin ctx.size, ∀ bits hit rest,
+      N.readReply finish input (start ctx (.edge u v)) bits = some (hit, rest) → hit = edge u v)
+    (hmember : ∀ v : Fin ctx.size, ∀ bits hit rest,
+      N.readReply finish input (start ctx (.member v)) bits = some (hit, rest) → hit = member v) :
+    ReturnsOnSuccess (fun bits => replayScan ctx N start finish input bits)
+      (scanNextRound (m := Id) edge (fun _ _ => member) ctx.radius ctx.expected) := by
+  let read := readRequest N start finish input ctx
+  let E (u v : Fin ctx.size) := read (.edge u v)
+  let M (v : Fin ctx.size) := read (.member v)
+  have hread (req : Request) (value : Bool)
+      (hgood : ∀ bits hit rest, N.readReply finish input (start ctx req) bits =
+        some (hit, rest) → hit = value) : ReturnsOnSuccess (read req) value := by
+    rintro (_ | ⟨_ | _, bits⟩) hit rest h
+    · cases h
+    · exact hgood bits hit rest h
+    · cases h
+  have hE (u v : Fin ctx.size) := hread (.edge u v) (edge u v) (hedge u v)
+  have hM (v : Fin ctx.size) := hread (.member v) (member v) (hmember v)
+  have hpred (v : Fin ctx.size) : ReturnsOnSuccess (countPredecessors E M v)
+      (countPredecessors (m := Id) edge member v) := by
+    unfold countPredecessors
+    apply returns_foldlM
+    intro count u
+    unfold predecessorStep
+    refine returns_bind (hE u v) ?_
+    cases h : edge u v
+    · exact returns_pure _
+    · refine returns_bind (hM u) ?_
+      cases member u <;> exact returns_pure _
+  have hstep (a : RoundUpdate) (v : Fin ctx.size) :
+      ReturnsOnSuccess (scanVertex E M ctx.radius a v)
+        (scanVertex (m := Id) edge member ctx.radius a v) := by
+    unfold scanVertex
+    refine returns_bind (hM v) ?_
+    cases h : member v
+    · exact returns_bind (hpred v) (returns_pure _)
+    · exact returns_pure _
+  change ReturnsOnSuccess (scanNextRound E (fun _ _ => M) ctx.radius ctx.expected) _
+  unfold scanNextRound
+  exact returns_foldlM _ _ _ hstep
+
+/-- At exact current totals and a unique passing transcript, every successful round replay
+returns the exact next tally and reports whether the next passing transcript is unique.
+Each successful supplied callback parse must return the corresponding mathematical bit. -/
+theorem replayScan_correct {τ : Type} (ctx : Context) (source : Fin ctx.size)
+    (r : Fin ctx.size → Fin ctx.size → Prop)
+    (N : NondeterministicQueryMachine τ) (start : Context → Request → τ)
+    (finish : τ → Option Bool) (input : List Bool)
+    (hexact : ctx.expected = expected r source ctx.radius)
+    (hpass : ∃! w, Passes r source ctx.radius w)
+    (hedge : ∀ u v : Fin ctx.size, ∀ bits hit rest,
+      N.readReply finish input (start ctx (.edge u v)) bits = some (hit, rest) →
+        (hit = true ↔ r u v))
+    (hmember : ∀ v : Fin ctx.size, ∀ bits hit rest,
+      N.readReply finish input (start ctx (.member v)) bits = some (hit, rest) →
+        (hit = true ↔ v ∈ round r source ctx.radius))
+    {bits rest : List Bool} {update : RoundUpdate}
+    (h : replayScan ctx N start finish input bits = some (update, rest)) :
+    update.tally = expected r source (ctx.radius + 1) ∧
+      (update.bad = false ↔ ∃! w, Passes r source (ctx.radius + 1) w) := by
+  classical
+  let edge (u v : Fin ctx.size) := decide (r u v)
+  let member (v : Fin ctx.size) := decide (v ∈ round r source ctx.radius)
+  have he u v bits hit rest h :=
+    Bool.eq_iff_iff.mpr (by simpa only [edge, decide_eq_true_eq] using hedge u v bits hit rest h :
+      hit = true ↔ edge u v = true)
+  have hm v bits hit rest h :=
+    Bool.eq_iff_iff.mpr (by simpa only [member, decide_eq_true_eq] using hmember v bits hit rest h :
+      hit = true ↔ member v = true)
+  have hout := replayScan_returns ctx N start finish input edge member he hm bits update rest h
+  obtain ⟨ideal, hideal, htally, hbad⟩ := scanNextRound_correct (m := Id)
+    (edge := edge) (member := fun _ _ => member) (fun _ _ => rfl) (fun _ => rfl) hpass
+  rw [hout, hexact, hideal]
+  exact ⟨htally, hbad⟩
 
 private theorem firstHalting_iff_remaining {τ : Type} (ctx : Context)
     (N : NondeterministicQueryMachine τ) (start : Context → Request → τ) (finish : τ → Option Bool)
@@ -1100,6 +1236,61 @@ private theorem remainingReplies_advance_lt {q : State} (hp : PredecessorBounded
         simp [advance, hq, hf, hshift, hpos]
       · have hlt := Predecessor.advance_progress hl (some hit) (Bool.eq_false_iff.mpr hf)
         simpa [advance, hq, hf] using hlt
+
+private theorem advance_some_not_rejected (q : State) (hit : Bool)
+    (h : q.rejected = false) : (advance q (some hit)).rejected = false := by
+  cases hp : q.predecessor with
+  | none => cases hit <;> simp [advance, hp, h]
+  | some p =>
+    simp only [advance, hp]
+    split <;> exact h
+
+/-- If every in-range callback has a successful first-halt trace, the round has one too.
+A tied round update is a successful reply. -/
+theorem exists_successful_firstHalting {τ : Type} (ctx : Context)
+    (N : NondeterministicQueryMachine τ) (start : Context → Request → τ)
+    (finish : τ → Option Bool) (input : List Bool)
+    (hrequest : ∀ req, req.InRange ctx.size → ∃ callBits hit,
+      N.FirstHalting input callBits (start ctx req) ∧
+        finish (N.replay input callBits (start ctx req)) = some hit) :
+    let M := machine ctx N start finish
+    ∃ bits update, M.FirstHalting input bits M.init ∧
+      answer (M.run input bits) = some update := by
+  let M := machine ctx N start finish
+  have aux (q : State) (hctx : q.context = ctx) (hp : PredecessorBounded q)
+      (hvalid : q.rejected = false) :
+      ∃ bits update, M.FirstHalting input bits ⟨q, none⟩ ∧
+        answer (M.replay input bits ⟨q, none⟩) = some update := by
+    induction q using (measure remainingReplies).wf.induction with
+    | h q ih =>
+      cases hlive : halted q with
+      | true =>
+        have hfirst := (M.firstHalting_iff_nil_of_halted input [] ⟨q, none⟩ hlive).mpr rfl
+        exact ⟨[], q.update, hfirst, by simp [answer, result, hvalid]⟩
+      | false =>
+        have hreq := request_inRange hlive hp
+        rw [hctx] at hreq
+        obtain ⟨callBits, hit, hfirst, hreply⟩ := hrequest (request q) hreq
+        let next := advance q (some hit)
+        obtain ⟨rest, update, hrest, hanswer⟩ :=
+          ih next (remainingReplies_advance_lt hp hlive _)
+            ((advance_context _ _).trans hctx) (advance_predecessorBounded hlive hp _)
+            (advance_some_not_rejected q hit hvalid)
+        let bits := false :: (callBits ++ false :: rest)
+        have hread : (readRequest N start finish input q.context (request q)).run bits =
+            some (hit, rest) := by
+          change N.readReply finish input (start q.context (request q))
+            (callBits ++ false :: rest) = some (hit, rest)
+          rw [hctx]
+          exact (N.readReply_iff finish input _ _ _ _).mpr ⟨callBits, rfl, hfirst, hreply⟩
+        have hsome : (answer (M.replay input rest ⟨next, none⟩)).isSome = true := by
+          rw [hanswer]
+          rfl
+        obtain ⟨hfull, hfinal⟩ :=
+          (successful_request_iff ctx N start finish input q bits _ hlive hrest.1 hsome).mpr
+            ⟨hit, rest, hread, hrest, rfl⟩
+        exact ⟨bits, update, hfull, hfinal.symm ▸ hanswer⟩
+  exact aux (initial ctx) rfl (by simp [PredecessorBounded, initial]) rfl
 
 /-- A common clock for the round, charging the maximum number of requests and their routing. -/
 @[expose] def roundClock (size clock : ℕ) : ℕ :=

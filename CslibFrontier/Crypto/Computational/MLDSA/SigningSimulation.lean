@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
+public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Probability.RejectionSampling
 import CslibFrontier.Probability.PMF.Bind
 
@@ -143,6 +144,54 @@ noncomputable def simulateFreshSigningAttempt (d ω : ℕ) (hβ : P.β < P.γ₁
   let z := PMF.uniformOfFinset (responseSet P) (response_nonempty P hβ)
   (PMF.sampleWithRatio z ((2 * (P.γ₁ - P.β) - 1) ^ m) ((2 * P.γ₁) ^ m)
     (pow_pos (by lia) _)).map fun oz => oz.bind (finishSimulated P d ω pk c)
+
+/-- Every accepted public simulation has the requested challenge, a short response, an
+encodable hint, and the very commitment that the verifier recovers. This holds for every full
+public key, including a uniformly sampled vector in the Module-LWE hybrid. -/
+theorem simulateFreshSigningAttempt_support (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
+    (hγq : 4 * P.γ₂ < P.q) (d ω : ℕ) (hβ : P.β < P.γ₁) (pk : PublicKey P)
+    (c : Fin P.n → ZMod P.q) {t : AttemptTranscript P}
+    (ht : some t ∈ (simulateFreshSigningAttempt P d ω hβ pk c).support) :
+    t.signature.c = c ∧ ResponseShort P t.signature.z ∧ hintWeight P t.signature.h ≤ ω ∧
+      t.signature.recover d pk = t.commitment := by
+  let : NeZero P.q := ⟨by have := hP.one_lt_q; lia⟩
+  obtain ⟨oz, ho, he⟩ := (PMF.mem_support_map_iff ..).1 ht
+  rcases oz with _ | z
+  · cases he
+  change finishSimulated P d ω pk c z = some t at he
+  obtain ⟨b, _, hb⟩ := (PMF.mem_support_bind_iff ..).1 ho
+  cases b with
+  | false => simp at hb
+  | true =>
+    obtain ⟨z', hz', he'⟩ := (PMF.mem_support_map_iff ..).1 hb
+    obtain rfl := Option.some.inj he'
+    have hz := (mem_response_iff P hq z').1 ((PMF.mem_support_uniformOfFinset_iff ..).1 hz')
+    let r := verifierCommitment P pk z' c
+    let ct₀ := fun i => negacyclicMul c (publicKeyLowPart P d pk i)
+    let h := fun i => makeHintVec P.q P.γ₂ (-ct₀ i) (r i + ct₀ i)
+    change (do
+      guard (LowBitsShort P r)
+      guard (LowProductShort P ct₀ ∧ hintWeight P h ≤ ω)
+      return ⟨highBitsVec P r, ⟨z', h, c⟩⟩ : Option (AttemptTranscript P)) = some t at he
+    by_cases hl : LowBitsShort P r
+    · by_cases hh : LowProductShort P ct₀ ∧ hintWeight P h ≤ ω
+      · have hout : (⟨highBitsVec P r, ⟨z', h, c⟩⟩ : AttemptTranscript P) = t := by
+          simpa [guard, hl, hh] using he
+        subst t
+        refine ⟨rfl, hz, hh.2, ?_⟩
+        funext i
+        simp only [CompressedSignature.recover,
+          compressedVerifierCommitment_eq_verifierCommitment_add_lowPart, Pi.add_apply]
+        rw [useHintVec_makeHintVec hP.γ₂_pos hP.two_mul_γ₂_dvd hγq (z := -ct₀ i)
+          (r := r i + ct₀ i) (fun j => by
+            simpa only [Pi.neg_apply, Int.abs_eq_natAbs, ZMod.natAbs_valMinAbs_neg]
+              using (hh.1 i j).le)]
+        funext j
+        simp only [highBitsVec, Pi.add_apply, Pi.neg_apply]
+        congr 1
+        ring
+      · simp [guard, hl, hh] at he
+    · simp [guard, hl] at he
 
 /-- For every fresh sparse challenge, the complete accepted transcript and the probability of
 an abort agree with the public simulator. A distribution of challenges independent of the mask
