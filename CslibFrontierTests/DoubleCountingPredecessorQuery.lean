@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests of same-input predecessor queries)
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor.Native
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor.Runtime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
@@ -228,5 +228,74 @@ public theorem reader_native_certificate : ∃ time c, ComputableInTimeAndSpace
     change 4 * (encContext ctx).length + 8 * (Nat.log2 3 + 1) + 13 + 16 ≤
       Nat.log2 w.length + 1 + 4 * (encContext ctx).length + 8 * (Nat.log2 3 + 1) + 13 + 16
     omega
+
+-- The native initializer accepts the context at runtime and copies no payload into its result.
+example : ComputableInSpace Runtime.load Runtime.encInput (QueryMachine.encLocated State encState)
+    (fun x => (encContext x.context).length + 1) := Runtime.load_inSpace
+
+-- The same executor handles different runtime contexts; no machine is selected by the header.
+example : ((Runtime.executor reader start answer).runFrom
+    (Runtime.encInput ⟨ctx, [true, true, false, false, true, false]⟩)
+    (Runtime.entry ReadState ⟨ctx, [true, true, false, false, true, false]⟩) 15).inner =
+      .inl ⟨ctx, 3, 1, false, false⟩ := by
+  rw [Runtime.executor_runFrom]
+  rfl
+
+example : ((Runtime.executor reader start answer).runFrom
+    (Runtime.encInput ⟨ctx, [true, true, true, true, true, true]⟩)
+    (Runtime.entry ReadState ⟨ctx, [true, true, true, true, true, true]⟩) 18).inner =
+      .inl ⟨ctx, 3, 3, false, false⟩ := by
+  rw [Runtime.executor_runFrom]
+  rfl
+
+example : ((Runtime.executor reader start answer).runFrom
+    (Runtime.encInput ⟨ctx, [true, true, true]⟩)
+    (Runtime.entry ReadState ⟨ctx, [true, true, true]⟩) 12).inner =
+      .inl ⟨ctx, 1, 1, true, true⟩ := by
+  rw [Runtime.executor_runFrom]
+  rfl
+
+example : ((Runtime.executor reader start answer).runFrom
+    (Runtime.encInput ⟨⟨1, 0, 0, 0, ⟨0, 0⟩⟩, [false]⟩)
+    (Runtime.entry ReadState ⟨⟨1, 0, 0, 0, ⟨0, 0⟩⟩, [false]⟩) 3).inner =
+      .inl ⟨⟨1, 0, 0, 0, ⟨0, 0⟩⟩, 1, 0, false, false⟩ := by
+  rw [Runtime.executor_runFrom]
+  rfl
+
+-- Native dispatch preserves the original callee transition and charges its retained offset.
+example : ComputableInSpace reader.withOffset.next
+    (QueryMachine.encStateRead (QueryMachine.encLocated ReadState encRead))
+    (QueryMachine.encLocated ReadState encRead)
+    (fun p => (QueryMachine.encStateRead (QueryMachine.encLocated ReadState encRead) p).length) :=
+  QueryMachine.withOffset_next_inSpace reader encRead reader_next_space
+
+-- Complete native-callee resource contracts compose with offset transport at every clock,
+-- including suspended calls. This remains a query trace certificate, not a native executor.
+example (w : List Bool) (q : State) (hq : Returns ctx reader start answer w q) :
+    ∃ T, ((Runtime.executor reader start answer).runFrom (Runtime.encInput ⟨ctx, w⟩)
+      (Runtime.entry ReadState ⟨ctx, w⟩) T).inner = .inl q ∧
+      ∀ i ≤ T, (QueryMachine.encLocated _ (encMachineState encRead)
+      ((Runtime.executor reader start answer).runFrom (Runtime.encInput ⟨ctx, w⟩)
+        (Runtime.entry ReadState ⟨ctx, w⟩) i)).length ≤
+      2 * (Nat.log2 (2 * (encContext ctx).length + 1) + 1) + 1 +
+        (4 * (encContext ctx).length + 8 * (Nat.log2 ctx.size + 1) + 13 + 16) := by
+  obtain ⟨T, hr, hb⟩ := hq.exists_run_encoding_le encRead 13
+    (fun p hp _ hlive T hpre hhalt i hi => reader_state_bound w p hp hlive T hpre hhalt i hi)
+  have hd := QueryMachine.withOffset_runFrom_encoding_le
+    (computingMachine ⟨0, 0, 0, 0, ⟨0, 0⟩⟩ reader start answer) (encMachineState encRead)
+    (Runtime.encInput ⟨ctx, w⟩) (Runtime.load ⟨ctx, w⟩).offset (.inl (initial ctx)) _ T
+    (by
+      intro i hi
+      rw [Runtime.drop_payload]
+      exact hb i hi)
+  refine ⟨T, ?_, fun i hi => ?_⟩
+  · rw [Runtime.executor_runFrom]
+    exact hr
+  · have hn := length_encNat_le_log2
+      (Nat.le_refl (2 * (encContext ctx).length + 1))
+    exact (hd i hi).trans (by simpa only [Runtime.load] using
+      (show 2 * (encNat (2 * (encContext ctx).length + 1)).length + 1 +
+          (4 * (encContext ctx).length + 8 * (Nat.log2 ctx.size + 1) + 13 + 16) ≤ _ from
+        by omega))
 
 end Turing.DoubleCounting.Predecessor.Tests
