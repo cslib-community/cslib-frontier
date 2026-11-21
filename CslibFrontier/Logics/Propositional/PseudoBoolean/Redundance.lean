@@ -987,13 +987,18 @@ theorem Holds.of_sameUpToOrder {σ : ℕ → Bool} {C D : PBConstr} (hC : C.Hold
   rw [← h.1, ← (h.2.map _).sum_nat]
   exact hC
 
+/-- A constraint of degree `0` after normalization is trivially true. -/
+theorem holds_of_normalize_degree_eq_zero {σ : ℕ → Bool} {c : PBConstr}
+    (h : c.normalize.degree = 0) : c.Holds σ := by
+  rw [← holds_normalize]; unfold Holds; rw [h]; exact Nat.zero_le _
+
 private theorem objuCovered_holds {σ : ℕ → Bool} {core : List (ℕ × PBConstr)}
     {proved : List PBConstr} {G : PBConstr} (hdb : AllHold σ core)
     (hp : ∀ G ∈ proved, G.Holds σ) (h : objuCovered core proved G = true) : G.Holds σ := by
   unfold objuCovered at h
   simp only [Bool.or_eq_true, beq_iff_eq, List.any_eq_true, List.contains_iff_mem] at h
   rcases h with (h | ⟨e, he, heq⟩) | h
-  · rw [← holds_normalize]; unfold Holds; rw [h]; exact Nat.zero_le _
+  · exact holds_of_normalize_degree_eq_zero h
   · rw [← holds_normalize]; exact Holds.of_sameUpToOrder (hdb e he) heq
   · exact hp G h
 
@@ -1543,6 +1548,13 @@ def ReachesOn (P : List ℕ) (w : ℤ) (σ₀ : ℕ → Bool) (s : State) : Prop
 theorem reaches_iff_reachesOn_nil {w : ℤ} {σ₀ : ℕ → Bool} {s : State} :
     Reaches w s ↔ ReachesOn [] w σ₀ s := by
   simp [Reaches, ReachesOn, proj]
+
+/-- The projected lower-bound invariant implies the plain one. -/
+theorem reaches_of_reachesOn {P : List ℕ} {w : ℤ} {σ₀ : ℕ → Bool} {s : State}
+    (h : ReachesOn P w σ₀ s) : Reaches w s := by
+  rcases h with ⟨τ, hτ, hw, -⟩ | hb
+  · exact .inl ⟨τ, hτ, hw⟩
+  · exact .inr hb
 
 private theorem exists_mem_lowerTo {d : Option ℤ} {w : ℤ} (u : ℤ) (h : ∃ v ∈ d, v ≤ w) :
     ∃ v ∈ lowerTo d u, v ≤ w := by
@@ -2123,22 +2135,22 @@ theorem invariants_of_runTop {F : List PBConstr} {obj : Option Objective}
     {pres : Option (List ℕ)} {ss : List TopStep} {s : State}
     (h : runTop F obj (State.init F obj pres) ss = some s) :
     Inv F obj s ∧ EnumInv F obj pres s ∧ ∀ σ, (∀ c ∈ F, c.Holds σ) →
-      Covers σ s ∧ ∀ P, (P = [] ∨ pres = some P) → ReachesOn P (objValue obj σ) σ s := by
+      Covers σ s ∧ ReachesOn (pres.getD []) (objValue obj σ) σ s := by
   have hie := runTop_induct (P := fun s => Inv F obj s ∧ EnumInv F obj pres s)
     (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_enumInv hs.1 hs.2 ht⟩) _ _ s
     ⟨inv_init F obj pres, enumInv_init F obj pres⟩ h
-  refine ⟨hie.1, hie.2, fun σ hσ => ⟨?_, fun P hP => ?_⟩⟩
+  refine ⟨hie.1, hie.2, fun σ hσ => ⟨?_, ?_⟩⟩
   · exact (runTop_induct (P := fun s => Inv F obj s ∧ Covers σ s)
       (fun _ _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_covers hs.1 hs.2 ht⟩) _ _ s
       ⟨inv_init F obj pres, fun _ _ _ => .inl ⟨σ, allHold_initDb hσ, rfl⟩⟩ h).2
   · have hfree : ∀ s : State, EnumInv F obj pres s → ∀ ω, presFree s.pres ω = true →
-        ∀ τ, proj P (Witness.apply τ ω) = proj P τ := by
+        ∀ τ, proj (pres.getD []) (Witness.apply τ ω) = proj (pres.getD []) τ := by
       intro s he ω hω τ
-      rcases hP with rfl | hP
-      · rfl
-      · exact proj_apply_of_presFree hω τ P (by rw [he.pres_eq, hP]; rfl)
+      cases hP : pres with
+      | none => rfl
+      | some P => exact proj_apply_of_presFree hω τ P (by rw [he.pres_eq, hP]; rfl)
     exact (runTop_induct (P := fun s => Inv F obj s ∧ EnumInv F obj pres s ∧
-        ReachesOn P (objValue obj σ) σ s)
+        ReachesOn (pres.getD []) (objValue obj σ) σ s)
       (fun s _ _ hs ht => ⟨stepTop_inv hs.1 ht, stepTop_enumInv hs.1 hs.2.1 ht,
         stepTop_reachesOn hs.1 (hfree s hs.2.1) hs.2.2 ht⟩) _ _ s
       ⟨inv_init F obj pres, enumInv_init F obj pres,
@@ -2158,7 +2170,7 @@ private theorem reaches_of_checkRed {F : List PBConstr} {obj : Option Objective}
   split at h
   · rename_i s hrun
     obtain ⟨hinv, -, hσ⟩ := invariants_of_runTop hrun
-    exact ⟨s, h, hinv, fun σ hσF => reaches_iff_reachesOn_nil.2 ((hσ σ hσF).2 [] (.inl rfl))⟩
+    exact ⟨s, h, hinv, fun σ hσF => reaches_of_reachesOn (hσ σ hσF).2⟩
   · cases h
 
 /-- **Soundness for `UNSAT`**: a formula with a checked proof of `UNSAT` has no solution. -/

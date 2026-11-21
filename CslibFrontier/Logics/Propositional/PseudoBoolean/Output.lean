@@ -38,8 +38,11 @@ and no `obji` step, that is, `dbound` unset; `EQUISATISFIABLE`, `EQUIOPTIMAL` an
 assignment (CakePB's `eq_obj`); `EQUIENUMERABLE` needs the same, or no objective on either side,
 and the same preserved set, as a set of variables. CakePB supports only `FILE`. VeriPB 3.0.2
 differs from CakePB and from this checker: it rejects `EQUISATISFIABLE` under an objective, a
-`DERIVABLE` output that omits a core constraint, and `EQUIENUMERABLE` after `solx`, and it
-accepts `DERIVABLE` and `EQUISATISFIABLE` after a logged solution.
+`DERIVABLE` output that omits a core constraint, and `EQUIENUMERABLE` after any logged solution,
+and it accepts `DERIVABLE` and `EQUISATISFIABLE` after a logged solution. Without a `preserved:`
+line, VeriPB 3.0.2 treats every variable as preserved, so it rejects `EQUIENUMERABLE` after a
+witness on any variable; CakePB and this checker reject `EQUIENUMERABLE` without a preserved set
+in any case.
 
 **Soundness** (`Cslib.Logic.PL.VeriPB.semOutput_of_checkRedOutput`) is CakePB's
 `check_csteps_check_output` against its semantics `sem_output` (`npbcScript.sml`), with the
@@ -67,8 +70,9 @@ solution of the input (`Cslib.Logic.PL.VeriPB.exists_le_of_checkRedOutput`).
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.semOutput_of_checkRedOutput`: soundness of the output section.
-* `Cslib.Logic.PL.VeriPB.projections_eq_of_checkRedOutput`: for a decision problem without logged
-  solutions, `EQUIENUMERABLE` preserves the projected solutions, hence their number.
+* `Cslib.Logic.PL.VeriPB.projections_eq_of_semOutput`,
+  `Cslib.Logic.PL.VeriPB.projections_eq_of_checkRedOutput`: with an infinite bound (no logged
+  solution), `EQUIENUMERABLE` preserves the projected solutions, hence their number.
 
 ## References
 
@@ -92,6 +96,7 @@ structure Instance where
   objective : Option Objective
   /-- The preserved set of a projected enumeration. -/
   preserved : Option (List ℕ) := none
+  deriving DecidableEq, Repr
 
 namespace Instance
 
@@ -133,6 +138,15 @@ def semOutput (I : Instance) (b : Option ℤ) (O : Instance) : Guarantee → Pro
 def includes (cs ds : List PBConstr) : Bool :=
   ds.all fun d => cs.any fun c => sameUpToOrder c.normalize d.normalize
 
+/-- `cs` and `ds` are the same set of constraints, up to normalization and the order of terms. -/
+def sameConstrs (cs ds : List PBConstr) : Bool := includes cs ds && includes ds cs
+
+/-- The constraints of the core set. -/
+def State.coreConstrs (s : State) : List PBConstr := s.core.map (·.2)
+
+/-- The bound `bound` is at most `dbound`, if `dbound` is set. -/
+def State.boundLe (s : State) : Bool := s.dbound.all fun d => s.bound.any (· ≤ d)
+
 /-- Two objectives agree on every assignment: each bounds the other trivially after
 normalization (CakePB's `eq_obj`). -/
 def Objective.equiv (f g : Objective) : Bool :=
@@ -156,17 +170,14 @@ state `s` (§4.2), as CakePB's `check_output` (`npbc_checkScript.sml`, CakeML co
 
 Constraints are compared up to normalization and the order of terms. -/
 def checkOutput (s : State) (O : Instance) : Guarantee → Bool
-  | .derivable => s.dbound.isNone && includes (s.core.map (·.2)) O.constraints
+  | .derivable => s.dbound.isNone && includes s.coreConstrs O.constraints
   | .equisatisfiable =>
-    s.dbound.isNone && s.bound.isNone && s.chk && includes (s.core.map (·.2)) O.constraints &&
-      includes O.constraints (s.core.map (·.2))
+    s.dbound.isNone && s.bound.isNone && s.chk && sameConstrs s.coreConstrs O.constraints
   | .equioptimal =>
-    s.chk && s.dbound.all (fun d => s.bound.any (· ≤ d)) &&
-      includes (s.core.map (·.2)) O.constraints && includes O.constraints (s.core.map (·.2)) &&
-      s.obj.isSome && objEquiv s.obj O.objective
+    s.chk && s.boundLe && sameConstrs s.coreConstrs O.constraints && s.obj.isSome &&
+      objEquiv s.obj O.objective
   | .equienumerable =>
-    s.chk && s.dbound.all (fun d => s.bound.any (· ≤ d)) &&
-      includes (s.core.map (·.2)) O.constraints && includes O.constraints (s.core.map (·.2)) &&
+    s.chk && s.boundLe && sameConstrs s.coreConstrs O.constraints &&
       objEquiv s.obj O.objective &&
       match s.pres, O.preserved with
       | some P, some Q => P.all Q.contains && Q.all P.contains
@@ -179,6 +190,7 @@ structure OutputSection where
   guarantee : Guarantee
   /-- The output formula of `FILE`; `none` for `IMPLICIT`, whose output is the core set. -/
   file : Option Instance
+  deriving DecidableEq, Repr
 
 /-- The output of an accepted proof: its guarantee, the output formula and the bound `bound`
 (CakePB's `bound`, `none` for infinite) below which `EQUIOPTIMAL` and `EQUIENUMERABLE` hold. -/
@@ -189,6 +201,7 @@ structure Output where
   formula : Instance
   /-- The bound. -/
   bound : Option ℤ
+  deriving DecidableEq, Repr
 
 /-- **The checker of a proof with an output section** for the formula `F`, the objective `obj`
 and the preserved set `pres`: run the steps, check the conclusion and the output section, and
@@ -198,9 +211,9 @@ def checkRedOutput (F : List PBConstr) (obj : Option Objective) (P : RedProof)
     (pres : Option (List ℕ)) (sec : OutputSection) : Option Output :=
   match runTop F obj (State.init F obj pres) P.steps with
   | some s =>
-    if checkConclusion F obj s P.conclusion &&
-        checkOutput s (sec.file.getD ⟨s.core.map (·.2), s.obj, s.pres⟩) sec.guarantee then
-      some ⟨sec.guarantee, sec.file.getD ⟨s.core.map (·.2), s.obj, s.pres⟩, s.bound⟩
+    let O := sec.file.getD ⟨s.coreConstrs, s.obj, s.pres⟩
+    if checkConclusion F obj s P.conclusion && checkOutput s O sec.guarantee then
+      some ⟨sec.guarantee, O, s.bound⟩
     else none
   | none => none
 
@@ -214,15 +227,11 @@ theorem holds_of_includes {σ : ℕ → Bool} {cs ds : List PBConstr} (h : inclu
   rw [← holds_normalize]
   exact Holds.of_sameUpToOrder ((holds_normalize σ c).2 (hc c hcs)) heq
 
-private theorem holds_of_degree_eq_zero {σ : ℕ → Bool} {c : PBConstr}
-    (h : c.normalize.degree = 0) : c.Holds σ := by
-  rw [← holds_normalize]; unfold Holds; rw [h]; exact Nat.zero_le _
-
 theorem Objective.eval_eq_of_equiv {f g : Objective} (h : f.equiv g = true) (σ : ℕ → Bool) :
     f.eval σ = g.eval σ := by
   simp only [Objective.equiv, Bool.and_eq_true, beq_iff_eq] at h
-  have h1 := (Objective.holds_geGoal σ f g).1 (holds_of_degree_eq_zero h.1)
-  have h2 := (Objective.holds_geGoal σ g f).1 (holds_of_degree_eq_zero h.2)
+  have h1 := (Objective.holds_geGoal σ f g).1 (holds_of_normalize_degree_eq_zero h.1)
+  have h2 := (Objective.holds_geGoal σ g f).1 (holds_of_normalize_degree_eq_zero h.2)
   omega
 
 theorem objValue_eq_of_objEquiv {f g : Option Objective} (h : objEquiv f g = true)
@@ -246,11 +255,12 @@ private theorem of_checkRedOutput {F : List PBConstr} {obj : Option Objective} {
     (h : checkRedOutput F obj P pres sec = some o) :
     ∃ s, runTop F obj (State.init F obj pres) P.steps = some s ∧
       checkConclusion F obj s P.conclusion = true ∧ checkOutput s o.formula o.guarantee = true ∧
-      o.guarantee = sec.guarantee ∧ o.formula = sec.file.getD ⟨s.core.map (·.2), s.obj, s.pres⟩ ∧
+      o.guarantee = sec.guarantee ∧ o.formula = sec.file.getD ⟨s.coreConstrs, s.obj, s.pres⟩ ∧
       o.bound = s.bound := by
   unfold checkRedOutput at h
   split at h
   · rename_i s hrun
+    dsimp only at h
     split at h
     · rename_i hok
       simp only [Option.some.injEq] at h
@@ -301,49 +311,49 @@ theorem semOutput_of_checkRedOutput {F : List PBConstr} {obj : Option Objective}
   rcases o with ⟨g, O, b⟩
   simp only at hout hb ⊢
   subst hb
-  have hcore : ∀ τ, AllHold τ s.core ↔ ∀ c ∈ s.core.map (·.2), c.Holds τ := fun τ => by
-    rw [List.forall_mem_map]
+  have hcore : ∀ τ, AllHold τ s.core ↔ ∀ c ∈ s.coreConstrs, c.Holds τ := fun τ => by
+    rw [State.coreConstrs, List.forall_mem_map]
     rfl
   -- Forward: below `dbound`, a solution of the input gives one of the core set with the same
-  -- projection and no larger value.
-  have fwd : ∀ P', (P' = [] ∨ pres = some P') → ∀ σ, (∀ c ∈ F, c.Holds σ) →
-      (∀ d ∈ s.dbound, objValue obj σ < d) →
-      ∃ τ, AllHold τ s.core ∧ objValue s.obj τ ≤ objValue obj σ ∧ proj P' τ = proj P' σ :=
-    fun P' hP' σ hF hd => by
-      rcases (hσ σ hF).2 P' hP' with ⟨τ, hτ, hw, hp⟩ | ⟨d, hd', hw⟩
+  -- projection to the preserved set and no larger value.
+  have fwd : ∀ σ, (∀ c ∈ F, c.Holds σ) → (∀ d ∈ s.dbound, objValue obj σ < d) →
+      ∃ τ, AllHold τ s.core ∧ objValue s.obj τ ≤ objValue obj σ ∧
+        proj (pres.getD []) τ = proj (pres.getD []) σ :=
+    fun σ hF hd => by
+      rcases (hσ σ hF).2 with ⟨τ, hτ, hw, hp⟩ | ⟨d, hd', hw⟩
       · exact ⟨τ, fun e he => hτ e (hinv.sub e he), hw, hp⟩
       · exact absurd (hd d hd') (not_lt.2 hw)
   cases g with
   | derivable =>
     simp only [checkOutput, Bool.and_eq_true, Option.isNone_iff_eq_none] at hout
     rintro ⟨σ, hF⟩
-    obtain ⟨τ, hτ, -⟩ := fwd [] (.inl rfl) σ hF (by simp [hout.1])
+    obtain ⟨τ, hτ, -⟩ := fwd σ hF (by simp [hout.1])
     exact ⟨τ, holds_of_includes hout.2 ((hcore τ).1 hτ)⟩
   | equisatisfiable =>
-    simp only [checkOutput, Bool.and_eq_true, Option.isNone_iff_eq_none] at hout
-    obtain ⟨⟨⟨⟨hd, -⟩, hchk⟩, hsub⟩, hsup⟩ := hout
+    simp only [checkOutput, sameConstrs, Bool.and_eq_true, Option.isNone_iff_eq_none] at hout
+    obtain ⟨⟨⟨hd, -⟩, hchk⟩, hsub, hsup⟩ := hout
     constructor
     · rintro ⟨σ, hF⟩
-      obtain ⟨τ, hτ, -⟩ := fwd [] (.inl rfl) σ hF (by simp [hd])
+      obtain ⟨τ, hτ, -⟩ := fwd σ hF (by simp [hd])
       exact ⟨τ, holds_of_includes hsub ((hcore τ).1 hτ)⟩
     · rintro ⟨τ, hO⟩
       obtain ⟨σ, hF, -⟩ := hinv.chk hchk τ ((hcore τ).2 (holds_of_includes hsup hO))
       exact ⟨σ, hF⟩
   | equioptimal =>
-    simp only [checkOutput, Bool.and_eq_true] at hout
-    obtain ⟨⟨⟨⟨⟨hchk, hle⟩, hsub⟩, hsup⟩, -⟩, hobj⟩ := hout
+    simp only [checkOutput, sameConstrs, State.boundLe, Bool.and_eq_true] at hout
+    obtain ⟨⟨⟨⟨hchk, hle⟩, hsub, hsup⟩, -⟩, hobj⟩ := hout
     intro v hv
     constructor
     · rintro ⟨σ, hF, hσv⟩
-      obtain ⟨τ, hτ, hw, -⟩ := fwd [] (.inl rfl) σ hF (lt_of_le_bound hle hv hσv)
+      obtain ⟨τ, hτ, hw, -⟩ := fwd σ hF (lt_of_le_bound hle hv hσv)
       exact ⟨τ, holds_of_includes hsub ((hcore τ).1 hτ),
         by rw [objValue_eq_of_objEquiv hobj]; exact hw.trans hσv⟩
     · rintro ⟨τ, hO, hτv⟩
       obtain ⟨σ, hF, hw, -⟩ := hinv.chk hchk τ ((hcore τ).2 (holds_of_includes hsup hO))
       exact ⟨σ, hF, hw.trans (by rw [← objValue_eq_of_objEquiv hobj]; exact hτv)⟩
   | equienumerable =>
-    simp only [checkOutput, Bool.and_eq_true] at hout
-    obtain ⟨⟨⟨⟨⟨hchk, hle⟩, hsub⟩, hsup⟩, hobj⟩, hpres⟩ := hout
+    simp only [checkOutput, sameConstrs, State.boundLe, Bool.and_eq_true] at hout
+    obtain ⟨⟨⟨⟨hchk, hle⟩, hsub, hsup⟩, hobj⟩, hpres⟩ := hout
     obtain ⟨Pr, hPr⟩ : ∃ Pr, s.pres = some Pr := by
       cases hp : s.pres with
       | none => simp [hp] at hpres
@@ -359,36 +369,48 @@ theorem semOutput_of_checkRedOutput {F : List PBConstr} {obj : Option Objective}
     ext l
     constructor
     · rintro ⟨σ, ⟨hF, hσv⟩, rfl⟩
-      obtain ⟨τ, hτ, hw, hp⟩ := fwd Pr (.inr hpres0) σ hF (lt_of_le_bound hle hv hσv)
+      obtain ⟨τ, hτ, hw, hp⟩ := fwd σ hF (lt_of_le_bound hle hv hσv)
+      rw [hpres0] at hp
       exact ⟨τ, ⟨holds_of_includes hsub ((hcore τ).1 hτ),
         by rw [objValue_eq_of_objEquiv hobj]; exact hw.trans hσv⟩, hp⟩
     · rintro ⟨τ, ⟨hO, hτv⟩, rfl⟩
       obtain ⟨σ, hF, hw, hp⟩ := hinv.chk hchk τ ((hcore τ).2 (holds_of_includes hsup hO))
       exact ⟨σ, ⟨hF, hw.trans (by rw [← objValue_eq_of_objEquiv hobj]; exact hτv)⟩, hp Pr hPr⟩
 
-/-- **`EQUIENUMERABLE` for a decision problem**: if the checker accepts a proof with an
-`EQUIENUMERABLE` output section for the formula `F` without objective and with the preserved set
-`P`, and the bound is infinite (no solution was logged), then the solutions of `F` and of the
-output formula have the same projections to `P`, hence equally many. -/
-theorem projections_eq_of_checkRedOutput {F : List PBConstr} {P : RedProof} {Pres : List ℕ}
-    {sec : OutputSection} {o : Output} (h : checkRedOutput F none P (some Pres) sec = some o)
-    (hg : o.guarantee = .equienumerable) (hb : o.bound = none) :
-    projections F Pres = projections o.formula.constraints Pres := by
+/-- The solutions of an instance, of every value, project onto all its projected solutions. -/
+private theorem iUnion_image_solsLE (I : Instance) (P : List ℕ) :
+    ⋃ v : ℤ, proj P '' I.solsLE v = projections I.constraints P := by
+  ext l
+  simp only [Set.mem_iUnion, Set.mem_image, Instance.solsLE, Set.mem_ofPred_eq, projections]
+  constructor
+  · rintro ⟨v, σ, ⟨hσ, -⟩, rfl⟩
+    exact ⟨σ, hσ, rfl⟩
+  · rintro ⟨σ, hσ, rfl⟩
+    exact ⟨objValue I.objective σ, σ, ⟨hσ, le_rfl⟩, rfl⟩
+
+/-- **`EQUIENUMERABLE` with an infinite bound** preserves the projected solutions: if it holds
+between the instances `I` and `O` for the bound `none`, and `I` has the preserved set `Pres`,
+then the solutions of `I` and of `O` have the same projections to `Pres`, hence equally many,
+whatever their objectives. -/
+theorem projections_eq_of_semOutput {I O : Instance} {Pres : List ℕ}
+    (hI : I.preserved = some Pres) (h : semOutput I none O .equienumerable) :
+    projections I.constraints Pres = projections O.constraints Pres := by
+  obtain ⟨P', -, hP', -, -, heq⟩ := h
+  cases (Option.some.inj (hI.symm.trans hP') : Pres = P')
+  rw [← iUnion_image_solsLE, ← iUnion_image_solsLE]
+  exact Set.iUnion_congr fun v => heq v (by simp)
+
+/-- **`EQUIENUMERABLE` from the checker**: if the checker accepts a proof with an `EQUIENUMERABLE`
+output section for the formula `F` with the preserved set `Pres`, and the bound is infinite (no
+solution was logged), then the solutions of `F` and of the output formula have the same
+projections to `Pres`, hence equally many. -/
+theorem projections_eq_of_checkRedOutput {F : List PBConstr} {obj : Option Objective}
+    {P : RedProof} {Pres : List ℕ} {sec : OutputSection} {o : Output}
+    (h : checkRedOutput F obj P (some Pres) sec = some o) (hg : o.guarantee = .equienumerable)
+    (hb : o.bound = none) : projections F Pres = projections o.formula.constraints Pres := by
   have hsem := semOutput_of_checkRedOutput h
   rw [hg, hb] at hsem
-  obtain ⟨P', -, hP', -, -, heq⟩ := hsem
-  cases (Option.some.inj hP' : Pres = P')
-  have hO : o.formula.objective = none := by
-    obtain ⟨s, hrun, -, hout, -, -, -⟩ := of_checkRedOutput h
-    rw [hg] at hout
-    simp only [checkOutput, Bool.and_eq_true] at hout
-    have hobj := hout.1.2
-    rw [(invariants_of_runTop hrun).2.1.obj_none rfl] at hobj
-    revert hobj
-    cases o.formula.objective <;> simp [objEquiv]
-  have := heq 0 (by simp)
-  simp only [Instance.solsLE, hO, objValue, le_refl, and_true] at this
-  exact this
+  exact projections_eq_of_semOutput (I := ⟨F, obj, some Pres⟩) rfl hsem
 
 end Cslib.Logic.PL.VeriPB
 
