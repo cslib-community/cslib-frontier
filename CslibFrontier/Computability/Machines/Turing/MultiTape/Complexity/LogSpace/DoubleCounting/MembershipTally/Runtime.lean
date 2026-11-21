@@ -501,7 +501,8 @@ theorem retainedMachine_native_firstHalting_iff {α : Type}
       ∃! branch, bits = selectors (BoundedWalk.selectors clock) branch ∧
         ∃ hit, Scan.run adjacent source target radius expected branch = some hit := by
   apply native_firstHalting_iff_of_reply R a bits retainedReply (BoundedWalk.selectors clock)
-    (BoundedWalk.eq_of_selectors_prefix clock) adjacent source target radius expected (fun _ => rfl)
+    (BoundedWalk.eq_of_selectors_prefix clock) adjacent source target radius expected
+    (retainedMachine_accept edge start verdict clock initialWalk context ctx)
   intro hit
   have hM := retainedMachine_withInit edge start verdict clock initialWalk context ctx (params a)
     (walkContext a)
