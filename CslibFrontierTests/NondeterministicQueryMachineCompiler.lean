@@ -100,10 +100,10 @@ example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k 
 
 open NondeterministicQueryMachine in
 /-- For the initially halted input-dependent start, every halted full replay splits at the
-first choice boundary with the same choice bits and final configuration. -/
+checked finalizer boundary with the same choice bits and final configuration. -/
 example : ∃ (R : Routines ownBit id encBool (fun _ => 1)) (n : ℕ),
     let initial := R.machine.initCfg (encBool true)
-    let boundary := wordsCfg (encBool true) (some (.choose : Native.State R.SI R.SP R.SF))
+    let boundary := wordsCfg (encBool true) (some (.finish R.F.q₀ : Native.State R.SI R.SP R.SF))
       (R.boundary true false) []
     Native.replayChoices R.I R.P R.F R.C initial (List.replicate n 0) = some ([], boundary) ∧
       ∀ (indices : List ℕ) (bits : List Bool)
@@ -135,5 +135,96 @@ example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length 
   obtain ⟨first, _, hfactor⟩ := R.pass_replay [true] 0
     ((firstBit.withInit 0).reachable_init _) true false []
   exact ⟨first, fun indices bits final hhalt hr => (hfactor indices bits final hhalt).mp hr⟩
+
+
+/-- Both passes ignore their selector, so distinct bit traces can have identical abstract
+state sequences. Occurrence-sensitive compilation must retain those distinctions. -/
+private def twoPass : NondeterministicQueryMachine (Fin 3) where
+  init := 0
+  query _ := 0
+  next p := if p.1 = 0 then 1 else 2
+  halted q := q == 2
+  accept q := q == 2
+
+open NondeterministicQueryMachine in
+/-- Two genuine choices survive compilation even though the abstract transitions ignore them.
+The full initializer/pass/finalizer composition has one native occurrence trace for each pair. -/
+example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    (input : List Bool) (b c : Bool) :
+    ∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
+      (R.machine.initCfg input) indices = some ([b, c], final) ∧ final.Halted := by
+  apply (R.existsUnique_replay_iff input [b, c]).mpr
+  refine ⟨rfl, ?_⟩
+  intro n hn
+  have hn' : n < 2 := hn
+  interval_cases n <;> rfl
+
+open NondeterministicQueryMachine in
+/-- A full native replay cannot retain the abstract model's padding after the first halt. -/
+example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    {indices : List ℕ} {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) [true]}
+    (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg [true]) indices =
+      some ([false, true], final)) : ¬final.Halted := by
+  intro hhalt
+  have h := (R.replay_correct [true] hr hhalt).1.2 1 (by decide)
+  exact Bool.noConfusion h
+
+open NondeterministicQueryMachine in
+/-- The full replay's output is the verdict of the abstract state after both passes. -/
+example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    (input : List Bool) {indices : List ℕ}
+    {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) input}
+    (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg input) indices =
+      some ([false, true], final)) (hhalt : final.Halted) : final.output = [true] :=
+  (R.replay_correct input hr hhalt).2
+
+open NondeterministicQueryMachine in
+/-- An initially halted accepting source has one full native occurrence trace with no choices;
+initialization never introduces the two spurious selector occurrences. -/
+example (R : Routines ownBit id encBool (fun _ => 1)) :
+    ∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
+      (R.machine.initCfg (encBool true)) indices = some ([], final) ∧ final.Halted := by
+  apply (R.existsUnique_replay_iff true []).mpr
+  exact ⟨rfl, fun n h => by simp at h⟩
+
+open NondeterministicQueryMachine in
+example (R : Routines ownBit id encBool (fun _ => 1)) {indices : List ℕ}
+    {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) (encBool true)}
+    (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (encBool true)) indices =
+      some ([], final)) (hhalt : final.Halted) : final.output = [true] :=
+  (R.replay_correct true hr hhalt).2
+
+open NondeterministicQueryMachine in
+/-- Regression for the former unconditional first choice: an already accepting source has
+exactly one accepting native occurrence at a sufficient clock, rather than two selectors. -/
+example (R : Routines ownBit id encBool (fun _ => 1)) :
+    ∃ fuel, (Native.countingMachine R.I R.P R.F R.C).branchCount
+      (fun out => out == [true]) fuel (R.machine.initCfg (encBool true)) = 1 := by
+  obtain ⟨indices, ⟨final, hr, hhalt⟩, _⟩ :=
+    (R.existsUnique_replay_iff true []).mpr ⟨rfl, fun n h => by simp at h⟩
+  have hout : final.output = [true] := (R.replay_correct true hr hhalt).2
+  have hrun := congrArg (Option.map Prod.snd) hr
+  rw [Native.map_snd_replayChoices] at hrun
+  change (Native.countingMachine R.I R.P R.F R.C).runBranch _ indices = some final at hrun
+  have hmem := (MultiTapeCTM.mem_branches_iff
+    (Native.countingMachine R.I R.P R.F R.C) (R.machine.initCfg (encBool true))
+    indices.length indices).mpr ⟨le_rfl, final, hrun, hhalt⟩
+  have hpos : 0 < (Native.countingMachine R.I R.P R.F R.C).branchCount
+      (fun out => out == [true]) indices.length (R.machine.initCfg (encBool true)) := by
+    apply Finset.card_pos.mpr
+    refine ⟨indices, Finset.mem_filter.mpr ⟨hmem, ?_⟩⟩
+    change ((Native.countingMachine R.I R.P R.F R.C).runBranch
+      (R.machine.initCfg (encBool true)) indices).any (fun last => last.output == [true]) = true
+    rw [hrun]
+    change (final.output == [true]) = true
+    rw [hout]
+    rfl
+  have hle := Native.branchCount_le_one_of_choiceTrace R.I R.P R.F R.C
+    (R.machine.initCfg (encBool true)) indices.length (fun out => out == [true]) [] (by
+      intro is trace last hreplay hlast _
+      by_contra hne
+      have h := (R.replay_correct true hreplay hlast).1.2 0 (List.length_pos_iff.mpr hne)
+      exact Bool.noConfusion h)
+  exact ⟨indices.length, by omega⟩
 
 end CslibFrontierTests.NondeterministicQueryMachineCompiler

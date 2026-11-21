@@ -34,6 +34,13 @@ theorem pureState_smul (c : ℂ) (ψ : EuclideanSpace ℂ ι) :
   ext i j
   simp [pureState_apply, mul_mul_mul_comm]
 
+/-- A real scalar multiplies the pure-state matrix by its square. -/
+theorem pureState_real_smul (r : ℝ) (ψ : EuclideanSpace ℂ ι) :
+    pureState (r • ψ) = r ^ 2 • pureState ψ := by
+  rw [← algebraMap_smul ℂ r ψ, pureState_smul, ← algebraMap_smul ℂ (r ^ 2) (pureState ψ)]
+  change (((r : ℂ) * star (r : ℂ)) • pureState ψ) = ((↑(r ^ 2) : ℂ) • pureState ψ)
+  rw [Complex.star_def, Complex.conj_ofReal, Complex.ofReal_pow, pow_two]
+
 /-- A global phase has no effect on a pure-state density matrix. -/
 theorem pureState_smul_of_norm_eq_one (c : ℂ) (hc : ‖c‖ = 1)
     (ψ : EuclideanSpace ℂ ι) : pureState (c • ψ) = pureState ψ := by

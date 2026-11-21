@@ -58,6 +58,10 @@ def equivProd (V : Type*) (bound : ℕ) : Vertex V bound ≃ V × Fin (bound + 1
   left_inv _ := rfl
   right_inv _ := rfl
 
+@[simp] theorem equivProd_apply {V : Type*} {bound : ℕ} (v : Vertex V bound) :
+    equivProd V bound v = (v.vertex, v.offset) := by
+  rfl
+
 instance {V : Type*} [Fintype V] (bound : ℕ) : Fintype (Vertex V bound) :=
   Fintype.ofEquiv _ (equivProd V bound).symm
 
@@ -259,6 +263,29 @@ noncomputable def pathEquiv (hw : ∀ v, weight v ≤ bound) (s : V) (v : Vertex
     rw [contract_comp, contract_chain, contract_expand]
     rfl
   right_inv p := (normal_form hw p).symm
+
+private theorem nonempty_path_iff_reachable {W : Type*} (r : W → W → Prop) (a b : W) :
+    Nonempty (@Quiver.Path W ⟨fun u v => PLift (r u v)⟩ a b) ↔
+      Relation.ReflTransGen r a b := by
+  let _ : Quiver W := ⟨fun u v => PLift (r u v)⟩
+  constructor
+  · rintro ⟨p⟩
+    induction p with
+    | nil => exact .refl
+    | cons _ e ih => exact ih.tail e.down
+  · intro h
+    induction h with
+    | refl => exact ⟨.nil⟩
+    | tail _ e ih => exact ih.map (fun p => p.cons ⟨e⟩)
+
+/-- Reachability between subdivision roots is exactly reachability between the original
+vertices, for every weight assignment within the subdivision bound. -/
+theorem reachable_root_iff (hw : ∀ v, weight v ≤ bound) (s t : V) :
+    Relation.ReflTransGen (graph G weight bound).Adj (root bound s) (root bound t) ↔
+      Relation.ReflTransGen G.Adj s t := by
+  let e := pathEquiv (G := G) hw s (root bound t) (Nat.zero_le _)
+  rw [← nonempty_path_iff_reachable, ← nonempty_path_iff_reachable]
+  exact ⟨fun h => h.map e.symm, fun h => h.map e⟩
 
 /-- The rectangular subdivision has at most the number of vertices times one plus the
 uniform weight bound; unused positions remain isolated. -/
