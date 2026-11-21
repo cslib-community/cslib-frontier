@@ -9,6 +9,7 @@ import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
+import CslibFrontier.Computability.Complexity.Reduction.LinearApproximation
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
@@ -17,10 +18,12 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.Orthogonalization
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
@@ -121,7 +124,11 @@ import CslibFrontier.Computability.Circuit.Boolean.NonuniformSeparation
 import CslibFrontier.Computability.Circuit.Boolean.Razborov.MiddleSlice.P
 import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 import CslibFrontier.Computability.Circuit.Boolean.Smolensky
+import CslibFrontier.Foundations.BooleanAnalysis.Fourier
+import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
+import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
+import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -369,6 +376,7 @@ import CslibFrontier.GameTheory.Strategic.Correlated
 import CslibFrontier.GameTheory.Strategic.Nash
 import CslibFrontier.GameTheory.Strategic.Semialgebraic
 import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
+import CslibFrontier.GameTheory.Strategic.Universality.Realize
 import CslibFrontier.Logics.Propositional.CNF.TruthTable
 import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.Connectivity
@@ -443,6 +451,7 @@ import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomizati
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 import CslibFrontier.Computability.Automata.MPDA.OneHole
+import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
 import CslibFrontier.Computability.Automata.MPDA.Separation
 import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
@@ -3221,6 +3230,27 @@ register_result "nash-sets-semialgebraic" where
     polynomial positivity sets. Projections (Tarski–Seidenberg) are not used or proved. The \
     universality constructions of the paper are tracked separately (#6701)."
 
+register_result "nash-realize-coefficients" where
+  title := "Any block-affine polynomials are realized as expected pure-strategy costs"
+  topic := "game theory"
+  sources := [
+    { paper := Datta2003, theorem := "Lemma 4",
+      locator := "arXiv:math/0301001, §3, equations (2)–(4), printed pp. 3–4" }
+  ]
+  theorems := [
+    Cslib.GameTheory.CostGame.deviationCost_realize,
+    Cslib.GameTheory.CostGame.isTotallyMixedNash_realize_iff
+  ]
+  scope := "Finite cost-minimization games with finitely many players and finite strategy sets. \
+    For polynomials g i a in the profile coordinates that are affine in each player's block and \
+    do not involve player i's own block, the game whose cost at a pure profile s is g i (s i) \
+    evaluated at the vertex of s has, at every profile whose weights sum to 1 per player, \
+    expected cost of pure strategy a for player i equal to g i a. The identity holds for signed \
+    weights. Datta prescribes payoff differences against a reference strategy; taking g i (a₀ i) \
+    = 0 recovers them, and the totally mixed equilibria are the positive normalized profiles at \
+    which every g i a vanishes. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6703#pullrequestreview-5993269399"
+
 register_result "correlated-equilibrium-hierarchy" where
   title := "Pure Nash, mixed Nash, correlated and coarse correlated equilibria are nested"
   topic := "game theory"
@@ -5454,6 +5484,24 @@ register_result "goemans-williamson-maxdicut" where
     Real.goemansWilliamsonDicutConstant (0.79607 < β < 0.79608), plus the balanced-digraph \
     reduction recovering α > 0.87856 on p. 1138. No SDP solver, finite-precision sampler, or \
     derandomization is formalized."
+
+register_result "measurement-orthogonalization-full-matrix" where
+  title := "De la Salle: orthogonalization of measurements in a full matrix algebra"
+  topic := "quantum information"
+  sources := [
+    { paper := delaSalle2022, theorem := "Theorem 1.2",
+      locator := "arXiv:2103.14126v2, §1, p. 2" }
+  ]
+  theorems := [
+    Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le,
+    Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le_of_le
+  ]
+  scope := "Finite-outcome measurements in full complex matrix algebras, with any normalized \
+    positive state. The projective measurement uses the same algebra and outcomes. Its sum of \
+    squared state distances is at most nine times the exact defect, giving the source's strict \
+    bound when the defect is strictly below epsilon. Normality is automatic here. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6198#issuecomment-6994351157."
 
 register_result "binary-linear-constraint-operator-solution-perfect" where
   title := "Cleve–Mittal: finite-dimensional operator solutions of binary linear constraint \
@@ -11078,6 +11126,20 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
 
+register_result "low-individual-degree-self-improvement-sdp" where
+  title := "Strong duality for the low-individual-degree self-improvement SDP"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Lemma 9.2",
+      locator := "arXiv:2009.12982v1, §9.1, pp. 68–70, equations (51)–(54)" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_selfImprovement_trace_certificate]
+  scope := "The matrix objective of each bounded polynomial is the uniform average of the point \
+    effects for its values. The primal ranges over polynomial submeasurements, with an explicit \
+    failure effect completing them to measurements. The dual ranges over common operator \
+    majorants. The optimum has equal primal and dual traces, no primal failure mass and \
+    complementary slackness for each polynomial."
+
 register_result "mpda-one-hole-is-no-hole" where
   title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
   topic := "automata theory"
@@ -11456,6 +11518,20 @@ register_result "mpda-hole-bounded-not-scope-bounded" where
     #6714 at 17f93ab43d, against arXiv:2002.05950v2, printed pp. 4-7: \
     https://github.com/cslib-community/cslib-frontier/pull/6714#issuecomment-7037725174."
 
+register_result "linear-reductions-preserve-ptas" where
+  title := "Linear reductions transfer approximation guarantees and PTAS"
+  topic := "approximation complexity"
+  sources := [
+    { paper := PapadimitriouYannakakis1991, theorem := "Proposition 2", locator := "§1, p. 427" }
+  ]
+  theorems := [
+    Cslib.Complexity.LReduction.isApproximate_recover,
+    Cslib.Complexity.LReduction.ptas
+  ]
+  scope := "Typed NP optimization problems with natural objectives and all feasible solutions \
+    length-bounded. Positive natural factors bound optimum growth and absolute error. \
+    Target inverse accuracy is the requested inverse accuracy multiplied by both factors."
+
 -- https://github.com/cslib-community/cslib-frontier/pull/5817#pullrequestreview-5913387425
 register_result "odonnell-edge-isoperimetric-inequality" where
   title := "Edge-isoperimetric inequality for the Boolean cube"
@@ -11471,3 +11547,147 @@ register_result "odonnell-edge-isoperimetric-inequality" where
     b = true and b = false; these are the book's Pr[f = 1] and Pr[f = −1]. The logarithm is \
     Real.logb 2, the book's log. The book's optimality remark for α a power of 1/2 is checked \
     only for the conjunction of two bits. Source check: outside-fleet review on PR #5817."
+
+register_result "mpda-hole-bounded-incomparable-phase-bounded" where
+  title := "Hole-bounded and phase-bounded visibly MPDA languages are incomparable"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Proposition 2, last sentence",
+      locator := "arXiv:2002.05950v2, Section 2.1, Proposition 2 (printed p. 6) and the last \
+        paragraph of its proof (the languages L_bh and L'), printed p. 7; phases as defined in \
+        Section 2, printed p. 4; holes as in Definition 1, printed p. 5" }
+  ]
+  theorems := [Cslib.Automata.MPDA.HoleSeparation.holeBounded_incomparable_phaseBounded,
+    Cslib.Automata.MPDA.HoleSeparation.language_phaseAutomaton]
+  scope := "Two-stack MPDAs that read the letters a, b, c, d visibly (a, b push on stacks 0, 1 \
+    and c, d pop from them), with bounded acceptance: the language of an MPDA restricted to a \
+    class of runs is the set of words with an accepting run in that class. The source's \
+    language L' = {(a b)^n c^n d^n} is the 2-phase-bounded language, and also the full \
+    language, of a finite visibly MPDA, but for every K it is not the K-hole-bounded language \
+    of any visibly MPDA; the source's language L_bh is the 2-hole-bounded language of a finite \
+    visibly MPDA, but for every K it is not the K-phase-bounded language of any visibly MPDA. A \
+    phase pops from at most one stack (any two of its pops use the same stack) and may push on \
+    any, and K-phase-bounded means at most K phases. The statement is for visibly MPDAs, as in \
+    the source's argument; the hidden-operation version is open in the same sense as issue \
+    #6712. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #6722 at \
+    1ac952c6bf, against arXiv:2002.05950v2, printed pp. 4-7 and Appendix A.2, pp. 21-22: \
+    https://github.com/cslib-community/cslib-frontier/pull/6722#pullrequestreview-5993124585."
+
+-- https://github.com/cslib-community/cslib-frontier/pull/6751#pullrequestreview-5995682341
+register_result "odonnell-relabelling-fourier-coefficients" where
+  title := "Relabelling the coordinates relabels the Fourier coefficients"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 1.30(a)",
+      locator := "arXiv:2105.10386v1, §1.7, printed p. 39" }
+  ]
+  theorems := [Cslib.BitString.fourierCoeff_comp_arrowCongr]
+  scope := "For a real function g on the cube and a bijection e between finite coordinate \
+    types, renaming the coordinates of g by e moves the Fourier coefficient on S to the \
+    coefficient of g on e(S). With x : ι → Bool read through signVal, the book's permutation \
+    case (f^π)^(S) = f̂(π⁻¹(S)), where f^π(x) = f(x^π) and (x^π)ᵢ = x_{π(i)}, is e = π⁻¹; the \
+    statement allows a relabelling between different coordinate types."
+
+-- https://github.com/cslib-community/cslib-frontier/pull/6751#pullrequestreview-5995682341
+register_result "odonnell-transitive-symmetric-influence" where
+  title := "Monotone transitive-symmetric functions have influences at most 1/√n"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Proposition 2.22",
+      locator := "arXiv:2105.10386v1, §2.2, printed p. 48" }
+  ]
+  theorems := [
+    Cslib.BitString.influence_signVal_le_one_div_sqrt_card_of_monotone_of_isPretransitive]
+  scope := "For a monotone f : (ι → Bool) → Bool on a finite coordinate type with n coordinates, \
+    read as signs through signVal (true ↦ −1), whose automorphism group aut f acts transitively \
+    on the coordinates (the form of Definition 2.10 given by Exercise 2.47), every influence of \
+    f is at most 1/√n. The proof divides the √n bound on the total influence of monotone \
+    functions by the n equal influences, instead of the book's route through f̂(i) and Parseval. \
+    Monotone is for Bool's order false < true; under true ↦ −1 this is the book's \
+    coordinatewise order on inputs and outputs."
+
+register_result "odonnell-reverse-two-point-inequality-positive-exponents" where
+  title := "Reverse two-point inequality for positive exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.7(a)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 315" }
+  ]
+  theorems := [
+    Cslib.BitString.rpow_add_rpow_le_rpow_add_rpow_rpow,
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_unit
+  ]
+  scope := "One uniformly random bit and exponents 0 < q ≤ p ≤ 1. The power form takes \
+    a + b x with |b| ≤ a and ρ² (1 − q) ≤ 1 − p; the norm form takes any nonnegative function \
+    of one bit and 0 ≤ ρ ≤ √((1 − p)/(1 − q)), and states ‖f‖_p ≤ ‖T_ρ f‖_q. Every ρ in that \
+    range is reached directly by comparing binomial series. The \
+    exponents q = 0 and q = −∞ are not covered."
+
+register_result "odonnell-reverse-two-function-hypercontractivity-nonzero-exponents" where
+  title := "Reverse Two-Function Hypercontractivity Theorem for finite nonzero exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Exercise 10.6 (Reverse Two-Function Hypercontractivity Theorem)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 314" }
+  ]
+  theorems := [
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp,
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one,
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one
+  ]
+  scope := "Uniform cube on any finite coordinate type, with the ρ-correlated pair given by \
+    the noise operator. Covers r, s ≤ 0 with r, s ≠ −1, so both exponents 1 + r and 1 + s are \
+    finite and nonzero, r s ≤ 1 and 0 ≤ ρ ≤ √(r s). For −1 < r, s ≤ 0 both functions are \
+    nonnegative. When one exponent is negative (r < −1 or s < −1), the function carrying it is \
+    positive and the other nonnegative. ‖f‖_p for p < 0 is 𝔼[f^p]^(1/p), reading the printed \
+    −1/p of the p. 314 display as 1/p. The exponent 0 as the geometric mean and zeros in a \
+    negative-exponent function through the source's limit convention (Exercise 10.6(a)) are not \
+    covered and are tracked on #2131."
+
+register_result "odonnell-reverse-two-function-hypercontractivity-neg-half" where
+  title := "Reverse two-function hypercontractivity at r = s = −1/2"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.8",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 315" }
+  ]
+  theorems := [Cslib.BitString.sq_expect_abs_mul_sq_expect_abs_le]
+  scope := "Uniform cube on any finite coordinate type, arbitrary real f and g, and \
+    0 ≤ ρ ≤ 1/2: (𝔼|f|)² (𝔼|g|)² is at most the expectation of f(x)² g(y)² over a ρ-correlated \
+    pair. This is the exercise's assertion, derived from the general two-function theorem rather \
+    than by the direct one-bit proof the exercise asks for. The optional question about a direct \
+    proof for k > 2 is not addressed."
+
+register_result "odonnell-reverse-hypercontractivity-nonzero-exponents" where
+  title := "Reverse Hypercontractivity Theorem for finite nonzero exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.6 (Reverse Hypercontractivity Theorem)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 314" }
+  ]
+  theorems := [
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp,
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_neg
+  ]
+  scope := "Uniform cube on any finite coordinate type: ‖f‖_p ≤ ‖T_ρ f‖_q for finite nonzero \
+    exponents q < p ≤ 1 and 0 ≤ ρ ≤ √((1 − p)/(1 − q)). For 0 < p ≤ 1 (with q < 0 or \
+    0 < q < p) f is nonnegative; for q < p < 0 f is positive. ‖f‖_p for p < 0 is \
+    𝔼[f^p]^(1/p), reading the printed −1/p of the p. 314 display as 1/p. The exponent 0 as the \
+    geometric mean, q = −∞, and zeros in f under a negative input exponent through the source's \
+    limit convention are not covered and are tracked on #2131."
+
+register_result "odonnell-reverse-small-set-expansion" where
+  title := "Reverse Small-Set Expansion Theorem for ρ < 1"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Remark 10.3 (Reverse Small-Set Expansion Theorem)",
+      locator := "arXiv:2105.10386v1, §10.1, printed p. 285; proof in Exercise 10.9, printed \
+        p. 315" }
+  ]
+  theorems := [Cslib.BitString.exp_le_expect_indicator_mul_noiseOp_indicator]
+  scope := "Uniform cube on any finite coordinate type; sets A and B of volumes exp(−a²/2) and \
+    exp(−b²/2) with a, b ≥ 0, and 0 ≤ ρ < 1. A ρ-correlated pair lands in A × B with \
+    probability at least exp(−(a² + 2ρab + b²)/(2(1 − ρ²))). The source's statement also \
+    includes the singular endpoint ρ = 1, which is not covered: there Lean's division by zero \
+    would make the stated bound 1."

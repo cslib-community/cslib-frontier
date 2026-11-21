@@ -295,31 +295,13 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨hn', -, rfl⟩ := replicate_eq_cons ht
     exact ⟨_, _, rfl, n, k, gs, 0, hg, by omega, hk, by simp, by congr 1, rfl⟩
 
-/-- Every run from the initial configuration reaches a configuration satisfying the invariant. -/
-private theorem inv_of_run (μs : List (Letter × Op 2 Sym)) :
-    ∀ {c : Config 2 State Sym}, automaton.configLTS.MTr ⟨.pa, Stacks.pair [] []⟩ μs c →
-      ∃ s₀ s₁, c.contents = Stacks.pair s₀ s₁ ∧ Inv c.state s₀ s₁ (μs.map Prod.fst) := by
-  induction μs using List.reverseRecOn with
-  | nil =>
-    intro c h
-    obtain rfl := LTS.MTr.nil_eq _ h
-    exact ⟨[], [], rfl, 0, rfl, rfl, rfl⟩
-  | append_singleton μs μ ih =>
-    intro c h
-    obtain ⟨c', h₁, h₂⟩ := LTS.MTr.split h
-    obtain ⟨s₀, s₁, hc', hinv⟩ := ih h₁
-    obtain ⟨q', σ'⟩ := c'
-    simp only at hc' hinv
-    subst hc'
-    obtain ⟨t₀, t₁, hσ, hinv'⟩ := inv_step hinv ((LTS.MTr.singleton_iff _ _ _ _).mp h₂)
-    exact ⟨t₀, t₁, hσ, by simpa using hinv'⟩
-
 private theorem mem_language_of_accepts {w : List Letter} (h : Acceptor.Accepts automaton w) :
     w ∈ language := by
   obtain ⟨s, hs, s', hs', μs, rfl, hrun⟩ := h
   obtain rfl : s = .pa := hs
   rw [Stacks.empty_eq_pair] at hrun
-  obtain ⟨s₀, s₁, hc, hinv⟩ := inv_of_run μs hrun
+  obtain ⟨s₀, s₁, hc, hinv⟩ :=
+    exists_inv_pair_of_configLTS_mTr Inv inv_step hrun ⟨0, rfl, rfl, rfl⟩
   obtain ⟨h₀, h₁⟩ := Stacks.eq_pair_iff.mp hc.symm
   replace h₀ : s₀ = [] := h₀
   replace h₁ : s₁ = [] := h₁
