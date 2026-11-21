@@ -5,8 +5,9 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Crypto.Computational.Lattice.MR07Shorten
+import CslibFrontier.Crypto.Computational.Lattice.MR07Shorten
 
 /-!
 Non-vacuous client tests for `CslibFrontier.Crypto.Computational.Lattice.MR07Shorten`:
@@ -16,8 +17,10 @@ Non-vacuous client tests for `CslibFrontier.Crypto.Computational.Lattice.MR07Sho
 * Concrete 2-D one-round shortening preserving linear independence, `‖S'‖ ≤ ‖S‖`, and contracting
   `sqNormProd` by `(13 / 16) ^ 2`.
 * End-to-end 2-D `shortenLoop_isSolution_givp` and `shortenGuardedIter_isSolution_givp` on `ℤ²`
-  using `exists_int_inner_of_mem_span`.
+  using `Cslib.Algorithms.LatticeReduction.exists_int_inner_of_mem_span`.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.LatticeMR07Shorten
 
@@ -28,7 +31,7 @@ open scoped RealInnerProductSpace
 example : shortenRoundBound 0 101 = 0 := rfl
 
 /-- Concrete `shortenRoundBound` evaluation in dimension 2 with `B = 101`. -/
-public theorem shortenRoundBound_two_101 : shortenRoundBound 2 101 = 28 := by decide
+example : shortenRoundBound 2 101 = 28 := by decide
 
 /-- Dim 1 (`0 × 1` `omitRowTable` edge case): `S1 = ![![5]]` in `ℚ¹`. -/
 private def S1 : Fin 1 → Fin 1 → ℚ := ![![5]]

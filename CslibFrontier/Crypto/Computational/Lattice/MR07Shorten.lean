@@ -30,13 +30,14 @@ Given a full-rank family `S` of `n = rank L` linearly independent vectors in a l
 preserves linear independence, never increases `‖S‖`, and shrinks `sqNormProd S = ∏ j, ‖S j‖²` by
 at least `(13/16)²` (`shortenStep_of_incGDD`).
 
-When `L` has integral inner products (`∀ x ∈ L, ∀ y ∈ L, ∃ z : ℤ, ⟪x, y⟫ = z`), Hadamard's
-inequality via `Cslib.Algorithms.LatticeReduction.one_le_gramPrefixDet` bounds `sqNormProd S ≥ 1`,
-so any chain of shortening steps starting from `‖S₀ i‖² ≤ B` has length strictly less than
-`shortenRoundBound n B = 2 * n * (Nat.log 2 B + 1)` (`shortenSteps_lt_bound`). For rational
-families `S : Fin (m + 1) → Fin (m + 1) → ℚ`, `ratOrthoTarget` computes a valid rational target
-without square roots using `Cslib.LinearAlgebra.ratKernelBasis` and `Nat.sqrt`
-(`ratOrthoTarget_spec`).
+When `L` has integral inner products (`∀ x ∈ L, ∀ y ∈ L, ∃ z : ℤ, ⟪x, y⟫ = z`, as discharged for
+integer-span lattices by `Cslib.Algorithms.LatticeReduction.exists_int_inner_of_mem_span`),
+Hadamard's inequality via `Cslib.Algorithms.LatticeReduction.one_le_gramPrefixDet` bounds
+`sqNormProd S ≥ 1`, so any chain of shortening steps starting from `‖S₀ i‖² ≤ B` has length
+strictly less than `shortenRoundBound n B = 2 * n * (Nat.log 2 B + 1)`
+(`shortenSteps_lt_bound`). For rational families `S : Fin (m + 1) → Fin (m + 1) → ℚ`,
+`ratOrthoTarget` computes a valid rational target without square roots using
+`Cslib.LinearAlgebra.ratKernelBasis` and `Nat.sqrt` (`ratOrthoTarget_spec`).
 
 Both a halting round-indexed oracle loop (`shortenLoop`, `shortenLoop_isSolution_givp`) and an
 unconditional fixed-iteration guarded step (`shortenGuardedStep`, `shortenGuardedStep_invariants`,
@@ -65,9 +66,8 @@ only; probabilistic amplification, strict-PPT accounting, and the asymptotic `GI
   `Cslib.Crypto.MR07Shorten.shortenStep_of_incGDD`: one-round shortening invariants.
 * `Cslib.Crypto.MR07Shorten.isSolution_givp_or_isValidInstance_incGDD`: dichotomy between solving
   `GIVP^φ_{8γ}` and forming a valid `IncGDD^φ_{γ, 8}` instance.
-* `Cslib.Crypto.MR07Shorten.one_le_sqNormProd`, `Cslib.Crypto.MR07Shorten.shortenSteps_lt_bound`,
-  `Cslib.Crypto.MR07Shorten.exists_int_inner_of_mem_span`: Hadamard lower bound and finite
-  iteration cap.
+* `Cslib.Crypto.MR07Shorten.one_le_sqNormProd`, `Cslib.Crypto.MR07Shorten.shortenSteps_lt_bound`:
+  Hadamard lower bound and finite iteration cap.
 * `Cslib.Crypto.MR07Shorten.ratOrthoTarget_spec`: orthogonality and `(1/2, 9/16]` norm bounds for
   `ratOrthoTarget`.
 * `Cslib.Crypto.MR07Shorten.shortenLoop_isSolution_givp`,
@@ -272,27 +272,6 @@ theorem one_le_sqNormProd {S : Fin n → E} (hS : LinearIndependent ℝ S)
   rw [gramPrefixDet, hfilter] at hdet
   exact hdet.trans <| Finset.prod_le_prod₀ (fun _ _ => sq_nonneg _) fun j _ =>
     pow_le_pow_left₀ (norm_nonneg _) (norm_gramSchmidt_le ℝ S j) 2
-
-/-- Integral inner products pass from a generating family `b` to any pair of vectors in its
-integer span `Submodule.span ℤ (Set.range b)` (discharges the `hL_gram` premise of
-`shortenLoop_isSolution_givp` for every integer lattice `L = L(B)`). -/
-theorem exists_int_inner_of_mem_span {b : Fin n → E} (hb : HasIntegralGram b)
-    {x y : E} (hx : x ∈ Submodule.span ℤ (Set.range b))
-    (hy : y ∈ Submodule.span ℤ (Set.range b)) :
-    ∃ z : ℤ, ⟪x, y⟫ = z := by
-  choose Z hZ using hb
-  obtain ⟨u, hu⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hx
-  obtain ⟨w, hw⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hy
-  refine ⟨∑ k, ∑ l, u k * w l * Z k l, ?_⟩
-  rw [← hu, ← hw, sum_inner]
-  push_cast
-  refine Finset.sum_congr rfl fun k _ => ?_
-  rw [inner_sum]
-  refine Finset.sum_congr rfl fun l _ => ?_
-  rw [← Int.cast_smul_eq_zsmul ℝ, ← Int.cast_smul_eq_zsmul ℝ, inner_smul_left, inner_smul_right,
-    hZ]
-  simp only [conj_trivial]
-  ring
 
 end InnerProductGeometry
 
