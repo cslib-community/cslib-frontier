@@ -468,7 +468,7 @@ theorem computableInPolySpace_countAccepts [Finite Control]
       (fun p : (α × History) × List Bool =>
         accepts (fun _ _ => true) id MUnit (enc p.1.1) p.2 p.1.2)
       (encPair (encPair enc encHistory) encBits) encBool := by fun_prop
-  exact (computableInPolySpace_acceptCount hverify (hfuel')).congr fun q =>
+  exact (computableInPolySpace_acceptCount (.of_polyTime hverify) (hfuel')).congr fun q =>
     (streamAcceptCount_eq_acceptCount _ q _).symm
 
 end Count

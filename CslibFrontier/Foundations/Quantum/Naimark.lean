@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
+public import CslibFrontier.Foundations.Quantum.POVM.Restriction
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import Mathlib.LinearAlgebra.UnitaryGroup
@@ -24,7 +26,7 @@ So measuring `ψ` with `E` and measuring `ψ ⊗ |a₀⟩` with `P` give the sam
 
 The construction: `V ψ = ∑_a √E_a ψ ⊗ |a⟩` is an isometry, because `∑_a E_a = 1`; a unitary `U`
 on `ℂ^ι ⊗ ℂ^A` with `U J = V` exists, by extending the orthonormal columns of `V` to an orthonormal
-basis (`Cslib.Quantum.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩⟨a|) U`.
+basis (`Matrix.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩⟨a|) U`.
 
 ## Main definitions
 
@@ -33,9 +35,9 @@ basis (`Cslib.Quantum.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩�
 
 ## Main results
 
-* `Cslib.Quantum.exists_unitary_extension`: an isometry extends to a unitary.
 * `Cslib.Quantum.POVM.isProjective_dilate`: the dilation is projective.
 * `Cslib.Quantum.POVM.compress_dilate`: the dilation compresses to the POVM.
+* `Cslib.Quantum.POVM.restrictBasis_dilate`: restriction to the prepared ancilla recovers the POVM.
 
 ## References
 
@@ -48,38 +50,6 @@ namespace Cslib.Quantum
 
 open Matrix
 open scoped Kronecker
-
-/-- **Unitary extension of an isometry**: if the columns of `V : n × ι` are orthonormal and
-`j : ι → n` is injective, some unitary `U` has the columns of `V` at the positions `j i`. -/
-theorem exists_unitary_extension {n ι : Type*} [Fintype n] [DecidableEq n] [DecidableEq ι]
-    (V : Matrix n ι ℂ) (hV : Vᴴ * V = 1) {j : ι → n}
-    (hj : Function.Injective j) : ∃ U ∈ unitaryGroup n ℂ, ∀ k i, U k (j i) = V k i := by
-  classical
-  set v : n → EuclideanSpace ℂ n := fun m =>
-    if h : ∃ i, j i = m then WithLp.toLp 2 fun k => V k h.choose else 0
-  have hvj : ∀ i, v (j i) = WithLp.toLp 2 fun k => V k i := fun i => by
-    have h : ∃ i', j i' = j i := ⟨i, rfl⟩
-    have hc : h.choose = i := hj h.choose_spec
-    simp only [v, h, ↓reduceDIte, hc]
-  have hv' : Orthonormal ℂ fun i => v (j i) := by
-    rw [orthonormal_iff_ite]
-    intro i i'
-    have h : ∑ k, star (V k i) * V k i' = if i = i' then 1 else 0 := by
-      have := congrFun (congrFun hV i) i'
-      simpa [Matrix.mul_apply, Matrix.one_apply] using this
-    rw [hvj, hvj, ← h]
-    simp only [PiLp.inner_apply, RCLike.inner_apply]
-    exact Finset.sum_congr rfl fun k _ => mul_comm _ _
-  have hv : Orthonormal ℂ ((Set.range j).domRestrict v) := by
-    convert hv'.comp _ (Equiv.ofInjective j hj).symm.injective
-    ext1 ⟨m, hm⟩
-    simp [Equiv.apply_ofInjective_symm]
-  obtain ⟨b, hb⟩ := hv.exists_orthonormalBasis_extension_of_card_eq
-    (by rw [finrank_euclideanSpace])
-  refine ⟨(EuclideanSpace.basisFun n ℂ).toBasis.toMatrix b,
-    OrthonormalBasis.toMatrix_orthonormalBasis_mem_unitary _ _, fun k i => ?_⟩
-  rw [Module.Basis.toMatrix_apply, OrthonormalBasis.coe_toBasis_repr_apply,
-    EuclideanSpace.basisFun_repr, hb (j i) (Set.mem_range_self i), hvj]
 
 variable {ι A : Type*} [Fintype ι] [DecidableEq ι] [Fintype A] [DecidableEq A]
 
@@ -95,6 +65,20 @@ theorem conjTranspose_ancillaEmbed_mul (a₀ : A) :
   · subst h
     simp [ancillaEmbed, ite_and]
   · simp [ancillaEmbed, ite_and, h, Ne.symm h]
+
+omit [Fintype ι] [DecidableEq ι] [Fintype A] [DecidableEq A] in
+/-- The basis coordinates with the ancilla fixed to `a₀`. -/
+def ancillaBasis (a₀ : A) : ι ↪ ι × A :=
+  ⟨fun i => (i, a₀), fun _ _ h => congrArg Prod.fst h⟩
+
+/-- Compression to the prepared ancilla selects a principal submatrix. -/
+theorem compress_ancillaEmbed (a₀ : A) (M : Matrix (ι × A) (ι × A) ℂ) :
+    (ancillaEmbed a₀)ᴴ * M * ancillaEmbed a₀ =
+      M.submatrix (ancillaBasis a₀) (ancillaBasis a₀) := by
+  rw [Matrix.mul_assoc]
+  ext i j
+  change ((ancillaEmbed (ι := ι) a₀)ᴴ * (M * ancillaEmbed (ι := ι) a₀)) i j = M (i, a₀) (j, a₀)
+  simp [Matrix.mul_apply, ancillaEmbed, ite_mul, mul_ite]
 
 /-- The projection `1 ⊗ |a⟩⟨a|` onto the ancilla value `a`. -/
 def ancillaProj (a : A) : Matrix (ι × A) (ι × A) ℂ :=
@@ -242,6 +226,18 @@ theorem compress_dilate (a : A) :
   rw [dilate_effect, ← M.naimarkIsometry_compress a, ← M.naimarkUnitary_mul_ancillaEmbed a₀,
     conjTranspose_mul]
   simp only [Matrix.mul_assoc]
+
+/-- Restricting the dilation of a POVM recovers the original POVM. -/
+@[simp] theorem restrictBasis_dilate :
+    (M.dilate a₀).restrictBasis (ancillaBasis a₀) = M := by
+  have h : ((M.dilate a₀).restrictBasis (ancillaBasis a₀)).effect = M.effect := by
+    funext a
+    rw [restrictBasis_effect, ← compress_ancillaEmbed, compress_dilate]
+  generalize (M.dilate a₀).restrictBasis (ancillaBasis a₀) = N at h ⊢
+  cases N
+  cases M
+  cases h
+  rfl
 
 end POVM
 

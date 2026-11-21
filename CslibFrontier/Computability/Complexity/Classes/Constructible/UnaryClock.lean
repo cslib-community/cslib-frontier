@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Constructible
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 import CslibFrontier.Foundations.Data.Nat.Doubling
 import Mathlib.Algebra.Order.Ring.GeomSum
@@ -45,17 +46,18 @@ budget of `MultiTape.Plumbing.PrepareClock`.
 
 public section
 
-namespace Turing.MultiTapeTM.ComputableTidilyInO
+namespace Turing.MultiTapeTM.ComputableInO
 
 /-- **`c * 2 ^ l.length` in unary in linear time.** A streaming fold doubles a unary counter once
 per bit of `l`. Round `i` costs `O(c * 2 ^ i)`, so the rounds cost `O(c * 2 ^ l.length)` in total,
 plus `O(l.length)` for the scan. The tidy realization is private to this file; the public result
 is the plain preparation theorem below. -/
 private theorem mul_two_pow_length (c : ℕ) :
-    ComputableTidilyInO (fun l : List Bool => c * 2 ^ l.length) encBits encUnary
+    ComputableInO (fun l : List Bool => c * 2 ^ l.length) encBits encUnary
       (fun l => c * 2 ^ l.length + l.length) fun l => c * 2 ^ l.length + l.length := by
-  obtain ⟨c₀, hstep, -⟩ := ((ComputableInDegree.unaryAdd (ComputableInDegree.fst encUnary encBool)
-    (ComputableInDegree.fst encUnary encBool) le_rfl le_rfl).inO_one).tidy
+  obtain ⟨c₀, hstep, -⟩ := Internal.NormalForm.inO
+    ((ComputableInDegree.unaryAdd (ComputableInDegree.fst encUnary encBool)
+      (ComputableInDegree.fst encUnary encBool) le_rfl le_rfl).inO_one)
   have hstate (l : List Bool) (i : ℕ) (hi : i ≤ l.length) :
       (encUnary ((l.take i).foldl (fun m _ => m + m) c)).length = c * 2 ^ i := by
     rw [List.foldl_add_self_eq_mul_two_pow, encUnary_apply, List.length_replicate, List.length_take,
@@ -79,8 +81,8 @@ private theorem mul_two_pow_length (c : ℕ) :
     (fun l i hi => by
       rw [hstate l i hi]
       exact Nat.mul_le_mul_left c (Nat.pow_le_pow_right (by norm_num) hi))
-  refine of_bounds (hK.of_enc_eq (g := fun l : List Bool => c * 2 ^ l.length)
-    fun l => by rw [List.foldl_add_self_eq_mul_two_pow])
+  simp only [List.foldl_add_self_eq_mul_two_pow] at hK
+  refine of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hK)
     (K * (5 * c₀ + 5) + K * (3 * c₀ + 3) + 1) (fun l => ?_) (fun l => ?_) fun l => ?_
   · have hsum : ∑ i ∈ Finset.range l.length, 2 ^ i < 2 ^ l.length :=
       Nat.geomSum_lt le_rfl fun _ => Finset.mem_range.1
@@ -115,7 +117,7 @@ private theorem mul_two_pow_length (c : ℕ) :
     calc c * 2 ^ l.length ≤ 1 * (c * 2 ^ l.length + l.length + 1) := by omega
       _ ≤ _ := Nat.mul_le_mul_right _ (by omega)
 
-end Turing.MultiTapeTM.ComputableTidilyInO
+end Turing.MultiTapeTM.ComputableInO
 
 namespace Cslib.Complexity
 
@@ -123,16 +125,16 @@ open Turing Turing.MultiTapeTM
 
 /-- The unary clock word of `c * 2 ^ Nat.size (T n)` true bits, tidily within time and space
 `O(T n)`. -/
-private theorem TimeConstructible.computableTidilyInO_unaryClock {T : ℕ → ℕ}
+theorem TimeConstructible.computableInO_unaryClock {T : ℕ → ℕ}
     (hT : TimeConstructible T) (c : ℕ) :
-    ComputableTidilyInO (fun x : List Bool => List.replicate (c * 2 ^ Nat.size (T x.length)) true)
+    ComputableInO (fun x : List Bool => List.replicate (c * 2 ^ Nat.size (T x.length)) true)
       encBits encBits (fun x => T x.length) fun x => T x.length := by
-  have hbits : ComputableTidilyInO (fun x : List Bool => encNat (T x.length)) encBits encBits
+  have hbits : ComputableInO (fun x : List Bool => encNat (T x.length)) encBits encBits
       (fun x => T x.length) fun x => T x.length :=
-    hT.computableInO.tidy.of_enc_eq fun _ => rfl
-  have hclock := ((ComputableTidilyInO.mul_two_pow_length c).comp hbits).of_enc_eq
+    hT.computableInO.of_enc_eq fun _ => rfl
+  have hclock := ((ComputableInO.mul_two_pow_length c).comp hbits).of_enc_eq
     (g := fun x : List Bool => List.replicate (c * 2 ^ Nat.size (T x.length)) true)
-    (encOut := encBits) fun x => by
+    (encC := encBits) fun x => by
       simp [encUnary_apply, encNat_apply, Nat.size_eq_bits_len]
   have hdigits (m : ℕ) : (encNat m).length = Nat.size m := by
     rw [encNat_apply, Nat.size_eq_bits_len]
@@ -147,16 +149,6 @@ private theorem TimeConstructible.computableTidilyInO_unaryClock {T : ℕ → �
     omega
   exact hclock.mono (2 * c + 2) hlinear hlinear
 
-/-- **A unary clock word within linear time.** For a time-constructible `T` and a constant `c`, the
-word of `c * 2 ^ Nat.size (T n)` true bits is computable within time and space `O(T n)` on inputs
-of length `n`. It has between `c * (T n + 1)` and `c * (2 * T n + 1)` bits (`Nat.lt_size_self`,
-`Nat.two_pow_size_le`). -/
-theorem TimeConstructible.computableInO_unaryClock {T : ℕ → ℕ} (hT : TimeConstructible T)
-    (c : ℕ) :
-    ComputableInO (fun x : List Bool => List.replicate (c * 2 ^ Nat.size (T x.length)) true)
-      encBits encBits (fun x => T x.length) fun x => T x.length :=
-  (hT.computableTidilyInO_unaryClock c).computableInO
-
 /-- **A unary clock of linear length.** For a time-constructible `T` and a constant `c`, one
 deterministic machine with finitely many states writes `c * 2 ^ Nat.size (T n)` true cells on its
 last work tape within `C * T n + C` steps, on every input of length `n`. It halts with every other
@@ -169,7 +161,8 @@ theorem TimeConstructible.exists_prepare_unaryClock {T : ℕ → ℕ} (hT : Time
       machine.runFrom (machine.initCfg input) (C * T input.length + C) =
         wordsCfg input none (Function.update (fun _ => []) (Fin.last r)
           (List.replicate (c * 2 ^ Nat.size (T input.length)) true)) [] := by
-  obtain ⟨c₁, ⟨r, State, hfinite, machine, hmachine⟩, -⟩ := hT.computableTidilyInO_unaryClock c
+  obtain ⟨c₁, ⟨r, State, hfinite, machine, hmachine⟩, -⟩ :=
+    Internal.NormalForm.inO (hT.computableInO_unaryClock c)
   refine ⟨r, State ⊕ RewindWorkState, inferInstance, machine.outputToWord, c₁ + 2 * c + 2,
     fun input => ?_⟩
   have hbound : c₁ * (T input.length + 1) +

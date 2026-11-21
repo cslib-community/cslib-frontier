@@ -34,6 +34,8 @@ on, in post-order.
 
 * `Cslib.Logic.PL.CNF.Derivation.checkLRAT_toLRAT`: the checker accepts the certificate of a
   tree-like refutation.
+* `Cslib.Logic.PL.CNF.Derivation.size_toLRAT`: the certificate of a tree-like refutation has one
+  step for each leaf: a RUP step for each resolution step, and the final empty-clause step.
 -/
 
 @[expose] public section
@@ -98,6 +100,25 @@ def toLRAT (d : φ.Derivation []) : Array LRAT.IntAction :=
   let r := d.lratSteps (φ.length + 1)
   (r.actions ++ [Std.Tactic.BVDecide.LRAT.Action.addEmpty r.next #[r.id]]).toArray
 
+
+/-- The steps of the certificate of a tree-like derivation: one for each resolution step, so one
+fewer than its leaves. -/
+private theorem length_actions_lratSteps_add_one : {c : Clause ℕ} → (d : φ.Derivation c) → (k : ℕ) →
+    (d.lratSteps k).actions.length + 1 = d.toDecisionTree.leafCount
+  | _, mem _, _ => rfl
+  | _, resolvent _ d₁ d₂ _ _, k => by
+    have h₁ := d₁.length_actions_lratSteps_add_one k
+    have h₂ := d₂.length_actions_lratSteps_add_one (d₁.lratSteps k).next
+    simp only [lratSteps, toDecisionTree, DecisionTree.leafCount, List.length_append,
+      List.length_singleton]
+    omega
+
+/-- **The certificate of a tree-like refutation has one step for each of its leaves**: a RUP step
+for each resolution step, and the final empty-clause step. -/
+theorem size_toLRAT (d : φ.Derivation []) : d.toLRAT.size = d.toDecisionTree.leafCount := by
+  simp only [toLRAT, List.size_toArray, List.length_append, List.length_singleton]
+  exact d.length_actions_lratSteps_add_one _
+
 end Derivation
 
 /-! ### The checker accepts the certificate -/
@@ -126,7 +147,8 @@ theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : 
     · subst hlv
       simp [Std.Sat.Literal.negate]
     · simp [hT l (Clause.mem_resolvent.2 (.inr ⟨hl, hlv⟩))]
-  simp only [propagateHints, h₁]
+  rw [propagateHints_cons]
+  simp only [h₁]
   split
   · rfl
   · rename_i l ls hls
@@ -134,7 +156,9 @@ theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : 
     have hall : ls.all (· == l) = true := List.all_eq_true.2 fun l' hl' => by
       simp [hl, hopen l' (hls ▸ List.mem_cons_of_mem _ hl')]
     subst hl
-    simp only [hall, ↓reduceIte, h₂, hclosed]
+    simp only [hall, ↓reduceIte]
+    rw [propagateHints_cons]
+    simp only [h₂, hclosed]
 
 /-- A database that numbers every clause of the formula as `checkLRAT` does, and every other
 entry below `k`. -/
@@ -207,14 +231,18 @@ private theorem find?_zipIdx_idxOf {c : Clause ℕ} :
 
 /-- **The checker accepts the certificate of every tree-like refutation.** -/
 theorem Derivation.checkLRAT_toLRAT (d : φ.Derivation []) : φ.checkLRAT d.toLRAT = true := by
-  have hgood : LRATGood φ (φ.length + 1) ((φ.zipIdx).map fun e => (e.2 + 1, e.1)) := by
-    refine ⟨fun e he => ?_, fun c hc => by simpa using find?_zipIdx_idxOf φ 0 hc⟩
-    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+  have hgood : LRATGood φ (φ.length + 1) φ.lratDB := by
+    refine ⟨fun e he => ?_, fun c hc => by
+      have := find?_zipIdx_idxOf φ 0 hc
+      simp only [Nat.add_zero] at this
+      exact this⟩
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
     have := List.snd_lt_add_of_mem_zipIdx hp
     simp only at this ⊢
     omega
   obtain ⟨db, hrun, hid, -, -, -, -⟩ := d.checkLRATAux_lratSteps _ _ (by omega) hgood
-  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints, hid]
+  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints_cons,
+    hid]
   rfl
 
 end CNF

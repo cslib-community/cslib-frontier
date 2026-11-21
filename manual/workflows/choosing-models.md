@@ -33,9 +33,9 @@ for empty index/value types and the required callback certificates. Import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePiPrimitives`
 for this plain API. Its computed-index rules use the captured-input dispatch theorem in
 [PolyTimeFinitePrimitives.lean](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/PolyTimeFinitePrimitives.lean).
-The regression rejects imports of the higher tidy calculus; the tidy-facing
-`Complexity.PolyTime.Finite` module re-exports the same plain dispatch theorem and adds its tidy
-specialization. The plain `Complexity.Degree.Primitives` entry point registers
+The regression rejects imports of the higher tidy calculus;
+`Complexity.PolyTime.Finite` re-exports the same plain dispatch theorem. The plain
+`Complexity.Degree.Primitives` entry point registers
 `ComputableInDegree` for `fun_prop`; extracted list rules do not require `Quantitative`
 to enable automation.
 

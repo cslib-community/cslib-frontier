@@ -451,8 +451,31 @@ theorem computableInPolyTime_rompelBaseEvalWord {g : List Bool → List Bool} {o
     (houtLen : ComputableInPolyTime outLen encUnary encUnary) :
     ComputableInPolyTime (fun p : ℕ × List Bool => rompelBaseEvalWord g outLen p.1 p.2)
       (encPair encUnary encBits) encBits := by
-  simp only [rompelBaseEvalWord, rompelSeedWidth]
-  fun_prop
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hz := ComputableInPolyTime.snd encUnary encBits
+  have hm := houtLen.comp hn
+  have hs : ComputableInPolyTime (fun p : ℕ × List Bool => rompelSeedWidth p.1 (outLen p.1))
+      (encPair encUnary encBits) encUnary :=
+    ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_mul' hn hm) hn
+  have hx := ComputableInPolyTime.bitsRowWithInput hn (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput hz hn)
+  have hrest := ComputableInPolyTime.bitsDropWithInput hz hn
+  have hseed := ComputableInPolyTime.bitsRowWithInput hs (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput hrest hs)
+  have ht : ComputableInPolyTime (fun p : ℕ × List Bool => rompelTruncWidth p.1)
+      (encPair encUnary encBits) encUnary :=
+    ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_log_two.comp hn) (.const 1)
+  have hrBits := ComputableInPolyTime.bitsRowWithInput ht (.const 0)
+    (ComputableInPolyTime.bitsDropWithInput hrest hs)
+  have hr := ComputableInPolyTime.bitsBoundedBinaryValueWithInput hn hrBits
+  have hgx := ComputableInPolyTime.bitsRowWithInput hm (.const 0) (hg.comp hx)
+  have hhash := computableInPolyTime_wordAffineHash hn hseed hgx
+  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hseed hrBits)
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsTakeWithInput hhash hr)
+      ((ComputableInPolyTime.bitsReplicate false).comp
+        (ComputableInPolyTime.unary_sub' hn hr)))
 
 /-! ### Accessible preimage sets $L_{0, c}$ and the OWF inverter reduction (Claim 4.6) -/
 
@@ -543,8 +566,22 @@ theorem isPPT_rompelBaseInverter {g : List Bool → List Bool} {outLen : ℕ →
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by unfold rompelSeedWidth; fun_prop)).bind_with ?_
-  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
-    (ComputableInPolyTime.isPPTOn (by fun_prop))
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits)
+  have hparameter := hp.fst'.fst'.fst'.fst'
+  have hm := houtLen.comp hparameter
+  have hx := hp.fst'.fst'.snd'
+  have hrBits := hp.fst'.snd'
+  have hadjust := computableInPolyTime_wordAdjustAffineSeed hparameter hm
+    (ComputableInPolyTime.bitsBoundedBinaryValueWithInput hparameter hrBits)
+    hp.fst'.fst'.fst'.snd' (hg.comp hx) hp.snd'
+  have hprepare := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend hx hadjust) hrBits
+  have hresult := ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.snd _ encBits)
+    (hparameter.comp (ComputableInPolyTime.fst _ encBits))
+  simpa only [bind_pure_comp, Function.comp_def] using
+    (hA.preprocess hparameter hprepare).map_with hresult
 
 private def rompelTupleEquiv (n m : ℕ) :
     (BitString n × ((Fin n → BitString m) × BitString n) × BitString (rompelTruncWidth n)) ≃

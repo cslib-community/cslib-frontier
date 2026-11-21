@@ -8,7 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+public import CslibFrontier.Foundations.Data.Nat.FindCode
 public import Mathlib.Data.Nat.Prime.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FindCode
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -100,8 +103,7 @@ private theorem trialStep_inSpace :
   have hmod := budget_natMod hn hd
   have hnz := budget_finite (encC := encBool) not (budget_natIsZero hmod)
   have hpass := budget_ite hlt hnz (budget_const true (.refl _))
-  have hacc := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
-    (budget_prod hgood hpass)
+  have hacc := budget_boolAnd hgood hpass
   refine (budget_prod hn (budget_prod (budget_natSucc hd) hacc)).of_enc_eq ?_
   intro q
   by_cases h : q.2.1 < q.1 <;> simp [trialStep, h]
@@ -135,58 +137,30 @@ theorem isPrime_inSpace :
           simp [hn, htwo]
         · have htwo : 2 ≤ n := by omega
           simp [hn, htwo]
-  exact (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
-    (budget_prod hlo htrial)).of_enc_eq fun _ => rfl
-
-/-- Candidate and the first prime found, with zero standing for no answer yet. -/
-abbrev SearchState := ℕ × ℕ
-
-/-- Binary candidate cursor and retained first-prime answer. -/
-abbrev encSearchState : SearchState ↪ List Bool := encPair encNat encNat
-
-/-- Move to the next candidate, retaining the first prime once it has been found. -/
-@[expose] def searchStep (q : SearchState) : SearchState :=
-  (q.1 + 1, if q.2 = 0 then if isPrime q.1 then q.1 else 0 else q.2)
+  exact (budget_boolAnd hlo htrial).of_enc_eq fun _ => rfl
 
 /-- Search a bounded number of candidates, without materializing their list. -/
 @[expose] def boundedFirstPrime (lower bound : ℕ) : ℕ :=
-  (searchStep^[bound + 1] (lower, 0)).2
-
-private theorem searchStep_found (q p k : ℕ) (hp : p ≠ 0) :
-    searchStep^[k] (q, p) = (q + k, p) := by
-  induction k with
-  | zero => simp
-  | succ k ih =>
-    rw [Function.iterate_succ_apply', ih]
-    simp only [searchStep, hp, ↓reduceIte, Prod.mk.injEq, and_true]
-    omega
-
-private theorem searchStep_before (lower p : ℕ) (hlo : lower ≤ p)
-    (hmin : ∀ q, lower ≤ q → q < p → ¬q.Prime) (j : ℕ) (hj : j ≤ p - lower) :
-    searchStep^[j] (lower, 0) = (lower + j, 0) := by
-  induction j with
-  | zero => simp
-  | succ j ih =>
-    rw [Function.iterate_succ_apply', ih (by omega)]
-    have hnot := hmin (lower + j) (by omega) (by omega)
-    simp only [searchStep, isPrime_eq, hnot, decide_false, Bool.false_eq_true,
-      ↓reduceIte, Prod.mk.injEq, and_true]
-    omega
+  (Cslib.findCode isPrime lower (bound + 1)).getD 0
 
 /-- A bounded search returns the least prime at or above its lower bound, provided the bound
 covers that prime. The search uses `bound + 1` candidates starting at `lower`. -/
 theorem boundedFirstPrime_eq (lower bound p : ℕ) (hlo : lower ≤ p) (hbound : p ≤ bound)
     (hp : p.Prime) (hmin : ∀ q, lower ≤ q → q < p → ¬q.Prime) :
     boundedFirstPrime lower bound = p := by
-  have hbefore := searchStep_before lower p hlo hmin (p - lower) le_rfl
-  have hat : searchStep^[p - lower + 1] (lower, 0) = (p + 1, p) := by
-    rw [Function.iterate_succ_apply', hbefore]
-    have heq : lower + (p - lower) = p := by omega
-    simp only [heq, searchStep, isPrime_eq, hp, decide_true, ↓reduceIte]
-  have hclock : bound + 1 = (bound - (p - lower)) + (p - lower + 1) := by omega
-  unfold boundedFirstPrime
-  rw [hclock, Function.iterate_add_apply, hat,
-    searchStep_found (p + 1) p _ hp.ne_zero]
+  have hi : p - lower < (List.range' lower (bound + 1)).length := by
+    simp only [List.length_range']
+    omega
+  have hp' : (List.range' lower (bound + 1)).find? isPrime = some p := by
+    refine List.find?_eq_some_iff_getElem.mpr ⟨?_, p - lower, hi, ?_, ?_⟩
+    · simp [isPrime_eq, hp]
+    · rw [List.getElem_range']
+      omega
+    · intro j hj
+      rw [List.getElem_range', isPrime_eq]
+      have hnot := hmin (lower + j) (by omega) (by omega)
+      simp [hnot]
+  simp [boundedFirstPrime, Cslib.findCode_eq, hp']
 
 /-- The bounded implementation agrees with `Nat.find` rather than merely returning some prime. -/
 theorem boundedFirstPrime_eq_find (lower bound : ℕ)
@@ -198,56 +172,15 @@ theorem boundedFirstPrime_eq_find (lower bound : ℕ)
   have hmin := Nat.find_min' h ⟨hlo, hprime⟩
   omega
 
-private theorem searchStep_inSpace :
-    ComputableInSpace searchStep encSearchState encSearchState
-      (fun q => (encSearchState q).length) := by
-  have hq := fst encNat encNat
-  have hfound := snd encNat encNat
-  have hz := budget_natIsZero hfound
-  have hp := budget_comp_linear isPrime_inSpace hq
-  have hanswer := budget_ite hz
-    (budget_ite hp hq (budget_const (encB := encNat) 0 (.refl _))) hfound
-  refine (budget_prod (budget_natSucc hq) hanswer).of_enc_eq ?_
-  intro q
-  by_cases hz : q.2 = 0 <;> simp [searchStep, hz]
-
-private theorem searchStep_bounds (lower j : ℕ) :
-    (searchStep^[j] (lower, 0)).1 = lower + j ∧
-      (searchStep^[j] (lower, 0)).2 ≤ lower + j := by
-  induction j with
-  | zero => simp
-  | succ j ih =>
-    rw [Function.iterate_succ_apply']
-    obtain ⟨hq, hf⟩ := ih
-    constructor
-    · change (searchStep^[j] (lower, 0)).1 + 1 = lower + (j + 1)
-      omega
-    · change (if (searchStep^[j] (lower, 0)).2 = 0 then
-        if isPrime (searchStep^[j] (lower, 0)).1 then (searchStep^[j] (lower, 0)).1 else 0
-        else (searchStep^[j] (lower, 0)).2) ≤ lower + (j + 1)
-      split_ifs <;> omega
-
 /-- Both search counters are binary and the primality test is uniform in the candidate. -/
 theorem boundedFirstPrime_inSpace :
     ComputableInSpace (fun q : ℕ × ℕ => boundedFirstPrime q.1 q.2)
       (encPair encNat encNat) encNat (fun q => (encPair encNat encNat q).length) := by
-  have hlo := fst encNat encNat
-  have hb := snd encNat encNat
-  have hn := budget_natSucc hb
-  have hinit := budget_prod hlo (budget_const (encB := encNat) 0 (.refl _))
-  have hstates (q : ℕ × ℕ) (k : ℕ) (hk : k ≤ q.2 + 1) :
-      (encSearchState (searchStep^[k] (q.1, 0))).length ≤
-        16 * ((encPair encNat encNat q).length + 1) := by
-    obtain ⟨hcursor, hfound⟩ := searchStep_bounds q.1 k
-    have hqbound := length_encNat_mono (show q.1 + k ≤ q.1 + q.2 + 1 by omega)
-    have hfbound := length_encNat_mono hfound
-    have hsum := length_encNat_add_le_add q.1 q.2
-    have hsucc := length_encNat_add_le_add (q.1 + q.2) 1
-    have hone : (encNat 1).length = 1 := rfl
-    enc_len [encSearchState, hcursor] at *
-  have hrun := budget_iterate hn hinit searchStep_inSpace hstates
-    (.of_le_linear 16 16 fun _ => le_rfl)
-  exact (snd' hrun).of_enc_eq fun _ => rfl
+  have htest := budget_comp_linear isPrime_inSpace (snd encUnit encNat)
+  have hargs := budget_prod (budget_const (encB := encUnit) () (.refl _))
+    (budget_prod (fst encNat encNat) (budget_natSucc (snd encNat encNat)))
+  have hrun := budget_comp_linear (ComputableInSpace.findCode htest) hargs
+  exact (budget_optionGetD 0 hrun).of_enc_eq fun _ => rfl
 
 end PrimeSearch
 
