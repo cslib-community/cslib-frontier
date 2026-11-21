@@ -93,6 +93,24 @@ theorem justesenWeightedSubdivisionCallback_parts_inSpace (ntm : MultiTapeNTM k 
     (encSeedSearchParameters_graph_budget hp)
     (encJustesenSubdivisionContext_rank_budget hid) hwidth hsize hbit
 
+/-- At valid scan IDs, every live callback state through return fits the encoded retained
+context plus logarithmic overhead in the original input length. -/
+theorem configurationJustesenWeightedSubdivisionCallback_states_le
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ (w : List Bool) (ctx : JustesenSubdivisionContext),
+      ctx.parameters.graph = layeredParameters ntm c w.length →
+      ∀ (u v : ℕ),
+        let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+        u < size.vertexCount → v < size.vertexCount →
+        let q : FlatQuery JustesenSubdivisionContext := ⟨ctx, size.chainBound, u, v⟩
+        let M := justesenWeightedSubdivisionCallback ntm
+        ∀ t ≤ 3,
+          (encCallback encJustesenSubdivisionContext encLayeredCallback
+            (M.runFrom w (flatCallbackStart q) t)).length ≤
+            C * ((encJustesenSubdivisionContext ctx).length + (Nat.log2 w.length + 1)) :=
+  configurationWeightedSubdivisionCallback_states_le ntm c encJustesenSubdivisionContext
+    (fun ctx => ctx.parameters.graph) JustesenSubdivisionContext.rank seedWidth codeBit
+
 /-- At valid initialized scan IDs and a valid candidate rank, the first halt returns the
 generated subdivision edge. The retained field context is the one for the initial graph. -/
 theorem configurationJustesenWeightedSubdivisionCallback_agrees
