@@ -130,4 +130,35 @@ theorem bivariateCoeffNorm1_prod_le {κ : Type*} (I : Finset κ)
   le_prod_of_submultiplicative bivariateCoeffNorm1 bivariateCoeffNorm1_one.le
     bivariateCoeffNorm1_mul_le I F
 
+/-- Specializing the outer variable at an integer increases the coefficient norm by at most
+the absolute value of the integer raised to the outer degree. -/
+theorem coeffNorm1_eval_C_le (P : Polynomial (Polynomial ℤ)) (a : ℤ) (ha : 1 ≤ a.natAbs) :
+    (P.eval (C a)).coeffNorm1 ≤ P.bivariateCoeffNorm1 * a.natAbs ^ P.natDegree := by
+  rw [eval_eq_sum, Polynomial.sum]
+  refine (coeffNorm1_sum_le _ _).trans ?_
+  calc
+    _ ≤ ∑ i ∈ P.support, (P.coeff i).coeffNorm1 * a.natAbs ^ P.natDegree := by
+      apply sum_le_sum
+      intro i hi
+      rw [← map_pow, mul_comm (P.coeff i)]
+      calc
+        _ ≤ (a ^ i).natAbs * (P.coeff i).coeffNorm1 := coeffNorm1_C_mul_le _ _
+        _ ≤ _ := by
+          rw [Int.natAbs_pow, mul_comm (a.natAbs ^ i)]
+          exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right ha (le_natDegree_of_mem_supp i hi))
+    _ = _ := by rw [← sum_mul, bivariateCoeffNorm1]
+
+/-- Specializing the coefficient variable increases the norm by at most the absolute
+value of the specialization raised to a uniform bound on its degree in the coefficients. -/
+theorem coeffNorm1_map_evalRingHom_le (P : Polynomial (Polynomial ℤ)) (a : ℤ)
+    (ha : 1 ≤ a.natAbs) {D : ℕ} (hD : ∀ i, (P.coeff i).natDegree ≤ D) :
+    (P.map (evalRingHom a)).coeffNorm1 ≤ P.bivariateCoeffNorm1 * a.natAbs ^ D := by
+  rw [coeffNorm1_eq_sum_of_support_subset (support_map_subset _ _)]
+  simp only [coeff_map, coe_evalRingHom]
+  calc
+    _ ≤ ∑ i ∈ P.support, (P.coeff i).coeffNorm1 * a.natAbs ^ D := by
+      refine sum_le_sum fun i _ => (natAbs_eval_le_coeffNorm1 _ a ha).trans ?_
+      exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right ha (hD i))
+    _ = _ := by rw [← sum_mul, bivariateCoeffNorm1]
+
 end Polynomial

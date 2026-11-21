@@ -91,7 +91,7 @@ private theorem costs_expandSigningRetries (K : ℕ)
       cases q <;> simp [hashCost]))
 
 /-- The largest atom of `HighBits(A y)` when `y` is one ideal signing mask. -/
-noncomputable def commitmentGuessProbability (hγ : 0 < P.γ₁)
+@[expose] noncomputable def commitmentGuessProbability (hγ : 0 < P.γ₁)
     (A : Matrix (Fin P.k) (Fin P.ℓ) (Fin P.n → ZMod P.q)) : ℝ≥0∞ :=
   ⨆ w, ((signingMaskLaw P hγ).map fun y => highBitsVec P (moduleSISMap A y)) w
 
