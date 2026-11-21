@@ -8,6 +8,8 @@ module
 -- upstream: local-only (ordinary clients of prescribed reference-star geometry)
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
 import Mathlib.Tactic.NormNum
 
 /-! Ordinary clients retain both loop ends, parallel occurrences and a fixed isolated center.
@@ -100,5 +102,44 @@ example :
   dsimp only
   apply referenceDrawing_subdivisionDart_germ_ne_zero
   exact validate_eq_true_iff _ |>.mp (by decide +kernel)
+
+private def doubleLoop : FixedRotationInput :=
+  ⟨⟨[0], [(0, 0), (0, 0)]⟩, [some [2, 3, 0, 1]]⟩
+
+private def firstLoop : Fin doubleLoop.graph.edges.length := ⟨0, by decide⟩
+private def secondLoop : Fin doubleLoop.graph.edges.length := ⟨1, by decide⟩
+
+-- The order crosses the cut in the prescribed word and preserves both ends of the first loop.
+example :
+    ∃ D : PolygonalDrawing doubleLoop.graph, D.IsEmbedding ∧
+      sbtw (((D.cutPort 1 (secondLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle)
+        (((D.cutPort 1 (firstLoop, true) - D.vertex 0).arg : ℝ) : Real.Angle)
+        (((D.cutPort 1 (firstLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle) := by
+  have hI : Valid doubleLoop := (validate_eq_true_iff _).mp (by decide +kernel)
+  let c : RotationCertificate := ⟨[1, 2, 3, 0]⟩
+  have hrot : RotationCertificate.verifyRotation doubleLoop.graph c = true := by decide +kernel
+  let r := RotationCertificate.decode doubleLoop.graph c hrot
+  have hfix : Realizes doubleLoop r := verifyFixed_realizes hrot (by decide +kernel)
+  have hg : r.NumericalGenusZero :=
+    (RotationCertificate.verifyEuler_eq_true_iff hrot).mp (by decide +kernel)
+  have hloop : ∀ e : Fin doubleLoop.graph.edges.length,
+      Dart.vertex (e, false) = Dart.vertex (e, true) := by decide +kernel
+  let D := PolygonalDrawing.bouquet r hloop
+  have hends : ∀ v ∈ doubleLoop.graph.incidenceVertices, v ∈ doubleLoop.graph.vertices := by
+    intro v hv
+    simpa [doubleLoop, incidenceVertices] using hv
+  have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r hends hg hloop
+  refine ⟨D, hD, ?_⟩
+  have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
+  have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
+    hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
+    (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)
+  apply a.mpr
+  apply (referenceDrawing_fixedWord_clockwise_iff hI hw
+    (a := (firstLoop, false)) (b := (firstLoop, true)) (c := (secondLoop, false))
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)).mpr
+  decide +kernel
 
 end Cslib.Tests.RotationReferenceStar

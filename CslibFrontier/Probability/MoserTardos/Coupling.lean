@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Probability.CorrelatedSampling
+public import CslibFrontier.Probability.CorrelatedSampling.SharedSeed
 public import CslibFrontier.Probability.MoserTardos
 import CslibFrontier.Foundations.Probability.InfinitePi
 import CslibFrontier.Probability.PMF.Event
@@ -50,7 +50,8 @@ The statement and its proof route are original (cslib-frontier issue #6718).
 * `Cslib.Probability.MoserTardos.Diverge`: the two runs' logs or assignments differ at some step.
 * `Cslib.Probability.MoserTardos.AgreeGood`: both runs stop at the same step with the same
   assignment, which avoids every event.
-* `Cslib.Probability.MoserTardos.correlatedCoupling`: the coupling given by correlated sampling.
+* `Cslib.Probability.MoserTardos.correlatedCoupling`: the coupling given by Holenstein's correlated
+  sampling from a distribution-independent seed.
 
 ## Main results
 
@@ -80,10 +81,18 @@ The statement and its proof route are original (cslib-frontier issue #6718).
 The coordinates take values in countable types with the discrete measurable structure, so every
 event determined by finitely many table entries is measurable (by a private lemma) and the rule
 needs no measurability assumption. The event `AgreeGood` need not be measurable; its complement
-is bounded through `measure_mono_ae`, which holds for outer measure. The seed of
-`correlatedCoupling` is the library's finite correlated sampling, whose law is built from both
-`P v` and `Q v`. A protocol in which each party needs only its own distribution is milestone 2 of
-#6718. The divergence and output bounds use no hypothesis on `Q`: they need only the first run's
+is bounded through `measure_mono_ae`, which holds for outer measure.
+
+`correlatedCoupling` is Holenstein's protocol (`Cslib.Probability.CorrelatedSampling.seed`): the
+seed at each table entry is a sequence of uniform points of `α v × [0, 1]` whose law depends only
+on `α v`, and each run computes its sample from the seed and its own distribution alone. So the
+two runs can be carried out by parties who share the seed table but each know only their own
+distributions. The coupling's marginal and termination results (`correlatedCoupling_map_fst`,
+`correlatedCoupling_map_snd`, `correlated_ae_terminate`) assume that each alphabet has measurable
+singletons (`MeasurableSingletonClass`), which the protocol uses for the measurability of its graph
+regions; the discrete measurable structure on a finite alphabet satisfies it.
+
+The divergence and output bounds use no hypothesis on `Q`: they need only the first run's
 expected sample counts, and the second run stops whenever the runs agree. Almost-sure termination
 of both runs (`coupledTable_ae_terminate`) does need the local-lemma hypothesis for `Q` as well.
 
@@ -667,59 +676,69 @@ section Correlated
 variable {V ι : Type*} [Fintype V] [DecidableEq V] {α : V → Type*} [∀ v, Fintype (α v)]
   [∀ v, MeasurableSpace (α v)] [∀ v, MeasurableSingletonClass (α v)]
 
-/-- The **correlated-sampling coupling** of `P v` and `Q v`: both parties read one shared seed of
-correlated sampling (`Cslib.Probability.CorrelatedSampling`) and output their own samples. -/
-noncomputable def correlatedPair (P Q : ∀ v, PMF (α v)) (v : V) : PMF (α v × α v) :=
-  (CorrelatedSampling.shared ![P v, Q v]).map fun l =>
-    (CorrelatedSampling.sample ![P v, Q v] 0 l, CorrelatedSampling.sample ![P v, Q v] 1 l)
-
-/-- The correlated-sampling coupling as a measure. -/
+/-- The **correlated-sampling coupling** of `P v` and `Q v`, by Holenstein's protocol
+(`Cslib.Probability.CorrelatedSampling.seed`): both parties read one shared seed, a sequence of
+uniform points of `α v × [0, 1]` whose law depends only on `α v`, and each computes its sample
+from the seed and its own distribution alone (`Cslib.Probability.CorrelatedSampling.seedSample`).
+The `Nonempty` instance needed for the seed is a proposition, so it does not make the seed
+depend on `P`. -/
 noncomputable def correlatedCoupling (P Q : ∀ v, PMF (α v)) (v : V) : Measure (α v × α v) :=
-  (correlatedPair P Q v).toMeasure
+  haveI : Nonempty (α v) := ⟨(P v).support_nonempty.some⟩
+  (CorrelatedSampling.seed (α v)).map fun ω =>
+    (CorrelatedSampling.seedSample (P v) ω, CorrelatedSampling.seedSample (Q v) ω)
+
+omit [Fintype V] [DecidableEq V] [∀ v, Fintype (α v)] in
+private theorem measurable_seedSample_prod [∀ v, Finite (α v)] (P Q : ∀ v, PMF (α v)) (v : V)
+    [Nonempty (α v)] :
+    Measurable fun ω =>
+      (CorrelatedSampling.seedSample (P v) ω, CorrelatedSampling.seedSample (Q v) ω) :=
+  (CorrelatedSampling.measurable_seedSample _).prodMk (CorrelatedSampling.measurable_seedSample _)
 
 instance (P Q : ∀ v, PMF (α v)) (v : V) : IsProbabilityMeasure (correlatedCoupling P Q v) := by
-  unfold correlatedCoupling
-  infer_instance
+  have : Nonempty (α v) := ⟨(P v).support_nonempty.some⟩
+  exact (Measure.isProbabilityMeasure_map_iff
+    (measurable_seedSample_prod P Q v).aemeasurable).2 inferInstance
 
-omit [Fintype V] [DecidableEq V] [∀ v, MeasurableSingletonClass (α v)] in
-/-- The first party samples from `P v`. -/
+omit [Fintype V] [DecidableEq V] in
+/-- The first party samples from `P v`. Each alphabet `α v` has measurable singletons
+(`MeasurableSingletonClass`), which Holenstein's protocol uses for the measurability of its graph
+regions. -/
 theorem correlatedCoupling_map_fst (P Q : ∀ v, PMF (α v)) (v : V) :
     (correlatedCoupling P Q v).map Prod.fst = (P v).toMeasure := by
-  rw [correlatedCoupling, PMF.toMeasure_map (hf := measurable_fst), correlatedPair, PMF.map_comp]
-  have := CorrelatedSampling.map_sample (P := ![P v, Q v]) 0
-  simp only [Matrix.cons_val_zero] at this
-  exact congrArg PMF.toMeasure this
+  have : Nonempty (α v) := ⟨(P v).support_nonempty.some⟩
+  rw [correlatedCoupling, Measure.map_map measurable_fst (measurable_seedSample_prod P Q v)]
+  exact CorrelatedSampling.map_seedSample (P v)
 
-omit [Fintype V] [DecidableEq V] [∀ v, MeasurableSingletonClass (α v)] in
-/-- The second party samples from `Q v`. -/
+omit [Fintype V] [DecidableEq V] in
+/-- The second party samples from `Q v`. Each alphabet `α v` has measurable singletons
+(`MeasurableSingletonClass`), as in `correlatedCoupling_map_fst`. -/
 theorem correlatedCoupling_map_snd (P Q : ∀ v, PMF (α v)) (v : V) :
     (correlatedCoupling P Q v).map Prod.snd = (Q v).toMeasure := by
-  rw [correlatedCoupling, PMF.toMeasure_map (hf := measurable_snd), correlatedPair, PMF.map_comp]
-  have := CorrelatedSampling.map_sample (P := ![P v, Q v]) 1
-  simp only [Matrix.cons_val_one] at this
-  exact congrArg PMF.toMeasure this
+  have : Nonempty (α v) := ⟨(P v).support_nonempty.some⟩
+  rw [correlatedCoupling, Measure.map_map measurable_snd (measurable_seedSample_prod P Q v)]
+  exact CorrelatedSampling.map_seedSample (Q v)
 
 open scoped Cslib.Probability.PMF in
 omit [Fintype V] [DecidableEq V] in
 /-- The two samples differ with probability at most twice the statistical distance. -/
 theorem correlatedCoupling_disagree_le (P Q : ∀ v, PMF (α v)) (v : V) :
     correlatedCoupling P Q v {x | x.1 ≠ x.2} ≤ ENNReal.ofReal (2 * dist (P v) (Q v)) := by
-  have hm : MeasurableSet {x : α v × α v | x.1 ≠ x.2} := (Set.toFinite _).measurableSet
-  rw [correlatedCoupling, PMF.toMeasure_apply_eq_toOuterMeasure_apply _ hm, correlatedPair,
-    PMF.toOuterMeasure_map_apply]
-  have h := CorrelatedSampling.disagree_le (P := ![P v, Q v]) 0 1
-  simp only [Matrix.cons_val_zero, Matrix.cons_val_one] at h
-  rw [← ENNReal.ofReal_toReal (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)]
-  exact ENNReal.ofReal_le_ofReal h
+  have : Nonempty (α v) := ⟨(P v).support_nonempty.some⟩
+  rw [correlatedCoupling, Measure.map_apply (measurable_seedSample_prod P Q v)
+    (Set.toFinite _).measurableSet, ENNReal.le_ofReal_iff_toReal_le (measure_ne_top _ _)
+    (by positivity)]
+  exact CorrelatedSampling.seedSample_disagree_le (P v) (Q v)
 
 open scoped Cslib.Probability.PMF in
 /-- **Replicable Moser–Tardos (original).** Two runs of the Moser–Tardos algorithm with a
 non-anticipating rule `r`, one sampling from the product of the `P v` and one from the product of
-the `Q v`, share the randomness of correlated sampling at every table entry. Each run on its own
-is an ordinary Moser–Tardos run (`correlatedCoupling_map_fst`, `correlatedCoupling_map_snd`).
-Suppose every event has at most `d` neighbours in `Γ` and probability at most `p` under `P`, with
-`e p (d + 1) ≤ 1`, and `r` only selects occurring events. Then the two runs diverge with
-probability at most `4 ∑ v, d_TV(P v, Q v)`, independently of `d` and of the number of events. -/
+the `Q v`, share the randomness of correlated sampling at every table entry: a seed whose law
+does not depend on `P` or `Q`, from which each run computes its samples using only its own
+distributions. Each run on its own is an ordinary Moser–Tardos run (`correlatedCoupling_map_fst`,
+`correlatedCoupling_map_snd`). Suppose every event has at most `d` neighbours in `Γ` and
+probability at most `p` under `P`, with `e p (d + 1) ≤ 1`, and `r` only selects occurring events.
+Then the two runs diverge with probability at most `4 ∑ v, d_TV(P v, Q v)`, independently of `d`
+and of the number of events. -/
 theorem correlated_diverge_le [Finite ι] (P Q : ∀ v, PMF (α v))
     (vbl : ι → Finset V) (r : List ι → (∀ v, α v) → Option ι) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
@@ -761,9 +780,9 @@ theorem correlated_not_agreeGood_le [Finite ι] (P Q : ∀ v, PMF (α v))
   exact (coupledTable_not_agreeGood_le _ vbl r A hAm hA Γ hΓ hx hP'' hr hstop).trans
     (correlated_diverge_le P Q vbl r A hAm hA Γ hΓ hΓd hP hp hr)
 
-omit [∀ v, MeasurableSingletonClass (α v)] in
 /-- **Both runs terminate under correlated sampling.** In the symmetric case for both `P` and `Q`,
-almost surely both runs stop. -/
+almost surely both runs stop. Each alphabet `α v` has measurable singletons
+(`MeasurableSingletonClass`), as in `correlatedCoupling_map_fst`. -/
 theorem correlated_ae_terminate [Finite ι] (P Q : ∀ v, PMF (α v))
     (vbl : ι → Finset V) (r : List ι → (∀ v, α v) → Option ι) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))

@@ -47,6 +47,13 @@ theorem subdivisionIndex_apply (I : STCONInstance) (bound : ℕ)
     (equivProd (Fin (((I.n - 1) + 1) * I.n)) bound).apply_symm_apply
       (finProdFinEquiv v.vertex, v.offset)
 
+/-- The root of an original vertex is numbered by the scalar root ID of its row-major label. -/
+theorem subdivisionIndex_root_val (I : STCONInstance) (bound : ℕ)
+    (v : Fin ((I.n - 1) + 1) × Fin I.n) :
+    (subdivisionIndex I bound (root bound v)).val = rootID (finProdFinEquiv v).val bound := by
+  rw [subdivisionIndex_apply]
+  exact (rootID_eq_flatIndex _ bound).symm
+
 /-- The source and target IDs for the scan, computed from the graph parameters and chain
 bound. The final layer and the sink column are both the predecessor of the width. -/
 def subdivisionEndpointIDs (p : LayeredParameters × ℕ) : ℕ × ℕ :=
@@ -63,13 +70,8 @@ theorem subdivisionEndpointIDs_eq {k : ℕ} {State : Type} [Fintype State]
       ((index (root bound (layeredCoordinates I (layeredStart I)))).val,
         (index (root bound (layeredCoordinates I (layeredTarget I)))).val) := by
   let I := configurationInstance ntm c w
-  have indexRoot (v : LayeredGraphVertex I) :
-      (subdivisionIndex I bound (root bound (layeredCoordinates I v))).val =
-        rootID (finProdFinEquiv (layeredCoordinates I v)).val bound := by
-    rw [subdivisionIndex_apply]
-    exact (rootID_eq_flatIndex _ bound).symm
   dsimp only
-  rw [indexRoot, indexRoot]
+  rw [subdivisionIndex_root_val, subdivisionIndex_root_val]
   change (rootID _ _, rootID _ _) = (rootID (I.s.val + I.n * 0) _,
     rootID (I.t.val + I.n * (I.n - 1)) _)
   simp [layeredParameters, I, configurationInstance]
