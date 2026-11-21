@@ -29,6 +29,7 @@ with initial value zero reconstructs the original number.
 * `Nat.foldr_bit_one_ne_zero`, `Nat.bits_foldr_bit_one`, `Nat.foldr_bit_one_lt`: reconstruction
   with base value `1`, producing a positive number whose binary digits end in `true`.
 * `Nat.foldr_bit_ofFn`: reconstruction is the sum of the digits' binary place values.
+* `Nat.bits_shiftRight`: a binary right shift drops least-significant digits.
 * `Nat.size_div_two_add_one`: halving a positive number removes one binary digit.
 -/
 
@@ -116,6 +117,13 @@ theorem Nat.foldr_bit_testBit {n K : ℕ} (h : n.size ≤ K) :
     rw [List.range_succ_eq_map, List.map_cons, List.map_map, List.foldr_cons]
     have hmap : n.testBit ∘ Nat.succ = (n / 2).testBit := funext fun i => Nat.testBit_succ n i
     rw [hmap, ih hn, ← Nat.shiftRight_one, Nat.bit_testBit_zero_shiftRight_one]
+
+/-- Shifting a natural right drops its least-significant digits, including past the last digit. -/
+theorem Nat.bits_shiftRight (n k : ℕ) : (n >>> k).bits = n.bits.drop k := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    rw [Nat.shiftRight_succ, ← Nat.div2_val, Nat.div2_bits_eq_tail, ih, List.tail_drop]
 
 /-- Halving a positive number removes one binary digit. -/
 theorem Nat.size_div_two_add_one {n : ℕ} (hn : n ≠ 0) : Nat.size (n / 2) + 1 = Nat.size n := by

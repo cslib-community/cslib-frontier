@@ -342,7 +342,7 @@ theorem flip_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ} (hw : Fits w
     (hcl : HoldsList (x.regs cPtr) (encodeClause c) x.mem) (hend : x.regs cPtr + c.length + 1 ≤ A) :
     ExecRandLaw w flip x (fun y => Frame φ C A M y ∧ ∀ i < n, y.mem (A + i) ≤ 1) 12 1
       (fun y => assignmentAt y.mem A n) (flipStep c σ) := by
-  have hlen : x.mem (x.regs cPtr) = c.length := by simpa [encodeClause] using hcl.get 0 (by simp)
+  have hlen : x.mem (x.regs cPtr) = c.length := by simpa [encodeClause_eq] using hcl.get 0 (by simp)
   have hbits : ∀ i < n, x.mem (A + i) ≤ 1 := fun i hi => by
     rw [show A + i = A + (⟨i, hi⟩ : Fin n).val from rfl, hσ]; cases σ ⟨i, hi⟩ <;> decide
   have hload := ExecWithin.load (B := .standard) (w := w) (d := len) (a := cPtr) (x := x)
@@ -381,7 +381,7 @@ theorem flip_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ} (hw : Fits w
       have hlv : l.1.val < n := l.1.isLt
       have hlit : x.mem (x.regs cPtr + 1 + k.val) = litCode l := by
         have h := hcl.get (k.val + 1) (by simp; omega)
-        simp only [encodeClause, List.getElem_cons_succ, List.getElem_map] at h
+        simp only [encodeClause_eq, List.getElem_cons_succ, List.getElem_map] at h
         rw [show x.regs cPtr + 1 + k.val = x.regs cPtr + (k.val + 1) by omega, h, hl,
           List.get_eq_getElem]
       have : Fits w (x.regs cPtr + 1) := hw.of_le (by omega)

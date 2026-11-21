@@ -341,14 +341,14 @@ private theorem findGreatest_polyTime (C D : ℕ) :
     ComputableInPolyTime.binary_mod'
       (F.computableInPolyTime_order_comp
         ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)))
-      (ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp
+      (ComputableInPolyTime.unary_to_binary.comp
         (ComputableInPolyTime.snd _ _))
   have hpred : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × ℕ => decide (p.2.Prime ∧ F.order p.1.2 % p.2 = 0))
       (encPair (encPair encUnary F.encDesc) encUnary) encBool :=
     (ComputableInPolyTime.unary_decide_prime.comp (ComputableInPolyTime.snd _ _)).decide_and
       (ComputableInPolyTime.decide_eq' hmod (ComputableInPolyTime.const 0))
-  exact ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp
+  exact ComputableInPolyTime.unary_to_binary.comp
     (ComputableInPolyTime.findGreatest hbound hpred)
 
 /-- **DDH fails when a small prime factor is polynomially bounded** ([BonehShoup2023], Exercise

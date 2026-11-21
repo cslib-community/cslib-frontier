@@ -18,7 +18,7 @@ open Cslib Cslib.Probability Cslib.BitString Cslib.Crypto Cslib.Crypto.Pseudoent
 
 -- A polynomial bound holds for every allowed index without computing an index selector.
 example : ∃ c d : ℕ, ∀ n i, i < n + 1 → (n + i) ^ 2 ≤ c * (n + 1) ^ d :=
-  ComputableTidilyInPolyTime.indexed_polynomial_bound (by polytime) (by fun_prop)
+  ComputableInPolyTime.indexed_polynomial_bound (by polytime) (by fun_prop)
 
 -- The grid parameters and entry index may all depend on the ordinary functional input.
 example : ComputableInPolyTime (fun p : ℕ × ℕ =>

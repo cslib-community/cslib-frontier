@@ -1159,7 +1159,7 @@ theorem negligible_ddhAmplifiedDecider_error {distinguisher : F.DDHDistinguisher
         {b | b ≠ decide (γ n = α n * β n)}).toNNReal := by
   have hgeom : Negligible fun n => ((2⁻¹ : ℝ≥0) ^ n) := by negligible
   have hpoly : PolynomiallyBounded fun n => 36 * invEps n + 1 :=
-    ((PolynomiallyBounded.const 36).mul hinvEps.tidy.polynomiallyBounded).add (.const 1)
+    ((PolynomiallyBounded.const 36).mul hinvEps.polynomiallyBounded).add (.const 1)
   have hmod_ev : ∀ᶠ n in Filter.atTop, 3 / (2 ^ n : ℝ) ≤ 1 / (12 * (invEps n : ℝ)) := by
     filter_upwards [hpos, hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)]
       with n hn hlt
