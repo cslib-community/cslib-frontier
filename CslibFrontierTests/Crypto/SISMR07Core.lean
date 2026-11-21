@@ -233,6 +233,24 @@ theorem test_part3_combine
     exact (combineOutput_mem_intLattice_and_norm_sub_le (by decide : 0 < 4) toyB toyS
       toyS_det_ne toyS_le_toyB V C ![4, 0] hker).2
 
+/-- Public PR 2.6 bridge characterizations (`idealGridSample_eq_map`, `combineColumn_fst_toVec`,
+and `combineColumn_snd_val`) exercised on `toyB = I₂` and `toyS = diag(2, 3)`. -/
+theorem test_part2_part3_bridges
+    (v : SublatticeQuot toyB toyS) (c : GridRep toyB 4) (k : Fin 2)
+    (t : EuclideanSpace ℝ (Fin 2))
+    (f : gridLattice 2 4 → GridRep toyB 4 × intLattice toyB)
+    (hf_fst : ∀ r, (f r).1.toVec = modParallelepiped toyB (-r.1))
+    (hf_snd : ∀ r, ((f r).2 : EuclideanSpace ℝ (Fin 2)) = r.1 + (f r).1.toVec) :
+    idealGridSample toyB toyB_det_ne 4 (by decide) 6 (by norm_num) t =
+      (ZLattice.discreteGaussian (gridLattice 2 4) 6 (by norm_num) t).map f ∧
+    (combineColumn toyB toyS 4 v c).1.toVec = modParallelepiped toyS (v.toVec + c.toVec) ∧
+    (((combineColumn toyB toyS 4 v c).2 k).val : ℤ) =
+      Int.floor ((4 : ℝ) * (((toyS.map (Int.cast : ℤ → ℝ))⁻¹ *ᵥ
+        WithLp.ofLp (combineColumn toyB toyS 4 v c).1.toVec) k)) :=
+  ⟨idealGridSample_eq_map toyB toyB_det_ne 4 (by decide) 6 (by norm_num) t f hf_fst hf_snd,
+   combineColumn_fst_toVec toyS_det_ne (by decide : 0 < 4) v c,
+   by simpa using combineColumn_snd_val toyS_det_ne (by decide : 0 < 4) v c k⟩
+
 /-- Deterministic toy `ℓ₂`-SIS solver outputting the first standard basis vector `![1, 0]`. -/
 @[expose] def toySolver : Matrix (Fin 2) (Fin 2) (ZMod 4) → ProbComp (Fin 2 → ℤ) :=
   fun _ => pure ![1, 0]

@@ -11977,7 +11977,7 @@ register_result "micciancio-regev-grid-sampling-step" where
   topic := "cryptography"
   sources := [
     { paper := MicciancioRegev2007, theorem := "Lemma 5.7 (discrete-grid step)",
-      locator := "author's copy of December 27, 2005, §5.2, printed pp. 20–21" }
+      locator := "author's copy of December 27, 2005, §5.2, printed p. 20" }
   ]
   theorems := [
     Cslib.Crypto.SIS.MR07.idealGridSample_eq_bind_discreteGaussian,
@@ -11998,7 +11998,7 @@ register_result "micciancio-regev-combining-step" where
   topic := "cryptography"
   sources := [
     { paper := MicciancioRegev2007, theorem := "Lemma 5.8 (discrete-grid step)",
-      locator := "author's copy of December 27, 2005, §5.2, printed pp. 20–22" }
+      locator := "author's copy of December 27, 2005, §5.2, printed pp. 20–21" }
   ]
   theorems := [
     Cslib.Crypto.SIS.MR07.map_quotientHom_uniform_eq_uniform_sublatticeQuot,
@@ -12021,7 +12021,7 @@ register_result "micciancio-regev-incgdd-finite-step" where
   topic := "cryptography"
   sources := [
     { paper := MicciancioRegev2007, theorem := "Theorem 5.9 (finite distributional step)",
-      locator := "author's copy of December 27, 2005, §5.3, printed pp. 22–24" }
+      locator := "author's copy of December 27, 2005, §5.2, printed pp. 22–24" }
   ]
   theorems := [
     Cslib.Crypto.SIS.MR07.incGDD_succProb_of_sisEll2,

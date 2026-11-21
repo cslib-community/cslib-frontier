@@ -31,7 +31,7 @@ import Mathlib.MeasureTheory.Constructions.Pi
 
 This module formalizes the non-asymptotic, single-call distributional core of the reduction from
 incremental guaranteed distance decoding (`IncGDD`) to the Euclidean short integer solution problem
-(`ℓ₂`-SIS) from [MicciancioRegev2007] (§5.2–5.3, pp. 20–24), formulated on the fine discrete grid
+(`ℓ₂`-SIS) from [MicciancioRegev2007] (§5.2, pp. 20–24), formulated on the fine discrete grid
 `G_q = (1 / q) ℤⁿ` with ideal discrete-grid and quotient samplers and an explicit dual-mass premise.
 
 Strict-PPT sampler realization, independent amplification, iterative basis shortening, and the
@@ -56,14 +56,15 @@ are proved separately on top of this core.
 * `Cslib.Crypto.SIS.MR07.card_gridRep`, `card_sublatticeQuot`,
   `gaussianMass_dual_gridLattice_le`, `gaussianMass_dual_intReal_le_of_intLattice`: exact
   cardinalities and dual-mass monotonicity for `G_q` and `ℤ ⊂ ℝ`.
-* `Cslib.Crypto.SIS.MR07.idealGridSample_eq_bind_discreteGaussian`,
+* `Cslib.Crypto.SIS.MR07.idealGridSample_eq_map`, `idealGridSample_eq_bind_discreteGaussian`,
   `idealGridSample_fst_closeTo_uniform`: finite discrete-grid sampling lemma (discrete-grid step
-  toward [MicciancioRegev2007], Lemma 5.7, pp. 20–21).
+  toward [MicciancioRegev2007], Lemma 5.7, p. 20).
 * `Cslib.Crypto.SIS.MR07.map_quotientHom_uniform_eq_uniform_sublatticeQuot`,
-  `idealCombine_matrix_eq_uniform`, `combineOutput_mem_intLattice`,
-  `combineOutput_mem_intLattice_and_norm_sub_le`: HNF-free uniform quotient sampling and
-  discrete-grid combining lemma (discrete-grid step toward [MicciancioRegev2007], Lemma 5.8,
-  pp. 20–22), with unconditional lattice membership of `combineOutput`.
+  `combineColumn_fst_toVec`, `combineColumn_snd_val`, `idealCombine_matrix_eq_uniform`,
+  `combineOutput_mem_intLattice`, `combineOutput_mem_intLattice_and_norm_sub_le`: HNF-free uniform
+  quotient sampling and discrete-grid combining lemma (discrete-grid step toward
+  [MicciancioRegev2007], Lemma 5.8, pp. 20–21), with unconditional lattice membership of
+  `combineOutput`.
 * `Cslib.Crypto.SIS.MR07.idealIncGDDStep_support_mem_intLattice`,
   `incGDD_succProb_of_sisEll2`, `incGDD_succProb_of_closeTo`: unconditional output membership in
   `L(B)`, single-call success probability lower bound
@@ -73,7 +74,7 @@ are proved separately on top of this core.
 ## References
 
 * [D. Micciancio and O. Regev, *Worst-Case to Average-Case Reductions Based on Gaussian
-  Measures*][MicciancioRegev2007], §2.2 (p. 8) and §5.2–5.3 (Lemmas 5.7–5.8 and Theorem 5.9,
+  Measures*][MicciancioRegev2007], §2 (p. 8) and §5.2 (Lemmas 5.7–5.8 and Theorem 5.9,
   pp. 20–24 of the December 27, 2005 author's copy).
 -/
 
@@ -96,7 +97,7 @@ open scoped _root_.Matrix BigOperators ENNReal NNReal RealInnerProductSpace
     Submodule ℤ (EuclideanSpace ℝ (Fin n)) :=
   Submodule.span ℤ (Set.range (intCol B))
 
-/-- Fine discrete grid lattice `G_q = (1 / q) ℤⁿ ⊂ ℝⁿ` (MR07 §2.2, p. 8). -/
+/-- Fine discrete grid lattice `G_q = (1 / q) ℤⁿ ⊂ ℝⁿ` (MR07 §2, p. 8). -/
 @[expose] noncomputable def gridLattice (n q : ℕ) : Submodule ℤ (EuclideanSpace ℝ (Fin n)) :=
   Submodule.span ℤ (Set.range fun j : Fin n =>
     ((q : ℝ)⁻¹ : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ j)
@@ -709,7 +710,7 @@ theorem card_gridRep {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 
     _ = q ^ n * B.det.natAbs := by
         rw [hMdet, Int.natAbs_mul, Int.natAbs_pow, Int.natAbs_natCast]
 
-/-! ### Part 2: Discrete-Grid Sampling Lemma (Finite MR07 Lemma 5.7, pp. 20–21) -/
+/-! ### Part 2: Discrete-Grid Sampling Lemma (Finite MR07 Lemma 5.7, p. 20) -/
 
 /-- Map a grid point `r ∈ G_q` to its parallelepiped representative
 `c = (-r) mod P(B) ∈ GridRep B q`
@@ -757,6 +758,26 @@ private theorem gridSplit_snd_val {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB
     ((gridSplit B hB q hq r).2 : EuclideanSpace ℝ (Fin n)) =
       r.1 + (gridSplit B hB q hq r).1.toVec := rfl
 
+private theorem GridRep.ext_toVec {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ} (hq : 0 < q)
+    {c₁ c₂ : GridRep B q} (h : c₁.toVec = c₂.toVec) : c₁ = c₂ := by
+  have hq0 : (q : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hq.ne'
+  apply Subtype.ext
+  funext i
+  have hi := congrArg (fun x : EuclideanSpace ℝ (Fin n) => x i) h
+  simp only [GridRep.toVec, PiLp.smul_apply, smul_eq_mul] at hi
+  exact_mod_cast (mul_right_inj' (inv_ne_zero hq0)).1 hi
+
+private theorem gridSplit_fst_toVec {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
+    (q : ℕ) (hq : 0 < q) (r : gridLattice n q) :
+    (gridSplit B hB q hq r).1.toVec = modParallelepiped B (-r.1) := by
+  have hsum : r.1 + (gridSplit B hB q hq r).1.toVec ∈ intLattice B := by
+    rw [← gridSplit_snd_val]
+    exact (gridSplit B hB q hq r).2.2
+  have hsub : (gridSplit B hB q hq r).1.toVec - (-r.1) ∈ intLattice B := by
+    simpa [sub_neg_eq_add, add_comm] using hsum
+  exact (gridSplit B hB q hq r).1.modParallelepiped_toVec.symm.trans
+    ((modParallelepiped_eq_iff_sub_mem hB _ _).2 hsub)
+
 private theorem gridSplit_bijective {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) : Function.Bijective (gridSplit B hB q hq) := by
   constructor
@@ -773,34 +794,39 @@ private theorem gridSplit_bijective {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (
       Submodule.sub_mem _ hy_mem hc_mem⟩
     refine ⟨r, ?_⟩
     have hc_eq : (gridSplit B hB q hq r).1 = c := by
-      have hq0 : (q : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hq.ne'
-      have hvec : (gridSplit B hB q hq r).1.toVec = modParallelepiped B (-r.1) := by
-        have hsum : r.1 + (gridSplit B hB q hq r).1.toVec ∈ intLattice B := by
-          rw [← gridSplit_snd_val]
-          exact (gridSplit B hB q hq r).2.2
-        have hsub : (gridSplit B hB q hq r).1.toVec - (-r.1) ∈ intLattice B := by
-          simpa [sub_neg_eq_add, add_comm] using hsum
-        exact (gridSplit B hB q hq r).1.modParallelepiped_toVec.symm.trans
-          ((modParallelepiped_eq_iff_sub_mem hB _ _).2 hsub)
+      have hvec := gridSplit_fst_toVec B hB q hq r
       have hneg : -r.1 = c.toVec + (-(y : EuclideanSpace ℝ (Fin n))) := by
         simp [r]; abel
       rw [hneg, modParallelepiped_add_mem hB (Submodule.neg_mem _ y.2),
         c.modParallelepiped_toVec] at hvec
-      apply Subtype.ext
-      funext i
-      have hi := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i) hvec
-      simp only [GridRep.toVec, PiLp.smul_apply, smul_eq_mul] at hi
-      exact_mod_cast (mul_right_inj' (inv_ne_zero hq0)).1 hi
+      exact GridRep.ext_toVec hq hvec
     refine Prod.ext hc_eq ?_
     apply Subtype.ext
     rw [gridSplit_snd_val, hc_eq]
     simp [r]
 
-/-- Ideal discrete-grid sampler `S_q(B, t, s)` (finite MR07 Lemma 5.7, pp. 20–21). -/
+/-- Ideal discrete-grid sampler `S_q(B, t, s)` (finite MR07 Lemma 5.7, p. 20). -/
 noncomputable def idealGridSample {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) (s : ℝ) (hs : 0 < s) (t : EuclideanSpace ℝ (Fin n)) :
     PMF (GridRep B q × intLattice B) :=
   (ZLattice.discreteGaussian (gridLattice n q) s hs t).map (gridSplit B hB q hq)
+
+/-- Characterization of `idealGridSample` as pushing the discrete Gaussian on `G_q` through any
+splitting map `r ↦ (c, y)` satisfying `c = (-r) mod P(B)` and `y = r + c`. -/
+theorem idealGridSample_eq_map {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
+    (q : ℕ) (hq : 0 < q) (s : ℝ) (hs : 0 < s) (t : EuclideanSpace ℝ (Fin n))
+    (f : gridLattice n q → GridRep B q × intLattice B)
+    (hf_fst : ∀ r, (f r).1.toVec = modParallelepiped B (-r.1))
+    (hf_snd : ∀ r, ((f r).2 : EuclideanSpace ℝ (Fin n)) = r.1 + (f r).1.toVec) :
+    idealGridSample B hB q hq s hs t =
+      (ZLattice.discreteGaussian (gridLattice n q) s hs t).map f := by
+  unfold idealGridSample
+  congr 1
+  funext r
+  have h1 : (gridSplit B hB q hq r).1 = (f r).1 :=
+    GridRep.ext_toVec hq ((gridSplit_fst_toVec B hB q hq r).trans (hf_fst r).symm)
+  refine Prod.ext h1 (Subtype.ext ?_)
+  rw [gridSplit_snd_val, hf_snd, h1]
 
 private theorem idealGridSample_apply {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) (s : ℝ) (hs : 0 < s) (t : EuclideanSpace ℝ (Fin n))
@@ -1025,7 +1051,7 @@ private theorem closeTo_uniform_of_mem_Icc {α : Type} [Fintype α] [Nonempty α
           _ ≤ (ε / 2) / (1 - ε) := div_le_div_of_nonneg_left (by linarith) (by linarith) hA_lo
     _ = ε / (2 * (1 - ε)) := by field_simp
 
-/-- Marginal closeness of `c` to uniform on `GridRep B q` (finite MR07 Lemma 5.7, pp. 20–21). -/
+/-- Marginal closeness of `c` to uniform on `GridRep B q` (finite MR07 Lemma 5.7, p. 20). -/
 theorem idealGridSample_fst_closeTo_uniform
     {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) {s ε : ℝ} (hs : 0 < s) (hε0 : 0 ≤ ε) (hε1 : ε < 1)
@@ -1520,7 +1546,8 @@ noncomputable def combineColumn {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) (q 
   else
     (Classical.arbitrary (GridRep S q), 0)
 
-private theorem combineColumn_fst_toVec {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
+/-- The first component of `combineColumn B S q v c` represents `(v + c) mod P(S)`. -/
+theorem combineColumn_fst_toVec {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
     (hS : S.det ≠ 0) {q : ℕ} (hq : 0 < q) (v : SublatticeQuot B S) (c : GridRep B q) :
     (combineColumn B S q v c).1.toVec = modParallelepiped S (v.toVec + c.toVec) := by
   unfold combineColumn
@@ -1537,6 +1564,18 @@ private theorem combineColumn_snd_eq {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ
   split_ifs with h
   · rfl
   · exact (h ⟨hS, hq⟩).elim
+
+/-- Canonical residue value of the second component of `combineColumn`:
+`((combineColumn B S q v c).2 k).val = ⌊q · (S⁻¹ w)_k⌋`, where `w = (combineColumn B S q v c).1`.
+-/
+theorem combineColumn_snd_val {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
+    (hS : S.det ≠ 0) {q : ℕ} (hq : 0 < q) (v : SublatticeQuot B S) (c : GridRep B q)
+    (k : Fin n) :
+    (((combineColumn B S q v c).2 k).val : ℤ) =
+      Int.floor ((q : ℝ) * (((S.map (Int.cast : ℤ → ℝ))⁻¹ *ᵥ
+        WithLp.ofLp (combineColumn B S q v c).1.toVec) k)) := by
+  rw [combineColumn_snd_eq hS hq]
+  exact gridRepToZMod_val hS hq _ k
 
 /-- Query matrix `A ∈ ZMod q^{n×m}` produced by the combining procedure from `(V, C)`. -/
 @[expose] noncomputable def combineMatrix {n m : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) (q : ℕ)
@@ -1573,15 +1612,6 @@ theorem combineOutput_mem_intLattice {n m : ℕ} (B S : Matrix (Fin n) (Fin n) �
     rw [hsub]
     exact Submodule.sub_mem _ (hSB (sub_modParallelepiped_mem hS _)) (V j).mem_intLattice
   · exact hSB ((mem_intLattice_iff S _).2 ⟨_, rfl⟩)
-
-private theorem GridRep.ext_toVec {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ} (hq : 0 < q)
-    {c₁ c₂ : GridRep B q} (h : c₁.toVec = c₂.toVec) : c₁ = c₂ := by
-  have hq0 : (q : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hq.ne'
-  apply Subtype.ext
-  funext i
-  have hi := congrArg (fun x : EuclideanSpace ℝ (Fin n) => x i) h
-  simp only [GridRep.toVec, PiLp.smul_apply, smul_eq_mul] at hi
-  exact_mod_cast (mul_right_inj' (inv_ne_zero hq0)).1 hi
 
 private theorem SublatticeQuot.ext_toVec {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
     {v₁ v₂ : SublatticeQuot B S} (h : v₁.toVec = v₂.toVec) : v₁ = v₂ := by
