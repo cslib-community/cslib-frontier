@@ -399,8 +399,7 @@ theorem exists_computableInO_stream {half : CNF ℕ → List ℕ}
     have h₄ : ((encCNF φ).length + 1) ^ dv ≤ ((encCNF φ).length + 1) ^ (dv + 1) :=
       Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_succ dv)
     have h₅ := Nat.mul_le_mul_left cv h₄
-    simp only [B, Bb, length_encPair, Nat.zero_add, encNat_two_pow, List.length_append,
-      List.length_replicate, List.length_singleton] at h₁ h₂ h₃ h₅ ⊢
+    simp only [B, Bb, length_encPair, Nat.zero_add, length_encNat_two_pow] at h₁ h₂ h₃ h₅ ⊢
     nlinarith
   have hBbP : PolyBounded (fun φ => (encCNF φ).length) Bb := by growth_poly
   have hL (j : ℕ) : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length)

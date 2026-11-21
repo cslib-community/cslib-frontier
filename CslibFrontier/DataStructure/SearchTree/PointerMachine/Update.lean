@@ -33,7 +33,8 @@ variable {M : Model} {extra regs : ℕ}
     { label with data := if label.address = a then Function.update label.data field value
       else label.data }
 
-private theorem root_updateData (t : BinaryTree (Label M extra)) (a : ℕ)
+/-- Scalar-field updates preserve the root pointer. -/
+theorem root_updateData (t : BinaryTree (Label M extra)) (a : ℕ)
     (field : Fin (extra + 1)) (value : M.Value) :
     root (updateData t a field value) = root t := by
   cases t <;> rfl

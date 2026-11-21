@@ -30,9 +30,11 @@ adversary, with their efficiency certificates, but the games it relates are not 
 On the KEM side, `kemCCARealGame` and `kemCCAIdealGame` strengthen the exercise's KEM game in two
 distinct ways: the distinguisher receives `(pk, (k, ct))`, where the printed challenger sends only
 the key and the encapsulation (#5293), and it may submit any word other than the challenge for
-decapsulation, where the exercise's queries lie in `C_kem` (#5686). On the DEM side,
-`SymmetricCipher.OneTimeINDCCA` decrypts every word other than the challenge, where Attack Game 9.2
-(printed p. 362) takes queries in `C` (#5686).
+decapsulation, where the exercise's queries lie in `C_kem` (#5686).
+On the DEM side, `SymmetricCipher.ctSpace` models the ciphertext space `C` (by
+`decrypt_eq_none_of_ctSpace_eq_false`, `decrypt` returns `none` outside `C`, which the oracle
+encodes as `[]`), so `SymmetricCipher.OneTimeINDCCA` matches Attack Game 9.2 (printed p. 362) on
+an efficiently recognizable `C` (default `C` is all words).
 
 The source's uniform key space is represented by uniform `keyLen n`-bit seeds followed by `F n`.
 An exact sampler identity relates this distribution to `E.keyGen n`; no uniformity of encoded
@@ -418,7 +420,7 @@ private theorem isOraclePPTOn_hybridKEMCCAInterpret (E : SymmetricCipher)
       (isOraclePPTOn_hybridKEMCCAHandler E hF hdecBound
         (hn.comp (by fun_prop)) (hkey.comp (by fun_prop)) (hctK.comp (by fun_prop)) (by fun_prop))
   obtain ⟨c, d, hsize⟩ :=
-    (computableInPolyTime_hybridKEMReply E hF).tidy.polyBounded_length.exists_le
+    (computableInPolyTime_hybridKEMReply E hF).polyBounded_length.exists_le
   let resources := fun (a : α) (ct : List Bool) =>
     (encOption encBits (E.decrypt (n a) (key a) (dropFrame ct))).length +
       c * (2 * n a + 2 * (dropFrame ct).length + decBound (n a) (unframe ct) + 5) ^ d
@@ -703,24 +705,22 @@ private theorem computableInPolyTime_postprocessed_decaps
 /-- Adaptive CCA security of KEM–DEM encryption in the symmetric cipher's `n`-bit message model,
 from a KEM CCA premise and `E.OneTimeINDCCA`: a step toward [BonehShoup2023], Exercise 12.5(a),
 not the cited result, because its KEM premise gives the distinguisher `pk` and answers
-decapsulation queries outside `C_kem`, and its DEM premise answers decryption queries outside `C`
-(#5293, #5686).
+decapsulation queries outside `C_kem` (#5293, #5686).
 
 The proof constructs both reductions, `hybridToKEMCCAHiddenBit` and `hybridToOneTimeCCAAdversary`,
-with their efficiency certificates. The premises differ from the exercise's (printed p. 513) as
-follows.
+with their efficiency certificates. Relative to the exercise's premises (printed p. 513):
 * KEM: in `kemCCARealGame` and `kemCCAIdealGame` the distinguisher receives `(pk, (k, ct))`, where
   the printed challenger sends only the key and the encapsulation (#5293), and it may submit any
   word other than the challenge for decapsulation, where the exercise's queries lie in `C_kem`
-  (#5686). These are two distinct strengthenings. The counterexample recorded for
-  Exercise 11.9(b) on pull request #6413, a KEM whose key is its public key, shows that the printed
-  statement needs the first.
-* DEM: `E.OneTimeINDCCA` decrypts every word other than the challenge, where the source's 1CCA
-  security (Definition 9.6, printed p. 363) rests on Attack Game 9.2, whose queries lie in `C`
-  (printed p. 362; #5686).
+  (#5686). These are two distinct strengthenings. The counterexample in the `KEMINDCPA` docstring
+  (a KEM whose key is its public key) shows that the printed statement needs the first.
+* DEM: `SymmetricCipher.ctSpace` represents `C`, and `E.decrypt_eq_none_of_ctSpace_eq_false` forces
+  queries outside `C` to be answered with the rejection `[] = encOption encBits none`. When `C` is
+  efficiently recognizable, `E.OneTimeINDCCA` matches Attack Game 9.2 (Definition 9.6, printed
+  pp. 362–363).
 
-A KEM or cipher that is secure on its ciphertext space but leaks on some word outside it meets the
-exercise's premises and not these.
+A KEM that is secure on `C_kem` but leaks on some word outside `C_kem` satisfies the exercise's
+premise and not the KEM premise here.
 
 The same native postprocessor is used on the shown KEM key and on every successful decapsulation.
 Its ideal-key distribution is exactly the actual symmetric key sampler, uniformly in the security
@@ -768,9 +768,10 @@ games: a KEM CCA distinguisher `kem` and a one-time symmetric CCA adversary `dem
 such that at every `n` the hybrid's `n`-bit-message CCA advantage is at most twice `kem`'s
 advantage between `kemCCARealGame` and `kemCCAIdealGame` plus `dem`'s advantage in
 `E.ccaOneTimeGame`. The KEM games give the distinguisher `pk` and decapsulate every word other than
-the challenge, and `E.ccaOneTimeGame` decrypts every word other than the challenge, so this is a
-step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a), not that bound
-(`exists_hybridCCA_reductions`; #5293, #5686). -/
+the challenge, so this is a step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a),
+not that bound (`exists_hybridCCA_reductions`; #5293, #5686). On the DEM side, `E.ccaOneTimeGame`
+answers decryption queries outside `E.ctSpace` with rejection `[]`
+(`decrypt_eq_none_of_ctSpace_eq_false`). -/
 structure HybridCCAReductions (E : SymmetricCipher) (keyLen : ℕ → ℕ)
     (F : ℕ → List Bool → List Bool) (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encaps : ℕ → List Bool → ProbComp (List Bool × List Bool))
@@ -803,16 +804,17 @@ structure HybridCCAReductions (E : SymmetricCipher) (keyLen : ℕ → ℕ)
 /-- Native KEM and one-time symmetric CCA reductions for the postprocessed KEM–DEM hybrid, with
 hybrid advantage at most twice the KEM advantage plus the symmetric advantage at every `n`: a
 step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a), not the cited result,
-because the KEM and symmetric games on its right-hand side give the adversary more than the
-exercise's (#5293, #5686).
+because the KEM games on its right-hand side give the adversary more than the exercise's
+(#5293, #5686).
 
 The proof constructs both reductions. The KEM advantage is measured in `kemCCARealGame` and
 `kemCCAIdealGame`, where the distinguisher receives `(pk, (k, ct))` and may submit any word other
-than the challenge for decapsulation. The symmetric advantage is measured in `E.ccaOneTimeGame`,
-which decrypts every word other than the challenge. The exercise's KEM challenger sends only the
-key and the encapsulation, and its queries lie in `C_kem` and `C` (printed pp. 362 and 513). The
-hybrid game on the left likewise decrypts every word. The reduction code and polynomial clocks are
-fixed before `n`. No security assumption is needed for this quantitative statement. -/
+than the challenge for decapsulation, whereas the exercise's KEM challenger sends only the key and
+encapsulation and restricts queries to `C_kem` (printed p. 513). The symmetric advantage is measured
+in `E.ccaOneTimeGame`, which rejects decryption queries outside `E.ctSpace` with `[]`
+(`decrypt_eq_none_of_ctSpace_eq_false`). The hybrid game on the left decapsulates arbitrary words
+outside `C_kem` too. The reduction code and polynomial clocks are fixed before `n`. No security
+assumption is needed for this quantitative statement. -/
 theorem exists_hybridCCA_reductions (E : SymmetricCipher)
     {keyLen : ℕ → ℕ} {F : ℕ → List Bool → List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}

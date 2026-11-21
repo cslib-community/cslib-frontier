@@ -38,8 +38,8 @@ This module formalizes conditional entropy-preserving pseudorandom generators
 [Y. Liu and R. Pass, *On One-Way Functions and Kolmogorov Complexity*][LiuPass2020]. All section,
 definition, theorem, lemma, and page locators follow the full version `arXiv:2009.11514v1`
 (and ECCC TR20-052): Section 5 (Definition 5.1, §5.1, p. 11; Lemma 5.1, §5.3, p. 14; Lemma 5.2,
-§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (pp. 21–24). Note that in
-`arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
+§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (printed pp. 21–23, PDF pp. 22–24). Note that
+in `arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
 `Fact` share a separate section counter.
 
 ## Main definitions
@@ -85,11 +85,18 @@ $(\mu, \gamma)$-condEP-PRG with entropy-loss constant $\alpha$ if:
 2. $G$ stretches every $n$-bit seed $z \in \{0, 1\}^n$ to length
    $n + \gamma \lfloor \log_2 n \rfloor$,
 3. there exists a sequence of nonempty conditioning events $E_n \subseteq \{0, 1\}^n$ such that:
-   - **(Conditional pseudorandomness):** For every strict PPT distinguisher $\mathcal{A}$,
+   - **(Conditional pseudorandomness):** For every uniform strict PPT distinguisher $\mathcal{A}$,
      eventually in $n$, the distinguishing advantage between $G(U_n \mid E_n)$ and
-     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$,
+     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$ (`≤ μ n`; note that
+     [LiuPass2020], Definition 2.6, p. 9 writes strict `< μ(n)`),
    - **(Conditional entropy preservation):** Eventually in $n$, the Shannon entropy of
-     $G(U_n \mid E_n)$ is at least $n - \alpha \lfloor \log_2 n \rfloor$. -/
+     $G(U_n \mid E_n)$ (base 2) is at least $n - \alpha \lfloor \log_2 n \rfloor$.
+
+Deviations from Definition 5.1: `γ` and `α` are natural numbers with `Nat.log 2 n` (`⌊log₂ n⌋`) in
+place of real constants and `log n`; `α` is an explicit parameter of `CondEPPRG` rather than
+existentially quantified; `E n` is explicitly required to be nonempty; distinguishers are uniform
+strict PPT (`IsPPT encBool`) rather than general PPT machines clocked only in `1^n`; and the
+distinguishing bound uses `≤ μ n` instead of `< μ(n)`. -/
 def CondEPPRG (G : List Bool → List Bool) (μ : ℕ → ℝ) (γ α : ℕ) : Prop :=
   ComputableInPolyTime G encBits encBits ∧
   (∀ z : List Bool, (G z).length = z.length + γ * Nat.log 2 z.length) ∧
@@ -634,7 +641,7 @@ private def rawGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_co
     h2 ++ LinearHash.wordHash (l2 + mActual d γ k n) h2 x
 
 /-- Full deterministic conditional entropy-preserving generator `G` ([Liu and Pass, Proof of
-Theorem 5.5, §5.3, p. 15 and Appendix A, pp. 21–24 of arXiv:2009.11514v1][LiuPass2020]),
+Theorem 5.5, §5.3, pp. 15–16 and Appendix A, pp. 21–23 of arXiv:2009.11514v1][LiuPass2020]),
 normalized to output length `z.length + γ * Nat.log 2 z.length` on every input `z`. -/
 private def fullGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_core γ : ℕ)
     (z : List Bool) : List Bool :=
@@ -688,37 +695,55 @@ private theorem computableInPolyTime_rawGen {g : List Bool → List Bool} {imgLe
   let h2Fn (z : List Bool) :=
     (z.drop (wFn z + kFn z + kFn z * imgLen (kFn z))).take (h2Rows d γ_core (kFn z) * kFn z)
   let padFn (z : List Bool) := z.drop (coreSeedLen imgLen d γ_core (kFn z))
+  have hn := ComputableInPolyTime.length_bits
+  have hid := ComputableInPolyTime.id' (encIn := encBits)
   have hk : ComputableInPolyTime kFn encBits encUnary :=
-    (GeneratorReindex.isPolyTime_parameter (by fun_prop) (by fun_prop))
-  have hw : ComputableInPolyTime wFn encBits encUnary := by unfold wFn; fun_prop
-  have hr : ComputableInPolyTime rFn encBits encUnary := by unfold rFn; fun_prop
-  have hx : ComputableInPolyTime xFn encBits encBits := by unfold xFn; fun_prop
-  have hh1 : ComputableInPolyTime h1Fn encBits encBits := by unfold h1Fn; fun_prop
-  have hh2 : ComputableInPolyTime h2Fn encBits encBits := by unfold h2Fn; fun_prop
-  have hpad : ComputableInPolyTime padFn encBits encBits := by unfold padFn; fun_prop
-  have hd1 : ComputableInPolyTime
-      (fun z => LinearHash.wordHash (l1Val d (kFn z) (rFn z)) (h1Fn z) (g (xFn z)))
-      encBits encBits := by fun_prop
-  have hd2 : ComputableInPolyTime
-      (fun z => LinearHash.wordHash
-        (l2Val d (kFn z) (rFn z) + mActual d γ (kFn z) z.length) (h2Fn z) (xFn z))
-      encBits encBits := by fun_prop
-  change ComputableInPolyTime
-    (fun z => padFn z ++ h1Fn z ++
-      LinearHash.wordHash (l1Val d (kFn z) (rFn z)) (h1Fn z) (g (xFn z)) ++
-      h2Fn z ++
-      LinearHash.wordHash
-        (l2Val d (kFn z) (rFn z) + mActual d γ (kFn z) z.length) (h2Fn z) (xFn z))
-    encBits encBits
-  fun_prop
+    GeneratorReindex.isPolyTime_parameter
+      (computableInPolyTime_coreSeedLen himgLen d γ_core
+        (ComputableInPolyTime.id' (encIn := encUnary))) hn
+  have hw : ComputableInPolyTime wFn encBits encUnary :=
+    computableInPolyTime_regWidth hk
+  have hr : ComputableInPolyTime rFn encBits encUnary :=
+    ComputableInPolyTime.bitsBoundedBinaryValueWithInput hk
+      (ComputableInPolyTime.bitsTakeWithInput hid hw)
+  have hx : ComputableInPolyTime xFn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid hw) hk
+  have himageLen := himgLen.comp hk
+  have hh1Size := ComputableInPolyTime.unary_mul' hk himageLen
+  have hh1 : ComputableInPolyTime h1Fn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid (ComputableInPolyTime.unary_add' hw hk))
+      hh1Size
+  have hh2 : ComputableInPolyTime h2Fn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid
+        (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' hw hk) hh1Size))
+      (ComputableInPolyTime.unary_mul' (computableInPolyTime_h2Rows d γ_core hk) hk)
+  have hpad : ComputableInPolyTime padFn encBits encBits :=
+    ComputableInPolyTime.bitsDropWithInput hid
+      (computableInPolyTime_coreSeedLen himgLen d γ_core hk)
+  have hd1 := LinearHash.computableInPolyTime_wordHash
+    (computableInPolyTime_l1Val d hk hr) hh1 (hg.comp hx)
+  have hd2 := LinearHash.computableInPolyTime_wordHash
+    (ComputableInPolyTime.unary_add' (computableInPolyTime_l2Val d hk hr)
+      (computableInPolyTime_mActual d γ hk hn)) hh2 hx
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hpad hh1) hd1) hh2) hd2
 
 private theorem computableInPolyTime_fullGen {g : List Bool → List Bool} {imgLen : ℕ → ℕ}
     (hg : ComputableInPolyTime g encBits encBits)
     (himgLen : ComputableInPolyTime imgLen encUnary encUnary)
     (d γ_core γ : ℕ) :
     ComputableInPolyTime (fullGen g imgLen d γ_core γ) encBits encBits := by
-  unfold fullGen
-  fun_prop
+  have hn := ComputableInPolyTime.length_bits
+  have htarget := ComputableInPolyTime.unary_add' hn
+    (ComputableInPolyTime.unary_mul' (.const γ)
+      (ComputableInPolyTime.unary_log_two.comp hn))
+  exact ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.bitsAppend (computableInPolyTime_rawGen hg himgLen d γ_core γ)
+      ((ComputableInPolyTime.bitsReplicate false).comp htarget)) htarget
 
 /-! ### Seed packing and conditioning events $E_n$ -/
 
@@ -908,7 +933,7 @@ private theorem fullGen_packSeedWords (g : List Bool → List Bool) (imgLen : �
   rw [hr_dec, htake1, htake2, htake3, hdrop3]
 
 /-- Conditioning event $E_n \subseteq \mathrm{BitString}\; n$ at seed length $n$
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 of arXiv:2009.11514v1][LiuPass2020]). -/
 private noncomputable def condSeedSet (imgLen : ℕ → ℕ) (d γ_core : ℕ)
     (S : ∀ k, Finset (BitString k)) (r : ∀ k, Fin (k + 1)) (n : ℕ) :
     Finset (BitString n) := by
@@ -1101,7 +1126,7 @@ private noncomputable def unifCoreDist (k imgLen_k m1 m2 c2 : ℕ) :
 
 /-- Statistical distance between `coreLHLDist` and `unifCoreDist` is bounded by the sum of the
 fiber leftover-hash error on $x$ and the image leftover-hash error on $f(x)$
-([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 21–22 of
+([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 22–23 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem dist_coreLHLDist_unifCoreDist_le {k imgLen_k m1 m2 c2 : ℕ}
     (f : BitString k → BitString imgLen_k) (r : Fin (k + 1))
@@ -1309,7 +1334,7 @@ private theorem unifCoreDist_bind_packLHL (k imgLen_k m1 m2 c2 padLen m_lhl : �
 /-- Conditional entropy preservation for `fullGen` on `condSeedSet`:
 when `coreLHLDist` is within `1 / (lhlPrefixLen d k n) ^ 2` of `unifCoreDist`, the Shannon
 entropy of `fullGen` on `condSeedSet` is at least `lhlPrefixLen d k n - 2`
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 and Lemma 2.2, §2.5, p. 9 of
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 and Lemma 2.2, §2.5, p. 9 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem entropy_fullGen_condSeedSet_ge (g : List Bool → List Bool) (imgLen : ℕ → ℕ)
     (d γ_core γ : ℕ) (S : ∀ k, Finset (BitString k)) (hS : ∀ k, (S k).Nonempty)
@@ -1439,7 +1464,13 @@ private theorem computableInPolyTime_spliceMatrixWord {α : Type} {encode : α �
     ComputableInPolyTime
       (fun a => spliceMatrixWord (k a) (idx a) (h2 a) (query a)) encode encBits := by
   unfold spliceMatrixWord
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsTakeWithInput hh2
+        (ComputableInPolyTime.unary_mul' hidx hk)) hquery)
+    (ComputableInPolyTime.bitsDropWithInput hh2
+      (ComputableInPolyTime.unary_mul'
+        (ComputableInPolyTime.unary_add' hidx (.const 1)) hk))
 
 /-- Assemble the word challenge fed to the PRG distinguisher at hybrid step `idx = m2 + j`. -/
 private def wordChallenge (k m1 idx : ℕ) (pad h1 image h2 digest r_word z_tail query : List Bool) :
@@ -1464,8 +1495,15 @@ private theorem computableInPolyTime_wordChallenge {α : Type} {encode : α ↪ 
     ComputableInPolyTime
       (fun a => wordChallenge (k a) (m1 a) (idx a) (pad a) (h1 a) (image a)
         (h2 a) (digest a) (r_word a) (z_tail a) (query a)) encode encBits := by
+  have hhash := LinearHash.computableInPolyTime_wordHash hm1 hh1 himage
+  have hsplice := computableInPolyTime_spliceMatrixWord hk hidx hh2 hquery
   unfold wordChallenge
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsAppend
+        (ComputableInPolyTime.bitsAppend
+          (ComputableInPolyTime.bitsAppend
+            (ComputableInPolyTime.bitsAppend hpad hh1) hhash) hsplice) hdigest) hr_word) hz_tail
 
 /-- Convert the saved-coin distinguisher into a signed parity predictor for row `idx` of `h2`. -/
 private def wordStepPredictor (evaluate : (ℕ × List Bool) → List Bool → Bool)
@@ -1822,7 +1860,7 @@ private theorem sum_mul_sum_mul_sum_comm {α β γ : Type*} [Fintype α] [Fintyp
 
 /-- Single-step hybrid prediction-to-inversion inequality on the fiber of `x₀` for fixed auxiliary
 words `pad`, `h1`, `z_tail`, `coins` and polarity `pol`
-([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 23–24 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 22–23 of arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem fiber_step_diff_le {k imgLen_k : ℕ}
     (f : BitString k → BitString imgLen_k) (x₀ : BitString k)
     (evaluate : (ℕ × List Bool) → List Bool → Bool) (pol : Bool)
