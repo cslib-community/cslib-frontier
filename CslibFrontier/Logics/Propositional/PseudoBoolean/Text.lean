@@ -68,16 +68,19 @@ and `fresh_aux_2` variables if there are auxiliary variables, and a `proof`, an 
 `reflexivity` section; §5.3), `load_order` with and without literals, the order checks `eord_def`
 and `eord_loaded` (§5.11.3), the solution-logging steps `sol`, `soli` and `solx` and the bound
 `obji` (§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax,
-an optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id`
-(§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
-constraints, the unchecked `delc` of core constraints, and the checked `delc id : ω` of one core
-constraint, with an optional subproof. Orders, `dom`, deletion, `core`, strengthening-to-core,
-solution logging, `obji` and `obju` are accepted only at top level, as the format requires. Two
-steps of the augmented format are also accepted: `del id`, read as the untyped deletion
-`Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts as unchecked), and
-`rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
-operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, the preserved-set
-rules, `del spec`, levels, and the conclusion `UNSAT` without an ID) is rejected.
+an optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), the
+changes of the preserved set `preserved_add x : C` and `preserved_rm x : C` with an optional
+subproof of `proofgoal #1` and `#2`, closed by `qed [preserved_add];` (`rm`) (§5.10), the check
+`epreserved` (§5.11.4), `core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the
+deletions (§5.7.1): `deld` of derived constraints, the unchecked `delc` of core constraints, and the
+checked `delc id : ω` of one core constraint, with an optional subproof. Orders, `dom`, deletion,
+`core`, strengthening-to-core, solution logging, `obji`, `obju` and the preserved-set rules are
+accepted only at top level, as the format requires. Two steps of the augmented format are also
+accepted: `del id`, read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a
+deletion of a core constraint counts as unchecked), and `rup` without hints, read as
+`Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol` operations `c`, `m`, `n` and `-`,
+relative constraint numbers, `i` and `ia`, `del spec`, levels, and the conclusion `UNSAT` without an
+ID) is rejected.
 
 **Output sections.** `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput` takes the output formula of
 `output g FILE;` as a third text, and checks the section with
@@ -734,6 +737,20 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
               some ([.obju diff g (some items)], rest)
             | _ => none
         | _ => none
+  | k@"preserved_add" :: x :: ":" :: ts | k@"preserved_rm" :: x :: ":" :: ts =>
+    (N.var? x).bind fun v =>
+      let add := k == "preserved_add"
+      match geq N ts with
+      | some (c, ";" :: rest) => some ([.presChange add v c none], rest)
+      | some (c, ":" :: "subproof" :: rest) =>
+        (redItems N fuel rest).bind fun (items, rest) =>
+          match rest with
+          | "qed" :: ";" :: rest => some ([.presChange add v c (some items)], rest)
+          | "qed" :: k' :: ";" :: rest =>
+            if k' == k then some ([.presChange add v c (some items)], rest) else none
+          | _ => none
+      | _ => none
+  | "epreserved" :: ts => (varList N ts).map fun (vs, rest) => ([.epreserved vs], rest)
   | "core" :: "id" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.core ns], rest)
