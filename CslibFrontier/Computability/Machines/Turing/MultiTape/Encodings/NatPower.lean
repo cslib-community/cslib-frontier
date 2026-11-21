@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
+import Mathlib.Data.Nat.Size
 
 /-!
 # Powers of two in binary
@@ -39,6 +40,12 @@ theorem encNat_two_pow (n : ℕ) : encNat (2 ^ n) = List.replicate n false ++ [t
 /-- The binary encoding of `2 ^ n` uses exactly `n + 1` digits. -/
 theorem length_encNat_two_pow (n : ℕ) : (encNat (2 ^ n)).length = n + 1 := by
   rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+
+/-- A number at most `2 ^ n` uses at most `n + 1` binary digits. -/
+theorem length_encNat_le_of_le_two_pow {a n : ℕ} (h : a ≤ 2 ^ n) :
+    (encNat a).length ≤ n + 1 := by
+  rw [← length_encNat_two_pow n]
+  simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size h
 
 /-- Replaces every symbol by `false` and appends `true`. -/
 def twoPowT : Transducer Bool Unit where

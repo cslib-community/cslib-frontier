@@ -25,6 +25,7 @@ import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Streaming polynomial-space exhaustive counting and finite-threshold fallback absorption
@@ -206,7 +207,7 @@ private theorem length_prefix_accumulator_le (pred : P → List Bool → Bool) (
     have hm : (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤
         (encNat (2 ^ x.1)).length := by
       simpa [Nat.size_eq_bits_len] using Nat.size_le_size hz_le
-    rw [BooleanFold.length_clock] at hm
+    rw [length_encNat_two_pow] at hm
     exact hm
   enc_len [prefix_payload_eq]
 
