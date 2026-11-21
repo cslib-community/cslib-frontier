@@ -6,6 +6,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
 import CslibFrontier.Computability.Complexity.Reduction.LinearApproximation
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
@@ -16,10 +17,12 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.Orthogonalization
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyConvexity
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
@@ -123,6 +126,8 @@ import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.Fourier
 import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
+import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
+import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -5479,6 +5484,24 @@ register_result "goemans-williamson-maxdicut" where
     Real.goemansWilliamsonDicutConstant (0.79607 < β < 0.79608), plus the balanced-digraph \
     reduction recovering α > 0.87856 on p. 1138. No SDP solver, finite-precision sampler, or \
     derandomization is formalized."
+
+register_result "measurement-orthogonalization-full-matrix" where
+  title := "De la Salle: orthogonalization of measurements in a full matrix algebra"
+  topic := "quantum information"
+  sources := [
+    { paper := delaSalle2022, theorem := "Theorem 1.2",
+      locator := "arXiv:2103.14126v2, §1, p. 2" }
+  ]
+  theorems := [
+    Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le,
+    Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le_of_le
+  ]
+  scope := "Finite-outcome measurements in full complex matrix algebras, with any normalized \
+    positive state. The projective measurement uses the same algebra and outcomes. Its sum of \
+    squared state distances is at most nine times the exact defect, giving the source's strict \
+    bound when the defect is strictly below epsilon. Normality is automatic here. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6198#issuecomment-6994351157."
 
 register_result "binary-linear-constraint-operator-solution-perfect" where
   title := "Cleve–Mittal: finite-dimensional operator solutions of binary linear constraint \
@@ -11103,6 +11126,20 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
 
+register_result "low-individual-degree-self-improvement-sdp" where
+  title := "Strong duality for the low-individual-degree self-improvement SDP"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Lemma 9.2",
+      locator := "arXiv:2009.12982v1, §9.1, pp. 68–70, equations (51)–(54)" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_selfImprovement_trace_certificate]
+  scope := "The matrix objective of each bounded polynomial is the uniform average of the point \
+    effects for its values. The primal ranges over polynomial submeasurements, with an explicit \
+    failure effect completing them to measurements. The dual ranges over common operator \
+    majorants. The optimum has equal primal and dual traces, no primal failure mass and \
+    complementary slackness for each polynomial."
+
 register_result "mpda-one-hole-is-no-hole" where
   title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
   topic := "automata theory"
@@ -11225,6 +11262,28 @@ register_result "quantum-relative-entropy-reference-domination" where
     when total weight differs from one. Claim 5.13 uses these comparisons and remains open. \
     Outside source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6664#issuecomment-7020792318."
+
+register_result "bvy-checked-answer-marginal-entropy" where
+  title := "Marginal domination and entropy cost for checked-answer postselection"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13 (proof step)",
+      locator := "arXiv:1509.07466v2, printed pp. 23–24" }
+  ]
+  theorems := [
+    Cslib.PCP.QuantumStrategy.sum_partialTraceRight_averagedCheckedVector,
+    Cslib.PCP.QuantumStrategy.partialTraceRight_averagedCheckedVector_le,
+    Cslib.PCP.QuantumStrategy.isDensityMatrix_averagedCheckedMarginalAlice,
+    Cslib.PCP.QuantumStrategy.relativeEntropy_normalizedCheckedVector_partialTraceRight_le
+  ]
+  scope := "A checked-answer marginal and postselection step in the proof of Claim 5.13. \
+    For finite tensor strategies with local POVMs and independent full-question laws, \
+    forgetting Bob’s checked answers leaves the selected Alice marginal. Each branch lies \
+    below a common trace-one reference independent of Bob’s question law. At positive actual \
+    Born weight w the normalized reduced branch has Umegaki relative entropy at most −log w \
+    in nats. The full opposite-question register, win-conditioned and averaged coordinate \
+    information bounds, and local-unitary estimates remain open. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6665#issuecomment-7020963630."
 
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"
@@ -11524,6 +11583,92 @@ register_result "odonnell-transitive-symmetric-influence" where
     functions by the n equal influences, instead of the book's route through f̂(i) and Parseval. \
     Monotone is for Bool's order false < true; under true ↦ −1 this is the book's \
     coordinatewise order on inputs and outputs."
+
+register_result "odonnell-reverse-two-point-inequality-positive-exponents" where
+  title := "Reverse two-point inequality for positive exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.7(a)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 315" }
+  ]
+  theorems := [
+    Cslib.BitString.rpow_add_rpow_le_rpow_add_rpow_rpow,
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_unit
+  ]
+  scope := "One uniformly random bit and exponents 0 < q ≤ p ≤ 1. The power form takes \
+    a + b x with |b| ≤ a and ρ² (1 − q) ≤ 1 − p; the norm form takes any nonnegative function \
+    of one bit and 0 ≤ ρ ≤ √((1 − p)/(1 − q)), and states ‖f‖_p ≤ ‖T_ρ f‖_q. Every ρ in that \
+    range is reached directly by comparing binomial series. The \
+    exponents q = 0 and q = −∞ are not covered."
+
+register_result "odonnell-reverse-two-function-hypercontractivity-nonzero-exponents" where
+  title := "Reverse Two-Function Hypercontractivity Theorem for finite nonzero exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Exercise 10.6 (Reverse Two-Function Hypercontractivity Theorem)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 314" }
+  ]
+  theorems := [
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp,
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one,
+    Cslib.BitString.lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one
+  ]
+  scope := "Uniform cube on any finite coordinate type, with the ρ-correlated pair given by \
+    the noise operator. Covers r, s ≤ 0 with r, s ≠ −1, so both exponents 1 + r and 1 + s are \
+    finite and nonzero, r s ≤ 1 and 0 ≤ ρ ≤ √(r s). For −1 < r, s ≤ 0 both functions are \
+    nonnegative. When one exponent is negative (r < −1 or s < −1), the function carrying it is \
+    positive and the other nonnegative. ‖f‖_p for p < 0 is 𝔼[f^p]^(1/p), reading the printed \
+    −1/p of the p. 314 display as 1/p. The exponent 0 as the geometric mean and zeros in a \
+    negative-exponent function through the source's limit convention (Exercise 10.6(a)) are not \
+    covered and are tracked on #2131."
+
+register_result "odonnell-reverse-two-function-hypercontractivity-neg-half" where
+  title := "Reverse two-function hypercontractivity at r = s = −1/2"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.8",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 315" }
+  ]
+  theorems := [Cslib.BitString.sq_expect_abs_mul_sq_expect_abs_le]
+  scope := "Uniform cube on any finite coordinate type, arbitrary real f and g, and \
+    0 ≤ ρ ≤ 1/2: (𝔼|f|)² (𝔼|g|)² is at most the expectation of f(x)² g(y)² over a ρ-correlated \
+    pair. This is the exercise's assertion, derived from the general two-function theorem rather \
+    than by the direct one-bit proof the exercise asks for. The optional question about a direct \
+    proof for k > 2 is not addressed."
+
+register_result "odonnell-reverse-hypercontractivity-nonzero-exponents" where
+  title := "Reverse Hypercontractivity Theorem for finite nonzero exponents"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 10.6 (Reverse Hypercontractivity Theorem)",
+      locator := "arXiv:2105.10386v1, §10.6, printed p. 314" }
+  ]
+  theorems := [
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp,
+    Cslib.BitString.lpNorm_le_lpNorm_noiseOp_of_neg
+  ]
+  scope := "Uniform cube on any finite coordinate type: ‖f‖_p ≤ ‖T_ρ f‖_q for finite nonzero \
+    exponents q < p ≤ 1 and 0 ≤ ρ ≤ √((1 − p)/(1 − q)). For 0 < p ≤ 1 (with q < 0 or \
+    0 < q < p) f is nonnegative; for q < p < 0 f is positive. ‖f‖_p for p < 0 is \
+    𝔼[f^p]^(1/p), reading the printed −1/p of the p. 314 display as 1/p. The exponent 0 as the \
+    geometric mean, q = −∞, and zeros in f under a negative input exponent through the source's \
+    limit convention are not covered and are tracked on #2131."
+
+register_result "odonnell-reverse-small-set-expansion" where
+  title := "Reverse Small-Set Expansion Theorem for ρ < 1"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Remark 10.3 (Reverse Small-Set Expansion Theorem)",
+      locator := "arXiv:2105.10386v1, §10.1, printed p. 285; proof in Exercise 10.9, printed \
+        p. 315" }
+  ]
+  theorems := [Cslib.BitString.exp_le_expect_indicator_mul_noiseOp_indicator]
+  scope := "Uniform cube on any finite coordinate type; sets A and B of volumes exp(−a²/2) and \
+    exp(−b²/2) with a, b ≥ 0, and 0 ≤ ρ < 1. A ρ-correlated pair lands in A × B with \
+    probability at least exp(−(a² + 2ρab + b²)/(2(1 − ρ²))). The source's statement also \
+    includes the singular endpoint ρ = 1, which is not covered: there Lean's division by zero \
+    would make the stated bound 1."
 
 register_result "micciancio-regev-shifted-gaussian-mass-le-zero" where
   title := "Shifted lattice Gaussian mass is maximized at the origin"
