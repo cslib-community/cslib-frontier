@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.List.Blocks
+import CslibFrontier.Foundations.Data.List.Forall2
 
 /-!
 # Search-tree recurrences and branching-vector bounds
@@ -239,16 +240,6 @@ namespace BranchingTree
 
 variable {σ : Type*} (T : BranchingTree σ)
 
-private theorem forall₂_imp_left_mem {α β : Type*} {R : α → β → Prop} {xs : List α} {ys : List β}
-    (h : List.Forall₂ R xs ys) {x : α} (hx : x ∈ xs) : ∃ y ∈ ys, R x y := by
-  induction h with
-  | nil => nomatch hx
-  | cons hxy _ ih =>
-    rcases List.mem_cons.mp hx with rfl | hx'
-    · exact ⟨_, List.mem_cons_self, hxy⟩
-    · obtain ⟨y, hy, hry⟩ := ih hx'
-      exact ⟨y, List.mem_cons_of_mem _ hy, hry⟩
-
 private theorem attach_flatMap_val {α β : Type*} (xs : List α) (f : α → List β) :
     (xs.attach.flatMap fun x => f x.1) = xs.flatMap f := by
   rw [List.flatMap_def, List.flatMap_def, List.attach_map_val]
@@ -258,7 +249,7 @@ theorem measure_child_lt {s child : σ} (hleaf : T.isLeaf s = false)
     (hmem : child ∈ T.children s) :
     T.measure child < T.measure s := by
   obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
-  obtain ⟨d, hd_mem, hle⟩ := forall₂_imp_left_mem hrel hmem
+  obtain ⟨d, hd_mem, hle⟩ := hrel.exists_mem_of_mem hmem
   have hd_pos : 0 < d := T.steps_pos d (hsub.subset hd_mem)
   omega
 

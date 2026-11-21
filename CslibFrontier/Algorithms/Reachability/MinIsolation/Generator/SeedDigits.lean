@@ -150,48 +150,96 @@ theorem parts_inSpace (encContext : κ ↪ List Bool) (code : κ → ℕ → Boo
   rintro ⟨s, b⟩
   cases b <;> rfl
 
+/-- Replacing the finish handler preserves first halt at the first absent bit.
+The emitted word is the new handler applied to the final registers. -/
+theorem run_withFinish (code : κ → ℕ → Bool) (context : κ) (seed : List Bool)
+    (finish : State κ → ℕ) :
+    let M := { machine code context with finish := fun s => encNat (finish s) }
+    (∀ t < seed.length + 1, M.halted (M.run seed t) = false) ∧
+      M.halted (M.run seed (seed.length + 1)) = true ∧
+      M.output seed (seed.length + 1) =
+        encNat (finish ⟨context, seed.length, maskedPrefix (code context) seed seed.length,
+          true⟩) := by
+  intro M
+  have hlive (t : ℕ) (ht : t < seed.length + 1) : M.halted (M.run seed t) = false := by
+    change (machine code context).halted ((machine code context).run seed t) = false
+    rw [run_prefix code context seed t (by omega)]
+    rfl
+  have hend : M.run seed (seed.length + 1) =
+      ⟨context, seed.length, maskedPrefix (code context) seed seed.length, true⟩ :=
+    run_at_end code context seed
+  refine ⟨hlive, ?_, ?_⟩
+  · rw [hend]
+    rfl
+  · rw [M.output_eq_of_not_halted seed hlive, hend]
+    simp [M, machine]
+
+/-- For a fixed initial context, the native raw seed scan can return any certified binary
+function of the final registers. The output length is charged to the workspace bound. -/
+theorem scanWithFinish_inSpace (encContext : κ ↪ List Bool) (code : κ → ℕ → Bool)
+    (context : κ) (finish : State κ → ℕ)
+    (hc : ComputableInSpace (fun p : κ × ℕ => code p.1 p.2) (encPair encContext encNat)
+      encBool (fun p => (encPair encContext encNat p).length))
+    (hf : ComputableInSpace finish (encState κ encContext) encNat
+      (fun s => (encState κ encContext s).length)) :
+    ComputableInSpace (fun seed =>
+      finish ⟨context, seed.length, maskedPrefix (code context) seed seed.length, true⟩)
+      encBits encNat List.length := by
+  let M := { machine code context with finish := fun s => encNat (finish s) }
+  obtain ⟨hq, hn, he, hh, _⟩ := parts_inSpace encContext code context hc
+  have hfinish : ComputableInSpace M.finish (encState κ encContext) encBits
+      (fun s => (encState κ encContext s).length) :=
+    hf.of_enc_eq fun _ => (encBits_apply _).symm
+  have hlog (seed : List Bool) : Nat.log2 (encBits seed).length + 1 ≤ seed.length + 1 := by
+    rw [encBits_apply]
+    exact Nat.add_le_add_right
+      ((Nat.log2_le_size seed.length).trans (Nat.size_le_self seed.length)) _
+  let K := 2 * (encContext context).length + 8
+  have hbudget (seed : List Bool) :
+      2 * (encContext context).length + 8 * seed.length + 4 ≤ K * (seed.length + 1) := by
+    have hseed := Nat.mul_le_mul_right seed.length (show 8 ≤ K from Nat.le_add_left _ _)
+    have hctx : 2 * (encContext context).length + 4 ≤ K := by dsimp only [K]; omega
+    rw [Nat.mul_add, Nat.mul_one]
+    omega
+  have hsize (seed : List Bool) (t : ℕ) :
+      (encState κ encContext (M.run (encBits seed) t)).length ≤ K * (seed.length + 1) := by
+    rw [encBits_apply]
+    exact (length_run_le encContext code context seed t).trans (hbudget seed)
+  obtain ⟨time, c, hnativ⟩ := QueryMachine.computableInSpace
+    (enc := encBits) (encOut := encNat)
+    (f := fun seed => finish ⟨context, seed.length, maskedPrefix (code context) seed seed.length,
+      true⟩)
+    M hq hn he hh hfinish (fun seed => seed.length + 1)
+    (fun seed => (run_withFinish code context seed finish).2.1)
+    (fun seed => (run_withFinish code context seed finish).1)
+    (fun seed => (run_withFinish code context seed finish).2.2.symm)
+    (fun seed => seed.length + 1) hlog ⟨K, fun seed t _ => hsize seed t⟩
+  obtain ⟨D, hD⟩ := hf.length_le
+  refine ⟨time, max c (D * (K + 1)), hnativ.mono (fun _ => le_rfl) ?_, fun seed => ?_⟩
+  · exact fun seed => Nat.mul_le_mul_right (seed.length + 1) (le_max_left _ _)
+  · let s : State κ := ⟨context, seed.length, maskedPrefix (code context) seed seed.length, true⟩
+    have hlen : (encState κ encContext s).length ≤ K * (seed.length + 1) :=
+      (length_prefix_state encContext code context seed seed.length true le_rfl).trans
+        (hbudget seed)
+    have hsucc : K * (seed.length + 1) + 1 ≤ (K + 1) * (seed.length + 1) := by
+      rw [Nat.add_mul K 1, Nat.one_mul]
+      omega
+    calc
+      _ ≤ D * ((encState κ encContext s).length + 1) := hD s
+      _ ≤ D * ((K + 1) * (seed.length + 1)) :=
+        Nat.mul_le_mul_left D ((Nat.add_le_add_right hlen 1).trans hsucc)
+      _ ≤ max c (D * (K + 1)) * (seed.length + 1) := by
+        rw [← Nat.mul_assoc]
+        exact Nat.mul_le_mul_right _ (le_max_right _ _)
+
 /-- For a fixed initial code context, accumulate a raw seed word in native linear space.
 The uniform code-bit certificate is used at every read. -/
 theorem maskedSeed_inSpace (encContext : κ ↪ List Bool) (code : κ → ℕ → Bool) (context : κ)
     (hc : ComputableInSpace (fun p : κ × ℕ => code p.1 p.2) (encPair encContext encNat)
       encBool (fun p => (encPair encContext encNat p).length)) :
     ComputableInSpace (fun seed => maskedPrefix (code context) seed seed.length)
-      encBits encNat List.length := by
-  let M := machine code context
-  obtain ⟨hq, hn, he, hh, hf⟩ := parts_inSpace encContext code context hc
-  have hstop (seed : List Bool) : M.halted (M.run seed (seed.length + 1)) = true := by
-    dsimp only [M]
-    rw [run_at_end]
-    rfl
-  have hlive (seed : List Bool) (t : ℕ) (ht : t < seed.length + 1) :
-      M.halted (M.run seed t) = false := by
-    dsimp only [M]
-    rw [run_prefix code context seed t (by omega)]
-    rfl
-  have hout (seed : List Bool) :
-      encNat (maskedPrefix (code context) seed seed.length) = M.output seed (seed.length + 1) := by
-    rw [M.output_eq_of_not_halted seed (hlive seed)]
-    have hend : M.run seed (seed.length + 1) =
-        ⟨context, seed.length, maskedPrefix (code context) seed seed.length, true⟩ :=
-      run_at_end code context seed
-    rw [hend]
-    simp [M, machine]
-  have hlog (seed : List Bool) : Nat.log2 (encBits seed).length + 1 ≤ seed.length + 1 := by
-    rw [encBits_apply]
-    exact Nat.add_le_add_right
-      ((Nat.log2_le_size seed.length).trans (Nat.size_le_self seed.length)) _
-  have hsize : ∃ C, ∀ (seed : List Bool) t, t ≤ seed.length + 1 →
-      (encState κ encContext (M.run (encBits seed) t)).length ≤ C * (seed.length + 1) := by
-    refine ⟨2 * (encContext context).length + 8, fun seed t _ => ?_⟩
-    rw [encBits_apply]
-    exact (length_run_le encContext code context seed t).trans (by nlinarith)
-  obtain ⟨time, c, hnativ⟩ := QueryMachine.computableInSpace
-    (enc := encBits) (encOut := encNat)
-    (f := fun seed => maskedPrefix (code context) seed seed.length)
-    M hq hn he hh hf (fun seed => seed.length + 1) hstop hlive hout
-    (fun seed => seed.length + 1) hlog hsize
-  refine ⟨time, c + 3, hnativ.mono (fun _ => le_rfl) ?_, fun seed => ?_⟩
-  · exact fun seed => Nat.mul_le_mul_right (seed.length + 1) (Nat.le_add_right _ _)
-  · exact (length_maskedPrefix_le (code context) seed seed.length).trans (by nlinarith)
+      encBits encNat List.length :=
+  scanWithFinish_inSpace encContext code context State.accumulator hc
+    (encState_accumulator_budget κ encContext (budget_id (.refl _)))
 
 end Cslib.Reachability.Hoza.SeedDigits
