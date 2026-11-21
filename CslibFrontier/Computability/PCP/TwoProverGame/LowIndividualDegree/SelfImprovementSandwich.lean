@@ -70,25 +70,6 @@ theorem sandwichedPolynomialMeasurement_effect_some
   rw [sandwichedPolynomialMeasurement, Measurement.mixture_uniform_effect]
   simp only [Measurement.sandwichBy_effect_some]
 
-omit [Field F] [DecidableEq F] in
-private theorem sum_copy_sandwich_le {β : Type*} [Fintype β]
-    (φ : AlgState A) (T : Measurement β A) (M N : Measurement F A) (f : β → F) :
-    (∑ g, let D := M.effect (f g) - N.effect (f g)
-          (φ (star D * T.effect g * D)).re) ≤ copyDefect φ M N := by
-  classical
-  let D a := M.effect a - N.effect a
-  change (∑ g, (φ (star (D (f g)) * T.effect g * D (f g))).re) ≤ _
-  rw [← sum_fiberwise univ f (fun g => (φ (star (D (f g)) * T.effect g * D (f g))).re)]
-  unfold copyDefect
-  refine sum_le_sum fun a _ => ?_
-  have he : (∑ g with f g = a, (φ (star (D (f g)) * T.effect g * D (f g))).re) =
-      (φ (star (D a) * (T.map f).effect a * D a)).re := by
-    rw [map_effect, mul_sum, sum_mul, map_sum, Complex.re_sum]
-    exact sum_congr rfl fun g hg => by rw [(mem_filter.mp hg).2]
-  rw [he, AlgState.norm_sq]
-  simpa only [D, mul_one] using φ.re_apply_mono
-    (star_left_conjugate_le_conjugate ((T.map f).effect_le_one a) (D a))
-
 omit [DecidableEq F] in
 /-- A step of the self-improvement argument. In a score against positive contractions
 on the opposite side, the averaged sandwiches can be replaced by pointwise sandwiches
@@ -140,9 +121,11 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
   refine (expect_le_expect fun u _ => abs_expect_le _ _).trans ?_
   have hp (u v : Point F m) : |S R u v - S L u u| ≤
       2 * √(copyDefect φ (R v) (L v)) + 2 * √(e u v) := by
+    have hgroup := φ.sum_weighted_conj_le_sum_norm_sq T (f v)
+      (fun b => (R v).effect b - (L v).effect b)
     have hcopy := (abs_sum_weighted_sandwich_sub_le φ T (R v) (L v) (f v) (f v)
       (C u) (hC u) (hCT u)).trans
-      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (sum_copy_sandwich_le φ T (R v) (L v) (f v)))
+      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hgroup)
         (by norm_num))
     have hvar := abs_sum_weighted_sandwich_sub_le φ T (L v) (L u) (f v) (f u)
       (C u) (hC u) (hCT u)
@@ -207,7 +190,8 @@ theorem abs_successfulMass_sandwichedPolynomial_sub_majorant_le (φ : AlgState A
         T.effect g * Lg u g := by
       rw [(hLT u g _).eq, mul_assoc, hL u _]
     have hweighted := Real.sqrt_le_sqrt
-      (sum_copy_sandwich_le φ T (R u) (L u) (fun g => eval u g.val))
+      (φ.sum_weighted_conj_le_sum_norm_sq T (fun g => eval u g.val)
+        (fun b => (R u).effect b - (L u).effect b))
     have hquad := (abs_sum_weighted_sandwich_sub_le φ T (R u) (L u)
       (fun g => eval u g.val) (fun g => eval u g.val)
       (fun _ => 1) (fun _ => ⟨zero_le_one, le_rfl⟩) (fun _ => Commute.one_left _)).trans
@@ -222,6 +206,7 @@ theorem abs_successfulMass_sandwichedPolynomial_sub_majorant_le (φ : AlgState A
       (∑ g, (φ (T.effect g * Lg u g)).re) (∑ g, (φ (T.effect g * Rg u g)).re)).trans
       (add_le_add hquad hlin)
     convert hstep using 1
+    simp only [copyDefect]
     ring
   rw [state_successfulMass_sandwichedPolynomial_eq, ← hmean, ← expect_sub_distrib]
   refine (abs_expect_le _ _).trans ((expect_le_expect fun u _ => hp u).trans ?_)

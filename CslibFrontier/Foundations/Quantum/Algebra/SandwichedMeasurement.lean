@@ -79,6 +79,22 @@ end Measurement
 
 namespace AlgState
 
+/-- A weighted sum grouped by a common outcome map is bounded by the unweighted
+squared state norm. The total weight of each fiber is a measurement effect. -/
+theorem sum_weighted_conj_le_sum_norm_sq (φ : AlgState A) (T : Measurement β A)
+    (f : β → α) (D : α → A) :
+    (∑ b, (φ (star (D (f b)) * T.effect b * D (f b))).re) ≤ ∑ a, φ.norm (D a) ^ 2 := by
+  classical
+  rw [← sum_fiberwise univ f (fun b => (φ (star (D (f b)) * T.effect b * D (f b))).re)]
+  refine sum_le_sum fun a _ => ?_
+  have he : (∑ b with f b = a, (φ (star (D (f b)) * T.effect b * D (f b))).re) =
+      (φ (star (D a) * (T.map f).effect a * D a)).re := by
+    rw [Measurement.map_effect, mul_sum, sum_mul, map_sum, Complex.re_sum]
+    exact sum_congr rfl fun b hb => by rw [(mem_filter.mp hb).2]
+  rw [he, AlgState.norm_sq]
+  simpa only [mul_one] using φ.re_apply_mono
+    (star_left_conjugate_le_conjugate ((T.map f).effect_le_one a) (D a))
+
 private theorem abs_sum_norm_sq_sub_le (φ : AlgState A) (X Y : β → A)
     (hX : ∑ b, φ.norm (X b) ^ 2 ≤ 1) (hY : ∑ b, φ.norm (Y b) ^ 2 ≤ 1) :
     |(∑ b, φ.norm (X b) ^ 2) - ∑ b, φ.norm (Y b) ^ 2| ≤
