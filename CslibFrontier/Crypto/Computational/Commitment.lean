@@ -92,10 +92,14 @@ The general public-parameter interface is in `Commitment/Basic`.
 ## References
 
 * [M. Naor, *Bit Commitment Using Pseudorandomness*][Naor1991]
+* [J. Håstad, R. Impagliazzo, L. Levin, M. Luby,
+  *A Pseudorandom Generator from Any One-Way Function*][HILL1999]
 * [O. Goldreich, *Foundations of Cryptography: Volume 1, Basic Tools*][Goldreich2001],
   Section 4.4.1.
-* [O. Goldreich, *Foundations of Cryptography (Fragments of a Book)*][Goldreich1998Fragments],
-  Section 1.3.3.
+* [O. Goldreich, *Foundations of Cryptography (Fragments of a Book – Version 2.03)*,
+  1998 draft][Goldreich1998Fragments], Section 1.3.3 (pp. 18–20, non-uniform advice vs.
+  polynomial-size circuits) and Section 4.3.3, Definition 4.3.8 (printed pp. 151–152, unbounded
+  auxiliary input and clocks).
 -/
 
 @[expose] public section
@@ -326,7 +330,10 @@ A distinguishing advantage replaces the source's guessing probability `1/2 + 1/p
 differ by a factor of two. Because `aux` is restricted to deterministic polynomial-time-computable
 families (which a uniform receiver could compute from `1^n` itself), this notion is weaker than
 `StatefulHiding`, which quantifies over arbitrary polynomially bounded auxiliary inputs as in
-the source's auxiliary-input remark (`StatefulHiding.generable`). -/
+the source's auxiliary-input remark (`StatefulHiding.generable`). As in `StatefulHiding`, `commit`
+is arbitrary here with no `ComputableInPolyTime` bound bundled, so `CommitmentReceiver.IsPPT.guess`
+is clocked polynomial in `n + state.length + c.length` (`GenerableBitCommitmentScheme` bounds
+`c.length` polynomially via `polyTime_commit`). -/
 def GenerableStatefulHiding (commit : List Bool → Bool → List Bool → List Bool) : Prop :=
   ∀ (aux : ℕ → List Bool),
     ComputableInPolyTime aux encUnary encBits →
@@ -348,12 +355,18 @@ to many bits to one bit. A distinguishing advantage replaces the source's guessi
 `1/2 + 1/p(n)`; the two differ by a factor of two.
 
 *Clock convention.* `CommitmentReceiver.IsPPT` clocks `receiver.choose` polynomial in the length
-of its full encoded input `(1^n, aux n)`, i.e., `poly(n + (aux n).length)`. Restricting `aux` to
-polynomially bounded length ensures the receiver's running time remains polynomial in `n` (without
-it, an exponentially long `aux n` would grant exponential time to brute-force every `n`-bit seed).
-Under a `poly(n)`-time clock, an adversary given an unbounded auxiliary input can inspect only a
-`poly(n)`-bit prefix, matching the auxiliary-input convention of [Naor1991] and
-[Goldreich1998Fragments], Section 1.3.3, pp. 18–20. -/
+of its full encoded input `(1^n, aux n)`, i.e., `poly(n + (aux n).length)`, and clocks
+`receiver.guess` polynomial in `n + state.length + c.length` (`commit` is arbitrary here, with no
+`ComputableInPolyTime` bound bundled; `BitCommitmentScheme` bounds `c.length` polynomially via
+`polyTime_commit`). Restricting `aux` to polynomially bounded length matches the uniform PPT
+with polynomial advice class corresponding to polynomial-size circuit families
+([Goldreich1998Fragments], Section 1.3.3, pp. 18–20) and ensures the receiver's first stage runs
+in time polynomial in `n` (without it, an exponentially long `aux n` would grant exponential time
+to brute-force every `n`-bit seed). By contrast, an adversary clocked in `poly(n)` alone with an
+unbounded auxiliary input can inspect only a `poly(n)`-bit prefix ([Goldreich1998Fragments],
+Section 4.3.3, Definition 4.3.8, printed pp. 151–152); unlike
+`CslibFrontier.Crypto.Computational.ZeroKnowledge.AuxClock` (`IsPPTWithAux`), this module does not
+formalize a prefix-clock unbounded-auxiliary-input bridge. -/
 def StatefulHiding (commit : List Bool → Bool → List Bool → List Bool) : Prop :=
   ∀ (aux : ℕ → List Bool),
     PolynomiallyBounded (fun n => (aux n).length) →
@@ -581,10 +594,12 @@ theorem PseudorandomGenerator.naorGenerableStatefulHiding
   exact negligible_of_le (hfalse.add htrue) fun n =>
     advantage_commitmentHidingGame_naorCommit_le generator (length n) receiver (aux n) n
 
-/-- **Stateful-receiver computational hiding of Naor bit commitment** [Naor1991]: for any
-nonuniform pseudorandom generator `generator` (`NonuniformPRG`), `naorCommit generator` satisfies
-`StatefulHiding` against all randomized stateful PPT receivers given any polynomially bounded
-auxiliary input family `aux : ℕ → List Bool`. -/
+/-- Stateful-receiver computational hiding for `naorCommit generator` against randomized stateful
+PPT receivers given any polynomially bounded auxiliary input family `aux : ℕ → List Bool`, from a
+nonuniform pseudorandom generator (`NonuniformPRG`). Formalizes Naor's PRG-based commitment hiding
+(after [Naor1991], Section 3; exact Section 3 source-locator verification and results inventory
+registration (`CslibFrontierResults.Entries`) remain open pending inspection of `bit.pdf`,
+#6256 / #5293). -/
 theorem NonuniformPRG.naorStatefulHiding
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length) :
@@ -1284,16 +1299,22 @@ def PseudorandomGenerator.naorGenerableBitCommitment
   generable_hiding := hG.naorGenerableStatefulHiding
 
 /-- Existence of a statistically binding bit commitment scheme with uniform
-(`GenerableStatefulHiding`) hiding from any uniform one-way function (weaker than the arbitrary
-auxiliary-input theorem of [Naor1991]; see `NonuniformOneWay.exists_bitCommitmentScheme`). -/
+(`GenerableStatefulHiding`) hiding from any uniform one-way function, composing the OWF-to-PRG
+step (`OneWay.exists_pseudorandomGenerator_three_mul`, [HILL1999]) with
+`PseudorandomGenerator.naorGenerableBitCommitment` (weaker than the arbitrary auxiliary-input
+condition of [Naor1991], Section 2, pp. 3–4; see `NonuniformOneWay.exists_bitCommitmentScheme`).
+-/
 theorem OneWay.exists_generableBitCommitmentScheme {f : List Bool → List Bool} (hf : OneWay f) :
     Nonempty GenerableBitCommitmentScheme := by
   obtain ⟨generator, hG⟩ := hf.exists_pseudorandomGenerator_three_mul
   exact ⟨hG.naorGenerableBitCommitment (fun n => Nat.le_succ (3 * n))⟩
 
-/-- **Naor's bit commitment scheme** built from any nonuniform pseudorandom generator
-(`NonuniformPRG`) with stretch at least `3 * n` [Naor1991], providing full `StatefulHiding` against
-randomized stateful PPT receivers with arbitrary polynomially bounded auxiliary input. -/
+/-- Packaged Naor bit commitment scheme built from any nonuniform pseudorandom generator
+(`NonuniformPRG`) with stretch at least `3 * n`, providing `StatefulHiding` against randomized
+stateful PPT receivers given arbitrary polynomially bounded auxiliary input. Formalizes Naor's
+PRG-based commitment construction (after [Naor1991], Section 3; exact Section 3 source-locator
+verification and results inventory registration (`CslibFrontierResults.Entries`) remain open
+pending inspection of `bit.pdf`, #6256 / #5293). -/
 def NonuniformPRG.naorBitCommitment
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length)
@@ -1302,10 +1323,13 @@ def NonuniformPRG.naorBitCommitment
   toGenerableBitCommitmentScheme := hG.toPRG.naorGenerableBitCommitment hstretch
   stateful_hiding := hG.naorStatefulHiding
 
-/-- **Existence of bit commitments from nonuniform one-way functions** [Naor1991]: if a
-nonuniform one-way function exists, then there exists a statistically binding, computationally
-hiding bit commitment scheme (`BitCommitmentScheme`, with hiding against randomized stateful PPT
-receivers given arbitrary polynomially bounded auxiliary input). -/
+/-- Existence of a statistically binding, computationally hiding `BitCommitmentScheme` (with
+`StatefulHiding` against randomized stateful PPT receivers given arbitrary polynomially bounded
+auxiliary input) from any nonuniform one-way function (`NonuniformOneWay`). Composes the nonuniform
+OWF-to-PRG step (`NonuniformOneWay.exists_nonuniformPRG_three_mul`, [HILL1999]) with
+`NonuniformPRG.naorBitCommitment` (after [Naor1991], Section 3; exact Section 3 source-locator
+verification and results inventory registration (`CslibFrontierResults.Entries`) remain open
+pending inspection of `bit.pdf`, #6256 / #5293). -/
 theorem NonuniformOneWay.exists_bitCommitmentScheme {f : List Bool → List Bool}
     (hf : NonuniformOneWay f) :
     Nonempty BitCommitmentScheme := by
