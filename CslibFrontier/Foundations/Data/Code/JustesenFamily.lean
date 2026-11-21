@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Foundations.Data.Code.Justesen
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
+public import CslibFrontier.Foundations.FieldTheory.Finite.HornerCoordinates
 import CslibFrontier.Foundations.Data.BitString.Binary
-import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
-import CslibFrontier.Foundations.FieldTheory.Finite.HornerCoordinates
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.LinearAlgebra.Lagrange
 
@@ -407,6 +407,21 @@ def indexedCodewordMod {w n : ℕ} (v : Fin w) : Fin (codeLength w n) → Bool :
   fun j =>
     let (point, half, bit) := decodeCoordinate w n j
     codewordBitWith (fieldMulMod g) v (nonzeroPointBits point) half bit
+
+open BinaryField in
+/-- The table-free indexed bit selects a Wozencraft bit of the Horner evaluation of the binary
+label's fixed-width coefficient blocks. -/
+theorem indexedCodewordMod_eq_hornerBits {w n : ℕ} (v : Fin w) (j : Fin (codeLength w n)) :
+    indexedCodewordMod v j =
+      let (point, half, bit) := decodeCoordinate w n j
+      let mul := fieldMulMod (modulusBitsScan (fieldDegree w n))
+      let x := List.ofFn (nonzeroPointBits point)
+      let y := hornerBits (fieldDegree w n) mul x (fun i : Fin (coefficientCount w n) =>
+        BitString.lowBits (fieldDegree w n) (v.val >>> (fieldDegree w n * i.val)))
+      wozencraftBitWith mul x y half.val bit.val := by
+  unfold indexedCodewordMod
+  obtain ⟨point, half, bit⟩ := decodeCoordinate w n j
+  rfl
 
 private theorem nonzeroPointBits_ne_zero {b : ℕ} (i : Fin (2 ^ b - 1)) :
     nonzeroPointBits i ≠ 0 := by
