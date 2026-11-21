@@ -145,7 +145,8 @@ example : ∃ bits update, replayScan context reply start id [] bits = some (upd
   obtain ⟨bits, update, hfirst, hanswer⟩ :=
     exists_successful_firstHalting context reply start id [] (by
       intro req _
-      cases req <;> exact ⟨[], _, ⟨rfl, by simp⟩, rfl⟩)
+      have hnil := (reply.firstHalting_iff_nil_of_halted [] [] (start context req) rfl).mpr rfl
+      cases req <;> exact ⟨[], _, hnil, rfl⟩)
   exact ⟨bits, update, (firstHalting_iff_replayScan context reply start id [] bits update).mp
     ⟨hfirst, hanswer⟩⟩
 

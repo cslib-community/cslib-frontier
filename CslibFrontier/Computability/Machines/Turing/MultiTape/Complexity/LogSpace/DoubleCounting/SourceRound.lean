@@ -1129,7 +1129,8 @@ theorem exists_successful_firstHalting {τ : Type} (ctx : Context)
     | h q ih =>
       cases hlive : halted q with
       | true =>
-        exact ⟨[], q.update, ⟨hlive, by simp⟩, by simp [answer, result, hvalid]⟩
+        have hfirst := (M.firstHalting_iff_nil_of_halted input [] ⟨q, none⟩ hlive).mpr rfl
+        exact ⟨[], q.update, hfirst, by simp [answer, result, hvalid]⟩
       | false =>
         have hreq := request_inRange hlive hp
         rw [hctx] at hreq
