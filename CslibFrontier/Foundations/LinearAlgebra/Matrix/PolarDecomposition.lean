@@ -8,6 +8,7 @@ module
 -- upstream: candidate (Mathlib, finite-dimensional polar decomposition)
 
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UnitaryGroup
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonalOrder
 public import Mathlib.Analysis.Matrix.Order
 public import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Basic
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefTrace
@@ -174,20 +175,6 @@ private theorem traceNorm_adjoint_square (A : Matrix n n ℂ) :
   unfold traceNorm
   rw [conjTranspose_conjTranspose, hroot, trace_mul_comm (U * H) Uᴴ,
     ← Matrix.mul_assoc, hUU, Matrix.one_mul]
-
-omit [Fintype m] [Fintype n] [DecidableEq m] [DecidableEq n] in
-private theorem fromBlocks_posSemidef_diagonal [Finite m] [Finite n]
-    (A : Matrix m m ℂ) (B : Matrix n n ℂ)
-    (hA : A.PosSemidef) (hB : B.PosSemidef) :
-    (fromBlocks A 0 0 B).PosSemidef := by
-  classical
-  let := Fintype.ofFinite m
-  let := Fintype.ofFinite n
-  obtain ⟨R, rfl⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp hA.nonneg
-  obtain ⟨S, rfl⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp hB.nonneg
-  simpa only [fromBlocks_conjTranspose, conjTranspose_zero, fromBlocks_multiply,
-    Matrix.zero_mul, Matrix.mul_zero, zero_add, add_zero, star_eq_conjTranspose]
-    using posSemidef_conjTranspose_mul_self (fromBlocks R 0 0 S)
 
 open Classical in
 private theorem sqrt_fromBlocks_diagonal {p q : Type*} [Fintype p] [Fintype q]

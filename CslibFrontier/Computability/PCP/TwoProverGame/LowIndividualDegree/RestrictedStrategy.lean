@@ -50,6 +50,28 @@ theorem restrictStrategy_state (x : F)
   unfold restrictStrategy CommutingStrategy.relabel
   rfl
 
+/-- The slice strategy uses Alice’s measurement at the lifted question, with restricted
+answers. -/
+theorem restrictStrategy_alice (x : F)
+    (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
+      (Answer F (m + 1)) (Answer F (m + 1)) 𝒜) (q : Question F m) :
+    (restrictStrategy x S).alice q = (S.alice (appendQuestion x q)).map (restrictAnswer x) := by
+  unfold restrictStrategy CommutingStrategy.relabel
+  change @Quantum.Measurement.map _ _ _ _ _ _ _ _ (Classical.decEq _) (restrictAnswer x)
+    (S.alice (appendQuestion x q)) = _
+  rw [Subsingleton.elim (Classical.decEq (Answer F m)) (inferInstance : DecidableEq (Answer F m))]
+
+/-- The slice strategy uses Bob’s measurement at the lifted question, with restricted
+answers. -/
+theorem restrictStrategy_bob (x : F)
+    (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
+      (Answer F (m + 1)) (Answer F (m + 1)) 𝒜) (q : Question F m) :
+    (restrictStrategy x S).bob q = (S.bob (appendQuestion x q)).map (restrictAnswer x) := by
+  unfold restrictStrategy CommutingStrategy.relabel
+  change @Quantum.Measurement.map _ _ _ _ _ _ _ _ (Classical.decEq _) (restrictAnswer x)
+    (S.bob (appendQuestion x q)) = _
+  rw [Subsingleton.elim (Classical.decEq (Answer F m)) (inferInstance : DecidableEq (Answer F m))]
+
 end Ring
 
 section CStar

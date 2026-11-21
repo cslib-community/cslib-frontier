@@ -45,6 +45,18 @@ structure Registers (N : ℕ) where
   /-- Number of edges still permitted. -/
   fuel : ℕ
 
+/-- Read binary endpoint ranks at a positive dimension, reducing each rank modulo the size. -/
+@[expose] def Registers.ofRanks {N : ℕ} (positive : 0 < N) (current target fuel : ℕ) :
+    Registers N :=
+  ⟨⟨current % N, Nat.mod_lt _ positive⟩, ⟨target % N, Nat.mod_lt _ positive⟩, fuel⟩
+
+/-- Reading the ranks of typed registers recovers those registers. -/
+theorem Registers.ofRanks_val {N : ℕ} (positive : 0 < N) (r : Registers N) :
+    Registers.ofRanks positive r.current.val r.target.val r.fuel = r := by
+  cases r with
+  | mk current target fuel =>
+    simp only [ofRanks, Nat.mod_eq_of_lt current.isLt, Nat.mod_eq_of_lt target.isLt]
+
 /-- Control state of the walk. A running adjacency call retains the destination and registers. -/
 inductive State (N : ℕ) (τ : Type)
   | choose (registers : Registers N) (choice : NondeterministicChoice.State)
@@ -1238,7 +1250,7 @@ private def readVertex (n v : ℕ) : Fin (positiveDimension n) :=
   ⟨v % positiveDimension n, Nat.mod_lt _ (positiveDimension_pos n)⟩
 
 private def readRegisters (n : ℕ) (r : RegisterFields) : Registers (positiveDimension n) :=
-  ⟨readVertex n r.1, readVertex n r.2.1, r.2.2⟩
+  Registers.ofRanks (positiveDimension_pos n) r.1 r.2.1 r.2.2
 
 private theorem readRegisters_budget {n : α → ℕ} {r : α → RegisterFields}
     (hn : ComputableInSpace (fun a => positiveDimension (n a)) encIn encNat budget)
@@ -1252,12 +1264,8 @@ private theorem readVertex_succ (n : ℕ) (v : Fin (n + 1)) :
   Fin.ext (Nat.mod_eq_of_lt v.isLt)
 
 private theorem readRegisters_succ (n : ℕ) (r : Registers (n + 1)) :
-    readRegisters (n + 1) (registerFields r) = r := by
-  cases r with
-  | mk u v f =>
-    change Registers.mk (readVertex (n + 1) u.val) (readVertex (n + 1) v.val) f = _
-    rw [readVertex_succ, readVertex_succ]
-    rfl
+    readRegisters (n + 1) (registerFields r) = r :=
+  Registers.ofRanks_val (positiveDimension_pos (n + 1)) r
 
 /-- Adjacency entry input: framed context and source ID, followed by the destination ID. -/
 abbrev encStartRequest {κ : Type} (encContext : κ ↪ List Bool) : (κ × ℕ × ℕ) ↪ List Bool :=

@@ -367,6 +367,16 @@ Allan Borodin. *Computational Complexity and the Existence of Complexity Gaps*. 
 
 Allan Borodin, Ran El-Yaniv. *Online Computation and Competitive Analysis*. Cambridge University Press, 1998. The chapter outline, in particular Chapter 1 on list accessing, comes from the publisher's table of contents; the book text was not inspected in this pass. The manual cites it only as a textbook pointer for ski rental and for the deterministic list-accessing lower bound, with no theorem numbers.
 
+<a id="bracha1987"></a>
+## bracha1987
+
+Gabriel Bracha. "Asynchronous Byzantine Agreement Protocols." *Information and Computation* 75(2), 130–143, 1987. https://doi.org/10.1016/0890-5401(87)90054-X . Bibliographic metadata checked via secondary indexes on 2026-11-21 UTC; the full journal text was not inspected, so no numbered section or theorem locator is asserted. Cited by [AsyncByzantine/Basic.lean](../CslibFrontier/Computability/Distributed/AsyncByzantine/Basic.lean), [AsyncByzantine/Impossibility.lean](../CslibFrontier/Computability/Distributed/AsyncByzantine/Impossibility.lean) and [AsyncByzantine/Bracha.lean](../CslibFrontier/Computability/Distributed/AsyncByzantine/Bracha.lean) (which formalizes the streamlined three-phase `initial`/`echo`/`ready` rule where `echo` is emitted only upon receiving `initial` from `dealer`).
+
+<a id="brachatoueg1985"></a>
+## brachatoueg1985
+
+Gabriel Bracha and Sam Toueg. "Asynchronous Consensus and Broadcast Protocols." *Journal of the ACM* 32(4), 824–840, 1985. https://doi.org/10.1145/4221.214134 . Bibliographic metadata checked via secondary indexes on 2026-11-21 UTC; the full journal text was not inspected, so no numbered section or theorem locator is asserted. Cited by [AsyncByzantine/Basic.lean](../CslibFrontier/Computability/Distributed/AsyncByzantine/Basic.lean), [AsyncByzantine/Impossibility.lean](../CslibFrontier/Computability/Distributed/AsyncByzantine/Impossibility.lean) and [AsyncByzantine/Bracha.lean](../CslibFrontier/Computability/Distributed/AsyncByzantine/Bracha.lean) for the asynchronous authenticated Byzantine message-passing model and the `n > 3t` resilience threshold.
+
 <a id="bregman73"></a>
 ## bregman73
 

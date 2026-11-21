@@ -13,13 +13,18 @@ import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProductBounds
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.AlgebraicValueBounds
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ConjugateProduct
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
+import CslibFrontier.Foundations.Analysis.Complex.ConjugateProduct
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 import CslibFrontier.Foundations.Analysis.SignLabelScore
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.EvalDeterminant
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -620,5 +625,103 @@ example :
     have hx₀ : x = 0 := by linarith
     simp [hx₀] at hx₂
   exact ⟨L, hL, x, hx₂, hpos, hneg (-x) (by simp [p, hx₂]) hne⟩
+
+-- The conjugate pair contributes one, leaving the negative real factor.
+open scoped ComplexConjugate in
+example :
+    let S : Finset ℂ := {Complex.I, -Complex.I, -1}
+    (∏ z ∈ S, z) = -1 := by
+  classical
+  intro S
+  have hS : ∀ z ∈ S, conj z ∈ S := by
+    intro z hz
+    simp only [S, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with rfl | rfl | rfl <;> simp [S]
+  calc
+    _ = (((∏ z ∈ S.filter (fun z => z.im = 0), z.re) *
+        ∏ z ∈ S.filter (fun z => 0 < z.im), Complex.normSq z : ℝ) : ℂ) :=
+      Complex.prod_eq_ofReal_mul_prod_normSq S id hS (fun _ _ => rfl)
+    _ = -1 := by
+      norm_num [S, Finset.filter_insert, Finset.filter_singleton, Complex.normSq_I]
+
+-- A double real root contributes once to the product over distinct roots.
+example :
+    let p : Polynomial ℝ := (Polynomial.X - Polynomial.C (-1)) ^ 2
+    (∏ z ∈ (p.aroots ℂ).toFinset, Polynomial.aeval z (Polynomial.X : Polynomial ℝ)) = -1 := by
+  classical
+  intro p
+  have hp : p ≠ 0 := pow_ne_zero _ (Polynomial.X_sub_C_ne_zero _)
+  have hreal : p.roots.toFinset = {-1} := by
+    ext x
+    rw [Multiset.mem_toFinset, Polynomial.mem_roots hp, Polynomial.IsRoot.def]
+    simp [p, add_eq_zero_iff_eq_neg]
+  have hcomplex : (p.aroots ℂ).toFinset = {-1} := by
+    ext z
+    rw [Multiset.mem_toFinset, Polynomial.mem_aroots, and_iff_right hp]
+    simp [p, add_eq_zero_iff_eq_neg]
+  rw [Polynomial.prod_aeval_aroots_toFinset_eq, hreal, hcomplex]
+  norm_num [Finset.filter_singleton]
+
+-- The integer label X vanishes at the source root, so a nonzero shift is needed.
+example : ∃ e : ℕ, e ≤ 1 ∧
+    Polynomial.aeval (0 : ℂ) (Polynomial.shiftedRootLabel 1 e (Polynomial.X : Polynomial ℤ)) ≠
+      0 := by
+  obtain ⟨e, he, h⟩ := Polynomial.exists_aeval_shiftedRootLabel_ne_zero (A := ℂ)
+    (Polynomial.X : Polynomial ℤ) Polynomial.X Polynomial.natDegree_X_le
+  exact ⟨e, he, h 0 (by simp [Polynomial.aroots_X])⟩
+
+-- Every allowed shift reverses the positive sign of the constant label one.
+example (e : ℕ) (he : e ≤ 1) :
+    SignType.sign ((Polynomial.shiftedRootLabel 1 e (1 : Polynomial ℝ)).eval 0) = -1 := by
+  simpa only [Polynomial.eval_one, sign_pos (by norm_num : (0 : ℝ) < 1)] using
+    Polynomial.sign_eval_shiftedRootLabel (g := 1) (x := 0) (by decide : 0 < (1 : ℕ)) he
+      (Or.inl (by norm_num))
+
+-- The only root of X needs no derivative tests, and a constant test decides qualification.
+example (a : ℤ) (ha : a.natAbs ≤ 1) :
+    let p : Polynomial ℤ := Polynomial.X
+    let q := Polynomial.C a
+    (∃ e : ℕ, e ≤ 1 ∧
+      (∏ z ∈ (p.aroots ℂ).toFinset,
+        Polynomial.aeval z (Polynomial.shiftedRootLabel 1 e
+          (Polynomial.sparseIntegerRootLabel p q 0 0 ([] : List (Fin 1 × SignType))))).re < 0) ↔
+      0 < a := by
+  intro p q
+  have hp : p.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [p, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
+      (Polynomial.coeffNorm1_X_mul 1).le
+  have hq : q.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [q, Polynomial.coeffNorm1_C, pow_zero] using ha
+  have h := Polynomial.exists_eval₂_pos_at_root_iff_neg_shiftedRootLabel_prod
+    (D := 1) (N := 0) Polynomial.X_ne_zero (by decide) Polynomial.natDegree_X_le
+    (by decide) (by simp [q]) hp hq
+  constructor
+  · rintro ⟨e, he, hneg⟩
+    obtain ⟨x, _, hx⟩ := h.mpr ⟨[], Nat.zero_le _, e, he, hneg⟩
+    have hx' : (0 : ℝ) < (a : ℝ) := by
+      simpa only [q, Polynomial.eval₂_C, Int.coe_castRingHom] using hx
+    exact_mod_cast hx'
+  · intro ha₀
+    have ha₀' : (0 : ℝ) < (a : ℝ) := by exact_mod_cast ha₀
+    obtain ⟨L, hL, e, he, hneg⟩ := h.mp
+      ⟨0, by simp, by simpa only [q, Polynomial.eval₂_C, Int.coe_castRingHom] using ha₀'⟩
+    have hnil := List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hL)
+    exact ⟨e, he, hnil ▸ hneg⟩
+
+-- Evaluating X − 1 at the matrix with eigenvalues 2 and 3 gives determinant 1 · 2.
+example :
+    let M : Matrix (Fin 2) (Fin 2) ℚ := Matrix.diagonal ![2, 3]
+    (Polynomial.aeval M ((Polynomial.X : Polynomial ℚ) - Polynomial.C 1)).det = 2 := by
+  intro M
+  have hM : M.charpoly = (Polynomial.X - Polynomial.C 2) * (Polynomial.X - Polynomial.C 3) := by
+    simp [M, Matrix.charpoly_diagonal, Fin.prod_univ_two]
+  have hs : M.charpoly.Splits := by
+    rw [hM]
+    exact (Polynomial.Splits.X_sub_C _).mul (Polynomial.Splits.X_sub_C _)
+  rw [Matrix.det_aeval_eq_prod_charpoly_roots M _ (Polynomial.Splits.X_sub_C 1) hs, hM,
+    Polynomial.roots_mul
+      (mul_ne_zero (Polynomial.X_sub_C_ne_zero _) (Polynomial.X_sub_C_ne_zero _)),
+    Polynomial.roots_X_sub_C, Polynomial.roots_X_sub_C, Multiset.map_add, Multiset.prod_add]
+  norm_num
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

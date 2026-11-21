@@ -14,6 +14,9 @@ import CslibFrontier.Foundations.Data.Nat.BinarySize
 /-!
 # Bounded walks for Justesen-weighted STCON
 
+The native component certificates bound the workspace for one transition and for reading
+the query position, halt flag, and optional unused fuel.
+
 The retained-dimension walk calls the initialized Justesen subdivision adjacency on the
 original input. Successful first halts correspond to canonical selector lists for typed
 walks on the generated subdivision. For fuel at most the subdivision vertex count, the
@@ -129,6 +132,25 @@ theorem configurationJustesenBoundedWalk_firstHalting_iff (ntm : MultiTapeNTM k 
   exact Runtime.firstHalting_remainingFuel_iff edge start callbackVerdict 3
     initial ctx r w adjacent hhalt hedge bits left
 
+/-- The initialized Justesen walk's transition and state observers use workspace linear in
+their encoded operation requests. The certificates apply to every runtime state. -/
+theorem configurationJustesenBoundedWalk_parts_inSpace (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (rank : ℕ)
+    (r : Registers
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount) :
+    let M := configurationJustesenBoundedWalk ntm c w rank r
+    let enc := Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState
+    let encNext := Runtime.encStep encJustesenSubdivisionContext encJustesenSubdivisionState
+    ComputableInSpace M.query enc encNat (fun s => (enc s).length) ∧
+    ComputableInSpace M.next encNext enc (fun p => (encNext p).length) ∧
+    ComputableInSpace M.halted enc encBool (fun s => (enc s).length) ∧
+    ComputableInSpace Runtime.remainingFuel enc (encOption encNat) (fun s => (enc s).length) := by
+  obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm
+  exact ⟨Runtime.query_inSpace _ _ _ _ _ _ _ hq,
+    Runtime.next_inSpace _ _ _ _ _ _ _ justesenSubdivisionEdgeStart_inSpace hn hh
+      (callbackVerdict_inSpace _ _),
+    Runtime.halted_inSpace _ _ _ _ _ _ _, Runtime.remainingFuel_inSpace _ _⟩
+
 /-- At each valid seed, the common clock and logarithmic state bound cover all selector
 lists, including rejection and suspended adjacency calls. -/
 theorem configurationJustesenBoundedWalk_bounds (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
@@ -170,7 +192,7 @@ theorem configurationJustesenBoundedWalk_bounds (ntm : MultiTapeNTM k Bool State
   change (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState
     (M.run w bits)).length ≤ _
   refine hrun.trans ?_
-  dsimp only [b] at hctx hvertices hb ⊢
+  dsimp only [b, Runtime.stateBound] at hctx hvertices hb ⊢
   simp only [hclock, Nat.add_mul, Nat.mul_assoc]
   omega
 
