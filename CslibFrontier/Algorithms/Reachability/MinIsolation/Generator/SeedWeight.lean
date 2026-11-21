@@ -11,7 +11,6 @@ public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedD
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.Offset
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FramePrefix
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.JustesenBit
 
@@ -226,18 +225,6 @@ private theorem context_inSpace :
   ComputableInSpace.framedPrefix Input.context encInput encContext Input.seed
     (fun x => by simp [encInput_apply, encInputFields])
 
-private theorem offset_inSpace :
-    ComputableInSpace (fun x : Input => (load x).offset) encInput encNat headerBudget := by
-  have hword : ComputableInSpace (fun x : Input => encContext x.context) encInput encBits
-      headerBudget := context_inSpace.of_enc_eq fun _ => (encBits_apply _).symm
-  have hlength : ComputableInSpace List.length encBits encNat
-      (fun w => (encBits w).length) :=
-    (of_inO ComputableInO.lengthNat).weaken (.of_le fun w => by rw [encBits_apply])
-  have hlen : ComputableInSpace headerBudget encInput encNat headerBudget :=
-    budget_comp_linear (g := List.length) hlength hword
-  exact (budget_natSucc (budget_natAdd hlen hlen)).of_enc_eq fun x => by
-    simp only [load, length_frame, two_mul, headerBudget]
-
 private theorem initialRegisters_inSpace :
     ComputableInSpace (fun x : Input => (load x).inner) encInput encScanState headerBudget := by
   have hzero : ComputableInSpace (fun _ : Input => 0) encInput encNat headerBudget :=
@@ -251,7 +238,7 @@ private theorem initialRegisters_inSpace :
 /-- Native initialization charges the prepared header's length, independently of seed length. -/
 theorem load_inSpace :
     ComputableInSpace load encInput encRuntimeState (fun x => (encContext x.context).length) :=
-  encLocated_mk_budget ScanState encScanState offset_inSpace initialRegisters_inSpace
+  encLocated_mk_budget ScanState encScanState context_inSpace.frameLength initialRegisters_inSpace
 
 /-- Dropping the initialized offset leaves exactly the original seed bits. -/
 theorem drop_seed (x : Input) : (encInput x).drop (load x).offset = x.seed := by
