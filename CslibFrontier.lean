@@ -3024,6 +3024,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Search
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Correct
+public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Machine
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchParameters
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSetup
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionCall
