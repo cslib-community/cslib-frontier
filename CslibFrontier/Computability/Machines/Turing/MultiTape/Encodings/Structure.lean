@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ComponentBounds.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
+public import CslibFrontier.Tactic.EncLen.Init
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeLifts
 public meta import Lean.Elab.Command
 
@@ -35,6 +37,10 @@ namespace. Private rules are registered with `local fun_prop` in the defining sc
 exported to importers. The optional `public` or `private` prefix sets the visibility of the
 encoding, tuple abbreviation and every generated rule. Without a prefix all are public, even
 outside a `public section`; `private enc_structure` keeps them private.
+
+The unfolding equation and tuple abbreviation are registered in the `enc_len` simp set, and
+the field length bounds in `enc_component`, with the same scoped or local visibility. Thus
+`enc_len` can use a record's fields without repeating its encoding equations at every call.
 
 An applied structure type is also accepted: with `variable {n : ℕ}`, write
 `enc_structure eS : S n where ...`. The parameter remains implicit in the generated declarations.
@@ -338,6 +344,16 @@ private def checkFlattenedParents (env : Environment) (s : Name)
       elabCommand (← `(attribute [local fun_prop] $decl:ident))
     else
       elabCommand (← `(attribute [scoped fun_prop] $decl:ident))
+  let registerLengthRule (decl : Ident) : CommandElabM Unit := do
+    if privateRules then
+      elabCommand (← `(attribute [local enc_len] $decl:ident))
+    else
+      elabCommand (← `(attribute [scoped enc_len] $decl:ident))
+  let registerComponentRule (decl : Ident) : CommandElabM Unit := do
+    if privateRules then
+      elabCommand (← `(attribute [local enc_component] $decl:ident))
+    else
+      elabCommand (← `(attribute [scoped enc_component] $decl:ident))
   let (s, paths) ← checkFields S fs
   let env ← getEnv
   let checkedParents ← checkFlattenedParents env s paths parents
@@ -440,6 +456,8 @@ private def checkFlattenedParents (env : Environment) (s : Name)
       (⟨fun $a => $fieldsOf, $inj⟩ : $S ↪ _).trans $fieldsTerm))
   elabCommand (← `(@[simp] $vis:visibility theorem $(app name "_apply") $params* ($a : $S) :
     $encRef $a = $fieldsTerm $fieldsOf := rfl))
+  registerLengthRule fields
+  registerLengthRule (app name "_apply")
   let fieldsDeg := app name "_fields_deg"
   let fieldsDegTerm := applied fieldsDeg
   elabCommand (← `($vis:visibility theorem $fieldsDeg:ident $params* :
@@ -491,6 +509,7 @@ private def checkFlattenedParents (env : Environment) (s : Name)
     elabCommand (← `($vis:visibility theorem $lengthRule:ident $params* ($a : $S) :
       ($e ($fn $a)).length ≤ ($encRef $a).length := by
         simp only [$applyName:ident, $fields:ident, length_encPair, encBits_apply] <;> omega))
+    registerComponentRule lengthRule
   for parent in parents, parentEnc in parentEncs, checked in checkedParents do
     let (path, indices) := checked
     let parentProjs := pathProjs env s path

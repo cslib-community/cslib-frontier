@@ -42,6 +42,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.CSP Turing.MultiTapeTM
   2 * inputBudget F + 1 + 2 * ((F.vars.length + 1) * (2 * frameBudget F + 1)) + 1 +
     2 * (F.vars.length + 1) + 1 + (6 * F.vars.length + 2)
 
+open scoped Cslib.Complexity.CSP.EdgeForest in
 /-- Baseline buffers charge their actual incidence width and complete descended body. -/
 theorem InputGood.encoded_le {F : CSP Table ℕ} {D : ℕ} {input : EdgeForest.Input}
     (h : InputGood F D input) (hF : EdgeInstance F) :
@@ -52,7 +53,7 @@ theorem InputGood.encoded_le {F : CSP Table ℕ} {D : ℕ} {input : EdgeForest.I
   have hlen : (encList encBool input.labels).length = 3 * (incidenceList input.body).length := by
     rw [hbits]
     simp [length_encList, encBool_apply, List.map_map, Function.comp_def, Nat.mul_comm]
-  enc_len [EdgeForest.encInput_apply, EdgeForest.encInputFields, hlen, inputBudget]
+  enc_len [hlen, inputBudget]
 
 private theorem cycle_budget {F G : CSP Table ℕ} {D : ℕ} (f : OccurrenceLabeling G Bool)
     (w : Walk G) (good : InputGood F D ⟨G, buffer f⟩)
@@ -80,7 +81,7 @@ theorem Stack.frame_encoded_le {F : CSP Table ℕ} {D : ℕ} {input : EdgeForest
     rcases List.mem_cons.mp hf with rfl | hf
     · have hp := parents.current.encoded_le hF
       have hw := cycle_budget f w parents.current blossom hF
-      enc_len [encFrame_apply, encFrameFields, frameBudget]
+      enc_len [frameBudget]
     · exact ih frame hf
 
 /-- Full encoded storage of every actual running stack, including all tags and unary clocks. -/
@@ -121,6 +122,6 @@ theorem StateGood.encoded_le {F : CSP Table ℕ} {D : ℕ} {state : State}
             Nat.mul_comm]
         rw [hl]
         omega
-  enc_len [encState_apply, encStateFields, stateBudget]
+  enc_len [stateBudget]
 
 end Cslib.Complexity.CSP.EdgeSolver.Program

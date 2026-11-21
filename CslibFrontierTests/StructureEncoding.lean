@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
+public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Tactic.PolyTime
 
 /-! Tests of `enc_structure`. -/
@@ -38,11 +39,23 @@ example (p : Point) : ePoint p = ePointFields (p.x, p.y, p.z) := ePoint_apply p
 example {p q : Point} (h : ePoint p = ePoint q) : p = q := ePoint.injective h
 
 -- Clients can bound selected fields without unfolding the record's tuple layout.
+example (p : Point) : (encNat p.x).length ≤ (ePoint p).length := by
+  simp only [enc_component]
+
 example (p : Point) : (encNat p.x).length + (encList encUnary p.z).length ≤
     2 * (ePoint p).length := by
-  have hx := ePoint_x_length_le p
-  have hz := ePoint_z_length_le p
-  omega
+  enc_len
+
+-- Exact lengths also use the generated scoped equations, including the tuple abbreviation.
+example (p : Point) : (ePoint p).length =
+    2 * (encNat p.x).length + 1 + 2 * p.y.length + 1 + (encList encUnary p.z).length := by
+  enc_len
+
+-- Generated scoped equations also preserve an already bounded record length when only the
+-- goal's outer pair needs expansion; the hypothesis is deliberately outside the location.
+example (p : Point) (n T : ℕ) (h : T ≤ (ePoint p).length) :
+    T ≤ (encPair ePoint encNat (p, n)).length := by
+  enc_len
 
 /-! The field and constructor rules assemble programs over the structure. -/
 

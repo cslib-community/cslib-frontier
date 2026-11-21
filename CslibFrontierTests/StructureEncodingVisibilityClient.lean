@@ -12,9 +12,26 @@ public import CslibFrontierTests.StructureEncodingVisibility
 /-! Import-side clients and visibility checks for every generated declaration. -/
 
 open Turing.MultiTapeTM CslibFrontierTests.StructureEncoding
+
+-- Importing the public rules does not activate their namespace-scoped component simp set.
+noncomputable example {n : ℕ} (t : TaggedTable n) :
+    (encPi encNat t.entries).length ≤
+      (CslibFrontierTests.StructureEncodingVisibility.encPublicTable t).length := by
+  fail_if_success solve | simp only [enc_component]
+  exact CslibFrontierTests.StructureEncodingVisibility.encPublicTable_entries_length_le t
+
 open CslibFrontierTests.StructureEncodingVisibility
 
 noncomputable section
+
+-- Scoped length rules survive the import and namespace opening, like the certificate rules.
+example {n : ℕ} (t : TaggedTable n) :
+    (encPi encNat t.entries).length ≤ (encPublicTable t).length := by
+  simp only [enc_component]
+
+example {n : ℕ} (t : TaggedTable n) : (encPublicTable t).length =
+    3 + (encPi encNat t.entries).length := by
+  enc_len
 
 -- Default-public constructor and field rules survive an import for an applied structure.
 example {n : ℕ} :
@@ -67,7 +84,8 @@ run_cmd do
   let env ← Lean.getEnv
   let suffixes := ["", "Fields", "_apply", "_fields_deg", "_mk_deg", "_mk_inO",
     "_mk_budget", "_mk_polyTime", "_tag_deg", "_tag_inO", "_tag_budget", "_tag_polyTime",
-    "_entries_deg", "_entries_inO", "_entries_budget", "_entries_polyTime"]
+    "_tag_length_le", "_entries_deg", "_entries_inO", "_entries_budget", "_entries_polyTime",
+    "_entries_length_le"]
   for suffix in suffixes do
     let visible :=
       (`CslibFrontierTests.StructureEncodingVisibility.encPublicTable).appendAfter suffix

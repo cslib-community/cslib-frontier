@@ -32,6 +32,14 @@ enc_structure encPublicTable : TaggedTable n where
 private enc_structure encPrivateTable : TaggedTable n where
   tag : encBool, entries : (encPi (Index := Fin n) encNat)
 
+-- Private normalization and component rules are usable in their defining scope.
+example (t : TaggedTable n) : (encPi encNat t.entries).length ≤ (encPrivateTable t).length := by
+  simp only [enc_component]
+
+example (t : TaggedTable n) : (encPrivateTable t).length =
+    3 + (encPi encNat t.entries).length := by
+  enc_len
+
 -- Reading both fields and rebuilding a private-encoded record uses the generated rules.
 example : ComputableInPolyTime (fun t : TaggedTable n => TaggedTable.mk t.tag t.entries)
     encPrivateTable encPrivateTable := by
