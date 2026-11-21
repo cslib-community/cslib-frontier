@@ -84,8 +84,8 @@ private theorem run_spec (p : ℕ × ℕ) (j : ℕ) :
 private theorem multiplicity_le_size (layer : ℕ) :
     multiplicity 2 layer ≤ layer.size := by
   have h := multiplicity_le_nat_log (p := 2) layer
-  rw [← Nat.log2_eq_log_two, Nat.log2_eq_size_sub_one] at h
-  omega
+  rw [← Nat.log2_eq_log_two] at h
+  exact h.trans (Nat.log2_le_size layer)
 
 private theorem length_run_le (p : ℕ × ℕ) (j : ℕ) :
     (encScaleState (run p j)).length ≤ 3 * ((encArguments p).length + 1) := by
