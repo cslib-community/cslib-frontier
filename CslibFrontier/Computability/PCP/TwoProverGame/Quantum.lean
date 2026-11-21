@@ -163,15 +163,29 @@ namespace TwoProverGame
 variable {X Y A B : Type*} (G : TwoProverGame X Y A B) [Fintype A] [Fintype B]
 
 /-- The verdict of `G` on a round with questions `(x, y)` and answers `(a, b)`. -/
-def AcceptsRound : (X × Y) × A × B → Prop
-  | (q, (a, b)) => G.accepts q.1 q.2 a b
+def AcceptsRound : (X × Y) × A × B → Prop :=
+  G.toSeeded.AcceptsRound
+
+omit [Fintype A] [Fintype B] in
+/-- The verdict of `G` on a round `((x, y), (a, b))` is `G.accepts x y a b`. -/
+theorem acceptsRound_eq :
+    G.AcceptsRound = fun ((x, y), (a, b)) => G.accepts x y a b := by
+  funext ⟨⟨x, y⟩, a, b⟩
+  rfl
 
 /-- The probability of winning `G` when the answers to questions `(x, y)` are drawn from
 `ans x y`: the winning probability of any strategy, classical or quantum, with these answer
 distributions. -/
 noncomputable def answersWinProb (ans : X → Y → PMF (A × B)) : ℝ :=
-  ((G.questions.bind fun q => (ans q.1 q.2).map fun ab => (q, ab)).toOuterMeasure
-    {z | G.AcceptsRound z}).toReal
+  G.toSeeded.answersWinProb ans
+
+omit [Fintype A] [Fintype B] in
+/-- The winning probability in terms of `G`'s question distribution and round acceptance event. -/
+theorem answersWinProb_eq (ans : X → Y → PMF (A × B)) :
+    G.answersWinProb ans =
+      ((G.questions.bind fun q => (ans q.1 q.2).map fun ab => (q, ab)).toOuterMeasure
+        {z | G.AcceptsRound z}).toReal :=
+  rfl
 
 omit [Fintype A] [Fintype B] in
 theorem answersWinProb_nonneg (ans : X → Y → PMF (A × B)) : 0 ≤ G.answersWinProb ans :=
@@ -188,7 +202,8 @@ theorem answersWinProb_eq_sum [Fintype X] [Fintype Y]
       if G.accepts x y a b then (ans x y (a, b)).toReal else 0 := by
   let (q : X × Y) (a : A) (b : B) : Decidable (G.toSeeded.accepts q a b) :=
     dec q.1 q.2 a b
-  exact (G.toSeeded.answersWinProb_eq_sum ans).trans (Fintype.sum_prod_type _)
+  simpa only [answersWinProb, Fintype.sum_prod_type, toSeeded, id] using
+    G.toSeeded.answersWinProb_eq_sum ans
 
 /-- The winning probability of answer distributions with nonnegative real probabilities
 `p x y a b`. -/
@@ -243,7 +258,7 @@ omit [Fintype A] [Fintype B] in
 /-- Point-mass answer laws reproduce the deterministic winning probability. -/
 theorem answersWinProb_pure (ha : X → A) (hb : Y → B) :
     G.answersWinProb (fun x y => PMF.pure (ha x, hb y)) = G.winProb ha hb := by
-  rw [answersWinProb, winProb]
+  rw [answersWinProb_eq, winProb]
   simp_rw [PMF.pure_map]
   rw [show (fun q => PMF.pure (q, ha q.1, hb q.2)) =
       PMF.pure ∘ fun q : X × Y => (q, ha q.1, hb q.2) from rfl, PMF.bind_pure_comp,
