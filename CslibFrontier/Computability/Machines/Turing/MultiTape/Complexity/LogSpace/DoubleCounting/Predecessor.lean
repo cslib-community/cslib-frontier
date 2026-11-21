@@ -107,6 +107,9 @@ than rejecting. Rejection is carried separately by the optional callee answer. -
     | .error _ => { q with memberPhase := true }
     | .ok c => { q with cursor := q.cursor + 1, count := c, memberPhase := false }
 
+/-- Rejection has no count; a successful zero or tied count is retained distinctly. -/
+@[expose] def result (q : State) : Option ℕ := if q.rejected then none else some q.count
+
 /-- The caller itself reads no input and emits no word; results stay in its final state. -/
 @[expose] def caller (ctx : Context) : QueryMachine State where
   init := initial ctx
@@ -457,7 +460,8 @@ theorem result_of_returns {τ : Type} {n : ℕ} {ctx : Context} {N : QueryMachin
       N.halted (N.runFrom w (start p) T) = true →
       answer (N.runFrom w (start p) T) =
         if p.memberPhase then member ⟨p.cursor, hi⟩ else edge ⟨p.cursor, hi⟩ v) :
-    (if q.rejected then none else some q.count) = countPredecessors edge member v := by
+    result q = countPredecessors edge member v := by
+  change (if q.rejected then none else some q.count) = countPredecessors edge member v
   have hs : remaining edge member v q = countPredecessors edge member v := by
     clear hstop
     induction h with

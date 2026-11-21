@@ -7,8 +7,9 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests of same-input predecessor queries)
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor.Native
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
 /-! # Same-input scalar predecessor loop, with a one-read callback callee -/
 
@@ -102,6 +103,30 @@ example (i : ℕ) (hi : i ≤ 3) :
     rcases this with rfl | rfl <;> decide +kernel
   · exact hi
 
+private theorem reader_time (w : List Bool) (p : State) (T : ℕ)
+    (hpre : ∀ i < T, reader.halted (reader.runFrom w (start p) i) = false)
+    (hhalt : reader.halted (reader.runFrom w (start p) T) = true) : T = 1 := by
+  cases T with
+  | zero => change false = true at hhalt; contradiction
+  | succ t =>
+    cases t with
+    | zero => rfl
+    | succ t =>
+      have bad := hpre 1 (by omega)
+      change true = false at bad
+      contradiction
+
+private theorem reader_reply (w : List Bool) (p : State) (T : ℕ)
+    (hpre : ∀ i < T, reader.halted (reader.runFrom w (start p) i) = false)
+    (hhalt : reader.halted (reader.runFrom w (start p) T) = true) :
+    answer (reader.runFrom w (start p) T) =
+      if p.memberPhase then w[2 * p.cursor + 1]? else w[2 * p.cursor]? := by
+  have hT := reader_time w p T hpre hhalt
+  subst T
+  cases hp : p.memberPhase <;>
+    simp [QueryMachine.runFrom_succ, QueryMachine.runFrom_zero, QueryMachine.step,
+      QueryMachine.read, reader, start, answer, hp]
+
 -- A finite trace of actual callee returns agrees with the original Option-valued fold,
 -- including rejected input reads. This does not assert trace existence for arbitrary callees.
 private theorem trace_result (w : List Bool) (q : State) (h : Returns ctx reader start answer w q)
@@ -111,20 +136,7 @@ private theorem trace_result (w : List Bool) (q : State) (h : Returns ctx reader
         (fun u => w[2 * u.val + 1]?) 2 := by
   apply result_of_returns (n := 3) _ _ (2 : Fin 3) rfl h hstop
   intro p _ _ T hpre hhalt
-  have hT : T = 1 := by
-    cases T with
-    | zero => change false = true at hhalt; contradiction
-    | succ t =>
-      cases t with
-      | zero => rfl
-      | succ t =>
-        have bad := hpre 1 (by omega)
-        change true = false at bad
-        contradiction
-  subst T
-  cases hp : p.memberPhase <;>
-    simp [QueryMachine.runFrom_succ, QueryMachine.runFrom_zero, QueryMachine.step,
-      QueryMachine.read, reader, start, answer, hp]
+  exact reader_reply w p T hpre hhalt
 
 -- The callee's one-step first halt supplies the generic termination premise. The native
 -- query loop therefore halts with the original fold's result on every input, even truncated.
@@ -142,5 +154,79 @@ example (w : List Bool) : ∃ T q,
     rfl)
   obtain ⟨T, hT⟩ := hq.exists_run
   exact ⟨T, q, hT, hstop, trace_result w q hq hstop⟩
+
+-- Result output is added once at halt; rejection, zero and tied counts remain distinct.
+example : (computingMachine ctx reader start answer).output
+    [false, false, false, false, false, false] 9 = encCountResult (some 0) := by rfl
+example : (computingMachine ctx reader start answer).output
+    [true, true, false, false, true, false] 15 = encCountResult (some 1) := by rfl
+example : (computingMachine ctx reader start answer).output
+    [true, true, true, true, true, true] 18 = encCountResult (some 3) := by rfl
+example : (computingMachine ctx reader start answer).output
+    [true, true, true] 12 = encCountResult none := by rfl
+
+private theorem reader_state_bound (w : List Bool) (p : State) (hp : p.context = ctx)
+    (hlive : halted p = false) (T : ℕ)
+    (hpre : ∀ i < T, reader.halted (reader.runFrom w (start p) i) = false)
+    (hhalt : reader.halted (reader.runFrom w (start p) T) = true)
+    (i : ℕ) (hi : i ≤ T) : (encRead (reader.runFrom w (start p) i)).length ≤ 13 := by
+  have hT := reader_time w p T hpre hhalt
+  subst T
+  have hcur : p.cursor < 3 := by
+    have h := (Bool.or_eq_false_iff.mp hlive).2
+    simpa [hp, ctx] using h
+  have hindex : 2 * p.cursor + (if p.memberPhase then 1 else 0) ≤ 5 := by
+    cases p.memberPhase <;> simp <;> omega
+  have hbits := length_encNat_le_log2 hindex
+  have hb : (encNat (2 * p.cursor + (if p.memberPhase then 1 else 0))).length ≤ 3 := by
+    simpa using hbits
+  have casesI : i = 0 ∨ i = 1 := by omega
+  rcases casesI with rfl | rfl
+  · simp only [QueryMachine.runFrom_zero, start, encRead_apply, encReadFields, length_encPair,
+      encOption_none, encBool_apply, List.length_singleton, List.length_nil]
+    omega
+  · change (encRead ⟨(start p).index, w[(start p).index]?, true⟩).length ≤ 13
+    cases hw : w[(start p).index]? with
+    | none =>
+      simp only [start, encRead_apply, encReadFields, length_encPair, encOption_none,
+        encBool_apply, List.length_singleton, List.length_nil]
+      omega
+    | some b =>
+      simp only [start, encRead_apply, encReadFields, length_encPair, encOption_some,
+        encBool_apply, List.length_cons, List.length_nil]
+      omega
+
+-- This is an actual native TM certificate from QueryMachine compilation, not just a semantic
+-- query-loop completion statement. Its time function is independent of the displayed space.
+public theorem reader_native_certificate : ∃ time c, ComputableInTimeAndSpace
+    (fun w : List Bool => countPredecessors (fun u _ : Fin 3 => w[2 * u.val]?)
+      (fun u => w[2 * u.val + 1]?) 2) encBits encCountResult time
+    (fun w => c * (Nat.log2 w.length + 1 +
+      4 * (encContext ⟨3, 0, 2, 5, ⟨2, 4⟩⟩).length +
+      8 * (Nat.log2 3 + 1) + 13 + 16)) := by
+  refine compute_of_callees encBits encRead ctx reader start answer _ _ (2 : Fin 3) rfl
+    (encRead_index_budget (of_inO (ComputableInDegree.id' (enc := encRead)).inO_one))
+    reader_next_space
+    (encRead_finished_budget (of_inO (ComputableInDegree.id' (enc := encRead)).inO_one))
+    start_space
+    (encRead_reply_budget (of_inO (ComputableInDegree.id' (enc := encRead)).inO_one))
+    (fun _ => 13) _ ?_ ?_ ?_ ?_ ?_
+  · intro w p _ _ _
+    refine ⟨1, ?_, rfl⟩
+    intro i hi
+    have : i = 0 := by omega
+    subst i
+    rfl
+  · intro w p hp _ hlive T hpre hhalt i hi
+    exact reader_state_bound w p hp hlive T hpre hhalt i hi
+  · intro w p _ _ T hpre hhalt
+    exact reader_reply w p T hpre hhalt
+  · intro w
+    change Nat.log2 w.length + 1 ≤ _
+    omega
+  · intro w
+    change 4 * (encContext ctx).length + 8 * (Nat.log2 3 + 1) + 13 + 16 ≤
+      Nat.log2 w.length + 1 + 4 * (encContext ctx).length + 8 * (Nat.log2 3 + 1) + 13 + 16
+    omega
 
 end Turing.DoubleCounting.Predecessor.Tests
