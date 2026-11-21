@@ -729,7 +729,7 @@ def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : Lis
 
 /-- Add the constraint `c` to the database and the core set at the next number, as `soli`, `obji`
 and `solx` do (§5.8). -/
-def State.addCore (s : State) (c : PBConstr) : State :=
+private def State.addCore (s : State) (c : PBConstr) : State :=
   { s with db := (s.next, c) :: s.db, core := (s.next, c) :: s.core, next := s.next + 1 }
 
 /-- Assert the value `v` of the objective `f` in the state `s`, the effect shared by `soli` and
