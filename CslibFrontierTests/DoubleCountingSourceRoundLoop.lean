@@ -87,6 +87,28 @@ example :
       rfl rfl, rfl⟩
   exact hu.eq_singleton_of_mem hmem
 
+/-- A growing round followed by stabilization and a negative reply has a successful trace. -/
+example :
+    let scan := machine (start () 2) round id growingRound done (fun _ => ())
+      (fun _ => some false)
+    ∃ bits verdict, scan.FirstHalting [] bits scan.init ∧
+      scan.run [] bits = .inr (some verdict) := by
+  let P (r : Registers Unit) := 0 < r.fuel ∧ (r.tally.count ≠ 2 → 1 < r.fuel)
+  refine exists_successful_firstHalting (start () 2) round id growingRound
+    done (fun _ => ()) (fun _ => some false) [] P (by decide)
+    (fun _ hr => hr.1) ?_ ?_ ?_
+  · intro r hr _ _ a ha _ hcount
+    have hupdate : a = ⟨⟨2, 1⟩, false⟩ := Option.some.inj ha.symm
+    subst a
+    refine ⟨?_, fun h => (h rfl).elim⟩
+    have hfuel := hr.2 (Ne.symm hcount)
+    simp only [Registers.advance]
+    omega
+  · intro r _
+    exact ⟨[], ⟨⟨2, 1⟩, false⟩, (round.firstHalting_iff_nil_of_halted [] [] r rfl).mpr rfl, rfl⟩
+  · intro _ _
+    exact ⟨[], false, (done.firstHalting_iff_nil_of_halted [] [] () rfl).mpr rfl, rfl⟩
+
 private def stableRound (r : Registers Unit) : Option RoundUpdate := some ⟨r.tally, false⟩
 
 open Turing.DoubleCounting in
