@@ -1240,9 +1240,8 @@ private theorem branch_step_bounds {solver : ℕ → List (List (List ℕ)) → 
       (Nat.mul_le_mul hj (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))).trans_eq
         (Nat.pow_add 2 _ _).symm
   have hlen_accSum : (encNat st.2.2.2).length ≤ L := by
-    have h : (encNat st.2.2.2).length ≤ (encNat (2 ^ (inp.2.1.length + inp.1))).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hsum_le
-    rw [length_encNat_two_pow] at h; omega
+    have h := length_encNat_le_of_le_two_pow hsum_le
+    omega
   have hlen_acc : (encPair encBranchInput encNat st.2.2).length ≤ 3 * L + 1 := by
     grind [length_encPair]
   have hst1 : st.1 = j := IndexFold.run_index _ _ _
@@ -1286,9 +1285,8 @@ private theorem branch_step_bounds {solver : ℕ → List (List (List ℕ)) → 
           (hn' ▸ Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)),
         hR inp idx' hidx'_lt n' sys' hout, hQ inp idx' hidx'_lt n' sys' hout⟩
   have hlen_bc : (encNat (branchCountOracle solver o)).length ≤ L := by
-    have h : (encNat (branchCountOracle solver o)).length ≤ (encNat (2 ^ inp.1)).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hbc_le
-    rw [length_encNat_two_pow] at h; omega
+    have h := length_encNat_le_of_le_two_pow hbc_le
+    omega
   have hlen_add : (encPair encNat encNat (q.2.2, branchCountOracle solver o)).length ≤ 3 * L + 1 :=
     by rw [show q.2.2 = st.2.2.2 from rfl, length_encPair]; dsimp only; omega
   let hpv := NativeCertificate.ofPolyTime_isPolynomial

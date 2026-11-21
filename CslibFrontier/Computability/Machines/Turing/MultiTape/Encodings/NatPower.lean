@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
-import Mathlib.Data.Nat.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 
 /-!
 # Powers of two in binary
@@ -45,7 +45,7 @@ theorem length_encNat_two_pow (n : ℕ) : (encNat (2 ^ n)).length = n + 1 := by
 theorem length_encNat_le_of_le_two_pow {a n : ℕ} (h : a ≤ 2 ^ n) :
     (encNat a).length ≤ n + 1 := by
   rw [← length_encNat_two_pow n]
-  simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size h
+  exact length_encNat_mono h
 
 /-- Replaces every symbol by `false` and appends `true`. -/
 def twoPowT : Transducer Bool Unit where

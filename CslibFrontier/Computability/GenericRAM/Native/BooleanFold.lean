@@ -14,7 +14,6 @@ public import CslibFrontier.Foundations.Data.BitString.Enumeration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListToBits
-import Mathlib.Data.Nat.Size
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
@@ -203,9 +202,7 @@ theorem length_prefix_le (body : (ℕ × List Bool) × β → β) (n j B : ℕ) 
   simp only [length_encPair, prefix_width, encUnary_apply, List.length_replicate]
   have hi : (runPrefix body n j initial).1 = j := IndexFold.run_index _ _ _
   rw [hi]
-  have hn : (encNat j).length ≤ (encNat (2 ^ n)).length := by
-    simpa [Nat.size_eq_bits_len] using Nat.size_le_size hj
-  rw [length_encNat_two_pow] at hn
+  have hn := length_encNat_le_of_le_two_pow hj
   omega
 
 /-- The decoded word itself always has the declared runtime dimension, even on arbitrary
