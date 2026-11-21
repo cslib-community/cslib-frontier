@@ -435,7 +435,9 @@ private theorem InsertResult.withPc [LinearOrder M.Value]
     InsertResult encode field source s { t with pc } before after original :=
   ⟨h.rep, h.matched, h.distinct, h.root, h.space, h.footprint, h.data, h.payload, h.freshPayload⟩
 
-private theorem InsertResult.before [LinearOrder M.Value]
+/-- An insertion result may be restated from an earlier state with the same heap and the same
+scalar registers other than the two scratch registers. -/
+theorem InsertResult.before [LinearOrder M.Value]
     {encode : ℕ → M.Value} {field : Fin (extra + 1)}
     {source : Fin (extra + 1) → Fin (regs + 3)} {s x t : State M (layout extra (regs + 1))}
     {before after : BinaryTree (Label M extra)} {original : AVLTree M.Value}

@@ -270,7 +270,8 @@ private theorem propagateFast_eq {db : Array (Option (Clause ℕ))} {L : List (�
     have hfilter (c : Clause ℕ) : c.filter (fun l => !isTrue asg (Std.Sat.Literal.negate l)) =
         c.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) := by
       simp only [hasg]
-    simp only [propagateFast, propagateHints, hfind]
+    rw [propagateHints_cons]
+    simp only [propagateFast, hfind]
     cases L.find? (·.1 == h) with
     | none => exact ⟨rfl, hreset asg trail hasg⟩
     | some e =>

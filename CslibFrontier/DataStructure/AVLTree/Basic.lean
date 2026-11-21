@@ -259,6 +259,23 @@ heights. -/
   else
     mkNode a l r
 
+/-- Rebalancing never returns the empty tree. -/
+theorem balance_ne_nil (a : α) (l r : AVLTree α) : balance a l r ≠ .nil := by
+  have right (a : α) (l r : AVLTree α) : rotateRight a l r ≠ .nil := by
+    cases l <;> simp [rotateRight, mkNode]
+  have left (a : α) (l r : AVLTree α) : rotateLeft a l r ≠ .nil := by
+    cases r <;> simp [rotateLeft, mkNode]
+  unfold balance
+  split
+  · split
+    · simp [mkNode]
+    · split <;> apply right
+  · split
+    · split
+      · simp [mkNode]
+      · split <;> apply left
+    · simp [mkNode]
+
 /-- Single right rotation preserves `HeightConsistent`. -/
 theorem heightConsistent_rotateRight {a : α} {l r : AVLTree α}
     (hl : HeightConsistent l) (hr : HeightConsistent r) :

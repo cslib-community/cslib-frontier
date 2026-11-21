@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
 import CslibFrontier.Foundations.Geometry.Polygonal.CutTransport
 import Mathlib.Tactic.NormNum
 
@@ -199,6 +200,21 @@ example (p : Route) (hp : p.IsSimple) :
   · exact Route.IsSimple.mapAtCuts (c := coordinate) hline hp F.symm.injective
   · exact Route.support_mapAtCuts (c := coordinate) hline p
   · exact Route.endpoint_mapAtCuts (c := coordinate) hline p
+
+-- The same inverse map transports the entire frozen reference graph, including isolated vertices.
+example :
+    let D := frozenReferenceDrawing bothFixed
+    ∃ (F : ℂ ≃ₜ ℂ) (E : PolygonalDrawing (frozenGraph bothFixed)),
+      E.IsEmbedding ∧ (∀ v, E.vertex v = F.symm (D.vertex v)) ∧
+        ∀ e, (E.route e).support = F.symm '' (D.route e).support := by
+  obtain ⟨F, cuts, _, _, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  let c : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap
+  let D := frozenReferenceDrawing bothFixed
+  refine ⟨F, D.mapAtCuts (c := c) hline, ?_, fun _ => rfl, ?_⟩
+  · exact (frozenReferenceDrawing_isEmbedding valid_bothFixed).mapAtCuts
+      (c := c) hline F.symm.injective
+  · exact fun e => Route.support_mapAtCuts (c := c) hline (D.route e)
 
 /-- Removing every edge keeps the entire frame as distinct isolated points. -/
 theorem all_free_frame :

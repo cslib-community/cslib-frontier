@@ -11,6 +11,7 @@ public import Mathlib.Algebra.Polynomial.Derivative
 public import Mathlib.Algebra.Polynomial.Roots
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Basic.Sign.Defs
+import CslibFrontier.Foundations.Data.Finset.CoordinateSelection
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
 import Mathlib.Analysis.Calculus.Deriv.Polynomial
 import Mathlib.Basic.Sign.Basic
@@ -111,5 +112,20 @@ theorem injOn_derivativeSign_roots (p : Polynomial ℝ) (hp : p ≠ 0) {D : ℕ}
   rcases le_total a b with hab | hba
   · exact eq_of_derivativeSign_eq_of_le hp hD hab ha hs
   · exact (eq_of_derivativeSign_eq_of_le hp hD hba hb (fun k hk => (hs k hk).symm)).symm
+
+/-- In any nonempty finite subset of the real roots, at most `N` derivative sign tests
+select one root when the degree is bounded by `D ≤ 2 ^ N`. Index `i : Fin D` tests
+derivative order `i + 1`. -/
+theorem exists_short_derivativeSign_selector (p : Polynomial ℝ) (hp : p ≠ 0) {D N : ℕ}
+    (hD : p.natDegree ≤ D) (hDN : D ≤ 2 ^ N) {S : Finset ℝ} (hS : S.Nonempty)
+    (hroots : ∀ x ∈ S, p.IsRoot x) :
+    ∃ L : List (Fin D × SignType), L.length ≤ N ∧
+      ∃ x ∈ S, ∀ y ∈ S, (∀ c ∈ L, p.derivativeSign y (c.1.val + 1) = c.2) ↔ y = x := by
+  classical
+  have hsub : S.val ⊆ p.roots := fun x hx => (mem_roots hp).mpr (hroots x hx)
+  have hset : (S : Set ℝ) ⊆ {x | p.IsRoot x} := fun x hx => hroots x hx
+  have hinj := (p.injOn_derivativeSign_roots hp hD).mono hset
+  exact Finset.exists_short_coordinate_selector hS hinj
+    ((card_le_degree_of_subset_roots hsub).trans (hD.trans hDN))
 
 end Polynomial
