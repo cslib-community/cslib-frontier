@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.CarryLookahead
 public import CslibFrontier.Computability.Circuit.Boolean.ThresholdNC1
+import CslibFrontier.Foundations.Data.BitString.Weight.ZeroExtend
 import CslibFrontier.Foundations.Data.Nat.Log
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
@@ -137,25 +138,6 @@ theorem size_tree_le (h : ℕ) : (tree h).size ≤ 231 * 2 ^ h := by
 @[simp] theorem size_pad (n m : ℕ) : (pad n m).size = 1 := by
   simp [pad]
 
-private theorem weight_zeroExtend {n m : ℕ} (h : n ≤ m) (x : BitString n) :
-    weight (zeroExtend (d' := m) x) = weight x := by
-  rw [weight, weight]
-  have hlt (i : Fin m) (hi : i ∈ Finset.univ.filter (fun j => zeroExtend x j = true)) :
-      i.val < n := by
-    have ht := (Finset.mem_filter.mp hi).2
-    by_contra hn
-    simp [zeroExtend, hn] at ht
-  refine Finset.card_bij (fun i hi => (⟨i.val, hlt i hi⟩ : Fin n)) ?_ ?_ ?_
-  · intro i hi
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa only [zeroExtend, dite_eq_left (hlt i hi)] using (Finset.mem_filter.mp hi).2⟩
-  · intro i hi j hj hij
-    exact Fin.ext (congrArg (fun a : Fin n => a.val) hij)
-  · intro i hi
-    refine ⟨⟨i.val, i.isLt.trans_le h⟩, ?_, rfl⟩
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa [zeroExtend, i.isLt] using (Finset.mem_filter.mp hi).2⟩
-
 end PopulationCount
 
 /-- A population count on `n` inputs. Padding to the next power of two uses one shared false
@@ -171,7 +153,7 @@ theorem val_eval_populationCountCircuit (n : ℕ) (x : BitString n) :
       ((populationCountCircuit n).eval interpretation x) : ℕ) = weight x := by
   rw [populationCountCircuit, Circuit.eval_comp, PopulationCount.val_eval_tree,
     PopulationCount.eval_pad]
-  exact PopulationCount.weight_zeroExtend
+  exact weight_zeroExtend
     ((Nat.le_succ n).trans (Nat.le_pow_clog Nat.one_lt_two _)) x
 
 /-- A uniform linear gate bound, with constants and padding included. -/
