@@ -139,6 +139,14 @@ theorem LineHasDegree.exists_polynomial {u v : Point F m} {f : linePoints u v �
     Question F m → Question F m → Answer F m → Answer F m → Prop :=
   acceptsWithDiagonalCap d (m * d)
 
+theorem accepts_eq_withDiagonalCap (d : ℕ) :
+    accepts (F := F) (m := m) d = acceptsWithDiagonalCap d (m * d) := rfl
+
+/-- Exchanging the players preserves acceptance with a fixed diagonal cutoff. -/
+theorem acceptsWithDiagonalCap_swap (d D : ℕ) (x y : Question F m) (a b : Answer F m) :
+    acceptsWithDiagonalCap d D x y a b ↔ acceptsWithDiagonalCap d D y x b a := by
+  cases x <;> cases y <;> cases a <;> cases b <;> simp only [acceptsWithDiagonalCap, eq_comm]
+
 /-- Acceptance on an axis question and its paired point is determined by the legal line
 answer and its value at the point. -/
 theorem exists_legal_of_accepts_axis_point (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
@@ -264,6 +272,11 @@ noncomputable def branchGame (n d : ℕ) (b : Branch) :
     TwoProverGame (Question F (n + 1)) (Question F (n + 1))
       (Answer F (n + 1)) (Answer F (n + 1)) :=
   branchGameWithDiagonalCap n d ((n + 1) * d) b
+
+theorem branchGame_eq_withDiagonalCap (n d : ℕ) (b : Branch) :
+    branchGame (F := F) n d b = branchGameWithDiagonalCap n d ((n + 1) * d) b := by
+  unfold branchGame
+  rfl
 
 theorem branchGameWithDiagonalCap_questions (n d D : ℕ) (b : Branch) :
     (branchGameWithDiagonalCap (F := F) n d D b).questions = branchQuestions n b := by

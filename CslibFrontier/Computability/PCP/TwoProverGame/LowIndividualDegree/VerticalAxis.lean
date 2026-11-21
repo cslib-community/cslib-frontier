@@ -134,7 +134,7 @@ theorem decodedPoint_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ
   have hScore (u : Point F (n + 1)) :
       acceptScore S d (.point u) (.point u) ≤
         Measurement.agreement S.state (decodedPoint S.alice u) (decodedPoint S.bob u) := by
-    simp only [acceptScore, decodedPoint, Measurement.agreement_map_map]
+    simp only [acceptScore_eq_sum, decodedPoint, Measurement.agreement_map_map]
     refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
     by_cases h : accepts d (.point u) (.point u) a b
     · obtain ⟨z, rfl, rfl⟩ := exists_eq_of_accepts_points d u u a b h

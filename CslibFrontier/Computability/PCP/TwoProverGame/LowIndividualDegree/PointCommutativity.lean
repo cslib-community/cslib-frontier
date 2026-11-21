@@ -58,7 +58,7 @@ private theorem diagonal_eval_copy_le (S : CommutingStrategy Q Q Ans Ans A)
   classical
   have hscore : acceptScore S d (.point u) (.diagonal L) ≤
       Measurement.agreement S.state (decodedPoint S.alice u) (evaluatedDiagonal S.bob L u) := by
-    simp only [acceptScore, decodedPoint, evaluatedDiagonal, Measurement.agreement_map_map]
+    simp only [acceptScore_eq_sum, decodedPoint, evaluatedDiagonal, Measurement.agreement_map_map]
     refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
     by_cases h : accepts d (.point u) (.diagonal L) a b
     · obtain ⟨g, z, rfl, rfl, hu, he⟩ := exists_agree_of_accepts_point_diagonal d L u a b h

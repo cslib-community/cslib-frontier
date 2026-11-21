@@ -72,7 +72,7 @@ open scoped Real
 /-- A **commuting-operator strategy** for a game with questions `X`, `Y` and answers `A`, `B`, in
 the algebra of observables `𝒜`: a state, a measurement for each question of each player, and
 every effect of Alice commutes with every effect of Bob. -/
-structure CommutingStrategy (X Y A B 𝒜 : Type*) [Fintype A] [Fintype B] [Ring 𝒜]
+@[ext] structure CommutingStrategy (X Y A B 𝒜 : Type*) [Fintype A] [Fintype B] [Ring 𝒜]
     [PartialOrder 𝒜] [Algebra ℂ 𝒜] where
   /-- The shared state. -/
   state : AlgState 𝒜

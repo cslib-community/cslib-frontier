@@ -144,6 +144,12 @@ omit [Fintype F] [DecidableEq F] in
   unfold decodePoint
   rfl
 
+omit [Fintype F] [DecidableEq F] in
+@[simp] theorem decodePoint_inr {m : ℕ} (a : Σ L : Finset (Point F m), L → F) :
+    decodePoint (Sum.inr a) = 0 := by
+  unfold decodePoint
+  rfl
+
 /-- The affine decoder agrees with any accepted point answer on the queried line. -/
 theorem decodeAffinePolynomial_agrees {m d : ℕ} (u v : Point F m) (t : F) (z : Point F 1)
     {a b : Answer F m} (h : accepts d (.axis (linePoints u v)) (.point (u + t • v)) a b)
