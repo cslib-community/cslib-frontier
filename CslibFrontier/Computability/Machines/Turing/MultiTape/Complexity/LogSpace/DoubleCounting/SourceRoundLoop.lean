@@ -42,7 +42,8 @@ public section
 namespace Turing.DoubleCounting.SourceRoundLoop
 
 open Cslib.DoubleCounting MultiTapeTM ComputableInSpace
-open NondeterministicQueryMachine (encReadChoice readReply successful_call_iff)
+open NondeterministicQueryMachine (encReadChoice exists_firstHalting_prefix_with_next readReply
+  successful_call_iff)
 variable {κ ρ μ : Type}
 
 /-- Scalar round registers and data needed to initialize either callback. -/
@@ -168,25 +169,6 @@ theorem machine_withInit {κ ρ μ : Type} (r r' : Registers κ)
       machine r' round roundStart roundReply member memberStart memberReply := by
   unfold machine NondeterministicQueryMachine.withInit
   rfl
-
-private theorem call_returns_by {β : Type} (callee : NondeterministicQueryMachine β)
-    (input bits : List Bool) (s : β) (clock : ℕ)
-    (hclock : (callee.withInit s).HaltsWithin input clock)
-    (hlen : clock < bits.length) :
-    ∃ callBits selector rest, bits = callBits ++ selector :: rest ∧ callBits.length ≤ clock ∧
-      callee.FirstHalting input callBits s := by
-  have htake : (bits.take clock).length = clock := List.length_take_of_le hlen.le
-  have hhalt := hclock (bits.take clock) htake
-  have hh : callee.halted (callee.replay input (bits.take clock) s) = true := hhalt
-  obtain ⟨callBits, ⟨hpre, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hh
-  have hcl : callBits.length ≤ clock := htake ▸ hpre.length_le
-  obtain ⟨suffix, hsuffix⟩ := hpre.trans (List.take_prefix clock bits)
-  cases suffix with
-  | nil =>
-    rw [List.append_nil] at hsuffix
-    rw [hsuffix] at hcl
-    omega
-  | cons selector rest => exact ⟨callBits, selector, rest, hsuffix.symm, hcl, hfirst⟩
 
 section Replay
 
@@ -612,7 +594,8 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
       (hlen : memberClock < bits.length) :
       (M).halted ((M).replay input bits (memberState r (memberStart r))) = true := by
     obtain ⟨callBits, selector, rest, rfl, _, hfirst⟩ :=
-      call_returns_by member input bits (memberStart r) memberClock (hmember r hr) hlen
+      exists_firstHalting_prefix_with_next member input bits (memberStart r) memberClock
+        (hmember r hr) hlen
     rw [(M).replay_append,
       (M).replay_map_of_live input member (memberState r)
         (member_step initial round roundStart roundReply member memberStart memberReply input r)
@@ -633,7 +616,8 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
           rw [Nat.one_mul] at hle
           omega
         obtain ⟨callBits, selector, rest, rfl, hcl, hfirst⟩ :=
-          call_returns_by round input bits (roundStart r) roundClock (hround r hr) hlen'
+          exists_firstHalting_prefix_with_next round input bits (roundStart r) roundClock
+            (hround r hr) hlen'
         let t := round.replay input callBits (roundStart r)
         have hentry : enterRound (μ := μ) roundStart r = roundState r (roundStart r) := by
           simp only [enterRound, ite_eq_right hzero, roundState]

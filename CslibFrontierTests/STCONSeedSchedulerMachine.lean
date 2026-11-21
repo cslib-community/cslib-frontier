@@ -34,6 +34,14 @@ private def verdict : ℕ ⊕ Option Bool → Option ControllerVerdict :=
 
 private def scheduler := machine setup scan (fun r => .inl r.sourceID) verdict
 
+-- The common clock also covers a rejecting selector or a read past the input.
+example (w : List Bool) : scheduler.HaltsWithin w 24 := by
+  refine Cslib.Complexity.STCON.SeedSchedulerMachine.haltsWithin setup scan
+    (fun r => .inl r.sourceID) verdict w 1 ?_
+  intro _ _ _ _ bits hlen
+  obtain ⟨bit, rfl⟩ := List.length_eq_one_iff.mp hlen
+  rfl
+
 -- The designated source reads position 0 and the other root reads position 2.
 -- The negative designated reply survives that positive indexed scan.
 set_option linter.hashCommand false in

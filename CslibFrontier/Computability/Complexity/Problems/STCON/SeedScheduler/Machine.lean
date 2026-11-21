@@ -33,6 +33,7 @@ skipped designated root.
 * `SeedSchedulerMachine.step_liveScan`: a live scan takes the callback's step on the same input.
 * `SeedSchedulerMachine.firstHalting_scan_iff`: split a successful scan and the resumed trace.
 * `SeedSchedulerMachine.firstHalting_skip_iff`: split a skipped root's false selector and suffix.
+* `SeedSchedulerMachine.haltsWithin`: one clock for all branches given the scanner clock.
 -/
 
 public section
@@ -149,6 +150,14 @@ theorem step_liveScan {σ : Type} (setup : SeedSearchSetup) (scan : Nondetermini
       .inl (.inr (frame, scan.step w s choice)) := by
   simp [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read, machine, hlive]
 
+private theorem step_haltedScan {σ : Type} (setup : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) (input : List Bool)
+    (frame : SeedSchedulerFrame) (s : σ) (selector : Bool) (hhalt : scan.halted s = true) :
+    (machine setup scan start verdict).step input (.inl (.inr (frame, s))) selector =
+      if selector then .inr none else resume start frame (verdict s) := by
+  simp [NondeterministicQueryMachine.step, machine, hhalt]
+
 /-- A successful first halt from an active scan consumes its parsed verdict and then
 first halts from the resumed scheduler, using the parser's unmodified suffix.
 The frame must request a scan, as it does when `enter` selects the active phase. -/
@@ -169,10 +178,7 @@ theorem firstHalting_scan_iff {σ : Type} (setup : SeedSearchSetup)
     (.inr none) (.inr (some answer)) rfl (by simp) rfl (fun _ => rfl)
     (step_liveScan setup scan start verdict w frame) ?_ state bits
   intro s selector hhalt
-  have hstep : M.step w (.inl (.inr (frame, s))) selector =
-      if selector then .inr none else resume start frame (verdict s) := by
-    simp [M, NondeterministicQueryMachine.step, machine, hhalt]
-  rw [hstep]
+  rw [step_haltedScan setup scan start verdict w frame s selector hhalt]
   cases hv : verdict s with
   | none => simp [resume, seedSchedulerStep_noReply_of_needsScan frame hscan]
   | some v => rfl
@@ -200,5 +206,151 @@ theorem firstHalting_skip_iff {σ : Type} (setup : SeedSearchSetup)
     · have hstep : M.step w skip true = .inr none := rfl
       have hhalt : M.halted (.inr none) = true := rfl
       simp [hstep, M.replay_of_halted w hhalt]
+
+private def offset (f : SeedSchedulerFrame) : ℕ :=
+  if f.answer.isSome then f.cursor + 1 else 0
+
+private def remaining (f : SeedSchedulerFrame) : ℕ :=
+  let size := f.request.setup.parameters.search
+  (size.seedLimit - f.request.seed) * (size.subdivision.originalCount + 1) - offset f
+
+private theorem offset_lt {f : SeedSchedulerFrame} (hf : f.Valid) :
+    offset f < f.request.setup.parameters.search.subdivision.originalCount + 1 := by
+  cases h : f.answer with
+  | none => simp [offset, h]
+  | some answer =>
+    simp only [SeedSchedulerFrame.Valid, h] at hf
+    simp [offset, h]
+    omega
+
+private theorem seed_lt {f : SeedSchedulerFrame} (hf : f.Valid) :
+    f.request.seed < f.request.setup.parameters.search.seedLimit := by
+  unfold SeedSchedulerFrame.Valid at hf
+  exact hf.1
+
+private theorem remaining_pos {f : SeedSchedulerFrame} (hf : f.Valid) : 0 < remaining f := by
+  have hs := seed_lt hf
+  have ho := offset_lt hf
+  have hmul := Nat.mul_le_mul_right
+    (f.request.setup.parameters.search.subdivision.originalCount + 1)
+    (show 1 ≤ f.request.setup.parameters.search.seedLimit - f.request.seed by omega)
+  simp only [Nat.one_mul] at hmul
+  exact Nat.sub_pos_of_lt (ho.trans_le hmul)
+
+private theorem remaining_lt {f g : SeedSchedulerFrame} {reply : Option ControllerVerdict}
+    (hf : f.Valid) (h : seedSchedulerStep f reply = some (.inl g)) :
+    remaining g < remaining f := by
+  obtain ⟨hg, hsetup, hprogress⟩ := seedSchedulerStep_progress hf h
+  have hs := seed_lt hf
+  have hgseed := seed_lt hg
+  rw [hsetup] at hgseed
+  have ho := offset_lt hf
+  have hpositive := remaining_pos hg
+  simp only [remaining, hsetup] at hpositive ⊢
+  rcases hprogress with hseed | ⟨hseed, hcursor⟩
+  · let limit := f.request.setup.parameters.search.seedLimit
+    have hmul := Nat.mul_le_mul_right
+      (f.request.setup.parameters.search.subdivision.originalCount + 1)
+      (show limit - g.request.seed + 1 ≤ limit - f.request.seed by
+        dsimp only [limit]
+        omega)
+    simp only [Nat.add_mul, Nat.one_mul, limit] at hmul
+    omega
+  · have hpos : offset f < offset g := by
+      rcases hcursor with ⟨hnone, hsome⟩ | hcursor
+      · cases h : g.answer with
+        | none => simp [h] at hsome
+        | some answer => simp [offset, hnone, h]
+      · cases h : g.answer with
+        | none =>
+          simp only [SeedSchedulerFrame.Valid, h] at hg
+          omega
+        | some answer =>
+          cases ha : f.answer with
+          | none => simp [offset, ha, h]
+          | some bit => simpa [offset, ha, h] using hcursor
+    rw [hseed] at hpositive ⊢
+    omega
+
+/-- One scanner clock for each valid requested scan bounds all scheduler branches. Each
+remaining seed has at most one designated frame and one frame per original root, with one
+additional selector per frame for a skip or return. -/
+theorem haltsWithin {σ : Type} (setup : SeedSearchSetup) (scan : NondeterministicQueryMachine σ)
+    (start : SeedScanRequest → σ) (verdict : σ → Option ControllerVerdict) (input : List Bool)
+    (clock : ℕ)
+    (hscan : ∀ frame : SeedSchedulerFrame,
+      frame.request.setup = setup → frame.Valid → frame.needsScan = true →
+      (scan.withInit (start frame.request)).HaltsWithin input clock) :
+    (machine setup scan start verdict).HaltsWithin input
+      (setup.parameters.search.seedLimit *
+        ((1 + setup.parameters.search.subdivision.originalCount) * (clock + 1))) := by
+  let M := machine setup scan start verdict
+  have terminal (result : Option (Option Answer)) (bits : List Bool) :
+      M.halted (M.replay input bits (.inr result)) = true := by
+    rw [M.replay_of_halted input (by rfl)]
+    rfl
+  have fromFrame (f : SeedSchedulerFrame) (hsetup : f.request.setup = setup) (hf : f.Valid)
+      (bits : List Bool) (hlen : remaining f * (clock + 1) ≤ bits.length) :
+      M.halted (M.replay input bits (enter start f)) = true := by
+    induction hr : remaining f using Nat.strongRecOn generalizing f bits with
+    | ind fuel ih =>
+      have hpos := remaining_pos hf
+      have hbudget : remaining f * (clock + 1) =
+          (remaining f - 1) * (clock + 1) + (clock + 1) := by
+        conv_lhs => rw [show remaining f = (remaining f - 1) + 1 by omega]
+        rw [Nat.add_mul, Nat.one_mul]
+      have afterStep (selector : Bool) (reply : Option ControllerVerdict) (rest : List Bool)
+          (hrest : (remaining f - 1) * (clock + 1) ≤ rest.length) :
+          M.halted (M.replay input rest
+            (if selector then .inr none else resume start f reply)) = true := by
+        cases selector with
+        | true => exact terminal none rest
+        | false =>
+          simp only [Bool.false_eq_true, ↓reduceIte, resume]
+          cases he : seedSchedulerStep f reply with
+          | none => exact terminal none rest
+          | some result =>
+            cases result with
+            | inr answer => exact terminal _ rest
+            | inl next =>
+              obtain ⟨hvalid, hsame, _⟩ := seedSchedulerStep_progress hf he
+              have hlt := remaining_lt hf he
+              have hle : remaining next ≤ remaining f - 1 := by omega
+              exact ih (remaining next) (hr ▸ hlt) next (hsame.trans hsetup) hvalid rest
+                ((Nat.mul_le_mul_right _ hle).trans hrest) rfl
+      by_cases hneeds : f.needsScan = true
+      · have hlong : clock < bits.length := by omega
+        obtain ⟨prefixBits, selector, rest, rfl, hprefix, hfirst⟩ :=
+          scan.exists_firstHalting_prefix_with_next input bits (start f.request)
+            clock (hscan f hsetup hf hneeds) hlong
+        rw [enter, ite_eq_left hneeds, M.replay_append,
+          M.replay_map_of_live input scan (fun s => .inl (.inr (f, s)))
+            (step_liveScan setup scan start verdict input f) prefixBits (start f.request) hfirst.2,
+          M.replay_cons]
+        rw [step_haltedScan setup scan start verdict input f _ selector hfirst.1]
+        simp only [List.length_append, List.length_cons] at hlen
+        exact afterStep selector _ rest (by omega)
+      · cases bits with
+        | nil =>
+          simp only [List.length_nil] at hlen
+          omega
+        | cons selector rest =>
+          rw [enter, ite_eq_right hneeds, M.replay_cons]
+          have hstep : M.step input (.inl (.inl f)) selector =
+              (if selector then .inr none else resume start f none) := rfl
+          rw [hstep]
+          simp only [List.length_cons] at hlen
+          exact afterStep selector none rest (by omega)
+  intro bits hlen
+  change M.halted (M.replay input bits
+    ((seedSchedulerCandidate setup 0).elim (.inr (some none)) (enter start))) = true
+  cases hentry : seedSchedulerCandidate setup 0 with
+  | none => exact terminal (some none) bits
+  | some f =>
+    obtain ⟨hf, hs, hz⟩ := seedSchedulerCandidate_valid hentry
+    apply fromFrame f hs hf bits
+    simp only [remaining, hs, hz, Nat.sub_zero]
+    rw [hlen, Nat.add_comm 1, ← Nat.mul_assoc]
+    exact Nat.mul_le_mul_right _ (Nat.sub_le _ _)
 
 end Cslib.Complexity.STCON.SeedSchedulerMachine

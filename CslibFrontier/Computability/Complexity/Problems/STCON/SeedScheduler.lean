@@ -259,7 +259,7 @@ theorem seedSchedulerStep_noReply_inSpace :
 
 /-- The seed is below its exclusive limit. The designated phase uses cursor zero and the
 designated source. An indexed phase uses a bounded cursor and its corresponding source. -/
-def SeedSchedulerFrame.Valid (f : SeedSchedulerFrame) : Prop :=
+@[expose] def SeedSchedulerFrame.Valid (f : SeedSchedulerFrame) : Prop :=
   let s := f.request.setup
   f.request.seed < s.parameters.search.seedLimit ∧
     match f.answer with
