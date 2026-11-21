@@ -20,7 +20,7 @@ extended as described below, producing the abstract syntax checked by
 
 * an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPB`): an optional objective line
   `min: ∑ wᵢ ℓᵢ [k];`, with an optional constant `k`, and an optional preserved-set line
-  `preserved: x₁ … ;`, in either order, before the constraints
+  `preserved: x₁ … xₙ;`, in either order, before the constraints
   (`Cslib.Logic.PL.VeriPB.Objective`), then one constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one
   of `>=`, `<=`, `=`, an equality counting as the two constraints `≥` and `≤` in this order; lines
   starting with `*` are comments;
