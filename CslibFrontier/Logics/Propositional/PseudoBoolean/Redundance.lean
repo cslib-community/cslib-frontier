@@ -169,7 +169,10 @@ constraints needs an empty derived set, and `del id` of a core constraint is rej
 deletion gets the order goals; as in VeriPB and CakePB, it may still take a witness, which
 §5.7.4 forbids. Unloading with no order loaded (`load_order;`) is accepted, as VeriPB accepts it
 and as §5.3 describes unloading as loading the empty order; CakePB rejects it (its
-`UnloadOrder` needs a loaded order).
+`UnloadOrder` needs a loaded order). A checked deletion that must check freshness checks it on its
+premises, the remaining core set, and so accepts an auxiliary variable in a derived constraint, as
+VeriPB does; CakePB's `check_fresh_aspo` scans the whole database and rejects it. This is sound,
+since derived constraints are not premises of a checked deletion.
 
 **Solutions and conclusions.** The checker keeps a bound and a logged solution, as CakePB keeps
 `dbound` and `bound` (`update_dbound`, `update_bound` and `check_hconcl` in

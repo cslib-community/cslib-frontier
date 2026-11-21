@@ -1596,6 +1596,16 @@ qed;
 delc 1 : x1 -> 1 : subproof
 qed;
 ") == some .noClaim
+-- With `$a1` in the database, a `red` step that leaves the order alone but enters `scope leq`
+-- needs freshness too: CakePB and this checker reject, VeriPB accepts.
+#guard (checkOPB emptyOpb (withNotAux 0 "red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+load_order notaux x1;
+red 1 x2 >= 1 : x2 -> 1 : subproof
+scope leq
+end;
+qed;
+")).isNone
 -- A `proofgoal` outside the scopes counts, also when its premise list is the specification's:
 -- under an order whose specification is `>= 0`, the core goal `1` of `dom x1 >= 1 : x1 -> 0`
 -- has the negation `>= 0`. All three accept.
@@ -1733,6 +1743,10 @@ only the public API, through `#guard`, exposed bodies and the soundness theorems
 -- The relation itself unfolds through exposed bodies: `01 ⪯ 10`, and not `10 ⪯ 01`.
 example : lex2.Le [false, true] [true, false] := by decide
 example : ¬ lex2.Le [true, false] [false, true] := by decide
+-- With an auxiliary variable, `∃ ρ, S⪯(x, y, ρ) ∧ O⪯(x, y, ρ)` is decided by trying its values,
+-- also under ordinary imports: `0 ⪯ 1`, and not `1 ⪯ 0`, for `notAuxO`.
+example : notAuxO.Le [false] [true] := by decide
+example : ¬ notAuxO.Le [true] [false] := by decide
 
 -- A passing `def_order` check gives a preorder on assignments, for any literals of the right
 -- length.
