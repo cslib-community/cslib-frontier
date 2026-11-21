@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokeEmbedding
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionContraction
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 
@@ -125,10 +126,14 @@ example :
       ∃ ρ > (0 : ℝ), ∃ E F : PolygonalDrawing (subdivisionGraph doubleLoop),
         F.IsEmbedding ∧ F.vertex = E.vertex ∧ F.vertex 0 = D.vertex 0 ∧
         (∀ e, (subdivisionEdgeIndex doubleLoop e).piece = 1 → F.route e = E.route e) ∧
-        ∀ d : Dart doubleLoop.graph,
+        (∀ d : Dart doubleLoop.graph,
           F.vertex (subdivisionDart doubleLoop d).reverse.vertex = D.cutPort ρ d ∧
           F.direction (subdivisionDart doubleLoop d) =
-            (referenceDrawing doubleLoop).direction (subdivisionDart doubleLoop d) := by
+            (referenceDrawing doubleLoop).direction (subdivisionDart doubleLoop d)) ∧
+        ∃ A : PolygonalDrawing doubleLoop.graph, A.IsEmbedding ∧ A.vertex = F.vertex ∧
+          (∀ i, (A.route i).support = ⋃ k : Fin 3,
+            (F.route (⟨i, k⟩ : SubdivisionEdgeIndex doubleLoop).edge).support) ∧
+          ∀ d : Dart doubleLoop.graph, A.germ d = F.germ (subdivisionDart doubleLoop d) := by
   have hI : Valid doubleLoop := (validate_eq_true_iff _).mp (by decide +kernel)
   let c : RotationCertificate := ⟨[1, 2, 3, 0]⟩
   have hrot : RotationCertificate.verifyRotation doubleLoop.graph c = true := by decide +kernel
@@ -166,13 +171,15 @@ example :
       (PolygonalDrawing.bouquet_realizes r hloop) hfix
     obtain ⟨E, F, _, hF, hvertices, hcenter, hports, hmiddle, _, hfixed⟩ :=
       hall (ε / 2) ⟨half_pos hε, half_lt_self hε⟩
-    refine ⟨ε / 2, half_pos hε, E, F, hF, hvertices, hcenter 0 (by decide +kernel), hmiddle, ?_⟩
-    intro d
-    have hd : (doubleLoop.orders.getD d.vertex none).isSome := by
-      rcases d with ⟨e, b⟩
-      fin_cases e <;> cases b <;> decide +kernel
-    obtain ⟨a, ha, hger⟩ := hfixed d hd
-    refine ⟨hports d, ?_⟩
-    simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_real_mul _ ha]
+    refine ⟨ε / 2, half_pos hε, E, F, hF, hvertices, hcenter 0 (by decide +kernel),
+      hmiddle, ?_, ?_⟩
+    · intro d
+      have hd : (doubleLoop.orders.getD d.vertex none).isSome := by
+        rcases d with ⟨e, b⟩
+        fin_cases e <;> cases b <;> decide +kernel
+      obtain ⟨a, ha, hger⟩ := hfixed d hd
+      refine ⟨hports d, ?_⟩
+      simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_real_mul _ ha]
+    · exact exists_contracted_subdivision_embedding hI hF
 
 end Cslib.Tests.RotationReferenceStar

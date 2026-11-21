@@ -2829,6 +2829,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Split
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SplitFeasibility
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionContraction
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEmbedding
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Relabel
@@ -3062,6 +3063,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSig
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalNumericEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Factorial
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.GridEnumeration
@@ -3581,6 +3583,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.D
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryField
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryFieldHorner
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryIrreducible
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryModulus
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitGame
@@ -6779,6 +6783,7 @@ public import CslibFrontier.Foundations.Data.Finset.SymmDiff
 public import CslibFrontier.Foundations.Data.Finset.Tournament
 public import CslibFrontier.Foundations.Data.Finset.UniqueTail
 public import CslibFrontier.Foundations.Data.Finset.Variance
+public import CslibFrontier.Foundations.Data.Finsupp.Interval
 public import CslibFrontier.Foundations.Data.Finsupp.OddSupport
 public import CslibFrontier.Foundations.Data.Fintype.AgreeOn
 public import CslibFrontier.Foundations.Data.Fintype.FiberEquiv
@@ -7047,6 +7052,7 @@ public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
+public import CslibFrontier.Foundations.FieldTheory.Finite.HornerCoordinates
 public import CslibFrontier.Foundations.FieldTheory.Finite.LinearizedPolynomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.ReducedMonomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.Subfield
@@ -7526,6 +7532,7 @@ public import CslibFrontier.GameTheory.Strategic.StrongNash
 public import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
 public import CslibFrontier.GameTheory.Strategic.Universality.Binary
 public import CslibFrontier.GameTheory.Strategic.Universality.DattaBinary
+public import CslibFrontier.GameTheory.Strategic.Universality.DattaHorner
 public import CslibFrontier.GameTheory.Strategic.Universality.DattaThree
 public import CslibFrontier.GameTheory.Strategic.Universality.Realize
 public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
@@ -8226,6 +8233,7 @@ public import CslibFrontier.MachineLearning.Replicable.Amplification
 public import CslibFrontier.MachineLearning.Replicable.Basic
 public import CslibFrontier.MachineLearning.Replicable.BiasEstimation
 public import CslibFrontier.MachineLearning.Replicable.Composition
+public import CslibFrontier.MachineLearning.Replicable.MoserTardos
 public import CslibFrontier.MachineLearning.Replicable.Rounding
 public import CslibFrontier.MachineLearning.StatisticalQuery.Basic
 public import CslibFrontier.MachineLearning.StatisticalQuery.Dimension
@@ -8316,6 +8324,7 @@ public import CslibFrontier.Probability.Conditioning
 public import CslibFrontier.Probability.CorrelatedSampling
 public import CslibFrontier.Probability.CorrelatedSampling.Embeddability
 public import CslibFrontier.Probability.CorrelatedSampling.Embedding
+public import CslibFrontier.Probability.CorrelatedSampling.Grid
 public import CslibFrontier.Probability.CorrelatedSampling.SharedSeed
 public import CslibFrontier.Probability.DDGTree
 public import CslibFrontier.Probability.DDGTree.Biased
@@ -8419,6 +8428,7 @@ public import CslibFrontier.Probability.MoserTardos.Coupling
 public import CslibFrontier.Probability.MoserTardos.Lopsided
 public import CslibFrontier.Probability.MoserTardos.Parallel
 public import CslibFrontier.Probability.MoserTardos.Symmetric
+public import CslibFrontier.Probability.MoserTardos.TotalVariation
 public import CslibFrontier.Probability.MoserTardos.Witness
 public import CslibFrontier.Probability.MutualInformation
 public import CslibFrontier.Probability.MutualInformation.DataProcessing

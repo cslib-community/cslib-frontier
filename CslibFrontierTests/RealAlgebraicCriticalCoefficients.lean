@@ -7,6 +7,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -249,7 +250,7 @@ example :
     let hF : F.totalDegree ≤ 2 := by simp [F]
     let H := parametricValueCoeffNormExponent 1 2 0
     let a : ℤ := 2 ^ (H + 1)
-    let s := Polynomial.parameterExclusionExponent 2 H
+    let s := criticalParameterExponent 1 2 0
     let q := valuePolynomial (by decide : 1 ≤ 2) (fun i => (separatedCenters 2 i : ℤ))
       (2 ^ s) F hF
     let q' := q.map (Int.castRingHom ℝ)
@@ -269,5 +270,17 @@ example :
   apply Polynomial.ofCoeffList_coeffsBelow
   exact (natDegree_parametricValuePolynomial_coeff_le (by decide : 2 ≤ 2) F hF 1).trans_lt
     (by decide)
+
+-- Feed a source-derived parameter residue to the evaluator for a nonconstant input.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let q := valuePolynomial (by decide : 1 ≤ 2) (fun i => (separatedCenters 2 i : ℤ))
+      (2 ^ criticalParameterExponent 1 2 0) F hF
+    criticalCoefficientValue 101 1 1 (criticalParameterResidue 101 1 2 0) 0
+      (fun y => y[0]?.getD 0) = ((q.map (Int.castRingHom (ZMod 101))).coeff 0).val := by
+  intro F hF q
+  exact criticalCoefficientValue_at_criticalParameterResidue 1 (by decide) F hF
+    (by decide) (by decide) _ (fun y => by simp [F])
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
