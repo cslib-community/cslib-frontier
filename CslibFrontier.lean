@@ -2988,6 +2988,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSe
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionCall
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionEndpoints
 public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionCall
+public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionSpace
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Writer
 public import CslibFrontier.Computability.Complexity.Problems.SetCover
 public import CslibFrontier.Computability.Complexity.Problems.SharpCycle
