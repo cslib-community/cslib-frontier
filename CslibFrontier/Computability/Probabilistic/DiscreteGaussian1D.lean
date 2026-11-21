@@ -1059,17 +1059,21 @@ private theorem abs_exp_neg_sub_exp_neg_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 �
     linarith
   exact (mul_le_of_le_one_left hnn h3).trans h2
 
+/-- A fixed-point numerator `zFp ≤ 2 ^ qBits` represents a real ratio in `[0, 1]`. -/
+private theorem fixedPoint_ratio_mem_unit (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBits) :
+    0 ≤ (zFp : ℝ) / ((2 ^ qBits : ℕ) : ℝ) ∧ (zFp : ℝ) / ((2 ^ qBits : ℕ) : ℝ) ≤ 1 :=
+  ⟨by positivity, (div_le_one (by positivity)).mpr (by exact_mod_cast hz)⟩
+
 private theorem expNegStep_term_error (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBits) (j : ℕ) :
     let S : ℕ := 2 ^ qBits
     let z : ℝ := (zFp : ℝ) / (S : ℝ)
     let term := ((expNegStep (S, zFp))^[j] (0, (S, 0))).2.1
     (term : ℝ) ≤ (S : ℝ) * z ^ j / (Nat.factorial j : ℝ) ∧
       (S : ℝ) * z ^ j / (Nat.factorial j : ℝ) - (term : ℝ) ≤ if j = 0 then 0 else 2 := by
+  obtain ⟨hz0, hz1⟩ := fixedPoint_ratio_mem_unit qBits zFp hz
   set S : ℕ := 2 ^ qBits
   set z : ℝ := (zFp : ℝ) / (S : ℝ)
   have hSpos : (0 : ℝ) < (S : ℝ) := by positivity
-  have hz0 : 0 ≤ z := by positivity
-  have hz1 : z ≤ 1 := (div_le_one hSpos).mpr (by exact_mod_cast hz)
   induction j with
   | zero =>
     simp [S]
@@ -1154,11 +1158,10 @@ private theorem abs_expNegSeries_div_sub_exp_le (qBits zFp : ℕ) (hz : zFp ≤ 
     |(expNegSeries qBits zFp : ℝ) / (2 : ℝ) ^ qBits -
         Real.exp (-((zFp : ℝ) / (2 : ℝ) ^ qBits))| ≤
       (4 * ((qBits : ℝ) + 2) + 1) / (2 : ℝ) ^ qBits := by
+  obtain ⟨hz0, hz1⟩ := fixedPoint_ratio_mem_unit qBits zFp hz
   set S : ℕ := 2 ^ qBits
   set z : ℝ := (zFp : ℝ) / (S : ℝ)
   have hSpos : (0 : ℝ) < (S : ℝ) := by positivity
-  have hz0 : 0 ≤ z := by positivity
-  have hz1 : z ≤ 1 := (div_le_one hSpos).mpr (by exact_mod_cast hz)
   have hgen : ∀ n : ℕ,
       |(((expNegStep (S, zFp))^[n] (0, (S, 0))).2.2 : ℝ) -
           (S : ℝ) * ∑ k ∈ Finset.range n, (-z) ^ k / (Nat.factorial k : ℝ)| ≤
