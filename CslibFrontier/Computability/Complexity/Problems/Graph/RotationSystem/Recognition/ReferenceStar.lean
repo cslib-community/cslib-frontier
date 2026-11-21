@@ -10,8 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.PrescribedOrder
-public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restriction
-public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Basic
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Angle
 import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 import Mathlib.Data.List.GetD
@@ -307,12 +306,8 @@ theorem cutPort_clockwise_iff_reference {I : FixedRotationInput} (hI : Valid I)
   have hav := fixedWord_dart_vertex hI hw ha
   have hbv := fixedWord_dart_vertex hI hw hb
   have hcv := fixedWord_dart_vertex hI hw hc
-  have hport (d : Dart I.graph) (hd : d.vertex = v) :
-      ((D.cutPort ρ d - D.vertex v).arg : Real.Angle) = D.direction d := by
-    rw [← hd, hD.arg_cutPort_sub hρ]
-    rfl
-  rw [hport a hav, hport b hbv, hport c hcv]
-  exact (hReal.clockwise a b c (hav.trans hbv.symm) (hbv.trans hcv.symm) hab hbc hac).trans
+  exact (hReal.cutPort_clockwise hD v hρ (Metric.mem_ball_self hρ)
+    a b c hav hbv hcv hab hbc hac).trans
     ((hfixed.mem_rotationInterval_iff_fixedWord hI hw ha hb hc hab hbc hac).trans
       (referenceDrawing_fixedWord_clockwise_iff hI hw ha hb hc hab hbc hac).symm)
 
