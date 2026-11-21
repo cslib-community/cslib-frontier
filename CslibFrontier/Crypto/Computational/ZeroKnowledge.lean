@@ -134,7 +134,7 @@ entries.
 
 namespace Cslib.Crypto
 
-open Probability Complexity Logic.PL Turing.MultiTapeTM ComputableTidilyInPolyTime
+open Probability Complexity Logic.PL Turing.MultiTapeTM ComputableInPolyTime
 open scoped NNReal ENNReal
 
 /-! ### Restricted versus general auxiliary-input zero-knowledge predicates -/
@@ -257,11 +257,11 @@ theorem AuxiliaryInputZeroKnowledge.generableZeroKnowledge {α : Type} {enc : α
   obtain ⟨S, hS_ppt, hS_zk⟩ := h Vstar hV
   refine ⟨S, hS_ppt, fun a w z ha hw hz hw_sat adversary hadversary => ?_⟩
   have ha_poly : PolynomiallyBounded (fun n => (enc (a n)).length) :=
-    ((encoding_length enc).comp ha.tidy).polynomiallyBounded
+    ((encoding_length enc).comp ha).polynomiallyBounded
   have hw_poly : PolynomiallyBounded (fun n => (w n).length) :=
-    ((encoding_length encBits).comp hw.tidy).polynomiallyBounded
+    ((encoding_length encBits).comp hw).polynomiallyBounded
   have hz_poly : PolynomiallyBounded (fun n => (z n).length) :=
-    ((encoding_length encBits).comp hz.tidy).polynomiallyBounded
+    ((encoding_length encBits).comp hz).polynomiallyBounded
   have htest : IsPPTOn (encPair (encPair encUnary (encPair enc encBits)) encBits) encBool
       (fun p => adversary p.1.1 p.2) :=
     hadversary.preprocess (by fun_prop) (by fun_prop)
@@ -290,8 +290,8 @@ theorem GenerableZeroKnowledge.advantage_negligible {α : Type} {enc : α ↪ Li
             (distinguishingGame (ProbComp.eval (S n (a n) (z n))) (adversary n (a n) (z n)))) := by
   obtain ⟨S, hS_ppt, hS_zk⟩ := h Vstar hV
   refine ⟨S, hS_ppt, fun a w z ha hw hz hw_sat adversary hadversary => ?_⟩
-  have ha_tidy := ha.tidy
-  have hz_tidy := hz.tidy
+  have ha_plain := ha
+  have hz_plain := hz
   have hD : IsPPT encBool (fun n view => adversary n (a n) (z n) view) :=
     hadversary.preprocess
       (input := encPair encUnary encBits)
@@ -468,8 +468,8 @@ theorem zero_knowledge_const (zk : ZKProof enc A soundness)
           (fun n => ProbComp.eval (S n a (z n))) := by
   obtain ⟨S, hS_ppt, hS_zk⟩ := zk.zero_knowledge Vstar hV
   exact ⟨S, hS_ppt, fun a w z hw hz =>
-    hS_zk (fun _ => a) (fun _ => w) z (const a).computableInPolyTime
-      (const w).computableInPolyTime hz (fun _ => hw)⟩
+    hS_zk (fun _ => a) (fun _ => w) z (const a)
+      (const w) hz (fun _ => hw)⟩
 
 end ZKProof
 
@@ -492,7 +492,7 @@ noncomputable def PseudorandomGenerator.singleZKProofOfReduction
   prover n a w := GMW.gmwProver generator (n + 7) (length (n + 7)) (f a) w
   isWitness a w := ThreeSAT.verifier (f a, w)
   polyTime_isWitness := by
-    have := hf.tidy
+    have := hf
     fun_prop
   mem_iff_exists_witness a := by
     rw [hred a]

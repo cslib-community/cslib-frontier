@@ -12,7 +12,7 @@ public import CslibFrontierTests.Computability.Complexity.FineGrained.CountingSp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-!
 # Independent counting-sparsification workspace controls
@@ -38,10 +38,10 @@ private theorem probe_certificate (q : CNF ℕ → ℕ) :
     ∃ d, ComputableInO leafProbe encCNF encNat
       (fun ψ => 2 ^ q ψ * ((encCNF ψ).length + 1) ^ d)
       (fun ψ => ((encCNF ψ).length + 1) ^ d) := by
-  have hp : ComputableTidilyInPolyTime leafProbe encCNF encNat := by
+  have hp : ComputableInPolyTime leafProbe encCNF encNat := by
     unfold leafProbe encCNF
     fun_prop
-  obtain ⟨d, e, h⟩ := hp.computableInPolyTime.exists_degree
+  obtain ⟨d, e, h⟩ := hp.exists_degree
   exact ⟨d, (h.inO.mono_le
     (fun ψ => Nat.le_mul_of_pos_left _ (Nat.two_pow_pos (q ψ))) (fun _ => le_rfl))⟩
 

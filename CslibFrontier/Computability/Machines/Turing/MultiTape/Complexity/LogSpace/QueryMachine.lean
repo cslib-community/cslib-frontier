@@ -7,11 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.MultiPass
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
 import Mathlib.Data.List.GetD
@@ -104,6 +105,23 @@ def step (s : σ) : σ := if M.halted s then s else M.next (s, M.read w s)
 
 /-- The state after `t` steps on the input `w`. -/
 def run (t : ℕ) : σ := (M.step w)^[t] M.init
+
+/-- Run a query machine from an explicitly supplied state. -/
+def runFrom (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) : σ :=
+  (M.step w)^[n] start
+
+@[simp] theorem runFrom_zero (M : QueryMachine σ) (w : List Bool) (start : σ) :
+    M.runFrom w start 0 = start := rfl
+
+theorem runFrom_succ (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) :
+    M.runFrom w start (n + 1) = M.step w (M.runFrom w start n) :=
+  Function.iterate_succ_apply' _ _ _
+
+theorem runFrom_add (M : QueryMachine σ) (w : List Bool) (start : σ) (m n : ℕ) :
+    M.runFrom w start (m + n) = M.runFrom w (M.runFrom w start m) n := by
+  induction n with
+  | zero => rfl
+  | succ n ih => rw [← Nat.add_assoc, runFrom_succ, ih, runFrom_succ]
 
 /-- The output of a run halted by step `t`: emissions stop at the first halted state, then the
 final word is appended. Once the run has halted, increasing `t` leaves the output unchanged. -/
@@ -505,7 +523,7 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
     nlinarith
   obtain ⟨c, h⟩ := key
   refine ⟨_, c * (cF * (K + 1) + (2 * cN + cPE + cPN + cC + 4) * (2 * K + 3) + (K + 1) + 1),
-    h.computableInTimeAndSpace.mono (fun _ => le_rfl) fun a => ?_⟩
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono (fun _ => le_rfl) fun a => ?_⟩
   have h₁ := hlenP a (time a - 1 + 1)
   have hL := hS1 a
   generalize S a = L at *

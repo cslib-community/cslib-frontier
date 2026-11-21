@@ -9,7 +9,10 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Moves
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRegularization
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEmbedding
 import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
+import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
@@ -18,12 +21,14 @@ import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.FinCases
 
 /-!
-# Necessity for embeddings already at the reference positions
+# Embedding necessity for the fixed-rotation query
 
-The supplied embedding is already at the reference vertices and has LITERAL frozen routes.
-`query_eq_true_of_positioned_frozen_embedding` constructs comparison routes, a common axis
-and switch bits internally, and derives the actual frozen independent-pair equations.
-It does not position an arbitrary embedding or assume any motion or parity provider.
+`query_eq_true_of_positioned_frozen_embedding` starts with an embedding at the reference
+vertices with literal frozen routes. It constructs comparison routes, a common axis and
+switch bits to derive the frozen independent-pair equations.
+When there are no frozen subdivision edges, `query_eq_true_of_unfrozen_embedding`
+places the vertices at the reference points. `query_eq_true_of_unfrozen_original_embedding`
+first constructs the embedding of the indexed subdivision.
 
 Auxiliary two-piece routes have reciprocal closed-node exclusions for independent pairs,
 even when the two original drawings overlap. A common complex multiplier makes all actual
@@ -317,24 +322,10 @@ private theorem exists_auxiliaryOn {E : Type*} [Fintype E] [DecidableEq E]
       exact auxiliaryOn_insert c d R V hcV hdV hcd hR hclean A e he
   exact h Finset.univ
 
-private def mulRoute (u : ℂ) (p : Route) : Route where
-  bends := p.bends
-  point := fun k => u * p.point k
-
-private theorem mulRoute_support (u : ℂ) (p : Route) :
-    (mulRoute u p).support = (fun z => u * z) '' p.support := by
-  let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
-  change (⋃ j : Fin p.segments, segment ℝ (f (p.point j.castSucc)) (f (p.point j.succ))) =
-    f '' (⋃ j : Fin p.segments, segment ℝ (p.point j.castSucc) (p.point j.succ))
-  rw [Set.image_iUnion]
-  congr 1
-  funext j
-  exact (image_segment ℝ f.toAffineMap _ _).symm
-
 private theorem nodesAvoid_mul {p q : Route} (h : NodesAvoid p q) {u : ℂ} (hu : u ≠ 0) :
-    NodesAvoid (mulRoute u p) (mulRoute u q) := by
+    NodesAvoid (Route.mulComplex u p) (Route.mulComplex u q) := by
   intro k hz
-  rw [mulRoute_support] at hz
+  rw [Route.support_mulComplex] at hz
   obtain ⟨z, hz, heq⟩ := hz
   have hzp : z = p.point k := mul_left_cancel₀ hu heq
   exact h k (hzp ▸ hz)
@@ -352,7 +343,7 @@ private theorem pairParity_symm (p q : Route) : pairParity p q = pairParity q p 
   simp only [Set.inter_comm]
 
 private theorem pairParity_mul (p q : Route) {u : ℂ} (hu : u ≠ 0) :
-    pairParity (mulRoute u p) (mulRoute u q) = pairParity p q := by
+    pairParity (Route.mulComplex u p) (Route.mulComplex u q) = pairParity p q := by
   classical
   let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
   have hf : Function.Injective f := fun _ _ h => mul_left_cancel₀ hu h
@@ -421,7 +412,7 @@ private theorem cycle_observe {p q r : Route} {u : ℂ} (hu : u ≠ 0)
   have hrp' := nodesAvoid_mul hrp hu
   have hrq' := nodesAvoid_mul hrq hu
   have h := Route.rayParity_endpoints_add_eq_sum_intersections
-    (cycleStart u p q) (cycleFinish u p q) (fun _ => true) (mulRoute u r)
+    (cycleStart u p q) (cycleFinish u p q) (fun _ => true) (Route.mulComplex u r)
     (by intro i; cases i with | inl i => exact hp i | inr i => exact hq i)
     hr
     (by
@@ -454,13 +445,13 @@ private theorem cycle_observe {p q r : Route} {u : ℂ} (hu : u ≠ 0)
       (∑ i : Fin p.segments, decide ((openSegment ℝ
         (u * p.point i.castSucc) (u * p.point i.succ) ∩
           openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty))) =
-        pairParity (mulRoute u p) (mulRoute u r) := by
+        pairParity (Route.mulComplex u p) (Route.mulComplex u r) := by
     exact Finset.sum_comm
   have hsum' : (∑ j : Fin r.segments,
       (∑ i : Fin q.segments, decide ((openSegment ℝ
         (u * q.point i.castSucc) (u * q.point i.succ) ∩
           openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty))) =
-        pairParity (mulRoute u q) (mulRoute u r) := by
+        pairParity (Route.mulComplex u q) (Route.mulComplex u r) := by
     exact Finset.sum_comm
   rw [hsum, hsum', pairParity_mul p r hu, pairParity_mul q r hu] at h
   exact h
@@ -976,5 +967,41 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
     simpa only [readMove, helt, hflt, eb.1, eb.2, fb.1, fb.2, dite_true,
       moves, index, add_assoc] using hrow
   exact (query_eq_true_iff_exists_frozen_moves I).mpr ⟨hI, moves, hfrozen, hequations⟩
+
+/-- An actual embedding of the twice-subdivided graph makes the query accept when no
+subdivision edge is frozen. The reference vertex positions are attained internally. -/
+theorem query_eq_true_of_unfrozen_embedding {I : FixedRotationInput} (hI : Valid I)
+    (hF : (frozenGraph I).edges = [])
+    (D : PolygonalDrawing (subdivisionGraph I)) (hD : D.IsEmbedding) : query I = true := by
+  have hdeclared : (subdivisionGraph I).incidenceVertices ⊆ (subdivisionGraph I).vertices := by
+    intro v hv
+    obtain ⟨p, hp, hv⟩ := List.mem_flatMap.mp hv
+    obtain ⟨j, hj, he⟩ := List.mem_iff_getElem.mp hp
+    let e : Fin (subdivisionGraph I).edges.length := ⟨j, hj⟩
+    have hend := (Dart.edge_eq_vertices e).symm.trans he
+    rw [← hend] at hv
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
+    rcases hv with rfl | rfl
+    · exact subdivision_end_declared hI e false
+    · exact subdivision_end_declared hI e true
+  obtain ⟨E, hE, hV, _, _, _, _⟩ := hD.exists_vertex_placement hdeclared
+    (referenceDrawing I).vertex (referenceDrawing_vertices_injective hI)
+  apply query_eq_true_of_positioned_frozen_embedding hI E hE hV
+  intro e he
+  let i : Fin (subdivide I).length :=
+    ⟨e.val, by simpa only [subdivisionGraph, List.length_map] using e.isLt⟩
+  have hem : (subdivide I)[i].endpoints ∈ (frozenGraph I).edges :=
+    List.mem_map.mpr ⟨_, List.mem_filter.mpr ⟨List.getElem_mem _, he⟩, rfl⟩
+  rw [hF] at hem
+  exact (List.not_mem_nil hem).elim
+
+/-- An actual embedding of the original listed graph makes the query accept when no
+subdivision edge is frozen. The proof subdivides the indexed routes and places all
+subdivision vertices at the reference points. -/
+theorem query_eq_true_of_unfrozen_original_embedding {I : FixedRotationInput} (hI : Valid I)
+    (hF : (frozenGraph I).edges = [])
+    (D : PolygonalDrawing I.graph) (hD : D.IsEmbedding) : query I = true := by
+  obtain ⟨E, hE, _⟩ := exists_subdivision_embedding hI D hD
+  exact query_eq_true_of_unfrozen_embedding hI hF E hE
 
 end Cslib.Complexity.Graph.RotationRecognition
