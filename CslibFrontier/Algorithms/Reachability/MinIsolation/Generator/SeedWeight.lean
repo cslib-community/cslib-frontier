@@ -288,13 +288,6 @@ theorem executor_finish (x : Input) :
   rw [hend]
   exact ⟨rfl, rfl⟩
 
-private theorem outputFrom_eq_finish {σ : Type} (M : QueryMachine σ)
-    (hemit : M.emit = fun _ => []) (w : List Bool) (start : σ) (t : ℕ) :
-    M.outputFrom w start t = M.finish (M.runFrom w start t) := by
-  unfold QueryMachine.outputFrom QueryMachine.output
-  simp only [hemit, ite_self, List.map_const', List.flatten_replicate_nil, List.nil_append]
-  rfl
-
 /-- One native machine loads the framed context and runs the weight pass on the original word.
 The binary result and workspace are both linear in the encoded prepared request. -/
 theorem weight_inSpace :
@@ -327,7 +320,8 @@ theorem weight_inSpace :
       encNat (SeedWeight.weight x.context x.seed) =
         executor.outputFrom (encInput x) (load x) (time x) :=
     (executor_finish x).2.symm.trans
-      (outputFrom_eq_finish executor rfl (encInput x) (load x) (time x)).symm
+      (executor.outputFrom_eq_finish_of_emit_nil (encInput x) (fun _ => rfl) (load x)
+        (time x)).symm
   obtain ⟨hq, hn, he, hh, hf⟩ := executor_parts_inSpace
   obtain ⟨runtime, C, hrun⟩ := executor.computableInSpaceFrom
     (enc := encInput) (encS := encRuntimeState) (encOut := encNat)
