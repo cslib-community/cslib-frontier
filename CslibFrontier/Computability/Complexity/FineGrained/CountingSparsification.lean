@@ -134,7 +134,7 @@ theorem length_encNat_le_of_le_two_pow {acc n : ℕ} (h : acc ≤ 2 ^ n) :
     (encNat acc).length ≤ n + 1 := by
   refine (show (encNat acc).length ≤ (encNat (2 ^ n)).length by
     simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size h).trans ?_
-  rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+  rw [length_encNat_two_pow]
 
 /-! ### The counting-sparsification search -/
 

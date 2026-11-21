@@ -115,8 +115,7 @@ enc_structure encSeedSearchSize : SeedSearchSize where
 theorem length_seedSearchSize_seedLimit (width horizon : ℕ) :
     (encNat (seedSearchSize width horizon).seedLimit).length =
       (seedSearchSize width horizon).seedWidth + 1 := by
-  simp only [seedSearchSize, encNat_two_pow, List.length_append, List.length_replicate,
-    List.length_singleton]
+  simp only [seedSearchSize, length_encNat_two_pow]
 
 /-- Initializing the sizes uses space linear in the encoded graph dimensions. The seed width
 can be represented in unary within this budget, and the exclusive limit is written in binary. -/
