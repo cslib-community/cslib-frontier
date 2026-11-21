@@ -641,7 +641,7 @@ private def rawGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_co
     h2 ++ LinearHash.wordHash (l2 + mActual d γ k n) h2 x
 
 /-- Full deterministic conditional entropy-preserving generator `G` ([Liu and Pass, Proof of
-Theorem 5.5, §5.3, p. 15 and Appendix A, pp. 21–23 of arXiv:2009.11514v1][LiuPass2020]),
+Theorem 5.5, §5.3, pp. 15–16 and Appendix A, pp. 21–23 of arXiv:2009.11514v1][LiuPass2020]),
 normalized to output length `z.length + γ * Nat.log 2 z.length` on every input `z`. -/
 private def fullGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_core γ : ℕ)
     (z : List Bool) : List Bool :=
@@ -933,7 +933,7 @@ private theorem fullGen_packSeedWords (g : List Bool → List Bool) (imgLen : �
   rw [hr_dec, htake1, htake2, htake3, hdrop3]
 
 /-- Conditioning event $E_n \subseteq \mathrm{BitString}\; n$ at seed length $n$
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 of arXiv:2009.11514v1][LiuPass2020]). -/
 private noncomputable def condSeedSet (imgLen : ℕ → ℕ) (d γ_core : ℕ)
     (S : ∀ k, Finset (BitString k)) (r : ∀ k, Fin (k + 1)) (n : ℕ) :
     Finset (BitString n) := by
@@ -1126,7 +1126,7 @@ private noncomputable def unifCoreDist (k imgLen_k m1 m2 c2 : ℕ) :
 
 /-- Statistical distance between `coreLHLDist` and `unifCoreDist` is bounded by the sum of the
 fiber leftover-hash error on $x$ and the image leftover-hash error on $f(x)$
-([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 21–22 of
+([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 22–23 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem dist_coreLHLDist_unifCoreDist_le {k imgLen_k m1 m2 c2 : ℕ}
     (f : BitString k → BitString imgLen_k) (r : Fin (k + 1))
@@ -1334,7 +1334,7 @@ private theorem unifCoreDist_bind_packLHL (k imgLen_k m1 m2 c2 padLen m_lhl : �
 /-- Conditional entropy preservation for `fullGen` on `condSeedSet`:
 when `coreLHLDist` is within `1 / (lhlPrefixLen d k n) ^ 2` of `unifCoreDist`, the Shannon
 entropy of `fullGen` on `condSeedSet` is at least `lhlPrefixLen d k n - 2`
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 and Lemma 2.2, §2.5, p. 9 of
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 and Lemma 2.2, §2.5, p. 9 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem entropy_fullGen_condSeedSet_ge (g : List Bool → List Bool) (imgLen : ℕ → ℕ)
     (d γ_core γ : ℕ) (S : ∀ k, Finset (BitString k)) (hS : ∀ k, (S k).Nonempty)
@@ -1860,7 +1860,7 @@ private theorem sum_mul_sum_mul_sum_comm {α β γ : Type*} [Fintype α] [Fintyp
 
 /-- Single-step hybrid prediction-to-inversion inequality on the fiber of `x₀` for fixed auxiliary
 words `pad`, `h1`, `z_tail`, `coins` and polarity `pol`
-([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 23–24 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 22–23 of arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem fiber_step_diff_le {k imgLen_k : ℕ}
     (f : BitString k → BitString imgLen_k) (x₀ : BitString k)
     (evaluate : (ℕ × List Bool) → List Bool → Bool) (pol : Bool)
