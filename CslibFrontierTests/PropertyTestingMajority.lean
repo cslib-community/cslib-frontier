@@ -7,15 +7,30 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.PropertyTesting.Majority
+import CslibFrontier.Computability.PropertyTesting.Majority.DirectAccess
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Linarith
 
 /-! # Clients of the strict majority tester -/
 
 namespace Cslib.BitString
+open Cslib.Probability Turing.MultiTapeTM
 
 open scoped BigOperators
+
+-- A three-bit all-ones input returns one at address zero and zero at the padded address three.
+example :
+    (majorityTester 3 1 (1 / 2)).Passes (fun _ => true)
+      (fun _ => (equivFin (Nat.log 2 3 + 1)).symm 0) ∧
+    ¬ (majorityTester 3 1 (1 / 2)).Passes (fun _ => true)
+      (fun _ => (equivFin (Nat.log 2 3 + 1)).symm ⟨3, by decide⟩) := by
+  have hδ : (0 : ℚ) ≤ 1 / 2 := by norm_num
+  have hlog : Nat.log 2 3 = 1 := by decide
+  constructor
+  · rw [majorityTester_passes_iff_sampleAccepts Nat.one_pos hδ]
+    norm_num [majoritySampleAccepts, weight_eq_sum_toNat, zeroExtend, hlog]
+  · rw [majorityTester_passes_iff_sampleAccepts Nat.one_pos hδ]
+    norm_num [majoritySampleAccepts, weight_eq_sum_toNat, zeroExtend, hlog]
 
 -- Two ones suffice at length three. The same probe budget rejects the far all-zero string.
 example :
@@ -43,5 +58,25 @@ example (δ : ℝ) (hδ : 0 < δ) :
   have := strictMajority_eq_true_iff.mp hy
   have := weight_le_length y
   omega
+
+-- The timed program has exactly the existing local test's output law.
+example (x : BitString 3) :
+    ProbOracleComp.runWith (majorityInputOracle x) (majorityDirectAccess 64 (1 / 2) 3) () =
+      (PMF.uniformOfFintype (Fin 64 → BitString (Nat.log 2 3 + 1))).map
+        (fun r => (decide ((majorityTester 3 64 (1 / 2)).Passes x r), ())) := by
+  classical
+  exact majorityDirectAccess_eq_majorityTester (by decide) (by norm_num) x
+
+
+-- One machine works at distance one half and accepts the three-bit all-ones member.
+example :
+    ∃ (k : ℕ) (t : ℕ → ℕ) (program : ℕ → WordOracleComp Unit Bool),
+      PolyBounded (fun n => (encNat n).length) t ∧
+      ComputesOracleInTimeAndQueriesOn encNat encBool t (fun _ => k) program ∧
+      (2 / 3 : ℝ) ≤ (ProbOracleComp.acceptProbWith
+        (majorityInputOracle (fun _ : Fin 3 => true)) (program 3) ()).toReal := by
+  obtain ⟨k, t, program, ht, hmachine, hyes, _⟩ :=
+    exists_majorityDirectAccess (δ := 1 / 2) (by norm_num)
+  exact ⟨k, t, program, ht, hmachine, hyes 3 _ (by decide)⟩
 
 end Cslib.BitString

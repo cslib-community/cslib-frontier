@@ -468,9 +468,10 @@ noncomputable def qrIdealGame (setup : ℕ → PMF ModulusDesc)
   let y ← PMF.uniformOfFintype (positiveNonresidues d.p d.q)
   ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
 
-/-- The computational quadratic residuosity assumption: no uniform strict PPT distinguisher
+/-- The computational quadratic residuosity assumption ([KatzLindell2020], Section 15.4.3;
+locator not independently inspected in the 3rd-edition PDF): no uniform strict PPT distinguisher
 can distinguish a random quadratic residue in `QR_N` from a random quadratic nonresidue in
-`QNR_N^{+1}` given `N = p * q`. -/
+`QNR_N^{+1}` given `N = p * q`, relative to the arbitrary modulus law `setup`. -/
 def QuadraticResiduosityHard (setup : ℕ → PMF ModulusDesc) : Prop :=
   Game.Indistinguishable
     (fun adversary n => qrRealGame setup adversary n)

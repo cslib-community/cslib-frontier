@@ -38,6 +38,15 @@ example (w : List Bool) :
         Nat.card (Vertex (Fin ((I.n - 1) + 1) × Fin I.n) p.search.subdivision.chainBound) :=
   ⟨rfl, subdivisionSize_vertexCount _ _⟩
 
+-- The actual configuration width supplies the same field as the weighted callback.
+example :
+    let f := fun w : List Bool =>
+      let I := configurationInstance ntm c w
+      fieldContext I.n (I.n - 1)
+    ComputableInLogSpace f encBits encFieldContext ∧
+      ∃ C, ∀ w, (encFieldContext (f w)).length ≤ C * (Nat.log2 w.length + 1) :=
+  ⟨configurationFieldContext_inLogSpace ntm c, length_configurationFieldContext_le_log ntm c⟩
+
 -- One designated call and at most one call per original source, for each seed rank.
 example :
     PolyBounded List.length fun w =>
