@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceContext.Scheduler
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 meta import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 
 /-! Ordinary-import clients for the binary seed and source scheduler. -/
@@ -79,6 +80,21 @@ example {f g : SeedSchedulerFrame} {reply : Option ControllerVerdict}
     g.Valid ∧ g.request.setup = f.request.setup :=
   let progress := seedSchedulerStep_progress hf h
   ⟨progress.1, progress.2.1⟩
+
+open ComputableInSpace in
+/-- Initialize a candidate and inspect its scan guard under the caller's input budget. -/
+example :
+    let E := encPair encSeedSearchSetup encNat
+    ComputableInSpace (fun p => (seedSchedulerCandidate p.1 p.2).map
+      SeedSchedulerFrame.needsScan) E (encOption encBool) (fun p => (E p).length) := by
+  intro E
+  have hentry := seedSchedulerCandidate_budget (fst encSeedSearchSetup encNat)
+    (snd encSeedSearchSetup encNat)
+  have hguard := SeedSchedulerFrame.needsScan_budget
+    (budget_id (enc := encSeedSchedulerFrame) (.refl _))
+  have hmap := optionElim (encE := encOption encBool) none (budget_optionSome hguard)
+  exact (budget_comp_linear hmap hentry).of_enc_eq fun p => by
+    cases seedSchedulerCandidate p.1 p.2 <;> rfl
 
 private def rejecting (_ : SeedSchedulerFrame) :
     OptionT (StateM ℕ) (Option ControllerVerdict) :=

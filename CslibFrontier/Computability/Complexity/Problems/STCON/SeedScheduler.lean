@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSetup
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Tactic.EncLen
 
@@ -33,6 +34,8 @@ certificates for subsequent native loop compilation.
 ## Main results
 
 * `seedScanRequest_inSpace`: native linear-space request construction.
+* `seedSchedulerCandidate_budget` and `SeedSchedulerFrame.needsScan_budget`: construct the
+  designated frame and check whether to call the scanner under the caller's workspace budget.
 * `seedSchedulerStep_progress`: each continuing transition stays in bounds and advances
   the seed or the source phase.
 * `runSeedSchedulerFor_eq`: agreement with the indexed search, including list multiplicity.
@@ -131,6 +134,39 @@ def seedSchedulerCandidate (s : SeedSearchSetup) (seed : ℕ) : Option SeedSched
 /-- The designated call always scans. An indexed frame skips the designated source. -/
 def SeedSchedulerFrame.needsScan (f : SeedSchedulerFrame) : Bool :=
   f.answer.isNone || f.request.sourceID != f.request.setup.sourceID
+
+/-- The seed-limit check and optional designated frame use the shared budget of the setup and
+candidate seed producers. -/
+theorem seedSchedulerCandidate_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {setup : α → SeedSearchSetup} {seed : α → ℕ}
+    (hsetup : ComputableInSpace setup enc encSeedSearchSetup S)
+    (hseed : ComputableInSpace seed enc encNat S) :
+    ComputableInSpace (fun a => seedSchedulerCandidate (setup a) (seed a))
+      enc (encOption encSeedSchedulerFrame) S := by
+  have hsearch := encSeedSearchParameters_search_budget
+    (encSeedSearchSetup_parameters_budget hsetup)
+  have hlimit := encSeedSearchSize_seedLimit_budget hsearch
+  have hsource := encSeedSearchSetup_sourceID_budget hsetup
+  have hrequest := encSeedScanRequest_mk_budget hsetup hseed hsource
+  have hframe := encSeedSchedulerFrame_mk_budget hrequest
+    ((constZero (encB := encNat) 0).mono_le fun _ => Nat.zero_le _)
+    ((constZero (encB := encOption encBool) none).mono_le fun _ => Nat.zero_le _)
+  exact budget_iteProp (budget_natLt hseed hlimit) (budget_optionSome hframe)
+    ((constZero (encB := encOption encSeedSchedulerFrame) none).mono_le fun _ => Nat.zero_le _)
+
+/-- Testing whether a frame needs a scan uses the budget of the frame producer. -/
+theorem SeedSchedulerFrame.needsScan_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {frame : α → SeedSchedulerFrame}
+    (hframe : ComputableInSpace frame enc encSeedSchedulerFrame S) :
+    ComputableInSpace (fun a => (frame a).needsScan) enc encBool S := by
+  have hrequest := encSeedSchedulerFrame_request_budget hframe
+  have hsource := encSeedScanRequest_sourceID_budget hrequest
+  have hdesignated := encSeedSearchSetup_sourceID_budget (encSeedScanRequest_setup_budget hrequest)
+  have hanswer := encSeedSchedulerFrame_answer_budget hframe
+  exact (budget_boolOr (budget_boolNot (budget_optionIsSome hanswer))
+    (budget_boolNot (budget_natEq hsource hdesignated))).of_enc_eq fun a => by
+      simp only [SeedSchedulerFrame.needsScan, bne, beq_eq_decide]
+      cases (frame a).answer <;> simp
 
 private def seedSchedulerRoot (f : SeedSchedulerFrame) (position : ℕ) (answer : Bool) :
     SeedSchedulerFrame ⊕ Option Bool :=
