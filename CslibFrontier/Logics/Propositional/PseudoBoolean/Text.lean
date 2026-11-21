@@ -74,11 +74,13 @@ input parses to a formula with no 0/1 solution
 `Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`), the stated assignment of `SAT : ρ`
 being one (`Cslib.Logic.PL.VeriPB.Text.holds_of_checkOPB_sat`); if `BOUNDS lb : q ub`, to an
 instance with an objective `f` whose every solution has value at least `lb` and, for a finite
-`ub`, some solution has value at most `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`).
+`ub`, some solution has value at most `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`);
 if `ENUMERATION_PARTIAL n` or `ENUMERATION_COMPLETE n : q`, to an instance with a preserved set
 whose solutions have at least, or exactly, `n` distinct projections to it
 (`Cslib.Logic.PL.VeriPB.Text.le_encard_of_checkOPB_enumPartial`,
-`Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`). `NONE` claims nothing.
+`Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`). An enumeration needs a
+`preserved:` line, even for `n = 0`, which VeriPB 3.0.2 and CakePB accept without one. `NONE`
+claims nothing.
 This is a guarantee about the text and the formula the parser returns: the parsers are trusted
 to read the files as intended, and nothing is said about compiled code. It is smaller than the
 end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
@@ -98,6 +100,8 @@ which also covers the execution of its compiled machine code and the parsing of 
 * `Cslib.Logic.PL.VeriPB.Text.exists_satisfies_of_checkOPB`,
   `Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`: soundness of `SAT`.
 * `Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`: soundness of `BOUNDS`.
+* `Cslib.Logic.PL.VeriPB.Text.le_encard_of_checkOPB_enumPartial`,
+  `Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`: soundness of `ENUMERATION`.
 
 ## References
 
@@ -471,17 +475,10 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
     | _ => none
   | "strengthening_to_core" :: "on" :: ";" :: rest => some ([.strengthenToCore true], rest)
   | "strengthening_to_core" :: "off" :: ";" :: rest => some ([.strengthenToCore false], rest)
-  | "sol" :: ts =>
+  | k@"sol" :: ts | k@"solx" :: ts | k@"soli" :: ts =>
     match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.sol ρ], rest)
-    | _ => none
-  | "solx" :: ts =>
-    match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.solx ρ], rest)
-    | _ => none
-  | "soli" :: ts =>
-    match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.soli ρ], rest)
+    | some (ρ, ";" :: rest) =>
+      some ([if k == "sol" then .sol ρ else if k == "solx" then .solx ρ else .soli ρ], rest)
     | _ => none
   | "obji" :: v :: ";" :: rest => (int? v).map fun v => ([.obji v], rest)
   | "obju" :: kind :: ts =>
@@ -560,18 +557,21 @@ def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
 
 /-! ### The checkers -/
 
-/-- The number of variables of a formula and an objective: one more than their largest
-variable. -/
-private def numVars (F : List PBConstr) (obj : Option Objective) : ℕ :=
+/-- The number of variables of a formula, an objective and a preserved set: one more than their
+largest variable. The names a proof introduces are numbered from there, so they never collide
+with a preserved variable absent from the formula and the objective. -/
+private def numVars (F : List PBConstr) (obj : Option Objective)
+    (pres : Option (List ℕ) := none) : ℕ :=
   (F.flatMap PBConstr.terms).foldr (fun t m => max (PBConstr.termVar t + 1) m)
-    ((obj.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m) 0)
+    ((obj.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m)
+      (pres.getD [] |>.foldr (fun v m => max (v + 1) m) 0))
 
 /-- **Check a proof for an OPB instance**, in the supported fragment: the conclusion, if the
 proof is accepted. -/
 def checkOPB (opb pbp : String) : Option Conclusion :=
   (parseOPB opb).bind fun I =>
-    (parseProof I.constraints.length (numVars I.constraints I.objective) pbp).bind fun P =>
-      if checkRed I.constraints I.objective P I.preserved then some P.conclusion else none
+    (parseProof I.constraints.length (numVars I.constraints I.objective I.preserved) pbp).bind
+      fun P => if checkRed I.constraints I.objective P I.preserved then some P.conclusion else none
 
 /-- **Check a proof for a DIMACS CNF formula**, in the supported fragment: the conclusion, if
 the proof is accepted. -/
