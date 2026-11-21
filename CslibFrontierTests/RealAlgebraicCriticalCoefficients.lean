@@ -10,6 +10,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoeff
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.SeparatedCriticalValues
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -211,5 +212,19 @@ example :
       map_zero, Matrix.charpoly_zero]
     simp [NormalIndex]
   simpa only [F, G, a, map_X] using hchar
+
+-- Swapping the two square roots of unity changes the potential at the separated centers.
+example :
+    let a (i : Fin 2) : ℂ := separatedCenters 2 i
+    eval (fun i => a i * (if i = 0 then 1 else -1)) (potentialPolynomial 2 a) ≠
+      eval (fun i => a i * (if i = 0 then -1 else 1)) (potentialPolynomial 2 a) := by
+  intro a h
+  have hz (i : Fin 2) : (if i = 0 then (1 : ℂ) else -1) ^ 2 = 1 := by
+    split_ifs <;> norm_num
+  have hw (i : Fin 2) : (if i = 0 then (-1 : ℂ) else 1) ^ 2 = 1 := by
+    split_ifs <;> norm_num
+  have he := eq_of_eval_potentialPolynomial_eq_of_pow_eq_one (by decide : 1 ≤ 2) hz hw h
+  have h0 := congrFun he 0
+  norm_num at h0
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

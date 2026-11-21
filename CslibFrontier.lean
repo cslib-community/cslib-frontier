@@ -7082,6 +7082,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Noncrossing
 public import CslibFrontier.Foundations.Geometry.Polygonal.NoncrossingOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.ParabolaChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.PlateauShear
+public import CslibFrontier.Foundations.Geometry.Polygonal.RadialOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParity
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
@@ -7096,6 +7097,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 public import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
+public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
 public import CslibFrontier.Foundations.Geometry.Polygonal.SlopeDetour
 public import CslibFrontier.Foundations.Geometry.Polygonal.Translation
@@ -7436,12 +7438,14 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Multip
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Relations
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Residue
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.SeparatedCriticalValues
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Specialization
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Trace
 public import CslibFrontier.Foundations.RingTheory.Polynomial.Hermite
 public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.PowerSeries.Constants
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.Principal
+public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.SeparatedSums
 public import CslibFrontier.Foundations.RingTheory.Trace.Reproducing
 public import CslibFrontier.Foundations.Syntax.PrefixParser
 public import CslibFrontier.GameTheory.Bimatrix.Basic
