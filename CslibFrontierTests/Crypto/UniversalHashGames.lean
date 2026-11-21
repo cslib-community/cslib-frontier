@@ -14,6 +14,7 @@ import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
+import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.Field.ZMod
 
 set_option linter.privateModule false
@@ -85,8 +86,7 @@ example : IsMultiQueryUHF encUnit encBool unitSetup (fun _ _ _ => true) boolHash
     intro A _
     have hfalse (n : ℕ) : collisionGame unitSetup (fun _ _ _ => true) boolHash A n =
         PMF.pure false := by
-      simp [collisionGame, unitSetup, boolHash, ProbComp.eval_uniform]
-      exact PMF.map_const _ _
+      simp [collisionGame, unitSetup, boolHash, ProbComp.eval_uniform, PMF.uniformOfFintype_unit]
     simp [hfalse, Game.succProbability]
   exact h.isMultiQueryUHF (ComputableInPolyTime.const ()).isPPTOn
 
@@ -99,8 +99,8 @@ theorem not_isComputationalUHF_const :
   have hwin (n : ℕ) :
       collisionGame unitSetup (fun _ _ _ => true) constHash (fun _ => pure guess) n =
         PMF.pure true := by
-    simp [collisionGame, unitSetup, constHash, guess, ProbComp.eval_uniform]
-    exact PMF.map_const _ _
+    simp [collisionGame, unitSetup, constHash, guess, ProbComp.eval_uniform,
+      PMF.uniformOfFintype_unit]
   have hnegl := h.negligible_succProbability (fun _ => pure guess)
     (ComputableInPolyTime.const guess).isPPTOn
   exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
@@ -114,8 +114,8 @@ theorem not_isMultiQueryUHF_const :
   have hwin (n : ℕ) :
       multiQueryGame unitSetup (fun _ _ _ => true) constHash (fun _ => pure ms) n =
         PMF.pure true := by
-    simp [multiQueryGame, unitSetup, constHash, ms, ProbComp.eval_uniform]
-    exact PMF.map_const _ _
+    simp [multiQueryGame, unitSetup, constHash, ms, ProbComp.eval_uniform,
+      PMF.uniformOfFintype_unit]
   have hnegl := h.negligible_succProbability (fun _ => pure ms)
     (ComputableInPolyTime.const ms).isPPTOn
   exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
@@ -124,8 +124,7 @@ theorem not_isMultiQueryUHF_const :
 example (n : ℕ) :
     multiQueryGame unitSetup (fun _ _ m => m) constHash (fun _ => pure [false, true, false]) n =
       PMF.pure false := by
-  simp [multiQueryGame, unitSetup, constHash, ProbComp.eval_uniform]
-  exact PMF.map_const _ _
+  simp [multiQueryGame, unitSetup, constHash, ProbComp.eval_uniform, PMF.uniformOfFintype_unit]
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
