@@ -7,7 +7,10 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (ordinary clients of prescribed reference-star geometry)
 
-public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokeEmbedding
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
+import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 
 /-! Ordinary clients retain both loop ends, parallel occurrences and a fixed isolated center.
@@ -100,5 +103,76 @@ example :
   dsimp only
   apply referenceDrawing_subdivisionDart_germ_ne_zero
   exact validate_eq_true_iff _ |>.mp (by decide +kernel)
+
+private def doubleLoop : FixedRotationInput :=
+  ⟨⟨[0], [(0, 0), (0, 0)]⟩, [some [2, 3, 0, 1]]⟩
+
+private def firstLoop : Fin doubleLoop.graph.edges.length := ⟨0, by decide⟩
+private def secondLoop : Fin doubleLoop.graph.edges.length := ⟨1, by decide⟩
+
+-- The order crosses the cut in the prescribed word and preserves both ends of the first loop.
+example :
+    ∃ D : PolygonalDrawing doubleLoop.graph, D.IsEmbedding ∧
+      sbtw (((D.cutPort 1 (secondLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle)
+        (((D.cutPort 1 (firstLoop, true) - D.vertex 0).arg : ℝ) : Real.Angle)
+        (((D.cutPort 1 (firstLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle) ∧
+      (∃ T : {d : Dart doubleLoop.graph // d.vertex = 0} → Route,
+        (∀ d, (T d).start = D.vertex 0 ∧ (T d).finish = D.cutPort 1 d.val ∧
+          (((T d).germ false).arg : Real.Angle) =
+            (referenceDrawing doubleLoop).direction (subdivisionDart doubleLoop d.val) ∧
+          (T d).IsSimple ∧ (T d).support \ Metric.ball (D.vertex 0) 1 = {D.cutPort 1 d.val}) ∧
+        Pairwise (fun d e => (T d).support ∩ (T e).support = {D.vertex 0})) ∧
+      ∃ ρ > (0 : ℝ), ∃ E F : PolygonalDrawing (subdivisionGraph doubleLoop),
+        F.IsEmbedding ∧ F.vertex = E.vertex ∧ F.vertex 0 = D.vertex 0 ∧
+        (∀ e, (subdivisionEdgeIndex doubleLoop e).piece = 1 → F.route e = E.route e) ∧
+        ∀ d : Dart doubleLoop.graph,
+          F.vertex (subdivisionDart doubleLoop d).reverse.vertex = D.cutPort ρ d ∧
+          F.direction (subdivisionDart doubleLoop d) =
+            (referenceDrawing doubleLoop).direction (subdivisionDart doubleLoop d) := by
+  have hI : Valid doubleLoop := (validate_eq_true_iff _).mp (by decide +kernel)
+  let c : RotationCertificate := ⟨[1, 2, 3, 0]⟩
+  have hrot : RotationCertificate.verifyRotation doubleLoop.graph c = true := by decide +kernel
+  let r := RotationCertificate.decode doubleLoop.graph c hrot
+  have hfix : Realizes doubleLoop r := verifyFixed_realizes hrot (by decide +kernel)
+  have hg : r.NumericalGenusZero :=
+    (RotationCertificate.verifyEuler_eq_true_iff hrot).mp (by decide +kernel)
+  have hloop : ∀ e : Fin doubleLoop.graph.edges.length,
+      Dart.vertex (e, false) = Dart.vertex (e, true) := by decide +kernel
+  let D := PolygonalDrawing.bouquet r hloop
+  have hends : ∀ v ∈ doubleLoop.graph.incidenceVertices, v ∈ doubleLoop.graph.vertices := by
+    intro v hv
+    simpa [doubleLoop, incidenceVertices] using hv
+  have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r hends hg hloop
+  have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
+  refine ⟨D, hD, ?_, ?_, ?_⟩
+  · have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
+      hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
+      (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    apply a.mpr
+    apply (referenceDrawing_fixedWord_clockwise_iff hI hw
+      (a := (firstLoop, false)) (b := (firstLoop, true)) (c := (secondLoop, false))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)).mpr
+    decide +kernel
+  · obtain ⟨T, hT, hpair⟩ := exists_reference_spokes_at_cutPorts hI hD
+      (PolygonalDrawing.bouquet_realizes r hloop) hfix zero_lt_one hw
+    refine ⟨T, ?_, hpair⟩
+    intro d
+    obtain ⟨hs, ht, ⟨a, ha, he⟩, hsim, hb⟩ := hT d
+    refine ⟨hs, ht, ?_, hsim, hb⟩
+    simp only [he, Complex.real_smul, Complex.arg_real_mul _ ha, PolygonalDrawing.direction]
+  · obtain ⟨ε, hε, hall⟩ := exists_subdivision_embedding_with_reference_spokes hI hD
+      (PolygonalDrawing.bouquet_realizes r hloop) hfix
+    obtain ⟨E, F, _, hF, hvertices, hcenter, hports, hmiddle, _, hfixed⟩ :=
+      hall (ε / 2) ⟨half_pos hε, half_lt_self hε⟩
+    refine ⟨ε / 2, half_pos hε, E, F, hF, hvertices, hcenter 0 (by decide +kernel), hmiddle, ?_⟩
+    intro d
+    have hd : (doubleLoop.orders.getD d.vertex none).isSome := by
+      rcases d with ⟨e, b⟩
+      fin_cases e <;> cases b <;> decide +kernel
+    obtain ⟨a, ha, hger⟩ := hfixed d hd
+    refine ⟨hports d, ?_⟩
+    simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_real_mul _ ha]
 
 end Cslib.Tests.RotationReferenceStar
