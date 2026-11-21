@@ -260,6 +260,16 @@ use binary encodings, and the call stores the supplied callee encoding. -/
 def encState (encCallee : τ ↪ List Bool) : State N τ ↪ List Bool :=
   encOfEquiv (stateView N τ) (encView N encCallee)
 
+/-- A walk entry encodes the supplied registers followed by the initial destination reader,
+with the choice-phase tag. -/
+theorem encState_init (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
+    (verdict : τ → Bool) (clock : ℕ) (r : Registers N) (encCallee : τ ↪ List Bool) :
+    encState encCallee (machine edge start verdict clock r).init =
+      false :: encPair (encRegisters N) NondeterministicChoice.encState
+        (r, (NondeterministicChoice.machine N).init) := by
+  unfold machine boundary encState
+  rfl
+
 variable (edge : QueryMachine τ) (start : Fin N → Fin N → τ) (verdict : τ → Bool)
   (clock : ℕ) (initial : Registers N) (input : List Bool)
 

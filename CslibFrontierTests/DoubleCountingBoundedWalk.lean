@@ -209,4 +209,21 @@ example (input bits : List Bool) :
       (encOption encBool) 2 hcallee).trans ?_⟩
   decide
 
+/-- A single native entry routine loads a two- or four-vertex graph and the supplied fuel. -/
+example :
+    let enc := encPair encBool encNat
+    let dimension (p : Bool × ℕ) := if p.1 then 4 else 2
+    let registers (p : Bool × ℕ) : Registers (dimension p) :=
+      ⟨⟨0, by dsimp [dimension]; cases p.1 <;> decide⟩,
+        ⟨if p.1 then 3 else 1, by dsimp [dimension]; cases p.1 <;> decide⟩, p.2⟩
+    ComputableInSpace (fun p => Runtime.entry edge runtimeStart verdict 1 p.1 (registers p))
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc dimension registers
+  have hcontext := fst encBool encNat
+  refine Runtime.entry_budget edge runtimeStart verdict 1 encBool (encOption encBool)
+    hcontext (budget_finite (fun b : Bool => if b then 4 else 2) hcontext)
+    ?_ ?_ (snd encBool encNat)
+  · exact budget_const 0 (.refl _)
+  · exact budget_finite (fun b : Bool => if b then 3 else 1) hcontext
+
 end CslibFrontierTests.DoubleCountingBoundedWalk

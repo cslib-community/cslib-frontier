@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 
 /-!
@@ -18,15 +19,15 @@ adjacency context taken from its entry state. It makes the same original-input r
 and preserves first-halting selector lists and unused fuel. The encoded state adds the
 binary dimension and context to the existing bound on every branch.
 
-This module supplies the runtime state and replay relation. Native compilation of the
-runtime transitions remains a separate step in #6747.
+The `entry_budget` certificate loads a walk from its runtime context, binary dimension
+and registers. Native compilation of the runtime transitions remains a separate step in #6747.
 -/
 
 public section
 
 namespace Turing.DoubleCounting.BoundedWalk.Runtime
 
-open MultiTapeTM
+open MultiTapeTM ComputableInSpace
 
 /-- A walk and its retained vertex count and adjacency context. A walk starts with a vertex,
 so the carrier is nonempty. -/
@@ -77,6 +78,31 @@ private def innerMachine (s : State κ τ) :=
 /-- Enter the runtime machine at the existing bounded walk's initial registers. -/
 def entry {N : ℕ} (ctx : κ) (r : Registers N) : State κ τ :=
   ⟨ctx, N, Nat.zero_lt_of_lt r.current.isLt, (typedMachine edge start verdict clock ctx r).init⟩
+
+/-- Load a runtime walk entry within a common budget for the retained context, binary
+dimension, valid binary endpoints, and fuel. The entry computes the destination reader
+width from the dimension. -/
+theorem entry_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool)
+    {context : α → κ} {dimension : α → ℕ} {registers : (a : α) → Registers (dimension a)}
+    (hcontext : ComputableInSpace context encIn encContext budget)
+    (hdim : ComputableInSpace dimension encIn encNat budget)
+    (hcurrent : ComputableInSpace (fun a => (registers a).current.val) encIn encNat budget)
+    (htarget : ComputableInSpace (fun a => (registers a).target.val) encIn encNat budget)
+    (hfuel : ComputableInSpace (fun a => (registers a).fuel) encIn encNat budget) :
+    ComputableInSpace (fun a => entry edge start verdict clock (context a) (registers a))
+      encIn (encState encContext encCallee) budget := by
+  have hregisters : ComputableInSpace (fun a => encRegisters (dimension a) (registers a))
+      encIn encBits budget :=
+    (budget_prod hcurrent (budget_prod htarget hfuel)).of_enc_eq fun _ => rfl
+  have hchoice := budget_prod hregisters (NondeterministicChoice.init_budget hdim)
+  have htag := budget_comp_linear (of_inO (ComputableInDegree.inl
+    (encPair encBits NondeterministicChoice.encState) encBits).inO_one) hchoice
+  refine (budget_prod hcontext (budget_prod hdim htag)).of_enc_eq fun a => ?_
+  change (frame (encContext (context a)) ++ (frame (encNat (dimension a)) ++
+    BoundedWalk.encState encCallee ((BoundedWalk.machine edge
+      (fun u v => start (context a) u.val v.val) verdict clock (registers a)).init))) = _
+  simp only [BoundedWalk.encState_init, encPair_apply, encSum_inl, encBits_apply]
 
 /-- One same-input transition machine selects the walk's context and dimension from its
 current state, including during a suspended adjacency call. -/
