@@ -37,12 +37,14 @@ oracle and single-query strict oracle PPT certificate.
   decoding, and per-channel normalization cost certificates (`replyNormalize`, `requestNormalize`).
 * **Relation to `Cslib.OracleCodec`.** `WordInterface.toOracleCodec` builds a partial
   `OracleCodec I.Channel ι E` whose `decodeQuery` recognizes valid `(I.channel q, I.request q)`
-  requests. Unlike `OracleCodec.wordOracle` (which answers off-image requests with `[]` without
-  calling the oracle), `WordInterface.encodeOracle` decodes every incoming request through the total
-  `I.decodeQuery` and calls the typed oracle; the two agree on every in-image request
-  (`WordInterface.encodeOracle_eq_wordOracle`). Total request/reply decoders and the finite
-  `Channel` normalization certificates (`replyNormalize`, `requestNormalize`) are needed so a word
-  machine can normalize arbitrary incoming or outgoing words in polynomial time.
+  requests. `WordInterface.encodeOracle` normalizes each incoming word with `I.requestNormalize`
+  and delegates to `I.toOracleCodec.wordOracle`; by `I.request_decodeQuery`, the normalized pair is
+  the encoded query of `I.decodeQuery cw.1 cw.2`, so off-image requests still call `oracle` once
+  (`WordInterface.encodeOracle_apply`), while canonical requests agree directly with
+  `I.toOracleCodec.wordOracle` (`WordInterface.encodeOracle_eq_wordOracle`). Total request/reply
+  decoders and the finite `Channel` normalization certificates (`replyNormalize`,
+  `requestNormalize`) are needed so a word machine can normalize arbitrary incoming or outgoing
+  words in polynomial time.
 * **Unary `Fin n` party rank (`[NeZero n]`).** `WordPort.party` encodes party indices in unary
   and decodes arbitrary words modulo `n`. Because a total decoder requires a nonempty target type,
   `n ≥ 1` (`[NeZero n]`) is required on `WordPort.party`.
@@ -71,6 +73,8 @@ oracle and single-query strict oracle PPT certificate.
 
 ## Main results
 
+* `Cslib.Crypto.Protocols.UC.WordInterface.encodeOracle_apply`: stateful evaluation of
+  `encodeOracle` via `toOracleCodec.wordOracle` at the normalized request.
 * `Cslib.Crypto.Protocols.UC.WordInterface.encodeOracle_eq_wordOracle`: agreement with
   `toOracleCodec.wordOracle` on encoded requests.
 * `Cslib.Crypto.Protocols.UC.WordInterface.encodeOracle_sum`: encoded sum-interface routing.
@@ -278,32 +282,46 @@ def toOracleCodec {ι : Type} {E : ι → Type} (I : WordInterface E) :
   encodeReply := I.reply
 
 /-- Library infrastructure (no cited result): present a typed stateful oracle on `I.Channel` by
-totality of `I.decodeQuery`. Unlike `I.toOracleCodec.wordOracle` (which answers off-image requests
-with `[]` without querying `oracle`), `encodeOracle` decodes every request via `I.decodeQuery`;
-both agree on encoded requests (`encodeOracle_eq_wordOracle`). -/
+routing through `I.toOracleCodec.wordOracle` at the `I.requestNormalize`-normalized request.
+Unlike calling `I.toOracleCodec.wordOracle` directly (which answers off-image requests with `[]`
+without querying `oracle`), `encodeOracle` normalizes every request to
+`I.toOracleCodec.encodeQuery (I.decodeQuery cw.1 cw.2)` via `I.request_decodeQuery` and calls
+`oracle` once (`encodeOracle_apply`); both agree on encoded requests (`encodeOracle_eq_wordOracle`).
+-/
 noncomputable def encodeOracle {ι : Type} {E : ι → Type} {σ : Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q)) :
     I.Channel × List Bool → StateT σ PMF (List Bool) :=
-  fun cw s =>
-    let q := I.decodeQuery cw.1 cw.2
-    (oracle q s).map fun (r, s') => (I.reply q r, s')
+  fun cw => I.toOracleCodec.wordOracle oracle (cw.1, I.requestNormalize cw.1 cw.2)
+
+/-- Library infrastructure (no cited result): stateful equation for `I.encodeOracle oracle` on any
+`(c, w)` and state `s`, obtained by normalizing `(c, w)` via `I.request_decodeQuery` and applying
+`OracleCodec.wordOracle_encodeQuery`. -/
+theorem encodeOracle_apply {ι : Type} {E : ι → Type} {σ : Type}
+    (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
+    (c : I.Channel) (w : List Bool) (s : σ) :
+    I.encodeOracle oracle (c, w) s =
+      (oracle (I.decodeQuery c w) s).map fun x => (I.reply (I.decodeQuery c w) x.1, x.2) := by
+  have hreq : (c, I.requestNormalize c w) = I.toOracleCodec.encodeQuery (I.decodeQuery c w) :=
+    Prod.ext (I.request_decodeQuery c w).1.symm (I.request_decodeQuery c w).2.symm
+  dsimp only [encodeOracle]
+  rw [hreq, OracleCodec.wordOracle_encodeQuery]
+  rfl
 
 /-- Library infrastructure (no cited result): on every canonical query request
 `(I.channel q, I.request q)`, the total channel-encoded oracle agrees with
-`I.toOracleCodec.wordOracle`. Off-image requests differ: `encodeOracle` decodes totally via
-`I.decodeQuery` and calls `oracle`, whereas `OracleCodec.wordOracle` returns `[]` without calling
-`oracle`. -/
+`I.toOracleCodec.wordOracle`. Off-image requests differ: `encodeOracle` normalizes the request via
+`I.requestNormalize` before delegating to `I.toOracleCodec.wordOracle` and therefore still calls
+`oracle` on `I.decodeQuery`, whereas `OracleCodec.wordOracle` directly returns `[]`. -/
 theorem encodeOracle_eq_wordOracle {ι : Type} {E : ι → Type} {σ : Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q)) (q : ι) :
     I.encodeOracle oracle (I.channel q, I.request q) =
       I.toOracleCodec.wordOracle oracle (I.channel q, I.request q) := by
-  funext s
-  change I.encodeOracle oracle (I.channel q, I.request q) s =
-    (I.toOracleCodec.wordOracle oracle (I.toOracleCodec.encodeQuery q)) s
-  rw [OracleCodec.wordOracle_encodeQuery (c := I.toOracleCodec) oracle q]
-  dsimp only [encodeOracle, toOracleCodec]
-  rw [I.decodeQuery_request]
-  rfl
+  have hnorm : I.requestNormalize (I.channel q) (I.request q) = I.request q := by
+    have h := (I.request_decodeQuery (I.channel q) (I.request q)).2
+    rw [I.decodeQuery_request] at h
+    exact h.symm
+  dsimp only [encodeOracle]
+  rw [hnorm]
 
 /-- Library infrastructure (no cited result): the encoded oracle of a sum interface routes left and
 right channel requests to the respective component encoded oracles. -/
@@ -313,8 +331,14 @@ theorem encodeOracle_sum {ι₁ ι₂ : Type} {E₁ : ι₁ → Type} {E₂ : ι
     (I₁.sum I₂).encodeOracle (OracleComp.sumHandler o₁ o₂) =
       fun cw => Sum.elim (fun c₁ => I₁.encodeOracle o₁ (c₁, cw.2))
         (fun c₂ => I₂.encodeOracle o₂ (c₂, cw.2)) cw.1 := by
-  funext cw
-  rcases cw with ⟨c | c, w⟩ <;> rfl
+  funext cw s
+  rcases cw with ⟨c | c, w⟩
+  · rw [(I₁.sum I₂).encodeOracle_apply (OracleComp.sumHandler o₁ o₂) (Sum.inl c) w s,
+      Sum.elim_inl, I₁.encodeOracle_apply o₁ c w s]
+    rfl
+  · rw [(I₁.sum I₂).encodeOracle_apply (OracleComp.sumHandler o₁ o₂) (Sum.inr c) w s,
+      Sum.elim_inr, I₂.encodeOracle_apply o₂ c w s]
+    rfl
 
 /-- Library infrastructure: lower a single typed query to its channel request with reply
 truncation to `limit` bits and decoding. -/
@@ -332,9 +356,10 @@ theorem runWith_lowerQuery {ι : Type} {E : ι → Type} {σ : Type}
     ProbOracleComp.runWith (I.encodeOracle oracle) (I.lowerQuery limit q) s =
       oracle q s := by
   rw [lowerQuery, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
-    ProbOracleComp.runWith_query]
-  dsimp only [encodeOracle]
-  rw [I.decodeQuery_request q]
+    ProbOracleComp.runWith_query, encodeOracle_apply]
+  generalize hq : I.decodeQuery (I.channel q) (I.request q) = q'
+  rw [I.decodeQuery_request] at hq
+  subst hq
   simp only [PMF.map_comp, Function.comp_def]
   have hid :
       (oracle q s).map

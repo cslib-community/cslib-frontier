@@ -79,9 +79,8 @@ theorem runWith_lowerWith_truncation_ne :
             ProbOracleComp (netSpec Unit (List Bool)) (List Bool)).lowerWith tripleInterface 2) ()
           ([true, true, true], ()) = 0 := by
     rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
-      ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
-    dsimp only [WordInterface.encodeOracle]
-    rw [tripleInterface.decodeQuery_request]
+      ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
+      tripleInterface.encodeOracle_apply, tripleInterface.decodeQuery_request]
     simp only [tripleOracle, PMF.pure_map, Prod.map_apply, id_eq]
     have hdec :
         tripleInterface.decodeReply ()
@@ -171,8 +170,9 @@ theorem protoInterface_encodeOracle_sum :
 
 /-- On canonical requests `toOracleCodec.wordOracle` agrees with `encodeOracle`, whereas on an
 off-image request (here `[]` on the party channel, which decodes to `(0, false)` whose canonical
-encoding is `[false, false]`) `toOracleCodec.wordOracle` returns `[]` while `encodeOracle` still
-decodes via `decodeQuery`. -/
+encoding is `[false, false]`) `toOracleCodec.wordOracle` returns `[]` without calling the oracle,
+while `encodeOracle` normalizes to `[false, false]` and delegates to `toOracleCodec.wordOracle`,
+calling `counterOracle` once on `(0, false)`. -/
 theorem protoInterface_wordOracle_offImage_ne :
     protoInterface.toOracleCodec.wordOracle counterOracle (Sum.inl (), []) 0 ≠
       protoInterface.encodeOracle counterOracle (Sum.inl (), []) 0 := by
@@ -189,8 +189,7 @@ theorem protoInterface_wordOracle_offImage_ne :
   have henc :
       protoInterface.encodeOracle counterOracle (Sum.inl (), []) 0 =
         PMF.pure ([true, false], 1) := by
-    dsimp only [WordInterface.encodeOracle]
-    rw [hdecq]
+    rw [protoInterface.encodeOracle_apply counterOracle (Sum.inl ()) [] 0, hdecq]
     simp [counterOracle, OracleComp.sumHandler, counterPartyOracle, protoInterface,
       WordInterface.sum, WordInterface.net, WordPort.party, boolPort]
   intro h
