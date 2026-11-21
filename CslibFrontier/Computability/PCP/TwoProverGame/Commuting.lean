@@ -15,6 +15,8 @@ import CslibFrontier.Probability.PMF.Event
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
+import CslibFrontier.Foundations.Quantum.Algebra.TensorState
 
 /-!
 # Commuting-operator strategies
@@ -72,7 +74,7 @@ open scoped Real
 /-- A **commuting-operator strategy** for a game with questions `X`, `Y` and answers `A`, `B`, in
 the algebra of observables `𝒜`: a state, a measurement for each question of each player, and
 every effect of Alice commutes with every effect of Bob. -/
-structure CommutingStrategy (X Y A B 𝒜 : Type*) [Fintype A] [Fintype B] [Ring 𝒜]
+@[ext] structure CommutingStrategy (X Y A B 𝒜 : Type*) [Fintype A] [Fintype B] [Ring 𝒜]
     [PartialOrder 𝒜] [Algebra ℂ 𝒜] where
   /-- The shared state. -/
   state : AlgState 𝒜
@@ -114,9 +116,8 @@ theorem sum_prob_bob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A
   simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one]
 
 theorem sum_prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
-    ∑ a, ∑ b, S.prob x y a b = 1 := by
-  simp only [sum_prob_bob, ← Complex.re_sum, ← map_sum, (S.alice x).sum_effect,
-    AlgState.map_one, Complex.one_re]
+    ∑ a, ∑ b, S.prob x y a b = 1 :=
+  Measurement.sum_re_effect_mul_effect S.state (S.alice x) (S.bob y)
 
 /-- Pull back each player's questions and post-process each player's outcomes independently. -/
 noncomputable def relabel {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
@@ -339,6 +340,29 @@ noncomputable def rightMeasurement (N : POVM B κ) : Measurement B (Matrix (ι �
   nonneg b := Matrix.nonneg_iff_posSemidef.mpr (PosSemidef.one.kronecker (N.posSemidef b))
   sum_effect := by rw [← one_kronecker_sum, N.sum_effect, one_kronecker_one]
 
+/-- Any left tensor-factor effect commutes with any right tensor-factor effect. -/
+theorem commute_liftedEffects (L : POVM A ι) (R : POVM B κ) (a : A) (b : B) :
+    Commute ((leftMeasurement (κ := κ) L).effect a) ((rightMeasurement (ι := ι) R).effect b) := by
+  change Commute (L.effect a ⊗ₖ (1 : Matrix κ κ ℂ)) ((1 : Matrix ι ι ℂ) ⊗ₖ R.effect b)
+  simpa only [kroneckerOne_apply, oneKronecker_apply] using
+    commute_kroneckerOne_oneKronecker (L.effect a) (R.effect b)
+
+/-- A projective local measurement stays projective on the first tensor factor. -/
+theorem leftMeasurement_isProjective (M : POVM A ι) (h : M.toMeasurement.IsProjective) :
+    (leftMeasurement (κ := κ) M).IsProjective := by
+  intro a
+  change (M.effect a ⊗ₖ (1 : Matrix κ κ ℂ)) * (M.effect a ⊗ₖ 1) = M.effect a ⊗ₖ 1
+  rw [← mul_kronecker_mul, Matrix.one_mul]
+  exact congrArg (· ⊗ₖ (1 : Matrix κ κ ℂ)) (h a)
+
+/-- A projective local measurement stays projective on the second tensor factor. -/
+theorem rightMeasurement_isProjective (M : POVM B κ) (h : M.toMeasurement.IsProjective) :
+    (rightMeasurement (ι := ι) M).IsProjective := by
+  intro a
+  change ((1 : Matrix ι ι ℂ) ⊗ₖ M.effect a) * (1 ⊗ₖ M.effect a) = 1 ⊗ₖ M.effect a
+  rw [← mul_kronecker_mul, Matrix.one_mul]
+  exact congrArg ((1 : Matrix ι ι ℂ) ⊗ₖ ·) (h a)
+
 /-- A tensor-product strategy as a commuting-operator strategy on the matrix algebra of
 `ℂ^ι ⊗ ℂ^κ`: the effects `E ⊗ 1` and `1 ⊗ F` and the vector state of the shared state. -/
 noncomputable def toCommuting (S : QuantumStrategy X Y A B ι κ) :
@@ -346,9 +370,7 @@ noncomputable def toCommuting (S : QuantumStrategy X Y A B ι κ) :
   state := AlgState.vector S.state S.norm_state
   alice x := leftMeasurement (S.alice x)
   bob y := rightMeasurement (S.bob y)
-  commute x y a b := by
-    change Commute ((S.alice x).effect a ⊗ₖ 1) (1 ⊗ₖ (S.bob y).effect b)
-    simp only [Commute, SemiconjBy, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
+  commute x y := commute_liftedEffects (S.alice x) (S.bob y)
 
 theorem prob_toCommuting (S : QuantumStrategy X Y A B ι κ) (x : X) (y : Y) (a : A) (b : B) :
     S.toCommuting.prob x y a b = S.prob x y a b := by
@@ -362,6 +384,18 @@ theorem answers_toCommuting (S : QuantumStrategy X Y A B ι κ) (x : X) (y : Y) 
     S.toCommuting.answers x y = S.answers x y := by
   ext ⟨a, b⟩
   rw [CommutingStrategy.answers_apply, answers_apply, prob_toCommuting, prob_eq]
+
+/-- Swapping questions and answers preserves the correlations of a symmetric strategy. -/
+theorem prob_toCommuting_swap_of_symmetric {Q C J : Type*}
+    [Fintype C] [Fintype J] [DecidableEq J]
+    (S : QuantumStrategy Q Q C C J J) (hM : S.bob = S.alice)
+    (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a))
+    (x y : Q) (a b : C) :
+    S.toCommuting.prob y x b a = S.toCommuting.prob x y a b := by
+  rw [prob_toCommuting, prob_toCommuting]
+  simp only [prob_eq, hM]
+  exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
+    ((S.alice y).effect b) ((S.alice x).effect a))
 
 end QuantumStrategy
 
@@ -380,6 +414,21 @@ theorem commutingWinProb_toCommuting (S : QuantumStrategy X Y A B ι κ) :
   congr 1
   funext x y
   exact QuantumStrategy.answers_toCommuting S x y
+
+/-- Exchanging the players of a symmetric tensor strategy preserves its score in
+any game with the same question and answer alphabets on both sides. -/
+theorem commutingWinProb_swap_of_symmetric {Q C J : Type*}
+    [Fintype C] [Fintype J] [DecidableEq J]
+    (G : TwoProverGame Q Q C C) (S : QuantumStrategy Q Q C C J J)
+    (hM : S.bob = S.alice) (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a)) :
+    G.commutingWinProb S.toCommuting.swap = G.commutingWinProb S.toCommuting := by
+  classical
+  unfold commutingWinProb
+  congr 1
+  funext x y
+  ext ⟨a, b⟩
+  simp only [CommutingStrategy.answers_apply, CommutingStrategy.prob_swap,
+    S.prob_toCommuting_swap_of_symmetric hM hψ x y a b]
 
 end TwoProverGame
 
