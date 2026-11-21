@@ -197,6 +197,14 @@ theorem computableInPolyTime_subsetAdj :
     ComputableInPolyTime subsetAdj
       (encPair encNat (encPair encNat (encPair (encList encNat) (encList encNat)))) encBool := by
   unfold subsetAdj
+  have hleft : ComputableInPolyTime
+      (fun q : ℕ × ℕ × List ℕ × List ℕ =>
+        (q.2.2.1.filter fun x => decide (x ∈ q.2.2.2)).length % q.1)
+      (encPair encNat (encPair encNat (encPair (encList encNat) (encList encNat))))
+      encNat := ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop)
+  have hright : ComputableInPolyTime (fun q : ℕ × ℕ × List ℕ × List ℕ => q.2.1 % q.1)
+      (encPair encNat (encPair encNat (encPair (encList encNat) (encList encNat))))
+      encNat := ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop)
   fun_prop
 
 /-- Names of vertices of the Frankl–Wilson graph are recognized in polynomial time, uniformly in
@@ -210,8 +218,8 @@ theorem computableInPolyTime_franklWilsonIsLabel :
 theorem computableInPolyTime_franklWilsonAdj :
     ComputableInPolyTime franklWilsonAdj
       (encPair encNat (encPair (encList encNat) (encList encNat))) encBool := by
-  unfold franklWilsonAdj subsetAdj
-  fun_prop
+  unfold franklWilsonAdj
+  exact computableInPolyTime_subsetAdj.comp (by fun_prop)
 
 end Cslib.ExplicitRamsey
 
