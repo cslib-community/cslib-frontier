@@ -33,11 +33,6 @@ neither a global embedding nor generic position, frozen placement, move realizat
 Hanani–Tutte/query-completeness theorem. The remaining full recognition and source-model
 objective is tracked in [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
-## Main definitions
-
-* `Cslib.Complexity.Graph.RotationRecognition.subdivisionDart`: the original end's actual
-  first/last subdivision dart, preserving occurrence and end tag.
-
 ## Main results
 
 * `Cslib.Complexity.Graph.RotationRecognition.frozen_iff_exists_subdivisionDart`: the stored
@@ -62,15 +57,6 @@ namespace Cslib.Complexity.Graph.RotationRecognition
 
 open Polygonal
 
-/-- Retain the original occurrence and end tag while selecting its incident first or last
-subdivision segment. In particular, the two original loop ends select different segments. -/
-@[expose] def subdivisionDart (I : FixedRotationInput) (d : Dart I.graph) :
-    Dart (subdivisionGraph I) :=
-  (⟨3 * d.1.val + if d.2 then 2 else 0, by
-    have hi := d.1.isLt
-    simp only [subdivisionGraph, List.length_map, length_subdivide]
-    cases d.2 <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega⟩, d.2)
-
 /-- The actual stored frozen bit selects exactly the first or last segment of an originally
 fixed indexed end. This raw combinatorial classifier does not require `Valid`. -/
 theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
@@ -83,11 +69,10 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
     simpa only [subdivisionGraph, List.length_map] using e.isLt
   constructor
   · intro hf
-    have hsize : e.val < 3 * I.graph.edges.length := by simpa only [length_subdivide] using he
-    let i : Fin I.graph.edges.length := ⟨e.val / 3, by omega⟩
-    let k : Fin 3 := ⟨e.val % 3, Nat.mod_lt _ (by decide)⟩
+    let i := (subdivisionEdgeIndex I e).original
+    let k := (subdivisionEdgeIndex I e).piece
     have hlookup := subdivide_getElem? I i k
-    have hindex : 3 * i.val + k.val = e.val := by dsimp [i, k]; omega
+    have hindex : 3 * i.val + k.val = e.val := (subdivisionEdgeIndex_val I e).symm
     rw [hindex] at hlookup
     have hget := Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)
     have hk : k.val = 0 ∨ k.val = 1 ∨ k.val = 2 := by have := k.isLt; omega

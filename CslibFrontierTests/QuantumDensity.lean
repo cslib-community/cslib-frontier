@@ -250,11 +250,14 @@ example : relativeEntropy
   simp [PMF.pure_apply, relativeEntropy_orthogonal_qubit_states]
 
 -- A deterministic classical label carries no information about its quantum block.
-private theorem mutualInformation_deterministic_label : mutualInformation
-    (classicalQuantumState (PMF.pure false) (fun x => pureState (ket x))) = 0 := by
-  rw [mutualInformation_classicalQuantumState _ (fun x => isDensityMatrix_pureState (norm_ket x)),
-    partialTraceRight_classicalQuantumState, Fintype.sum_bool, Fintype.sum_bool]
-  simp [PMF.pure_apply]
+private theorem mutualInformation_pure_label {X : Type*} [Fintype X] [DecidableEq X] (x : X)
+    {ρ : X → Matrix Bool Bool ℂ} (hρ : ∀ z, IsDensityMatrix (ρ z)) :
+    mutualInformation (classicalQuantumState (PMF.pure x) ρ) = 0 := by
+  have hquantum : partialTraceRight (classicalQuantumState (PMF.pure x) ρ) = ρ x := by
+    rw [partialTraceRight_classicalQuantumState]
+    simp [PMF.pure_apply, apply_ite, ite_smul, eq_comm]
+  rw [mutualInformation_classicalQuantumState _ hρ, hquantum]
+  simp [PMF.pure_apply, apply_ite, ite_mul, eq_comm]
 
 -- A common reference orthogonal to the only active conditional state puts the
 -- infinity in the marginal-divergence term of the decomposition.
@@ -263,7 +266,32 @@ example : relativeEntropy
     (pureState (ket true)) = ⊤ := by
   have h := sum_weighted_relativeEntropy_eq_mutualInformation_add (PMF.pure false)
     (fun x => isDensityMatrix_pureState (norm_ket x)) (pureState (ket true))
-  rw [mutualInformation_deterministic_label, zero_add, Fintype.sum_bool] at h
+  rw [mutualInformation_pure_label false (fun x => isDensityMatrix_pureState (norm_ket x)),
+    zero_add, Fintype.sum_bool] at h
   simpa [PMF.pure_apply, relativeEntropy_orthogonal_qubit_states] using h.symm
+
+-- Only the second label varies, and its two conditional qubit states are orthogonal.
+-- The first label's null branch makes no contribution to the information chain.
+example (q : PMF Bool) :
+    let p := q.map (false, ·)
+    mutualInformation (classicalQuantumState p (fun z => pureState (ket z.2))) =
+      mutualInformation (classicalQuantumState (Cslib.Probability.PMF.conditionalSnd p false)
+        (fun y => pureState (ket y))) := by
+  dsimp only
+  let p := q.map (false, ·)
+  let ρ (z : Bool × Bool) := pureState (ket z.2)
+  have hρ (z : Bool × Bool) : IsDensityMatrix (ρ z) := isDensityMatrix_pureState (norm_ket _)
+  change mutualInformation (classicalQuantumState p ρ) = _
+  have hp : p.map Prod.fst = PMF.pure false := by
+    change (q.map (false, ·)).map Prod.fst = _
+    rw [PMF.map_comp]
+    exact PMF.map_const _ _
+  have hzero : mutualInformation (classicalQuantumState (p.map Prod.fst)
+      (quantumMarginalGiven p ρ)) = 0 := by
+    rw [hp]
+    exact mutualInformation_pure_label false fun x =>
+      (isDensityMatrix_classicalQuantumState _ fun y => hρ (x, y)).partialTraceRight
+  rw [mutualInformation_classicalQuantumState_prod p hρ, hzero, zero_add, hp, Fintype.sum_bool]
+  simp [PMF.pure_apply, p, ρ]
 
 end CslibFrontierTests.QuantumDensity
