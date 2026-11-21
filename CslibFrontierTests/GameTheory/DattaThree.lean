@@ -71,8 +71,7 @@ theorem card_sparseTable_cubes : #(sparseTable cubes) = 7 := by
     · rintro rfl
       simp
   have hcard : ∀ j : Fin 2, #(Iic (Finsupp.single j 3)) = 4 := fun j => by
-    rw [card_Iic_eq_prod]
-    fin_cases j <;> simp [Fin.prod_univ_two]
+    simp [Finsupp.card_Iic]
   have := card_union_add_card_inter (Iic (Finsupp.single (0 : Fin 2) 3))
     (Iic (Finsupp.single 1 3))
   rw [hinter, hcard, hcard, card_singleton] at this
@@ -85,10 +84,29 @@ example : Fintype.card (Option (Strat (sparseTable cubes) 2 .alice)) = 3 ∧
     Fintype.card (Option (Strat (sparseTable cubes) 2 .critter)) = 10 := by
   simp [card_sparseTable_cubes]
 
-/-- The full box `{0, …, 3}²` has `16` exponents. -/
-example : #(Iic (Finsupp.equivFunOnFinite.symm fun _ : Fin 2 => 3)) = 16 := by
-  rw [card_Iic_eq_prod]
-  simp
+theorem support_cubes (j : Fin 2) : (cubes j).support = {Finsupp.single j 3, 0} := by
+  ext s
+  rw [mem_support_cubes, mem_insert, mem_singleton]
+
+/-- `x_j` has degree `3` in `F_j` and `x_i`, `i ≠ j`, has degree `0`. -/
+theorem degreeOf_cubes (i j : Fin 2) : degreeOf i (cubes j) = if i = j then 3 else 0 := by
+  rw [degreeOf_eq_sup, support_cubes]
+  by_cases h : i = j
+  · subst h
+    simp
+  · simp [h]
+
+/-- `card_sparseTable_add_le` with the actual degrees: `7 + 2 ≤ 1 + 4 + 4 = 9`. -/
+example : #(sparseTable cubes) + 2 ≤ 9 :=
+  (card_sparseTable_add_le cubes).trans_eq (by
+    simp [degreeOf_cubes, Fin.sum_univ_two, Fin.prod_univ_two])
+
+/-- `card_sparseTable_le_pow` with the actual degree bound `3`: the sparse table has at most as
+many exponents as the full box `{0, …, 3}²`, which has `16`. -/
+example : #(sparseTable cubes) ≤ 16 :=
+  card_sparseTable_le_pow (d := 3) fun j i => by
+    rw [degreeOf_cubes]
+    split_ifs <;> norm_num
 
 /-- The root `x = (1/3, 1/3)`, Bob's monomial weights `xᵉ / 8`, and Critter uniform. -/
 noncomputable def root : Coord (sparseTable cubes) 2 → ℝ

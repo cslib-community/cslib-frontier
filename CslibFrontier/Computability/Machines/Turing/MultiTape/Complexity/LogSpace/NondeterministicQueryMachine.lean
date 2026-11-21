@@ -124,6 +124,22 @@ theorem replay_cons (choice : Bool) (choices : List Bool) (s : σ) :
     M.replay input (choice :: choices) s =
       M.replay input choices (M.step input s choice) := rfl
 
+/-- A nonempty first-halting trace starts live, then first halts along its remaining choices. -/
+theorem firstHalting_cons_iff (choice : Bool) (choices : List Bool) (s : σ) :
+    M.FirstHalting input (choice :: choices) s ↔
+      M.halted s = false ∧ M.FirstHalting input choices (M.step input s choice) := by
+  constructor
+  · rintro ⟨hh, hproper⟩
+    refine ⟨hproper 0 (by simp), hh, ?_⟩
+    intro n hn
+    simpa [List.take_succ_cons, replay_cons] using hproper (n + 1) (by simpa using hn)
+  · rintro ⟨hlive, hh, hproper⟩
+    refine ⟨hh, ?_⟩
+    intro n hn
+    cases n with
+    | zero => exact hlive
+    | succ n => simpa [List.take_succ_cons, replay_cons] using hproper n (by simpa using hn)
+
 theorem replay_append (choices more : List Bool) (s : σ) :
     M.replay input (choices ++ more) s = M.replay input more (M.replay input choices s) :=
   List.foldl_append

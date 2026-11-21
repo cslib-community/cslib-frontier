@@ -480,21 +480,12 @@ private theorem foldlM_registers_le (g : Fin N → Option Result) (k : ℕ)
     rw [Fin.foldlM_succ_last] at hr
     change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero).bind
       (fun acc => (g (Fin.last N)).map (add acc))) = some r at hr
-    cases hp : Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero with
-    | none =>
-      rw [hp] at hr
-      contradiction
-    | some partialResult =>
-      have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
-      rw [hp] at hr
-      cases hl : g (Fin.last N) with
-      | none => simp [hl, Option.bind] at hr
-      | some last =>
-        have hlast := hg (Fin.last N) last hl
-        simp only [hl, Option.bind, Option.map_some, Option.some.injEq] at hr
-        subst r
-        exact ⟨Nat.add_le_add hb.1 hlast.1,
-          (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
+    obtain ⟨partialResult, hp, hr⟩ := Option.bind_eq_some_iff.mp hr
+    obtain ⟨last, hl, rfl⟩ := Option.map_eq_some_iff.mp hr
+    have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
+    have hlast := hg (Fin.last N) last hl
+    exact ⟨Nat.add_le_add hb.1 hlast.1,
+      (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
 
 /-- In any successfully processed prefix, the count is bounded by the number of processed
 vertices, and the length sum by that number times the walk budget. The prefix may be followed
@@ -514,42 +505,22 @@ private theorem walkM_clock {σ : Type} (clock : σ → ℕ)
     clock (walkM next edge target k current s).2 ≤ clock s + (2 * k + 1) := by
   induction k generalizing current s with
   | zero =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      cases v <;> exact h
+    rw [walkM, show 2 * 0 + 1 = 1 + 0 by rfl]
+    apply bind_stateM_clock clock 1 0 _ _ hn
+    intro result t
+    cases result <;> exact le_rfl
   | succ k ih =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      change clock t ≤ clock s + 1 at h
-      cases v with
-      | none =>
-        change clock t ≤ _
-        omega
-      | some v =>
-        change clock ((edge current v >>= fun answer =>
-          if answer then walkM next edge target k v else pure none) t).2 ≤ _
-        have hedge := he current v t
-        simp only [bind, StateT.bind]
-        cases ha : edge current v t with
-        | mk answer t' =>
-          rw [ha] at hedge
-          change clock t' ≤ clock t + 1 at hedge
-          cases answer with
-          | false =>
-            change clock t' ≤ _
-            omega
-          | true =>
-            change clock (walkM next edge target k v t').2 ≤ _
-            have hrest := ih v t'
-            omega
+    rw [walkM, show 2 * (k + 1) + 1 = 1 + (1 + (2 * k + 1)) by omega]
+    apply bind_stateM_clock clock 1 (1 + (2 * k + 1)) _ _ hn
+    intro result t
+    cases result with
+    | none => exact Nat.le_add_right (clock t) _
+    | some v =>
+      apply bind_stateM_clock clock 1 (2 * k + 1) _ _ (he current v)
+      intro answer u
+      cases answer with
+      | false => exact Nat.le_add_right (clock u) _
+      | true => exact ih v u
 
 /-- All branches use at most `N * (2 * k + 2)` callback actions when each selection,
 destination read, or adjacency query advances the clock by at most one. This bound includes
