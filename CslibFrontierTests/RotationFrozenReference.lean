@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
-import CslibFrontier.Foundations.Geometry.Polygonal.SegmentCuts
+import CslibFrontier.Foundations.Geometry.Polygonal.CutTransport
 import Mathlib.Tactic.NormNum
 
 /-! Ordinary clients keep both loop ends, parallel occurrences, unused fresh leaves, a fixed
@@ -179,6 +179,26 @@ example (a b : ℂ) :
   refine ⟨F, cuts, fun k hk t ht => ?_⟩
   exact segmentCuts_map_lineMap cuts Complex.reCLM.toLinearMap.toAffineMap F.symm
     hline a b hk ht
+
+-- The inverse transports complete simple routes, with all support points and both tagged ends.
+example (p : Route) (hp : p.IsSimple) :
+    ∃ (F : ℂ ≃ₜ ℂ) (q : Route),
+      (∀ z ∈ ((referenceDrawing bothFixed).route ⟨0, by decide⟩).support,
+        F z = referencePoint bothFixed 0 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 0)) ∧
+      q.IsSimple ∧ q.support = F.symm '' p.support ∧
+        ∀ b : Bool, q.endpoint b = F.symm (p.endpoint b) := by
+  obtain ⟨F, cuts, _, hspoke, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  let coordinate : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap
+  let q := p.mapAtCuts cuts coordinate F.symm
+  let a : Dart bothFixed.graph := (⟨0, by decide⟩, false)
+  have ha : a.vertex = 0 := by decide +kernel
+  have hFa := hspoke a (by decide +kernel)
+  rw [ha] at hFa
+  refine ⟨F, q, hFa, ?_, ?_, ?_⟩
+  · exact Route.IsSimple.mapAtCuts (c := coordinate) hline hp F.symm.injective
+  · exact Route.support_mapAtCuts (c := coordinate) hline p
+  · exact Route.endpoint_mapAtCuts (c := coordinate) hline p
 
 /-- Removing every edge keeps the entire frame as distinct isolated points. -/
 theorem all_free_frame :

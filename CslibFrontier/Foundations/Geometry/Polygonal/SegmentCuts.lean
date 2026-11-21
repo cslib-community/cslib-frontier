@@ -35,6 +35,14 @@ A constant coordinate contributes no cuts, even if it lies at a declared level. 
   if b = a then ∅ else
     (levels.image fun y => (y - a) / (b - a)).filter fun t => 0 < t ∧ t < 1
 
+/-- There are at most as many strict interior parameters as supplied coordinate levels. -/
+theorem segmentInteriorCuts_card_le (levels : Finset ℝ) (a b : ℝ) :
+    (segmentInteriorCuts levels a b).card ≤ levels.card := by
+  unfold segmentInteriorCuts
+  split_ifs
+  · simp
+  · exact (Finset.card_filter_le _ _).trans Finset.card_image_le
+
 /-- The strictly increasing list of interior cut parameters together with 0 and 1. -/
 noncomputable def segmentCuts (levels : Finset ℝ) (a b : ℝ) : List ℝ :=
   (insert 0 (insert 1 (segmentInteriorCuts levels a b))).sort
