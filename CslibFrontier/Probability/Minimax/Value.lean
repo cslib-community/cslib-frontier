@@ -33,10 +33,15 @@ a mixed strategy `q` collecting at least `v` against every row. By von Neumann's
 
 Existence is proved by linear-programming duality over `K`
 (`Matrix.exists_isGreatest_isLeast_dotProduct_of_nonneg`, by Fourier–Motzkin elimination), with no
-topology: after shifting `M` by a constant, the row player's problem, normalized by its value, is
-the canonical program `max {∑ i, x i | 0 ≤ x, ∑ i, x i * M i j ≤ 1}` and the column player's is its
-dual ([MatousekGartner2007], Section 8.1). So a game with entries in `ℚ` has a rational value and
-rational optimal strategies. The hypothesis form of the minimax theorem used by Yao's principle,
+topology. The LP-duality argument is that of [MatousekGartner2007], Theorem 8.1.3 and its proof
+(Section 8.1, pp. 136–138), for real games: there the row and column players' problems are the
+linear programs (8.2) and (8.4), over strategies summing to `1` with a free variable for the value.
+The formulation here is different: after shifting `M` by a constant, the row player's problem,
+normalized by its value, is the canonical program `max {∑ i, x i | 0 ≤ x, ∑ i, x i * M i j ≤ 1}`
+and the column player's is its dual, and the argument runs over every linearly ordered field. So a
+game with entries in `ℚ` has a rational value and rational optimal strategies. The theorem proves
+that optimal strategies exist; the source's clause that they can be computed efficiently is not
+formalized here. The hypothesis form of the minimax theorem used by Yao's principle,
 `Convexity.StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le`, is derived from it in
 `CslibFrontier.Probability.Minimax`.
 
@@ -137,11 +142,14 @@ private theorem exists_weights_eq_div {ι : Type*} [Fintype ι] {w : ι → K} (
 
 /-- **Every finite zero-sum game has a value**, over every linearly ordered field [vonNeumann1928]:
 there are mixed strategies `p`, `q` and `v : K` with `∑ i, p i * M i j ≤ v` for every column `j`
-and `v ≤ ∑ j, q j * M i j` for every row `i`. The proof is linear-programming duality for the
-canonical pair ([MatousekGartner2007], Section 8.1): shifting `M` by `s` so that some column pays
-at least `1` against every row, the programs `max {∑ i, x i | 0 ≤ x, ∑ i, x i * (M i j + s) ≤ 1}`
-and `min {∑ j, y j | 0 ≤ y, 1 ≤ ∑ j, y j * (M i j + s)}` are feasible, and their common optimum
-`V` is positive; `x / V` and `y / V` are optimal strategies and `1 / V - s` is the value. -/
+and `v ≤ ∑ j, q j * M i j` for every row `i`. This is the existence part of
+[MatousekGartner2007], Theorem 8.1.3, extended from real games to every linearly ordered field;
+the source's efficient-computation clause is not formalized. The proof follows the source's
+LP-duality argument (pp. 136–138), but with the canonical pair in place of its programs (8.2) and
+(8.4): shifting `M` by `s` so that some column pays at least `1` against every row, the programs
+`max {∑ i, x i | 0 ≤ x, ∑ i, x i * (M i j + s) ≤ 1}` and
+`min {∑ j, y j | 0 ≤ y, 1 ≤ ∑ j, y j * (M i j + s)}` are feasible, and their common optimum `V` is
+positive; `x / V` and `y / V` are optimal strategies and `1 / V - s` is the value. -/
 theorem exists_isMinimaxValue [Nonempty I] [Nonempty J] (M : I → J → K) :
     ∃ v, IsMinimaxValue M v := by
   classical
