@@ -24,6 +24,18 @@ symmetric cipher's actual key generator. The two KEM hops surround the actual-ke
 Challenge messages have length exactly the security parameter, as in `SymmetricCipher`.
 The conclusion is `INDCCA2On` with this admissibility rule, not unrestricted `WordINDCCA2`.
 
+The results are steps toward [BonehShoup2023], Exercise 12.5(a), printed p. 513, not the exercise
+itself. The proof constructs both reductions, a KEM distinguisher and a one-time symmetric CCA
+adversary, with their efficiency certificates, but the games it relates are not the exercise's.
+On the KEM side, `kemCCARealGame` and `kemCCAIdealGame` strengthen the exercise's KEM game in two
+distinct ways: the distinguisher receives `(pk, (k, ct))`, where the printed challenger sends only
+the key and the encapsulation (#5293), and it may submit any word other than the challenge for
+decapsulation, where the exercise's queries lie in `C_kem` (#5686).
+On the DEM side, `SymmetricCipher.ctSpace` models the ciphertext space `C` (by
+`decrypt_eq_none_of_ctSpace_eq_false`, `decrypt` returns `none` outside `C`, which the oracle
+encodes as `[]`), so `SymmetricCipher.OneTimeINDCCA` matches Attack Game 9.2 (printed p. 362) on
+an efficiently recognizable `C` (default `C` is all words).
+
 The source's uniform key space is represented by uniform `keyLen n`-bit seeds followed by `F n`.
 An exact sampler identity relates this distribution to `E.keyGen n`; no uniformity of encoded
 symmetric keys is assumed. Both KEM games retain their existing postchallenge decapsulation
@@ -41,14 +53,17 @@ a simple fixed-width key split instead needs a supported real-key length contrac
 * `Cslib.Crypto.Encryption.hybridKEMCCAContinuation`: both adaptive hybrid phases.
 * `Cslib.Crypto.Encryption.hybridToKEMCCA`: the fixed-bit KEM reduction.
 * `Cslib.Crypto.Encryption.hybridToKEMCCAHiddenBit`: the single reduction for the factor-two bound.
+* `Cslib.Crypto.Encryption.HybridCCAReductions`: a KEM distinguisher and a one-time symmetric
+  adversary with the concrete `2 * KEM advantage + symmetric CCA advantage` bound.
 
 ## Main results
 
 * `Cslib.Crypto.Encryption.eval_kemCCARealGame_hybridToKEMCCA`,
   `Cslib.Crypto.Encryption.eval_kemCCAIdealGame_hybridToKEMCCA`: exact actual-game identities.
-* `Cslib.Crypto.Encryption.exists_hybridCCA_reductions`: native reductions and the concrete
-  `2 * KEM advantage + symmetric CCA advantage` bound, uniformly for every parameter.
-* `Cslib.Crypto.Encryption.hybrid_indcca2On`: n-bit-message adaptive CCA security.
+* `Cslib.Crypto.Encryption.exists_hybridCCA_reductions`: native `HybridCCAReductions` for every
+  PPT adversary, uniformly for every parameter (a step toward Exercise 12.5(a)).
+* `Cslib.Crypto.Encryption.hybrid_indcca2On`: n-bit-message adaptive CCA security (a step toward
+  Exercise 12.5(a)).
 * `Cslib.Crypto.Encryption.isPPTOn_hybridCCAGame`: native honest-game runtime.
 * `Cslib.Crypto.Encryption.hybridDecrypt_postprocessed_hybridEncrypt`: separate supported-key
   correctness.
@@ -90,16 +105,13 @@ noncomputable def hybridKEMCCAContinuation (E : SymmetricCipher)
     (adversary : WordCCA2Adversary) (bit : Bool) (n : ℕ) (pk key ctK : List Bool) :
     WordOracleComp Unit Bool := do
   let handler := hybridKEMCCAHandler E F decBound n key ctK
-  let choice ← OracleComp.interpret
-    (OracleComp.sumHandler (fun m => ProbOracleComp.sample (ProbComp.unifFin m)) handler)
-    (adversary.choose n pk)
+  let choice ← ProbOracleComp.simulate handler (adversary.choose n pk)
   if (ChoiceOut.msg₀ choice).length == n && (ChoiceOut.msg₁ choice).length == n then
     let ctD ← ProbOracleComp.sample
       (E.encrypt n key (if bit then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice))
     let ct := encPair encBits encBits (ctK, ctD)
-    OracleComp.interpret
-      (OracleComp.sumHandler (fun m => ProbOracleComp.sample (ProbComp.unifFin m))
-        (fun request => if request.2 == ct then pure [] else handler request))
+    ProbOracleComp.simulate
+      (fun request => if request.2 == ct then pure [] else handler request)
       (adversary.guess n (ChoiceOut.state choice) ct)
   else pure false
 
@@ -148,22 +160,15 @@ private theorem interpret_substituted_unit {α : Type}
     (program : WordOracleComp Unit α) :
     OracleComp.interpret
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m)) oracle)
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun m => ProbOracleComp.sample (ProbComp.unifFin m)) handler)
-        program) =
+      (ProbOracleComp.simulate handler program) =
       OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
           (fun request s => pure (reply request, s))) program := by
-  rw [OracleComp.interpret_interpret]
-  congr 1 with q : 1
-  cases q with
-  | inl m =>
-    simp only [OracleComp.sumHandler, ProbOracleComp.interpret_sample, ProbComp.unifFin,
-      OracleComp.interpret_query]
-  | inr request =>
-    funext s
-    cases s
-    exact hstep request
+  rw [ProbOracleComp.interpret_simulate]
+  congr 2 with request : 1
+  funext s
+  cases s
+  exact hstep request
 
 private theorem run_hybridKEMCCAContinuation (E : SymmetricCipher)
     (F : ℕ → List Bool → List Bool)
@@ -380,9 +385,9 @@ theorem isOraclePPTOn_hybridKEMCCAHandler (E : SymmetricCipher)
   have hreply := (computableInPolyTime_hybridKEMReply E hF).comp
     ((hn.comp hp).prod ((hdem.comp hp).prod hr))
   unfold hybridKEMCCAHandler
-  exact IsOraclePPTOn.cond' hcanonical
-    (IsOraclePPTOn.cond' heq hlocal.isOraclePPTOn
-      ((IsOraclePPTOn.query_take' () hkem (hdecBound.comp (hn.prod hkem))).bind_with
+  exact IsOraclePPTOn.cond hcanonical
+    (IsOraclePPTOn.cond heq hlocal.isOraclePPTOn
+      ((IsOraclePPTOn.query_take () hkem (hdecBound.comp (hn.prod hkem))).bind_with
         hreply.isOraclePPTOn))
     (ComputableInPolyTime.const []).isOraclePPTOn
 
@@ -402,21 +407,20 @@ private theorem isOraclePPTOn_hybridKEMCCAInterpret (E : SymmetricCipher)
     {reject : α → List Bool → Bool}
     (hreject : ComputableInPolyTime (fun p : α × List Bool => reject p.1 p.2)
       (encPair input encBits) encBool) :
-    IsOraclePPTOn input output (fun a => OracleComp.interpret
-      (OracleComp.sumHandler (fun m => ProbOracleComp.sample (ProbComp.unifFin m))
-        (fun request => if reject a request.2 then pure [] else
-          hybridKEMCCAHandler E F decBound (n a) (key a) (ctK a) request)) (program a)) := by
+    IsOraclePPTOn input output (fun a => ProbOracleComp.simulate
+      (fun request => if reject a request.2 then pure [] else
+        hybridKEMCCAHandler E F decBound (n a) (key a) (ctK a) request) (program a)) := by
   have hhandler : IsOraclePPTOn (encPair input (encPair (encFinEnum Unit) encBits)) encBits
       (fun p : α × (Unit × List Bool) => if reject p.1 p.2.2 then pure [] else
         hybridKEMCCAHandler E F decBound (n p.1) (key p.1) (ctK p.1) p.2) :=
-    IsOraclePPTOn.cond' (hreject.comp
+    IsOraclePPTOn.cond (hreject.comp
       ((ComputableInPolyTime.fst input (encPair (encFinEnum Unit) encBits)).prod
         (ComputableInPolyTime.snd input (encPair (encFinEnum Unit) encBits)).snd'))
       (ComputableInPolyTime.const []).isOraclePPTOn
       (isOraclePPTOn_hybridKEMCCAHandler E hF hdecBound
         (hn.comp (by fun_prop)) (hkey.comp (by fun_prop)) (hctK.comp (by fun_prop)) (by fun_prop))
   obtain ⟨c, d, hsize⟩ :=
-    (computableInPolyTime_hybridKEMReply E hF).tidy.polyBounded_length.exists_le
+    (computableInPolyTime_hybridKEMReply E hF).polyBounded_length.exists_le
   let resources := fun (a : α) (ct : List Bool) =>
     (encOption encBits (E.decrypt (n a) (key a) (dropFrame ct))).length +
       c * (2 * n a + 2 * (dropFrame ct).length + decBound (n a) (unframe ct) + 5) ^ d
@@ -432,6 +436,7 @@ private theorem isOraclePPTOn_hybridKEMCCAInterpret (E : SymmetricCipher)
     exact ComputableInPolyTime.unary_add'
       (ComputableInPolyTime.length_bits.comp hlocal.encoding_comp)
       (by fun_prop)
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
   apply IsOraclePPTOn.interpret_preprocess_open' hprogram ComputableInPolyTime.id' hhandler hres
   intro a request reply hreply
   split_ifs at hreply with hr
@@ -475,7 +480,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   let C := encPair (encPair encBits encBits) encBits
   have hchoose := isOraclePPTOn_hybridKEMCCAInterpret E (reject := fun _ _ => false)
     hF hdecBound hn hkey hctK
-    (hA.choose.on.preprocess' (hn.prod hpk)) (ComputableInPolyTime.const false)
+    (hA.choose.on.preprocess (hn.prod hpk)) (ComputableInPolyTime.const false)
   have hp := ComputableInPolyTime.fst input C
   have hc := ComputableInPolyTime.snd input C
   have hn1 := hn.comp hp
@@ -483,7 +488,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   have hk1 := hctK.comp hp
   have hm0 := hc.fst'.fst'
   have hm1 := hc.fst'.snd'
-  have henc := (E.encrypt_ppt.isOraclePPTOn (Operation := Unit)).preprocess'
+  have henc := (E.encrypt_ppt.isOraclePPTOn (Operation := Unit)).preprocess
     (hn1.prod (hkey1.prod (ComputableInPolyTime.ite (hbit.comp hp) hm1 hm0)))
   have hbase := ComputableInPolyTime.fst (encPair input C) encBits
   have hctD := ComputableInPolyTime.snd (encPair input C) encBits
@@ -494,7 +499,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   have hguess := isOraclePPTOn_hybridKEMCCAInterpret E
     (reject := fun a req => req == encPair encBits encBits (ctK a.1.1, a.2))
     hF hdecBound hn2 hkey2 hk2
-    (hA.guess.preprocess' (hn2.prod ((hc.snd'.comp hbase).prod hct)))
+    (hA.guess.preprocess (hn2.prod ((hc.snd'.comp hbase).prod hct)))
     (ComputableInPolyTime.beq (encB := encBits)
       (ComputableInPolyTime.snd _ encBits)
       (hct.comp (ComputableInPolyTime.fst _ encBits)))
@@ -504,7 +509,7 @@ theorem isOraclePPTOn_hybridKEMCCAContinuation (E : SymmetricCipher)
   have hcondition := hvalid.comp (hn1.prod (hm0.prod hm1))
   simp only [Bool.false_eq_true, ↓reduceIte] at hchoose
   unfold hybridKEMCCAContinuation
-  exact hchoose.bind_with (IsOraclePPTOn.cond' hcondition (henc.bind_with hguess)
+  exact hchoose.bind_with (IsOraclePPTOn.cond hcondition (henc.bind_with hguess)
     (ComputableInPolyTime.const false).isOraclePPTOn)
 
 /-- The fixed-bit KEM reduction is uniform strict oracle PPT. It does not sample ideal keys,
@@ -697,13 +702,31 @@ private theorem computableInPolyTime_postprocessed_decaps
       (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
   fun_prop
 
-/-- **Adaptive CCA security of KEM–DEM encryption**, for the source symmetric cipher's
-`n`-bit message model ([BonehShoup2023], Exercise 12.5(a)). The same native postprocessor is
-used on the shown KEM key and on every successful decapsulation. Its ideal-key distribution
-is exactly the actual symmetric key sampler, uniformly in the security parameter.
+/-- Adaptive CCA security of KEM–DEM encryption in the symmetric cipher's `n`-bit message model,
+from a KEM CCA premise and `E.OneTimeINDCCA`: a step toward [BonehShoup2023], Exercise 12.5(a),
+not the cited result, because its KEM premise gives the distinguisher `pk` and answers
+decapsulation queries outside `C_kem` (#5293, #5686).
 
-KEM correctness is needed for the real-game hop. Correctness of hybrid decryption is a separate
-supported-output contract; the security statement does not assert unrestricted word-message CCA. -/
+The proof constructs both reductions, `hybridToKEMCCAHiddenBit` and `hybridToOneTimeCCAAdversary`,
+with their efficiency certificates. Relative to the exercise's premises (printed p. 513):
+* KEM: in `kemCCARealGame` and `kemCCAIdealGame` the distinguisher receives `(pk, (k, ct))`, where
+  the printed challenger sends only the key and the encapsulation (#5293), and it may submit any
+  word other than the challenge for decapsulation, where the exercise's queries lie in `C_kem`
+  (#5686). These are two distinct strengthenings. The counterexample in the `KEMINDCPA` docstring
+  (a KEM whose key is its public key) shows that the printed statement needs the first.
+* DEM: `SymmetricCipher.ctSpace` represents `C`, and `E.decrypt_eq_none_of_ctSpace_eq_false` forces
+  queries outside `C` to be answered with the rejection `[] = encOption encBits none`. When `C` is
+  efficiently recognizable, `E.OneTimeINDCCA` matches Attack Game 9.2 (Definition 9.6, printed
+  pp. 362–363).
+
+A KEM that is secure on `C_kem` but leaks on some word outside `C_kem` satisfies the exercise's
+premise and not the KEM premise here.
+
+The same native postprocessor is used on the shown KEM key and on every successful decapsulation.
+Its ideal-key distribution is exactly the actual symmetric key sampler, uniformly in the security
+parameter. KEM correctness is needed for the real-game hop. Correctness of hybrid decryption is a
+separate supported-output contract; the security statement does not assert unrestricted
+word-message CCA. -/
 theorem hybrid_indcca2On (E : SymmetricCipher)
     {keyLen : ℕ → ℕ} {F : ℕ → List Bool → List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -740,9 +763,58 @@ theorem hybrid_indcca2On (E : SymmetricCipher)
     advantage_hybridCCA_le_two_mul E keyLen F keyGen encaps decaps decBound adversary n
       (hlaw n) (hcorrect n) (hdecBound n)
 
-/-- The complete concrete reduction of Exercise 12.5(a), with both native adversaries and the
-actual symmetric CCA game. The reduction code and polynomial clocks are fixed before `n`.
-No security assumption is needed for this quantitative statement. -/
+/-- The two reductions for the postprocessed KEM–DEM hybrid against `adversary`, in the library's
+games: a KEM CCA distinguisher `kem` and a one-time symmetric CCA adversary `dem`, both oracle PPT,
+such that at every `n` the hybrid's `n`-bit-message CCA advantage is at most twice `kem`'s
+advantage between `kemCCARealGame` and `kemCCAIdealGame` plus `dem`'s advantage in
+`E.ccaOneTimeGame`. The KEM games give the distinguisher `pk` and decapsulate every word other than
+the challenge, so this is a step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a),
+not that bound (`exists_hybridCCA_reductions`; #5293, #5686). On the DEM side, `E.ccaOneTimeGame`
+answers decryption queries outside `E.ctSpace` with rejection `[]`
+(`decrypt_eq_none_of_ctSpace_eq_false`). -/
+structure HybridCCAReductions (E : SymmetricCipher) (keyLen : ℕ → ℕ)
+    (F : ℕ → List Bool → List Bool) (keyGen : ℕ → ProbComp (List Bool × List Bool))
+    (encaps : ℕ → List Bool → ProbComp (List Bool × List Bool))
+    (decaps : ℕ → List Bool → List Bool → Option (List Bool))
+    (adversary : WordCCA2Adversary) where
+  /-- The KEM CCA distinguisher. -/
+  kem : OracleDistinguisher
+  /-- The one-time symmetric CCA adversary. -/
+  dem : CCAAdversary
+  /-- `kem` is oracle PPT. -/
+  kem_isOraclePPT : IsOraclePPT encBool kem
+  /-- `dem` is oracle PPT. -/
+  dem_isOraclePPT : IsOraclePPT encBool dem
+  /-- The hybrid advantage is at most twice the KEM advantage plus the symmetric advantage. -/
+  advantage_le : ∀ n,
+    let encaps' := fun n pk => (fun kc => (F n kc.1, kc.2)) <$> encaps n pk
+    let decaps' := fun n sk ct => (decaps n sk ct).map (F n)
+    Game.advantage
+      (ProbComp.eval (cca2GameOn
+        (fun n _ m0 m1 => (m0.length == n) && (m1.length == n)) encBits keyGen
+        (hybridEncrypt encaps' E.encrypt) (hybridDecrypt decaps' E.decrypt) adversary false n))
+      (ProbComp.eval (cca2GameOn
+        (fun n _ m0 m1 => (m0.length == n) && (m1.length == n)) encBits keyGen
+        (hybridEncrypt encaps' E.encrypt) (hybridDecrypt decaps' E.decrypt) adversary true n)) ≤
+      2 * Game.advantage (ProbComp.eval (kemCCARealGame keyGen encaps decaps kem n))
+        (ProbComp.eval (kemCCAIdealGame keyLen keyGen encaps decaps kem n)) +
+      Game.advantage (ProbComp.eval (E.ccaOneTimeGame dem false n))
+        (ProbComp.eval (E.ccaOneTimeGame dem true n))
+
+/-- Native KEM and one-time symmetric CCA reductions for the postprocessed KEM–DEM hybrid, with
+hybrid advantage at most twice the KEM advantage plus the symmetric advantage at every `n`: a
+step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a), not the cited result,
+because the KEM games on its right-hand side give the adversary more than the exercise's
+(#5293, #5686).
+
+The proof constructs both reductions. The KEM advantage is measured in `kemCCARealGame` and
+`kemCCAIdealGame`, where the distinguisher receives `(pk, (k, ct))` and may submit any word other
+than the challenge for decapsulation, whereas the exercise's KEM challenger sends only the key and
+encapsulation and restricts queries to `C_kem` (printed p. 513). The symmetric advantage is measured
+in `E.ccaOneTimeGame`, which rejects decryption queries outside `E.ctSpace` with `[]`
+(`decrypt_eq_none_of_ctSpace_eq_false`). The hybrid game on the left decapsulates arbitrary words
+outside `C_kem` too. The reduction code and polynomial clocks are fixed before `n`. No security
+assumption is needed for this quantitative statement. -/
 theorem exists_hybridCCA_reductions (E : SymmetricCipher)
     {keyLen : ℕ → ℕ} {F : ℕ → List Bool → List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -759,34 +831,19 @@ theorem exists_hybridCCA_reductions (E : SymmetricCipher)
     (hcorrect : ∀ n keys, keys ∈ (ProbComp.eval (keyGen n)).support →
       ∀ kc ∈ (ProbComp.eval (encaps n keys.1)).support, decaps n keys.2 kc.2 = some kc.1)
     (adversary : WordCCA2Adversary) (hA : adversary.IsPPT) :
-    let encaps' := fun n pk => (fun kc => (F n kc.1, kc.2)) <$> encaps n pk
-    let decaps' := fun n sk ct => (decaps n sk ct).map (F n)
-    ∃ (Bkem : OracleDistinguisher) (Bs : CCAAdversary),
-      IsOraclePPT encBool Bkem ∧ IsOraclePPT encBool Bs ∧ ∀ n,
-      Game.advantage
-        (ProbComp.eval (cca2GameOn
-          (fun n _ m0 m1 => (m0.length == n) && (m1.length == n)) encBits keyGen
-          (hybridEncrypt encaps' E.encrypt) (hybridDecrypt decaps' E.decrypt) adversary false n))
-        (ProbComp.eval (cca2GameOn
-          (fun n _ m0 m1 => (m0.length == n) && (m1.length == n)) encBits keyGen
-          (hybridEncrypt encaps' E.encrypt) (hybridDecrypt decaps' E.decrypt) adversary true n)) ≤
-        2 * Game.advantage (ProbComp.eval (kemCCARealGame keyGen encaps decaps Bkem n))
-          (ProbComp.eval (kemCCAIdealGame keyLen keyGen encaps decaps Bkem n)) +
-        Game.advantage (ProbComp.eval (E.ccaOneTimeGame Bs false n))
-          (ProbComp.eval (E.ccaOneTimeGame Bs true n)) := by
-  dsimp only
+    Nonempty (HybridCCAReductions E keyLen F keyGen encaps decaps adversary) := by
   obtain ⟨decBound, hdecPoly, hdec⟩ := exists_decryption_length_bound hkeyGen hdecaps
   obtain ⟨ctBound, hctPoly, hct⟩ := E.exists_ciphertext_length_bound_of_length_eq
   obtain ⟨symBound, hsymPoly, hsym⟩ := E.exists_decryption_length_bound
-  refine ⟨hybridToKEMCCAHiddenBit E F decBound adversary,
+  refine ⟨⟨hybridToKEMCCAHiddenBit E F decBound adversary,
     hybridToOneTimeCCAAdversary E keyGen
       (fun n pk => (fun kc => (F n kc.1, kc.2)) <$> encaps n pk)
       (fun n sk ct => (decaps n sk ct).map (F n)) ctBound symBound adversary,
     isOraclePPT_hybridToKEMCCAHiddenBit E hF hdecPoly hA,
     isOraclePPT_hybridToOneTimeCCAAdversary E hkeyGen
       (isPPTOn_postprocessed_encaps hF hencaps)
-      (computableInPolyTime_postprocessed_decaps hF hdecaps) hctPoly hsymPoly hA, ?_⟩
-  intro n
+      (computableInPolyTime_postprocessed_decaps hF hdecaps) hctPoly hsymPoly hA, fun n => ?_⟩⟩
+  dsimp only
   have h := advantage_hybridCCA_le_two_mul E keyLen F keyGen encaps decaps decBound
     adversary n (hlaw n) (hcorrect n) (hdec n)
   dsimp only at h

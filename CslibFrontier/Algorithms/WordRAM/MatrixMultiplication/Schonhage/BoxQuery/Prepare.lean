@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.InputLayout
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Memory
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual query preparation from original input words
@@ -61,27 +62,17 @@ theorem exec_loadInput {w L m t Q : ℕ} (x : Data registers)
     (hfit.of_le (by omega))
   obtain ⟨b, hb, _, _, b10, _, _, hbμ, bf⟩ := BoxTable.exec_constants a
     (hfit.of_le ((by decide : 10 ≤ 16).trans (Nat.le_add_left _ _)))
-  have bL : b.regs BoxTable.Reg.levels = L :=
-    (bf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans aL
+  have bL : b.regs BoxTable.Reg.levels = L := by regs_frame
   obtain ⟨c, hc, cT, _, hcμ, cf⟩ := BoxTable.exec_span b bL b10 (hfit.of_le (by omega))
-  have cL : c.regs BoxTable.Reg.levels = L :=
-    (cf _ (by decide) (by decide) (by decide)).trans bL
-  have cm : c.regs BoxTable.Reg.inner = m :=
-    (cf _ (by decide) (by decide) (by decide)).trans
-      ((bf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans am)
-  have ct : c.regs BoxTable.Reg.threshold = t :=
-    (cf _ (by decide) (by decide) (by decide)).trans
-      ((bf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans ath)
-  have cQ : c.regs Reg.query = Q :=
-    (cf _ (by decide) (by decide) (by decide)).trans
-      ((bf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans aQ)
-  have hf5 : Fits w 5 := hfit.of_le (by omega)
-  have hfB : Fits w (5 + 10 ^ L) := hfit.of_le (by omega)
+  have cL : c.regs BoxTable.Reg.levels = L := by regs_frame
+  have cm : c.regs BoxTable.Reg.inner = m := by regs_frame
+  have ct : c.regs BoxTable.Reg.threshold = t := by regs_frame
+  have cQ : c.regs Reg.query = Q := by regs_frame
   have hfD : Fits w (5 + 10 ^ L + 10 ^ L) := hfit.of_le (by omega)
   let y := ((c.set BoxTable.Reg.arrayA 5).set BoxTable.Reg.arrayB (5 + 10 ^ L)).set
     BoxTable.Reg.directory (5 + 10 ^ L + 10 ^ L)
   have hd : ExecWithin w inputPointers c y 3 := by
-    ram_eval [inputPointers, y, cT, hf5, hfB, hfD, BoxTable.Reg.arrayA,
+    ram_eval [inputPointers, y, cT, hfD, BoxTable.Reg.arrayA,
       BoxTable.Reg.arrayB, BoxTable.Reg.directory, BoxTable.Reg.span, Fin.mk.injEq]
   refine ⟨y, (ha.seq (hb.seq (hc.seq hd))).mono (by omega), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simpa [y, BoxTable.Reg.levels, BoxTable.Reg.arrayA,
@@ -134,9 +125,7 @@ theorem exec_prepare {w L m t A B : ℕ} (hmL : m ≤ L) (x : Data registers)
       (fun i => by simpa only [uμ, BoxTable.leafIndex_leafAt] using hleft i)
       (fun i => by simpa only [uμ, BoxTable.leafIndex_leafAt] using hright i)
       (haddr.of_le (constructor_address_le L m t hmL)) htable
-  have yQ : y.regs Reg.query = q.val :=
-    (hy.regs_eq (by decide :
-      (Code.seq BoxTable.geometry BoxTable.tile).Preserves Reg.query)).trans uQ
+  have yQ : y.regs Reg.query = q.val := by regs_frame
   have he : ExecWithin (w + 2) prepare x y (preparationTime L m t) :=
     (hu.seq hy).mono (by unfold preparationTime; omega)
   refine ⟨y, he, yL, ym, yt, yQ, yH, yT, yD, yR, yV, yK, yA, yB, ?_, ?_⟩

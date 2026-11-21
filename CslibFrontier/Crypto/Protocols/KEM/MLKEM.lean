@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.KPKE
+public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 
 /-!
 # ML-KEM: the FIPS 203 implicit-rejection wrapper
@@ -23,7 +24,7 @@ implicit rejection ([NIST, Section 6, Algorithms 16–18][NISTFIPS203]):
 
 The wrapper is stated for any `ExplicitCoinPKE`, and the re-encryption check is the existing
 `FujisakiOkamoto.decT` with coin function `m ↦ (G(m ‖ h)).2` (`decapsWith_eq`). Unlike
-`FujisakiOkamoto.Scheme.decapsNotBot`, which derives keys as `H(false, m, c)` and rejection keys
+`FujisakiOkamoto.Scheme.decapsNotBot`, which derives keys as `H(m, c)` and rejection keys
 from a message-space seed, ML-KEM takes the shared key from `G` without hashing `c`, binds the
 public key into `G` through `H(ek)`, and derives rejection keys from an independent seed `z`.
 
@@ -110,7 +111,9 @@ theorem decapsWith_eq [DecidableEq CT] (pke : ExplicitCoinPKE PK SK M R CT) (G :
     decapsWith pke G J dk c =
       if pke.encDet dk.pk m' (G (m', dk.pkHash)).2 = c then (G (m', dk.pkHash)).1
       else J (dk.seed, c) := by
-  unfold decapsWith decT encT
+  unfold decapsWith
+  rw [decT_eq]
+  unfold encT
   rw [hdec]
   by_cases h : pke.encDet dk.pk m' (G (m', dk.pkHash)).2 = c <;> simp [h]
 

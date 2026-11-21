@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import Mathlib.Data.FinEnum
 
 /-!
@@ -297,8 +298,26 @@ private theorem color_poly {α : Type} {enc : α ↪ List Bool} {a : α → ℕ 
     {p : α → ℕ × ℕ} (ha : ComputableInPolyTime a enc encSperner2D)
     (hp : ComputableInPolyTime p enc (encPair encNat encNat)) :
     ComputableInPolyTime (fun b => color (a b) (p b)) enc (encFinEnum (Fin 3)) := by
-  unfold color boundaryColor outputColor
-  fun_prop
+  have hx := hp.fst'
+  have hy := hp.snd'
+  have hm := ha.fst'
+  have hside := ComputableInPolyTime.binary_two_pow.comp hm
+  have hboundary : ComputableInPolyTime (fun b => boundaryColor (p b))
+      enc (encFinEnum (Fin 3)) := by
+    unfold boundaryColor
+    exact ite_decide (hy.decide_eq' (const 0)) (const 2)
+      (ite_decide (hx.decide_eq' (const 0)) (const 1) (const 0))
+  have hwordx := bitsLow hm hx
+  have hwordy := bitsLow hm hy
+  have hout := computableInPolyTime_evalCircuitOutputs ha.snd' (bitsAppend hwordx hwordy)
+  have hzero := bitsGetDWithInput hout (const 0) false
+  have htwo := bitsGetDWithInput hout (const 2) false
+  unfold color outputColor
+  exact ite_decide
+    (decide_or (hx.decide_eq' (const 0))
+      (decide_or (hy.decide_eq' (const 0))
+        (decide_or (hx.decide_eq' hside) (hy.decide_eq' hside))))
+    hboundary (hzero.ite (const 1) (htwo.ite (const 2) (const 0)))
 
 attribute [local fun_prop] color_poly
 
@@ -371,7 +390,7 @@ private theorem decodeTriangle_tri {α : Type} {enc : α ↪ List Bool} {m : α 
     {w : α → List Bool} (hm : ComputableInPolyTime m enc encUnary)
     (hw : ComputableInPolyTime w enc encBits) :
     ComputableInPolyTime (fun a => decodeTriangle (m a) (w a)) enc encTri := by
-  simp only [decodeTriangle, show ∀ w, lsbValue w = ofBits w from lsbValue_eq_foldr_bit]
+  simp only [decodeTriangle, ← ofBits_eq_lsbValue]
   fun_prop
 
 private theorem encodeTriangle_tri {α : Type} {enc : α ↪ List Bool} {m : α → ℕ}

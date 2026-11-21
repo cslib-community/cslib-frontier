@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Counter
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Foundations.Data.Nat.CeilDiv
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -64,30 +65,16 @@ noncomputable def schoeningTrials (k n c : ℕ) : ℕ :=
 
 /-- Rounding up a quotient of natural numbers. -/
 theorem natCeil_natCast_div {m d : ℕ} (hd : 0 < d) :
-    ⌈(m : ℝ) / d⌉₊ = (m + d - 1) / d := by
-  have hd' : (0 : ℝ) < d := by exact_mod_cast hd
-  apply le_antisymm
-  · rw [Nat.ceil_le, div_le_iff₀ hd']
-    have h := Nat.div_add_mod' (m + d - 1) d
-    have hr := Nat.mod_lt (m + d - 1) hd
-    have : m ≤ (m + d - 1) / d * d := by omega
-    exact_mod_cast this
-  · have hq := Nat.le_ceil ((m : ℝ) / d)
-    rw [div_le_iff₀ hd'] at hq
-    have hq' : m ≤ ⌈(m : ℝ) / d⌉₊ * d := by exact_mod_cast hq
-    rw [Nat.div_le_iff_le_mul_add_pred hd, Nat.mul_comm]
-    omega
+    ⌈(m : ℝ) / d⌉₊ = (m + d - 1) / d :=
+  (Nat.ceil_div_eq_ceilDiv m hd).trans (Nat.ceilDiv_eq_add_pred_div m d)
 
 /-- Rounding up in two stages is rounding up once. -/
 theorem add_pred_div_add_pred_div {v a b : ℕ} (ha : 0 < a) (hb : 0 < b) :
     ((v + a - 1) / a + b - 1) / b = (v + a * b - 1) / (a * b) := by
-  have h : v + a - 1 + a * (b - 1) = v + a * b - 1 := by
-    obtain ⟨b, rfl⟩ : ∃ b', b = b' + 1 := ⟨b - 1, by omega⟩
-    simp only [Nat.add_sub_cancel, Nat.mul_add, Nat.mul_one]
-    omega
-  calc ((v + a - 1) / a + b - 1) / b = (v + a - 1 + a * (b - 1)) / a / b := by
-        rw [Nat.add_mul_div_left _ _ ha, Nat.add_sub_assoc hb]
-    _ = (v + a * b - 1) / (a * b) := by rw [Nat.div_div_eq_div_mul, h]
+  simp only [← Nat.ceilDiv_eq_add_pred_div]
+  exact eq_of_forall_ge_iff fun c => by
+    rw [ceilDiv_le_iff_le_mul hb, ceilDiv_le_iff_le_mul ha,
+      ceilDiv_le_iff_le_mul (Nat.mul_pos ha hb), mul_assoc]
 
 /-! ### The digits of the trial count -/
 

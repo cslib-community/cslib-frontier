@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Scan
 public import CslibFrontier.Computability.WordRAM.Heap
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Initialization of the actual root stack frame
@@ -53,11 +54,10 @@ theorem exec_rootFinish {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
   let y := (((((((((((x.set address f).write f (x.regs childCount)).set address (f + 1)).write
     (f + 1) 0).set address (f + 2)).write (f + 2) 1).set address (f + 3)).write
     (f + 3) 0).set level 0).set mode 0).set active 1)
-  have hconst : Fits w 1 := hw.of_le (by omega)
   have hf1 : Fits w (x.regs frames + 1) := hw.of_le (by omega)
   have hf2 : Fits w (x.regs frames + 2) := hw.of_le (by omega)
   have he : ExecWithin w rootFinish x y 11 := by
-    ram_eval [rootFinish, y, f, h0, h1, hw, hconst, hf1, hf2, address, level, mode, active,
+    ram_eval [rootFinish, y, f, h0, h1, hw, hf1, hf2, address, level, mode, active,
       one, nil, childCount, frames, Fin.mk.injEq]
   refine ⟨y, he, ?_, ?_, by simp [y], rfl, ?_,
     fun i hi => he.regs_eq (rootFinish_preserves i hi)⟩
@@ -140,8 +140,7 @@ theorem exec_rootList {w N capacity : ℕ} (x : Data registers) (input : ℕ →
   have hvf := fixed frames (by decide) (by decide) (by decide) (by decide)
   have hvs := fixed stamps (by decide) (by decide) (by decide) (by decide)
   obtain ⟨y, hy, hyl, hym, hya, hmem, hfinishFrame, _⟩ := exec_rootFinish v
-    ((fixed nil (by decide) (by decide) (by decide) (by decide)).trans h0)
-    ((fixed one (by decide) (by decide) (by decide) (by decide)).trans h1)
+    (by regs_frame) (by regs_frame)
     (hw.of_le (by rw [hvf]; omega))
   have he : ExecWithin w rootList x y (20 * N + 19) := by
     exact (hu.seq (hv.seq hy)).mono (by omega)

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Diamon
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
+import CslibFrontier.Computability.Complexity.Reduction.Guard
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -157,11 +158,9 @@ theorem satisfiable_diamondDetours_iff (φ : CNF ℕ) :
     refine ⟨fun i => σ (φ.vars.getD i 0), fun j hj => ?_⟩
     obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1
       ((CNF.eval_eq_true_iff _ _).1 hσ φ[j] (List.getElem_mem hj))
-    have hlt := List.idxOf_lt_length_iff.2 (fst_mem_vars hj hl)
     refine ⟨_, mem_diamondDetours.2 ⟨j, hj, l, hl, rfl⟩, rfl, ?_⟩
     simp only
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some,
-      List.getElem_idxOf hlt]
+    rw [List.getD_eq_getElem?_getD, List.getElem?_idxOf (fst_mem_vars hj hl), Option.getD_some]
     exact hσl
 
 /-- **Correctness of the diamond construction.** A formula is satisfiable exactly when its
@@ -186,9 +185,7 @@ namespace SAT
 /-- The detours of the diamond graph are computable in polynomial time. -/
 private theorem computableInPolyTime_diamondDetours :
     ComputableInPolyTime diamondDetours encCNF (encList Diamond.encDetour) := by
-  have hvars := computableInPolyTime_vars
-  unfold diamondDetours encCNF
-  fun_prop
+  fun_prop [diamondDetours]
 
 /-- The diamond graph is computable in polynomial time: node labels are computed in unary from
 diamond, row, clause and first-occurrence indices, then converted to binary. -/
@@ -204,11 +201,7 @@ theorem computableInPolyTime_diamondGraph :
 @[fun_prop]
 theorem computableInPolyTime_toDirHamPath :
     ComputableInPolyTime toDirHamPath encCNF encPathInstance := by
-  have hvars := computableInPolyTime_vars
-  have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.vars.length) encCNF encUnary :=
-    (length_list encNat).comp hvars
-  unfold toDirHamPath
-  fun_prop
+  fun_prop [toDirHamPath]
 
 /-- **Correctness of the cycle construction.** A formula is satisfiable exactly when its closed
 diamond graph has a Hamiltonian cycle. -/
@@ -237,18 +230,11 @@ theorem polyTimeReducible_SAT_DirHamPath :
 three literals is mapped to the diamond graph of the empty clause, which has no Hamiltonian
 path. -/
 theorem polyTimeReducible_ThreeSAT_DirHamPath :
-    PolyTimeReducible encCNF encPathInstance ThreeSAT DirHamPath := by
-  refine ⟨fun φ => if φ.all (fun c => decide (c.length ≤ 3)) then SAT.toDirHamPath φ
-    else SAT.toDirHamPath [[]], by fun_prop, fun φ => ?_⟩
-  simp only [ThreeSAT, Set.mem_ofPred_eq]
-  split_ifs with h
-  · rw [SAT.toDirHamPath_mem_iff, mem_SAT]
-    simp only [List.all_eq_true, decide_eq_true_eq] at h
-    exact ⟨fun h' => h'.2, fun h' => ⟨h, h'⟩⟩
-  · rw [SAT.toDirHamPath_mem_iff, mem_SAT]
-    simp only [List.all_eq_true, decide_eq_true_eq] at h
-    refine ⟨fun h' => (h h'.1).elim, fun ⟨σ, hσ⟩ => ?_⟩
-    simp at hσ
+    PolyTimeReducible encCNF encPathInstance ThreeSAT DirHamPath :=
+  .of_guard (g := fun φ => φ.all fun c => decide (c.length ≤ 3)) (SAT.toDirHamPath [[]])
+    (by fun_prop) SAT.computableInPolyTime_toDirHamPath
+    (by simp [SAT.toDirHamPath_mem_iff, mem_SAT, CNF.Satisfiable, CNF.eval, Clause.eval])
+    fun φ => by simp [ThreeSAT, SAT.toDirHamPath_mem_iff, mem_SAT]
 
 /-- `DirHamPath` is `NP`-hard. -/
 theorem DirHamPath_npHard : NPHard encPathInstance DirHamPath :=

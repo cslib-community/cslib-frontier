@@ -44,10 +44,8 @@ example : (blockModeSelect 2 true ofbQueryUnequal).length = blockModeBlocks 2 of
 /-- Answering the keystream calls with a fixed function `f` gives the OFB keystream
 `f x, f (f x), f (f (f x))`. -/
 example (f : BitString 8 → BitString 8) (x : BitString 8) :
-    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifFin fun y => pure (f y))
-        (ofbChainQueries x 3) =
-      (pure [f x, f (f x), f (f (f x))] : ProbComp (List (BitString 8))) :=
-  interpret_ofbChainQueries f x 3
+    (ofbChainQueries x 3).run (fun y => pure (f y)) = pure [f x, f (f x), f (f (f x))] :=
+  run_ofbChainQueries f x 3
 
 /-! ### A concrete adversary for the OFB bounds -/
 
@@ -76,15 +74,16 @@ def xorKeyed (k x : BitString 8) : BitString 8 := k + x
 
 /-- The OFB experiment for `xorKeyed` is the real PRF experiment for the reduction. -/
 example : ofbCpaGame xorKeyed 2 true ofbOneQueryAdversary =
-    PRF.realGame xorKeyed (ofbReduction 2 true ofbOneQueryAdversary) :=
-  ofbCpaGame_eq_realGame xorKeyed 2 true ofbOneQueryAdversary
+    ProbComp.eval (PRF.realExperiment xorKeyed (ofbReduction 2 true ofbOneQueryAdversary)) :=
+  ofbCpaGame_eq_realExperiment xorKeyed 2 true ofbOneQueryAdversary
 
 /-- With a uniform random function on 8-bit blocks, the adversary's view is within
 `2 · (2 + 2) / 2 ^ 8 = 1 / 32` of the ideal experiment. -/
 example :
-    (Game.advantage (PRF.idealGame (ofbReduction 2 false ofbOneQueryAdversary))
-        (blockModeIdealGame 2 ofbOneQueryAdversary) : ℝ) ≤ 1 / 32 :=
-  (advantage_idealGame_ofbReduction_le 2 false isCostBounded_ofbOneQueryAdversary).trans_eq
+    (Game.advantage
+        (ProbComp.eval (PRF.idealExperiment (ofbReduction 2 false ofbOneQueryAdversary)))
+        (ProbComp.eval (blockModeIdealExperiment 2 ofbOneQueryAdversary)) : ℝ) ≤ 1 / 32 :=
+  (advantage_idealExperiment_ofbReduction_le 2 false isCostBounded_ofbOneQueryAdversary).trans_eq
     (by norm_num)
 
 /-- OFB mode with a uniform random function on 8-bit blocks: the adversary's left-or-right
@@ -167,12 +166,12 @@ theorem isQueryBounded_lpTree : OracleComp.IsQueryBounded lpTree 2 := by
   · exact .liftBind (n := 0) lpMsgTwo _ fun _ => .pure _ 0
   · exact .liftBind (n := 0) lpMsgEmpty _ fun _ => .pure _ 0
 
-/-- Non-vacuous instance of the length-prepended CBC-MAC bound: two queries of at most three
-blocks with 8-bit blocks give `2 ^ 2 · (3 + 1) ^ 2 / 2 ^ 8 = 1 / 4`. -/
+/-- Non-vacuous instance of the length-prepended CBC-MAC uniform-random-function step (#6046): two
+queries of at most three blocks with 8-bit blocks give `2 ^ 2 · (3 + 1) ^ 2 / 2 ^ 8 = 1 / 4`. -/
 example :
-    |lengthPrependedRealSuccess encode83 (PMF.pure lpTree) -
+    |lengthPrependedUniformFunctionSuccess encode83 (PMF.pure lpTree) -
         lengthPrependedIdealSuccess 8 3 (PMF.pure lpTree)| ≤ 1 / 4 :=
-  (abs_lengthPrependedRealSuccess_sub_lengthPrependedIdealSuccess_le 8 2 3
+  (abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le 8 2 3
       blockCountBlock_injective_8_3 (PMF.pure lpTree) fun tree htree => by
         have hEq : tree = lpTree :=
           (PMF.mem_support_pure_iff _ _).1 ((PMF.mem_support_iff _ _).2 htree)
@@ -185,9 +184,9 @@ example :
 /-- info: 'Cslib.Crypto.length_blockModeSelect' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms length_blockModeSelect
-/-- info: 'Cslib.Crypto.interpret_ofbChainQueries' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Cslib.Crypto.run_ofbChainQueries' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
-#print axioms interpret_ofbChainQueries
+#print axioms run_ofbChainQueries
 /-- info: 'Cslib.Crypto.not_isPrefix_prependLength' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms not_isPrefix_prependLength

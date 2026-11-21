@@ -27,17 +27,32 @@ Bilinear operator-norm characterization, Schur's test, and entry bounds for the 
 
 ## Main results
 
+* `EuclideanSpace.norm_le_one_iff_sum_sq_le_one`: unit-ball characterization
+  `‖u‖ ≤ 1 ↔ ∑ x, u.ofLp x ^ 2 ≤ 1` in `EuclideanSpace ℝ κ`.
 * `Matrix.absVec_apply`, `Matrix.norm_absVec_le`, `Matrix.inner_toEuclideanCLM_le_absVec`:
   entrywise nonnegativity and absolute-value comparison for bilinear forms.
 * `Matrix.opNorm_toEuclideanCLM_le_of_inner`: `‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ ≤ C` from
   unit-ball bilinear evaluations `inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) A v) ≤ C`.
+* `Matrix.abs_inner_toEuclideanCLM_le_opNorm`:
+  `|inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) A v)| ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖`
+  for vectors of norm at most `1`.
 * `Matrix.opNorm_toEuclideanCLM_le_sqrt`: Schur's test, bounding
   `‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖` by `√(R · C)` from row and column `ℓ¹` bounds `R` and `C`.
+* `Matrix.abs_sum_mul_le_sqrt_mul_sqrt`: Cauchy–Schwarz for bilinear forms.
+* `Matrix.abs_sum_mul_le_l2_opNorm`, `Matrix.abs_sum_sum_le_l2_opNorm`: bilinear and
+  rectangle-sum bounds for arbitrary finite rectangular matrices.
 * `Matrix.abs_entry_le_norm_toEuclideanCLM`: every entry magnitude is at most
   `‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖`.
 -/
 
 public section
+
+/-- A vector in `EuclideanSpace ℝ κ` lies in the closed unit ball iff its squared coordinates sum
+to at most `1`. -/
+theorem EuclideanSpace.norm_le_one_iff_sum_sq_le_one {κ : Type*} [Fintype κ]
+    (u : EuclideanSpace ℝ κ) :
+    ‖u‖ ≤ 1 ↔ ∑ x, u.ofLp x ^ 2 ≤ 1 := by
+  rw [← sq_le_one_iff₀ (norm_nonneg _), EuclideanSpace.real_norm_sq_eq]
 
 namespace Matrix
 
@@ -54,8 +69,9 @@ open Finset
 
 theorem norm_absVec_le {κ : Type*} [Fintype κ] {u : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) :
     ‖absVec u‖ ≤ 1 := by
-  rw [← sq_le_one_iff₀ (norm_nonneg _), EuclideanSpace.real_norm_sq_eq]
-  simpa [EuclideanSpace.real_norm_sq_eq] using pow_le_one₀ (n := 2) (norm_nonneg u) hu
+  rw [EuclideanSpace.norm_le_one_iff_sum_sq_le_one]
+  simp only [absVec_apply, sq_abs]
+  exact (EuclideanSpace.norm_le_one_iff_sum_sq_le_one u).1 hu
 
 theorem inner_toEuclideanCLM_le_absVec {κ : Type*} [Fintype κ] [DecidableEq κ]
     {Γ : Matrix κ κ ℝ} (hnonneg : ∀ x y, 0 ≤ Γ x y) (u v : EuclideanSpace ℝ κ) :
@@ -81,6 +97,16 @@ theorem opNorm_toEuclideanCLM_le_of_inner {κ : Type*} [Fintype κ] [DecidableEq
   rw [RCLike.re_to_real, real_inner_comm]
   exact h u v hu.le hv.le
 
+/-- Absolute bilinear evaluation of a real matrix on vectors of norm at most `1` is at most its
+Euclidean operator norm. -/
+theorem abs_inner_toEuclideanCLM_le_opNorm {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (A : Matrix κ κ ℝ) {u v : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) (hv : ‖v‖ ≤ 1) :
+    |inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) A v)| ≤
+      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ :=
+  (abs_real_inner_le_norm _ _).trans <|
+    (mul_le_mul hu ((Matrix.toEuclideanCLM (𝕜 := ℝ) A).unit_le_opNorm _ hv)
+      (norm_nonneg _) zero_le_one).trans_eq (one_mul _)
+
 private theorem sum_abs_mul_sq_le_of_row_le {κ : Type*} [Fintype κ]
     (A : Matrix κ κ ℝ) {R : ℝ} (hR : 0 ≤ R) (hrow : ∀ x, ∑ y, |A x y| ≤ R)
     {u : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) :
@@ -95,10 +121,8 @@ private theorem sum_abs_mul_sq_le_of_row_le {κ : Type*} [Fintype κ]
     _ ≤ ∑ x, u.ofLp x ^ 2 * R :=
           sum_le_sum fun x _ => mul_le_mul_of_nonneg_left (hrow x) (sq_nonneg _)
     _ = (∑ x, u.ofLp x ^ 2) * R := (sum_mul _ _ _).symm
-    _ ≤ 1 * R := by
-          refine mul_le_mul_of_nonneg_right ?_ hR
-          rw [← EuclideanSpace.real_norm_sq_eq]
-          exact pow_le_one₀ (norm_nonneg _) hu
+    _ ≤ 1 * R :=
+          mul_le_mul_of_nonneg_right ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one u).1 hu) hR
     _ = R := one_mul R
 
 /-- **Schur's test** for Euclidean operator norms: if row `ℓ¹` norms are at most `R` and column
@@ -153,11 +177,49 @@ theorem abs_entry_le_norm_toEuclideanCLM {κ : Type*} [Fintype κ] [DecidableEq 
   have hxy : inner ℝ ex (Matrix.toEuclideanCLM (𝕜 := ℝ) A ey) = A x y := by
     rw [Matrix.inner_toEuclideanCLM]
     simp [ex, ey, dotProduct, Matrix.mulVec]
-  calc |A x y| = |inner ℝ ex (Matrix.toEuclideanCLM (𝕜 := ℝ) A ey)| := by rw [hxy]
-    _ ≤ ‖ex‖ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A ey‖ := abs_real_inner_le_norm _ _
-    _ ≤ 1 * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ * ‖ey‖) := by
-          rw [hex]
-          exact mul_le_mul_of_nonneg_left (ContinuousLinearMap.le_opNorm _ _) zero_le_one
-    _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ := by rw [hey, mul_one, one_mul]
+  rw [← hxy]
+  exact abs_inner_toEuclideanCLM_le_opNorm A hex.le hey.le
+
+/-- Cauchy–Schwarz for a finite real matrix bilinear form. Extracted from Samuel Schlesinger's
+Forster proof, and shared by the operator-norm and Hadamard-matrix bounds. -/
+theorem abs_sum_mul_le_sqrt_mul_sqrt {X Y : Type*} [Fintype X] [Fintype Y]
+    (M : Matrix X Y ℝ) (p : X → ℝ) (q : Y → ℝ) :
+    |∑ x, ∑ y, p x * M x y * q y| ≤
+      √(∑ x, p x ^ 2) * √(∑ x, (M *ᵥ q) x ^ 2) := by
+  have hcs := abs_real_inner_le_norm
+    (WithLp.toLp 2 p : EuclideanSpace ℝ X)
+    (WithLp.toLp 2 (M *ᵥ q) : EuclideanSpace ℝ X)
+  simp only [EuclideanSpace.inner_toLp_toLp, star_trivial, EuclideanSpace.norm_eq,
+    Real.norm_eq_abs, sq_abs] at hcs
+  rw [dotProduct_comm] at hcs
+  have heq : ∑ x, ∑ y, p x * M x y * q y = p ⬝ᵥ (M *ᵥ q) := by
+    simp only [dotProduct, mulVec, mul_sum, mul_assoc]
+  rw [heq]
+  exact hcs
+
+open scoped Matrix.Norms.L2Operator in
+/-- The bilinear form of a finite real rectangular matrix is bounded by its Euclidean
+operator norm. Extracted from Samuel Schlesinger's proof of Forster's sign-rank bound. -/
+theorem abs_sum_mul_le_l2_opNorm {X Y : Type*} [Fintype X] [Fintype Y] [DecidableEq Y]
+    (M : Matrix X Y ℝ) (p : X → ℝ) (q : Y → ℝ) :
+    |∑ x, ∑ y, p x * M x y * q y| ≤
+      ‖M‖ * √(∑ x, p x ^ 2) * √(∑ y, q y ^ 2) := by
+  have hop := Matrix.l2_opNorm_mulVec M (WithLp.toLp 2 q)
+  simp only [EuclideanSpace.norm_eq, Real.norm_eq_abs, sq_abs] at hop
+  calc _ ≤ _ := abs_sum_mul_le_sqrt_mul_sqrt M p q
+    _ ≤ √(∑ x, p x ^ 2) * (‖M‖ * √(∑ y, q y ^ 2)) :=
+      mul_le_mul_of_nonneg_left (by simpa using hop) (Real.sqrt_nonneg _)
+    _ = _ := by ring
+
+open scoped Matrix.Norms.L2Operator in
+/-- A rectangle sum is bounded by the spectral norm times the square roots of its side sizes.
+Empty rectangles and empty index domains are permitted. -/
+theorem abs_sum_sum_le_l2_opNorm {X Y : Type*} [Fintype X] [Fintype Y] [DecidableEq Y]
+    (M : Matrix X Y ℝ) (A : Finset X) (B : Finset Y) :
+    |∑ x ∈ A, ∑ y ∈ B, M x y| ≤ ‖M‖ * √(A.card : ℝ) * √(B.card : ℝ) := by
+  classical
+  have h := abs_sum_mul_le_l2_opNorm M (fun x => if x ∈ A then 1 else 0)
+    (fun y => if y ∈ B then 1 else 0)
+  simpa [ite_mul, mul_ite] using h
 
 end Matrix

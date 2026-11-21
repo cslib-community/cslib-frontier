@@ -13,6 +13,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Sc
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import Mathlib.Data.Nat.Size
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+
 /-!
 # Linear preparation of root endpoint addresses
 

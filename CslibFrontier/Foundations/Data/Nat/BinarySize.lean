@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Data.Nat.Factorial.Basic
+public import Mathlib.Data.Nat.Log
 public import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 
@@ -18,9 +19,10 @@ import Mathlib.Tactic.Linarith
 Most of these pure facts are moved unchanged from the binary arithmetic facade. They retain their
 qualified names without depending on a machine calculus. The bounds `Nat.size_add_le`,
 `Nat.size_add_le_max` and `Nat.size_le_self` on the binary lengths of sums and of a number itself
-also serve the logarithmic terms of Kolmogorov complexity. `Nat.log2_eq_size_sub_one` relates the
-binary length to `⌊log₂ n⌋`, and `Nat.log2_le_size` compares the floor binary logarithm with the
-binary length.
+also serve the logarithmic terms of Kolmogorov complexity. `Nat.size_eq_log_two_add_one`,
+`Nat.size_le_log_two_add_one` and `Nat.log2_eq_size_sub_one` relate the binary length to
+`⌊log₂ n⌋`, and `Nat.log2_le_size` compares the floor binary logarithm with the binary length.
+`Nat.size_mul_size_add_one_le` bounds the width of indices up to `Y * Y.size + 1`.
 -/
 
 public section
@@ -71,18 +73,35 @@ theorem size_add_le_max (m n : ℕ) : (m + n).size ≤ max m.size n.size + 1 := 
 theorem size_le_self (n : ℕ) : n.size ≤ n :=
   Nat.size_le.2 Nat.lt_two_pow_self
 
+/-- The binary length of a positive number is `⌊log₂ n⌋ + 1`. -/
+theorem size_eq_log_two_add_one {n : ℕ} (hn : n ≠ 0) : n.size = Nat.log 2 n + 1 :=
+  le_antisymm (Nat.size_le.2 (Nat.lt_pow_succ_log_self Nat.one_lt_two n))
+    (Nat.lt_size.2 (Nat.pow_log_le_self 2 hn))
+
+/-- The binary length is at most `⌊log₂ n⌋ + 1`, with equality unless `n = 0`. -/
+theorem size_le_log_two_add_one (n : ℕ) : n.size ≤ Nat.log 2 n + 1 :=
+  Nat.size_le.2 (Nat.lt_pow_succ_log_self Nat.one_lt_two n)
+
 /-- `⌊log₂ n⌋` is one less than the binary length of `n`; both vanish at `n = 0`. -/
 theorem log2_eq_size_sub_one (n : ℕ) : Nat.log2 n = n.size - 1 := by
-  rcases Nat.eq_zero_or_pos n with rfl | hn
+  rcases eq_or_ne n 0 with rfl | hn
   · simp
-  · have : n.size = Nat.log2 n + 1 :=
-      le_antisymm (Nat.size_le.2 Nat.lt_log2_self) (Nat.lt_size.2 (Nat.log2_self_le hn.ne'))
-    lia
+  · rw [Nat.log2_eq_log_two, size_eq_log_two_add_one hn, Nat.add_sub_cancel]
 
 /-- The floor binary logarithm is at most the binary length. -/
 theorem log2_le_size (n : ℕ) : Nat.log2 n ≤ n.size := by
   by_cases hz : n = 0
   · subst n; decide
   · exact ((Nat.log2_lt hz).mpr (Nat.lt_size_self n)).le
+
+/-- The binary width of a number at most `Y * Y.size + 1` is at most `2 * Y.size + 2`. -/
+theorem size_mul_size_add_one_le {Y k : ℕ} (hk : k ≤ Y * Y.size + 1) :
+    k.size ≤ 2 * Y.size + 2 := by
+  have hk' := Nat.size_le_size hk
+  have hadd := Nat.size_add_le (Y * Y.size) 1
+  have hmul := Nat.size_mul_le Y Y.size
+  have hself := Nat.size_le_self Y.size
+  have hone : Nat.size 1 = 1 := by decide
+  omega
 
 end Nat

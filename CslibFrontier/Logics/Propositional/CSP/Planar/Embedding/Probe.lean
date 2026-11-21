@@ -53,6 +53,15 @@ theorem length_occurrences_probeBody (F : CSP Rel V) (ports : List V) :
   simp only [occurrences_probeBody, List.length_append, List.length_map,
     List.length_zipIdx, List.length_reverse]
 
+/-- A checked boundary table has exactly the body darts followed by the actual probe darts.
+This counts boundary positions, including unused names, and retains closed/nullary bodies. -/
+theorem Witness.length_certificate {F : CSP Rel V} {ports : List V}
+    (w : Witness F ports) :
+    w.certificate.successor.length = 2 * (F.occurrences.length + ports.length) := by
+  have h := RotationCertificate.length_of_verifyRotation
+    (((verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted).choose)
+  simpa only [incidenceGraph_edges, List.length_map, length_occurrences_probeBody] using h
+
 /-- A source occurrence belongs to the body prefix exactly when its constraint position
 precedes the structural probe center. This concerns positions, not distinct scope records. -/
 theorem incidenceEdgeIndex_probeBody_lt_iff (F : CSP Rel V) (ports : List V)
@@ -236,10 +245,7 @@ theorem restrictPrefix_eq_self_of_verifyRotation {G : Graph} {c : RotationCertif
 certificate is accepted for the literal original-language body without changing the table. -/
 theorem verifyRotationCertificate_probeBody_nil (F : CSP Rel V) (c : RotationCertificate) :
     verifyRotationCertificate (probeBody F []) c = verifyRotationCertificate F c := by
-  have hm : F.map (fun c => (some c.1, c.2)) =
-      F.map (fun (r, scope) => (some r, scope)) := by
-    congr 1
-  simp only [probeBody, List.reverse_nil, hm, verifyRotationCertificate_append_nullary,
+  simp only [probeBody, List.reverse_nil, verifyRotationCertificate_append_nullary,
     verifyRotationCertificate_mapRelation]
 
 /-- At zero ports the canonical executable body restriction returns the very same accepted
@@ -266,7 +272,7 @@ theorem bodyCertificate_accepted_of_probe (F : CSP Rel V) (ports : List V)
     rwa [verifyRotationCertificate_probeBody_nil] at h
   | cons p ports ih =>
     have ht := verifyRotationCertificate_restrictPrefix_lastArgument
-      (F.map (fun c => (some c.1, c.2))) none ports.reverse p c (by
+      (F.map (fun c => Constraint.mk (some c.rel) c.scope)) none ports.reverse p c (by
         simpa only [probeBody, List.reverse_cons] using h)
     have ht' : verifyRotationCertificate (probeBody F ports)
         (restrictPrefix (2 * (probeBody F ports).occurrences.length) c) = true := ht
@@ -300,7 +306,7 @@ theorem verifyRotationCertificate_restrictPrefix_probe_cons (F : CSP Rel V) (p :
     verifyRotationCertificate (probeBody F ports)
       (restrictPrefix (2 * (probeBody F ports).occurrences.length) c) = true := by
   have ht := verifyRotationCertificate_restrictPrefix_lastArgument
-    (F.map (fun c => (some c.1, c.2))) none ports.reverse p c (by
+    (F.map (fun c => Constraint.mk (some c.rel) c.scope)) none ports.reverse p c (by
       simpa only [probeBody, List.reverse_cons] using h)
   exact ht
 
@@ -311,5 +317,14 @@ original body is unchanged, including repeated body variables and closed compone
   Witness.ofProbe hn
     (restrictPrefix (2 * (probeBody F ports).occurrences.length) w.certificate)
     (verifyRotationCertificate_restrictPrefix_probe_cons F p ports w.certificate w.probe_accepted)
+
+/-- First-marker deletion emits exactly the prefix restriction for the original body and
+remaining probe positions. The hypotheses are those of the existing constructor. -/
+theorem Witness.forgetHead_certificate {F : CSP Rel V} {p : V} {ports : List V}
+    (w : Witness F (p :: ports)) (hn : ports.Nodup) :
+    (w.forgetHead hn).certificate =
+      restrictPrefix (2 * (F.occurrences.length + ports.length)) w.certificate := by
+  change restrictPrefix (2 * (probeBody F ports).occurrences.length) w.certificate = _
+  rw [length_occurrences_probeBody]
 
 end Cslib.Complexity.CSP.OrderedBoundary

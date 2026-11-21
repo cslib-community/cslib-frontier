@@ -5,13 +5,15 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.Kilian.MicaliSoundness
+import CslibFrontierTests.Crypto.MerkleTestHash
 
 /-!
 # Tests for Micali's CS-proof soundness in the random oracle model
 
 1. **Pure / fixed-trace soundness and dual collision extraction.** On the one-bit, two-address toy
-   PCP verifier under `idHash`, a trace recording the opened paths of `honestProof` is
-   collision-free, `micaliExtractCompactTable` recovers `[true, true]`, and
+   PCP verifier under a sixteen-bit hash `idHash` with no collisions on the words involved, a
+   trace recording the opened paths of `honestProof` is collision-free,
+   `micaliExtractCompactTable` recovers `[true, true]`, and
    `micaliVerifyPure_sound_of_traceCollisionFree` proves that `toyVerifier` accepts the extracted
    PCP proof on every Fiat–Shamir challenge. Under a colliding hash `collideLeafHash` that maps
    `[true]` to `[false]`, a forged Micali proof for the rejected table `[true, false]` is accepted
@@ -32,12 +34,13 @@ import CslibFrontier.Crypto.Computational.Kilian.MicaliSoundness
 namespace CslibFrontierTests.Crypto.MicaliSoundness
 
 open Cslib Cslib.Complexity Cslib.Crypto Cslib.Probability OracleComp
+open CslibFrontierTests.Crypto.MerkleTestHash
 open scoped ENNReal
 
 /-! ### Part 1: Pure / Fixed-Trace Soundness and Dual Collision Extraction -/
 
-/-- Identity Merkle hash. -/
-def idHash (x : List Bool) : List Bool := x
+/-- A Merkle hash with sixteen-bit digests and no collisions among the words below. -/
+abbrev idHash : List Bool → List Bool := polyHash
 
 /-- Toy PCP verifier: one random bit chooses address `0` (on `false`) or `1` (on `true`), and the
 bit read must be `true`. -/
@@ -60,28 +63,28 @@ abbrev honestProof : MicaliProof :=
 def openingTrace (hTree : List Bool → List Bool) (proof : MicaliProof) :
     List (List Bool × List Bool) :=
   ((kilianOpenings toyVerifier x (fixedFS (x, proof.root)) proof.response).flatMap fun o =>
-    (merkleInputs (fun _ => hTree) [] [o.2.bit]
+    (merkleInputs (fun _ => hTree) [] [o.2.leaf]
       (kilianPosition toyVerifier x o.1) o.2.path).map fun q => (q, hTree q)).eraseDups
 
 abbrev trHonest : List (List Bool × List Bool) := openingTrace idHash honestProof
 
-example : TraceConsistentWith idHash trHonest := by decide
+example : TraceConsistentWith idHash trHonest := by decide +kernel
 
-example : TraceCollisionFree trHonest := by decide
+example : TraceCollisionFree trHonest := by decide +kernel
 
 example : AllOpeningsQueriedInTrace (fun _ => idHash) [] toyVerifier trHonest x
-    (fixedFS (x, honestProof.root)) honestProof.response := by decide
+    (fixedFS (x, honestProof.root)) honestProof.response := by decide +kernel
 
 -- Straight-line extraction recovers the compact table `[true, true]` and the full PCP proof bits at
 -- addresses `0` and `1`.
 example : micaliExtractCompactTable toyVerifier trHonest x honestProof.root = [true, true] := by
-  decide
+  decide +kernel
 
 example : (micaliExtractProof toyVerifier trHonest x honestProof.root).getD 0 false = true := by
-  decide
+  decide +kernel
 
 example : (micaliExtractProof toyVerifier trHonest x honestProof.root).getD 1 false = true := by
-  decide
+  decide +kernel
 
 -- `micaliVerifyPure_sound_of_traceCollisionFree` and
 -- `not_traceCollisionFree_or_accepts_of_micaliVerifyPure` certify that `toyVerifier` accepts the
@@ -89,22 +92,24 @@ example : (micaliExtractProof toyVerifier trHonest x honestProof.root).getD 1 fa
 example : toyVerifier.accepts x
     (micaliExtractProof toyVerifier trHonest x honestProof.root) [false] = true :=
   micaliVerifyPure_sound_of_traceCollisionFree (hTree := idHash) (hFS := fixedFS)
-    (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel)
 
 example : toyVerifier.accepts x
     (micaliExtractProof toyVerifier trHonest x honestProof.root) [true] = true :=
   micaliVerifyPure_sound_of_traceCollisionFree (hTree := idHash) (hFS := fixedFS)
-    (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel)
 
 example : ¬ TraceCollisionFree trHonest ∨
     ∀ ρ ∈ fixedFS (x, honestProof.root), ρ.length = toyVerifier.coins x →
       toyVerifier.accepts x (micaliExtractProof toyVerifier trHonest x honestProof.root) ρ =
         true :=
   not_traceCollisionFree_or_accepts_of_micaliVerifyPure (hTree := idHash) (hFS := fixedFS)
-    (by decide) (by decide)
+    (by decide +kernel) (by decide +kernel)
 
-/-- A colliding leaf hash that maps `[true]` to `[false]` and acts as the identity elsewhere. -/
-def collideLeafHash (q : List Bool) : List Bool :=
+/-- A colliding leaf hash that hashes `[true]` as `[false]` and acts as `idHash` elsewhere. -/
+def collideLeafHash (q : List Bool) : List Bool := polyHash <|
   if q == [true] then [false] else q
 
 /-- Under `collideLeafHash`, the rejected table `[false, false]` has the same Merkle root and
@@ -122,20 +127,22 @@ abbrev trCollide : List (List Bool × List Bool) :=
     (micaliProvePure collideLeafHash fixedFS toyVerifier x [false, false]) ++
     openingTrace collideLeafHash forgedProof
 
-example : TraceConsistentWith collideLeafHash trCollide := by decide
+example : TraceConsistentWith collideLeafHash trCollide := by decide +kernel
 
 example : AllOpeningsQueriedInTrace (fun _ => collideLeafHash) [] toyVerifier trCollide x
-    (fixedFS (x, forgedProof.root)) forgedProof.response := by decide
+    (fixedFS (x, forgedProof.root)) forgedProof.response := by decide +kernel
 
-example : micaliVerifyPure collideLeafHash fixedFS toyVerifier x forgedProof = true := by decide
+example : micaliVerifyPure collideLeafHash fixedFS toyVerifier x forgedProof = true := by
+  decide +kernel
 
 -- Because `trCollide` records `[false]` before `[true]` for both leaves, the extracted compact
 -- table is `[false, false]`, which `toyVerifier` rejects on challenge `[true]`.
 example : micaliExtractCompactTable toyVerifier trCollide x forgedProof.root = [false, false] := by
-  decide
+  decide +kernel
 
 example : toyVerifier.accepts x
-    (micaliExtractProof toyVerifier trCollide x forgedProof.root) [true] = false := by decide
+    (micaliExtractProof toyVerifier trCollide x forgedProof.root) [true] = false := by
+  decide +kernel
 
 -- `exists_collision_of_micaliVerifyPure_of_rejects` extracts a concrete hash collision in
 -- `trCollide`.
@@ -143,7 +150,8 @@ example : ∃ q₁ ∈ trCollide.map Prod.fst, ∃ q₂ ∈ trCollide.map Prod.f
     q₁ ≠ q₂ ∧ collideLeafHash q₁ = collideLeafHash q₂ :=
   exists_collision_of_micaliVerifyPure_of_rejects (H := fun _ => collideLeafHash) (k := [])
     (hFS := fixedFS) (V := toyVerifier) (tr := trCollide) (x := x) (proof := forgedProof)
-    (ρ := [true]) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (ρ := [true]) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel)
 
 /-! ### Part 2: Fiat–Shamir Challenge Union Bound & Two-Stage ROM Soundness -/
 
@@ -196,7 +204,8 @@ example (m : ℕ) (tr : List (List Bool × List Bool)) :
 -- `micaliExtractProof` unchanged.
 example : micaliExtractProof toyVerifier (([true, true], [true, true, true]) :: trHonest)
     x honestProof.root = micaliExtractProof toyVerifier trHonest x honestProof.root :=
-  micaliExtractProof_cons_of_ne toyVerifier trHonest [true, true] x (by decide) (by decide)
+  micaliExtractProof_cons_of_ne toyVerifier trHonest [true, true] x (by decide +kernel)
+    (by decide +kernel)
 
 /-- A concrete adaptive cheating prover that makes a Merkle query, uses the digest as a Fiat–Shamir
 root query, makes another Merkle query, and outputs a fixed candidate proof. -/
@@ -229,7 +238,7 @@ theorem isCostBounded_MT_halfVerifier (rt sib : List Bool) :
   unfold micaliVerify
   refine IsCostBounded.liftBind (cost := micaliMTCost) (Sum.inr (x, rt)) _ 2 ?_
   intro challenges
-  apply isCostBounded_micaliMTCost_liftLeft
+  refine IsCostBounded.liftLeft (cost₁ := fun _ => 1) ?_ fun _ => le_rfl
   cases challenges with
   | nil => exact .pure _ 2
   | cons ρ ρs =>
@@ -254,8 +263,9 @@ theorem isCostBounded_MT_soundness_adaptiveCheatingProver :
     isCostBounded_MT_adaptiveCheatingProver
     isCostBounded_MT_verifier_of_mem_support_adaptiveCheatingProver
 
--- Honest proof payload bit length and succinctness bound.
-example : micaliProofBits honestProof = 8 := by decide
+-- Honest proof payload bit length and succinctness bound: a sixteen-bit root and, for each of the
+-- two repetitions, one opened bit and one sixteen-bit label.
+example : micaliProofBits honestProof = 50 := by decide +kernel
 
 example : micaliProofBits
     (micaliProvePure (fun y => y.take 2 ++ List.replicate (2 - y.length) false)

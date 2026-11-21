@@ -65,11 +65,5 @@ theorem iterate_succ_eq (k n : ℕ) : (· + 1)^[k] n = n + k := by simp
 
 end ComputableInO
 
-namespace ComputableTidilyInO
-
-theorem iterate_succ_eq (k n : ℕ) : (· + 1)^[k] n = n + k :=
-  ComputableInO.iterate_succ_eq k n
-
-end ComputableTidilyInO
 
 end Turing.MultiTapeTM

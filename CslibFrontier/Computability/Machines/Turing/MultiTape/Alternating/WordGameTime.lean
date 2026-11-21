@@ -66,8 +66,8 @@ private theorem exists_wordGame_of_tidy {α π : Type} {enc : α ↪ List Bool}
   have hNO : N ≠ O := by simp [N, O]
   have hNM : N ≠ M := by simp [N, M]
   have hOM : O ≠ M := by simp [O, M]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (show kI + 1 ≤ K by omega) (Fin.last kI) N
-  obtain ⟨eF, heFi, heFo⟩ := exists_embedding_eq₂ (show kF + 1 + 2 ≤ K by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (show kI + 1 ≤ K by omega) (Fin.last kI) N
+  obtain ⟨eF, heFi, heFo⟩ := Fin.exists_embedding_eq₂ (show kF + 1 + 2 ≤ K by omega)
     (i := Fin.natAdd (kF + 1) 0) (o := (Fin.last kF).castAdd 2) (by simp [Fin.ext_iff]) hNO
   let P := TI.outputToWord.extendTapes eI
   let R := frozenRound (nop K Bool) ((TF.onWords true).extendTapes eF) N O M hNO hNM hOM

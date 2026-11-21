@@ -14,7 +14,8 @@ public import CslibFrontier.Foundations.Data.BitString.Enumeration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListToBits
-import Mathlib.Data.Nat.Size
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Streaming local Boolean assignments
@@ -129,11 +130,6 @@ def clock : NativeCertificate (fun n : ℕ => 2 ^ n) encUnary encNat where
     change (2 ^ n).bits = clockTransducer.run () (List.replicate n true)
     rw [bits_power, clockRun]
 
-/-- The binary visit count has exactly one more bit than the dimension. -/
-theorem length_clock (n : ℕ) : (encNat (2 ^ n)).length = n + 1 := by
-  change (2 ^ n).bits.length = n + 1
-  simp [bits_power]
-
 variable {β : Type}
 
 /-- Decode the current index, retain the runtime dimension and invoke the full captured body. -/
@@ -206,9 +202,7 @@ theorem length_prefix_le (body : (ℕ × List Bool) × β → β) (n j B : ℕ) 
   simp only [length_encPair, prefix_width, encUnary_apply, List.length_replicate]
   have hi : (runPrefix body n j initial).1 = j := IndexFold.run_index _ _ _
   rw [hi]
-  have hn : (encNat j).length ≤ (encNat (2 ^ n)).length := by
-    simpa [Nat.size_eq_bits_len] using Nat.size_le_size hj
-  rw [length_clock] at hn
+  have hn := length_encNat_le_of_le_two_pow hj
   omega
 
 /-- The decoded word itself always has the declared runtime dimension, even on arbitrary
@@ -216,8 +210,7 @@ indices. This bounds temporary callback input as well as the persistent state. -
 theorem length_callback_input (n j : ℕ) (acc : β) :
     (encCallbackInput encB ((n, lowBits n j), acc)).length =
       6 * n + 3 + (encB acc).length := by
-  simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply, length_lowBits]
-  omega
+  enc_len [length_lowBits]
 
 /-- Prepare the complete runtime width/word/captured-accumulator input for one callback. -/
 theorem prepare_polyTime :
@@ -336,7 +329,7 @@ theorem certificate_bounds {α : Type} {encIn : α ↪ List Bool}
       (NativeCertificate.polyBounded_pow_of_polyBounded hS cs ds)).add
         (hS.add (hdim.add (.const 1)))).mono fun a => ?_
     rw [hspace a]
-    simp only [encUnary_apply, List.length_replicate, length_clock]
+    simp only [encUnary_apply, List.length_replicate, length_encNat_two_pow]
     have := hmaxRS a
     have := hmaxS a
     omega
@@ -349,7 +342,7 @@ theorem certificate_bounds {α : Type} {encIn : α ↪ List Bool}
             (IndexFold.step (visit body)) (2 ^ dimension a) (0, (dimension a, initial a)) +
           ((encNat (2 ^ dimension a)).length + 1) ^ 2 ≤
         ct * (S a + 1) ^ dt + S a + (dimension a + 1 + 1) ^ 2 := by
-      rw [length_clock]
+      rw [length_encNat_two_pow]
       exact Nat.add_le_add (Nat.add_le_add (hmaxRT a) (hmaxS a)) le_rfl
     refine le_trans (le_of_eq ?_) (add_mul_le_mul_add (N := 2 ^ dimension a)
       (X := 2 * cn.time a + dimension a + (encIn a).length + ci.time a) hY)

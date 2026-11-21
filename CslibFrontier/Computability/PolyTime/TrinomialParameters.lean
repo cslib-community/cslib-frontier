@@ -79,7 +79,7 @@ theorem computableInPolyTime_stepAux :
 theorem computableInPolyTime_limbAux :
     ComputableInPolyTime (fun B => 3 ^ Probability.trinomialStepAux B) encUnary encUnary := by
   have hmax : ComputableInPolyTime (fun B : ℕ => max B 1) encUnary encUnary :=
-    (of_tidy ComputableTidilyInPolyTime.unary_max).comp (id'.prod (const 1))
+    unary_max.comp (id'.prod (const 1))
   apply binary_to_unary_bounded (binary_pow' (const 3) computableInPolyTime_stepAux)
     (unary_mul' (const 3) hmax)
   intro B
@@ -95,7 +95,7 @@ theorem computableInPolyTime_target {α : Type} {enc : α ↪ List Bool} {U bits
   have hmaxU : ComputableInPolyTime (fun x => max (U x) 2) enc encNat := by
     simpa only [max_def, decide_eq_true_eq, Function.comp_apply] using
       ite (binary_le.comp (hU.prod (const 2))) (const 2) hU
-  have hmax := of_tidy ComputableTidilyInPolyTime.unary_max
+  have hmax := ComputableInPolyTime.unary_max
   exact hmax.comp ((binary_clog_two.comp hmaxU).prod
     (hmax.comp (hbits.prod (const 1))))
 

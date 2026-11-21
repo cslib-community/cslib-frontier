@@ -33,7 +33,7 @@ namespace Turing.MultiTapeTM.UnaryDispatch
 
 /-- Every represented tag has length bounded by the finite family size. -/
 theorem length_code_le {n : ℕ} (j : Option (Fin n)) : (code j).length ≤ n := by
-  cases j <;> simp [code]; omega
+  cases j <;> simp [code]
 
 /-- The finite controller reads a bounded tag, rewinds, then runs the chosen state family. -/
 inductive State (n : ℕ) (S : Option (Fin n) → Type) where

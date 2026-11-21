@@ -293,6 +293,9 @@ theorem intBin_tdiv' {α : Type} {input : α ↪ List Bool} {left right : α →
 theorem intBin_tmod :
     ComputableInPolyTime (fun p : ℤ × ℤ => p.1.tmod p.2)
       (encPair encIntBin encIntBin) encIntBin := by
+  have hrem : ComputableInPolyTime (fun p : ℤ × ℤ => p.1.natAbs % p.2.natAbs)
+      (encPair encIntBin encIntBin) encNat :=
+    binary_mod' (by fun_prop) (by fun_prop)
   have h : ComputableInPolyTime
       (fun p : ℤ × ℤ =>
         if decide (p.1 < 0) then -((p.1.natAbs % p.2.natAbs : ℕ) : ℤ)
@@ -361,10 +364,17 @@ theorem intBin_div' {α : Type} {input : α ↪ List Bool} {left right : α → 
 theorem intBin_emod :
     ComputableInPolyTime (fun p : ℤ × ℤ => p.1.emod p.2)
       (encPair encIntBin encIntBin) encIntBin := by
+  have hrem : ComputableInPolyTime (fun p : ℤ × ℤ => p.1.natAbs % p.2.natAbs)
+      (encPair encIntBin encIntBin) encNat :=
+    binary_mod' (by fun_prop) (by fun_prop)
   have hb0 : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 = 0))
       (encPair encIntBin encIntBin) encBool := by fun_prop
   have ha_neg : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.1 < 0))
       (encPair encIntBin encIntBin) encBool := by fun_prop
+  have hnegRem : ComputableInPolyTime
+      (fun p : ℤ × ℤ => (p.2.natAbs - p.1.natAbs % p.2.natAbs) % p.2.natAbs)
+      (encPair encIntBin encIntBin) encNat :=
+    binary_mod' (by fun_prop) (by fun_prop)
   have hneg : ComputableInPolyTime
       (fun p : ℤ × ℤ => (((p.2.natAbs - p.1.natAbs % p.2.natAbs) % p.2.natAbs : ℕ) : ℤ))
       (encPair encIntBin encIntBin) encIntBin := by fun_prop

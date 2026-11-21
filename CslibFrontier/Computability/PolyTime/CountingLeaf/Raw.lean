@@ -52,7 +52,7 @@ enc_structure encRawInput : RawInput where
 theorem computableInPolyTime_normalize :
     ComputableInPolyTime RawInput.normalize encRawInput encInput := by
   have hn : ComputableInPolyTime ofBits encBits encNat :=
-    .of_tidy ComputableTidilyInPolyTime.bitsToNat
+    ComputableInPolyTime.bitsToNat
   unfold RawInput.normalize
   apply encInput_mk_polyTime <;> fun_prop
 

@@ -321,19 +321,18 @@ variable (M : TM2ComputableAux Bool Bool) [hfin : ∀ k, Finite (M.tm.Γ k)]
 private theorem initList_computableInDegree : ComputableInDegree
     (fun x : List Bool × ℕ => initList M.tm (x.1.map M.inputAlphabet.symm))
     (encPair (encList encBool) encUnary) encCfg 2 1 := by
-  -- The input word is mapped through the input alphabet by the tidy `mapWith` rule.
+  -- The input word is mapped through the input alphabet by the plain `mapWith` rule.
   have hw : ComputableInDegree (fun x : List Bool × ℕ => x.1.map M.inputAlphabet.symm)
       (encPair (encList encBool) encUnary) (encList (encFinite (M.tm.Γ M.tm.k₀))) 2 1 := by
-    have h := ComputableTidilyInDegree.mapWith (encIn := encPair (encList encBool) encUnary)
+    have h := ComputableInDegree.mapWith (encIn := encPair (encList encBool) encUnary)
       (π := Bool) (encP := encBool) (enc := encBool) (encB := encFinite (M.tm.Γ M.tm.k₀))
       (f := fun p : Bool × Bool => M.inputAlphabet.symm p.2)
       (par := fun _ : List Bool × ℕ => false) (list := fun x => x.1)
-      (ComputableTidilyInDegree.of_finite _)
-      ((ComputableTidilyInDegree.const false).mono (d' := 1) (e' := 1))
-      (ComputableTidilyInDegree.fst (encList encBool) encUnary)
+      (ComputableInDegree.of_finite _)
+      ((ComputableInDegree.const false).mono (d' := 1) (e' := 1))
+      (ComputableInDegree.fst (encList encBool) encUnary)
     simp only [max_self] at h
-    obtain ⟨⟨t, s, ht, hs, hc⟩, hl⟩ := h
-    exact ⟨⟨t, s, ht, hs, hc.computableInTimeAndSpace⟩, hl⟩
+    exact h
   have hstk : ComputableInDegree
       (fun x : List Bool × ℕ => (initList M.tm (x.1.map M.inputAlphabet.symm)).stk)
       (encPair (encList encBool) encUnary) encStk 2 1 := by

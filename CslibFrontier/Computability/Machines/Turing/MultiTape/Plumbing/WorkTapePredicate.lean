@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Fro
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Deterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
 # Native Boolean predicates on serialized work-tape queries
@@ -107,7 +108,7 @@ theorem exists_of_inO {α : Type} {enc : α ↪ List Bool} {f : α → Bool} {T 
       ∀ (a : α) (outer : List Bool),
         runner.runFrom ((config outer (enc a)).withState (some runner.q₀)) (c * (T a + 1)) =
           (config outer (enc a) [f a]).withState none := by
-  obtain ⟨c, hf, _⟩ := hf.tidy
+  obtain ⟨c, hf, _⟩ := Internal.NormalForm.inO hf
   obtain ⟨k, S, hS, runner, hr⟩ := exists_of_tidy hf
   refine ⟨k, S, hS, runner, c + 6, ?_⟩
   intro a outer
@@ -124,12 +125,18 @@ theorem exists_of_polyTime {α : Type} {enc : α ↪ List Bool} {f : α → Bool
         runner.runFrom ((config outer (enc a)).withState (some runner.q₀))
           (c * ((enc a).length + 1) ^ d) =
           (config outer (enc a) [f a]).withState none := by
-  obtain ⟨t, s, ht, _, hf⟩ := hf.tidy
-  obtain ⟨k, S, hS, runner, hr⟩ := exists_of_tidy hf
-  obtain ⟨c, d, hbound⟩ := (ht.add (PolyBounded.const 6)).exists_le
-  refine ⟨k, S, hS, runner, c, d, ?_⟩
+  obtain ⟨c, d, k, S, hS, tm, htm⟩ := Internal.NormalForm.polyTime hf
+  let t := fun a => c * ((enc a).length + 1) ^ d
+  have htidy : ComputableTidilyInTimeAndSpace f enc encBool t t := ⟨k, S, hS, tm, htm⟩
+  obtain ⟨k', S', hS', runner, hr⟩ := exists_of_tidy htidy
+  refine ⟨k', S', hS', runner, c + 6, d, ?_⟩
   intro a outer
-  rw [runFrom_eq_of_halt _ _ (hbound a) (by rw [hr]; rfl), hr]
+  have hbound : t a + 6 ≤ (c + 6) * ((enc a).length + 1) ^ d := by
+    have hpos : 0 < ((enc a).length + 1) ^ d := by positivity
+    dsimp only [t]
+    rw [Nat.add_mul]
+    omega
+  rw [runFrom_eq_of_halt _ _ hbound (by rw [hr]; rfl), hr]
 
 /-- The extracted work-tape predicate is also one finite native alternating leaf, with a
 polynomial all-branch bound and exact singleton-output acceptance. -/

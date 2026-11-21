@@ -322,13 +322,7 @@ private theorem computable_pickPreimage {α : Type} {input : α ↪ List Bool}
     (hy : ComputableInPolyTime y input encBits)
     (hcands : ComputableInPolyTime cands input (encList encBits)) :
     ComputableInPolyTime (fun a => pickPreimage f (y a) (cands a)) input encBits := by
-  unfold pickPreimage
-  have hfilt : ComputableInPolyTime
-      (fun a => (cands a).filter (fun z => f z == y a)) input (encList encBits) := by
-    apply ComputableInPolyTime.filterWithInput hcands
-    exact (hf.comp (ComputableInPolyTime.snd input encBits)).beq
-      (hy.comp (ComputableInPolyTime.fst input encBits))
-  exact (ComputableInPolyTime.headD []).comp hfilt
+  fun_prop [pickPreimage]
 
 private theorem computable_plantedImage {α : Type} {input : α ↪ List Bool}
     {k w : ℕ → ℕ} {f : List Bool → List Bool}
@@ -698,7 +692,7 @@ theorem familyInversionGame_parallelCore_negligible {f : List Bool → List Bool
         (((BitString.uniformList (w n)).bind (fun x =>
           (BitString.uniformList (t n * seedLen n)).map (fun allSeeds =>
             f (runTrials k w t seedLen f evalA n (f x) allSeeds) == f x))) true) := by
-    simp [inversionGame, B_inv, w, PMF.map]
+    simp [inversionGame, inversionExperiment, B_inv, w, PMF.map]
   have hpar_le := parallelCore_inversion_le (k := k) (w := w) (evalA := evalA) hlen n (B n) c
   have hgood_le := good_prob_le_runTrials (k := k) (w := w) (t := t) (seedLen := seedLen)
     (f := f) (evalA := evalA) n c

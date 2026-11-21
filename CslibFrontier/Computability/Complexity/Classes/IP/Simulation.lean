@@ -320,9 +320,7 @@ private theorem computableInPolyTime_answerFromHistory (op : Operation) (next : 
         answerFromHistory matchOp entryPair p.1.1 op next p.1.2)
       (encPair (encPair encUnary (encAliveState encEntry)) encBool)
       (encAliveState encEntry) := by
-  have hmatchOp := hmatch op
-  unfold answerFromHistory
-  fun_prop
+  fun_prop [answerFromHistory]
 
 include hmatch hpair in
 /-- **A step of the live replay is polynomial-time.** -/
@@ -470,7 +468,7 @@ theorem computableInPolySpace_countAccepts [Finite Control]
       (fun p : (α × History) × List Bool =>
         accepts (fun _ _ => true) id MUnit (enc p.1.1) p.2 p.1.2)
       (encPair (encPair enc encHistory) encBits) encBool := by fun_prop
-  exact (computableInPolySpace_acceptCount hverify (hfuel')).congr fun q =>
+  exact (computableInPolySpace_acceptCount (.of_polyTime hverify) (hfuel')).congr fun q =>
     (streamAcceptCount_eq_acceptCount _ q _).symm
 
 end Count

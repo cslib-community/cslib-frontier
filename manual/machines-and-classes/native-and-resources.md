@@ -2,6 +2,13 @@
 
 [Chapter index](index.md) · [Model map](../model-map.md)
 
+The deterministic and probabilistic iterate-while constructions share
+[`IterateWhileLayout`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Combinators/IterateWhileLayout.lean).
+Its `Turing.MultiTapeTM.IterateWhile` namespace provides the current, next and flag tapes,
+the copy and emit embeddings, and alphabet-polymorphic intermediate word layouts.
+Reuse these helpers when proving phase transitions; choice semantics and machine resource
+proofs remain in their respective constructions.
+
 ## Configuration and uniformity
 
 The underlying native configuration is cslib's [Turing.Cfg](https://github.com/leanprover/cslib/blob/254e30e6d4299c51323aaeaf5f51a4763b375d4a/Cslib/Computability/Machines/Turing/MultiTape/Configuration.lean#L97). Its input is a fixed list; the input head lies in `Fin (input.length + 2)`, with one blank boundary position on each side. Movement clamps at the boundaries. Each work tape is a function from integer positions to optional symbols, with an integer head. Output is a list to which a transition can append at most one symbol. Input is read-only and output is not readable. The action simultaneously chooses each work-tape write/move, input movement, optional output, and next optional control state. `none` in the control state denotes halting. [cslib][cslib]
@@ -186,9 +193,55 @@ cslib-frontier deliberately has both output-uncharged and output-charged APIs:
 
 The definitions and the documented reason for the output charge are in [ResourceBounds.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Machines/Turing/MultiTape/ResourceBounds.lean#L88). The charge supports composition when returned values must subsequently occupy work tapes. It matters below linear space: copying an arbitrary input is a logarithmic-workspace transduction but cannot satisfy `ComputableInSpace` with a logarithmic output charge. For decision problems, one output bit makes the distinction asymptotically immaterial. The intended public direction uses plain computability; tidy cleanup and head rewinding remain in machine-level construction proofs and some transitional interfaces at this snapshot.
 
+The public [word-codec entry point](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Basic.lean)
+uses `ComputableInDegree … 1 1` for linear time, linear workspace and linear output length.
+`ComputableInDegree.one_one_iff` recovers a single realizing machine with a common bound
+`c * (inputLength + 1)` for time and workspace. Framing, unframing, dropping a frame, marker
+insertion, head, tail and emptiness use their existing finite transducers; composing them does not
+weaken the result to polynomial time. The [ordinary-module packet client](../../CslibFrontierTests/LinearCodecs.lean)
+repairs a framed prefix, preserves valid payloads and suffixes, and checks empty and incomplete
+frames. Native stream compilers request a normalized realizing witness only inside the machine
+proof, without changing callback contracts or charging emitted output to workspace.
+
 [Degree.BitString](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Degree/BitString.lean) certifies linear conversion between raw words (`encBits`) and the existing framed Boolean-list encoding (`encList encBool`). Its [Cut module](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Degree/BitString/Cut.lean) composes those streaming conversions with the existing unary list cutters. `ComputableInDegree.bitsTake` and `bitsDrop` charge the complete raw word and unary count, including empty words and counts beyond their length. Existing plain polynomial wrappers now reuse these stronger certificates. The [adaptive-game tape client](../../CslibFrontierTests/Crypto/LeveledTapePartition.lean) certifies its actual choose/encrypt/guess partition in time and output-charged workspace `O(tape.length + chooseCoins + encCoins + 1)`; callback execution and the complete reduction clock remain separate obligations.
 
 `FTIME` is the corresponding function-time class with explicit input and output encodings and affine time `c₁ t(n) + c₂`; its workspace has an arbitrary length-dependent bound. It adds no output charge beyond the time required to write the output. [FTIME](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/FunctionTime.lean#L46) `DTIME`, `NTIME`, `BPTIME`, `DSPACE` and `NSPACE` attach affine bounds to the relevant machine predicates; `P`, `NP`, `BPP`, `L`, `NL`, `PSPACE`, `NPSPACE`, `E`, `NE`, `EXP` and `NEXP` derive familiar bound families.
+
+The [quantitative rules](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Quantitative.lean)
+provide plain `ComputableInDegree.bitsReverse` and `bitsDropLast` at cost/output degrees
+`1/1`, and `bitsGetLast?ToList` and `bitsGetLast?` at `1/0`. These replace the four tidy
+degree rules and their automation leaves; use plain callback certificates when composing them.
+`ComputableInO.lengthUnary` retains linear time and output-charged linear space.
+The [composition regression](../../CslibFrontierTests/Quantitative.lean) checks the independent
+output degrees, including a high-degree consumer of a constant-size last-bit result.
+
+The [streaming fold API](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Streaming.lean)
+accepts plain `ComputableInTimeAndSpace` callbacks in `foldl_bits_stream_sum`, its uniform,
+invariant and paired variants, and `iterate_unary_stream_sum`. Supply the original exact callback
+costs: normalization is absorbed into the input-independent existential constant. Cumulative
+round costs still charge both adjacent encoded states and control; workspace depends on peak
+callback workspace and retained state, independently of time and emitted output. Prefix-state
+bounds include the initial and final state. The unary variant charges the final callback
+separately. `ComputableInO.unary_halvings` uses this interface and retains the geometric sum bound.
+
+The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
+registers `ComputableInTimeAndSpace` for `fun_prop` directly, without a mixed streaming import.
+It provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
+`getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
+`reverse_bits` keeps time `2 * l.length + 2` and zero workspace. These reuse the existing
+machines; the transducer witness includes input rewind. Workspace excludes emitted output:
+map and reverse therefore need a separate linear output bound for output-charged space,
+while last-bit extraction has constant output size. The
+[plain-import regression](../../CslibFrontierTests/WordTransducers.lean) exercises automation
+and the obstruction to charging arbitrary map output to constant space.
+
+For prefixes and suffixes of computed framed lists, import
+[`PolyTime.Captured`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Captured.lean)
+and apply `ComputableInPolyTime.listTakeWithInput` or `listDropWithInput`
+to the list certificate and the unary count certificate.
+The list may use binary element encodings while its count uses `encUnary`.
+The [clique grouping reduction](../../CslibFrontier/Computability/Complexity/FineGrained/CliqueGrouping.lean)
+composes these rules directly to select a block of clauses, without local slicing wrappers.
 
 ## Fair-coin efficiency
 
@@ -198,9 +251,9 @@ Coin-tape theorems compile a strict PPT computation into a deterministic native 
 
 To go from a verifier class (`NP`, `BPP`, `PP`) to a fair-coin machine, start from [`isPPTOn_sampleVerify`](../../CslibFrontier/Computability/Probabilistic/Sampling/Verifier.lean). It certifies as strict PPT the program that samples a word of length `p.eval (enc a).length` and returns the verdict of a polynomial-time `V`. `IsPPTOn.exists_halting_machine` then gives the halting machine. For the nondeterministic reading, `singleton_true_mem_support_sampleVerify_iff` says the encoded verdict `[true]` is possible exactly when some word of that length is accepted. [Guess and verify](../../CslibFrontier/Computability/Complexity/Classes/NP/GuessVerify.lean) follows this route.
 
-Randomized logarithmic space is defined directly over PTMs. Workspace is bounded on all prefixes of the nondeterministic projection, with a fresh one-way random bit at each live step. `RL` has acceptance at least one half on yes instances and zero on no instances; `BPL` uses two thirds and one third. Their definitions require all branches to terminate but initially do not prescribe a clock. Finite configuration counting derives a polynomial clock, and matrix/counting simulations yield `RL ⊆ P` and `BPL ⊆ P`. This is a particular all-branches-halting model; an expected-time randomized-space model is not silently substituted. [Randomized logspace](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/LogSpace/Randomized.lean#L15) [Polynomial-time containment](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/LogSpace/Randomized/PolyTime.lean#L246)
+Randomized logarithmic space is defined directly over PTMs. Workspace is bounded on all prefixes of the nondeterministic projection, with a fresh one-way random bit at each live step. `RL` has acceptance at least one half on yes instances and zero on no instances; `BPL` uses two thirds and one third. Their definitions require all branches to terminate but initially do not prescribe a clock. Finite configuration counting derives the polynomial clock [`Turing.polyClock`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/LogSpace/PolyClock.lean#L33) `d n = 2 * (2 * (n + 1)) ^ d`: [`exists_polyClock_of_mem_RL`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized.lean#L332) and [`exists_polyClock_of_mem_BPL`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized.lean#L351) return a machine satisfying [`MultiTapePTM.RunsInLogSpace`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized.lean#L265) `enc c d` (logarithmic space and that clock on every instance) with the acceptance bounds at the clock. Matrix/counting simulations yield `RL ⊆ P` and `BPL ⊆ P`; their counting step, [`MultiTapePTM.computableInPolyTime_acceptCoins`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PolyTime.lean#L249), computes the exact number of accepting coin strings of a logarithmic-space PTM in polynomial time at any horizon computed in unary in polynomial time. This is a particular all-branches-halting model; an expected-time randomized-space model is not silently substituted. [Randomized logspace](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized.lean#L1) [Polynomial-time containment](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PolyTime.lean#L336)
 
-For paired-port linear-system reductions (Lemma 2.1 of [OpenAI][openai-logspace26]), import [`CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.PairedPorts`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L497). Obtain a [`PairedTimeLayerFamily`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L497) from class membership via [`exists_pairedTimeLayerFamily_of_mem_RL`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L790) or [`exists_pairedTimeLayerFamily_of_mem_BPL`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L775), or from one fixed all-branches-space-bounded `MultiTapePTM` at space constant `c` and polynomial clock exponent `d` via [`PairedTimeLayerFamily.ofMachine`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L670) (`ofMachine_potential_start` equates `potential a (start a)` to clocked coin acceptance). On each input `a`, `matrix a` is strict upper triangular and substochastic on `Fin (dim a)` with `2` outgoing ports and constant `dIn` incoming ports (`ports a`), while the executable interface works on natural-number IDs (`startNat`, `acceptBool`, `outCount`, `outPortNat`, `inPortNat`) bridged to `Fin` indices by `val_start`, `reward_eq_acceptBool`, `outWeight_eq_outCount`, `outPort_map_val`, `inPort_map_val`, mutual inversion `outPortNat_eq_some_iff`, and strict topological advance `lt_of_outPortNat_eq_some` (`u < v`). Port multiplicities satisfy `outCount a u p ∈ {0, 1, 2}` with weight `(outCount a u p : ℝ) / 2`: distinct fair-coin targets carry multiplicity `1` on each outgoing port, merged coin branches and pre-horizon halted self-loops carry multiplicity `2` on port `0` with port `1` inactive, and `outCount a u p = 0 ↔ outPortNat a u p = none` (`outCount_eq_zero_iff`) covers inactive ports, terminal-clock vertices, and out-of-range vertex or port indices (`acceptBool_eq_false_of_ge`, `outPortNat_eq_none_of_ge_dim`, `outPortNat_eq_none_of_port_ge`, `inPortNat_eq_none_of_ge_dim`, `inPortNat_eq_none_of_port_ge`). Six `ComputableInLogSpace` fields (`computableInLogSpace_dim`, `computableInLogSpace_startNat`, `computableInLogSpace_acceptBool`, `computableInLogSpace_outCount`, `computableInLogSpace_outPortNat`, `computableInLogSpace_inPortNat`) certify deterministic logarithmic-space local evaluation under `enc`, `encPair`, `encOption`, and `encNat`. The complete checked client [`CslibFrontierTests/Computability/Complexity/Classes/LogSpace/PairedPorts.lean`](../../CslibFrontierTests/Computability/Complexity/Classes/LogSpace/PairedPorts.lean#L1) exercises split versus merged coin branches, pre-horizon self-loops, terminal clock exhaustion, out-of-range queries, and non-vacuous `RL`/`BPL` instantiations. Scope remains at the Lemma 2.1 reduction for fixed halting logspace PTMs (`(1 - matrix a)⁻¹ *ᵥ reward a` at `start a`, with gap `1 / 2` vs `0` for `RL` and `2 / 3` vs `1 / 3` for `BPL`); a deterministic logarithmic-space potential estimator closing `RL = L` and `BPL = L` remains separate open work ([#2541](https://github.com/cslib-community/cslib-frontier/issues/2541)).
+For paired-port linear-system reductions (Lemma 2.1 of [OpenAI][openai-logspace26]), import [`CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.PairedPorts`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L479). Obtain a [`PairedTimeLayerFamily`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L479) from class membership via [`exists_pairedTimeLayerFamily_of_mem_RL`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L772) or [`exists_pairedTimeLayerFamily_of_mem_BPL`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L757), or from one fixed all-branches-space-bounded `MultiTapePTM` at space constant `c` and polynomial clock exponent `d` via [`PairedTimeLayerFamily.ofMachine`](../../CslibFrontier/Computability/Complexity/Classes/LogSpace/Randomized/PairedPorts.lean#L652) (`ofMachine_potential_start` equates `potential a (start a)` to clocked coin acceptance). On each input `a`, `matrix a` is strict upper triangular and substochastic on `Fin (dim a)` with `2` outgoing ports and constant `dIn` incoming ports (`ports a`), while the executable interface works on natural-number IDs (`startNat`, `acceptBool`, `outCount`, `outPortNat`, `inPortNat`) bridged to `Fin` indices by `val_start`, `reward_eq_acceptBool`, `outWeight_eq_outCount`, `outPort_map_val`, `inPort_map_val`, mutual inversion `outPortNat_eq_some_iff`, and strict topological advance `lt_of_outPortNat_eq_some` (`u < v`). Port multiplicities satisfy `outCount a u p ∈ {0, 1, 2}` with weight `(outCount a u p : ℝ) / 2`: distinct fair-coin targets carry multiplicity `1` on each outgoing port, merged coin branches and pre-horizon halted self-loops carry multiplicity `2` on port `0` with port `1` inactive, and `outCount a u p = 0 ↔ outPortNat a u p = none` (`outCount_eq_zero_iff`) covers inactive ports, terminal-clock vertices, and out-of-range vertex or port indices (`acceptBool_eq_false_of_ge`, `outPortNat_eq_none_of_ge_dim`, `outPortNat_eq_none_of_port_ge`, `inPortNat_eq_none_of_ge_dim`, `inPortNat_eq_none_of_port_ge`). Six `ComputableInLogSpace` fields (`computableInLogSpace_dim`, `computableInLogSpace_startNat`, `computableInLogSpace_acceptBool`, `computableInLogSpace_outCount`, `computableInLogSpace_outPortNat`, `computableInLogSpace_inPortNat`) certify deterministic logarithmic-space local evaluation under `enc`, `encPair`, `encOption`, and `encNat`. The complete checked client [`CslibFrontierTests/Computability/Complexity/Classes/LogSpace/PairedPorts.lean`](../../CslibFrontierTests/Computability/Complexity/Classes/LogSpace/PairedPorts.lean#L1) exercises split versus merged coin branches, pre-horizon self-loops, terminal clock exhaustion, out-of-range queries, and non-vacuous `RL`/`BPL` instantiations. Scope remains at the Lemma 2.1 reduction for fixed halting logspace PTMs (`(1 - matrix a)⁻¹ *ᵥ reward a` at `start a`, with gap `1 / 2` vs `0` for `RL` and `2 / 3` vs `1 / 3` for `BPL`); `RL = L` and `BPL = L` remain open ([#1444](https://github.com/cslib-community/cslib-frontier/issues/1444)).
 
 The preprint's analytic layer lives in `CslibFrontier/Computability/LogSpaceDerandomization/`: the correction-and-copy hierarchy, starting at [`CorrectionHierarchy`](../../CslibFrontier/Computability/LogSpaceDerandomization/CorrectionHierarchy.lean), along with row compression, root metrics, stochastic atoms, estimator schedules and their hash-family channels. These are conditional milestones toward the estimator, not a proof of `BPL ⊆ L` ([#1444](https://github.com/cslib-community/cslib-frontier/issues/1444)). [Compare compressed row outputs](../workflows/finding-results.md#compare-compressed-row-outputs) gives the entry points for its comparison theorems. Self-contained mathematics the development uses, such as strictly upper triangular matrices, time layers, paired ports, root-error inequalities and switch functions, stays under `CslibFrontier/Foundations`.
 
@@ -214,6 +267,23 @@ The source of [MachinePrograms.lean](https://github.com/cslib-community/cslib-fr
 
 ## Composing polynomial resource envelopes
 
+For sums of binary naturals, import
+[`PolyTime.Nat.Binary`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Binary.lean)
+and compose `ComputableInPolyTime.binary_sum` with the certificate producing the
+`encList encNat` input. Its plain fold proof bounds accumulator digit growth by the
+encoded input length plus one per element.
+The [weighted SetCover verifier](../../CslibFrontier/Computability/Complexity/Problems/SetCover.lean)
+and [approximation reduction](../../CslibFrontier/Computability/PCP/Approximation/SetCover/ApproxReduction.lean)
+compose this plain certificate directly with their weight-list certificates.
+[TruncatedSum](../../CslibFrontier/Computability/Complexity/Classes/CountingSimulation/TruncatedSum.lean)
+uses the same certificate for separate time and space envelopes.
+
+For products, import
+[`PolyTime.Nat.ListProd`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/ListProd.lean):
+`ComputableInPolyTime.binary_prod` certifies the product of a list on `encList encNat`; for
+`(l.map H).prod` with `H` polynomial-time with binary values, compose it with
+`ComputableInPolyTime.map`, as in `binary_prod.comp (.map hH)`.
+
 For a polynomial-time map on pairs, import
 [`CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Families`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Families.lean).
 Given `hg : ComputableInPolyTime g (encPair encA encB) encC` and polynomial bounds `ha`, `hb`
@@ -222,6 +292,25 @@ bounds the encoded output family. The families themselves need not be computable
 [Levin](../../CslibFrontier/Crypto/Computational/ZeroKnowledge/Levin.lean) and
 [amplification](../../CslibFrontier/Crypto/Computational/ZeroKnowledge/Amplification.lean)
 proofs use this rule to transport witness families through the same deterministic reduction.
+
+For binary-natural preprocessing, import
+[`BigO.NatPolynomial`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO/NatPolynomial.lean).
+`hf.nat_inO` and `hf.natPair_inO` turn plain polynomial-time certificates into
+output-charged bounds linear in the numeric value or sum, for arbitrary output encodings.
+Their proofs use the realizing machine's cost degree; the independent output degree need not
+coincide with it. The [padding certificates](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO/PolynomialPadding.lean)
+compose these bounds with plain framing, unframing and unary writing. The polynomial writer
+retains time exponent `2 * k` and space exponent `k` for `k ≥ 1`; the guard retains quadratic
+time and linear space in the full input length, including insufficient or malformed padding.
+The [regression source](../../CslibFrontierTests/PolynomialPadding.lean) includes the guard certificate and empty-input controls.
+
+A reduction closure proof that runs a certificate or counting bound `q(|f a|)` of the target on
+the reduced instance needs one polynomial in the source length. For
+`hf : ComputableInPolyTime f encIn encOut`, `hf.exists_polynomial_eval_length_le q` in
+[`PolyTime.OutputLength`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/OutputLength.lean)
+gives `P` with `q(|f a|) ≤ P(|a|)` for every `a`; `PolyTimeReducible.mem_FewP` and
+`PolyTimeReducible.mem_NPWithOracle` use it. For `q = X`, apply `PolyBounded.exists_polynomial`
+to `hf.polyBounded_length`.
 
 Import
 [`ResourceBounds.Polynomial.Automation`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/ResourceBounds/Polynomial/Automation.lean)

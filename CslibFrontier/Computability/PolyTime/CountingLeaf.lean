@@ -87,9 +87,8 @@ theorem computableInPolyTime_run (predicate : List Bool × ℕ → Bool)
   have hc : ComputableInPolyTime (fun q : Input => decide (q.carry = false))
       encInput encBool := decide_eq' (by fun_prop) (const false)
   have hn := binary_lt' hpath (right := Input.count) (by fun_prop)
-  have hand := of_tidy (ComputableTidilyInPolyTime.decide_and hb.tidy
-    (ComputableTidilyInPolyTime.decide_and hz.tidy
-      (ComputableTidilyInPolyTime.decide_and hc.tidy hn.tidy)))
+  have hand := ComputableInPolyTime.decide_and hb (ComputableInPolyTime.decide_and hz
+    (ComputableInPolyTime.decide_and hc hn))
   have hctx : ComputableInPolyTime Input.context encInput encBits := by fun_prop
   unfold run
   simpa only [decide_eq_true_eq, Function.comp_apply] using

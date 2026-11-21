@@ -94,18 +94,13 @@ theorem trim_length_le (as : List ℚ) : (trim as).length ≤ as.length := by
 
 /-- Trimming trailing zeros preserves the polynomial denoted by `ofCoeffList`. -/
 theorem ofCoeffList_trim (as : List ℚ) : ofCoeffList (trim as) = ofCoeffList as := by
-  induction as with
-  | nil => simp only [trim]
-  | cons a as ih =>
-    simp only [trim]
-    by_cases he : (trim as).isEmpty = true
-    · have hnil : trim as = [] := List.isEmpty_iff.mp he
-      have h0 : ofCoeffList as = 0 := by rw [← ih, hnil, ofCoeffList_nil]
-      simp only [he, ↓reduceIte]
-      by_cases ha : a = 0
-      · simp only [ha, ↓reduceIte, ofCoeffList_nil, ofCoeffList_cons, C_0, h0, mul_zero, add_zero]
-      · simp only [ha, ↓reduceIte, ofCoeffList_cons, ofCoeffList_nil, h0]
-    · simp only [he, Bool.false_eq_true, ↓reduceIte, ofCoeffList_cons, ih]
+  fun_induction trim as with
+  | case1 => rfl
+  | case2 as t he ih | case3 a as t he ha ih =>
+    have hnil : trim as = [] := List.isEmpty_iff.mp he
+    have h0 : ofCoeffList as = 0 := by rw [← ih, hnil, ofCoeffList_nil]
+    simp [ofCoeffList_cons, ofCoeffList_nil, h0]
+  | case4 a as t he ih => simp only [ofCoeffList_cons, t, ih]
 
 /-- Every output of `trim` is trimmed (`IsTrimmed`). -/
 theorem isTrimmed_trim (as : List ℚ) : IsTrimmed (trim as) := by
@@ -230,14 +225,11 @@ theorem coeff_ofCoeffList_eq_zero_of_le {R : Type*} [Semiring R] (l : List R) {i
 /-- Pointwise `addList` corresponds to polynomial addition under `ofCoeffList`. -/
 theorem ofCoeffList_addList (as bs : List ℚ) :
     ofCoeffList (addList as bs) = ofCoeffList as + ofCoeffList bs := by
-  induction as generalizing bs with
-  | nil => simp only [addList, ofCoeffList_nil, zero_add]
-  | cons a as ih =>
-    cases bs with
-    | nil => simp only [addList, ofCoeffList_nil, add_zero]
-    | cons b bs =>
-      simp only [addList, ofCoeffList_cons, ih, C_add, mul_add]
-      ring
+  fun_induction addList as bs with
+  | case1 | case2 => simp
+  | case3 a as b bs ih =>
+    simp only [ofCoeffList_cons, ih, C_add, mul_add]
+    ring
 
 /-- Pointwise `subList` corresponds to polynomial subtraction under `ofCoeffList`. -/
 theorem ofCoeffList_subList (as bs : List ℚ) :
@@ -251,9 +243,7 @@ theorem ofCoeffList_shiftZero (k : ℕ) (bs : List ℚ) :
 
 theorem derivAux_length (k : ℕ) (as : List ℚ) :
     (derivAux k as).length = as.length := by
-  induction as generalizing k with
-  | nil => simp only [derivAux, List.length_nil]
-  | cons _ as ih => simp only [derivAux, List.length_cons, ih]
+  fun_induction derivAux k as <;> simp_all
 
 private theorem coeff_ofCoeffList_derivAux (k : ℕ) (as : List ℚ) (i : ℕ) :
     (ofCoeffList (derivAux k as)).coeff i = ((k + i : ℕ) : ℚ) * (ofCoeffList as).coeff i := by

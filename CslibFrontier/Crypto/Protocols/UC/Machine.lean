@@ -54,6 +54,9 @@ running time: pure computation between calls, message sizes and state growth are
   activation.
 * `Cslib.Crypto.Protocols.UC.Machine.isQueryBounded_closeProgram`: closing a program with no
   imports preserves its call budget.
+* `Cslib.Crypto.Protocols.UC.Machine.runFrom_interpret_intertwine`,
+  `Cslib.Crypto.Protocols.UC.Machine.runFrom_intertwine`: state-intertwining laws for
+  `Machine.runFrom`.
 
 ## References
 
@@ -176,10 +179,151 @@ variable {β : Type}
 /-- An embedded closed program is unchanged by closing. -/
 @[simp] theorem closeProgram_sample (program : ProbComp α) :
     closeProgram (ProbOracleComp.sample program) = program := by
-  rw [closeProgram, ProbOracleComp.interpret_sample]
-  exact OracleComp.interpret_query_eq_self program
+  rw [closeProgram, ProbOracleComp.interpret_sample, ProbComp.interpret_unifFin]
+
+/-- Close an empty-spec probabilistic computation and return its `PMF`. -/
+@[expose] noncomputable def closeEval (program : ProbOracleComp OracleSpec.empty α) : PMF α :=
+  ProbComp.eval (closeProgram program)
+
+/-- Closing a `pure` program yields `PMF.pure`. -/
+@[simp] theorem closeEval_pure (a : α) : closeEval (pure a) = PMF.pure a := rfl
+
+/-- Closing a bind distributes over `PMF.bind`. -/
+@[simp] theorem closeEval_bind (p : ProbOracleComp OracleSpec.empty α)
+    (next : α → ProbOracleComp OracleSpec.empty β) :
+    closeEval (p >>= next) = (closeEval p).bind fun a => closeEval (next a) := by
+  simp only [closeEval, closeProgram_bind, ProbComp.eval_bind]
+
+/-- Closing a mapped program maps the `PMF`. -/
+@[simp] theorem closeEval_map (f : α → β) (p : ProbOracleComp OracleSpec.empty α) :
+    closeEval (f <$> p) = (closeEval p).map f := by
+  simp only [closeEval, closeProgram_map, ProbComp.eval_map]
+
+/-- Closing a sampled `ProbComp` evaluates it directly. -/
+@[simp] theorem closeEval_sample (p : ProbComp α) :
+    closeEval (ProbOracleComp.sample p) = p.eval := by
+  simp only [closeEval, closeProgram_sample]
+
+/-- Support invariant for `closeEval (M.runFrom prog s)` under a reflexive, transitive state
+relation preserved by every allowed machine query. -/
+theorem mem_support_closeEval_runFrom_invariant
+    (M : Machine OracleSpec.empty E) (Inv : ιE → Prop) (R : M.State → M.State → Prop)
+    (hR_refl : ∀ s, R s s) (hR_trans : ∀ {a b c}, R a b → R b c → R a c)
+    (prog : ProbOracleComp E α)
+    (hinv : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) prog)
+    (s : M.State) {x : α × M.State}
+    (hx : x ∈ (closeEval (M.runFrom prog s)).support)
+    (hstep : ∀ (q : ιE) (s' : M.State) {y : E q × M.State},
+      Inv q → y ∈ (closeEval ((M.handle q).run s')).support → R s' y.2) :
+    R s x.2 := by
+  induction prog using OracleComp.induction generalizing s with
+  | pure a =>
+    erw [runFrom_pure, closeEval_pure, PMF.mem_support_pure_iff] at hx
+    rcases hx with rfl
+    exact hR_refl s
+  | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind] at hinv hx
+    rcases q with k | q
+    · have hcall : M.runFrom (OracleComp.query (.inl k)) s =
+          (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
+        rw [runFrom, OracleComp.run_interpret_query, handler, sumHandler]
+        change (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run s = _
+        rw [StateT.run_lift, bind_pure_comp]
+      erw [runFrom_bind, hcall, bind_map_left, closeEval_bind, PMF.mem_support_bind_iff] at hx
+      rcases hx with ⟨a, _, hx'⟩
+      exact ih a ((OracleComp.QueriesSatisfy.liftBind_iff.mp hinv).2 a) s hx'
+    · have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
+      erw [runFrom_bind, runFrom_query, closeEval_bind, PMF.mem_support_bind_iff] at hx
+      rcases hx with ⟨y, hy, hx'⟩
+      exact hR_trans (hstep q s hq.1 hy) (ih y.1 (hq.2 y.1) y.2 hx')
 
 end RunFrom
+
+/-! ### State-intertwining for `runFrom` -/
+
+section Intertwining
+
+variable {ι₁ ι₂ ι β : Type} {E₁ : ι₁ → Type} {E₂ : ι₂ → Type} {O : ι → Type}
+
+/-- Two machines `M₁` and `M₂` sharing an imported interface `I`, a state invariant `R`, and a
+query invariant `Inv` produce related post-run continuations when translating an `O`-program via
+`h₁` and `h₂` preserves `R` at each `Inv`-satisfying query. -/
+theorem runFrom_interpret_intertwine
+    (M₁ : Machine I E₁) (M₂ : Machine I E₂)
+    (h₁ : (q : ι) → ProbOracleComp E₁ (O q))
+    (h₂ : (q : ι) → ProbOracleComp E₂ (O q))
+    (Inv : ι → Prop) (R : M₁.State → M₂.State → Prop)
+    (prog : ProbOracleComp O α)
+    (hinv : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) prog)
+    (s₁ : M₁.State) (s₂ : M₂.State) (hR : R s₁ s₂)
+    (f : α × M₁.State → ProbOracleComp I β)
+    (g : α × M₂.State → ProbOracleComp I β)
+    (hfg : ∀ a s₁' s₂', R s₁' s₂' → f (a, s₁') = g (a, s₂'))
+    (hstep : ∀ (q : ι) (s₁' : M₁.State) (s₂' : M₂.State)
+      (k₁ : O q × M₁.State → ProbOracleComp I β)
+      (k₂ : O q × M₂.State → ProbOracleComp I β),
+      Inv q → R s₁' s₂' →
+      (∀ r s₁'' s₂'', R s₁'' s₂'' → k₁ (r, s₁'') = k₂ (r, s₂'')) →
+      (M₁.runFrom (h₁ q) s₁' >>= k₁) = (M₂.runFrom (h₂ q) s₂' >>= k₂)) :
+    (M₁.runFrom (OracleComp.interpret
+        (sumHandler (fun k => OracleComp.query (spec := probOracleSpec E₁) (.inl k)) h₁) prog)
+        s₁ >>= f) =
+      (M₂.runFrom (OracleComp.interpret
+        (sumHandler (fun k => OracleComp.query (spec := probOracleSpec E₂) (.inl k)) h₂) prog)
+        s₂ >>= g) := by
+  induction prog using OracleComp.induction generalizing s₁ s₂ with
+  | pure a => exact hfg a s₁ s₂ hR
+  | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind] at hinv ⊢
+    rcases q with k | q
+    · rw [OracleComp.interpret_bind, OracleComp.interpret_bind,
+        OracleComp.interpret_query, OracleComp.interpret_query]
+      dsimp only [sumHandler]
+      have hcall {ιE : Type} {E : ιE → Type} (M : Machine I E) (s : M.State) :
+          M.runFrom (OracleComp.query (.inl k)) s =
+            (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run s :=
+        OracleComp.run_interpret_query M.handler (.inl k) s
+      erw [runFrom_bind, runFrom_bind, hcall M₁ s₁, hcall M₂ s₂]
+      rw [StateT.run_lift, StateT.run_lift, bind_pure_comp, bind_pure_comp,
+        bind_map_left, bind_map_left, bind_assoc, bind_assoc]
+      exact bind_congr fun a =>
+        ih a ((OracleComp.QueriesSatisfy.liftBind_iff.mp hinv).2 a) s₁ s₂ hR
+    · have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
+      rw [OracleComp.interpret_bind, OracleComp.interpret_bind,
+        OracleComp.interpret_query, OracleComp.interpret_query]
+      dsimp only [sumHandler]
+      erw [runFrom_bind, runFrom_bind, bind_assoc, bind_assoc]
+      exact hstep q s₁ s₂ _ _ hq.1 hR fun r s₁'' s₂'' hR' => ih r (hq.2 r) s₁'' s₂'' hR'
+
+/-- Direct (uninterpreted) state-intertwining specialization of
+`Machine.runFrom_interpret_intertwine` for two machines sharing an exported interface `E`. -/
+theorem runFrom_intertwine
+    (M₁ M₂ : Machine I E) (Inv : ιE → Prop) (R : M₁.State → M₂.State → Prop)
+    (prog : ProbOracleComp E α)
+    (hinv : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) prog)
+    (s₁ : M₁.State) (s₂ : M₂.State) (hR : R s₁ s₂)
+    (f : α × M₁.State → ProbOracleComp I β)
+    (g : α × M₂.State → ProbOracleComp I β)
+    (hfg : ∀ a s₁' s₂', R s₁' s₂' → f (a, s₁') = g (a, s₂'))
+    (hstep : ∀ (q : ιE) (s₁' : M₁.State) (s₂' : M₂.State)
+      (k₁ : E q × M₁.State → ProbOracleComp I β)
+      (k₂ : E q × M₂.State → ProbOracleComp I β),
+      Inv q → R s₁' s₂' →
+      (∀ r s₁'' s₂'', R s₁'' s₂'' → k₁ (r, s₁'') = k₂ (r, s₂'')) →
+      ((M₁.handle q).run s₁' >>= k₁) = ((M₂.handle q).run s₂' >>= k₂)) :
+    (M₁.runFrom prog s₁ >>= f) = (M₂.runFrom prog s₂ >>= g) := by
+  have h := runFrom_interpret_intertwine M₁ M₂
+    (fun q => ProbOracleComp.query (spec := E) q) (fun q => ProbOracleComp.query (spec := E) q)
+    Inv R prog hinv s₁ s₂ hR f g hfg fun q s₁' s₂' k₁ k₂ hq hR' hcont => by
+      erw [runFrom_query, runFrom_query]
+      exact hstep q s₁' s₂' k₁ k₂ hq hR' hcont
+  have hid :
+      (sumHandler (fun k => OracleComp.query (spec := probOracleSpec E) (.inl k))
+        (fun q => ProbOracleComp.query (spec := E) q)) = OracleComp.query :=
+    funext fun q => by cases q <;> rfl
+  simpa only [hid, OracleComp.interpret_query_eq_self] using h
+
+end Intertwining
 
 /-- The per-activation call budget `t`: the initial sampler and every activation, from every state,
 make at most `t` calls on every path. Private samples and imported calls both count. -/

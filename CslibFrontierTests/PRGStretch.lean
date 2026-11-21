@@ -14,6 +14,10 @@ namespace CslibFrontierTests.PRGStretch
 
 open Cslib Cslib.Crypto Cslib.Probability Turing.MultiTapeTM
 
+assert_not_exists Turing.MultiTapeTM.ComputableTidilyInPolyTime
+assert_not_exists Turing.MultiTapeTM.ComputableInPolyTime.tidy
+assert_not_exists Turing.MultiTapeTM.ComputableInPolyTime.of_tidy
+
 -- A toy expander exercises seed retention and suffix order; no security is claimed for it.
 private def expand (seed : List Bool) : List Bool := seed ++ [false]
 
@@ -63,8 +67,7 @@ example (generator : List Bool → List Bool) (adversary : Distinguisher) (n : �
 -- A captured loop may add an input-dependent block at each iteration.
 example : ComputableInPolyTime
     (fun word : List Bool => (fun state => state ++ word)^[word.length] []) encBits encBits := by
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.iterateWith_of_bounded_growth
+  apply ComputableInPolyTime.iterateWith_of_bounded_growth
     (par := id) (step := fun word state => state ++ word) (growth := List.length)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     (by
@@ -135,19 +138,13 @@ example : (PRGStretch.forwardIterate shiftIn 3 [false, false, true]).reverse =
 
 private theorem expand_degree :
     ComputableInDegree expand encBits encBits 1 1 := by
-  have hraw : ComputableTidilyInDegree expand encBits encBits 1 1 := by
-    unfold expand
-    fun_prop (disch := first | apply le_refl | lia)
-  obtain ⟨⟨t, space, ht, hs, h⟩, hl⟩ := hraw
-  exact ⟨⟨t, space, ht, hs, h.computableInTimeAndSpace⟩, hl⟩
+  unfold expand
+  fun_prop (disch := first | apply le_refl | lia)
 
 private theorem shiftIn_degree :
     ComputableInDegree shiftIn encBits encBits 1 1 := by
-  have hraw : ComputableTidilyInDegree shiftIn encBits encBits 1 1 := by
-    unfold shiftIn
-    fun_prop (disch := first | apply le_refl | lia)
-  obtain ⟨⟨t, space, ht, hs, h⟩, hl⟩ := hraw
-  exact ⟨⟨t, space, ht, hs, h.computableInTimeAndSpace⟩, hl⟩
+  unfold shiftIn
+  fun_prop (disch := first | apply le_refl | lia)
 
 -- Quantitative cumulative-time and round-independent workspace for `forwardIterate` on a concrete
 -- length-expanding generator.
@@ -191,12 +188,12 @@ example : ∃ (tGen : List Bool → ℕ) (tCount sCount : ℕ → ℕ) (csG c : 
       (fun seed => c * (sCount seed.length + csG * (seed.length + 1) + seed.length +
         (seed.length + seed.length + 1) + 1)) := by
   obtain ⟨⟨tGen, sGen, _, ⟨csG, hcsG⟩, hgen⟩, -⟩ := shiftIn_degree
-  have hcount_deg : ComputableTidilyInDegree (fun n : ℕ => n + n + 1) encUnary encUnary 1 1 := by
+  have hcount_deg : ComputableInDegree (fun n : ℕ => n + n + 1) encUnary encUnary 1 1 := by
     fun_prop (disch := first | apply le_refl | lia)
   obtain ⟨⟨tCount, sCount, _, _, hcount⟩, -⟩ := hcount_deg
   refine ⟨tGen, tCount, sCount, csG, ?_⟩
   exact PRGStretch.computableInTimeAndSpace_stretch length_shiftIn hgen
-    hcount.computableInTimeAndSpace
+    hcount
     (fun seed i _ => by
       simpa [PRGStretch.length_seedAt_of_forall length_shiftIn] using
         hcsG (PRGStretch.seedAt shiftIn seed i))
@@ -210,9 +207,9 @@ example : ∃ (tCount sCount : ℕ → ℕ) (c : ℕ),
       (fun seed => c * (sCount seed.length + seed.length + 1)) := by
   obtain ⟨⟨tGen, sGen, _, _, hgen⟩, -⟩ := shiftIn_degree
   obtain ⟨⟨tCount, sCount, _, _, hcount⟩, -⟩ :=
-    ComputableTidilyInDegree.const (encIn := encUnary) (encMid := encUnary) 0
+    ComputableInDegree.const (encIn := encUnary) (encMid := encUnary) 0
   obtain ⟨c, h⟩ := PRGStretch.computableInTimeAndSpace_stretch length_shiftIn hgen
-    hcount.computableInTimeAndSpace
+    hcount
     (Q := fun _ => 0) (fun _ i hi => absurd hi (Nat.not_lt_zero i))
   exact ⟨tCount, sCount, c, h.mono (fun seed => by simp) (fun seed => by simp)⟩
 
@@ -222,10 +219,7 @@ example : ∃ (tCount sCount : ℕ → ℕ) (c : ℕ),
 example : ComputableInDegree
     (PRGStretch.stretch expand (fun n => n + n + 1)) encBits encBits 2 1 := by
   have hcount : ComputableInDegree (fun n : ℕ => n + n + 1) encUnary encUnary 1 1 := by
-    have hraw : ComputableTidilyInDegree (fun n : ℕ => n + n + 1) encUnary encUnary 1 1 := by
-      fun_prop (disch := first | apply le_refl | lia)
-    obtain ⟨⟨t, space, ht, hs, h⟩, hl⟩ := hraw
-    exact ⟨⟨t, space, ht, hs, h.computableInTimeAndSpace⟩, hl⟩
+    fun_prop (disch := first | apply le_refl | lia)
   have h := PRGStretch.computableInDegree_stretch length_expand expand_degree hcount
   fail_if_success
     have : ComputableInDegree
@@ -261,21 +255,21 @@ example : ∃ (tGen : Bool × List Bool → ℕ) (csG c : ℕ),
             (encBool x.1.1).length + x.1.2.length + 1)) + 1))
       (fun x => c * (csG * ((encPair encBool encBits x.1).length + 1) +
         (encBool x.1.1).length + x.1.2.length + x.2 + 1)) := by
-  have hgen_deg : ComputableTidilyInDegree
+  have hgen_deg : ComputableInDegree
       (fun p : Bool × List Bool => p.2 ++ [p.1]) (encPair encBool encBits) encBits 1 1 := by
-    have hsingleton : ComputableTidilyInDegree
+    have hsingleton : ComputableInDegree
         (fun p : Bool × List Bool => [p.1]) (encPair encBool encBits) encBits 1 0 :=
-      (ComputableTidilyInDegree.of_finite (fun b : Bool => [b])).comp
-        (ComputableTidilyInDegree.fst encBool encBits) |>.mono
-    exact (ComputableTidilyInDegree.snd encBool encBits).append hsingleton (fun _ => rfl) |>.mono
+      (ComputableInDegree.of_finite (fun b : Bool => [b])).comp
+        (ComputableInDegree.fst encBool encBits) |>.mono
+    exact (ComputableInDegree.snd encBool encBits).append hsingleton (fun _ => rfl) |>.mono
   obtain ⟨⟨tGen, sGen, _, ⟨csG, hcsG⟩, hgen⟩, -⟩ := hgen_deg
   refine ⟨tGen, csG, ?_⟩
   refine PRGStretch.computableInTimeAndSpace_iterate_captured
     (generator := fun b s => s ++ [b]) (fun _ _ => by simp)
-    hgen.computableInTimeAndSpace (fun x i _ => ?_)
-  have hlen_seed : (PRGStretch.seedAt (fun s => s ++ [x.1.1]) x.1.2 i).length = x.1.2.length :=
-    PRGStretch.length_seedAt_of_forall (fun _ => by simp) x.1.2 i
-  have h := hcsG (x.1.1, PRGStretch.seedAt (fun s => s ++ [x.1.1]) x.1.2 i)
+    hgen (fun b seed _ i _ => ?_)
+  have hlen_seed : (PRGStretch.seedAt (fun s => s ++ [b]) seed i).length = seed.length :=
+    PRGStretch.length_seedAt_of_forall (fun _ => by simp) seed i
+  have h := hcsG (b, PRGStretch.seedAt (fun s => s ++ [b]) seed i)
   simp only [length_encPair, encBits_apply, hlen_seed, pow_one] at h ⊢
   exact h
 

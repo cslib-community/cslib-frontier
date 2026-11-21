@@ -7,36 +7,44 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.IndexedSignature
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.PolyTime.Init
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Counter-stateful signatures from indexed signatures
 
 An indexed signature scheme becomes an ordinary many-time signature scheme once the signer
 chooses the indices itself: it keeps a counter `j`, signs its `j`-th message at index `j`, and
-publishes `j` with the signature. This is [BonehShoup2023], Section 14.6.4, with the counter as
-the nonce, and it is how Merkle's tree signature is used ([Merkle1989], Sections 6–7). The signer is
-stateful, so the construction is not a `SignatureScheme`, whose signer is a function of the secret
-key alone. Instead, the state lives in the signing oracle of a dedicated security game.
+publishes `j` with the signature. This is the construction of [BonehShoup2023], Section 14.6.4,
+with the counter as the nonce, and it is how Merkle's tree signature is used ([Merkle1989],
+Sections 6–7). The signer is stateful, so the construction is not a `SignatureScheme`, whose signer
+is a function of the secret key alone. Instead, the state lives in the signing oracle of a
+dedicated security game.
 
 The counter signing oracle (`counterSigningOracle`) at security parameter `n` holds the counter and
 the signed messages. While `j < capacity n` it signs the request at index `j`, answers with the word
 `encPair encUnary encBits (j, σ)` and advances; once the capacity is exhausted it answers the empty
 word and records nothing. A signature word is verified by `counterVerify`, which reads `(u, σ)` and
 runs the indexed verifier at `u`. The game `counterEufCmaGame` is the EUF-CMA experiment with this
-oracle; the forger wins with a valid signature on any message it never had signed, of any length.
-This is stronger than `SignatureScheme.eufCmaGame`, which only counts `n`-bit forgeries.
+oracle; the forger wins with a valid signature on any message it never had signed, of any length,
+at an index `u < capacity n`. It admits forgeries on messages of every length, where
+`SignatureScheme.eufCmaGame` counts only `n`-bit ones, but it also requires the forgery's index to
+be below the capacity, which `counterVerify` alone does not check. The two games are therefore not
+ordered in general.
+
+From `j = capacity n` on, the signing oracle refuses every request, and a forgery counts only at an
+index below the capacity, as in `indexedEufCmaGame`. Definition 14.6 (printed p. 597) has message
+space `{1, …, q} × M`, and in the nonce example of Section 14.6.4 the counter runs from `1` to `q`
+(printed p. 603); here indices run from `0` to `q - 1`.
 
 The security reduction is exact. `counterForger` runs a counter forger, answering its `j`-th
 signing query through the indexed signing oracle at index `j` and forwarding the forgery with its
@@ -66,7 +74,7 @@ that the reduction is strict oracle PPT for every external oracle (`isOraclePPT_
 * `Cslib.Crypto.IndexedSignatureScheme.succProbability_counterEufCmaGame_le`: the exact bound.
 * `Cslib.Crypto.IndexedSignatureScheme.isOraclePPT_counterForger`: the reduction is efficient.
 * `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.counterEUFCMA`: indexed EUF-CMA security
-  gives counter EUF-CMA security.
+  gives counter EUF-CMA security ([BonehShoup2023], Section 14.6.4, with a counter as the nonce).
 
 ## References
 
@@ -107,8 +115,8 @@ def counterVerify (pk msg sig : List Bool) : Bool :=
   S.verify pk (requestDecoder.decode sig).1 msg (requestDecoder.decode sig).2
 
 /-- The counter EUF-CMA experiment: sample `(pk, sk) ← keyGen n`, run the forger on `(n, pk)` with
-the counter signing oracle started at `(0, [])`, and accept a valid counter signature on a message
-that was never signed, of any length. -/
+the counter signing oracle started at `(0, [])`, and accept a valid counter signature, at an index
+below `capacity n`, on a message that was never signed, of any length. -/
 def counterEufCmaGame (adversary : Forger) (n : ℕ) : ProbComp Bool := do
   let keys ← S.keyGen n
   let out ← (OracleComp.interpret
@@ -116,7 +124,8 @@ def counterEufCmaGame (adversary : Forger) (n : ℕ) : ProbComp Bool := do
       (S.counterSigningOracle n keys.2)) (adversary n keys.1)).run (0, [])
   let msig := out.1
   let state := out.2
-  return !state.2.contains msig.1 && S.counterVerify keys.1 msig.1 msig.2
+  return decide ((requestDecoder.decode msig.2).1 < S.capacity n) && !state.2.contains msig.1 &&
+    S.counterVerify keys.1 msig.1 msig.2
 
 variable {S}
 
@@ -191,7 +200,7 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
           ((Unit × List Bool) × (ℕ × List (List Bool))) =>
         S.counterSigningOracle pair.1.1 pair.1.2.2 pair.2.1 pair.2.2) := by
     unfold counterSigningOracle
-    refine IsPPTOn.ite' (by fun_prop)
+    refine IsPPTOn.ite (by fun_prop)
       ((S.sign_ppt.preprocess (prepare := fun pair :
           (ℕ × (List Bool × List Bool)) × ((Unit × List Bool) × (ℕ × List (List Bool))) =>
           (pair.1.2.2, pair.2.2.1, pair.2.1.2)) (by fun_prop)).bind_with
@@ -203,8 +212,8 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
     (resources := fun caller query =>
       c * (2 * caller.2.2.length + 2 * S.capacity caller.1 + query.length + 3) ^ d +
         2 * S.capacity caller.1 + 2 * query.length + 4)
-    (ComputableInPolyTime.tidy (by fun_prop)) hhandler (ComputableTidilyInPolyTime.const (0, []))
-    (fun _ _ => True) (fun _ => trivial) (ComputableInPolyTime.tidy (by fun_prop))
+    (by fun_prop) hhandler (ComputableInPolyTime.const (0, []))
+    (fun _ _ => True) (fun _ => trivial) (by fun_prop)
   intro caller request state _ result hresult
   obtain ⟨j, signed⟩ := state
   unfold counterSigningOracle at hresult
@@ -219,11 +228,8 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
         c * (2 * caller.2.2.length + 2 * S.capacity caller.1 + request.2.length + 3) ^ d :=
       Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
     refine ⟨trivial, ?_, ?_⟩
-    · simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-      omega
-    · simp only [length_encPair, encUnary_apply, encList_cons, List.length_append, length_frame,
-        encBits_apply, List.length_replicate]
-      omega
+    · enc_len
+    · enc_len
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
     subst hresult
     exact ⟨trivial, by simp, by lia⟩
@@ -246,7 +252,7 @@ variable (S) in
 /-- Existential unforgeability of the counter-stateful use of an indexed scheme under adaptive
 chosen-message attack ([BonehShoup2023], Section 14.6.4, with the counter as the nonce) against
 uniform strict oracle-PPT forgers. A forgery on any never-signed message counts, whatever its
-length. -/
+length, provided its index is below `capacity n`. -/
 def CounterEUFCMA : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (S.counterEufCmaGame adversary n))
@@ -379,9 +385,10 @@ private theorem map_run_jointOracle {n : ℕ} {sk : List Bool} {bound : ℕ → 
 
 variable (S) in
 /-- The indexed forger's win, read off the joint run. -/
-private def indexedWin (pk : List Bool)
+private def indexedWin (n : ℕ) (pk : List Bool)
     (r : (List Bool × List Bool) × ℕ × List (ℕ × List Bool)) : Bool :=
-  !r.2.2.contains ((requestDecoder.decode r.1.2).1, r.1.1) &&
+  decide ((requestDecoder.decode r.1.2).1 < S.capacity n) &&
+    !r.2.2.contains ((requestDecoder.decode r.1.2).1, r.1.1) &&
     S.verify pk (requestDecoder.decode r.1.2).1 r.1.1 (requestDecoder.decode r.1.2).2
 
 /-- The indexed game against `counterForger` is the joint run, judged by `indexedWin`. -/
@@ -392,7 +399,7 @@ private theorem eval_indexedEufCmaGame_counterForger (bound : ℕ → ℕ → �
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (jointOracle S n keys.2 bound)) (adversary n keys.1)).run (0, [])).map
-              (indexedWin S keys.1) := by
+              (indexedWin S n keys.1) := by
   simp only [indexedEufCmaGame, counterForger, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbOracleComp.eval_run_interpret, OracleComp.interpret_bind, OracleComp.interpret_pure,
     StateT.run_bind, StateT.run_pure, ProbOracleComp.run_interpret_run_interpret, PMF.bind_map,
@@ -410,8 +417,8 @@ private theorem eval_counterEufCmaGame_eq {bound : ℕ → ℕ → ℕ} {n : ℕ
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (jointOracle S n keys.2 bound)) (adversary n keys.1)).run (0, [])).map
-              (fun r => !(r.2.2.map Prod.snd).contains r.1.1 &&
-                S.counterVerify keys.1 r.1.1 r.1.2) := by
+              (fun r => decide ((requestDecoder.decode r.1.2).1 < S.capacity n) &&
+                !(r.2.2.map Prod.snd).contains r.1.1 && S.counterVerify keys.1 r.1.1 r.1.2) := by
   simp only [counterEufCmaGame, ProbComp.eval_bind, ProbComp.eval_pure]
   refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
   rw [← map_run_jointOracle (hbound keys hkeys), PMF.bind_map]
@@ -438,8 +445,8 @@ theorem succProbability_counterEufCmaGame_le {bound : ℕ → ℕ → ℕ} {n : 
   refine PMF.map_true_mono _ fun r _ hwin => ?_
   simp only [indexedWin, counterVerify, Bool.and_eq_true, Bool.not_eq_eq_eq_not,
     Bool.not_true] at hwin ⊢
-  obtain ⟨hfresh, hverify⟩ := hwin
-  refine ⟨?_, hverify⟩
+  obtain ⟨⟨hcap, hfresh⟩, hverify⟩ := hwin
+  refine ⟨⟨hcap, ?_⟩, hverify⟩
   rw [← Bool.not_eq_true, List.contains_iff_mem] at hfresh ⊢
   exact fun hmem => hfresh (List.mem_map.mpr ⟨_, hmem, rfl⟩)
 
@@ -466,9 +473,9 @@ private theorem isOraclePPTOn_counterHandler {bound : ℕ → ℕ → ℕ}
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × ℕ) =>
         S.counterHandler pair.1.1 bound pair.2.1 pair.2.2) := by
   unfold counterHandler
-  exact IsOraclePPTOn.ite' (by fun_prop)
-    ((IsOraclePPTOn.query_take' () (by fun_prop)
-      (computableInPolyTime_bound_comp hboundPoly (by fun_prop) (by fun_prop))).map_with'
+  exact IsOraclePPTOn.ite (by fun_prop)
+    ((IsOraclePPTOn.query_take () (by fun_prop)
+      (computableInPolyTime_bound_comp hboundPoly (by fun_prop) (by fun_prop))).map_with
       (by fun_prop))
     (ComputableInPolyTime.isOraclePPTOn (by fun_prop))
 
@@ -485,12 +492,10 @@ private theorem counterHandler_bound {bound : ℕ → ℕ → ℕ} (c : ℕ × L
   · obtain ⟨sig, hsig, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
     obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hsig
     have htake := List.length_take_le (bound c.1 request.2.length) raw
-    simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-    omega
+    enc_len
   · have h := OracleComp.eq_of_mem_supportWith_pure hresult
     subst h
-    simp only [List.length_nil, encUnary_apply, List.length_replicate]
-    omega
+    enc_len
 
 /-- The counter forger's reduction is uniformly strict oracle PPT for every oracle-PPT forger and
 every polynomial-time truncation bound. -/
@@ -503,7 +508,7 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
     (encIn := encPair (encPair encUnary encBits) encBits)
     (u := fun pair => pair.1.1) (v := fun pair => pair.2.length)
     hboundPoly (by fun_prop) (by fun_prop)
-  refine ((hadversary.run_interpret_preprocess_open' (prepare := fun c => c)
+  refine ((hadversary.run_interpret_preprocess_open (prepare := fun c => c)
       (initial := fun _ => (0 : ℕ))
       (resources := fun c w => bound c.1 w.length + 2 * S.capacity c.1 + 1)
       ComputableInPolyTime.id' (isOraclePPTOn_counterHandler hboundPoly)
@@ -514,25 +519,30 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
 
 /-! ### Security -/
 
-/-- **Indexed EUF-CMA security gives counter EUF-CMA security** ([BonehShoup2023],
-Section 14.6.4): the signer of an indexed EUF-CMA secure scheme may choose its indices with a
-counter. The reduction is `counterForger`, with loss `1`
-(`succProbability_counterEufCmaGame_le`). -/
+/-- **A counter as the nonce** ([BonehShoup2023], Section 14.6.4, pp. 602–603): if `S` is a
+secure `q`-indexed signature (Definition 14.6, p. 597), with `q = capacity n`, then the stateful
+signer that signs its `j`-th message at index `j` and publishes `j` with the signature is
+existentially unforgeable under adaptive chosen-message attack (`CounterEUFCMA`). This is the
+security that Section 14.6.4 states for a nonce-based signature whose nonce is never used twice
+(p. 602), for its counter nonce (p. 603).
+
+The differences from the source are those of `IndexedEUFCMA` (see the `IndexedSignature` module
+docstring), shared by premise and conclusion:
+* signing may be randomized, where Definition 14.6 requires deterministic signing, so the theorem
+  covers more schemes and is the source's for deterministic ones;
+* messages are bit strings of any length;
+* a request the source forbids (a repeated index or one `u ≥ capacity n` in the indexed game, any
+  request once `j = capacity n` in the counter game) is answered with the empty word and not
+  recorded, instead of being excluded from the adversary class; a forger can predict these
+  refusals, so the notions agree;
+* indices run over `0, …, q - 1` instead of `1, …, q`, and a forgery counts only at an index below
+  the capacity, which the counter game reads from the signature word.
+
+Forgers are uniform strict oracle-PPT machines. The reduction `counterForger` forwards each request
+at the counter's index and the forgery with its index; it is certified (`isOraclePPT_counterForger`)
+and has loss `1` (`succProbability_counterEufCmaGame_le`). -/
 theorem IndexedEUFCMA.counterEUFCMA (h : S.IndexedEUFCMA) : S.CounterEUFCMA := by
-  obtain ⟨ck, dk, hlenk⟩ := S.keyGen_ppt.length_le
-  obtain ⟨cs, ds, hlens⟩ := S.sign_ppt.length_le
-  obtain ⟨bound, hboundPoly, hbound⟩ : ∃ bound : ℕ → ℕ → ℕ,
-      ComputableInPolyTime (fun p : ℕ × ℕ => bound p.1 p.2) (encPair encUnary encUnary) encUnary ∧
-      ∀ n, ∀ x ∈ (ProbComp.eval (S.keyGen n)).support, ∀ j < S.capacity n, ∀ msg,
-        ∀ σ ∈ (ProbComp.eval (S.sign x.2 j msg)).support, σ.length ≤ bound n msg.length := by
-    refine ⟨fun n L => cs * (2 * (ck * (n + 1) ^ dk) + 2 * S.capacity n + L + 3) ^ ds,
-      by fun_prop, fun n x hx j hj msg σ hσ => ?_⟩
-    have hkeyLen := hlenk n x hx
-    simp only [encUnary_apply, List.length_replicate, length_encPair, encBits_apply] at hkeyLen
-    have hσLen := hlens (x.2, j, msg) σ hσ
-    simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate] at hσLen
-    refine hσLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left ?_ ds))
-    omega
+  obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
   apply CounterEUFCMA.of_negligible
   intro adversary hadversary
   exact negligible_of_le

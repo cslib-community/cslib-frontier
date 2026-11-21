@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Josha Dekker, Devon Tuma, Kexing Ying, Samuel Schlesinger, Karn Seth
+Authors: Josha Dekker, Devon Tuma, Kexing Ying, Samuel Schlesinger, Karn Seth, Renfei Zhou
 -/
 
 module
@@ -31,16 +31,22 @@ the overwritten string and the old part together determine `(a, b)`.
 * `Cslib.Probability.PMF.mem_support_uniformOfFintype`: every value has positive uniform mass.
 * `Cslib.Probability.PMF.uniformOfFintype_finset_map_val`: subtype and finite-set uniform
   laws agree.
-* `Cslib.Probability.PMF.uniformOfFintype_bind_equiv`: reparametrizing a uniform draw by a
+* `Cslib.Probability.PMF.uniformOfFintype_bind_bijective`,
+  `Cslib.Probability.PMF.uniformOfFintype_bind_equiv`: reparametrizing a uniform draw by a
   bijection leaves an experiment unchanged.
 * `Cslib.Probability.PMF.uniformOfFintype_prod_map_fst`,
-  `Cslib.Probability.PMF.uniformOfFintype_bind_map`: the first component of a uniform pair is
+  `Cslib.Probability.PMF.uniformOfFintype_prod_map_snd`,
+  `Cslib.Probability.PMF.uniformOfFintype_bind_map`: each component of a uniform pair is
   uniform, and mapping over two independent uniform draws is mapping over a uniform pair.
 * `Cslib.Probability.PMF.uniformOfFintype_pi_map_restrict`,
   `Cslib.Probability.PMF.uniformOfFintype_pi_bind_restrict`: restricting a uniform dependent
   function to a finite subset gives the uniform distribution on that subset.
+* `Cslib.Probability.PMF.uniformOfFintype_pi_map_comp_embedding`: pulling back a uniform
+  dependent function along an embedding gives the uniform distribution on the domain.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate`: resampling the value at a
   point chosen from the function itself.
+* `Cslib.Probability.PMF.uniformOfFintype_map_exchange_option`: the joint law after exchanging
+  the output of a partial decoder with an independent uniform input.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_map_fst_equiv`,
   `Cslib.Probability.PMF.uniformOfFintype_bind_bind_fst_equiv`: resampling along an equivalence.
 * `Cslib.Probability.PMF.toOuterMeasure_uniformOfFinset`,
@@ -81,13 +87,24 @@ theorem uniformOfFintype_finset_map_val (s : Finset α) [Nonempty s] :
   · intro b hb
     simp [Set.indicator_apply, Ne.symm hb]
 
+-- Moved from `CslibFrontier/Crypto/Primitives/Garbling/Rerandomizable.lean`, where it was
+-- private.
+/-- Substituting a bijection `f` into a uniform draw does not change an experiment: if `k'` agrees
+with `k ∘ f`, drawing uniformly from `α` and running `k'` is drawing uniformly from `β` and
+running `k`. -/
+theorem uniformOfFintype_bind_bijective [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
+    {f : α → β} (hf : Function.Bijective f) {k : β → PMF γ} {k' : α → PMF γ}
+    (hk : ∀ a, k' a = k (f a)) :
+    (uniformOfFintype α).bind k' = (uniformOfFintype β).bind k := by
+  rw [show k' = k ∘ Equiv.ofBijective f hf from funext hk, ← PMF.bind_map,
+    uniformOfFintype_map_equiv]
+
 -- Moved from `CslibFrontier/Crypto/Computational/DiffieHellman.lean` (Samuel Schlesinger), where
 -- it was private, so that the garbling and Diffie–Hellman modules share one statement.
 /-- Reparametrizing a uniform draw by a bijection does not change an experiment. -/
 theorem uniformOfFintype_bind_equiv [Fintype α] [Nonempty α] (e : α ≃ α) (f : α → PMF β) :
-    (uniformOfFintype α).bind (fun a => f (e a)) = (uniformOfFintype α).bind f := by
-  change (uniformOfFintype α).bind (f ∘ e) = (uniformOfFintype α).bind f
-  rw [← PMF.bind_map, uniformOfFintype_map_equiv]
+    (uniformOfFintype α).bind (fun a => f (e a)) = (uniformOfFintype α).bind f :=
+  uniformOfFintype_bind_bijective e.bijective fun _ => rfl
 
 variable [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
 
@@ -100,6 +117,28 @@ theorem uniformOfFintype_prod_map_fst :
         congr 1 with a : 1
         exact PMF.map_const _ _
     _ = _ := PMF.bind_pure _
+
+/-- The second component of a uniform pair is uniform. -/
+theorem uniformOfFintype_prod_map_snd :
+    (uniformOfFintype (α × β)).map Prod.snd = uniformOfFintype β := by
+  rw [← uniformOfFintype_map_equiv (Equiv.prodComm β α), PMF.map_comp]
+  exact uniformOfFintype_prod_map_fst
+
+/-- Exchange the successful result of a partial decoder with an independent uniform value.
+If a permutation of the full input pair preserves exhaustion and makes a successful input decode
+to the supplied value, the programmed input and the reported result have the original joint law. -/
+theorem uniformOfFintype_map_exchange_option (e : Equiv.Perm (α × β)) (read : α → Option γ)
+    (value : β → γ) (hnone : ∀ {a}, read a = none → ∀ b, read (e (a, b)).1 = none)
+    (hsome : ∀ {a c}, read a = some c → ∀ b, read (e (a, b)).1 = some (value b)) :
+    (uniformOfFintype (α × β)).map (fun (a, b) => ((e (a, b)).1, (read a).map fun _ => value b)) =
+    (uniformOfFintype α).map (fun a => (a, read a)) := by
+  rw [← uniformOfFintype_prod_map_fst (α := α) (β := β), _root_.PMF.map_comp]
+  conv_rhs => rw [← uniformOfFintype_map_equiv e, _root_.PMF.map_comp]
+  congr 1
+  funext ⟨a, b⟩
+  cases h : read a with
+  | none => simp [h, hnone h]
+  | some c => simp [h, hsome h]
 
 /-- Mapping a curried binary function over two independent uniform draws is equivalent to
 mapping the uncurried function over a uniform pair. Iterating this rewrite collapses `n`-ary
@@ -133,6 +172,24 @@ theorem uniformOfFintype_pi_bind_restrict {ι : Type*} [Fintype ι] [DecidableEq
   rw [← uniformOfFintype_pi_map_restrict I, PMF.bind_map]
   rfl
 
+/-- Pulling back a uniform dependent function along an embedding gives the uniform distribution
+on the domain. -/
+theorem uniformOfFintype_pi_map_comp_embedding {ι κ : Type*} [Fintype ι] [Fintype κ]
+    [DecidableEq ι] [DecidableEq κ] (e : κ ↪ ι) :
+    (uniformOfFintype (ι → α)).map (fun f i => f (e i)) =
+      uniformOfFintype (κ → α) := by
+  set I : Finset ι := Finset.univ.image e
+  let eIdx : κ ≃ I := Equiv.ofBijective
+    (fun i => ⟨e i, Finset.mem_image_of_mem e (Finset.mem_univ i)⟩) (by
+      rw [Fintype.bijective_iff_injective_and_card, Fintype.card_coe,
+        Finset.card_image_of_injective _ e.injective, Finset.card_univ]
+      exact ⟨fun _ _ h => e.injective (congrArg Subtype.val h), rfl⟩)
+  let pull : (I → α) ≃ (κ → α) := Equiv.piCongrLeft' (fun _ => α) eIdx.symm
+  have hcomp : (fun (f : ι → α) i => f (e i)) = pull ∘ I.restrict := by
+    funext f i; change f (e i) = pull (I.restrict f) i; simp [pull, Finset.restrict, eIdx]
+  rw [hcomp, ← _root_.PMF.map_comp, uniformOfFintype_pi_map_restrict I,
+    uniformOfFintype_map_equiv pull]
+
 variable [Fintype γ] [Nonempty γ] [Finite δ]
 
 /-- **Resampling**: for independent uniform `a` and `b` and an equivalence `e : α × β ≃ γ × δ`,
@@ -158,6 +215,18 @@ theorem uniformOfFintype_bind_bind_fst_equiv (e : α × β ≃ γ × δ) (f : γ
   rw [← uniformOfFintype_bind_map_fst_equiv e]
   simp only [PMF.bind_bind, PMF.bind_map]
   rfl
+
+/-- Two independent uniform draws pushed through an equivalence `e : α × β ≃ γ` are one uniform
+draw from `γ`. -/
+theorem uniformOfFintype_bind_bind_equiv (e : α × β ≃ γ) (f : γ → PMF ε) :
+    ((uniformOfFintype α).bind fun a => (uniformOfFintype β).bind fun b => f (e (a, b))) =
+      (uniformOfFintype γ).bind f :=
+  uniformOfFintype_bind_bind_fst_equiv (e.trans (Equiv.prodPUnit γ : γ × Unit ≃ γ).symm) f
+
+/-- The uniform distribution on `Unit` is the point mass at `()`. -/
+theorem uniformOfFintype_unit : uniformOfFintype Unit = PMF.pure () := by
+  ext u
+  simp
 
 /-- **Adaptive resampling**: a uniform function whose value at a point `p f`, chosen from the
 function itself, is replaced by a fresh uniform value is uniform, provided that replacing that

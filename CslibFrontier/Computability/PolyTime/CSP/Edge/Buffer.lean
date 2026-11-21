@@ -60,7 +60,7 @@ The default makes this total even for a short buffer. -/
 
 /-- Test every constraint against the complete finite labeling buffer. -/
 @[expose] def valid (F : CSP Table ℕ) (bits : List Bool) : Bool :=
-  F.zipIdx.all fun ((table, scope), constraint) => table.sem
+  F.zipIdx.all fun ⟨⟨table, scope⟩, constraint⟩ => table.sem
     (scope.zipIdx.map fun (vertex, port) => readRecord F bits (constraint, port, vertex))
 
 /-- Test for unequal buffer bits at two actual occurrences of the requested variable. -/
@@ -78,7 +78,7 @@ The default makes this total even for a short buffer. -/
 theorem poly_zipIdx {α β : Type} {e : α ↪ List Bool} {eb : β ↪ List Bool}
     {f : α → List β} (hf : ComputableInPolyTime f e (encList eb)) :
     ComputableInPolyTime (fun x => (f x).zipIdx) e (encList (encPair eb encUnary)) :=
-  .of_tidy ((ComputableTidilyInPolyTime.zipIdx eb).comp hf.tidy)
+  ((ComputableInPolyTime.zipIdx eb).comp hf)
 
 theorem poly_product {α β : Type} (ea : α ↪ List Bool) (eb : β ↪ List Bool) :
     ComputableInPolyTime (fun p : List α × List β => p.1.product p.2)
@@ -91,7 +91,7 @@ theorem poly_idxOf {α β : Type} [DecidableEq β]
     (hl : ComputableInPolyTime list e (encList eb))
     (hv : ComputableInPolyTime value e eb) :
     ComputableInPolyTime (fun x => (list x).idxOf (value x)) e encUnary :=
-  .of_tidy (ComputableTidilyInPolyTime.idxOfWithInput hl.tidy hv.tidy)
+  (ComputableInPolyTime.idxOfWithInput hl hv)
 
 attribute [local fun_prop] poly_zipIdx poly_product poly_idxOf
 
@@ -115,8 +115,8 @@ theorem poly_readRecord :
       (encPair encBuffer encRecord)
       (encList encBool) := by fun_prop
   -- The realizing lookup saturates its binary index at the actual buffer length.
-  exact .of_tidy (ComputableTidilyInPolyTime.listGetD_binary false hlist.tidy
-    (ComputableTidilyInPolyTime.unary_to_binary.comp hindex.tidy))
+  exact (ComputableInPolyTime.listGetD_binary false hlist
+    (ComputableInPolyTime.unary_to_binary.comp hindex))
 
 attribute [local fun_prop] poly_readRecord
 
@@ -233,12 +233,12 @@ theorem valid_eq (F : CSP Table ℕ) (bits : List Bool) :
   apply Bool.eq_iff_iff.mpr
   rw [decide_eq_true_eq]
   change valid F bits = true ↔ ∀ i : Fin F.length,
-    F[i].1.sem (localTuple (labeling F bits) i) = true
+    F[i].rel.sem (localTuple (labeling F bits) i) = true
   simp only [valid, List.all_eq_true, zipIdx_eq_ofFn, List.mem_ofFn, forall_exists_index,
     forall_apply_eq_imp_iff, List.map_ofFn, Function.comp_def]
   have htuple (i : Fin F.length) :
-      (List.ofFn fun j : Fin F[i].2.length =>
-        readRecord F bits (i.val, j.val, F[i].2[j])) = localTuple (labeling F bits) i := by
+      (List.ofFn fun j : Fin F[i].scope.length =>
+        readRecord F bits (i.val, j.val, F[i].scope[j])) = localTuple (labeling F bits) i := by
     apply congrArg List.ofFn
     funext j
     exact read_record bits ⟨i, j⟩

@@ -173,6 +173,14 @@ private theorem one_sub_mul_sum_le_of_pos (S : WeightScheme N)
         (T : ℝ) * (c * vA * S.weightSum + (vB / c) * S.weightSum) := htel
     _ = T * (c * vA + vB / c) * S.weightSum := by ring
 
+private theorem nonpos_of_forall_pos_le_div {x B : ℝ} (hB : 0 ≤ B)
+    (h : ∀ c : ℝ, 0 < c → x ≤ B / c) : x ≤ 0 := by
+  by_contra hx
+  replace hx : 0 < x := not_le.1 hx
+  have hle := h ((B + 1) / x) (by positivity)
+  rw [div_div_eq_mul_div, le_div_iff₀ (by positivity)] at hle
+  nlinarith
+
 /-- **Weighted quantum adversary bound** ([Ambainis2006], Section 3.3, Lemma 1):
 if `T` queries leave every related pair with state overlap at most `δ`, and the coordinate loads
 satisfy `loadFst x i ≤ vA · wtFst x` and `loadSnd y i ≤ vB · wtSnd y`, then
@@ -185,53 +193,21 @@ theorem one_sub_mul_sum_le (S : WeightScheme N) (U : ℕ → State N W →ₗᵢ
     (hB : ∀ y ∈ S.R.image Prod.snd, ∀ i, S.loadSnd y i ≤ vB * S.wtSnd y) :
     (1 - δ) * S.weightSum ≤ 2 * T * √(vA * vB) * S.weightSum := by
   rcases hvA.eq_or_lt with rfl | hvA_pos
-  · simp only [zero_mul, Real.sqrt_zero, mul_zero, zero_mul]
-    by_contra hlt
-    push Not at hlt
-    have hpos : 0 < (1 - δ) * S.weightSum := hlt
-    set M := ((T : ℝ) * vB * S.weightSum + 1) / ((1 - δ) * S.weightSum) * 2
-    have hM : 0 < M := by
-      have := S.weightSum_nonneg
-      positivity
-    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ le_rfl hvB hA hB hM
-    simp only [mul_zero, zero_add] at hbal
-    have h1 : (T : ℝ) * (vB / M) * S.weightSum = (T * vB * S.weightSum) / M := by ring
-    have h2 : (T : ℝ) * vB * S.weightSum / M < (1 - δ) * S.weightSum := by
-      have : (T : ℝ) * vB * S.weightSum / M =
-          ((T : ℝ) * vB * S.weightSum / ((T : ℝ) * vB * S.weightSum + 1)) *
-            ((1 - δ) * S.weightSum / 2) := by
-        dsimp only [M]
-        field_simp [hpos.ne']
-      have hfrac : (T : ℝ) * vB * S.weightSum / ((T : ℝ) * vB * S.weightSum + 1) < 1 := by
-        have := S.weightSum_nonneg
-        rw [div_lt_one (by positivity)]
-        linarith
-      nlinarith
-    linarith [h1.symm ▸ hbal]
+  · simp only [zero_mul, Real.sqrt_zero, mul_zero]
+    refine nonpos_of_forall_pos_le_div (B := T * vB * S.weightSum)
+      (by have := S.weightSum_nonneg; positivity) fun c hc => ?_
+    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ le_rfl hvB hA hB hc
+    have heq : (T : ℝ) * (c * 0 + vB / c) * S.weightSum = (T * vB * S.weightSum) / c := by ring
+    exact heq ▸ hbal
   rcases hvB.eq_or_lt with rfl | hvB_pos
   · simp only [mul_zero, Real.sqrt_zero, zero_mul]
-    by_contra hlt
-    push Not at hlt
-    have hpos : 0 < (1 - δ) * S.weightSum := hlt
-    set M := ((1 - δ) * S.weightSum) / (((T : ℝ) * vA * S.weightSum + 1) * 2)
-    have hM : 0 < M := by
-      have := S.weightSum_nonneg
-      positivity
-    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hvA_pos.le le_rfl hA hB hM
-    simp only [zero_div, add_zero] at hbal
-    have h1 : (T : ℝ) * (M * vA) * S.weightSum = M * ((T : ℝ) * vA * S.weightSum) := by ring
-    have h2 : M * ((T : ℝ) * vA * S.weightSum) < (1 - δ) * S.weightSum := by
-      have : M * ((T : ℝ) * vA * S.weightSum) =
-          (((T : ℝ) * vA * S.weightSum) / ((T : ℝ) * vA * S.weightSum + 1)) *
-            ((1 - δ) * S.weightSum / 2) := by
-        dsimp only [M]
-        field_simp
-      have hfrac : (T : ℝ) * vA * S.weightSum / ((T : ℝ) * vA * S.weightSum + 1) < 1 := by
-        have := S.weightSum_nonneg
-        rw [div_lt_one (by positivity)]
-        linarith
-      nlinarith
-    linarith [h1.symm ▸ hbal]
+    refine nonpos_of_forall_pos_le_div (B := T * vA * S.weightSum)
+      (by have := S.weightSum_nonneg; positivity) fun c hc => ?_
+    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hvA_pos.le le_rfl hA hB (inv_pos.2 hc)
+    have heq : (T : ℝ) * (c⁻¹ * vA + 0 / c⁻¹) * S.weightSum = (T * vA * S.weightSum) / c := by
+      rw [zero_div, add_zero, inv_mul_eq_div]
+      ring
+    exact heq ▸ hbal
   · set c := √vB / √vA
     have hc : 0 < c := div_pos (Real.sqrt_pos.2 hvB_pos) (Real.sqrt_pos.2 hvA_pos)
     have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hvA_pos.le hvB_pos.le hA hB hc
@@ -361,20 +337,20 @@ theorem ofUnweighted_wtSnd {R : Finset (BitString N × BitString N)} {L : ℕ}
     (ofUnweighted R L hL).wtSnd y = (#{q ∈ R | q.2 = y} : ℝ) := by
   simp [wtSnd, ofUnweighted]
 
+/-- A sum over `S` of terms each equal to `√L / #S` is at most `√L`. -/
+private theorem sum_le_sqrt_of_eq_div_card {α : Type*} {S : Finset α} {L : ℕ} {f : α → ℝ}
+    (hf : ∀ p ∈ S, f p = √L / (#S : ℝ)) : ∑ p ∈ S, f p ≤ √L := by
+  rw [sum_congr rfl hf, sum_const, nsmul_eq_mul, ← mul_div_assoc]
+  simpa only [div_one, mul_one] using mul_div_mul_left_le (c := (#S : ℝ)) (a := √L) (b := 1)
+    (div_nonneg (Real.sqrt_nonneg L) zero_le_one)
+
 theorem ofUnweighted_loadFst_le {R : Finset (BitString N × BitString N)} {L : ℕ}
     (hL : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i →
       #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} * #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤ L)
     (x : BitString N) (i : Fin N) :
     (ofUnweighted R L hL).loadFst x i ≤ √L := by
   classical
-  let S := R.filter fun p => p.1 i ≠ p.2 i ∧ p.1 = x
-  calc (ofUnweighted R L hL).loadFst x i = ∑ _p ∈ S, √L / (#S : ℝ) :=
-        sum_congr rfl fun p hp => by simp only [ofUnweighted, S, (mem_filter.1 hp).2.2]
-    _ = (#S : ℝ) * (√L / (#S : ℝ)) := by rw [sum_const, nsmul_eq_mul]
-    _ = (#S : ℝ) * √L / (#S : ℝ) := by rw [mul_div_assoc]
-    _ ≤ √L := by
-      simpa only [div_one, mul_one] using mul_div_mul_left_le (c := (#S : ℝ)) (a := √L) (b := 1)
-        (div_nonneg (Real.sqrt_nonneg L) zero_le_one)
+  exact sum_le_sqrt_of_eq_div_card fun p hp => by simp only [ofUnweighted, (mem_filter.1 hp).2.2]
 
 theorem ofUnweighted_loadSnd_le {R : Finset (BitString N × BitString N)} {L : ℕ}
     (hL : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i →
@@ -382,14 +358,7 @@ theorem ofUnweighted_loadSnd_le {R : Finset (BitString N × BitString N)} {L : �
     (y : BitString N) (i : Fin N) :
     (ofUnweighted R L hL).loadSnd y i ≤ √L := by
   classical
-  let S := R.filter fun p => p.1 i ≠ p.2 i ∧ p.2 = y
-  calc (ofUnweighted R L hL).loadSnd y i = ∑ _p ∈ S, √L / (#S : ℝ) :=
-        sum_congr rfl fun p hp => by simp only [ofUnweighted, S, (mem_filter.1 hp).2.2]
-    _ = (#S : ℝ) * (√L / (#S : ℝ)) := by rw [sum_const, nsmul_eq_mul]
-    _ = (#S : ℝ) * √L / (#S : ℝ) := by rw [mul_div_assoc]
-    _ ≤ √L := by
-      simpa only [div_one, mul_one] using mul_div_mul_left_le (c := (#S : ℝ)) (a := √L) (b := 1)
-        (div_nonneg (Real.sqrt_nonneg L) zero_le_one)
+  exact sum_le_sqrt_of_eq_div_card fun p hp => by simp only [ofUnweighted, (mem_filter.1 hp).2.2]
 
 end WeightScheme
 

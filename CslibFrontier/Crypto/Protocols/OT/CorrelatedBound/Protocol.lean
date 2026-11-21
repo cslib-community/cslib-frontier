@@ -31,10 +31,15 @@ Every inter-party message round (`sender ≠ receiver`) contributes to the publi
 never increases the conditional mutual information between the two parties' initial correlated-plus-
 coin states (`condMutualInfo_transcript_le_mutualInfo`). Combined with
 `natCast_le_mutualInfo_of_rot`,
-any protocol realizing `k` independent random OTs (`idealROT k`) or `k` chosen-input OTs
+any protocol realizing `k` independent random OTs (`rotFunctionality k`) or `k` chosen-input OTs
 (`batchOTFunctionality k Bool`) with perfect semi-honest privacy over `source` requires
 `k ≤ I(A; B)` (`rot_le_mutualInfo`, `chosenOT_le_mutualInfo`, `commProtocol_rot_le_mutualInfo`,
 `privateCoin_rot_le_mutualInfo`).
+
+Privacy over a correlated source is the shared MPC notion
+`Cslib.Crypto.Protocols.MPC.PerfectSemiHonestPrivateProperWithSetup`, with the source dealt by the
+trusted setup `dealSource source` (or `dealSourceWithInput source` next to external inputs) and
+simulators `Cslib.Crypto.Protocols.MPC.SetupSimulator` that never see the dealt share.
 
 ## Main definitions
 
@@ -42,27 +47,20 @@ any protocol realizing `k` independent random OTs (`idealROT k`) or `k` chosen-i
   communication transcript type of a two-party plain-channel schedule.
 * `Cslib.Crypto.Protocols.OT.stepsTranscriptOfView`, `Cslib.Crypto.Protocols.OT.transcriptOfView`:
   deterministic reconstruction of the public transcript from either party's `PartyView`.
-* `Cslib.Crypto.Protocols.OT.realWithInputDist`, `Cslib.Crypto.Protocols.OT.realCorrelated`,
-  `Cslib.Crypto.Protocols.OT.realCorrelatedJoint`,
-  `Cslib.Crypto.Protocols.OT.CorrelatedSimulator`,
-  `Cslib.Crypto.Protocols.OT.SemanticCorrelatedSimulator`,
-  `Cslib.Crypto.Protocols.OT.idealCorrelatedJoint`,
-  `Cslib.Crypto.Protocols.OT.PerfectSemiHonestPrivateOverSource`,
-  `Cslib.Crypto.Protocols.OT.PerfectSemiHonestPrivateProperOverSource`: real and ideal correlated-
-  source 2PC semantics and perfect semi-honest privacy.
-* `Cslib.Crypto.Protocols.OT.realCorrelatedWithInput`,
-  `Cslib.Crypto.Protocols.OT.realCorrelatedJointWithInput`,
-  `Cslib.Crypto.Protocols.OT.CorrelatedSimulatorWithInput`,
-  `Cslib.Crypto.Protocols.OT.idealCorrelatedJointWithInput`,
-  `Cslib.Crypto.Protocols.OT.PerfectSemiHonestPrivateProperWithInputOverSource`: extension to
-  functionalities with external party inputs.
-* `Cslib.Crypto.Protocols.OT.idealROT`: ideal distribution of `k` independent random 1-out-of-2 bit
-  oblivious transfers.
+* `Cslib.Crypto.Protocols.OT.realWithInputDist`, `Cslib.Crypto.Protocols.OT.realCorrelated`: real
+  executions over a joint input distribution and over a correlated source.
+* `Cslib.Crypto.Protocols.OT.dealSource`, `Cslib.Crypto.Protocols.OT.dealSourceWithInput`: trusted
+  setups dealing a correlated source to the two parties, alone or next to their external inputs.
+* `Cslib.Crypto.Protocols.OT.idealROT`, `Cslib.Crypto.Protocols.OT.rotFunctionality`: ideal
+  distribution and input-free functionality of `k` independent random 1-out-of-2 bit oblivious
+  transfers.
 
 ## Main results
 
 * `Cslib.Crypto.Protocols.OT.transcriptOfView_zero_eq_one`: both parties reconstruct the same public
   transcript on every supported execution.
+* `Cslib.Crypto.Protocols.OT.dealSource_bind_realJoint`: the real side of privacy over
+  `dealSource source` is `realCorrelated` restricted to the coalition.
 * `Cslib.Crypto.Protocols.OT.condMutualInfo_transcript_le_mutualInfo_input`,
   `Cslib.Crypto.Protocols.OT.condMutualInfo_transcript_le_mutualInfo`: public communication over a
   correlated source satisfies `I((In₀, R₀); (In₁, R₁) | T) ≤ I(In₀; In₁)`.
@@ -109,14 +107,14 @@ private def restrictOne {F : Fin 2 → Type} (x1 : F 1) :
     (i : ({1} : Finset (Fin 2))) → F i.1 :=
   fun ⟨i, hi⟩ => Finset.mem_singleton.mp hi ▸ x1
 
-private theorem restrictZero_pairVec {F : Fin 2 → Type} (x0 : F 0) (x1 : F 1) :
-    ({0} : Finset (Fin 2)).restrict (pairVec x0 x1) = restrictZero x0 := by
+private theorem restrictZero_eq {F : Fin 2 → Type} (f : (i : Fin 2) → F i) :
+    ({0} : Finset (Fin 2)).restrict f = restrictZero (f 0) := by
   funext ⟨i, hi⟩
   obtain rfl := Finset.mem_singleton.mp hi
   rfl
 
-private theorem restrictOne_pairVec {F : Fin 2 → Type} (x0 : F 0) (x1 : F 1) :
-    ({1} : Finset (Fin 2)).restrict (pairVec x0 x1) = restrictOne x1 := by
+private theorem restrictOne_eq {F : Fin 2 → Type} (f : (i : Fin 2) → F i) :
+    ({1} : Finset (Fin 2)).restrict f = restrictOne (f 1) := by
   funext ⟨i, hi⟩
   obtain rfl := Finset.mem_singleton.mp hi
   rfl
@@ -474,68 +472,22 @@ private theorem bind_evalWith_map_input {Ω α β : Type*} {In Coins Out : Fin 2
     PMF (((i : Fin 2) → PartyView (Fin.cases A (fun _ => B)) Coins sc i) × ((i : Fin 2) → Out i)) :=
   source.bind fun ab => proto.evalWith noOracleWorld (Fin.cases ab.1 (fun _ => ab.2))
 
-/-- Real joint distribution of coalition `I`'s views and both parties' outputs over `source`. -/
-@[expose] noncomputable def realCorrelatedJoint
+/-- The trusted setup dealing correlated source `source : PMF (A × B)` to the two parties: party `0`
+receives the `A` share and party `1` the `B` share. Privacy over `source` is
+`PerfectSemiHonestPrivateProperWithSetup` with setup `fun _ => dealSource source`. -/
+noncomputable def dealSource (source : PMF (A × B)) :
+    PMF ((i : Fin 2) → Fin.cases A (fun _ => B) i) :=
+  source.map fun ab => Fin.cases ab.1 (fun _ => ab.2)
+
+/-- The real side of privacy over `dealSource source` is the correlated execution restricted to
+the coalition. -/
+theorem dealSource_bind_realJoint
     (proto : Protocol 2 noOracleSpec sc (Fin.cases A (fun _ => B)) Coins Out)
     (source : PMF (A × B)) (I : Finset (Fin 2)) :
-    PMF (((i : I) → PartyView (Fin.cases A (fun _ => B)) Coins sc i) × ((i : Fin 2) → Out i)) :=
-  (realCorrelated proto source).map (Prod.map I.restrict id)
-
-/-- A simulator for coalition `I` in a correlated-source protocol without external inputs receives
-only the coalition's outputs and samples simulated views (including the correlated input share). -/
-abbrev SemanticCorrelatedSimulator (sc : Schedule 2 noOracleSpec) (A B : Type)
-    (Coins Out : Fin 2 → Type) (I : Finset (Fin 2)) :=
-  ((i : I) → Out i) → PMF ((i : I) → PartyView (Fin.cases A (fun _ => B)) Coins sc i)
-
-/-- A simulator for coalition `I` in a correlated-source protocol without external inputs receives
-only the coalition's outputs and samples simulated views (including the correlated input
-share) as a `ProbComp` probabilistic program. -/
-abbrev CorrelatedSimulator (sc : Schedule 2 noOracleSpec) (A B : Type)
-    (Coins Out : Fin 2 → Type) (I : Finset (Fin 2)) :=
-  ((i : I) → Out i) → ProbComp ((i : I) → PartyView (Fin.cases A (fun _ => B)) Coins sc i)
-
-/-- Ideal joint view-and-output distribution for functionality distribution `f` and
-simulator `S`. -/
-@[expose] noncomputable def semanticIdealCorrelatedJoint (sc : Schedule 2 noOracleSpec) (A B : Type)
-    (Coins Out : Fin 2 → Type) (f : PMF ((i : Fin 2) → Out i)) (I : Finset (Fin 2))
-    (S : SemanticCorrelatedSimulator sc A B Coins Out I) :
-    PMF (((i : I) → PartyView (Fin.cases A (fun _ => B)) Coins sc i) × ((i : Fin 2) → Out i)) :=
-  f.bind fun y => (S (I.restrict y)).map (·, y)
-
-/-- Ideal joint view-and-output distribution for functionality distribution `f` and
-simulator `S`. -/
-@[expose] noncomputable def idealCorrelatedJoint (sc : Schedule 2 noOracleSpec) (A B : Type)
-    (Coins Out : Fin 2 → Type) (f : PMF ((i : Fin 2) → Out i)) (I : Finset (Fin 2))
-    (S : CorrelatedSimulator sc A B Coins Out I) :
-    PMF (((i : I) → PartyView (Fin.cases A (fun _ => B)) Coins sc i) × ((i : Fin 2) → Out i)) :=
-  semanticIdealCorrelatedJoint sc A B Coins Out f I fun yI => ProbComp.eval (S yI)
-
-/-- Perfect semi-honest privacy over correlated source `source` for all static coalitions
-`I : Finset (Fin 2)`. -/
-@[expose] def PerfectSemiHonestPrivateOverSource
-    (proto : Protocol 2 noOracleSpec sc (Fin.cases A (fun _ => B)) Coins Out)
-    (source : PMF (A × B)) (f : PMF ((i : Fin 2) → Out i))
-    (S : (I : Finset (Fin 2)) → CorrelatedSimulator sc A B Coins Out I) : Prop :=
-  ∀ I : Finset (Fin 2),
-    idealCorrelatedJoint sc A B Coins Out f I (S I) = realCorrelatedJoint proto source I
-
-/-- Perfect semi-honest privacy over correlated source `source` against all proper static
-coalitions `I ≠ Finset.univ` (in particular, `∅`, `{0}`, and `{1}`). -/
-@[expose] def PerfectSemiHonestPrivateProperOverSource
-    (proto : Protocol 2 noOracleSpec sc (Fin.cases A (fun _ => B)) Coins Out)
-    (source : PMF (A × B)) (f : PMF ((i : Fin 2) → Out i))
-    (S : (I : Finset (Fin 2)) → CorrelatedSimulator sc A B Coins Out I) : Prop :=
-  ∀ I : Finset (Fin 2), I ≠ Finset.univ →
-    idealCorrelatedJoint sc A B Coins Out f I (S I) = realCorrelatedJoint proto source I
-
-/-- Full-coalition semi-honest privacy implies proper-coalition semi-honest privacy. -/
-theorem PerfectSemiHonestPrivateOverSource.proper
-    {proto : Protocol 2 noOracleSpec sc (Fin.cases A (fun _ => B)) Coins Out}
-    {source : PMF (A × B)} {f : PMF ((i : Fin 2) → Out i)}
-    {S : (I : Finset (Fin 2)) → CorrelatedSimulator sc A B Coins Out I}
-    (h : PerfectSemiHonestPrivateOverSource proto source f S) :
-    PerfectSemiHonestPrivateProperOverSource proto source f S :=
-  fun I _ => h I
+    (dealSource source).bind (proto.realJoint noOracleWorld I) =
+      (realCorrelated proto source).map (Prod.map I.restrict id) := by
+  rw [Protocol.bind_realJoint, dealSource, PMF.bind_map]
+  rfl
 
 /-- The ideal distribution of `k` independent random 1-out-of-2 bit oblivious transfers:
 party `0` (sender) receives `k` pairs of independent fair bits, and party `1` (receiver) receives
@@ -544,6 +496,31 @@ party `0` (sender) receives `k` pairs of independent fair bits, and party `1` (r
   (PMF.uniformOfFintype ((Fin k → Bool × Bool) × (Fin k → Bool))).map
     fun (senderBits, choices) =>
       Fin.cases senderBits (fun _ j => (choices j, otSelect (senderBits j) (choices j)))
+
+/-- The input-free functionality of `k` independent random 1-out-of-2 bit oblivious transfers: it
+samples uniform sender pairs and receiver choices and outputs the sender pairs to party `0` and
+the choices with the selected bits to party `1`. -/
+noncomputable def rotFunctionality (k : ℕ) :
+    Functionality 2 (fun _ => Unit) (fun _ => Fin k → Bool × Bool) :=
+  fun _ => (fun (senderBits, choices) =>
+      (Fin.cases senderBits (fun _ j => (choices j, otSelect (senderBits j) (choices j))) :
+        (i : Fin 2) → Fin k → Bool × Bool)) <$>
+    ProbComp.uniform ((Fin k → Bool × Bool) × (Fin k → Bool))
+
+/-- `rotFunctionality k` samples `idealROT k`. -/
+@[simp] theorem eval_rotFunctionality (k : ℕ) (x : (i : Fin 2) → Unit) :
+    ProbComp.eval (rotFunctionality k x) = idealROT k := by
+  rw [rotFunctionality, ProbComp.eval_map, ProbComp.eval_uniform]
+  rfl
+
+/-- The ideal joint distribution of `rotFunctionality k`: sample `idealROT k`, then the simulated
+views from the coalition's outputs. -/
+private theorem eval_idealJoint_rotFunctionality {k : ℕ} {I : Finset (Fin 2)}
+    (S : SetupSimulator sc (fun _ => Unit) (Fin.cases A (fun _ => B)) Coins
+      (fun _ => Fin k → Bool × Bool) I) (x : (i : Fin 2) → Unit) :
+    ProbComp.eval (idealJoint (rotFunctionality k) I S x) =
+      (idealROT k).bind fun y => (ProbComp.eval (S (fun _ => ()) (I.restrict y))).map (·, y) := by
+  rw [eval_idealJoint, eval_rotFunctionality]
 
 /-- Public communication over any joint input distribution `inputDist : PMF (In 0 × In 1)` never
 increases conditional mutual information: `I((In₀, R₀); (In₁, R₁) | T) ≤ I(In₀; In₁)`. -/
@@ -557,13 +534,14 @@ theorem condMutualInfo_transcript_le_mutualInfo_input {In : Fin 2 → Type}
         ((views 0).input, (views 0).coins, transcriptOfView proto 0 (views 0)),
         ((views 1).input, (views 1).coins, transcriptOfView proto 0 (views 0)))) ≤
       mutualInfo inputDist := by
-  let νCoins : PMF ((In 0 × In 1) × (Coins 0 × Coins 1)) :=
+  -- Each party's initial state `(input, coins)`, sampled jointly.
+  let ν : PMF ((In 0 × Coins 0) × (In 1 × Coins 1)) :=
     inputDist.bind fun xy =>
       (ProbComp.eval (proto.sampleCoins 0)).bind fun r0 =>
-        (ProbComp.eval (proto.sampleCoins 1)).map fun r1 => (xy, (r0, r1))
-  let stOf : (In 0 × In 1) × (Coins 0 × Coins 1) → (i : Fin 2) → (In i × Coins i) :=
-    fun ω => pairVec (ω.1.1, ω.2.1) (ω.1.2, ω.2.2)
-  let pureOut : (In 0 × In 1) × (Coins 0 × Coins 1) →
+        (ProbComp.eval (proto.sampleCoins 1)).map fun r1 => ((xy.1, r0), (xy.2, r1))
+  let stOf : (In 0 × Coins 0) × (In 1 × Coins 1) → (i : Fin 2) → (In i × Coins i) :=
+    fun ω => pairVec ω.1 ω.2
+  let pureOut : (In 0 × Coins 0) × (In 1 × Coins 1) →
       ((i : Fin 2) → PartyView In Coins sc i) × ((i : Fin 2) → Out i) :=
     fun ω =>
       let st := stOf ω
@@ -571,7 +549,8 @@ theorem condMutualInfo_transcript_le_mutualInfo_input {In : Fin 2 → Type}
       let views : (i : Fin 2) → PartyView In Coins sc i :=
         fun i => ⟨(st i).1, (st i).2, recv i⟩
       (views, fun i => proto.outputOfView i (views i))
-  have hreal : realWithInputDist proto inputDist = νCoins.map pureOut := by
+  let T_pure := fun ω => stepsTranscriptPure proto.steps (stOf ω)
+  have hreal : realWithInputDist proto inputDist = ν.map pureOut := by
     rw [realWithInputDist]
     have hpi : ProbComp.eval (OracleComp.pi proto.sampleCoins) =
         ((ProbComp.eval (proto.sampleCoins 0)).bind fun r0 =>
@@ -587,14 +566,15 @@ theorem condMutualInfo_transcript_le_mutualInfo_input {In : Fin 2 → Type}
       funext i
       fin_cases i <;> rfl
     simp only [Protocol.evalWith_eq, hpi, stepsEvalWith_eq_pure, PMF.pure_map]
-    simp only [νCoins, PMF.map_bind]
+    simp only [ν, PMF.map_bind]
     congr 1 with xy : 1
     rw [PMF.bind_bind]
     congr 1 with r0 : 1
     rw [PMF.bind_map, PMF.map_comp, ← PMF.bind_pure_comp]
     congr 1 with r1 : 1
     dsimp only [Function.comp_def, pureOut]
-    have hst : (fun i : Fin 2 => (pairVec xy.1 xy.2 i, pairVec r0 r1 i)) = stOf (xy, r0, r1) := by
+    have hst : (fun i : Fin 2 => (pairVec xy.1 xy.2 i, pairVec r0 r1 i)) =
+        stOf ((xy.1, r0), (xy.2, r1)) := by
       funext i
       fin_cases i <;> rfl
     congr 1
@@ -603,80 +583,53 @@ theorem condMutualInfo_transcript_le_mutualInfo_input {In : Fin 2 → Type}
       fin_cases i <;> rfl
     · rw [hst]
       fin_cases i <;> rfl
-  have hBase : condMutualInfo (νCoins.map fun ω =>
-      (stepsTranscriptPure proto.steps (stOf ω), (ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) ≤
-      mutualInfo inputDist := by
-    have hSteps := condMutualInfo_steps_transcriptPure_le νCoins
-      (fun ω => (ω.1.1, ω.2.1)) (fun ω => (ω.1.2, ω.2.2)) (fun _ => ())
-      proto.steps (fun ω => (ω.1.1, ω.2.1)) (fun ω => (ω.1.2, ω.2.2))
-      ⟨Prod.fst, fun _ _ => rfl⟩ ⟨Prod.fst, fun _ _ => rfl⟩
-    have hStrip : condMutualInfo (νCoins.map fun ω =>
-        (stepsTranscriptPure proto.steps (stOf ω), (ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) =
-        condMutualInfo (νCoins.map fun ω =>
-          (((), stepsTranscriptPure proto.steps (stOf ω)),
-            (ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) :=
-      (condMutualInfo_map_congr_cond νCoins
-        (fun ω => (ω.1.1, ω.2.1)) (fun ω => (ω.1.2, ω.2.2))
-        (e := ((), ·)) (fun _ _ h => congrArg Prod.snd h) (fun _ _ => rfl)).symm
-    have hSteps' : condMutualInfo (νCoins.map fun ω =>
-        (((), stepsTranscriptPure proto.steps (stOf ω)), (ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) ≤
-        condMutualInfo (νCoins.map fun ω => ((), (ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) := by
-      have hst : ∀ ω : (In 0 × In 1) × (Coins 0 × Coins 1),
-          (fun i => @pairVec (fun j => In j × Coins j) (ω.1.1, ω.2.1) (ω.1.2, ω.2.2) i) =
-            stOf ω :=
-        fun ω => funext fun i => by fin_cases i <;> rfl
-      simpa only [hst] using hSteps
-    have hUnit : condMutualInfo (νCoins.map fun ω => ((), (ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) =
-        mutualInfo inputDist := by
-      rw [condMutualInfo_map, entropy_map_eq_of_comp νCoins
-          (F := fun ω => (ω.1.1, ω.2.1)) (e := ((), ·)) (fun _ _ h => congrArg Prod.snd h)
-          (fun _ _ => rfl),
-        entropy_map_eq_of_comp νCoins
-          (F := fun ω => (ω.1.2, ω.2.2)) (e := ((), ·)) (fun _ _ h => congrArg Prod.snd h)
-          (fun _ _ => rfl),
-        entropy_map_eq_of_comp νCoins
-          (F := fun ω => ((ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) (e := ((), ·))
+  have hBase : condMutualInfo (ν.map fun ω => (T_pure ω, ω.1, ω.2)) ≤ mutualInfo inputDist := by
+    have hStrip : condMutualInfo (ν.map fun ω => (T_pure ω, ω.1, ω.2)) =
+        condMutualInfo (ν.map fun ω => (((), T_pure ω), ω.1, ω.2)) :=
+      (condMutualInfo_map_congr_cond ν Prod.fst Prod.snd (e := ((), ·))
+        (fun _ _ h => congrArg Prod.snd h) (fun _ _ => rfl)).symm
+    have hSteps := condMutualInfo_steps_transcriptPure_le ν Prod.fst Prod.snd (fun _ => ())
+      proto.steps Prod.fst Prod.snd ⟨Prod.fst, fun _ _ => rfl⟩ ⟨Prod.fst, fun _ _ => rfl⟩
+    have hUnit : condMutualInfo (ν.map fun ω => ((), ω.1, ω.2)) = mutualInfo inputDist := by
+      rw [condMutualInfo_map,
+        entropy_map_eq_of_comp ν (F := fun ω => ω.1) (e := ((), ·))
           (fun _ _ h => congrArg Prod.snd h) (fun _ _ => rfl),
-        show (νCoins.map fun _ => ()).entropy = 0 from
+        entropy_map_eq_of_comp ν (F := fun ω => ω.2) (e := ((), ·))
+          (fun _ _ h => congrArg Prod.snd h) (fun _ _ => rfl),
+        entropy_map_eq_of_comp ν (F := fun ω => (ω.1, ω.2)) (e := ((), ·))
+          (fun _ _ h => congrArg Prod.snd h) (fun _ _ => rfl),
+        show (ν.map fun _ => ()).entropy = 0 from
           entropy_eq_zero_of_subsingleton_support _ fun _ _ _ _ => rfl,
         sub_zero, ← mutualInfo_map]
-      have hpair : (νCoins.map fun ω => ((ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) =
-          inputDist.bind fun ab => (ProbComp.eval (proto.sampleCoins 0)).bind fun r0 =>
-            (ProbComp.eval (proto.sampleCoins 1)).map fun r1 => ((ab.1, r0), (ab.2, r1)) := by
-        simp only [νCoins, PMF.map_bind, PMF.map_comp, Function.comp_def]
-      rw [hpair]
-      exact mutualInfo_bind_pair_indep inputDist _ _
-    exact hStrip.trans_le (hSteps'.trans_eq hUnit)
+      exact (congrArg mutualInfo (PMF.map_id ν)).trans (mutualInfo_bind_pair_indep inputDist _ _)
+    exact hStrip.trans_le (hSteps.trans_eq hUnit)
   have hReencode :
       condMutualInfo ((realWithInputDist proto inputDist).map fun (views, _) =>
         (transcriptOfView proto 0 (views 0),
           ((views 0).input, (views 0).coins, transcriptOfView proto 0 (views 0)),
           ((views 1).input, (views 1).coins, transcriptOfView proto 0 (views 0)))) ≤
-      condMutualInfo (νCoins.map fun ω =>
-        (stepsTranscriptPure proto.steps (stOf ω), (ω.1.1, ω.2.1), (ω.1.2, ω.2.2))) := by
+      condMutualInfo (ν.map fun ω => (T_pure ω, ω.1, ω.2)) := by
     rw [hreal, PMF.map_comp]
-    let T_pure := fun ω => stepsTranscriptPure proto.steps (stOf ω)
     have htr : ∀ ω, transcriptOfView proto 0 ((pureOut ω).1 0) = T_pure ω :=
       fun ω => stepsTranscriptOfView_execPure proto.steps (stOf ω) 0
-    have hmap : condMutualInfo (νCoins.map ((fun (views, _) =>
+    have hmap : condMutualInfo (ν.map ((fun (views, _) =>
         (transcriptOfView proto 0 (views 0),
           ((views 0).input, (views 0).coins, transcriptOfView proto 0 (views 0)),
           ((views 1).input, (views 1).coins, transcriptOfView proto 0 (views 0)))) ∘ pureOut)) =
-        condMutualInfo (νCoins.map fun ω =>
-          (T_pure ω, (ω.1.1, ω.2.1, T_pure ω), (ω.1.2, ω.2.2, T_pure ω))) := by
-      refine congrArg (fun f => condMutualInfo (νCoins.map f)) ?_
+        condMutualInfo (ν.map fun ω =>
+          (T_pure ω, (ω.1.1, ω.1.2, T_pure ω), (ω.2.1, ω.2.2, T_pure ω))) := by
+      refine congrArg (fun f => condMutualInfo (ν.map f)) ?_
       funext ⟨⟨_, _⟩, ⟨_, _⟩⟩
       dsimp only [Function.comp_def]
       exact Prod.ext (htr _) (Prod.ext (Prod.ext rfl (Prod.ext rfl (htr _)))
         (Prod.ext rfl (Prod.ext rfl (htr _))))
     rw [hmap]
-    exact (condMutualInfo_map_le_of_comp νCoins T_pure
-      (fun ω => ((ω.1.1, ω.2.1), T_pure ω)) (fun ω => (ω.1.1, ω.2.1, T_pure ω))
-      (fun ω => ((ω.1.2, ω.2.2), T_pure ω)) (fun ω => (ω.1.2, ω.2.2, T_pure ω))
+    exact (condMutualInfo_map_le_of_comp ν T_pure
+      (fun ω => (ω.1, T_pure ω)) (fun ω => (ω.1.1, ω.1.2, T_pure ω))
+      (fun ω => (ω.2, T_pure ω)) (fun ω => (ω.2.1, ω.2.2, T_pure ω))
       (fun p => (p.1.1, p.1.2, p.2)) (fun _ _ => rfl)
       (fun p => (p.1.1, p.1.2, p.2)) (fun _ _ => rfl)).trans_eq
-      (condMutualInfo_map_pair_self νCoins T_pure (fun ω => (ω.1.1, ω.2.1))
-        (fun ω => (ω.1.2, ω.2.2)))
+      (condMutualInfo_map_pair_self ν T_pure Prod.fst Prod.snd)
   exact hReencode.trans hBase
 
 /-- Public communication over a correlated source never increases conditional mutual information:
@@ -721,6 +674,129 @@ theorem condMutualInfo_transcript_le_mutualInfo
     rfl
   exact hEq.trans_le hBound
 
+private theorem partyView_input_eq_of_mem_support_evalWith
+    {In Coins Out : Fin 2 → Type} (proto : Protocol 2 noOracleSpec sc In Coins Out)
+    {x : (i : Fin 2) → In i} {views : (i : Fin 2) → PartyView In Coins sc i}
+    {out : (i : Fin 2) → Out i}
+    (h : (views, out) ∈ (proto.evalWith noOracleWorld x).support) (i : Fin 2) :
+    (views i).input = x i := by
+  rw [Protocol.evalWith_eq, PMF.mem_support_bind_iff] at h
+  obtain ⟨_, _, hrecv⟩ := h
+  rw [PMF.mem_support_map_iff] at hrecv
+  obtain ⟨_, _, hres⟩ := hrecv
+  exact congrArg (fun p => (p.1 i).input) hres.symm
+
+private theorem transcriptOfView_zero_eq_one_of_mem_support_bind {Ω : Type*}
+    {In Coins Out : Fin 2 → Type} (proto : Protocol 2 noOracleSpec sc In Coins Out)
+    (μ : PMF Ω) (f : Ω → (i : Fin 2) → In i)
+    {views : (i : Fin 2) → PartyView In Coins sc i} {out : (i : Fin 2) → Out i}
+    (h : (views, out) ∈ (μ.bind fun a => proto.evalWith noOracleWorld (f a)).support) :
+    transcriptOfView proto 0 (views 0) = transcriptOfView proto 1 (views 1) := by
+  rw [PMF.mem_support_bind_iff] at h
+  obtain ⟨_, _, hev⟩ := h
+  exact transcriptOfView_zero_eq_one proto hev
+
+private theorem output_eq_of_mem_support_bind {Ω : Type*}
+    {In Coins Out : Fin 2 → Type} (proto : Protocol 2 noOracleSpec sc In Coins Out)
+    (μ : PMF Ω) (f : Ω → (i : Fin 2) → In i)
+    {views : (i : Fin 2) → PartyView In Coins sc i} {out : (i : Fin 2) → Out i}
+    (h : (views, out) ∈ (μ.bind fun a => proto.evalWith noOracleWorld (f a)).support)
+    (i : Fin 2) :
+    out i = proto.outputOfView i ⟨(views i).input, (views i).coins,
+      stepsReceivedOfTranscript proto.steps i ((views i).input, (views i).coins)
+        (transcriptOfView proto 0 (views 0))⟩ := by
+  rw [PMF.mem_support_bind_iff] at h
+  obtain ⟨_, _, hev⟩ := h
+  obtain ⟨hvw, hout⟩ := partyView_eq_of_mem_support_evalWith proto hev i
+  exact hout.trans (congrArg (proto.outputOfView i) hvw)
+
+private theorem indepUniform_of_map_eq_bind_uniform {Ω α β : Type*}
+    [Fintype β] [Nonempty β] {ν : PMF Ω} {X : Ω → α} {Y : Ω → β} (μ : PMF α)
+    (h : ν.map (fun ω => (X ω, Y ω)) =
+      μ.bind fun x => (PMF.uniformOfFintype β).map (x, ·)) :
+    IndepUniform ν X Y := by
+  refine ⟨?_⟩
+  have hX : ν.map X = μ := by
+    have h1 : ν.map X = (ν.map fun ω => (X ω, Y ω)).map Prod.fst := by
+      rw [PMF.map_comp]
+      rfl
+    rw [h1, h, map_fst_bind_pair]
+  rw [hX, h]
+
+private theorem indepUniform_of_map_eq_bind_bind_uniform {Ω α β γ δ : Type*}
+    [Fintype β] [Nonempty β] {ν : PMF Ω} {X : Ω → δ} {Y : Ω → β}
+    (μ : PMF α) (sim : α → PMF γ) (f : α → γ → δ)
+    (h : ν.map (fun ω => (X ω, Y ω)) =
+      μ.bind fun a => (PMF.uniformOfFintype β).bind fun b =>
+        (sim a).map fun v => (f a v, b)) :
+    IndepUniform ν X Y := by
+  refine indepUniform_of_map_eq_bind_uniform (μ.bind fun a => (sim a).map (f a)) ?_
+  rw [h, PMF.bind_bind]
+  congr 1 with a : 1
+  rw [PMF.bind_map]
+  simp only [← PMF.bind_pure_comp, Function.comp_def]
+  exact PMF.bind_comm _ _ _
+
+private theorem map_eq_map_eval_idealJoint {δ : Type*} {X In Coins Out : Fin 2 → Type}
+    {I : Finset (Fin 2)} {f : Functionality 2 X Out}
+    {S : SetupSimulator sc X In Coins Out I} {x : (i : Fin 2) → X i}
+    {real : PMF (((i : Fin 2) → PartyView In Coins sc i) × ((i : Fin 2) → Out i))}
+    (hPriv : ProbComp.eval (idealJoint f I S x) = real.map (Prod.map I.restrict id))
+    (g : (((i : Fin 2) → PartyView In Coins sc i) × ((i : Fin 2) → Out i)) → δ)
+    (proj : (((i : I) → PartyView In Coins sc i) × ((i : Fin 2) → Out i)) → δ)
+    (hproj : ∀ ω ∈ real.support, g ω = proj (I.restrict ω.1, ω.2)) :
+    real.map g = (ProbComp.eval (idealJoint f I S x)).map proj := by
+  calc real.map g
+      = real.map (fun ω => proj (I.restrict ω.1, ω.2)) :=
+        map_congr_on_support real g _ hproj
+    _ = (real.map (Prod.map I.restrict id)).map proj := by
+        rw [PMF.map_comp]
+        rfl
+    _ = (ProbComp.eval (idealJoint f I S x)).map proj := by
+        rw [← hPriv]
+
+private theorem indepUniform_of_idealJoint_bind_uniform
+    {Ω α β δ : Type*} {X In Coins Out : Fin 2 → Type} [Fintype β] [Nonempty β]
+    {ν : PMF Ω} {DX : Ω → δ} {DY : Ω → β}
+    {f : Functionality 2 X Out} {I : Finset (Fin 2)}
+    (S : SetupSimulator sc X In Coins Out I) (x : (i : Fin 2) → X i)
+    (proj : (((i : I) → PartyView In Coins sc i) × ((i : Fin 2) → Out i)) → δ × β)
+    (hReal : ν.map (fun ω => (DX ω, DY ω)) =
+      (ProbComp.eval (idealJoint f I S x)).map proj)
+    {μ : PMF α} {g : α → β → (i : Fin 2) → Out i}
+    (hf : ProbComp.eval (f x) = μ.bind fun a => (PMF.uniformOfFintype β).map (g a))
+    (r : α → (i : I) → Out i) (hr : ∀ a b, I.restrict (g a b) = r a)
+    (outF : α → ((i : I) → PartyView In Coins sc i) → δ)
+    (hproj : ∀ a b v, proj (v, g a b) = (outF a v, b)) :
+    IndepUniform ν DX DY := by
+  refine indepUniform_of_map_eq_bind_bind_uniform μ
+    (fun a => ProbComp.eval (S (I.restrict x) (r a))) outF ?_
+  rw [hReal, eval_idealJoint, hf, PMF.map_bind, PMF.bind_bind]
+  congr 1 with a : 1
+  rw [PMF.bind_map]
+  dsimp only [Function.comp_def]
+  congr 1 with b : 1
+  rw [hr a b, PMF.map_comp]
+  exact congrArg (PMF.map · _) (funext fun v => hproj a b v)
+
+private theorem mutualInfo_map_prodMap {α α' β β' : Type*}
+    [Finite α] [Finite α'] [Finite β] [Finite β']
+    (p : PMF (α × β)) {e₁ : α → α'} {e₂ : β → β'}
+    (he₁ : Function.Injective e₁) (he₂ : Function.Injective e₂) :
+    mutualInfo (p.map (Prod.map e₁ e₂)) = mutualInfo p := by
+  calc mutualInfo (p.map (Prod.map e₁ e₂))
+      = mutualInfo (p.map fun ab => (e₁ ab.1, e₂ ab.2)) := rfl
+    _ = mutualInfo (p.map fun ab => (e₁ ab.1, ab.2)) :=
+        mutualInfo_map_congr p (fun ab => e₁ ab.1) he₂ (fun _ _ => rfl)
+    _ = mutualInfo ((p.map fun ab => (e₁ ab.1, ab.2)).map Prod.swap) :=
+        (mutualInfo_map_swap _).symm
+    _ = mutualInfo (p.map fun ab => (ab.2, e₁ ab.1)) := by
+        rw [PMF.map_comp]; rfl
+    _ = mutualInfo (p.map fun ab => (ab.2, ab.1)) :=
+        mutualInfo_map_congr p Prod.snd he₁ (fun _ _ => rfl)
+    _ = mutualInfo (p.map Prod.swap) := rfl
+    _ = mutualInfo p := mutualInfo_map_swap p
+
 /-- Reparametrizing `k` uniform ROT instances `(S, C) ↔ ((C, Y), U)` preserves uniformity. -/
 private def rotEquiv (k : ℕ) :
     ((Fin k → Bool × Bool) × (Fin k → Bool)) ≃
@@ -753,18 +829,41 @@ private def rotEquiv (k : ℕ) :
       · have hc' : c = false := Bool.eq_false_iff.mpr hc
         simp only [otSelect, hr, hc', Bool.not_false, Bool.false_eq_true, ite_true, ite_false]
 
+private theorem idealROT_eq_reparam (k : ℕ) :
+    idealROT k =
+      (PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun rb =>
+        (PMF.uniformOfFintype (Fin k → Bool)).map fun ub =>
+          Fin.cases (fun j => if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j))
+            (fun _ => rb) := by
+  rw [idealROT, ← uniformOfFintype_map_equiv (rotEquiv k).symm, PMF.map_comp,
+    ← uniformOfFintype_prod, PMF.map_bind]
+  congr 1 with rb : 1
+  rw [PMF.map_comp]
+  congr 1 with ub : 1
+  funext i
+  fin_cases i
+  · rfl
+  · funext j
+    dsimp only [Function.comp_def, rotEquiv, Equiv.coe_fn_symm_mk]
+    change ((rb j).1,
+      otSelect (if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j)) (rb j).1) = rb j
+    cases hc : (rb j).1 <;> exact Prod.ext hc.symm rfl
+
 /-- **Ahlswede–Csiszár-style upper bound for correlated-source MPC protocols**:
 any two-party plain-channel protocol over correlated source `source : PMF (A × B)` that realizes
-`k` independent random OTs (`idealROT k`) with perfect semi-honest privacy against `{0}` and `{1}`
-requires `(k : ℝ) ≤ I(A; B)`. -/
+`k` independent random OTs (`rotFunctionality k`) with perfect semi-honest privacy against `{0}`
+and `{1}` requires `(k : ℝ) ≤ I(A; B)`. -/
 theorem rot_le_mutualInfo
     [Finite A] [Finite B] [Finite (Coins 0)] [Finite (Coins 1)] [Finite (PublicTranscript sc)]
     {k : ℕ}
     (proto : Protocol 2 noOracleSpec sc (Fin.cases A (fun _ => B)) Coins
       (fun _ => Fin k → Bool × Bool))
     (source : PMF (A × B))
-    (S : (I : Finset (Fin 2)) → CorrelatedSimulator sc A B Coins (fun _ => Fin k → Bool × Bool) I)
-    (hPriv : PerfectSemiHonestPrivateProperOverSource proto source (idealROT k) S) :
+    (S : (I : Finset (Fin 2)) →
+      SetupSimulator sc (fun _ => Unit) (Fin.cases A (fun _ => B)) Coins
+        (fun _ => Fin k → Bool × Bool) I)
+    (hPriv : PerfectSemiHonestPrivateProperWithSetup proto noOracleWorld
+      (fun _ => dealSource source) (rotFunctionality k) S) :
     (k : ℝ) ≤ mutualInfo source := by
   have hFin0 := finite_finCases (A := A) (B := B) 0
   have hFin1 := finite_finCases (A := A) (B := B) 1
@@ -788,222 +887,62 @@ theorem rot_le_mutualInfo
   let outB : B × Coins 1 × PublicTranscript sc → Fin k → Bool × Bool :=
     fun (b, r1, t) =>
       proto.outputOfView 1 ⟨b, r1, stepsReceivedOfTranscript proto.steps 1 (b, r1) t⟩
-  have hOutA : ∀ ω ∈ real.support, ω.2 0 = outA (VA ω) := by
-    intro ⟨views, out⟩ hω
-    dsimp only [real] at hω
-    rw [realCorrelated, PMF.mem_support_bind_iff] at hω
-    obtain ⟨_, _, hev⟩ := hω
-    obtain ⟨hvw0, hout⟩ := partyView_eq_of_mem_support_evalWith proto hev 0
-    exact hout.trans (congrArg (proto.outputOfView 0) hvw0)
-  have hOutB : ∀ ω ∈ real.support, ω.2 1 = outB (VB ω) := by
-    intro ⟨views, out⟩ hω
-    dsimp only [real] at hω
-    rw [realCorrelated, PMF.mem_support_bind_iff] at hω
-    obtain ⟨_, _, hev⟩ := hω
-    obtain ⟨hvw1, hout⟩ := partyView_eq_of_mem_support_evalWith proto hev 1
-    exact hout.trans (congrArg (proto.outputOfView 1) hvw1)
+  have hOutA : ∀ ω ∈ real.support, ω.2 0 = outA (VA ω) :=
+    fun ⟨_, _⟩ hω => output_eq_of_mem_support_bind proto source _ hω 0
+  have hOutB : ∀ ω ∈ real.support, ω.2 1 = outB (VB ω) :=
+    fun ⟨_, _⟩ hω => output_eq_of_mem_support_bind proto source _ hω 1
   have h0_neq : ({0} : Finset (Fin 2)) ≠ Finset.univ := by decide
   have h1_neq : ({1} : Finset (Fin 2)) ≠ Finset.univ := by decide
-  have hPriv0 := hPriv {0} h0_neq
-  have hPriv1 := hPriv {1} h1_neq
+  have hPriv0 : ProbComp.eval (idealJoint (rotFunctionality k) {0} (S {0}) fun _ => ()) =
+      real.map (Prod.map ({0} : Finset (Fin 2)).restrict id) :=
+    (hPriv {0} h0_neq _).trans (dealSource_bind_realJoint proto source {0})
+  have hPriv1 : ProbComp.eval (idealJoint (rotFunctionality k) {1} (S {1}) fun _ => ()) =
+      real.map (Prod.map ({1} : Finset (Fin 2)).restrict id) :=
+    (hPriv {1} h1_neq _).trans (dealSource_bind_realJoint proto source {1})
   have hCorrect : ∀ ω ∈ real.support, ∀ j : Fin k,
       (ω.2 1 j).2 = otSelect (ω.2 0 j) (ω.2 1 j).1 := by
     intro ⟨views, out⟩ hω j
     have hmem : (({0} : Finset (Fin 2)).restrict views, out) ∈
-        (realCorrelatedJoint proto source {0}).support :=
+        (real.map (Prod.map ({0} : Finset (Fin 2)).restrict id)).support :=
       (PMF.mem_support_map_iff _ _ _).mpr ⟨(views, out), hω, rfl⟩
-    rw [← hPriv0, idealCorrelatedJoint, semanticIdealCorrelatedJoint,
-        PMF.mem_support_bind_iff] at hmem
+    rw [← hPriv0, eval_idealJoint_rotFunctionality, PMF.mem_support_bind_iff] at hmem
     obtain ⟨y, hy, hres⟩ := hmem
     rw [PMF.mem_support_map_iff] at hres
     obtain ⟨_, _, hy_eq⟩ := hres
-    have hout : out = y := congrArg Prod.snd hy_eq.symm
     rw [idealROT, PMF.mem_support_map_iff] at hy
     obtain ⟨⟨sb, ch⟩, _, rfl⟩ := hy
-    rw [hout]
+    rw [← congrArg Prod.snd hy_eq]
     rfl
-  have hAlicePriv : real.map (fun ω => ((ω.2 0, T ω), rotChoices (ω.2 1))) =
-      (real.map fun ω => (ω.2 0, T ω)).bind fun st =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (st, ·) := by
-    let proj0 : (((i : ({0} : Finset (Fin 2))) →
-        PartyView (Fin.cases A (fun _ => B)) Coins sc i) ×
-        ((i : Fin 2) → Fin k → Bool × Bool)) →
-        ((Fin k → Bool × Bool) × PublicTranscript sc) × (Fin k → Bool) :=
-      fun (v0, y) => ((y 0, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)),
-        rotChoices (y 1))
-    have hRealProj : real.map (fun ω => ((ω.2 0, T ω), rotChoices (ω.2 1))) =
-        (realCorrelatedJoint proto source {0}).map proj0 := by
-      rw [realCorrelatedJoint, PMF.map_comp]
-      rfl
-    have hIdealEq : idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {0} (S {0}) =
-        (PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun sb =>
-          (ProbComp.eval (S {0} (restrictZero (F := fun _ => Fin k → Bool × Bool)
-            sb))).bind fun v0 =>
-            (PMF.uniformOfFintype (Fin k → Bool)).map fun ch =>
-              (v0, Fin.cases (motive := fun _ => Fin k → Bool × Bool) sb
-                (fun _ j => (ch j, otSelect (sb j) (ch j)))) := by
-      rw [idealCorrelatedJoint, semanticIdealCorrelatedJoint,
-        idealROT, ← uniformOfFintype_prod, PMF.bind_map, PMF.bind_bind]
-      congr 1 with sb : 1
-      rw [PMF.bind_map]
-      dsimp only [Function.comp_def]
-      have hres : ∀ ch : Fin k → Bool,
-          ({0} : Finset (Fin 2)).restrict
-            (Fin.cases (motive := fun _ => Fin k → Bool × Bool) sb
-              (fun _ j => (ch j, otSelect (sb j) (ch j)))) =
-            restrictZero (F := fun _ => Fin k → Bool × Bool) sb := by
-        intro ch
-        funext ⟨i, hi⟩
-        obtain rfl := Finset.mem_singleton.mp hi
-        rfl
-      simp only [hres, ← PMF.bind_pure_comp]
-      rw [PMF.bind_comm]
-      rfl
-    have hLHS : (idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {0} (S {0})).map proj0 =
-        ((PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun sb =>
-          (ProbComp.eval (S {0} (restrictZero (F := fun _ => Fin k → Bool × Bool)
-            sb))).map fun v0 =>
-            (sb, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩))).bind
-          fun st => (PMF.uniformOfFintype (Fin k → Bool)).map (st, ·) := by
-      rw [hIdealEq, PMF.map_bind, PMF.bind_bind]
-      congr 1 with sb : 1
-      rw [PMF.map_bind, PMF.bind_map]
-      congr 1 with v0 : 1
-      rw [PMF.map_comp]
-      rfl
-    have hMarginal : (idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {0} (S {0})).map (fun p => (proj0 p).1) =
-        real.map fun ω => (ω.2 0, T ω) := by
-      rw [hPriv0, realCorrelatedJoint, PMF.map_comp]
-      rfl
-    have hMargSimp : (idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {0} (S {0})).map (fun p => (proj0 p).1) =
-        (PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun sb =>
-          (ProbComp.eval (S {0} (restrictZero (F := fun _ => Fin k → Bool × Bool)
-            sb))).map fun v0 =>
-            (sb, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)) := by
-      rw [hIdealEq, PMF.map_bind]
-      congr 1 with sb : 1
-      rw [PMF.map_bind]
-      congr 1 with v0 : 1
-      rw [PMF.map_comp]
-      change PMF.map (Function.const (Fin k → Bool)
-          (sb, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)))
-          (PMF.uniformOfFintype (Fin k → Bool)) = _
-      exact PMF.map_const _ _
-    rw [hRealProj, ← hPriv0, hLHS, ← hMargSimp, hMarginal]
-  have hBobPriv : real.map (fun ω => ((T ω, ω.2 1), rotUnselected (ω.2 0) (ω.2 1))) =
-      (real.map fun ω => (T ω, ω.2 1)).bind fun tr =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (tr, ·) := by
-    let proj1 : (((i : ({1} : Finset (Fin 2))) →
-        PartyView (Fin.cases A (fun _ => B)) Coins sc i) ×
-        ((i : Fin 2) → Fin k → Bool × Bool)) →
-        (PublicTranscript sc × (Fin k → Bool × Bool)) × (Fin k → Bool) :=
-      fun (v1, y) => ((transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩), y 1),
-        rotUnselected (y 0) (y 1))
-    have hRealProj : (realCorrelated proto source).map
-          (fun ω => ((T ω, ω.2 1), rotUnselected (ω.2 0) (ω.2 1))) =
-        (realCorrelatedJoint proto source {1}).map proj1 := by
-      rw [realCorrelatedJoint, PMF.map_comp]
-      refine map_congr_on_support (realCorrelated proto source) _ _ fun ⟨views, out⟩ hω => ?_
-      have h01 : transcriptOfView proto 0 (views 0) = transcriptOfView proto 1 (views 1) := by
-        rw [realCorrelated, PMF.mem_support_bind_iff] at hω
-        obtain ⟨_, _, hev⟩ := hω
-        exact transcriptOfView_zero_eq_one proto hev
-      exact Prod.ext (Prod.ext h01 rfl) rfl
-    have hRealMarg : (realCorrelatedJoint proto source {1}).map (fun p => (proj1 p).1) =
-        real.map fun ω => (T ω, ω.2 1) := by
-      have hm := congrArg (PMF.map Prod.fst) hRealProj
-      simp only [PMF.map_comp] at hm
-      exact hm.symm
-    have hIdealRotRe : idealROT k =
-        (PMF.uniformOfFintype ((Fin k → Bool × Bool) × (Fin k → Bool))).map
-          fun (rb, ub) =>
-            Fin.cases (fun j => if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j))
-              (fun _ => rb) := by
-      have hU : (PMF.uniformOfFintype ((Fin k → Bool × Bool) × (Fin k → Bool))).map
-            (rotEquiv k).symm =
-          PMF.uniformOfFintype ((Fin k → Bool × Bool) × (Fin k → Bool)) :=
-        uniformOfFintype_map_equiv (rotEquiv k).symm
-      rw [idealROT]
-      conv_lhs => rw [← hU, PMF.map_comp]
-      congr 1
-      funext ⟨rb, ub⟩
-      funext i
-      fin_cases i
-      · rfl
-      · funext j
-        dsimp only [Function.comp_def, rotEquiv, Equiv.coe_fn_symm_mk]
-        change ((rb j).1,
-          otSelect (if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j)) (rb j).1) = rb j
-        cases hc : (rb j).1
-        · exact Prod.ext hc.symm rfl
-        · exact Prod.ext hc.symm rfl
-    have hIdealEq : idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {1} (S {1}) =
-        (PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun rb =>
-          (ProbComp.eval (S {1} (restrictOne (F := fun _ => Fin k → Bool × Bool)
-            rb))).bind fun v1 =>
-            (PMF.uniformOfFintype (Fin k → Bool)).map fun ub =>
-              (v1, Fin.cases (motive := fun _ => Fin k → Bool × Bool)
-                (fun j => if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j))
-                (fun _ => rb)) := by
-      rw [idealCorrelatedJoint, semanticIdealCorrelatedJoint,
-        hIdealRotRe, ← uniformOfFintype_prod, PMF.bind_map, PMF.bind_bind]
-      congr 1 with rb : 1
-      rw [PMF.bind_map]
-      dsimp only [Function.comp_def]
-      have hres : ∀ ub : Fin k → Bool,
-          ({1} : Finset (Fin 2)).restrict
-            (Fin.cases (motive := fun _ => Fin k → Bool × Bool)
-              (fun j => if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j))
-              (fun _ => rb)) =
-            restrictOne (F := fun _ => Fin k → Bool × Bool) rb := by
-        intro ub
-        funext ⟨i, hi⟩
-        obtain rfl := Finset.mem_singleton.mp hi
-        rfl
-      simp only [hres, ← PMF.bind_pure_comp]
-      rw [PMF.bind_comm]
-      rfl
-    have hLHS : (idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {1} (S {1})).map proj1 =
-        ((PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun rb =>
-          (ProbComp.eval (S {1} (restrictOne (F := fun _ => Fin k → Bool × Bool) rb))).map fun v1 =>
-            (transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩), rb)).bind
-          fun tr => (PMF.uniformOfFintype (Fin k → Bool)).map (tr, ·) := by
-      rw [hIdealEq, PMF.map_bind, PMF.bind_bind]
-      congr 1 with rb : 1
-      rw [PMF.map_bind, PMF.bind_map]
-      congr 1 with v1 : 1
-      rw [PMF.map_comp]
-      congr 1 with ub : 1
-      refine Prod.ext rfl (funext fun j => ?_)
-      dsimp only [Function.comp_def, proj1, rotUnselected]
-      rw [show (1 : Fin 2) = Fin.succ 0 from rfl, Fin.cases_succ, Fin.cases_zero]
-      cases hc : (rb j).1 <;> simp only [Bool.not_false, Bool.not_true, otSelect,
-        Bool.false_eq_true, ↓reduceIte]
-    have hMarginal : (idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {1} (S {1})).map (fun p => (proj1 p).1) =
-        real.map fun ω => (T ω, ω.2 1) := by
-      rw [hPriv1, hRealMarg]
-    have hMargSimp : (idealCorrelatedJoint sc A B Coins (fun _ => Fin k → Bool × Bool)
-        (idealROT k) {1} (S {1})).map (fun p => (proj1 p).1) =
-        (PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun rb =>
-          (ProbComp.eval (S {1} (restrictOne (F := fun _ => Fin k → Bool × Bool) rb))).map fun v1 =>
-            (transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩), rb) := by
-      rw [hIdealEq, PMF.map_bind]
-      congr 1 with rb : 1
-      rw [PMF.map_bind]
-      congr 1 with v1 : 1
-      rw [PMF.map_comp]
-      change PMF.map (Function.const (Fin k → Bool)
-          (transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩), rb))
-          (PMF.uniformOfFintype (Fin k → Bool)) = _
-      exact PMF.map_const _ _
-    rw [hRealProj, ← hPriv1, hLHS, ← hMargSimp, hMarginal]
+  have hAlicePriv : IndepUniform real (fun ω => (ω.2 0, T ω)) (fun ω => rotChoices (ω.2 1)) :=
+    indepUniform_of_idealJoint_bind_uniform (S {0}) (fun _ => ())
+      (fun (v0, y) => ((y 0, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)),
+        rotChoices (y 1)))
+      (map_eq_map_eval_idealJoint hPriv0 _ _ (fun _ _ => rfl))
+      (by
+        rw [eval_rotFunctionality, idealROT, ← uniformOfFintype_prod, PMF.map_bind]
+        congr 1 with sb : 1
+        rw [PMF.map_comp])
+      (fun sb => restrictZero (F := fun _ => Fin k → Bool × Bool) sb)
+      (fun _ _ => restrictZero_eq _)
+      (fun sb v0 => (sb, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)))
+      (fun _ _ _ => rfl)
+  have hBobPriv :
+      IndepUniform real (fun ω => (T ω, ω.2 1)) (fun ω => rotUnselected (ω.2 0) (ω.2 1)) := by
+    refine indepUniform_of_idealJoint_bind_uniform (S {1}) (fun _ => ())
+      (fun (v1, y) => ((transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩), y 1),
+        rotUnselected (y 0) (y 1)))
+      (map_eq_map_eval_idealJoint hPriv1 _ _ fun ⟨_, _⟩ hω =>
+        Prod.ext (Prod.ext (transcriptOfView_zero_eq_one_of_mem_support_bind proto source _ hω)
+          rfl) rfl)
+      (by rw [eval_rotFunctionality, idealROT_eq_reparam])
+      (fun rb => restrictOne (F := fun _ => Fin k → Bool × Bool) rb)
+      (fun _ _ => restrictOne_eq _)
+      (fun rb v1 => (transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩), rb))
+      (fun rb ub _ => Prod.ext rfl (funext fun j => ?_))
+    dsimp only [rotUnselected]
+    rw [show (1 : Fin 2) = Fin.succ 0 from rfl, Fin.cases_succ, Fin.cases_zero]
+    cases hc : (rb j).1 <;> simp only [Bool.not_false, Bool.not_true, otSelect,
+      Bool.false_eq_true, ↓reduceIte]
   have hSourceEq : real.map (fun ω => (in0 ω, in1 ω)) = source := by
     have h := bind_evalWith_map_input proto source
       (fun ab => Fin.cases ab.1 (fun _ => ab.2)) (fun a : A => a) (fun b : B => b)
@@ -1033,58 +972,22 @@ variable {A B : Type} {sc : Schedule 2 noOracleSpec} {ExtIn Coins Out : Fin 2 �
   source.bind fun ab =>
     proto.evalWith noOracleWorld (fun i => (x i, Fin.cases ab.1 (fun _ => ab.2) i))
 
-/-- Real joint distribution of coalition `I`'s views and both parties' outputs on input `x`. -/
-@[expose] noncomputable def realCorrelatedJointWithInput
+/-- The trusted setup dealing correlated source `source : PMF (A × B)` next to the external inputs
+`x`: party `i` receives `(x i, share i)`. Privacy over `source` with external inputs is
+`PerfectSemiHonestPrivateProperWithSetup` with setup `dealSourceWithInput source`. -/
+noncomputable def dealSourceWithInput (source : PMF (A × B))
+    (x : (i : Fin 2) → ExtIn i) : PMF ((i : Fin 2) → ExtIn i × Fin.cases A (fun _ => B) i) :=
+  source.map fun ab i => (x i, Fin.cases ab.1 (fun _ => ab.2) i)
+
+/-- The real side of privacy over `dealSourceWithInput source` on inputs `x` is the correlated
+execution on `x` restricted to the coalition. -/
+theorem dealSourceWithInput_bind_realJoint
     (proto : Protocol 2 noOracleSpec sc (fun i => ExtIn i × Fin.cases A (fun _ => B) i) Coins Out)
     (source : PMF (A × B)) (I : Finset (Fin 2)) (x : (i : Fin 2) → ExtIn i) :
-    PMF (((i : I) → PartyView (fun i => ExtIn i × Fin.cases A (fun _ => B) i) Coins sc i) ×
-      ((i : Fin 2) → Out i)) :=
-  (realCorrelatedWithInput proto source x).map (Prod.map I.restrict id)
-
-/-- Semantic simulator for a correlated-source protocol with external inputs `ExtIn`,
-mapping directly to `PMF`. -/
-abbrev SemanticCorrelatedSimulatorWithInput (sc : Schedule 2 noOracleSpec) (A B : Type)
-    (ExtIn Coins Out : Fin 2 → Type) (I : Finset (Fin 2)) :=
-  ((i : I) → ExtIn i) → ((i : I) → Out i) →
-    PMF ((i : I) → PartyView (fun i => ExtIn i × Fin.cases A (fun _ => B) i) Coins sc i)
-
-/-- Simulator for a correlated-source protocol with external inputs `ExtIn`,
-defined as a probabilistic program. -/
-abbrev CorrelatedSimulatorWithInput (sc : Schedule 2 noOracleSpec) (A B : Type)
-    (ExtIn Coins Out : Fin 2 → Type) (I : Finset (Fin 2)) :=
-  ((i : I) → ExtIn i) → ((i : I) → Out i) →
-    ProbComp ((i : I) → PartyView (fun i => ExtIn i × Fin.cases A (fun _ => B) i) Coins sc i)
-
-/-- Ideal joint view-and-output distribution for functionality `f : Functionality 2 ExtIn Out`. -/
-@[expose] noncomputable def semanticIdealCorrelatedJointWithInput (sc : Schedule 2 noOracleSpec)
-    (A B : Type)
-    (ExtIn Coins Out : Fin 2 → Type) (f : Functionality 2 ExtIn Out) (I : Finset (Fin 2))
-    (S : SemanticCorrelatedSimulatorWithInput sc A B ExtIn Coins Out I)
-    (x : (i : Fin 2) → ExtIn i) :
-    PMF (((i : I) → PartyView (fun i => ExtIn i × Fin.cases A (fun _ => B) i) Coins sc i) ×
-      ((i : Fin 2) → Out i)) :=
-  (ProbComp.eval (f x)).bind fun y => (S (I.restrict x) (I.restrict y)).map (·, y)
-
-/-- Ideal joint view-and-output distribution for functionality `f : Functionality 2 ExtIn Out`
-and a `ProbComp` simulator. -/
-@[expose] noncomputable def idealCorrelatedJointWithInput (sc : Schedule 2 noOracleSpec)
-    (A B : Type)
-    (ExtIn Coins Out : Fin 2 → Type) (f : Functionality 2 ExtIn Out) (I : Finset (Fin 2))
-    (S : CorrelatedSimulatorWithInput sc A B ExtIn Coins Out I) (x : (i : Fin 2) → ExtIn i) :
-    PMF (((i : I) → PartyView (fun i => ExtIn i × Fin.cases A (fun _ => B) i) Coins sc i) ×
-      ((i : Fin 2) → Out i)) :=
-  semanticIdealCorrelatedJointWithInput sc A B ExtIn Coins Out f I
-    (fun x y => ProbComp.eval (S x y)) x
-
-/-- Perfect semi-honest privacy over `source` against proper static coalitions `I ≠ Finset.univ`
-for a functionality with external party inputs. -/
-@[expose] def PerfectSemiHonestPrivateProperWithInputOverSource
-    (proto : Protocol 2 noOracleSpec sc (fun i => ExtIn i × Fin.cases A (fun _ => B) i) Coins Out)
-    (source : PMF (A × B)) (f : Functionality 2 ExtIn Out)
-    (S : (I : Finset (Fin 2)) → CorrelatedSimulatorWithInput sc A B ExtIn Coins Out I) : Prop :=
-  ∀ I : Finset (Fin 2), I ≠ Finset.univ → ∀ x : (i : Fin 2) → ExtIn i,
-    idealCorrelatedJointWithInput sc A B ExtIn Coins Out f I (S I) x =
-      realCorrelatedJointWithInput proto source I x
+    (dealSourceWithInput source x).bind (proto.realJoint noOracleWorld I) =
+      (realCorrelatedWithInput proto source x).map (Prod.map I.restrict id) := by
+  rw [Protocol.bind_realJoint, dealSourceWithInput, PMF.bind_map]
+  rfl
 
 /-- Reparametrize `(y1, u)` into sender input tables `Fin k → Bool → Bool` relative to choice
 vector `c : Fin k → Bool` so `x0 j (c j) = y1 j` and `x0 j (!(c j)) = u j`. -/
@@ -1101,6 +1004,41 @@ private def otPairEquiv {k : ℕ} (c : Fin k → Bool) :
     dsimp only
     cases hc : c j <;> cases b <;> rfl
 
+private theorem eval_idealJoint_batchOT {k : ℕ} {I : Finset (Fin 2)}
+    (S : SetupSimulator sc ((batchOTSpec k Bool).Query ())
+      (fun i => (batchOTSpec k Bool).Query () i × Fin.cases A (fun _ => B) i) Coins
+      ((batchOTSpec k Bool).Answer ()) I)
+    (x : (i : Fin 2) → (batchOTSpec k Bool).Query () i) :
+    ProbComp.eval (idealJoint (batchOTFunctionality k Bool) I S x) =
+      (ProbComp.eval (S (I.restrict x) (I.restrict (batchOTAnswer x)))).map
+        (·, batchOTAnswer x) := by
+  rw [eval_idealJoint, batchOTFunctionality, Functionality.ofDeterministic, ProbComp.eval_pure,
+    PMF.pure_bind]
+
+private theorem map_realCorrelatedWithInput_eq_ideal_map {k : ℕ} {I : Finset (Fin 2)}
+    {proto : Protocol 2 noOracleSpec sc
+      (fun i => (batchOTSpec k Bool).Query () i × Fin.cases A (fun _ => B) i) Coins
+      ((batchOTSpec k Bool).Answer ())}
+    {source : PMF (A × B)}
+    {S : SetupSimulator sc ((batchOTSpec k Bool).Query ())
+      (fun i => (batchOTSpec k Bool).Query () i × Fin.cases A (fun _ => B) i) Coins
+      ((batchOTSpec k Bool).Answer ()) I}
+    (hPriv : ∀ x, ProbComp.eval (idealJoint (batchOTFunctionality k Bool) I S x) =
+      (realCorrelatedWithInput proto source x).map (Prod.map I.restrict id))
+    (x : (i : Fin 2) → (batchOTSpec k Bool).Query () i)
+    {δ : Type*}
+    (g : (((i : Fin 2) → PartyView _ Coins sc i) ×
+      ((i : Fin 2) → (batchOTSpec k Bool).Answer () i)) → δ)
+    (proj : (((i : I) → PartyView _ Coins sc i) ×
+      ((i : Fin 2) → (batchOTSpec k Bool).Answer () i)) → δ)
+    (hproj : ∀ ω ∈ (realCorrelatedWithInput proto source x).support,
+      g ω = proj (I.restrict ω.1, ω.2)) :
+    (realCorrelatedWithInput proto source x).map g =
+      (ProbComp.eval (S (I.restrict x) (I.restrict (batchOTAnswer x)))).map
+        fun v => proj (v, batchOTAnswer x) := by
+  rw [map_eq_map_eval_idealJoint (hPriv x) g proj hproj, eval_idealJoint_batchOT, PMF.map_comp]
+  rfl
+
 /-- Choosing uniform random sender tables and receiver choices turns any perfectly semi-honest
 private chosen-input `k`-OT protocol (`batchOTFunctionality k Bool`) over correlated source
 `source : PMF (A × B)` into a `k`-ROT protocol over `source`, hence `(k : ℝ) ≤ I(A; B)`. -/
@@ -1112,10 +1050,11 @@ theorem chosenOT_le_mutualInfo
       ((batchOTSpec k Bool).Answer ()))
     (source : PMF (A × B))
     (S : (I : Finset (Fin 2)) →
-      CorrelatedSimulatorWithInput sc A B ((batchOTSpec k Bool).Query ()) Coins
+      SetupSimulator sc ((batchOTSpec k Bool).Query ())
+        (fun i => (batchOTSpec k Bool).Query () i × Fin.cases A (fun _ => B) i) Coins
         ((batchOTSpec k Bool).Answer ()) I)
-    (hPriv : PerfectSemiHonestPrivateProperWithInputOverSource proto source
-      (batchOTFunctionality k Bool) S) :
+    (hPriv : PerfectSemiHonestPrivateProperWithSetup proto noOracleWorld
+      (dealSourceWithInput source) (batchOTFunctionality k Bool) S) :
     (k : ℝ) ≤ mutualInfo source := by
   let eQ0 : (Fin k → Bool → Bool) ≃ (batchOTSpec k Bool).Query () 0 :=
     Equiv.cast (rfl : (Fin k → Bool → Bool) = (batchOTSpec k Bool).Query () 0)
@@ -1142,37 +1081,15 @@ theorem chosenOT_le_mutualInfo
       (PMF.uniformOfFintype (Fin k → Bool → Bool)).bind fun x0 =>
         (PMF.uniformOfFintype (Fin k → Bool)).bind fun x1 =>
           realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1)) := by
-    dsimp only [real]
-    rw [realWithInputDist]
-    simp only [inputDist, PMF.bind_bind]
+    dsimp only [real, realWithInputDist, inputDist]
+    simp only [PMF.bind_bind, PMF.bind_map]
     rw [PMF.bind_comm]
     congr 1 with x0 : 1
-    calc source.bind (fun ab =>
-          ((PMF.uniformOfFintype (Fin k → Bool)).map fun x1 =>
-            ((eQ0 x0, eA ab.1), (eQ1 x1, eB ab.2))).bind fun xy =>
-            proto.evalWith noOracleWorld (pairVec (F := In) xy.1 xy.2))
-        = source.bind (fun ab =>
-            (PMF.uniformOfFintype (Fin k → Bool)).bind fun x1 =>
-              proto.evalWith noOracleWorld
-                (pairVec (F := In) (eQ0 x0, eA ab.1) (eQ1 x1, eB ab.2))) := by
-          congr 1 with ab : 1
-          rw [PMF.bind_map]
-          rfl
-      _ = (PMF.uniformOfFintype (Fin k → Bool)).bind fun x1 =>
-            source.bind fun ab =>
-              proto.evalWith noOracleWorld
-                (pairVec (F := In) (eQ0 x0, eA ab.1) (eQ1 x1, eB ab.2)) := PMF.bind_comm _ _ _
-      _ = (PMF.uniformOfFintype (Fin k → Bool)).bind fun x1 =>
-            realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1)) := by
-          congr 1 with x1 : 1
-          dsimp only [realCorrelatedWithInput]
-          congr 1 with ab : 1
-          have hfin : pairVec (F := In) (eQ0 x0, eA ab.1) (eQ1 x1, eB ab.2) =
-              fun i => (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1) i,
-                Fin.cases ab.1 (fun _ => ab.2) i) := by
-            funext i
-            fin_cases i <;> rfl
-          rw [hfin]
+    rw [PMF.bind_comm]
+    congr 1 with x1 : 1
+    refine congrArg source.bind (funext fun ab => congrArg (proto.evalWith noOracleWorld) ?_)
+    funext i
+    fin_cases i <;> rfl
   let T : (((i : Fin 2) → PartyView In Coins sc i) ×
       ((i : Fin 2) → (batchOTSpec k Bool).Answer () i)) → PublicTranscript sc :=
     fun (views, _) => transcriptOfView proto 0 (views 0)
@@ -1194,19 +1111,17 @@ theorem chosenOT_le_mutualInfo
     fun (x, r1, t) j =>
       (x.1 j, proto.outputOfView 1 ⟨x, r1, stepsReceivedOfTranscript proto.steps 1 (x, r1) t⟩ j)
   have hOutA : ∀ ω ∈ real.support, SOut ω = outA (VA ω) := fun _ _ => rfl
-  have hOutB : ∀ ω ∈ real.support, ROut ω = outB (VB ω) := by
-    intro ⟨views, out⟩ hω
-    dsimp only [real] at hω
-    rw [realWithInputDist, PMF.mem_support_bind_iff] at hω
-    obtain ⟨_, _, hev⟩ := hω
-    obtain ⟨hvw1, hout⟩ := partyView_eq_of_mem_support_evalWith proto hev 1
-    funext j
-    exact Prod.ext rfl ((congrArg (fun f => f j) hout).trans
-      (congrArg (fun v => proto.outputOfView 1 v j) hvw1))
+  have hOutB : ∀ ω ∈ real.support, ROut ω = outB (VB ω) :=
+    fun ⟨_, _⟩ hω => funext fun j =>
+      Prod.ext rfl (congrFun (output_eq_of_mem_support_bind proto inputDist _ hω 1) j)
   have h0_neq : ({0} : Finset (Fin 2)) ≠ Finset.univ := by decide
   have h1_neq : ({1} : Finset (Fin 2)) ≠ Finset.univ := by decide
-  have hPriv0 := hPriv {0} h0_neq
-  have hPriv1 := hPriv {1} h1_neq
+  have hPriv0 : ∀ x, ProbComp.eval (idealJoint (batchOTFunctionality k Bool) {0} (S {0}) x) =
+      (realCorrelatedWithInput proto source x).map (Prod.map ({0} : Finset (Fin 2)).restrict id) :=
+    fun x => (hPriv {0} h0_neq x).trans (dealSourceWithInput_bind_realJoint proto source {0} x)
+  have hPriv1 : ∀ x, ProbComp.eval (idealJoint (batchOTFunctionality k Bool) {1} (S {1}) x) =
+      (realCorrelatedWithInput proto source x).map (Prod.map ({1} : Finset (Fin 2)).restrict id) :=
+    fun x => (hPriv {1} h1_neq x).trans (dealSourceWithInput_bind_realJoint proto source {1} x)
   have hInOfSupport :
       ∀ (x0 : (batchOTSpec k Bool).Query () 0) (x1 : (batchOTSpec k Bool).Query () 1)
       {views out},
@@ -1214,17 +1129,9 @@ theorem chosenOT_le_mutualInfo
       (views 0).input.1 = x0 ∧ (views 1).input.1 = x1 := by
     intro x0 x1 views out hmem
     rw [realCorrelatedWithInput, PMF.mem_support_bind_iff] at hmem
-    obtain ⟨ab, _, hev⟩ := hmem
-    rw [Protocol.evalWith_eq, PMF.mem_support_bind_iff] at hev
-    obtain ⟨r, _, hrecv⟩ := hev
-    rw [PMF.mem_support_map_iff] at hrecv
-    obtain ⟨recv, _, hres⟩ := hrecv
-    have hviews := congrArg Prod.fst hres.symm
-    refine ⟨?_, ?_⟩
-    · have h0 := congrFun hviews 0
-      exact congrArg (fun v => v.input.1) h0
-    · have h1 := congrFun hviews 1
-      exact congrArg (fun v => v.input.1) h1
+    obtain ⟨_, _, hev⟩ := hmem
+    exact ⟨congrArg Prod.fst (partyView_input_eq_of_mem_support_evalWith proto hev 0),
+      congrArg Prod.fst (partyView_input_eq_of_mem_support_evalWith proto hev 1)⟩
   have hCorrect : ∀ ω ∈ real.support, ∀ j : Fin k,
       (ROut ω j).2 = otSelect (SOut ω j) (ROut ω j).1 := by
     intro ⟨views, out⟩ hω j
@@ -1234,211 +1141,90 @@ theorem chosenOT_le_mutualInfo
     obtain ⟨x1, _, hω⟩ := hω
     obtain ⟨hin0, hin1⟩ := hInOfSupport (eQ0 x0) (eQ1 x1) hω
     have hmem : (({0} : Finset (Fin 2)).restrict views, out) ∈
-        (realCorrelatedJointWithInput proto source {0} (pairVec (eQ0 x0) (eQ1 x1))).support :=
+        ((realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1))).map
+          (Prod.map ({0} : Finset (Fin 2)).restrict id)).support :=
       (PMF.mem_support_map_iff _ _ _).mpr ⟨(views, out), hω, rfl⟩
-    rw [← hPriv0, idealCorrelatedJointWithInput, semanticIdealCorrelatedJointWithInput,
-        PMF.mem_support_bind_iff] at hmem
-    obtain ⟨y, hy, hres⟩ := hmem
-    rw [PMF.mem_support_map_iff] at hres
-    obtain ⟨_, _, hy_eq⟩ := hres
-    have hout : out = y := congrArg Prod.snd hy_eq.symm
-    have hy_eq' : y = batchOTAnswer (pairVec (eQ0 x0) (eQ1 x1)) := by
-      simpa only [batchOTFunctionality, Functionality.ofDeterministic, ProbComp.eval_pure,
-        PMF.mem_support_pure_iff] using hy
-    have hy1 : out 1 j = x0 j (x1 j) := by
-      rw [hout, hy_eq']
-      rfl
+    rw [← hPriv0, eval_idealJoint_batchOT, PMF.mem_support_map_iff] at hmem
+    obtain ⟨_, _, hy_eq⟩ := hmem
+    have hy1 : out 1 j = x0 j (x1 j) := congrFun (congrArg (fun p => p.2 1) hy_eq.symm) j
     dsimp only [ROut, SOut]
     rw [hin0, hin1, hy1, heQ0, heQ0, heQ1]
     cases x1 j <;> simp only [otSelect_false, otSelect_true]
-  have hAlicePriv : real.map (fun ω => ((SOut ω, T ω), rotChoices (ROut ω))) =
-      (real.map fun ω => (SOut ω, T ω)).bind fun st =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (st, ·) := by
+  have hAlicePriv : IndepUniform real (fun ω => (SOut ω, T ω)) (fun ω => rotChoices (ROut ω)) := by
     let sOf : (Fin k → Bool → Bool) → (Fin k → Bool × Bool) :=
       fun x0 j => (x0 j false, x0 j true)
-    have hStep0 : ∀ (x0 : Fin k → Bool → Bool) (x1 : Fin k → Bool),
-        (realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1))).map
-          (fun ω => ((SOut ω, T ω), rotChoices (ROut ω))) =
-        ((ProbComp.eval (S {0} (restrictZero (eQ0 x0))
-            (restrictZero (F := (batchOTSpec k Bool).Answer ()) ()))).map
-          fun v0 =>
-            ((sOf x0, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)), x1)) := by
-      intro x0 x1
-      have hLHS : (realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1))).map
-          (fun ω => ((SOut ω, T ω), rotChoices (ROut ω))) =
-          (realCorrelatedJointWithInput proto source {0} (pairVec (eQ0 x0) (eQ1 x1))).map
-            (fun (v0, _) => ((sOf ((v0 ⟨0, Finset.mem_singleton_self 0⟩).input.1),
-              transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)), x1)) := by
-        rw [realCorrelatedJointWithInput, PMF.map_comp]
-        refine map_congr_on_support _ _ _ fun ⟨views, out⟩ hω => ?_
-        obtain ⟨hin0, hin1⟩ := hInOfSupport (eQ0 x0) (eQ1 x1) hω
-        refine Prod.ext (Prod.ext ?_ rfl) ?_
-        · rfl
-        · dsimp only [Function.comp_def, Prod.map_apply, id_eq, rotChoices, ROut]
-          rw [hin1]
-          exact funext (heQ1 x1)
-      rw [hLHS, ← hPriv0, idealCorrelatedJointWithInput,
-        semanticIdealCorrelatedJointWithInput, batchOTFunctionality,
-        Functionality.ofDeterministic]
-      simp only [ProbComp.eval_pure, PMF.pure_bind, PMF.map_comp, Function.comp_def]
-      have hrest : ({0} : Finset (Fin 2)).restrict
-          (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1)) =
-          restrictZero (eQ0 x0) := restrictZero_pairVec _ _
-      have hresty : ({0} : Finset (Fin 2)).restrict
-          (batchOTAnswer (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1))) =
-          restrictZero (F := (batchOTSpec k Bool).Answer ()) () := by
-        funext ⟨i, hi⟩
-        obtain rfl := Finset.mem_singleton.mp hi
-        rfl
-      rw [hrest, hresty]
-      refine map_congr_on_support
-        (ProbComp.eval (S {0} (restrictZero (eQ0 x0))
-          (restrictZero (F := (batchOTSpec k Bool).Answer ()) ())))
-        _ _ fun v0 hv0 => ?_
-      have hv0_supp :
-          (v0, batchOTAnswer (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1))) ∈
-            (realCorrelatedJointWithInput proto source {0}
-              (pairVec (eQ0 x0) (eQ1 x1))).support := by
-        rw [← hPriv0, idealCorrelatedJointWithInput, semanticIdealCorrelatedJointWithInput,
-        batchOTFunctionality,
-          Functionality.ofDeterministic]
-        simp only [ProbComp.eval_pure, PMF.pure_bind, PMF.mem_support_map_iff]
-        rw [hrest, hresty]
-        exact ⟨v0, hv0, rfl⟩
-      rw [realCorrelatedJointWithInput, PMF.mem_support_map_iff] at hv0_supp
-      obtain ⟨⟨views, out⟩, hω, hres⟩ := hv0_supp
-      obtain ⟨hin0, _⟩ := hInOfSupport (eQ0 x0) (eQ1 x1) hω
-      have hv0_eq : v0 ⟨0, Finset.mem_singleton_self 0⟩ = views 0 :=
-        (congrFun (congrArg Prod.fst hres) ⟨0, Finset.mem_singleton_self 0⟩).symm
-      rw [hv0_eq, hin0]
-      refine Prod.ext (Prod.ext (funext fun j => ?_) rfl) rfl
-      simp only [sOf, heQ0]
-    have hMain : real.map (fun ω => ((SOut ω, T ω), rotChoices (ROut ω))) =
-        ((PMF.uniformOfFintype (Fin k → Bool → Bool)).bind fun x0 =>
-          (ProbComp.eval (S {0} (restrictZero (eQ0 x0))
-              (restrictZero (F := (batchOTSpec k Bool).Answer ()) ()))).map
-            fun v0 =>
-              (sOf x0, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩))).bind
-          fun st => (PMF.uniformOfFintype (Fin k → Bool)).map (st, ·) := by
-      rw [hRealUnif, PMF.map_bind]
-      simp only [PMF.map_bind, hStep0]
-      rw [PMF.bind_bind]
-      congr 1 with x0 : 1
-      rw [PMF.bind_map]
-      simp only [← PMF.bind_pure_comp, Function.comp_def]
-      exact PMF.bind_comm _ _ _
-    have hMarg : real.map (fun ω => (SOut ω, T ω)) =
-        (PMF.uniformOfFintype (Fin k → Bool → Bool)).bind fun x0 =>
-          (ProbComp.eval (S {0} (restrictZero (eQ0 x0))
-              (restrictZero (F := (batchOTSpec k Bool).Answer ()) ()))).map
-            fun v0 => (sOf x0, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)) := by
-      have h1 : real.map (fun ω => (SOut ω, T ω)) =
-          (real.map fun ω => ((SOut ω, T ω), rotChoices (ROut ω))).map Prod.fst := by
-        rw [PMF.map_comp]
-        rfl
-      rw [h1, hMain, PMF.map_bind]
-      simp only [PMF.map_comp, Function.comp_def]
-      have hmc : ∀ a : (Fin k → Bool × Bool) × PublicTranscript sc,
-          PMF.map (fun _ : Fin k → Bool => a) (PMF.uniformOfFintype (Fin k → Bool)) = PMF.pure a :=
-        fun a => PMF.map_const _ a
-      simp only [hmc]
-      exact PMF.bind_pure _
-    rw [hMain, hMarg]
-  have hBobPriv : real.map (fun ω => ((T ω, ROut ω), rotUnselected (SOut ω) (ROut ω))) =
-      (real.map fun ω => (T ω, ROut ω)).bind fun tr =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (tr, ·) := by
-    have hStep1 : ∀ (x1 : Fin k → Bool) (y1 u : Fin k → Bool),
-        let x0 := otPairEquiv x1 (y1, u)
-        (realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1))).map
-          (fun ω => ((T ω, ROut ω), rotUnselected (SOut ω) (ROut ω))) =
-        (ProbComp.eval (S {1} (restrictOne (eQ1 x1)) (restrictOne (eA1 y1)))).map fun v1 =>
-          ((transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩),
-            fun j => (x1 j, y1 j)), u) := by
-      intro x1 y1 u x0
-      have hLHS : (realCorrelatedWithInput proto source (pairVec (eQ0 x0) (eQ1 x1))).map
-          (fun ω => ((T ω, ROut ω), rotUnselected (SOut ω) (ROut ω))) =
-          (realCorrelatedJointWithInput proto source {1} (pairVec (eQ0 x0) (eQ1 x1))).map
-            (fun (v1, y) => ((transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩),
-              fun j => (x1 j, y 1 j)), u)) := by
-        rw [realCorrelatedJointWithInput, PMF.map_comp]
-        refine map_congr_on_support _ _ _ fun ⟨views, out⟩ hω => ?_
-        obtain ⟨hin0, hin1⟩ := hInOfSupport (eQ0 x0) (eQ1 x1) hω
-        have h01 : transcriptOfView proto 0 (views 0) = transcriptOfView proto 1 (views 1) := by
-          rw [realCorrelatedWithInput, PMF.mem_support_bind_iff] at hω
-          obtain ⟨_, _, hev⟩ := hω
-          exact transcriptOfView_zero_eq_one proto hev
-        refine Prod.ext (Prod.ext h01 (funext fun j => ?_)) (funext fun j => ?_)
-        · dsimp only [Function.comp_def, Prod.map_apply, id_eq, ROut]
-          rw [hin1]
-          rfl
-        · dsimp only [Function.comp_def, Prod.map_apply, id_eq, rotUnselected, SOut, ROut]
-          rw [hin0, hin1, heQ0, heQ0, heQ1]
-          cases hx : x1 j
-          · simp only [hx, Bool.not_false, otSelect_true, x0, otPairEquiv, Equiv.coe_fn_mk]
-            rfl
-          · simp only [hx, Bool.not_true, otSelect_false, x0, otPairEquiv, Equiv.coe_fn_mk]
-            rfl
-      rw [hLHS, ← hPriv1, idealCorrelatedJointWithInput,
-        semanticIdealCorrelatedJointWithInput, batchOTFunctionality,
-        Functionality.ofDeterministic]
-      simp only [ProbComp.eval_pure, PMF.pure_bind, PMF.map_comp, Function.comp_def]
-      have hrest : ({1} : Finset (Fin 2)).restrict
-          (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1)) =
-          restrictOne (eQ1 x1) := restrictOne_pairVec _ _
-      have hy1 : ∀ j : Fin k,
-          batchOTAnswer (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1)) 1 j =
-            y1 j := by
-        intro j
-        change x0 j (x1 j) = y1 j
-        dsimp only [x0, otPairEquiv, Equiv.coe_fn_mk]
-        simp only [beq_self_eq_true, ↓reduceIte]
-      have hresty : ({1} : Finset (Fin 2)).restrict
-          (batchOTAnswer (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1))) =
-          restrictOne (eA1 y1) := by
-        funext ⟨i, hi⟩
-        obtain rfl := Finset.mem_singleton.mp hi
-        funext j
-        exact hy1 j
-      rw [hrest, hresty]
-      congr 1 with v1 : 1
-      refine Prod.ext (Prod.ext rfl (funext fun j => Prod.ext rfl (hy1 j))) rfl
-    have hMain : real.map (fun ω => ((T ω, ROut ω), rotUnselected (SOut ω) (ROut ω))) =
-        ((PMF.uniformOfFintype (Fin k → Bool)).bind fun x1 =>
-          (PMF.uniformOfFintype (Fin k → Bool)).bind fun y1 =>
-            (ProbComp.eval (S {1} (restrictOne (eQ1 x1)) (restrictOne (eA1 y1)))).map fun v1 =>
-              (transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩),
-                fun j => (x1 j, y1 j))).bind
-          fun tr => (PMF.uniformOfFintype (Fin k → Bool)).map (tr, ·) := by
-      rw [hRealUnif]
-      simp only [PMF.map_bind, PMF.bind_bind]
-      conv_lhs => rw [PMF.bind_comm]
+    refine indepUniform_of_map_eq_bind_bind_uniform
+      (PMF.uniformOfFintype (Fin k → Bool → Bool))
+      (fun x0 => ProbComp.eval (S {0} (restrictZero (eQ0 x0))
+        (restrictZero (F := (batchOTSpec k Bool).Answer ()) ())))
+      (fun x0 v0 => (sOf x0, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩))) ?_
+    rw [hRealUnif, PMF.map_bind]
+    congr 1 with x0 : 1
+    rw [PMF.map_bind]
+    congr 1 with x1 : 1
+    refine (map_realCorrelatedWithInput_eq_ideal_map hPriv0 (pairVec (eQ0 x0) (eQ1 x1)) _
+      (fun (v0, _) => ((sOf x0, transcriptOfView proto 0 (v0 ⟨0, Finset.mem_singleton_self 0⟩)),
+        x1))
+      fun ⟨views, out⟩ hω => ?_).trans ?_
+    · obtain ⟨hin0, hin1⟩ := hInOfSupport (eQ0 x0) (eQ1 x1) hω
+      refine Prod.ext (Prod.ext ?_ rfl) ?_
+      · ext j : 2 <;> simp only [SOut, sOf, hin0, heQ0]
+      · ext j; simp only [rotChoices, ROut, hin1, heQ1]
+    · rw [restrictZero_eq (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1)),
+        restrictZero_eq (batchOTAnswer _)]
+      rfl
+  have hBobPriv :
+      IndepUniform real (fun ω => (T ω, ROut ω)) (fun ω => rotUnselected (SOut ω) (ROut ω)) := by
+    refine indepUniform_of_map_eq_bind_bind_uniform
+      (PMF.uniformOfFintype ((Fin k → Bool) × (Fin k → Bool)))
+      (fun xy => ProbComp.eval (S {1} (restrictOne (eQ1 xy.1)) (restrictOne (eA1 xy.2))))
+      (fun xy v1 => (transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩),
+        fun j => (xy.1 j, xy.2 j))) ?_
+    have hRealRe : real =
+        (PMF.uniformOfFintype ((Fin k → Bool) × (Fin k → Bool))).bind fun xy =>
+          (PMF.uniformOfFintype (Fin k → Bool)).bind fun u =>
+            realCorrelatedWithInput proto source
+              (pairVec (eQ0 (otPairEquiv xy.1 (xy.2, u))) (eQ1 xy.1)) := by
+      rw [hRealUnif, PMF.bind_comm, ← uniformOfFintype_prod, PMF.bind_bind]
+      simp only [PMF.bind_map]
       congr 1 with x1 : 1
       rw [← uniformOfFintype_map_equiv (otPairEquiv x1), PMF.bind_map, ← uniformOfFintype_prod,
         PMF.bind_bind]
       simp only [PMF.bind_map]
-      congr 1 with y1 : 1
-      dsimp only [Function.comp_def]
-      simp only [hStep1 x1 y1]
-      simp only [← PMF.bind_pure_comp, Function.comp_def]
-      exact PMF.bind_comm _ _ _
-    have hMarg : real.map (fun ω => (T ω, ROut ω)) =
-        (PMF.uniformOfFintype (Fin k → Bool)).bind fun x1 =>
-          (PMF.uniformOfFintype (Fin k → Bool)).bind fun y1 =>
-            (ProbComp.eval (S {1} (restrictOne (eQ1 x1)) (restrictOne (eA1 y1)))).map fun v1 =>
-              (transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩),
-                fun j => (x1 j, y1 j)) := by
-      have h1 : real.map (fun ω => (T ω, ROut ω)) =
-          (real.map fun ω => ((T ω, ROut ω), rotUnselected (SOut ω) (ROut ω))).map Prod.fst := by
-        rw [PMF.map_comp]
+      rfl
+    rw [hRealRe, PMF.map_bind]
+    congr 1 with ⟨x1, y1⟩ : 1
+    rw [PMF.map_bind]
+    congr 1 with u : 1
+    let x0 := otPairEquiv x1 (y1, u)
+    refine (map_realCorrelatedWithInput_eq_ideal_map hPriv1 (pairVec (eQ0 x0) (eQ1 x1)) _
+      (fun (v1, y) => ((transcriptOfView proto 1 (v1 ⟨1, Finset.mem_singleton_self 1⟩),
+        fun j => (x1 j, y 1 j)), u))
+      fun ⟨views, out⟩ hω => ?_).trans ?_
+    · obtain ⟨hin0, hin1⟩ := hInOfSupport (eQ0 x0) (eQ1 x1) hω
+      have h01 := transcriptOfView_zero_eq_one_of_mem_support_bind proto source _ hω
+      refine Prod.ext (Prod.ext h01 (funext fun j => ?_)) (funext fun j => ?_)
+      · dsimp only [ROut]
+        rw [hin1]
         rfl
-      rw [h1, hMain, PMF.map_bind]
-      simp only [PMF.map_comp, Function.comp_def]
-      have hmc : ∀ a : PublicTranscript sc × (Fin k → Bool × Bool),
-          PMF.map (fun _ : Fin k → Bool => a) (PMF.uniformOfFintype (Fin k → Bool)) = PMF.pure a :=
-        fun a => PMF.map_const _ a
-      simp only [hmc]
-      exact PMF.bind_pure _
-    rw [hMain, hMarg]
+      · dsimp only [rotUnselected, SOut, ROut]
+        rw [hin0, hin1, heQ0, heQ0, heQ1]
+        cases hx : x1 j
+        · simp only [hx, Bool.not_false, otSelect_true, x0, otPairEquiv, Equiv.coe_fn_mk]
+          rfl
+        · simp only [hx, Bool.not_true, otSelect_false, x0, otPairEquiv, Equiv.coe_fn_mk]
+          rfl
+    · have hy1 : batchOTAnswer (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1))
+          1 = eA1 y1 := by
+        funext j
+        change x0 j (x1 j) = y1 j
+        dsimp only [x0, otPairEquiv, Equiv.coe_fn_mk]
+        simp only [beq_self_eq_true, ↓reduceIte]
+      rw [restrictOne_eq (pairVec (F := (batchOTSpec k Bool).Query ()) (eQ0 x0) (eQ1 x1)),
+        restrictOne_eq (batchOTAnswer _), hy1]
+      congr 1 with v1 : 1
+      refine Prod.ext (Prod.ext rfl (funext fun j => Prod.ext rfl ?_)) rfl
+      exact congrFun hy1 j
   have hInputEq : real.map (fun ω => ((ω.1 0).input, (ω.1 1).input)) = inputDist :=
     (bind_evalWith_map_input proto inputDist (fun xy => pairVec xy.1 xy.2) id id).trans
       (PMF.map_id inputDist)
@@ -1453,31 +1239,14 @@ theorem chosenOT_le_mutualInfo
         invFun := fun (b, x1) => (eQ1 x1, eB b)
         left_inv := fun (_, _) => rfl
         right_inv := fun (_, _) => rfl }
-    let rawDist := source.bind fun ab =>
-      (PMF.uniformOfFintype (Fin k → Bool → Bool)).bind fun x0 =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map fun x1 => ((ab.1, x0), (ab.2, x1))
-    have hRaw : rawDist = inputDist.map (Prod.map swap0 swap1) := by
-      dsimp only [rawDist, inputDist]
-      rw [PMF.map_bind]
-      congr 1 with ab : 1
-      rw [PMF.map_bind]
-      congr 1 with x0 : 1
-      rw [PMF.map_comp]
+    have hRaw : inputDist.map (Prod.map swap0 swap1) =
+        source.bind fun ab =>
+          (PMF.uniformOfFintype (Fin k → Bool → Bool)).bind fun x0 =>
+            (PMF.uniformOfFintype (Fin k → Bool)).map fun x1 => ((ab.1, x0), (ab.2, x1)) := by
+      dsimp only [inputDist]
+      simp only [PMF.map_bind, PMF.map_comp]
       rfl
-    have hMI : mutualInfo rawDist = mutualInfo inputDist := by
-      have hid : inputDist.map (fun p => (p.1, p.2)) = inputDist := PMF.map_id _
-      have hRaw' : rawDist = inputDist.map (fun p => (swap0 p.1, swap1 p.2)) := hRaw
-      rw [hRaw', ← hid, mutualInfo_map, mutualInfo_map, hid]
-      rw [entropy_map_eq_of_comp inputDist (F := Prod.fst) (e := swap0) swap0.injective
-          (fun _ _ => rfl),
-        entropy_map_eq_of_comp inputDist (F := Prod.snd) (e := swap1) swap1.injective
-          (fun _ _ => rfl),
-        entropy_map_eq_of_comp inputDist (F := id)
-          (G := fun p => (swap0 p.1, swap1 p.2))
-          (e := Prod.map swap0 swap1) (swap0.injective.prodMap swap1.injective)
-          (fun _ _ => rfl),
-        PMF.map_id]
-    rw [← hMI]
+    rw [← mutualInfo_map_prodMap inputDist swap0.injective swap1.injective, hRaw]
     exact mutualInfo_bind_pair_indep source _ _
   calc (k : ℝ)
       ≤ mutualInfo (real.map fun ω => ((ω.1 0).input, (ω.1 1).input)) := by
@@ -1506,17 +1275,10 @@ theorem commProtocol_rot_le_mutualInfo [Finite X] [Finite Y] {k : ℕ}
     (outB : Y × Fin p.leafCount → Fin k → Bool × Bool)
     (hCorrect : ∀ x y j, (x, y) ∈ μ.support →
       (outB (y, p.leaf x y) j).2 = otSelect (outA (x, p.leaf x y) j) (outB (y, p.leaf x y) j).1)
-    (hAlicePriv : (p.transcriptLaw μ).map
-        (fun q => ((outA (q.1, Prod.snd q.2), Prod.snd q.2),
-          rotChoices (outB (Prod.fst q.2, Prod.snd q.2)))) =
-      ((p.transcriptLaw μ).map fun q => (outA (q.1, Prod.snd q.2), Prod.snd q.2)).bind fun st =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (st, ·))
-    (hBobPriv : (p.transcriptLaw μ).map
-        (fun q => ((Prod.snd q.2, outB (Prod.fst q.2, Prod.snd q.2)),
-          rotUnselected (outA (q.1, Prod.snd q.2)) (outB (Prod.fst q.2, Prod.snd q.2)))) =
-      ((p.transcriptLaw μ).map fun q =>
-          (Prod.snd q.2, outB (Prod.fst q.2, Prod.snd q.2))).bind fun tr =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (tr, ·)) :
+    (hAlicePriv : IndepUniform (p.transcriptLaw μ) (fun (x, _, t) => (outA (x, t), t))
+      (fun (_, y, t) => rotChoices (outB (y, t))))
+    (hBobPriv : IndepUniform (p.transcriptLaw μ) (fun (_, y, t) => (t, outB (y, t)))
+      (fun (x, y, t) => rotUnselected (outA (x, t)) (outB (y, t)))) :
     (k : ℝ) ≤ mutualInfo μ := by
   let ν := p.transcriptLaw μ
   have hTrLaw : p.transcriptLaw μ = PMF.map (fun q => (q.1, q.2, p.leaf q.1 q.2)) μ :=
@@ -1565,81 +1327,42 @@ theorem privateCoin_rot_le_mutualInfo [Finite A] [Finite B] {a b k : ℕ}
     (outB : (B × BitString b) × Fin P.leafCount → Fin k → Bool × Bool)
     (hCorrect : ∀ u v j, (u.1, v.1) ∈ source.support →
       (outB (v, P.leaf u v) j).2 = otSelect (outA (u, P.leaf u v) j) (outB (v, P.leaf u v) j).1)
-    (hAlicePriv : (Cslib.Communication.Protocol.transcriptLaw P
-        (Cslib.Communication.PrivateCoin.inputLaw a b source)).map
-        (fun q => ((outA (q.1, Prod.snd q.2), Prod.snd q.2),
-          rotChoices (outB (Prod.fst q.2, Prod.snd q.2)))) =
-      ((Cslib.Communication.Protocol.transcriptLaw P
-          (Cslib.Communication.PrivateCoin.inputLaw a b source)).map
-          fun q => (outA (q.1, Prod.snd q.2), Prod.snd q.2)).bind fun st =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (st, ·))
-    (hBobPriv : (Cslib.Communication.Protocol.transcriptLaw P
-        (Cslib.Communication.PrivateCoin.inputLaw a b source)).map
-        (fun q => ((Prod.snd q.2, outB (Prod.fst q.2, Prod.snd q.2)),
-          rotUnselected (outA (q.1, Prod.snd q.2)) (outB (Prod.fst q.2, Prod.snd q.2)))) =
-      ((Cslib.Communication.Protocol.transcriptLaw P
-          (Cslib.Communication.PrivateCoin.inputLaw a b source)).map
-          fun q => (Prod.snd q.2, outB (Prod.fst q.2, Prod.snd q.2))).bind fun tr =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (tr, ·)) :
+    (hAlicePriv : IndepUniform (Cslib.Communication.Protocol.transcriptLaw P
+        (Cslib.Communication.PrivateCoin.inputLaw a b source))
+      (fun (x, _, t) => (outA (x, t), t)) (fun (_, y, t) => rotChoices (outB (y, t))))
+    (hBobPriv : IndepUniform (Cslib.Communication.Protocol.transcriptLaw P
+        (Cslib.Communication.PrivateCoin.inputLaw a b source))
+      (fun (_, y, t) => (t, outB (y, t)))
+      (fun (x, y, t) => rotUnselected (outA (x, t)) (outB (y, t)))) :
     (k : ℝ) ≤ mutualInfo source := by
   let μ := Cslib.Communication.PrivateCoin.inputLaw a b source
   have hMu : μ = source.bind fun ab =>
       (PMF.uniformOfFintype (BitString a)).bind fun ra =>
         (PMF.uniformOfFintype (BitString b)).map fun rb => ((ab.1, ra), (ab.2, rb)) := by
-    refine PMF.ext fun ((x, r), (y, r')) => ?_
-    dsimp only [μ]
-    rw [Cslib.Communication.PrivateCoin.inputLaw_apply, PMF.bind_apply]
-    have hPairMap : ∀ ab : A × B,
-        ((PMF.uniformOfFintype (BitString a)).bind fun ra =>
-          (PMF.uniformOfFintype (BitString b)).map fun rb => ((ab.1, ra), (ab.2, rb))) =
-        (PMF.uniformOfFintype (BitString a × BitString b)).map
-          fun rr => ((ab.1, rr.1), (ab.2, rr.2)) := by
-      intro ab
-      rw [← uniformOfFintype_prod, PMF.map_bind]
+    have hEq : (source.bind fun ab =>
+          (PMF.uniformOfFintype (BitString a)).bind fun ra =>
+            (PMF.uniformOfFintype (BitString b)).map fun rb => ((ab.1, ra), (ab.2, rb))) =
+        (source.bind fun ab => (PMF.uniformOfFintype (BitString a × BitString b)).map
+          (ab, ·)).map (Equiv.prodProdProdComm A B (BitString a) (BitString b)) := by
+      rw [PMF.map_bind, ← uniformOfFintype_prod]
+      congr 1 with ab : 1
+      rw [PMF.map_bind, PMF.map_bind]
       congr 1 with ra : 1
-      rw [PMF.map_comp]
+      rw [PMF.map_comp, PMF.map_comp]
       rfl
-    simp_rw [hPairMap]
-    have htsum : (∑' ab : A × B, source ab *
-          ((PMF.uniformOfFintype (BitString a × BitString b)).map
-            fun rr => ((ab.1, rr.1), (ab.2, rr.2))) ((x, r), (y, r'))) =
-        source (x, y) *
-          ((PMF.uniformOfFintype (BitString a × BitString b)).map
-            fun rr => ((x, rr.1), (y, rr.2))) ((x, r), (y, r')) := by
-      refine tsum_eq_single (x, y) fun ab hab => ?_
-      have hzero : ((PMF.uniformOfFintype (BitString a × BitString b)).map
-            fun rr => ((ab.1, rr.1), (ab.2, rr.2))) ((x, r), (y, r')) = 0 := by
-        by_contra hne
-        have hmem : ((x, r), (y, r')) ∈
-            ((PMF.uniformOfFintype (BitString a × BitString b)).map
-              fun rr => ((ab.1, rr.1), (ab.2, rr.2))).support := hne
-        rw [PMF.mem_support_map_iff] at hmem
-        obtain ⟨rr, _, h⟩ := hmem
-        simp only [Prod.mk.injEq] at h
-        exact hab (Prod.ext h.1.1 h.2.1)
-      rw [hzero, mul_zero]
-    rw [htsum, PMF.map_apply, tsum_eq_single (r, r')]
-    · split_ifs with h
-      · rw [uniformOfFintype_apply]
-      · exact False.elim (h rfl)
-    · intro rr hrr
-      split_ifs with h
-      · simp only [Prod.mk.injEq] at h
-        exact False.elim (hrr (Prod.ext h.1.2.symm h.2.2.symm))
-      · rfl
+    rw [hEq]
+    refine PMF.ext fun ((x, r), (y, r')) => ?_
+    rw [Cslib.Communication.PrivateCoin.inputLaw_apply, map_equiv_apply,
+      bind_map_prodMk_apply, PMF.uniformOfFintype_apply]
+    rfl
   have hCorr' : ∀ u v j, (u, v) ∈ μ.support →
       (outB (v, P.leaf u v) j).2 =
         otSelect (outA (u, P.leaf u v) j) (outB (v, P.leaf u v) j).1 := by
-    intro u v j huv
-    rw [hMu, PMF.mem_support_bind_iff] at huv
-    obtain ⟨⟨x, y⟩, hxy, huv⟩ := huv
-    rw [PMF.mem_support_bind_iff] at huv
-    obtain ⟨ra, _, huv⟩ := huv
-    rw [PMF.mem_support_map_iff] at huv
-    obtain ⟨rb, _, heq⟩ := huv
-    simp only [Prod.mk.injEq] at heq
-    rcases heq with ⟨rfl, rfl⟩
-    exact hCorrect (x, ra) (y, rb) j hxy
+    intro ⟨x, r⟩ ⟨y, r'⟩ j huv
+    refine hCorrect (x, r) (y, r') j ?_
+    rw [PMF.mem_support_iff, Cslib.Communication.PrivateCoin.inputLaw_apply,
+      mul_ne_zero_iff] at huv
+    exact huv.1
   have hBound := commProtocol_rot_le_mutualInfo P μ outA outB hCorr' hAlicePriv hBobPriv
   rw [hMu, mutualInfo_bind_pair_indep] at hBound
   exact hBound

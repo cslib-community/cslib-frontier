@@ -29,10 +29,10 @@ lower bounds: a distribution on which every shallow tree errs often bounds `R_ε
 
 The other inequality is the minimax theorem for a finite two-player zero-sum game
 (`Convexity.StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le`, in
-`CslibFrontier.Probability.Minimax`), which follows from Sion's minimax theorem in Mathlib
-[Sion1958]. The algorithm player picks the set of inputs on which a tree
-of depth at most `d` errs, of which there are finitely many, the input player picks an input, and
-the payoff is `1` when the tree errs. If every distribution on the inputs has a tree of depth at
+`CslibFrontier.Probability.Minimax`) [vonNeumann1928], proved there by linear-programming
+duality. The algorithm player picks the set of inputs on which a tree of depth at most `d` errs,
+of which there are finitely many, the input player picks an input, and the payoff is `1` when the
+tree errs. If every distribution on the inputs has a tree of depth at
 most `d` erring with probability at most `ε`, the minimax theorem gives a distribution over such
 trees erring with probability at most `ε` on every input
 (`QueryComplexity.exists_computes_of_forall_exists_distributionalError_le`).
@@ -54,7 +54,7 @@ trees erring with probability at most `ε` on every input
 ## References
 
 * [A. C.-C. Yao, *Probabilistic computations: toward a unified measure of complexity*][Yao1977]
-* [M. Sion, *On general minimax theorems*][Sion1958]
+* [J. von Neumann, *Zur Theorie der Gesellschaftsspiele*][vonNeumann1928]
 -/
 
 @[expose] public section
@@ -139,8 +139,8 @@ theorem exists_computes_of_forall_exists_distributionalError_le {ε : ℝ}
       Finsupp.sum_mapDomain_index (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
       Finsupp.sum_fintype _ _ fun _ => zero_mul _]
     exact le_of_eq_of_le (Finset.sum_congr rfl fun S _ => by rw [hM]) (hp x)
-  · obtain ⟨S, -, rfl⟩ := Finset.mem_image.mp
-      (Finsupp.mapDomain_support (by simpa [StdSimplex.weights_map] using ht))
+  · obtain ⟨S, -, rfl⟩ : ∃ S, ¬p.weights S = 0 ∧ tree S = t := by
+      simpa [StdSimplex.weights_map] using ht
     exact htree_depth S
 
 /-- `R_ε(f) ≤ d` exactly when `D^ν_ε(f) ≤ d` for every distribution `ν` on the inputs. -/

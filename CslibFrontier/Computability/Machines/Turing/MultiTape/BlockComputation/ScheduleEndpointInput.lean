@@ -16,6 +16,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import Mathlib.Data.Fin.Tuple.Embedding
 import Mathlib.Tactic.FinCases
 
+import CslibFrontier.Foundations.Data.Fin.Tuple
+
 /-!
 # Linear native preparation of encoded schedule queries
 

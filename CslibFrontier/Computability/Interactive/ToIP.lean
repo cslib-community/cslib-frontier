@@ -494,9 +494,10 @@ theorem Reduction.Complete.acceptProb_wordVerifier
   rw [acceptProb_wordVerifier_honestWordProver R.verifier codecs hLawful x (R.prover x w)]
   have hfail := hComp x w hrel
   let μ := World.plain.eval (R.run x w)
-  let S : Set (Transcript s × Option OutStmt × (OutStmt × OutWit)) := {r | r.2.1.isSome}
-  have hcompl : Sᶜ ⊆ {r | ¬ (r.2.1 = some r.2.2.1 ∧ relOut r.2.2.1 r.2.2.2)} := by
-    rintro r (hr : ¬ r.2.1.isSome) ⟨h1, _⟩
+  let S : Set (Execution s OutStmt (OutStmt × OutWit)) := {r | r.output.isSome}
+  have hcompl :
+      Sᶜ ⊆ {r | ¬ (r.output = some r.result.1 ∧ relOut r.result.1 r.result.2)} := by
+    rintro r (hr : ¬ r.output.isSome) ⟨h1, _⟩
     exact hr (by simp [h1])
   have hSc : μ.toOuterMeasure Sᶜ ≤ ε_c :=
     (MeasureTheory.OuterMeasure.mono _ hcompl).trans hfail
@@ -813,16 +814,14 @@ polynomial-time. -/
 theorem ProverCodec.IsPolyTime.of_decode {M : Type} {encM : M ↪ List Bool} {c : ProverCodec M}
     (hdec : ComputableInPolyTime c.decode encBits (encOption encM)) :
     c.IsPolyTime encM := by
-  have htidy := hdec.tidy
-  refine ⟨.of_tidy htidy.optionIsSome,
-    .of_tidy (htidy.optionGetDWithInput (ComputableTidilyInPolyTime.const c.default))⟩
+  exact ⟨hdec.optionIsSome, hdec.optionGetDWithInput (.const c.default)⟩
 
 /-- A `ProverCodec.ofTotal` is polynomial-time whenever its total decoder is polynomial-time. -/
 theorem ProverCodec.isPolyTime_ofTotal {M : Type} {encM : M ↪ List Bool}
     {encode : M → List Bool} {decode : List Bool → M} {default : M} {limit : ℕ}
     (hdec : ComputableInPolyTime decode encBits encM) :
     (ProverCodec.ofTotal encode decode default limit).IsPolyTime encM :=
-  ⟨.of_tidy (ComputableTidilyInPolyTime.const true), hdec⟩
+  ⟨.const true, hdec⟩
 
 /-- A `ProverCodec.ofDecoder D default limit` is automatically polynomial-time. -/
 theorem ProverCodec.isPolyTime_ofDecoder {M : Type} {encM : M ↪ List Bool}
@@ -863,7 +862,7 @@ theorem isOraclePPTOn_runWordRounds {α : Type} (encIn : α ↪ List Bool) :
       simp only [runWordRounds, RoundEncodings.transcript]
       have hq : IsOraclePPTOn encIn encBits
           (fun _ : α => List.take c.limit <$> ProbOracleComp.query ((), [])) :=
-        IsOraclePPTOn.query_take' () (ComputableInPolyTime.const [])
+        IsOraclePPTOn.query_take () (ComputableInPolyTime.const [])
           (ComputableInPolyTime.const c.limit)
       have hrest := isOraclePPTOn_runWordRounds (encPair encIn encBits) s encs cs smp hcs
       have hpost : ComputableInPolyTime
@@ -872,32 +871,31 @@ theorem isOraclePPTOn_runWordRounds {α : Type} (encIn : α ↪ List Bool) :
           (encPair (encPair encIn encBits) (encPair encBool encs.transcript))
           (encPair encBool (encPair encM encs.transcript)) := by
         let encAll := encPair (encPair encIn encBits) (encPair encBool encs.transcript)
-        have hp12 : ComputableTidilyInPolyTime
+        have hp12 : ComputableInPolyTime
             (fun p : (α × List Bool) × (Bool × Transcript s) => p.1.2)
             encAll encBits := by fun_prop
-        have hp21 : ComputableTidilyInPolyTime
+        have hp21 : ComputableInPolyTime
             (fun p : (α × List Bool) × (Bool × Transcript s) => p.2.1)
             encAll encBool := by fun_prop
-        have hp22 : ComputableTidilyInPolyTime
+        have hp22 : ComputableInPolyTime
             (fun p : (α × List Bool) × (Bool × Transcript s) => p.2.2)
             encAll encs.transcript := by fun_prop
-        exact .of_tidy
-          (((hValid.tidy.comp hp12).bool_and' hp21).prod ((hDec.tidy.comp hp12).prod hp22))
-      exact hq.bind_with (hrest.map_with' hpost)
+        exact ((hValid.comp hp12).bool_and' hp21).prod ((hDec.comp hp12).prod hp22)
+      exact hq.bind_with (hrest.map_with hpost)
   | .verifier C :: s, (encC, encs), (c, cs), (smp, smps), ⟨⟨hsmp, hEnc⟩, hcs⟩ => by
       simp only [runWordRounds, RoundEncodings.transcript]
       have hsample : IsOraclePPTOn encIn encC (fun _ : α => ProbOracleComp.sample smp) :=
-        (hsmp.isOraclePPTOn (Operation := Unit)).preprocess' (ComputableInPolyTime.const ())
+        (hsmp.isOraclePPTOn (Operation := Unit)).preprocess (ComputableInPolyTime.const ())
       have hsend : IsOraclePPTOn (encPair encIn encC) encBits
           (fun p : α × C => List.take 0 <$> ProbOracleComp.query ((), c.encode p.2)) := by
         have hpayload : ComputableInPolyTime (fun p : α × C => c.encode p.2)
             (encPair encIn encC) encBits := by
-          have hp2 : ComputableTidilyInPolyTime (fun p : α × C => p.2)
+          have hp2 : ComputableInPolyTime (fun p : α × C => p.2)
               (encPair encIn encC) encC := by fun_prop
-          exact .of_tidy (hEnc.tidy.comp hp2)
-        exact IsOraclePPTOn.query_take' ()
+          exact hEnc.comp hp2
+        exact IsOraclePPTOn.query_take ()
           hpayload
-          (.of_tidy (ComputableTidilyInPolyTime.const 0))
+          (.const 0)
       have hrest := isOraclePPTOn_runWordRounds
         (encPair (encPair encIn encC) encBits) s encs cs smps hcs
       have hpost : ComputableInPolyTime
@@ -905,10 +903,10 @@ theorem isOraclePPTOn_runWordRounds {α : Type} (encIn : α ↪ List Bool) :
             (p.2.1, (p.1.1.2, p.2.2)))
           (encPair (encPair (encPair encIn encC) encBits) (encPair encBool encs.transcript))
           (encPair encBool (encPair encC encs.transcript)) :=
-        .of_tidy (by fun_prop)
+        by fun_prop
       refine IsOraclePPTOn.bind_with hsample ?_
       refine IsOraclePPTOn.bind_with hsend ?_
-      exact hrest.map_with' hpost
+      exact hrest.map_with hpost
 
 /-- If the round codecs and challenge samplers of `s` are polynomial-time and the verifier's
 acceptance predicate `(V.outputOn x τ).isSome` is polynomial-time in `(x, τ)`, then the compiled
@@ -927,14 +925,14 @@ theorem Verifier.isOraclePPTOn_wordVerifierWith
         p.2.1 && (V.outputOn p.1 p.2.2).isSome)
       (encPair encStmt (encPair encBool encs.transcript)) encBool := by
     let encAll := encPair encStmt (encPair encBool encs.transcript)
-    have hp21 : ComputableTidilyInPolyTime
+    have hp21 : ComputableInPolyTime
         (fun p : Statement × (Bool × Transcript s) => p.2.1)
         encAll encBool := by fun_prop
-    have hp122 : ComputableTidilyInPolyTime
+    have hp122 : ComputableInPolyTime
         (fun p : Statement × (Bool × Transcript s) => (p.1, p.2.2))
         encAll (encPair encStmt encs.transcript) := by fun_prop
-    exact .of_tidy (hp21.bool_and' (hDecide.tidy.comp hp122))
-  exact hrun.map_with' hpost
+    exact hp21.bool_and' (hDecide.comp hp122)
+  exact hrun.map_with hpost
 
 /-- Special case of `Verifier.isOraclePPTOn_wordVerifierWith` when `smp = V.samplers`. -/
 theorem Verifier.isOraclePPTOn_wordVerifier

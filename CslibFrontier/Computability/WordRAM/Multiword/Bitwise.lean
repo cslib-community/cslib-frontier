@@ -8,10 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Workspace
-import Mathlib.Data.Nat.Bitwise
--- `import all` only so that `Nat.land`, `Nat.lor` and `Nat.xor` unfold to `Nat.bitwise`, as in
--- `Mathlib.Data.Nat.Bitwise`; core does not expose their bodies.
-import all Init.Data.Nat.Bitwise.Basic
 
 /-!
 # Checked limbwise Boolean operations
@@ -46,34 +42,30 @@ variable {r : ℕ}
 /-- The binary Boolean operations supported by the limbwise routine. -/
 def Supported (f : BinOp) : Prop := f = .and ∨ f = .or ∨ f = .xor
 
-private theorem exists_truthTable {f : BinOp} (hf : Supported f) :
-    ∃ g : Bool → Bool → Bool, g false false = false ∧ f.eval = Nat.bitwise g := by
-  rcases hf with rfl | rfl | rfl
-  · exact ⟨(· && ·), rfl, rfl⟩
-  · exact ⟨(· || ·), rfl, rfl⟩
-  · exact ⟨(· != ·), rfl, rfl⟩
-
 /-- Boolean operations preserve a power-of-two digit bound. -/
 theorem eval_lt {f : BinOp} (hf : Supported f) {k a b : ℕ}
     (ha : a < 2 ^ k) (hb : b < 2 ^ k) : f.eval a b < 2 ^ k := by
-  obtain ⟨g, _, hg⟩ := exists_truthTable hf
-  rw [hg]
-  exact Nat.bitwise_lt_two_pow ha hb
+  rcases hf with rfl | rfl | rfl
+  · exact Nat.and_lt_two_pow a hb
+  · exact Nat.or_lt_two_pow ha hb
+  · exact Nat.xor_lt_two_pow ha hb
 
 /-- A Boolean operation commutes with adjoining one low power-of-two digit. -/
 theorem eval_cons {f : BinOp} (hf : Supported f) {k a b : ℕ}
     (ha : a < 2 ^ k) (hb : b < 2 ^ k) (A B : ℕ) :
     f.eval (a + 2 ^ k * A) (b + 2 ^ k * B) =
       f.eval a b + 2 ^ k * f.eval A B := by
-  obtain ⟨g, hg, he⟩ := exists_truthTable hf
-  rw [he]
+  have hlt := eval_lt hf ha hb
+  rw [Nat.add_comm a, Nat.add_comm b, Nat.add_comm (f.eval a b)]
   apply Nat.eq_of_testBit_eq
   intro j
-  simp only [Nat.add_comm a, Nat.add_comm b, Nat.add_comm (Nat.bitwise g a b),
-    Nat.testBit_two_pow_mul_add A ha, Nat.testBit_two_pow_mul_add B hb,
-    Nat.testBit_two_pow_mul_add _ (Nat.bitwise_lt_two_pow ha hb),
-    Nat.testBit_bitwise hg]
-  split <;> rfl
+  rcases hf with rfl | rfl | rfl
+  all_goals
+    simp only [BinOp.eval] at hlt ⊢
+    simp only [Nat.testBit_two_pow_mul_add _ ha, Nat.testBit_two_pow_mul_add _ hb,
+      Nat.testBit_two_pow_mul_add _ hlt,
+      Nat.testBit_and, Nat.testBit_or, Nat.testBit_xor]
+    split <;> rfl
 
 /-- Unrolled limbwise code. A final workspace self-copy makes the empty program executable. -/
 def program (f : BinOp) : List (Fin (r + 4)) → List (Fin (r + 4)) →
@@ -113,10 +105,10 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) {f : BinOp} (hf : Supported f)
       | nil =>
         refine ⟨x.set carry (x.regs carry), ?_, by simp [Bounded], ?_, ?_, ?_⟩
         · ram_eval [program]
-        · obtain ⟨g, _, hg⟩ := exists_truthTable hf
-          change 0 = f.eval 0 0
-          rw [hg, Nat.bitwise_zero]
-        · exact ⟨rfl, fun i _ _ _ => by simp⟩
+        · change 0 = f.eval 0 0
+          rcases hf with rfl | rfl | rfl <;>
+            simp only [BinOp.eval, Nat.zero_and, Nat.zero_or, Nat.zero_xor]
+        · exact frame_set_carry x (x.regs carry) []
         · intro i _
           simp
   | cons a as ih =>

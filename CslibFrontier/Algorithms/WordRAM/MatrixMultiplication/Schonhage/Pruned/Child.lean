@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Node
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Scan
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Push
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Computed nonempty-child transitions of the native controller
@@ -70,27 +71,13 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
   have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
   have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L :=
     Nat.mul_le_mul_right _ (by omega)
-  obtain ⟨u, hu, humem, huf, huc, hup, hus, hut, hul, _, hun, huch, _, hureg⟩ :=
-    exec_loadFrame x hregs.one_eq hregs.frameWidth_eq (hw.of_le (by
-      rw [hregs.frames_eq, hregs.lists_eq, hregs.values_eq, hregs.span_eq, hd]
-      nlinarith only [hpow, hL, hmul]))
+  obtain ⟨u, hu, humem, huf', huc, hup', hstride', hut, hul', _, hun', huch', _, hureg⟩ :=
+    hregs.exec_loadFrame hd hdL.le (hw.of_le (by omega))
   have fixed (i : Fin registers) (hi : ¬LoadFrameLocal i) : u.regs i = x.regs i :=
     hureg i hi
-  have huf' : u.regs frame = f + 4 * d := by
-    simpa only [hregs.frames_eq, hd] using huf
-  have hul' : u.regs listBase = f + 4 * (L + 1) + d * 10 ^ L := by
-    simpa only [hregs.lists_eq, hregs.span_eq, hd] using hul
-  have huch' : u.regs childList = f + 4 * (L + 1) + (d + 1) * 10 ^ L := by
-    simpa only [hregs.lists_eq, hregs.span_eq, hd] using huch
-  have hus' : u.regs stamps = f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L :=
-    (fixed stamps (by decide)).trans hregs.stamps_eq
-  have huc' : u.regs count = N := by simpa only [hregs.frames_eq, hd, hN] using huc
-  have hup' : u.regs leafPrefix = x.mem (f + 4 * d + 1) := by
-    simpa only [hregs.frames_eq, hd] using hup
-  have hstride' : u.regs stride = x.mem (f + 4 * d + 2) := by
-    simpa only [hregs.frames_eq, hd] using hus
-  have hut' : u.regs term = k := by simpa only [hregs.frames_eq, hd, hterm] using hut
-  have hun' : u.regs nextLevel = d + 1 := by simpa only [hd] using hun
+  have hus' : u.regs stamps = f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L := by regs_frame
+  have huc' : u.regs count = N := huc.trans hN
+  have hut' : u.regs term = k := hut.trans hterm
   have hue : u.regs epoch = x.regs epoch := fixed epoch (by decide)
   obtain ⟨v, hv, _, hve, hvc, htable, _, hscanFrame, hvreg⟩ :=
     exec_scan (N := N) (capacity := 10 ^ L) true u input huc'
@@ -100,37 +87,24 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
       (Or.inl (by rw [hul', huch']; nlinarith only [hcap]))
       (Or.inl (by rw [hul', hus']; nlinarith only [hcap, hmul, hpow]))
       (by simpa only [hus', humem, hue] using hmarks)
-      ((fixed one (by decide)).trans hregs.one_eq)
-      ((fixed ten (by decide)).trans hregs.ten_eq)
-      ((fixed nine (by decide)).trans hregs.nine_eq)
+      (by regs_frame) (by regs_frame) (by regs_frame)
       (hw.of_le (by
         rw [hul', huch', hus', hue]
         nlinarith only [hcap, hmul, hpow, hL]))
-  have scanFixed (i : Fin registers) (hi : ¬ScanLocal i) : v.regs i = u.regs i := hvreg i hi
   refine ⟨v, ?_,
-    (scanFixed frames (by decide)).trans ((fixed frames (by decide)).trans hregs.frames_eq),
-    (scanFixed frame (by decide)).trans huf',
-    (scanFixed level (by decide)).trans ((fixed level (by decide)).trans hd),
-    (scanFixed nextLevel (by decide)).trans hun',
-    (scanFixed leafPrefix (by decide)).trans hup',
-    (scanFixed stride (by decide)).trans hstride',
-    (scanFixed term (by decide)).trans hut',
-    (scanFixed active (by decide)).trans (fixed active (by decide)),
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame,
     by simpa only [hue] using hve,
-    (scanFixed nil (by decide)).trans ((fixed nil (by decide)).trans hregs.nil_eq),
-    (scanFixed one (by decide)).trans ((fixed one (by decide)).trans hregs.one_eq),
-    (scanFixed frameWidth (by decide)).trans
-      ((fixed frameWidth (by decide)).trans hregs.frameWidth_eq),
-    (scanFixed ten (by decide)).trans ((fixed ten (by decide)).trans hregs.ten_eq),
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     by simpa only [hut'] using hvc,
     by simpa only [huch', hus', hue, hut'] using htable, ?_⟩
   · intro y T htail
     have hcall : ExecWithin w dispatch u y (20 * N + 5 + T + 1) :=
       (hv.seq htail).branch_pos
         (by simpa only [Cond.holds_lt, hut', (fixed ten (by decide)).trans hregs.ten_eq] using hk)
-    have hum : u.regs mode = 1 := (fixed mode (by decide)).trans hm
-    have hu0 := (fixed nil (by decide)).trans hregs.nil_eq
-    have hu1 := (fixed one (by decide)).trans hregs.one_eq
+    have hum : u.regs mode = 1 := by regs_frame
+    have hu0 : u.regs nil = 0 := by regs_frame
+    have hu1 : u.regs one = 1 := by regs_frame
     have hbranch : ExecWithin w
         (ram[ if mode = nil then [ ⟪enter⟫ ] else [
           if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (20 * N + 5 + T + 4) :=
@@ -231,8 +205,7 @@ theorem exec_node_child {w L f a0 b0 d N p k : ℕ} (x : Data registers)
     simpa only [hfbase] using hpushFrame
   obtain ⟨hymem, hymod, _⟩ := postScan_memory htable' hscanMod hchildFrame (by omega)
   refine ⟨y, he, hregs.of_step he, hyl.trans hvn, hym,
-    (hy.regs_eq (by decide : push.Preserves active)).trans hva,
-    (hy.regs_eq (by decide : push.Preserves epoch)).trans hve,
+    by regs_frame, by regs_frame,
     hymem, ?_, ?_, ?_, ?_, hymod⟩
   · rw [hmem, hfbase, hvc']
     simp

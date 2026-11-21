@@ -673,7 +673,7 @@ theorem computableInPolyTime_scopeWidthOn :
 theorem computableInPolyTime_sysMaxDegree :
     ComputableInPolyTime sysMaxDegree encSparseSystem encUnary := by
   let encM := encList encNat
-  exact (unary_foldl_max 0).comp' ((map (length_list encNat)).comp' (of_tidy (.flatten encM)))
+  exact (unary_foldl_max 0).comp' ((map (length_list encNat)).comp' (flatten encM))
 
 @[fun_prop]
 theorem computableInPolyTime_branchMaxFactorIncidence :
@@ -700,7 +700,8 @@ theorem computableInPolyTime_branchAugmentedIncidence :
   let eEq := encList (encList encNat); let eS := encList eEq; let eI := encPair encUnary eS
   have hsc := computableInPolyTime_scopeWidthOn.comp' (((fst eI eEq).fst').prod (snd eI eEq))
   have hl := spc_map (snd encUnary eS) (unary_to_binary.comp' hsc)
-  have hsum := (of_tidy .binary_sum).comp' hl; have hnb := unary_to_binary.comp' (fst encUnary eS)
+  have hsum := ComputableInPolyTime.binary_sum.comp' hl
+  have hnb := unary_to_binary.comp' (fst encUnary eS)
   exact binary_add.comp' (hsum.prod hnb)
 
 @[fun_prop]
@@ -763,12 +764,7 @@ theorem computableInPolyTime_checkTopFeasible (N₀_top : ℕ) :
 @[fun_prop]
 theorem computableInPolyTime_toBranchInput :
     ComputableInPolyTime toBranchInput encSparseSystemInput HeavyBranchFold.encBranchInput := by
-  unfold toBranchInput encSparseSystemInput HeavyBranchFold.encBranchInput
-  let eS := encList (encList (encList encNat)); let eP := encPair encUnary (encPair encNat encNat)
-  have hn_u := fst encUnary (encPair eP eS); have hrest := snd encUnary (encPair eP eS)
-  have hsb := (snd encUnary (encPair encNat encNat)).comp' ((fst eP eS).comp' hrest)
-  have hb₀ := (snd encNat encNat).comp' hsb; have heqs := (snd eP eS).comp' hrest
-  exact hn_u.prod ((HeavyBranchFold.computableInPolyTime_heavyVarList_comp hn_u hb₀ heqs).prod heqs)
+  fun_prop [toBranchInput]
 
 @[fun_prop]
 theorem computableInPolyTime_mkPaperSparseInput :
@@ -1230,14 +1226,7 @@ theorem computableInPolyTime_compileContextParityInput (k_deg : ℕ)
     (hb : ComputableInPolyTime b₀Of encC encNat) (hφ : ComputableInPolyTime φOf encC encCNF) :
     ComputableInPolyTime (compileContextParityInput k_deg nOf sDivOf b₀Of φOf)
       (encContextRows encC) encSparseSystemInput := by
-  unfold compileContextParityInput encSparseSystemInput
-  have hctx := ComputableInPolyTime.fst encC (encList encBits)
-  have hrows := ComputableInPolyTime.snd encC (encList encBits)
-  have hk : ComputableInPolyTime (fun _ : C × List (List Bool) => k_deg)
-      (encPair encC (encList encBits)) encUnary := ComputableInPolyTime.const k_deg
-  have hsys := (computableInPolyTime_compileParitySystemBounded k_deg (encRow := encBits)).comp'
-    ((hφ.comp' hctx).prod hrows)
-  exact (hn.comp' hctx).prod ((hk.prod ((hs.comp' hctx).prod (hb.comp' hctx))).prod hsys)
+  fun_prop [compileContextParityInput]
 
 /-- **Uniform `NativeCertificate` for `countContextParity`** matching `GreedyContext` (§6.3). -/
 noncomputable def contextParityCertificate (N₀_top N₀_branch k_deg : ℕ)

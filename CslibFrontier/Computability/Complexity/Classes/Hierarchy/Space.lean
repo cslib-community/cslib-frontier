@@ -14,9 +14,15 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Append
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Complexity.Classes.Constructible.Space
+import CslibFrontier.Computability.Complexity.Classes.Hierarchy.SpaceDiagonalBounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigOLe
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
@@ -24,6 +30,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
+import CslibFrontier.Foundations.Data.Nat.AffineBound
 
 /-!
 # The space hierarchy theorem
@@ -54,7 +61,8 @@ Let a machine decide the same problem within space `c₁ * f n + c₂`, where ev
 eventually below `G n`, and let `4 * log₂ n ≤ G n`. It halts within its number of configurations,
 `(n + 2) * 2 ^ O(f n)`, which is below the clock `2 ^ G n`. The configurations of its simulation
 take `O(f n + log n)` bits, with a factor linear in its description: the overhead of the universal
-machine is a constant factor for each simulated machine, eventually within the budget. So on its
+machine is a constant factor for each simulated machine, eventually within the budget
+(`Cslib.Complexity.Diagonal.eventually_cfgSpaceBound_le`). So on its
 own description, padded to a doubly exponential length where it is tiny, the diagonal answers the
 negation of its answer (`Cslib.Complexity.setOf_spaceDiagonal_notMem_DSPACE`). Hence the space
 hierarchy theorem [Stearns, Hartmanis and Lewis][StearnsHartmanisLewis1965],
@@ -171,17 +179,20 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   have hclock := ((ComputableInDegree.two_pow_length encUnary).inO_one.comp_linear
     hGu).of_enc_eq (encC := encNat) (g := fun x : List Bool => 2 ^ G x.length) fun x => by
       simp only [Function.comp_apply, encUnary_apply, List.length_replicate]
-  obtain ⟨cC, hCt, -⟩ := ((hclock.prod hGu).tidy).mono (S' := fun x : List Bool => G x.length)
+  have hC := (hclock.prod hGu).mono (S' := fun x : List Bool => G x.length)
     (T' := fun x => TG x + (G x.length + 1) ^ 2 + (TG x + (G x.length + 1) ^ 2)) 4
     (fun x => by have := Nat.le_self_pow two_ne_zero (G x.length + 1); omega)
     (fun x => by omega)
+  obtain ⟨cC, hCt, -⟩ := Internal.NormalForm.inO hC
   -- the input of the budgeted universal machine, recomputed and never charged
-  obtain ⟨kF, hF⟩ := hAB.append hCt (encOut := eInS) (g := universalInput G) fun x => by
+  obtain ⟨kF, hF⟩ := ComputableTidilyInTimeAndSpace.append hAB hCt
+    (encOut := eInS) (g := universalInput G) fun x => by
     simp only [universalInput, eInS, encPair_apply, encBits_apply, List.append_assoc]; rfl
   -- the budgeted universal run and the verdict
   obtain ⟨cV, hV, -⟩ := computableInO_verdict.comp
-    computableTidilyInO_budgetedUniversal.computableInO
-  obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space hF.computableInTimeAndSpace hV
+    computableInO_budgetedUniversal
+  obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hF) hV
   obtain ⟨dU, hU⟩ := hU.exists_computableTidilyInTimeAndSpace
   -- the test and the case distinction
   obtain ⟨tc, cc, hc⟩ := computableInLogSpace_tinyDesc
@@ -213,7 +224,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
       budgetSpace_le (decodeDesc (tinyCut x)) (x.map eBit) (G x.length) (2 ^ G x.length)
     have hD : (eDesc (decodeDesc (tinyCut x))).length ≤ cD * (Nat.log2 x.length + 1) := hcD x
     have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+      rw [length_encNat_two_pow]
     have hn : (encNat ((x.map eBit).length + 1)).length ≤ Nat.log2 x.length + 2 := by
       rw [List.length_map]; exact length_encNat_le_log2_add_two le_rfl
     have hmax : (x.map eBit).foldr max 0 ≤ 1 := listMax_le fun b _ => by cases b <;> decide
@@ -233,7 +244,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
         rw [encUnary_apply, List.length_replicate]
         cases c <;> decide
     have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+      rw [length_encNat_two_pow]
     have hlen : (eInS (universalInput G x)).length + 1 ≤
         (2 * (eDesc (decodeDesc (tinyCut x))).length + 3 * G x.length + 12) * (x.length + 1) := by
       simp only [universalInput, eInS, length_encPair, encUnary_apply, List.length_replicate, hclk,
@@ -245,7 +256,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     have h₃ : (encNat (x.length + 1)).length ≤ Nat.log2 x.length + 2 :=
       length_encNat_le_log2_add_two le_rfl
     nlinarith [Nat.zero_le (cD * G x.length)]
-  obtain ⟨K, hK⟩ := exists_space_of_bigOLe h.computableInTimeAndSpace
+  obtain ⟨K, hK⟩ := exists_space_of_bigOLe
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
     (V := fun x : List Bool => G x.length + Nat.log2 x.length) (by
       simp only [encBits_apply]
       bigO)
@@ -298,11 +310,10 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
   have := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
   set D := descLen (desc eS eBit tm) with hD
-  set P := 6 * (2 * D + 5) * (c₁ + c₂) + 3 * D + 8 with hP
   set e := storageBoundExp Bool k
   set base := storageBoundBase Bool State k
   obtain ⟨N, hN⟩ := eventually_atTop.mp ((hfG (4 * e * (c₁ + c₂) + 2 * base + 8)).and
-    (hfG (2 * P)))
+    (eventually_cfgSpaceBound_le hlog hfG D c₁ c₂))
   -- the description, padded beyond `N` and to a length where it is tiny
   suffices ∀ pad : List Bool, N + 2 ^ 2 ^ (eDesc (desc eS eBit tm)).length ≤ pad.length → False
     from this (List.replicate _ false) (List.length_replicate ..).ge
@@ -348,24 +359,10 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
     have hsp : simSpace (desc eS eBit tm) (x.map eBit) (2 ^ G x.length) ≤ s := by
       rw [simSpace_desc]
       exact space_le_of_runsInSpace hrun.2.2 _
-    have hk : (desc eS eBit tm).tapes ≤ D := by
-      simp only [hD, descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
-      omega
-    have hn : (encNat (x.length + 1)).length ≤ Nat.log2 x.length + 2 :=
-      length_encNat_le_log2_add_two le_rfl
-    have hP' : 6 * (2 * D + 5) * s + 3 * D + 8 ≤ P * (f x.length + 1) := by
-      have := Nat.mul_le_mul_left (6 * (2 * D + 5)) hsf
-      have e₁ : P * (f x.length + 1) = 6 * (2 * D + 5) * ((c₁ + c₂) * (f x.length + 1)) +
-          (3 * D + 8) * (f x.length + 1) := by rw [hP]; ring
-      have : 3 * D + 8 ≤ (3 * D + 8) * (f x.length + 1) := Nat.le_mul_of_pos_right _ (by omega)
-      omega
-    have e₂ : 2 * P * f x.length + 2 * P = 2 * (P * (f x.length + 1)) := by ring
-    simp only [cfgSpace, List.length_map, ← hD]
-    have e₃ : 3 * (2 * D + 5) * 2 * simSpace (desc eS eBit tm) (x.map eBit) (2 ^ G x.length) ≤
-        6 * (2 * D + 5) * s := by
-      rw [show 3 * (2 * D + 5) * 2 = 6 * (2 * D + 5) by ring]
-      exact Nat.mul_le_mul_left _ hsp
-    omega
+    have hk : (desc eS eBit tm).tapes ≤ D := tapes_le _
+    refine le_trans ?_ (h₂ _ hk)
+    simp only [cfgSpace, cfgSpaceBound, List.length_map, ← hD]
+    gcongr
   -- so the diagonal negates the answer of the decider
   have hd : spaceDiagonal G x = !g x := by
     subst hx
@@ -389,8 +386,8 @@ theorem DSPACE_ssubset_DSPACE {f g : ℕ → ℕ} (hg : SpaceConstructible g)
   have hsub : DSPACE encBits f ⊆ DSPACE encBits g := DSPACE_mono_of_eventually_le <| by
     filter_upwards [hfg 1] with n h
     omega
-  refine (Set.ssubset_iff_of_subset hsub).mpr ⟨_, DSPACE_subset_of_le_mul_add 4 0
-    (fun n => (Nat.add_zero _).ge) (setOf_spaceDiagonal_mem_DSPACE (hg.const_mul 4)
+  refine (Set.ssubset_iff_of_subset hsub).mpr ⟨_, DSPACE_mono_of_le_mul_add (C := 4)
+    (fun n => Nat.le_add_right _ _) (setOf_spaceDiagonal_mem_DSPACE (hg.const_mul 4)
       fun n => (hlog n).trans (Nat.le_mul_of_pos_left _ (by norm_num))),
     setOf_spaceDiagonal_notMem_DSPACE (fun n => Nat.mul_le_mul_left 4 (hlog n)) fun c => ?_⟩
   filter_upwards [hfg c] with n h
@@ -449,7 +446,7 @@ theorem DSPACE_pow_ssubset_DSPACE_pow_succ (k : ℕ) :
   (DSPACE_ssubset_DSPACE (g := fun n => (n + 1) ^ (k + 1))
     (spaceConstructible_succ_pow (k + 1))
     (fun n => (Nat.log2_le_self n).trans ((Nat.le_succ n).trans (Nat.le_self_pow (by omega) _)))
-    (eventually_mul_pow_add_le_succ_pow k)).trans_subset (DSPACE_subset_of_le_mul_add (2 ^ (k + 1))
-      1 fun n => by simpa using Nat.mul_add_one_pow_le_two_pow 1 (k + 1) n)
+    (eventually_mul_pow_add_le_succ_pow k)).trans_subset
+      (DSPACE_mono_of_le_mul_add (Nat.add_one_pow_le_two_pow_mul_add (k + 1)))
 
 end Cslib.Complexity

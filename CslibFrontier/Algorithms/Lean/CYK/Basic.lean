@@ -453,8 +453,7 @@ def cellCost (l : ℕ) : ℕ :=
 
 omit [DecidableEq T] in
 @[simp] theorem ret_scanM (f) (acc) : (scanM G f acc).ret = scan G f acc := by
-  rw [scanM, ret_foldlM]
-  rfl
+  time_spec scanM
 
 omit [DecidableEq T] in
 @[simp] theorem time_scanM (f) (acc) : (scanM G f acc).time = G.rules.length := by
@@ -468,6 +467,7 @@ omit [DecidableEq T] in
   · rw [nodeCellM, ret_foldlM]
     simp [nodeCell]
 
+@[time_simps]
 theorem time_cellM (tbl : Table G) (i l : ℕ) : (cellM G w tbl i l).time = cellCost G l := by
   unfold cellM cellCost
   split_ifs
@@ -480,10 +480,10 @@ theorem time_cellM (tbl : Table G) (i l : ℕ) : (cellM G w tbl i l).time = cell
   rw [levelM, ret_foldlM]
   simp [level]
 
+@[time_simps]
 theorem time_levelM (tbl : Table G) (l : ℕ) :
     (levelM G w tbl l).time = (w.length + 1 - l) * cellCost G l := by
-  rw [levelM, time_foldlM_of_time_eq _ _ _ (c := cellCost G l)
-    (fun _ _ => by simp [time_cellM]), List.length_range]
+  time_spec levelM [List.length_range]
 
 @[simp] theorem ret_tableM (L : ℕ) : (tableM G w L).ret = table G w L := by
   induction L with
@@ -492,10 +492,7 @@ theorem time_levelM (tbl : Table G) (l : ℕ) :
 
 theorem time_tableM (L : ℕ) :
     (tableM G w L).time = ∑ j ∈ Finset.range L, (w.length - j) * cellCost G (j + 1) := by
-  induction L with
-  | zero => rfl
-  | succ L ih =>
-    rw [tableM, time_bind, ih, time_levelM, Finset.sum_range_succ, Nat.add_sub_add_right]
+  time_spec tableM [Finset.sum_range_succ]
 
 /-- `cykM` computes `cyk`. -/
 @[simp] theorem ret_cykM : (cykM G w).ret = cyk G w := by

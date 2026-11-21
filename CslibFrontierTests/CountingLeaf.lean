@@ -30,7 +30,7 @@ private theorem predicate_native :
     (ComputableInPolyTime.fst encBits encNat) (ComputableInPolyTime.const [true])
   have hi := ComputableInPolyTime.decide_eq'
     (ComputableInPolyTime.snd encBits encNat) (ComputableInPolyTime.const 5)
-  exact .of_tidy (ComputableTidilyInPolyTime.decide_and hc.tidy hi.tidy)
+  exact ComputableInPolyTime.decide_and hc hi
 
 example : ComputableInPolyTime (run predicate) encInput encBool :=
   computableInPolyTime_run predicate predicate_native

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RunsBetween
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelOnWords
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
 # Native functions between selected work-tape words
@@ -41,9 +41,10 @@ theorem exists_of_polyTime {α β : Type} {encIn : α ↪ List Bool} {encOut : �
           (tapesCfg input (Function.update words (e ((Fin.last k).castAdd 2)) (encOut (f a)))
             0 0 out)
           (c * ((encIn a).length + 1) ^ d) (K * (c * ((encIn a).length + 1) ^ d + 1)) := by
-  have htidy := hf.tidy
-  have hlength := htidy.polyBounded_length
-  obtain ⟨t, s, ht, _, k, S, hS, tm, htm⟩ := htidy
+  have hlength := hf.polyBounded_length
+  obtain ⟨c₀, d₀, k, S, hS, tm, htm⟩ := Internal.NormalForm.polyTime hf
+  have ht : PolyBounded (fun a => (encIn a).length) (fun a => c₀ * ((encIn a).length + 1) ^ d₀) :=
+    .of_forall_le c₀ d₀ fun _ => le_rfl
   let := hS
   obtain ⟨c, d, hclock⟩ := ((ht.add hlength).add (PolyBounded.const 6)).exists_le
   refine ⟨k, _, inferInstance, tm.onWords true, c, d, ?_⟩

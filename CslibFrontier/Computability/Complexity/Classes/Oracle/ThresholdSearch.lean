@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.BinarySearch
-public import CslibFrontier.Computability.Complexity.Classes.NP.SelfReduction
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BoundedQuery
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.Histogram
@@ -21,6 +20,7 @@ import CslibFrontier.Computability.Complexity.Classes.NP.Image
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Monotone
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
+import CslibFrontier.Computability.Complexity.Problems.SAT.Units
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
@@ -253,10 +253,6 @@ theorem encOptSolution_mk_polyTime {β γ : Type} {encB : β ↪ List Bool}
   (hv.prod hw).of_enc_eq fun _ => rfl
 
 /-! ### Pure bisection iteration and `lowerBoundM` bridge -/
-
-/-- Binary bit-length `n.size` is at most `⌊log₂ n⌋ + 1` (with equality for `n > 0`). -/
-theorem size_le_log_two_add_one (n : ℕ) : n.size ≤ Nat.log 2 n + 1 :=
-  Nat.size_le.mpr (Nat.lt_pow_succ_log_self (by decide) n)
 
 /-- One pure step of bisection on `[iv.lo, iv.hi)` for a Boolean test `test`. -/
 def bisectStep (test : ℕ → Bool) (iv : BisectInterval) : BisectInterval :=
@@ -683,7 +679,7 @@ theorem preprocess {α β γ : Type} {A : Set (List Bool)} {r stretch : ℕ → 
     ComputableInPolyTimeWithOracleQueries A (fun n => r (stretch n)) (fun a => f (g a))
       input output := by
   obtain ⟨prog, hcert, hprog⟩ := hf
-  exact ⟨fun a => prog (g a), hcert.preprocess' hg, fun a =>
+  exact ⟨fun a => prog (g a), hcert.preprocess hg, fun a =>
     ⟨(hprog (g a)).1, (hprog (g a)).2.trans (hr (hstretch a))⟩⟩
 
 end ComputableInPolyTimeWithOracleQueries
@@ -842,7 +838,7 @@ private theorem isOraclePPTOn_bisectStepProgram {α : Type} {encA : α ↪ List 
       encBisectInterval_mk_polyTime (by fun_prop) hmid'
     exact (ComputableInPolyTime.ite' (snd _ _) hleft hright).of_enc_eq fun p => by
       cases p.2 <;> rfl
-  have hyes := (isOraclePPTOn_queryBit hword).map_with'
+  have hyes := (isOraclePPTOn_queryBit hword).map_with
     (f := fun (pair : α × BisectInterval) (b : Bool) =>
       let mid := (pair.2.lo + pair.2.hi) / 2
       if b then BisectInterval.mk (mid + 1) pair.2.hi else BisectInterval.mk pair.2.lo mid)
@@ -850,7 +846,7 @@ private theorem isOraclePPTOn_bisectStepProgram {α : Type} {encA : α ↪ List 
   have hno : IsOraclePPTOn (Operation := Unit) (encPair encA encBisectInterval) encBisectInterval
       (fun pair : α × BisectInterval => pure pair.2) :=
     (snd encA encBisectInterval).isOraclePPTOn
-  refine (IsOraclePPTOn.ite' (condition := fun pair : α × BisectInterval => pair.2.lo < pair.2.hi)
+  refine (IsOraclePPTOn.ite (condition := fun pair : α × BisectInterval => pair.2.lo < pair.2.hi)
     hcond hyes hno).congr fun pair State oracle s => ?_
   unfold bisectStepProgram
   split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
@@ -878,7 +874,7 @@ theorem isOraclePPTOn_bisectProgram {α : Type} {encA : α ↪ List Bool}
   have hsize : PolyBounded (fun a => (encA a).length)
       (fun a => 4 * (cL * ((encA a).length + 1) ^ dL + cH * ((encA a).length + 1) ^ dH) + 4) := by
     growth_poly
-  have hit := IsOraclePPTOn.iterateWith_spec' (input := encA)
+  have hit := IsOraclePPTOn.iterateWith_spec (input := encA)
     (stateEncoding := encBisectInterval)
     (count := fun a => (hi a - lo a).size)
     (initial := fun a => BisectInterval.mk (lo a) (hi a))
@@ -909,7 +905,7 @@ theorem isOraclePPTOn_bisectProgram {α : Type} {encA : α ↪ List Bool}
       enc_len)
   have hproj : ComputableInPolyTime BisectInterval.lo encBisectInterval encNat := by fun_prop
   simpa only [bisectProgram, OracleComp.interpret_map, OracleComp.interpret_iterate] using
-    hit.1.map' hproj
+    hit.1.map hproj
 
 open Classical in
 /-- **Polynomial-time oracle bisection with logarithmic query count.** Given polynomial-time
@@ -987,11 +983,7 @@ theorem isVerifier_threshold :
     refine ⟨q.formula.vars.map σ, by simpa using hvars, fun k => ?_⟩
     simp only [thresholdVerifier, decide_eq_true_eq]
     refine hσ.trans (CNF.countP_eval_congr fun v hv => ?_).le
-    have hlt : q.formula.vars.idxOf v < q.formula.vars.length := List.idxOf_lt_length_iff.2 hv
-    have hlt' : q.formula.vars.idxOf v < (q.formula.vars.map σ).length := by simpa using hlt
-    rw [SAT.assignment, List.getD_eq_getElem?_getD, List.getElem?_append_left hlt',
-      List.getElem?_map, List.getElem?_eq_getElem hlt, List.getElem_idxOf hlt]
-    rfl
+    exact (SAT.assignment_vars_map_append _ σ _ hv).symm
 
 @[fun_prop]
 theorem computableInPolyTime_thresholdVerifier :
@@ -1412,11 +1404,8 @@ theorem target_le_countP_recoverBits {D : MaxSATQuery → Bool} {q : MaxSATQuery
   have hcongr : q.formula.countP (Clause.eval (SAT.assignment q.formula (recoverBits D q))) =
       q.formula.countP (Clause.eval σ) := by
     refine CNF.countP_eval_congr fun v hv => ?_
-    have hlt : q.formula.vars.idxOf v < q.formula.vars.length := List.idxOf_lt_length_iff.2 hv
-    have hbits : SAT.assignment q.formula (recoverBits D q) v = lookupVar ans v := by
-      rw [SAT.assignment, List.getD_eq_getElem?_getD, recoverBits, List.getElem?_map,
-        List.getElem?_eq_getElem hlt, List.getElem_idxOf hlt]
-      rfl
+    have hbits : SAT.assignment q.formula (recoverBits D q) v = lookupVar ans v :=
+      SAT.assignment_vars_map _ _ hv
     rw [hbits]
     have hdv : v ∈ ans.map Prod.fst := by
       rw [hfst, CNF.mem_distinctVars]
@@ -1518,7 +1507,7 @@ private theorem computableInPolyTime_recoverQuery :
           !(x.1.2 ++ [(x.1.1.formula.distinctVars.getD x.1.2.length 0, true)]).any
             (· == (l.1, !l.2)))
         (snd _ _) hkeepLit
-    exact .of_tidy (ComputableTidilyInPolyTime.mapWithInput hf1.tidy hfLit.tidy)
+    exact (ComputableInPolyTime.mapWithInput hf1 hfLit)
   exact encMaxSATQuery_mk_polyTime hap
     (binary_sub' (encMaxSATQuery_target_polyTime (fst _ _)) hsatBy)
 
@@ -1547,7 +1536,7 @@ private theorem isOraclePPTOn_recoverStepProgram :
       (encList (encPair encNat encBool)) :=
     listAppend' ((snd _ _).comp (fst _ _))
       (cons' ((computableInPolyTime_nextRecoverVar.comp (fst _ _)).prod (snd _ _)) (const []))
-  have hyes := (isOraclePPTOn_queryBit hreq).map_with'
+  have hyes := (isOraclePPTOn_queryBit hreq).map_with
     (f := fun (pair : MaxSATQuery × List (Literal ℕ)) (b : Bool) =>
       pair.2 ++ [(pair.1.formula.distinctVars.getD pair.2.length 0, b)]) hpost
   have hno : IsOraclePPTOn (Operation := Unit)
@@ -1555,7 +1544,7 @@ private theorem isOraclePPTOn_recoverStepProgram :
       (encList (encPair encNat encBool))
       (fun pair : MaxSATQuery × List (Literal ℕ) => pure pair.2) :=
     (snd _ _).isOraclePPTOn
-  refine (IsOraclePPTOn.ite'
+  refine (IsOraclePPTOn.ite
     (condition := fun pair : MaxSATQuery × List (Literal ℕ) =>
       pair.2.length < pair.1.formula.distinctVars.length)
     hcond hyes hno).congr fun pair State oracle s => ?_
@@ -1573,7 +1562,7 @@ theorem isOraclePPTOn_recoverProgram :
   have hsize : PolyBounded (fun q : MaxSATQuery => (encMaxSATQuery q).length)
       (fun q => (encMaxSATQuery q).length * (4 * (encMaxSATQuery q).length + 5)) := by
     growth_poly
-  have hit := IsOraclePPTOn.iterateWith_spec' (input := encMaxSATQuery)
+  have hit := IsOraclePPTOn.iterateWith_spec (input := encMaxSATQuery)
     (stateEncoding := encList (encPair encNat encBool))
     (count := fun q => CNF.numVars q.formula)
     (initial := fun _ => [])
@@ -1657,10 +1646,10 @@ theorem isOraclePPTOn_recoverProgram :
         (fun pair : MaxSATQuery × List (Literal ℕ) =>
           pair.1.formula.vars.map (lookupVar pair.2))
         (encPair encMaxSATQuery (encList (encPair encNat encBool))) (encList encBool) :=
-      .of_tidy (ComputableTidilyInPolyTime.mapWithInput hvars.tidy hlookup.tidy)
+      (ComputableInPolyTime.mapWithInput hvars hlookup)
     exact listToBits.comp hmap
   simpa only [recoverProgram, OracleComp.interpret_map, OracleComp.interpret_iterate] using
-    hit.1.map_with' (f := fun (q : MaxSATQuery) (ans : List (Literal ℕ)) =>
+    hit.1.map_with (f := fun (q : MaxSATQuery) (ans : List (Literal ℕ)) =>
       q.formula.vars.map (lookupVar ans)) hpost
 
 /-- Combined adaptive oracle program solving Max-SAT optimization and optimal witness recovery:
@@ -1836,7 +1825,7 @@ theorem computableInPolyTimeWithOracleQueries_solveMaxSAT (A : Set (List Bool)) 
         (encPair (encPair encCNF encNat) encBits) encMaxSATSolution :=
       encMaxSATSolution_mk_polyTime (binary_sub' ((snd _ _).comp (fst _ _)) (const 1)) (snd _ _)
     simpa only [← bind_pure_comp] using
-      (isOraclePPTOn_recoverProgram.preprocess' hprep).map_with'
+      (isOraclePPTOn_recoverProgram.preprocess hprep).map_with
         (f := fun (p : CNF ℕ × ℕ) (bits : List Bool) => MaxSATSolution.mk (p.2 - 1) bits) hpost
   refine ⟨solveMaxSATProgram, ?_, fun φ => ⟨rfl, ?_⟩⟩
   · refine (hb_cert.bind_with

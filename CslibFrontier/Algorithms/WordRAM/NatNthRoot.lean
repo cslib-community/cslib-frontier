@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
 public import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
 public import Mathlib.Data.Nat.Log
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # A charged native integer `k`-th root
@@ -201,7 +202,6 @@ theorem exec {w : ℕ} (x : Data 10) (hk : 1 ≤ x.regs k) (hkfit : Fits w (x.re
   set e := x.regs k
   have he0 : e ≠ 0 := by omega
   have h1 : Fits w 1 := hfit.of_le (by omega)
-  have h2 : Fits w 2 := hfit.of_le (by omega)
   let I (y : Data 10) : Prop := y.regs n = N ∧ y.regs k = e ∧ y.regs one = 1 ∧ y.regs two = 2 ∧
     y.regs t = y.regs lo + 1 ∧ y.regs lo < y.regs hi ∧ y.regs hi ≤ N + 1 ∧
     y.regs lo ^ e ≤ N ∧ N < y.regs hi ^ e ∧ y.mem = x.mem
@@ -236,18 +236,15 @@ theorem exec {w : ℕ} (x : Data 10) (hk : 1 ≤ x.regs k) (hkfit : Fits w (x.re
         (by
           rw [hcn, hcm, hy₁m, hy₁ n (by decide), hyn]
           exact hfit.of_le ((Nat.mul_le_mul_left N hmdN).trans (by omega)))
-    have hpres (j : Fin 10) (hj : ∀ a, capMap a ≠ j) : y₂.regs j = y₁.regs j :=
-      hrun₂.regs_eq (Code.preserves_rename_of_forall_ne _ _ _ hj)
     rw [hcp, hcn, hcm, hck, hy₁m, hy₁ n (by decide), hy₁ k (by decide), hyn, hyk] at hple
     rw [hck, hy₁ k (by decide), hyk] at hy₂k
     rw [hcn, hy₁ n (by decide), hyn] at hy₂n
     rw [hco] at hy₂o
     rw [hcm, hy₁m] at hy₂m
     rw [hck, hy₁ k (by decide), hyk] at hrun₂
-    have hy₂lo : y₂.regs lo = l := (hpres lo (by decide)).trans ((hy₁ lo (by decide)).trans hl)
-    have hy₂hi : y₂.regs hi = h := (hpres hi (by decide)).trans ((hy₁ hi (by decide)).trans hh)
-    have hy₂two : y₂.regs two = 2 :=
-      (hpres two (by decide)).trans ((hy₁ two (by decide)).trans hyt2)
+    have hy₂lo : y₂.regs lo = l := by regs_frame
+    have hy₂hi : y₂.regs hi = h := by regs_frame
+    have hy₂two : y₂.regs two = 2 := by regs_frame
     have hy₂mid : y₂.regs mid = (l + h) / 2 := hy₂m
     by_cases hover : N < y₂.regs p
     · -- The probe is too large: `hi ← mid`.
@@ -293,7 +290,7 @@ theorem exec {w : ℕ} (x : Data 10) (hk : 1 ≤ x.regs k) (hkfit : Fits w (x.re
   have hhi : y.regs hi = y.regs lo + 1 := by simp only [Cond.holds_lt, hyt] at hc; omega
   have hinit : ExecWithin (B := .standard) w
       (ram[ lo ← #0; one ← #1; two ← #2; hi ← n + one; t ← lo + one ]) x x₀ 5 := by
-    ram_eval [x₀, N, h1, h2, hn1]
+    ram_eval [x₀, N, h1, hn1]
   refine ⟨y, ?_, ?_, hyn, hyk, hyo, hytwo, hymem⟩
   · have hμ : Nat.clog 2 (x₀.regs hi - x₀.regs lo) = Nat.clog 2 (N + 1) := by
       simp +decide [x₀]

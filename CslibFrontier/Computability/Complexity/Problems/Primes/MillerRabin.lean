@@ -16,8 +16,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.Data.BitString.Counter
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.Data.Int.CardIntervalMod
 
 /-!
@@ -104,6 +106,11 @@ theorem passes_polyTime :
         (fun q : (ℕ × ℕ) × ℕ => q.1.2 ^ (q.1.1 / 2 ^ q.2) % (q.1.1 + 1))
         (encPair (encPair encNat encNat) encUnary) encNat :=
       ComputableInPolyTime.binary_powMod (by fun_prop) hexp (by fun_prop) fun _ => Nat.succ_pos _
+    have hmod2 := ComputableInPolyTime.binary_mod' hexp (ComputableInPolyTime.const 2)
+    have hdivisible := ComputableInPolyTime.binary_mod'
+      ((ComputableInPolyTime.fst (encPair encNat encNat) encUnary).fst')
+      (ComputableInPolyTime.binary_two_pow.comp
+        (ComputableInPolyTime.snd (encPair encNat encNat) encUnary))
     fun_prop
 
 /-- The Miller–Rabin verifier is computable in polynomial time. -/
@@ -112,11 +119,20 @@ theorem verifier_polyTime :
   have hinner : ComputableInPolyTime
       (fun x : ℕ × List Bool => (x.1 - 1, 1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) (encPair encNat encNat) := by
-    fun_prop
+    have hn := ComputableInPolyTime.fst encNat encBits
+    have hpred := ComputableInPolyTime.binary_sub.comp
+      (hn.prod (ComputableInPolyTime.const 1))
+    have hword := ComputableInPolyTime.snd encNat encBits
+    have hnumber := ComputableInPolyTime.bitsToNat.comp hword
+    have hrem := ComputableInPolyTime.binary_mod' hnumber hpred
+    exact hpred.prod (ComputableInPolyTime.binary_add.comp
+      ((ComputableInPolyTime.const 1).prod hrem))
   have hpasses : ComputableInPolyTime
       (fun x : ℕ × List Bool => passes (x.1 - 1) (1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) encBool :=
     passes_polyTime.comp hinner
+  have hmod2 := ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.fst encNat encBits) (ComputableInPolyTime.const 2)
   unfold verifier
   fun_prop
 
@@ -127,10 +143,7 @@ private theorem pow_mod_eq_one_iff {m a e : ℕ} (hm : 0 < m) :
 
 private theorem pow_mod_eq_neg_one_iff {m a e : ℕ} :
     a ^ e % (m + 1) = m ↔ (a : ZMod (m + 1)) ^ e = -1 := by
-  have hm : ((m : ℕ) : ZMod (m + 1)) = -1 := by
-    have h := ZMod.natCast_self (m + 1)
-    rw [Nat.cast_add, Nat.cast_one] at h
-    exact eq_neg_of_add_eq_zero_left h
+  have hm : ((m : ℕ) : ZMod (m + 1)) = -1 := ZMod.natCast_self_sub_one (m + 1)
   rw [← hm, ← Nat.cast_pow, ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt (Nat.lt_succ_self m)]
 
 /-- For `m > 0`, a Miller–Rabin round for `m + 1` passes exactly on the strong liars. -/
@@ -186,18 +199,16 @@ private theorem card_filter_ofBits_mod_mem_le {k N : ℕ} (hN : 0 < N) (S : Fins
   classical
   refine Finset.card_le_mul_card_image_of_maps_to (f := fun r => ofBits (List.ofFn r) % N)
     (fun r hr => (Finset.mem_filter.1 hr).2) _ fun v _ => ?_
-  have hval : ∀ r : Fin k → Bool, ofBits (List.ofFn r) = (BitString.equivFin k r : ℕ) := fun r => by
-    rw [ofBits, ← BitString.lsbValue_eq_foldr_bit, BitString.lsbValue_ofFn]
   calc _ ≤ ((Finset.range (2 ^ k)).filter fun x => x ≡ v [MOD N]).card := by
         refine Finset.card_le_card_of_injOn (fun r => ofBits (List.ofFn r)) ?_ ?_
         · intro r hr
           simp only [Finset.coe_filter, Finset.mem_filter, Finset.mem_univ, true_and,
             Set.mem_ofPred_eq] at hr
-          simp only [Finset.coe_filter, Finset.mem_range, Set.mem_ofPred_eq, hval]
+          simp only [Finset.coe_filter, Finset.mem_range, Set.mem_ofPred_eq, ofBits_ofFn]
           refine ⟨(BitString.equivFin k r).2, ?_⟩
-          rw [← hval, Nat.ModEq, ← hr.2, Nat.mod_mod]
+          rw [← ofBits_ofFn r, Nat.ModEq, ← hr.2, Nat.mod_mod]
         · intro r _ r' _ h
-          simp only [hval] at h
+          simp only [ofBits_ofFn] at h
           exact (BitString.equivFin k).injective (Fin.ext h)
     _ = (2 ^ k).count (· ≡ v [MOD N]) := (Nat.count_eq_card_filter_range _ _).symm
     _ ≤ 2 ^ k / N + 1 := by
@@ -274,11 +285,8 @@ theorem decidesWithOneSidedError :
   rw [hlen]
   refine ⟨fun hn => ?_, fun hn r => ?_⟩
   · simp only [PromiseProblem.yes_ofSet, Set.mem_ofPred_eq] at hn
-    have hsplit := Finset.card_filter_add_card_filter_not
-      (s := (Finset.univ : Finset (Fin (2 * n.size) → Bool)))
-      (fun r => verifier (n, List.ofFn r) = true)
-    simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool,
-      Bool.not_eq_true] at hsplit
+    have hsplit := acceptCount_add_card_filter_eq_false (V := verifier) (a := n)
+      (n := 2 * n.size)
     suffices hrej : 2 * (Finset.univ.filter fun r : Fin (2 * n.size) → Bool =>
         verifier (n, List.ofFn r) = false).card ≤ 2 ^ (2 * n.size) by omega
     by_cases hodd : n < 2 ∨ n % 2 = 0

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Model
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Program
 public import CslibFrontier.Computability.WordRAM.Compile
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -30,7 +31,6 @@ recursive van Emde Boas trees and certifies its first two phases:
 * `dfsSetup`, `dfsEnterBody`, `dfsExitBody`, `dfsBody`, `dfsLoop`: Phase 3 setup and iterative
   depth-first header initialization loop.
 * `initProgram`: the fixed 32-register structured initializer program.
-* `initSetupData`, `tableSetupData`: register and memory state after `initSetup` and `tableSetup`.
 * `TableInv`: the lookup-table invariant for `(splitSize j, childSpan j)`.
 
 ## Main results
@@ -138,39 +138,21 @@ theorem compiled_initProgram_not_readsWidth : ¬(initProgram.program out).ReadsW
 
 /-! ## Phase 1: computing `(universeSize d, span d)` -/
 
-/-- State after `initSetup`. -/
-def initSetupData (s : Data 32) : Data 32 :=
-  ((((((((s.set zero 0).set one 1).set two 2).set three 3).set four 4).set five 5).set q 2).set
-    t 5).set high 0
-
-/-- `initSetup` executes in 9 instructions and produces `initSetupData s`. -/
-theorem initSetup_exec {w : ℕ} {s : Data 32} (hw : Fits w 5) :
-    Exec w initSetup s (initSetupData s) 9 := by
-  ram_eval [initSetup, initSetupData]
-
-/-- State after one iteration of `sizeBody` at depth `k`. -/
-private def sizeBodyData (s : Data 32) (k : ℕ) : Data 32 :=
-  (((((s.set tmp (universeSize k + 1)).set tmp ((universeSize k + 1) * span k)).set
-    tmp ((universeSize k + 1) * span k + 5)).set q (universeSize k * universeSize k)).set
-    t ((universeSize k + 1) * span k + 5)).set high (k + 1)
-
-private theorem sizeBody_exec {w d k : ℕ} {s : Data 32} (hk : k < d) (hspan : Fits w (span d))
-    (hd : Fits w d) (h1 : s.regs one = 1) (h5 : s.regs five = 5)
-    (hq : s.regs q = universeSize k) (ht : s.regs t = span k) (hhigh : s.regs high = k) :
-    ExecWithin w sizeBody s (sizeBodyData s k) 6 := by
+/-- One size step at depth `k < d`, as in `sizeBody` and `tableBody`, computes
+`(universeSize k + 1) * span k + 5 = span (k + 1)` with word-fit bounds for `universeSize k + 1`,
+`(universeSize k + 1) * span k + 5`, and `universeSize k * universeSize k` from `Fits w (span d)`.
+-/
+private theorem sizeStep_fits {w d k : ℕ} (hk : k < d) (hspan : Fits w (span d)) :
+    (universeSize k + 1) * span k + 5 = span (k + 1) ∧
+      Fits w (universeSize k + 1) ∧
+      Fits w ((universeSize k + 1) * span k + 5) ∧
+      Fits w (universeSize k * universeSize k) := by
   have hle : span (k + 1) ≤ span d := span_mono (by omega)
-  have hu_le : universeSize (k + 1) ≤ span (k + 1) := universeSize_le_span (k + 1)
-  have huk_le : universeSize k + 1 ≤ universeSize (k + 1) := by
-    have := two_le_universeSize k; rw [universeSize_succ]; nlinarith
-  have h_prod_le : (universeSize k + 1) * span k + 5 = span (k + 1) := by
-    rw [span_succ]; omega
-  -- `ram_eval` derives the bound of the product `(universeSize k + 1) * span k` from `hf3`.
-  have hf1 : Fits w (universeSize k + 1) := hspan.of_le (by omega)
-  have hf3 : Fits w ((universeSize k + 1) * span k + 5) := hspan.of_le (by omega)
-  have hf4 : Fits w (universeSize k * universeSize k) :=
-    hspan.of_le (by rw [← universeSize_succ]; omega)
-  have hf5 : Fits w (k + 1) := hd.of_le (by omega)
-  ram_eval [sizeBody, sizeBodyData, h1, h5, hq, ht, hhigh]
+  have hspan_eq : (universeSize k + 1) * span k + 5 = span (k + 1) := Nat.add_comm _ _
+  have hu_le : universeSize k * universeSize k ≤ span (k + 1) := universeSize_le_span (k + 1)
+  have huk_le : universeSize k + 1 ≤ universeSize k * universeSize k := by
+    have := two_le_universeSize k; nlinarith
+  exact ⟨hspan_eq, hspan.of_le (by omega), hspan.of_le (by omega), hspan.of_le (by omega)⟩
 
 /-- `sizeLoop` advances `(q, t, high)` from `(universeSize k, span k, k)` to
 `(universeSize d, span d, d)` in `8 * (d - k) + 2` instructions without modifying memory. -/
@@ -187,79 +169,34 @@ theorem sizeLoop_spec {w d : ℕ} (rem : ℕ) {k : ℕ} {s : Data 32} (hk : k + 
       z.regs q = universeSize d ∧ z.regs t = span d ∧ z.mem = s.mem := by
   induction rem generalizing k s with
   | zero =>
-    have hkd : k = d := by omega
-    subst hkd
-    have hc : ¬(Cond.lt high depth).Holds s := by
-      simp +decide [Cond.holds_lt, hhigh, hdepth]
+    obtain rfl : k = d := by omega
+    have hc : ¬(Cond.lt high depth).Holds s := by simp [Cond.holds_lt, hhigh, hdepth]
     exact ⟨s, ExecWithin.loop_exit hc, h0, h1, h2, h3, h4, h5, rfl, hdepth, hq, ht, rfl⟩
   | succ rem ih =>
     have hk_lt : k < d := by omega
-    have hc : (Cond.lt high depth).Holds s := by
-      simp +decide [Cond.holds_lt, hhigh, hdepth, hk_lt]
-    have hbody := sizeBody_exec hk_lt hspan hd h1 h5 hq ht hhigh
-    let s₁ := sizeBodyData s k
-    have hs₁_t : s₁.regs t = span (k + 1) := by
-      change (universeSize k + 1) * span k + 5 = span (k + 1)
-      rw [span_succ]
-      omega
+    obtain ⟨hspan_eq, hf1, hf3, hf4⟩ := sizeStep_fits hk_lt hspan
+    have hf5 : Fits w (k + 1) := hd.of_le (by omega)
+    have hstep : ∃ s₁, ExecWithin w sizeBody s s₁ 6 ∧
+        s₁.regs zero = 0 ∧ s₁.regs one = 1 ∧ s₁.regs two = 2 ∧
+        s₁.regs three = 3 ∧ s₁.regs four = 4 ∧ s₁.regs five = 5 ∧
+        s₁.regs root = s.regs root ∧ s₁.regs depth = d ∧
+        s₁.regs q = universeSize (k + 1) ∧ s₁.regs t = span (k + 1) ∧
+        s₁.regs high = k + 1 ∧ s₁.mem = s.mem := by
+      apply WP.exists_execWithin
+      unfold sizeBody
+      wram_exec [h1, h5, hq, ht, hhigh]
+      exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
+        by wram_simp [h3], by wram_simp [h4], by wram_simp [h5],
+        by wram_simp, by wram_simp [hdepth], by wram_simp [universeSize_succ],
+        by wram_simp [hspan_eq], by wram_simp, by wram_simp⟩
+    obtain ⟨s₁, hbody, h0₁, h1₁, h2₁, h3₁, h4₁, h5₁, hr₁, hd₁, hq₁, ht₁, hh₁, hm₁⟩ := hstep
+    have hc : (Cond.lt high depth).Holds s := by simp [Cond.holds_lt, hhigh, hdepth, hk_lt]
     obtain ⟨z, hz, hz0, hz1, hz2, hz3, hz4, hz5, hzr, hzd, hzq, hzt, hzm⟩ :=
-      ih (k := k + 1) (s := s₁) (by omega)
-        (by simpa +decide [s₁, sizeBodyData] using h0)
-        (by simpa +decide [s₁, sizeBodyData] using h1)
-        (by simpa +decide [s₁, sizeBodyData] using h2)
-        (by simpa +decide [s₁, sizeBodyData] using h3)
-        (by simpa +decide [s₁, sizeBodyData] using h4)
-        (by simpa +decide [s₁, sizeBodyData] using h5)
-        (by simpa +decide [s₁, sizeBodyData] using hdepth)
-        (by simp +decide [s₁, sizeBodyData, universeSize_succ])
-        hs₁_t
-        (by simp +decide [s₁, sizeBodyData])
-    refine ⟨z, (ExecWithin.loop_iter hc hbody hz).mono (by omega),
-      hz0, hz1, hz2, hz3, hz4, hz5, ?_, hzd, hzq, hzt, ?_⟩
-    · simpa +decide [s₁, sizeBodyData] using hzr
-    · simpa +decide [s₁, sizeBodyData] using hzm
+      ih (by omega) h0₁ h1₁ h2₁ h3₁ h4₁ h5₁ hd₁ hq₁ ht₁ hh₁
+    exact ⟨z, (ExecWithin.loop_iter hc hbody hz).mono (by omega),
+      hz0, hz1, hz2, hz3, hz4, hz5, hzr.trans hr₁, hzd, hzq, hzt, hzm.trans hm₁⟩
 
 /-! ## Phase 2: populating the `(splitSize, childSpan)` table -/
-
-/-- State after `tableSetup`. -/
-def tableSetupData (s : Data 32) (base d : ℕ) : Data 32 :=
-  let tbl := base + span d
-  ((((((((((s.set payload tbl).set tableBase tbl).set stackBase tbl).set sp tbl).write
-    tbl 0).set sp (tbl + 1)).write (tbl + 1) 0).set sp (tbl + 1 + 1)).set q 2).set t 5).set high 0
-
-/-- `tableSetup` executes in 11 instructions and produces `tableSetupData s base d`. -/
-theorem tableSetup_exec {w base d : ℕ} {s : Data 32} (ha : Fits w (base + span d + 4 * (d + 1)))
-    (h0 : s.regs zero = 0) (h1 : s.regs one = 1) (h2 : s.regs two = 2) (h5 : s.regs five = 5)
-    (hroot : s.regs root = base) (ht : s.regs t = span d) :
-    Exec w tableSetup s (tableSetupData s base d) 11 := by
-  ram_eval [tableSetup, tableSetupData, h0, h1, h2, h5, hroot, ht]
-
-/-- State after one iteration of `tableBody` at depth `k` and pointer `sp₀`. -/
-private def tableBodyData (s : Data 32) (sp₀ k : ℕ) : Data 32 :=
-  (((((((((s.write sp₀ (universeSize k)).set sp (sp₀ + 1)).write (sp₀ + 1) (span k)).set
-    sp (sp₀ + 1 + 1)).set tmp (universeSize k + 1)).set tmp ((universeSize k + 1) * span k)).set
-    tmp ((universeSize k + 1) * span k + 5)).set q (universeSize k * universeSize k)).set
-    t ((universeSize k + 1) * span k + 5)).set high (k + 1)
-
-private theorem tableBody_exec {w base d k : ℕ} {s : Data 32} (hk : k < d)
-    (ha : Fits w (base + span d + 4 * (d + 1)))
-    (h1 : s.regs one = 1) (h5 : s.regs five = 5)
-    (hsp : s.regs sp = base + span d + 2 * (k + 1))
-    (hq : s.regs q = universeSize k) (ht : s.regs t = span k) (hhigh : s.regs high = k) :
-    ExecWithin w tableBody s (tableBodyData s (base + span d + 2 * (k + 1)) k) 10 := by
-  have hle : span (k + 1) ≤ span d := span_mono (by omega)
-  have hu_le : universeSize (k + 1) ≤ span (k + 1) := universeSize_le_span (k + 1)
-  have huk_le : universeSize k + 1 ≤ universeSize (k + 1) := by
-    have := two_le_universeSize k; rw [universeSize_succ]; nlinarith
-  have h_prod_le : (universeSize k + 1) * span k + 5 = span (k + 1) := by
-    rw [span_succ]; omega
-  -- Bounds that need the non-`Fits` facts above; `ram_eval` reads them from context.
-  have hf_sp2 : Fits w (base + span d + 2 * (k + 1) + 1 + 1) := ha.of_le (by omega)
-  have hf1 : Fits w (universeSize k + 1) := ha.of_le (by omega)
-  have hf3 : Fits w ((universeSize k + 1) * span k + 5) := ha.of_le (by omega)
-  have hf4 : Fits w (universeSize k * universeSize k) :=
-    ha.of_le (by rw [← universeSize_succ]; omega)
-  ram_eval [tableBody, tableBodyData, h1, h5, hsp, hq, ht, hhigh]
 
 /-- Lookup-table invariant up to depth `m`: for all `j ≤ m`, `mem (tbl + 2 * j) = splitSize j`
 and `mem (tbl + 2 * j + 1) = childSpan j`. -/
@@ -293,68 +230,59 @@ theorem tableLoop_spec {w base d : ℕ} (rem : ℕ) {k : ℕ} {s : Data 32} (hk 
         z.mem a = s.mem a) := by
   induction rem generalizing k s with
   | zero =>
-    have hkd : k = d := by omega
-    subst hkd
-    have hc : ¬(Cond.lt high depth).Holds s := by
-      simp +decide [Cond.holds_lt, hhigh, hdepth]
+    obtain rfl : k = d := by omega
+    have hc : ¬(Cond.lt high depth).Holds s := by simp [Cond.holds_lt, hhigh, hdepth]
     refine ⟨s, ExecWithin.loop_exit hc, h0, h1, h2, h3, h4, h5, hroot, hdepth,
       hpay, htbl, hstk, hsp, hinv, fun _ _ => rfl⟩
   | succ rem ih =>
     have hk_lt : k < d := by omega
-    have hc : (Cond.lt high depth).Holds s := by
-      simp +decide [Cond.holds_lt, hhigh, hdepth, hk_lt]
-    have hbody := tableBody_exec hk_lt ha h1 h5 hsp hq ht hhigh
+    obtain ⟨hspan_eq, hf1, hf3, hf4⟩ := sizeStep_fits hk_lt (ha.of_le (by omega))
     let sp₀ := base + span d + 2 * (k + 1)
-    let s₁ := tableBodyData s sp₀ k
-    have hs₁_sp : s₁.regs sp = base + span d + 2 * (k + 1 + 1) := by
-      change sp₀ + 1 + 1 = base + span d + 2 * (k + 1 + 1)
-      dsimp only [sp₀]
-      omega
-    have hs₁_t : s₁.regs t = span (k + 1) := by
-      change (universeSize k + 1) * span k + 5 = span (k + 1)
-      rw [span_succ]
-      omega
-    have hs₁_mem_away : ∀ a, a ≠ sp₀ → a ≠ sp₀ + 1 → s₁.mem a = s.mem a := by
-      intro a ha0 ha1
-      simp only [s₁, tableBodyData, Data.set_mem, Data.write_mem]
-      rw [Function.update_of_ne ha1, Function.update_of_ne ha0]
-    have hs₁_inv : TableInv (base + span d) (k + 1) s₁.mem := by
-      intro j hj
-      by_cases hjk : j ≤ k
-      · rw [hs₁_mem_away _ (by dsimp only [sp₀]; omega) (by dsimp only [sp₀]; omega),
-          hs₁_mem_away _ (by dsimp only [sp₀]; omega) (by dsimp only [sp₀]; omega)]
-        exact hinv j hjk
-      · have hj_eq : j = k + 1 := by omega
-        subst hj_eq
-        simp only [s₁, sp₀, tableBodyData, Data.set_mem, Data.write_mem, splitSize, childSpan]
-        constructor
-        · rw [Function.update_of_ne (by omega), Function.update_self]
-        · rw [Function.update_self]
+    have hf_sp2 : Fits w (sp₀ + 1 + 1) := ha.of_le (by dsimp only [sp₀]; omega)
+    rcases (show ∃ s₁, ExecWithin w tableBody s s₁ 10 ∧
+        s₁.regs zero = 0 ∧ s₁.regs one = 1 ∧ s₁.regs two = 2 ∧
+        s₁.regs three = 3 ∧ s₁.regs four = 4 ∧ s₁.regs five = 5 ∧
+        s₁.regs root = base ∧ s₁.regs depth = d ∧
+        s₁.regs payload = base + span d ∧ s₁.regs tableBase = base + span d ∧
+        s₁.regs stackBase = base + span d ∧
+        s₁.regs sp = base + span d + 2 * (k + 1 + 1) ∧
+        s₁.regs q = universeSize (k + 1) ∧ s₁.regs t = span (k + 1) ∧
+        s₁.regs high = k + 1 ∧
+        TableInv (base + span d) (k + 1) s₁.mem ∧
+        (∀ a, a ≠ sp₀ → a ≠ sp₀ + 1 → s₁.mem a = s.mem a) by
+      apply WP.exists_execWithin
+      unfold tableBody
+      wram_exec [h1, h5, hsp, hq, ht, hhigh]
+      refine ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
+        by wram_simp [h3], by wram_simp [h4], by wram_simp [h5],
+        by wram_simp [hroot], by wram_simp [hdepth], by wram_simp [hpay],
+        by wram_simp [htbl], by wram_simp [hstk], ?_,
+        by wram_simp [universeSize_succ], by wram_simp [hspan_eq], by wram_simp, ?_, ?_⟩
+      · wram_simp; omega
+      · intro j hj
+        by_cases hjk : j ≤ k
+        · have ha0 : base + span d + 2 * j ≠ sp₀ := by dsimp only [sp₀]; omega
+          have ha1 : base + span d + 2 * j ≠ sp₀ + 1 := by dsimp only [sp₀]; omega
+          have hb0 : base + span d + 2 * j + 1 ≠ sp₀ := by dsimp only [sp₀]; omega
+          have hb1 : base + span d + 2 * j + 1 ≠ sp₀ + 1 := by dsimp only [sp₀]; omega
+          exact ⟨by wram_simp [sp₀, (hinv j hjk).1], by wram_simp [sp₀, (hinv j hjk).2]⟩
+        · obtain rfl : j = k + 1 := by omega
+          exact ⟨by wram_simp [splitSize], by wram_simp [childSpan, Nat.add_assoc]⟩
+      · intro a ha0 ha1
+        wram_simp [sp₀]) with
+      ⟨s₁, hbody, h0₁, h1₁, h2₁, h3₁, h4₁, h5₁, hr₁, hd₁, hp₁, htbl₁, hstk₁,
+        hsp₁, hq₁, ht₁, hh₁, hinv₁, haway₁⟩
+    have hc : (Cond.lt high depth).Holds s := by simp [Cond.holds_lt, hhigh, hdepth, hk_lt]
     obtain ⟨z, hz, hz0, hz1, hz2, hz3, hz4, hz5, hzr, hzd, hzp, hztbl, hzstk, hzsp, hzinv,
-        hzframe⟩ :=
-      ih (k := k + 1) (s := s₁) (by omega)
-        (by simpa +decide [s₁, tableBodyData] using h0)
-        (by simpa +decide [s₁, tableBodyData] using h1)
-        (by simpa +decide [s₁, tableBodyData] using h2)
-        (by simpa +decide [s₁, tableBodyData] using h3)
-        (by simpa +decide [s₁, tableBodyData] using h4)
-        (by simpa +decide [s₁, tableBodyData] using h5)
-        (by simpa +decide [s₁, tableBodyData] using hroot)
-        (by simpa +decide [s₁, tableBodyData] using hdepth)
-        (by simpa +decide [s₁, tableBodyData] using hpay)
-        (by simpa +decide [s₁, tableBodyData] using htbl)
-        (by simpa +decide [s₁, tableBodyData] using hstk)
-        hs₁_sp
-        (by simp +decide [s₁, tableBodyData, universeSize_succ])
-        hs₁_t
-        (by simp +decide [s₁, tableBodyData])
-        hs₁_inv
+      hzframe⟩ :=
+      ih (by omega) h0₁ h1₁ h2₁ h3₁ h4₁ h5₁ hr₁ hd₁ hp₁ htbl₁ hstk₁ hsp₁ hq₁ ht₁ hh₁ hinv₁
+    clear h0 h1 h2 h3 h4 h5 hroot hdepth hpay htbl hstk hsp hq ht hhigh
+      h0₁ h1₁ h2₁ h3₁ h4₁ h5₁ hr₁ hd₁ hp₁ htbl₁ hstk₁ hsp₁ hq₁ ht₁ hh₁
     refine ⟨z, (ExecWithin.loop_iter hc hbody hz).mono (by omega),
       hz0, hz1, hz2, hz3, hz4, hz5, hzr, hzd, hzp, hztbl, hzstk, hzsp, hzinv, ?_⟩
     intro a ha_out
     have ha_out₁ : a < base + span d + 2 * (k + 1 + 1) ∨ base + span d + 2 * (d + 1) ≤ a := by
       omega
-    rw [hzframe a ha_out₁,
-      hs₁_mem_away a (by dsimp only [sp₀]; omega) (by dsimp only [sp₀]; omega)]
+    rw [hzframe a ha_out₁, haway₁ a (by dsimp only [sp₀]; omega) (by dsimp only [sp₀]; omega)]
 
 end Cslib.DataStructure.VanEmdeBoas.WordRAM

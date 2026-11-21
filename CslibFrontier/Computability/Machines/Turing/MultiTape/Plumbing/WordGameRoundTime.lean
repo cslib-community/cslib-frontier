@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordGameRound
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordFunction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordGameHeader
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
@@ -116,10 +117,10 @@ theorem exists_round {α : Type} (enc : α ↪ List Bool) (f : Bool × α → Op
             none := by
   have hheader : ComputableInPolyTime (fun x => wordGameHeader (f x).1)
       (encPair encBool enc) encBits :=
-    ((ComputableTidilyInPolyTime.of_finite (encA := encOption encBool) (encB := encBits)
-      wordGameHeader).comp hf.tidy.fst').computableInPolyTime
+    (ComputableInPolyTime.of_finite (encIn := encOption encBool) (encOut := encBits)
+      wordGameHeader).comp hf.fst'
   have hmetadata : ComputableInPolyTime (fun x => (f x).2) (encPair encBool enc) enc :=
-    hf.tidy.snd'.computableInPolyTime
+    hf.snd'
   obtain ⟨kH, SH, hSH, header, cH, dH, hh⟩ := WordFunction.exists_of_polyTime hheader
   obtain ⟨kM, SM, hSM, metadata, cM, dM, hm⟩ := WordFunction.exists_of_polyTime hmetadata
   let := hSH

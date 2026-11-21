@@ -6,7 +6,7 @@ Authors: OpenAI
 
 -- upstream: candidate
 
-import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryAppend
+import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendAcceptance
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryIdentify
 
 /-! Actual boundary appends and adjacent joins retain unused ports and a degree-six cutvertex. -/
@@ -17,7 +17,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.CSP Cslib.Complexity Cslib.Complexity.CSP
   Cslib.Complexity.CSP.OrderedBoundary
 
 private abbrev F : CSP Unit ℕ :=
-  [((), [0]), ((), [0]), ((), [0]), ((), [0]), ((), [0]), ((), [0]), ((), [])]
+  [⟨(), [0]⟩, ⟨(), [0]⟩, ⟨(), [0]⟩, ⟨(), [0]⟩, ⟨(), [0]⟩, ⟨(), [0]⟩, ⟨(), []⟩]
 
 private def w : Witness F (List.ofFn ![0, 1]) :=
   Witness.ofProbe (by decide) ⟨[2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 14, 11, 12, 15, 0, 13]⟩ (by decide)
@@ -25,8 +25,8 @@ private def w : Witness F (List.ofFn ![0, 1]) :=
 private def v : Witness ([] : CSP Unit ℕ) (List.ofFn ![2]) :=
   Witness.ofProbe (by decide) ⟨[0, 1]⟩ (by decide)
 
-private noncomputable def joined : Witness F (List.ofFn ![0, 1] ++ List.ofFn ![2]) :=
-  w.appendOfFn v (by simp [F, CSP.vars, List.ofFn_succ]) (by decide)
+private def joined : Witness F (List.ofFn ![0, 1] ++ List.ofFn ![2]) :=
+  w.appendComputed v (by simp [F, CSP.vars, List.ofFn_succ]) (by decide)
 
 example : verify F [0, 1, 2] joined.certificate = true := joined.accepted
 

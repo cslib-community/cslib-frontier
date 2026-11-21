@@ -7,13 +7,13 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
@@ -86,22 +86,20 @@ adversary's request payload is ignored. -/
 noncomputable def weakPrfRealGame (family : List Bool → List Bool → List Bool)
     (adversary : OracleDistinguisher) (n : ℕ) : ProbComp Bool := do
   let key ← BitString.sampleList n
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin (fun _ => weakSample n (prfOracle family n key)))
-    (adversary n [])
+  (adversary n []).run fun _ => weakSample n (prfOracle family n key)
 
 /-- Sample one whole random function; every call returns a fresh uniform point and the table's
 answer on it. -/
 @[expose]
 noncomputable def weakPrfIdealGame (adversary : OracleDistinguisher) (n : ℕ) : ProbComp Bool := do
   let table ← ProbComp.uniform (BitString n → BitString n)
-  OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin
-      (fun _ => weakSample n (randomFunctionOracle n table)))
-    (adversary n [])
+  (adversary n []).run fun _ => weakSample n (randomFunctionOracle n table)
 
 /-- A keyed family evaluated in plain polynomial time whose answers at uniformly random points are
-indistinguishable from those of a random function ([KatzLindell2020], Exercise 3.28). -/
+indistinguishable from those of a random function ([KatzLindell2020]): a weakly
+secure PRF, [BonehShoup2023], Definition 4.3 (p. 133), with `n`-bit keys, inputs and outputs,
+against uniform strict oracle-PPT adversaries. Each call returns a uniform point followed by the
+function's value there, as the source's challenger sends both. -/
 structure WeakPseudorandomFunction (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/
   polyTime : ComputableInPolyTime (fun pair => family pair.1 pair.2)
@@ -133,7 +131,18 @@ noncomputable def weakToPrfDistinguisher (adversary : OracleDistinguisher) :
 private theorem isOraclePPTOn_weakSampleQuery :
     IsOraclePPTOn (encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)) encBits
       (fun pair : (ℕ × List Bool) × (Unit × List Bool) => weakSampleQuery pair.1.1) := by
-  ppt [weakSampleQuery]
+  let input := encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)
+  have hn := (ComputableInPolyTime.fst (encPair encUnary encBits)
+    (encPair (encFinEnum Unit) encBits)).fst'
+  have hsample := (ComputableInPolyTime.sampleList hn).isOraclePPTOn (Operation := Unit)
+  have hquery := IsOraclePPTOn.query_take ()
+    (ComputableInPolyTime.snd input encBits)
+    (hn.comp (ComputableInPolyTime.fst input encBits))
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair input encBits) encBits)
+  simpa only [weakSampleQuery, bind_pure_comp] using
+    hsample.bind_with (hquery.map_with
+      (ComputableInPolyTime.bitsAppend hp.fst'.snd' hp.snd'))
 
 private theorem length_le_of_mem_support_weakSampleQuery {n : ℕ} {reply : List Bool}
     (hreply : reply ∈ OracleComp.support (weakSampleQuery n)) : reply.length ≤ 2 * n + 2 := by
@@ -163,7 +172,7 @@ theorem isOraclePPT_weakToPrfDistinguisher {adversary : OracleDistinguisher}
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => 2 * pair.1.1 + 2)
       (encPair ECaller encBits) encUnary := by
-    dsimp only [ECaller]; exact .of_tidy (by fun_prop)
+    dsimp only [ECaller]; fun_prop
   have hrun : IsOraclePPTOn ECaller encBool
       (fun caller : ℕ × List Bool => OracleComp.interpret
         (OracleComp.sumHandler (fun m => ProbOracleComp.sample (ProbComp.unifFin m))
@@ -175,10 +184,6 @@ theorem isOraclePPT_weakToPrfDistinguisher {adversary : OracleDistinguisher}
       hadversary hprepare isOraclePPTOn_weakSampleQuery hres
       (fun _ _ _ hreply => length_le_of_mem_support_weakSampleQuery hreply)
   exact hrun.isOraclePPT
-
-private theorem interpret_unifFin_self {α : Type} (program : ProbComp α) :
-    OracleComp.interpret ProbComp.unifFin program = program :=
-  OracleComp.interpret_query_eq_self program
 
 /-- Against any deterministic oracle with answers of width at most `n` on `n`-bit points,
 `weakToPrfDistinguisher` has the same law as the weak experiment on that oracle. -/
@@ -196,13 +201,9 @@ private theorem eval_interpret_weakToPrfDistinguisher (adversary : OracleDisting
   congr 1
   funext q
   rcases q with m | request
-  · simp only [ProbComp.unifFin, ProbOracleComp.interpret_sample, OracleComp.interpret_query,
-      ProbComp.unifOracle]
+  · simp only [ProbComp.unifFin, interp_norm, ProbComp.unifOracle]
     exact ProbComp.eval_unifFin m
-  · simp only [OracleComp.sumHandler, weakSampleQuery, weakSample, OracleComp.interpret_bind,
-      ProbOracleComp.interpret_sample, ProbOracleComp.interpret_query, OracleComp.interpret_pure,
-      OracleComp.interpret_map, interpret_unifFin_self, ProbComp.eval_bind, ProbComp.eval_map,
-      ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map]
+  · simp only [interp_norm, pmf_norm, weakSampleQuery, weakSample]
     refine PMF.bind_congr_on_support _ _ _ fun point hpoint => ?_
     rw [BitString.eval_sampleList] at hpoint
     have hpointLen : point.length = n := BitString.length_of_mem_support_uniformList hpoint
@@ -212,9 +213,9 @@ private theorem eval_interpret_weakToPrfDistinguisher (adversary : OracleDisting
 theorem eval_prfRealGame_weakToPrfDistinguisher (family : List Bool → List Bool → List Bool)
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (adversary : OracleDistinguisher) (n : ℕ) :
-    ProbComp.eval (prfRealGame family (weakToPrfDistinguisher adversary) n) =
+    ProbComp.eval (prfRealGame id family (weakToPrfDistinguisher adversary) n) =
       ProbComp.eval (weakPrfRealGame family adversary n) := by
-  simp only [prfRealGame, weakPrfRealGame, ProbComp.eval_bind]
+  simp only [prfRealGame, id_eq, weakPrfRealGame, ProbComp.eval_bind]
   refine PMF.bind_congr_on_support _ _ _ fun key hkey => ?_
   rw [BitString.eval_sampleList] at hkey
   have hkeyLen : key.length = n := BitString.length_of_mem_support_uniformList hkey
@@ -224,9 +225,9 @@ theorem eval_prfRealGame_weakToPrfDistinguisher (family : List Bool → List Boo
 
 /-- The reduction turns the adaptive ideal game into the weak ideal game. -/
 theorem eval_prfIdealGame_weakToPrfDistinguisher (adversary : OracleDistinguisher) (n : ℕ) :
-    ProbComp.eval (prfIdealGame (weakToPrfDistinguisher adversary) n) =
+    ProbComp.eval (prfIdealGame id id (weakToPrfDistinguisher adversary) n) =
       ProbComp.eval (weakPrfIdealGame adversary n) := by
-  simp only [prfIdealGame, weakPrfIdealGame, ProbComp.eval_bind]
+  simp only [prfIdealGame, id_eq, weakPrfIdealGame, ProbComp.eval_bind]
   congr 1
   funext table
   refine eval_interpret_weakToPrfDistinguisher adversary n _ fun point hpoint => ?_
@@ -296,8 +297,7 @@ theorem eval_eufCmaGame_prfMAC_zeroPatch_zeroForger
       (fun pair : List Bool × List Bool => zeroPatch family pair.1 pair.2)
       (encPair encBits encBits) encBits) (n : ℕ) :
     ProbComp.eval ((prfMAC (zeroPatch family) hpoly).eufCmaGame zeroForger n) = PMF.pure true := by
-  simp only [MACScheme.eufCmaGame, zeroForger, OracleComp.interpret_pure, StateT.run_pure,
-    ProbComp.eval_bind, ProbComp.eval_pure]
+  simp only [MACScheme.eufCmaGame, zeroForger, interp_norm, pmf_norm]
   refine (PMF.bind_congr_on_support _ _ _ fun key hkey => ?_).trans (PMF.bind_const _ _)
   simp only [prfMAC, BitString.eval_sampleList] at hkey ⊢
   have hkeyLen : key.length = n := BitString.length_of_mem_support_uniformList hkey
@@ -338,36 +338,13 @@ private theorem weakRun_query_bind {α : Type} (n : ℕ) (oracle : List Bool →
       (OracleComp.sumHandler ProbComp.unifOracle
         (fun _ => ProbComp.eval (weakSample n oracle)) q).bind
         (fun x => weakRun n oracle (k x)) := by
-  simp only [weakRun, OracleComp.interpret_bind, OracleComp.interpret_query]
+  simp only [weakRun, interp_norm]
   rfl
 
 private theorem eval_weakSample (n : ℕ) (oracle : List Bool → List Bool) :
     ProbComp.eval (weakSample n oracle) =
       (BitString.uniformList n).bind (fun point => PMF.pure (point ++ oracle point)) := by
   simp only [weakSample, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-
-/-- Pointwise bounds away from one exceptional first-stage result bound a two-stage experiment,
-up to the probability of that result. -/
-private theorem bind_apply_le_add_of_ne {T β : Type} (μ : PMF T) (F G : T → PMF β) (b : β)
-    (bad : T) {ε : ℝ≥0∞} (h : ∀ t, t ≠ bad → F t b ≤ G t b + ε) :
-    μ.bind F b ≤ μ.bind G b + ε + μ bad := by
-  classical
-  have hpoint (t : T) :
-      μ t * F t b ≤ μ t * G t b + μ t * ε + if t = bad then μ bad else 0 := by
-    by_cases ht : t = bad
-    · subst ht
-      rw [ite_eq_left_of_eq_true _ _ (eq_self t)]
-      exact le_add_of_le_right (mul_le_of_le_one_right zero_le (PMF.coe_le_one _ _))
-    · simp only [ht, ↓reduceIte, add_zero]
-      rw [← mul_add]
-      exact mul_le_mul_right (h t ht) _
-  simp only [PMF.bind_apply]
-  calc ∑' t, μ t * F t b
-      ≤ ∑' t, (μ t * G t b + μ t * ε + if t = bad then μ bad else 0) :=
-        tsum_le_tsum hpoint
-    _ = ∑' t, μ t * G t b + ε + μ bad := by
-        rw [tsum_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
-          tsum_ite_eq]
 
 /-- Two weak oracles that agree away from the all-zero point give laws that differ by at most
 `2⁻ⁿ` per call. -/
@@ -387,7 +364,7 @@ private theorem weakRun_apply_le {α : Type} (n : ℕ) (first second : List Bool
     · rw [weakRun_query_bind, weakRun_query_bind]
       simp only [Sum.elim_inr, OracleComp.sumHandler, eval_weakSample, PMF.bind_bind,
         PMF.pure_bind]
-      refine (bind_apply_le_add_of_ne (BitString.uniformList n)
+      refine (PMF.bind_apply_le_add_of_ne (BitString.uniformList n)
         (fun point => weakRun n first (k (point ++ first point)))
         (fun point => weakRun n second (k (point ++ second point))) a
         (List.replicate n false) (ε := (Q : ℝ≥0∞) * (2 ^ n)⁻¹) fun point hpoint => ?_).trans ?_
@@ -405,7 +382,7 @@ theorem advantage_weakPrfRealGame_zeroPatch_le (family : List Bool → List Bool
   have heval (f : List Bool → List Bool → List Bool) :
       ProbComp.eval (weakPrfRealGame f adversary n) = (BitString.uniformList n).bind
         (fun key => weakRun n (prfOracle f n key) (adversary n [])) := by
-    simp only [weakPrfRealGame, ProbComp.eval_bind, BitString.eval_sampleList,
+    simp only [weakPrfRealGame, ProbOracleComp.run, ProbComp.eval_bind, BitString.eval_sampleList,
       ProbOracleComp.eval_interpret]
     rfl
   have hagree (key point : List Bool) (hpoint : point ≠ List.replicate n false) :

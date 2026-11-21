@@ -85,8 +85,7 @@ theorem computableInPolyTime_test : ComputableInPolyTime test encInput encBool :
     (computableInPolyTime_hash (key := Input.edgeCol) (by fun_prop))
   have ho := binary_lt' (left := Input.candidate) (right := Input.edge)
     (by fun_prop) (by fun_prop)
-  exact of_tidy (ComputableTidilyInPolyTime.decide_and ho.tidy
-    (ComputableTidilyInPolyTime.decide_and hr.tidy hc.tidy))
+  exact ComputableInPolyTime.decide_and ho (ComputableInPolyTime.decide_and hr hc)
 
 /-- Construct the supplied local data from actual edge endpoints and a valid shared seed.
 This mathematical constructor makes no claim about the cost of computing the endpoints. -/

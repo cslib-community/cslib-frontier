@@ -3,8 +3,8 @@
 #
 # Usage: scripts/cache/get.sh            (from the repository root or any worktree)
 #
-# Fetches Mathlib's cache, then cslib-frontier's outputs for the nearest ancestor of HEAD that
-# `main` CI has uploaded (Lake looks back up to 100 commits). Missing outputs are not an error:
+# Fetches Mathlib's cache, then cslib-frontier's outputs for the nearest cached ancestor of HEAD
+# across merge parents (up to 100 topologically ordered commits). Missing outputs are not an error:
 # `lake build` compiles whatever the cache did not provide. See scripts/cache/README.md.
 set -u
 script_dir="$(cd "$(dirname "$0")" && pwd)" || exit 1

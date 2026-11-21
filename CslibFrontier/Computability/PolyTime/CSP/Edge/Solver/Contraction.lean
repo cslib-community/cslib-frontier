@@ -41,7 +41,7 @@ open Cslib.BitString
 
 /-- Actual local rows, in original constraint and argument order, read from the existing buffer. -/
 @[expose] def rows (input : EdgeForest.Input) : List (List Bool) :=
-  input.body.zipIdx.map fun ((_, scope), i) => scope.zipIdx.map fun (v, j) =>
+  input.body.zipIdx.map fun (c, i) => c.scope.zipIdx.map fun (v, j) =>
     EdgeAugmenting.readRecord input.body input.labels (i, j, v)
 
 /-- A fresh binary base, obtained by one scan of actual original names. -/
@@ -49,31 +49,31 @@ open Cslib.BitString
 
 /-- Actual fresh connectors, one per touched original constraint and in original order. -/
 @[expose] def connectors (F : CSP Table ℕ) (vs : List ℕ) : List ℕ :=
-  (F.zipIdx.filter fun (c, _) => !(Blossom.positions vs c.2).isEmpty).map fun (_, i) =>
+  (F.zipIdx.filter fun (c, _) => !(Blossom.positions vs c.scope).isEmpty).map fun (_, i) =>
     freshBase F + i
 
 /-- Replace all selected positions of one original constraint in a single local contraction. -/
 @[expose] def constraint (input : EdgeForest.Input) (vs : List ℕ)
     (c : Constraint Table ℕ) (i : ℕ) : Constraint Table ℕ :=
-  let ps := Blossom.positions vs c.2
+  let ps := Blossom.positions vs c.scope
   if ps.isEmpty then c else
-    let os := Table.outsidePositions c.2.length ps
-    (c.1.contract ((rows input).getD i []) ps,
-      os.map (fun j => c.2.getD j 0) ++ [freshBase input.body + i])
+    let os := Table.outsidePositions c.scope.length ps
+    ⟨c.rel.contract ((rows input).getD i []) ps,
+      os.map (fun j => c.scope.getD j 0) ++ [freshBase input.body + i]⟩
 
 /-- Total finite whole-instance contraction on arbitrary raw table and buffer inputs. -/
 @[expose] def contract (input : EdgeForest.Input) (vs : List ℕ) : CSP Table ℕ :=
   input.body.zipIdx.map (fun (c, i) => constraint input vs c i) ++
-    [(Table.exactlyOne (connectors input.body vs), connectors input.body vs)]
+    [Constraint.mk (Table.exactlyOne (connectors input.body vs)) (connectors input.body vs)]
 
 /-- The honest contracted reference: zero old connector bits, followed by one central one-hot
 row. The central row is paid for by the actual connector list. -/
 @[expose] def referenceRows (input : EdgeForest.Input) (vs : List ℕ) : List (List Bool) :=
   input.body.zipIdx.map (fun (c, i) =>
     let row := (rows input).getD i []
-    let ps := Blossom.positions vs c.2
+    let ps := Blossom.positions vs c.scope
     if ps.isEmpty then row else
-      Table.project row (Table.outsidePositions c.2.length ps) ++ [false]) ++
+      Table.project row (Table.outsidePositions c.scope.length ps) ++ [false]) ++
     [listSingle (connectors input.body vs).length 0]
 
 /-- The fresh-name scan agrees with the original constructor's maximum scan. -/
@@ -143,7 +143,7 @@ theorem flatten_referenceRows {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool
   let rs := Blossom.referenceRows f vs
   have hlen : rs.length = G.length := by
     simp [rs, G, Blossom.referenceRows, Blossom.transportRows]
-  have hw (i : Fin G.length) : (rs.getD i.val []).length = G[i.val].2.length :=
+  have hw (i : Fin G.length) : (rs.getD i.val []).length = G[i.val].scope.length :=
     Blossom.transportRows_length f f vs (fun _ => false) (by simp [listSingle]) i
   exact (Solver.materialize_labels G rs hlen hw).symm
 
@@ -163,15 +163,14 @@ private theorem poly_max : ComputableInPolyTime
 
 private theorem poly_maxList : ComputableInPolyTime (fun xs : List ℕ => xs.foldl max 0)
     (encList encNat) encNat := by
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.foldlWithInput_of_bounded_growth
+  apply ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encNat) (encL := encList encNat) (encB := encNat)
     (growth := fun xs => (encList encNat xs).length)
-    (ComputableInPolyTime.const 0).tidy
-  · refine ⟨(ComputableInPolyTime.id' (encIn := encList encNat)).tidy, ?_,
+    (ComputableInPolyTime.const 0)
+  · refine ⟨(ComputableInPolyTime.id' (encIn := encList encNat)), ?_,
       inferInstance, inferInstance⟩
     exact (poly_max.comp ((ComputableInPolyTime.fst _ _).snd'.prod
-      (ComputableInPolyTime.snd _ _))).tidy
+      (ComputableInPolyTime.snd _ _)))
   · refine ⟨PolyBounded.self, ?_⟩
     intro xs state value hv
     have hb := length_le_encList_of_mem encNat hv
@@ -208,17 +207,16 @@ private theorem poly_positions : ComputableInPolyTime
   have hrange : ComputableInPolyTime List.range encUnary (encList encNat) := by
     have h := ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary
     simpa only [Function.comp_def, List.map_id'] using h.comp
-      (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.range)
+      (ComputableInPolyTime.range)
   unfold Blossom.positions
   simp only [List.contains_eq_mem]
   apply ComputableInPolyTime.filterWithInput (hrange.comp (by fun_prop))
-  have hl := ComputableTidilyInPolyTime.listGetD_binary (encA := encNat) 0
+  have hl := ComputableInPolyTime.listGetD_binary (encA := encNat) 0
     (show ComputableInPolyTime
       (fun p : (List ℕ × List ℕ) × ℕ => p.1.2)
       (encPair (encPair (encList encNat) (encList encNat)) encNat) (encList encNat)
-      from by fun_prop).tidy
-    (ComputableInPolyTime.snd _ _).tidy
-  have hlookup := ComputableInPolyTime.of_tidy hl
+      from by fun_prop)
+    (ComputableInPolyTime.snd _ _)
   fun_prop
 
 /-- Native composition on actual lists with binary names and positions. -/
@@ -242,7 +240,7 @@ theorem computableInPolyTime_nameReadWith {α : Type} {e : α ↪ List Bool}
     (hs : ComputableInPolyTime scope e (encList encNat))
     (hi : ComputableInPolyTime index e encNat) :
     ComputableInPolyTime (fun a => (scope a).getD (index a) 0) e encNat :=
-  .of_tidy (ComputableTidilyInPolyTime.listGetD_binary 0 hs.tidy hi.tidy)
+  (ComputableInPolyTime.listGetD_binary 0 hs hi)
 
 /-- Native composition on actual lists with binary names and positions. -/
 theorem computableInPolyTime_outsideWith {α : Type} {e : α ↪ List Bool}
@@ -286,14 +284,14 @@ theorem computableInPolyTime_connectors : ComputableInPolyTime
   have hs : ComputableInPolyTime
       (fun p : (CSP Table ℕ × List ℕ) × (Constraint Table ℕ × ℕ) => freshBase p.1.1 + p.2.2)
       (encPair encConnectorArgs (encPair (encConstraint encTable encNat) encUnary)) encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.binary_add'
+    (ComputableInPolyTime.binary_add'
       (show ComputableInPolyTime
         (fun p : (CSP Table ℕ × List ℕ) × (Constraint Table ℕ × ℕ) => freshBase p.1.1)
         (encPair encConnectorArgs (encPair (encConstraint encTable encNat) encUnary))
-        encNat from by fun_prop).tidy hi.tidy)
+        encNat from by fun_prop) hi)
   apply ComputableInPolyTime.mapWithInput
     (show ComputableInPolyTime (fun p : CSP Table ℕ × List ℕ =>
-      p.1.zipIdx.filter fun (c, _) => !(Blossom.positions p.2 c.2).isEmpty)
+      p.1.zipIdx.filter fun (c, _) => !(Blossom.positions p.2 c.scope).isEmpty)
       encConnectorArgs (encList (encPair (encConstraint encTable encNat) encUnary))
       from by fun_prop)
   exact hs
@@ -325,15 +323,15 @@ private theorem poly_constraint : ComputableInPolyTime
   have hb := EdgeForest.encInput_body_deg.computableInPolyTime
   have hp : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        Blossom.positions p.1.2 p.2.1.2) encConstraintArgs (encList encNat) := by fun_prop
+        Blossom.positions p.1.2 p.2.1.scope) encConstraintArgs (encList encNat) := by fun_prop
   have hr : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
         (rows p.1.1).getD p.2.2 []) encConstraintArgs (encList encBool) :=
     poly_rowReadWith (by fun_prop) (by fun_prop)
   have ht : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        p.2.1.1.contract ((rows p.1.1).getD p.2.2 [])
-          (Blossom.positions p.1.2 p.2.1.2)) encConstraintArgs encTable :=
+        p.2.1.rel.contract ((rows p.1.1).getD p.2.2 [])
+          (Blossom.positions p.1.2 p.2.1.scope)) encConstraintArgs encTable :=
     poly_tableContractWith (by fun_prop) hr hp
   have hn : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
@@ -344,23 +342,23 @@ private theorem poly_constraint : ComputableInPolyTime
           freshBase p.1.1.body) encConstraintArgs encNat from by fun_prop).prod hi)
   have hos : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        Table.outsidePositions p.2.1.2.length (Blossom.positions p.1.2 p.2.1.2))
+        Table.outsidePositions p.2.1.scope.length (Blossom.positions p.1.2 p.2.1.scope))
       encConstraintArgs (encList encNat) := computableInPolyTime_outsideWith (by fun_prop) hp
   have hmap : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        (Table.outsidePositions p.2.1.2.length (Blossom.positions p.1.2 p.2.1.2)).map
-          (fun j => p.2.1.2.getD j 0)) encConstraintArgs (encList encNat) := by
+        (Table.outsidePositions p.2.1.scope.length (Blossom.positions p.1.2 p.2.1.scope)).map
+          (fun j => p.2.1.scope.getD j 0)) encConstraintArgs (encList encNat) := by
     apply ComputableInPolyTime.mapWithInput hos
     exact computableInPolyTime_nameReadWith (by fun_prop) (by fun_prop)
   have ho : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        (Table.outsidePositions p.2.1.2.length (Blossom.positions p.1.2 p.2.1.2)).map
-          (fun j => p.2.1.2.getD j 0) ++ [freshBase p.1.1.body + p.2.2])
+        (Table.outsidePositions p.2.1.scope.length (Blossom.positions p.1.2 p.2.1.scope)).map
+          (fun j => p.2.1.scope.getD j 0) ++ [freshBase p.1.1.body + p.2.2])
       encConstraintArgs (encList encNat) := by fun_prop
   have hnew := ht.prod ho
   have hg : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        (Blossom.positions p.1.2 p.2.1.2).isEmpty) encConstraintArgs encBool := by fun_prop
+        (Blossom.positions p.1.2 p.2.1.scope).isEmpty) encConstraintArgs encBool := by fun_prop
   have hc : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) => p.2.1)
       encConstraintArgs (encConstraint encTable encNat) := by fun_prop
@@ -381,13 +379,13 @@ theorem computableInPolyTime_contract : ComputableInPolyTime
 private theorem poly_referenceRow : ComputableInPolyTime
     (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
       let row := (rows p.1.1).getD p.2.2 []
-      let ps := Blossom.positions p.1.2 p.2.1.2
+      let ps := Blossom.positions p.1.2 p.2.1.scope
       if ps.isEmpty then row else
-        Table.project row (Table.outsidePositions p.2.1.2.length ps) ++ [false])
+        Table.project row (Table.outsidePositions p.2.1.scope.length ps) ++ [false])
     encConstraintArgs (encList encBool) := by
   have hp : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        Blossom.positions p.1.2 p.2.1.2) encConstraintArgs (encList encNat) := by fun_prop
+        Blossom.positions p.1.2 p.2.1.scope) encConstraintArgs (encList encNat) := by fun_prop
   have hr : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
         (rows p.1.1).getD p.2.2 []) encConstraintArgs (encList encBool) :=
@@ -395,11 +393,12 @@ private theorem poly_referenceRow : ComputableInPolyTime
   have hnew : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
         Table.project ((rows p.1.1).getD p.2.2 [])
-          (Table.outsidePositions p.2.1.2.length (Blossom.positions p.1.2 p.2.1.2)) ++ [false])
+          (Table.outsidePositions p.2.1.scope.length
+            (Blossom.positions p.1.2 p.2.1.scope)) ++ [false])
       encConstraintArgs (encList encBool) := by fun_prop
   have hg : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        (Blossom.positions p.1.2 p.2.1.2).isEmpty) encConstraintArgs encBool := by fun_prop
+        (Blossom.positions p.1.2 p.2.1.scope).isEmpty) encConstraintArgs encBool := by fun_prop
   exact hg.ite' hr hnew
 
 /-- The honest reference rows are native polynomial-time, including all row/list framing. -/
@@ -420,9 +419,9 @@ theorem computableInPolyTime_referenceRows : ComputableInPolyTime
   have hm : ComputableInPolyTime
       (fun p : EdgeForest.Input × List ℕ => p.1.body.zipIdx.map fun (c, i) =>
         let row := (rows p.1).getD i []
-        let ps := Blossom.positions p.2 c.2
+        let ps := Blossom.positions p.2 c.scope
         if ps.isEmpty then row else
-          Table.project row (Table.outsidePositions c.2.length ps) ++ [false])
+          Table.project row (Table.outsidePositions c.scope.length ps) ++ [false])
       (encPair EdgeForest.encInput (encList encNat)) (encList (encList encBool)) := by
     apply ComputableInPolyTime.mapWithInput
       (show ComputableInPolyTime (fun p : EdgeForest.Input × List ℕ => p.1.body.zipIdx)

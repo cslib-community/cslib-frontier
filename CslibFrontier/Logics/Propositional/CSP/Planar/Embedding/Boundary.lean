@@ -46,7 +46,7 @@ variable {Rel V : Type} [DecidableEq V]
 /-- Append one structural probe with the reversed boundary word. Old constraint/scope
 positions are retained; probe arguments are separate positions even at repeated names. -/
 @[expose] def probeBody (F : CSP Rel V) (ports : List V) : CSP (Option Rel) V :=
-  F.map (fun c => (some c.1, c.2)) ++ [(none, ports.reverse)]
+  F.map (fun c => Constraint.mk (some c.rel) c.scope) ++ [Constraint.mk none ports.reverse]
 
 /-- Delete a suffix of darts by following successors to the first retained dart. The loop
 clock is the supplied list length, never a binary entry or vertex label. Invalid tables
@@ -57,6 +57,23 @@ have total fallback zero; acceptance is checked separately. -/
     (((List.range c.successor.length).map fun k =>
       Graph.RotationCertificate.walk c.successor (k + 1) i).find?
         (fun j => decide (j < darts))).getD 0⟩
+
+/-- Every retained successor is below the requested prefix, even on malformed tables.
+At zero darts the successor list is empty; no positivity hypothesis is required. -/
+theorem entries_restrictPrefix_lt (darts : ℕ) (c : Graph.RotationCertificate) :
+    ∀ v ∈ (restrictPrefix darts c).successor, v < darts := by
+  intro v hv
+  obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hv
+  have hi' := List.mem_range.mp hi
+  generalize hfind : (((List.range c.successor.length).map fun k =>
+    Graph.RotationCertificate.walk c.successor (k + 1) i).find?
+      (fun j => decide (j < darts))) = found
+  cases found with
+  | none => simpa using (show 0 < darts from by omega)
+  | some j =>
+    change j < darts
+    have hj := List.find?_some hfind
+    simpa only [decide_eq_true_eq] using hj
 
 /-- The canonical body restriction retains exactly its original number of indexed darts. -/
 theorem length_restrictPrefix (darts : ℕ) (c : Graph.RotationCertificate) :

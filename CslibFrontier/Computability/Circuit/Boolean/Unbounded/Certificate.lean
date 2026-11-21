@@ -268,24 +268,12 @@ theorem getD_evalCode_eq_iff_of_claimable {n : ℕ} {gates : List (Op × List �
   obtain ⟨op, args⟩ := g
   cases op with
   | not => simp [claimable] at hb
-  | and m =>
+  | and m | or m =>
     simp only [claimable, Option.some.injEq] at hb
     subst hb
     dsimp only at hlen ⊢
-    rw [interpretation_and, decide_eq_true_iff]
-    constructor
-    · intro hall c hc
-      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
-      have := hall ⟨i, by simp only [Op.arity] at hlen; omega⟩
-      simpa [List.getElem?_eq_getElem hi] using this
-    · intro hall i
-      have hi : i.val < args.length := by simp only [Op.arity] at hlen; omega
-      simpa [List.getElem?_eq_getElem hi] using hall _ (List.getElem_mem hi)
-  | or m =>
-    simp only [claimable, Option.some.injEq] at hb
-    subst hb
-    dsimp only at hlen ⊢
-    rw [interpretation_or, decide_eq_false_iff_not, not_exists]
+    simp only [interpretation_and, interpretation_or, decide_eq_true_iff, decide_eq_false_iff_not,
+      not_exists]
     constructor
     · intro hall c hc
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
@@ -814,7 +802,7 @@ private theorem computableInPolyTime_overrideGates
       (encList (Circuit.encGate encOp)) := by
   simp only [overrideGates, overrideGate_eq]
   refine ComputableInPolyTime.mapWithInput
-    ((ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.zipIdx _)).comp hg) ?_
+    (((ComputableInPolyTime.zipIdx _)).comp hg) ?_
   have hp := ComputableInPolyTime.id'
     (encIn := encPair encIn (encPair (Circuit.encGate encOp) encUnary))
   have hcl := hc.comp hp.fst'

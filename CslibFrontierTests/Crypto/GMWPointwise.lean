@@ -20,6 +20,14 @@ def satFormula : CNF ℕ := [[(0, true), (1, false)]]
 theorem satFormula_verified : ThreeSAT.verifier (satFormula, [true, false]) = true := by
   decide
 
+/-! The record encodings keep the encoded words of the tuples they replaced. -/
+
+example (coins : GMW.ProverCoins) :
+    GMW.encProverCoins coins = encPair encBits (encList encBits) (coins.bits, coins.seeds) := rfl
+
+example (state : GMW.TwoRoundState) :
+    GMW.encTwoRoundState state = encPair encUnary encBits (state.round, state.challenge) := rfl
+
 example : GMW.totalLen satFormula = 36 := by decide
 
 /-- Keep one private coin and one commitment bit, derive the challenge from both, and retain
@@ -35,24 +43,36 @@ noncomputable def adaptiveVerifier (_n : ℕ) (_φ : CNF ℕ) (z : List Bool) :
 theorem adaptiveVerifier_isOraclePPTOn :
     IsOraclePPTOn (encPair encUnary (encPair encCNF encBits)) encBits
       (fun p => adaptiveVerifier p.1 p.2.1 p.2.2) := by
+  let input := encPair encUnary (encPair encCNF encBits)
+  have hp := ComputableInPolyTime.id' (encIn := encPair input encBits)
+  have hfirst := IsOraclePPTOn.query_take () hp.fst'.snd'.snd'
+    (ComputableInPolyTime.const 1)
+  have hq := ComputableInPolyTime.id' (encIn := encPair (encPair input encBits) encBits)
+  have hch := ((hq.snd'.bitsAppend hq.fst'.snd').bitsAppend
+    (ComputableInPolyTime.const [false, false, false])).bitsTakeWithInput
+      (ComputableInPolyTime.const 3)
+  have hsecond := IsOraclePPTOn.query_take () hch (ComputableInPolyTime.const 2)
+  have hr := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair input encBits) encBits) encBits)
+  have hout := (((hr.fst'.fst'.snd'.bitsAppend hr.fst'.snd').bitsAppend
+    (hch.comp hr.fst')).bitsAppend hr.snd').bitsAppend hr.fst'.fst'.fst'.snd'.snd'
   unfold adaptiveVerifier
   apply IsOraclePPTOn.bind_with (middle := encBits)
-  · exact (isPPTOn_sampleList.preprocess (.const 1)).isOraclePPTOn
+  · exact (ComputableInPolyTime.const (encIn := input) 1).sampleList.isOraclePPTOn
   · apply IsOraclePPTOn.bind_with (middle := encBits)
-    · exact IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
-    · dsimp only
-      apply IsOraclePPTOn.bind_with (middle := encBits)
-      · exact IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
-      · fun_prop
+    · exact hfirst
+    · simpa only [Function.comp_def, bind_pure_comp] using
+        hsecond.map_with (f := fun p opened => p.1.2 ++ p.2 ++
+          List.take 3 (p.2 ++ p.1.2 ++ [false, false, false]) ++ opened ++ p.1.1.2.2) hout
 
 /-- A deterministic two-round handler exposes the verifier's complete output jointly with the
 recorded challenge. Private randomness is still sampled and appears unchanged in the output. -/
 theorem runTwoRound_adaptiveVerifier (n : ℕ) (φ : CNF ℕ) (z : List Bool) (b : Bool) :
-    GMW.runTwoRound (fun _ => [b]) id (adaptiveVerifier n φ z) (0, [false, false, false]) =
+    GMW.runTwoRound (fun _ => [b]) id (adaptiveVerifier n φ z) .init =
       (fun coins =>
         let ch := List.take 3 ([b] ++ coins ++ [false, false, false])
         let row := BitString.listRow 3 0 ch
-        (coins ++ [b] ++ ch ++ List.take 2 row ++ z, (2, row))) <$>
+        (coins ++ [b] ++ ch ++ List.take 2 row ++ z, ⟨2, row⟩)) <$>
           BitString.sampleList 1 := by
   simp [adaptiveVerifier, GMW.runTwoRound_bind, GMW.runTwoRound_map, GMW.twoRoundStep]
 
@@ -83,8 +103,8 @@ example {α : Type} (left right : ProbComp α) :
 def tripleGen (seed : List Bool) : List Bool := seed ++ seed ++ seed ++ [false]
 
 theorem tripleGen_polyTime : ComputableInPolyTime tripleGen encBits encBits := by
-  unfold tripleGen
-  fun_prop
+  have hp := ComputableInPolyTime.id' (encIn := encBits)
+  exact ((hp.bitsAppend hp).bitsAppend hp).bitsAppend (ComputableInPolyTime.const [false])
 
 theorem length_tripleGen (seed : List Bool) : (tripleGen seed).length = 3 * seed.length + 1 := by
   simp only [tripleGen, List.length_append, List.length_cons, List.length_nil]
@@ -112,9 +132,8 @@ theorem reduction_isPPTOn :
 noncomputable def viewAdvantage (n : ℕ) (φ : CNF ℕ) (w z : List Bool) : ℝ≥0 :=
   Game.advantage
     (distinguishingGame
-      (((GMW.gmwProver tripleGen (n + 7) (3 * (n + 7) + 1) φ w).run
-        (adaptiveVerifier n φ z)
-        (GMW.gmwProver tripleGen (n + 7) (3 * (n + 7) + 1) φ w).init).map Prod.fst)
+      (zkRealView (GMW.gmwProver tripleGen (n + 7) (3 * (n + 7) + 1) φ w)
+        (adaptiveVerifier n φ z))
       (retainedTest n φ z))
     (distinguishingGame
       (ProbComp.eval (GMW.gmwSimulator tripleGen (fun k => 3 * k + 1) id adaptiveVerifier n φ z))
