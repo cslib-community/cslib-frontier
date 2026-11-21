@@ -102,7 +102,8 @@ of both runs (`coupledTable_ae_terminate`) does need the local-lemma hypothesis 
 * [R. A. Moser, G. Tardos, *A constructive proof of the general Lovász Local Lemma*]
   [MoserTardos2010]
 * [T. Holenstein, *Parallel repetition: simplifications and the no-signaling case*]
-  [Holenstein2009]
+  [Holenstein2009], §5, Figure 1 and the proof of Lemma 5.2, pp. 152–153: the correlated-sampling
+  protocol.
 -/
 
 public section
