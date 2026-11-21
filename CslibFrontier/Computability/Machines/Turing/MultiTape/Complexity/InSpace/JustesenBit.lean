@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryFieldHorner
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryFieldHorner
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Wozencraft
 
@@ -21,8 +21,8 @@ operations and charges the retained modulus and decoded point to the encoded req
 
 * `Cslib.Code.JustesenFamily.fieldContext_indexedBit_eq` identifies the result with the
   existing table-free indexed bit.
-* `Cslib.Code.JustesenFamily.fieldContext_indexedBit_inSpace_of_horner` composes the
-  native space bounds given the packed Horner certificate.
+* `Cslib.Code.JustesenFamily.fieldContext_indexedBit_inSpace` composes the
+  native space bounds for decoding, packed Horner evaluation and bit selection.
 -/
 
 public section
@@ -53,11 +53,8 @@ theorem fieldContext_indexedBit_eq {w n : ℕ} (label : Fin w) (index : Fin (cod
 /-- Framed (retained field context, binary label), followed by the binary bit index. -/
 abbrev encIndexedBitInput := encPair (encPair encFieldContext encNat) encNat
 
-/-- The indexed bit uses linear space in the retained field context, binary label and index
-when packed Horner evaluation has its linear-space certificate. -/
-theorem fieldContext_indexedBit_inSpace_of_horner
-    (heval : ComputableInSpace HornerInput.evaluate encHornerInput encCoefficients
-      (fun p => (encHornerInput p).length)) :
+/-- The indexed bit uses workspace linear in the encoded context, label and index. -/
+theorem fieldContext_indexedBit_inSpace :
     ComputableInSpace (fun ((ctx, label), index) => ctx.indexedBit label index)
       encIndexedBitInput encBool (fun p => (encIndexedBitInput p).length) := by
   let encPrepared := encPair (encPair encFieldContext encNat) encCoordinateWord
@@ -84,7 +81,7 @@ theorem fieldContext_indexedBit_inSpace_of_horner
     have hcoord := snd (encPair encFieldContext encNat) encCoordinateWord
     have hm := budget_comp_linear hmodulus (encFieldContext_modulus_budget hctx)
     have hx := encCoordinateWord_point_budget hcoord
-    have hy := budget_comp_linear heval
+    have hy := budget_comp_linear HornerInput.evaluate_inSpace
       (encHornerInput_mk_budget hm hx hlabel (encFieldContext_count_budget hctx))
     have hreq := Turing.Wozencraft.encBitInput_mk_budget encCoefficients hm hx hy
       (encCoordinateWord_half_budget hcoord) (encCoordinateWord_bit_budget hcoord)

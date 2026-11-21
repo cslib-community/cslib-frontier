@@ -17,7 +17,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.JustesenIndexedBit
 
 open Cslib Cslib.Code.JustesenFamily Cslib.Reachability.Hoza Cslib.Reachability.Hoza.SeedRank
-open Turing.MultiTapeTM Turing.BinaryField
+open Turing.MultiTapeTM
 
 private def codeBit (p : FieldContext × ℕ) (index : ℕ) : Bool :=
   p.1.indexedBit p.2 index
@@ -31,13 +31,12 @@ example {w n : ℕ} (rank : Fin (2 ^ codeLength w n)) (vertex : Fin (n + 1) × F
     (fieldContext_indexedBit_eq vertex.2)
 
 /-- The native retained-rank weight evaluator accepts the indexed bit at its existing encoding. -/
-example (heval : ComputableInSpace HornerInput.evaluate encHornerInput encCoefficients
-      (fun p => (encHornerInput p).length)) :
+example :
     let encContext := encPair encFieldContext encNat
     ComputableInSpace (weightRank codeBit) (encWeightRequest encContext) encNat
       (fun q => (encWeightRequest encContext q).length + q.seed.width) := by
   let : Inhabited FieldContext := ⟨⟨0, 0, []⟩⟩
   exact weightRank_inSpace (encPair encFieldContext encNat) codeBit
-    (fieldContext_indexedBit_inSpace_of_horner heval)
+    fieldContext_indexedBit_inSpace
 
 end CslibFrontierTests.JustesenIndexedBit
