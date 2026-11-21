@@ -64,8 +64,9 @@ Write `V × ℝ^κ` for `{z | z ∘ Sum.inl ∈ V}`.
   game (`DattaHorner.game`) for the cleared system. Critter's free probabilities, rescaled to the
   budget `freeBudget` that its fixed probabilities leave, carry the coordinates of `ℝ^{m − n}`.
 
-Both maps send an equilibrium to the ratio coordinates of the relevant probabilities, and their
-inverses are explicit (`binaryPoint`, `hornerPoint`). The case `n = 0` of the binary game is
+Both maps are explicit: they send a point of `V × ℝ^{m − n}` to the profile `binaryPoint`,
+resp. `hornerPoint`, and their inverses send an equilibrium to the ratio coordinates of the
+relevant probabilities (`ratioMap`). The case `n = 0` of the binary game is
 reduced to `n = 1` by adding a dummy variable (`stablyIsomorphic_rename_castSucc`).
 
 ## Main results
@@ -302,7 +303,7 @@ player `e` for `Sum.inr e`. -/
 abbrev binaryPlayer {d : ℕ} : Fin n ⊕ Fin (m - n) → DattaBinary.Player n d m :=
   Sum.elim var extra
 
-/-- The inverse of the change of variables: the variable and extra players play
+/-- The change of variables, from `V × ℝ^{m − n}` to profiles: the variable and extra players play
 `toUnit (z k)`, and the chain players the powers of the variables. -/
 noncomputable def binaryPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
     (z : Fin n ⊕ Fin (m - n) → ℝ) : DattaBinary.Player n (boxDegree F) m → ℝ
@@ -326,9 +327,9 @@ private theorem exists_eq_uncurry_binaryProfile {P : Type*} [Fintype P] [Decidab
   rw [← h, Sigma.uncurry_curry]
 
 /-- **The binary change of variables.** For `0 < n`, `V × ℝ^{m − n}` is semialgebraically
-isomorphic to the set of totally mixed Nash equilibria of `binaryGame F`. An equilibrium is sent
-to the ratio coordinates `ρ(p / (1 − p))` of the probabilities `p` of `true` of the variable and
-extra players; the inverse is `binaryProfile ∘ binaryPoint F`. -/
+isomorphic to the set of totally mixed Nash equilibria of `binaryGame F`. The map is
+`binaryProfile ∘ binaryPoint F`; its inverse sends an equilibrium to the ratio coordinates
+`ρ(p / (1 − p))` of the probabilities `p` of `true` of the variable and extra players. -/
 noncomputable def binaryHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) (hn : 0 < n) :
     SemialgebraicHomeomorph
       {z : Fin n ⊕ Fin (m - n) → ℝ | z ∘ Sum.inl ∈ {x | ∀ j, eval x (F j) = 0}}
@@ -474,7 +475,9 @@ noncomputable def hornerGame (F : Fin m → MvPolynomial (Fin n) ℝ) :
 abbrev Extra (n m : ℕ) : Type := {j : Fin m // n ≤ j.val}
 
 /-- The weight left to Critter's free probabilities and its reference strategy:
-`(|Extra n m| + 1) / (D + 1)`. -/
+`(|Extra n m| + 1) · critterWeight`, where `critterWeight = 1 / (|bobNodes| + m + 1)` is one over
+Critter's number of strategies. (This is `(|Extra n m| + 1) / (D + 1)` with `D = chainLength` only
+when every cleared equation involves a variable.) -/
 noncomputable def freeBudget (F : Fin m → MvPolynomial (Fin n) ℝ) : ℝ :=
   (Fintype.card (Extra n m) + 1) * critterWeight (clearSimplex F)
 
@@ -483,7 +486,7 @@ theorem freeBudget_pos (F : Fin m → MvPolynomial (Fin n) ℝ) : 0 < freeBudget
   positivity
 
 /-- Critter's reference probability, when its probabilities for Bob's nodes and for the equations
-`j < n` are `1 / (D + 1)`. -/
+`j < n` are `critterWeight G`, one over its number of strategies. -/
 theorem one_sub_sum_critter {G : Fin m → MvPolynomial (Fin n) ℝ} {q : Coord G → ℝ}
     (h1 : ∀ ν, q (cCoord (.inl ν)) = critterWeight G)
     (h2 : ∀ j : Fin m, j.val < n → q (cCoord (.inr j)) = critterWeight G) :
@@ -519,9 +522,9 @@ probability, and Critter's free probabilities against its reference probability.
   | .inl _ => ⟨.alice, none⟩
   | .inr _ => ⟨.critter, none⟩
 
-/-- The inverse of the change of variables: Alice plays `simplexPoint` of the first coordinates,
-Bob the rescaled Horner values, and Critter `1 / (D + 1)` on its fixed strategies and
-`freeBudget F · simplexPoint` of the last coordinates on its free ones. -/
+/-- The change of variables, from `V × ℝ^{Extra n m}` to profiles: Alice plays `simplexPoint` of
+the first coordinates, Bob the rescaled Horner values, and Critter `critterWeight` on its fixed
+strategies and `freeBudget F · simplexPoint` of the last coordinates on its free ones. -/
 @[expose] noncomputable def hornerPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
     (z : Fin n ⊕ Extra n m → ℝ) :
     Coord (clearSimplex F) → ℝ
@@ -564,10 +567,10 @@ theorem one_sub_sum_hornerPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
   simp only [hornerPoint, dite_eq_left j.2, freeBudget]
 
 /-- **The three-player change of variables.** `V × ℝ^{Extra n m}` is semialgebraically
-isomorphic to the set of totally mixed Nash equilibria of `hornerGame F`. An equilibrium is sent to
-the ratio coordinates of Alice's probabilities against her reference probability, and of Critter's
-free probabilities (for the equations `j ≥ n`) against its reference probability; the inverse is
-`simplexProfile ∘ hornerPoint F`. When `m ≤ n`, `Extra n m` is empty. -/
+isomorphic to the set of totally mixed Nash equilibria of `hornerGame F`. The map is
+`simplexProfile ∘ hornerPoint F`; its inverse sends an equilibrium to the ratio coordinates of
+Alice's probabilities against her reference probability, and of Critter's free probabilities (for
+the equations `j ≥ n`) against its reference probability. When `m ≤ n`, `Extra n m` is empty. -/
 noncomputable def hornerHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) :
     SemialgebraicHomeomorph {z : Fin n ⊕ Extra n m → ℝ | z ∘ Sum.inl ∈ {x | ∀ j, eval x (F j) = 0}}
       {x : (Σ w, Option (Strat (clearSimplex F) w)) → ℝ |
