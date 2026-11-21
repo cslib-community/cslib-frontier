@@ -155,7 +155,7 @@ private theorem exists_search_length_bounds {f : α × ℕ → β} {ν : α → 
       (∀ a k, k ≤ rounds ν a → (encB (f (a, k))).length ≤ nd a) := by
   -- `rounds ν a = 2 ^ ν a` has `ν a + 1` binary digits, which bounds every round counter.
   have hrounds (a : α) : (encNat (rounds ν a)).length = ν a + 1 := by
-    rw [rounds, encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+    rw [rounds, length_encNat_two_pow]
   have hpair (a : α) {k : ℕ} (hk : k ≤ rounds ν a) :
       (encPair encA encNat (a, k)).length ≤ 2 * (encA a).length + ν a + 2 := by
     have := length_encNat_mono hk

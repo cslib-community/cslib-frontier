@@ -37,7 +37,7 @@ example {K₂ F Z : Type} [Field F] [Fintype F] [DecidableEq F] [Fintype K₂] [
     {A : Adversary (Fin n → F) Z} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
     (advantage (hashThenPRF (fun k (x : Fin n → F) => coeffPolyHash k x) f) A : ℝ≥0∞) ≤
       advantage f (hashReduction (fun k (x : Fin n → F) => coeffPolyHash k x) A) +
-        (Q.choose 2 : ℕ) * ((n : ℝ≥0∞) / Fintype.card F) :=
+        (Q.choose 2 : ℕ) * ((↑(n - 1) : ℝ≥0∞) / Fintype.card F) :=
   advantage_hashThenPRF_le (isUniversalHash_coeffPolyHash n) f hQ
 
 example {K₁ K₂ M Y Z : Type} (H : K₁ → M → Y) (F : K₂ → Y → Z) (k : K₁ × K₂) (m : M) :
