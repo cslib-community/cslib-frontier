@@ -142,19 +142,14 @@ private theorem sum_cube_sub_sq_le [Nonempty α] (p : PMF α) :
 
 /-- Far-case arithmetic, with `q = √n`, `w = √(n D)` and `K = k - 1`. -/
 private theorem far_arith {q w K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (hε1 : ε ≤ 1) (hw : 2 * ε ≤ w)
-    (hK : 40 * q ≤ K * ε ^ 2) :
+    (hw2 : 4 * ε ^ 2 ≤ w ^ 2) (hK : 40 * q ≤ K * ε ^ 2) (hK0 : 0 < K) :
     24 * q ^ 2 * (1 + w ^ 2) + 48 * K * (w ^ 2 + q * w ^ 3) ≤ K ^ 2 * w ^ 4 := by
   have hw0 : 0 < w := by linarith only [hε, hw]
-  have hK0 : 0 < K :=
-    pos_of_mul_pos_left (lt_of_lt_of_le (by linarith only [hq] : 0 < 40 * q) hK) (sq_nonneg ε)
-  have h4 : 4 * ε ^ 2 ≤ w ^ 2 := by
-    calc 4 * ε ^ 2 = (2 * ε) ^ 2 := by ring
-      _ ≤ w ^ 2 := pow_le_pow_left₀ (mul_nonneg zero_le_two hε.le) hw 2
   have hKw2 : 160 * q ≤ K * w ^ 2 := by
     calc 160 * q = 4 * (40 * q) := by ring
       _ ≤ 4 * (K * ε ^ 2) := mul_le_mul_of_nonneg_left hK (by norm_num)
       _ = K * (4 * ε ^ 2) := by ring
-      _ ≤ K * w ^ 2 := mul_le_mul_of_nonneg_left h4 hK0.le
+      _ ≤ K * w ^ 2 := mul_le_mul_of_nonneg_left hw2 hK0.le
   have hKw : 80 * q ≤ K * w := by
     have hεsq : ε ^ 2 ≤ ε := by
       rw [sq]
@@ -204,14 +199,13 @@ private theorem far_arith {q w K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (hε1 :
 
 /-- The far-case Chebyshev condition, with `q = √n`, `r = √D` and `K = k - 1`. -/
 private theorem far_variance_le {q r K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (hε1 : ε ≤ 1)
-    (hr : 0 ≤ r) (hw : 2 * ε ≤ q * r) (hK : 40 * q ≤ K * ε ^ 2) :
+    (hr : 0 ≤ r) (hw : 2 * ε ≤ q * r) (hw2 : 4 * ε ^ 2 ≤ (q * r) ^ 2) (hK : 40 * q ≤ K * ε ^ 2)
+    (hK0 : 0 < K) :
     3 * ((K + 1) * K / 2 * (1 / q ^ 2 + r ^ 2) +
         (K + 1) * K * (K - 1) * (r ^ 2 * (1 / q ^ 2) + r * r ^ 2)) ≤
       ((K + 1) * K / 2 * (r ^ 2 - 2 * ε ^ 2 / q ^ 2)) ^ 2 := by
-  have key := far_arith hq hε hε1 hw hK
+  have key := far_arith hq hε hε1 hw hw2 hK hK0
   have hq0 : 0 < q := zero_lt_one.trans_le hq
-  have hK0 : 0 < K :=
-    pos_of_mul_pos_left (lt_of_lt_of_le (by linarith only [hq] : 0 < 40 * q) hK) (sq_nonneg ε)
   set w := q * r with hw_def
   have hw0 : 0 ≤ w := mul_nonneg hq0.le hr
   set N := (K + 1) * K / 2 with hN
@@ -229,11 +223,8 @@ private theorem far_variance_le {q r K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (
     mul_le_mul_of_nonneg_right
       (mul_le_mul_of_nonneg_left (sub_le_self K zero_le_one) (mul_nonneg zero_le_two hN0.le)) hX
   have h2 : w ^ 2 / 2 ≤ w ^ 2 - 2 * ε ^ 2 := by
-    have h4 : 4 * ε ^ 2 ≤ w ^ 2 := by
-      calc 4 * ε ^ 2 = (2 * ε) ^ 2 := by ring
-        _ ≤ w ^ 2 := pow_le_pow_left₀ (mul_nonneg zero_le_two hε.le) hw 2
     rw [div_le_iff₀ two_pos]
-    linarith only [h4]
+    linarith only [hw2]
   have h3 : (w ^ 2 / 2) ^ 2 ≤ (w ^ 2 - 2 * ε ^ 2) ^ 2 :=
     pow_le_pow_left₀ (div_nonneg (sq_nonneg w) zero_le_two) h2 2
   have h4 : K ^ 2 ≤ 2 * N := by
@@ -344,12 +335,10 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     set r := Real.sqrt D with hr
     have hr0 : 0 ≤ r := Real.sqrt_nonneg _
     have hrD : r ^ 2 = D := Real.sq_sqrt hD0.le
+    have hw2 : 4 * ε ^ 2 ≤ (q * r) ^ 2 := by rwa [mul_pow, hqn, hrD]
     have hw : 2 * ε ≤ q * r := by
-      have h2 : (2 * ε) ^ 2 ≤ (q * r) ^ 2 := by
-        calc (2 * ε) ^ 2 = 4 * ε ^ 2 := by ring
-          _ ≤ n * D := hnD
-          _ = (q * r) ^ 2 := by rw [mul_pow q r 2, hqn, hrD]
-      exact (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).mp h2
+      refine (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).mp ?_
+      linarith only [hw2, show (2 * ε) ^ 2 = 4 * ε ^ 2 by ring]
     unfold collisionTester
     rw [acceptProb_pure]
     refine mass_le_one_third _
@@ -383,7 +372,7 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
             rw [hNK, hqn, hrD, hsD]
             ring
         _ ≤ ((K + 1) * K / 2 * (r ^ 2 - 2 * ε ^ 2 / q ^ 2)) ^ 2 :=
-            far_variance_le hq1 hε hε1 hr0 hw hk
+            far_variance_le hq1 hε hε1 hr0 hw hw2 hk hK0
         _ = (N * (D - 2 * ε ^ 2 / n)) ^ 2 := by rw [hNK, hqn, hrD]
 
 end Cslib.DistributionTesting

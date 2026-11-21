@@ -291,10 +291,8 @@ theorem exists_mul_le_ksGamma {ε : ℝ} (hε : 0 < ε) :
       _ = ρ / 20 := by ring
       _ ≤ ksGamma ρ := div_le_ksGamma_of_le h0 hs
   · have hρhalf : ρ ≤ 1 / 2 := h1.trans (sub_le_self _ hε.le)
-    have hle : ksGamma ρ₀ ≤ ksGamma ρ := by
-      rcases eq_or_lt_of_le (h1.trans (le_max_left _ _)) with heq | hlt
-      · rw [heq]
-      · exact (strictAntiOn_ksGamma ⟨hl, hρhalf⟩ hρ₀m hlt).le
+    have hle : ksGamma ρ₀ ≤ ksGamma ρ :=
+      strictAntiOn_ksGamma.antitoneOn ⟨hl, hρhalf⟩ hρ₀m (h1.trans (le_max_left _ _))
     calc min (1 / 20) (2 * ksGamma ρ₀) * ρ ≤ 2 * ksGamma ρ₀ * ρ :=
           mul_le_mul_of_nonneg_right (min_le_right _ _) h0.le
       _ ≤ 2 * ksGamma ρ₀ * (1 / 2) :=
@@ -549,8 +547,7 @@ private theorem threshold_le {n w y V : ℝ} (hn : 2 ≤ n) (hρ0 : 0 ≤ w / n)
       _ ≤ n * binEntropy (w / n) / 2 + -(2 * log n) :=
         add_le_add_right (neg_le_neg (mul_le_mul_of_nonneg_left hwy zero_le_two)) _
   have hn2 : exp (-(2 * log n)) = (n ^ 2)⁻¹ := by
-    rw [exp_neg, show (2 : ℝ) * log n = ((2 : ℕ) : ℝ) * log n by norm_num, ← log_pow,
-      exp_log (pow_pos hnpos 2)]
+    rw [← Nat.cast_two]; exact exp_neg_mul_log 2 hnpos
   have hsqn : √(n + 1) ≤ n := by
     rw [sqrt_le_left hnpos.le]
     have h2 : 2 * n ≤ n ^ 2 := by rw [sq]; exact mul_le_mul_of_nonneg_right hn hnpos.le
