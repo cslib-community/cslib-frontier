@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -132,5 +133,41 @@ example : quotientCharacteristicValue 101 1 2 3 0
   change _ = (Int.castRingHom (ZMod 101) (M.charpoly.coeff 0)).val at h
   rw [h, hcoeff]
   decide
+
+-- In one variable, the residue of X₀³ modulo X₀² - U is the parameter U.
+-- The norm bound applies with unit relation norm even though the numerator needs reduction.
+example :
+    let U : Polynomial ℤ := Polynomial.X
+    let r : Fin 1 → MvPolynomial (Fin 1) (Polynomial ℤ) := fun _ => C U
+    let x : MvPolynomial (Fin 1) (Polynomial ℤ) := X 0
+    residue 2 r (x ^ 3) = U ∧ Polynomial.coeffNorm1 (residue 2 r (x ^ 3)) ≤ 4 := by
+  intro U r x
+  have hU : Polynomial.coeffNorm1 U = 1 := by
+    simpa only [U, mul_one, Polynomial.coeffNorm1_one] using
+      Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
+  have hr (i : Fin 1) : (r i).totalDegree < 2 := by
+    simp only [r, totalDegree_C]
+    decide
+  have hdeg : (x ^ 3).totalDegree ≤ 3 := (totalDegree_pow _ _).trans (by simp [x])
+  have h := coeffNorm1_residue_le (B := 3) (R := 1) (by decide : 1 ≤ 2) (by decide)
+    r hr (fun _ => by simp [r, hU]) _ hdeg
+  have hv := ParameterCoeffNorm.pow_le x 3
+  simp only [x, ParameterCoeffNorm.X, one_pow] at hv
+  refine ⟨?_, h.trans (by simpa using Nat.mul_le_mul_left 4 hv)⟩
+  have hlow : (x * r 0).totalDegree ≤ 1 * (2 - 1) := by
+    have hmul := totalDegree_mul x (r 0)
+    simpa only [r, x, totalDegree_C, add_zero, totalDegree_X, Nat.reduceSub, one_mul] using hmul
+  rw [show x ^ 3 = x * (X (0 : Fin 1)) ^ 2 by dsimp only [x]; ring,
+    residue_mul_X_pow (by decide) r hr, residue_low_degree (by decide) r hr _ hlow]
+  have htop : Finsupp.equivFunOnFinite.symm (fun _ : Fin 1 => 2 - 1) =
+      Finsupp.single (0 : Fin 1) 1 := by
+    apply Finsupp.ext
+    intro i
+    have hi : i = 0 := Subsingleton.elim _ _
+    subst i
+    simp
+  rw [htop]
+  change (X (0 : Fin 1) * C U).coeff (Finsupp.single 0 1) = U
+  rw [mul_comm, C_mul_X_eq_monomial, coeff_monomial, ite_eq_left rfl]
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

@@ -469,6 +469,9 @@ import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
 import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 
+import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
+import CslibFrontier.Foundations.Probability.IndependentSumNorm
+
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 
@@ -11828,6 +11831,71 @@ register_result "classical-quantum-tuple-mutual-information-chain" where
     The coordinate terms average conditional mutual information over preceding labels, \
     with null prefixes weighted zero. The chain uses natural logarithms and includes the \
     empty tuple."
+
+register_result "micciancio-regev-indep-sum-sq-norm" where
+  title := "Expected squared norm of linear combinations of independent random vectors"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 2.11",
+      locator := "author's copy of December 27, 2005, §2, printed p. 10" }
+  ]
+  theorems := [
+    ProbabilityTheory.integral_norm_sum_smul_sq_le_of_iIndepFun
+  ]
+  scope := "For any finite family X : ι → Ω → E of mutually independent square-integrable \
+    (MemLp 2) random vectors on a probability space (Ω, μ) taking values in a real Hilbert space \
+    E (CompleteSpace + InnerProductSpace ℝ E with Borel measurable structure; no finite-dimension \
+    assumption needed), if every X_i satisfies 𝔼[‖X_i‖²] ≤ l and ‖𝔼[X_i]‖² ≤ ε, then for every \
+    real coefficient vector z : ι → ℝ, 𝔼[‖∑ i, z_i • X_i‖²] ≤ (l + ε · |ι|) · ∑ i, z_i². Matches \
+    MicciancioRegev2007 Lemma 2.11 verbatim (including the empty index case |ι| = 0, and \
+    generalizing ℝⁿ to any real Hilbert space E)."
+
+register_result "micciancio-regev-discrete-gaussian-directional-moments" where
+  title := "Directional first and second moments of discrete Gaussians (dual-mass step)"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.2 (dual-mass step)",
+      locator := "author's copy of December 27, 2005, §4, printed pp. 13–14" }
+  ]
+  theorems := [
+    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le,
+    ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le
+  ]
+  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.2 (not the 2 · η_ε(L) ≤ s endpoint, \
+    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
+    finite-dimensional real inner product space E (including dimension 0), width s > 0, center \
+    c : E, unit vector u : E (‖u‖ = 1), and real ε < 1 satisfying \
+    gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
+    when ε > 0; 0 ≤ ε follows automatically), |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫]| ≤ (ε / (1 − ε)) s \
+    and |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫²] − s² / (2π)| ≤ (ε / (1 − ε)) s². Deviations from the \
+    source: (1) states the smoothing hypothesis directly in dual-mass form rather than via \
+    η_ε(L); (2) uses standard Gaussian scale s > 0 rather than s = 1; (3) uses the exact \
+    probability-weighted tsum form (bridged to Bochner integrals over \
+    (discreteGaussian L s hs c).toMeasure by integral_sub_discreteGaussian_eq_tsum and \
+    integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+
+register_result "micciancio-regev-discrete-gaussian-moments" where
+  title := "Mean-norm and expected squared-norm bounds for discrete Gaussians (dual-mass step)"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.3 (dual-mass step)",
+      locator := "author's copy of December 27, 2005, §4, printed p. 14" }
+  ]
+  theorems := [
+    ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le,
+    ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le
+  ]
+  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.3 (not the 2 · η_ε(L) ≤ s endpoint, \
+    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
+    finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
+    n = 0), width s > 0, center c : E, and real ε < 1 satisfying \
+    gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
+    when ε > 0; 0 ≤ ε follows automatically), ‖𝔼_{x ~ D_{L, s, c}}[x − c]‖² ≤ \
+    (ε / (1 − ε))² s² n and 𝔼_{x ~ D_{L, s, c}}[‖x − c‖²] ≤ (1 / (2π) + ε / (1 − ε)) s² n. \
+    Deviations from the source: (1) states the smoothing hypothesis directly in dual-mass form \
+    rather than via η_ε(L); (2) uses general width s > 0 rather than s = 1; (3) uses the exact \
+    probability-weighted tsum form (bridged to Bochner integrals by \
+    integral_sub_discreteGaussian_eq_tsum and integral_norm_sub_sq_discreteGaussian_eq_tsum)."
 
 register_result "micciancio-regev-shifted-gaussian-mass-le-zero" where
   title := "Shifted lattice Gaussian mass is maximized at the origin"

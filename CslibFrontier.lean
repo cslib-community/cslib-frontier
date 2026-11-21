@@ -6851,6 +6851,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.AffineTaylor
 public import CslibFrontier.Foundations.Data.MvPolynomial.Bihomogeneous
 public import CslibFrontier.Foundations.Data.MvPolynomial.Catalecticant
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
+public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffSumBounds
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoefficientDegree
 public import CslibFrontier.Foundations.Data.MvPolynomial.CriticalSystem
 public import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
@@ -6871,6 +6872,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
 public import CslibFrontier.Foundations.Data.MvPolynomial.MixedOperator
 public import CslibFrontier.Foundations.Data.MvPolynomial.PDerivConst
 public import CslibFrontier.Foundations.Data.MvPolynomial.PDerivDegree
+public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
 public import CslibFrontier.Foundations.Data.MvPolynomial.PartialDerivatives
 public import CslibFrontier.Foundations.Data.MvPolynomial.PartialEval
 public import CslibFrontier.Foundations.Data.MvPolynomial.PowerSum
@@ -7127,6 +7129,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonalOrder
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockEmbedding
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BranchingProgramDeterminant
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.CauchyBinet
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.CoeffNorm
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.TraceExponential
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.ClosedSubmatrix
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.CoinStep
@@ -7293,6 +7296,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.HermiteExpansion
 public import CslibFrontier.Foundations.Probability.Gaussian.MassBounds
 public import CslibFrontier.Foundations.Probability.Gaussian.Measure
 public import CslibFrontier.Foundations.Probability.Gaussian.Moments
+public import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
 public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseOperator
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSemigroup
@@ -7314,6 +7318,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
 public import CslibFrontier.Foundations.Probability.Gaussian.Stein
 public import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+public import CslibFrontier.Foundations.Probability.IndependentSumNorm
 public import CslibFrontier.Foundations.Probability.InfinitePi
 public import CslibFrontier.Foundations.Probability.InnerProductResampling
 public import CslibFrontier.Foundations.Probability.Multilinear.Basic
@@ -7414,6 +7419,7 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Kernel
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Relations
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Residue
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Specialization
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Trace
 public import CslibFrontier.Foundations.RingTheory.Polynomial.Hermite
