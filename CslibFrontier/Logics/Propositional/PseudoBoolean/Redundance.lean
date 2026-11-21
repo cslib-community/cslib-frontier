@@ -66,7 +66,8 @@ objective-improving constraint `f ≤ f(ρ) - 1` (equation (3.6);
 **Core and derived constraints** (§3.4). The database is split into a *core set* and a *derived
 set* (`Cslib.Logic.PL.VeriPB.State`). The input constraints start in the core. Implicational
 steps and `red` add derived constraints. `soli` adds its improving constraint to the core, and
-`core id` moves constraints there (§5.1). Deletion is typed (§5.7.1):
+`core id` moves constraints there; promoting a core constraint again is a no-op (§5.1, as
+CakePB's `do_transfer`). Deletion is typed (§5.7.1):
 * `deld` deletes derived constraints only.
 * `delc` deletes core constraints without a check. Such an *unchecked deletion* clears the flag
   `chk`.
@@ -77,10 +78,12 @@ steps and `red` add derived constraints. `soli` adds its improving constraint to
 
 In *strengthening-to-core mode* (§5.6), switched on by `strengthening_to_core on`, which moves
 every constraint to the core, `red` adds core constraints, and its goals cover only the core set
-and not the derived set. In this mode a checked deletion takes no witness, and an unchecked core
-deletion needs an empty derived set (§5.7.4). The untyped deletion `del id` of the augmented
-format (`Cslib.Logic.PL.VeriPB.Step.del`, §5.7.2) is unchecked when it deletes a core constraint,
-and this checker rejects such a deletion in strengthening-to-core mode.
+and not the derived set. In this mode a checked deletion is a proof by contradiction: it takes no
+witness and its subproof must end in a contradiction `qed : n`, as CakePB requires
+(`check_tcb_idopt`); VeriPB 3.0.2 also accepts a subproof without it. An unchecked core deletion
+needs an empty derived set (§5.7.4). The untyped deletion `del id` of the augmented format
+(`Cslib.Logic.PL.VeriPB.Step.del`, §5.7.2) is unchecked when it deletes a core constraint, and this
+checker rejects such a deletion in strengthening-to-core mode.
 
 **Solutions and conclusions.** The checker keeps two logged solutions, as CakePB keeps `dbound`
 and `bound` (`update_dbound`, `update_bound` and `check_hconcl` in `npbc_checkScript.sml`).
@@ -581,8 +584,11 @@ def Step.delIds : Step → List ℕ
 * `deld` deletes derived constraints; `delc` deletes core constraints unchecked, which in
   strengthening-to-core mode needs an empty derived set (§5.7.4).
 * A checked `delc` of a core constraint `C` is a redundance check of `C` against the remaining
-  core set alone, as in CakePB; in strengthening-to-core mode its witness must be empty (§5.7.4).
-* `core id` moves constraints to the core set; `strengthening_to_core on` moves all of them. -/
+  core set alone, as in CakePB; in strengthening-to-core mode it is a proof by contradiction: its
+  witness must be empty and its subproof must close with a contradiction `qed : n` (§5.7.4, as
+  CakePB's `check_tcb_idopt`).
+* `core id` moves constraints to the core set and needs at least one ID; promoting a constraint
+  already in the core set changes nothing (§5.1). `strengthening_to_core on` moves all of them. -/
 def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep → Option State
   | .step st =>
     match runStep s.db s.next st with
@@ -627,7 +633,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
   | .delcChecked i ω sub q =>
     match lookup s.core i with
     | some c =>
-      if s.core.all (fun e => e.1 != i || e.2 == c) && (!s.tcb || ω.isEmpty) then
+      if s.core.all (fun e => e.1 != i || e.2 == c) && (!s.tcb || ω.isEmpty && q.isSome) then
         match redCheckOn obj (s.core.filter (·.1 != i)) (s.core.filter (·.1 != i)) s.next c ω
             (sub.getD []) q with
         | some n' =>
@@ -638,8 +644,9 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
       else none
     | none => none
   | .core ids =>
-    if ids.all fun i => (lookup s.db i).isSome then
-      some { s with core := s.db.filter (fun e => ids.contains e.1) ++ s.core }
+    if !ids.isEmpty && ids.all fun i => (lookup s.db i).isSome then
+      some { s with
+        core := s.db.filter (fun e => ids.contains e.1 && !s.core.contains e) ++ s.core }
     else none
   | .strengthenToCore b =>
     some (if b then { s with core := s.db, tcb := true } else { s with tcb := false })
@@ -673,8 +680,9 @@ structure RedProof where
 /-- The check of `BOUNDS lb : q ub` for the objective `f` in the final state `s`. The lower
 bound: for `INF`, `q` is a contradiction and no solution was logged; otherwise `lb` is at most
 the best logged value and `q` is a contradiction or weakly syntactically implies `f ≥ lb`. The
-upper bound, unless `INF`: the best logged solution that solves the input formula (the witness)
-has value `ub`. -/
+upper bound, unless `INF`: the witness (the best certifying logged solution,
+`Cslib.Logic.PL.VeriPB.State.witness`) has value `ub`. The witness need not solve the input
+formula itself; it guarantees that some input solution has value at most `ub`. -/
 def boundsOk (f : Objective) (s : State) (lb : Option ℤ) (q : ℕ) (ub : Option ℤ) : Bool :=
   (match lb with
     | none => s.best.isNone && namesContra s.db q
@@ -686,10 +694,10 @@ def boundsOk (f : Objective) (s : State) (lb : Option ℤ) (q : ℕ) (ub : Optio
   | some u => s.witness.any fun ρ => f.eval (assignOf ρ) == u
 
 /-- **The check of a conclusion** for the objective `obj` in the final state `s`. `UNSAT : q`
-needs the contradiction `q` and no logged solution; `SAT` a logged solution that solves the input
-formula (a witness); `BOUNDS` an objective and `Cslib.Logic.PL.VeriPB.boundsOk`. `UNSAT` and
-`SAT` are also accepted under an objective, an extension of this checker: §4.3 of the
-documentation gives `BOUNDS` for optimization problems. -/
+needs the contradiction `q` and no logged solution; `SAT` a witness (a certifying logged solution,
+which guarantees some input solution but need not be one itself); `BOUNDS` an objective and
+`Cslib.Logic.PL.VeriPB.boundsOk`. `UNSAT` and `SAT` are also accepted under an objective, an
+extension of this checker: §4.3 of the documentation gives `BOUNDS` for optimization problems. -/
 def checkConclusion (obj : Option Objective) (s : State) : Conclusion → Bool
   | .unsat q => s.best.isNone && namesContra s.db q
   | .sat => s.witness.isSome
@@ -1134,7 +1142,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
           · have hω : ω = [] := by
               rcases hok.2 with hf | hω
               · simp [hf] at ht
-              · exact List.isEmpty_iff.1 hω
+              · exact List.isEmpty_iff.1 hω.1
             obtain ⟨τ', hτ', hall, -⟩ := hback τ hτ
             have : τ' = τ := by rcases hτ' with rfl | rfl <;> simp [hω, Witness.apply_nil]
             subst this

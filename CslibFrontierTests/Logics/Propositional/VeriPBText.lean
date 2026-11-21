@@ -494,6 +494,10 @@ end pseudo-Boolean proof;
 "
 
 #guard checkOPB one coreProof == some .sat
+-- Promoting a core constraint again is a no-op (VeriPB and CakePB accept).
+#guard checkOPB one (coreProof.replace "core id 2;" "core id 2 2;\ncore id 1 2;") == some .sat
+-- `core id` needs at least one ID (§5.1; VeriPB 3.0.2 and CakePB accept the empty list).
+#guard (checkOPB one (coreProof.replace "core id 2;" "core id 2;\ncore id ;")).isNone
 -- `~x1` is not a solution of the database (VeriPB and CakePB reject).
 #guard (checkOPB one (coreProof.replace "sol x1;" "sol ~x1;")).isNone
 -- Without `core id`, constraint `2` is derived and `delc` cannot delete it (VeriPB rejects; CakePB
@@ -557,6 +561,15 @@ end pseudo-Boolean proof;
 -- In the mode, a checked deletion takes no witness (VeriPB and CakePB reject).
 #guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
   "delc 1 : x1 -> 1 : subproof\nqed delc;\nsol ~x1;")).isNone
+/-- In the mode, a checked deletion is a proof by contradiction: its subproof must close with a
+contradiction `qed : n` (§5.7.4; CakePB's `check_tcb_idopt`). VeriPB and CakePB accept this proof;
+without `: 4`, CakePB rejects it and VeriPB accepts it. -/
+def tcbCheckedProof : String := tcbProof.replace
+  "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
+  "pol 1 x2 + ;\ncore id 2;\ndelc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;\nsol x1;"
+
+#guard checkOPB one tcbCheckedProof == some .sat
+#guard (checkOPB one (tcbCheckedProof.replace "qed delc : 4;" "qed delc;")).isNone
 -- In the mode, an unchecked core deletion needs an empty derived set (VeriPB and CakePB reject).
 #guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
   "pol 1 x2 + ;\ndelc 1;\nsol x1;")).isNone
