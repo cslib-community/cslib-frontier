@@ -17,7 +17,6 @@ import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Reco
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import Mathlib.Order.Filter.Finite
 
-import Mathlib.Tactic.FinCases
 
 /-!
 # Recognition subdivisions with literal reference spokes
@@ -101,34 +100,6 @@ theorem exists_subdivision_embedding_with_scaled_reference_spokes
   rw [hAcenter _ hv, hfactor_eq d hd, smul_smul, div_mul_cancel₀ _ (hfactor_pos d).ne'] at h
   exact h
 
-private theorem frozen_edge_has_fixed_dart {I : FixedRotationInput}
-    (e : Fin (subdivisionGraph I).edges.length)
-    (he : ((subdivide I)[e.val]'(by
-      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen = true) :
-    ∃ d : Dart I.graph, (I.orders.getD d.vertex none).isSome = true ∧
-      (subdivisionDart I d).1 = e := by
-  let i := (subdivisionEdgeIndex I e).original
-  let k := (subdivisionEdgeIndex I e).piece
-  have hpos : e.val = 3 * i.val + k.val := subdivisionEdgeIndex_val I e
-  have hbound : e.val < (subdivide I).length := by
-    simpa only [subdivisionGraph, List.length_map] using e.isLt
-  have hget := subdivide_getElem? I i k
-  rw [← hpos, List.getElem?_eq_getElem hbound] at hget
-  have hf := (congrArg Segment.frozen (Option.some.inj hget)).symm.trans he
-  generalize k = j at hpos hf
-  fin_cases j
-  · refine ⟨(i, false), ?_, Fin.ext hpos.symm⟩
-    have hvertex : Dart.vertex (i, false) = I.graph.edges[i].1 :=
-      (congrArg Prod.fst (Dart.edge_eq_vertices i)).symm
-    rw [hvertex]
-    exact hf
-  · exact Bool.noConfusion (show false = true from hf)
-  · refine ⟨(i, true), ?_, Fin.ext hpos.symm⟩
-    have hvertex : Dart.vertex (i, true) = I.graph.edges[i].2 :=
-      (congrArg Prod.snd (Dart.edge_eq_vertices i)).symm
-    rw [hvertex]
-    exact hf
-
 /-- A realization of the prescribed rotation admits a subdivision embedding at the original
 reference centers with every frozen edge equal to its complete literal reference route.
 The endpoints of those routes are therefore at their exact reference coordinates. -/
@@ -161,7 +132,7 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
       P.route e = Route.line (F a) (F b) ∧
         ∀ t ∈ Set.Icc (0 : ℝ) 1,
           F (AffineMap.lineMap a b t) = AffineMap.lineMap (F a) (F b) t := by
-    obtain ⟨d, hd, rfl⟩ := frozen_edge_has_fixed_dart e he
+    obtain ⟨d, rfl, hd⟩ := (frozen_iff_exists_subdivisionDart I e).mp he
     let f := (subdivisionDart I d).1
     let a := (Q.route f).start
     let b := (Q.route f).finish
