@@ -262,8 +262,8 @@ theorem evalCirc_polyTime :
       (encPair encValidCircuit encBits) (encList (encPair encNat (encPair encNat encBits))))
   have hc : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
       p.1.1.n + p.1.1.gateList.length - p.1.1.m) (encPair encValidCircuit encBits) encUnary :=
-    ComputableTidilyInPolyTime.unary_sub.computableInPolyTime.comp
-      ((ComputableTidilyInPolyTime.unary_add.computableInPolyTime.comp (hn.prod hq)).prod hm)
+    ComputableInPolyTime.unary_sub.comp
+      ((ComputableInPolyTime.unary_add.comp (hn.prod hq)).prod hm)
   have hdrop : ComputableInPolyTime (fun p : List Bool × ℕ => p.1.drop p.2)
       (encPair encBits encUnary) encBits := by
     polytime

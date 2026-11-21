@@ -136,6 +136,14 @@ theorem uniformOfFintype_bind_add_left {β : Type*} (c : G) (f : G → PMF β) :
   conv_rhs => rw [← uniformOfFintype_map_add_left c, PMF.bind_map]
   rfl
 
+/-- A continuation that sees both a uniformly shifted value and its offset can instead sample the
+shifted value uniformly and recover the offset. -/
+theorem uniformOfFintype_bind_add_offset {β : Type*} (value : G) (f : G → G → PMF β) :
+    ((PMF.uniformOfFintype G).bind fun offset => f (value + offset) offset) =
+      (PMF.uniformOfFintype G).bind fun t => f t (-value + t) := by
+  conv_rhs => rw [← uniformOfFintype_bind_add_left value]
+  simp only [neg_add_cancel_left]
+
 end Mask
 
 /-- A uniform function read through an injection is uniform. -/

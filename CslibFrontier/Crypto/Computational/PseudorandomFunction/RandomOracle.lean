@@ -69,10 +69,6 @@ theorem isPPTOn_cachedRandomFunctionOracle {α : Type} {input : α ↪ List Bool
       encBits))) :
     IsPPTOn input (encPair encBits (encList (encPair encBits encBits)))
       (fun a => cachedRandomFunctionOracle (inLen a) (outLen a) (query a) (cache a)) := by
-  have hinLen := hinLen.tidy
-  have houtLen := houtLen.tidy
-  have hquery := hquery.tidy
-  have hcache := hcache.tidy
   unfold cachedRandomFunctionOracle
   fun_prop
 
