@@ -308,7 +308,9 @@ public import CslibFrontier.Algorithms.Reachability.DoubleCounting.ControllerRep
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Round
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Combined
+public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.NondeterministicChoice
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.OffsetReader
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexParameters
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexReader
@@ -325,7 +327,9 @@ public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedDigits
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedRank
+public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedWeight
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Streaming
+public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.WeightDimensions
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Weights
 public import CslibFrontier.Algorithms.Reachability.Reingold
@@ -2986,12 +2990,14 @@ public import CslibFrontier.Computability.Complexity.Problems.SATUNSAT
 public import CslibFrontier.Computability.Complexity.Problems.STCON
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
+public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Layered
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredCallback
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredParameters
 public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredQuery
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Search
+public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchParameters
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSetup
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SubdivisionCall
@@ -5177,6 +5183,7 @@ public import CslibFrontier.Crypto.Computational.LWE.Trapdoor
 public import CslibFrontier.Crypto.Computational.LWE.Trapdoor.Basic
 public import CslibFrontier.Crypto.Computational.LWE.Trapdoor.Gadget
 public import CslibFrontier.Crypto.Computational.Lattice.GIVP
+public import CslibFrontier.Crypto.Computational.Lattice.MR07Shorten
 public import CslibFrontier.Crypto.Computational.Lattice.QaryKernel
 public import CslibFrontier.Crypto.Computational.Lattice.ShortestVector
 public import CslibFrontier.Crypto.Computational.LinearSigmaProtocol
@@ -5622,6 +5629,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
 public import CslibFrontier.Crypto.Protocols.KEM.MLKEM
 public import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
 public import CslibFrontier.Crypto.Protocols.MAC.GHASH
+public import CslibFrontier.Crypto.Protocols.MAC.OneTime
 public import CslibFrontier.Crypto.Protocols.MAC.PolynomialEvaluation
 public import CslibFrontier.Crypto.Protocols.MAC.VariableLength
 public import CslibFrontier.Crypto.Protocols.MPC.Advantage
@@ -6191,6 +6199,7 @@ public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.PointCou
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.QuadraticTwist
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.VariableChange
 public import CslibFrontier.Foundations.AlgebraicGeometry.Semialgebraic
+public import CslibFrontier.Foundations.AlgebraicGeometry.StableIsomorphism
 public import CslibFrontier.Foundations.Analysis.Asymptotics.CostBound
 public import CslibFrontier.Foundations.Analysis.Asymptotics.Exponential
 public import CslibFrontier.Foundations.Analysis.Asymptotics.PolyErr
@@ -6237,7 +6246,9 @@ public import CslibFrontier.Foundations.Analysis.Lattice.Schwartz
 public import CslibFrontier.Foundations.Analysis.LpNorm
 public import CslibFrontier.Foundations.Analysis.LpNormMeasure
 public import CslibFrontier.Foundations.Analysis.MarkovBrothersInequality
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateDerivative
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
 public import CslibFrontier.Foundations.Analysis.RateExponent
@@ -7540,6 +7551,7 @@ public import CslibFrontier.GameTheory.Strategic.Universality.DattaHorner
 public import CslibFrontier.GameTheory.Strategic.Universality.DattaThree
 public import CslibFrontier.GameTheory.Strategic.Universality.Realize
 public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
+public import CslibFrontier.GameTheory.Strategic.Universality.StableUniversality
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Languages.Probabilistic.BitString
