@@ -10,14 +10,16 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.DescriptionSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 
 /-!
 # An encoded deterministic universal interpreter
 
 This module selects the deterministic finite-state machine constructed by
-`Turing.MultiTapeTM.Universal.computableTidilyInO_universal`, numbers its states, and exposes its
-complete `Turing.MultiTapeTM.Universal.Desc`. Running that description realizes the existing
+`Turing.MultiTapeTM.Universal.computableInO_universal` through the retained machine normal form,
+numbers its states, and exposes its complete `Turing.MultiTapeTM.Universal.Desc`. Running that
+description realizes the existing
 `Turing.MultiTapeTM.Universal.universal` function on its binary-clock encoding.
 
 The selected native construction still comes from an existential computability theorem. Its tape
@@ -61,7 +63,7 @@ private structure NativeInterpreter where
     (fun i => factor * (universalImplementationSpace i + 1))
 
 private theorem nativeInterpreter_nonempty : Nonempty NativeInterpreter := by
-  obtain ⟨factor, hmachine, -⟩ := computableTidilyInO_universal
+  obtain ⟨factor, hmachine, -⟩ := Internal.NormalForm.inO computableInO_universal
   obtain ⟨tapes, State, stateFinite, machine, computes⟩ := hmachine
   exact ⟨{
     factor
@@ -70,7 +72,8 @@ private theorem nativeInterpreter_nonempty : Nonempty NativeInterpreter := by
     stateFinite
     machine
     computes := by
-      simpa only [universalImplementationTime, universalImplementationSpace] using computes }⟩
+      intro i
+      simpa only [universalImplementationTime, universalImplementationSpace] using computes i }⟩
 
 private noncomputable def nativeInterpreter : NativeInterpreter :=
   Classical.choice nativeInterpreter_nonempty

@@ -10,8 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
@@ -35,7 +35,7 @@ The closure rules are registered with `fun_prop`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.increment`: the binary counter in polynomial time.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM
 
@@ -125,43 +125,9 @@ theorem comp' {f : β → γ} {g : α → β} {encOut : γ ↪ List Bool}
 
 end ComputableInPolySpace
 
-private def incrementTransducer : Transducer Bool Bool where
-  q₀ := true
-  step c b := (c && b, [b ^^ c])
-  final _ := []
-  length_step_le _ _ := by simp
-  length_final_le _ := by simp
-
-private theorem incrementTransducer_run_false (w : List Bool) :
-    incrementTransducer.run false w = w := by
-  induction w with
-  | nil => rfl
-  | cons b w ih =>
-    rw [Transducer.run_cons]
-    change [b ^^ false] ++ incrementTransducer.run (false && b) w = b :: w
-    rw [Bool.false_and, ih, Bool.xor_false]
-    rfl
-
-private theorem incrementTransducer_run (w : List Bool) :
-    incrementTransducer.run true w = Cslib.BitString.increment w := by
-  induction w with
-  | nil => rfl
-  | cons b w ih =>
-    rw [Transducer.run_cons]
-    change [b ^^ true] ++ incrementTransducer.run (true && b) w =
-      Cslib.BitString.increment (b :: w)
-    cases b
-    · rw [Bool.true_and, incrementTransducer_run_false]
-      rfl
-    · rw [Bool.true_and, ih]
-      rfl
-
 /-- The binary counter in polynomial time. -/
 theorem ComputableInPolyTime.increment :
-    ComputableInPolyTime Cslib.BitString.increment encBits encBits := by
-  refine ⟨fun n => 2 * n + 3, fun _ => 0, by fun_prop, by fun_prop,
-    0, _, inferInstance, incrementTransducer.toTM, fun w => ?_⟩
-  simpa only [encBits_apply, show incrementTransducer.q₀ = true from rfl,
-    incrementTransducer_run] using incrementTransducer.computesInTimeAndSpace_toTM w
+    ComputableInPolyTime Cslib.BitString.increment encBits encBits :=
+  ComputableInDegree.increment.computableInPolyTime
 
 end Turing.MultiTapeTM

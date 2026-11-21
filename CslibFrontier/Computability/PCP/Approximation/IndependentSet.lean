@@ -134,12 +134,9 @@ private theorem toIndependentSet_m (φ : CNF ℕ) : (toIndependentSet φ).m = φ
 assignment satisfies**, which is at most `(1 - unsatVal φ) * m` for `m` clauses. -/
 theorem indepNum_toIndependentSet_le (φ : CNF ℕ) :
     ((toIndependentSet φ).graph.indepNum : ℝ) ≤ (1 - φ.unsatVal) * φ.length := by
-  obtain ⟨S, hSV, hS⟩ :=
-    mem_IndependentSet_iff.1 (Graph.indepNum_mem_IndependentSet (toIndependentSet φ).graph)
-  obtain ⟨σ, hσ⟩ := exists_card_add_countUnsat_le hSV hS.isIndepSet
-  have hc : S.card = (toIndependentSet φ).graph.indepNum := hS.card_eq
-  rw [← hc]
-  have hcast : ((S.card + φ.countUnsat σ : ℕ) : ℝ) ≤ φ.length := by exact_mod_cast hσ
+  obtain ⟨σ, hσ⟩ := (le_indepNum_toIndependentSet_iff φ _).1 le_rfl
+  have hcast : (((toIndependentSet φ).graph.indepNum + φ.countUnsat σ : ℕ) : ℝ) ≤
+      φ.length := by exact_mod_cast hσ
   push_cast at hcast
   have hle : φ.unsatVal * φ.length ≤ φ.countUnsat σ := by
     rcases Nat.eq_zero_or_pos φ.length with h0 | h0

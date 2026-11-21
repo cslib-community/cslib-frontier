@@ -594,7 +594,7 @@ private theorem polynomiallyBounded_ciphertextLength {n w : ℕ → ℕ}
     Cslib.PolynomiallyBounded (fun k => (n k + 1) * w k) := by
   have h : ComputableInPolyTime (fun k => (n k + 1) * w k) encUnary encUnary := by fun_prop
   have hp : PolyBounded (fun x => x) (fun k => (n k + 1) * w k) := by
-    simpa only [encUnary_apply, List.length_replicate] using h.tidy.polyBounded
+    simpa only [encUnary_apply, List.length_replicate] using h.polyBounded
   exact PolyBounded.polynomiallyBounded hp
 
 private theorem isPPTOn_encryptSerialized_keyed {n m w : ℕ → ℕ}

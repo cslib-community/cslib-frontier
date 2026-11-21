@@ -76,20 +76,10 @@ def haltsPred (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Prop :=
 
 instance (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Decidable (haltsPred c τ x e) :=
   match h : Encodable.decode (α := List Bool × ℕ × ℕ) e with
-  | none => isFalse fun h_pred => by
-    have ⟨p, hp, _⟩ : ∃ p : List Bool × ℕ × ℕ,
-      Encodable.decode e = some p ∧ τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c x := h_pred
-    rw [hp] at h; contradiction
+  | none => isFalse fun ⟨_, hp, _⟩ => by simp [h] at hp
   | some p =>
-    if h2 : τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c x then
-      isTrue (by exact ⟨p, h, h2⟩)
-    else
-      isFalse fun h_pred => by
-        have ⟨p', hp', h2'⟩ : ∃ p : List Bool × ℕ × ℕ,
-        Encodable.decode e = some p ∧ τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c x := h_pred
-        injection h.symm.trans hp' with eq
-        subst eq
-        contradiction
+    decidable_of_iff (τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c x)
+      ⟨fun hp => ⟨p, h, hp⟩, fun ⟨_, hp', hp⟩ => Option.some.inj (h.symm.trans hp') ▸ hp⟩
 
 lemma Halts_iff_exists_haltsPred (c : Code) (τ : List Bool) (x : ℕ) :
     Halts c τ x ↔ ∃ e, haltsPred c τ x e := by
@@ -163,19 +153,10 @@ theorem step_spec {c : Code} {σ τ : List Bool} {a b : ℕ → Bool}
       simp only [bits, List.getElem_map, hτ i hi', PFun.coe_val]
       exact Part.mem_some _
     have hax : a σ.length = decide (p.2.2 = 0) := by
-      have := hσ σ.length (by simp)
-      simpa using this.symm
+      simpa using (hσ σ.length (by simp)).symm
     have hv' : p.2.2 = (a σ.length).toNat := Part.mem_unique hv hx
-    revert hax hv'
-    cases p.2.2
-    · intro hax hv'
-      change a σ.length = true at hax
-      rw [hax] at hv'
-      cases hv'
-    · intro hax hv'
-      change a σ.length = false at hax
-      rw [hax] at hv'
-      cases hv'
+    cases ha : a σ.length <;> simp only [ha, Bool.toNat_true, Bool.toNat_false] at hv' <;>
+      simp [ha, hv'] at hax
   · have h_step : step c σ τ = (σ ++ [false], τ) := by
       unfold step; dsimp only; simp [h]
     rw [h_step] at hσ hτ
@@ -207,9 +188,7 @@ theorem stage_succ_prefix (s : ℕ) :
   · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
     exact ⟨hb ▸ List.prefix_append _ _, step_snd _ _ _⟩
   · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
-    have h1 : (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap.2 =
-      (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).1 := rfl
-    exact ⟨step_snd _ _ _, by rw [h1, hb]; exact List.prefix_append _ _⟩
+    exact ⟨step_snd _ _ _, by rw [Prod.snd_swap, hb]; exact List.prefix_append _ _⟩
 
 theorem stage_prefix {s t : ℕ} (h : s ≤ t) :
     (stage s).1 <+: (stage t).1 ∧ (stage s).2 <+: (stage t).2 := by
@@ -225,18 +204,12 @@ theorem length_stage (s : ℕ) :
   | case2 s h ih =>
     obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
     have := (step_snd (ofNat Code (s / 2)) (stage s).1 (stage s).2).length_le
-    rw [hb, List.length_append]
-    simp only [List.length_singleton]
+    rw [hb, List.length_append, List.length_singleton]
     omega
   | case3 s h ih =>
     obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
     have := (step_snd (ofNat Code (s / 2)) (stage s).2 (stage s).1).length_le
-    have h1 : (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap.1.length =
-      (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).2.length := rfl
-    have h2 : (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap.2.length =
-      (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).1.length := rfl
-    rw [h1, h2, hb, List.length_append]
-    simp only [List.length_singleton]
+    rw [Prod.fst_swap, Prod.snd_swap, hb, List.length_append, List.length_singleton]
     omega
 
 /-- The first limit sequence: its value at `n` is fixed by stage `2 * n + 2`. -/
@@ -247,23 +220,22 @@ noncomputable def limA (n : ℕ) : Bool := (stage (2 * n + 2)).1.getD n false
 @[expose]
 noncomputable def limB (n : ℕ) : Bool := (stage (2 * n + 2)).2.getD n false
 
-theorem agrees_limA (s : ℕ) : Agrees (stage s).1 limA := by
-  intro i hi
-  have hi' : i < (stage (2 * i + 2)).1.length := by
-    have := (length_stage (2 * i + 2)).1; omega
-  have h₁ := (stage_prefix (le_max_left s (2 * i + 2))).1
-  have h₂ := (stage_prefix (le_max_right s (2 * i + 2))).1
-  rw [limA, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some,
-    h₁.getElem hi, h₂.getElem hi']
+private theorem agrees_of_prefix {f : ℕ → List Bool}
+    (hpref : ∀ {s t}, s ≤ t → f s <+: f t) (hlen : ∀ i, i < (f (2 * i + 2)).length) (s : ℕ) :
+    Agrees (f s) (fun n => (f (2 * n + 2)).getD n false) := fun i hi => by
+  dsimp only
+  have hi' := hlen i
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some,
+    (hpref (le_max_left s (2 * i + 2))).getElem hi,
+    (hpref (le_max_right s (2 * i + 2))).getElem hi']
 
-theorem agrees_limB (s : ℕ) : Agrees (stage s).2 limB := by
-  intro i hi
-  have hi' : i < (stage (2 * i + 2)).2.length := by
-    have := (length_stage (2 * i + 2)).2; omega
-  have h₁ := (stage_prefix (le_max_left s (2 * i + 2))).2
-  have h₂ := (stage_prefix (le_max_right s (2 * i + 2))).2
-  rw [limB, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some,
-    h₁.getElem hi, h₂.getElem hi']
+theorem agrees_limA (s : ℕ) : Agrees (stage s).1 limA :=
+  agrees_of_prefix (fun h => (stage_prefix h).1)
+    (fun i => by have := (length_stage (2 * i + 2)).1; omega) s
+
+theorem agrees_limB (s : ℕ) : Agrees (stage s).2 limB :=
+  agrees_of_prefix (fun h => (stage_prefix h).2)
+    (fun i => by have := (length_stage (2 * i + 2)).2; omega) s
 
 theorem not_limA_le_limB :
     ¬(fun n => (limA n).toNat : ℕ → ℕ) ≤ᵀ (fun n => (limB n).toNat : ℕ → ℕ) := by

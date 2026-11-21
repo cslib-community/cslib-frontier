@@ -120,7 +120,7 @@ theorem map {f : α → β} {g : β → γ} (h : ComputableInPolyTimeWithOracleQ
     ComputableInPolyTimeWithOracleQueries A r (fun a => g (f a)) input output := by
   obtain ⟨program, hprogram, heq⟩ := h
   refine ⟨fun a => g <$> program a, ?_, fun a => ⟨?_, ?_⟩⟩
-  · simpa only [OracleComp.interpret_map] using hprogram.map' hg
+  · simpa only [OracleComp.interpret_map] using hprogram.map hg
   · rw [OracleComp.interpret_map, (heq a).1]
     rfl
   · rw [OracleComp.queriesWith_map]

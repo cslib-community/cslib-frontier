@@ -8,10 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import Mathlib.Data.List.GetD
+import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 
 /-!
 # Native reversal and binary slicing of framed lists
@@ -26,6 +30,7 @@ large binary counts never cause a list of that length to be allocated.
 * `Turing.MultiTapeTM.ComputableInSpace.listDrop`, `.listTake`: slice with a binary counter.
 * `Turing.MultiTapeTM.ComputableInSpace.bitsDrop`, `.bitsGetD`, `.bitsReverse`: the same for a
   plain bit word, and reading one of its bits.
+* `Turing.MultiTapeTM.ComputableInSpace.natShiftRight`: right shift by a binary offset.
 -/
 
 public section
@@ -111,6 +116,21 @@ theorem bitsDrop : ComputableInSpace (fun p : List Bool × ℕ => p.1.drop p.2)
   · intro p
     rw [List.tail_iterate]
 
+/-- Right shift a binary natural in space linear in the value and the binary offset.
+The drop count is capped at the value's bit length. The suffix is already the canonical
+encoding, including the empty word for zero. -/
+theorem natShiftRight : ComputableInSpace (fun p : ℕ × ℕ => p.1 >>> p.2)
+    (encPair encNat encNat) encNat (fun p => (encPair encNat encNat p).length) := by
+  have hv := fst encNat encNat
+  have ho := snd encNat encNat
+  have hw := budget_comp_linear natSize hv
+  have hbits := hv.of_enc_eq (encC := encBits) (g := fun p => p.1.bits) (fun _ => rfl)
+  have hcount := budget_natMin ho hw
+  refine (budget_comp_linear bitsDrop (budget_prod hbits hcount)).of_enc_eq fun p => ?_
+  change (p.1 >>> p.2).bits = p.1.bits.drop (min p.2 p.1.size)
+  rw [Nat.bits_shiftRight, ← Nat.size_eq_bits_len]
+  exact List.drop_eq_drop_min
+
 /-- Read the bit of a bit word at a binary index, or `fallback` beyond its end, in space linear in
 the word and index. -/
 theorem bitsGetD (fallback : Bool) : ComputableInSpace
@@ -118,9 +138,17 @@ theorem bitsGetD (fallback : Bool) : ComputableInSpace
     (fun p => (encPair encBits encNat p).length) := by
   have hhead : ComputableInSpace (fun w : List Bool => w.headD fallback) encBits encBool
       (fun w => w.length) := of_inO (.of_linear (ListEncoding.headD fallback))
-  refine (budget_comp_linear hhead bitsDrop).of_enc_eq ?_
-  intro p
-  rw [List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop]
+  -- Check the length before dropping, since an out-of-range binary index can be very large.
+  have hlen := budget_comp_linear (of_inO ComputableInO.lengthNat) (fst encBits encNat)
+  have hin := budget_natLt (snd encBits encNat) hlen
+  have hread := budget_comp_linear hhead bitsDrop
+  refine (budget_ite hin hread (budget_const fallback (.refl _))).of_enc_eq fun p => ?_
+  simp only [List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop,
+    decide_eq_true_eq]
+  split_ifs with hi
+  · rfl
+  · rw [List.getElem?_eq_none (Nat.le_of_not_gt hi)]
+    rfl
 
 /-- Reverse a bit word in space linear in its length. -/
 theorem bitsReverse : ComputableInSpace List.reverse encBits encBits (fun w => w.length) :=

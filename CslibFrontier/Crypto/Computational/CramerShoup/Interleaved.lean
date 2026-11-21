@@ -23,13 +23,14 @@ Theorem 12.1).
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcca2InterleavedOn_cramerShoup`: Multiplicative
   Cramer–Shoup, with its hash key drawn at key generation, satisfies
-  `Encryption.INDCCA2InterleavedOn` under DDH and collision resistance of the keyed hash.
+  `Encryption.INDCCA2InterleavedOn` under DDH and collision resistance of the keyed hash on its
+  well-formed inputs.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
   Version 0.6][BonehShoup2023], Section 12.1 (Attack Game 12.1 and Theorem 12.1, printed
-  pp. 467–469), Section 12.5 (Theorem 12.9, printed pp. 490–491) and Exercise 12.27 (printed
+  pp. 467–469), Section 12.5 (Theorem 12.9, printed pp. 489–493) and Exercise 12.27 (printed
   pp. 521–522).
 -/
 
@@ -40,16 +41,19 @@ namespace Cslib.Crypto.PrimeOrderGroupFamily
 open Probability Turing.MultiTapeTM Encryption
 open scoped NNReal
 
-/-- **Fully adaptive interleaved-query multi-challenge CCA security of Multiplicative Cramer–Shoup
-with a keyed hash (`Encryption.INDCCA2InterleavedOn`)** ([BonehShoup2023], Theorem 12.1,
-Theorem 12.9, and Exercise 12.27, printed pp. 468, 490–491, 521–522): under the hypotheses of
-`DDH.indcca2On_cramerShoup`, the probabilistic polynomial-time Cramer–Shoup encryption scheme
+/-- **Multiplicative Cramer–Shoup is CCA secure** ([BonehShoup2023], Exercise 12.27, printed
+pp. 521–522, in the fully adaptive multi-challenge Attack Game 12.1, printed p. 467, proved by the
+method of Theorem 12.9, printed pp. 489–493, and Theorem 12.1, printed p. 468) under DDH and
+collision resistance of $H'$ on its well-formed inputs $\mathbb{G}^3 \times \mathcal{D}$, here with
+$\mathcal{D} = \{[]\}$. Under the hypotheses of `DDH.indcca2On_cramerShoup`, the probabilistic
+polynomial-time scheme
 `(cramerShoupKeyGenProb d keyLen, cramerShoupEncryptProb H d, cramerShoupDecryptOpt H isElem d)`
 satisfies the fully adaptive interleaved-query multi-challenge `Encryption.INDCCA2InterleavedOn`
 notion with respect to `cramerShoupValid isElem d`. Key generation draws a uniform
 `keyLen n`-bit hash key and publishes it in the public key, and the hash assumption is collision
 resistance of the keyed family `F.withKey.cramerShoupHashMod H` under
-`withKeySetup (fun n => PMF.pure (d n)) keyLen`. -/
+`withKeySetup (fun n => PMF.pure (d n)) keyLen` on the words that `isCramerShoupHashInput false`
+accepts. -/
 theorem DDH.indcca2InterleavedOn_cramerShoup
     {F : PrimeOrderGroupFamily}
     {H : F.withKey.Desc × List Bool → List Bool}
@@ -61,8 +65,9 @@ theorem DDH.indcca2InterleavedOn_cramerShoup
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     (hmem : ∀ d x, isElem (d, x) = true ↔ x ∈ Set.range (F.encode d))
     (hDDH : F.DDH (fun n => PMF.pure (d n)))
-    (hCR : CollisionResistantFor F.withKey.encDesc
-      (F.withKeySetup (fun n => PMF.pure (d n)) keyLen) (F.withKey.cramerShoupHashMod H))
+    (hCR : CollisionResistantForOn F.withKey.encDesc
+      (F.withKeySetup (fun n => PMF.pure (d n)) keyLen) (F.withKey.cramerShoupHashMod H)
+      (fun _ => F.withKey.isCramerShoupHashInput false (F.isElemWithKey isElem)))
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n)
     (hm : ∀ n, m n ≤ F.order (d n))
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :

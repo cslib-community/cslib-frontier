@@ -25,6 +25,8 @@ The value type needs only a partial order. Also bounds the sum of all indices in
 * `Fin.exists_ne_apply_eq_iff_adjacent`: an adjacent witness suffices for any repeated value.
 * `Fin.exists_adjacent_ne_of_monotone_comp`: two distinct entries with equal keys in a monotone-key
   array force an adjacent pair of distinct entries with that key.
+* `Fin.exists_le_lt_adjacent`: a threshold between the first and last entries is crossed
+  by an actual adjacent pair, without a monotonicity premise.
 * `Fin.sum_val_le_mul_self`: `(∑ j : Fin n, j.val) ≤ n * n`.
 
 ## References
@@ -102,3 +104,25 @@ theorem Fin.sum_val_le_mul_self (n : ℕ) : (∑ j : Fin n, j.val) ≤ n * n := 
   calc
     _ ≤ ∑ _j : Fin n, n := Finset.sum_le_sum fun j _ => Nat.le_of_lt j.isLt
     _ = n * n := by simp
+
+/-- A threshold at least the first value and strictly below the last is crossed by an
+actual adjacent pair. The finite sequence need not be monotone. -/
+theorem Fin.exists_le_lt_adjacent {α : Type*} [LinearOrder α] {n : ℕ}
+    {f : Fin (n + 1) → α} {x : α} (hfirst : f 0 ≤ x) (hlast : x < f (Fin.last n)) :
+    ∃ i : Fin n, f i.castSucc ≤ x ∧ x < f i.succ := by
+  classical
+  by_contra hn
+  let R : α → α → Prop := fun a b => a ≤ x → b ≤ x
+  let : IsTrans α R := ⟨fun _ _ _ hab hbc => hbc ∘ hab⟩
+  have hadj : ∀ i : Fin n, R (f i.castSucc) (f i.succ) := by
+    intro i hi
+    exact le_of_not_gt (fun hh => hn ⟨i, hi, hh⟩)
+  have hall := (Fin.liftFun_iff_succ R).mpr hadj
+  by_cases hn0 : n = 0
+  · subst n
+    have he : (Fin.last 0 : Fin 1) = 0 := rfl
+    exact (not_le_of_gt hlast) (he.symm ▸ hfirst)
+  · have hz : (0 : Fin (n + 1)) < Fin.last n := by
+      change 0 < n
+      exact Nat.pos_of_ne_zero hn0
+    exact (not_le_of_gt hlast) (hall hz hfirst)
