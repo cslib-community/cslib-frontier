@@ -113,31 +113,48 @@ explicit statistical distance `< 1 / 4`. -/
 def concreteSampleZInput : SampleZInput :=
   { sSq := 4, center := 1 / 3, tail := 2, prec := 10, maxTrials := 340 }
 
+private theorem concreteSampleZInput_sqrt :
+    Real.sqrt ((concreteSampleZInput.sSq : ℚ) : ℝ) = 2 := by
+  simp only [concreteSampleZInput, Rat.cast_ofNat]
+  rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
+
+private theorem concreteSampleZInput_dg_eq :
+    discreteGaussianInt (Real.sqrt ((concreteSampleZInput.sSq : ℚ) : ℝ))
+      (by rw [concreteSampleZInput_sqrt]; norm_num) (concreteSampleZInput.center : ℝ) =
+      discreteGaussianInt 2 (by norm_num) (1 / 3 : ℝ) := by
+  have hcenter : (concreteSampleZInput.center : ℝ) = 1 / 3 := by simp [concreteSampleZInput]
+  have hsqrt4 := concreteSampleZInput_sqrt
+  congr 1
+
 example :
     CloseTo (ProbComp.eval (sampleZ concreteSampleZInput))
       (discreteGaussianInt 2 (by norm_num) (1 / 3 : ℝ))
       (ENNReal.ofReal (1 / 4)) := by
-  have hsqrt4 : Real.sqrt ((concreteSampleZInput.sSq : ℚ) : ℝ) = 2 := by
-    simp only [concreteSampleZInput, Rat.cast_ofNat]
-    rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  have hcenter : (concreteSampleZInput.center : ℝ) = 1 / 3 := by
-    simp [concreteSampleZInput]
   have h := closeTo_eval_sampleZ_discreteGaussian concreteSampleZInput
-    (by decide : (0 : ℚ) < 4)
-    (by rw [hsqrt4]; norm_num)
-    (by decide : 1 ≤ 2)
+    (by decide : (0 : ℚ) < 4) (by rw [concreteSampleZInput_sqrt]; norm_num) (by decide : 1 ≤ 2)
     (ε := 1 / 2) (by norm_num) (by norm_num)
-    (by rw [hsqrt4]; exact dual_small_two)
+    (by rw [concreteSampleZInput_sqrt]; exact dual_small_two)
     (by decide : 8 * (2 * 2 + 6) ≤ 2 ^ 10)
-  have hdg : discreteGaussianInt (Real.sqrt ((concreteSampleZInput.sSq : ℚ) : ℝ))
-      (by positivity) (concreteSampleZInput.center : ℝ) =
-      discreteGaussianInt 2 (by norm_num) (1 / 3 : ℝ) := by
-    congr 1
-  rw [hdg] at h
-  refine h.mono (ENNReal.ofReal_le_ofReal concrete_sampleZ_err_le_quarter)
+  rw [concreteSampleZInput_dg_eq] at h
+  exact h.mono (ENNReal.ofReal_le_ofReal concrete_sampleZ_err_le_quarter)
 
-/-- Concrete 2-D bases `B = I₂` and `S = diag(2, 3)` of quotient index `D = 6`. -/
+example :
+    CloseTo (ProbComp.eval (sampleZ concreteSampleZInput))
+      (discreteGaussianInt 2 (by norm_num) (1 / 3 : ℝ))
+      (ENNReal.ofReal (1 / 4)) := by
+  have hη : ZLattice.smoothingParameter intLatticeReal (1 / 2) ≤ 2 :=
+    ZLattice.smoothingParameter_le_of_dual_mass_le intLatticeReal (by norm_num) dual_small_two
+  have h := closeTo_eval_sampleZ_discreteGaussian_of_smoothingParameter_le concreteSampleZInput
+    (by decide : (0 : ℚ) < 4) (by rw [concreteSampleZInput_sqrt]; norm_num) (by decide : 1 ≤ 2)
+    (ε := 1 / 2) (by norm_num) (by norm_num) (by rw [concreteSampleZInput_sqrt]; exact hη)
+    (by decide : 8 * (2 * 2 + 6) ≤ 2 ^ 10)
+  rw [concreteSampleZInput_dg_eq] at h
+  exact h.mono (ENNReal.ofReal_le_ofReal concrete_sampleZ_err_le_quarter)
+
+/-- Concrete 2-D identity basis `B = I₂`. -/
 def basisI2 : IntTable := ⟨2, 2, [[1, 0], [0, 1]]⟩
+
+/-- Concrete 2-D diagonal sublattice basis `S = diag(2, 3)` of quotient index `D = 6`. -/
 def sublatticeDiag23 : IntTable := ⟨2, 2, [[2, 0], [0, 3]]⟩
 
 example : quotientIndex basisI2 sublatticeDiag23 = 6 := by decide

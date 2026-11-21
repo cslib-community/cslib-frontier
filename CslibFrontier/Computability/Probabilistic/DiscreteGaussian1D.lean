@@ -18,6 +18,7 @@ public import CslibFrontier.Computability.PolyTime.LinearAlgebra.RationalElimina
 public import CslibFrontier.Computability.Probabilistic.Sampling
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
 public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
+public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Probability.IID
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 public import Mathlib.Data.ZMod.Basic
@@ -92,12 +93,16 @@ certificates:
 ## Main results
 
 * `Cslib.Probability.isPPTOn_sampleZ`: strict-PPT certificate for `sampleZ`.
-* `Cslib.Probability.closeTo_eval_sampleZ_discreteGaussian`: explicit `CloseTo` bound between
-  `sampleZ` and `discreteGaussianInt` decomposing into timeout, fixed-point approximation, and
-  off-center 1-D Gaussian tail terms.
+* `Cslib.Probability.closeTo_eval_sampleZ_discreteGaussian`,
+  `Cslib.Probability.closeTo_eval_sampleZ_discreteGaussian_of_smoothingParameter_le`: explicit
+  `CloseTo` bounds between `sampleZ` and `discreteGaussianInt` (in dual-mass and `η_ε(ℤ) ≤ s`
+  smoothing-parameter form) decomposing into timeout, fixed-point approximation, and off-center
+  1-D Gaussian tail terms.
 * `Cslib.Probability.isPPTOn_sampleGridGaussian`,
-  `Cslib.Probability.closeTo_eval_sampleGridGaussian_pi`: strict-PPT and `CloseTo` certificates
-  for `sampleGridGaussian` against `PMF.piFin` pushed forward by `gridReduceInt`.
+  `Cslib.Probability.closeTo_eval_sampleGridGaussian_pi`,
+  `Cslib.Probability.closeTo_eval_sampleGridGaussian_pi_of_smoothingParameter_le`: strict-PPT and
+  `CloseTo` certificates for `sampleGridGaussian` against `PMF.piFin` pushed forward by
+  `gridReduceInt`.
 * `Cslib.Probability.isPPTOn_sampleQuotientModS`,
   `Cslib.Probability.closeTo_eval_sampleQuotientModS_pi`: strict-PPT and `CloseTo` certificates
   for `sampleQuotientModS` against `PMF.piFin` of `PMF.uniformOfFintype (ZMod D)` pushed forward
@@ -2567,6 +2572,21 @@ theorem closeTo_eval_sampleZ_discreteGaussian
   have ht2 : 0 ≤ (8 * (inp.tail : ℝ) + 24) / (2 : ℝ) ^ inp.prec := by positivity
   rwa [← ENNReal.ofReal_add ht1 ht2, ← ENNReal.ofReal_add (add_nonneg ht1 ht2) htailErr0] at h123
 
+/-- Smoothing-parameter (`η_ε(ℤ) ≤ √sSq`) form of `closeTo_eval_sampleZ_discreteGaussian`
+([GentryPeikertVaikuntanathan2008], §4.1, Lemma 4.3, p. 15, capped-trial strict-PPT variant). -/
+theorem closeTo_eval_sampleZ_discreteGaussian_of_smoothingParameter_le
+    (inp : SampleZInput) (hsSq : 0 < inp.sSq) (hs1 : 1 ≤ Real.sqrt (inp.sSq : ℝ))
+    (ht : 1 ≤ inp.tail) {ε : ℝ} (hε : 0 < ε) (hε_le : ε ≤ 1 / 2)
+    (hη : ZLattice.smoothingParameter intLatticeReal ε ≤ Real.sqrt (inp.sSq : ℝ))
+    (hprec : 8 * (2 * inp.tail + 6) ≤ 2 ^ inp.prec) :
+    CloseTo (ProbComp.eval (sampleZ inp))
+      (discreteGaussianInt (Real.sqrt (inp.sSq : ℝ)) (by positivity) (inp.center : ℝ))
+      (ENNReal.ofReal
+        ((1 - 1 / (16 * (2 * inp.tail + 6 : ℝ))) ^ inp.maxTrials
+          + (8 * inp.tail + 24 : ℝ) / (2 : ℝ) ^ inp.prec
+          + (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * (inp.tail : ℝ) ^ 2)))) :=
+  closeTo_eval_sampleZ_discreteGaussian inp hsSq hs1 ht hε.le hε_le
+    ((ZLattice.smoothingParameter_le_iff intLatticeReal (by positivity) hε).mp hη) hprec
 
 /-! ### 7. `List.mapM` bridge to `PMF.piFin` -/
 
@@ -2999,6 +3019,26 @@ theorem closeTo_eval_sampleGridGaussian_pi
     rfl
   rw [heval]
   exact hpi.map _
+
+/-- Smoothing-parameter (`η_ε(ℤ) ≤ q · √sSq`) form of `closeTo_eval_sampleGridGaussian_pi`. -/
+theorem closeTo_eval_sampleGridGaussian_pi_of_smoothingParameter_le
+    (inp : GridSampleInput) (hsSq : 0 < inp.sSq) (hq : 0 < inp.modulus)
+    (hqs1 : 1 ≤ (inp.modulus : ℝ) * Real.sqrt (inp.sSq : ℝ)) (ht : 1 ≤ inp.tail)
+    {ε : ℝ} (hε : 0 < ε) (hε_le : ε ≤ 1 / 2)
+    (hη : ZLattice.smoothingParameter intLatticeReal ε ≤
+      (inp.modulus : ℝ) * Real.sqrt (inp.sSq : ℝ))
+    (hprec : 8 * (2 * inp.tail + 6) ≤ 2 ^ inp.prec) :
+    CloseTo (ProbComp.eval (sampleGridGaussian inp))
+      ((PMF.piFin fun i : Fin inp.dim =>
+          discreteGaussianInt ((inp.modulus : ℝ) * Real.sqrt (inp.sSq : ℝ))
+            (by positivity) ((inp.modulus : ℝ) * (inp.target.getD i.val 0 : ℝ))).map
+        fun r => gridReduceInt inp.dim inp.modulus inp.basis (List.ofFn r))
+      (ENNReal.ofReal ((inp.dim : ℝ) *
+        ((1 - 1 / (16 * (2 * inp.tail + 6 : ℝ))) ^ inp.maxTrials
+          + (8 * inp.tail + 24 : ℝ) / (2 : ℝ) ^ inp.prec
+          + (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * (inp.tail : ℝ) ^ 2))))) :=
+  closeTo_eval_sampleGridGaussian_pi inp hsSq hq hqs1 ht hε.le hε_le
+    ((ZLattice.smoothingParameter_le_iff intLatticeReal (by positivity) hε).mp hη) hprec
 
 /-- Input specification for the HNF-free quotient sampler `sampleQuotientModS`. -/
 structure QuotientSampleInput where
