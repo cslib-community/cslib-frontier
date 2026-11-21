@@ -10839,7 +10839,8 @@ register_result "one-time-mac-from-pairwise-unpredictable-hash" where
     Signing returns the hash digest and verification checks equality. The forgery pair must \
     be fresh. A valid pair with the queried message would repeat the correct tag, so a \
     successful forgery gives a prediction for a distinct message. The bound covers all \
-    two-stage adversaries with arbitrary private state and no runtime restriction."
+    two-stage adversaries with arbitrary private state and no runtime restriction. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6949 at 269b724487."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"

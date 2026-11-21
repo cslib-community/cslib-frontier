@@ -64,15 +64,15 @@ example : ProbComp.eval (predictionExperiment (fun k : Bool => fun _ => k) (echo
     true = 0 := by
   simp [predictionExperiment, echoGuess, ProbComp.eval_uniform]
 
-/-- The bound for `Hxpoly` transfers to its masked family on bounded-length messages. -/
-example {F : Type} [Field F] [Fintype F] [DecidableEq F] (ℓ : ℕ) :
-    IsPairwiseUnpredictable
-      (fun (key : F × F) (m : {m : List F // m.length ≤ ℓ}) =>
-        xpolyHash key.1 m.val + key.2) ((ℓ + 1) / Fintype.card F) :=
-  isPairwiseUnpredictable_add_uniform
-    (K := F) (M := {m : List F // m.length ≤ ℓ}) (Y := F)
-    (H := fun k m => xpolyHash k m.val) (ε := (ℓ + 1) / Fintype.card F)
-    (isDeltaUniversalHash_xpolyHash (F := F) ℓ)
+/-- Masked `Hxpoly` gives a one-time MAC for bounded-length messages. -/
+example {F σ : Type} [Field F] [Fintype F] [DecidableEq F] (ℓ : ℕ)
+    (A : TwoStage Unit {m : List F // m.length ≤ ℓ} F
+      ({m : List F // m.length ≤ ℓ} × F) σ) :
+    let H (key : F × F) (m : {m : List F // m.length ≤ ℓ}) := xpolyHash key.1 m.val + key.2
+    ProbComp.eval (oneTimeForgeExperiment (ProbComp.uniform (F × F)) (fun k m => pure (H k m))
+      (fun k m t => decide (H k m = t)) (A.choose ()) A.guess) true ≤ (ℓ + 1) / Fintype.card F :=
+  oneTimeForgeExperiment_hash_le
+    (isPairwiseUnpredictable_add_uniform (isDeltaUniversalHash_xpolyHash (F := F) ℓ)) A
 
 private def repeatWithWrongTag : TwoStage Unit Bool Bool (Bool × Bool) Unit where
   choose _ := pure (false, ())
@@ -81,7 +81,8 @@ private def repeatWithWrongTag : TwoStage Unit Bool Bool (Bool × Bool) Unit whe
 /-- A fresh pair with the queried message and a different tag fails equality verification. -/
 example : ProbComp.eval
     (oneTimeForgeExperiment (pure ()) (fun _ _ => pure true)
-      (fun _ _ t => decide (true = t)) repeatWithWrongTag) true = 0 := by
+      (fun _ _ t => decide (true = t))
+      (repeatWithWrongTag.choose ()) repeatWithWrongTag.guess) true = 0 := by
   simp [oneTimeForgeExperiment, repeatWithWrongTag]
 
 end Cslib.Crypto.UHF.Tests

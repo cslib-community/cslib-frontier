@@ -29,18 +29,6 @@ open scoped ENNReal
 
 variable {K M T σ : Type}
 
-/-- The fresh-pair MAC experiment with exactly one signing response ([BonehShoup2023], Attack
-Game 6.1 restricted as in Section 7.6). The adversary chooses the query, then sees its tag and
-uses its saved state to produce a candidate pair. The challenger keeps the key private. -/
-@[expose] def oneTimeForgeExperiment [DecidableEq M] [DecidableEq T] (keyGen : ProbComp K)
-    (sign : K → M → ProbComp T) (verify : K → M → T → Bool)
-    (A : TwoStage Unit M T (M × T) σ) : Experiment := do
-  let k ← keyGen
-  let (m, state) ← A.choose ()
-  let t ← sign k m
-  let (m', t') ← A.guess state t
-  return verify k m' t' && freshPair m' t' [(m, t)]
-
 /-- **Theorem 7.12** ([BonehShoup2023], v0.6, Section 7.6.3, printed p. 276).
 For a private uniform key, using an `ε`-PUF's digest as the tag gives success probability at
 most `ε` for every fresh-pair forger after one signing response. The two-stage adversary can
@@ -49,12 +37,12 @@ theorem oneTimeForgeExperiment_hash_le [Fintype K] [Nonempty K] [DecidableEq M] 
     {H : K → M → T} {ε : ℝ≥0∞} (h : UHF.IsPairwiseUnpredictable H ε)
     (A : TwoStage Unit M T (M × T) σ) :
     ProbComp.eval (oneTimeForgeExperiment (ProbComp.uniform K) (fun k m => pure (H k m))
-      (fun k m t => decide (H k m = t)) A) true ≤ ε := by
+      (fun k m t => decide (H k m = t)) (A.choose ()) A.guess) true ≤ ε := by
   let B : UHF.PredictionAdversary M T σ :=
     ⟨A.choose, fun state t => (fun p => ⟨p.1, p.2⟩) <$> A.guess state t⟩
   have sameLaw : ProbComp.eval
       (oneTimeForgeExperiment (ProbComp.uniform K) (fun k m => pure (H k m))
-        (fun k m t => decide (H k m = t)) A) =
+        (fun k m t => decide (H k m = t)) (A.choose ()) A.guess) =
       ProbComp.eval (UHF.predictionExperiment H B) := by
     simp only [oneTimeForgeExperiment, UHF.predictionExperiment, B, ProbComp.eval_bind,
       ProbComp.eval_pure, PMF.pure_bind]
