@@ -530,7 +530,7 @@ theorem coupledTable_diverge_le_of_lll [Fintype ι] (A : ι → Set (∀ v, α v
 omit [Fintype V] [DecidableEq V] [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
 /-- The symmetric hypothesis `e p (d + 1) ≤ 1`, with at most `d` neighbours per event, gives the
 asymmetric one with the weights `x = 1 / (d + 2)`. -/
-private theorem lll_of_symm {A : ι → Set (∀ v, α v)} (m : Measure (∀ v, α v))
+theorem lll_of_symm {A : ι → Set (∀ v, α v)} (m : Measure (∀ v, α v))
     (Γ : ι → Finset ι) {d : ℕ} (hΓd : ∀ i, (Γ i).card ≤ d) {p : ℝ} (hP : ∀ i, m.real (A i) ≤ p)
     (hp : Real.exp 1 * p * (d + 1) ≤ 1) :
     (∀ _ : ι, 1 / (d + 2 : ℝ) ∈ Set.Ico 0 1) ∧
