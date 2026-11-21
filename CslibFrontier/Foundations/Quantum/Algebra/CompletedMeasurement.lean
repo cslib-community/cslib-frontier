@@ -40,6 +40,19 @@ namespace Cslib.Quantum.Measurement
 open Finset
 open scoped BigOperators
 
+section OrderedRing
+
+variable {A α β : Type*} [Ring A] [PartialOrder A] [IsOrderedAddMonoid A]
+  [Fintype α] [Fintype β]
+
+/-- Mapping optional outcomes groups the successful effects by the fibers of the map. -/
+theorem map_option_effect_some [DecidableEq β] (P : Measurement (Option α) A) (f : α → β)
+    (b : β) : (P.map (Option.map f)).effect (some b) = ∑ a with f a = b, P.effect (some a) := by
+  rw [map_effect, sum_filter, Fintype.sum_option, sum_filter]
+  simp
+
+end OrderedRing
+
 variable {A α β κ : Type*} [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
   [Fintype α] [Fintype β] [Fintype κ]
 
@@ -73,12 +86,6 @@ theorem successfulEffect_mem_Icc (P : Measurement (Option α) A) :
   ⟨sum_nonneg fun a _ => P.nonneg (some a), by
     rw [← sub_nonneg, ← P.effect_none_eq_one_sub_successfulEffect]
     exact P.nonneg none⟩
-
-/-- Mapping optional outcomes groups the successful effects by the fibers of the map. -/
-theorem map_option_effect_some [DecidableEq β] (P : Measurement (Option α) A) (f : α → β)
-    (b : β) : (P.map (Option.map f)).effect (some b) = ∑ a with f a = b, P.effect (some a) := by
-  rw [map_effect, sum_filter, Fintype.sum_option, sum_filter]
-  simp
 
 private theorem norm_sum_effect_mul_sq_le (φ : AlgState A)
     (M : Measurement β A) (hM : M.IsProjective) (ι : κ ↪ β) (X : κ → A) :

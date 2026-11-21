@@ -47,6 +47,7 @@ words of weight at most `e` form a Hamming ball of size `B(n, e) = ∑ j ∈ ran
 * `Cslib.BitString.weight_le`, `Cslib.BitString.weight_le_length`: the weight is at most the number
   of coordinates.
 * `Cslib.BitString.monotone_weight`: the weight is monotone.
+* `Cslib.BitString.weight_comp_equiv`: relabelling the coordinates preserves the weight.
 * `Cslib.BitString.card_weightLayer`: there are `n.choose k` strings of `n` bits of weight `k`.
 * `Cslib.BitString.card_filter_weight_le`, `Cslib.BitString.card_filter_weight_le_eq_ballSize`: the
   exact binomial-sum size of a Hamming ball.
@@ -234,6 +235,12 @@ theorem weight_comp_le {κ : Type*} [Fintype κ] (x : ι → Bool) {f : κ → �
   exact Fintype.card_le_of_injective
     (fun i : {i : κ // (x ∘ f) i = true} => (⟨f i, i.property⟩ : {j : ι // x j = true}))
     (fun _ _ h => Subtype.ext (hf (congrArg Subtype.val h)))
+
+/-- Relabelling the coordinates along a bijection preserves the weight. -/
+theorem weight_comp_equiv {κ : Type*} [Fintype κ] (x : ι → Bool) (e : κ ≃ ι) :
+    weight (x ∘ e) = weight x := by
+  simp only [weight_eq_sum_toNat]
+  exact Equiv.sum_comp e fun i => (x i).toNat
 
 /-- A finite family of words of weight at most `e` attains at most the Hamming-ball size.
 The map need not be injective, and the radius may exceed the number of coordinates. -/
