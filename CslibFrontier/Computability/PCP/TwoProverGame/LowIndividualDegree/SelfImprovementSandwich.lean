@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PointVariance
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialMeasurement
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialPointEffect
 public import CslibFrontier.Foundations.Quantum.Algebra.SuccessfulAgreement
@@ -27,8 +28,6 @@ weighted-variance errors. A separate estimate from the verifier bounds the varia
 
 * `Cslib.PCP.LowIndividualDegree.sandwichedPolynomialMeasurement`: the average
   of the point-sandwiched polynomial effects, completed by a failure outcome.
-* `Cslib.PCP.LowIndividualDegree.weightedPointVariance`: the variation of the
-  point effects selected by each polynomial, weighted by its measurement effect.
 
 ## Main results
 
@@ -70,14 +69,6 @@ theorem sandwichedPolynomialMeasurement_effect_some
         (R u).effect (eval u g.val) * T.effect g * (R u).effect (eval u g.val) := by
   rw [sandwichedPolynomialMeasurement, Measurement.mixture_uniform_effect]
   simp only [Measurement.sandwichBy_effect_some]
-
-/-- The weighted state distance between point effects selected by the same polynomial
-at independent uniform points. This uses the sum over polynomial outcomes. -/
-noncomputable def weightedPointVariance (φ : AlgState A) (L : Point F m → Measurement F A)
-    (T : Measurement (BoundedPolynomial F m d) A) : ℝ :=
-  𝔼 u : Point F m, 𝔼 v : Point F m, ∑ g,
-    let D := (L v).effect (eval v g.val) - (L u).effect (eval u g.val)
-    (φ (star D * T.effect g * D)).re
 
 omit [Field F] [DecidableEq F] in
 private theorem sum_copy_sandwich_le {β : Type*} [Fintype β]

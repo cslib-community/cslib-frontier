@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.PDerivDegree
 public import Mathlib.Algebra.MvPolynomial.CommRing
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.Tactic.Ring
 
 /-!
@@ -98,4 +99,30 @@ theorem criticalLower_degree (ell : ℕ) (hell : 1 ≤ ell) (a : Fin n → S) (u
   rw [totalDegree_C] at hs
   change (C (a i ^ ell) - C u * pderiv i F).totalDegree < ell
   omega
+
+/-- The separated potential has degree at most `ell + 1`. -/
+theorem totalDegree_potentialPolynomial_le (ell : ℕ) (a : Fin n → S) :
+    (potentialPolynomial ell a).totalDegree ≤ ell + 1 := by
+  classical
+  apply totalDegree_finsetSum_le
+  intro i _
+  apply (totalDegree_add _ _).trans
+  apply max_le _ ((totalDegree_C _).trans_le (Nat.zero_le _))
+  apply (totalDegree_sub _ _).trans
+  apply max_le
+  · exact (totalDegree_pow _ _).trans (by
+      simpa only [mul_one] using Nat.mul_le_mul_left (ell + 1) (totalDegree_X_le (R := S) i))
+  · have hm := totalDegree_mul (C ((ell + 1 : ℕ) * a i ^ ell)) (X i)
+    rw [totalDegree_C, zero_add] at hm
+    exact hm.trans ((totalDegree_X_le i).trans (by omega))
+
+/-- The scalar deformation preserves the larger of the potential and input degree bounds. -/
+theorem totalDegree_deformedPolynomial_le (ell : ℕ) (a : Fin n → S) (u : S)
+    (F : MvPolynomial (Fin n) S) (hF : F.totalDegree ≤ ell + 1) :
+    (deformedPolynomial ell a u F).totalDegree ≤ ell + 1 := by
+  have hm := totalDegree_mul (C ((ell + 1 : ℕ) * u)) F
+  rw [totalDegree_C, zero_add] at hm
+  exact (totalDegree_add _ _).trans
+    (max_le (totalDegree_potentialPolynomial_le ell a) (hm.trans hF))
+
 end MvPolynomial.CriticalSystem
