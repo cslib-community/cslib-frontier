@@ -153,6 +153,24 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   exact ⟨hbefore, hhalt, hadj, hspace,
     configurationJustesenSubdivisionEdge_firstHalting_iff ntm c w seed u v⟩
 
+-- The clock covers arbitrary selectors, and an initial wrong selector may be padded.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let I := configurationInstance ntm c w
+      let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+      ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (u v : Fin size.vertexCount)
+        (a b d : Bool) (extra : List Bool),
+        let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
+        let start := some (justesenSubdivisionEdgeStart (ctx, u.val, v.val))
+        let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+        M.halted (M.replay w [a, b, d] start) = true ∧
+          (encOption encJustesenSubdivisionState (M.replay w (true :: extra) start)).length ≤
+            C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hC⟩ := configurationJustesenSubdivisionEdge_choice_bounds ntm c
+  refine ⟨C, fun w seed u v a b d extra => ?_⟩
+  obtain ⟨hclock, hspace⟩ := hC w seed u v
+  exact ⟨hclock [a, b, d] rfl, hspace (true :: extra)⟩
+
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     PolyBounded List.length (configurationJustesenBoundedWalkClock ntm c) :=
   configurationJustesenBoundedWalkClock_polyBounded ntm c
