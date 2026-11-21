@@ -625,7 +625,7 @@ theorem run_interpret_counterRealHandler {α : Type} [Fintype Y] [Nonempty Y] (h
     PMF.monad_pure_eq_pure, StateT.pure]
   rw [PMF.map_bind]
   symm
-  simpa only [pmf_norm, transcriptToPads, List.map_append, List.map_cons, List.map_nil] using
+  simpa only [pmf_norm, sign, transcriptToPads, List.map_append, List.map_cons, List.map_nil] using
     PMF.uniformOfFintype_bind_add_offset (hash k m) fun t r =>
       PMF.pure (t, transcriptToPads hash k s ++ [(m, r)])
 
