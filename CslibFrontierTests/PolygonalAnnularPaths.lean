@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary annular routing client)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
+public import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
 import Mathlib.Analysis.SpecialFunctions.Complex.Circle
 import Mathlib.Tactic.FinCases
 
@@ -142,7 +143,7 @@ private theorem threePorts_angle {r : ℝ} (hr : 0 < r) (shift : Bool) (i : Fin 
   rw [sub_zero, threePorts, Complex.arg_real_mul _ hr, Real.Angle.arg_toCircle]
 
 -- The matching shifts a whole three-entry clockwise word across the angle cut.
-example :
+private theorem cyclic_shift_paths :
     ∃ γ : Fin 3 → ℝ → ℂ, (∀ i, Continuous (γ i)) ∧
       (∀ i, γ i 0 = threePorts 1 false i) ∧ (∀ i, γ i 1 = threePorts 2 true i) ∧
       (∀ i t, t ∈ Set.Icc 0 1 → ‖γ i t‖ = AffineMap.lineMap (1 : ℝ) 2 t) ∧
@@ -156,5 +157,23 @@ example :
     (by simpa only [threePorts_angle zero_lt_one] using threeAngles_order false)
     (by simpa only [threePorts_angle htwo] using threeAngles_order true)
   exact ⟨γ, hcont, hstart, hfinish, by simpa only [sub_zero] using hnorm, hinj⟩
+
+-- The same three matching pairs can use finite routes with pairwise disjoint supports.
+example : ∃ P : Fin 3 → Route,
+    (∀ i, (P i).start = threePorts 1 false i) ∧
+    (∀ i, (P i).finish = threePorts 2 true i) ∧
+    Pairwise (fun i j => Disjoint (P i).support (P j).support) := by
+  obtain ⟨γ, hcont, hstart, hfinish, _, hinj⟩ := cyclic_shift_paths
+  have hsep : Pairwise (fun i j => Disjoint (γ i '' Set.Icc 0 1) (γ j '' Set.Icc 0 1)) := by
+    intro i j hij
+    apply Set.disjoint_left.mpr
+    rintro _ ⟨s, hs, rfl⟩ ⟨t, ht, heq⟩
+    have h : (i, s) = (j, t) := hinj hs ht heq.symm
+    exact hij (congrArg Prod.fst h)
+  obtain ⟨m, hm⟩ :=
+    (Route.eventually_pairwise_disjoint_sampled γ (fun i => (hcont i).continuousOn) hsep).exists
+  exact ⟨fun i => Route.sampled (γ i) m,
+    fun i => (Route.sampled_start (γ i) m).trans (hstart i),
+    fun i => (Route.sampled_finish (γ i) m).trans (hfinish i), hm⟩
 
 end CslibFrontierTests.PolygonalAnnularPaths
