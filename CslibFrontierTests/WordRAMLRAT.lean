@@ -7,8 +7,8 @@ Authors: Matthew Doty
 import CslibFrontier.Algorithms.WordRAM.LRAT.Checker
 
 /-! The LRAT checker on the word RAM: the encoding of a small formula and certificate, runs of the
-compiled program that accept a certificate and reject others, and the hypothesis of
-`program_spec` at word size `64`. -/
+compiled program that accept a certificate and reject others, the quantities of the coarser bound
+of `program_spec_dbWidth`, and the hypothesis of both bounds at word size `64`. -/
 
 set_option linter.hashCommand false
 
@@ -43,6 +43,18 @@ def runChecker (ψ : CNF ℕ) (c : Array LRAT.IntAction) : Option (ℕ × ℕ) :
 
 example : certWork φ cert = 9 := by decide
 
+-- The quantities of `program_spec_dbWidth`: the longest clause of the database has length `2`, and
+-- the certificate has `5` hints and is encoded by `12` words, so `certWork φ cert = 9 ≤ 5 · 2` and
+-- the coarser bound is `60 · (25 + 12 · 2) + 60 = 3000`.
+example : dbWidth φ cert = 2 := by decide
+
+example : hintCount cert = 5 := by decide
+
+example : (stepWords cert.toList).length = 12 := by decide
+
+-- An added clause can be the widest: the RUP step adds a clause of length `3`.
+example : dbWidth [[(0, true)]] #[.addRup 2 #[1, 2, 3] #[], .addEmpty 3 #[]] = 3 := by decide
+
 -- Hints that do not propagate to a conflict are rejected.
 #guard runChecker φ #[.addEmpty 5 #[3, 4]] == some (0, 121)
 
@@ -66,5 +78,10 @@ example : certWork φ cert = 9 := by decide
 example : ∃ n ≤ 60 * (encode φ cert).length + 20 * certWork φ cert + 21,
     Executes 64 program (State.init (encode φ cert)) 1 n :=
   program_spec φ cert (w := 64) (by decide)
+
+-- The coarser bound at word size `64`.
+example : ∃ n ≤ 3000, Executes 64 program (State.init (encode φ cert)) 1 n := by
+  obtain ⟨n, hn, he⟩ := program_spec_dbWidth φ cert (w := 64) (by decide)
+  exact ⟨n, hn.trans_eq (by decide), he⟩
 
 end CslibFrontierTests.WordRAMLRAT
