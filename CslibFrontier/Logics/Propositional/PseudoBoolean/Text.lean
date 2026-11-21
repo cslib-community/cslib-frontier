@@ -21,9 +21,9 @@ extended as described below, producing the abstract syntax checked by
 * an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPB`, `Cslib.Logic.PL.VeriPB.Instance`): an
   optional objective line `min: ∑ wᵢ ℓᵢ [k];`, with an optional constant `k`, and an optional
   preserved-set line `preserved: x₁ … xₙ;`, in either order, before the constraints
-  (`Cslib.Logic.PL.VeriPB.Objective`), then one
-  constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one of `>=`, `<=`, `=`, an equality counting as the
-  two constraints `≥` and `≤` in this order; lines starting with `*` are comments;
+  (`Cslib.Logic.PL.VeriPB.Objective`), then one constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one
+  of `>=`, `<=`, `=`, an equality counting as the two constraints `≥` and `≤` in this order; lines
+  starting with `*` are comments;
 * a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
   exactly `C` clauses over the variables `1, …, V`, its clause `1 -2 3 0` read as the constraint
   `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
@@ -37,11 +37,14 @@ extended as described below, producing the abstract syntax checked by
   `end pseudo-Boolean proof;`.
 
 **Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1
-of the VeriPB/CakePB documentation, 22 June 2026 edition), with three extensions. First, the
-line `f N;` is optional, as in the general format (§4.1). The kernel format requires it as the
-first command after the header (§6.1), but a proof without it is accepted and checked against
-the parsed formula. The other two extensions, `del id` and `rup` without hints, are described
-under **Steps**. So a proof accepted here need not be a kernel proof.
+of the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented
+format. First, the line `f N;` is optional, as in the general format (§4.1). The kernel format
+requires it as the first command after the header (§6.1), but a proof without it is accepted and
+checked against the parsed formula. Second, `red`, the checked `delc` and `obju` may omit their
+subproof, and a goal is also autoproven when it is a constraint of the database up to the order
+of its terms (`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the
+subproof (§6.1). The remaining extensions, `del id` and `rup` without hints, are described under
+**Steps**. So a proof accepted here need not be a kernel proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
@@ -56,11 +59,11 @@ numbers), the orders of `def_order` without auxiliary variables or specification
 section with `left`, `right` and an empty `aux;` line, which the kernel format requires and is
 optional here, a `def` section, a `transitivity` section with `fresh_right` variables and a
 `proof`, an optional `reflexivity` section; §5.3), `load_order` with and without literals, the
-solution-logging steps `sol`, `soli` and `solx` and the bound `obji`
-(§5.8), the
-objective update `obju new` or `obju diff` with an optional subproof of `proofgoal #1` and `#2`
-(§5.9), `core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1):
-`deld` of derived constraints, the unchecked `delc` of core constraints, and the checked
+solution-logging steps `sol`, `soli` and `solx` and the bound `obji` (§5.8), the objective update
+`obju new` or `obju diff` with an objective in the OPB syntax, an optional constant included, and
+an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id` (§5.1),
+`strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
+constraints, the unchecked `delc` of core constraints, and the checked
 `delc id : ω` of one core constraint, with an optional subproof. Deletion, `core`,
 strengthening-to-core, solution logging, `obji` and `obju` are accepted only at top level, as
 the format requires. Two steps of the augmented format are also accepted: `del id`, read as the
@@ -85,13 +88,14 @@ input parses to a formula with no 0/1 solution
 `Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`), the stated assignment of `SAT : ρ`
 being one (`Cslib.Logic.PL.VeriPB.Text.holds_of_checkOPB_sat`); if `BOUNDS lb : q ub`, to an
 instance with an objective `f` whose every solution has value at least `lb` and, for a finite
-`ub`, some solution has value at most `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`).
+`ub`, some solution has value at most `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`);
 if `ENUMERATION_PARTIAL n` or `ENUMERATION_COMPLETE n : q`, to an instance with a preserved set
 whose solutions have at least, or exactly, `n` distinct projections to it
 (`Cslib.Logic.PL.VeriPB.Text.le_encard_of_checkOPB_enumPartial`,
-`Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`). `NONE` claims nothing. An
-accepted output section gives its guarantee between the instance and the output formula
-(`Cslib.Logic.PL.VeriPB.Text.semOutput_of_checkOPBOutput`).
+`Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`). An enumeration needs a
+`preserved:` line, even for `n = 0`, which VeriPB 3.0.2 and CakePB accept without one. `NONE`
+claims nothing. An accepted output section gives its guarantee between the instance and the
+output formula (`Cslib.Logic.PL.VeriPB.Text.semOutput_of_checkOPBOutput`).
 This is a guarantee about the text and the formula the parser returns: the parsers are trusted
 to read the files as intended, and nothing is said about compiled code. It is smaller than the
 end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
@@ -104,6 +108,8 @@ which also covers the execution of its compiled machine code and the parsing of 
 * `Cslib.Logic.PL.VeriPB.Text.parseProof`: proofs in the supported fragment.
 * `Cslib.Logic.PL.VeriPB.Text.checkOPB`, `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`,
   `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`: the checkers.
+* `Cslib.Logic.PL.VeriPB.Text.Names.Separates`: names that read an output text without aliasing
+  the variables of the instance.
 
 ## Main results
 
@@ -112,7 +118,12 @@ which also covers the execution of its compiled machine code and the parsing of 
 * `Cslib.Logic.PL.VeriPB.Text.exists_satisfies_of_checkOPB`,
   `Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`: soundness of `SAT`.
 * `Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`: soundness of `BOUNDS`.
-* `Cslib.Logic.PL.VeriPB.Text.semOutput_of_checkOPBOutput`: soundness of output sections.
+* `Cslib.Logic.PL.VeriPB.Text.le_encard_of_checkOPB_enumPartial`,
+  `Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`: soundness of `ENUMERATION`.
+* `Cslib.Logic.PL.VeriPB.Text.semOutput_of_checkOPBOutput`: soundness of output sections;
+  `Cslib.Logic.PL.VeriPB.Text.exists_checkRed_of_checkOPBOutput`: the conclusion of a proof with
+  an output section is that of an accepted proof. The soundness theorems of the conclusions take
+  `checkOPBOutput` with any output text, `checkOPB` being the case of none.
 
 ## References
 
@@ -128,7 +139,7 @@ namespace Cslib.Logic.PL.VeriPB.Text
 
 /-- The tokens of a text: whitespace-separated, with `;` a token of its own and everything after
 `%` on a line a comment. -/
-private def tokens (s : String) : List String :=
+def tokens (s : String) : List String :=
   (s.splitOn "\n").flatMap fun line =>
     ((((line.splitOn "%").headD "").replace ";" " ; ").split Char.isWhitespace).toList.map
       (·.toString) |>.filter (· ≠ "")
@@ -174,9 +185,31 @@ def Names.lit? (N : Names) (t : String) : Option (Literal ℕ) :=
   if t.startsWith "~" then (N.var? (t.drop 1).toString).map ((·, false))
   else (N.var? t).map ((·, true))
 
+/-- A token without the `~` of a negative literal. -/
+def bareName (t : String) : String := if t.startsWith "~" then (t.drop 1).toString else t
+
+/-- **The names `N` read the output text `t` of the instance `I` without aliasing.** The
+non-standard names are distinct and none is a standard name `xN`; they are numbered from
+`N.base`, which is above every variable of `I` and every standard name of `t`. So distinct names
+of `t` denote distinct variables, and a variable of `I` is denoted in `t` only by its standard
+name. -/
+structure Names.Separates (N : Names) (I : Instance) (t : String) : Prop where
+  /-- The non-standard names are distinct. -/
+  nodup : N.others.Nodup
+  /-- No non-standard name is a standard name. -/
+  others_std : ∀ s ∈ N.others, stdVar? s = none
+  /-- The variables of the constraints of `I` are below `N.base`. -/
+  constraints_lt : ∀ c ∈ I.constraints, ∀ x ∈ c.terms, PBConstr.termVar x < N.base
+  /-- The variables of the objective of `I` are below `N.base`. -/
+  objective_lt : ∀ f ∈ I.objective, ∀ e ∈ f.lin, e.1 < N.base
+  /-- The preserved variables of `I` are below `N.base`. -/
+  preserved_lt : ∀ P ∈ I.preserved, ∀ v ∈ P, v < N.base
+  /-- The standard names of `t` are below `N.base`. -/
+  std_lt : ∀ s ∈ tokens t, ∀ v, stdVar? (bareName s) = some v → v < N.base
+
 /-- The names of the proof tokens `ts` over a formula whose variables are below `nvars`. -/
 private def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
-  let bare := ts.map fun t => if t.startsWith "~" then (t.drop 1).toString else t
+  let bare := ts.map bareName
   ⟨(bare.filter fun t => isName t && (stdVar? t).isNone).dedup,
     (bare.filterMap stdVar?).foldr (fun v m => max (v + 1) m) nvars⟩
 
@@ -184,7 +217,8 @@ private def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
 
 /-- The terms `a ℓ` of a constraint or an objective, up to the relation, `;` or `:`, as an integer
 linear form and a constant: that contributed by negative literals (`a ¬x = a - a x`) and, in an
-objective, a final constant term. -/
+objective, a final constant term. A constraint never ends in `;` or `:` before its relation, so
+`constr` still rejects a constant there. -/
 private def terms (N : Names) :
     ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
   | 0, _, _, _ => none
@@ -244,11 +278,18 @@ private def opbLines (N : Names) : List (List String) → Option (List PBConstr)
       | some (cs, [";"]), some F => some (cs ++ F)
       | _, _ => none
 
+/-- An objective `∑ wᵢ ℓᵢ [k]` with an optional constant `k`, up to `;` or `:`, and the rest from
+there: the OPB objective syntax, which `obju` reuses (§5.9). -/
+private def objTerms (N : Names) (ts : List String) : Option (Objective × List String) :=
+  match terms N (ts.length + 1) ts [] 0 with
+  | some (L, k, t :: rest) => if t == ";" || t == ":" then some (⟨L, k⟩, t :: rest) else none
+  | _ => none
+
 /-- An objective line `min: ∑ wᵢ ℓᵢ [k];`, given its tokens after `min:`, with an optional
 constant `k`. -/
 private def objective (N : Names) (ts : List String) : Option Objective :=
-  match terms N (ts.length + 1) ts [] 0 with
-  | some (L, k, [";"]) => some ⟨L, k⟩
+  match objTerms N ts with
+  | some (f, [";"]) => some f
   | _ => none
 
 /-- The variables of a `preserved:` line, up to `;`. -/
@@ -545,29 +586,22 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
     | _ => none
   | "strengthening_to_core" :: "on" :: ";" :: rest => some ([.strengthenToCore true], rest)
   | "strengthening_to_core" :: "off" :: ";" :: rest => some ([.strengthenToCore false], rest)
-  | "sol" :: ts =>
+  | k@"sol" :: ts | k@"solx" :: ts | k@"soli" :: ts =>
     match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.sol ρ], rest)
-    | _ => none
-  | "solx" :: ts =>
-    match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.solx ρ], rest)
-    | _ => none
-  | "soli" :: ts =>
-    match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.soli ρ], rest)
+    | some (ρ, ";" :: rest) =>
+      some ([if k == "sol" then .sol ρ else if k == "solx" then .solx ρ else .soli ρ], rest)
     | _ => none
   | "obji" :: v :: ";" :: rest => (int? v).map fun v => ([.obji v], rest)
   | "obju" :: kind :: ts =>
     (if kind == "new" then some false else if kind == "diff" then some true else none).bind
       fun diff =>
-        match terms N (ts.length + 1) ts [] 0 with
-        | some (L, k, ";" :: rest) => some ([.obju diff ⟨L, k⟩ none], rest)
-        | some (L, k, ":" :: "subproof" :: rest) =>
+        match objTerms N ts with
+        | some (g, ";" :: rest) => some ([.obju diff g none], rest)
+        | some (g, ":" :: "subproof" :: rest) =>
           (redItems N fuel rest).bind fun (items, rest) =>
             match rest with
             | "qed" :: ";" :: rest | "qed" :: "obju" :: ";" :: rest =>
-              some ([.obju diff ⟨L, k⟩ (some items)], rest)
+              some ([.obju diff g (some items)], rest)
             | _ => none
         | _ => none
   | "core" :: "id" :: ts =>
@@ -661,11 +695,14 @@ def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
 
 /-! ### The checkers -/
 
-/-- The number of variables of a formula and an objective: one more than their largest
-variable. -/
-private def numVars (F : List PBConstr) (obj : Option Objective) : ℕ :=
+/-- The number of variables of a formula, an objective and a preserved set: one more than their
+largest variable. The names a proof introduces are numbered from there, so they never collide
+with a preserved variable absent from the formula and the objective. -/
+private def numVars (F : List PBConstr) (obj : Option Objective)
+    (pres : Option (List ℕ) := none) : ℕ :=
   (F.flatMap PBConstr.terms).foldr (fun t m => max (PBConstr.termVar t + 1) m)
-    ((obj.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m) 0)
+    ((obj.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m)
+      (pres.getD [] |>.foldr (fun v m => max (v + 1) m) 0))
 
 /-- **Check a proof with an output section for an OPB instance**, in the supported fragment,
 with the output formula `out` for `output g FILE;`: the conclusion and the output, `none` for
@@ -675,7 +712,7 @@ formula is read with the names of the proof, the names of both texts being numbe
 def checkOPBOutput (opb pbp : String) (out : Option String := none) :
     Option (Conclusion × Option Output) :=
   (parseOPB opb).bind fun I =>
-    let N := Names.ofTokens (numVars I.constraints I.objective)
+    let N := Names.ofTokens (numVars I.constraints I.objective I.preserved)
       (tokens pbp ++ (out.map tokens).getD [])
     (proofIn I.constraints.length N (tokens pbp)).bind fun (P, sec) =>
       match sec, out with
@@ -708,7 +745,9 @@ private theorem of_checkOPBOutput {opb pbp : String} {out : Option String} {c : 
     {o : Option Output} (h : checkOPBOutput opb pbp out = some (c, o)) :
     ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
       P.conclusion = c ∧ ∀ o' ∈ o, ∃ g O, checkRedOutput I.constraints I.objective P I.preserved
-        ⟨g, O⟩ = some o' ∧ ∀ t ∈ out, ∃ O' N, O = some O' ∧ parseOPB t N = some O' := by
+        ⟨g, O⟩ = some o' ∧ ∀ t ∈ out, ∃ O', O = some O' ∧
+          parseOPB t (Names.ofTokens (numVars I.constraints I.objective I.preserved)
+            (tokens pbp ++ tokens t)) = some O' := by
   simp only [checkOPBOutput, Option.bind_eq_some_iff] at h
   obtain ⟨I, hI, ⟨P, sec⟩, -, h⟩ := h
   split at h
@@ -720,73 +759,118 @@ private theorem of_checkOPBOutput {opb pbp : String} {out : Option String} {c : 
     obtain ⟨o', ho', h⟩ := Option.map_eq_some_iff.1 h
     cases h
     exact ⟨I, P, hI, checkRed_of_checkRedOutput ho', rfl, fun _ h => by
-      cases h; exact ⟨_, some O, ho', fun t' ht' => by cases ht'; exact ⟨O, _, rfl, hO⟩⟩⟩
+      cases h; exact ⟨_, some O, ho', fun t' ht' => by cases ht'; exact ⟨O, rfl, hO⟩⟩⟩
   · obtain ⟨o', ho', h⟩ := Option.map_eq_some_iff.1 h
     cases h
     exact ⟨I, P, hI, checkRed_of_checkRedOutput ho', rfl, fun _ h => by
       cases h; exact ⟨_, none, ho', fun t' ht' => by cases ht'⟩⟩
   · cases h
 
-private theorem exists_checkRed_of_checkOPB {opb pbp : String} {c : Conclusion}
-    (h : checkOPB opb pbp = some c) :
+/-- **The conclusion of an accepted proof, with or without an output section**: the instance
+parses and a proof of it with that conclusion is accepted by
+`Cslib.Logic.PL.VeriPB.checkRed`, so the soundness theorems of the conclusions apply. -/
+theorem exists_checkRed_of_checkOPBOutput {opb pbp : String} {out : Option String}
+    {concl : Conclusion} (h : (checkOPBOutput opb pbp out).map (·.1) = some concl) :
     ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
-      P.conclusion = c := by
-  rw [checkOPB, Option.map_eq_some_iff] at h
+      P.conclusion = concl := by
+  rw [Option.map_eq_some_iff] at h
   obtain ⟨⟨c', o⟩, h', rfl⟩ := h
   obtain ⟨I, P, hI, hP, hc, -⟩ := of_checkOPBOutput h'
   exact ⟨I, P, hI, hP, hc⟩
 
+/-- Bounds from a maximum fold: it is at least its start and each folded value. -/
+private theorem le_foldr_max {α : Type} (g : α → ℕ) (b : ℕ) (l : List α) :
+    b ≤ l.foldr (fun x m => max (g x) m) b ∧ ∀ x ∈ l, g x ≤ l.foldr (fun x m => max (g x) m) b := by
+  induction l with
+  | nil => simp
+  | cons x l ih =>
+    simp only [List.foldr_cons, List.mem_cons, forall_eq_or_imp]
+    exact ⟨ih.1.trans (le_max_right _ _), le_max_left _ _,
+      fun y hy => (ih.2 y hy).trans (le_max_right _ _)⟩
+
+/-- The names of a proof and an output text over an instance separate the two
+(`Cslib.Logic.PL.VeriPB.Text.Names.Separates`). -/
+private theorem separates_ofTokens (I : Instance) (ts t : List String) (ht : ∀ s ∈ t, s ∈ ts)
+    (u : String) (hu : tokens u = t) :
+    (Names.ofTokens (numVars I.constraints I.objective I.preserved) ts).Separates I u := by
+  have hF := le_foldr_max (fun t => PBConstr.termVar t + 1)
+    ((I.objective.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m)
+      (I.preserved.getD [] |>.foldr (fun v m => max (v + 1) m) 0))
+    (I.constraints.flatMap PBConstr.terms)
+  have hO := le_foldr_max (fun e : ℕ × ℤ => e.1 + 1)
+    (I.preserved.getD [] |>.foldr (fun v m => max (v + 1) m) 0)
+    ((I.objective.map (·.lin)).getD [])
+  have hP := le_foldr_max (fun v => v + 1) 0 (I.preserved.getD [])
+  have hB := le_foldr_max (fun v => v + 1) (numVars I.constraints I.objective I.preserved)
+    ((ts.map bareName).filterMap stdVar?)
+  simp only [numVars] at hB
+  dsimp only [Names.ofTokens, numVars]
+  refine ⟨List.nodup_dedup _, fun s hs => ?_, fun c hc x hx => ?_, fun f hf e he => ?_,
+    fun P hP' v hv => ?_, fun s hs v hv => ?_⟩
+  · simp only [List.mem_dedup, List.mem_filter, Bool.and_eq_true, Option.isNone_iff_eq_none] at hs
+    exact hs.2.2
+  · exact lt_of_lt_of_le (hF.2 x (List.mem_flatMap.2 ⟨c, hc, hx⟩)) hB.1
+  · exact lt_of_lt_of_le (hO.2 e (by simpa [Option.mem_def.1 hf] using he)) (hF.1.trans hB.1)
+  · exact lt_of_lt_of_le (hP.2 v (by simpa [Option.mem_def.1 hP'] using hv))
+      (hO.1.trans (hF.1.trans hB.1))
+  · exact hB.2 v (List.mem_filterMap.2 ⟨bareName s, List.mem_map_of_mem (ht s (hu ▸ hs)), hv⟩)
+
 /-- **Soundness of the output section for OPB text**: if a proof with an output section is
 accepted, the instance parses, the guarantee holds between it and the output formula for the
 returned bound (`Cslib.Logic.PL.VeriPB.semOutput`), and the bound is at least the value of some
-solution of the instance. For `FILE` the output formula is the output text, read with some names
-(those of the proof, in which a standard name `xN` is the variable `N - 1`). The conclusion is
-sound as for `Cslib.Logic.PL.VeriPB.Text.checkOPB`. -/
-theorem semOutput_of_checkOPBOutput {opb pbp : String} {out : Option String} {c : Conclusion}
-    {o : Output} (h : checkOPBOutput opb pbp out = some (c, some o)) :
+solution of the instance. For `FILE` the output formula is the output text, read with names that
+separate it from the instance (`Cslib.Logic.PL.VeriPB.Text.Names.Separates`): a standard name
+`xN` is the variable `N - 1` of the instance, and every other name is a fresh variable. The
+conclusion is sound as for `Cslib.Logic.PL.VeriPB.Text.checkOPB`: the soundness theorems of the
+conclusions take `checkOPBOutput` with any output text. -/
+theorem semOutput_of_checkOPBOutput {opb pbp : String} {out : Option String} {concl : Conclusion}
+    {o : Output} (h : checkOPBOutput opb pbp out = some (concl, some o)) :
     ∃ I, parseOPB opb = some I ∧ semOutput I o.bound o.formula o.guarantee ∧
-      (∀ u ∈ o.bound, ∃ σ, (∀ c ∈ I.constraints, c.Holds σ) ∧ objValue I.objective σ ≤ u) ∧
-      ∀ t ∈ out, ∃ N, parseOPB t N = some o.formula := by
+      (∀ u ∈ o.bound, ∃ σ, (∀ d ∈ I.constraints, d.Holds σ) ∧ objValue I.objective σ ≤ u) ∧
+      ∀ t ∈ out, ∃ N, N.Separates I t ∧ parseOPB t N = some o.formula := by
   obtain ⟨I, P, hI, -, -, ho⟩ := of_checkOPBOutput h
   obtain ⟨g, O, ho, hO⟩ := ho o rfl
   refine ⟨I, hI, semOutput_of_checkRedOutput ho, exists_le_of_checkRedOutput ho, fun t ht => ?_⟩
-  obtain ⟨O', N, rfl, hN⟩ := hO t ht
-  exact ⟨N, (output_of_checkRedOutput ho).2 O' rfl ▸ hN⟩
+  obtain ⟨O', rfl, hN⟩ := hO t ht
+  exact ⟨_, separates_ofTokens I _ _ (fun s hs => List.mem_append_right _ hs) t rfl,
+    (output_of_checkRedOutput ho).2 O' rfl ▸ hN⟩
 
 /-- **Soundness of `UNSAT` for OPB text**: an accepted proof of `UNSAT` means the instance parses
 and its constraints have no 0/1 solution. -/
-theorem not_satisfiable_of_checkOPB {opb pbp : String} {q : ℕ}
-    (h : checkOPB opb pbp = some (.unsat q)) :
+theorem not_satisfiable_of_checkOPB {opb pbp : String} {out : Option String} {q : ℕ}
+    (h : (checkOPBOutput opb pbp out).map (·.1) = some (.unsat q)) :
     ∃ I, parseOPB opb = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ I.constraints, c.Holds σ := by
-  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPBOutput h
   exact ⟨I, hI, not_satisfiable_of_checkRed h hc⟩
 
 /-- **Soundness of `SAT` for OPB text**: an accepted proof of `SAT` means the instance parses
 and its constraints have a 0/1 solution. -/
-theorem exists_satisfies_of_checkOPB {opb pbp : String} {asg : Option (List (Literal ℕ))}
-    (h : checkOPB opb pbp = some (.sat asg)) :
+theorem exists_satisfies_of_checkOPB {opb pbp : String} {out : Option String}
+    {asg : Option (List (Literal ℕ))}
+    (h : (checkOPBOutput opb pbp out).map (·.1) = some (.sat asg)) :
     ∃ I, parseOPB opb = some I ∧ ∃ σ : ℕ → Bool, ∀ c ∈ I.constraints, c.Holds σ := by
-  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPBOutput h
   exact ⟨I, hI, exists_satisfies_of_checkRed h hc⟩
 
 /-- **Soundness of `SAT : ρ` for OPB text**: an accepted proof of `SAT` with the assignment `ρ`
 means the instance parses and `ρ` solves its constraints. -/
-theorem holds_of_checkOPB_sat {opb pbp : String} {ρ : List (Literal ℕ)}
-    (h : checkOPB opb pbp = some (.sat (some ρ))) :
+theorem holds_of_checkOPB_sat {opb pbp : String} {out : Option String} {ρ : List (Literal ℕ)}
+    (h : (checkOPBOutput opb pbp out).map (·.1) = some (.sat (some ρ))) :
     ∃ I, parseOPB opb = some I ∧ ∀ c ∈ I.constraints, c.Holds (assignOf ρ) := by
-  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPBOutput h
   exact ⟨I, hI, holds_of_checkRed_sat h hc⟩
 
 /-- **Soundness of `BOUNDS` for OPB text**: an accepted proof of `BOUNDS lb : q ub` means the
 instance parses with an objective `f`; every 0/1 solution `σ` of its constraints has a finite
 `lb` with `lb ≤ f σ` (so for `lb = INF` there is no solution); and for a finite `ub` some
 solution has objective at most `ub`. -/
-theorem bounds_of_checkOPB {opb pbp : String} {lb ub : Option ℤ} {q : ℕ}
-    {asg : Option (List (Literal ℕ))} (h : checkOPB opb pbp = some (.bounds lb q ub asg)) :
+theorem bounds_of_checkOPB {opb pbp : String} {out : Option String} {lb ub : Option ℤ} {q : ℕ}
+    {asg : Option (List (Literal ℕ))}
+    (h : (checkOPBOutput opb pbp out).map (·.1) = some (.bounds lb q ub asg)) :
     ∃ I f, parseOPB opb = some I ∧ I.objective = some f ∧
       (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → ∃ l, lb = some l ∧ l ≤ f.eval σ) ∧
       ∀ u, ub = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u := by
-  obtain ⟨I, P, hI, hck, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨I, P, hI, hck, hc⟩ := exists_checkRed_of_checkOPBOutput h
   cases hobj : I.objective with
   | none =>
     rw [hobj] at hck
@@ -806,11 +890,11 @@ theorem bounds_of_checkOPB {opb pbp : String} {lb ub : Option ℤ} {q : ℕ}
 /-- **Soundness of a partial enumeration for OPB text**: an accepted proof of
 `ENUMERATION_PARTIAL n` means the instance parses with a preserved set `P`, and its solutions have
 at least `n` distinct projections to `P`. -/
-theorem le_encard_of_checkOPB_enumPartial {opb pbp : String} {n : ℕ}
-    (h : checkOPB opb pbp = some (.enumPartial n)) :
+theorem le_encard_of_checkOPB_enumPartial {opb pbp : String} {out : Option String} {n : ℕ}
+    (h : (checkOPBOutput opb pbp out).map (·.1) = some (.enumPartial n)) :
     ∃ I P, parseOPB opb = some I ∧ I.preserved = some P ∧
       (n : ℕ∞) ≤ (projections I.constraints P).encard := by
-  obtain ⟨I, Pf, hI, hck, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨I, Pf, hI, hck, hc⟩ := exists_checkRed_of_checkOPBOutput h
   obtain ⟨P, hP⟩ := Option.isSome_iff_exists.1 (isSome_of_checkRed_enum hck (.inl hc))
   rw [hP] at hck
   exact ⟨I, P, hI, hP, le_encard_of_checkRed_enum hck (.inl hc)⟩
@@ -818,11 +902,11 @@ theorem le_encard_of_checkOPB_enumPartial {opb pbp : String} {n : ℕ}
 /-- **Soundness of a complete enumeration for OPB text**: an accepted proof of
 `ENUMERATION_COMPLETE n : q` means the instance parses with a preserved set `P`, and its
 solutions have exactly `n` distinct projections to `P`. -/
-theorem encard_eq_of_checkOPB_enumComplete {opb pbp : String} {n q : ℕ}
-    (h : checkOPB opb pbp = some (.enumComplete n q)) :
+theorem encard_eq_of_checkOPB_enumComplete {opb pbp : String} {out : Option String} {n q : ℕ}
+    (h : (checkOPBOutput opb pbp out).map (·.1) = some (.enumComplete n q)) :
     ∃ I P, parseOPB opb = some I ∧ I.preserved = some P ∧
       (projections I.constraints P).encard = n := by
-  obtain ⟨I, Pf, hI, hck, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨I, Pf, hI, hck, hc⟩ := exists_checkRed_of_checkOPBOutput h
   obtain ⟨P, hP⟩ := Option.isSome_iff_exists.1 (isSome_of_checkRed_enum hck (.inr ⟨q, hc⟩))
   rw [hP] at hck
   exact ⟨I, P, hI, hP, encard_eq_of_checkRed_enumComplete hck hc⟩
