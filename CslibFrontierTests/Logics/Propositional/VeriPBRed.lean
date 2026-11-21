@@ -209,6 +209,20 @@ example : Order.defCheck ⟨[10], [12], [⟨[(1, (10, true)), (1, (12, true))], 
 -- Fresh right variables must be fresh.
 example : lex2.defCheck [12, 15] lex2Trans lex2Refl = false := by decide
 
+/-- The strict order `u1 < v1` on one bit, `~u1 + v1 >= 2`. It is transitive, vacuously: its
+premises `u < v` and `v < w` sum to the contradiction `4` already. It is not reflexive. -/
+def ltBit : Order := ⟨[10], [12], [⟨[(1, (10, false)), (1, (12, true))], 2⟩]⟩
+
+/-- Its transitivity proof: `1 + 2` is a contradiction. -/
+def ltBitTrans : OrderProof := ⟨[.goal (.hash 1) [.pol [.id 1, .id 2, .add]] 4], none⟩
+
+-- The transitivity check passes, and only the reflexivity check fails: the negation `5` of the
+-- goal `~u1 + u1 >= 2` is not a contradiction.
+example : (ltBit.transCheck [14] ltBitTrans).isSome = true ∧
+    ltBit.reflCheck 5 ⟨[.goal (.hash 1) [] 5], none⟩ = false ∧
+    ltBit.defCheck [14] ltBitTrans ⟨[.goal (.hash 1) [] 5], none⟩ = false := by
+  decide
+
 /-- `x0 + x1 >= 1`, symmetric under swapping `x0` and `x1`. -/
 def S : List PBConstr := [⟨[(1, (0, true)), (1, (1, true))], 1⟩]
 

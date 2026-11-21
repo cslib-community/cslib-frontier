@@ -40,11 +40,13 @@ extended as described below, producing the abstract syntax checked by
 of the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented
 format. First, the line `f N;` is optional, as in the general format (§4.1). The kernel format
 requires it as the first command after the header (§6.1), but a proof without it is accepted and
-checked against the parsed formula. Second, `red`, the checked `delc` and `obju` may omit their
-subproof, and a goal is also autoproven when it is a constraint of the database up to the order
-of its terms (`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the
-subproof (§6.1). The remaining extensions, `del id` and `rup` without hints, are described under
-**Steps**. So a proof accepted here need not be a kernel proof.
+checked against the parsed formula. Second, `red`, `dom`, the checked `delc` and `obju` may omit
+their subproof, and a goal is also autoproven when it is a constraint of the database up to the
+order of its terms (`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the
+subproof (§6.1). Third, in `def_order` the empty `aux;` line and the `reflexivity` section are
+optional, a missing reflexivity proof leaving only trivially true goals; the kernel format
+requires both (§6.1). The remaining extensions, `del id` and `rup` without hints, are described
+under **Steps**. So a proof accepted here need not be a kernel proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
@@ -64,7 +66,7 @@ solution-logging steps `sol`, `soli` and `solx` and the bound `obji` (§5.8), th
 an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id` (§5.1),
 `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
 constraints, the unchecked `delc` of core constraints, and the checked
-`delc id : ω` of one core constraint, with an optional subproof. Deletion, `core`,
+`delc id : ω` of one core constraint, with an optional subproof. Orders, `dom`, deletion, `core`,
 strengthening-to-core, solution logging, `obji` and `obju` are accepted only at top level, as
 the format requires. Two steps of the augmented format are also accepted: `del id`, read as the
 untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts
@@ -586,22 +588,31 @@ private def defOrderBody (N : Names) (fuel : ℕ) (ts : List String) :
   let ts ← endOf "def_order" ts
   pure ((⟨u, v, defn⟩, w, tp, rp), ts)
 
-/-- A top-level step: a `red` step, a deletion, `core id`, `strengthening_to_core`, solution
-logging, or an implicational step. These steps other than the implicational ones are top-level
-only: subproof scopes are specified in §5.5 of the format documentation, `core id` in §5.1,
+/-- The witness and optional subproof after the first `:` of `red`, `dom` and a checked `delc`:
+`ω;`, or `ω : subproof … qed [label] [: n];`, with the subproof's items and closing
+contradiction. -/
+private def witnessTail (N : Names) (fuel : ℕ) (ts : List String) :
+    Option ((Witness × Option (List RedItem) × Option ℕ) × List String) :=
+  match witness N ts with
+  | some (ω, ";" :: rest) => some ((ω, none, none), rest)
+  | some (ω, ":" :: "subproof" :: rest) =>
+    (redItems N fuel rest).bind fun (items, rest) =>
+      (qedOpt rest).map fun (q, rest) => ((ω, some items, q), rest)
+  | _ => none
+
+/-- A top-level step: a `red` or `dom` step, an order definition or loading, a deletion, `core id`,
+`strengthening_to_core`, solution logging, or an implicational step. These steps other than the
+implicational ones are top-level only: subproof scopes are specified in §5.5 of the format
+documentation, the orders in §5.3, `core id` in §5.1,
 strengthening-to-core mode in §5.6, and the kernel deletions in §5.7.1. A checked deletion
 `delc id : ω [: subproof … qed [delc] [: n]];` deletes one constraint. -/
 private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
-  | "dom" :: ts =>
+  | k@"red" :: ts | k@"dom" :: ts =>
+    let mk := if k == "red" then TopStep.red else TopStep.dom
     match geq N ts with
-    | some (c, ";" :: rest) => some ([.dom c [] none none], rest)
+    | some (c, ";" :: rest) => some ([mk c [] none none], rest)
     | some (c, ":" :: rest) =>
-      match witness N rest with
-      | some (ω, ";" :: rest) => some ([.dom c ω none none], rest)
-      | some (ω, ":" :: "subproof" :: rest) =>
-        (redItems N fuel rest).bind fun (items, rest) =>
-          (qedOpt rest).map fun (q, rest) => ([.dom c ω (some items) q], rest)
-      | _ => none
+      (witnessTail N fuel rest).map fun ((ω, sub, q), rest) => ([mk c ω sub q], rest)
     | _ => none
   | "def_order" :: name :: ts =>
     (defOrderBody N fuel ts).map fun ((O, w, tp, rp), rest) => ([.defOrder name O w tp rp], rest)
@@ -610,29 +621,13 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
     match lits N ts with
     | some (z, ";" :: rest) => some ([.loadOrder name z], rest)
     | _ => none
-  | "red" :: ts =>
-    match geq N ts with
-    | some (c, ";" :: rest) => some ([.red c [] none none], rest)
-    | some (c, ":" :: rest) =>
-      match witness N rest with
-      | some (ω, ";" :: rest) => some ([.red c ω none none], rest)
-      | some (ω, ":" :: "subproof" :: rest) =>
-        (redItems N fuel rest).bind fun (items, rest) =>
-          (qedOpt rest).map fun (q, rest) => ([.red c ω (some items) q], rest)
-      | _ => none
-    | _ => none
   | "deld" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.deld ns], rest)
     | _ => none
   | "delc" :: n :: ":" :: ts =>
     (id? n).bind fun i =>
-      match witness N ts with
-      | some (ω, ";" :: rest) => some ([.delcChecked i ω none none], rest)
-      | some (ω, ":" :: "subproof" :: rest) =>
-        (redItems N fuel rest).bind fun (items, rest) =>
-          (qedOpt rest).map fun (q, rest) => ([.delcChecked i ω (some items) q], rest)
-      | _ => none
+      (witnessTail N fuel ts).map fun ((ω, sub, q), rest) => ([.delcChecked i ω sub q], rest)
   | "delc" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.delc ns], rest)

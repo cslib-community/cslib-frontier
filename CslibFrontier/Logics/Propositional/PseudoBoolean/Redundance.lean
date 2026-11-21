@@ -141,7 +141,9 @@ checker rejects such a deletion in strengthening-to-core mode.
 While an order is loaded (§5.7.4), as in strengthening-to-core mode, an unchecked deletion of core
 constraints needs an empty derived set, and `del id` of a core constraint is rejected. A checked
 deletion gets the order goals; as in VeriPB and CakePB, it may still take a witness, which
-§5.7.4 forbids.
+§5.7.4 forbids. Unloading with no order loaded (`load_order;`) is accepted, as VeriPB accepts it
+and as §5.3 describes unloading as loading the empty order; CakePB rejects it (its
+`UnloadOrder` needs a loaded order).
 
 **Solutions and conclusions.** The checker keeps a bound and a logged solution, as CakePB keeps
 `dbound` and `bound` (`update_dbound`, `update_bound` and `check_hconcl` in
@@ -298,7 +300,7 @@ without them.
   Combinatorial Optimisation*][BogaertsGochtMcCreeshNordstrom2023]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Logic.PL
 
@@ -325,9 +327,11 @@ abbrev Witness := List (ℕ × WVal)
 namespace Witness
 
 /-- The value the witness gives `v`, if any. -/
+@[expose]
 def find (ω : Witness) (v : ℕ) : Option WVal := (ω.find? (·.1 == v)).map (·.2)
 
 /-- The assignment `σ ∘ ω`: the value of `v` under `ω`, evaluated in `σ`. -/
+@[expose]
 def apply (σ : ℕ → Bool) (ω : Witness) (v : ℕ) : Bool :=
   match ω.find v with
   | none => σ v
@@ -336,6 +340,7 @@ def apply (σ : ℕ → Bool) (ω : Witness) (v : ℕ) : Bool :=
   | some (.lit l) => Literal.eval σ l
 
 /-- A term under the witness: the terms it becomes and the constant it contributes. -/
+@[expose]
 def substTerm (ω : Witness) (t : ℕ × Literal ℕ) : List (ℕ × Literal ℕ) × ℕ :=
   match ω.find (termVar t) with
   | none => ([t], 0)
@@ -344,6 +349,7 @@ def substTerm (ω : Witness) (t : ℕ × Literal ℕ) : List (ℕ × Literal ℕ
   | some (.lit l) => ([(t.1, if termPos t then l else Std.Sat.Literal.negate l)], 0)
 
 /-- **The constraint `D|ω`**: every term under the witness, constants moved into the degree. -/
+@[expose]
 def substC (ω : Witness) (c : PBConstr) : PBConstr :=
   ⟨c.terms.flatMap fun t => (substTerm ω t).1,
     c.degree - (c.terms.map fun t => (substTerm ω t).2).sum⟩
@@ -420,6 +426,7 @@ end Witness
 /-! ### Orders -/
 
 /-- The value of a witness entry under `σ`. -/
+@[expose]
 def WVal.eval (σ : ℕ → Bool) : WVal → Bool
   | .zero => false
   | .one => true
@@ -427,12 +434,13 @@ def WVal.eval (σ : ℕ → Bool) : WVal → Bool
 
 /-- The assignment `d` with the variables `ks` given the values `bs`, the first occurrence of a
 variable counting; variables past the end of `bs` keep their value under `d`. -/
+@[expose]
 def assignOn : List ℕ → List Bool → (ℕ → Bool) → ℕ → Bool
   | k :: ks, b :: bs, d, j => if j = k then b else assignOn ks bs d j
   | _, _, d, j => d j
 
-theorem assignOn_of_not_mem {ks : List ℕ} {j : ℕ} (h : j ∉ ks) (bs : List Bool) (d : ℕ → Bool) :
-    assignOn ks bs d j = d j := by
+private theorem assignOn_of_not_mem {ks : List ℕ} {j : ℕ} (h : j ∉ ks) (bs : List Bool)
+    (d : ℕ → Bool) : assignOn ks bs d j = d j := by
   induction ks generalizing bs with
   | nil => cases bs <;> rfl
   | cons k ks ih =>
@@ -442,7 +450,7 @@ theorem assignOn_of_not_mem {ks : List ℕ} {j : ℕ} (h : j ∉ ks) (bs : List 
       simp only [List.mem_cons, not_or] at h
       simp [assignOn, h.1, ih h.2]
 
-theorem assignOn_congr {ks : List ℕ} {bs : List Bool} {j : ℕ} (h : j ∈ ks)
+private theorem assignOn_congr {ks : List ℕ} {bs : List Bool} {j : ℕ} (h : j ∈ ks)
     (hl : ks.length ≤ bs.length) (d d' : ℕ → Bool) : assignOn ks bs d j = assignOn ks bs d' j := by
   induction ks generalizing bs with
   | nil => simp at h
@@ -456,12 +464,12 @@ theorem assignOn_congr {ks : List ℕ} {bs : List Bool} {j : ℕ} (h : j ∈ ks)
       · rename_i hjk
         exact ih (by simpa [hjk] using h) (by simpa using hl)
 
-theorem map_assignOn_of_disjoint {ks js : List ℕ} (h : ∀ j ∈ js, j ∉ ks) (bs : List Bool)
+private theorem map_assignOn_of_disjoint {ks js : List ℕ} (h : ∀ j ∈ js, j ∉ ks) (bs : List Bool)
     (d : ℕ → Bool) : js.map (assignOn ks bs d) = js.map d :=
   List.map_congr_left fun j hj => assignOn_of_not_mem (h j hj) bs d
 
-theorem map_assignOn {ks : List ℕ} {bs : List Bool} (hn : ks.Nodup) (hl : ks.length = bs.length)
-    (d : ℕ → Bool) : ks.map (assignOn ks bs d) = bs := by
+private theorem map_assignOn {ks : List ℕ} {bs : List Bool} (hn : ks.Nodup)
+    (hl : ks.length = bs.length) (d : ℕ → Bool) : ks.map (assignOn ks bs d) = bs := by
   induction ks generalizing bs with
   | nil => cases bs with
     | nil => rfl
@@ -489,7 +497,7 @@ theorem apply_nil (σ : ℕ → Bool) : apply σ [] = σ := by
 
 /-- A witness that starts with the pairs of `ks` and `vs` gives the variables `ks` the values of
 `vs`. -/
-theorem apply_zip_append (σ : ℕ → Bool) (ks : List ℕ) (vs : List WVal) (ω : Witness) :
+private theorem apply_zip_append (σ : ℕ → Bool) (ks : List ℕ) (vs : List WVal) (ω : Witness) :
     apply σ (ks.zip vs ++ ω) = assignOn ks (vs.map (WVal.eval σ)) (apply σ ω) := by
   funext j
   induction ks generalizing vs with
@@ -537,19 +545,26 @@ structure Order where
 namespace Order
 
 /-- The variables `u` and `v`. -/
+@[expose]
 def vars (O : Order) : List ℕ := O.left ++ O.right
 
 /-- The assignment giving `u` the values `x`, `v` the values `y`, and every other variable
 `false`. -/
+@[expose]
 def inst (O : Order) (x y : List Bool) : ℕ → Bool :=
   assignOn O.left x (assignOn O.right y fun _ => false)
 
 /-- **The relation of an order on value vectors**: `x ⪯ y` when every constraint of the
 definition holds with `u` taking the values `x` and `v` the values `y`. -/
+@[expose]
 def Le (O : Order) (x y : List Bool) : Prop := ∀ D ∈ O.defn, D.Holds (O.inst x y)
+
+instance (O : Order) (x y : List Bool) : Decidable (O.Le x y) :=
+  inferInstanceAs (Decidable (∀ D ∈ O.defn, D.Holds (O.inst x y)))
 
 /-- The syntactic conditions of CakePB's `check_good_aord` (without auxiliary variables): `u`
 and `v` have the same length and are distinct variables, and the definition uses no others. -/
+@[expose]
 def wellFormed (O : Order) : Bool :=
   O.left.length == O.right.length && decide O.vars.Nodup &&
     O.defn.all fun D => D.terms.all fun t => O.vars.contains (termVar t)
@@ -574,7 +589,7 @@ theorem wellFormed_iff {O : Order} : O.wellFormed = true ↔ O.left.length = O.r
     O.vars.Nodup ∧ ∀ D ∈ O.defn, ∀ t ∈ D.terms, termVar t ∈ O.vars := by
   simp [wellFormed, List.all_eq_true, and_assoc]
 
-theorem holds_subst {O : Order} (hwf : O.wellFormed = true) {a b : List WVal}
+private theorem holds_subst {O : Order} (hwf : O.wellFormed = true) {a b : List WVal}
     (ha : a.length = O.left.length) (hb : b.length = O.right.length) (σ : ℕ → Bool)
     {D : PBConstr} (hD : D ∈ O.defn) :
     (Witness.substC (O.subst a b) D).Holds σ ↔
@@ -612,9 +627,11 @@ structure LoadedOrder where
 namespace LoadedOrder
 
 /-- The values `z↾σ` of the literals. -/
+@[expose]
 def vals (L : LoadedOrder) (σ : ℕ → Bool) : List Bool := L.lits.map (Literal.eval σ)
 
 /-- **The relation of a loaded order on assignments**: `σ ⪯ τ` when `z↾σ ⪯ z↾τ`. -/
+@[expose]
 def Le (L : LoadedOrder) (σ τ : ℕ → Bool) : Prop := L.order.Le (L.vals σ) (L.vals τ)
 
 /-- A good order loaded over as many literals as it has left variables, as CakePB's
@@ -673,7 +690,7 @@ theorem holds_geGoals {L : LoadedOrder} (hL : L.Good) (ω : Witness) (σ : ℕ �
     map_eval_lit, map_eval_litVal]
   rfl
 
-theorem vals_apply_of_untouched {L : LoadedOrder} {ω : Witness} (h : L.untouched ω = true)
+private theorem vals_apply_of_untouched {L : LoadedOrder} {ω : Witness} (h : L.untouched ω = true)
     (σ : ℕ → Bool) : L.vals (Witness.apply σ ω) = L.vals σ := by
   simp only [untouched, List.all_eq_true, Option.isNone_iff_eq_none] at h
   simp only [vals]
@@ -711,9 +728,11 @@ structure Objective where
 namespace Objective
 
 /-- The value of the objective. -/
+@[expose]
 def eval (f : Objective) (σ : ℕ → Bool) : ℤ := linVal σ f.lin + f.const
 
 /-- The constraint `f ≥ b`. -/
+@[expose]
 def atLeast (f : Objective) (b : ℤ) : PBConstr := fromLinear f.lin (b - f.const)
 
 theorem holds_atLeast (σ : ℕ → Bool) (f : Objective) (b : ℤ) :
@@ -728,6 +747,7 @@ private theorem linVal_map_neg (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
   | cons e L ih => simp only [List.map_cons, linVal_cons, ih]; ring
 
 /-- **The objective-improving constraint** `f ≤ u - 1` (equation (3.6) of the documentation). -/
+@[expose]
 def improving (f : Objective) (u : ℤ) : PBConstr :=
   fromLinear (f.lin.map fun e => (e.1, -e.2)) (f.const - u + 1)
 
@@ -740,6 +760,7 @@ end Objective
 
 /-- The value of an optional objective: a decision problem has the trivial objective `0` (§5 of
 the documentation). -/
+@[expose]
 def objValue : Option Objective → (ℕ → Bool) → ℤ
   | some f, σ => f.eval σ
   | none, _ => 0
@@ -855,7 +876,8 @@ inductive TopStep where
   /-- `load_order name z`: load the order of this name over the literals `z`, moving every
   constraint to the core set (§5.3). -/
   | loadOrder (name : String) (z : List (Literal ℕ))
-  /-- `load_order;` without arguments: unload the order (§5.3). -/
+  /-- `load_order;` without arguments: unload the order (§5.3), also when none is loaded, as in
+  VeriPB (CakePB rejects that case). -/
   | unloadOrder
   /-- `dom C : ω [: subproof … qed [: n]]`, with `none` for no subproof (§5.4.2), numbered as
   `red`. -/
@@ -872,35 +894,35 @@ def objGoal (f : Objective) (ω : Witness) : PBConstr :=
   fromLinear (subLinear f.lin (Witness.substLin ω f.lin).1) (Witness.substLin ω f.lin).2
 
 /-- The entry `#k` of a list of goals, numbered from `1`. -/
-def hashAt {α : Type} (l : List α) : ℕ → Option α
+private def hashAt {α : Type} (l : List α) : ℕ → Option α
   | 0 => none
   | k + 1 => l[k]?
 
 /-- The `#` goals of `red C : ω` (§5.4.1): `C|ω`, the order goals `O⪯(z↾ω, z)` of the loaded
 order, if any, and the objective goal `f|ω ≤ f`, if there is an objective. -/
-def redHashGoals (obj : Option Objective) (ord : Option LoadedOrder) (ω : Witness) (c : PBConstr) :
-    List PBConstr :=
+private def redHashGoals (obj : Option Objective) (ord : Option LoadedOrder) (ω : Witness)
+    (c : PBConstr) : List PBConstr :=
   Witness.substC ω c :: ((ord.map (·.leGoals ω)).getD [] ++ (obj.map (objGoal · ω)).toList)
 
 /-- The premises of a `proofgoal` block for the goal `G` to prove: its negation. -/
-def negGoal (G : PBConstr) : List PBConstr := [G.negate]
+private def negGoal (G : PBConstr) : List PBConstr := [G.negate]
 
 /-- The premises of the `proofgoal` blocks of `red C : ω`: the negations of `#k` and of `D|ω`,
 with `D` looked up in the database `db₀` of the step. -/
-def goalOf (obj : Option Objective) (ord : Option LoadedOrder) (db₀ : List (ℕ × PBConstr))
+private def goalOf (obj : Option Objective) (ord : Option LoadedOrder) (db₀ : List (ℕ × PBConstr))
     (ω : Witness) (c : PBConstr) : GoalId → Option (List PBConstr)
   | .hash k => (hashAt (redHashGoals obj ord ω c) k).map negGoal
   | .db n => (lookup db₀ n).map fun D => negGoal (Witness.substC ω D)
 
 /-- Add the constraints `ps` to the database, numbered from `n`. -/
-def pushAll : List (ℕ × PBConstr) → ℕ → List PBConstr → List (ℕ × PBConstr) × ℕ
+private def pushAll : List (ℕ × PBConstr) → ℕ → List PBConstr → List (ℕ × PBConstr) × ℕ
   | db, n, [] => (db, n)
   | db, n, p :: ps => pushAll ((n, p) :: db) (n + 1) ps
 
 /-- Run the items of a subproof whose goal labels name the premises `goal` of their `proofgoal`
 blocks, collecting the premise lists that the blocks refute. A block's constraints are dropped
 after it; only the numbering advances. -/
-def runGoals (goal : GoalId → Option (List PBConstr)) :
+private def runGoals (goal : GoalId → Option (List PBConstr)) :
     List (ℕ × PBConstr) → ℕ → List RedItem → List (List PBConstr) →
       Option (List (ℕ × PBConstr) × ℕ × List (List PBConstr))
   | db, n, [], proved => some (db, n, proved)
@@ -933,31 +955,39 @@ def sameUpToOrder (C D : PBConstr) : Bool := C.degree == D.degree && C.terms.isP
 
 /-- A goal `G` of `obju` needs no subproof: it is trivially true after normalization, it is a
 constraint of `core` up to the order of terms, or a `proofgoal` block refuted its negation. -/
-def objuCovered (core : List (ℕ × PBConstr)) (proved : List (List PBConstr)) (G : PBConstr) :
-    Bool :=
+private def objuCovered (core : List (ℕ × PBConstr)) (proved : List (List PBConstr))
+    (G : PBConstr) : Bool :=
   G.normalize.degree == 0 || core.any (fun e => sameUpToOrder e.2 G.normalize) ||
     proved.contains (negGoal G)
 
 /-- A goal constraint `G` needs no subproof, given the negation `negC` of the constraint being
 added: it is covered as a goal of `obju` with the database `db₀`
 (`Cslib.Logic.PL.VeriPB.objuCovered`), or `negC` weakly syntactically implies it. -/
-def goalCovered (db₀ : List (ℕ × PBConstr)) (proved : List (List PBConstr)) (negC G : PBConstr) :
-    Bool :=
+private def goalCovered (db₀ : List (ℕ × PBConstr)) (proved : List (List PBConstr))
+    (negC G : PBConstr) : Bool :=
   objuCovered db₀ proved G || weakImplies negC G
+
+/-- The goals that `red` and `dom` share, given the premises `db₀` and the refuted premise lists
+`proved`: the objective goal `f|ω ≤ f` is covered, and so is `D|ω` for every constraint `D` of
+`gs`, also when `ω` sets every literal of `D` it touches true or `D` weakly syntactically implies
+`D|ω` (§5.5.1, items 2a–2f). -/
+private def substCovered (obj : Option Objective) (db₀ gs : List (ℕ × PBConstr)) (ω : Witness)
+    (c : PBConstr) (proved : List (List PBConstr)) : Bool :=
+  obj.all (fun f => goalCovered db₀ proved c.negate (objGoal f ω)) &&
+    gs.all fun e => Witness.touchedTrue ω e.2 || weakImplies e.2 (Witness.substC ω e.2) ||
+      goalCovered db₀ proved c.negate (Witness.substC ω e.2)
 
 /-- The end of a `red` subproof with premises `db₀` and goals for the constraints `gs`: the
 closing constraint is a contradiction, or every goal is covered. The order goals are also covered
 when the witness leaves the variables of the order alone (§5.5.1, item 1c). -/
-def redOk (obj : Option Objective) (ord : Option LoadedOrder) (db₀ gs : List (ℕ × PBConstr))
+private def redOk (obj : Option Objective) (ord : Option LoadedOrder) (db₀ gs : List (ℕ × PBConstr))
     (ω : Witness) (c : PBConstr) (db' : List (ℕ × PBConstr)) (proved : List (List PBConstr)) :
     Option ℕ → Bool
   | some q => namesContra db' q
   | none =>
     goalCovered db₀ proved c.negate (Witness.substC ω c) &&
       ord.all (fun L => L.untouched ω || (L.leGoals ω).all (goalCovered db₀ proved c.negate)) &&
-      obj.all (fun f => goalCovered db₀ proved c.negate (objGoal f ω)) &&
-      gs.all fun e => Witness.touchedTrue ω e.2 || weakImplies e.2 (Witness.substC ω e.2) ||
-        goalCovered db₀ proved c.negate (Witness.substC ω e.2)
+      substCovered obj db₀ gs ω c proved
 
 /-- **The redundance check with separate goals**: as `Cslib.Logic.PL.VeriPB.redCheck`, for the
 loaded order `ord`, if any, with premises `db₀` but goals `D|ω` only for the constraints `D` of
@@ -983,6 +1013,7 @@ def redCheck (obj : Option Objective) (db₀ : List (ℕ × PBConstr)) (n : ℕ)
 
 /-- The objective `f + g`, with the weights of each variable merged and zero weights dropped, as
 CakePB's `add_obj` (§5.9 of the documentation). -/
+@[expose]
 def Objective.add (f g : Objective) : Objective :=
   ⟨((f.lin ++ g.lin).foldr (fun e L => insertCoeff e.1 e.2 L) []).filter (·.2 != 0),
     f.const + g.const⟩
@@ -1012,7 +1043,7 @@ def Objective.geGoal (g h : Objective) : PBConstr :=
 
 /-- The premises of the goals of `obju` from `f` to `f'`: `#1` is `f' ≥ f` and `#2` is
 `f ≥ f'`. -/
-def objuGoal (f f' : Objective) : GoalId → Option (List PBConstr)
+private def objuGoal (f f' : Objective) : GoalId → Option (List PBConstr)
   | .hash k => (hashAt [f'.geGoal f, f.geGoal f'] k).map negGoal
   | .db _ => none
 
@@ -1032,20 +1063,24 @@ def objuCheck (core : List (ℕ × PBConstr)) (n : ℕ) (f f' : Objective) (item
 
 /-- The assignment of a list of literals: a variable is true when it is listed positively, and
 false otherwise. -/
+@[expose]
 def assignOf (ρ : List (Literal ℕ)) (v : ℕ) : Bool := ρ.contains (v, true)
 
 /-- **A logged solution** `ρ` solves the constraints `cs` (§5.8.1 of the documentation, without
 propagation as in the kernel format, §6.1): no literal is listed with its negation, and the
 coefficients of the terms of each constraint whose literals are listed reach its degree. -/
+@[expose]
 def solves (ρ : List (Literal ℕ)) (cs : List PBConstr) : Bool :=
   ρ.all (fun l => !ρ.contains (Std.Sat.Literal.negate l)) &&
     cs.all fun c => decide (c.degree ≤ coeffSum (c.terms.filter fun t => ρ.contains t.2))
 
 /-- `ρ` assigns every variable of `P`, as `solx` requires in the kernel format (§6.1). -/
+@[expose]
 def assignsAll (ρ : List (Literal ℕ)) (P : List ℕ) : Bool :=
   P.all fun x => ρ.contains (x, true) || ρ.contains (x, false)
 
 /-- `ρ` assigns every variable of the objective, as `soli` requires (§5.8.2). -/
+@[expose]
 def assigns (ρ : List (Literal ℕ)) (f : Objective) : Bool := assignsAll ρ (f.lin.map (·.1))
 
 /-- Lower the bound `d`, if any, to `v`. -/
@@ -1054,21 +1089,24 @@ private def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (m
 /-! ### Preserved sets -/
 
 /-- The values of the preserved variables `P` under `σ`: the projection of `σ` to `P`. -/
+@[expose]
 def proj (P : List ℕ) (σ : ℕ → Bool) : List Bool := P.map σ
 
 /-- **The solution-excluding constraint** of `ρ` over `P` (§5.8.3): `∑ x` over the variables of
 `P` false in `ρ`, plus `∑ ¬x` over those true, at least `1`. It holds exactly at the assignments
 whose projection to `P` differs from that of `ρ`. A variable listed twice in `P` gives one term, so
 the constraint is normalized: `preserved:` is a set (VeriPB and CakePB). -/
+@[expose]
 def exclusion (P : List ℕ) (ρ : List (Literal ℕ)) : PBConstr :=
   ⟨P.dedup.map fun x => (1, (x, !assignOf ρ x)), 1⟩
 
 /-- The witness `ω` leaves the preserved variables, if any, alone (CakePB's `check_pres`). -/
+@[expose]
 def presFree (pres : Option (List ℕ)) (ω : Witness) : Bool :=
   pres.all fun P => ω.all fun e => !P.contains e.1
 
 /-- The redundance check, with a witness that leaves the preserved variables alone. -/
-def redCheckP (pres : Option (List ℕ)) (obj : Option Objective) (ord : Option LoadedOrder)
+private def redCheckP (pres : Option (List ℕ)) (obj : Option Objective) (ord : Option LoadedOrder)
     (db₀ gs : List (ℕ × PBConstr)) (n : ℕ) (c : PBConstr) (ω : Witness) (items : List RedItem)
     (qed : Option ℕ) : Option ℕ :=
   if presFree pres ω then redCheckOn obj ord db₀ gs n c ω items qed else none
@@ -1077,21 +1115,21 @@ def redCheckP (pres : Option (List ℕ)) (obj : Option Objective) (ord : Option 
 
 /-- The end of a proof of the goals `gs`: the closing constraint is a contradiction, or every
 goal is trivially true or proved by a `proofgoal` block. -/
-def hashGoalsOk (gs : List PBConstr) (db' : List (ℕ × PBConstr))
+private def hashGoalsOk (gs : List PBConstr) (db' : List (ℕ × PBConstr))
     (proved : List (List PBConstr)) : Option ℕ → Bool
   | some q => namesContra db' q
   | none => gs.all fun G => G.normalize.degree == 0 || proved.contains (negGoal G)
 
 /-- **The check of the goals `#1` … `#N`**, the constraints `gs`, from the premises `db` whose next
 number is `n` (`Cslib.Logic.PL.VeriPB.hashGoalsOk`). Returns the next number after the proof. -/
-def hashGoalsCheck (db : List (ℕ × PBConstr)) (n : ℕ) (gs : List PBConstr) (p : OrderProof) :
-    Option ℕ :=
+private def hashGoalsCheck (db : List (ℕ × PBConstr)) (n : ℕ) (gs : List PBConstr)
+    (p : OrderProof) : Option ℕ :=
   match runGoals (fun | .hash k => (hashAt gs k).map negGoal | .db _ => none) db n p.items [] with
   | none => none
   | some (db', n', proved) => if hashGoalsOk gs db' proved p.qed then some n' else none
 
 /-- The positive literals of the variables `xs`, as witness values. -/
-def posVals (xs : List ℕ) : List WVal := xs.map fun x => .lit (x, true)
+private def posVals (xs : List ℕ) : List WVal := xs.map fun x => .lit (x, true)
 
 namespace Order
 
@@ -1100,7 +1138,7 @@ namespace Order
 premises `O⪯(u, v)` and `O⪯(v, w)` are numbered from `1`, and the goals are the constraints of
 `O⪯(u, w)`. Returns the next number, from which the reflexivity proof is numbered, as in VeriPB
 and CakePB. -/
-def transCheck (O : Order) (w : List ℕ) (p : OrderProof) : Option ℕ :=
+private def transCheck (O : Order) (w : List ℕ) (p : OrderProof) : Option ℕ :=
   if w.length == O.left.length && decide (O.vars ++ w).Nodup then
     let prem := O.instC (posVals O.left) (posVals O.right) ++
       O.instC (posVals O.right) (posVals w)
@@ -1109,7 +1147,7 @@ def transCheck (O : Order) (w : List ℕ) (p : OrderProof) : Option ℕ :=
 
 /-- **The reflexivity check** (§5.3), numbered from `n`: no premises, and the goals are the
 constraints of `O⪯(u, u)`. -/
-def reflCheck (O : Order) (n : ℕ) (p : OrderProof) : Bool :=
+private def reflCheck (O : Order) (n : ℕ) (p : OrderProof) : Bool :=
   (hashGoalsCheck [] n (O.instC (posVals O.left) (posVals O.left)) p).isSome
 
 /-- **The check of `def_order`** (§5.3; CakePB's `check_good_aord`, `check_transitivity` and
@@ -1128,22 +1166,19 @@ end Order
 /-- The premises of the `#` goals of `dom C : ω` (§5.4.2) for the loaded order `L`: the negations
 of the order goals `O⪯(z↾ω, z)`, then the constraints `O⪯(z, z↾ω)` to refute, normalized, then
 the negation of the objective goal `f|ω ≤ f`, if there is an objective. -/
-def domHashPremises (obj : Option Objective) (L : LoadedOrder) (ω : Witness) :
+private def domHashPremises (obj : Option Objective) (L : LoadedOrder) (ω : Witness) :
     List (List PBConstr) :=
   (L.leGoals ω).map negGoal ++ [(L.geGoals ω).map normalize] ++
     (obj.map fun f => negGoal (objGoal f ω)).toList
 
 /-- The end of a `dom` subproof (`Cslib.Logic.PL.VeriPB.domCheck`). -/
-def domOk (obj : Option Objective) (L : LoadedOrder) (db core : List (ℕ × PBConstr))
+private def domOk (obj : Option Objective) (L : LoadedOrder) (db core : List (ℕ × PBConstr))
     (ω : Witness) (c : PBConstr) (db' : List (ℕ × PBConstr)) (proved : List (List PBConstr)) :
     Option ℕ → Bool
   | some q => namesContra db' q
   | none =>
     proved.contains ((L.geGoals ω).map normalize) &&
-      (L.leGoals ω).all (goalCovered db proved c.negate) &&
-      obj.all (fun f => goalCovered db proved c.negate (objGoal f ω)) &&
-      core.all fun e => Witness.touchedTrue ω e.2 || weakImplies e.2 (Witness.substC ω e.2) ||
-        goalCovered db proved c.negate (Witness.substC ω e.2)
+      (L.leGoals ω).all (goalCovered db proved c.negate) && substCovered obj db core ω c proved
 
 /-- **The dominance check** of `dom C : ω` (§5.4.2) for the loaded order `L`, the database `db`
 and its core set `core`, as CakePB's `Dom` step of `check_cstep`. `¬C` takes the number `n`, and
@@ -1205,6 +1240,7 @@ structure State where
 
 /-- The initial state for the formula `F`, the objective `obj` and the preserved set `pres`: the
 constraints, numbered from `1`, form the database and the core set. -/
+@[expose]
 def State.init (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ)) : State :=
   ⟨initDb F, F.length + 1, none, none, initDb F, true, false, obj, pres, [], [], none⟩
 
@@ -1212,7 +1248,6 @@ def State.init (F : List PBConstr) (obj : Option Objective) (pres : Option (List
 objective `obj`. Its value under the current objective lowers `dbound`. It lowers `bound` too
 if no unchecked deletion has happened, at that value, or else if it solves `F`, at its value
 under the input objective. Any other solution leaves `bound` unchanged. -/
-@[no_expose]
 def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : List (Literal ℕ)) :
     State :=
   { s with dbound := lowerTo s.dbound (objValue s.obj (assignOf ρ)),
@@ -1231,6 +1266,13 @@ private def State.addCore (s : State) (c : PBConstr) : State :=
 at the next number, and the bound `dbound` is lowered to `v`. -/
 private def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
   { s.addCore (f.improving v).normalize with dbound := lowerTo s.dbound v }
+
+/-- Add the constraint `c`, derived by `red` or `dom`, to the state `s` under the number `m`: it is
+a derived constraint, or a core constraint in strengthening-to-core mode (§5.6). -/
+private def State.addStrengthened (s : State) (m : ℕ) (c : PBConstr) : State :=
+  { s with
+    db := (m, c.normalize) :: s.db, next := m + 1,
+    core := if s.tcb then (m, c.normalize) :: s.core else s.core }
 
 /-- The constraint numbers that a step deletes. -/
 private def Step.delIds : Step → List ℕ
@@ -1262,7 +1304,6 @@ private def Step.delIds : Step → List ℕ
 * While an order is loaded (§5.7.4), as in strengthening-to-core mode, an unchecked deletion of
   core constraints needs an empty derived set. `red` and checked deletion get the order goals; as
   in VeriPB and CakePB, a checked deletion may still take a witness, which §5.7.4 forbids. -/
-@[no_expose]
 def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep → Option State
   | .step st =>
     match runStep s.db s.next st with
@@ -1276,11 +1317,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
   | .red c ω sub q =>
     match redCheckP s.pres s.obj s.order s.db (if s.tcb then s.core else s.db) s.next c ω
       (sub.getD []) q with
-    | some n' =>
-      let m := if sub.isSome then n' else s.next
-      some { s with
-        db := (m, c.normalize) :: s.db, next := m + 1,
-        core := if s.tcb then (m, c.normalize) :: s.core else s.core }
+    | some n' => some (s.addStrengthened (if sub.isSome then n' else s.next) c)
     | none => none
   | .sol ρ => if solves ρ (s.db.map (·.2)) then some (s.log F obj ρ) else none
   | .soli ρ =>
@@ -1356,11 +1393,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     match s.order with
     | some L =>
       match domCheck s.pres s.obj L s.db s.core s.next c ω (sub.getD []) q with
-      | some n' =>
-        let m := if sub.isSome then n' else s.next
-        some { s with
-          db := (m, c.normalize) :: s.db, next := m + 1,
-          core := if s.tcb then (m, c.normalize) :: s.core else s.core }
+      | some n' => some (s.addStrengthened (if sub.isSome then n' else s.next) c)
       | none => none
     | none => none
 
@@ -1409,6 +1442,7 @@ bound, unless `INF`: the assignment `ρ`, if given, solves `F`, assigns every va
 has value `ub` under `f₀`; otherwise `bound` is `ub`. The bound need not be the value of a solution
 of `F`; it guarantees that some solution of `F` has value at most `ub` under `f₀`. As in VeriPB,
 an assignment after `INF` is not checked. -/
+@[expose]
 def boundsOk (F : List PBConstr) (f₀ f : Objective) (s : State) (lb : Option ℤ) (q : ℕ)
     (ub : Option ℤ) (asg : Option (List (Literal ℕ))) : Bool :=
   (match lb with
@@ -1433,6 +1467,7 @@ state `s` (§4.3).
 
 `UNSAT` and `SAT` are also accepted under an objective, an extension of this checker: §4.3 of the
 documentation gives `BOUNDS` for optimization problems. -/
+@[expose]
 def checkConclusion (F : List PBConstr) (obj : Option Objective) (s : State) : Conclusion → Bool
   | .unsat q => s.dbound.isNone && namesContra s.db q
   | .sat none => s.bound.isSome
@@ -1448,6 +1483,7 @@ def checkConclusion (F : List PBConstr) (obj : Option Objective) (s : State) : C
 
 /-- **The checker** for the formula `F`, the objective `obj` and the preserved set `pres`, if
 any: run the steps from the formula, numbered from `1`, and check the conclusion. -/
+@[expose]
 def checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof)
     (pres : Option (List ℕ) := none) : Bool :=
   match runTop F obj (State.init F obj pres) P.steps with
@@ -1499,11 +1535,11 @@ theorem Holds.of_sameUpToOrder {σ : ℕ → Bool} {C D : PBConstr} (hC : C.Hold
   exact hC
 
 /-- The premise lists that `σ` refutes: those with a constraint false at `σ`. -/
-def Refuted (σ : ℕ → Bool) (proved : List (List PBConstr)) : Prop :=
+private def Refuted (σ : ℕ → Bool) (proved : List (List PBConstr)) : Prop :=
   ∀ ps ∈ proved, ¬ ∀ p ∈ ps, p.Holds σ
 
 /-- A refuted negation gives the goal. -/
-theorem Refuted.holds {σ : ℕ → Bool} {proved : List (List PBConstr)} (hp : Refuted σ proved)
+private theorem Refuted.holds {σ : ℕ → Bool} {proved : List (List PBConstr)} (hp : Refuted σ proved)
     {G : PBConstr} (h : proved.contains (negGoal G) = true) : G.Holds σ := by
   have := hp _ (List.contains_iff_mem.1 h)
   simpa [negGoal, holds_negate] using this
@@ -1523,7 +1559,7 @@ private theorem objuCovered_holds {σ : ℕ → Bool} {core : List (ℕ × PBCon
   · rw [← holds_normalize]; exact Holds.of_sameUpToOrder (hdb e he) heq
   · exact hp.holds h
 
-theorem goalCovered_holds {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)}
+private theorem goalCovered_holds {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)}
     {proved : List (List PBConstr)} {negC G : PBConstr} (hdb : AllHold σ db₀)
     (hp : Refuted σ proved) (hneg : negC.Holds σ) (h : goalCovered db₀ proved negC G = true) :
     G.Holds σ := by
@@ -1532,7 +1568,7 @@ theorem goalCovered_holds {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)}
   · exact objuCovered_holds hdb hp h
   · exact Holds.of_weakImplies hneg h
 
-theorem allHold_pushAll {σ : ℕ → Bool} :
+private theorem allHold_pushAll {σ : ℕ → Bool} :
     ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ps : List PBConstr), AllHold σ db →
       (∀ p ∈ ps, p.Holds σ) → AllHold σ (pushAll db n ps).1
   | _, _, [], hdb, _ => hdb
@@ -1541,7 +1577,7 @@ theorem allHold_pushAll {σ : ℕ → Bool} :
       (List.forall_mem_cons.2 ⟨hps p List.mem_cons_self, hdb⟩)
       fun q hq => hps q (List.mem_cons_of_mem _ hq)
 
-theorem runGoals_sound {σ : ℕ → Bool} {goal : GoalId → Option (List PBConstr)} :
+private theorem runGoals_sound {σ : ℕ → Bool} {goal : GoalId → Option (List PBConstr)} :
     ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (items : List RedItem)
       (proved : List (List PBConstr)) (db' : List (ℕ × PBConstr)) (n' : ℕ)
       (proved' : List (List PBConstr)),
@@ -1574,6 +1610,25 @@ theorem runGoals_sound {σ : ℕ → Bool} {goal : GoalId → Option (List PBCon
         · cases h
       · cases h
 
+/-- The goals shared by `red` and `dom` hold at `σ ∘ ω`. -/
+private theorem substCovered_sound {σ : ℕ → Bool} {obj : Option Objective}
+    {db₀ gs : List (ℕ × PBConstr)} {ω : Witness} {c : PBConstr} {proved : List (List PBConstr)}
+    (hdb : AllHold σ db₀) (hgs : AllHold σ gs) (hp : Refuted σ proved)
+    (hnegC : c.negate.Holds σ) (h : substCovered obj db₀ gs ω c proved = true) :
+    AllHold (Witness.apply σ ω) gs ∧ objValue obj (Witness.apply σ ω) ≤ objValue obj σ := by
+  simp only [substCovered, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true] at h
+  obtain ⟨hobj, hdbg⟩ := h
+  refine ⟨fun e he => ?_, ?_⟩
+  · rcases hdbg e he with (ht | hw) | hg
+    · exact Witness.Holds.apply_of_touchedTrue ht (hgs e he)
+    · rw [← Witness.holds_substC]; exact Holds.of_weakImplies (hgs e he) hw
+    · rw [← Witness.holds_substC]; exact goalCovered_holds hdb hp hnegC hg
+  · cases obj with
+    | none => exact le_rfl
+    | some f =>
+      simp only [Option.all_some] at hobj
+      exact (holds_objGoal σ f ω).1 (goalCovered_holds hdb hp hnegC hobj)
+
 /-- **The redundance check is sound**, with separate goals: an assignment `σ` satisfying the
 premises `db₀` and the goal constraints `gs` either satisfies `C` too, or `σ ∘ ω` satisfies `gs`
 and `C`. Either way, the objective does not increase, and the result is below `σ` in the loaded
@@ -1602,20 +1657,12 @@ theorem redCheckOn_sound {σ : ℕ → Bool} {obj : Option Objective} {ord : Opt
     | some q =>
       simp [redOk, hall.not_namesContra] at hok
     | none =>
-      simp only [redOk, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true] at hok
-      obtain ⟨⟨⟨hself, hord'⟩, hobj⟩, hdbg⟩ := hok
-      refine ⟨List.forall_mem_cons.2 ⟨?_, fun e he => ?_⟩, ?_, fun L hL hL' => ?_⟩
+      simp only [redOk, Bool.and_eq_true] at hok
+      obtain ⟨⟨hself, hord'⟩, hsub⟩ := hok
+      obtain ⟨hgs', hobj⟩ := substCovered_sound hdb hgs hp hnegC hsub
+      refine ⟨List.forall_mem_cons.2 ⟨?_, hgs'⟩, hobj, fun L hL hL' => ?_⟩
       · rw [holds_normalize, ← Witness.holds_substC]
         exact goalCovered_holds hdb hp hnegC hself
-      · rcases hdbg e he with (ht | hw) | hg
-        · exact Witness.Holds.apply_of_touchedTrue ht (hgs e he)
-        · rw [← Witness.holds_substC]; exact Holds.of_weakImplies (hgs e he) hw
-        · rw [← Witness.holds_substC]; exact goalCovered_holds hdb hp hnegC hg
-      · cases obj with
-        | none => exact le_rfl
-        | some f =>
-          simp only [Option.all_some] at hobj
-          exact (holds_objGoal σ f ω).1 (goalCovered_holds hdb hp hnegC hobj)
       · rw [Option.mem_def] at hL
         subst hL
         simp only [Option.all_some, Bool.or_eq_true, List.all_eq_true] at hord'
@@ -1742,7 +1789,7 @@ theorem holds_exclusion (σ : ℕ → Bool) (P : List ℕ) (ρ : List (Literal �
 
 /-- **The check of `#` goals is sound**: every goal holds under every solution of the
 premises. -/
-theorem hashGoalsCheck_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {n n' : ℕ}
+private theorem hashGoalsCheck_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {n n' : ℕ}
     {gs : List PBConstr} {p : OrderProof} (hdb : AllHold σ db)
     (h : hashGoalsCheck db n gs p = some n') : ∀ G ∈ gs, G.Holds σ := by
   unfold hashGoalsCheck at h
@@ -1758,7 +1805,7 @@ theorem hashGoalsCheck_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {
     | none =>
       simp only [hq, hashGoalsOk, List.all_eq_true, Bool.or_eq_true, beq_iff_eq] at hok
       rcases hok G hG with h0 | hpr
-      · rw [← holds_normalize]; unfold Holds; rw [h0]; exact Nat.zero_le _
+      · exact holds_of_normalize_degree_eq_zero h0
       · exact hp.holds hpr
   · cases h
 
@@ -1827,8 +1874,8 @@ theorem Order.good_of_defCheck {O : Order} {w : List ℕ} {trans refl : OrderPro
 
 /-! ### Soundness of `dom` -/
 
-theorem presFree_of_domCheck {pres : Option (List ℕ)} {obj : Option Objective} {L : LoadedOrder}
-    {db core : List (ℕ × PBConstr)} {n n' : ℕ} {c : PBConstr} {ω : Witness}
+private theorem presFree_of_domCheck {pres : Option (List ℕ)} {obj : Option Objective}
+    {L : LoadedOrder} {db core : List (ℕ × PBConstr)} {n n' : ℕ} {c : PBConstr} {ω : Witness}
     {items : List RedItem} {qed : Option ℕ}
     (h : domCheck pres obj L db core n c ω items qed = some n') : presFree pres ω = true := by
   unfold domCheck at h
@@ -1863,26 +1910,19 @@ theorem domCheck_sound {σ : ℕ → Bool} {pres : Option (List ℕ)} {obj : Opt
   cases qed with
   | some q => simp [domOk, hall.not_namesContra] at hok
   | none =>
-  simp only [domOk, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true] at hok
-  obtain ⟨⟨⟨hgeq, hle⟩, hobj⟩, hcg⟩ := hok
-  refine ⟨fun e he => ?_, (LoadedOrder.holds_leGoals hL ω σ).1 fun G hG =>
-    goalCovered_holds hdb hp hnegC (hle G hG), fun hge => ?_, ?_⟩
-  · rcases hcg e he with (ht | hw) | hg
-    · exact Witness.Holds.apply_of_touchedTrue ht (hcore e he)
-    · rw [← Witness.holds_substC]; exact Holds.of_weakImplies (hcore e he) hw
-    · rw [← Witness.holds_substC]; exact goalCovered_holds hdb hp hnegC hg
-  · refine hp _ (List.contains_iff_mem.1 hgeq) fun G hG => ?_
-    obtain ⟨G', hG', rfl⟩ := List.mem_map.1 hG
-    exact (holds_normalize _ _).2 ((LoadedOrder.holds_geGoals hL ω σ).2 hge G' hG')
-  · cases obj with
-    | none => exact le_rfl
-    | some f =>
-      simp only [Option.all_some] at hobj
-      exact (holds_objGoal σ f ω).1 (goalCovered_holds hdb hp hnegC hobj)
+  simp only [domOk, Bool.and_eq_true, List.all_eq_true] at hok
+  obtain ⟨⟨hgeq, hle⟩, hsub⟩ := hok
+  obtain ⟨hcore', hobj⟩ := substCovered_sound hdb hcore hp hnegC hsub
+  refine ⟨hcore', (LoadedOrder.holds_leGoals hL ω σ).1 fun G hG =>
+    goalCovered_holds hdb hp hnegC (hle G hG), fun hge => ?_, hobj⟩
+  refine hp _ (List.contains_iff_mem.1 hgeq) fun G hG => ?_
+  obtain ⟨G', hG', rfl⟩ := List.mem_map.1 hG
+  exact (holds_normalize _ _).2 ((LoadedOrder.holds_geGoals hL ω σ).2 hge G' hG')
 
 /-- **CakePB's `sat_obj_po`** for the preserved set `pres`, the loaded order `L` and the
 objective `obj`: every solution `τ` of `C` gives a solution of `D` below `τ` in the order, of no
 larger objective value, and with the same projection to the preserved set. -/
+@[expose]
 def SatObjPo (pres : Option (List ℕ)) (L : LoadedOrder) (obj : Option Objective)
     (C D : List (ℕ × PBConstr)) : Prop :=
   ∀ τ, AllHold τ C → ∃ τ', AllHold τ' D ∧ L.Le τ' τ ∧ objValue obj τ' ≤ objValue obj τ ∧
@@ -2063,6 +2103,26 @@ private theorem allHold_core_of_filter {τ : ℕ → Bool} {core : List (ℕ × 
     exact this ▸ hc
   · exact hr e (List.mem_filter.2 ⟨he, by simpa using hi⟩)
 
+/-- Adding a constraint derived by `red` or `dom` keeps the core invariant: the core set stays in
+the database, grows only with it, and so keeps fewer solutions. -/
+private theorem inv_addStrengthened {F : List PBConstr} {obj : Option Objective} {s : State}
+    (hs : Inv F obj s) (m : ℕ) (c : PBConstr) : Inv F obj (s.addStrengthened m c) := by
+  unfold State.addStrengthened
+  refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit⟩
+  · split at he
+    · rcases List.mem_cons.1 he with rfl | he
+      · exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (hs.sub e he)
+    · exact List.mem_cons_of_mem _ (hs.sub e he)
+  · have ht' : s.tcb = true := ht
+    simp only [ht', ↓reduceIte] at hτ
+    exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
+      hs.imp ht' τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
+  · refine hs.chk hc τ ?_
+    split at hτ
+    · exact fun e he => hτ e (List.mem_cons_of_mem _ he)
+    · exact hτ
+
 /-- **Each step keeps the core invariant.** -/
 theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} {t : TopStep}
     (hs : Inv F obj s) (h : stepTop F obj s t = some s') : Inv F obj s' := by
@@ -2099,21 +2159,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
     · rename_i n' hred
       simp only [Option.some.injEq] at h
       subst h
-      generalize (if items.isSome = true then n' else s.next) = m
-      refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit⟩
-      · split at he
-        · rcases List.mem_cons.1 he with rfl | he
-          · exact List.mem_cons_self
-          · exact List.mem_cons_of_mem _ (hs.sub e he)
-        · exact List.mem_cons_of_mem _ (hs.sub e he)
-      · have ht' : s.tcb = true := ht
-        simp only [ht', ↓reduceIte] at hτ
-        exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
-          hs.imp ht' τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
-      · refine hs.chk hc τ ?_
-        split at hτ
-        · exact fun e he => hτ e (List.mem_cons_of_mem _ he)
-        · exact hτ
+      exact inv_addStrengthened hs _ c
     · cases h
   | sol ρ =>
     simp only [stepTop] at h
@@ -2283,21 +2329,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
     · split at h
       · simp only [Option.some.injEq] at h
         subst h
-        generalize (if items.isSome = true then _ else s.next) = m
-        refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit⟩
-        · split at he
-          · rcases List.mem_cons.1 he with rfl | he
-            · exact List.mem_cons_self
-            · exact List.mem_cons_of_mem _ (hs.sub e he)
-          · exact List.mem_cons_of_mem _ (hs.sub e he)
-        · have ht' : s.tcb = true := ht
-          simp only [ht', ↓reduceIte] at hτ
-          exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
-            hs.imp ht' τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
-        · refine hs.chk hc τ ?_
-          split at hτ
-          · exact fun e he => hτ e (List.mem_cons_of_mem _ he)
-          · exact hτ
+        exact inv_addStrengthened hs _ c
       · cases h
     · cases h
 
@@ -2334,16 +2366,30 @@ private theorem OrdInv.of_ord {s s' : State} (ho : OrdInv s) (horders : s'.order
   loaded L hL := ho.loaded L (horder ▸ hL)
   ord L hL := hord L (horder ▸ hL) (ho.loaded L (horder ▸ hL)) (ho.ord L (horder ▸ hL))
 
-private theorem mem_of_lookup {α β : Type} [BEq α] [LawfulBEq α] {a : α} {b : β} :
-    ∀ {l : List (α × β)}, l.lookup a = some b → (a, b) ∈ l
-  | [], h => by simp at h
-  | (a', b') :: l, h => by
-    by_cases ha : a = a'
-    · subst ha
-      simp only [List.lookup_cons_self, Option.some.injEq] at h
-      exact h ▸ List.mem_cons_self
-    · rw [List.lookup_cons, beq_false_of_ne ha] at h
-      exact List.mem_cons_of_mem _ (mem_of_lookup h)
+/-- Asserting a value of the objective keeps the order invariant: a solution of the database
+below a solution of the core set has no larger value, so it satisfies the improving constraint
+too. Shared by `soli` and `obji`. -/
+private theorem ordInv_improve {s : State} {f : Objective} {v : ℤ} (ho : OrdInv s)
+    (hf : s.obj = some f) : OrdInv (s.improve f v) :=
+  ho.of_ord rfl rfl fun _ _ _ hsat τ hτ => by
+    simp only [State.improve, State.addCore] at hτ ⊢
+    have hi := hτ _ List.mem_cons_self
+    obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+    refine ⟨τ₁, List.forall_mem_cons.2 ⟨?_, h₁⟩, hle₁, hobj₁, hp₁⟩
+    simp only [holds_normalize, Objective.holds_improving] at hi ⊢
+    simp only [hf, objValue] at hobj₁
+    omega
+
+/-- **The repair of `dom`**: under the order invariant, every solution of the core set gives a
+solution of the database and the new constraint below it (`Cslib.Logic.PL.VeriPB.SatObjPo.dom`),
+shared by the order, lower-bound and coverage invariants. -/
+private theorem dom_repair {F : List PBConstr} {obj : Option Objective} {s : State}
+    {L : LoadedOrder} {c : PBConstr} {ω : Witness} {items : List RedItem} {q : Option ℕ}
+    {n' : ℕ} (m : ℕ) (hinv : Inv F obj s) (hord : OrdInv s) (hL : s.order = some L)
+    (hdom : domCheck s.pres s.obj L s.db s.core s.next c ω items q = some n') :
+    SatObjPo s.pres L s.obj s.core ((m, c.normalize) :: s.db) :=
+  SatObjPo.dom m (hord.loaded L hL) (hord.ord L hL) (presFree_of_domCheck hdom) fun _ hσ hc =>
+    domCheck_sound (hord.loaded L hL) hσ (allHold_mono hinv.sub hσ) hc hdom
 
 /-- **Each step keeps the order invariant.** -/
 theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : State} {t : TopStep}
@@ -2376,7 +2422,7 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
       subst h
       obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
       refine ho.of_ord rfl rfl fun L hL hLg hsat τ hτ => ?_
-      dsimp only at hτ ⊢
+      simp only [State.addStrengthened] at hτ ⊢
       generalize (if items.isSome = true then n' else s.next) = m at hτ ⊢
       cases ht : s.tcb
       · simp only [ht, Bool.false_eq_true, ↓reduceIte] at hτ hred
@@ -2406,14 +2452,7 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
       split at h
       · simp only [Option.some.injEq] at h
         subst h
-        refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
-        simp only [State.log] at hτ ⊢
-        have hi := hτ _ List.mem_cons_self
-        obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ fun e he => hτ e (List.mem_cons_of_mem _ he)
-        refine ⟨τ₁, List.forall_mem_cons.2 ⟨?_, h₁⟩, hle₁, hobj₁, hp₁⟩
-        simp only [holds_normalize, Objective.holds_improving] at hi ⊢
-        simp only [hf, objValue] at hobj₁
-        omega
+        exact ordInv_improve (ho.of_ord rfl rfl fun _ _ _ hsat => hsat) hf
       · cases h
     · cases h
   | deld ids =>
@@ -2483,13 +2522,7 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
     · rename_i f hf
       simp only [Option.some.injEq] at h
       subst h
-      refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
-      have hi := hτ _ List.mem_cons_self
-      obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ fun e he => hτ e (List.mem_cons_of_mem _ he)
-      refine ⟨τ₁, List.forall_mem_cons.2 ⟨?_, h₁⟩, hle₁, hobj₁, hp₁⟩
-      simp only [holds_normalize, Objective.holds_improving] at hi ⊢
-      simp only [hf, objValue] at hobj₁
-      omega
+      exact ordInv_improve ho hf
     · cases h
   | obju diff g sub =>
     simp only [stepTop] at h
@@ -2544,7 +2577,9 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
         simp only [Option.some.injEq] at h
         subst h
         have hL : LoadedOrder.Good ⟨O, z⟩ :=
-          ⟨ho.orders _ (mem_of_lookup hO), by simpa using hz⟩
+          ⟨ho.orders (name, O) (by
+            obtain ⟨l₁, l₂, he, -⟩ := List.lookup_eq_some_iff.1 hO
+            simp [he]), by simpa using hz⟩
         refine ⟨ho.orders, fun L hL' => ?_, fun L hL' => ?_⟩ <;>
           simp only [Option.mem_def, Option.some.injEq] at hL' <;> subst hL'
         · exact hL
@@ -2563,15 +2598,11 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
       · rename_i n' hdom
         simp only [Option.some.injEq] at h
         subst h
-        refine ho.of_ord rfl rfl fun L' hL' hLg hsat => ?_
+        refine ho.of_ord rfl rfl fun L' hL' _ _ τ hτ => ?_
         rw [hL, Option.mem_def, Option.some.injEq] at hL'
         subst hL'
-        have hdom' := SatObjPo.dom (if items.isSome = true then n' else s.next) hLg hsat
-          (presFree_of_domCheck hdom) fun σ hσ hc =>
-            domCheck_sound hLg hσ (allHold_mono hinv.sub hσ) hc hdom
-        intro τ hτ
-        refine hdom' τ ?_
-        dsimp only at hτ
+        refine dom_repair _ hinv ho hL hdom τ ?_
+        simp only [State.addStrengthened] at hτ
         split at hτ
         · exact fun e he => hτ e (List.mem_cons_of_mem _ he)
         · exact hτ
@@ -2580,6 +2611,7 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
 
 /-- **The lower-bound invariant** for a value `w`: some solution of the database has objective at
 most `w`, or the bound `dbound` is at most `w`. -/
+@[expose]
 def Reaches (w : ℤ) (s : State) : Prop :=
   (∃ τ, AllHold τ s.db ∧ objValue s.obj τ ≤ w) ∨ ∃ d ∈ s.dbound, d ≤ w
 
@@ -2588,6 +2620,7 @@ def Reaches (w : ℤ) (s : State) : Prop :=
 bound `dbound` is at most `w`. Over the solutions `σ₀` of the input, with `w` the value of `σ₀`
 and `P` the preserved set, this is CakePB's forward `bimp_pres_obj` from the input to the
 database below `dbound`, the injection being the identity on projections. -/
+@[expose]
 def ReachesOn (P : List ℕ) (w : ℤ) (σ₀ : ℕ → Bool) (s : State) : Prop :=
   (∃ τ, AllHold τ s.db ∧ objValue s.obj τ ≤ w ∧ proj P τ = proj P σ₀) ∨ ∃ d ∈ s.dbound, d ≤ w
 
@@ -2844,10 +2877,7 @@ theorem stepTop_reachesOn {F : List PBConstr} {obj : Option Objective} {P : List
       · rename_i n' hdom
         simp only [Option.some.injEq] at h
         subst h
-        have hLg := hord.loaded L hL
-        have hd := SatObjPo.dom (if items.isSome = true then n' else s.next) hLg (hord.ord L hL)
-          (presFree_of_domCheck hdom) fun σ hσ hc =>
-            domCheck_sound hLg hσ (allHold_mono hinv.sub hσ) hc hdom
+        have hd := dom_repair (if items.isSome = true then n' else s.next) hinv hord hL hdom
         rcases hs with ⟨τ, hτ, hw, hp⟩ | hb
         · obtain ⟨τ', h', -, hle, hp'⟩ := hd τ (allHold_mono hinv.sub hτ)
           exact .inl ⟨τ', h', hle.trans hw, (hPs τ τ' hp').trans hp⟩
@@ -2923,6 +2953,17 @@ private theorem enumInv_of {F : List PBConstr} {obj : Option Objective} {pres : 
     rw [hlog, ← hag P hP]
     exact he.logcore hc0 τ' hτ' P hP
 
+/-- Adding a constraint derived by `red` or `dom` keeps the backward enumeration invariant: the
+core set only grows. -/
+private theorem enumInv_addStrengthened {F : List PBConstr} {obj : Option Objective}
+    {pres : Option (List ℕ)} {s : State} (he : EnumInv F obj pres s) (m : ℕ) (c : PBConstr) :
+    EnumInv F obj pres (s.addStrengthened m c) := by
+  refine enumInv_of he rfl id rfl fun hc => ⟨hc, fun τ hτ => ?_⟩
+  simp only [State.addStrengthened] at hτ
+  split at hτ
+  · exact ⟨τ, fun e he => hτ e (List.mem_cons_of_mem _ he), fun _ _ => rfl⟩
+  · exact ⟨τ, hτ, fun _ _ => rfl⟩
+
 /-- **Each step keeps the backward enumeration invariant.** -/
 theorem stepTop_enumInv {F : List PBConstr} {obj : Option Objective} {pres : Option (List ℕ)}
     {s s' : State} {t : TopStep} (hinv : Inv F obj s) (he : EnumInv F obj pres s)
@@ -2954,11 +2995,7 @@ theorem stepTop_enumInv {F : List PBConstr} {obj : Option Objective} {pres : Opt
     · rename_i n' hred
       simp only [Option.some.injEq] at h
       subst h
-      generalize (if items.isSome = true then n' else s.next) = m
-      refine enumInv_of he rfl id rfl fun hc => ⟨hc, fun τ hτ => ?_⟩
-      split at hτ
-      · exact cons _ τ hτ
-      · exact same τ hτ
+      exact enumInv_addStrengthened he _ c
     · cases h
   | sol ρ =>
     simp only [stepTop] at h
@@ -3104,17 +3141,14 @@ theorem stepTop_enumInv {F : List PBConstr} {obj : Option Objective} {pres : Opt
     · split at h
       · simp only [Option.some.injEq] at h
         subst h
-        refine enumInv_of he rfl id rfl fun hc => ⟨hc, fun τ hτ => ?_⟩
-        dsimp only at hτ
-        split at hτ
-        · exact cons _ τ hτ
-        · exact same τ hτ
+        exact enumInv_addStrengthened he _ c
       · cases h
     · cases h
 
 /-- **The forward enumeration invariant** for a solution `σ₀` of the formula: without an
 objective, its projection to the preserved set is that of a solution of the database, or has
 been logged. -/
+@[expose]
 def Covers (σ₀ : ℕ → Bool) (s : State) : Prop :=
   s.obj = none → ∀ P ∈ s.pres,
     (∃ τ, AllHold τ s.db ∧ proj P τ = proj P σ₀) ∨ proj P σ₀ ∈ s.logged
@@ -3285,10 +3319,7 @@ theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {σ₀ : ℕ
       · rename_i n' hdom
         simp only [Option.some.injEq] at h
         subst h
-        have hLg := hord.loaded L hL
-        have hd := SatObjPo.dom (if items.isSome = true then n' else s.next) hLg (hord.ord L hL)
-          (presFree_of_domCheck hdom) fun σ hσ hc =>
-            domCheck_sound hLg hσ (allHold_mono hinv.sub hσ) hc hdom
+        have hd := dom_repair (if items.isSome = true then n' else s.next) hinv hord hL hdom
         refine covers_of hs rfl id (fun _ h => h) fun _ P hP τ hτ => .inl ?_
         obtain ⟨τ', h', -, -, hp'⟩ := hd τ (allHold_mono hinv.sub hτ)
         exact ⟨τ', h', hp' P hP⟩
@@ -3475,6 +3506,7 @@ theorem exists_eval_le_of_checkRed {F : List PBConstr} {f : Objective} {P : RedP
 
 /-- The projections to `P` of the solutions of `F`: the solutions counted by a projected
 enumeration (§4.3). -/
+@[expose]
 def projections (F : List PBConstr) (P : List ℕ) : Set (List Bool) :=
   {l | ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ proj P σ = l}
 

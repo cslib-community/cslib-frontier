@@ -4,9 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
+-- `#guard` evaluates the checkers and the fixtures at compile time.
+public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 
 /-! The text front end of the VeriPB kernel-proof checker on proofs elaborated to the kernel format
 by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate`):
@@ -43,7 +50,9 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
 * orders and dominance (§5.3, §5.4): lexicographic orders defined by `def_order` with their
   transitivity and reflexivity proofs, symmetry breaking of PHP(3, 2) and of a symmetric
   objective by `dom`, `dom` and `red` with order goals, and deletion while an order is loaded,
-  each compared with VeriPB and CakePB;
+  each compared with VeriPB and CakePB, and the public order and dominance API (`Order.defCheck`,
+  `Order.Le`, `LoadedOrder.isPreorder`, `domCheck`, `domCheck_sound`) under the ordinary imports
+  of this module;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
@@ -55,15 +64,17 @@ value or leave an objective variable unassigned, an objective update that is not
 the core set or rests on derived constraints, an enumeration that overcounts, repeats a solution,
 claims completeness without a contradiction, leaves a preserved variable unassigned, follows an
 unchecked deletion, or uses a witness that moves a preserved variable, a transitivity proof that
-fails, a `dom` step with an unproved negated order, a failing order or objective goal, or no loaded
-order, a `red` step with a failing order goal, an unchecked deletion with a nonempty derived set
-while an order is loaded, auxiliary variables and specifications, a dropped
-hint, a repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a
-wrong formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
+fails, an order that is transitive but not reflexive, a `dom` step with an unproved negated order,
+a failing order or objective goal, an unproved core goal, a witness moving a preserved variable,
+or no loaded order, a `red` step with a failing order goal, an unchecked deletion with a nonempty
+derived set while an order is loaded, auxiliary variables and specifications, a dropped hint, a
+repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a wrong
+formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
 tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
 of texts. -/
 
 set_option linter.hashCommand false
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBText
 
@@ -1166,6 +1177,17 @@ end pseudo-Boolean proof;
 /-! ### Orders and dominance -/
 
 #guard checkOPB php32 domPhp32 == some (.unsat 16)
+-- The goals of `dom` cover only the core set: a derived constraint, `x2 + ~x3 >= 1` (`10`), may
+-- lie between `load_order` and `dom`, though the swap does not map it into the database. VeriPB
+-- and CakePB accept.
+#guard checkOPB php32 ((domPhp32.replace "x3 x4;\n" "x3 x4;\npol 1 4 +;\n").replace
+  "pol 10 11 +;\nqed : 12;" "pol 11 12 +;\nqed : 13;" |>.replace "14 + 15 +;\n" "15 + 16 +;\n"
+  |>.replace "UNSAT : 16" "UNSAT : 17") == some (.unsat 17)
+-- Moved to the core set by `core id 10`, its goal is a goal of `dom` and nothing proves it:
+-- rejected, as by CakePB; VeriPB's augmented format autoproves it by RUP.
+#guard (checkOPB php32 ((domPhp32.replace "x3 x4;\n" "x3 x4;\npol 1 4 +;\ncore id 10;\n").replace
+  "pol 10 11 +;\nqed : 12;" "pol 11 12 +;\nqed : 13;" |>.replace "14 + 15 +;\n" "15 + 16 +;\n"
+  |>.replace "UNSAT : 16" "UNSAT : 17")).isNone
 -- Without its subproof, goal `#2`, the negated order, is not proved: all three reject.
 #guard (checkOPB php32 (domPhp32.replace "proofgoal #2\npol 10 11 +;\nqed : 12;\n" "")).isNone
 -- A witness that leaves `x2` alone: the negated order is no longer refuted, and all three
@@ -1307,6 +1329,17 @@ conclusion NONE;
 end pseudo-Boolean proof;
 ")).isNone
 
+-- The strict order `u1 < v1`, `1 ~u1 1 v1 >= 2`: its transitivity proof is accepted (the
+-- premises alone sum to a contradiction), and only its reflexivity proof fails. All three
+-- reject.
+#guard (checkOPB emptyOpb ("pseudo-Boolean proof version 3.0
+f 0;
+" ++ (simpleOrder.replace "1 ~u1 1 v1 >= 1;" "1 ~u1 1 v1 >= 2;" |>.replace
+  "pol 1 2 + 3 +;" "pol 1 2 +;") ++ "output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+")).isNone
+
 -- `red` gets the order goal `#2` (§5.4.1): with the order over `~x1` it is trivial, over `x1` it
 -- fails. VeriPB and CakePB agree.
 #guard checkOPB emptyOpb (withSimple 0 "load_order simple ~x1;
@@ -1399,15 +1432,77 @@ end pseudo-Boolean proof;
 "
 
 #guard checkOPB sym2 domObjProof == some (.bounds (some 1) 7 (some 1) none)
+-- With `x1` preserved, the swap moves a preserved variable: all three reject.
+#guard (checkOPB (sym2.replace "x2 ;\n+1" "x2 ;\npreserved: x1 ;\n+1") domObjProof).isNone
 -- For the objective `x1 + 2 x2` the swap can raise the value, goal `#3` fails, and all three
 -- reject: the optimum `1` is reached only at `x1`, which the lex-leader constraint excludes.
 #guard (checkOPB (sym2.replace "+1 x2 ;" "+2 x2 ;") domObjProof).isNone
+
+/-! ### The order and dominance API under ordinary imports
+
+This module imports `Text`, and with it `Redundance`, by ordinary imports: the checks below use
+only the public API, through `#guard`, exposed bodies and the soundness theorems. -/
+
+/-- The lexicographic order on two bits, `(u1, u2) ⪯ (v1, v2)` when `2 u1 + u2 ≤ 2 v1 + v2`, over
+the variables `10`–`13`. -/
+def lexTwo : Order :=
+  ⟨[10, 11], [12, 13],
+    [⟨[(2, (10, false)), (1, (11, false)), (2, (12, true)), (1, (13, true))], 3⟩]⟩
+
+/-- Its transitivity proof with the fresh right variables `14`, `15`. -/
+def lexTwoTrans : OrderProof :=
+  ⟨[.goal (.hash 1) [.pol [.id 1, .id 2, .add, .id 3, .add]] 4], none⟩
+
+/-- Its reflexivity proof. -/
+def lexTwoRefl : OrderProof := ⟨[.goal (.hash 1) [] 5], none⟩
+
+#guard lexTwo.defCheck [14, 15] lexTwoTrans lexTwoRefl
+
+-- The relation itself unfolds through exposed bodies: `01 ⪯ 10`, and not `10 ⪯ 01`.
+example : lexTwo.Le [false, true] [true, false] := by decide
+example : ¬ lexTwo.Le [true, false] [false, true] := by decide
+
+-- A passing `def_order` check gives a preorder on assignments, for any literals of the right
+-- length.
+example {O : Order} {w : List ℕ} {tp rp : OrderProof} (h : O.defCheck w tp rp = true)
+    (z : List (Literal ℕ)) (hz : z.length = O.left.length) :
+    IsPreorder (ℕ → Bool) (LoadedOrder.Le ⟨O, z⟩) :=
+  LoadedOrder.isPreorder ⟨Order.good_of_defCheck h, hz⟩
+
+/-- `lexTwo` loaded over `x0, x1`. -/
+def lexTwoZ : LoadedOrder := ⟨lexTwo, [(0, true), (1, true)]⟩
+
+/-- `x0 + x1 >= 1`, as the database `1`. -/
+def symDb : List (ℕ × PBConstr) := [(1, ⟨[(1, (0, true)), (1, (1, true))], 1⟩)]
+
+/-- `dom ~x0 + x1 >= 1 : x0 -> x1 x1 -> x0`, its goal `#2` refuted from `¬C` (`2`) and the
+premise `3`. -/
+def symDom (pres : Option (List ℕ)) (core : List (ℕ × PBConstr)) : Option ℕ :=
+  domCheck pres none lexTwoZ symDb core 2 ⟨[(1, (0, false)), (1, (1, true))], 1⟩
+    [(0, .lit (1, true)), (1, .lit (0, true))] [.goal (.hash 2) [.pol [.id 2, .id 3, .add]] 4]
+    none
+
+#guard symDom none symDb == some 5
+-- The witness moves the preserved variable `x0`, so the check fails.
+#guard symDom (some [0]) symDb == none
+-- Without the core goal of `1`, the check is the same.
+#guard symDom none [] == some 5
+
+-- An accepted `dom` step maps a solution violating its constraint strictly down the order.
+example {σ : ℕ → Bool} {L : LoadedOrder} {pres : Option (List ℕ)} {obj : Option Objective}
+    {db core : List (ℕ × PBConstr)} {n n' : ℕ} {c : PBConstr} {ω : Witness}
+    {items : List RedItem} {q : Option ℕ} (hL : L.Good) (hdb : AllHold σ db)
+    (hcore : AllHold σ core) (hc : ¬ c.Holds σ)
+    (h : domCheck pres obj L db core n c ω items q = some n') :
+    L.Le (Witness.apply σ ω) σ ∧ ¬ L.Le σ (Witness.apply σ ω) :=
+  ⟨(domCheck_sound hL hdb hcore hc h).2.1, (domCheck_sound hL hdb hcore hc h).2.2.1⟩
 
 /-! ### Soundness -/
 
 -- The accepted optimality proof: every solution of `cover` has value at least `1`, and one has
 -- value at most `1`, so the optimum is `1`.
-example (h : checkOPB cover coverProof = some (.bounds (some 1) 6 (some 1) none)) :
+example (h : (checkOPBOutput cover coverProof).map (·.1) =
+    some (.bounds (some 1) 6 (some 1) none)) :
     ∃ I f, parseOPB cover = some I ∧ I.objective = some f ∧
     (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) →
       ∃ l, some 1 = some l ∧ l ≤ f.eval σ) ∧
@@ -1416,13 +1511,13 @@ example (h : checkOPB cover coverProof = some (.bounds (some 1) 6 (some 1) none)
   bounds_of_checkOPB h
 
 -- An accepted complete enumeration counts the projections of the solutions to the preserved set.
-example (h : checkOPB enum3 enumProof = some (.enumComplete 3 7)) :
+example (h : (checkOPBOutput enum3 enumProof).map (·.1) = some (.enumComplete 3 7)) :
     ∃ I P, parseOPB enum3 = some I ∧ I.preserved = some P ∧
       (projections I.constraints P).encard = 3 :=
   encard_eq_of_checkOPB_enumComplete h
 
 -- An accepted partial enumeration bounds that count from below.
-example (h : checkOPB enum3 enumPartialProof = some (.enumPartial 2)) :
+example (h : (checkOPBOutput enum3 enumPartialProof).map (·.1) = some (.enumPartial 2)) :
     ∃ I P, parseOPB enum3 = some I ∧ I.preserved = some P ∧
       (2 : ℕ∞) ≤ (projections I.constraints P).encard :=
   le_encard_of_checkOPB_enumPartial h
