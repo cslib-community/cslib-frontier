@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.FrameMachines
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Bounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 
 /-!
 # Native extraction of an encoded framed header
@@ -31,6 +33,7 @@ it does not initialize or execute a complete query machine.
 
 public section
 namespace Turing.MultiTapeTM
+open ComputableInSpace
 
 /-- Extract the first framed encoded field with the existing native frame reader, without
 work tapes. The layout premise leaves the remainder of the input unrestricted. -/
@@ -55,5 +58,23 @@ theorem ComputableInSpace.framedPrefix {α β : Type*} (f : α → β)
   exact ComputableInSpace.of_inO (ComputableInO.of_bounds (T := fun x => (encIn x).length)
     (ComputableInTimeAndSpace.framedPrefix f encIn encOut suffix layout) 3
     (fun _ => by omega) (fun _ => by omega) (fun _ => by omega))
+
+/-- Compute the length of the framed header in the same space budget as its extraction.
+For a framed prefix, this gives the binary offset of the original payload. -/
+theorem ComputableInSpace.frameLength {α β : Type*} {f : α → β} {encIn : α ↪ List Bool}
+    {encHeader : β ↪ List Bool} {budget : α → ℕ}
+    (h : ComputableInSpace f encIn encHeader budget) :
+    ComputableInSpace (fun x => (frame (encHeader (f x))).length) encIn encNat budget := by
+  have hword : ComputableInSpace (fun x => encHeader (f x)) encIn encBits budget :=
+    h.of_enc_eq fun _ => (encBits_apply _).symm
+  have hlength : ComputableInSpace List.length encBits encNat
+      (fun w => (encBits w).length) :=
+    (of_inO ComputableInO.lengthNat).weaken (.of_le fun w => by rw [encBits_apply])
+  have hlen := budget_comp_linear hlength hword
+  have hid : ComputableInSpace (fun n : ℕ => n) encNat encNat
+      (fun n => (encNat n).length) := of_inO (ComputableInO.of_eq fun _ => rfl)
+  have hoffset := budget_natSucc (budget_natAdd hid hid)
+  exact (budget_comp_linear hoffset hlen).of_enc_eq fun _ => by
+    simp only [length_frame, two_mul]
 
 end Turing.MultiTapeTM

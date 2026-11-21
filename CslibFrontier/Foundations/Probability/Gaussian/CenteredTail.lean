@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.DiscreteTail
 
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
+import Mathlib.MeasureTheory.Measure.Real
 
 /-!
 # Uniform tails of centered lattice Gaussians
@@ -22,14 +23,18 @@ import Mathlib.Analysis.Real.Pi.Bounds
   at every radius.
 * `ZLattice.discreteGaussian_zero_norm_gt_sqrt_lt`: the strict probability bound outside
   radius `s * sqrt dim`, including dimension zero.
+* `ZLattice.gaussianMass_dual_sub_one_le_of_gap`: a quantitative sufficient width criterion
+  bounding the nonzero dual Gaussian mass from an explicit dual norm gap.
 
 ## References
 
 The strict-radius endpoint is the normalized probability form of [Regev2009], Lemma 2.5,
 printed page 16 of the May 2, 2009 author version, credited there to Banaszczyk. Its mass
 comparison is proved using Lemma 2.4, rather than assumed. The proof uses the exponential
-moment at width `2 * s`. These estimates are centered at zero; uniform off-center estimates,
-smoothing, efficient sampling and the quantum reduction remain separate work.
+moment at width `2 * s`. The dual-gap width criterion supports the dual-tail condition in
+[Regev2009], Claim 3.8, and the smoothing-parameter upper bound in [MicciancioRegev2007],
+Lemma 3.2. These estimates are centered at zero; uniform off-center estimates, eventual
+smoothing criteria, efficient sampling and the quantum reduction remain separate work.
 -/
 
 public section
@@ -37,6 +42,7 @@ public section
 noncomputable section
 
 open Module ProbabilityTheory MeasureTheory
+open scoped RealInnerProductSpace
 
 namespace ZLattice
 
@@ -118,5 +124,52 @@ theorem discreteGaussian_zero_norm_gt_sqrt_lt (s : ℝ) (hs : 0 < s) :
     apply lt_of_le_of_lt h
     exact (ENNReal.ofReal_lt_ofReal_iff (by positivity)).mpr
       (two_pow_mul_exp_lt_quarter_pow (finrank ℝ E) hnpos)
+
+private theorem discreteGaussian_nonzero_toReal
+    (M : Submodule ℤ E) [DiscreteTopology M] (s : ℝ) (hs : 0 < s) :
+    ((discreteGaussian M s hs 0).toOuterMeasure {z : M | z ≠ 0}).toReal =
+      1 - 1 / gaussianMass M s 0 := by
+  let p := discreteGaussian M s hs 0
+  have hevent : {z : M | z ≠ 0} = ({0} : Set M)ᶜ := rfl
+  rw [hevent, ← PMF.toMeasure_apply_eq_toOuterMeasure_apply p
+    (measurableSet_singleton 0).compl]
+  change p.toMeasure.real ({0} : Set M)ᶜ = _
+  rw [probReal_compl_eq_one_sub (measurableSet_singleton 0), Measure.real,
+    PMF.toMeasure_apply_singleton p 0 (measurableSet_singleton 0)]
+  simp [p, discreteGaussian_apply_toReal, gaussianWeight]
+
+/-- An explicit dual gap and exponential width criterion bound the actual nonzero dual mass.
+The error `ε` is arbitrary and positive; it is not assumed to bound the desired mass. -/
+theorem gaussianMass_dual_sub_one_le_of_gap (s : ℝ) (hs : 0 < s) (a : ℝ) (ha : 0 < a)
+    (hgap : ∀ w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L,
+      w ≠ 0 → a ≤ ‖(w : E)‖)
+    (ε : ℝ) (hε : 0 < ε)
+    (hwidth : 2 ^ finrank ℝ E * Real.exp (-3 * Real.pi * s ^ 2 * a ^ 2 / 4) ≤
+      ε / (1 + ε)) :
+    gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε := by
+  let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
+  have : DiscreteTopology D := discreteTopology_dualSubmodule L
+  have : IsZLattice ℝ D := isZLattice_dualSubmodule L
+  have hs' : 0 < 1 / s := one_div_pos.mpr hs
+  have htail := discreteGaussian_zero_norm_ge_le D (1 / s) hs' a ha.le
+  have hexp : -3 * Real.pi * a ^ 2 / (4 * (1 / s) ^ 2) =
+      -3 * Real.pi * s ^ 2 * a ^ 2 / 4 := by
+    field_simp
+  rw [hexp] at htail
+  have hsubset : {w : D | w ≠ 0} ⊆ {w : D | a ≤ ‖(w : E)‖} := fun w hw ↦ hgap w hw
+  have hprob := ((discreteGaussian D (1 / s) hs' 0).toOuterMeasure.mono hsubset).trans
+    (htail.trans (ENNReal.ofReal_le_ofReal hwidth))
+  have hreal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hprob
+  rw [OuterMeasure.measureOf_eq_coe, discreteGaussian_nonzero_toReal D (1 / s) hs',
+    ENNReal.toReal_ofReal (by positivity)] at hreal
+  have hm : 0 < gaussianMass D (1 / s) 0 := gaussianMass_pos D (1 / s) hs' 0
+  have he : 0 < 1 + ε := by positivity
+  have hr : 1 - 1 / gaussianMass D (1 / s) 0 =
+      (gaussianMass D (1 / s) 0 - 1) / gaussianMass D (1 / s) 0 := by
+    field_simp
+  rw [hr] at hreal
+  have hmul := (div_le_div_iff₀ hm he).mp hreal
+  change gaussianMass D (1 / s) 0 - 1 ≤ ε
+  nlinarith
 
 end ZLattice
