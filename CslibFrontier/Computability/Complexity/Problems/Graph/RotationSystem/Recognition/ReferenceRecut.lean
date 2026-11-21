@@ -118,11 +118,15 @@ private theorem frozen_edge_has_fixed_dart {I : FixedRotationInput}
   generalize k = j at hpos hf
   fin_cases j
   · refine ⟨(i, false), ?_, Fin.ext hpos.symm⟩
-    rw [← congrArg Prod.fst (Dart.edge_eq_vertices i)]
+    have hvertex : Dart.vertex (i, false) = I.graph.edges[i].1 :=
+      (congrArg Prod.fst (Dart.edge_eq_vertices i)).symm
+    rw [hvertex]
     exact hf
   · exact Bool.noConfusion (show false = true from hf)
   · refine ⟨(i, true), ?_, Fin.ext hpos.symm⟩
-    rw [← congrArg Prod.snd (Dart.edge_eq_vertices i)]
+    have hvertex : Dart.vertex (i, true) = I.graph.edges[i].2 :=
+      (congrArg Prod.snd (Dart.edge_eq_vertices i)).symm
+    rw [hvertex]
     exact hf
 
 /-- A realization of the prescribed rotation admits a subdivision embedding at the original
@@ -236,7 +240,8 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
       rw [ht']
       change (Route.line (Q.route e).start (Q.route e).finish).eval i t = _ ∧ _
       refine ⟨?_, fun side => ?_⟩
-      · rw [Route.eval_line, Route.eval_line, ← hFt t ht, F.symm_apply_apply]
+      · exact (Route.eval_line _ _ i t).trans
+          (F.injective ((hFt t ht).trans (F.apply_symm_apply _).symm))
       · exact (Route.atEnd_line_iff _ _ i t side).trans (Route.atEnd_line_iff _ _ 0 t side).symm
     · have hroute : E.route e = (P.route e).mapAtCuts cuts c F.symm := ite_eq_right he
       rw [hroute]
