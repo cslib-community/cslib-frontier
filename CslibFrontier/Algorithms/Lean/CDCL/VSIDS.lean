@@ -215,12 +215,19 @@ def OrderKey.toPair (k : OrderKey) : ℕ × ℕ := (k.activity, k.var)
 section
 attribute [local instance] lexOrd
 
-/-- Entries compare by activity, then by variable. -/
-instance : Ord OrderKey := ⟨fun a b => compare a.toPair b.toPair⟩
+/-- Entries compare by activity, then by variable: the lexicographic order on `toPair`, written
+out so that comparing builds no pairs at run time. -/
+instance : Ord OrderKey :=
+  ⟨fun a b => (compare a.activity b.activity).then (compare a.var b.var)⟩
+
+theorem OrderKey.compare_eq (a b : OrderKey) : compare a b = compare a.toPair b.toPair := rfl
 
 instance : Std.TransOrd OrderKey :=
   have h : Std.TransOrd (ℕ × ℕ) := inferInstance
-  { eq_swap := h.eq_swap, isLE_trans := h.isLE_trans }
+  { eq_swap := fun {a b} => by
+      rw [OrderKey.compare_eq, OrderKey.compare_eq]; exact h.eq_swap
+    isLE_trans := fun {a b c} hab hbc => by
+      rw [OrderKey.compare_eq] at hab hbc ⊢; exact h.isLE_trans hab hbc }
 
 /-- An entry at least another has at least its activity. -/
 theorem OrderKey.activity_le_of_isGE {a b : OrderKey} (h : (compare a b).isGE) :
