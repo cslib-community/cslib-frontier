@@ -24,6 +24,8 @@ The input degree and coefficient norm determine the specialization, cutoff and l
 Adapted from `FiniteCriticalCriterion.real_zero_iff_negative_finiteCriticalDeterminant` in
 lean-canny at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. Here `ell` is the source's `d + 1`,
 and the norm and specialization exponents come from the library's coefficient bounds.
+The same bounds control the degree and coefficient norm of each shifted label used
+in the determinant.
 -/
 
 public section
@@ -39,6 +41,38 @@ polynomial and its cutoff test. -/
   let H := parametricValueCoeffNormExponent n ell b
   max (H + criticalParameterExponent n ell b * (ell ^ n * (ell + 2 + n * ell))) (H + 2)
 
+private theorem criticalRootLabel_dimension_le (n ell : ℕ) :
+    ell ^ n ≤ 2 ^ (n * ell.size) :=
+  (Nat.pow_le_pow_left (Nat.lt_size_self ell).le n).trans_eq
+    (by rw [← pow_mul, Nat.mul_comm])
+
+private theorem criticalRootLabel_inputs_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b) :
+    let H := parametricValueCoeffNormExponent n ell b
+    let q := Polynomial.C ((2 : ℤ) ^ (H + 1)) - Polynomial.X
+    let p := valuePolynomial (by omega : 1 ≤ ell) (fun i => (separatedCenters ell i : ℤ))
+      (2 ^ criticalParameterExponent n ell b) F hF
+    let B := criticalRootLabelCoeffNormExponent n ell b
+    q.natDegree ≤ ell ^ n ∧ q.coeffNorm1 ≤ 2 ^ B ∧ p.coeffNorm1 ≤ 2 ^ B := by
+  intro H q p B
+  have hD : 0 < ell ^ n := pow_pos (by omega) _
+  have hqD : q.natDegree ≤ ell ^ n := (Polynomial.natDegree_sub_le _ _).trans
+    (by simpa only [Polynomial.natDegree_C, Polynomial.natDegree_X, zero_le, max_eq_right]
+      using Nat.succ_le_of_lt hD)
+  refine ⟨hqD, ?_, (coeffNorm1_valuePolynomial_at_pow_two_le hell F hF hb _).trans
+    (Nat.pow_le_pow_right (by decide) (le_max_left _ _))⟩
+  have hx : (Polynomial.X : ℤ[X]).coeffNorm1 = 1 := by
+    simpa only [mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
+  have hR : ((2 : ℤ) ^ (H + 1)).natAbs = 2 ^ (H + 1) := by
+    rw [Int.natAbs_pow]
+    rfl
+  apply (Polynomial.coeffNorm1_sub_le _ _).trans
+  rw [Polynomial.coeffNorm1_C, hx, hR]
+  refine le_trans ?_ (Nat.pow_le_pow_right (by decide) (le_max_right _ _))
+  rw [show H + 2 = (H + 1) + 1 by rfl, pow_succ]
+  have := Nat.one_le_two_pow (n := H + 1)
+  omega
+
 /-- The shifted sparse label for the actual critical-value polynomial and the test for
 lying below the cutoff. -/
 @[expose] noncomputable def criticalShiftedRootLabel {n ell : ℕ} (hell : 1 ≤ ell) (b : ℕ)
@@ -50,6 +84,30 @@ lying below the cutoff. -/
   Polynomial.shiftedRootLabel (ell ^ n) e
     (Polynomial.sparseIntegerRootLabel (valuePolynomial hell a u F hF)
       (Polynomial.C R - Polynomial.X) (n * ell.size) (criticalRootLabelCoeffNormExponent n ell b) L)
+
+/-- Degree and coefficient norm bounds for the shifted critical label, uniform in the
+derivative-sign list. This adapts `FiniteCriticalNormBounds.finiteCriticalShiftedLabel_bounds`
+from the pinned lean-canny revision above, with the label length bound used for the
+shift's coefficient allowance. -/
+theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
+    (L : List (Fin (ell ^ n) × SignType)) {e : ℕ} (he : e ≤ ell ^ n) :
+    let D := ell ^ n
+    let N := n * ell.size
+    let B := criticalRootLabelCoeffNormExponent n ell b
+    let s := Polynomial.sparseRootLabelPrecision D B
+    let g := criticalShiftedRootLabel (by omega) b F hF L e
+    g.natDegree ≤ Polynomial.signLabelDegreeBound (N + 1) s D ∧
+      g.coeffNorm1 ≤ 2 ^ (Polynomial.signLabelNormExponent (N + 1) s
+        (Polynomial.iterateDerivativeNormExponent D B) + N + 3) := by
+  intro D N B s g
+  obtain ⟨hqD, hqb, hpb⟩ := criticalRootLabel_inputs_bounds hell F hF hb
+  have hpD := (valuePolynomial_natDegree (by omega : 1 ≤ ell)
+    (fun i => (separatedCenters ell i : ℤ)) (2 ^ criticalParameterExponent n ell b) F hF).le
+  obtain ⟨hdegree, hnorm⟩ := Polynomial.sparseIntegerRootLabel_bounds L hpD hqD hpb hqb
+  obtain ⟨hsdegree, hsnorm⟩ := Polynomial.shiftedRootLabel_bounds _ he
+    (criticalRootLabel_dimension_le n ell) hnorm
+  exact ⟨hsdegree.trans hdegree, hsnorm⟩
 
 /-- The determinant of multiplication by the label evaluated at the deformed objective
 in the integer critical quotient. -/
@@ -85,28 +143,7 @@ theorem exists_zero_iff_exists_neg_criticalLabelDeterminant {n ell b : ℕ}
   let B := criticalRootLabelCoeffNormExponent n ell b
   have hcard : Fintype.card (NormalIndex n ell) = ell ^ n := by simp [NormalIndex]
   have hD : 0 < ell ^ n := pow_pos (by omega) _
-  have hDN : ell ^ n ≤ 2 ^ (n * ell.size) :=
-    (Nat.pow_le_pow_left (Nat.lt_size_self ell).le n).trans_eq
-      (by rw [← pow_mul, Nat.mul_comm])
-  have hqD : q.natDegree ≤ ell ^ n := (Polynomial.natDegree_sub_le _ _).trans
-    (by simpa only [Polynomial.natDegree_C, Polynomial.natDegree_X, zero_le, max_eq_right]
-      using Nat.succ_le_of_lt hD)
-  have hMb : M.charpoly.coeffNorm1 ≤ 2 ^ B :=
-    (coeffNorm1_valuePolynomial_at_pow_two_le hell F hF hb _).trans
-      (Nat.pow_le_pow_right (by decide) (le_max_left _ _))
-  have hx : (Polynomial.X : ℤ[X]).coeffNorm1 = 1 := by
-    simpa only [mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
-  have hqb : q.coeffNorm1 ≤ 2 ^ B := by
-    have hR : R.natAbs = 2 ^ (H + 1) := by
-      change ((2 : ℤ) ^ (H + 1)).natAbs = _
-      rw [Int.natAbs_pow]
-      rfl
-    apply (Polynomial.coeffNorm1_sub_le _ _).trans
-    rw [Polynomial.coeffNorm1_C, hx, hR]
-    refine le_trans ?_ (Nat.pow_le_pow_right (by decide) (le_max_right _ _))
-    rw [show H + 2 = (H + 1) + 1 by rfl, pow_succ]
-    have := Nat.one_le_two_pow (n := H + 1)
-    omega
+  obtain ⟨hqD, hqb, hMb⟩ := criticalRootLabel_inputs_bounds hell F hF hb
   have hsepR : (M.charpoly.map (Int.castRingHom ℝ)).Separable :=
     (valuePolynomial_at_integerParameterExclusion hell F hF hb).1
   have hsep := hsepR.map (f := Complex.ofRealHom)
@@ -126,6 +163,6 @@ theorem exists_zero_iff_exists_neg_criticalLabelDeterminant {n ell b : ℕ}
   simpa only [Polynomial.aeval_algHom_apply, criticalLabelDeterminant, criticalShiftedRootLabel,
     valuePolynomial, a, u, H, R, q, B, M, μ, v] using
     (Matrix.exists_eval₂_pos_at_charpoly_root_iff_neg_shiftedRootLabel_det
-      M hD hcard.le hDN hqD hMb hqb hsep)
+      M hD hcard.le (criticalRootLabel_dimension_le n ell) hqD hMb hqb hsep)
 
 end MvPolynomial.CriticalSystem
