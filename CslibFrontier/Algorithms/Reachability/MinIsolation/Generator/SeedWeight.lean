@@ -123,4 +123,65 @@ theorem generatedWeight_output {w n : ℕ} (seed : Fin (codeLength w n) → Bool
   rw [← weight_eq_generatedWeight seed z]
   exact SeedDigits.run_withFinish codeBit _ (List.ofFn seed) finishWeight
 
+/-- For canonical seeds and vertices, a single bound in the encoded binary dimensions
+covers every state of the read-only pass and the binary weight it returns. -/
+theorem generatedWeight_run_length_le_encodedDimensions :
+    ∃ C : ℕ, ∀ {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w),
+      let ctx : Context := ⟨fieldContext w n, z.1.val, z.2.val⟩
+      let raw := List.ofFn seed
+      let M := machine ctx
+      let e := SeedDigits.encState Context encContext
+      let budget := (encPair encNat encNat (w, n)).length + 1
+      (∀ t, (e (M.run raw t)).length ≤ C * budget) ∧
+        (encNat (generatedWeight seed z)).length ≤ C * budget := by
+  obtain ⟨A, hA⟩ := length_fieldContext_le_encodedDimensions
+  have hseed : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
+      fun p => (encPair encNat encNat p).length := ⟨_, codeLength_le_encodedDimensions⟩
+  obtain ⟨S, hS⟩ := hseed
+  obtain ⟨D, hD⟩ := finishWeight_inSpace.length_le
+  let K := 4 * A + 8 * S + 12
+  refine ⟨max K (D * (K + 1)), fun {w n} seed z => ?_⟩
+  intro ctx raw M e budget
+  have hw : (encNat z.2.val).length ≤ (encNat w).length :=
+    length_encNat_mono z.2.isLt.le
+  have hn : (encNat z.1.val).length ≤ (encNat n).length :=
+    length_encNat_mono (Nat.le_of_lt_succ z.1.isLt)
+  have hctx : (encContext ctx).length ≤ 2 * (A * budget) + 4 * budget := by
+    have hf := hA (w, n)
+    dsimp only at hf
+    change (encFieldContext (fieldContext w n)).length ≤ A * budget at hf
+    dsimp only [ctx]
+    simp only [encContext_apply, encContextFields, length_encPair]
+    have hbudget : budget = 2 * (encNat w).length + 1 + (encNat n).length + 1 := by
+      simp only [budget, length_encPair]
+    omega
+  have hraw : raw.length ≤ S * budget := by
+    simpa only [raw, List.length_ofFn] using hS (w, n)
+  have hstates (t : ℕ) : (e (M.run raw t)).length ≤ K * budget := by
+    have hrun := length_run_le ctx raw t
+    have hb : 1 ≤ budget := Nat.le_add_left _ _
+    change (e (M.run raw t)).length ≤ _ at hrun
+    dsimp only [K]
+    simp only [Nat.add_mul, Nat.mul_assoc]
+    omega
+  refine ⟨fun t => (hstates t).trans (Nat.mul_le_mul_right budget (le_max_left _ _)), ?_⟩
+  let last := M.run raw (raw.length + 1)
+  have hfinish : finishWeight last = generatedWeight seed z := by
+    have hend : last =
+        ⟨ctx, raw.length, SeedDigits.maskedPrefix (codeBit ctx) raw raw.length, true⟩ :=
+      SeedDigits.run_at_end codeBit ctx raw
+    rw [hend]
+    exact weight_eq_generatedWeight seed z
+  have hlast : (e last).length + 1 ≤ (K + 1) * budget := by
+    have hb : 1 ≤ budget := Nat.le_add_left _ _
+    rw [Nat.add_mul K 1, Nat.one_mul]
+    exact Nat.add_le_add (hstates _) hb
+  calc
+    _ = (encNat (finishWeight last)).length := by rw [hfinish]
+    _ ≤ D * ((e last).length + 1) := hD last
+    _ ≤ D * ((K + 1) * budget) := Nat.mul_le_mul_left _ hlast
+    _ ≤ _ := by
+      rw [← Nat.mul_assoc]
+      exact Nat.mul_le_mul_right _ (le_max_right _ _)
+
 end Cslib.Reachability.Hoza.SeedWeight

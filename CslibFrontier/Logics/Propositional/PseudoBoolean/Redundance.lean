@@ -61,7 +61,8 @@ literals must be consistent and must satisfy every constraint of the database on
 values below are taken at the extension `Cslib.Logic.PL.VeriPB.assignOf` setting every other
 variable false. `soli ρ` also needs an objective that `ρ` assigns completely, and adds the
 objective-improving constraint `f ≤ f(ρ) - 1` (equation (3.6);
-`Cslib.Logic.PL.VeriPB.Objective.improving`).
+`Cslib.Logic.PL.VeriPB.Objective.improving`). `obji v` adds the improving constraint `f ≤ v - 1`
+without a solution (§5.8.2).
 
 **Core and derived constraints** (§3.4). The database is split into a *core set* and a *derived
 set* (`Cslib.Logic.PL.VeriPB.State`). The input constraints start in the core. Implicational
@@ -85,20 +86,23 @@ needs an empty derived set (§5.7.4). The untyped deletion `del id` of the augme
 (`Cslib.Logic.PL.VeriPB.Step.del`, §5.7.2) is unchecked when it deletes a core constraint, and this
 checker rejects such a deletion in strengthening-to-core mode.
 
-**Solutions and conclusions.** The checker keeps two logged solutions, as CakePB keeps `dbound`
-and `bound` (`update_dbound`, `update_bound` and `check_hconcl` in `npbc_checkScript.sml`).
-* The best logged solution gives the value that the lower bounds are checked against.
+**Solutions and conclusions.** The checker keeps a bound and a logged solution, as CakePB keeps
+`dbound` and `bound` (`update_dbound`, `update_bound` and `check_hconcl` in
+`npbc_checkScript.sml`).
+* The bound `dbound` is the least value of a logged solution or of an `obji` step. The lower
+  bounds are checked against it. As `obji` asserts its value without a solution, `dbound` need
+  not be the value of any solution.
 * The *witness* certifies `SAT` and finite upper bounds. It is the best logged solution that was
   logged while `chk` held, as in VeriPB and CakePB, or that solves the input formula, which this
   checker tests when the solution is logged (`Cslib.Logic.PL.VeriPB.State.log`). Any other
   logged solution never displaces the witness, even on a tie.
 
 The conclusions (§4.3; `Cslib.Logic.PL.VeriPB.Conclusion`):
-* `UNSAT : q` needs a contradiction `q` and no logged solution.
+* `UNSAT : q` needs a contradiction `q`, no logged solution and no `obji` step.
 * `SAT` needs a witness.
-* `BOUNDS lb : q ub` needs an objective. The lower bound `lb` must be at most the best logged
-  value, and `q` must be a contradiction or weakly syntactically imply `f ≥ lb`; `lb = INF` is
-  checked as `UNSAT`. The upper bound `ub`, unless `INF`, must be the value of the witness.
+* `BOUNDS lb : q ub` needs an objective. The lower bound `lb` must be at most `dbound`, and `q`
+  must be a contradiction or weakly syntactically imply `f ≥ lb`; `lb = INF` is checked as
+  `UNSAT`. The upper bound `ub`, unless `INF`, must be the value of the witness.
 
 §4.3 gives `BOUNDS` for optimization problems; accepting `UNSAT` and `SAT` under an objective as
 well is an extension of this checker.
@@ -114,11 +118,12 @@ commit `14856fcf`).
   solution of the remaining core into one of the whole core without raising the objective. So a
   witness gives an input solution of no larger value.
 * *The lower-bound invariant* (`Cslib.Logic.PL.VeriPB.Reaches`). For a value `w`, either some
-  solution of the database has objective at most `w`, or the best logged solution does.
+  solution of the database has objective at most `w`, or `dbound` is at most `w`.
   * An implicational step keeps every solution, and a deletion enlarges the set of solutions.
   * A `red` step repairs a solution without raising the objective. In strengthening-to-core
     mode, the repaired solution satisfies the core, hence the database.
-  * `soli ρ` removes only solutions of objective at least `f(ρ)`, which the logged `ρ` matches.
+  * `soli ρ` removes only solutions of objective at least `f(ρ)`, and lowers `dbound` to `f(ρ)`;
+    `obji v` removes only solutions of objective at least `v`, and lowers `dbound` to `v`.
 
   Every solution `σ` of the formula meets this invariant initially for `w = f(σ)`, which gives
   the lower bounds. It is CakePB's invariant `bimp_obj`.
@@ -126,7 +131,7 @@ commit `14856fcf`).
 The soundness theorems follow CakePB's semantics of conclusions (`sem_concl`, `npbcScript.sml`).
 In particular a finite upper bound `ub` certifies a solution of value at most `ub`.
 
-**Scope.** There is no order, so no dominance and no order goals. None of `solx`, `obji` and the
+**Scope.** There is no order, so no dominance and no order goals. Neither `solx` nor the
 objective update `obju` (§5.9) is supported, nor deletion by specification and levels (§5.7.2).
 The conclusions `NONE` and `ENUMERATION`, and the optional assignments of `SAT` and `BOUNDS`, are
 not supported. Matching VeriPB, `red` steps are not cutting-planes steps, and the translation of
@@ -419,6 +424,8 @@ inductive TopStep where
   | core (ids : List ℕ)
   /-- `strengthening_to_core on` or `off` (§5.6). -/
   | strengthenToCore (on : Bool)
+  /-- `obji v`: add the improving constraint `f ≤ v - 1` without a solution (§5.8.2). -/
+  | obji (v : ℤ)
   deriving Repr
 
 /-- The linear form `L - L'`: `L` with the coefficients of `L'` subtracted. -/
@@ -532,6 +539,9 @@ def record (obj : Option Objective) (best : Option (List (Literal ℕ))) (ρ : L
   | some ρ' => if objValue obj (assignOf ρ') ≤ objValue obj (assignOf ρ) then some ρ' else some ρ
   | none => some ρ
 
+/-- Lower the bound `d`, if any, to `v`. -/
+private def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
+
 /-! ### Proofs and the checker -/
 
 /-- The state of the checker between top-level steps. -/
@@ -540,9 +550,9 @@ structure State where
   db : List (ℕ × PBConstr)
   /-- The next constraint number. -/
   next : ℕ
-  /-- The best logged solution, if any. It solved the database when it was logged; the lower
-  bounds are checked against its value. -/
-  best : Option (List (Literal ℕ))
+  /-- The best value, if any, of a logged solution or of an `obji` step: the value that the lower
+  bounds are checked against (CakePB's `dbound`). -/
+  dbound : Option ℤ
   /-- The best certifying logged solution, if any: one logged while no unchecked deletion had
   happened, or one that solves the input formula. It certifies `SAT` and finite upper bounds. -/
   witness : Option (List (Literal ℕ))
@@ -560,13 +570,23 @@ def State.init (F : List PBConstr) : State :=
   ⟨initDb F, F.length + 1, none, none, initDb F, true, false⟩
 
 /-- Log the solution `ρ` of the database in the state `s` for the formula `F`: it competes for
-`best`, and for `witness` if no unchecked deletion has happened or it solves `F`. Any other
-solution never displaces a witness. -/
+`dbound` with its value, and for `witness` if no unchecked deletion has happened or it solves `F`.
+Any other solution never displaces a witness. -/
+@[no_expose]
 def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : List (Literal ℕ)) :
     State :=
-  { s with best := record obj s.best ρ,
+  { s with dbound := lowerTo s.dbound (objValue obj (assignOf ρ)),
            witness := if s.chk || solves ρ (F.map normalize) then record obj s.witness ρ
              else s.witness }
+
+/-- Assert the value `v` of the objective `f` in the state `s`, the effect shared by `soli` and
+`obji` (§5.8.2): the objective-improving constraint `f ≤ v - 1` joins the database and the core set
+at the next number, and the bound `dbound` is lowered to `v`. -/
+private def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
+  { s with
+    db := (s.next, (f.improving v).normalize) :: s.db,
+    core := (s.next, (f.improving v).normalize) :: s.core,
+    next := s.next + 1, dbound := lowerTo s.dbound v }
 
 /-- The constraint numbers that a step deletes. -/
 private def Step.delIds : Step → List ℕ
@@ -613,10 +633,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     match obj with
     | some f =>
       if solves ρ (s.db.map (·.2)) && assigns ρ f then
-        some { s.log F obj ρ with
-          db := (s.next, (f.improving (f.eval (assignOf ρ))).normalize) :: s.db,
-          core := (s.next, (f.improving (f.eval (assignOf ρ))).normalize) :: s.core,
-          next := s.next + 1 }
+        some ((s.log F obj ρ).improve f (f.eval (assignOf ρ)))
       else none
     | none => none
   | .deld ids =>
@@ -651,6 +668,10 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     else none
   | .strengthenToCore b =>
     some (if b then { s with core := s.db, tcb := true } else { s with tcb := false })
+  | .obji v =>
+    match obj with
+    | some f => some (s.improve f v)
+    | none => none
 
 /-- Run the top-level steps for the input formula `F` and the objective `obj`. -/
 def runTop (F : List PBConstr) (obj : Option Objective) : State → List TopStep → Option State
@@ -679,28 +700,29 @@ structure RedProof where
   deriving Repr
 
 /-- The check of `BOUNDS lb : q ub` for the objective `f` in the final state `s`. The lower
-bound: for `INF`, `q` is a contradiction and no solution was logged; otherwise `lb` is at most
-the best logged value and `q` is a contradiction or weakly syntactically implies `f ≥ lb`. The
-upper bound, unless `INF`: the witness (the best certifying logged solution,
+bound: for `INF`, `q` is a contradiction, no solution was logged and no `obji` step was taken;
+otherwise `lb` is at most the bound `dbound`, and `q` is a contradiction or weakly syntactically
+implies `f ≥ lb`. The upper bound, unless `INF`: the witness (the best certifying logged solution,
 `Cslib.Logic.PL.VeriPB.State.witness`) has value `ub`. The witness need not solve the input
 formula itself; it guarantees that some input solution has value at most `ub`. -/
 def boundsOk (f : Objective) (s : State) (lb : Option ℤ) (q : ℕ) (ub : Option ℤ) : Bool :=
   (match lb with
-    | none => s.best.isNone && namesContra s.db q
+    | none => s.dbound.isNone && namesContra s.db q
     | some l =>
-      s.best.all (fun ρ => decide (l ≤ f.eval (assignOf ρ))) &&
+      s.dbound.all (fun d => decide (l ≤ d)) &&
         (namesContra s.db q || (lookup s.db q).any fun D => weakImplies D (f.atLeast l))) &&
   match ub with
   | none => true
   | some u => s.witness.any fun ρ => f.eval (assignOf ρ) == u
 
 /-- **The check of a conclusion** for the objective `obj` in the final state `s`. `UNSAT : q`
-needs the contradiction `q` and no logged solution; `SAT` a witness (a certifying logged solution,
-which guarantees some input solution but need not be one itself); `BOUNDS` an objective and
-`Cslib.Logic.PL.VeriPB.boundsOk`. `UNSAT` and `SAT` are also accepted under an objective, an
-extension of this checker: §4.3 of the documentation gives `BOUNDS` for optimization problems. -/
+needs the contradiction `q`, no logged solution and no `obji` step; `SAT` a witness (a certifying
+logged solution, which guarantees some input solution but need not be one itself); `BOUNDS` an
+objective and `Cslib.Logic.PL.VeriPB.boundsOk`. `UNSAT` and `SAT` are also accepted under an
+objective, an extension of this checker: §4.3 of the documentation gives `BOUNDS` for optimization
+problems. -/
 def checkConclusion (obj : Option Objective) (s : State) : Conclusion → Bool
-  | .unsat q => s.best.isNone && namesContra s.db q
+  | .unsat q => s.dbound.isNone && namesContra s.db q
   | .sat => s.witness.isSome
   | .bounds lb q ub =>
     match obj with
@@ -882,20 +904,6 @@ theorem holds_of_solves {ρ : List (Literal ℕ)} {cs : List PBConstr} (h : solv
   refine (hcs c hc).trans (coeffSum_filter_le fun t _ ht => heval t.2 ?_)
   simpa using ht
 
-private theorem record_le {obj : Option Objective} {best : Option (List (Literal ℕ))}
-    {ρ ρ' : List (Literal ℕ)} (h : ρ' ∈ record obj best ρ) :
-    objValue obj (assignOf ρ') ≤ objValue obj (assignOf ρ) ∧
-      ∀ ρ'' ∈ best, objValue obj (assignOf ρ') ≤ objValue obj (assignOf ρ'') := by
-  unfold record at h
-  split at h
-  · rename_i ρ₀
-    split at h <;> simp only [Option.mem_def, Option.some.injEq] at h <;> subst h <;>
-      refine ⟨by omega, fun ρ'' h'' => ?_⟩ <;>
-      simp only [Option.mem_def, Option.some.injEq] at h'' <;> subst h'' <;> omega
-  · simp only [Option.mem_def, Option.some.injEq] at h
-    subst h
-    simp
-
 /-! ### The invariants -/
 
 private theorem holds_of_solves_normalize {ρ : List (Literal ℕ)} {F : List PBConstr}
@@ -1003,6 +1011,19 @@ private theorem wit_log {F : List PBConstr} {obj : Option Objective} {s : State}
     · exact hs.wit ρ' h
   · exact hs.wit ρ' hρ'
 
+/-- Asserting an objective value keeps the core invariant: the improving constraint joins both the
+core set and the database, and the witness is unchanged. -/
+private theorem inv_improve {F : List PBConstr} {obj : Option Objective} {s : State}
+    {f : Objective} {v : ℤ} (hs : Inv F obj s) : Inv F obj (s.improve f v) where
+  sub e he := by
+    rcases List.mem_cons.1 he with rfl | he
+    · exact List.mem_cons_self
+    · exact List.mem_cons_of_mem _ (hs.sub e he)
+  imp ht τ hτ := List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
+    hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
+  chk hc τ hτ := hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+  wit := hs.wit
+
 /-- The core set after a checked deletion of `i` gives back the whole core set once the deleted
 constraint `c` holds. -/
 private theorem allHold_core_of_filter {τ : ℕ → Bool} {core : List (ℕ × PBConstr)} {i : ℕ}
@@ -1083,13 +1104,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         simp only [Option.some.injEq] at h
         subst h
         simp only [Bool.and_eq_true] at hρ
-        refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, wit_log hs hρ.1⟩
-        · rcases List.mem_cons.1 he with rfl | he
-          · exact List.mem_cons_self
-          · exact List.mem_cons_of_mem _ (hs.sub e he)
-        · exact List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
-            hs.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩
-        · exact hs.chk hc τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+        exact inv_improve ⟨hs.sub, hs.imp, hs.chk, wit_log hs hρ.1⟩
       · cases h
     · cases h
   | deld ids =>
@@ -1172,26 +1187,56 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
     · exact ⟨hs.sub, (fun h => by cases h), hs.chk, hs.wit⟩
     · exact ⟨fun _ he => he, fun _ _ hτ => hτ,
         fun hc τ hτ => hs.chk hc τ (allHold_mono hs.sub hτ), hs.wit⟩
+  | obji u =>
+    simp only [stepTop] at h
+    split at h
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact inv_improve hs
+    · cases h
 
 /-- **The lower-bound invariant** for a value `w`: some solution of the database has objective at
-most `w`, or the best logged solution does. -/
+most `w`, or the bound `dbound` is at most `w`. -/
 def Reaches (obj : Option Objective) (w : ℤ) (s : State) : Prop :=
-  (∃ τ, AllHold τ s.db ∧ objValue obj τ ≤ w) ∨
-    ∃ ρ ∈ s.best, objValue obj (assignOf ρ) ≤ w
+  (∃ τ, AllHold τ s.db ∧ objValue obj τ ≤ w) ∨ ∃ d ∈ s.dbound, d ≤ w
 
-private theorem exists_record_eq (obj : Option Objective) (best : Option (List (Literal ℕ)))
-    (ρ : List (Literal ℕ)) : ∃ ρ', record obj best ρ = some ρ' := by
-  unfold record
-  split
-  · split <;> exact ⟨_, rfl⟩
-  · exact ⟨_, rfl⟩
+private theorem exists_mem_lowerTo {d : Option ℤ} {w : ℤ} (u : ℤ) (h : ∃ v ∈ d, v ≤ w) :
+    ∃ v ∈ lowerTo d u, v ≤ w := by
+  obtain ⟨v, hv, hw⟩ := h
+  simp only [Option.mem_def] at hv
+  subst hv
+  exact ⟨_, rfl, (min_le_left _ _).trans hw⟩
 
-private theorem exists_mem_record_le {obj : Option Objective} {best : Option (List (Literal ℕ))}
-    {w : ℤ} (ρ : List (Literal ℕ)) (h : ∃ ρ₀ ∈ best, objValue obj (assignOf ρ₀) ≤ w) :
-    ∃ ρ' ∈ record obj best ρ, objValue obj (assignOf ρ') ≤ w := by
-  obtain ⟨ρ₀, h₀, hw⟩ := h
-  obtain ⟨ρ', hr⟩ := exists_record_eq obj best ρ
-  exact ⟨ρ', hr, ((record_le hr).2 ρ₀ h₀).trans hw⟩
+private theorem lowerTo_le (d : Option ℤ) (u : ℤ) : ∃ v ∈ lowerTo d u, v ≤ u := by
+  cases d
+  · exact ⟨u, rfl, le_rfl⟩
+  · exact ⟨_, rfl, min_le_right _ _⟩
+
+/-- Logging a solution keeps the lower-bound invariant: it only lowers `dbound`. -/
+private theorem reaches_log {F : List PBConstr} {obj : Option Objective} {w : ℤ} {s : State}
+    {ρ : List (Literal ℕ)} (hs : Reaches obj w s) : Reaches obj w (s.log F obj ρ) := by
+  rcases hs with hτ | hb
+  · exact .inl hτ
+  · exact .inr (exists_mem_lowerTo _ hb)
+
+/-- Asserting the value `u` of the objective keeps the lower-bound invariant: a solution of the
+database of value below `u` satisfies the improving constraint, and otherwise `u`, the new bound,
+is at most `w`. -/
+private theorem reaches_improve {f : Objective} {w u : ℤ} {s : State}
+    (hs : Reaches (some f) w s) : Reaches (some f) w (s.improve f u) := by
+  by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧ f.eval τ < u
+  · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
+    exact .inl ⟨τ, List.forall_mem_cons.2
+      ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw⟩
+  · rcases hs with ⟨τ, hτ, hw⟩ | hb
+    · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound u
+      refine .inr ⟨v, hv, ?_⟩
+      have hge : u ≤ f.eval τ := by
+        by_contra hc
+        exact hlt ⟨τ, hτ, hw, by omega⟩
+      simp only [objValue] at hw
+      omega
+    · exact .inr (exists_mem_lowerTo u hb)
 
 /-- A step that only deletes from the database keeps the lower-bound invariant. -/
 private theorem reaches_filter {obj : Option Objective} {w : ℤ} {s : State}
@@ -1245,9 +1290,7 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
     split at h
     · simp only [Option.some.injEq] at h
       subst h
-      rcases hs with hτ | hb
-      · exact .inl hτ
-      · exact .inr (exists_mem_record_le ρ hb)
+      exact reaches_log hs
     · cases h
   | soli ρ =>
     simp only [stepTop] at h
@@ -1256,21 +1299,7 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
       split at h
       · simp only [Option.some.injEq] at h
         subst h
-        by_cases hlt : ∃ τ, AllHold τ s.db ∧ objValue (some f) τ ≤ w ∧
-            f.eval τ < f.eval (assignOf ρ)
-        · obtain ⟨τ, hτ, hw, hlt⟩ := hlt
-          exact .inl ⟨τ, List.forall_mem_cons.2
-            ⟨(holds_normalize _ _).2 ((Objective.holds_improving _ _ _).2 hlt), hτ⟩, hw⟩
-        · rcases hs with ⟨τ, hτ, hw⟩ | hb
-          · obtain ⟨ρ', hr⟩ := exists_record_eq (some f) s.best ρ
-            refine .inr ⟨ρ', hr, ?_⟩
-            have := (record_le hr).1
-            have hge : f.eval (assignOf ρ) ≤ f.eval τ := by
-              by_contra hc
-              exact hlt ⟨τ, hτ, hw, by omega⟩
-            simp only [objValue] at this hw ⊢
-            omega
-          · exact .inr (exists_mem_record_le ρ hb)
+        exact reaches_improve (reaches_log hs)
       · cases h
     · cases h
   | deld ids =>
@@ -1312,6 +1341,14 @@ theorem stepTop_reaches {F : List PBConstr} {obj : Option Objective} {w : ℤ} {
     unfold stepTop at h
     cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h <;>
       exact hs
+  | obji u =>
+    simp only [stepTop] at h
+    split at h
+    · rename_i f
+      simp only [Option.some.injEq] at h
+      subst h
+      exact reaches_improve hs
+    · cases h
 
 /-- A property kept by every step is kept by the checker. -/
 theorem runTop_induct {F : List PBConstr} {obj : Option Objective} {P : State → Prop}
@@ -1431,8 +1468,8 @@ theorem exists_eval_le_of_checkRed {F : List PBConstr} {f : Objective} {P : RedP
 
 theorem runTop_map_step (F : List PBConstr) (obj : Option Objective) (s : State)
     (hs : s.tcb = false) (ss : List Step) :
-    (runTop F obj s (ss.map .step)).map (fun s' => (s'.db, s'.best)) =
-      (runSteps s.db s.next ss).map fun p => (p.1, s.best) := by
+    (runTop F obj s (ss.map .step)).map (fun s' => (s'.db, s'.dbound)) =
+      (runSteps s.db s.next ss).map fun p => (p.1, s.dbound) := by
   induction ss generalizing s with
   | nil => rfl
   | cons st ss ih =>

@@ -8,7 +8,6 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
-import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
@@ -285,21 +284,22 @@ example :
   exact criticalCoefficientValue_at_criticalParameterResidue 1 (by decide) F hF
     (by decide) (by decide) _ (fun y => by simp [F])
 
--- The deformation of a positive input attains each minimum and has no uniform bound.
+-- The minima of a positive input vary continuously and monotonically, and are unbounded.
 example :
     let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2 + 1
     let a : Fin 1 → ℝ := fun _ => 1
-    (∃ x, IsMinOn (fun y => eval y (deformedPolynomial 3 a 1 F)) Set.univ x) ∧
-      ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → ∃ x, eval x (deformedPolynomial 3 a u F) ≤ B := by
+    ContinuousOn (criticalMinimumValue 3 a F) (Set.Ici 0) ∧
+      MonotoneOn (criticalMinimumValue 3 a F) (Set.Ici 0) ∧
+      ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → criticalMinimumValue 3 a F u ≤ B := by
   intro F a
   have ha (i : Fin 1) : 0 ≤ a i := by simp [a]
   have hF (x : Fin 1 → ℝ) : 0 ≤ eval x F := by
     simp only [F, map_add, map_pow, eval_X, map_one]
     positivity
-  refine ⟨exists_isMinOn_eval_deformedPolynomial 3 (by decide) (by decide) a ha F hF 1
-    zero_le_one, ?_⟩
+  refine ⟨continuousOn_criticalMinimumValue (by decide) (by decide) a ha F hF,
+    monotoneOn_criticalMinimumValue (by decide) (by decide) a ha F hF, ?_⟩
   intro hbounded
-  have hcriterion := exists_zero_iff_bounded_eval_deformedPolynomial 3
+  have hcriterion := exists_zero_iff_bounded_criticalMinimumValue (ell := 3)
     (by decide) (by decide) a ha F hF
   obtain ⟨x, hx⟩ := hcriterion.mpr hbounded
   simp only [F, map_add, map_pow, eval_X, map_one] at hx
@@ -313,7 +313,7 @@ example :
   intro F hF
   have heval (x : Fin 1 → ℝ) :
       eval x (deformedPolynomial 3 0 1 F) = x 0 ^ 4 + 4 * x 0 ^ 2 := by
-    norm_num [deformedPolynomial, potentialPolynomial, F, Fin.sum_univ_one]
+    norm_num [eval_deformedPolynomial, potentialPolynomial, F, Fin.sum_univ_one]
   have hmin : IsMinOn (fun x => eval x (deformedPolynomial 3 0 1 F)) Set.univ 0 := by
     intro x _
     change eval (0 : Fin 1 → ℝ) (deformedPolynomial 3 0 1 F) ≤
