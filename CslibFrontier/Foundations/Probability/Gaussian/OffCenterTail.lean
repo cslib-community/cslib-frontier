@@ -33,9 +33,9 @@ import Mathlib.Probability.ProbabilityMassFunction.Integrals
 * `ZLattice.gaussianMass_div_le_of_dual_mass_le`: under `ρ_{1/s}(L* \ {0}) ≤ ε < 1`, the ratio
   of Gaussian masses at any two centers is at most `(1 + ε) / (1 - ε)`.
 * `ZLattice.discreteGaussian_norm_sub_gt_lt_of_dual_mass_le` and
-  `ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le`: dual-mass forms of the
-  off-center sample-norm tail bound (a step toward the `η_ε`-form of [MicciancioRegev2007],
-  Lemma 4.4, p. 15, sharpening `(1 / 2) ^ n` to strict `(1 / 4) ^ n`).
+  `ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le`: dual-mass step toward the
+  `η_ε`-form of [MicciancioRegev2007], Lemma 4.4 (p. 15), sharpening `(1 / 2) ^ n` to strict
+  `(1 / 4) ^ n`.
 * `ZLattice.summable_gaussianWeight_mul_exp_inner`, `ZLattice.tsum_gaussianWeight_mul_exp_inner`:
   exact directional exponential moment by completing the square.
 * `ZLattice.hasSubgaussianMGF_inner_discreteGaussian_zero`: any linear projection of a centered
@@ -48,14 +48,15 @@ import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
 ## References
 
-* [MicciancioRegev2007], Lemma 2.9 (p. 9), Lemma 2.10 (p. 9, citing [Banaszczyk1993], Lemma 1.5),
-  and Lemma 4.4 (p. 15) of the December 27, 2005 author version.
+* [Banaszczyk1993], Lemma 1.5(ii) (printed p. 630).
+* [MicciancioRegev2007], Lemma 2.9 (p. 9), Lemma 2.10 (p. 9), and Lemma 4.4 (p. 15) of the
+  December 27, 2005 author version.
 * [Regev2009], Lemmas 2.4–2.5 (p. 16 of the May 2, 2009 author version).
 
 The smoothing hypotheses are stated in dual-mass form `gaussianMass D (1 / s) 0 - 1 ≤ ε`, which
-is the exact condition unpacked from `η_ε(L) ≤ s`. The sample-norm bound strengthens
-[MicciancioRegev2007], Lemma 4.4 from `2 ^ (-n)` to strict `(1 / 4) ^ n`, matching
-`Gaussian.CenteredTail`.
+is the dual-mass step unpacked from `η_ε(L) ≤ s` (rather than the `η_ε`-parameterized endpoint
+itself). The dual-mass sample-norm step strengthens the constant of [MicciancioRegev2007],
+Lemma 4.4 from `2 ^ (-n)` to strict `(1 / 4) ^ n`, matching `Gaussian.CenteredTail`.
 -/
 
 public section
@@ -142,17 +143,6 @@ end Constants
 
 section DiscreteHelpers
 
-private theorem tsum_subtype_le_of_nonneg {α : Type*} {f : α → ℝ} (hf : Summable f)
-    (hnn : ∀ a, 0 ≤ f a) (S : Set α) :
-    (∑' a : S, f a) ≤ ∑' a, f a := by
-  classical
-  rw [tsum_subtype S f]
-  refine Summable.tsum_le_tsum (fun a ↦ ?_) (hf.indicator S) hf
-  by_cases ha : a ∈ S
-  · rw [Set.indicator_of_mem ha]
-  · rw [Set.indicator_of_notMem ha]
-    exact hnn a
-
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
 
 private theorem discreteGaussian_toOuterMeasure_eq
@@ -210,7 +200,7 @@ section BanaszczykTail
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
 variable (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
 
-/-- **Banaszczyk's shifted Gaussian tail bound** ([Banaszczyk1993], Lemma 1.5;
+/-- **Banaszczyk's shifted Gaussian tail bound** ([Banaszczyk1993], Lemma 1.5(ii), printed p. 630;
 [MicciancioRegev2007], Lemma 2.10, p. 9 of the December 27, 2005 author version): for any
 full-rank lattice `L`, width `s > 0`, center `v`, and `c > 1 / √(2π)`, the unnormalized Gaussian
 mass of `L - v` strictly outside radius `c * s * √(finrank ℝ E)` is strictly less than
@@ -283,8 +273,9 @@ theorem tsum_gaussianWeight_norm_sub_gt_lt
       exact Summable.tsum_lt_tsum (i := ⟨z₀, hz₀⟩) (fun z ↦ (hpoint z).le) (hpoint ⟨z₀, hz₀⟩)
         hsum_s hsum_t
     have hsub_le : (∑' z : S, gaussianWeight t ((z : E) - v)) ≤ gaussianMass L t v :=
-      tsum_subtype_le_of_nonneg (summable_gaussianWeight L t ht v)
-        (fun z ↦ (gaussianWeight_pos _ _).le) S
+      ((summable_gaussianWeight L t ht v).subtype (· ∈ S)).tsum_le_tsum_of_inj Subtype.val
+        Subtype.val_injective (fun _ _ ↦ (gaussianWeight_pos _ _).le) (fun _ ↦ le_rfl)
+        (summable_gaussianWeight L t ht v)
     have hmass_t : gaussianMass L t v ≤ (t / s) ^ finrank ℝ E * gaussianMass L s 0 := by
       let _ : MeasurableSpace E := borel E
       have _ : BorelSpace E := ⟨rfl⟩
@@ -335,10 +326,11 @@ theorem tsum_gaussianWeight_norm_sub_gt_lt
     exact mul_pos (pow_pos hCpos _) (gaussianMass_pos L s hs 0)
 
 /-- **Shifted Regev Lemma 2.5** ([Regev2009], Lemma 2.5, p. 16, extended to arbitrary center `v`
-via [Banaszczyk1993], Lemma 1.5 / [MicciancioRegev2007], Lemma 2.10): for any full-rank lattice
-`L`, width `s > 0`, and center `v`, the unnormalized Gaussian mass strictly outside radius
-`s * √(finrank ℝ E)` is strictly less than `(1 / 4) ^ (finrank ℝ E) * gaussianMass L s 0`.
-Setting `v = 0` recovers the centered bound in `Gaussian.CenteredTail`. -/
+via [Banaszczyk1993], Lemma 1.5(ii), printed p. 630 / [MicciancioRegev2007], Lemma 2.10): for any
+full-rank lattice `L`, width `s > 0`, and center `v`, the unnormalized Gaussian mass strictly
+outside radius `s * √(finrank ℝ E)` is strictly less than
+`(1 / 4) ^ (finrank ℝ E) * gaussianMass L s 0`. Setting `v = 0` recovers the centered bound in
+`Gaussian.CenteredTail`. -/
 theorem tsum_gaussianWeight_norm_sub_gt_sqrt_lt
     (s : ℝ) (hs : 0 < s) (v : E) :
     (∑' z : ↥{z : L | s * Real.sqrt (finrank ℝ E) < ‖(z : E) - v‖},
@@ -384,10 +376,10 @@ theorem gaussianMass_div_le_of_dual_mass_le
       (mul_div_mul_left _ _ hα.ne').symm
     _ ≤ (1 + ε) / (1 - ε) := div_le_div₀ h1p hm1 h1m hm2
 
-/-- General-radius off-center discrete Gaussian sample-norm tail bound in dual-mass form (a step
-toward the `η_ε`-parameterized tail bound once the smoothing parameter is in scope), combining
-[Banaszczyk1993], Lemma 1.5 / [MicciancioRegev2007], Lemma 2.10 with
-`ρ_{1/s}(L* \ {0}) ≤ ε < 1`. -/
+/-- General-radius off-center discrete Gaussian sample-norm tail bound in dual-mass form (the
+dual-mass step toward the `η_ε`-parameterized tail bound, not the `η_ε` endpoint itself),
+combining [Banaszczyk1993], Lemma 1.5(ii) (printed p. 630) / [MicciancioRegev2007], Lemma 2.10
+with `ρ_{1/s}(L* \ {0}) ≤ ε < 1`. -/
 theorem discreteGaussian_norm_sub_gt_lt_of_dual_mass_le
     (s : ℝ) (hs : 0 < s) (v : E) (c : ℝ) (hc : 1 / Real.sqrt (2 * Real.pi) < c)
     (ε : ℝ) (hεlt : ε < 1)
@@ -425,9 +417,9 @@ theorem discreteGaussian_norm_sub_gt_lt_of_dual_mass_le
         (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^ finrank ℝ E :=
       mul_le_mul_of_nonneg_right hratio (pow_pos hCpos _).le
 
-/-- Dual-mass form of [MicciancioRegev2007], Lemma 4.4 (p. 15 of the December 27, 2005 author
-version) — a step toward the `η_ε(L) ≤ s` statement once the smoothing parameter is in scope.
-This strengthens the source's `≤ ((1 + ε) / (1 - ε)) * 2 ^ (-n)` bound to strict
+/-- Dual-mass step toward [MicciancioRegev2007], Lemma 4.4 (p. 15 of the December 27, 2005
+author version), stated directly under `ρ_{1/s}(L* \ {0}) ≤ ε < 1` rather than the `η_ε(L) ≤ s`
+endpoint. This strengthens the source's `≤ ((1 + ε) / (1 - ε)) * 2 ^ (-n)` constant to strict
 `< ((1 + ε) / (1 - ε)) * (1 / 4) ^ n` via Poisson positivity, matching `Gaussian.CenteredTail`.
 Holds in dimension zero as well, where the strict tail event is empty. -/
 theorem discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le
@@ -590,8 +582,9 @@ private theorem tsum_gaussianWeight_inner_sub_ge_le
   have h2 :
       (∑' z : S, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) ≤
         ∑' z : L, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫) :=
-    tsum_subtype_le_of_nonneg hsum_full
-      (fun z ↦ mul_nonneg (gaussianWeight_pos _ _).le (Real.exp_pos _).le) S
+    (hsum_full.subtype (· ∈ S)).tsum_le_tsum_of_inj Subtype.val Subtype.val_injective
+      (fun _ _ ↦ mul_nonneg (gaussianWeight_pos _ _).le (Real.exp_pos _).le) (fun _ ↦ le_rfl)
+      hsum_full
   have h3 :
       Real.exp (-2 * Real.pi * t ^ 2) *
           Real.exp ((s * ‖u‖) ^ 2 / (2 * Real.pi) * lam ^ 2 / 2) =

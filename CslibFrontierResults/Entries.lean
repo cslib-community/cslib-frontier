@@ -11530,9 +11530,9 @@ register_result "banaszczyk-shifted-gaussian-tail" where
   title := "Shifted Banaszczyk Gaussian tail bound for lattices"
   topic := "cryptography"
   sources := [
+    { paper := Banaszczyk1993, theorem := "Lemma 1.5(ii)", locator := "printed p. 630" },
     { paper := MicciancioRegev2007, theorem := "Lemma 2.10",
       locator := "author's copy of December 27, 2005, §2, eq. (6), printed p. 9" },
-    { paper := Banaszczyk1993, theorem := "Lemma 1.5", locator := unverified },
     { paper := Regev2009, theorem := "Lemma 2.5",
       locator := "author's version of May 2, 2009, §2, printed p. 16" }
   ]
@@ -11544,16 +11544,15 @@ register_result "banaszczyk-shifted-gaussian-tail" where
     space E (of dimension n = finrank ℝ E, including n = 0), width s > 0, arbitrary shift v : E, \
     and c > 1 / √(2π), the unnormalized Gaussian mass of L − v strictly outside radius c s √n is \
     strictly less than (c √(2πe) exp(−π c²)) ^ n · gaussianMass L s 0 \
-    (tsum_gaussianWeight_norm_sub_gt_lt). Sharper than MicciancioRegev2007 Lemma 2.10 eq. (6): \
-    removes the source's factor of 2 on the right-hand side via Poisson positivity \
-    (ρ_{t, v}(L) ≤ ρ_t(L)), subsuming the centered eq. (5) at v = 0, and allows arbitrary width \
-    s > 0 rather than s = 1. At c = 1, tsum_gaussianWeight_norm_sub_gt_sqrt_lt gives strict tail \
-    mass < (1 / 4) ^ n · gaussianMass L s 0, extending Regev2009 Lemma 2.5 (which is centered at \
-    v = 0) to arbitrary shifts v : E. Banaszczyk1993 Lemma 1.5 is cited via MicciancioRegev2007 \
-    Lemma 2.10 and Regev2009 Lemma 2.5 without direct inspection of the 1993 journal pages."
+    (tsum_gaussianWeight_norm_sub_gt_lt). Sharper than Banaszczyk1993 Lemma 1.5(ii) and \
+    MicciancioRegev2007 Lemma 2.10 eq. (6): removes the factor of 2 on the right-hand side via \
+    Poisson positivity (ρ_{t, v}(L) ≤ ρ_t(L)), subsuming the centered case Lemma 1.5(i) / eq. (5) \
+    at v = 0, and allows arbitrary width s > 0 rather than s = 1. At c = 1, \
+    tsum_gaussianWeight_norm_sub_gt_sqrt_lt gives strict tail mass < (1 / 4) ^ n · gaussianMass L \
+    s 0, extending Regev2009 Lemma 2.5 (which is centered at v = 0) to arbitrary shifts v : E."
 
 register_result "micciancio-regev-discrete-gaussian-norm-tail" where
-  title := "Discrete Gaussian sample-norm tail bound under dual-mass smoothing"
+  title := "Discrete Gaussian sample-norm tail bound (dual-mass step)"
   topic := "cryptography"
   sources := [
     { paper := MicciancioRegev2007, theorem := "Lemma 4.4",
@@ -11562,16 +11561,16 @@ register_result "micciancio-regev-discrete-gaussian-norm-tail" where
   theorems := [
     ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le
   ]
-  scope := "Dual-mass form of MicciancioRegev2007 Lemma 4.4 (a step toward the η_ε(L) ≤ s \
-    statement once ZLattice.smoothingParameter is in scope): for any full-rank discrete lattice L \
-    in a finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
+  scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.4 (not the η_ε(L) ≤ s endpoint, \
+    which awaits ZLattice.smoothingParameter): for any full-rank discrete lattice L in a \
+    finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
     n = 0), width s > 0, arbitrary center v : E, and real ε < 1 satisfying the dual-mass bound \
-    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 ≤ ε (which unpacks s ≥ η_ε(L) when \
-    ε > 0; 0 ≤ ε follows automatically), the discrete Gaussian probability \
+    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 ≤ ε (the dual-mass condition unpacked \
+    from s ≥ η_ε(L) when ε > 0; 0 ≤ ε follows automatically), the discrete Gaussian probability \
     (discreteGaussian L s hs v).toOuterMeasure {z : L | s √n < ‖(z : E) − v‖} is strictly less \
-    than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviations from the source: (1) states \
-    the smoothing condition directly in dual-mass form rather than via η_ε(L); (2) sharpens the \
-    source's non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) bound to strict \
+    than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviations from the source: (1) proves \
+    the dual-mass step directly rather than the η_ε(L) ≤ s endpoint; (2) sharpens the source's \
+    non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) constant to strict \
     ((1 + ε) / (1 − ε)) · (1 / 4) ^ n via the factor-of-2-free shifted Banaszczyk bound \
     (1 / 4 instead of 1 / 2)."
 

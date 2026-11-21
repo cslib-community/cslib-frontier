@@ -142,7 +142,7 @@ János Balogh, József Békési, György Dósa, Leah Epstein and Asaf Levin. *A 
 <a id="banaszczyk1993"></a>
 ## banaszczyk1993
 
-Wojciech Banaszczyk. "New Bounds in Some Transference Theorems in the Geometry of Numbers." *Mathematische Annalen* 296(4), 625–635, 1993. https://doi.org/10.1007/BF01445125 . Not inspected directly (no open publisher copy was used); cited bibliographically as the origin of the Gaussian mass-scaling and tail estimates (Lemmas 1.4 and 1.5). The formalized statements follow [micciancioregev2007](#micciancioregev2007) Lemma 2.10 and Regev (JACM 2009, `Regev2009` in `references.bib`) Lemmas 2.4–2.5.
+Wojciech Banaszczyk. "New Bounds in Some Transference Theorems in the Geometry of Numbers." *Mathematische Annalen* 296(4), 625–635, 1993. https://doi.org/10.1007/BF01445125 . Verified locator for the shifted Gaussian tail bound: Lemma 1.5(ii), printed p. 630 (with the centered case in Lemma 1.5(i) and mass-scaling in Lemma 1.4). The formalized statements in `Gaussian.OffCenterTail` also cross-reference [micciancioregev2007](#micciancioregev2007) Lemma 2.10 and Regev (JACM 2009, `Regev2009` in `references.bib`) Lemmas 2.4–2.5.
 
 <a id="barak-steurer16"></a>
 ## barak-steurer16
@@ -1523,7 +1523,7 @@ Karl Menger. "Zur allgemeinen Kurventheorie." *Fundamenta Mathematicae* 10, 96�
 <a id="micciancioregev2007"></a>
 ## micciancioregev2007
 
-Daniele Micciancio and Oded Regev. "Worst-Case to Average-Case Reductions Based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007. https://doi.org/10.1137/S0097539705447360 . Author's copy dated December 27, 2005 (`https://cseweb.ucsd.edu/~daniele/papers/Gaussian.pdf`) inspected on 2026-11-20: Lemma 2.9 (shifted-vs-centered mass monotonicity, p. 9), Lemma 2.10 (Banaszczyk's centered and shifted Gaussian tails, p. 9), Lemma 4.1 (uniformity modulo a lattice for arbitrary centers, p. 12), and Lemma 4.4 (off-center discrete Gaussian sample-norm tail bound, p. 15). In `Gaussian.OffCenterTail`, the shifted tail sharpens eq. (6) of Lemma 2.10 by removing the factor of `2`, and the dual-mass form of Lemma 4.4 strengthens `(1 / 2) ^ n` to strict `(1 / 4) ^ n`. In `Gaussian.Quotient`, `ZLattice.tvDist_gaussian_shift_quotient_le` uses Mathlib's full-`L¹` `tvDist` convention (twice the source's half-`L¹` statistical distance `Δ`).
+Daniele Micciancio and Oded Regev. "Worst-Case to Average-Case Reductions Based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007. https://doi.org/10.1137/S0097539705447360 . Author's copy dated December 27, 2005 (`https://cseweb.ucsd.edu/~daniele/papers/Gaussian.pdf`) inspected on 2026-11-20: Lemma 2.9 (shifted-vs-centered mass monotonicity, p. 9), Lemma 2.10 (Banaszczyk's centered and shifted Gaussian tails, p. 9), Lemma 4.1 (uniformity modulo a lattice for arbitrary centers, p. 12), and Lemma 4.4 (off-center discrete Gaussian sample-norm tail bound, p. 15). In `Gaussian.OffCenterTail`, the shifted tail sharpens eq. (6) of Lemma 2.10 by removing the factor of `2`, and `ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le` proves the dual-mass step toward Lemma 4.4 (not the `η_ε(L) ≤ s` endpoint), strengthening `(1 / 2) ^ n` to strict `(1 / 4) ^ n`. In `Gaussian.Quotient`, `ZLattice.tvDist_gaussian_shift_quotient_le` uses Mathlib's full-`L¹` `tvDist` convention (twice the source's half-`L¹` statistical distance `Δ`).
 
 <a id="mignonressayre04"></a>
 ## mignonressayre04

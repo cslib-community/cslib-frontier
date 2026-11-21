@@ -15,7 +15,7 @@ import Mathlib.Analysis.Real.Pi.Bounds
 
 /-!
 Non-vacuous `module` client tests for off-center Banaszczyk tails, one-dimensional discrete
-Gaussian bounds, MR07 Lemma 4.4 (dual-mass form), and arbitrary-center quotient uniformity
+Gaussian bounds, the dual-mass step toward MR07 Lemma 4.4, and arbitrary-center quotient uniformity
 (MR07 Lemma 4.1) on concrete lattices in dimensions 1, 2, and 0.
 -/
 
