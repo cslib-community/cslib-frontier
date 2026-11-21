@@ -348,10 +348,10 @@ theorem segments_plateauShear (p : Route) (h r d : ℝ) :
   · change p.segments ≤ p.segments ∧ p.segments ≤ 5 * p.segments
     constructor <;> omega
   · constructor <;> omega
-  · have h := segments_mapAtCuts p (levels h r) Complex.imCLM.toLinearMap.toAffineMap
+  · have hbounds := segments_mapAtCuts p (levels h r) Complex.imCLM.toLinearMap.toAffineMap
       (Cslib.Polygonal.plateauShear h r d)
     have hcard : (levels h r).card ≤ 4 := Finset.card_le_four
-    exact ⟨h.1, h.2.trans (Nat.mul_le_mul_right _ (Nat.add_le_add_right hcard 1))⟩
+    exact ⟨hbounds.1, hbounds.2.trans (Nat.mul_le_mul_right _ (Nat.add_le_add_right hcard 1))⟩
 
 /-- Exact piece count for a nonzero displacement and positive width: every old indexed
 segment contributes one piece plus its distinct strict interior height-cut parameters.
@@ -515,6 +515,8 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
   obtain ⟨j, α, β, hα, hαβ, hβ, hn, he⟩ :=
     Route.eval_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
       (shear_lineMap hr d) p (q.endSegment b)
+  change ∀ y ∈ levels h r, ¬(min (p.eval j α).im (p.eval j β).im < y ∧
+    y < max (p.eval j α).im (p.eval j β).im) at hn
   have hzero : q.AtEnd (q.endSegment b) (Route.endTime b 0) b := by
     rw [Route.AtEnd, q.position_near_end]
     cases b <;> simp
