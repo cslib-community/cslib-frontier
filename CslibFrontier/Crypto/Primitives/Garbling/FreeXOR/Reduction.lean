@@ -71,13 +71,15 @@ open Cslib.Circuits Probability ConventionalCircuit
 
 namespace CCR
 
-/-- Lift a key-only CCR query `(x, t, b)` to a full-label CCR query `((x, true), t, b)` so that
-adding the offset `(R, true)` cancels the colour bit to `false`. -/
+/-- Library construction (no cited definition): lift a key-only CCR query `(x, t, b)` to a
+full-label CCR query `((x, true), t, b)` so that adding the offset `(R, true)` cancels the colour
+bit to `false`. -/
 @[expose] def keyOnlyHandler {L T M : Type} :
     Query L T → ProbOracleComp (fun _ : Query (L × Bool) T => M) M
   | ⟨x, t, b⟩ => ProbOracleComp.query ⟨(x, true), t, b⟩
 
-/-- Embedding of key-only queries into full-label queries via colour bit `true`. -/
+/-- Library construction (no cited definition): embedding of key-only queries into full-label
+queries via colour bit `true`. -/
 @[expose] def keyOnlyEmbed (L T : Type) : Query L T ↪ Query (L × Bool) T where
   toFun q := ⟨(q.label, true), q.tweak, q.bit⟩
   inj' := by
@@ -86,8 +88,9 @@ adding the offset `(R, true)` cancels the colour bit to `false`. -/
     rcases h with ⟨rfl, rfl, rfl⟩
     rfl
 
-/-- On key-only oracle queries lifted with colour bit `true`, the full-label circular oracle
-with offset `(R, true)` equals the key-only oracle `H (·, false) ·` with input offset `R`. -/
+/-- Library infrastructure (no cited result): on key-only oracle queries lifted with colour bit
+`true`, the full-label circular oracle with offset `(R, true)` equals the key-only oracle
+`H (·, false) ·` with input offset `R`. -/
 theorem oracle_keyOnly {L T M : Type} [AddCommGroup L] [AddCommGroup M]
     (H : L × Bool → T → M) (R : L) (Δ' : M) (q : Query L T) :
     oracle H (R, true) Δ' ⟨(q.label, true), q.tweak, q.bit⟩ =
