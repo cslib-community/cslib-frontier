@@ -159,9 +159,7 @@ theorem compute_of_callees {α τ : Type} {n : ℕ} (enc : α ↪ List Bool)
     have hstate : Q.run (enc a) (time a) = .inl q :=
       (Q.run_eq_of_le (enc a) (hhalt a) hle).symm.trans hT
     have hresult := result_of_returns (edge a) (member a) v hsize htrace hstop (hc a)
-    rw [Q.output_eq_of_not_halted (enc a) (hpre a)]
-    simp only [hemit, List.map_const', List.length_range, List.flatten_replicate_nil,
-      List.nil_append, hstate]
+    rw [Q.output_eq_finish_of_emit_nil (enc a) hemit, hstate]
     exact congrArg encCountResult hresult.symm
   apply Q.computableInSpace (machine_query_inSpace encT ctx N start answer hq hs)
     (machine_next_inSpace encT ctx N start answer hn hh hs ha)
