@@ -1676,10 +1676,11 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   -- MiniSat's `activity < cla_inc / learnts.size()`, without rounding the quotient
   let chosen := (sorted.take half).filter (2 < ·.2.length) ++
     (sorted.drop half).filter fun e => 2 < e.2.length && act.get e.1 * sorted.length < act.inc
-  let locked := XTrail.reasonIds S.exec.trail
+  -- the reasons of the trail (MiniSat's `locked`) and the short clauses are kept: their numbers are
+  -- marked once, so that each clause chosen is tested in constant time
+  let kept := Assign.marks (XTrail.reasonIds S.exec.trail ++ S.short.map Prod.fst)
   -- LRAT checkers such as drat-trim's `lrat-check` reject a number deleted twice
-  dedupVars <| (chosen.map Prod.fst).filter fun i =>
-    isLearntId φ.length i && !locked.contains i && !S.short.any (·.1 == i)
+  dedupVars <| (chosen.map Prod.fst).filter fun i => isLearntId φ.length i && !kept.assigned i
 
 /-- The number of learned clauses in the store, those numbered above `n` (`isLearntId`). Reduction
 and simplification set the count of learned clauses from the rebuilt store, instead of subtracting
@@ -1761,10 +1762,13 @@ theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
     φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
   unfold WExec.reduceIds at h
   rw [mem_dedupKey Function.injective_id] at h
-  simp only [ List.mem_filter, Bool.and_eq_true, Bool.not_eq_true', isLearntId,
-    decide_eq_true_eq, List.contains_eq_mem, decide_eq_false_iff_not, List.any_eq_false,
-    beq_iff_eq] at h
-  exact ⟨h.2.1.1, h.2.1.2, fun e he => h.2.2 e he⟩
+  simp only [List.mem_filter, Bool.and_eq_true, Bool.not_eq_true', isLearntId,
+    decide_eq_true_eq] at h
+  obtain ⟨-, hlt, hkept⟩ := h
+  have hnot : i ∉ XTrail.reasonIds S.exec.trail ++ S.short.map Prod.fst := fun hm => by
+    rw [← Assign.assigned_marks] at hm; simp [hm] at hkept
+  simp only [List.mem_append, List.mem_map, not_or, not_exists, not_and] at hnot
+  exact ⟨hlt, hnot.1, fun e he hei => hnot.2 e he hei⟩
 
 /-- Reducing at an empty queue with no false clause keeps the invariant and the measure, and no
 clause becomes false. -/
