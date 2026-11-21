@@ -8,7 +8,8 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRound
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Dispatch
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Dispatch.Resource
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 
 /-! Checked scalar traces for the source controller's tie and rejection results. -/
 
@@ -50,6 +51,24 @@ private def mixedReply := reply.dispatch membershipReply
 private def mixedFinish : Option Bool ⊕ Bool → Option Bool := Sum.elim id some
 
 private def tieRound := machine context mixedReply mixedStart mixedFinish
+
+open ComputableInSpace NondeterministicQueryMachine in
+/-- The round's native transition combines the two steps using the same read and selector. -/
+example
+    (hentry : ComputableInSpace (fun q : State => mixedStart q.context (request q)) encState
+      (encSum (encOption encBool) encBool) fun q => (encState q).length) :
+    let encCallback := encSum (encOption encBool) encBool
+    let encStep := encPair (encMachineState (Option Bool ⊕ Bool) encCallback) encReadChoice
+    ComputableInSpace tieRound.next encStep (encMachineState (Option Bool ⊕ Bool) encCallback)
+      fun p => (encStep p).length := by
+  have hfinish := sumElim (of_inO (ComputableInDegree.id' (enc := encOption encBool)).inO_one)
+    (budget_optionSome (of_inO (ComputableInDegree.id' (enc := encBool)).inO_one))
+  have hhalt := sumElim (encE := encBool)
+    (budget_const (encIn := encOption encBool) true (.refl _))
+    (budget_const (encIn := encBool) true (.refl _))
+  have hnext := reply.dispatch_next_inSpace membershipReply (encOption encBool) encBool
+    (fst (encOption encBool) encReadChoice) (fst encBool encReadChoice)
+  exact machine_next_inSpace _ context mixedReply mixedStart mixedFinish hentry hfinish hhalt hnext
 
 -- The first two vertices are already in the round. Both reach the third vertex.
 example :
