@@ -1013,8 +1013,9 @@ theorem _root_.Cslib.Crypto.OneWay.exists_indexedEUFCMA {f : List Bool → List 
     hS.indexedEUFCMA_merkle hH.collisionResistant hH.polyTime hH.length_eq hcap⟩
 
 /-- Step toward Merkle's stateful tree signatures ([Merkle1989], Sections 6–7), not the cited
-result: no inspection of the primary source is recorded, and the proof rests on the steps
-`OneWay.oneTimeEUFCMA_lamport` and `SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_merkle` (#5686).
+result: no inspection of the primary source is recorded, the `OneWay` premise accepts preimages of
+any length (`OneWay.exists_oneTimeSignature` specializes `OneWayOn.oneTimeEUFCMA_lamport`), and the
+proof rests on the step `SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_merkle` (#5686).
 
 A one-way function and a hash family give a counter EUF-CMA secure indexed scheme of every
 polynomial capacity `2 ^ depth n`; the witness is Merkle's tree signature over Lamport's one-time
