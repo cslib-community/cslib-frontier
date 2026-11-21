@@ -10854,8 +10854,8 @@ register_result "computational-universal-hash-single-to-multi-query" where
   scope := "A strict PPT public setup and uniform private key in its finite key space. The \
     uniform strict PPT adversary receives the unary parameter and public setup. Only distinct \
     valid messages count toward a collision. Bounded fair-bit sampling of ordered positions \
-    accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial query \
-    bound from the setup and adversary certificates. The predicates express security for an \
+    accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
+    query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
 
 register_result "pairwise-unpredictability-implies-universal-hashing" where
