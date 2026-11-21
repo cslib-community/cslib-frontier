@@ -75,7 +75,7 @@ example :
   change traces = _
   have hu := subsingleton_successful_firstHalting (start () 2) round id growingRound
     done (fun _ => ()) (fun _ => some false) [] (fun _ => True) trivial
-    (fun _ _ _ _ _ _ _ _ => trivial)
+    (fun _ _ _ _ _ _ _ _ _ => trivial)
     (fun r _ _ _ hx _ hy =>
       ((round.firstHalting_iff_nil_of_halted [] _ r rfl).mp hx.1).trans
         ((round.firstHalting_iff_nil_of_halted [] _ r rfl).mp hy.1).symm)
@@ -109,41 +109,74 @@ example :
   · intro _ _
     exact ⟨[], false, (done.firstHalting_iff_nil_of_halted [] [] () rfl).mpr rfl, rfl⟩
 
-private def lateRound : NondeterministicQueryMachine Bool where
-  init := false
+private def lateRound : NondeterministicQueryMachine (Option Bool) where
+  init := none
   query _ := 0
-  next _ := true
-  halted := id
-  accept := id
+  next := fun (_, _, choice) => some (!choice)
+  halted := Option.isSome
+  accept := fun state => state == some true
 
-private def lateReply (halted : Bool) : Option RoundUpdate :=
-  some ⟨⟨if halted then 1 else 2, 0⟩, false⟩
+private def lateReply : Option Bool → Option RoundUpdate
+  | none => some ⟨⟨2, 0⟩, false⟩
+  | some false => none
+  | some true => some ⟨⟨1, 0⟩, false⟩
 
-/-- An apparent growth reply on a live prefix does not impose an invariant obligation. -/
-example :
-    let scan := machine (start () 1) lateRound (fun _ => false) lateReply
-      done (fun _ => ()) (fun _ => some false)
-    (¬ Closed lateRound (fun _ => false) lateReply [] (· = start () 1)) ∧
-      ∃ bits verdict, scan.FirstHalting [] bits scan.init ∧
-        scan.run [] bits = .inr (some verdict) := by
-  constructor
-  · intro h
-    have hnext := h (start () 1) rfl (by decide) [] ⟨⟨2, 0⟩, false⟩ rfl rfl (by decide)
-    exact Nat.zero_ne_one (congrArg Registers.fuel hnext)
-  · refine exists_successful_firstHalting (start () 1) lateRound (fun _ => false) lateReply
-      done (fun _ => ()) (fun _ => some false) [] (· = start () 1) rfl
-      (by rintro _ rfl; decide) ?_ ?_ ?_
-    · rintro _ rfl _ bits a hfirst ha _ hcount
-      have hhalt : lateRound.replay [] bits false = true := hfirst.1
-      change lateReply (lateRound.replay [] bits false) = some a at ha
-      rw [hhalt] at ha
-      have ha' : a = ⟨⟨1, 0⟩, false⟩ := Option.some.inj ha.symm
+private theorem lateRound_closed :
+    Closed lateRound (fun _ => none) lateReply [] (· = start () 1) := by
+  rintro _ rfl _ bits a hfirst ha _ hcount
+  have hhalt := hfirst.1
+  change lateReply (lateRound.replay [] bits none) = some a at ha
+  cases hs : lateRound.replay [] bits none with
+  | none =>
+    change (lateRound.replay [] bits none).isSome = true at hhalt
+    simp [hs] at hhalt
+  | some hit =>
+    cases hit
+    · simp [lateReply, hs] at ha
+    · have ha' : a = ⟨⟨1, 0⟩, false⟩ := Option.some.inj (by simpa [lateReply, hs] using ha.symm)
       exact (hcount (by rw [ha']; rfl)).elim
-    · intro r _
+
+private theorem lateRound_trace (bits : List Bool)
+    (h : lateRound.FirstHalting [] bits none ∧
+      (lateReply (lateRound.replay [] bits none)).isSome) : bits = [false] := by
+  cases bits with
+  | nil => cases h.1.1
+  | cons bit bits =>
+    have hfirst := ((lateRound.firstHalting_cons_iff [] bit bits none).mp h.1).2
+    have hhalt : lateRound.halted (lateRound.step [] none bit) = true := by
+      cases bit <;> rfl
+    have hnil := (lateRound.firstHalting_iff_nil_of_halted [] bits _ hhalt).mp hfirst
+    subst bits
+    cases bit
+    · rfl
+    · cases h.2
+
+/-- A live prefix exposes a growth reply, but the completed stable round has a unique trace. -/
+example :
+    let scan := machine (start () 1) lateRound (fun _ => none) lateReply
+      done (fun _ => ()) (fun _ => some false)
+    lateReply (lateRound.replay [] [] none) = some ⟨⟨2, 0⟩, false⟩ ∧
+      (∃ bits verdict, scan.FirstHalting [] bits scan.init ∧
+        scan.run [] bits = .inr (some verdict)) ∧
+      {bits : List Bool | scan.FirstHalting [] bits scan.init ∧
+        scan.accept (scan.run [] bits) = true}.Subsingleton := by
+  refine ⟨rfl, ?_, ?_⟩
+  · refine exists_successful_firstHalting (start () 1) lateRound (fun _ => none) lateReply
+      done (fun _ => ()) (fun _ => some false) [] (· = start () 1) rfl
+      (by rintro _ rfl; decide) lateRound_closed ?_ ?_
+    · intro _ _
       exact ⟨[false], ⟨⟨1, 0⟩, false⟩,
         lateRound.firstHalting_append_singleton [] [] false rfl rfl, rfl⟩
     · intro _ _
       exact ⟨[], false, (done.firstHalting_iff_nil_of_halted [] [] () rfl).mpr rfl, rfl⟩
+  · exact subsingleton_successful_firstHalting (start () 1)
+      lateRound (fun _ => none) lateReply done (fun _ => ()) (fun _ => some false)
+      [] (· = start () 1) rfl lateRound_closed
+      (fun _ _ _ left hl right hr =>
+        (lateRound_trace left hl).trans (lateRound_trace right hr).symm)
+      (fun _ _ _ left hl right hr =>
+        ((done.firstHalting_iff_nil_of_halted [] left () rfl).mp hl.1).trans
+          ((done.firstHalting_iff_nil_of_halted [] right () rfl).mp hr.1).symm)
 
 private def stableRound (r : Registers Unit) : Option RoundUpdate := some ⟨r.tally, false⟩
 
@@ -166,7 +199,7 @@ example (input : List Bool) :
     (machine (start () 2) round id growingRound done (fun _ => ())
       (fun _ => some false)).HaltsWithin input 3 :=
   haltsWithin (start () 2) round id growingRound done (fun _ => ()) (fun _ => some false) input
-    (fun _ => True) trivial (fun _ _ _ _ _ _ _ _ => trivial)
+    (fun _ => True) trivial (fun _ _ _ _ _ _ _ _ _ => trivial)
     0 0 (fun _ _ _ _ => rfl) (fun _ _ _ _ => rfl)
 
 private def stableReply (_ : Unit) : Option RoundUpdate := some ⟨⟨1, 0⟩, false⟩
@@ -204,7 +237,7 @@ private theorem nativeRoutines : Nonempty
       ?_ (encRegisters encUnit initialRegisters).length 0 0
       (by rintro _ rfl; exact le_rfl) (fun _ _ _ => Nat.zero_le 0)
       (fun _ _ _ => Nat.zero_le 0) bits).trans ?_
-    · intro r hr _ _ a ha _ hc
+    · intro r hr _ _ a _ ha _ hc
       subst r
       have he : a = ⟨⟨1, 0⟩, false⟩ := Option.some.inj ha.symm
       subst a
