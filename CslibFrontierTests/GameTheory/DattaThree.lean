@@ -18,9 +18,11 @@ import Mathlib.Tactic.NormNum
 The system `F_j(x) = 27 x_j³ - 1 = 0`, `j < 2`, has the single root `x = (1/3, 1/3)` in the open
 simplex. Its sparse table `{x₀ᵃ | a ≤ 3} ∪ {x₁ᵇ | b ≤ 3}` has `7` exponents, so Alice, Bob and
 Critter have `3`, `8` and `10` pure strategies. On the full box `{0, …, 3}²` of `16` exponents,
-Bob and Critter would have `17` and `19`. Datta's `D = −1 + 4 + 4 = 7` gives `6` and `8`, and the
-bound `|E| + m ≤ D + 2` is attained: `7 + 2 = 9`. The root, with Bob playing its monomials scaled
-by `1/8` and Critter uniform, is a totally mixed Nash equilibrium.
+Bob and Critter would have `17` and `19`. The paper's printed `D = −1 + 4 + 4 = 7` gives `6` and
+`8`, and the bound `|E| + m ≤ D + 2` is attained: `7 + 2 = 9`. The Horner game has
+`D = 3 + 3 = 6` chain equations and gives `5` and `7` (`DattaHorner` tests).
+The root, with Bob playing its monomials scaled by `1/8` and Critter uniform, is a totally mixed
+Nash equilibrium.
 -/
 
 set_option linter.privateModule false

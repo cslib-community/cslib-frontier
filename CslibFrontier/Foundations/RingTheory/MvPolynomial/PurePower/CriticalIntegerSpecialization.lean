@@ -29,6 +29,11 @@ public section
 
 namespace MvPolynomial.CriticalSystem
 
+/-- The power-of-two parameter exponent derived from arity, pure-power degree, and an input
+coefficient-norm bound of `2 ^ b`. -/
+@[expose] def criticalParameterExponent (n ell b : ℕ) : ℕ :=
+  Polynomial.parameterExclusionExponent (ell ^ n) (parametricValueCoeffNormExponent n ell b)
+
 /-- Bound the integer characteristic polynomial's coefficient norm at parameter `2 ^ s`.
 The exponent includes the symbolic norm allowance and `s` times the parameter-degree bound. -/
 theorem coeffNorm1_valuePolynomial_at_pow_two_le {n ell b : ℕ} (hell : 2 ≤ ell)
@@ -55,7 +60,7 @@ theorem valuePolynomial_at_integerParameterExclusion {n ell b : ℕ} (hell : 2 �
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b) :
     let H := parametricValueCoeffNormExponent n ell b
     let a : ℤ := 2 ^ (H + 1)
-    let u : ℤ := 2 ^ Polynomial.parameterExclusionExponent (ell ^ n) H
+    let u : ℤ := 2 ^ criticalParameterExponent n ell b
     let q := valuePolynomial (by omega : 1 ≤ ell) (fun i => (separatedCenters ell i : ℤ)) u F hF
     let q' := q.map (Int.castRingHom ℝ)
     q'.Separable ∧ q'.eval (a : ℝ) ≠ 0 := by
@@ -69,6 +74,6 @@ theorem valuePolynomial_at_integerParameterExclusion {n ell b : ℕ} (hell : 2 �
   have h := parametricValuePolynomial_at_parameterExclusion (by omega : 1 ≤ ell) F hF
     (parametricValuePolynomial_bivariateCoeffNorm1_le hell F hF hb)
   dsimp only at h
-  simpa only [u, H, a, Int.cast_pow, Int.cast_ofNat] using h
+  simpa only [u, H, a, criticalParameterExponent, Int.cast_pow, Int.cast_ofNat] using h
 
 end MvPolynomial.CriticalSystem
