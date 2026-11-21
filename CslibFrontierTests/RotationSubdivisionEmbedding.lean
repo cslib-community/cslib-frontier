@@ -46,10 +46,8 @@ example :
     exists_subdivision_embedding hI (PolygonalDrawing.star 3) (PolygonalDrawing.star_isEmbedding 3)
   refine ⟨E, hE, fun d => ?_⟩
   let f := subdivisionDartEquiv threeSpokeStar 3 (by decide)
-  have h := congrArg Subtype.val (f.apply_symm_apply d)
-  change (f (f.symm d)).val = d.val at h
-  rw [← h, subdivisionDartEquiv_apply_val]
-  exact hdir (f.symm d).val
+  have h := subdivisionDart_subdivisionDartEquiv_symm threeSpokeStar 3 (by decide) d
+  exact (congrArg E.direction h.symm).trans (hdir (f.symm d).val)
 
 private def loop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [none]⟩
 
