@@ -19,24 +19,30 @@ extended as described below, producing the abstract syntax checked by
 `Cslib.Logic.PL.VeriPB.checkRed`:
 
 * an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPB`): an optional objective line
-  `min: ∑ wᵢ ℓᵢ;` before the constraints (`Cslib.Logic.PL.VeriPB.Objective`), then one
-  constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one of `>=`, `<=`, `=`, an equality counting as the
-  two constraints `≥` and `≤` in this order; lines starting with `*` are comments;
+  `min: ∑ wᵢ ℓᵢ [k];`, with an optional constant `k`, and an optional preserved-set line
+  `preserved: x₁ … xₙ;`, in either order, before the constraints
+  (`Cslib.Logic.PL.VeriPB.Objective`), then one constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one
+  of `>=`, `<=`, `=`, an equality counting as the two constraints `≥` and `≤` in this order; lines
+  starting with `*` are comments;
 * a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
   exactly `C` clauses over the variables `1, …, V`, its clause `1 -2 3 0` read as the constraint
   `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
 * a proof (`Cslib.Logic.PL.VeriPB.Text.parseProof`): the header
   `pseudo-Boolean proof version 3.0`, the line `f N;` checked against the number of
-  constraints, the derivation steps, `output NONE;`, a conclusion `UNSAT : id`, `SAT` or
-  `BOUNDS lb : id ub` (§4.3, with `INF` for an infinite bound), and
+  constraints, the derivation steps, `output NONE;`, a conclusion `UNSAT : id`, `SAT [: ρ]`,
+  `BOUNDS lb : id ub [: ρ]` (§4.3, with `INF` for an infinite bound), `ENUMERATION_PARTIAL n`,
+  `ENUMERATION_COMPLETE n : id` or `NONE`, and
   `end pseudo-Boolean proof;`.
 
 **Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1
-of the VeriPB/CakePB documentation, 22 June 2026 edition), with three extensions. First, the
-line `f N;` is optional, as in the general format (§4.1). The kernel format requires it as the
-first command after the header (§6.1), but a proof without it is accepted and checked against
-the parsed formula. The other two extensions, `del id` and `rup` without hints, are described
-under **Steps**. So a proof accepted here need not be a kernel proof.
+of the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented
+format. First, the line `f N;` is optional, as in the general format (§4.1). The kernel format
+requires it as the first command after the header (§6.1), but a proof without it is accepted and
+checked against the parsed formula. Second, `red`, the checked `delc` and `obju` may omit their
+subproof, and a goal is also autoproven when it is a constraint of the database up to the order
+of its terms (`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the
+subproof (§6.1). The remaining extensions, `del id` and `rup` without hints, are described under
+**Steps**. So a proof accepted here need not be a kernel proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
@@ -46,29 +52,39 @@ soundness, which concerns only the parsed formula.
 
 **Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
 witness and an optional subproof of `proofgoal` blocks (`#1`, `#2` for the objective, and
-constraint numbers), the solution-logging steps `sol` and `soli` (§5.8), and the deletions
-`deld` and `delc`, read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del`. Deletion,
-`core` and solution logging are accepted only at top level, as the format requires. `core id` is
-skipped: the checker keeps no separate core set, and no checked conclusion depends on it (see
-`Cslib.Logic.PL.VeriPB.checkConclusion`). Two steps of the augmented format are also accepted:
-`del id`, read as the same deletion, and `rup` without hints, read as
-`Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol` operations `c`, `m`, `n` and `-`,
-relative constraint numbers, `i` and `ia`, orders, `dom`, `solx`, `obji`, `obju`, other outputs
-and conclusions, and the optional assignments of `SAT` and `BOUNDS`) is rejected.
+constraint numbers), the solution-logging steps `sol`, `soli` and `solx` and the bound `obji`
+(§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax, an
+optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id`
+(§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of
+derived constraints, the unchecked `delc` of core constraints, and the checked
+`delc id : ω` of one core constraint, with an optional subproof. Deletion, `core`,
+strengthening-to-core, solution logging, `obji` and `obju` are accepted only at top level, as
+the format requires. Two steps of the augmented format are also accepted: `del id`, read as the
+untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts
+as unchecked), and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`.
+Everything else (`pol` operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and
+`ia`, orders, `dom`, the preserved-set rules, `del spec`, levels, other outputs, and the
+conclusion `UNSAT` without an ID) is rejected.
 
 **Soundness.** The checkers return the conclusion of an accepted proof. If it is `UNSAT`, the
 input parses to a formula with no 0/1 solution
 (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB`,
 `Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkDIMACS`); if `SAT`, to one with a solution
 (`Cslib.Logic.PL.VeriPB.Text.exists_satisfies_of_checkOPB`,
-`Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`); if `BOUNDS lb : q ub`, to an
+`Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`), the stated assignment of `SAT : ρ`
+being one (`Cslib.Logic.PL.VeriPB.Text.holds_of_checkOPB_sat`); if `BOUNDS lb : q ub`, to an
 instance with an objective `f` whose every solution has value at least `lb` and, for a finite
-`ub`, one solution has value `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`). This is a
-guarantee about the text and the formula the
-parser returns: the parsers are trusted to read the files as intended, and nothing is said about
-compiled code. It is smaller than the end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB
-documentation, 22 June 2026 edition), which also covers the execution of its compiled
-machine code and the parsing of DIMACS input.
+`ub`, some solution has value at most `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`);
+if `ENUMERATION_PARTIAL n` or `ENUMERATION_COMPLETE n : q`, to an instance with a preserved set
+whose solutions have at least, or exactly, `n` distinct projections to it
+(`Cslib.Logic.PL.VeriPB.Text.le_encard_of_checkOPB_enumPartial`,
+`Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`). An enumeration needs a
+`preserved:` line, even for `n = 0`, which VeriPB 3.0.2 and CakePB accept without one. `NONE`
+claims nothing.
+This is a guarantee about the text and the formula the parser returns: the parsers are trusted
+to read the files as intended, and nothing is said about compiled code. It is smaller than the
+end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
+which also covers the execution of its compiled machine code and the parsing of DIMACS input.
 
 ## Main definitions
 
@@ -84,6 +100,8 @@ machine code and the parsing of DIMACS input.
 * `Cslib.Logic.PL.VeriPB.Text.exists_satisfies_of_checkOPB`,
   `Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`: soundness of `SAT`.
 * `Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`: soundness of `BOUNDS`.
+* `Cslib.Logic.PL.VeriPB.Text.le_encard_of_checkOPB_enumPartial`,
+  `Cslib.Logic.PL.VeriPB.Text.encard_eq_of_checkOPB_enumComplete`: soundness of `ENUMERATION`.
 
 ## References
 
@@ -153,13 +171,15 @@ private def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
 
 /-! ### Constraints -/
 
-/-- The terms `a ℓ` of a constraint or an objective, up to the relation or `;`, as an integer
-linear form and the constant contributed by negative literals (`a ¬x = a - a x`). -/
+/-- The terms `a ℓ` of a constraint or an objective, up to the relation, `;` or `:`, as an integer
+linear form and a constant: that contributed by negative literals (`a ¬x = a - a x`) and, in an
+objective, a final constant term. A constraint never ends in `;` or `:` before its relation, so
+`constr` still rejects a constant there. -/
 private def terms (N : Names) :
     ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
   | 0, _, _, _ => none
   | fuel + 1, t :: ts, L, k =>
-    if t == ">=" || t == "<=" || t == "=" || t == ";" then some (L, k, t :: ts)
+    if t == ">=" || t == "<=" || t == "=" || t == ";" || t == ":" then some (L, k, t :: ts)
     else
       -- A coefficient and a literal, or a literal with coefficient `1`.
       let (a, rest) := match int? t with
@@ -167,10 +187,13 @@ private def terms (N : Names) :
         | none => (1, t :: ts)
       match rest with
       | u :: rest =>
-        match N.lit? u with
-        | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
-        | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
-        | none => none
+        -- A coefficient before `;` or `:` is the constant of an objective.
+        if (int? t).isSome && (u == ";" || u == ":") then some (L, k + a, u :: rest)
+        else
+          match N.lit? u with
+          | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
+          | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
+          | none => none
       | [] => none
   | _ + 1, [], _, _ => none
 
@@ -214,10 +237,18 @@ private def opbLines : List (List String) → Option (List PBConstr)
       | some (cs, [";"]), some F => some (cs ++ F)
       | _, _ => none
 
-/-- An objective line `min: ∑ wᵢ ℓᵢ;`, given its tokens after `min:`. -/
+/-- An objective `∑ wᵢ ℓᵢ [k]` with an optional constant `k`, up to `;` or `:`, and the rest from
+there: the OPB objective syntax, which `obju` reuses (§5.9). -/
+private def objTerms (N : Names) (ts : List String) : Option (Objective × List String) :=
+  match terms N (ts.length + 1) ts [] 0 with
+  | some (L, k, t :: rest) => if t == ";" || t == ":" then some (⟨L, k⟩, t :: rest) else none
+  | _ => none
+
+/-- An objective line `min: ∑ wᵢ ℓᵢ [k];`, given its tokens after `min:`, with an optional
+constant `k`. -/
 private def objective (ts : List String) : Option Objective :=
-  match terms stdNames (ts.length + 1) ts [] 0 with
-  | some (L, k, [";"]) => some ⟨L, k⟩
+  match objTerms stdNames ts with
+  | some (f, [";"]) => some f
   | _ => none
 
 /-- An OPB instance: its constraints and its objective, if any. -/
@@ -226,18 +257,33 @@ structure OPB where
   constraints : List PBConstr
   /-- The objective to minimize, from the line `min: …;`. -/
   objective : Option Objective
+  /-- The preserved set of a projected enumeration, from the line `preserved: …;` (§5.8.3). -/
+  preserved : Option (List ℕ) := none
+
+/-- The variables of a `preserved:` line, up to `;`. -/
+private def presVars : List String → Option (List ℕ)
+  | [";"] => some []
+  | t :: ts => (stdVar? t).bind fun v => (presVars ts).map (v :: ·)
+  | [] => none
 
 /-- **An OPB instance**: comment lines starting with `*`, an optional objective line
-`min: …;` before the constraints, and one constraint per line. -/
+`min: …;` and an optional preserved-set line `preserved: …;`, in either order, before the
+constraints, and one constraint per line. -/
 def parseOPB (s : String) : Option OPB :=
   let lines := ((s.splitOn "\n").map tokens).filter fun l =>
     match l.head? with
     | none => false
     | some t => !t.startsWith "*"
   match lines with
+  | ("min:" :: ts) :: ("preserved:" :: ps) :: ls
+  | ("preserved:" :: ps) :: ("min:" :: ts) :: ls =>
+    (objective ts).bind fun f => (presVars ps).bind fun P =>
+      (opbLines ls).map (⟨·, some f, some P⟩)
   | ("min:" :: ts) :: ls =>
-    (objective ts).bind fun f => (opbLines ls).map (⟨·, some f⟩)
-  | ls => (opbLines ls).map (⟨·, none⟩)
+    (objective ts).bind fun f => (opbLines ls).map (⟨·, some f, none⟩)
+  | ("preserved:" :: ps) :: ls =>
+    (presVars ps).bind fun P => (opbLines ls).map (⟨·, none, some P⟩)
+  | ls => (opbLines ls).map (⟨·, none, none⟩)
 
 /-- The clauses of a DIMACS body over the variables `1, …, V`: nonzero integers of magnitude at
 most `V`, each clause ended by `0`. -/
@@ -390,36 +436,66 @@ private def redItems (N : Names) : ℕ → List String → Option (List RedItem 
     | some (s, rest) => (redItems N fuel rest).map fun (items, rest) => (.step s :: items, rest)
     | none => none
 
-/-- A top-level step: a `red` step, a deletion, an implicational step, or nothing for a skipped
-`core` step. Deletion and `core` are top-level only: subproof scopes are specified in §5.5 of
-the format documentation, `core id` in §5.1, and the typed kernel deletions in §5.7.1. -/
+/-- A top-level step: a `red` step, a deletion, `core id`, `strengthening_to_core`, solution
+logging, or an implicational step. These steps other than the implicational ones are top-level
+only: subproof scopes are specified in §5.5 of the format documentation, `core id` in §5.1,
+strengthening-to-core mode in §5.6, and the kernel deletions in §5.7.1. A checked deletion
+`delc id : ω [: subproof … qed [delc] [: n]];` deletes one constraint. -/
 private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
   | "red" :: ts =>
     match geq N ts with
-    | some (c, ";" :: rest) => some ([.red c [] [] none], rest)
+    | some (c, ";" :: rest) => some ([.red c [] none none], rest)
     | some (c, ":" :: rest) =>
       match witness N rest with
-      | some (ω, ";" :: rest) => some ([.red c ω [] none], rest)
+      | some (ω, ";" :: rest) => some ([.red c ω none none], rest)
       | some (ω, ":" :: "subproof" :: rest) =>
         (redItems N fuel rest).bind fun (items, rest) =>
-          (qedOpt rest).map fun (q, rest) => ([.red c ω items q], rest)
+          (qedOpt rest).map fun (q, rest) => ([.red c ω (some items) q], rest)
       | _ => none
     | _ => none
-  | "deld" :: ts | "delc" :: ts | "del" :: "id" :: ts =>
+  | "deld" :: ts =>
+    match ids ts with
+    | some (ns, ";" :: rest) => some ([.deld ns], rest)
+    | _ => none
+  | "delc" :: n :: ":" :: ts =>
+    (id? n).bind fun i =>
+      match witness N ts with
+      | some (ω, ";" :: rest) => some ([.delcChecked i ω none none], rest)
+      | some (ω, ":" :: "subproof" :: rest) =>
+        (redItems N fuel rest).bind fun (items, rest) =>
+          (qedOpt rest).map fun (q, rest) => ([.delcChecked i ω (some items) q], rest)
+      | _ => none
+  | "delc" :: ts =>
+    match ids ts with
+    | some (ns, ";" :: rest) => some ([.delc ns], rest)
+    | _ => none
+  | "del" :: "id" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.step (.del ns)], rest)
     | _ => none
-  | "sol" :: ts =>
+  | "strengthening_to_core" :: "on" :: ";" :: rest => some ([.strengthenToCore true], rest)
+  | "strengthening_to_core" :: "off" :: ";" :: rest => some ([.strengthenToCore false], rest)
+  | k@"sol" :: ts | k@"solx" :: ts | k@"soli" :: ts =>
     match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.sol ρ], rest)
+    | some (ρ, ";" :: rest) =>
+      some ([if k == "sol" then .sol ρ else if k == "solx" then .solx ρ else .soli ρ], rest)
     | _ => none
-  | "soli" :: ts =>
-    match lits N ts with
-    | some (ρ, ";" :: rest) => some ([.soli ρ], rest)
-    | _ => none
+  | "obji" :: v :: ";" :: rest => (int? v).map fun v => ([.obji v], rest)
+  | "obju" :: kind :: ts =>
+    (if kind == "new" then some false else if kind == "diff" then some true else none).bind
+      fun diff =>
+        match objTerms N ts with
+        | some (g, ";" :: rest) => some ([.obju diff g none], rest)
+        | some (g, ":" :: "subproof" :: rest) =>
+          (redItems N fuel rest).bind fun (items, rest) =>
+            match rest with
+            | "qed" :: ";" :: rest | "qed" :: "obju" :: ";" :: rest =>
+              some ([.obju diff g (some items)], rest)
+            | _ => none
+        | _ => none
   | "core" :: "id" :: ts =>
     match ids ts with
-    | some (_, ";" :: rest) => some ([], rest)
+    | some (ns, ";" :: rest) => some ([.core ns], rest)
     | _ => none
   | ts => (step N fuel ts).map fun (s, rest) => ([.step s], rest)
 
@@ -435,12 +511,27 @@ private def topSteps (N : Names) : ℕ → List String → Option (List TopStep 
 private def bound? (t : String) : Option (Option ℤ) :=
   if t == "INF" then some none else (int? t).map some
 
-/-- The conclusion section, after `conclusion`: `UNSAT : id`, `SAT`, or `BOUNDS lb : id ub`. -/
-private def conclusion : List String → Option Conclusion
+/-- An optional assignment `: ρ` at the end of a conclusion, up to the final `;`. -/
+private def asgOpt (N : Names) : List String → Option (Option (List (Literal ℕ)))
+  | [";"] => some none
+  | ":" :: ts =>
+    match lits N ts with
+    | some (ρ, [";"]) => some (some ρ)
+    | _ => none
+  | _ => none
+
+/-- The conclusion section, after `conclusion`: `UNSAT : id`, `SAT [: ρ]`,
+`BOUNDS lb : id ub [: ρ]` or `NONE` (§4.3). -/
+private def conclusion (N : Names) : List String → Option Conclusion
   | ["UNSAT", ":", q, ";"] => (id? q).map .unsat
-  | ["SAT", ";"] => some .sat
-  | ["BOUNDS", lb, ":", q, ub, ";"] =>
-    (bound? lb).bind fun lb => (id? q).bind fun q => (bound? ub).map (.bounds lb q ·)
+  | ["NONE", ";"] => some .noClaim
+  | ["ENUMERATION_PARTIAL", n, ";"] => n.toNat?.map .enumPartial
+  | ["ENUMERATION_COMPLETE", n, ":", q, ";"] =>
+    n.toNat?.bind fun n => (id? q).map (.enumComplete n)
+  | "SAT" :: ts => (asgOpt N ts).map .sat
+  | "BOUNDS" :: lb :: ":" :: q :: ub :: ts =>
+    (bound? lb).bind fun lb => (id? q).bind fun q => (bound? ub).bind fun ub =>
+      (asgOpt N ts).map (.bounds lb q ub ·)
   | _ => none
 
 /-- **A proof** in the supported fragment (kernel proofs, with `f N;` optional) for a formula
@@ -459,25 +550,28 @@ def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
       | some (ss, "output" :: "NONE" :: ";" :: "conclusion" :: rest) =>
         match rest.reverse with
         | ";" :: "proof" :: "pseudo-Boolean" :: "end" :: concl =>
-          (conclusion concl.reverse).map (⟨ss, ·⟩)
+          (conclusion N concl.reverse).map (⟨ss, ·⟩)
         | _ => none
       | _ => none
   | _ => none
 
 /-! ### The checkers -/
 
-/-- The number of variables of a formula and an objective: one more than their largest
-variable. -/
-private def numVars (F : List PBConstr) (obj : Option Objective) : ℕ :=
+/-- The number of variables of a formula, an objective and a preserved set: one more than their
+largest variable. The names a proof introduces are numbered from there, so they never collide
+with a preserved variable absent from the formula and the objective. -/
+private def numVars (F : List PBConstr) (obj : Option Objective)
+    (pres : Option (List ℕ) := none) : ℕ :=
   (F.flatMap PBConstr.terms).foldr (fun t m => max (PBConstr.termVar t + 1) m)
-    ((obj.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m) 0)
+    ((obj.map (·.lin)).getD [] |>.foldr (fun e m => max (e.1 + 1) m)
+      (pres.getD [] |>.foldr (fun v m => max (v + 1) m) 0))
 
 /-- **Check a proof for an OPB instance**, in the supported fragment: the conclusion, if the
 proof is accepted. -/
 def checkOPB (opb pbp : String) : Option Conclusion :=
   (parseOPB opb).bind fun I =>
-    (parseProof I.constraints.length (numVars I.constraints I.objective) pbp).bind fun P =>
-      if checkRed I.constraints I.objective P then some P.conclusion else none
+    (parseProof I.constraints.length (numVars I.constraints I.objective I.preserved) pbp).bind
+      fun P => if checkRed I.constraints I.objective P I.preserved then some P.conclusion else none
 
 /-- **Check a proof for a DIMACS CNF formula**, in the supported fragment: the conclusion, if
 the proof is accepted. -/
@@ -488,7 +582,7 @@ def checkDIMACS (cnf pbp : String) : Option Conclusion :=
 
 private theorem exists_checkRed_of_checkOPB {opb pbp : String} {c : Conclusion}
     (h : checkOPB opb pbp = some c) :
-    ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P = true ∧
+    ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
       P.conclusion = c := by
   simp only [checkOPB, Option.bind_eq_some_iff] at h
   obtain ⟨I, hI, P, -, h⟩ := h
@@ -507,20 +601,29 @@ theorem not_satisfiable_of_checkOPB {opb pbp : String} {q : ℕ}
 
 /-- **Soundness of `SAT` for OPB text**: an accepted proof of `SAT` means the instance parses
 and its constraints have a 0/1 solution. -/
-theorem exists_satisfies_of_checkOPB {opb pbp : String} (h : checkOPB opb pbp = some .sat) :
+theorem exists_satisfies_of_checkOPB {opb pbp : String} {asg : Option (List (Literal ℕ))}
+    (h : checkOPB opb pbp = some (.sat asg)) :
     ∃ I, parseOPB opb = some I ∧ ∃ σ : ℕ → Bool, ∀ c ∈ I.constraints, c.Holds σ := by
   obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPB h
   exact ⟨I, hI, exists_satisfies_of_checkRed h hc⟩
 
+/-- **Soundness of `SAT : ρ` for OPB text**: an accepted proof of `SAT` with the assignment `ρ`
+means the instance parses and `ρ` solves its constraints. -/
+theorem holds_of_checkOPB_sat {opb pbp : String} {ρ : List (Literal ℕ)}
+    (h : checkOPB opb pbp = some (.sat (some ρ))) :
+    ∃ I, parseOPB opb = some I ∧ ∀ c ∈ I.constraints, c.Holds (assignOf ρ) := by
+  obtain ⟨I, P, hI, h, hc⟩ := exists_checkRed_of_checkOPB h
+  exact ⟨I, hI, holds_of_checkRed_sat h hc⟩
+
 /-- **Soundness of `BOUNDS` for OPB text**: an accepted proof of `BOUNDS lb : q ub` means the
 instance parses with an objective `f`; every 0/1 solution `σ` of its constraints has a finite
 `lb` with `lb ≤ f σ` (so for `lb = INF` there is no solution); and for a finite `ub` some
-solution has objective `ub`. -/
+solution has objective at most `ub`. -/
 theorem bounds_of_checkOPB {opb pbp : String} {lb ub : Option ℤ} {q : ℕ}
-    (h : checkOPB opb pbp = some (.bounds lb q ub)) :
+    {asg : Option (List (Literal ℕ))} (h : checkOPB opb pbp = some (.bounds lb q ub asg)) :
     ∃ I f, parseOPB opb = some I ∧ I.objective = some f ∧
       (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → ∃ l, lb = some l ∧ l ≤ f.eval σ) ∧
-      ∀ u, ub = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ = u := by
+      ∀ u, ub = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u := by
   obtain ⟨I, P, hI, hck, hc⟩ := exists_checkRed_of_checkOPB h
   cases hobj : I.objective with
   | none =>
@@ -536,7 +639,31 @@ theorem bounds_of_checkOPB {opb pbp : String} {lb ub : Option ℤ} {q : ℕ}
       | none => exact absurd hσ (not_satisfiable_of_checkRed_bounds hck hc σ)
       | some l => exact ⟨l, rfl, le_eval_of_checkRed hck hc σ hσ⟩
     · subst hu
-      exact exists_eval_eq_of_checkRed hck hc
+      exact exists_eval_le_of_checkRed hck hc
+
+/-- **Soundness of a partial enumeration for OPB text**: an accepted proof of
+`ENUMERATION_PARTIAL n` means the instance parses with a preserved set `P`, and its solutions have
+at least `n` distinct projections to `P`. -/
+theorem le_encard_of_checkOPB_enumPartial {opb pbp : String} {n : ℕ}
+    (h : checkOPB opb pbp = some (.enumPartial n)) :
+    ∃ I P, parseOPB opb = some I ∧ I.preserved = some P ∧
+      (n : ℕ∞) ≤ (projections I.constraints P).encard := by
+  obtain ⟨I, Pf, hI, hck, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨P, hP⟩ := Option.isSome_iff_exists.1 (isSome_of_checkRed_enum hck (.inl hc))
+  rw [hP] at hck
+  exact ⟨I, P, hI, hP, le_encard_of_checkRed_enum hck (.inl hc)⟩
+
+/-- **Soundness of a complete enumeration for OPB text**: an accepted proof of
+`ENUMERATION_COMPLETE n : q` means the instance parses with a preserved set `P`, and its
+solutions have exactly `n` distinct projections to `P`. -/
+theorem encard_eq_of_checkOPB_enumComplete {opb pbp : String} {n q : ℕ}
+    (h : checkOPB opb pbp = some (.enumComplete n q)) :
+    ∃ I P, parseOPB opb = some I ∧ I.preserved = some P ∧
+      (projections I.constraints P).encard = n := by
+  obtain ⟨I, Pf, hI, hck, hc⟩ := exists_checkRed_of_checkOPB h
+  obtain ⟨P, hP⟩ := Option.isSome_iff_exists.1 (isSome_of_checkRed_enum hck (.inr ⟨q, hc⟩))
+  rw [hP] at hck
+  exact ⟨I, P, hI, hP, encard_eq_of_checkRed_enumComplete hck hc⟩
 
 /-- **Soundness of `UNSAT` for DIMACS text**: an accepted proof of `UNSAT` means the CNF parses
 and is unsatisfiable. -/
@@ -551,7 +678,8 @@ theorem not_satisfiable_of_checkDIMACS {cnf pbp : String} {q : ℕ}
 
 /-- **Soundness of `SAT` for DIMACS text**: an accepted proof of `SAT` means the CNF parses and
 is satisfiable. -/
-theorem satisfiable_of_checkDIMACS {cnf pbp : String} (h : checkDIMACS cnf pbp = some .sat) :
+theorem satisfiable_of_checkDIMACS {cnf pbp : String} {asg : Option (List (Literal ℕ))}
+    (h : checkDIMACS cnf pbp = some (.sat asg)) :
     ∃ φ, parseDIMACS cnf = some φ ∧ φ.Satisfiable := by
   simp only [checkDIMACS, Option.bind_eq_some_iff] at h
   obtain ⟨φ, hφ, P, -, h⟩ := h
