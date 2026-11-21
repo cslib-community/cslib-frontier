@@ -76,6 +76,36 @@ example :
   rw [hports]
   exact hD.dist_cutPort hρ.1.le d
 
+-- The first spoke's middle piece avoids the disk of the second leaf.
+private def firstMiddle : Fin (subdivisionGraph threeSpokeStar).edges.length := ⟨1, by decide⟩
+
+example :
+    ∃ (ρ : ℝ) (E : PolygonalDrawing (subdivisionGraph threeSpokeStar)),
+      0 < ρ ∧ E.IsEmbedding ∧
+        Disjoint (Metric.closedBall ((PolygonalDrawing.star 3).vertex 0) ρ)
+          (Metric.closedBall ((PolygonalDrawing.star 3).vertex 3) ρ) ∧
+        Disjoint (E.route firstMiddle).support
+          (Metric.closedBall ((PolygonalDrawing.star 3).vertex 1) ρ) := by
+  have hI : Valid threeSpokeStar := (validate_eq_true_iff _).mp (by decide)
+  have hD := PolygonalDrawing.star_isEmbedding 3
+  obtain ⟨ε, hε, h⟩ :=
+    exists_subdivision_embedding_in_disjoint_disks hI (PolygonalDrawing.star 3) hD
+  have hρ : ε / 2 ∈ Set.Ioo (0 : ℝ) ε := ⟨half_pos hε, half_lt_self hε⟩
+  obtain ⟨hdisj, E, hE, _, _, _, _, hmiddle⟩ := h (ε / 2) hρ
+  let a := subdivisionEdgeIndex threeSpokeStar firstMiddle
+  have hindex : 1 = 3 * a.original.val + a.piece.val :=
+    subdivisionEdgeIndex_val threeSpokeStar firstMiddle
+  have he : a.piece = 1 := Fin.ext (by change a.piece.val = 1; omega)
+  have hzero : a.original.val = 0 := by omega
+  refine ⟨ε / 2, E, hρ.1, hE, hdisj 0 (by decide) 3 (by decide) (by decide),
+    Set.disjoint_left.mpr fun z hz hball => ?_⟩
+  obtain ⟨b, hb, _⟩ := hmiddle firstMiddle he 1 (by decide) z hz hball
+  change Dart.vertex (a.original, b) = 1 at hb
+  have hidx : a.original = (⟨0, by decide⟩ : Fin threeSpokeStar.graph.edges.length) :=
+    Fin.ext hzero
+  rw [hidx] at hb
+  cases b <;> revert hb <;> decide
+
 private def loop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [none]⟩
 
 private def loopEdge : Fin loop.graph.edges.length := ⟨0, by decide⟩

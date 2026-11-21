@@ -23,8 +23,8 @@ of the indexed recognition subdivision, including for loops and parallel edges.
 Membership in a piece transfers to an original route parameter, which distinguishes
 shared cut points from other contacts. The end pieces fit inside any prescribed
 positive radius around their original vertices. For sufficiently small radii,
-the fresh vertices are the actual common-radius cut ports of the original routes.
-This is original finite geometry.
+the disjoint vertex disks contain their end pieces and meet the middle pieces
+only at actual common-radius cut ports. This is original finite geometry.
 -/
 
 public section
@@ -432,37 +432,64 @@ private theorem drawing_germ {I : FixedRotationInput} (cut : CutTable I) (hI : V
     change (p.cutEnds (cut i false).val (cut i true).val).endpoint true - p.endpoint true = _
     rw [cut_endpoint, add_sub_cancel_left]
 
-/-- Subdivide the routes at their actual common-radius cut ports. Every sufficiently small
-positive radius works, so two embeddings at the same vertex positions can use the same
-circles. The end pieces are contained in their respective closed balls. -/
-theorem exists_subdivision_embedding_at_cutPorts {I : FixedRotationInput} (hI : Valid I)
+/-- For every sufficiently small positive radius, the original vertex disks are disjoint
+and contain their respective subdivision end pieces. Middle pieces meet the closed
+disks only at their own boundary ports. -/
+theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} (hI : Valid I)
     (D : PolygonalDrawing I.graph) (hD : D.IsEmbedding) :
     ∃ ε > (0 : ℝ), ∀ ρ ∈ Set.Ioo (0 : ℝ) ε,
+      (∀ v ∈ I.graph.vertices, ∀ w ∈ I.graph.vertices, v ≠ w →
+        Disjoint (Metric.closedBall (D.vertex v) ρ) (Metric.closedBall (D.vertex w) ρ)) ∧
       ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
         (∀ v ∈ I.graph.vertices, E.vertex v = D.vertex v) ∧
         (∀ d : Dart I.graph, E.direction (subdivisionDart I d) = D.direction d) ∧
         (∀ d : Dart I.graph, E.vertex (subdivisionDart I d).reverse.vertex = D.cutPort ρ d) ∧
-        ∀ d : Dart I.graph, (E.route (subdivisionDart I d).1).support ⊆
-          Metric.closedBall (D.vertex d.vertex) ρ := by
-  let lengths := insert (1 : ℝ) (Finset.univ.image fun d : Dart I.graph => ‖D.germ d‖)
-  have hnonempty : lengths.Nonempty := ⟨1, Finset.mem_insert_self _ _⟩
-  let m := lengths.min' hnonempty
-  have hm : 0 < m := by
-    apply (Finset.lt_min'_iff lengths hnonempty).2
+        (∀ d : Dart I.graph, (E.route (subdivisionDart I d).1).support ⊆
+          Metric.closedBall (D.vertex d.vertex) ρ) ∧
+        ∀ e, (subdivisionEdgeIndex I e).piece = 1 → ∀ v ∈ I.graph.vertices, ∀ z,
+          z ∈ (E.route e).support → z ∈ Metric.closedBall (D.vertex v) ρ →
+          ∃ b : Bool, Dart.vertex ((subdivisionEdgeIndex I e).original, b) = v ∧
+            z = D.cutPort ρ ((subdivisionEdgeIndex I e).original, b) := by
+  classical
+  choose radius hpos hpoints hlocal hlength using
+    fun v : Fin I.graph.vertices.length => hD.exists_restriction_radius v (old_mem hI v.isLt)
+  let radii := insert (1 : ℝ) (Finset.univ.image fun v => radius v / 2)
+  have hnonempty : radii.Nonempty := ⟨1, Finset.mem_insert_self _ _⟩
+  let ε := radii.min' hnonempty
+  have hε : 0 < ε := by
+    apply (Finset.lt_min'_iff radii hnonempty).2
     intro x hx
     rcases Finset.mem_insert.mp hx with rfl | hx
     · exact zero_lt_one
-    · obtain ⟨d, _, rfl⟩ := Finset.mem_image.mp hx
-      exact norm_pos_iff.mpr (hD.germ_ne_zero d)
-  refine ⟨m / 2, half_pos hm, fun ρ hρ => ?_⟩
+    · obtain ⟨v, _, rfl⟩ := Finset.mem_image.mp hx
+      exact half_pos (hpos v)
+  have hbound (v : Fin I.graph.vertices.length) : ε ≤ radius v / 2 :=
+    Finset.min'_le _ _ (Finset.mem_insert_of_mem
+      (Finset.mem_image.mpr ⟨v, Finset.mem_univ _, rfl⟩))
+  have hvertex (v : ℕ) (hv : v ∈ I.graph.vertices) : v < I.graph.vertices.length := by
+    rw [hI.1] at hv
+    exact List.mem_range.mp hv
+  refine ⟨ε, hε, fun ρ hρ => ⟨?_, ?_⟩⟩
+  · intro v hv w hw hne
+    refine Set.disjoint_left.mpr fun z hzv hzw => ?_
+    let i : Fin I.graph.vertices.length := ⟨v, hvertex v hv⟩
+    have hdist := dist_triangle (D.vertex w) z (D.vertex v)
+    rw [dist_comm (D.vertex w) z] at hdist
+    have hwi : D.vertex w ∈ Metric.closedBall (D.vertex i) (radius i) := by
+      apply Metric.mem_closedBall.mpr
+      change dist (D.vertex w) (D.vertex v) ≤ radius i
+      linarith [Metric.mem_closedBall.mp hzv, Metric.mem_closedBall.mp hzw, hρ.2, hbound i]
+    exact hne (hpoints i w hw hwi).symm
   have htime (d : Dart I.graph) : ρ / ‖D.germ d‖ ∈ Set.Ioo (0 : ℝ) (1 / 2) := by
+    let i : Fin I.graph.vertices.length := ⟨d.vertex, by
+      rcases d with ⟨e, b⟩
+      exact endpoint_lt hI e b⟩
+    have hlen := hlength i d rfl
     have hd : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
-    have hmd : m ≤ ‖D.germ d‖ := Finset.min'_le _ _ (Finset.mem_insert_of_mem
-      (Finset.mem_image.mpr ⟨d, Finset.mem_univ _, rfl⟩))
-    exact ⟨div_pos hρ.1 hd, (div_lt_iff₀ hd).mpr (by linarith [hρ.2])⟩
+    exact ⟨div_pos hρ.1 hd, (div_lt_iff₀ hd).mpr (by linarith [hpos i, hρ.2, hbound i])⟩
   let cut : CutTable I := fun i b => ⟨ρ / ‖D.germ (i, b)‖, htime (i, b)⟩
   refine ⟨drawing cut hI D, ⟨place_injective cut hI hD, ?_, vertex_contacts cut hI hD,
-    edge_contacts cut hI hD⟩, ?_, ?_, ?_, ?_⟩
+    edge_contacts cut hI hD⟩, ?_, ?_, ?_, ?_, ?_⟩
   · intro e
     let i := (subdivisionEdgeIndex I e).original
     exact (hD.simple i).trisect
@@ -506,6 +533,43 @@ theorem exists_subdivision_embedding_at_cutPorts {I : FixedRotationInput} (hI : 
     · change (Route.line (p.cutEnds (cut i false).val (cut i true).val).finish p.finish).support ⊆ _
       rw [Route.support_line]
       exact (convex_closedBall z ρ).segment_subset hx hc
+  · intro e he v hv z hz hball
+    let a := subdivisionEdgeIndex I e
+    let j : Fin I.graph.vertices.length := ⟨v, hvertex v hv⟩
+    have hroute : (drawing cut hI D).route e =
+        (D.route a.original).cutEnds (cut a.original false).val (cut a.original true).val := by
+      change (D.route a.original).trisect (cut a.original false).val (cut a.original true).val
+        a.piece = _
+      rw [he]
+      rfl
+    rw [hroute] at hz
+    obtain ⟨k, u, hu, hval⟩ := ((D.route a.original).cutEnds (cut a.original false).val
+      (cut a.original true).val).mem_support_iff z |>.mp hz
+    have hsmall : ρ ≤ radius j := by linarith [hpos j, hρ.2, hbound j]
+    obtain ⟨b, _, hb, hport⟩ := hD.cutEnds_ball_contact v
+      (fun e' k' z' hball' hs => hlocal j e' k' z'
+        (Metric.closedBall_subset_closedBall hsmall hball') hs)
+      a.original (cut a.original false).property.1.le (cut a.original true).property.1.le
+      (cut_small (cut a.original)) (by intro b _; cases b <;> rfl) k hu
+      (hval ▸ hball)
+    exact ⟨b, hb, hval.symm.trans hport⟩
+
+/-- Subdivide the routes at their actual common-radius cut ports. Every sufficiently small
+positive radius works, so two embeddings at the same vertex positions can use the same
+circles. The end pieces are contained in their respective closed balls. -/
+theorem exists_subdivision_embedding_at_cutPorts {I : FixedRotationInput} (hI : Valid I)
+    (D : PolygonalDrawing I.graph) (hD : D.IsEmbedding) :
+    ∃ ε > (0 : ℝ), ∀ ρ ∈ Set.Ioo (0 : ℝ) ε,
+      ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
+        (∀ v ∈ I.graph.vertices, E.vertex v = D.vertex v) ∧
+        (∀ d : Dart I.graph, E.direction (subdivisionDart I d) = D.direction d) ∧
+        (∀ d : Dart I.graph, E.vertex (subdivisionDart I d).reverse.vertex = D.cutPort ρ d) ∧
+        ∀ d : Dart I.graph, (E.route (subdivisionDart I d).1).support ⊆
+          Metric.closedBall (D.vertex d.vertex) ρ := by
+  obtain ⟨ε, hε, h⟩ := exists_subdivision_embedding_in_disjoint_disks hI D hD
+  refine ⟨ε, hε, fun ρ hρ => ?_⟩
+  obtain ⟨_, E, hE, hV, hdir, hport, hsupport, _⟩ := h ρ hρ
+  exact ⟨E, hE, hV, hdir, hport, hsupport⟩
 
 /-- The subdivision end pieces can be confined to any common positive radius around
 their original vertices, while preserving original positions and outgoing directions. -/
