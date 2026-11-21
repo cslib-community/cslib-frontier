@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
+import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
@@ -84,5 +85,18 @@ example : ProbComp.eval
       (fun _ _ t => decide (true = t))
       (repeatWithWrongTag.choose ()) repeatWithWrongTag.guess) true = 0 := by
   simp [oneTimeForgeExperiment, repeatWithWrongTag]
+
+local instance : Fact (Nat.Prime 5) := ⟨by decide⟩
+
+/-- A one-block cap suffices for the deterministic attack, with both prime-field stages PPT. -/
+example : ProbComp.eval
+    (predictionExperiment
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) => xpolyHash k m.val)
+      (xpolyPrediction le_rfl)) true = 1 ∧
+    TwoStage.IsPPT Turing.MultiTapeTM.encUnit (encXpolyMessage 5 1)
+      (Turing.MultiTapeTM.encZMod 5) (encPredictionGuess (encXpolyMessage 5 1)
+        (Turing.MultiTapeTM.encZMod 5)) Turing.MultiTapeTM.encUnit
+      (fun _ => xpolyPrediction le_rfl) :=
+  ⟨eval_predictionExperiment_xpolyHash le_rfl, isPPT_xpolyPrediction le_rfl⟩
 
 end Cslib.Crypto.UHF.Tests
