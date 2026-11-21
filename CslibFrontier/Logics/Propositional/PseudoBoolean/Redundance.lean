@@ -65,7 +65,9 @@ objective-improving constraint `f ≤ f(ρ) - 1` (equation (3.6);
 without a solution (§5.8.2).
 
 **Objective updates** (§5.9). `obju new g` replaces the current objective `f` by `g`, and
-`obju diff g` by `f + g` (`Cslib.Logic.PL.VeriPB.objuCheck`). Its goals are `#1`, the
+`obju diff g` by `f + g` (`Cslib.Logic.PL.VeriPB.objuCheck`), whose weights are merged per
+variable and whose zero weights are dropped (`Cslib.Logic.PL.VeriPB.Objective.add`), so that
+`soli` need not assign a variable the update cancels. Its goals are `#1`, the
 constraint `f' ≥ f` for the new objective `f'`, and `#2`, `f ≥ f'`. Both must follow from the
 core set alone: each is trivially true, a constraint of the core up to the order of terms, or
 proved by a `proofgoal` block run on the core. So the two objectives agree on every solution of
@@ -147,8 +149,8 @@ commit `14856fcf`).
 The soundness theorems follow CakePB's semantics of conclusions (`sem_concl`, `npbcScript.sml`).
 In particular a finite upper bound `ub` certifies a solution of value at most `ub`.
 
-**Scope.** There is no order, so no dominance and no order goals. Neither `solx` nor the
-objective update `obju` (§5.9) is supported, nor deletion by specification and levels (§5.7.2).
+**Scope.** There is no order, so no dominance and no order goals. Neither `solx` nor deletion by
+specification and levels (§5.7.2) is supported.
 The conclusion `ENUMERATION` is not supported, nor `UNSAT` without a constraint ID (the kernel
 format requires one). Matching VeriPB, `red` steps are not cutting-planes steps, and the
 translation of `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check` covers only proofs without
@@ -165,12 +167,17 @@ them.
   solution-logging, core and deletion steps, their conclusions, and their checker.
 * `Cslib.Logic.PL.VeriPB.State`, `Cslib.Logic.PL.VeriPB.stepTop`: the checker state, with its
   core set, and one top-level step.
+* `Cslib.Logic.PL.VeriPB.Objective.add`, `Cslib.Logic.PL.VeriPB.objuCheck`: the sum of
+  objectives and the check of an objective update `obju`.
 
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.Witness.holds_substC`: `σ ⊨ D|ω` iff `σ ∘ ω ⊨ D`.
 * `Cslib.Logic.PL.VeriPB.redCheck_sound`, `Cslib.Logic.PL.VeriPB.redCheckOn_sound`: a checked
   `red` step repairs a solution of the database without raising the objective.
+* `Cslib.Logic.PL.VeriPB.objuCheck_sound`: a checked objective update keeps the objective's
+  values on the solutions of the core set; `Cslib.Logic.PL.VeriPB.Objective.eval_add`: the value
+  of a sum of objectives.
 * `Cslib.Logic.PL.VeriPB.stepTop_inv`, `Cslib.Logic.PL.VeriPB.stepTop_reaches`: the
   invariants.
 * `Cslib.Logic.PL.VeriPB.not_satisfiable_of_checkRed`,
@@ -498,13 +505,18 @@ def weakImplies (D C : PBConstr) : Bool :=
 /-- `C` and `D` are the same constraint up to the order of their terms. -/
 def sameUpToOrder (C D : PBConstr) : Bool := C.degree == D.degree && C.terms.isPerm D.terms
 
+/-- A goal `G` of `obju` needs no subproof: it is trivially true after normalization, it is a
+constraint of `core` up to the order of terms, or a `proofgoal` block proved it. -/
+def objuCovered (core : List (ℕ × PBConstr)) (proved : List PBConstr) (G : PBConstr) : Bool :=
+  G.normalize.degree == 0 || core.any (fun e => sameUpToOrder e.2 G.normalize) ||
+    proved.contains G
+
 /-- A goal constraint `G` needs no subproof, given the negation `negC` of the constraint being
-added: it is trivially true after normalization, it is a constraint of the database up to the
-order of terms, a `proofgoal` block proved it, or `negC` weakly syntactically implies it. -/
+added: it is covered as a goal of `obju` with the database `db₀`
+(`Cslib.Logic.PL.VeriPB.objuCovered`), or `negC` weakly syntactically implies it. -/
 def goalCovered (db₀ : List (ℕ × PBConstr)) (proved : List PBConstr) (negC G : PBConstr) :
     Bool :=
-  G.normalize.degree == 0 || db₀.any (fun e => sameUpToOrder e.2 G.normalize) ||
-    proved.contains G || weakImplies negC G
+  objuCovered db₀ proved G || weakImplies negC G
 
 /-- The end of a `red` subproof with premises `db₀` and goals for the constraints `gs`: the
 closing constraint is a contradiction, or every goal is covered. -/
@@ -538,18 +550,34 @@ def redCheck (obj : Option Objective) (db₀ : List (ℕ × PBConstr)) (n : ℕ)
 
 /-! ### Objective updates -/
 
-/-- The objective `f + g`. -/
-def Objective.add (f g : Objective) : Objective := ⟨f.lin ++ g.lin, f.const + g.const⟩
+/-- The objective `f + g`, with the weights of each variable merged and zero weights dropped, as
+CakePB's `add_obj` (§5.9 of the documentation). -/
+def Objective.add (f g : Objective) : Objective :=
+  ⟨((f.lin ++ g.lin).foldr (fun e L => insertCoeff e.1 e.2 L) []).filter (·.2 != 0),
+    f.const + g.const⟩
+
+private theorem linVal_filter_ne_zero (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
+    linVal σ (L.filter (·.2 != 0)) = linVal σ L := by
+  induction L with
+  | nil => rfl
+  | cons e L ih =>
+    by_cases h : e.2 = 0 <;> simp [h, ih]
+
+private theorem linVal_foldr_insertCoeff (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
+    linVal σ (L.foldr (fun e L => insertCoeff e.1 e.2 L) []) = linVal σ L := by
+  induction L with
+  | nil => rfl
+  | cons e L ih => rw [List.foldr_cons, linVal_insertCoeff, ih, linVal_cons]
+
+@[simp] theorem Objective.eval_add (f g : Objective) (σ : ℕ → Bool) :
+    (f.add g).eval σ = f.eval σ + g.eval σ := by
+  simp only [Objective.add, Objective.eval, linVal_filter_ne_zero, linVal_foldr_insertCoeff]
+  simp only [linVal, List.map_append, List.sum_append]
+  ring
 
 /-- The constraint `g ≥ h` between objectives. -/
 def Objective.geGoal (g h : Objective) : PBConstr :=
   fromLinear (subLinear g.lin h.lin) (h.const - g.const)
-
-/-- A goal of `obju` needs no subproof: it is trivially true after normalization, it is a
-constraint of the core set up to the order of terms, or a `proofgoal` block proved it. -/
-def objuCovered (core : List (ℕ × PBConstr)) (proved : List PBConstr) (G : PBConstr) : Bool :=
-  G.normalize.degree == 0 || core.any (fun e => sameUpToOrder e.2 G.normalize) ||
-    proved.contains G
 
 /-- The goals of `obju` from `f` to `f'`: `#1` is `f' ≥ f` and `#2` is `f ≥ f'`. -/
 def objuGoal (f f' : Objective) : GoalId → Option PBConstr
@@ -730,7 +758,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
       match objuCheck s.core s.next f (if diff then f.add g else g) (sub.getD []) with
       | some n' =>
         some { s with
-          obj := some (if diff then f.add g else g), next := if sub.isSome then n' else s.next }
+          obj := some (if diff then f.add g else g), next := n' }
       | none => none
     | none => none
 
@@ -858,15 +886,22 @@ theorem Holds.of_sameUpToOrder {σ : ℕ → Bool} {C D : PBConstr} (hC : C.Hold
   rw [← h.1, ← (h.2.map _).sum_nat]
   exact hC
 
+private theorem objuCovered_holds {σ : ℕ → Bool} {core : List (ℕ × PBConstr)}
+    {proved : List PBConstr} {G : PBConstr} (hdb : AllHold σ core)
+    (hp : ∀ G ∈ proved, G.Holds σ) (h : objuCovered core proved G = true) : G.Holds σ := by
+  unfold objuCovered at h
+  simp only [Bool.or_eq_true, beq_iff_eq, List.any_eq_true, List.contains_iff_mem] at h
+  rcases h with (h | ⟨e, he, heq⟩) | h
+  · rw [← holds_normalize]; unfold Holds; rw [h]; exact Nat.zero_le _
+  · rw [← holds_normalize]; exact Holds.of_sameUpToOrder (hdb e he) heq
+  · exact hp G h
+
 theorem goalCovered_holds {σ : ℕ → Bool} {db₀ : List (ℕ × PBConstr)} {proved : List PBConstr}
     {negC G : PBConstr} (hdb : AllHold σ db₀) (hp : ∀ G ∈ proved, G.Holds σ)
     (hneg : negC.Holds σ) (h : goalCovered db₀ proved negC G = true) : G.Holds σ := by
   unfold goalCovered at h
-  simp only [Bool.or_eq_true, beq_iff_eq, List.any_eq_true, List.contains_iff_mem] at h
-  rcases h with ((h | ⟨e, he, heq⟩) | h) | h
-  · rw [← holds_normalize]; unfold Holds; rw [h]; exact Nat.zero_le _
-  · rw [← holds_normalize]; exact Holds.of_sameUpToOrder (hdb e he) heq
-  · exact hp G h
+  rcases Bool.or_eq_true _ _ ▸ h with h | h
+  · exact objuCovered_holds hdb hp h
   · exact Holds.of_weakImplies hneg h
 
 theorem runGoals_sound {σ : ℕ → Bool} {goal : GoalId → Option PBConstr} :
@@ -987,16 +1022,6 @@ theorem Objective.holds_geGoal (σ : ℕ → Bool) (g h : Objective) :
     (g.geGoal h).Holds σ ↔ h.eval σ ≤ g.eval σ := by
   rw [Objective.geGoal, holds_fromLinear_iff, linVal_subLinear, Objective.eval, Objective.eval]
   omega
-
-private theorem objuCovered_holds {σ : ℕ → Bool} {core : List (ℕ × PBConstr)}
-    {proved : List PBConstr} {G : PBConstr} (hdb : AllHold σ core)
-    (hp : ∀ G ∈ proved, G.Holds σ) (h : objuCovered core proved G = true) : G.Holds σ := by
-  unfold objuCovered at h
-  simp only [Bool.or_eq_true, beq_iff_eq, List.any_eq_true, List.contains_iff_mem] at h
-  rcases h with (h | ⟨e, he, heq⟩) | h
-  · rw [← holds_normalize]; unfold Holds; rw [h]; exact Nat.zero_le _
-  · rw [← holds_normalize]; exact Holds.of_sameUpToOrder (hdb e he) heq
-  · exact hp G h
 
 /-- **The objective update is sound**: on every solution of the core set, the new objective
 equals the old one. -/
