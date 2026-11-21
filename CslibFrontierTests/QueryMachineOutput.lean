@@ -51,6 +51,8 @@ example : echoOnce.output [true] 4 = [true, false] := by decide
 
 example : echoOnce.output [] 4 = [false, false] := by decide
 
+example : echoOnce.outputFrom [true] true 3 = [false] := by decide
+
 example (k : ℕ) : echoOnce.output [true] (1 + k) = [true, false] := by
   rw [echoOnce.output_add_of_halted [true] (t := 1) (by decide)]
   decide
@@ -87,9 +89,11 @@ example : ComputableInLogSpace
     subst i
     cases hs : start w <;> simp [time, hs, executor, echoOnce] at hi ⊢
   · intro w
-    change encBits (if start w then [false] else [w[1]?.getD false, false]) = _
+    change encBits (if start w then [false] else [w[1]?.getD false, false]) =
+      executor.outputFrom (encBits w) (start w) (time w)
     cases hs : start w <;>
-      simp [time, hs, executor, echoOnce, QueryMachine.output, QueryMachine.read, encBits_apply]
+      simp [time, hs, executor, echoOnce, QueryMachine.outputFrom, QueryMachine.output,
+        QueryMachine.read, encBits_apply]
   · intro w i hi
     simp [space]
 

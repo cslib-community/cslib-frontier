@@ -52,6 +52,8 @@ directly from the multi-pass fold.
 * `Turing.QueryMachine`: a machine with random access to its input.
 * `Turing.QueryMachine.encStateRead`: the encoding of a state with the bit it reads.
 * `Turing.QueryMachine.run`, `Turing.QueryMachine.output`: its run and its output.
+* `Turing.QueryMachine.runFrom`, `Turing.QueryMachine.outputFrom`: the same operations from a
+  supplied start state.
 
 ## Main results
 
@@ -131,6 +133,11 @@ def output (t : ℕ) : List Bool :=
   ((List.range t).map fun i =>
     if M.halted (M.run w i) then [] else M.emit (M.run w i, M.read w (M.run w i))).flatten ++
     M.finish (M.run w t)
+
+/-- The emitted and final word after running from `start` on the same input.
+Emissions stop at the first halt, including when `start` is already halted. -/
+def outputFrom (start : σ) (t : ℕ) : List Bool :=
+  ({ M with init := start } : QueryMachine σ).output w t
 
 /-- Before the first halt, every scheduled step contributes its emission. -/
 theorem output_eq_of_not_halted {t : ℕ}
@@ -378,7 +385,7 @@ theorem computableInSpaceFrom {α β : Type} {enc : α ↪ List Bool} {encOut : 
     (hinit : ComputableInSpace start enc encS S)
     (hhalt : ∀ a, M.halted (M.runFrom (enc a) (start a) (time a)) = true)
     (hpre : ∀ a, ∀ t < time a, M.halted (M.runFrom (enc a) (start a) t) = false)
-    (hf : ∀ a, encOut (f a) = ({ M with init := start a } : QueryMachine σ).output (enc a) (time a))
+    (hf : ∀ a, encOut (f a) = M.outputFrom (enc a) (start a) (time a))
     (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
     (hsize : ∃ c, ∀ a, ∀ t ≤ time a, (encS (M.runFrom (enc a) (start a) t)).length ≤ c * S a) :
     ∃ t c, ComputableInTimeAndSpace f enc encOut t fun a => c * S a := by
@@ -464,7 +471,7 @@ theorem computableInSpaceFrom {α β : Type} {enc : α ↪ List Bool} {encOut : 
           (passNext M) (passEnd M) (enc a) i) (passNext M) (enc a) (enc a).length))).flatten ++
       encBits ((passFinish M) (passState (initial a) (passNext M) (passEnd M)
         (enc a) (time a - 1 + 1))) := by
-    rw [hf, (started a).output_eq_of_not_halted _ (hpre a)]
+    rw [hf, outputFrom, (started a).output_eq_of_not_halted _ (hpre a)]
     simp only [encBits_apply, streamEmit_const_nil, List.nil_append, hP,
       (streamState_passNext_length M), passEmit, passFinish]
     rcases Nat.eq_zero_or_pos (time a) with h0 | hpos
