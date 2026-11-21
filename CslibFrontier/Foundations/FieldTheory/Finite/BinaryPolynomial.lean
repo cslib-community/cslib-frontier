@@ -382,18 +382,23 @@ theorem any_modBits_bits_iff {d : ℕ} (hd : d ≠ 0) (f : List Bool) :
     obtain ⟨b, hb, hb'⟩ := h
     exact ⟨b, hb, by simpa using hb'⟩
 
+/-- One trial divisor passes when its degree is outside the tested range or its remainder
+is nonzero. Both codes use their little-endian binary coefficient words. -/
+def divisorPasses (candidate divisor : ℕ) : Bool :=
+  decide (divisor < 2) || decide (Nat.log 2 candidate / 2 < Nat.log 2 divisor) ||
+    (modBits divisor.bits candidate.bits).any id
+
 /-- **Trial division**: whether the binary polynomial with code `m` is irreducible. It is when
 `m ≥ 2` and no polynomial of degree between `1` and half the degree of `m` (a code `d < m`)
 divides it. -/
 def isIrreducibleCode (m : ℕ) : Bool :=
-  decide (2 ≤ m) && (List.range m).all fun d =>
-    decide (d < 2) || decide (Nat.log 2 m / 2 < Nat.log 2 d) || (modBits d.bits m.bits).any id
+  decide (2 ≤ m) && (List.range m).all (divisorPasses m)
 
 /-- **Trial division decides irreducibility**: `isIrreducibleCode m` holds exactly when the binary
 polynomial with code `m` is irreducible. -/
 theorem isIrreducibleCode_iff (m : ℕ) :
     isIrreducibleCode m = true ↔ Irreducible (polyOfCode m) := by
-  unfold isIrreducibleCode
+  unfold isIrreducibleCode divisorPasses
   simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range,
     Bool.or_eq_true]
   rcases lt_or_ge m 2 with hm | hm

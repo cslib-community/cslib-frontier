@@ -143,7 +143,7 @@ theorem isSISSolution_sub_smul_secret {B η : ℕ}
   · have hcast : (Int.cast ∘ (v - Δc • s) : Fin m → ZMod q) =
         (Int.cast ∘ v) - (Δc : ZMod q) • (Int.cast ∘ s) :=
       funext fun i => by simp [Pi.sub_apply, Pi.smul_apply]
-    rw [hcast, Matrix.mulVec_sub, Matrix.mulVec_smul, hvA, hsA, sub_self]
+    rw [InKernelLattice, hcast, Matrix.mulVec_sub, Matrix.mulVec_smul, hvA, hsA, sub_self]
 
 /-- **Unit-challenge SIS reduction.** When `Δc = 1` (for example with binary challenges), any
 `v ≠ s` with `A v = t (mod q)` and `‖v‖∞ ≤ B` yields a short integer solution `v - s` for `A`

@@ -67,10 +67,20 @@ theorem valuePolynomial_map (φ : S →+* T) (hell : 1 ≤ ell) (a : Fin n → S
 
 /-- The separated critical-value polynomial with a symbolic deformation parameter.
 The outer indeterminate is the critical value, and the inner indeterminate is the parameter. -/
-noncomputable def parametricValuePolynomial (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
+@[expose] noncomputable def parametricValuePolynomial (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
     (hF : F.totalDegree ≤ ell) : Polynomial (Polynomial ℤ) :=
   valuePolynomial hell (fun i => Polynomial.C (separatedCenters ell i : ℤ)) Polynomial.X
     (F.map Polynomial.C) ((totalDegree_map_le Polynomial.C F).trans hF)
+
+/-- The symbolic critical-value polynomial is monic. -/
+theorem parametricValuePolynomial_monic (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
+    (hF : F.totalDegree ≤ ell) : (parametricValuePolynomial hell F hF).Monic :=
+  valuePolynomial_monic hell _ _ _ _
+
+/-- The outer degree of the symbolic critical-value polynomial is the quotient dimension. -/
+theorem parametricValuePolynomial_natDegree (hell : 1 ≤ ell) (F : MvPolynomial (Fin n) ℤ)
+    (hF : F.totalDegree ≤ ell) : (parametricValuePolynomial hell F hF).natDegree = ell ^ n :=
+  valuePolynomial_natDegree hell _ _ _ _
 
 /-- Substitution of the deformation parameter gives the characteristic polynomial in the
 normalized critical quotient over the target ring, with the same separated centers. -/
@@ -82,5 +92,15 @@ theorem parametricValuePolynomial_map_eval₂ (hell : 1 ≤ ell) (F : MvPolynomi
   simp only [parametricValuePolynomial, valuePolynomial_map, Polynomial.coe_eval₂RingHom,
     Polynomial.eval₂_C, Polynomial.eval₂_X, Int.coe_castRingHom, Int.cast_natCast,
     MvPolynomial.map_map, Polynomial.eval₂RingHom_comp_C]
+
+/-- Evaluating the parameter at an integer gives the actual integer quotient polynomial. -/
+theorem parametricValuePolynomial_map_evalRingHom (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (u : ℤ) :
+    (parametricValuePolynomial hell F hF).map (Polynomial.evalRingHom u) =
+      valuePolynomial hell (fun i => (separatedCenters ell i : ℤ)) u F hF := by
+  have heval : Polynomial.eval₂RingHom (RingHom.id ℤ) u = Polynomial.evalRingHom u :=
+    RingHom.ext fun _ => Polynomial.eval₂_id
+  simpa only [Int.castRingHom_int, heval, MvPolynomial.map_id, Int.cast_id] using
+    parametricValuePolynomial_map_eval₂ hell F hF u
 
 end MvPolynomial.CriticalSystem

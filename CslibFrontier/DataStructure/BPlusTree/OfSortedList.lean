@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.BPlusTree.Height
+public import CslibFrontier.DataStructure.BPlusTree.Insert
 public import CslibFrontier.DataStructure.BPlusTree.Lookup
 public import CslibFrontier.DataStructure.BTree.OfSortedList
 
@@ -511,38 +512,19 @@ private theorem length_pack {r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
 
 /-! ### Shape -/
 
-/-- A tree of a level of height `h`: occupied, balanced, and of height `h`. -/
-private structure LevelTree (t h : ℕ) (c : BPlusTree α β) : Prop where
-  occupied : Occupied t c
-  balanced : Balanced c
-  height_eq : c.height = h
-
 /-- The separator of a branch is the first key of its child. -/
 private def HeadKey (e : Branch α β) : Prop := ∃ v l, e.child.toList = (e.1, v) :: l
 
-/-- A group of `t - 1` to `2 * t - 1` branches of a level, over a first tree of the level, is a
-tree of the next level. -/
-private theorem levelTree_node {h : ℕ} {first : BPlusTree α β} {rest : List (Branch α β)}
-    (hf : LevelTree t h first) (hr : ∀ e ∈ rest, LevelTree t h e.child)
-    (h₁ : t - 1 ≤ rest.length) (h₂ : rest.length ≤ 2 * t - 1) :
-    LevelTree t (h + 1) (.node first rest) :=
-  have hb : Balanced (.node first rest) :=
-    .node hf.balanced (fun e he => (hr e he).balanced)
-      fun e he => (hr e he).height_eq.trans hf.height_eq.symm
-  { occupied := .node h₁ h₂ hf.occupied fun e he => (hr e he).occupied
-    balanced := hb
-    height_eq := by rw [hb.height_node, hf.height_eq] }
-
 /-- Cutting a level of height `h` by a grouping gives a level of height `h + 1`. -/
-private theorem levelTree_pack {h r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
+private theorem good_pack {h r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
     {rest : List (Branch α β)} (hg : BTree.IsGrouping t r ss) (hlen : rest.length = r)
-    (hf : LevelTree t h first) (hr : ∀ e ∈ rest, LevelTree t h e.child) :
-    LevelTree t (h + 1) (pack first rest ss).1 ∧
-      ∀ e ∈ (pack first rest ss).2, LevelTree t (h + 1) e.child := by
+    (hf : Good t h first) (hr : ∀ e ∈ rest, Good t h e.child) :
+    Good t (h + 1) (pack first rest ss).1 ∧
+      ∀ e ∈ (pack first rest ss).2, Good t (h + 1) e.child := by
   induction hg generalizing first rest with
   | last h₁ h₂ =>
     rw [pack_nil]
-    exact ⟨levelTree_node hf hr (by omega) (by omega), by simp⟩
+    exact ⟨good_node hf hr (by omega) (by omega), by simp⟩
   | @cut s r ss h₁ h₂ _ ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
     · have := congrArg List.length hd
@@ -556,7 +538,7 @@ private theorem levelTree_pack {h r : ℕ} {ss : List ℕ} {first : BPlusTree α
       obtain ⟨hf', hr'⟩ := ih (first := c) (rest := rest') (by omega)
         (hr _ (hmem _ List.mem_cons_self))
         (fun e he => hr e (hmem e (List.mem_cons_of_mem _ he)))
-      refine ⟨levelTree_node hf (fun e he => hr e (List.mem_of_mem_take he))
+      refine ⟨good_node hf (fun e he => hr e (List.mem_of_mem_take he))
         (by rw [List.length_take]; omega) (by rw [List.length_take]; omega), ?_⟩
       rintro e (_ | ⟨_, he⟩)
       exacts [hf', hr' e he]
@@ -570,8 +552,8 @@ private structure Shaped (t : ℕ) (tr : BPlusTree α β) : Prop where
   balanced : Balanced tr
 
 /-- A tree of a level has the shape of a root at a minimum degree of at least `2`. -/
-private theorem LevelTree.shaped {h : ℕ} {c : BPlusTree α β} (ht : 2 ≤ t)
-    (hf : LevelTree t h c) : Shaped t c where
+private theorem Good.shaped {h : ℕ} {c : BPlusTree α β} (ht : 2 ≤ t)
+    (hf : Good t h c) : Shaped t c where
   width_le := hf.occupied.width_le
   width_pos _ := by have := hf.occupied.le_width; omega
   occupied_of_mem_children _ hc := hf.occupied.of_mem_children hc
@@ -580,7 +562,7 @@ private theorem LevelTree.shaped {h : ℕ} {c : BPlusTree α β} (ht : 2 ≤ t)
 /-- The rounds of bulk loading from a level build a tree of root shape, given fuel at least its
 number of branches. -/
 private theorem shaped_build {h fuel : ℕ} {first : BPlusTree α β} {rest : List (Branch α β)}
-    (ht : 2 ≤ t) (hf : LevelTree t h first) (hr : ∀ e ∈ rest, LevelTree t h e.child)
+    (ht : 2 ≤ t) (hf : Good t h first) (hr : ∀ e ∈ rest, Good t h e.child)
     (hfuel : rest.length ≤ fuel) : Shaped t (build t fuel first rest) := by
   induction fuel generalizing h first rest with
   | zero =>
@@ -592,7 +574,7 @@ private theorem shaped_build {h fuel : ℕ} {first : BPlusTree α β} {rest : Li
     · rw [build_succ_of_lt hlt]
       have hg := BTree.isGrouping_groupSizes (t := t) (fuel := rest.length) (r := rest.length)
         (by omega) le_rfl
-      obtain ⟨hf', hr'⟩ := levelTree_pack hg rfl hf hr
+      obtain ⟨hf', hr'⟩ := good_pack hg rfl hf hr
       exact ih hf' hr' (by rw [length_pack hg rfl]; have := hg.two_mul_length_lt ht; omega)
     · rcases rest with _ | ⟨e, es⟩
       · rw [build_nil]
@@ -612,9 +594,9 @@ private theorem shaped_build {h fuel : ℕ} {first : BPlusTree α β} {rest : Li
 
 /-- At a minimum degree of at least `2`, leaves of `t - 1` to `2 * t - 1` entries whose sizes add
 up to the number of entries are trees of the bottom level, each under its first key. -/
-private theorem levelTree_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List (α × β)}
+private theorem good_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List (α × β)}
     (hss : ∀ s ∈ ss, t - 1 ≤ s ∧ s ≤ 2 * t - 1) (hsum : ss.sum = l.length) :
-    ∀ e ∈ leafBranches ss l, LevelTree t 1 e.child ∧ HeadKey e := by
+    ∀ e ∈ leafBranches ss l, Good t 1 e.child ∧ HeadKey e := by
   induction ss generalizing l with
   | nil =>
     cases l with
@@ -630,7 +612,7 @@ private theorem levelTree_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List 
       intro e he
       rcases List.mem_cons.1 he with rfl | he
       · have hlen : ((p :: l).take s).length = s := by rw [List.length_take]; omega
-        refine ⟨⟨.leaf (by omega) (by omega), .leaf, rfl⟩, ?_⟩
+        refine ⟨⟨.leaf, rfl, .leaf (by omega) (by omega)⟩, ?_⟩
         obtain ⟨s', rfl⟩ : ∃ s', s = s' + 1 := ⟨s - 1, by omega⟩
         exact ⟨p.2, l.take s', by simp⟩
       · exact ih (fun s hs => hss s (List.mem_cons_of_mem _ hs))
@@ -638,11 +620,11 @@ private theorem levelTree_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List 
 
 /-- At a minimum degree of at least `2`, more than `2 * t - 1` entries are cut into a bottom
 level of occupied leaves, each leaf after the first under its first key. -/
-private theorem levelTree_leafLevel (ht : 2 ≤ t) {l : List (α × β)}
+private theorem good_leafLevel (ht : 2 ≤ t) {l : List (α × β)}
     (hlt : 2 * t - 1 < l.length) :
-    LevelTree t 1 (leafLevel (chunkSizes t l.length l.length) l).1 ∧
+    Good t 1 (leafLevel (chunkSizes t l.length l.length) l).1 ∧
       ∀ e ∈ (leafLevel (chunkSizes t l.length l.length) l).2,
-        LevelTree t 1 e.child ∧ HeadKey e := by
+        Good t 1 e.child ∧ HeadKey e := by
   obtain ⟨n, hn⟩ : ∃ n, l.length = n + 1 := ⟨l.length - 1, by omega⟩
   have hc : chunkSizes t l.length l.length =
       (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1) ::
@@ -655,8 +637,8 @@ private theorem levelTree_leafLevel (ht : 2 ≤ t) {l : List (α × β)}
   have hs₂ : s ≤ 2 * t - 1 := by rw [← hsd]; split <;> omega
   have hs₃ : t - 1 ≤ l.length - s := by rw [← hsd]; split <;> omega
   have hlen : (l.take s).length = s := by rw [List.length_take]; omega
-  exact ⟨⟨.leaf (by omega) (by omega), .leaf, rfl⟩,
-    levelTree_leafBranches (l := l.drop s) ht (chunkSizes_bounds (fuel := n) ht hs₃ (by omega))
+  exact ⟨⟨.leaf, rfl, .leaf (by omega) (by omega)⟩,
+    good_leafBranches (l := l.drop s) ht (chunkSizes_bounds (fuel := n) ht hs₃ (by omega))
       (by rw [sum_chunkSizes, List.length_drop])⟩
 
 /-- Bulk loading builds a tree of root shape at a minimum degree of at least `2`, for every
@@ -665,7 +647,7 @@ private theorem shaped_ofSortedList (ht : 2 ≤ t) (l : List (α × β)) :
     Shaped t (ofSortedList t l) := by
   rcases Nat.lt_or_ge (2 * t - 1) l.length with hlt | hle
   · rw [ofSortedList_eq_build, Nat.max_eq_left ht]
-    obtain ⟨hf, hr⟩ := levelTree_leafLevel ht hlt
+    obtain ⟨hf, hr⟩ := good_leafLevel ht hlt
     exact shaped_build ht hf (fun e he => (hr e he).1) le_rfl
   · rw [ofSortedList_of_length_le ht hle]
     exact ⟨hle, fun hne => absurd rfl (hne l), by simp, .leaf⟩
@@ -771,7 +753,7 @@ private theorem separated_build (fuel : ℕ) {first : BPlusTree α β} {rest : L
         exact separated_node hf hr hk hs
 
 /-- A tree of the bottom level is a leaf, hence separated. -/
-private theorem LevelTree.separated {c : BPlusTree α β} (h : LevelTree t 1 c) : Separated c := by
+private theorem Good.separated {c : BPlusTree α β} (h : Good t 1 c) : Separated c := by
   obtain ⟨es, rfl⟩ := height_eq_one_iff.1 h.height_eq
   exact .leaf
 
@@ -787,7 +769,7 @@ theorem isWF_ofSortedList {l : List (α × β)} (ht : 2 ≤ t) (h : l.IsSortedAs
     separated := by
       rcases Nat.lt_or_ge (2 * t - 1) l.length with hlt | hle
       · rw [ofSortedList_eq_build, Nat.max_eq_left ht]
-        obtain ⟨hf, hr⟩ := levelTree_leafLevel ht hlt
+        obtain ⟨hf, hr⟩ := good_leafLevel ht hlt
         exact separated_build _ hf.separated (fun e he => (hr e he).1.separated)
           (fun e he => (hr e he).2) (by rwa [toList_leafLevel])
       · rw [ofSortedList_of_length_le ht hle]

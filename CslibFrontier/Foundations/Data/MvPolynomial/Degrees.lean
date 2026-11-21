@@ -9,14 +9,19 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.MvPolynomial.Degrees
+public import Mathlib.Data.Finsupp.Multiset
 
 /-!
-# Total-degree bounds without nontriviality assumptions
+# Total-degree bounds without nontriviality assumptions, and the degree vector
 
 A formal variable has total degree at most one, even over the trivial coefficient semiring.
 Mapping coefficients cannot increase total degree, whether or not the coefficient map is
 injective. These bounds support divided differences and residue specialization without
 importing an application of the degree calculus.
+
+The **degree vector** `degreeVec F : σ →₀ ℕ` collects the degrees `degreeOf i F` of `F` in each
+variable (`degreeVec_apply`). Every monomial of `F` lies below it (`le_degreeVec`), so the
+monomials of `F` lie in the degree box `Iic (degreeVec F)`.
 -/
 
 public section
@@ -34,5 +39,20 @@ theorem totalDegree_map_le {S T σ : Type*} [CommSemiring S] [CommSemiring T]
     (φ : S →+* T) (v : MvPolynomial σ S) :
     (v.map φ).totalDegree ≤ v.totalDegree :=
   Finset.sup_mono (MvPolynomial.support_map_subset φ v)
+
+/-- The degree vector of `F`: its degree `degreeOf i F` in each variable `i`. -/
+noncomputable def degreeVec {σ R : Type*} [CommSemiring R] [DecidableEq σ]
+    (F : MvPolynomial σ R) : σ →₀ ℕ :=
+  Multiset.toFinsupp F.degrees
+
+@[simp] theorem degreeVec_apply {σ R : Type*} [CommSemiring R] [DecidableEq σ]
+    (F : MvPolynomial σ R) (i : σ) : degreeVec F i = degreeOf i F := by
+  rw [degreeOf_def]
+  rfl
+
+/-- Every monomial of `F` lies coordinatewise below the degree vector of `F`. -/
+theorem le_degreeVec {σ R : Type*} [CommSemiring R] [DecidableEq σ] {F : MvPolynomial σ R}
+    {s : σ →₀ ℕ} (hs : s ∈ F.support) : s ≤ degreeVec F := fun i => by
+  simpa using monomial_le_degreeOf i hs
 
 end MvPolynomial
