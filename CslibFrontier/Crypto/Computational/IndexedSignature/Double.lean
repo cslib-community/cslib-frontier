@@ -761,11 +761,12 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
       (encPair encUnary (encPair encBits encBits))
       (fun p : (ℕ × List Bool) × Bool => S.doubleForgerAt bound adversary p.2 p.1.1 p.1.2) := by
     let encP := encPair (encPair (encPair encUnary encBits) encBool) (encPair encBits encBits)
-    have hp := ComputableTidilyInPolyTime.id' (encIn := encP)
+    have hp := ComputableInPolyTime.id' (encIn := encP)
     have hb := hp.fst'.snd'
     have hvk := hp.fst'.fst'.snd'
     have hopk := hp.snd'.fst'
-    have hplant := hb.ite' (hopk.prod hvk).encoded (hvk.prod hopk).encoded
+    have hplant := hb.ite' (ComputableInPolyTime.encoding_comp (hopk.prod hvk))
+      (ComputableInPolyTime.encoding_comp (hvk.prod hopk))
     have hotherClosed : IsPPTOn (encPair (encPair encUnary encBits) encBool)
         encDoubleCaller
         (fun p : (ℕ × List Bool) × Bool =>
@@ -773,7 +774,7 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
             S.keyGen p.1.1) :=
       (S.keyGen_ppt.preprocess
         (ComputableInPolyTime.fst (encPair encUnary encBits) encBool).fst').map_with
-        (.of_tidy ((hp.fst'.fst'.fst'.prod hb).prod (hplant.prod hp.snd'.snd')))
+        (((hp.fst'.fst'.fst'.prod hb).prod (hplant.prod hp.snd'.snd')))
     have hother : IsOraclePPTOn (Operation := Unit) (encPair (encPair encUnary encBits) encBool)
         encDoubleCaller
         (fun p : (ℕ × List Bool) × Bool =>

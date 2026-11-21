@@ -130,6 +130,12 @@ theorem Approx.smul (h : a ≈[φ; δ] b) (z : ℂ) : z • a ≈[φ; ‖z‖ * 
   rw [Approx, ← smul_sub, norm_smul]
   exact mul_le_mul_of_nonneg_left h (_root_.norm_nonneg z)
 
+/-- The squared state seminorm of a sum is at most twice the sum of the squares. -/
+theorem norm_add_sq_le (φ : AlgState A) (x y : A) :
+    φ.norm (x + y) ^ 2 ≤ 2 * (φ.norm x ^ 2 + φ.norm y ^ 2) :=
+  (pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_add_le x y) 2).trans (by
+    nlinarith [sq_nonneg (φ.norm x - φ.norm y)])
+
 /-- Left multiplication by a contraction does not increase the state norm. -/
 theorem norm_mul_le_of_star_mul_self_le_one (φ : AlgState A) {u : A} (hu : star u * u ≤ 1)
     (x : A) : φ.norm (u * x) ≤ φ.norm x := by

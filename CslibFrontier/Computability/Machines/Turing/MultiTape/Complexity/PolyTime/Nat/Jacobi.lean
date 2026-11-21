@@ -291,10 +291,21 @@ theorem binary_jacobiSym : ComputableInPolyTime (fun p : ℕ × ℕ => J((p.1 : 
     fun_prop
   have hinit : ComputableInPolyTime jacobiInit (encPair encNat encNat)
       (encPair encNat (encPair encNat encBool)) := by
+    have hmod := binary_mod' (fst encNat encNat) (snd encNat encNat)
     unfold jacobiInit
     fun_prop
   have hstep : ComputableInPolyTime jacobiStep (encPair encNat (encPair encNat encBool))
       (encPair encNat (encPair encNat encBool)) := by
+    have ha := fst encNat (encPair encNat encBool)
+    have hn := (snd encNat (encPair encNat encBool)).fst'
+    have ha2 := binary_mod' ha (const 2)
+    have hn2 := binary_mod' hn (const 2)
+    have hn4 := binary_mod' hn (const 4)
+    have ha4 := binary_mod' ha (const 4)
+    have hn8 := binary_mod' hn (const 8)
+    have hhalf := binary_div' hn (const 2)
+    have hamod := binary_mod' ha hhalf
+    have hswap := binary_mod' hn ha
     unfold jacobiStep
     fun_prop
   have hread : ComputableInPolyTime jacobiReadout (encPair encNat (encPair encNat encBool))

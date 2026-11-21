@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.TreeEval.Reader.Encode
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.Space
 
@@ -127,10 +128,6 @@ theorem tableLength_inSpace :
   refine (budget_comp_lin natMul (linear_mul _) (budget_prod (h.mono_le fun ℓ => ?_)
     (hid.weaken hl'))).of_enc_eq fun ℓ => by rw [iterate_mul_four]; rfl
   have := length_encNat_le_self ℓ; omega
-
-private theorem length_encNat_two_pow (k : ℕ) : (encNat (2 ^ k)).length ≤ k + 1 := by
-  rw [length_encNat_eq_size]
-  exact Nat.size_le.mpr (Nat.pow_lt_pow_right (by norm_num) (by omega))
 
 private theorem length_bodyLength_le (ℓ k : ℕ) :
     (encNat (bodyLength ℓ k)).length ≤ k + 4 * ℓ + 4 := by
