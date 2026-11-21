@@ -207,30 +207,27 @@ theorem IsEmbedding.support_outsideRoute_subset {G : Graph} {D : PolygonalDrawin
   obtain ⟨hs, ht, hst⟩ := hD.restrictionTime_bounds v hρ hlen e
   exact (D.route e).support_cutEnds_subset hs ht hst
 
-/-- Every point where an exterior piece meets the closed replacement ball is its own
-boundary port at an original end incident to the replaced vertex. Thus an interior patch
-cannot meet an exterior route interior. Both loop ends remain separate cases. -/
-theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
-    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖)
+/-- A trim that cuts every end incident to the center at its boundary port meets the
+closed ball only at those ports. A cut at an end not incident to the center can be chosen
+independently, provided the two cuts leave a nonempty interval. -/
+theorem IsEmbedding.cutEnds_ball_contact {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ}
     (hlocal : ∀ e (i : Fin (D.route e).segments) z,
       z ∈ Metric.closedBall (D.vertex v) ρ →
       z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
-        (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
-    (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments)
-    {u : ℝ} (hu : u ∈ Set.Icc 0 1)
-    (hz : (D.outsideRoute v ρ e).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :
-    ∃ b, (D.outsideRoute v ρ e).AtEnd i u b ∧ Dart.vertex (e, b) = v ∧
-      (D.outsideRoute v ρ e).eval i u = D.cutPort ρ (e, b) := by
-  let s := D.restrictionTime v ρ (e, false)
-  let t := D.restrictionTime v ρ (e, true)
-  obtain ⟨hs, ht, hst⟩ := hD.restrictionTime_bounds v hρ hlen e
+          (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
+    (e : Fin G.2.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
+    (hcuts : ∀ b, Dart.vertex (e, b) = v → (if b then t else s) = ρ / ‖D.germ (e, b)‖)
+    (i : Fin ((D.route e).cutEnds s t).segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1)
+    (hz : ((D.route e).cutEnds s t).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :
+    ∃ b, ((D.route e).cutEnds s t).AtEnd i u b ∧ Dart.vertex (e, b) = v ∧
+      ((D.route e).cutEnds s t).eval i u = D.cutPort ρ (e, b) := by
   change Fin (D.route e).segments at i
   let τ := (D.route e).cutTime s t i u
   have hτ := (D.route e).cutTime_mem hs ht hst i hu
   have hbounds := (D.route e).cutTime_bounds hs ht hst i hu
-  have heval : (D.outsideRoute v ρ e).eval i u = (D.route e).eval i τ :=
+  have heval : ((D.route e).cutEnds s t).eval i u = (D.route e).eval i τ :=
     (D.route e).eval_cutEnds s t i u
   have hτball : (D.route e).eval i τ ∈ Metric.closedBall (D.vertex v) ρ := heval ▸ hz
   have hseg : (D.route e).eval i τ ∈
@@ -238,8 +235,7 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
     lineMap_mem_segment ℝ _ _ hτ
   rcases hlocal e i _ hτball hseg with ⟨hi, hv⟩ | ⟨hi, hv⟩
   · have hi0 : i = 0 := Fin.ext hi
-    have hsval : s = ρ / ‖D.germ (e, false)‖ := by
-      simp only [s, restrictionTime, hv, ↓reduceIte]
+    have hsval : s = ρ / ‖D.germ (e, false)‖ := hcuts false hv
     have hlo : (D.route e).cutLower s i = s := by simp [Route.cutLower, hi]
     have hn : 0 < ‖D.germ (e, false)‖ := norm_pos_iff.mpr (hD.germ_ne_zero _)
     have hpoint : (D.route e).eval i τ = D.vertex v + τ • D.germ (e, false) := by
@@ -261,8 +257,7 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
     · rw [heval, hpoint, hτs, hsval, cutPort, hv]
   · have hilast : i = Fin.last (D.route e).bends := by
       fin_index [Route.segments]
-    have htval : t = ρ / ‖D.germ (e, true)‖ := by
-      simp only [t, restrictionTime, hv, ↓reduceIte]
+    have htval : t = ρ / ‖D.germ (e, true)‖ := hcuts true hv
     have hhi : (D.route e).cutUpper t i = 1 - t := by simp [Route.cutUpper, hi]
     have hn : 0 < ‖D.germ (e, true)‖ := norm_pos_iff.mpr (hD.germ_ne_zero _)
     have hpoint : (D.route e).eval i τ = D.vertex v + (1 - τ) • D.germ (e, true) := by
@@ -289,6 +284,27 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
       change (i.val : ℝ) + 1 = (D.route e).segments
       exact_mod_cast hi
     · rw [heval, hpoint, hτt, show 1 - (1 - t) = t by ring, htval, cutPort, hv]
+
+/-- Every point where an exterior piece meets the closed replacement ball is its own
+boundary port at an original end incident to the replaced vertex. Thus an interior patch
+cannot meet an exterior route interior. Both loop ends remain separate cases. -/
+theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
+    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖)
+    (hlocal : ∀ e (i : Fin (D.route e).segments) z,
+      z ∈ Metric.closedBall (D.vertex v) ρ →
+      z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
+        (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
+        (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
+    (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments)
+    {u : ℝ} (hu : u ∈ Set.Icc 0 1)
+    (hz : (D.outsideRoute v ρ e).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :
+    ∃ b, (D.outsideRoute v ρ e).AtEnd i u b ∧ Dart.vertex (e, b) = v ∧
+      (D.outsideRoute v ρ e).eval i u = D.cutPort ρ (e, b) := by
+  obtain ⟨hs, ht, hst⟩ := hD.restrictionTime_bounds v hρ hlen e
+  refine hD.cutEnds_ball_contact v hlocal e hs ht hst ?_ i hu hz
+  intro b hb
+  cases b <;> simp only [restrictionTime, hb, ↓reduceIte, Bool.false_eq_true]
 
 /-- An actual embedding supplies its own common-radius cut and all exterior contact
 conditions. No local disk, prescribed slopes, port coordinates or patch is a premise.

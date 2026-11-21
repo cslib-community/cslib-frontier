@@ -13,6 +13,7 @@ public import Mathlib.Algebra.MvPolynomial.PDeriv
 public import Mathlib.Algebra.MvPolynomial.Degrees
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Data.Finsupp.Order
+import CslibFrontier.Foundations.Data.MvPolynomial.CoeffSumBounds
 
 /-!
 # The coefficient ℓ₁ norm of an integer multivariate polynomial
@@ -85,15 +86,8 @@ theorem coeffNorm1_eq_sum_of_support_subset (p : MvPolynomial ι ℤ)
 
 /-- Triangle inequality for the coefficient norm. -/
 theorem coeffNorm1_add_le (p q : MvPolynomial ι ℤ) :
-    coeffNorm1 (p + q) ≤ coeffNorm1 p + coeffNorm1 q := by
-  classical
-  let s := p.support ∪ q.support
-  rw [coeffNorm1_eq_sum_of_support_subset (p + q) s (fun _ h => support_add h),
-    coeffNorm1_eq_sum_of_support_subset p s Finset.subset_union_left,
-    coeffNorm1_eq_sum_of_support_subset q s Finset.subset_union_right, ← Finset.sum_add_distrib]
-  exact Finset.sum_le_sum fun m _ => by
-    simpa only [AddMonoidAlgebra.coeff_add, Finsupp.add_apply] using
-      Int.natAbs_add_le (p.coeff m) (q.coeff m)
+    coeffNorm1 (p + q) ≤ coeffNorm1 p + coeffNorm1 q :=
+  sum_add_le_of_subadditive Int.natAbs_zero Int.natAbs_add_le p q
 
 /-- Negation preserves the coefficient norm. -/
 @[simp] theorem coeffNorm1_neg (p : MvPolynomial ι ℤ) : coeffNorm1 (-p) = coeffNorm1 p := by
@@ -111,16 +105,9 @@ theorem coeffNorm1_sum_le {J : Type*} (s : Finset J) (p : J → MvPolynomial ι 
 
 /-- Submultiplicativity of the coefficient norm. -/
 theorem coeffNorm1_mul_le (p q : MvPolynomial ι ℤ) :
-    coeffNorm1 (p * q) ≤ coeffNorm1 p * coeffNorm1 q := by
-  classical
-  conv_lhs => rw [p.as_sum, q.as_sum]
-  rw [Finset.sum_mul]
-  simp only [Finset.mul_sum, monomial_mul_monomial]
-  apply (coeffNorm1_sum_le _ _).trans
-  apply (Finset.sum_le_sum (fun m _ => coeffNorm1_sum_le q.support _)).trans
-  simp only [coeffNorm1_monomial, Int.natAbs_mul]
-  rw [coeffNorm1, coeffNorm1, Finset.sum_mul]
-  simp only [Finset.mul_sum, le_refl]
+    coeffNorm1 (p * q) ≤ coeffNorm1 p * coeffNorm1 q :=
+  sum_mul_le_of_submultiplicative Int.natAbs_zero Int.natAbs_add_le
+    (fun a b => (Int.natAbs_mul a b).le) p q
 
 /-- Powers satisfy the corresponding coefficient-norm bound. -/
 theorem coeffNorm1_pow_le (p : MvPolynomial ι ℤ) (n : ℕ) :
@@ -147,16 +134,7 @@ theorem coeffNorm1_rename_le (f : ι → κ) (p : MvPolynomial ι ℤ) :
 
 /-- A partial derivative increases the norm by at most the total degree. -/
 theorem coeffNorm1_pderiv_le (p : MvPolynomial ι ℤ) (i : ι) :
-    coeffNorm1 (pderiv i p) ≤ p.totalDegree * coeffNorm1 p := by
-  classical
-  conv_lhs => rw [p.as_sum, map_sum]
-  apply (coeffNorm1_sum_le _ _).trans
-  rw [coeffNorm1, Finset.mul_sum]
-  apply Finset.sum_le_sum
-  intro m hm
-  rw [pderiv_monomial, coeffNorm1_monomial, Int.natAbs_mul, Int.natAbs_natCast]
-  rw [Nat.mul_comm (p.coeff m).natAbs]
-  apply Nat.mul_le_mul_right
-  exact (Finsupp.single_eval_le_sum m rfl (fun _ => Nat.zero_le _) i).trans (le_totalDegree hm)
+    coeffNorm1 (pderiv i p) ≤ p.totalDegree * coeffNorm1 p :=
+  sum_pderiv_le_of_subadditive Int.natAbs_zero Int.natAbs_add_le p i
 
 end MvPolynomial
