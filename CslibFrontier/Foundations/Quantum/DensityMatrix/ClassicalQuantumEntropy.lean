@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
+public import CslibFrontier.Probability.Conditioning
 public import Mathlib.InformationTheory.KullbackLeibler.Basic
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonal
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonalOrder
@@ -26,6 +27,8 @@ chain rule and the classical–quantum mutual information formula of
 Decomposing the divergence to a common reference into its mutual information and
 marginal parts gives the case of Proposition 5.9 on printed p. 21 where the source
 is classical–quantum and the classical reference marginal is diagonal.
+Disintegrating a pair of labels then gives the two-label chain step used in
+equation (27) on printed p. 21.
 
 ## Main definitions
 
@@ -39,6 +42,7 @@ is classical–quantum and the classical reference marginal is diagonal.
 * `mutualInformation_classicalQuantumState`: the mean divergence from the quantum marginal.
 * `sum_weighted_relativeEntropy_eq_mutualInformation_add`: decomposition for a common reference.
 * `mutualInformation_le_relativeEntropy_classicalQuantumState_const`: the product-reference bound.
+* `mutualInformation_classicalQuantumState_prod`: the conditional chain identity for two labels.
 -/
 
 public section
@@ -331,5 +335,96 @@ theorem mutualInformation_le_relativeEntropy_classicalQuantumState_const
   have hD := relativeEntropy_nonneg
     (isDensityMatrix_classicalQuantumState p hρ).partialTraceRight hσ
   exact (le_add_of_nonneg_right hD).trans (le_add_of_nonneg_left hKL)
+
+/-- For a classical–quantum state all active blocks have finite divergence to the quantum
+marginal, so the mutual information is the lift of an ordinary real sum. -/
+theorem mutualInformation_classicalQuantumState_eq_coe_sum (p : PMF X)
+    {ρ : X → Matrix ι ι ℂ} (hρ : ∀ x, IsDensityMatrix (ρ x)) :
+    mutualInformation (classicalQuantumState p ρ) =
+      ((∑ x, (p x).toReal * relativeEntropyReal (ρ x)
+        (partialTraceRight (classicalQuantumState p ρ)) : ℝ) : WithTop ℝ) := by
+  rw [mutualInformation_classicalQuantumState p hρ]
+  exact sum_weighted_relativeEntropy_eq_coe p fun _ hx =>
+    supportLE_partialTraceRight_classicalQuantumState p hρ hx
+
+variable {Y : Type*} [Fintype Y] [DecidableEq Y]
+
+open Cslib.Probability.PMF
+  (conditionalSnd marginal_mul_conditionalSnd mem_support_conditionalSnd_iff)
+
+/-- The quantum marginal after fixing the first of two classical labels. -/
+noncomputable def quantumMarginalGiven (p : PMF (X × Y)) (ρ : X × Y → Matrix ι ι ℂ) (x : X) :
+    Matrix ι ι ℂ :=
+  partialTraceRight (classicalQuantumState (conditionalSnd p x) (fun y => ρ (x, y)))
+
+omit [Fintype ι] [DecidableEq ι] in
+/-- Averaging the conditional quantum marginals recovers the original quantum marginal. -/
+theorem partialTraceRight_classicalQuantumState_map_fst (p : PMF (X × Y))
+    (ρ : X × Y → Matrix ι ι ℂ) :
+    partialTraceRight (classicalQuantumState (p.map Prod.fst) (quantumMarginalGiven p ρ)) =
+      partialTraceRight (classicalQuantumState p ρ) := by
+  rw [partialTraceRight_classicalQuantumState, partialTraceRight_classicalQuantumState,
+    Fintype.sum_prod_type]
+  refine sum_congr rfl fun x _ => ?_
+  rw [quantumMarginalGiven, partialTraceRight_classicalQuantumState, Finset.smul_sum]
+  refine sum_congr rfl fun y _ => ?_
+  rw [smul_smul, ← ENNReal.toReal_mul, marginal_mul_conditionalSnd]
+
+/-- The mutual information of two classical labels with a quantum register splits into the
+information of the first label and the average information of the second label given the first.
+The conditional law at an unsupported first label is multiplied by zero. -/
+theorem mutualInformation_classicalQuantumState_prod (p : PMF (X × Y))
+    {ρ : X × Y → Matrix ι ι ℂ} (hρ : ∀ z, IsDensityMatrix (ρ z)) :
+    mutualInformation (classicalQuantumState p ρ) =
+      mutualInformation (classicalQuantumState (p.map Prod.fst) (quantumMarginalGiven p ρ)) +
+        ∑ x, (((p.map Prod.fst) x).toReal : WithTop ℝ) *
+          mutualInformation (classicalQuantumState (conditionalSnd p x) (fun y => ρ (x, y))) := by
+  let μ := partialTraceRight (classicalQuantumState p ρ)
+  let ν := p.map Prod.fst
+  let μx := quantumMarginalGiven p ρ
+  have hμx (x : X) : IsDensityMatrix (μx x) :=
+    (isDensityMatrix_classicalQuantumState (conditionalSnd p x) fun y =>
+      hρ (x, y)).partialTraceRight
+  have hsplit (x : X) (hx : x ∈ ν.support) :
+      (∑ y, (conditionalSnd p x y).toReal * relativeEntropyReal (ρ (x, y)) μ) =
+        relativeEntropyReal (μx x) μ +
+          ∑ y, (conditionalSnd p x y).toReal * relativeEntropyReal (ρ (x, y)) (μx x) := by
+    have hs (y : Y) (hy : y ∈ (conditionalSnd p x).support) : SupportLE (ρ (x, y)) μ :=
+      supportLE_partialTraceRight_classicalQuantumState p hρ
+        ((mem_support_conditionalSnd_iff p x hx y).mp hy)
+    have hm : SupportLE (μx x) μ :=
+      (supportLE_partialTraceRight_classicalQuantumState_iff
+        (conditionalSnd p x) (fun y => hρ (x, y)) μ).mpr hs
+    have h := sum_weighted_relativeEntropy_eq_mutualInformation_add (conditionalSnd p x)
+      (fun y => hρ (x, y)) μ
+    have hm' : SupportLE
+        (partialTraceRight (classicalQuantumState (conditionalSnd p x) (fun y => ρ (x, y)))) μ :=
+      hm
+    rw [sum_weighted_relativeEntropy_eq_coe _ hs,
+      mutualInformation_classicalQuantumState_eq_coe_sum _ (fun y => hρ (x, y)),
+      relativeEntropy_of_supportLE hm', ← WithTop.coe_add] at h
+    exact ((WithTop.coe_injective h).trans (add_comm _ _))
+  rw [mutualInformation_classicalQuantumState_eq_coe_sum p hρ,
+    mutualInformation_classicalQuantumState_eq_coe_sum (p.map Prod.fst) hμx,
+    partialTraceRight_classicalQuantumState_map_fst]
+  simp_rw [mutualInformation_classicalQuantumState_eq_coe_sum (conditionalSnd p _)
+      (fun y => hρ (_, y)),
+    ← WithTop.coe_mul, ← WithTop.coe_sum, ← WithTop.coe_add]
+  apply congrArg ((↑) : ℝ → WithTop ℝ)
+  rw [Fintype.sum_prod_type, ← sum_add_distrib]
+  refine sum_congr rfl fun x _ => ?_
+  change (∑ y, (p (x, y)).toReal * relativeEntropyReal (ρ (x, y)) μ) =
+    (ν x).toReal * relativeEntropyReal (μx x) μ +
+      (ν x).toReal * ∑ y, (conditionalSnd p x y).toReal * relativeEntropyReal (ρ (x, y)) (μx x)
+  have he :
+      (∑ y, (p (x, y)).toReal * relativeEntropyReal (ρ (x, y)) μ) =
+        (ν x).toReal * ∑ y, (conditionalSnd p x y).toReal * relativeEntropyReal (ρ (x, y)) μ := by
+    rw [mul_sum]
+    refine sum_congr rfl fun y _ => ?_
+    rw [← mul_assoc, ← ENNReal.toReal_mul, marginal_mul_conditionalSnd]
+  rw [he, ← mul_add]
+  by_cases hx : x ∈ ν.support
+  · rw [hsplit x hx]
+  · simp [(ν.apply_eq_zero_iff x).mpr hx]
 
 end Cslib.Quantum

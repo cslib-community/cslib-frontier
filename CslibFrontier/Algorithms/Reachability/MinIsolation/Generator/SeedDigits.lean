@@ -49,7 +49,7 @@ variable {κ : Type}
 private theorem maskedPrefix_succ (code : ℕ → Bool) (seed : List Bool) (t : ℕ) :
     maskedPrefix code seed (t + 1) =
       appendWeightDigit (maskedPrefix code seed t) (code t && (seed[t]?).getD false) := by
-  simp only [maskedPrefix, accumulateWeightDigits, Fin.foldl_succ_last,
+  simp only [maskedPrefix, accumulateWeightDigits_succ,
     Fin.val_castSucc, Fin.val_last]
 
 /-- Scan the seed from index zero and return the accumulated binary weight at the first
@@ -87,10 +87,8 @@ theorem run_at_end (code : κ → ℕ → Bool) (context : κ) (seed : List Bool
 
 private theorem length_maskedPrefix_le (code : ℕ → Bool) (seed : List Bool) (t : ℕ) :
     (encNat (maskedPrefix code seed t)).length ≤ 3 * t := by
-  apply length_encNat_le_of_lt_two_pow
-  refine (accumulateWeightDigits_lt _).trans_le ?_
-  rw [pow_mul]
-  exact Nat.pow_le_pow_left (by decide) t
+  rw [length_encNat_eq_size]
+  exact size_accumulateWeightDigits_le _
 
 private theorem length_prefix_state (encContext : κ ↪ List Bool) (code : κ → ℕ → Bool)
     (context : κ) (seed : List Bool) (t : ℕ) (done : Bool) (ht : t ≤ seed.length) :

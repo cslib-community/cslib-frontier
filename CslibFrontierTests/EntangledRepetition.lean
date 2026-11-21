@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
+import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 import CslibFrontier.Computability.PCP.TwoProverGame.EntangledRepetition
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 
@@ -55,7 +55,7 @@ private theorem echo_weight (η : I) :
   rw [hmix, QuantumStrategy.norm_averagedCheckedVector_sq_coin, h, h]
   simp
 
-open Cslib.Quantum (partialTraceRight pureState relativeEntropy)
+open Cslib.Quantum (normalizeDensity partialTraceRight pureState relativeEntropy)
 
 /-- A noisy question with erase probability `η < 1` gives an entropy bound in
 terms of the surviving branch weight `1 - η`. -/
@@ -81,6 +81,38 @@ example (η : I) (hη : (η : ℝ) < 1) :
       exact (sub_pos.mpr hη).ne' hw.symm)
   simpa only [hw] using
     echoStrategy.relativeEntropy_normalizedCheckedVector_partialTraceRight_le {0} p q a b h
+
+/-- Keeping Bob's true label and the corresponding checked answers has event mass
+`η` and costs at most `log 4 - log η` nats against the uniform answer reference. -/
+example (η : I) (hη : 0 < (η : ℝ)) :
+    let C : Finset (Fin 2) := {0}
+    let w (y : Bool) : Set ((C → Bool) × (C → Bool)) :=
+      if y then {(fun _ => true, fun _ => true)} else ∅
+    relativeEntropy
+      (normalizeDensity (echoStrategy.checkedAnswerRegister C (fun _ => PMF.pure true)
+        (coin η) PMF.pure w))
+      (echoStrategy.checkedAnswerProductReference C (fun _ => PMF.pure true) (coin η)) ≤
+      ((Real.log 4 - Real.log (η : ℝ) : ℝ) : WithTop ℝ) := by
+  classical
+  dsimp only
+  let C : Finset (Fin 2) := {0}
+  let ans : (C → Bool) × (C → Bool) := (fun _ => true, fun _ => true)
+  let w (y : Bool) : Set ((C → Bool) × (C → Bool)) := if y then {ans} else ∅
+  let p (_ : Bool) := PMF.pure true
+  have he : {z : Bool × ((C → Bool) × (C → Bool)) | z.2 ∈ w z.1} = {(true, ans)} := by
+    ext ⟨y, z⟩
+    cases y <;> simp [w]
+  have hw : ((echoStrategy.checkedAnswersWithLabel C p (coin η) PMF.pure).toOuterMeasure
+      {z | z.2 ∈ w z.1}).toReal = (η : ℝ) := by
+    rw [he, PMF.toOuterMeasure_apply_singleton, echoStrategy.checkedAnswersWithLabel_apply]
+    simp [ans, p, echoStrategy, QuantumStrategy.checkedAnswers,
+      QuantumStrategy.answers_ofDeterministic, PMF.pure_map, Prod.map_apply, PMF.pure_apply,
+      Cslib.Probability.PMF.coin_apply_toReal]
+  have hc : Fintype.card ((C → Bool) × (C → Bool)) = 4 := by
+    simp [Fintype.card_prod, C]
+  have h := echoStrategy.relativeEntropy_normalize_checkedAnswerRegister_le C
+    p (coin η) PMF.pure w (hw.symm ▸ hη)
+  simpa only [hw, hc, Nat.cast_ofNat] using h
 
 /-- Independent play gives the lower end of the interval for repeated CHSH. -/
 example (n : ℕ) : (Real.cos (π / 8) ^ 2) ^ n ≤ (chsh.pow n).quantumValue := by

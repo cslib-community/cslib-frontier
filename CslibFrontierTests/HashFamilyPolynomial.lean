@@ -63,6 +63,12 @@ example :
 example (k : ZMod 5) (x : Fin 0 → ZMod 5) : coeffPolyHash k x = 0 := by
   simp [coeffPolyHash]
 
+/-- Allowing the zero-block and one-block messages defeats universality. -/
+example : ¬ IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+    (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) =>
+      coeffPolyHash k (fun i : Fin m.val.length => m.val[i])) (1 / 5) :=
+  not_isUniversalHash_coeffPolyHash_variableLength _ le_rfl (by norm_num)
+
 /-- Sampling the point from all of `ZMod 5` gives the full-field specialization. -/
 example :
     IsUniversalHash (PMF.uniformOfFintype (ZMod 5))

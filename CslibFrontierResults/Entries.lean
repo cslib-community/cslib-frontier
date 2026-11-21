@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
+import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
 import CslibFrontier.Computability.Complexity.Reduction.LinearApproximation
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
@@ -10698,6 +10699,20 @@ register_result "single-pair-hash-game-bounds" where
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
 
+register_result "variable-length-polynomial-not-universal" where
+  title := "The coefficient hash Hfpoly fails universality on variable-length messages"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Failure of universality for Hfpoly (unnumbered)",
+      locator := "v0.6, Section 7.2.1, Equation 7.5 and its discussion, printed p. 257" }
+  ]
+  theorems := [Cslib.Probability.not_isUniversalHash_coeffPolyHash_variableLength]
+  scope := "The hash reads a bounded-length list in coefficient order using the fixed-length \
+    evaluator initialized at zero. The empty list and the singleton zero collide at every key \
+    whenever the length cap is at least one. This is the source’s leading-zero example at the \
+    smallest length cap. The theorem rules out every statistical bound below 1 and extends \
+    from uniform prime-field keys to any field and any key probability mass function."
+
 register_result "fixed-length-polynomial-universality" where
   title := "Collision and difference bounds for fixed-length polynomial hashing"
   topic := "cryptography"
@@ -11283,6 +11298,28 @@ register_result "bvy-checked-answer-marginal-entropy" where
     in nats. The full opposite-question register, win-conditioned and averaged coordinate \
     information bounds, and local-unitary estimates remain open. Outside source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6665#issuecomment-7020963630."
+
+register_result "bvy-checked-answer-register-entropy-budget" where
+  title := "Entropy budget for a retained label and checked-answer event"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.13 (proof step)",
+      locator := "arXiv:1509.07466v2, printed pp. 23–24" }
+  ]
+  theorems := [
+    Cslib.PCP.QuantumStrategy.trace_checkedAnswerRegister,
+    Cslib.PCP.QuantumStrategy.checkedAnswerRegister_le_card_smul,
+    Cslib.PCP.QuantumStrategy.relativeEntropy_normalize_checkedAnswerRegister_le
+  ]
+  scope := "Event/reference budget in the proof of Claim 5.13. Given a finite retained label, \
+    the two local question laws are independent conditional on that label. The restricted \
+    Born-law state has trace equal to the label-dependent event probability P. For P > 0 \
+    and nonempty full checked-answer alphabet Z, the normalized state has relative entropy \
+    at most log |Z| − log P nats against the reference with uniform checked answers and \
+    the original label distribution. Both states retain the label. Instantiation with the \
+    anchored sampler and the averaged coordinate-information bound remain open. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6666#issuecomment-7021086979."
 
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"

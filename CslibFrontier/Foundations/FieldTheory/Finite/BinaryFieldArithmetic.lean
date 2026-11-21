@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
+public import CslibFrontier.Foundations.Data.Nat.FindCode
 import Mathlib.Data.List.GetD
 
 /-!
@@ -33,17 +34,6 @@ namespace Cslib.BinaryField
 
 open Polynomial BitString
 
--- The two natural-number parameters are the current candidate and the remaining count.
-private def findCode (p : ℕ → Bool) : ℕ → ℕ → Option ℕ
-  | _, 0 => none
-  | i, fuel + 1 => if p i then some i else findCode p (i + 1) fuel
-
-private theorem findCode_eq (p : ℕ → Bool) (i fuel : ℕ) :
-    findCode p i fuel = (List.range' i fuel).find? p := by
-  induction fuel generalizing i with
-  | zero => simp [findCode]
-  | succ fuel ih => cases hp : p i <;> simp [findCode, List.range'_succ, ih, hp]
-
 private theorem all_range_eq_isNone_findCode (p : ℕ → Bool) (n : ℕ) :
     (List.range n).all p = (findCode (fun d => !p d) 0 n).isNone := by
   rw [findCode_eq, ← List.range_eq_range']
@@ -64,9 +54,17 @@ without allocating lists of candidates or divisors. -/
 def modulusBitsScan (w : ℕ) : List Bool :=
   ((findCode (fun m => Nat.log 2 m == w && isIrreducibleCodeScan m) 0 (2 ^ (w + 1))).getD 0).bits
 
+/-- The outer search uses the same degree and irreducibility predicate as the modulus
+specification. A native irreducibility test can therefore supply the predicate directly. -/
+theorem modulusBitsScan_eq_findCode (w : ℕ) :
+    modulusBitsScan w =
+      ((findCode (fun m => Nat.log 2 m == w && isIrreducibleCode m) 0
+        (2 ^ (w + 1))).getD 0).bits := by
+  simp only [modulusBitsScan, isIrreducibleCodeScan_eq]
+
 /-- The counter scan selects exactly the modulus used by the table-based evaluator. -/
 theorem modulusBitsScan_eq (w : ℕ) : modulusBitsScan w = modulusBits w := by
-  simp [modulusBitsScan, findCode_eq, ← List.range_eq_range', isIrreducibleCodeScan_eq,
+  simp [modulusBitsScan_eq_findCode, findCode_eq, ← List.range_eq_range',
     modulusBits, leastIrreducibleCode]
 
 /-- Multiply coordinate words using the supplied modulus bits, with zero padding or truncation

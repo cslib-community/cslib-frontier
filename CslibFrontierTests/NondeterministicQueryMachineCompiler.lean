@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.BranchReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 
 /-! Tests for the native compiler of nondeterministic query machines on looping recognizers and
 input-dependent start states. -/
@@ -100,10 +101,10 @@ example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k 
 
 open NondeterministicQueryMachine in
 /-- For the initially halted input-dependent start, every halted full replay splits at the
-first choice boundary with the same choice bits and final configuration. -/
+checked finalizer boundary with the same choice bits and final configuration. -/
 example : ∃ (R : Routines ownBit id encBool (fun _ => 1)) (n : ℕ),
     let initial := R.machine.initCfg (encBool true)
-    let boundary := wordsCfg (encBool true) (some (.choose : Native.State R.SI R.SP R.SF))
+    let boundary := wordsCfg (encBool true) (some (.finish R.F.q₀ : Native.State R.SI R.SP R.SF))
       (R.boundary true false) []
     Native.replayChoices R.I R.P R.F R.C initial (List.replicate n 0) = some ([], boundary) ∧
       ∀ (indices : List ℕ) (bits : List Bool)
@@ -153,7 +154,7 @@ example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length +
     (input : List Bool) (b c : Bool) :
     ∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
       (R.machine.initCfg input) indices = some ([b, c], final) ∧ final.Halted := by
-  apply (R.existsUnique_replay_iff input rfl [b, c]).mpr
+  apply (R.existsUnique_replay_iff input [b, c]).mpr
   refine ⟨rfl, ?_⟩
   intro n hn
   have hn' : n < 2 := hn
@@ -166,7 +167,7 @@ example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length 
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg [true]) indices =
       some ([false, true], final)) : ¬final.Halted := by
   intro hhalt
-  have h := (R.replay_correct [true] rfl hr hhalt).1.2 1 (by decide)
+  have h := (R.replay_correct [true] hr hhalt).1.2 1 (by decide)
   exact Bool.noConfusion h
 
 open NondeterministicQueryMachine in
@@ -176,6 +177,94 @@ example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length +
     {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) input}
     (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg input) indices =
       some ([false, true], final)) (hhalt : final.Halted) : final.output = [true] :=
-  (R.replay_correct input rfl hr hhalt).2
+  (R.replay_correct input hr hhalt).2
+
+open NondeterministicQueryMachine in
+/-- An initially halted accepting source has one full native occurrence trace with no choices;
+initialization never introduces the two spurious selector occurrences. -/
+example (R : Routines ownBit id encBool (fun _ => 1)) :
+    ∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
+      (R.machine.initCfg (encBool true)) indices = some ([], final) ∧ final.Halted := by
+  apply (R.existsUnique_replay_iff true []).mpr
+  exact ⟨rfl, fun n h => by simp at h⟩
+
+open NondeterministicQueryMachine in
+example (R : Routines ownBit id encBool (fun _ => 1)) {indices : List ℕ}
+    {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) (encBool true)}
+    (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (encBool true)) indices =
+      some ([], final)) (hhalt : final.Halted) : final.output = [true] :=
+  (R.replay_correct true hr hhalt).2
+
+open NondeterministicQueryMachine in
+/-- An already accepting source has exactly one accepting native occurrence at a sufficient clock,
+corresponding to its empty first-halting trace. -/
+example (R : Routines ownBit id encBool (fun _ => 1)) :
+    ∃ fuel, (Native.countingMachine R.I R.P R.F R.C).branchCount
+      (fun out => out == [true]) fuel (R.machine.initCfg (encBool true)) = 1 := by
+  have hhalt : (ownBit.withInit true).HaltsWithin (encBool true) 0 := by
+    intro choices hlength
+    obtain rfl := List.length_eq_zero_iff.mp hlength
+    rfl
+  obtain ⟨fuel, hclock⟩ := R.exists_runsInTime true hhalt
+  have htraces :
+      {bits : List Bool | ownBit.FirstHalting (encBool true) bits true ∧
+        ([ownBit.accept (ownBit.replay (encBool true) bits true)] == [true])} = {[]} := by
+    ext bits
+    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff]
+    constructor
+    · rintro ⟨⟨_, hprefix⟩, _⟩
+      by_contra hne
+      exact Bool.noConfusion (hprefix 0 (List.length_pos_iff.mpr hne))
+    · rintro rfl
+      exact ⟨⟨rfl, fun n h => by simp at h⟩, rfl⟩
+  have hcount := R.branchCount_eq_encard_firstHalting true hclock (fun out => out == [true])
+  simp only [id_eq, htraces, Set.encard_singleton] at hcount
+  exact ⟨fuel, by exact_mod_cast hcount⟩
+
+open NondeterministicQueryMachine in
+/-- Both selectors produce the same state transition at each of the two passes.
+There are nevertheless four accepting occurrences at any sufficient native clock. -/
+example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    (input : List Bool) {fuel : ℕ} (hclock : R.machine.RunsInTime input fuel) :
+    (Native.countingMachine R.I R.P R.F R.C).branchCount (fun out => out == [true]) fuel
+      (R.machine.initCfg input) = 4 := by
+  have hatTwo (bits : List Bool) (h : bits.length = 2) : twoPass.replay input bits 0 = 2 := by
+    obtain ⟨b, c, rfl⟩ := List.length_eq_two.mp h
+    rfl
+  have hlive (bits : List Bool) (h : bits.length < 2) :
+      twoPass.halted (twoPass.replay input bits 0) = false := by
+    cases bits with
+    | nil => rfl
+    | cons b tail =>
+      have hlen : tail.length = 0 := by simp only [List.length_cons] at h; omega
+      obtain rfl := List.length_eq_zero_iff.mp hlen
+      rfl
+  have hset :
+      {bits : List Bool | twoPass.FirstHalting input bits 0 ∧
+        ([twoPass.accept (twoPass.replay input bits 0)] == [true])} =
+      {bits : List Bool | bits.length = 2} := by
+    ext bits
+    simp only [Set.mem_ofPred_eq, FirstHalting]
+    constructor
+    · rintro ⟨⟨hh, hp⟩, _⟩
+      have hlo : 2 ≤ bits.length := by
+        by_contra! h
+        rw [hlive bits h] at hh
+        cases hh
+      have hhi : bits.length ≤ 2 := by
+        by_contra! h
+        have hs := hp 2 h
+        rw [hatTwo _ (List.length_take_of_le hlo)] at hs
+        cases hs
+      exact le_antisymm hhi hlo
+    · intro h
+      rw [hatTwo bits h]
+      refine ⟨⟨rfl, fun n hn => hlive _ ?_⟩, rfl⟩
+      rw [List.length_take_of_le hn.le, ← h]
+      exact hn
+  have hcount := R.branchCount_eq_encard_firstHalting input hclock
+    (fun out => out == [true])
+  rw [encBits_apply, hset, Cslib.BitString.encard_setOf_length_eq] at hcount
+  exact_mod_cast hcount
 
 end CslibFrontierTests.NondeterministicQueryMachineCompiler

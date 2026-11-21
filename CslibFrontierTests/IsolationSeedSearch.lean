@@ -66,6 +66,28 @@ private def originalRoots (seed : Fin 1 → Bool) (s : Fin 3) : List (Option Con
 -- Source 1 rejects seed zero. Auxiliary source 2 is deliberately outside the original-root list.
 #guard runSeedSearch originalRoots [0, 1] 0 = [some ⟨1, false⟩]
 
+-- The indexed source range omits the auxiliary ID.
+#guard runSeedSearchIndexed originalRoots (fun i : Fin 2 => i.castSucc) 0 = [some ⟨1, false⟩]
+
+-- The designated source is in the indexed range. Checking it twice would yield four results.
+#guard runSeedSearchIndexed
+  (fun (_ : Fin 0 → Bool) s =>
+    if s = (0 : Fin 2) then [some (.decided false), some (.decided false)]
+    else [some (.decided true)])
+  id 0 = [some ⟨0, false⟩, some ⟨0, false⟩]
+
+-- Two passing occurrences at a nondesignated source give two results.
+#guard runSeedSearchIndexed
+  (fun (_ : Fin 1 → Bool) s =>
+    if s = (0 : Fin 2) then [some (.decided false)]
+    else [some (.decided true), some (.decided true)])
+  id 0 = [some ⟨0, false⟩, some ⟨0, false⟩]
+
+-- Failure at a reached source rejects the branch instead of advancing to the next seed.
+#guard runSeedSearchIndexed
+  (fun (_ : Fin 1 → Bool) s =>
+    if s = (0 : Fin 2) then [some (.decided true)] else [none]) id 0 = []
+
 -- Exhausting the counter returns one unsuccessful search result, distinct from branch rejection.
 #guard runSeedSearch
   (fun (_ : Fin 2 → Bool) (_ : Fin 1) => [some (ControllerVerdict.bad 1)]) [] 0 = [none]
