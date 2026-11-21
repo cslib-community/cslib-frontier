@@ -246,15 +246,7 @@ theorem three_le_primeDeg (N : ℕ) : 3 ≤ primeDeg N :=
 
 private theorem dvd_two_pow_sub_one_iff_modEq {m M : ℕ} (hM : 1 < M) :
     M ∣ 2 ^ m - 1 ↔ 2 ^ m % M = 1 := by
-  have h1 : 1 ≤ 2 ^ m := Nat.one_le_two_pow
-  constructor
-  · intro ⟨k, hk⟩
-    have heq : 2 ^ m = M * k + 1 := by omega
-    rw [heq, Nat.mul_add_mod, Nat.mod_eq_of_lt hM]
-  · intro hmod
-    have hdiv := Nat.div_add_mod (2 ^ m) M
-    rw [hmod] at hdiv
-    exact ⟨2 ^ m / M, by omega⟩
+  rw [← Nat.modEq_iff_dvd' Nat.one_le_two_pow, Nat.ModEq, Nat.mod_eq_of_lt hM, eq_comm]
 
 private theorem not_two_dvd_prime_pow {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) (t : ℕ) :
     ¬ 2 ∣ q ^ t := fun ht => by
@@ -1245,9 +1237,6 @@ theorem shoupIrreducibleBits_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
   let : Fintype L := Fintype.ofFinite L
   have hcardL : Fintype.card L = 2 ^ (m * q) := by
     rw [Module.card_eq_pow_finrank (K := ZMod 2) (V := L), ZMod.card, hfinL]
-  have hcharL : CharP L 2 := ⟨fun n => by
-    rw [← map_natCast (algebraMap (ZMod 2) L), ← map_zero (algebraMap (ZMod 2) L),
-      (algebraMap (ZMod 2) L).injective.eq_iff, CharP.cast_eq_zero_iff (ZMod 2) 2 n]⟩
   have hζ_root : (polyOfBits f).aeval ζ = 0 := by
     rw [show ζ = AdjoinRoot.root (polyOfBits f) from rfl, AdjoinRoot.aeval_eq,
       AdjoinRoot.mk_self]
