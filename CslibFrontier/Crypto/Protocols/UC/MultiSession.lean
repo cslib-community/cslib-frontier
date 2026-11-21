@@ -403,7 +403,8 @@ private theorem runFrom_parLiftAdversary_liftMultiParty {m n : ℕ}
     rw [StateT.run_lift, bind_pure_comp]
     rfl
 
-private theorem liftMultiParty_map {m n : ℕ} {SubIn SubOut NQ NR α β : Type} (f : α → β)
+/-- Mapping over a multi-session party-interface program commutes with `liftMultiParty`. -/
+theorem liftMultiParty_map {m n : ℕ} {SubIn SubOut NQ NR α β : Type} (f : α → β)
     (program : ProbOracleComp (multiPartySpec m n SubIn SubOut) α) :
     liftMultiParty (NQ := NQ) (NR := NR) (f <$> program) = f <$> liftMultiParty program :=
   OracleComp.interpret_map _ _ _
