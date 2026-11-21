@@ -483,6 +483,7 @@ import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+import CslibFrontier.Probability.Minimax.Dantzig
 
 /-!
 # Collected results
@@ -10933,6 +10934,31 @@ register_result "difference-universal-hash-modulus-reduction" where
     The first bound holds for any positive moduli and both allow arbitrary seed laws. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6969 at 28fa1e301d."
 
+register_result "polynomial-difference-universality-reduced-modulus" where
+  title := "The Hxpoly hash is difference universal after modulus reduction"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.23(b)",
+      locator := "v0.6, printed p. 284" }
+  ]
+  theorems := [Cslib.Probability.isDeltaUniversalHash_xpolyHashMod]
+  scope := "Messages are lists of at most ℓ blocks modulo N. Lift each block to its canonical \
+    residue modulo the prime p, evaluate Hxpoly with a uniform key modulo p, and reduce its \
+    digest modulo N. The difference bound is 4(ℓ + 1)/N for positive N ≤ p, including N = 1. \
+    Source check: outside-fleet agent review (coord-6b6b1583) on PR #6985 at 55552a3b06."
+
+register_result "polynomial-universality-reduced-modulus" where
+  title := "The reduced Hpoly hash has a collision bound of 4ℓ/N"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.23(d)",
+      locator := "v0.6, printed p. 284" }
+  ]
+  theorems := [Cslib.Probability.isUniversalHash_polyHashMod]
+  scope := "Messages have at most ℓ blocks modulo N. With a uniform key modulo prime p, \
+    evaluate Hxpoly on the prefix, reduce its digest modulo N, and add the last block \
+    modulo N. The empty message hashes to zero. The collision bound is 4ℓ/N for positive N ≤ p."
+
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
   topic := "cryptography"
@@ -12117,6 +12143,77 @@ register_result "micciancio-regev-smoothing-parameter-lambda-n" where
     ZLattice.smoothingParameter L ε ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no \
     MeasurableSpace E hypothesis. The asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is \
     not formalized here."
+
+register_result "symmetric-game-minimax" where
+  title := "Every symmetric zero-sum game has a solution"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Theorem 1", locator := "Section 1, p. 166" }
+  ]
+  theorems := [
+    Cslib.Probability.exists_isSymmetricGameSolution
+  ]
+  scope := "Every skew-symmetric matrix P (Pᵀ = -P) over every linearly ordered field, indexed by \
+    a nonempty finite type, has a solution in the sense of Adler's (3): a vector z with z ≥ 0, \
+    ∑ z = 1 and P z ≥ 0, over the same field. The source states it over ℝ. Proved from the \
+    library's minimax theorem (exists_isMinimaxValue), which is itself proved from \
+    linear-programming duality, so it is not an independent route to duality."
+
+register_result "dantzig-game-lp-readoff" where
+  title := "Dantzig's game: optimal solutions or infeasibility read off a solution"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Theorem 2(b)–(c)", locator := "Section 1, p. 166" },
+    { paper := Dantzig1951, theorem := unverified, locator := unverified }
+  ]
+  theorems := [
+    Cslib.Probability.IsSymmetricGameSolution.optimal_of_dantzigGame,
+    Cslib.Probability.IsSymmetricGameSolution.not_feasible_of_dantzigGame
+  ]
+  scope := "Over every linearly ordered field, for the program min {c ⬝ x | A x ≥ b, x ≥ 0} and \
+    its dual max {y ⬝ b | yᵀ A ≤ c, y ≥ 0} (Adler's (1)–(2)) and their Dantzig game (4), with \
+    finite index types. For a solution (y, x, t) of the game: if t > 0, then x / t and y / t are \
+    feasible and optimal (2(b)); if c ⬝ x < y ⬝ b, then the primal or the dual is infeasible \
+    (2(c)). Theorem 2(a), t (y ⬝ b - c ⬝ x) = 0, is the step mul_sub_eq_zero_of_dantzigGame. \
+    Nothing is concluded from a solution with t = 0 = y ⬝ b - c ⬝ x (the gap noted on p. 166); \
+    the repair is registered only for feasibility problems with integer data \
+    (adler-feasibility-game-integer). Dantzig (1951) is cited through Adler and was not inspected."
+
+register_result "adler-bounded-feasibility-game" where
+  title := "The Dantzig game of a bounded feasibility problem has no solution with t = 0"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Proposition 6", locator := "Section 3.1, p. 171" }
+  ]
+  theorems := [
+    Cslib.Probability.IsSymmetricGameSolution.pos_of_feasibilityGame_bounded
+  ]
+  scope := "Over every linearly ordered field, for every A, b with finite index types and every \
+    β: every solution (y, v, x, u, t) of the Dantzig game associated with the bounded problem \
+    F(Â, b̂(β)) (A x = b, ∑ x + s = β, x, s ≥ 0; the game is the Dantzig game of Adler's \
+    auxiliary program min u of Section 2, p. 168) has t > 0. The source assumes β > 0; the \
+    statement does not."
+
+register_result "adler-feasibility-game-integer" where
+  title := "Linear feasibility with integer data reduces to one symmetric zero-sum game"
+  topic := "game theory"
+  sources := [
+    { paper := Adler2013, theorem := "Propositions 4, 6 and 7 (Karp-type reduction)",
+      locator := "Section 3.1, pp. 170–172" }
+  ]
+  theorems := [
+    Cslib.Probability.resolves_of_feasibilityGame_bounded
+  ]
+  scope := "Integer data only: A an integer matrix and b an integer vector, with finite index \
+    types and entries of absolute value at most B, solved over any linearly ordered field. For \
+    every β ≥ card n · (card n)! · (card m · B² + 1)^(card n) (Leibniz bound from Cramer's rule, \
+    Matrix.exists_int_nonneg_mulVec_eq, in place of Adler's Hadamard bound m(√m θ)^m + 1), every \
+    solution (y, v, x, u, t) of the Dantzig game associated with F(Â, b̂(β)), a game with \
+    card m + card n + 5 pure strategies, has t > 0; if u = 0 the first card n coordinates of \
+    x / t solve A x = b, x ≥ 0, and if u > 0 the system has no solution. Solutions of the game \
+    exist by symmetric-game-minimax. Not formalized: Adler's strongly polynomial resource \
+    claims, the algebraic-data bound, the reduction of a pair of dual programs to one \
+    feasibility problem (p. 167), the Cook-type reduction (Section 3.2) and Section 4."
 
 register_result "mpda-hole-bounded-emptiness" where
   title := "Repaired Algorithm 1 decides K-hole-bounded emptiness of an MPDA"

@@ -171,21 +171,11 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
   have resultRep : Represents c.heap none result := by simpa only [result, bPayload] using rc
   have resultMatches : Matches encode 1 result (AVLTree.insert (s.data 0) avl) :=
     matches_updatePayload ra.matched _ _
-  have other := payload_except_insert (s := start) (regs := regs) rep stored ra
-  have support : ∀ k, memory k ≠ encode 0 → k ∈ SearchTree.elements (keys newTree) := by
-    intro k hk
-    have old := stored.support k hk
-    rw [matched.keys] at old
-    rw [ra.matched.keys]
-    change k ∈ (AVLTree.insert (s.data 0) avl).elements
-    rw [elements_insert]
-    exact Finset.mem_insert_of_mem old
   have newStored : Stores (encode 0) result (Function.update memory (s.data 0) (s.data 3)) := by
     dsimp only [result]
     rw [← labelAddress]
-    exact stores_updatePayload (encode 0) newTree memory (s.data 0) (s.data 3) path label
-      (ra.matched.keys.symm ▸ (valid_insert valid (s.data 0)).ordered) ra.distinct
-      get labelKey other support
+    exact stores_insert_updatePayload (s := start) rep matched valid stored ra path label get
+      labelKey (s.data 3)
   have run := (reset_correct s pc).sequence (ea.sequence
     ((reset_correct { a with pc := 0 } rfl).sequence (eb.sequence ec)))
   let t := { c with pc := 2 + (sequence

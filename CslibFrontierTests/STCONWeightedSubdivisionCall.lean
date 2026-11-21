@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenBoundedWalk
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 
 /-! Ordinary-import clients for weighted STCON adjacency and the flat scan interface. -/
@@ -113,5 +113,61 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   refine ⟨C, fun w => ?_⟩
   intro I s size index seed ctx u v M start
   exact hC w seed u v
+
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    PolyBounded List.length (configurationJustesenBoundedWalkClock ntm c) :=
+  configurationJustesenBoundedWalkClock_polyBounded ntm c
+
+open Cslib.DoubleCounting.Scan Turing.DoubleCounting.BoundedWalk in
+-- Check zero-edge success, the shared polynomial clock, and a wrong return selector.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let I := configurationInstance ntm c w
+      let setup := configurationSeedSearchSetup ntm c w
+      let size := setup.parameters.search.subdivision
+      let seed : Fin (2 ^ codeLength I.n (I.n - 1)) := ⟨0, Nat.pow_pos (by decide)⟩
+      let source : Fin size.vertexCount :=
+        ⟨setup.sourceID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1⟩
+      let r : Registers size.vertexCount := ⟨source, source, 0⟩
+      let M := configurationJustesenBoundedWalk ntm c w seed.val r
+      let bits := selectors (N := size.vertexCount) 3 []
+      M.FirstHalting w bits M.init ∧ Runtime.remainingFuel (M.run w bits) = some 0 ∧
+        M.HaltsWithin w (size.vertexCount.size + 2) ∧
+        M.HaltsWithin w (configurationJustesenBoundedWalkClock ntm c w) ∧
+        (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState
+          (M.run w [false, true])).length ≤ C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hC⟩ := configurationJustesenBoundedWalk_bounds ntm c
+  refine ⟨C, fun w => ?_⟩
+  intro I setup size seed source r M bits
+  have hfuel : r.fuel ≤ size.vertexCount := Nat.zero_le _
+  obtain ⟨hclock, hstates⟩ := hC w seed r hfuel
+  have hrun := (configurationJustesenBoundedWalk_firstHalting_iff ntm c w seed r bits 0).mpr
+    ⟨[], rfl, by simp [r, walkM, readNext, bind, StateT.bind, pure, StateT.pure]⟩
+  refine ⟨hrun.1, hrun.2, ?_,
+    configurationJustesenBoundedWalk_haltsWithin_clock ntm c w seed.val r hfuel,
+    hstates [false, true]⟩
+  simpa only [r, Nat.zero_mul, Nat.zero_add] using hclock
+
+open Turing.DoubleCounting.BoundedWalk in
+-- The binary rank is supplied by a logspace caller. The zero registers are valid at every size.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    {rank : List Bool → ℕ} (hrank : ComputableInLogSpace rank encBits encNat)
+    (hvalid : ∀ w, rank w < (configurationSeedSearchParameters ntm c w).search.seedLimit) :
+    let dimension (w : List Bool) :=
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+    let registers (w : List Bool) : Registers (dimension w) :=
+      let zero : Fin (dimension w) := ⟨0, Nat.lt_of_le_of_lt (Nat.zero_le _)
+        (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1⟩
+      ⟨zero, zero, 0⟩
+    ComputableInSpace (fun w => (configurationJustesenBoundedWalk ntm c w (rank w)
+      (registers w)).init) encBits
+      (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState)
+      (fun w => Nat.log2 w.length) := by
+  intro dimension registers
+  have hz : ComputableInSpace (fun _ : List Bool => 0) encBits encNat
+      (fun w => Nat.log2 w.length) :=
+    (constZero 0).mono_le fun _ => Nat.zero_le _
+  exact configurationJustesenBoundedWalk_init_inSpace ntm c
+    (r := registers) hrank hvalid hz hz hz
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall

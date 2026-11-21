@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.CallBounds
+public import CslibFrontier.Foundations.Data.Fin.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
@@ -139,6 +140,10 @@ abbrev encMachineState {τ : Type} (encT : τ ↪ List Bool) :=
 /-- Both numeric loop registers stay in their finite ranges, independently of reply truth. -/
 def Bounded (q : State) : Prop := q.count ≤ q.cursor ∧ q.cursor ≤ q.context.size
 
+/-- The initial predecessor state has tested zero vertices and counted none. -/
+theorem initial_bounded (ctx : Context) : Bounded (initial ctx) := by
+  simp [Bounded, initial]
+
 /-- Every reply, including rejection and ties, preserves the bounded scalar invariant. -/
 theorem advance_bounded {q : State} (hq : Bounded q) (hlive : halted q = false)
     (reply : Option Bool) : Bounded (advance q reply) := by
@@ -160,73 +165,66 @@ theorem advance_context (q : State) (reply : Option Bool) :
   | none => rfl
   | some hit => cases h : observe q hit <;> simp only [advance, h]
 
-/-- Execute the unprocessed finite-index suffix using the actual predecessor handler. -/
-private def suffix {n : ℕ} (edge : Fin n → Fin n → Option Bool)
-    (member : Fin n → Option Bool) (v : Fin n) (c i : ℕ) : Option ℕ :=
-  Fin.foldlM (n - i) (fun c u =>
-    predecessorStep edge member v c ⟨i + u.val, by have := u.isLt; omega⟩) c
-
-/-- Remaining semantics of the original finite fold. In the membership phase its already
-positive edge test is resumed using the same handler; a rejected caller has no result. -/
-private def remaining {n : ℕ} (edge : Fin n → Fin n → Option Bool)
-    (member : Fin n → Option Bool) (v : Fin n) (q : State) : Option ℕ :=
-  if q.rejected then none else
+/-- Continue the typed predecessor fold from the current cursor and count. In the membership
+phase the edge has already passed. Rejected states return the supplied failure computation. -/
+def remaining {m : Type → Type} [Monad m] {n : ℕ} (edge : Fin n → Fin n → m Bool)
+    (member : Fin n → m Bool) (fail : m ℕ) (v : Fin n) (q : State) : m ℕ :=
+  let loop := Fin.foldlMFrom (fun c u => predecessorStep edge member v c u)
+  if q.rejected then fail else
   if q.memberPhase then
     if h : q.cursor < n then do
-      let c ← predecessorStep (fun _ _ => some true) member v q.count ⟨q.cursor, h⟩
-      suffix edge member v c (q.cursor + 1)
-    else some q.count
-  else suffix edge member v q.count q.cursor
+      let c ← predecessorStep (fun _ _ => pure true) member v q.count ⟨q.cursor, h⟩
+      loop c (q.cursor + 1)
+    else pure q.count
+  else loop q.count q.cursor
 
-/-- Initial remaining semantics is precisely the existing `countPredecessors`. -/
-private theorem remaining_initial {n : ℕ} (edge : Fin n → Fin n → Option Bool)
-    (member : Fin n → Option Bool) (v : Fin n) (ctx : Context) :
-    remaining edge member v (initial ctx) = countPredecessors edge member v := by
-  simp only [remaining, initial, Bool.false_eq_true, ↓reduceIte, suffix, Nat.sub_zero,
-    Nat.zero_add, countPredecessors]
+/-- At entry the remaining work is the complete predecessor count. -/
+theorem remaining_initial {m : Type → Type} [Monad m] {n : ℕ}
+    (edge : Fin n → Fin n → m Bool) (member : Fin n → m Bool) (fail : m ℕ)
+    (v : Fin n) (ctx : Context) :
+    remaining edge member fail v (initial ctx) = countPredecessors edge member v := by
+  simp only [remaining, initial, Bool.false_eq_true, ↓reduceIte, Fin.foldlMFrom_zero,
+    countPredecessors]
 
-private theorem loop_step {n : ℕ} (edge : Fin n → Fin n → Option Bool)
-    (member : Fin n → Option Bool) (v : Fin n) (c i : ℕ) (hi : i < n) :
-    suffix edge member v c i = (do
-      let c' ← predecessorStep edge member v c ⟨i, hi⟩
-      suffix edge member v c' (i + 1)) := by
-  unfold suffix
-  have hn : n - i = (n - (i + 1)) + 1 := by omega
-  conv_lhs => simp only [hn, Fin.foldlM_succ]
-  congr 1
-  funext c'
-  congr 1
-  funext a u
-  congr 1
-  apply Fin.ext
-  simp only [Fin.val_cast, Fin.val_succ]
-  omega
+/-- When the cursor has reached the end, the saved count is the result of the remaining fold. -/
+theorem remaining_of_done {m : Type → Type} [Monad m] {n : ℕ}
+    (edge : Fin n → Fin n → m Bool) (member : Fin n → m Bool) (fail : m ℕ)
+    (v : Fin n) (q : State) (hr : q.rejected = false) (hi : n ≤ q.cursor) :
+    remaining edge member fail v q = pure q.count := by
+  simp [remaining, hr, Nat.not_lt.mpr hi, Fin.foldlMFrom_of_le _ _ hi]
 
-/-- Exact local simulation of the original fold, for either phase and for rejecting replies.
-The caller's finite index selects the callback whose return is being simulated. -/
+/-- Split off the current callback, then resume the same typed fold from the advanced state. -/
+theorem remaining_bind {m : Type → Type} [Monad m] [LawfulMonad m] {n : ℕ}
+    (edge : Fin n → Fin n → m Bool) (member : Fin n → m Bool) (fail : m ℕ)
+    (v : Fin n) (q : State) (hi : q.cursor < n) (hr : q.rejected = false) :
+    remaining edge member fail v q =
+      ((if q.memberPhase then member ⟨q.cursor, hi⟩ else edge ⟨q.cursor, hi⟩ v) >>= fun hit =>
+        remaining edge member fail v (advance q (some hit))) := by
+  cases hp : q.memberPhase
+  · conv_lhs => simp only [remaining, hr, hp, Bool.false_eq_true, ↓reduceIte]
+    rw [Fin.foldlMFrom_step _ _ hi]
+    simp only [predecessorStep, Bool.false_eq_true, ↓reduceIte, bind_assoc]
+    congr 1
+    funext hit
+    cases hit <;> simp [advance, observe, predecessorStep, remaining, hp, hi, hr, pure, bind,
+      Except.pure, Except.bind]
+  · conv_lhs =>
+      simp only [remaining, hr, hp, Bool.false_eq_true, ↓reduceIte, dite_eq_left hi,
+        predecessorStep, pure_bind, bind_assoc]
+    simp only [↓reduceIte]
+    congr 1
+    funext hit
+    cases hit <;> simp [advance, observe, predecessorStep, remaining, hp, hr, pure, bind,
+      Except.pure, Except.bind]
+
 private theorem remaining_advance {n : ℕ} (edge : Fin n → Fin n → Option Bool)
     (member : Fin n → Option Bool) (v : Fin n) (q : State)
     (hi : q.cursor < n) (hr : q.rejected = false) (reply : Option Bool)
     (hreply : reply = if q.memberPhase then member ⟨q.cursor, hi⟩
       else edge ⟨q.cursor, hi⟩ v) :
-    remaining edge member v (advance q reply) = remaining edge member v q := by
-  cases hp : q.memberPhase with
-  | false =>
-    have he : edge ⟨q.cursor, hi⟩ v = reply := by simpa [hp] using hreply.symm
-    conv_rhs => simp only [remaining, hr, hp, Bool.false_eq_true, ↓reduceIte]
-    rw [loop_step edge member v q.count q.cursor hi]
-    cases reply with
-    | none => simp [remaining, advance, predecessorStep, he]
-    | some hit => cases hit <;>
-      simp [remaining, advance, observe, predecessorStep, hp, hr, he, hi,
-        pure, bind, Except.pure, Except.bind]
-  | true =>
-    have hm : member ⟨q.cursor, hi⟩ = reply := by simpa [hp] using hreply.symm
-    cases reply with
-    | none => simp [remaining, advance, predecessorStep, hp, hr, hi, hm]
-    | some hit => cases hit <;>
-      simp [remaining, advance, observe, predecessorStep, hp, hr, hi, hm,
-        pure, bind, Except.pure, Except.bind]
+    remaining edge member none v (advance q reply) = remaining edge member none v q := by
+  rw [remaining_bind edge member none v q hi hr, ← hreply]
+  cases reply <;> rfl
 
 /-- Binary caller length, charging the complete context and both bounded numeric registers. -/
 theorem length_encState_le {q : State} (hq : Bounded q) :
@@ -278,7 +276,8 @@ theorem advance_inSpace : ComputableInSpace (fun p : State × Option Bool => adv
   | some hit => cases hp : q.memberPhase <;> cases hit <;>
       simp [advance, observe, predecessorStep, hp, pure, bind, Except.pure, Except.bind]
 
-private theorem halted_inSpace : ComputableInSpace halted encState encBool
+/-- Test the rejection bit or completion of the binary predecessor cursor. -/
+theorem halted_inSpace : ComputableInSpace halted encState encBool
     (fun q => (encState q).length) := by
   have hid := of_inO (ComputableInDegree.id' (enc := encState)).inO_one
   have hi := encState_cursor_budget hid
@@ -382,7 +381,7 @@ theorem Returns.bounded {τ : Type} {ctx : Context} {N : QueryMachine τ}
     {start : State → τ} {answer : τ → Option Bool} {w : List Bool} {q : State}
     (h : Returns ctx N start answer w q) : Bounded q := by
   induction h with
-  | initial => exact ⟨le_rfl, Nat.zero_le _⟩
+  | initial => exact initial_bounded ctx
   | call _ hlive _ _ _ ih => exact advance_bounded ih hlive _
 
 /-- All immutable callback arguments survive every return, including rejection. -/
@@ -407,10 +406,22 @@ theorem Returns.exists_run {τ : Type} {ctx : Context} {N : QueryMachine τ}
 
 /-- Pending callback phases remaining: two per untested predecessor, minus the completed
 edge test while membership is pending. -/
-private def remainingCalls (q : State) : ℕ :=
+def remainingCalls (q : State) : ℕ :=
   2 * (q.context.size - q.cursor) - if q.memberPhase then 1 else 0
 
-private theorem advance_progress {q : State} (hlive : halted q = false)
+/-- A live predecessor state has at least one callback phase remaining. -/
+theorem remainingCalls_pos {q : State} (h : halted q = false) : 0 < remainingCalls q := by
+  have hi : q.cursor < q.context.size := by
+    simp only [halted, Bool.or_eq_false_iff, decide_eq_false_iff_not, Nat.not_le] at h
+    exact h.2
+  cases hp : q.memberPhase <;> simp [remainingCalls, hp] <;> omega
+
+/-- At entry, each vertex has two possible callback phases. -/
+theorem remainingCalls_initial (ctx : Context) : remainingCalls (initial ctx) = 2 * ctx.size := by
+  simp [remainingCalls, initial]
+
+/-- A callback reply consumes one phase whenever the predecessor loop stays live. -/
+theorem advance_progress {q : State} (hlive : halted q = false)
     (reply : Option Bool) (hnext : halted (advance q reply) = false) :
     remainingCalls (advance q reply) < remainingCalls q := by
   have hi : q.cursor < q.context.size := by
@@ -462,10 +473,10 @@ theorem result_of_returns {τ : Type} {n : ℕ} {ctx : Context} {N : QueryMachin
         if p.memberPhase then member ⟨p.cursor, hi⟩ else edge ⟨p.cursor, hi⟩ v) :
     result q = countPredecessors edge member v := by
   change (if q.rejected then none else some q.count) = countPredecessors edge member v
-  have hs : remaining edge member v q = countPredecessors edge member v := by
+  have hs : remaining edge member none v q = countPredecessors edge member v := by
     clear hstop
     induction h with
-    | initial => exact remaining_initial edge member v ctx
+    | initial => exact remaining_initial edge member none v ctx
     | @call p h hlive T hpre hhalt ih =>
       have hp := h.context_eq
       have hr : p.rejected = false := Bool.or_eq_false_iff.mp hlive |>.1
@@ -480,8 +491,7 @@ theorem result_of_returns {τ : Type} {n : ℕ} {ctx : Context} {N : QueryMachin
   | false =>
     have hge : n ≤ q.cursor := by
       simpa [halted, hr, hp, hsize] using hstop
-    simpa [remaining, hr, Nat.not_lt.mpr hge, suffix, Nat.sub_eq_zero_of_le hge,
-      Fin.foldlM_zero] using hs
+    exact (remaining_of_done edge member none v q hr hge).symm.trans hs
 
 /-- Every clock during a call charges the framed suspended caller and the full live callee.
 The bound includes the resume state even for rejection. Initializer/answer component costs are

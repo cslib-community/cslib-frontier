@@ -114,4 +114,29 @@ example : ¬ IsUniversalHash (PMF.pure (1 : ZMod 8))
     (fun k (m : {m : List (ZMod 8) // m.length ≤ 3}) => polyHash k m) (1 / 2) :=
   not_isUniversalHash_polyHash_zmod_pow_two 2 (by omega) _ (by norm_num)
 
+local instance : Fact (Nat.Prime 11) := ⟨by decide⟩
+
+/-- The one-block hash reduces 20 modulo 11 and then modulo 9, and its difference
+bound is `8/9`. -/
+example :
+    xpolyHashMod (p := 11) (N := 9) 2 [8] = 0 ∧
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 9) // m.length ≤ 1}) => xpolyHashMod k m.val) (8 / 9) := by
+  refine ⟨by decide, ?_⟩
+  have h := isDeltaUniversalHash_xpolyHashMod (p := 11) (N := 9) (by decide) 1
+  norm_num at h
+  exact h
+
+/-- The empty digest is zero, and the last block is added after reducing the prefix hash.
+The two-block family has collision bound `8/9`. -/
+example :
+    polyHashMod (p := 11) (N := 9) 2 [] = 0 ∧
+    polyHashMod (p := 11) (N := 9) 2 [8, 8] = 8 ∧
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 9) // m.length ≤ 2}) => polyHashMod k m.val) (8 / 9) := by
+  refine ⟨by decide, by decide, ?_⟩
+  have h := isUniversalHash_polyHashMod (p := 11) (N := 9) (by decide) 2
+  norm_num at h
+  exact h
+
 end CslibFrontierTests.HashFamilyPolynomial
