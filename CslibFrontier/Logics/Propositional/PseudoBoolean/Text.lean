@@ -46,15 +46,17 @@ soundness, which concerns only the parsed formula.
 
 **Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
 witness and an optional subproof of `proofgoal` blocks (`#1`, `#2` for the objective, and
-constraint numbers), the solution-logging steps `sol` and `soli` (§5.8), and the deletions
-`deld` and `delc`, read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del`. Deletion,
-`core` and solution logging are accepted only at top level, as the format requires. `core id` is
-skipped: the checker keeps no separate core set, and no checked conclusion depends on it (see
-`Cslib.Logic.PL.VeriPB.checkConclusion`). Two steps of the augmented format are also accepted:
-`del id`, read as the same deletion, and `rup` without hints, read as
-`Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol` operations `c`, `m`, `n` and `-`,
-relative constraint numbers, `i` and `ia`, orders, `dom`, `solx`, `obji`, `obju`, other outputs
-and conclusions, and the optional assignments of `SAT` and `BOUNDS`) is rejected.
+constraint numbers), the solution-logging steps `sol` and `soli` (§5.8), `core id` (§5.1),
+`strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
+constraints, the unchecked `delc` of core constraints, and the checked `delc id : ω` of one core
+constraint, with an optional subproof. Deletion, `core`, strengthening-to-core and solution
+logging are accepted only at top level, as the format requires. Two steps of the augmented
+format are also accepted: `del id`, read as the untyped deletion
+`Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts as unchecked),
+and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
+operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, orders, `dom`,
+`solx`, `obji`, `obju`, `del spec`, levels, other outputs and conclusions, and the optional
+assignments of `SAT` and `BOUNDS`) is rejected.
 
 **Soundness.** The checkers return the conclusion of an accepted proof. If it is `UNSAT`, the
 input parses to a formula with no 0/1 solution
@@ -63,12 +65,11 @@ input parses to a formula with no 0/1 solution
 (`Cslib.Logic.PL.VeriPB.Text.exists_satisfies_of_checkOPB`,
 `Cslib.Logic.PL.VeriPB.Text.satisfiable_of_checkDIMACS`); if `BOUNDS lb : q ub`, to an
 instance with an objective `f` whose every solution has value at least `lb` and, for a finite
-`ub`, one solution has value `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`). This is a
-guarantee about the text and the formula the
-parser returns: the parsers are trusted to read the files as intended, and nothing is said about
-compiled code. It is smaller than the end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB
-documentation, 22 June 2026 edition), which also covers the execution of its compiled
-machine code and the parsing of DIMACS input.
+`ub`, some solution has value at most `ub` (`Cslib.Logic.PL.VeriPB.Text.bounds_of_checkOPB`).
+This is a guarantee about the text and the formula the parser returns: the parsers are trusted
+to read the files as intended, and nothing is said about compiled code. It is smaller than the
+end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
+which also covers the execution of its compiled machine code and the parsing of DIMACS input.
 
 ## Main definitions
 
@@ -390,25 +391,45 @@ private def redItems (N : Names) : ℕ → List String → Option (List RedItem 
     | some (s, rest) => (redItems N fuel rest).map fun (items, rest) => (.step s :: items, rest)
     | none => none
 
-/-- A top-level step: a `red` step, a deletion, an implicational step, or nothing for a skipped
-`core` step. Deletion and `core` are top-level only: subproof scopes are specified in §5.5 of
-the format documentation, `core id` in §5.1, and the typed kernel deletions in §5.7.1. -/
+/-- A top-level step: a `red` step, a deletion, `core id`, `strengthening_to_core`, solution
+logging, or an implicational step. These steps other than the implicational ones are top-level
+only: subproof scopes are specified in §5.5 of the format documentation, `core id` in §5.1,
+strengthening-to-core mode in §5.6, and the kernel deletions in §5.7.1. A checked deletion
+`delc id : ω [: subproof … qed [delc] [: n]];` deletes one constraint. -/
 private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
   | "red" :: ts =>
     match geq N ts with
-    | some (c, ";" :: rest) => some ([.red c [] [] none], rest)
+    | some (c, ";" :: rest) => some ([.red c [] none none], rest)
     | some (c, ":" :: rest) =>
       match witness N rest with
-      | some (ω, ";" :: rest) => some ([.red c ω [] none], rest)
+      | some (ω, ";" :: rest) => some ([.red c ω none none], rest)
       | some (ω, ":" :: "subproof" :: rest) =>
         (redItems N fuel rest).bind fun (items, rest) =>
-          (qedOpt rest).map fun (q, rest) => ([.red c ω items q], rest)
+          (qedOpt rest).map fun (q, rest) => ([.red c ω (some items) q], rest)
       | _ => none
     | _ => none
-  | "deld" :: ts | "delc" :: ts | "del" :: "id" :: ts =>
+  | "deld" :: ts =>
+    match ids ts with
+    | some (ns, ";" :: rest) => some ([.deld ns], rest)
+    | _ => none
+  | "delc" :: n :: ":" :: ts =>
+    (id? n).bind fun i =>
+      match witness N ts with
+      | some (ω, ";" :: rest) => some ([.delcChecked i ω none none], rest)
+      | some (ω, ":" :: "subproof" :: rest) =>
+        (redItems N fuel rest).bind fun (items, rest) =>
+          (qedOpt rest).map fun (q, rest) => ([.delcChecked i ω (some items) q], rest)
+      | _ => none
+  | "delc" :: ts =>
+    match ids ts with
+    | some (ns, ";" :: rest) => some ([.delc ns], rest)
+    | _ => none
+  | "del" :: "id" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.step (.del ns)], rest)
     | _ => none
+  | "strengthening_to_core" :: "on" :: ";" :: rest => some ([.strengthenToCore true], rest)
+  | "strengthening_to_core" :: "off" :: ";" :: rest => some ([.strengthenToCore false], rest)
   | "sol" :: ts =>
     match lits N ts with
     | some (ρ, ";" :: rest) => some ([.sol ρ], rest)
@@ -419,7 +440,7 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
     | _ => none
   | "core" :: "id" :: ts =>
     match ids ts with
-    | some (_, ";" :: rest) => some ([], rest)
+    | some (ns, ";" :: rest) => some ([.core ns], rest)
     | _ => none
   | ts => (step N fuel ts).map fun (s, rest) => ([.step s], rest)
 
@@ -515,12 +536,12 @@ theorem exists_satisfies_of_checkOPB {opb pbp : String} (h : checkOPB opb pbp = 
 /-- **Soundness of `BOUNDS` for OPB text**: an accepted proof of `BOUNDS lb : q ub` means the
 instance parses with an objective `f`; every 0/1 solution `σ` of its constraints has a finite
 `lb` with `lb ≤ f σ` (so for `lb = INF` there is no solution); and for a finite `ub` some
-solution has objective `ub`. -/
+solution has objective at most `ub`. -/
 theorem bounds_of_checkOPB {opb pbp : String} {lb ub : Option ℤ} {q : ℕ}
     (h : checkOPB opb pbp = some (.bounds lb q ub)) :
     ∃ I f, parseOPB opb = some I ∧ I.objective = some f ∧
       (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → ∃ l, lb = some l ∧ l ≤ f.eval σ) ∧
-      ∀ u, ub = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ = u := by
+      ∀ u, ub = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u := by
   obtain ⟨I, P, hI, hck, hc⟩ := exists_checkRed_of_checkOPB h
   cases hobj : I.objective with
   | none =>
@@ -536,7 +557,7 @@ theorem bounds_of_checkOPB {opb pbp : String} {lb ub : Option ℤ} {q : ℕ}
       | none => exact absurd hσ (not_satisfiable_of_checkRed_bounds hck hc σ)
       | some l => exact ⟨l, rfl, le_eval_of_checkRed hck hc σ hσ⟩
     · subst hu
-      exact exists_eval_eq_of_checkRed hck hc
+      exact exists_eval_le_of_checkRed hck hc
 
 /-- **Soundness of `UNSAT` for DIMACS text**: an accepted proof of `UNSAT` means the CNF parses
 and is unsatisfiable. -/

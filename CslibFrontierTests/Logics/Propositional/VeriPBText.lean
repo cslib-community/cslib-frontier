@@ -22,10 +22,16 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   also accepted by CakePB (CakeML commit `14856fcf`);
 * unchecked deletion between logged solutions: the best logged value gives the lower bound, and
   only a solution of the input certifies the upper bound or `SAT`;
+* the core/derived split: a checked deletion followed by an upper bound certified by a solution
+  that does not solve the input, `deld`, unchecked and checked `delc`, `core id`,
+  strengthening-to-core mode, and the numbering of `red` and `delc` with and without subproofs,
+  each compared with VeriPB 3.0.2 and CakePB;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
-certified only by a solution logged after unchecked deletion that fails the input, a dropped
+certified only by a solution logged after unchecked deletion that fails the input, a typed
+deletion of the wrong kind, a checked deletion with a failing witness, a witness or an unchecked
+deletion that strengthening-to-core mode forbids, a dropped
 hint, a repeated deletion, deletion inside a subproof, malformed or mismatched DIMACS headers, a
 wrong formula size, an unsupported rule, and a conclusion that is not a contradiction. Parsing is
 tested on its own. The checks run by `#guard`; the soundness theorems apply to any accepted pair
@@ -428,16 +434,165 @@ end pseudo-Boolean proof;
 -- With only the invalid solution logged, `SAT` is rejected (CakePB rejects it too).
 #guard (checkOPB delDec (delDecProof.replace "sol x1;\n" "")).isNone
 
+/-! ### Core and derived constraints
+
+The fixtures below were also run through VeriPB 3.0.2 and CakePB; their verdicts are noted. CakePB
+parses `red` and checked `delc` only with a subproof, so the subproof forms are the ones compared
+with it. -/
+
+/-- Minimize `x2` subject to `x1 >= 1`; the optimum is `0`. -/
+def ck : String := "* #variable= 2 #constraint= 1
+min: 1 x2 ;
+1 x1 >= 1 ;
+"
+
+/-- The checked deletion of constraint `1` with the witness `x1 ↦ 1`, whose goals are trivial.
+Then `~x1 ~x2`, of value `0`, is logged. It does not solve the input, but no unchecked deletion
+has happened, so it certifies the upper bound: the witness maps it to the input solution
+`x1 ~x2`. The subproof gives `¬C` the number `2`, so the improving constraint is `3`. VeriPB and
+CakePB accept this proof. -/
+def ckProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+delc 1 : x1 -> 1 : subproof
+qed delc;
+soli ~x1 ~x2;
+output NONE;
+conclusion BOUNDS 0 : 3 0;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB ck ckProof == some (.bounds (some 0) 3 (some 0))
+-- Without a subproof, `¬C` takes no number and the improving constraint is `2` (VeriPB accepts).
+#guard checkOPB ck ((ckProof.replace " : subproof\nqed delc;" " ;").replace ": 3 0" ": 2 0") ==
+  some (.bounds (some 0) 2 (some 0))
+-- After an unchecked deletion the same solution certifies nothing (VeriPB and CakePB reject).
+#guard (checkOPB ck (ckProof.replace "delc 1 : x1 -> 1 : subproof\nqed delc;" "delc 1;")).isNone
+-- The witness `x1 ↦ 0` falsifies goal `#1` (VeriPB and CakePB reject).
+#guard (checkOPB ck (ckProof.replace "x1 -> 1" "x1 -> 0")).isNone
+-- `deld` of a core constraint is an error (VeriPB and CakePB reject).
+#guard (checkOPB ck (ckProof.replace "delc 1 : x1 -> 1 : subproof\nqed delc;" "deld 1;")).isNone
+
+/-- `x1 >= 1`. -/
+def one : String := "* #variable= 2 #constraint= 1
+1 x1 >= 1 ;
+"
+
+/-- Constraint `2`, `x1 + x2 >= 1`, is derived and moved to the core; it is then deleted by a
+checked deletion whose subproof refutes its negation `3` with constraint `1`. VeriPB and CakePB
+accept this proof. -/
+def coreProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+pol 1 x2 + ;
+core id 2;
+delc 2 : : subproof
+rup >= 1 : 3 1;
+qed delc : 4;
+sol x1;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB one coreProof == some .sat
+-- Promoting a core constraint again is a no-op (VeriPB and CakePB accept).
+#guard checkOPB one (coreProof.replace "core id 2;" "core id 2 2;\ncore id 1 2;") == some .sat
+-- `core id` needs at least one ID (§5.1; VeriPB 3.0.2 and CakePB accept the empty list).
+#guard (checkOPB one (coreProof.replace "core id 2;" "core id 2;\ncore id ;")).isNone
+-- `~x1` is not a solution of the database (VeriPB and CakePB reject).
+#guard (checkOPB one (coreProof.replace "sol x1;" "sol ~x1;")).isNone
+-- Without `core id`, constraint `2` is derived and `delc` cannot delete it (VeriPB rejects; CakePB
+-- deletes it unchecked, then rejects `SAT`).
+#guard (checkOPB one ((coreProof.replace "core id 2;\n" "").replace
+  "delc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;" "delc 2;")).isNone
+/-- `deld` deletes it instead (VeriPB and CakePB accept). -/
+def deldProof : String := (coreProof.replace "core id 2;\n" "").replace
+  "delc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;" "deld 2;"
+
+#guard (deldProof.splitOn "deld 2;").length == 2 && (deldProof.splitOn "core").length == 1
+#guard checkOPB one deldProof == some .sat
+
+/-- Unchecked deletion of the core constraint `2`: `sol x1` solves the input, so `SAT` stands
+(VeriPB accepts; CakePB ignores solutions logged after unchecked deletion and rejects). -/
+def uncheckedProof : String := coreProof.replace
+  "delc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;" "delc 2;"
+
+#guard uncheckedProof != coreProof
+#guard checkOPB one uncheckedProof == some .sat
+
+/-- `red` without a subproof: `¬C` takes no number, so `C`, `x2 >= 1`, is constraint `2`, which
+the next step uses. VeriPB accepts this proof. -/
+def redNumProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+red 1 x2 >= 1 : x2 -> 1 ;
+pol 2 1 + ;
+sol x1 x2;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB one redNumProof == some .sat
+/-- With a subproof, `¬C` is `2` and `C` is `3` (VeriPB and CakePB accept). -/
+def redNumSubProof : String :=
+  (redNumProof.replace "x2 -> 1 ;" "x2 -> 1 : subproof\nqed;").replace "pol 2 1" "pol 3 1"
+
+#guard (redNumSubProof.splitOn "subproof").length == 2
+#guard (redNumSubProof.splitOn "pol 3").length == 2
+#guard checkOPB one redNumSubProof == some .sat
+-- The old numbering fails without a subproof: constraint `3` does not exist.
+#guard (checkOPB one (redNumProof.replace "pol 2 1" "pol 3 1")).isNone
+
+/-- Strengthening-to-core mode: `red` adds a core constraint. VeriPB and CakePB accept this
+proof. -/
+def tcbProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+strengthening_to_core on;
+red 1 x2 >= 1 : x2 -> 1 : subproof
+qed;
+sol x1 x2;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB one tcbProof == some .sat
+#guard (tcbProof.replace "core on" "core off") != tcbProof
+#guard checkOPB one (tcbProof.replace "core on" "core off") == some .sat
+-- In the mode, a checked deletion takes no witness (VeriPB and CakePB reject).
+#guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
+  "delc 1 : x1 -> 1 : subproof\nqed delc;\nsol ~x1;")).isNone
+/-- In the mode, a checked deletion is a proof by contradiction: its subproof must close with a
+contradiction `qed : n` (§5.7.4; CakePB's `check_tcb_idopt`). VeriPB and CakePB accept this proof;
+without `: 4`, CakePB rejects it and VeriPB accepts it. -/
+def tcbCheckedProof : String := tcbProof.replace
+  "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
+  "pol 1 x2 + ;\ncore id 2;\ndelc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;\nsol x1;"
+
+#guard checkOPB one tcbCheckedProof == some .sat
+#guard (checkOPB one (tcbCheckedProof.replace "qed delc : 4;" "qed delc;")).isNone
+-- In the mode, an unchecked core deletion needs an empty derived set (VeriPB and CakePB reject).
+#guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
+  "pol 1 x2 + ;\ndelc 1;\nsol x1;")).isNone
+
+/-- With the derived set emptied first it is allowed (§5.7.4), and `sol x1` solves the input.
+CakePB allows the deletion and then rejects `SAT`, as it ignores the later solution. VeriPB
+rejects the deletion: it checks a core deletion in this mode by RUP. -/
+def tcbDeleteProof : String := tcbProof.replace
+  "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;" "pol 1 x2 + ;\ndeld 2;\ndelc 1;\nsol x1;"
+
+#guard (tcbDeleteProof.splitOn "delc 1;").length == 2
+#guard checkOPB one tcbDeleteProof == some .sat
+
 /-! ### Soundness -/
 
 -- The accepted optimality proof: every solution of `cover` has value at least `1`, and one has
--- value `1`.
+-- value at most `1`, so the optimum is `1`.
 example (h : checkOPB cover coverProof = some (.bounds (some 1) 6 (some 1))) :
     ∃ I f, parseOPB cover = some I ∧ I.objective = some f ∧
     (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) →
       ∃ l, some 1 = some l ∧ l ≤ f.eval σ) ∧
     ∀ u, some 1 = some u →
-      ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ = u :=
+      ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u :=
   bounds_of_checkOPB h
 
 -- An accepted pair of texts is an unsatisfiable formula.

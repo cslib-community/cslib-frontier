@@ -8,10 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+import CslibFrontier.Foundations.Data.List.OfFnPositions
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fin.Rev
 import Mathlib.Data.List.FinRange
+import Mathlib.Data.List.Indexes
 import Mathlib.Data.Nat.Digits.Lemmas
 
 /-!
@@ -61,20 +63,10 @@ private theorem accumulate_eq_ofDigits {ℓ : ℕ} (digit : Fin ℓ → Bool) :
 
 private theorem accumulate_eq {ℓ : ℕ} (digit : Fin ℓ → Bool) :
     accumulateWeightDigits digit = ∑ j, 6 ^ (ℓ - (j.val + 1)) * (digit j).toNat := by
-  rw [accumulate_eq_ofDigits, Nat.ofDigits_eq_sum_mapIdx]
-  have h :
-      (List.ofFn fun j => (digit j).toNat).reverse.mapIdx (fun i d => d * 6 ^ i) =
-        List.ofFn (fun j : Fin ℓ => (digit j.rev).toNat * 6 ^ j.val) := by
-    apply List.ext_getElem
-    · simp
-    · intro i _ _
-      simp only [List.getElem_mapIdx, List.getElem_reverse, List.getElem_ofFn, List.length_ofFn]
-      congr 3
-      apply Fin.ext
-      simp only [Fin.val_rev]
-      omega
-  rw [h, List.sum_ofFn]
-  simpa only [Fin.revPerm_apply, Fin.rev_rev, Fin.val_rev, mul_comm] using
+  rw [accumulate_eq_ofDigits, Nat.ofDigits_eq_sum_mapIdx, List.reverse_ofFn,
+    List.mapIdx_eq_ofFn, List.ofFn_congr List.length_ofFn, List.sum_ofFn]
+  simpa only [List.get_ofFn, Fin.cast_cast, Fin.cast_eq_self, Fin.val_cast,
+    Fin.revPerm_apply, Fin.rev_rev, Fin.val_rev, mul_comm] using
     (Equiv.sum_comp Fin.revPerm (fun j : Fin ℓ => (digit j.rev).toNat * 6 ^ j.val)).symm
 
 /-- A word of masked Boolean digits has value below the first power beyond its length. -/

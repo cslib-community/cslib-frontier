@@ -380,6 +380,7 @@ import CslibFrontier.GameTheory.Strategic.Correlated
 import CslibFrontier.GameTheory.Strategic.Nash
 import CslibFrontier.GameTheory.Strategic.Semialgebraic
 import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
+import CslibFrontier.GameTheory.Strategic.Universality.DattaHorner
 import CslibFrontier.GameTheory.Strategic.Universality.Realize
 import CslibFrontier.Logics.Propositional.CNF.TruthTable
 import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
@@ -3264,6 +3265,31 @@ register_result "nash-realize-coefficients" where
     = 0 recovers them, and the totally mixed equilibria are the positive normalized profiles at \
     which every g i a vanishes. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6703#pullrequestreview-5993269399"
+
+register_result "nash-three-player-horner" where
+  title := "The Horner-chain three-player game in the proof of Datta's Theorem 5"
+  topic := "game theory"
+  sources := [
+    { paper := Datta2003, theorem := "Theorem 5 (construction in the proof)",
+      locator := "arXiv:math/0301001, §3, statement p. 4, proof pp. 4–6" }
+  ]
+  theorems := [
+    Cslib.GameTheory.DattaHorner.isTotallyMixedNash_game_iff,
+    Cslib.GameTheory.DattaHorner.card_strategies
+  ]
+  scope := "The explicit three-player game built from the Horner chains of a finite family of \
+    real polynomials F j in n variables, one block-affine equation per chain node. Its totally \
+    mixed Nash equilibria are exactly the profiles whose first player's weights x lie in the \
+    open simplex and solve every F j = 0, with the other two players' weights fixed by the \
+    rescaled Horner values of x and by one over the third player's number of strategies, apart \
+    from max(m − n, 0) free weights. This characterizes the equilibria of one game; it is not \
+    the stable semialgebraic isomorphism of Theorem 5, which is tracked in #6701. Two source \
+    repairs: the fixed weights are one over the third player's number of strategies, not 1/D, \
+    which would give its reference strategy weight 0 when m ≤ n; and D is the actual number \
+    ∑ⱼ (∏ᵢ (1 + d_ij) − 1) of chain equations, m − 1 less than the printed −1 + ∑ⱼ ∏ᵢ (1 + d_ij). \
+    The counts n + 1, D − m + 1 and D + 1 assume every F j involves a variable; a constant F j \
+    has no chain. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6824#pullrequestreview-6000819371"
 
 register_result "correlated-equilibrium-hierarchy" where
   title := "Pure Nash, mixed Nash, correlated and coarse correlated equilibria are nested"
@@ -10785,6 +10811,20 @@ register_result "pairwise-unpredictability-implies-universal-hashing" where
     second message and digest. The game rejects repeated messages. The collision implication \
     works with arbitrary digests, and the difference implication uses any additive group, \
     including the source’s cyclic and abelian cases."
+
+register_result "difference-universal-hash-plus-uniform-is-puf" where
+  title := "A difference-universal hash with a uniform offset is pairwise unpredictable"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 7.11",
+      locator := "v0.6, Section 7.6.2, printed p. 276; Equation 7.32" }
+  ]
+  theorems := [Cslib.Crypto.UHF.isPairwiseUnpredictable_add_uniform]
+  scope := "One hash instance with a private finite uniform key. The new key includes an \
+    independent uniform digest that is added to every evaluation. This preserves the bound \
+    against all two-stage adversaries with private state in Attack Game 7.5. The Lean proof \
+    extends from cyclic groups to all finite additive groups. Source check: outside-fleet \
+    agent review (coord-6b6b1583) on PR #6930 at 86b92c9ea6."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
