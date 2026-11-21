@@ -197,6 +197,20 @@ theorem disagreeProb_deterministic_eq_tsum_seed (seed : PMF Ω) (f : (Fin m → 
   rw [disagreeProb_deterministic, PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
 
+/-- Paired output distribution of a deterministic-given-seed algorithm, drawing the two
+independent samples first, then the shared seed. -/
+theorem pairedOutput_deterministic_eq_samples (seed : PMF Ω) (f : (Fin m → X) → Ω → α)
+    (D : PMF X) :
+    (deterministic seed f).pairedOutput D =
+      (Probability.PMF.iid D m).bind fun S₁ =>
+        (Probability.PMF.iid D m).bind fun S₂ =>
+          seed.map fun r => (f S₁ r, f S₂ r) := by
+  rw [pairedOutput_deterministic, PMF.bind_comm]
+  refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
+  simp only [PMF.map]
+  exact PMF.bind_comm seed (Probability.PMF.iid D m)
+    (fun r S₂ => PMF.pure (f S₁ r, f S₂ r))
+
 /-- Disagreement probability of a deterministic-given-seed algorithm expressed by drawing the two
 independent samples first, then the shared seed. -/
 theorem disagreeProb_deterministic_eq_tsum_samples (seed : PMF Ω) (f : (Fin m → X) → Ω → α)
@@ -205,17 +219,7 @@ theorem disagreeProb_deterministic_eq_tsum_samples (seed : PMF Ω) (f : (Fin m �
       ∑' S₁ : Fin m → X, (Probability.PMF.iid D m S₁).toReal *
         ∑' S₂ : Fin m → X, (Probability.PMF.iid D m S₂).toReal *
           (seed.toOuterMeasure {r | f S₁ r ≠ f S₂ r}).toReal := by
-  have hcomm :
-      (deterministic seed f).pairedOutput D =
-        (Probability.PMF.iid D m).bind fun S₁ =>
-          (Probability.PMF.iid D m).bind fun S₂ =>
-            seed.map fun r => (f S₁ r, f S₂ r) := by
-    rw [pairedOutput_deterministic, PMF.bind_comm]
-    refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
-    simp only [PMF.map]
-    exact PMF.bind_comm seed (Probability.PMF.iid D m)
-      (fun r S₂ => PMF.pure (f S₁ r, f S₂ r))
-  rw [disagreeProb, hcomm, PMF.toOuterMeasure_bind_apply]
+  rw [disagreeProb, pairedOutput_deterministic_eq_samples, PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
   simp only [PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
