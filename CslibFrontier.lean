@@ -3009,6 +3009,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenBoundedWalk
+public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenMembershipTally
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision.Replay
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Layered

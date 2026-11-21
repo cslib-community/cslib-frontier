@@ -38,6 +38,8 @@ tally also loads the adjacency context from its own entry state.
   clock and encoded-state bound for all branches starting from a valid source.
 * `Turing.DoubleCounting.MembershipTally.retainedMachine_replay`: every selector prefix agrees
   with the tally for the retained adjacency context.
+* `Turing.DoubleCounting.MembershipTally.retainedMachine_existsUnique_firstHalting`:
+  the same successful-selector uniqueness for the tally with retained adjacency context.
 * The retained entry, transition, query, halt, and reply operations have linear-space
   certificates.
 * `Turing.DoubleCounting.MembershipTally.retainedMachine_exists_routines`: compile the tally
@@ -256,6 +258,28 @@ theorem retainedMachine_firstHalting_reply_iff (ctx : Context) (input bits : Lis
   simp only [retainedMachine_replay, retainedReply]
   rfl
 
+/-- A unique passing transcript at the exact round totals gives one successful retained
+selector list. Either Boolean reply is successful. -/
+theorem retainedMachine_existsUnique_firstHalting {N : ℕ} (input : List Bool)
+    (adjacent : Fin N → Fin N → Bool) (source target : Fin N) (radius : ℕ)
+    (hclock : ∀ u v : Fin N,
+      edge.halted (edge.runFrom input (start context u.val v.val) clock) = true)
+    (hedge : ∀ u v : Fin N,
+      verdict (edge.runFrom input (start context u.val v.val) clock) = adjacent u v)
+    (hpass : ∃! w, Passes (fun u v => adjacent u v = true) source radius w) :
+    let totals := expected (fun u v => adjacent u v = true) source radius
+    let M := retainedMachine edge start verdict clock initialWalk context
+      ⟨N, source.val, target.val, radius, totals⟩
+    ∃! bits, M.FirstHalting input bits M.init ∧ (retainedReply (M.run input bits)).isSome := by
+  intro totals M
+  refine (existsUnique_congr fun bits => ?_).mpr
+    (withRuntimeWalk_existsUnique_firstHalting edge start verdict clock initialWalk context input
+      adjacent source target radius hclock hedge hpass)
+  simp only [Option.isSome_iff_exists, ← exists_and_left]
+  exact exists_congr fun hit =>
+    retainedMachine_firstHalting_reply_iff edge start verdict clock initialWalk context
+      ⟨N, source.val, target.val, radius, totals⟩ input bits hit
+
 /-- The retained tally has the same all-branch selector clock. -/
 theorem retainedMachine_haltsWithin (ctx : Context) (hsource : ctx.source < ctx.size)
     (input : List Bool) :
@@ -269,7 +293,7 @@ theorem retainedMachine_haltsWithin (ctx : Context) (hsource : ctx.source < ctx.
     input bits hlen
 
 /-- The encoded state bound adds the context frame to the existing runtime tally envelope. -/
-def retainedStateBound (clock : ℕ) (ctx : Context)
+@[expose] def retainedStateBound (clock : ℕ) (ctx : Context)
     (contextLength calleeBound : ℕ) : ℕ :=
   2 * contextLength + 1 + runtimeWalkStateBound clock ctx contextLength calleeBound
 
