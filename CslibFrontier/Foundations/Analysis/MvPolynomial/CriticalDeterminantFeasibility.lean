@@ -111,13 +111,11 @@ theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
   exact ⟨hsdegree.trans hdegree, hsnorm⟩
 
 /-- Evaluating the shifted label at the integer critical objective multiplies the label's
-degree bound by `ell + 1`. A coefficient norm bound for the objective then supplies the
-composed polynomial's coefficient allowance. -/
-theorem criticalLabelObjective_bounds_of_coeffNorm1_le {n ell b bv : ℕ} (hell : 2 ≤ ell)
+degree bound by `ell + 1`. The specialization bound supplies the objective's coefficient
+allowance for the composed polynomial. -/
+theorem criticalLabelObjective_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
-    (L : List (Fin (ell ^ n) × SignType)) {e : ℕ} (he : e ≤ ell ^ n)
-    (hv : (deformedPolynomial ell (fun i => (separatedCenters ell i : ℤ))
-      (2 ^ criticalParameterExponent n ell b) F).coeffNorm1 ≤ 2 ^ bv) :
+    (L : List (Fin (ell ^ n) × SignType)) {e : ℕ} (he : e ≤ ell ^ n) :
     let D := ell ^ n
     let N := n * ell.size
     let B := criticalRootLabelCoeffNormExponent n ell b
@@ -125,15 +123,18 @@ theorem criticalLabelObjective_bounds_of_coeffNorm1_le {n ell b bv : ℕ} (hell 
     let d := Polynomial.signLabelDegreeBound (N + 1) s D
     let k := Polynomial.signLabelNormExponent (N + 1) s
       (Polynomial.iterateDerivativeNormExponent D B) + N + 3
-    let v := deformedPolynomial ell (fun i => (separatedCenters ell i : ℤ))
-      (2 ^ criticalParameterExponent n ell b) F
+    let u := criticalParameterExponent n ell b
+    let bv := criticalSystemCoeffNormExponent n ell b + u
+    let v := deformedPolynomial ell (fun i => (separatedCenters ell i : ℤ)) (2 ^ u) F
     let w := Polynomial.aeval v (criticalShiftedRootLabel (by omega) b F hF L e)
     w.totalDegree ≤ d * (ell + 1) ∧ w.coeffNorm1 ≤ 2 ^ (k + bv * d) := by
-  intro D N B s d k v w
+  intro D N B s d k u bv v w
   let g := criticalShiftedRootLabel (by omega : 1 ≤ ell) b F hF L e
   obtain ⟨hdeg, hnorm⟩ := criticalShiftedRootLabel_bounds hell F hF hb L he
   have hvdeg : v.totalDegree ≤ ell + 1 :=
     totalDegree_deformedPolynomial_le ell _ _ _ (hF.trans (Nat.le_succ _))
+  have hv : v.coeffNorm1 ≤ 2 ^ bv :=
+    (criticalSystem_coeffNorm1_at_pow_two_le (by omega) F hF hb u).2
   refine ⟨(Polynomial.totalDegree_aeval_mvPolynomial_le g v).trans
     (Nat.mul_le_mul hdeg hvdeg), ?_⟩
   refine (Polynomial.coeffNorm1_aeval_mvPolynomial_le g v Nat.one_le_two_pow hv).trans ?_
