@@ -17,9 +17,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.
 
 Read the raw seed in index order, mask each bit using the prepared Justesen field context
 and the vertex column, and apply the layer scaling to the base-six sum. The implementation
-shares the seed-digit loop and replaces only its final output. It certifies the query
-components and every live state with the prepared field context and seed length charged
-separately.
+shares the seed-digit loop and replaces only its final output. The query state bound
+charges the prepared field context and seed length separately. With a fixed prepared
+context, the entire raw-seed computation has a native linear-workspace certificate.
 -/
 
 public section
@@ -52,7 +52,28 @@ private def finishWeight (s : SeedDigits.State Context) : ℕ :=
 def machine (ctx : Context) : QueryMachine (SeedDigits.State Context) :=
   { SeedDigits.machine codeBit ctx with finish := fun s => encNat (finishWeight s) }
 
-/-- The real Justesen query pass has native components linear in their encoded arguments. -/
+private theorem codeBit_inSpace :
+    ComputableInSpace (fun p : Context × ℕ => codeBit p.1 p.2) (encPair encContext encNat)
+      encBool (fun p => (encPair encContext encNat p).length) := by
+  have hctx := fst encContext encNat
+  exact budget_comp_linear fieldContext_indexedBit_inSpace
+    (budget_prod (budget_prod (encContext_field_budget hctx)
+      (encContext_column_budget hctx)) (snd encContext encNat))
+
+private theorem finishWeight_inSpace :
+    let e := SeedDigits.encState Context encContext
+    ComputableInSpace finishWeight e encNat (fun s => (e s).length) := by
+  let e := SeedDigits.encState Context encContext
+  have hid := budget_id (enc := e) (.refl _)
+  have hctx := SeedDigits.encState_context_budget Context encContext hid
+  have hlayer := encContext_layer_budget hctx
+  have hacc := SeedDigits.encState_accumulator_budget Context encContext hid
+  have hzero := budget_const (encB := encNat) 0 (.refl fun s => (e s).length)
+  have hscaled := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hlayer hacc)
+  exact (budget_ite (budget_natEq hlayer hzero) hzero hscaled).of_enc_eq fun s => by
+    by_cases h : s.context.layer = 0 <;> simp [finishWeight, h]
+
+/-- The actual Justesen query pass has native components linear in their encoded arguments. -/
 theorem parts_inSpace (ctx : Context) :
     let M := machine ctx
     let e := SeedDigits.encState Context encContext
@@ -62,27 +83,33 @@ theorem parts_inSpace (ctx : Context) :
     ComputableInSpace M.emit eR encBits (fun p => (eR p).length) ∧
     ComputableInSpace M.halted e encBool (fun s => (e s).length) ∧
     ComputableInSpace M.finish e encBits (fun s => (e s).length) := by
-  have hrequest := fst encContext encNat
-  have hbit := budget_comp_linear fieldContext_indexedBit_inSpace
-    (budget_prod (budget_prod (encContext_field_budget hrequest)
-      (encContext_column_budget hrequest)) (snd encContext encNat))
-  obtain ⟨hq, hn, he, hh, _⟩ := SeedDigits.parts_inSpace encContext codeBit ctx hbit
-  let e := SeedDigits.encState Context encContext
-  have hid := budget_id (enc := e) (.refl _)
-  have hctx := SeedDigits.encState_context_budget Context encContext hid
-  have hlayer := encContext_layer_budget hctx
-  have hacc := SeedDigits.encState_accumulator_budget Context encContext hid
-  have hzero := budget_const (encB := encNat) 0 (.refl fun s => (e s).length)
-  have hscaled := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hlayer hacc)
-  have hvalue := budget_ite (budget_natEq hlayer hzero) hzero hscaled
-  exact ⟨hq, hn, he, hh, hvalue.of_enc_eq fun s => by
-    by_cases h : s.context.layer = 0 <;> simp [machine, finishWeight, h, encBits_apply]⟩
+  obtain ⟨hq, hn, he, hh, _⟩ := SeedDigits.parts_inSpace encContext codeBit ctx codeBit_inSpace
+  exact ⟨hq, hn, he, hh, finishWeight_inSpace.of_enc_eq fun _ => (encBits_apply _).symm⟩
+
+/-- The weight of a raw seed at the vertex specified by the prepared context. -/
+def weight (ctx : Context) (seed : List Bool) : ℕ :=
+  finishWeight ⟨ctx, seed.length, SeedDigits.maskedPrefix (codeBit ctx) seed seed.length, true⟩
+
+/-- With a fixed prepared field and vertex context, the entire raw-seed pass uses native
+workspace linear in the seed length, including its binary output. -/
+theorem weight_inSpace (ctx : Context) :
+    ComputableInSpace (weight ctx) encBits encNat List.length :=
+  SeedDigits.scanWithFinish_inSpace encContext codeBit ctx finishWeight
+    codeBit_inSpace finishWeight_inSpace
 
 /-- Every clock charges only the retained context and the length of the read-only seed. -/
 theorem length_run_le (ctx : Context) (seed : List Bool) (t : ℕ) :
     (SeedDigits.encState Context encContext ((machine ctx).run seed t)).length ≤
       2 * (encContext ctx).length + 8 * seed.length + 4 :=
   SeedDigits.length_run_le encContext codeBit ctx seed t
+
+/-- A raw seed in index order gives the existing generated weight at the prepared vertex. -/
+theorem weight_eq_generatedWeight {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
+    (z : Fin (n + 1) × Fin w) :
+    weight ⟨fieldContext w n, z.1.val, z.2.val⟩ (List.ofFn seed) = generatedWeight seed z := by
+  rw [← generatedWeightScan_eq]
+  exact SeedDigits.scaledMaskedPrefix_eq_generatedWeightScan seed z _
+    (fieldContext_indexedBit_eq z.2)
 
 /-- For the seed in increasing index order, the pass first halts at the first absent bit
 and returns the existing generated weight, including the zero weight at layer zero. -/
@@ -93,27 +120,7 @@ theorem generatedWeight_output {w n : ℕ} (seed : Fin (codeLength w n) → Bool
     (∀ t < raw.length + 1, M.halted (M.run raw t) = false) ∧
       M.halted (M.run raw (raw.length + 1)) = true ∧
       M.output raw (raw.length + 1) = encNat (generatedWeight seed z) := by
-  intro raw M
-  let ctx : Context := ⟨fieldContext w n, z.1.val, z.2.val⟩
-  have hlive (t : ℕ) (ht : t < raw.length + 1) :
-      M.halted (M.run raw t) = false := by
-    change (SeedDigits.machine codeBit ctx).halted
-      ((SeedDigits.machine codeBit ctx).run raw t) = false
-    rw [SeedDigits.run_prefix _ _ _ _ (by omega)]
-    rfl
-  have hend : M.run raw (raw.length + 1) =
-      ⟨ctx, raw.length, SeedDigits.maskedPrefix (codeBit ctx) raw raw.length, true⟩ :=
-    SeedDigits.run_at_end codeBit ctx raw
-  refine ⟨hlive, ?_, ?_⟩
-  · rw [hend]
-    rfl
-  · rw [M.output_eq_of_not_halted raw hlive, hend]
-    have h := SeedDigits.scaledMaskedPrefix_eq_generatedWeightScan seed z (codeBit ctx)
-      (fieldContext_indexedBit_eq z.2)
-    rw [generatedWeightScan_eq] at h
-    change ((List.range (raw.length + 1)).map (fun _ => ([] : List Bool))).flatten ++
-      encNat (finishWeight ⟨ctx, raw.length, SeedDigits.maskedPrefix (codeBit ctx) raw raw.length,
-        true⟩) = encNat (generatedWeight seed z)
-    simpa [finishWeight, ctx, raw] using congrArg encNat h
+  rw [← weight_eq_generatedWeight seed z]
+  exact SeedDigits.run_withFinish codeBit _ (List.ofFn seed) finishWeight
 
 end Cslib.Reachability.Hoza.SeedWeight

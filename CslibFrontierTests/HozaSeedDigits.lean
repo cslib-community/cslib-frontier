@@ -73,9 +73,8 @@ example (seed : Fin (codeLength 1 1) → Bool) :
     M.output raw (raw.length + 1) = encNat (generatedWeight seed z) ∧
       (∀ t, (enc (M.run raw t)).length ≤
         2 * (SeedWeight.encContext ctx).length + 8 * raw.length + 4) ∧
-      ComputableInSpace M.finish enc encBits (fun s => (enc s).length) := by
-  intro z ctx raw M enc
-  obtain ⟨_, _, _, _, hfinish⟩ := SeedWeight.parts_inSpace ctx
-  exact ⟨(SeedWeight.generatedWeight_output seed z).2.2, SeedWeight.length_run_le _ _, hfinish⟩
+      ComputableInSpace (SeedWeight.weight ctx) encBits encNat List.length :=
+  ⟨(SeedWeight.generatedWeight_output seed (1, 0)).2.2, SeedWeight.length_run_le _ _,
+    SeedWeight.weight_inSpace _⟩
 
 end CslibFrontierTests.HozaSeedDigits
