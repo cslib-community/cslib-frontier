@@ -348,6 +348,11 @@ theorem seedSchedulerStep_progress {f g : SeedSchedulerFrame} {reply : Option Co
             (by simpa [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] using h)
           exact ⟨hv, hs, .inr ⟨hi, .inr hj⟩⟩
 
+/-- A frame that requests a scan rejects a missing verdict. -/
+theorem seedSchedulerStep_noReply_of_needsScan (f : SeedSchedulerFrame)
+    (hscan : f.needsScan = true) : seedSchedulerStep f none = none := by
+  cases ha : f.answer <;> simp [seedSchedulerStep, ha, hscan]
+
 /-- Run the binary scheduler on the initialized carrier. The frame exposes the retained
 registers for resource accounting. A scanner can use just its request field. -/
 def runSeedSchedulerFor {m : Type → Type} [AlternativeMonad m] (s : SeedSearchSetup)

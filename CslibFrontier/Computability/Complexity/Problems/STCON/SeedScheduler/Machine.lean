@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CallReplay
 
 /-!
 # Same-input seed scheduler
@@ -21,12 +21,15 @@ skipped designated root.
 
 * `SeedSchedulerMachine.State`: pending skip, active scan, or finished search.
 * `SeedSchedulerMachine.machine`: compose the scheduler transition with a supplied scan.
+* `SeedSchedulerMachine.resume`: continue after a skipped root or a returned verdict.
 * `SeedSchedulerMachine.reply`: observe exhaustion or the chosen seed rank and designated answer
   on a successful branch.
 
 ## Main results
 
 * `SeedSchedulerMachine.step_liveScan`: a live scan takes the callback's step on the same input.
+* `SeedSchedulerMachine.firstHalting_scan_iff`: split a successful scan and the resumed trace.
+* `SeedSchedulerMachine.firstHalting_skip_iff`: split a skipped root's false selector and suffix.
 -/
 
 public section
@@ -62,7 +65,8 @@ def encState {σ : Type} (encScan : σ ↪ List Bool) : State σ ↪ List Bool :
     State σ :=
   if frame.needsScan then .inl (.inr (frame, start frame.request)) else .inl (.inl frame)
 
-private def resume {σ : Type} (start : SeedScanRequest → σ) (frame : SeedSchedulerFrame)
+/-- Apply the local scheduler transition and enter its next frame or terminal state. -/
+def resume {σ : Type} (start : SeedScanRequest → σ) (frame : SeedSchedulerFrame)
     (verdict : Option ControllerVerdict) : State σ :=
   match seedSchedulerStep frame verdict with
   | none => .inr none
@@ -106,5 +110,57 @@ theorem step_liveScan {σ : Type} (setup : SeedSearchSetup) (scan : Nondetermini
     (machine setup scan start verdict).step w (.inl (.inr (frame, s))) choice =
       .inl (.inr (frame, scan.step w s choice)) := by
   simp [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read, machine, hlive]
+
+/-- A successful first halt from an active scan consumes its parsed verdict and then
+first halts from the resumed scheduler, using the parser's unmodified suffix.
+The frame must request a scan, as it does when `enter` selects the active phase. -/
+theorem firstHalting_scan_iff {σ : Type} (setup : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) (w : List Bool)
+    (frame : SeedSchedulerFrame) (state : σ) (bits : List Bool) (answer : Option Answer)
+    (hscan : frame.needsScan = true) :
+    let M := machine setup scan start verdict
+    let active : State σ := .inl (.inr (frame, state))
+    M.FirstHalting w bits active ∧ M.replay w bits active = .inr (some answer) ↔
+      ∃ value rest, scan.readReply verdict w state bits = some (value, rest) ∧
+        M.FirstHalting w rest (resume start frame (some value)) ∧
+        M.replay w rest (resume start frame (some value)) = .inr (some answer) := by
+  intro M active
+  refine NondeterministicQueryMachine.successful_call_iff M scan w
+    (fun s => .inl (.inr (frame, s))) verdict (fun v => resume start frame (some v))
+    (.inr none) (.inr (some answer)) rfl (by simp) rfl (fun _ => rfl)
+    (step_liveScan setup scan start verdict w frame) ?_ state bits
+  intro s selector hhalt
+  have hstep : M.step w (.inl (.inr (frame, s))) selector =
+      if selector then .inr none else resume start frame (verdict s) := by
+    simp [M, NondeterministicQueryMachine.step, machine, hhalt]
+  rw [hstep]
+  cases hv : verdict s with
+  | none => simp [resume, seedSchedulerStep_noReply_of_needsScan frame hscan]
+  | some v => rfl
+
+/-- A successful first halt from a skipped root consumes exactly one false selector
+before continuing the search. -/
+theorem firstHalting_skip_iff {σ : Type} (setup : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) (w : List Bool)
+    (frame : SeedSchedulerFrame) (bits : List Bool) (answer : Option Answer) :
+    let M := machine setup scan start verdict
+    let skip : State σ := .inl (.inl frame)
+    M.FirstHalting w bits skip ∧ M.replay w bits skip = .inr (some answer) ↔
+      ∃ rest, bits = false :: rest ∧ M.FirstHalting w rest (resume start frame none) ∧
+        M.replay w rest (resume start frame none) = .inr (some answer) := by
+  intro M skip
+  cases bits with
+  | nil => simp [skip]
+  | cons selector bits =>
+    have hskip : M.halted skip = false := rfl
+    rw [M.firstHalting_cons_iff, M.replay_cons, hskip]
+    cases selector
+    · have hstep : M.step w skip false = resume start frame none := rfl
+      simp [hstep]
+    · have hstep : M.step w skip true = .inr none := rfl
+      have hhalt : M.halted (.inr none) = true := rfl
+      simp [hstep, M.replay_of_halted w hhalt]
 
 end Cslib.Complexity.STCON.SeedSchedulerMachine
