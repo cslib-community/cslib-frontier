@@ -6947,6 +6947,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleConnector
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleGaps
 public import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
+public import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
 public import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.CutGerms
 public import CslibFrontier.Foundations.Geometry.Polygonal.FiniteAngleOrder
