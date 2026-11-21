@@ -728,9 +728,42 @@ end pseudo-Boolean proof;
   "obju new 2 x1 1 x3 : subproof\nproofgoal #1\npol 4 1 + ;\nqed : 5;\nproofgoal #2\n\
   pol 6 2 + ;\nqed : 7;\nqed obju;\nsoli ~x1 ~x2 x3;\nrup >= 1 : 8 3;" |>.replace
   "BOUNDS 1 : 5 1" "BOUNDS 1 : 9 1") == some (.bounds (some 1) 9 (some 1) none)
--- A solution logged before the update keeps the value it had then (VeriPB accepts).
+-- A solution logged before the update keeps the value it had then (VeriPB accepts); here the
+-- value `1` is the same under both objectives, which `objuLoggedProof` below separates.
 #guard checkOPB eqOpt (objuProof.replace "obju new 2 x1 1 x3 ;\nsoli ~x1 ~x2 x3;"
   "soli ~x1 ~x2 x3;\nobju new 2 x1 1 x3 ;") == some (.bounds (some 1) 5 (some 1) none)
+
+/-- The solution `x1 x2 ~x3` of value `2` is logged; its improving constraint `4`,
+`x1 + x2 + x3 <= 1`, joins the core, where `x1 = x2` then forces `x1 = x2 = 0` and `x3 = 1`. So the
+objective becomes the constant `1`. The logged solution keeps its value `2`, which it no longer
+has under the new objective. Constraint `9`, `2 >= 1` from constraint `3` and literal axioms, is
+trivially true, hence weakly implies `f ≥ 1` for the constant objective `f = 1`. VeriPB and CakePB
+accept this proof. -/
+def objuLoggedProof : String := "pseudo-Boolean proof version 3.0
+f 3;
+soli x1 x2 ~x3;
+obju new 1 : subproof
+proofgoal #1
+pol 5 4 + ;
+qed : 6;
+proofgoal #2
+pol 7 3 + ;
+qed : 8;
+qed obju;
+pol 3 ~x1 + ~x3 + ;
+output NONE;
+conclusion BOUNDS 1 : 9 2;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB eqOpt objuLoggedProof == some (.bounds (some 1) 9 (some 2) none)
+-- The upper bound is the value at logging, `2`, not `1` (VeriPB and CakePB reject).
+#guard (checkOPB eqOpt (objuLoggedProof.replace "1 : 9 2" "1 : 9 1")).isNone
+-- A stated assignment is valued under the input objective: `x1 x2 ~x3` has value `2` there,
+-- though `1` under the final objective (VeriPB and CakePB agree).
+#guard checkOPB eqOpt (objuLoggedProof.replace "1 : 9 2" "1 : 9 2 : x1 x2 ~x3") ==
+  some (.bounds (some 1) 9 (some 2) (some [(0, true), (1, true), (2, false)]))
+#guard (checkOPB eqOpt (objuLoggedProof.replace "1 : 9 2" "1 : 9 1 : x1 x2 ~x3")).isNone
 -- `x1 + x3` is not the objective on the core: it drops `x2` (VeriPB rejects).
 #guard (checkOPB eqOpt (objuProof.replace "2 x1 1 x3" "1 x1 1 x3")).isNone
 
@@ -759,9 +792,55 @@ end pseudo-Boolean proof;
 -- this proof: its autoproving checks the goals against the whole database.
 #guard (checkOPB twoOpt (objuCoreProof.replace "core id 3 4;\n" "")).isNone
 -- `obju` needs an objective.
-#guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n" objuCoreProof).isNone
+#guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
+  objuCoreProof).isNone
 #guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
   (objuCoreProof.replace "obju new 1 x2 ;\n" "")).isSome
+
+/-- An objective ends in an optional constant (§5.9, reusing the OPB syntax): as `x1 = 1` on the
+core, `obju diff -1 x1 1` makes the objective the constant `1`. The improving constraint of the
+solution `x1 x2` is then `0 >= 1`, constraint `3`. VeriPB accepts this proof. -/
+def objuConstProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+obju diff -1 x1 1 ;
+soli x1 x2;
+output NONE;
+conclusion BOUNDS 1 : 3 1;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB twoOpt objuConstProof == some (.bounds (some 1) 3 (some 1) none)
+#guard checkOPB twoOpt (objuConstProof.replace "obju diff -1 x1 1" "obju new 1") ==
+  some (.bounds (some 1) 3 (some 1) none)
+-- Without the constant, the objective `0` is not `x1` on the core (VeriPB rejects).
+#guard (checkOPB twoOpt (objuConstProof.replace "-1 x1 1 ;" "-1 x1 ;")).isNone
+-- A constraint still needs its relation: a constant is no constraint.
+#guard (checkOPB twoOpt "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n"
+  |>.isNone)
+
+/-- Minimize `x1 + x2` subject to `x1 + x2 >= 1` and `~x2 >= 1`. -/
+def cancelOpt : String := "* #variable= 2 #constraint= 2
+min: 1 x1 1 x2 ;
+1 x1 1 x2 >= 1 ;
+1 ~x2 >= 1 ;
+"
+
+/-- `obju diff -1 x2` cancels `x2` from the objective, leaving `x1`. Once constraint `2` is
+deleted, `soli x1` leaves `x2` unassigned, which only the old objective mentions. VeriPB accepts
+this proof. -/
+def cancelProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+obju diff -1 x2 ;
+delc 2;
+soli x1;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB cancelOpt cancelProof == some .noClaim
+-- Under the old objective, `soli x1` leaves `x2` unassigned (VeriPB rejects).
+#guard (checkOPB cancelOpt (cancelProof.replace "obju diff -1 x2 ;\n" "")).isNone
 
 /-! ### Soundness -/
 
