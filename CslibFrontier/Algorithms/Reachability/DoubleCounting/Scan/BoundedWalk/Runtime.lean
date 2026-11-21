@@ -116,11 +116,8 @@ private theorem replay_eq {N : ℕ} (initial : State κ τ) (ctx : κ) (hp : 0 <
     (input selectors : List Bool) (s : BoundedWalk.State N τ) :
     (machine edge start verdict clock initial).replay input selectors ⟨ctx, N, hp, s⟩ =
       ⟨ctx, N, hp, (typedMachine edge start verdict clock ctx r).replay input selectors s⟩ := by
-  induction selectors generalizing s with
-  | nil => rfl
-  | cons bit rest ih =>
-    rw [NondeterministicQueryMachine.replay_cons, NondeterministicQueryMachine.replay_cons,
-      step_eq edge start verdict clock initial ctx hp r, ih]
+  exact List.foldl_hom (fun inner => State.mk ctx N hp inner)
+    (step_eq edge start verdict clock initial ctx hp r input)
 
 /-- Every replay retains the entry dimension and context and uses exactly the existing
 bounded walk's state on the original input and selectors. -/
