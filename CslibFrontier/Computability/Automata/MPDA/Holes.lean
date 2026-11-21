@@ -202,6 +202,15 @@ theorem Matches.append_right {w : List (α × Op n Γ)} {p m : ℕ} (h : Matches
 @[expose] def IsPushOn (w : List (α × Op n Γ)) (i : Fin n) (p : ℕ) : Prop :=
   ∃ a γ, w[p]? = some (a, .push i γ)
 
+/-- A push is on one stack only. -/
+theorem IsPushOn.unique {w : List (α × Op n Γ)} {i j : Fin n} {p : ℕ}
+    (hi : IsPushOn w i p) (hj : IsPushOn w j p) : i = j := by
+  obtain ⟨a, γ, h⟩ := hi
+  obtain ⟨a', γ', h'⟩ := hj
+  rw [h] at h'
+  simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at h'
+  exact h'.2.1
+
 /-- The push at position `p` is closed by a well-nested continuation: it has a matching pop at
 some position `m`, and the factor from `p` to `m` is well-nested. -/
 @[expose] def WellMatched (w : List (α × Op n Γ)) (p : ℕ) : Prop :=

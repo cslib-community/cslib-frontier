@@ -8,9 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
+import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.Code.BerlekampWelch
 import CslibFrontier.Foundations.Data.Hamming
-import Mathlib.Algebra.Polynomial.Bivariate
 import Mathlib.LinearAlgebra.Lagrange
 import Mathlib.LinearAlgebra.Matrix.Adjugate
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
@@ -118,31 +118,6 @@ private lemma natDegree_det_le_sum {κ : Type*} [Fintype κ] [DecidableEq κ]
   refine (natDegree_prod_le _ _).trans ?_
   exact Finset.sum_le_sum fun i _ => hM (σ i) i
 
-private lemma coeff_swap (p : F[X][Y]) (a b : ℕ) :
-    ((Bivariate.swap p).coeff a).coeff b = (p.coeff b).coeff a := by
-  induction p using Polynomial.induction_on' with
-  | add p q hp hq =>
-    simp only [map_add, coeff_add, hp, hq]
-  | monomial n f =>
-    induction f using Polynomial.induction_on' with
-    | add f g hf hg =>
-      rw [map_add (monomial n), map_add, coeff_add, coeff_add, coeff_add, coeff_add, hf, hg]
-    | monomial m r =>
-      rw [Bivariate.swap_monomial_monomial, coeff_monomial_apply, coeff_monomial_apply]
-      split_ifs with ha hb hb'
-      · simp only [coeff_monomial_apply, ha, hb, ↓reduceIte]
-      · simp only [coeff_monomial_apply, hb, ↓reduceIte, coeff_zero]
-      · simp only [coeff_monomial_apply, ha, ↓reduceIte, coeff_zero]
-      · simp only [coeff_zero]
-
-private lemma eval_C_eq_map_swap (p : F[X][Y]) (x : F) :
-    p.eval (C x) = (Bivariate.swap p).map (evalRingHom x) := by
-  have h := Bivariate.aeval_eq_map_swap (R := F) (A := F) x p
-  have halg : Polynomial.algebra F F = Algebra.id F[X] :=
-    Algebra.algebra_ext _ _ fun _ => Polynomial.map_id
-  rw [halg, coe_aeval_eq_eval, coe_mapAlgHom, coe_aeval_eq_evalRingHom] at h
-  exact h
-
 private lemma card_filter_eval_ne_zero_ge {R : Type*} [CommRing R] [IsDomain R]
     [Fintype ι] [DecidableEq R] {β : ι → R} (hβ : Function.Injective β)
     {p : R[X]} (hp : p ≠ 0) :
@@ -189,7 +164,7 @@ private lemma coeff_curveCoordPoly {d : ℕ} (u : Fin (d + 1) → (ι → F)) (i
 private lemma natDegree_coeff_le_natDegree_swap (p : F[X][Y]) (t : ℕ) :
     (p.coeff t).natDegree ≤ (Bivariate.swap p).natDegree := by
   refine natDegree_le_iff_coeff_eq_zero.2 fun d hd => ?_
-  rw [← coeff_swap]
+  rw [← Bivariate.coeff_coeff_swap]
   exact congrArg (fun q : F[X] => q.coeff t) (coeff_eq_zero_of_natDegree_lt hd)
 
 private lemma natDegree_swap_le_iff (p : F[X][Y]) (m : ℕ) :
@@ -200,7 +175,7 @@ private lemma natDegree_swap_le_iff (p : F[X][Y]) (m : ℕ) :
   · intro h
     refine natDegree_le_iff_coeff_eq_zero.2 fun d hd => ?_
     ext t
-    rw [coeff_swap, coeff_zero]
+    rw [Bivariate.coeff_coeff_swap, coeff_zero]
     exact coeff_eq_zero_of_natDegree_lt ((h t).trans_lt hd)
 
 private lemma natDegree_swap_mul {p q : F[X][Y]} (hp : p ≠ 0) (hq : q ≠ 0) :
@@ -214,7 +189,7 @@ private lemma degree_coeff_swap_lt {p : F[X][Y]} {k : ℕ} (hp : p.degree < k) (
     ((Bivariate.swap p).coeff d).degree < k := by
   rw [degree_lt_iff_coeff_zero]
   intro t ht
-  rw [coeff_swap]
+  rw [Bivariate.coeff_coeff_swap]
   have hpt : p.coeff t = 0 := coeff_eq_zero_of_degree_lt (lt_of_lt_of_le hp (Nat.cast_le.2 ht))
   rw [hpt, coeff_zero]
 
@@ -1136,7 +1111,7 @@ private lemma exists_quotient_of_bivariate_solution [Fintype ι]
       obtain ⟨i, hi, rfl⟩ := mem_image.1 hx
       have hmap : (Bivariate.swap A₀).map (evalRingHom (α i)) =
           (Bivariate.swap B₀).map (evalRingHom (α i)) * wPoly i := by
-        rw [← eval_C_eq_map_swap, ← eval_C_eq_map_swap]
+        rw [← Bivariate.eval_C_eq_map_swap, ← Bivariate.eval_C_eq_map_swap]
         exact hI_eval i hi
       have hcoeff : ((Bivariate.swap A₀).coeff t).eval (α i) =
           ((Bivariate.swap B₀).map (evalRingHom (α i)) * wPoly i).coeff t := by
@@ -1181,7 +1156,7 @@ private lemma exists_quotient_of_bivariate_solution [Fintype ι]
       (fun x hx => by
         obtain ⟨i, hi, rfl⟩ := mem_image.1 hx
         refine ⟨wPoly i, Nat.add_le_add_right (hwPoly_deg i) bZ, ?_⟩
-        rw [← eval_C_eq_map_swap, ← eval_C_eq_map_swap]
+        rw [← Bivariate.eval_C_eq_map_swap, ← Bivariate.eval_C_eq_map_swap]
         exact hI_eval i hi)
     rwa [card_image_of_injective _ hα] at h1
   obtain ⟨hbX_zero, hbZ_zero⟩ :=
@@ -1292,7 +1267,7 @@ private lemma exists_correlatedAgreement_curve_unique_pos [Fintype ι] [Decidabl
     rw [hA_eq_PB, eval_mul] at h1
     exact mul_right_cancel₀ hBi h1
   have hcoeff := congrArg (fun q : F[X] => q.coeff (j : ℕ)) hPi
-  rw [eval_C_eq_map_swap, coeff_map, coe_evalRingHom, coeff_curveCoordPoly] at hcoeff
+  rw [Bivariate.eval_C_eq_map_swap, coeff_map, coe_evalRingHom, coeff_curveCoordPoly] at hcoeff
   exact hcoeff.symm
 
 end Helpers
