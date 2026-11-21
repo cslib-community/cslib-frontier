@@ -86,12 +86,14 @@ trees: every uniform `OneWay` function yields a stateless many-time `SignatureSc
 * `Cslib.Crypto.SignatureScheme.EUFCMA.exists_oneWay`: any full EUF-CMA secure signature scheme
   implies the existence of a one-way function.
 * `Cslib.Crypto.succProbability_eufOneTimeGame_lamport_le`: concrete loss bound
-  `OT-SIGadv[A, S_L] ≤ dyadicSize (2 * n) * OWadvOn[B, f]` against `lamportInverter` on any domain
-  containing every `n`-bit word (`dyadicSize (2 * n) ≤ 4 * n` for `n ≥ 1`).
+  `SIGadv[A, S_L] ≤ dyadicSize (2 * n) * OWadv[B, f]` for a one-query forger `A` and
+  `B := lamportInverter f hf A` scored on `valid` via `inversionGameOn` (for any domain `valid`
+  containing every `n`-bit word; `dyadicSize (2 * n) ≤ 4 * n` for `n ≥ 1`, `2` at `n = 0`).
 * `Cslib.Crypto.OneWayOn.oneTimeEUFCMA_lamport`: Lamport's scheme `S_L` constructed from a function
   that is one-way on a domain containing every `n`-bit word (`OneWayOn`, [BonehShoup2023],
   Definition 8.6, p. 336) is one-time EUF-CMA secure (`OneTimeEUFCMA`, [BonehShoup2023],
-  Section 14.1, pp. 584–585; Definition 14.1, p. 583; Attack Game 13.1, pp. 529–530).
+  Section 14.1, pp. 584–585; Definition 14.1, p. 583; Attack Game 13.1, pp. 529–530;
+  Theorem 14.2, p. 587).
 * `Cslib.Crypto.OneWayOn.exists_oneTimeSignature`, `Cslib.Crypto.OneWay.exists_oneTimeSignature`:
   any `OneWayOn` (on a domain containing every `n`-bit word) or `OneWay` function implies the
   existence of a one-time EUF-CMA secure signature scheme.
@@ -100,10 +102,12 @@ trees: every uniform `OneWay` function yields a stateless many-time `SignatureSc
 
 ## References
 
-* [L. Lamport, *Constructing Digital Signatures from a One-Way Function*][Lamport1979]
+* [L. Lamport, *Constructing Digital Signatures from a One-Way Function*][Lamport1979] (historical
+  attribution; primary technical report not inspected)
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section 8.11.1
-  (Definition 8.6, p. 336), Section 13.1 (Attack Game 13.1, pp. 529–530), and Section 14.1
-  (Definition 14.1, p. 583; basic Lamport scheme `S_L` and Theorem 14.1, pp. 584–585).
+  (Definition 8.6, p. 336), Section 13.1 (Attack Game 13.1, pp. 529–530), Section 14.1
+  (Definition 14.1, p. 583; basic Lamport scheme `S_L` and Theorem 14.1, pp. 584–585), and
+  Section 14.2 (Theorem 14.2, p. 587).
 * [S. Goldwasser, S. Micali, R. L. Rivest, *A Digital Signature Scheme Secure Against Adaptive
   Chosen-Message Attacks*][GoldwasserMicaliRivest1988]
 * [J. Rompel, *One-Way Functions are Necessary and Sufficient for Secure Signatures*][Rompel1990]
@@ -316,7 +320,13 @@ reveal word `2 * i + msg[i].toNat` for each bit position `i < msg.length`. -/
 /-- Lamport verification ([BonehShoup2023], Section 14.1, pp. 584–585): decode the public key into
 `2 * msg.length` blocks and the signature into `msg.length` blocks, and check for every
 `i < msg.length` that the revealed block `sigWords[i]` lies in `{0,1}^{msg.length}` (so wrong-length
-preimages of `f` are rejected) and `f (sigWords[i]) = pkWords[2 * i + msg[i].toNat]`. -/
+preimages of `f` are rejected) and `f (sigWords[i]) = pkWords[2 * i + msg[i].toNat]`.
+
+Because the total decoder `frames` does not require a canonical `encList encBits` tail (for
+instance `[true, false]` and `[true, false, true]` also decode to `[[false]]` alongside the
+canonical `[true, false, false]`), this check is trivially malleable on a fixed message and does
+not give strong unforgeability (`SUF-CMA`); it is sound for `OneTimeEUFCMA` because a forgery must
+be on a fresh message and `lamportInverter` uses the same `frames` decoder. -/
 @[expose] def lamportVerify (f : List Bool → List Bool) (pk msg sig : List Bool) : Bool :=
   let pkWords := frames pk
   let sigWords := frames sig
@@ -859,22 +869,31 @@ theorem succProbability_eufOneTimeGame_lamport_le {f : List Bool → List Bool}
     exact hle1.trans (by exact_mod_cast dyadicSize_pos 0)
 
 /-- **One-time security of the basic Lamport signature scheme `S_L`** ([BonehShoup2023],
-Section 14.1, pp. 584–585; Theorem 14.1, p. 584 is the one-bit case; [Lamport1979]): if `f` is
-one-way on an answer domain `valid` containing every `n`-bit word (`OneWayOn f valid`,
-[BonehShoup2023], Section 8.11.1, Definition 8.6, p. 336), then `lamportScheme f` is existentially
-unforgeable under a one-time adaptive chosen-message attack (`OneTimeEUFCMA`, [BonehShoup2023],
-Definition 14.1, p. 583; Attack Game 13.1, pp. 529–530).
+Section 14.1, pp. 584–585; Theorem 14.1, p. 584 is the one-bit case; general security follows from
+Theorem 14.2, p. 587; historical attribution to [Lamport1979], whose primary technical report was
+not inspected): if `f` is one-way on an answer domain `valid` containing every `n`-bit word
+(`OneWayOn f valid`, [BonehShoup2023], Section 8.11.1, Definition 8.6, p. 336), then
+`lamportScheme f` is existentially unforgeable under a one-time adaptive chosen-message attack
+(`OneTimeEUFCMA`, [BonehShoup2023], Definition 14.1, p. 583; Attack Game 13.1, pp. 529–530).
 
 With `valid n w = decide (w.length = n)` the assumption is Definition 8.6 on `X = {0,1}ⁿ` (wider
 predicates, such as `fun _ _ => true` for `OneWay`, give stronger assumptions). Material deviations
 from [BonehShoup2023], Section 14.1:
 * Message length `v` equals the security parameter `n` (`{0,1}ⁿ`), with `X = {0,1}ⁿ` and framing
-  encoding `encList encBits` for keys and signatures.
+  encoding `encList encBits` for keys and signatures. The total decoder `frames` also accepts
+  non-canonical final frames (e.g., `[true, false]` and `[true, false, true]` alongside
+  `[true, false, false]` for `[[false]]`); this is sound for `OneTimeEUFCMA` (which requires a
+  fresh message, and `lamportInverter` uses the same `frames` decoder), though `lamportScheme` is
+  malleable on the same message and thus not strongly unforgeable (`SUF-CMA`).
+* The edge case `n = 0` is admitted: `M = {[]}` with `pk = sk = sig = []`, where both the
+  one-time signature game and `inversionGameOn` (via `lamportInverter` returning `[]`) can be won
+  with probability `1`, and the concrete bound holds trivially (`≤ 1 ≤ 2 = dyadicSize 0 * 1`).
 * Adversaries and reductions are uniform strict PPT (`IsPPT`, `IsOraclePPT`) receiving `n` in unary.
 * The reduction `lamportInverter` draws its slot guess with fair coins from
-  `{0, …, dyadicSize (2 * n) - 1}` (`dyadicSize (2 * n) ≤ 4 * n` for `n ≥ 1`), giving the concrete
-  loss factor `dyadicSize (2 * n)` (`succProbability_eufOneTimeGame_lamport_le`) instead of
-  `2 * n`. -/
+  `{0, …, dyadicSize (2 * n) - 1}` (`dyadicSize (2 * n) ≤ 4 * n` for `n ≥ 1`, `2` at `n = 0`),
+  giving `SIGadv[A, S_L] ≤ dyadicSize (2 * n) * OWadv[B, f]`
+  (`succProbability_eufOneTimeGame_lamport_le`) for one-query forger `A` and `B` scored on `valid`
+  via `inversionGameOn`, instead of the source's factor `2 * n`. -/
 theorem OneWayOn.oneTimeEUFCMA_lamport {f : List Bool → List Bool}
     {valid : ℕ → List Bool → Bool} (hf : OneWayOn f valid)
     (hvalid : ∀ n (w : List Bool), w.length = n → valid n w = true) :
