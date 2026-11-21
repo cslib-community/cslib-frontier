@@ -39,7 +39,8 @@ gate list (`ConventionalCircuit.code_toCircuit`), so the garbling and privacy re
 Since `toCircuit` is not exposed, its gates, their binary operations and argument wires, and its
 output wires are read through interface lemmas (`ConventionalCircuit.size_toCircuit`,
 `ConventionalCircuit.lines_toCircuit`, `ConventionalCircuit.arity_topology_toCircuit`,
-`ConventionalCircuit.ofFn_toNat_wires_toCircuit`, `ConventionalCircuit.toNat_outputs_toCircuit`).
+`ConventionalCircuit.ofFn_toNat_wires_toCircuit`, `ConventionalCircuit.wires_toCircuit_zero`,
+`ConventionalCircuit.wires_toCircuit_one`, `ConventionalCircuit.toNat_outputs_toCircuit`).
 
 ## References
 
@@ -128,6 +129,34 @@ theorem ofFn_toNat_wires_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).siz
     List.ofFn (fun a => ((toCircuit f).topology.wires g a).toNat) =
       [f.1.A (g.cast (size_toCircuit f)) - 1, f.1.B (g.cast (size_toCircuit f)) - 1] :=
   congrArg Prod.snd (code_lines_toCircuit f g)
+
+/-- The first argument wire of gate `g` of `toCircuit f` is the 0-indexed wire `A g - 1`. -/
+theorem wires_toCircuit_zero (f : ValidCircuit) (g : Fin (toCircuit f).size)
+    (hlt : f.1.A (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
+    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 0) =
+      Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) hlt := by
+  have harity := arity_topology_toCircuit f g
+  rw [show Fin.cast harity.symm 0 = ⟨0, by omega⟩ from Fin.ext rfl]
+  refine Wire.toNat_injective ?_
+  have h := congrArg (fun l => l.getD 0 0) (ofFn_toNat_wires_toCircuit f g)
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
+    show 0 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
+  rw [Wire.toNat_ofNat]
+  exact h
+
+/-- The second argument wire of gate `g` of `toCircuit f` is the 0-indexed wire `B g - 1`. -/
+theorem wires_toCircuit_one (f : ValidCircuit) (g : Fin (toCircuit f).size)
+    (hlt : f.1.B (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
+    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 1) =
+      Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) hlt := by
+  have harity := arity_topology_toCircuit f g
+  rw [show Fin.cast harity.symm 1 = ⟨1, by omega⟩ from Fin.ext rfl]
+  refine Wire.toNat_injective ?_
+  have h := congrArg (fun l => l.getD 1 0) (ofFn_toNat_wires_toCircuit f g)
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
+    show 1 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
+  rw [Wire.toNat_ofNat]
+  exact h
 
 /-- The lines of `toCircuit f`: gate `g` applies the truth table `G g` to the 0-indexed wires
 `A g - 1` and `B g - 1`. -/
