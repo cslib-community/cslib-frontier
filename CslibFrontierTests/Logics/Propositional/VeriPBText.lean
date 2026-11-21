@@ -592,15 +592,8 @@ lowers the value that the lower bounds are checked against to `v`, but certifies
 and rules out `UNSAT`. VeriPB 3.0.2 and CakePB give the same verdicts as this checker on every
 fixture below. -/
 
-/-- Minimize `x1 + x2 + x3` subject to `x1 + x2 >= 1` and `x2 + x3 >= 1`; the optimum is `1`. -/
-def cov : String := "* #variable= 3 #constraint= 2
-min: 1 x1 1 x2 1 x3 ;
-1 x1 1 x2 >= 1 ;
-1 x2 1 x3 >= 1 ;
-"
-
-/-- `obji 1` asserts `f ≤ 0`, constraint `3`, which contradicts constraint `1` by RUP. So every
-solution has value at least `1`, with no solution logged. -/
+/-- On `cover`, `obji 1` asserts `f ≤ 0`, constraint `3`, which contradicts constraint `1` by
+RUP. So every solution has value at least `1`, with no solution logged. -/
 def objiProof : String := "pseudo-Boolean proof version 3.0
 f 2;
 obji 1;
@@ -610,23 +603,34 @@ conclusion BOUNDS 1 : 4 INF;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB cov objiProof == some (.bounds (some 1) 4 none)
+#guard checkOPB cover objiProof == some (.bounds (some 1) 4 none)
 -- `obji` certifies no upper bound.
-#guard (checkOPB cov (objiProof.replace "4 INF" "4 1")).isNone
+#guard (checkOPB cover (objiProof.replace "4 INF" "4 1")).isNone
 -- The lower bound may not exceed the asserted value.
-#guard (checkOPB cov (objiProof.replace "BOUNDS 1" "BOUNDS 2")).isNone
+#guard (checkOPB cover (objiProof.replace "BOUNDS 1" "BOUNDS 2")).isNone
 -- After `obji`, a contradiction proves no unsatisfiability: the formula has solutions of value
 -- at least `1`.
-#guard (checkOPB cov
+#guard (checkOPB cover
   (objiProof.replace "conclusion BOUNDS 1 : 4 INF;" "conclusion UNSAT : 4;")).isNone
 -- With a logged solution of value `1` first, its improving constraint and that of `obji` are
 -- constraints `3` and `4`, and the optimum `1` is certified.
-#guard checkOPB cov ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
+#guard checkOPB cover ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
   "rup >= 1 : 3 1;\noutput NONE;\nconclusion BOUNDS 1 : 4 INF;"
   "rup >= 1 : 4 1;\noutput NONE;\nconclusion BOUNDS 1 : 5 1;") ==
   some (.bounds (some 1) 5 (some 1))
--- `obji` needs an objective.
-#guard (checkOPB "* #variable= 1 #constraint= 1\n1 x1 >= 1 ;\n" objiProof).isNone
+/-- `obji` needs an objective: on the decision problem `coverDecision`, this proof is rejected,
+while it is accepted without `obji 1` (VeriPB and CakePB agree). -/
+def objiDecision : String := "pseudo-Boolean proof version 3.0
+f 2;
+obji 1;
+sol x2;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB coverDecision (objiDecision.replace "obji 1;\n" "") == some .sat
+#guard (checkOPB coverDecision objiDecision).isNone
 
 /-! ### Soundness -/
 
