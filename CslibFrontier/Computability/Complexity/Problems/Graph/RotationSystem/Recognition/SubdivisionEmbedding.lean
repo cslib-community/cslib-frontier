@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restriction
+public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
 import Mathlib.Analysis.Normed.Module.Convex
@@ -24,7 +25,8 @@ Membership in a piece transfers to an original route parameter, which distinguis
 shared cut points from other contacts. The end pieces fit inside any prescribed
 positive radius around their original vertices. For sufficiently small radii,
 the disjoint vertex disks contain their end pieces and meet the middle pieces
-only at actual common-radius cut ports. This is original finite geometry.
+only at actual common-radius cut ports. Independent outgoing cut times also give
+literal straight end pieces. This is original finite geometry.
 -/
 
 public section
@@ -432,6 +434,72 @@ private theorem drawing_germ {I : FixedRotationInput} (cut : CutTable I) (hI : V
     change (p.cutEnds (cut i false).val (cut i true).val).endpoint true - p.endpoint true = _
     rw [cut_endpoint, add_sub_cancel_left]
 
+private theorem drawing_isEmbedding {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
+    {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) : (drawing cut hI D).IsEmbedding := by
+  refine ⟨place_injective cut hI hD, ?_, vertex_contacts cut hI hD, edge_contacts cut hI hD⟩
+  intro e
+  let i := (subdivisionEdgeIndex I e).original
+  exact (hD.simple i).trisect
+    (cut i false).property.1 (cut i true).property.1 (cut_small (cut i)) _
+
+private theorem drawing_center {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
+    (D : PolygonalDrawing I.graph) {v : ℕ} (hv : v ∈ I.graph.vertices) :
+    (drawing cut hI D).vertex v = D.vertex v := by
+  apply place_old
+  rw [hI.1] at hv
+  exact List.mem_range.mp hv
+
+private theorem drawing_leaf {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
+    (D : PolygonalDrawing I.graph) (d : Dart I.graph) :
+    (drawing cut hI D).vertex (subdivisionDart I d).reverse.vertex =
+      cutPoint cut D d.1 d.2 := by
+  rw [(subdivisionDart_endpoints I d).2]
+  have hname : I.graph.vertices.length + d.index = fresh I d.1 d.2 := by
+    simp only [fresh, Dart.index, Nat.add_assoc]
+  rw [hname]
+  exact place_fresh cut D d.1 d.2
+
+/-- Cut each outgoing end at its own positive fraction of the first segment, below one half.
+The subdivision is embedded, keeps all original vertex positions, and uses the literal
+one-segment route between each original center and its cut point, in the stored orientation. -/
+theorem exists_subdivision_embedding_at_endTimes {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) (time : Dart I.graph → ℝ)
+    (htime : ∀ d, time d ∈ Set.Ioo (0 : ℝ) (1 / 2)) :
+    ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
+      (∀ v ∈ I.graph.vertices, E.vertex v = D.vertex v) ∧
+      ∀ d : Dart I.graph,
+        let a := D.vertex d.vertex
+        let b := a + time d • D.germ d
+        E.vertex (subdivisionDart I d).reverse.vertex = b ∧
+          E.route (subdivisionDart I d).1 = if d.2 then Route.line b a else Route.line a b := by
+  let cut : CutTable I := fun i b => ⟨time (i, b), htime (i, b)⟩
+  refine ⟨drawing cut hI D, drawing_isEmbedding cut hI hD,
+    fun _ hv => drawing_center cut hI D hv, ?_⟩
+  intro d
+  refine ⟨?_, ?_⟩
+  · rw [drawing_leaf]
+    change (D.route d.1).eval ((D.route d.1).endSegment d.2) (Route.endTime d.2 (time d)) = _
+    rw [Route.eval_near_end, D.endpoint_eq]
+    rfl
+  · rcases d with ⟨i, b⟩
+    let e := subdivisionEdgeIndex I (subdivisionDart I (i, b)).1
+    let p := D.route i
+    change (D.route e.original).trisect (cut e.original false).val (cut e.original true).val
+      e.piece = _
+    dsimp only [e]
+    rw [subdivisionEdgeIndex_subdivisionDart]
+    have hc := cut_endpoint (cut i) p b
+    have ho := D.endpoint_eq i b
+    cases b
+    · change Route.line p.start (p.cutEnds (time (i, false)) (time (i, true))).start =
+        Route.line (D.vertex (Dart.vertex (i, false)))
+          (D.vertex (Dart.vertex (i, false)) + time (i, false) • p.germ false)
+      exact congrArg₂ Route.line ho (hc.trans (congrArg (· + time (i, false) • p.germ false) ho))
+    · change Route.line (p.cutEnds (time (i, false)) (time (i, true))).finish p.finish =
+        Route.line (D.vertex (Dart.vertex (i, true)) + time (i, true) • p.germ true)
+          (D.vertex (Dart.vertex (i, true)))
+      exact congrArg₂ Route.line (hc.trans (congrArg (· + time (i, true) • p.germ true) ho)) ho
+
 /-- For every sufficiently small positive radius, the original vertex disks are disjoint
 and contain their respective subdivision end pieces. Middle pieces meet the closed
 disks only at their own boundary ports. -/
@@ -488,25 +556,13 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
     have hd : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
     exact ⟨div_pos hρ.1 hd, (div_lt_iff₀ hd).mpr (by linarith [hpos i, hρ.2, hbound i])⟩
   let cut : CutTable I := fun i b => ⟨ρ / ‖D.germ (i, b)‖, htime (i, b)⟩
-  refine ⟨drawing cut hI D, ⟨place_injective cut hI hD, ?_, vertex_contacts cut hI hD,
-    edge_contacts cut hI hD⟩, ?_, ?_, ?_, ?_, ?_⟩
-  · intro e
-    let i := (subdivisionEdgeIndex I e).original
-    exact (hD.simple i).trisect
-      (cut i false).property.1 (cut i true).property.1 (cut_small (cut i)) _
-  · intro v hv
-    apply place_old
-    rw [hI.1] at hv
-    exact List.mem_range.mp hv
+  refine ⟨drawing cut hI D, drawing_isEmbedding cut hI hD,
+    fun _ hv => drawing_center cut hI D hv, ?_, ?_, ?_, ?_⟩
   · intro d
     simp only [PolygonalDrawing.direction, drawing_germ, Complex.real_smul,
       Complex.arg_real_mul _ (cut d.1 d.2).property.1]
   · intro d
-    rw [(subdivisionDart_endpoints I d).2]
-    have hname : I.graph.vertices.length + d.index = fresh I d.1 d.2 := by
-      simp only [fresh, Dart.index, Nat.add_assoc]
-    rw [hname]
-    exact (place_fresh cut D d.1 d.2).trans (D.cutPort_eq_eval ρ d).symm
+    exact (drawing_leaf cut hI D d).trans (D.cutPort_eq_eval ρ d).symm
   · intro d
     rcases d with ⟨i, b⟩
     let p := D.route i
