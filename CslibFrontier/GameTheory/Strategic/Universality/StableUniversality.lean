@@ -121,7 +121,7 @@ theorem ratioCoord_eq_iff {a b t : ℝ} (ha : a ≠ 0) (hb : b ≠ 0) :
   rw [ratioCoord, div_sub_div _ _ hb ha, div_eq_iff (mul_ne_zero hb ha)]
   constructor <;> intro h <;> linear_combination -h
 
-theorem ratioCoord_of_div_eq {a b t : ℝ} (h : a / b = ratioInv t) :
+private theorem ratioCoord_of_div_eq {a b t : ℝ} (h : a / b = ratioInv t) :
     ratioCoord a b = t := by
   rw [ratioCoord_eq, h, ratioInv_sub_inv]
 
@@ -221,12 +221,6 @@ noncomputable def ofRatio [Finite κ] {A : Set (κ → ℝ)} {B : Set (τ → �
 
 end Ratio
 
-/-- Every coordinate of a totally mixed profile is positive. -/
-theorem pos_of_isTotallyMixedNash {ι : Type*} {S : ι → Type*} [Fintype ι] [DecidableEq ι]
-    [∀ i, Fintype (S i)] {G : CostGame ι S} {x : (Σ i, S i) → ℝ}
-    (hx : G.IsTotallyMixedNash (Sigma.curry x)) (v : Σ i, S i) : 0 < x v :=
-  (G.isTotallyMixedNash_iff.1 hx).1 v.1 v.2
-
 
 /-! ### The binary game -/
 
@@ -281,7 +275,7 @@ theorem eval_clearBox_eq_zero_iff (F : Fin m → MvPolynomial (Fin n) ℝ) (j : 
 noncomputable def boxDegree (F : Fin m → MvPolynomial (Fin n) ℝ) : ℕ :=
   3 + ∑ j, (clearBox F j).totalDegree
 
-theorem le_boxDegree (F : Fin m → MvPolynomial (Fin n) ℝ) (j : Fin m) :
+private theorem le_boxDegree (F : Fin m → MvPolynomial (Fin n) ℝ) (j : Fin m) :
     ∀ e ∈ (clearBox F j).support, ∀ i, e i ≤ boxDegree F := fun _ he i =>
   (monomial_le_degreeOf i he).trans <| (degreeOf_le_totalDegree _ i).trans <|
     (single_le_sum (f := fun j => (clearBox F j).totalDegree) (fun _ _ => Nat.zero_le _)
@@ -323,7 +317,7 @@ theorem ratioMap_binaryProfile {d : ℕ} (q : DattaBinary.Player n d m → ℝ)
       ratioCoord (q (binaryPlayer k)) (1 - q (binaryPlayer k)) := by
   simp [ratioMap, binaryProfile, Sigma.uncurry]
 
-theorem exists_eq_uncurry_binaryProfile {P : Type*} [Fintype P] [DecidableEq P]
+private theorem exists_eq_uncurry_binaryProfile {P : Type*} [Fintype P] [DecidableEq P]
     {G : CostGame P fun _ => Bool} {y : (Σ _ : P, Bool) → ℝ}
     (hy : G.IsTotallyMixedNash (Sigma.curry y)) :
     ∃ q, y = Sigma.uncurry (binaryProfile q) := by
@@ -342,7 +336,7 @@ noncomputable def binaryHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) (hn 
         (binaryGame F).IsTotallyMixedNash (Sigma.curry x)} :=
   ofRatio (CostGame.isSemialgebraic_setOf_isTotallyMixedNash _)
     (num := fun k => ⟨binaryPlayer k, true⟩) (den := fun k => ⟨binaryPlayer k, false⟩)
-    (fun _ hy _ => ⟨pos_of_isTotallyMixedNash hy _, pos_of_isTotallyMixedNash hy _⟩)
+    (fun _ hy _ => ⟨hy.2 _ _, hy.2 _ _⟩)
     (fun z => Sigma.uncurry (binaryProfile (binaryPoint F z)))
     (fun z hz => by
       simp only [Set.mem_ofPred_eq, Sigma.curry_uncurry]
@@ -550,8 +544,8 @@ theorem ratioMap_simplexProfile_inr {F : Fin m → MvPolynomial (Fin n) ℝ}
       ratioCoord (q (cCoord (.inr j.1))) (1 - ∑ s, q (cCoord s)) :=
   rfl
 
-theorem exists_eq_uncurry_simplexProfile {P : Type*} {T : P → Type*} [Fintype P] [DecidableEq P]
-    [∀ p, Fintype (T p)] {G : CostGame P fun p => Option (T p)}
+private theorem exists_eq_uncurry_simplexProfile {P : Type*} {T : P → Type*} [Fintype P]
+    [DecidableEq P] [∀ p, Fintype (T p)] {G : CostGame P fun p => Option (T p)}
     {y : (Σ p, Option (T p)) → ℝ} (hy : G.IsTotallyMixedNash (Sigma.curry y)) :
     ∃ q, y = Sigma.uncurry (simplexProfile q) := by
   refine ⟨fun v => y ⟨v.1, some v.2⟩, ?_⟩
@@ -580,7 +574,7 @@ noncomputable def hornerHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) :
         (hornerGame F).IsTotallyMixedNash (Sigma.curry x)} :=
   ofRatio (CostGame.isSemialgebraic_setOf_isTotallyMixedNash _) (num := hornerNum F)
     (den := hornerDen F)
-    (fun _ hy k => ⟨pos_of_isTotallyMixedNash hy _, pos_of_isTotallyMixedNash hy _⟩)
+    (fun _ hy k => ⟨hy.2 _ _, hy.2 _ _⟩)
     (fun z => Sigma.uncurry (simplexProfile (hornerPoint F z)))
     (fun z hz => by
       simp only [Set.mem_ofPred_eq, Sigma.curry_uncurry]
