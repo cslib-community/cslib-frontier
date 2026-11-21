@@ -1101,6 +1101,60 @@ private theorem remainingReplies_advance_lt {q : State} (hp : PredecessorBounded
       · have hlt := Predecessor.advance_progress hl (some hit) (Bool.eq_false_iff.mpr hf)
         simpa [advance, hq, hf] using hlt
 
+private theorem advance_some_not_rejected (q : State) (hit : Bool)
+    (h : q.rejected = false) : (advance q (some hit)).rejected = false := by
+  cases hp : q.predecessor with
+  | none => cases hit <;> simp [advance, hp, h]
+  | some p =>
+    simp only [advance, hp]
+    split <;> exact h
+
+/-- If every in-range callback has a successful first-halt trace, the round has one too.
+A tied round update is a successful reply. -/
+theorem exists_successful_firstHalting {τ : Type} (ctx : Context)
+    (N : NondeterministicQueryMachine τ) (start : Context → Request → τ)
+    (finish : τ → Option Bool) (input : List Bool)
+    (hrequest : ∀ req, req.InRange ctx.size → ∃ callBits hit,
+      N.FirstHalting input callBits (start ctx req) ∧
+        finish (N.replay input callBits (start ctx req)) = some hit) :
+    let M := machine ctx N start finish
+    ∃ bits update, M.FirstHalting input bits M.init ∧
+      answer (M.run input bits) = some update := by
+  let M := machine ctx N start finish
+  have aux (q : State) (hctx : q.context = ctx) (hp : PredecessorBounded q)
+      (hvalid : q.rejected = false) :
+      ∃ bits update, M.FirstHalting input bits ⟨q, none⟩ ∧
+        answer (M.replay input bits ⟨q, none⟩) = some update := by
+    induction q using (measure remainingReplies).wf.induction with
+    | h q ih =>
+      cases hlive : halted q with
+      | true =>
+        exact ⟨[], q.update, ⟨hlive, by simp⟩, by simp [answer, result, hvalid]⟩
+      | false =>
+        have hreq := request_inRange hlive hp
+        rw [hctx] at hreq
+        obtain ⟨callBits, hit, hfirst, hreply⟩ := hrequest (request q) hreq
+        let next := advance q (some hit)
+        obtain ⟨rest, update, hrest, hanswer⟩ :=
+          ih next (remainingReplies_advance_lt hp hlive _)
+            ((advance_context _ _).trans hctx) (advance_predecessorBounded hlive hp _)
+            (advance_some_not_rejected q hit hvalid)
+        let bits := false :: (callBits ++ false :: rest)
+        have hread : (readRequest N start finish input q.context (request q)).run bits =
+            some (hit, rest) := by
+          change N.readReply finish input (start q.context (request q))
+            (callBits ++ false :: rest) = some (hit, rest)
+          rw [hctx]
+          exact (N.readReply_iff finish input _ _ _ _).mpr ⟨callBits, rfl, hfirst, hreply⟩
+        have hsome : (answer (M.replay input rest ⟨next, none⟩)).isSome = true := by
+          rw [hanswer]
+          rfl
+        obtain ⟨hfull, hfinal⟩ :=
+          (successful_request_iff ctx N start finish input q bits _ hlive hrest.1 hsome).mpr
+            ⟨hit, rest, hread, hrest, rfl⟩
+        exact ⟨bits, update, hfull, hfinal.symm ▸ hanswer⟩
+  exact aux (initial ctx) rfl (by simp [PredecessorBounded, initial]) rfl
+
 /-- A common clock for the round, charging the maximum number of requests and their routing. -/
 @[expose] def roundClock (size clock : ℕ) : ℕ :=
   (size + 1) * (2 * size + 1) * (clock + 2) + (clock + 1)

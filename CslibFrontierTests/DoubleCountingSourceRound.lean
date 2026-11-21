@@ -140,6 +140,15 @@ example :
       (fun q => (encMachineState (Option Bool) (encOption encBool) q).length) :=
   answer_inSpace _
 
+/-- Successful callback traces give a full round replay with no selectors left over. -/
+example : ∃ bits update, replayScan context reply start id [] bits = some (update, []) := by
+  obtain ⟨bits, update, hfirst, hanswer⟩ :=
+    exists_successful_firstHalting context reply start id [] (by
+      intro req _
+      cases req <;> exact ⟨[], _, ⟨rfl, by simp⟩, rfl⟩)
+  exact ⟨bits, update, (firstHalting_iff_replayScan context reply start id [] bits update).mp
+    ⟨hfirst, hanswer⟩⟩
+
 private def allMembers (_ : Context) (_ : Request) : Option Bool := some true
 
 private theorem nativeRoutines :
