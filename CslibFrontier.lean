@@ -43,8 +43,15 @@ public import CslibFrontier.Algorithms.Lean.BinPacking.OnlineLowerBound
 public import CslibFrontier.Algorithms.Lean.BinarySearch
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Decode
-public import CslibFrontier.Algorithms.Lean.CDCL.Naive
+public import CslibFrontier.Algorithms.Lean.CDCL.Assign
+public import CslibFrontier.Algorithms.Lean.CDCL.Dimacs
+public import CslibFrontier.Algorithms.Lean.CDCL.Exec
+public import CslibFrontier.Algorithms.Lean.CDCL.Heap
+public import CslibFrontier.Algorithms.Lean.CDCL.Luby
+public import CslibFrontier.Algorithms.Lean.CDCL.Minimize
+public import CslibFrontier.Algorithms.Lean.CDCL.Phase
 public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Algorithms.Lean.CDCL.Watched
 public import CslibFrontier.Algorithms.Lean.CSP.VariableElimination
@@ -7870,6 +7877,8 @@ public import CslibFrontier.Logics.Propositional.CNF.Coding
 public import CslibFrontier.Logics.Propositional.CNF.Compact
 public import CslibFrontier.Logics.Propositional.CNF.Compact.ModelCount
 public import CslibFrontier.Logics.Propositional.CNF.Compact.Relabel
+public import CslibFrontier.Logics.Propositional.CNF.DenseRenaming
+public import CslibFrontier.Logics.Propositional.CNF.Dimacs
 public import CslibFrontier.Logics.Propositional.CNF.Encoding
 public import CslibFrontier.Logics.Propositional.CNF.Eval
 public import CslibFrontier.Logics.Propositional.CNF.ExactDistinct
@@ -7898,6 +7907,7 @@ public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent
 public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent.Trinomial
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 public import CslibFrontier.Logics.Propositional.CNF.LRATFast
+public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
 public import CslibFrontier.Logics.Propositional.CNF.LocalLemma
 public import CslibFrontier.Logics.Propositional.CNF.Majority
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
