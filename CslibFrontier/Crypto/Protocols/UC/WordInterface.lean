@@ -90,8 +90,8 @@ namespace Crypto.Protocols.UC
 open Turing.MultiTapeTM
 open Cslib.Probability
 
-/-- A binary presentation of one typed port `netSpec Q R`: total decoders for its queries and
-replies. -/
+/-- Library construction (no cited definition): a binary presentation of one typed port
+`netSpec Q R` packaging total decoders for its queries and replies. -/
 structure WordPort (Q R : Type) : Type where
   /-- Injection from typed queries to bit words. -/
   query : Q ↪ List Bool
@@ -102,7 +102,8 @@ structure WordPort (Q R : Type) : Type where
   /-- Total polynomial-time decoder for replies. -/
   replyDecoder : Decoder reply
 
-/-- A typed interface presented over finitely many word channels. -/
+/-- Library construction (no cited definition): a typed interface presented over finitely many
+word channels. -/
 structure WordInterface {ι : Type} (E : ι → Type) : Type 1 where
   /-- Finite tag type identifying the interface's word channels. -/
   Channel : Type
@@ -240,13 +241,15 @@ def sum {ι₁ ι₂ : Type} {E₁ : ι₁ → Type} {E₂ : ι₂ → Type}
     exact computable_sum_channel_word
       left.computable_requestNormalize right.computable_requestNormalize
 
-/-- Word interface for a UC protocol `protocolSpec n In Out NetQ NetR`. -/
+/-- Library construction (no cited definition): word interface for a UC protocol
+`protocolSpec n In Out NetQ NetR`. -/
 abbrev protocol {n : ℕ} {In Out NetQ NetR : Type}
     (party : WordPort (Fin n × In) (Option Out)) (netPort : WordPort NetQ NetR) :
     WordInterface (protocolSpec n In Out NetQ NetR) :=
   sum (net party) (net netPort)
 
-/-- Word interface for a UC execution environment `execSpec n In Out AdvQ AdvR`. -/
+/-- Library construction (no cited definition): word interface for a UC execution environment
+`execSpec n In Out AdvQ AdvR`. -/
 abbrev exec {n : ℕ} {In Out AdvQ AdvR : Type}
     (party : WordPort (Fin n × In) (Option Out)) (adv : WordPort AdvQ AdvR) :
     WordInterface (execSpec n In Out AdvQ AdvR) :=
@@ -346,7 +349,8 @@ end WordInterface
 
 namespace WordPort
 
-/-- Disjoint sum of two typed word ports, e.g. for `RoutedNetQ` / `RoutedNetR`. -/
+/-- Library construction (no cited definition): disjoint sum of two typed word ports, e.g. for
+`RoutedNetQ` / `RoutedNetR`. -/
 def sum {Q₁ R₁ Q₂ R₂ : Type} (p₁ : WordPort Q₁ R₁) (p₂ : WordPort Q₂ R₂) :
     WordPort (Q₁ ⊕ Q₂) (R₁ ⊕ R₂) where
   query := encSum p₁.query p₂.query
@@ -354,8 +358,9 @@ def sum {Q₁ R₁ Q₂ R₂ : Type} (p₁ : WordPort Q₁ R₁) (p₂ : WordPor
   reply := encSum p₁.reply p₂.reply
   replyDecoder := Decoder.sum p₁.replyDecoder p₂.replyDecoder
 
-/-- Party-port word presentation for `n ≥ 1` (`[NeZero n]`) parties, encoding party indices in
-unary and decoding arbitrary words modulo `n`. -/
+/-- Library construction (no cited definition): party-port word presentation for `n ≥ 1`
+(`[NeZero n]`) parties, encoding party indices in unary and decoding arbitrary words modulo `n`.
+-/
 def party {n : ℕ} [NeZero n] {In Out : Type} (input : WordPort In Out) :
     WordPort (Fin n × In) (Option Out) :=
   let encFin : Fin n ↪ List Bool :=
@@ -383,9 +388,9 @@ namespace ProbOracleComp
 open Crypto.Protocols.UC
 open Cslib.Probability
 
-/-- Lower a typed program `ProbOracleComp E α` to a word program over `I.Channel` via
-`ProbOracleComp.simulate (I.lowerQuery limit)`, keeping private samples private and truncating
-each word reply to `limit` bits before decoding. -/
+/-- Library construction (no cited definition): lower a typed program `ProbOracleComp E α` to a
+word program over `I.Channel` via `ProbOracleComp.simulate (I.lowerQuery limit)`, keeping private
+samples private and truncating each word reply to `limit` bits before decoding. -/
 def lowerWith {ι : Type} {E : ι → Type} {α : Type}
     (I : WordInterface E) (limit : ℕ) (program : ProbOracleComp E α) :
     WordOracleComp I.Channel α :=
