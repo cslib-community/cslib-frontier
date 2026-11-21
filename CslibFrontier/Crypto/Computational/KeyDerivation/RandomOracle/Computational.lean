@@ -449,8 +449,6 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
       (fun c : (ℕ × X) × List Bool =>
         (((D c.1.1 c.1.2 c.2).runState
           fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen c.1.1) (outLen c.1.1) q).run [])) := by
-    have hsec' := hsec.tidy
-    have hout' := hout.tidy
     apply hD.isPPTOn_runState (operationEncoding := encFinEnum Unit)
       (prepare := fun c : (ℕ × X) × List Bool => (c.1.1, c.1.2, c.2))
       (resources := fun c q => 4 * q.length + 2 * outLen c.1.1 + 3)
@@ -638,8 +636,7 @@ theorem SecretGuessHard.negligible_roAdvantage {X : Type} {encX : X ↪ List Boo
   let M : ℕ → ℕ := fun n => 2 * n + 2 * (ci * (n + 1) ^ di) + outLen n + 2
   let Q : ℕ → ℕ := fun n => cD * (M n + 1) ^ dD
   have hQ : ComputableInPolyTime Q encUnary encUnary := by
-    have hout' := hout.tidy
-    exact .of_tidy (by fun_prop)
+    fun_prop
   have hDz : ∀ n, ∀ s ∈ (sample n).support, ∀ z : List Bool, z.length = outLen n →
       (D n (info n s) z).IsQueryBounded (Q n) := by
     intro n s hs z hz
