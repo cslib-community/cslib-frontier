@@ -81,6 +81,26 @@ theorem configurationSeedSearchSetup_endpoints (ntm : MultiTapeNTM k Bool State)
         (index (root bound (layeredCoordinates I (layeredTarget I)))).val) := by
   exact ⟨rfl, subdivisionEndpointIDs_eq ntm c w _⟩
 
+/-- The two fixed endpoint IDs are valid positions in the returned scan carrier. -/
+theorem configurationSeedSearchSetup_endpoints_lt_vertexCount (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let s := configurationSeedSearchSetup ntm c w
+    let n := s.parameters.search.subdivision.vertexCount
+    s.sourceID < n ∧ s.targetID < n := by
+  obtain ⟨hparams, hids⟩ := configurationSeedSearchSetup_endpoints ntm c w
+  let I := configurationInstance ntm c w
+  let p := configurationSeedSearchParameters ntm c w
+  let bound := p.search.subdivision.chainBound
+  let index := subdivisionIndex I bound
+  have hcount : p.search.subdivision.vertexCount = (((I.n - 1) + 1) * I.n) * (bound + 1) := by
+    have h := subdivisionSize_vertexCount I.n (I.n - 1)
+    rw [card_vertex, Nat.card_prod, Nat.card_fin, Nat.card_fin] at h
+    exact h
+  dsimp only
+  rw [hparams, hcount]
+  rw [(Prod.mk.inj hids).1, (Prod.mk.inj hids).2]
+  exact ⟨(index _).isLt, (index _).isLt⟩
+
 /-- The entire setup is computed natively in logarithmic workspace on the original input. -/
 theorem configurationSeedSearchSetup_inLogSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ComputableInLogSpace (configurationSeedSearchSetup ntm c) encBits encSeedSearchSetup :=
