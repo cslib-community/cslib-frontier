@@ -1424,21 +1424,6 @@ theorem not_satisfiable_cnf_of_checkRed {φ : CNF ℕ} {obj : Option Objective} 
   obtain ⟨cl, hcl, rfl⟩ := List.mem_map.mp hc
   exact (Clause.holds_toPB_iff σ cl).2 ((CNF.eval_eq_true_iff σ φ).1 hσ cl hcl)
 
-/-- **Soundness for `SAT`**: a formula with a checked proof of `SAT`, with or without an
-assignment, has a solution. -/
-theorem exists_satisfies_of_checkRed {F : List PBConstr} {obj : Option Objective}
-    {P : RedProof} {asg : Option (List (Literal ℕ))} (h : checkRed F obj P = true)
-    (hc : P.conclusion = .sat asg) : ∃ σ, ∀ c ∈ F, c.Holds σ := by
-  obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
-  rw [hc] at hconc
-  cases asg with
-  | none =>
-    simp only [checkConclusion, Option.isSome_iff_exists] at hconc
-    obtain ⟨ρ, hρ⟩ := hconc
-    obtain ⟨σ, hσ, -⟩ := hinv.wit ρ hρ
-    exact ⟨σ, hσ⟩
-  | some ρ => exact ⟨_, holds_of_solves_normalize hconc⟩
-
 /-- **Soundness for `SAT : ρ`**: the stated assignment is a solution of the formula. -/
 theorem holds_of_checkRed_sat {F : List PBConstr} {obj : Option Objective} {P : RedProof}
     {ρ : List (Literal ℕ)} (h : checkRed F obj P = true) (hc : P.conclusion = .sat (some ρ)) :
@@ -1446,6 +1431,21 @@ theorem holds_of_checkRed_sat {F : List PBConstr} {obj : Option Objective} {P : 
   obtain ⟨s, hconc, -, -⟩ := reaches_of_checkRed h
   rw [hc] at hconc
   exact holds_of_solves_normalize hconc
+
+/-- **Soundness for `SAT`**: a formula with a checked proof of `SAT`, with or without an
+assignment, has a solution. -/
+theorem exists_satisfies_of_checkRed {F : List PBConstr} {obj : Option Objective}
+    {P : RedProof} {asg : Option (List (Literal ℕ))} (h : checkRed F obj P = true)
+    (hc : P.conclusion = .sat asg) : ∃ σ, ∀ c ∈ F, c.Holds σ := by
+  cases asg with
+  | none =>
+    obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
+    rw [hc] at hconc
+    simp only [checkConclusion, Option.isSome_iff_exists] at hconc
+    obtain ⟨ρ, hρ⟩ := hconc
+    obtain ⟨σ, hσ, -⟩ := hinv.wit ρ hρ
+    exact ⟨σ, hσ⟩
+  | some ρ => exact ⟨_, holds_of_checkRed_sat h hc⟩
 
 /-- **Soundness for the lower bound of `BOUNDS`**: if the checker accepts
 `conclusion BOUNDS lb : q ub` with a finite `lb` for the formula `F` and the objective `f`, then
@@ -1482,28 +1482,6 @@ theorem not_satisfiable_of_checkRed_bounds {F : List PBConstr} {f : Objective} {
   · simp [hτ.not_namesContra] at hq
   · simp [hbest] at hρ
 
-/-- **Soundness for the upper bound of `BOUNDS`**: if the checker accepts
-`conclusion BOUNDS lb : q ub` with a finite `ub` for the formula `F` and the objective `f`, then
-some solution of `F` has objective at most `ub`. With the lower bound
-(`Cslib.Logic.PL.VeriPB.le_eval_of_checkRed`), the optimum lies in `[lb, ub]`. -/
-theorem exists_eval_le_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof}
-    {lb : Option ℤ} {q : ℕ} {ub : ℤ} {asg : Option (List (Literal ℕ))}
-    (h : checkRed F (some f) P = true) (hc : P.conclusion = .bounds lb q (some ub) asg) :
-    ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ f.eval σ ≤ ub := by
-  obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
-  rw [hc] at hconc
-  cases asg with
-  | none =>
-    simp only [checkConclusion, boundsOk, Bool.and_eq_true, Option.any_eq_true,
-      beq_iff_eq] at hconc
-    obtain ⟨-, ρ, hρ, hval⟩ := hconc
-    obtain ⟨σ, hσ, hle⟩ := hinv.wit ρ hρ
-    exact ⟨σ, hσ, hval ▸ hle⟩
-  | some ρ =>
-    simp only [checkConclusion, boundsOk, Bool.and_eq_true, beq_iff_eq] at hconc
-    obtain ⟨-, ⟨hsol, -⟩, hval⟩ := hconc
-    exact ⟨_, holds_of_solves_normalize hsol, hval.le⟩
-
 /-- **Soundness for `BOUNDS lb : q ub : ρ`**: the stated assignment is a solution of the formula
 with objective value exactly `ub`. -/
 theorem holds_of_checkRed_bounds {F : List PBConstr} {f : Objective} {P : RedProof}
@@ -1515,6 +1493,27 @@ theorem holds_of_checkRed_bounds {F : List PBConstr} {f : Objective} {P : RedPro
   simp only [checkConclusion, boundsOk, Bool.and_eq_true, beq_iff_eq] at hconc
   obtain ⟨-, ⟨hsol, -⟩, hval⟩ := hconc
   exact ⟨holds_of_solves_normalize hsol, hval⟩
+
+/-- **Soundness for the upper bound of `BOUNDS`**: if the checker accepts
+`conclusion BOUNDS lb : q ub` with a finite `ub` for the formula `F` and the objective `f`, then
+some solution of `F` has objective at most `ub`. With the lower bound
+(`Cslib.Logic.PL.VeriPB.le_eval_of_checkRed`), the optimum lies in `[lb, ub]`. -/
+theorem exists_eval_le_of_checkRed {F : List PBConstr} {f : Objective} {P : RedProof}
+    {lb : Option ℤ} {q : ℕ} {ub : ℤ} {asg : Option (List (Literal ℕ))}
+    (h : checkRed F (some f) P = true) (hc : P.conclusion = .bounds lb q (some ub) asg) :
+    ∃ σ, (∀ c ∈ F, c.Holds σ) ∧ f.eval σ ≤ ub := by
+  cases asg with
+  | none =>
+    obtain ⟨s, hconc, hinv, -⟩ := reaches_of_checkRed h
+    rw [hc] at hconc
+    simp only [checkConclusion, boundsOk, Bool.and_eq_true, Option.any_eq_true,
+      beq_iff_eq] at hconc
+    obtain ⟨-, ρ, hρ, hval⟩ := hconc
+    obtain ⟨σ, hσ, hle⟩ := hinv.wit ρ hρ
+    exact ⟨σ, hσ, hval ▸ hle⟩
+  | some ρ =>
+    obtain ⟨hσ, hval⟩ := holds_of_checkRed_bounds h hc
+    exact ⟨_, hσ, hval.le⟩
 
 /-! ### Proofs without redundance and solutions -/
 
