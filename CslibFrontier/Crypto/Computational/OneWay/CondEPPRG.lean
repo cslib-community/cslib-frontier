@@ -85,11 +85,18 @@ $(\mu, \gamma)$-condEP-PRG with entropy-loss constant $\alpha$ if:
 2. $G$ stretches every $n$-bit seed $z \in \{0, 1\}^n$ to length
    $n + \gamma \lfloor \log_2 n \rfloor$,
 3. there exists a sequence of nonempty conditioning events $E_n \subseteq \{0, 1\}^n$ such that:
-   - **(Conditional pseudorandomness):** For every strict PPT distinguisher $\mathcal{A}$,
+   - **(Conditional pseudorandomness):** For every uniform strict PPT distinguisher $\mathcal{A}$,
      eventually in $n$, the distinguishing advantage between $G(U_n \mid E_n)$ and
-     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$,
+     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$ (`≤ μ n`; note that
+     [LiuPass2020], Definition 2.6, p. 9 writes strict `< μ(n)`),
    - **(Conditional entropy preservation):** Eventually in $n$, the Shannon entropy of
-     $G(U_n \mid E_n)$ is at least $n - \alpha \lfloor \log_2 n \rfloor$. -/
+     $G(U_n \mid E_n)$ (base 2) is at least $n - \alpha \lfloor \log_2 n \rfloor$.
+
+Deviations from Definition 5.1: `γ` and `α` are natural numbers with `Nat.log 2 n` (`⌊log₂ n⌋`) in
+place of real constants and `log n`; `α` is an explicit parameter of `CondEPPRG` rather than
+existentially quantified; `E n` is explicitly required to be nonempty; distinguishers are uniform
+strict PPT (`IsPPT encBool`) rather than general PPT machines clocked only in `1^n`; and the
+distinguishing bound uses `≤ μ n` instead of `< μ(n)`. -/
 def CondEPPRG (G : List Bool → List Bool) (μ : ℕ → ℝ) (γ α : ℕ) : Prop :=
   ComputableInPolyTime G encBits encBits ∧
   (∀ z : List Bool, (G z).length = z.length + γ * Nat.log 2 z.length) ∧
