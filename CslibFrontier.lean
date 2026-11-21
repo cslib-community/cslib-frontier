@@ -3576,6 +3576,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.D
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryField
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryFieldHorner
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryModulus
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitGame
@@ -7032,6 +7033,7 @@ public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
+public import CslibFrontier.Foundations.FieldTheory.Finite.HornerCoordinates
 public import CslibFrontier.Foundations.FieldTheory.Finite.LinearizedPolynomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.ReducedMonomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.Subfield
