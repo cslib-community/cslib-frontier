@@ -5,8 +5,9 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Crypto.Computational.SIS.MR07Core
+import CslibFrontier.Crypto.Computational.SIS.MR07Core
 import CslibFrontier.Foundations.Probability.Gaussian.MassBounds
 import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 import Mathlib.Analysis.Real.Pi.Bounds
@@ -19,22 +20,25 @@ Micciancio–Regev `IncGDD` to `ℓ₂`-SIS core reduction on the concrete 2-D l
 `B = I₂` and `S = diag(2, 3)` (`det S = 6`, index `6`):
 
 1. Exact cardinalities (`card_gridRep`, `card_sublatticeQuot`), `finrank_intLattice`,
-   `norm_intColCast`, and dual-mass monotonicity (`gaussianMass_dual_gridLattice_le`,
-   `gaussianMass_dual_intReal_le_of_intLattice`).
-2. Discrete-grid marginal closeness (`idealGridSample_fst_closeTo_uniform`, MR07 Lemma 5.7 step)
-   with the dual-mass premise discharged from scratch via
+   `norm_intColCast`, and dual-mass monotonicity (`gaussianMass_dual_gridLattice_le`).
+2. Discrete-grid joint factorization (`idealGridSample_eq_bind_discreteGaussian`) and marginal
+   closeness (`idealGridSample_fst_closeTo_uniform`, discrete-grid step toward
+   [MicciancioRegev2007], Lemma 5.7) with the dual-mass premise discharged from scratch via
    `ZLattice.gaussianMass_dual_sub_one_le_of_gap`.
-3. HNF-free uniform quotient sampling (`map_quotientHom_uniform_eq_uniform_sublatticeQuot`),
-   uniform SIS matrix distribution (`idealCombine_matrix_eq_uniform`), unconditional lattice
-   membership on a non-kernel vector (`combineOutput_mem_intLattice`), and the MR07 Lemma 5.8 norm
-   bound on a nonzero kernel vector (`combineOutput_mem_intLattice_and_norm_sub_le`).
-4. Non-vacuous instantiation of `incGDD_succProb_of_sisEll2`,
-   `idealIncGDDStep_support_mem_intLattice`, and `incGDD_succProb_of_closeTo` on
-   `(n = 2, m = 2, q = 4, β = 1, g = 1, r = 6, ε = 1 / 10000)` yielding an explicit strictly
-   positive lower bound `1 / 4000 > 0`.
+3. HNF-free uniform quotient sampling (`map_quotientHom_uniform_eq_uniform_sublatticeQuot`,
+   `quotientHom_toVec`), uniform SIS matrix distribution (`idealCombine_matrix_eq_uniform`),
+   unconditional lattice membership on a non-kernel vector (`combineOutput_mem_intLattice`), and
+   the combining norm bound on a nonzero kernel vector
+   (`combineOutput_mem_intLattice_and_norm_sub_le`), plus the explicit map/parallelepiped
+   characterizations (`idealGridSample_eq_map`, `combineColumn_fst_toVec`, `combineColumn_snd_val`).
+4. Non-vacuous instantiation of `idealIncGDDStep_succProb_of_sisEll2`,
+   `idealIncGDDStep_support_mem_intLattice`, and `incGDD_succProb_of_closeTo_idealIncGDDStep` on
+   `(n = 2, m = 2, q = 4, β = 1, g = 1, r = 6, ε = 1 / 10000)` for an arbitrary target
+   `t : EuclideanSpace ℝ (Fin 2)`, yielding an explicit strictly positive lower bound
+   `1 / 4000 > 0`.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.SISMR07Core
 
@@ -43,10 +47,10 @@ open ZLattice Module MeasureTheory ProbabilityTheory
 open scoped _root_.Matrix BigOperators ENNReal NNReal RealInnerProductSpace
 
 /-- Standard 2-D integer identity basis `B = I₂`. -/
-@[expose] def toyB : Matrix (Fin 2) (Fin 2) ℤ := 1
+def toyB : Matrix (Fin 2) (Fin 2) ℤ := 1
 
 /-- Non-isotropic 2-D sublattice basis `S = diag(2, 3)` of index `6` in `ℤ²`. -/
-@[expose] def toyS : Matrix (Fin 2) (Fin 2) ℤ := !![2, 0; 0, 3]
+def toyS : Matrix (Fin 2) (Fin 2) ℤ := !![2, 0; 0, 3]
 
 private theorem toyB_det : toyB.det = 1 := by
   decide
@@ -86,18 +90,13 @@ theorem test_part1_cards :
   · exact finrank_intLattice toyB_det_ne
   · exact norm_intColCast toyB toyS toyB_det_ne
 
-/-- Part 1 dual-mass monotonicity checks on `toyB = I₂` (both grid `G_4` and 1-D `ℤ`). -/
+/-- Part 1 dual-mass monotonicity check on `toyB = I₂` and fine grid `G_4`. -/
 theorem test_part1_dual_mono :
     gaussianMass (LinearMap.BilinForm.dualSubmodule
         (innerₗ (EuclideanSpace ℝ (Fin 2))) (gridLattice 2 4)) (1 / 6) 0 - 1 ≤
       gaussianMass (LinearMap.BilinForm.dualSubmodule
-        (innerₗ (EuclideanSpace ℝ (Fin 2))) (intLattice toyB)) (1 / 6) 0 - 1 ∧
-    gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal) (1 / 6) 0 - 1 ≤
-      gaussianMass (LinearMap.BilinForm.dualSubmodule
         (innerₗ (EuclideanSpace ℝ (Fin 2))) (intLattice toyB)) (1 / 6) 0 - 1 :=
-  ⟨gaussianMass_dual_gridLattice_le toyB_det_ne (by decide : 0 < 4) (by norm_num : (0 : ℝ) < 6),
-   gaussianMass_dual_intReal_le_of_intLattice (by decide : 1 ≤ 2) toyB_det_ne
-     (by norm_num : (0 : ℝ) < 6)⟩
+  gaussianMass_dual_gridLattice_le toyB_det_ne (by decide : 0 < 4) (by norm_num : (0 : ℝ) < 6)
 
 /-- Dual of `intLattice toyB = ℤ²` has minimum nonzero vector norm at least `1`. -/
 private theorem dual_toyB_gap
@@ -176,10 +175,15 @@ private theorem toyB_dual_mass_le :
     _ ≤ 4 * ((2 : ℝ) ^ (40 : ℕ))⁻¹ := by linarith
     _ ≤ (1 / 10000 : ℝ) / (1 + 1 / 10000) := by norm_num
 
-/-- Part 2 check: discrete-grid marginal closeness on `toyB = I₂`, `q = 4`, `ε = 1 / 10000`. -/
-theorem test_part2_grid_closeTo (t : EuclideanSpace ℝ (Fin 2)) :
+/-- Part 2 check: exact conditional discrete-Gaussian factorization
+(`idealGridSample_eq_bind_discreteGaussian`) and discrete-grid marginal closeness
+(`idealGridSample_fst_closeTo_uniform`) on `toyB = I₂`, `q = 4`, `ε = 1 / 10000`. -/
+theorem test_part2_grid_sample (t : EuclideanSpace ℝ (Fin 2)) :
     let s : ℝ := 2 * (6 : ℝ) / ((1 : ℝ) * Real.sqrt (2 : ℕ))
     have hs : 0 < s := by positivity
+    (idealGridSample toyB toyB_det_ne 4 (by decide) s hs t =
+      ((idealGridSample toyB toyB_det_ne 4 (by decide) s hs t).map Prod.fst).bind fun c =>
+        (ZLattice.discreteGaussian (intLattice toyB) s hs (t + c.toVec)).map fun y => (c, y)) ∧
     CloseTo ((idealGridSample toyB toyB_det_ne 4 (by decide) s hs t).map Prod.fst)
       (PMF.uniformOfFintype (GridRep toyB 4))
       (ENNReal.ofReal ((1 / 10000 : ℝ) / (2 * (1 - 1 / 10000)))) := by
@@ -196,12 +200,13 @@ theorem test_part2_grid_closeTo (t : EuclideanSpace ℝ (Fin 2)) :
     have hdual2 := toyB_dual_mass_le
     dsimp only [s] at hle ⊢
     linarith
-  exact idealGridSample_fst_closeTo_uniform toyB toyB_det_ne 4 (by decide) hs
-    (by norm_num) (by norm_num) hdual_s t
+  exact ⟨idealGridSample_eq_bind_discreteGaussian toyB toyB_det_ne 4 (by decide) s hs t,
+    idealGridSample_fst_closeTo_uniform toyB toyB_det_ne 4 (by decide) hs
+      (by norm_num) (by norm_num) hdual_s t⟩
 
 /-- Part 3 checks: HNF-free quotient surjection, uniform SIS matrix distribution,
-unconditional lattice membership on a non-kernel `z = ![1, 1]`, and the MR07 Lemma 5.8
-norm bound on the nonzero kernel vector `z = ![4, 0]`. -/
+unconditional lattice membership on a non-kernel `z = ![1, 1]`, and the combining norm bound
+on the nonzero kernel vector `z = ![4, 0]`. -/
 theorem test_part3_combine
     (V : Fin 2 → SublatticeQuot toyB toyS) (C : Fin 2 → GridRep toyB 4) :
     letI : NeZero (toyS.det / toyB.det).natAbs :=
@@ -209,7 +214,7 @@ theorem test_part3_combine
         rw [← card_sublatticeQuot toyB_det_ne toyS_det_ne toyS_le_toyB]
         exact Fintype.card_ne_zero⟩
     (PMF.uniformOfFintype (Fin 2 → ZMod (toyS.det / toyB.det).natAbs)).map
-        (quotientHom toyB toyS toyB_det_ne toyS_det_ne toyS_le_toyB) =
+        (quotientHom toyB toyS toyS_det_ne toyS_le_toyB) =
       PMF.uniformOfFintype (SublatticeQuot toyB toyS) ∧
     (PMF.uniformOfFintype (Fin 2 → GridRep toyB 4)).bind
       (fun C' => (PMF.uniformOfFintype (Fin 2 → SublatticeQuot toyB toyS)).map
@@ -225,17 +230,19 @@ theorem test_part3_combine
       toyB_det_ne toyS_det_ne toyS_le_toyB
   · exact idealCombine_matrix_eq_uniform toyB toyS toyB_det_ne toyS_det_ne toyS_le_toyB
   · exact combineOutput_mem_intLattice toyB toyS toyS_det_ne toyS_le_toyB 4 (by decide) V C ![1, 1]
-  · have hker : combineMatrix toyB toyS 4 V C *ᵥ
-        (fun i => ((![4, 0] : Fin 2 → ℤ) i : ZMod 4)) = 0 := by
+  · have hker : InKernelLattice (combineMatrix toyB toyS 4 V C) ![4, 0] := by
+      unfold InKernelLattice
       have h4 : (4 : ZMod 4) = 0 := rfl
       ext i
       simp [Matrix.mulVec, dotProduct, Fin.sum_univ_two, h4]
     exact (combineOutput_mem_intLattice_and_norm_sub_le (by decide : 0 < 4) toyB toyS
       toyS_det_ne toyS_le_toyB V C ![4, 0] hker).2
 
-/-- Public PR 2.6 bridge characterizations (`idealGridSample_eq_map`, `combineColumn_fst_toVec`,
-and `combineColumn_snd_val`) exercised on `toyB = I₂` and `toyS = diag(2, 3)`. -/
-theorem test_part2_part3_bridges
+/-- Explicit map and parallelepiped characterizations (`idealGridSample_eq_map`,
+`quotientHom_toVec`, `combineColumn_fst_toVec`, and `combineColumn_snd_val`) exercised on
+`toyB = I₂` and `toyS = diag(2, 3)`. -/
+theorem test_part2_part3_interfaces
+    (x : Fin 2 → ZMod (toyS.det / toyB.det).natAbs)
     (v : SublatticeQuot toyB toyS) (c : GridRep toyB 4) (k : Fin 2)
     (t : EuclideanSpace ℝ (Fin 2))
     (f : gridLattice 2 4 → GridRep toyB 4 × intLattice toyB)
@@ -243,16 +250,20 @@ theorem test_part2_part3_bridges
     (hf_snd : ∀ r, ((f r).2 : EuclideanSpace ℝ (Fin 2)) = r.1 + (f r).1.toVec) :
     idealGridSample toyB toyB_det_ne 4 (by decide) 6 (by norm_num) t =
       (ZLattice.discreteGaussian (gridLattice 2 4) 6 (by norm_num) t).map f ∧
+    (quotientHom toyB toyS toyS_det_ne toyS_le_toyB x).toVec =
+      modParallelepiped toyS
+        (WithLp.toLp 2 (fun i => ((toyB *ᵥ fun j => ((x j).val : ℤ)) i : ℝ))) ∧
     (combineColumn toyB toyS 4 v c).1.toVec = modParallelepiped toyS (v.toVec + c.toVec) ∧
     (((combineColumn toyB toyS 4 v c).2 k).val : ℤ) =
       Int.floor ((4 : ℝ) * (((toyS.map (Int.cast : ℤ → ℝ))⁻¹ *ᵥ
         WithLp.ofLp (combineColumn toyB toyS 4 v c).1.toVec) k)) :=
   ⟨idealGridSample_eq_map toyB toyB_det_ne 4 (by decide) 6 (by norm_num) t f hf_fst hf_snd,
+   quotientHom_toVec toyB toyS toyS_det_ne toyS_le_toyB x,
    combineColumn_fst_toVec toyS_det_ne (by decide : 0 < 4) v c,
    by simpa using combineColumn_snd_val toyS_det_ne (by decide : 0 < 4) v c k⟩
 
 /-- Deterministic toy `ℓ₂`-SIS solver outputting the first standard basis vector `![1, 0]`. -/
-@[expose] def toySolver : Matrix (Fin 2) (Fin 2) (ZMod 4) → ProbComp (Fin 2 → ℤ) :=
+def toySolver : Matrix (Fin 2) (Fin 2) (ZMod 4) → ProbComp (Fin 2 → ℤ) :=
   fun _ => pure ![1, 0]
 
 private theorem toySolver_adv_ge :
@@ -287,26 +298,28 @@ private theorem toySolver_adv_ge :
   rw [h1]
   exact htoR
 
-/-- Part 4 non-vacuous check: all hypotheses of `incGDD_succProb_of_sisEll2` and
-`incGDD_succProb_of_closeTo` are simultaneously satisfied on `(n=2, m=2, q=4, B=I₂, S=diag(2,3),
-β=1, g=1, r=6, ε=1/10000)` with a strictly positive concrete lower bound `1 / 4000 > 0`. -/
-theorem test_part4_incGDD_nonvacuous :
+/-- Part 4 non-vacuous check: all hypotheses of `idealIncGDDStep_succProb_of_sisEll2` and
+`incGDD_succProb_of_closeTo_idealIncGDDStep` are simultaneously satisfied on
+`(n = 2, m = 2, q = 4, B = I₂, S = diag(2, 3), β = 1, g = 1, r = 6, ε = 1 / 10000)` for any
+target `t : EuclideanSpace ℝ (Fin 2)` (including non-origin targets where `0 ∈ L(B)` is not a
+trivial `IncGDD` solution), with a strictly positive concrete lower bound `1 / 4000 > 0`. -/
+theorem test_part4_incGDD_nonvacuous (t : EuclideanSpace ℝ (Fin 2)) :
     (1 / 4000 : ℝ) ≤
-      ((idealIncGDDStep toyB toyS toyB_det_ne toyS_det_ne toyS_le_toyB
-          1 6 le_rfl (by norm_num) 0 toySolver).toOuterMeasure
+      ((idealIncGDDStep toyB toyS toyB_det_ne
+          1 6 le_rfl (by norm_num) t toySolver).toOuterMeasure
         {v | IncGDD.IsSolution 1 (intLattice toyB)
-          (intColCast toyB toyS toyB_det_ne) 0 6 v}).toReal ∧
-    (∀ v ∈ (idealIncGDDStep toyB toyS toyB_det_ne toyS_det_ne toyS_le_toyB
-          1 6 le_rfl (by norm_num) 0 toySolver).support, v ∈ intLattice toyB) ∧
+          (intColCast toyB toyS toyB_det_ne) t 6 v}).toReal ∧
+    (∀ v ∈ (idealIncGDDStep toyB toyS toyB_det_ne
+          1 6 le_rfl (by norm_num) t toySolver).support, v ∈ intLattice toyB) ∧
     (∀ μ : PMF (EuclideanSpace ℝ (Fin 2)),
       CloseTo μ
-        (idealIncGDDStep toyB toyS toyB_det_ne toyS_det_ne toyS_le_toyB
-          1 6 le_rfl (by norm_num) 0 toySolver)
+        (idealIncGDDStep toyB toyS toyB_det_ne
+          1 6 le_rfl (by norm_num) t toySolver)
         (ENNReal.ofReal (1 / 100000 : ℝ)) →
       (1 / 5000 : ℝ) ≤
         (μ.toOuterMeasure
           {v | IncGDD.IsSolution 1 (intLattice toyB)
-            (intColCast toyB toyS toyB_det_ne) 0 6 v}).toReal) := by
+            (intColCast toyB toyS toyB_det_ne) t 6 v}).toReal) := by
   have hsqrt2_lt : Real.sqrt 2 < 2 := by
     rw [Real.sqrt_lt' (by norm_num)]
     norm_num
@@ -319,11 +332,11 @@ theorem test_part4_incGDD_nonvacuous :
   have hq : (1 : ℝ) * (2 : ℕ) * Real.sqrt (2 : ℕ) * 1 ≤ (4 : ℕ) := by
     simp only [Nat.cast_ofNat]
     nlinarith
-  have hbase := incGDD_succProb_of_sisEll2 (q := 4)
+  have hbase := idealIncGDDStep_succProb_of_sisEll2 (q := 4)
     (by decide : 1 ≤ 2) (by decide : 1 ≤ 2)
     toyB toyS toyB_det_ne toyS_det_ne toyS_le_toyB
     (β := 1) (g := 1) (r := 6) (ε := 1 / 10000)
-    le_rfl zero_lt_one (by norm_num) (by norm_num) hε hq toyB_dual_mass_le 0 toySolver
+    le_rfl zero_lt_one (by norm_num) (by norm_num) hε hq toyB_dual_mass_le t toySolver
   have hfloor : (Nat.floor (1 : ℝ) : ℝ) = 1 := by norm_num
   have hadv := toySolver_adv_ge
   have hnum : (1 / 4000 : ℝ) ≤
@@ -335,14 +348,14 @@ theorem test_part4_incGDD_nonvacuous :
     linarith
   refine ⟨hnum.trans hbase, ?_, ?_⟩
   · exact fun _ hv => idealIncGDDStep_support_mem_intLattice toyB toyS toyB_det_ne toyS_det_ne
-      toyS_le_toyB 1 6 le_rfl (by norm_num) 0 toySolver hv
+      toyS_le_toyB 1 6 le_rfl (by norm_num) t toySolver hv
   · intro μ hclose
-    have htr := incGDD_succProb_of_closeTo (q := 4)
+    have htr := incGDD_succProb_of_closeTo_idealIncGDDStep (q := 4)
       (by decide : 1 ≤ 2) (by decide : 1 ≤ 2)
       toyB toyS toyB_det_ne toyS_det_ne toyS_le_toyB
       (β := 1) (g := 1) (r := 6) (ε := 1 / 10000) (η := 1 / 100000)
       le_rfl zero_lt_one (by norm_num) (by norm_num) hε (by norm_num)
-      hq toyB_dual_mass_le 0 toySolver μ hclose
+      hq toyB_dual_mass_le t toySolver μ hclose
     linarith
 
 end CslibFrontierTests.Crypto.SISMR07Core

@@ -21,6 +21,7 @@ import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.StatisticalDistance.Product
+import CslibFrontier.Probability.Uniform
 import Mathlib.Algebra.Order.Chebyshev
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.LinearAlgebra.FreeModule.Finite.CardQuotient
@@ -36,13 +37,14 @@ incremental guaranteed distance decoding (`IncGDD`) to the Euclidean short integ
 
 Strict-PPT sampler realization, independent amplification, iterative basis shortening, and the
 asymptotic worst-case-to-average-case theorems (`Theorem 5.9`, `Corollary 5.13`, `Theorem 5.16`)
-are not formalized here; they are separate work built on this core.
+are not formalized here; they are tracked separately in
+[#6861](https://github.com/cslib-community/cslib-frontier/issues/6861).
 
 ## Main definitions
 
-* `Cslib.Crypto.SIS.MR07.intCol`, `intLattice`, `gridLattice`, `intLatticeReal`,
-  `modParallelepiped`, `GridRep`, `SublatticeQuot`: full-rank integer lattice bases, the fine grid
-  `G_q = (1 / q) ℤⁿ`, and finite parallelepiped representative types.
+* `Cslib.Crypto.SIS.MR07.intCol`, `intLattice`, `gridLattice`, `modParallelepiped`, `GridRep`,
+  `SublatticeQuot`: full-rank integer lattice bases, the fine grid `G_q = (1 / q) ℤⁿ`, and finite
+  parallelepiped representative types.
 * `Cslib.Crypto.SIS.MR07.idealGridSample`: ideal discrete-grid sampler producing `(c, y)` with
   `c ∈ G_q ∩ P(B)` and `y ∈ L(B)`.
 * `Cslib.Crypto.SIS.MR07.quotientHom`, `combineColumn`, `combineMatrix`, `combineOutput`: HNF-free
@@ -53,21 +55,19 @@ are not formalized here; they are separate work built on this core.
 
 ## Main results
 
-* `Cslib.Crypto.SIS.MR07.card_gridRep`, `card_sublatticeQuot`,
-  `gaussianMass_dual_gridLattice_le`, `gaussianMass_dual_intReal_le_of_intLattice`: exact
-  cardinalities and dual-mass monotonicity for `G_q` and `ℤ ⊂ ℝ`.
-* `Cslib.Crypto.SIS.MR07.idealGridSample_eq_map`, `idealGridSample_eq_bind_discreteGaussian`,
+* `Cslib.Crypto.SIS.MR07.card_gridRep`, `card_sublatticeQuot`, `gaussianMass_dual_gridLattice_le`:
+  exact cardinalities and dual-mass monotonicity for the discrete grid `G_q = (1 / q) ℤⁿ`.
+* `Cslib.Crypto.SIS.MR07.idealGridSample_eq_bind_discreteGaussian`,
   `idealGridSample_fst_closeTo_uniform`: finite discrete-grid sampling lemma (discrete-grid step
   toward [MicciancioRegev2007], Lemma 5.7, p. 20).
 * `Cslib.Crypto.SIS.MR07.map_quotientHom_uniform_eq_uniform_sublatticeQuot`,
-  `combineColumn_fst_toVec`, `combineColumn_snd_val`, `idealCombine_matrix_eq_uniform`,
-  `combineOutput_mem_intLattice`, `combineOutput_mem_intLattice_and_norm_sub_le`: HNF-free uniform
-  quotient sampling and discrete-grid combining lemma (discrete-grid step toward
-  [MicciancioRegev2007], Lemma 5.8, pp. 20–21), with unconditional lattice membership of
-  `combineOutput`.
+  `idealCombine_matrix_eq_uniform`, `combineOutput_mem_intLattice`,
+  `combineOutput_mem_intLattice_and_norm_sub_le`: HNF-free uniform quotient sampling and
+  discrete-grid combining lemma (discrete-grid step toward [MicciancioRegev2007], Lemma 5.8,
+  pp. 20–21), with unconditional lattice membership of `combineOutput`.
 * `Cslib.Crypto.SIS.MR07.idealIncGDDStep_support_mem_intLattice`,
-  `incGDD_succProb_of_sisEll2`, `incGDD_succProb_of_closeTo`: unconditional output membership in
-  `L(B)`, single-call success probability lower bound
+  `idealIncGDDStep_succProb_of_sisEll2`, `incGDD_succProb_of_closeTo_idealIncGDDStep`:
+  unconditional output membership in `L(B)`, single-call success probability lower bound
   `(1 / 3) * (δ / (2 * ⌊β⌋ * m) - m * ε / (2 * (1 - ε)))` (finite distributional step toward
   [MicciancioRegev2007], Theorem 5.9, pp. 22–24), and `CloseTo` transfer to approximate samplers.
 
@@ -97,14 +97,12 @@ open scoped _root_.Matrix BigOperators ENNReal NNReal RealInnerProductSpace
     Submodule ℤ (EuclideanSpace ℝ (Fin n)) :=
   Submodule.span ℤ (Set.range (intCol B))
 
-/-- Fine discrete grid lattice `G_q = (1 / q) ℤⁿ ⊂ ℝⁿ` (MR07 §2, p. 8). -/
+/-- Fine discrete grid lattice `G_q = (1 / q) ℤⁿ ⊂ ℝⁿ`. [MicciancioRegev2007] §2 (p. 8) remarks in
+prose on fine-grid discretization; setting `G_q = (1 / q) ℤⁿ` at the SIS modulus `q` is this
+module's representation choice. -/
 @[expose] noncomputable def gridLattice (n q : ℕ) : Submodule ℤ (EuclideanSpace ℝ (Fin n)) :=
   Submodule.span ℤ (Set.range fun j : Fin n =>
     ((q : ℝ)⁻¹ : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ j)
-
-/-- Standard 1-D integer lattice `ℤ ⊂ ℝ`. -/
-@[expose] def intLatticeReal : Submodule ℤ ℝ :=
-  Submodule.span ℤ {(1 : ℝ)}
 
 /-- Real matrix cast of an integer matrix. -/
 private abbrev matR {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) : Matrix (Fin n) (Fin n) ℝ :=
@@ -344,89 +342,6 @@ theorem gaussianMass_dual_gridLattice_le {n : ℕ} {B : Matrix (Fin n) (Fin n) �
     ((summable_gaussianWeight _ (1 / s) hinv 0).subtype _).congr fun w => by simp
   exact hsumG.tsum_le_tsum_of_inj f hfinj (fun _ _ => (gaussianWeight_pos _ _).le)
     (fun _ => le_rfl) hsumD
-
-/-- The integer lattice `ℤ ⊂ ℝ` is discrete and full-rank. -/
-instance discreteTopology_intLatticeReal : DiscreteTopology intLatticeReal := by
-  have hZ_eq : intLatticeReal = Submodule.span ℤ (Set.range (Basis.singleton Unit ℝ)) := by
-    ext x; simp [intLatticeReal]
-  exact discreteTopology_of_eq hZ_eq
-
-instance isZLattice_intLatticeReal : IsZLattice ℝ intLatticeReal := by
-  have hZ_eq : intLatticeReal = Submodule.span ℤ (Set.range (Basis.singleton Unit ℝ)) := by
-    ext x; simp [intLatticeReal]
-  exact isZLattice_of_eq hZ_eq
-
-/-- Dual-mass monotonicity from `intLattice B` (for `1 ≤ n`) to `ℤ ⊂ ℝ`. -/
-theorem gaussianMass_dual_intReal_le_of_intLattice {n : ℕ} (hn : 1 ≤ n)
-    {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) {s : ℝ} (hs : 0 < s) :
-    gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal) (1 / s) 0 - 1 ≤
-      gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ (EuclideanSpace ℝ (Fin n)))
-        (intLattice B)) (1 / s) 0 - 1 := by
-  have := isZLattice_intLattice hB
-  have : DiscreteTopology
-      (LinearMap.BilinForm.dualSubmodule (innerₗ (EuclideanSpace ℝ (Fin n))) (intLattice B)) :=
-    discreteTopology_dualSubmodule (intLattice B)
-  have : DiscreteTopology (LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal) :=
-    discreteTopology_dualSubmodule intLatticeReal
-  have hinv : 0 < 1 / s := one_div_pos.mpr hs
-  rw [gaussianMass_zero_sub_one_eq_tsum _ (1 / s) hinv,
-    gaussianMass_zero_sub_one_eq_tsum _ (1 / s) hinv]
-  let i0 : Fin n := ⟨0, hn⟩
-  have hmemDual : ∀ w : LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal,
-      (w : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ i0 ∈
-        LinearMap.BilinForm.dualSubmodule (innerₗ (EuclideanSpace ℝ (Fin n))) (intLattice B) := by
-    intro w y hy
-    obtain ⟨k, rfl⟩ := (mem_intLattice_iff B y).1 hy
-    have h1 : (1 : ℝ) ∈ intLatticeReal := Submodule.subset_span (Set.mem_singleton 1)
-    obtain ⟨m, hm⟩ := w.2 1 h1
-    have hwm : (w : ℝ) = (m : ℝ) := by
-      simp only [LinearMap.toSpanSingleton_apply, zsmul_eq_mul, mul_one, innerₗ_apply_apply,
-        RCLike.inner_apply, conj_trivial, one_mul] at hm
-      exact hm.symm
-    refine ⟨m * (B *ᵥ k) i0, ?_⟩
-    simp only [LinearMap.toSpanSingleton_apply, zsmul_eq_mul, mul_one, innerₗ_apply_apply]
-    rw [EuclideanSpace.inner_eq_star_dotProduct]
-    have hbasis : ∀ j : Fin n, (EuclideanSpace.basisFun (Fin n) ℝ i0) j = if j = i0 then 1 else 0 :=
-      fun j => by simp [EuclideanSpace.basisFun_apply, PiLp.single_apply]
-    simp only [star_trivial, dotProduct, PiLp.smul_apply, hbasis, smul_eq_mul, mul_ite, mul_one,
-      mul_zero, hwm, Int.cast_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-    ring
-  let f : {w : LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal | w ≠ 0} →
-      {w : LinearMap.BilinForm.dualSubmodule (innerₗ (EuclideanSpace ℝ (Fin n)))
-        (intLattice B) | w ≠ 0} :=
-    fun w => ⟨⟨(w.1 : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ i0, hmemDual w.1⟩, by
-      intro h
-      apply w.2
-      apply Subtype.ext
-      have h0 : ((w.1 : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ i0) i0 = 0 := by
-        have hv : ((w.1 : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ i0) = 0 :=
-          congrArg Subtype.val h
-        rw [hv]; rfl
-      simpa [EuclideanSpace.basisFun_apply, PiLp.single_apply] using h0⟩
-  have hfinj : Function.Injective f := by
-    intro a b h
-    have hval : (a.1 : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ i0 =
-        (b.1 : ℝ) • EuclideanSpace.basisFun (Fin n) ℝ i0 :=
-      congrArg (fun x => x.1.1) h
-    have hi0 := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i0) hval
-    simp only [PiLp.smul_apply, EuclideanSpace.basisFun_apply, PiLp.single_apply,
-      ↓reduceIte, smul_eq_mul, mul_one] at hi0
-    exact Subtype.ext (Subtype.ext hi0)
-  have hnorm : ∀ w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal | w ≠ 0},
-      gaussianWeight (1 / s) (w.1 : ℝ) ≤
-        gaussianWeight (1 / s) ((f w).1 : EuclideanSpace ℝ (Fin n)) := fun w => by
-    apply le_of_eq
-    unfold gaussianWeight
-    congr 3
-    simp only [f, norm_smul, (EuclideanSpace.basisFun (Fin n) ℝ).orthonormal.1 i0, mul_one]
-  have hsumD : Summable (fun w : {w : LinearMap.BilinForm.dualSubmodule
-        (innerₗ (EuclideanSpace ℝ (Fin n))) (intLattice B) | w ≠ 0} =>
-      gaussianWeight (1 / s) (w.1 : EuclideanSpace ℝ (Fin n))) :=
-    ((summable_gaussianWeight _ (1 / s) hinv 0).subtype _).congr fun w => by simp
-  have hsumZ : Summable (fun w : {w : LinearMap.BilinForm.dualSubmodule
-        (innerₗ ℝ) intLatticeReal | w ≠ 0} => gaussianWeight (1 / s) (w.1 : ℝ)) :=
-    ((summable_gaussianWeight _ (1 / s) hinv 0).subtype _).congr fun w => by simp
-  exact hsumZ.tsum_le_tsum_of_inj f hfinj (fun _ _ => (gaussianWeight_pos _ _).le) hnorm hsumD
 
 /-- Parallelepiped representative `x mod P(B) = B * frac(B⁻¹ x)` for invertible `B`. -/
 @[expose] noncomputable def modParallelepiped {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ)
@@ -1217,6 +1132,36 @@ private theorem mkSublatticeQuot_toVec {n : ℕ} (B S : Matrix (Fin n) (Fin n) �
   (Classical.choose_spec
     ((mem_intLattice_iff B _).1 (modParallelepiped_mulVec_mem B S hS hSB k))).symm
 
+private theorem sublatticeQuotEquivQuot_mkSublatticeQuot_aux
+    {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
+    (hB : B.det ≠ 0) (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B) (k : Fin n → ℤ) :
+    Submodule.Quotient.mk (p := LinearMap.range (sublatticeMat B S hSB).mulVecLin)
+      (Classical.choose ((mem_intLattice_iff B (mkSublatticeQuot B S hS hSB k).toVec).1
+        (mkSublatticeQuot B S hS hSB k).mem_intLattice)) =
+      Submodule.Quotient.mk (p := LinearMap.range (sublatticeMat B S hSB).mulVecLin) k := by
+  let U := sublatticeMat B S hSB
+  rw [Submodule.Quotient.eq]
+  set v := mkSublatticeQuot B S hS hSB k
+  set kv := Classical.choose ((mem_intLattice_iff B v.toVec).1 v.mem_intLattice)
+  have hkv : v.toVec = WithLp.toLp 2 (fun i => ((B *ᵥ kv) i : ℝ)) :=
+    Classical.choose_spec ((mem_intLattice_iff B v.toVec).1 v.mem_intLattice)
+  have hdiff : WithLp.toLp 2 (fun i => ((B *ᵥ k) i : ℝ)) - v.toVec ∈ intLattice S := by
+    rw [mkSublatticeQuot_toVec]
+    exact sub_modParallelepiped_mem hS _
+  obtain ⟨m, hm⟩ := (mem_intLattice_iff S _).1 hdiff
+  refine ⟨-m, ?_⟩
+  have hB_eq : B *ᵥ (kv - k) = B *ᵥ (U *ᵥ (-m)) := by
+    rw [Matrix.mulVec_mulVec, mul_sublatticeMat, Matrix.mulVec_neg, Matrix.mulVec_sub]
+    funext i
+    have hi := congrArg (fun x : EuclideanSpace ℝ (Fin n) => x i) hm
+    rw [hkv] at hi
+    simp only [PiLp.sub_apply] at hi
+    have hzi : (B *ᵥ k) i - (B *ᵥ kv) i = (S *ᵥ m) i := by
+      exact_mod_cast hi
+    simp only [Pi.sub_apply, Pi.neg_apply]
+    omega
+  exact (mulVec_int_injective hB hB_eq).symm
+
 private noncomputable def sublatticeQuotEquivQuot {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
     (hB : B.det ≠ 0) (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B) :
     SublatticeQuot B S ≃ (Fin n → ℤ) ⧸ LinearMap.range (sublatticeMat B S hSB).mulVecLin := by
@@ -1254,30 +1199,15 @@ private noncomputable def sublatticeQuotEquivQuot {n : ℕ} (B S : Matrix (Fin n
     have hi := congrArg (fun x : EuclideanSpace ℝ (Fin n) => x i) hmod
     exact Int.cast_injective hi
   · intro qx
-    refine Quotient.inductionOn' qx fun k => ?_
-    refine ⟨mkSublatticeQuot B S hS hSB k, ?_⟩
-    change Submodule.Quotient.mk (p := N) _ = Submodule.Quotient.mk (p := N) k
-    rw [Submodule.Quotient.eq]
-    set v := mkSublatticeQuot B S hS hSB k
-    set kv := Classical.choose ((mem_intLattice_iff B v.toVec).1 v.mem_intLattice)
-    have hkv : v.toVec = WithLp.toLp 2 (fun i => ((B *ᵥ kv) i : ℝ)) :=
-      Classical.choose_spec ((mem_intLattice_iff B v.toVec).1 v.mem_intLattice)
-    have hdiff : WithLp.toLp 2 (fun i => ((B *ᵥ k) i : ℝ)) - v.toVec ∈ intLattice S := by
-      rw [mkSublatticeQuot_toVec]
-      exact sub_modParallelepiped_mem hS _
-    obtain ⟨m, hm⟩ := (mem_intLattice_iff S _).1 hdiff
-    refine ⟨-m, ?_⟩
-    have hB_eq : B *ᵥ (kv - k) = B *ᵥ (U *ᵥ (-m)) := by
-      rw [Matrix.mulVec_mulVec, mul_sublatticeMat, Matrix.mulVec_neg, Matrix.mulVec_sub]
-      funext i
-      have hi := congrArg (fun x : EuclideanSpace ℝ (Fin n) => x i) hm
-      rw [hkv] at hi
-      simp only [PiLp.sub_apply] at hi
-      have hzi : (B *ᵥ k) i - (B *ᵥ kv) i = (S *ᵥ m) i := by
-        exact_mod_cast hi
-      simp only [Pi.sub_apply, Pi.neg_apply]
-      omega
-    exact (mulVec_int_injective hB hB_eq).symm
+    refine Quotient.inductionOn' qx fun k =>
+      ⟨mkSublatticeQuot B S hS hSB k, sublatticeQuotEquivQuot_mkSublatticeQuot_aux B S hB hS hSB k⟩
+
+private theorem sublatticeQuotEquivQuot_mkSublatticeQuot
+    {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
+    (hB : B.det ≠ 0) (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B) (k : Fin n → ℤ) :
+    sublatticeQuotEquivQuot B S hB hS hSB (mkSublatticeQuot B S hS hSB k) =
+      Submodule.Quotient.mk k :=
+  sublatticeQuotEquivQuot_mkSublatticeQuot_aux B S hB hS hSB k
 
 /-- Exact cardinality `Fintype.card (SublatticeQuot B S) = |det(B⁻¹ S)|`. -/
 theorem card_sublatticeQuot {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
@@ -1294,66 +1224,17 @@ theorem card_sublatticeQuot {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
 
 /-- HNF-free quotient surjection `(ZMod D)^n → SublatticeQuot B S` with `D = |det(B⁻¹ S)|`. -/
 noncomputable def quotientHom {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
-    (_hB : B.det ≠ 0) (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B)
+    (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B)
     (x : Fin n → ZMod (S.det / B.det).natAbs) : SublatticeQuot B S :=
   mkSublatticeQuot B S hS hSB (fun j => ((x j).val : ℤ))
 
 /-- Explicit parallelepiped characterization of `quotientHom`. -/
 theorem quotientHom_toVec {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ)
-    (hB : B.det ≠ 0) (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B)
+    (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B)
     (x : Fin n → ZMod (S.det / B.det).natAbs) :
-    (quotientHom B S hB hS hSB x).toVec =
+    (quotientHom B S hS hSB x).toVec =
       modParallelepiped S (WithLp.toLp 2 (fun i => ((B *ᵥ fun j => ((x j).val : ℤ)) i : ℝ))) :=
   mkSublatticeQuot_toVec B S hS hSB _
-
-private theorem map_uniformOfFintype_of_addMonoidHom_surjective
-    {G H : Type} [AddCommGroup G] [AddCommGroup H] [Fintype G] [Fintype H]
-    (φ : G →+ H) (hφ : Function.Surjective φ) :
-    (PMF.uniformOfFintype G).map φ = PMF.uniformOfFintype H := by
-  classical
-  have hfib : ∀ h : H, (Finset.univ.filter fun g : G => φ g = h).card =
-      (Finset.univ.filter fun g : G => φ g = 0).card := fun h => by
-    obtain ⟨g₀, rfl⟩ := hφ h
-    refine Finset.card_bij (fun g _ => g - g₀) ?_ ?_ ?_
-    · intro g hg
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hg ⊢
-      rw [map_sub, hg, sub_self]
-    · intro g₁ _ g₂ _ hsub
-      exact sub_left_injective hsub
-    · intro k hk
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hk
-      exact ⟨k + g₀, by simp [map_add, hk], add_sub_cancel_right k g₀⟩
-  have hcardG : Fintype.card G =
-      Fintype.card H * (Finset.univ.filter fun g : G => φ g = 0).card := by
-    have hsum := Finset.card_eq_sum_card_fiberwise (f := φ) (s := Finset.univ) (t := Finset.univ)
-      (fun _ _ => Finset.mem_univ _)
-    simp only [Finset.card_univ] at hsum
-    rw [hsum]
-    calc ∑ h : H, (Finset.univ.filter fun g : G => φ g = h).card
-        = ∑ _h : H, (Finset.univ.filter fun g : G => φ g = 0).card :=
-          Finset.sum_congr rfl fun h _ => hfib h
-      _ = Fintype.card H * (Finset.univ.filter fun g : G => φ g = 0).card := by
-          simp [Finset.sum_const]
-  have hker_pos : 0 < (Finset.univ.filter fun g : G => φ g = 0).card :=
-    Finset.card_pos.mpr ⟨0, by simp⟩
-  ext h
-  rw [PMF.map_apply, tsum_fintype, PMF.uniformOfFintype_apply]
-  have hsum : ∑ g : G, (if h = φ g then PMF.uniformOfFintype G g else 0) =
-      ((Finset.univ.filter fun g : G => φ g = h).card : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ := by
-    rw [← Finset.sum_filter]
-    have hfeq : Finset.univ.filter (fun g : G => h = φ g) =
-        Finset.univ.filter (fun g : G => φ g = h) := by
-      ext g; simp [eq_comm]
-    rw [hfeq]
-    simp [PMF.uniformOfFintype_apply, nsmul_eq_mul]
-  rw [hsum, hfib h, hcardG, Nat.cast_mul,
-    ENNReal.mul_inv (Or.inl (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
-    (Or.inl (ENNReal.natCast_ne_top _))]
-  have hk0 : ((Finset.univ.filter fun g : G => φ g = 0).card : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr hker_pos.ne'
-  have hktop : ((Finset.univ.filter fun g : G => φ g = 0).card : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
-  rw [mul_comm (Fintype.card H : ℝ≥0∞)⁻¹, ← mul_assoc, ENNReal.mul_inv_cancel hk0 hktop, one_mul]
 
 /-- HNF-free exact uniform sampling on `SublatticeQuot B S` via `(ZMod D)^n ↠ SublatticeQuot B S`
 with `D = |det(B⁻¹ S)|` (Cramer's rule `Matrix.mul_adjugate`). -/
@@ -1363,7 +1244,7 @@ theorem map_quotientHom_uniform_eq_uniform_sublatticeQuot
     letI : NeZero (S.det / B.det).natAbs :=
       ⟨by rw [← card_sublatticeQuot hB hS hSB]; exact Fintype.card_ne_zero⟩
     (PMF.uniformOfFintype (Fin n → ZMod (S.det / B.det).natAbs)).map
-        (quotientHom B S hB hS hSB) =
+        (quotientHom B S hS hSB) =
       PMF.uniformOfFintype (SublatticeQuot B S) := by
   let D : ℕ := (S.det / B.det).natAbs
   have hDpos : 0 < D := natAbs_div_det_pos hB hS hSB
@@ -1385,6 +1266,17 @@ theorem map_quotientHom_uniform_eq_uniform_sublatticeQuot
       change U *ᵥ (-(U.adjugate *ᵥ w)) = (D : ℤ) • w
       rw [Matrix.mulVec_neg, Matrix.mulVec_mulVec, Matrix.mul_adjugate, Matrix.smul_mulVec,
         Matrix.one_mulVec, h, neg_smul]
+  have hsub_mem_of_zmod : ∀ u v : Fin n → ℤ,
+      (∀ j : Fin n, (u j : ZMod D) = (v j : ZMod D)) → u - v ∈ N := fun u v huv => by
+    have hdvd : ∀ j : Fin n, (D : ℤ) ∣ (u j - v j) := fun j => by
+      rw [← ZMod.intCast_zmod_eq_zero_iff_dvd, Int.cast_sub, huv j, sub_self]
+    let w : Fin n → ℤ := fun j => (u j - v j) / (D : ℤ)
+    have heq : u - v = (D : ℤ) • w := by
+      funext j
+      simp only [Pi.sub_apply, Pi.smul_apply, smul_eq_mul, w]
+      exact (Int.mul_ediv_cancel' (hdvd j)).symm
+    rw [heq]
+    exact hD_mem w
   have : Fintype ((Fin n → ℤ) ⧸ N) :=
     Fintype.ofEquiv (SublatticeQuot B S) (sublatticeQuotEquivQuot B S hB hS hSB)
   let φ : (Fin n → ZMod D) →+ ((Fin n → ℤ) ⧸ N) := {
@@ -1395,71 +1287,21 @@ theorem map_quotientHom_uniform_eq_uniform_sublatticeQuot
       exact Submodule.Quotient.mk_zero N
     map_add' := fun x y => by
       rw [← Submodule.Quotient.mk_add, Submodule.Quotient.eq]
-      have hdvd : ∀ j : Fin n,
-          (D : ℤ) ∣ (((x j + y j).val : ℤ) - (((x j).val : ℤ) + ((y j).val : ℤ))) :=
-        fun j => by
-          rw [← ZMod.intCast_zmod_eq_zero_iff_dvd]
-          push_cast
-          simp
-      let w : Fin n → ℤ := fun j =>
-        (((x j + y j).val : ℤ) - (((x j).val : ℤ) + ((y j).val : ℤ))) / (D : ℤ)
-      have heq : (fun j => (((x + y) j).val : ℤ)) -
-          ((fun j => ((x j).val : ℤ)) + (fun j => ((y j).val : ℤ))) = (D : ℤ) • w := by
-        funext j
-        simp only [Pi.sub_apply, Pi.add_apply, Pi.smul_apply, smul_eq_mul, w]
-        exact (Int.mul_ediv_cancel' (hdvd j)).symm
-      rw [heq]
-      exact hD_mem w
+      exact hsub_mem_of_zmod _ _ fun j => by push_cast; simp
   }
   have hφ_surj : Function.Surjective φ := fun qk => by
     refine Quotient.inductionOn' qk fun k => ?_
     refine ⟨fun j => (k j : ZMod D), ?_⟩
     change Submodule.Quotient.mk (fun j => (((k j : ZMod D).val : ℤ))) = Submodule.Quotient.mk k
     rw [Submodule.Quotient.eq]
-    have hdvd : ∀ j : Fin n, (D : ℤ) ∣ (((k j : ZMod D).val : ℤ) - k j) := fun j => by
-      rw [← ZMod.intCast_zmod_eq_zero_iff_dvd]
-      push_cast
-      simp
-    let w : Fin n → ℤ := fun j => (((k j : ZMod D).val : ℤ) - k j) / (D : ℤ)
-    have heq : (fun j => (((k j : ZMod D).val : ℤ))) - k = (D : ℤ) • w := by
-      funext j
-      simp only [Pi.sub_apply, Pi.smul_apply, smul_eq_mul, w]
-      exact (Int.mul_ediv_cancel' (hdvd j)).symm
-    rw [heq]
-    exact hD_mem w
-  have hcomp : quotientHom B S hB hS hSB =
+    exact hsub_mem_of_zmod _ _ fun j => by push_cast; simp
+  have hcomp : quotientHom B S hS hSB =
       (sublatticeQuotEquivQuot B S hB hS hSB).symm ∘ φ := by
     funext x
     apply (sublatticeQuotEquivQuot B S hB hS hSB).injective
     rw [Function.comp_apply, Equiv.apply_symm_apply]
-    change Submodule.Quotient.mk (p := N)
-      (Classical.choose ((mem_intLattice_iff B (quotientHom B S hB hS hSB x).toVec).1
-        (quotientHom B S hB hS hSB x).mem_intLattice)) =
-      Submodule.Quotient.mk (fun j => ((x j).val : ℤ))
-    rw [Submodule.Quotient.eq]
-    set k0 : Fin n → ℤ := fun j => ((x j).val : ℤ)
-    set kv := Classical.choose ((mem_intLattice_iff B (quotientHom B S hB hS hSB x).toVec).1
-      (quotientHom B S hB hS hSB x).mem_intLattice)
-    have hkv : (quotientHom B S hB hS hSB x).toVec = WithLp.toLp 2 (fun i => ((B *ᵥ kv) i : ℝ)) :=
-      Classical.choose_spec ((mem_intLattice_iff B (quotientHom B S hB hS hSB x).toVec).1
-        (quotientHom B S hB hS hSB x).mem_intLattice)
-    have hdiff : WithLp.toLp 2 (fun i => ((B *ᵥ k0) i : ℝ)) -
-        (quotientHom B S hB hS hSB x).toVec ∈ intLattice S := by
-      rw [quotientHom_toVec]
-      exact sub_modParallelepiped_mem hS _
-    obtain ⟨m, hm⟩ := (mem_intLattice_iff S _).1 hdiff
-    refine ⟨-m, ?_⟩
-    have hB_eq : B *ᵥ (kv - k0) = B *ᵥ (U *ᵥ (-m)) := by
-      rw [Matrix.mulVec_mulVec, mul_sublatticeMat, Matrix.mulVec_neg, Matrix.mulVec_sub]
-      funext i
-      have hi := congrArg (fun v : EuclideanSpace ℝ (Fin n) => v i) hm
-      rw [hkv] at hi
-      simp only [PiLp.sub_apply] at hi
-      have hzi : (B *ᵥ k0) i - (B *ᵥ kv) i = (S *ᵥ m) i := by exact_mod_cast hi
-      simp only [Pi.sub_apply, Pi.neg_apply]
-      omega
-    exact (mulVec_int_injective hB hB_eq).symm
-  rw [hcomp, ← PMF.map_comp, map_uniformOfFintype_of_addMonoidHom_surjective φ hφ_surj]
+    exact sublatticeQuotEquivQuot_mkSublatticeQuot B S hB hS hSB (fun j => ((x j).val : ℤ))
+  rw [hcomp, ← PMF.map_comp, Cslib.Probability.PMF.uniformOfFintype_map_addHom φ hφ_surj]
   exact Cslib.Probability.PMF.uniformOfFintype_map_equiv
     (sublatticeQuotEquivQuot B S hB hS hSB).symm
 
@@ -1748,66 +1590,12 @@ private theorem map_gridRepToZMod_uniform {n q : ℕ} [NeZero q] (S : Matrix (Fi
     rw [hmul, Int.floor_sub_intCast, Int.floor_add_intCast]
     push_cast
     simp
-  have hfib : ∀ b : Fin n → ZMod q,
-      (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = b).card =
-      (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card := fun b => by
-    refine Finset.card_bij (fun w _ => shift (-b) w) ?_ ?_ ?_
-    · intro w hw
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hw ⊢
-      rw [hshift_a, hw, add_neg_cancel]
-    · intro w₁ _ w₂ _ heq
-      have := congrArg (shift b) heq
-      have h1 : shift b (shift (-b) w₁) = w₁ := by
-        simpa [neg_neg] using hshift_inv (-b) w₁
-      have h2 : shift b (shift (-b) w₂) = w₂ := by
-        simpa [neg_neg] using hshift_inv (-b) w₂
-      rwa [h1, h2] at this
-    · intro w hw
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hw
-      refine ⟨shift b w, ?_, hshift_inv b w⟩
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, hshift_a, hw, zero_add]
-  have hcardW : Fintype.card (GridRep S q) =
-      Fintype.card (Fin n → ZMod q) *
-        (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card := by
-    have hsum := Finset.card_eq_sum_card_fiberwise (f := gridRepToZMod S q)
-      (s := Finset.univ) (t := Finset.univ) (fun _ _ => Finset.mem_univ _)
-    simp only [Finset.card_univ] at hsum
-    rw [hsum]
-    calc ∑ b : Fin n → ZMod q,
-          (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = b).card
-        = ∑ _b : Fin n → ZMod q,
-            (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card :=
-          Finset.sum_congr rfl fun b _ => hfib b
-      _ = Fintype.card (Fin n → ZMod q) *
-            (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card := by
-          simp [Finset.sum_const]
-  have hfib_pos : 0 < (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card := by
-    by_contra h0
-    have hz :
-        (Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card = 0 := by omega
-    rw [hz, mul_zero] at hcardW
-    exact Fintype.card_ne_zero hcardW
-  ext b
-  rw [PMF.map_apply, tsum_fintype, PMF.uniformOfFintype_apply]
-  trans (∑ w ∈ Finset.univ.filter (fun w : GridRep S q => gridRepToZMod S q w = b),
-      PMF.uniformOfFintype (GridRep S q) w)
-  · rw [Finset.sum_filter]
-    refine Finset.sum_congr rfl fun w _ => ?_
-    by_cases h : gridRepToZMod S q w = b
-    · simp [h]
-    · simp [h, Ne.symm h]
-  simp only [PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul]
-  rw [hfib b, hcardW, Nat.cast_mul,
-    ENNReal.mul_inv (Or.inl (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
-      (Or.inl (ENNReal.natCast_ne_top _))]
-  have hk0 :
-      ((Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr hfib_pos.ne'
-  have hktop :
-      ((Finset.univ.filter fun w : GridRep S q => gridRepToZMod S q w = 0).card : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
-  rw [mul_comm (Fintype.card (Fin n → ZMod q) : ℝ≥0∞)⁻¹, ← mul_assoc,
-    ENNReal.mul_inv_cancel hk0 hktop, one_mul]
+  refine Cslib.Probability.PMF.uniformOfFintype_map_of_shift fun c =>
+    ⟨{ toFun := shift c
+       invFun := shift (-c)
+       left_inv := hshift_inv c
+       right_inv := fun w => by simpa [neg_neg] using hshift_inv (-c) w },
+     hshift_a c⟩
 
 /-- Exact uniformity of the combining query matrix `A ∈ ZMod q^{n×m}` when `C` and `V` are
 uniformly random (MR07 Lemma 5.8, item 1, pp. 20–21). -/
@@ -1867,14 +1655,15 @@ theorem idealCombine_matrix_eq_uniform
   rw [Cslib.Probability.PMF.pi_uniformOfFintype,
     Cslib.Probability.PMF.uniformOfFintype_map_equiv eMat]
 
-/-- Combining procedure output membership and distance bound (MR07 Lemma 5.8, items 2–3, p. 21):
-whenever `A *ᵥ (Int.cast ∘ z) = 0`, `combineOutput B S q V C z ∈ intLattice B` and
+/-- Combining procedure output membership and distance bound ([MicciancioRegev2007], Lemma 5.8,
+items 2–3, p. 21): whenever `InKernelLattice (combineMatrix B S q V C) z`,
+`combineOutput B S q V C z ∈ intLattice B` and
 `‖combineOutput B S q V C z - ∑ j, z j • (C j).toVec‖ ≤ √m · n · ‖intCol S‖ · ‖z‖₂ / q`. -/
 theorem combineOutput_mem_intLattice_and_norm_sub_le
     {n m q : ℕ} (hq : 0 < q) (B S : Matrix (Fin n) (Fin n) ℤ) (hS : S.det ≠ 0)
     (hSB : intLattice S ≤ intLattice B)
     (V : Fin m → SublatticeQuot B S) (C : Fin m → GridRep B q) (z : Fin m → ℤ)
-    (hker : combineMatrix B S q V C *ᵥ (Int.cast ∘ z) = 0) :
+    (hker : InKernelLattice (combineMatrix B S q V C) z) :
     combineOutput B S q V C z ∈ intLattice B ∧
       ‖combineOutput B S q V C z - ∑ j : Fin m, z j • (C j).toVec‖ ≤
         Real.sqrt m * n * ‖intCol S‖ * ‖WithLp.toLp 2 (fun j => (z j : ℝ))‖ / q := by
@@ -2070,10 +1859,10 @@ private theorem exists_guess_of_isEll2Solution {n m q : ℕ} {A : Matrix (Fin n)
 
 /-- Single-call finite reduction step from `IncGDD` to `ℓ₂`-SIS using ideal discrete-grid samplers.
 This is the finite distributional core step toward [MicciancioRegev2007], Theorem 5.9 (pp. 22–24);
-strict-PPT realization and amplification are not formalized here. -/
+strict-PPT realization and amplification are not formalized here and are tracked in
+[#6861](https://github.com/cslib-community/cslib-frontier/issues/6861). -/
 @[expose] noncomputable def idealIncGDDStep {n m q : ℕ} [NeZero q]
-    (B S : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0) (_hS : S.det ≠ 0)
-    (_hSB : intLattice S ≤ intLattice B)
+    (B S : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (β r : ℝ) (hβ : 1 ≤ β) (hr : 0 < r) (t : EuclideanSpace ℝ (Fin n))
     (F : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ)) :
     PMF (EuclideanSpace ℝ (Fin n)) :=
@@ -2106,7 +1895,7 @@ theorem idealIncGDDStep_support_mem_intLattice {n m q : ℕ} [NeZero q]
     (β r : ℝ) (hβ : 1 ≤ β) (hr : 0 < r) (t : EuclideanSpace ℝ (Fin n))
     (F : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ))
     {v : EuclideanSpace ℝ (Fin n)}
-    (hv : v ∈ (idealIncGDDStep B S hB hS hSB β r hβ hr t F).support) :
+    (hv : v ∈ (idealIncGDDStep B S hB β r hβ hr t F).support) :
     v ∈ intLattice B := by
   unfold idealIncGDDStep at hv
   split_ifs at hv with h
@@ -2330,11 +2119,12 @@ private theorem cond_gaussian_sum_le_prob_ge_one_third
     ENNReal.toReal_mono (measure_ne_top μ _) (measure_mono hcompl_sub)
   linarith
 
-/-- Non-asymptotic single-call success lower bound (finite MR07 Theorem 5.9 step, `Gaussian.pdf`
-pp. 22–24). Uses ideal discrete-grid samplers on `G_q = (1/q) ℤⁿ` and dual-mass premise
-`ρ_{2/s}(L(B)* \ {0}) ≤ ε`; strict-PPT realization and amplification are not formalized
-here. -/
-theorem incGDD_succProb_of_sisEll2
+/-- Non-asymptotic single-call success lower bound for `idealIncGDDStep` (finite distributional
+step toward [MicciancioRegev2007], Theorem 5.9, §5.2, pp. 22–24). Uses ideal discrete-grid
+samplers on `G_q = (1 / q) ℤⁿ` and the dual-mass premise `ρ_{2/s}(L(B)* \ {0}) ≤ ε`; strict-PPT
+realization and amplification are not formalized here and are tracked in
+[#6861](https://github.com/cslib-community/cslib-frontier/issues/6861). -/
+theorem idealIncGDDStep_succProb_of_sisEll2
     {n m q : ℕ} [NeZero q] (hn : 1 ≤ n) (hm : 1 ≤ m)
     (B S : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0) (hS : S.det ≠ 0)
     (hSB : intLattice S ≤ intLattice B)
@@ -2349,7 +2139,7 @@ theorem incGDD_succProb_of_sisEll2
     ((1 / 3 : ℝ) *
         ((sisEll2Advantage q β F : ℝ) / (2 * (Nat.floor β : ℝ) * m) -
           m * ε / (2 * (1 - ε)))) ≤
-      ((idealIncGDDStep B S hB hS hSB β r hβ hr t F).toOuterMeasure
+      ((idealIncGDDStep B S hB β r hβ hr t F).toOuterMeasure
         {v | IncGDD.IsSolution g (intLattice B) (intColCast B S hB) t r v}).toReal := by
   have := isZLattice_intLattice hB
   have hq_pos : 0 < q := NeZero.pos q
@@ -2379,7 +2169,7 @@ theorem incGDD_succProb_of_sisEll2
     Cslib.Probability.PMF.piFin fun i : Fin m =>
       ZLattice.discreteGaussian (intLattice B) s hs (guessTarget t g i + (C i).toVec)
   -- Factor `idealIncGDDStep` via `idealGridSample_eq_bind_discreteGaussian` and `piFin`
-  have hstep_eq : idealIncGDDStep B S hB hS hSB β r hβ hr t F =
+  have hstep_eq : idealIncGDDStep B S hB β r hβ hr t F =
       (PMF.uniformOfFintype Guess).bind fun gu =>
         (pC gu).bind fun C =>
           (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
@@ -2522,11 +2312,9 @@ theorem incGDD_succProb_of_sisEll2
             (guessTarget t gu i))
       have hpi_unif : Cslib.Probability.PMF.piFin
           (fun _ : Fin m => PMF.uniformOfFintype (GridRep B q)) =
-          PMF.uniformOfFintype (Fin m → GridRep B q) := by
-        ext C
-        rw [Cslib.Probability.PMF.piFin_apply, PMF.uniformOfFintype_apply, Fintype.card_fun,
-          Fintype.card_fin, Nat.cast_pow]
-        simp [PMF.uniformOfFintype_apply, ENNReal.inv_pow]
+          PMF.uniformOfFintype (Fin m → GridRep B q) :=
+        (Cslib.Probability.PMF.piFin_const _ m).trans
+          (Cslib.Probability.PMF.iid_uniformOfFintype m)
       rw [hpi_unif] at h1
       have hmul_eq : (m : ℝ≥0∞) * ENNReal.ofReal (ε / (2 * (1 - ε))) =
           ENNReal.ofReal (m * ε / (2 * (1 - ε))) := by
@@ -2646,8 +2434,8 @@ theorem incGDD_succProb_of_sisEll2
     linarith
   -- Step 4: multiply `realJoint.toOuterMeasure E_good` by `1 / 3` using `hcond`
   have hfinal_enn : ENNReal.ofReal (1 / 3 : ℝ) * realJoint.toOuterMeasure E_good ≤
-      (idealIncGDDStep B S hB hS hSB β r hβ hr t F).toOuterMeasure E_sol := by
-    have hbind_eq : idealIncGDDStep B S hB hS hSB β r hβ hr t F =
+      (idealIncGDDStep B S hB β r hβ hr t F).toOuterMeasure E_sol := by
+    have hbind_eq : idealIncGDDStep B S hB β r hβ hr t F =
         realJoint.bind fun x =>
           (pY x.1 x.2.1).map fun Y =>
             combineOutput B S q x.2.2.1 x.2.1 x.2.2.2 -
@@ -2668,9 +2456,9 @@ theorem incGDD_succProb_of_sisEll2
   rw [ENNReal.toReal_mul, ENNReal.toReal_ofReal (by norm_num : (0 : ℝ) ≤ 1 / 3)] at hfinal_R
   exact (mul_le_mul_of_nonneg_left hreal_ge (by norm_num : (0 : ℝ) ≤ 1 / 3)).trans hfinal_R
 
-/-- Transfer of `incGDD_succProb_of_sisEll2` to any approximate sampler `μ` within `CloseTo`
-statistical distance `η` of `idealIncGDDStep` (bridges PR 2.3 + PR 2.5 to PR 2.6). -/
-theorem incGDD_succProb_of_closeTo
+/-- Transfer of `idealIncGDDStep_succProb_of_sisEll2` to any approximate sampler `μ` within
+`CloseTo` statistical distance `η` of `idealIncGDDStep`. -/
+theorem incGDD_succProb_of_closeTo_idealIncGDDStep
     {n m q : ℕ} [NeZero q] (hn : 1 ≤ n) (hm : 1 ≤ m)
     (B S : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0) (hS : S.det ≠ 0)
     (hSB : intLattice S ≤ intLattice B)
@@ -2683,13 +2471,14 @@ theorem incGDD_succProb_of_closeTo
     (t : EuclideanSpace ℝ (Fin n))
     (F : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ))
     (μ : PMF (EuclideanSpace ℝ (Fin n)))
-    (hclose : CloseTo μ (idealIncGDDStep B S hB hS hSB β r hβ hr t F) (ENNReal.ofReal η)) :
+    (hclose : CloseTo μ (idealIncGDDStep B S hB β r hβ hr t F) (ENNReal.ofReal η)) :
     ((1 / 3 : ℝ) *
         ((sisEll2Advantage q β F : ℝ) / (2 * (Nat.floor β : ℝ) * m) -
           m * ε / (2 * (1 - ε)))) - η ≤
       (μ.toOuterMeasure
         {v | IncGDD.IsSolution g (intLattice B) (intColCast B S hB) t r v}).toReal := by
-  have hbase := incGDD_succProb_of_sisEll2 hn hm B S hB hS hSB hβ hg hr hε0 hε hq hdual t F
+  have hbase :=
+    idealIncGDDStep_succProb_of_sisEll2 hn hm B S hB hS hSB hβ hg hr hε0 hε hq hdual t F
   have habs := hclose.abs_toReal_sub_le hη
     {v | IncGDD.IsSolution g (intLattice B) (intColCast B S hB) t r v}
   rw [abs_le] at habs
