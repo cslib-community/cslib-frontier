@@ -668,6 +668,10 @@ theorem wellFormed_iff {O : Order} : O.wellFormed = true ↔ O.left.length = O.r
   simp only [wellFormed, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, List.all_eq_true,
     List.contains_iff_mem, and_assoc]
 
+/-- The auxiliary variables of a good order are distinct. -/
+theorem Good.aux_nodup {O : Order} (h : O.Good) : O.aux.Nodup :=
+  (List.nodup_append.1 (wellFormed_iff.1 h.wf).2.1).2.1
+
 private theorem holds_subst {O : Order} (hwf : O.wellFormed = true) {a b r : List WVal}
     (ha : a.length = O.left.length) (hb : b.length = O.right.length)
     (hr : r.length = O.aux.length) (σ : ℕ → Bool) {D : PBConstr} (hD : D ∈ O.spec ++ O.defn) :
@@ -883,10 +887,7 @@ theorem exists_leSpec {L : LoadedOrder} (hL : L.Good) {ω : Witness}
   obtain ⟨ρ, hρ, hS⟩ := hL.order.spec (L.vals (Witness.apply σ ω)) (L.vals σ)
   have hag : ∀ v ∉ L.order.aux, assignOn L.order.aux ρ σ v = σ v := fun v hv =>
     assignOn_of_not_mem hv ρ σ
-  have hnd : L.order.aux.Nodup := by
-    have := (Order.wellFormed_iff.1 hL.order.wf).2.1
-    simp only [Order.vars] at this
-    exact (List.nodup_append.1 this).2.1
+  have hnd := hL.order.aux_nodup
   refine ⟨ρ, hρ, (holds_leSpec hL ω _).2 ?_⟩
   rw [vals_apply_agree hL hω hag, vals_agree hL hag, map_assignOn hnd hρ.symm]
   exact hS
@@ -900,10 +901,7 @@ theorem exists_ge_of_le {L : LoadedOrder} (hL : L.Good) {ω : Witness}
   obtain ⟨ρ, hρ, hSO⟩ := h
   have hag : ∀ v ∉ L.order.aux, assignOn L.order.aux ρ σ v = σ v := fun v hv =>
     assignOn_of_not_mem hv ρ σ
-  have hnd : L.order.aux.Nodup := by
-    have := (Order.wellFormed_iff.1 hL.order.wf).2.1
-    simp only [Order.vars] at this
-    exact (List.nodup_append.1 this).2.1
+  have hnd := hL.order.aux_nodup
   refine ⟨ρ, hρ, List.forall_mem_append.2 ⟨(holds_geSpec hL ω _).2 ?_, (holds_geGoals hL ω _).2 ?_⟩⟩
   all_goals
     rw [vals_apply_agree hL hω hag, vals_agree hL hag, map_assignOn hnd hρ.symm]
@@ -3081,12 +3079,8 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
     subst h
     exact ⟨hs.sub, hs.imp, hs.chk, hs.wit⟩
   | eordDef _ _ | eordLoaded _ _ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact hs
-    · cases h
+    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
+    exact hs
   | dom c ω items q =>
     simp only [stepTop] at h
     split at h
@@ -3356,12 +3350,8 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
     subst h
     exact ⟨ho.orders, fun _ h => by simp at h, fun _ h => by simp at h⟩
   | eordDef _ _ | eordLoaded _ _ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact ho
-    · cases h
+    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
+    exact ho
   | dom c ω items q =>
     simp only [stepTop] at h
     split at h
@@ -3642,12 +3632,8 @@ theorem stepTop_reachesOn {F : List PBConstr} {obj : Option Objective} {P : List
     subst h
     exact hs
   | eordDef _ _ | eordLoaded _ _ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact hs
-    · cases h
+    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
+    exact hs
   | dom c ω items q =>
     simp only [stepTop] at h
     split at h
@@ -3917,12 +3903,8 @@ theorem stepTop_enumInv {F : List PBConstr} {obj : Option Objective} {pres : Opt
     subst h
     exact enumInv_of he rfl id rfl fun hc => ⟨hc, same⟩
   | eordDef _ _ | eordLoaded _ _ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact he
-    · cases h
+    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
+    exact he
   | dom c ω items q =>
     simp only [stepTop] at h
     split at h
@@ -4100,12 +4082,8 @@ theorem stepTop_covers {F : List PBConstr} {obj : Option Objective} {σ₀ : ℕ
     subst h
     exact covers_of hs rfl id (fun _ h => h) (keep _ fun _ h => h)
   | eordDef _ _ | eordLoaded _ _ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact hs
-    · cases h
+    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
+    exact hs
   | dom c ω items q =>
     simp only [stepTop] at h
     split at h
