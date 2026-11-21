@@ -113,6 +113,32 @@ theorem subdivision_edge_endpoints (I : FixedRotationInput)
   generalize k = k'
   fin_cases k' <;> rfl
 
+/-- Retain the original occurrence and end tag while selecting its incident first or last
+subdivision segment. In particular, the two original loop ends select different segments. -/
+@[expose] def subdivisionDart (I : FixedRotationInput) (d : Dart I.graph) :
+    Dart (subdivisionGraph I) :=
+  (⟨3 * d.1.val + if d.2 then 2 else 0, by
+    have hi := d.1.isLt
+    simp only [subdivisionGraph, List.length_map, length_subdivide]
+    cases d.2 <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega⟩, d.2)
+
+/-- An original dart selects its own occurrence's first or last piece. -/
+theorem subdivisionEdgeIndex_subdivisionDart (I : FixedRotationInput) (d : Dart I.graph) :
+    subdivisionEdgeIndex I (subdivisionDart I d).1 =
+      ⟨d.1, if d.2 then 2 else 0⟩ := by
+  have ha := subdivisionEdgeIndex_val I (subdivisionDart I d).1
+  generalize subdivisionEdgeIndex I (subdivisionDart I d).1 = a at ha ⊢
+  obtain ⟨i, k⟩ := a
+  let j : Fin 3 := if d.2 then 2 else 0
+  have hjval : j.val = (if d.2 then 2 else 0) := by
+    dsimp only [j]
+    cases d.2 <;> rfl
+  change 3 * d.1.val + (if d.2 then 2 else 0) = 3 * i.val + k.val at ha
+  rw [← hjval] at ha
+  have hj := j.isLt
+  have hk := k.isLt
+  exact congrArg₂ SubdivisionEdgeIndex.mk (Fin.ext (by omega)) (Fin.ext (by omega))
+
 /-- Unordered endpoints identify the actual indexed subdivision occurrence. Original loops,
 parallel edges and reversed occurrences retain their distinct fresh vertices. -/
 theorem subdivisionGraph_edge_injective {I : FixedRotationInput} (hI : Valid I) :

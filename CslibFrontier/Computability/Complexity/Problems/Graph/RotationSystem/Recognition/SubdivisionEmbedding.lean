@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
+import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
 import Mathlib.Tactic.FinCases
 
@@ -375,20 +376,47 @@ private theorem edge_contacts {I : FixedRotationInput} (hI : Valid I)
     rw [dart_node e, dart_node f, hbe, hcf, original_node, original_node]
     exact hn
 
+private theorem drawing_germ {I : FixedRotationInput} (hI : Valid I)
+    (D : PolygonalDrawing I.graph) (d : Dart I.graph) :
+    (drawing hI D).germ (subdivisionDart I d) = cut • D.germ d := by
+  rcases d with ⟨i, b⟩
+  change ((D.route (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).original).trisect
+    cut cut (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).piece).germ b =
+      cut • (D.route i).germ b
+  rw [subdivisionEdgeIndex_subdivisionDart]
+  let p := D.route i
+  have hcut (c : Bool) :
+      (p.cutEnds cut cut).endpoint c = p.endpoint c + cut • p.germ c := by
+    rw [p.endpoint_cutEnds, p.eval_near_end, ite_self]
+  cases b
+  · change (Route.line p.start (p.cutEnds cut cut).start).germ false = _
+    rw [Route.germ_line]
+    change (p.cutEnds cut cut).endpoint false - p.endpoint false = _
+    rw [hcut, add_sub_cancel_left]
+  · change (Route.line (p.cutEnds cut cut).finish p.finish).germ true = _
+    rw [Route.germ_line]
+    change (p.cutEnds cut cut).endpoint true - p.endpoint true = _
+    rw [hcut, add_sub_cancel_left]
+
 /-- An embedding of the original listed graph yields an embedding of its recognition
 subdivision, with the original declared vertex positions retained. Two interior points
-are chosen on each indexed route, and the three resulting pieces are used in order. -/
+are chosen on each indexed route, and the three resulting pieces are used in order.
+The outgoing directions at the selected first and last darts are preserved. -/
 theorem exists_subdivision_embedding {I : FixedRotationInput} (hI : Valid I)
     (D : PolygonalDrawing I.graph) (hD : D.IsEmbedding) :
     ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
-      ∀ v ∈ I.graph.vertices, E.vertex v = D.vertex v := by
+      (∀ v ∈ I.graph.vertices, E.vertex v = D.vertex v) ∧
+        ∀ d : Dart I.graph, E.direction (subdivisionDart I d) = D.direction d := by
   refine ⟨drawing hI D, ⟨place_injective hI hD, ?_, vertex_contacts hI hD, edge_contacts hI hD⟩,
-    ?_⟩
+    ?_, ?_⟩
   · intro e
     exact (hD.simple (subdivisionEdgeIndex I e).original).trisect cut_pos cut_pos cut_small _
   · intro v hv
     apply place_old D
     rw [hI.1] at hv
     exact List.mem_range.mp hv
+  · intro d
+    simp only [PolygonalDrawing.direction, drawing_germ, Complex.real_smul,
+      Complex.arg_real_mul _ cut_pos]
 
 end Cslib.Complexity.Graph.RotationRecognition

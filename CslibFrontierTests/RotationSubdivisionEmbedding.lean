@@ -22,18 +22,24 @@ open Cslib.Complexity Graph RotationRecognition RotationSystem
 /-- The original star has one-segment routes, so both cuts are on the same segment. -/
 theorem star_subdivision :
     ∃ E : PolygonalDrawing (subdivisionGraph ⟨starGraph 2, [none, none, none]⟩),
-      E.IsEmbedding ∧ E.vertex 2 = (PolygonalDrawing.star 2).vertex 2 := by
+      E.IsEmbedding ∧ E.vertex 2 = (PolygonalDrawing.star 2).vertex 2 ∧
+        ∀ d, E.direction
+          (subdivisionDart ⟨starGraph 2, [none, none, none]⟩ d) =
+            (PolygonalDrawing.star 2).direction d := by
   let I : FixedRotationInput := ⟨starGraph 2, [none, none, none]⟩
   have hI : Valid I := (validate_eq_true_iff I).mp (by decide)
-  obtain ⟨E, hE, hV⟩ :=
+  obtain ⟨E, hE, hV, hdir⟩ :=
     exists_subdivision_embedding hI (PolygonalDrawing.star 2) (PolygonalDrawing.star_isEmbedding 2)
-  exact ⟨E, hE, hV 2 (by decide)⟩
+  exact ⟨E, hE, hV 2 (by decide), hdir⟩
 
 private def loop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [none]⟩
 
+private def loopEdge : Fin loop.graph.edges.length := ⟨0, by decide⟩
+
 -- The two cuts on an actual closed route are different declared vertices.
-example : ∃ E : PolygonalDrawing (subdivisionGraph loop),
-    E.IsEmbedding ∧ E.vertex 1 ≠ E.vertex 2 := by
+example : ∃ (D : PolygonalDrawing loop.graph) (E : PolygonalDrawing (subdivisionGraph loop)),
+    D.IsEmbedding ∧ E.IsEmbedding ∧ E.vertex 1 ≠ E.vertex 2 ∧
+      ∀ b, E.direction (subdivisionDart loop (loopEdge, b)) = D.direction (loopEdge, b) := by
   have hI : Valid loop := (validate_eq_true_iff loop).mp (by decide)
   let c : RotationCertificate := ⟨[1, 0]⟩
   let r := RotationCertificate.decode loop.graph c (by decide)
@@ -42,7 +48,10 @@ example : ∃ E : PolygonalDrawing (subdivisionGraph loop),
       (by decide)).mp (by decide)
   let D := PolygonalDrawing.bouquet r (by decide)
   have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r (by decide) hg (by decide)
-  obtain ⟨E, hE, _⟩ := exists_subdivision_embedding hI D hD
-  exact ⟨E, hE, hE.vertex_ne (by decide) (by decide) (by decide)⟩
+  obtain ⟨E, hE, _, hdir⟩ := exists_subdivision_embedding hI D hD
+  have hloop (b : Bool) :
+      E.direction (subdivisionDart loop (loopEdge, b)) = D.direction (loopEdge, b) :=
+    hdir (loopEdge, b)
+  exact ⟨D, E, hD, hE, hE.vertex_ne (by decide) (by decide) (by decide), hloop⟩
 
 end CslibFrontierTests.RotationSubdivisionEmbedding
