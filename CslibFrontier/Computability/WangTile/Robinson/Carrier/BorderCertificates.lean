@@ -777,17 +777,21 @@ private theorem border_index_checked (index : Fin 376) : borderCheck index = tru
     omega
   simpa only [reconstructed] using checked
 
-private def borderStates : List BorderState := List.ofFn borderStateAt
+private theorem borderTable_size : borderTable.size = 376 := by decide +kernel
+
+private def borderStates : List BorderState :=
+  List.ofFn fun index : Fin borderTable.size => borderRow (borderTable.get index.val)
 
 /-- Membership in the fixed 376-state halo invariant of the selected substitution. -/
 def BorderState.Admissible (state : BorderState) : Prop := state ∈ borderStates
 
-private theorem borderStateAt_mem (index : Fin 376) : (borderStateAt index).Admissible := by
-  exact List.mem_ofFn.mpr ⟨index, rfl⟩
+private theorem borderStateAt_mem (index : Fin 376) : (borderStateAt index).Admissible :=
+  List.mem_ofFn.mpr ⟨index.cast borderTable_size.symm, rfl⟩
 
 private theorem exists_borderStateAt {state : BorderState} (h : state.Admissible) :
-    ∃ index : Fin 376, borderStateAt index = state :=
-  List.mem_ofFn.mp h
+    ∃ index : Fin 376, borderStateAt index = state := by
+  obtain ⟨index, rfl⟩ := List.mem_ofFn.mp h
+  exact ⟨index.cast borderTable_size, rfl⟩
 
 private theorem border_checked {state : BorderState} (h : state.Admissible) :
     (∀ x y : Fin 2,
