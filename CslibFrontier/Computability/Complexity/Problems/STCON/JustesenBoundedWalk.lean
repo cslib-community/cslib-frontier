@@ -76,10 +76,7 @@ theorem configurationJustesenBoundedWalk_firstHalting_iff (ntm : MultiTapeNTM k 
     simpa only [adjacent, decide_eq_true_eq] using (hcall w seed u v).2.2.1
   let initial := Runtime.entry edge start callbackVerdict 3 ctx r
   let walk := Runtime.machine edge start callbackVerdict 3 initial
-  have hinit : walk.init = initial := by
-    simpa only [NondeterministicQueryMachine.init_withInit] using
-      (congrArg NondeterministicQueryMachine.init
-        (Runtime.machine_withInit edge start callbackVerdict 3 initial initial)).symm
+  have hinit : walk.init = initial := Runtime.machine_init edge start callbackVerdict 3 initial
   change walk.FirstHalting w bits walk.init ∧
     Runtime.remainingFuel (walk.run w bits) = some left ↔ _
   have hfirst := Runtime.firstHalting_iff edge start callbackVerdict 3 ctx r w bits

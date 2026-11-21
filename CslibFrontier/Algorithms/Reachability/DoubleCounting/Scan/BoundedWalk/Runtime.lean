@@ -119,6 +119,12 @@ theorem machine_withInit (initial state : State κ τ) :
   unfold machine NondeterministicQueryMachine.withInit
   rfl
 
+/-- The runtime machine starts in the supplied entry state. -/
+theorem machine_init (initial : State κ τ) :
+    (machine edge start verdict clock initial).init = initial := by
+  unfold machine
+  rfl
+
 private theorem innerMachine_withInit {N : ℕ} (ctx : κ) (hp : 0 < N)
     (s : BoundedWalk.State N τ) (r : Registers N) :
     (innerMachine edge start verdict clock ⟨ctx, N, hp, s⟩).withInit
