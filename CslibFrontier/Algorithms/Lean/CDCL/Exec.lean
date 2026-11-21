@@ -884,15 +884,6 @@ theorem Exec.Inv.split_cur {S : Exec φ} (hS : S.Inv) {sp : Split}
 abbrev Exec.LearnedAt (S : Exec φ) (sp : Split) : Type :=
   Learned S.log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)
 
-/-- The numbers of the intermediate resolvents of an analysis: the numbers from `n` to below `next`
-other than `id`, the learned clause's. -/
-abbrev resolventIds (n next id : ℕ) : List ℕ := LRATLog.recentIds n next id
-
-theorem mem_resolventIds {n next id i : ℕ} (h : i ∈ resolventIds n next id) : n ≤ i ∧ i ≠ id := by
-  simp only [resolventIds, LRATLog.recentIds, List.mem_filter, List.mem_range'_1, bne_iff_ne,
-    ne_eq] at h
-  exact ⟨h.1.1, h.2⟩
-
 /-- Walking down the trail for `XTrail.dropLevels`: `acc` holds the entries of the current level
 seen so far, newest last, and `hit` whether one of them is marked. At a decision, the level is
 dropped if neither it nor its entries are marked, and otherwise kept with everything below; at the
@@ -1096,9 +1087,10 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
   have hrun₁ := Step.inv (.inl hbj) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run)
   have hrun₂ := Step.inv (.inr (.inl hlearn)) hrun₁
   -- the deleted numbers are new, other than the learned clause's
-  have hid : L.id ∉ resolventIds S.log.next L.log.next L.id := fun h => (mem_resolventIds h).2 rfl
-  have hold : ∀ i, i < S.log.next → i ∉ resolventIds S.log.next L.log.next L.id :=
-    fun i hi h => by have := (mem_resolventIds h).1; omega
+  have hid : L.id ∉ LRATLog.recentIds S.log.next L.log.next L.id :=
+    fun h => (LRATLog.mem_recentIds.1 h).2.2 rfl
+  have hold : ∀ i, i < S.log.next → i ∉ LRATLog.recentIds S.log.next L.log.next L.id :=
+    fun i hi h => by have := (LRATLog.mem_recentIds.1 h).1; omega
   have hroot : XTrail.root S.trail = XTrail.root K := by
     rw [hUK, hJ, List.append_assoc, List.singleton_append, XTrail.root_append_decision]
   refine ⟨⟨hrun₂, ?_, ?_, ?_, fun e' he' => ?_, fun r hr => ?_⟩, ?_⟩
