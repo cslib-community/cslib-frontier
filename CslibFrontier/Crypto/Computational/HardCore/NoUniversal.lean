@@ -83,8 +83,15 @@ noncomputable def guessBitInverter (adversary : Inverter) : Inverter :=
 @[program_certificate]
 theorem isPPT_guessBitInverter {adversary : Inverter} (ha : IsPPT encBits adversary) :
     IsPPT encBits (guessBitInverter adversary) := by
-  unfold guessBitInverter
-  ppt
+  apply IsPPTOn.isPPT
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary encBits) encBool)
+  have hword := ComputableInPolyTime.bitsAppend hp.fst'.snd'
+    (ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const []))
+  have hcontinue := ha.preprocess hp.fst'.fst' hword
+  simpa only [guessBitInverter] using
+    (isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with
+      (second := fun pair bit => adversary pair.1 (pair.2 ++ [bit])) hcontinue
 
 /-- **Inversion reduction.** Guessing the appended bit loses at most a factor two: the guess is
 right with probability one half, and then the extended image is distributed exactly as in the game

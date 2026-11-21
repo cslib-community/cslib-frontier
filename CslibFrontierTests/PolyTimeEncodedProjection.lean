@@ -38,12 +38,12 @@ example : ComputableInPolyTime
     (fun p : List Bool × ℕ => p.1.take (p.2 + 1))
     (encPair (encList encBool) encUnary) encBits := by
   have hconvert : ComputableInPolyTime (fun l => l) (encList encBool) encBits :=
-    .of_tidy ComputableTidilyInPolyTime.listToBits
+    ComputableInPolyTime.listToBits
   fun_prop
 
 example : ComputableInPolyTime
     (fun p : ℕ × List Bool => p.2.take (p.1 + 1))
     (encPair encUnary (encList encBool)) encBits := by
   have hconvert : ComputableInPolyTime (fun l => l) (encList encBool) encBits :=
-    .of_tidy ComputableTidilyInPolyTime.listToBits
+    ComputableInPolyTime.listToBits
   fun_prop
