@@ -375,6 +375,82 @@ theorem lazy_sampling_witness :
   rw [SSP.run_parFinLazy_eq_parFin]
   exact hE
 
+private def backdoorAdv : ExecAdversary 2 Unit Bool
+    (Unit ⊕ RoutedNetQ 2 (SubSessionInput (Fin 2) Unit) (SubSessionBackdoor (Fin 2) Unit))
+    (Unit ⊕ RoutedNetR Bool Bool) (Fin 2) Bool :=
+  fun _ _ => {
+    State := Unit
+    init := pure ()
+    handle | j, () => do
+      let r ← ProbOracleComp.query (.inr (.inr (.inr ⟨j, ()⟩)))
+      pure (Sum.elim (fun _ => false) (Sum.elim (fun _ => false)
+        (Sum.elim (fun _ => false) id)) r, ()) }
+
+private def backdoorEnv (iPoll : Fin 2) : Environment 2 Unit Bool (Fin 2) Bool :=
+  fun _ _ => do
+    let bBack ← ProbOracleComp.query (.inr (0 : Fin 2))
+    let bPoll ← ProbOracleComp.query (.inl (iPoll, ()))
+    pure (some bBack == bPoll)
+
+private def backdoorRelay : MultiHybridProtocol 2 2 Unit Bool Unit Unit Unit Bool :=
+  fun _ _ => {
+    State := Unit
+    init := pure ()
+    handle
+      | .inl (p, _), _ => do
+        let r ← ProbOracleComp.query ⟨p, p, ()⟩
+        pure (r, ())
+      | .inr _, _ => pure ((), ()) }
+
+private theorem backdoor_creation_prefix (iPoll : Fin 2) :
+    let pollProb : Bool → ENNReal := fun b₀ =>
+      (match Function.update (fun _ : Fin 2 => (none : Option Bool)) 0 (some b₀) iPoll with
+      | some st => PMF.pure (some b₀ == some st)
+      | none =>
+        (Probability.PMF.uniformOfFintype (Fin 2)).bind fun r =>
+          PMF.pure (some b₀ == some (decide (r.val = 0)))) true
+    (exec (compose backdoorRelay.toJoint (coinBackdoorFunc.multiSession (Fin 2)).toProtocol)
+        backdoorAdv ∅ (backdoorEnv iPoll) 0 []).eval true =
+      (2 : ENNReal)⁻¹ * pollProb true + (2 : ENNReal)⁻¹ * pollProb false := by
+  intro pollProb
+  have hA : (liftAdversary (n := 2) (In := Unit) (Out := Bool) (backdoorAdv 0 ∅)).link
+      (backdoorEnv iPoll 0 []) =
+      (ProbOracleComp.query (.inr (.inr (.inr (.inr ⟨(0 : Fin 2), ()⟩)))) >>= fun r =>
+        ProbOracleComp.query (.inl (iPoll, ())) >>= fun bPoll =>
+          pure (some (Sum.elim (fun _ => false) (Sum.elim (fun _ => false)
+            (Sum.elim (fun _ => false) id)) r) == bPoll)) := by
+    rw [Machine.link]
+    dsimp only [liftAdversary, backdoorAdv, backdoorEnv]
+    erw [ProbOracleComp.sample_pure, pure_bind]
+  rw [exec, execMachine, compose, corruptRouter_comp, Machine.run_comp, Machine.run_comp, hA]
+  erw [link_routeCorrupt_hybridWrap_inr_inl _ _ (() : Unit) rfl]
+  simp only [Finset.notMem_empty, ↓reduceIte, MultiHybridProtocol.toJoint, backdoorRelay,
+    StateT.run]
+  erw [liftParty_toJoint_one]
+  simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
+  simp only [pure_bind, bind_map_left, Machine.run, Machine.link, corruptRouter,
+    coinBackdoorFunc, IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
+    Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
+    ProbOracleComp.sample_pure, StateT.run_map, map_bind,
+    Finset.notMem_empty, ↓reduceIte]
+  simp only [StateT.run, Machine.closeProgram_bind, Machine.closeProgram_sample,
+    Machine.closeProgram_map, Machine.closeProgram_pure, ProbComp.eval_map, ProbComp.eval_bind,
+    ProbComp.eval_pure, ProbComp.eval_unifFin, PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
+  simp only [PMF.bind_apply, Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
+    tsum_fintype, Fin.sum_univ_two, Fin.isValue, Fin.val_zero, Fin.val_one, decide_true,
+    decide_false, Nat.one_ne_zero]
+  simp only [Sum.elim_inr, id_eq, pure_bind, PMF.pure_apply, pollProb]
+  by_cases hPoll : iPoll = 0
+  · simp only [hPoll, Function.update_self, ProbComp.eval_pure, PMF.pure_apply]
+    rw [tsum_ite_mul_eq, tsum_ite_mul_eq]
+    simp
+  · simp only [Function.update_of_ne hPoll, ProbComp.eval_bind, ProbComp.eval_pure,
+      ProbComp.eval_unifFin, PMF.bind_apply, Probability.PMF.uniformOfFintype_apply,
+      Fintype.card_fin, tsum_fintype, Fin.sum_univ_two, Fin.isValue, Fin.val_zero, Fin.val_one,
+      decide_true, decide_false, Nat.one_ne_zero, PMF.pure_apply]
+    rw [tsum_ite_add_mul_eq, tsum_ite_add_mul_eq]
+    simp
+
 /-- Witness 5 (creation by a backdoor query): first touching copy `0` via backdoor query `⟨0, ()⟩`
 initializes copy `0` (`Pr[backdoor = poll₀] = 1`), copy `1` stays independent
 (`Pr[backdoor₀ = poll₁] = 1/2`), and the nontrivial `Bool` backdoor passes through
@@ -382,30 +458,10 @@ initializes copy `0` (`Pr[backdoor = poll₀] = 1`), copy `1` stays independent
 theorem backdoor_creation_witness :
     let A : ExecAdversary 2 Unit Bool
         (Unit ⊕ RoutedNetQ 2 (SubSessionInput (Fin 2) Unit) (SubSessionBackdoor (Fin 2) Unit))
-        (Unit ⊕ RoutedNetR Bool Bool) (Fin 2) Bool :=
-      fun _ _ => {
-        State := Unit
-        init := pure ()
-        handle | j, () => do
-          let r ← ProbOracleComp.query (.inr (.inr (.inr ⟨j, ()⟩)))
-          pure (Sum.elim (fun _ => false) (Sum.elim (fun _ => false)
-            (Sum.elim (fun _ => false) id)) r, ()) }
-    let Zsame : Environment 2 Unit Bool (Fin 2) Bool := fun _ _ => do
-      let bBack ← ProbOracleComp.query (.inr (0 : Fin 2))
-      let bPoll ← ProbOracleComp.query (.inl ((0 : Fin 2), ()))
-      pure (some bBack == bPoll)
-    let Zind : Environment 2 Unit Bool (Fin 2) Bool := fun _ _ => do
-      let bBack ← ProbOracleComp.query (.inr (0 : Fin 2))
-      let bPoll ← ProbOracleComp.query (.inl ((1 : Fin 2), ()))
-      pure (some bBack == bPoll)
-    let ρ : MultiHybridProtocol 2 2 Unit Bool Unit Unit Unit Bool := fun _ _ => {
-      State := Unit
-      init := pure ()
-      handle
-        | .inl (p, _), _ => do
-          let r ← ProbOracleComp.query ⟨p, p, ()⟩
-          pure (r, ())
-        | .inr _, _ => pure ((), ()) }
+        (Unit ⊕ RoutedNetR Bool Bool) (Fin 2) Bool := backdoorAdv
+    let Zsame : Environment 2 Unit Bool (Fin 2) Bool := backdoorEnv 0
+    let Zind : Environment 2 Unit Bool (Fin 2) Bool := backdoorEnv 1
+    let ρ : MultiHybridProtocol 2 2 Unit Bool Unit Unit Unit Bool := backdoorRelay
     (exec (compose ρ.toJoint (coinBackdoorFunc.multiSession (Fin 2)).toProtocol)
         A ∅ Zsame 0 []).eval true = 1 ∧
       (exec (composeMulti ρ coinBackdoorFunc.toProtocol)
@@ -417,67 +473,13 @@ theorem backdoor_creation_witness :
   intro A Zsame Zind ρ
   have hSame : (exec (compose ρ.toJoint (coinBackdoorFunc.multiSession (Fin 2)).toProtocol)
       A ∅ Zsame 0 []).eval true = 1 := by
-    have hA : (liftAdversary (n := 2) (In := Unit) (Out := Bool) (A 0 ∅)).link (Zsame 0 []) =
-        (ProbOracleComp.query (.inr (.inr (.inr (.inr ⟨(0 : Fin 2), ()⟩)))) >>= fun r =>
-          ProbOracleComp.query (.inl ((0 : Fin 2), ())) >>= fun bPoll =>
-            pure (some (Sum.elim (fun _ => false) (Sum.elim (fun _ => false)
-              (Sum.elim (fun _ => false) id)) r) == bPoll)) := by
-      rw [Machine.link]
-      dsimp only [liftAdversary, A, Zsame]
-      erw [ProbOracleComp.sample_pure, pure_bind]
-    rw [exec, execMachine, compose, corruptRouter_comp, Machine.run_comp, Machine.run_comp, hA]
-    erw [link_routeCorrupt_hybridWrap_inr_inl _ _ (() : Unit) rfl]
-    simp only [Finset.notMem_empty, ↓reduceIte, MultiHybridProtocol.toJoint, ρ, StateT.run]
-    erw [liftParty_toJoint_one]
-    simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
-    simp only [pure_bind, bind_map_left, Machine.run, Machine.link, corruptRouter,
-      coinBackdoorFunc, IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
-      Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
-      ProbOracleComp.sample_pure, StateT.run_map, map_bind,
-      Finset.notMem_empty, ↓reduceIte]
-    simp only [StateT.run, Machine.closeProgram_bind, Machine.closeProgram_sample,
-      Machine.closeProgram_map, Machine.closeProgram_pure, ProbComp.eval_map, ProbComp.eval_bind,
-      ProbComp.eval_pure, ProbComp.eval_unifFin, PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
-    simp only [PMF.bind_apply, Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
-      tsum_fintype, Fin.sum_univ_two, Fin.isValue, Fin.val_zero, Fin.val_one, decide_true,
-      decide_false, Nat.one_ne_zero]
-    simp only [Function.update_self, Sum.elim_inr, id_eq, pure_bind, ProbComp.eval_pure,
-      PMF.pure_apply]
-    rw [tsum_ite_mul_eq, tsum_ite_mul_eq]
-    simp [ENNReal.inv_two_add_inv_two]
+    rw [show Zsame = backdoorEnv 0 from rfl, backdoor_creation_prefix 0]
+    simp [Function.update_self, PMF.pure_apply, ENNReal.inv_two_add_inv_two]
   have hInd : (exec (compose ρ.toJoint (coinBackdoorFunc.multiSession (Fin 2)).toProtocol)
       A ∅ Zind 0 []).eval true = (2 : ENNReal)⁻¹ := by
-    have hA : (liftAdversary (n := 2) (In := Unit) (Out := Bool) (A 0 ∅)).link (Zind 0 []) =
-        (ProbOracleComp.query (.inr (.inr (.inr (.inr ⟨(0 : Fin 2), ()⟩)))) >>= fun r =>
-          ProbOracleComp.query (.inl ((1 : Fin 2), ())) >>= fun bPoll =>
-            pure (some (Sum.elim (fun _ => false) (Sum.elim (fun _ => false)
-              (Sum.elim (fun _ => false) id)) r) == bPoll)) := by
-      rw [Machine.link]
-      dsimp only [liftAdversary, A, Zind]
-      erw [ProbOracleComp.sample_pure, pure_bind]
-    rw [exec, execMachine, compose, corruptRouter_comp, Machine.run_comp, Machine.run_comp, hA]
-    erw [link_routeCorrupt_hybridWrap_inr_inl _ _ (() : Unit) rfl]
-    simp only [Finset.notMem_empty, ↓reduceIte, MultiHybridProtocol.toJoint, ρ, StateT.run]
-    erw [liftParty_toJoint_one]
-    simp only [map_bind, map_pure, bind_assoc, pure_bind, Sum.elim_inr]
-    simp only [pure_bind, bind_map_left, Machine.run, Machine.link, corruptRouter,
-      coinBackdoorFunc, IdealFunctionality.multiSession, IdealFunctionality.toProtocol,
-      Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
-      ProbOracleComp.sample_pure, StateT.run_map, map_bind,
-      Finset.notMem_empty, ↓reduceIte]
-    simp only [StateT.run, Machine.closeProgram_bind, Machine.closeProgram_sample,
-      Machine.closeProgram_map, Machine.closeProgram_pure, ProbComp.eval_map, ProbComp.eval_bind,
-      ProbComp.eval_pure, ProbComp.eval_unifFin, PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
-    simp only [PMF.bind_apply, Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
-      tsum_fintype, Fin.sum_univ_two, Fin.isValue, Fin.val_zero, Fin.val_one, decide_true,
-      decide_false, Nat.one_ne_zero]
-    simp only [Function.update_of_ne Fin.zero_ne_one.symm, Sum.elim_inr, id_eq, pure_bind,
-      ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_unifFin,
-      PMF.bind_apply, Probability.PMF.uniformOfFintype_apply, Fintype.card_fin, tsum_fintype,
-      Fin.sum_univ_two, Fin.isValue, Fin.val_zero, Fin.val_one, decide_true, decide_false,
-      Nat.one_ne_zero, PMF.pure_apply]
-    rw [tsum_ite_add_mul_eq, tsum_ite_add_mul_eq]
-    simp [← mul_add, ENNReal.inv_two_add_inv_two]
+    rw [show Zind = backdoorEnv 1 from rfl, backdoor_creation_prefix 1]
+    simp [PMF.bind_apply, Probability.PMF.uniformOfFintype_apply, tsum_fintype, Fin.sum_univ_two,
+      ← mul_add, ENNReal.inv_two_add_inv_two]
   refine ⟨hSame, ?_, hInd, ?_⟩
   · rw [← exec_compose_toJoint_multiSession]
     exact hSame

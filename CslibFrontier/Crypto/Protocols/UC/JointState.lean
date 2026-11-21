@@ -93,7 +93,7 @@ without importing the UC ideal-functionality or execution modules.
   `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` and `composeMulti ρ F.toProtocol`.
 * `Cslib.Crypto.Protocols.UC.EmulatesWithin.toJoint_multiSession`,
   `Cslib.Crypto.Protocols.UC.EmulatesWithin.multiSession_toJoint`: fixed-session concrete
-  emulation steps in both directions with zero error and `Polynomial.X + 1` overhead.
+  emulation steps in both directions with zero error and `Polynomial.X` overhead.
 
 ## References
 
@@ -229,20 +229,14 @@ execution (`compose ρ.toJoint F̂`) to the corresponding network query of the `
   | .inr (.sub j (.inl (i, x))) => .inr (.inr (.inl (i, ⟨j, x⟩)))
   | .inr (.sub j (.inr bq)) => .inr (.inr (.inr ⟨j, bq⟩))
 
-private theorem muxNetQuery_demuxNetQuery {m n : ℕ} {In NetQ SubIn BackQ : Type}
-    (q : RoutedNetQ n In (NetQ ⊕ RoutedNetQ n (SubSessionInput (Fin m) SubIn)
-      (SubSessionBackdoor (Fin m) BackQ))) :
-    muxNetQuery (demuxNetQuery q) = q := by
-  rcases q with p | q | ⟨i, req⟩ | req <;> rfl
-
 private theorem demuxNetQuery_muxNetQuery {m n : ℕ} {In NetQ SubIn BackQ : Type}
     (q : RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ))) :
     demuxNetQuery (muxNetQuery q) = q := by
   rcases q with p | q | ⟨j, ⟨i, x⟩ | bq⟩ <;> rfl
 
-/-- Library construction (no cited definition): translate the network query interface of a machine
-via `f` without modifying replies or state. -/
-@[expose] def mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ₁ → NQ₂)
+/-- Translate the network query interface of a machine via `f` without modifying replies or
+state. -/
+private def mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ₁ → NQ₂)
     (A : Machine (netSpec NQ₁ R) (netSpec AdvQ AdvR)) :
     Machine (netSpec NQ₂ R) (netSpec AdvQ AdvR) where
   State := A.State
@@ -267,7 +261,7 @@ private theorem isBounded_mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` running against
 `composeMulti ρ F.toProtocol` ([CanettiRabin2003], §3, "The Composition Operation", and the proof
 of Theorem 1). -/
-@[expose] def jointDemux {m n : ℕ} {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
+def jointDemux {m n : ℕ} {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     (A : ExecAdversary n In Out
       (NetQ ⊕ RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
       (NetR ⊕ RoutedNetR SubOut BackR) AdvQ AdvR) :
@@ -278,7 +272,7 @@ of Theorem 1). -/
 /-- Library construction (no cited result): explicit multiplexing adversary in the reverse
 direction, mapping `composeMulti ρ F.toProtocol` queries to
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`. -/
-@[expose] def jointMux {m n : ℕ} {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
+def jointMux {m n : ℕ} {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     (A : ExecAdversary n In Out (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ))
       (NetR ⊕ RoutedNetR SubOut BackR) AdvQ AdvR) :
     ExecAdversary n In Out
@@ -894,7 +888,7 @@ theorem exec_composeMulti_toJoint {m n : ℕ}
 in the `F̂`-hybrid model emulates protocol `π` in the `F`-hybrid model"), not that theorem;
 fixed-session joint-state step for this library's call-bounded `EmulatesWithin` relation:
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` emulates `composeMulti ρ F.toProtocol`
-with overhead `Polynomial.X + 1` and zero distinguishing error via the explicit demultiplexing
+with overhead `Polynomial.X` and zero distinguishing error via the explicit demultiplexing
 adversary `jointDemux`. Fixed number `m` of sessions chosen in advance; static corruption; pull
 execution returning untagged `Option SubOut` with explicit `SubSessionBackdoor` queries. -/
 theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
@@ -904,21 +898,17 @@ theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
     EmulatesWithin
       (UC.compose ρ.toJoint (F.multiSession (Fin m)).toProtocol)
       (UC.composeMulti ρ F.toProtocol)
-      (Polynomial.X + 1)
+      Polynomial.X
       (fun _ _ _ => 0) := by
   intro AdvQ AdvR A pA hA
-  refine ⟨jointDemux A, pA, jointDemux_polyBounded hA, fun κ => ?_, fun C Z pZ _ κ z => ?_⟩
-  · simp only [Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
-    have h := SimPolyBound.refl pA κ
-    simp only [Polynomial.eval_X] at h
-    exact Nat.le_succ_of_le h
-  · simp only [advantage, Game.advantage, exec_compose_toJoint_multiSession, nndist_self, le_rfl]
+  refine ⟨jointDemux A, pA, jointDemux_polyBounded hA, SimPolyBound.refl pA, fun C Z pZ _ κ z => ?_⟩
+  simp only [advantage, Game.advantage, exec_compose_toJoint_multiSession, nndist_self, le_rfl]
 
 /-- A step of the proof of Theorem 1 of [CanettiRabin2003] (the step showing that "protocol `π̃`
 in the `F̂`-hybrid model emulates protocol `π` in the `F`-hybrid model"), not that theorem;
 fixed-session reverse joint-state step for this library's call-bounded `EmulatesWithin` relation:
 `composeMulti ρ F.toProtocol` emulates `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`
-with overhead `Polynomial.X + 1` and zero distinguishing error via `jointMux`. Fixed number `m` of
+with overhead `Polynomial.X` and zero distinguishing error via `jointMux`. Fixed number `m` of
 sessions chosen in advance; static corruption; pull execution returning untagged `Option SubOut`
 with explicit `SubSessionBackdoor` queries. -/
 theorem EmulatesWithin.multiSession_toJoint {m n : ℕ}
@@ -928,14 +918,10 @@ theorem EmulatesWithin.multiSession_toJoint {m n : ℕ}
     EmulatesWithin
       (UC.composeMulti ρ F.toProtocol)
       (UC.compose ρ.toJoint (F.multiSession (Fin m)).toProtocol)
-      (Polynomial.X + 1)
+      Polynomial.X
       (fun _ _ _ => 0) := by
   intro AdvQ AdvR A pA hA
-  refine ⟨jointMux A, pA, jointMux_polyBounded hA, fun κ => ?_, fun C Z pZ _ κ z => ?_⟩
-  · simp only [Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
-    have h := SimPolyBound.refl pA κ
-    simp only [Polynomial.eval_X] at h
-    exact Nat.le_succ_of_le h
-  · simp only [advantage, Game.advantage, exec_composeMulti_toJoint, nndist_self, le_rfl]
+  refine ⟨jointMux A, pA, jointMux_polyBounded hA, SimPolyBound.refl pA, fun C Z pZ _ κ z => ?_⟩
+  simp only [advantage, Game.advantage, exec_composeMulti_toJoint, nndist_self, le_rfl]
 
 end Cslib.Crypto.Protocols.UC
