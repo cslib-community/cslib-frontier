@@ -18,7 +18,11 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSelfImprovement
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSoundness
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SymmetricSoundness
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.TensorSelfImprovement
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
@@ -464,6 +468,7 @@ import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
 import CslibFrontier.Computability.Automata.MPDA.Separation
 import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
+import CslibFrontier.Computability.Automata.MPDA.Witness
 import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
@@ -10947,6 +10952,18 @@ register_result "polynomial-difference-universality-reduced-modulus" where
     digest modulo N. The difference bound is 4(ℓ + 1)/N for positive N ≤ p, including N = 1. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6985 at 55552a3b06."
 
+register_result "polynomial-universality-reduced-modulus" where
+  title := "The reduced Hpoly hash has a collision bound of 4ℓ/N"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.23(d)",
+      locator := "v0.6, printed p. 284" }
+  ]
+  theorems := [Cslib.Probability.isUniversalHash_polyHashMod]
+  scope := "Messages have at most ℓ blocks modulo N. With a uniform key modulo prime p, \
+    evaluate Hxpoly on the prefix, reduce its digest modulo N, and add the last block \
+    modulo N. The empty message hashes to zero. The collision bound is 4ℓ/N for positive N ≤ p."
+
 register_result "polynomial-hash-not-difference-universal" where
   title := "The polynomial hash Hpoly fails difference universality"
   topic := "cryptography"
@@ -11371,6 +11388,46 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
 
+register_result "low-individual-degree-projective-self-improvement" where
+  title := "Projective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 9.4 (restates Theorem 6.2)",
+      locator := "arXiv:2009.12982v1, §9.3, pp. 80–82" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_projectiveSymmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. Input failure is allowed under the \
+    successful agreement premise. The projective output is on the original local space and \
+    has an explicit failure outcome. The theorem bounds completeness loss, point mismatch, \
+    successful squared-distance consistency and the majorant-weighted failure probability by \
+    3000m(ε^(1/32) + δ^(1/32) + (d/|F|)^(1/32)), using the actual axis and point-consistency \
+    losses. The subsequent low-degree induction and soundness remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6612#issuecomment-7016129909."
+
+register_result "low-individual-degree-projective-soundness" where
+  title := "Quantitative soundness for projective low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 3.10",
+      locator := "arXiv:2009.12982v1, p. 15 and the proof in §6" }
+  ]
+  theorems := [
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs,
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs_of_winProb
+  ]
+  scope := "Quantitative variant of Theorem 3.10 for finite projective tensor strategies over \
+    a finite field, with k ≥ md. The original spaces may differ, and no symmetry is assumed. \
+    The two projective polynomial POVMs are on the original local spaces. Let r = d/|F| and \
+    σ = 320000 m² (100000 k² m R + exp(-k/(80000 m²))), where R sums the 1/128 powers of \
+    the axis, consistency and diagonal losses and of r. Let ζ = σ + √(4(σ + δ)) + mr, \
+    where δ is the consistency loss. Each opposite-player point disagreement is bounded by \
+    σ + √(8ζ + 4√(18ζ)), and full-polynomial disagreement by ζ + 2√(18ζ). The branchwise \
+    result allows an independent diagonal cutoff. The full-score result uses the Figure 2 \
+    cutoff and substitutes three times the full loss for each branch loss. Outside source \
+    check: https://github.com/cslib-community/cslib-frontier/pull/6621#issuecomment-7016634350."
+
 register_result "low-individual-degree-self-improvement-sdp" where
   title := "Strong duality for the low-individual-degree self-improvement SDP"
   topic := "nonlocal games"
@@ -11384,6 +11441,41 @@ register_result "low-individual-degree-self-improvement-sdp" where
     failure effect completing them to measurements. The dual ranges over common operator \
     majorants. The optimum has equal primal and dual traces, no primal failure mass and \
     complementary slackness for each polynomial."
+
+register_result "low-individual-degree-symmetric-self-improvement" where
+  title := "Nonprojective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Lemma 9.1",
+      locator := "arXiv:2009.12982v1, pp. 67–68" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_symmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. The input may have a failure outcome if \
+    its successful agreement meets the stated premise. One local polynomial submeasurement \
+    and a positive common majorant give the completeness, point mismatch, successful \
+    self-consistency and dual gap bounds with error 100m(√ε + √δ + √(d/|F|)), using the actual \
+    axis and point-consistency losses. Projective rounding and induction remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6609#issuecomment-7014866968."
+
+register_result "low-individual-degree-symmetric-soundness" where
+  title := "Quantitative symmetric soundness for the low-individual-degree test"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 6.1",
+      locator := "arXiv:2009.12982v1, p. 51 and the induction in §6.2, pp. 57–61" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_polynomial_POVM_of_symmetric]
+  scope := "Quantitative variant of Theorem 6.1 with its own explicit error function. The model \
+    is a finite tensor strategy over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. For dimension m and k ≥ md, a complete \
+    local POVM on polynomials of individual degree at most d has mean disagreement at most \
+    160000 m² (100000 k² m R + exp(-k/(80000 m²))). Here R sums the 1/128 powers of the three \
+    branch losses and the ratio d/|F|. The diagonal cutoff is independent and can be set to md \
+    for the Figure 2 verifier. The output can be nonprojective. Nonsymmetric strategies are a \
+    separate result. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6618#issuecomment-7016417669."
 
 register_result "mpda-one-hole-is-no-hole" where
   title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
@@ -12237,8 +12329,40 @@ register_result "mpda-hole-bounded-emptiness" where
     printed-start variant answers true and repaired Algorithm 1 false. There the initial state \
     has no push and no pop, so the variant only opens empty holes there, and the well-nested \
     acceptance check of line 3 cannot pass the crossing pushes and pops. Theorem 1 states \
-    termination and correctness; the complexity bound given in the paragraph after it and \
-    witness generation are not formalized. Source check: outside-fleet agent review \
-    (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, against arXiv:2002.05950v2, printed \
-    pp. 5, 8, 10 and 22-23: \
+    termination and correctness; the complexity bound given in the paragraph after it is \
+    not formalized, and witness generation is the entry mpda-hole-bounded-witness. Source \
+    check: outside-fleet agent review (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, \
+    against arXiv:2002.05950v2, printed pp. 5, 8, 10 and 22-23: \
     https://github.com/cslib-community/cslib-frontier/pull/6748#pullrequestreview-5998692474."
+
+register_result "mpda-hole-bounded-witness" where
+  title := "Generating a K-hole-bounded accepting run of an MPDA from the emptiness search"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Section 4 (witness generation)",
+      locator := "arXiv:2002.05950v2, Section 4 \"Generating a Witness\", printed p. 11; \
+        Appendix C, Algorithm 5 (well-nested witness generation, printed p. 24) and Algorithm 6 \
+        (non-well-nested witness generation, printed p. 25)" }
+  ]
+  theorems := [Cslib.Automata.MPDA.isSome_witness_iff, Cslib.Automata.MPDA.witness_spec]
+  scope := "For every MPDA whose control states, input letters and stack symbols are FinEnum \
+    types, with decidable transitions and initial and final states, and every K: the executable \
+    function witness K returns a sequence of transitions exactly when the search isEmpty K of \
+    the mpda-hole-bounded-emptiness entry answers false, and every returned sequence labels a \
+    run from an initial state with empty stacks to a final state with empty stacks and is \
+    K-hole-bounded. By Theorem 1 it therefore returns a run exactly when the K-hole-bounded \
+    language is not empty. The returned run need not be shortest. The run is built backwards \
+    from an accepting list as in Algorithm 6: each open hole carries its atomic hole segments, \
+    newest first, which play the role of the source's witness stacks, and each step back over \
+    AddPop or AddHole appends the corresponding pop or block. Two deviations. First, Algorithm \
+    5 is repaired: as printed, its last case may recurse on the pair it was called on, so the \
+    recursion need not terminate; the Lean search wnWitness recurses with fuel, and with the \
+    fuel used to compute WR it succeeds exactly on the pairs of WR. Second, the source \
+    backtracks along a recorded BFS tree; the Lean search recomputes the rounds of the search \
+    until they stabilize and takes each predecessor from the previous round, so it needs no \
+    parent pointers. The module client test CslibFrontierTests.MPDA.Witness evaluates the \
+    witness on a two-stack MPDA whose accepting runs all have two holes: none for K = 1, an \
+    accepting run for K = 2. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6997 at cf522d35ed, against arXiv:2002.05950v2, printed \
+    pp. 11-12 and 24-25: \
+    https://github.com/cslib-community/cslib-frontier/pull/6997#pullrequestreview-6007294100."

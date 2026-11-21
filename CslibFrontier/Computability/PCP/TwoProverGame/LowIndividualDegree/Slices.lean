@@ -41,6 +41,12 @@ def appendPoint (x : F) : Point F m ↪ Point F (m + 1) where
       Fin.snoc (α := fun _ : Fin (m + 1) => F) v x at h
     simpa only [Fin.init_snoc] using congrArg Fin.init h
 
+/-- The slice embedding appends the chosen last coordinate. -/
+theorem appendPoint_apply (x : F) (u : Point F m) :
+    appendPoint x u = Fin.snoc u x := by
+  unfold appendPoint
+  rfl
+
 @[simp] theorem appendPoint_apply_castSucc (x : F) (u : Point F m) (i : Fin m) :
     appendPoint x u i.castSucc = u i := by
   change Fin.snoc (α := fun _ : Fin (m + 1) => F) u x i.castSucc = _
@@ -335,6 +341,19 @@ already rejects those answers on the lifted questions. -/
 noncomputable def restrictAnswer (x : F) : Answer F (m + 1) → Answer F m
   | .inl a => .inl a
   | .inr a => .inr (Function.invFun (appendLineAnswer x) a)
+
+omit [Fintype F] [DecidableEq F] in
+@[simp] theorem restrictAnswer_inl (x a : F) :
+    restrictAnswer (m := m) x (.inl a) = .inl a := by
+  unfold restrictAnswer
+  rfl
+
+omit [Fintype F] [DecidableEq F] in
+/-- Line answers remain line answers under restriction. -/
+theorem restrictAnswer_inr_exists (x : F) (a : Σ L : Finset (Point F (m + 1)), L → F) :
+    ∃ b, restrictAnswer (m := m) x (.inr a) = .inr b := by
+  unfold restrictAnswer
+  exact ⟨_, rfl⟩
 
 private theorem restrictAnswer_lineAgrees (x : F) (L : Finset (Point F m)) (u : Point F m)
     (d : ℕ) (g : Σ K : Finset (Point F (m + 1)), K → F) (a : F)

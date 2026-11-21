@@ -9,13 +9,15 @@ module
 -- `import all`: the `decide` checks below evaluate `stepTop`, whose body is not exposed, and its
 -- private helpers.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
 database whose witness repairs a solution violating the new constraint; a symmetry-breaking `red`
 step with the swap witness `x0 ↔ x1` and all its proof goals, accepted and used to refute a
 formula; the same step with a witness that does not repair, or with an unproved goal, rejected;
 and, with an objective, a `red` step whose witness raises the objective, accepted without the
-objective and rejected with it. -/
+objective and rejected with it; and an `EQUIENUMERABLE` output section, checked by `decide`, with
+its soundness theorems applied. -/
 
 set_option linter.privateModule false
 
@@ -50,30 +52,31 @@ example : (∀ c ∈ G, c.Holds (Witness.apply σ₀ setX0)) ∧ D.Holds (Witnes
 
 -- As a step of a proof without a subproof, `¬D` takes no number and `D` joins the database as
 -- constraint `2`, as in VeriPB.
-example : runTop G none (State.init G) [.red D setX0 none none] =
-    some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false⟩ := by
+example : runTop G none (State.init G none none) [.red D setX0 none none] =
+    some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false, none, none, []⟩ := by
   decide
 
 -- With a subproof, even an empty one, `¬D` takes `2` and `D` takes `3`.
-example : runTop G none (State.init G) [.red D setX0 (some []) none] =
-    some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false⟩ := by
+example : runTop G none (State.init G none none) [.red D setX0 (some []) none] =
+    some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false, none, none, []⟩ := by
   decide
 
 /-! ### Promoting to the core -/
 
 -- `core id 1` on the input constraint `1`, already in the core set, is a no-op (§5.1): the core
 -- set is unchanged, however often it is repeated.
-example : runTop G none (State.init G) [.core [1], .core [1]] = some (State.init G) := by
+example : runTop G none (State.init G none none) [.core [1], .core [1]] =
+    some (State.init G none none) := by
   decide
 
 -- A derived constraint is promoted once.
-example : runTop G none (State.init G) [.red D setX0 none none, .core [2, 2], .core [2]] =
+example : runTop G none (State.init G none none) [.red D setX0 none none, .core [2, 2], .core [2]] =
     some ⟨(2, D.normalize) :: initDb G, 3, none, none, (2, D.normalize) :: initDb G, true,
-      false⟩ := by
+      false, none, none, []⟩ := by
   decide
 
 -- `core id` needs at least one ID.
-example : runTop G none (State.init G) [.core []] = none := by decide
+example : runTop G none (State.init G none none) [.core []] = none := by decide
 
 /-! ### Breaking a symmetry -/
 
@@ -102,7 +105,7 @@ def proof : RedProof :=
 example : checkRed F none proof = true := by decide
 
 theorem F_unsat (σ : ℕ → Bool) : ¬ ∀ c ∈ F, c.Holds σ :=
-  not_satisfiable_of_checkRed (obj := none) (P := proof) (by decide) rfl σ
+  not_satisfiable_of_checkRed (obj := none) (P := proof) (pres := none) (by decide) rfl σ
 
 -- The database goals may also be proved explicitly, each by RUP from its negation.
 example : checkRed F none
@@ -165,6 +168,38 @@ def NX0 : PBConstr := ⟨[(1, (0, false))], 1⟩
 -- `red ~x0 >= 1 : x0 -> 0 x1 -> 1` does not raise the objective under `x0 >= 1`: its goal `#2`,
 -- `x0 + x1 >= 1`, follows from `x0 >= 1` by adding a literal axiom.
 example : redCheck (some f) (initDb H) 3 NX0 [(0, .zero), (1, .one)] [] none = some 4 := by
+  decide
+
+/-! ### An output section -/
+
+/-- `G` preserving `x1`: the input. -/
+def GI : Instance := ⟨G, none, some [1]⟩
+
+/-- The output formula: `x0 >= 1` and `x1 >= 1`, preserving `x1`. -/
+def GO : Instance := ⟨[D, ⟨[(1, (1, true))], 1⟩], none, some [1]⟩
+
+/-- `red x0 >= 1 : x0 -> 1` moves only the unpreserved `x0`; `core id 2` puts it in the core set,
+which is then the output formula. -/
+def outProof : RedProof := ⟨[.red D setX0 none none, .core [2]], .noClaim⟩
+
+/-- The `EQUIENUMERABLE` output of `outProof`, with an infinite bound. -/
+def outGO : Output := ⟨.equienumerable, GO, none⟩
+
+theorem checkRedOutput_outProof :
+    checkRedOutput G none outProof (some [1]) ⟨.equienumerable, some GO⟩ = some outGO := by
+  decide
+
+-- Its guarantee: below any bound, the solutions of `G` and of `GO` project alike to `x1`.
+example : semOutput GI none GO .equienumerable :=
+  semOutput_of_checkRedOutput checkRedOutput_outProof
+
+-- So `G` and `GO` have the same projected solutions.
+example : projections G [1] = projections GO.constraints [1] :=
+  projections_eq_of_checkRedOutput checkRedOutput_outProof rfl rfl
+
+-- `x0` is not preserved in the input, so `EQUIENUMERABLE` with `x0` preserved is rejected.
+example : checkRedOutput G none outProof (some [1])
+    ⟨.equienumerable, some { GO with preserved := some [0, 1] }⟩ = none := by
   decide
 
 end CslibFrontierTests.Logics.Propositional.VeriPBRed

@@ -199,7 +199,7 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
       y.regs hend = x.regs hend := by
   induction hints generalizing x trail with
   | nil =>
-    refine ⟨x, (ExecWithin.loop_exit ?_).mono (by omega), by simp [hres, CNF.propagateHints],
+    refine ⟨x, (ExecWithin.loop_exit ?_).mono (by omega), by simp [hres, CNF.propagateHints_nil],
       by simp [hhe], OnlyAsg.refl _ _, ⟨trail, htr⟩, hzero, hone, hT, hst, rfl⟩
     simp [Cond.holds_lt, hhe]
   | cons h hints ih =>
@@ -217,7 +217,7 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
       wram_exec [hlit, hone, hT, h0, hzero]
       refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_lt])) ?_
       wram_simp
-      refine ⟨?_, by simp [hres, CNF.propagateHints, hfind], OnlyAsg.refl _ _, ⟨trail, htr⟩,
+      refine ⟨?_, by simp [hres, CNF.propagateHints_cons, hfind], OnlyAsg.refl _ _, ⟨trail, htr⟩,
         hzero, hone, hT, hst⟩
       simp only [List.length_cons]; omega
     · obtain ⟨hpos, hltT, hcl⟩ := (htab h).2 e hfind
@@ -245,7 +245,7 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
         refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_lt]))
           ⟨?_, ?_, ?_, ?_, ⟨trail, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
         · rw [hwork]; simp only [List.length_cons]; omega
-        · wram_simp; simp only [CNF.propagateHints, hfind, hf]; rfl
+        · wram_simp; simp only [CNF.propagateHints_cons, hfind, hf]; rfl
         all_goals wram_simp
         all_goals first
           | exact hyhe | exact hy0 | exact hy1 | exact hyt | exact hys
@@ -281,7 +281,7 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
           wram_simp at hzptr hzoa hzhe
           refine ⟨?_, ?_, ?_, ?_, hztr, hz0, hz1, hzT, hzs, ?_⟩
           · rw [hwork]; simp only [List.length_cons]; omega
-          · rw [hzres]; simp only [CNF.propagateHints, hfind, hf, hall]; rfl
+          · rw [hzres]; simp only [CNF.propagateHints_cons, hfind, hf, hall]; rfl
           · rw [hzptr, hyhe]
           · rw [hym, hys] at hzoa; exact hOA.trans hzoa
           · rw [hzhe, hyhe]
@@ -293,7 +293,7 @@ theorem hintLoop_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail 
           · wram_simp
             rw [hyres, hres]
             simp only [Bool.not_eq_true] at hall
-            simp only [CNF.propagateHints, hfind, hf, hall]; rfl
+            simp only [CNF.propagateHints_cons, hfind, hf, hall]; rfl
           all_goals wram_simp
           all_goals first
             | exact hyhe | exact hy0 | exact hy1 | exact hyt | exact hys

@@ -8,10 +8,18 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignApproximation
+import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
+import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProductBounds
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.AlgebraicValueBounds
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
+import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
+import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
+import CslibFrontier.Foundations.Analysis.SignLabelScore
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -20,6 +28,7 @@ import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.InitialCriticalSeparability
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.SeparatedCriticalValues
+import CslibFrontier.Foundations.RingTheory.Polynomial.ValueResultant
 import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -415,5 +424,201 @@ example :
     simp only [S, Finset.mem_insert, Finset.mem_singleton] at hx
     rcases hx with rfl | rfl <;> norm_num [p, Polynomial.IsRoot.def]
   exact p.exists_short_derivativeSign_selector hp hD (by decide) hS hroots
+
+-- A nonmonic source with a double root at 1 gives a degree-two resultant with root 3.
+example :
+    let p : Polynomial ℤ := Polynomial.C 3 * (Polynomial.X - Polynomial.C 1) ^ 2
+    let g : Polynomial ℤ := Polynomial.X + Polynomial.C 2
+    p.valueResultant g ≠ 0 ∧ (p.valueResultant g).natDegree = 2 ∧
+      ((p.valueResultant g).map (Int.castRingHom ℝ)).IsRoot 3 := by
+  intro p g
+  have hp : p ≠ 0 := mul_ne_zero (Polynomial.C_ne_zero.mpr (by decide))
+    (pow_ne_zero _ (Polynomial.X_sub_C_ne_zero _))
+  have hdeg : p.natDegree = 2 := by
+    simp only [p, Polynomial.natDegree_C_mul (by decide : (3 : ℤ) ≠ 0),
+      Polynomial.natDegree_pow, Polynomial.natDegree_X_sub_C]
+  have ha : (p.map (Int.castRingHom ℝ)).IsRoot 1 := by
+    norm_num [p, Polynomial.IsRoot.def]
+  obtain ⟨h₀, hd⟩ := Polynomial.valueResultant_ne_zero_and_natDegree hp g
+  exact ⟨h₀, hd.trans hdeg, by
+    simpa [g, show (1 : ℝ) + 2 = 3 by norm_num] using Polynomial.isRoot_valueResultant hp g ha⟩
+
+-- The identity test at the root of 2X − 1 falls in the nonzero dyadic interval.
+example :
+    let R := (2 : ℝ) ^ Polynomial.algebraicValuePrecision 1 1 2 0
+    R⁻¹ ≤ 1 / 2 ∧ 1 / 2 ≤ R := by
+  intro R
+  let p : Polynomial ℤ := Polynomial.C 2 * Polynomial.X - 1
+  let g : Polynomial ℤ := Polynomial.X
+  have hp₁ : p.coeff 1 = 2 := by
+    norm_num only [p, Polynomial.coeff_sub, Polynomial.coeff_C_mul, Polynomial.coeff_X,
+      Polynomial.coeff_one, ite_true, ite_false]
+  have hp : p ≠ 0 := fun h => by simp [h] at hp₁
+  have hD : p.natDegree ≤ 1 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
+  have hE : g.natDegree ≤ 1 := by simp [g]
+  have hg : g.coeffNorm1 = 1 := by
+    simpa only [g, mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
+  have hb : p.coeffNorm1 ≤ 2 ^ 2 := by
+    change (Polynomial.C 2 * g - 1).coeffNorm1 ≤ 2 ^ 2
+    refine (Polynomial.coeffNorm1_sub_le _ _).trans ?_
+    have h := Polynomial.coeffNorm1_C_mul_le 2 g
+    rw [hg] at h
+    rw [Polynomial.coeffNorm1_one]
+    omega
+  have hx : p.eval₂ (Int.castRingHom ℝ) (1 / 2) = 0 := by norm_num [p]
+  have h := Polynomial.eval₂_eq_zero_or_dyadic_bounds hp hD hE hb (c := 0) (by simp [hg]) hx
+  rcases h with hzero | hbounds
+  · norm_num [g] at hzero
+  · simpa only [R, g, Polynomial.eval₂_X, abs_of_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2)]
+      using hbounds
+
+-- A nonintegral input in the dyadic interval has the amplified reflection bound.
+example :
+    let p := Polynomial.dyadicSignProduct 1 1
+    let x : ℝ := 3 / 4
+    9 * p.eval₂ (Int.castRingHom ℝ) (-x) ≤ p.eval₂ (Int.castRingHom ℝ) x ∧
+      1 ≤ p.eval₂ (Int.castRingHom ℝ) x + p.eval₂ (Int.castRingHom ℝ) (-x) := by
+  intro p x
+  refine ⟨?_, Polynomial.one_le_eval₂_dyadicSignProduct_add_neg 1 1 x⟩
+  have h := Polynomial.eval₂_dyadicSignProduct_neg_le 1 1 (x := x)
+    (by norm_num [x]) (by norm_num [x])
+  simpa only [p, Nat.mul_one, show (3 : ℝ) ^ 2 = 9 by norm_num] using h
+
+-- The normalized ratio is exact at zero and approximates the negative sign at −3/4.
+example :
+    Polynomial.dyadicSignApprox 1 1 0 = 0 ∧
+      |Polynomial.dyadicSignApprox 1 1 (-(3 / 4)) + 1| ≤ (2 : ℝ) / 9 := by
+  refine ⟨Polynomial.dyadicSignApprox_zero 1 1, ?_⟩
+  have hx : (-(3 / 4) : ℝ) < 0 := by norm_num
+  have h := Polynomial.abs_dyadicSignApprox_sub_sign_le 1 1 (x := -(3 / 4))
+    (Or.inr ⟨by norm_num, by norm_num⟩)
+  rw [sign_neg hx, SignType.coe_neg_one, sub_neg_eq_add] at h
+  simpa only [Nat.mul_one, show (3 : ℝ) ^ 2 = 9 by norm_num, div_eq_mul_inv] using h
+
+-- One approximate negative test accepts the negative target and rejects the positive target.
+example :
+    let a : Fin 1 → ℝ := fun _ => Polynomial.dyadicSignApprox 1 2 (-(3 / 4))
+    (1 : ℝ) / 2 ≤ SignType.labelScore a (fun _ => -1) ∧
+      SignType.labelScore a (fun _ => 1) ≤ -(1 : ℝ) / 2 := by
+  intro a
+  let s : Fin 1 → SignType := fun _ => -1
+  have hx : (-(3 / 4) : ℝ) < 0 := by norm_num
+  have ha (i : Fin 1) : |a i - (s i : ℝ)| ≤ (4 * (((1 : ℕ) : ℝ) + 1))⁻¹ := by
+    have h := Polynomial.abs_dyadicSignApprox_sub_sign_le_inv_four_mul_succ 1 1
+      (x := -(3 / 4)) (Or.inr ⟨by norm_num, by norm_num⟩)
+    simpa only [sign_neg hx, a, s] using h
+  obtain ⟨hmatch, hpos⟩ := SignType.labelScore_margin a s s ha
+  obtain ⟨hmiss, hneg⟩ := SignType.labelScore_margin a s (fun _ => 1) ha
+  have h₁ := hpos.mpr (fun _ => rfl)
+  have h₂ : ¬ 0 < SignType.labelScore a (fun _ => 1) := by
+    intro h
+    have hsign := hneg.mp h (0 : Fin 1)
+    norm_num [s] at hsign
+  exact ⟨hmatch.resolve_right (by linarith), hmiss.resolve_left (by linarith)⟩
+
+-- Clearing the denominators gives an integer polynomial that distinguishes the two targets.
+example :
+    let g : Fin 1 → Polynomial ℤ := fun _ => Polynomial.X
+    let y (t : SignType) :=
+      (Polynomial.signLabelPolynomial 1 g (fun _ => t)).eval₂ (Int.castRingHom ℝ) (-(3 / 4))
+    (1 : ℝ) / 2 ≤ y (-1) ∧ y 1 ≤ -(1 : ℝ) / 2 := by
+  intro g y
+  let x : ℝ := -(3 / 4)
+  have hx : x < 0 := by norm_num [x]
+  have hb (i : Fin 1) :
+      let v := (g i).eval₂ (Int.castRingHom ℝ) x
+      v = 0 ∨ (((2 : ℝ) ^ 1)⁻¹ ≤ |v| ∧ |v| ≤ (2 : ℝ) ^ 1) := by
+    norm_num [g, x]
+  obtain ⟨hmatch, hpos⟩ := Polynomial.eval₂_signLabelPolynomial_margin 1 g (fun _ => -1) x hb
+  obtain ⟨hmiss, hneg⟩ := Polynomial.eval₂_signLabelPolynomial_margin 1 g (fun _ => 1) x hb
+  have h₁ : 0 < y (-1) := hpos.mpr fun i => by
+    simp only [g, Polynomial.eval₂_X, sign_neg hx]
+  have h₂ : ¬ 0 < y 1 := by
+    intro h
+    have hsign := hneg.mp h (0 : Fin 1)
+    simp [g, sign_neg hx] at hsign
+  exact ⟨hmatch.resolve_right (by linarith), hmiss.resolve_left (by linarith)⟩
+
+-- Applying the sign product to X² − 1 gives explicit degree and coefficient budgets.
+example :
+    let g : Polynomial ℤ := Polynomial.X ^ 2 - 1
+    let q := (Polynomial.dyadicSignProduct 1 1).comp g
+    q.natDegree ≤ 12 ∧ q.coeffNorm1 ≤ 2 ^ 24 := by
+  intro g q
+  have hD : g.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
+  have hx : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
+    simpa only [mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
+  have hg : g.coeffNorm1 ≤ 2 ^ 1 := by
+    refine (Polynomial.coeffNorm1_sub_le _ _).trans ?_
+    have h := Polynomial.coeffNorm1_pow_le (Polynomial.X : Polynomial ℤ) 2
+    rw [hx, one_pow] at h
+    rw [Polynomial.coeffNorm1_one]
+    omega
+  exact Polynomial.dyadicSignProduct_comp_bounds 1 1 g hD hg
+
+-- The integer label of a single identity test has explicit size bounds.
+example :
+    let g : Fin 1 → Polynomial ℤ := fun _ => Polynomial.X
+    let p := Polynomial.signLabelPolynomial 1 g (fun _ => 1)
+    p.natDegree ≤ 48 ∧ p.coeffNorm1 ≤ 2 ^ 156 := by
+  intro g p
+  have hb (i : Fin 1) : (g i).coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [g, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
+      (Polynomial.coeffNorm1_X_mul 1).le
+  have hDegree : Polynomial.signLabelDegreeBound 1 1 1 = 48 := by decide
+  have hNorm : Polynomial.signLabelNormExponent 1 1 0 = 156 := by decide
+  simpa only [hDegree, hNorm] using
+    Polynomial.signLabelPolynomial_bounds 1 g (fun _ => 1)
+      (D := 1) (fun _ => Polynomial.natDegree_X_le) hb
+
+-- One precision covers all derivative orders at the real root of 2X.
+example (k : ℕ) :
+    let p : Polynomial ℤ := Polynomial.C 2 * Polynomial.X
+    let v := (Polynomial.derivative^[k] p).eval₂ (Int.castRingHom ℝ) 0
+    let R := (2 : ℝ) ^ Polynomial.algebraicValuePrecision 1 1 1 2
+    v = 0 ∨ (R⁻¹ ≤ |v| ∧ |v| ≤ R) := by
+  intro p v R
+  have hp : p ≠ 0 :=
+    mul_ne_zero (Polynomial.C_ne_zero.mpr (by decide)) Polynomial.X_ne_zero
+  have hD : p.natDegree ≤ 1 :=
+    (Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X_le
+  have hb : p.coeffNorm1 ≤ 2 ^ 1 := by
+    have h := Polynomial.coeffNorm1_X_mul (Polynomial.C (2 : ℤ))
+    rw [mul_comm, Polynomial.coeffNorm1_C] at h
+    exact h.le
+  have hk := Polynomial.coeffNorm1_iterate_derivative_le_two_pow p hD hb k
+  have hbudget : Polynomial.iterateDerivativeNormExponent 1 1 = 2 := by decide
+  rw [hbudget] at hk
+  exact Polynomial.eval₂_eq_zero_or_dyadic_bounds hp hD
+    ((Polynomial.natDegree_iterate_derivative p k).trans ((Nat.sub_le _ _).trans hD)) hb hk
+    (by simp [p])
+
+-- With both roots eligible, one derivative test labels just one root of X² − 1.
+example :
+    let p : Polynomial ℤ := Polynomial.X ^ 2 - 1
+    ∃ L : List (Fin 2 × SignType), L.length ≤ 1 ∧ ∃ x : ℝ, x ^ 2 = 1 ∧
+      let label := Polynomial.sparseIntegerRootLabel p 1 1 1 L
+      0 < label.eval₂ (Int.castRingHom ℝ) x ∧ label.eval₂ (Int.castRingHom ℝ) (-x) < 0 := by
+  intro p
+  have hp : p ≠ 0 := by
+    intro h
+    have he := congrArg (fun f : Polynomial ℤ => f.eval 0) h
+    simp [p] at he
+  have hD : p.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
+  have hxnorm : (Polynomial.X ^ 2 : Polynomial ℤ).coeffNorm1 ≤ 1 := by
+    simpa only [one_mul, Polynomial.coeffNorm1_one] using
+      Polynomial.coeffNorm1_mul_X_pow_le (1 : Polynomial ℤ) 2
+  have hnorm : p.coeffNorm1 ≤ 2 ^ 1 := (Polynomial.coeffNorm1_sub_le _ _).trans
+    (by simpa only [Polynomial.coeffNorm1_one, pow_one, Nat.reduceAdd] using
+      Nat.add_le_add_right hxnorm 1)
+  obtain ⟨L, hL, x, hx, _, hpos, hneg⟩ := Polynomial.exists_sparseIntegerRootLabel
+    (q := 1) hp hD (by decide : 2 ≤ 2 ^ 1) (by simp) hnorm (by simp)
+    ⟨1, by simp [p], by simp⟩
+  have hx₂ : x ^ 2 = 1 := by simpa [p, sub_eq_zero] using hx
+  have hne : -x ≠ x := by
+    intro h
+    have hx₀ : x = 0 := by linarith
+    simp [hx₀] at hx₂
+  exact ⟨L, hL, x, hx₂, hpos, hneg (-x) (by simp [p, hx₂]) hne⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
