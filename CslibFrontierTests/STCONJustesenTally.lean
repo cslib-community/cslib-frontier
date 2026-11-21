@@ -56,17 +56,16 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       let ctx : JustesenSourceContext :=
         ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
       let regs := SourceRoundLoop.start ctx fuel
-      let base := configurationJustesenMembershipTally ntm c [] 0 ⟨0, 0, 0, 0, ⟨0, 0⟩⟩
+      let base := justesenSourceMembershipMachine ntm c
       let M := base.withInit (justesenSourceMembershipStart regs)
       ∃! bits, M.FirstHalting w bits M.init ∧
         (MembershipTally.retainedReply (M.run w bits)).isSome := by
   intro I size seed source target fuel ctx regs base M
-  dsimp only [M, base, regs, justesenSourceMembershipStart, SourceRoundLoop.start, ctx]
-  rw [configurationJustesenMembershipTally_withInit]
+  dsimp only [M, base, regs, SourceRoundLoop.start, ctx]
+  rw [justesenSourceMembershipMachine_withInit]
   let adjacent := configurationJustesenSubdivisionAdjacent ntm c w seed
-  simpa only [expected_zero, adjacent, JustesenSourceContext.size,
-    configurationJustesenSubdivisionContext, (configurationSeedSearchSetup_endpoints ntm c w).1]
-    using configurationJustesenMembershipTally_existsUnique_firstHalting ntm c w
+  simpa only [expected_zero, adjacent] using
+    configurationJustesenMembershipTally_existsUnique_firstHalting ntm c w
       seed source target 0 (existsUnique_passes_zero (fun u v => adjacent u v = true) source)
 
 /-- A common polynomial clock and logarithmic state bound apply after re-entry at
@@ -112,6 +111,23 @@ private theorem run_skip {n : ℕ} (edge : Fin n → Fin n → Bool) (source tar
       rfl
   rw [Scan.run_eq_finish, hprefix]
   rfl
+
+/-- The final callback returns a passing negative reply and preserves the next selectors. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount),
+      let ctx : JustesenSourceContext :=
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+      let entry := justesenSourceMembershipStart ⟨ctx, 1, 0, ⟨0, 0⟩⟩
+      let bits := MembershipTally.selectors (BoundedWalk.selectors 3)
+        (fun _ : Fin size.vertexCount => none)
+      (justesenSourceMembershipMachine ntm c).readReply MembershipTally.retainedReply
+        w entry (bits ++ [false, true, false]) = some (false, [true, false]) := by
+  intro I size seed source target ctx entry bits
+  exact (justesenSourceMembership_readReply_iff ntm c w seed source target 1 0 ⟨0, 0⟩
+    _ false [true, false]).mpr ⟨fun _ => none, rfl, run_skip _ _ _⟩
 
 /-- Compile queries at seed zero using the designated endpoints computed from the original
 word. The same machine has a native workspace bound, halts on every input, and has one
