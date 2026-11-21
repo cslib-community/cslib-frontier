@@ -11692,7 +11692,7 @@ register_result "micciancio-regev-discrete-gaussian-directional-moments" where
   title := "Directional first and second moments of discrete Gaussians (dual-mass step)"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.2",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.2 (dual-mass step)",
       locator := "author's copy of December 27, 2005, §4, printed pp. 13–14" }
   ]
   theorems := [
@@ -11700,7 +11700,7 @@ register_result "micciancio-regev-discrete-gaussian-directional-moments" where
     ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le
   ]
   scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.2 (not the 2 · η_ε(L) ≤ s endpoint, \
-    which awaits ZLattice.smoothingParameter): for any full-rank discrete lattice L in a \
+    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
     finite-dimensional real inner product space E (including dimension 0), width s > 0, center \
     c : E, unit vector u : E (‖u‖ = 1), and real ε < 1 satisfying \
     gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
@@ -11716,7 +11716,7 @@ register_result "micciancio-regev-discrete-gaussian-moments" where
   title := "Mean-norm and expected squared-norm bounds for discrete Gaussians (dual-mass step)"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.3",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.3 (dual-mass step)",
       locator := "author's copy of December 27, 2005, §4, printed p. 14" }
   ]
   theorems := [
@@ -11724,7 +11724,7 @@ register_result "micciancio-regev-discrete-gaussian-moments" where
     ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le
   ]
   scope := "Dual-mass step toward MicciancioRegev2007 Lemma 4.3 (not the 2 · η_ε(L) ≤ s endpoint, \
-    which awaits ZLattice.smoothingParameter): for any full-rank discrete lattice L in a \
+    stated before the smoothing-parameter form): for any full-rank discrete lattice L in a \
     finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
     n = 0), width s > 0, center c : E, and real ε < 1 satisfying \
     gaussianMass (dualSubmodule (innerₗ E) L) (2 / s) 0 − 1 ≤ ε (which unpacks 2 · η_ε(L) ≤ s \
