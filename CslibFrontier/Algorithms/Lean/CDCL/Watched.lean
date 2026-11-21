@@ -328,16 +328,18 @@ thousandths. -/
   ⟨Activity.init 0, 0, m * 1000 / d, 100, 100⟩
 
 /-- After a conflict whose analysis met the clauses `used` and learned the clause numbered `id`,
-the log's next number being `next`: the clause activities are bumped and decay, each number once,
-the learned clause is counted if it is `stored`, and the limit grows on schedule. The solver passes
-`stored` only for a clause added to the watch store with a learned number (`isLearntId`), the rule
-by which `WatchStore.learntCount` counts the store. -/
+the log's next number being `next`: the clause activities of `id` and of `used` are bumped and
+decay, the learned clause is counted if it is `stored`, and the limit grows on schedule. The solver
+passes `stored` only for a clause added to the watch store with a learned number (`isLearntId`), the
+rule by which `WatchStore.learntCount` counts the store.
+
+As in MiniSat, each clause is bumped once: the solver's `used` is the conflict clause and the reason
+of each trail entry resolved, and a clause is the reason of at most one entry of a trail and never
+of one when it is false, while `id` is the log's next number, met by no analysis. Repetitions would
+only bump a clause twice: the activities are a heuristic, and nothing else depends on them. -/
 @[expose]
 def Reduction.learn (R : Reduction) (used : List ℕ) (id next : ℕ) (stored : Bool) : Reduction :=
-  -- each number once: the learned clause may be the conflict clause, among `used`, and `used`
-  -- may list a number twice; the numbers are sorted, with `O(k log k)` comparisons for `k`
-  -- numbers, and adjacent repetitions are removed
-  let act := (R.act.grow next).bumpEach (sortBy (· ≤ ·) (id :: used)).eraseReps 999
+  let act := (R.act.grow next).bumpEach (id :: used) 999
   let learnts := if stored then R.learnts + 1 else R.learnts
   if R.countdown ≤ 1 then
     let adjust := R.adjust + R.adjust / 2

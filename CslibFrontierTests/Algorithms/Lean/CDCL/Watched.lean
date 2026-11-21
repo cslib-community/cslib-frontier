@@ -227,9 +227,9 @@ example : (CDCL.solveWith {} rootSat).2.simplified = 1 ∧
     (CDCL.solveWith { removeSatisfied := false } rootSat).2.decisions = 1 := by
   decide
 
-/-- When the learned clause is the conflict clause, its number is both the learned one and among
-the clauses met: it is bumped once, by the increment `2 ^ 40`, not twice. -/
-example : ((CDCL.Reduction.init 3 3).learn [5] 5 6 false).act.get 5 = 2 ^ 40 := by
+/-- The learned clause and the clauses met are bumped by the increment `2 ^ 40`, the others not. -/
+example : ((CDCL.Reduction.init 3 3).learn [3, 1] 5 6 false).act.score =
+    #[0, 2 ^ 40, 0, 2 ^ 40, 0, 2 ^ 40] := by
   decide
 
 /-- The formula `a ∨ b`, `¬a ∨ b`: its clauses are numbered `1` and `2`. -/
@@ -255,12 +255,5 @@ example (S : CDCL.WExec two) (sp : CDCL.Split) (L : S.exec.LearnedAt sp) (k₀ :
     (L.id = 3 → (S.afterConflict sp L k₀).red.learnts = S.red.learnts + 1) := by
   rw [S.afterConflict_learnts sp L k₀ hred hk]
   exact ⟨fun h => by simp [h, CDCL.isLearntId], fun h => by simp [h, CDCL.isLearntId]⟩
-
-/-- A number listed twice among the clauses met is bumped once: `used = [4, 4]` with the learned
-clause `5` bumps clause `4` as `used = [4]` does. -/
-example : (((CDCL.Reduction.init 3 3).learn [4, 4] 5 6 false).act.get 4) =
-    (((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4) ∧
-    0 < ((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4 := by
-  decide +kernel
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched
