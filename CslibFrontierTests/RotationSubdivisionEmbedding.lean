@@ -32,6 +32,25 @@ theorem star_subdivision :
     exists_subdivision_embedding hI (PolygonalDrawing.star 2) (PolygonalDrawing.star_isEmbedding 2)
   exact ⟨E, hE, hV 2 (by decide), hdir⟩
 
+private def threeSpokeStar : FixedRotationInput := ⟨starGraph 3, [none, none, none, none]⟩
+
+-- Every subdivision dart at the center reads the direction of its original spoke.
+example :
+    ∃ E : PolygonalDrawing (subdivisionGraph threeSpokeStar), E.IsEmbedding ∧
+      ∀ d : {d : Dart (subdivisionGraph threeSpokeStar) // d.vertex = 3},
+        E.direction d.val =
+          (PolygonalDrawing.star 3).direction
+            ((subdivisionDartEquiv threeSpokeStar 3 (by decide)).symm d).val := by
+  have hI : Valid threeSpokeStar := (validate_eq_true_iff _).mp (by decide)
+  obtain ⟨E, hE, _, hdir⟩ :=
+    exists_subdivision_embedding hI (PolygonalDrawing.star 3) (PolygonalDrawing.star_isEmbedding 3)
+  refine ⟨E, hE, fun d => ?_⟩
+  let f := subdivisionDartEquiv threeSpokeStar 3 (by decide)
+  have h := congrArg Subtype.val (f.apply_symm_apply d)
+  change (f (f.symm d)).val = d.val at h
+  rw [← h, subdivisionDartEquiv_apply_val]
+  exact hdir (f.symm d).val
+
 private def loop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [none]⟩
 
 private def loopEdge : Fin loop.graph.edges.length := ⟨0, by decide⟩

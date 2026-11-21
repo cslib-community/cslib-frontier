@@ -37,8 +37,6 @@ objective is tracked in [#3091](https://github.com/cslib-community/cslib-frontie
 
 * `Cslib.Complexity.Graph.RotationRecognition.frozen_iff_exists_subdivisionDart`: the stored
   flag selects exactly the indexed first/last segments of originally fixed ends.
-* `Cslib.Complexity.Graph.RotationRecognition.subdivisionDart_endpoints`: the original center
-  and the fresh leaf named by the original binary dart index.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_subdivisionDart_germ`: the
   actual outgoing vector from that center to that leaf.
 * `Cslib.Complexity.Graph.RotationRecognition.fixedWord_dart_vertex`: membership in a
@@ -113,38 +111,6 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
       change (I.orders.getD I.graph.edges[i].2 none).isSome = true
       simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
         List.getD_eq_getElem _ _ i.isLt] using hf
-
-/-- The selected outgoing end has its original center and its own fresh occurrence leaf. -/
-theorem subdivisionDart_endpoints (I : FixedRotationInput) (d : Dart I.graph) :
-    (subdivisionDart I d).vertex = d.vertex ∧
-      (subdivisionDart I d).reverse.vertex = I.graph.vertices.length + d.index := by
-  rcases d with ⟨⟨i, hi⟩, b⟩
-  cases b
-  · have h := subdivide_getElem? I ⟨i, hi⟩ 0
-    simp only [Fin.getElem_fin, Fin.val_zero, Nat.add_zero, List.getElem_cons_zero] at h
-    have he : (subdivisionGraph I).edges.getD (3 * i) (0, 0) =
-        (I.graph.edges[i].1, I.graph.vertices.length + 2 * i) := by
-      simp only [subdivisionGraph, List.getD_eq_getElem?_getD, List.getElem?_map, h]
-      rfl
-    change ((subdivisionGraph I).edges.getD (3 * i) (0, 0)).1 =
-      (I.graph.edges.getD i (0, 0)).1 ∧
-      ((subdivisionGraph I).edges.getD (3 * i) (0, 0)).2 = I.graph.vertices.length + 2 * i
-    rw [he, List.getD_eq_getElem _ _ hi]
-    exact ⟨rfl, rfl⟩
-  · have h := subdivide_getElem? I ⟨i, hi⟩ 2
-    change (subdivide I)[3 * i + 2]? = some
-      ((I.graph.vertices.length + 2 * i + 1, I.graph.edges[i].2),
-        (I.orders.getD I.graph.edges[i].2 none).isSome) at h
-    have he : (subdivisionGraph I).edges.getD (3 * i + 2) (0, 0) =
-        (I.graph.vertices.length + 2 * i + 1, I.graph.edges[i].2) := by
-      simp only [subdivisionGraph, List.getD_eq_getElem?_getD, List.getElem?_map, h]
-      rfl
-    change ((subdivisionGraph I).edges.getD (3 * i + 2) (0, 0)).2 =
-      (I.graph.edges.getD i (0, 0)).2 ∧
-      ((subdivisionGraph I).edges.getD (3 * i + 2) (0, 0)).1 =
-        I.graph.vertices.length + (2 * i + 1)
-    rw [he, List.getD_eq_getElem _ _ hi, Nat.add_assoc]
-    exact ⟨rfl, rfl⟩
 
 /-- The actual outgoing first/last route vector points from the original center to its leaf. -/
 theorem referenceDrawing_subdivisionDart_germ (I : FixedRotationInput) (d : Dart I.graph) :

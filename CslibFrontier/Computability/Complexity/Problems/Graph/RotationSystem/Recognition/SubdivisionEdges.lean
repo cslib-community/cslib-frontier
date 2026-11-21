@@ -139,6 +139,98 @@ theorem subdivisionEdgeIndex_subdivisionDart (I : FixedRotationInput) (d : Dart 
   have hk := k.isLt
   exact congrArg₂ SubdivisionEdgeIndex.mk (Fin.ext (by omega)) (Fin.ext (by omega))
 
+/-- The selected outgoing end has its original center and its own fresh occurrence leaf. -/
+theorem subdivisionDart_endpoints (I : FixedRotationInput) (d : Dart I.graph) :
+    (subdivisionDart I d).vertex = d.vertex ∧
+      (subdivisionDart I d).reverse.vertex = I.graph.vertices.length + d.index := by
+  rcases d with ⟨⟨i, hi⟩, b⟩
+  cases b
+  · have h := subdivide_getElem? I ⟨i, hi⟩ 0
+    simp only [Fin.getElem_fin, Fin.val_zero, Nat.add_zero, List.getElem_cons_zero] at h
+    have he : (subdivisionGraph I).edges.getD (3 * i) (0, 0) =
+        (I.graph.edges[i].1, I.graph.vertices.length + 2 * i) := by
+      simp only [subdivisionGraph, List.getD_eq_getElem?_getD, List.getElem?_map, h]
+      rfl
+    change ((subdivisionGraph I).edges.getD (3 * i) (0, 0)).1 =
+      (I.graph.edges.getD i (0, 0)).1 ∧
+      ((subdivisionGraph I).edges.getD (3 * i) (0, 0)).2 = I.graph.vertices.length + 2 * i
+    rw [he, List.getD_eq_getElem _ _ hi]
+    exact ⟨rfl, rfl⟩
+  · have h := subdivide_getElem? I ⟨i, hi⟩ 2
+    change (subdivide I)[3 * i + 2]? = some
+      ((I.graph.vertices.length + 2 * i + 1, I.graph.edges[i].2),
+        (I.orders.getD I.graph.edges[i].2 none).isSome) at h
+    have he : (subdivisionGraph I).edges.getD (3 * i + 2) (0, 0) =
+        (I.graph.vertices.length + 2 * i + 1, I.graph.edges[i].2) := by
+      simp only [subdivisionGraph, List.getD_eq_getElem?_getD, List.getElem?_map, h]
+      rfl
+    change ((subdivisionGraph I).edges.getD (3 * i + 2) (0, 0)).2 =
+      (I.graph.edges.getD i (0, 0)).2 ∧
+      ((subdivisionGraph I).edges.getD (3 * i + 2) (0, 0)).1 =
+        I.graph.vertices.length + (2 * i + 1)
+    rw [he, List.getD_eq_getElem _ _ hi, Nat.add_assoc]
+    exact ⟨rfl, rfl⟩
+
+private theorem subdivisionDart_of_original_vertex (I : FixedRotationInput)
+    (d : Dart (subdivisionGraph I)) (hd : d.vertex < I.graph.vertices.length) :
+    subdivisionDart I ((subdivisionEdgeIndex I d.1).original, d.2) = d := by
+  obtain ⟨e, b⟩ := d
+  have he := subdivisionEdgeIndex_val I e
+  have hends := subdivision_edge_endpoints I e
+  generalize subdivisionEdgeIndex I e = a at he hends ⊢
+  obtain ⟨i, k⟩ := a
+  change e.val = 3 * i.val + k.val at he
+  rw [Dart.edge_eq_vertices e] at hends
+  have hleft := congrArg Prod.fst hends
+  have hright := congrArg Prod.snd hends
+  apply Prod.ext
+  · apply Fin.ext
+    change 3 * i.val + (if b then 2 else 0) = e.val
+    fin_cases k <;> cases b
+    · exact he.symm
+    · change Dart.vertex (e, true) = I.graph.vertices.length + 2 * i.val at hright
+      change Dart.vertex (e, true) < I.graph.vertices.length at hd
+      omega
+    · change Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val at hleft
+      change Dart.vertex (e, false) < I.graph.vertices.length at hd
+      omega
+    · change Dart.vertex (e, true) = I.graph.vertices.length + 2 * i.val + 1 at hright
+      change Dart.vertex (e, true) < I.graph.vertices.length at hd
+      omega
+    · change Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val + 1 at hleft
+      change Dart.vertex (e, false) < I.graph.vertices.length at hd
+      omega
+    · exact he.symm
+  · rfl
+
+/-- At an original vertex, the subdivision darts are exactly the original incident darts,
+with their distinct occurrence indices and end tags retained. -/
+def subdivisionDartEquiv (I : FixedRotationInput) (v : ℕ) (hv : v < I.graph.vertices.length) :
+    {d : Dart I.graph // d.vertex = v} ≃ {d : Dart (subdivisionGraph I) // d.vertex = v} where
+  toFun d := ⟨subdivisionDart I d.val, (subdivisionDart_endpoints I d.val).1.trans d.property⟩
+  invFun d :=
+    let a : Dart I.graph := ((subdivisionEdgeIndex I d.val.1).original, d.val.2)
+    have hd : d.val.vertex < I.graph.vertices.length := lt_of_eq_of_lt d.property hv
+    have he : subdivisionDart I a = d.val := subdivisionDart_of_original_vertex I d.val hd
+    ⟨a, (subdivisionDart_endpoints I a).1.symm.trans
+      ((congrArg Dart.vertex he).trans d.property)⟩
+  left_inv d := by
+    apply Subtype.ext
+    exact Prod.ext
+      (congrArg SubdivisionEdgeIndex.original (subdivisionEdgeIndex_subdivisionDart I d.val)) rfl
+  right_inv d := by
+    apply Subtype.ext
+    apply subdivisionDart_of_original_vertex
+    rw [d.property]
+    exact hv
+
+/-- The forward map on an original vertex's incident darts selects the first or last piece. -/
+@[simp] theorem subdivisionDartEquiv_apply_val (I : FixedRotationInput) (v : ℕ)
+    (hv : v < I.graph.vertices.length) (d : {d : Dart I.graph // d.vertex = v}) :
+    (subdivisionDartEquiv I v hv d).val = subdivisionDart I d.val := by
+  rw [subdivisionDartEquiv]
+  rfl
+
 /-- Unordered endpoints identify the actual indexed subdivision occurrence. Original loops,
 parallel edges and reversed occurrences retain their distinct fresh vertices. -/
 theorem subdivisionGraph_edge_injective {I : FixedRotationInput} (hI : Valid I) :
