@@ -70,7 +70,7 @@ example : CNF.checkLRAT [[(0, true), (0, true)], [(0, false)]] #[.addEmpty 3 #[1
   decide
 
 /-- PHP(5, 4): pigeon `i` in hole `j` is the variable `4 * i + j`. -/
-private abbrev php : CNF ℕ :=
+public abbrev php : CNF ℕ :=
   [[(0, true), (1, true), (2, true), (3, true)], [(4, true), (5, true), (6, true), (7, true)],
     [(8, true), (9, true), (10, true), (11, true)],
     [(12, true), (13, true), (14, true), (15, true)],
@@ -93,7 +93,7 @@ private abbrev php : CNF ℕ :=
 DIMACS (variable `v` as `v + 1`) to `php54.cnf` and run
 `cadical --lrat=true --binary=false php54.cnf php54.lrat`. It has 47 RUP steps, 7 deletions and
 an empty-clause step. -/
-private abbrev phpCert : Array LRAT.IntAction :=
+public abbrev phpCert : Array LRAT.IntAction :=
   #[.addRup 46 #[-18, -19, -20] #[35, 29, 45, 39, 19, 25, 1, 4, 8],
     .addRup 47 #[-13, -19, -20] #[34, 29, 44, 39, 8, 13, 1, 3, 17],
     .addRup 48 #[-19, -20] #[45, 44, 39, 29, 34, 35, 47, 4, 18, 23, 1, 3, 7], .del #[47, 46],

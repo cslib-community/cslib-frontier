@@ -32,8 +32,9 @@ by the caller.
 * `Turing.MultiTapeNTM.ConfigurationGraph.edgeWithSymbol_budget`: evaluate an edge locally.
 * `Turing.MultiTapeNTM.ConfigurationGraph.bad_budget`: recognize an accepting halted vertex.
 * `Turing.MultiTapeNTM.ConfigurationGraph.overflow_budget`: recognize a step leaving the radix.
-* `Turing.MultiTapeNTM.ConfigurationGraph.vertexBound_budget`,
-  `Turing.MultiTapeNTM.ConfigurationGraph.startID_budget`: the size and the start of the graph.
+* `Turing.MultiTapeNTM.ConfigurationGraph.radix_budget`,
+  `Turing.MultiTapeNTM.ConfigurationGraph.vertexBound_budget`,
+  `Turing.MultiTapeNTM.ConfigurationGraph.startID_budget`: the radix, size and start of the graph.
 -/
 
 public section
@@ -68,6 +69,13 @@ theorem readRegisters_budget (hB : ComputableInSpace B enc encNat S)
     (hu : ComputableInSpace u enc encNat S) (i : Register k) :
     ComputableInSpace (fun a => readRegisters (B a) (u a) i) enc encNat S :=
   budget_comp_linear (component_inSpace i) (budget_prod hB hu)
+
+/-- Computing the configuration radix for a fixed exponent preserves the space budget
+of the binary input length. -/
+theorem radix_budget (D : ℕ) (hn : ComputableInSpace n enc encNat S)
+    (hin : (fun a => (enc a).length) ≼ S) :
+    ComputableInSpace (fun a => radix D (n a)) enc encNat S :=
+  budget_natPow (budget_natAdd hn (budget_const 2 hin)) hin D
 
 /-- The ambient graph size is computable from the radix. -/
 theorem vertexBound_budget (hB : ComputableInSpace B enc encNat S)
