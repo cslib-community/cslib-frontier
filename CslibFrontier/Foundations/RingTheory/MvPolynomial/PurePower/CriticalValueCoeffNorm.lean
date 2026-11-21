@@ -10,8 +10,8 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
-import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -44,13 +44,11 @@ private theorem pow_two_le_pow_two {a b : ℕ} (h : a ≤ b) : (2 : ℕ) ^ a ≤
 
 /-- A binary coefficient-norm exponent for the symbolic critical-value polynomial of
 an input with arity `n`, pure-power degree `ell` and coefficient norm at most `2 ^ b`.
-Here `D` is the quotient dimension, `B` bounds the residue numerator degrees, and `R`
-is a binary norm exponent for both the lower relations and the deformed potential. -/
+The bound uses the same coefficient allowance for the lower relations and the deformed
+potential. -/
 @[expose] def parametricValueCoeffNormExponent (n ell b : ℕ) : ℕ :=
-  let D := ell ^ n
-  let B := D * (ell + 1) + n * (ell - 1)
   let R := criticalSystemCoeffNormExponent n ell b
-  (D + 1).size + ((B + 1).size * n + (n.size + ell.size + (R + 1)) * n + R * B + R) * D
+  PurePower.multiplicationMatrixCharpolyCoeffNormExponent n ell (ell + 1) R R
 
 /-- The symbolic critical relations and objective share the coefficient-norm budget
 `criticalSystemCoeffNormExponent n ell b`. -/
@@ -159,43 +157,14 @@ theorem parametricValuePolynomial_bivariateCoeffNorm1_le {n ell b : ℕ} (hell :
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b) :
     (parametricValuePolynomial (by omega : 1 ≤ ell) F hF).bivariateCoeffNorm1 ≤
       2 ^ parametricValueCoeffNormExponent n ell b := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : ell ≠ 0)
-  let a (i : Fin n) := Polynomial.C (separatedCenters (d + 1) i : ℤ)
+  let a (i : Fin n) := Polynomial.C (separatedCenters ell i : ℤ)
   let G := F.map Polynomial.C
-  let r := criticalLower (d + 1) a Polynomial.X G
-  let v := deformedPolynomial (d + 1) a Polynomial.X G
-  let R := criticalSystemCoeffNormExponent n (d + 1) b
-  let D := (d + 1) ^ n
-  let B := D * (d + 1 + 1) + n * d
-  let A := (B + 1) ^ n * (n.factorial * ((d + 1) * (1 + 2 ^ R)) ^ n) * (2 ^ R) ^ B * 2 ^ R
-  have hG : G.totalDegree ≤ d + 1 := (totalDegree_map_le Polynomial.C F).trans hF
-  have hr (i : Fin n) : (r i).totalDegree ≤ d :=
-    Nat.le_of_lt_succ (criticalLower_degree _ (Nat.le_add_left 1 _) a Polynomial.X G hG i)
+  have hG : G.totalDegree ≤ ell := (totalDegree_map_le Polynomial.C F).trans hF
   obtain ⟨hrnorm, hvnorm⟩ := criticalSystem_norm_le (by omega) F hF hb
-  have hq : (parametricValuePolynomial (by omega : 1 ≤ d + 1) F hF).bivariateCoeffNorm1 ≤
-      (D + 1) * A ^ D :=
-    PurePower.bivariateCoeffNorm1_multiplicationMatrix_charpoly_le (by omega) r hr hrnorm
-      Nat.one_le_two_pow v
-      (totalDegree_deformedPolynomial_le _ a Polynomial.X G (hG.trans (Nat.le_succ _)))
-      hvnorm Nat.one_le_two_pow
-  have hscale : (d + 1) * (1 + 2 ^ R) ≤ 2 ^ ((d + 1).size + (R + 1)) := by
-    rw [pow_add 2 (d + 1).size, pow_succ (2 : ℕ) R]
-    exact Nat.mul_le_mul (Nat.lt_size_self _).le (by have := Nat.one_le_two_pow (n := R); omega)
-  have hJ : n.factorial * ((d + 1) * (1 + 2 ^ R)) ^ n ≤
-      2 ^ ((n.size + (d + 1).size + (R + 1)) * n) := by
-    rw [Nat.add_assoc, pow_mul, pow_add 2 n.size, mul_pow (2 ^ n.size)]
-    exact Nat.mul_le_mul (n.factorial_le_pow.trans (Nat.pow_le_pow_left (Nat.lt_size_self _).le _))
-      (Nat.pow_le_pow_left hscale _)
-  have hA : A ≤ 2 ^ ((B + 1).size * n + (n.size + (d + 1).size + (R + 1)) * n + R * B + R) := by
-    dsimp only [A]
-    conv_rhs =>
-      rw [pow_add 2 _ R, pow_add 2 _ (R * B),
-        pow_add 2 ((B + 1).size * n), pow_mul 2 (B + 1).size, pow_mul 2 R B]
-    exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
-      (Nat.mul_le_mul (Nat.pow_le_pow_left (Nat.lt_size_self _).le _) hJ))
-  refine hq.trans ((Nat.mul_le_mul (Nat.lt_size_self _).le (Nat.pow_le_pow_left hA _)).trans_eq ?_)
-  rw [← pow_mul, ← pow_add]
-  simp only [parametricValueCoeffNormExponent, Nat.succ_sub_one]
-  rfl
+  exact PurePower.bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two hell
+    (criticalLower ell a Polynomial.X G) (criticalLower_degree ell (by omega) a Polynomial.X G hG)
+    hrnorm (deformedPolynomial ell a Polynomial.X G)
+    (totalDegree_deformedPolynomial_le ell a Polynomial.X G (hG.trans (Nat.le_succ _)))
+    hvnorm
 
 end MvPolynomial.CriticalSystem

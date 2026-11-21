@@ -374,7 +374,7 @@ example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
     (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
   exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
 
--- A square with a real zero gives both a root below the cutoff and a negative determinant.
+-- A square with a real zero gives a root below the cutoff and a bounded negative determinant.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
     let H := parametricValueCoeffNormExponent 1 3 0
@@ -383,7 +383,9 @@ example :
       (2 ^ criticalParameterExponent 1 3 0) F hF
     (∃ η : ℝ, η < 2 ^ (H + 1) ∧ (q.map (Int.castRingHom ℝ)).IsRoot η) ∧
       ∃ L : List (Fin (3 ^ 1) × SignType), L.length ≤ 1 * (3 : ℕ).size ∧
-        ∃ e : ℕ, e ≤ 3 ^ 1 ∧ criticalLabelDeterminant (by decide) 0 F hF L e < 0 := by
+        ∃ e : ℕ, e ≤ 3 ^ 1 ∧
+          let det := criticalLabelDeterminant (by decide) 0 F hF L e
+          det < 0 ∧ det.natAbs ≤ 2 ^ criticalLabelDeterminantExponent 1 3 0 := by
   intro F H hF q
   have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
     simpa only [F, map_pow, map_X, eval_X] using sq_nonneg (x 0)
@@ -391,10 +393,11 @@ example :
     simpa only [F, MvPolynomial.coeffNorm1_X, one_pow, pow_zero] using
       MvPolynomial.coeffNorm1_pow_le (X (0 : Fin 1) : MvPolynomial (Fin 1) ℤ) 2
   have hz : ∃ x, eval x (F.map (Int.castRingHom ℝ)) = 0 := ⟨0, by simp [F]⟩
-  exact ⟨(exists_zero_iff_exists_root_lt_at_integerParameterExclusion
-    (by decide) (by decide) F hF hb hFn).mp hz,
-    (exists_zero_iff_exists_neg_criticalLabelDeterminant
-      (by decide) (by decide) F hF hb hFn).mp hz⟩
+  refine ⟨(exists_zero_iff_exists_root_lt_at_integerParameterExclusion
+    (by decide) (by decide) F hF hb hFn).mp hz, ?_⟩
+  obtain ⟨L, hL, e, he, hneg⟩ :=
+    (exists_zero_iff_exists_neg_criticalLabelDeterminant (by decide) (by decide) F hF hb hFn).mp hz
+  exact ⟨L, hL, e, he, hneg, natAbs_criticalLabelDeterminant_le (by decide) F hF hb L he⟩
 
 -- In the quotient by X₀ = 2, the simple real root of multiplication by X₀ is realized.
 example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1) ℝ) = 2 := by
