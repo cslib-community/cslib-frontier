@@ -4,7 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
-import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+module
+
+-- `import all`: the `decide` checks below evaluate `stepTop`, whose body is not exposed, and its
+-- private helpers.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
 database whose witness repairs a solution violating the new constraint; a symmetry-breaking `red`
@@ -12,6 +16,8 @@ step with the swap witness `x0 ↔ x1` and all its proof goals, accepted and use
 formula; the same step with a witness that does not repair, or with an unproved goal, rejected;
 and, with an objective, a `red` step whose witness raises the objective, accepted without the
 objective and rejected with it. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 
@@ -42,10 +48,32 @@ example : (∀ c ∈ G, c.Holds σ₀) ∧ ¬ D.Holds σ₀ := by decide
 example : (∀ c ∈ G, c.Holds (Witness.apply σ₀ setX0)) ∧ D.Holds (Witness.apply σ₀ setX0) := by
   decide
 
--- As a step of a proof, `D` joins the database as constraint `3`.
-example : runTop G none ⟨initDb G, 2, none, none⟩ [.red D setX0 [] none] =
-    some ⟨(3, D.normalize) :: initDb G, 4, none, none⟩ := by
+-- As a step of a proof without a subproof, `¬D` takes no number and `D` joins the database as
+-- constraint `2`, as in VeriPB.
+example : runTop G none (State.init G) [.red D setX0 none none] =
+    some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false⟩ := by
   decide
+
+-- With a subproof, even an empty one, `¬D` takes `2` and `D` takes `3`.
+example : runTop G none (State.init G) [.red D setX0 (some []) none] =
+    some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false⟩ := by
+  decide
+
+/-! ### Promoting to the core -/
+
+-- `core id 1` on the input constraint `1`, already in the core set, is a no-op (§5.1): the core
+-- set is unchanged, however often it is repeated.
+example : runTop G none (State.init G) [.core [1], .core [1]] = some (State.init G) := by
+  decide
+
+-- A derived constraint is promoted once.
+example : runTop G none (State.init G) [.red D setX0 none none, .core [2, 2], .core [2]] =
+    some ⟨(2, D.normalize) :: initDb G, 3, none, none, (2, D.normalize) :: initDb G, true,
+      false⟩ := by
+  decide
+
+-- `core id` needs at least one ID.
+example : runTop G none (State.init G) [.core []] = none := by decide
 
 /-! ### Breaking a symmetry -/
 
@@ -68,7 +96,7 @@ The goals of constraints `1`–`4` are the constraints with `x0` and `x1` swappe
 constraints `1`, `2`, `4` and `3`: they are in the database and need no subproof. `C` is then
 constraint `8`, and RUP from `8`, `3`, `1` gives the contradiction `9`. -/
 def proof : RedProof :=
-  ⟨[.red C swap [.goal .self [.rup ⟨[], 1⟩ [.id 6, .id 5, .id 2]] 7] none,
+  ⟨[.red C swap (some [.goal .self [.rup ⟨[], 1⟩ [.id 6, .id 5, .id 2]] 7]) none,
     .step (.rup ⟨[], 1⟩ [.id 8, .id 3, .id 1])], .unsat 9⟩
 
 example : checkRed F none proof = true := by decide
@@ -78,35 +106,36 @@ theorem F_unsat (σ : ℕ → Bool) : ¬ ∀ c ∈ F, c.Holds σ :=
 
 -- The database goals may also be proved explicitly, each by RUP from its negation.
 example : checkRed F none
-    ⟨[.red C swap
+    ⟨[.red C swap (some
         [.goal .self [.rup ⟨[], 1⟩ [.id 6, .id 5, .id 2]] 7,
           .goal (.db 1) [.rup ⟨[], 1⟩ [.id 8, .id 1]] 9,
           .goal (.db 2) [.rup ⟨[], 1⟩ [.id 10, .id 2]] 11,
           .goal (.db 3) [.rup ⟨[], 1⟩ [.id 12, .id 4]] 13,
-          .goal (.db 4) [.rup ⟨[], 1⟩ [.id 14, .id 3]] 15] none,
+          .goal (.db 4) [.rup ⟨[], 1⟩ [.id 14, .id 3]] 15]) none,
       .step (.rup ⟨[], 1⟩ [.id 16, .id 3, .id 1])], .unsat 17⟩ = true := by
   decide
 
 -- Goal `#1` is not in the database: without its subproof the step is rejected.
 example : checkRed F none
-    ⟨[.red C swap [] none, .step (.rup ⟨[], 1⟩ [.id 6, .id 3, .id 1])], .unsat 7⟩ = false := by
+    ⟨[.red C swap (some []) none, .step (.rup ⟨[], 1⟩ [.id 6, .id 3, .id 1])], .unsat 7⟩ =
+      false := by
   decide
 
 -- Without a witness, goal `#1` is `C` itself, which nothing covers.
 example : checkRed F none
-    ⟨[.red C [] [] none, .step (.rup ⟨[], 1⟩ [.id 6, .id 3, .id 1])], .unsat 7⟩ = false := by
+    ⟨[.red C [] (some []) none, .step (.rup ⟨[], 1⟩ [.id 6, .id 3, .id 1])], .unsat 7⟩ = false := by
   decide
 
 -- The witness `x0 ↦ 0` makes goal `#1` trivial, but the goal of constraint `1` becomes `x1 >= 1`,
 -- which does not follow from the database and `x0`: its subproof fails.
 example : checkRed F none
-    ⟨[.red C [(0, .zero)] [.goal (.db 1) [.rup ⟨[], 1⟩ [.id 6, .id 1]] 7] none,
+    ⟨[.red C [(0, .zero)] (some [.goal (.db 1) [.rup ⟨[], 1⟩ [.id 6, .id 1]] 7]) none,
       .step (.rup ⟨[], 1⟩ [.id 8, .id 3, .id 1])], .unsat 9⟩ = false := by
   decide
 
 -- A `red` subproof may instead derive a contradiction from `~C`: then `C` follows outright.
 example : checkRed F none
-    ⟨[.red C [] [.step (.rup ⟨[], 1⟩ [.id 5, .id 4, .id 2])] (some 6),
+    ⟨[.red C [] (some [.step (.rup ⟨[], 1⟩ [.id 5, .id 4, .id 2])]) (some 6),
       .step (.rup ⟨[], 1⟩ [.id 7, .id 3, .id 1])], .unsat 8⟩ = true := by
   decide
 
