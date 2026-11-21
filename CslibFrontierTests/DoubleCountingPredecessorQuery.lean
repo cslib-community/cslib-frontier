@@ -4,10 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests of same-input predecessor queries)
+
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.Predecessor
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 
 /-! # Same-input scalar predecessor loop, with a one-read callback callee -/
+
+set_option linter.privateModule false
+
 namespace Turing.DoubleCounting.Predecessor.Tests
 open MultiTapeTM ComputableInSpace Cslib.DoubleCounting
 
@@ -84,7 +90,8 @@ example (i : ℕ) (hi : i ≤ 3) :
     (encMachineState encRead (loop.runFrom [true] (.inl (initial ctx)) i)).length ≤
       4 * (encContext ctx).length + 8 * (Nat.log2 3 + 1) + 7 + 16 := by
   apply runFrom_call_encoding_le encRead ctx reader start answer [true] (initial ctx)
-    (by exact ⟨le_rfl, by decide⟩) (by rfl) 1 7
+    (Returns.bounded (Returns.initial (ctx := ctx) (N := reader)
+      (start := start) (answer := answer) (w := [true]))) (by rfl) 1 7
   · intro j hj
     have : j = 0 := by omega
     subst j
