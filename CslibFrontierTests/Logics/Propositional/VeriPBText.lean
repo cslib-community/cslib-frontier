@@ -511,6 +511,11 @@ end pseudo-Boolean proof;
 "
 
 #guard checkOPB one coreProof == some (.sat none)
+-- Promoting a core constraint again is a no-op (VeriPB and CakePB accept).
+#guard checkOPB one (coreProof.replace "core id 2;" "core id 2 2;\ncore id 1 2;") ==
+  some (.sat none)
+-- `core id` needs at least one ID (§5.1; VeriPB 3.0.2 and CakePB accept the empty list).
+#guard (checkOPB one (coreProof.replace "core id 2;" "core id 2;\ncore id ;")).isNone
 -- `~x1` is not a solution of the database (VeriPB and CakePB reject).
 #guard (checkOPB one (coreProof.replace "sol x1;" "sol ~x1;")).isNone
 -- Without `core id`, constraint `2` is derived and `delc` cannot delete it (VeriPB rejects; CakePB
@@ -574,6 +579,15 @@ end pseudo-Boolean proof;
 -- In the mode, a checked deletion takes no witness (VeriPB and CakePB reject).
 #guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
   "delc 1 : x1 -> 1 : subproof\nqed delc;\nsol ~x1;")).isNone
+/-- In the mode, a checked deletion is a proof by contradiction: its subproof must close with a
+contradiction `qed : n` (§5.7.4; CakePB's `check_tcb_idopt`). VeriPB and CakePB accept this proof;
+without `: 4`, CakePB rejects it and VeriPB accepts it. -/
+def tcbCheckedProof : String := tcbProof.replace
+  "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
+  "pol 1 x2 + ;\ncore id 2;\ndelc 2 : : subproof\nrup >= 1 : 3 1;\nqed delc : 4;\nsol x1;"
+
+#guard checkOPB one tcbCheckedProof == some (.sat none)
+#guard (checkOPB one (tcbCheckedProof.replace "qed delc : 4;" "qed delc;")).isNone
 -- In the mode, an unchecked core deletion needs an empty derived set (VeriPB and CakePB reject).
 #guard (checkOPB one (tcbProof.replace "red 1 x2 >= 1 : x2 -> 1 : subproof\nqed;\nsol x1 x2;"
   "pol 1 x2 + ;\ndelc 1;\nsol x1;")).isNone
@@ -594,15 +608,8 @@ lowers the value that the lower bounds are checked against to `v`, but certifies
 and rules out `UNSAT`. VeriPB 3.0.2 and CakePB give the same verdicts as this checker on every
 fixture below. -/
 
-/-- Minimize `x1 + x2 + x3` subject to `x1 + x2 >= 1` and `x2 + x3 >= 1`; the optimum is `1`. -/
-def cov : String := "* #variable= 3 #constraint= 2
-min: 1 x1 1 x2 1 x3 ;
-1 x1 1 x2 >= 1 ;
-1 x2 1 x3 >= 1 ;
-"
-
-/-- `obji 1` asserts `f ≤ 0`, constraint `3`, which contradicts constraint `1` by RUP. So every
-solution has value at least `1`, with no solution logged. -/
+/-- On `cover`, `obji 1` asserts `f ≤ 0`, constraint `3`, which contradicts constraint `1` by
+RUP. So every solution has value at least `1`, with no solution logged. -/
 def objiProof : String := "pseudo-Boolean proof version 3.0
 f 2;
 obji 1;
@@ -612,23 +619,34 @@ conclusion BOUNDS 1 : 4 INF;
 end pseudo-Boolean proof;
 "
 
-#guard checkOPB cov objiProof == some (.bounds (some 1) 4 none none)
+#guard checkOPB cover objiProof == some (.bounds (some 1) 4 none none)
 -- `obji` certifies no upper bound.
-#guard (checkOPB cov (objiProof.replace "4 INF" "4 1")).isNone
+#guard (checkOPB cover (objiProof.replace "4 INF" "4 1")).isNone
 -- The lower bound may not exceed the asserted value.
-#guard (checkOPB cov (objiProof.replace "BOUNDS 1" "BOUNDS 2")).isNone
+#guard (checkOPB cover (objiProof.replace "BOUNDS 1" "BOUNDS 2")).isNone
 -- After `obji`, a contradiction proves no unsatisfiability: the formula has solutions of value
 -- at least `1`.
-#guard (checkOPB cov
+#guard (checkOPB cover
   (objiProof.replace "conclusion BOUNDS 1 : 4 INF;" "conclusion UNSAT : 4;")).isNone
 -- With a logged solution of value `1` first, its improving constraint and that of `obji` are
 -- constraints `3` and `4`, and the optimum `1` is certified.
-#guard checkOPB cov ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
+#guard checkOPB cover ((objiProof.replace "obji 1;" "soli ~x1 x2 ~x3;\nobji 1;").replace
   "rup >= 1 : 3 1;\noutput NONE;\nconclusion BOUNDS 1 : 4 INF;"
   "rup >= 1 : 4 1;\noutput NONE;\nconclusion BOUNDS 1 : 5 1;") ==
   some (.bounds (some 1) 5 (some 1) none)
--- `obji` needs an objective.
-#guard (checkOPB "* #variable= 1 #constraint= 1\n1 x1 >= 1 ;\n" objiProof).isNone
+/-- `obji` needs an objective: on the decision problem `coverDecision`, this proof is rejected,
+while it is accepted without `obji 1` (VeriPB and CakePB agree). -/
+def objiDecision : String := "pseudo-Boolean proof version 3.0
+f 2;
+obji 1;
+sol x2;
+output NONE;
+conclusion SAT;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB coverDecision (objiDecision.replace "obji 1;\n" "") == some (.sat none)
+#guard (checkOPB coverDecision objiDecision).isNone
 
 /-! ### Stated assignments and `NONE`
 
@@ -641,18 +659,20 @@ same verdicts as this checker, except where noted. -/
 def objiConcl (c : String) : String := objiProof.replace "BOUNDS 1 : 4 INF" c
 
 -- The optimal solution `~x1 x2 ~x3`, stated, certifies the upper bound with nothing logged.
-#guard checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : ~x1 x2 ~x3") ==
+#guard checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : ~x1 x2 ~x3") ==
   some (.bounds (some 1) 4 (some 1) (some [(0, false), (1, true), (2, false)]))
 -- `x1 x2 ~x3` solves the input but has value `2`.
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x1 x2 ~x3")).isNone
+#guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x1 x2 ~x3")).isNone
 -- `x1 ~x2 ~x3` violates `x2 + x3 >= 1`.
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x1 ~x2 ~x3")).isNone
+#guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x1 ~x2 ~x3")).isNone
 -- `x2` leaves `x1` and `x3` unassigned (VeriPB rejects; CakePB sets them false and accepts).
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 1 : x2")).isNone
--- After `INF` the assignment is not checked (VeriPB and CakePB accept).
-#guard (checkOPB cov (objiConcl "BOUNDS 1 : 4 INF : ~x1 x2 ~x3")).isSome
+#guard (checkOPB cover (objiConcl "BOUNDS 1 : 4 1 : x2")).isNone
+-- After `INF` the assignment is not checked: `~x1 ~x2 ~x3` violates the input, yet the
+-- conclusion is accepted with no finite upper bound (VeriPB and CakePB accept).
+#guard checkOPB cover (objiConcl "BOUNDS 1 : 4 INF : ~x1 ~x2 ~x3") ==
+  some (.bounds (some 1) 4 none (some [(0, false), (1, false), (2, false)]))
 -- `NONE` claims nothing.
-#guard checkOPB cov "pseudo-Boolean proof version 3.0
+#guard checkOPB cover "pseudo-Boolean proof version 3.0
 f 2;
 obji 1;
 output NONE;
@@ -717,9 +737,42 @@ end pseudo-Boolean proof;
   "obju new 2 x1 1 x3 : subproof\nproofgoal #1\npol 4 1 + ;\nqed : 5;\nproofgoal #2\n\
   pol 6 2 + ;\nqed : 7;\nqed obju;\nsoli ~x1 ~x2 x3;\nrup >= 1 : 8 3;" |>.replace
   "BOUNDS 1 : 5 1" "BOUNDS 1 : 9 1") == some (.bounds (some 1) 9 (some 1) none)
--- A solution logged before the update keeps the value it had then (VeriPB accepts).
+-- A solution logged before the update keeps the value it had then (VeriPB accepts); here the
+-- value `1` is the same under both objectives, which `objuLoggedProof` below separates.
 #guard checkOPB eqOpt (objuProof.replace "obju new 2 x1 1 x3 ;\nsoli ~x1 ~x2 x3;"
   "soli ~x1 ~x2 x3;\nobju new 2 x1 1 x3 ;") == some (.bounds (some 1) 5 (some 1) none)
+
+/-- The solution `x1 x2 ~x3` of value `2` is logged; its improving constraint `4`,
+`x1 + x2 + x3 <= 1`, joins the core, where `x1 = x2` then forces `x1 = x2 = 0` and `x3 = 1`. So the
+objective becomes the constant `1`. The logged solution keeps its value `2`, which it no longer
+has under the new objective. Constraint `9`, `2 >= 1` from constraint `3` and literal axioms, is
+trivially true, hence weakly implies `f ≥ 1` for the constant objective `f = 1`. VeriPB and CakePB
+accept this proof. -/
+def objuLoggedProof : String := "pseudo-Boolean proof version 3.0
+f 3;
+soli x1 x2 ~x3;
+obju new 1 : subproof
+proofgoal #1
+pol 5 4 + ;
+qed : 6;
+proofgoal #2
+pol 7 3 + ;
+qed : 8;
+qed obju;
+pol 3 ~x1 + ~x3 + ;
+output NONE;
+conclusion BOUNDS 1 : 9 2;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB eqOpt objuLoggedProof == some (.bounds (some 1) 9 (some 2) none)
+-- The upper bound is the value at logging, `2`, not `1` (VeriPB and CakePB reject).
+#guard (checkOPB eqOpt (objuLoggedProof.replace "1 : 9 2" "1 : 9 1")).isNone
+-- A stated assignment is valued under the input objective: `x1 x2 ~x3` has value `2` there,
+-- though `1` under the final objective (VeriPB and CakePB agree).
+#guard checkOPB eqOpt (objuLoggedProof.replace "1 : 9 2" "1 : 9 2 : x1 x2 ~x3") ==
+  some (.bounds (some 1) 9 (some 2) (some [(0, true), (1, true), (2, false)]))
+#guard (checkOPB eqOpt (objuLoggedProof.replace "1 : 9 2" "1 : 9 1 : x1 x2 ~x3")).isNone
 -- `x1 + x3` is not the objective on the core: it drops `x2` (VeriPB rejects).
 #guard (checkOPB eqOpt (objuProof.replace "2 x1 1 x3" "1 x1 1 x3")).isNone
 
@@ -748,9 +801,55 @@ end pseudo-Boolean proof;
 -- this proof: its autoproving checks the goals against the whole database.
 #guard (checkOPB twoOpt (objuCoreProof.replace "core id 3 4;\n" "")).isNone
 -- `obju` needs an objective.
-#guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n" objuCoreProof).isNone
+#guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
+  objuCoreProof).isNone
 #guard (checkOPB "* #variable= 2 #constraint= 2\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
   (objuCoreProof.replace "obju new 1 x2 ;\n" "")).isSome
+
+/-- An objective ends in an optional constant (§5.9, reusing the OPB syntax): as `x1 = 1` on the
+core, `obju diff -1 x1 1` makes the objective the constant `1`. The improving constraint of the
+solution `x1 x2` is then `0 >= 1`, constraint `3`. VeriPB accepts this proof. -/
+def objuConstProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+obju diff -1 x1 1 ;
+soli x1 x2;
+output NONE;
+conclusion BOUNDS 1 : 3 1;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB twoOpt objuConstProof == some (.bounds (some 1) 3 (some 1) none)
+#guard checkOPB twoOpt (objuConstProof.replace "obju diff -1 x1 1" "obju new 1") ==
+  some (.bounds (some 1) 3 (some 1) none)
+-- Without the constant, the objective `0` is not `x1` on the core (VeriPB rejects).
+#guard (checkOPB twoOpt (objuConstProof.replace "-1 x1 1 ;" "-1 x1 ;")).isNone
+-- A constraint still needs its relation: a constant is no constraint.
+#guard (checkOPB twoOpt "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n"
+  |>.isNone)
+
+/-- Minimize `x1 + x2` subject to `x1 + x2 >= 1` and `~x2 >= 1`. -/
+def cancelOpt : String := "* #variable= 2 #constraint= 2
+min: 1 x1 1 x2 ;
+1 x1 1 x2 >= 1 ;
+1 ~x2 >= 1 ;
+"
+
+/-- `obju diff -1 x2` cancels `x2` from the objective, leaving `x1`. Once constraint `2` is
+deleted, `soli x1` leaves `x2` unassigned, which only the old objective mentions. VeriPB accepts
+this proof. -/
+def cancelProof : String := "pseudo-Boolean proof version 3.0
+f 2;
+obju diff -1 x2 ;
+delc 2;
+soli x1;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB cancelOpt cancelProof == some .noClaim
+-- Under the old objective, `soli x1` leaves `x2` unassigned (VeriPB rejects).
+#guard (checkOPB cancelOpt (cancelProof.replace "obju diff -1 x2 ;\n" "")).isNone
 
 /-! ### Projected enumeration
 
@@ -812,6 +911,64 @@ end pseudo-Boolean proof;
   "red 1 ~x1 >= 1 : x1 -> 0 : subproof\nqed;").replace "PARTIAL 2" "PARTIAL 1")).isNone
 -- Without a preserved set there is nothing to enumerate.
 #guard (checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" enumPartialProof).isNone
+-- A variable listed twice is preserved once: the exclusions stay normalized and the proof
+-- still checks (VeriPB and CakePB accept).
+#guard checkOPB (enum3.replace "preserved: x1 x2" "preserved: x1 x1 x2") enumProof ==
+  some (.enumComplete 3 7)
+-- An empty preserved set has one projection; the exclusion of `solx x1` is `0 >= 1`
+-- (VeriPB and CakePB accept).
+#guard checkOPB (enum3.replace "preserved: x1 x2" "preserved:") "pseudo-Boolean proof version 3.0
+f 1;
+solx x1;
+output NONE;
+conclusion ENUMERATION_COMPLETE 1 : 2;
+end pseudo-Boolean proof;
+" == some (.enumComplete 1 2)
+#guard (parseOPB (enum3.replace "preserved: x1 x2" "preserved:")).map (·.preserved) ==
+  some (some [])
+/-- `solx x1 x2` with no conclusion. -/
+def solxNone : String := "pseudo-Boolean proof version 3.0
+f 1;
+solx x1 x2;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+#guard checkOPB enum3 solxNone == some .noClaim
+-- `solx` is not allowed under an objective (VeriPB and CakePB reject).
+#guard (checkOPB (enum3.replace "preserved:" "min: 1 x1 ;\npreserved:") solxNone).isNone
+/-- A checked deletion whose witness moves a preserved variable. -/
+def delcPresProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+delc 1 : x1 -> 1 : subproof
+qed delc;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+-- VeriPB and CakePB reject it with `x1` preserved, and accept it without a preserved set.
+#guard (checkOPB enum3 delcPresProof).isNone
+#guard checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" delcPresProof == some .noClaim
+
+/-- `x4` is preserved but appears neither in the constraints nor in the proof. The names of the
+proof are numbered after it, so the witness `aux -> 1` leaves the preserved set alone (VeriPB
+and CakePB accept). Numbered after the variables of the constraints alone, `aux` would be
+variable `3`, that is `x4`. -/
+def presOnly : String := "* #variable= 4 #constraint= 1
+preserved: x1 x4 ;
+1 x1 >= 1 ;
+"
+
+#guard checkOPB presOnly "pseudo-Boolean proof version 3.0
+f 1;
+red 1 aux >= 1 : aux -> 1 : subproof
+qed;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" == some .noClaim
 
 /-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. A witness that moves only the unpreserved `x3`
 is allowed (VeriPB and CakePB accept). -/
@@ -1032,6 +1189,18 @@ example (h : checkOPB cover coverProof = some (.bounds (some 1) 6 (some 1) none)
     ∀ u, some 1 = some u →
       ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u :=
   bounds_of_checkOPB h
+
+-- An accepted complete enumeration counts the projections of the solutions to the preserved set.
+example (h : checkOPB enum3 enumProof = some (.enumComplete 3 7)) :
+    ∃ I P, parseOPB enum3 = some I ∧ I.preserved = some P ∧
+      (projections I.constraints P).encard = 3 :=
+  encard_eq_of_checkOPB_enumComplete h
+
+-- An accepted partial enumeration bounds that count from below.
+example (h : checkOPB enum3 enumPartialProof = some (.enumPartial 2)) :
+    ∃ I P, parseOPB enum3 = some I ∧ I.preserved = some P ∧
+      (2 : ℕ∞) ≤ (projections I.constraints P).encard :=
+  le_encard_of_checkOPB_enumPartial h
 
 -- An accepted output section: the guarantee holds between the instance and the output formula.
 example (o : Output) (h : checkOPBOutput amo3 amo3Proof amo3Out = some (.noClaim, some o)) :
