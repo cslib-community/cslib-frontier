@@ -199,27 +199,18 @@ open NondeterministicQueryMachine in
 /-- An already accepting source has exactly one accepting native occurrence at a sufficient clock,
 corresponding to its empty first-halting trace. -/
 example (R : Routines ownBit id encBool (fun _ => 1)) :
-    ∃ fuel, (Native.countingMachine R.I R.P R.F R.C).branchCount
-      (fun out => out == [true]) fuel (R.machine.initCfg (encBool true)) = 1 := by
+    ∃ fuel, (Native.countingMachine R.I R.P R.F R.C).acceptCount
+      fuel (R.machine.initCfg (encBool true)) = 1 := by
   have hhalt : (ownBit.withInit true).HaltsWithin (encBool true) 0 := by
     intro choices hlength
     obtain rfl := List.length_eq_zero_iff.mp hlength
     rfl
   obtain ⟨fuel, hclock⟩ := R.exists_runsInTime true hhalt
-  have htraces :
-      {bits : List Bool | ownBit.FirstHalting (encBool true) bits true ∧
-        ([ownBit.accept (ownBit.replay (encBool true) bits true)] == [true])} = {[]} := by
-    ext bits
-    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff]
-    constructor
-    · rintro ⟨⟨_, hprefix⟩, _⟩
-      by_contra hne
-      exact Bool.noConfusion (hprefix 0 (List.length_pos_iff.mpr hne))
-    · rintro rfl
-      exact ⟨⟨rfl, fun n h => by simp at h⟩, rfl⟩
-  have hcount := R.branchCount_eq_encard_firstHalting true hclock (fun out => out == [true])
-  simp only [id_eq, htraces, Set.encard_singleton] at hcount
-  exact ⟨fuel, by exact_mod_cast hcount⟩
+  refine ⟨fuel, (R.acceptCount_eq_one_iff true hclock).mpr ?_⟩
+  refine ⟨[], ⟨⟨rfl, fun n h => by simp at h⟩, rfl⟩, ?_⟩
+  rintro bits ⟨⟨_, hprefix⟩, _⟩
+  by_contra hne
+  exact Bool.noConfusion (hprefix 0 (List.length_pos_iff.mpr hne))
 
 open NondeterministicQueryMachine in
 /-- Both selectors produce the same state transition at each of the two passes.
