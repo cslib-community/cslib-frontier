@@ -95,4 +95,17 @@ example :
   rw [(SeedWeight.generatedWeight_output seed z).2.2]
   exact hweight
 
+open Cslib.Code.JustesenFamily SeedWeight.Runtime in
+/-- The loaded executor returns the generator's weight from the original framed seed input. -/
+example {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w) :
+    let x : Input := ⟨⟨fieldContext w n, z.1.val, z.2.val⟩, List.ofFn seed⟩
+    let last := executor.runFrom (encInput x) (load x) (x.seed.length + 1)
+    ComputableInSpace load encInput encRuntimeState
+      (fun x => (SeedWeight.encContext x.context).length) ∧
+      executor.halted last = true ∧ executor.finish last = encNat (generatedWeight seed z) := by
+  intro x last
+  obtain ⟨hhalt, hfinish⟩ := executor_finish x
+  refine ⟨load_inSpace, hhalt, hfinish.trans ?_⟩
+  exact congrArg encNat (SeedWeight.weight_eq_generatedWeight seed z)
+
 end CslibFrontierTests.HozaSeedDigits
