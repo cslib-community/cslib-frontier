@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Compiler
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CountingView
+public import Mathlib.Data.Set.Card
 
 /-! # Occurrence replay for compiled query machines
 
@@ -20,9 +21,9 @@ and emits the abstract state's verdict.
 
 `replay_correct` and `existsUnique_replay_iff` compose these boundaries: first-halting abstract
 choice traces (`FirstHalting`) correspond exactly to unique halted native occurrence traces,
-with the same
-verdict. An initially halted source reaches the finalizer without any choice. The full native
-class-equality theorem remains in #6747.
+with the same verdict. An initially halted source reaches the finalizer without any choice.
+`branchCount_eq_encard_firstHalting` counts the first-halting traces by verdict at a sufficient
+native clock. The full native class-equality theorem remains in #6747.
 -/
 
 public section
@@ -404,5 +405,62 @@ theorem existsUnique_replay_iff (a : α) (bits : List Bool) :
     refine ⟨List.replicate n 0 ++ rest, ⟨final, hr, hhalt⟩, ?_⟩
     rintro indices ⟨final', hr', hhalt'⟩
     exact Native.eq_occurrences_of_replayChoices R.I R.P R.F R.C hr' hr hhalt' hhalt
+
+/-- At a sufficient native clock, the counted occurrences for a
+verdict are in bijection with the first-halting abstract choice traces for that verdict. The
+extended cardinality on the right is finite, as witnessed by the native branch count. -/
+theorem branchCount_eq_encard_firstHalting (a : α) {fuel : ℕ}
+    (hclock : R.machine.RunsInTime (enc a) fuel) (verdict : List Bool → Bool) :
+    ((Native.countingMachine R.I R.P R.F R.C).branchCount verdict fuel
+      (R.machine.initCfg (enc a)) : ℕ∞) =
+      {bits : List Bool |
+        M.FirstHalting (enc a) bits (start a) ∧
+        verdict [M.accept (M.replay (enc a) bits (start a))]}.encard := by
+  classical
+  let N := Native.countingMachine R.I R.P R.F R.C
+  let cfg := R.machine.initCfg (enc a)
+  let terminal := (N.branches fuel cfg).filter fun indices =>
+    (N.runBranch cfg indices).any (fun final => verdict final.output)
+  let good : Set (List Bool) := {bits |
+    M.FirstHalting (enc a) bits (start a) ∧
+    verdict [M.accept (M.replay (enc a) bits (start a))]}
+  change (terminal.card : ℕ∞) = good.encard
+  rw [← Set.encard_coe_eq_coe_finsetCard]
+  have htrace (i : (terminal : Set (List ℕ))) : ∃ bits final,
+      Native.replayChoices R.I R.P R.F R.C cfg i.val = some (bits, final) ∧
+        final.Halted ∧ verdict final.output := by
+    have hi : i.val ∈ terminal := i.property
+    obtain ⟨hmem, hv⟩ := Finset.mem_filter.mp hi
+    obtain ⟨_, final, hrun, hhalt⟩ := (N.mem_branches_iff _ _ _).mp hmem
+    have hval : verdict final.output := by simpa [hrun] using hv
+    rw [← Native.map_snd_replayChoices R.I R.P R.F R.C] at hrun
+    obtain ⟨⟨bits, last⟩, hr, rfl⟩ := Option.map_eq_some_iff.mp hrun
+    exact ⟨bits, last, hr, hhalt, hval⟩
+  choose trace final hreplay hhalt hverdict using htrace
+  let f (i : (terminal : Set (List ℕ))) : good := by
+    obtain ⟨hfirst, hout⟩ := R.replay_correct a (hreplay i) (hhalt i)
+    exact ⟨trace i, hfirst, hout ▸ hverdict i⟩
+  apply Set.encard_congr (Equiv.ofBijective f ⟨?_, ?_⟩)
+  · intro i j heq
+    have hb : trace i = trace j := congrArg Subtype.val heq
+    have hi := hreplay i
+    rw [hb] at hi
+    exact Subtype.ext (Native.eq_occurrences_of_replayChoices R.I R.P R.F R.C
+      hi (hreplay j) (hhalt i) (hhalt j))
+  · intro bits
+    obtain ⟨hfirst, hv⟩ := bits.property
+    obtain ⟨indices, ⟨last, hr, hlast⟩, _⟩ :=
+      (R.existsUnique_replay_iff a bits.val).mpr hfirst
+    have hrun := congrArg (Option.map Prod.snd) hr
+    rw [Native.map_snd_replayChoices] at hrun
+    change N.runBranch cfg indices = some last at hrun
+    have hc : N.HaltsWithin fuel cfg := Native.countingMachine_haltsWithin R.I R.P R.F R.C hclock
+    have hout := (R.replay_correct a hr hlast).2
+    have hmem : indices ∈ terminal := Finset.mem_filter.mpr
+      ⟨(N.mem_branches_iff _ _ _).mpr ⟨hc.length_le hrun, last, hrun, hlast⟩,
+        by simpa [hrun, hout] using hv⟩
+    let i : (terminal : Set (List ℕ)) := ⟨indices, hmem⟩
+    refine ⟨i, Subtype.ext ?_⟩
+    exact congrArg Prod.fst (Option.some.inj ((hreplay i).symm.trans hr))
 
 end Turing.NondeterministicQueryMachine.Routines

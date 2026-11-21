@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.LayeredParam
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
 public import Mathlib.Logic.Equiv.Fin.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
+import CslibFrontier.Foundations.Data.Fin.Prod
 
 /-!
 # Original adjacency requests for subdivided STCON graphs
@@ -55,14 +56,12 @@ theorem subdivisionLayeredCall_eq {k : ℕ} {State : Type} [Fintype State]
         (finProdFinEquiv (layeredCoordinates _ a)).val,
         (finProdFinEquiv (layeredCoordinates _ b)).val, fromOffset, toOffset⟩ =
       .inl (layeredQueryRequest ntm c w a b) := by
-  have ha := finProdFinEquiv.symm_apply_apply (layeredCoordinates _ a)
-  have hb := finProdFinEquiv.symm_apply_apply (layeredCoordinates _ b)
   simp only [subdivisionLayeredCall, layeredQueryRequest, hgraph]
   congr 2
-  · exact congrArg (fun p => p.1.val) ha
-  · exact congrArg (fun p => p.2.val) ha
-  · exact congrArg (fun p => p.1.val) hb
-  · exact congrArg (fun p => p.2.val) hb
+  · exact finProdFinEquiv_val_div _
+  · exact finProdFinEquiv_val_mod _
+  · exact finProdFinEquiv_val_div _
+  · exact finProdFinEquiv_val_mod _
 
 /-- Preparing the original adjacency call uses native workspace linear in the encoded
 subdivision request when the graph parameters can be projected in linear workspace. -/

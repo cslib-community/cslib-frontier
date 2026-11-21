@@ -551,7 +551,7 @@ private theorem fri257_rbrError_eq :
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by
     simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friRBRError, params257, hcard,
+  simp only [friRBRError, friSmoothRBRError, params257, hcard,
     (by norm_num : ((2 ^ (3 - 1) : ℕ) : ℝ≥0∞) = 4),
     (by norm_num : ((2 ^ 3 - 2 - 1 : ℕ) : ℝ≥0∞) = 5),
     (by norm_num : (2 : ℝ≥0∞) ^ 3 = 8), hpow]
@@ -791,7 +791,7 @@ theorem fri257_interactiveGame_lt_one_11th
       (weightedLineGapPerRound_of_uniqueLineGap params257
         (by decide : 2 * 2 + params257.dim 0 ≤ 2 ^ params257.d) uniqueLineGap_params257)
       farWord_not_mem_proximityLang P) ?_
-  rw [friSumError, sum_uniqueRoundEscape_257]
+  rw [friSumError, friSmoothSumError, sum_uniqueRoundEscape_257]
   simp only [params257]
   have hnn : (6 / 257 + (5 / 8) ^ 6 : ℝ≥0) < 1 / 11 := by
     rw [← NNReal.coe_lt_coe]; push_cast; norm_num

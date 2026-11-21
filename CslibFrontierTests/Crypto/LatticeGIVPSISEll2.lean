@@ -255,7 +255,7 @@ example (A : Matrix (Fin 1) (Fin 2) (ZMod 3)) : SIS.IsEll2Solution A (3 : ℕ) !
   rw [SIS.isEll2Solution_nat_iff]
   refine ⟨by decide, by decide, ?_⟩
   have hzero : (Int.cast ∘ (![3, 0] : Fin 2 → ℤ) : Fin 2 → ZMod 3) = 0 := by decide
-  rw [hzero, Matrix.mulVec_zero]
+  rw [Cslib.Crypto.InKernelLattice, hzero, Matrix.mulVec_zero]
 
 /-- Polynomial `SISParams` family with `m = (κ + 1)(κ + 3)` and Euclidean bound `β = κ + 3 ≥ √m`,
 so `SISEll2` directly implies `ℓ_∞`-`SIS` at bound `1` and Ajtai collision resistance. -/

@@ -15,9 +15,10 @@ import CslibFrontier.Foundations.Relation.Transport
 /-!
 # Ordered isolation-seed search from the original roots
 
-The source list contains the entry of each original vertex's subdivision chain. Auxiliary
-vertices may be reached by a scan, but are not added as sources. Hoza's seed-existence theorem
-and the subdivision scan criterion give a passing seed for the ordered monadic search.
+The indexed search requests the entry of each original vertex's subdivision chain from its
+row-major position. The source list enumerates the same entries for the coverage proof.
+Auxiliary vertices may be reached by a scan. Hoza's seed-existence theorem and the subdivision
+scan criterion give a passing seed for the ordered monadic search.
 
 ## Main results
 
@@ -34,9 +35,14 @@ open Code.JustesenFamily DoubleCounting LayeredDigraph.Subdivision
 
 variable {w h bound N : ℕ}
 
+/-- The subdivision root at a row-major position in the original vertex carrier. -/
+@[expose] def originalRootID (index : Vertex (Fin (h + 1) × Fin w) bound ≃ Fin N)
+    (position : Fin ((h + 1) * w)) : Fin N :=
+  index (root bound (finProdFinEquiv.symm position))
+
 /-- The indexed roots in row-major order, with one entry for each original vertex. -/
 @[expose] def originalRootIDs (index : Vertex (Fin (h + 1) × Fin w) bound ≃ Fin N) : List (Fin N) :=
-  List.ofFn fun i : Fin ((h + 1) * w) => index (root bound (finProdFinEquiv.symm i))
+  List.ofFn (originalRootID index)
 
 /-- Membership means being the root of an original vertex. -/
 theorem mem_originalRootIDs_iff (index : Vertex (Fin (h + 1) × Fin w) bound ≃ Fin N)
@@ -46,7 +52,7 @@ theorem mem_originalRootIDs_iff (index : Vertex (Fin (h + 1) × Fin w) bound ≃
   · rintro ⟨j, rfl⟩
     exact ⟨finProdFinEquiv.symm j, rfl⟩
   · rintro ⟨v, rfl⟩
-    exact ⟨finProdFinEquiv v, by rw [Equiv.symm_apply_apply]⟩
+    exact ⟨finProdFinEquiv v, by rw [originalRootID, Equiv.symm_apply_apply]⟩
 
 /-- The adjacency relation searched at a seed, with vertices given by their subdivision IDs. -/
 abbrev generatedSubdivisionAdj (G : LayeredDigraph (Fin (h + 1) × Fin w))
@@ -73,9 +79,9 @@ private theorem root_passes_iff (G : LayeredDigraph (Fin (h + 1) × Fin w))
     obtain ⟨v, rfl⟩ := (mem_originalRootIDs_iff index s).mp hmem
     exact hi v j hs
 
-/-- Run the ordered search from the designated root and test all original roots. The
-exact controller contract gives one outcome, with the least min-isolating seed and its
-reachability answer. This applies in particular to the multiplicity-sensitive list monad. -/
+/-- Run the ordered indexed search from the designated root, requesting each original root
+by position. The exact controller contract gives one outcome, with the least min-isolating
+seed and its reachability answer, including in the multiplicity-sensitive list monad. -/
 theorem runGeneratedSeedSearch_correct {m : Type → Type} [AlternativeMonad m] [LawfulMonad m]
     (G : LayeredDigraph (Fin (h + 1) × Fin w)) (hlayer : ∀ v, G.layer v = v.1.val)
     (index : Vertex (Fin (h + 1) × Fin w) bound ≃ Fin N)
@@ -89,7 +95,7 @@ theorem runGeneratedSeedSearch_correct {m : Type → Type} [AlternativeMonad m] 
       | .decided b => (∀ j, ∃! p, Passes (generatedSubdivisionAdj G index seed) s j p) ∧
           (b = true ↔ Relation.ReflTransGen (generatedSubdivisionAdj G index seed) s
             (index (root bound target)))) :
-    ∃ result, runSeedSearch controller (originalRootIDs index) (index (root bound source)) =
+    ∃ result, runSeedSearchIndexed controller (originalRootID index) (index (root bound source)) =
         pure (some result) ∧
       G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm result.seed)) ∧
       (∀ i < result.seed, ¬ G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm i))) ∧
@@ -103,7 +109,8 @@ theorem runGeneratedSeedSearch_correct {m : Type → Type} [AlternativeMonad m] 
     (r := (graph G (generatedWeight seed) bound).Adj)
     (s := generatedSubdivisionAdj G index seed)
     (fun a b => by simp [generatedSubdivisionAdj]) (root bound source) (root bound target)
-  exact ⟨result, hrun, (hpass _).mp hgood, fun i hi hs => hleast i hi ((hpass _).mpr hs),
+  refine ⟨result, ?_, (hpass _).mp hgood, fun i hi hs => hleast i hi ((hpass _).mpr hs),
     hreach.trans (hindex.symm.trans (reachable_root_iff (hb seed) source target))⟩
+  simpa only [runSeedSearchIndexed_eq, originalRootIDs] using hrun
 
 end Cslib.Reachability.Hoza

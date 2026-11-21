@@ -44,13 +44,6 @@ open scoped BigOperators Real
 variable {F A : Type*} {m d : ℕ} [Field F] [Fintype F] [DecidableEq F]
   [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
 
-/-- Evaluating a polynomial outcome preserves the total successful effect. -/
-theorem evaluatePolynomialMeasurement_successfulEffect
-    (P : Measurement (Option (BoundedPolynomial F m d)) A) (u : Fin m → F) :
-    (evaluatePolynomialMeasurement P u).successfulEffect = P.successfulEffect := by
-  have hh := congrArg (fun x : A => 1 - x) (evaluatePolynomialMeasurement_effect_none P u)
-  simpa only [Measurement.effect_none_eq_one_sub_successfulEffect, sub_sub_cancel] using hh
-
 /-- Agreement of the successful evaluated slice with the point measurement gives the
 squared state distance from the point measurement multiplied by the slice success effect. -/
 theorem evaluatedSlice_gated_stateDist_eq
@@ -67,11 +60,6 @@ theorem evaluatedSlice_gated_stateDist_eq
     (Measurement.commute_map_right P _ _ (fun g => (hc g b).symm) a).symm
   simpa only [evaluatePolynomialMeasurement_successfulEffect] using
     Measurement.sum_norm_sub_success_mul_sq_eq φ (evaluatePolynomialMeasurement P u) B hP hb hc'
-
-private theorem evaluation_some (P : Measurement (Option (BoundedPolynomial F m d)) A)
-    (u : Fin m → F) (b : F) : (evaluatePolynomialMeasurement P u).effect (some b) =
-      ∑ g with eval u g.val = b, P.effect (some g) :=
-  P.map_option_effect_some (fun g => eval u g.val) b
 
 /-- A positive common majorant of the averaged point effects controls the failure term
 after sandwiching an evaluated slice by the successful effects of a second measurement.
@@ -113,7 +101,7 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
           N.effect (some a) * P.effect none * (B u).effect b)).re) =
         ∑ g, (φ (star (K (a, g)) * K (a, g) * P.effect none *
           (B u).effect (eval u g.val))).re := by
-    simp only [evaluation_some, mul_sum, sum_mul, map_sum, Complex.re_sum]
+    simp only [evaluatePolynomialMeasurement_effect_some, mul_sum, sum_mul, map_sum, Complex.re_sum]
     conv_rhs => rw [← sum_fiberwise univ (fun g : BoundedPolynomial F m d => eval u g.val)]
     refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => ?_
     rw [hKTerm, (mem_filter.mp hg).2]
@@ -163,7 +151,7 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
         ∑ p, (φ (star (L p) * Y u p)).re := by
     rw [sum_comm, Fintype.sum_prod_type]
     refine sum_congr rfl fun b _ => ?_
-    simp only [evaluation_some, sum_mul, map_sum, Complex.re_sum]
+    simp only [evaluatePolynomialMeasurement_effect_some, sum_mul, map_sum, Complex.re_sum]
     conv_rhs => rw [← sum_fiberwise univ (fun g : BoundedPolynomial F m d => eval u g.val)]
     refine sum_congr rfl fun a _ => sum_congr rfl fun g hg => ?_
     have he := (mem_filter.mp hg).2

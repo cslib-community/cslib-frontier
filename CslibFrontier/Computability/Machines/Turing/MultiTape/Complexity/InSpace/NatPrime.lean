@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Foundations.Data.Nat.FindCode
 public import Mathlib.Data.Nat.Prime.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FindCode
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -102,8 +103,7 @@ private theorem trialStep_inSpace :
   have hmod := budget_natMod hn hd
   have hnz := budget_finite (encC := encBool) not (budget_natIsZero hmod)
   have hpass := budget_ite hlt hnz (budget_const true (.refl _))
-  have hacc := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
-    (budget_prod hgood hpass)
+  have hacc := budget_boolAnd hgood hpass
   refine (budget_prod hn (budget_prod (budget_natSucc hd) hacc)).of_enc_eq ?_
   intro q
   by_cases h : q.2.1 < q.1 <;> simp [trialStep, h]
@@ -137,8 +137,7 @@ theorem isPrime_inSpace :
           simp [hn, htwo]
         · have htwo : 2 ≤ n := by omega
           simp [hn, htwo]
-  exact (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
-    (budget_prod hlo htrial)).of_enc_eq fun _ => rfl
+  exact (budget_boolAnd hlo htrial).of_enc_eq fun _ => rfl
 
 /-- Search a bounded number of candidates, without materializing their list. -/
 @[expose] def boundedFirstPrime (lower bound : ℕ) : ℕ :=

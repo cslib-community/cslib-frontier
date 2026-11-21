@@ -49,4 +49,18 @@ example {w n : ℕ} (j : Fin (codeLength w n)) :
       Cslib.BitString.lowBits (fieldDegree w n) (decodeIndex (fieldDegree w n) j.val).point :=
   (lowBits_decodeIndex_point j).symm
 
+/-- The decoder result supplies the point word and both code-coordinate indexes. -/
+example {w n : ℕ} (j : Fin (codeLength w n)) :
+    (fieldContext w n).decodeWord j.val =
+      let (point, half, bit) := decodeCoordinate w n j
+      ⟨List.ofFn (nonzeroPointBits point), half.val, bit.val⟩ :=
+  fieldContext_decodeWord_eq j
+
+/-- A native caller can retain the field context with the prepared coordinate. -/
+example :
+    ComputableInSpace (fun p : FieldContext × ℕ => (p.1, p.1.decodeWord p.2))
+      (encPair encFieldContext encNat) (encPair encFieldContext encCoordinateWord)
+      (fun p => (encPair encFieldContext encNat p).length) :=
+  budget_prod (fst encFieldContext encNat) fieldContext_decodeWord_inSpace
+
 end CslibFrontierTests.JustesenCoordinates

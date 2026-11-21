@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import Mathlib.Logic.Equiv.Fin.Basic
+import CslibFrontier.Foundations.Data.Fin.Prod
 
 /-!
 # Flat IDs for subdivision edge requests
@@ -21,7 +22,8 @@ same numbering for all of its edge requests, including requests at unused slots.
 `decodeFlatQuery` reconstructs the existing adjacency callback request from two binary
 IDs and the chain bound. It retains the supplied context. Its agreement theorem applies
 to IDs in the rectangular carrier, which the caller supplies through `Fin` coordinates.
-The native certificates concern request preparation.
+The native certificates cover request preparation and entry to the existing same-input
+subdivision callback.
 -/
 
 public section
@@ -78,15 +80,8 @@ theorem decodeFlatQuery_flatIndex {n : ℕ} (ctx : Context) (bound : ℕ)
     (a b : Vertex (Fin n) bound) :
     decodeFlatQuery ⟨ctx, bound, (flatIndex n bound a).val, (flatIndex n bound b).val⟩ =
       ⟨ctx, a.vertex.val, b.vertex.val, a.offset.val, b.offset.val⟩ := by
-  have coords (v : Vertex (Fin n) bound) :
-      ((flatIndex n bound v).val / (bound + 1), (flatIndex n bound v).val % (bound + 1)) =
-        (v.vertex.val, v.offset.val) := by
-    have he : finProdFinEquiv.symm (flatIndex n bound v) = (v.vertex, v.offset) := by
-      simp [flatIndex]
-    exact congrArg (fun p : Fin n × Fin (bound + 1) => (p.1.val, p.2.val)) he
-  obtain ⟨hal, hab⟩ := Prod.mk.inj (coords a)
-  obtain ⟨hbl, hbb⟩ := Prod.mk.inj (coords b)
-  simp only [decodeFlatQuery, hal, hab, hbl, hbb]
+  simp only [decodeFlatQuery, flatIndex, Equiv.trans_apply, finProdFinEquiv_val_div,
+    finProdFinEquiv_val_mod, equivProd_apply]
 
 /-- Decoding fits in linear space in the retained context and binary request. -/
 theorem decodeFlatQuery_inSpace (encContext : Context ↪ List Bool) :
@@ -99,5 +94,22 @@ theorem decodeFlatQuery_inSpace (encContext : Context ↪ List Bool) :
   exact (encQuery_mk_budget encContext (encFlatQuery_context_budget encContext hid)
     (budget_natDiv ha hslots) (budget_natDiv hb hslots) (budget_natMod ha hslots)
     (budget_natMod hb hslots)).of_enc_eq (fun _ => rfl)
+
+/-- Decode the flat request and enter the subdivision callback in its pending caller state. -/
+@[expose] def flatCallbackStart {τ : Type} (q : FlatQuery Context) :
+    (Query Context ⊕ Bool) ⊕ ((Query Context ⊕ Bool) × τ) :=
+  .inl (.inl (decodeFlatQuery q))
+
+/-- Entering the callback takes linear workspace in the encoded flat request. -/
+theorem flatCallbackStart_inSpace {τ : Type} (encContext : Context ↪ List Bool)
+    (encT : τ ↪ List Bool) :
+    ComputableInSpace flatCallbackStart (encFlatQuery encContext) (encCallback encContext encT)
+      (fun q => (encFlatQuery encContext q).length) := by
+  let encC := encCaller encContext
+  have hcaller := of_inO (ComputableInO.inl (encQuery encContext) encBool)
+  have hcall := of_inO (ComputableInO.inl encC (encPair encC encT))
+  have h := budget_comp_linear hcall
+    (budget_comp_linear hcaller (decodeFlatQuery_inSpace encContext))
+  exact h
 
 end Turing.QueryMachine.Subdivision
