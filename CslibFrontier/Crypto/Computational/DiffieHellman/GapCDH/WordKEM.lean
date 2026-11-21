@@ -369,7 +369,7 @@ private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
   have hisEmpty : ComputableInPolyTime
       (fun p : α × SearchState => p.2.remaining.isEmpty)
       (encPair input encSearchState) encBool :=
-    (ComputableTidilyInPolyTime.listIsEmpty' encDHKEMSimEntry).computableInPolyTime.comp
+    (ComputableInPolyTime.listIsEmpty' encDHKEMSimEntry).comp
       (by polytime)
   have hcond : ComputableInPolyTime
       (fun p : α × SearchState => p.2.found.isSome || p.2.remaining.isEmpty)
@@ -384,7 +384,7 @@ private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
       (fun q : (α × SearchState) × Option (List Bool) => q.1.2.remaining.tail)
       (encPair (encPair input encSearchState) (encOption encBits))
       (encList encDHKEMSimEntry) :=
-    (ComputableTidilyInPolyTime.listTail encDHKEMSimEntry).computableInPolyTime.comp
+    (ComputableInPolyTime.listTail encDHKEMSimEntry).comp
       (by polytime)
   have hpost : ComputableInPolyTime
       (fun q : (α × SearchState) × Option (List Bool) =>

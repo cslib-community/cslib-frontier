@@ -60,8 +60,12 @@ five-second connection and twenty-second request limits within that origin's ove
 advancing to the next candidate on HTTP 404 or HTTP 403 and failing fast to the next configured
 origin on transport errors, timeouts or 5xx responses. (On November 17, 2026 the public GCS
 bucket answered 404 for a missing mapping; it answers 403 for every object while the kill switch
-has removed public read.) The fetched mapping is then passed directly to `lake cache get` for
-syntax verification and artifact downloads.
+has removed public read.) The wrapper checks the published mapping's version and module rows,
+including uniqueness of input hashes, before passing it to `lake cache get` for ingestion and
+artifact downloads. An unusable HTTP 200 response, such as a maintenance page, sends restoration
+to the next origin even when Lake would exit successfully after a warning. Missing-only
+restoration checks the original mapping before omitting current outputs, which can leave a valid
+header with no rows to download.
 
 Candidates whose `lake-manifest.json` pins a different Mathlib commit than the checkout's are
 skipped before any lookup. A module's input hash covers the outputs of its imports, so outputs
