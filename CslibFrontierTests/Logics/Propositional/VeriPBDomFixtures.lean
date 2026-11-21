@@ -6,17 +6,38 @@ Authors: Matthew Doty
 
 module
 
-public import CslibFrontier.Init
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 
 /-! Fixtures for orders and dominance-based strengthening in the VeriPB checker: PHP(3, 2) and a
 proof that breaks its pigeon symmetry by `dom` under a lexicographic order, accepted by VeriPB
-3.0.2 and CakePB. They are shared by the `#guard` tests of
-`CslibFrontierTests.Logics.Propositional.VeriPBText` and the decided client of
+3.0.2 and CakePB, and the lexicographic order `lex2` on two bits with its transitivity and
+reflexivity proofs, as checker values. They are shared by the `#guard` tests of
+`CslibFrontierTests.Logics.Propositional.VeriPBText`, the decided checks of
+`CslibFrontierTests.Logics.Propositional.VeriPBRed` and the decided client of
 `CslibFrontierTests.Logics.Propositional.VeriPBTextDecide`. -/
 
 @[expose] public section
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBText
+
+open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
+
+/-- The lexicographic order on two bits, `(u1, u2) ⪯ (v1, v2)` when `2 u1 + u2 ≤ 2 v1 + v2`:
+the constraint `-2 u1 - u2 + 2 v1 + v2 >= 0`, with `u1, u2, v1, v2` the variables `10`–`13`. -/
+def lex2 : Order :=
+  ⟨[10, 11], [12, 13],
+    [⟨[(2, (10, false)), (1, (11, false)), (2, (12, true)), (1, (13, true))], 3⟩]⟩
+
+/-- Transitivity, with the fresh right variables `14`, `15`: the premises `O⪯(u, v)` and
+`O⪯(v, w)` are `1` and `2`, the negated goal `#1` is `3`, and their sum `4` is a
+contradiction. -/
+def lex2Trans : OrderProof :=
+  ⟨[.goal (.hash 1) [.pol [.id 1, .id 2, .add, .id 3, .add]] 4], none⟩
+
+/-- Reflexivity, numbered after transitivity: the goal `O⪯(u, u)` is trivial, and its negation
+`5` is itself a contradiction. -/
+def lex2Refl : OrderProof := ⟨[.goal (.hash 1) [] 5], none⟩
+
 
 /-- PHP(3, 2) in OPB: pigeon `i` in hole `j` is `x(2i+j+1)`. -/
 def php32 : String := "* #variable= 6 #constraint= 9

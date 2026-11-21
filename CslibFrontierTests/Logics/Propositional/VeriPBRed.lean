@@ -10,6 +10,7 @@ module
 -- private helpers.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
+import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
 database whose witness repairs a solution violating the new constraint; a symmetry-breaking `red`
@@ -29,6 +30,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
+open CslibFrontierTests.Logics.Propositional.VeriPBText (lex2 lex2Trans lex2Refl)
 
 /-! ### Repairing a solution -/
 
@@ -177,22 +179,10 @@ def NX0 : PBConstr := ⟨[(1, (0, false))], 1⟩
 example : redCheck (some f) (initDb H) 3 NX0 [(0, .zero), (1, .one)] [] none = some 4 := by
   decide
 
-/-! ### Orders and dominance -/
+/-! ### Orders and dominance
 
-/-- The lexicographic order on two bits, `(u1, u2) ⪯ (v1, v2)` when `2 u1 + u2 ≤ 2 v1 + v2`:
-the constraint `-2 u1 - u2 + 2 v1 + v2 >= 0`, with `u1, u2, v1, v2` the variables `10`–`13`. -/
-def lex2 : Order :=
-  ⟨[10, 11], [12, 13],
-    [⟨[(2, (10, false)), (1, (11, false)), (2, (12, true)), (1, (13, true))], 3⟩]⟩
-
-/-- Transitivity, with the fresh right variables `14`, `15`: the premises `O⪯(u, v)` and
-`O⪯(v, w)` are `1` and `2`, the negated goal `#1` is `3`, and their sum `4` is a
-contradiction. -/
-def lex2Trans : OrderProof := ⟨[.goal (.hash 1) [.pol [.id 1, .id 2, .add, .id 3, .add]] 4], none⟩
-
-/-- Reflexivity, numbered after transitivity: the goal `O⪯(u, u)` is trivial, and its negation
-`5` is itself a contradiction. -/
-def lex2Refl : OrderProof := ⟨[.goal (.hash 1) [] 5], none⟩
+The order `lex2` and its proofs are shared with the text tests
+(`CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures`). -/
 
 example : lex2.defCheck [14, 15] lex2Trans lex2Refl = true := by decide
 
