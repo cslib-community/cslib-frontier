@@ -12,6 +12,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained.Schoening
 public import CslibFrontier.Computability.WordRAM.ListArray
 public import CslibFrontier.Computability.WordRAM.Notation
+public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 
 /-!
 # Finding the first falsified clause on the word RAM
@@ -66,11 +67,16 @@ open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.Schoening
 
 variable {n : ℕ}
 
-/-- The word code `2 v + b` of the literal `(v, b)`. -/
-def litCode (l : Literal (Fin n)) : ℕ := 2 * l.1.val + l.2.toNat
+/-- The word code `2 v + b` of the literal `(v, b)`
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy` through the value of the variable). -/
+def litCode (l : Literal (Fin n)) : ℕ := ClauseCode.litCodeBy Fin.val l
 
-/-- A clause is stored as its length followed by the codes of its literals. -/
-def encodeClause (c : Clause (Fin n)) : List ℕ := c.length :: c.map litCode
+/-- A clause is stored as its length followed by the codes of its literals
+(`Cslib.Algorithms.WordRAM.ClauseCode.encodeClauseBy`). -/
+def encodeClause (c : Clause (Fin n)) : List ℕ := ClauseCode.encodeClauseBy Fin.val c
+
+/-- The words of a clause: its length, then the codes of its literals. -/
+theorem encodeClause_eq (c : Clause (Fin n)) : encodeClause c = c.length :: c.map litCode := rfl
 
 /-- The clauses of a formula, stored one after another. -/
 def encodeClauses (φ : CNF (Fin n)) : List ℕ := φ.flatMap encodeClause
@@ -80,7 +86,7 @@ def encode (φ : CNF (Fin n)) : List ℕ := n :: encodeClauses φ
 
 @[simp]
 theorem length_encodeClause (c : Clause (Fin n)) : (encodeClause c).length = c.length + 1 := by
-  simp [encodeClause]
+  simp [encodeClause_eq]
 
 @[simp]
 theorem encodeClauses_nil : encodeClauses ([] : CNF (Fin n)) = [] := rfl
@@ -94,19 +100,16 @@ theorem encodeClauses_cons (c : Clause (Fin n)) (φ : CNF (Fin n)) :
 theorem litCode_lt (l : Literal (Fin n)) : litCode l < 2 * n := by
   obtain ⟨v, b⟩ := l
   have := v.isLt
-  cases b <;> simp only [litCode, Bool.toNat_false, Bool.toNat_true] <;> omega
+  cases b <;> simp only [litCode, ClauseCode.litCodeBy, Bool.toNat_false,
+    Bool.toNat_true] <;> omega
 
 /-- Shifting a literal code right recovers its variable. -/
-theorem litCode_shiftRight (l : Literal (Fin n)) : litCode l >>> 1 = l.1.val := by
-  obtain ⟨v, b⟩ := l
-  rw [Nat.shiftRight_eq_div_pow]
-  cases b <;> simp only [litCode, Bool.toNat_false, Bool.toNat_true] <;> omega
+theorem litCode_shiftRight (l : Literal (Fin n)) : litCode l >>> 1 = l.1.val :=
+  ClauseCode.litCodeBy_shiftRight _ _
 
 /-- The low bit of a literal code is its sign. -/
-theorem litCode_and_one (l : Literal (Fin n)) : litCode l &&& 1 = l.2.toNat := by
-  obtain ⟨v, b⟩ := l
-  rw [Nat.and_one_is_mod]
-  cases b <;> simp only [litCode, Bool.toNat_false, Bool.toNat_true] <;> omega
+theorem litCode_and_one (l : Literal (Fin n)) : litCode l &&& 1 = l.2.toNat :=
+  ClauseCode.litCodeBy_and_one _ _
 
 /-- The assignment `σ` is stored as the words `(σ i).toNat` from address `base`. -/
 def AssignAt (mem : ℕ → ℕ) (base : ℕ) (σ : Fin n → Bool) : Prop :=
@@ -307,7 +310,7 @@ theorem clauseLoop_spec (σ : Fin n → Bool) (ψ : CNF (Fin n)) (x : Data 24)
     rw [encodeClauses_cons] at hp hend
     obtain ⟨hpc, hpψ⟩ := holdsList_append_iff.mp hp
     simp only [List.length_append, length_encodeClause] at hend hpψ
-    obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp hpc
+    obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp (encodeClause_eq c ▸ hpc)
     have hc : (Cond.lt ptr aBase).Holds x := by simp only [Cond.holds_lt]; omega
     have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
     have : Fits w (x.regs ptr + 1 + c.length) := hw.of_le (by omega)

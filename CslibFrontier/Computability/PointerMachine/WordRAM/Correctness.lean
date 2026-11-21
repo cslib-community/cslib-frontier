@@ -60,14 +60,14 @@ private theorem contains_raw {code : List (Instr M L)} {pc : ℕ} {i : Instr M L
     (S.compile code).Contains (S.blockSize code * pc) (S.rawBlock (S.blockSize code) pc i) := by
   have hstart := Cslib.WordRAM.Program.Contains.self (S.compile code)
   change (S.compile code).Contains 0
-    (Cslib.WordRAM.Program.compileBlocks (S.block (S.blockSize code)) 0 code) at hstart
+    (Cslib.Program.compileBlocks (S.block (S.blockSize code)) 0 code) at hstart
   have h := hstart.block (fun pc _ hi => S.length_block hi pc) hi
   simpa only [Nat.zero_add] using h.append_left
 
 /-- The compiled program occupies a fixed number of target slots per source instruction. -/
 theorem length_compile (code : List (Instr M L)) :
     (S.compile code).length = S.blockSize code * code.length :=
-  Cslib.WordRAM.Program.length_compileBlocks (fun pc _ hi => S.length_block hi pc) 0
+  Cslib.Program.length_compileBlocks (fun pc _ hi => S.length_block hi pc) 0
 
 private theorem branch_jump_runs {w pc yes no : ℕ}
     {p : Cslib.WordRAM.Program .standard (regCount L)}

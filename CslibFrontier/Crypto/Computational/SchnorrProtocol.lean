@@ -323,7 +323,7 @@ theorem isPPTOn_schnorrSampleChallenge :
     have hq := F.computableInPolyTime_order.comp hd'
     have hz : ComputableInPolyTime (fun p : (ℕ × F.Desc) × ℕ => (p.2 % F.order p.1.2).bits)
         encMid encBits :=
-      .of_tidy (ComputableTidilyInPolyTime.natBits.comp (.binary_mod' hs.tidy hq.tidy))
+      (ComputableInPolyTime.natBits.comp (.binary_mod' hs hq))
     exact hz.isPPTOn
   refine hword.congr fun i => ?_
   rw [schnorrSampleChallenge, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_map,
