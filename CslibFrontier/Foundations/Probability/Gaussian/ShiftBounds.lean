@@ -8,25 +8,28 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Probability.Gaussian.Poisson
+public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
 /-!
 # Uniform bounds on shifted lattice Gaussian mass
 
 ## Main results
 
-* `ZLattice.gaussianMass_zero_sub_one_eq_tsum`: the centered mass minus one is the actual
-  Gaussian sum over nonzero lattice points.
 * `ZLattice.abs_gaussianMass_normalized_sub_one_le`: normalized mass at every center differs
   from one by at most the nonzero reciprocal-width dual mass.
 * `ZLattice.gaussianMass_mem_Icc_of_dual_mass_le`: a bound on that actual dual mass gives
   the two-sided shifted-mass interval.
+* `ZLattice.gaussianMass_mem_Icc_of_smoothingParameter_le`: smoothing-parameter conversion of
+  `gaussianMass_mem_Icc_of_dual_mass_le` via `smoothingParameter_le_iff`.
 
 ## References
 
 The uniform estimate is the explicit dual-tail form of [Regev2009], Claim 3.8, printed
 page 22 of the May 2, 2009 author version. The source's translate `L + c` corresponds to
 center `-c` here. The proof uses the proved Poisson formula, not a flatness assumption.
-The minimum smoothing parameter and quotient-distribution statements are separate results.
+The smoothing-parameter conversion unpacks `ZLattice.smoothingParameter` ([MicciancioRegev2007],
+Definition 3.1, p. 10 of the December 27, 2005 author's copy) via `smoothingParameter_le_iff`.
+Quotient-distribution statements are separate results.
 -/
 
 public section
@@ -37,33 +40,6 @@ open Module ProbabilityTheory MeasureTheory
 open scoped RealInnerProductSpace
 
 namespace ZLattice
-
-section Discrete
-
-variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
-variable [FiniteDimensional ℝ E] (L : Submodule ℤ E) [DiscreteTopology L]
-
-/-- Removing the zero term from the convergent Gaussian sum subtracts exactly one. -/
-theorem gaussianMass_zero_sub_one_eq_tsum (s : ℝ) (hs : 0 < s) :
-    gaussianMass L s 0 - 1 = ∑' z : ↥{z : L | z ≠ 0}, gaussianWeight s (z : E) := by
-  classical
-  have h := (summable_gaussianWeight L s hs 0).sum_add_tsum_compl (s := {0})
-  have hset : (↑({0} : Finset L) : Set L)ᶜ = {z | z ≠ 0} := by ext z; simp
-  rw [hset] at h
-  have hsum : 1 + (∑' z : ↥{z : L | z ≠ 0}, gaussianWeight s (z : E)) =
-      gaussianMass L s 0 := by
-    simpa only [Finset.sum_singleton, Submodule.coe_zero, sub_zero, gaussianWeight,
-      norm_zero, zero_pow (by decide : 2 ≠ 0), mul_zero, zero_div, Real.exp_zero,
-      Finset.coe_singleton, Set.mem_compl_iff, Set.mem_singleton_iff, gaussianMass] using h
-  linarith
-
-/-- The mass of the nonzero lattice points is nonnegative. -/
-theorem gaussianMass_zero_sub_one_nonneg (s : ℝ) (hs : 0 < s) :
-    0 ≤ gaussianMass L s 0 - 1 := by
-  rw [gaussianMass_zero_sub_one_eq_tsum L s hs]
-  exact tsum_nonneg fun z ↦ (gaussianWeight_pos s (z : E)).le
-
-end Discrete
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
 variable [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
@@ -122,5 +98,15 @@ theorem gaussianMass_mem_Icc_of_dual_mass_le (s : ℝ) (hs : 0 < s) (ε : ℝ)
     simpa only [heq] using mul_le_mul_of_nonneg_left hh (div_pos hp hc).le
   · have hh : covolume L / s ^ finrank ℝ E * gaussianMass L s c ≤ 1 + ε := by linarith [h.2]
     simpa only [heq] using mul_le_mul_of_nonneg_left hh (div_pos hp hc).le
+
+/-- Smoothing-parameter conversion of `gaussianMass_mem_Icc_of_dual_mass_le`: shifted lattice
+Gaussian mass interval above the smoothing parameter ([Regev2009], Claim 3.8, p. 22). For the
+source's translate `L + c`, use center `-c`. -/
+theorem gaussianMass_mem_Icc_of_smoothingParameter_le (s : ℝ) (hs : 0 < s)
+    (ε : ℝ) (hε : 0 < ε) (hη : smoothingParameter L ε ≤ s) (c : E) :
+    gaussianMass L s c ∈ Set.Icc
+      (s ^ finrank ℝ E / covolume L * (1 - ε))
+      (s ^ finrank ℝ E / covolume L * (1 + ε)) :=
+  gaussianMass_mem_Icc_of_dual_mass_le L s hs ε ((smoothingParameter_le_iff L hs hε).mp hη) c
 
 end ZLattice
