@@ -6059,7 +6059,9 @@ public import CslibFrontier.Foundations.Analysis.Lattice.Schwartz
 public import CslibFrontier.Foundations.Analysis.LpNorm
 public import CslibFrontier.Foundations.Analysis.LpNormMeasure
 public import CslibFrontier.Foundations.Analysis.MarkovBrothersInequality
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateDerivative
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
 public import CslibFrontier.Foundations.Analysis.RateExponent
