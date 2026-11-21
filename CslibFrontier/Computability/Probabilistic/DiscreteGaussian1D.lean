@@ -108,19 +108,21 @@ certificates:
   for `sampleQuotientModS` against `PMF.piFin` of `PMF.uniformOfFintype (ZMod D)` pushed forward
   by `quotientReduceInt`.
 
-* `Cslib.Probability.mem_support_sampleZ_abs_sub_le`,
-  `Cslib.Probability.mem_support_sampleGridGaussian`,
-  `Cslib.Probability.mem_support_sampleQuotientModS`: unconditional 100%-support bounds and
-  reduction-image characterizations for downstream strict-PPT iteration invariants.
+Auxiliary 100%-support interface specifications (`mem_support_sampleZ_abs_sub_le`,
+`mem_support_sampleGridGaussian`, and `mem_support_sampleQuotientModS`) are also exposed for
+downstream strict-PPT iteration invariants.
 
 ## References
 
 * [GentryPeikertVaikuntanathan2008], Section 4.1, Lemma 4.3 (p. 15) and Lemma 4.2 (p. 14) of the
   August 25, 2008 full version: 1-D discrete Gaussian sampling over `ℤ` via rejection sampling
-  on `[c - s · t, c + s · t]`. The present module implements the capped-trial strict-PPT variant
-  (explicit `maxTrials` cap and finite dyadic precision `prec`, with an explicit timeout term
-  rather than expected-time rejection) and provides both the dual-mass premise
-  `ρ_{1/s}(ℤ* \ {0}) ≤ ε` and the smoothing-parameter `η_ε(ℤ) ≤ s` form.
+  on `[c - s · t, c + s · t]`. The present module formalizes a finite-parameter strict-PPT step
+  after Lemmas 4.2–4.3 (explicit unary `maxTrials` cap and finite dyadic precision `prec`, with an
+  explicit timeout term rather than expected-time rejection) in both dual-mass
+  (`ρ_{1/s}(ℤ* \ {0}) ≤ ε`) and smoothing-parameter (`η_ε(ℤ) ≤ s`) form; the asymptotic
+  `ω(log n)` endpoints are not formalized here (tracked in
+  [#6861](https://github.com/cslib-community/cslib-frontier/issues/6861) and
+  [#1213](https://github.com/cslib-community/cslib-frontier/issues/1213)).
 * [MicciancioRegev2007], Section 2 (p. 8), Lemma 5.7 (p. 20), and Lemma 5.8 proof step 1 (p. 21)
   of the December 27, 2005 author's copy: fine-grid Gaussian discretization, grid Gaussian
   reduction, and uniform coset sampling in `L(B) ∩ P(S)`.
@@ -236,6 +238,13 @@ private theorem arctan_alternating_remainder {x : ℝ} (hx0 : 0 ≤ x) (N : ℕ)
       x ^ (4 * N + 1) / (4 * N + 1 : ℝ) := by
   let g : ℝ → ℝ := fun t =>
     Real.arctan t - ∑ k ∈ Finset.range (2 * N), ((-1 : ℝ) ^ k * t ^ (2 * k + 1) / (2 * k + 1 : ℝ))
+  have hpow_div (t : ℝ) (m : ℕ) :
+      HasDerivAt (fun y : ℝ => y ^ (m + 1) / (m + 1 : ℝ)) (t ^ m) t := by
+    have h1 := (hasDerivAt_pow (m + 1) t).div_const (m + 1 : ℝ)
+    convert h1 using 1
+    have hnz : (m + 1 : ℝ) ≠ 0 := by positivity
+    rw [Nat.add_sub_cancel, Nat.cast_add, Nat.cast_one]
+    exact (mul_div_cancel_left₀ _ hnz).symm
   have hderiv (t : ℝ) : HasDerivAt g (t ^ (4 * N) / (1 + t ^ 2)) t := by
     have hsum : HasDerivAt
         (fun y : ℝ => ∑ k ∈ Finset.range (2 * N),
@@ -244,14 +253,11 @@ private theorem arctan_alternating_remainder {x : ℝ} (hx0 : 0 ≤ x) (N : ℕ)
       have hterm (k : ℕ) :
           HasDerivAt (fun y : ℝ => (-1 : ℝ) ^ k * y ^ (2 * k + 1) / (2 * k + 1 : ℝ))
             ((-t ^ 2) ^ k) t := by
-        have hp := ((hasDerivAt_pow (2 * k + 1) t).const_mul ((-1 : ℝ) ^ k)).div_const
-          (2 * k + 1 : ℝ)
+        have hp := (hpow_div t (2 * k)).const_mul ((-1 : ℝ) ^ k)
         convert hp using 1
-        have hnz : (2 * k + 1 : ℝ) ≠ 0 := by positivity
-        have heq : (2 * k + 1 : ℕ) - 1 = 2 * k := by omega
-        rw [heq, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one]
-        rw [mul_comm ((-1 : ℝ) ^ k), mul_assoc, mul_div_cancel_left₀ _ hnz,
-          pow_mul, ← mul_pow, mul_neg_one]
+        · funext y
+          rw [mul_div_assoc, Nat.cast_mul, Nat.cast_ofNat]
+        · rw [pow_mul, ← mul_pow, neg_one_mul]
       exact HasDerivAt.fun_sum fun k _ => hterm k
     have hdiff := (Real.hasDerivAt_arctan t).sub hsum
     convert hdiff using 1
@@ -286,12 +292,7 @@ private theorem arctan_alternating_remainder {x : ℝ} (hx0 : 0 ≤ x) (N : ℕ)
     let h : ℝ → ℝ := fun t => t ^ (4 * N + 1) / (4 * N + 1 : ℝ) - g t
     have hhderiv (t : ℝ) : HasDerivAt h (t ^ (4 * N) - t ^ (4 * N) / (1 + t ^ 2)) t := by
       have hp : HasDerivAt (fun y : ℝ => y ^ (4 * N + 1) / (4 * N + 1 : ℝ)) (t ^ (4 * N)) t := by
-        have h1 := (hasDerivAt_pow (4 * N + 1) t).div_const (4 * N + 1 : ℝ)
-        convert h1 using 1
-        have hnz : (4 * N + 1 : ℝ) ≠ 0 := by positivity
-        have heq : (4 * N + 1 : ℕ) - 1 = 4 * N := by omega
-        rw [heq, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one]
-        exact (mul_div_cancel_left₀ _ hnz).symm
+        simpa only [Nat.cast_mul, Nat.cast_ofNat] using hpow_div t (4 * N)
       exact hp.sub (hderiv t)
     have hmono : MonotoneOn h (Set.Icc 0 x) := by
       refine monotoneOn_of_deriv_nonneg (convex_Icc 0 x)
@@ -332,14 +333,6 @@ private theorem arctanStep_fst (dSq : ℕ) (st : ℕ × (ℕ × ℕ)) (i : ℕ) 
   | succ i ih =>
     rw [Function.iterate_succ_apply, ih]
     simp [arctanStep]; omega
-
-private theorem arctanStep_powTerm (d M : ℕ) (i : ℕ) :
-    ((arctanStep (d * d))^[i] (0, (2 ^ M / d, 0))).2.1 ≤ 2 ^ M := by
-  induction i with
-  | zero => exact Nat.div_le_self _ _
-  | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    exact (Nat.div_le_self _ _).trans ih
 
 private theorem arctanStep_inv (d M : ℕ) (i : ℕ) :
     let st := (arctanStep (d * d))^[i] (0, (2 ^ M / d, 0))
@@ -1091,17 +1084,17 @@ private theorem expNegStep_term_error (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBits)
     set den : ℕ := (j + 1) * S
     have hden_pos : 0 < den := by positivity
     have hden_r : (0 : ℝ) < (den : ℝ) := by positivity
+    have hterm_eq : ((term * zFp : ℕ) : ℝ) / (den : ℝ) = (term : ℝ) * z / (j + 1 : ℝ) := by
+      dsimp only [den, z]
+      push_cast
+      have hS0 : (S : ℝ) ≠ 0 := hSpos.ne'
+      have hj0 : (j : ℝ) + 1 ≠ 0 := by positivity
+      field_simp
     have hdiv_le : (((term * zFp) / den : ℕ) : ℝ) ≤ (term : ℝ) * z / (j + 1 : ℝ) := by
       have h1 : (((term * zFp) / den : ℕ) : ℝ) ≤ ((term * zFp : ℕ) : ℝ) / (den : ℝ) := by
         rw [le_div_iff₀ hden_r]
         exact_mod_cast Nat.div_mul_le_self (term * zFp) den
-      have h2 : ((term * zFp : ℕ) : ℝ) / (den : ℝ) = (term : ℝ) * z / (j + 1 : ℝ) := by
-        dsimp only [den, z]
-        push_cast
-        have hS0 : (S : ℝ) ≠ 0 := hSpos.ne'
-        have hj0 : (j : ℝ) + 1 ≠ 0 := by positivity
-        field_simp
-      rwa [h2] at h1
+      rwa [hterm_eq] at h1
     have hdiv_lt : (term : ℝ) * z / (j + 1 : ℝ) < (((term * zFp) / den : ℕ) : ℝ) + 1 := by
       have h1 : ((term * zFp : ℕ) : ℝ) / (den : ℝ) < (((term * zFp) / den : ℕ) : ℝ) + 1 := by
         rw [div_lt_iff₀ hden_r]
@@ -1109,13 +1102,7 @@ private theorem expNegStep_term_error (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBits)
         have h' : ((term * zFp : ℕ) : ℝ) < (den : ℝ) * ((((term * zFp) / den : ℕ) : ℝ) + 1) := by
           exact_mod_cast h
         linarith
-      have h2 : ((term * zFp : ℕ) : ℝ) / (den : ℝ) = (term : ℝ) * z / (j + 1 : ℝ) := by
-        dsimp only [den, z]
-        push_cast
-        have hS0 : (S : ℝ) ≠ 0 := hSpos.ne'
-        have hj0 : (j : ℝ) + 1 ≠ 0 := by positivity
-        field_simp
-      rwa [h2] at h1
+      rwa [hterm_eq] at h1
     have hpow_step : (S : ℝ) * z ^ (j + 1) / (Nat.factorial (j + 1) : ℝ) =
         ((S : ℝ) * z ^ j / (Nat.factorial j : ℝ)) * z / (j + 1 : ℝ) := by
       rw [pow_succ, Nat.factorial_succ, Nat.cast_mul, Nat.cast_add, Nat.cast_one]
@@ -1424,19 +1411,20 @@ private theorem rat_eq_natAbs_div_den {q : ℚ} (hq : 0 ≤ q) :
   have hnum : (q.num.natAbs : ℤ) = q.num := Int.natAbs_of_nonneg (Rat.num_nonneg.mpr hq)
   conv_lhs => rw [Rat.cast_def, ← hnum, Int.cast_natCast]
 
+private theorem sampleZRadius_target_sq (inp : SampleZInput) (hsSq : 0 < inp.sSq) :
+    ((inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ)) ^ 2 =
+      ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) / (inp.sSq.den : ℝ) := by
+  rw [mul_pow, Real.sq_sqrt (by exact_mod_cast hsSq.le), rat_eq_natAbs_div_den hsSq.le]
+  push_cast; ring
+
 private theorem lt_sampleZRadius_sub_one (inp : SampleZInput) (hsSq : 0 < inp.sSq) :
     (inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ) < (sampleZRadius inp : ℝ) - 1 := by
   set m : ℕ := (inp.tail ^ 2 * inp.sSq.num.natAbs) / inp.sSq.den
   have hden_pos : 0 < inp.sSq.den := inp.sSq.den_pos
   have hden_r : (0 : ℝ) < (inp.sSq.den : ℝ) := by exact_mod_cast hden_pos
-  have hq : (inp.sSq : ℝ) = (inp.sSq.num.natAbs : ℝ) / (inp.sSq.den : ℝ) :=
-    rat_eq_natAbs_div_den hsSq.le
   have hsq_lt :
       ((inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ)) ^ 2 < ((Nat.sqrt m + 1 : ℕ) : ℝ) ^ 2 := by
-    have h1 : ((inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ)) ^ 2 =
-        ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) / (inp.sSq.den : ℝ) := by
-      rw [mul_pow, Real.sq_sqrt (by exact_mod_cast hsSq.le), hq]
-      push_cast; ring
+    have h1 := sampleZRadius_target_sq inp hsSq
     have h2 : ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) / (inp.sSq.den : ℝ) < (m : ℝ) + 1 := by
       rw [div_lt_iff₀ hden_r]
       have h := Nat.lt_mul_div_succ (inp.tail ^ 2 * inp.sSq.num.natAbs) hden_pos
@@ -1459,17 +1447,12 @@ private theorem sampleZRadius_le (inp : SampleZInput) (hsSq : 0 < inp.sSq) :
     (sampleZRadius inp : ℝ) ≤ (inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ) + 2 := by
   set m : ℕ := (inp.tail ^ 2 * inp.sSq.num.natAbs) / inp.sSq.den
   have hden_r : (0 : ℝ) < (inp.sSq.den : ℝ) := by exact_mod_cast inp.sSq.den_pos
-  have hq : (inp.sSq : ℝ) = (inp.sSq.num.natAbs : ℝ) / (inp.sSq.den : ℝ) :=
-    rat_eq_natAbs_div_den hsSq.le
   have hsq_le : ((Nat.sqrt m : ℕ) : ℝ) ^ 2 ≤ ((inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ)) ^ 2 := by
     have h1 : (Nat.sqrt m : ℕ) ^ 2 ≤ m := by rw [sq]; exact Nat.sqrt_le m
     have h2 : (m : ℝ) ≤ ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) / (inp.sSq.den : ℝ) := by
       rw [le_div_iff₀ hden_r]
       exact_mod_cast Nat.div_mul_le_self (inp.tail ^ 2 * inp.sSq.num.natAbs) inp.sSq.den
-    have h3 : ((inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ)) ^ 2 =
-        ((inp.tail ^ 2 * inp.sSq.num.natAbs : ℕ) : ℝ) / (inp.sSq.den : ℝ) := by
-      rw [mul_pow, Real.sq_sqrt (by exact_mod_cast hsSq.le), hq]
-      push_cast; ring
+    have h3 := sampleZRadius_target_sq inp hsSq
     have h1' : ((Nat.sqrt m : ℕ) : ℝ) ^ 2 ≤ (m : ℝ) := by exact_mod_cast h1
     linarith
   have hle : (Nat.sqrt m : ℝ) ≤ (inp.tail : ℝ) * Real.sqrt (inp.sSq : ℝ) := by
@@ -1884,8 +1867,11 @@ private def sampleZIntSpec (inp : SampleZInput) : BlockRejectionSpec ℤ where
       if coin < sampleZWeightNum inp x then some x else none
     else none
 
-/-- Strict-PPT capped-trial 1-D discrete Gaussian sampler ([GentryPeikertVaikuntanathan2008],
-§4.1, Lemma 4.3, p. 15). -/
+/-- Finite-parameter strict-PPT capped-trial 1-D discrete Gaussian sampler after
+[GentryPeikertVaikuntanathan2008], §4.1, Lemma 4.3 (p. 15); the asymptotic `ω(log n)` endpoint is
+not formalized here (tracked in
+[#6861](https://github.com/cslib-community/cslib-frontier/issues/6861) and
+[#1213](https://github.com/cslib-community/cslib-frontier/issues/1213)). -/
 noncomputable def sampleZ (inp : SampleZInput) : ProbComp ℤ :=
   sampleBlockCapped (sampleZIntSpec inp) (ratFloor inp.center) inp.maxTrials
 
@@ -2086,32 +2072,27 @@ private theorem sampleZFinSpec_singleLaw_some (inp : SampleZInput)
           if coin < sampleZWeightNum inp (finToInt (ratFloor inp.center) R j) then some j else none
         else none)) = _
     rw [h1]
-    have hmap1 : ∀ (f : ℕ → PMF (Option (Fin (2 * R + 1)))),
-        (Cslib.BitString.uniformList k).bind (fun b => f (Cslib.BitString.binaryValue b)) =
-          (PMF.uniformOfFintype (Fin (2 ^ k))).bind (fun idx => f idx.val) := by
-      intro f
-      change (Cslib.BitString.uniformList k).bind (f ∘ Cslib.BitString.binaryValue) =
-        (PMF.uniformOfFintype (Fin (2 ^ k))).bind (f ∘ Fin.val)
+    have hmap_bin {α : Type} (m : ℕ) (f : ℕ → PMF α) :
+        (Cslib.BitString.uniformList m).bind (fun b => f (Cslib.BitString.binaryValue b)) =
+          (PMF.uniformOfFintype (Fin (2 ^ m))).bind (fun idx => f idx.val) := by
+      change (Cslib.BitString.uniformList m).bind (f ∘ Cslib.BitString.binaryValue) =
+        (PMF.uniformOfFintype (Fin (2 ^ m))).bind (f ∘ Fin.val)
       rw [← PMF.bind_map, Cslib.BitString.uniformList_binaryValue, PMF.bind_map]
-    have hmap2 : ∀ (g : ℕ → Option (Fin (2 * R + 1))),
-        (Cslib.BitString.uniformList inp.prec).bind
-          (fun b => PMF.pure (g (Cslib.BitString.binaryValue b))) =
-          (PMF.uniformOfFintype (Fin (2 ^ inp.prec))).map (fun coin => g coin.val) := by
-      intro g
-      change (Cslib.BitString.uniformList inp.prec).map (g ∘ Cslib.BitString.binaryValue) =
-        (PMF.uniformOfFintype (Fin (2 ^ inp.prec))).map (g ∘ Fin.val)
-      rw [← PMF.map_comp, Cslib.BitString.uniformList_binaryValue, PMF.map_comp]
     dsimp only
-    rw [hmap1 (fun idx => (Cslib.BitString.uniformList inp.prec).bind fun b2 => PMF.pure
-      (if h : idx < 2 * R + 1 then
-        if Cslib.BitString.binaryValue b2 <
-            sampleZWeightNum inp (finToInt (ratFloor inp.center) R ⟨idx, h⟩)
-        then some ⟨idx, h⟩ else none else none))]
+    rw [hmap_bin (α := Option (Fin (2 * R + 1))) k (fun idx =>
+      (Cslib.BitString.uniformList inp.prec).bind fun b2 => PMF.pure
+        (if h : idx < 2 * R + 1 then
+          let j : Fin (2 * R + 1) := ⟨idx, h⟩
+          if Cslib.BitString.binaryValue b2 <
+              sampleZWeightNum inp (finToInt (ratFloor inp.center) R j)
+          then some j else none else none))]
     congr 1; funext idx
-    exact hmap2 (fun coin =>
-      if h : idx.val < 2 * R + 1 then
-        if coin < sampleZWeightNum inp (finToInt (ratFloor inp.center) R ⟨idx.val, h⟩)
-        then some ⟨idx.val, h⟩ else none else none)
+    simpa only [PMF.map, Function.comp_def] using
+      hmap_bin (α := Option (Fin (2 * R + 1))) inp.prec (fun coin => PMF.pure (
+        if h : idx.val < 2 * R + 1 then
+          let j : Fin (2 * R + 1) := ⟨idx.val, h⟩
+          if coin < sampleZWeightNum inp (finToInt (ratFloor inp.center) R j)
+          then some j else none else none))
   rw [hlaw, PMF.bind_apply, tsum_eq_single iK]
   · simp only [PMF.uniformOfFintype_apply, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat,
       PMF.map_apply]
@@ -2234,9 +2215,12 @@ private theorem closeTo_map_restrict_of_finset {α : Type} (μ : PMF α) (S : Fi
       exact zero_le
   exact hcompl.trans (add_le_add hle_map le_rfl)
 
-/-- Explicit `CloseTo` bound for `sampleZ` against `discreteGaussianInt` under the 1-D dual-mass
-premise `ρ_{1/s}(ℤ* \ {0}) ≤ ε ≤ 1 / 2` ([GentryPeikertVaikuntanathan2008], §4.1, Lemma 4.3,
-p. 15, capped-trial strict-PPT variant). -/
+/-- Finite-parameter strict-PPT `CloseTo` step for `sampleZ` against `discreteGaussianInt` under
+the 1-D dual-mass premise `ρ_{1/s}(ℤ* \ {0}) ≤ ε ≤ 1 / 2`, after
+[GentryPeikertVaikuntanathan2008], §4.1, Lemmas 4.2–4.3 (pp. 14–15); the asymptotic `ω(log n)`
+endpoint is not formalized here (tracked in
+[#6861](https://github.com/cslib-community/cslib-frontier/issues/6861) and
+[#1213](https://github.com/cslib-community/cslib-frontier/issues/1213)). -/
 theorem closeTo_eval_sampleZ_discreteGaussian
     (inp : SampleZInput) (hsSq : 0 < inp.sSq) (hs1 : 1 ≤ Real.sqrt (inp.sSq : ℝ))
     (ht : 1 ≤ inp.tail) {ε : ℝ} (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 2)
@@ -2579,8 +2563,11 @@ theorem closeTo_eval_sampleZ_discreteGaussian
   have ht2 : 0 ≤ (8 * (inp.tail : ℝ) + 24) / (2 : ℝ) ^ inp.prec := by positivity
   rwa [← ENNReal.ofReal_add ht1 ht2, ← ENNReal.ofReal_add (add_nonneg ht1 ht2) htailErr0] at h123
 
-/-- Smoothing-parameter (`η_ε(ℤ) ≤ √sSq`) form of `closeTo_eval_sampleZ_discreteGaussian`
-([GentryPeikertVaikuntanathan2008], §4.1, Lemma 4.3, p. 15, capped-trial strict-PPT variant). -/
+/-- Smoothing-parameter (`η_ε(ℤ) ≤ √sSq`) form of the finite-parameter strict-PPT `CloseTo` step
+`closeTo_eval_sampleZ_discreteGaussian`, after [GentryPeikertVaikuntanathan2008], §4.1,
+Lemmas 4.2–4.3 (pp. 14–15); the asymptotic `ω(log n)` endpoint is not formalized here (tracked in
+[#6861](https://github.com/cslib-community/cslib-frontier/issues/6861) and
+[#1213](https://github.com/cslib-community/cslib-frontier/issues/1213)). -/
 theorem closeTo_eval_sampleZ_discreteGaussian_of_smoothingParameter_le
     (inp : SampleZInput) (hsSq : 0 < inp.sSq) (hs1 : 1 ≤ Real.sqrt (inp.sSq : ℝ))
     (ht : 1 ≤ inp.tail) {ε : ℝ} (hε : 0 < ε) (hε_le : ε ≤ 1 / 2)
@@ -3102,20 +3089,17 @@ open scoped QuotientSampleInput
   (Cslib.Circuits.Rational.detRows S.rows).natAbs /
     (Cslib.Circuits.Rational.detRows B.rows).natAbs
 
+private theorem computableInPolyTime_intTableRows :
+    ComputableInPolyTime IntTable.rows IntTable.enc Cslib.encIntTable := by
+  change ComputableInPolyTime IntTable.rows IntTable.enc (encList (encList encIntBin))
+  fun_prop
+
 private theorem computableInPolyTime_quotientIndex :
     ComputableInPolyTime (fun p : IntTable × IntTable => quotientIndex p.1 p.2)
       (encPair IntTable.enc IntTable.enc) encNat := by
   unfold quotientIndex
-  have hSrows : ComputableInPolyTime (fun p : IntTable × IntTable => p.2.rows)
-      (encPair IntTable.enc IntTable.enc) Cslib.encIntTable := by
-    change ComputableInPolyTime (fun p : IntTable × IntTable => p.2.rows)
-      (encPair IntTable.enc IntTable.enc) (encList (encList encIntBin))
-    fun_prop
-  have hBrows : ComputableInPolyTime (fun p : IntTable × IntTable => p.1.rows)
-      (encPair IntTable.enc IntTable.enc) Cslib.encIntTable := by
-    change ComputableInPolyTime (fun p : IntTable × IntTable => p.1.rows)
-      (encPair IntTable.enc IntTable.enc) (encList (encList encIntBin))
-    fun_prop
+  have hSrows := computableInPolyTime_intTableRows.comp (snd IntTable.enc IntTable.enc)
+  have hBrows := computableInPolyTime_intTableRows.comp (fst IntTable.enc IntTable.enc)
   have hS := intBin_natAbs.comp (Cslib.Circuits.Rational.detRows_polytime.comp hSrows)
   have hB := intBin_natAbs.comp (Cslib.Circuits.Rational.detRows_polytime.comp hBrows)
   exact binary_div' hS hB

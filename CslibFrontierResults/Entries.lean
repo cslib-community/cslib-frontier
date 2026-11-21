@@ -468,7 +468,6 @@ import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
 import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 import CslibFrontier.Foundations.Probability.Gaussian.Quotient
-import CslibFrontier.Computability.Probabilistic.DiscreteGaussian1D
 
 import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
 import CslibFrontier.Foundations.Probability.IndependentSumNorm
@@ -11952,31 +11951,3 @@ register_result "micciancio-regev-smoothing-dual-mass-lambda-n" where
     step before wrapping that dual-mass condition into the smoothing-parameter infimum \
     η_ε(L) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no MeasurableSpace E hypothesis. The \
     asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is not formalized here."
-
-register_result "gpv-samplez-strict-ppt" where
-  title := "Strict-PPT 1-D discrete Gaussian sampler with explicit statistical distance"
-  topic := "cryptography"
-  sources := [
-    { paper := GentryPeikertVaikuntanathan2008, theorem := "Lemma 4.3",
-      locator := "full version of August 25, 2008, §4.1, printed p. 15 (with Lemma 4.2 on p. 14)" }
-  ]
-  theorems := [
-    Cslib.Probability.isPPTOn_sampleZ,
-    Cslib.Probability.closeTo_eval_sampleZ_discreteGaussian,
-    Cslib.Probability.closeTo_eval_sampleZ_discreteGaussian_of_smoothingParameter_le
-  ]
-  scope := "Capped-trial strict-PPT variant of GentryPeikertVaikuntanathan2008 Lemma 4.3 (and \
-    its Lemma 4.2 tail step): for any SampleZInput specifying rational squared width s² > 0 with \
-    √s² ≥ 1, rational center c, unary tail multiplier t ≥ 1, unary dyadic precision prec with \
-    8 · (2 t + 6) ≤ 2 ^ prec, unary trial cap maxTrials, and either a 1-D dual-mass bound \
-    gaussianMass (dualSubmodule (innerₗ ℝ) intLatticeReal) (1 / √s²) 0 − 1 ≤ ε ≤ 1 / 2 \
-    (with 0 ≤ ε) or the smoothing-parameter bound ZLattice.smoothingParameter intLatticeReal ε \
-    ≤ √s² (with 0 < ε ≤ 1 / 2), the sampler sampleZ is certified strict-PPT (IsPPTOn \
-    SampleZInput.enc encIntBin sampleZ) using Machin's formula for π and range-reduced \
-    fixed-point exp(-z), and its output PMF is within CloseTo distance \
-    (1 − 1 / (16 · (2 t + 6))) ^ maxTrials + (8 t + 24) / 2 ^ prec + \
-    ((1 + ε) / (1 − ε)) · 2 · exp(−π t²) of discreteGaussianInt (√s²) _ c. Deviations from \
-    the source: (1) uses an explicit unary trial cap maxTrials and finite dyadic coin precision \
-    prec rather than an expected-time rejection loop with exact real coins, exposing the timeout \
-    and fixed-point approximation terms explicitly; (2) states explicit finite-parameter bounds \
-    rather than the asymptotic ω(log n) parameterization."

@@ -5,9 +5,9 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Computability.Probabilistic.DiscreteGaussian1D
-
+import CslibFrontier.Computability.Probabilistic.DiscreteGaussian1D
 import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
@@ -17,10 +17,10 @@ Non-vacuous `module` client tests for the strict-PPT 1-D discrete Gaussian sampl
 grid Gaussian sampler `sampleGridGaussian`, and HNF-free quotient sampler `sampleQuotientModS`.
 -/
 
+set_option linter.privateModule false
+
 open Module ProbabilityTheory Cslib Cslib.Probability Cslib.LinearAlgebra
 open scoped ENNReal RealInnerProductSpace
-
-public section
 
 namespace CslibFrontierTests.DiscreteGaussian1D
 
