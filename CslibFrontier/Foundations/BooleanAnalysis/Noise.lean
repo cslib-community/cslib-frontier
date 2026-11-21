@@ -43,7 +43,11 @@ The noised string is `x + P`, the coordinatewise exclusive or of `x` with a rand
 `Bool`. The coordinates of the mask are independent:
 the average of a product of functions of the separate coordinates factorizes
 (`BitString.bernoulliAverage_prod`), so the character of `S` averages to `(1 - 2 p) ^ |S|`
-over a mask of rate `p` (`BitString.bernoulliAverage_chi`).
+over a mask of rate `p` (`BitString.bernoulliAverage_chi`). In particular, for `0 ≤ δ ≤ 1`
+the parity of `k` independent bits that are `1` with probability `1 - δ` is `1` with
+probability `1/2 - (2δ - 1)^k / 2` (`BitString.bernoulliAverage_parityOn`, Arora–Barak,
+Exercise 17.1, corrected). For other real `δ` the same formula holds as an identity of
+signed-weight averages.
 
 ## Main definitions
 
@@ -54,9 +58,14 @@ over a mask of rate `p` (`BitString.bernoulliAverage_chi`).
 
 ## Main results
 
+* `Cslib.BitString.bernoulliAverage_parityOn`, `Cslib.BitString.parityOn_bernoulliAverage_le`:
+  the parity of biased independent bits [Arora–Barak, Exercise 17.1][AroraBarak07].
 * `Cslib.BitString.noiseOp_eq_sum`, `Cslib.BitString.fourierCoeff_noiseOp`: the Fourier expansion
   of `T_ρ f` [O'Donnell, Proposition 2.47][ODonnell2014].
 * `Cslib.BitString.noiseOp_noiseOp`: the noise operators form a semigroup.
+* `Cslib.BitString.noiseOp_nonneg`, `Cslib.BitString.noiseOp_pos`,
+  `Cslib.BitString.noiseOp_pos_of_nonneg`: the noise operator preserves nonnegativity and
+  positivity, and for `|ρ| < 1` makes nonzero nonnegative functions positive.
 * `Cslib.BitString.noiseOp_comp_arrowCongr`, `Cslib.BitString.noiseOp_of_isEmpty`: the noise
   operator commutes with renaming the coordinates and is the identity on the cube over no
   coordinates.
@@ -78,6 +87,8 @@ over a mask of rate `p` (`BitString.bernoulliAverage_chi`).
 ## References
 
 * [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft
+  2007-01-08][AroraBarak07]
 -/
 
 @[expose] public section
@@ -102,6 +113,39 @@ theorem bernoulliAverage_chi (p : ℝ) (S : Finset ι) :
   · simp only [Bool.toNat_false, Bool.toNat_true, pow_zero, pow_one]
     ring
   · ring
+
+/-- **Arora–Barak, Exercise 17.1, corrected** (web draft 2007-01-08, p. 348/364). If the bits
+`X_i` are independent with `Pr[X_i = 1] = 1 - δ`, the parity `X` of the bits in `S` has
+`Pr[X = 1] = 1/2 - (2δ - 1)^|S| / 2`. The statement is an identity of `bernoulliAverage`, a
+finite signed-weight average, for every real `δ`; it is a probability when `0 ≤ δ ≤ 1`. The draft
+prints `1/2 + (1 - 2δ)^k`, which is false (at
+`k = 1` it gives `3/2 - 2δ` for `Pr[X_1 = 1] = 1 - δ`). The bound the text uses (p. 322/338) is
+`parityOn_bernoulliAverage_le`. -/
+theorem bernoulliAverage_parityOn (δ : ℝ) (S : Finset ι) :
+    bernoulliAverage (1 - δ) (fun x => if parityOn S x then 1 else 0) =
+      1 / 2 - (2 * δ - 1) ^ #S / 2 := by
+  have h : (fun x : ι → Bool => if parityOn S x then (1 : ℝ) else 0) =
+      fun x => 1 / 2 - 1 / 2 * chi ℝ S x := by
+    funext x
+    rw [chi_eq_neg_one_pow_parityOn]
+    cases parityOn S x <;> norm_num
+  rw [h, bernoulliAverage_sub, bernoulliAverage_const, bernoulliAverage_const_mul,
+    bernoulliAverage_chi]
+  ring
+
+/-- For `0 ≤ δ ≤ 1`, the parity of `|S|` independent bits that are `1` with probability `1 - δ`
+is `1` with probability at most `1/2 + (1 - 2δ)^|S| / 2`. The inequality between the
+signed-weight averages holds for every real `δ`. For `0 ≤ δ ≤ 1/2` this gives the bound
+`1/2 + (1 - 2δ)^k` that Arora–Barak cite Exercise 17.1 for (web draft 2007-01-08, p. 322/338). -/
+theorem parityOn_bernoulliAverage_le (δ : ℝ) (S : Finset ι) :
+    bernoulliAverage (1 - δ) (fun x => if parityOn S x then 1 else 0) ≤
+      1 / 2 + (1 - 2 * δ) ^ #S / 2 := by
+  rw [bernoulliAverage_parityOn, show 2 * δ - 1 = -(1 - 2 * δ) by ring]
+  rcases Nat.even_or_odd #S with he | ho
+  · rw [he.neg_pow]
+    linarith [he.pow_nonneg (1 - 2 * δ)]
+  · rw [ho.neg_pow]
+    linarith
 
 /-! ### The noise operator -/
 
@@ -155,6 +199,33 @@ theorem noiseOp_zero (f : (ι → Bool) → ℝ) (x : ι → Bool) : noiseOp 0 f
 /-- The noise operator fixes the constants. -/
 @[simp] theorem noiseOp_const (ρ c : ℝ) (x : ι → Bool) : noiseOp ρ (fun _ => c) x = c :=
   bernoulliAverage_const _ c
+
+/-- For `|ρ| ≤ 1`, the noise operator maps positive functions to positive functions. -/
+theorem noiseOp_pos {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, 0 < g x) (x : ι → Bool) : 0 < noiseOp ρ g x := by
+  obtain ⟨y, -, hy⟩ := exists_min_image univ g univ_nonempty
+  calc 0 < g y := hg y
+    _ = bernoulliAverage ((1 - ρ) / 2) fun _ => g y := (bernoulliAverage_const _ _).symm
+    _ ≤ noiseOp ρ g x :=
+        bernoulliAverage_mono (by linarith) (by linarith) fun P => hy _ (mem_univ _)
+
+/-- For `|ρ| ≤ 1`, the noise operator maps nonnegative functions to nonnegative functions. -/
+theorem noiseOp_nonneg {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, 0 ≤ g x) (x : ι → Bool) : 0 ≤ noiseOp ρ g x :=
+  calc (0 : ℝ) = bernoulliAverage ((1 - ρ) / 2) fun _ => 0 := (bernoulliAverage_const _ _).symm
+    _ ≤ noiseOp ρ g x := bernoulliAverage_mono (by linarith) (by linarith) fun _ => hg _
+
+/-- For `-1 < ρ < 1`, the noise operator maps a nonnegative function that is positive somewhere
+to a positive function: every point is reached with positive probability. -/
+theorem noiseOp_pos_of_nonneg {ρ : ℝ} (hρ : -1 < ρ) (hρ' : ρ < 1) {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, 0 ≤ g x) {y : ι → Bool} (hy : 0 < g y) (x : ι → Bool) : 0 < noiseOp ρ g x := by
+  have hw (P : ι → Bool) : 0 < bernoulliWeight ((1 - ρ) / 2) P :=
+    prod_pos fun i _ => by split_ifs <;> linarith
+  refine sum_pos' (fun P _ => mul_nonneg (hw P).le (hg _)) ⟨x + y, mem_univ _, mul_pos (hw _) ?_⟩
+  have hxy : x + (x + y) = y := funext fun i => by
+    change x i + (x i + y i) = y i
+    cases x i <;> cases y i <;> decide
+  simpa only [hxy] using hy
 
 /-- The noise operator is additive. -/
 theorem noiseOp_add (ρ : ℝ) (f g : (ι → Bool) → ℝ) (x : ι → Bool) :

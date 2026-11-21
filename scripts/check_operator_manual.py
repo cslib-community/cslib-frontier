@@ -6,10 +6,18 @@ ranges) section header, and an inline link whose text names a declaration of the
 (`[Ns.name](…#L<n>)`) must start on that declaration's header. Pass `--fix-anchors` to repoint
 drifted `[Ns.name](File.lean#Ln)` links at the declaration's current header start line before
 running the check. It also reports a list item directly after a paragraph line, which the PDF
-build's Pandoc reader absorbs into that paragraph. This does not fetch URLs, elaborate Lean, audit
+build's Pandoc reader absorbs into that paragraph, and a locator (`Section 5.6`, `p. 12`,
+`Theorem 4.17`) inside the label of a link into `sources.md`, which the PDF replaces by a citation
+number. This does not fetch URLs, elaborate Lean, audit
 mathematical meaning, check links whose text names no declaration of the linked file (prose, a
 file, a module, a declaration that moved elsewhere), or assert that historical evidence describes
 the current checkout. Run from any working directory.
+
+The reference chapters listed in `FROZEN` are not kept current. A frozen page keeps the checks of
+its own text (markup, lists, reference definitions, links that leave the repository), of its links
+to other frozen pages, and of its place in the book and the link graph. Its links to Lean source
+and to maintained pages are not checked, because edits elsewhere would break them, and
+`--fix-anchors` does not rewrite it. Links from maintained pages into frozen ones are checked.
 """
 from __future__ import annotations
 
@@ -24,6 +32,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'manual/data'))
+from build_latex import FROZEN, frozen
 from visuals import check_markup
 
 EXCLUDED = {"_build", "_generated", "__pycache__"}
@@ -100,6 +109,44 @@ BLOCK_LINE = re.compile(
 REFERENCE = re.compile(r" {0,3}\[[^\]]+\]:\s")
 LIST_AFTER_PARAGRAPH = ("list item directly after a paragraph line (add a blank line before the "
                         "list, or rewrap a line that only looks like an item)")
+
+# The PDF build prints a link into `sources.md#key` as a numbered citation and drops its label
+# (`manual/data/build_latex.py`), so `[Boneh and Shoup, Section 5.6][bs23]` prints as `[67]` and
+# the locator is lost. A label must not carry a section, chapter, page, statement, figure, table,
+# equation, part or step number, spelled out or abbreviated and in either case, nor a bare dotted
+# number (`CLRS 15.5`, also a version such as `TLS 1.3`, which `v1.3` avoids); write the locator
+# after the link. A year, or a title word after a keyword (`Algorithm Design`), is not a locator.
+CITATION_LOCATOR = re.compile(
+    r"§|\b(?:pp?\.|[Pp]ages?)\s*\d|(?<![\w.])\d+\.\d+|\b(?i:Sections?|Subsections?|Sec\.|Sect\."
+    r"|Chapters?|Ch\.|Chap\.|Parts?|Volumes?|Vol\.|Lectures?|Appendix|Theorems?|Thm\.|Lemmas?"
+    r"|Lem\.|Definitions?|Def\.|Corollar(?:y|ies)|Cor\.|Propositions?|Prop\.|Remarks?|Claims?"
+    r"|Facts?|Examples?|Exercises?|Problems?|Algorithms?|Protocols?|Constructions?|Games?|Steps?"
+    r"|Figures?|Fig\.|Tables?|Equations?|Eqs?\.)\s*\(?(?:[0-9]|[IVXLC]+\b|[A-Z]\b)")
+LABEL_LOCATOR = ("locator inside a citation link label, which the PDF drops (write it after the "
+                 "link: `[Author][key], Section 5.6`)")
+# A label may wrap over a line break, but not over a blank line.
+WRAPPED_LABEL = r"\[((?:[^\[\]\n]|\n(?![ \t]*\n))+)\]"
+WRAPPED_INLINE_LINK = re.compile(WRAPPED_LABEL + r"\(\s*(?:<([^>\n]+)>|([^\s)]+))")
+REFERENCE_LINK = re.compile(WRAPPED_LABEL + r"\[([^\]\n]*)\]")
+
+
+def labelled_links(text: str) -> list[tuple[int, str, str]]:
+    """`(line number, label, URL)` of each inline and full or collapsed reference link outside
+    code, with the label's whitespace collapsed; a wrapped label reports its first line. Code
+    spans are blanked, so code showing a locator is not reported."""
+    definitions = {key.casefold(): url for key, url in re.findall(
+        r"^\s{0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?", prose(text), re.M)}
+    masked = "\n".join("" if fenced else CODE_SPAN.sub(lambda span: " " * len(span[0]), line)
+                       for _, line, fenced in fenced_lines(text))
+    found = []
+    for link in WRAPPED_INLINE_LINK.finditer(masked):
+        found.append((link.start(), " ".join(link[1].split()), link[2] or link[3]))
+    for link in REFERENCE_LINK.finditer(masked):
+        label = " ".join(link[1].split())
+        url = definitions.get((link[2] or label).casefold())
+        if url is not None:
+            found.append((link.start(), label, url))
+    return [(masked.count("\n", 0, start) + 1, label, url) for start, label, url in sorted(found)]
 
 
 def lists_after_paragraphs(text: str) -> list[int]:
@@ -347,7 +394,12 @@ def check(repo: Path, manual: Path | None = None) -> dict:
     sources: dict[Path, dict[str, list[tuple[int, int]]]] = {}
     unnamed: set[tuple[Path, str]] = set()
     visual_counts = {'diagrams': 0, 'worked_examples': 0}
+
+    def is_frozen(path: Path) -> bool:
+        return within(path, manual) and frozen(path.relative_to(manual).as_posix())
+
     for doc in documents:
+        doc_frozen = is_frozen(doc)
         try:
             for key, value in check_markup(doc.read_text()).items():
                 visual_counts[key] += value
@@ -357,6 +409,15 @@ def check(repo: Path, manual: Path | None = None) -> dict:
                       for number in lists_after_paragraphs(doc.read_text()))
         urls, undefined = links(doc.read_text())
         errors.extend(f"{doc.relative_to(manual)}: undefined reference [{key}]" for key in undefined)
+        for number, label, url in labelled_links(doc.read_text()):
+            parsed = urlsplit(html.unescape(url))
+            locator = CITATION_LOCATOR.search(label)
+            if parsed.scheme or parsed.netloc or not parsed.fragment or not locator:
+                continue
+            target = (doc.parent / unquote(parsed.path)).resolve() if parsed.path else doc
+            if target == manual / "sources.md":
+                errors.append(f"{doc.relative_to(manual)}: Line {number}: {LABEL_LOCATOR}: "
+                              f"[{label}] (`{locator[0]}`)")
         for url in urls:
             parsed = urlsplit(html.unescape(url))
             if parsed.scheme or parsed.netloc:
@@ -366,12 +427,17 @@ def check(repo: Path, manual: Path | None = None) -> dict:
             if not within(target, repo):
                 errors.append(f"{doc.relative_to(manual)}: local link escapes repository: {url}")
                 continue
+            # Only another frozen page is a target that a frozen page can rely on.
+            unchecked = doc_frozen and not is_frozen(target)
             if not target.exists():
-                errors.append(f"{doc.relative_to(manual)}: missing local link: {url}")
+                if not unchecked:
+                    errors.append(f"{doc.relative_to(manual)}: missing local link: {url}")
                 continue
             if target in document_set:
                 edges[doc].add(target)
             fragment = unquote(parsed.fragment)
+            if unchecked:
+                continue
             if fragment and target.suffix == ".md" and fragment not in anchors(target.read_text()):
                 errors.append(f"{doc.relative_to(manual)}: missing Markdown anchor: {url}")
             elif fragment and target.suffix == ".lean" and re.fullmatch(r"L\d+(?:-L\d+)?", fragment):
@@ -385,7 +451,7 @@ def check(repo: Path, manual: Path | None = None) -> dict:
                     unnamed.add((target, fragment))
         # Name check, for anchors that start some declaration. A `STALE_SOURCE_ANCHORS` entry
         # also tolerates an anchor that fails only this check.
-        for display, url in link_texts(doc.read_text()):
+        for display, url in () if doc_frozen else link_texts(doc.read_text()):
             parsed = urlsplit(html.unescape(url))
             fragment = unquote(parsed.fragment)
             if parsed.scheme or parsed.netloc or not parsed.path.endswith(".lean") or \
@@ -485,6 +551,7 @@ def check(repo: Path, manual: Path | None = None) -> dict:
     if not rows:
         errors.append("No contextual Lean excerpts registered")
     return {"status": "fail" if errors else "pass", "manual_documents": len(documents),
+            "frozen_documents": sum(map(is_frozen, documents)),
             "local_links_checked": link_count, "excerpts_checked": len(excerpt_results),
             "book_inputs_checked": book_checked, **visual_counts,
             "allowed_stale_source_anchors": sorted(f"{path}#L{line}" for path, line in allowed_stale),
@@ -499,13 +566,14 @@ def fix_anchors(repo: Path, manual: Path | None = None) -> list[dict[str, str]]:
     header start line when uniquely identified.
 
     Leaves valid anchors, whole-file (`#L1`) and range (`#La-Lb`) links, allowlisted
-    `STALE_SOURCE_ANCHORS`, links whose text names no declaration, and ambiguous multiple-match
-    declarations unchanged.
+    `STALE_SOURCE_ANCHORS`, links whose text names no declaration, ambiguous multiple-match
+    declarations and every `FROZEN` page unchanged.
     """
     repo = repo.resolve()
     manual = (manual or repo / "manual").resolve()
     documents = sorted(p for p in manual.rglob("*.md")
-                       if not EXCLUDED.intersection(p.relative_to(manual).parts))
+                       if not EXCLUDED.intersection(p.relative_to(manual).parts)
+                       and not frozen(p.relative_to(manual).as_posix()))
     file_lines: dict[Path, list[str]] = {}
     sources: dict[Path, dict[str, list[tuple[int, int]]]] = {}
     fixed: list[dict[str, str]] = []

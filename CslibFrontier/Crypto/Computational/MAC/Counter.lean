@@ -7,19 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryLog
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.PolyTime.Init
@@ -38,17 +34,20 @@ nonces. The signer is stateful, so the construction is not a `NonceMACScheme`. I
 the signing oracle of a dedicated game, as for `IndexedSignatureScheme.counterEufCmaGame`.
 
 The counter signing oracle (`counterSigningOracle`) at security parameter `n` holds the counter
-and the issued triples. While `j < 2 ^ L`, it tags the requested message under the `j`-th nonce,
-answers with the word `encPair encBits encBits (nonce, tag)`, records `((msg, nonce), tag)` and
-advances. Afterwards it answers the empty word and records nothing. In `counterSufCmaGame`, the
-forger outputs a nonce-tagged message `((msg, nonce), tag)` and wins when the lengths are right,
-the triple was never issued, and the nonce-based verifier accepts it. This is strong
+and the issued triples. While `j < 2 ^ L`, it tags a requested `M.msgLen n`-bit message under the
+`j`-th nonce, answers with the word `encPair encBits encBits (nonce, tag)`, records
+`((msg, nonce), tag)` and advances. It answers a request of any other length, and every request
+once the counter is spent, with the empty word, recording nothing; a refused request uses no
+counter value. In `counterSufCmaGame`, the forger outputs a nonce-tagged message
+`((msg, nonce), tag)` and wins when the lengths are right, the triple was never issued, and the
+nonce-based verifier accepts it. This is strong
 unforgeability, as in Attack Game 7.4; a nonce word of length `L` stands for the counter it
 encodes.
 
 The reduction is exact. `counterForger` runs a counter forger and answers its `j`-th request with
-one query `(msg, lowBits L j)` to the nonce-based signing oracle. Distinct counters give distinct
-nonces, so the nonce-respecting condition of `NonceMACScheme.sufCmaGame` always holds, and the
+one query `(msg, lowBits L j)` to the nonce-based signing oracle, and refuses the requests that the
+counter signing oracle refuses without querying. Distinct counters give distinct nonces, so the
+nonce-respecting condition of `NonceMACScheme.sufCmaGame` always holds, and the
 simulation is perfect: the counter forger's success is at most the nonce forger's
 (`succProbability_counterSufCmaGame_le`). Replies are truncated to a bound on the tag length, which
 honest tags never exceed, so that the reduction is strict oracle PPT for every external oracle
@@ -110,12 +109,13 @@ variable (M : NonceMACScheme)
 
 /-- The counter signing oracle at security parameter `n`. Its state is the number `j` of tags
 issued so far and the issued triples `((msg, nonce), tag)`, most recent first. While
-`j < 2 ^ M.nonceLen n`, the requested message is tagged under the nonce
+`j < 2 ^ M.nonceLen n`, a requested `M.msgLen n`-bit message is tagged under the nonce
 `BitString.lowBits (M.nonceLen n) j`, the reply is the word `encPair encBits encBits (nonce, tag)`,
-and the state advances. Afterwards every request receives the empty word and changes nothing. -/
+and the state advances. A request of any other length, and every request once the counter is
+spent, receives the empty word and changes nothing. -/
 @[expose] def counterSigningOracle (n : ℕ) (sk : List Bool) (request : Unit × List Bool) :
     StateT (ℕ × List ((List Bool × List Bool) × List Bool)) ProbComp (List Bool) := fun state =>
-  if state.1 < 2 ^ M.nonceLen n then do
+  if state.1 < 2 ^ M.nonceLen n && request.2.length == M.msgLen n then do
     let nonce := BitString.lowBits (M.nonceLen n) state.1
     let tag ← M.sign sk request.2 nonce
     return (encPair encBits encBits (nonce, tag),
@@ -137,8 +137,13 @@ nonce-based verifier accepts. -/
     !issued.contains ((msg, nonce), tag) && M.verify sk msg nonce tag
 
 /-- Strong existential unforgeability of the counter-stateful use of a nonce-based MAC under
-adaptive chosen-message attack ([BonehShoup2023], Section 7.5, with a counter as the nonce)
-against uniform strict oracle-PPT forgers. -/
+adaptive chosen-message attack, against uniform strict oracle-PPT forgers. It is
+[BonehShoup2023], Attack Game 7.4 (p. 274) with the nonces chosen by the signer as a counter, the
+implementation of nonces by a stateful signer that Section 7.5 suggests (p. 273). The forger does
+not choose the nonces, so `NonceMACScheme.SUFCMA` implies this notion (`SUFCMA.counterSufCma`).
+Tagging queries and the forgery lie in the message space of `msgLen n`-bit words: the oracle
+answers a query of any other length with the empty word, without tagging, recording it or using a
+counter value. -/
 @[expose] def CounterSUFCMA : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.counterSufCmaGame adversary n))
@@ -168,12 +173,13 @@ theorem CounterSUFCMA.of_negligible
 
 variable (M) in
 /-- The nonce forger's answer to a counter forger's signing request, with the counter `j` as its
-state: below `2 ^ M.nonceLen n`, tag the message under the `j`-th nonce by one external query,
-truncate the reply to `bound n msg.length` bits, answer with the word
-`encPair encBits encBits (nonce, tag)` and advance; otherwise answer the empty word. -/
+state: below `2 ^ M.nonceLen n` and on a `M.msgLen n`-bit message, tag the message under the
+`j`-th nonce by one external query, truncate the reply to `bound n msg.length` bits, answer with
+the word `encPair encBits encBits (nonce, tag)` and advance; otherwise answer the empty word and
+keep the counter, as the counter signing oracle does. -/
 def counterHandler (n : ℕ) (bound : ℕ → ℕ → ℕ) (request : Unit × List Bool) :
     StateT ℕ (WordOracleComp Unit) (List Bool) := fun j =>
-  if j < 2 ^ M.nonceLen n then
+  if j < 2 ^ M.nonceLen n && request.2.length == M.msgLen n then
     (fun tag => (encPair encBits encBits (BitString.lowBits (M.nonceLen n) j, tag), j + 1)) <$>
       (List.take (bound n request.2.length) <$>
         ProbOracleComp.query
@@ -201,7 +207,7 @@ private noncomputable def jointOracle (n : ℕ) (sk : List Bool) (bound : ℕ �
     PMF (List Bool × ℕ × List ((List Bool × List Bool) × List Bool)) :=
   ((OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-      (fun q s => ProbComp.eval (M.signingPairOracle sk q s)))
+      (fun q s => ProbComp.eval (M.signingPairOracle n sk q s)))
     ((M.counterHandler n bound q).run state.1)).run state.2).map
       (fun ((reply, counter), log) => (reply, counter, log))
 
@@ -217,15 +223,17 @@ private theorem jointOracle_eq {n : ℕ} {sk : List Bool} {bound : ℕ → ℕ �
   funext q state
   obtain ⟨⟨⟩, w⟩ := q
   obtain ⟨j, issued⟩ := state
-  by_cases hj : j < 2 ^ M.nonceLen n
-  · simp only [jointOracle, counterHandler, counterSigningOracle, StateT.run, hj, ↓reduceIte,
-      OracleComp.interpret_map, ProbOracleComp.interpret_query, hmapApply, signingPairOracle,
-      encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
+  by_cases hj : (decide (j < 2 ^ M.nonceLen n) && w.length == M.msgLen n) = true
+  · have hw : (w.length == M.msgLen n) = true := (Bool.and_eq_true _ _).mp hj |>.2
+    simp only [jointOracle, counterHandler, counterSigningOracle, StateT.run, hj, ↓reduceIte]
+    simp only [OracleComp.interpret_map, ProbOracleComp.interpret_query, hmapApply,
+      signingPairOracle, encPair_apply, encBits_apply, unframe_frame_append,
+      dropFrame_frame_append, hw, BitString.length_lowBits, beq_self_eq_true, Bool.and_self,
+      ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
     refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
     rw [List.take_of_length_le (hbound w _ (BitString.length_lowBits _ _) tag htag)]
-  · simp only [jointOracle, counterHandler, counterSigningOracle, StateT.run, hj, ↓reduceIte,
-      OracleComp.interpret_pure, ProbComp.eval_pure]
+  · simp only [jointOracle, counterHandler, counterSigningOracle, StateT.run, hj,
+      Bool.false_eq_true, ↓reduceIte, OracleComp.interpret_pure, ProbComp.eval_pure]
     exact PMF.pure_map _ _
 
 variable (M) in
@@ -296,6 +304,7 @@ private theorem nodup_of_mem_support_run_counterSigningOracle {n : ℕ} {sk : Li
         (fun q state => ProbComp.eval (M.counterSigningOracle n sk q state)))
           (adversary n [])).run (0, [])).support) :
     (issued.map (fun ((_, issuedNonce), _) => issuedNonce)).Nodup := by
+  rw [← ProbOracleComp.runWith_eq_run_interpret] at hr
   have hinv : counter ≤ 2 ^ M.nonceLen n ∧
       issued.map (fun ((_, issuedNonce), _) => issuedNonce) =
         ((List.range counter).map (BitString.lowBits (M.nonceLen n))).reverse := by
@@ -306,13 +315,13 @@ private theorem nodup_of_mem_support_run_counterSigningOracle {n : ℕ} {sk : Li
           ((List.range counter).map (BitString.lowBits (M.nonceLen n))).reverse)
       ?_ (adversary n []) (0, []) (by simp) result (counter, issued) hr
     rintro ⟨⟨⟩, w⟩ ⟨j, issued⟩ ⟨hjle, hissued⟩ a ⟨j', issued'⟩ hmem
-    by_cases hj : j < 2 ^ M.nonceLen n
+    by_cases hj : (decide (j < 2 ^ M.nonceLen n) && w.length == M.msgLen n) = true
     · simp only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
         PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
       obtain ⟨tag, -, -, rfl, rfl⟩ := hmem
-      refine ⟨hj, ?_⟩
+      refine ⟨(decide_eq_true_iff.mp ((Bool.and_eq_true _ _).mp hj).1), ?_⟩
       simp [hissued, List.range_succ]
-    · simp only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_pure,
+    · simp only [counterSigningOracle, hj, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
         PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
       obtain ⟨-, rfl, rfl⟩ := hmem
       exact ⟨hjle, hissued⟩
@@ -360,8 +369,8 @@ private theorem isOraclePPTOn_counterHandler {bound : ℕ → ℕ → ℕ}
         M.counterHandler pair.1.1 bound pair.2.1 pair.2.2) := by
   have hnonce := M.nonceLen_polyTime
   unfold counterHandler
-  exact IsOraclePPTOn.ite' (by fun_prop)
-    ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop))
+  exact IsOraclePPTOn.ite (by fun_prop)
+    ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop))
     (ComputableInPolyTime.isOraclePPTOn (by fun_prop))
 
 /-- The counter handler's reply and counter growth are bounded by the truncation bound and the
@@ -393,7 +402,7 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
     {adversary : NonceMACForger} (hadversary : IsOraclePPT encNonceTaggedMessage adversary) :
     IsOraclePPT encNonceTaggedMessage (M.counterForger bound adversary) := by
   have hnonce := M.nonceLen_polyTime
-  refine ((hadversary.run_interpret_preprocess_open' (prepare := fun c => c)
+  refine ((hadversary.run_interpret_preprocess_open (prepare := fun c => c)
       (initial := fun _ => (0 : ℕ))
       (resources := fun c w => bound c.1 w.length + 2 * M.nonceLen c.1 + 2)
       ComputableInPolyTime.id' (isOraclePPTOn_counterHandler hboundPoly)
@@ -404,9 +413,11 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
 
 /-! ### Security -/
 
-/-- **Nonce-based SUF-CMA security gives counter SUF-CMA security** ([BonehShoup2023],
-Section 7.5): the signer of a SUF-CMA nonce-based MAC may choose its nonces with an `L`-bit
-counter, tagging at most `2 ^ L` messages. The reduction is `counterForger`, with loss `1`
+/-- Nonce-based SUF-CMA security gives counter SUF-CMA security: the signer of a SUF-CMA
+nonce-based MAC may choose its nonces with an `L`-bit counter, tagging at most `2 ^ L` messages.
+This states the suggestion of [BonehShoup2023], Section 7.5 (p. 273), that a stateful signer may
+implement nonces as a counter; the source states no theorem for it, so this is not a cited
+result. The reduction is `counterForger`, with loss `1`
 (`succProbability_counterSufCmaGame_le`). -/
 theorem SUFCMA.counterSufCma (h : M.SUFCMA) : M.CounterSUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := M.exists_sign_length_bound

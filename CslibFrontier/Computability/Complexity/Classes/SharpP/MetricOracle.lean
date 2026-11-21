@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.Complexity.Classes.SharpP.Metric
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.QueryBit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
+import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
+import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -51,6 +53,9 @@ oracle and is correct against every oracle language answering the bits of `g`. H
   function with polynomially many bits is a polynomial-time oracle computation.
 * `Cslib.Complexity.SharpPMetricComplete.computableInPolyTimeWithOracle`: every #P function is
   in `FP^f` for a #P-complete `f` under metric reductions (Arora–Barak Definition 9.5).
+* `Cslib.Complexity.mem_SharpP_iff_computableInPolyTime_of_bitGraph`: if every #P function under
+  an encoding is in `FP^g` and `g ∈ FP`, then `#P = FP` under that encoding (Arora–Barak
+  Proposition 9.6).
 
 ## References
 
@@ -105,12 +110,16 @@ theorem isOraclePPTOn_readBitsProgram {encA : α ↪ List Bool} {req : α → �
     hreq.comp ((fst encA encBits).prod (length_bits.comp (snd encA encBits)))
   have hstep : IsOraclePPTOn (encPair encA encBits) encBits
       (fun pair => OracleComp.interpret ProbOracleComp.query (readBitStep req pair.1 pair.2)) := by
-    have h := (isOraclePPTOn_queryBit hword).map_with'
-      (f := fun (pair : α × List Bool) (b : Bool) => pair.2 ++ [b]) (by fun_prop)
+    have happend : ComputableInPolyTime
+        (fun p : (α × List Bool) × Bool => p.1.2 ++ [p.2])
+        (encPair (encPair encA encBits) encBool) encBits :=
+      bitsAppend ((fst _ _).snd') (bitsCons (snd _ _) (const []))
+    have h := (isOraclePPTOn_queryBit hword).map_with
+      (f := fun (pair : α × List Bool) (b : Bool) => pair.2 ++ [b]) happend
     refine h.congr fun pair State oracle s => ?_
     simp only [readBitStep, OracleComp.interpret_map]
   have hsize : PolyBounded (fun a => (encA a).length) count := hcount.polyBounded
-  have hit := IsOraclePPTOn.iterateWith_spec' (input := encA) (stateEncoding := encBits)
+  have hit := IsOraclePPTOn.iterateWith_spec (input := encA) (stateEncoding := encBits)
     (count := count) (initial := fun _ => []) (step := fun a s =>
       OracleComp.interpret ProbOracleComp.query (readBitStep req a s))
     hcount (by fun_prop) hstep (fun _ i s => s.length = i) (fun _ => rfl)
@@ -150,7 +159,7 @@ theorem MetricReducible.polyTimeOracleProgram {f : α → Y} {g : β → ℕ}
       (ComputableInPolyTime.bitsToNat.comp (ComputableInPolyTime.snd _ _)))
   refine ⟨fun a => (fun bits => post (a, ofBits bits)) <$> readBitsProgram req count a,
     ?_, fun A hA => funext fun a => ?_⟩
-  · simpa only [OracleComp.interpret_map] using hread.map_with' hpost'
+  · simpa only [OracleComp.interpret_map] using hread.map_with hpost'
   · rw [OracleComp.interpret_map, interpret_readBitsProgram, hfg a]
     have hbits : (List.ofFn fun i : Fin (count a) => decide (req a i ∈ A)) =
         Cslib.BitString.lowBits (count a) (g (r a)) := by
@@ -182,5 +191,25 @@ theorem SharpPMetricComplete.computableInPolyTimeWithOracle {g : β → ℕ}
   refine (hg.2 _ _ hf).computableInPolyTimeWithOracle (p := p + 1) fun b => ?_
   calc g b ≤ 2 ^ p.eval (encB b).length := hp b
     _ < 2 ^ (p + 1).eval (encB b).length := Nat.pow_lt_pow_right (by norm_num) (by simp)
+
+/-- **A #P-complete function in FP collapses #P to FP** [AroraBarak07, Proposition 9.6]. Fix an
+instance encoding `encA`. Suppose every function in #P under `encA` is computable in polynomial
+time relative to the bit graph of `g`, as in Definition 9.5, and `g` itself is computable in
+polynomial time. Then the functions in #P under `encA` are exactly the polynomial-time functions
+with binary output (`FP` here): `f ∈ FP^g = FP`, and `FP ⊆ #P` by `mem_SharpP_of_polyTime`.
+
+The draft's functions are on `{0,1}*`: at `encA = encBits` the completeness premise is
+Definition 9.5's, and `Decoder.bits` decodes the instances of `g`. Here `g` may have any instance
+encoding with a polynomial-time decoder, which lets the bit-graph oracle reject words that are not
+codes (`bitGraph_mem_P`). The draft's hypothesis `g ∈ #P` is not needed. For #SAT and the 0/1
+permanent, the completeness premise holds at every encoding, by
+`SharpPMetricComplete.computableInPolyTimeWithOracle`. -/
+theorem mem_SharpP_iff_computableInPolyTime_of_bitGraph {g : β → ℕ} (D : Decoder encB)
+    (hcomplete : ∀ f : α → ℕ, f ∈ SharpP encA →
+      ComputableInPolyTimeWithOracle (bitGraph encB g) f encA encNat)
+    (hg : ComputableInPolyTime g encB encNat) {f : α → ℕ} :
+    f ∈ SharpP encA ↔ ComputableInPolyTime f encA encNat :=
+  ⟨fun hf => (hcomplete f hf).computableInPolyTime (bitGraph_mem_P D hg),
+    mem_SharpP_of_polyTime⟩
 
 end Cslib.Complexity

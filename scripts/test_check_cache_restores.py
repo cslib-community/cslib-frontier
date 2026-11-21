@@ -587,7 +587,8 @@ class InterruptReadinessTests(ProcessAssertions, Fixture):
              patch.object(os, "kill") as kill, \
              self.assertRaisesRegex(AssertionError, "audit returned 1.*launcher failed") as error:
             RealLakeTests._assert_interrupt_cleans_up_descendants(self, signal.SIGTERM)
-        kill.assert_not_called()
+        # On hosts without /proc the launcher cleanup probes process presence with kill(pid, 0).
+        self.assertTrue(all(call.args[1] == 0 for call in kill.call_args_list), kill.call_args_list)
         self.assertIn("'returncode': 0", str(error.exception))
         self.assertIn("launcher diagnostic", str(error.exception))
 
@@ -671,18 +672,73 @@ class IsolatedLakeFixture(Fixture):
             self.skipTest("repository Lean toolchain not installed")
         super().setUp()
         self.write("lean-toolchain", toolchain + "\n")
-        self.commit()
-        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
         # A private artifact cache, so the test neither reads nor fills the machine's shared one.
         cache = tempfile.TemporaryDirectory()
         self.addCleanup(cache.cleanup)
         environment = patch.dict(os.environ, {"LAKE_CACHE_DIR": cache.name})
         environment.start()
         self.addCleanup(environment.stop)
+        # Finish Lake's first workspace load before concurrent `lake lean` launchers.
+        # Otherwise one can read the manifest while another is creating it.
+        initialized = self.lake("update")
+        self.assertEqual(initialized.returncode, 0, initialized.stdout + initialized.stderr)
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
 
     def lake(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["lake", *args], cwd=self.root, capture_output=True, text=True,
                               timeout=120)
+
+
+class LakeFixtureInitializationTests(unittest.TestCase):
+    def test_manifest_is_initialized_serially_in_private_cache(self) -> None:
+        self.check_initialization(0)
+
+    def test_initialization_error_fails_before_committing_fixture(self) -> None:
+        self.check_initialization(1)
+
+    def check_initialization(self, returncode: int) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            toolchain = "leanprover/lean4:v4.30.0"
+            (root / "lean-toolchain").write_text(toolchain + "\n")
+            fixture = IsolatedLakeFixture()
+            fixture.root = root
+            self.addCleanup(fixture.doCleanups)
+            commands = []
+
+            def run(command, **kwargs):
+                commands.append(command)
+                if command == ["lake", "--version"]:
+                    return subprocess.CompletedProcess(command, 0, "Lean version 4.30.0)", "")
+                self.assertEqual(command, ["lake", "update"])
+                self.assertEqual(kwargs["cwd"], root)
+                self.assertTrue(Path(os.environ["LAKE_CACHE_DIR"]).is_dir())
+                self.assertEqual((root / "lean-toolchain").read_text(), toolchain + "\n")
+                if returncode == 0:
+                    (root / "lake-manifest.json").write_text('{"packages": []}')
+                return subprocess.CompletedProcess(command, returncode, "", "init failed")
+
+            def commit():
+                self.assertEqual(json.loads((root / "lake-manifest.json").read_text()),
+                                 {"packages": []})
+
+            with patch.object(sys.modules[__name__], "REPO", root), \
+                 patch.object(shutil, "which", side_effect=lambda name: name if name == "lake" else None), \
+                 patch.object(Fixture, "setUp"), \
+                 patch.object(fixture, "commit", side_effect=commit) as committed, \
+                 patch.object(fixture, "git") as git, \
+                 patch.object(subprocess, "run", side_effect=run):
+                if returncode:
+                    with self.assertRaisesRegex(AssertionError, "init failed"):
+                        fixture.setUp()
+                    committed.assert_not_called()
+                    git.assert_not_called()
+                else:
+                    fixture.setUp()
+                    committed.assert_called_once_with()
+                    git.assert_called_once_with("update-ref", "refs/remotes/origin/main", "HEAD")
+            self.assertEqual(commands, [["lake", "--version"], ["lake", "update"]])
 
 
 class RealLakeTests(ProcessAssertions, IsolatedLakeFixture):
@@ -718,7 +774,8 @@ class RealLakeTests(ProcessAssertions, IsolatedLakeFixture):
     def assert_unchanged_warning(self, edited_base: str, warning_file: str) -> None:
         """A changed import can hide a warning in any unchanged source on a built client's path."""
         # Run quick mode's actual subprocess audit in this private project, stopping at its failure.
-        for name in ("quick_check.py", "check_progress.py", "check_cache_restores.py", "QuickImports.lean"):
+        for name in ("quick_check.py", "ci/select_checks.py", "check_progress.py",
+                     "check_cache_restores.py", "QuickImports.lean"):
             self.write(f"scripts/{name}", (REPO / "scripts" / name).read_text())
         baseline = self.lake("build", "--wfail", "--iofail", "DemoTests.Client")
         self.assertEqual(baseline.returncode, 0, baseline.stdout + baseline.stderr)

@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 public import Mathlib.LinearAlgebra.Matrix.Echelon.Pivot
 public import Mathlib.LinearAlgebra.Matrix.Rank
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
@@ -452,7 +453,7 @@ theorem pivotDet_mul_bareissMatrix_snoc {K : Type*} [Field K] (A : Matrix (Fin m
         · have hx' : x = Fin.castSucc ⟨x.val, hx⟩ := rfl
           rw [hx', Fin.snoc_castSucc]
           exact hi ⟨x.val, hx⟩
-        · have hx' : x = Fin.last k := Fin.ext (by have := x.isLt; rw [Fin.val_last]; omega)
+        · have hx' : x = Fin.last k := by fin_index
           rw [hx', Fin.snoc_last]
           exact hne.symm
       rw [bareissMatrix_nonPivot A (Fin.snoc C q) hi' j,
@@ -850,8 +851,7 @@ theorem isReducedRowEchelon_rrefOfBareiss {A : Matrix (Fin m) (Fin n) K}
       intro a ha
       rw [← hσ a] at ha
       have heq := σ.injective ha
-      have : a.val = i.val := congrArg Fin.val heq
-      omega
+      fin_index
     ext j
     change (pivotDet A S C)⁻¹ * bareissMatrix A S C (σ i) j = 0
     rw [hterm (σ i) hnot j, mul_zero]

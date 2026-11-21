@@ -330,10 +330,7 @@ theorem mem_no_GapWeightedSetCoverFn {r : WeightedSetSystem → ℝ}
 
 @[fun_prop] theorem computableInPolyTime_toWeighted :
     ComputableInPolyTime SetSystem.toWeighted encSetSystem encWeightedSetSystem := by
-  unfold SetSystem.toWeighted
-  apply computableInPolyTime_weightedSetSystemMk (by fun_prop)
-  refine (ComputableInPolyTime.map ?_).comp (by fun_prop)
-  exact computableInPolyTime_weightedSetMk (id') (const 1)
+  fun_prop [SetSystem.toWeighted]
 
 theorem toSetSystem_toWeighted (S : SetSystem) : S.toWeighted.toSetSystem = S := by
   simp only [SetSystem.toWeighted, WeightedSetSystem.toSetSystem, List.map_map]
@@ -558,7 +555,7 @@ theorem gapWeightedSetCover_mem_PromiseP_of_approx {A : WeightedSetSystem → Li
       listGetD_binary ⟨[], 0⟩ hlist hidx
     exact computableInPolyTime_weightedSetWeight.comp hset
   have hcost : ComputableInPolyTime costList encWeightedSetSystem encNat :=
-    (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.binary_sum).comp hws
+    ComputableInPolyTime.binary_sum.comp hws
   exact gapOpt_mem_PromiseP_of_approx (Valid := WeightedSetSystem.Coverable) hρ0 hρ hcost
     (fun W hW => minWeightedSetCover.opt_le W (A W) hW (happrox W hW).1)
     (fun W hW => (happrox W hW).2) (GapWeightedSetCover r)

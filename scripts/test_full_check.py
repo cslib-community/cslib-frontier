@@ -259,6 +259,107 @@ class WorkflowParityTests(unittest.TestCase):
                 self.assertNotIn(step.name, ci | others)
 
 
+class AncestorHandoffFailurePolicyTests(unittest.TestCase):
+    """Only the ancestor handoff's exit status 125 (unconfirmed process shutdown) stops the job.
+
+    The step is optional (`continue-on-error`), which alone would also hide that status from the
+    Git, cache and build steps after it. The step's own script and the guard's are run here with
+    a stand-in for the handoff command; the guard's condition is compared as text."""
+
+    RESTORE, GUARD = ("Restore nearest ancestor merge-group build outputs",
+                      "Stop after an unconfirmed ancestor-handoff shutdown")
+    CONDITION = "steps.ancestor-handoff.outputs.exit-status == '125'"
+
+    def setUp(self):
+        self.steps = job_steps(WORKFLOW.read_text(), "lean-checks")
+        self.index = next(i for i, step in enumerate(self.steps)
+                          if step.get("name") == self.RESTORE)
+        self.restore, self.guard = self.steps[self.index], self.steps[self.index + 1]
+
+    def run_script(self, script, status):
+        """Run a step's script as Actions does, with `python3` exiting with `status`."""
+        with tempfile.TemporaryDirectory(prefix="handoff-policy-") as temporary:
+            stub = Path(temporary, "python3")
+            stub.write_text(f"#!/bin/sh\necho \"$@\" > '{temporary}/arguments'\nexit {status}\n")
+            stub.chmod(0o755)
+            output = Path(temporary, "output")
+            output.touch()
+            result = subprocess.run(
+                ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script],
+                env={**os.environ, "PATH": f"{temporary}{os.pathsep}{os.environ['PATH']}",
+                     "GITHUB_OUTPUT": str(output)}, capture_output=True, text=True)
+            arguments = Path(temporary, "arguments")
+            return (result, dict(line.split("=", 1) for line in output.read_text().splitlines()),
+                    arguments.read_text().strip() if arguments.exists() else None)
+
+    def test_optional_step_records_the_handoff_exit_status(self):
+        self.assertEqual(self.restore.get("id"), "ancestor-handoff")
+        self.assertEqual(self.restore.get("continue-on-error"), "true")
+        self.assertEqual(self.restore.get("timeout-minutes"), "10")
+        for status in (0, 1, 124, 125):
+            with self.subTest(status=status):
+                result, outputs, arguments = self.run_script(self.restore["run"], status)
+                self.assertEqual(arguments, "-B scripts/cache_handoff.py restore --ancestor")
+                self.assertEqual(result.returncode, status)
+                self.assertEqual(outputs, {"exit-status": str(status)})
+                # Only an unconfirmed shutdown satisfies the guard; a miss (0) and any other
+                # failure of the optional step leave the job running.
+                self.assertEqual(f"steps.ancestor-handoff.outputs.exit-status == '{status}'"
+                                 == self.CONDITION, status == 125)
+
+    def test_guard_fails_the_job_before_any_other_step(self):
+        self.assertEqual(self.guard.get("name"), self.GUARD)
+        self.assertEqual(set(self.guard), {"name", "if", "run"})  # not optional, not bounded away
+        self.assertEqual(self.guard["if"], self.CONDITION)
+        result, outputs, arguments = self.run_script(self.guard["run"], 0)
+        self.assertEqual((result.returncode, outputs, arguments), (125, {}, None))
+        self.assertIn("::error title=Unconfirmed cache process shutdown::", result.stdout)
+        names = [step.get("name") for step in self.steps]
+        for later in ("Restore build outputs from the remote cache",
+                      "Restore validated merge-group build outputs", "lake build"):
+            self.assertGreater(names.index(later), self.index + 1)
+
+    def test_pr_handoff_is_an_optional_reader_before_the_remote_cache(self):
+        names = [step.get("name") for step in self.steps]
+        index = names.index("Restore PR base merge-group build outputs")
+        self.assertLess(self.index + 1, index)
+        self.assertLess(index, names.index("Restore build outputs from the remote cache"))
+        step = self.steps[index]
+        self.assertEqual(step["run"], "python3 -B scripts/cache_handoff.py restore --pr-base")
+        self.assertEqual(step["continue-on-error"], "true")
+        self.assertIn("github.event_name == 'pull_request' && github.base_ref == 'main'", step["if"])
+        self.assertIn("vars.DISABLE_PR_BUILD_HANDOFF", step["if"])
+        self.assertIn("RESTORED_LAKE_KEY: ${{ steps.lake-cache.outputs.cache-matched-key }}", step["env"])
+        for name in ("Stage merge-group build outputs", "Upload merge-group build outputs"):
+            self.assertIn("github.event_name == 'merge_group' &&", self.steps[names.index(name)]["if"])
+
+    def test_no_later_step_runs_after_the_guard_fails(self):
+        # A failed step skips every later step whose condition has no status function. Those that
+        # have one must require a completed build or explicitly exclude the guard failure.
+        build = next(step for step in self.steps if step.get("id") == "build")
+        self.assertGreater(self.steps.index(build), self.index + 1)
+        self.assertNotRegex(build.get("if", ""), r"always\(\)|cancelled\(\)|failure\(\)")
+        for step in self.steps[self.index + 2:]:
+            condition = step.get("if", "")
+            if re.search(r"always\(\)|cancelled\(\)|failure\(\)", condition):
+                with self.subTest(step=step.get("name")):
+                    if "steps.ancestor-handoff.outputs.exit-status != '125'" not in condition:
+                        self.assertIn("steps.build.outcome == 'success'", condition)
+
+    def test_handoff_cli_reserves_125_for_unconfirmed_shutdown(self):
+        sys.path.insert(0, str(REPO / "scripts"))
+        import cache_handoff
+        self.addCleanup(sys.path.remove, str(REPO / "scripts"))
+        for error, status in ((cache_handoff.UnsafeShutdown("unconfirmed"), 125),
+                              (cache_handoff.Rejected("no handoff"), 0),
+                              (subprocess.TimeoutExpired("gh", 60), 0), (OSError("transport"), 0)):
+            with self.subTest(error=error), \
+                    patch("sys.argv", ["cache_handoff.py", "restore", "--ancestor"]), \
+                    patch.object(cache_handoff, "restore_ancestor", side_effect=error), \
+                    patch("sys.stdout", io.StringIO()), patch("sys.stderr", io.StringIO()):
+                self.assertEqual(cache_handoff.main(), status)
+
+
 class AggregatorTests(unittest.TestCase):
     def setUp(self):
         self.text = WORKFLOW.read_text()
@@ -267,7 +368,7 @@ class AggregatorTests(unittest.TestCase):
 
     def test_required_context_depends_on_both_jobs_and_forwards_lean_publication(self):
         header = "\n".join(self.lines[:self.lines.index("    steps:")])
-        self.assertIn("needs: [source-checks, lean-checks]", header)
+        self.assertIn("needs: [select-checks, source-checks, lean-checks]", header)
         self.assertIn("if: always()", header)
         self.assertIn("publication: ${{ needs.lean-checks.outputs.publication }}", header)
         self.assertNotIn("steps.upload-publication.outputs", header)
@@ -282,21 +383,27 @@ class AggregatorTests(unittest.TestCase):
             with self.subTest(job=job):
                 lines = job_lines(self.text, job)
                 header = "\n".join(lines[:lines.index("    steps:")])
-                self.assertNotIn("needs:", header)
+                self.assertNotIn("needs: source-checks", header)
+                self.assertNotIn("needs: lean-checks", header)
 
-    def test_only_two_successful_dependencies_pass(self):
+    def test_gate_accepts_only_the_selected_lean_result(self):
+        env = self.steps[0]["env"]
+        self.assertIn("SELECTION_RESULT: ${{ needs.select-checks.result }}", env)
+        self.assertIn("EXPECTED_LEAN: ${{ github.event_name == 'pull_request' && "
+                      "needs.select-checks.outputs.lean == 'false' && 'skipped' || 'success' }}", env)
         script = self.steps[0]["run"]
-        results = ("success", "failure", "cancelled", "skipped")
-        for source_result in results:
-            for lean_result in results:
-                with self.subTest(source=source_result, lean=lean_result):
-                    result = subprocess.run(
-                        ["bash", "-e", "-c", script],
-                        env={**os.environ, "SOURCE_RESULT": source_result,
-                             "LEAN_RESULT": lean_result},
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for expected in ("success", "skipped"):
+            for selection, source, lean in (
+                ("success", "success", "success"), ("success", "success", "skipped"),
+                ("failure", "success", expected), ("success", "failure", expected),
+                ("success", "success", "failure"), ("success", "success", "cancelled")
+            ):
+                with self.subTest(expected=expected, selection=selection, source=source, lean=lean):
+                    result = subprocess.run(["bash", "-e", "-c", script], env={
+                        **os.environ, "SELECTION_RESULT": selection, "SOURCE_RESULT": source,
+                        "EXPECTED_LEAN": expected, "LEAN_RESULT": lean})
                     self.assertEqual(result.returncode == 0,
-                                     source_result == lean_result == "success", result.stdout)
+                                     selection == source == "success" and lean == expected)
 
 
 TIDY = "          python3 -B scripts/check_tidy_surface.py\n"

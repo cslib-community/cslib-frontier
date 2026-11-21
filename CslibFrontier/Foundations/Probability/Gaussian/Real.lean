@@ -18,7 +18,8 @@ Three estimates and a density formula for the real Gaussian distribution `gaussi
 
 * **Peak density.** The density is largest at the mean, where it is `1 / √(2πv)`
   (`gaussianPDFReal_le`), so a nondegenerate Gaussian gives each set at most `1 / √(2πv)` times
-  its Lebesgue measure (`gaussianReal_le_ofReal_mul_volume`).
+  its Lebesgue measure (`gaussianReal_le_ofReal_mul_volume`); in particular an interval of length
+  `ε` has mass at most `ε / √(2πv)` (`gaussianReal_real_Iic_add_le`).
 * **Anderson's inequality on the line.** Among the intervals of a given length, the one centered
   at the mean has the largest mass (`gaussianReal_Icc_le`). For an interval `[c - w, c + w]` with
   `c ≥ μ`, the two intervals share `[c - w, μ + w]`, and translation by `2 w` carries the rest
@@ -32,9 +33,13 @@ Three estimates and a density formula for the real Gaussian distribution `gaussi
 
 ## Main results
 
+* `ProbabilityTheory.continuous_gaussianPDFReal`, `ProbabilityTheory.contDiff_gaussianPDFReal`:
+  the Gaussian density is continuous and smooth.
 * `ProbabilityTheory.gaussianPDFReal_le`: the Gaussian density is at most `1 / √(2πv)`.
 * `ProbabilityTheory.gaussianReal_le_ofReal_mul_volume`: the Gaussian measure of a set is at most
   `1 / √(2πv)` times its Lebesgue measure.
+* `ProbabilityTheory.gaussianReal_real_Iic_add_le`: anticoncentration of a Gaussian,
+  `Pr[Z ≤ x + ε] ≤ Pr[Z ≤ x] + ε / √(2πv)`.
 * `ProbabilityTheory.gaussianReal_Icc_le`: Anderson's inequality on the line.
 * `ProbabilityTheory.gaussianReal_meas_ge_le`: Chebyshev's inequality for a Gaussian.
 * `ProbabilityTheory.gaussianReal_zero_map_neg`: a centered Gaussian is symmetric.
@@ -49,6 +54,19 @@ open scoped NNReal ENNReal
 
 namespace ProbabilityTheory
 
+/-- The Gaussian density is continuous. -/
+@[fun_prop]
+theorem continuous_gaussianPDFReal (μ : ℝ) (v : ℝ≥0) : Continuous (gaussianPDFReal μ v) := by
+  rw [gaussianPDFReal_def]
+  fun_prop
+
+/-- The Gaussian density is smooth. -/
+@[fun_prop]
+theorem contDiff_gaussianPDFReal {n : WithTop ℕ∞} (μ : ℝ) (v : ℝ≥0) :
+    ContDiff ℝ n (gaussianPDFReal μ v) := by
+  rw [gaussianPDFReal_def]
+  fun_prop
+
 /-- The Gaussian density is at most its value `1 / √(2πv)` at the mean. -/
 theorem gaussianPDFReal_le (μ : ℝ) (v : ℝ≥0) (x : ℝ) :
     gaussianPDFReal μ v x ≤ (√(2 * π * v))⁻¹ := by
@@ -62,6 +80,16 @@ theorem gaussianReal_le_ofReal_mul_volume (μ : ℝ) {v : ℝ≥0} (hv : v ≠ 0
     gaussianReal μ v s ≤ ENNReal.ofReal (√(2 * π * v))⁻¹ * volume s := by
   rw [gaussianReal_apply μ hv, ← setLIntegral_const]
   exact lintegral_mono fun x => ENNReal.ofReal_le_ofReal (gaussianPDFReal_le μ v x)
+
+/-- **Anticoncentration of a Gaussian**: if `Z ∼ N(μ, v)` with `v ≠ 0` and `ε ≥ 0`, then
+`Pr[Z ≤ x + ε] ≤ Pr[Z ≤ x] + ε / √(2πv)`, since the density is at most `1 / √(2πv)`. -/
+theorem gaussianReal_real_Iic_add_le (μ x : ℝ) {v : ℝ≥0} (hv : v ≠ 0) {ε : ℝ} (hε : 0 ≤ ε) :
+    (gaussianReal μ v).real (Iic (x + ε)) ≤ (gaussianReal μ v).real (Iic x) + ε / √(2 * π * v) := by
+  rw [← Iic_union_Ioc_eq_Iic (le_add_of_nonneg_right hε),
+    measureReal_union (Iic_disjoint_Ioc le_rfl) measurableSet_Ioc]
+  refine add_le_add le_rfl (ENNReal.toReal_le_of_le_ofReal (by positivity) ?_)
+  refine (gaussianReal_le_ofReal_mul_volume μ hv _).trans ?_
+  rw [Real.volume_Ioc, add_sub_cancel_left, ← ENNReal.ofReal_mul (by positivity), inv_mul_eq_div]
 
 /-- If translating by `2 w` does not increase `f` to the right of `-w`, then the interval of
 radius `w` around `c ≥ 0` carries at most the mass of the centered one: the two intervals share
@@ -106,9 +134,7 @@ private theorem gaussianReal_zero_Icc_le (v : ℝ≥0) (c w : ℝ) :
     ← intervalIntegral.integral_of_le (by linarith),
     ← intervalIntegral.integral_of_le (by linarith)]
   refine ENNReal.ofReal_le_ofReal ?_
-  have hcont : Continuous (gaussianPDFReal 0 v) := by
-    rw [gaussianPDFReal_def]
-    fun_prop
+  have hcont := continuous_gaussianPDFReal 0 v
   have hmono : ∀ x, -w ≤ x → gaussianPDFReal 0 v (x + 2 * w) ≤ gaussianPDFReal 0 v x :=
     fun x hx => gaussianPDFReal_add_two_mul_le v hw hx
   rcases le_total 0 c with hc | hc

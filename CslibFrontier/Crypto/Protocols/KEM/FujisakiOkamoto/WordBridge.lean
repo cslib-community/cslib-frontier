@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordGame
-import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
+public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
 import Mathlib.Data.Set.Finite.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
@@ -20,16 +20,19 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
-# The word-level FO game at one parameter, as the typed FO game
+# The word-level FO games at one parameter, as the typed FO games
 
-The ROM IND-CCA bound for `FO-notbot`, `Scheme.indCcaRomAdvantage_le` in
-`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot`, holds for one scheme over finite
-message, coin, ciphertext and key types, against randomized adversaries that draw their coins
-first. The word-level family `WordPKE` has a native game `WordPKE.romIndCcaGameWord` against
-programs with private coins, and a native IND-CPA reduction `WordPKE.romCpaReductionWord`. This
-module identifies the two at each parameter.
+The ROM IND-CCA bounds for `FO-notbot` and `FO^⊥`, `Scheme.indCcaRomAdvantage_le` in
+`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot` and `Scheme.indCcaBotAdvantage_le` in
+`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot`, hold for one scheme over finite message,
+coin, ciphertext and key types, against randomized adversaries that draw their coins first. The
+word-level family `WordPKE` has native games `WordPKE.romIndCcaGameWord` and
+`WordPKE.romIndCcaBotGameWord` against programs with private coins, and native IND-CPA reductions
+`WordPKE.romCpaReductionWord` and `WordPKE.romBotCpaReductionWord`. This module identifies the
+two at each parameter.
 
 **The scheme at one parameter.** `WordPKE.finiteScheme P keyLen n` is the FO bundle of `P` at
 `n` over finite types: uniform bit strings of lengths `msgLen n`, `coinLen n` and `keyLen n`, and
@@ -37,8 +40,9 @@ the ciphertext space `WordPKE.Ciphertext P n` of words of length at most `ctLen 
 explicit-coin scheme `WordPKE.finitePKE P n` reads `encDet` as a ciphertext with
 `WordPKE.toCiphertext`, which keeps a word that fits and replaces a longer one by the empty word.
 
-**Properties of the PKE family.** `WordPKE.DeltaCorrect` is the `δ`-correctness of
-[HofheinzHoevelmannsKiltz2017] at every parameter, stated for `finitePKE`. For a family whose
+**Properties of the PKE family.** `WordPKE.DeltaCorrect` and `WordPKE.GammaSpread` are the
+`δ`-correctness and `γ`-spreadness of [HofheinzHoevelmannsKiltz2017] at every parameter, stated
+for `finitePKE`. For a family whose
 ciphertexts fit (`WordPKE.CiphertextFits`, in
 `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Word`), `finitePKE` encrypts exactly as `P` on
 generated keys.
@@ -52,13 +56,17 @@ which answers out-of-domain requests with the empty word, as the word game and t
 do.
 
 **The bridge.** `WordPKE.IsEfficient.exists_typedAdversary` gives, for an efficient family and a
-polynomial-time key length, a typed adversary at each parameter with polynomially many `G` and `H`
-queries. When the ciphertexts of `P` fit, the word game has the law of the typed game
-`Scheme.roIndCcaGame` played by it, and the advantage of `romCpaReductionWord` in the IND-CPA
-game of `P` is the two-stage IND-CPA advantage `ExplicitCoinPKE.cpaAdvantage` of the typed
-reduction `Scheme.romCpaReduction`. The proofs represent typed caches as word caches: one lazy call
-of the typed game or simulator gives the word call on the represented cache (`memoize_map`), and
-replaying the machine against the typed oracles gives its replay against the word oracles.
+polynomial-time key length, a typed adversary at each parameter with polynomially many `G`, `H`
+and decapsulation queries. When the ciphertexts of `P` fit, each word game has the law of the
+corresponding typed game (`Scheme.roIndCcaGame`, `Scheme.roIndCcaBotGame`) played by it, and the
+advantage of each native reduction in the IND-CPA game of `P` is the two-stage IND-CPA advantage
+`ExplicitCoinPKE.cpaAdvantage` of the typed reduction (`Scheme.romCpaReduction`,
+`Scheme.romBotCpaReduction`). The proofs represent typed caches as word caches: one lazy call of
+the typed game or simulator gives the word call on the represented cache (`memoize_map`), and
+replaying the machine against the typed oracles gives its replay against the word oracles. The game
+is identified once for the experiment `WordPKE.romIndCcaExperimentWord`, given a typed
+decapsulation program that represents the native one, and the reduction once for a pair of
+filters that agree on represented caches.
 
 ## Main definitions
 
@@ -68,7 +76,9 @@ replaying the machine against the typed oracles gives its replay against the wor
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.finitePKE`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.finiteScheme`: the scheme and the FO bundle at
   one parameter over finite types.
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.DeltaCorrect`: correctness of the PKE family.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.DeltaCorrect`,
+  `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.GammaSpread`: correctness and spreadness of the
+  PKE family.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.typedHQuery`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.typedQuery`: native requests as typed queries.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.savedCoinAdversary`: the typed view of a
@@ -76,16 +86,16 @@ replaying the machine against the typed oracles gives its replay against the wor
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.savedCoinAdversary_queryBounds`: the typed view
-  makes polynomially many `G` and `H` queries.
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.IsEfficient.exists_typedAdversary`: the word game
-  is the typed game, and the native reduction's IND-CPA advantage is the typed reduction's.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.savedCoinAdversary_fullQueryBounds`: the typed
+  view makes polynomially many `G`, `H` and decapsulation queries.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.IsEfficient.exists_typedAdversary`: the word games
+  are the typed games, and the native reductions' IND-CPA advantages are the typed reductions'.
 
 ## References
 
 * [D. Hofheinz, K. Hövelmanns, E. Kiltz, *A Modular Analysis of the Fujisaki–Okamoto
   Transformation*][HofheinzHoevelmannsKiltz2017] (IACR ePrint 2017/604, full version dated
-  2 November 2021), §2.1.
+  2 November 2021), §2.1 (pp. 7–8).
 -/
 
 public section
@@ -167,10 +177,18 @@ probability that decryption of an encryption under uniform coins fails is at mos
 @[expose] def DeltaCorrect (δ : ℕ → ℝ≥0) : Prop :=
   ∀ n, (P.finitePKE n).DeltaCorrect (δ n)
 
+/-- **`γ`-spreadness of `P`** ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §2.1,
+p. 8): at every parameter `n`, for every generated key pair, message and ciphertext of the
+ciphertext space, encrypting the message under uniform coins gives that ciphertext with
+probability at most `2 ^ (-γ n)`. It is `ExplicitCoinPKE.GammaSpread` of the scheme at
+parameter `n`. -/
+@[expose] def GammaSpread (γ : ℕ → ℝ) : Prop :=
+  ∀ n, (P.finitePKE n).GammaSpread (γ n)
+
 /-! ### The typed view of a native adversary -/
 
 /-- The `H` request of the typed interface at parameter `n` named by a word: the triple
-`(b, m, c)` that the word encodes, when it is in the `H` domain (`isHQuery`). -/
+`(false, m, c)` that the word encodes, when it is in the `H` domain (`isHQuery`). -/
 def typedHQuery (n : ℕ) (w : List Bool) :
     Option (Bool × BitString (P.msgLen n) × P.Ciphertext n) :=
   match hQueryDecoder.decode w with
@@ -208,7 +226,7 @@ noncomputable def typedQuery (n : ℕ) : CCAOp → List Bool →
 
 /-- **The saved-coin view of a native adversary** at parameter `n`, as a randomized adversary of
 the typed ROM IND-CCA game of `finiteScheme n`. Its coins are a uniform tape of
-`c * (2 n + 2 + keyC (n + 1) ^ keyD) ^ d` bits. On the challenge `(pk, c*, k*)` it replays the
+`savedCoinBudget c d keyC keyD n` bits. On the challenge `(pk, c*, k*)` it replays the
 coin-tape machine `machine` on `(1ⁿ, encKEMChallenge (pk, k*, c*))` with the tape cut at the
 machine's clock, sends each request through `typedQuery`, and decodes the output bit. A challenge
 word longer than `keyC (n + 1) ^ keyD` gets `false` without any query. -/
@@ -217,7 +235,7 @@ noncomputable def savedCoinAdversary {k : ℕ} {Control : Type}
     RandomizedROAdversary (List Bool) (BitString (P.msgLen n)) (BitString (P.coinLen n))
       (P.Ciphertext n) (BitString (keyLen n)) where
   Coins := List Bool
-  coins := BitString.sampleList (c * (2 * n + 2 + keyC * (n + 1) ^ keyD) ^ d)
+  coins := BitString.sampleList (savedCoinBudget c d keyC keyD n)
   run tape := fun ⟨pk, ct, key⟩ =>
     if (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val)).length ≤ keyC * (n + 1) ^ keyD then
       Decoder.bool.decode <$> machine.runCoins (P.typedQuery keyLen n)
@@ -407,10 +425,9 @@ private theorem typedHQuery_of_not_isHQuery {n : ℕ} {w : List Bool}
   rcases hQueryDecoder.decode w with ⟨b, m, c⟩
   simp [h]
 
-/-- The word triple of a typed `H` request is in the `H` domain. -/
-private theorem isHQuery_encHQuery (n : ℕ) (x : Bool × BitString (P.msgLen n) × P.Ciphertext n) :
-    P.isHQuery n (encHQuery (hKeyEmb P n x)) = true := by
-  obtain ⟨b, m, c⟩ := x
+/-- Each key-oracle input has a canonical word in the domain of the word game. -/
+private theorem isHQuery_encHQuery (n : ℕ) (m : BitString (P.msgLen n)) (c : P.Ciphertext n) :
+    P.isHQuery n (encHQuery (hKeyEmb P n (false, m, c))) = true := by
   unfold isHQuery
   rw [hQueryDecoder.decode_enc, hKeyEmb_apply]
   simp [c.2]
@@ -420,9 +437,9 @@ private theorem withRO_queryG (n : ℕ) (m : List Bool) :
       List.take (P.coinLen n) <$> P.roWordOracle keyLen n (.G, m) := by
   simp only [withRO, queryG, OracleComp.interpret_map, ProbOracleComp.interpret_query]
 
-private theorem withRO_queryH (n : ℕ) (x : Bool × List Bool × List Bool) :
+private theorem withRO_queryH (n : ℕ) (x : List Bool × List Bool) :
     P.withRO keyLen n (queryH keyLen n x) =
-      List.take (keyLen n) <$> P.roWordOracle keyLen n (.H, encHQuery x) := by
+      List.take (keyLen n) <$> P.roWordOracle keyLen n (.H, encHQuery (false, x)) := by
   simp only [withRO, queryH, OracleComp.interpret_map, ProbOracleComp.interpret_query]
 
 private theorem represents_withRO_queryG (n : ℕ) (m : BitString (P.msgLen n)) :
@@ -434,15 +451,16 @@ private theorem represents_withRO_queryG (n : ℕ) (m : BitString (P.msgLen n)) 
   exact (represents_roHashG n m).map_right.congr_fun fun r =>
     List.take_of_length_le (by simp)
 
-private theorem represents_withRO_queryH (n : ℕ)
-    (x : Bool × BitString (P.msgLen n) × P.Ciphertext n) :
+private theorem represents_withRO_queryH (n : ℕ) (m : BitString (P.msgLen n))
+    (c : P.Ciphertext n) :
     Represents (cacheRep P keyLen n) List.ofFn
       (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
-        (ProbComp.uniform (BitString (keyLen n))) x)
-      (P.withRO keyLen n (queryH keyLen n (hKeyEmb P n x))) := by
-  simp only [withRO_queryH, roWordOracle_H, isHQuery_encHQuery n x, hQueryDecoder.decode_enc,
-    ↓reduceIte]
-  exact (represents_roHashH n x).map_right.congr_fun fun k =>
+        (ProbComp.uniform (BitString (keyLen n))) (false, m, c))
+      (P.withRO keyLen n (queryH keyLen n (List.ofFn m, c.val))) := by
+  have hd := isHQuery_encHQuery (P := P) n m c
+  rw [hKeyEmb_apply] at hd
+  simp only [withRO_queryH, roWordOracle_H, hd, hQueryDecoder.decode_enc, ↓reduceIte]
+  exact (represents_roHashH n (false, m, c)).map_right.congr_fun fun k =>
     List.take_of_length_le (by simp)
 
 /-- Typed `FO-notbot` decapsulation against the typed random oracles represents native
@@ -457,14 +475,14 @@ private theorem represents_decapsNotBotM {n : ℕ}
       ((P.finiteScheme keyLen n).decapsNotBotM
         (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
           (ProbComp.uniform (BitString (P.coinLen n))))
-        (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
-          (ProbComp.uniform (BitString (keyLen n))))
+        (fun mc => roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+          (ProbComp.uniform (BitString (keyLen n))) (false, mc))
         dk (P.toCiphertext n w))
       ((P.scheme keyLen n).decapsNotBotM (fun m => P.withRO keyLen n (P.queryG n m))
-        (fun x => P.withRO keyLen n (queryH keyLen n x)) (skRep P n dk) w) := by
-  have hH (b : Bool) (m : BitString (P.msgLen n)) := represents_withRO_queryH (keyLen := keyLen) n
-    (b, m, P.toCiphertext n w)
-  simp only [hKeyEmb_apply, toCiphertext_val hw] at hH
+        (fun mc => P.withRO keyLen n (queryH keyLen n mc)) (skRep P n dk) w) := by
+  have hH (m : BitString (P.msgLen n)) := represents_withRO_queryH (keyLen := keyLen) n
+    m (P.toCiphertext n w)
+  simp only [toCiphertext_val hw] at hH
   rw [Scheme.decapsNotBotM_eq, Scheme.decapsNotBotM_eq]
   have hdec : (P.finiteScheme keyLen n).pke.dec dk.sk (P.toCiphertext n w) =
       (P.dec n dk.sk w).bind fun m =>
@@ -475,7 +493,7 @@ private theorem represents_decapsNotBotM {n : ℕ}
     rfl
   rw [hdec, hdec']
   cases hD : P.dec n dk.sk w with
-  | none => exact hH true dk.fallback
+  | none => exact hH dk.fallback
   | some m =>
     by_cases hm : m.length = P.msgLen n
     · obtain ⟨m, rfl⟩ : ∃ m', m = List.ofFn m' := ⟨_, (BitString.ofFn_ofList hm).symm⟩
@@ -485,33 +503,111 @@ private theorem represents_decapsNotBotM {n : ℕ}
       have hiff := toCiphertext_inj (P := P) (hfit _ _ (List.length_ofFn (f := m))
         (List.length_ofFn (f := r))) hw
       split_ifs with h₁ h₂ h₂
-      · exact hH false m
+      · exact hH m
       · exact absurd (hiff.mp h₁) h₂
       · exact absurd (hiff.mpr h₂) h₁
-      · exact hH true dk.fallback
+      · exact hH dk.fallback
     · have hm' : (m.length == P.msgLen n) = false := by simpa using hm
       simp only [Option.bind_some, Option.filter_some, hm, hm', ↓reduceIte, Bool.false_eq_true]
-      exact hH true dk.fallback
+      exact hH dk.fallback
 
-/-- **The oracles of the word game, typed.** At a key whose ciphertexts fit, the typed query of
-every request, answered by the oracles of the typed game `roHandler`, represents the oracle
+/-- Typed `FO^⊥` decapsulation against the typed random oracles represents native decapsulation
+against the word random oracles, for a ciphertext in the ciphertext space and a public key whose
+ciphertexts fit. -/
+private theorem represents_decapsBotM {n : ℕ} (pk sk : List Bool)
+    (hfit : ∀ m r, m.length = P.msgLen n → r.length = P.coinLen n →
+      (P.encDet n pk m r).length ≤ P.ctLen n)
+    {w : List Bool} (hw : w.length ≤ P.ctLen n) :
+    Represents (cacheRep P keyLen n) (Option.map List.ofFn)
+      ((P.finiteScheme keyLen n).decapsBotM
+        (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
+          (ProbComp.uniform (BitString (P.coinLen n))))
+        (fun mc => roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+          (ProbComp.uniform (BitString (keyLen n))) (false, mc))
+        pk sk (P.toCiphertext n w))
+      ((P.scheme keyLen n).decapsBotM (fun m => P.withRO keyLen n (P.queryG n m))
+        (fun x => P.withRO keyLen n (queryH keyLen n x)) pk sk w) := by
+  have hH (m : BitString (P.msgLen n)) := represents_withRO_queryH (keyLen := keyLen) n
+    m (P.toCiphertext n w)
+  simp only [toCiphertext_val hw] at hH
+  rw [Scheme.decapsBotM_eq, Scheme.decapsBotM_eq]
+  have hdec : (P.finiteScheme keyLen n).pke.dec sk (P.toCiphertext n w) =
+      (P.dec n sk w).bind fun m =>
+        if m.length = P.msgLen n then some (BitString.ofList _ m) else none := by
+    simp only [finiteScheme, finitePKE, toCiphertext_val hw]
+  have hdec' : (P.scheme keyLen n).pke.dec sk w =
+      (P.dec n sk w).filter fun m => m.length == P.msgLen n :=
+    rfl
+  rw [hdec, hdec']
+  cases hD : P.dec n sk w with
+  | none => exact Represents.pure none
+  | some m =>
+    by_cases hm : m.length = P.msgLen n
+    · obtain ⟨m, rfl⟩ : ∃ m', m = List.ofFn m' := ⟨_, (BitString.ofFn_ofList hm).symm⟩
+      simp only [Option.bind_some, Option.filter_some, List.length_ofFn, ↓reduceIte,
+        BitString.ofList_ofFn, beq_self_eq_true]
+      refine (represents_withRO_queryG n m).bind fun r => ?_
+      have hiff := toCiphertext_inj (P := P) (hfit _ _ (List.length_ofFn (f := m))
+        (List.length_ofFn (f := r))) hw
+      split_ifs with h₁ h₂ h₂
+      · exact (hH m).bind fun k => Represents.pure (some k)
+      · exact absurd (hiff.mp h₁) h₂
+      · exact absurd (hiff.mpr h₂) h₁
+      · exact Represents.pure none
+    · have hm' : (m.length == P.msgLen n) = false := by simpa using hm
+      simp only [Option.bind_some, Option.filter_some, hm, hm', ↓reduceIte, Bool.false_eq_true]
+      exact Represents.pure none
+
+/-- The lazy handler of a typed game of `finiteScheme n` is the dispatcher of the lazy random
+oracles, whose decapsulation runs the program `decaps'` against them. -/
+private theorem romHandler_eq_dispatch {n : ℕ}
+    (decaps' : P.Ciphertext n → OracleComp (ROSpec (BitString (P.msgLen n))
+      (BitString (P.coinLen n)) (P.Ciphertext n) (BitString (keyLen n)))
+      (Option (BitString (keyLen n)))) (cStar : P.Ciphertext n) :
+    (P.finiteScheme keyLen n).romHandler decaps' cStar = ROQuery.dispatch
+      (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
+        (ProbComp.uniform (BitString (P.coinLen n))))
+      (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+        (ProbComp.uniform (BitString (keyLen n))))
+      (fun c => OracleComp.interpret (OracleComp.sumHandler
+        (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
+          (ProbComp.uniform (BitString (P.coinLen n))))
+        (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+          (ProbComp.uniform (BitString (keyLen n))))) (decaps' c)) cStar := by
+  funext q
+  exact (Scheme.dispatch_eq_interpret_romProgram _ _ cStar q).symm
+
+/-- **The oracles of a word game, typed.** If a typed decapsulation program `decaps'`, run against
+the typed random oracles, represents the native decapsulation `decaps` on every word of the
+ciphertext space, and `decaps` rejects every longer word without a query, then the typed query of
+every request, answered by the lazy handler `romHandler` of the typed game, represents the oracle
 `ccaWordOracle` of the word game on represented caches. -/
 private theorem represents_ccaWordOracle {n : ℕ}
-    (dk : ImplicitSK (List Bool) (List Bool) (BitString (P.msgLen n))) (cStar : P.Ciphertext n)
-    (hfit : ∀ m r, m.length = P.msgLen n → r.length = P.coinLen n →
-      (P.encDet n dk.pk m r).length ≤ P.ctLen n)
-    (op : CCAOp) (w : List Bool) :
+    (decaps' : P.Ciphertext n → OracleComp (ROSpec (BitString (P.msgLen n))
+      (BitString (P.coinLen n)) (P.Ciphertext n) (BitString (keyLen n)))
+      (Option (BitString (keyLen n))))
+    (decaps : List Bool → WordOracleComp RO (Option (List Bool)))
+    (hdecaps : ∀ w, w.length ≤ P.ctLen n → Represents (cacheRep P keyLen n) (Option.map List.ofFn)
+      (OracleComp.interpret (OracleComp.sumHandler
+        (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
+          (ProbComp.uniform (BitString (P.coinLen n))))
+        (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+          (ProbComp.uniform (BitString (keyLen n))))) (decaps' (P.toCiphertext n w)))
+      (P.withRO keyLen n (decaps w)))
+    (hlong : ∀ w, ¬w.length ≤ P.ctLen n → decaps w = pure none)
+    (cStar : P.Ciphertext n) (op : CCAOp) (w : List Bool) :
     Represents (cacheRep P keyLen n) id
-      (OracleComp.interpret ((P.finiteScheme keyLen n).roHandler dk cStar)
+      (OracleComp.interpret ((P.finiteScheme keyLen n).romHandler decaps' cStar)
         (P.typedQuery keyLen n op w))
-      (P.ccaWordOracle keyLen n (skRep P n dk) cStar.val (op, w)) := by
+      (P.ccaWordOracle keyLen n decaps cStar.val (op, w)) := by
+  rw [romHandler_eq_dispatch]
   cases op with
   | G =>
     simp only [typedQuery, ccaWordOracle, roWordOracle_G]
     by_cases hw : w.length = P.msgLen n
     · obtain ⟨m, rfl⟩ : ∃ m', w = List.ofFn m' := ⟨_, (BitString.ofFn_ofList hw).symm⟩
       simp only [List.length_ofFn, ↓reduceIte, OracleComp.interpret_map,
-        OracleComp.interpret_query, Scheme.roHandler, ROQuery.dispatch, BitString.ofList_ofFn]
+        OracleComp.interpret_query, ROQuery.dispatch, BitString.ofList_ofFn]
       exact Represents.map_left (represents_roHashG n m)
     · simp only [hw, ↓reduceIte, OracleComp.interpret_pure]
       exact Represents.pure []
@@ -520,7 +616,7 @@ private theorem represents_ccaWordOracle {n : ℕ}
     by_cases hq : P.isHQuery n w = true
     · obtain ⟨x, hx, hxw⟩ := typedHQuery_of_isHQuery hq
       simp only [hx, hq, ↓reduceIte, OracleComp.interpret_map, OracleComp.interpret_query,
-        Scheme.roHandler, ROQuery.dispatch, ← hxw]
+        ROQuery.dispatch, ← hxw]
       exact Represents.map_left (represents_roHashH n x)
     · simp only [typedHQuery_of_not_isHQuery hq, hq, Bool.false_eq_true, ↓reduceIte,
         OracleComp.interpret_pure]
@@ -529,20 +625,18 @@ private theorem represents_ccaWordOracle {n : ℕ}
     simp only [typedQuery, ccaWordOracle]
     by_cases hw : w.length ≤ P.ctLen n
     · simp only [hw, ↓reduceIte, OracleComp.interpret_map, OracleComp.interpret_query,
-        Scheme.roHandler, ROQuery.dispatch]
+        ROQuery.dispatch]
       by_cases hc : w = cStar.val
       · have hc' : P.toCiphertext n w = cStar := Subtype.ext (by rw [toCiphertext_val hw, hc])
         simp only [hc', ↓reduceIte]
         simp only [hc, ↓reduceIte, map_pure, Option.map_none, encOption_none]
         exact Represents.pure []
       · have hc' : P.toCiphertext n w ≠ cStar := fun h => hc (by rw [← h, toCiphertext_val hw])
-        simp only [hc', hc, ↓reduceIte, decapsNotBot, hw, withRO, OracleComp.interpret_map,
-          Scheme.interpret_decapsNotBotM]
-        have h := ((represents_decapsNotBotM (keyLen := keyLen) dk hfit hw).map_right
-          (g := some)).map_right (g := ⇑(encOption encBits))
-        exact Represents.map_left (Represents.map_left (h.congr_fun fun _ => rfl))
+        simp only [hc', hc, ↓reduceIte]
+        exact Represents.map_left (((hdecaps w hw).map_right (g := ⇑(encOption encBits))).congr_fun
+          fun _ => rfl)
     · have hc : w ≠ cStar.val := fun h => hw (h ▸ cStar.2)
-      simp only [hw, hc, ↓reduceIte, decapsNotBot, withRO, OracleComp.interpret_pure, map_pure,
+      simp only [hw, hc, ↓reduceIte, OracleComp.interpret_pure, hlong w hw, withRO, map_pure,
         encOption_none]
       exact Represents.pure []
 
@@ -588,14 +682,10 @@ private theorem represents_simHashHq (n : ℕ) (c : P.Ciphertext n) :
     (fun _ => rfl) (fun _ _ => rfl) _ _
     (by rw [BitString.eval_sampleList, uniformList_eq_map_ofFn]) c
 
-private theorem filterDecaps_true {M R CT K : Type}
-    (Hq : CT → StateT (SimState M R CT K) ProbComp K) (c : CT) :
-    filterDecaps Hq (fun _ _ => true) c = some <$> Hq c := by
-  funext st
-  simp only [filterDecaps, Bool.cond_true, bind_pure_comp]
-
-private theorem simFilterWordHandler_G (n : ℕ) (pk cStar w : List Bool) :
-    P.simFilterWordHandler keyLen (fun _ _ _ => true) n pk cStar (.G, w) =
+private theorem simFilterWordHandler_G
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool) (n : ℕ)
+    (pk cStar w : List Bool) :
+    P.simFilterWordHandler keyLen d n pk cStar (.G, w) =
       if w.length = P.msgLen n then
         simHashG (CT := List Bool) (K := List Bool) (BitString.sampleList (P.coinLen n)) w
       else pure [] := by
@@ -606,8 +696,10 @@ private theorem simFilterWordHandler_G (n : ℕ) (pk cStar w : List Bool) :
   · simp only [simFilterWordHandler, h, ↓reduceIte]
     rfl
 
-private theorem simFilterWordHandler_H (n : ℕ) (pk cStar w : List Bool) :
-    P.simFilterWordHandler keyLen (fun _ _ _ => true) n pk cStar (.H, w) =
+private theorem simFilterWordHandler_H
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool) (n : ℕ)
+    (pk cStar w : List Bool) :
+    P.simFilterWordHandler keyLen d n pk cStar (.H, w) =
       if P.isHQuery n w then
         (P.scheme keyLen n).simHashH pk (hQueryDecoder.decode w)
       else pure [] := by
@@ -618,31 +710,59 @@ private theorem simFilterWordHandler_H (n : ℕ) (pk cStar w : List Bool) :
   · simp only [simFilterWordHandler, h, Bool.false_eq_true, ↓reduceIte]
     rfl
 
-private theorem simFilterWordHandler_decaps (n : ℕ) (pk cStar w : List Bool) :
-    P.simFilterWordHandler keyLen (fun _ _ _ => true) n pk cStar (.decaps, w) =
+private theorem simFilterWordHandler_decaps
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool) (n : ℕ)
+    (pk cStar w : List Bool) :
+    P.simFilterWordHandler keyLen d n pk cStar (.decaps, w) =
       if w.length ≤ P.ctLen n then
         encOption encBits <$> (if w = cStar then pure none else
-          some <$> simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen n)) w)
+          filterDecaps (simHashHq (M := List Bool) (R := List Bool)
+            (BitString.sampleList (keyLen n))) (d n pk) w)
       else pure [] := by
   funext st
   by_cases h : w.length ≤ P.ctLen n
   · simp only [simFilterWordHandler, h, ↓reduceIte, Scheme.simFilterHandler,
-      Scheme.simFilterDispatch, ROQuery.dispatch, filterDecaps_true]
+      Scheme.simFilterDispatch, ROQuery.dispatch]
     exact (StateT.run_map (m := ProbComp) (encOption encBits) _ st).symm
   · simp only [simFilterWordHandler, h, ↓reduceIte]
     rfl
 
-/-- **The native simulator, typed.** At a key whose ciphertexts fit, the typed query of every
-request, answered by the typed keyless simulator of `FO-notbot`, represents the native simulator
-`simFilterWordHandler` on represented states. -/
-private theorem represents_simFilterWordHandler {n : ℕ} (pk : List Bool) (cStar : P.Ciphertext n)
+/-- A filtered decapsulation of the typed simulator represents the native one when the two
+filters agree on represented states. -/
+private theorem represents_filterDecaps {n : ℕ}
+    (d : List (List Bool × List Bool) → List Bool → Bool)
+    (d' : List (BitString (P.msgLen n) × BitString (P.coinLen n)) → P.Ciphertext n → Bool)
+    (c : P.Ciphertext n)
+    (hd : ∀ st, d (simRep P keyLen n st).gCache c.val = d' st.gCache c) :
+    Represents (simRep P keyLen n) (Option.map List.ofFn)
+      (filterDecaps (simHashHq (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+        (ProbComp.uniform (BitString (keyLen n)))) d' c)
+      (filterDecaps (simHashHq (M := List Bool) (R := List Bool)
+        (BitString.sampleList (keyLen n))) d c.val) := by
+  intro st
+  change (ProbComp.eval (filterDecaps _ d' c st)).map _ =
+    ProbComp.eval (filterDecaps _ d c.val (simRep P keyLen n st))
+  simp only [filterDecaps, hd st]
+  cases d' st.gCache c
+  · exact Represents.pure none st
+  · exact ((represents_simHashHq n c).bind fun k => Represents.pure (some k)) st
+
+/-- **The native simulator, typed.** For a word filter `d` and a typed filter `d'` that agree on
+represented states, at a key whose ciphertexts fit, the typed query of every request, answered by
+the typed keyless simulator with filter `d'`, represents the native simulator
+`simFilterWordHandler d` on represented states. -/
+private theorem represents_simFilterWordHandler {n : ℕ}
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool)
+    (d' : List Bool → List (BitString (P.msgLen n) × BitString (P.coinLen n)) → P.Ciphertext n →
+      Bool) (pk : List Bool) (cStar : P.Ciphertext n)
     (hfit : ∀ m r, m.length = P.msgLen n → r.length = P.coinLen n →
       (P.encDet n pk m r).length ≤ P.ctLen n)
+    (hd : ∀ st (c : P.Ciphertext n), d n pk (simRep P keyLen n st).gCache c.val = d' pk st.gCache c)
     (op : CCAOp) (w : List Bool) :
     Represents (simRep P keyLen n) id
-      (OracleComp.interpret ((P.finiteScheme keyLen n).simFilterHandler (fun _ _ => true) pk cStar)
+      (OracleComp.interpret ((P.finiteScheme keyLen n).simFilterHandler (d' pk) pk cStar)
         (P.typedQuery keyLen n op w))
-      (P.simFilterWordHandler keyLen (fun _ _ _ => true) n pk cStar.val (op, w)) := by
+      (P.simFilterWordHandler keyLen d n pk cStar.val (op, w)) := by
   cases op with
   | G =>
     simp only [typedQuery, simFilterWordHandler_G]
@@ -683,7 +803,7 @@ private theorem represents_simFilterWordHandler {n : ℕ} (pk : List Bool) (cSta
     simp only [typedQuery, simFilterWordHandler_decaps]
     by_cases hw : w.length ≤ P.ctLen n
     · simp only [hw, ↓reduceIte, OracleComp.interpret_map, OracleComp.interpret_query,
-        Scheme.simFilterHandler, Scheme.simFilterDispatch, ROQuery.dispatch, filterDecaps_true]
+        Scheme.simFilterHandler, Scheme.simFilterDispatch, ROQuery.dispatch]
       by_cases hc : w = cStar.val
       · have hc' : P.toCiphertext n w = cStar := Subtype.ext (by rw [toCiphertext_val hw, hc])
         simp only [hc', ↓reduceIte]
@@ -691,13 +811,38 @@ private theorem represents_simFilterWordHandler {n : ℕ} (pk : List Bool) (cSta
         exact Represents.pure []
       · have hc' : P.toCiphertext n w ≠ cStar := fun h => hc (by rw [← h, toCiphertext_val hw])
         simp only [hc', hc, ↓reduceIte]
-        have h := represents_simHashHq (keyLen := keyLen) n (P.toCiphertext n w)
+        have h := represents_filterDecaps (keyLen := keyLen) (d n pk) (d' pk) (P.toCiphertext n w)
+          (fun st => hd st _)
         rw [toCiphertext_val hw] at h
-        exact Represents.map_left (Represents.map_left
-          ((h.map_right (g := some)).map_right (g := ⇑(encOption encBits)) |>.congr_fun
-            fun _ => rfl))
+        exact Represents.map_left ((h.map_right (g := ⇑(encOption encBits))).congr_fun
+          fun _ => rfl)
     · simp only [hw, ↓reduceIte, OracleComp.interpret_pure]
       exact Represents.pure []
+
+/-- On represented states at a key whose ciphertexts fit, the `FO^⊥` filter of the explicit-coin
+scheme over words agrees with the one of the finite scheme. -/
+private theorem simBotCheck_simRep {n : ℕ} {pk : List Bool}
+    (hfit : ∀ m r, m.length = P.msgLen n → r.length = P.coinLen n →
+      (P.encDet n pk m r).length ≤ P.ctLen n)
+    (st : SimState (BitString (P.msgLen n)) (BitString (P.coinLen n)) (P.Ciphertext n)
+      (BitString (keyLen n))) (c : P.Ciphertext n) :
+    Scheme.simBotCheck (P.toExplicitCoin n) pk (simRep P keyLen n st).gCache c.val =
+      Scheme.simBotCheck (P.finitePKE n) pk st.gCache c := by
+  simp only [Scheme.simBotCheck, simRep, List.any_map]
+  congr 1 with e : 1
+  have hlook := @List.lookup_map_of_injective _ _ _ _ instBEqOfDecidableEq _ instBEqOfDecidableEq _
+    _ (ofFnEmb (P.msgLen n)).injective List.ofFn st.gCache e.1
+  simp only [Function.comp_apply, hlook]
+  cases st.gCache.lookup e.1 with
+  | none => rfl
+  | some r =>
+    have hc : P.toCiphertext n c.val = c := Subtype.ext (toCiphertext_val c.2)
+    have hiff := toCiphertext_inj (P := P) (hfit _ _ (List.length_ofFn (f := e.1))
+      (List.length_ofFn (f := r))) c.2
+    exact decide_eq_decide.mpr (by
+      change P.encDet n pk (List.ofFn e.1) (List.ofFn r) = c.val ↔
+        P.toCiphertext n (P.encDet n pk (List.ofFn e.1) (List.ofFn r)) = c
+      rw [← hiff, hc])
 
 /-! ### Replaying the saved coins -/
 
@@ -726,8 +871,8 @@ private theorem run_runCoins_typedQuery {σ σ' : Type} (n : ℕ) (rep : σ' →
       OracleComp.interpret (fun q => ProbOracleComp.query q) W := by
     simp only [W, _root_.Turing.MultiTapePTM.interpret_runCoins, OracleComp.interpret_query]
   rw [h₁, h₂, OracleComp.interpret_interpret,
-    OracleComp.map_run_interpret ProbComp.isMonadHom_eval, ProbOracleComp.runWith,
-    OracleComp.runWith, OracleComp.interpret_interpret]
+    OracleComp.map_run_interpret ProbComp.isMonadHom_eval,
+    ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_interpret]
   simp only [ProbOracleComp.interpret_query]
   exact OracleComp.run_interpret_map_state _ _ rep (fun q st => hstep q.1 q.2 st) W s
 
@@ -779,6 +924,29 @@ private theorem mem_support_challengeWords {n : ℕ} {pk sk : List Bool}
   exact ⟨(pk, sk), hkeys, List.ofFn m, by simp, P.encDet n pk (List.ofFn m) (List.ofFn r),
     ⟨List.ofFn r, by simp, rfl⟩, List.ofFn k, by simp, rfl⟩
 
+/-- The replay property of a coin-tape machine for `A` at parameter `n`: on every challenge word
+of the games, running `A` against a word handler is drawing the coins of `savedCoinAdversary` and
+running it against any typed handler that represents the word handler query by query. -/
+private def Replays (P : WordPKE) (keyLen : ℕ → ℕ) (n : ℕ)
+    (A : ℕ → List Bool → WordOracleComp CCAOp Bool) {k : ℕ} {Control : Type}
+    (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ) : Prop :=
+  ∀ (pk : List Bool) (ct : P.Ciphertext n) (key : BitString (keyLen n)),
+    (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val), ()) ∈
+      (ProbComp.eval (challengeWords P keyLen n)).support →
+    ∀ {σ σ' : Type} (rep : σ' → σ)
+      (handler' : (q : ROQuery (BitString (P.msgLen n)) (P.Ciphertext n)) →
+        StateT σ' ProbComp (ROResp (BitString (P.coinLen n)) (BitString (keyLen n)) q))
+      (handler : CCAOp × List Bool → StateT σ ProbComp (List Bool)),
+      (∀ op w, Represents rep id
+        (OracleComp.interpret handler' (P.typedQuery keyLen n op w)) (handler (op, w))) →
+      ∀ s : σ',
+        ProbOracleComp.runWith (fun q st => ProbComp.eval (handler q st))
+            (A n (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val))) (rep s) =
+          (ProbComp.eval (P.savedCoinAdversary keyLen machine c d keyC keyD n).coins).bind
+            fun ω => (ProbComp.eval ((OracleComp.interpret handler'
+              ((P.savedCoinAdversary keyLen machine c d keyC keyD n).run ω ⟨pk, ct, key⟩)).run
+                s)).map fun p => (p.1, rep p.2)
+
 /-- **Saved coins of a native adversary.** For an efficient PKE family and a polynomial-time key
 length, every uniform strict oracle PPT adversary has a coin-tape machine and polynomial clocks
 such that, on every challenge of the word games, running the adversary against any word handler
@@ -789,22 +957,7 @@ private theorem exists_savedCoins (hP : P.IsEfficient)
     {A : ℕ → List Bool → WordOracleComp CCAOp Bool} (hA : IsOraclePPT encBool A) :
     ∃ (k : ℕ) (Control : Type) (_ : Finite Control)
       (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ),
-      ∀ n (pk : List Bool) (ct : P.Ciphertext n) (key : BitString (keyLen n)),
-        (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val), ()) ∈
-          (ProbComp.eval (challengeWords P keyLen n)).support →
-        ∀ {σ σ' : Type} (rep : σ' → σ)
-          (handler' : (q : ROQuery (BitString (P.msgLen n)) (P.Ciphertext n)) →
-            StateT σ' ProbComp (ROResp (BitString (P.coinLen n)) (BitString (keyLen n)) q))
-          (handler : CCAOp × List Bool → StateT σ ProbComp (List Bool)),
-          (∀ op w, Represents rep id
-            (OracleComp.interpret handler' (P.typedQuery keyLen n op w)) (handler (op, w))) →
-          ∀ s : σ',
-            ProbOracleComp.runWith (fun q st => ProbComp.eval (handler q st))
-                (A n (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val))) (rep s) =
-              (ProbComp.eval (P.savedCoinAdversary keyLen machine c d keyC keyD n).coins).bind
-                fun ω => (ProbComp.eval ((OracleComp.interpret handler'
-                  ((P.savedCoinAdversary keyLen machine c d keyC keyD n).run ω ⟨pk, ct, key⟩)).run
-                    s)).map fun p => (p.1, rep p.2) := by
+      ∀ n, Replays P keyLen n A machine c d keyC keyD := by
   obtain ⟨k, Control, hfinite, machine, c, d, keyC, keyD, hkeys, -, -, hrun⟩ :=
     hA.exists_savedCoins_of_keyGen (isPPTOn_challengeWords hP hkeyLen)
   refine ⟨k, Control, hfinite, machine, c, d, keyC, keyD, ?_⟩
@@ -848,18 +1001,19 @@ private theorem isQueryBounded_typedQuery (n : ℕ) (op : CCAOp) (w : List Bool)
     · exact .pure _ _
 
 /-- **Query bounds of the saved-coin view.** Every coin value and challenge makes at most
-`c * (2 n + 2 + keyC (n + 1) ^ keyD) ^ d` queries to `G` and as many to `H`. -/
-theorem savedCoinAdversary_queryBounds {k : ℕ} {Control : Type}
+`savedCoinBudget c d keyC keyD n` queries to `G`, as many to `H` and as many to decapsulation. -/
+theorem savedCoinAdversary_fullQueryBounds {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD n : ℕ) :
-    (P.savedCoinAdversary keyLen machine c d keyC keyD n).QueryBounds
-      (c * (2 * n + 2 + keyC * (n + 1) ^ keyD) ^ d)
-      (c * (2 * n + 2 + keyC * (n + 1) ^ keyD) ^ d) := by
-  intro ω ch
+    (P.savedCoinAdversary keyLen machine c d keyC keyD n).FullQueryBounds
+      (savedCoinBudget c d keyC keyD n) (savedCoinBudget c d keyC keyD n)
+      (savedCoinBudget c d keyC keyD n) := by
+  intro ω
   change List Bool at ω
-  obtain ⟨pk, ct, key⟩ := ch
-  have htotal : OracleComp.IsQueryBounded
-      ((P.savedCoinAdversary keyLen machine c d keyC keyD n).run ω ⟨pk, ct, key⟩)
-      (c * (2 * n + 2 + keyC * (n + 1) ^ keyD) ^ d) := by
+  have htotal (ch : KEM.Challenge (List Bool) (P.Ciphertext n) (BitString (keyLen n))) :
+      OracleComp.IsQueryBounded
+        ((P.savedCoinAdversary keyLen machine c d keyC keyD n).run ω ch)
+        (savedCoinBudget c d keyC keyD n) := by
+    obtain ⟨pk, ct, key⟩ := ch
     simp only [savedCoinAdversary]
     split
     · rename_i hlen
@@ -867,13 +1021,11 @@ theorem savedCoinAdversary_queryBounds {k : ℕ} {Control : Type}
       apply (machine.isCostBounded_runCoins (P.typedQuery keyLen n) 1
         (isQueryBounded_typedQuery n) _ _).mono
       simp only [List.length_take, Nat.mul_one]
-      apply (Nat.min_le_left _ _).trans
-      apply Nat.mul_le_mul_left c
-      apply Nat.pow_le_pow_left
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply] at *
-      omega
+      exact (Nat.min_le_left _ _).trans (clock_le_savedCoinBudget c d keyC keyD n hlen)
     · exact .pure _ _
-  exact ⟨htotal.of_le fun q => by cases q <;> simp, htotal.of_le fun q => by cases q <;> simp⟩
+  exact ⟨fun ch => ⟨(htotal ch).of_le fun q => by cases q <;> simp,
+    (htotal ch).of_le fun q => by cases q <;> simp⟩,
+    fun ch => (htotal ch).of_le fun q => by cases q <;> simp⟩
 
 /-! ### The word game as the typed game -/
 
@@ -933,7 +1085,7 @@ private theorem eval_run_withRO_encaps {n : ℕ} {pk : List Bool}
   congr 1
   funext r
   have hc := hfit _ _ (List.length_ofFn (f := m)) (List.length_ofFn (f := r))
-  have hx := isHQuery_encHQuery (P := P) n (false, m, P.toCiphertext n
+  have hx := isHQuery_encHQuery (P := P) n m (P.toCiphertext n
     (P.encDet n pk (List.ofFn m) (List.ofFn r)))
   rw [hKeyEmb_apply, toCiphertext_val hc] at hx
   simp only [queryH, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, roWordOracle_H,
@@ -958,38 +1110,43 @@ private theorem mem_support_finiteKeyGenNotBot {n : ℕ} {pk : List Bool}
   obtain ⟨rfl, rfl⟩ := heq
   exact ⟨rfl, hkeys⟩
 
-/-- **The word game is the typed game** of the saved-coin view, at a parameter where the
-adversary's saved coins replay it. -/
-private theorem eval_romIndCcaGameWord_eq {n : ℕ} (hfit : P.CiphertextFits)
+/-- **A word experiment is the typed experiment** of the saved-coin view, at a parameter where
+the adversary's saved coins replay it. The word key generation must be the typed one with the
+secret key read through `dkRep`, its public keys must be generated keys of `P`, and the typed
+decapsulation program must represent the native one on the ciphertext space, which rejects longer
+words without a query. -/
+private theorem eval_romIndCcaExperimentWord_eq {n : ℕ} (hfit : P.CiphertextFits) {DK DK' : Type}
+    (keyGen : ℕ → ProbComp (List Bool × DK))
+    (decaps : ℕ → List Bool → DK → List Bool → WordOracleComp RO (Option (List Bool)))
+    (keyGen' : ProbComp (List Bool × DK')) (dkRep : DK' → DK)
+    (decaps' : List Bool → DK' → P.Ciphertext n → OracleComp (ROSpec (BitString (P.msgLen n))
+      (BitString (P.coinLen n)) (P.Ciphertext n) (BitString (keyLen n)))
+      (Option (BitString (keyLen n))))
+    (hkeyGen : ProbComp.eval (keyGen n) = (ProbComp.eval keyGen').map fun x => (x.1, dkRep x.2))
+    (hkeys : ∀ pk dk, (pk, dk) ∈ (ProbComp.eval keyGen').support →
+      ∃ sk, (pk, sk) ∈ (ProbComp.eval (P.keyGen n)).support)
+    (hdecaps : ∀ pk dk, (pk, dk) ∈ (ProbComp.eval keyGen').support → ∀ w,
+      w.length ≤ P.ctLen n → Represents (cacheRep P keyLen n) (Option.map List.ofFn)
+        (OracleComp.interpret (OracleComp.sumHandler
+          (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
+            (ProbComp.uniform (BitString (P.coinLen n))))
+          (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+            (ProbComp.uniform (BitString (keyLen n))))) (decaps' pk dk (P.toCiphertext n w)))
+        (P.withRO keyLen n (decaps n pk (dkRep dk) w)))
+    (hlong : ∀ pk dk w, ¬w.length ≤ P.ctLen n → decaps n pk dk w = pure none)
     {A : ℕ → List Bool → WordOracleComp CCAOp Bool} {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ)
-    (hreplay : ∀ (pk : List Bool) (ct : P.Ciphertext n) (key : BitString (keyLen n)),
-        (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val), ()) ∈
-          (ProbComp.eval (challengeWords P keyLen n)).support →
-        ∀ {σ σ' : Type} (rep : σ' → σ)
-          (handler' : (q : ROQuery (BitString (P.msgLen n)) (P.Ciphertext n)) →
-            StateT σ' ProbComp (ROResp (BitString (P.coinLen n)) (BitString (keyLen n)) q))
-          (handler : CCAOp × List Bool → StateT σ ProbComp (List Bool)),
-          (∀ op w, Represents rep id
-            (OracleComp.interpret handler' (P.typedQuery keyLen n op w)) (handler (op, w))) →
-          ∀ s : σ',
-            ProbOracleComp.runWith (fun q st => ProbComp.eval (handler q st))
-                (A n (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val))) (rep s) =
-              (ProbComp.eval (P.savedCoinAdversary keyLen machine c d keyC keyD n).coins).bind
-                fun ω => (ProbComp.eval ((OracleComp.interpret handler'
-                  ((P.savedCoinAdversary keyLen machine c d keyC keyD n).run ω ⟨pk, ct, key⟩)).run
-                    s)).map fun p => (p.1, rep p.2))
-    (b : Bool) :
-    ProbComp.eval (P.romIndCcaGameWord keyLen A b n) =
+    (hreplay : Replays P keyLen n A machine c d keyC keyD) (b : Bool) :
+    ProbComp.eval (P.romIndCcaExperimentWord keyLen keyGen decaps A b n) =
       ProbComp.eval ((P.savedCoinAdversary keyLen machine c d keyC keyD n).play
-        (P.finiteScheme keyLen n).roIndCcaGame b) := by
-  simp only [romIndCcaGameWord, RandomizedROAdversary.play, Scheme.roIndCcaGame,
-    ProbComp.eval_bind, eval_keyGenNotBot, PMF.bind_map]
+        (fun A' b => (P.finiteScheme keyLen n).romIndCcaExperiment keyGen' decaps' A' b) b) := by
+  simp only [romIndCcaExperimentWord, RandomizedROAdversary.play, Scheme.romIndCcaExperiment,
+    ProbComp.eval_bind, hkeyGen, PMF.bind_map]
   rw [PMF.bind_comm (ProbComp.eval (P.savedCoinAdversary keyLen machine c d keyC keyD n).coins)]
   apply PMF.bind_congr_on_support
   rintro ⟨pk, dk⟩ hx
-  obtain ⟨hpk, hkeys⟩ := mem_support_finiteKeyGenNotBot hx
-  have hfit' := hfit n pk dk.sk hkeys
+  obtain ⟨sk, hkeys'⟩ := hkeys pk dk hx
+  have hfit' := hfit n pk sk hkeys'
   simp only [Function.comp_def]
   rw [eval_run_withRO_encaps hfit']
   simp only [PMF.bind_bind, PMF.pure_bind, BitString.eval_sampleList, uniformList_eq_map_ofFn,
@@ -1002,20 +1159,63 @@ private theorem eval_romIndCcaGameWord_eq {n : ℕ} (hfit : P.CiphertextFits)
   have hct (m : BitString (P.msgLen n)) (r : BitString (P.coinLen n)) :
       ((P.finitePKE n).encDet pk m r).val = P.encDet n pk (List.ofFn m) (List.ofFn r) :=
     toCiphertext_val (hfit' _ _ (by simp) (by simp))
-  have hfitdk : ∀ m r, m.length = P.msgLen n → r.length = P.coinLen n →
-      (P.encDet n dk.pk m r).length ≤ P.ctLen n := by
-    rw [hpk]
-    exact hfit'
   have hrun (m : BitString (P.msgLen n)) (r : BitString (P.coinLen n))
       (kR kStar : BitString (keyLen n)) :=
     hreplay pk ((P.finitePKE n).encDet pk m r) kStar
-      (by rw [hct]; exact mem_support_challengeWords hkeys m r kStar)
-      (cacheRep P keyLen n) ((P.finiteScheme keyLen n).roHandler dk ((P.finitePKE n).encDet pk m r))
-      (P.ccaWordOracle keyLen n (skRep P n dk) ((P.finitePKE n).encDet pk m r).val)
-      (represents_ccaWordOracle dk _ hfitdk)
+      (by rw [hct]; exact mem_support_challengeWords hkeys' m r kStar)
+      (cacheRep P keyLen n)
+      ((P.finiteScheme keyLen n).romHandler (decaps' pk dk) ((P.finitePKE n).encDet pk m r))
+      (P.ccaWordOracle keyLen n (decaps n pk (dkRep dk)) ((P.finitePKE n).encDet pk m r).val)
+      (represents_ccaWordOracle _ _ (hdecaps pk dk hx) (hlong pk (dkRep dk)) _)
       ⟨[(m, r)], [((false, m, (P.finitePKE n).encDet pk m r), kR)]⟩
   simp only [hite, hrun, PMF.bind_bind, PMF.bind_map, Function.comp_def]
   pmf_swap
+
+/-- **The `FO-notbot` word game is the typed game** of the saved-coin view, at a parameter where
+the adversary's saved coins replay it. -/
+private theorem eval_romIndCcaGameWord_eq {n : ℕ} (hfit : P.CiphertextFits)
+    {A : ℕ → List Bool → WordOracleComp CCAOp Bool} {k : ℕ} {Control : Type}
+    (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ)
+    (hreplay : Replays P keyLen n A machine c d keyC keyD) (b : Bool) :
+    ProbComp.eval (P.romIndCcaGameWord keyLen A b n) =
+      ProbComp.eval ((P.savedCoinAdversary keyLen machine c d keyC keyD n).play
+        (P.finiteScheme keyLen n).roIndCcaGame b) := by
+  have h := eval_romIndCcaExperimentWord_eq hfit (P.keyGenNotBot keyLen)
+    (fun n _ dk c => P.decapsNotBot keyLen n dk c) (P.finiteScheme keyLen n).keyGenNotBot
+    (skRep P n) (fun _ dk => (P.finiteScheme keyLen n).notBotDecaps dk) (eval_keyGenNotBot n)
+    (fun pk dk hx => ⟨dk.sk, (mem_support_finiteKeyGenNotBot hx).2⟩)
+    (fun pk dk hx w hw => by
+      obtain ⟨hpk, hkeys⟩ := mem_support_finiteKeyGenNotBot hx
+      have hfitdk : ∀ m r, m.length = P.msgLen n → r.length = P.coinLen n →
+          (P.encDet n dk.pk m r).length ≤ P.ctLen n := by
+        rw [hpk]
+        exact hfit n pk dk.sk hkeys
+      simp only [Scheme.notBotDecaps, OracleComp.interpret_map, Scheme.interpret_decapsNotBotM,
+        OracleComp.interpret_query, decapsNotBot, hw, ↓reduceIte, withRO]
+      exact Represents.map_left (((represents_decapsNotBotM dk hfitdk hw).map_right
+        (g := some)).congr_fun fun _ => rfl))
+    (fun pk dk w hw => by simp [decapsNotBot, hw]) machine c d keyC keyD hreplay b
+  simpa only [romIndCcaGameWord, Scheme.romIndCcaExperiment_notBot] using h
+
+/-- **The `FO^⊥` word game is the typed game** of the saved-coin view, at a parameter where the
+adversary's saved coins replay it. -/
+private theorem eval_romIndCcaBotGameWord_eq {n : ℕ} (hfit : P.CiphertextFits)
+    {A : ℕ → List Bool → WordOracleComp CCAOp Bool} {k : ℕ} {Control : Type}
+    (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ)
+    (hreplay : Replays P keyLen n A machine c d keyC keyD) (b : Bool) :
+    ProbComp.eval (P.romIndCcaBotGameWord keyLen A b n) =
+      ProbComp.eval ((P.savedCoinAdversary keyLen machine c d keyC keyD n).play
+        (P.finiteScheme keyLen n).roIndCcaBotGame b) := by
+  have h := eval_romIndCcaExperimentWord_eq hfit P.keyGen
+    (fun n pk sk c => P.decapsBot keyLen n pk sk c) (P.finiteScheme keyLen n).pke.keyGen id
+    (P.finiteScheme keyLen n).botDecaps (PMF.map_id _).symm
+    (fun pk sk hx => ⟨sk, hx⟩)
+    (fun pk sk hx w hw => by
+      simp only [Scheme.botDecaps, Scheme.interpret_decapsBotM, OracleComp.interpret_query,
+        decapsBot, hw, ↓reduceIte, withRO]
+      exact represents_decapsBotM pk sk (hfit n pk sk hx) hw)
+    (fun pk sk w hw => by simp [decapsBot, hw]) machine c d keyC keyD hreplay b
+  simpa only [romIndCcaBotGameWord, Scheme.romIndCcaExperiment_bot] using h
 
 /-! ### The reduction's IND-CPA game as the typed IND-CPA game -/
 
@@ -1027,35 +1227,26 @@ private theorem lookup_simRep_isSome (n : ℕ)
   simp [simRep, ofFnEmb, List.lookup_isSome_iff, List.ofFn_inj]
 
 /-- **The reduction's game is the typed IND-CPA game** of the typed reduction of the saved-coin
-view, at a parameter where the adversary's saved coins replay it. -/
-private theorem eval_gameOn_romCpaReductionWord_eq {n : ℕ} (hfit : P.CiphertextFits)
+view, at a parameter where the adversary's saved coins replay it, for a word filter `test` and a
+typed filter `test'` that agree on represented states under every generated key. -/
+private theorem eval_gameOn_romFilterCpaReductionWord_eq {n : ℕ} (hfit : P.CiphertextFits)
+    (test : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool)
+    (test' : List Bool → List (BitString (P.msgLen n) × BitString (P.coinLen n)) →
+      P.Ciphertext n → Bool)
+    (htest : ∀ pk sk, (pk, sk) ∈ (ProbComp.eval (P.keyGen n)).support →
+      ∀ st (ct : P.Ciphertext n), test n pk (simRep P keyLen n st).gCache ct.val =
+        test' pk st.gCache ct)
     {A : ℕ → List Bool → WordOracleComp CCAOp Bool} {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ)
-    (hreplay : ∀ (pk : List Bool) (ct : P.Ciphertext n) (key : BitString (keyLen n)),
-        (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val), ()) ∈
-          (ProbComp.eval (challengeWords P keyLen n)).support →
-        ∀ {σ σ' : Type} (rep : σ' → σ)
-          (handler' : (q : ROQuery (BitString (P.msgLen n)) (P.Ciphertext n)) →
-            StateT σ' ProbComp (ROResp (BitString (P.coinLen n)) (BitString (keyLen n)) q))
-          (handler : CCAOp × List Bool → StateT σ ProbComp (List Bool)),
-          (∀ op w, Represents rep id
-            (OracleComp.interpret handler' (P.typedQuery keyLen n op w)) (handler (op, w))) →
-          ∀ s : σ',
-            ProbOracleComp.runWith (fun q st => ProbComp.eval (handler q st))
-                (A n (Encryption.encKEMChallenge (pk, List.ofFn key, ct.val))) (rep s) =
-              (ProbComp.eval (P.savedCoinAdversary keyLen machine c d keyC keyD n).coins).bind
-                fun ω => (ProbComp.eval ((OracleComp.interpret handler'
-                  ((P.savedCoinAdversary keyLen machine c d keyC keyD n).run ω ⟨pk, ct, key⟩)).run
-                    s)).map fun p => (p.1, rep p.2))
-    (bit : Bool) :
+    (hreplay : Replays P keyLen n A machine c d keyC keyD) (bit : Bool) :
     ProbComp.eval (Encryption.gameOn P.IsMessagePair P.keyGen P.encrypt
-        (P.romCpaReductionWord keyLen A) bit n) =
+        (P.romFilterCpaReductionWord keyLen test A) bit n) =
       ProbComp.eval ((P.finitePKE n).toPKE.cpaExperiment (fun _ _ _ => true)
-        ((P.finiteScheme keyLen n).romCpaReduction
+        ((P.finiteScheme keyLen n).romFilterCpaReduction test'
           (P.savedCoinAdversary keyLen machine c d keyC keyD n)) bit) := by
   simp only [Encryption.gameOn, PKE.cpaExperiment, ProbComp.eval_bind, eval_lrExperiment,
-    ExplicitCoinPKE.toPKE, Scheme.romCpaReduction, Scheme.romFilterCpaReduction,
-    romCpaReductionWord, romFilterCpaReductionWord, finitePKE_keyGen]
+    ExplicitCoinPKE.toPKE, Scheme.romFilterCpaReduction, romFilterCpaReductionWord,
+    finitePKE_keyGen]
   apply PMF.bind_congr_on_support
   rintro ⟨pk, sk⟩ hkeys
   have hfit' := hfit n pk sk hkeys
@@ -1077,33 +1268,64 @@ private theorem eval_gameOn_romCpaReductionWord_eq {n : ℕ} (hfit : P.Ciphertex
   have hrun (m : BitString (P.msgLen n)) (r : BitString (P.coinLen n))
       (kStar : BitString (keyLen n)) :
       ProbOracleComp.runWith (fun q st => ProbComp.eval (P.simFilterWordHandler keyLen
-          (fun _ _ _ => true) n pk ((P.finitePKE n).encDet pk m r).val q st))
+          test n pk ((P.finitePKE n).encDet pk m r).val q st))
         (A n (Encryption.encKEMChallenge
           (pk, List.ofFn kStar, ((P.finitePKE n).encDet pk m r).val)))
         {} = _ :=
     hreplay pk ((P.finitePKE n).encDet pk m r) kStar
       (by rw [← hct]; exact mem_support_challengeWords hkeys m r kStar)
       (simRep P keyLen n)
-      ((P.finiteScheme keyLen n).simFilterHandler (fun _ _ => true) pk
-        ((P.finitePKE n).encDet pk m r))
-      (P.simFilterWordHandler keyLen (fun _ _ _ => true) n pk ((P.finitePKE n).encDet pk m r).val)
-      (represents_simFilterWordHandler pk _ hfit') {}
+      ((P.finiteScheme keyLen n).simFilterHandler (test' pk) pk ((P.finitePKE n).encDet pk m r))
+      (P.simFilterWordHandler keyLen test n pk ((P.finitePKE n).encDet pk m r).val)
+      (represents_simFilterWordHandler test test' pk _ hfit' (htest pk sk hkeys)) {}
   simp only [hsel, hct, hrun, PMF.bind_bind, PMF.bind_map, Function.comp_def, lookup_simRep_isSome]
   pmf_swap
+
+/-- **The `FO-notbot` reduction's game is the typed IND-CPA game** of the typed reduction
+`romCpaReduction` of the saved-coin view, at a parameter where the adversary's saved coins replay
+it. -/
+private theorem eval_gameOn_romCpaReductionWord_eq {n : ℕ} (hfit : P.CiphertextFits)
+    {A : ℕ → List Bool → WordOracleComp CCAOp Bool} {k : ℕ} {Control : Type}
+    (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ)
+    (hreplay : Replays P keyLen n A machine c d keyC keyD) (bit : Bool) :
+    ProbComp.eval (Encryption.gameOn P.IsMessagePair P.keyGen P.encrypt
+        (P.romCpaReductionWord keyLen A) bit n) =
+      ProbComp.eval ((P.finitePKE n).toPKE.cpaExperiment (fun _ _ _ => true)
+        ((P.finiteScheme keyLen n).romCpaReduction
+          (P.savedCoinAdversary keyLen machine c d keyC keyD n)) bit) :=
+  eval_gameOn_romFilterCpaReductionWord_eq hfit _ _ (fun _ _ _ _ _ => rfl) machine c d keyC keyD
+    hreplay bit
+
+/-- **The `FO^⊥` reduction's game is the typed IND-CPA game** of the typed reduction
+`romBotCpaReduction` of the saved-coin view, at a parameter where the adversary's saved coins
+replay it. -/
+private theorem eval_gameOn_romBotCpaReductionWord_eq {n : ℕ} (hfit : P.CiphertextFits)
+    {A : ℕ → List Bool → WordOracleComp CCAOp Bool} {k : ℕ} {Control : Type}
+    (machine : _root_.Turing.MultiTapePTM k Bool Control CCAOp) (c d keyC keyD : ℕ)
+    (hreplay : Replays P keyLen n A machine c d keyC keyD) (bit : Bool) :
+    ProbComp.eval (Encryption.gameOn P.IsMessagePair P.keyGen P.encrypt
+        (P.romBotCpaReductionWord keyLen A) bit n) =
+      ProbComp.eval ((P.finitePKE n).toPKE.cpaExperiment (fun _ _ _ => true)
+        ((P.finiteScheme keyLen n).romBotCpaReduction
+          (P.savedCoinAdversary keyLen machine c d keyC keyD n)) bit) :=
+  eval_gameOn_romFilterCpaReductionWord_eq hfit _ _
+    (fun pk sk hkeys st ct => simBotCheck_simRep (hfit n pk sk hkeys) st ct) machine c d keyC keyD
+    hreplay bit
 
 /-! ### The bridge -/
 
 /-- **The typed bridge of the word-level FO family.** For an efficient PKE family and a
 polynomial-time key length, every uniform strict oracle PPT ROM IND-CCA adversary `A` has a typed
-view: at each parameter `n`, a randomized adversary `B n` of the typed ROM IND-CCA game of
-`finiteScheme n`, with a polynomial bound `q` on its `G` and `H` queries. When the ciphertexts of
-`P` fit its ciphertext space,
+view: at each parameter `n`, a randomized adversary `B n` of the typed ROM IND-CCA games of
+`finiteScheme n`, with a polynomial bound `q` on its `G`, `H` and decapsulation queries. When the
+ciphertexts of `P` fit its ciphertext space,
 
-* the word game `romIndCcaGameWord A b n` has the law of `B n` playing the typed game
-  `roIndCcaGame` of `finiteScheme n`, for both challenge bits;
-* the advantage of the native reduction `romCpaReductionWord A` in the IND-CPA game of `P` at `n`
-  is the two-stage IND-CPA advantage of the typed reduction `romCpaReduction (B n)` against
-  `finitePKE n`.
+* the word games `romIndCcaGameWord A b n` of `FO-notbot` and `romIndCcaBotGameWord A b n` of
+  `FO^⊥` have the laws of `B n` playing the typed games `roIndCcaGame` and `roIndCcaBotGame` of
+  `finiteScheme n`, for both challenge bits;
+* the advantages of the native reductions `romCpaReductionWord A` and `romBotCpaReductionWord A`
+  in the IND-CPA game of `P` at `n` are the two-stage IND-CPA advantages of the typed reductions
+  `romCpaReduction (B n)` and `romBotCpaReduction (B n)` against `finitePKE n`.
 
 `B n` replays `A` on a saved coin tape of polynomial length (`savedCoinAdversary`). -/
 theorem IsEfficient.exists_typedAdversary (hP : P.IsEfficient)
@@ -1111,20 +1333,28 @@ theorem IsEfficient.exists_typedAdversary (hP : P.IsEfficient)
     {A : ℕ → List Bool → WordOracleComp CCAOp Bool} (hA : IsOraclePPT encBool A) :
     ∃ (B : (n : ℕ) → RandomizedROAdversary (List Bool) (BitString (P.msgLen n))
         (BitString (P.coinLen n)) (P.Ciphertext n) (BitString (keyLen n))) (q : ℕ → ℕ),
-      PolynomiallyBounded q ∧ (∀ n, (B n).QueryBounds (q n) (q n)) ∧
+      PolynomiallyBounded q ∧ (∀ n, (B n).FullQueryBounds (q n) (q n) (q n)) ∧
       (P.CiphertextFits → ∀ n,
         (∀ b, ProbComp.eval (P.romIndCcaGameWord keyLen A b n) =
           ProbComp.eval ((B n).play (P.finiteScheme keyLen n).roIndCcaGame b)) ∧
         Encryption.advantage (Encryption.gameOn P.IsMessagePair P.keyGen P.encrypt
             (P.romCpaReductionWord keyLen A)) n =
-          (P.finitePKE n).cpaAdvantage ((P.finiteScheme keyLen n).romCpaReduction (B n))) := by
+          (P.finitePKE n).cpaAdvantage ((P.finiteScheme keyLen n).romCpaReduction (B n)) ∧
+        (∀ b, ProbComp.eval (P.romIndCcaBotGameWord keyLen A b n) =
+          ProbComp.eval ((B n).play (P.finiteScheme keyLen n).roIndCcaBotGame b)) ∧
+        Encryption.advantage (Encryption.gameOn P.IsMessagePair P.keyGen P.encrypt
+            (P.romBotCpaReductionWord keyLen A)) n =
+          (P.finitePKE n).cpaAdvantage ((P.finiteScheme keyLen n).romBotCpaReduction (B n))) := by
   obtain ⟨k, Control, -, machine, c, d, keyC, keyD, hrun⟩ := exists_savedCoins hP hkeyLen hA
   refine ⟨fun n => P.savedCoinAdversary keyLen machine c d keyC keyD n,
-    fun n => c * (2 * n + 2 + keyC * (n + 1) ^ keyD) ^ d, by fun_prop,
-    fun n => savedCoinAdversary_queryBounds machine c d keyC keyD n, fun hfit n =>
-      ⟨fun b => eval_romIndCcaGameWord_eq hfit machine c d keyC keyD (hrun n) b, ?_⟩⟩
-  simp only [Encryption.advantage, ExplicitCoinPKE.cpaAdvantage, Experiment.advantage,
-    eval_gameOn_romCpaReductionWord_eq hfit machine c d keyC keyD (hrun n)]
+    savedCoinBudget c d keyC keyD, polynomiallyBounded_savedCoinBudget c d keyC keyD,
+    fun n => savedCoinAdversary_fullQueryBounds machine c d keyC keyD n, fun hfit n =>
+      ⟨fun b => eval_romIndCcaGameWord_eq hfit machine c d keyC keyD (hrun n) b, ?_,
+        fun b => eval_romIndCcaBotGameWord_eq hfit machine c d keyC keyD (hrun n) b, ?_⟩⟩
+  · simp only [Encryption.advantage, ExplicitCoinPKE.cpaAdvantage, Experiment.advantage,
+      eval_gameOn_romCpaReductionWord_eq hfit machine c d keyC keyD (hrun n)]
+  · simp only [Encryption.advantage, ExplicitCoinPKE.cpaAdvantage, Experiment.advantage,
+      eval_gameOn_romBotCpaReductionWord_eq hfit machine c d keyC keyD (hrun n)]
 
 end WordPKE
 

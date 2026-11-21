@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.GGM.Security
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PPT
 
 /-! GGM's evaluator, adaptive games, uniform reduction and conditional security theorem. Concrete
@@ -13,6 +14,9 @@ generators below exercise the certificates without being assumed pseudorandom. -
 namespace CslibFrontierTests.GGM
 
 open Turing.MultiTapeTM Cslib Cslib.Crypto Cslib.Probability
+
+-- Search compares certificate programs and encodings without unfolding machine witnesses.
+attribute [local irreducible] ComputableInPolyTime
 
 example : GGM.eval (fun seed => seed ++ seed.reverse ++ [true]) [false, true] [true, false] =
     [true, false] := by decide
@@ -79,10 +83,9 @@ example (generator : List Bool → List Bool) (n : ℕ) :
       (fun _ _ => ProbOracleComp.sample (ProbComp.uniform Bool)) n 0) =
         PMF.uniformOfFintype Bool := by
   rw [GGM.hybridGame_zero]
-  simp only [prfRealGame, ProbOracleComp.run, ProbComp.eval_bind, ProbOracleComp.eval_interpret]
-  simpa [ProbOracleComp.interpret_sample] using
-    (show OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform Bool) =
-      PMF.uniformOfFintype Bool from ProbComp.eval_uniform Bool)
+  simp only [prfRealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind,
+    ProbOracleComp.eval_interpret]
+  simp [interp_norm]
 
 -- Captured samplers and computed indices use ordinary list and option operations.
 example : IsPPTOn (encPair encUnary encBits) (encPair encBits GGM.cacheEncoding)
@@ -120,7 +123,7 @@ private noncomputable def siblings (_ : ℕ) (_ : List Bool) : WordOracleComp Un
   return first.headD false == second.headD false
 
 example : ProbComp.eval (GGM.expansionGame List.tail (BitString.sampleList 2) siblings 1 0) =
-    ProbComp.eval (prfIdealGame siblings 1) := by
+    ProbComp.eval (prfIdealGame id id siblings 1) := by
   rw [GGM.expansionGame_uniform List.tail siblings 1 0 (by decide), GGM.hybridGame_self]
 
 -- Every certified sampler and adaptive adversary compose through the complete-game contract.
@@ -151,8 +154,8 @@ private theorem siblings_queryBounds (n : ℕ) : (siblings n []).IsQueryBounded 
 
 -- The exact reduction loss applies to this randomized two-query client without a PPT premise.
 example (generator : List Bool → List Bool) :
-    Game.advantage (ProbComp.eval (prfRealGame (GGM.eval generator) siblings 1))
-        (ProbComp.eval (prfIdealGame siblings 1)) =
+    Game.advantage (ProbComp.eval (prfRealGame id (GGM.eval generator) siblings 1))
+        (ProbComp.eval (prfIdealGame id id siblings 1)) =
       dyadicSize 1 * dyadicSize 2 *
         Game.advantage
           (ProbComp.eval ((generator <$> BitString.sampleList 1) >>=

@@ -13,6 +13,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 
 /-!
@@ -39,6 +40,9 @@ deterministic polynomial time and security against uniform PPT adversaries.
 
 * [O. Goldreich, L. Levin, *A Hard-Core Predicate for All One-Way Functions*][GoldreichLevin1989]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09], Chapter 9.
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, March 2007 draft
+  `r4.pdf`][Goldreich2007DraftR4], Theorem 7.7 (PDF p. 12, printed p. 276) and Proposition 8.9
+  (PDF p. 66, printed p. 330).
 
 Adapted from Crypto/Computational/GoldreichLevin/HardCore.lean on the cslib `crypto` branch
 at `5ff69ca93402e7c947208dc56396d6d86203ccd8`, using the shared game API and tidy TM calculus.
@@ -65,8 +69,11 @@ def paddedPredicate (seed : List Bool) : Bool :=
 theorem polyTime_paddedFunction {f : List Bool → List Bool}
     (hf : ComputableInPolyTime f encBits encBits) :
     ComputableInPolyTime (paddedFunction f) encBits encBits := by
-  unfold paddedFunction
-  polytime
+  have hhalf := (ComputableInPolyTime.unary_div_const 2).comp
+    ComputableInPolyTime.length_bits
+  exact ComputableInPolyTime.bitsAppend
+    (hf.comp (ComputableInPolyTime.id'.bitsTakeWithInput hhalf))
+    (ComputableInPolyTime.id'.bitsDropWithInput hhalf)
 
 /-- The hard-core predicate is an efficient dot product of the two halves. -/
 @[fun_prop]
@@ -185,7 +192,9 @@ namespace Cslib.Crypto
 open GoldreichLevin
 
 /-- One-way permutations imply uniform polynomial-time pseudorandom generators with one-bit
-stretch. Goldreich–Levin supplies the hard-core predicate; uniformity supplies the ideal hybrid. -/
+stretch. Goldreich–Levin supplies the hard-core predicate; uniformity supplies the ideal hybrid.
+This is [Goldreich2007DraftR4], Proposition 8.9 (printed p. 330), applied to the padded function,
+a length-preserving permutation, with the hard-core predicate of Theorem 7.7 (printed p. 276). -/
 theorem OneWayPermutation.pseudorandomGenerator {f : List Bool → List Bool}
     (hf : OneWayPermutation f) :
     PseudorandomGenerator (generator f) (fun n => n + 1) :=

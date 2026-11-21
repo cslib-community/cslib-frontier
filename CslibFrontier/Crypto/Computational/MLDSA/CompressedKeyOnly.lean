@@ -45,6 +45,8 @@ unforgeability, and classical/QROM Fiat--Shamir transformations are not represen
 
 ## Main results
 
+* `Cslib.Crypto.MLDSA.compressedVerifierCommitment_eq_verifierCommitment_add_lowPart`: the
+  compressed commitment is the uncompressed commitment plus `c t₀`.
 * `Cslib.Crypto.MLDSA.isSelfTargetSolution_of_compressedVerify`: every compressed-verification
   forgery solves self-target Module-SIS at
   `max (γ₁ - β) (2γ₂ + 1 + τ 2^(d-1))`.
@@ -105,6 +107,24 @@ variable (P)
     Fin P.k → Fin P.n → ZMod P.q :=
   moduleSISMap pk.A z - fun i => negacyclicMul c (publicKeyHighTerm P d pk i)
 
+variable {P}
+
+/-- The compressed commitment is the uncompressed commitment plus `c t₀`. This is an
+algebraic bridge derived from `Power2Round`, not a separate statement of FIPS 204. -/
+theorem compressedVerifierCommitment_eq_verifierCommitment_add_lowPart [NeZero P.q]
+    (d : ℕ) (pk : PublicKey P) (z : Fin P.ℓ → Fin P.n → ZMod P.q)
+    (c : Fin P.n → ZMod P.q) :
+    compressedVerifierCommitment P d pk z c =
+      verifierCommitment P pk z c + fun i => negacyclicMul c (publicKeyLowPart P d pk i) := by
+  funext i
+  have ht := congrFun (publicKeyHighTerm_add_lowPart d pk) i
+  simp only [Pi.add_apply] at ht
+  simp only [compressedVerifierCommitment, verifierCommitment, Pi.add_apply, Pi.sub_apply]
+  rw [← ht, negacyclicMul_add]
+  ring
+
+variable (P)
+
 /-- Compressed verification in the simplified proof model. It checks the response and challenge,
 then hashes `UseHint(h, A z - c t₁ 2ᵈ, 2γ₂)`. The final FIPS hint-weight and byte-codec checks are
 not part of this semantic surface. -/
@@ -151,6 +171,19 @@ theorem selfTargetMap_compressedForgeryLowPart [NeZero P.q] (d : ℕ) (pk : Publ
   simp only [Pi.add_apply]
   ring
 
+/-- The high bits of the full self-target product of the corrected witness are exactly the
+high bits recovered from the hint and the rounded public key. -/
+theorem highBits_selfTargetMap_compressedForgeryLowPart (hP : P.Valid)
+    (hγq : 4 * P.γ₂ < P.q) (d : ℕ) (pk : PublicKey P) (σ : CompressedSignature P) :
+    highBitsVec P (selfTargetMap P pk (compressedForgeryLowPart P d pk σ) σ.z σ.c) =
+      fun i => useHintVec P.q P.γ₂ (σ.h i) (compressedVerifierCommitment P d pk σ.z σ.c i) := by
+  have : NeZero P.q := ⟨by have := hP.one_lt_q; lia⟩
+  rw [selfTargetMap_compressedForgeryLowPart]
+  funext i j
+  exact highBits_intCast_mul hP.γ₂_pos hP.two_mul_γ₂_dvd
+    (useHint_nonneg hP.γ₂_pos hγq _ _)
+    (useHint_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hγq _ _)
+
 private theorem abs_valMinAbs_add_le {q : ℕ} (a b : ZMod q) :
     |(a + b).valMinAbs| ≤ |a.valMinAbs| + |b.valMinAbs| := by
   rw [Int.abs_eq_natAbs, Int.abs_eq_natAbs, Int.abs_eq_natAbs]
@@ -194,12 +227,7 @@ theorem isSelfTargetSolution_of_compressedVerify (hP : P.Valid) (hγq : 4 * P.γ
     exact hle.trans (by
       exact_mod_cast (le_max_left (P.γ₁ - P.β)
         (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1))))
-  · rw [selfTargetHash, selfTargetMap_compressedForgeryLowPart]
-    convert hH using 3
-    funext i j
-    exact highBits_intCast_mul hP.γ₂_pos hP.two_mul_γ₂_dvd
-      (useHint_nonneg hP.γ₂_pos hγq _ _)
-      (useHint_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hγq _ _)
+  · simpa only [selfTargetHash, highBits_selfTargetMap_compressedForgeryLowPart hP hγq] using hH
 
 /-! ### Compressed key-only games and reductions -/
 
@@ -273,7 +301,7 @@ theorem succProbability_compressedKoaGame_le_selfTargetGame (hP : P.Valid)
   · rw [Bool.not_eq_true] at hv
     simp [hv]
 
-/-- **Compressed key-only unforgeability from Module-LWE and self-target MSIS.** Against honest
+/-- **Finite key-only bound in the compressed, polynomial-challenge model.** Against honest
 keys, success is at most the short-law Module-LWE advantage of the explicit distinguisher plus
 the uniform-key success probability of the explicit self-target solver. This semantic finite-game
 inequality supplies neither executable resource bounds nor an asymptotic/negligible corollary. -/

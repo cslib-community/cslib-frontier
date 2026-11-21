@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Complexity.Problems.IntegerProgramming
 import CslibFrontier.Computability.Complexity.Problems.JobSequencing
 import CslibFrontier.Computability.Complexity.Problems.Knapsack
 import CslibFrontier.Computability.Complexity.Problems.MaxCut
+import CslibFrontier.Computability.Complexity.Problems.MaxCut.Simple
 import CslibFrontier.Computability.Complexity.Problems.MaxTwoSAT
 import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Signed
 import CslibFrontier.Computability.Complexity.Problems.Partition
@@ -73,6 +74,11 @@ import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.GadgetCyclic
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Equality
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.SelfDual
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Construction
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.OneHotExpansion
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.CrossoverOriginal
+import CslibFrontier.Computability.PolyTime.CSP.Gadget.ConstructionCompiler
 import CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.Polymorphism
 import CslibFrontier.Computability.PolyTime.CSP.Table
 import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Size
@@ -398,7 +404,11 @@ Here is the tree, with the reduction for each edge and the completeness theorem 
   with deadlines and penalties ({name}`polyTimeReducible_SubsetSum_JobSequencing`,
   {name}`JobSequencing_npComplete`). Partition reduces to weighted maximum cut through Karp's
   complete graph weighted by products ({name}`polyTimeReducible_Partition_MaxCut`,
-  {name}`MaxCut_npComplete`).
+  {name}`MaxCut_npComplete`). Expanding binary weights into unit edges is exponential, so
+  unweighted maximum cut on simple graphs, with the bound `K` in binary, is proved separately.
+  NAE EU3SAT reduces to it through a triangle per clause plus an edge between `x` and `¬x` per
+  literal, with every edge then subdivided into a path of three edges
+  ({name}`polyTimeReducible_NAEEUThreeSAT_SimpleMaxCut`, {name}`SimpleMaxCut_npComplete`).
 * SAT reduces to independent set ({name}`polyTimeReducible_SAT_IndependentSet`,
   {name}`IndependentSet_npComplete`), which reduces to clique
   ({name}`polyTimeReducible_IndependentSet_Clique`, {name}`Clique_npComplete`) and vertex cover
@@ -2164,8 +2174,8 @@ example :
 
 `CslibFrontierTests/PlanarEqualityBoundary.lean` ties that table to the exact
 original-language NAE body and derives disequality and both OneHot pins.
-Generic attachment and the complete static grammar are supplied below;
-expanded-language macros remain separate obligations.
+Generic attachment, the complete static grammar and expanded-language macros
+are supplied below.
 The raw table program uses bounded predecessor lookup, an outgoing swap and
 prefix restriction. Its residual arity is static; it carries no uniform native
 runtime claim for arbitrary binary arity or language/template size.
@@ -2301,12 +2311,136 @@ Run `scripts/build.sh CslibFrontierTests.PlanarConstructionBoundary CslibFrontie
 These are static finite constructors. General projection/cyclic inverses use
 finite choice and are intentionally `noncomputable`. Fixing a language and
 its templates permits nonuniform certificate preprocessing; it does not prove
-the input-varying native compiler's target acceptance or framed time bound.
-Figure 1/NAND boundary tables are macro skeletons until original-language
-substitution is supplied. OneHot3/CROSS macro expansion, normalization caps
-and Figure-1 substitution, native target acceptance, geometric/
-source comparison, recognition and full #3091 remain open.
+a preprocessing bound in the size of varying trees or languages. The next
+section supplies full target acceptance and framed native time for fixed trees.
+Figure 1/NAND boundary tables feed the original-language expansions below.
+Geometric/source-model comparison, native hardness reductions, recognition and
+full #3091 remain open.
 
+
+# Certified Native Ordered-Gadget Substitution
+
+Import `...CSP.Planar.Substitution.Genus` for full acceptance of the exact
+replacement body and computed table. Actual checked gadget boundaries and
+source well-formedness/checker acceptance suffice. Neither alphabet need be
+finite, and no target genus or order provider is supplied:
+
+```lean
+section
+open Cslib.Logic.PL Cslib.Logic.PL.CSP Cslib.Complexity.CSP
+open Cslib.Complexity.CSP.GadgetRotation Cslib.Complexity.CSP.OrderedBoundary
+
+example {Src Rel : Type} {arity : Rel → ℕ} {sem : Rel → List Bool → Bool}
+    {srcArity : Src → ℕ} {srcSem : Src → List Bool → Bool}
+    (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
+    (witnesses : ∀ r, GadgetWitness (gadgets r)) (B : ℕ)
+    (hB : ∀ r, (gadgets r).numAux ≤ B) (F : CSP Src ℕ)
+    (hF : WellFormed srcArity F)
+    (c : Cslib.Complexity.Graph.RotationCertificate)
+    (hc : verifyRotationCertificate F c = true) :
+    verifyRotationCertificate
+      (replaceGadgets B (fun r => (gadgets r).template) F)
+      (replacementCertificate B (fun r => (gadgets r).template)
+        (fun r => freeBoundaryBlocks (gadgets r) (witnesses r))
+        (fun r => auxiliaryBoundaryBlocks (gadgets r) (witnesses r))
+        F c) = true :=
+  verifyRotationCertificate_replacementCertificate
+    gadgets witnesses B hB F hF c hc
+end
+```
+
+Import `...PolyTime.CSP.Gadget.ConstructionCompiler` for the total compiler.
+Each fixed source symbol has one actual tree. The wrapper interprets its
+original-language gadget, invokes `orderedWitness` and derives the auxiliary
+bound internally, including enabling pin and disequality subtrees.
+Only the source alphabet is finite; the target alphabet is arbitrary:
+
+```lean
+section
+open Cslib.Logic.PL Cslib.Logic.PL.CSP Cslib.Complexity.CSP
+open Cslib.Complexity.CSP.GadgetRotation Turing.MultiTapeTM
+
+example {Src Rel : Type} [Finite Src] {arity : Rel → ℕ}
+    {sem : Rel → List Bool → Bool}
+    {srcArity : Src → ℕ} {srcSem : Src → List Bool → Bool}
+    (trees : ∀ r, RelationMinor.Construction arity sem
+      (booleanRelation srcArity srcSem r))
+    (encSrc : Src ↪ List Bool) (encRel : Rel ↪ List Bool) :
+    ComputableInPolyTime (compileConstructions trees)
+      (encCSPRotationCertificate encSrc encNat)
+      (encCSPRotationCertificate encRel encNat) :=
+  computableInPolyTime_compileConstructions encSrc encRel trees
+
+example {Src Rel : Type} [Finite Src] {arity : Rel → ℕ}
+    {sem : Rel → List Bool → Bool}
+    {srcArity : Src → ℕ} {srcSem : Src → List Bool → Bool}
+    (trees : ∀ r, RelationMinor.Construction arity sem
+      (booleanRelation srcArity srcSem r))
+    (p : CSP Src ℕ × Cslib.Complexity.Graph.RotationCertificate) :
+    (WellFormed arity (compileConstructions trees p).1 ∧
+      verifyRotationCertificate (compileConstructions trees p).1
+        (compileConstructions trees p).2 = true ∧
+      (compileConstructions trees p).1.Satisfiable sem) ↔
+      WellFormed srcArity p.1 ∧ verifyRotationCertificate p.1 p.2 = true ∧
+        p.1.Satisfiable srcSem :=
+  wellFormed_certifiedSatisfiable_compileConstructions_iff trees p
+end
+```
+
+The guard checks source arities and the full original source certificate.
+The accepted branch is the literal replacement body and computed table.
+The rejected branch is `([], ⟨[0]⟩)`, whose checker rejects even with an empty
+target alphabet. Target acceptance is exactly that guard on all raw inputs.
+
+`exists_framed_bound_compileConstructions` bounds the complete encoded
+output, including symbols, binary names, framing and successor entries.
+Trees and possibly noncomputable witness/boundary preprocessing are fixed
+nonuniform data. The native machine certificate concerns the varying input,
+with no preprocessing bound for varying trees/languages or Lean code-generation
+claim for the noncomputable wrapper. No embedding search is performed.
+
+`CslibFrontierTests/CSPGadgetGenus.lean` is a low-only ordinary import client.
+`CslibFrontierTests/CSPConstructionCompiler.lean` also checks Empty-to-Empty
+rejection and valid-empty acceptance. The original non-atom tree in
+`PlanarConstructionBoundary` applies the final wrapper, proving acceptance
+and SAT/UNSAT with repeated sparse names. Executed substitution tests include
+closed auxiliary/nullary components, unused ports, duplicate degree-six rows,
+literal output tables and sparse `2^250` names.
+Run `scripts/build.sh CslibFrontierTests.CSPGadgetGenus CslibFrontierTests.CSPConstructionCompiler CslibFrontierTests.CSPGadgetSubstitution --wfail --iofail`.
+
+Expanded original-language OneHot3/CROSS witnesses follow below. Source-model
+comparison, native hardness reductions, bare recognition, Hanani–Tutte and full
+#3091 remain open. The finite PL equivalence is already proved.
+
+# Static Expansion of Checked Macros
+
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion`.
+`w.expand gadgets witnesses B hB` constructs the witness for exactly
+`g.expand gadgets` from a checked macro `w : GadgetWitness g` and checked
+replacement gadgets. Original macro auxiliaries precede separate per-occurrence
+blocks of their actual sizes. Repeated copies, nullaries, closed components,
+unused ports and empty boundaries are retained. The bound `B` concerns the
+numeric intermediate representation; neither alphabet must be finite.
+The numeric naming injection, full checker acceptance and original free order
+are proved internally. This is static preprocessing, with no native runtime
+claim for varying languages/templates or arbitrary PP planarity-closure claim.
+`CslibFrontierTests/CSPGadgetExpansion.lean` checks an explicit computed ten-entry
+table, full checkers and SAT/UNSAT rows.
+
+```lean
+open Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.Complexity.CSP.OrderedBoundary in
+example {Src Rel : Type} {srcArity : Src → ℕ}
+    {srcSem : Src → List Bool → Bool} {ar : Rel → ℕ}
+    {s : Rel → List Bool → Bool} {n : ℕ}
+    {R : Set (Fin n → Bool)} {g : PPGadget srcArity srcSem R}
+    (w : GadgetWitness g)
+    (gadgets : ∀ r, PPGadget ar s (booleanRelation srcArity srcSem r))
+    (witnesses : ∀ r, GadgetWitness (gadgets r)) (B : ℕ)
+    (hB : ∀ r, (gadgets r).numAux ≤ B) :
+    Nonempty (GadgetWitness (g.expand gadgets)) :=
+  ⟨w.expand gadgets witnesses B hB⟩
+```
 
 # Original-Language Ordered Disequality
 
@@ -2382,9 +2516,8 @@ and checks repeated scopes, nullary operations and false nullary constraints.
 
 The descent follows DK Lemma 3, printed pp. 437–438; actual-body ordered
 reconstruction is original. The existing static grammar has ordered witnesses;
-expanded-language macros,
-native target acceptance, geometry/source comparison, recognition and full
-#3091 remain open.
+expanded-language macros are supplied below. Geometric/source-model comparison,
+native hardness reductions, recognition and full #3091 remain open.
 
 # Finite Crossover Gadget Semantics
 
@@ -2412,8 +2545,35 @@ example : ∃ b, figureOneB.body.eval nearSem
 ```
 
 Both bodies retain the source diagram's numbered port order and use guarded
-scope widths. These results concern finite semantics; geometric realization,
-planar substitution, hardness and a new native runtime certificate remain open.
+scope widths. Import
+`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.CrossoverExpansion` for
+the actual original-language expansions and their ordered witnesses. Every
+copy receives a separate auxiliary block, including repeated four-port macros.
+The complete common-NOT endpoint is in `Embedding.CrossoverOriginal`:
+absence of the six Schaefer operations, common NOT and a nonempty bad ORIGINAL
+relation supply an actual original-language CROSS gadget and checked witness.
+Disequality, normalization and both figures are derived internally.
+
+```lean
+open Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.BitString Cslib.Complexity.CSP.OrderedBoundary in
+example {Rel : Type} {ar : Rel → ℕ}
+    {s : Rel → List Bool → Bool}
+    (h : ¬HasSchaeferPolymorphism ar s)
+    (hnot : HasPolymorphism ar s
+      (fun a : Fin 1 → Bool => !(a 0)))
+    (r : Rel) (hne : (booleanRelation ar s r).Nonempty)
+    (hbad : ¬IsEvenDeltaMatroid
+      (cyclicDifferenceRelation (booleanRelation ar s r))) :
+    ∃ g : PPGadget ar s cross, Nonempty (GadgetWitness g) :=
+  Crossover.exists_orderedCrossGadget h hnot r hne hbad
+```
+
+`PlanarExpandedMacros` executes source checkers, all standardized rows, the full
+56-entry target table, reflection rejection and SAT/UNSAT. The complete
+`PlanarExpandedCrossover` client proves the original-language hypotheses and
+checks returned-body truth rows. These static numerical witnesses add no native
+hardness reduction, recognition or source-geometric correspondence theorem.
 
 
 # Ordered Cyclic-Obstruction Normalization
@@ -2445,10 +2605,53 @@ one or two disequality spokes per original port; later steps relabel scopes.
 The bounds count constraints, scope occurrences and allocated auxiliaries, including
 unused labels. They assert neither native runtime nor binary encoded size.
 
-This is an original combinatorial reconstruction of the omitted argument behind
-Dvořák–Kupec Lemma 6, not its full planar-expressibility conclusion. Geometric
-realization and the full planar theorem remain open. Complete nonvacuous clients
-are in `CslibFrontierTests/PlanarNormalization.lean`.
+For ordered numerical witnesses of the reduction program, import
+`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization.Program`.
+`p.orderedWitness w` constructs a witness for exactly `p.gadget g` from an actual
+`GadgetWitness g`. Rotation preserves positive cyclic order; ordinary and wrap
+identifications keep their specified survivor word. The cap inserts the newly
+hidden old port 2 before all old auxiliaries. No degree or connectedness restriction
+is imposed. See `CslibFrontierTests/PlanarNormalizationBoundaryProgram.lean` for
+checked repeated-scope, unused-port, previous-auxiliary and closed-nullary clients.
+
+```lean
+open Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.Complexity.CSP.OrderedBoundary in
+example {Rel : Type} {ar : Rel → ℕ}
+    {s : Rel → List Bool → Bool} {n m : ℕ}
+    {R : Set (Fin n → Bool)} {g : PPGadget ar s R}
+    (p : Normalization.Program n m) (w : GadgetWitness g) :
+    Nonempty (GadgetWitness (p.gadget g)) :=
+  ⟨p.orderedWitness w⟩
+```
+
+For the complete construction, import
+`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization`.
+Every `c : Normalization.Construction R` supplies `c.orderedWitness`, a witness
+of exactly `c.gadget` with no provider premise. The initial twist retains the
+original relation row, ordered one/two disequality spokes, and all allocated
+middle labels, including unused ones. Its checked clients are in
+`CslibFrontierTests/PlanarNormalizationBoundaryTwist.lean`; the separate table
+clients identify noncomputable certificates by uniqueness before checking
+explicit displayed tables with kernel decision.
+
+```lean
+open Cslib.BitString Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.Complexity.CSP.OrderedBoundary in
+example {n : ℕ} (R : Set (Fin n → Bool)) (hne : R.Nonempty)
+    (hself : IsSelfComplementary R)
+    (hfail : ¬IsEvenDeltaMatroid (cyclicDifferenceRelation R)) :
+    ∃ c : Normalization.Construction R,
+      Nonempty (GadgetWitness c.gadget) := by
+  obtain ⟨_, ⟨c⟩⟩ := Normalization.exists_construction R hne hself hfail
+  exact ⟨c, ⟨c.orderedWitness⟩⟩
+```
+
+This is an original numerical reconstruction of the omitted argument behind
+Dvořák–Kupec Lemma 6. Expanded original-language witnesses follow below;
+geometric/source-model correspondence, native hardness reductions and the full
+planar theorem remain open. The combinatorial
+clients are in `CslibFrontierTests/PlanarNormalization.lean`.
 
 
 # Original-Language Nonselfdual Gadgets
@@ -2486,8 +2689,31 @@ retains orientation. The arbitrary-arity parity and majority minor arguments are
 original reconstructions of the proof omitted from Dvořák–Kupec Lemma 4, printed
 pp. 438–439. The constants descent follows Lemma 3, pp. 437–438.
 
-This proves finite primitive-positive semantics. Witness selection is fixed-language
-data, without a uniform preprocessing bound. Geometric realization, ordered planar
-substitution, native hardness transfer and the full dichotomy remain open. Complete
-clients, including a one-symbol language without primitive pins or disequality,
-are in `CslibFrontierTests/PlanarConstructionGadget.lean`.
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.OneHotExpansion`.
+`NonSelfDual.triangleGadgetOrderedWitness` certifies exactly the existing
+`triangleGadget`, including the independently fresh NAND copies and old auxiliary
+layout. `NonSelfDual.exists_orderedOneHotGadget` needs only absence of the six
+Schaefer operations and absence of common NOT; all enabling trees, pins, disequality and
+ordered witnesses are constructed internally.
+
+```lean
+open Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.BitString Cslib.Complexity.CSP.OrderedBoundary in
+example {Rel : Type} {ar : Rel → ℕ}
+    {s : Rel → List Bool → Bool}
+    (h : ¬HasSchaeferPolymorphism ar s)
+    (hn : ¬HasPolymorphism ar s
+      (fun a : Fin 1 → Bool => !(a 0))) :
+    ∃ g : PPGadget ar s (oneHotRelation (Fin 3)),
+      Nonempty (GadgetWitness g) :=
+  NonSelfDual.exists_orderedOneHotGadget h hn
+```
+
+`CslibFrontierTests/PlanarExpandedOneHot.lean` checks the exact ten-row body,
+used/unused auxiliaries, closed/nullary components, a full 30-entry target table
+and all truth rows, then applies the full original-language endpoint.
+Witness selection remains fixed-language data without a uniform preprocessing
+bound. Native hardness reductions, geometric/source-model correspondence and
+full #3091 remain open. The earlier finite semantic clients, including a
+one-symbol language without primitive pins or disequality, remain in
+`CslibFrontierTests/PlanarConstructionGadget.lean`.

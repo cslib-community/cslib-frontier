@@ -43,10 +43,12 @@ continuation by at most `1 / 2 ^ n`. Combining this with the exact hiding and bi
   `pedersenHidingProbExperiment` (where both key generation `pedersenKeyDistProb` and challenge
   commitment sampling `pedersenCommitProb` use `sampleExp`, with advantage at most
   `1 / m + 4 / 2 ^ n` and uniform strict-PPT certificate `isPPTOn_pedersenHidingProbExperiment`),
-  and
-* `pedersenScheme.hidingGame (F.pedersenKeyDistProb setup)` and
-  `pedersenScheme.bindingGame (F.pedersenKeyDistProb setup)` (`StatisticalHiding`,
-  `ComputationalHiding`, and `Binding` under `F.DiscreteLog setup`).
+* `pedersenScheme.bindingGame (F.pedersenKeyDistProb setup)` (`Binding` under
+  `F.DiscreteLog setup`), which never invokes `commitDist`, and
+* as an ideal-sampling step, `pedersenScheme.hidingGame (F.pedersenKeyDistProb setup)`, which
+  samples the key with `sampleExp` but still draws the commitment randomness exactly uniformly at
+  the `PMF` level through `pedersenScheme.commitDist`, because `CommitmentScheme.commitDist` takes
+  no security parameter (#6133).
 
 ## Main definitions
 
@@ -78,10 +80,19 @@ continuation by at most `1 / 2 ^ n`. Combining this with the exact hiding and bi
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_pedersenHidingProbGame_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingProbGame`: concrete and
   asymptotic hiding for `pedersenHidingProbForKey` and `pedersenHidingProbGame`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_pedersenHidingGame_pedersenKeyDistProb_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenScheme_statisticalHiding_pedersenKeyDistProb`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb`:
-  `StatisticalHiding` and computational `Binding` of `pedersenScheme` under `pedersenKeyDistProb`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb`:
+  computational `Binding` of `pedersenScheme` under `pedersenKeyDistProb`.
+
+## Ideal-sampling step
+
+`pedersenScheme.hidingGame (F.pedersenKeyDistProb setup)` draws the commitment randomness exactly
+uniformly at the `PMF` level, so the results about it are steps toward
+`negligible_advantage_pedersenHidingProbGame`, not the cited result.
+
+* `PrimeOrderGroupFamily.advantage_pedersenHidingGame_pedersenKeyDistProb_le`,
+  `PrimeOrderGroupFamily.negligible_advantage_pedersenHidingGame_ideal_pedersenKeyDistProb`,
+  `PrimeOrderGroupFamily.pedersenScheme_statisticalHiding_ideal_pedersenKeyDistProb`:
+  `StatisticalHiding` of `pedersenScheme` under `pedersenKeyDistProb`, with ideal commitments.
 -/
 
 public section
@@ -196,8 +207,8 @@ theorem isPPTOn_pedersenKeyGenProb :
   have hn := ComputableInPolyTime.fst encUnary F.encDesc
   have hd := ComputableInPolyTime.snd encUnary F.encDesc
   have hs := F.isPPTOn_sampleExp hn hd
-  have hg := F.computableInPolyTime_generator.tidy
-  have hsmul := F.computableInPolyTime_smul.tidy
+  have hg := F.computableInPolyTime_generator
+  have hsmul := F.computableInPolyTime_smul
   have hpair : ComputableInPolyTime
       (fun q : (ℕ × F.Desc) × ℕ =>
         (q.1.2, F.smul (q.1.2, q.2, F.encode q.1.2 (F.generator q.1.2))))
@@ -438,7 +449,7 @@ theorem isPPTOn_pedersenHidingProbExperiment {adversary : Encryption.WordAdversa
     exact hA.choose.preprocess
       (parameter := fun p : (ℕ × F.Desc) × F.PedersenKey => p.1.1)
       (auxiliary := fun p : (ℕ × F.Desc) × F.PedersenKey => F.pedersenScheme.encodeKey p.2)
-      hn.tidy (henc.comp hk).tidy
+      hn (henc.comp hk)
   have hmsg : ComputableInPolyTime
       (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) =>
         if bit && F.validPedersenMessageBool q.1.2.1 q.2.1.1 &&
@@ -515,8 +526,14 @@ theorem advantage_pedersenHidingGame_pedersenKeyDistProb_le (setup : ℕ → PMF
         add_le_add_left (add_le_add_right hmid _) _
     _ = 1 / m + 2 / 2 ^ n := by ring
 
-/-- **Asymptotic unconditional hiding of `pedersenScheme` under `pedersenKeyDistProb`**. -/
-theorem negligible_advantage_pedersenHidingGame_pedersenKeyDistProb (setup : ℕ → PMF F.Desc)
+/-- Ideal-sampling step toward `negligible_advantage_pedersenHidingProbGame`, not the cited result:
+when every supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is
+negligible, every (even computationally unbounded) `Encryption.WordAdversary` has negligible
+advantage in `F.pedersenScheme.hidingGame (F.pedersenKeyDistProb setup)`, which samples the key
+with `sampleExp` but draws the commitment randomness exactly uniformly at the `PMF` level. The
+native `CommitmentScheme` form is blocked on #6133. -/
+theorem negligible_advantage_pedersenHidingGame_ideal_pedersenKeyDistProb
+    (setup : ℕ → PMF F.Desc)
     (adversary : Encryption.WordAdversary)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
@@ -526,22 +543,18 @@ theorem negligible_advantage_pedersenHidingGame_pedersenKeyDistProb (setup : ℕ
   negligible using fun n =>
     F.advantage_pedersenHidingGame_pedersenKeyDistProb_le setup adversary n (m n) (hm0 n) (hm n)
 
-/-- **Statistical hiding (`CommitmentScheme.StatisticalHiding`) of `pedersenScheme` under
-`pedersenKeyDistProb`**. -/
-theorem pedersenScheme_statisticalHiding_pedersenKeyDistProb (setup : ℕ → PMF F.Desc)
+/-- Ideal-sampling step toward `negligible_advantage_pedersenHidingProbGame`, not the cited result:
+`pedersenScheme` is statistically hiding (`CommitmentScheme.StatisticalHiding`) under the key law
+`pedersenKeyDistProb setup`, which samples the key with `sampleExp`, while
+`pedersenScheme.commitDist` still draws the commitment randomness exactly uniformly at the `PMF`
+level, because `CommitmentScheme.commitDist` takes no security parameter (#6133). -/
+theorem pedersenScheme_statisticalHiding_ideal_pedersenKeyDistProb (setup : ℕ → PMF F.Desc)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
     F.pedersenScheme.StatisticalHiding (F.pedersenKeyDistProb setup) :=
   fun adversary _ =>
-    F.negligible_advantage_pedersenHidingGame_pedersenKeyDistProb setup adversary hm0 hm hinv
-
-/-- **Computational hiding (`CommitmentScheme.ComputationalHiding`) of `pedersenScheme` under
-`pedersenKeyDistProb`**. -/
-theorem pedersenScheme_computationalHiding_pedersenKeyDistProb (setup : ℕ → PMF F.Desc)
-    {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
-    (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
-    F.pedersenScheme.ComputationalHiding (F.pedersenKeyDistProb setup) :=
-  (F.pedersenScheme_statisticalHiding_pedersenKeyDistProb setup hm0 hm hinv).computationalHiding
+    F.negligible_advantage_pedersenHidingGame_ideal_pedersenKeyDistProb setup adversary hm0 hm
+      hinv
 
 private theorem advantage_pedersenBindingGame_pedersenKeyDistProb_bindingGame_le
     (setup : ℕ → PMF F.Desc)
@@ -569,27 +582,14 @@ theorem succProbability_pedersenBindingGame_pedersenKeyDistProb_le (setup : ℕ 
     (F.advantage_pedersenBindingGame_pedersenKeyDistProb_bindingGame_le setup adversary n)).trans
     (add_le_add (F.succProbability_pedersenBindingGame_le_discreteLogGame setup adversary n) le_rfl)
 
-/-- **Computational binding of Pedersen commitments under `pedersenKeyDistProb` and the
-discrete-logarithm assumption**. -/
-theorem DiscreteLog.pedersenBinding_pedersenKeyDistProb {F : PrimeOrderGroupFamily}
-    {setup : ℕ → PMF F.Desc} (hDL : F.DiscreteLog setup)
-    (adversary : ℕ → List Bool →
-      ProbComp (List Bool × (List Bool × List Bool) × (List Bool × List Bool)))
-    (hA : IsPPTOn (encPair encUnary encBits)
-      (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits)))
-      (fun input => adversary input.1 input.2)) :
-    Negligible fun n =>
-      Game.succProbability
-        (F.pedersenScheme.bindingGame (F.pedersenKeyDistProb setup) adversary n) := by
-  have hdl := hDL (F.pedersenToDLAdversary adversary) (F.isPPTOn_pedersenToDLAdversary hA)
-  negligible using fun n =>
-    F.succProbability_pedersenBindingGame_pedersenKeyDistProb_le setup adversary n
-
 /-- **Computational binding (`CommitmentScheme.Binding`) of `pedersenScheme` under
 `pedersenKeyDistProb` and the discrete-logarithm assumption**. -/
 theorem DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} (hDL : F.DiscreteLog setup) :
-    F.pedersenScheme.Binding (F.pedersenKeyDistProb setup) :=
-  fun adversary hA => hDL.pedersenBinding_pedersenKeyDistProb adversary hA
+    F.pedersenScheme.Binding (F.pedersenKeyDistProb setup) := by
+  intro adversary hA
+  have hdl := hDL (F.pedersenToDLAdversary adversary) (F.isPPTOn_pedersenToDLAdversary hA)
+  negligible using fun n =>
+    F.succProbability_pedersenBindingGame_pedersenKeyDistProb_le setup adversary n
 
 end Cslib.Crypto.PrimeOrderGroupFamily

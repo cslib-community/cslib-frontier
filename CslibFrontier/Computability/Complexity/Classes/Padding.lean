@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.EXP
 public import CslibFrontier.Computability.Complexity.Classes.NP.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Complexity.Classes.NP.GuessVerify
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -407,8 +408,7 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
     {S : α → ℕ} (hB : B ∈ NP encBits)
     (hg : Turing.MultiTapeTM.ComputableInO g enc encBits (fun a => T₀ (enc a).length) S) :
     ∃ d, g ⁻¹' B ∈ NTIME enc fun n => (T₀ n + 1) ^ d := by
-  have hg := hg.tidy
-  obtain ⟨c₀, ⟨k₀, State₀, hfinite₀, tm, htm⟩, -⟩ := hg
+  obtain ⟨c₀, ⟨k₀, State₀, hfinite₀, tm, htm⟩, -⟩ := Turing.MultiTapeTM.Internal.NormalForm.inO hg
   set t₁ : α → ℕ := fun a => c₀ * (T₀ (enc a).length + 1)
   have htm_run (a : α) :
       tm.runFrom (tm.initCfg (enc a)) (t₁ a) = wordsCfg (enc a) none (fun _ => []) (g a) :=

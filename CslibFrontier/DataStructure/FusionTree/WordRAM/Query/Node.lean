@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Query.Program
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Preprocessing
 public import CslibFrontier.DataStructure.FusionTree.Routing
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual preprocessed-node calls from traversal
@@ -39,11 +40,7 @@ theorem Entry.frame {q p : ℕ} {x y : Data registers} (hx : Entry q p x)
     (hq : y.regs query = q) (hp : y.regs pointer = p)
     (hf : ∀ i : Fin registers, 31 ≤ i.val → i.val < 39 → y.regs i = x.regs i) :
     Entry q p y :=
-  ⟨hq, hp, (hf active (by decide) (by decide)).trans hx.active_eq,
-    (hf found (by decide) (by decide)).trans hx.found_eq,
-    (hf value (by decide) (by decide)).trans hx.value_eq,
-    (hf one (by decide) (by decide)).trans hx.one_eq,
-    (hf zero (by decide) (by decide)).trans hx.zero_eq⟩
+  ⟨hq, hp, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩
 
 /-- Whole-tree representation projects to the exact chosen fusion-node witness. -/
 private theorem node_rep {w m p : ℕ} {cs : List Tree} {mem : ℕ → ℕ}

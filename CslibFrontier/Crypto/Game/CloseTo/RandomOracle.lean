@@ -156,7 +156,7 @@ theorem closeTo_run_interpret_memoize_cons (distribution : Query → PMF Value)
       (((interpret (memoize distribution) program).run ((target, value) :: cache)).map Prod.fst)
       (((interpret (memoize distribution) program).run cache).map Prod.fst)
       (((interpret (withTranscript (memoize distribution)) program).run (cache, [])).toOuterMeasure
-        {out | ∃ entry ∈ out.2.2, entry.1 = target}) := by
+        {(_, _, trace) | ∃ entry ∈ trace, entry.1 = target}) := by
   classical
   have h := closeTo_answer_update distribution target value program (ofList cache)
   have hl := congrArg (PMF.map Prod.fst)

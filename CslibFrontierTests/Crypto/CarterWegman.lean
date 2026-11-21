@@ -128,12 +128,12 @@ example (family : List Bool → List Bool → List Bool) :
       (OneTimeForger.ofProbComp sampleBitStringQuery sampleBitStringForge) true).toReal ≤
       (((Fintype.card (BitString 2) : ℝ≥0∞))⁻¹).toReal +
         (Game.advantage
-          (ProbComp.eval (prfRealGame family
+          (ProbComp.eval (prfRealGame id family
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
                 (BitString.ofList 2 (List.ofFn r))) 2))
-          (ProbComp.eval (prfIdealGame
+          (ProbComp.eval (prfIdealGame id id
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
@@ -148,12 +148,12 @@ example (family : List Bool → List Bool → List Bool) :
       (OneTimeForger.ofProbComp sampleBitStringQuery sampleBitStringForge) true).toReal ≤
       (((Fintype.card (BitString 2) : ℝ≥0∞))⁻¹).toReal +
         (Game.advantage
-          (ProbComp.eval (prfRealGame family
+          (ProbComp.eval (prfRealGame id family
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
                 (BitString.ofList 2 (List.ofFn r))) 2))
-          (ProbComp.eval (prfIdealGame
+          (ProbComp.eval (prfIdealGame id id
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
@@ -176,7 +176,7 @@ theorem prfPadDist_insecureZeroFamily (n : ℕ) :
 -- succeeds with probability `1` in `prfRealGame` against `insecureZeroFamily`.
 example :
     ProbComp.eval
-      (prfRealGame insecureZeroFamily
+      (prfRealGame id insecureZeroFamily
         (prfPadDistinguisher fun k (r : BitString k) =>
           pure (decide (r = BitString.ofList k (List.replicate k false)))) 2)
       true = 1 := by
@@ -206,18 +206,6 @@ example :
           (fun _ => pure [])
           (fun _ _ t => pure ([true], t)))) :=
   isOraclePPT_prfPadDistinguisher_wordProbPadTest (by ppt) (by polytime) (by ppt) (by ppt)
-
-/-- Two-slot `n`-bit nonce schedule: slot `0` has leading bit `false` and slot `1` has leading bit
-`true`, padded with `n - 1` `false` bits. For every `n ≥ 1`, both nonces have length `n` and are
-distinct on `{0, 1}`. -/
-def twoSlotNonce (n i : ℕ) : List Bool :=
-  decide (i = 1) :: List.replicate (n - 1) false
-
--- Concrete `IsOraclePPT` admissibility check for `prfMultiPadDistinguisher` with `twoSlotNonce`.
-example :
-    IsOraclePPT Turing.MultiTapeTM.encBool
-      (prfMultiPadDistinguisher (fun _ => 2) twoSlotNonce (fun _ _ => pure false)) :=
-  isOraclePPT_prfMultiPadDistinguisher (by polytime) (by unfold twoSlotNonce; polytime) (by ppt)
 
 -- Concrete `checkNonceSUF` and `checkRandomNonceSUF` checks over `ZMod 7`:
 -- issued nonce `0` with `m₀ = [2, 4]`, `t₀ = 5`, pad function `fun x => if x = 0 then 4 else 1`.
@@ -323,15 +311,15 @@ theorem isOraclePPT_twoQueryNonceMACForger :
         List.take p.1 <$>
           ProbOracleComp.query
             ((), encPair encBits encBits (List.replicate p.1 false, List.replicate p.1 false))) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
   have hq1 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take q.1.1 <$>
           ProbOracleComp.query
             ((), encPair encBits encBits
               (List.replicate q.1.1 true, true :: List.replicate (q.1.1 - 1) false))) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
-  have hstep1 := hq1.map_with'
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
+  have hstep1 := hq1.map_with
     (output := encPair (encPair encBits encBits) encBits)
     (f := fun (q : (ℕ × List Bool) × List Bool) t₁ =>
       ((List.replicate q.1.1 false, true :: List.replicate (q.1.1 - 1) false),
@@ -371,11 +359,11 @@ example {family : List Bool → List Bool → List Bool}
       ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹ +
         (Game.advantage
           (ProbComp.eval
-            (prfRealGame family
+            (prfRealGame id family
               (prfNonceToPrfDistinguisher id (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryNonceMACForger) n))
           (ProbComp.eval
-            (prfIdealGame
+            (prfIdealGame id id
               (prfNonceToPrfDistinguisher id (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryNonceMACForger) n)) : ℝ) :=
   sufCmaGame_linearHashNonceMAC_toReal_le
@@ -393,6 +381,13 @@ example (M : NonceMACScheme) (n : ℕ) (sk : List Bool) (request : Unit × List 
     M.counterSigningOracle n sk request (2 ^ M.nonceLen n, issued) =
       pure ([], 2 ^ M.nonceLen n, issued) := by
   simp [NonceMACScheme.counterSigningOracle]
+
+-- A request of the wrong length is refused without using a counter value: the reply is the empty
+-- word and the state, counter included, is unchanged.
+example (M : NonceMACScheme) (n j : ℕ) (sk msg : List Bool) (hmsg : msg.length ≠ M.msgLen n)
+    (issued : List ((List Bool × List Bool) × List Bool)) :
+    M.counterSigningOracle n sk ((), msg) (j, issued) = pure ([], j, issued) := by
+  simp [NonceMACScheme.counterSigningOracle, hmsg]
 
 -- The counter game unfolds in a client: a forger that outputs a message of the wrong length
 -- without querying never wins.
@@ -447,13 +442,13 @@ theorem isOraclePPT_twoQueryRandomMACForger :
       (fun p : ℕ × List Bool =>
         List.take (2 * p.1 + 2) <$>
           ProbOracleComp.query ((), List.replicate p.1 false)) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
   have hq1 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take (2 * q.1.1 + 2) <$>
           ProbOracleComp.query ((), List.replicate q.1.1 true)) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
-  have hstep1 := hq1.map_with'
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
+  have hstep1 := hq1.map_with
     (output := encPair encBits encBits)
     (f := fun (q : (ℕ × List Bool) × List Bool) raw₁ =>
       (List.replicate q.1.1 false, raw₁))
@@ -507,12 +502,12 @@ example {family : List Bool → List Bool → List Bool}
       (2 : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) + ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹ +
         (Game.advantage
           (ProbComp.eval
-            (prfRealGame family
+            (prfRealGame id family
               (prfRandomNonceToPrfDistinguisher id
                 (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryRandomMACForger) n))
           (ProbComp.eval
-            (prfIdealGame
+            (prfIdealGame id id
               (prfRandomNonceToPrfDistinguisher id
                 (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryRandomMACForger) n)) : ℝ) :=

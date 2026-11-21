@@ -117,7 +117,7 @@ theorem prefixGap_add {gs : List GateCode} {X : List Bool}
     patternProb_eq_prefixGap hgs hS hvalid,
     patternProb_eq_prefixGap hgs hS hvalid, ← add_div] at h
   have hpow : (2 : ℝ) ^ hadamardCount gs ≠ 0 := by positivity
-  exact_mod_cast (div_left_inj' hpow).mp h
+  exact_mod_cast (div_left_inj₀ hpow).mp h
 
 /-! ### Native query resources -/
 

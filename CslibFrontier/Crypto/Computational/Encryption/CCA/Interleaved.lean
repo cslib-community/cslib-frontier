@@ -247,13 +247,6 @@ on `.decrypt _`. -/
     (outOpt : Option Out) :
     encodeCCAResponseWord encOut (Sum.inr outOpt) = encOption encOut outOpt := rfl
 
-private theorem computableTidilyInPolyTime_toOptionPair {Msg : Type} (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime (CCAQuery.toOptionPair (Msg := Msg))
-      (encCCAQuery encMsg) (encPair (encOption (encPair encMsg encMsg)) encBits) :=
-  .of_eq fun _ => rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_toOptionPair
-
 /-- `CCAQuery.toOptionPair` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toOptionPair {Msg : Type} (encMsg : Msg ↪ List Bool) :
@@ -261,33 +254,14 @@ theorem computableInPolyTime_toOptionPair {Msg : Type} (encMsg : Msg ↪ List Bo
       (encCCAQuery encMsg) (encPair (encOption (encPair encMsg encMsg)) encBits) :=
   .of_eq fun _ => rfl
 
-private theorem computableTidilyInPolyTime_ccaQuery_challenge {Msg : Type}
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime
-      (fun p : Msg × Msg => (CCAQuery.challenge p.1 p.2 : CCAQuery Msg (List Bool)))
-      (encPair encMsg encMsg) (encCCAQuery encMsg) :=
-  ((ComputableTidilyInPolyTime.optionSome (encPair encMsg encMsg)).prod
-    (ComputableTidilyInPolyTime.const ([] : List Bool))).of_enc_eq fun _ => rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_ccaQuery_challenge
-
 /-- Constructing `.challenge m₀ m₁` from `(m₀, m₁)` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_ccaQuery_challenge {Msg : Type} (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime
       (fun p : Msg × Msg => (CCAQuery.challenge p.1 p.2 : CCAQuery Msg (List Bool)))
       (encPair encMsg encMsg) (encCCAQuery encMsg) :=
-  (computableTidilyInPolyTime_ccaQuery_challenge encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_ccaQuery_decrypt {Msg : Type}
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime
-      (CCAQuery.decrypt (Plaintext := Msg) (Ciphertext := List Bool))
-      encBits (encCCAQuery encMsg) :=
-  ((ComputableTidilyInPolyTime.const (none : Option (Msg × Msg))).prod
-    ComputableTidilyInPolyTime.id').of_enc_eq fun _ => rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_ccaQuery_decrypt
+  ((ComputableInPolyTime.optionSome (encPair encMsg encMsg)).prod
+    (ComputableInPolyTime.const ([] : List Bool))).of_enc_eq fun _ => rfl
 
 /-- Constructing `.decrypt c` from `c : List Bool` is computable in plain polynomial time. -/
 @[fun_prop]
@@ -295,41 +269,20 @@ theorem computableInPolyTime_ccaQuery_decrypt {Msg : Type} (encMsg : Msg ↪ Lis
     ComputableInPolyTime
       (CCAQuery.decrypt (Plaintext := Msg) (Ciphertext := List Bool))
       encBits (encCCAQuery encMsg) :=
-  (computableTidilyInPolyTime_ccaQuery_decrypt encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_isChallenge {Msg : Type} (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime (CCAQuery.isChallenge (Plaintext := Msg) (Ciphertext := List Bool))
-      (encCCAQuery encMsg) encBool := by
-  have h : ComputableTidilyInPolyTime
-      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.isSome)
-      (encCCAQuery encMsg) encBool :=
-    ((computableTidilyInPolyTime_toOptionPair encMsg).fst').optionIsSome
-  refine h.of_enc_eq fun q => ?_
-  cases q <;> rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_isChallenge
+  ((ComputableInPolyTime.const (none : Option (Msg × Msg))).prod
+    ComputableInPolyTime.id').of_enc_eq fun _ => rfl
 
 /-- `CCAQuery.isChallenge` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_isChallenge {Msg : Type} (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime (CCAQuery.isChallenge (Plaintext := Msg) (Ciphertext := List Bool))
+      (encCCAQuery encMsg) encBool := by
+  have h : ComputableInPolyTime
+      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.isSome)
       (encCCAQuery encMsg) encBool :=
-  (computableTidilyInPolyTime_isChallenge encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_challengePair {Msg : Type} [Inhabited Msg]
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime
-      (CCAQuery.challengePair (Plaintext := Msg) (Ciphertext := List Bool))
-      (encCCAQuery encMsg) (encPair encMsg encMsg) := by
-  have h : ComputableTidilyInPolyTime
-      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.getD (default, default))
-      (encCCAQuery encMsg) (encPair encMsg encMsg) :=
-    ((computableTidilyInPolyTime_toOptionPair encMsg).fst').optionGetDWithInput
-      (ComputableTidilyInPolyTime.const (default, default))
+    ((computableInPolyTime_toOptionPair encMsg).fst').optionIsSome
   refine h.of_enc_eq fun q => ?_
   cases q <;> rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_challengePair
 
 /-- `CCAQuery.challengePair` is computable in plain polynomial time when `[Inhabited Msg]`. -/
 @[fun_prop]
@@ -337,28 +290,26 @@ theorem computableInPolyTime_challengePair {Msg : Type} [Inhabited Msg]
     (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime
       (CCAQuery.challengePair (Plaintext := Msg) (Ciphertext := List Bool))
+      (encCCAQuery encMsg) (encPair encMsg encMsg) := by
+  have h : ComputableInPolyTime
+      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.getD (default, default))
       (encCCAQuery encMsg) (encPair encMsg encMsg) :=
-  (computableTidilyInPolyTime_challengePair encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_decryptCiphertext {Msg : Type}
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime (CCAQuery.decryptCiphertext (Plaintext := Msg))
-      (encCCAQuery encMsg) encBits := by
-  have h : ComputableTidilyInPolyTime
-      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.2)
-      (encCCAQuery encMsg) encBits :=
-    (computableTidilyInPolyTime_toOptionPair encMsg).snd'
+    ((computableInPolyTime_toOptionPair encMsg).fst').optionGetDWithInput
+      (ComputableInPolyTime.const (default, default))
   refine h.of_enc_eq fun q => ?_
   cases q <;> rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_decryptCiphertext
 
 /-- `CCAQuery.decryptCiphertext` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_decryptCiphertext {Msg : Type} (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime (CCAQuery.decryptCiphertext (Plaintext := Msg))
+      (encCCAQuery encMsg) encBits := by
+  have h : ComputableInPolyTime
+      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.2)
       (encCCAQuery encMsg) encBits :=
-  (computableTidilyInPolyTime_decryptCiphertext encMsg).computableInPolyTime
+    (computableInPolyTime_toOptionPair encMsg).snd'
+  refine h.of_enc_eq fun q => ?_
+  cases q <;> rfl
 
 /-! ### Stateful interleaved CCA oracle (`interleavedCcaOracle`) -/
 
@@ -710,7 +661,7 @@ theorem isPPT_toInterleaved {Msg : Type} {encMsg : Msg ↪ List Bool}
       ((computableInPolyTime_ccaQuery_challenge encMsg).comp
         (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
     simpa only [CCA2AdversaryOf.toInterleaved, bind_pure_comp] using
-      (hA.choose.on.preprocess' hprep).map' hpost
+      (hA.choose.on.preprocess hprep).map hpost
   finish := by
     let EIn := encPair encUnary (encPair encBits (encPair encBits encBits))
     have hcond : ComputableInPolyTime
@@ -721,10 +672,10 @@ theorem isPPT_toInterleaved {Msg : Type} {encMsg : Msg ↪ List Bool}
         (fun p : ℕ × List Bool × List Bool × List Bool => (p.1, p.2.2.1, p.2.2.2.tail))
         EIn (encPair encUnary (encPair encBits encBits)) := by
       dsimp only [EIn]; fun_prop
-    have hyes := hA.guess.preprocess' hprep
+    have hyes := hA.guess.preprocess hprep
     have hno : IsOraclePPTOn (Operation := Unit) EIn encBool (fun _ => pure false) :=
       (ComputableInPolyTime.const false).isOraclePPTOn
-    exact IsOraclePPTOn.cond' hcond hyes hno
+    exact IsOraclePPTOn.cond hcond hyes hno
   step_length_le := by
     have hpost : ComputableInPolyTime
         (fun choice : (Msg × Msg) × List Bool =>
@@ -738,12 +689,13 @@ theorem isPPT_toInterleaved {Msg : Type} {encMsg : Msg ↪ List Bool}
         (fun p : ℕ × List Bool => do
           let choice ← adversary.choose p.1 p.2
           return (CCAQuery.challenge choice.1.1 choice.1.2, choice.2)) := by
-      simpa only [bind_pure_comp] using hA.choose.on.map' hpost
+      simpa only [bind_pure_comp] using hA.choose.on.map hpost
     obtain ⟨cs, ds, hlen⟩ := hstepOn.length_le
     refine ⟨cs * 2 ^ ds, ds, ?_⟩
     intro n pk state lastReply out hout
     obtain ⟨State, oracle, s, s', hmem⟩ :=
       (ProbOracleComp.mem_support_iff_exists (hne := fun _ => ⟨[]⟩)).mp hout
+    rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
     have hbound := hlen (n, pk) State oracle s s' out hmem
     have hsize : (encPair encUnary encBits (n, pk)).length + 1 ≤ 2 * (n + pk.length + 2) := by
       enc_len
@@ -1076,13 +1028,13 @@ private theorem isOraclePPTOn_run_multiPhase2FilterHandler {Caller β : Type}
         (fun reply => (reply, pair.2.2)) <$>
           (List.take (decBound (nOf pair.1) pair.2.1.2) <$>
             ProbOracleComp.query ((), pair.2.1.2))) :=
-    (IsOraclePPTOn.query_take' (Operation := Unit) () hreq hlimit).map_with'
+    (IsOraclePPTOn.query_take (Operation := Unit) () hreq hlimit).map_with
       (ComputableInPolyTime.prod (by fun_prop)
         (by dsimp only [EIn, EState]; fun_prop))
   have hhandler : IsOraclePPTOn (Operation := Unit) EIn (encPair encBits EState)
       (fun pair : Caller × ((Unit × List Bool) × Unit) =>
         multiPhase2FilterHandler (decBound (nOf pair.1)) (ctsOf pair.1) pair.2.1 pair.2.2) :=
-    IsOraclePPTOn.cond' hmemCond hnoReply hqueryReply
+    IsOraclePPTOn.cond hmemCond hnoReply hqueryReply
   have hres : ComputableInPolyTime
       (fun pair : Caller × List Bool => decBound (nOf pair.1) pair.2)
       (encPair ECaller encBits) encUnary :=
@@ -1095,7 +1047,7 @@ private theorem isOraclePPTOn_run_multiPhase2FilterHandler {Caller β : Type}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (multiPhase2FilterHandler (decBound (nOf a)) (ctsOf a)))
           (prog a)).run ()) := by
-    apply hprog.run_interpret_preprocess_open'
+    apply hprog.run_interpret_preprocess_open
       (prepare := id)
       (initial := fun _ => ())
       (resources := fun a req => decBound (nOf a) req)
@@ -1109,7 +1061,7 @@ private theorem isOraclePPTOn_run_multiPhase2FilterHandler {Caller β : Type}
     · obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       obtain ⟨rawReply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
       exact ⟨trivial, List.length_take_le _ _, Nat.le_add_right _ _⟩
-  exact hrun.map' (ComputableInPolyTime.fst _ _)
+  exact hrun.map (ComputableInPolyTime.fst _ _)
 
 private theorem mem_support_of_mem_support_run_interpret {α : Type}
     (handler : Unit × List Bool → StateT Unit (WordOracleComp Unit) (List Bool))
@@ -1124,6 +1076,7 @@ private theorem mem_support_of_mem_support_run_interpret {α : Type}
   rw [ProbOracleComp.run_interpret_run_interpret, PMF.mem_support_map_iff] at hrun
   obtain ⟨⟨r, u, s''⟩, hmem, heq⟩ := hrun
   obtain rfl : r = result := (Prod.mk.inj (Prod.mk.inj heq).1).1
+  rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
   exact ProbOracleComp.mem_support_of_mem _ hmem
 
 /-- `interleavedInnerRound` is uniformly strict oracle PPT on `((n, pk), st)`. -/
@@ -1366,7 +1319,7 @@ private theorem isOraclePPTOn_interleavedOpenRoundStep_loop {Msg : Type} [Inhabi
       (fun pair : (ℕ × (ℕ × List Bool) × InterleavedLoopState) × InterleavedLoopState =>
         interleavedOpenRoundStep valid encrypt decBound adversary roundBit
           pair.1.2.1.1 pair.1.2.1.2 pair.2) :=
-  IsOraclePPTOn.preprocess'
+  IsOraclePPTOn.preprocess
     (prepare := fun pair : (ℕ × (ℕ × List Bool) × InterleavedLoopState) × InterleavedLoopState =>
       (pair.1.2.1, pair.2))
     (isOraclePPTOn_interleavedOpenRoundStep hvalid hencrypt hdecBound hA roundBit)
@@ -1398,7 +1351,7 @@ private theorem isOraclePPTOn_iterate_interleavedOpenRoundStep {Msg : Type} [Inh
   obtain ⟨cs, ds, hlenStep⟩ := hA.step_length_le
   obtain ⟨ce, de, hlenEnc⟩ := hencrypt.length_le
   obtain ⟨cd, dd, hlenDec⟩ := hdecBound.polyBounded_length.exists_le
-  exact IsOraclePPTOn.iterateWith_of_bounded_growth'
+  exact IsOraclePPTOn.iterateWith_of_bounded_growth
     (initial := fun q : ℕ × (ℕ × List Bool) × InterleavedLoopState => q.2.2)
     (count := fun q : ℕ × (ℕ × List Bool) × InterleavedLoopState => q.1)
     (step := fun q : ℕ × (ℕ × List Bool) × InterleavedLoopState =>
@@ -1452,14 +1405,14 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
         OracleComp.iterate caller.2
           (interleavedOpenRoundStep valid encrypt decBound adversary true caller.1.1 caller.1.2)
           initInterleavedLoopState) :=
-    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA true).preprocess'
+    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA true).preprocess
       (ComputableInPolyTime.prod (by dsimp only [ECaller]; fun_prop)
         (ComputableInPolyTime.prod (by dsimp only [ECaller]; fun_prop)
           (ComputableInPolyTime.const initInterleavedLoopState)))
   have hstepMid : IsOraclePPTOn (Operation := Unit) E2 EStepOut
       (fun p : ((ℕ × List Bool) × ℕ) × InterleavedLoopState =>
         adversary.step p.1.1.1 p.1.1.2 p.2.1 p.2.2.1) :=
-    hA.step.preprocess'
+    hA.step.preprocess
       (ComputableInPolyTime.prod (by dsimp only [E2, ECaller]; fun_prop)
         (ComputableInPolyTime.prod (by dsimp only [E2, ECaller]; fun_prop)
           (ComputableInPolyTime.prod
@@ -1489,7 +1442,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
         (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
           (CCAQuery Msg (List Bool) × List Bool) => r.2.1.challengePair)
       E3 (encPair encMsg encMsg) :=
-    (computableTidilyInPolyTime_challengePair encMsg).computableInPolyTime.comp hq3
+    (computableInPolyTime_challengePair encMsg).comp hq3
   have hm0 : ComputableInPolyTime
       (fun r :
         (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
@@ -1514,7 +1467,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
           (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
             (CCAQuery Msg (List Bool) × List Bool) => r.2.1.isChallenge)
         E3 encBool :=
-      (computableTidilyInPolyTime_isChallenge encMsg).computableInPolyTime.comp hq3
+      (computableInPolyTime_isChallenge encMsg).comp hq3
     have hvalArg : ComputableInPolyTime
         (fun r :
           (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
@@ -1582,8 +1535,8 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
       (encPair (encPair encMsg encMsg) encBits)
       (fun _ => pure ((default, default), rejectInterleavedSingleState)) :=
     (ComputableInPolyTime.const ((default, default), rejectInterleavedSingleState)).isOraclePPTOn
-  exact IsOraclePPTOn.cond' hltCond
-    (hiter.bind_with (hstepFiltered.bind_with (IsOraclePPTOn.cond' hchalValid3 hyes3 hno3)))
+  exact IsOraclePPTOn.cond hltCond
+    (hiter.bind_with (hstepFiltered.bind_with (IsOraclePPTOn.cond hchalValid3 hyes3 hno3)))
     hnoCaller
 
 /-- Phase 2 (`guess`) of `interleavedToSingleAt` is uniformly strict oracle PPT in
@@ -1669,7 +1622,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_guess {Msg : Type} [Inhabite
           ((interleavedSingleStateDecoder.decode p.2.1).2.2.2.1,
             true :: p.2.2,
             p.2.2 :: (interleavedSingleStateDecoder.decode p.2.1).2.2.2.2)) :=
-    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA false).preprocess'
+    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA false).preprocess
       (ComputableInPolyTime.prod hremRounds
         (ComputableInPolyTime.prod
           (ComputableInPolyTime.prod (by dsimp only [EGuess]; fun_prop) hpk)
@@ -1679,7 +1632,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_guess {Msg : Type} [Inhabite
         adversary.finish q.1.1
           (interleavedSingleStateDecoder.decode q.1.2.1).2.1
           q.2.1 q.2.2.1) :=
-    hA.finish.preprocess'
+    hA.finish.preprocess
       (ComputableInPolyTime.prod (by dsimp only [E2, EGuess]; fun_prop)
         (ComputableInPolyTime.prod
           (hpk.comp (by dsimp only [E2]; fun_prop))
@@ -1720,7 +1673,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_guess {Msg : Type} [Inhabite
     simpa only [bind_pure_comp] using hiter.bind_with hfinishFiltered
   have hno : IsOraclePPTOn (Operation := Unit) EGuess encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isOraclePPTOn
-  exact IsOraclePPTOn.cond' hactive hyes hno
+  exact IsOraclePPTOn.cond hactive hyes hno
 
 /-- `interleavedToSingleAt` preserves strict oracle PPT admissibility (`CCA2AdversaryOf.IsPPT`). -/
 theorem isPPT_interleavedToSingleAt {Msg : Type} [Inhabited Msg]
@@ -1740,7 +1693,7 @@ theorem isPPT_interleavedToSingleAt {Msg : Type} [Inhabited Msg]
     (interleavedToSingleAt valid encrypt decBound adversary split).IsPPT encMsg where
   choose := by
     have h := (isOraclePPTOn_interleavedToSingleAt_choose
-      hvalid hencrypt hdecBound hA).preprocess'
+      hvalid hencrypt hdecBound hA).preprocess
       (ComputableInPolyTime.prod ComputableInPolyTime.id' (ComputableInPolyTime.const split))
     exact h.isOraclePPT
   guess :=
@@ -2492,10 +2445,10 @@ theorem INDCCA2On.indcca2InterleavedOn {Msg Out : Type} [Inhabited Msg]
     INDCCA2InterleavedOn valid encMsg encOut keyGen encrypt decrypt := by
   intro adversary hA
   obtain ⟨decBound, hdecBoundPoly, hdecBound⟩ := exists_decryption_length_bound hkeyGen hdecrypt
-  obtain ⟨cq, dq, hlenQ⟩ := hA.numRounds.tidy.polyBounded_length.exists_le
+  obtain ⟨cq, dq, hlenQ⟩ := hA.numRounds.polyBounded_length.exists_le
   let Q : ℕ → ℕ := fun n => cq * (n + 1) ^ dq
   have hQPoly : ComputableInPolyTime Q encUnary encUnary := by
-    dsimp only [Q]; exact ComputableInPolyTime.of_tidy (by fun_prop)
+    dsimp only [Q]; exact (by fun_prop)
   have hQ (n : ℕ) : adversary.numRounds n ≤ Q n := by
     simpa [Q, encUnary_apply] using hlenQ n
   have hsingleNeg := h (interleavedToSingle valid encrypt decBound Q adversary)

@@ -256,65 +256,6 @@ section HyperplaneSplit
 
 variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
 
-private lemma isPolytopeFace_halfSpace_inter (ℓ : E →ᵃ[ℝ] ℝ) {R₁ R₂ : Set E}
-    (h₁ : R₁ = {x | ℓ x ≤ 0} ∨ R₁ = {x | 0 ≤ ℓ x} ∨ R₁ = {x | ℓ x = 0})
-    (h₂ : R₂ = {x | ℓ x ≤ 0} ∨ R₂ = {x | 0 ≤ ℓ x} ∨ R₂ = {x | ℓ x = 0}) :
-    IsPolytopeFace R₁ (R₁ ∩ R₂) := by
-  have hL : {x | ℓ x ≤ 0} = {x | ∀ m ∈ ({ℓ} : Set _), m x ≤ 0} := by
-    ext x; simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq]
-  have hG : {x | 0 ≤ ℓ x} = {x | ∀ m ∈ ({-ℓ} : Set _), m x ≤ 0} := by
-    ext x
-    simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq, AffineMap.coe_neg, Pi.neg_apply,
-      neg_nonpos]
-  have hZ : {x | ℓ x = 0} = {x | ∀ m ∈ ({ℓ, -ℓ} : Set _), m x ≤ 0} := by
-    ext x
-    simp only [mem_ofPred_eq, Set.mem_insert_iff, mem_singleton_iff, forall_eq_or_imp, forall_eq,
-      AffineMap.coe_neg, Pi.neg_apply, neg_nonpos, le_antisymm_iff]
-  have hface_le : IsPolytopeFace {x | ℓ x ≤ 0} {x | ℓ x = 0} := by
-    have h := isPolytopeFace_of_eq_zero (LR := {ℓ}) (finite_singleton ℓ)
-      hL (hL ▸ convex_setOf_forall_le {ℓ}) (Subset.refl {ℓ})
-    have heq : {x ∈ {x | ℓ x ≤ 0} | ∀ m ∈ ({ℓ} : Set _), m x = 0} = {x | ℓ x = 0} := by
-      ext x
-      simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq, and_iff_right_iff_imp]
-      exact fun h0 => le_of_eq h0
-    rwa [heq] at h
-  have hface_ge : IsPolytopeFace {x | 0 ≤ ℓ x} {x | ℓ x = 0} := by
-    have h := isPolytopeFace_of_eq_zero (LR := {-ℓ}) (finite_singleton (-ℓ))
-      hG (hG ▸ convex_setOf_forall_le {-ℓ}) (Subset.refl {-ℓ})
-    have heq : {x ∈ {x | 0 ≤ ℓ x} | ∀ m ∈ ({-ℓ} : Set _), m x = 0} = {x | ℓ x = 0} := by
-      ext x
-      simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq, AffineMap.coe_neg, Pi.neg_apply,
-        neg_eq_zero, and_iff_right_iff_imp]
-      exact fun h0 => le_of_eq h0.symm
-    rwa [heq] at h
-  have hc1 : Convex ℝ R₁ := by
-    rcases h₁ with rfl | rfl | rfl
-    · exact hL ▸ convex_setOf_forall_le {ℓ}
-    · exact hG ▸ convex_setOf_forall_le {-ℓ}
-    · exact hZ ▸ convex_setOf_forall_le {ℓ, -ℓ}
-  have hLG : {x | ℓ x ≤ 0} ∩ {x | 0 ≤ ℓ x} = {x | ℓ x = 0} := by
-    ext x; simp only [mem_inter_iff, mem_ofPred_eq, le_antisymm_iff]
-  have hGL : {x | 0 ≤ ℓ x} ∩ {x | ℓ x ≤ 0} = {x | ℓ x = 0} := by
-    ext x; simp only [mem_inter_iff, mem_ofPred_eq, le_antisymm_iff, and_comm]
-  have hLZ : {x | ℓ x ≤ 0} ∩ {x | ℓ x = 0} = {x | ℓ x = 0} := by
-    ext x; exact ⟨fun h => h.2, fun h => ⟨le_of_eq h, h⟩⟩
-  have hGZ : {x | 0 ≤ ℓ x} ∩ {x | ℓ x = 0} = {x | ℓ x = 0} := by
-    ext x; exact ⟨fun h => h.2, fun h => ⟨le_of_eq h.symm, h⟩⟩
-  have hZL : {x | ℓ x = 0} ∩ {x | ℓ x ≤ 0} = {x | ℓ x = 0} := by
-    ext x; exact ⟨fun h => h.1, fun h => ⟨h, le_of_eq h⟩⟩
-  have hZG : {x | ℓ x = 0} ∩ {x | 0 ≤ ℓ x} = {x | ℓ x = 0} := by
-    ext x; exact ⟨fun h => h.1, fun h => ⟨h, le_of_eq h.symm⟩⟩
-  rcases h₁ with rfl | rfl | rfl <;> rcases h₂ with rfl | rfl | rfl
-  · rw [Set.inter_self]; exact IsPolytopeFace.refl hc1
-  · rwa [hLG]
-  · rwa [hLZ]
-  · rwa [hGL]
-  · rw [Set.inter_self]; exact IsPolytopeFace.refl hc1
-  · rwa [hGZ]
-  · rw [hZL]; exact IsPolytopeFace.refl hc1
-  · rw [hZG]; exact IsPolytopeFace.refl hc1
-  · rw [Set.inter_self]; exact IsPolytopeFace.refl hc1
-
 private def halfSpaceLR (ℓ : E →ᵃ[ℝ] ℝ) (k : Fin 3) : Set (E →ᵃ[ℝ] ℝ) :=
   match k with
   | 0 => {ℓ}
@@ -328,6 +269,10 @@ private lemma halfSpaceLR_finite (ℓ : E →ᵃ[ℝ] ℝ) (k : Fin 3) : (halfSp
   · exact finite_singleton _
   · exact (finite_singleton _).insert _
 
+omit [FiniteDimensional ℝ E] in
+private lemma halfSpaceLR_sub (ℓ : E →ᵃ[ℝ] ℝ) (k : Fin 3) : halfSpaceLR ℓ k ⊆ {ℓ, -ℓ} := by
+  fin_cases k <;> simp [halfSpaceLR]
+
 private def halfSpaceSet (ℓ : E →ᵃ[ℝ] ℝ) (k : Fin 3) : Set E :=
   match k with
   | 0 => {x | ℓ x ≤ 0}
@@ -338,7 +283,52 @@ omit [FiniteDimensional ℝ E] in
 private lemma halfSpaceSet_eq (ℓ : E →ᵃ[ℝ] ℝ) (k : Fin 3) :
     halfSpaceSet ℓ k = {x | ∀ m ∈ halfSpaceLR ℓ k, m x ≤ 0} := by
   fin_cases k <;> ext x <;>
-    simp [halfSpaceSet, halfSpaceLR, AffineMap.coe_neg, Pi.neg_apply, le_antisymm_iff]
+    simp [halfSpaceSet, halfSpaceLR, le_antisymm_iff]
+
+omit [FiniteDimensional ℝ E] in
+private lemma halfSpaceSet_filter_eq_zero (ℓ : E →ᵃ[ℝ] ℝ) (k : Fin 3)
+    {L₀ : Set (E →ᵃ[ℝ] ℝ)} (hL₀ : L₀ ⊆ halfSpaceLR ℓ k) (hne : L₀.Nonempty) :
+    {x ∈ halfSpaceSet ℓ k | ∀ m ∈ L₀, m x = 0} = halfSpaceSet ℓ 2 := by
+  have hzero : ∀ {m : E →ᵃ[ℝ] ℝ} {x : E}, m ∈ halfSpaceLR ℓ k → ℓ x = 0 → m x = 0 := by
+    intro m x hm hx
+    rcases halfSpaceLR_sub ℓ k hm with rfl | rfl
+    · exact hx
+    · simp [hx]
+  ext x
+  obtain ⟨m₀, hm₀⟩ := hne
+  refine ⟨fun ⟨_, hx0⟩ => ?_, fun hx2 => ?_⟩
+  · have hm := hx0 m₀ hm₀
+    rcases halfSpaceLR_sub ℓ k (hL₀ hm₀) with h | h <;> rw [h] at hm
+    · exact hm
+    · exact show ℓ x = 0 by simpa [FunLike.coe_neg] using hm
+  · rw [halfSpaceSet_eq]
+    exact ⟨fun m hm => (hzero hm hx2).le, fun m hm => hzero (hL₀ hm) hx2⟩
+
+private lemma isPolytopeFace_halfSpace_inter (ℓ : E →ᵃ[ℝ] ℝ) (k₁ k₂ : Fin 3) :
+    IsPolytopeFace (halfSpaceSet ℓ k₁) (halfSpaceSet ℓ k₁ ∩ halfSpaceSet ℓ k₂) := by
+  have hrefl : IsPolytopeFace (halfSpaceSet ℓ k₁) (halfSpaceSet ℓ k₁) :=
+    IsPolytopeFace.refl (halfSpaceSet_eq ℓ k₁ ▸ convex_setOf_forall_le _)
+  have hface2 : IsPolytopeFace (halfSpaceSet ℓ k₁) (halfSpaceSet ℓ 2) := by
+    have hne : (halfSpaceLR ℓ k₁).Nonempty := by fin_cases k₁ <;> simp [halfSpaceLR]
+    rw [← halfSpaceSet_filter_eq_zero ℓ k₁ Subset.rfl hne]
+    exact isPolytopeFace_of_eq_zero (halfSpaceLR_finite ℓ k₁) (halfSpaceSet_eq ℓ k₁)
+      (halfSpaceSet_eq ℓ k₁ ▸ convex_setOf_forall_le _) Subset.rfl
+  have h2sub : ∀ k, halfSpaceSet ℓ 2 ⊆ halfSpaceSet ℓ k := fun k x hx => by
+    fin_cases k <;> [exact le_of_eq hx; exact le_of_eq hx.symm; exact hx]
+  rcases eq_or_ne k₁ k₂ with rfl | hne
+  · rwa [Set.inter_self]
+  rcases eq_or_ne k₁ 2 with rfl | hk₁
+  · rw [inter_eq_left.2 (h2sub k₂)]
+    exact hrefl
+  rcases eq_or_ne k₂ 2 with rfl | hk₂
+  · rw [inter_eq_right.2 (h2sub k₁)]
+    exact hface2
+  have heq : halfSpaceSet ℓ k₁ ∩ halfSpaceSet ℓ k₂ = halfSpaceSet ℓ 2 := by
+    ext x
+    fin_cases k₁ <;> fin_cases k₂ <;> first
+      | exact absurd rfl hne | exact absurd rfl hk₁ | exact absurd rfl hk₂
+      | simp [halfSpaceSet, le_antisymm_iff, and_comm]
+  rwa [heq]
 
 /-- Cells obtained by slicing every cell of `C` with the hyperplane `{x | ℓ x = 0}` and its
 two closed half-spaces. -/
@@ -371,53 +361,18 @@ def PolytopalComplex.splitComplex (C : PolytopalComplex E) (ℓ : E →ᵃ[ℝ] 
     have hP'mem : P' ∈ C.cells := by
       obtain ⟨x, hx⟩ := hFne
       exact C.face_mem hP hPP' ⟨x, (hFeq ▸ hx).1⟩
-    fin_cases k
-    · rcases eq_empty_or_nonempty L₀ with rfl | ⟨m, hm⟩
-      · refine ⟨P', hP'mem, 0, ?_, hFne⟩
-        rw [hFeq]; ext x; simp [halfSpaceSet]
-      · have hm' : m = ℓ := hL₀ hm
-        subst hm'
-        refine ⟨P', hP'mem, 2, ?_, hFne⟩
-        rw [hFeq]; ext x
-        simp only [halfSpaceSet, mem_inter_iff, mem_ofPred_eq, and_congr_right_iff]
-        intro _
-        exact ⟨fun h => h.2 m hm, fun h => ⟨le_of_eq h, fun _ hn => (hL₀ hn) ▸ h⟩⟩
-    · rcases eq_empty_or_nonempty L₀ with rfl | ⟨m, hm⟩
-      · refine ⟨P', hP'mem, 1, ?_, hFne⟩
-        rw [hFeq]; ext x; simp [halfSpaceSet]
-      · have hm' : m = -ℓ := hL₀ hm
-        subst hm'
-        refine ⟨P', hP'mem, 2, ?_, hFne⟩
-        rw [hFeq]; ext x
-        simp only [halfSpaceSet, mem_inter_iff, mem_ofPred_eq, and_congr_right_iff]
-        intro _
-        constructor
-        · intro h
-          have : (-ℓ) x = 0 := h.2 (-ℓ) hm
-          simpa [AffineMap.coe_neg] using this
-        · intro h
-          refine ⟨le_of_eq h.symm, fun n hn => ?_⟩
-          have hn' : n = -ℓ := hL₀ hn
-          subst hn'
-          simp [AffineMap.coe_neg, h]
-    · refine ⟨P', hP'mem, 2, ?_, hFne⟩
-      rw [hFeq]; ext x
-      simp only [halfSpaceSet, mem_inter_iff, mem_ofPred_eq, and_congr_right_iff]
-      intro _
-      refine ⟨fun h => h.1, fun h => ⟨h, fun n hn => ?_⟩⟩
-      rcases hL₀ hn with rfl | rfl
-      · exact h
-      · simp [AffineMap.coe_neg, h]
+    rcases eq_empty_or_nonempty L₀ with rfl | hL₀ne
+    · refine ⟨P', hP'mem, k, ?_, hFne⟩
+      rw [hFeq]
+      ext x
+      simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_empty_iff_false, IsEmpty.forall_iff,
+        implies_true, and_true]
+    · exact ⟨P', hP'mem, 2, hFeq.trans (congrArg (P' ∩ ·)
+        (halfSpaceSet_filter_eq_zero ℓ k hL₀ hL₀ne)), hFne⟩
   inter_face := by
     rintro Q₁ Q₂ ⟨P₁, hP₁, k₁, rfl, _⟩ ⟨P₂, hP₂, k₂, rfl, _⟩
     rw [inter_inter_inter_comm]
-    have h₁ : halfSpaceSet ℓ k₁ = {x | ℓ x ≤ 0} ∨
-        halfSpaceSet ℓ k₁ = {x | 0 ≤ ℓ x} ∨ halfSpaceSet ℓ k₁ = {x | ℓ x = 0} := by
-      fin_cases k₁ <;> simp [halfSpaceSet]
-    have h₂ : halfSpaceSet ℓ k₂ = {x | ℓ x ≤ 0} ∨
-        halfSpaceSet ℓ k₂ = {x | 0 ≤ ℓ x} ∨ halfSpaceSet ℓ k₂ = {x | ℓ x = 0} := by
-      fin_cases k₂ <;> simp [halfSpaceSet]
-    exact (C.inter_face hP₁ hP₂).inter_inter (isPolytopeFace_halfSpace_inter ℓ h₁ h₂)
+    exact (C.inter_face hP₁ hP₂).inter_inter (isPolytopeFace_halfSpace_inter ℓ k₁ k₂)
 
 theorem PolytopalComplex.space_splitComplex (C : PolytopalComplex E) (ℓ : E →ᵃ[ℝ] ℝ) :
     (C.splitComplex ℓ).space = C.space := by
@@ -508,12 +463,12 @@ private lemma isHRepIn_ofPolytope {P : Set E} {LP : Set (E →ᵃ[ℝ] ℝ)} (hL
     constructor
     · rintro ⟨hxP, hx0⟩ ℓ (hℓ | ⟨m, hm, rfl⟩)
       · exact hxP ℓ hℓ
-      · simp [AffineMap.coe_neg, hx0 m hm]
+      · simp [hx0 m hm]
     · intro h
       refine ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun m hm => ?_⟩
       have h1 : m x ≤ 0 := h m (.inl (hL₀ hm))
       have h2 : (-m) x ≤ 0 := h (-m) (.inr ⟨m, hm, rfl⟩)
-      simp only [AffineMap.coe_neg, Pi.neg_apply, neg_nonpos] at h2
+      simp only [FunLike.coe_neg, Pi.neg_apply, neg_nonpos] at h2
       exact le_antisymm h1 h2
 
 private lemma isHRepIn_splitComplex {C : PolytopalComplex E} {M : Set (E →ᵃ[ℝ] ℝ)}
@@ -522,17 +477,9 @@ private lemma isHRepIn_splitComplex {C : PolytopalComplex E} {M : Set (E →ᵃ[
   rintro Q ⟨P, hP, k, rfl, _⟩
   obtain ⟨LP, hLM, hLP, hPeq⟩ := hM P hP
   refine ⟨LP ∪ halfSpaceLR ℓ k, ?_, hLP.union (halfSpaceLR_finite ℓ k), ?_⟩
-  · refine union_subset (hLM.trans subset_union_left) ?_
-    fin_cases k
-    · exact Subset.trans (by simp [halfSpaceLR]) subset_union_right
-    · exact Subset.trans (by simp [halfSpaceLR]) subset_union_right
-    · exact Subset.trans (by simp [halfSpaceLR]) subset_union_right
-  · rw [halfSpaceSet_eq ℓ k]
-    ext x
-    simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union]
-    rw [hPeq]
-    exact ⟨fun ⟨h1, h2⟩ m hm => hm.elim (h1 m) (h2 m),
-      fun h => ⟨fun m hm => h m (.inl hm), fun m hm => h m (.inr hm)⟩⟩
+  · refine union_subset (hLM.trans subset_union_left)
+      ((halfSpaceLR_sub ℓ k).trans subset_union_right)
+  · rw [hPeq, halfSpaceSet_eq ℓ k, setOf_forall_le_inter]
 
 private lemma isHRepIn_splitList {C : PolytopalComplex E} {M : Set (E →ᵃ[ℝ] ℝ)}
     (hM : ∀ P ∈ C.cells, IsHRepIn M P) (ls : List (E →ᵃ[ℝ] ℝ)) :
@@ -566,7 +513,7 @@ private lemma inter_face_of_split_hRep {Q₁ Q₂ : Set E} {M : Set (E →ᵃ[�
     intro m hm y hy
     rcases hsplit m (hL₂M hm.1) with hle | hge
     · exact False.elim (hm.2 hle)
-    · simpa [AffineMap.coe_neg] using hge y hy
+    · simpa [FunLike.coe_neg] using hge y hy
   let L₁' := L₁ ∪ Neg.neg '' B
   have hL₁'fin : L₁'.Finite := hL₁.union ((hL₂fin.subset fun _ (h : _ ∈ B) => h.1).image _)
   have hQ₁eq' : Q₁ = {x | ∀ ℓ ∈ L₁', ℓ x ≤ 0} := by
@@ -590,7 +537,7 @@ private lemma inter_face_of_split_hRep {Q₁ Q₂ : Set E} {M : Set (E →ᵃ[�
     have hle : m x ≤ 0 := (hQ₂eq ▸ hx2) m hm2
     rcases hsplit m (hL₂M hm2) with h_abs | hge
     · exact False.elim (hnle h_abs)
-    · simp only [AffineMap.coe_neg, Pi.neg_apply, neg_eq_zero]
+    · simp only [FunLike.coe_neg, Pi.neg_apply, neg_eq_zero]
       exact le_antisymm hle (hge x hx1)
   · rintro ⟨hx1, hx0⟩
     refine ⟨hx1, ?_⟩
@@ -599,7 +546,7 @@ private lemma inter_face_of_split_hRep {Q₁ Q₂ : Set E} {M : Set (E →ᵃ[�
     by_cases hle : ∀ y ∈ Q₁, m y ≤ 0
     · exact hle x hx1
     · have h0 := hx0 (-m) ⟨m, ⟨hm2, hle⟩, rfl⟩
-      simp only [AffineMap.coe_neg, Pi.neg_apply, neg_eq_zero] at h0
+      simp only [FunLike.coe_neg, Pi.neg_apply, neg_eq_zero] at h0
       exact le_of_eq h0
 
 private lemma split_subset_of_vertexCentroid_mem {Q P : Set E} (hQ : IsPolytope Q)
@@ -614,10 +561,10 @@ private lemma split_subset_of_vertexCentroid_mem {Q P : Set E} (hQ : IsPolytope 
   · by_contra! hpos
     have hb_le : ℓ (vertexCentroid Q) ≤ 0 := (hPeq ▸ hbP) ℓ hℓ
     have hneg_le : ∀ z ∈ Q, (-ℓ) z ≤ 0 := fun z hz => by
-      simpa [AffineMap.coe_neg] using hge z hz
-    have hneg_lt : (-ℓ) x < 0 := by simpa [AffineMap.coe_neg] using hpos
+      simpa [FunLike.coe_neg] using hge z hz
+    have hneg_lt : (-ℓ) x < 0 := by simpa [FunLike.coe_neg] using hpos
     have hblt := hQ.apply_vertexCentroid_lt hQne hneg_le hxQ hneg_lt
-    simp only [AffineMap.coe_neg, Pi.neg_apply, neg_lt_zero] at hblt
+    simp only [FunLike.coe_neg, Pi.neg_apply, neg_lt_zero] at hblt
     linarith
 
 private noncomputable def allHyperplanes {ℱ : Set (Set E)} (hℱ : ℱ.Finite) :
@@ -683,10 +630,11 @@ noncomputable def PolytopalComplex.ofFinitePolytopes {ℱ : Set (Set E)} (hℱ :
           union_subset (hL_all.trans subset_union_left)
             ((image_mono hL_all).trans subset_union_right)
         exact isHRepIn_mono hsubM (isHRepIn_ofPolytope hLPfin hPeq (hpoly P hP) hR.1 hR.2)
-      have hQ₁p : Q₁ ∈ ((PolytopalComplex.ofPolytope (hpoly P₁ hP₁)).splitList ls).cells := by
-        simpa only [pieces, dite_eq_left hP₁] using hQ₁P
-      have hQ₂p : Q₂ ∈ ((PolytopalComplex.ofPolytope (hpoly P₂ hP₂)).splitList ls).cells := by
-        simpa only [pieces, dite_eq_left hP₂] using hQ₂P
+      have hpiece : ∀ {P} (hP : P ∈ ℱ) {Q}, Q ∈ (pieces P).cells →
+          Q ∈ ((PolytopalComplex.ofPolytope (hpoly P hP)).splitList ls).cells :=
+        fun {_} hP {_} hQ => by simpa only [pieces, dite_eq_left hP] using hQ
+      have hQ₁p := hpiece hP₁ hQ₁P
+      have hQ₂p := hpiece hP₂ hQ₂P
       have hQ₂M : IsHRepIn M Q₂ := by
         have hsplit := isHRepIn_splitList (hrep hP₂) ls Q₂ hQ₂p
         refine isHRepIn_mono ?_ hsplit
@@ -700,22 +648,32 @@ noncomputable def PolytopalComplex.ofFinitePolytopes {ℱ : Set (Set E)} (hℱ :
             (Finset.mem_toList.2 (Finset.mem_coe.1 hm)) hQ₁p
         · rcases PolytopalComplex.splitList_signs _ ls
               (Finset.mem_toList.2 (Finset.mem_coe.1 hℓ)) hQ₁p with hle | hge
-          · right; intro x hx; simpa [AffineMap.coe_neg] using hle x hx
-          · left; intro x hx; simpa [AffineMap.coe_neg] using hge x hx
+          · right; intro x hx; simpa [FunLike.coe_neg] using hle x hx
+          · left; intro x hx; simpa [FunLike.coe_neg] using hge x hx
       exact inter_face_of_split_hRep ((pieces P₁).isPolytope_of_mem hQ₁P) hQ₂M hsplitM }
+
+private lemma mem_ofFinitePolytopes_cells_iff {ℱ : Set (Set E)} (hℱ : ℱ.Finite)
+    (hpoly : ∀ P ∈ ℱ, IsPolytope P) {Q : Set E} :
+    Q ∈ (PolytopalComplex.ofFinitePolytopes hℱ hpoly).cells ↔
+      ∃ P, ∃ hP : P ∈ ℱ,
+        Q ∈ ((PolytopalComplex.ofPolytope (hpoly P hP)).splitList
+          (allHyperplanes hℱ).toList).cells := by
+  classical
+  change Q ∈ ⋃ P ∈ ℱ, (if h : P ∈ ℱ then
+    (PolytopalComplex.ofPolytope (hpoly P h)).splitList (allHyperplanes hℱ).toList
+    else PolytopalComplex.empty).cells ↔ _
+  simp only [Set.mem_iUnion₂, exists_prop]
+  exact ⟨fun ⟨P, hP, hQP⟩ => ⟨P, hP, by simpa only [dite_eq_left hP] using hQP⟩,
+    fun ⟨P, hP, hQP⟩ => ⟨P, hP, by simpa only [dite_eq_left hP] using hQP⟩⟩
 
 theorem PolytopalComplex.space_ofFinitePolytopes {ℱ : Set (Set E)} (hℱ : ℱ.Finite)
     (hpoly : ∀ P ∈ ℱ, IsPolytope P) :
     (PolytopalComplex.ofFinitePolytopes hℱ hpoly).space = ⋃ P ∈ ℱ, P := by
-  classical
   ext x
-  simp only [PolytopalComplex.space, PolytopalComplex.ofFinitePolytopes, Set.mem_iUnion,
-    exists_prop]
+  simp only [PolytopalComplex.mem_space_iff, mem_ofFinitePolytopes_cells_iff,
+    Set.mem_iUnion, exists_prop]
   constructor
-  · rintro ⟨Q, ⟨P, hP, hQ⟩, hx⟩
-    have hQp : Q ∈ ((PolytopalComplex.ofPolytope (hpoly P hP)).splitList
-        (allHyperplanes hℱ).toList).cells := by
-      simpa only [dite_eq_left hP] using hQ
+  · rintro ⟨Q, ⟨P, hP, hQp⟩, hx⟩
     obtain ⟨F, hFP, hQF⟩ := PolytopalComplex.splitList_subset _ _ hQp
     exact ⟨P, hP, hFP.1.subset (hQF hx)⟩
   · rintro ⟨P, hP, hx⟩
@@ -725,20 +683,13 @@ theorem PolytopalComplex.space_ofFinitePolytopes {ℱ : Set (Set E)} (hℱ : ℱ
       exact hx
     rw [PolytopalComplex.mem_space_iff] at hsp
     rcases hsp with ⟨Q, hQ, hxQ⟩
-    refine ⟨Q, ⟨P, hP, ?_⟩, hxQ⟩
-    simpa only [dite_eq_left hP] using hQ
+    exact ⟨Q, ⟨P, hP, hQ⟩, hxQ⟩
 
 theorem PolytopalComplex.ofFinitePolytopes_cell_subset {ℱ : Set (Set E)} (hℱ : ℱ.Finite)
     (hpoly : ∀ P ∈ ℱ, IsPolytope P) {Q : Set E}
     (hQ : Q ∈ (PolytopalComplex.ofFinitePolytopes hℱ hpoly).cells) :
     ∃ P ∈ ℱ, Q ⊆ P := by
-  classical
-  change Q ∈ ⋃ P ∈ ℱ, _ at hQ
-  rw [Set.mem_iUnion₂] at hQ
-  rcases hQ with ⟨P, hP, hQP⟩
-  have hQp : Q ∈ ((PolytopalComplex.ofPolytope (hpoly P hP)).splitList
-      (allHyperplanes hℱ).toList).cells := by
-    simpa only [dite_eq_left hP] using hQP
+  obtain ⟨P, hP, hQp⟩ := (mem_ofFinitePolytopes_cells_iff hℱ hpoly).1 hQ
   obtain ⟨F, hFP, hQF⟩ := PolytopalComplex.splitList_subset _ _ hQp
   exact ⟨P, hP, hQF.trans hFP.1.subset⟩
 
@@ -746,27 +697,17 @@ theorem PolytopalComplex.ofFinitePolytopes_inter_face_and_vertexCentroid {ℱ : 
     (hℱ : ℱ.Finite) (hpoly : ∀ P ∈ ℱ, IsPolytope P) {Q P : Set E}
     (hQ : Q ∈ (PolytopalComplex.ofFinitePolytopes hℱ hpoly).cells) (hP : P ∈ ℱ) :
     IsPolytopeFace Q (Q ∩ P) ∧ (vertexCentroid Q ∈ P → Q ⊆ P) := by
-  classical
-  change Q ∈ ⋃ R ∈ ℱ, _ at hQ
-  rw [Set.mem_iUnion₂] at hQ
-  rcases hQ with ⟨R, hR, hQR⟩
+  obtain ⟨R, _, hQp⟩ := (mem_ofFinitePolytopes_cells_iff hℱ hpoly).1 hQ
   let hHP : IsHPolytope P := isPolytope_iff_isHPolytope.1 (hpoly P hP)
   let LP : Set (E →ᵃ[ℝ] ℝ) := hHP.2.choose
-  have hLPfin : LP.Finite := hHP.2.choose_spec.1
-  have hPeq : P = {x | ∀ ℓ ∈ LP, ℓ x ≤ 0} := hHP.2.choose_spec.2
-  have hQp : Q ∈ ((PolytopalComplex.ofPolytope (hpoly R hR)).splitList
-      (allHyperplanes hℱ).toList).cells := by
-    simpa only [dite_eq_left hR] using hQR
-  have hsplit : ∀ ℓ ∈ LP, (∀ x ∈ Q, ℓ x ≤ 0) ∨ (∀ x ∈ Q, 0 ≤ ℓ x) := by
-    intro ℓ hℓ
-    apply PolytopalComplex.splitList_signs _ _ _ hQp
-    exact Finset.mem_toList.2 (mem_allHyperplanes_of_hPoly hℱ hP hHP hℓ)
-  have hQpoly := (PolytopalComplex.ofFinitePolytopes hℱ hpoly).isPolytope_of_mem
-    (Set.mem_biUnion hR hQR)
-  have hQne := (PolytopalComplex.ofFinitePolytopes hℱ hpoly).nonempty_of_mem
-    (Set.mem_biUnion hR hQR)
-  exact ⟨inter_face_of_split_hRep hQpoly ⟨LP, Subset.refl _, hLPfin, hPeq⟩ hsplit,
-    split_subset_of_vertexCentroid_mem hQpoly hQne hPeq hsplit⟩
+  have hsplit : ∀ ℓ ∈ LP, (∀ x ∈ Q, ℓ x ≤ 0) ∨ (∀ x ∈ Q, 0 ≤ ℓ x) := fun ℓ hℓ =>
+    PolytopalComplex.splitList_signs _ _
+      (Finset.mem_toList.2 (mem_allHyperplanes_of_hPoly hℱ hP hHP hℓ)) hQp
+  have hQpoly := (PolytopalComplex.ofFinitePolytopes hℱ hpoly).isPolytope_of_mem hQ
+  have hQne := (PolytopalComplex.ofFinitePolytopes hℱ hpoly).nonempty_of_mem hQ
+  exact ⟨inter_face_of_split_hRep hQpoly ⟨LP, Subset.refl _, hHP.2.choose_spec.1,
+      hHP.2.choose_spec.2⟩ hsplit,
+    split_subset_of_vertexCentroid_mem hQpoly hQne hHP.2.choose_spec.2 hsplit⟩
 
 end HyperplaneSplit
 
@@ -840,6 +781,22 @@ private lemma isCellChain_erase {C : PolytopalComplex E} {𝒞 : Finset (Set E)}
     h𝒞.2.2.mono (Finset.coe_subset.2 (Finset.erase_subset P 𝒞))⟩
 
 open Classical in
+private lemma isCellChain_convexHull_subset {C : PolytopalComplex E} {A : Finset (Set E)}
+    (hA : IsCellChain C A) {P : Set E} (hPC : P ∈ C.cells) (hmax : ∀ Q ∈ A, Q ⊆ P) :
+    convexHull ℝ (A.image vertexCentroid : Set E) ⊆ P := by
+  refine convexHull_min (fun v hv => ?_) (C.isPolytope_of_mem hPC).convex
+  rcases Finset.mem_image.1 (Finset.mem_coe.1 hv) with ⟨Q, hQ, rfl⟩
+  exact hmax Q hQ
+    (vertexCentroid_mem (C.isPolytope_of_mem (hA.1 hQ)) (C.nonempty_of_mem (hA.1 hQ)))
+
+open Classical in
+private lemma isCellChain_convexHull_subset_top {C : PolytopalComplex E} {𝒞 : Finset (Set E)}
+    (h𝒞 : IsCellChain C 𝒞) :
+    ∃ Q ∈ C.cells, Q ∈ 𝒞 ∧ convexHull ℝ (𝒞.image vertexCentroid : Set E) ⊆ Q := by
+  obtain ⟨Q, hQ𝒞, hmax⟩ := isCellChain_exists_top h𝒞
+  exact ⟨Q, h𝒞.1 hQ𝒞, hQ𝒞, isCellChain_convexHull_subset h𝒞 (h𝒞.1 hQ𝒞) hmax⟩
+
+open Classical in
 private lemma affineIndependent_vertexCentroid_of_isCellChain (C : PolytopalComplex E) :
     ∀ n : ℕ, ∀ 𝒞 : Finset (Set E), 𝒞.card = n → IsCellChain C 𝒞 →
       AffineIndependent ℝ ((↑) : 𝒞.image vertexCentroid → E) := by
@@ -850,18 +807,8 @@ private lemma affineIndependent_vertexCentroid_of_isCellChain (C : PolytopalComp
     obtain ⟨P, hP𝒞, hmax⟩ := isCellChain_exists_top h𝒞
     set 𝒞' := 𝒞.erase P
     rcases 𝒞'.eq_empty_or_nonempty with hmt | h𝒞'ne
-    · have hsingle : 𝒞 = {P} := by
-        ext Q
-        constructor
-        · intro hQ
-          simp only [Finset.mem_singleton]
-          by_contra hne
-          have hmem : Q ∈ 𝒞' := Finset.mem_erase.2 ⟨hne, hQ⟩
-          rw [hmt] at hmem
-          exact Finset.notMem_empty _ hmem
-        · intro hQ
-          simp only [Finset.mem_singleton] at hQ
-          exact hQ ▸ hP𝒞
+    · have hsingle : 𝒞 = {P} :=
+        ((Finset.erase_eq_empty_iff 𝒞 P).1 hmt).resolve_left (Finset.Nonempty.ne_empty ⟨P, hP𝒞⟩)
       have himg : 𝒞.image vertexCentroid = {vertexCentroid P} := by simp [hsingle]
       rw [himg]
       exact affineIndependent_of_subsingleton ℝ _
@@ -871,25 +818,19 @@ private lemma affineIndependent_vertexCentroid_of_isCellChain (C : PolytopalComp
       have h𝒞' : IsCellChain C 𝒞' := isCellChain_erase h𝒞 h𝒞'ne
       have hindep' : AffineIndependent ℝ ((↑) : 𝒞'.image vertexCentroid → E) :=
         ih 𝒞'.card hcard 𝒞' rfl h𝒞'
-      obtain ⟨Q₀, hQ₀𝒞', hmax'⟩ := isCellChain_exists_top h𝒞'
+      obtain ⟨Q₀, hQ₀C, hQ₀𝒞', hsubQ₀⟩ := isCellChain_convexHull_subset_top h𝒞'
       have hQ₀𝒞 : Q₀ ∈ 𝒞 := Finset.erase_subset P 𝒞 hQ₀𝒞'
       have hnePQ₀ : Q₀ ≠ P := (Finset.mem_erase.1 hQ₀𝒞').1
       have hss : Q₀ ⊂ P := ⟨hmax Q₀ hQ₀𝒞, fun hsub => hnePQ₀ (Subset.antisymm (hmax Q₀ hQ₀𝒞) hsub)⟩
       have hPC := h𝒞.1 hP𝒞
-      have hQ₀C := h𝒞.1 hQ₀𝒞
       have hface : IsPolytopeFace P Q₀ := by
         have := C.inter_face hPC hQ₀C
         rwa [inter_eq_right.2 (hmax Q₀ hQ₀𝒞)] at this
-      have hsubQ₀ : (𝒞'.image vertexCentroid : Set E) ⊆ Q₀ := by
-        intro v hv
-        rcases Finset.mem_image.1 (Finset.mem_coe.1 hv) with ⟨Q, hQ, rfl⟩
-        have hQC : Q ∈ C.cells := h𝒞'.1 hQ
-        exact hmax' Q hQ (vertexCentroid_mem (C.isPolytope_of_mem hQC) (C.nonempty_of_mem hQC))
       have hbnotQ₀ : vertexCentroid P ∉ affineSpan ℝ Q₀ :=
         vertexCentroid_notMem_affineSpan_of_ssubset (C.isPolytope_of_mem hPC) hface
           (C.nonempty_of_mem hQ₀C) hss
       have hbnot : vertexCentroid P ∉ affineSpan ℝ (𝒞'.image vertexCentroid : Set E) := fun hmem =>
-        hbnotQ₀ (affineSpan_mono ℝ hsubQ₀ hmem)
+        hbnotQ₀ (affineSpan_mono ℝ ((subset_convexHull ℝ _).trans hsubQ₀) hmem)
       have himg_eq :
           𝒞.image vertexCentroid = insert (vertexCentroid P) (𝒞'.image vertexCentroid) := by
         rw [← Finset.image_insert, Finset.insert_erase hP𝒞]
@@ -922,12 +863,44 @@ private lemma sum_vertexCentroid_mem_top {C : PolytopalComplex E} {A : Finset (S
     refine Finset.sum_congr rfl fun v _ => ?_
     refine Finset.sum_congr rfl fun Q hQ => ?_
     rw [(Finset.mem_filter.1 hQ).2]
-  have hsub : (A.image vertexCentroid : Set E) ⊆ P := by
-    intro v hv
-    rcases Finset.mem_image.1 (Finset.mem_coe.1 hv) with ⟨Q, hQ, rfl⟩
-    have hQC := hA.1 hQ
-    exact hmax Q hQ (vertexCentroid_mem (C.isPolytope_of_mem hQC) (C.nonempty_of_mem hQC))
-  exact convexHull_min hsub (C.isPolytope_of_mem hPC).convex hhull
+  exact isCellChain_convexHull_subset hA hPC hmax hhull
+
+open Classical in
+omit [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E] in
+private lemma eq_one_of_erase_eq_empty {A : Finset (Set E)} {w : Set E → ℝ} {P : Set E}
+    (hP : P ∈ A) (hsum : ∑ Q ∈ A, w Q = 1) (hmt : A.erase P = ∅) : w P = 1 := by
+  have h := Finset.add_sum_erase A w hP
+  rwa [hmt, Finset.sum_empty, add_zero, hsum] at h
+
+private lemma isCellChain_erase_decomp {C : PolytopalComplex E} {A : Finset (Set E)}
+    (hA : IsCellChain C A) {P R : Set E} (hP : P ∈ A) (hA' : (A.erase P).Nonempty)
+    (hRC : R ∈ C.cells) (hmax : ∀ Q ∈ A.erase P, Q ⊆ R)
+    {w : Set E → ℝ} (hwpos : ∀ Q ∈ A, 0 < w Q) (hw1 : ∑ Q ∈ A, w Q = 1) :
+    0 < 1 - w P ∧ w P ≤ 1 ∧
+      ∑ Q ∈ A.erase P, w Q / (1 - w P) = 1 ∧
+      (∑ Q ∈ A.erase P, (w Q / (1 - w P)) • vertexCentroid Q) ∈ R ∧
+      w P • vertexCentroid P +
+        (1 - w P) • (∑ Q ∈ A.erase P, (w Q / (1 - w P)) • vertexCentroid Q) =
+        ∑ Q ∈ A, w Q • vertexCentroid Q := by
+  have hrem_pos : 0 < ∑ Q ∈ A.erase P, w Q :=
+    Finset.sum_pos (fun Q hQ => hwpos Q (Finset.erase_subset P A hQ)) hA'
+  have hrem_eq : ∑ Q ∈ A.erase P, w Q = 1 - w P := by
+    rw [← Finset.add_sum_erase A w hP] at hw1
+    linarith
+  have h1w_pos : 0 < 1 - w P := hrem_eq ▸ hrem_pos
+  have hw_le : w P ≤ 1 := by linarith
+  have hdiv_sum : ∑ Q ∈ A.erase P, w Q / (1 - w P) = 1 := by
+    simp only [div_eq_mul_inv, ← Finset.sum_mul, hrem_eq, mul_inv_cancel₀ h1w_pos.ne']
+  have hyR : (∑ Q ∈ A.erase P, (w Q / (1 - w P)) • vertexCentroid Q) ∈ R :=
+    sum_vertexCentroid_mem_top (isCellChain_erase hA hA') hRC hmax
+      (fun Q hQ => div_nonneg (hwpos Q (Finset.erase_subset P A hQ)).le h1w_pos.le) hdiv_sum
+  have hsplit : w P • vertexCentroid P +
+      (1 - w P) • (∑ Q ∈ A.erase P, (w Q / (1 - w P)) • vertexCentroid Q) =
+      ∑ Q ∈ A, w Q • vertexCentroid Q := by
+    rw [← Finset.add_sum_erase A (fun Q => w Q • vertexCentroid Q) hP, Finset.smul_sum]
+    congr 1
+    exact Finset.sum_congr rfl fun Q _ => by rw [smul_smul, mul_div_cancel₀ _ h1w_pos.ne']
+  exact ⟨h1w_pos, hw_le, hdiv_sum, hyR, hsplit⟩
 
 private lemma top_subset_of_face_mem_sum {C : PolytopalComplex E} {A : Finset (Set E)}
     (hA : IsCellChain C A) {P : Set E} (hP : P ∈ A) (hmax : ∀ Q ∈ A, Q ⊆ P)
@@ -939,48 +912,16 @@ private lemma top_subset_of_face_mem_sum {C : PolytopalComplex E} {A : Finset (S
   have hbF : vertexCentroid P ∈ F := by
     set A' := A.erase P
     rcases A'.eq_empty_or_nonempty with hmt | hA'ne
-    · have hsingle : A = {P} := by
-        ext Q
-        constructor
-        · intro hQ
-          simp only [Finset.mem_singleton]
-          by_contra hne
-          have hmem : Q ∈ A' := Finset.mem_erase.2 ⟨hne, hQ⟩
-          rw [hmt] at hmem
-          exact Finset.notMem_empty _ hmem
-        · intro hQ
-          simp only [Finset.mem_singleton] at hQ
-          exact hQ ▸ hP
+    · have hsingle : A = {P} :=
+        ((Finset.erase_eq_empty_iff A P).1 hmt).resolve_left (Finset.Nonempty.ne_empty ⟨P, hP⟩)
       subst hsingle
       simp only [Finset.sum_singleton] at hw1 hxF
       rwa [hw1, one_smul] at hxF
-    · have hcpos : 0 < w P := hwpos P hP
-      have hrem_pos : 0 < ∑ Q ∈ A', w Q :=
-        Finset.sum_pos (fun Q hQ => hwpos Q (Finset.erase_subset P A hQ)) hA'ne
-      have hsum_split : w P + ∑ Q ∈ A', w Q = 1 := by
-        rw [← Finset.add_sum_erase A w hP] at hw1
-        exact hw1
-      have hrem_eq : ∑ Q ∈ A', w Q = 1 - w P := by linarith
-      have h1w_pos : 0 < 1 - w P := hrem_eq ▸ hrem_pos
-      have hc_le : w P ≤ 1 := by linarith
-      let y : E := ∑ Q ∈ A', (w Q / (1 - w P)) • vertexCentroid Q
-      have hy_sum : ∑ Q ∈ A', w Q / (1 - w P) = 1 := by
-        simp only [div_eq_mul_inv, ← Finset.sum_mul, hrem_eq]
-        exact mul_inv_cancel₀ h1w_pos.ne'
-      have hyP : y ∈ P :=
-        sum_vertexCentroid_mem_top (isCellChain_erase hA hA'ne)
-          hPC (fun Q hQ => hmax Q (Finset.erase_subset P A hQ))
-          (fun Q hQ => div_nonneg (hwpos Q (Finset.erase_subset P A hQ)).le h1w_pos.le)
-          hy_sum
-      have hsplit : w P • vertexCentroid P + (1 - w P) • y = ∑ Q ∈ A, w Q • vertexCentroid Q := by
-        rw [← Finset.add_sum_erase A (fun Q => w Q • vertexCentroid Q) hP]
-        simp only [y, Finset.smul_sum, smul_smul]
-        congr 1
-        refine Finset.sum_congr rfl fun Q _ => ?_
-        rw [mul_div_cancel₀ _ h1w_pos.ne']
+    · obtain ⟨_, hc_le, _, hyP, hsplit⟩ := isCellChain_erase_decomp hA hP hA'ne hPC
+        (fun Q hQ => hmax Q (Finset.erase_subset P A hQ)) hwpos hw1
       have hbP : vertexCentroid P ∈ P :=
         vertexCentroid_mem (C.isPolytope_of_mem hPC) (C.nonempty_of_mem hPC)
-      exact hPF.left_mem_of_smul_add_mem hcpos hc_le hbP hyP (hsplit.symm ▸ hxF)
+      exact hPF.left_mem_of_smul_add_mem (hwpos P hP) hc_le hbP hyP (hsplit.symm ▸ hxF)
   by_contra hnot
   have hss : F ⊂ P := ⟨hPF.subset, hnot⟩
   exact vertexCentroid_notMem_of_ssubset (C.isPolytope_of_mem hPC) hPF hss hbF
@@ -995,20 +936,11 @@ private lemma top_weight_not_lt {C : PolytopalComplex E} {A₁ A₂ : Finset (Se
     ¬(w₁ P < w₂ P) := by
   classical
   intro hlt
-  have hw₂_le : w₂ P ≤ 1 := by
-    rw [← hsum₂]
-    exact Finset.single_le_sum (fun Q hQ => (hw₂ Q hQ).le) hP₂
+  have hw₂_le : w₂ P ≤ 1 := hsum₂ ▸ Finset.single_le_sum (fun Q hQ => (hw₂ Q hQ).le) hP₂
   have h1c_pos : 0 < 1 - w₁ P := by linarith
   set A₁' := A₁.erase P
-  have hrem₁ : w₁ P + ∑ Q ∈ A₁', w₁ Q = 1 := by
-    rw [← Finset.add_sum_erase A₁ w₁ hP₁] at hsum₁
-    exact hsum₁
-  have hrem₁_eq : ∑ Q ∈ A₁', w₁ Q = 1 - w₁ P := by linarith
-  have hA₁'ne : A₁'.Nonempty := by
-    by_contra hmt
-    rw [Finset.not_nonempty_iff_eq_empty] at hmt
-    rw [hmt, Finset.sum_empty] at hrem₁_eq
-    linarith
+  have hA₁'ne : A₁'.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt => by
+    linarith [eq_one_of_erase_eq_empty hP₁ hsum₁ hmt]
   obtain ⟨P', hP'A₁', hmaxP'⟩ := isCellChain_exists_top (isCellChain_erase hA₁ hA₁'ne)
   have hPC := hA₁.1 hP₁
   have hP'C := (isCellChain_erase hA₁ hA₁'ne).1 hP'A₁'
@@ -1019,74 +951,44 @@ private lemma top_weight_not_lt {C : PolytopalComplex E} {A₁ A₂ : Finset (Se
     have := C.inter_face hPC hP'C
     rwa [inter_eq_right.2 hP'sub] at this
   let z : E := ∑ Q ∈ A₁', (w₁ Q / (1 - w₁ P)) • vertexCentroid Q
-  have hz_sum : ∑ Q ∈ A₁', w₁ Q / (1 - w₁ P) = 1 := by
-    simp only [div_eq_mul_inv, ← Finset.sum_mul, hrem₁_eq, mul_inv_cancel₀ h1c_pos.ne']
-  have hzP' : z ∈ P' := sum_vertexCentroid_mem_top (isCellChain_erase hA₁ hA₁'ne) hP'C hmaxP'
-    (fun Q hQ => div_nonneg (hw₁ Q (Finset.erase_subset P A₁ hQ)).le h1c_pos.le) hz_sum
-  have hdiff_eq : ∑ Q ∈ A₁', w₁ Q • vertexCentroid Q =
-      (w₂ P - w₁ P) • vertexCentroid P + ∑ Q ∈ A₂.erase P, w₂ Q • vertexCentroid Q := by
-    rw [← Finset.add_sum_erase A₁ (fun Q => w₁ Q • vertexCentroid Q) hP₁,
-      ← Finset.add_sum_erase A₂ (fun Q => w₂ Q • vertexCentroid Q) hP₂] at heq
-    have hsub : ∑ Q ∈ A₁', w₁ Q • vertexCentroid Q =
-        w₂ P • vertexCentroid P - w₁ P • vertexCentroid P +
-          ∑ Q ∈ A₂.erase P, w₂ Q • vertexCentroid Q := by
-      have := eq_sub_of_add_eq' heq
-      rw [this]
-      abel
-    rw [hsub, sub_smul]
-  have hz_eq : z = ((w₂ P - w₁ P) / (1 - w₁ P)) • vertexCentroid P +
-      ∑ Q ∈ A₂.erase P, (w₂ Q / (1 - w₁ P)) • vertexCentroid Q := by
-    have hsmul : (1 - w₁ P) • z = ∑ Q ∈ A₁', w₁ Q • vertexCentroid Q := by
-      simp only [z, Finset.smul_sum, smul_smul]
-      exact Finset.sum_congr rfl fun Q _ => by rw [mul_div_cancel₀ _ h1c_pos.ne']
-    have hinveq : z = (1 - w₁ P)⁻¹ • ((1 - w₁ P) • z) := by
-      rw [smul_smul, inv_mul_cancel₀ h1c_pos.ne', one_smul]
-    rw [hinveq, hsmul, hdiff_eq, smul_add, smul_smul, Finset.smul_sum]
-    congr 1
-    · rw [div_eq_inv_mul]
-    · refine Finset.sum_congr rfl fun Q _ => ?_
-      rw [smul_smul, div_eq_inv_mul]
-  let c : ℝ := (w₂ P - w₁ P) / (1 - w₁ P)
-  have hcpos : 0 < c := div_pos (sub_pos.2 hlt) h1c_pos
-  have hc_le : c ≤ 1 := (div_le_one h1c_pos).2 (by linarith)
+  obtain ⟨_, _, _, hzP', hsplit₁⟩ :=
+    isCellChain_erase_decomp hA₁ hP₁ hA₁'ne hP'C hmaxP' hw₁ hsum₁
   set A₂' := A₂.erase P
-  have hrem₂ : w₂ P + ∑ Q ∈ A₂', w₂ Q = 1 := by
-    rw [← Finset.add_sum_erase A₂ w₂ hP₂] at hsum₂
-    exact hsum₂
   rcases A₂'.eq_empty_or_nonempty with hmt₂ | hA₂'ne
-  · rw [hmt₂, Finset.sum_empty] at hz_eq hrem₂
-    have hw₂1 : w₂ P = 1 := by linarith
-    have hc1 : (w₂ P - w₁ P) / (1 - w₁ P) = 1 := by
-      rw [hw₂1, div_self h1c_pos.ne']
-    rw [hc1, one_smul, add_zero] at hz_eq
-    exact vertexCentroid_notMem_of_ssubset (C.isPolytope_of_mem hPC) hface hss (hz_eq ▸ hzP')
-  · have hrem₂_pos : 0 < ∑ Q ∈ A₂', w₂ Q :=
-      Finset.sum_pos (fun Q hQ => hw₂ Q (Finset.erase_subset P A₂ hQ)) hA₂'ne
-    have hrem₂_eq : ∑ Q ∈ A₂', w₂ Q = 1 - w₂ P := by linarith
-    have h1w2_pos : 0 < 1 - w₂ P := hrem₂_eq ▸ hrem₂_pos
-    have h1c2 : 1 - c = (1 - w₂ P) / (1 - w₁ P) := by
-      dsimp only [c]; field_simp; ring
+  · have hw₂1 : w₂ P = 1 := eq_one_of_erase_eq_empty hP₂ hsum₂ hmt₂
+    have hsum2 : ∑ Q ∈ A₂, w₂ Q • vertexCentroid Q = vertexCentroid P := by
+      rw [← Finset.add_sum_erase A₂ (fun Q => w₂ Q • vertexCentroid Q) hP₂,
+        show A₂.erase P = A₂' from rfl, hmt₂, Finset.sum_empty, add_zero, hw₂1, one_smul]
+    have hcomb : (1 - w₁ P) • z = (1 - w₁ P) • vertexCentroid P := by
+      have hsub : (1 - w₁ P) • z = vertexCentroid P - w₁ P • vertexCentroid P :=
+        eq_sub_of_add_eq' (hsplit₁.trans (heq.trans hsum2))
+      rw [hsub, sub_smul, one_smul]
+    exact vertexCentroid_notMem_of_ssubset (C.isPolytope_of_mem hPC) hface hss
+      ((smul_right_inj h1c_pos.ne').1 hcomb ▸ hzP')
+  · obtain ⟨_, _, _, hyP, hsplit₂⟩ := isCellChain_erase_decomp hA₂ hP₂ hA₂'ne hPC
+      (fun Q hQ => hmax₂ Q (Finset.erase_subset P A₂ hQ)) hw₂ hsum₂
     let y : E := ∑ Q ∈ A₂', (w₂ Q / (1 - w₂ P)) • vertexCentroid Q
-    have hy_sum : ∑ Q ∈ A₂', w₂ Q / (1 - w₂ P) = 1 := by
-      simp only [div_eq_mul_inv, ← Finset.sum_mul, hrem₂_eq]
-      exact mul_inv_cancel₀ h1w2_pos.ne'
-    have hyP : y ∈ P := sum_vertexCentroid_mem_top (isCellChain_erase hA₂ hA₂'ne) hPC
-      (fun Q hQ => hmax₂ Q (Finset.erase_subset P A₂ hQ))
-      (fun Q hQ => div_nonneg (hw₂ Q (Finset.erase_subset P A₂ hQ)).le h1w2_pos.le) hy_sum
-    have hy_eq : (1 - c) • y = ∑ Q ∈ A₂', (w₂ Q / (1 - w₁ P)) • vertexCentroid Q := by
-      simp only [y, h1c2, Finset.smul_sum, smul_smul]
-      refine Finset.sum_congr rfl fun Q _ => ?_
-      have hne1 : 1 - w₁ P ≠ 0 := h1c_pos.ne'
-      have hne2 : 1 - w₂ P ≠ 0 := h1w2_pos.ne'
-      congr 1
-      field_simp
+    let c : ℝ := (w₂ P - w₁ P) / (1 - w₁ P)
+    have hcpos : 0 < c := div_pos (sub_pos.2 hlt) h1c_pos
+    have hc_le : c ≤ 1 := (div_le_one h1c_pos).2 (by linarith)
+    have hcomb_scaled : (1 - w₁ P) • z = (w₂ P - w₁ P) • vertexCentroid P + (1 - w₂ P) • y := by
+      have heq' : w₁ P • vertexCentroid P + (1 - w₁ P) • z =
+          w₂ P • vertexCentroid P + (1 - w₂ P) • y := hsplit₁.trans (heq.trans hsplit₂.symm)
+      calc (1 - w₁ P) • z
+          = w₂ P • vertexCentroid P + (1 - w₂ P) • y - w₁ P • vertexCentroid P :=
+            eq_sub_of_add_eq' heq'
+        _ = (w₂ P - w₁ P) • vertexCentroid P + (1 - w₂ P) • y := by module
     have hcomb : c • vertexCentroid P + (1 - c) • y = z := by
-      rw [hy_eq, ← hz_eq]
+      have h1 : (1 - w₁ P) • (c • vertexCentroid P + (1 - c) • y) = (1 - w₁ P) • z := by
+        rw [smul_add, smul_smul, smul_smul, hcomb_scaled]
+        have hne1 : 1 - w₁ P ≠ 0 := h1c_pos.ne'
+        rw [show (1 - w₁ P) * c = w₂ P - w₁ P by dsimp [c]; field_simp,
+          show (1 - w₁ P) * (1 - c) = 1 - w₂ P by dsimp [c]; field_simp; ring]
+      exact (smul_right_inj h1c_pos.ne').1 h1
     have hbP : vertexCentroid P ∈ P :=
       vertexCentroid_mem (C.isPolytope_of_mem hPC) (C.nonempty_of_mem hPC)
-    have hbin : vertexCentroid P ∈ P' :=
-      hface.left_mem_of_smul_add_mem hcpos hc_le hbP hyP (hcomb.symm ▸ hzP')
-    exact vertexCentroid_notMem_of_ssubset (C.isPolytope_of_mem hPC) hface hss hbin
+    exact vertexCentroid_notMem_of_ssubset (C.isPolytope_of_mem hPC) hface hss
+      (hface.left_mem_of_smul_add_mem hcpos hc_le hbP hyP (hcomb.symm ▸ hzP'))
 
 open Classical in
 private lemma mem_convexHull_inter_of_chains (C : PolytopalComplex E) :
@@ -1135,42 +1037,28 @@ private lemma mem_convexHull_inter_of_chains (C : PolytopalComplex E) :
     have hP₁_inter : vertexCentroid P₁ ∈ (((A₁ ∩ A₂).image vertexCentroid : Finset E) : Set E) :=
       Finset.mem_coe.2 (Finset.mem_image_of_mem _ (Finset.mem_inter.2 ⟨hP₁A₁, hQ₂A₂⟩))
     by_cases h1 : w₁ P₁ = 1
-    · have hsingle : A₁ = {P₁} := by
-        ext R
-        constructor
-        · intro hR
-          simp only [Finset.mem_singleton]
-          by_contra hne
-          have hsub : w₁ P₁ + w₁ R ≤ ∑ Q ∈ A₁, w₁ Q := by
-            have : {P₁, R} ⊆ A₁ := by intro z hz; simp only [Finset.mem_insert,
-              Finset.mem_singleton] at hz; rcases hz with rfl | rfl <;> assumption
-            rw [← Finset.sum_pair (fun h => hne h.symm)]
-            exact Finset.sum_le_sum_of_subset_of_nonneg this
-              (fun z hz _ => (hw₁ z hz).le)
-          linarith [hw₁ R hR]
-        · intro hR; simp only [Finset.mem_singleton] at hR; exact hR ▸ hP₁A₁
-      have hx_eq : x = vertexCentroid P₁ := by
-        simp [x, hsingle, h1]
+    · have hmt : A₁.erase P₁ = ∅ := Finset.eq_empty_iff_forall_notMem.2 fun R hR => by
+        have hpos : 0 < ∑ Q ∈ A₁.erase P₁, w₁ Q :=
+          Finset.sum_pos (fun Q hQ => hw₁ Q (Finset.erase_subset P₁ A₁ hQ)) ⟨R, hR⟩
+        have hsum := Finset.add_sum_erase A₁ w₁ hP₁A₁
+        linarith
+      have hsingle : A₁ = {P₁} :=
+        ((Finset.erase_eq_empty_iff A₁ P₁).1 hmt).resolve_left
+          (Finset.Nonempty.ne_empty ⟨P₁, hP₁A₁⟩)
+      have hx_eq : x = vertexCentroid P₁ := by simp [x, hsingle, h1]
       change x ∈ _
       rw [hx_eq]
       exact subset_convexHull ℝ _ hP₁_inter
-    · have hw1_le : w₁ P₁ ≤ 1 := by
-        rw [← hsum₁]
-        exact Finset.single_le_sum (fun Q hQ => (hw₁ Q hQ).le) hP₁A₁
-      have hw1_lt : w₁ P₁ < 1 := lt_of_le_of_ne hw1_le h1
-      have h1t_pos : 0 < 1 - w₁ P₁ := sub_pos.2 hw1_lt
-      set A₁' := A₁.erase P₁
+    · set A₁' := A₁.erase P₁
       set A₂' := A₂.erase P₁
-      have hsum₁' : ∑ Q ∈ A₁', w₁ Q = 1 - w₁ P₁ := by
-        rw [← Finset.add_sum_erase A₁ w₁ hP₁A₁] at hsum₁; linarith
-      have hsum₂' : ∑ Q ∈ A₂', w₂ Q = 1 - w₁ P₁ := by
-        rw [← Finset.add_sum_erase A₂ w₂ hQ₂A₂, ← hw_eq] at hsum₂; linarith
-      have hA₁'ne : A₁'.Nonempty := by
-        by_contra hmt; rw [Finset.not_nonempty_iff_eq_empty] at hmt
-        rw [hmt, Finset.sum_empty] at hsum₁'; linarith
-      have hA₂'ne : A₂'.Nonempty := by
-        by_contra hmt; rw [Finset.not_nonempty_iff_eq_empty] at hmt
-        rw [hmt, Finset.sum_empty] at hsum₂'; linarith
+      have hA₁'ne : A₁'.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+        h1 (eq_one_of_erase_eq_empty hP₁A₁ hsum₁ hmt)
+      have hA₂'ne : A₂'.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+        (hw_eq ▸ h1) (eq_one_of_erase_eq_empty hQ₂A₂ hsum₂ hmt)
+      obtain ⟨h1t_pos, _, hsum₁'_div, _, hx_split⟩ := isCellChain_erase_decomp hA₁ hP₁A₁ hA₁'ne
+        hP₁C (fun Q hQ => hmax₁ Q (Finset.erase_subset P₁ A₁ hQ)) hw₁ hsum₁
+      obtain ⟨_, _, hsum₂'_div, _, hx_split₂⟩ := isCellChain_erase_decomp hA₂ hQ₂A₂ hA₂'ne
+        hP₁C (fun Q hQ => hmax₂ Q (Finset.erase_subset P₁ A₂ hQ)) hw₂ hsum₂
       have hcard' : A₁'.card + A₂'.card < n := by
         rw [← hn]
         have hc₁ := Finset.card_erase_lt_of_mem hP₁A₁
@@ -1179,34 +1067,27 @@ private lemma mem_convexHull_inter_of_chains (C : PolytopalComplex E) :
         omega
       let w₁' : Set E → ℝ := fun Q => w₁ Q / (1 - w₁ P₁)
       let w₂' : Set E → ℝ := fun Q => w₂ Q / (1 - w₁ P₁)
-      have heq_rem : ∑ Q ∈ A₁', w₁ Q • vertexCentroid Q = ∑ Q ∈ A₂', w₂ Q • vertexCentroid Q := by
-        rw [← Finset.add_sum_erase A₁ (fun Q => w₁ Q • vertexCentroid Q) hP₁A₁,
-          ← Finset.add_sum_erase A₂ (fun Q => w₂ Q • vertexCentroid Q) hQ₂A₂, ← hw_eq] at heq
-        exact add_left_cancel heq
       have heq' : ∑ Q ∈ A₁', w₁' Q • vertexCentroid Q = ∑ Q ∈ A₂', w₂' Q • vertexCentroid Q := by
-        simp only [w₁', w₂', div_eq_inv_mul, ← smul_smul, ← Finset.smul_sum, heq_rem]
+        rw [← hw_eq] at hx_split₂
+        have h12 : w₁ P₁ • vertexCentroid P₁ + (1 - w₁ P₁) • ∑ Q ∈ A₁', w₁' Q • vertexCentroid Q =
+            w₁ P₁ • vertexCentroid P₁ + (1 - w₁ P₁) • ∑ Q ∈ A₂', w₂' Q • vertexCentroid Q := by
+          dsimp only [w₁', w₂']
+          rw [hx_split, heq, ← hx_split₂]
+        exact (smul_right_inj h1t_pos.ne').1 (add_left_cancel h12)
       have hy := ih (A₁'.card + A₂'.card) hcard' rfl
         (isCellChain_erase hA₁ hA₁'ne) (isCellChain_erase hA₂ hA₂'ne)
         (fun Q hQ => div_pos (hw₁ Q (Finset.erase_subset P₁ A₁ hQ)) h1t_pos)
-        (by simp only [div_eq_mul_inv, ← Finset.sum_mul, hsum₁']; exact mul_inv_cancel₀ h1t_pos.ne')
+        hsum₁'_div
         (fun Q hQ => div_pos (hw₂ Q (Finset.erase_subset P₁ A₂ hQ)) h1t_pos)
-        (by simp only [div_eq_mul_inv, ← Finset.sum_mul, hsum₂']; exact mul_inv_cancel₀ h1t_pos.ne')
+        (hw_eq ▸ hsum₂'_div)
         heq'
       have hy' : (∑ Q ∈ A₁', w₁' Q • vertexCentroid Q) ∈
           convexHull ℝ (((A₁ ∩ A₂).image vertexCentroid : Finset E) : Set E) := by
         refine convexHull_mono (Finset.coe_subset.2 (Finset.image_subset_image ?_)) hy
         exact Finset.inter_subset_inter (Finset.erase_subset P₁ A₁) (Finset.erase_subset P₁ A₂)
-      have hx_split : x = w₁ P₁ • vertexCentroid P₁ +
-          (1 - w₁ P₁) • ∑ Q ∈ A₁', w₁' Q • vertexCentroid Q := by
-        rw [Finset.smul_sum]
-        have hcongr : ∑ Q ∈ A₁', (1 - w₁ P₁) • (w₁' Q • vertexCentroid Q) =
-            ∑ Q ∈ A₁', w₁ Q • vertexCentroid Q :=
-          Finset.sum_congr rfl fun Q _ => by
-            simp only [w₁', smul_smul, mul_div_cancel₀ _ h1t_pos.ne']
-        rw [hcongr]
-        exact (Finset.add_sum_erase A₁ (fun Q => w₁ Q • vertexCentroid Q) hP₁A₁).symm
       change x ∈ _
-      rw [hx_split]
+      dsimp only [x]
+      rw [← hx_split]
       exact (convex_convexHull ℝ _) (subset_convexHull ℝ _ hP₁_inter) hy'
         (hw₁ P₁ hP₁A₁).le h1t_pos.le (by ring)
 
@@ -1319,12 +1200,8 @@ theorem PolytopalComplex.barycentricSubdivision_simplex_subset (C : PolytopalCom
     ∃ P ∈ C.cells, convexHull ℝ (s : Set E) ⊆ P := by
   classical
   rcases hs with ⟨𝒞, h𝒞, rfl⟩
-  obtain ⟨P, hP𝒞, hmax⟩ := isCellChain_exists_top h𝒞
-  refine ⟨P, h𝒞.1 hP𝒞, convexHull_min ?_ (C.isPolytope_of_mem (h𝒞.1 hP𝒞)).convex⟩
-  intro v hv
-  rcases Finset.mem_image.1 (Finset.mem_coe.1 hv) with ⟨Q, hQ, rfl⟩
-  have hQC := h𝒞.1 hQ
-  exact hmax Q hQ (vertexCentroid_mem (C.isPolytope_of_mem hQC) (C.nonempty_of_mem hQC))
+  obtain ⟨P, hPC, _, hsub⟩ := isCellChain_convexHull_subset_top h𝒞
+  exact ⟨P, hPC, hsub⟩
 
 open Classical in
 private lemma mem_barycentricSubdivision_of_cell (C : PolytopalComplex E) :
@@ -1496,24 +1373,6 @@ theorem IsPolyhedron.biUnion {ι : Type*} {s : Set ι} (hs : s.Finite) {P : ι �
     rw [Set.biUnion_insert]
     exact (hP a (Set.mem_insert a s')).union (ih fun i hi => hP i (Set.mem_insert_of_mem a hi))
 
-theorem IsPolyhedron.inter {P Q : Set E} (hP : IsPolyhedron P) (hQ : IsPolyhedron Q) :
-    IsPolyhedron (P ∩ Q) := by
-  obtain ⟨C₁, rfl⟩ := isPolyhedron_iff_exists_polytopalComplex.1 hP
-  obtain ⟨C₂, rfl⟩ := isPolyhedron_iff_exists_polytopalComplex.1 hQ
-  rw [isPolyhedron_iff_finite_union_polytopes]
-  let ℱ := (fun p : Set E × Set E => p.1 ∩ p.2) '' (C₁.cells ×ˢ C₂.cells)
-  refine ⟨ℱ, (C₁.finite_cells.prod C₂.finite_cells).image _, ?_, ?_⟩
-  · rintro _ ⟨⟨R₁, R₂⟩, ⟨hR₁, hR₂⟩, rfl⟩
-    exact (C₁.isPolytope_of_mem hR₁).inter (C₂.isPolytope_of_mem hR₂)
-  · ext x
-    simp only [Set.mem_inter_iff, PolytopalComplex.mem_space_iff, Set.mem_iUnion,
-      Set.mem_image, Set.mem_prod, Prod.exists, exists_prop, ℱ]
-    constructor
-    · rintro ⟨⟨R₁, hR₁, hx1⟩, ⟨R₂, hR₂, hx2⟩⟩
-      exact ⟨R₁ ∩ R₂, ⟨R₁, R₂, ⟨hR₁, hR₂⟩, rfl⟩, hx1, hx2⟩
-    · rintro ⟨_, ⟨R₁, R₂, ⟨hR₁, hR₂⟩, rfl⟩, hx1, hx2⟩
-      exact ⟨⟨R₁, hR₁, hx1⟩, ⟨R₂, hR₂, hx2⟩⟩
-
 theorem IsPolyhedron.prod {P : Set E} {Q : Set F} (hP : IsPolyhedron P) (hQ : IsPolyhedron Q) :
     IsPolyhedron (P ×ˢ Q) := by
   obtain ⟨C₁, rfl⟩ := isPolyhedron_iff_exists_polytopalComplex.1 hP
@@ -1553,6 +1412,10 @@ theorem IsPolyhedron.preimage_inter {P : Set E} {Q : Set F} (hP : IsPolyhedron P
     · rintro ⟨_, ⟨R₁, R₂, ⟨hR₁, hR₂⟩, rfl⟩, hx1, hx2⟩
       exact ⟨⟨R₁, hR₁, hx1⟩, ⟨R₂, hR₂, hx2⟩⟩
 
+theorem IsPolyhedron.inter {P Q : Set E} (hP : IsPolyhedron P) (hQ : IsPolyhedron Q) :
+    IsPolyhedron (P ∩ Q) :=
+  hP.preimage_inter hQ (AffineMap.id ℝ E)
+
 theorem exists_common_refinement_of_finite_complexes {ι : Type*} [Finite ι] [Nonempty ι]
     {P : Set E} (C : ι → PolytopalComplex E) (hsp : ∀ i, (C i).space = P) :
     ∃ K : Geometry.SimplicialComplex ℝ E, K.faces.Finite ∧ K.space = P ∧
@@ -1581,8 +1444,7 @@ theorem exists_common_refinement_of_finite_complexes {ι : Type*} [Finite ι] [N
       exact ⟨R, ⟨i₀, hR⟩, hxR⟩
   · intro s hs i
     rcases hs with ⟨𝒞, h𝒞, rfl⟩
-    obtain ⟨Q, hQ𝒞, hmax⟩ := isCellChain_exists_top h𝒞
-    have hQD : Q ∈ D.cells := h𝒞.1 hQ𝒞
+    obtain ⟨Q, hQD, _, hsubQ⟩ := isCellChain_convexHull_subset_top h𝒞
     have hbD : vertexCentroid Q ∈ D.space :=
       D.subset_space hQD (vertexCentroid_mem (D.isPolytope_of_mem hQD) (D.nonempty_of_mem hQD))
     have hbP : vertexCentroid Q ∈ P := by
@@ -1596,11 +1458,7 @@ theorem exists_common_refinement_of_finite_complexes {ι : Type*} [Finite ι] [N
     have hQR : Q ⊆ R :=
       (PolytopalComplex.ofFinitePolytopes_inter_face_and_vertexCentroid hℱ hpoly hQD
         (Set.mem_iUnion.2 ⟨i, hRi⟩)).2 hbR
-    refine ⟨R, hRi, convexHull_min ?_ (C i |>.isPolytope_of_mem hRi).convex⟩
-    intro v hv
-    rcases Finset.mem_image.1 (Finset.mem_coe.1 hv) with ⟨Q', hQ', rfl⟩
-    have hQ'D := h𝒞.1 hQ'
-    exact hQR (hmax Q' hQ' (vertexCentroid_mem (D.isPolytope_of_mem hQ'D) (D.nonempty_of_mem hQ'D)))
+    exact ⟨R, hRi, hsubQ.trans hQR⟩
 
 theorem exists_common_refinement (C₁ C₂ : PolytopalComplex E) (hsp : C₁.space = C₂.space) :
     ∃ K : Geometry.SimplicialComplex ℝ E, K.faces.Finite ∧ K.space = C₁.space ∧
@@ -1659,17 +1517,6 @@ theorem exists_triangulation_compatible_with_subpolyhedra {ι : Type*} [Finite �
           ⟨Kall.down_closed hs.1 hts ht, (Finset.coe_subset.2 hts).trans hs.2⟩⟩
       inter_subset_convexHull := fun hs ht => Kall.inter_subset_convexHull hs.1 ht.1 }
   let K := subComplex P
-  have hchain_top : ∀ {𝒞 : Finset (Set E)}, IsCellChain D 𝒞 →
-      ∃ Qtop ∈ D.cells, Qtop ∈ 𝒞 ∧
-        convexHull ℝ ((𝒞.image vertexCentroid : Finset E) : Set E) ⊆ Qtop := by
-    intro 𝒞 h𝒞
-    obtain ⟨Qtop, hQtop𝒞, hmax⟩ := isCellChain_exists_top h𝒞
-    have hQtopD : Qtop ∈ D.cells := h𝒞.1 hQtop𝒞
-    refine ⟨Qtop, hQtopD, hQtop𝒞, convexHull_min ?_ (D.isPolytope_of_mem hQtopD).convex⟩
-    intro v hv
-    rcases Finset.mem_image.1 (Finset.mem_coe.1 hv) with ⟨Q', hQ', rfl⟩
-    have hQ'D := h𝒞.1 hQ'
-    exact hmax Q' hQ' (vertexCentroid_mem (D.isPolytope_of_mem hQ'D) (D.nonempty_of_mem hQ'D))
   have hx_Kall : ∀ x ∈ P, x ∈ Kall.space := by
     intro x hxP
     rw [D.barycentricSubdivision_space, PolytopalComplex.space_ofFinitePolytopes hℱ hpoly]
@@ -1682,7 +1529,7 @@ theorem exists_triangulation_compatible_with_subpolyhedra {ι : Type*} [Finite �
       convexHull ℝ (s : Set E) ⊆ C.space := by
     intro s C hs hCℱ hsS
     rcases hs with ⟨𝒞, h𝒞, rfl⟩
-    obtain ⟨Qtop, hQtopD, hQtop𝒞, hsQtop⟩ := hchain_top h𝒞
+    obtain ⟨Qtop, hQtopD, hQtop𝒞, hsQtop⟩ := isCellChain_convexHull_subset_top h𝒞
     have hb_mem : vertexCentroid Qtop ∈ C.space :=
       hsS (Finset.mem_coe.2 (Finset.mem_image_of_mem _ hQtop𝒞))
     rw [PolytopalComplex.mem_space_iff] at hb_mem
@@ -1691,22 +1538,31 @@ theorem exists_triangulation_compatible_with_subpolyhedra {ι : Type*} [Finite �
       (PolytopalComplex.ofFinitePolytopes_inter_face_and_vertexCentroid hℱ hpoly hQtopD
         (hCℱ R hRC)).2 hbR
     exact hsQtop.trans (hQtopR.trans (C.subset_space hRC))
+  have hmem_sub : ∀ {S : Set E} {x : E}, x ∈ P →
+      (∀ {Qtop : Set E}, Qtop ∈ D.cells → x ∈ Qtop →
+        ∃ R, R ⊆ S ∧ x ∈ R ∧ IsPolytopeFace Qtop (Qtop ∩ R)) →
+      x ∈ (subComplex S).space := by
+    intro S x hxP hfind
+    rcases Set.mem_iUnion₂.1 (hx_Kall x hxP) with ⟨s, hs, hxs⟩
+    have hsf := hs
+    rcases hs with ⟨𝒞, h𝒞, rfl⟩
+    obtain ⟨Qtop, hQtopD, _, hsQtop⟩ := isCellChain_convexHull_subset_top h𝒞
+    obtain ⟨R, hRS, hxR, hface⟩ := hfind hQtopD (hsQtop hxs)
+    obtain ⟨t, hts, htne, htR, hxt⟩ := exists_finset_subset_convexHull_of_isExtreme
+      (D.isPolytope_of_mem hQtopD).convex (Subset.trans (subset_convexHull ℝ _) hsQtop)
+      hface.isExtreme ⟨hxs, hsQtop hxs, hxR⟩
+    exact Set.mem_biUnion ⟨Kall.down_closed hsf hts htne,
+      htR.trans (inter_subset_right.trans hRS)⟩ hxt
   refine ⟨K, D.barycentricSubdivision_faces_finite.subset fun _ hs => hs.1, ?_, fun i => ?_⟩
   · refine Subset.antisymm (Set.iUnion₂_subset fun s hs => ?_) fun x hxP => ?_
     · exact hCP ▸ hsubset_cell hs.1 (fun _ h => Or.inl h) (hCP.symm ▸ hs.2)
-    · rcases Set.mem_iUnion₂.1 (hx_Kall x hxP) with ⟨s, hs, hxs⟩
-      rcases hs with ⟨𝒞, h𝒞, rfl⟩
-      obtain ⟨Qtop, hQtopD, _, hsQtop⟩ := hchain_top h𝒞
+    · refine hmem_sub hxP fun {Qtop} hQtopD _ => ?_
       have hxCP : x ∈ CP.space := hCP.symm ▸ hxP
       rw [PolytopalComplex.mem_space_iff] at hxCP
       rcases hxCP with ⟨RP, hRP, hxRP⟩
-      have hface := (PolytopalComplex.ofFinitePolytopes_inter_face_and_vertexCentroid hℱ hpoly
-        hQtopD (.inl hRP)).1
-      obtain ⟨t, hts, htne, htRP, hxt⟩ := exists_finset_subset_convexHull_of_isExtreme
-        (D.isPolytope_of_mem hQtopD).convex (Subset.trans (subset_convexHull ℝ _) hsQtop)
-        hface.isExtreme ⟨hxs, hsQtop hxs, hxRP⟩
-      exact Set.mem_biUnion ⟨Kall.down_closed ⟨𝒞, h𝒞, rfl⟩ hts htne,
-        htRP.trans (inter_subset_right.trans ((CP.subset_space hRP).trans (hCP ▸ Subset.rfl)))⟩ hxt
+      exact ⟨RP, hCP ▸ CP.subset_space hRP, hxRP,
+        (PolytopalComplex.ofFinitePolytopes_inter_face_and_vertexCentroid hℱ hpoly
+          hQtopD (.inl hRP)).1⟩
   · refine ⟨subComplex (P ∩ Q i), ?_, ?_⟩
     · ext s
       dsimp only [subComplex, K]
@@ -1719,10 +1575,7 @@ theorem exists_triangulation_compatible_with_subpolyhedra {ι : Type*} [Finite �
         exact Set.subset_inter
           (hCP ▸ hsubset_cell hs.1 (fun _ h => Or.inl h) hs1)
           ((hCQ i) ▸ hsubset_cell hs.1 (fun _ h => Or.inr (Set.mem_iUnion.2 ⟨i, h⟩)) hs2)
-      · rcases Set.mem_iUnion₂.1 (hx_Kall x hxP) with ⟨s, hs, hxs⟩
-        have hsf := hs
-        rcases hs with ⟨𝒞, h𝒞, rfl⟩
-        obtain ⟨Qtop, hQtopD, _, hsQtop⟩ := hchain_top h𝒞
+      · refine hmem_sub hxP fun {Qtop} hQtopD _ => ?_
         have hxCP : x ∈ CP.space := hCP.symm ▸ hxP
         have hxCQ : x ∈ (CQ i).space := (hCQ i).symm ▸ hxQ
         rw [PolytopalComplex.mem_space_iff] at hxCP hxCQ
@@ -1732,16 +1585,10 @@ theorem exists_triangulation_compatible_with_subpolyhedra {ι : Type*} [Finite �
           hQtopD (.inl hRP)).1
         have hfaceQ := (PolytopalComplex.ofFinitePolytopes_inter_face_and_vertexCentroid hℱ hpoly
           hQtopD (.inr (Set.mem_iUnion.2 ⟨i, hRQ⟩))).1
-        have hfacePQ : IsPolytopeFace Qtop (Qtop ∩ (RP ∩ RQ)) := by
-          rw [show Qtop ∩ (RP ∩ RQ) = (Qtop ∩ RP) ∩ (Qtop ∩ RQ) by
-            ext y; simp only [mem_inter_iff]; tauto]
-          exact hfaceP.inter hfaceQ
-        obtain ⟨t, hts, htne, htR, hxt⟩ := exists_finset_subset_convexHull_of_isExtreme
-          (D.isPolytope_of_mem hQtopD).convex (Subset.trans (subset_convexHull ℝ _) hsQtop)
-          hfacePQ.isExtreme ⟨hxs, hsQtop hxs, hxRP, hxRQ⟩
-        refine Set.mem_biUnion ⟨Kall.down_closed hsf hts htne, fun v hv => ?_⟩ hxt
-        have hv' := htR hv
-        exact ⟨hCP ▸ CP.subset_space hRP hv'.2.1, (hCQ i) ▸ (CQ i).subset_space hRQ hv'.2.2⟩
+        exact ⟨RP ∩ RQ,
+          inter_subset_inter (hCP ▸ CP.subset_space hRP) ((hCQ i) ▸ (CQ i).subset_space hRQ),
+          ⟨hxRP, hxRQ⟩,
+          (Set.inter_inter_distrib_left Qtop RP RQ).symm ▸ hfaceP.inter hfaceQ⟩
 
 end Polyhedra
 

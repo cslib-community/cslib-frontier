@@ -108,8 +108,10 @@ theorem run_interpret_runOracleConfigFrom_add_of_halted
         s).support,
       final.1.tapes.state = none) :
     ProbOracleComp.runWith oracle (machine.runOracleConfigFrom (fuel + padding) cfg) s =
-      ProbOracleComp.runWith oracle (machine.runOracleConfigFrom fuel cfg) s :=
-  MultiTapeMachine.run_interpret_runConfigFrom_add_of_halted machine _ _ _ cfg fuel padding s hhalt
+      ProbOracleComp.runWith oracle (machine.runOracleConfigFrom fuel cfg) s := by
+  simp only [ProbOracleComp.runWith_eq_run_interpret] at hhalt ⊢
+  exact MultiTapeMachine.run_interpret_runConfigFrom_add_of_halted machine _ _ _ cfg fuel padding
+    s hhalt
 
 /-- Any larger clock gives the same joint configuration and external state distribution after a
 halting bound. -/
@@ -132,9 +134,12 @@ theorem run_interpret_runOracleConfigFrom_ofDeterministic
     (oracle : Operation × List Symbol → StateT OracleState PMF (List Symbol))
     (fuel : ℕ) (cfg : Config k Symbol State Operation input) (s : OracleState) :
     ProbOracleComp.runWith oracle ((ofDeterministic machine).runOracleConfigFrom fuel cfg) s =
-      PMF.pure ({ cfg with tapes := machine.runFrom cfg.tapes fuel }, s) :=
-  run_interpret_runConfigFrom_ofDeterministic machine _ _ _ (PMF.uniformOfFintype Bool)
-    (run_interpret_sample_uniform_bool oracle) fuel cfg s
+      PMF.pure ({ cfg with tapes := machine.runFrom cfg.tapes fuel }, s) := by
+  rw [ProbOracleComp.runWith_eq_run_interpret]
+  apply run_interpret_runConfigFrom_ofDeterministic machine _ _ _ (PMF.uniformOfFintype Bool)
+    (fun state => ?_) fuel cfg s
+  rw [← ProbOracleComp.runWith_eq_run_interpret]
+  exact run_interpret_sample_uniform_bool oracle state
 
 /-- Sequencing law for `runOracleConfigFrom` when both phases halt on all supported paths. -/
 theorem run_interpret_runOracleConfigFrom_seq
@@ -153,8 +158,9 @@ theorem run_interpret_runOracleConfigFrom_seq
     (ProbOracleComp.runWith oracle (first.runOracleConfigFrom t₁ cfg) s).bind (fun result =>
       (ProbOracleComp.runWith oracle
           (second.runOracleConfigFrom t₂ (Sequential.start second result.1)) result.2).map
-        (fun (final, s') => (Sequential.right final, s'))) :=
-  run_interpret_runConfigFrom_seq first second _ _ _ cfg t₁ t₂ s h₁ h₂
+        (fun (final, s') => (Sequential.right final, s'))) := by
+  simp only [ProbOracleComp.runWith_eq_run_interpret] at h₁ h₂ ⊢
+  exact run_interpret_runConfigFrom_seq first second _ _ _ cfg t₁ t₂ s h₁ h₂
 
 /-- A live step whose transition does not depend on the coin bit advances the configuration
 deterministically while preserving the external oracle state. -/
@@ -619,7 +625,9 @@ theorem length_output_le_of_mem_support_runOracleConfigFrom {x : List Bool}
     (fun op word => ProbOracleComp.query
       (spec := fun _ : Operation × List Bool => List Bool) (op, word))
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
-    fuel cfg final s s' hfinal
+    fuel cfg final s s' (by
+      rw [← ProbOracleComp.runWith_eq_run_interpret]
+      exact hfinal)
 
 /-- Any word emitted by a `RunsWords` phase has length at most `time`. -/
 theorem RunsWords.length_emit_le {machine : MultiTapePTM k Bool State Operation} {x : List Bool}

@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.LWE.DualRegev
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import Cslib.Probability.StatisticalDistance
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -511,30 +512,20 @@ theorem computableInPolyTime_syndromeEntry {inputs : α → SerializedKeyInputs}
     (hinputs : ComputableInPolyTime inputs input encSerializedKeyInputs)
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => syndromeEntry (m a) (w a) (inputs a) (j a)) input encNat := by
-  unfold syndromeEntry
-  have hterm : ComputableInPolyTime
-      (fun p : α × ℕ =>
-        if (inputs p.1).bits.getD p.2 false then
-          ((inputs p.1).publicPart.getD p.2 []).getD (j p.1) 0
-        else 0)
-      (encPair input encUnary) encNat := by
-    have hbit := (bitsGetD false).comp
-      (((encSerializedKeyInputs_bits_polyTime hinputs).comp
-        (fst input encUnary)).prod (snd input encUnary))
-    apply hbit.ite'
-    · have hrow := (listGetD (encA := encList encNat) []).comp
-        (((encSerializedKeyInputs_publicPart_polyTime hinputs).comp
-          (fst input encUnary)).prod (snd input encUnary))
-      exact (listGetD (encA := encNat) 0).comp
-        (hrow.prod (hj.comp (fst input encUnary)))
-    · exact const 0
-  have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-    (mapWithInput (f := fun a i =>
-      if (inputs a).bits.getD i false then
-        ((inputs a).publicPart.getD i []).getD (j a) 0
-      else 0)
-      (range.comp hm) hterm)
-  exact binary_mod.comp (hsum.prod (binary_pow' (const 2) hw))
+  have hp := ComputableInPolyTime.id' (encIn := encPair input encUnary)
+  have hbits := encSerializedKeyInputs_bits_polyTime hinputs
+  have hmatrix := encSerializedKeyInputs_publicPart_polyTime hinputs
+  have hrow := ComputableInPolyTime.listGetDWithInput (hmatrix.comp hp.fst') hp.snd' []
+  have hentry := ComputableInPolyTime.listGetDWithInput hrow (hj.comp hp.fst') 0
+  have hbit := (hbits.comp hp.fst').bitsGetDWithInput hp.snd' false
+  have hvalues := ComputableInPolyTime.mapWithInput
+    (f := fun a i => if (inputs a).bits.getD i false then
+      ((inputs a).publicPart.getD i []).getD (j a) 0 else 0)
+    (ComputableInPolyTime.range.comp hm)
+    (hbit.ite hentry (ComputableInPolyTime.const 0))
+  simpa only [syndromeEntry, Function.comp_def] using
+    ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_sum.comp hvalues)
+      (ComputableInPolyTime.binary_two_pow.comp hw)
 
 /-- Construct the serialized dual-Regev public-key word `[u; A]` in polynomial time. -/
 @[fun_prop]
@@ -568,9 +559,7 @@ theorem computableInPolyTime_secretSerialized {bits : α → List Bool}
     (hm : ComputableInPolyTime m input encUnary)
     (hbits : ComputableInPolyTime bits input encBits) :
     ComputableInPolyTime (fun a => secretSerialized (m a) (bits a)) input encBits := by
-  unfold secretSerialized
-  exact mapToBitsWithInput (enc := encUnary) (range.comp hm)
-    ((bitsGetD false).comp ((hbits.comp (fst input encUnary)).prod (snd input encUnary)))
+  fun_prop [secretSerialized]
 
 /-- Serialized dual-Regev key generation is uniform strict PPT. -/
 @[fun_prop]
@@ -700,31 +689,7 @@ theorem computableInPolyTime_decryptResidue
     ComputableInPolyTime
       (fun a => decryptResidue (m a) (w a) (secretWord a) (ciphertextWord a))
       input encNat := by
-  have hterm : ComputableInPolyTime
-      (fun p : α × ℕ =>
-        if (secretWord p.1).getD p.2 false then
-          Cslib.Matrix.binaryEntry (m p.1 + 1) (w p.1) (ciphertextWord p.1) 0 (p.2 + 1)
-        else 0)
-      (encPair input encUnary) encNat := by
-    apply ((bitsGetD false).comp
-      ((hsecretWord.comp (fst input encUnary)).prod (snd input encUnary))).ite'
-    · exact matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
-        (const 0) (by fun_prop)
-    · exact const 0
-  have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-    (mapWithInput
-      (f := fun a i =>
-        if (secretWord a).getD i false then
-          Cslib.Matrix.binaryEntry (m a + 1) (w a) (ciphertextWord a) 0 (i + 1)
-        else 0)
-      (range.comp hm) hterm)
-  have hfirst := matrixBinaryEntry (by fun_prop) hw hciphertextWord
-    (const 0) (const 0) (cols := fun a => m a + 1)
-  unfold decryptResidue
-  simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat] using
-    intBin_emodNat'
-      (intBin_sub.comp ((intBin_natCast.comp hfirst).prod (intBin_natCast.comp hsum)))
-      (binary_pow' (const 2) hw)
+  fun_prop [decryptResidue]
 
 /-- Serialized dual-Regev decryption is computable in polynomial time on arbitrary secret and
 ciphertext words. -/

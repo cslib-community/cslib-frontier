@@ -97,9 +97,7 @@ private theorem polyTime_colCheck (hL : ComputableInPolyTime L input encBoolTabl
       (!(bit (w x) (L x).length (i x) (j x) && bit (w x) (L x).length (i x) k) || j x == k) &&
         (!(bit (w x) (L x).length (i x) (j x) && bit (w x) (L x).length k (j x)) || i x == k))
       input encBool := by
-  have hn : ComputableInPolyTime (fun x => (L x).length) input encUnary :=
-    (length_list (encList encBool)).comp hL
-  exact allWithInput (range.comp hn) (by fun_prop)
+  fun_prop
 
 private theorem polyTime_entryCheck (hL : ComputableInPolyTime L input encBoolTable)
     (hw : ComputableInPolyTime w input encBits) (hi : ComputableInPolyTime i input encUnary) :

@@ -49,8 +49,9 @@ the words accepted by `Cslib.Complexity.Toda.countingTest` — a size `k ≤ K` 
 `parityCoeff K (k - 1)` coefficient words, a random string `r` and a strictly increasing list of
 `k` accepted witnesses, padded with zero words — number
 `H = ∑ i < K, parityCoeff K i * ∑ r, choose (f r) (i + 1)`
-(`Cslib.Complexity.Toda.card_filter_countingTest`), and with `K = R + 1`, `H` is `G` modulo
-`2 ^ (R + 1)` (`Cslib.Complexity.Toda.cast_card_filter_countingTest`).
+(`Cslib.Complexity.Toda.card_filter_countingTest`), and `H` is `G` modulo `2 ^ K`
+(`Cslib.Complexity.Toda.cast_card_filter_countingTest`); the bit extraction below takes
+`K = R + 1`.
 
 ## One bit decides the majority
 
@@ -67,7 +68,7 @@ odd number of accepted witnesses (`Cslib.Complexity.Toda.testBit_card_filter_sha
 
 ## Main results
 
-* `Cslib.Complexity.Toda.cast_card_filter_countingTest`: the count is `G` modulo `2 ^ (R + 1)`.
+* `Cslib.Complexity.Toda.cast_card_filter_countingTest`: the count is `G` modulo `2 ^ K`.
 * `Cslib.Complexity.Toda.testBit_card_filter_sharpTest`: one bit says whether `2 G > 2 ^ R`.
 
 ## References
@@ -334,10 +335,10 @@ theorem card_filter_countingTest (accept : List Bool → List Bool → Bool) (K 
     (by rw [Nat.add_sub_cancel])
 
 /-- **The count of the counting test is the number of random strings with an odd number of
-accepted words**, modulo `2 ^ (R + 1)`, with sizes up to `K = R + 1`. -/
-theorem cast_card_filter_countingTest (accept : List Bool → List Bool → Bool) (R Z : ℕ) :
-    ((univ.filter fun w : Fin ((R + 1) + ((R + 1) + (R + (R + 1) * Z))) → Bool =>
-      countingTest accept (R + 1) R Z (List.ofFn w) = true).card : ZMod (2 ^ (R + 1))) =
+accepted words**, modulo `2 ^ K`, with sizes up to `K`. -/
+theorem cast_card_filter_countingTest (accept : List Bool → List Bool → Bool) (K R Z : ℕ) :
+    ((univ.filter fun w : Fin (K + (K + (R + K * Z))) → Bool =>
+      countingTest accept K R Z (List.ofFn w) = true).card : ZMod (2 ^ K)) =
       (univ.filter fun r : Fin R → Bool => Odd (univ.filter fun z : Fin Z → Bool =>
         accept (List.ofFn r) (List.ofFn z) = true).card).card := by
   classical
@@ -404,7 +405,8 @@ theorem testBit_card_filter_sharpTest (accept : List Bool → List Bool → Bool
         Odd (univ.filter fun z : Fin Z → Bool =>
           accept (List.ofFn r) (List.ofFn z) = true).card).card) := by
   rw [card_filter_sharpTest]
-  refine testBit_two_mul_add_two_pow_sub_one ?_ (cast_card_filter_countingTest accept R Z)
+  refine testBit_two_mul_add_two_pow_sub_one ?_
+    (cast_card_filter_countingTest accept (R + 1) R Z)
   exact (card_le_univ _).trans_eq (by simp)
 
 /-! ### Polynomial time -/

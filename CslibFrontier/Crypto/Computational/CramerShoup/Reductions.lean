@@ -304,8 +304,13 @@ def cramerShoupPhase2Oracle (hasAD : Bool) (H : F.Desc × List Bool → List Boo
   fun s => pure (F.cramerShoupPhase2Reply hasAD H isElem d sk ct ad request.2, s)
 
 /-- Phase 2 collision-tracking oracle handler for `cramerShoupMsgToCollisionFinder`: replies with
-`cramerShoupCollisionPhase2Reply` and records `some (extractCramerShoupTuple q.1 q.2)` whenever
-`isCramerShoupCollision H d q.1 q.2 ct ad` holds (where `q = splitCramerShoupQuery hasAD req`). -/
+`cramerShoupCollisionPhase2Reply` and records the hashed tuple
+`some (extractCramerShoupTuple q.1 q.2)` of a query `q = splitCramerShoupQuery hasAD req` whenever
+that tuple collides with the challenge's (`isCramerShoupCollision H d q.1 q.2 ct ad`) and is a
+well-formed hash input (`isCramerShoupHashInput hasAD isElem d`). Queries whose tuple is not
+well-formed are rejected by decryption anyway, so recording only well-formed collisions loses
+nothing ([BonehShoup2023], Section 12.5.3, Fig. 12.3, printed p. 491, takes decryption queries in
+$\mathbb{G}^3 \times \mathcal{C}$). -/
 def cramerShoupCollisionPhase2Oracle (hasAD : Bool) (H : F.Desc × List Bool → List Bool)
     (isElem : F.Desc × List Bool → Bool) (d : F.Desc)
     (sk : (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ))) (ct ad : List Bool) (request : Unit × List Bool) :
@@ -313,7 +318,8 @@ def cramerShoupCollisionPhase2Oracle (hasAD : Bool) (H : F.Desc × List Bool →
   finderPhase2Oracle (F.cramerShoupCollisionPhase2Reply hasAD H isElem d sk ct ad)
     (fun req =>
       let q := splitCramerShoupQuery hasAD req
-      F.isCramerShoupCollision H d q.1 q.2 ct ad)
+      F.isCramerShoupCollision H d q.1 q.2 ct ad &&
+        F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple q.1 q.2))
     (fun req =>
       let q := splitCramerShoupQuery hasAD req
       extractCramerShoupTuple q.1 q.2) request
@@ -407,7 +413,7 @@ private theorem isPPTOn_run_cramerShoupPhase1Oracle
     (encPair (encPair (encFinEnum Unit) encBits) (encFinEnum Unit))
   have hreplyIn := F.computableInPolyTime_cramerShoupPhase1Reply hasAD hH hisElem
     (hd.comp hE1) (hsk.comp hE1) hE2.fst'.snd'
-  exact hA.choose.run_interpret_preprocess'
+  exact hA.choose.run_interpret_preprocess
     (prepare := fun a : γ => (n a, pk a)) (initial := fun _ => ())
     (resources := fun a req => (F.cramerShoupPhase1Reply hasAD H isElem (d a) (sk a) req).length)
     (hn.prod hpk) (hreplyIn.prod hE2.snd').isPPTOn (.const ()) (fun _ _ => True)
@@ -454,9 +460,9 @@ private theorem isPPTOn_run_cramerShoupPhase2Oracle
     (prepare := fun a : γ => (n a, state a, ct a)) (initial := fun _ => ())
     (resources := fun a req =>
       (F.cramerShoupPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) req).length)
-    (hn.prod (hstate.prod hct)).tidy (hreplyIn.prod hE2.snd').isPPTOn
-    (ComputableInPolyTime.const ()).tidy (fun _ _ => True)
-    (fun _ => trivial) (ComputableInPolyTime.length_bits.comp hreply).tidy
+    (hn.prod (hstate.prod hct)) (hreplyIn.prod hE2.snd').isPPTOn
+    (ComputableInPolyTime.const ()) (fun _ _ => True)
+    (fun _ => trivial) (ComputableInPolyTime.length_bits.comp hreply)
     (fun a request st _ result hresult => by
       have hresEq : result =
           (F.cramerShoupPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) request.2, st) := by
@@ -496,12 +502,13 @@ private theorem isPPTOn_run_cramerShoupCollisionPhase2Oracle
   have hreplyIn := F.computableInPolyTime_cramerShoupCollisionPhase2Reply hasAD hH hisElem
     (hd.comp hE1) (hsk.comp hE1) (hct.comp hE1) (had.comp hE1) hE2.fst'.snd'
   have hsplitIn := (computableInPolyTime_splitCramerShoupQuery hasAD).comp hE2.fst'.snd'
-  have hcollIn := F.computableInPolyTime_isCramerShoupCollision hH
-    (hd.comp hE1) hsplitIn.fst' hsplitIn.snd' (hct.comp hE1) (had.comp hE1)
+  have hextractIn := computableInPolyTime_extractCramerShoupTuple.comp hsplitIn
+  have hcollIn := (F.computableInPolyTime_isCramerShoupCollision hH
+    (hd.comp hE1) hsplitIn.fst' hsplitIn.snd' (hct.comp hE1) (had.comp hE1)).bool_and'
+    ((F.computableInPolyTime_isCramerShoupHashInput hasAD hisElem).comp
+      ((hd.comp hE1).prod hextractIn))
   have hsome := ComputableInPolyTime.optionSome encBits
-  have hnextState := hcollIn.ite
-    (hsome.comp (computableInPolyTime_extractCramerShoupTuple.comp hsplitIn))
-    hE2.snd'
+  have hnextState := hcollIn.ite (hsome.comp hextractIn) hE2.snd'
   have hsplitP2 := (computableInPolyTime_splitCramerShoupQuery hasAD).comp hp2
   have hsomeLen := ComputableInPolyTime.length_bits.comp
     (hsome.comp (computableInPolyTime_extractCramerShoupTuple.comp hsplitP2)).encoding_comp
@@ -513,14 +520,15 @@ private theorem isPPTOn_run_cramerShoupCollisionPhase2Oracle
       let q := splitCramerShoupQuery hasAD req
       (F.cramerShoupCollisionPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) req).length +
       (encOption encBits (some (extractCramerShoupTuple q.1 q.2))).length)
-    (hn.prod (hstate.prod hct)).tidy (hreplyIn.prod hnextState).isPPTOn
-    (ComputableInPolyTime.const (none : Option (List Bool))).tidy (fun _ _ => True)
-    (fun _ => trivial) hres.tidy
+    (hn.prod (hstate.prod hct)) (hreplyIn.prod hnextState).isPPTOn
+    (ComputableInPolyTime.const (none : Option (List Bool))) (fun _ _ => True)
+    (fun _ => trivial) hres
     (fun a request st _ result hresult => by
       let q := splitCramerShoupQuery hasAD request.2
       have hresEq : result =
           (F.cramerShoupCollisionPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) request.2,
-           if F.isCramerShoupCollision H (d a) q.1 q.2 (ct a) (ad a) then
+           if F.isCramerShoupCollision H (d a) q.1 q.2 (ct a) (ad a) &&
+               F.isCramerShoupHashInput hasAD isElem (d a) (extractCramerShoupTuple q.1 q.2) then
              some (extractCramerShoupTuple q.1 q.2)
            else st) := by
         simpa [cramerShoupCollisionPhase2Oracle, finderPhase2Oracle, q] using hresult
@@ -627,7 +635,7 @@ theorem isPPT_cramerShoupMsgToDDHDistinguisher
       ((hw0.comp hp2.fst'.fst').prod (hm.prod had)))))
   have hphase2 := F.isPPTOn_run_cramerShoupPhase2Oracle hasAD hH hisElem hA
     (hn0.comp hp2.fst'.fst') hd2 hp2.fst'.snd' hp2.snd'.fst'.snd' hct had
-  exact hsk.bind_with (hphase1.bind_with (IsPPTOn.cond' hvalid
+  exact hsk.bind_with (hphase1.bind_with (IsPPTOn.cond hvalid
     (hphase2.bind_with ((ComputableInPolyTime.snd
       (encPair E1 EChoice) (encPair encBool (encFinEnum Unit))).fst').isPPTOn)
     (ComputableInPolyTime.isPPTOn (.const false))))
@@ -663,7 +671,10 @@ theorem isPPT_cramerShoupToDDHDistinguisher
 /-- The setup-parameterized collision finder constructed from an `ADCCA2AdversaryOf Msg AD` with
 message-to-group-word encoding `encodeMsg : F.Desc × Msg → List Bool` and associated-data encoding
 `encodeAD : F.Desc × AD → List Bool` ([BonehShoup2023], proof of Theorem 12.9, Game 4, equations
-(12.24)–(12.25), printed p. 492, adapted to $\mathcal{E}_{\mathrm{MCS}}$ with associated data). -/
+(12.24)–(12.25), printed p. 492, adapted to $\mathcal{E}_{\mathrm{MCS}}$ with associated data). It
+plays Game 3 and outputs the challenge's hashed tuple together with the last Phase 2 query tuple
+that `cramerShoupCollisionPhase2Oracle` recorded, a well-formed hash input that collides with it,
+or the challenge's tuple twice if there is none. -/
 noncomputable def cramerShoupMsgToCollisionFinder
     (hasAD : Bool) {Msg AD : Type} (encodeMsg : F.Desc × Msg → List Bool)
     (encodeAD : F.Desc × AD → List Bool)
@@ -775,7 +786,7 @@ theorem isPPTOn_cramerShoupMsgToCollisionFinder
     ((hct.comp hp4.fst').prod (had.comp hp4.fst'))
   have houtPair :=
     (ComputableInPolyTime.optionGetDWithInput hp4.snd'.snd' htarget).prod htarget
-  exact habc.bind_with (hsk.bind_with (hphase1.bind_with (IsPPTOn.cond' hvalid
+  exact habc.bind_with (hsk.bind_with (hphase1.bind_with (IsPPTOn.cond hvalid
     (hphase2c.bind_with houtPair.isPPTOn)
     (ComputableInPolyTime.isPPTOn (.const (([] : List Bool), []))))))
 

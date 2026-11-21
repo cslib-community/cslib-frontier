@@ -7,11 +7,17 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Reverse
 import CslibFrontier.Foundations.Data.List.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
-import Mathlib.Tactic.Linarith
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.WordTransducers
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.WordMachines
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+import Mathlib.Tactic.TypeStar
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
 # Quantitative streaming folds
@@ -41,7 +47,7 @@ contracts separate from invariant propagation.
   specialization.
 * `Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.foldl_bits_stream_spec`: an invariant
   supplies the bounds and a postcondition.
-* `Turing.MultiTapeTM.ComputableTidilyInO.foldl_bits_finite`: a fixed finite-state fold takes
+* `Turing.MultiTapeTM.ComputableInO.foldl_bits_finite`: a fixed finite-state fold takes
   linear time and constant work space, including a bound on its encoded final state.
 * `Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.map_bits`: a bitwise map emits its output
   as it scans, in linear time and zero work space.
@@ -60,7 +66,7 @@ Uses Christian Reitwiessner's `ComputableTidilyInTimeAndSpace.streamFold` from t
 `CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/StreamFold.lean`.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM
 
@@ -221,9 +227,9 @@ theorem ComputableTidilyInTimeAndSpace.foldl_bits_stream_spec {σ : Type}
 /-- A fold with a fixed finite state type takes linear time and constant work space. The constant
 may depend on the state type, its encoding and the transition function; this is not a uniform bound
 for a family of growing state types. The encoded final state is bounded as well. -/
-theorem ComputableTidilyInO.foldl_bits_finite {σ : Type} [Finite σ]
+theorem ComputableInO.foldl_bits_finite {σ : Type} [Finite σ]
     (enc : σ ↪ List Bool) (step : σ → Bool → σ) (init : σ) :
-    ComputableTidilyInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) := by
+    ComputableInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) := by
   classical
   let := Fintype.ofFinite σ
   let b := Finset.univ.sup (fun s => (enc s).length)
@@ -234,7 +240,8 @@ theorem ComputableTidilyInO.foldl_bits_finite {σ : Type} [Finite σ]
   obtain ⟨c, h⟩ := hk.computableTidilyInTimeAndSpace.foldl_bits_stream init
     (R := fun _ => 2 * k + 2) (Q := fun _ => 0) (B := fun _ => b)
     (fun _ _ _ => le_rfl) (fun _ _ _ => le_rfl) (fun _ _ _ => hb _)
-  refine ComputableTidilyInO.of_bounds h (c * (2 * k + 2 * b + 4) + b) ?_ ?_ ?_
+  refine ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
+    (c * (2 * k + 2 * b + 4) + b) ?_ ?_ ?_
   · intro l
     have hr : l.length * (2 * k + 2 + b + 1) + b + 1 ≤
         (2 * k + 2 * b + 4) * (l.length + 1) := by nlinarith
@@ -248,14 +255,9 @@ theorem ComputableTidilyInO.foldl_bits_finite {σ : Type} [Finite σ]
 this numerical certificate does not include the emitted output in its space bound. -/
 theorem ComputableTidilyInTimeAndSpace.map_bits (f : Bool → Bool) :
     ComputableTidilyInTimeAndSpace (List.map f) encBits encBits
-      (fun l => 4 * l.length + 8) (fun _ => 0) := by
-  let transducer : Transducer Bool Unit :=
-    ⟨(), fun _ b => ((), [f b]), fun _ => [], by simp, by simp⟩
-  refine transducer.computableTidilyInTimeAndSpace ?_
-  intro l
-  induction l with
-  | nil => rfl
-  | cons b l ih => simpa [transducer, Transducer.run] using congrArg (List.cons (f b)) ih
+      (fun l => 4 * l.length + 8) (fun _ => 0) :=
+  (Internal.WordMachines.mapT f).computableTidilyInTimeAndSpace fun l =>
+    (Internal.WordMachines.mapT_run f l).symm
 
 /-- Stream a paired initial accumulator and bit list `(s₀, l)` on `encPair enc encBits` with
 cumulative round costs. The framed initial accumulator `frame (enc s₀)` is copied once to the
@@ -382,8 +384,8 @@ theorem ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc
   -- each round reads its state from the stream state paired with the token bit
   obtain ⟨cfst, hfst⟩ := Internal.NormalForm.linear
     (PairEncoding.fst (enc₁ := enc) (enc₂ := encBool) (enc := encPair enc encBool))
-  obtain ⟨cN, hN⟩ := hnext.comp_linear hfst
-  obtain ⟨cE, hE⟩ := hemit.comp_linear hfst
+  obtain ⟨cN, hN⟩ := ComputableTidilyInTimeAndSpace.comp_linear hnext hfst
+  obtain ⟨cE, hE⟩ := ComputableTidilyInTimeAndSpace.comp_linear hemit hfst
   obtain ⟨D, hD⟩ : ∃ D, D = 6 * cfst + cN + cE + 2 := ⟨_, rfl⟩
   have hst (x : σ × ℕ) (j : ℕ) (hj : j ≤ x.2) :
       streamState x.1 (f ∘ Prod.fst) (List.replicate x.2 true) j = f^[j] x.1 :=
@@ -412,7 +414,8 @@ theorem ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc
         _ ≤ _ := Finset.sum_le_sum fun i hi => by
           have := hcost x i (Finset.mem_range.mp hi)
           omega
-    refine ⟨c * (D + 4), h.mono (fun x => ?_) (fun x => ?_)⟩ <;>
+    refine ⟨c * (D + 4), h.mono (fun x => ?_)
+    (fun x => ?_)⟩ <;>
       simp only [List.length_replicate, hst x x.2 le_rfl, ← Finset.mul_sum, Nat.mul_assoc] <;>
       refine Nat.mul_le_mul_left c ?_
     · have h₀ := hstate x 0 (Nat.zero_le _)
@@ -466,64 +469,285 @@ work-tape space, using a three-state (`Option Bool`) finite-state transducer tha
 lookahead symbol. -/
 theorem ComputableTidilyInTimeAndSpace.dropLast_bits :
     ComputableTidilyInTimeAndSpace List.dropLast encBits encBits
-      (fun l => 4 * l.length + 8) (fun _ => 0) := by
-  let τ : Transducer Bool (Option Bool) :=
-    { q₀ := none
-      step
-        | none, b => (some b, [])
-        | some prev, b => (some b, [prev])
-      final _ := []
-      length_step_le q b := by cases q <;> simp
-      length_final_le _ := by simp }
-  have hrun (prev : Bool) (l : List Bool) :
-      τ.run (some prev) l = (prev :: l).dropLast := by
-    induction l generalizing prev with
-    | nil => rfl
-    | cons b l ih =>
-      simpa only [τ, Transducer.run_cons, List.singleton_append,
-        List.dropLast_cons_cons] using congrArg (List.cons prev) (ih b)
-  refine τ.computableTidilyInTimeAndSpace ?_
-  intro l
-  cases l with
-  | nil => rfl
-  | cons b l =>
-    simpa only [τ, Transducer.run_cons, List.nil_append, encBits_apply] using (hrun b l).symm
-
-/-- The finite-state transducer that remembers the last bit read and ends with `final` of it. -/
-private def lastBitT (final : Option Bool → List Bool) (hfinal : ∀ q, (final q).length ≤ 2) :
-    Transducer Bool (Option Bool) where
-  q₀ := none
-  step _ b := (some b, [])
-  final := final
-  length_step_le _ _ := by simp
-  length_final_le := hfinal
-
-private lemma run_lastBitT (final : Option Bool → List Bool) (hfinal : ∀ q, (final q).length ≤ 2)
-    (l : List Bool) :
-    (lastBitT final hfinal).run (lastBitT final hfinal).q₀ l = final l.getLast? := by
-  suffices ∀ q, (lastBitT final hfinal).run q l = final (l.getLast?.or q) from
-    (this none).trans (by rw [Option.or_none])
-  induction l with
-  | nil => intro q; rfl
-  | cons b l ih =>
-    intro q
-    rw [Transducer.run_cons, ih, List.getLast?_cons]
-    cases l.getLast? <;> rfl
+      (fun l => 4 * l.length + 8) (fun _ => 0) :=
+  Internal.WordMachines.dropLastT.computableTidilyInTimeAndSpace fun l =>
+    (Internal.WordMachines.dropLastT_run l).symm
 
 /-- Extract the last bit of a bit list as a 0-or-1-element list (`l.getLast?.toList`) tidily in
 `4 * l.length + 8` steps and zero work-tape space. -/
 theorem ComputableTidilyInTimeAndSpace.getLast?_toList_bits :
     ComputableTidilyInTimeAndSpace (fun l : List Bool => l.getLast?.toList) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) :=
-  (lastBitT Option.toList fun q => by cases q <;> simp).computableTidilyInTimeAndSpace fun l =>
-    (run_lastBitT Option.toList _ l).symm
+  (Internal.WordMachines.lastBitT Option.toList fun q => by cases q <;> simp)
+    |>.computableTidilyInTimeAndSpace fun l =>
+    (Internal.WordMachines.run_lastBitT Option.toList _ l).symm
 
 /-- Extract the last bit of a bit list as an `Option Bool` (`l.getLast?`) tidily in
 `4 * l.length + 8` steps and zero work-tape space. -/
 theorem ComputableTidilyInTimeAndSpace.getLast?_bits :
     ComputableTidilyInTimeAndSpace (List.getLast? (α := Bool)) encBits (encOption encBool)
       (fun l => 4 * l.length + 8) (fun _ => 0) :=
-  (lastBitT (encOption encBool) fun q => by cases q <;> simp).computableTidilyInTimeAndSpace
-    fun l => (run_lastBitT (encOption encBool) _ l).symm
+  (Internal.WordMachines.lastBitT (encOption encBool) fun q => by cases q <;> simp)
+    |>.computableTidilyInTimeAndSpace
+    fun l => (Internal.WordMachines.run_lastBitT (encOption encBool) _ l).symm
+
+/-- Normalize plain callbacks once and retain the cumulative streaming contract. -/
+theorem ComputableInTimeAndSpace.foldl_bits_stream_sum {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} (init : σ) {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    {R : List Bool → ℕ → ℕ} {Q B : List Bool → ℕ}
+    (hcost : ∀ l i (hi : i < l.length), t ((l.take i).foldl step init, l[i]) +
+      (enc ((l.take i).foldl step init)).length +
+      (enc ((l.take (i + 1)).foldl step init)).length + 1 ≤ R l i)
+    (hspace : ∀ l i (hi : i < l.length), s ((l.take i).foldl step init, l[i]) ≤ Q l)
+    (hstate : ∀ l i, i ≤ l.length → (enc ((l.take i).foldl step init)).length ≤ B l) :
+    ∃ c, ComputableInTimeAndSpace (fun l => l.foldl step init) encBits enc
+      (fun l => c * ((∑ i ∈ Finset.range l.length, R l i) + B l + 1))
+      (fun l => c * (Q l + B l + 1)) := by
+  obtain ⟨C, hC, k, State, hfin, tm, htm⟩ := Internal.NormalForm.exactBounds hstep
+  have hn : ComputableTidilyInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc (fun p => C * (t p + 1))
+      (fun p => C * (s p + 1)) := ⟨k, State, hfin, tm, htm⟩
+  obtain ⟨c, h⟩ := hn.foldl_bits_stream_sum init
+    (R := fun l i => (C + 1) * R l i)
+    (Q := fun l => C * (Q l + 1)) (B := B)
+    (fun l i hi => by
+      have hc := hcost l i hi
+      have hm := Nat.mul_le_mul_left C hc
+      nlinarith)
+    (fun l i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace l i hi)))
+    hstate
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (C + 1), hplain.mono (fun l => ?_)
+    (fun l => ?_)⟩
+  · rw [← Finset.mul_sum, Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    nlinarith
+  · rw [Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    nlinarith
+
+/-- Plain streaming specialization with the same prefix and resource contract. -/
+theorem ComputableInTimeAndSpace.foldl_bits_stream {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} (init : σ) {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    {R Q B : List Bool → ℕ}
+    (htime : ∀ l i (hi : i < l.length), t ((l.take i).foldl step init, l[i]) ≤ R l)
+    (hspace : ∀ l i (hi : i < l.length), s ((l.take i).foldl step init, l[i]) ≤ Q l)
+    (hstate : ∀ l i, i ≤ l.length → (enc ((l.take i).foldl step init)).length ≤ B l) :
+    ∃ c, ComputableInTimeAndSpace (fun l => l.foldl step init) encBits enc
+      (fun l => c * (l.length * (R l + B l + 1) + B l + 1))
+      (fun l => c * (Q l + B l + 1)) := by
+  obtain ⟨c, h⟩ := hstep.foldl_bits_stream_sum init
+    (R := fun l _ => R l + 2 * B l + 1) (Q := Q) (B := B)
+    (fun l i hi => by
+      have ht := htime l i hi
+      have h₀ := hstate l i hi.le
+      have h₁ := hstate l (i + 1) hi
+      lia) hspace hstate
+  refine ⟨c * 2, h.mono (fun l => ?_) (fun l => ?_)⟩
+  · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
+    rw [Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    nlinarith
+  · rw [Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    lia
+
+/-- Plain streaming specialization with the same prefix and resource contract. -/
+theorem ComputableInTimeAndSpace.foldl_bits_stream_sum_spec {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} (init : σ) {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    (invariant : List Bool → ℕ → σ → Prop)
+    (hbase : ∀ l, invariant l 0 init)
+    (hpreserve : ∀ l i (hi : i < l.length) state, invariant l i state →
+      invariant l (i + 1) (step state l[i]))
+    {R : List Bool → ℕ → ℕ} {Q B : List Bool → ℕ}
+    (hcost : ∀ l i (hi : i < l.length) state, invariant l i state →
+      t (state, l[i]) + (enc state).length + (enc (step state l[i])).length + 1 ≤ R l i ∧
+        s (state, l[i]) ≤ Q l)
+    (hsize : ∀ l i, i ≤ l.length → ∀ state, invariant l i state → (enc state).length ≤ B l) :
+    (∃ c, ComputableInTimeAndSpace (fun l => l.foldl step init) encBits enc
+      (fun l => c * ((∑ i ∈ Finset.range l.length, R l i) + B l + 1))
+      (fun l => c * (Q l + B l + 1))) ∧
+      ∀ l, invariant l l.length (l.foldl step init) := by
+  have htrace (l : List Bool) :=
+    List.foldl_take_invariant l step init (invariant l) (hbase l) (hpreserve l)
+  exact ⟨hstep.foldl_bits_stream_sum init
+    (fun l i hi => by
+      simpa only [List.take_succ_eq_append_getElem hi, List.foldl_append,
+        List.foldl_cons, List.foldl_nil] using (hcost l i hi _ (htrace l i hi.le)).1)
+    (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).2)
+    (fun l i hi => hsize l i hi _ (htrace l i hi)),
+    fun l => by simpa using htrace l l.length le_rfl⟩
+
+/-- Plain streaming specialization with the same prefix and resource contract. -/
+theorem ComputableInTimeAndSpace.foldl_bits_stream_spec {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} (init : σ) {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    (invariant : List Bool → ℕ → σ → Prop)
+    (hbase : ∀ l, invariant l 0 init)
+    (hpreserve : ∀ l i (hi : i < l.length) state, invariant l i state →
+      invariant l (i + 1) (step state l[i]))
+    {R Q B : List Bool → ℕ}
+    (hcost : ∀ l i (hi : i < l.length) state, invariant l i state →
+      t (state, l[i]) ≤ R l ∧ s (state, l[i]) ≤ Q l)
+    (hsize : ∀ l i, i ≤ l.length → ∀ state, invariant l i state → (enc state).length ≤ B l) :
+    (∃ c, ComputableInTimeAndSpace (fun l => l.foldl step init) encBits enc
+      (fun l => c * (l.length * (R l + B l + 1) + B l + 1))
+      (fun l => c * (Q l + B l + 1))) ∧
+      ∀ l, invariant l l.length (l.foldl step init) := by
+  obtain ⟨⟨c, h⟩, hpost⟩ := hstep.foldl_bits_stream_sum_spec init invariant hbase hpreserve
+    (R := fun l _ => R l + 2 * B l + 1) (Q := Q) (B := B)
+    (fun l i hi state hs => by
+      have hc := hcost l i hi state hs
+      have h₀ := hsize l i hi.le state hs
+      have h₁ := hsize l (i + 1) hi _ (hpreserve l i hi state hs)
+      exact ⟨by lia, hc.2⟩) hsize
+  refine ⟨⟨c * 2, h.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
+  · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
+    rw [Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    nlinarith
+  · rw [Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    lia
+
+/-- Normalize plain callbacks once and retain the cumulative streaming contract. -/
+theorem ComputableInTimeAndSpace.foldl_bits_pair_stream_sum {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    {R : σ × List Bool → ℕ → ℕ} {Q B : σ × List Bool → ℕ}
+    (hcost : ∀ p i (hi : i < p.2.length), t ((p.2.take i).foldl step p.1, p.2[i]) +
+      (enc ((p.2.take i).foldl step p.1)).length +
+      (enc ((p.2.take (i + 1)).foldl step p.1)).length + 1 ≤ R p i)
+    (hspace : ∀ p i (hi : i < p.2.length), s ((p.2.take i).foldl step p.1, p.2[i]) ≤ Q p)
+    (hstate : ∀ p i, i ≤ p.2.length → (enc ((p.2.take i).foldl step p.1)).length ≤ B p) :
+    ∃ c, ComputableInTimeAndSpace (fun p : σ × List Bool => p.2.foldl step p.1)
+      (encPair enc encBits) enc
+      (fun p => c * ((∑ i ∈ Finset.range p.2.length, R p i) + B p + 1))
+      (fun p => c * (Q p + B p + 1)) := by
+  obtain ⟨C, hC, k, State, hfin, tm, htm⟩ := Internal.NormalForm.exactBounds hstep
+  have hn : ComputableTidilyInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc (fun p => C * (t p + 1))
+      (fun p => C * (s p + 1)) := ⟨k, State, hfin, tm, htm⟩
+  obtain ⟨c, h⟩ := hn.foldl_bits_pair_stream_sum
+    (R := fun p i => (C + 1) * R p i)
+    (Q := fun p => C * (Q p + 1)) (B := B)
+    (fun p i hi => by
+      have hc := hcost p i hi
+      have hm := Nat.mul_le_mul_left C hc
+      nlinarith)
+    (fun p i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace p i hi)))
+    hstate
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (C + 1), hplain.mono (fun p => ?_)
+    (fun p => ?_)⟩
+  · rw [← Finset.mul_sum, Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    nlinarith
+  · rw [Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    nlinarith
+
+/-- Plain streaming specialization with the same prefix and resource contract. -/
+theorem ComputableInTimeAndSpace.foldl_bits_pair_stream_sum_spec {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    (invariant : σ × List Bool → ℕ → σ → Prop)
+    (hbase : ∀ p, invariant p 0 p.1)
+    (hpreserve : ∀ p i (hi : i < p.2.length) state, invariant p i state →
+      invariant p (i + 1) (step state p.2[i]))
+    {R : σ × List Bool → ℕ → ℕ} {Q B : σ × List Bool → ℕ}
+    (hcost : ∀ p i (hi : i < p.2.length) state, invariant p i state →
+      t (state, p.2[i]) + (enc state).length + (enc (step state p.2[i])).length + 1 ≤ R p i ∧
+        s (state, p.2[i]) ≤ Q p)
+    (hsize : ∀ p i, i ≤ p.2.length → ∀ state, invariant p i state → (enc state).length ≤ B p) :
+    (∃ c, ComputableInTimeAndSpace (fun p : σ × List Bool => p.2.foldl step p.1)
+      (encPair enc encBits) enc
+      (fun p => c * ((∑ i ∈ Finset.range p.2.length, R p i) + B p + 1))
+      (fun p => c * (Q p + B p + 1))) ∧
+      ∀ p, invariant p p.2.length (p.2.foldl step p.1) := by
+  have htrace (p : σ × List Bool) :=
+    List.foldl_take_invariant p.2 step p.1 (invariant p) (hbase p) (hpreserve p)
+  exact ⟨hstep.foldl_bits_pair_stream_sum
+    (fun p i hi => by
+      simpa only [List.take_succ_eq_append_getElem hi, List.foldl_append,
+        List.foldl_cons, List.foldl_nil] using (hcost p i hi _ (htrace p i hi.le)).1)
+    (fun p i hi => (hcost p i hi _ (htrace p i hi.le)).2)
+    (fun p i hi => hsize p i hi _ (htrace p i hi)),
+    fun p => by simpa using htrace p p.2.length le_rfl⟩
+
+/-- Normalize plain callbacks once and retain the cumulative streaming contract. -/
+theorem ComputableInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc : σ ↪ List Bool}
+    {f : σ → σ} {emit finish : σ → List Bool} {tN sN tE sE tF sF : σ → ℕ}
+    (hnext : ComputableInTimeAndSpace f enc enc tN sN)
+    (hemit : ComputableInTimeAndSpace emit enc encBits tE sE)
+    (hfinish : ComputableInTimeAndSpace finish enc encBits tF sF)
+    {R : σ × ℕ → ℕ → ℕ} {Q B : σ × ℕ → ℕ}
+    (hcost : ∀ x i, i < x.2 → tN (f^[i] x.1) + tE (f^[i] x.1) + (enc (f^[i] x.1)).length +
+      (enc (f^[i + 1] x.1)).length + 1 ≤ R x i)
+    (hspace : ∀ x i, i < x.2 → sN (f^[i] x.1) + sE (f^[i] x.1) ≤ Q x)
+    (hstate : ∀ x i, i ≤ x.2 → (enc (f^[i] x.1)).length ≤ B x) :
+    ∃ c, ComputableInTimeAndSpace
+      (fun x : σ × ℕ => ((List.range x.2).map fun i => emit (f^[i] x.1)).flatten ++
+        finish (f^[x.2] x.1))
+      (encPair enc encUnary) encBits
+      (fun x => c * (tF (f^[x.2] x.1) + (∑ i ∈ Finset.range x.2, R x i) + B x + 1))
+      (fun x => c * (sF (f^[x.2] x.1) + Q x + B x + 1)) := by
+  obtain ⟨cN, hcN, kN, qN, hqN, tmN, htN⟩ := Internal.NormalForm.exactBounds hnext
+  have hN : ComputableTidilyInTimeAndSpace f enc enc
+      (fun a => cN * (tN a + 1)) (fun a => cN * (sN a + 1)) :=
+    ⟨kN, qN, hqN, tmN, htN⟩
+  obtain ⟨cE, hcE, kE, qE, hqE, tmE, htE⟩ := Internal.NormalForm.exactBounds hemit
+  have hE : ComputableTidilyInTimeAndSpace emit enc encBits
+      (fun a => cE * (tE a + 1)) (fun a => cE * (sE a + 1)) :=
+    ⟨kE, qE, hqE, tmE, htE⟩
+  obtain ⟨cF, hcF, kF, qF, hqF, tmF, htF⟩ := Internal.NormalForm.exactBounds hfinish
+  have hF : ComputableTidilyInTimeAndSpace finish enc encBits
+      (fun a => cF * (tF a + 1)) (fun a => cF * (sF a + 1)) :=
+    ⟨kF, qF, hqF, tmF, htF⟩
+  let D := cN + cE + cF + 1
+  obtain ⟨c, h⟩ := hN.iterate_unary_stream_sum hE hF
+    (R := fun x i => (D + 1) * R x i) (Q := fun x => D * (Q x + 2)) (B := B)
+    (fun x i hi => by
+      have hc := hcost x i hi
+      have hm := Nat.mul_le_mul_left D hc
+      dsimp only [D] at hm ⊢
+      nlinarith)
+    (fun x i hi => by
+      have hs := hspace x i hi
+      have hm := Nat.mul_le_mul_left D hs
+      dsimp only [D] at hm ⊢
+      nlinarith) hstate
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (3 * D + 3), hplain.mono (fun x => ?_)
+    (fun x => ?_)⟩
+  · rw [← Finset.mul_sum, Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    have hF : cF ≤ 3 * D + 3 := by dsimp [D]; omega
+    have hD : D + 1 ≤ 3 * D + 3 := by omega
+    have hK : 1 ≤ 3 * D + 3 := by omega
+    have hC : cF + 1 ≤ 3 * D + 3 := by dsimp [D]; omega
+    calc
+      _ = cF * tF (f^[x.2] x.1) + (D + 1) *
+          (∑ i ∈ Finset.range x.2, R x i) + B x + (cF + 1) := by ring
+      _ ≤ (3 * D + 3) * tF (f^[x.2] x.1) +
+          (3 * D + 3) * (∑ i ∈ Finset.range x.2, R x i) +
+          (3 * D + 3) * B x + (3 * D + 3) :=
+        Nat.add_le_add (Nat.add_le_add
+          (Nat.add_le_add (Nat.mul_le_mul_right _ hF) (Nat.mul_le_mul_right _ hD))
+          (by simpa only [one_mul] using Nat.mul_le_mul_right (B x) hK)) hC
+      _ = _ := by ring
+  · rw [Nat.mul_assoc]
+    apply Nat.mul_le_mul_left c
+    dsimp only [D]
+    nlinarith
 
 end Turing.MultiTapeTM

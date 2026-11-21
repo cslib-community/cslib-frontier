@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.Drawing
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.DrawingFinitePolyTime
+public import CslibFrontier.Computability.PolyTime.Graph.OrthogonalRoutes
 public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.Encoding
 public import CslibFrontier.Logics.Propositional.CNF.ExactOne.PolyTime
 public import CslibFrontier.Computability.Complexity.Problems.SAT
@@ -51,12 +52,10 @@ These are original native certificates for the explicit drawing construction.
 
 namespace Cslib.Complexity.SAT.ExactOne.DrawingNative
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal Turing.MultiTapeTM
 open DrawingFinitePolyTime (encInput)
-
-/-- Listed graphs retain binary vertex labels; edge positions use unary counters. -/
-abbrev encSourceIndex : ((Graph × Graph.OrthogonalDrawing) × ℕ) ↪ List Bool :=
-  encPair (encPair encGraph Graph.encOrthogonalDrawing) encUnary
 
 local instance : ListEncoding encPoint encRoute :=
   inferInstanceAs (ListEncoding encPoint (encList encPoint))
@@ -73,64 +72,6 @@ private theorem point_scale (k : ℕ) :
 
 attribute [local fun_prop] computableInPolyTime_pointAdd point_scale
   computableInPolyTime_direction computableInPolyTime_translate
-
-/-- Position lookup compares binary graph labels and scans only the declared vertex list. -/
-@[fun_prop]
-theorem drawingPosition :
-    ComputableInPolyTime
-      (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-        Graph.drawingPosition p.1.1 p.1.2 p.2)
-      (encPair (encPair encGraph Graph.encOrthogonalDrawing) encNat) encPoint := by
-  unfold Graph.drawingPosition encGraph Graph.encOrthogonalDrawing encRoute
-  fun_prop
-
-private theorem sourceEdge :
-    ComputableInPolyTime (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-      p.1.1.2.getD p.2 (0, 0)) encSourceIndex (encPair encNat encNat) := by
-  fun_prop
-
-/-- The clause endpoint of an indexed source edge is computed without expanding labels. -/
-@[fun_prop]
-theorem sourceStart :
-    ComputableInPolyTime (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-      ExactOne.sourceStart p.1.1 p.1.2 p.2) encSourceIndex encPoint := by
-  have hp : ComputableInPolyTime
-      (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-        (p.1, (p.1.1.2.getD p.2 (0, 0)).2)) encSourceIndex
-      (encPair (encPair encGraph Graph.encOrthogonalDrawing) encNat) := by fun_prop
-  simpa only [Function.comp_def, ExactOne.sourceStart] using
-    (drawingPosition.comp hp)
-
-/-- Reading and, when necessary, reversing an actual source route is polynomial-time. -/
-@[fun_prop]
-theorem sourceRoute :
-    ComputableInPolyTime (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-      ExactOne.sourceRoute p.1.1 p.1.2 p.2) encSourceIndex encRoute := by
-  have hs := sourceStart
-  have hr : ComputableInPolyTime
-      (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ => p.1.2.2.getD p.2 [])
-      encSourceIndex encRoute := by fun_prop
-  have hhead := (ComputableInPolyTime.head? encPoint).comp hr
-  have hsome := (ComputableInPolyTime.optionSome encPoint).comp hs
-  exact ((hhead.decide_eq' hsome).ite_decide hr
-    (ComputableInPolyTime.listReverseWithInput hr))
-
-private theorem routeSecond :
-    ComputableInPolyTime (fun r : Route => r.getD 1 (0, 0)) encRoute encPoint := by
-  fun_prop
-
-/-- The source exit direction needs only the first two listed route points. -/
-@[fun_prop]
-theorem sourceDirection :
-    ComputableInPolyTime (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-      ExactOne.sourceDirection p.1.1 p.1.2 p.2) encSourceIndex encPoint := by
-  have hp : ComputableInPolyTime
-      (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-        (ExactOne.sourceStart p.1.1 p.1.2 p.2,
-          (ExactOne.sourceRoute p.1.1 p.1.2 p.2).getD 1 (0, 0)))
-      encSourceIndex (encPair encPoint encPoint) := by fun_prop
-  simpa only [Function.comp_def, ExactOne.sourceDirection] using
-    (computableInPolyTime_direction.comp hp)
 
 private theorem route_dilate (k : ℕ) :
     ComputableInPolyTime (dilateRoute k) encRoute encRoute := by
@@ -175,7 +116,7 @@ theorem cutStart (k radius : ℕ) :
 theorem exteriorRoute (k radius : ℕ) :
     ComputableInPolyTime (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
       ExactOne.exteriorRoute k radius p.1.1 p.1.2 p.2) encSourceIndex encRoute :=
-  (cutStart k radius).comp sourceRoute
+  (cutStart k radius).comp computableInPolyTime_sourceRoute
 
 /-- Clause and literal indices of a source occurrence are unary; original labels stay binary. -/
 @[fun_prop]
@@ -221,7 +162,7 @@ theorem literalSide (j : ℕ) :
       (fun p : (CNF ℕ × Graph.OrthogonalDrawing) × ℕ => ExactOne.literalSide p.1.1 p.1.2 p.2 j)
       (encPair encInput encUnary) (encFinite (Fin 4)) := by
   have h := DrawingFinitePolyTime.computableInPolyTime_directionSide.comp
-    (sourceDirection.comp (sourceIndex j))
+    (computableInPolyTime_sourceDirection.comp (sourceIndex j))
   simpa only [Function.comp_def, ExactOne.literalSide] using h
 
 /-- Complete the present exits to one of the fixed ordered collars in native polynomial time. -/
@@ -245,7 +186,7 @@ theorem positiveBoxOrigin :
       (encPair encInput encUnary) encUnary := by fun_prop
   have hb := ComputableInPolyTime.unary_to_binary.comp hn
   have hg := graphDrawing.comp (ComputableInPolyTime.fst encInput encUnary)
-  have hp := drawingPosition.comp (hg.prod hb)
+  have hp := computableInPolyTime_drawingPosition.comp (hg.prod hb)
   have h := (point_scale positiveScale).comp hp
   simpa only [Function.comp_def, ExactOne.positiveBoxOrigin] using h
 
@@ -337,10 +278,12 @@ private theorem blockVariable (v : CNF.PositiveExactOneCompile.Variable ℕ) :
       CNF.FromSAT.encVariable encBlockInput
     fun_prop
   · have ho := blockSignedOffset
-    unfold profileVariableMap encRawVariable DrawingFinitePolyTime.encRawVariable
-      CNF.PositiveExactOneCompile.encVariable CNF.PositiveExactOne.encVariable
-      CNF.FromSAT.encVariable
-    fun_prop
+    have hoffset : ComputableInPolyTime (fun p : BlockInput =>
+        CNF.PositiveExactOneCompile.signedOffset p.1.1 p.2.1 + i)
+        encBlockInput encUnary := by fun_prop
+    exact (ComputableInPolyTime.sumInr
+      (CNF.FromSAT.encVariable encNat) (encPair (encPair encUnary encUnary) encUnary)).comp
+        ((hoffset.prod (ComputableInPolyTime.const j)).prod (ComputableInPolyTime.const k))
 
 private def incidenceFor (profile : ClauseProfile) (e : LocalIncidence) (p : BlockInput) : Route :=
   let stem := translate (ExactOne.positiveBoxOrigin p.1.1 p.1.2 p.2.1) e.2.2
@@ -507,7 +450,7 @@ private theorem sourceVariablePosition :
       (encPair encInput encNat) encUnary := by fun_prop
   have hb := ComputableInPolyTime.unary_to_binary.comp hi
   have hg := graphDrawing.comp (ComputableInPolyTime.fst encInput encNat)
-  have hp := drawingPosition.comp (hg.prod hb)
+  have hp := computableInPolyTime_drawingPosition.comp (hg.prod hb)
   have h := computableInPolyTime_pointAdd.comp
     (((point_scale positiveScale).comp hp).prod
       (ComputableInPolyTime.const positiveTranslation))

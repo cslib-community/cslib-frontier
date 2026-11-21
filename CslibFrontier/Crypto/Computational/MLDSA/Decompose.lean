@@ -111,10 +111,15 @@ private theorem dvd_sub_power2Rem (r : ZMod q) :
     (((2 ^ d : ℕ) : ℤ) ∣ (r.val : ℤ) - power2Rem q d r) :=
   (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp (ZMod.coe_valMinAbs _)
 
+/-- The integer outputs of power-of-two rounding reconstruct the canonical representative. -/
+theorem power2Round_high_mul_add_low (r : ZMod q) :
+    (power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 = (r.val : ℤ) := by
+  rw [power2Round, Int.ediv_mul_cancel (dvd_sub_power2Rem r), sub_add_cancel]
+
 /-- **Power2Round reconstruction.** The two outputs reconstruct the input modulo `q`. -/
 theorem intCast_power2Round_high_mul_add_low [NeZero q] (r : ZMod q) :
     ((((power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 : ℤ)) : ZMod q) = r := by
-  rw [power2Round, Int.ediv_mul_cancel (dvd_sub_power2Rem r), sub_add_cancel]
+  rw [power2Round_high_mul_add_low]
   simp
 
 /-- For `d > 0`, the low output of `Power2Round` lies in
@@ -227,8 +232,9 @@ theorem intCast_highBits_mul_add_lowBits [NeZero q] (r : ZMod q) :
       sub_add_cancel]
     simp
 
-/-- In a valid ML-DSA modulus, `q = (q - 1) / (2 γ₂) · 2 γ₂ + 1`. -/
-private theorem q_eq (hdvd : 2 * γ₂ ∣ q - 1) [NeZero q] :
+/-- In a valid ML-DSA modulus (`2 * γ₂ ∣ q - 1` and `q ≠ 0`), `q` decomposes in `ℤ` as
+`((q - 1) / (2 * γ₂)) * (2 * γ₂) + 1`. -/
+theorem natCast_eq_bucketCount_mul_add_one (hdvd : 2 * γ₂ ∣ q - 1) [NeZero q] :
     (q : ℤ) = (((q - 1) / (2 * γ₂) : ℕ) : ℤ) * (2 * γ₂ : ℕ) + 1 := by
   have hq : 1 ≤ q := Nat.one_le_iff_ne_zero.mpr (NeZero.ne q)
   have hmul : (q - 1) / (2 * γ₂) * (2 * γ₂) = q - 1 := Nat.div_mul_cancel hdvd
@@ -257,7 +263,7 @@ theorem highBits_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 1 < q) 
     highBits q γ₂ r < ((q - 1) / (2 * γ₂) : ℕ) := by
   have : NeZero q := ⟨by omega⟩
   set m : ℕ := (q - 1) / (2 * γ₂) with hm
-  have hqm := q_eq (q := q) (γ₂ := γ₂) hdvd
+  have hqm := natCast_eq_bucketCount_mul_add_one (q := q) (γ₂ := γ₂) hdvd
   rw [← hm] at hqm
   have hrv : (r.val : ℤ) < q := by exact_mod_cast ZMod.val_lt r
   obtain ⟨h₁, h₂⟩ := centeredRem_bounds (q := q) hγ r
@@ -309,7 +315,7 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     decompose q γ₂ ((a * (2 * γ₂ : ℕ) + b : ℤ) : ZMod q) = (a, b) := by
   set m : ℕ := (q - 1) / (2 * γ₂) with hm
   have hqm : (q : ℤ) = m * (2 * γ₂) + 1 := by
-    have := q_eq (q := q) (γ₂ := γ₂) hdvd
+    have := natCast_eq_bucketCount_mul_add_one (q := q) (γ₂ := γ₂) hdvd
     rw [← hm] at this
     push_cast at this
     exact this

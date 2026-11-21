@@ -131,10 +131,7 @@ theorem coverableBool_eq_true_iff (S : SetSystem) : S.coverableBool = true ↔ S
 
 @[fun_prop] theorem computableInPolyTime_coverableBool :
     ComputableInPolyTime coverableBool encSetSystem encBool := by
-  unfold coverableBool
-  apply ComputableInPolyTime.allWithInput (by fun_prop)
-  apply ComputableInPolyTime.anyWithInput (by fun_prop)
-  fun_prop
+  fun_prop [coverableBool]
 
 /-- Boolean check that a list `I` of natural-number indices specifies a valid cover of `S`. -/
 @[expose] def isCoverList (S : SetSystem) (I : List ℕ) : Bool :=
@@ -173,27 +170,7 @@ private theorem isCoverList_toFinset_iff (S : SetSystem) {I : List ℕ}
 @[fun_prop] theorem computableInPolyTime_isCoverList :
     ComputableInPolyTime (fun p : SetSystem × List ℕ => p.1.isCoverList p.2)
       (encPair encSetSystem (encList encUnary)) encBool := by
-  unfold isCoverList
-  have hlen : ComputableInPolyTime (fun p : (SetSystem × List ℕ) × ℕ => p.1.1.sets.length)
-      (encPair (encPair encSetSystem (encList encUnary)) encUnary) encUnary := by fun_prop
-  have hbound : ComputableInPolyTime
-      (fun p : SetSystem × List ℕ => p.2.all fun i => decide (i < p.1.sets.length))
-      (encPair encSetSystem (encList encUnary)) encBool := by
-    apply ComputableInPolyTime.allWithInput (by fun_prop)
-    exact ComputableInPolyTime.unary_lt' (ComputableInPolyTime.snd _ _) hlen
-  have hcov : ComputableInPolyTime
-      (fun p : SetSystem × List ℕ =>
-        p.1.ground.all fun u => p.2.any fun i => decide (u ∈ p.1.sets.getD i []))
-      (encPair encSetSystem (encList encUnary)) encBool := by
-    apply ComputableInPolyTime.allWithInput (by fun_prop)
-    apply ComputableInPolyTime.anyWithInput (by fun_prop)
-    have hset : ComputableInPolyTime
-        (fun q : ((SetSystem × List ℕ) × ℕ) × ℕ => q.1.1.1.sets.getD q.2 [])
-        (encPair (encPair (encPair encSetSystem (encList encUnary)) encNat) encUnary)
-        (encList encNat) :=
-      ComputableInPolyTime.listGetDWithInput (by fun_prop) (by fun_prop) []
-    fun_prop
-  fun_prop
+  fun_prop [isCoverList]
 
 /-- The minimum number of sets needed to cover `S` when `S.Coverable` holds (and `0` otherwise). -/
 noncomputable def optCoverSize (S : SetSystem) : ℕ :=
@@ -435,9 +412,7 @@ namespace WeightedSetSystem
 
 @[fun_prop] theorem computableInPolyTime_toSetSystem :
     ComputableInPolyTime toSetSystem encWeightedSetSystem encSetSystem := by
-  unfold toSetSystem
-  apply computableInPolyTime_setSystemMk (by fun_prop)
-  exact (ComputableInPolyTime.map computableInPolyTime_weightedSetElements).comp (by fun_prop)
+  fun_prop [toSetSystem]
 
 /-- A selection of indices `C` covers `W` when every element of `W.ground` belongs to
 `W.sets[i].elements` for some `i ∈ C`. -/
@@ -682,7 +657,7 @@ theorem WeightedSetCover_mem_NP : WeightedSetCover ∈ NP encWeightedSetCover :=
         (fun q : (WeightedSetSystem × ℕ) × List ℕ =>
           (q.2.map fun i => (q.1.1.sets.getD i ⟨[], 0⟩).weight).sum)
         (encPair encWeightedSetCover (encList encUnary)) encNat :=
-      (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.binary_sum).comp hws
+      ComputableInPolyTime.binary_sum.comp hws
     have hk : ComputableInPolyTime (fun q : (WeightedSetSystem × ℕ) × List ℕ => q.1.2)
         (encPair encWeightedSetCover (encList encUnary)) encNat :=
       (snd encWeightedSetSystem encNat).comp (fst encWeightedSetCover (encList encUnary))

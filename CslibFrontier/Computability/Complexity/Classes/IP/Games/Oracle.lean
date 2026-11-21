@@ -248,7 +248,7 @@ private theorem computableInPolyTime_extractHistory {γ : Type} {encIn : γ ↪ 
       encIn Interaction.encHistory := by
   let encSt : ExtractState ↪ List Bool := encExtractState
   let encStep : ((ℕ × ExtractState) × Bool) ↪ List Bool :=
-    encFoldStep encUnary encSt encBool
+    encPair (encPair encUnary encSt) encBool
   have hstep : ComputableInPolyTime
       (fun q : (ℕ × ExtractState) × Bool => extractStep q.1.1 q.1.2)
       encStep encSt := by
@@ -289,7 +289,7 @@ private theorem computableInPolyTime_extractHistory {γ : Type} {encIn : γ ↪ 
     have hle : ComputableInPolyTime
         (fun q : (ℕ × ExtractState) × Bool =>
           decide (2 * q.1.1 + 3 ≤ q.1.2.rem.length)) encStep encBool :=
-      .of_tidy (ComputableTidilyInPolyTime.unary_le' h2t3.tidy hlen.tidy)
+      (ComputableInPolyTime.unary_le' h2t3 hlen)
     have hhead : ComputableInPolyTime
         (fun q : (ℕ × ExtractState) × Bool => q.1.2.rem.getD 0 false)
         encStep encBool :=
@@ -669,6 +669,7 @@ private theorem isBounded_coinFamily_of_isQueryBounded {k : ℕ} {Control : Type
             have htrV : trV = tr := congrArg (·.2.2) hres
             have hsV : sV = s' := congrArg (·.2.1) hres
             subst htrV hsV
+            rw [← ProbOracleComp.runWith_eq_run_interpret] at hmemV
             have hlen := hbound.length_transcript_le oracle hmemV
             omega
   message := (Interaction.isBounded_coinFamily MUnit t x).message
@@ -1292,7 +1293,7 @@ private theorem sim_verifier_bounds {enc : α ↪ List Bool} {A : Set α}
       (OracleComp.interpret
         (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
         (MUnit.runOracle t_n (enc a))).run s := fun S oracle s => by
-    simpa [t_n, htEval, ProbOracleComp.runWith, OracleComp.runWith, Prod.map, encBool_apply] using
+    simpa only [t_n, htEval, ProbOracleComp.runWith_eq_run_interpret] using
       hreal a S oracle s
   have hF : Interaction.IsBounded F (q (enc a).length) t_n :=
     isBounded_coinFamily_of_isQueryBounded MUnit (hq a) hreal_a
@@ -1497,7 +1498,7 @@ private theorem isOraclePPTOn_oracleVerifier {enc : α ↪ List Bool}
             (msg (arg.1.1, arg.1.2, arg.2.round, arg.2.transcript))) encArg encBits :=
       ComputableInPolyTime.bitsRowWithInput hnv (ComputableInPolyTime.const 0)
         (hmsg.comp (ha.prod (hc.prod (hj.prod hp))))
-    have hqry := IsOraclePPTOn.query_take' () hm hnp
+    have hqry := IsOraclePPTOn.query_take () hm hnp
     have hy : ComputableInPolyTime
         (fun p : ((α × List Bool) × SimState) × List Bool =>
           SimState.mk (p.1.2.round + 2) (p.1.2.transcript ++
@@ -1517,14 +1518,14 @@ private theorem isOraclePPTOn_oracleVerifier {enc : α ↪ List Bool}
         (ComputableInPolyTime.bitsAppend (hp.comp ha1) (hm.comp ha1))
         (ComputableInPolyTime.bitsRowWithInput (hnp.comp ha1) (ComputableInPolyTime.const 0) hy2)
       exact encSimState_mk_polyTime hj' hp'
-    simpa only [oracleStep] using hqry.map_with' hy
+    simpa only [oracleStep] using hqry.map_with hy
   obtain ⟨c₁, d₁, hqlen⟩ := hq.polyBounded_length.exists_le
   obtain ⟨c₂, d₂, hglen⟩ := hg.polyBounded_length.exists_le
   let D := max d₁ d₂
   have hcount : ComputableInPolyTime (fun ac : α × List Bool => q (enc ac.1).length)
       encAC encUnary :=
     hq.comp ((ComputableInPolyTime.encoding_length enc).comp (.fst _ _))
-  have hiter := IsOraclePPTOn.iterateWith_spec' (input := encAC) (stateEncoding := encSt)
+  have hiter := IsOraclePPTOn.iterateWith_spec (input := encAC) (stateEncoding := encSt)
     hcount (ComputableInPolyTime.const (SimState.mk 0 [])) hstepPPT
     (fun ac i st => st.round = 2 * i ∧
       st.transcript.length = IPGame.transcriptLength ((g (enc ac.1).length).take (2 * i)))

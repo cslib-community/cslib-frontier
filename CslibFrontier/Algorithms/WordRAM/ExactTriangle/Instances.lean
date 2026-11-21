@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Catalogue
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.InstancePair
 import CslibFrontier.Computability.WordRAM.Sequence
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native ExactTriangle instance preparation
@@ -1238,8 +1239,7 @@ theorem exec_at_with_prefix {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (in
     omega
   · apply output_of_loop values initial v b y hcatSave hbmem
       ⟨hbn, hbD, hbp, hbB, hbH, hbd, hbo, hbs, hbL, hbR⟩
-      ⟨(hyreg size (by decide)).trans hbn, (hyreg dimension (by decide)).trans hbD,
-        (hyreg modulus (by decide)).trans hbp, hyreg output (by decide)⟩ hycount
+      ⟨by regs_frame, by regs_frame, by regs_frame, hyreg output (by decide)⟩ hycount
       (by rw [hbo, hycount, hbs]; exact hyheap) hH
       (by rw [hycount]; exact hywritten) hyframe
   · exact (hyreg output (by decide)).symm
