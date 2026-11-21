@@ -512,6 +512,12 @@ theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉
 analysis whose learned clause is numbered `id`. -/
 def recentIds (n next id : ℕ) : List ℕ := (List.range' n (next - n)).filter (· != id)
 
+/-- The numbers in `recentIds n next id`: from `n` to below `next`, other than `id`. -/
+theorem mem_recentIds {n next id i : ℕ} :
+    i ∈ recentIds n next id ↔ n ≤ i ∧ i < next ∧ i ≠ id := by
+  simp only [recentIds, List.mem_filter, List.mem_range'_1, bne_iff_ne, ne_eq]
+  omega
+
 /-- The database without the clauses numbered from `n` up other than `id`, read from the start
 only as long as the numbers are at least `n`: the newest clauses come first. -/
 def dropRecent (n id : ℕ) : List (ℕ × Clause ℕ) → List (ℕ × Clause ℕ)
@@ -531,7 +537,7 @@ theorem dropRecent_eq {m n next id : ℕ} (hmn : m < n) :
   | e :: rest, hord, hlt => by
     obtain ⟨hhead, hrest⟩ := List.pairwise_cons.1 hord
     have hnot : ∀ i, i < n → i ∉ recentIds n next id := fun i hi h => by
-      simp only [recentIds, List.mem_filter, List.mem_range'_1] at h
+      have := (mem_recentIds.1 h).1
       omega
     unfold dropRecent
     by_cases he : e.1 < n
@@ -548,7 +554,7 @@ theorem dropRecent_eq {m n next id : ℕ} (hmn : m < n) :
       have ih := dropRecent_eq (id := id) hmn hrest fun b hb => hlt b (List.mem_cons_of_mem _ hb)
       have hmem : e.1 ∈ recentIds n next id ↔ e.1 ≠ id := by
         have := hlt e List.mem_cons_self
-        simp only [recentIds, List.mem_filter, List.mem_range'_1, bne_iff_ne, ne_eq]
+        rw [mem_recentIds]
         omega
       by_cases hid : e.1 = id
       · rw [ite_eq_left hid, List.filter_cons, ite_eq_left (by simpa [hmem] using hid), ih]
