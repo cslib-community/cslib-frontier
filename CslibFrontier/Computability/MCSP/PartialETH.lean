@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.ReadOnce
 public import CslibFrontier.Computability.Complexity.FineGrained.PermutationIndependentSet
 public import CslibFrontier.Computability.MCSP.PartialNP
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat

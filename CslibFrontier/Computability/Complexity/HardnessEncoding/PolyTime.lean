@@ -18,7 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-!
 # The worst-case-to-average-case encoding is computable in exponential time

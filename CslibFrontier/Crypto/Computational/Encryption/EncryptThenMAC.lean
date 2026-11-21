@@ -1677,7 +1677,31 @@ private theorem isOraclePPTOn_cpaToPrfHandler (bit : Bool) :
       (encPair encBits (encFinEnum Unit))
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × Unit) =>
         cpaToPrfHandler pair.1.1 bit pair.2.1 pair.2.2) := by
-  ppt [cpaToPrfHandler]
+  let input := encPair (encPair encUnary encBits)
+    (encPair (encPair (encFinEnum Unit) encBits) (encFinEnum Unit))
+  have hp := ComputableInPolyTime.id' (encIn := input)
+  have hn := hp.fst'.fst'
+  have hrequest := hp.snd'.fst'.snd'
+  have hleft := ComputableInPolyTime.unframe.comp hrequest
+  have hright := ComputableInPolyTime.dropFrame.comp hrequest
+  have hguard := ComputableInPolyTime.bool_and'
+    ((ComputableInPolyTime.length_bits.comp hleft).beq hn)
+    ((ComputableInPolyTime.length_bits.comp hright).beq hn)
+  have hmessage := ComputableInPolyTime.ite
+    (ComputableInPolyTime.const (encOut := encBool) bit) hright hleft
+  have hsample := (ComputableInPolyTime.sampleList hn).isOraclePPTOn (Operation := Unit)
+  have hquery := IsOraclePPTOn.query_take ()
+    (ComputableInPolyTime.snd input encBits)
+    (hn.comp (ComputableInPolyTime.fst input encBits))
+  have hrp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair input encBits) encBits)
+  have hresult := (ComputableInPolyTime.bitsAppend hrp.fst'.snd'
+    (ComputableInPolyTime.bitsZipWithInput xor hrp.snd'
+      (hmessage.comp hrp.fst'.fst'))).prod
+        (ComputableInPolyTime.const (encOut := encFinEnum Unit) ())
+  unfold cpaToPrfHandler
+  exact IsOraclePPTOn.cond hguard
+    (hsample.bind_with (hquery.map_with hresult)) (by ppt)
 
 /-- `cpaToPrfDistinguisher` preserves strict oracle-PPT admissibility (`IsOraclePPT`). -/
 theorem isOraclePPT_cpaToPrfDistinguisher {adversary : OracleDistinguisher}

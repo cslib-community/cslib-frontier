@@ -18,7 +18,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
