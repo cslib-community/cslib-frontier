@@ -145,16 +145,25 @@ theorem fieldDegree_spec (w n : ℕ) :
         512 * target w n ≤ capacity s ∧ ∀ j < s, capacity j < 512 * target w n
       from ⟨scale w n, hle, rfl, target_le_capacity w n, fun _ hj => hmin hj⟩)
 
+/-- Number of coefficient blocks in the outer Reed–Solomon message at the selected scale. -/
+def coefficientCount (w n : ℕ) : ℕ := dimension (scale w n)
+
+/-- The coefficient count is the power of two retained by the capacity loop. -/
+theorem coefficientCount_eq (w n : ℕ) :
+    coefficientCount w n = 2 ^ (fieldDegree w n - 1) := by
+  unfold coefficientCount dimension fieldDegree
+  rfl
+
 /-- Code coordinates are a nonzero evaluation point, a Wozencraft half, and a bit within it. -/
 abbrev Coordinate (w n : ℕ) : Type :=
   (BinaryField (fieldDegree w n))ˣ × (Fin 2 × Fin (fieldDegree w n))
 
-private def coefficientBits {w n : ℕ} (v : Fin w) (i : Fin (dimension (scale w n))) :
+private def coefficientBits {w n : ℕ} (v : Fin w) (i : Fin (coefficientCount w n)) :
     BitString (fieldDegree w n) :=
   fun j => v.val.testBit (finProdFinEquiv (i, j))
 
 private noncomputable def message {w n : ℕ} (v : Fin w) :
-    degreeLT (BinaryField (fieldDegree w n)) (dimension (scale w n)) :=
+    degreeLT (BinaryField (fieldDegree w n)) (coefficientCount w n) :=
   (degreeLTEquiv _ _).symm fun i =>
     (BinaryField.equivBits (fieldDegree_ne_zero w n)).symm (coefficientBits v i)
 
@@ -171,7 +180,7 @@ private theorem message_injective (w n : ℕ) :
   intro j
   by_cases hj : j < capacity (scale w n)
   · obtain ⟨⟨i, k⟩, hik⟩ :=
-      (finProdFinEquiv (m := dimension (scale w n)) (n := fieldDegree w n)).surjective ⟨j, hj⟩
+      (finProdFinEquiv (m := coefficientCount w n) (n := fieldDegree w n)).surjective ⟨j, hj⟩
     have he := (degreeLTEquiv _ _).symm.injective h
     have hi := (BinaryField.equivBits (fieldDegree_ne_zero w n)).symm.injective (congrFun he i)
     simpa only [coefficientBits, congrArg Fin.val hik] using congrFun hi k

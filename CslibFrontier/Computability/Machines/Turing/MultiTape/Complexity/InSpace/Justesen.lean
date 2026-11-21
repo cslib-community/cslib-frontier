@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
@@ -23,7 +25,9 @@ by a fixed factor, holding the state once the capacity suffices. The final degre
 power give the field degree and exact seed length of the existing Justesen generator. Native
 space is linear in the encoded dimensions, including every live loop state. The binary degree
 and index suffice to decode a coordinate. From the dimensions and index we can also produce
-the little-endian power-basis word of the nonzero field point in linear space.
+the little-endian power-basis word of the nonzero field point in linear space. The same
+capacity run supplies the degree and coefficient count for a retained field context. A caller
+with that context can prepare the point word, half and bit without recomputing the parameters.
 -/
 
 public section
@@ -214,6 +218,48 @@ theorem decodeIndex_inSpace :
   exact encCoordinateNumbers_mk_budget (budget_natSucc (budget_natDiv hindex hblock))
     (budget_natDiv hwithin hdegree) (budget_natMod hwithin hdegree)
 
+/-- A decoded coordinate with the field point materialized as a coefficient word. -/
+structure CoordinateWord where
+  /-- The little-endian coefficients of the field point. -/
+  point : List Bool
+  /-- The selected Wozencraft half as a binary natural. -/
+  half : ℕ
+  /-- The bit position in the selected half as a binary natural. -/
+  bit : ℕ
+
+/-- Framed Boolean coefficient list and binary half, followed by the binary bit index. -/
+enc_structure encCoordinateWord : CoordinateWord where
+  point : (encList encBool), half : encNat, bit : encNat
+
+private def decodeCoordinateWord (degree index : ℕ) : CoordinateWord :=
+  let coord := decodeIndex degree index
+  ⟨BitString.lowBits degree coord.point, coord.half, coord.bit⟩
+
+private theorem decodeCoordinateWord_inSpace :
+    ComputableInSpace (fun p : ℕ × ℕ => decodeCoordinateWord p.1 p.2)
+      (encPair encNat encNat) encCoordinateWord
+      (fun p => p.1 + (encPair encNat encNat p).length) := by
+  let encDecoded := encPair encNat encCoordinateNumbers
+  let budget (p : ℕ × CoordinateNumbers) := p.1 + (encDecoded p).length
+  have hin : (fun p => (encDecoded p).length) ≼ budget := .of_le fun p => by
+    change _ ≤ p.1 + _
+    omega
+  have hd := (fst encNat encCoordinateNumbers).weaken hin
+  have hc := (snd encNat encCoordinateNumbers).weaken hin
+  have hargs := budget_prod hd (encCoordinateNumbers_point_budget hc)
+  have hwidth : (fun p : ℕ × CoordinateNumbers => p.1) ≼ budget := .of_le fun p => by
+    change p.1 ≤ p.1 + _
+    omega
+  have hpoint := budget_comp lowBits_inSpace hargs (hwidth.add hargs.length_le)
+  have hword := encCoordinateWord_mk_budget hpoint (encCoordinateNumbers_half_budget hc)
+    (encCoordinateNumbers_bit_budget hc)
+  have hin : (fun p : ℕ × ℕ => (encPair encNat encNat p).length) ≼
+      fun p => p.1 + (encPair encNat encNat p).length := .of_le fun _ => by omega
+  have hin' : (fun p : ℕ × ℕ => p.1) ≼
+      fun p => p.1 + (encPair encNat encNat p).length := .of_le fun _ => by omega
+  have hdecoded := (budget_prod (fst encNat encNat) decodeIndex_inSpace).weaken hin
+  exact (budget_comp hword hdecoded (hin'.add hdecoded.length_le)).of_enc_eq fun _ => rfl
+
 private theorem fieldDegree_le_codeLength_size (w n : ℕ) :
     fieldDegree w n ≤ (codeLength w n).size := by
   let b := fieldDegree w n
@@ -229,6 +275,12 @@ private theorem fieldDegree_le_codeLength_size (w n : ℕ) :
       simpa only [mul_one] using Nat.mul_le_mul_left (2 ^ b - 1) (show 1 ≤ 2 * b by omega))
   exact Nat.le_of_pred_lt (Nat.lt_size.2 hlen)
 
+private theorem fieldDegree_le_linear :
+    (fun p : ℕ × ℕ => fieldDegree p.1 p.2) ≼ fun p => (encDimensions p).length :=
+  (BigOLe.of_le fun p => by
+    rw [length_encNat_eq_size]
+    exact fieldDegree_le_codeLength_size p.1 p.2).trans codeLength_inSpace.length_le
+
 /-- Produce the decoded field point as a little-endian coefficient word. The generator's
 degree is bounded by the binary length of its code length, so the complete live state fits
 space linear in the binary dimensions and index. -/
@@ -242,15 +294,99 @@ theorem decodePointWord_inSpace :
   have hdims := fst (encPair encNat encNat) encNat
   have hdegree := budget_comp_linear fieldDegree_inSpace hdims
   have hindex := snd (encPair encNat encNat) encNat
-  have hnum := budget_comp_linear decodeIndex_inSpace (budget_prod hdegree hindex)
-  have hargs := budget_prod hdegree (encCoordinateNumbers_point_budget hnum)
-  have hlength := budget_comp_linear codeLength_inSpace hdims
+  have hargs := budget_prod hdegree hindex
   have hdegreeLength :
       (fun p : (ℕ × ℕ) × ℕ => fieldDegree p.1.1 p.1.2) ≼
         fun p => (encPair (encPair encNat encNat) encNat p).length :=
-    (BigOLe.of_le fun p => by
-      rw [length_encNat_eq_size]
-      exact fieldDegree_le_codeLength_size p.1.1 p.1.2).trans hlength.length_le
-  exact budget_comp lowBits_inSpace hargs (hdegreeLength.add hargs.length_le)
+    (fieldDegree_le_linear.comp Prod.fst).trans (.of_le fun p => by
+      simp only [encDimensions, length_encPair]
+      omega)
+  have hcoord := budget_comp decodeCoordinateWord_inSpace hargs
+    (hdegreeLength.add hargs.length_le)
+  exact (encCoordinateWord_point_budget hcoord).of_enc_eq fun _ => rfl
+
+/-- The parameters shared by coordinate decoding and all field evaluations for a graph. -/
+structure FieldContext where
+  /-- Degree of the binary field. -/
+  degree : ℕ
+  /-- Number of outer Reed–Solomon coefficients. -/
+  count : ℕ
+  /-- Little-endian coefficient word of the field modulus. -/
+  modulus : List Bool
+
+/-- Framed binary degree and coefficient count, followed by the raw modulus word. -/
+enc_structure encFieldContext : FieldContext where
+  degree : encNat, count : encNat, modulus : encBits
+
+/-- Retained field parameters for the existing Justesen generator. -/
+def fieldContext (w n : ℕ) : FieldContext :=
+  let degree := fieldDegree w n
+  ⟨degree, coefficientCount w n, BinaryField.modulusBitsScan degree⟩
+
+/-- Initialize the retained degree, coefficient count and modulus from the binary graph
+dimensions. The degree and count come from one capacity run. A modulus routine with space
+linear in the degree fits the same encoded-dimension budget. -/
+theorem fieldContext_inSpace_of_modulus
+    (hmodulus : ComputableInSpace BinaryField.modulusBitsScan encNat encBits (fun d => d + 1)) :
+    ComputableInSpace (fun p : ℕ × ℕ => fieldContext p.1 p.2)
+      (encPair encNat encNat) encFieldContext (fun p => (encPair encNat encNat p).length) := by
+  have hstate := budget_id (BigOLe.refl fun s => (encCapacityState s).length)
+  have hselect := budget_prod (encCapacityState_degree_budget hstate)
+    (encCapacityState_power_budget hstate)
+  have hparams : ComputableInSpace (fun p : ℕ × ℕ => (fieldDegree p.1 p.2,
+      coefficientCount p.1 p.2)) encDimensions encDimensions (fun p => (encDimensions p).length) :=
+    (budget_comp_linear hselect computed_inSpace).of_enc_eq fun p => by
+      obtain ⟨s, hs, hd⟩ := computed_eq_atScale p
+      rw [hs, coefficientCount_eq, hd]
+      rfl
+  let B (p : ℕ × ℕ) := p.1 + (encDimensions p).length
+  have hin : (fun p => (encDimensions p).length) ≼ B := .of_le fun p => by
+    change _ ≤ p.1 + _
+    omega
+  have hd := (fst encNat encNat).weaken hin
+  have hc := (snd encNat encNat).weaken hin
+  have hm := budget_comp hmodulus hd (.of_le_linear 1 1 fun p => by
+    simp only [one_mul, B]
+    omega)
+  exact (budget_comp (encFieldContext_mk_budget hd hc hm) hparams
+    (fieldDegree_le_linear.add hparams.length_le)).of_enc_eq fun _ => rfl
+
+/-- Prepare one coordinate from a retained field context. The point width uses the stored
+modulus word, as in the field multiplication and Horner routines. -/
+def FieldContext.decodeWord (ctx : FieldContext) (index : ℕ) : CoordinateWord :=
+  decodeCoordinateWord (ctx.modulus.length - 1) index
+
+/-- The prepared point word and both indexes agree with the existing Justesen coordinate. -/
+theorem fieldContext_decodeWord_eq {w n : ℕ} (j : Fin (codeLength w n)) :
+    (fieldContext w n).decodeWord j.val =
+      let (point, half, bit) := decodeCoordinate w n j
+      ⟨List.ofFn (nonzeroPointBits point), half.val, bit.val⟩ := by
+  have hlen : (fieldContext w n).modulus.length = fieldDegree w n + 1 := by
+    change (BinaryField.modulusBitsScan (fieldDegree w n)).length = _
+    rw [BinaryField.modulusBitsScan_eq, BinaryField.length_modulusBits (fieldDegree_ne_zero w n)]
+  unfold FieldContext.decodeWord
+  rw [hlen, Nat.add_sub_cancel]
+  have hpoint := lowBits_decodeIndex_point j
+  have hcoord := decodeIndex_eq_decodeCoordinate j
+  unfold decodeCoordinateWord
+  dsimp only at hpoint hcoord ⊢
+  rw [hpoint, hcoord]
+
+/-- Preparing a point word and its indexes fits space linear in the retained context and binary
+index. The stored modulus pays for all coefficients of the point word. -/
+theorem fieldContext_decodeWord_inSpace :
+    ComputableInSpace (fun p : FieldContext × ℕ => p.1.decodeWord p.2)
+      (encPair encFieldContext encNat) encCoordinateWord
+      (fun p => (encPair encFieldContext encNat p).length) := by
+  have hctx := fst encFieldContext encNat
+  have hm := encFieldContext_modulus_budget hctx
+  have hwidth := budget_natPred (budget_comp_linear (of_inO ComputableInO.lengthNat) hm)
+  have hbound :
+      (fun p : FieldContext × ℕ => p.1.modulus.length - 1) ≼
+        fun p => (encPair encFieldContext encNat p).length :=
+    (BigOLe.of_le fun p : FieldContext × ℕ => Nat.sub_le p.1.modulus.length 1).trans hm.length_le
+  have hargs := budget_prod hwidth (snd encFieldContext encNat)
+  exact (budget_comp decodeCoordinateWord_inSpace hargs (hbound.add hargs.length_le)).of_enc_eq
+    fun _ => rfl
 
 end Cslib.Code.JustesenFamily

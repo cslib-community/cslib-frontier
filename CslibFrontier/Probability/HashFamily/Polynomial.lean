@@ -74,6 +74,8 @@ coefficient indices identifies the two APIs.
   `Cslib.Probability.not_isUniversalHash_polyHash_zmod_pow_two`: distinct two-block messages
   are separated by some key. Modulo `2^(n+1)`, a three-block pair collides at every key.
 * `Cslib.Probability.isDeltaUniversalHash_xpolyHash`: `xpolyHash` is `(ℓ + 1) / |F|`-Δ-universal.
+* `Cslib.Probability.not_isDeltaUniversalHash_polyHash`: a one-block pair has the same hash
+  difference under every key.
 
 ## References
 
@@ -498,5 +500,16 @@ theorem isDeltaUniversalHash_xpolyHash [Fintype F] (ℓ : ℕ) :
         (Nat.add_le_add_right hdeg 1)
   push_cast at h
   exact h
+
+/-- Boneh and Shoup's `Hpoly` fails `ε`-difference universality for every `ε < 1` as soon
+as one-block messages are allowed ([BonehShoup2023], v0.6, Section 7.4, p. 269). The hashes of
+`[1]` and `[0]` differ by `1` at every key. The source works over prime fields with a uniform
+key, and the same pair works over any field for any seed distribution. -/
+theorem not_isDeltaUniversalHash_polyHash (seed : PMF F) {ℓ : ℕ} (hℓ : 1 ≤ ℓ)
+    {ε : ℝ≥0∞} (hε : ε < 1) :
+    ¬ IsDeltaUniversalHash seed
+      (fun k (m : {m : List F // m.length ≤ ℓ}) => polyHash k m) ε :=
+  not_isDeltaUniversalHash_of_sub_const (x := ⟨[1], hℓ⟩) (x' := ⟨[0], hℓ⟩)
+    (by simp) 1 (fun k => by simp [polyHash, add_comm]) hε
 
 end Cslib.Probability

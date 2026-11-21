@@ -76,6 +76,15 @@ example :
       (1 / Fintype.card (ZMod 5)) := by
   simpa using isUniversalHash_coeffPolyHash (F := ZMod 5) 2
 
+/-- The one-block family is `1 / 5`-universal, while a fixed difference occurs at every key. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) => polyHash k m) (1 / 5) ∧
+    ¬ IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) => polyHash k m) (1 / 5) := by
+  exact ⟨by simpa using isUniversalHash_polyHash (F := ZMod 5) 1,
+    not_isDeltaUniversalHash_polyHash _ le_rfl (by norm_num)⟩
+
 /-- A one-coefficient hash never collides. After multiplication by the key, each
 specified difference has probability at most one over the field size. -/
 example :

@@ -88,7 +88,8 @@ theorem fieldOfBits_fieldMulMod {w : ℕ} (hw : w ≠ 0) (a b : List Bool) :
     fieldOfBits (basis hw) (fieldMulMod (modulusBits w) a b) =
       fieldOfBits (basis hw) a * fieldOfBits (basis hw) b := by
   obtain ⟨l, hl, hlen⟩ := exists_modulusBits_eq hw
-  have hg : (modulusBits w).length - 1 = w := by simp [hl, hlen]
+  have hg : (modulusBits w).length - 1 = w := by
+    rw [length_modulusBits hw, Nat.add_sub_cancel]
   have hp : polyOfBits (l ++ [true]) = leastIrreducible w := by
     rw [← hl, polyOfBits_modulusBits hw]
   let word (x : List Bool) := List.ofFn fun i : Fin w => x.getD i false

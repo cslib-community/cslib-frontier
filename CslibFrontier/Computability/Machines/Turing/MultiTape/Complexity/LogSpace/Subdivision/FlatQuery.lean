@@ -21,7 +21,8 @@ same numbering for all of its edge requests, including requests at unused slots.
 `decodeFlatQuery` reconstructs the existing adjacency callback request from two binary
 IDs and the chain bound. It retains the supplied context. Its agreement theorem applies
 to IDs in the rectangular carrier, which the caller supplies through `Fin` coordinates.
-The native certificates concern request preparation.
+The native certificates cover request preparation and entry to the existing same-input
+subdivision callback.
 -/
 
 public section
@@ -99,5 +100,22 @@ theorem decodeFlatQuery_inSpace (encContext : Context ↪ List Bool) :
   exact (encQuery_mk_budget encContext (encFlatQuery_context_budget encContext hid)
     (budget_natDiv ha hslots) (budget_natDiv hb hslots) (budget_natMod ha hslots)
     (budget_natMod hb hslots)).of_enc_eq (fun _ => rfl)
+
+/-- Decode the flat request and enter the subdivision callback in its pending caller state. -/
+@[expose] def flatCallbackStart {τ : Type} (q : FlatQuery Context) :
+    (Query Context ⊕ Bool) ⊕ ((Query Context ⊕ Bool) × τ) :=
+  .inl (.inl (decodeFlatQuery q))
+
+/-- Entering the callback takes linear workspace in the encoded flat request. -/
+theorem flatCallbackStart_inSpace {τ : Type} (encContext : Context ↪ List Bool)
+    (encT : τ ↪ List Bool) :
+    ComputableInSpace flatCallbackStart (encFlatQuery encContext) (encCallback encContext encT)
+      (fun q => (encFlatQuery encContext q).length) := by
+  let encC := encCaller encContext
+  have hcaller := of_inO (ComputableInO.inl (encQuery encContext) encBool)
+  have hcall := of_inO (ComputableInO.inl encC (encPair encC encT))
+  have h := budget_comp_linear hcall
+    (budget_comp_linear hcaller (decodeFlatQuery_inSpace encContext))
+  exact h
 
 end Turing.QueryMachine.Subdivision

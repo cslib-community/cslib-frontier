@@ -120,6 +120,45 @@ theorem natDegree_evalPrefix_le (u : Fin m → R) (p : MvPolynomial (Fin (m + 1)
     (evalPrefix u p).natDegree ≤ p.degreeOf (Fin.last m) :=
   Polynomial.natDegree_map_le.trans_eq (natDegree_lastVariableEquiv p)
 
+/-- Evaluate all variables except the selected one, retaining it as a univariate variable. -/
+noncomputable def evalCoordinate (u : Fin (m + 1) → R) (i : Fin (m + 1))
+    (p : MvPolynomial (Fin (m + 1)) R) : Polynomial R :=
+  let e := Equiv.swap i (Fin.last m)
+  evalPrefix (Fin.init (u ∘ e)) (rename e p)
+
+/-- Evaluating the coordinate restriction is the same as updating that coordinate. -/
+theorem eval_evalCoordinate (u : Fin (m + 1) → R) (i : Fin (m + 1))
+    (p : MvPolynomial (Fin (m + 1)) R) (t : R) :
+    (evalCoordinate u i p).eval t = eval (Function.update u i t) p := by
+  let e := Equiv.swap i (Fin.last m)
+  have he : e i = Fin.last m := Equiv.swap_apply_left _ _
+  have hsnoc : Fin.snoc (Fin.init (u ∘ e)) t = Function.update (u ∘ e) (Fin.last m) t := by
+    funext j
+    refine Fin.lastCases ?_ (fun j => ?_) j
+    · simp
+    · simp [Fin.castSucc_ne_last, Fin.init]
+  change (evalPrefix (Fin.init (u ∘ e)) (rename e p)).eval t = _
+  rw [eval_evalPrefix, eval_specializeLast, hsnoc, eval_rename]
+  apply congrArg (fun w => eval w p)
+  funext j
+  by_cases h : j = i
+  · subst j
+    simp only [Function.comp_apply, he, Function.update_self]
+  · have hj : e j ≠ Fin.last m := fun h' => h (e.injective (h'.trans he.symm))
+    rw [Function.comp_apply, Function.update_of_ne hj, Function.update_of_ne h]
+    change u (e (e j)) = u j
+    simp [e]
+
+/-- Evaluating the other variables cannot increase the degree of the retained variable. -/
+theorem natDegree_evalCoordinate_le (u : Fin (m + 1) → R) (i : Fin (m + 1))
+    (p : MvPolynomial (Fin (m + 1)) R) :
+    (evalCoordinate u i p).natDegree ≤ p.degreeOf i := by
+  let e := Equiv.swap i (Fin.last m)
+  have he : e i = Fin.last m := Equiv.swap_apply_left _ _
+  change (evalPrefix (Fin.init (u ∘ e)) (rename e p)).natDegree ≤ _
+  refine (natDegree_evalPrefix_le _ _).trans_eq ?_
+  rw [← he, degreeOf_rename_of_injective e.injective]
+
 /-- A prefix variable has degree at most `d` exactly when it has that bound in each
 coefficient of the polynomial in the last variable. -/
 theorem degreeOf_castSucc_le_iff (i : Fin m) (p : MvPolynomial (Fin (m + 1)) R)
