@@ -71,7 +71,7 @@ private theorem setup_inSpace :
   exact h
 
 /-- Convert a row-major original-source position to its offset-zero subdivision ID. -/
-def SeedSearchSetup.originalSourceID (s : SeedSearchSetup) (position : ℕ) : ℕ :=
+@[expose] def SeedSearchSetup.originalSourceID (s : SeedSearchSetup) (position : ℕ) : ℕ :=
   rootID position s.parameters.search.subdivision.chainBound
 
 /-- Lookup uses linear native workspace in the encoded setup and binary source position. -/

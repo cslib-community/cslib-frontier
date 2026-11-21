@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -303,5 +304,31 @@ example :
   obtain ⟨x, hx⟩ := hcriterion.mpr hbounded
   simp only [F, map_add, map_pow, eval_X, map_one] at hx
   nlinarith [sq_nonneg (x 0)]
+
+-- The deformation of x² at zero center and parameter one has minimum zero.
+example :
+    let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2
+    let hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
+    (valuePolynomial (by decide : 1 ≤ 3) 0 1 F hF).IsRoot 0 := by
+  intro F hF
+  have heval (x : Fin 1 → ℝ) :
+      eval x (deformedPolynomial 3 0 1 F) = x 0 ^ 4 + 4 * x 0 ^ 2 := by
+    norm_num [deformedPolynomial, potentialPolynomial, F, Fin.sum_univ_one]
+  have hmin : IsMinOn (fun x => eval x (deformedPolynomial 3 0 1 F)) Set.univ 0 := by
+    intro x _
+    change eval (0 : Fin 1 → ℝ) (deformedPolynomial 3 0 1 F) ≤
+      eval x (deformedPolynomial 3 0 1 F)
+    rw [heval, heval]
+    norm_num
+    positivity
+  have hvalue : criticalMinimumValue 3 0 F 1 = 0 := by
+    rw [criticalMinimumValue_eq_of_isMinOn 3 0 F 1 hmin, heval]
+    norm_num
+  have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x F := by
+    simp only [F, map_pow, eval_X]
+    exact sq_nonneg _
+  have hroot := isRoot_valuePolynomial_criticalMinimumValue (by decide : 1 ≤ 3)
+    (by decide) 0 (fun _ => le_rfl) F hF hFn 1 zero_le_one
+  rwa [hvalue] at hroot
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients
