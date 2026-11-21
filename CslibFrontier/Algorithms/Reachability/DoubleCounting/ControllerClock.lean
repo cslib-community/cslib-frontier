@@ -118,7 +118,7 @@ theorem runRounds_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M limit : 
   | zero => change clock s ≤ _; omega
   | succ fuel ih =>
     have hkl : k < limit := by omega
-    rw [runRounds]
+    rw [runRounds, runRoundsWith]
     calc
       _ ≤ clock s + (n * (M + n * (E + M)) +
           (fuel * (n * (M + n * (E + M))) + M)) := by
@@ -134,7 +134,7 @@ theorem runRounds_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M limit : 
             (fun _ state => by change clock state ≤ _; omega) state
           simp only [Nat.add_zero] at h
           exact h.trans (by omega)
-        · simpa only [Nat.add_assoc] using ih (k + 1) a.tally (by omega) state
+        · simpa only [runRounds, Nat.add_assoc] using ih (k + 1) a.tally (by omega) state
       _ = _ := by rw [Nat.succ_mul]; omega
 
 /-- The actual controller uses at most `n³` edge calls and `n³+n²+1` membership calls.
