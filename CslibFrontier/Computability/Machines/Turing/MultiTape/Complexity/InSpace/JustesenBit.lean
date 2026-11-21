@@ -59,9 +59,8 @@ theorem fieldContext_indexedBit_inSpace :
       encIndexedBitInput encBool (fun p => (encIndexedBitInput p).length) := by
   let encPrepared := encPair (encPair encFieldContext encNat) encCoordinateWord
   have hmodulus : ComputableInSpace (fun word : List Bool => word) encBits encCoefficients
-      (fun word => (encBits word).length) := by
-    obtain ⟨c, h⟩ := ComputableInDegree.one_one_iff.mp ComputableInDegree.bitsToList
-    exact ⟨_, c, h, h.length_le⟩
+      (fun word => (encBits word).length) :=
+    of_inO ComputableInDegree.bitsToList.inO_one
   let encOperands := encPair encCoefficients (encPair encCoefficients encCoefficients)
   have hmul :
       ComputableInSpace
