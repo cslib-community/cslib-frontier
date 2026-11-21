@@ -1131,17 +1131,8 @@ theorem solveWith_unsat {o : Options} {φ : CNF ℕ}
 
 /-- **The solver decides satisfiability**, whatever the options. -/
 theorem isSat_solveWith_iff (o : Options) (φ : CNF ℕ) :
-    (solveWith o φ).1.isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : (solveWith o φ).1 with
-    | sat σ => exact ⟨σ, solveWith_sat hs⟩
-    | unsat cert => simp [hs, DPLL.Result.isSat] at h
-  · intro h
-    cases hs : (solveWith o φ).1 with
-    | sat σ => rfl
-    | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveWith_unsat hs))
+    (solveWith o φ).1.isSat = true ↔ φ.Satisfiable :=
+  DPLL.Result.isSat_iff (fun _ => solveWith_sat) (fun _ => solveWith_unsat)
 
 /-- **The models returned by the solver are models.** -/
 theorem solve_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solve φ = .sat σ) : φ.eval σ = true :=
@@ -1195,17 +1186,8 @@ theorem solveCompactWith_unsat {o : Options} {φ : CNF ℕ}
 
 /-- **The solver on renamed variables decides satisfiability**, whatever the options. -/
 theorem isSat_solveCompactWith_iff (o : Options) (φ : CNF ℕ) :
-    (solveCompactWith o φ).1.isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : (solveCompactWith o φ).1 with
-    | sat σ => exact ⟨σ, solveCompactWith_sat hs⟩
-    | unsat cert => simp [hs, DPLL.Result.isSat] at h
-  · intro h
-    cases hs : (solveCompactWith o φ).1 with
-    | sat σ => rfl
-    | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveCompactWith_unsat hs))
+    (solveCompactWith o φ).1.isSat = true ↔ φ.Satisfiable :=
+  DPLL.Result.isSat_iff (fun _ => solveCompactWith_sat) (fun _ => solveCompactWith_unsat)
 
 theorem solveCompact_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solveCompact φ = .sat σ) :
     φ.eval σ = true :=
