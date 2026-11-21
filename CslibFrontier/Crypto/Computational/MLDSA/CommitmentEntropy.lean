@@ -15,10 +15,10 @@ import Mathlib.GroupTheory.Index
 /-!
 # Counting preimages of an ML-DSA signing commitment
 
-The preimage count of Barbosa et al. [BarbosaEtAl2023, full version, Appendix A.1], used
+The preimage count of Barbosa et al. [BarbosaEtAl2023, Appendix A.1, equation (21), p. 34], used
 in [FallahpourFehrHuang2025, §4.1, equation (6)], bounds the largest atom of the rounded commitment
-by counting preimages on the first ℓ rows.
-For the asymmetric FIPS 204 mask interval there are exactly `(2γ₁)^(nℓ)` possible masks.
+by counting preimages on the first ℓ rows. Both inequalities use `2γ₁ − 1` per mask coefficient.
+The FIPS 204 interval `[1 − γ₁, γ₁]` contains `2γ₁` integers, giving `(2γ₁)^(nℓ)` masks here.
 At a prescribed high part, each coefficient has at most `2γ₂ + 1` possible low parts.
 Each reconstructed vector has at most as many preimages as the kernel of the square submatrix.
 -/

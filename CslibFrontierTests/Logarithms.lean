@@ -25,7 +25,7 @@ example (base : ℕ) : ComputableInPolyTime
 
 example (base : ℕ) : ComputableInPolyTime
     (fun n : ℕ => let rounds := Nat.clog base n; (rounds - 1, base ^ rounds))
-    encUnary (encPair encUnary encUnary) := .of_tidy (by polytime)
+    encUnary (encPair encUnary encUnary) := by polytime
 
 -- Explicit let reduction also lets `fun_prop` retain the relation between size and exponent.
 example (base : ℕ) : ComputableInPolyTime
@@ -37,17 +37,16 @@ example {α : Type} {input : α ↪ List Bool} {size : α → ℕ}
     (hsize : ComputableInPolyTime size input encUnary) (base factor : ℕ) :
     ComputableInPolyTime (fun x => (Nat.clog base (size x), factor ^ Nat.clog base (size x)))
       input (encPair encUnary encUnary) :=
-  have := hsize.tidy
-  .of_tidy (by fun_prop)
+  by fun_prop
 
 -- Raw and framed words provide different input encodings of the same size-based program.
 example : ComputableInPolyTime
     (fun w : List Bool => 3 ^ Nat.clog 2 w.length) encBits encUnary :=
-  .of_tidy (by fun_prop)
+  by fun_prop
 
 example : ComputableInPolyTime
     (fun w : List Bool => 3 ^ Nat.clog 2 w.length) (encList encBool) encUnary :=
-  .of_tidy (by fun_prop)
+  by fun_prop
 
 -- The arithmetic family's depth selection is uniform in the requested vertex count.
 example : ComputableInPolyTime (fun n : ℕ => Nat.clog (257 ^ 8) n - 1)
@@ -70,7 +69,7 @@ example : (List.range 5).map (fun n => 0 ^ Nat.clog 2 n) = [1, 1, 0, 0, 0] := by
 example : ComputableInPolyTime (Nat.log 0) encUnary encUnary := by fun_prop
 example : ComputableInPolyTime (Nat.clog 1) encUnary encUnary := by fun_prop
 example : ComputableInPolyTime (fun n : ℕ => 0 ^ Nat.clog 2 n)
-    encUnary encUnary := .of_tidy (by fun_prop)
+    encUnary encUnary := by fun_prop
 
 example : True := by
   fail_if_success

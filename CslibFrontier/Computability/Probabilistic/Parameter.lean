@@ -33,7 +33,8 @@ the definition does not permit a separate algorithm or nonuniform advice at each
 ## References
 
 Adapted from Computability/Probabilistic/{PPT,Parameter}.lean on the cslib `crypto` branch at
-`5ff69ca93402e7c947208dc56396d6d86203ccd8`, using the existing tidy pair and unary encodings.
+`5ff69ca93402e7c947208dc56396d6d86203ccd8`, using the existing pair and unary encodings with plain
+preparation certificates.
 -/
 
 @[expose] public section
@@ -69,11 +70,10 @@ theorem IsPPT.congr (h : IsPPT output program)
 /-- Call a parameterized routine after efficiently preparing both input components. -/
 theorem IsPPT.preprocess {α : Type} {input : α ↪ List Bool}
     (h : IsPPT output program) {parameter : α → ℕ} {auxiliary : α → List Bool}
-    (hparameter : ComputableTidilyInPolyTime parameter input encUnary)
-    (hauxiliary : ComputableTidilyInPolyTime auxiliary input encBits) :
+    (hparameter : ComputableInPolyTime parameter input encUnary)
+    (hauxiliary : ComputableInPolyTime auxiliary input encBits) :
     IsPPTOn input output (fun a => program (parameter a) (auxiliary a)) :=
-  h.on.preprocess
-    (Turing.MultiTapeTM.ComputableInPolyTime.of_tidy (hparameter.prod hauxiliary))
+  h.on.preprocess (hparameter.prod hauxiliary)
 
 end Cslib.Probability
 

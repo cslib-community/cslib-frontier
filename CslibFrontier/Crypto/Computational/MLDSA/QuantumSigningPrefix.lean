@@ -175,14 +175,15 @@ theorem evalPure_signingRequestQueries (base : Xofs)
   let H := sharedXofs s extra base T
   by_cases hc : q.context.length ≤ 255
   · simp only [signingRequestQueries, hc, ↓reduceIte, eval_shared_reads, Xofs.sign,
-      guard, Option.pure_def, Option.bind_eq_bind, Option.bind_some, Xofs.signInternal]
+      guard, Option.pure_def, Option.bind_eq_bind, Option.bind_some]
+    rw [← Xofs.evalPure_signInternalReads]
     unfold Xofs.signInternalReads
     cases hs : decodePrivate s key with
     | none => rfl
     | some sk =>
       dsimp only
       rw [show (sharedXofs s extra base T).expandA s sk.rho = base.expandA s sk.rho from
-        Xofs.expandA_congr (H := sharedXofs s extra base T) (G := base) rfl ..]
+        Xofs.expandA_congr (K := sharedXofs s extra base T) (H := base) rfl ..]
       cases ha : base.expandA s sk.rho with
       | none => rfl
       | some A =>
@@ -268,8 +269,9 @@ theorem completeSigningTrial_expandMask (base : Xofs) (sk : PrivateKey s) (A : P
   apply congrArg (Option.map FixedBytes.toList)
   unfold completeSigningTrial trialResult
   simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query,
-    tabulateRingVector_eq, ExtendableOutput.Request.answer, Xofs.sampleInBall,
-    ExtendableOutput.readBytes]
+    tabulateRingVector_eq, Xofs.sampleInBall, ExtendableOutput.readBytes]
+  rw [evalPure_expandMaskReads]
+  dsimp only [ExtendableOutput.Request.answer]
   change OracleComp.evalPure T (finishRequest s extra base sk A m seed fuel (nonce + s.params.ℓ)
     (finishSigningAttempt s sk y w d (expand d))) =
     OracleComp.evalPure (ExtendableOutput.Request.answer H.h256) (match

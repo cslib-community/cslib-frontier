@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Signed.Operations
+public import CslibFrontier.Computability.WordRAM.Blocks
 
 /-!
 # Compiling signed RAM programs to the unsigned word RAM
@@ -63,9 +64,8 @@ def block (base pc : ℕ) (i : GenericRAM.Instr model r) : WordRAM.Program .stan
     (.jump (entry base (pc + 1)))
 
 /-- Compile a suffix whose first source instruction has index `pc`. -/
-def compileFrom (base : ℕ) : ℕ → GenericRAM.Program model r → WordRAM.Program .standard (r + 9)
-  | _, [] => []
-  | pc, i :: p => block base pc i ++ compileFrom base (pc + 1) p
+def compileFrom (base : ℕ) : ℕ → GenericRAM.Program model r → WordRAM.Program .standard (r + 9) :=
+  Cslib.Program.compileBlocks (block base)
 
 private theorem size_arithmeticCode (f : Arithmetic) : (arithmeticCode (r := r) f).size ≤ 28 := by
   cases f <;> simp [arithmeticCode, Code.size, WordRAM.Signed.add, subtract, multiply, divide,
@@ -111,30 +111,16 @@ theorem length_block (base pc : ℕ) (i : GenericRAM.Instr model r) :
 /-- Code size is linear in source instruction-list length. -/
 @[simp]
 theorem length_compileFrom (base pc : ℕ) (p : GenericRAM.Program model r) :
-    (compileFrom base pc p).length = 64 * p.length := by
-  induction p generalizing pc with
-  | nil => simp [compileFrom]
-  | cons i p ih => simp [compileFrom, ih, Nat.mul_add, Nat.add_comm]
+    (compileFrom base pc p).length = 64 * p.length :=
+  Cslib.Program.length_compileBlocks (fun pc i _ => length_block base pc i) pc
 
 private theorem contains_raw {base start : ℕ} {p : GenericRAM.Program model r}
     {q : WordRAM.Program .standard (r + 9)}
     (hq : q.Contains (entry base start) (compileFrom base start p))
     {pc : ℕ} {i : GenericRAM.Instr model r} (hi : p[pc]? = some i) :
     q.Contains (entry base (start + pc)) (rawBlock base (start + pc) i) := by
-  induction p generalizing start pc with
-  | nil => simp at hi
-  | cons a p ih =>
-    cases pc with
-    | zero =>
-      have he : a = i := by simpa using hi
-      subst i
-      exact hq.append_left.append_left
-    | succ pc =>
-      have ht : q.Contains (entry base (start + 1)) (compileFrom base (start + 1) p) := by
-        simpa only [length_block, entry, Nat.mul_add, Nat.mul_one, Nat.add_assoc] using
-          hq.append_right
-      simpa only [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
-        ih ht (by simpa using hi)
+  have hc := hq.block (fun pc i _ => length_block base pc i) hi
+  simpa only [entry, Nat.mul_add, Nat.add_assoc] using hc.append_left
 
 private theorem continue_eq {w : ℕ} {s t : GenericRAM.State model r}
     (h : GenericRAM.Outcome.continue w s = .next t) : s = t := by

@@ -137,7 +137,8 @@ theorem isPolyTime_exhaustiveTableDecider {c d : ℕ} (hV : V.PolyTime enc)
   have hlen : ComputableInPolyTime (fun a => (V.queryTable a).length) enc encUnary :=
     (ComputableInPolyTime.length_list encNat).comp (V.isPolyTime_queryTable hV hcoins)
   exact ComputableInPolyTime.anyWithInput (test := fun a table => V.tableVerifier (a, table))
-    (isPolyTime_enumList_of_le_mul_log hlen hqueries) (V.isPolyTime_tableVerifier hV hcoins)
+    (ComputableInPolyTime.bitsEnumList_of_le_mul_log hlen hqueries)
+    (V.isPolyTime_tableVerifier hV hcoins)
 
 end PCPVerifier
 

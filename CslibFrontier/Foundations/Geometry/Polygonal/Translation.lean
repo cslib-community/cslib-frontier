@@ -7,13 +7,18 @@ Authors: Erik Demaine, OpenAI
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Geometry.Polygonal.Route
+public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 
 /-!
 # Translating finite polygonal routes
 
 Translation acts on every listed point and every actual segment, preserves the route
 parameter and its two ends, and leaves outgoing germs unchanged.
+
+## Main results
+
+* `Cslib.Polygonal.Route.translate_line`: literal translation of a single cut line.
+* `Cslib.Polygonal.Route.support_translate`: the full translated support is the translated image.
 -/
 
 public section
@@ -42,6 +47,29 @@ namespace Cslib.Polygonal.Route
   cases b <;> simp only [germ, translate, start, finish, Bool.false_eq_true, ↓reduceIte,
     add_sub_add_left_eq_sub]
   rfl
+
+/-- Translating a literal one-segment cut retains that one-segment representation. -/
+theorem translate_line (a b z : ℂ) :
+    (line a b).translate z = line (z + a) (z + b) := by
+  unfold translate line
+  congr 1
+  funext i
+  change z + (if i = 0 then a else b) = if i = 0 then z + a else z + b
+  split <;> rfl
+
+/-- Translation carries the entire continuous support to its translated image. -/
+theorem support_translate (p : Route) (z : ℂ) :
+    (p.translate z).support = (fun w => z + w) '' p.support := by
+  ext w
+  constructor
+  · intro hw
+    obtain ⟨i, t, ht, heq⟩ := ((p.translate z).mem_support_iff w).mp hw
+    refine ⟨p.eval i t, p.at_mem_support i ht, ?_⟩
+    exact (eval_translate p z i t).symm.trans heq
+  · rintro ⟨v, hv, rfl⟩
+    obtain ⟨i, t, ht, heq⟩ := (p.mem_support_iff v).mp hv
+    exact ((p.translate z).mem_support_iff _).mpr
+      ⟨i, t, ht, (eval_translate p z i t).trans (congrArg (fun x => z + x) heq)⟩
 
 /-- Translating a simple route preserves simplicity at every real segment parameter. -/
 theorem IsSimple.translate {p : Route} (hp : p.IsSimple) (z : ℂ) :

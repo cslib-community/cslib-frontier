@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Data.BitString.Sign
+import Mathlib.Analysis.Real.Sqrt
 
 /-!
 # Involutions, their projections and joint measurements
@@ -49,6 +50,22 @@ namespace Cslib.Quantum
 
 open Finset
 open BitString (signVal)
+
+/-- The normalized sum and difference of two anticommuting involutions are
+involutions. These are the tilted operators of the CHSH strategy. -/
+theorem normalized_add_sub_mul_self_of_anticommute {A : Type*} [Ring A] [Algebra ℂ A]
+    {X Y : A} (hX : X * X = 1) (hY : Y * Y = 1) (hXY : Y * X = -(X * Y)) (b : Bool) :
+    let C := ((Real.sqrt 2 / 2 : ℝ) : ℂ) • cond b (X - Y) (X + Y)
+    C * C = 1 := by
+  have hscale : ((Real.sqrt 2 / 2 : ℝ) : ℂ) * ((Real.sqrt 2 / 2 : ℝ) : ℂ) = 2⁻¹ := by
+    rw [← Complex.ofReal_mul, div_mul_div_comm, Real.mul_self_sqrt zero_le_two]
+    norm_num
+  dsimp only
+  cases b
+  · rw [Bool.cond_false, smul_mul_smul_comm, add_mul, mul_add, mul_add, hX, hY, hXY, hscale]
+    module
+  · rw [Bool.cond_true, smul_mul_smul_comm, sub_mul, mul_sub, mul_sub, hX, hY, hXY, hscale]
+    module
 
 section Sign
 
@@ -113,6 +130,11 @@ theorem signProj_mul_signProj_of_ne {b c : Bool} (h : b ≠ c) :
 
 end Sign
 
+/-- An observable commuting with `O` commutes with the projections of `O`. -/
+theorem _root_.Commute.signProj_left {A : Type*} [Ring A] [Algebra ℂ A] {O O' : A}
+    (h : Commute O O') (b : Bool) : Commute (signProj O b) O' :=
+  ((Commute.one_left _).add_left (h.smul_left _)).smul_left _
+
 /-- The projections of commuting observables commute. -/
 theorem _root_.Commute.signProj {A : Type*} [Ring A] [Algebra ℂ A] {O O' : A}
     (h : Commute O O') (b c : Bool) : Commute (signProj O b) (signProj O' c) := by
@@ -148,6 +170,10 @@ noncomputable def Measurement.ofInvolution {O : A} (hO : IsSelfAdjoint O) (hO' :
   nonneg b := nonneg_of_isSelfAdjoint_of_mul_self (isSelfAdjoint_signProj hO b)
     (signProj_mul_self hO' b)
   sum_effect := sum_signProj O
+
+theorem Measurement.isProjective_ofInvolution {O : A} (hO : IsSelfAdjoint O) (hO' : O * O = 1) :
+    (Measurement.ofInvolution hO hO').IsProjective :=
+  signProj_mul_self hO'
 
 /-- The product `P_{a₀}(O₀) P_{a₁}(O₁) P_{a₂}(O₂)` of the projections of three observables. -/
 noncomputable def signProj₃ (O₀ O₁ O₂ : A) : Bool × Bool × Bool → A
@@ -202,7 +228,7 @@ variable {A : Type*} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] 
 theorem apply_mul_eq_of_approx_zero {a b : A} (h : a ≈[φ; 0] b) (c : A) :
     φ (c * a) = φ (c * b) := by
   have hle := φ.norm_apply_star_mul_le (star c) (a - b)
-  rw [star_star, h.antisymm (φ.norm_nonneg _), mul_zero, norm_le_zero_iff, mul_sub,
+  rw [star_star, (approx_iff.mp h).antisymm (φ.norm_nonneg _), mul_zero, norm_le_zero_iff, mul_sub,
     map_sub, sub_eq_zero] at hle
   exact hle
 

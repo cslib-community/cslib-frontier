@@ -825,8 +825,15 @@ private theorem maskWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q 
     (hslot : ComputableInPolyTime slot encIn encUnary) :
     ComputableInPolyTime (fun x => maskWord (family := family) (k x) (n x) (q x) (j x) (ws x)
       (kc x) (rs x) (v x) (c x) (g x) (i x) (slot x)) encIn encBits := by
-  unfold maskWord
-  polytime
+  have hwidth := ComputableInPolyTime.unary_add.comp (hn.prod hq)
+  have hindex := ComputableInPolyTime.unary_add.comp
+    ((ComputableInPolyTime.unary_add.comp
+      ((ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 8) hg).prod
+        (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hi))).prod hslot)
+  exact (targetBit_polyTime hws hkc hj hv hc).ite
+    (ComputableInPolyTime.listGetDWithInput hrs hindex [])
+    (labelWord_polyTime hf hk (keyOf_polyTime hk hwidth hkc hv hc)
+      (tweak_polyTime hk hg hi hslot))
 
 attribute [local fun_prop] maskWord_polyTime
 
@@ -948,7 +955,7 @@ private theorem isOraclePPTOn_replyStep {γ : Type} {encIn : γ ↪ List Bool} {
     IsOraclePPTOn (encPair encIn (encList encBits)) (encList encBits)
       (fun p : γ × List (List Bool) => replyStep (k p.1) p.2) := by
   unfold replyStep
-  exact IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () (by polytime) (by polytime))
+  exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by polytime) (by polytime))
     (by polytime)
 
 /-- A reply step appends one word of at most `k + 2` bits. -/
@@ -1001,7 +1008,7 @@ private theorem isOraclePPTOn_prvSimGuess :
       (ComputableInPolyTime.length_list _).comp hgates
   have hcount : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
       ℕ) × List Bool) × List Bool => 8 * p.1.1.1.2.1.fn.1.q) E encUnary := by polytime
-  have hrs := IsOraclePPTOn.iterateWith_of_bounded_growth' (Operation := Unit)
+  have hrs := IsOraclePPTOn.iterateWith_of_bounded_growth (Operation := Unit)
     (stateEncoding := encList encBits) hcount (ComputableInPolyTime.const (encIn := E) [])
     (isOraclePPTOn_replyStep hk) (growth := fun p => 2 * (p.1.1.1.1.1 + 2) + 2)
     (by
@@ -1067,8 +1074,8 @@ private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
       (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
   have hcond : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
       decide (p.2.1.input.length = p.2.1.fn.1.n)) E encBool :=
-    (ComputableTidilyInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx).tidy
-      hn.tidy).computableInPolyTime
+    (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx)
+      hn)
   have hnone := (hB.guess.preprocess (hk.prod (hstate.prod
     (ComputableInPolyTime.const (encIn := E) (encOut := encOption encPrvView) none)))).isOraclePPTOn
     (Operation := Unit)
@@ -1092,7 +1099,7 @@ private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
     unfold simCoinLen
     polytime
   have hsc := (isPPTOn_sampleList.preprocess hsimLen).isOraclePPTOn (Operation := Unit)
-  refine IsOraclePPTOn.ite' hcond ?_ hnone
+  refine IsOraclePPTOn.ite hcond ?_ hnone
   refine hj.bind_with ?_
   refine hkc.bind_with ?_
   refine hsc.bind_with ?_

@@ -18,7 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 Sending each word of an efficiently computed list to the external oracle, and keeping an
 efficiently computed prefix of each reply, is strict oracle PPT. This is the oracle counterpart of
 `Cslib.Probability.IsPPTOn.mapM`, where each element runs a closed PPT program: here each element
-makes one charged external call (`Cslib.Probability.IsOraclePPTOn.query_take'`). The traversal is
+makes one charged external call (`Cslib.Probability.IsOraclePPTOn.query_take`). The traversal is
 realized as a bounded loop over the remaining requests whose state grows by at most one framed
 reply prefix per step.
 
@@ -79,7 +79,7 @@ theorem IsOraclePPTOn.mapM_query_take (op : Operation) {list : α → List (List
       (fun p : α × List (List Bool) × List (List Bool) =>
         mapQueryTakeStep op (limit p.1) p.2) := by
     unfold mapQueryTakeStep
-    exact (IsOraclePPTOn.query_take' op (by fun_prop) (by fun_prop)).map_with'
+    exact (IsOraclePPTOn.query_take op (by fun_prop) (by fun_prop)).map_with
       (f := fun (p : α × List (List Bool) × List (List Bool)) reply =>
         (p.2.1.tail, p.2.2 ++ [reply]))
       (by fun_prop)
@@ -89,7 +89,7 @@ theorem IsOraclePPTOn.mapM_query_take (op : Operation) {list : α → List (List
   have hloop : IsOraclePPTOn input stateEncoding
       (fun a => OracleComp.iterate (list a).length (mapQueryTakeStep op (limit a))
         (list a, [])) := by
-    refine IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinitial hstep hpoly ?_
+    refine IsOraclePPTOn.iterateWith_of_bounded_growth hcount hinitial hstep hpoly ?_
     intro a state next hnext
     unfold mapQueryTakeStep at hnext
     obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
@@ -101,6 +101,6 @@ theorem IsOraclePPTOn.mapM_query_take (op : Operation) {list : α → List (List
       List.append_nil, List.length_append, length_frame, encBits_apply]
     omega
   simpa only [iterate_mapQueryTakeStep, List.nil_append, id_map'] using
-    hloop.map' (ComputableInPolyTime.snd (encList encBits) (encList encBits))
+    hloop.map (ComputableInPolyTime.snd (encList encBits) (encList encBits))
 
 end Cslib.Probability

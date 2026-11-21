@@ -99,6 +99,14 @@ section Basic
 
 variable [Fintype A] [Fintype ι] [DecidableEq ι]
 
+@[ext]
+theorem ext {M N : POVM A ι} (h : ∀ a, M.effect a = N.effect a) : M = N := by
+  have he := funext h
+  cases M
+  cases N
+  cases he
+  rfl
+
 /-- The probability `⟨ψ|E_a|ψ⟩` of the outcome `a` when measuring `ψ` with `M`. -/
 @[expose] noncomputable def prob (M : POVM A ι) (ψ : EuclideanSpace ℂ ι) (a : A) : ℝ :=
   (star ψ.ofLp ⬝ᵥ (M.effect a *ᵥ ψ.ofLp)).re

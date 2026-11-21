@@ -26,6 +26,8 @@ algorithmic local lemma.
 * `ProbabilityTheory.indepFun_infinitePi_of_dependsOn`,
   `ProbabilityTheory.indepSet_infinitePi_of_dependsOn`: functions and events of disjoint finite
   sets of coordinates are independent under `Measure.infinitePi`.
+* `MeasureTheory.measurableSet_of_dependsOn`: with countable discrete coordinates, a set
+  determined by finitely many coordinates is measurable.
 -/
 
 public section
@@ -66,3 +68,22 @@ theorem indepSet_infinitePi_of_dependsOn {A B : Set (Π i, Ω i)} (hA : Measurab
   exact (indepSet_iff_measure_inter_eq_mul hA hB _).2 h
 
 end ProbabilityTheory
+
+namespace MeasureTheory
+
+variable {ι : Type*} {Ω : ι → Type*} [∀ i, MeasurableSpace (Ω i)] [∀ i, Countable (Ω i)]
+  [∀ i, MeasurableSingletonClass (Ω i)]
+
+/-- With countable discrete coordinates, a set determined by finitely many coordinates is
+measurable. -/
+theorem measurableSet_of_dependsOn {A : Set (∀ i, Ω i)} {S : Finset ι}
+    (h : DependsOn (· ∈ A) (S : Set ι)) : MeasurableSet A := by
+  have hA : A = S.restrict ⁻¹' (S.restrict '' A) := by
+    ext x
+    refine ⟨fun hx => ⟨x, hx, rfl⟩, fun ⟨y, hy, hxy⟩ => ?_⟩
+    have := h (x := y) (y := x) fun i hi => congrFun hxy ⟨i, hi⟩
+    simpa [this] using hy
+  rw [hA]
+  exact Finset.measurable_restrict S (Set.to_countable _).measurableSet
+
+end MeasureTheory

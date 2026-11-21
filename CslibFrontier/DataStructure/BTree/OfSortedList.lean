@@ -524,6 +524,18 @@ theorem height_ofSortedList_le {t : ℕ} (ht : 2 ≤ t) (l : List (α × β)) :
   have hs := shaped_ofSortedList ht l
   simpa using hs.balanced.height_le_log ht hs.rootKeys_pos hs.occupied_of_mem_children
 
+/-- At a minimum degree of at least `2`, the root of a bulk-loaded tree holds at most
+`2 * t - 1` keys, for every list. -/
+theorem rootKeys_ofSortedList_le {t : ℕ} (ht : 2 ≤ t) (l : List (α × β)) :
+    (ofSortedList t l).rootKeys ≤ 2 * t - 1 :=
+  (shaped_ofSortedList ht l).rootKeys_le
+
+/-- At a minimum degree of at least `2`, the children of the root of a bulk-loaded tree are
+occupied, for every list. -/
+theorem occupied_of_mem_children_ofSortedList {t : ℕ} (ht : 2 ≤ t) (l : List (α × β))
+    {c : BTree α β} (hc : c ∈ (ofSortedList t l).children) : Occupied t c :=
+  (shaped_ofSortedList ht l).occupied_of_mem_children c hc
+
 variable [LinearOrder α]
 
 /-- Bulk loading a sorted list builds a well-formed tree at a minimum degree of at least `2`. -/

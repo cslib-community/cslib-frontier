@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.IterateWhile
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 public import CslibFrontier.Foundations.Data.BitString.Counter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 
@@ -25,8 +26,7 @@ the plain polynomial-space calculus is in
 
 ## Main results
 
-* `Turing.MultiTapeTM.ComputableTidilyInDegree.increment`: the binary counter in linear time.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.increment`: the binary counter in polynomial time.
+* `Turing.MultiTapeTM.ComputableInDegree.increment`: the binary counter in linear time.
 -/
 
 @[expose] public section
@@ -65,16 +65,10 @@ private theorem incrementT_run (w : List Bool) :
     · rw [Bool.true_and, ih]
       rfl
 
-/-- **The binary counter in linear time.** -/
-theorem ComputableTidilyInDegree.increment :
-    ComputableTidilyInDegree Cslib.BitString.increment encBits encBits 1 1 :=
-  .of_linear (ComputableInDegree.of_transducer incrementT fun w => by
-    rw [show incrementT.q₀ = true from rfl, incrementT_run]; rfl)
-
-/-- The binary counter in polynomial time. -/
-@[fun_prop]
-theorem ComputableTidilyInPolyTime.increment :
-    ComputableTidilyInPolyTime Cslib.BitString.increment encBits encBits :=
-  ComputableTidilyInDegree.increment.computableTidilyInPolyTime
+/-- **The binary counter in linear time**, with a plain realizing machine. -/
+theorem ComputableInDegree.increment :
+    ComputableInDegree Cslib.BitString.increment encBits encBits 1 1 :=
+  ComputableInDegree.of_transducer incrementT fun w => by
+    rw [show incrementT.q₀ = true from rfl, incrementT_run]; rfl
 
 end Turing.MultiTapeTM

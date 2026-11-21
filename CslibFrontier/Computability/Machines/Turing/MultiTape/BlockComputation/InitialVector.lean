@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.InitialChunk
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeEncode
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 import Mathlib.Data.List.OfFn
@@ -108,7 +109,7 @@ theorem values_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have hm := hr.fst'
   have hrequested := hr.snd'
   have hsize := budget_comp_linear natSize hlimit
-  have hn := budget_ite (budget_natLt hrequested hsize) hrequested hsize
+  have hn := budget_natMin hrequested hsize
   have hinit := budget_prod hm (budget_prod
     (budget_const (encB := encNat) 0 (.refl _))
     (budget_const (encB := encList encNat) [] (.refl _)))
@@ -128,11 +129,7 @@ theorem values_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have hrun := ComputableInSpace.iterate
     (n := fun a : Args => min a.2.2 a.1.size)
     (init := fun a : Args => (a.2.1, 0, [])) (step := buildStep M e)
-    (hn.of_enc_eq fun a => by
-      by_cases h : a.2.2 < a.1.size
-      · simp [h, Nat.min_eq_left h.le]
-      · simp [h, Nat.min_eq_right (Nat.le_of_not_gt h)])
-    hinit (buildStep_inSpace M e) hstates hstates
+    hn hinit (buildStep_inSpace M e) hstates hstates
   refine hrun.snd'.snd'.weaken
     (.of_le_linear (100 * (H + 2)) (100 * (H + 2)) fun a => by
       have hpaid : min a.2.2 a.1.size ≤ (encNat a.1).length := by
