@@ -4,14 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
-import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
-import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision
-import Mathlib.Logic.Equiv.Fin.Basic
+module
+-- upstream: local-only (test driver)
 
+import CslibFrontier.Algorithms.Reachability.MinIsolation.Subdivision
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision.HozaWeight
 
 /-! Checked generator-to-scan transport and a native callback reading the actual source word. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.WeightedSubdivision
 
@@ -70,6 +71,23 @@ private theorem run_readFirst (w : List Bool) :
       subst i
       rfl) (by rfl)
   exact h
+
+open Cslib.Code.JustesenFamily in
+private noncomputable def rectangleCode (p : ℕ × ℕ) (i : ℕ) : Bool :=
+  if hcol : p.2 < 2 then
+    if hi : i < codeLength 2 2 then indexedCodewordMod ⟨p.2, hcol⟩ ⟨i, hi⟩ else false
+  else false
+
+open Cslib.Reachability.Hoza Cslib.Code.JustesenFamily in
+-- For valid rectangle coordinates the request computes the original generator's weight.
+example (seed : Fin (2 ^ codeLength 2 2)) (z : Fin 3 × Fin 2) :
+    sourceWeight (fun _ => 2) id (fun _ => codeLength 2 2) rectangleCode
+      ⟨seed.val, (finProdFinEquiv z).val, 0, 0, 0⟩ =
+      generatedWeight ((BitString.equivFin _).symm seed) z := by
+  refine sourceWeight_eq_generatedWeight (fun _ => 2) id (fun _ => codeLength 2 2)
+    rectangleCode seed.val seed z 0 0 0 rfl rfl rfl ?_
+  intro i
+  simp [rectangleCode, z.2.isLt, i.isLt]
 
 private def rankWeight : Query (ℕ × ℕ) → ℕ :=
   sourceWeight Prod.fst Prod.snd (fun _ => 1) (fun _ _ => false)
