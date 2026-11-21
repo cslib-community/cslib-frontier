@@ -10,11 +10,11 @@ module
 public import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Conventional
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR
+public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Propagate
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Scheme
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
-import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 import CslibFrontier.Foundations.Data.List.Flatten
 
 /-!
@@ -91,10 +91,6 @@ open Cslib.Circuits Turing.MultiTapeTM
 @[expose] def isXorTable (t : List Bool) : Bool :=
   !t.getD 0 false && t.getD 1 false && t.getD 2 false && !t.getD 3 false
 
-/-- Whether gate `g` of `f` computes XOR. -/
-@[expose] def isXorGate (f : ConventionalCircuit) (g : Fin f.q) : Bool :=
-  decide (f.G g = xor)
-
 /-- `isXorTable` on a gate's truth table agrees with `decide (G = xor)`. -/
 theorem isXorTable_eq (G : Bool → Bool → Bool) :
     isXorTable [G false false, G false true, G true false, G true true] = decide (G = xor) := by
@@ -124,16 +120,9 @@ key. -/
 /-- The zero labels of the first `n + s` wires of `f` at parameter `k`, in wire order: input wires
 and non-XOR gates read their base labels from `coins`, and an XOR gate takes the sum of its
 arguments' zero labels. -/
-@[expose] def propagateWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool) :
-    ℕ → List (List Bool)
-  | 0 => List.ofFn fun i : Fin f.n => HalfGates.inputWord k coins i
-  | s + 1 =>
-    if h : s < f.q then
-      let ws := propagateWords k f coins s
-      ws ++ [if isXorGate f ⟨s, h⟩ then
-        List.zipWith xor (ws.getD (f.A ⟨s, h⟩ - 1) []) (ws.getD (f.B ⟨s, h⟩ - 1) [])
-      else baseWord k coins (f.n + s)]
-    else propagateWords k f coins s
+@[expose] def propagateWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool)
+    (s : ℕ) : List (List Bool) :=
+  simPropWords k f.topo (List.ofFn (isXorGate f)) (coins.drop (k + 1)) s
 
 /-- Row `i` of non-XOR gate `g` of `f` at parameter `k`, from the offset `Δ` and the zero labels
 `labels` of all wires. -/
@@ -221,10 +210,6 @@ theorem scheme_isCircuitScheme : (scheme hash).IsCircuitScheme :=
 /-! ### The typed garbling -/
 
 open ConventionalCircuit
-
-/-- Whether each gate of `toCircuit f` is free (computes XOR). -/
-@[expose] noncomputable def freeCircuit (f : ValidCircuit) : Fin (toCircuit f).size → Bool :=
-  fun g => isXorGate f.1 (g.cast (size_toCircuit f))
 
 /-- Free gates of `toCircuit f` compute the XOR of their arguments under `fullInterpretation`. -/
 theorem hfree_toCircuit (f : ValidCircuit) :
@@ -339,32 +324,6 @@ theorem ofFn_slotTweak_garbledRowOf (f : ValidCircuit) (k : ℕ) (g : Fin (toCir
   rw [PointPermute.rowIndex_testBit_of_eq_two harity hi,
     BitString.ofFn_ofList (by simp [PointPermute.tweak])]
 
-private theorem wires_toCircuit_zero (f : ValidCircuit) (g : Fin (toCircuit f).size)
-    (hlt : f.1.A (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
-    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 0) =
-      Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) hlt := by
-  have harity := arity_topology_toCircuit f g
-  rw [show Fin.cast harity.symm 0 = ⟨0, by omega⟩ from Fin.ext rfl]
-  refine Wire.toNat_injective ?_
-  have h := congrArg (fun l => l.getD 0 0) (ofFn_toNat_wires_toCircuit f g)
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-    show 0 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-  rw [Wire.toNat_ofNat]
-  exact h
-
-private theorem wires_toCircuit_one (f : ValidCircuit) (g : Fin (toCircuit f).size)
-    (hlt : f.1.B (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
-    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 1) =
-      Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) hlt := by
-  have harity := arity_topology_toCircuit f g
-  rw [show Fin.cast harity.symm 1 = ⟨1, by omega⟩ from Fin.ext rfl]
-  refine Wire.toNat_injective ?_
-  have h := congrArg (fun l => l.getD 1 0) (ofFn_toNat_wires_toCircuit f g)
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-    show 1 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-  rw [Wire.toNat_ofNat]
-  exact h
-
 /-- A base label read from the coins, as a word, is `baseWord`. -/
 theorem labelBits_baseLabels {n s : ℕ} (k : ℕ) (coins : List Bool) (w : Wire n s) :
     labelBits (baseLabels k coins w) = baseWord k coins w.toNat :=
@@ -376,51 +335,9 @@ theorem propagateWords_eq (k : ℕ) (f : ValidCircuit) (coins : List Bool) {s : 
     propagateWords k f.1 coins s =
       (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
         labelBits (propagate (toCircuit f).topology (freeCircuit f)
-          (baseLabels k coins) (Wire.ofNat v v.isLt))).take (f.1.n + s) := by
-  have hτ := (toCircuit f).isOrdered_topology
-  induction s with
-  | zero =>
-    apply List.ext_getElem (by simp [propagateWords])
-    intro i h₁ h₂
-    simp only [propagateWords, List.length_ofFn] at h₁
-    have hin : (Wire.ofNat i (by omega) : Wire f.1.n (toCircuit f).size) = .input ⟨i, h₁⟩ :=
-      Wire.toNat_injective (by simp)
-    simp only [propagateWords, List.getElem_ofFn, List.getElem_take, hin,
-      propagate_input hτ, labelBits_baseLabels, Wire.toNat_input]
-    rfl
-  | succ s ih =>
-    have hsq : s < f.1.q := hs
-    have hsize := size_toCircuit f
-    set g : Fin (toCircuit f).size := ⟨s, by omega⟩ with hg
-    have hgcast : g.cast (size_toCircuit f) = ⟨s, hsq⟩ := Fin.ext rfl
-    have hA₁ := f.2.one_le_A ⟨s, hsq⟩
-    have hAB := f.2.A_lt_B ⟨s, hsq⟩
-    have hBg := f.2.B_lt_gate ⟨s, hsq⟩
-    simp only [ConventionalCircuit.topo] at hA₁ hAB hBg
-    rw [propagateWords, dite_eq_left hsq]
-    dsimp only
-    rw [ih hsq.le, ← Nat.add_assoc, List.take_add_one, List.getElem?_ofFn]
-    have hgate : (Wire.ofNat (f.1.n + s) (by omega) : Wire f.1.n (toCircuit f).size) =
-        .gate g := Wire.toNat_injective (by simp [hg])
-    simp only [show f.1.n + s < f.1.n + (toCircuit f).size by omega, dite_true,
-      Option.toList_some, hgate]
-    congr 1
-    have hfree_eq : isXorGate f.1 ⟨s, hsq⟩ = freeCircuit f g := by simp [freeCircuit, hgcast]
-    rw [hfree_eq]
-    by_cases hfr : freeCircuit f g = true
-    · rw [ite_eq_left hfr, propagate_gate_of_free hτ (baseLabels k coins) hfr,
-        ← Fin.sum_congr' _ (arity_topology_toCircuit f g).symm, Fin.sum_univ_two, labelBits_add]
-      have hl := wires_toCircuit_zero f g (by rw [hgcast]; omega)
-      have hr := wires_toCircuit_one f g (by rw [hgcast]; omega)
-      simp only [hgcast] at hl hr
-      rw [hl, hr,
-        HalfGates.getD_take_labels (propagate (toCircuit f).topology (freeCircuit f)
-          (baseLabels k coins)) (by omega) (by omega),
-        HalfGates.getD_take_labels (propagate (toCircuit f).topology (freeCircuit f)
-          (baseLabels k coins)) (by omega) (by omega)]
-    · have hfr' : freeCircuit f g = false := Bool.eq_false_iff.mpr hfr
-      rw [ite_eq_right hfr, propagate_gate_of_not_free hτ (baseLabels k coins) hfr',
-        labelBits_baseLabels, Wire.toNat_gate, hg]
+          (baseLabels k coins) (Wire.ofNat v v.isLt))).take (f.1.n + s) :=
+  simPropWords_eq_propagate k f (List.ofFn (isXorGate f.1)) (coins.drop (k + 1))
+    (fun g => by simp [List.getD_eq_getElem?_getD]) hs
 
 private theorem propagateWords_q (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
     propagateWords k f.1 coins f.1.q =
