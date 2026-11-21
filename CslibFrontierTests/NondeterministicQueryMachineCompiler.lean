@@ -187,7 +187,7 @@ example (R : Routines ownBit id encBool (fun _ => 1)) :
     ∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
       (R.machine.initCfg (encBool true)) indices = some ([], final) ∧ final.Halted := by
   apply (R.existsUnique_replay_iff true []).mpr
-  exact ⟨rfl, fun n h => by simp at h⟩
+  exact (ownBit.firstHalting_iff_nil_of_halted (encBool true) [] true rfl).mpr rfl
 
 open NondeterministicQueryMachine in
 example (R : Routines ownBit id encBool (fun _ => 1)) {indices : List ℕ}
