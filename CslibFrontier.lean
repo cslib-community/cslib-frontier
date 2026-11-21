@@ -218,6 +218,7 @@ public import CslibFrontier.Algorithms.Lean.Simplex.Dantzig
 public import CslibFrontier.Algorithms.Lean.Simplex.Dictionary
 public import CslibFrontier.Algorithms.Lean.Simplex.KleeMinty
 public import CslibFrontier.Algorithms.Lean.Simplex.LinearProgram
+public import CslibFrontier.Algorithms.Lean.Simplex.Minimax
 public import CslibFrontier.Algorithms.Lean.Sort.AdjacentTrace
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Basic
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Correctness
