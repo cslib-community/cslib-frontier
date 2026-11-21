@@ -382,16 +382,14 @@ private theorem shiftVal_polytime :
 @[local fun_prop]
 private theorem wellFormedB_polytime :
     ComputableInPolyTime wellFormedB encBimatrix encBool := by
-  have ha1 : ComputableInPolyTime
-      (fun c : BimatrixCode => c.matA.all fun r => decide (r.length = c.cols))
-      encBimatrix encBool := by
-    refine allWithInput (encA := encList encRat) codeFst_polytime ?_
-    exact decide_eq' ((length_list encRat).comp (snd _ _)) (codeCols_polytime.comp (fst _ _))
-  have ha2 : ComputableInPolyTime
-      (fun c : BimatrixCode => c.matB.all fun r => decide (r.length = c.cols))
-      encBimatrix encBool := by
-    refine allWithInput (encA := encList encRat) codeSnd_polytime ?_
-    exact decide_eq' ((length_list encRat).comp (snd _ _)) (codeCols_polytime.comp (fst _ _))
+  have hallRows {M : BimatrixCode → List (List ℚ)}
+      (hM : ComputableInPolyTime M encBimatrix (encList (encList encRat))) :
+      ComputableInPolyTime (fun c => (M c).all fun r => decide (r.length = c.cols))
+        encBimatrix encBool :=
+    allWithInput (encA := encList encRat) hM <|
+      decide_eq' ((length_list encRat).comp (snd _ _)) (codeCols_polytime.comp (fst _ _))
+  have ha1 := hallRows codeFst_polytime
+  have ha2 := hallRows codeSnd_polytime
   unfold wellFormedB
   fun_prop
 
@@ -805,33 +803,27 @@ private lemma scaleVecNum_getD_cast {v : List (ℤ × ℕ)} (hv : v.all isCanoni
   simp only [htdiv, mkRatOfPair, Int.cast_mul, hvt]
   field_simp [hneQ]
 
+private lemma rowPayoffs_scaleVecNum_getD_cast {m' k : ℕ} {rowsMat : List (List ℤ)}
+    (hlen : rowsMat.length = m') {C : ℚ} {entry : Fin m' → Fin k → ℚ} (idx : Fin m')
+    (hent : ∀ j : Fin k, (((rowsMat.getD idx.1 []).getD j.1 0 : ℤ) : ℚ) = C * entry idx j)
+    {v : List (ℤ × ℕ)} (hv_c : v.all isCanonicalNonnegPair = true) (hv_len : v.length = k) :
+    ((rowPayoffs rowsMat k (scaleVecNum (vecProdDen v) v)).getD idx.1 0 : ℚ) =
+      C * (vecProdDen v : ℚ) * ∑ j : Fin k, entry idx j * (v.map mkRatOfPair).getD j.1 0 := by
+  have hidx : idx.1 < rowsMat.length := by rw [hlen]; exact idx.2
+  dsimp only [rowPayoffs]
+  rw [list_getD_map_lt _ rowsMat [] 0 hidx, dotProduct_eq_fin_sum, Int.cast_sum, Finset.mul_sum]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [Int.cast_mul, hent j, scaleVecNum_getD_cast hv_c hv_len j]
+  ring
+
 private lemma pay1Vec_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     {yl : List (ℤ × ℕ)} (hyl_c : yl.all isCanonicalNonnegPair = true) (hyl_len : yl.length = c.cols)
     (i : Fin c.rows) :
     ((pay1Vec c yl).getD i.1 0 : ℚ) =
       (clearScale c : ℚ) * (vecProdDen yl : ℚ) *
-        ∑ j : Fin c.cols, c.toMatA i j * (yl.map mkRatOfPair).getD j.1 0 := by
-  have hlen : (clearMatA c).length = c.rows := by simp [clearMatA, clearMat, rows]
-  have hi : i.1 < (clearMatA c).length := by rw [hlen]; exact i.2
-  have hget : (pay1Vec c yl).getD i.1 0 =
-      ListMatrix.dotProduct c.cols ((clearMatA c).getD i.1 [])
-        (scaleVecNum (vecProdDen yl) yl) :=
-    list_getD_map_lt _ (clearMatA c) [] 0 hi
-  rw [hget, dotProduct_eq_fin_sum]
-  push_cast
-  calc
-    ∑ j : Fin c.cols,
-        (((clearMatA c).getD i.1 []).getD j.1 0 : ℚ) *
-          ((scaleVecNum (vecProdDen yl) yl).getD j.1 0 : ℚ)
-      = ∑ j : Fin c.cols,
-          ((clearScale c : ℚ) * c.toMatA i j) *
-            ((vecProdDen yl : ℚ) * (yl.map mkRatOfPair).getD j.1 0) := by
-          refine Finset.sum_congr rfl fun j _ => ?_
-          rw [(clearMat_getD_cast hc i j).1, scaleVecNum_getD_cast hyl_c hyl_len j]
-    _ = (clearScale c : ℚ) * (vecProdDen yl : ℚ) *
-          ∑ j : Fin c.cols, c.toMatA i j * (yl.map mkRatOfPair).getD j.1 0 := by
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun j _ => by ring
+        ∑ j : Fin c.cols, c.toMatA i j * (yl.map mkRatOfPair).getD j.1 0 :=
+  rowPayoffs_scaleVecNum_getD_cast (by simp [clearMatA, clearMat, rows]) i
+    (fun j => (clearMat_getD_cast hc i j).1) hyl_c hyl_len
 
 private lemma pay2Vec_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     {xl : List (ℤ × ℕ)} (hxl_c : xl.all isCanonicalNonnegPair = true) (hxl_len : xl.length = c.rows)
@@ -839,37 +831,14 @@ private lemma pay2Vec_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     ((pay2Vec c xl).getD j.1 0 : ℚ) =
       (clearScale c : ℚ) * (vecProdDen xl : ℚ) *
         ∑ i : Fin c.rows, (xl.map mkRatOfPair).getD i.1 0 * c.toMatB i j := by
-  have hlen : (transposeRows c.rows c.cols (clearMatB c)).length = c.cols := by
-    simp [transposeRows]
-  have hj : j.1 < (transposeRows c.rows c.cols (clearMatB c)).length := by rw [hlen]; exact j.2
-  have hget : (pay2Vec c xl).getD j.1 0 =
-      ListMatrix.dotProduct c.rows
-        ((transposeRows c.rows c.cols (clearMatB c)).getD j.1 [])
-        (scaleVecNum (vecProdDen xl) xl) :=
-    list_getD_map_lt
-      (fun row => ListMatrix.dotProduct c.rows row (scaleVecNum (vecProdDen xl) xl))
-      (transposeRows c.rows c.cols (clearMatB c)) [] 0 hj
-  have htr : ∀ i : Fin c.rows,
-      (((transposeRows c.rows c.cols (clearMatB c)).getD j.1 []).getD i.1 0) =
-        ((clearMatB c).getD i.1 []).getD j.1 0 := fun i => by
-    simp only [transposeRows]
-    rw [List.getD_map_range _ [] j.2, List.getD_map_range _ 0 i.2]
-    rfl
-  rw [hget, dotProduct_eq_fin_sum]
-  push_cast
-  calc
-    ∑ i : Fin c.rows,
-        ((((transposeRows c.rows c.cols (clearMatB c)).getD j.1 []).getD i.1 0 : ℤ) : ℚ) *
-          ((scaleVecNum (vecProdDen xl) xl).getD i.1 0 : ℚ)
-      = ∑ i : Fin c.rows,
-          ((clearScale c : ℚ) * c.toMatB i j) *
-            ((vecProdDen xl : ℚ) * (xl.map mkRatOfPair).getD i.1 0) := by
-          refine Finset.sum_congr rfl fun i _ => ?_
-          rw [htr i, (clearMat_getD_cast hc i j).2, scaleVecNum_getD_cast hxl_c hxl_len i]
-    _ = (clearScale c : ℚ) * (vecProdDen xl : ℚ) *
-          ∑ i : Fin c.rows, (xl.map mkRatOfPair).getD i.1 0 * c.toMatB i j := by
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun i _ => by ring
+  dsimp only [pay2Vec]
+  rw [rowPayoffs_scaleVecNum_getD_cast (m' := c.cols) (by simp [transposeRows])
+    (entry := fun b i => c.toMatB i b) j
+    (fun i => by
+      simp only [transposeRows]
+      rw [List.getD_map_range _ [] j.2, List.getD_map_range _ 0 i.2]
+      exact (clearMat_getD_cast hc i j).2) hxl_c hxl_len]
+  exact congrArg _ (Finset.sum_congr rfl fun _ _ => mul_comm _ _)
 
 private lemma brCheck_iff {D mix : ℤ} {pays : List ℤ} {k : ℕ} (hk : pays.length = k) :
     brCheck D mix pays = true ↔ ∀ i : Fin k, D * pays.getD i.1 0 ≤ mix := by
@@ -1018,6 +987,20 @@ private lemma map_mkRatOfPair_pair_eq (l : List ℚ) :
     simp only [Function.comp_apply, mkRatOfPair, Rat.num_div_den, id_eq]
   simpa only [List.map_id] using hm
 
+private lemma brCheck_dotProduct_iff {k : ℕ} {u : List (ℤ × ℕ)} {pays : List ℤ}
+    {C D mixQ : ℚ} {pureQ : Fin k → ℚ}
+    (hlen : pays.length = k) (hu_pos : 0 < (vecProdDen u : ℚ)) (hC : 0 < C) (hD : 0 < D)
+    (hpays : ∀ i : Fin k, (pays.getD i.1 0 : ℚ) = C * D * pureQ i)
+    (hmix : ((ListMatrix.dotProduct k (scaleVecNum (vecProdDen u) u) pays : ℤ) : ℚ) =
+      (vecProdDen u : ℚ) * C * D * mixQ) :
+    brCheck (vecProdDen u) (ListMatrix.dotProduct k (scaleVecNum (vecProdDen u) u) pays) pays =
+      true ↔ ∀ i : Fin k, pureQ i ≤ mixQ := by
+  rw [brCheck_iff hlen]
+  have hpos : 0 < (vecProdDen u : ℚ) * C * D := mul_pos (mul_pos hu_pos hC) hD
+  refine forall_congr' fun i => ?_
+  rw [← Int.cast_le (R := ℚ), Int.cast_mul, hpays i, hmix, ← mul_assoc, ← mul_assoc]
+  exact ⟨fun h => le_of_mul_le_mul_left h hpos, fun h => mul_le_mul_of_nonneg_left h hpos.le⟩
+
 private lemma verifiesDecoded_iff {c : BimatrixCode} (hc : c.WellFormed)
     (w : List Bool) (dec : List (ℤ × ℕ) × List (ℤ × ℕ)) :
     verifiesDecoded c w dec = true ↔
@@ -1031,91 +1014,33 @@ private lemma verifiesDecoded_iff {c : BimatrixCode} (hc : c.WellFormed)
     simp [pay1Vec, rowPayoffs, clearMatA, clearMat, rows]
   have hlenB : (pay2Vec c dec.1).length = c.cols := by
     simp [pay2Vec, rowPayoffs, transposeRows]
+  have hDc : (0 : ℚ) < (clearScale c : ℚ) := by exact_mod_cast clearScale_pos c
   constructor
   · intro h
     simp only [verifiesDecoded, Bool.and_eq_true, decide_eq_true_eq] at h
     rcases h with ⟨⟨⟨⟨⟨⟨⟨⟨hew, hdx⟩, hdy⟩, hcx⟩, hcy⟩, hsx⟩, hsy⟩, hb1⟩, hb2⟩
-    refine ⟨hew.symm, hcx, hcy, ?_⟩
     have hDx : (0 : ℚ) < (vecProdDen dec.1 : ℚ) := by exact_mod_cast vecProdDen_pos hcx
     have hDy : (0 : ℚ) < (vecProdDen dec.2 : ℚ) := by exact_mod_cast vecProdDen_pos hcy
-    have hDc : (0 : ℚ) < (clearScale c : ℚ) := by exact_mod_cast clearScale_pos c
-    have hxlen : x.length = c.rows := by simp [x, hdx]
-    have hylen : y.length = c.cols := by simp [y, hdy]
-    have hxnn : ∀ q ∈ x, 0 ≤ q := all_mkRatOfPair_nonneg hcx
-    have hynn : ∀ q ∈ y, 0 ≤ q := all_mkRatOfPair_nonneg hcy
-    have hxsum : x.sum = 1 := sum_map_mkRatOfPair_eq_one hcx hdx hsx
-    have hysum : y.sum = 1 := sum_map_mkRatOfPair_eq_one hcy hdy hsy
-    have hmix1 := mix1_eq_cast hc hcx hcy hdx hdy
-    have hmix2 := mix2_eq_cast hc hcx hcy hdx hdy
-    have hpos1 : (0 : ℚ) < (vecProdDen dec.1 : ℚ) * (clearScale c : ℚ) * (vecProdDen dec.2 : ℚ) :=
-      mul_pos (mul_pos hDx hDc) hDy
-    have hpos2 : (0 : ℚ) < (vecProdDen dec.2 : ℚ) * (clearScale c : ℚ) * (vecProdDen dec.1 : ℚ) :=
-      mul_pos (mul_pos hDy hDc) hDx
-    have hbr1 : ∀ i : Fin c.rows,
-        (∑ j : Fin c.cols, c.toMatA i j * y.getD j.1 0) ≤
-          ∑ a : Fin c.rows, ∑ j : Fin c.cols, x.getD a.1 0 * c.toMatA a j * y.getD j.1 0 := by
-      intro i
-      have hiZ := (brCheck_iff hlenA).1 hb1 i
-      have hiQ : ((vecProdDen dec.1 : ℤ) : ℚ) * ((pay1Vec c dec.2).getD i.1 0 : ℚ) ≤
-          ((ListMatrix.dotProduct c.rows (scaleVecNum (vecProdDen dec.1) dec.1)
-            (pay1Vec c dec.2) : ℤ) : ℚ) := by exact_mod_cast hiZ
-      rw [pay1Vec_getD_cast hc hcy hdy i, hmix1, ← mul_assoc, ← mul_assoc] at hiQ
-      dsimp only [x, y] at hiQ ⊢
-      exact le_of_mul_le_mul_left hiQ hpos1
-    have hbr2 : ∀ j : Fin c.cols,
-        (∑ i : Fin c.rows, x.getD i.1 0 * c.toMatB i j) ≤
-          ∑ i : Fin c.rows, ∑ b : Fin c.cols, x.getD i.1 0 * c.toMatB i b * y.getD b.1 0 := by
-      intro j
-      have hjZ := (brCheck_iff hlenB).1 hb2 j
-      have hjQ : ((vecProdDen dec.2 : ℤ) : ℚ) * ((pay2Vec c dec.1).getD j.1 0 : ℚ) ≤
-          ((ListMatrix.dotProduct c.cols (scaleVecNum (vecProdDen dec.2) dec.2)
-            (pay2Vec c dec.1) : ℤ) : ℚ) := by exact_mod_cast hjZ
-      rw [pay2Vec_getD_cast hc hcx hdx j, hmix2, ← mul_assoc, ← mul_assoc] at hjQ
-      dsimp only [x, y] at hjQ ⊢
-      exact le_of_mul_le_mul_left hjQ hpos2
-    exact ⟨hxlen, hylen, hxnn, hxsum, hynn, hysum, hbr1, hbr2⟩
+    refine ⟨hew.symm, hcx, hcy, by simp [hdx], by simp [hdy],
+      all_mkRatOfPair_nonneg hcx, sum_map_mkRatOfPair_eq_one hcx hdx hsx,
+      all_mkRatOfPair_nonneg hcy, sum_map_mkRatOfPair_eq_one hcy hdy hsy,
+      (brCheck_dotProduct_iff hlenA hDx hDc hDy (pay1Vec_getD_cast hc hcy hdy)
+        (mix1_eq_cast hc hcx hcy hdx hdy)).1 hb1,
+      (brCheck_dotProduct_iff hlenB hDy hDc hDx (pay2Vec_getD_cast hc hcx hdx)
+        (mix2_eq_cast hc hcx hcy hdx hdy)).1 hb2⟩
   · rintro ⟨hew, hcx, hcy, hxlen, hylen, -, hxsum, -, hysum, hbr1, hbr2⟩
     have hdx : dec.1.length = c.rows := by simpa [x] using hxlen
     have hdy : dec.2.length = c.cols := by simpa [y] using hylen
     have hDx : (0 : ℚ) < (vecProdDen dec.1 : ℚ) := by exact_mod_cast vecProdDen_pos hcx
     have hDy : (0 : ℚ) < (vecProdDen dec.2 : ℚ) := by exact_mod_cast vecProdDen_pos hcy
-    have hDc : (0 : ℚ) < (clearScale c : ℚ) := by exact_mod_cast clearScale_pos c
-    have hsx : (scaleVecNum (vecProdDen dec.1) dec.1).sum = vecProdDen dec.1 :=
-      scaleVecNum_sum_eq_vecProdDen_of_sum_eq_one hcx hdx hxsum
-    have hsy : (scaleVecNum (vecProdDen dec.2) dec.2).sum = vecProdDen dec.2 :=
-      scaleVecNum_sum_eq_vecProdDen_of_sum_eq_one hcy hdy hysum
-    have hmix1 := mix1_eq_cast hc hcx hcy hdx hdy
-    have hmix2 := mix2_eq_cast hc hcx hcy hdx hdy
-    have hb1 : brCheck (vecProdDen dec.1)
-        (ListMatrix.dotProduct c.rows (scaleVecNum (vecProdDen dec.1) dec.1) (pay1Vec c dec.2))
-        (pay1Vec c dec.2) = true := by
-      rw [brCheck_iff hlenA]
-      intro i
-      have hpos1 : (0 : ℚ) ≤ (vecProdDen dec.1 : ℚ) * (clearScale c : ℚ) * (vecProdDen dec.2 : ℚ) :=
-        le_of_lt (mul_pos (mul_pos hDx hDc) hDy)
-      have hmul := mul_le_mul_of_nonneg_left (hbr1 i) hpos1
-      have hq : ((vecProdDen dec.1 : ℤ) : ℚ) * ((pay1Vec c dec.2).getD i.1 0 : ℚ) ≤
-          ((ListMatrix.dotProduct c.rows (scaleVecNum (vecProdDen dec.1) dec.1)
-            (pay1Vec c dec.2) : ℤ) : ℚ) := by
-        rw [pay1Vec_getD_cast hc hcy hdy i, hmix1, ← mul_assoc]
-        simpa only [← mul_assoc] using hmul
-      exact_mod_cast hq
-    have hb2 : brCheck (vecProdDen dec.2)
-        (ListMatrix.dotProduct c.cols (scaleVecNum (vecProdDen dec.2) dec.2) (pay2Vec c dec.1))
-        (pay2Vec c dec.1) = true := by
-      rw [brCheck_iff hlenB]
-      intro j
-      have hpos2 : (0 : ℚ) ≤ (vecProdDen dec.2 : ℚ) * (clearScale c : ℚ) * (vecProdDen dec.1 : ℚ) :=
-        le_of_lt (mul_pos (mul_pos hDy hDc) hDx)
-      have hmul := mul_le_mul_of_nonneg_left (hbr2 j) hpos2
-      have hq : ((vecProdDen dec.2 : ℤ) : ℚ) * ((pay2Vec c dec.1).getD j.1 0 : ℚ) ≤
-          ((ListMatrix.dotProduct c.cols (scaleVecNum (vecProdDen dec.2) dec.2)
-            (pay2Vec c dec.1) : ℤ) : ℚ) := by
-        rw [pay2Vec_getD_cast hc hcx hdx j, hmix2, ← mul_assoc]
-        simpa only [← mul_assoc] using hmul
-      exact_mod_cast hq
     simp only [verifiesDecoded, Bool.and_eq_true, decide_eq_true_eq]
-    exact ⟨⟨⟨⟨⟨⟨⟨⟨hew.symm, hdx⟩, hdy⟩, hcx⟩, hcy⟩, hsx⟩, hsy⟩, hb1⟩, hb2⟩
+    exact ⟨⟨⟨⟨⟨⟨⟨⟨hew.symm, hdx⟩, hdy⟩, hcx⟩, hcy⟩,
+      scaleVecNum_sum_eq_vecProdDen_of_sum_eq_one hcx hdx hxsum⟩,
+      scaleVecNum_sum_eq_vecProdDen_of_sum_eq_one hcy hdy hysum⟩,
+      (brCheck_dotProduct_iff hlenA hDx hDc hDy (pay1Vec_getD_cast hc hcy hdy)
+        (mix1_eq_cast hc hcx hcy hdx hdy)).2 hbr1⟩,
+      (brCheck_dotProduct_iff hlenB hDy hDc hDx (pay2Vec_getD_cast hc hcx hdx)
+        (mix2_eq_cast hc hcx hcy hdx hdy)).2 hbr2⟩
 
 private lemma verifiesBimatrixNash_eq_true_iff (c : BimatrixCode) (w : List Bool) :
     verifiesBimatrixNash (c, w) = true ↔
@@ -1203,6 +1128,47 @@ private lemma card_finsetOfList {m n : ℕ} {L : List ℕ} (hnd : L.Nodup)
     simp only [Equiv.apply_symm_apply] at h1
     exact Subtype.ext h1
 
+private lemma eq_of_pairwise_lt_of_mem_iff {L₁ L₂ : List ℕ}
+    (hs₁ : L₁.Pairwise (· < ·)) (hs₂ : L₂.Pairwise (· < ·))
+    (hmem : ∀ k, k ∈ L₁ ↔ k ∈ L₂) : L₁ = L₂ :=
+  (List.perm_of_nodup_nodup_toFinset_eq hs₁.nodup hs₂.nodup (by
+    ext k; simp only [List.mem_toFinset]; exact hmem k)).eq_of_pairwise
+    (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2)) hs₁ hs₂
+
+private lemma eq_of_finsetOfList_eq {m n : ℕ} {L₁ L₂ : List ℕ}
+    (hs₁ : L₁.Pairwise (· < ·)) (hs₂ : L₂.Pairwise (· < ·))
+    (hlt₁ : ∀ k ∈ L₁, k < m + n) (hlt₂ : ∀ k ∈ L₂, k < m + n)
+    (heq : finsetOfList m n L₁ = finsetOfList m n L₂) : L₁ = L₂ :=
+  eq_of_pairwise_lt_of_mem_iff hs₁ hs₂ fun k => by
+    by_cases hk : k < m + n
+    · simpa only [mem_finsetOfList, Equiv.apply_symm_apply] using
+        Finset.ext_iff.1 heq (finSumFinEquiv.symm ⟨k, hk⟩)
+    · exact ⟨fun h => absurd (hlt₁ k h) hk, fun h => absurd (hlt₂ k h) hk⟩
+
+private lemma finsetOfList_range (m n : ℕ) :
+    finsetOfList m n (List.range m) = Finset.univ.image Sum.inl := by
+  ext r
+  simp only [mem_finsetOfList, List.mem_range, Finset.mem_image, Finset.mem_univ, true_and]
+  cases r with
+  | inl i => exact ⟨fun _ => ⟨i, rfl⟩, fun _ => i.2⟩
+  | inr j =>
+    refine ⟨fun h => ?_, fun ⟨i, hi⟩ => absurd hi (by simp)⟩
+    simp only [finSumFinEquiv_apply_right, Fin.val_natAdd] at h
+    omega
+
+private lemma finsetOfList_map_add_range (m n : ℕ) :
+    finsetOfList m n ((List.range n).map (· + m)) = Finset.univ.image Sum.inr := by
+  ext r
+  simp only [mem_finsetOfList, List.mem_map, List.mem_range, Finset.mem_image, Finset.mem_univ,
+    true_and]
+  cases r with
+  | inl i =>
+    refine ⟨?_, fun ⟨j, hj⟩ => absurd hj (by simp)⟩
+    rintro ⟨j, _, hj⟩
+    simp only [finSumFinEquiv_apply_left, Fin.val_castAdd] at hj
+    omega
+  | inr j => exact ⟨fun _ => ⟨j, rfl⟩, fun _ => ⟨j.1, j.2, by simp [Nat.add_comm]⟩⟩
+
 private lemma orderIsoOfFin_finsetOfList {m n k : ℕ} {L : List ℕ} (hsort : L.Pairwise (· < ·))
     (hlt : ∀ r ∈ L, r < m + n) (_hlen : L.length = k)
     (hcard : (finsetOfList m n L).card = k) (i : Fin k) :
@@ -1220,24 +1186,15 @@ private lemma orderIsoOfFin_finsetOfList {m n k : ℕ} {L : List ℕ} (hsort : L
     intro a b ha hb hab
     simp only [List.getElem_ofFn]
     exact hf_mono (Fin.mk_lt_mk.2 hab)
-  have hperm : (List.ofFn f).Perm L := by
-    refine List.perm_of_nodup_nodup_toFinset_eq hsort_ofFn.nodup hsort.nodup ?_
-    ext x
-    simp only [List.mem_toFinset, List.mem_ofFn]
+  have heq : List.ofFn f = L := eq_of_pairwise_lt_of_mem_iff hsort_ofFn hsort fun x => by
+    rw [List.mem_ofFn]
     constructor
     · rintro ⟨j, rfl⟩
       exact mem_finsetOfList.1 (e j).2
     · intro hx
-      have hmem : finSumFinEquiv.symm ⟨x, hlt x hx⟩ ∈ T := by
-        simp [T, mem_finsetOfList, hx]
-      refine ⟨e.symm ⟨_, hmem⟩, ?_⟩
-      dsimp only [f]
-      rw [e.apply_symm_apply]
-      simp
-  have heq : List.ofFn f = L :=
-    hperm.eq_of_pairwise (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2)) hsort_ofFn hsort
-  have hget := congrArg (fun l => l.getD i.1 0) heq
-  rw [← hget, List.getD_ofFn f i 0]
+      have hmem : finSumFinEquiv.symm ⟨x, hlt x hx⟩ ∈ T := by simp [T, mem_finsetOfList, hx]
+      exact ⟨e.symm ⟨_, hmem⟩, by dsimp only [f]; rw [e.apply_symm_apply]; simp⟩
+  rw [← congrArg (fun l => l.getD i.1 0) heq, List.getD_ofFn f i 0]
 
 /-- Positive normalized integer matrix `A` of `c`. -/
 private def posMatA (c : BimatrixCode) : Matrix (Fin c.rows) (Fin c.cols) ℤ :=
@@ -1329,20 +1286,15 @@ private lemma posMat_bounds {c : BimatrixCode} (hc : c.WellFormed)
     dsimp only [HVal]
     push_cast
     rw [abs_of_nonneg (by omega)]
+  have hbd (s p : ℤ) (hp : p = s + shiftVal c) (hs_lt : |s| < shiftVal c) :
+      1 ≤ p ∧ p ≤ (HVal c : ℤ) := by
+    have := neg_abs_le s
+    have := le_abs_self s
+    exact ⟨by omega, by omega⟩
   obtain ⟨hposA, hposB⟩ := posMat_getD_eq hc i j
   obtain ⟨habsA, habsB⟩ := abs_scaledEntry_lt_shiftVal hc i j
-  have hA1 : 1 ≤ posMatA c i j := by
-    have := neg_abs_le (scaledEntry (clearScale c) (c.toMatA i j))
-    omega
-  have hA2 : posMatA c i j ≤ (HVal c : ℤ) := by
-    have := le_abs_self (scaledEntry (clearScale c) (c.toMatA i j))
-    omega
-  have hB1 : 1 ≤ posMatB c i j := by
-    have := neg_abs_le (scaledEntry (clearScale c) (c.toMatB i j))
-    omega
-  have hB2 : posMatB c i j ≤ (HVal c : ℤ) := by
-    have := le_abs_self (scaledEntry (clearScale c) (c.toMatB i j))
-    omega
+  obtain ⟨hA1, hA2⟩ := hbd _ _ hposA habsA
+  obtain ⟨hB1, hB2⟩ := hbd _ _ hposB habsB
   exact ⟨by omega, hA1, hA2, hB1, hB2⟩
 
 private lemma isNash_posMat {c : BimatrixCode} (hc : c.WellFormed)
@@ -1351,44 +1303,30 @@ private lemma isNash_posMat {c : BimatrixCode} (hc : c.WellFormed)
         BimatrixGame (Fin c.rows) (Fin c.cols)).IsNash x y ↔ c.toGame.IsNash x y := by
   have ⟨_, _, hl2, hr1, hr2⟩ := hc
   have hDc : (0 : ℝ) < (clearScale c : ℝ) := by exact_mod_cast clearScale_pos c
-  have hA_eq : ∀ i j, ((posMatA c).map Int.cast) i j =
-      (clearScale c : ℝ) * c.toGame.A i j + (shiftVal c : ℝ) := by
+  have hentry_eq (M : List (List ℚ)) (P : Matrix (Fin c.rows) (Fin c.cols) ℤ)
+      (hM : M = c.matA ∨ M = c.matB) (hlen : M.length = c.rows)
+      (hrows : ∀ r ∈ M, r.length = c.cols)
+      (hpos : ∀ i j, P i j = scaledEntry (clearScale c) ((M.getD i.1 []).getD j.1 0) + shiftVal c) :
+      ∀ i j, (P.map Int.cast : Matrix _ _ ℝ) i j =
+        (clearScale c : ℝ) * (((M.getD i.1 []).getD j.1 0 : ℚ) : ℝ) + (shiftVal c : ℝ) := by
     intro i j
-    have hi : i.1 < c.matA.length := i.2
+    have hi : i.1 < M.length := by rw [hlen]; exact i.2
     have hrmem := List.getD_mem [] hi
-    have hj : j.1 < (c.matA.getD i.1 []).length := by rw [hr1 _ hrmem]; exact j.2
-    have hqmem := List.getD_mem 0 hj
-    have hdvd := den_dvd_clearScale (Or.inl rfl) hrmem hqmem
-    have hsc := congrArg (Rat.cast : ℚ → ℝ) (scaledEntry_cast hdvd)
+    have hj : j.1 < (M.getD i.1 []).length := by rw [hrows _ hrmem]; exact j.2
+    have hsc := congrArg (Rat.cast : ℚ → ℝ)
+      (scaledEntry_cast (den_dvd_clearScale hM hrmem (List.getD_mem 0 hj)))
     push_cast at hsc
-    dsimp only [toGame, Matrix.map_apply, toMatA]
-    rw [(posMat_getD_eq hc i j).1]
-    push_cast
-    exact congrArg (· + (shiftVal c : ℝ)) hsc
-  have hB_eq : ∀ i j, ((posMatB c).map Int.cast) i j =
-      (clearScale c : ℝ) * c.toGame.B i j + (shiftVal c : ℝ) := by
-    intro i j
-    have hi : i.1 < c.matB.length := by rw [hl2]; exact i.2
-    have hrmem := List.getD_mem [] hi
-    have hj : j.1 < (c.matB.getD i.1 []).length := by rw [hr2 _ hrmem]; exact j.2
-    have hqmem := List.getD_mem 0 hj
-    have hdvd := den_dvd_clearScale (Or.inr rfl) hrmem hqmem
-    have hsc := congrArg (Rat.cast : ℚ → ℝ) (scaledEntry_cast hdvd)
-    push_cast at hsc
-    dsimp only [toGame, Matrix.map_apply, toMatB]
-    rw [(posMat_getD_eq hc i j).2]
-    push_cast
-    exact congrArg (· + (shiftVal c : ℝ)) hsc
+    simp only [Matrix.map_apply, hpos i j, Int.cast_add, hsc]
   let GD : BimatrixGame (Fin c.rows) (Fin c.cols) :=
     BimatrixGame.mk ((clearScale c : ℝ) • c.toGame.A) ((clearScale c : ℝ) • c.toGame.B)
   have hA_eq' : (posMatA c).map (Int.cast : ℤ → ℝ) = (GD.addConst (shiftVal c : ℝ)).A := by
     ext i j
     rw [BimatrixGame.addConst_A_apply]
-    exact hA_eq i j
+    exact hentry_eq c.matA (posMatA c) (.inl rfl) rfl hr1 (fun i j => (posMat_getD_eq hc i j).1) i j
   have hB_eq' : (posMatB c).map (Int.cast : ℤ → ℝ) = (GD.addConst (shiftVal c : ℝ)).B := by
     ext i j
     rw [BimatrixGame.addConst_B_apply]
-    exact hB_eq i j
+    exact hentry_eq c.matB (posMatB c) (.inr rfl) hl2 hr2 (fun i j => (posMat_getD_eq hc i j).2) i j
   have hadd : ({ A := (posMatA c).map Int.cast, B := (posMatB c).map Int.cast } :
         BimatrixGame (Fin c.rows) (Fin c.cols)) = GD.addConst (shiftVal c : ℝ) :=
     congr_arg₂ BimatrixGame.mk hA_eq' hB_eq'
@@ -1418,6 +1356,10 @@ private lemma targetSign_eq (c : BimatrixCode) :
       ite_false]
     rw [← Nat.div_add_mod (c.rows + c.cols) 2, h, pow_add, pow_mul]
     simp
+
+private lemma targetSign_ne_zero (c : BimatrixCode) : targetSign c ≠ 0 := by
+  unfold targetSign
+  split_ifs <;> decide
 
 /-- Vertex bit-length for the PPAD graph: `2 * (rows + cols)` on well-formed inputs, else `0`. -/
 @[expose] def vertexLen (c : BimatrixCode) : ℕ :=
@@ -1530,41 +1472,27 @@ private lemma decodeT₂_encodeNodes {c : BimatrixCode} (T₁ T₂ : List ℕ) {
   cases hkT : decide (k ∈ T₂) <;> cases decide (c.rows ≤ k) <;> simp_all
 
 private lemma decodeT₁_zeroVertex (c : BimatrixCode) :
-    decodeT₁ c (zeroVertex (2 * (c.rows + c.cols))) = List.range c.rows := by
-  have hperm : (decodeT₁ c (zeroVertex (2 * (c.rows + c.cols)))).Perm (List.range c.rows) := by
-    refine List.perm_of_nodup_nodup_toFinset_eq (decodeT₁_sorted c _).nodup List.nodup_range ?_
-    ext k
-    simp only [List.mem_toFinset, List.mem_range, decodeT₁, List.mem_filter, zeroVertex]
-    constructor
-    · rintro ⟨hk, hne⟩
-      rw [List.getD_replicate false (by omega)] at hne
-      simpa using hne
-    · intro hk
-      have hk2 : k < c.rows + c.cols := by omega
-      simp [hk2, hk]
-  exact hperm.eq_of_pairwise (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2))
-    (decodeT₁_sorted c _) List.pairwise_lt_range
+    decodeT₁ c (zeroVertex (2 * (c.rows + c.cols))) = List.range c.rows :=
+  eq_of_pairwise_lt_of_mem_iff (decodeT₁_sorted c _) List.pairwise_lt_range fun k => by
+    simp only [List.mem_range, decodeT₁, List.mem_filter, zeroVertex]
+    refine ⟨?_, fun hk => by simp [show k < c.rows + c.cols by omega, hk]⟩
+    rintro ⟨hk, hne⟩
+    rw [List.getD_replicate false (by omega)] at hne
+    simpa using hne
 
 private lemma decodeT₂_zeroVertex (c : BimatrixCode) :
     decodeT₂ c (zeroVertex (2 * (c.rows + c.cols))) = (List.range c.cols).map (· + c.rows) := by
   have hsort : ((List.range c.cols).map (· + c.rows)).Pairwise (· < ·) :=
     List.pairwise_lt_range.map _ fun _ _ h => by omega
-  have hperm : (decodeT₂ c (zeroVertex (2 * (c.rows + c.cols)))).Perm
-      ((List.range c.cols).map (· + c.rows)) := by
-    refine List.perm_of_nodup_nodup_toFinset_eq (decodeT₂_sorted c _).nodup hsort.nodup ?_
-    ext k
-    simp only [List.mem_toFinset, List.mem_map, List.mem_range, decodeT₂, List.mem_filter,
-      zeroVertex]
-    constructor
-    · rintro ⟨hk, hne⟩
-      rw [List.getD_replicate false (by omega)] at hne
-      have hkge : c.rows ≤ k := by simpa using hne
-      exact ⟨k - c.rows, by omega, by omega⟩
-    · rintro ⟨j, hj, rfl⟩
-      have hk2 : j + c.rows < c.rows + c.cols := by omega
-      simp [hk2]
-  exact hperm.eq_of_pairwise (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2))
-    (decodeT₂_sorted c _) hsort
+  refine eq_of_pairwise_lt_of_mem_iff (decodeT₂_sorted c _) hsort fun k => ?_
+  simp only [List.mem_map, List.mem_range, decodeT₂, List.mem_filter, zeroVertex]
+  constructor
+  · rintro ⟨hk, hne⟩
+    rw [List.getD_replicate false (by omega)] at hne
+    have hkge : c.rows ≤ k := by simpa using hne
+    exact ⟨k - c.rows, by omega, by omega⟩
+  · rintro ⟨j, hj, rfl⟩
+    simp [show j + c.rows < c.rows + c.cols by omega]
 
 private theorem mapToBitsWithInput_poly {α β : Type} {encIn : α ↪ List Bool}
     {enc : β ↪ List Bool} {list : α → List β} {f : α → β → Bool}
@@ -1619,39 +1547,44 @@ private theorem vertexLen_polytime :
     (unary_mul.comp ((const 2).prod (unary_add.comp (codeRows_polytime.prod codeCols_polytime))))
     (const 0)
 
+private theorem filterDecodeRange_polytime
+    {f : BimatrixCode → List Bool → List ℕ}
+    {pred : ((BimatrixCode × List Bool) × ℕ) → Bool}
+    (hf : ∀ p : BimatrixCode × List Bool,
+      f p.1 p.2 = (List.range (p.1.rows + p.1.cols)).filter fun k => pred (p, k))
+    (hpred : ComputableInPolyTime pred
+      (encPair (encPair encBimatrix encBits) encUnary) encBool) :
+    ComputableInPolyTime (fun p : BimatrixCode × List Bool => f p.1 p.2)
+      (encPair encBimatrix encBits) (encList encUnary) :=
+  (filterWithInput (test := fun p k => pred (p, k))
+    (range.comp (unary_add.comp ((codeRows_polytime.comp (fst encBimatrix encBits)).prod
+      (codeCols_polytime.comp (fst encBimatrix encBits)))))
+    hpred).of_enc_eq fun p => congrArg (encList encUnary) (hf p)
+
 @[local fun_prop]
 private theorem decodeT₁_polytime :
     ComputableInPolyTime (fun p : BimatrixCode × List Bool => decodeT₁ p.1 p.2)
-      (encPair encBimatrix encBits) (encList encUnary) := by
-  unfold decodeT₁
-  have hc0 := fst encBimatrix encBits
-  have hu0 := snd encBimatrix encBits
-  refine filterWithInput
-    (range.comp (unary_add.comp ((codeRows_polytime.comp hc0).prod
-      (codeCols_polytime.comp hc0)))) ?_
-  have hc := hc0.comp (fst (encPair encBimatrix encBits) encUnary)
-  have hu := hu0.comp (fst (encPair encBimatrix encBits) encUnary)
-  have hk := snd (encPair encBimatrix encBits) encUnary
-  exact bool_xor_polytime
-    (bitsGetD false |>.comp (hu.prod hk))
-    (unary_lt' hk (codeRows_polytime.comp hc))
+      (encPair encBimatrix encBits) (encList encUnary) :=
+  filterDecodeRange_polytime (fun _ => rfl) <| by
+    have hp := fst (encPair encBimatrix encBits) encUnary
+    have hk := snd (encPair encBimatrix encBits) encUnary
+    exact bool_xor_polytime
+      (bitsGetD false |>.comp (((snd encBimatrix encBits).comp hp).prod hk))
+      (unary_lt' hk (codeRows_polytime.comp ((fst encBimatrix encBits).comp hp)))
 
 @[local fun_prop]
 private theorem decodeT₂_polytime :
     ComputableInPolyTime (fun p : BimatrixCode × List Bool => decodeT₂ p.1 p.2)
-      (encPair encBimatrix encBits) (encList encUnary) := by
-  unfold decodeT₂
-  have hc0 := fst encBimatrix encBits
-  have hu0 := snd encBimatrix encBits
-  have hd0 := unary_add.comp ((codeRows_polytime.comp hc0).prod (codeCols_polytime.comp hc0))
-  refine filterWithInput (range.comp hd0) ?_
-  have hc := hc0.comp (fst (encPair encBimatrix encBits) encUnary)
-  have hu := hu0.comp (fst (encPair encBimatrix encBits) encUnary)
-  have hd := hd0.comp (fst (encPair encBimatrix encBits) encUnary)
-  have hk := snd (encPair encBimatrix encBits) encUnary
-  exact bool_xor_polytime
-    (bitsGetD false |>.comp (hu.prod (unary_add.comp (hd.prod hk))))
-    (unary_le' (codeRows_polytime.comp hc) hk)
+      (encPair encBimatrix encBits) (encList encUnary) :=
+  filterDecodeRange_polytime (fun _ => rfl) <| by
+    have hp := fst (encPair encBimatrix encBits) encUnary
+    have hc := (fst encBimatrix encBits).comp hp
+    have hk := snd (encPair encBimatrix encBits) encUnary
+    have hd := unary_add.comp ((codeRows_polytime.comp hc).prod (codeCols_polytime.comp hc))
+    exact bool_xor_polytime
+      (bitsGetD false |>.comp (((snd encBimatrix encBits).comp hp).prod
+        (unary_add.comp (hd.prod hk))))
+      (unary_le' (codeRows_polytime.comp hc) hk)
 
 private theorem encodeNodes_polytime {α : Type} {encIn : α ↪ List Bool}
     {c : α → BimatrixCode} {T₁ T₂ : α → List ℕ}
@@ -1814,57 +1747,92 @@ private theorem allRowsQ_polytime :
     exact ite_decide (unary_lt' rowCellR_polytime hm) h1 h2
   exact tabulateSplitRows_polytime codeCols_polytime posMatA_polytime hentry fun _ => rfl
 
+private theorem mapSplitRange_polytime
+    {fL fR : BimatrixCode × ℕ → ℤ}
+    (hfL : ComputableInPolyTime fL (encPair encBimatrix encUnary) encIntBin)
+    (hfR : ComputableInPolyTime fR (encPair encBimatrix encUnary) encIntBin) :
+    ComputableInPolyTime
+      (fun c : BimatrixCode =>
+        (List.range (c.rows + c.cols)).map fun r =>
+          if r < c.rows then fL (c, r) else fR (c, r))
+      encBimatrix (encList encIntBin) :=
+  mapWithInput (encA := encUnary)
+    (range.comp (unary_add.comp (codeRows_polytime.prod codeCols_polytime))) <|
+    ite_decide
+      (unary_lt' (snd encBimatrix encUnary)
+        (codeRows_polytime.comp (fst encBimatrix encUnary)))
+      hfL hfR
+
+private theorem pertRhsEntry_polytime
+    {dim idx : BimatrixCode × ℕ → ℕ}
+    (hdim : ComputableInPolyTime dim (encPair encBimatrix encUnary) encUnary)
+    (hidx : ComputableInPolyTime idx (encPair encBimatrix encUnary) encUnary) :
+    ComputableInPolyTime
+      (fun p : BimatrixCode × ℕ =>
+        ((2 ^ (bitBoundVal p.1 * dim p) : ℕ) : ℤ) +
+          ((2 ^ (bitBoundVal p.1 * (dim p - 1 - idx p)) : ℕ) : ℤ))
+      (encPair encBimatrix encUnary) encIntBin := by
+  have hE := bitBoundVal_polytime.comp (fst encBimatrix encUnary)
+  have hp1 := intBin_natCast.comp (binary_two_pow.comp (unary_mul.comp (hE.prod hdim)))
+  have hexp2 := unary_sub.comp ((unary_sub.comp (hdim.prod (const 1))).prod hidx)
+  have hp2 := intBin_natCast.comp (binary_two_pow.comp (unary_mul.comp (hE.prod hexp2)))
+  exact intBin_add' hp1 hp2
+
 @[local fun_prop]
 private theorem allRhsP_polytime :
-    ComputableInPolyTime allRhsP encBimatrix (encList encIntBin) := by
-  unfold allRhsP
-  refine mapWithInput (encA := encUnary)
-    (range.comp (unary_add.comp (codeRows_polytime.prod codeCols_polytime))) ?_
-  have hc := fst encBimatrix encUnary
-  have hr := snd encBimatrix encUnary
-  have hm := codeRows_polytime.comp hc
-  have hn := codeCols_polytime.comp hc
-  have hE := bitBoundVal_polytime.comp hc
-  have hp1 := intBin_natCast.comp (binary_two_pow.comp (unary_mul.comp (hE.prod hn)))
-  have hexp2 := unary_sub.comp ((unary_sub.comp (hn.prod (const 1))).prod
-    (unary_sub.comp (hr.prod hm)))
-  have hp2 := intBin_natCast.comp (binary_two_pow.comp (unary_mul.comp (hE.prod hexp2)))
-  exact ite_decide (unary_lt' hr hm) (const 0) (intBin_add' hp1 hp2)
+    ComputableInPolyTime allRhsP encBimatrix (encList encIntBin) :=
+  mapSplitRange_polytime (const 0)
+    (pertRhsEntry_polytime (codeCols_polytime.comp (fst _ _))
+      (unary_sub.comp ((snd _ _).prod (codeRows_polytime.comp (fst _ _)))))
 
 @[local fun_prop]
 private theorem allRhsQ_polytime :
-    ComputableInPolyTime allRhsQ encBimatrix (encList encIntBin) := by
-  unfold allRhsQ
-  refine mapWithInput (encA := encUnary)
-    (range.comp (unary_add.comp (codeRows_polytime.prod codeCols_polytime))) ?_
-  have hc := fst encBimatrix encUnary
-  have hr := snd encBimatrix encUnary
-  have hm := codeRows_polytime.comp hc
-  have hE := bitBoundVal_polytime.comp hc
-  have hp1 := intBin_natCast.comp (binary_two_pow.comp (unary_mul.comp (hE.prod hm)))
-  have hexp2 := unary_sub.comp ((unary_sub.comp (hm.prod (const 1))).prod hr)
-  have hp2 := intBin_natCast.comp (binary_two_pow.comp (unary_mul.comp (hE.prod hexp2)))
-  exact ite_decide (unary_lt' hr hm) (intBin_add' hp1 hp2) (const 0)
+    ComputableInPolyTime allRhsQ encBimatrix (encList encIntBin) :=
+  mapSplitRange_polytime
+    (pertRhsEntry_polytime (codeRows_polytime.comp (fst _ _)) (snd _ _)) (const 0)
 
 @[local fun_prop]
 private theorem allIntRhsP_polytime :
-    ComputableInPolyTime allIntRhsP encBimatrix (encList encIntBin) := by
-  unfold allIntRhsP
-  refine mapWithInput (encA := encUnary)
-    (range.comp (unary_add.comp (codeRows_polytime.prod codeCols_polytime))) ?_
-  exact ite_decide (unary_lt' (snd _ _) (codeRows_polytime.comp (fst _ _))) (const 0) (const 1)
+    ComputableInPolyTime allIntRhsP encBimatrix (encList encIntBin) :=
+  mapSplitRange_polytime (const 0) (const 1)
 
 @[local fun_prop]
 private theorem allIntRhsQ_polytime :
-    ComputableInPolyTime allIntRhsQ encBimatrix (encList encIntBin) := by
-  unfold allIntRhsQ
-  refine mapWithInput (encA := encUnary)
-    (range.comp (unary_add.comp (codeRows_polytime.prod codeCols_polytime))) ?_
-  exact ite_decide (unary_lt' (snd _ _) (codeRows_polytime.comp (fst _ _))) (const 1) (const 0)
+    ComputableInPolyTime allIntRhsQ encBimatrix (encList encIntBin) :=
+  mapSplitRange_polytime (const 1) (const 0)
 
 private lemma rowEntry_single (l : List ℤ) (r : ℕ) :
     rowEntry [l] 0 r = l.getD r 0 := by
   simp [rowEntry]
+
+private theorem rowEntry_singleton_polytime {α : Type} {encIn : α ↪ List Bool}
+    {rhs : α → List ℤ} {idx : α → ℕ}
+    (hrhs : ComputableInPolyTime rhs encIn (encList encIntBin))
+    (hidx : ComputableInPolyTime idx encIn encUnary) :
+    ComputableInPolyTime (fun x => rowEntry [rhs x] 0 (idx x)) encIn encIntBin := by
+  have hcons : ComputableInPolyTime (fun l : List ℤ => [l])
+      (encList encIntBin) encIntTable := by
+    fun_prop
+  exact computableInPolyTime_rowEntry (hcons.comp hrhs) (const 0) hidx
+
+private theorem tabulateSquare_polytime {α : Type} {encIn : α ↪ List Bool}
+    {d : α → ℕ} {entry : α → ℕ → ℕ → ℤ}
+    (hd : ComputableInPolyTime d encIn encUnary)
+    (hentry :
+      ComputableInPolyTime (fun p : (α × ℕ) × ℕ => p.1.1)
+        (encPair (encPair encIn encUnary) encUnary) encIn →
+      ComputableInPolyTime (fun p : (α × ℕ) × ℕ => p.1.2)
+        (encPair (encPair encIn encUnary) encUnary) encUnary →
+      ComputableInPolyTime (fun p : (α × ℕ) × ℕ => p.2)
+        (encPair (encPair encIn encUnary) encUnary) encUnary →
+      ComputableInPolyTime (fun p : (α × ℕ) × ℕ => entry p.1.1 p.1.2 p.2)
+        (encPair (encPair encIn encUnary) encUnary) encIntBin) :
+    ComputableInPolyTime (fun x => tabulateTable (d x) (d x) (entry x))
+      encIn encIntTable :=
+  computableInPolyTime_tabulateTable hd hd <|
+    hentry ((fst encIn encUnary).comp (fst (encPair encIn encUnary) encUnary))
+      ((snd encIn encUnary).comp (fst (encPair encIn encUnary) encUnary))
+      (snd (encPair encIn encUnary) encUnary)
 
 private theorem subRows_polytime {α : Type} {encIn : α ↪ List Bool}
     {k : α → ℕ} {allRows : α → List (List ℤ)} {T : α → List ℕ}
@@ -1882,16 +1850,9 @@ private theorem subRhs_polytime {α : Type} {encIn : α ↪ List Bool}
     {rhsAll : α → List ℤ} {T : α → List ℕ}
     (hrhs : ComputableInPolyTime rhsAll encIn (encList encIntBin))
     (hT : ComputableInPolyTime T encIn (encList encUnary)) :
-    ComputableInPolyTime (fun x => subRhs (rhsAll x) (T x)) encIn (encList encIntBin) := by
-  unfold subRhs
-  refine mapWithInput (encA := encUnary) hT ?_
-  have htbl : ComputableInPolyTime (fun p : α × ℕ => [rhsAll p.1])
-      (encPair encIn encUnary) encIntTable := by
-    have hcons : ComputableInPolyTime (fun l : List ℤ => [l])
-        (encList encIntBin) encIntTable := by
-      fun_prop
-    exact hcons.comp (hrhs.comp (fst _ _))
-  exact computableInPolyTime_rowEntry htbl (const 0) (snd _ _)
+    ComputableInPolyTime (fun x => subRhs (rhsAll x) (T x)) encIn (encList encIntBin) :=
+  mapWithInput (encA := encUnary) hT
+    (rowEntry_singleton_polytime (hrhs.comp (fst _ _)) (snd _ _))
 
 private theorem updateColRows_polytime {α : Type} {encIn : α ↪ List Bool}
     {k col : α → ℕ} {M : α → List (List ℤ)} {rhs : α → List ℤ}
@@ -1900,21 +1861,11 @@ private theorem updateColRows_polytime {α : Type} {encIn : α ↪ List Bool}
     (hcol : ComputableInPolyTime col encIn encUnary)
     (hrhs : ComputableInPolyTime rhs encIn (encList encIntBin)) :
     ComputableInPolyTime (fun x => updateColRows (k x) (M x) (col x) (rhs x))
-      encIn encIntTable := by
-  unfold updateColRows
-  refine computableInPolyTime_tabulateTable hk hk ?_
-  have hx := (fst encIn encUnary).comp (fst (encPair encIn encUnary) encUnary)
-  have hr := (snd encIn encUnary).comp (fst (encPair encIn encUnary) encUnary)
-  have hj := snd (encPair encIn encUnary) encUnary
-  have htbl : ComputableInPolyTime (fun p : (α × ℕ) × ℕ => [rhs p.1.1])
-      (encPair (encPair encIn encUnary) encUnary) encIntTable := by
-    have hcons : ComputableInPolyTime (fun l : List ℤ => [l])
-        (encList encIntBin) encIntTable := by
-      fun_prop
-    exact hcons.comp (hrhs.comp hx)
-  exact ite_decide (decide_eq' hj (hcol.comp hx))
-    (computableInPolyTime_rowEntry htbl (const 0) hr)
-    (computableInPolyTime_rowEntry (hM.comp hx) hr hj)
+      encIn encIntTable :=
+  tabulateSquare_polytime hk fun hx hr hj =>
+    ite_decide (decide_eq' hj (hcol.comp hx))
+      (rowEntry_singleton_polytime (hrhs.comp hx) hr)
+      (computableInPolyTime_rowEntry (hM.comp hx) hr hj)
 
 private theorem cramerVecRows_polytime {α : Type} {encIn : α ↪ List Bool}
     {k : α → ℕ} {M : α → List (List ℤ)} {rhs : α → List ℤ}
@@ -1985,17 +1936,10 @@ private theorem isFeasibleBasisRows_polytime {α : Type} {encIn : α ↪ List Bo
         exact computableInPolyTime_rowEntry
           (hq_all.comp (hx.comp (fst (encPair encP encUnary) encUnary)))
           (hr.comp (fst (encPair encP encUnary) encUnary)) (snd (encPair encP encUnary) encUnary)
-      have htbl_rhs : ComputableInPolyTime
-          (fun p : (ℕ × ℕ × List (List ℤ) × List ℤ × List ℕ) × ℕ => [p.1.2.2.2.1])
-          (encPair encP encUnary) encIntTable := by
-        have hcons : ComputableInPolyTime (fun l : List ℤ => [l])
-            (encList encIntBin) encIntTable := by
-          fun_prop
-        exact hcons.comp (hq_rhs.comp hx)
       have hdot := listDotProduct.comp ((hq_k.comp hx).prod (hrow_r.prod (hcv.comp hx)))
       have hlhs := intBin_mul' (intBin_sign.comp (hD.comp hx)) hdot
       have hrhs' := intBin_mul' (habs.comp hx)
-        (computableInPolyTime_rowEntry htbl_rhs (const 0) hr)
+        (rowEntry_singleton_polytime (hq_rhs.comp hx) hr)
       exact intBin_le' hlhs hrhs'
     exact bool_and' (bool_not.comp (decide_eq' hD (const 0))) hallcheck
   exact (hbase.comp (hk.prod (hd.prod (hall.prod (hrhs.prod hT))))).of_enc_eq
@@ -2152,20 +2096,20 @@ private lemma finSumFinEquiv_symm_of_le {m n r : ℕ} (hm : m ≤ r) (hr : r < m
   simp only
   omega
 
+private lemma neg_one_ite_fin_eq {k idx : ℕ} (hidx : idx < k) (j : Fin k) :
+    (if j.1 = idx then (-1 : ℤ) else 0) = if (⟨idx, hidx⟩ : Fin k) = j then -1 else 0 := by
+  by_cases hjr : j.1 = idx
+  · rw [ite_eq_left hjr, ite_eq_left (Fin.ext hjr.symm)]
+  · rw [ite_eq_right hjr, ite_eq_right fun h => hjr (congrArg Fin.val h).symm]
+
 private lemma allRowsP_spec (c : BimatrixCode) (r : Fin (c.rows + c.cols)) (j : Fin c.rows) :
     rowEntry (allRowsP c) r.1 j.1 = intMatP (posMatB c) (finSumFinEquiv.symm r) j := by
   dsimp only [allRowsP]
   rw [rowEntry_tabulateTable, ite_eq_left ⟨r.2, j.2⟩]
   by_cases hr : r.1 < c.rows
-  · have hr' : (r : Fin (c.rows + c.cols)) = ⟨r.1, by omega⟩ := Fin.ext rfl
-    rw [ite_eq_left hr, hr', finSumFinEquiv_symm_of_lt hr, intMatP_inl]
-    by_cases hjr : j.1 = r.1
-    · have hjeq : (⟨r.1, hr⟩ : Fin c.rows) = j := Fin.ext hjr.symm
-      rw [ite_eq_left hjr, ite_eq_left hjeq]
-    · have hjne : (⟨r.1, hr⟩ : Fin c.rows) ≠ j := fun h => hjr (congrArg Fin.val h).symm
-      rw [ite_eq_right hjr, ite_eq_right hjne]
-  · have hm : c.rows ≤ r.1 := Nat.le_of_not_lt hr
-    rw [ite_eq_right hr, finSumFinEquiv_symm_of_le hm r.2, intMatP_inr]
+  · rw [ite_eq_left hr, show r = ⟨r.1, by omega⟩ from Fin.ext rfl,
+      finSumFinEquiv_symm_of_lt hr, intMatP_inl, neg_one_ite_fin_eq hr j]
+  · rw [ite_eq_right hr, finSumFinEquiv_symm_of_le (Nat.le_of_not_lt hr) r.2, intMatP_inr]
     rfl
 
 private lemma allRowsQ_spec (c : BimatrixCode) (r : Fin (c.rows + c.cols)) (j : Fin c.cols) :
@@ -2173,17 +2117,11 @@ private lemma allRowsQ_spec (c : BimatrixCode) (r : Fin (c.rows + c.cols)) (j : 
   dsimp only [allRowsQ]
   rw [rowEntry_tabulateTable, ite_eq_left ⟨r.2, j.2⟩]
   by_cases hr : r.1 < c.rows
-  · have hr' : (r : Fin (c.rows + c.cols)) = ⟨r.1, by omega⟩ := Fin.ext rfl
-    rw [ite_eq_left hr, hr', finSumFinEquiv_symm_of_lt hr, intMatQ_inl]
+  · rw [ite_eq_left hr, show r = ⟨r.1, by omega⟩ from Fin.ext rfl,
+      finSumFinEquiv_symm_of_lt hr, intMatQ_inl]
     rfl
-  · have hm : c.rows ≤ r.1 := Nat.le_of_not_lt hr
-    rw [ite_eq_right hr, finSumFinEquiv_symm_of_le hm r.2, intMatQ_inr]
-    by_cases hjr : j.1 = r.1 - c.rows
-    · have hjeq : (⟨r.1 - c.rows, by omega⟩ : Fin c.cols) = j := Fin.ext hjr.symm
-      rw [ite_eq_left hjr, ite_eq_left hjeq]
-    · have hjne : (⟨r.1 - c.rows, by omega⟩ : Fin c.cols) ≠ j :=
-        fun h => hjr (congrArg Fin.val h).symm
-      rw [ite_eq_right hjr, ite_eq_right hjne]
+  · rw [ite_eq_right hr, finSumFinEquiv_symm_of_le (Nat.le_of_not_lt hr) r.2, intMatQ_inr,
+      neg_one_ite_fin_eq (by omega) j]
 
 private lemma getD_map_range_sumElim {m n : ℕ} {h : ℕ → ℤ}
     {f' : Fin m → ℤ} {g' : Fin n → ℤ}
@@ -2220,22 +2158,18 @@ private lemma allIntRhsQ_spec (c : BimatrixCode) (r : Fin (c.rows + c.cols)) :
 private lemma pertP_nondegenerate {c : BimatrixCode} (hc : c.WellFormed) :
     IsNondegenerateSystem
       ((intMatP (posMatB c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ)
-      (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) := by
-  have hK : (Matrix.kernelVecBound c.rows (HVal c) * (c.cols + 1) : ℤ) <
-      (2 : ℤ) ^ bitBoundVal c := by
-    exact_mod_cast kernelVecBound_mul_lt_two_pow_bitBound hc.1 hc.2.1
-  exact isNondegenerateSystem_pertP (posMat_bounds hc ⟨0, hc.1⟩ ⟨0, hc.2.1⟩).1
-    (fun i j => ⟨(posMat_bounds hc i j).2.2.2.1, (posMat_bounds hc i j).2.2.2.2⟩) hK
+      (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) :=
+  isNondegenerateSystem_pertP (posMat_bounds hc ⟨0, hc.1⟩ ⟨0, hc.2.1⟩).1
+    (fun i j => ⟨(posMat_bounds hc i j).2.2.2.1, (posMat_bounds hc i j).2.2.2.2⟩)
+    (by exact_mod_cast kernelVecBound_mul_lt_two_pow_bitBound hc.1 hc.2.1)
 
 private lemma pertQ_nondegenerate {c : BimatrixCode} (hc : c.WellFormed) :
     IsNondegenerateSystem
       ((intMatQ (posMatA c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.cols) ℚ)
-      (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) := by
-  have hK : (Matrix.kernelVecBound c.cols (HVal c) * (c.rows + 1) : ℤ) <
-      (2 : ℤ) ^ bitBoundVal c := by
-    exact_mod_cast kernelVecBound_mul_lt_two_pow_bitBound_symm hc.1 hc.2.1
-  exact isNondegenerateSystem_pertQ (posMat_bounds hc ⟨0, hc.1⟩ ⟨0, hc.2.1⟩).1
-    (fun i j => ⟨(posMat_bounds hc i j).2.1, (posMat_bounds hc i j).2.2.1⟩) hK
+      (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) :=
+  isNondegenerateSystem_pertQ (posMat_bounds hc ⟨0, hc.1⟩ ⟨0, hc.2.1⟩).1
+    (fun i j => ⟨(posMat_bounds hc i j).2.1, (posMat_bounds hc i j).2.2.1⟩)
+    (by exact_mod_cast kernelVecBound_mul_lt_two_pow_bitBound_symm hc.1 hc.2.1)
 
 private lemma pertP_recession {c : BimatrixCode} (hc : c.WellFormed) (v : Fin c.rows → ℚ)
     (hv : ((intMatP (posMatB c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ) *ᵥ
@@ -2609,14 +2543,10 @@ private theorem permRows_polytime {α : Type} {encIn : α ↪ List Bool}
     {d : α → ℕ} {L : α → List ℕ}
     (hd : ComputableInPolyTime d encIn encUnary)
     (hL : ComputableInPolyTime L encIn (encList encUnary)) :
-    ComputableInPolyTime (fun x => permRows (d x) (L x)) encIn encIntTable := by
-  unfold permRows
-  refine computableInPolyTime_tabulateTable hd hd ?_
-  have hx := (fst encIn encUnary).comp (fst (encPair encIn encUnary) encUnary)
-  have hi := (snd encIn encUnary).comp (fst (encPair encIn encUnary) encUnary)
-  have hj := snd (encPair encIn encUnary) encUnary
-  exact ite' (decide_eq' (listGetDWithInput (hL.comp hx) hi 0) hj)
-    (const (encOut := encIntBin) 1) (const (encOut := encIntBin) 0)
+    ComputableInPolyTime (fun x => permRows (d x) (L x)) encIn encIntTable :=
+  tabulateSquare_polytime hd fun hx hi hj =>
+    ite' (decide_eq' (listGetDWithInput (hL.comp hx) hi 0) hj)
+      (const (encOut := encIntBin) 1) (const (encOut := encIntBin) 0)
 
 private lemma detRows_permRows {d : ℕ} (σ : Equiv.Perm (Fin d)) {L : List ℕ}
     (hL : ∀ i : Fin d, (σ i).1 = L.getD i.1 0) :
@@ -2663,6 +2593,15 @@ private theorem halfEdgeIndexExec_polytime {α : Type} {encIn : α ↪ List Bool
     (subRows_polytime hn (allRowsQ_polytime.comp hc) h2)
   exact intBin_mul' (intBin_mul' hperm (intBin_sign.comp hm1)) (intBin_sign.comp hm2)
 
+private lemma det_map_intCast_submatrix_orderIso {m n k : ℕ}
+    (M : Matrix (Fin m ⊕ Fin n) (Fin k) ℤ) (Ts : Finset (Fin m ⊕ Fin n)) (hcard : Ts.card = k) :
+    ((M.map Int.cast : Matrix _ _ ℚ).submatrix
+      (fun i => (Ts.orderIsoOfFin hcard i : Fin m ⊕ Fin n)) (Equiv.refl _)).det =
+      ((basisMat M Ts hcard).det : ℚ) := by
+  rw [show (M.map Int.cast : Matrix _ _ ℚ).submatrix
+        (fun i => (Ts.orderIsoOfFin hcard i : Fin m ⊕ Fin n)) (Equiv.refl _) =
+        (basisMat M Ts hcard).map Int.cast from rfl, ← Int.cast_det]
+
 private lemma halfEdgeIndexExec_eq (c : BimatrixCode) (hm : 0 < c.rows)
     {T₁ T₂ : List ℕ} (hsort₁ : T₁.Pairwise (· < ·)) (hsort₂ : T₂.Pairwise (· < ·))
     (hlt₁ : ∀ r ∈ T₁, r < c.rows + c.cols) (hlt₂ : ∀ r ∈ T₂, r < c.rows + c.cols)
@@ -2694,105 +2633,69 @@ private lemma halfEdgeIndexExec_eq (c : BimatrixCode) (hm : 0 < c.rows)
   set π : Equiv.Perm (Fin c.rows ⊕ Fin c.cols) :=
     (Equiv.ofBijective _ hbij).trans (Equiv.refl _).symm
   set σ : Equiv.Perm (Fin (c.rows + c.cols)) := Equiv.permCongr finSumFinEquiv π
-  have hσ_sign : (Equiv.Perm.sign σ : ℤ) = (Equiv.Perm.sign π : ℤ) := by
-    rw [Equiv.Perm.sign_permCongr]
   have hleave := leaveLabelExec_eq hm hsort₁ hlt₁ hlt₂
+  have hact_val {k : ℕ} {T : List ℕ}
+      (hsort : T.Pairwise (· < ·)) (hlt : ∀ r ∈ T, r < c.rows + c.cols)
+      (hlen : T.length = k) (hcard : (finsetOfList c.rows c.cols T).card = k) (j : Fin k) :
+      (finSumFinEquiv (if (((finsetOfList c.rows c.cols T).orderIsoOfFin hcard).toEquiv j :
+          Fin c.rows ⊕ Fin c.cols) = LemkeHowson.leaveLabel T₁s T₂s k₀
+        then k₀ else ((finsetOfList c.rows c.cols T).orderIsoOfFin hcard).toEquiv j)).1 =
+        (T.map fun x => if decide (x = leaveLabelExec T₁ T₂) then 0 else x).getD j.1 0 := by
+    have hord := orderIsoOfFin_finsetOfList hsort hlt hlen hcard j
+    rw [list_getD_map_lt _ T 0 0 (by rw [hlen]; exact j.2)]
+    have hiff : (((finsetOfList c.rows c.cols T).orderIsoOfFin hcard).toEquiv j :
+          Fin c.rows ⊕ Fin c.cols) = LemkeHowson.leaveLabel T₁s T₂s k₀ ↔
+        T.getD j.1 0 = leaveLabelExec T₁ T₂ :=
+      ⟨fun h => by rw [← hord]; exact (congrArg (fun z => (finSumFinEquiv z).1) h).trans hleave,
+       fun h => finSumFinEquiv.injective (Fin.ext (hord.trans (h.trans hleave.symm)))⟩
+    by_cases hc_eq : T.getD j.1 0 = leaveLabelExec T₁ T₂
+    · rw [ite_eq_left (hiff.2 hc_eq), ite_eq_left (decide_eq_true hc_eq)]
+      rfl
+    · rw [ite_eq_right (fun h => hc_eq (hiff.1 h)),
+        ite_eq_right (fun h => hc_eq (of_decide_eq_true h))]
+      exact hord
   have hσ_list : ∀ i : Fin (c.rows + c.cols),
       (σ i).1 = (halfEdgeList T₁ T₂ side).getD i.1 0 := by
     intro i
     change (finSumFinEquiv (LemkeHowson.halfEdgeFun T₁s T₂s hcard₁ hcard₂ k₀ side
       (finSumFinEquiv.symm i))).1 = (halfEdgeList T₁ T₂ side).getD i.1 0
-    have hmap_len : ∀ (T : List ℕ) (f : ℕ → ℕ), (T.map f).length = T.length := by simp
     have hlhs_len :
         (if !side then T₁.map fun x => if decide (x = leaveLabelExec T₁ T₂) then 0 else x
           else T₁).length = c.rows := by
       cases side <;> simp [hlen₁]
     by_cases hi : i.1 < c.rows
     · have hi' : i = ⟨i.1, by omega⟩ := Fin.ext rfl
-      rw [hi', finSumFinEquiv_symm_of_lt hi]
-      have hget_app : (halfEdgeList T₁ T₂ side).getD i.1 0 =
-          (if !side then T₁.map fun x => if decide (x = leaveLabelExec T₁ T₂) then 0 else x
-            else T₁).getD i.1 0 :=
-        List.getD_append _ _ 0 i.1 (by rw [hlhs_len]; exact hi)
-      rw [hget_app]
-      have hord := orderIsoOfFin_finsetOfList hsort₁ hlt₁ hlen₁ hcard₁ ⟨i.1, hi⟩
+      conv_lhs => rw [hi', finSumFinEquiv_symm_of_lt hi]
+      dsimp only [halfEdgeList]
+      rw [List.getD_append _ _ 0 i.1 (by rw [hlhs_len]; exact hi)]
       cases side
       · simp only [LemkeHowson.halfEdgeFun, Sum.elim_inl, Bool.not_false, ↓reduceIte]
-        rw [list_getD_map_lt _ T₁ 0 0 (by rw [hlen₁]; exact hi)]
-        have hiff : (T₁s.orderIsoOfFin hcard₁ ⟨i.1, hi⟩).1 = LemkeHowson.leaveLabel T₁s T₂s k₀ ↔
-            T₁.getD i.1 0 = leaveLabelExec T₁ T₂ :=
-          ⟨fun h => by rw [← hord, h, hleave],
-           fun h => finSumFinEquiv.injective (Fin.ext (hord.trans (h.trans hleave.symm)))⟩
-        by_cases hc_eq : T₁.getD i.1 0 = leaveLabelExec T₁ T₂
-        · have hk : ((T₁s.orderIsoOfFin hcard₁).toEquiv ⟨i.1, hi⟩ :
-              Fin c.rows ⊕ Fin c.cols) = LemkeHowson.leaveLabel T₁s T₂s k₀ := hiff.2 hc_eq
-          rw [ite_eq_left hk, ite_eq_left (decide_eq_true hc_eq)]
-          rfl
-        · have hne_k : ((T₁s.orderIsoOfFin hcard₁).toEquiv ⟨i.1, hi⟩ : Fin c.rows ⊕ Fin c.cols) ≠
-              LemkeHowson.leaveLabel T₁s T₂s k₀ := fun h => hc_eq (hiff.1 h)
-          have hne_c : decide (T₁.getD i.1 0 = leaveLabelExec T₁ T₂) ≠ true := fun h =>
-            hc_eq (of_decide_eq_true h)
-          rw [ite_eq_right hne_k, ite_eq_right hne_c]
-          exact hord
+        exact hact_val hsort₁ hlt₁ hlen₁ hcard₁ ⟨i.1, hi⟩
       · simp only [LemkeHowson.halfEdgeFun, Sum.elim_inl, Bool.not_true, Bool.false_eq_true,
           ↓reduceIte]
-        exact hord
+        exact orderIsoOfFin_finsetOfList hsort₁ hlt₁ hlen₁ hcard₁ ⟨i.1, hi⟩
     · have hge : c.rows ≤ i.1 := Nat.le_of_not_lt hi
-      rw [finSumFinEquiv_symm_of_le hge i.2]
-      have hget_app : (halfEdgeList T₁ T₂ side).getD i.1 0 =
-          (if side then T₂.map fun x => if decide (x = leaveLabelExec T₁ T₂) then 0 else x
-            else T₂).getD (i.1 - c.rows) 0 := by
-        dsimp only [halfEdgeList]
-        rw [List.getD_append_right _ _ 0 i.1 (by rw [hlhs_len]; exact hge), hlhs_len]
-      rw [hget_app]
       have hsub : i.1 - c.rows < c.cols := by omega
-      have hord := orderIsoOfFin_finsetOfList hsort₂ hlt₂ hlen₂ hcard₂ ⟨i.1 - c.rows, hsub⟩
+      rw [finSumFinEquiv_symm_of_le hge i.2]
+      dsimp only [halfEdgeList]
+      rw [List.getD_append_right _ _ 0 i.1 (by rw [hlhs_len]; exact hge), hlhs_len]
       cases side
       · simp only [LemkeHowson.halfEdgeFun, Sum.elim_inr, Bool.false_eq_true, ↓reduceIte]
-        exact hord
+        exact orderIsoOfFin_finsetOfList hsort₂ hlt₂ hlen₂ hcard₂ ⟨i.1 - c.rows, hsub⟩
       · simp only [LemkeHowson.halfEdgeFun, Sum.elim_inr, ↓reduceIte]
-        rw [list_getD_map_lt _ T₂ 0 0 (by rw [hlen₂]; exact hsub)]
-        have hiff : (T₂s.orderIsoOfFin hcard₂ ⟨i.1 - c.rows, hsub⟩).1 =
-              LemkeHowson.leaveLabel T₁s T₂s k₀ ↔
-            T₂.getD (i.1 - c.rows) 0 = leaveLabelExec T₁ T₂ :=
-          ⟨fun h => by rw [← hord, h, hleave],
-           fun h => finSumFinEquiv.injective (Fin.ext (hord.trans (h.trans hleave.symm)))⟩
-        by_cases hc_eq : T₂.getD (i.1 - c.rows) 0 = leaveLabelExec T₁ T₂
-        · have hk : ((T₂s.orderIsoOfFin hcard₂).toEquiv ⟨i.1 - c.rows, hsub⟩ :
-              Fin c.rows ⊕ Fin c.cols) = LemkeHowson.leaveLabel T₁s T₂s k₀ := hiff.2 hc_eq
-          rw [ite_eq_left hk, ite_eq_left (decide_eq_true hc_eq)]
-          rfl
-        · have hne_k : ((T₂s.orderIsoOfFin hcard₂).toEquiv ⟨i.1 - c.rows, hsub⟩ :
-              Fin c.rows ⊕ Fin c.cols) ≠ LemkeHowson.leaveLabel T₁s T₂s k₀ :=
-            fun h => hc_eq (hiff.1 h)
-          have hne_c : decide (T₂.getD (i.1 - c.rows) 0 = leaveLabelExec T₁ T₂) ≠ true :=
-            fun h => hc_eq (of_decide_eq_true h)
-          rw [ite_eq_right hne_k, ite_eq_right hne_c]
-          exact hord
+        exact hact_val hsort₂ hlt₂ hlen₂ hcard₂ ⟨i.1 - c.rows, hsub⟩
   have hdet_perm : detRows (permRows (c.rows + c.cols) (halfEdgeList T₁ T₂ side)) =
       (Equiv.Perm.sign π : ℤ) :=
-    (detRows_permRows σ hσ_list).trans hσ_sign
+    (detRows_permRows σ hσ_list).trans (by rw [Equiv.Perm.sign_permCongr])
   have hsub₁ := subRows_eq_basisMat (intMatP (posMatB c)) (allRowsP c) (allRowsP_spec c)
     hsort₁ hlt₁ hlen₁
   have hsub₂ := subRows_eq_basisMat (intMatQ (posMatA c)) (allRowsQ c) (allRowsQ_spec c)
     hsort₂ hlt₂ hlen₂
-  have hm₁_det :
-      (((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ).submatrix
-        (fun i => (T₁s.orderIsoOfFin hcard₁ i : Fin c.rows ⊕ Fin c.cols)) (Equiv.refl _)).det =
-        ((basisMat (intMatP (posMatB c)) T₁s hcard₁).det : ℚ) := by
-    rw [show ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ).submatrix
-          (fun i => (T₁s.orderIsoOfFin hcard₁ i : Fin c.rows ⊕ Fin c.cols)) (Equiv.refl _) =
-          (basisMat (intMatP (posMatB c)) T₁s hcard₁).map Int.cast from rfl, ← Int.cast_det]
-  have hm₂_det :
-      (((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ).submatrix
-        (fun j => (T₂s.orderIsoOfFin hcard₂ j : Fin c.rows ⊕ Fin c.cols)) (Equiv.refl _)).det =
-        ((basisMat (intMatQ (posMatA c)) T₂s hcard₂).det : ℚ) := by
-    rw [show ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ).submatrix
-          (fun j => (T₂s.orderIsoOfFin hcard₂ j : Fin c.rows ⊕ Fin c.cols)) (Equiv.refl _) =
-          (basisMat (intMatQ (posMatA c)) T₂s hcard₂).map Int.cast from rfl, ← Int.cast_det]
   dsimp only [halfEdgeIndexExec]
-  dsimp only [T₁s, T₂s] at hbij hm₁_det hm₂_det ⊢
-  rw [hdet_perm, hsub₁.2.2, hsub₂.2.2, hm₁_det, hm₂_det,
+  dsimp only [T₁s, T₂s] at hbij ⊢
+  rw [hdet_perm, hsub₁.2.2, hsub₂.2.2,
+    det_map_intCast_submatrix_orderIso (intMatP (posMatB c)) _ hcard₁,
+    det_map_intCast_submatrix_orderIso (intMatQ (posMatA c)) _ hcard₂,
     LemkeHowson.signOfK_intCast, LemkeHowson.signOfK_intCast]
 
 /-- Executable check that `u` encodes a valid `k₀ = 0`-almost-completely-labelled basis pair. -/
@@ -2925,6 +2828,27 @@ private lemma length_succ (c : BimatrixCode) (u : List Bool) (hu : u.length = ve
     (succ (c, u)).length = vertexLen c :=
   length_stepGraph false c u hu
 
+private lemma isFeasibleBasis_of_basisMat_eq_neg_one {m n k : ℕ}
+    {M_int : Matrix (Fin m ⊕ Fin n) (Fin k) ℤ} {b_int : Fin m ⊕ Fin n → ℤ}
+    {Ts : Finset (Fin m ⊕ Fin n)} {hcard : Ts.card = k}
+    (hB : basisMat M_int Ts hcard = -1)
+    (hb0 : ∀ i : Fin k, b_int (Ts.orderIsoOfFin hcard i).1 = 0)
+    (hb_nn : ∀ r, 0 ≤ b_int r) :
+    IsFeasibleBasis M_int b_int Ts hcard := by
+  have hdet : (basisMat M_int Ts hcard).det ≠ 0 := by
+    rw [hB, Matrix.det_neg, Matrix.det_one, Fintype.card_fin, mul_one]
+    exact pow_ne_zero _ (by decide)
+  have hcv : cramerVec M_int b_int Ts hcard = 0 := by
+    have hmul : basisMat M_int Ts hcard *ᵥ cramerVec M_int b_int Ts hcard = 0 := by
+      dsimp only [cramerVec]
+      rw [Matrix.mulVec_cramer]
+      ext i
+      simp only [Pi.smul_apply, smul_eq_mul, Pi.zero_apply, hb0 i, mul_zero]
+    rwa [hB, Matrix.neg_mulVec, Matrix.one_mulVec, neg_eq_zero] at hmul
+  refine ⟨hdet, fun r => ?_⟩
+  rw [hcv, dotProduct_zero, mul_zero]
+  exact mul_nonneg (abs_nonneg _) (hb_nn r)
+
 private lemma isValidNodeExec_zeroVertex {c : BimatrixCode} (hc : c.WellFormed) :
     isValidNodeExec c (zeroVertex (vertexLen c)) = true := by
   have hwb : c.wellFormedB = true := (wellFormed_iff_wellFormedB c).1 hc
@@ -2953,9 +2877,7 @@ private lemma isValidNodeExec_zeroVertex {c : BimatrixCode} (hc : c.WellFormed) 
       ((finsetOfList c.rows c.cols (List.range c.rows)).orderIsoOfFin hcard₁ i).1 = Sum.inl i := by
     have ho := orderIsoOfFin_finsetOfList hsort₁ hlt₁ hlen₁ hcard₁ i
     rw [List.getD_eq_getElem _ 0 (by simp [i.2]), List.getElem_range] at ho
-    apply finSumFinEquiv.injective
-    ext
-    exact ho
+    exact finSumFinEquiv.injective (Fin.ext ho)
   have ho₂ (i : Fin c.cols) :
       ((finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))).orderIsoOfFin
         hcard₂ i).1 = Sum.inr i := by
@@ -2970,78 +2892,27 @@ private lemma isValidNodeExec_zeroVertex {c : BimatrixCode} (hc : c.WellFormed) 
     ext i j
     dsimp only [basisMat, Matrix.submatrix_apply, id_eq]
     rw [ho₁ i, intMatP_inl]
-    by_cases hij : i = j
-    · subst hij; simp
-    · simp [hij]
+    by_cases hij : i = j <;> simp [hij]
   have hB₂_neg : basisMat (intMatQ (posMatA c))
       (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂ = -1 := by
     ext i j
     dsimp only [basisMat, Matrix.submatrix_apply, id_eq]
     rw [ho₂ i, intMatQ_inr]
-    by_cases hij : i = j
-    · subst hij; simp
-    · simp [hij]
+    by_cases hij : i = j <;> simp [hij]
   have hfb₁ : IsFeasibleBasis (intMatP (posMatB c))
       (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-      (finsetOfList c.rows c.cols (List.range c.rows)) hcard₁ := by
-    have hdet : (basisMat (intMatP (posMatB c))
-        (finsetOfList c.rows c.cols (List.range c.rows)) hcard₁).det ≠ 0 := by
-      rw [hB₁_neg, Matrix.det_neg, Matrix.det_one, Fintype.card_fin, mul_one]
-      exact pow_ne_zero _ (by decide)
-    have hcv : cramerVec (intMatP (posMatB c))
-        (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-        (finsetOfList c.rows c.cols (List.range c.rows)) hcard₁ = 0 := by
-      have hmul : (basisMat (intMatP (posMatB c))
-          (finsetOfList c.rows c.cols (List.range c.rows)) hcard₁) *ᵥ
-            cramerVec (intMatP (posMatB c))
-              (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-              (finsetOfList c.rows c.cols (List.range c.rows)) hcard₁ = 0 := by
-        dsimp only [cramerVec]
-        rw [Matrix.mulVec_cramer]
-        ext i
-        simp only [Pi.smul_apply, smul_eq_mul, Pi.zero_apply, ho₁ i, pertRhsPInt, Sum.elim_inl,
-          mul_zero]
-      rw [hB₁_neg, Matrix.neg_mulVec, Matrix.one_mulVec, neg_eq_zero] at hmul
-      exact hmul
-    refine ⟨hdet, fun r => ?_⟩
-    rw [hcv, dotProduct_zero, mul_zero]
-    have hD_pos : 0 ≤ |(basisMat (intMatP (posMatB c))
-        (finsetOfList c.rows c.cols (List.range c.rows)) hcard₁).det| := abs_nonneg _
-    have hK_nn : 0 ≤ pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r := by
-      cases r <;> simp only [pertRhsPInt, Sum.elim_inl, Sum.elim_inr, Pi.zero_apply, le_refl]
-      positivity
-    exact mul_nonneg hD_pos hK_nn
+      (finsetOfList c.rows c.cols (List.range c.rows)) hcard₁ :=
+    isFeasibleBasis_of_basisMat_eq_neg_one hB₁_neg (fun i => by simp [ho₁ i, pertRhsPInt])
+      fun r => by
+        cases r <;> simp only [pertRhsPInt, Sum.elim_inl, Sum.elim_inr, Pi.zero_apply, le_refl]
+        positivity
   have hfb₂ : IsFeasibleBasis (intMatQ (posMatA c))
       (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-      (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂ := by
-    have hdet : (basisMat (intMatQ (posMatA c))
-        (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂).det ≠ 0 := by
-      rw [hB₂_neg, Matrix.det_neg, Matrix.det_one, Fintype.card_fin, mul_one]
-      exact pow_ne_zero _ (by decide)
-    have hcv : cramerVec (intMatQ (posMatA c))
-        (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-        (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂ = 0 := by
-      have hmul : (basisMat (intMatQ (posMatA c))
-          (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂) *ᵥ
-            cramerVec (intMatQ (posMatA c))
-              (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-              (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂ = 0 := by
-        dsimp only [cramerVec]
-        rw [Matrix.mulVec_cramer]
-        ext i
-        simp only [Pi.smul_apply, smul_eq_mul, Pi.zero_apply, ho₂ i, pertRhsQInt, Sum.elim_inr,
-          mul_zero]
-      rw [hB₂_neg, Matrix.neg_mulVec, Matrix.one_mulVec, neg_eq_zero] at hmul
-      exact hmul
-    refine ⟨hdet, fun r => ?_⟩
-    rw [hcv, dotProduct_zero, mul_zero]
-    have hD_pos : 0 ≤ |(basisMat (intMatQ (posMatA c))
-        (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂).det| :=
-      abs_nonneg _
-    have hK_nn : 0 ≤ pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r := by
-      cases r <;> simp only [pertRhsQInt, Sum.elim_inl, Sum.elim_inr, Pi.zero_apply, le_refl]
-      positivity
-    exact mul_nonneg hD_pos hK_nn
+      (finsetOfList c.rows c.cols ((List.range c.cols).map (· + c.rows))) hcard₂ :=
+    isFeasibleBasis_of_basisMat_eq_neg_one hB₂_neg (fun i => by simp [ho₂ i, pertRhsQInt])
+      fun r => by
+        cases r <;> simp only [pertRhsQInt, Sum.elim_inl, Sum.elim_inr, Pi.zero_apply, le_refl]
+        positivity
   have hf1 : isFeasibleBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c)
       (List.range c.rows) = true :=
     (isFeasibleBasisRows_iff _ _ (allRowsP c) (allRhsP c) (allRowsP_spec c) (allRhsP_spec c)
@@ -3168,39 +3039,33 @@ private lemma halfEdgeIndex_congr {m n : ℕ}
   subst h1 h2
   rfl
 
+private abbrev pertMatPQ (c : BimatrixCode) :
+    Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ :=
+  (intMatP (posMatB c)).map Int.cast
+
+private abbrev pertRhsPQ (c : BimatrixCode) : Fin c.rows ⊕ Fin c.cols → ℚ :=
+  fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)
+
+private abbrev pertMatQQ (c : BimatrixCode) :
+    Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.cols) ℚ :=
+  (intMatQ (posMatA c)).map Int.cast
+
+private abbrev pertRhsQQ (c : BimatrixCode) : Fin c.rows ⊕ Fin c.cols → ℚ :=
+  fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)
+
 private lemma decodeT₁_encodeNodes_eq {c : BimatrixCode} {v : List Bool} {L₁ L₂ : List ℕ}
     (hv : v = encodeNodes c L₁ L₂) (hsort : L₁.Pairwise (· < ·))
-    (hlt : ∀ k ∈ L₁, k < c.rows + c.cols) : decodeT₁ c v = L₁ := by
-  refine (List.perm_of_nodup_nodup_toFinset_eq (decodeT₁_sorted c v).nodup
-    hsort.nodup ?_).eq_of_pairwise
-      (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2)) (decodeT₁_sorted c v) hsort
-  ext k
-  simp only [List.mem_toFinset]
-  constructor
-  · intro hk
-    have hklt := decodeT₁_lt c v hk
-    rw [hv] at hk
-    exact (decodeT₁_encodeNodes L₁ L₂ hklt).1 hk
-  · intro hk
-    rw [hv]
-    exact (decodeT₁_encodeNodes L₁ L₂ (hlt k hk)).2 hk
+    (hlt : ∀ k ∈ L₁, k < c.rows + c.cols) : decodeT₁ c v = L₁ :=
+  eq_of_pairwise_lt_of_mem_iff (decodeT₁_sorted c v) hsort fun k =>
+    ⟨fun hk => (decodeT₁_encodeNodes L₁ L₂ (decodeT₁_lt c v hk)).1 (hv ▸ hk),
+     fun hk => hv ▸ (decodeT₁_encodeNodes L₁ L₂ (hlt k hk)).2 hk⟩
 
 private lemma decodeT₂_encodeNodes_eq {c : BimatrixCode} {v : List Bool} {L₁ L₂ : List ℕ}
     (hv : v = encodeNodes c L₁ L₂) (hsort : L₂.Pairwise (· < ·))
-    (hlt : ∀ k ∈ L₂, k < c.rows + c.cols) : decodeT₂ c v = L₂ := by
-  refine (List.perm_of_nodup_nodup_toFinset_eq (decodeT₂_sorted c v).nodup
-    hsort.nodup ?_).eq_of_pairwise
-      (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2)) (decodeT₂_sorted c v) hsort
-  ext k
-  simp only [List.mem_toFinset]
-  constructor
-  · intro hk
-    have hklt := decodeT₂_lt c v hk
-    rw [hv] at hk
-    exact (decodeT₂_encodeNodes L₁ L₂ hklt).1 hk
-  · intro hk
-    rw [hv]
-    exact (decodeT₂_encodeNodes L₁ L₂ (hlt k hk)).2 hk
+    (hlt : ∀ k ∈ L₂, k < c.rows + c.cols) : decodeT₂ c v = L₂ :=
+  eq_of_pairwise_lt_of_mem_iff (decodeT₂_sorted c v) hsort fun k =>
+    ⟨fun hk => (decodeT₂_encodeNodes L₁ L₂ (decodeT₂_lt c v hk)).1 (hv ▸ hk),
+     fun hk => hv ▸ (decodeT₂_encodeNodes L₁ L₂ (hlt k hk)).2 hk⟩
 
 private lemma almostComplete_all_range_eq_true (m n : ℕ) (L₁ L₂ : List ℕ)
     {k₀ : Fin m ⊕ Fin n} (hk₀ : (finSumFinEquiv k₀).1 = 0)
@@ -3222,6 +3087,240 @@ private lemma almostComplete_all_range_eq_true (m n : ℕ) (L₁ L₂ : List ℕ
     · exact .inl (.inr (by simpa [Equiv.apply_symm_apply] using mem_finsetOfList.1 h1))
     · exact .inr (by simpa [Equiv.apply_symm_apply] using mem_finsetOfList.1 h2)
 
+private lemma isValidNodeExec_of_encodeNodes {c : BimatrixCode} (hc : c.WellFormed)
+    {v : List Bool} {L₁ L₂ : List ℕ} (hv : v = encodeNodes c L₁ L₂)
+    (hdec₁ : decodeT₁ c v = L₁) (hdec₂ : decodeT₂ c v = L₂)
+    (hlen₁ : L₁.length = c.rows) (hlen₂ : L₂.length = c.cols)
+    (hf₁ : isFeasibleBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) L₁ = true)
+    (hf₂ : isFeasibleBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) L₂ = true)
+    (hacl : ∀ k : Fin c.rows ⊕ Fin c.cols, k ≠ .inl ⟨0, hc.1⟩ →
+      k ∈ finsetOfList c.rows c.cols L₁ ∨ k ∈ finsetOfList c.rows c.cols L₂) :
+    isValidNodeExec c v = true := by
+  have hwb : c.wellFormedB = true := (wellFormed_iff_wellFormedB c).1 hc
+  have hlen_v : v.length = 2 * (c.rows + c.cols) := hv ▸ length_encodeNodes c L₁ L₂
+  have hall := almostComplete_all_range_eq_true c.rows c.cols L₁ L₂ rfl hacl
+  simp only [isValidNodeExec, hwb, hlen_v, hdec₁, hdec₂, hlen₁, hlen₂, hall, hf₁, hf₂,
+    decide_true, Bool.and_self]
+
+private lemma leaveLabel_comm {κ : Type*} [DecidableEq κ] [LinearOrder κ]
+    (T₁ T₂ : Finset κ) (k₀ : κ) :
+    LemkeHowson.leaveLabel T₁ T₂ k₀ = LemkeHowson.leaveLabel T₂ T₁ k₀ := by
+  simp only [LemkeHowson.leaveLabel, Finset.union_comm T₁ T₂, Finset.inter_comm T₁ T₂]
+
+private lemma halfEdgeIndexExec_eq_node {c : BimatrixCode} (hc : c.WellFormed)
+    {T₁ T₂ : List ℕ} (hsort₁ : T₁.Pairwise (· < ·)) (hsort₂ : T₂.Pairwise (· < ·))
+    (hlt₁ : ∀ r ∈ T₁, r < c.rows + c.cols) (hlt₂ : ∀ r ∈ T₂, r < c.rows + c.cols)
+    (hlen₁ : T₁.length = c.rows) (hlen₂ : T₂.length = c.cols)
+    (p : LemkeHowson.Node (pertMatPQ c) (pertRhsPQ c) (pertMatQQ c) (pertRhsQQ c) (.inl ⟨0, hc.1⟩))
+    (htx : tightRows (pertMatPQ c) (pertRhsPQ c) p.x = finsetOfList c.rows c.cols T₁)
+    (hty : tightRows (pertMatQQ c) (pertRhsQQ c) p.y = finsetOfList c.rows c.cols T₂)
+    (hT₁p : (tightRows (pertMatPQ c) (pertRhsPQ c) p.x).card = c.rows)
+    (hT₂p : (tightRows (pertMatQQ c) (pertRhsQQ c) p.y).card = c.cols)
+    (side : Bool)
+    (hact : if side then .inl ⟨0, hc.1⟩ ∉ finsetOfList c.rows c.cols T₁
+      else .inl ⟨0, hc.1⟩ ∉ finsetOfList c.rows c.cols T₂) :
+    halfEdgeIndexExec c T₁ T₂ side =
+      LemkeHowson.halfEdgeIndex (pertMatPQ c) (pertMatQQ c)
+        (Equiv.refl _) (Equiv.refl _) (Equiv.refl _)
+        (tightRows (pertMatPQ c) (pertRhsPQ c) p.x)
+        (tightRows (pertMatQQ c) (pertRhsQQ c) p.y)
+        hT₁p hT₂p (.inl ⟨0, hc.1⟩) side := by
+  have hacl : ∀ k : Fin c.rows ⊕ Fin c.cols, k ≠ .inl ⟨0, hc.1⟩ →
+      k ∈ finsetOfList c.rows c.cols T₁ ∨ k ∈ finsetOfList c.rows c.cols T₂ := by
+    intro k hk
+    rw [← htx, ← hty]
+    exact p.almostCompletelyLabeled k hk
+  rw [halfEdgeIndexExec_eq c hc.1 hsort₁ hsort₂ hlt₁ hlt₂ hlen₁ hlen₂ side hacl hact]
+  exact halfEdgeIndex_congr (pertMatPQ c) (pertMatQQ c) _ hT₁p _ hT₂p htx.symm hty.symm
+    (.inl ⟨0, hc.1⟩) side
+
+private lemma exists_node_halfEdgeIndexExec_eq {c : BimatrixCode} (hc : c.WellFormed)
+    {u : List Bool} (hu : isValidNodeExec c u = true) :
+    ∃ (p : LemkeHowson.Node (pertMatPQ c) (pertRhsPQ c) (pertMatQQ c) (pertRhsQQ c)
+        (.inl ⟨0, hc.1⟩))
+      (hT₁p : (tightRows (pertMatPQ c) (pertRhsPQ c) p.x).card = c.rows)
+      (hT₂p : (tightRows (pertMatQQ c) (pertRhsQQ c) p.y).card = c.cols),
+      tightRows (pertMatPQ c) (pertRhsPQ c) p.x = finsetOfList c.rows c.cols (decodeT₁ c u) ∧
+      tightRows (pertMatQQ c) (pertRhsQQ c) p.y = finsetOfList c.rows c.cols (decodeT₂ c u) ∧
+      ∀ side : Bool,
+        (if side then 0 ∉ decodeT₁ c u else 0 ∉ decodeT₂ c u) →
+        halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) side =
+          LemkeHowson.halfEdgeIndex (pertMatPQ c) (pertMatQQ c)
+            (Equiv.refl _) (Equiv.refl _) (Equiv.refl _)
+            (tightRows (pertMatPQ c) (pertRhsPQ c) p.x)
+            (tightRows (pertMatQQ c) (pertRhsQQ c) p.y)
+            hT₁p hT₂p (.inl ⟨0, hc.1⟩) side := by
+  obtain ⟨_, hlen₁, hlen₂, _, hcard₁, hcard₂, _, _⟩ := validNode_props hc hu
+  obtain ⟨_, _, p, htx, hty, _, _⟩ := node_of_isValidNodeExec hc hu
+  have hT₁p : (tightRows (pertMatPQ c) (pertRhsPQ c) p.x).card = c.rows := by
+    rw [htx]; exact hcard₁
+  have hT₂p : (tightRows (pertMatQQ c) (pertRhsQQ c) p.y).card = c.cols := by
+    rw [hty]; exact hcard₂
+  refine ⟨p, hT₁p, hT₂p, htx, hty, fun side h0 => ?_⟩
+  refine halfEdgeIndexExec_eq_node hc (decodeT₁_sorted c u) (decodeT₂_sorted c u)
+    (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr)
+    hlen₁ hlen₂ p htx hty hT₁p hT₂p side ?_
+  cases side <;> intro h <;> exact h0 (mem_finsetOfList.1 h)
+
+private lemma halfEdgeIndexExec_true_eq_neg_false {c : BimatrixCode} (hc : c.WellFormed)
+    {u : List Bool} (hu : isValidNodeExec c u = true)
+    (h01 : 0 ∉ decodeT₁ c u) (h02 : 0 ∉ decodeT₂ c u) :
+    halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) true =
+      -halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false := by
+  obtain ⟨p, hT₁p, hT₂p, htx, hty, hexec⟩ := exists_node_halfEdgeIndexExec_eq hc hu
+  rw [hexec true h01, hexec false h02]
+  exact LemkeHowson.halfEdgeIndex_true_eq_neg_false (Equiv.refl _) (Equiv.refl _) (Equiv.refl _)
+    (Fintype.card_sum.trans (by simp)) p (hT₁ := hT₁p) (hT₂ := hT₂p) fun hcl => by
+      rcases (LemkeHowson.completelyLabeled_iff.1 hcl) (.inl ⟨0, hc.1⟩) with h1 | h2
+      · exact h01 (mem_finsetOfList.1 (by rwa [htx] at h1))
+      · exact h02 (mem_finsetOfList.1 (by rwa [hty] at h2))
+
+private lemma halfEdgeIndexExec_eq_targetSign_or_neg {c : BimatrixCode} (hc : c.WellFormed)
+    {u : List Bool} (hu : isValidNodeExec c u = true) (h02 : 0 ∉ decodeT₂ c u) :
+    halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false = targetSign c ∨
+      halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false = -targetSign c := by
+  obtain ⟨p, hT₁p, hT₂p, _, hty, hexec⟩ := exists_node_halfEdgeIndexExec_eq hc hu
+  set idx := LemkeHowson.halfEdgeIndex (pertMatPQ c) (pertMatQQ c)
+    (Equiv.refl _) (Equiv.refl _) (Equiv.refl _)
+    (tightRows (pertMatPQ c) (pertRhsPQ c) p.x) (tightRows (pertMatQQ c) (pertRhsQQ c) p.y)
+    hT₁p hT₂p (.inl ⟨0, hc.1⟩) false
+  have hne0 : idx ≠ 0 := LemkeHowson.halfEdgeIndex_ne_zero (Equiv.refl _) (Equiv.refl _)
+    (Equiv.refl _) (Fintype.card_sum.trans (by simp)) p (hT₁ := hT₁p) (hT₂ := hT₂p)
+    (side := false) fun h => h02 (mem_finsetOfList.1 (by rwa [hty] at h))
+  have hs1 (u : ℤˣ) : |(u : ℤ)| ≤ 1 := by rcases Int.units_eq_one_or u with rfl | rfl <;> norm_num
+  have hs2 (x : ℚ) : |LemkeHowson.signOfK x| ≤ 1 := by
+    simp only [LemkeHowson.signOfK]; cases SignType.sign x <;> norm_num
+  have hle_abs : |idx| ≤ 1 := by
+    simp only [idx, LemkeHowson.halfEdgeIndex]
+    split_ifs
+    · rw [abs_mul, abs_mul]
+      exact mul_le_mul (mul_le_mul (hs1 _) (hs2 _) (abs_nonneg _) (by norm_num))
+        (hs2 _) (abs_nonneg _) (by norm_num)
+    · norm_num
+  have habs1 : |halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false| = 1 :=
+    (congrArg abs (hexec false h02)).trans
+      (le_antisymm hle_abs (Int.add_one_le_iff.2 (abs_pos.2 hne0)))
+  rw [abs_eq (by norm_num : (0 : ℤ) ≤ 1)] at habs1
+  have hts := targetSign_eq c
+  rcases neg_one_pow_eq_or ℤ (c.rows + c.cols) with hts1 | hts1 <;> rw [hts1] at hts <;>
+    rcases habs1 with h1 | h1 <;> [exact .inl (by omega); exact .inr (by omega);
+      exact .inr (by omega); exact .inl (by omega)]
+
+private lemma pivotBasisRows_roundTrip {m n k kU : ℕ}
+    (M_int : Matrix (Fin m ⊕ Fin n) (Fin k) ℤ) (b_int : Fin m ⊕ Fin n → ℤ)
+    (allRows : List (List ℤ)) (rhsAll : List ℤ)
+    (hall : ∀ (r : Fin (m + n)) (j : Fin k),
+      rowEntry allRows r.1 j.1 = M_int (finSumFinEquiv.symm r) j)
+    (hrhs : ∀ (r : Fin (m + n)), rhsAll.getD r.1 0 = b_int (finSumFinEquiv.symm r))
+    (hnd : IsNondegenerateSystem (M_int.map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin k) ℚ)
+      (fun r => (b_int r : ℚ)))
+    (hrec : ∀ v : Fin k → ℚ,
+      (M_int.map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin k) ℚ) *ᵥ v ≤ 0 → v = 0)
+    (hsum_card : Fintype.card (Fin m ⊕ Fin n) = k + kU)
+    {T : List ℕ} (hsort : T.Pairwise (· < ·)) (hlt : ∀ r ∈ T, r < m + n) (hlen : T.length = k)
+    (hcard : (finsetOfList m n T).card = k)
+    (hfb : IsFeasibleBasis M_int b_int (finsetOfList m n T) hcard)
+    {px : Fin k → ℚ} (hpx_v : IsVertex (M_int.map Int.cast) (fun r => (b_int r : ℚ)) px)
+    (htx : tightRows (M_int.map Int.cast) (fun r => (b_int r : ℚ)) px = finsetOfList m n T)
+    (hpx_eq : px = ratBasisSol M_int b_int (finsetOfList m n T) hcard)
+    {Us : Finset (Fin m ⊕ Fin n)} (hcardU : Us.card = kU)
+    {k₀ : Fin m ⊕ Fin n} (hk₀_not_U : k₀ ∉ Us)
+    (hacl : ∀ r : Fin m ⊕ Fin n, r ≠ k₀ → r ∈ finsetOfList m n T ∨ r ∈ Us) :
+    let l' := LemkeHowson.leaveLabel (finsetOfList m n T) Us k₀
+    let T' := pivotBasisRows k (m + n) allRows rhsAll T (finSumFinEquiv l').1
+    let qx := pivotVertex (M_int.map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin k) ℚ)
+      (fun r => (b_int r : ℚ)) px l'
+    let m' := LemkeHowson.leaveLabel (finsetOfList m n T') Us k₀
+    T'.Pairwise (· < ·) ∧ (∀ r ∈ T', r < m + n) ∧ T'.length = k ∧ T' ≠ T ∧
+      isFeasibleBasisRows k (m + n) allRows rhsAll T' = true ∧
+      (∀ r : Fin m ⊕ Fin n, r ≠ k₀ → r ∈ finsetOfList m n T' ∨ r ∈ Us) ∧
+      IsVertex (M_int.map Int.cast) (fun r => (b_int r : ℚ)) qx ∧
+      qx ≠ px ∧
+      VertexAdj (M_int.map Int.cast) (fun r => (b_int r : ℚ)) px qx ∧
+      (∃ _ : (finsetOfList m n T').card = k,
+        finsetOfList m n T' = tightRows (M_int.map Int.cast) (fun r => (b_int r : ℚ)) qx) ∧
+      pivotBasisRows k (m + n) allRows rhsAll T' (finSumFinEquiv m').1 = T := by
+  intro l' T' qx m'
+  set M_Q : Matrix (Fin m ⊕ Fin n) (Fin k) ℚ := M_int.map Int.cast
+  set b_Q : Fin m ⊕ Fin n → ℚ := fun r => (b_int r : ℚ)
+  have hl'_in_Ts : l' ∈ finsetOfList m n T := by
+    by_cases hk₀_in : k₀ ∈ finsetOfList m n T
+    · have hk₀_u : k₀ ∈ finsetOfList m n T ∪ Us := Finset.mem_union.2 (.inl hk₀_in)
+      dsimp only [l', LemkeHowson.leaveLabel]
+      rwa [ite_eq_left hk₀_u]
+    · exact (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard hcardU
+        hacl (Finset.notMem_union.2 ⟨hk₀_in, hk₀_not_U⟩)).1).1
+  have hpiv := pivotBasisRows_spec M_int b_int allRows rhsAll hall hrhs hnd hrec
+    hsort hlt hlen hcard hfb hl'_in_Ts
+  dsimp only [l'] at hpiv
+  rw [← hpx_eq] at hpiv
+  obtain ⟨hT'_sort, hT'_lt, hT'_len, hcard', hfb', hT'_tight⟩ := hpiv
+  have hl'_in_px : l' ∈ tightRows M_Q b_Q px := htx ▸ hl'_in_Ts
+  obtain ⟨hqx_v, hqx_ne, hqx_sub⟩ := hpx_v.pivotVertex_spec hnd hrec hl'_in_px
+  have hT'_not_l' : l' ∉ finsetOfList m n T' := by
+    rw [hT'_tight]
+    exact hpx_v.notMem_tightRows_pivotVertex hnd hrec hl'_in_px
+  have hT'_ne : T' ≠ T := fun h => hT'_not_l' (h ▸ hl'_in_Ts)
+  have hf' : isFeasibleBasisRows k (m + n) allRows rhsAll T' = true :=
+    (isFeasibleBasisRows_iff M_int b_int allRows rhsAll hall hrhs hT'_sort hT'_lt hT'_len).2 hfb'
+  have hacl_q : ∀ r : Fin m ⊕ Fin n, r ≠ k₀ → r ∈ finsetOfList m n T' ∨ r ∈ Us := by
+    intro r hr
+    by_cases hrl : r = l'
+    · subst hrl
+      have hk₀_not_1 : k₀ ∉ finsetOfList m n T := fun h => hr <| by
+        have hk₀_u : k₀ ∈ finsetOfList m n T ∪ Us := Finset.mem_union.2 (.inl h)
+        dsimp only [l', LemkeHowson.leaveLabel]
+        exact ite_eq_left hk₀_u
+      exact .inr (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard hcardU
+        hacl (Finset.notMem_union.2 ⟨hk₀_not_1, hk₀_not_U⟩)).1).2
+    · rcases hacl r hr with h1 | h2
+      · exact .inl (hT'_tight ▸ hqx_sub (Finset.mem_erase.2 ⟨hrl, htx ▸ h1⟩))
+      · exact .inr h2
+  have hadj : VertexAdj M_Q b_Q px qx :=
+    (vertexAdj_iff_exists_pivotVertex hnd hrec hpx_v).2 ⟨l', hl'_in_px, rfl⟩
+  have hm'_in_T' : m' ∈ finsetOfList m n T' := by
+    by_cases hk₀_q : k₀ ∈ finsetOfList m n T'
+    · simp only [m', LemkeHowson.leaveLabel, ite_eq_left (Finset.mem_union.2 (.inl hk₀_q))]
+      exact hk₀_q
+    · exact (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard' hcardU
+        hacl_q (Finset.notMem_union.2 ⟨hk₀_q, hk₀_not_U⟩)).1).1
+  have hqm'_eq_px : pivotVertex M_Q b_Q qx m' = px := by
+    symm
+    refine hqx_v.eq_pivotVertex hnd hrec (hT'_tight ▸ hm'_in_T') hpx_v hqx_ne.symm ?_
+    rw [← hT'_tight, htx]
+    intro z hz
+    rw [Finset.mem_erase] at hz
+    have hnot_U : z ∉ Us := by
+      by_cases hzk₀ : z = k₀
+      · exact hzk₀ ▸ hk₀_not_U
+      · intro hz2
+        by_cases hk₀_q : k₀ ∈ finsetOfList m n T'
+        · have he := LemkeHowson.inter_eq_empty_of_mem_union hsum_card hcard' hcardU
+            hacl_q (Finset.mem_union.2 (.inl hk₀_q))
+          have hmem : z ∈ finsetOfList m n T' ∩ Us := Finset.mem_inter.2 ⟨hz.2, hz2⟩
+          rw [he] at hmem
+          exact Finset.notMem_empty z hmem
+        · exact hz.1 (Finset.mem_singleton.1 ((LemkeHowson.mem_inter_of_acl_not_mem hsum_card
+            hcard' hcardU hacl_q (Finset.notMem_union.2 ⟨hk₀_q, hk₀_not_U⟩)).2 ▸
+            Finset.mem_inter.2 ⟨hz.2, hz2⟩))
+    have hzk₀ : z ≠ k₀ := fun hzk => by
+      have hk₀_q : k₀ ∈ finsetOfList m n T' ∪ Us := Finset.mem_union.2 (.inl (hzk ▸ hz.2))
+      have hm_eq : m' = k₀ := by
+        dsimp only [m']
+        rw [LemkeHowson.leaveLabel, ite_eq_left hk₀_q]
+      exact hz.1 (hzk.trans hm_eq.symm)
+    exact (hacl z hzk₀).resolve_right hnot_U
+  have hpiv_back := pivotBasisRows_spec M_int b_int allRows rhsAll hall hrhs hnd hrec
+    hT'_sort hT'_lt hT'_len hcard' hfb' hm'_in_T'
+  have hrat_qx : ratBasisSol M_int b_int (finsetOfList m n T') hcard' = qx := by
+    apply (isVertex_ratBasisSol_of_isFeasibleBasis hfb' (K := ℚ)).1.eq_of_tightRows_eq
+    rw [tightRows_ratBasisSol_eq hfb' hnd, ← hT'_tight]
+  dsimp only at hpiv_back
+  rw [hrat_qx, hqm'_eq_px, htx] at hpiv_back
+  obtain ⟨hTb_sort, hTb_lt, _, _, _, hTb_fin⟩ := hpiv_back
+  exact ⟨hT'_sort, hT'_lt, hT'_len, hT'_ne, hf', hacl_q, hqx_v, hqx_ne, hadj,
+    ⟨hcard', hT'_tight⟩, eq_of_finsetOfList_eq hTb_sort hsort hTb_lt hlt hTb_fin⟩
+
 private lemma stepGraph_roundTrip {c : BimatrixCode} (hc : c.WellFormed) (wantNeg : Bool)
     {u : List Bool} (hu : isValidNodeExec c u = true)
     (hact :
@@ -3234,7 +3333,6 @@ private lemma stepGraph_roundTrip {c : BimatrixCode} (hc : c.WellFormed) (wantNe
     let v := stepGraph wantNeg c u
     isValidNodeExec c v = true ∧ v ≠ u ∧ stepGraph (!wantNeg) c v = u := by
   intro v
-  have hwb : c.wellFormedB = true := (wellFormed_iff_wellFormedB c).1 hc
   have hsum_card : Fintype.card (Fin c.rows ⊕ Fin c.cols) = c.rows + c.cols := by simp
   obtain ⟨hcard₁, hcard₂, p, htx, hty, hpx_eq, hpy_eq⟩ := node_of_isValidNodeExec hc hu
   obtain ⟨hlen_u, hlen₁, hlen₂, hacl, _, _, hfb₁, hfb₂⟩ := validNode_props hc hu
@@ -3248,8 +3346,13 @@ private lemma stepGraph_roundTrip {c : BimatrixCode} (hc : c.WellFormed) (wantNe
   have hw_opp : wanted' = -wanted := by cases wantNeg <;> simp [wanted, wanted']
   have hl_eq := leaveLabelExec_eq hc.1 (decodeT₁_sorted c u)
     (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr)
-  let l' := LemkeHowson.leaveLabel T₁s T₂s k₀
   have hvalid_b : (!isValidNodeExec c u) = false := by simp [hu]
+  have hf1_u : isFeasibleBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁ = true :=
+    (isFeasibleBasisRows_iff _ _ (allRowsP c) (allRhsP c) (allRowsP_spec c) (allRhsP_spec c)
+      (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr) hlen₁).2 hfb₁
+  have hf2_u : isFeasibleBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) T₂ = true :=
+    (isFeasibleBasisRows_iff _ _ (allRowsQ c) (allRhsQ c) (allRowsQ_spec c) (allRhsQ_spec c)
+      (decodeT₂_sorted c u) (fun _ hr => decodeT₂_lt c u hr) hlen₂).2 hfb₂
   by_cases hL : (!decide (0 ∈ T₂) && decide (halfEdgeIndexExec c T₁ T₂ false = wanted)) = true
   · have hv_eq : v = encodeNodes c
         (pivotBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁
@@ -3263,200 +3366,53 @@ private lemma stepGraph_roundTrip {c : BimatrixCode} (hc : c.WellFormed) (wantNe
       decide_eq_false_iff_not] at hL
     obtain ⟨h0_not_T₂, hidxL⟩ := hL
     have hk₀_not_T₂s : k₀ ∉ T₂s := fun h => h0_not_T₂ (mem_finsetOfList.1 h)
-    have hl'_in_T₁s : l' ∈ T₁s := by
-      by_cases hk₀_in : k₀ ∈ T₁s
-      · simp only [l', LemkeHowson.leaveLabel, ite_eq_left (Finset.mem_union.2 (.inl hk₀_in))]
-        exact hk₀_in
-      · exact (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard₁ hcard₂
-          hacl (Finset.notMem_union.2 ⟨hk₀_in, hk₀_not_T₂s⟩)).1).1
-    have hpiv := pivotBasisRows_spec (intMatP (posMatB c))
+    have hrt := pivotBasisRows_roundTrip (intMatP (posMatB c))
       (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
       (allRowsP c) (allRhsP c) (allRowsP_spec c) (allRhsP_spec c)
-      (pertP_nondegenerate hc) (pertP_recession hc)
-      (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr) hlen₁ hcard₁ hfb₁ hl'_in_T₁s
-    dsimp only [T₁, T₂, T₁s, T₂s, l'] at hpiv
-    rw [hl_eq, ← hpx_eq] at hpiv
-    obtain ⟨hT₁'_sort, hT₁'_lt, hT₁'_len, hcard₁', hfb₁', hT₁'_tight⟩ := hpiv
+      (pertP_nondegenerate hc) (pertP_recession hc) hsum_card
+      (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr) hlen₁ hcard₁ hfb₁
+      p.isVertex_x htx hpx_eq hcard₂ hk₀_not_T₂s hacl
+    dsimp only [T₁, T₂, T₁s, T₂s, k₀] at hrt
+    rw [hl_eq] at hrt
+    obtain ⟨hT₁'_sort, hT₁'_lt, hT₁'_len, hT₁'_ne, hf1', hacl_q, hqx_v, hqx_ne, hadj_x,
+      ⟨hcard₁', hT₁'_tight⟩, hstep_back⟩ := hrt
     let T₁' := pivotBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁
       (leaveLabelExec T₁ T₂)
-    let qx := pivotVertex
-      ((intMatP (posMatB c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ)
-      (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) p.x l'
-    have hl'_in_px := Eq.mp (congrArg (l' ∈ ·) htx.symm) hl'_in_T₁s
-    obtain ⟨hqx_v, hqx_ne, hqx_sub⟩ :=
-      p.isVertex_x.pivotVertex_spec (pertP_nondegenerate hc) (pertP_recession hc) hl'_in_px
-    have hT₁'_not_l' : l' ∉ finsetOfList c.rows c.cols T₁' := by
-      rw [hT₁'_tight]
-      exact p.isVertex_x.notMem_tightRows_pivotVertex (pertP_nondegenerate hc)
-        (pertP_recession hc) hl'_in_px
-    have hacl_q : ∀ k : Fin c.rows ⊕ Fin c.cols,
-        k ≠ k₀ → k ∈ finsetOfList c.rows c.cols T₁' ∨ k ∈ T₂s := by
-      intro k hk
-      by_cases hkl : k = l'
-      · subst hkl
-        have hk₀_not_1 : k₀ ∉ T₁s := fun h => hk (by
-          simp only [l', LemkeHowson.leaveLabel, ite_eq_left (Finset.mem_union.2 (.inl h))])
-        exact .inr (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard₁ hcard₂
-          hacl (Finset.notMem_union.2 ⟨hk₀_not_1, hk₀_not_T₂s⟩)).1).2
-      · rcases hacl k hk with h1 | h2
-        · refine .inl (hT₁'_tight ▸ hqx_sub (Finset.mem_erase.2 ⟨hkl, by rw [htx]; exact h1⟩))
-        · exact .inr h2
-    let q_node : LemkeHowson.Node
-        ((intMatP (posMatB c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ)
-        (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ))
-        ((intMatQ (posMatA c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.cols) ℚ)
-        (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) k₀ :=
-      ⟨qx, p.y, hqx_v, p.isVertex_y, fun k hk => by
-        rw [← hT₁'_tight, hty]
-        exact hacl_q k hk⟩
-    have hadj_pq : (LemkeHowson.graph
-        ((intMatP (posMatB c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ)
-        (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ))
-        ((intMatQ (posMatA c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.cols) ℚ)
-        (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) k₀).Adj
-        p q_node := by
-      rw [LemkeHowson.graph_adj]
-      refine .inr ⟨rfl, ?_⟩
-      exact (vertexAdj_iff_exists_pivotVertex (pertP_nondegenerate hc) (pertP_recession hc)
-        p.isVertex_x).2 ⟨l', hl'_in_px, rfl⟩
+    let q_node : LemkeHowson.Node (pertMatPQ c) (pertRhsPQ c) (pertMatQQ c) (pertRhsQQ c) k₀ :=
+      ⟨_, p.y, hqx_v, p.isVertex_y, fun k hk => by rw [← hT₁'_tight, hty]; exact hacl_q k hk⟩
+    have hadj_pq : (LemkeHowson.graph (pertMatPQ c) (pertRhsPQ c) (pertMatQQ c) (pertRhsQQ c)
+        k₀).Adj p q_node := LemkeHowson.graph_adj.2 (.inr ⟨rfl, hadj_x⟩)
     have hv_dec1 : decodeT₁ c v = T₁' := decodeT₁_encodeNodes_eq hv_eq hT₁'_sort hT₁'_lt
     have hv_dec2 : decodeT₂ c v = T₂ :=
       decodeT₂_encodeNodes_eq hv_eq (decodeT₂_sorted c u) (fun _ hr => decodeT₂_lt c u hr)
-    have hv_valid : isValidNodeExec c v = true := by
-      have hlen_v : v.length = 2 * (c.rows + c.cols) := by rw [hv_eq, length_encodeNodes]
-      have hf1' : isFeasibleBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁' =
-          true :=
-        (isFeasibleBasisRows_iff _ _ (allRowsP c) (allRhsP c) (allRowsP_spec c) (allRhsP_spec c)
-          hT₁'_sort hT₁'_lt hT₁'_len).2 hfb₁'
-      have hf2' : isFeasibleBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) T₂ =
-          true :=
-        (isFeasibleBasisRows_iff _ _ (allRowsQ c) (allRhsQ c) (allRowsQ_spec c) (allRhsQ_spec c)
-          (decodeT₂_sorted c u) (fun _ hr => decodeT₂_lt c u hr) hlen₂).2 hfb₂
-      have hall' : ((List.range (c.rows + c.cols)).all fun k =>
-          decide (k = 0) || decide (k ∈ T₁') || decide (k ∈ T₂)) = true :=
-        almostComplete_all_range_eq_true c.rows c.cols T₁' T₂ (by simp [k₀]) hacl_q
-      have hlen₁' : T₁'.length = c.rows := hT₁'_len
-      have hlen₂' : T₂.length = c.cols := hlen₂
-      simp only [isValidNodeExec, hwb, hlen_v, hv_dec1, hv_dec2, hlen₁', hlen₂', hall', hf1', hf2',
-        decide_true, Bool.and_self]
-    have hv_ne : v ≠ u := by
-      intro heq
-      have hT_eq : T₁' = T₁ := by rw [← hv_dec1, heq]
-      have hfin_eq : finsetOfList c.rows c.cols T₁' = T₁s :=
-        congrArg (finsetOfList c.rows c.cols) hT_eq
-      exact hT₁'_not_l' (hfin_eq.symm ▸ hl'_in_T₁s)
+    have hv_valid := isValidNodeExec_of_encodeNodes hc hv_eq hv_dec1 hv_dec2
+      hT₁'_len hlen₂ hf1' hf2_u hacl_q
+    have hv_ne : v ≠ u := fun heq => hT₁'_ne (hv_dec1.symm.trans (congrArg (decodeT₁ c) heq))
     have hidxL_v : halfEdgeIndexExec c T₁' T₂ false = wanted' := by
-      have hexec_q := halfEdgeIndexExec_eq c hc.1 hT₁'_sort (decodeT₂_sorted c u) hT₁'_lt
-        (fun _ hr => decodeT₂_lt c u hr) hT₁'_len hlen₂ false hacl_q hk₀_not_T₂s
-      have hexec_p := halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) (decodeT₂_sorted c u)
-        (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr) hlen₁ hlen₂ false
-        hacl hk₀_not_T₂s
+      rw [halfEdgeIndexExec_eq_node hc hT₁'_sort (decodeT₂_sorted c u) hT₁'_lt
+        (fun _ hr => decodeT₂_lt c u hr) hT₁'_len hlen₂ q_node hT₁'_tight.symm hty
+        (hT₁'_tight ▸ hcard₁') (hty ▸ hcard₂) false hk₀_not_T₂s]
       have hpiv_idx := LemkeHowson.halfEdgeIndex_pivot_left_eq_neg (pertP_nondegenerate hc)
-        (Equiv.refl _) (Equiv.refl _) (Equiv.refl _) (Fintype.card_sum.trans (by simp))
-        (p := p) (q := q_node) (hT₁p := by rw [htx]; exact hcard₁)
-        (hT₁q := by rw [← hT₁'_tight]; exact hcard₁')
-        (hT₂p := by rw [hty]; exact hcard₂) (hT₂q := by rw [hty]; exact hcard₂)
-        rfl hqx_ne.symm hadj_pq
-      have hp_congr := halfEdgeIndex_congr
-        ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-        ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-        (by rw [htx]; exact hcard₁) hcard₁ (by rw [hty]; exact hcard₂) hcard₂
-        htx hty k₀ false
-      have hq_congr := halfEdgeIndex_congr
-        ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-        ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-        (by rw [← hT₁'_tight]; exact hcard₁') hcard₁' (by rw [hty]; exact hcard₂) hcard₂
-        hT₁'_tight.symm hty k₀ false
-      rw [hexec_q, ← hq_congr]
-      dsimp only [q_node] at hpiv_idx
-      rw [hpiv_idx, hp_congr, ← hexec_p, hidxL, ← hw_opp]
+        (Equiv.refl _) (Equiv.refl _) (Equiv.refl _) hsum_card
+        (p := p) (q := q_node) (hT₁p := htx ▸ hcard₁) (hT₁q := hT₁'_tight ▸ hcard₁')
+        (hT₂p := hty ▸ hcard₂) (hT₂q := hty ▸ hcard₂) rfl hqx_ne.symm hadj_pq
+      rw [hpiv_idx, ← halfEdgeIndexExec_eq_node hc (decodeT₁_sorted c u) (decodeT₂_sorted c u)
+        (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr) hlen₁ hlen₂ p htx hty
+        (htx ▸ hcard₁) (hty ▸ hcard₂) false hk₀_not_T₂s, hidxL, ← hw_opp]
     have hL_v :
         (!decide (0 ∈ T₂) && decide (halfEdgeIndexExec c T₁' T₂ false = wanted')) = true := by
-      simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
-      exact ⟨h0_not_T₂, hidxL_v⟩
-    have hv_step_back : stepGraph (!wantNeg) c v = u := by
-      dsimp only [stepGraph]
-      rw [ite_eq_right (by simp [hv_valid])]
-      change (if (!decide (0 ∈ decodeT₂ c v) &&
-          decide (halfEdgeIndexExec c (decodeT₁ c v) (decodeT₂ c v) false =
-            if !wantNeg then -targetSign c else targetSign c)) = true
-        then encodeNodes c (pivotBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c)
-          (decodeT₁ c v) (leaveLabelExec (decodeT₁ c v) (decodeT₂ c v))) (decodeT₂ c v)
-        else _) = _
-      rw [hv_dec1, hv_dec2, ite_eq_left hL_v]
-      let m'_fin := LemkeHowson.leaveLabel (finsetOfList c.rows c.cols T₁') T₂s k₀
-      have hm'_eq_leave : (finSumFinEquiv m'_fin).1 = leaveLabelExec T₁' T₂ :=
-        leaveLabelExec_eq hc.1 hT₁'_sort hT₁'_lt (fun _ hr => decodeT₂_lt c u hr)
-      have hm'_in_T₁' : m'_fin ∈ finsetOfList c.rows c.cols T₁' := by
-        by_cases hk₀_q : k₀ ∈ finsetOfList c.rows c.cols T₁'
-        · simp only [m'_fin, LemkeHowson.leaveLabel, ite_eq_left (Finset.mem_union.2 (.inl hk₀_q))]
-          exact hk₀_q
-        · exact (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard₁' hcard₂
-            hacl_q (Finset.notMem_union.2 ⟨hk₀_q, hk₀_not_T₂s⟩)).1).1
-      have hqm'_eq_p : pivotVertex
-          ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-          (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ))
-          qx m'_fin = p.x := by
-        symm
-        refine hqx_v.eq_pivotVertex (pertP_nondegenerate hc) (pertP_recession hc)
-          (by rw [← hT₁'_tight]; exact hm'_in_T₁') p.isVertex_x hqx_ne.symm ?_
-        rw [← hT₁'_tight, htx]
-        intro z hz
-        rw [Finset.mem_erase] at hz
-        have hnot_T₂ : z ∉ T₂s := by
-          by_cases hzk₀ : z = k₀
-          · exact hzk₀ ▸ hk₀_not_T₂s
-          · intro hz2
-            by_cases hk₀_q : k₀ ∈ finsetOfList c.rows c.cols T₁'
-            · have he := LemkeHowson.inter_eq_empty_of_mem_union hsum_card hcard₁' hcard₂
-                hacl_q (Finset.mem_union.2 (.inl hk₀_q))
-              have hmem : z ∈ finsetOfList c.rows c.cols T₁' ∩ T₂s := Finset.mem_inter.2 ⟨hz.2, hz2⟩
-              rw [he] at hmem
-              exact Finset.notMem_empty z hmem
-            · exact hz.1 (Finset.mem_singleton.1 ((LemkeHowson.mem_inter_of_acl_not_mem hsum_card
-                hcard₁' hcard₂ hacl_q (Finset.notMem_union.2 ⟨hk₀_q, hk₀_not_T₂s⟩)).2 ▸
-                Finset.mem_inter.2 ⟨hz.2, hz2⟩))
-        have hzk₀ : z ≠ k₀ := by
-          intro hzk
-          have hk₀_q : k₀ ∈ finsetOfList c.rows c.cols T₁' ∪ T₂s :=
-            Finset.mem_union.2 (.inl (hzk ▸ hz.2))
-          have hm_eq : m'_fin = k₀ := by
-            dsimp only [m'_fin]
-            rw [LemkeHowson.leaveLabel, ite_eq_left hk₀_q]
-          exact hz.1 (hzk.trans hm_eq.symm)
-        exact (hacl z hzk₀).resolve_right hnot_T₂
-      have hpiv_back := pivotBasisRows_spec (intMatP (posMatB c))
-        (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-        (allRowsP c) (allRhsP c) (allRowsP_spec c) (allRhsP_spec c)
-        (pertP_nondegenerate hc) (pertP_recession hc) hT₁'_sort hT₁'_lt hT₁'_len hcard₁' hfb₁'
-        hm'_in_T₁'
-      dsimp only [T₁, T₂, T₁s, T₂s] at hpiv_back
-      have hrat_qx : ratBasisSol (intMatP (posMatB c))
-          (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-          (finsetOfList c.rows c.cols T₁') hcard₁' = qx := by
-        apply (isVertex_ratBasisSol_of_isFeasibleBasis hfb₁' (K := ℚ)).1.eq_of_tightRows_eq
-        rw [tightRows_ratBasisSol_eq hfb₁' (pertP_nondegenerate hc), ← hT₁'_tight]
-      rw [hrat_qx, hqm'_eq_p, hm'_eq_leave, htx] at hpiv_back
-      obtain ⟨hT₁b_sort, hT₁b_lt, _, _, _, hT₁b_fin⟩ := hpiv_back
-      have hT₁b_eq : pivotBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁'
-          (leaveLabelExec T₁' T₂) = T₁ := by
-        have hperm : (pivotBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁'
-            (leaveLabelExec T₁' T₂)).Perm T₁ := by
-          refine List.perm_of_nodup_nodup_toFinset_eq hT₁b_sort.nodup (decodeT₁_sorted c u).nodup ?_
-          ext k
-          simp only [List.mem_toFinset]
-          by_cases hk : k < c.rows + c.cols
-          · have hmem_eq : finsetOfList c.rows c.cols
-                (pivotBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁'
-                  (leaveLabelExec T₁' T₂)) = finsetOfList c.rows c.cols T₁ := hT₁b_fin
-            have hiff := Finset.ext_iff.1 hmem_eq (finSumFinEquiv.symm ⟨k, hk⟩)
-            simpa only [mem_finsetOfList, Equiv.apply_symm_apply] using hiff
-          · exact ⟨fun h => absurd (hT₁b_lt k h) hk, fun h => absurd (decodeT₁_lt c u h) hk⟩
-        exact hperm.eq_of_pairwise (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2))
-          hT₁b_sort (decodeT₁_sorted c u)
-      rw [hT₁b_eq]
-      exact encodeNodes_decode hlen_u
-    exact ⟨hv_valid, hv_ne, hv_step_back⟩
+      simp [h0_not_T₂, hidxL_v]
+    refine ⟨hv_valid, hv_ne, ?_⟩
+    dsimp only [stepGraph]
+    rw [ite_eq_right (by simp [hv_valid])]
+    change (if (!decide (0 ∈ decodeT₂ c v) &&
+        decide (halfEdgeIndexExec c (decodeT₁ c v) (decodeT₂ c v) false = wanted')) = true
+      then encodeNodes c (pivotBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c)
+        (decodeT₁ c v) (leaveLabelExec (decodeT₁ c v) (decodeT₂ c v))) (decodeT₂ c v)
+      else _) = _
+    rw [hv_dec1, hv_dec2, ite_eq_left hL_v,
+      ← leaveLabelExec_eq hc.1 hT₁'_sort hT₁'_lt (fun _ hr => decodeT₂_lt c u hr), hstep_back]
+    exact encodeNodes_decode hlen_u
   · have hR : (!decide (0 ∈ T₁) && decide (halfEdgeIndexExec c T₁ T₂ true = wanted)) = true :=
       hact.resolve_left hL
     have hv_eq : v = encodeNodes c T₁
@@ -3472,249 +3428,72 @@ private lemma stepGraph_roundTrip {c : BimatrixCode} (hc : c.WellFormed) (wantNe
       decide_eq_false_iff_not] at hR
     obtain ⟨h0_not_T₁, hidxR⟩ := hR
     have hk₀_not_T₁s : k₀ ∉ T₁s := fun h => h0_not_T₁ (mem_finsetOfList.1 h)
-    have hl'_in_T₂s : l' ∈ T₂s := by
-      by_cases hk₀_in : k₀ ∈ T₂s
-      · simp only [l', LemkeHowson.leaveLabel, ite_eq_left (Finset.mem_union.2 (.inr hk₀_in))]
-        exact hk₀_in
-      · exact (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard₁ hcard₂
-          hacl (Finset.notMem_union.2 ⟨hk₀_not_T₁s, hk₀_in⟩)).1).2
-    have hpiv := pivotBasisRows_spec (intMatQ (posMatA c))
+    have hrt := pivotBasisRows_roundTrip (intMatQ (posMatA c))
       (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
       (allRowsQ c) (allRhsQ c) (allRowsQ_spec c) (allRhsQ_spec c)
-      (pertQ_nondegenerate hc) (pertQ_recession hc)
-      (decodeT₂_sorted c u) (fun _ hr => decodeT₂_lt c u hr) hlen₂ hcard₂ hfb₂ hl'_in_T₂s
-    dsimp only [T₁, T₂, T₁s, T₂s, l'] at hpiv
-    rw [hl_eq, ← hpy_eq] at hpiv
-    obtain ⟨hT₂'_sort, hT₂'_lt, hT₂'_len, hcard₂', hfb₂', hT₂'_tight⟩ := hpiv
+      (pertQ_nondegenerate hc) (pertQ_recession hc) (hsum_card.trans (Nat.add_comm _ _))
+      (decodeT₂_sorted c u) (fun _ hr => decodeT₂_lt c u hr) hlen₂ hcard₂ hfb₂
+      p.isVertex_y hty hpy_eq hcard₁ hk₀_not_T₁s (fun r hr => (hacl r hr).symm)
+    dsimp only [T₁, T₂, T₁s, T₂s, k₀] at hrt
+    rw [leaveLabel_comm T₂s T₁s k₀, hl_eq] at hrt
+    obtain ⟨hT₂'_sort, hT₂'_lt, hT₂'_len, hT₂'_ne, hf2', hacl_q_symm, hqy_v, hqy_ne, hadj_y,
+      ⟨hcard₂', hT₂'_tight⟩, hstep_back⟩ := hrt
     let T₂' := pivotBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) T₂
       (leaveLabelExec T₁ T₂)
-    let qy := pivotVertex
-      ((intMatQ (posMatA c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.cols) ℚ)
-      (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) p.y l'
-    have hl'_in_py := Eq.mp (congrArg (l' ∈ ·) hty.symm) hl'_in_T₂s
-    obtain ⟨hqy_v, hqy_ne, hqy_sub⟩ :=
-      p.isVertex_y.pivotVertex_spec (pertQ_nondegenerate hc) (pertQ_recession hc) hl'_in_py
-    have hT₂'_not_l' : l' ∉ finsetOfList c.rows c.cols T₂' := by
-      rw [hT₂'_tight]
-      exact p.isVertex_y.notMem_tightRows_pivotVertex (pertQ_nondegenerate hc)
-        (pertQ_recession hc) hl'_in_py
     have hacl_q : ∀ k : Fin c.rows ⊕ Fin c.cols,
-        k ≠ k₀ → k ∈ T₁s ∨ k ∈ finsetOfList c.rows c.cols T₂' := by
-      intro k hk
-      by_cases hkl : k = l'
-      · subst hkl
-        have hk₀_not_2 : k₀ ∉ T₂s := fun h => hk (by
-          simp only [l', LemkeHowson.leaveLabel, ite_eq_left (Finset.mem_union.2 (.inr h))])
-        exact .inl (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard₁ hcard₂
-          hacl (Finset.notMem_union.2 ⟨hk₀_not_T₁s, hk₀_not_2⟩)).1).1
-      · rcases hacl k hk with h1 | h2
-        · exact .inl h1
-        · refine .inr (hT₂'_tight ▸ hqy_sub (Finset.mem_erase.2 ⟨hkl, by rw [hty]; exact h2⟩))
-    let q_node : LemkeHowson.Node
-        ((intMatP (posMatB c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ)
-        (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ))
-        ((intMatQ (posMatA c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.cols) ℚ)
-        (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) k₀ :=
-      ⟨p.x, qy, p.isVertex_x, hqy_v, fun k hk => by
-        rw [htx, ← hT₂'_tight]
-        exact hacl_q k hk⟩
-    have hadj_pq : (LemkeHowson.graph
-        ((intMatP (posMatB c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.rows) ℚ)
-        (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ))
-        ((intMatQ (posMatA c)).map Int.cast : Matrix (Fin c.rows ⊕ Fin c.cols) (Fin c.cols) ℚ)
-        (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) k₀).Adj
-        p q_node := by
-      rw [LemkeHowson.graph_adj]
-      refine .inl ⟨rfl, ?_⟩
-      exact (vertexAdj_iff_exists_pivotVertex (pertQ_nondegenerate hc) (pertQ_recession hc)
-        p.isVertex_y).2 ⟨l', hl'_in_py, rfl⟩
+        k ≠ k₀ → k ∈ T₁s ∨ k ∈ finsetOfList c.rows c.cols T₂' :=
+      fun k hk => (hacl_q_symm k hk).symm
+    let q_node : LemkeHowson.Node (pertMatPQ c) (pertRhsPQ c) (pertMatQQ c) (pertRhsQQ c) k₀ :=
+      ⟨p.x, _, p.isVertex_x, hqy_v, fun k hk => by rw [htx, ← hT₂'_tight]; exact hacl_q k hk⟩
+    have hadj_pq : (LemkeHowson.graph (pertMatPQ c) (pertRhsPQ c) (pertMatQQ c) (pertRhsQQ c)
+        k₀).Adj p q_node := LemkeHowson.graph_adj.2 (.inl ⟨rfl, hadj_y⟩)
     have hv_dec1 : decodeT₁ c v = T₁ :=
       decodeT₁_encodeNodes_eq hv_eq (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr)
     have hv_dec2 : decodeT₂ c v = T₂' := decodeT₂_encodeNodes_eq hv_eq hT₂'_sort hT₂'_lt
-    have hv_valid : isValidNodeExec c v = true := by
-      have hlen_v : v.length = 2 * (c.rows + c.cols) := by rw [hv_eq, length_encodeNodes]
-      have hf1' : isFeasibleBasisRows c.rows (c.rows + c.cols) (allRowsP c) (allRhsP c) T₁ =
-          true :=
-        (isFeasibleBasisRows_iff _ _ (allRowsP c) (allRhsP c) (allRowsP_spec c) (allRhsP_spec c)
-          (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr) hlen₁).2 hfb₁
-      have hf2' : isFeasibleBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) T₂' =
-          true :=
-        (isFeasibleBasisRows_iff _ _ (allRowsQ c) (allRhsQ c) (allRowsQ_spec c) (allRhsQ_spec c)
-          hT₂'_sort hT₂'_lt hT₂'_len).2 hfb₂'
-      have hall' : ((List.range (c.rows + c.cols)).all fun k =>
-          decide (k = 0) || decide (k ∈ T₁) || decide (k ∈ T₂')) = true :=
-        almostComplete_all_range_eq_true c.rows c.cols T₁ T₂' (by simp [k₀]) hacl_q
-      have hlen₁' : T₁.length = c.rows := hlen₁
-      have hlen₂' : T₂'.length = c.cols := hT₂'_len
-      simp only [isValidNodeExec, hwb, hlen_v, hv_dec1, hv_dec2, hlen₁', hlen₂', hall', hf1', hf2',
-        decide_true, Bool.and_self]
-    have hv_ne : v ≠ u := by
-      intro heq
-      have hT_eq : T₂' = T₂ := by rw [← hv_dec2, heq]
-      have hfin_eq : finsetOfList c.rows c.cols T₂' = T₂s :=
-        congrArg (finsetOfList c.rows c.cols) hT_eq
-      exact hT₂'_not_l' (hfin_eq.symm ▸ hl'_in_T₂s)
+    have hv_valid := isValidNodeExec_of_encodeNodes hc hv_eq hv_dec1 hv_dec2
+      hlen₁ hT₂'_len hf1_u hf2' hacl_q
+    have hv_ne : v ≠ u := fun heq => hT₂'_ne (hv_dec2.symm.trans (congrArg (decodeT₂ c) heq))
     have hidxR_v : halfEdgeIndexExec c T₁ T₂' true = wanted' := by
-      have hexec_q := halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) hT₂'_sort
-        (fun _ hr => decodeT₁_lt c u hr) hT₂'_lt hlen₁ hT₂'_len true hacl_q hk₀_not_T₁s
-      have hexec_p := halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) (decodeT₂_sorted c u)
-        (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr) hlen₁ hlen₂ true
-        hacl hk₀_not_T₁s
+      rw [halfEdgeIndexExec_eq_node hc (decodeT₁_sorted c u) hT₂'_sort
+        (fun _ hr => decodeT₁_lt c u hr) hT₂'_lt hlen₁ hT₂'_len q_node htx hT₂'_tight.symm
+        (htx ▸ hcard₁) (hT₂'_tight ▸ hcard₂') true hk₀_not_T₁s]
       have hpiv_idx := LemkeHowson.halfEdgeIndex_pivot_right_eq_neg (pertQ_nondegenerate hc)
         (Equiv.refl _) (Equiv.refl _) (Equiv.refl _) hsum_card
-        (p := p) (q := q_node) (hT₁p := by rw [htx]; exact hcard₁)
-        (hT₁q := by rw [htx]; exact hcard₁)
-        (hT₂p := by rw [hty]; exact hcard₂) (hT₂q := by rw [← hT₂'_tight]; exact hcard₂')
-        rfl hqy_ne.symm hadj_pq
-      have hp_congr := halfEdgeIndex_congr
-        ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-        ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-        (by rw [htx]; exact hcard₁) hcard₁ (by rw [hty]; exact hcard₂) hcard₂
-        htx hty k₀ true
-      have hq_congr := halfEdgeIndex_congr
-        ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-        ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-        (by rw [htx]; exact hcard₁) hcard₁ (by rw [← hT₂'_tight]; exact hcard₂') hcard₂'
-        htx hT₂'_tight.symm k₀ true
-      rw [hexec_q, ← hq_congr]
-      dsimp only [q_node] at hpiv_idx
-      rw [hpiv_idx, hp_congr, ← hexec_p, hidxR, ← hw_opp]
+        (p := p) (q := q_node) (hT₁p := htx ▸ hcard₁) (hT₁q := htx ▸ hcard₁)
+        (hT₂p := hty ▸ hcard₂) (hT₂q := hT₂'_tight ▸ hcard₂') rfl hqy_ne.symm hadj_pq
+      rw [hpiv_idx, ← halfEdgeIndexExec_eq_node hc (decodeT₁_sorted c u) (decodeT₂_sorted c u)
+        (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr) hlen₁ hlen₂ p htx hty
+        (htx ▸ hcard₁) (hty ▸ hcard₂) true hk₀_not_T₁s, hidxR, ← hw_opp]
     have hL_v_false :
         (!decide (0 ∈ T₂') && decide (halfEdgeIndexExec c T₁ T₂' false = wanted')) = false := by
       by_cases h02' : 0 ∈ T₂'
       · simp [h02']
       · simp only [Bool.and_eq_false_imp, Bool.not_eq_true', decide_eq_false_iff_not]
         intro _ heq_f
-        have h0_T₂' : k₀ ∉ finsetOfList c.rows c.cols T₂' := fun h => h02' (mem_finsetOfList.1 h)
-        have hneq_half := LemkeHowson.halfEdgeIndex_true_eq_neg_false
-          (A₁ := ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ))
-          (A₂ := ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ))
-          (Equiv.refl _) (Equiv.refl _) (Equiv.refl _) hsum_card
-          q_node (hT₁ := by rw [htx]; exact hcard₁) (hT₂ := by rw [← hT₂'_tight]; exact hcard₂')
-          (fun hcl => by
-            rw [LemkeHowson.completelyLabeled_iff] at hcl
-            rcases hcl k₀ with h1 | h2
-            · dsimp only [q_node] at h1
-              rw [htx] at h1
-              exact hk₀_not_T₁s h1
-            · exact h0_T₂' (by rw [hT₂'_tight]; exact h2))
-        have hne_0 := LemkeHowson.halfEdgeIndex_ne_zero
-          (A₁ := ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ))
-          (A₂ := ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ))
-          (Equiv.refl _) (Equiv.refl _) (Equiv.refl _) hsum_card
-          q_node (hT₁ := by rw [htx]; exact hcard₁) (hT₂ := by rw [← hT₂'_tight]; exact hcard₂')
-          (side := false) (fun h => h0_T₂' (by rw [hT₂'_tight]; exact h))
-        have hcongr := halfEdgeIndex_congr
-          ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-          ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-          (by rw [htx]; exact hcard₁) hcard₁ (by rw [← hT₂'_tight]; exact hcard₂') hcard₂'
-          htx hT₂'_tight.symm k₀
-        have h1 : halfEdgeIndexExec c T₁ T₂' true = -halfEdgeIndexExec c T₁ T₂' false := by
-          rw [halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) hT₂'_sort
-              (fun _ hr => decodeT₁_lt c u hr) hT₂'_lt hlen₁ hT₂'_len true hacl_q hk₀_not_T₁s,
-            halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) hT₂'_sort
-              (fun _ hr => decodeT₁_lt c u hr) hT₂'_lt hlen₁ hT₂'_len false hacl_q h0_T₂',
-            ← hcongr true, ← hcongr false]
-          exact hneq_half
-        rw [hidxR_v, heq_f] at h1
-        have hw0 : wanted' = 0 := by omega
-        have h0_eq : halfEdgeIndexExec c T₁ T₂' false = 0 := heq_f.trans hw0
-        rw [halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) hT₂'_sort
-            (fun _ hr => decodeT₁_lt c u hr) hT₂'_lt hlen₁ hT₂'_len false hacl_q h0_T₂',
-          ← hcongr false] at h0_eq
-        exact hne_0 h0_eq
+        have hopp := halfEdgeIndexExec_true_eq_neg_false hc hv_valid
+          (hv_dec1.symm ▸ h0_not_T₁) (hv_dec2.symm ▸ h02')
+        rw [hv_dec1, hv_dec2, hidxR_v, heq_f] at hopp
+        have hwnz : wanted' ≠ 0 := by cases wantNeg <;> simp [wanted', targetSign_ne_zero]
+        omega
     have hR_v :
         (!decide (0 ∈ T₁) && decide (halfEdgeIndexExec c T₁ T₂' true = wanted')) = true := by
-      simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
-      exact ⟨h0_not_T₁, hidxR_v⟩
-    have hv_step_back : stepGraph (!wantNeg) c v = u := by
-      dsimp only [stepGraph]
-      rw [ite_eq_right (by simp [hv_valid])]
-      change (if (!decide (0 ∈ decodeT₂ c v) &&
-          decide (halfEdgeIndexExec c (decodeT₁ c v) (decodeT₂ c v) false =
-            if !wantNeg then -targetSign c else targetSign c)) = true
-        then _ else
-        if (!decide (0 ∈ decodeT₁ c v) &&
-          decide (halfEdgeIndexExec c (decodeT₁ c v) (decodeT₂ c v) true =
-            if !wantNeg then -targetSign c else targetSign c)) = true
-        then encodeNodes c (decodeT₁ c v)
-          (pivotBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c)
-            (decodeT₂ c v) (leaveLabelExec (decodeT₁ c v) (decodeT₂ c v)))
-        else _) = _
-      rw [hv_dec1, hv_dec2, ite_eq_right (Bool.eq_false_iff.1 hL_v_false), ite_eq_left hR_v]
-      let m'_fin := LemkeHowson.leaveLabel T₁s (finsetOfList c.rows c.cols T₂') k₀
-      have hm'_eq_leave : (finSumFinEquiv m'_fin).1 = leaveLabelExec T₁ T₂' :=
-        leaveLabelExec_eq hc.1 (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr) hT₂'_lt
-      have hm'_in_T₂' : m'_fin ∈ finsetOfList c.rows c.cols T₂' := by
-        by_cases hk₀_q : k₀ ∈ finsetOfList c.rows c.cols T₂'
-        · simp only [m'_fin, LemkeHowson.leaveLabel, ite_eq_left (Finset.mem_union.2 (.inr hk₀_q))]
-          exact hk₀_q
-        · exact (Finset.mem_inter.1 (LemkeHowson.mem_inter_of_acl_not_mem hsum_card hcard₁ hcard₂'
-            hacl_q (Finset.notMem_union.2 ⟨hk₀_not_T₁s, hk₀_q⟩)).1).2
-      have hqm'_eq_p : pivotVertex
-          ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-          (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ))
-          qy m'_fin = p.y := by
-        symm
-        refine hqy_v.eq_pivotVertex (pertQ_nondegenerate hc) (pertQ_recession hc)
-          (by rw [← hT₂'_tight]; exact hm'_in_T₂') p.isVertex_y hqy_ne.symm ?_
-        rw [← hT₂'_tight, hty]
-        intro z hz
-        rw [Finset.mem_erase] at hz
-        have hnot_T₁ : z ∉ T₁s := by
-          by_cases hzk₀ : z = k₀
-          · exact hzk₀ ▸ hk₀_not_T₁s
-          · intro hz1
-            by_cases hk₀_q : k₀ ∈ finsetOfList c.rows c.cols T₂'
-            · have he := LemkeHowson.inter_eq_empty_of_mem_union hsum_card hcard₁ hcard₂'
-                hacl_q (Finset.mem_union.2 (.inr hk₀_q))
-              have hmem : z ∈ T₁s ∩ finsetOfList c.rows c.cols T₂' := Finset.mem_inter.2 ⟨hz1, hz.2⟩
-              rw [he] at hmem
-              exact Finset.notMem_empty z hmem
-            · exact hz.1 (Finset.mem_singleton.1 ((LemkeHowson.mem_inter_of_acl_not_mem hsum_card
-                hcard₁ hcard₂' hacl_q (Finset.notMem_union.2 ⟨hk₀_not_T₁s, hk₀_q⟩)).2 ▸
-                Finset.mem_inter.2 ⟨hz1, hz.2⟩))
-        have hzk₀ : z ≠ k₀ := by
-          intro hzk
-          have hk₀_q : k₀ ∈ T₁s ∪ finsetOfList c.rows c.cols T₂' :=
-            Finset.mem_union.2 (.inr (hzk ▸ hz.2))
-          have hm_eq : m'_fin = k₀ := by
-            dsimp only [m'_fin]
-            rw [LemkeHowson.leaveLabel, ite_eq_left hk₀_q]
-          exact hz.1 (hzk.trans hm_eq.symm)
-        exact (hacl z hzk₀).resolve_left hnot_T₁
-      have hpiv_back := pivotBasisRows_spec (intMatQ (posMatA c))
-        (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-        (allRowsQ c) (allRhsQ c) (allRowsQ_spec c) (allRhsQ_spec c)
-        (pertQ_nondegenerate hc) (pertQ_recession hc) hT₂'_sort hT₂'_lt hT₂'_len hcard₂' hfb₂'
-        hm'_in_T₂'
-      dsimp only [T₁, T₂, T₁s, T₂s] at hpiv_back
-      have hrat_qy : ratBasisSol (intMatQ (posMatA c))
-          (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c))
-          (finsetOfList c.rows c.cols T₂') hcard₂' = qy := by
-        apply (isVertex_ratBasisSol_of_isFeasibleBasis hfb₂' (K := ℚ)).1.eq_of_tightRows_eq
-        rw [tightRows_ratBasisSol_eq hfb₂' (pertQ_nondegenerate hc), ← hT₂'_tight]
-      rw [hrat_qy, hqm'_eq_p, hm'_eq_leave, hty] at hpiv_back
-      obtain ⟨hT₂b_sort, hT₂b_lt, _, _, _, hT₂b_fin⟩ := hpiv_back
-      have hT₂b_eq : pivotBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) T₂'
-          (leaveLabelExec T₁ T₂') = T₂ := by
-        have hperm : (pivotBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) T₂'
-            (leaveLabelExec T₁ T₂')).Perm T₂ := by
-          refine List.perm_of_nodup_nodup_toFinset_eq hT₂b_sort.nodup (decodeT₂_sorted c u).nodup ?_
-          ext k
-          simp only [List.mem_toFinset]
-          by_cases hk : k < c.rows + c.cols
-          · have hmem_eq : finsetOfList c.rows c.cols
-                (pivotBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c) T₂'
-                  (leaveLabelExec T₁ T₂')) = finsetOfList c.rows c.cols T₂ := hT₂b_fin
-            have hiff := Finset.ext_iff.1 hmem_eq (finSumFinEquiv.symm ⟨k, hk⟩)
-            simpa only [mem_finsetOfList, Equiv.apply_symm_apply] using hiff
-          · exact ⟨fun h => absurd (hT₂b_lt k h) hk, fun h => absurd (decodeT₂_lt c u h) hk⟩
-        exact hperm.eq_of_pairwise (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2))
-          hT₂b_sort (decodeT₂_sorted c u)
-      rw [hT₂b_eq]
-      exact encodeNodes_decode hlen_u
-    exact ⟨hv_valid, hv_ne, hv_step_back⟩
+      simp [h0_not_T₁, hidxR_v]
+    refine ⟨hv_valid, hv_ne, ?_⟩
+    dsimp only [stepGraph]
+    rw [ite_eq_right (by simp [hv_valid])]
+    change (if (!decide (0 ∈ decodeT₂ c v) &&
+        decide (halfEdgeIndexExec c (decodeT₁ c v) (decodeT₂ c v) false = wanted')) = true
+      then _ else
+      if (!decide (0 ∈ decodeT₁ c v) &&
+        decide (halfEdgeIndexExec c (decodeT₁ c v) (decodeT₂ c v) true = wanted')) = true
+      then encodeNodes c (decodeT₁ c v)
+        (pivotBasisRows c.cols (c.rows + c.cols) (allRowsQ c) (allRhsQ c)
+          (decodeT₂ c v) (leaveLabelExec (decodeT₁ c v) (decodeT₂ c v)))
+      else _) = _
+    rw [hv_dec1, hv_dec2, ite_eq_right (Bool.eq_false_iff.1 hL_v_false), ite_eq_left hR_v,
+      ← leaveLabelExec_eq hc.1 (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr) hT₂'_lt,
+      leaveLabel_comm T₁s (finsetOfList c.rows c.cols T₂') k₀, hstep_back]
+    exact encodeNodes_decode hlen_u
 
 private lemma endOfLineRel_wellFormed_props {c : BimatrixCode} (hc : c.WellFormed) {u : List Bool}
     (hu : endOfLineRel vertexLen pred succ c u) :
@@ -3726,12 +3505,8 @@ private lemma endOfLineRel_wellFormed_props {c : BimatrixCode} (hc : c.WellForme
   have hu_valid : isValidNodeExec c u = true := by
     by_contra hnot
     have hnot' : (!isValidNodeExec c u) = true := by cases h : isValidNodeExec c u <;> simp_all
-    have hp : pred (c, u) = u := by
-      dsimp only [pred, stepGraph]
-      rw [ite_eq_left hnot']
-    have hs : succ (c, u) = u := by
-      dsimp only [succ, stepGraph]
-      rw [ite_eq_left hnot']
+    have hp : pred (c, u) = u := by dsimp only [pred, stepGraph]; rw [ite_eq_left hnot']
+    have hs : succ (c, u) = u := by dsimp only [succ, stepGraph]; rw [ite_eq_left hnot']
     have hin : hasIn vertexLen pred succ c u = false := by simp [hasIn, hp]
     have hout : hasOut vertexLen pred succ c u = false := by simp [hasOut, hs]
     have hne : u ≠ zeroVertex (vertexLen c) := fun h => hnot (h ▸ hvalid_zero)
@@ -3750,70 +3525,36 @@ private lemma endOfLineRel_wellFormed_props {c : BimatrixCode} (hc : c.WellForme
     omega
   have hidx0 : halfEdgeIndexExec c (decodeT₁ c u0) (decodeT₂ c u0) false = targetSign c := by
     obtain ⟨_, hlen₁, hlen₂, hacl, _, _, _, _⟩ := validNode_props hc hvalid_zero
-    have hT₁_fin : finsetOfList c.rows c.cols (decodeT₁ c u0) = Finset.univ.image Sum.inl := by
-      rw [hT₁_eq0]
-      ext r
-      simp only [mem_finsetOfList, List.mem_range, Finset.mem_image, Finset.mem_univ, true_and]
-      cases r with
-      | inl i => exact ⟨fun _ => ⟨i, rfl⟩, fun _ => i.2⟩
-      | inr j =>
-        refine ⟨fun h => ?_, fun ⟨i, hi⟩ => absurd hi (by simp)⟩
-        simp only [finSumFinEquiv_apply_right, Fin.val_natAdd] at h
-        omega
-    have hT₂_fin : finsetOfList c.rows c.cols (decodeT₂ c u0) = Finset.univ.image Sum.inr := by
-      rw [hT₂_eq0]
-      ext r
-      simp only [mem_finsetOfList, List.mem_map, List.mem_range, Finset.mem_image, Finset.mem_univ,
-        true_and]
-      cases r with
-      | inl i =>
-        refine ⟨?_, fun ⟨j, hj⟩ => absurd hj (by simp)⟩
-        rintro ⟨j, _, hj⟩
-        simp only [finSumFinEquiv_apply_left, Fin.val_castAdd] at hj
-        omega
-      | inr j => exact ⟨fun _ => ⟨j, rfl⟩, fun _ => ⟨j.1, j.2, by simp [Nat.add_comm]⟩⟩
-    have hA₁_neg :
-        ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ).submatrix
-          ((Equiv.refl (Fin c.rows ⊕ Fin c.cols)) ∘ Sum.inl) (Equiv.refl _) = -1 := by
+    have hT₁_fin : finsetOfList c.rows c.cols (decodeT₁ c u0) = Finset.univ.image Sum.inl :=
+      hT₁_eq0 ▸ finsetOfList_range c.rows c.cols
+    have hT₂_fin : finsetOfList c.rows c.cols (decodeT₂ c u0) = Finset.univ.image Sum.inr :=
+      hT₂_eq0 ▸ finsetOfList_map_add_range c.rows c.cols
+    have hA₁_neg : (pertMatPQ c).submatrix
+        ((Equiv.refl (Fin c.rows ⊕ Fin c.cols)) ∘ Sum.inl) (Equiv.refl _) = -1 := by
       ext i j
       simp only [Matrix.submatrix_apply, Function.comp_apply, Equiv.refl_apply, Matrix.map_apply,
         intMatP_inl, Matrix.neg_apply, Matrix.one_apply]
-      by_cases hij : i = j
-      · subst hij; simp
-      · simp [hij]
-    have hA₂_neg :
-        ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ).submatrix
-          ((Equiv.refl (Fin c.rows ⊕ Fin c.cols)) ∘ Sum.inr) (Equiv.refl _) = -1 := by
+      by_cases hij : i = j <;> simp [hij]
+    have hA₂_neg : (pertMatQQ c).submatrix
+        ((Equiv.refl (Fin c.rows ⊕ Fin c.cols)) ∘ Sum.inr) (Equiv.refl _) = -1 := by
       ext i j
       simp only [Matrix.submatrix_apply, Function.comp_apply, Equiv.refl_apply, Matrix.map_apply,
         intMatQ_inr, Matrix.neg_apply, Matrix.one_apply]
-      by_cases hij : i = j
-      · subst hij; simp
-      · simp [hij]
+      by_cases hij : i = j <;> simp [hij]
     rw [halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u0) (decodeT₂_sorted c u0)
         (fun _ hr => decodeT₁_lt c u0 hr) (fun _ hr => decodeT₂_lt c u0 hr) hlen₁ hlen₂ false
         hacl (fun h => h02_0 (mem_finsetOfList.1 h)),
       LemkeHowson.halfEdgeIndex_zero_zero _ _ _ _ _ _ _ hT₁_fin hT₂_fin hA₁_neg hA₂_neg,
       ← targetSign_eq]
   have hpred0 : pred (c, u0) = u0 := by
-    have hnotv : (!isValidNodeExec c u0) = false := by
-      simp only [hvalid_zero, Bool.not_true]
+    have hnotv : (!isValidNodeExec c u0) = false := by simp only [hvalid_zero, Bool.not_true]
     have hne_neg : halfEdgeIndexExec c (decodeT₁ c u0) (decodeT₂ c u0) false ≠ -targetSign c := by
       rw [hidx0]
-      have hts := targetSign_eq c
-      rcases neg_one_pow_eq_or ℤ (c.rows + c.cols) with h | h <;> rw [h] at hts <;> omega
-    have hcond1 : (!decide (0 ∈ decodeT₂ c u0) &&
-        decide (halfEdgeIndexExec c (decodeT₁ c u0) (decodeT₂ c u0) false = -targetSign c)) =
-        false := by
-      simp [hne_neg]
-    have hcond2 : (!decide (0 ∈ decodeT₁ c u0) &&
-        decide (halfEdgeIndexExec c (decodeT₁ c u0) (decodeT₂ c u0) true = -targetSign c)) =
-        false := by
-      simp [h01_0]
+      have hnz := targetSign_ne_zero c
+      omega
     dsimp only [pred, stepGraph]
-    simp only [hnotv, Bool.false_eq_true, ↓reduceIte, hcond1, hcond2]
-  have hu_ne_zero : u ≠ u0 := by
-    intro h0
+    simp [hnotv, hne_neg, h01_0]
+  have hu_ne_zero : u ≠ u0 := fun h0 => by
     subst h0
     have hrt := stepGraph_roundTrip hc false hvalid_zero (.inl (by simp [h02_0, hidx0]))
     have hout : hasOut vertexLen pred succ c u0 = true := by
@@ -3825,116 +3566,23 @@ private lemma endOfLineRel_wellFormed_props {c : BimatrixCode} (hc : c.WellForme
     by_contra hnot
     push Not at hnot
     obtain ⟨h01, h02⟩ := hnot
-    obtain ⟨_, hlen₁, hlen₂, hacl, hcard₁, hcard₂, _, _⟩ := validNode_props hc hu_valid
-    obtain ⟨_, _, p, htx, hty, _, _⟩ := node_of_isValidNodeExec hc hu_valid
-    let k₀ : Fin c.rows ⊕ Fin c.cols := Sum.inl ⟨0, hc.1⟩
-    have hk₀1 : k₀ ∉ finsetOfList c.rows c.cols (decodeT₁ c u) :=
-      fun h => h01 (mem_finsetOfList.1 h)
-    have hk₀2 : k₀ ∉ finsetOfList c.rows c.cols (decodeT₂ c u) :=
-      fun h => h02 (mem_finsetOfList.1 h)
-    have hidx_opp : halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) true =
-        -halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false := by
-      rw [halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) (decodeT₂_sorted c u)
-          (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr)
-          hlen₁ hlen₂ true hacl hk₀1,
-        halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) (decodeT₂_sorted c u)
-          (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr)
-          hlen₁ hlen₂ false hacl hk₀2]
-      have hhe := LemkeHowson.halfEdgeIndex_true_eq_neg_false
-        (A₁ := ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ))
-        (A₂ := ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ))
-        (Equiv.refl _) (Equiv.refl _) (Equiv.refl _) (Fintype.card_sum.trans (by simp)) p
-        (hT₁ := by rw [htx]; exact hcard₁) (hT₂ := by rw [hty]; exact hcard₂)
-        (fun hcl => by
-          rw [LemkeHowson.completelyLabeled_iff] at hcl
-          rcases hcl k₀ with h1 | h2
-          · exact hk₀1 (htx ▸ h1)
-          · exact hk₀2 (hty ▸ h2))
-      have hcongr := halfEdgeIndex_congr
-        ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-        ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-        (by rw [htx]; exact hcard₁) hcard₁ (by rw [hty]; exact hcard₂) hcard₂
-        htx hty k₀
-      rw [← hcongr true, ← hcongr false]
-      exact hhe
-    have hidx_sq : (halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false = targetSign c) ∨
-        (halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false = -targetSign c) := by
-      have hne0 := LemkeHowson.halfEdgeIndex_ne_zero
-        (A₁ := ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ))
-        (A₂ := ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ))
-        (Equiv.refl _) (Equiv.refl _) (Equiv.refl _) (Fintype.card_sum.trans (by simp)) p
-        (hT₁ := by rw [htx]; exact hcard₁) (hT₂ := by rw [hty]; exact hcard₂)
-        (side := false) (fun h => hk₀2 (hty ▸ h))
-      have hs1 : ∀ u : ℤˣ, |(u : ℤ)| ≤ 1 := fun u => by
-        rcases Int.units_eq_one_or u with rfl | rfl <;> norm_num
-      have hs2 : ∀ x : ℚ, |LemkeHowson.signOfK x| ≤ 1 := fun x => by
-        simp only [LemkeHowson.signOfK]
-        cases SignType.sign x <;> norm_num
-      have hle_abs : |LemkeHowson.halfEdgeIndex
-          ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-          ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-          (Equiv.refl _) (Equiv.refl _) (Equiv.refl _)
-          (tightRows ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-            (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) p.x)
-          (tightRows ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-            (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) p.y)
-          (by rw [htx]; exact hcard₁) (by rw [hty]; exact hcard₂) k₀ false| ≤ 1 := by
-        simp only [LemkeHowson.halfEdgeIndex]
-        split_ifs
-        · rw [abs_mul, abs_mul]
-          exact mul_le_mul (mul_le_mul (hs1 _) (hs2 _) (abs_nonneg _) (by norm_num))
-            (hs2 _) (abs_nonneg _) (by norm_num)
-        · norm_num
-      have hcongr := halfEdgeIndex_congr
-        ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-        ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-        (by rw [htx]; exact hcard₁) hcard₁ (by rw [hty]; exact hcard₂) hcard₂
-        htx hty k₀ false
-      have habs1 : |halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) false| = 1 := by
-        rw [halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u) (decodeT₂_sorted c u)
-            (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => decodeT₂_lt c u hr)
-            hlen₁ hlen₂ false hacl hk₀2, ← hcongr]
-        have hpos : 0 < |LemkeHowson.halfEdgeIndex
-            ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-            ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-            (Equiv.refl _) (Equiv.refl _) (Equiv.refl _)
-            (tightRows ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ)
-              (fun r => (pertRhsPInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) p.x)
-            (tightRows ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ)
-              (fun r => (pertRhsQInt c.rows c.cols ((2 : ℤ) ^ bitBoundVal c) r : ℚ)) p.y)
-            (by rw [htx]; exact hcard₁) (by rw [hty]; exact hcard₂) k₀ false| := abs_pos.2 hne0
-        omega
-      rw [abs_eq (by norm_num : (0 : ℤ) ≤ 1)] at habs1
-      have hts := targetSign_eq c
-      rcases neg_one_pow_eq_or ℤ (c.rows + c.cols) with hts1 | hts1 <;> rw [hts1] at hts <;>
-        rcases habs1 with h1 | h1 <;> [exact .inl (by omega); exact .inr (by omega);
-          exact .inr (by omega); exact .inl (by omega)]
+    have hidx_opp := halfEdgeIndexExec_true_eq_neg_false hc hu_valid h01 h02
+    have hidx_sq := halfEdgeIndexExec_eq_targetSign_or_neg hc hu_valid h02
+    have hrt_out := stepGraph_roundTrip hc false hu_valid
+      (hidx_sq.imp (fun hpos => by simp [h02, hpos]) (fun hneg => by simp [h01, hidx_opp, hneg]))
     have hout : hasOut vertexLen pred succ c u = true := by
-      rcases hidx_sq with hpos | hneg
-      · have hrt := stepGraph_roundTrip hc false hu_valid (.inl (by simp [h02, hpos]))
-        have hne0 : succ (c, u) ≠ u0 := fun h0 => by
-          have hpb : u = pred (c, u0) := h0 ▸ hrt.2.2.symm
-          exact hu_ne_zero (hpb.trans hpred0)
-        simp only [hasOut, decide_eq_true_eq]
-        exact ⟨hrt.2.2, hrt.2.1, hne0⟩
-      · have hposR : halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) true = targetSign c := by
-          rw [hidx_opp, hneg, neg_neg]
-        have hrt := stepGraph_roundTrip hc false hu_valid (.inr (by simp [h01, hposR]))
-        have hne0 : succ (c, u) ≠ u0 := fun h0 => by
-          have hpb : u = pred (c, u0) := h0 ▸ hrt.2.2.symm
-          exact hu_ne_zero (hpb.trans hpred0)
-        simp only [hasOut, decide_eq_true_eq]
-        exact ⟨hrt.2.2, hrt.2.1, hne0⟩
+      have hne0 : succ (c, u) ≠ u0 := fun h0 => by
+        have hpb : pred (c, succ (c, u)) = u := hrt_out.2.2
+        rw [h0, hpred0] at hpb
+        exact hu_ne_zero hpb.symm
+      simp only [hasOut, decide_eq_true_eq]
+      exact ⟨hrt_out.2.2, hrt_out.2.1, hne0⟩
+    have hrt_in := stepGraph_roundTrip hc true hu_valid
+      (hidx_sq.symm.imp (fun hneg => by simp [h02, hneg])
+        (fun hpos => by simp [h01, hidx_opp, hpos]))
     have hin : hasIn vertexLen pred succ c u = true := by
-      rcases hidx_sq with hpos | hneg
-      · have hnegR : halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) true = -targetSign c := by
-          rw [hidx_opp, hpos]
-        have hrt := stepGraph_roundTrip hc true hu_valid (.inr (by simp [h01, hnegR]))
-        simp only [hasIn, decide_eq_true_eq]
-        exact ⟨hrt.2.2, hrt.2.1, hu_ne_zero⟩
-      · have hrt := stepGraph_roundTrip hc true hu_valid (.inl (by simp [h02, hneg]))
-        simp only [hasIn, decide_eq_true_eq]
-        exact ⟨hrt.2.2, hrt.2.1, hu_ne_zero⟩
+      simp only [hasIn, decide_eq_true_eq]
+      exact ⟨hrt_in.2.2, hrt_in.2.1, hu_ne_zero⟩
     rcases hu with ⟨-, hrel⟩
     have hu_ne' : u ≠ zeroVertex (vertexLen c) := hu_ne_zero
     simp [hin, hout, hu_ne'] at hrel
@@ -4383,42 +4031,6 @@ private lemma witness_length_arith {m n L ax ay : ℕ}
     (hx : ax ≤ m * (6 * (m * (5 * L + 5) + 2) + 7))
     (hy : ay ≤ n * (6 * (n * (5 * L + 5) + 2) + 7)) :
     2 * ax + 1 + ay ≤ 120 * L ^ 3 + 400 * L + 100 := by
-  have hm_le : 38 * m ≤ L := by
-    calc 38 * m = 38 * m * 1 := (mul_one _).symm
-      _ ≤ 38 * m * n := Nat.mul_le_mul_left _ hn
-      _ ≤ L := by omega
-  have hn_le : 38 * n ≤ L := by
-    calc 38 * n = 38 * 1 * n := by ring
-      _ ≤ 38 * m * n := Nat.mul_le_mul_right n (Nat.mul_le_mul_left 38 hm)
-      _ ≤ L := by omega
-  have hm2_le : 1444 * m ^ 2 ≤ L ^ 2 := by
-    calc 1444 * m ^ 2 = (38 * m) * (38 * m) := by ring
-      _ ≤ L * L := Nat.mul_le_mul hm_le hm_le
-      _ = L ^ 2 := (sq L).symm
-  have hn2_le : 1444 * n ^ 2 ≤ L ^ 2 := by
-    calc 1444 * n ^ 2 = (38 * n) * (38 * n) := by ring
-      _ ≤ L * L := Nat.mul_le_mul hn_le hn_le
-      _ = L ^ 2 := (sq L).symm
-  have hm2L_le : 1444 * (m ^ 2 * L) ≤ L ^ 3 := by
-    calc 1444 * (m ^ 2 * L) = 1444 * m ^ 2 * L := (mul_assoc _ _ _).symm
-      _ ≤ L ^ 2 * L := Nat.mul_le_mul_right L hm2_le
-      _ = L ^ 3 := by ring
-  have hn2L_le : 1444 * (n ^ 2 * L) ≤ L ^ 3 := by
-    calc 1444 * (n ^ 2 * L) = 1444 * n ^ 2 * L := (mul_assoc _ _ _).symm
-      _ ≤ L ^ 2 * L := Nat.mul_le_mul_right L hn2_le
-      _ = L ^ 3 := by ring
-  have h1 : m * (6 * (m * (5 * L + 5) + 2) + 7) = 30 * (m ^ 2 * L) + 30 * m ^ 2 + 19 * m := by
-    ring
-  have h2 : n * (6 * (n * (5 * L + 5) + 2) + 7) = 30 * (n ^ 2 * L) + 30 * n ^ 2 + 19 * n := by
-    ring
-  rw [h1] at hx
-  rw [h2] at hy
-  have hm2L_le' : 30 * (m ^ 2 * L) ≤ L ^ 3 :=
-    (Nat.mul_le_mul_right (m ^ 2 * L) (by decide : 30 ≤ 1444)).trans hm2L_le
-  have hn2L_le' : 30 * (n ^ 2 * L) ≤ L ^ 3 :=
-    (Nat.mul_le_mul_right (n ^ 2 * L) (by decide : 30 ≤ 1444)).trans hn2L_le
-  have hm2_le' : 30 * m ^ 2 ≤ L ^ 2 := by omega
-  have hn2_le' : 30 * n ^ 2 ≤ L ^ 2 := by omega
   have hL : 1 ≤ L := by
     have h38 : 38 ≤ 38 * m * n :=
       calc 38 = 38 * 1 * 1 := by ring
@@ -4429,26 +4041,77 @@ private lemma witness_length_arith {m n L ax ay : ℕ}
     calc L ^ 2 = L ^ 2 * 1 := (mul_one _).symm
       _ ≤ L ^ 2 * L := Nat.mul_le_mul_left _ hL
       _ = L ^ 3 := by ring
-  have hax : ax ≤ 2 * L ^ 3 + L := by
-    have hm1 : 19 * m ≤ L := by omega
-    have hm2_le3 : 30 * m ^ 2 ≤ L ^ 3 := hm2_le'.trans hL2_le
-    calc ax ≤ 30 * (m ^ 2 * L) + 30 * m ^ 2 + 19 * m := hx
-      _ ≤ L ^ 3 + L ^ 3 + L := Nat.add_le_add (Nat.add_le_add hm2L_le' hm2_le3) hm1
+  have side_bd {k a : ℕ} (hk : 38 * k ≤ L) (ha : a ≤ k * (6 * (k * (5 * L + 5) + 2) + 7)) :
+      a ≤ 2 * L ^ 3 + L := by
+    have hk2_le : 1444 * k ^ 2 ≤ L ^ 2 := by
+      calc 1444 * k ^ 2 = (38 * k) * (38 * k) := by ring
+        _ ≤ L * L := Nat.mul_le_mul hk hk
+        _ = L ^ 2 := (sq L).symm
+    have hk2L_le : 30 * (k ^ 2 * L) ≤ L ^ 3 :=
+      (Nat.mul_le_mul_right (k ^ 2 * L) (by decide : 30 ≤ 1444)).trans <|
+        calc 1444 * (k ^ 2 * L) = 1444 * k ^ 2 * L := (mul_assoc _ _ _).symm
+          _ ≤ L ^ 2 * L := Nat.mul_le_mul_right L hk2_le
+          _ = L ^ 3 := by ring
+    have hk2_le3 : 30 * k ^ 2 ≤ L ^ 3 := (by omega : 30 * k ^ 2 ≤ L ^ 2).trans hL2_le
+    calc a ≤ k * (6 * (k * (5 * L + 5) + 2) + 7) := ha
+      _ = 30 * (k ^ 2 * L) + 30 * k ^ 2 + 19 * k := by ring
+      _ ≤ L ^ 3 + L ^ 3 + L := Nat.add_le_add (Nat.add_le_add hk2L_le hk2_le3) (by omega)
       _ = 2 * L ^ 3 + L := by ring
-  have hay : ay ≤ 2 * L ^ 3 + L := by
-    have hn1 : 19 * n ≤ L := by omega
-    have hn2_le3 : 30 * n ^ 2 ≤ L ^ 3 := hn2_le'.trans hL2_le
-    calc ay ≤ 30 * (n ^ 2 * L) + 30 * n ^ 2 + 19 * n := hy
-      _ ≤ L ^ 3 + L ^ 3 + L := Nat.add_le_add (Nat.add_le_add hn2L_le' hn2_le3) hn1
-      _ = 2 * L ^ 3 + L := by ring
+  have hm_le : 38 * m ≤ L :=
+    ((mul_one (38 * m)).symm.le.trans (Nat.mul_le_mul_left _ hn)).trans (by omega)
+  have hn_le : 38 * n ≤ L :=
+    (show 38 * n ≤ 38 * m * n from by
+      calc 38 * n = 38 * 1 * n := by ring
+        _ ≤ 38 * m * n := Nat.mul_le_mul_right n (Nat.mul_le_mul_left 38 hm)).trans (by omega)
+  have hax := side_bd hm_le hx
+  have hay := side_bd hn_le hy
   calc 2 * ax + 1 + ay
       ≤ 2 * (2 * L ^ 3 + L) + 1 + (2 * L ^ 3 + L) :=
         Nat.add_le_add (Nat.add_le_add_right (Nat.mul_le_mul_left 2 hax) 1) hay
     _ = 6 * L ^ 3 + 3 * L + 1 := by ring
-    _ ≤ 120 * L ^ 3 + 400 * L + 100 := by
-        refine Nat.add_le_add (Nat.add_le_add ?_ ?_) (by decide)
-        · exact Nat.mul_le_mul_right _ (by decide)
-        · exact Nat.mul_le_mul_right _ (by decide)
+    _ ≤ 120 * L ^ 3 + 400 * L + 100 :=
+        Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_right _ (by decide))
+          (Nat.mul_le_mul_right _ (by decide))) (by decide)
+
+private lemma extractSide_spec {m n k H L : ℕ}
+    (M_int : Matrix (Fin m ⊕ Fin n) (Fin k) ℤ) (b_int : Fin m ⊕ Fin n → ℤ)
+    (allRows : List (List ℤ)) (allRhs : List ℤ)
+    (hall : ∀ (r : Fin (m + n)) (j : Fin k),
+      rowEntry allRows r.1 j.1 = M_int (finSumFinEquiv.symm r) j)
+    (hrhs : ∀ (r : Fin (m + n)), allRhs.getD r.1 0 = b_int (finSumFinEquiv.symm r))
+    {T : List ℕ} (hsort : T.Pairwise (· < ·)) (hlt : ∀ r ∈ T, r < m + n)
+    (hlen : T.length = k) (hcard : (finsetOfList m n T).card = k)
+    (hnum_nn : ∀ i : Fin k, 0 ≤ basisSignNum M_int b_int (finsetOfList m n T) hcard i)
+    (hS_pos : 0 < ∑ i : Fin k, basisSignNum M_int b_int (finsetOfList m n T) hcard i)
+    (hbd : ∀ i : Fin k,
+      |basisSignNum M_int b_int (finsetOfList m n T) hcard i| ≤ ((k.factorial * H ^ k : ℕ) : ℤ))
+    (hkL : k ≤ L) (hH_sz : H.size ≤ 4 * L + 4) :
+    let ps := normalizeRatPairs (extractStrategyNum k allRows allRhs T)
+    let v := ps.map mkRatOfPair
+    v.length = k ∧ (∀ q ∈ v, 0 ≤ q) ∧ v.sum = 1 ∧
+      v.map (fun q => (q.num, q.den)) = ps ∧
+      (strategyVec v : Fin k → ℝ) =
+        (fun i => ((basisSignNum M_int b_int (finsetOfList m n T) hcard i : ℤ) : ℝ) /
+          ((∑ i : Fin k, basisSignNum M_int b_int (finsetOfList m n T) hcard i : ℤ) : ℝ)) ∧
+      (encList encRatData ps).length ≤ k * (6 * (k * (5 * L + 5) + 2) + 7) := by
+  intro ps v
+  obtain ⟨hnum_len, hnum_get⟩ := extractStrategyNum_spec M_int b_int allRows allRhs
+    hall hrhs hsort hlt hlen
+  let num_l := extractStrategyNum k allRows allRhs T
+  have hS_eq : num_l.sum = ∑ i : Fin k, basisSignNum M_int b_int (finsetOfList m n T) hcard i := by
+    rw [← fin_sum_getD_eq_list_sum num_l 0 hnum_len]
+    exact Finset.sum_congr rfl fun i _ => hnum_get i
+  have hps := normalizeRatPairs_spec hnum_len
+    (fun i => (hnum_get i).symm ▸ hnum_nn i) (hS_eq ▸ hS_pos)
+  have hv_len : v.length = k := by dsimp only [v]; rw [List.length_map, hps.1]
+  refine ⟨hv_len, all_mkRatOfPair_nonneg hps.2.1,
+    list_sum_eq_one_of_div hv_len hnum_len (hS_eq ▸ hS_pos) hps.2.2,
+    map_pair_mkRatOfPair_eq hps.2.1, ?_,
+    length_encList_ratData_le hps.1 (strategy_pair_size_bd hkL hH_sz hnum_len
+      (fun i => (hnum_get i).symm ▸ hbd i) (hS_eq ▸ hS_pos))⟩
+  ext i
+  rw [strategyVec_apply, hps.2.2 i, hnum_get i, hS_eq]
+  simp only [Rat.cast_div, Rat.cast_intCast]
 
 /-- Every vertex solving `endOfLineRel vertexLen pred succ c` extracts via `extractNash` to a
 solution of `BimatrixNash c`. -/
@@ -4468,68 +4131,26 @@ theorem extractNash_sound {c : BimatrixCode} {u : List Bool}
       simp only [Finset.mem_union, Finset.mem_univ, iff_true]
       by_cases hk : k = Sum.inl ⟨0, hc.1⟩
       · subst hk
-        rcases hcl0 with h0 | h0
-        · exact .inl (mem_finsetOfList.2 h0)
-        · exact .inr (mem_finsetOfList.2 h0)
+        exact hcl0.imp mem_finsetOfList.2 mem_finsetOfList.2
       · exact hacl k hk
-    have hne0 : (T₁s, T₂s) ≠ (Finset.univ.image Sum.inl, Finset.univ.image Sum.inr) := by
-      intro heq
-      have h1_eq : T₁s = Finset.univ.image Sum.inl := congrArg Prod.fst heq
-      have h2_eq : T₂s = Finset.univ.image Sum.inr := congrArg Prod.snd heq
-      have hT₁_eq : T₁ = List.range c.rows := by
-        have hperm : T₁.Perm (List.range c.rows) := by
-          refine List.perm_of_nodup_nodup_toFinset_eq (decodeT₁_sorted c u).nodup
-            List.nodup_range ?_
-          ext k
-          simp only [List.mem_toFinset, List.mem_range]
-          constructor
-          · intro hk
-            have hmem : finSumFinEquiv.symm ⟨k, decodeT₁_lt c u hk⟩ ∈ T₁s := by
-              rw [mem_finsetOfList, Equiv.apply_symm_apply]
-              exact hk
-            rw [h1_eq, Finset.mem_image] at hmem
-            rcases hmem with ⟨i, _, hi⟩
-            have hval := congrArg (fun z => (finSumFinEquiv z).1) hi
-            simp only [Equiv.apply_symm_apply, finSumFinEquiv_apply_left, Fin.val_castAdd] at hval
-            rw [← hval]
-            exact i.2
-          · intro hk
-            have hmem : (Sum.inl ⟨k, hk⟩ : Fin c.rows ⊕ Fin c.cols) ∈
-                Finset.univ.image Sum.inl := Finset.mem_image_of_mem _ (Finset.mem_univ _)
-            rw [← h1_eq, mem_finsetOfList] at hmem
-            exact hmem
-        exact hperm.eq_of_pairwise (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2))
-          (decodeT₁_sorted c u) List.pairwise_lt_range
-      have hT₂_eq : T₂ = (List.range c.cols).map (· + c.rows) := by
-        have hsort_r : ((List.range c.cols).map (· + c.rows)).Pairwise (· < ·) :=
-          List.pairwise_lt_range.map _ fun _ _ h => by omega
-        have hperm : T₂.Perm ((List.range c.cols).map (· + c.rows)) := by
-          refine List.perm_of_nodup_nodup_toFinset_eq (decodeT₂_sorted c u).nodup hsort_r.nodup ?_
-          ext k
-          simp only [List.mem_toFinset, List.mem_map, List.mem_range]
-          constructor
-          · intro hk
-            have hmem : finSumFinEquiv.symm ⟨k, decodeT₂_lt c u hk⟩ ∈ T₂s := by
-              rw [mem_finsetOfList, Equiv.apply_symm_apply]
-              exact hk
-            rw [h2_eq, Finset.mem_image] at hmem
-            rcases hmem with ⟨j, _, hj⟩
-            have hval := congrArg (fun z => (finSumFinEquiv z).1) hj
-            simp only [Equiv.apply_symm_apply, finSumFinEquiv_apply_right, Fin.val_natAdd] at hval
-            exact ⟨j.1, j.2, by omega⟩
-          · rintro ⟨j, hj, rfl⟩
-            have hmem : (Sum.inr ⟨j, hj⟩ : Fin c.rows ⊕ Fin c.cols) ∈
-                Finset.univ.image Sum.inr := Finset.mem_image_of_mem _ (Finset.mem_univ _)
-            rw [← h2_eq, mem_finsetOfList] at hmem
-            simpa only [finSumFinEquiv_apply_right, Fin.val_natAdd, Nat.add_comm] using hmem
-        exact hperm.eq_of_pairwise (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2))
-          (decodeT₂_sorted c u) hsort_r
-      have hu_eq : u = zeroVertex (vertexLen c) := by
-        have hvlen : vertexLen c = 2 * (c.rows + c.cols) := by
-          simp only [vertexLen, hwb, ite_true]
-        rw [hvlen, ← encodeNodes_origin c, ← hT₁_eq, ← hT₂_eq]
-        exact (encodeNodes_decode hlen_u).symm
-      exact hu_ne0 hu_eq
+    have hne0 : (T₁s, T₂s) ≠ (Finset.univ.image Sum.inl, Finset.univ.image Sum.inr) := fun heq => by
+      have hT₁_eq : T₁ = List.range c.rows :=
+        eq_of_finsetOfList_eq (decodeT₁_sorted c u) List.pairwise_lt_range
+          (fun _ hr => decodeT₁_lt c u hr) (fun _ hr => by rw [List.mem_range] at hr; omega)
+          ((congrArg Prod.fst heq).trans (finsetOfList_range c.rows c.cols).symm)
+      have hT₂_eq : T₂ = (List.range c.cols).map (· + c.rows) :=
+        eq_of_finsetOfList_eq (decodeT₂_sorted c u)
+          (List.pairwise_lt_range.map _ fun _ _ h => by omega)
+          (fun _ hr => decodeT₂_lt c u hr)
+          (fun _ hr => by
+            rcases List.mem_map.1 hr with ⟨j, hj, rfl⟩
+            rw [List.mem_range] at hj
+            omega)
+          ((congrArg Prod.snd heq).trans (finsetOfList_map_add_range c.rows c.cols).symm)
+      have hvlen : vertexLen c = 2 * (c.rows + c.cols) := by simp only [vertexLen, hwb, ite_true]
+      dsimp only [T₁, T₂] at hT₁_eq hT₂_eq
+      exact hu_ne0 <| (encodeNodes_decode hlen_u).symm.trans <| by
+        rw [hT₁_eq, hT₂_eq, encodeNodes_origin, ← hvlen]
     have hH : 1 ≤ HVal c := (posMat_bounds hc ⟨0, hc.1⟩ ⟨0, hc.2.1⟩).1
     have hA_bd : ∀ i j, 1 ≤ posMatA c i j ∧ posMatA c i j ≤ (HVal c : ℤ) := fun i j =>
       ⟨(posMat_bounds hc i j).2.1, (posMat_bounds hc i j).2.2.1⟩
@@ -4538,67 +4159,29 @@ theorem extractNash_sound {c : BimatrixCode} {u : List Bool}
     have hex := BimatrixGame.isNash_extractNum hc.1 hc.2.1 hH hA_bd hB_bd hfb₁ hfb₂ huniv hne0
     dsimp only at hex
     obtain ⟨hnumP_nn, hS₁_pos, hP_bd, hnumQ_nn, hS₂_pos, hQ_bd, hNashPos⟩ := hex
-    obtain ⟨hnumP_len, hnumP_get⟩ := extractStrategyNum_spec (intMatP (posMatB c))
-      (intRhsP c.rows c.cols) (allRowsP c) (allIntRhsP c) (allRowsP_spec c)
-      (allIntRhsP_spec c) (decodeT₁_sorted c u) (fun _ hr => decodeT₁_lt c u hr) hlen₁
-    obtain ⟨hnumQ_len, hnumQ_get⟩ := extractStrategyNum_spec (intMatQ (posMatA c))
-      (intRhsQ c.rows c.cols) (allRowsQ c) (allIntRhsQ c) (allRowsQ_spec c)
-      (allIntRhsQ_spec c) (decodeT₂_sorted c u) (fun _ hr => decodeT₂_lt c u hr) hlen₂
-    let numP_l := extractStrategyNum c.rows (allRowsP c) (allIntRhsP c) T₁
-    let numQ_l := extractStrategyNum c.cols (allRowsQ c) (allIntRhsQ c) T₂
-    have hS₁_eq : numP_l.sum = ∑ i : Fin c.rows,
-        basisSignNum (intMatP (posMatB c)) (intRhsP c.rows c.cols) T₁s hcard₁ i := by
-      rw [← fin_sum_getD_eq_list_sum numP_l 0 hnumP_len]
-      exact Finset.sum_congr rfl fun i _ => hnumP_get i
-    have hS₂_eq : numQ_l.sum = ∑ j : Fin c.cols,
-        basisSignNum (intMatQ (posMatA c)) (intRhsQ c.rows c.cols) T₂s hcard₂ j := by
-      rw [← fin_sum_getD_eq_list_sum numQ_l 0 hnumQ_len]
-      exact Finset.sum_congr rfl fun j _ => hnumQ_get j
-    have hxp_spec := normalizeRatPairs_spec hnumP_len
-      (fun i => by rw [hnumP_get i]; exact hnumP_nn i) (hS₁_eq ▸ hS₁_pos)
-    have hyp_spec := normalizeRatPairs_spec hnumQ_len
-      (fun j => by rw [hnumQ_get j]; exact hnumQ_nn j) (hS₂_eq ▸ hS₂_pos)
-    let xp := normalizeRatPairs numP_l
-    let yp := normalizeRatPairs numQ_l
+    obtain ⟨hrc, hH_size⟩ := size_HVal_and_dims_le hc
+    set L := (encBimatrix c).length
+    have hm_le_L : c.rows ≤ L :=
+      ((show c.rows ≤ 38 * c.rows * 1 by omega).trans (Nat.mul_le_mul_left _ hc.2.1)).trans
+        (by omega)
+    have hn_le_L : c.cols ≤ L :=
+      ((show c.cols ≤ 38 * 1 * c.cols by omega).trans
+        (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 38 hc.1))).trans (by omega)
+    obtain ⟨hx_len, hx_nn, hx_sum, hx_pair, hx_getR, hlen_xp⟩ := extractSide_spec
+      (intMatP (posMatB c)) (intRhsP c.rows c.cols) (allRowsP c) (allIntRhsP c)
+      (allRowsP_spec c) (allIntRhsP_spec c) (decodeT₁_sorted c u)
+      (fun _ hr => decodeT₁_lt c u hr) hlen₁ hcard₁ hnumP_nn hS₁_pos hP_bd hm_le_L hH_size
+    obtain ⟨hy_len, hy_nn, hy_sum, hy_pair, hy_getR, hlen_yp⟩ := extractSide_spec
+      (intMatQ (posMatA c)) (intRhsQ c.rows c.cols) (allRowsQ c) (allIntRhsQ c)
+      (allRowsQ_spec c) (allIntRhsQ_spec c) (decodeT₂_sorted c u)
+      (fun _ hr => decodeT₂_lt c u hr) hlen₂ hcard₂ hnumQ_nn hS₂_pos hQ_bd hn_le_L hH_size
+    let xp := normalizeRatPairs (extractStrategyNum c.rows (allRowsP c) (allIntRhsP c) T₁)
+    let yp := normalizeRatPairs (extractStrategyNum c.cols (allRowsQ c) (allIntRhsQ c) T₂)
     let x := xp.map mkRatOfPair
     let y := yp.map mkRatOfPair
-    have hx_len : x.length = c.rows := by dsimp only [x, xp]; rw [List.length_map, hxp_spec.1]
-    have hy_len : y.length = c.cols := by dsimp only [y, yp]; rw [List.length_map, hyp_spec.1]
-    have hx_nn : ∀ q ∈ x, 0 ≤ q := by
-      intro q hq
-      rcases List.mem_map.1 hq with ⟨pq, hpq, rfl⟩
-      have hcan := (List.all_eq_true.1 hxp_spec.2.1) pq hpq
-      simp only [isCanonicalNonnegPair, Bool.and_eq_true, decide_eq_true_eq] at hcan
-      exact div_nonneg (by exact_mod_cast hcan.1.1) (by exact_mod_cast Nat.zero_le pq.2)
-    have hy_nn : ∀ q ∈ y, 0 ≤ q := by
-      intro q hq
-      rcases List.mem_map.1 hq with ⟨pq, hpq, rfl⟩
-      have hcan := (List.all_eq_true.1 hyp_spec.2.1) pq hpq
-      simp only [isCanonicalNonnegPair, Bool.and_eq_true, decide_eq_true_eq] at hcan
-      exact div_nonneg (by exact_mod_cast hcan.1.1) (by exact_mod_cast Nat.zero_le pq.2)
-    have hx_getR : (strategyVec x : Fin c.rows → ℝ) =
-        fun i => ((basisSignNum (intMatP (posMatB c)) (intRhsP c.rows c.cols) T₁s hcard₁ i : ℤ) :
-          ℝ) / ((∑ i : Fin c.rows,
-            basisSignNum (intMatP (posMatB c)) (intRhsP c.rows c.cols) T₁s hcard₁ i : ℤ) : ℝ) := by
-      ext i
-      rw [strategyVec_apply, hxp_spec.2.2 i, hnumP_get i, hS₁_eq]
-      simp only [Rat.cast_div, Rat.cast_intCast]
-      rfl
-    have hy_getR : (strategyVec y : Fin c.cols → ℝ) =
-        fun j => ((basisSignNum (intMatQ (posMatA c)) (intRhsQ c.rows c.cols) T₂s hcard₂ j : ℤ) :
-          ℝ) / ((∑ j : Fin c.cols,
-            basisSignNum (intMatQ (posMatA c)) (intRhsQ c.rows c.cols) T₂s hcard₂ j : ℤ) : ℝ) := by
-      ext j
-      rw [strategyVec_apply, hyp_spec.2.2 j, hnumQ_get j, hS₂_eq]
-      simp only [Rat.cast_div, Rat.cast_intCast]
-      rfl
     have hGameNash : c.toGame.IsNash (strategyVec x) (strategyVec y) := by
       rw [hx_getR, hy_getR]
       exact (isNash_posMat hc _ _).1 hNashPos
-    have hx_sum : x.sum = 1 :=
-      list_sum_eq_one_of_div hx_len hnumP_len (hS₁_eq ▸ hS₁_pos) hxp_spec.2.2
-    have hy_sum : y.sum = 1 :=
-      list_sum_eq_one_of_div hy_len hnumQ_len (hS₂_eq ▸ hS₂_pos) hyp_spec.2.2
     have hRatNash : c.IsRationalNash x y :=
       isRationalNash_of_toGame_isNash hx_len hy_len hx_nn hx_sum hy_nn hy_sum hGameNash
     have hex_pairs : extractNash (c, u) = encWitnessPairs (xp, yp) := by
@@ -4606,26 +4189,7 @@ theorem extractNash_sound {c : BimatrixCode} {u : List Bool}
       simp only [hwb, ite_true]
       rfl
     have hw_eq : extractNash (c, u) = encWitness ⟨x, y⟩ := by
-      rw [hex_pairs, encWitness_eq_pairs x y, map_pair_mkRatOfPair_eq hxp_spec.2.1,
-        map_pair_mkRatOfPair_eq hyp_spec.2.1]
-    obtain ⟨hrc, hH_size⟩ := size_HVal_and_dims_le hc
-    set L := (encBimatrix c).length
-    have hm_le_L : c.rows ≤ L := by
-      have h1 :=
-        calc c.rows ≤ 38 * c.rows * 1 := by omega
-          _ ≤ 38 * c.rows * c.cols := Nat.mul_le_mul_left _ hc.2.1
-      omega
-    have hn_le_L : c.cols ≤ L := by
-      have h1 :=
-        calc c.cols ≤ 38 * 1 * c.cols := by omega
-          _ ≤ 38 * c.rows * c.cols := Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 38 hc.1)
-      omega
-    have hB1 := strategy_pair_size_bd hm_le_L hH_size hnumP_len
-      (fun i => by rw [hnumP_get i]; exact hP_bd i) (hS₁_eq ▸ hS₁_pos)
-    have hB2 := strategy_pair_size_bd hn_le_L hH_size hnumQ_len
-      (fun j => by rw [hnumQ_get j]; exact hQ_bd j) (hS₂_eq ▸ hS₂_pos)
-    have hlen_xp := length_encList_ratData_le hxp_spec.1 hB1
-    have hlen_yp := length_encList_ratData_le hyp_spec.1 hB2
+      rw [hex_pairs, encWitness_eq_pairs x y, hx_pair, hy_pair]
     have hlen_w : (extractNash (c, u)).length ≤ 120 * L ^ 3 + 400 * L + 100 := by
       rw [hex_pairs]
       change (encPair (encList encRatData) (encList encRatData) (xp, yp)).length ≤
