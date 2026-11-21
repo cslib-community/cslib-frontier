@@ -142,10 +142,8 @@ theorem configurationSeedSearchSetup_originalSourceID_eq (ntm : MultiTapeNTM k B
       s.originalSourceID position.val = (originalRootID index position).val := by
   dsimp only
   intro position
-  rw [SeedSearchSetup.originalSourceID, originalRootID, subdivisionIndex_apply]
-  change rootID position.val _ = (flatIndex _ _
-    (root _ (finProdFinEquiv (finProdFinEquiv.symm position)))).val
-  rw [Equiv.apply_symm_apply, rootID_eq_flatIndex]
+  rw [SeedSearchSetup.originalSourceID, originalRootID, subdivisionIndex_root_val,
+    Equiv.apply_symm_apply]
 
 /-- Every valid original-source position maps into the initialized subdivision carrier. -/
 theorem configurationSeedSearchSetup_originalSourceID_lt_vertexCount
