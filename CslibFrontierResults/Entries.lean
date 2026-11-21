@@ -22,6 +22,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImp
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumInformationChain
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
 import CslibFrontier.Foundations.Quantum.Orthogonalization
 import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
@@ -11812,6 +11813,20 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
     not looser); (2) stated on the quotient group E ⧸ L with normalized restricted volume on an \
     arbitrary fundamental domain F rather than a basis parallelepiped P(B); (3) omits the \
     'In particular, s ≥ η_ε(B) ⇒ Δ ≤ ε / 2' specialization until smoothingParameter lands."
+
+register_result "classical-quantum-tuple-mutual-information-chain" where
+  title := "Mutual information chain rule for finite classical tuples and a quantum register"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Chain equality in equation (27)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 21" }
+  ]
+  theorems := [Cslib.Quantum.mutualInformation_classicalQuantumState_eq_sum_coordinates]
+  scope := "Arbitrary finite tuples whose coordinate alphabets may differ, with any joint \
+    probability mass function and finite complex density matrices as conditional blocks. \
+    The coordinate terms average conditional mutual information over preceding labels, \
+    with null prefixes weighted zero. The chain uses natural logarithms and includes the \
+    empty tuple."
 
 -- https://github.com/cslib-community/cslib-frontier/pull/6844
 register_result "micciancio-regev-smoothing-parameter-dual-minimum" where

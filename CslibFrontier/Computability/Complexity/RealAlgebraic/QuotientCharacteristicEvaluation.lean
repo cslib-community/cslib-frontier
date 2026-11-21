@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 
 /-!
 # Characteristic coefficients of pure-power quotients from polynomial evaluations
@@ -24,10 +25,12 @@ coefficient address are binary. Above the quotient dimension the total evaluator
 At a sufficiently large prime, canonical grid-point evaluations of those polynomials suffice
 for correctness against the characteristic polynomial of the actual normal-monomial
 multiplication matrix. The degree budget is needed only for positive powers through the
-dimension. This generic component assumes polynomial evaluation access; constructing that
-access for controlled critical systems and completing real-truth bounds are separate steps.
+dimension. Coefficient specialization before evaluation gives the reduction of the source
+characteristic coefficient over any commutative coefficient ring. This component assumes
+polynomial evaluation access. Controlled critical systems and real-truth bounds build on it.
 
-Ported from `LeanCanny.CountingHierarchy.QuotientCharacteristicEvaluation` at lean-canny commit
+Adapted from `LeanCanny.CountingHierarchy.QuotientCharacteristicEvaluation` and
+`QuotientCharacteristicSpecialization` at lean-canny commit
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`, as a component of the real-counting development
 tracked by [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
@@ -117,5 +120,42 @@ theorem quotientCharacteristicValue_eq {p n B m : ℕ} [Fact p.Prime]
       exact quotientTraceValue_cast d hd r hr v (hdeg k hk (by simpa only [hdim] using hle))
         hcut value Jvalue rvalue hvalue hJvalue hrvalue)
   simpa only [quotientCharacteristicValue, hdim] using h
+
+/-- Evaluating the specialized polynomials gives the source matrix's characteristic coefficient
+reduced by `φ`. The coefficient ring may itself be a polynomial ring in deformation parameters.
+The same cutoff and uniform evaluator apply even when `φ` is noninjective. -/
+theorem quotientCharacteristicValue_eq_specialization
+    {S : Type*} [CommRing S] {p n B m : ℕ} [Fact p.Prime] (φ : S →+* ZMod p)
+    (d : ℕ) (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree ≤ d)
+    (v : MvPolynomial (Fin n) S)
+    (hdeg : ∀ k, 1 ≤ k → k ≤ (d + 1) ^ n →
+      (v ^ k * jacobian (d + 1) r).totalDegree ≤ B)
+    (hcut : (d + 1) * (B + 1) + 1 < p)
+    (hdegree : (d + 1) ^ n * (d + 1) ^ n < p - 1)
+    (value Jvalue : List ℕ → ℕ) (rvalue : ℕ → List ℕ → ℕ)
+    (hvalue : ∀ s < p ^ n, (value (gridPoint p n s) : ZMod p) =
+      eval (fun i : Fin n => (((gridPoint p n s)[i.val]?.getD 0 : ℕ) : ZMod p)) (v.map φ))
+    (hJvalue : ∀ s < p ^ n, (Jvalue (gridPoint p n s) : ZMod p) =
+      eval (fun i : Fin n => (((gridPoint p n s)[i.val]?.getD 0 : ℕ) : ZMod p))
+        ((jacobian (d + 1) r).map φ))
+    (hrvalue : ∀ i : Fin n, ∀ s < p ^ n, (rvalue i.val (gridPoint p n s) : ZMod p) =
+      eval (fun j : Fin n => (((gridPoint p n s)[j.val]?.getD 0 : ℕ) : ZMod p)) ((r i).map φ)) :
+    quotientCharacteristicValue p n (d + 1) B m value Jvalue rvalue =
+      (φ ((multiplicationMatrix (by omega : 1 ≤ d + 1) r
+        (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.coeff m)).val := by
+  have hr' (i : Fin n) : ((r i).map φ).totalDegree ≤ d :=
+    (totalDegree_map_le φ (r i)).trans (hr i)
+  have hdeg' (k : ℕ) (hk : 1 ≤ k) (hK : k ≤ (d + 1) ^ n) :
+      ((v.map φ) ^ k * jacobian (d + 1) (fun i => (r i).map φ)).totalDegree ≤ B := by
+    rw [← jacobian_map, ← map_pow, ← map_mul]
+    exact (totalDegree_map_le φ _).trans (hdeg k hk hK)
+  have h := quotientCharacteristicValue_eq (m := m) d hd _ hr' (v.map φ)
+    hdeg' hcut hdegree value Jvalue rvalue hvalue
+    (by simpa only [jacobian_map] using hJvalue) hrvalue
+  rw [← multiplicationMatrix_map φ (by omega) r
+    (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v,
+    Matrix.charpoly_map, Polynomial.coeff_map] at h
+  exact h
 
 end Cslib.Complexity.RealAlgebraic

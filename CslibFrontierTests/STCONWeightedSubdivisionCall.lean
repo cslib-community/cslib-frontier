@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionCall
+import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionSpace
 
 /-! Ordinary-import clients for weighted STCON adjacency and the flat scan interface. -/
 
@@ -75,5 +75,33 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       (root bound (layeredCoordinates _ (layeredStart _)))
       (root bound (layeredCoordinates _ (layeredTarget _))) seed rfl rfl hbits
   exact ⟨hbefore, answer, hrun, hhalt, hedge⟩
+
+-- Charge the initialized setup as context and call from its fixed source to any
+-- in-range target. The bound applies during the nested read and at return.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ (w : List Bool) (v : ℕ),
+      let s := configurationSeedSearchSetup ntm c w
+      let size := s.parameters.search.subdivision
+      v < size.vertexCount →
+      let q : FlatQuery SeedSearchSetup := ⟨s, size.chainBound, s.sourceID, v⟩
+      let M := weightedSubdivisionCallback ntm (fun s => s.parameters.graph)
+        (fun _ => 0) (fun s => s.parameters.search.seedWidth) (fun _ _ => false)
+      ∀ t ≤ 3, (encCallback encSeedSearchSetup encLayeredCallback
+        (M.runFrom w (flatCallbackStart q) t)).length ≤ C * (Nat.log2 w.length + 1) := by
+  obtain ⟨K, hK⟩ := length_configurationSeedSearchSetup_le_log ntm c
+  obtain ⟨R, hR⟩ := configurationWeightedSubdivisionCallback_states_le ntm c encSeedSearchSetup
+    (fun s => s.parameters.graph) (fun _ => 0) (fun s => s.parameters.search.seedWidth)
+    (fun _ _ => false)
+  refine ⟨R * (K + 1), fun w v hv t ht => ?_⟩
+  let s := configurationSeedSearchSetup ntm c w
+  have hparams := (configurationSeedSearchSetup_endpoints ntm c w).1
+  have hgraph : s.parameters.graph = layeredParameters ntm c w.length := by
+    change s.parameters = _ at hparams
+    rw [hparams]
+    rfl
+  have hsource := (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1
+  refine (hR w s hgraph s.sourceID v hsource hv t ht).trans ?_
+  rw [Nat.mul_assoc, Nat.add_mul, Nat.one_mul]
+  exact Nat.mul_le_mul_left R (Nat.add_le_add_right (hK w) _)
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall
