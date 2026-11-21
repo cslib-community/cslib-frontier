@@ -5,11 +5,11 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
-public import CslibFrontier.Foundations.Probability.IndependentSumNorm
-
+import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
 import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
+import CslibFrontier.Foundations.Probability.IndependentSumNorm
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Analysis.Real.Pi.Bounds
@@ -24,10 +24,10 @@ Lemma 2.11), including an end-to-end `Measure.pi` composition of Lemmas 4.2, 4.3
 the non-isotropic 2-D lattice `ℤ × 2ℤ` at an off-lattice center.
 -/
 
+set_option linter.privateModule false
+
 open Module MeasureTheory ProbabilityTheory
 open scoped ENNReal RealInnerProductSpace
-
-public section
 
 noncomputable section
 
@@ -114,10 +114,10 @@ example :
 /-! ### Dimension 1: `ℤ ⊂ ℝ` at off-lattice center `c1 = 1 / 3` -/
 
 /-- Standard unit basis of `ℝ` spanning `ℤ ⊂ ℝ`. -/
-def unitBasis1 : Basis Unit ℝ ℝ := Basis.singleton Unit ℝ
+private def unitBasis1 : Basis Unit ℝ ℝ := Basis.singleton Unit ℝ
 
 /-- The one-dimensional integer lattice `ℤ ⊂ ℝ`. -/
-abbrev L1 := Submodule.span ℤ (Set.range unitBasis1)
+private abbrev L1 := Submodule.span ℤ (Set.range unitBasis1)
 private abbrev D1 := LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) L1
 
 private instance : DiscreteTopology D1 := ZLattice.discreteTopology_dualSubmodule L1

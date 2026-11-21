@@ -5,13 +5,14 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
 import CslibFrontier.Foundations.Probability.Gaussian.Convolution
 import CslibFrontier.Foundations.Probability.Gaussian.Projection
 import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
 
@@ -33,6 +34,8 @@ Exercises the opaque `ZLattice.smoothingParameter` API from an ordinary `module`
 3. **Dimension-0 lattice in `EuclideanSpace ℝ (Fin 0)`:** `smoothingParameter = 0` for all `ε`
    (positive and negative), order characterizations, and Lemma 3.2.
 -/
+
+set_option linter.privateModule false
 
 open Module ProbabilityTheory MeasureTheory
 open scoped ENNReal Pointwise RealInnerProductSpace
@@ -180,13 +183,9 @@ example : (1 / 2 : ℝ) ≤ ZLattice.smoothingParameter L 1 :=
 
 /-- Two-sided concrete bracket `1/2 < η_{1/2}(2ℤ) ≤ 2`, exercising both directions of
 `smoothingParameter_le_iff` and MR07 Lemma 3.2. -/
-public theorem smoothingParameter_twoZ_bounds :
-    (1 / 2 : ℝ) < ZLattice.smoothingParameter (Submodule.span ℤ (Set.range
-      ((Basis.singleton Unit ℝ).isUnitSMul
-        (fun _ ↦ (show (2 : ℝ) ≠ 0 by norm_num).isUnit)))) (1 / 2) ∧
-    ZLattice.smoothingParameter (Submodule.span ℤ (Set.range
-      ((Basis.singleton Unit ℝ).isUnitSMul
-        (fun _ ↦ (show (2 : ℝ) ≠ 0 by norm_num).isUnit)))) (1 / 2) ≤ 2 := by
+example :
+    (1 / 2 : ℝ) < ZLattice.smoothingParameter L (1 / 2) ∧
+      ZLattice.smoothingParameter L (1 / 2) ≤ 2 := by
   refine ⟨?_, eta_half_le_two⟩
   by_contra hle
   have hmass := (ZLattice.smoothingParameter_le_iff L (by norm_num) (by norm_num)).mp

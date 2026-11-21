@@ -5,10 +5,10 @@ Authors: Mayank Rathee
 -/
 
 module
-
-public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
+-- upstream: local-only (tests)
 
 import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
+import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
@@ -20,10 +20,10 @@ quotient uniformity (MR07 Lemma 4.1, both dual-mass and `η_ε(L) ≤ s` forms) 
 in dimensions 1, 2, and 0.
 -/
 
+set_option linter.privateModule false
+
 open Module ProbabilityTheory MeasureTheory
 open scoped ENNReal RealInnerProductSpace
-
-public section
 
 noncomputable section
 
@@ -39,11 +39,11 @@ private theorem basis_domain_op {E : Type*} [NormedAddCommGroup E] [InnerProduct
 /-! ### Dimension 1: non-unit lattice `2ℤ ⊂ ℝ` at off-lattice center `1` -/
 
 /-- One-dimensional basis of length `2` spanning `2ℤ ⊂ ℝ`. -/
-def twoBasis : Basis Unit ℝ ℝ :=
+private def twoBasis : Basis Unit ℝ ℝ :=
   (Basis.singleton Unit ℝ).isUnitSMul (fun _ => (show (2 : ℝ) ≠ 0 by norm_num).isUnit)
 
 /-- The non-unit one-dimensional lattice `2ℤ ⊂ ℝ`. -/
-abbrev L1 := Submodule.span ℤ (Set.range twoBasis)
+private abbrev L1 := Submodule.span ℤ (Set.range twoBasis)
 private abbrev D1 := LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) L1
 
 private instance : DiscreteTopology D1 := ZLattice.discreteTopology_dualSubmodule L1
@@ -145,7 +145,7 @@ example : ZLattice.gaussianMass L1 2 0 / ZLattice.gaussianMass L1 2 1 ≤ 3 := b
 
 /-- Off-center MR07 Lemma 4.4 (dual-mass form) on `2ℤ` at `v = 1, s = 2, ε = 1 / 2`:
 gives the nontrivial bound `< 3 / 4 < 1`. -/
-theorem offCenter_norm_gt_sqrt_lt_twoZ :
+example :
     (ZLattice.discreteGaussian L1 2 (by norm_num) 1).toOuterMeasure {z : L1 | 2 < ‖(z : ℝ) - 1‖} <
       ENNReal.ofReal (3 / 4) := by
   have h := ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le L1 2 (by norm_num) 1

@@ -5,11 +5,12 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
-public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
-public import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
+import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
 
@@ -24,6 +25,8 @@ Covers dimension 0, the 1-D lattice `2ℤ`, the non-isotropic 2-D lattice `ℤ �
 `ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le`), and the lower-rank
 discrete lattice `ℤ × {0} ⊂ ℝ²` with an off-span center.
 -/
+
+set_option linter.privateModule false
 
 open Module ProbabilityTheory MeasureTheory
 open scoped ENNReal RealInnerProductSpace
@@ -41,11 +44,8 @@ private abbrev pointDual := LinearMap.BilinForm.dualSubmodule (innerₗ Point) p
 
 /-- `ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum` holds in dimension zero for
 every positive `ε` and `s`, using only ordinary module imports. -/
-public theorem gaussianMass_dual_dim0_le (ε : ℝ) (hε : 0 < ε) (s : ℝ) (hs : 0 < s) :
-    ZLattice.gaussianMass
-      (LinearMap.BilinForm.dualSubmodule (innerₗ (EuclideanSpace ℝ (Fin 0)))
-        (Submodule.span ℤ (Set.range (EuclideanSpace.basisFun (Fin 0) ℝ).toBasis)))
-      (1 / s) 0 - 1 ≤ ε := by
+example (ε : ℝ) (hε : 0 < ε) (s : ℝ) (hs : 0 < s) :
+    ZLattice.gaussianMass pointDual (1 / s) 0 - 1 ≤ ε := by
   apply ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum _ ε hε s hs
   simp [hs.le]
 
