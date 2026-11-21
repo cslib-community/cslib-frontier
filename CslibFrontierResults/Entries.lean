@@ -458,6 +458,8 @@ import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
 import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
+import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
+import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 
 /-!
 # Collected results
@@ -11523,3 +11525,75 @@ register_result "odonnell-transitive-symmetric-influence" where
     functions by the n equal influences, instead of the book's route through f̂(i) and Parseval. \
     Monotone is for Bool's order false < true; under true ↦ −1 this is the book's \
     coordinatewise order on inputs and outputs."
+
+register_result "banaszczyk-shifted-gaussian-tail" where
+  title := "Shifted Banaszczyk Gaussian tail bound for lattices"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 2.10",
+      locator := "author's copy of December 27, 2005, §2, eq. (6), printed p. 9" },
+    { paper := Banaszczyk1993, theorem := "Lemma 1.5", locator := unverified },
+    { paper := Regev2009, theorem := "Lemma 2.5",
+      locator := "author's version of May 2, 2009, §2, printed p. 16" }
+  ]
+  theorems := [
+    ZLattice.tsum_gaussianWeight_norm_sub_gt_lt,
+    ZLattice.tsum_gaussianWeight_norm_sub_gt_sqrt_lt
+  ]
+  scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
+    space E (of dimension n = finrank ℝ E, including n = 0), width s > 0, arbitrary shift v : E, \
+    and c > 1 / √(2π), the unnormalized Gaussian mass of L − v strictly outside radius c s √n is \
+    strictly less than (c √(2πe) exp(−π c²)) ^ n · gaussianMass L s 0 \
+    (tsum_gaussianWeight_norm_sub_gt_lt). Sharper than MicciancioRegev2007 Lemma 2.10 eq. (6): \
+    removes the source's factor of 2 on the right-hand side via Poisson positivity \
+    (ρ_{t, v}(L) ≤ ρ_t(L)), subsuming the centered eq. (5) at v = 0, and allows arbitrary width \
+    s > 0 rather than s = 1. At c = 1, tsum_gaussianWeight_norm_sub_gt_sqrt_lt gives strict tail \
+    mass < (1 / 4) ^ n · gaussianMass L s 0, extending Regev2009 Lemma 2.5 (which is centered at \
+    v = 0) to arbitrary shifts v : E. Banaszczyk1993 Lemma 1.5 is cited via MicciancioRegev2007 \
+    Lemma 2.10 and Regev2009 Lemma 2.5 without direct inspection of the 1993 journal pages."
+
+register_result "micciancio-regev-discrete-gaussian-norm-tail" where
+  title := "Discrete Gaussian sample-norm tail bound under dual-mass smoothing"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.4",
+      locator := "author's copy of December 27, 2005, §4, printed p. 15" }
+  ]
+  theorems := [
+    ZLattice.discreteGaussian_norm_sub_gt_sqrt_lt_of_dual_mass_le
+  ]
+  scope := "Dual-mass form of MicciancioRegev2007 Lemma 4.4 (a step toward the η_ε(L) ≤ s \
+    statement once ZLattice.smoothingParameter is in scope): for any full-rank discrete lattice L \
+    in a finite-dimensional real inner product space E (of dimension n = finrank ℝ E, including \
+    n = 0), width s > 0, arbitrary center v : E, and real ε < 1 satisfying the dual-mass bound \
+    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 ≤ ε (which unpacks s ≥ η_ε(L) when \
+    ε > 0; 0 ≤ ε follows automatically), the discrete Gaussian probability \
+    (discreteGaussian L s hs v).toOuterMeasure {z : L | s √n < ‖(z : E) − v‖} is strictly less \
+    than ENNReal.ofReal ((1 + ε) / (1 − ε) · (1 / 4) ^ n). Deviations from the source: (1) states \
+    the smoothing condition directly in dual-mass form rather than via η_ε(L); (2) sharpens the \
+    source's non-strict ((1 + ε) / (1 − ε)) · 2 ^ (−n) bound to strict \
+    ((1 + ε) / (1 − ε)) · (1 / 4) ^ n via the factor-of-2-free shifted Banaszczyk bound \
+    (1 / 4 instead of 1 / 2)."
+
+register_result "micciancio-regev-gaussian-quotient-uniformity" where
+  title := "Shifted continuous Gaussian modulo a lattice is close to uniform"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.1",
+      locator := "author's copy of December 27, 2005, §4, printed p. 12" }
+  ]
+  theorems := [
+    ZLattice.tvDist_gaussian_shift_quotient_le
+  ]
+  scope := "Dual-mass form (first sentence) of MicciancioRegev2007 Lemma 4.1 (a step toward the \
+    s ≥ η_ε(L) corollary once ZLattice.smoothingParameter is in scope): for any full-rank \
+    discrete lattice L in a finite-dimensional real inner product space E with Borel measurable \
+    structure, fundamental domain F for L, width s > 0, and arbitrary center c : E, the \
+    quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total variation \
+    distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the normalized \
+    quotient Haar measure. Conventions and deviations from the source: (1) Mathlib's tvDist is \
+    the full-L¹ distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly \
+    equivalent to the source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}) (identical constant, \
+    not looser); (2) stated on the quotient group E ⧸ L with normalized restricted volume on an \
+    arbitrary fundamental domain F rather than a basis parallelepiped P(B); (3) omits the \
+    'In particular, s ≥ η_ε(B) ⇒ Δ ≤ ε / 2' specialization until smoothingParameter lands."
