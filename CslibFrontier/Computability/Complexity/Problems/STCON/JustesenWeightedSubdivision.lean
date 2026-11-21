@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubd
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.JustesenBit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 
 /-!
 # Justesen-weighted subdivision queries for STCON
@@ -20,6 +22,8 @@ uses the existing retained-rank weight and same-input layered adjacency. Its see
 comes from the binary exclusive rank limit, so even an arbitrary encoded request cannot
 request more seed positions than the encoded context can pay for. On initialized requests,
 the limit is a power of two and this width is exactly the number of Justesen code bits.
+The context initializer combines the native seed-search and field routines on the same
+original word. A valid binary rank fits in the same logarithmic encoded-length budget.
 -/
 
 public section
@@ -44,6 +48,49 @@ structure JustesenSubdivisionContext where
 /-- Framed search parameters and field context, followed by the binary candidate rank. -/
 enc_structure encJustesenSubdivisionContext : JustesenSubdivisionContext where
   parameters : encSeedSearchParameters, field : encFieldContext, rank : encNat
+
+/-- Initialize the context for weighted adjacency from the original word and candidate rank. -/
+@[expose] noncomputable def configurationJustesenSubdivisionContext
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) (rank : ℕ) :
+    JustesenSubdivisionContext :=
+  ⟨configurationSeedSearchParameters ntm c w, configurationFieldContext ntm c w, rank⟩
+
+/-- Logarithmic-space producers of the original word and binary rank yield a native
+initializer for the complete weighted-adjacency context. -/
+theorem configurationJustesenSubdivisionContext_inLogSpace
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) {α : Type} {enc : α ↪ List Bool}
+    {word : α → List Bool} {rank : α → ℕ}
+    (hword : ComputableInLogSpace word enc encBits)
+    (hrank : ComputableInLogSpace rank enc encNat) :
+    ComputableInLogSpace (fun a => configurationJustesenSubdivisionContext ntm c (word a) (rank a))
+      enc encJustesenSubdivisionContext := by
+  have hp := (configurationSeedSearchParameters_inLogSpace ntm c).comp hword
+  have hf := (configurationFieldContext_inLogSpace ntm c).comp hword
+  exact (hp.pair (hf.pair hrank)).congr fun _ => rfl
+
+/-- A valid rank and the initialized parameter and field encodings together fit in logarithmic
+length in the original STCON word. -/
+theorem length_configurationJustesenSubdivisionContext_le_log
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ (w : List Bool) (rank : ℕ),
+      rank < (configurationSeedSearchParameters ntm c w).search.seedLimit →
+      (encJustesenSubdivisionContext (configurationJustesenSubdivisionContext ntm c w rank)).length
+        ≤ C * (Nat.log2 w.length + 1) := by
+  obtain ⟨P, hP⟩ := length_configurationSeedSearchParameters_le_log ntm c
+  obtain ⟨F, hF⟩ := length_configurationFieldContext_le_log ntm c
+  refine ⟨3 * P + 2 * F + 2, fun w rank hrank => ?_⟩
+  let p := configurationSeedSearchParameters ntm c w
+  have hr : (encNat rank).length ≤ (encSeedSearchParameters p).length :=
+    (length_encNat_mono hrank.le).trans
+      ((encSeedSearchSize_seedLimit_length_le p.search).trans
+        (encSeedSearchParameters_search_length_le p))
+  dsimp only [p] at hr
+  have hp := hP w
+  have hf := hF w
+  have hpos : 1 ≤ Nat.log2 w.length + 1 := Nat.le_add_left _ _
+  simp only [configurationJustesenSubdivisionContext, encJustesenSubdivisionContext_apply,
+    encJustesenSubdivisionContextFields, length_encPair, Nat.add_mul, Nat.mul_assoc]
+  omega
 
 private def seedWidth (ctx : JustesenSubdivisionContext) : ℕ :=
   ctx.parameters.search.seedLimit.size - 1
@@ -119,8 +166,7 @@ theorem configurationJustesenWeightedSubdivisionCallback_agrees
     let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
     let index := configurationSubdivisionIndex ntm c w
     ∀ (u v : Fin size.vertexCount) (seed : Fin (2 ^ codeLength I.n (I.n - 1))),
-      let ctx : JustesenSubdivisionContext :=
-        ⟨configurationSeedSearchParameters ntm c w, fieldContext I.n (I.n - 1), seed.val⟩
+      let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
       let M := justesenWeightedSubdivisionCallback ntm
       let start := flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩
       (∀ t < 3, M.halted (M.runFrom w start t) = false) ∧
