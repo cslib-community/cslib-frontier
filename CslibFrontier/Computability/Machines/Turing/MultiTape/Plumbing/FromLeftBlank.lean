@@ -22,7 +22,8 @@ namespace Turing.MultiTapeTM
 
 variable {k : ℕ} {Symbol State : Type*} {input : List Symbol}
 
-private def inputStep (direction : SignType) : MultiTapeTM k Symbol Unit :=
+/-- Move the physical input head once, preserving all work tapes and output. -/
+@[expose] def inputStep (direction : SignType) : MultiTapeTM k Symbol Unit :=
   ofTr () fun _ _ _ => ⟨direction, fun _ => (none, 0), none, none⟩
 
 /-- Position the input head from its left blank, run the supplied machine, and move it back. -/

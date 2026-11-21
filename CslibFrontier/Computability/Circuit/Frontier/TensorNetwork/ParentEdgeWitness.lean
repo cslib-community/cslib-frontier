@@ -127,7 +127,7 @@ theorem portRank_eq_sum_predecessors (sel : ℕ × ℕ → ℕ) {bound : ℕ}
   have hr : (List.range ends.length).filter (fun e => e < bound) = List.range bound := by
     simpa only [List.Ico.zero_bot] using List.Ico.filter_lt_of_ge (n := 0) hbound
   rw [portRank, ← hr, List.countP_filter, ← List.map_coe_finRange_eq_range,
-    ← List.ofFn_eq_map, List.countP_ofFn]
+    ← List.ofFn_eq_map, List.countP_ofFn, Finset.card_filter]
   refine Finset.sum_congr rfl fun candidate _ => ?_
   simp [portPredecessor, Bool.toNat, cond_eq_ite, and_comm]
 

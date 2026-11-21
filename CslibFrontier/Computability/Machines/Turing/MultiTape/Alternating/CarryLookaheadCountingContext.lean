@@ -22,6 +22,17 @@ namespace Turing.MultiTapeATM.CarryLookaheadCountingFromParametersCost
 
 open MultiTapeTM Cslib Cslib.Circuits.Boolean.CarryLookahead.Query
 
+/-- A bit claim checked by the count machine on its external input and fixed context word.
+Its native branch budget separates the linear raw cost from polynomial short arithmetic. -/
+@[expose] def checksBit {scratch u r t : ℕ} {S : Type}
+    (atm : MultiTapeATM (CarryLookaheadCountingPrepare.size scratch u r t) Bool S)
+    (C E : ℕ) (input context : List Bool) (raw short n w j : ℕ) (claim : Bool) : Prop :=
+  let params : CountingInput.Input := ⟨n, ⟨w, j, claim⟩⟩
+  let start := (CarryLookaheadCountingPrepare.initial scratch u r t input context
+    params).withState (some atm.toPTM.initial)
+  let time := C * (raw + (short + n.size + w.size + 1) ^ E + 1)
+  atm.HaltsWithin time start ∧ atm.AcceptsWithin time start
+
 /-- Collect the fixed number of raw scans outside the polynomial in the short fields. -/
 private theorem clock_bound (A D d : ℕ) :
     ∃ C E, ∀ R S N W L B : ℕ, L ≤ 2 * R + 2 * S + 4 → B ≤ 2 * N + W →

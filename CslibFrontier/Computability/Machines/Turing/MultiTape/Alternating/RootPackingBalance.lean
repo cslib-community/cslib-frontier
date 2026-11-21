@@ -32,12 +32,10 @@ def checksBit {scratch u r v : ℕ} {S : Type}
     (atm : MultiTapeATM (CarryLookaheadCountingPrepare.size scratch u r v) Bool S)
     (C E : ℕ) (input : List Bool) (arg : RootPredecessorQuery.Input) (n w j : ℕ) (claim : Bool) :
     Prop :=
-  let params : CountingInput.Input := ⟨n, ⟨w, j, claim⟩⟩
-  let start := (CarryLookaheadCountingPrepare.initial scratch u r v input
-    (RootPredecessorContext.word arg) params).withState (some atm.toPTM.initial)
-  let time := C * (arg.raw.length +
-    (RootPredecessorQuery.shortSize arg + n.size + w.size + 1) ^ E + 1)
-  atm.HaltsWithin time start ∧ atm.AcceptsWithin time start
+  CarryLookaheadCountingFromParametersCost.checksBit
+    (scratch := scratch) (u := u) (r := r) (t := v) atm C E input
+    (RootPredecessorContext.word arg) arg.raw.length (RootPredecessorQuery.shortSize arg)
+    n w j claim
 
 /-- Balance of any proposed seed is equivalent to bounded local guesses, a native capacity
 check and clocked verification of every bit. One machine works uniformly for all root graphs
