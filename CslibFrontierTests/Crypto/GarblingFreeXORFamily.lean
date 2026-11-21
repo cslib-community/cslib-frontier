@@ -145,19 +145,19 @@ example : PointPermute.decodeWord simView.decInfo
   decide
 
 /-- The query of the stateful `prv.sim` adversary: `validCircuit₁` on `[true, false, true]`. -/
-def query : Query ValidCircuit := ⟨validCircuit₁, [true, false, true]⟩
+private def query : Query ValidCircuit := ⟨validCircuit₁, [true, false, true]⟩
 
 /-- Stateful guess function: reads the saved bit and the first decoding bit, or `false` on `⊥`. -/
-def advGuess (state : Bool) (view : Option PrvView) : Bool :=
+private def advGuess (state : Bool) (view : Option PrvView) : Bool :=
   view.elim false fun v => state && v.decInfo.getD 0 false
 
 /-- A stateful uniform strict PPT `prv.sim` adversary against Free-XOR garbling. -/
-def adversary : ℕ → PrvSimAdversary ValidCircuit Bool := fun _ =>
+private def adversary : ℕ → PrvSimAdversary ValidCircuit Bool := fun _ =>
   ⟨fun () => pure (query, true), fun state view => pure (advGuess state view)⟩
 
 open Turing.MultiTapeTM in
 /-- The adversary is uniform strict PPT. -/
-theorem adversary_isPPT : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit)
+private theorem adversary_isPPT : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit)
     (encOption encPrvView) encBool encBool adversary where
   choose := ComputableInPolyTime.isPPTOn (ComputableInPolyTime.const _)
   guess := ComputableInPolyTime.isPPTOn
@@ -174,7 +174,7 @@ example (k : ℕ) :
   FreeXOR.isTweakUnique_prvSimReduction toyHash adversary k
 
 /-- `validCircuit₁` has 4 gates, so `8 * q = 32 ≤ 2 ^ 5` at parameter `k = 5`. -/
-theorem capacity_adversary {q : Query ValidCircuit} {state : Bool}
+private theorem capacity_adversary {q : Query ValidCircuit} {state : Bool}
     (h : (q, state) ∈ (ProbComp.eval ((adversary 5).choose ())).support) :
     8 * q.fn.1.q ≤ 2 ^ 5 := by
   simp only [adversary, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
@@ -200,5 +200,4 @@ example {hash : List Bool → List Bool → List Bool} (h : CircularCorrelationR
       Negligible fun k => prvSimAdvantage (FreeXOR.scheme hash) FreeXOR.phiXor k (S k)
         (adversary k) :=
   h.prvSim_freeXOR Bool Turing.MultiTapeTM.encBool adversary adversary_isPPT
-
 end CslibFrontierTests.Crypto.GarblingFreeXORFamily

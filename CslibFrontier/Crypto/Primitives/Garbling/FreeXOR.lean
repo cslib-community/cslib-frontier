@@ -714,6 +714,8 @@ theorem isTweakUnique_reduction [DecidableEq T] (htw : Function.Injective tw) :
         (propagate C.topology free base) O))
   simpa only [reduction, Nat.zero_add, Nat.add_zero] using h
 
+/-- Library infrastructure (no cited result): evaluation of `reduction` against a fixed oracle
+`f` samples uniform base labels and applies `D` to `reductionView` on the resulting answers. -/
 theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
     ProbComp.eval ((reduction C I H tw x D).run fun q => pure (f q)) =
       (PMF.uniformOfFintype (Wire n C.size → K × Bool)).bind fun base =>
@@ -724,7 +726,8 @@ theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
     pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform, Finset.mem_toList, Finset.mem_univ,
     ite_true]
 
-/-- With the circular oracle, the reduction plays the real experiment. -/
+/-- Library infrastructure (no cited result): with the circular oracle, the reduction plays the
+real experiment. -/
 theorem realGame_reduction
     (hfree : ∀ g, free g = true → ∀ v, I (C.program.lines g).op v = ∑ k, v k)
     (hK : ∀ k : K, k + k = 0) :
@@ -739,8 +742,8 @@ theorem realGame_reduction
   rw [PMF.bind_map]
   rfl
 
-/-- With a uniform random function, the reduction plays the simulated experiment, when distinct
-slots have distinct tweaks. -/
+/-- Library infrastructure (no cited result): with a uniform random function, the reduction plays
+the simulated experiment, when distinct slots have distinct tweaks. -/
 theorem idealGame_reduction [DecidableEq K] [Fintype T] [DecidableEq T]
     (htw : Function.Injective tw) :
     ProbComp.eval (PRF.idealExperiment (reduction C I H tw x D)) = simGame C I H tw x D := by

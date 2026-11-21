@@ -36,7 +36,7 @@ correlation robustness advantage of the certified non-adaptive reduction `FreeXO
 `CircularCorrelationRobust.negligible_advantage`.
 
 This is this library's own theorem under circular correlation robustness in the form of
-Definition 1 of Zahur, Rosulek and Evans [ZahurRosulekEvans2015] (§4.1, p. 10), as
+Definition 1 of Zahur, Rosulek and Evans [ZahurRosulekEvans2015], as
 `CircularCorrelationRobust` states it. It is not a formalization of Theorem 3 of Choi, Katz,
 Kumaresan and Zhou [ChoiKatzKumaresanZhou2012] (which assumes dual-key circular correlation
 robustness in Definition 4 together with 2PC) and not a random-oracle proof in the model of
@@ -70,10 +70,10 @@ open Garbling Garbling.FreeXOR Turing.MultiTapeTM Probability Filter
 
 variable {hash : List Bool → List Bool → List Bool}
 
-/-- **One simulator serves every adversary.** For a circular correlation robust hash family `hash`
-and every uniform strict PPT `prv.sim` adversary `B`, the `prv.sim` advantage of `B` against the
-simulator `simWord hash` for Free-XOR garbling with the side information `phiXor` is
-negligible. -/
+/-- Library infrastructure (no cited result): **One simulator serves every adversary.** For a
+circular correlation robust hash family `hash` and every uniform strict PPT `prv.sim` adversary
+`B`, the `prv.sim` advantage of `B` against the simulator `simWord hash` for Free-XOR garbling
+with the side information `phiXor` is negligible. -/
 theorem CircularCorrelationRobust.negligible_prvSimAdvantage_freeXOR
     (h : CircularCorrelationRobust hash) {σ : Type} {encσ : σ ↪ List Bool}
     {B : ℕ → PrvSimAdversary ValidCircuit σ}
@@ -117,7 +117,7 @@ theorem CircularCorrelationRobust.negligible_prvSimAdvantage_freeXOR
 /-- **Free-XOR garbling is `prv.sim` secure with a universal simulator over `phiXor`**, for every
 circular correlation robust hash family `hash`.
 
-This is this library's own theorem under [ZahurRosulekEvans2015] Definition 1 (§4.1, p. 10), in
+This is this library's own theorem under [ZahurRosulekEvans2015] Definition 1, in
 the form `CircularCorrelationRobust` states. It is not [ChoiKatzKumaresanZhou2012] Theorem 3
 (dual-key Definition 4 together with 2PC) and not [KolesnikovSchneider2008] in the random-oracle
 model; obliviousness is not treated here. Simulation privacy does not use validity. -/
@@ -132,7 +132,7 @@ PPT simulator, on `(1^k, y, φ)` with circuits encoded by `encValidCircuit` and 
 `encXorTopology`, whose advantage is negligible. The simulator `simWord hash` is the same for every
 adversary (`CircularCorrelationRobust.negligible_prvSimAdvantage_freeXOR`).
 
-This is this library's own theorem under [ZahurRosulekEvans2015] Definition 1 (§4.1, p. 10), in
+This is this library's own theorem under [ZahurRosulekEvans2015] Definition 1, in
 the form `CircularCorrelationRobust` states. It is not [ChoiKatzKumaresanZhou2012] Theorem 3
 (dual-key Definition 4 together with 2PC) and not [KolesnikovSchneider2008] in the random-oracle
 model; obliviousness is not treated here. Simulation privacy does not use validity. -/
