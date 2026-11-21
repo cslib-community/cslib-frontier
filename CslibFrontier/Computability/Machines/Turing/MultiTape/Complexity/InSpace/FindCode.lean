@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.Data.Nat.FindCode
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.IterateUntil
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 
@@ -47,7 +48,7 @@ private theorem searchDone_inSpace (encC : C ↪ List Bool) :
   have hid := budget_id (BigOLe.refl fun s => (encSearchState encC s).length)
   have ha := budget_optionIsSome (encSearchState_answer_budget encC hid)
   have hz := budget_natIsZero (encSearchState_remaining_budget encC hid)
-  exact budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 || p.2) (budget_prod ha hz)
+  exact budget_boolOr ha hz
 
 private def searchStep (test : C × ℕ → Bool) (s : SearchState C) : SearchState C :=
   if searchDone s then s
