@@ -76,7 +76,8 @@ def signedPorts {p : ℕ} (u v : (ZMod (2 ^ p))[X]) (q i : ℕ) (j : Fin 7) (t :
     BitString (p + p) := Fin.append (fun b => signedBit u v q i t b.val false j)
       (fun b => signedBit u v q i t b.val true j)
 
-private theorem value_port {p : ℕ} (u v : (ZMod (2 ^ p))[X]) (q i : ℕ) (j : Fin 7)
+/-- A zero-depth leaf exposes its routed signed operand or local correction bit. -/
+theorem value_port {p : ℕ} (u v : (ZMod (2 ^ p))[X]) (q i : ℕ) (j : Fin 7)
     (t : List Bool) (b : Fin p) (carry : Bool) :
     Boolean.CarrySaveQuery.value (signedPorts u v q i j) ⟨t, 0, carry, b.val⟩ =
       signedBit u v q i t b.val carry j := by

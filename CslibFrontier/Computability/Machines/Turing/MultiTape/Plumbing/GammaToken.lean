@@ -17,8 +17,9 @@ import Mathlib.Tactic.FinCases
 
 The first work head scans a gamma token. Each leading zero moves the second head one cell away
 from its fixed origin marker. Each payload bit moves it one cell back. Reaching the marker ends
-the token, leaving the first head on the next token. Keeping the payload emits the positive integer
-in little-endian order, including its final leading one. Skipping the payload emits one success bit.
+the token, leaving the first head on the next token. Keeping the payload emits the
+positive integer in little-endian order, including its final leading one. Skipping the payload
+emits one success bit.
 -/
 
 public section
@@ -191,13 +192,15 @@ theorem runFrom_no_delimiter (keep : Bool) {input : List Bool} (ip : Fin (input.
 private theorem step_progress (keep state : Bool) {input : List Bool}
     (ip : Fin (input.length + 2)) (out word : List Bool) (p d : ℕ) :
     let next := (machine keep).step (config ip out word p d (some state))
-    next.state = none ∨ (p < word.length ∧ ∃ (state' : Bool) (out' : List Bool) (d' : ℕ),
+    (∃ out', next = config ip out' word p d none) ∨
+      (p < word.length ∧ ∃ (state' : Bool) (out' : List Bool) (d' : ℕ),
       next = config ip out' word (p + 1 : ℕ) d' (some state')) := by
   simp only [step_instr]
   cases hb : word[p]? with
   | none =>
     left
-    cases state <;> cases d <;> simp [instruction, move, config]
+    refine ⟨out ++ [state && decide (d = 0)], ?_⟩
+    cases state <;> cases d <;> simp [instruction, apply_move, SignType.cast]
   | some b =>
     have hp : p < word.length := (List.getElem?_eq_some_iff.mp hb).choose
     cases state with
@@ -207,10 +210,31 @@ private theorem step_progress (keep state : Bool) {input : List Bool}
       · exact Or.inr ⟨hp, true, out, d, by simp [instruction, apply_move, SignType.cast]⟩
     | true =>
       cases d with
-      | zero => exact Or.inl (by simp [instruction, move, config])
+      | zero => exact Or.inl ⟨out ++ [true], by simp [instruction, apply_move, SignType.cast]⟩
       | succ d =>
         refine Or.inr ⟨hp, true, out ++ (if keep then some b else none).toList, d, ?_⟩
         simp [instruction, apply_move, SignType.cast]
+
+/-- On an arbitrary source the scanner consumes some number of remaining cells and spends
+exactly one further transition to halt. Its heads and output can be reused by the next scan. -/
+theorem exists_run (keep state : Bool) {input : List Bool} (ip : Fin (input.length + 2))
+    (out word : List Bool) (p d : ℕ) :
+    ∃ (n : ℕ) (out' : List Bool) (d' : ℕ), n ≤ word.length - p ∧
+      (machine keep).runFrom (config ip out word p d (some state)) (n + 1) =
+        config ip out' word (p + n : ℕ) d' none := by
+  generalize hN : word.length - p = N
+  induction N using Nat.strong_induction_on generalizing state out p d with
+  | ind N ih =>
+    rcases step_progress keep state ip out word p d with ⟨out', halt⟩ |
+      ⟨hp, state', out', d', step⟩
+    · exact ⟨0, out', d, Nat.zero_le _, by simpa only [Nat.zero_add, Nat.add_zero, runFrom_one]
+        using halt⟩
+    · obtain ⟨n, result, marker, hn, hr⟩ := ih (word.length - (p + 1))
+        (by omega) state' out' (p + 1) d' rfl
+      refine ⟨n + 1, result, marker, by omega, ?_⟩
+      rw [show n + 1 + 1 = 1 + (n + 1) by omega, runFrom_add, runFrom_one, step, hr]
+      congr 2
+      omega
 
 /-- Even a malformed or truncated token halts after at most one step per remaining source cell
 plus one. This bound applies to arbitrary tape words, both phases and any marker displacement. -/
@@ -218,13 +242,8 @@ theorem exists_halts_le (keep state : Bool) {input : List Bool} (ip : Fin (input
     (out word : List Bool) (p d : ℕ) :
     ∃ t ≤ word.length - p + 1,
       ((machine keep).runFrom (config ip out word p d (some state)) t).state = none := by
-  generalize hN : word.length - p = N
-  induction N using Nat.strong_induction_on generalizing state out p d with
-  | ind N ih =>
-    rcases step_progress keep state ip out word p d with halt | ⟨hp, state', out', d', step⟩
-    · exact ⟨1, by omega, by simpa only [runFrom_one] using halt⟩
-    · obtain ⟨t, ht, hhalt⟩ := ih (word.length - (p + 1)) (by omega) state' out' (p + 1) d' rfl
-      exact ⟨1 + t, by omega, by rw [runFrom_add, runFrom_one, step]; exact hhalt⟩
+  obtain ⟨n, out', d', hn, hr⟩ := exists_run keep state ip out word p d
+  exact ⟨n + 1, by omega, by rw [hr]; rfl⟩
 
 /-- The exact clocks for consecutively positioned tokens total at most twice the compressed
 length, for arbitrary token values and either payload mode. -/

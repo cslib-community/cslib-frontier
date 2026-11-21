@@ -50,12 +50,12 @@ theorem exists_prepend_work {flags : Public → List Bool} {d : ℕ}
       (fun p => p.1.raw.length + shortSize p ^ d) (fun p => p.1.raw.length + shortSize p ^ d))
     {K : ℕ} {L : Type} [Finite L] (tape : Fin K) (leaf : MultiTapeATM K Bool L) :
     ∃ (U : ℕ) (src : Fin U) (Q : Type) (_ : Finite Q) (atm : MultiTapeATM U Bool Q) (C E : ℕ),
-      ∀ (host : List Bool) (p : Public) (t : ℕ),
+      ∀ (host : List Bool) (p : Public) (pos : ℕ), pos ≤ (encPublic p).length → ∀ (t : ℕ),
         let w := encPublic p
         let pre := frame w
         let target := WordGameLeaf.config tape (some leaf.toPTM.initial) (pre ++ flags p) pre.length
           (TerminalLayout.blank K host)
-        let start := SharedWordFork.start src atm host w w.length
+        let start := SharedWordFork.start src atm host w pos
         leaf.HaltsWithin t target →
           let time := C * (p.1.raw.length + shortSize p ^ E + 1) + t
           atm.HaltsWithin time start ∧
@@ -69,10 +69,10 @@ theorem exists_prepend_work {flags : Public → List Bool} {d : ℕ}
   let stage := prependTM skip child
   have hnil := (ComputableInDegree.const (encIn := RootBalanceRequest.encInput)
     (encMid := encBits) ([] : List Bool)).inO_one.comp_linear hd
-  obtain ⟨U, src, Q, hQ, atm, c, h⟩ := TerminalLayout.exists_load hd hnil i j hij stage
+  obtain ⟨U, src, Q, hQ, atm, c, h⟩ := TerminalLayout.exists_load_from hd hnil i j hij stage
   obtain ⟨C, E, hc⟩ := rewind_clock c d
   refine ⟨U, src, Q, hQ, atm, C, E, ?_⟩
-  intro host p t
+  intro host p pos hpos t
   dsimp only
   intro hh
   let pre := frame (encPublic p)
@@ -102,9 +102,12 @@ theorem exists_prepend_work {flags : Public → List Bool} {d : ℕ}
   have ht : child.HaltsWithin t (finish.withState (some child.toPTM.initial)) :=
     (leaf.haltsWithin_extendTapes_iff emb t _).2 (hv ▸ hh)
   obtain ⟨hs', ha⟩ := prependTM_spec skip child start finish pre.length t hs ht
-  obtain ⟨hh', hacc⟩ := h host p _ hs'
-  have hb := Nat.add_le_add_right (hc p) t
-  rw [Nat.add_assoc _ pre.length t] at hb
+  obtain ⟨hh', hacc⟩ := h host p pos hpos _ hs'
+  have hb : pos + c * (p.1.raw.length + shortSize p ^ d + 1) + 8 + (pre.length + t) ≤
+      C * (p.1.raw.length + shortSize p ^ E + 1) + t := by
+    have hz := hc p
+    change _ + pre.length ≤ _ at hz
+    omega
   have hac : child.AcceptsWithin t (finish.withState (some child.toPTM.initial)) ↔
       leaf.AcceptsWithin t (WordGameLeaf.config tape (some leaf.toPTM.initial)
         word pre.length (TerminalLayout.blank K host)) := by

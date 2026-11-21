@@ -26,7 +26,7 @@ open Polynomial SparseTrinomial GaloisRingArith
 open Boolean.CarrySaveQuery
 
 /-- Binary coefficient word of a polynomial, including zero beyond its degree. -/
-noncomputable def coeffWord {p : ℕ} (u : (ZMod (2 ^ p))[X]) (j : ℕ) : BitString p :=
+@[expose] noncomputable def coeffWord {p : ℕ} (u : (ZMod (2 ^ p))[X]) (j : ℕ) : BitString p :=
   (BitString.equivFin p).symm ⟨(u.coeff j).val, ZMod.val_lt _⟩
 
 /-- Word on the second side of row j, padded with zeros for negative indices. -/

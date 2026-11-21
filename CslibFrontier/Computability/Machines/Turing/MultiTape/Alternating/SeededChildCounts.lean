@@ -48,7 +48,7 @@ inductive Request where
   | .pack e p => q.classCount l e p
 
 /-- Check a single parent endpoint and evaluate a Boolean test on its two keys. -/
-noncomputable def atEndpoint (q : EndpointQuery) (j : ℕ) (f : ℕ × ℕ → Bool) : Bool := by
+@[expose] noncomputable def atEndpoint (q : EndpointQuery) (j : ℕ) (f : ℕ × ℕ → Bool) : Bool := by
   classical exact decide (∃ p, q.accepts j p ∧ f p = true)
 
 /-- For either claimed truth value, a genuine edge needs just its own two-key witness. -/
@@ -61,7 +61,8 @@ theorem atEndpoint_eq_iff {q : EndpointQuery} {es} (hq : q.Represents es) {j : �
 
 /-- A vertex query reads the common seed directly. A port or class query checks a single
 parent candidate at its genuine edge index. -/
-noncomputable def Request.test (r : Request) (q : EndpointQuery) (l : Labels) (j : ℕ) : Bool :=
+@[expose] noncomputable def Request.test (r : Request) (q : EndpointQuery) (l : Labels)
+    (j : ℕ) : Bool :=
   match r with
   | .vertex _ => decide ((l.split q).label j = l.group)
   | .port col _ => atEndpoint q j fun p =>

@@ -156,6 +156,24 @@ theorem view_final (k : ℕ) (input : List Bool) (q : RawInput) (out : List Bool
   apply Cfg.ext <;> try rfl
   all_goals funext i; simp [viewCfg, final, WorkTapePredicate.config, tapesCfg]
 
+/-- Serializing the six fields leaves the fresh work query at its origin on the private block. -/
+theorem runFrom_serialize (k : ℕ) (q : RawInput) (input : List Bool) :
+    (Serialize.machine.extendTapes (serializerTapes k)).runFrom
+      ((initial k input q).withState (some Serialize.machine.q₀))
+      (2 * (encRawInput q).length + 5) = (final k input q []).withState none := by
+  have hs := runFrom_map
+    (embedHom Serialize.machine (serializerTapes k) (fun _ _ => none) (fun _ => 0))
+    ((Serialize.initial input q).withState (some Serialize.machine.q₀))
+    (2 * (encRawInput q).length + 5)
+  rw [(Serialize.runsBetween input q []).1] at hs
+  change (Serialize.machine.extendTapes (serializerTapes k)).runFrom
+      ((embed (serializerTapes k) (Serialize.initial input q) (fun _ _ => none)
+        (fun _ => 0)).withState (some Serialize.machine.q₀)) _ =
+      (embed (serializerTapes k) (Serialize.final input q) (fun _ _ => none)
+        (fun _ => 0)).withState none at hs
+  rw [serializer_initial, serializer_final] at hs
+  exact hs
+
 /-- Physical serialization followed by the supplied native work-tape predicate runner. -/
 noncomputable def machine {k : ℕ} {S : Type} (runner : MultiTapeTM (k + 2) Bool S) :=
   (Serialize.machine.extendTapes (serializerTapes k)).seq (runner.extendTapes (Fin.natAddEmb 6))
@@ -169,17 +187,7 @@ theorem runFrom_machine {k : ℕ} {S : Type} (runner : MultiTapeTM (k + 2) Bool 
         (WorkTapePredicate.config input (encRawInput q) [answer]).withState none) :
     (machine runner).runFrom ((initial k input q).withState (some (machine runner).q₀))
       (2 * (encRawInput q).length + 5 + t) = (final k input q [answer]).withState none := by
-  have hs := runFrom_map
-    (embedHom Serialize.machine (serializerTapes k) (fun _ _ => none) (fun _ => 0))
-    ((Serialize.initial input q).withState (some Serialize.machine.q₀))
-    (2 * (encRawInput q).length + 5)
-  rw [(Serialize.runsBetween input q []).1] at hs
-  change (Serialize.machine.extendTapes (serializerTapes k)).runFrom
-      ((embed (serializerTapes k) (Serialize.initial input q) (fun _ _ => none)
-        (fun _ => 0)).withState (some Serialize.machine.q₀)) _ =
-      (embed (serializerTapes k) (Serialize.final input q) (fun _ _ => none)
-        (fun _ => 0)).withState none at hs
-  rw [serializer_initial, serializer_final] at hs
+  have hs := runFrom_serialize k q input
   have hv : viewCfg (Fin.natAddEmb 6)
       ((final k input q []).withState (some runner.q₀)) =
       (WorkTapePredicate.config input (encRawInput q)).withState (some runner.q₀) := by

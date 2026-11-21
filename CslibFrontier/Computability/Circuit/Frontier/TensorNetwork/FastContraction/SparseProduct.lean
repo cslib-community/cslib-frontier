@@ -41,7 +41,8 @@ theorem coeff_mul_modulus (m p : ℕ) (u v : (ZMod (2 ^ p))[X])
   · simpa only [length_modulus] using i.isLt
 
 /-- The polynomial of degree below the selected modulus representing a contraction-ring element. -/
-noncomputable def representative (m p : ℕ) (x : Ring p (modulus m)) : (ZMod (2 ^ p))[X] :=
+@[expose] noncomputable def representative (m p : ℕ) (x : Ring p (modulus m)) :
+    (ZMod (2 ^ p))[X] :=
   AdjoinRoot.modByMonicHom ((monic_monicOf (modulus m)).map _) x
 
 theorem natDegree_representative_lt (m p : ℕ) (x : Ring p (modulus m)) :

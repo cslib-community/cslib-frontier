@@ -57,4 +57,30 @@ theorem exists_of_polyTime {α β : Type} {encIn : α ↪ List Bool} {encOut : �
   apply RunsBetween.of_runFrom
   rw [runFrom_eq_of_halt _ _ (hclock a) (by rw [hr.1]; rfl), hr.1]
 
+/-- Copy and restore the output of a native function within its input-dependent clock. -/
+theorem exists_of_inO {α β : Type} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
+    {f : α → β} {T : α → ℕ} (hf : ComputableInO f encIn encOut T T) :
+    ∃ (k : ℕ) (S : Type) (_ : Finite S) (tm : MultiTapeTM (k + 1 + 2) Bool S) (c : ℕ),
+      ∀ (K : ℕ) (e : Fin (k + 1 + 2) ↪ Fin K) (input : List Bool) (a : α)
+        (words : Fin K → List Bool) (out : List Bool),
+        words (e (Fin.natAdd (k + 1) 0)) = encIn a →
+        (∀ j ≠ Fin.natAdd (k + 1) 0, words (e j) = []) →
+        RunsBetween (tm.extendTapes e) (tapesCfg input words 0 0 out)
+          (tapesCfg input (Function.update words (e ((Fin.last k).castAdd 2)) (encOut (f a)))
+            0 0 out)
+          (c * (T a + 1)) (K * (c * (T a + 1) + 1)) := by
+  obtain ⟨c, ⟨k, S, hS, tm, htm⟩, hlen⟩ := Internal.NormalForm.inO hf
+  let := hS
+  refine ⟨k, _, inferInstance, tm.onWords true, 2 * c + 6, ?_⟩
+  intro K e input a words out hsource hblank
+  have hspec := transformsTapes_onWords_embed (htm a) true e
+  obtain ⟨words', emitted, ⟨hwords, hemitted⟩, hr⟩ :=
+    RunsBetween.of_transformsTapes (input := input) hspec (ws := words)
+      ⟨hsource, hblank⟩ 0 out
+  rw [hwords, hemitted, List.append_nil] at hr
+  have hclock : c * (T a + 1) + (encOut (f a)).length + 6 ≤
+      (2 * c + 6) * (T a + 1) := by nlinarith [hlen a]
+  apply RunsBetween.of_runFrom
+  rw [runFrom_eq_of_halt _ _ hclock (by rw [hr.1]; rfl), hr.1]
+
 end Turing.MultiTapeTM.WordFunction

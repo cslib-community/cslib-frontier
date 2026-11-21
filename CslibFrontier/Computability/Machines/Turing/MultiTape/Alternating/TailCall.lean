@@ -62,6 +62,14 @@ inductive Segment (ready meaning : Cfg k Bool S input → Prop) :
       Segment ready meaning (n + 1) c (if body.universal s then ∀ b, v b else ∃ b, v b)
   | iff {n c P Q} (h : Segment ready meaning n c P) (he : P ↔ Q) : Segment ready meaning n c Q
 
+/-- A deterministic instruction advances one segment step regardless of its player label. -/
+theorem Segment.deterministic {ready meaning : Cfg k Bool S input → Prop} {n : ℕ} {c c' P s}
+    (hs : c.state = some s) (ha : again s = false) (hn : ∀ b, body.next b c = c')
+    (seg : Segment body again ready meaning n c' P) :
+    Segment body again ready meaning (n + 1) c P := by
+  apply (Segment.step hs ha (fun _ => P) (fun b => (hn b).symm ▸ seg)).iff
+  cases body.universal s <;> simp
+
 /-- Local evaluation with an actual recursive continuation. Along a branch its clock is
 charged once regardless of how many universal or existential states occur in the segment. -/
 theorem Segment.run {ready meaning : Cfg k Bool S input → Prop} {n t : ℕ} {c P}

@@ -65,9 +65,14 @@ noncomputable def machine (leaf : MultiTapeATM k Bool S) (tape : Fin k) :
 theorem machine_initial (leaf : MultiTapeATM k Bool S) (tape : Fin k) :
     (machine leaf tape).toPTM.initial = .dispatch := by rfl
 
+/-- A choice state uses the player named by its physical flag. -/
+theorem universal_choose (leaf : MultiTapeATM k Bool S) (tape : Fin k) (p : Bool) :
+    (machine leaf tape).universal (.choose p) = p := by rfl
+
 variable {input : List Bool} (leaf : MultiTapeATM k Bool S) (tape : Fin k)
 
-private theorem next_end (pre : List Bool) (storage : Cfg k Bool Unit input) (bit : Bool) :
+/-- The blank after the flags enters the continuation without moving its heads. -/
+theorem next_end (pre : List Bool) (storage : Cfg k Bool Unit input) (bit : Bool) :
     (machine leaf tape).next bit (config tape (some .dispatch) pre pre.length storage) =
       (config tape (some leaf.toPTM.initial) pre pre.length storage).mapState
         (Option.map State.leaf) := by
@@ -78,7 +83,8 @@ private theorem next_end (pre : List Bool) (storage : Cfg k Bool Unit input) (bi
   refine Cfg.ext rfl (by simp [config, moveInputPos_zero]) ?_ ?_ (by simp [config, Cfg.mapState])
     <;> funext i <;> by_cases hi : i = tape <;> simp [config, Cfg.mapState, hi]
 
-private theorem next_dispatch (pre tail : List Bool) (player bit : Bool)
+/-- Reading the next player flag selects the corresponding choice state. -/
+theorem next_dispatch (pre tail : List Bool) (player bit : Bool)
     (storage : Cfg k Bool Unit input) :
     (machine leaf tape).next bit (config tape (some .dispatch) (pre ++ player :: tail)
         pre.length storage) =
@@ -91,7 +97,8 @@ private theorem next_dispatch (pre tail : List Bool) (player bit : Bool)
   refine Cfg.ext rfl (by simp [config, moveInputPos_zero]) ?_ ?_ (by simp [config]) <;>
     funext i <;> by_cases hi : i = tape <;> simp [config, hi]
 
-private theorem next_choose (pre tail : List Bool) (player bit : Bool)
+/-- A choice replaces its flag by the chosen bit and advances the work head once. -/
+theorem next_choose (pre tail : List Bool) (player bit : Bool)
     (storage : Cfg k Bool Unit input) :
     (machine leaf tape).next bit (config tape (some (.choose player)) (pre ++ player :: tail)
         pre.length storage) =

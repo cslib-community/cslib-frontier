@@ -124,4 +124,29 @@ theorem exists_of_polyTime {α β : Type} {encIn : α ↪ List Bool} {encOut : �
     (outputTapes_blank hk dest words hscratch hdest hmarker)
   simpa only [outputTapes_output] using hr.fromLeftBlank rfl rfl
 
+/-- Write one protected field with a clock depending on the value of its serialized source. -/
+theorem exists_of_inO {α β : Type} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
+    {f : α → β} {T : α → ℕ} (hf : ComputableInO f encIn encOut T T) :
+    ∃ (k : ℕ) (Q : Type) (_ : Finite Q) (tm : MultiTapeTM (k + 1 + 2) Bool Q) (c : ℕ),
+      ∀ (S E : ℕ) (hk : k ≤ S) (dest : Fin E) (input : List Bool) (a : α)
+        (words : Fin (S + E + 2) → List Bool) (out : List Bool),
+        (∀ i : Fin S, words ((i.castAdd E).castAdd 2) = []) →
+        words ((Fin.natAdd S dest).castAdd 2) = [] →
+        words (Fin.natAdd (S + E) 0) = encIn a →
+        words (Fin.natAdd (S + E) 1) = [] →
+        RunsBetween (input := input) ((tm.extendTapes (outputTapes hk dest)).fromLeftBlank)
+          { tapesCfg input words 0 0 out with inputPos := 0 }
+          { tapesCfg input
+              (Function.update words ((Fin.natAdd S dest).castAdd 2) (encOut (f a)))
+              0 0 out with inputPos := 0 }
+          (c * (T a + 1) + 2)
+          ((S + E + 2) * (c * (T a + 1) + 1) + 4 * (S + E + 2)) := by
+  obtain ⟨k, Q, hQ, tm, c, htm⟩ := WordFunction.exists_of_inO hf
+  refine ⟨k, Q, hQ, tm, c, ?_⟩
+  intro S E hk dest input a words out hscratch hdest hsource hmarker
+  have hr := htm (S + E + 2) (outputTapes hk dest) input a words out
+    (by simpa only [outputTapes_input] using hsource)
+    (outputTapes_blank hk dest words hscratch hdest hmarker)
+  simpa only [outputTapes_output] using hr.fromLeftBlank rfl rfl
+
 end Turing.MultiTapeTM.WordFunctionLayout

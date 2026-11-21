@@ -32,7 +32,7 @@ abbrev size (scratch k r q : ℕ) : ℕ :=
   scratch + CarryLookaheadCountingLayout.size k r q + 2
 
 /-- The evaluator runs in the protected middle block. -/
-def evaluatorTapes (scratch k r q : ℕ) :
+@[expose] def evaluatorTapes (scratch k r q : ℕ) :
     Fin (CarryLookaheadCountingLayout.size k r q) ↪ Fin (size scratch k r q) :=
   (Fin.natAddEmb scratch).trans (Fin.castAddEmb 2)
 
@@ -52,7 +52,8 @@ def evaluatorTapes (scratch k r q : ℕ) :
     Cfg (size scratch k r q) Bool Unit input :=
   config scratch k r q input context a {}
 
-private theorem ambientWords_update_of_eq (scratch k r q : ℕ) (context : List Bool)
+/-- Lift a field update through the scratch prefix and the retained parameter tapes. -/
+theorem ambientWords_update_of_eq (scratch k r q : ℕ) (context : List Bool)
     (a : CountingInput.Input) (fields fields' : Fields)
     (dest : Fin (CarryLookaheadCountingLayout.size k r q)) (word : List Bool)
     (hwords : Function.update (words k r q context fields) dest word =
@@ -89,16 +90,24 @@ private theorem ambientWords_update (scratch k r q : ℕ) (context : List Bool)
   ambientWords_update_of_eq scratch k r q context a fields _ _ word
     (words_update_field k r q context fields field word)
 
-/-- The prepared protected block is exactly the existing native evaluator's initial storage. -/
-theorem view_prepared (scratch k r q : ℕ) (input context : List Bool) (a : CountingInput.Input) :
+/-- The evaluator observes the prepared fields independently of the retained parameter word. -/
+theorem view_prepared_of_retained (scratch k r q : ℕ) (input context : List Bool)
+    (source a : CountingInput.Input) :
     viewCfg (evaluatorTapes scratch k r q)
-      (config scratch k r q input context a (canonical a)) =
+      (config scratch k r q input context source (canonical a)) =
       CarryLookaheadCounting.initial k r q input context a.count a.query.width a.query.bit
         a.query.claim := by
   rw [initial_eq_tapesCfg]
   apply Cfg.ext <;> try rfl
   · funext i
     simp [viewCfg, evaluatorTapes, config, ambientWords, tapesCfg]
+
+/-- The prepared protected block is exactly the existing native evaluator's initial storage. -/
+theorem view_prepared (scratch k r q : ℕ) (input context : List Bool) (a : CountingInput.Input) :
+    viewCfg (evaluatorTapes scratch k r q)
+      (config scratch k r q input context a (canonical a)) =
+      CarryLookaheadCounting.initial k r q input context a.count a.query.width a.query.bit
+        a.query.claim := view_prepared_of_retained scratch k r q input context a a
 
 /-- Construct all seven derived words from the raw parameter source using fixed finite native
 machines. The supplied context is preserved without copying it during preparation. -/

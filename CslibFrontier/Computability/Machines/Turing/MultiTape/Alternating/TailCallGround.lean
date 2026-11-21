@@ -60,7 +60,7 @@ noncomputable def body : MultiTapeATM k Bool (State S G) :=
     | .ground g => ground.universal g
 
 /-- Only the recursive branch can issue a tail call. -/
-def again (mark : S → Bool) : State S G → Bool
+@[expose] def again (mark : S → Bool) : State S G → Bool
   | .node s => mark s
   | _ => false
 
@@ -88,6 +88,41 @@ private noncomputable def groundSimulation : StateSimulation ground (machine fla
         next_of_state _ hs]
       simp only [tr_ofTr, transition]
       rfl
+
+/-- While in the local branch, the enclosing body executes each instruction of the node
+machine and retains its alternating player. -/
+noncomputable def nodeSimulation : StateSimulation node (body flag node ground) where
+  stateMap := .node
+  universal_eq _ := rfl
+  next_eq c b := by
+    cases hs : c.state with
+    | none => rw [next_of_halted _ (by simp [Cfg.mapState, hs]), next_of_halted _ hs]
+    | some s =>
+      have hstate : (c.mapState (Option.map (State.node (G := G)))).state = some (.node s) := by
+        simp [Cfg.mapState, hs]
+      rw [body, next_ofTMs, MultiTapeTM.step_of_state hstate, next_of_state _ hs]
+      simp only [tr_ofTr, transition]
+      rfl
+
+@[simp] theorem nodeSimulation_stateMap :
+    (nodeSimulation flag node ground).stateMap = State.node := by rfl
+
+/-- On a recursive request the first instruction enters the node, preserving its prepared
+arguments. A later marked node state can return to the same dispatcher. -/
+theorem node_segment {input : List Bool} {ready meaning : Cfg k Bool (State S G) input → Prop}
+    (store : Cfg k Bool Unit input) (hf : store.workTapeSymbols flag ≠ some true)
+    {n : ℕ} {P : Prop}
+    (seg : TailCall.Segment (body flag node ground) (again mark) ready meaning n
+      (store.withState (some (.node node.toPTM.initial))) P) :
+    TailCall.Segment (body flag node ground) (again mark) ready meaning (n + 1)
+      (store.withState (some .entry)) P := by
+  apply TailCall.Segment.deterministic _ _ rfl rfl ?_ seg
+  intro b
+  rw [body, next_ofTMs, MultiTapeTM.step_of_state rfl]
+  have h : (store.withState (some (State.entry (S := S) (G := G)))).workTapeSymbols flag ≠
+      some true := hf
+  simp only [tr_ofTr, transition, ite_eq_right h]
+  apply Cfg.ext <;> simp [Cfg.withState, Action.apply]
 
 /-- A true flag enters the supplied ground machine on exactly the same configuration, including
 the read-only input cursor. An arbitrary outer tape embedding may hide the flag from it. -/

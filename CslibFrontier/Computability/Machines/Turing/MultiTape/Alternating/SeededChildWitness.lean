@@ -74,7 +74,8 @@ theorem actualCounts_fit (q : EndpointQuery) (l : Labels) {e : ℕ} (he : e ≤ 
     (h₄.trans (Nat.min_le_right _ _)).trans_lt hv, (h₅.trans (Nat.min_le_right _ _)).trans_lt hv,
     h₆.trans_lt hq⟩
 
-private theorem symbol_of_seed {U a : ℕ} (seed : SeededLabels.Seed U (6 * a))
+/-- The represented four-coefficient seed computes the selected native group. -/
+theorem symbol_of_seed {U a : ℕ} (seed : SeededLabels.Seed U (6 * a))
     (i : Fin a) (g e : ℕ) (v : Fin U) (q : EndpointQuery) :
     RootPortFinish.symbol ⟨U, a, seed 0, seed 1, seed 2, seed 3, e, 0⟩ i.val v.val =
       ((Labels.ofSeed U a seed i g).split q).label v.val := by

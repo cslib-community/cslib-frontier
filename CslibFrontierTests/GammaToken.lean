@@ -27,7 +27,15 @@ example {input : List Bool} (ip : Fin (input.length + 2)) (out : List Bool) :
       config ip (out ++ [true]) (eliasGamma 1 ++ eliasGamma 7) 1 0 none := by
   simpa using runFrom_word false ip out [] (eliasGamma 7) 1
 
--- The all-word clock includes a leading-zero run with no delimiter and an incomplete payload.
+-- A true delimiter promising two bits with only one available payload bit consumes all four
+-- input cells and rejects. The unmatched marker distance is exactly one.
+example {input : List Bool} (ip : Fin (input.length + 2)) :
+    (machine true).runFrom (config ip [] [false, false, true, true] 0 0
+        (some (machine true).q₀)) 5 =
+      config ip [true, false] [false, false, true, true] 4 1 none := by
+  simpa using runFrom_truncated true ip [] [] [true] 2 (by decide)
+
+-- The all-word clock includes a leading-zero run with no delimiter.
 example {input : List Bool} (ip : Fin (input.length + 2)) (n : ℕ) :
     ∃ t ≤ n + 1, ((machine true).runFrom
       (config ip [] (List.replicate n false) 0 0 (some false)) t).state = none := by

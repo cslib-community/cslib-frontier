@@ -39,11 +39,19 @@ private def player : State S → Bool
   | none => true
   | some ⟨b, q⟩ => (family b).universal q
 
+private noncomputable def atState (q : State S) : MultiTapeATM k Bool (State S) :=
+  ofTMs (fun coin => MultiTapeTM.ofTr q (tr family coin)) (player family)
+
 /-- The chosen child sees the whole unmodified configuration. -/
 noncomputable def machine : MultiTapeATM k Bool (Option ((b : Bool) × S b)) :=
-  ofTMs (fun coin => MultiTapeTM.ofTr none (tr family coin)) (player family)
+  atState family none
 
-private noncomputable def sim (b : Bool) : StateSimulation (family b) (machine family) where
+/-- Start directly in a selected child with the common state type of the fork. -/
+noncomputable def selected (b : Bool) : MultiTapeATM k Bool (Option ((b : Bool) × S b)) :=
+  atState family (tag b (family b).toPTM.initial)
+
+private noncomputable def sim (q₀ : State S) (b : Bool) :
+    StateSimulation (family b) (atState family q₀) where
   stateMap := tag b
   universal_eq _ := rfl
   next_eq c bit := by
@@ -52,14 +60,25 @@ private noncomputable def sim (b : Bool) : StateSimulation (family b) (machine f
     | some q =>
       have hstate : (c.mapState (Option.map (tag b))).state = some (tag b q) := by
         simp [Cfg.mapState, hs]
-      rw [machine, next_ofTMs, MultiTapeTM.step_of_state hstate, next_of_state _ hs]
+      rw [atState, next_ofTMs, MultiTapeTM.step_of_state hstate, next_of_state _ hs]
       simp only [MultiTapeTM.tr_ofTr, tag, tr]
       rfl
+
+/-- Selecting a child in finite control preserves its entire computation at the same clock. -/
+theorem selected_spec (b : Bool) {input : List Bool} (c : Cfg k Bool Unit input) (t : ℕ) :
+    let alt := selected family b
+    let initial := c.withState (some alt.toPTM.initial)
+    let child := c.withState (some (family b).toPTM.initial)
+    (alt.HaltsWithin t initial ↔ (family b).HaltsWithin t child) ∧
+      (alt.AcceptsWithin t initial ↔ (family b).AcceptsWithin t child) :=
+  let h := sim family (tag b (family b).toPTM.initial) b
+  let child := c.withState (some (family b).toPTM.initial)
+  ⟨h.haltsWithin_iff t child, h.acceptsWithin_iff t child⟩
 
 private theorem next_start {input : List Bool} (b : Bool) (c : Cfg k Bool Unit input) :
     (machine family).next b (c.withState (some (machine family).toPTM.initial)) =
       (c.withState (some (family b).toPTM.initial)).mapState (Option.map (tag b)) := by
-  rw [machine, next_ofTMs, MultiTapeTM.step_of_state rfl]
+  rw [machine, atState, next_ofTMs, MultiTapeTM.step_of_state rfl]
   apply Cfg.ext <;> simp [MultiTapeTM.tr_ofTr, tr, Cfg.withState, Cfg.mapState, Turing.Action.apply,
     moveInputPos_zero, ofTMs]
 
@@ -75,11 +94,11 @@ theorem spec {input : List Bool} (c : Cfg k Bool Unit input) (t : ℕ)
   · rw [haltsWithin_succ]
     intro b
     rw [next_start]
-    exact ((sim family b).haltsWithin_iff t _).2 (hh b)
+    exact ((sim family none b).haltsWithin_iff t _).2 (hh b)
   · rw [acceptsWithin_succ_of_universal _ rfl rfl]
     apply forall_congr'
     intro b
     rw [next_start]
-    exact (sim family b).acceptsWithin_iff t _
+    exact (sim family none b).acceptsWithin_iff t _
 
 end Turing.MultiTapeATM.SharedFork

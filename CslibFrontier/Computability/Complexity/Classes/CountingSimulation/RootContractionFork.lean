@@ -44,7 +44,8 @@ possible seed is clocked. The claimed bit need only be computed correctly for ba
       (RootPredecessorGraph.rowOf M input (blockLength t) σ (letterCode st))
       (RootPredecessorGraph.colOf k q m) seed
     right.HaltsWithin budget cfg ∧ (balanced → (right.AcceptsWithin budget cfg ↔ expected))) →
-  let cfg := SharedWordFork.start src atm input raw raw.length
+  ∀ (pos : ℕ), pos ≤ raw.length →
+  let cfg := SharedWordFork.start src atm input raw pos
   let time := C * (t / (Nat.log 2 (t + 2)).sqrt + 2) + budget
   atm.HaltsWithin time cfg ∧ (atm.AcceptsWithin time cfg ↔ expected)
 
@@ -68,14 +69,14 @@ theorem exists_root_contraction_fork (k states : ℕ) {K : ℕ} {R : Type} [Fini
   intro State M st input t σ a bit claim budget hb hsize
   unfold RunsRootContraction
   dsimp only
-  intro hright
+  intro hright pos hpos
   let q := numBlocks t
   let m := rootCopies k states t
   let p := queryPublic k q m σ a (zeroSeed _ _) bit claim
   let post := fun p' => right.AcceptsWithin budget (continuationStart i j right input p')
   obtain ⟨hh, hv⟩ := hg M input input (blockLength t) σ (letterCode st) a bit claim budget post
     (fun s => ⟨(hright s).1, Iff.rfl⟩)
-  obtain ⟨hh', hv'⟩ := hi input p _ hh
+  obtain ⟨hh', hv'⟩ := hi input p pos hpos _ hh
   have hc : 0 < m := Nat.mul_pos (by omega) (one_le_blockLength t)
   have ha : 64 ^ a ≤ rootEdges k states t := by
     have hm : 0 < 2 * (2 * (3 * k + 1) * m) := by positivity
