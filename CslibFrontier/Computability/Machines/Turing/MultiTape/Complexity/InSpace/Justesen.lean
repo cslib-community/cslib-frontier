@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryModulus
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Bit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
@@ -330,11 +331,10 @@ theorem fieldContext_eq (w n : ℕ) :
       ⟨fieldDegree w n, coefficientCount w n, BinaryField.modulusBitsScan (fieldDegree w n)⟩ := by
   rw [fieldContext]
 
-/-- Initialize the retained degree, coefficient count and modulus from the binary graph
-dimensions. The degree and count come from one capacity run. A modulus routine with space
-linear in the degree fits the same encoded-dimension budget. -/
-theorem fieldContext_inSpace_of_modulus
-    (hmodulus : ComputableInSpace BinaryField.modulusBitsScan encNat encBits (fun d => d + 1)) :
+/-- The native initializer uses workspace linear in the encoded binary dimensions.
+One capacity run supplies the degree and coefficient count, and the native modulus search
+uses workspace linear in that degree. -/
+theorem fieldContext_inSpace :
     ComputableInSpace (fun p : ℕ × ℕ => fieldContext p.1 p.2)
       (encPair encNat encNat) encFieldContext (fun p => (encPair encNat encNat p).length) := by
   have hstate := budget_id (BigOLe.refl fun s => (encCapacityState s).length)
@@ -352,9 +352,10 @@ theorem fieldContext_inSpace_of_modulus
     omega
   have hd := (fst encNat encNat).weaken hin
   have hc := (snd encNat encNat).weaken hin
-  have hm := budget_comp hmodulus hd (.of_le_linear 1 1 fun p => by
-    simp only [one_mul, B]
-    omega)
+  have hm := budget_comp Turing.BinaryField.modulusBitsScan_inSpace hd
+    (.of_le_linear 1 1 fun p => by
+      simp only [one_mul, B]
+      omega)
   exact (budget_comp (encFieldContext_mk_budget hd hc hm) hparams
     (fieldDegree_le_linear.add hparams.length_le)).of_enc_eq fun _ => rfl
 
