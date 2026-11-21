@@ -65,6 +65,7 @@ STEPS = (
     # runs first.
     Step("Test Python tooling", ("python3 -m unittest discover -s scripts -p 'test_*.py'",)),
     Step("Source hygiene", ("python3 -B scripts/check_hygiene.py --check-simp",)),
+    Step("TimeM ratchet", ("python3 -B scripts/check_timem.py --report",)),
     Step("Encoding readability ratchet (changed modules)",
          ('python3 -B scripts/check_encoding_readability.py --base "$BASE"',)),
     Step("Projection chain ratchet (changed modules)",

@@ -122,6 +122,17 @@ the reader parse the same nested one repeatedly. For new and changed statements:
    that changes a length bound) in the name or the first docstring line.
 7. **No hidden defaults:** no elaborator or typeclass chooses an encoding (`enc%`, #1830, is parked).
 
+### Cost models
+
+A running time or step count is charged by a model's semantics, never by an annotation
+([policy/statements.md](policy/statements.md#cost-models)). State costs on the multi-tape machines
+or the word RAM; count comparisons, probes and oracle calls only in a query model whose
+interpreter counts them, and call the result a query count. Do not add `TimeM` programs, ticks or
+`.time` theorems: its annotations are trusted, which puts the program text in the trusted base.
+The existing ones are being ported and deleted (#6301), `scripts/check_timem.py` rejects new uses,
+and until a result is ported its docstring, title and registry entry say "charged steps in
+`TimeM`", not "runs in" or "linear time".
+
 ### Security theorems
 
 A security theorem may assume only (a) named hardness assumptions, stated relative to the setup
@@ -459,6 +470,8 @@ more than repaired proofs: adapt to each in the bump, or defer it as the cleanup
   The tidy computability calculus is being deleted (#862); tidiness survives only as a machine-level
   kernel inside the Machines layer, used inside proofs of plain rules.
 - Programs are `PFunctor.FreeM` values; a machine's clocked run is itself a program.
+- Cost bounds are charged by a machine or query model's semantics. `TimeM` annotations are
+  trusted and are being removed (#6301).
 - The universal machine is an interpreter program certified by the calculus, not a hand-built
   machine.
 - Do not cite the unpublished draft "A Small Calculus of Finite Computation" in source or PR text.

@@ -425,6 +425,13 @@ every docstring citation key has an entry there and that `ROADMAP.md` entries ar
 statements with inline links
 (pass `--check-simp` to also run the heuristic check for non-terminal bare `simp` calls in
 candidate modules). After a build,
+`python3 scripts/check_timem.py` rejects new uses of the `TimeM` cost monad
+([policy/statements.md](policy/statements.md#cost-models),
+[#6301](https://github.com/cslib-community/cslib-frontier/issues/6301)): a Lean file may not use
+`TimeM` or its tick notation more often than `scripts/timem_baseline.json` records for it, and a
+file that is not listed may not use them at all. Removing uses needs no baseline edit;
+`--update` lowers the recorded counts and never raises one. CI runs it in the source checks.
+
 `python3 scripts/check_changed_files.py` checks the files your branch adds or changes: each name
 listed in a module docstring's "Main …" sections must exist, a new test file must do more
 than restate signatures with `example … := name`, and an `@[expose] … section` header must have a

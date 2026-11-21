@@ -199,6 +199,39 @@ encoding-readability lint checks rule 1 against a per-module baseline that may o
 7. **No hidden defaults.** Do not let an elaborator or typeclass choose an encoding for a type;
    the `enc%` proposal (#1830) is parked.
 
+### Cost models
+
+A running time, step count or operation count is part of what a theorem claims, so it must be
+charged by the semantics of a model, never by an annotation the author writes next to the program.
+
+1. **State costs in a machine model.** Use the multi-tape machines (`ComputableInO`,
+   `ComputableInPolyTime`, `DTIME`/`NTIME` and the notions built on them) or the word RAM
+   (`CslibFrontier/Computability/WordRAM`). A bound finer than polynomial, such as linear or
+   `O(n³)`, needs the word RAM or a stated multi-tape bound; a Turing-machine polynomial bound
+   does not give it.
+2. **A query count is a query count.** Comparisons, probes and oracle calls may be counted in a
+   query model whose interpreter does the counting (`FreeM` over a query signature such as
+   `LEQuery`, `OracleComp`). Name the result as a count of those queries, not as a running time,
+   and do not let a hypothesis of the form "the supplied procedure costs at most `C`" stand in for
+   a count: a pure procedure satisfies it with `C = 0`.
+3. **No `TimeM`.** Upstream's `Cslib.Algorithms.Lean.TimeM` pairs a value with a number, and a
+   tick adds whatever the author writes; its own documentation says the annotations are trusted
+   and not verified against actual cost. A `TimeM` bound therefore puts the program text in the
+   trusted base. Do not add a `TimeM` program, a tick or a `.time` theorem. The existing ones are
+   being replaced by machine-model statements
+   ([#6301](https://github.com/cslib-community/cslib-frontier/issues/6301)), and
+   `scripts/check_timem.py` checks their number per file against
+   `scripts/timem_baseline.json`, which only falls.
+4. **Until a result is ported, describe it as what it is.** A docstring, PR title, registry entry
+   or inventory row for a remaining `TimeM` theorem says "charged steps in `TimeM`" and names what
+   one tick stands for. It does not say "runs in", "linear time", "polynomial time" or "FPT", and
+   it does not count a cited running-time theorem as covered.
+5. **Removal and ports.** The pure algorithm and its correctness theorems stay; they do not
+   need `TimeM`. A `TimeM` program and its `.time` theorems may be deleted before a port exists,
+   and then the cost claim is withdrawn from the registry, the inventories and the docstrings in
+   the same change. A port proves that a machine-model implementation computes the pure function
+   within the bound the model charges, and deletes whatever `TimeM` version remains.
+
 ### Security theorems
 
 A security theorem may assume only (a) named hardness assumptions, that is, Prop-valued
