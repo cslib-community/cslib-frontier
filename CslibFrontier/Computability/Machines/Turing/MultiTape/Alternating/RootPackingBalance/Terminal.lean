@@ -34,6 +34,37 @@ open RootBalanceRequest (Input encInput challenge prepare selected shortSize roo
     (RootPredecessorContext.withCandidate (selected x) j)).toNat).testBit p.query.bit =
       p.query.claim
 
+/-- A sharp native preparation may decode additional fields before entering the rank terminal. -/
+theorem exists_terminal_of_prepare {α : Type} (k : ℕ) {enc : α ↪ List Bool} (model : α → Input)
+    {T : α → ℕ}
+    (hd : ComputableInO (fun z => prepare (model z)) enc RootBalanceRequest.encOutput T T) :
+    ∃ (U : ℕ) (src : Fin U) (Q : Type) (_ : Finite Q) (atm : MultiTapeATM U Bool Q)
+      (c A D : ℕ), ∀ (input : List Bool) (z : α),
+      let x := model z
+      let p := (prepare x).2
+      let start := WordGameLeaf.config src (some atm.toPTM.initial) (enc z) (enc z).length
+        (TerminalLayout.blank U input)
+      let countTime := A * ((selected x).raw.length + (RootPredecessorQuery.shortSize (selected x) +
+        p.count.size + p.query.width.size + 1) ^ D + 1)
+      let time := (enc z).length + c * (T z + 1) +
+        8 + countTime
+      atm.HaltsWithin time start ∧ (atm.AcceptsWithin time start ↔ terminalValue k x) := by
+  obtain ⟨s, u, r, v, S, hS, rank, A, D, h⟩ := RootPackingRank.exists_evaluator k
+  let hf := (ComputableInDegree.fst encBits CountingInput.encInput).inO_one.comp_linear hd
+  let hg := (ComputableInDegree.snd encBits CountingInput.encInput).inO_one.comp_linear hd
+  obtain ⟨U, src, Q, hQ, atm, c, ht⟩ := TerminalLayout.exists_load hf hg
+    (CarryLookaheadCountingPair.contextTape s u r v) (CarryLookaheadCountingPair.paramTape s u r v)
+    (CarryLookaheadCountingPair.contextTape_ne_paramTape s u r v) rank
+  refine ⟨U, src, Q, hQ, atm, c, A, D, ?_⟩
+  intro input z
+  let x := model z
+  let p := (prepare x).2
+  have hv : p.query.bit < p.query.width := SeededRankRequest.valid_bit (challenge x)
+  obtain ⟨hh, ha⟩ := h input (selected x) p.count p.query.width ⟨p.query.bit, hv⟩ p.query.claim
+  rw [CarryLookaheadCountingPair.initial_eq_ready] at hh ha
+  obtain ⟨hh', ha'⟩ := ht input z _ hh
+  exact ⟨hh', ha'.trans ha⟩
+
 /-- The whole terminal starts on the final choice tape and actually runs the native rank ATM.
 Its clock accounts for the rewind, both protected words and the ensuing count branch. -/
 theorem exists_terminal (k : ℕ) :
@@ -48,19 +79,7 @@ theorem exists_terminal (k : ℕ) :
         8 + countTime
       atm.HaltsWithin time start ∧ (atm.AcceptsWithin time start ↔ terminalValue k x) := by
   obtain ⟨d, hd⟩ := RootBalanceRequest.exists_computableInO
-  obtain ⟨s, u, r, v, S, hS, rank, A, D, h⟩ := RootPackingRank.exists_evaluator k
-  let hf := (ComputableInDegree.fst encBits CountingInput.encInput).inO_one.comp_linear hd
-  let hg := (ComputableInDegree.snd encBits CountingInput.encInput).inO_one.comp_linear hd
-  obtain ⟨U, src, Q, hQ, atm, c, ht⟩ := TerminalLayout.exists_load hf hg
-    (CarryLookaheadCountingPair.contextTape s u r v) (CarryLookaheadCountingPair.paramTape s u r v)
-    (CarryLookaheadCountingPair.contextTape_ne_paramTape s u r v) rank
-  refine ⟨U, src, Q, hQ, atm, c, d, A, D, ?_⟩
-  intro input x
-  let p := (prepare x).2
-  have hv : p.query.bit < p.query.width := SeededRankRequest.valid_bit (challenge x)
-  obtain ⟨hh, ha⟩ := h input (selected x) p.count p.query.width ⟨p.query.bit, hv⟩ p.query.claim
-  rw [CarryLookaheadCountingPair.initial_eq_ready] at hh ha
-  obtain ⟨hh', ha'⟩ := ht input x _ hh
-  exact ⟨hh', ha'.trans ha⟩
+  obtain ⟨U, src, Q, hQ, atm, c, A, D, h⟩ := exists_terminal_of_prepare k id hd
+  exact ⟨U, src, Q, hQ, atm, c, d, A, D, h⟩
 
 end Turing.MultiTapeATM.RootPackingBalance

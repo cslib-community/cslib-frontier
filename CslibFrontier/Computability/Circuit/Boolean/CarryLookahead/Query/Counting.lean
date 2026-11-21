@@ -24,19 +24,26 @@ namespace Cslib.Circuits.Boolean.CarryLookahead.Query
 
 open CarrySaveQuery
 
-/-- A finishing query on the two root components returns an ordinary count bit. -/
-theorem value_count_sum_eq (n w : ℕ) (predicate : ℕ → Bool) (i : Fin w) :
+/-- The terminal adder reads either component of any carry-save pair and has zero incoming carry. -/
+theorem value_pair_sum_eq {w : ℕ} (pair : BitString (w + w)) (i : Fin w) :
     value w (Nat.clog 2 (w + 1))
-      (Fin.append (Fin.append (component (Counting.rootPair n w predicate) false)
-        (component (Counting.rootPair n w predicate) true)) ![false]) (.sum i) =
-      Counting.count n w predicate i := by
+      (Fin.append (Fin.append (component pair false) (component pair true)) ![false]) (.sum i) =
+      (carryLookaheadAdd w).eval interpretation pair i := by
   rw [value_sum_eq]
   simp only [component, Bool.false_eq_true, ↓reduceIte,
-    BitString.append_fstBits_sndBits, Counting.count, carryLookaheadAdd,
+    BitString.append_fstBits_sndBits, carryLookaheadAdd,
     Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring, Function.comp_def, id_eq]
   congr 2
   funext j
   fin_cases j
   rfl
+
+/-- A finishing query on the two root components returns an ordinary count bit. -/
+theorem value_count_sum_eq (n w : ℕ) (predicate : ℕ → Bool) (i : Fin w) :
+    value w (Nat.clog 2 (w + 1))
+      (Fin.append (Fin.append (component (Counting.rootPair n w predicate) false)
+        (component (Counting.rootPair n w predicate) true)) ![false]) (.sum i) =
+      Counting.count n w predicate i :=
+  value_pair_sum_eq _ i
 
 end Cslib.Circuits.Boolean.CarryLookahead.Query

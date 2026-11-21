@@ -2120,11 +2120,14 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.FastSimulation
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Guarded
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Interfaces
+public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.OuterSumTime
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Promise
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.RawScheduleSum
+public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.RawScheduleVerifier
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.RootBalanceTime
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.RootRankTime
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.RootScanLedger
+public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.RootSeedTime
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Separation
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.ShapeBounds
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.TruncatedBoundedDegree
@@ -3500,6 +3503,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveLeafLayout
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySavePath
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveStream
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveWordSum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CountingTerminal
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CountingTerminalCost
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CountingTerminalDispatch
@@ -3517,6 +3521,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.Game
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.Initialize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.Prefix
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.Terminal
@@ -3528,6 +3533,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPortParentBits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPortRank
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootRankInput
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootSeedChoice.Clock
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootSeedChoice.Fields
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootSeedChoice.Game
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootSeedChoice.Verifier
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StateSimulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TruthTable
@@ -3635,6 +3644,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootPredecessorContext
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootPredecessorGraph
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootPredecessorQuery
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootSeedExistence
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootSeedInstall
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleBits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleColumn
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleCounter
@@ -4664,6 +4675,7 @@ public import CslibFrontier.Computability.PolyTime.LinearAlgebra.ReplacementDesi
 public import CslibFrontier.Computability.PolyTime.PacketPacking
 public import CslibFrontier.Computability.PolyTime.ParityFactorEval
 public import CslibFrontier.Computability.PolyTime.PessimisticEstimator
+public import CslibFrontier.Computability.PolyTime.SeedChoice
 public import CslibFrontier.Computability.PolyTime.SeededPredecessor
 public import CslibFrontier.Computability.PolyTime.SeededPredecessorFinish
 public import CslibFrontier.Computability.PolyTime.SeededRankCapacity

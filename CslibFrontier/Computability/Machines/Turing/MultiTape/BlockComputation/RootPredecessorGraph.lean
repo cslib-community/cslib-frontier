@@ -34,12 +34,13 @@ variable {k q copies : ℕ} {State : Type} (machine : MultiTapePTM k Bool State)
     (input : List Bool) (b σ : ℕ) (code : BlockLetter k State b → Fin copies → Bool)
 
 /-- The old endpoint of a numbered half-edge, in the original block vertex type. -/
-noncomputable def rowOf (e : Fin (edgeCount k q copies)) : Fin q ⊕ BlockEdge k q :=
+@[expose] noncomputable def rowOf (e : Fin (edgeCount k q copies)) : Fin q ⊕ BlockEdge k q :=
   let graph := (machine.blockNetwork input b (scheduleOfNat k q σ)).binarize code
   Sum.elim graph.src graph.tgt ((explicitEdgeEquiv k q copies).symm e)
 
 /-- The copied edge at the other end of either of its two half-edges. -/
-def colOf (k q copies : ℕ) (e : Fin (edgeCount k q copies)) : BlockEdge k q × Fin copies :=
+@[expose] def colOf (k q copies : ℕ) (e : Fin (edgeCount k q copies)) :
+    BlockEdge k q × Fin copies :=
   Sum.elim id id ((explicitEdgeEquiv k q copies).symm e)
 
 /-- The runtime input for a represented schedule and shared seed, including padded indices. -/
