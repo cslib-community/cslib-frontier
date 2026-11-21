@@ -146,6 +146,20 @@ theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ �
           · exact htrail l hl
         · simp at h
 
+/-- **A RUP clause holds**: if unit propagation along hints from its negation succeeds, every
+assignment satisfying the database satisfies it. -/
+theorem CNF.eval_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ → Bool}
+    (hdb : ∀ e ∈ db, e.2.eval σ = true) {c : Clause ℕ} {hs : List ℕ}
+    (h : propagateHints db (c.map Std.Sat.Literal.negate) hs = true) : c.eval σ = true := by
+  by_contra hne
+  refine false_of_propagateHints hdb ?_ h
+  intro l hl
+  obtain ⟨l₀, hl₀, rfl⟩ := List.mem_map.1 hl
+  have := (Clause.eval_eq_true_iff σ _).not.1 hne
+  simp only [not_exists, not_and] at this
+  rw [Literal.eval_negate]
+  simpa [Literal.eval] using this l₀ hl₀
+
 /-- If the checker accepts on a database, no assignment satisfies the database. -/
 theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause ℕ)}
     (hdb : ∀ e ∈ db, e.2.eval σ = true) {cert : List LRAT.IntAction}
@@ -161,15 +175,7 @@ theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause 
       refine ih (db := (id, Clause.ofDIMACS c.toList) :: db) ?_ h.2
       intro e he
       rcases List.mem_cons.1 he with rfl | he
-      · -- the added clause holds, since otherwise its negation propagates to a conflict
-        by_contra hne
-        refine false_of_propagateHints hdb ?_ h.1
-        intro l hl
-        obtain ⟨l₀, hl₀, rfl⟩ := List.mem_map.1 hl
-        have := (Clause.eval_eq_true_iff σ _).not.1 hne
-        simp only [not_exists, not_and] at this
-        rw [Literal.eval_negate]
-        simpa [Literal.eval] using this l₀ hl₀
+      · exact eval_of_propagateHints hdb h.1
       · exact hdb e he
     | addRat id c pivot rupHints ratHints => simp [checkLRATAux] at h
     | del ids =>
