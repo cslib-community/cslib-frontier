@@ -37,17 +37,22 @@ namespace Cslib.Reachability.Hoza
 
 open Code.JustesenFamily Finset
 
-private def accumulate {ℓ : ℕ} (digit : Fin ℓ → Bool) : ℕ :=
-  Fin.foldl ℓ (fun a j => 6 * a + (digit j).toNat) 0
+/-- Append one masked Boolean digit at the low end of an accumulated base-six word. -/
+@[expose] def appendWeightDigit (acc : ℕ) (bit : Bool) : ℕ :=
+  6 * acc + bit.toNat
+
+/-- Interpret the masked digits in high-to-low order, accumulating from zero. -/
+@[expose] def accumulateWeightDigits {ℓ : ℕ} (digit : Fin ℓ → Bool) : ℕ :=
+  Fin.foldl ℓ (fun a j => appendWeightDigit a (digit j)) 0
 
 private theorem accumulate_eq_ofDigits {ℓ : ℕ} (digit : Fin ℓ → Bool) :
-    accumulate digit = Nat.ofDigits 6 (List.ofFn fun j => (digit j).toNat).reverse := by
-  rw [accumulate, Fin.foldl_eq_finRange_foldl, Nat.ofDigits_eq_foldr, ← List.foldl_reverse,
-    List.reverse_reverse, List.ofFn_eq_map, List.foldl_map]
-  simp only [Nat.cast_id, Nat.add_comm]
+    accumulateWeightDigits digit = Nat.ofDigits 6 (List.ofFn fun j => (digit j).toNat).reverse := by
+  rw [accumulateWeightDigits, Fin.foldl_eq_finRange_foldl, Nat.ofDigits_eq_foldr,
+    ← List.foldl_reverse, List.reverse_reverse, List.ofFn_eq_map, List.foldl_map]
+  simp only [appendWeightDigit, Nat.cast_id, Nat.add_comm]
 
 private theorem accumulate_eq {ℓ : ℕ} (digit : Fin ℓ → Bool) :
-    accumulate digit = ∑ j, 6 ^ (ℓ - (j.val + 1)) * (digit j).toNat := by
+    accumulateWeightDigits digit = ∑ j, 6 ^ (ℓ - (j.val + 1)) * (digit j).toNat := by
   rw [accumulate_eq_ofDigits, Nat.ofDigits_eq_sum_mapIdx]
   have h :
       (List.ofFn fun j => (digit j).toNat).reverse.mapIdx (fun i d => d * 6 ^ i) =
@@ -64,8 +69,9 @@ private theorem accumulate_eq {ℓ : ℕ} (digit : Fin ℓ → Bool) :
   simpa only [Fin.revPerm_apply, Fin.rev_rev, Fin.val_rev, mul_comm] using
     (Equiv.sum_comp Fin.revPerm (fun j : Fin ℓ => (digit j.rev).toNat * 6 ^ j.val)).symm
 
-private theorem accumulate_lt {ℓ : ℕ} (digit : Fin ℓ → Bool) :
-    accumulate digit < 6 ^ ℓ := by
+/-- A word of masked Boolean digits has value below the first power beyond its length. -/
+theorem accumulateWeightDigits_lt {ℓ : ℕ} (digit : Fin ℓ → Bool) :
+    accumulateWeightDigits digit < 6 ^ ℓ := by
   rw [accumulate_eq_ofDigits]
   refine (Nat.ofDigits_lt_base_pow_length (by decide) ?_).trans_le (by simp)
   intro d hd
@@ -77,7 +83,7 @@ theorem generatedWeightScan_prefix_lt {w n k : ℕ} (seed : Fin (codeLength w n)
     (v : Fin w) (hk : k ≤ codeLength w n) :
     Fin.foldl k (fun a j =>
       6 * a + (indexedCodewordMod v (j.castLE hk) && seed (j.castLE hk)).toNat) 0 < 6 ^ k :=
-  accumulate_lt _
+  accumulateWeightDigits_lt _
 
 /-- The binary logarithm of the prefix accumulator is bounded by three bits per digit.
 The additional bit in the bound is enough to represent zero at the empty prefix. -/
@@ -98,7 +104,7 @@ def generatedWeightScan {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
     (z : Fin (n + 1) × Fin w) : ℕ :=
   if z.1.val = 0 then 0 else
     let code := indexedCodewordMod z.2
-    scaleAccumulatedWeight z.1.val (accumulate fun j => code j && seed j)
+    scaleAccumulatedWeight z.1.val (accumulateWeightDigits fun j => code j && seed j)
 
 /-- The scan uses the same seed and returns exactly the weight used by the isolation theorem. -/
 theorem generatedWeightScan_eq {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
@@ -112,5 +118,33 @@ theorem generatedWeightScan_eq {w n : ℕ} (seed : Fin (codeLength w n) → Bool
     refine sum_congr rfl fun j _ => ?_
     rw [indexedCodewordMod_eq]
     cases indexedCodeword z.2 j <;> cases seed j <;> simp
+
+namespace SeedDigits
+
+/-- The base-six value of the first `t` masked seed bits. Missing bits default to zero. -/
+@[expose] def maskedPrefix (code : ℕ → Bool) (seed : List Bool) (t : ℕ) : ℕ :=
+  accumulateWeightDigits fun j : Fin t => code j.val && (seed[j.val]?).getD false
+
+/-- A raw seed written in increasing index order supplies exactly the finite seed function
+used by the streaming weight formula. -/
+theorem maskedPrefix_ofFn {n : ℕ} (code : ℕ → Bool) (seed : Fin n → Bool) :
+    maskedPrefix code (List.ofFn seed) n =
+      accumulateWeightDigits (fun j => code j.val && seed j) := by
+  unfold maskedPrefix
+  congr 1
+  funext j
+  simp
+
+/-- A raw seed and a code-bit callback that agrees with the executable Justesen word
+give the existing streaming weight, including the zero weight in layer zero. -/
+theorem scaledMaskedPrefix_eq_generatedWeightScan {w n : ℕ}
+    (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w) (code : ℕ → Bool)
+    (hcode : ∀ j : Fin (codeLength w n), code j.val = indexedCodewordMod z.2 j) :
+    (if z.1.val = 0 then 0 else
+      scaleAccumulatedWeight z.1.val (maskedPrefix code (List.ofFn seed) (List.ofFn seed).length)) =
+      generatedWeightScan seed z := by
+  simp only [List.length_ofFn, maskedPrefix_ofFn, generatedWeightScan, hcode]
+
+end SeedDigits
 
 end Cslib.Reachability.Hoza

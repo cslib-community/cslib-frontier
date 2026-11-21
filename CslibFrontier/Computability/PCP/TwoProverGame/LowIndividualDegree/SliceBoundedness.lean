@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingConsistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PointCommutativity
+public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialPointEffect
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Quantum.Algebra.MeasurementMixture
 public import CslibFrontier.Foundations.Quantum.Algebra.GatedAgreement
@@ -66,33 +67,6 @@ theorem evaluatedSlice_gated_stateDist_eq
     (Measurement.commute_map_right P _ _ (fun g => (hc g b).symm) a).symm
   simpa only [evaluatePolynomialMeasurement_successfulEffect] using
     Measurement.sum_norm_sub_success_mul_sq_eq φ (evaluatePolynomialMeasurement P u) B hP hb hc'
-
-/-- The true effect of the uniform mixture of tests for the value of a fixed polynomial. -/
-noncomputable def averagePolynomialPointEffect (B : (Fin m → F) → Measurement F A)
-    (g : BoundedPolynomial F m d) : A :=
-  (Measurement.mixture (Cslib.Probability.PMF.uniformOfFintype (Fin m → F))
-    (fun u => (B u).map (fun a => decide (a = eval u g.val)))).effect true
-
-/-- The effect is the uniform average of the corresponding point effects. -/
-theorem averagePolynomialPointEffect_eq (B : (Fin m → F) → Measurement F A)
-    (g : BoundedPolynomial F m d) : averagePolynomialPointEffect B g =
-      (Fintype.card ((Fin m → F)) : ℝ)⁻¹ • ∑ u : (Fin m → F), (B u).effect (eval u g.val) := by
-  rw [averagePolynomialPointEffect, Measurement.mixture_uniform_effect]
-  congr 1
-  refine sum_congr rfl fun u _ => ?_
-  simp [Measurement.map_effect, sum_filter]
-
-/-- The uniform average is a positive contraction, so the identity is always a majorant. -/
-theorem averagePolynomialPointEffect_mem_Icc (B : (Fin m → F) → Measurement F A)
-    (g : BoundedPolynomial F m d) : averagePolynomialPointEffect B g ∈ Set.Icc (0 : A) 1 :=
-  ⟨Measurement.nonneg _ true, Measurement.effect_le_one _ true⟩
-
-/-- An operator commuting with all the point effects also commutes with their average. -/
-theorem commute_averagePolynomialPointEffect
-    (B : (Fin m → F) → Measurement F A) (g : BoundedPolynomial F m d) (C : A)
-    (hc : ∀ u b, Commute C ((B u).effect b)) : Commute C (averagePolynomialPointEffect B g) := by
-  rw [averagePolynomialPointEffect_eq]
-  exact (Commute.sum_left _ _ _ fun u _ => (hc u _).symm).symm.smul_right _
 
 private theorem evaluation_some (P : Measurement (Option (BoundedPolynomial F m d)) A)
     (u : Fin m → F) (b : F) : (evaluatePolynomialMeasurement P u).effect (some b) =

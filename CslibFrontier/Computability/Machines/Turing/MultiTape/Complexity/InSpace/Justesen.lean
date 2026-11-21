@@ -10,17 +10,18 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 
 /-!
-# Justesen field degree and seed length in native space
+# Justesen dimensions and coordinate decoding in native space
 
 The input consists of the binary width and horizon of a layered graph. Starting at degree
 sixteen, a counted loop raises the degree by sixteen and multiplies the retained power of two
 by a fixed factor, holding the state once the capacity suffices. The final degree and
 power give the field degree and exact seed length of the existing Justesen generator. Native
-space is linear in the encoded dimensions, including every live loop state.
+space is linear in the encoded dimensions, including every live loop state. A binary
+degree and index also suffice to decode one coordinate in linear space.
 -/
 
 public section
@@ -184,5 +185,20 @@ theorem codeLength_inSpace :
   obtain ⟨s, hs, hds⟩ := computed_eq_atScale p
   rw [hs, codeLength, hds, pow_scaleDegree]
   rfl
+
+/-- Framed binary point number and half, followed by the unframed binary bit position. -/
+enc_structure encCoordinateNumbers : CoordinateNumbers where
+  point : encNat, half : encNat, bit : encNat
+
+/-- Decoding one Justesen coordinate costs space linear in the binary degree and index. -/
+theorem decodeIndex_inSpace :
+    ComputableInSpace (fun p : ℕ × ℕ => decodeIndex p.1 p.2) (encPair encNat encNat)
+      encCoordinateNumbers (fun p => (encPair encNat encNat p).length) := by
+  have hdegree := fst encNat encNat
+  have hindex := snd encNat encNat
+  have hblock := budget_natMul (budget_const 2 (.refl _)) hdegree
+  have hwithin := budget_natMod hindex hblock
+  exact encCoordinateNumbers_mk_budget (budget_natSucc (budget_natDiv hindex hblock))
+    (budget_natDiv hwithin hdegree) (budget_natMod hwithin hdegree)
 
 end Cslib.Code.JustesenFamily

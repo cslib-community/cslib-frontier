@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 import CslibFrontier.Foundations.Quantum.POVM.Postprocessing
+import Mathlib.Analysis.Normed.Module.Normalize
 
 /-!
 # Averaged checked-answer states
@@ -119,6 +120,15 @@ noncomputable def normalizedCheckedVector (p : PMF X) (q : PMF Y)
   let v := S.averagedCheckedVector C p q a b
   ‖v‖⁻¹ • v
 
+/-- Recover an unnormalized branch from its normalized vector and original norm.
+The identity also holds for a zero-weight branch. -/
+theorem averagedCheckedVector_eq_norm_smul_normalized
+    (p : PMF X) (q : PMF Y) (a : C → A) (b : C → B) :
+    S.averagedCheckedVector C p q a b =
+      ‖S.averagedCheckedVector C p q a b‖ • S.normalizedCheckedVector C p q a b := by
+  simpa only [normalizedCheckedVector, NormedSpace.normalize] using
+    (NormedSpace.norm_smul_normalize (S.averagedCheckedVector C p q a b)).symm
+
 /-- A possible pair of checked answers gives a normalized conditional state. -/
 theorem norm_normalizedCheckedVector (p : PMF X) (q : PMF Y) (a : C → A) (b : C → B)
     (h : (a, b) ∈ (p.bind fun x => q.bind fun y => S.checkedAnswers C x y).support) :
@@ -128,7 +138,7 @@ theorem norm_normalizedCheckedVector (p : PMF X) (q : PMF Y) (a : C → A) (b : 
   have hnorm : ‖S.averagedCheckedVector C p q a b‖ ≠ 0 := by
     have hsq := S.norm_averagedCheckedVector_sq C p q a b
     exact fun hzero => by rw [hzero, zero_pow (by decide)] at hsq; linarith
-  simp only [normalizedCheckedVector, norm_smul, norm_inv, Real.norm_of_nonneg (norm_nonneg _)]
-  exact inv_mul_cancel₀ hnorm
+  simpa only [normalizedCheckedVector, NormedSpace.normalize] using
+    NormedSpace.norm_normalize (norm_ne_zero_iff.mp hnorm)
 
 end Cslib.PCP.QuantumStrategy

@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerStates
+import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 import CslibFrontier.Computability.PCP.TwoProverGame.EntangledRepetition
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 
@@ -32,7 +32,7 @@ private noncomputable def echoStrategy :
 
 /-- The branch with both checked answers true has weight `1 - η` when the coin
 replaces Alice's true input by false and Bob's input is always true. -/
-example (η : I) :
+private theorem echo_weight (η : I) :
     ‖echoStrategy.averagedCheckedVector {0}
       ((coin η).bind fun erase => PMF.pure (!erase)) (PMF.pure true)
       (fun _ => true) (fun _ => true)‖ ^ 2 = 1 - (η : ℝ) := by
@@ -54,6 +54,33 @@ example (η : I) :
     cases erase <;> rfl
   rw [hmix, QuantumStrategy.norm_averagedCheckedVector_sq_coin, h, h]
   simp
+
+open Cslib.Quantum (partialTraceRight pureState relativeEntropy)
+
+/-- A noisy question with erase probability `η < 1` gives an entropy bound in
+terms of the surviving branch weight `1 - η`. -/
+example (η : I) (hη : (η : ℝ) < 1) :
+    relativeEntropy
+      (partialTraceRight (pureState (echoStrategy.normalizedCheckedVector {0}
+        ((coin η).bind fun erase => PMF.pure (!erase)) (PMF.pure true)
+        (fun _ => true) (fun _ => true))))
+      (echoStrategy.averagedCheckedMarginalAlice {0}
+        ((coin η).bind fun erase => PMF.pure (!erase))) ≤
+      ((-Real.log (1 - (η : ℝ)) : ℝ) : WithTop ℝ) := by
+  classical
+  let p := (coin η).bind fun erase => PMF.pure (!erase)
+  let q := PMF.pure true
+  let a : ({0} : Finset (Fin 2)) → Bool := fun _ => true
+  let b : ({0} : Finset (Fin 2)) → Bool := fun _ => true
+  have hw : ((p.bind fun x => q.bind fun y => echoStrategy.checkedAnswers {0} x y) (a, b)).toReal =
+      1 - (η : ℝ) := (echoStrategy.norm_averagedCheckedVector_sq {0} p q a b).symm.trans
+        (echo_weight η)
+  have h : (a, b) ∈ (p.bind fun x => q.bind fun y => echoStrategy.checkedAnswers {0} x y).support :=
+    (PMF.mem_support_iff _ _).mpr (fun hz => by
+      rw [hz, ENNReal.toReal_zero] at hw
+      exact (sub_pos.mpr hη).ne' hw.symm)
+  simpa only [hw] using
+    echoStrategy.relativeEntropy_normalizedCheckedVector_partialTraceRight_le {0} p q a b h
 
 /-- Independent play gives the lower end of the interval for repeated CHSH. -/
 example (n : ℕ) : (Real.cos (π / 8) ^ 2) ^ n ≤ (chsh.pow n).quantumValue := by

@@ -136,4 +136,46 @@ example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length 
     ((firstBit.withInit 0).reachable_init _) true false []
   exact ⟨first, fun indices bits final hhalt hr => (hfactor indices bits final hhalt).mp hr⟩
 
+
+/-- Both passes ignore their selector, so distinct bit traces can have identical abstract
+state sequences. Occurrence-sensitive compilation must retain those distinctions. -/
+private def twoPass : NondeterministicQueryMachine (Fin 3) where
+  init := 0
+  query _ := 0
+  next p := if p.1 = 0 then 1 else 2
+  halted q := q == 2
+  accept q := q == 2
+
+open NondeterministicQueryMachine in
+/-- Two genuine choices survive compilation even though the abstract transitions ignore them.
+The full initializer/pass/finalizer composition has one native occurrence trace for each pair. -/
+example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    (input : List Bool) (b c : Bool) :
+    ∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
+      (R.machine.initCfg input) indices = some ([b, c], final) ∧ final.Halted := by
+  apply (R.existsUnique_replay_iff input rfl [b, c]).mpr
+  refine ⟨rfl, ?_⟩
+  intro n hn
+  have hn' : n < 2 := hn
+  interval_cases n <;> rfl
+
+open NondeterministicQueryMachine in
+/-- A full native replay cannot retain the abstract model's padding after the first halt. -/
+example (R : Routines firstBit (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    {indices : List ℕ} {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) [true]}
+    (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg [true]) indices =
+      some ([false, true], final)) : ¬final.Halted := by
+  intro hhalt
+  have h := (R.replay_correct [true] rfl hr hhalt).1.2 1 (by decide)
+  exact Bool.noConfusion h
+
+open NondeterministicQueryMachine in
+/-- The full replay's output is the verdict of the abstract state after both passes. -/
+example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
+    (input : List Bool) {indices : List ℕ}
+    {final : Cfg R.k Bool (Native.State R.SI R.SP R.SF) input}
+    (hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg input) indices =
+      some ([false, true], final)) (hhalt : final.Halted) : final.output = [true] :=
+  (R.replay_correct input rfl hr hhalt).2
+
 end CslibFrontierTests.NondeterministicQueryMachineCompiler

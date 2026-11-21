@@ -21,7 +21,7 @@ The designated source's controller is run first to obtain its answer. The other 
 sources are then checked in order. The list can enumerate original roots within a subdivided
 graph, whose auxiliary vertices remain available as walk targets. A bad controller verdict
 rejects this seed; a failed controller execution rejects the branch. Seeds are tried by
-increasing binary value, using the existing bit-string numbering and monadic list search.
+increasing binary value, using the existing bit-string numbering and a bounded counter.
 In `List`, duplicate successful branches remain duplicate entries.
 
 ## Applying the interface
@@ -39,7 +39,11 @@ counter, so a later native implementation need not retain an array of seed words
 The selected answer concerns the graph at the selected seed. Applying it to a fixed language
 also uses the reachability-preservation theorem of the weighted transport.
 
-The monadic list iterators express order and multiplicity, not a bounded-state machine.
+The outer traversal keeps a cursor and a remaining count, each at most `2 ^ length`, so each
+register fits in `length + 1` binary digits. The initial count `2 ^ length` needs all of those
+digits. Each tested cursor is strictly below `2 ^ length` and fits in `length` digits. The checked
+client verifies these bounds for the native binary encoding. The source list specifies the inner
+traversal.
 The actual replay callback in the [checked client][client] is proof-level enumeration.
 Native loop/state bounds, binary choice lowering, callbacks and first-halting composition
 remain in #6747. Validate this client with
@@ -93,6 +97,29 @@ def testSeed (controller : Fin n → m (Option ControllerVerdict))
       pure (some answer)
     else pure none
 
+-- The bound is erased. Each continuation keeps only the next cursor and remaining count.
+private def findSeedFrom {N : ℕ} (test : Fin N → m (Option (SeedAnswer length))) :
+    (remaining cursor : ℕ) → cursor + remaining ≤ N → m (Option (SeedAnswer length))
+  | 0, _, _ => pure none
+  | remaining + 1, cursor, h => do
+    match ← test ⟨cursor, by omega⟩ with
+    | some answer => pure (some answer)
+    | none => findSeedFrom test remaining (cursor + 1) (by omega)
+
+private theorem findSeedFrom_eq {N : ℕ} (test : Fin N → m (Option (SeedAnswer length)))
+    (remaining cursor : ℕ) (h : cursor + remaining ≤ N) :
+    findSeedFrom test remaining cursor h =
+      (List.ofFn fun j : Fin remaining => (⟨cursor + j, by omega⟩ : Fin N)).findSomeM? test := by
+  induction remaining generalizing cursor with
+  | zero => simp [findSeedFrom]
+  | succ remaining ih =>
+    simp only [findSeedFrom, List.ofFn_succ, List.findSomeM?_cons, Fin.val_zero, Nat.add_zero]
+    rw [ih]
+    simp only [Fin.val_succ, Nat.add_assoc, Nat.add_comm 1]
+    congr 2
+    funext answer
+    cases answer <;> rfl
+
 /-- Enumerate every bit seed by increasing binary value, stopping at the first seed whose
 designated and listed source controllers all pass. A successful negative answer also stops
 the search. -/
@@ -100,9 +127,9 @@ def runSeedSearch
     (controller : (Fin length → Bool) → Fin n → m (Option ControllerVerdict))
     (sources : List (Fin n)) (source : Fin n) :
     m (Option (SeedAnswer length)) :=
-  (List.finRange (2 ^ length)).findSomeM? fun i => do
+  findSeedFrom (fun i => do
     let answer ← testSeed (controller ((BitString.equivFin length).symm i)) sources source
-    pure (answer.map fun b => ⟨i, b⟩)
+    pure (answer.map fun b => ⟨i, b⟩)) (2 ^ length) 0 (by simp)
 
 variable [LawfulMonad m]
 
@@ -210,8 +237,14 @@ theorem runSeedSearch_correct (sources : List (Fin n))
       pure ((Option.guard (fun j => decide (good j)) j).map makeAnswer) := by
     rw [testSeed_correct sources (hc (bits j))]
     by_cases h : good j <;> simp [Option.guard, good, makeAnswer, h]
+  have hscan : runSeedSearch controller sources source =
+      (List.finRange (2 ^ length)).findSomeM? (fun i => do
+        let answer ← testSeed (controller (bits i)) sources source
+        pure (answer.map fun b => ⟨i, b⟩)) := by
+    simp only [runSeedSearch, findSeedFrom_eq, Nat.zero_add, List.finRange, bits]
   have hrun : runSeedSearch controller sources source =
       pure (((List.finRange (2 ^ length)).find? (fun j => decide (good j))).map makeAnswer) := by
+    rw [hscan]
     calc
       _ = (List.finRange (2 ^ length)).findSomeM?
           (fun j => pure ((Option.guard (fun j => decide (good j)) j).map makeAnswer)) :=
