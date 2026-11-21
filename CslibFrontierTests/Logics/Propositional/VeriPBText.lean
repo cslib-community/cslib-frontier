@@ -1204,6 +1204,12 @@ end pseudo-Boolean proof;
 #guard (checkOPB php32 ((domPhp32.replace "x3 x4;\n" "x3 x4;\npol 1 4 +;\ncore id 10;\n").replace
   "pol 10 11 +;\nqed : 12;" "pol 11 12 +;\nqed : 13;" |>.replace "14 + 15 +;\n" "15 + 16 +;\n"
   |>.replace "UNSAT : 16" "UNSAT : 17")).isNone
+-- Goal `#2`, the negated order, proved in `scope leq` does not count, even though `lex4` has no
+-- specification: all three reject. In `scope geq` it counts: all three accept.
+#guard (checkOPB php32 (domPhp32.replace "proofgoal #2\npol 10 11 +;\nqed : 12;\n"
+  "scope leq\nproofgoal #2\npol 10 11 +;\nqed : 12;\nend;\n")).isNone
+#guard checkOPB php32 (domPhp32.replace "proofgoal #2\npol 10 11 +;\nqed : 12;\n"
+  "scope geq\nproofgoal #2\npol 10 11 +;\nqed : 12;\nend;\n") == some (.unsat 16)
 -- Without its subproof, goal `#2`, the negated order, is not proved: all three reject.
 #guard (checkOPB php32 (domPhp32.replace "proofgoal #2\npol 10 11 +;\nqed : 12;\n" "")).isNone
 -- A witness that leaves `x2` alone: the negated order is no longer refuted, and all three
@@ -1595,6 +1601,64 @@ qed;
 delc 1 : x1 -> 1 : subproof
 qed;
 ") == some .noClaim
+-- With `$a1` in the database, a `red` step that leaves the order alone but enters `scope leq`
+-- needs freshness too: CakePB and this checker reject, VeriPB accepts.
+#guard (checkOPB emptyOpb (withNotAux 0 "red 1 $a1 >= 1 : $a1 -> 1 : subproof
+qed;
+load_order notaux x1;
+red 1 x2 >= 1 : x2 -> 1 : subproof
+scope leq
+end;
+qed;
+")).isNone
+-- A `proofgoal` outside the scopes counts, also when its premise list is the specification's:
+-- under an order whose specification is `>= 0`, the core goal `1` of `dom x1 >= 1 : x1 -> 0`
+-- has the negation `>= 0`. All three accept.
+#guard checkOPB "* #variable= 1 #constraint= 1\n+1 x1 >= 1 ;\n" "pseudo-Boolean proof version 3.0
+f 1;
+def_order simple
+vars
+left u1;
+right v1;
+aux;
+end;
+spec
+red >= 0 : : subproof
+qed;
+end;
+def
+1 ~u1 1 v1 >= 1;
+end;
+transitivity
+vars
+fresh_right w1;
+end;
+proof
+proofgoal #1
+pol 4 5 + 6 +;
+qed : 7;
+qed;
+end;
+reflexivity
+proof
+proofgoal #1
+qed : 9;
+qed;
+end;
+end;
+load_order simple ~x1;
+dom 1 x1 >= 1 : x1 -> 0 : subproof
+proofgoal 1
+pol 1 2 +;
+qed : 4;
+proofgoal #2
+pol 1 2 +;
+qed : 6;
+qed;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" == some .noClaim
 -- Without an order, `scope leq` adds nothing: all three accept.
 #guard checkOPB emptyOpb "pseudo-Boolean proof version 3.0
 f 0;
@@ -1758,6 +1822,10 @@ only the public API, through `#guard`, exposed bodies and the soundness theorems
 -- The relation itself unfolds through exposed bodies: `01 ⪯ 10`, and not `10 ⪯ 01`.
 example : lex2.Le [false, true] [true, false] := by decide
 example : ¬ lex2.Le [true, false] [false, true] := by decide
+-- With an auxiliary variable, `∃ ρ, S⪯(x, y, ρ) ∧ O⪯(x, y, ρ)` is decided by trying its values,
+-- also under ordinary imports: `0 ⪯ 1`, and not `1 ⪯ 0`, for `notAuxO`.
+example : notAuxO.Le [false] [true] := by decide
+example : ¬ notAuxO.Le [true] [false] := by decide
 
 -- A passing `def_order` check gives a preorder on assignments, for any literals of the right
 -- length.

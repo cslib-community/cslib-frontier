@@ -6,7 +6,7 @@ Authors: Matthew Doty
 
 module
 
-public import CslibFrontier.Init
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 
 /-! Fixtures for orders with auxiliary variables and a specification (§5.3 of the VeriPB/CakePB
 documentation, 22 June 2026 edition) in the VeriPB checker: a one-bit order defined through an
@@ -14,9 +14,11 @@ auxiliary variable, and the order `lex10` of the VeriPB repository's test instan
 `dominance_with_aux_vars`, `redundance_non_touching_order` and
 `redundance_non_touching_order_explicit_subproof` (VeriPB 3.0.2, commit `f50be284`,
 MIT/Apache-2.0), elaborated by VeriPB to the kernel format, with tabs replaced by spaces and long
-lines wrapped at token boundaries. VeriPB 3.0.2 and CakePB accept all of them. They are shared by
-the `#guard` tests of `CslibFrontierTests.Logics.Propositional.VeriPBText` and the decided client
-of `CslibFrontierTests.Logics.Propositional.VeriPBTextDecide`. -/
+lines wrapped at token boundaries. VeriPB 3.0.2 and CakePB accept all of them. The one-bit order
+is also given as checker values. They are shared by the `#guard` tests of
+`CslibFrontierTests.Logics.Propositional.VeriPBText`, the decided checks of
+`CslibFrontierTests.Logics.Propositional.VeriPBRed` and the decided client of
+`CslibFrontierTests.Logics.Propositional.VeriPBTextDecide`. -/
 
 @[expose] public section
 
@@ -95,6 +97,27 @@ output NONE;
 conclusion BOUNDS 1 : 9 1;
 end pseudo-Boolean proof;
 "
+
+open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
+
+/-- `u1 ≤ v1` on one bit through the auxiliary variable `$a1` (`notAux` above, as checker
+values), over the variables `u1 = 10`, `v1 = 12` and `$a1 = 20`: the specification `$a1 + u1 >= 1`,
+`~$a1 + ~u1 >= 1` makes `$a1` the negation of `u1`, and the definition is `$a1 + v1 >= 1`. -/
+def notAuxO : Order :=
+  ⟨[10], [12], [20], [⟨[(1, (20, true)), (1, (10, true))], 1⟩,
+    ⟨[(1, (20, false)), (1, (10, false))], 1⟩], [⟨[(1, (20, true)), (1, (12, true))], 1⟩]⟩
+
+/-- The derivation of its specification: `red` steps with the witnesses `$a1 ↦ 1` and `$a1 ↦ 0`
+and empty subproofs. -/
+def notAuxSpec : List SpecStep := [⟨[(20, .one)], some [], none⟩, ⟨[(20, .zero)], some [], none⟩]
+
+/-- Its transitivity proof, with the fresh variables `w1 = 14`, `$b1 = 21` and `$c1 = 22`. -/
+def notAuxTrans : OrderProof :=
+  ⟨[.goal (.hash 1) [.pol [.id 9, .id 5, .add, .id 2, .add, .id 7, .add, .id 4, .add, .id 8,
+    .add]] 10], none⟩
+
+/-- Its reflexivity proof, the premises `S⪯(u, u, a)` numbered `11` and `12`. -/
+def notAuxRefl : OrderProof := ⟨[.goal (.hash 1) [.pol [.id 11, .id 13, .add]] 14], none⟩
 
 /-- The order `lex10` of the VeriPB test instances, elaborated: the lexicographic order on ten
 bits, through the auxiliary variables `$a1` … `$a9` (the first bits agree) and `$d1` … `$d10`

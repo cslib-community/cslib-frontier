@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF
 public import Std.Tactic.BVDecide.LRAT.Actions
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-! # A kernel-reducible LRAT checker
 
@@ -67,19 +68,42 @@ def Literal.ofDIMACS (i : Int) : Option (Literal ℕ) :=
 def Clause.ofDIMACS (c : List Int) : Clause ℕ :=
   c.filterMap Literal.ofDIMACS
 
-/-- Unit propagation along hints, from the literals `trail` assumed true, in a database of
-numbered clauses. Each hinted clause must have every literal but one false under `trail`, and that
-literal is added to `trail`; the run succeeds when a hinted clause has every literal false. A
-literal repeated in a clause counts once. -/
-def CNF.propagateHints (db : List (ℕ × Clause ℕ)) : List (Literal ℕ) → List ℕ → Bool
+/-- Unit propagation along hints, from the literals `trail` assumed true, reading the hinted
+clauses with `lookup`. Each hinted clause must have every literal but one false under `trail`, and
+that literal is added to `trail`; the run succeeds when a hinted clause has every literal false. A
+literal repeated in a clause counts once. The checker reads clauses from a list of numbered
+clauses (`Cslib.Logic.PL.CNF.propagateHints`); a solver can read them from an index. -/
+def CNF.propagateWith (lookup : ℕ → Option (Clause ℕ)) : List (Literal ℕ) → List ℕ → Bool
   | _, [] => false
   | trail, h :: hs =>
-    match db.find? (·.1 == h) with
+    match lookup h with
     | none => false
-    | some e =>
-      match e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) with
+    | some c =>
+      match c.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) with
       | [] => true
-      | l :: ls => if ls.all (· == l) then propagateHints db (l :: trail) hs else false
+      | l :: ls => if ls.all (· == l) then propagateWith lookup (l :: trail) hs else false
+
+/-- **Unit propagation along hints** in a database of numbered clauses
+(`Cslib.Logic.PL.CNF.propagateWith`), looking up the first clause of each number (`List.lookup`). -/
+def CNF.propagateHints (db : List (ℕ × Clause ℕ)) : List (Literal ℕ) → List ℕ → Bool :=
+  propagateWith (fun h => db.lookup h)
+
+theorem CNF.propagateHints_nil (db : List (ℕ × Clause ℕ)) (t : List (Literal ℕ)) :
+    propagateHints db t [] = false := rfl
+
+/-- One step of unit propagation along hints in a database. -/
+theorem CNF.propagateHints_cons (db : List (ℕ × Clause ℕ)) (t : List (Literal ℕ)) (h : ℕ)
+    (hs : List ℕ) :
+    propagateHints db t (h :: hs) =
+      match db.find? (·.1 == h) with
+      | none => false
+      | some e =>
+        match e.2.filter (fun l => !t.contains (Std.Sat.Literal.negate l)) with
+        | [] => true
+        | l :: ls => if ls.all (· == l) then propagateHints db (l :: t) hs else false := by
+  have hk : (fun e : ℕ × Clause ℕ => h == e.1) = (·.1 == h) := funext fun _ => BEq.comm
+  simp only [propagateHints, propagateWith, List.lookup_eq_map_find?, hk]
+  cases db.find? (·.1 == h) <;> rfl
 
 /-- The checker on a database of numbered clauses. -/
 def CNF.checkLRATAux : List (ℕ × Clause ℕ) → List LRAT.IntAction → Bool
@@ -100,26 +124,53 @@ an empty-clause step through RUP steps and deletions. -/
 def CNF.checkLRAT (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
   checkLRATAux φ.lratDB cert.toList
 
+/-- Unit propagation along hints reads the starting literals only through membership. -/
+theorem CNF.propagateWith_congr (lookup : ℕ → Option (Clause ℕ)) :
+    ∀ {t t' : List (Literal ℕ)}, (∀ l, l ∈ t ↔ l ∈ t') → ∀ hs : List ℕ,
+      propagateWith lookup t hs = propagateWith lookup t' hs
+  | _, _, _, [] => rfl
+  | t, t', h, x :: hs => by
+    have hf : (fun l => !t.contains (Std.Sat.Literal.negate l)) =
+        fun l => !t'.contains (Std.Sat.Literal.negate l) := by
+      funext l
+      have : t.contains (Std.Sat.Literal.negate l) = true ↔
+          t'.contains (Std.Sat.Literal.negate l) = true := by
+        rw [List.contains_iff_mem, List.contains_iff_mem, h]
+      rw [Bool.eq_iff_iff.2 this]
+    simp only [propagateWith, hf]
+    split
+    · rfl
+    · split
+      · rfl
+      · rename_i l ls _
+        split
+        · exact CNF.propagateWith_congr lookup (fun y => by simp [h]) hs
+        · rfl
+
+/-- Unit propagation along hints reads the starting literals only through membership. -/
+theorem CNF.propagateHints_congr (db : List (ℕ × Clause ℕ)) {t t' : List (Literal ℕ)}
+    (h : ∀ l, l ∈ t ↔ l ∈ t') (hs : List ℕ) : propagateHints db t hs = propagateHints db t' hs :=
+  CNF.propagateWith_congr _ h hs
+
 /-! ### Soundness -/
 
-/-- If unit propagation along hints succeeds, no assignment satisfies the database and makes the
-starting literals true. -/
-theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ → Bool}
-    (hdb : ∀ e ∈ db, e.2.eval σ = true) {trail : List (Literal ℕ)}
+/-- If unit propagation along hints succeeds, no assignment satisfying every clause the lookup
+returns makes the starting literals true. -/
+theorem CNF.false_of_propagateWith {lookup : ℕ → Option (Clause ℕ)} {σ : ℕ → Bool}
+    (hlookup : ∀ h c, lookup h = some c → c.eval σ = true) {trail : List (Literal ℕ)}
     (htrail : ∀ l ∈ trail, Literal.eval σ l = true) {hs : List ℕ}
-    (h : propagateHints db trail hs = true) : False := by
+    (h : propagateWith lookup trail hs = true) : False := by
   induction hs generalizing trail with
-  | nil => simp [propagateHints] at h
+  | nil => simp [propagateWith] at h
   | cons x hs ih =>
-    simp only [propagateHints] at h
+    simp only [propagateWith] at h
     split at h
     · simp at h
-    · rename_i e he
-      have hc := hdb e (List.mem_of_find?_eq_some he)
-      obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ e.2).1 hc
+    · rename_i c hc
+      obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1 (hlookup x c hc)
       -- a literal of the clause that holds is not falsified by the trail
       have hl'e : Literal.eval σ l' = true := by simp [Literal.eval, hl'σ]
-      have hkeep : l' ∈ e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) := by
+      have hkeep : l' ∈ c.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) := by
         refine List.mem_filter.2 ⟨hl', ?_⟩
         cases hm : trail.contains (Std.Sat.Literal.negate l')
         · rfl
@@ -146,6 +197,30 @@ theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ �
           · exact htrail l hl
         · simp at h
 
+/-- If unit propagation along hints succeeds, no assignment satisfies the database and makes the
+starting literals true. -/
+theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ → Bool}
+    (hdb : ∀ e ∈ db, e.2.eval σ = true) {trail : List (Literal ℕ)}
+    (htrail : ∀ l ∈ trail, Literal.eval σ l = true) {hs : List ℕ}
+    (h : propagateHints db trail hs = true) : False :=
+  CNF.false_of_propagateWith (fun k c hc => by
+    obtain ⟨l₁, l₂, hl, -⟩ := List.lookup_eq_some_iff.1 hc
+    exact hdb (k, c) (by simp [hl])) htrail h
+
+/-- **A RUP clause holds**: if unit propagation along hints from its negation succeeds, every
+assignment satisfying the database satisfies it. -/
+theorem CNF.eval_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ → Bool}
+    (hdb : ∀ e ∈ db, e.2.eval σ = true) {c : Clause ℕ} {hs : List ℕ}
+    (h : propagateHints db (c.map Std.Sat.Literal.negate) hs = true) : c.eval σ = true := by
+  by_contra hne
+  refine false_of_propagateHints hdb ?_ h
+  intro l hl
+  obtain ⟨l₀, hl₀, rfl⟩ := List.mem_map.1 hl
+  have := (Clause.eval_eq_true_iff σ _).not.1 hne
+  simp only [not_exists, not_and] at this
+  rw [Literal.eval_negate]
+  simpa [Literal.eval] using this l₀ hl₀
+
 /-- If the checker accepts on a database, no assignment satisfies the database. -/
 theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause ℕ)}
     (hdb : ∀ e ∈ db, e.2.eval σ = true) {cert : List LRAT.IntAction}
@@ -161,15 +236,7 @@ theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause 
       refine ih (db := (id, Clause.ofDIMACS c.toList) :: db) ?_ h.2
       intro e he
       rcases List.mem_cons.1 he with rfl | he
-      · -- the added clause holds, since otherwise its negation propagates to a conflict
-        by_contra hne
-        refine false_of_propagateHints hdb ?_ h.1
-        intro l hl
-        obtain ⟨l₀, hl₀, rfl⟩ := List.mem_map.1 hl
-        have := (Clause.eval_eq_true_iff σ _).not.1 hne
-        simp only [not_exists, not_and] at this
-        rw [Literal.eval_negate]
-        simpa [Literal.eval] using this l₀ hl₀
+      · exact eval_of_propagateHints hdb h.1
       · exact hdb e he
     | addRat id c pivot rupHints ratHints => simp [checkLRATAux] at h
     | del ids =>

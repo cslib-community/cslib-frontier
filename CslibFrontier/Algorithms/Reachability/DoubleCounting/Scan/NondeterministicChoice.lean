@@ -51,16 +51,23 @@ structure State where
 enc_structure encState : State where
   reading : encBool, stopped : encBool, reader : VertexReader.encState
 
+/-- Read the stop or continue marker, or feed a selector to the active vertex reader. -/
+@[expose] def advance (s : State) (bit : Bool) : State :=
+  if s.reading then { s with reader := VertexReader.advance s.reader (some bit) }
+  else ⟨bit, !bit, s.reader⟩
+
+/-- A stop marker or a completed vertex reader ends the choice phase. -/
+@[expose] def isHalted (s : State) : Bool :=
+  s.stopped || (s.reading && VertexReader.isHalted s.reader)
+
 /-- The runtime selects stop or starts a fixed-width vertex reader. A completed out-of-range
 ID rejects. A successful halted state returns stop via `stopped`, or the rank via
 `VertexReader.result`. -/
 @[expose] def machine (N : ℕ) : NondeterministicQueryMachine State where
   init := ⟨false, false, (VertexReader.machine N).init⟩
   query _ := 0
-  next := fun (s, _, bit) =>
-    if s.reading then { s with reader := VertexReader.advance s.reader (some bit) }
-    else ⟨bit, !bit, s.reader⟩
-  halted s := s.stopped || (s.reading && (VertexReader.machine N).halted s.reader)
+  next := fun (s, _, bit) => advance s bit
+  halted := isHalted
   accept s := s.stopped || (s.reading && (VertexReader.result s.reader).isSome)
 
 private theorem accept_eq (N : ℕ) (s : State) :
@@ -98,7 +105,10 @@ private theorem replay_reading (N : ℕ) (input consumed bits : List Bool) :
         rfl
       · have hhalt : R.halted (R.run (consumed ++ bit :: bits) consumed.length) = true :=
           (VertexReader.halted_iff _ _ _).mpr (by omega)
-        simp [NondeterministicQueryMachine.step, QueryMachine.step, machine, hhalt, R]
+        have hdone : VertexReader.isHalted (R.run (consumed ++ bit :: bits) consumed.length) =
+            true := hhalt
+        simp [NondeterministicQueryMachine.step, QueryMachine.step, machine, isHalted, hhalt,
+          hdone, R]
     rw [NondeterministicQueryMachine.replay_cons, hstep, he, ← hlen, ih]
     congr 2
     simp only [List.length_cons]
@@ -109,7 +119,8 @@ theorem run_continue (N : ℕ) (input bits : List Bool) :
     (machine N).run input (true :: bits) =
       ⟨true, false, (VertexReader.machine N).run bits bits.length⟩ := by
   simpa [NondeterministicQueryMachine.run, NondeterministicQueryMachine.replay_cons,
-    NondeterministicQueryMachine.step, machine] using replay_reading N input [] bits
+    NondeterministicQueryMachine.step, machine, advance, isHalted] using
+    replay_reading N input [] bits
 
 private theorem run_stop (N : ℕ) (input bits : List Bool) :
     (machine N).run input (false :: bits) = ⟨false, true, (VertexReader.machine N).init⟩ := by
@@ -151,7 +162,7 @@ theorem firstHalting_stop_iff (N : ℕ) (input choices : List Bool) :
     (machine N).FirstHalting input choices (machine N).init ∧
       ((machine N).run input choices).stopped = true ↔ choices = [false] := by
   cases choices with
-  | nil => simp [NondeterministicQueryMachine.FirstHalting, machine]
+  | nil => simp [NondeterministicQueryMachine.FirstHalting, machine, isHalted]
   | cons bit bits =>
     cases bit
     · rw [run_stop]
@@ -283,25 +294,43 @@ theorem query_inSpace (N : ℕ) :
     ComputableInSpace (machine N).query encState encNat (fun s => (encState s).length) :=
   budget_const 0 (.refl _)
 
-/-- Native transition computation reuses the vertex reader's certified bit update. -/
-theorem next_inSpace (N : ℕ) :
-    ComputableInSpace (machine N).next encStep encState (fun p => (encStep p).length) := by
-  have hs := fst encState (encPair (encOption encBool) encBool)
-  have hb := snd' (snd encState (encPair (encOption encBool) encBool))
+/-- Update the choice state directly from a selector in linear space. -/
+theorem advance_inSpace :
+    ComputableInSpace (fun p : State × Bool => advance p.1 p.2)
+      (encPair encState encBool) encState (fun p => (encPair encState encBool p).length) := by
+  have hs := fst encState encBool
+  have hb := snd encState encBool
   have hr := encState_reader_budget hs
   have hread := encState_reading_budget hs
-  have hstep := budget_comp_linear (VertexReader.next_inSpace N)
+  have hstep := budget_comp_linear VertexReader.advance_inSpace
     (budget_prod hr (budget_optionSome hb))
   exact budget_ite hread (encState_mk_budget hread (encState_stopped_budget hs) hstep)
     (encState_mk_budget hb (budget_finite Bool.not hb) hr)
 
-/-- Native halting uses the stop flag and the existing width comparison. -/
-theorem halted_inSpace (N : ℕ) :
-    ComputableInSpace (machine N).halted encState encBool (fun s => (encState s).length) := by
+/-- Native halting uses the stop flag and the retained reader width. -/
+theorem isHalted_inSpace :
+    ComputableInSpace isHalted encState encBool (fun s => (encState s).length) := by
   have hs := of_inO (ComputableInO.of_eq (encIn := encState) (encMid := encState) fun _ => rfl)
-  exact budget_finite (fun (p : Bool × Bool × Bool) => p.1 || (p.2.1 && p.2.2))
+  exact budget_finite (fun ((stopped, reading, done) : Bool × Bool × Bool) =>
+    stopped || (reading && done))
     (budget_prod (encState_stopped_budget hs) (budget_prod (encState_reading_budget hs)
-      (budget_comp_linear (VertexReader.halted_inSpace N) (encState_reader_budget hs))))
+      (budget_comp_linear VertexReader.isHalted_inSpace (encState_reader_budget hs))))
+
+/-- The choice machine applies the state update directly to its selector. -/
+theorem next_inSpace (N : ℕ) :
+    ComputableInSpace (machine N).next encStep encState (fun p => (encStep p).length) := by
+  change ComputableInSpace (fun p => advance p.1 p.2.2) encStep encState (fun p =>
+    (encStep p).length)
+  have hs : ComputableInSpace Prod.fst encStep encState (fun p => (encStep p).length) :=
+    fst encState (encPair (encOption encBool) encBool)
+  have hr : ComputableInSpace Prod.snd encStep (encPair (encOption encBool) encBool)
+      (fun p => (encStep p).length) := snd encState (encPair (encOption encBool) encBool)
+  exact budget_comp_linear advance_inSpace (budget_prod hs (snd' hr))
+
+/-- Detect halt using the choice state at any entry dimension. -/
+theorem halted_inSpace (N : ℕ) :
+    ComputableInSpace (machine N).halted encState encBool (fun s => (encState s).length) :=
+  isHalted_inSpace
 
 /-- Native acceptance checks the stop flag or the reader's range-checked result. -/
 theorem accept_inSpace (N : ℕ) :

@@ -10,6 +10,7 @@ module
 -- private helpers.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
+import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
@@ -30,7 +31,8 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
-open CslibFrontierTests.Logics.Propositional.VeriPBText (lex2 lex2Trans lex2Refl)
+open CslibFrontierTests.Logics.Propositional.VeriPBText (lex2 lex2Trans lex2Refl notAuxO notAuxSpec
+  notAuxTrans notAuxRefl)
 
 /-! ### Repairing a solution -/
 
@@ -215,26 +217,6 @@ example : (ltBit.transCheck ⟨[14], [], []⟩ ltBitTrans).isSome = true ∧
     ltBit.reflCheck 5 ⟨[.goal (.hash 1) [] 5], none⟩ = false ∧
     ltBit.defCheck [] ⟨[14], [], []⟩ ltBitTrans ⟨[.goal (.hash 1) [] 5], none⟩ = false := by
   decide
-
-/-- `u1 ≤ v1` on one bit through the auxiliary variable `$a1` (the text fixture `notAux` of
-`CslibFrontierTests.Logics.Propositional.VeriPBText`), over the
-variables `u1 = 10`, `v1 = 12` and `$a1 = 20`: the specification `$a1 + u1 >= 1`,
-`~$a1 + ~u1 >= 1` makes `$a1` the negation of `u1`, and the definition is `$a1 + v1 >= 1`. -/
-def notAuxO : Order :=
-  ⟨[10], [12], [20], [⟨[(1, (20, true)), (1, (10, true))], 1⟩,
-    ⟨[(1, (20, false)), (1, (10, false))], 1⟩], [⟨[(1, (20, true)), (1, (12, true))], 1⟩]⟩
-
-/-- The derivation of its specification: `red` steps with the witnesses `$a1 ↦ 1` and `$a1 ↦ 0`
-and empty subproofs. -/
-def notAuxSpec : List SpecStep := [⟨[(20, .one)], some [], none⟩, ⟨[(20, .zero)], some [], none⟩]
-
-/-- Its transitivity proof, with the fresh variables `w1 = 14`, `$b1 = 21` and `$c1 = 22`. -/
-def notAuxTrans : OrderProof :=
-  ⟨[.goal (.hash 1) [.pol [.id 9, .id 5, .add, .id 2, .add, .id 7, .add, .id 4, .add, .id 8,
-    .add]] 10], none⟩
-
-/-- Its reflexivity proof, the premises `S⪯(u, u, a)` numbered `11` and `12`. -/
-def notAuxRefl : OrderProof := ⟨[.goal (.hash 1) [.pol [.id 11, .id 13, .add]] 14], none⟩
 
 example : notAuxO.defCheck notAuxSpec ⟨[14], [21], [22]⟩ notAuxTrans notAuxRefl = true := by
   decide

@@ -7,8 +7,10 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
+import CslibFrontier.Algorithms.Lean.Simplex.Minimax
 import CslibFrontier.Probability.Minimax
 import CslibFrontier.Probability.Minimax.Value
+import Mathlib.Algebra.Order.Ring.Rat
 
 /-!
 # Finite zero-sum games over `ℚ`
@@ -27,13 +29,18 @@ paying `M i j`:
   `exists_isMinimaxValue` is identified with `2 / 3` by uniqueness.
 
 Uniqueness of the value (`Cslib.Probability.IsMinimaxValue.unique`) rules out every other value.
+
+The simplex method (`Cslib.Algorithms.Lean.Simplex.solveGame`) computes the value and both optimal
+strategies of matching pennies (indexed by `Fin 2`), rock–paper–scissors and the `2 × 3` game;
+`decide +kernel` evaluates the solver in the kernel, and `isMinimaxValue_solveGame` turns each run
+into a proof of `IsMinimaxValue`.
 -/
 
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.GameTheory.ZeroSum
 
-open Finset Convexity Cslib.Probability
+open Finset Convexity Cslib.Probability Cslib.Algorithms.Lean.Simplex
 
 /-- The point of the standard simplex with weight vector `w`. -/
 private noncomputable def ofVec {ι : Type*} [Fintype ι] (w : ι → ℚ) (h0 : ∀ i, 0 ≤ w i)
@@ -134,5 +141,32 @@ example (v : ℚ) : IsMinimaxValue game v ↔ v = 2 / 3 :=
 value `2 / 3`. -/
 example : 2 / 3 < ∑ i : Fin 2, 1 / 2 * game i 0 := by
   norm_num [game, Fin.sum_univ_two]
+
+/-! ### Solving the games with the simplex method -/
+
+/-- Matching pennies indexed by `Fin 2`, the row player paying `1` when the coins match. -/
+private def pennies₂ (i j : Fin 2) : ℚ := if i = j then 1 else 0
+
+/-- The simplex method finds the value `1 / 2` of matching pennies and the uniform strategies. -/
+example : (solveGame pennies₂).value = 1 / 2 ∧ (solveGame pennies₂).row = ![1 / 2, 1 / 2] ∧
+    (solveGame pennies₂).col = ![1 / 2, 1 / 2] := by
+  decide +kernel
+
+/-- The simplex method finds the value `0` of rock–paper–scissors and the uniform strategies. -/
+example : (solveGame rps).value = 0 ∧ (solveGame rps).row = ![1 / 3, 1 / 3, 1 / 3] ∧
+    (solveGame rps).col = ![1 / 3, 1 / 3, 1 / 3] := by
+  decide +kernel
+
+/-- The simplex method finds the value `2 / 3` of the `2 × 3` game, the row strategy
+`(4 / 9, 5 / 9)` and the column strategy `(1 / 3, 2 / 3, 0)`. -/
+example : (solveGame game).value = 2 / 3 ∧ (solveGame game).row = ![4 / 9, 5 / 9] ∧
+    (solveGame game).col = ![1 / 3, 2 / 3, 0] := by
+  decide +kernel
+
+/-- The run of the simplex method certifies the value of the `2 × 3` game, independently of the
+hand-checked strategies of `isMinimaxValue_game`. -/
+example : IsMinimaxValue game (2 / 3) := by
+  have h : (solveGame game).value = 2 / 3 := by decide +kernel
+  exact h ▸ isMinimaxValue_solveGame game
 
 end CslibFrontierTests.GameTheory.ZeroSum
