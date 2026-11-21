@@ -73,6 +73,11 @@ theorem coeffNorm1_eq_sum_of_support_subset {p : ℤ[X]} {S : Finset ℕ} (hS : 
     coeffNorm1 p = ∑ i ∈ S, (p.coeff i).natAbs :=
   sum_eq_of_subset _ (fun _ => Int.natAbs_zero) hS
 
+/-- Multiplication by a natural scalar scales the coefficient norm exactly. -/
+theorem coeffNorm1_nsmul (k : ℕ) (p : ℤ[X]) : coeffNorm1 (k • p) = k * coeffNorm1 p := by
+  rw [coeffNorm1_eq_sum_of_support_subset (support_smul k p), coeffNorm1, Finset.mul_sum]
+  simp only [nsmul_eq_mul, ← C_eq_natCast, coeff_C_mul, Int.natAbs_mul, Int.natAbs_natCast]
+
 /-- Every individual coefficient of `p` has absolute value at most `coeffNorm1 p`. -/
 theorem natAbs_coeff_le_coeffNorm1 (p : ℤ[X]) (k : ℕ) :
     (p.coeff k).natAbs ≤ coeffNorm1 p := by

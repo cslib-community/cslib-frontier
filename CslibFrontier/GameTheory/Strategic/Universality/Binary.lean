@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.GameTheory.Strategic.Universality.Realize
+public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
 import Mathlib.Algebra.MvPolynomial.CommRing
 import Mathlib.Algebra.MvPolynomial.Rename
 import Mathlib.Tactic.Linarith
@@ -21,7 +21,9 @@ vector `q : P → ℝ` of probabilities of `true`. By Lemma 4 of [Datta2003]
 (`CostGame.deviationCost_realize`), for any multilinear polynomials `E v` in which `v` does not
 occur, some binary game makes `E v (q)` the difference of player `v`'s expected costs. Its totally
 mixed Nash equilibria are then exactly the points of the open cube `(0, 1)ᴾ` at which every `E v`
-vanishes (`CostGame.isTotallyMixedNash_binaryGame_iff`). This is the engine of the binary
+vanishes (`CostGame.isTotallyMixedNash_binaryGame_iff`). The game is the case of one
+non-reference strategy per player of the reference-strategy bridge
+`CostGame.referenceGame`, with `false` the reference strategy. This is the engine of the binary
 construction in the proof of Datta's Theorem 6.
 
 ## Main definitions
@@ -148,12 +150,12 @@ variable {P : Type*}
 /-- The embedding of the variables `P` as the `true` coordinates of the binary profile space. -/
 @[expose] def trueCoord (v : P) : Σ _ : P, Bool := ⟨v, true⟩
 
-theorem trueCoord_injective : Injective (trueCoord (P := P)) := by
+private theorem trueCoord_injective : Injective (trueCoord (P := P)) := by
   intro v w h
   simpa [trueCoord] using congrArg Sigma.fst h
 
 /-- The rename of a multilinear polynomial to the `true` coordinates is block-affine. -/
-theorem IsMultilinear.isBlockAffine_rename {f : MvPolynomial P ℝ} (hf : IsMultilinear f) :
+private theorem IsMultilinear.isBlockAffine_rename {f : MvPolynomial P ℝ} (hf : IsMultilinear f) :
     IsBlockAffine (rename trueCoord f) := by
   classical
   intro m hm v
@@ -171,9 +173,9 @@ variable [Fintype P] [DecidableEq P]
 
 /-- The **binary game** with indifference equations `E v = 0`: player `v`'s cost for `true` is
 `E v` at the vertex of the pure profile, and its cost for `false` is `0` (Lemma 4 of
-[Datta2003], `CostGame.realize`). -/
+[Datta2003], through `CostGame.referenceGame`). -/
 noncomputable def binaryGame (E : P → MvPolynomial P ℝ) : CostGame P (fun _ => Bool) :=
-  realize fun v b => if b then rename trueCoord (E v) else 0
+  referenceGame trueCoord fun v b => if b then E v else 0
 
 /-- Every totally mixed profile of a binary game is a `binaryProfile`. -/
 theorem IsTotallyMixedNash.eq_binaryProfile {G : CostGame P (fun _ => Bool)}
@@ -194,37 +196,36 @@ theorem isTotallyMixedNash_binaryGame_iff {E : P → MvPolynomial P ℝ}
     (binaryGame E).IsTotallyMixedNash (binaryProfile q) ↔
       (∀ v, 0 < q v ∧ q v < 1) ∧ ∀ v, eval q (E v) = 0 := by
   classical
-  have hg : ∀ v (b : Bool), IsBlockAffine (if b then rename trueCoord (E v) else 0) := by
+  have hsum : ∀ v, ∑ b, binaryProfile q v b = 1 := fun v => by
+    simp [binaryProfile]
+  have hg : ∀ v (b : Bool), IsBlockAffine (rename trueCoord (if b then E v else 0)) := by
     intro v b
     cases b
     · simpa using IsMultilinear.zero.isBlockAffine_rename (P := P)
     · simpa using (hE v).isBlockAffine_rename
-  have hgv : ∀ v (b : Bool), ∀ w ∈ (if b then rename trueCoord (E v) else 0).vars, w.1 ≠ v := by
+  have hgv : ∀ v (b : Bool), ∀ w ∈ (if b then E v else 0).vars, (trueCoord w).1 ≠ v := by
     intro v b w hw
     cases b
     · simp at hw
     · simp only [↓reduceIte] at hw
-      obtain ⟨u, hu, rfl⟩ := Finset.mem_image.1 (vars_rename trueCoord (E v) hw)
       rintro rfl
-      exact hEv _ hu
-  rw [binaryGame, isTotallyMixedNash_realize_iff hg hgv (fun _ => false) (fun _ => rfl)]
+      exact hEv _ hw
   have heval : Sigma.uncurry (binaryProfile q) ∘ trueCoord = q := by
     funext v
     simp [binaryProfile, trueCoord, Sigma.uncurry]
-  have hE' : ∀ v, eval (Sigma.uncurry (binaryProfile q)) (rename trueCoord (E v)) =
-      eval q (E v) := fun v => by rw [eval_rename, heval]
+  rw [binaryGame, isTotallyMixedNash_referenceGame_iff hg hgv (fun _ => false) (fun _ => rfl) hsum,
+    heval]
   constructor
-  · rintro ⟨hpos, -, hE0⟩
-    refine ⟨fun v => ⟨by simpa [binaryProfile] using hpos v true, ?_⟩, fun v => ?_⟩
-    · have := hpos v false
-      simp only [binaryProfile, Bool.false_eq_true, ite_false] at this
-      linarith
-    · simpa [hE'] using hE0 v true
+  · rintro ⟨hpos, hE0⟩
+    refine ⟨fun v => ⟨by simpa [binaryProfile] using hpos v true, ?_⟩, fun v => by
+      simpa using hE0 v true⟩
+    have := hpos v false
+    simp only [binaryProfile, Bool.false_eq_true, ite_false] at this
+    linarith
   · rintro ⟨hq, hE0⟩
-    refine ⟨fun v b => ?_, fun v => ?_, fun v b => ?_⟩
+    refine ⟨fun v b => ?_, fun v b => ?_⟩
     · cases b <;> simp [binaryProfile] <;> linarith [hq v]
-    · simp [binaryProfile]
-    · cases b <;> simp [hE', hE0]
+    · cases b <;> simp [hE0]
 
 end CostGame
 
