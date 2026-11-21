@@ -4,6 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+
+-- `import all`: the `decide` checks below evaluate `stepTop`, whose body is not exposed, and its
+-- private helpers.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
@@ -18,6 +23,8 @@ proof fails or whose fresh variables are not fresh; and a symmetry-breaking `dom
 the lex-leader constraint, which certifies the optimum of a symmetric objective, rejected for an
 asymmetric objective, without a loaded order, and for the order loaded over the swapped
 literals. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBRed
 

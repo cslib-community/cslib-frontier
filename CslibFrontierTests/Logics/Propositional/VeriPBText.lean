@@ -5,6 +5,8 @@ Authors: Matthew Doty
 -/
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 
 /-! The text front end of the VeriPB kernel-proof checker on proofs elaborated to the kernel format
 by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate`):
@@ -90,19 +92,6 @@ open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Text
   some [[(0, true), (1, false)], [(1, true)]]
 
 /-! ### PHP(3, 2), cutting planes -/
-
-/-- PHP(3, 2) in OPB: pigeon `i` in hole `j` is `x(2i+j+1)`. -/
-def php32 : String := "* #variable= 6 #constraint= 9
-+1 x1 +1 x2 >= 1 ;
-+1 x3 +1 x4 >= 1 ;
-+1 x5 +1 x6 >= 1 ;
-+1 ~x1 +1 ~x3 >= 1 ;
-+1 ~x1 +1 ~x5 >= 1 ;
-+1 ~x3 +1 ~x5 >= 1 ;
-+1 ~x2 +1 ~x4 >= 1 ;
-+1 ~x2 +1 ~x6 >= 1 ;
-+1 ~x4 +1 ~x6 >= 1 ;
-"
 
 /-- The elaborated proof: division by `2` of the sums of the hole clauses, then the sum of
 everything. -/
@@ -830,9 +819,24 @@ end pseudo-Boolean proof;
   some (.bounds (some 1) 3 (some 1) none)
 -- Without the constant, the objective `0` is not `x1` on the core (VeriPB rejects).
 #guard (checkOPB twoOpt (objuConstProof.replace "-1 x1 1 ;" "-1 x1 ;")).isNone
--- A constraint still needs its relation: a constant is no constraint.
-#guard (checkOPB twoOpt "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n"
-  |>.isNone)
+-- A constraint still needs its relation: a constant is no constraint (VeriPB and CakePB reject
+-- the instance).
+#guard (parseOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 1 ;\n1 x2 >= 1 ;\n").isNone
+#guard (parseOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 ;\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n").isSome
+-- `min:` ends in an optional constant: `x1 + 5`, and `~x1 + 3`, that is `-x1 + 4`.
+#guard (parseOPB "min: 1 x1 5 ;\n1 x1 >= 1 ;\n").map (·.objective) == some (some ⟨[(0, 1)], 5⟩)
+#guard (parseOPB "min: 1 ~x1 3 ;\n1 x1 >= 1 ;\n").map (·.objective) == some (some ⟨[(0, -1)], 4⟩)
+-- The constant shifts the optimum: minimizing `x1 + 5` under `x1 >= 1` gives `6` (VeriPB and
+-- CakePB accept).
+#guard checkOPB "* #variable= 2 #constraint= 2\nmin: 1 x1 5 ;\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n"
+  "pseudo-Boolean proof version 3.0
+f 2;
+soli x1 x2;
+rup >= 1 : 3 1;
+output NONE;
+conclusion BOUNDS 6 : 4 6;
+end pseudo-Boolean proof;
+" == some (.bounds (some 6) 4 (some 6) none)
 
 /-- Minimize `x1 + x2` subject to `x1 + x2 >= 1` and `~x2 >= 1`. -/
 def cancelOpt : String := "* #variable= 2 #constraint= 2
@@ -959,23 +963,35 @@ end pseudo-Boolean proof;
 #guard (checkOPB enum3 delcPresProof).isNone
 #guard checkOPB "* #variable= 2 #constraint= 1\n1 x1 1 x2 >= 1 ;\n" delcPresProof == some .noClaim
 
-/-- `x4` is preserved but appears neither in the constraints nor in the proof. The names of the
-proof are numbered after it, so the witness `aux -> 1` leaves the preserved set alone (VeriPB
-and CakePB accept). Numbered after the variables of the constraints alone, `aux` would be
-variable `3`, that is `x4`. -/
+/-- `x4` is preserved but appears neither in the constraints nor in the proof. -/
 def presOnly : String := "* #variable= 4 #constraint= 1
 preserved: x1 x4 ;
 1 x1 >= 1 ;
 "
 
-#guard checkOPB presOnly "pseudo-Boolean proof version 3.0
+/-- A `red` step on the proof's own name `aux`. -/
+def presOnlyProof : String := "pseudo-Boolean proof version 3.0
 f 1;
 red 1 aux >= 1 : aux -> 1 : subproof
 qed;
 output NONE;
 conclusion NONE;
 end pseudo-Boolean proof;
-" == some .noClaim
+"
+
+/-- The variable of the witness of a proof consisting of one `red` step. -/
+def redVar : Option RedProof → Option ℕ
+  | some ⟨[.red _ [(v, _)] _ _], _⟩ => some v
+  | _ => none
+
+-- The proof's names other than `xN` are numbered in order from the base, each at its last
+-- occurrence: `version`, `red`, `aux`, …, as `pseudo-Boolean` and `proof` recur at the end. So
+-- numbered after the constraints alone (base `1`), `aux` is variable `3`, that is the preserved
+-- `x4`; numbered after the preserved set too (base `4`), it is `6`.
+#guard redVar (parseProof 1 1 presOnlyProof) == some 3
+#guard redVar (parseProof 1 4 presOnlyProof) == some 6
+-- So the witness `aux -> 1` leaves the preserved set alone (VeriPB and CakePB accept).
+#guard checkOPB presOnly presOnlyProof == some .noClaim
 
 /-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. A witness that moves only the unpreserved `x3`
 is allowed (VeriPB and CakePB accept). -/
@@ -1000,42 +1016,6 @@ end pseudo-Boolean proof;
 of the proof, and `output g IMPLICIT;` takes the core set itself (§4.2). The verdicts are
 compared with VeriPB 3.0.2 and CakePB (CakeML commit `14856fcf`), run on the same texts; CakePB
 supports only `FILE`, and this checker follows its `check_output` where the two tools differ. -/
-
-/-- The test instance `decision_output` of the VeriPB repository (MIT/Apache-2.0): three
-pairwise at-most-one clauses. -/
-def amo3 : String := "* #variable= 3 #constraint= 3
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-"
-
-/-- Its proof, elaborated by VeriPB: the cardinality constraint `4`, a fresh variable `y1` defined
-by the `red` steps `6` and `8`, and the constraint `9`; the core set is `1`–`4`, `8` and `9`. -/
-def amo3Proof : String := "pseudo-Boolean proof version 3.0
-f 3;
-pol 1 2 + 3 + 2 d;
-core id 4;
-red 1 ~x1 1 ~x2 1 ~x3 3 ~y1 >= 3 : y1 -> 0 : subproof
-qed;
-red 1 x1 1 x2 1 x3 1 y1 >= 1 : y1 -> 1 : subproof
-qed;
-core id 8;
-pol 4 2 * 6 + 3 d;
-core id 9;
-output EQUISATISFIABLE FILE;
-conclusion NONE;
-end pseudo-Boolean proof;
-"
-
-/-- The output formula of `decision_output`: the core set, in another order. -/
-def amo3Out : String := "* #variable= 4 #constraint= 7
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 >= 2 ;
-1 x1 1 x2 1 x3 1 y1 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 1 ~y1 >= 3 ;
-"
 
 -- All three tools accept, also with the terms of a constraint reordered.
 #guard (checkOPBOutput amo3 amo3Proof amo3Out).map (·.2.map (·.guarantee)) ==
@@ -1080,54 +1060,6 @@ def amo3Out : String := "* #variable= 4 #constraint= 7
 #guard (checkOPBOutput amo3 ((amo3Proof.replace "output" "sol ~x1 ~x2 ~x3 y1;\noutput").replace
   "EQUISATISFIABLE" "DERIVABLE") amo3Out).isNone
 
-/-- The test instance `optimization_output_opposing_lits_objective` of the VeriPB repository:
-`amo3`, maximizing the number of true variables. -/
-def amo3Opt : String := "* #variable= 3 #constraint= 3
-min: 1 ~x1 1 ~x2 1 ~x3 ;
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-"
-
-/-- Its proof, elaborated by VeriPB: the objective becomes `y1 + 2` (`obju`), and the optimal
-solution, of value `2`, is logged; the improving constraint `14` is `~y1 >= 2`. -/
-def amo3OptProof : String := "pseudo-Boolean proof version 3.0
-f 3;
-pol 1 2 + 3 + 2 d;
-core id 4;
-red 1 ~x1 1 ~x2 1 ~x3 3 ~y1 >= 3 : y1 -> 0 : subproof
-qed;
-red 1 x1 1 x2 1 x3 1 y1 >= 1 : y1 -> 1 : subproof
-qed;
-core id 8;
-pol 4 2 * 6 + 3 d;
-core id 9;
-obju new 1 y1 2 : subproof
-  proofgoal #1
-    pol 10 8 + ;
-  qed : 11;
-  proofgoal #2
-    pol 12 9 + ;
-  qed : 13;
-qed;
-soli x1 ~x2 ~x3 ~y1;
-output EQUIOPTIMAL FILE;
-conclusion BOUNDS 2 : 14 2;
-end pseudo-Boolean proof;
-"
-
-/-- The output formula, with the objective `y1 + 2x1 + 2~x1`, that is `y1 + 2`. -/
-def amo3OptOut : String := "* #variable= 4 #constraint= 8
-min: 1 y1 2 x1 2 ~x1 ;
-1 ~x1 1 ~x2 >= 1 ;
-1 ~x1 1 ~x3 >= 1 ;
-1 ~x2 1 ~x3 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 >= 2 ;
-1 x1 1 x2 1 x3 1 y1 >= 1 ;
-1 ~x1 1 ~x2 1 ~x3 1 ~y1 >= 3 ;
-1 ~y1 >= 2 ;
-"
-
 -- All three tools accept, for values below the bound `2`, also with the objective written
 -- `y1 + 2`, and the conclusion is checked as well.
 #guard (checkOPBOutput amo3Opt amo3OptProof amo3OptOut).map
@@ -1159,14 +1091,28 @@ def amo3OptImplicit : String :=
   (amo3OptProof.replace "FILE" "IMPLICIT").replace "BOUNDS 2 : 14 2" "NONE"
 
 #guard (checkOPBOutput amo3Opt amo3OptImplicit).map (·.2.map (·.bound)) == some (some (some 2))
--- `EQUIOPTIMAL` and `EQUIENUMERABLE` need `bound` at most `dbound`. An `obji` below the logged
--- value, or in place of the logged solution, breaks it (CakePB rejects both, with the output
--- formula given as a file; VeriPB accepts both).
+-- `EQUIOPTIMAL` needs `bound` at most `dbound`. An `obji` below the logged value, or in place of
+-- the logged solution, breaks it (CakePB rejects both, with the output formula given as a file;
+-- VeriPB accepts both).
 #guard (checkOPBOutput amo3Opt (amo3OptImplicit.replace "soli x1 ~x2 ~x3 ~y1;"
   "soli x1 ~x2 ~x3 ~y1;\nobji 1;")).isNone
 #guard (checkOPBOutput amo3Opt (amo3OptImplicit.replace "soli x1 ~x2 ~x3 ~y1;" "obji 2;")).isNone
-#guard (checkOPBOutput amo3Opt ((amo3OptImplicit.replace "soli x1 ~x2 ~x3 ~y1;"
-  "soli x1 ~x2 ~x3 ~y1;\nobji 1;").replace "EQUIOPTIMAL" "EQUIENUMERABLE")).isNone
+
+/-- `amo3Opt` preserving `x1`, `x2` and `x3`. -/
+def amo3OptPres : String := amo3Opt.replace "min: 1 ~x1 1 ~x2 1 ~x3 ;"
+  "min: 1 ~x1 1 ~x2 1 ~x3 ;\npreserved: x1 x2 x3 ;"
+
+/-- `amo3OptImplicit` with an `EQUIENUMERABLE` output section. -/
+def amo3OptEnum : String := amo3OptImplicit.replace "EQUIOPTIMAL" "EQUIENUMERABLE"
+
+-- With the preserved set, `EQUIENUMERABLE` is accepted below the bound `2` (CakePB accepts with
+-- the output formula as a file; VeriPB rejects after a logged solution), and the same proof with
+-- only an `obji` below the logged value added is rejected, as then `bound` exceeds `dbound`
+-- (CakePB rejects).
+#guard (checkOPBOutput amo3OptPres amo3OptEnum).map (·.2.map (·.bound)) ==
+  some (some (some 2))
+#guard (checkOPBOutput amo3OptPres
+  (amo3OptEnum.replace "soli x1 ~x2 ~x3 ~y1;" "soli x1 ~x2 ~x3 ~y1;\nobji 1;")).isNone
 
 /-- `x1 + x2 + x3 >= 1`, preserving `x1` and `x2`. -/
 def enumOut : String := "* #variable= 3 #constraint= 1
@@ -1218,58 +1164,6 @@ end pseudo-Boolean proof;
   some (some (some 0))
 
 /-! ### Orders and dominance -/
-
-/-- The lexicographic order on four bits, `u ⪯ v` when `u ≤ v` as binary numbers. Transitivity:
-the premises `O⪯(u, v)` and `O⪯(v, w)` are `1` and `2`, the negated goal is `3`, and the sum `4`
-is a contradiction. Reflexivity is numbered after it: the negated goal `5` is a contradiction. -/
-def lex4 : String := "def_order lex4
-vars
-left u1 u2 u3 u4;
-right v1 v2 v3 v4;
-aux;
-end;
-def
--8 u1 -4 u2 -2 u3 -1 u4 8 v1 4 v2 2 v3 1 v4 >= 0;
-end;
-transitivity
-vars
-fresh_right w1 w2 w3 w4;
-end;
-proof
-proofgoal #1
-pol 1 2 + 3 +;
-qed : 4;
-qed;
-end;
-reflexivity
-proof
-proofgoal #1
-qed : 5;
-qed;
-end;
-end;
-"
-
-/-- PHP(3, 2) with symmetry breaking (§5.4.2): `lex4` loaded over the variables of pigeons `1`
-and `2`, and the lex-leader constraint of swapping them, `z ⪯ z∘σ`, derived by `dom` with the
-swap. `¬C` is `10`, goal `#2` adds `O⪯(z, z↾ω)` as `11`, `10 + 11` is the contradiction `12`; the
-core goals are the swapped input constraints, which are in the database, and goal `#1` follows
-from `¬C`. Then the cutting-planes refutation. VeriPB 3.0.2 and CakePB accept. -/
-def domPhp32 : String := "pseudo-Boolean proof version 3.0
-f 9;
-" ++ lex4 ++ "load_order lex4 x1 x2 x3 x4;
-dom -6 x1 -3 x2 6 x3 3 x4 >= 0 : x1 -> x3 x2 -> x4 x3 -> x1 x4 -> x2 : subproof
-proofgoal #2
-pol 10 11 +;
-qed : 12;
-qed;
-pol 4 5 + 6 + 2 d;
-pol 7 8 + 9 + 2 d;
-pol 1 2 + 3 + 14 + 15 +;
-output NONE;
-conclusion UNSAT : 16;
-end pseudo-Boolean proof;
-"
 
 #guard checkOPB php32 domPhp32 == some (.unsat 16)
 -- Without its subproof, goal `#2`, the negated order, is not proved: all three reject.
@@ -1533,28 +1427,8 @@ example (h : checkOPB enum3 enumPartialProof = some (.enumPartial 2)) :
       (2 : ℕ∞) ≤ (projections I.constraints P).encard :=
   le_encard_of_checkOPB_enumPartial h
 
--- An accepted output section: the guarantee holds between the instance and the output formula.
-example (o : Output) (h : checkOPBOutput amo3 amo3Proof amo3Out = some (.noClaim, some o)) :
-    ∃ I, parseOPB amo3 = some I ∧ semOutput I o.bound o.formula o.guarantee ∧
-      (∀ u ∈ o.bound, ∃ σ, (∀ c ∈ I.constraints, c.Holds σ) ∧ objValue I.objective σ ≤ u) ∧
-      ∀ t ∈ some amo3Out, ∃ N, N.Separates I t ∧ parseOPB t N = some o.formula :=
-  semOutput_of_checkOPBOutput h
-
--- Symmetry breaking by dominance: PHP(3, 2) has no solution.
-example (h : (checkOPBOutput php32 domPhp32).map (·.1) = some (.unsat 16)) :
-    ∃ I, parseOPB php32 = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ I.constraints, c.Holds σ :=
-  not_satisfiable_of_checkOPB h
-
--- The conclusion of a proof with an output formula is sound as well: the optimum of `amo3Opt` is
--- `2`.
-example (h : (checkOPBOutput amo3Opt amo3OptProof amo3OptOut).map (·.1) =
-    some (.bounds (some 2) 14 (some 2) none)) :
-    ∃ I f, parseOPB amo3Opt = some I ∧ I.objective = some f ∧
-    (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) →
-      ∃ l, some 2 = some l ∧ l ≤ f.eval σ) ∧
-    ∀ u, some 2 = some u →
-      ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ u :=
-  bounds_of_checkOPB h
+-- The output and `FILE` conclusion clients, with their acceptance decided in the kernel, are in
+-- `CslibFrontierTests.Logics.Propositional.VeriPBTextDecide`.
 
 -- An accepted pair of texts is an unsatisfiable formula.
 example (h : checkDIMACS php43 php43Kernel = some (.unsat 39)) :

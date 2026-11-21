@@ -1049,7 +1049,7 @@ def assignsAll (ρ : List (Literal ℕ)) (P : List ℕ) : Bool :=
 def assigns (ρ : List (Literal ℕ)) (f : Objective) : Bool := assignsAll ρ (f.lin.map (·.1))
 
 /-- Lower the bound `d`, if any, to `v`. -/
-def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
+private def lowerTo (d : Option ℤ) (v : ℤ) : Option ℤ := some (d.elim v (min · v))
 
 /-! ### Preserved sets -/
 
@@ -1212,6 +1212,7 @@ def State.init (F : List PBConstr) (obj : Option Objective) (pres : Option (List
 objective `obj`. Its value under the current objective lowers `dbound`. It lowers `bound` too
 if no unchecked deletion has happened, at that value, or else if it solves `F`, at its value
 under the input objective. Any other solution leaves `bound` unchanged. -/
+@[no_expose]
 def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : List (Literal ℕ)) :
     State :=
   { s with dbound := lowerTo s.dbound (objValue s.obj (assignOf ρ)),
@@ -1222,17 +1223,17 @@ def State.log (F : List PBConstr) (obj : Option Objective) (s : State) (ρ : Lis
 
 /-- Add the constraint `c` to the database and the core set at the next number, as `soli`, `obji`
 and `solx` do (§5.8). -/
-def State.addCore (s : State) (c : PBConstr) : State :=
+private def State.addCore (s : State) (c : PBConstr) : State :=
   { s with db := (s.next, c) :: s.db, core := (s.next, c) :: s.core, next := s.next + 1 }
 
 /-- Assert the value `v` of the objective `f` in the state `s`, the effect shared by `soli` and
 `obji` (§5.8.2): the objective-improving constraint `f ≤ v - 1` joins the database and the core set
 at the next number, and the bound `dbound` is lowered to `v`. -/
-def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
+private def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
   { s.addCore (f.improving v).normalize with dbound := lowerTo s.dbound v }
 
 /-- The constraint numbers that a step deletes. -/
-def Step.delIds : Step → List ℕ
+private def Step.delIds : Step → List ℕ
   | .del ids => ids
   | _ => []
 
@@ -1261,6 +1262,7 @@ def Step.delIds : Step → List ℕ
 * While an order is loaded (§5.7.4), as in strengthening-to-core mode, an unchecked deletion of
   core constraints needs an empty derived set. `red` and checked deletion get the order goals; as
   in VeriPB and CakePB, a checked deletion may still take a witness, which §5.7.4 forbids. -/
+@[no_expose]
 def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep → Option State
   | .step st =>
     match runStep s.db s.next st with
