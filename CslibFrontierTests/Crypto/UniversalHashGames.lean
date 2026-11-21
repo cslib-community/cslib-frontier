@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: local-only (test suite)
 
+import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Primitives.UHF.Computational
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
@@ -74,6 +75,8 @@ private def unitSetup (_ : ℕ) : ProbComp Unit := pure ()
 
 private def boolHash (_ : ℕ) (_ : Unit) (_ : Unit) (m : Bool) : Bool := m
 
+private def constHash (_ : ℕ) (_ : Unit) (_ : Unit) (_ : Bool) : Bool := false
+
 open Turing.MultiTapeTM in
 /-- An injective hash on both Boolean messages is secure in the asymptotic game. -/
 example : IsMultiQueryUHF encUnit encBool unitSetup (fun _ _ _ => true) boolHash := by
@@ -85,18 +88,44 @@ example : IsMultiQueryUHF encUnit encBool unitSetup (fun _ _ _ => true) boolHash
       simp [collisionGame, unitSetup, boolHash, ProbComp.eval_uniform]
       exact PMF.map_const _ _
     simp [hfalse, Game.succProbability]
-  exact h.isMultiQueryUHF (ComputableInPolyTime.const ()).isPPTOn false
+  exact h.isMultiQueryUHF (ComputableInPolyTime.const ()).isPPTOn
 
-/-- A collision in a repeated-message list counts exactly when both messages are valid. -/
+open Turing.MultiTapeTM in
+/-- A strict PPT adversary always wins the single-pair game against a constant hash. -/
+theorem not_isComputationalUHF_const :
+    ¬ IsComputationalUHF encUnit encBool unitSetup (fun _ _ _ => true) constHash := by
+  intro h
+  let guess : CollisionGuess Bool := ⟨false, true⟩
+  have hwin (n : ℕ) :
+      collisionGame unitSetup (fun _ _ _ => true) constHash (fun _ => pure guess) n =
+        PMF.pure true := by
+    simp [collisionGame, unitSetup, constHash, guess, ProbComp.eval_uniform]
+    exact PMF.map_const _ _
+  have hnegl := h.negligible_succProbability (fun _ => pure guess)
+    (ComputableInPolyTime.const guess).isPPTOn
+  exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
+
+open Turing.MultiTapeTM in
+/-- A strict PPT adversary always wins the multi-query game against a constant hash. -/
+theorem not_isMultiQueryUHF_const :
+    ¬ IsMultiQueryUHF encUnit encBool unitSetup (fun _ _ _ => true) constHash := by
+  intro h
+  let ms := [false, true, false]
+  have hwin (n : ℕ) :
+      multiQueryGame unitSetup (fun _ _ _ => true) constHash (fun _ => pure ms) n =
+        PMF.pure true := by
+    simp [multiQueryGame, unitSetup, constHash, ms, ProbComp.eval_uniform]
+    exact PMF.map_const _ _
+  have hnegl := h.negligible_succProbability (fun _ => pure ms)
+    (ComputableInPolyTime.const ms).isPPTOn
+  exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
+
+/-- Invalid messages do not contribute collisions to the multi-query game. -/
 example (n : ℕ) :
-    multiQueryGame unitSetup (fun _ _ _ => true)
-      (fun _ _ (_ : Unit) (_ : Bool) => false) (fun _ => pure [false, true, false]) n =
-        PMF.pure true ∧
-    multiQueryGame unitSetup (fun _ _ m => m)
-      (fun _ _ (_ : Unit) (_ : Bool) => false) (fun _ => pure [false, true, false]) n =
-        PMF.pure false := by
-  simp [multiQueryGame, unitSetup, ProbComp.eval_uniform]
-  exact ⟨PMF.map_const _ _, PMF.map_const _ _⟩
+    multiQueryGame unitSetup (fun _ _ m => m) constHash (fun _ => pure [false, true, false]) n =
+      PMF.pure false := by
+  simp [multiQueryGame, unitSetup, constHash, ProbComp.eval_uniform]
+  exact PMF.map_const _ _
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

@@ -26,6 +26,20 @@ The computational security implication follows by running the certified collisio
 on the multi-query adversary's list. The list length bound follows from the strict PPT
 certificates for the setup and adversary. The sampler uses only that list and its own coins.
 
+## Main definitions
+
+* `Cslib.Crypto.UHF.collisionGame` and `Cslib.Crypto.UHF.multiQueryGame`: collision games with
+  public setup and private keys.
+* `Cslib.Crypto.UHF.IsComputationalUHF` and `Cslib.Crypto.UHF.IsMultiQueryUHF`: negligible
+  success in the respective games against every uniform strict PPT adversary.
+
+## Main results
+
+* `Cslib.Crypto.UHF.succProbability_multiQueryGame_le_collisionPairReduction`: the concrete
+  `Q ^ 2 / 2` bound for the certified sampler, averaged over setup.
+* `Cslib.Crypto.UHF.IsComputationalUHF.isMultiQueryUHF`: the asymptotic implication for a
+  strict PPT setup.
+
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
@@ -77,8 +91,9 @@ Repeated messages and invalid entries do not contribute a collision. -/
 
 /-- Computational UHF security ([BonehShoup2023], Definition 7.2, printed p. 254) against
 uniform strict PPT adversaries. The unary parameter is framed before the public setup encoding.
-Invalid guesses lose. This predicate expresses security, with recognition, sampling and
-evaluation requirements for the keyed hash family (Definition 7.4) left to the caller. -/
+Invalid guesses lose. The predicate accepts a setup program of arbitrary runtime.
+`IsComputationalUHF.isMultiQueryUHF` requires strict PPT setup. The caller supplies the keyed
+hash family's recognition, sampling and evaluation requirements from Definition 7.4. -/
 @[expose] def IsComputationalUHF (encD : D ↪ List Bool) (encM : M ↪ List Bool)
     (setup : ℕ → ProbComp D) (valid : ℕ → D → M → Bool)
     (H : ℕ → (d : D) → K d → M → Y d) : Prop :=
@@ -87,7 +102,8 @@ evaluation requirements for the keyed hash family (Definition 7.4) left to the c
 
 /-- Multi-query UHF security ([BonehShoup2023], Definition 7.3, printed p. 254) against uniform
 strict PPT adversaries, with the same public inputs and message domain as `IsComputationalUHF`.
-The adversary outputs a framed list of messages. -/
+The adversary outputs a framed list of messages. The predicate accepts a setup program of
+arbitrary runtime. `IsComputationalUHF.isMultiQueryUHF` requires strict PPT setup. -/
 @[expose] def IsMultiQueryUHF (encD : D ↪ List Bool) (encM : M ↪ List Bool)
     (setup : ℕ → ProbComp D) (valid : ℕ → D → M → Bool)
     (H : ℕ → (d : D) → K d → M → Y d) : Prop :=
@@ -123,10 +139,19 @@ bound, and outputs a losing repeated guess on exhaustion. The bound on the adver
 list length comes from the two strict PPT certificates. -/
 theorem IsComputationalUHF.isMultiQueryUHF {encD : D ↪ List Bool} {encM : M ↪ List Bool}
     {setup : ℕ → ProbComp D} {valid : ℕ → D → M → Bool} {H : ℕ → (d : D) → K d → M → Y d}
-    (hH : IsComputationalUHF encD encM setup valid H) (hsetup : IsPPTOn encUnary encD setup)
-    (fallback : M) : IsMultiQueryUHF encD encM setup valid H := by
+    (hH : IsComputationalUHF encD encM setup valid H) (hsetup : IsPPTOn encUnary encD setup) :
+    IsMultiQueryUHF encD encM setup valid H := by
   apply Game.Indistinguishable.of_negligible_succProbability
   intro A hA
+  rcases isEmpty_or_nonempty M with hM | ⟨⟨fallback⟩⟩
+  · have hnil (ms : List M) : ms = [] := by
+      cases ms with
+      | nil => rfl
+      | cons m _ => exact (hM.false m).elim
+    have hlose (n : ℕ) : multiQueryGame setup valid H A n = PMF.pure false := by
+      simp only [multiQueryGame, Game.withSetup, ProbComp.eval_bind, hnil, List.not_mem_nil,
+        false_and, exists_false, decide_false, ProbComp.eval_pure, PMF.bind_const]
+    simp [hlose, Game.succProbability]
   obtain ⟨cs, ds, hs⟩ := hsetup.length_le
   obtain ⟨ca, da, ha⟩ := hA.length_le
   let Q (n : ℕ) := ca * (2 * n + 2 + cs * (n + 1) ^ ds) ^ da
