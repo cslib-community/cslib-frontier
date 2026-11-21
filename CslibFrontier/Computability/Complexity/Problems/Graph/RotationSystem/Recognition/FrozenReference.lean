@@ -8,12 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
+public import Mathlib.Topology.Homeomorph.Defs
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 import Mathlib.Data.List.NodupEquivFin
 import Mathlib.Data.List.GetD
 import Mathlib.Topology.Algebra.InfiniteSum.Basic
+import Mathlib.Topology.Order.IntermediateValue
+import Mathlib.Topology.Order.MonotoneContinuity
 
 /-!
 # The actual frozen part of the reference drawing
@@ -294,18 +297,107 @@ private theorem stripPlateau_eq_one {a b x : ℝ} (hx : x ∈ Set.Icc a b) :
   have hb : 1 ≤ 8 * (b - x) + 1 := by linarith only [hx.2]
   rw [stripPlateau, min_eq_left ha, min_eq_left hb, max_eq_right zero_le_one, min_self]
 
-/-- A continuous injective plane map fixes all original reference centers and shrinks
-every point of every full frozen spoke about its center by the same positive factor.
-It compresses horizontal distances within each star's strip and interpolates toward
-the identity in the gap. The vertical coordinate has constant slope globally, with
-a strip-dependent offset so the restriction to each star is a homothety. -/
+private theorem interval_on_one_side {x y k : ℝ}
+    (hk : k ∉ Set.Ioo (min x y) (max x y)) : max x y ≤ k ∨ k ≤ min x y := by
+  by_cases h : max x y ≤ k
+  · exact Or.inl h
+  · exact Or.inr (le_of_not_gt fun h' => hk ⟨h', lt_of_not_ge h⟩)
+
+private theorem stripRamp_eq_fall {a b c x : ℝ} (hab : a < b) (hbc : b < c)
+    (hx : x ∈ Set.Icc b c) : stripRamp a b c x = ((b - a) / (c - b)) * (c - x) := by
+  have hk := div_nonneg (sub_nonneg.mpr hab.le) (sub_nonneg.mpr hbc.le)
+  have hb : ((b - a) / (c - b)) * (c - b) = b - a :=
+    div_mul_cancel₀ _ (sub_ne_zero.mpr hbc.ne')
+  have hle := mul_le_mul_of_nonneg_left (sub_le_sub_left hx.1 c) hk
+  rw [stripRamp, max_eq_right (mul_nonneg hk (sub_nonneg.mpr hx.2))]
+  exact min_eq_right ((show ((b - a) / (c - b)) * (c - x) ≤ x - a by
+    linarith only [hx.1, hb, hle]).trans (le_max_right _ _))
+
+private theorem stripRamp_affine_on {a b c x y : ℝ} (hab : a < b) (hbc : b < c)
+    (ha : a ∉ Set.Ioo (min x y) (max x y)) (hb : b ∉ Set.Ioo (min x y) (max x y))
+    (hc : c ∉ Set.Ioo (min x y) (max x y)) :
+    ∃ m d : ℝ, ∀ z ∈ Set.uIcc x y, stripRamp a b c z = m * z + d := by
+  rcases interval_on_one_side ha with h | h
+  · refine ⟨0, 0, fun z hz => ?_⟩
+    simpa only [zero_mul, zero_add] using
+      stripRamp_eq_zero hab hbc (Set.notMem_Ioo_of_le (hz.2.trans h))
+  rcases interval_on_one_side hb with h' | h'
+  · refine ⟨1, -a, fun z hz => ?_⟩
+    simpa only [one_mul, sub_eq_add_neg] using stripRamp_eq_sub hab hbc ⟨h.trans hz.1, hz.2.trans h'⟩
+  rcases interval_on_one_side hc with h'' | h''
+  · refine ⟨-((b - a) / (c - b)), ((b - a) / (c - b)) * c, fun z hz => ?_⟩
+    rw [stripRamp_eq_fall hab hbc ⟨h'.trans hz.1, hz.2.trans h''⟩]
+    ring
+  · refine ⟨0, 0, fun z hz => ?_⟩
+    simpa only [zero_mul, zero_add] using
+      stripRamp_eq_zero hab hbc (Set.notMem_Ioo_of_ge (h''.trans hz.1))
+
+private theorem stripPlateau_affine_on {a b x y : ℝ} (hab : a ≤ b)
+    (h₁ : a - 1 / 8 ∉ Set.Ioo (min x y) (max x y))
+    (h₂ : a ∉ Set.Ioo (min x y) (max x y)) (h₃ : b ∉ Set.Ioo (min x y) (max x y))
+    (h₄ : b + 1 / 8 ∉ Set.Ioo (min x y) (max x y)) :
+    ∃ m d : ℝ, ∀ z ∈ Set.uIcc x y, stripPlateau a b z = m * z + d := by
+  rcases interval_on_one_side h₁ with h | h
+  · refine ⟨0, 0, fun z hz => ?_⟩
+    simpa only [zero_mul, zero_add] using stripPlateau_eq_zero
+      (a := a) (b := b) (Set.notMem_Ioo_of_le (hz.2.trans h))
+  rcases interval_on_one_side h₂ with h' | h'
+  · refine ⟨8, 1 - 8 * a, fun z hz => ?_⟩
+    have hl : 0 ≤ 8 * (z - a) + 1 := by linarith only [h.trans hz.1]
+    have hu : 8 * (z - a) + 1 ≤ 1 := by linarith only [hz.2.trans h']
+    have hr : 1 ≤ 8 * (b - z) + 1 := by linarith only [(hz.2.trans h').trans hab]
+    simp only [stripPlateau, min_eq_right hu, max_eq_right hl, min_eq_left hr,
+      max_eq_right zero_le_one, min_eq_left hu]
+    ring
+  rcases interval_on_one_side h₃ with h'' | h''
+  · refine ⟨0, 1, fun z hz => ?_⟩
+    simpa only [zero_mul, zero_add] using stripPlateau_eq_one ⟨h'.trans hz.1, hz.2.trans h''⟩
+  rcases interval_on_one_side h₄ with h''' | h'''
+  · refine ⟨-8, 8 * b + 1, fun z hz => ?_⟩
+    have hl : 0 ≤ 8 * (b - z) + 1 := by linarith only [hz.2.trans h''']
+    have hu : 8 * (b - z) + 1 ≤ 1 := by linarith only [h''.trans hz.1]
+    have hr : 1 ≤ 8 * (z - a) + 1 := by linarith only [hab.trans (h''.trans hz.1)]
+    simp only [stripPlateau, min_eq_right hu, max_eq_right hl, min_eq_left hr,
+      max_eq_right zero_le_one, min_eq_right hu]
+    ring
+  · refine ⟨0, 0, fun z hz => ?_⟩
+    simpa only [zero_mul, zero_add] using stripPlateau_eq_zero
+      (a := a) (b := b) (Set.notMem_Ioo_of_ge (h'''.trans hz.1))
+
+private theorem map_lineMap_of_affine_on {φ : ℝ → ℝ} {x y t : ℝ}
+    (hφ : ∃ m d : ℝ, ∀ z ∈ Set.uIcc x y, φ z = m * z + d) (ht : t ∈ Set.Icc 0 1) :
+    φ (AffineMap.lineMap x y t) = AffineMap.lineMap (φ x) (φ y) t := by
+  obtain ⟨m, d, h⟩ := hφ
+  have hp : AffineMap.lineMap x y t ∈ Set.uIcc x y := by
+    rw [← segment_eq_uIcc]
+    exact lineMap_mem_segment ℝ x y ht
+  rw [h _ hp, h _ Set.left_mem_uIcc, h _ Set.right_mem_uIcc]
+  simp only [AffineMap.lineMap_apply_ring]
+  ring
+
+private theorem sum_map_lineMap (V : Finset ℕ) (k : ℕ → ℝ → ℝ) (x y t : ℝ)
+    (hk : ∀ v ∈ V, k v (AffineMap.lineMap x y t) = AffineMap.lineMap (k v x) (k v y) t) :
+    (∑ v ∈ V, k v (AffineMap.lineMap x y t)) =
+      AffineMap.lineMap (∑ v ∈ V, k v x) (∑ v ∈ V, k v y) t := by
+  simp only [AffineMap.lineMap_apply_ring, Finset.mul_sum, ← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun v hv => by
+    simpa only [AffineMap.lineMap_apply_ring] using hk v hv
+
+/-- A plane homeomorphism fixes all original reference centers and shrinks each full
+frozen spoke about its center by the same positive factor. The supplied real coordinates
+are the cut lines in the compressed plane. The inverse sends segments to straight segments
+with the same parameter whenever no cut line lies strictly between the endpoint real
+coordinates. Segments on a cut line and endpoints on a cut line are allowed. -/
 theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid I)
     {s : ℝ} (hs : s ∈ Set.Ioc 0 1) :
-    ∃ F : ℂ → ℂ, Function.Injective F ∧ Continuous F ∧
+    ∃ (F : ℂ ≃ₜ ℂ) (cuts : Finset ℝ),
       (∀ v ∈ I.graph.vertices, F (referencePoint I v) = referencePoint I v) ∧
-      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      (∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
         ∀ z ∈ ((referenceDrawing I).route (subdivisionDart I d).1).support,
-          F z = referencePoint I d.vertex + s • (z - referencePoint I d.vertex) := by
+          F z = referencePoint I d.vertex + s • (z - referencePoint I d.vertex)) ∧
+      ∀ z w : ℂ, (∀ x ∈ cuts, x ∉ Set.Ioo (min z.re w.re) (max z.re w.re)) →
+        ∀ t ∈ Set.Icc (0 : ℝ) 1,
+          F.symm (AffineMap.lineMap z w t) = AffineMap.lineMap (F.symm z) (F.symm w) t := by
   classical
   obtain ⟨right, hright, hsep, hstrip⟩ := exists_frozen_reference_strips hI
   let V := I.graph.vertices.toFinset
@@ -338,6 +430,9 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
     · exact fun h => (h hv).elim
   let f (x : ℝ) := x - (1 - s) * (∑ v ∈ V, ramp v x)
   let g (x : ℝ) := ∑ v ∈ V, offset v x
+  have hfix (x : ℝ) (hx : ∀ v ∈ V, x ∉ band v) : f x = x := by
+    have hz : (∑ v ∈ V, ramp v x) = 0 := Finset.sum_eq_zero fun v hv => hramp hv (hx v hv)
+    simp only [f, hz, mul_zero, sub_zero]
   have hmono : StrictMono f := by
     intro x y hxy
     have hfx : f x ≤ x := sub_le_self _ (mul_nonneg (sub_nonneg.mpr hs.2)
@@ -356,16 +451,8 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
       have hmul := mul_le_mul_of_nonneg_left hstep (sub_nonneg.mpr hs.2)
       rw [hy']
       nlinarith only [hx', hmul, mul_pos hs.1 (sub_pos.mpr hxy)]
-    · have hz : (∑ v ∈ V, ramp v y) = 0 :=
-        Finset.sum_eq_zero fun v hv => hramp hv (fun h => hy ⟨v, hv, h⟩)
-      exact hfx.trans_lt (by simpa only [f, hz, mul_zero, sub_zero] using hxy)
-  let F (z : ℂ) : ℂ := ⟨f z.re, s * z.im + g z.re⟩
-  have hF : Function.Injective F := by
-    intro z w h
-    have hre : z.re = w.re := hmono.injective (congrArg Complex.re h)
-    have him : s * z.im + g z.re = s * w.im + g w.re := congrArg Complex.im h
-    rw [hre] at him
-    exact Complex.ext hre (mul_left_cancel₀ hs.1.ne' (add_right_cancel him))
+    · rw [hfix y (fun v hv h => hy ⟨v, hv, h⟩)]
+      exact hfx.trans_lt hxy
   have hf : Continuous f :=
     continuous_id.sub (continuous_const.mul (continuous_finsetSum _ fun v _ => by
       unfold ramp stripRamp
@@ -373,12 +460,58 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
   have hg : Continuous g := continuous_finsetSum _ fun v _ => by
     unfold offset stripPlateau
     fun_prop
-  have hcont : Continuous F := by
-    change Continuous (fun z : ℂ =>
-      Complex.equivRealProdCLM.symm (f z.re, s * z.im + g z.re))
-    exact Complex.equivRealProdCLM.symm.continuous.comp
-      ((hf.comp Complex.continuous_re).prodMk
-        ((continuous_const.mul Complex.continuous_im).add (hg.comp Complex.continuous_re)))
+  obtain ⟨lo, hlo⟩ := (V.image fun v => a v - 1 / 8).finite_toSet.bddBelow
+  obtain ⟨hi, hhi⟩ := (V.image fun v => right v + 1 / 8).finite_toSet.bddAbove
+  have hsurj : Function.Surjective f := by
+    intro x
+    have hl : min lo x ≤ x := min_le_right _ _
+    have hu : x ≤ max hi x := le_max_right _ _
+    have hfl : f (min lo x) = min lo x := by
+      apply hfix
+      intro v hv hx
+      have hlv : lo ≤ a v - 1 / 8 := hlo (Finset.mem_image.mpr ⟨v, hv, rfl⟩)
+      exact (not_lt_of_ge ((min_le_left lo x).trans hlv)) hx.1
+    have hfu : f (max hi x) = max hi x := by
+      apply hfix
+      intro v hv hx
+      have huv : right v + 1 / 8 ≤ hi := hhi (Finset.mem_image.mpr ⟨v, hv, rfl⟩)
+      exact (not_lt_of_ge (huv.trans (le_max_left hi x))) hx.2
+    have hx : x ∈ Set.Icc (f (min lo x)) (f (max hi x)) := by
+      rw [hfl, hfu]
+      exact ⟨hl, hu⟩
+    obtain ⟨y, _, hy⟩ := intermediate_value_Icc (hl.trans hu) hf.continuousOn hx
+    exact ⟨y, hy⟩
+  let e : ℝ ≃o ℝ := hmono.orderIsoOfSurjective f hsurj
+  let F : ℂ ≃ₜ ℂ :=
+    { toFun := fun z => ⟨f z.re, s * z.im + g z.re⟩
+      invFun := fun z => ⟨e.symm z.re, (z.im - g (e.symm z.re)) / s⟩
+      left_inv := by
+        intro z
+        have h : e.symm (f z.re) = z.re := e.symm_apply_apply _
+        apply Complex.ext h
+        change (s * z.im + g z.re - g (e.symm (f z.re))) / s = z.im
+        rw [h]
+        apply (div_eq_iff hs.1.ne').mpr
+        ring
+      right_inv := by
+        intro z
+        have h : f (e.symm z.re) = z.re := e.apply_symm_apply _
+        apply Complex.ext h
+        change s * ((z.im - g (e.symm z.re)) / s) + g (e.symm z.re) = z.im
+        have hc := div_mul_cancel₀ (z.im - g (e.symm z.re)) hs.1.ne'
+        linarith only [hc]
+      continuous_toFun := by
+        change Continuous (fun z : ℂ =>
+          Complex.equivRealProdCLM.symm (f z.re, s * z.im + g z.re))
+        exact Complex.equivRealProdCLM.symm.continuous.comp
+          ((hf.comp Complex.continuous_re).prodMk
+            ((continuous_const.mul Complex.continuous_im).add (hg.comp Complex.continuous_re)))
+      continuous_invFun := by
+        change Continuous (fun z : ℂ => Complex.equivRealProdCLM.symm
+          (e.symm z.re, (z.im - g (e.symm z.re)) / s))
+        have he := e.symm.continuous.comp Complex.continuous_re
+        exact Complex.equivRealProdCLM.symm.continuous.comp
+          (he.prodMk ((Complex.continuous_im.sub (hg.comp he)).div_const s)) }
   have hlocal {v : ℕ} (hv : v ∈ V) {z : ℂ} (hz : z.re ∈ Set.Icc (a v) (right v)) :
       F z = referencePoint I v + s • (z - referencePoint I v) := by
     have hz' : z.re ∈ band v := ⟨by linarith only [hz.1], by linarith only [hz.2]⟩
@@ -398,7 +531,52 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
     · change s * z.im + g z.re = (referencePoint I v + s • (z - referencePoint I v)).im
       rw [him, Complex.add_im, Complex.smul_im, Complex.sub_im]
       ring
-  refine ⟨F, hF, hcont, ?_, ?_⟩
+  let knots (v : ℕ) : Finset ℝ := {a v - 1 / 8, a v, right v, right v + 1 / 8}
+  let levels := V.biUnion knots
+  have hforward (z w : ℂ)
+      (hcut : ∀ k ∈ levels, k ∉ Set.Ioo (min z.re w.re) (max z.re w.re))
+      {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
+      F (AffineMap.lineMap z w t) = AffineMap.lineMap (F z) (F w) t := by
+    have hlocalCut {v : ℕ} (hv : v ∈ V) {k : ℝ} (hk : k ∈ knots v) :
+        k ∉ Set.Ioo (min z.re w.re) (max z.re w.re) :=
+      hcut k (Finset.mem_biUnion.mpr ⟨v, hv, hk⟩)
+    have hR := sum_map_lineMap V ramp z.re w.re t (fun v hv => by
+      have h : a v < right v := hright v (hmem.mp hv)
+      exact map_lineMap_of_affine_on
+        (stripRamp_affine_on h (hgap v) (hlocalCut hv (by simp [knots]))
+          (hlocalCut hv (by simp [knots])) (hlocalCut hv (by simp [knots]))) ht)
+    have hG : g (AffineMap.lineMap z.re w.re t) = AffineMap.lineMap (g z.re) (g w.re) t := by
+      apply sum_map_lineMap
+      intro v hv
+      obtain ⟨m, d, h⟩ := stripPlateau_affine_on (x := z.re) (y := w.re)
+        (hright v (hmem.mp hv)).le (hlocalCut hv (by simp [knots])) (hlocalCut hv (by simp [knots]))
+        (hlocalCut hv (by simp [knots])) (hlocalCut hv (by simp [knots]))
+      let c := (1 - s) * (referencePoint I v).im
+      apply map_lineMap_of_affine_on (t := t) _ ht
+      refine ⟨c * m, c * d, fun x hx => ?_⟩
+      change c * stripPlateau (a v) (right v) x = _
+      rw [h x hx]
+      ring
+    have hreal (p q : ℂ) : (AffineMap.lineMap p q t).re = AffineMap.lineMap p.re q.re t :=
+      AffineMap.apply_lineMap Complex.reCLM.toLinearMap.toAffineMap p q t
+    have himag (p q : ℂ) : (AffineMap.lineMap p q t).im = AffineMap.lineMap p.im q.im t :=
+      AffineMap.apply_lineMap Complex.imCLM.toLinearMap.toAffineMap p q t
+    apply Complex.ext
+    · change f (AffineMap.lineMap z w t).re = (AffineMap.lineMap (F z) (F w) t).re
+      rw [hreal, hreal]
+      change f (AffineMap.lineMap z.re w.re t) = AffineMap.lineMap (f z.re) (f w.re) t
+      simp only [f]
+      rw [hR]
+      simp only [AffineMap.lineMap_apply_ring]
+      ring
+    · change s * (AffineMap.lineMap z w t).im + g (AffineMap.lineMap z w t).re =
+        (AffineMap.lineMap (F z) (F w) t).im
+      rw [hreal, himag, himag, hG]
+      change s * AffineMap.lineMap z.im w.im t + AffineMap.lineMap (g z.re) (g w.re) t =
+        AffineMap.lineMap (s * z.im + g z.re) (s * w.im + g w.re) t
+      simp only [AffineMap.lineMap_apply_ring]
+      ring
+  refine ⟨F, levels.image f, ?_, ?_, ?_⟩
   · intro v hv
     simpa only [sub_self, smul_zero, add_zero] using
       hlocal (z := referencePoint I v) (hmem.mpr hv) ⟨le_rfl, (hright v hv).le⟩
@@ -407,6 +585,20 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
       hmem.mpr (hI.1 ▸ List.mem_range.mpr (fixed_end_reference_spec hI d hd).1)
     have hz' := hstrip d hd z hz
     exact hlocal hv ⟨hz'.1, hz'.2.le⟩
+  · intro z w hz t ht
+    have hcut (k : ℝ) (hk : k ∈ levels) :
+        k ∉ Set.Ioo (min (F.symm z).re (F.symm w).re) (max (F.symm z).re (F.symm w).re) := by
+      intro h
+      have hresz : f (F.symm z).re = z.re := congrArg Complex.re (F.apply_symm_apply z)
+      have hresw : f (F.symm w).re = w.re := congrArg Complex.re (F.apply_symm_apply w)
+      have hl := hmono h.1
+      have hr := hmono h.2
+      rw [hmono.monotone.map_min, hresz, hresw] at hl
+      rw [hmono.monotone.map_max, hresz, hresw] at hr
+      exact hz _ (Finset.mem_image.mpr ⟨k, hk, rfl⟩) ⟨hl, hr⟩
+    have h := hforward (F.symm z) (F.symm w) hcut ht
+    rw [F.apply_symm_apply, F.apply_symm_apply] at h
+    exact F.injective ((F.apply_symm_apply _).trans h.symm)
 
 private theorem same_center_contacts {I : FixedRotationInput} (hI : Valid I)
     (a b : Dart I.graph) (ha : (I.orders.getD a.vertex none).isSome = true)
