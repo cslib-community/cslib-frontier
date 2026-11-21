@@ -97,7 +97,7 @@ example :
   refine exists_successful_firstHalting (start () 2) round id growingRound
     done (fun _ => ()) (fun _ => some false) [] P (by decide)
     (fun _ hr => hr.1) ?_ ?_ ?_
-  · intro r hr _ _ a ha _ hcount
+  · intro r hr _ _ a _ ha _ hcount
     have hupdate : a = ⟨⟨2, 1⟩, false⟩ := Option.some.inj ha.symm
     subst a
     refine ⟨?_, fun h => (h rfl).elim⟩
@@ -108,6 +108,42 @@ example :
     exact ⟨[], ⟨⟨2, 1⟩, false⟩, (round.firstHalting_iff_nil_of_halted [] [] r rfl).mpr rfl, rfl⟩
   · intro _ _
     exact ⟨[], false, (done.firstHalting_iff_nil_of_halted [] [] () rfl).mpr rfl, rfl⟩
+
+private def lateRound : NondeterministicQueryMachine Bool where
+  init := false
+  query _ := 0
+  next _ := true
+  halted := id
+  accept := id
+
+private def lateReply (halted : Bool) : Option RoundUpdate :=
+  some ⟨⟨if halted then 1 else 2, 0⟩, false⟩
+
+/-- An apparent growth reply on a live prefix does not impose an invariant obligation. -/
+example :
+    let scan := machine (start () 1) lateRound (fun _ => false) lateReply
+      done (fun _ => ()) (fun _ => some false)
+    (¬ Closed lateRound (fun _ => false) lateReply [] (· = start () 1)) ∧
+      ∃ bits verdict, scan.FirstHalting [] bits scan.init ∧
+        scan.run [] bits = .inr (some verdict) := by
+  constructor
+  · intro h
+    have hnext := h (start () 1) rfl (by decide) [] ⟨⟨2, 0⟩, false⟩ rfl rfl (by decide)
+    exact Nat.zero_ne_one (congrArg Registers.fuel hnext)
+  · refine exists_successful_firstHalting (start () 1) lateRound (fun _ => false) lateReply
+      done (fun _ => ()) (fun _ => some false) [] (· = start () 1) rfl
+      (by rintro _ rfl; decide) ?_ ?_ ?_
+    · rintro _ rfl _ bits a hfirst ha _ hcount
+      have hhalt : lateRound.replay [] bits false = true := hfirst.1
+      change lateReply (lateRound.replay [] bits false) = some a at ha
+      rw [hhalt] at ha
+      have ha' : a = ⟨⟨1, 0⟩, false⟩ := Option.some.inj ha.symm
+      exact (hcount (by rw [ha']; rfl)).elim
+    · intro r _
+      exact ⟨[false], ⟨⟨1, 0⟩, false⟩,
+        lateRound.firstHalting_append_singleton [] [] false rfl rfl, rfl⟩
+    · intro _ _
+      exact ⟨[], false, (done.firstHalting_iff_nil_of_halted [] [] () rfl).mpr rfl, rfl⟩
 
 private def stableRound (r : Registers Unit) : Option RoundUpdate := some ⟨r.tally, false⟩
 

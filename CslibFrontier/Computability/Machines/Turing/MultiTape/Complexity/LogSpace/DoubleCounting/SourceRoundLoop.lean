@@ -341,10 +341,13 @@ theorem firstHalting_iff_replayRounds (bits : List Bool) (verdict : ControllerVe
     a.bad = false → a.tally.count ≠ r.tally.count → P (r.advance a.tally)
 
 /-- Successful round and final membership traces give a successful first halt of the loop.
-The invariant must ensure that every continuing round can enter another round with fuel. -/
+The invariant must give positive fuel and be preserved by completed rounds that continue. -/
 theorem exists_successful_firstHalting (P : Registers κ → Prop) (hp : P initial)
     (hpositive : ∀ r, P r → 0 < r.fuel)
-    (hclosed : Closed round roundStart roundReply input P)
+    (hclosed : ∀ r, P r → 0 < r.fuel → ∀ bits a,
+      round.FirstHalting input bits (roundStart r) →
+      roundReply (round.replay input bits (roundStart r)) = some a →
+      a.bad = false → a.tally.count ≠ r.tally.count → P (r.advance a.tally))
     (hround : ∀ r, P r → ∃ bits a, round.FirstHalting input bits (roundStart r) ∧
       roundReply (round.replay input bits (roundStart r)) = some a)
     (hmember : ∀ r, P r → ∃ bits hit, member.FirstHalting input bits (memberStart r) ∧
@@ -381,7 +384,7 @@ theorem exists_successful_firstHalting (P : Registers κ → Prop) (hp : P initi
         · have hlt : (r.advance a.tally).fuel < r.fuel := by
             simp only [Registers.advance]
             omega
-          obtain ⟨rest, verdict, hrest⟩ := ih _ hlt (hclosed r hr hfuel roundBits a hreply
+          obtain ⟨rest, verdict, hrest⟩ := ih _ hlt (hclosed r hr hfuel roundBits a hfirst hreply
             (Bool.eq_false_iff.mpr hbad) hcount)
           refine ⟨roundBits ++ false :: rest, verdict, ?_⟩
           rw [replayRounds_step _ _ _ _ _ _ _ _ _ hne, hread]
