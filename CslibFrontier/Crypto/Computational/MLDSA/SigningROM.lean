@@ -634,34 +634,45 @@ private theorem recorded_of_mem_simulatePartialSigningTranscript (d ω K : ℕ) 
       · exact List.mem_cons_self
       · exact old htail
 
+/-- A candidate forgery in the compressed signing ROM: a message representative, a transmitted
+commitment digest, and a decoded compressed signature. -/
+@[ext] structure ForgeryCandidate (Digest : Type) where
+  /-- The message representative bits. -/
+  message : List Bool
+  /-- The commitment digest carried by the candidate signature. -/
+  digest : Digest
+  /-- The response, hint vector, and sparse challenge. -/
+  signature : CompressedSignature P
+
 /-- Append the verifier's commitment-digest query to the forger, using its output message
 representative and the high bits recovered from its output response. Return the candidate and
 the oracle answer so that verification compares the transmitted digest with the actual read. -/
 @[expose] def queryForgeryDigest (d : ℕ) (pk : PublicKey P)
-    (forger : OracleComp (SigningROMSpec P Digest) (List Bool × Digest × CompressedSignature P)) :
-    OracleComp (SigningROMSpec P Digest)
-      ((List Bool × Digest × CompressedSignature P) × Digest) := do
-  let (msg, raw, σ) ← forger
-  let reply ← query (spec := SigningROMSpec P Digest) (.inr (σ.recover d pk, msg))
-  return ((msg, raw, σ), reply)
+    (forger : OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest)) :
+    OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest × Digest) := do
+  let forged ← forger
+  let reply ← query (spec := SigningROMSpec P Digest)
+    (.inr (forged.signature.recover d pk, forged.message))
+  return (forged, reply)
 
 private theorem lookup_of_queryForgeryDigest (d ω K : ℕ) (hβ : P.β < P.γ₁)
     (dist : PMF Digest) (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
-    (forger : OracleComp (SigningROMSpec P Digest) (List Bool × Digest × CompressedSignature P))
+    (forger : OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest))
     {forged reply cache log} (h : ((forged, reply), cache, log) ∈
       (simulatePartialSigningTranscript P d ω K hβ dist expand pk
         (queryForgeryDigest P d pk forger)).support) :
-    (cache.lookup (forged.2.2.recover d pk, forged.1)).map SigningWrite.digest = some reply := by
+    (cache.lookup (forged.signature.recover d pk, forged.message)).map SigningWrite.digest =
+      some reply := by
   simp only [simulatePartialSigningTranscript, queryForgeryDigest, interpret_bind, interpret_query,
     interpret_pure, StateT.run_bind, StateT.run_pure, PMF.monad_bind_eq_bind,
     PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at h
-  obtain ⟨⟨⟨msg, c, σ⟩, st, prev⟩, _, ⟨raw, state⟩, hquery, heq⟩ := h
+  obtain ⟨⟨forged, st, prev⟩, _, ⟨raw, state⟩, hquery, heq⟩ := h
   cases heq
   obtain ⟨⟨actual, next⟩, hreply, he⟩ := (PMF.mem_support_map_iff ..).1 hquery
   cases he
   simp only [outerSigningQuery, sumHandler, interpret_query, observedTrial, terminalTrialHandler]
     at hreply
-  cases eq : st.lookup (σ.recover d pk, msg) with
+  cases eq : st.lookup (forged.signature.recover d pk, forged.message) with
   | some entry =>
     simp only [eq, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply
     obtain ⟨rfl, rfl⟩ := hreply
@@ -680,35 +691,39 @@ assumptions. A first read by the verifier is covered by the direct-oracle case. 
 theorem ambient_or_isSolution_of_fresh_lookup (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
     (hγq : 4 * P.γ₂ < P.q) (d ω K : ℕ) (hβ : P.β < P.γ₁) (dist : PMF Digest)
     (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
-    (forger : OracleComp (SigningROMSpec P Digest) (List Bool × Digest × CompressedSignature P))
-    {msg : List Bool} {raw : Digest} {σ : CompressedSignature P} {cache log}
-    (hrun : (((msg, raw, σ), raw), cache, log) ∈ (simulatePartialSigningTranscript P d ω K hβ
+    (forger : OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest))
+    {forged : ForgeryCandidate P Digest} {cache log}
+    (hrun : ((forged, forged.digest), cache, log) ∈ (simulatePartialSigningTranscript P d ω K hβ
       dist expand pk (queryForgeryDigest P d pk forger)).support)
-    (hfresh : ⟨.inl msg, some (raw, σ)⟩ ∉ log)
-    (hexpand : expand raw = some σ.c) (hz : ResponseShort P σ.z) :
-    (cache.lookup (σ.recover d pk, msg) = some (.ambient raw) ∧
-      ⟨.inr (σ.recover d pk, msg), raw⟩ ∈ log) ∨
-    ∃ other, cache.lookup (σ.recover d pk, msg) = some (.signing raw (some (raw, other))) ∧
-      ⟨.inl msg, some (raw, other)⟩ ∈ log ∧
+    (hfresh : ⟨.inl forged.message, some (forged.digest, forged.signature)⟩ ∉ log)
+    (hexpand : expand forged.digest = some forged.signature.c)
+    (hz : ResponseShort P forged.signature.z) :
+    (cache.lookup (forged.signature.recover d pk, forged.message) =
+        some (.ambient forged.digest) ∧
+      ⟨.inr (forged.signature.recover d pk, forged.message), forged.digest⟩ ∈ log) ∨
+    ∃ other, cache.lookup (forged.signature.recover d pk, forged.message) =
+        some (.signing forged.digest (some (forged.digest, other))) ∧
+      ⟨.inl forged.message, some (forged.digest, other)⟩ ∈ log ∧
       ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix pk.A)
-        (max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2)) (responseDifference d pk σ other) := by
+        (max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2))
+        (responseDifference d pk forged.signature other) := by
   have hlookup := lookup_of_queryForgeryDigest P d ω K hβ dist expand pk forger hrun
   obtain ⟨entry, he, hd⟩ := Option.map_eq_some_iff.mp hlookup
   obtain ⟨front, back, hs, _⟩ := List.lookup_eq_some_iff.mp he
-  have hmem : ((σ.recover d pk, msg), entry) ∈ cache := by simp [hs]
+  have hmem : ((forged.signature.recover d pk, forged.message), entry) ∈ cache := by simp [hs]
   have recorded := recorded_of_mem_simulatePartialSigningTranscript P d ω K hβ dist expand pk
     _ hrun _ hmem
   cases entry with
   | ambient x =>
-    change x = raw at hd
+    change x = forged.digest at hd
     subst x
     exact Or.inl ⟨he, recorded⟩
   | signing x sent =>
-    change x = raw at hd
+    change x = forged.digest at hd
     subst x
     obtain ⟨inLog, ht⟩ := recorded
     obtain ⟨other, rfl, sol⟩ := isSolution_of_forgery_at_simulated_digest P hP hq hγq d ω hβ pk
-      expand raw ht (fun e => hfresh (e ▸ inLog)) hexpand hz rfl
+      expand forged.digest ht (fun e => hfresh (e ▸ inLog)) hexpand hz rfl
     exact Or.inr ⟨other, he, inLog, sol⟩
 
 end Cslib.Crypto.MLDSA
