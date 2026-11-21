@@ -30,6 +30,8 @@ number of entries up to `2 * t - 1`, including none.
 
 * `BPlusTree.Occupied.mul_pow_le_size`: a balanced occupied subtree of height `h` holds at least
   `(t - 1) * t ^ (h - 1)` entries.
+* `BPlusTree.Balanced.pow_le_size`, `BPlusTree.Balanced.height_le_log`: the two bounds below from
+  the shape alone, with no hypothesis on the keys.
 * `BPlusTree.IsWF.pow_le_size`: a well-formed tree of height `h ≥ 2` holds at least `t ^ (h - 1)`
   entries.
 * `BPlusTree.IsWF.height_le_log`: the height of a well-formed tree is at most
@@ -78,22 +80,22 @@ theorem Occupied.mul_pow_le_size (ho : Occupied t tr) (hb : Balanced tr) :
     calc (t - 1) * (t ^ m * t) = t * ((t - 1) * t ^ m) := by ring
       _ ≤ (rest.length + 1) * ((t - 1) * t ^ m) := Nat.mul_le_mul_right _ hl
 
-variable [LinearOrder α]
-
-/-- A well-formed tree of height `h ≥ 2` holds at least `t ^ (h - 1)` entries. -/
-theorem IsWF.pow_le_size (h : IsWF t tr) (h2 : 2 ≤ tr.height) :
+/-- At a minimum degree of at least `2`, a balanced tree of height `h ≥ 2` whose root has a
+separator and whose children are occupied holds at least `t ^ (h - 1)` entries: the bound depends
+on the shape only, not on the keys. -/
+theorem Balanced.pow_le_size (hb : Balanced tr) (ht : 2 ≤ t)
+    (hw : (∀ entries, tr ≠ .leaf entries) → 1 ≤ tr.width)
+    (ho : ∀ c ∈ tr.children, Occupied t c) (h2 : 2 ≤ tr.height) :
     t ^ (tr.height - 1) ≤ tr.size := by
   cases tr with
   | leaf entries => simp at h2
   | node first rest =>
-    have hb := h.balanced
-    have ht := h.two_le
-    have hw : 1 ≤ rest.length := h.width_pos nofun
-    have hf := (h.occupied_of_mem_children first List.mem_cons_self).mul_pow_le_size hb.first
+    have hw : 1 ≤ rest.length := hw nofun
+    have hf := (ho first List.mem_cons_self).mul_pow_le_size hb.first
     have hc : ∀ e : Branch α β, e ∈ rest → (t - 1) * t ^ (first.height - 1) ≤ e.child.size :=
       fun e he => hb.height_of_mem_rest he ▸
-        (h.occupied_of_mem_children _
-          (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).mul_pow_le_size (hb.of_mem_rest he)
+        (ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).mul_pow_le_size
+          (hb.of_mem_rest he)
     refine le_trans ?_ (le_size_node hf hc)
     obtain ⟨m, hm⟩ : ∃ m, first.height = m + 1 :=
       ⟨first.height - 1, by have := height_pos (tr := first); omega⟩
@@ -103,11 +105,26 @@ theorem IsWF.pow_le_size (h : IsWF t tr) (h2 : 2 ≤ tr.height) :
       _ = 2 * ((t - 1) * t ^ m) := Nat.mul_assoc _ _ _
       _ ≤ (rest.length + 1) * ((t - 1) * t ^ m) := Nat.mul_le_mul_right _ (by omega)
 
-/-- The height of a well-formed tree is logarithmic in its size. -/
-theorem IsWF.height_le_log (h : IsWF t tr) : tr.height ≤ Nat.log t tr.size + 1 := by
+/-- At a minimum degree of at least `2`, the height of a balanced tree whose root has a separator
+and whose children are occupied is logarithmic in its size: the bound depends on the shape only,
+not on the keys. -/
+theorem Balanced.height_le_log (hb : Balanced tr) (ht : 2 ≤ t)
+    (hw : (∀ entries, tr ≠ .leaf entries) → 1 ≤ tr.width)
+    (ho : ∀ c ∈ tr.children, Occupied t c) : tr.height ≤ Nat.log t tr.size + 1 := by
   rcases Nat.lt_or_ge tr.height 2 with h1 | h2
   · omega
-  · have := Nat.le_log_of_pow_le (by have := h.two_le; omega) (h.pow_le_size h2)
+  · have := Nat.le_log_of_pow_le (by omega) (hb.pow_le_size ht hw ho h2)
     omega
+
+variable [LinearOrder α]
+
+/-- A well-formed tree of height `h ≥ 2` holds at least `t ^ (h - 1)` entries. -/
+theorem IsWF.pow_le_size (h : IsWF t tr) (h2 : 2 ≤ tr.height) :
+    t ^ (tr.height - 1) ≤ tr.size :=
+  h.balanced.pow_le_size h.two_le h.width_pos h.occupied_of_mem_children h2
+
+/-- The height of a well-formed tree is logarithmic in its size. -/
+theorem IsWF.height_le_log (h : IsWF t tr) : tr.height ≤ Nat.log t tr.size + 1 :=
+  h.balanced.height_le_log h.two_le h.width_pos h.occupied_of_mem_children
 
 end Cslib.DataStructure.BPlusTree

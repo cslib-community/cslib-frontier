@@ -36,8 +36,8 @@ import CslibFrontier.Probability.PMF
 /-!
 # Equivalence between one-way functions and one-time digital signatures, and necessity for EUF-CMA
 
-This module establishes the foundational reductions connecting one-way functions (`OneWay`) and
-uniform digital signature schemes (`SignatureScheme`):
+This module establishes the foundational reductions connecting one-way functions (`OneWay` and
+`OneWayOn`) and uniform digital signature schemes (`SignatureScheme`):
 
 1. **Secure signatures imply one-way functions (`SignatureScheme.OneTimeEUFCMA.exists_oneWay`,
    `SignatureScheme.EUFCMA.exists_oneWay`)**: for any digital signature scheme `S` that is
@@ -46,15 +46,22 @@ uniform digital signature schemes (`SignatureScheme`):
    `GeneratorReindex.parameter` yields a one-way function. Any PPT inverter for this function gives
    a zero-query PPT forger that recovers a valid secret key for the challenge public key and signs
    `0^n`.
-2. **Lamport's one-time signature scheme from any one-way function (`lamportScheme`,
-   `OneWay.oneTimeEUFCMA_lamport`, `OneWay.exists_oneTimeSignature`)**: given any polynomial-time
-   function `f : List Bool → List Bool`, `lamportScheme f` samples `2n` independent `n`-bit secret
-   words, publishes their `f`-images as the verification key, and signs an `n`-bit message by
-   revealing one secret word per message bit. When `f` is one-way (`OneWay f`), `lamportScheme f`
-   is one-time EUF-CMA secure (`OneTimeEUFCMA`): any one-time forger must forge a preimage at some
-   pair `(i, msg[i])` that was never revealed by the single signing query.
-3. **Equivalence (`exists_oneWay_iff_exists_oneTimeSignature`)**: a one-way function exists if and
-   only if a one-time EUF-CMA secure signature scheme exists.
+2. **Lamport's one-time signature scheme from a one-way function (`lamportScheme`,
+   `succProbability_eufOneTimeGame_lamport_le`, `OneWayOn.oneTimeEUFCMA_lamport`,
+   `OneWayOn.exists_oneTimeSignature`, `OneWay.exists_oneTimeSignature`)**: given any deterministic
+   polynomial-time function `f : List Bool → List Bool`, `lamportScheme f` is the basic Lamport
+   scheme `S_L` of [BonehShoup2023], Section 14.1 (pp. 584–585) on domain `X = {0,1}ⁿ` and message
+   length `v = n`. Key generation samples `2n` independent `n`-bit secret words and publishes their
+   `f`-images as the verification key; signing an `n`-bit message reveals one secret word per
+   message bit; verification checks that each revealed signature block has length `msg.length`
+   (`σᵢ ∈ {0,1}ⁿ`) and that its `f`-image matches the corresponding public-key block. When `f` is
+   one-way on a domain `valid` containing every `n`-bit word (`OneWayOn f valid`, [BonehShoup2023],
+   Section 8.11.1, Definition 8.6, p. 336; `valid n w = decide (w.length = n)` gives the source's
+   assumption on `X = {0,1}ⁿ`), `lamportScheme f` is one-time EUF-CMA secure (`OneTimeEUFCMA`,
+   [BonehShoup2023], Definition 14.1, p. 583; Attack Game 13.1, pp. 529–530): any one-time forger
+   must supply an `n`-bit preimage at some slot `j` never revealed by the single signing query.
+3. **Equivalence (`exists_oneWay_iff_exists_oneTimeSignature`)**: a one-way function (`OneWay`)
+   exists if and only if a one-time EUF-CMA secure signature scheme exists.
 
 Together with `SignatureScheme.EUFCMA.oneTimeEUFCMA`, this establishes the necessity half of
 Rompel's theorem (`(∃ S, S.EUFCMA) → ∃ f, OneWay f`) and the one-time sufficiency half
@@ -78,19 +85,29 @@ trees: every uniform `OneWay` function yields a stateless many-time `SignatureSc
   scheme implies the existence of a one-way function.
 * `Cslib.Crypto.SignatureScheme.EUFCMA.exists_oneWay`: any full EUF-CMA secure signature scheme
   implies the existence of a one-way function.
-* `Cslib.Crypto.OneWay.oneTimeEUFCMA_lamport`: Lamport's scheme constructed from a one-way function
-  is one-time EUF-CMA secure (a step toward [BonehShoup2023], Section 14.1: `OneWay` accepts
-  preimages of any length).
-* `Cslib.Crypto.OneWay.exists_oneTimeSignature`: any one-way function implies the existence of a
-  one-time EUF-CMA secure signature scheme.
+* `Cslib.Crypto.succProbability_eufOneTimeGame_lamport_le`: concrete loss bound
+  `SIGadv[A, S_L] ≤ dyadicSize (2 * n) * OWadv[B, f]` for a one-query forger `A` and
+  `B := lamportInverter f hf A` scored on `valid` via `inversionGameOn` (for any domain `valid`
+  containing every `n`-bit word; `dyadicSize (2 * n) ≤ 4 * n` for `n ≥ 1`, `2` at `n = 0`).
+* `Cslib.Crypto.OneWayOn.oneTimeEUFCMA_lamport`: Lamport's scheme `S_L` constructed from a function
+  that is one-way on a domain containing every `n`-bit word (`OneWayOn`, [BonehShoup2023],
+  Definition 8.6, p. 336) is one-time EUF-CMA secure (`OneTimeEUFCMA`, [BonehShoup2023],
+  Section 14.1, pp. 584–585; Definition 14.1, p. 583; Attack Game 13.1, pp. 529–530;
+  Theorem 14.2, p. 587).
+* `Cslib.Crypto.OneWayOn.exists_oneTimeSignature`, `Cslib.Crypto.OneWay.exists_oneTimeSignature`:
+  any `OneWayOn` (on a domain containing every `n`-bit word) or `OneWay` function implies the
+  existence of a one-time EUF-CMA secure signature scheme.
 * `Cslib.Crypto.exists_oneWay_iff_exists_oneTimeSignature`: equivalence between one-way functions
   and one-time EUF-CMA secure signature schemes.
 
 ## References
 
-* [L. Lamport, *Constructing Digital Signatures from a One-Way Function*][Lamport1979]
-* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Sections 8.11.1
-  and 14.1.
+* [L. Lamport, *Constructing Digital Signatures from a One-Way Function*][Lamport1979] (historical
+  attribution; primary technical report not inspected)
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section 8.11.1
+  (Definition 8.6, p. 336), Section 13.1 (Attack Game 13.1, pp. 529–530), Section 14.1
+  (Definition 14.1, p. 583; basic Lamport scheme `S_L` and Theorem 14.1, pp. 584–585), and
+  Section 14.2 (Theorem 14.2, p. 587).
 * [S. Goldwasser, S. Micali, R. L. Rivest, *A Digital Signature Scheme Secure Against Adaptive
   Chosen-Message Attacks*][GoldwasserMicaliRivest1988]
 * [J. Rompel, *One-Way Functions are Necessary and Sufficient for Secure Signatures*][Rompel1990]
@@ -300,14 +317,23 @@ reveal word `2 * i + msg[i].toNat` for each bit position `i < msg.length`. -/
     else
       []
 
-/-- Lamport verification: decode the public key into `2n` blocks and the signature into `n` blocks,
-and check that `f (sigWords[i]) = pkWords[2 * i + msg[i].toNat]` for every `i < msg.length`. -/
+/-- Lamport verification ([BonehShoup2023], Section 14.1, pp. 584–585): decode the public key into
+`2 * msg.length` blocks and the signature into `msg.length` blocks, and check for every
+`i < msg.length` that the revealed block `sigWords[i]` lies in `{0,1}^{msg.length}` (so wrong-length
+preimages of `f` are rejected) and `f (sigWords[i]) = pkWords[2 * i + msg[i].toNat]`.
+
+Because the total decoder `frames` does not require a canonical `encList encBits` tail (for
+instance `[true, false]` and `[true, false, true]` also decode to `[[false]]` alongside the
+canonical `[true, false, false]`), this check is trivially malleable on a fixed message and does
+not give strong unforgeability (`SUF-CMA`); it is sound for `OneTimeEUFCMA` because a forgery must
+be on a fresh message and `lamportInverter` uses the same `frames` decoder. -/
 @[expose] def lamportVerify (f : List Bool → List Bool) (pk msg sig : List Bool) : Bool :=
   let pkWords := frames pk
   let sigWords := frames sig
   (pkWords.length == 2 * msg.length) && (sigWords.length == msg.length) &&
     (List.range msg.length).all fun i =>
-      f (sigWords.getD i []) == pkWords.getD (2 * i + (msg.getD i false).toNat) []
+      (sigWords.getD i []).length == msg.length &&
+        f (sigWords.getD i []) == pkWords.getD (2 * i + (msg.getD i false).toNat) []
 
 private theorem computableInPolyTime_lamportSlot {γ : Type} {encIn : γ ↪ List Bool}
     {words : γ → List (List Bool)} {msg : γ → List Bool}
@@ -371,13 +397,17 @@ theorem computableInPolyTime_lamportVerify {f : List Bool → List Bool}
   have hmsg_len := ComputableInPolyTime.length_bits.comp hmsg
   have hp1 := ComputableInPolyTime.fst encIn encUnary
   have hi := ComputableInPolyTime.snd encIn encUnary
+  have hsigWord := ComputableInPolyTime.listGetDWithInput (hsig.comp hp1) hi []
+  have hlenCheck := ComputableInPolyTime.unary_beq'
+    (ComputableInPolyTime.length_bits.comp hsigWord) (hmsg_len.comp hp1)
+  have hfCheck := (hf.comp hsigWord).beq (computableInPolyTime_lamportSlot hpk hmsg)
   have hall := ComputableInPolyTime.allWithInput (encA := encUnary)
     (test := fun (p : List Bool × List Bool × List Bool) i =>
-      f ((frames p.2.2).getD i []) ==
-        (frames p.1).getD (2 * i + (p.2.1.getD i false).toNat) [])
+      ((frames p.2.2).getD i []).length == p.2.1.length &&
+        f ((frames p.2.2).getD i []) ==
+          (frames p.1).getD (2 * i + (p.2.1.getD i false).toNat) [])
     (ComputableInPolyTime.range.comp hmsg_len)
-    ((hf.comp (ComputableInPolyTime.listGetDWithInput (hsig.comp hp1) hi [])).beq
-      (computableInPolyTime_lamportSlot hpk hmsg))
+    (ComputableInPolyTime.bool_and.comp (hlenCheck.prod hfCheck))
   exact ComputableInPolyTime.bool_and.comp
     ((ComputableInPolyTime.bool_and.comp
       ((ComputableInPolyTime.unary_beq'
@@ -401,12 +431,13 @@ theorem lamportVerify_lamportSign (f : List Bool → List Bool) (n : ℕ)
   simp only [lamportKeyGen, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hkeys
   obtain ⟨skWords, hskWords, rfl⟩ := hkeys
-  obtain ⟨hskLen, _⟩ := (ProbComp.mem_support_replicate_iff _ _ _).mp hskWords
+  obtain ⟨hskLen, hskElem⟩ := (ProbComp.mem_support_replicate_iff _ _ _).mp hskWords
   simp only [lamportSign, frames_encList_bits, hskLen, hmsg, beq_self_eq_true, ↓reduceIte,
     ProbComp.eval_pure, PMF.mem_support_pure_iff] at hsig
   subst hsig
   simp only [lamportVerify, frames_encList_bits, List.length_map, List.length_range, hskLen, hmsg,
-    beq_self_eq_true, Bool.true_and, List.all_eq_true, List.mem_range, beq_iff_eq]
+    beq_self_eq_true, Bool.true_and, List.all_eq_true, List.mem_range, Bool.and_eq_true,
+    beq_iff_eq]
   intro i hi
   have h2i : 2 * i + (msg.getD i false).toNat < (skWords.map f).length := by
     rw [List.length_map, hskLen]
@@ -418,6 +449,9 @@ theorem lamportVerify_lamportSign (f : List Bool → List Bool) (n : ℕ)
   have hi_range : i < (List.range n).length := by simpa using hi
   rw [List.getD_eq_getElem _ _ (by simpa using hi_range), List.getElem_map, List.getElem_range,
     List.getD_eq_getElem _ _ h2i, List.getElem_map, List.getD_eq_getElem _ _ h2i']
+  have hsupp := hskElem _ (List.getElem_mem h2i')
+  rw [BitString.eval_sampleList] at hsupp
+  exact ⟨BitString.length_of_mem_support_uniformList hsupp, rfl⟩
 
 /-- Lamport's one-time digital signature scheme built from any polynomial-time function `f`. -/
 @[expose] noncomputable def lamportScheme (f : List Bool → List Bool)
@@ -647,13 +681,17 @@ private noncomputable def lamportRunWith (f : List Bool → List Bool)
 private def lamportDummySk (w : List (List Bool)) (j : ℕ) : List Bool :=
   encList encBits (w.take j ++ [] :: w.drop (j + 1))
 
-private def lamportInvWin (f : List Bool → List Bool) (w : List (List Bool)) (j : ℕ)
+private def lamportInvWin (f : List Bool → List Bool) (valid : ℕ → List Bool → Bool) (n : ℕ)
+    (w : List (List Bool)) (j : ℕ)
     (out : (List Bool × List Bool) × List (List Bool)) : Bool :=
-  f ((frames out.1.2).getD (j / 2) []) == f (w.getD j [])
+  let cand := (frames out.1.2).getD (j / 2) []
+  valid n cand && f cand == f (w.getD j [])
 
 private theorem lamport_pointwise_le {f : List Bool → List Bool}
-    (hf : ComputableInPolyTime f encBits encBits) (adversary : Forger)
-    {n : ℕ} (hn : 1 ≤ n) {w : List (List Bool)} (hw_len : w.length = 2 * n)
+    (hf : ComputableInPolyTime f encBits encBits) {valid : ℕ → List Bool → Bool}
+    (adversary : Forger) {n : ℕ} (hn : 1 ≤ n)
+    (hvalid : ∀ w : List Bool, w.length = n → valid n w = true)
+    {w : List (List Bool)} (hw_len : w.length = 2 * n)
     (out : (List Bool × List Bool) × List (List Bool)) :
     let pk := encList encBits (w.map f)
     lamportRunWith f hf adversary n pk (encList encBits w) out *
@@ -662,7 +700,7 @@ private theorem lamport_pointwise_le {f : List Bool → List Bool}
       ∑ j : Fin (dyadicSize (2 * n)),
         if j.val < 2 * n then
           lamportRunWith f hf adversary n pk (lamportDummySk w j.val) out *
-            (if lamportInvWin f w j.val out then 1 else 0)
+            (if lamportInvWin f valid n w j.val out then 1 else 0)
         else 0 := by
   intro pk
   let win : Bool :=
@@ -692,22 +730,25 @@ private theorem lamport_pointwise_le {f : List Bool → List Bool}
           (encList encBits w) (lamportDummySk w jStar)
           (fun req hreq => lamportSign_eq_of_agreeAt hjStar_lt hw_len hreq)
           (adversary n pk) [] out.1 out.2 hagree
-      have hinvWin_true : lamportInvWin f w jStar out = true := by
+      have hinvWin_true : lamportInvWin f valid n w jStar out = true := by
         dsimp only [lamportInvWin, jStar]
         rw [two_mul_add_toNat_div_two]
         simp only [lamportVerify, pk, frames_encList_bits, Bool.and_eq_true,
-          List.all_eq_true, List.mem_range] at hver
-        have hcheck := hver.2 i (by omega)
+          List.all_eq_true, List.mem_range, beq_iff_eq] at hver
+        obtain ⟨hcand_len, hcand_eq⟩ := hver.2 i (by omega)
         have hjStar_w : jStar < w.length := by omega
         have hjStar_map : jStar < (w.map f).length := by simp [hjStar_w]
-        rw [List.getD_eq_getElem _ _ hjStar_map, List.getElem_map,
-          ← List.getD_eq_getElem _ _ hjStar_w] at hcheck
-        exact hcheck
+        have hcand_eq' : f ((frames out.1.2).getD i []) = f (w.getD jStar []) := by
+          refine hcand_eq.trans ?_
+          rw [List.getD_eq_getElem _ _ hjStar_map, List.getElem_map,
+            ← List.getD_eq_getElem _ _ hjStar_w]
+        exact Bool.and_eq_true_iff.mpr ⟨hvalid _ (hcand_len.trans hmsg_len),
+          beq_iff_eq.mpr hcand_eq'⟩
       simp only [hwin, ↓reduceIte, mul_one, hrun_eq]
       let term (j : Fin (dyadicSize (2 * n))) : ℝ≥0∞ :=
         if j.val < 2 * n then
           lamportRunWith f hf adversary n pk (lamportDummySk w j.val) out *
-            (if lamportInvWin f w j.val out then 1 else 0)
+            (if lamportInvWin f valid n w j.val out then 1 else 0)
         else 0
       simpa [term, hjStar_lt, hinvWin_true] using
         Finset.single_le_sum (f := term) (fun _ _ => zero_le)
@@ -715,109 +756,168 @@ private theorem lamport_pointwise_le {f : List Bool → List Bool}
     · simp [(PMF.apply_eq_zero_iff _ _).mpr hsupp]
   · simp [hwin]
 
-/-- Step toward the one-time security of the basic Lamport signature system `S_L` of
-[BonehShoup2023], Section 14.1 (pp. 584–585, with Theorem 14.1 on p. 584 as its one-bit case), not
-the cited result: its premise `OneWay f` lets an inverter win with a preimage of any length, which
-is stronger than one-wayness in the sense of Definition 8.6 (p. 336), where the inverter must output
-an element of the domain. Under that premise this statement would be false, because `lamportVerify`
-accepts a block of any length, and a function that is one-way on its domain may have longer
-preimages that are easy to find. The source's form needs the domain-restricted premise and a
-verifier that rejects blocks outside the domain (#5686).
-
-For any one-way function `f` in the sense of `OneWay`, Lamport's scheme `lamportScheme f`
-([Lamport1979]) on `n`-bit messages is existentially unforgeable under a one-time adaptive
-chosen-message attack (`OneTimeEUFCMA`). -/
-theorem OneWay.oneTimeEUFCMA_lamport {f : List Bool → List Bool} (hf : OneWay f) :
-    (lamportScheme f hf.polyTime).OneTimeEUFCMA := by
-  let S := lamportScheme f hf.polyTime
-  apply SignatureScheme.OneTimeEUFCMA.of_negligible
-  intro adversary hadversary
-  let inverter := lamportInverter f hf.polyTime adversary
-  have hinv_neg := hf.inversion_negligible inverter (isPPT_lamportInverter hf.polyTime hadversary)
-  have hscaled : Negligible (fun n =>
+/-- **Concrete reduction bound for Lamport's one-time signature scheme `S_L`** ([BonehShoup2023],
+Section 14.1, pp. 584–585): for every parameter `n` and every answer domain `valid` containing all
+`n`-bit words, a one-time forger `adversary` succeeds against `lamportScheme f hf` with probability
+at most `dyadicSize (2 * n)` times the inversion probability of `lamportInverter f hf adversary` in
+`inversionGameOn f valid` (Definition 8.6, p. 336). Because `lamportInverter` draws its slot guess
+with fair coins from `{0, …, dyadicSize (2 * n) - 1}` where `dyadicSize m = 2 ^ (Nat.log 2 m + 1)`,
+the loss factor is `dyadicSize (2 * n)` (`≤ 4 * n` for `n ≥ 1`, and `2` at `n = 0`) instead of
+the source's `2 * n`. -/
+theorem succProbability_eufOneTimeGame_lamport_le {f : List Bool → List Bool}
+    (hf : ComputableInPolyTime f encBits encBits)
+    {valid : ℕ → List Bool → Bool} {n : ℕ}
+    (hvalid : ∀ w : List Bool, w.length = n → valid n w = true) (adversary : Forger) :
+    Game.succProbability (ProbComp.eval ((lamportScheme f hf).eufOneTimeGame adversary n)) ≤
       (dyadicSize (2 * n) : ℝ≥0) *
-        Game.succProbability (ProbComp.eval (inversionGame f inverter n))) :=
-    hinv_neg.polynomiallyBounded_mul
-      (dyadicSize_polynomiallyBounded.comp ((PolynomiallyBounded.const 2).mul .id))
-  apply negligible_of_eventually_le hscaled
-  filter_upwards [eventually_ge_atTop 1] with n hn
-  let μ : PMF (List (List Bool)) :=
-    ProbComp.eval (OracleComp.replicate (2 * n) (BitString.sampleList n))
-  let pkOf (w : List (List Bool)) : List Bool := encList encBits (w.map f)
-  let realSkOf (w : List (List Bool)) : List Bool := encList encBits w
-  let dummySkOf := lamportDummySk
-  let runWith := lamportRunWith f hf.polyTime adversary n
-  let win (w : List (List Bool)) (out : (List Bool × List Bool) × List (List Bool)) : Bool :=
-    (out.1.1.length == n) && !out.2.contains out.1.1 &&
-      lamportVerify f (pkOf w) out.1.1 out.1.2
-  let invWin := lamportInvWin f
-  let inverterAt (j : ℕ) (y : List Bool) : ProbComp (List Bool) :=
-    if j < 2 * n then do
-      let keys ← lamportSimKeys f n j y
-      let out ← (OracleComp.interpret
-        (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-          (S.oneTimeSigningOracle n keys.2)) (adversary n keys.1)).run []
-      return (frames out.1.2).getD (j / 2) []
-    else
-      return []
-  let trial (j : ℕ) : PMF Bool := do
-    let xStar ← BitString.uniformList n
-    (ProbComp.eval (inverterAt j (f xStar))).map fun cand => f cand == f xStar
-  have hinv_eq : ProbComp.eval (inversionGame f inverter n) =
-      (PMF.uniformOfFintype (Fin (dyadicSize (2 * n)))).bind (fun j => trial j.val) := by
-    simp only [pmf_norm, inversionGame, inversionExperiment, inverter, lamportInverter, trial,
-      inverterAt, BitString.eval_sampleList, eval_sampleDyadicIndex]
-    rw [PMF.bind_comm]
-    rfl
-  have htrial_eq : ∀ j < 2 * n,
-      μ.bind (fun w => (runWith (pkOf w) (dummySkOf w j)).map (invWin w j)) = trial j := by
-    intro j hj
-    dsimp only [μ, trial, inverterAt]
-    rw [eval_replicate_split (BitString.sampleList n) hj]
-    simp only [hj, ↓reduceIte, BitString.eval_sampleList, lamportSimKeys, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
-      PMF.map_bind, Function.comp_def]
-    refine PMF.bind_congr_on_support _ _ _ fun xStar _ => ?_
-    refine PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
-    have hfront_len : front.length = j :=
-      ((ProbComp.mem_support_replicate_iff _ _ _).mp hfront).1
-    refine PMF.bind_congr_on_support _ _ _ fun back _ => ?_
-    have hpk_eq : pkOf (front ++ xStar :: back) =
-        encList encBits (front.map f ++ f xStar :: back.map f) := by
-      simp [pkOf]
-    have hsk_eq : dummySkOf (front ++ xStar :: back) j =
-        encList encBits (front ++ [] :: back) := by
-      simp [dummySkOf, lamportDummySk, ← hfront_len]
-    have hget_eq : (front ++ xStar :: back).getD j [] = xStar := by
-      rw [← hfront_len, List.getD_append_right _ _ _ _ le_rfl,
-        Nat.sub_self, List.getD_cons_zero]
-    simp only [runWith, lamportRunWith, S, invWin, lamportInvWin, hpk_eq, hsk_eq, hget_eq,
-      PMF.map, PMF.pure_bind, Function.comp_def]
-  have hgame_real : ProbComp.eval (S.eufOneTimeGame adversary n) =
-      μ.bind (fun w => (runWith (pkOf w) (realSkOf w)).map (win w)) := by
-    simp only [SignatureScheme.eufOneTimeGame, S, lamportScheme, lamportKeyGen, μ, pkOf, realSkOf,
-      runWith, lamportRunWith, win, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-      PMF.pure_bind, PMF.map]
-    rfl
-  have htotal_ennreal : (ProbComp.eval (S.eufOneTimeGame adversary n)) true ≤
-      ∑ j : Fin (dyadicSize (2 * n)), (trial j.val) true := by
-    rw [hgame_real]
-    exact bind_map_true_le_sum μ (fun w => runWith (pkOf w) (realSkOf w)) win
-      (fun w j => runWith (pkOf w) (dummySkOf w j)) invWin trial
-      (fun w hw => lamport_pointwise_le hf.polyTime adversary hn
-        ((ProbComp.mem_support_replicate_iff _ _ _).mp hw).1)
-      htrial_eq
-  have hpos : (0 : ℝ≥0) < dyadicSize (2 * n) := by exact_mod_cast dyadicSize_pos (2 * n)
-  rw [hinv_eq, Game.succProbability_uniform, Fintype.card_fin, mul_div_cancel₀ _ hpos.ne']
-  have hsum_ne_top : (∑ j : Fin (dyadicSize (2 * n)), (trial j.val) true) ≠ ⊤ :=
-    ne_of_lt (ENNReal.sum_lt_top.mpr fun j _ => (PMF.apply_ne_top _ _).lt_top)
-  have hmono := ENNReal.toNNReal_mono hsum_ne_top htotal_ennreal
-  rwa [ENNReal.toNNReal_sum fun j _ => PMF.apply_ne_top _ _] at hmono
+        Game.succProbability
+          (ProbComp.eval (inversionGameOn f valid (lamportInverter f hf adversary) n)) := by
+  by_cases hn : 1 ≤ n
+  · let S := lamportScheme f hf
+    let inverter := lamportInverter f hf adversary
+    let μ : PMF (List (List Bool)) :=
+      ProbComp.eval (OracleComp.replicate (2 * n) (BitString.sampleList n))
+    let pkOf (w : List (List Bool)) : List Bool := encList encBits (w.map f)
+    let realSkOf (w : List (List Bool)) : List Bool := encList encBits w
+    let dummySkOf := lamportDummySk
+    let runWith := lamportRunWith f hf adversary n
+    let win (w : List (List Bool)) (out : (List Bool × List Bool) × List (List Bool)) : Bool :=
+      (out.1.1.length == n) && !out.2.contains out.1.1 &&
+        lamportVerify f (pkOf w) out.1.1 out.1.2
+    let invWin := lamportInvWin f valid n
+    let inverterAt (j : ℕ) (y : List Bool) : ProbComp (List Bool) :=
+      if j < 2 * n then do
+        let keys ← lamportSimKeys f n j y
+        let out ← (OracleComp.interpret
+          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+            (S.oneTimeSigningOracle n keys.2)) (adversary n keys.1)).run []
+        return (frames out.1.2).getD (j / 2) []
+      else
+        return []
+    let trial (j : ℕ) : PMF Bool := do
+      let xStar ← BitString.uniformList n
+      (ProbComp.eval (inverterAt j (f xStar))).map fun cand =>
+        valid n cand && f cand == f xStar
+    have hinv_eq : ProbComp.eval (inversionGameOn f valid inverter n) =
+        (PMF.uniformOfFintype (Fin (dyadicSize (2 * n)))).bind (fun j => trial j.val) := by
+      simp only [pmf_norm, inversionGameOn, inverter, lamportInverter, trial,
+        inverterAt, BitString.eval_sampleList, eval_sampleDyadicIndex]
+      rw [PMF.bind_comm]
+      rfl
+    have htrial_eq : ∀ j < 2 * n,
+        μ.bind (fun w => (runWith (pkOf w) (dummySkOf w j)).map (invWin w j)) = trial j := by
+      intro j hj
+      dsimp only [μ, trial, inverterAt]
+      rw [eval_replicate_split (BitString.sampleList n) hj]
+      simp only [hj, ↓reduceIte, BitString.eval_sampleList, lamportSimKeys, ProbComp.eval_bind,
+        ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+        PMF.map_bind, Function.comp_def]
+      refine PMF.bind_congr_on_support _ _ _ fun xStar _ => ?_
+      refine PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
+      have hfront_len : front.length = j :=
+        ((ProbComp.mem_support_replicate_iff _ _ _).mp hfront).1
+      refine PMF.bind_congr_on_support _ _ _ fun back _ => ?_
+      have hpk_eq : pkOf (front ++ xStar :: back) =
+          encList encBits (front.map f ++ f xStar :: back.map f) := by
+        simp [pkOf]
+      have hsk_eq : dummySkOf (front ++ xStar :: back) j =
+          encList encBits (front ++ [] :: back) := by
+        simp [dummySkOf, lamportDummySk, ← hfront_len]
+      have hget_eq : (front ++ xStar :: back).getD j [] = xStar := by
+        rw [← hfront_len, List.getD_append_right _ _ _ _ le_rfl,
+          Nat.sub_self, List.getD_cons_zero]
+      simp only [runWith, lamportRunWith, S, invWin, lamportInvWin, hpk_eq, hsk_eq, hget_eq,
+        PMF.map, PMF.pure_bind, Function.comp_def]
+    have hgame_real : ProbComp.eval (S.eufOneTimeGame adversary n) =
+        μ.bind (fun w => (runWith (pkOf w) (realSkOf w)).map (win w)) := by
+      simp only [SignatureScheme.eufOneTimeGame, S, lamportScheme, lamportKeyGen, μ, pkOf,
+        realSkOf, runWith, lamportRunWith, win, ProbComp.eval_bind, ProbComp.eval_pure,
+        PMF.bind_bind, PMF.pure_bind, PMF.map]
+      rfl
+    have htotal_ennreal : (ProbComp.eval (S.eufOneTimeGame adversary n)) true ≤
+        ∑ j : Fin (dyadicSize (2 * n)), (trial j.val) true := by
+      rw [hgame_real]
+      exact bind_map_true_le_sum μ (fun w => runWith (pkOf w) (realSkOf w)) win
+        (fun w j => runWith (pkOf w) (dummySkOf w j)) invWin trial
+        (fun w hw => lamport_pointwise_le hf adversary hn hvalid
+          ((ProbComp.mem_support_replicate_iff _ _ _).mp hw).1)
+        htrial_eq
+    have hpos : (0 : ℝ≥0) < dyadicSize (2 * n) := by exact_mod_cast dyadicSize_pos (2 * n)
+    rw [hinv_eq, Game.succProbability_uniform, Fintype.card_fin, mul_div_cancel₀ _ hpos.ne']
+    have hsum_ne_top : (∑ j : Fin (dyadicSize (2 * n)), (trial j.val) true) ≠ ⊤ :=
+      ne_of_lt (ENNReal.sum_lt_top.mpr fun j _ => (PMF.apply_ne_top _ _).lt_top)
+    have hmono := ENNReal.toNNReal_mono hsum_ne_top htotal_ennreal
+    rwa [ENNReal.toNNReal_sum fun j _ => PMF.apply_ne_top _ _] at hmono
+  · obtain rfl : n = 0 := by omega
+    have hvalid0 : valid 0 [] = true := hvalid [] rfl
+    have hinv0 :
+        ProbComp.eval (inversionGameOn f valid (lamportInverter f hf adversary) 0) =
+          PMF.pure true := by
+      simp only [inversionGameOn, lamportInverter, Nat.mul_zero, Nat.not_lt_zero, ↓reduceIte,
+        ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
+        BitString.uniformList_zero, PMF.pure_bind, PMF.bind_const, hvalid0, beq_self_eq_true,
+        Bool.and_self]
+    have hle1 :
+        Game.succProbability (ProbComp.eval ((lamportScheme f hf).eufOneTimeGame adversary 0)) ≤
+          1 := by
+      unfold Game.succProbability
+      exact (ENNReal.toNNReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ true)).trans_eq
+        ENNReal.toNNReal_one
+    rw [hinv0]
+    simp only [Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one, mul_one,
+      Nat.mul_zero]
+    exact hle1.trans (by exact_mod_cast dyadicSize_pos 0)
+
+/-- **One-time security of the basic Lamport signature scheme `S_L`** ([BonehShoup2023],
+Section 14.1, pp. 584–585; Theorem 14.1, p. 584 is the one-bit case; general security follows from
+Theorem 14.2, p. 587; historical attribution to [Lamport1979], whose primary technical report was
+not inspected): if `f` is one-way on an answer domain `valid` containing every `n`-bit word
+(`OneWayOn f valid`, [BonehShoup2023], Section 8.11.1, Definition 8.6, p. 336), then
+`lamportScheme f` is existentially unforgeable under a one-time adaptive chosen-message attack
+(`OneTimeEUFCMA`, [BonehShoup2023], Definition 14.1, p. 583; Attack Game 13.1, pp. 529–530).
+
+With `valid n w = decide (w.length = n)` the assumption is Definition 8.6 on `X = {0,1}ⁿ` (wider
+predicates, such as `fun _ _ => true` for `OneWay`, give stronger assumptions). Material deviations
+from [BonehShoup2023], Section 14.1:
+* Message length `v` equals the security parameter `n` (`{0,1}ⁿ`), with `X = {0,1}ⁿ` and framing
+  encoding `encList encBits` for keys and signatures. The total decoder `frames` also accepts
+  non-canonical final frames (e.g., `[true, false]` and `[true, false, true]` alongside
+  `[true, false, false]` for `[[false]]`); this is sound for `OneTimeEUFCMA` (which requires a
+  fresh message, and `lamportInverter` uses the same `frames` decoder), though `lamportScheme` is
+  malleable on the same message and thus not strongly unforgeable (`SUF-CMA`).
+* The edge case `n = 0` is admitted: `M = {[]}` with `pk = sk = sig = []`, where both the
+  one-time signature game and `inversionGameOn` (via `lamportInverter` returning `[]`) can be won
+  with probability `1`, and the concrete bound holds trivially (`≤ 1 ≤ 2 = dyadicSize 0 * 1`).
+* Adversaries and reductions are uniform strict PPT (`IsPPT`, `IsOraclePPT`) receiving `n` in unary.
+* The reduction `lamportInverter` draws its slot guess with fair coins from
+  `{0, …, dyadicSize (2 * n) - 1}` (`dyadicSize (2 * n) ≤ 4 * n` for `n ≥ 1`, `2` at `n = 0`),
+  giving `SIGadv[A, S_L] ≤ dyadicSize (2 * n) * OWadv[B, f]`
+  (`succProbability_eufOneTimeGame_lamport_le`) for one-query forger `A` and `B` scored on `valid`
+  via `inversionGameOn`, instead of the source's factor `2 * n`. -/
+theorem OneWayOn.oneTimeEUFCMA_lamport {f : List Bool → List Bool}
+    {valid : ℕ → List Bool → Bool} (hf : OneWayOn f valid)
+    (hvalid : ∀ n (w : List Bool), w.length = n → valid n w = true) :
+    (lamportScheme f hf.polyTime).OneTimeEUFCMA := by
+  refine SignatureScheme.OneTimeEUFCMA.of_negligible fun adversary hadversary => ?_
+  have hinv_neg := hf.negligible (lamportInverter f hf.polyTime adversary)
+    (isPPT_lamportInverter hf.polyTime hadversary)
+  have hpoly : PolynomiallyBounded fun n => dyadicSize (2 * n) :=
+    dyadicSize_polynomiallyBounded.comp ((PolynomiallyBounded.const 2).mul .id)
+  exact negligible_of_le (hinv_neg.polynomiallyBounded_mul hpoly) fun n =>
+    succProbability_eufOneTimeGame_lamport_le hf.polyTime (hvalid n) adversary
+
+/-- Any function one-way on a domain containing every `n`-bit word implies the existence of a
+one-time EUF-CMA secure signature scheme. -/
+theorem OneWayOn.exists_oneTimeSignature {f : List Bool → List Bool}
+    {valid : ℕ → List Bool → Bool} (hf : OneWayOn f valid)
+    (hvalid : ∀ n (w : List Bool), w.length = n → valid n w = true) :
+    ∃ S : SignatureScheme, S.OneTimeEUFCMA :=
+  ⟨lamportScheme f hf.polyTime, hf.oneTimeEUFCMA_lamport hvalid⟩
 
 /-- Any one-way function implies the existence of a one-time EUF-CMA secure signature scheme. -/
 theorem OneWay.exists_oneTimeSignature {f : List Bool → List Bool} (hf : OneWay f) :
     ∃ S : SignatureScheme, S.OneTimeEUFCMA :=
-  ⟨lamportScheme f hf.polyTime, hf.oneTimeEUFCMA_lamport⟩
+  hf.oneWayOn.exists_oneTimeSignature fun _ _ _ => rfl
 
 /-- **Equivalence between one-way functions and one-time digital signatures**: a one-way function
 exists if and only if a one-time EUF-CMA secure uniform signature scheme exists. -/

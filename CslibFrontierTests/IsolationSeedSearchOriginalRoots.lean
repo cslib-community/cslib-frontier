@@ -41,11 +41,13 @@ example (G : LayeredDigraph (Fin (0 + 1) × Fin 2)) (hlayer : ∀ v, G.layer v =
       | .decided b => (∀ j, ∃! p, Passes (generatedSubdivisionAdj G index seed) s j p) ∧
           (b = true ↔ Relation.ReflTransGen (generatedSubdivisionAdj G index seed) s
             (index (root 1 (0, 1))))) :
-    ∃ result, runSeedSearchIndexed controller (originalRootID index) (index (root 1 (0, 0))) =
+    ∃ result, runSeedScheduler (fun i _ => controller ((BitString.equivFin _).symm i))
+        (originalRootID index) (index (root 1 (0, 0))) =
         [some result] ∧
       G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm result.seed)) ∧
       (∀ i < result.seed, ¬ G.IsMinIsolating (generatedWeight ((BitString.equivFin _).symm i))) ∧
-      (result.reachable = true ↔ Relation.ReflTransGen G.Adj (0, 0) (0, 1)) :=
-  runGeneratedSeedSearch_correct G hlayer index hb (0, 0) (0, 1) controller hc
+      (result.reachable = true ↔ Relation.ReflTransGen G.Adj (0, 0) (0, 1)) := by
+  rw [← runSeedSearchIndexed_eq_scheduler]
+  exact runGeneratedSeedSearch_correct G hlayer index hb (0, 0) (0, 1) controller hc
 
 end CslibFrontierTests.IsolationSeedSearchOriginalRoots

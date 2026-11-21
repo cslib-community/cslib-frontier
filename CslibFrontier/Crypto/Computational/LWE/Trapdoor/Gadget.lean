@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.Gadget
+public import CslibFrontier.Crypto.Computational.Lattice.QaryKernel
 public import CslibFrontier.Crypto.Computational.LWE.Decoding
 public import Mathlib.LinearAlgebra.Matrix.Block
 import Mathlib.Algebra.BigOperators.Fin
@@ -58,8 +59,8 @@ sampling over cosets of `Λ^⊥(G)` are not formalized here.
   primitive gadget vector `g` and matrix `G = I_ι ⊗ gᵀ` over `ZMod (2 ^ w)`.
 * `Cslib.Crypto.LWE.Trapdoor.scalarDecomp`, `Cslib.Crypto.LWE.Trapdoor.gadgetDecomp`,
   `Cslib.Crypto.LWE.Trapdoor.gadgetDecompMatrix`: binary `{0, 1}`-valued integer decompositions.
-* `Cslib.Crypto.LWE.Trapdoor.InScalarKernel`, `Cslib.Crypto.LWE.Trapdoor.InKernelLattice`:
-  membership in `Λ^⊥(gᵀ)` and `Λ^⊥(A)`.
+* `Cslib.Crypto.LWE.Trapdoor.InScalarKernel`: membership in `Λ^⊥(gᵀ)`; membership in `Λ^⊥(A)`
+  is the shared `Cslib.Crypto.InKernelLattice`.
 * `Cslib.Crypto.LWE.Trapdoor.scalarBasis`, `Cslib.Crypto.LWE.Trapdoor.gadgetBasis`: the explicit
   short kernel matrix `S_w` in `Λ^⊥(gᵀ)` and block matrix `S = I_ι ⊗ S_w` in `Λ^⊥(G)` (shown to be
   bases in Section 4.1; kernel membership, `det S_w = 2 ^ w`, and norm bounds are proved here,
@@ -247,12 +248,6 @@ theorem gadgetMatrix_surjective [Fintype ι] [DecidableEq ι] (w : ℕ) :
 ([MicciancioPeikert2012], Section 4). -/
 def InScalarKernel (w : ℕ) (z : Fin w → ℤ) : Prop :=
   gadgetVector w ⬝ᵥ (Int.cast ∘ z) = 0
-
-/-- Membership in the `q`-ary kernel lattice `Λ^⊥(A) = { z ∈ ℤ ^ κ : A z ≡ 0 (mod q) }`
-([MicciancioPeikert2012], Section 2.2). The last conjunct of `Cslib.Crypto.SIS.IsSolution` is
-this condition. -/
-def InKernelLattice {q : ℕ} [Fintype κ] (A : Matrix ρ κ (ZMod q)) (z : κ → ℤ) : Prop :=
-  A *ᵥ (Int.cast ∘ z) = 0
 
 /-- The matrix `S_w ∈ ℤ ^ {w × w}` that [MicciancioPeikert2012], Section 4.1 and
 Proposition 4.2, shows is a short basis of `Λ^⊥(gᵀ)` for `q = 2 ^ w`: `2` on the diagonal, `-1`
