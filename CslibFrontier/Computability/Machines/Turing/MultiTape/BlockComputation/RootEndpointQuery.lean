@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointQuery
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.Graph
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointAddress
 
 /-!
 # Root network endpoint keys from raw schedules
@@ -23,9 +23,8 @@ endpoint search. Valid exhaustion goes to the original edge's sink. In particula
 machines retain their control edges, while zero intervals or zero copies have no valid edges.
 
 `query_rows` agrees with the existing explicit graph's endpoint numbering, and
-`query_explicitEdgeEquiv` identifies these keys with the actual subdivided network. These are
-executable semantic bridges. Parsing, binary arithmetic, and native composition with the
-schedule scanner still need their own charged machine implementation.
+`query_explicitEdgeEquiv` identifies these keys with the actual subdivided network.
+`query_eq_address` factors it into a short binary classifier and a raw schedule lookup.
 -/
 
 public section
@@ -77,6 +76,52 @@ The range guard runs before division by `copies` or any schedule query, includin
       else blockTarget k q a.raw ((a.edge - half) / a.copies)
     row.map fun r => (r, explicitTgtNum k q a.copies a.edge)
   else none
+
+/-- The classifier receives the binary movement-pair count and the two supplied indices. -/
+@[expose] def addressInput (a : Input) : RootEndpointAddress.Input :=
+  ⟨a.raw.length / 2, a.copies, a.edge⟩
+
+/-- Counting pairs and then grouping them into rows counts exactly the complete intervals. -/
+@[simp] theorem intervals_addressInput (k : ℕ) (a : Input) :
+    RootEndpointAddress.intervals k (addressInput a) = intervals k a := by
+  simp [RootEndpointAddress.intervals, addressInput, intervals, Nat.div_div_eq_div_mul]
+
+/-- The short classifier and the original graph have the same half-edge universe. -/
+@[simp] theorem edgeCount_addressInput (k : ℕ) (a : Input) :
+    RootEndpointAddress.edgeCount k (addressInput a) = edgeCount k a := by
+  unfold RootEndpointAddress.edgeCount edgeCount
+  rw [intervals_addressInput]
+  rfl
+
+/-- Resolve a direct row immediately. A work continuation uses its sink only on valid exhaustion. -/
+@[expose] def resolveRow (k : ℕ) (raw : List Bool) : ℕ ⊕ RootEndpointAddress.Work → Option ℕ
+  | .inl row => some row
+  | .inr w => (ScheduleEndpointQuery.query k ⟨raw, w.selector, w.interval⟩).map
+      (fun next => next.getD w.sink)
+
+/-- Resolve the row and retain the classifier's subdivision column. -/
+@[expose] def resolve (k : ℕ) (raw : List Bool) (a : RootEndpointAddress.Address) :
+    Option (ℕ × ℕ) := (resolveRow k raw a.row).map fun r => (r, a.column)
+
+/-- A validated raw query factors into binary address classification and a single row lookup. -/
+theorem query_eq_address (k : ℕ) (a : Input) :
+    query k a = if ScheduleBits.validate k a.raw then
+      (RootEndpointAddress.query k (addressInput a)).bind (resolve k a.raw)
+    else none := by
+  have he : (addressInput a).edge = a.edge := rfl
+  have hc : (addressInput a).copies = a.copies := rfl
+  by_cases hv : ScheduleBits.validate k a.raw = true
+  · by_cases hn : a.edge < edgeCount k a
+    · simp only [query, valid, hv, hn, decide_true, Bool.true_and, ↓reduceIte,
+        RootEndpointAddress.query, he, hc, edgeCount_addressInput, intervals_addressInput]
+      by_cases hs : a.edge < intervals k a * (3 * k + 1) * a.copies
+      · simp [hs, resolve, resolveRow]
+      · simp only [hs, ↓reduceIte, Option.bind_some, resolve]
+        unfold blockTarget RootEndpointAddress.targetRow
+        split <;> rfl
+    · simp [query, valid, hv, hn, RootEndpointAddress.query, he]
+  · have hv' : ScheduleBits.validate k a.raw = false := by simpa using hv
+    simp [query, valid, hv']
 
 /-- Rejected inputs cannot reach endpoint lookup. -/
 theorem query_eq_none_of_not_valid (k : ℕ) (a : Input) (ha : valid k a = false) :

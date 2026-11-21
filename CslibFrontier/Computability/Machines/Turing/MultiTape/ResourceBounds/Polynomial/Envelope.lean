@@ -42,4 +42,17 @@ theorem exists_le_self_pow {α : Type*} {size u : α → ℕ} (h : PolyBounded s
     _ = (c * 2 ^ d) * size a ^ d := by rw [Nat.mul_pow, Nat.mul_assoc]
     _ ≤ (c * 2 ^ d + d) * size a ^ (c * 2 ^ d + d) := by gcongr <;> omega
 
+/-- A fixed number of passes over a long word can be added to computations polynomial in
+a separate positive size, with one constant and degree independent of the input. -/
+theorem exists_le_linear_add_pow {α : Type*} {size u : α → ℕ} (hu : PolyBounded size u)
+    (raw : α → ℕ) (passes : ℕ) (hsize : ∀ a, 1 ≤ size a) :
+    ∃ c d, ∀ a, passes * raw a + u a ≤ c * (raw a + size a ^ d + 1) := by
+  obtain ⟨d, hd⟩ := hu.exists_le_self_pow
+  refine ⟨passes + d, d, fun a => ?_⟩
+  calc
+    _ ≤ passes * raw a + d * size a ^ d := Nat.add_le_add_left (hd a (hsize a)) _
+    _ ≤ (passes + d) * (raw a + size a ^ d + 1) := by
+      rw [Nat.add_mul]
+      exact Nat.add_le_add (Nat.mul_le_mul_left _ (by omega)) (Nat.mul_le_mul_left _ (by omega))
+
 end Turing.MultiTapeTM.PolyBounded

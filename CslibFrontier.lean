@@ -3096,12 +3096,18 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RelativeScanSchedule
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootDecision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootDecisionCorrect
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointAddress
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointAlgorithm
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointFinish
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointQuery
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointResolveShort
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleBits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleColumn
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleCounter
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleDecode
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointAnswer
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointComplexity
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointDispatch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointEncoded
@@ -3109,6 +3115,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointOutput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointQuery
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointSelector
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleEndpointTransport
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleRead
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleReadCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleReadPort

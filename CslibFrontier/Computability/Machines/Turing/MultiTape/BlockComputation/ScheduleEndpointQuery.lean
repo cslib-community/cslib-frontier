@@ -102,29 +102,34 @@ theorem query_rows {k q : ℕ} (σ : MultiTapePTM.Schedule k q) (i : Fin q)
   rw [← RelativeScanSchedule.movements_eq_drop]
   exact congrArg some (RelativeScan.evaluate_next σ i h d)
 
+/-- An admitted input is the row encoding of a schedule with an in-range head, port and
+interval. This gives subsequent endpoint proofs the same witnesses used by the validator. -/
+theorem exists_rows_of_valid (k : ℕ) (a : Input) (hv : valid k a = true) :
+    ∃ (q : ℕ) (σ : MultiTapePTM.Schedule k q) (i : Fin q) (h : Fin k) (d : Fin 3),
+      a = ⟨ScheduleBits.rows (List.ofFn σ), 3 * h.val + d.val, i.val⟩ := by
+  obtain ⟨hc, hs, hi⟩ := (valid_eq_true_iff k a).mp hv
+  obtain ⟨rs, hr⟩ := hc.exists_rows
+  let σ : MultiTapePTM.Schedule k rs.length := fun j => rs[j.val]
+  have hσ : List.ofFn σ = rs := List.ofFn_getElem
+  have hraw : ScheduleBits.rows (List.ofFn σ) = a.raw := by rw [hσ]; exact hr
+  have hlen : a.raw.length / (2 * (k + 1)) = rs.length := by
+    rw [← hr, ScheduleBits.length_rows]
+    exact Nat.mul_div_cancel_left rs.length (by omega)
+  let i : Fin rs.length := ⟨a.interval, by omega⟩
+  let h : Fin k := ⟨a.selector / 3, by omega⟩
+  let d : Fin 3 := ⟨a.selector % 3, Nat.mod_lt _ (by decide)⟩
+  have he : 3 * h.val + d.val = a.selector := by dsimp [h, d]; omega
+  refine ⟨_, σ, i, h, d, ?_⟩
+  cases a
+  simp_all only [i]
+
 /-- The outer option recognizes exactly valid requests, so decoding and extraction introduce
 no additional rejection cases. In particular, valid exhaustion is distinct from invalid input. -/
 theorem query_isSome (k : ℕ) (a : Input) : (query k a).isSome = valid k a := by
   cases hv : valid k a with
   | false => simp [query_eq_none_of_not_valid k a hv]
   | true =>
-    obtain ⟨hc, hs, hi⟩ := (valid_eq_true_iff k a).mp hv
-    obtain ⟨rs, hr⟩ := hc.exists_rows
-    let σ : MultiTapePTM.Schedule k rs.length := fun j => rs[j.val]
-    have hσ : List.ofFn σ = rs := List.ofFn_getElem
-    have hraw : ScheduleBits.rows (List.ofFn σ) = a.raw := by rw [hσ]; exact hr
-    have hlen : a.raw.length / (2 * (k + 1)) = rs.length := by
-      rw [← hr, ScheduleBits.length_rows]
-      exact Nat.mul_div_cancel_left rs.length (by omega)
-    let i : Fin rs.length := ⟨a.interval, by omega⟩
-    let h : Fin k := ⟨a.selector / 3, by omega⟩
-    let d : Fin 3 := ⟨a.selector % 3, Nat.mod_lt _ (by decide)⟩
-    have he : 3 * h.val + d.val = a.selector := by dsimp [h, d]; omega
-    have hq := query_rows σ i h d
-    have ha : (⟨ScheduleBits.rows (List.ofFn σ), 3 * h.val + d.val, i.val⟩ : Input) = a := by
-      cases a
-      simp_all only [i]
-    rw [ha] at hq
-    simp [hq]
+    obtain ⟨q, σ, i, h, d, rfl⟩ := exists_rows_of_valid k a hv
+    simp [query_rows]
 
 end Turing.MultiTapeTM.ScheduleEndpointQuery
