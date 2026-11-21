@@ -19,11 +19,12 @@ import Mathlib.Tactic.Ring
 The construction in the proof of Theorem 5 of [Datta2003] (arXiv:math/0301001, statement p. 4,
 proof pp. 4–6). Let `F₀, …, F_{m-1}` be polynomials in `n` variables and let `d_ij` be the degree
 of `xᵢ` in `F_j` (`MvPolynomial.degreeOf`). There is a game with three players, Alice, Bob and
-Critter, with `n + 1`, `D − m + 1` and `D + 1` pure strategies, where
-`D = ∑ⱼ (∏ᵢ (1 + d_ij) − 1)` is the number of chain equations (`chainLength`). Its totally mixed
-Nash equilibria are the points `x` of the open simplex `{x | 0 < xᵢ, ∑ xᵢ < 1}` with `F_j(x) = 0`,
-encoded together with the intermediate values of Horner's rule and, when `m > n`, `m − n` free
-probabilities of Critter.
+Critter. When every `F_j` involves a variable, they have `n + 1`, `D − m + 1` and `D + 1` pure
+strategies, where `D = ∑ⱼ (∏ᵢ (1 + d_ij) − 1)` is the number of chain equations (`chainLength`);
+a constant `F_j` contributes no chain equation but still gives Critter a strategy. For any `F`,
+its totally mixed Nash equilibria are the points `x` of the open simplex `{x | 0 < xᵢ, ∑ xᵢ < 1}`
+with `F_j(x) = 0`, encoded together with the intermediate values of Horner's rule and, when
+`m > n`, `m − n` free probabilities of Critter.
 
 ## Horner's rule
 
@@ -61,8 +62,9 @@ strategies (`Strat`) are:
 
 Critter's equation for a node is its chain equation, and for `j` the chain equation of the root of
 `F_j` (`rootEq`). Bob's equation for a node and, for `j < min(m, n)`, Alice's equation for `j` fix
-Critter's corresponding probability at `1 / (D + 1)`, one over Critter's number of strategies
-(`critterWeight`). Alice's remaining equations are `0`.
+Critter's corresponding probability at `critterWeight F`, one over Critter's number
+`|bobNodes F| + m + 1` of strategies. This is `1 / (D + 1)` when every `F_j` involves a variable.
+Alice's remaining equations are `0`.
 
 ## Choices where the source is not explicit
 
@@ -81,7 +83,9 @@ Critter's corresponding probability at `1 / (D + 1)`, one over Critter's number 
 ## Source repairs
 
 * **Critter's fixed probabilities.** Datta sets them at `1 / D` (p. 6). When `m ≤ n` all `D` of
-  them are fixed, so Critter's reference strategy gets probability `0`. Here they are `1 / (D + 1)`.
+  them are fixed, so Critter's reference strategy gets probability `0`. Here they are one over
+  Critter's number of strategies (`critterWeight`), which is `1 / (D + 1)` when every `F_j`
+  involves a variable.
 * **The value of `D`.** The paper's chain for `F_j` has `∏ᵢ (1 + d_ij) − 1` equations (p. 6), so
   the `m` chains have `∑ⱼ (∏ᵢ (1 + d_ij) − 1)` equations. The paper calls this number
   `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, which is larger by `m − 1` (`chainLength_add`); the two agree when
@@ -388,8 +392,10 @@ noncomputable abbrev scale (F : Fin m → MvPolynomial (Fin n) ℝ) (j : Fin m) 
 noncomputable abbrev shift (F : Fin m → MvPolynomial (Fin n) ℝ) (j : Fin m) : ℝ :=
   -coeffBound (F j)
 
-/-- The probability `1 / (D + 1)` at which Critter's coordinates are fixed: one over Critter's
-number of pure strategies. -/
+/-- The probability `1 / (|bobNodes F| + m + 1)` at which Critter's coordinates are fixed: one
+over Critter's number of pure strategies. When every `F j` involves a variable this is
+`1 / (D + 1)` with `D = chainLength F` (`card_bobNodes_add`); for `n = m = 1` and `F₀ = 0` there
+are no chain equations, Critter has `2` strategies and the weight is `1 / 2`. -/
 noncomputable abbrev critterWeight (F : Fin m → MvPolynomial (Fin n) ℝ) : ℝ :=
   1 / (#(bobNodes F) + m + 1)
 
@@ -681,13 +687,14 @@ theorem bobWeight_mem {x : Fin n → ℝ} (hx : ∀ i, 0 < x i) (hx1 : ∑ i, x 
 /-! ### The totally mixed equilibria -/
 
 /-- **Datta's three-player construction** (proof of Theorem 5 of [Datta2003], with Critter's
-probabilities repaired to `1 / (D + 1)`). The totally mixed Nash equilibria of `game F` are the
-profiles `simplexProfile q` such that:
+probabilities repaired to `critterWeight F`, one over its number of strategies). The totally
+mixed Nash equilibria of `game F` are the profiles `simplexProfile q` such that:
 * Alice's weights `x = q ∘ aCoord` lie in the open simplex and solve every `F j = 0`;
 * Bob plays each non-root node `(k, e)` of `F j` with probability `(horner (F j) x k e − δ) / s`,
   the rescaled intermediate value of Horner's rule;
-* Critter plays `1 / (D + 1)` on its strategies for Bob's nodes and for the equations `j < n`;
-* Critter's remaining weights are positive, and all of Critter's weights sum to less than `1`. -/
+* Critter plays `critterWeight F` on its strategies for Bob's nodes and for the equations
+  `j < n`;
+* Critter's remaining weights are positive, and its non-reference weights sum to less than `1`. -/
 theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
     (game F).IsTotallyMixedNash (simplexProfile q) ↔
       ((∀ i, 0 < q (aCoord i)) ∧ ∑ i, q (aCoord i) < 1 ∧

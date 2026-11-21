@@ -395,7 +395,7 @@ every `F j`, the totally mixed Nash equilibria of the three-player game are the 
 * Bob plays each monomial `xᵉ / K`, `e ∈ E`;
 * Critter plays `1 / (number of Critter's strategies)` on its strategies for the exponent vectors
   and for the equations `j < n`;
-* Critter's remaining weights are positive, and all of Critter's weights sum to less than `1`.
+* Critter's remaining weights are positive, and its non-reference weights sum to less than `1`.
 
 `sparseTable F` is the smallest such table (`isLowerSet_sparseTable`,
 `support_subset_sparseTable`, `sparseTable_subset`). -/
