@@ -99,8 +99,8 @@ private theorem mixed_all_simulated (C : QuantumSigningForger) (s : Level) (H : 
     · rw [step rfl rfl]
       simp [signingCommand, OracleComp.sumHandler, StateT.lift, simulated, pmf_norm]
     · rw [step rfl rfl]
-      simp only [signingCommand, OracleComp.sumHandler, PMF.bind_map, Function.comp_def,
-        simulated, G]
+      simp only [signingCommand, deviceCommand, OracleComp.sumHandler, PMF.bind_map,
+        Function.comp_def, simulated, G]
     · simp only [mixed, prefixRun, prefixInteraction, cut, PFunctor.FreeM.pure_eq_pure,
         OracleComp.run_interpret_pure, PMF.monad_pure_eq_pure, PMF.pure_bind, resumeProgram]
 

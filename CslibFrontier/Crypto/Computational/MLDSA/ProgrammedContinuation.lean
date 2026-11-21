@@ -39,7 +39,7 @@ private noncomputable def simulated (C : QuantumSigningForger) (s : Level) (H : 
   | .liftBind (.inl coin) k, D, dev, log =>
     (ProbComp.unifOracle coin).bind fun i => simulated C s H A sk pk (k i) D dev log
   | .liftBind (.inr (.inl cmd)) k, D, dev, log =>
-    (C.deviceCommand (H.withDigestRegister s D) cmd dev).bind fun (r, next) =>
+    (C.deviceCommand (H.withDigestRegister s D) cmd (dev, log)).bind fun (r, next, _) =>
       simulated C s H A sk pk (k r) D next log
   | .liftBind (.inr (.inr q)) k, D, dev, log =>
     registerRequest s H A sk q D false fun T r =>
@@ -65,9 +65,9 @@ private theorem simulated_eq_run (C : QuantumSigningForger) (s : Level) (H base 
     · change (ProbComp.unifOracle coin).bind _ = _
       simp only [PMF.bind_map, Function.comp_def]
       exact congrArg (PMF.bind _ ·) (funext fun i => ih i D dev st current)
-    · simp only [programmedCommands, OracleComp.sumHandler, PMF.bind_map, Function.comp_def,
-        current]
-      change (C.deviceCommand _ cmd dev).bind _ = _
+    · change (C.deviceCommand (H.withDigestRegister s D) cmd (dev, st.log)).bind _ = _
+      simp only [programmedCommands, deviceCommand, OracleComp.sumHandler, PMF.bind_map,
+        Function.comp_def, current]
       apply congrArg (PMF.bind _ ·)
       funext ⟨r, next⟩
       exact ih r D next st current
@@ -145,7 +145,7 @@ private theorem simulated_readout (C : QuantumSigningForger) (s : Level) (H : Xo
     · exact ⟨POVM.mixture (ProbComp.unifOracle coin) (fun i => M i D log), fun d => by
         simp only [simulated, law, observe, POVM.measureDensity_mixture]⟩
     · simp only [simulated]
-      exact device_readout G cmd _ (fun r => ⟨M r D log, law r D log⟩)
+      exact device_readout G cmd log _ (fun r => ⟨M r D log, law r D log⟩)
     · by_cases big : 255 < q.context.length
       · exact ⟨M none D (q.logReply none log), fun d => by
           simp only [simulated, registerRequest, big, ↓reduceIte, law]⟩
@@ -183,7 +183,7 @@ private theorem simulated_gap (C : QuantumSigningForger) (s : Level) (H : Xofs)
       let K y := H.withDigestRegister s (W y)
       let left y r st := C.simulated s H A sk pk (k r) (W y) st log
       let right (_ : Mask s) r st := C.simulated s H A sk pk (k r) D st log
-      apply (device_meanGap_le μ G K cmd left right d
+      apply (device_meanGap_le μ G K cmd left right d log
         (Q := 4 * √δ) (B := qH * (4 * √δ) + n * δ + 2 * δ)
         (fun y r => C.simulated_readout s H A sk pk (k r) (W y) log) ?_ ?_).trans_eq
       · rw [Nat.cast_add]

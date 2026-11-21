@@ -181,17 +181,17 @@ private theorem mean_query_gap_of_root {C : QuantumSigningForger} {ι : Type} [F
         ((M y).densityProb_nonneg (stepState T d).isDensityMatrix.posSemidef true)]
     simpa only [born, mul_pow, Real.sq_sqrt hn, show (2 : ℝ) ^ 2 = 4 by norm_num] using bound
 
-private theorem device_meanGap_le {C : QuantumSigningForger} {ι : Type} [Fintype ι]
+private theorem device_meanGap_le {C : QuantumSigningForger} {ι σ : Type} [Fintype ι]
     (μ : PMF ι) (base : Xofs) (write : ι → Xofs) (cmd : DeviceRequest (Width C) Empty)
-    (a b : ι → List Bool → Device C → Game) (d : Device C) {Q B : ℝ}
+    (a b : ι → List Bool → Device C → Game) (d : Device C) (s : σ) {Q B : ℝ}
     (readout : ∀ y r, ∃ M : Test C, ∀ st, a y r st = observe M st)
     (coherent : ∀ M : ι → Test C,
       PMF.meanAbsDiffAt μ true (fun y => observe (M y) (stepState (write y) d))
         (fun y => observe (M y) (stepState base d)) ≤ Q)
     (tail : ∀ r st, PMF.meanAbsDiffAt μ true (fun y => a y r st) (fun y => b y r st) ≤ B) :
     PMF.meanAbsDiffAt μ true
-      (fun y => (C.deviceCommand (write y) cmd d).bind fun (r, st) => a y r st)
-      (fun y => (C.deviceCommand base cmd d).bind fun (r, st) => b y r st) ≤
+      (fun y => (C.deviceCommand (write y) cmd (d, s)).bind fun (r, st, _) => a y r st)
+      (fun y => (C.deviceCommand base cmd (d, s)).bind fun (r, st, _) => b y r st) ≤
       (isXofQuery (.inr (.inl cmd))).toNat * Q + B := by
   cases cmd with
   | service op _ => exact op.elim
@@ -247,7 +247,7 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
     · simp only [scored_device (C := C) (cmd := cmd) (k := k)]
       let left y r dev := scored (k r) (write y) (sign' y) (test' y) dev log tape
       let right y r dev := scored (k r) base sign (test y) dev log tape
-      apply (device_meanGap_le μ base write cmd left right d
+      apply (device_meanGap_le μ base write cmd left right d log
         (B := m * Q + n * S + T) (fun y r => scored_readout ..) (coherent d) ?_).trans_eq
       · rw [Nat.cast_add]
         ring

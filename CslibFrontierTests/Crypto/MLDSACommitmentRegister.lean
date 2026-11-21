@@ -259,7 +259,7 @@ example (s : Level) (H : Xofs) (seed : FixedBytes 32) (keys : KeyPair)
       let δ := (commitmentGuessProbability s.params (by cases s <;> decide) pair.A).toReal
       ∑ y, (μ y).toReal * |(win (Function.update D (maskCommitmentAddress s pair.A m y) 0) : ℝ) -
         win D| ≤ 4 * √δ + 4 * δ := by
-  obtain ⟨rho, pair, mat, pk, _, h₁, h₂⟩ := privateKey_of_keyGen kg
+  obtain ⟨rho, pair, mat, pk, _, h₁, h₂, _⟩ := privateKey_of_keyGen kg
   refine ⟨rho, pair, mat, pk, ?_⟩
   intro C win μ δ
   simpa only [win, μ, δ, Nat.cast_one, mul_one, Nat.cast_ofNat, show (2 : ℝ) + 2 = 4 by norm_num]
