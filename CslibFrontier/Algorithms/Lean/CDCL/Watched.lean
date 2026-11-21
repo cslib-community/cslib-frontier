@@ -860,16 +860,7 @@ theorem solveWatched_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT
     exact hcert
 
 /-- **The watched solver decides satisfiability.** -/
-theorem isSat_solveWatched_iff (φ : CNF ℕ) : (solveWatched φ).isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : solveWatched φ with
-    | sat σ => exact ⟨σ, solveWatched_sat hs⟩
-    | unsat cert => simp [hs, DPLL.Result.isSat] at h
-  · intro h
-    cases hs : solveWatched φ with
-    | sat σ => rfl
-    | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveWatched_unsat hs))
+theorem isSat_solveWatched_iff (φ : CNF ℕ) : (solveWatched φ).isSat = true ↔ φ.Satisfiable :=
+  DPLL.Result.isSat_iff (fun _ => solveWatched_sat) (fun _ => solveWatched_unsat)
 
 end Cslib.Algorithms.Lean.CDCL
