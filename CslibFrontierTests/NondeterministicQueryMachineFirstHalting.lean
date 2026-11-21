@@ -57,7 +57,7 @@ example : ∃ choices : List Bool, choices = [] ∧
 private def readVerdict : QueryMachine (Option Bool) where
   init := none
   query _ := 0
-  next := fun (_, read) => some (read.getD false)
+  next := fun (_, read) => some (read.getD true)
   halted := Option.isSome
   emit _ := []
   finish _ := []
