@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexParameters
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.CallBounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.Offset
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
@@ -22,12 +23,12 @@ existing reader. The offset remains fixed even when a query is past the end of t
 
 ## Main results
 
-* `runFrom_eq`: exact agreement with the existing reader on `word.drop offset`.
+* `runFrom_loaded`: validated runtime loads agree with the existing reader on `word.drop offset`.
 * `query_loaded`, `halted_loaded_iff`: query positions and exactly `Nat.size N` attempted reads.
 * `result_loaded`, `suffix_loaded`: the existing canonical codec's prefix and suffix contract.
 * `length_loaded_le`: all-clock encoded state, charging the offset and reader parameters.
-* `load_inSpace` and the five component certificates: actual native scalar operations, uniform
-  in the offset, dimension and claimed width.
+* `load_inSpace`: actual native parameter preparation and offset attachment. The callee
+  specializes the shared `QueryMachine.withOffset` and its five native component certificates.
 * `call_loaded`: the existing same-input call interface returns this callee's final state.
 
 This is original deterministic supplied-word infrastructure for
@@ -53,15 +54,11 @@ structure Request where
 /-- Framed binary offset followed by the existing parameter encoding. -/
 enc_structure encRequest : Request where offset : encNat, parameters : encParameters
 
-/-- Retained call context; it contains no part of the supplied word. -/
-structure Context where
-  /-- Unchanging absolute position of the first ID bit. -/
-  offset : ℕ
-  /-- Existing scalar ID registers. -/
-  reader : State
+/-- The shared located state specialized to the existing ID registers. -/
+abbrev Context := QueryMachine.Located State
 
-/-- Framed binary offset followed by the existing reader-state encoding. -/
-enc_structure encContext : Context where offset : encNat, reader : encState
+/-- Framed binary offset followed by the existing reader-state encoding; words are unchanged. -/
+abbrev encContext := QueryMachine.encLocated State encState
 
 /-- Runtime arguments occupy logarithmic binary space, even for an invalid claimed width. -/
 theorem length_encRequest_le (r : Request) :
@@ -78,30 +75,13 @@ theorem length_encRequest_le (r : Request) :
 
 /-- An offset callee, entered using `runFrom` or a same-input state-returning call.
 The default initial state is only a zero-dimensional reader at offset zero. -/
-@[expose] def callee : QueryMachine Context where
-  init := ⟨0, (machine 0).init⟩
-  query s := s.offset + (machine 0).query s.reader
-  next p := ⟨p.1.offset, (machine 0).next (p.1.reader, p.2)⟩
-  emit _ := []
-  halted s := (machine 0).halted s.reader
-  finish s := (machine 0).finish s.reader
+@[expose] def callee : QueryMachine Context := (machine 0).withOffset
 
 /-- Loading succeeds exactly when existing parameter preparation succeeds. -/
 theorem load_eq_some_iff (r : Request) (s : Context) :
-    load r = some s ↔ s.offset = r.offset ∧ prepare r.parameters = some s.reader := by
+    load r = some s ↔ s.offset = r.offset ∧ prepare r.parameters = some s.inner := by
   cases s
-  simp [load, Option.map_eq_some_iff, Context.mk.injEq, eq_comm, and_comm]
-
-/-- Shifting query indices is exactly reading a dropped view of the same original word. -/
-theorem runFrom_eq (w : List Bool) (offset : ℕ) (s : State) (t : ℕ) :
-    callee.runFrom w ⟨offset, s⟩ t =
-      ⟨offset, (machine 0).runFrom (w.drop offset) s t⟩ := by
-  induction t with
-  | zero => rfl
-  | succ t ih =>
-    rw [QueryMachine.runFrom_succ, ih, QueryMachine.runFrom_succ]
-    simp only [QueryMachine.step, QueryMachine.read, callee, List.getElem?_drop]
-    split <;> simp_all
+  simp [load, Option.map_eq_some_iff, QueryMachine.Located.mk.injEq, eq_comm, and_comm]
 
 /-- A valid runtime load reuses the fixed-dimension reader verbatim. -/
 theorem runFrom_loaded (r : Request) (s : Context) (h : load r = some s)
@@ -113,7 +93,7 @@ theorem runFrom_loaded (r : Request) (s : Context) (h : load r = some s)
   | mk offset reader =>
     dsimp only at ho hp
     subst offset
-    rw [runFrom_eq, runFrom_prepare r.parameters reader hp]
+    rw [callee, QueryMachine.withOffset_runFrom, runFrom_prepare r.parameters reader hp]
 
 /-- Every live query uses the absolute offset plus the current cursor. -/
 theorem query_loaded (r : Request) (s : Context) (h : load r = some s)
@@ -132,7 +112,7 @@ theorem halted_loaded_iff (r : Request) (s : Context) (h : load r = some s)
 /-- Final optional rank agrees with the existing canonical prefix decoder; invalid ranks and
 missing bits remain rejection, without wrapping a rank into `Fin`. -/
 theorem result_loaded (r : Request) (s : Context) (h : load r = some s) (w : List Bool) :
-    result (callee.runFrom w s r.parameters.dimension.size).reader =
+    result (callee.runFrom w s r.parameters.dimension.size).inner =
       (Cslib.DoubleCounting.Scan.Binary.decodeVertex (N := r.parameters.dimension)
         ((w.drop r.offset).take r.parameters.dimension.size)).map Fin.val := by
   rw [runFrom_loaded r s h]
@@ -141,7 +121,7 @@ theorem result_loaded (r : Request) (s : Context) (h : load r = some s) (w : Lis
 /-- The untouched suffix begins at offset plus measured width. This is exactly the existing
 prefix decoder's suffix, including when decoding fails. No suffix is stored in the callee. -/
 theorem suffix_loaded (r : Request) (s : Context) (h : load r = some s) (w : List Bool) :
-    (result (callee.runFrom w s r.parameters.dimension.size).reader).map
+    (result (callee.runFrom w s r.parameters.dimension.size).inner).map
       (fun n => (n, w.drop (r.offset + r.parameters.dimension.size))) =
     (Cslib.DoubleCounting.Scan.Binary.readVertex (N := r.parameters.dimension)
       (w.drop r.offset)).map (fun p => (p.1.val, p.2)) := by
@@ -155,11 +135,12 @@ theorem length_loaded_le (r : Request) (s : Context) (h : load r = some s)
     (encContext (callee.runFrom w s t)).length ≤
       2 * (Nat.log2 r.offset + 1) + 8 * (Nat.log2 r.parameters.dimension + 1) + 10 := by
   obtain ⟨_, hp⟩ := (load_eq_some_iff r s).mp h
-  have hr := runFrom_length_le r.parameters s.reader hp (w.drop r.offset) t
-  rw [runFrom_prepare r.parameters s.reader hp] at hr
+  have hr := runFrom_length_le r.parameters s.inner hp (w.drop r.offset) t
+  rw [runFrom_prepare r.parameters s.inner hp] at hr
   have ho := length_encNat_le_log2 (le_refl r.offset)
   rw [runFrom_loaded r s h]
-  simp only [encContext_apply, encContextFields, length_encPair]
+  rw [QueryMachine.length_encLocated]
+  dsimp only
   omega
 
 /-- Uniform native load: parameter preparation is shared, and only a binary offset is attached. -/
@@ -169,44 +150,10 @@ theorem load_inSpace : ComputableInSpace load encRequest (encOption encContext)
   have hp := budget_comp_linear prepare_inSpace (encRequest_parameters_budget hid)
   have ho := encRequest_offset_budget (fst encRequest encState)
   have hs := snd encRequest encState
-  have hsome := budget_optionSome (encContext_mk_budget ho hs)
+  have hsome := budget_optionSome (QueryMachine.encLocated_mk_budget State encState ho hs)
   have hnone := budget_const (encIn := encRequest) (encB := encOption encContext) none (.refl _)
   exact (budget_comp_linear (optionElimSnd hnone hsome) (budget_prod hid hp)).of_enc_eq
     fun r => by cases hp : prepare r.parameters <;> simp [load, hp]
-
-/-- Actual native offset addition for querying the original input. -/
-theorem query_inSpace : ComputableInSpace callee.query encContext encNat
-    (fun s => (encContext s).length) := by
-  have hid := of_inO (ComputableInO.of_eq (encIn := encContext) (encMid := encContext) fun _ => rfl)
-  exact budget_natAdd (encContext_offset_budget hid)
-    (budget_comp_linear (VertexReader.query_inSpace 0) (encContext_reader_budget hid))
-
-/-- Actual native reader transition, retaining the binary offset. -/
-theorem next_inSpace : ComputableInSpace callee.next (QueryMachine.encStateRead encContext)
-    encContext (fun p => (QueryMachine.encStateRead encContext p).length) := by
-  have hc := fst encContext (encOption encBool)
-  have hb := snd encContext (encOption encBool)
-  have hr := budget_comp_linear (VertexReader.next_inSpace 0)
-    (budget_prod (encContext_reader_budget hc) hb)
-  exact encContext_mk_budget (encContext_offset_budget hc) hr
-
-/-- The native halt check reuses the reader's width comparison. -/
-theorem halted_inSpace : ComputableInSpace callee.halted encContext encBool
-    (fun s => (encContext s).length) := by
-  change ComputableInSpace (fun s : Context => (machine 0).halted s.reader) _ _ _
-  exact budget_comp_linear (VertexReader.halted_inSpace 0)
-    (encContext_reader_budget (of_inO (ComputableInO.of_eq fun _ => rfl)))
-
-/-- No callee output stream is retained. -/
-theorem emit_inSpace : ComputableInSpace callee.emit (QueryMachine.encStateRead encContext)
-    encBits (fun p => (QueryMachine.encStateRead encContext p).length) := budget_const [] (.refl _)
-
-/-- Native finalization reuses the reader's range/truncation check. -/
-theorem finish_inSpace : ComputableInSpace callee.finish encContext encBits
-    (fun s => (encContext s).length) := by
-  change ComputableInSpace (fun s : Context => (machine 0).finish s.reader) _ _ _
-  exact budget_comp_linear (VertexReader.finish_inSpace 0)
-    (encContext_reader_budget (of_inO (ComputableInO.of_eq fun _ => rfl)))
 
 /-- A same-input caller resumes with the exact final offset-reader state, after one entry step,
 the measured number of reads, and one return step. -/
@@ -226,7 +173,7 @@ theorem call_loaded {σ : Type} (M : QueryMachine σ) (request : σ → Option C
     · exact False.elim (by have := (halted_loaded_iff r s h w i).mp hh; omega)
   · exact (halted_loaded_iff r s h w _).mpr le_rfl
 
-/-- Every physical clock of a same-input call charges both the suspended caller and the full
+/-- Every query-machine step of a same-input call charges both the suspended caller and the full
 callee context. The reader contribution is logarithmic in offset and dimension. -/
 theorem call_length_le {σ : Type} (M : QueryMachine σ) (request : σ → Option Context)
     (resume : σ → Context → σ) (r : Request) (s : Context) (h : load r = some s)
