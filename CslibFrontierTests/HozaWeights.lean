@@ -22,11 +22,11 @@ private theorem valuation_four : padicValNat 2 4 = 2 := by
   rw [Nat.maxPowDvdDiv_of_pow_mul_eq (by decide) (show 2 ^ 2 * 1 = 4 by decide) (by decide)]
 
 example : coefficient 4 (0 : Fin 2) = 216 := by
-  rw [coefficient, valuation_four]
+  rw [coefficient, scaleAccumulatedWeight, valuation_four]
   decide
 
 example : coefficient 4 (1 : Fin 2) = 36 := by
-  rw [coefficient, valuation_four]
+  rw [coefficient, scaleAccumulatedWeight, valuation_four]
   decide
 
 example : vertexWeight (ℓ := 2) (fun (_ : Unit) _ => true) (fun _ => true) 0 () = 0 := rfl
