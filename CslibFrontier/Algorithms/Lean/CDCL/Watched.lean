@@ -1724,9 +1724,8 @@ theorem WExec.Inv.forgetRebuilt {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
     (S.forgetRebuilt ids).Inv ∧
       (∀ c ∈ (S.forgetRebuilt ids).exec.clauses, ¬ Trail.Falsifies (S.forgetRebuilt ids).M c) ∧
       (S.forgetRebuilt ids).measure = S.measure := by
-  have hdb : ∀ e ∈ (S.exec.forget ids).db, e ∈ S.exec.db ∧ e.1 ∉ ids := fun e he => by
-    have := List.mem_filter.1 he
-    exact ⟨this.1, by simpa using this.2⟩
+  have hdb : ∀ e ∈ (S.exec.forget ids).db, e ∈ S.exec.db ∧ e.1 ∉ ids := fun e he =>
+    Exec.mem_forget_db.1 he
   have hsub : ∀ c ∈ (S.forgetRebuilt ids).exec.clauses, c ∈ S.exec.clauses := fun c hc => by
     obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
     exact List.mem_map.2 ⟨e, (hdb e he).1, rfl⟩
@@ -1741,7 +1740,7 @@ theorem WExec.Inv.forgetRebuilt {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
     exact WatchStore.build_inv hS.assign _ fun e he _ =>
       hnoconf e.2 (List.mem_map.2 ⟨e, (hdb e he).1, rfl⟩)
   · obtain ⟨he, hid⟩ := List.mem_filter.1 he
-    exact List.mem_filter.2 ⟨hS.short_mem e he, by simpa using hid⟩
+    exact Exec.mem_forget_db.2 ⟨hS.short_mem e he, by simpa using hid⟩
   · obtain ⟨he', hid⟩ := hdb e he
     exact List.mem_filter.2 ⟨hS.short_covers e he' hlen, by simpa using hid⟩
 

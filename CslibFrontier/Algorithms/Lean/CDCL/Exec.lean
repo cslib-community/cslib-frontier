@@ -1477,7 +1477,13 @@ theorem exists_mem_lratDB {c : Clause ℕ} (hc : c ∈ φ) : ∃ e ∈ φ.lratDB
 
 /-- **Forget**: deleting the clauses numbered `ids` from the database and the log. -/
 def Exec.forget (S : Exec φ) (ids : List ℕ) : Exec φ :=
-  ⟨S.trail, S.db.filter fun e => !ids.contains e.1, S.log.delete ids⟩
+  ⟨S.trail, CNF.LRATLog.eraseIds S.db ids, S.log.delete ids⟩
+
+/-- The database after Forget: the clauses whose number is not deleted. -/
+theorem Exec.mem_forget_db {S : Exec φ} {ids : List ℕ} {e : ℕ × Clause ℕ} :
+    e ∈ (S.forget ids).db ↔ e ∈ S.db ∧ e.1 ∉ ids := by
+  change e ∈ CNF.LRATLog.eraseIds S.db ids ↔ _
+  simp [CNF.LRATLog.eraseIds_eq]
 
 /-- **Forgetting clauses** keeps the invariant, if they are not reasons of the trail, and the
 clauses of `φ` among them are satisfied by the root of the trail. The reasons kept entail the root
@@ -1490,11 +1496,10 @@ theorem Exec.forget_inv {S : Exec φ} (hS : S.Inv) {ids : List ℕ}
       ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail)))
     (hreasons : ∀ r ∈ XTrail.reasonIds S.trail, r ∉ ids) :
     (S.forget ids).Inv := by
-  have hmem : ∀ e ∈ (S.forget ids).db, e ∈ S.db ∧ e.1 ∉ ids := fun e he => by
-    have := List.mem_filter.1 he
-    exact ⟨this.1, by simpa using this.2⟩
+  have hmem : ∀ e ∈ (S.forget ids).db, e ∈ S.db ∧ e.1 ∉ ids := fun e he =>
+    Exec.mem_forget_db.1 he
   have hmem' : ∀ e ∈ S.db, e.1 ∉ ids → e ∈ (S.forget ids).db := fun e he hid =>
-    List.mem_filter.2 ⟨he, by simpa using hid⟩
+    Exec.mem_forget_db.2 ⟨he, hid⟩
   have hsub : ∀ c ∈ (S.forget ids).clauses, c ∈ S.clauses := fun c hc => by
     obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
     exact List.mem_map.2 ⟨e, (hmem e he).1, rfl⟩

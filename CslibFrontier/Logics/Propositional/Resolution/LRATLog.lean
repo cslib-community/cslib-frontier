@@ -452,24 +452,70 @@ theorem extends_addRup {log : LRATLog φ} {c : Clause ℕ} {hints : List ℕ}
   rw [show (log.next == i) = false by simp; omega]
   exact h
 
+/-- Marking each number of `ids` in `a`: a mark within the array is set when its number is in
+`ids`; the array keeps its size. -/
+private theorem getD_foldl_setTrue (ids : List ℕ) (a : Array Bool) (i : ℕ) :
+    (ids.foldl (fun a j => a.setIfInBounds j true) a).getD i false =
+      (a.getD i false || (decide (i < a.size) && ids.contains i)) := by
+  induction ids generalizing a with
+  | nil => simp
+  | cons j ids ih =>
+    rw [List.foldl_cons, ih, Array.size_setIfInBounds]
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.contains_cons]
+    by_cases hij : j = i
+    · subst hij; by_cases hi : j < a.size <;> simp [hi]
+    · simp [hij, show (i == j) = false from beq_false_of_ne (Ne.symm hij)]
+
+private theorem le_foldl_max {ids : List ℕ} {i : ℕ} :
+    ∀ m, i ∈ ids ∨ i ≤ m → i ≤ ids.foldl max m := by
+  induction ids with
+  | nil => intro m h; simpa using h
+  | cons j ids ih =>
+    intro m h
+    refine ih _ ?_
+    rcases h with h | h
+    · rcases List.mem_cons.1 h with rfl | h
+      · exact .inr (le_max_right _ _)
+      · exact .inl h
+    · exact .inr (le_max_of_le_left h)
+
+/-- **The numbered clauses `db` without those numbered in `ids`**: the clauses whose number is
+not in `ids` (`eraseIds_eq`). The numbers are marked once, in an array reaching the greatest of
+them, so that each clause is tested in constant time instead of by searching `ids`. -/
+def eraseIds (db : List (ℕ × Clause ℕ)) (ids : List ℕ) : List (ℕ × Clause ℕ) :=
+  let marks := ids.foldl (fun a i => a.setIfInBounds i true)
+    (Array.replicate (ids.foldl max 0 + 1) false)
+  db.filter fun e => !marks.getD e.1 false
+
+theorem eraseIds_eq (db : List (ℕ × Clause ℕ)) (ids : List ℕ) :
+    eraseIds db ids = db.filter fun e => !ids.contains e.1 := by
+  unfold eraseIds
+  refine List.filter_congr fun e _ => ?_
+  rw [getD_foldl_setTrue]
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate, Array.size_replicate]
+  by_cases hi : e.1 < ids.foldl max 0 + 1
+  · simp [hi]
+  · have : e.1 ∉ ids := fun h => hi (Nat.lt_succ_of_le (le_foldl_max 0 (.inl h)))
+    simp [hi, this]
+
 /-- **Deleting clauses** from the log. An empty list deletes nothing and adds no step. The index
 entries are cleared in place (`chunkClear`), so deleting a number that names no clause does not
 grow the index. -/
 def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ :=
   if ids.isEmpty then log else
   { steps := .del ids.toArray :: log.steps
-    db := log.db.filter fun e => !ids.contains e.1
+    db := eraseIds log.db ids
     next := log.next
     run := fun rest => by
       simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
-      rw [log.run]
+      rw [log.run, eraseIds_eq]
       simp [checkLRATAux]
-    lt_next := fun e he => log.lt_next e (List.mem_filter.1 he).1
-    implied := fun σ hσ e he => log.implied σ hσ e (List.mem_filter.1 he).1
-    vars_mem := fun e he => log.vars_mem e (List.mem_filter.1 he).1
+    lt_next := fun e he => log.lt_next e (List.mem_filter.1 (eraseIds_eq _ _ ▸ he)).1
+    implied := fun σ hσ e he => log.implied σ hσ e (List.mem_filter.1 (eraseIds_eq _ _ ▸ he)).1
+    vars_mem := fun e he => log.vars_mem e (List.mem_filter.1 (eraseIds_eq _ _ ▸ he)).1
     index := ids.foldl chunkClear log.index
     index_eq := fun i => by
-      rw [chunkGet_foldl_chunkClear, log.index_eq, List.find?_filter]
+      rw [chunkGet_foldl_chunkClear, log.index_eq, eraseIds_eq, List.find?_filter]
       split
       · rename_i hi
         symm
@@ -485,7 +531,7 @@ def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ :=
         · subst he; simp [hi]
         · simp [he]
     next_gt := log.next_gt
-    ordered := log.ordered.filter _ }
+    ordered := eraseIds_eq log.db ids ▸ log.ordered.filter _ }
 
 /-- Deleting clauses keeps the clauses of the numbers not deleted. -/
 theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉ ids) :
@@ -493,7 +539,7 @@ theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉
   unfold delete
   split
   · rfl
-  simp only [clause?_eq, List.find?_filter]
+  simp only [clause?_eq, eraseIds_eq, List.find?_filter]
   congr 1
   refine List.find?_congr fun e _ => ?_
   by_cases he : e.1 = i
