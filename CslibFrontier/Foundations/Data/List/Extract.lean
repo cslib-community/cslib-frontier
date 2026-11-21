@@ -28,6 +28,8 @@ concatenation of languages, split a factor at an intermediate position with it.
 * `List.extract_append_left`, `List.extract_append_right`: factors of an append that lie in one
   of its parts.
 * `List.getElem?_extract`, `List.mem_extract_iff_getElem?`: the entries of a factor by position.
+* `List.take_eq_take_append_extract`, `List.drop_eq_extract_append_drop`: a prefix or suffix split
+  at an intermediate position.
 -/
 
 public section
@@ -102,5 +104,16 @@ theorem extract_append_right {α : Type*} (l l' : List α) {a b : ℕ} (hb : b �
   by_cases ha : a ≤ l.length
   · rw [drop_append_of_le_length ha, take_append_of_le_length (by simp; omega)]
   · rw [show b - a = 0 by omega, take_zero, take_zero]
+
+/-- A prefix of a list is a shorter prefix followed by the factor between them. -/
+theorem take_eq_take_append_extract {α : Type*} (l : List α) {a b : ℕ} (hab : a ≤ b) :
+    l.take b = l.take a ++ l.extract a b := by
+  rw [extract_eq_take_drop, ← take_add, show a + (b - a) = b by omega]
+
+/-- A suffix of a list is the factor up to a later position followed by the shorter suffix. -/
+theorem drop_eq_extract_append_drop {α : Type*} (l : List α) {a b : ℕ} (hab : a ≤ b) :
+    l.drop a = l.extract a b ++ l.drop b := by
+  rw [extract_eq_take_drop, show l.drop b = (l.drop a).drop (b - a) by
+    rw [drop_drop]; congr 1; omega, take_append_drop]
 
 end List

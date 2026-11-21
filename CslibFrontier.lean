@@ -1008,6 +1008,10 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
 public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
+public import CslibFrontier.Computability.Automata.MPDA.Emptiness
+public import CslibFrontier.Computability.Automata.MPDA.EmptinessComplete
+public import CslibFrontier.Computability.Automata.MPDA.EmptinessSound
+public import CslibFrontier.Computability.Automata.MPDA.HoleDerivation
 public import CslibFrontier.Computability.Automata.MPDA.Holes
 public import CslibFrontier.Computability.Automata.MPDA.OneHole
 public import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
@@ -6801,6 +6805,7 @@ public import CslibFrontier.Foundations.Data.List.Flatten
 public import CslibFrontier.Foundations.Data.List.Fold
 public import CslibFrontier.Foundations.Data.List.FoldlIdx
 public import CslibFrontier.Foundations.Data.List.FoldrForall
+public import CslibFrontier.Foundations.Data.List.Forall2
 public import CslibFrontier.Foundations.Data.List.GetD
 public import CslibFrontier.Foundations.Data.List.IdxOf
 public import CslibFrontier.Foundations.Data.List.IdxOfIdentification
@@ -7406,6 +7411,7 @@ public import CslibFrontier.Foundations.Quantum.Register
 public import CslibFrontier.Foundations.Quantum.RegularCompression
 public import CslibFrontier.Foundations.Quantum.TensorPower
 public import CslibFrontier.Foundations.Relation.Acyclic
+public import CslibFrontier.Foundations.Relation.FiniteClosure
 public import CslibFrontier.Foundations.Relation.InductiveCounting
 public import CslibFrontier.Foundations.Relation.Layered
 public import CslibFrontier.Foundations.Relation.RelatesWithinSteps
