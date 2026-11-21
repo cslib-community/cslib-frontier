@@ -105,6 +105,45 @@ theorem sum_mul_le {α : Type*} [Fintype α] (p : PMF α) (score : α → ℝ) (
     mul_le_mul_of_nonneg_left (hscore a) ENNReal.toReal_nonneg).trans_eq
     (by rw [← Finset.sum_mul, sum_toReal, one_mul])
 
+/-- Expected absolute difference between two conditional output probabilities at `b`, when both
+kernels receive the same finite random input. -/
+@[expose] noncomputable def meanAbsDiffAt {ι β : Type*} [Fintype ι] (μ : PMF ι) (b : β)
+    (p q : ι → PMF β) : ℝ := ∑ y, (μ y).toReal * |(p y b).toReal - (q y b).toReal|
+
+/-- The probability gap after mixing is bounded by the mean conditional gap. -/
+theorem abs_bind_sub_le_meanAbsDiffAt {ι β : Type*} [Fintype ι] (μ : PMF ι) (b : β)
+    (p q : ι → PMF β) :
+    |(μ.bind p b).toReal - (μ.bind q b).toReal| ≤ meanAbsDiffAt μ b p q := by
+  simp only [bind_apply_toReal, meanAbsDiffAt, ← Finset.sum_sub_distrib, ← mul_sub]
+  simpa only [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg] using
+    Finset.abs_sum_le_sum_abs (fun y => (μ y).toReal * ((p y b).toReal - (q y b).toReal))
+      Finset.univ
+
+/-- Triangle inequality for the mean conditional probability gap. -/
+theorem meanAbsDiffAt_triangle {ι β : Type*} [Fintype ι] (μ : PMF ι) (b : β)
+    (p q r : ι → PMF β) :
+    meanAbsDiffAt μ b p r ≤ meanAbsDiffAt μ b p q + meanAbsDiffAt μ b q r := by
+  unfold meanAbsDiffAt
+  rw [← Finset.sum_add_distrib]
+  refine Finset.sum_le_sum fun y _ => ?_
+  rw [← mul_add]
+  exact mul_le_mul_of_nonneg_left (abs_sub_le ..) ENNReal.toReal_nonneg
+
+/-- A bound uniform in an independent random choice survives mixing the two kernels. -/
+theorem meanAbsDiffAt_bind_le {ι α β : Type*} [Fintype ι] [Finite α] (μ : PMF ι) (ν : PMF α)
+    (b : β) (p q : α → ι → PMF β) {B : ℝ} (bound : ∀ j, meanAbsDiffAt μ b (p j) (q j) ≤ B) :
+    meanAbsDiffAt μ b (fun y => ν.bind fun j => p j y) (fun y => ν.bind fun j => q j y) ≤ B := by
+  let _ := Fintype.ofFinite α
+  calc
+    _ ≤ ∑ y, (μ y).toReal * meanAbsDiffAt ν b (fun j => p j y) (fun j => q j y) :=
+      Finset.sum_le_sum fun y _ => mul_le_mul_of_nonneg_left
+        (abs_bind_sub_le_meanAbsDiffAt ν b _ _) ENNReal.toReal_nonneg
+    _ = ∑ j, (ν j).toReal * meanAbsDiffAt μ b (p j) (q j) := by
+      simp only [meanAbsDiffAt, Finset.mul_sum]
+      rw [Finset.sum_comm]
+      exact Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun y _ => mul_left_comm ..
+    _ ≤ B := sum_mul_le ν _ _ bound
+
 /-- Jensen's inequality `E[g]² ≤ E[g²]` for a function with values in `[0, 1]`. -/
 theorem sq_tsum_le_tsum_sq {α : Type*} (μ : PMF α) {g : α → ℝ} (h0 : ∀ a, 0 ≤ g a)
     (h1 : ∀ a, g a ≤ 1) :

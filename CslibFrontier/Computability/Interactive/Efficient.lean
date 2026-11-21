@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Interactive.Security
 public import CslibFrontier.Computability.Probabilistic.PPT
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 
 /-!
 # Efficient extractors and simulators for interactive reductions

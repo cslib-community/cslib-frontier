@@ -6,15 +6,20 @@ Authors: Karn Seth
 
 module
 
-import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme
+import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator
+import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Tests for Free-XOR garbling as a scheme family
 
-A client of `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme` under module encapsulation.
+A client of `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme`,
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient` and
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator` under module encapsulation.
 
 We build two multi-gate circuits combining AND, OR and XOR gates with the same topology and XOR
-gate positions, and check garbling, evaluation and decoding across all eight inputs.
+gate positions, verify that `phiXor` identifies them while hiding non-XOR gate truth tables, check
+garbling, evaluation and decoding across all eight inputs, and check the simulator's efficiency,
+layout and decoding.
 -/
 
 set_option linter.privateModule false
@@ -38,6 +43,13 @@ def validCircuit₁ : ValidCircuit := ⟨circuit₁, by decide⟩
 
 /-- The second circuit is valid too. -/
 def validCircuit₂ : ValidCircuit := ⟨circuit₂, by decide⟩
+
+/-- `phiXor` hides non-XOR gate truth tables while preserving topology and XOR flags. -/
+example : FreeXOR.phiXor.phi validCircuit₁ = FreeXOR.phiXor.phi validCircuit₂ := by
+  simp only [FreeXOR.phiXor, FreeXOR.XorTopology.mk.injEq, phiTopo, validCircuit₁, validCircuit₂,
+    circuit₁, circuit₂, ConventionalCircuit.topo, true_and, FreeXOR.isXorGate,
+    ← FreeXOR.isXorTable_eq]
+  decide
 
 /-- The two circuits themselves are distinct. -/
 example : validCircuit₁ ≠ validCircuit₂ := by decide
@@ -85,5 +97,48 @@ example (k : ℕ) (hk : 0 < k) (x₀ x₁ x₂ : Bool) (g : Scheme.Garbled)
       some [xor x₀ (x₀ && x₁), xor (x₀ && x₁) (x₁ || x₂)] := by
   rw [FreeXOR.scheme_correct toyHash k hk validCircuit₁ [x₀, x₁, x₂] rfl g hg]
   cases x₀ <;> cases x₁ <;> cases x₂ <;> rfl
+
+/-- The toy hash is computed in polynomial time. -/
+theorem toyHash_polyTime : Turing.MultiTapeTM.ComputableInPolyTime
+    (fun p : List Bool × List Bool => toyHash p.1 p.2)
+    (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits Turing.MultiTapeTM.encBits)
+    Turing.MultiTapeTM.encBits := by
+  polytime [toyHash]
+
+/-- Free-XOR garbling with the toy hash is efficient. -/
+example : (FreeXOR.scheme toyHash).IsEfficient encValidCircuit :=
+  FreeXOR.scheme_isEfficient toyHash_polyTime
+
+/-- Any circular correlation robust hash yields an efficient Free-XOR scheme. -/
+example {hash : List Bool → List Bool → List Bool} (h : CircularCorrelationRobust hash) :
+    (FreeXOR.scheme hash).IsEfficient encValidCircuit :=
+  FreeXOR.scheme_isEfficient h.polyTime
+
+/-- The simulator with the toy hash is PPT. -/
+example : IsPPTOn (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encUnary
+      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits FreeXOR.encXorTopology)) encPrvView
+    (fun (k, y, t) => FreeXOR.simWord toyHash k y t) :=
+  FreeXOR.isPPTOn_simWord toyHash_polyTime
+
+/-- At `k = 2`, the simulator samples `(3 + 4 + 4 · 2) · 4 = 60` coin bits for `validCircuit₁`. -/
+example : FreeXOR.simCoinLen 2 (FreeXOR.phiXor.phi validCircuit₁) = 60 := by decide
+
+/-- Fixed simulator coins for `k = 2`. -/
+def simCoins : List Bool := List.ofFn fun i : Fin 60 => decide (i.val % 5 = 2)
+
+/-- The simulated view on `simCoins` for output `[true, false]`. -/
+def simView : PrvView :=
+  FreeXOR.simViewWord toyHash 2 [true, false] (FreeXOR.phiXor.phi validCircuit₁) simCoins
+
+/-- The simulated garbled function matches the real garbled function bit length. -/
+example : simView.fn.length = garbled₁.fn.length := by
+  simp only [simView, FreeXOR.simViewWord, garbled₁, FreeXOR.scheme, FreeXOR.fnWord]
+  decide
+
+/-- The simulated view decodes to the output `[true, false]`. -/
+example : PointPermute.decodeWord simView.decInfo
+    (FreeXOR.evalWord toyHash simView.fn simView.input) = some [true, false] := by
+  simp only [simView, FreeXOR.simViewWord, FreeXOR.evalWord, PointPermute.fnDecoder.decode_enc]
+  decide
 
 end CslibFrontierTests.Crypto.GarblingFreeXORFamily

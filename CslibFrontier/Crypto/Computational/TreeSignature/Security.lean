@@ -50,9 +50,38 @@ import CslibFrontier.Tactic.EncLen
 /-!
 # Security of stateless tree signatures
 
-Stateless EUF-CMA security ([BonehShoup2023], Section 14.6.3, Theorem 14.6) for
-`TreeSignature.scheme`: combining an indexed EUF-CMA secure signature scheme `S` of capacity at
-least `2` with a pseudorandom function `F` yields a stateless many-time signature scheme.
+Steps toward stateless EUF-CMA security of `TreeSignature.scheme`, [BonehShoup2023],
+Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`. An indexed EUF-CMA secure
+signature scheme `S` of capacity at least `2`, used at indices `0` and `1` only, and a
+length-preserving pseudorandom function yield a stateless many-time signature scheme
+(`eufCMA_scheme_of_prf`). That is not Theorem 14.6, because its PRF premise is stronger than the
+source's, as explained below; the theorem itself is open (#5293).
+
+Theorem 14.6 covers a `q`-ary tree of depth `d` for poly-bounded `d` and `q` with `q ^ d`
+super-poly. The tree here is binary, so `2 ^ depth n` must be super-poly: the asymptotic theorems
+assume that `1 / 2 ^ depth n` is negligible, with `depth` computable in polynomial time. The
+source's term `Q ^ 2 / (2 q ^ d)` becomes `Q ^ 2 / 2 ^ (depth n + 1)`, and its factor `Q d`
+becomes `dyadicSize (Q * depth n)`, a power of two in `(Q d, 2 Q d]` when `Q d ≥ 1`. The tree
+for general `q` is not formalized (#5293). Besides the construction's deviations, listed in
+`CslibFrontier.Crypto.Computational.TreeSignature`, the theorems differ from the source in two ways.
+
+* The outer messages are `n`-bit, `SignatureScheme`'s message space.
+* The coins of node keys and signatures are `prfCoins family`: a length-preserving
+  `PseudorandomFunction` `family`, keyed at `coinParam budget n` bits, evaluated at the padded
+  request and truncated. The source assumes a PRF `F` defined over
+  `(K, {1, …, q} ^ {≤ d}, {0, 1} ^ w)` whose outputs are the coins (Sections 14.6.2 and 14.6.3,
+  p. 600).
+
+Using `family` at the rescaled parameter `coinParam budget n ≥ n` adds no assumption: the proof
+turns its security there into a bound negligible in `n` (`exists_negligible_treeGame_le`). The
+premise that `family` is a length-preserving PRF, on every key length and every query, is however
+stronger than the source's. It implies that the coins `prfCoins family` are pseudorandom
+(`PseudorandomFunction.coinIndistinguishable`), but the converse is not proved. The proof passes
+through the coin games `coinRealGame` and `coinIdealGame`, but these accept every request word,
+and a request of at least `N` bits reaches `family` at its first `N` bits, so they expose `family`
+on every `N`-bit input as its own PRF games do. A faithful Theorem 14.6 needs the coin games
+restricted to the tree's requests at the parameters `coinParam budget n`, and a proof that
+`treeCoinAdversary` stays in that domain.
 
 Starting from `treeGame` (`TreeSignature.scheme`'s `eufCmaGame`), the reduction proceeds in two
 steps after replacing `prfCoins F` with a uniform random function (`treeIdealGame`, proved in
@@ -93,23 +122,27 @@ function yields a stateless many-time `SignatureScheme` satisfying `EUFCMA`
   all tree request widths and seeded key/signature budgets.
 * `Cslib.Crypto.TreeSignature.isOraclePPT_indexedForger`: `indexedForger` is uniformly strict
   oracle PPT for every oracle-PPT tree forger.
+* `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`,
+  `Cslib.Crypto.OneWay.exists_eufCMA_of_hashFamily`: existential upgrades from indexed signatures
+  and a one-way function, and from a one-way function plus a collision-resistant hash family.
+
+## Steps toward Theorem 14.6 with `q = 2`
+
 * `Cslib.Crypto.TreeSignature.succProbability_treeIdealGame_le_lazy`,
   `Cslib.Crypto.TreeSignature.succProbability_lazyTreeGame_le`,
   `Cslib.Crypto.TreeSignature.succProbability_treeIdealGame_le`,
-  `Cslib.Crypto.TreeSignature.succProbability_eufCmaGame_scheme_le`: concrete Theorem 14.6
-  security bounds for `treeIdealGame`, `lazyTreeGame`, and `TreeSignature.scheme`.
-* `Cslib.Crypto.TreeSignature.eufCMA_scheme_of_inv`,
-  `Cslib.Crypto.TreeSignature.eufCMA_scheme`: stateless EUF-CMA security of `TreeSignature.scheme`
-  from `IndexedEUFCMA` and `PseudorandomFunction`.
-* `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`,
-  `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`,
-  `Cslib.Crypto.OneWay.exists_eufCMA_of_hashFamily`: existential upgrades from indexed signatures
-  and from a one-way function plus a collision-resistant hash family.
+  `Cslib.Crypto.TreeSignature.succProbability_eufCmaGame_scheme_le`: concrete bounds for
+  `treeIdealGame`, `lazyTreeGame`, and `TreeSignature.scheme`.
+* `Cslib.Crypto.TreeSignature.eufCMA_scheme_of_prf_of_inv`,
+  `Cslib.Crypto.TreeSignature.eufCMA_scheme_of_prf`: stateless EUF-CMA security of
+  `TreeSignature.scheme` from `IndexedEUFCMA` and a length-preserving `PseudorandomFunction`, a
+  premise stronger than the source's.
+* `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`: the existential form.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 14.6.3, Theorem 14.6.
+  Section 14.6.3, Theorem 14.6, p. 600.
 * [J. Rompel, *One-Way Functions are Necessary and Sufficient for Secure Signatures*][Rompel1990].
 -/
 
@@ -553,11 +586,11 @@ private theorem isOraclePPTOn_signEdgeM (S : IndexedSignatureScheme) {γ : Type}
   have hraw : IsOraclePPTOn enc encBits
       (fun a => signEdgeRaw S (keys a) (target a) (sigCap a) (idx a) (u a) (msg a)) := by
     unfold signEdgeRaw
-    exact IsOraclePPTOn.ite' (condition := fun a => idx a = target a) (by fun_prop)
-      (IsOraclePPTOn.query_take' () (by fun_prop) hsigCap)
+    exact IsOraclePPTOn.ite (condition := fun a => idx a = target a) (by fun_prop)
+      (IsOraclePPTOn.query_take () (by fun_prop) hsigCap)
       (((S.sign_ppt.preprocess
         (prepare := fun a => (((keys a).getD (idx a) ([], [])).2, u a, msg a))
-        (by fun_prop)).isOraclePPTOn (Operation := Unit)).map_with'
+        (by fun_prop)).isOraclePPTOn (Operation := Unit)).map_with
         (f := fun a σ => σ.take (sigCap a)) (by fun_prop))
   exact IsOraclePPTOn.memoize
     (compute := fun a _ => signEdgeRaw S (keys a) (target a) (sigCap a) (idx a) (u a) (msg a))
@@ -604,10 +637,28 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
     encPlantedCert
   let encMid := encPair encIn (encPair encUnary encNodeCache)
   let encEnd := encPair encMid (encPair encBits encEdgeCache)
+  have hnode : ComputableInPolyTime
+      (fun q : CertStepIn => q.2.1.1) encIn encBits := by fun_prop
+  have hleaf : ComputableInPolyTime
+      (fun q : CertStepIn => q.1.2.2) encIn encBits := by fun_prop
+  have hbit := hleaf.bitsGetDWithInput
+    (ComputableInPolyTime.length_bits.comp hnode) false
+  have hpath := ComputableInPolyTime.bitsAppend hnode
+    (ComputableInPolyTime.bitsCons hbit (.const []))
   have hvisit := isOraclePPTOn_visitNodeM (enc := encIn)
     (cap := fun (((keys, _, _), _) : CertStepIn) => keys.length)
     (path := fun ((_, _, leaf), ((node, _, _), _)) => node ++ [leaf.getD node.length false])
-    (visited := fun (_, (_, (visited, _))) => visited) (by fun_prop) (by fun_prop) (by fun_prop)
+    (visited := fun (_, (_, (visited, _))) => visited) (by fun_prop) hpath (by fun_prop)
+  have hbitNat : ComputableInPolyTime
+      (fun q : CertVisitIn => (q.1.1.2.2.getD q.1.2.1.1.length false).toNat)
+      encMid encUnary :=
+    (by fun_prop : ComputableInPolyTime Bool.toNat encBool encUnary).comp
+      (hbit.comp (ComputableInPolyTime.fst encIn (encPair encUnary encNodeCache)))
+  have hkeys : ComputableInPolyTime (fun q : CertVisitIn => q.1.1.1)
+      encMid encKeys := by fun_prop
+  have hchild : ComputableInPolyTime (fun q : CertVisitIn => q.2.1)
+      encMid encUnary := by fun_prop
+  have hmsg := (ComputableInPolyTime.listGetDWithInput hkeys hchild ([], [])).fst'
   have hsign := isOraclePPTOn_signEdgeM S (enc := encMid)
     (keys := fun ((((keys, _, _), _), _) : CertVisitIn) => keys)
     (target := fun (((_, (target, _), _), _), _) => target)
@@ -617,14 +668,26 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
     (u := fun (((_, _, leaf), ((node, _, _), _)), _) => (leaf.getD node.length false).toNat)
     (msg := fun (((keys, _, _), _), (childIdx, _)) => (keys.getD childIdx ([], [])).1)
     (edges := fun ((_, (_, (_, edges))), _) => edges)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    hkeys (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop) hbitNat hmsg (by fun_prop)
   have hpost : ComputableInPolyTime
       (fun (((((keys, _, leaf), ((node, _, certs), _)), (childIdx, visited)), (σ, edges)) :
           CertSignIn) =>
         ((node ++ [leaf.getD node.length false], childIdx,
           certs ++ [((keys.getD childIdx ([], [])).1, σ)]), (visited, edges)))
-      encEnd encPlantedCert := by fun_prop
+      encEnd encPlantedCert := by
+    have hp := ComputableInPolyTime.fst encMid (encPair encBits encEdgeCache)
+    have hinput := (ComputableInPolyTime.fst encIn (encPair encUnary encNodeCache)).comp hp
+    have hpathEnd := hpath.comp hinput
+    have hchildEnd := hchild.comp hp
+    have hmsgEnd := hmsg.comp hp
+    have hcerts : ComputableInPolyTime (fun q : CertSignIn => q.1.1.2.1.2.2)
+        encEnd (encList (encPair encBits encBits)) := by fun_prop
+    have hsig : ComputableInPolyTime (fun q : CertSignIn => q.2.1)
+        encEnd encBits := by fun_prop
+    have hcertsEnd := ComputableInPolyTime.listAppend' hcerts
+      (ComputableInPolyTime.cons' (hmsgEnd.prod hsig) (.const []))
+    exact (hpathEnd.prod (hchildEnd.prod hcertsEnd)).prod (by fun_prop)
   exact hvisit.bind_with
     (second := fun ((keys, (target, sigCap), leaf), ((node, idx, certs), (_, edges)))
         (childIdx, visited) => do
@@ -807,7 +870,7 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
   have hloopId := ComputableInPolyTime.id' (encIn := encLoopIn)
   have hpair1 := ComputableInPolyTime.fst encLoopIn encPlantedCert
   have hpair2 := ComputableInPolyTime.snd encLoopIn encPlantedCert
-  refine (IsOraclePPTOn.iterateWith_spec' (input := encLoopIn) (stateEncoding := encPlantedCert)
+  refine (IsOraclePPTOn.iterateWith_spec (input := encLoopIn) (stateEncoding := encPlantedCert)
     (count := fun a : CertLoopIn => depth a.parameter - 1)
     (initial := fun a => ((([], 0, []), a.2) : PlantedCertState))
     (step := fun (a : CertLoopIn) state =>
@@ -815,7 +878,7 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
     ((hdepth.comp hloopId.fst'.snd'.snd'.fst').unary_sub' (.const 1))
     (((ComputableInPolyTime.const []).prod ((ComputableInPolyTime.const 0).prod (.const []))).prod
       hloopId.snd')
-    ((isOraclePPTOn_certifyStepPlanted S).preprocess'
+    ((isOraclePPTOn_certifyStepPlanted S).preprocess
       (prepare := fun pair : CertLoopIn × PlantedCertState =>
         ((pair.1.keys, (pair.1.target, pair.1.sigCap), pair.1.leaf), pair.2))
       (((hpair1.fst'.fst'.prod (hpair1.fst'.snd'.fst'.prod hpair1.fst'.snd'.snd'.snd')).prod
@@ -925,7 +988,7 @@ private theorem isOraclePPTOn_plantedTreeHandler (S : IndexedSignatureScheme)
       (fun q : (ForgerCaller × ((Unit × List Bool) × PlantedState)) × List Bool => badOut q.1)
       encHL (encPair encBits encPlantedState) :=
     hbadBr.comp (ComputableInPolyTime.fst encH encBits)
-  have hcertPrep := (isOraclePPTOn_certifyPlanted S hdepth).preprocess' (input := encHL)
+  have hcertPrep := (isOraclePPTOn_certifyPlanted S hdepth).preprocess (input := encHL)
     (prepare := fun q : (ForgerCaller × ((Unit × List Bool) × PlantedState)) × List Bool =>
       (((q.1.1.2, (q.1.1.1.2, sigCap q.1.1.1.1.1), (q.1.1.1.1.1, q.2)),
         (q.1.2.2.1.1, q.1.2.2.1.2)) : CertLoopIn)) (by fun_prop)
@@ -960,13 +1023,13 @@ private theorem isOraclePPTOn_plantedTreeHandler (S : IndexedSignatureScheme)
         hpostGood.isOraclePPTOn)
   have hafterLeaf : IsOraclePPTOn encHL (encPair encBits encPlantedState)
       (fun q => afterLeaf q.1 q.2) :=
-    IsOraclePPTOn.cond' (condition := fun q => q.1.2.2.2.2.1.contains q.2) (by fun_prop)
+    IsOraclePPTOn.cond (condition := fun q => q.1.2.2.2.2.1.contains q.2) (by fun_prop)
       hcollBr.isOraclePPTOn hgoodLeaf
   have hnotBad := hleaf.bind_with (second := afterLeaf) hafterLeaf
-  have hlenEq := IsOraclePPTOn.cond' (condition := fun p => p.2.2.2.2.2) (by fun_prop)
+  have hlenEq := IsOraclePPTOn.cond (condition := fun p => p.2.2.2.2.2) (by fun_prop)
     hbadBr.isOraclePPTOn hnotBad
   simpa only [plantedTreeHandler, StateT.run, badOut, afterLeaf, goodLeaf] using
-    IsOraclePPTOn.ite' (condition := fun p => p.2.1.2.length = p.1.1.1.1) (by fun_prop)
+    IsOraclePPTOn.ite (condition := fun p => p.2.1.2.length = p.1.1.1.1) (by fun_prop)
       hlenEq hnoMsgBr.isOraclePPTOn
 
 private def plantedResourceAllowance (depth sigCap : ℕ → ℕ) (c : ForgerCaller)
@@ -1176,7 +1239,21 @@ theorem isOraclePPT_indexedForger (S : IndexedSignatureScheme) {depth slotBound 
               (t.2.1.2.1.getD t.2.2 ([], [])).2)
           else
             ((t.2.1.1.getD t.2.2 false).toNat, t.1.2.1.1, t.2.1.2.2))
-        encMid (encPair encUnary (encPair encBits encBits)) := by fun_prop
+        encMid (encPair encUnary (encPair encBits encBits)) := by
+      let T := (ForgerCaller × ((List Bool × List Bool) × PlantedState)) ×
+        (List Bool × List (List Bool × List Bool) × List Bool) × ℕ
+      have hindex : ComputableInPolyTime (fun t : T => t.2.2) encMid encUnary := by fun_prop
+      have hpath : ComputableInPolyTime (fun t : T => t.2.1.1) encMid encBits := by fun_prop
+      have hkeys : ComputableInPolyTime (fun t : T => t.2.1.2.1) encMid encKeys := by fun_prop
+      have hbit := (by fun_prop : ComputableInPolyTime Bool.toNat encBool encUnary).comp
+        (hpath.bitsGetDWithInput hindex false)
+      have hentry := ComputableInPolyTime.listGetDWithInput hkeys hindex ([], [])
+      apply ComputableInPolyTime.ite_decide
+      · fun_prop
+      · exact hbit.prod hentry
+      · exact hbit.prod ((by fun_prop :
+          ComputableInPolyTime (fun t : T => t.1.2.1.1) encMid encBits).prod
+          (by fun_prop : ComputableInPolyTime (fun t : T => t.2.1.2.2) encMid encBits))
     exact Eq.mp
       (congrArg (ComputableInPolyTime · encEx (encPair encUnary (encPair encBits encBits)))
         (funext fun pair => by dsimp only [Function.comp_apply, extractForgery]))
@@ -2762,6 +2839,16 @@ private theorem localTreeHandler_planted_step (S : IndexedSignatureScheme) (dept
   · obtain ⟨⟨σ, e'', a''⟩, hm_se, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hm_edg
     exact ⟨hroot_v', hlt_v', huniq_v', hedg_inv σ e'' a'' hm_se⟩
 
+/-- The index of an extracted forgery is a bit, so it lies below every capacity of at least `2`. -/
+private theorem extractForgery_fst_lt (d target : ℕ) (visited : NodeSlotCache)
+    (msg sig : List Bool) {cap : ℕ} (hcap : 2 ≤ cap) :
+    (extractForgery d target visited msg sig).1 < cap := by
+  unfold extractForgery
+  generalize signatureDecoder.decode sig = t
+  obtain ⟨leaf, certs, last⟩ := t
+  dsimp only
+  split_ifs <;> exact (Bool.toNat_le _).trans_lt (by omega)
+
 private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
     (depth slotBound sigCap : ℕ → ℕ) {n : ℕ} (hcap : 2 ≤ S.capacity n)
     (adversary : Forger) {target : ℕ} (htarget : target < dyadicSize (slotBound n)) :
@@ -2822,9 +2909,11 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
   have hwin := congrArg (PMF.map fun out : ((List Bool × List Bool) × PlantedState) ×
       List (ℕ × List Bool) =>
     let cand := extractForgery (depth n) front.length out.1.2.1.1 out.1.1.1 out.1.1.2
-    !out.2.contains (cand.1, cand.2.1) && S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
+    decide (cand.1 < S.capacity n) && !out.2.contains (cand.1, cand.2.1) &&
+      S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
   simp only [PMF.map_comp, Function.comp_def, plantedWin, keys,
-    List.getD_append_cons_length] at hwin ⊢
+    List.getD_append_cons_length, extractForgery_fst_lt _ _ _ _ _ hcap, decide_true,
+    Bool.true_and] at hwin ⊢
   exact hwin
 
 /-! #### Equivalence between `lazyTreeGame` and `presampledExp` -/
@@ -4003,8 +4092,9 @@ end LazyToIndexed
 
 section AsymptoticSecurity
 
-/-- **Concrete security of `treeIdealGame`** ([BonehShoup2023], Section 14.6.3, Theorem 14.6):
-combining the lazy-coin leaf-collision hybrid and the planted-node indexed-forgery reduction. -/
+/-- **Concrete security of `treeIdealGame`** (a step of the proof of [BonehShoup2023],
+Theorem 14.6): combining the lazy-coin leaf-collision hybrid and the planted-node indexed-forgery
+reduction. -/
 theorem succProbability_treeIdealGame_le (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth N slotBound sigCap : ℕ → ℕ) {n Q : ℕ}
     (hcap : 2 ≤ S.capacity n) (hdepth_pos : 1 ≤ depth n)
@@ -4030,12 +4120,14 @@ theorem succProbability_treeIdealGame_le (S : IndexedSignatureScheme) (T : S.See
       (succProbability_lazyTreeGame_le S depth slotBound sigCap hcap hdepth_pos hslot hsigCap
         adversary hq) le_rfl)
 
-/-- **Theorem 14.6 concrete security bound for `TreeSignature.scheme`**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): the forging probability of any `Q`-query forger
-against `TreeSignature.scheme` with `prfCoins family` is bounded by the PRF distinguishing
-advantage of `coinDistinguisher (treeCoinAdversary …)` at `N n`, plus `dyadicSize (slotBound n)`
-times `indexedForger`'s indexed forging probability against `S`, plus
-`(Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1)`. -/
+/-- Concrete bound for `TreeSignature.scheme` at one parameter `n`, a step toward
+[BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`, not the cited
+result: the forging probability of any `Q`-query forger against `TreeSignature.scheme` with
+`prfCoins family` is bounded by the PRF distinguishing advantage of
+`coinDistinguisher (treeCoinAdversary …)` at `N n`, plus `dyadicSize (slotBound n)` times
+`indexedForger`'s indexed forging probability against `S`, plus
+`(Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1)`. The source's terms are `Q d · iSIGadv` and
+`Q ^ 2 / (2 q ^ d)`; general `q` is not formalized (#5293). -/
 theorem succProbability_eufCmaGame_scheme_le (S : IndexedSignatureScheme) (T : S.Seeded)
     (family : List Bool → List Bool → List Bool)
     (depth N inv slotBound sigCap : ℕ → ℕ)
@@ -4092,13 +4184,16 @@ private theorem exists_sigCap_polyTime (S : IndexedSignatureScheme) :
       (hsgLen (keys.2, u, msg) σ hσ).trans
         (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (hlenB n keys hkeys u hu msg hmsg) ds))⟩
 
-/-- **Stateless EUF-CMA security of `TreeSignature.scheme` with an explicit left inverse**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): if `S` is indexed EUF-CMA secure with capacity
-at least `2`, `family` is a pseudorandom function, `N` covers all tree coin requests and has a
-polynomial-time left inverse `inv`, and `(1 : ℝ≥0) / 2 ^ depth n` is negligible, then
-`TreeSignature.scheme` is stateless EUF-CMA secure. -/
-theorem eufCMA_scheme_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
-    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
+/-- Step toward [BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case
+`q = 2`, not the cited result: its PRF premise is stronger than the source's (#5293). This is
+`eufCMA_scheme_of_prf` with a general PRF parameter `N` and an explicit left inverse: if `S` is
+indexed EUF-CMA secure with capacity at least `2`, `family` is a length-preserving pseudorandom
+function, `N` covers all tree coin requests and has a polynomial-time left inverse `inv`, and
+`(1 : ℝ≥0) / 2 ^ depth n` is negligible, then `TreeSignature.scheme` is stateless EUF-CMA secure.
+The premise and the other deviations are those of `eufCMA_scheme_of_prf`, with `N` in place of
+`coinParam budget`. -/
+theorem eufCMA_scheme_of_prf_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA)
+    (T : S.Seeded) {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {depth N inv : ℕ → ℕ}
     (hdepth : ComputableInPolyTime depth encUnary encUnary)
     (hN : ComputableInPolyTime N encUnary encUnary)
@@ -4155,10 +4250,28 @@ theorem eufCMA_scheme_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA)
     exact (hprfLe n).trans (add_le_add hideal le_rfl)
   negligible using hbound
 
-/-- **Stateless EUF-CMA security of `TreeSignature.scheme` at `coinParam budget`**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): instantiating the PRF parameter at
-`coinParam budget` eliminates the separate left-inverse hypothesis. -/
-theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
+/-- Step toward [BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case
+`q = 2`, not the cited result: its PRF premise `hF` is stronger than the source's (#5293). If `S`
+is indexed EUF-CMA secure with capacity at least `2`, used at indices `0` and `1` only, `family`
+is a length-preserving pseudorandom function, `budget` covers all tree coin requests, and
+`(1 : ℝ≥0) / 2 ^ depth n` is negligible, then `TreeSignature.scheme` with coins `prfCoins family`
+at the PRF parameter `coinParam budget n` is stateless EUF-CMA secure.
+
+Theorem 14.6 assumes only that its coin function `F`, defined over
+`(K, {1, …, q} ^ {≤ d}, {0, 1} ^ w)`, is a PRF. Here the coins are `prfCoins family`: `family` at
+the padded request, truncated. The premise `hF` asks that `family` be a PRF on every key length
+and every query. It implies that the coins are pseudorandom
+(`PseudorandomFunction.coinIndistinguishable`), but the converse is not proved. The proof passes
+through that coin indistinguishability, but over every request word and every PRF parameter, and a
+request of at least `N` bits reaches `family` at its first `N` bits, so those games expose `family`
+on every `N`-bit input as its own PRF games do. Theorem 14.6 itself needs the coin games
+restricted to the tree's requests at the parameters `coinParam budget n`. The rescaled parameter
+adds no assumption, since the proof turns the PRF's security at `coinParam budget n ≥ n` into a
+bound negligible in `n`.
+
+The other deviations: the tree is binary, so the source's condition that `q ^ d` is super-poly is
+`hdepthNeg`, and general `q` is not formalized (#5293); and the outer messages are `n`-bit. -/
+theorem eufCMA_scheme_of_prf (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {depth budget : ℕ → ℕ}
     (hdepth : ComputableInPolyTime depth encUnary encUnary)
@@ -4172,7 +4285,7 @@ theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S
     (scheme S T (prfCoins family) (coinParam budget) depth
       (computableInPolyTime_prfCoins hF.polyTime)
       (computableInPolyTime_coinParam hbudget) hdepth hcap hdepth_pos).EUFCMA :=
-  eufCMA_scheme_of_inv S hS T hF hdepth
+  eufCMA_scheme_of_prf_of_inv S hS T hF hdepth
     (computableInPolyTime_coinParam hbudget)
     (computableInPolyTime_coinParamInv hbudget)
     hcap hdepth_pos (le_coinParam budget) (coinParamInv_coinParam budget)
@@ -4182,10 +4295,13 @@ theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S
       (hsgBudget n keys hk u hu msg hm).trans (lt_coinParam budget n).le)
     hdepthNeg
 
-/-- **Stateless many-time signatures from indexed signatures and PRFs**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): any indexed EUF-CMA secure signature scheme of
-capacity at least `2` and any pseudorandom function yield a stateless EUF-CMA secure signature
-scheme. -/
+/-- Corollary of the step `eufCMA_scheme_of_prf` toward [BonehShoup2023], Section 14.6.3,
+Theorem 14.6, p. 600, with `q = 2`, not the cited result: any indexed EUF-CMA secure signature
+scheme of capacity at least `2` and any length-preserving pseudorandom function yield a stateless
+EUF-CMA secure signature scheme on `n`-bit messages. The scheme is `TreeSignature.scheme` with
+depth `n + 1`, so that `2 ^ (n + 1)` is super-poly, and coins `prfCoins family`. The premise `hF`
+is stronger than the source's PRF premise on the coins, as `eufCMA_scheme_of_prf` explains
+(#5293). -/
 theorem _root_.Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf
     {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA) (hcap : ∀ n, 2 ≤ S.capacity n)
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
@@ -4201,7 +4317,7 @@ theorem _root_.Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_o
   exact ⟨scheme S T (prfCoins family) (coinParam budget) depth
       (computableInPolyTime_prfCoins hF.polyTime)
       (computableInPolyTime_coinParam hbudget) hdepth hcap hdepth_pos,
-    eufCMA_scheme S hS T hF hdepth hbudget hcap hdepth_pos hwidth hkgB hsgB hdepthNeg⟩
+    eufCMA_scheme_of_prf S hS T hF hdepth hbudget hcap hdepth_pos hwidth hkgB hsgB hdepthNeg⟩
 
 /-- **Stateless many-time signatures from indexed signatures and one-way functions**: any indexed
 EUF-CMA secure signature scheme of capacity at least `2` and any one-way function yield a stateless

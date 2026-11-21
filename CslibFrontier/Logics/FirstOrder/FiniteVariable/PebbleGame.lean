@@ -25,7 +25,7 @@ A position is a set `S : Set (Fin k)` of placed pebble indices together with ass
 `a : Fin k → M` and `b : Fin k → N`; only the values on `S` matter (`pebbleWins_congr`). Moving
 pebble `i` to `c` and `d` gives the position `(insert i S, update a i c, update b i d)`. These are
 exactly the assignments of the `k`-variable formulas of
-`CslibFrontier.Logics.FirstOrder.FiniteVariable.Basic`, whose quantifier `all i` updates
+`CslibFrontier.Logics.FirstOrder.FiniteVariable.Basic`, whose quantifiers `ex i` and `all i` update
 variable `i`.
 
 `PebbleWins L n S a b` says that Duplicator wins the `n`-round game from the position, and
@@ -394,40 +394,57 @@ theorem _root_.FirstOrder.Language.Equiv.pebbleWins (e : M ≃[L] N) (n : ℕ) (
 
 /-! ### The easy direction of the pebble-game characterization of `FO^k` -/
 
+/-- Generic quantifier-rank induction for preserving `GenFormula` truth across a family of
+`n`-round game positions `R n S a b`. Base positions must form partial isomorphisms on `S`, and
+stepping from `n + 1` to `n` at `i` must preserve each quantifier `q : Q`. -/
+theorem FiniteVariable.GenFormula.realize_iff_of_step {Q : Type}
+    [FiniteVariable.Quantifier Q M] [FiniteVariable.Quantifier Q N]
+    (R : ℕ → Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop)
+    (h0 : ∀ {n S a b}, R n S a b → PartialIsoOn L S a b)
+    (hquant : ∀ {n S a b} (q : Q) (i : Fin k) (pM : M → Prop) (pN : N → Prop),
+      R (n + 1) S a b →
+      (∀ {c d}, R n (insert i S) (Function.update a i c) (Function.update b i d) →
+        (pM c ↔ pN d)) →
+      (FiniteVariable.Quantifier.eval q pM ↔ FiniteVariable.Quantifier.eval q pN))
+    {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} (h : R n S a b)
+    {φ : FiniteVariable.GenFormula Q L k} (hr : φ.quantifierRank ≤ n) (hS : ↑φ.freeVars ⊆ S) :
+    φ.Realize a ↔ φ.Realize b := by
+  induction φ generalizing n S a b with
+  | falsum => simp only [FiniteVariable.GenFormula.realize_falsum]
+  | equal i j =>
+    simp only [FiniteVariable.GenFormula.freeVars_equal, Finset.coe_insert, Finset.coe_singleton,
+      Set.insert_subset_iff, Set.singleton_subset_iff] at hS
+    simp only [FiniteVariable.GenFormula.realize_equal]
+    exact (h0 h).eq_iff i hS.1 j hS.2
+  | rel R' f =>
+    simp only [FiniteVariable.GenFormula.realize_rel]
+    exact (h0 h).relMap_iff R' f fun t => hS (by simp)
+  | imp φ ψ ihφ ihψ =>
+    simp only [FiniteVariable.GenFormula.quantifierRank_imp, max_le_iff] at hr
+    simp only [FiniteVariable.GenFormula.freeVars_imp, Finset.coe_union, Set.union_subset_iff] at hS
+    simp only [FiniteVariable.GenFormula.realize_imp]
+    exact imp_congr (ihφ h hr.1 hS.1) (ihψ h hr.2 hS.2)
+  | quant q i φ ih =>
+    simp only [FiniteVariable.GenFormula.quantifierRank_quant] at hr
+    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+    rw [FiniteVariable.GenFormula.freeVars_quant, Finset.coe_erase, Set.sdiff_subset_iff,
+      ← Set.insert_eq] at hS
+    rw [FiniteVariable.GenFormula.realize_quant, FiniteVariable.GenFormula.realize_quant]
+    exact hquant q i _ _ h fun hc => ih hc (by omega) hS
+
 /-- **Pebble games, easy direction.** If Duplicator wins the `n`-round `k`-pebble game from
 `(S, a, b)`, then `a` and `b` satisfy the same `k`-variable formulas of quantifier rank at most `n`
 whose free variables are placed pebbles. No finiteness assumption is needed. -/
 theorem PebbleWins.realize_iff {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L n S a b) {φ : FiniteVariable.Formula L k} (hr : φ.quantifierRank ≤ n)
-    (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b := by
-  induction φ generalizing n S a b with
-  | falsum => simp only [FiniteVariable.Formula.realize_falsum]
-  | equal i j =>
-    simp only [FiniteVariable.Formula.freeVars_equal, Finset.coe_insert, Finset.coe_singleton,
-      Set.insert_subset_iff, Set.singleton_subset_iff] at hS
-    simp only [FiniteVariable.Formula.realize_equal]
-    exact h.partialIsoOn.eq_iff i hS.1 j hS.2
-  | rel R f =>
-    simp only [FiniteVariable.Formula.realize_rel]
-    exact h.partialIsoOn.relMap_iff R f fun t => hS (by simp)
-  | imp φ ψ ihφ ihψ =>
-    simp only [FiniteVariable.Formula.quantifierRank_imp, max_le_iff] at hr
-    simp only [FiniteVariable.Formula.freeVars_imp, Finset.coe_union, Set.union_subset_iff] at hS
-    simp only [FiniteVariable.Formula.realize_imp]
-    exact imp_congr (ihφ h hr.1 hS.1) (ihψ h hr.2 hS.2)
-  | all i φ ih =>
-    simp only [FiniteVariable.Formula.quantifierRank_all] at hr
-    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
-    rw [FiniteVariable.Formula.freeVars_all, Finset.coe_erase, Set.sdiff_subset_iff,
-      ← Set.insert_eq] at hS
-    simp only [FiniteVariable.Formula.realize_all]
-    constructor
-    · intro hA d
-      obtain ⟨c, hc⟩ := h.back i d
-      exact (ih hc (by omega) hS).1 (hA c)
-    · intro hB c
-      obtain ⟨d, hd⟩ := h.forth i c
-      exact (ih hd (by omega) hS).2 (hB d)
+    (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b :=
+  FiniteVariable.GenFormula.realize_iff_of_step (PebbleWins L) PebbleWins.partialIsoOn
+    (fun q i _ _ hstep ih => by
+      cases q
+      simp only [FiniteVariable.ExistentialQuant.eval_ex]
+      exact ⟨fun ⟨c, hc⟩ => let ⟨d, hd⟩ := hstep.forth i c; ⟨d, (ih hd).1 hc⟩,
+        fun ⟨d, hd⟩ => let ⟨c, hc⟩ := hstep.back i d; ⟨c, (ih hc).2 hd⟩⟩)
+    h hr hS
 
 /-- **Infinite pebble games, easy direction.** If Duplicator wins the infinite `k`-pebble game
 from `(S, a, b)`, then `a` and `b` satisfy the same `k`-variable formulas whose free variables are

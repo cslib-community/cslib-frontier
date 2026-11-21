@@ -23,7 +23,9 @@ discarded in this equality; they need not be independent of the final state or t
 stopping time. The handler's fallback value is never used, so a run on a sufficient list of
 samples is a function of those samples.
 
-This is the library's presampling theorem. A program without private coins is the special case
+The general theorem `OracleComp.IsCostBounded.run_interpret_presample_when` also allows
+uncharged calls to change state, as when a quantum device acts between classical signing calls.
+A program without private coins is the special case
 `OracleComp.IsQueryBounded.run_interpret_presample`, and closed `ProbComp` handlers the special
 case `ProbOracleComp.IsQueryBounded.eval_presample`.
 
@@ -60,6 +62,86 @@ def withSampleList {Query : Type u} {spec : Query → Type v} {State Value : Typ
     (q : Query) : StateT (State × List Value) m (spec q) := fun (state, values) =>
   (fun (answer, next) => (answer, next, values.tail)) <$> oracle (values.headD fallback) q state
 
+/-- Consume a saved value on the selected calls. Other calls run the handler at its default
+value and retain the whole tape, including when those calls modify the ordinary state. -/
+noncomputable def withSampleListWhen {Query State Value : Type} {spec : Query → Type}
+    (selected : Query → Bool) (fallback : Value)
+    (oracle : Value → (q : Query) → StateT State PMF (spec q)) (q : Query) :
+    StateT (State × List Value) PMF (spec q) :=
+  if selected q then withSampleList fallback oracle q else fun (s, tape) =>
+    (oracle fallback q s).map fun (reply, next) => (reply, next, tape)
+
+/-- Two sufficiently long tapes give the same law of the result and retained state if
+corresponding entries implement the same selected calls and the other calls agree. -/
+theorem IsCostBounded.run_interpret_sampleListWhen_congr {Q S V W α : Type} {spec : Q → Type}
+    {program : OracleComp spec α} {n : ℕ} (selected : Q → Bool)
+    (h : IsCostBounded (fun q => (selected q).toNat) program n)
+    (v₀ : V) (w₀ : W) (f : V → (q : Q) → StateT S PMF (spec q))
+    (g : W → (q : Q) → StateT S PMF (spec q))
+    (off : ∀ q, selected q = false → f v₀ q = g w₀ q)
+    (vs : List V) (ws : List W) (len : n ≤ vs.length)
+    (on : List.Forall₂ (fun v w => ∀ q, selected q = true → f v q = g w q) vs ws) (s : S) :
+    ((OracleComp.interpret (withSampleListWhen selected v₀ f) program).run (s, vs)).map
+      (fun (a, s', _) => (a, s')) =
+    ((OracleComp.interpret (withSampleListWhen selected w₀ g) program).run (s, ws)).map
+      (fun (a, s', _) => (a, s')) := by
+  induction h generalizing vs ws s with
+  | pure a n => simp only [interp_norm, pmf_norm]
+  | liftBind q cont n _ ih =>
+    cases hq : selected q with
+    | false =>
+      simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, ↓reduceIte,
+        Bool.false_eq_true, Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map,
+        Function.comp_def, off q hq]
+      exact congrArg (fun k => (g w₀ q s).bind k)
+        (funext fun v => ih v.1 vs ws (by simpa [hq] using len) on v.2)
+    | true =>
+      cases on with
+      | nil => simp [hq] at len
+      | cons equal tail =>
+        simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, ↓reduceIte,
+          withSampleList, List.headD_cons, List.tail_cons, Probability.PMF.monad_bind_eq_bind,
+          PMF.monad_map_eq_map, PMF.map_bind, PMF.bind_map, Function.comp_def, equal q hq]
+        congr 1
+        funext v
+        exact ih v.1 _ _ (by simpa [hq] using len) tail v.2
+
+/-- Presampling the selected calls of an adaptive program preserves the joint law of its
+result and final state. An uncharged call can read or change that state arbitrarily. -/
+theorem IsCostBounded.run_interpret_presample_when {Query State Value α : Type}
+    {spec : Query → Type} {program : OracleComp spec α} {n : ℕ} (selected : Query → Bool)
+    (h : IsCostBounded (fun q => (selected q).toNat) program n)
+    (source : PMF Value) (fallback : Value)
+    (oracle : Value → (q : Query) → StateT State PMF (spec q)) (s : State) :
+    ((Probability.PMF.iid source n).map List.ofFn).bind (fun tape =>
+      ((OracleComp.interpret (withSampleListWhen selected fallback oracle) program).run
+        (s, tape)).map
+        fun (result, next, _) => (result, next)) =
+      (OracleComp.interpret (m := StateT State PMF) (fun q state =>
+        if selected q then source.bind fun value => oracle value q state
+        else oracle fallback q state) program).run s := by
+  induction h generalizing s with
+  | pure a n => simp only [interp_norm, pmf_norm, PMF.bind_const]
+  | liftBind q cont n _ ih =>
+    cases hq : selected q with
+    | false =>
+      simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, Bool.toNat_false,
+        Nat.add_zero, Bool.false_eq_true, ↓reduceIte, Probability.PMF.monad_bind_eq_bind,
+        PMF.map_bind, PMF.bind_map, Function.comp_def]
+      pmf_swap with result
+      rw [← ih result.1 result.2, PMF.bind_map]
+      rfl
+    | true =>
+      simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, Bool.toNat_true,
+        ↓reduceIte, Probability.PMF.iid, withSampleList, Probability.PMF.monad_bind_eq_bind,
+        PMF.monad_map_eq_map, PMF.map_bind, PMF.bind_bind, PMF.bind_map, PMF.map_comp,
+        Function.comp_def, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, List.headD_cons,
+        List.tail_cons]
+      refine congrArg (source.bind ·) (funext fun value => ?_)
+      pmf_swap with result
+      rw [← ih result.1 result.2, PMF.bind_map]
+      rfl
+
 end OracleComp
 
 namespace ProbOracleComp
@@ -82,25 +164,28 @@ theorem IsQueryBounded.run_interpret_presample {program : ProbOracleComp spec α
           fun (result, next, _) => (result, next)) =
       (interpret (sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
         (fun q state => source.bind fun value => oracle value q state)) program).run s := by
-  induction h generalizing s with
-  | pure a n =>
-    simp only [interp_norm, pmf_norm, PMF.bind_const]
-  | liftBind q cont n _ ih =>
-    cases q with
-    | inl k =>
-      simp only [Sum.elim_inl, Nat.add_zero, interp_norm, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind]
-      pmf_swap with a
-      exact ih a s
-    | inr q =>
-      simp only [Sum.elim_inr, run_interpret_bind, run_interpret_query, sumHandler, PMF.iid,
-        withSampleList, PMF.monad_bind_eq_bind, PMF.monad_map_eq_map, PMF.map_bind, PMF.bind_bind,
-        PMF.bind_map, PMF.map_comp, Function.comp_def, List.ofFn_succ, Fin.cons_zero,
-        Fin.cons_succ, List.headD_cons, List.tail_cons]
-      refine congrArg (source.bind ·) (funext fun value => ?_)
-      pmf_swap with result
-      rw [← ih result.1 result.2, PMF.bind_map]
-      rfl
+  let selected : ℕ ⊕ Query → Bool := Sum.elim (fun _ => false) (fun _ => true)
+  let handler (v : Value) := sumHandler (m := StateT State PMF)
+    (fun k => StateT.lift (ProbComp.unifOracle k)) (oracle v)
+  have cost : (fun q => (selected q).toNat) = Sum.elim (fun _ => 0) (fun _ => 1) := by
+    funext q
+    cases q <;> rfl
+  have saved : withSampleListWhen selected fallback handler =
+      sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
+        (withSampleList fallback oracle) := by
+    funext q st
+    rcases q with k | q
+    · simp [withSampleListWhen, selected, handler, sumHandler, StateT.lift,
+        PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind]
+    · rfl
+  have online : (fun q state => if selected q then source.bind fun v => handler v q state
+      else handler fallback q state) = sumHandler (m := StateT State PMF)
+        (fun k => StateT.lift (ProbComp.unifOracle k))
+        (fun q state => source.bind fun v => oracle v q state) := by
+    funext q state
+    cases q <;> rfl
+  simpa only [saved, online] using OracleComp.IsCostBounded.run_interpret_presample_when
+    selected (cost ▸ h) source fallback handler s
 
 /-- **Presampling with closed probabilistic handlers.** The `ProbComp` form of
 `IsQueryBounded.run_interpret_presample`: `n` saved samples from `source` give the online joint law

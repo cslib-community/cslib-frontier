@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public meta import Lean.Elab.Command
 
 /-!

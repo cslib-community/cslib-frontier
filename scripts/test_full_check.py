@@ -319,9 +319,23 @@ class AncestorHandoffFailurePolicyTests(unittest.TestCase):
                       "Restore validated merge-group build outputs", "lake build"):
             self.assertGreater(names.index(later), self.index + 1)
 
+    def test_pr_handoff_is_an_optional_reader_before_the_remote_cache(self):
+        names = [step.get("name") for step in self.steps]
+        index = names.index("Restore PR base merge-group build outputs")
+        self.assertLess(self.index + 1, index)
+        self.assertLess(index, names.index("Restore build outputs from the remote cache"))
+        step = self.steps[index]
+        self.assertEqual(step["run"], "python3 -B scripts/cache_handoff.py restore --pr-base")
+        self.assertEqual(step["continue-on-error"], "true")
+        self.assertIn("github.event_name == 'pull_request' && github.base_ref == 'main'", step["if"])
+        self.assertIn("vars.DISABLE_PR_BUILD_HANDOFF", step["if"])
+        self.assertIn("RESTORED_LAKE_KEY: ${{ steps.lake-cache.outputs.cache-matched-key }}", step["env"])
+        for name in ("Stage merge-group build outputs", "Upload merge-group build outputs"):
+            self.assertIn("github.event_name == 'merge_group' &&", self.steps[names.index(name)]["if"])
+
     def test_no_later_step_runs_after_the_guard_fails(self):
         # A failed step skips every later step whose condition has no status function. Those that
-        # have one must also require the build, which the failed guard has skipped.
+        # have one must require a completed build or explicitly exclude the guard failure.
         build = next(step for step in self.steps if step.get("id") == "build")
         self.assertGreater(self.steps.index(build), self.index + 1)
         self.assertNotRegex(build.get("if", ""), r"always\(\)|cancelled\(\)|failure\(\)")
@@ -329,7 +343,8 @@ class AncestorHandoffFailurePolicyTests(unittest.TestCase):
             condition = step.get("if", "")
             if re.search(r"always\(\)|cancelled\(\)|failure\(\)", condition):
                 with self.subTest(step=step.get("name")):
-                    self.assertIn("steps.build.outcome == 'success'", condition)
+                    if "steps.ancestor-handoff.outputs.exit-status != '125'" not in condition:
+                        self.assertIn("steps.build.outcome == 'success'", condition)
 
     def test_handoff_cli_reserves_125_for_unconfirmed_shutdown(self):
         sys.path.insert(0, str(REPO / "scripts"))
@@ -353,7 +368,7 @@ class AggregatorTests(unittest.TestCase):
 
     def test_required_context_depends_on_both_jobs_and_forwards_lean_publication(self):
         header = "\n".join(self.lines[:self.lines.index("    steps:")])
-        self.assertIn("needs: [source-checks, lean-checks]", header)
+        self.assertIn("needs: [select-checks, source-checks, lean-checks]", header)
         self.assertIn("if: always()", header)
         self.assertIn("publication: ${{ needs.lean-checks.outputs.publication }}", header)
         self.assertNotIn("steps.upload-publication.outputs", header)
@@ -368,21 +383,27 @@ class AggregatorTests(unittest.TestCase):
             with self.subTest(job=job):
                 lines = job_lines(self.text, job)
                 header = "\n".join(lines[:lines.index("    steps:")])
-                self.assertNotIn("needs:", header)
+                self.assertNotIn("needs: source-checks", header)
+                self.assertNotIn("needs: lean-checks", header)
 
-    def test_only_two_successful_dependencies_pass(self):
+    def test_gate_accepts_only_the_selected_lean_result(self):
+        env = self.steps[0]["env"]
+        self.assertIn("SELECTION_RESULT: ${{ needs.select-checks.result }}", env)
+        self.assertIn("EXPECTED_LEAN: ${{ github.event_name == 'pull_request' && "
+                      "needs.select-checks.outputs.lean == 'false' && 'skipped' || 'success' }}", env)
         script = self.steps[0]["run"]
-        results = ("success", "failure", "cancelled", "skipped")
-        for source_result in results:
-            for lean_result in results:
-                with self.subTest(source=source_result, lean=lean_result):
-                    result = subprocess.run(
-                        ["bash", "-e", "-c", script],
-                        env={**os.environ, "SOURCE_RESULT": source_result,
-                             "LEAN_RESULT": lean_result},
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for expected in ("success", "skipped"):
+            for selection, source, lean in (
+                ("success", "success", "success"), ("success", "success", "skipped"),
+                ("failure", "success", expected), ("success", "failure", expected),
+                ("success", "success", "failure"), ("success", "success", "cancelled")
+            ):
+                with self.subTest(expected=expected, selection=selection, source=source, lean=lean):
+                    result = subprocess.run(["bash", "-e", "-c", script], env={
+                        **os.environ, "SELECTION_RESULT": selection, "SOURCE_RESULT": source,
+                        "EXPECTED_LEAN": expected, "LEAN_RESULT": lean})
                     self.assertEqual(result.returncode == 0,
-                                     source_result == lean_result == "success", result.stdout)
+                                     selection == source == "success" and lean == expected)
 
 
 TIDY = "          python3 -B scripts/check_tidy_surface.py\n"

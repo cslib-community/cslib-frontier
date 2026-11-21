@@ -34,6 +34,8 @@ These continuous route-composition proofs are original.
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 /-- Local prefixes belonging to different original clauses have disjoint full supports. -/
