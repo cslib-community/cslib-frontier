@@ -247,13 +247,6 @@ on `.decrypt _`. -/
     (outOpt : Option Out) :
     encodeCCAResponseWord encOut (Sum.inr outOpt) = encOption encOut outOpt := rfl
 
-private theorem computableTidilyInPolyTime_toOptionPair {Msg : Type} (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime (CCAQuery.toOptionPair (Msg := Msg))
-      (encCCAQuery encMsg) (encPair (encOption (encPair encMsg encMsg)) encBits) :=
-  .of_eq fun _ => rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_toOptionPair
-
 /-- `CCAQuery.toOptionPair` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toOptionPair {Msg : Type} (encMsg : Msg ↪ List Bool) :
@@ -261,33 +254,14 @@ theorem computableInPolyTime_toOptionPair {Msg : Type} (encMsg : Msg ↪ List Bo
       (encCCAQuery encMsg) (encPair (encOption (encPair encMsg encMsg)) encBits) :=
   .of_eq fun _ => rfl
 
-private theorem computableTidilyInPolyTime_ccaQuery_challenge {Msg : Type}
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime
-      (fun p : Msg × Msg => (CCAQuery.challenge p.1 p.2 : CCAQuery Msg (List Bool)))
-      (encPair encMsg encMsg) (encCCAQuery encMsg) :=
-  ((ComputableTidilyInPolyTime.optionSome (encPair encMsg encMsg)).prod
-    (ComputableTidilyInPolyTime.const ([] : List Bool))).of_enc_eq fun _ => rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_ccaQuery_challenge
-
 /-- Constructing `.challenge m₀ m₁` from `(m₀, m₁)` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_ccaQuery_challenge {Msg : Type} (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime
       (fun p : Msg × Msg => (CCAQuery.challenge p.1 p.2 : CCAQuery Msg (List Bool)))
       (encPair encMsg encMsg) (encCCAQuery encMsg) :=
-  (computableTidilyInPolyTime_ccaQuery_challenge encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_ccaQuery_decrypt {Msg : Type}
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime
-      (CCAQuery.decrypt (Plaintext := Msg) (Ciphertext := List Bool))
-      encBits (encCCAQuery encMsg) :=
-  ((ComputableTidilyInPolyTime.const (none : Option (Msg × Msg))).prod
-    ComputableTidilyInPolyTime.id').of_enc_eq fun _ => rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_ccaQuery_decrypt
+  ((ComputableInPolyTime.optionSome (encPair encMsg encMsg)).prod
+    (ComputableInPolyTime.const ([] : List Bool))).of_enc_eq fun _ => rfl
 
 /-- Constructing `.decrypt c` from `c : List Bool` is computable in plain polynomial time. -/
 @[fun_prop]
@@ -295,41 +269,20 @@ theorem computableInPolyTime_ccaQuery_decrypt {Msg : Type} (encMsg : Msg ↪ Lis
     ComputableInPolyTime
       (CCAQuery.decrypt (Plaintext := Msg) (Ciphertext := List Bool))
       encBits (encCCAQuery encMsg) :=
-  (computableTidilyInPolyTime_ccaQuery_decrypt encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_isChallenge {Msg : Type} (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime (CCAQuery.isChallenge (Plaintext := Msg) (Ciphertext := List Bool))
-      (encCCAQuery encMsg) encBool := by
-  have h : ComputableTidilyInPolyTime
-      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.isSome)
-      (encCCAQuery encMsg) encBool :=
-    ((computableTidilyInPolyTime_toOptionPair encMsg).fst').optionIsSome
-  refine h.of_enc_eq fun q => ?_
-  cases q <;> rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_isChallenge
+  ((ComputableInPolyTime.const (none : Option (Msg × Msg))).prod
+    ComputableInPolyTime.id').of_enc_eq fun _ => rfl
 
 /-- `CCAQuery.isChallenge` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_isChallenge {Msg : Type} (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime (CCAQuery.isChallenge (Plaintext := Msg) (Ciphertext := List Bool))
+      (encCCAQuery encMsg) encBool := by
+  have h : ComputableInPolyTime
+      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.isSome)
       (encCCAQuery encMsg) encBool :=
-  (computableTidilyInPolyTime_isChallenge encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_challengePair {Msg : Type} [Inhabited Msg]
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime
-      (CCAQuery.challengePair (Plaintext := Msg) (Ciphertext := List Bool))
-      (encCCAQuery encMsg) (encPair encMsg encMsg) := by
-  have h : ComputableTidilyInPolyTime
-      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.getD (default, default))
-      (encCCAQuery encMsg) (encPair encMsg encMsg) :=
-    ((computableTidilyInPolyTime_toOptionPair encMsg).fst').optionGetDWithInput
-      (ComputableTidilyInPolyTime.const (default, default))
+    ((computableInPolyTime_toOptionPair encMsg).fst').optionIsSome
   refine h.of_enc_eq fun q => ?_
   cases q <;> rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_challengePair
 
 /-- `CCAQuery.challengePair` is computable in plain polynomial time when `[Inhabited Msg]`. -/
 @[fun_prop]
@@ -337,28 +290,26 @@ theorem computableInPolyTime_challengePair {Msg : Type} [Inhabited Msg]
     (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime
       (CCAQuery.challengePair (Plaintext := Msg) (Ciphertext := List Bool))
+      (encCCAQuery encMsg) (encPair encMsg encMsg) := by
+  have h : ComputableInPolyTime
+      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.1.getD (default, default))
       (encCCAQuery encMsg) (encPair encMsg encMsg) :=
-  (computableTidilyInPolyTime_challengePair encMsg).computableInPolyTime
-
-private theorem computableTidilyInPolyTime_decryptCiphertext {Msg : Type}
-    (encMsg : Msg ↪ List Bool) :
-    ComputableTidilyInPolyTime (CCAQuery.decryptCiphertext (Plaintext := Msg))
-      (encCCAQuery encMsg) encBits := by
-  have h : ComputableTidilyInPolyTime
-      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.2)
-      (encCCAQuery encMsg) encBits :=
-    (computableTidilyInPolyTime_toOptionPair encMsg).snd'
+    ((computableInPolyTime_toOptionPair encMsg).fst').optionGetDWithInput
+      (ComputableInPolyTime.const (default, default))
   refine h.of_enc_eq fun q => ?_
   cases q <;> rfl
-
-attribute [local fun_prop] computableTidilyInPolyTime_decryptCiphertext
 
 /-- `CCAQuery.decryptCiphertext` is computable in plain polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_decryptCiphertext {Msg : Type} (encMsg : Msg ↪ List Bool) :
     ComputableInPolyTime (CCAQuery.decryptCiphertext (Plaintext := Msg))
+      (encCCAQuery encMsg) encBits := by
+  have h : ComputableInPolyTime
+      (fun q : CCAQuery Msg (List Bool) => q.toOptionPair.2)
       (encCCAQuery encMsg) encBits :=
-  (computableTidilyInPolyTime_decryptCiphertext encMsg).computableInPolyTime
+    (computableInPolyTime_toOptionPair encMsg).snd'
+  refine h.of_enc_eq fun q => ?_
+  cases q <;> rfl
 
 /-! ### Stateful interleaved CCA oracle (`interleavedCcaOracle`) -/
 
@@ -1491,7 +1442,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
         (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
           (CCAQuery Msg (List Bool) × List Bool) => r.2.1.challengePair)
       E3 (encPair encMsg encMsg) :=
-    (computableTidilyInPolyTime_challengePair encMsg).computableInPolyTime.comp hq3
+    (computableInPolyTime_challengePair encMsg).comp hq3
   have hm0 : ComputableInPolyTime
       (fun r :
         (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
@@ -1516,7 +1467,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
           (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
             (CCAQuery Msg (List Bool) × List Bool) => r.2.1.isChallenge)
         E3 encBool :=
-      (computableTidilyInPolyTime_isChallenge encMsg).computableInPolyTime.comp hq3
+      (computableInPolyTime_isChallenge encMsg).comp hq3
     have hvalArg : ComputableInPolyTime
         (fun r :
           (((ℕ × List Bool) × ℕ) × InterleavedLoopState) ×
@@ -2494,10 +2445,10 @@ theorem INDCCA2On.indcca2InterleavedOn {Msg Out : Type} [Inhabited Msg]
     INDCCA2InterleavedOn valid encMsg encOut keyGen encrypt decrypt := by
   intro adversary hA
   obtain ⟨decBound, hdecBoundPoly, hdecBound⟩ := exists_decryption_length_bound hkeyGen hdecrypt
-  obtain ⟨cq, dq, hlenQ⟩ := hA.numRounds.tidy.polyBounded_length.exists_le
+  obtain ⟨cq, dq, hlenQ⟩ := hA.numRounds.polyBounded_length.exists_le
   let Q : ℕ → ℕ := fun n => cq * (n + 1) ^ dq
   have hQPoly : ComputableInPolyTime Q encUnary encUnary := by
-    dsimp only [Q]; exact ComputableInPolyTime.of_tidy (by fun_prop)
+    dsimp only [Q]; exact (by fun_prop)
   have hQ (n : ℕ) : adversary.numRounds n ≤ Q n := by
     simpa [Q, encUnary_apply] using hlenQ n
   have hsingleNeg := h (interleavedToSingle valid encrypt decBound Q adversary)

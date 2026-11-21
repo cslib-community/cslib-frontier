@@ -347,8 +347,17 @@ private theorem computableInPolyTime_ecbBlocks {α : Type} {input : α ↪ List 
     (hm : ComputableInPolyTime m input encBits) :
     ComputableInPolyTime (fun a => E.ecbBlocks (n a) (m a)) input (encList encBits) := by
   have hw := E.blockLen_polyTime.comp hn
-  unfold ecbBlocks
-  polytime [BitString.listRows, BitString.listRow]
+  have hrow : ComputableInPolyTime
+      (fun p : α × ℕ => BitString.listRow (E.blockLen (n p.1)) p.2 (m p.1))
+      (encPair input encUnary) encBits := by
+    have hw' := hw.comp (ComputableInPolyTime.fst input encUnary)
+    have hm' := hm.comp (ComputableInPolyTime.fst input encUnary)
+    unfold BitString.listRow
+    fun_prop
+  have hindices : ComputableInPolyTime
+      (fun a => List.range ((m a).length / E.blockLen (n a))) input (encList encUnary) := by
+    fun_prop
+  exact ComputableInPolyTime.mapWith hrow ComputableInPolyTime.id' hindices
 
 /-- Admissibility of a computed pair is decided in polynomial time. -/
 private theorem computableInPolyTime_ecbValid {α : Type} {input : α ↪ List Bool} {ℓ : ℕ → ℕ}
