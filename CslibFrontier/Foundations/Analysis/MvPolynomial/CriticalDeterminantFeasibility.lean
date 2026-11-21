@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Critic
 public import Mathlib.Data.Nat.Size
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
+import CslibFrontier.Foundations.Data.MvPolynomial.PolynomialEvaluationBounds
 
 /-!
 # A finite determinant test for real feasibility
@@ -108,6 +109,36 @@ theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
   obtain ⟨hsdegree, hsnorm⟩ := Polynomial.shiftedRootLabel_bounds _ he
     (criticalRootLabel_dimension_le n ell) hnorm
   exact ⟨hsdegree.trans hdegree, hsnorm⟩
+
+/-- Evaluating the shifted label at the integer critical objective multiplies the label's
+degree bound by `ell + 1`. A coefficient norm bound for the objective then supplies the
+composed polynomial's coefficient allowance. -/
+theorem criticalLabelObjective_bounds_of_coeffNorm1_le {n ell b bv : ℕ} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
+    (L : List (Fin (ell ^ n) × SignType)) {e : ℕ} (he : e ≤ ell ^ n)
+    (hv : (deformedPolynomial ell (fun i => (separatedCenters ell i : ℤ))
+      (2 ^ criticalParameterExponent n ell b) F).coeffNorm1 ≤ 2 ^ bv) :
+    let D := ell ^ n
+    let N := n * ell.size
+    let B := criticalRootLabelCoeffNormExponent n ell b
+    let s := Polynomial.sparseRootLabelPrecision D B
+    let d := Polynomial.signLabelDegreeBound (N + 1) s D
+    let k := Polynomial.signLabelNormExponent (N + 1) s
+      (Polynomial.iterateDerivativeNormExponent D B) + N + 3
+    let v := deformedPolynomial ell (fun i => (separatedCenters ell i : ℤ))
+      (2 ^ criticalParameterExponent n ell b) F
+    let w := Polynomial.aeval v (criticalShiftedRootLabel (by omega) b F hF L e)
+    w.totalDegree ≤ d * (ell + 1) ∧ w.coeffNorm1 ≤ 2 ^ (k + bv * d) := by
+  intro D N B s d k v w
+  let g := criticalShiftedRootLabel (by omega : 1 ≤ ell) b F hF L e
+  obtain ⟨hdeg, hnorm⟩ := criticalShiftedRootLabel_bounds hell F hF hb L he
+  have hvdeg : v.totalDegree ≤ ell + 1 :=
+    totalDegree_deformedPolynomial_le ell _ _ _ (hF.trans (Nat.le_succ _))
+  refine ⟨(Polynomial.totalDegree_aeval_mvPolynomial_le g v).trans
+    (Nat.mul_le_mul hdeg hvdeg), ?_⟩
+  refine (Polynomial.coeffNorm1_aeval_mvPolynomial_le g v Nat.one_le_two_pow hv).trans ?_
+  exact (Nat.mul_le_mul hnorm (Nat.pow_le_pow_right Nat.one_le_two_pow hdeg)).trans_eq
+    (by rw [← pow_mul, ← pow_add])
 
 /-- The determinant of multiplication by the label evaluated at the deformed objective
 in the integer critical quotient. -/
