@@ -435,11 +435,9 @@ private theorem sourceSamples_ends (p : Route) (h r : ℝ) :
 -- The two source descriptions at a shared old knot are retained; only their geometric
 -- endpoint equality is used. No lookup by geometric point value occurs here.
 private theorem final_cut_endpoint (h r : ℝ) (a b : ℂ) :
-    let C := cuts h r a b
-    C[C.length - 2 + 1]'(by
+    (cuts h r a b)[(cuts h r a b).length - 2 + 1]'(by
       have hlen := cuts_length_bounds h r a b
       omega) = 1 := by
-  dsimp only
   have hlen := cuts_length_bounds h r a b
   have hidx : (cuts h r a b).length - 2 + 1 = (cuts h r a b).length - 1 := by omega
   simpa only [hidx] using (segmentCuts_first_last (levels h r) a.im b.im).2
