@@ -77,8 +77,7 @@ theorem IsEmbedding.exists_vertex_move_along_path {G : Graph} {D : PolygonalDraw
     | zero =>
       have htime : time 0 hk = 0 := by
         apply Subtype.ext
-        change (0 : ℝ) / n = 0
-        exact zero_div _
+        simp [time]
       exact ⟨D, hD, by rw [htime, path.source], fun _ _ _ => rfl, fun _ _ => rfl⟩
     | succ k ih =>
       have hk' : k ≤ n := (Nat.le_succ k).trans hk
@@ -101,8 +100,7 @@ theorem IsEmbedding.exists_vertex_move_along_path {G : Graph} {D : PolygonalDraw
         exact fun z hz => outside (time k hk') (hkeep e he hz)
   have htime : time n le_rfl = 1 := by
     apply Subtype.ext
-    change (n : ℝ) / n = 1
-    exact div_self hnpos.ne'
+    simp [time, hnpos.ne']
   simpa only [htime, path.target] using place n le_rfl
 
 end Cslib.Complexity.Graph.PolygonalDrawing
