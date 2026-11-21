@@ -50,10 +50,11 @@ structure RoundUpdate where
 /-- The Figure 1 callback takes the radius, current tally, and queried vertex. -/
 abbrev MembershipScan (m : Type → Type) (n : ℕ) := ℕ → Tally → Fin n → m Bool
 
-/-- One predecessor test: count only when both callbacks answer true. -/
-@[expose] def predecessorStep {m : Type → Type} [Monad m] {n : ℕ}
-    (edge : Fin n → Fin n → m Bool) (member : Fin n → m Bool) (v : Fin n)
-    (c : ℕ) (u : Fin n) : m ℕ := do
+/-- One predecessor test: count only when both callbacks answer true. An arbitrary index type
+lets typed scans and binary scalar query controllers share this dispatch. -/
+@[expose] def predecessorStep {m : Type → Type} [Monad m] {α : Type}
+    (edge : α → α → m Bool) (member : α → m Bool) (v : α)
+    (c : ℕ) (u : α) : m ℕ := do
   if ← edge u v then
     if ← member u then return c + 1 else return c
   else return c
