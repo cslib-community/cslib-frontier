@@ -7,6 +7,7 @@ Authors: Mayank Rathee
 module
 
 public import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
+public import CslibFrontier.Foundations.Probability.IndependentSumNorm
 
 import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 import Mathlib.Analysis.Complex.ExponentialBounds

@@ -1518,7 +1518,7 @@ Karl Menger. "Zur allgemeinen Kurventheorie." *Fundamenta Mathematicae* 10, 96�
 <a id="micciancioregev2007"></a>
 ## micciancioregev2007
 
-Daniele Micciancio and Oded Regev. "Worst-Case to Average-Case Reductions Based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007. https://doi.org/10.1137/S0097539705447360 . Author's copy dated December 27, 2005 (`https://cseweb.ucsd.edu/~daniele/papers/Gaussian.pdf`) inspected on 2026-11-20: Lemma 2.11 (expected squared norm of linear combinations of independent random vectors, p. 10), Lemma 4.2 (first and second directional moments of discrete Gaussians, pp. 13–14), and Lemma 4.3 (norm of mean and expected squared norm of discrete Gaussians, p. 14). In `Gaussian.MomentsDiscrete`, the Lemma 4.2 and 4.3 theorems prove the dual-mass step directly under `ρ_{2/s}(L* \ {0}) ≤ ε < 1` rather than the `2 * η_ε(L) ≤ s` endpoint.
+Daniele Micciancio and Oded Regev. "Worst-Case to Average-Case Reductions Based on Gaussian Measures." *SIAM Journal on Computing* 37(1), 267–302, 2007. https://doi.org/10.1137/S0097539705447360 . Author's copy dated December 27, 2005 (`https://cseweb.ucsd.edu/~daniele/papers/Gaussian.pdf`) inspected on 2026-11-20: Lemma 2.11 (expected squared norm of linear combinations of independent random vectors, p. 10, in `Foundations.Probability.IndependentSumNorm`), Lemma 4.2 (first and second directional moments of discrete Gaussians, pp. 13–14), and Lemma 4.3 (norm of mean and expected squared norm of discrete Gaussians, p. 14). In `Gaussian.MomentsDiscrete`, the Lemma 4.2 and 4.3 theorems prove the dual-mass step directly under `ρ_{2/s}(L* \ {0}) ≤ ε < 1` rather than the `2 * η_ε(L) ≤ s` endpoint.
 
 <a id="mignonressayre04"></a>
 ## mignonressayre04
