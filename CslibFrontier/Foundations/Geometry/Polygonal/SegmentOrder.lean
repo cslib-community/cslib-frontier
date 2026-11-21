@@ -23,6 +23,26 @@ public section
 
 namespace Cslib.Polygonal.Route
 
+private theorem eval_eq_of_position_eq {p : Route} (i j : Fin p.segments) {s t : ℝ}
+    (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1)
+    (h : p.position i s = p.position j t) : p.eval i s = p.eval j t := by
+  have equalOfEarlier (a b : Fin p.segments) {u v : ℝ} (hu : u ∈ Set.Icc 0 1)
+      (hv : v ∈ Set.Icc 0 1) (hab : a < b)
+      (hpos : p.position a u = p.position b v) : p.eval a u = p.eval b v := by
+    have hstep : (a.val : ℝ) + 1 ≤ b.val := by exact_mod_cast hab
+    dsimp only [position] at hpos
+    have hu1 : u = 1 := by linarith [hu.2, hv.1]
+    have hv0 : v = 0 := by linarith [hu.2, hv.1]
+    have he : (a.val : ℝ) + 1 = b.val := by linarith
+    have hn : a.val + 1 = b.val := by exact_mod_cast he
+    have hk : a.succ = b.castSucc := Fin.ext hn
+    simp only [hu1, hv0, eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one, hk]
+  rcases lt_trichotomy i j with hij | rfl | hji
+  · exact equalOfEarlier i j hs ht hij h
+  · have hst : s = t := add_left_cancel h
+    rw [hst]
+  · exact (equalOfEarlier j i ht hs hji h.symm).symm
+
 variable {α : Type*} [LinearOrder α] (f : ℂ → α) {p : Route}
 
 private theorem observed_nodes_strictMono
@@ -42,28 +62,6 @@ private theorem observe_bounds
   simpa only [eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] using
     And.intro (hm (Set.left_mem_Icc.mpr zero_le_one) ht ht.1)
       (hm ht (Set.right_mem_Icc.mpr zero_le_one) ht.2)
-
-private theorem observe_le_of_position_le
-    (h : ∀ i : Fin p.segments, StrictMonoOn (fun t => f (p.eval i t)) (Set.Icc 0 1))
-    (i j : Fin p.segments) {s t : ℝ} (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1)
-    (hp : p.position i s ≤ p.position j t) : f (p.eval i s) ≤ f (p.eval j t) := by
-  rcases lt_trichotomy i j with hij | rfl | hji
-  · have hnodes : i.succ ≤ j.castSucc := by change i.val + 1 ≤ j.val; exact hij
-    exact (observe_bounds f h i hs).2.trans
-      (((observed_nodes_strictMono f h).monotone hnodes).trans (observe_bounds f h j ht).1)
-  · apply (h i).monotoneOn hs ht
-    dsimp only [position] at hp
-    linarith
-  · have hstep : (j.val : ℝ) + 1 ≤ i.val := by exact_mod_cast hji
-    have hpos := hp
-    dsimp only [position] at hpos
-    have hs0 : s = 0 := by linarith [hs.1, ht.2]
-    have ht1 : t = 1 := by linarith [hs.1, ht.2]
-    have he : (i.val : ℝ) = (j.val : ℝ) + 1 := by linarith [hs.1, ht.2]
-    have heNat : i.val = j.val + 1 := by exact_mod_cast he
-    have hk : i.castSucc = j.succ := Fin.ext heNat
-    simp only [hs0, ht1, eval, AffineMap.lineMap_apply_zero,
-      AffineMap.lineMap_apply_one, hk, le_refl]
 
 private theorem observe_lt_of_position_lt
     (h : ∀ i : Fin p.segments, StrictMonoOn (fun t => f (p.eval i t)) (Set.Icc 0 1))
@@ -107,8 +105,10 @@ theorem eval_lt_iff_position_lt_of_strictMonoOn (p : Route) (f : ℂ → α)
     f (p.eval i s) < f (p.eval j t) ↔ p.position i s < p.position j t := by
   constructor
   · intro he
-    by_contra hp
-    exact (not_lt_of_ge (observe_le_of_position_le f h j i ht hs (le_of_not_gt hp))) he
+    rcases lt_trichotomy (p.position i s) (p.position j t) with hp | hp | hp
+    · exact hp
+    · exact ((ne_of_lt he) (congrArg f (eval_eq_of_position_eq i j hs ht hp))).elim
+    · exact (lt_asymm he (observe_lt_of_position_lt f h j i ht hs hp)).elim
   · exact observe_lt_of_position_lt f h i j hs ht
 
 /-- A scalar observation strictly increasing on every segment certifies simplicity. -/

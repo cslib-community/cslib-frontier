@@ -9,8 +9,9 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 import CslibFrontier.Foundations.Geometry.Polygonal.SegmentOrder
-import Mathlib.Analysis.Complex.Basic
+import Mathlib.Geometry.Euclidean.Basic
 import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Ring
 
 /-!
@@ -26,14 +27,20 @@ public section
 namespace Cslib.Polygonal
 
 open AffineMap
+open scoped RealInnerProductSpace
 
 private theorem norm_sq_lineMap_sub (z a b : ℂ) (t : ℝ) :
     ‖lineMap a b t - z‖ ^ 2 =
       (1 - t) * ‖a - z‖ ^ 2 + t * ‖b - z‖ ^ 2 - t * (1 - t) * ‖b - a‖ ^ 2 := by
-  simp only [Complex.sq_norm, Complex.normSq_apply, lineMap_apply_module,
-    Complex.sub_re, Complex.sub_im, Complex.add_re, Complex.add_im,
-    Complex.smul_re, Complex.smul_im]
-  ring
+  have hline (u : ℝ) :
+      ‖lineMap a b u - z‖ ^ 2 =
+        ‖b - a‖ ^ 2 * u * u + 2 * ⟪b - a, a - z⟫ * u + ‖a - z‖ ^ 2 := by
+    simpa only [lineMap_apply, vadd_eq_add, vsub_eq_sub, dist_eq_norm,
+      real_inner_self_eq_norm_sq, sq] using EuclideanGeometry.dist_smul_vadd_sq u (b - a) a z
+  have hend := hline 1
+  simp only [lineMap_apply_one, mul_one] at hend
+  rw [hline]
+  linear_combination -t * hend
 
 /-- If the squared radial gain exceeds the squared chord length, the distance from the
 center is strictly increasing on the entire chord, including its endpoints. -/
