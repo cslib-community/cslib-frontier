@@ -31,6 +31,7 @@ computable; generic `[Finite α]` parameters use `Turing.MultiTapeTM.encFinite`.
 
 * `Turing.MultiTapeTM.length_encFinEnum_lt`: the cardinality bounds every constructively encoded
   rank.
+* `Turing.MultiTapeTM.encFinEnum_fin_apply`: `Fin` indices are encoded by their unary values.
 * `Turing.MultiTapeTM.length_encFinite_lt`: the cardinality bounds every encoded rank.
 
 ## References
@@ -51,6 +52,12 @@ instance instFinEnumBool : FinEnum Bool :=
 def encFinEnum (α : Type) [FinEnum α] : α ↪ List Bool :=
   ⟨fun a => encUnary (FinEnum.equiv a).val, fun _ _ h =>
     FinEnum.equiv.injective (Fin.ext (encUnary.injective h))⟩
+
+/-- `encFinEnum (Fin count)` encodes `i : Fin count` in unary by `i.val`. -/
+@[simp] theorem encFinEnum_fin_apply {count : ℕ} (i : Fin count) :
+    encFinEnum (Fin count) i = encUnary i.val := by
+  dsimp [encFinEnum, FinEnum.equiv, FinEnum.fin, FinEnum.ofList, FinEnum.ofNodupList]
+  simp [List.dedup_eq_self.mpr (List.nodup_finRange count)]
 
 /-- Every constructively encoded finite tag has length less than the fixed domain's cardinality. -/
 theorem length_encFinEnum_lt {α : Type} [FinEnum α] (a : α) :

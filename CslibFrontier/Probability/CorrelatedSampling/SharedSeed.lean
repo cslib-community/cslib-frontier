@@ -19,7 +19,8 @@ import Mathlib.MeasureTheory.Integral.Lebesgue.Countable
 # Correlated sampling from a distribution-independent seed
 
 Two parties hold distributions `P` and `Q` on a finite set `S` and share randomness, but do not
-communicate. Holenstein's protocol [Holenstein, Lemma 5.2][Holenstein2009] gives them a shared
+communicate. Holenstein's protocol [Holenstein, §5, Figure 1 and the proof of Lemma 5.2,
+pp. 152–153][Holenstein2009] gives them a shared
 sequence of independent uniform points `(x_n, u_n)` of `S × [0, 1]` (`seed`). Each party outputs
 the first `x_n` with `u_n < P (x_n)`, the first point under the graph of its own distribution
 (`seedSample`). The law of the seed depends only on `S`, not on `P` or `Q`, and each party
@@ -37,8 +38,11 @@ The library's finite correlated sampling (`Cslib.Probability.CorrelatedSampling.
 same bounds from a seed whose law is built from the whole family of distributions. This file is
 Holenstein's protocol itself, with the seed fixed in advance.
 
-The statement of the seed's independence and of both bounds follows Holenstein; the formal proof
-route through `firstHit` is original (cslib-frontier issue #6718).
+The statement of the seed's independence and of both bounds follows Holenstein: the infinite
+product and the strict acceptance predicate are his sampling step (Figure 1), and conditioning the
+first hit in the union gives his min/max ratio (proof of Lemma 5.2) before weakening to `2δ`. The
+formal proof route through `firstHit` is original (cslib-frontier issue #6718). The results here
+concern two finite-alphabet distributions; they do not assert Holenstein's full embedding lemma.
 
 ## Main definitions
 
@@ -60,9 +64,15 @@ route through `firstHit` is original (cslib-frontier issue #6718).
 ## Implementation notes
 
 The seed is an infinite sequence, so it is a `Measure` on `ℕ → S × unitInterval`, not a `PMF`.
-When no point of the sequence lies under the graph, which happens with probability zero, a party
-outputs a fixed default element; both parties use the same default, so this event never makes the
-outputs differ.
+When no point of the sequence lies under the graph of its distribution, a party outputs a fixed
+default element. Both parties use the same default, so they agree when neither has a hit. If only
+one party has no hit, it returns the default while the other may return a different element. For
+each fixed distribution the no-hit event has measure zero (`infinitePi_forall_notMem`), and the
+disagreement bound accounts for it: it bounds the event that the first point under the graph of
+`max P Q` is not under the graph of `min P Q`, which contains every disagreement.
+
+The alphabet carries a measurable structure with measurable singletons
+(`MeasurableSingletonClass`), so that the graph regions are measurable.
 
 ## References
 
@@ -83,7 +93,7 @@ section FirstHit
 variable {β : Type*}
 
 /-- The event that the first entry of `ω` in `R` has index `n` and lies in `B`. -/
-def hitAt (R B : Set β) (n : ℕ) : Set (ℕ → β) := {ω | (∀ i < n, ω i ∉ R) ∧ ω n ∈ B ∩ R}
+private def hitAt (R B : Set β) (n : ℕ) : Set (ℕ → β) := {ω | (∀ i < n, ω i ∉ R) ∧ ω n ∈ B ∩ R}
 
 open Classical in
 /-- The first entry of `ω` in `R`, or `d` if no entry lies in `R`. -/
@@ -92,7 +102,7 @@ noncomputable def firstHit (R : Set β) (d : β) (ω : ℕ → β) : β :=
 
 /-- When some entry lies in `R`, the first one lies in `B` exactly when the first entry in `R`
 occurs at some index and lies in `B`. -/
-theorem firstHit_mem_iff {R : Set β} {d : β} {ω : ℕ → β} (h : ∃ n, ω n ∈ R) (B : Set β) :
+private theorem firstHit_mem_iff {R : Set β} {d : β} {ω : ℕ → β} (h : ∃ n, ω n ∈ R) (B : Set β) :
     firstHit R d ω ∈ B ↔ ∃ n, ω ∈ hitAt R B n := by
   classical
   rw [firstHit, dite_eq_left h]
@@ -305,7 +315,8 @@ omit [Fintype S] in
 theorem measurable_seedSample [Finite S] (P : PMF S) : Measurable (seedSample P) :=
   measurable_fst.comp (measurable_firstHit (measurableSet_underGraph _) _)
 
-/-- **Holenstein's protocol, marginals** [Holenstein, Lemma 5.2][Holenstein2009]. A party reading
+/-- **Holenstein's protocol, marginals** [Holenstein, §5, Figure 1 and the proof of Lemma 5.2,
+pp. 152–153][Holenstein2009]. A party reading
 the shared seed with its own distribution `P` outputs a sample of `P`. -/
 theorem map_seedSample (P : PMF S) : (seed S).map (seedSample P) = P.toMeasure := by
   set t : S → ℝ := fun s => (P s).toReal
@@ -334,9 +345,12 @@ theorem map_seedSample (P : PMF S) : (seed S).map (seedSample P) = P.toMeasure :
   simp [t, ENNReal.ofReal_toReal (P.apply_ne_top s)]
 
 open scoped Cslib.Probability.PMF in
-/-- **Holenstein's protocol, disagreement** [Holenstein, Lemma 5.2][Holenstein2009]. Two parties
-reading the same shared seed with their own distributions `P` and `Q` output different elements
-with probability at most `2δ`, where `δ` is the statistical distance between `P` and `Q`. -/
+/-- **Holenstein's protocol, disagreement** [Holenstein, §5, Figure 1 and the proof of Lemma 5.2,
+pp. 152–153][Holenstein2009]. Two parties reading the same shared seed with their own
+distributions `P` and `Q` output different elements with probability at most `2δ`, where `δ` is
+the statistical distance between `P` and `Q`. Conditioning the first point under the graph of
+`max P Q` gives Holenstein's ratio `2δ / (1 + δ)`, which is then weakened to `2δ`. A disagreement
+in which only one party finds no point under its graph is included in the bounded event. -/
 theorem seedSample_disagree_le (P Q : PMF S) :
     (seed S).real {ω | seedSample P ω ≠ seedSample Q ω} ≤ 2 * dist P Q := by
   set tP : S → ℝ := fun s => (P s).toReal

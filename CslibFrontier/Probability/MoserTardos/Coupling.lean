@@ -88,7 +88,10 @@ which holds for outer measure.
 seed at each table entry is a sequence of uniform points of `α v × [0, 1]` whose law depends only
 on `α v`, and each run computes its sample from the seed and its own distribution alone. So the
 two runs can be carried out by parties who share the seed table but each know only their own
-distributions.
+distributions. The coupling's marginal and termination results (`correlatedCoupling_map_fst`,
+`correlatedCoupling_map_snd`, `correlated_ae_terminate`) assume that each alphabet has measurable
+singletons (`MeasurableSingletonClass`), which the protocol uses for the measurability of its graph
+regions; the discrete measurable structure on a finite alphabet satisfies it.
 
 The divergence and output bounds use no hypothesis on `Q`: they need only the first run's
 expected sample counts, and the second run stops whenever the runs agree. Almost-sure termination
@@ -679,7 +682,9 @@ instance (P Q : ∀ v, PMF (α v)) (v : V) : IsProbabilityMeasure (correlatedCou
     (measurable_seedSample_prod P Q v).aemeasurable).2 inferInstance
 
 omit [Fintype V] [DecidableEq V] in
-/-- The first party samples from `P v`. -/
+/-- The first party samples from `P v`. Each alphabet `α v` has measurable singletons
+(`MeasurableSingletonClass`), which Holenstein's protocol uses for the measurability of its graph
+regions. -/
 theorem correlatedCoupling_map_fst (P Q : ∀ v, PMF (α v)) (v : V) :
     (correlatedCoupling P Q v).map Prod.fst = (P v).toMeasure := by
   have : Nonempty (α v) := ⟨(P v).support_nonempty.some⟩
@@ -687,7 +692,8 @@ theorem correlatedCoupling_map_fst (P Q : ∀ v, PMF (α v)) (v : V) :
   exact CorrelatedSampling.map_seedSample (P v)
 
 omit [Fintype V] [DecidableEq V] in
-/-- The second party samples from `Q v`. -/
+/-- The second party samples from `Q v`. Each alphabet `α v` has measurable singletons
+(`MeasurableSingletonClass`), as in `correlatedCoupling_map_fst`. -/
 theorem correlatedCoupling_map_snd (P Q : ∀ v, PMF (α v)) (v : V) :
     (correlatedCoupling P Q v).map Prod.snd = (Q v).toMeasure := by
   have : Nonempty (α v) := ⟨(P v).support_nonempty.some⟩
@@ -757,7 +763,8 @@ theorem correlated_not_agreeGood_le [Finite ι] (P Q : ∀ v, PMF (α v))
     (correlated_diverge_le P Q vbl r A hAm hA Γ hΓ hΓd hP hp hr)
 
 /-- **Both runs terminate under correlated sampling.** In the symmetric case for both `P` and `Q`,
-almost surely both runs stop. -/
+almost surely both runs stop. Each alphabet `α v` has measurable singletons
+(`MeasurableSingletonClass`), as in `correlatedCoupling_map_fst`. -/
 theorem correlated_ae_terminate [Finite ι] (P Q : ∀ v, PMF (α v))
     (vbl : ι → Finset V) (r : List ι → (∀ v, α v) → Option ι) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))

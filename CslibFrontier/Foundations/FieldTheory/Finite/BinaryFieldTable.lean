@@ -84,6 +84,11 @@ theorem exists_modulusBits_eq {w : ℕ} (hw : w ≠ 0) :
   rw [← hl, ← modulusBits, polyOfBits_modulusBits hw, natDegree_leastIrreducible hw] at this
   exact this.symm
 
+/-- The binary modulus word includes the monic coefficient at index `w`. -/
+theorem length_modulusBits {w : ℕ} (hw : w ≠ 0) : (modulusBits w).length = w + 1 := by
+  obtain ⟨l, hl, hlen⟩ := exists_modulusBits_eq hw
+  rw [hl, List.length_append, List.length_singleton, hlen]
+
 /-- The basis of the explicit binary field used by the program. -/
 local notation "𝔅" => BinaryField.basis
 

@@ -80,6 +80,19 @@ theorem PolynomialFunction.value_eq_eval {d : ℕ} (p : PolynomialFunction F d) 
   unfold value
   rfl
 
+/-- The values at field elements determine a polynomial function. -/
+theorem PolynomialFunction.value_injective {d : ℕ} :
+    Function.Injective (PolynomialFunction.value : PolynomialFunction F d → F → F) := by
+  intro f g h
+  apply Subtype.ext
+  funext x
+  have hx (j : Fin 1) : x.val 0 = x.val j := congrArg x.val (Subsingleton.elim _ _)
+  have h' := congrFun h (x.val 0)
+  rw [PolynomialFunction.value_eq_eval, PolynomialFunction.value_eq_eval] at h'
+  have he : (fun _ : Fin 1 => x.val 0) = x.val := funext hx
+  rw [he] at h'
+  simpa only [PolynomialFunction.eval, Subtype.eta] using h'
+
 theorem PolynomialFunction.exists_polynomial_value {d : ℕ} (p : PolynomialFunction F d) :
     ∃ f : Polynomial F, f.natDegree ≤ d ∧ ∀ t, f.eval t = p.value t := by
   obtain ⟨f, hf, he⟩ := p.exists_polynomial
