@@ -34,6 +34,21 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       (fun p => (QueryMachine.encStateRead enc p).length) :=
   ⟨flatCallbackStart_inSpace _ _, (justesenWeightedSubdivisionCallback_parts_inSpace ntm).2.1⟩
 
+-- After a read and selector, a caller can inspect the next query, completion, and reply.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) :
+    let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+    let enc := encOption encJustesenSubdivisionState
+    let encNext := encPair enc NondeterministicQueryMachine.encReadChoice
+    ComputableInSpace (M.query ∘ M.next) encNext encNat (fun p => (encNext p).length) ∧
+    ComputableInSpace (M.halted ∘ M.next) encNext encBool (fun p => (encNext p).length) ∧
+    ComputableInSpace (fun p => (M.next p).map callbackVerdict) encNext (encOption encBool)
+      (fun p => (encNext p).length) := by
+  obtain ⟨hq, hn, hh, hv⟩ := justesenWeightedSubdivisionChoice_parts_inSpace ntm
+  have hquery := budget_comp_linear hq hn
+  have hhalt := budget_comp_linear hh hn
+  have hreply := budget_comp_linear hv hn
+  exact ⟨hquery, hhalt, hreply⟩
+
 -- Use the generated subdivision's adjacency specification at the original roots,
 -- with the code-bit correspondence supplied at the source column.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)

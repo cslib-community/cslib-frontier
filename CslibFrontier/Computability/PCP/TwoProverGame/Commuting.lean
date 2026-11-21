@@ -54,6 +54,8 @@ consequence of Tsirelson's inequality for states (`Cslib.Quantum.AlgState.re_chs
 ## Main results
 
 * `Cslib.PCP.TwoProverGame.commutingWinProb_toCommuting`: the tensor-product model is an instance.
+* `Cslib.PCP.CommutingStrategy.sum_ite_prob_eq`: the probability that the first player's bit
+  matches a function of the other answer, as a correlation.
 * `Cslib.PCP.TwoProverGame.commutingWinProb_chsh_le`: Tsirelson's bound for commuting-operator
   strategies.
 
@@ -97,6 +99,16 @@ variable [Ring 𝒜] [PartialOrder 𝒜] [Algebra ℂ 𝒜]
 noncomputable def prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) (b : B) : ℝ :=
   (S.state ((S.alice x).effect a * (S.bob y).effect b)).re
 
+/-- Summing over Bob's answer gives Alice's marginal, independent of Bob's question. -/
+theorem sum_prob_bob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) :
+    ∑ b, S.prob x y a b = (S.state ((S.alice x).effect a)).re := by
+  simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one]
+
+/-- Summing over Alice's answer gives Bob's marginal, independent of Alice's question. -/
+theorem sum_prob_alice (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (b : B) :
+    ∑ a, S.prob x y a b = (S.state ((S.bob y).effect b)).re := by
+  simp only [prob, ← Complex.re_sum, ← map_sum, ← sum_mul, (S.alice x).sum_effect, one_mul]
+
 /-- Exchange the two physical players of a commuting strategy. -/
 def swap (S : CommutingStrategy X Y A B 𝒜) : CommutingStrategy Y X B A 𝒜 where
   state := S.state
@@ -109,11 +121,6 @@ def swap (S : CommutingStrategy X Y A B 𝒜) : CommutingStrategy Y X B A 𝒜 w
   unfold prob
   rw [(S.commute x y a b).eq]
   rfl
-
-/-- Summing over Bob's answers gives Alice's marginal probability. -/
-theorem sum_prob_bob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) :
-    ∑ b, S.prob x y a b = (S.state ((S.alice x).effect a)).re := by
-  simp only [prob, ← Complex.re_sum, ← map_sum, ← mul_sum, (S.bob y).sum_effect, mul_one]
 
 theorem sum_prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
     ∑ a, ∑ b, S.prob x y a b = 1 :=
@@ -132,6 +139,64 @@ noncomputable def relabel {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
       commute := fun x y =>
         Measurement.commute_map_map (S.alice (qx x)) (S.bob (qy y))
           (S.commute (qx x) (qy y)) fa fb }
+
+variable [IsOrderedAddMonoid 𝒜]
+
+/-- Restrict the questions and postprocess the answers of both players, keeping the same
+state. Each answer effect is a sum of mutually cross-player commuting effects. -/
+def map {X' Y' A' B' : Type*} [Fintype A'] [Fintype B'] [DecidableEq A'] [DecidableEq B']
+    (S : CommutingStrategy X Y A B 𝒜) (questionAlice : X' → X) (questionBob : Y' → Y)
+    (answerAlice : X' → A → A') (answerBob : Y' → B → B') :
+    CommutingStrategy X' Y' A' B' 𝒜 where
+  state := S.state
+  alice x := (S.alice (questionAlice x)).map (answerAlice x)
+  bob y := (S.bob (questionBob y)).map (answerBob y)
+  commute x y :=
+    Measurement.commute_map_map (S.alice (questionAlice x)) (S.bob (questionBob y))
+      (S.commute (questionAlice x) (questionBob y)) (answerAlice x) (answerBob y)
+
+/-- Postprocessed answer probabilities sum the original probabilities over the two
+decoder fibers. -/
+theorem prob_map {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
+    [DecidableEq A'] [DecidableEq B'] (S : CommutingStrategy X Y A B 𝒜)
+    (questionAlice : X' → X) (questionBob : Y' → Y)
+    (answerAlice : X' → A → A') (answerBob : Y' → B → B') (x : X') (y : Y')
+    (a : A') (b : B') :
+    (S.map questionAlice questionBob answerAlice answerBob).prob x y a b =
+      ∑ a' with answerAlice x a' = a, ∑ b' with answerBob y b' = b,
+        S.prob (questionAlice x) (questionBob y) a' b' := by
+  simp only [prob, map, Measurement.map_effect, sum_mul, mul_sum, map_sum, Complex.re_sum]
+  exact sum_comm
+
+/-- Checking decoded answers in the postprocessed strategy gives the same score as
+checking them directly in the original joint distribution. -/
+theorem sum_ite_prob_map {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
+    [DecidableEq A'] [DecidableEq B'] (S : CommutingStrategy X Y A B 𝒜)
+    (questionAlice : X' → X) (questionBob : Y' → Y)
+    (answerAlice : X' → A → A') (answerBob : Y' → B → B') (x : X') (y : Y')
+    (accepts : A' → B' → Prop) [∀ a b, Decidable (accepts a b)] :
+    (∑ a, ∑ b, if accepts a b then
+      (S.map questionAlice questionBob answerAlice answerBob).prob x y a b else 0) =
+    ∑ a, ∑ b, if accepts (answerAlice x a) (answerBob y b) then
+      S.prob (questionAlice x) (questionBob y) a b else 0 := by
+  conv_rhs => rw [← sum_fiberwise univ (answerAlice x)]
+  refine sum_congr rfl fun a _ => ?_
+  have hrow (a' : A) :
+      (∑ b', if accepts (answerAlice x a') (answerBob y b') then
+        S.prob (questionAlice x) (questionBob y) a' b' else 0) =
+      ∑ b, ∑ b' with answerBob y b' = b,
+        if accepts (answerAlice x a') (answerBob y b') then
+          S.prob (questionAlice x) (questionBob y) a' b' else 0 :=
+    (sum_fiberwise univ (answerBob y) _).symm
+  simp_rw [hrow]
+  rw [sum_comm]
+  refine sum_congr rfl fun b _ => ?_
+  rw [prob_map]
+  trans ∑ a' with answerAlice x a' = a, ∑ b' with answerBob y b' = b,
+    if accepts a b then S.prob (questionAlice x) (questionBob y) a' b' else 0
+  · split_ifs <;> simp
+  refine sum_congr rfl fun a' ha => sum_congr rfl fun b' hb => ?_
+  rw [(mem_filter.mp ha).2, (mem_filter.mp hb).2]
 
 end Ring
 
@@ -231,6 +296,58 @@ theorem correlation_eq (S : CommutingStrategy X Y Bool Bool 𝒜) (x : X) (y : Y
       S.prob x y true false + S.prob x y true true := by
   simp only [correlation, prob, Measurement.observable, sub_mul, mul_sub, map_sub,
     Complex.sub_re]
+  ring
+
+omit [StarRing 𝒜] in
+/-- The observables of a binary commuting strategy commute across players. -/
+theorem commute_observable (S : CommutingStrategy X Y Bool Bool 𝒜) (x : X) (y : Y) :
+    Commute (S.alice x).observable (S.bob y).observable := by
+  exact ((S.commute x y false false).sub_right (S.commute x y false true)).sub_left
+    ((S.commute x y true false).sub_right (S.commute x y true true))
+
+variable [StarOrderedRing 𝒜] {B : Type*} [Fintype B] in
+/-- The first player's observable commutes with every post-processed observable of the second. -/
+theorem commute_observable_map (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool) (x : X)
+    (y : Y) : Commute (((S.bob y).map g).observable) ((S.alice x).observable) := by
+  classical
+  simp only [Measurement.observable, Measurement.map_effect]
+  refine (Commute.sub_left ?_ ?_) <;> refine Commute.sum_left _ _ _ fun r _ => ?_ <;>
+    exact ((S.commute x y false r).sub_left (S.commute x y true r)).symm
+
+variable [StarOrderedRing 𝒜] {B : Type*} [Fintype B] in
+/-- The probability that the bit `γ` of the first player equals `g(r)` for the answer `r` of the
+second is the correlation of their observables: `(1 + Re φ(A_x G_y)) / 2`, where `G_y` is the
+observable of the second player's measurement post-processed by `g`. -/
+theorem sum_ite_prob_eq (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool) (x : X) (y : Y) :
+    ∑ γ, ∑ r, (if γ = g r then S.prob x y γ r else 0) =
+      (1 + (S.state ((S.alice x).observable * ((S.bob y).map g).observable)).re) / 2 := by
+  classical
+  have h : ∀ γ, ∑ r, (if γ = g r then S.prob x y γ r else 0) =
+      (S.state ((S.alice x).effect γ * ((S.bob y).map g).effect γ)).re := by
+    intro γ
+    rw [Measurement.map_effect, mul_sum, map_sum, Complex.re_sum, sum_filter]
+    refine sum_congr rfl fun r _ => ?_
+    simp only [prob, eq_comm]
+  simp only [h, Fintype.sum_bool]
+  set s := (S.alice x).effect false
+  set t := (S.alice x).effect true
+  set u := ((S.bob y).map g).effect false
+  set v := ((S.bob y).map g).effect true
+  have hst : t = 1 - s := by
+    have := (S.alice x).sum_effect
+    rw [Fintype.sum_bool] at this
+    exact eq_sub_of_add_eq this
+  have huv : v = 1 - u := by
+    have := ((S.bob y).map g).sum_effect
+    rw [Fintype.sum_bool] at this
+    exact eq_sub_of_add_eq this
+  have key : 1 + (s - t) * (u - v) = (t * v + s * u) + (t * v + s * u) := by
+    rw [hst, huv]; noncomm_ring
+  rw [Measurement.observable, Measurement.observable, ← Complex.add_re, ← map_add]
+  change _ = (1 + (S.state ((s - t) * (u - v))).re) / 2
+  have h1 : (1 : ℝ) = (S.state 1).re := by rw [S.state.map_one, Complex.one_re]
+  rw [h1, ← Complex.add_re, ← map_add, key]
+  simp only [map_add, Complex.add_re]
   ring
 
 end Correlation

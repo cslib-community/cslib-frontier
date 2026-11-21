@@ -24,6 +24,7 @@ namespace Turing.QueryMachine
 variable {σ : Type*}
 
 /-- Run the deterministic query machine with one permitted selector per live step. -/
+@[expose]
 def withRejectingChoice (M : QueryMachine σ) : NondeterministicQueryMachine (Option σ) where
   init := some M.init
   query := fun s => s.elim 0 M.query

@@ -8,13 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.DeterministicCall
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.DeterministicCall.Resource
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 
 /-!
-# Selector replay for Justesen-weighted adjacency
+# Binary-choice Justesen-weighted adjacency
 
 At valid seed and endpoint IDs, the initialized adjacency query takes three deterministic
 steps. The binary-choice adapter has one successful first-halting selector list for it.
+Its local operations and optional reply decoder use linear workspace in their encoded requests.
 -/
 
 public section
@@ -43,5 +45,25 @@ theorem configurationJustesenSubdivisionEdge_firstHalting_iff
     obtain ⟨hbefore, hhalt, _, _⟩ := hcall w seed u v
     exact (justesenWeightedSubdivisionCallback ntm).withRejectingChoice_firstHalting_iff
       w _ 3 hbefore hhalt bits
+
+open MultiTapeTM MultiTapeTM.ComputableInSpace QueryMachine.Subdivision
+open NondeterministicQueryMachine (encReadChoice)
+
+/-- The binary-choice edge callback and its optional reply decoder use linear workspace.
+The missing state reports rejection, and a returned false bit is preserved as `some false`. -/
+theorem justesenWeightedSubdivisionChoice_parts_inSpace (ntm : MultiTapeNTM k Bool State) :
+    let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+    let enc := encOption encJustesenSubdivisionState
+    let encNext := encPair enc encReadChoice
+    ComputableInSpace M.query enc encNat (fun s => (enc s).length) ∧
+    ComputableInSpace M.next encNext enc (fun p => (encNext p).length) ∧
+    ComputableInSpace M.halted enc encBool (fun s => (enc s).length) ∧
+    ComputableInSpace (fun s => s.map callbackVerdict) enc (encOption encBool)
+      (fun s => (enc s).length) := by
+  obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm
+  obtain ⟨hq, hn, hh⟩ := QueryMachine.withRejectingChoice_parts_inSpace _ _ hq hn hh
+  refine ⟨hq, hn, hh, ?_⟩
+  exact (optionElim none (budget_optionSome (callbackVerdict_inSpace _ _))).of_enc_eq
+    fun s => by cases s <;> rfl
 
 end Cslib.Complexity.STCON
