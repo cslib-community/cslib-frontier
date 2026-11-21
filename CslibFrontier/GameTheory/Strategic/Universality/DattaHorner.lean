@@ -20,11 +20,12 @@ import Mathlib.Tactic.Ring
 The construction in the proof of Theorem 5 of [Datta2003] (arXiv:math/0301001, statement p. 4,
 proof pp. 4–6). Let `F₀, …, F_{m-1}` be polynomials in `n` variables and let `d_ij` be the degree
 of `xᵢ` in `F_j` (`MvPolynomial.degreeOf`). There is a game with three players, Alice, Bob and
-Critter, with `n + 1`, `D − m + 1` and `D + 1` pure strategies, where
-`D = ∑ⱼ (∏ᵢ (1 + d_ij) − 1)` is the number of chain equations (`chainLength`). Its totally mixed
-Nash equilibria are the points `x` of the open simplex `{x | 0 < xᵢ, ∑ xᵢ < 1}` with `F_j(x) = 0`,
-encoded together with the intermediate values of Horner's rule and, when `m > n`, `m − n` free
-probabilities of Critter.
+Critter. When every `F_j` involves a variable, they have `n + 1`, `D − m + 1` and `D + 1` pure
+strategies, where `D = ∑ⱼ (∏ᵢ (1 + d_ij) − 1)` is the number of chain equations (`chainLength`);
+a constant `F_j` contributes no chain equation but still gives Critter a strategy. For any `F`,
+its totally mixed Nash equilibria are the points `x` of the open simplex `{x | 0 < xᵢ, ∑ xᵢ < 1}`
+with `F_j(x) = 0`, encoded together with the intermediate values of Horner's rule and, when
+`m > n`, `m − n` free probabilities of Critter.
 
 ## Horner's rule
 
@@ -62,8 +63,9 @@ strategies (`Strat`) are:
 
 Critter's equation for a node is its chain equation, and for `j` the chain equation of the root of
 `F_j` (`rootEq`). Bob's equation for a node and, for `j < min(m, n)`, Alice's equation for `j` fix
-Critter's corresponding probability at `1 / (D + 1)`, one over Critter's number of strategies
-(`critterWeight`). Alice's remaining equations are `0`.
+Critter's corresponding probability at `critterWeight F`, one over Critter's number
+`|bobNodes F| + m + 1` of strategies. This is `1 / (D + 1)` when every `F_j` involves a variable.
+Alice's remaining equations are `0`.
 
 ## Choices where the source is not explicit
 
@@ -82,7 +84,9 @@ Critter's corresponding probability at `1 / (D + 1)`, one over Critter's number 
 ## Source repairs
 
 * **Critter's fixed probabilities.** Datta sets them at `1 / D` (p. 6). When `m ≤ n` all `D` of
-  them are fixed, so Critter's reference strategy gets probability `0`. Here they are `1 / (D + 1)`.
+  them are fixed, so Critter's reference strategy gets probability `0`. Here they are one over
+  Critter's number of strategies (`critterWeight`), which is `1 / (D + 1)` when every `F_j`
+  involves a variable.
 * **The value of `D`.** The paper's chain for `F_j` has `∏ᵢ (1 + d_ij) − 1` equations (p. 6), so
   the `m` chains have `∑ⱼ (∏ᵢ (1 + d_ij) − 1)` equations. The paper calls this number
   `D = −1 + ∑ⱼ ∏ᵢ (1 + d_ij)`, which is larger by `m − 1` (`chainLength_add`); the two agree when
@@ -121,7 +125,7 @@ public section
 namespace Cslib.GameTheory.DattaHorner
 
 open MvPolynomial Finset Function
-open DattaThree (Who expoPow degreeVec)
+open DattaThree (Who expoPow)
 
 variable {n m : ℕ}
 
@@ -284,7 +288,7 @@ theorem mem_nodes_of_level {d : Fin n →₀ ℕ} {k : ℕ} {e : Fin n →₀ �
 /-- The chain of the degree vector `d` has `∏ᵢ (1 + d i) − 1` nodes: `(k, e) ↦ e + 1_k` is a
 bijection onto the nonzero exponents of the box. -/
 theorem card_nodes (d : Fin n →₀ ℕ) : #(nodes d) + 1 = ∏ i, (1 + d i) := by
-  rw [← DattaThree.card_Iic_eq_prod, ← card_erase_add_one (mem_Iic.2 zero_le)]
+  rw [← Finsupp.card_Iic_eq_prod, ← card_erase_add_one (mem_Iic.2 zero_le)]
   congr 1
   refine card_bij (fun p _ => p.expo + Finsupp.single p.var 1) (fun p hp => ?_)
     (fun p hp p' hp' h => ?_) fun g hg => ?_
@@ -396,8 +400,10 @@ noncomputable abbrev scale (F : Fin m → MvPolynomial (Fin n) ℝ) (j : Fin m) 
 noncomputable abbrev shift (F : Fin m → MvPolynomial (Fin n) ℝ) (j : Fin m) : ℝ :=
   -coeffBound (F j)
 
-/-- The probability `1 / (D + 1)` at which Critter's coordinates are fixed: one over Critter's
-number of pure strategies. -/
+/-- The probability `1 / (|bobNodes F| + m + 1)` at which Critter's coordinates are fixed: one
+over Critter's number of pure strategies. When every `F j` involves a variable this is
+`1 / (D + 1)` with `D = chainLength F` (`card_bobNodes_add`); for `n = m = 1` and `F₀ = 0` there
+are no chain equations, Critter has `2` strategies and the weight is `1 / 2`. -/
 noncomputable abbrev critterWeight (F : Fin m → MvPolynomial (Fin n) ℝ) : ℝ :=
   1 / (#(bobNodes F) + m + 1)
 
@@ -465,7 +471,7 @@ theorem card_bobNodes_add (hF : ∀ j, ∃ i, degreeOf i (F j) ≠ 0) :
       ext p
       simp [hroot, eq_comm, and_comm]
     have h1 := card_nodes (degreeVec (F j))
-    simp only [DattaThree.degreeVec_apply] at h1
+    simp only [degreeVec_apply] at h1
     have h2 := card_erase_add_one hr
     rw [hfilter]
     omega
@@ -486,9 +492,8 @@ theorem card_strategies (hF : ∀ j, ∃ i, degreeOf i (F j) ≠ 0) :
 /-! ### Shape of the equations -/
 
 private theorem C_mem_supported {s : Set (Coord F)} (c : ℝ) :
-    MvPolynomial.C c ∈ supported ℝ s := by
-  rw [← algebraMap_eq]
-  exact Subalgebra.algebraMap_mem _ c
+    MvPolynomial.C c ∈ supported ℝ s :=
+  mem_supported.2 (by simp [vars_C])
 
 theorem term_mem_supported (j : Fin m) (k : ℕ) (e : Fin n →₀ ℕ) :
     term F j k e ∈ supported ℝ {v : Coord F | v.1 = .bob} := by
@@ -603,6 +608,22 @@ private theorem add_single_le {d e : Fin n →₀ ℕ} {k : Fin n} (he : e ≤ d
     omega
   · simpa [Finsupp.single_apply, hi] using he i
 
+/-- The first successor of a node `(k, e)`, read at `level k (e + 1_k)`, is a node. -/
+private theorem mem_nodes_of_level_add_single {d : Fin n →₀ ℕ} {p : Node n} (hp : p ∈ nodes d)
+    {i : Fin n} (hi : level d p.var (p.expo + Finsupp.single p.var 1) = some i) :
+    ⟨i, p.expo + Finsupp.single p.var 1⟩ ∈ nodes d := by
+  obtain ⟨hle, hlt, hz⟩ := mem_nodes.1 hp
+  refine mem_nodes_of_level (add_single_le hle hlt) (fun i' hi' => ?_) hi
+  have := hz i' (by rw [Fin.lt_def]; exact hi')
+  have hne : p.var ≠ i' := fun h => by subst h; omega
+  simp [this, hne]
+
+/-- The second successor of a node `(k, e)`, read at `level (k + 1) e`, is a node. -/
+private theorem mem_nodes_of_level_succ {d : Fin n →₀ ℕ} {p : Node n} (hp : p ∈ nodes d)
+    {i : Fin n} (hi : level d (p.var + 1) p.expo = some i) : ⟨i, p.expo⟩ ∈ nodes d := by
+  obtain ⟨hle, -, hz⟩ := mem_nodes.1 hp
+  exact mem_nodes_of_level hle (fun i' hi' => hz i' (by rw [Fin.lt_def]; omega)) hi
+
 /-- **The chain determines the node values.** If every chain equation of `F j` holds, every node
 of `F j` has value `horner (F j) x k e`; the root has value `0`, so `F j (x) = 0`. -/
 theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
@@ -614,18 +635,14 @@ theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
   | _ t iht =>
   induction hs : degreeVec (F j) k - e k using Nat.strong_induction_on generalizing e with
   | _ s ihs =>
-  obtain ⟨hle, hlt, hz⟩ := mem_nodes.1 hp
-  simp only at hle hlt hz
+  have hlt : e k < degreeVec (F j) k := (mem_nodes.1 hp).2.1
   have hce := hc _ hp
   rw [chainEq, map_sub, sub_eq_zero] at hce
   rw [hce, map_add, map_mul, eval_X, horner_eq (F j) _ k e]
   simp only
   congr 2
   · refine eval_term fun i hi => ?_
-    have hmem := mem_nodes_of_level (add_single_le hle hlt) (fun i' hi' => by
-      have := hz i' (by rw [Fin.lt_def]; exact hi')
-      have hne : k ≠ i' := fun h => by subst h; omega
-      simp [this, hne]) hi
+    have hmem := mem_nodes_of_level_add_single hp hi
     rcases eq_or_lt_of_le (le_of_level_eq_some hi).1 with hik | hik
     · have : k = i := Fin.ext hik
       subst this
@@ -634,7 +651,7 @@ theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
       omega
     · exact iht _ (by omega) i _ hmem rfl
   · refine eval_term fun i hi => ?_
-    have hmem := mem_nodes_of_level hle (fun i' hi' => hz i' (by rw [Fin.lt_def]; omega)) hi
+    have hmem := mem_nodes_of_level_succ hp hi
     exact iht _ (by have := (le_of_level_eq_some hi).1; omega) i _ hmem rfl
 
 /-! ### Bob's weights -/
@@ -678,13 +695,14 @@ theorem bobWeight_mem {x : Fin n → ℝ} (hx : ∀ i, 0 < x i) (hx1 : ∑ i, x 
 /-! ### The totally mixed equilibria -/
 
 /-- **Datta's three-player construction** (proof of Theorem 5 of [Datta2003], with Critter's
-probabilities repaired to `1 / (D + 1)`). The totally mixed Nash equilibria of `game F` are the
-profiles `simplexProfile q` such that:
+probabilities repaired to `critterWeight F`, one over its number of strategies). The totally
+mixed Nash equilibria of `game F` are the profiles `simplexProfile q` such that:
 * Alice's weights `x = q ∘ aCoord` lie in the open simplex and solve every `F j = 0`;
 * Bob plays each non-root node `(k, e)` of `F j` with probability `(horner (F j) x k e − δ) / s`,
   the rescaled intermediate value of Horner's rule;
-* Critter plays `1 / (D + 1)` on its strategies for Bob's nodes and for the equations `j < n`;
-* Critter's remaining weights are positive, and all of Critter's weights sum to less than `1`. -/
+* Critter plays `critterWeight F` on its strategies for Bob's nodes and for the equations
+  `j < n`;
+* Critter's remaining weights are positive, and its non-reference weights sum to less than `1`. -/
 theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
     (game F).IsTotallyMixedNash (simplexProfile q) ↔
       ((∀ i, 0 < q (aCoord i)) ∧ ∑ i, q (aCoord i) < 1 ∧
@@ -752,15 +770,9 @@ theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
         exact this
     have hchain : ∀ j, ∀ p ∈ nodes (degreeVec (F j)), eval q (chainEq F j p) = 0 := by
       intro j p hp
-      obtain ⟨hle, hlt, hz⟩ := mem_nodes.1 hp
       rw [chainEq, map_sub, map_add, map_mul, eval_X, hval j p hp,
-        eval_term fun i hi => hval j _ (mem_nodes_of_level (add_single_le hle hlt) (fun i' hi' => by
-          have := hz i' (by rw [Fin.lt_def]; exact hi')
-          have hne : p.var ≠ i' := fun h => by subst h; omega
-          simp [this, hne]) hi),
-        eval_term fun i hi => hval j _ (mem_nodes_of_level hle
-          (fun i' hi' => hz i' (by rw [Fin.lt_def]; omega)) hi),
-        sub_eq_zero]
+        eval_term fun i hi => hval j _ (mem_nodes_of_level_add_single hp hi),
+        eval_term fun i hi => hval j _ (mem_nodes_of_level_succ hp hi), sub_eq_zero]
       exact horner_eq (F j) _ p.var p.expo
     have hxle : ∀ i, q (aCoord i) ≤ 1 := fun i =>
       (single_le_sum (fun j _ => (ha j).le) (mem_univ i)).trans hasum.le
