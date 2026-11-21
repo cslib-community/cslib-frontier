@@ -278,7 +278,7 @@ theorem computableInO_diagonal :
   set K := 65 + 100 * (cO + 1) ^ 2 with hK
   have hbounds (x : List Bool) := by
     have hL : (encNat (2 ^ x.length)).length = x.length + 1 := by
-      rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+      rw [length_encNat_two_pow]
     have hN := length_encList_map_eBit_le x
     have hE := hcO x
     simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at hE

@@ -127,7 +127,7 @@ theorem card_tyingSeeds_le {V P : Type*} (code : V → Fin ℓ → Bool)
   let A : ℤ := 6 ^ padicValNat 2 mid
   have hA : 0 < A := by dsimp [A]; positivity
   have hcoeff (j : Fin ℓ) : (coefficient mid j : ℤ) = A * 6 ^ (ℓ - (j.val + 1)) := by
-    simp [coefficient, A]
+    simp [coefficient, scaleAccumulatedWeight, A]
   have hflip (x : Fin ℓ → Bool) (j : Fin ℓ) :
       |δ (update x j true) - δ (update x j false)| ≤ 3 * (coefficient mid j : ℤ) ∧
       (code u j ≠ code v j → (coefficient mid j : ℤ) ≤

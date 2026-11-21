@@ -141,16 +141,6 @@ theorem isDeltaUniversalHash_of_polynomial [Fintype F] {X : Type*}
         ((natDegree_sub_le _ _).trans (max_le (hdeg x) (hdeg x')))
         (by rw [natDegree_C]; exact Nat.zero_le _)
 
-/-- A family that sends two distinct inputs to evaluations with a key-independent difference is
-not `ε`-difference universal for any `ε < 1`. -/
-theorem not_isDeltaUniversalHash_of_sub_const [Fintype F] {X : Type*} {h : F → X → F}
-    {x x' : X} (hx : x ≠ x') (d : F) (hd : ∀ k, h k x - h k x' = d) {ε : ℝ≥0∞} (hε : ε < 1) :
-    ¬ IsDeltaUniversalHash (PMF.uniformOfFintype F) h ε := fun hh => by
-  have hset : {k | h k x - h k x' = d} = Set.univ := Set.eq_univ_of_forall hd
-  have := hh x x' hx d
-  rw [hset, (PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr (Set.subset_univ _)] at this
-  exact absurd (this.trans_lt hε) (lt_irrefl 1)
-
 /-! ### The coefficient polynomial -/
 
 /-- The polynomial `c₁ X + c₂ X ^ 2 + ⋯ + c_t X ^ t` evaluated by `ascendingEval`. -/
