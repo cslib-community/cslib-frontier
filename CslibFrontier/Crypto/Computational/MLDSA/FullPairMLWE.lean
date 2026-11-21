@@ -31,8 +31,13 @@ public section
 namespace Cslib.Crypto.MLDSA.FIPS204
 open Cslib.Probability
 
-/-- Private key-generation view with the 66-byte inputs of Algorithm 33 supplied by `secret`.
-Algorithm 6's 34-byte seed-expansion input and its public-key hash still use `H`. -/
+/-- Private key-generation view with the 66-byte (528-bit) inputs of Algorithm 33 supplied by
+`secret`. Algorithm 6's 34-byte seed-expansion input and its public-key hash still use `H`.
+
+Caution: this splitter routes solely by bit length (`x.length = 528`). It is safe only for key
+generation (`fullPairExperiment`); do not apply it to signing or verification, where pure-mode
+`representativeInput tr (formatMessage [] [])` (for 64-byte `tr`) and Algorithm 34's
+`Xofs.expandMask` (`ExpandMask`) queries are also 66 bytes (528 bits). -/
 def Xofs.withExpandSStream (H secret : Xofs) : Xofs :=
   {H with h256 := {
     read x n := if x.length = 528 then secret.h256.read x n else H.h256.read x n
