@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Reuse a successful merge-group build: on its push to main, or in a later merge group.
+"""Reuse a successful merge-group build on main, in a later merge group, or at a PR's base.
 
 `restore` gives a push to main the build of its exact revision. `restore --ancestor` gives a
 merge-group build the build of its nearest first-parent ancestor that has one, so that the
 queue starts from the newest validated build instead of the caches that completed `main`
 builds publish, which lag it. Lake then recompiles whatever the newer commits changed.
+`restore --pr-base` looks up only the main parent of GitHub's checked-out PR merge commit.
 
 This optional cache never replaces validation. Only the latest current attempt of the
 authoritative Lean workflow may supply an artifact; misses leave the normal build to run.
@@ -16,6 +17,7 @@ Lake's transient module setup inputs are omitted; compilation recreates them whe
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -38,15 +40,15 @@ WORKFLOW_FILE = "lean_action_ci.yml"
 WORKFLOW_PATH = f".github/workflows/{WORKFLOW_FILE}"
 INPUTS = ("lean-toolchain", "lake-manifest.json", "lakefile.toml")
 # Payload bounds. On 2026-11-08 a full build was 101,848 files and 4.64 GB, packing to 1.67 GB;
-# the earlier bounds (100,000 files, 4 GiB, 1 GiB compressed) had silently disabled the handoff,
-# so every `main` push rebuilt what its merge group had already checked. These leave about 2.5x
-# headroom; a miss is reported as a workflow warning so that outgrowing them again is visible.
-MAX_FILES = 300_000
-MAX_BYTES = 12 * 1024 ** 3
-MAX_ARCHIVE_BYTES = 4 * 1024 ** 3
+# on 2026-11-21 a full build was 172,812 files and 7.53 GB, packing to 2.64 GB. These bounds
+# keep ~2.9x file / ~2.9x raw / ~3.2x compressed headroom; a miss is reported as a workflow
+# warning so that outgrowing them again is visible.
+MAX_FILES = 500_000
+MAX_BYTES = 20 * 1024 ** 3
+MAX_ARCHIVE_BYTES = 8 * 1024 ** 3
 MAX_METADATA_BYTES = 64 * 1024
 # Download budget for an archive of up to MAX_ARCHIVE_BYTES, inside the step's 10 minutes.
-DOWNLOAD_SECONDS = 420
+DOWNLOAD_SECONDS = 480
 # First-parent ancestors that `restore --ancestor` considers, nearest first. Every commit that
 # lands through the queue has a handoff for two days, so the nearest one is normally one or two
 # commits back: the tip of `main` when the group was formed, behind any queue entries ahead of it
@@ -123,8 +125,11 @@ def source_context(root: Path, env: dict, event: str) -> dict:
         ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, text=True,
     )
     require(not dirty.strip(), "Tracked sources are modified")
+    # Exclude ImageVersion so simultaneous GitHub runner-image patch rollouts (e.g.
+    # standard 4-core ubuntu-24.04 vs cslib-ubuntu-24.04-8core) share validated handoffs on
+    # the same OS/ABI. lakefile.toml also sets platformIndependent = true for .olean/.ir outputs.
     platform = {key: env.get(key, "")
-                for key in ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")}
+                for key in ("RUNNER_OS", "RUNNER_ARCH", "ImageOS")}
     require(all(isinstance(value, str) and value for value in platform.values()),
             "Runner platform is unknown")
     generation = env.get("CACHE_RECOVERY_GENERATION", "") or "0"
@@ -188,8 +193,11 @@ def ancestor_contexts(root: Path, env: dict) -> list[dict]:
     return [{**current, "source_sha": sha} for sha in chain[1:]]
 
 
-def artifact_name(sha: str, run_id: int, attempt: int) -> str:
-    return f"lean-build-{sha}-{run_id}-{attempt}"
+def artifact_name(context: dict, run_id: int, attempt: int) -> str:
+    """Advertise the same compatibility evidence that unpack() independently verifies."""
+    encoded = json.dumps(context, sort_keys=True, separators=(",", ":")).encode()
+    fingerprint = hashlib.sha256(encoded).hexdigest()
+    return f"lean-build-{context['source_sha']}-{run_id}-{attempt}-{fingerprint}"
 
 
 def module_setup_input(path: Path) -> bool:
@@ -202,6 +210,80 @@ def module_setup_input(path: Path) -> bool:
     """
     return (len(path.parts) > 1 and path.parts[0] == "ir"
             and path.name.endswith((".setup.json", ".irsetup.json")))
+
+
+@contextmanager
+def gzip_bundle(archive: Path):
+    """Stream the existing tar format through parallel compression workers where available."""
+    pigz = shutil.which("pigz")
+    if not pigz:
+        print("Handoff compression: Python gzip, level 1", flush=True)
+        with tarfile.open(archive, "w:gz", compresslevel=1) as bundle:
+            yield bundle
+        return
+    workers = min(8, max(1, os.cpu_count() or 4))
+    print(f"Handoff compression: pigz, level 1, {workers} workers", flush=True)
+    with archive.open("wb") as output, subprocess.Popen(
+            [pigz, "-n", "-1", "-p", str(workers), "-c"], stdin=subprocess.PIPE, stdout=output,
+            env={**os.environ, "PIGZ": "", "GZIP": ""}) as compressor:
+        with compressor.stdin as stream:
+            with tarfile.open(fileobj=stream, mode="w|", bufsize=1024 * 1024) as bundle:
+                yield bundle
+        status = compressor.wait()
+        if status:
+            raise subprocess.CalledProcessError(status, compressor.args)
+
+
+@contextmanager
+def open_gzip_tar_reader(archive: Path):
+    """Stream tar decompression through `pigz` when available, else Python `tarfile`."""
+    pigz = shutil.which("pigz")
+    if not pigz:
+        with tarfile.open(archive, "r:gz") as bundle:
+            yield bundle
+        return
+    decompressor = subprocess.Popen(
+        [pigz, "-d", "-c", str(archive)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={**os.environ, "PIGZ": "", "GZIP": ""},
+    )
+    aborted = False
+    try:
+        with tarfile.open(fileobj=decompressor.stdout, mode="r|", bufsize=1024 * 1024) as bundle:
+            yield bundle
+    except BaseException:
+        aborted = True
+        raise
+    finally:
+        if aborted:
+            if decompressor.stdout is not None:
+                decompressor.stdout.close()
+            if decompressor.poll() is None:
+                decompressor.terminate()
+                try:
+                    decompressor.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    decompressor.kill()
+                    decompressor.wait()
+            else:
+                decompressor.wait()
+            if decompressor.stderr is not None:
+                decompressor.stderr.close()
+        else:
+            # Drain any trailing tar zero-block padding so pigz verifies the full gzip CRC/trailer
+            # and exits 0 instead of receiving SIGPIPE.
+            if decompressor.stdout is not None:
+                while decompressor.stdout.read(1024 * 1024):
+                    pass
+                decompressor.stdout.close()
+            stderr_bytes = decompressor.stderr.read() if decompressor.stderr is not None else b""
+            if decompressor.stderr is not None:
+                decompressor.stderr.close()
+            status = decompressor.wait()
+            if status:
+                stderr = stderr_bytes.decode("utf-8", "replace").strip()
+                raise tarfile.ReadError(f"pigz decompression failed (exit {status}): {stderr}")
 
 
 def pack(root: Path, output: Path, env: dict) -> str:
@@ -237,7 +319,7 @@ def pack(root: Path, output: Path, env: dict) -> str:
     with tempfile.TemporaryDirectory(prefix="lean-handoff-pack-", dir=output.parent) as temp:
         stage = Path(temp)
         archive = stage / "build.tar.gz"
-        with tarfile.open(archive, "w:gz", compresslevel=1) as bundle:
+        with gzip_bundle(archive) as bundle:
             for path, info in files:
                 # Write every regular file's bytes, including hardlinks to Lake's artifact
                 # cache. The archive must not contain links into another checkout/cache.
@@ -258,7 +340,7 @@ def pack(root: Path, output: Path, env: dict) -> str:
                                 "compressed_bytes": compressed}}
         (stage / "metadata.json").write_text(json.dumps(metadata, sort_keys=True) + "\n")
         stage.rename(output)
-    name = artifact_name(context["source_sha"], run_id, attempt)
+    name = artifact_name(context, run_id, attempt)
     if env.get("GITHUB_OUTPUT"):
         with Path(env["GITHUB_OUTPUT"]).open("a") as handle:
             handle.write(f"artifact-name={name}\n")
@@ -314,7 +396,7 @@ def latest_success(api, context: dict, workflow_id: int) -> dict:
 
 
 def find_artifact(api, context: dict, run: dict) -> dict:
-    name = artifact_name(context["source_sha"], run["id"], run["run_attempt"])
+    name = artifact_name(context, run["id"], run["run_attempt"])
     pages = api(f"repos/{context['repository']}/actions/runs/{run['id']}/artifacts?per_page=100",
                 paginate=True)
     require(isinstance(pages, list) and bool(pages), "Malformed artifact listing")
@@ -327,7 +409,7 @@ def find_artifact(api, context: dict, run: dict) -> dict:
             "Incomplete artifact listing")
     require(all(isinstance(item, dict) for item in artifacts), "Malformed artifact record")
     matches = [item for item in artifacts if item.get("name") == name]
-    require(len(matches) == 1, "Missing or ambiguous run-attempt artifact")
+    require(len(matches) == 1, "Missing or ambiguous compatible run-attempt artifact")
     artifact = matches[0]
     require(positive(artifact.get("id")) and artifact.get("expired") is False
             and positive(artifact.get("size_in_bytes"))
@@ -363,8 +445,8 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
             and inventory["bytes"] <= MAX_BYTES
             and inventory.get("compressed_bytes") == archive.stat().st_size
             and inventory.get("sha256") == digest(archive), "Invalid archive inventory or digest")
-    seen, size = set(), 0
-    with tarfile.open(archive, "r:gz") as bundle:
+    seen, created_dirs, size = set(), set(), 0
+    with open_gzip_tar_reader(archive) as bundle:
         for member in bundle:
             parts = member.name.split("/")
             require(member.isfile() and not member.sparse and "\\" not in member.name
@@ -378,9 +460,12 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
             require(type(member.mtime) in (int, float) and 0 <= member.mtime <= 2 ** 32,
                     "Invalid archive timestamp")
             target = stage.joinpath(*parts)
-            target.parent.mkdir(parents=True, exist_ok=True)
+            parent = target.parent
+            if parent not in created_dirs:
+                parent.mkdir(parents=True, exist_ok=True)
+                created_dirs.add(parent)
             with bundle.extractfile(member) as source, target.open("xb") as output:
-                shutil.copyfileobj(source, output)
+                shutil.copyfileobj(source, output, 1024 * 1024)
             target.chmod(0o755 if member.mode & 0o111 else 0o644)
             os.utime(target, (member.mtime, member.mtime))
     require(len(seen) == inventory["files"] and size == inventory["bytes"],
@@ -444,13 +529,34 @@ def install_handoff(root: Path, context: dict, workflow_id: int, run: dict, arti
             shutil.rmtree(stage)
 
 
-def restore(root: Path, env: dict, *, api=gh_get, downloader=download_handoff) -> None:
-    context = source_context(root, env, "push")
+def pr_base_context(root: Path, env: dict) -> dict:
+    """Read the base parent from GitHub's synthetic merge commit, even in a depth-one checkout."""
+    require(str(env.get("DISABLE_PR_BUILD_HANDOFF", "")).strip().lower() in ("", "0", "false", "no"),
+            "PR build handoff is disabled by DISABLE_PR_BUILD_HANDOFF")
+    context = source_context(root, env, "pull_request")
+    require(env.get("GITHUB_BASE_REF") == "main"
+            and re.fullmatch(r"refs/pull/[1-9][0-9]*/merge", env.get("GITHUB_REF", "")),
+            "Expected a pull request merge ref targeting main")
+    commit = subprocess.check_output(["git", "cat-file", "commit", context["source_sha"]],
+                                     cwd=root, text=True, errors="replace")
+    parents = re.findall(r"^parent ([0-9a-f]{40})$", commit.partition("\n\n")[0], flags=re.MULTILINE)
+    require(len(parents) == 2 and parents[0] != parents[1], "Expected a two-parent PR merge commit")
+    return {**context, "source_sha": parents[0]}
+
+
+def restore(root: Path, env: dict, *, pr_base=False, api=gh_get, downloader=download_handoff) -> None:
+    def current_context():
+        return pr_base_context(root, env) if pr_base else source_context(root, env, "push")
+
+    context = current_context()
+    if pr_base and env.get("RESTORED_LAKE_KEY", "").endswith("-" + context["source_sha"]):
+        print("The Actions .lake snapshot already matches the PR base; skipping the build handoff")
+        return
     workflow_id = authoritative_workflow(api, context["repository"])
     run = latest_success(api, context, workflow_id)
     artifact = find_artifact(api, context, run)
-    install_handoff(root, context, workflow_id, run, artifact,
-                    lambda: source_context(root, env, "push"), "",
+    install_handoff(root, context, workflow_id, run, artifact, current_context,
+                    f"PR base {context['source_sha']}, " if pr_base else "",
                     api=api, downloader=downloader)
 
 
@@ -493,15 +599,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("pack").add_argument("--output", type=Path, required=True)
-    commands.add_parser("restore").add_argument(
-        "--ancestor", action="store_true",
-        help="in a merge group, restore the nearest first-parent ancestor's build")
+    mode = commands.add_parser("restore").add_mutually_exclusive_group()
+    mode.add_argument("--ancestor", action="store_true",
+                      help="in a merge group, restore the nearest compatible first-parent build")
+    mode.add_argument("--pr-base", action="store_true",
+                      help="in a main-targeting PR, restore the exact base parent's merge-group build")
     args = parser.parse_args()
     try:
         if args.command == "pack":
             pack(ROOT, args.output, os.environ)
         elif args.ancestor:
             restore_ancestor(ROOT, os.environ)
+        elif args.pr_base:
+            restore(ROOT, os.environ, pr_base=True)
         else:
             restore(ROOT, os.environ)
     except UnsafeShutdown as error:

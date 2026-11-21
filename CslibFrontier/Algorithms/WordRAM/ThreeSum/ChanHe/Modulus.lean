@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Search
 import CslibFrontier.Algorithms.ThreeSum.ChanHe.SelectorBounds
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native setup of the two Chan–He prime searches
@@ -466,7 +467,7 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     (show c.regs CountCall.modulus = 2 * p from rfl)
   obtain ⟨d, hd, hds, hdcounts, hdr⟩ := exec_counts x c values (by omega)
     (hp.2.trans (Nat.le_self_pow two_ne_zero _)) hmod hfits hcs hcm hvalues hsk hkd hinput hinj
-  have hdvalue : d.regs first = p := (hdr first (by decide)).trans (by rfl)
+  have hdvalue : d.regs first = p := by regs_frame
   have hddigits : d.regs digits = x.regs digits := hds.1 _ (by decide)
   have hcoll (j : Fin 3) : coll (S j) p ≤ x.regs (CountCall.length j) ^ 2 := by
     have hsize : (S j).card ≤ x.regs (CountCall.length j) :=

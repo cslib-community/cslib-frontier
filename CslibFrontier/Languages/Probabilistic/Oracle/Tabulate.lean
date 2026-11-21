@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Tabulating an oracle on a list of points
@@ -62,8 +63,7 @@ theorem interpret_tabulate {m : Type → Type*} [Monad m] [LawfulMonad m]
   induction ps with
   | nil => simp only [tabulate, OracleComp.interpret_pure, List.not_mem_nil, ite_false]; rfl
   | cons p ps ih =>
-    simp only [tabulate, OracleComp.interpret_bind, interpret_query, ih, pure_bind,
-      OracleComp.interpret_pure]
+    simp only [tabulate, interp_norm, ih, pure_bind]
     congr 1 with p' : 1
     by_cases h : p' = p
     · subst h

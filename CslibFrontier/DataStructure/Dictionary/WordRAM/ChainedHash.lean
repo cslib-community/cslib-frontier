@@ -15,6 +15,7 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Data.Nat.Log
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -747,7 +748,7 @@ theorem Rep.supported {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max -
     hmem (base + 2) (by rw [Block.mem_footprint]; wram_omega)
   have hm3 : x'.mem (base + 3) = x.mem (base + 3) :=
     hmem (base + 3) (by rw [Block.mem_footprint]; dsimp [Block.Owns]; omega)
-  refine ⟨hbx', (hreg baseReg (by decide)).trans hr.reg_base,
+  refine ⟨hbx', by regs_frame,
     hm0.trans hr.mem_seed, hm1.trans hr.mem_M, hm2.trans hr.mem_w0, hm3.trans hr.mem_sz,
     hr.card_le, hr.vals_lt, fun bk hbk => ?_⟩
   obtain ⟨L, hb⟩ := hr.buckets bk hbk

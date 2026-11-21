@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.InputSpec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete record-to-original-input preparation
@@ -59,19 +60,12 @@ theorem exec_readLogHeader {W b m n i out rho piece s t q Q : ℕ} (x : Data 320
   obtain ⟨l, hl, lmDepth, lm, lr⟩ := exec_logarithm r rarg (hfit.of_le (by
     change D m + 2 * m + 3 ≤ _
     omega))
-  have lb : l.regs Reg.base = b := (lr _ (by decide)).trans rb
+  have lb : l.regs Reg.base = b := by regs_frame
   obtain ⟨h, hh, hhead, hframe, hregs⟩ := exec_writeHeader l lb lmDepth
-    ((lr _ (by decide)).trans rAA) ((lr _ (by decide)).trans rQ')
-    ((lr _ (by decide)).trans rn) ((lr _ (by decide)).trans r1)
-    ((lr _ (by decide)).trans r2) ((lr _ (by decide)).trans r19)
-    ((lr _ (by decide)).trans r4) (hfit.of_le (by omega))
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    (by regs_frame) (hfit.of_le (by omega))
   refine ⟨h, fun hy => (hr.seq (hl.seq (hh.seq hy))).mono (by omega), hhead,
-    (hregs _ (by decide)).trans lb,
-    (hregs _ (by decide)).trans ((lr _ (by decide)).trans rA),
-    (hregs _ (by decide)).trans ((lr _ (by decide)).trans rQ'),
-    (hregs _ (by decide)).trans ((lr _ (by decide)).trans rs'),
-    (hregs _ (by decide)).trans ((lr _ (by decide)).trans rt'),
-    (hregs _ (by decide)).trans ((lr _ (by decide)).trans rq'),
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     fun a ha => (hframe a ha).trans ((congrFun lm a).trans (congrFun rm a)),
     fun j hj => (hregs _ (by omega)).trans
       ((lr _ (Or.inl (by omega))).trans (hr.regs_eq (read_preserves j hj)))⟩
@@ -108,7 +102,7 @@ theorem exec_prepare {W b m n i out rho piece s t q : ℕ}
   obtain ⟨y, hy, yleft, yright, yqueries, yframe, yregs⟩ :=
     exec_copyInputs h hb' hA hQ hs ht hq hsb htb hqb (hfit.of_le (by omega))
   refine ⟨y, (hrun hy).mono (by omega),
-    (yregs _ (by decide) (by decide)).trans hb', ?_, ?_, ?_⟩
+    by regs_frame, ?_, ?_, ?_⟩
   · apply local_input X Y qs y.mem
     · intro j
       have hj : j.val < 5 := j.isLt

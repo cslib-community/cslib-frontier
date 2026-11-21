@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding
 public import CslibFrontier.Foundations.Algebra.FiniteMagnitude
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native execution of the encoding forms
@@ -177,8 +178,7 @@ theorem exec_form {w : ℕ} (hw : 0 < w) (side : Bool) (t : Fin 10)
     (List.ofFn fun s => (s, coefficients side t s)) z 0 B base n v
     (by intro sc hsc; obtain ⟨s, rfl⟩ := List.mem_ofFn.mp hsc; exact coefficients_values side t s)
     (by simp [z, encode])
-    ((hz.2 group (by decide) (by decide) (by decide) (by decide)).trans hbase)
-    ((hz.2 stride (by decide) (by decide) (by decide) (by decide)).trans hn)
+    (by regs_frame) (by regs_frame)
     (by simpa only [z, Data.set_mem] using hmem) hB hv (by linarith)
     (by simpa using hfit) haddr hseven
   refine ⟨y, ?_, ?_, hz.trans hf⟩

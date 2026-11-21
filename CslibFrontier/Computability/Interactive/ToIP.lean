@@ -862,7 +862,7 @@ theorem isOraclePPTOn_runWordRounds {α : Type} (encIn : α ↪ List Bool) :
       simp only [runWordRounds, RoundEncodings.transcript]
       have hq : IsOraclePPTOn encIn encBits
           (fun _ : α => List.take c.limit <$> ProbOracleComp.query ((), [])) :=
-        IsOraclePPTOn.query_take' () (ComputableInPolyTime.const [])
+        IsOraclePPTOn.query_take () (ComputableInPolyTime.const [])
           (ComputableInPolyTime.const c.limit)
       have hrest := isOraclePPTOn_runWordRounds (encPair encIn encBits) s encs cs smp hcs
       have hpost : ComputableInPolyTime
@@ -881,11 +881,11 @@ theorem isOraclePPTOn_runWordRounds {α : Type} (encIn : α ↪ List Bool) :
             (fun p : (α × List Bool) × (Bool × Transcript s) => p.2.2)
             encAll encs.transcript := by fun_prop
         exact ((hValid.comp hp12).bool_and' hp21).prod ((hDec.comp hp12).prod hp22)
-      exact hq.bind_with (hrest.map_with' hpost)
+      exact hq.bind_with (hrest.map_with hpost)
   | .verifier C :: s, (encC, encs), (c, cs), (smp, smps), ⟨⟨hsmp, hEnc⟩, hcs⟩ => by
       simp only [runWordRounds, RoundEncodings.transcript]
       have hsample : IsOraclePPTOn encIn encC (fun _ : α => ProbOracleComp.sample smp) :=
-        (hsmp.isOraclePPTOn (Operation := Unit)).preprocess' (ComputableInPolyTime.const ())
+        (hsmp.isOraclePPTOn (Operation := Unit)).preprocess (ComputableInPolyTime.const ())
       have hsend : IsOraclePPTOn (encPair encIn encC) encBits
           (fun p : α × C => List.take 0 <$> ProbOracleComp.query ((), c.encode p.2)) := by
         have hpayload : ComputableInPolyTime (fun p : α × C => c.encode p.2)
@@ -893,7 +893,7 @@ theorem isOraclePPTOn_runWordRounds {α : Type} (encIn : α ↪ List Bool) :
           have hp2 : ComputableInPolyTime (fun p : α × C => p.2)
               (encPair encIn encC) encC := by fun_prop
           exact hEnc.comp hp2
-        exact IsOraclePPTOn.query_take' ()
+        exact IsOraclePPTOn.query_take ()
           hpayload
           (.const 0)
       have hrest := isOraclePPTOn_runWordRounds
@@ -906,7 +906,7 @@ theorem isOraclePPTOn_runWordRounds {α : Type} (encIn : α ↪ List Bool) :
         by fun_prop
       refine IsOraclePPTOn.bind_with hsample ?_
       refine IsOraclePPTOn.bind_with hsend ?_
-      exact hrest.map_with' hpost
+      exact hrest.map_with hpost
 
 /-- If the round codecs and challenge samplers of `s` are polynomial-time and the verifier's
 acceptance predicate `(V.outputOn x τ).isSome` is polynomial-time in `(x, τ)`, then the compiled
@@ -932,7 +932,7 @@ theorem Verifier.isOraclePPTOn_wordVerifierWith
         (fun p : Statement × (Bool × Transcript s) => (p.1, p.2.2))
         encAll (encPair encStmt encs.transcript) := by fun_prop
     exact hp21.bool_and' (hDecide.comp hp122)
-  exact hrun.map_with' hpost
+  exact hrun.map_with hpost
 
 /-- Special case of `Verifier.isOraclePPTOn_wordVerifierWith` when `smp = V.samplers`. -/
 theorem Verifier.isOraclePPTOn_wordVerifier

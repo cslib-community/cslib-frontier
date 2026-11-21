@@ -16,7 +16,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.UniformPoint
-import Mathlib.Tactic
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Falcon v1.2 BerExp lazy-byte trace
@@ -444,8 +444,7 @@ theorem eval_berExpLazyCoin_accepted (threshold : BerExpThreshold) :
   cases result with
   | true => exact htrue.trans (eval_berExpThresholdCoin_true threshold).symm
   | false =>
-      apply (ENNReal.toReal_eq_toReal_iff'
-        (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
+      ennreal_to_real
       calc
         (((BitString.uniformList (8 * 8)).map
           (fun tape => decide (BitString.binaryValue tape < threshold.val))) false).toReal =

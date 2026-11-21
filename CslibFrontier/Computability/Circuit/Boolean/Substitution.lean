@@ -15,6 +15,7 @@ public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Data.BitString.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Substituting variables and constants for inputs
@@ -110,15 +111,10 @@ theorem cost_program_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Boo
 
 
 /-- The shared-constant substitution circuit has depth at most one. -/
+@[circuit_bound]
 theorem depth_substituteCircuit_le {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) :
     (substituteCircuit ρ).depth ≤ 1 := by
-  unfold substituteCircuit
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, Nat.zero_add]
-  refine (Circuit.depth_append_le _ _).trans (max_le ?_ ?_)
-  · simp [Circuit.id]
-  · exact Circuit.depth_pi_le _ fun i =>
-      (Formula.depth_toCircuit_le _).trans (by simp [Formula.const])
+  circuit_bound [substituteCircuit]
 
 /-- A substitution costs at most two gates, one for each constant. -/
 theorem complexity_substitute_le_two (ρ : Fin N → Fin n ⊕ Bool) :

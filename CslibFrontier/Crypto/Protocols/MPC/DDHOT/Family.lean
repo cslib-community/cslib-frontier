@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.DiffieHellman
 public import CslibFrontier.Crypto.Protocols.MPC.Asymptotic
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -20,63 +21,86 @@ import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
-# DDH oblivious transfer as a protocol family, and its reduction to DDH
+# Fair-coin DDH oblivious transfer as a protocol family, and its reduction to DDH
 
-`Cslib.Crypto.Protocols.MPC.ddhOTProtocol` is a three-message 1-out-of-2 oblivious transfer over
-a group of prime order, a variant of the protocol of [BonehShoup2023], Section 23.5.7, Figure 23.17
-(p. 1057). `CslibFrontier/Crypto/Protocols/MPC/DDHOT.lean` defines it, lists its differences from
-Figure 23.17, and relates it to the DDH experiment in one fixed group. This module runs it in the
-groups of a `PrimeOrderGroupFamily` `F` as the protocol family `ddhOTFamily`
-(`Cslib.Crypto.Protocols.MPC.ProtocolFamily`), with the encoding `ddhOTEncoding` for machines,
-and reduces a corrupted receiver to DDH.
-`CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` gives PPT simulators and proves
-semi-honest security (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
+`Cslib.Crypto.Protocols.MPC.ddhOTProtocolWith` in `CslibFrontier/Crypto/Protocols/MPC/DDHOT.lean`
+is a three-message 1-out-of-2 oblivious transfer over a group of prime order, a checked
+per-branch-coin variant of the protocol of [BonehShoup2023], Section 23.5.7, Figure 23.17
+(p. 1057), parameterized by party coin types, samplers, and exponent projections. Following
+Section 23.5.7.2 ("Further assumptions about randomness", Remark 23.5, p. 1059) and [Lindell2017],
+Section 4.2, Definition 4.1 (p. 7), this module instantiates the parties' coins as the raw
+fair-coin bit strings they actually draw (`sampleExpBits`, width `n + |encNat (F.order d)|`) so
+that each party's `PartyView.coins` retains its unreduced bit strings (`DDHOTSenderBitCoins` for
+the sender, `List Bool` for the receiver), runs the protocol over a `PrimeOrderGroupFamily` `F` as
+`ddhOTProbFamily`, gives the machine encoding `ddhOTEncoding`, and reduces a corrupted receiver to
+DDH. `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` gives PPT simulators across all
+static coalitions and proves stand-alone semi-honest security as a step toward Theorem 23.7
+(`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTProbFamily_semiHonestSecure`, #5829, #5293).
 
 `ddhOTEncoding` writes group parameters with `F.encDesc` and group elements as `F.encode d` words.
 The sender's input is the pair of words of its two messages and the receiver's input is its choice
 bit; the sender's output `()` is the empty word and the receiver's output is the word of its
 message. A corrupted party's view is written as its view words (`ddhOTSenderViewWords`,
-`ddhOTReceiverViewWords`): the group elements as words and the exponents as their values below the
-group order. The words determine the view (`ddhOTSenderViewWords_injective`,
+`ddhOTReceiverViewWords`): the group elements as `F.encode d` words and the party's raw coin bit
+strings verbatim (`encBits`). The words determine the view (`ddhOTSenderViewWords_injective`,
 `ddhOTReceiverViewWords_injective`).
 
-**Proof of the reduction.** Against a corrupted receiver, `ddhOTReceiverToDDHDistinguisher` turns
-an environment `Z` into a DDH distinguisher. It runs `Z`'s input choice, draws the receiver's coin
-and the chosen branch's coins with `sampleExp`, and embeds the DDH triple into the unchosen branch
-as `Cslib.Crypto.Protocols.MPC.ddhOTReductionWithCoins` does. With exact uniform coins, the real
-DDH game would be the real game (`Cslib.Crypto.Protocols.MPC.real_receiver_eq_ddhRealExperiment`),
-and the random DDH game would be the ideal game with the exact-sampling simulator `ddhOTReceiverSim`
-(`Cslib.Crypto.Protocols.MPC.ideal_receiver_eq_ddhRandomExperiment`). The three approximate draws
-cost at most `3 / 2 ^ n` on each side (`advantage_bind_sampleExp_triple_le`), which gives
-`advantage_ddhOTReceiverGame_le`. `isPPT_ddhOTReceiverToDDHDistinguisher` proves that the reduction
-is PPT whenever `Z` is.
+**Proof of the reduction.** Against a corrupted receiver (`{1}`), `ddhOTReceiverToDDHDistinguisher`
+turns an environment `Z` into a DDH distinguisher: it runs `Z`'s input choice, draws the receiver's
+raw coin bit string `bBits` from `sampleExpBits` (identical to the real receiver's coin draw, with
+zero statistical loss on `PartyView.coins`) together with two chosen-branch bit strings `rBits,
+sBits`, and embeds the DDH triple into the unchosen branch via `ddhOTReductionWithCoinsOf`. In the
+real game, the honest sender's five bit strings enter the receiver's view only through their
+`ZMod (F.order d)` residues, so replacing them with exact uniform exponents costs at most
+`5 / 2 ^ n` (`advantage_bind_sampleDDHOTSenderBitCoins_le`), after which the hybrid real and ideal
+games equal the real and random DDH experiments of the exact-branch reduction
+(`real_receiver_eq_ddhRealExperiment_of`, `ideal_receiver_eq_ddhRandomExperiment_of`). The two
+chosen-branch draws in `ddhOTReceiverToDDHDistinguisher` cost at most `2 / 2 ^ n` in each DDH
+world, giving `advantage_ddhOTReceiverGame_le` (`≤ ddhAdv + 9 / 2 ^ n`).
+`isPPT_ddhOTReceiverToDDHDistinguisher` proves that the reduction is uniform strict PPT whenever
+`Z` is.
 
 ## Main definitions
 
+* `Cslib.Crypto.Protocols.MPC.DDHOTSenderBitCoins` and
+  `Cslib.Crypto.Protocols.MPC.DDHOTSenderBitCoins.toSenderCoins`: the sender's five raw fair-coin
+  bit strings and their projection to `DDHOTSenderCoins q`.
 * `Cslib.Crypto.Protocols.MPC.DDHOTSenderViewWords`,
   `Cslib.Crypto.Protocols.MPC.DDHOTReceiverViewWords`, their encodings, and
-  `Cslib.Crypto.Protocols.MPC.DDHOTViewWords`: a party's view as words.
-* `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTFamily`: `ddhOTProtocol` over the groups of `F`.
+  `Cslib.Crypto.Protocols.MPC.DDHOTViewWords`: a party's view as words, preserving raw coin bit
+  strings.
+* `Cslib.Crypto.PrimeOrderGroupFamily.sampleExpBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.sampleDDHOTSenderBitCoins`: raw fair-coin bit-string samplers
+  for one exponent and for the sender's five exponents.
+* `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTProbProtocol`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTProbFamily`: the fair-coin DDH OT protocol with raw
+  bit-string coins and its `ProtocolFamily` over `F`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTSenderViewWords`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTReceiverViewWords`: the words of a party's view.
-* `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTEncoding`: the encoding of the family for machines.
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTReceiverViewWords`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTEncoding`: view-word maps and machine encoding of
+  `ddhOTProbFamily`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTReceiverToDDHDistinguisher`: the reduction to DDH.
 
 ## Main results
 
+* `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_sampleExpBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.eval_map_binaryValue_sampleExpBits`: `sampleExpBits` is
+  uniform strict PPT and its `ZMod (F.order d)` residue law matches `sampleExp`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTSenderViewWords_injective`,
   `Cslib.Crypto.PrimeOrderGroupFamily.ddhOTReceiverViewWords_injective`: the words determine the
-  view.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTReceiverGame_le`: the advantage of an
-  environment against a corrupted receiver and the exact-sampling simulator is at most the DDH
-  advantage of the reduction plus `6 / 2 ^ n`.
+  view, including the unreduced coin bit strings.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTReceiverGame_le`: against a corrupted receiver
+  and the exact-sender-mask simulator `ddhOTReceiverSimOf`, every environment's advantage is at
+  most the DDH advantage of `ddhOTReceiverToDDHDistinguisher Z` plus `9 / 2 ^ n`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhOTReceiverToDDHDistinguisher`: the reduction is
-  PPT.
+  uniform strict PPT.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
   Version 0.6][BonehShoup2023], Section 23.5.7 (Figure 23.17, p. 1057; Remark 23.5, p. 1059).
+* [Y. Lindell, *How To Simulate It – A Tutorial on the Simulation Proof Technique*, ECCC
+  TR17-112][Lindell2017], Section 4.2 (Definition 4.1, p. 7).
 -/
 
 public section
@@ -85,26 +109,50 @@ namespace Cslib.Crypto.Protocols.MPC
 
 open Turing.MultiTapeTM
 
-/-! ### Views as words -/
+/-! ### Raw fair-coin bit strings and views as words -/
 
-/-- The words of a corrupted sender's view in `ddhOTProtocol`: its two messages, its five
-exponents `a, r₀, s₀, r₁, s₁` as natural numbers, and the two branch keys of the receiver's
-message. -/
+/-- Raw fair-coin bit strings drawn by the sender in `ddhOTProbProtocol`: one bit string for the
+Round 1 exponent `a` and two per branch for Round 3 encryption ([BonehShoup2023], Section 23.5.7.2,
+"Further assumptions about randomness", p. 1059). -/
+structure DDHOTSenderBitCoins where
+  /-- Raw bit string from which the Round 1 exponent `a` is derived. -/
+  exponentBits : List Bool
+  /-- Raw bit string from which branch `0` coin `r₀` is derived. -/
+  coinR₀Bits : List Bool
+  /-- Raw bit string from which branch `0` coin `s₀` is derived. -/
+  coinS₀Bits : List Bool
+  /-- Raw bit string from which branch `1` coin `r₁` is derived. -/
+  coinR₁Bits : List Bool
+  /-- Raw bit string from which branch `1` coin `s₁` is derived. -/
+  coinS₁Bits : List Bool
+
+/-- Project the sender's five raw bit strings into `DDHOTSenderCoins q` by interpreting each bit
+string as a binary natural number modulo `q`. -/
+@[expose] def DDHOTSenderBitCoins.toSenderCoins (q : ℕ) (c : DDHOTSenderBitCoins) :
+    DDHOTSenderCoins q :=
+  ((BitString.binaryValue c.exponentBits : ZMod q),
+    (BitString.binaryValue c.coinR₀Bits : ZMod q),
+    (BitString.binaryValue c.coinS₀Bits : ZMod q),
+    (BitString.binaryValue c.coinR₁Bits : ZMod q),
+    (BitString.binaryValue c.coinS₁Bits : ZMod q))
+
+/-- The words of a corrupted sender's view in `ddhOTProbProtocol`: its two messages, its five raw
+fair-coin bit strings, and the two branch keys of the receiver's Round 2 message. -/
 structure DDHOTSenderViewWords where
   /-- The word of the message `m₀`. -/
   message₀ : List Bool
   /-- The word of the message `m₁`. -/
   message₁ : List Bool
-  /-- The exponent `a` of the first message `u = a • g`. -/
-  exponent : ℕ
-  /-- The coin `r₀` of branch `0`. -/
-  coinR₀ : ℕ
-  /-- The coin `s₀` of branch `0`. -/
-  coinS₀ : ℕ
-  /-- The coin `r₁` of branch `1`. -/
-  coinR₁ : ℕ
-  /-- The coin `s₁` of branch `1`. -/
-  coinS₁ : ℕ
+  /-- The raw bit string from which the Round 1 exponent `a` is derived. -/
+  exponentBits : List Bool
+  /-- The raw bit string from which branch `0` coin `r₀` is derived. -/
+  coinR₀Bits : List Bool
+  /-- The raw bit string from which branch `0` coin `s₀` is derived. -/
+  coinS₀Bits : List Bool
+  /-- The raw bit string from which branch `1` coin `r₁` is derived. -/
+  coinR₁Bits : List Bool
+  /-- The raw bit string from which branch `1` coin `s₁` is derived. -/
+  coinS₁Bits : List Bool
   /-- The word of the branch key `w₀`. -/
   branchKey₀ : List Bool
   /-- The word of the branch key `w₁`. -/
@@ -112,17 +160,18 @@ structure DDHOTSenderViewWords where
 
 /-- The encoding of a sender's view words: each field in turn, all but the last framed. -/
 enc_structure encDDHOTSenderViewWords : DDHOTSenderViewWords where
-  message₀ : encBits, message₁ : encBits, exponent : encNat, coinR₀ : encNat, coinS₀ : encNat,
-  coinR₁ : encNat, coinS₁ : encNat, branchKey₀ : encBits, branchKey₁ : encBits
+  message₀ : encBits, message₁ : encBits, exponentBits : encBits, coinR₀Bits : encBits,
+  coinS₀Bits : encBits, coinR₁Bits : encBits, coinS₁Bits : encBits, branchKey₀ : encBits,
+  branchKey₁ : encBits
 
-/-- The words of a corrupted receiver's view in `ddhOTProtocol`: its choice bit, its coin `b` as a
-natural number, the sender's first message, and the two components of each branch ciphertext of
-the sender's reply. -/
+/-- The words of a corrupted receiver's view in `ddhOTProbProtocol`: its choice bit, its raw
+fair-coin bit string, the sender's first message, and the two components of each branch ciphertext
+of the sender's reply. -/
 structure DDHOTReceiverViewWords where
   /-- The receiver's choice bit `σ`. -/
   choiceBit : Bool
-  /-- The receiver's coin `b`. -/
-  coin : ℕ
+  /-- The receiver's raw fair-coin bit string. -/
+  coinBits : List Bool
   /-- The word of the sender's first message `u`. -/
   firstMessage : List Bool
   /-- The word of the first component of the ciphertext of branch `0`. -/
@@ -136,10 +185,10 @@ structure DDHOTReceiverViewWords where
 
 /-- The encoding of a receiver's view words: each field in turn, all but the last framed. -/
 enc_structure encDDHOTReceiverViewWords : DDHOTReceiverViewWords where
-  choiceBit : encBool, coin : encNat, firstMessage : encBits, ephemeral₀ : encBits,
+  choiceBit : encBool, coinBits : encBits, firstMessage : encBits, ephemeral₀ : encBits,
   body₀ : encBits, ephemeral₁ : encBits, body₁ : encBits
 
-/-- The view words of the two parties of `ddhOTProtocol`: `DDHOTSenderViewWords` for the sender
+/-- The view words of the two parties of `ddhOTProbProtocol`: `DDHOTSenderViewWords` for the sender
 (party `0`) and `DDHOTReceiverViewWords` for the receiver (party `1`). -/
 abbrev DDHOTViewWords : Fin 2 → Type :=
   fun i => Fin.cases (motive := fun _ => Type) DDHOTSenderViewWords
@@ -154,80 +203,199 @@ open scoped NNReal
 
 variable (F : PrimeOrderGroupFamily)
 
-/-! ### The protocol family and its encoding -/
+/-! ### Raw fair-coin bit-string sampling -/
 
-/-- `ddhOTProtocol` over the groups of `F`: at public parameters `d`, the protocol in `F.Carrier d`
-with generator `F.generator d`, in the plain model, computing `otFunctionality`. The protocol
-depends on the security parameter only through `d`. -/
-noncomputable abbrev ddhOTFamily : ProtocolFamily 2 where
+/-- Sample a raw fair-coin bit string of width `n + |encNat (F.order d)|`, the underlying random
+bit string from which `sampleExp n d` derives an approximately uniform residue modulo `F.order d`
+([BonehShoup2023], Section 23.5.7.2, Remark 23.5, p. 1059). -/
+@[expose] noncomputable def sampleExpBits (n : ℕ) (d : F.Desc) : ProbComp (List Bool) :=
+  BitString.sampleList (n + (encNat (F.order d)).length)
+
+/-- `sampleExpBits` is uniform strict PPT whenever `n` and `d` are computable in polynomial
+time. -/
+theorem isPPTOn_sampleExpBits {γ : Type} {encIn : γ ↪ List Bool}
+    {n : γ → ℕ} {d : γ → F.Desc}
+    (hn : ComputableInPolyTime n encIn encUnary)
+    (hd : ComputableInPolyTime d encIn F.encDesc) :
+    IsPPTOn encIn encBits (fun a => F.sampleExpBits (n a) (d a)) := by
+  have hord := F.computableInPolyTime_order.comp hd
+  exact isPPTOn_sampleList.preprocess
+    (hn.unary_add' ((ComputableInPolyTime.encoding_length encNat).comp hord))
+
+/-- Interpreting a `sampleExpBits n d` bit string via `BitString.binaryValue` in `ZMod (F.order d)`
+has the exact same residue law as `sampleExp n d`. -/
+theorem eval_map_binaryValue_sampleExpBits (n : ℕ) (d : F.Desc) :
+    (ProbComp.eval (F.sampleExpBits n d)).map
+      (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) =
+    (ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d)) := by
+  simp only [sampleExpBits, sampleExp, ProbComp.sampleModNat, ProbComp.sampleBinaryNat,
+    ProbComp.eval_map, PMF.map_comp]
+  exact congrArg (PMF.map · _) (funext fun _ => (ZMod.natCast_mod _ _).symm)
+
+/-- Replacing the `ZMod (F.order d)` residues of `m` independent `sampleExpBits n d` draws by `m`
+independent exact uniform draws changes `Game.advantage` by at most `m / 2 ^ n`, via
+`PMF.iid_map` and `advantage_bind_iid_sampleExp_le`. -/
+private theorem advantage_bind_iid_sampleExpBits_le (n : ℕ) (d : F.Desc) (m : ℕ)
+    (k : (Fin m → ZMod (F.order d)) → Game) :
+    Game.advantage
+      ((PMF.iid (ProbComp.eval (F.sampleExpBits n d)) m).bind fun v =>
+        k fun i => (BitString.binaryValue (v i) : ZMod (F.order d)))
+      ((PMF.iid (PMF.uniformOfFintype (ZMod (F.order d))) m).bind k) ≤ m / 2 ^ n := by
+  have hiid :
+      ((PMF.iid (ProbComp.eval (F.sampleExpBits n d)) m).bind fun v =>
+        k fun i => (BitString.binaryValue (v i) : ZMod (F.order d))) =
+      ((PMF.iid (ProbComp.eval (F.sampleExp n d)) m).bind fun v =>
+        k fun i => (v i : ZMod (F.order d))) := by
+    calc _ = ((PMF.iid (ProbComp.eval (F.sampleExpBits n d)) m).map
+          (fun v i => (BitString.binaryValue (v i) : ZMod (F.order d)))).bind k :=
+            (PMF.bind_map _ _ _).symm
+      _ = ((PMF.iid (ProbComp.eval (F.sampleExp n d)) m).map
+          (fun v i => (v i : ZMod (F.order d)))).bind k := by
+            rw [← PMF.iid_map (ProbComp.eval (F.sampleExpBits n d))
+              (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) m,
+              F.eval_map_binaryValue_sampleExpBits, PMF.iid_map]
+      _ = _ := PMF.bind_map _ _ _
+  rw [hiid]
+  exact F.advantage_bind_iid_sampleExp_le n d m k
+
+/-- Replacing the `ZMod (F.order d)` residue of one `sampleExpBits n d` draw by an exact uniform
+draw changes `Game.advantage` by at most `1 / 2 ^ n`. -/
+theorem advantage_bind_sampleExpBits_le (n : ℕ) (d : F.Desc)
+    (k : ZMod (F.order d) → Game) :
+    Game.advantage
+      ((ProbComp.eval (F.sampleExpBits n d)).bind fun bs =>
+        k (BitString.binaryValue bs : ZMod (F.order d)))
+      ((PMF.uniformOfFintype (ZMod (F.order d))).bind k) ≤ 1 / 2 ^ n := by
+  have h := F.advantage_bind_iid_sampleExpBits_le n d 1 fun v => k (v 0)
+  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+    Function.comp_def, Nat.cast_one] at h
+  exact h
+
+/-- Replacing the `ZMod (F.order d)` residues of two independent `sampleExpBits n d` draws by two
+exact uniform draws changes `Game.advantage` by at most `2 / 2 ^ n`. -/
+private theorem advantage_bind_sampleExpBits_pair_le (n : ℕ) (d : F.Desc)
+    (k : ZMod (F.order d) → ZMod (F.order d) → Game) :
+    Game.advantage
+      ((ProbComp.eval (F.sampleExpBits n d)).bind fun rBits =>
+        (ProbComp.eval (F.sampleExpBits n d)).bind fun sBits =>
+          k (BitString.binaryValue rBits : ZMod (F.order d))
+            (BitString.binaryValue sBits : ZMod (F.order d)))
+      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun r =>
+        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s => k r s) ≤ 2 / 2 ^ n := by
+  have h := F.advantage_bind_iid_sampleExpBits_le n d 2 fun v => k (v 0) (v 1)
+  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+    Function.comp_def, Nat.cast_ofNat] at h
+  exact h
+
+/-- Sample the sender's five raw fair-coin bit strings in `ddhOTProbProtocol` via five independent
+`sampleExpBits n d` draws. -/
+@[expose] noncomputable def sampleDDHOTSenderBitCoins (n : ℕ) (d : F.Desc) :
+    ProbComp DDHOTSenderBitCoins := do
+  let aBits ← F.sampleExpBits n d
+  let r₀Bits ← F.sampleExpBits n d
+  let s₀Bits ← F.sampleExpBits n d
+  let r₁Bits ← F.sampleExpBits n d
+  let s₁Bits ← F.sampleExpBits n d
+  return ⟨aBits, r₀Bits, s₀Bits, r₁Bits, s₁Bits⟩
+
+/-- Replacing the five projected `ZMod (F.order d)` residues of `sampleDDHOTSenderBitCoins n d`
+with five exact uniform draws (`sampleDDHOTSenderCoins`) changes `Game.advantage` by at most
+`5 / 2 ^ n`. -/
+theorem advantage_bind_sampleDDHOTSenderBitCoins_le (n : ℕ) (d : F.Desc)
+    (k : DDHOTSenderCoins (F.order d) → Game) :
+    Game.advantage
+      ((ProbComp.eval (F.sampleDDHOTSenderBitCoins n d)).bind fun raw₀ =>
+        k (raw₀.toSenderCoins (F.order d)))
+      ((ProbComp.eval (sampleDDHOTSenderCoins (F.order d))).bind k) ≤ 5 / 2 ^ n := by
+  have h := F.advantage_bind_iid_sampleExpBits_le n d 5 fun v => k (v 0, v 1, v 2, v 3, v 4)
+  simp only [sampleDDHOTSenderBitCoins, DDHOTSenderBitCoins.toSenderCoins, sampleDDHOTSenderCoins,
+    PMF.iid, PMF.monad_bind_eq_bind, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    PMF.bind_bind, PMF.bind_map, PMF.pure_bind, Function.comp_def, Nat.cast_ofNat] at h ⊢
+  exact h
+
+/-! ### The fair-coin protocol family and its encoding -/
+
+/-- Fair-coin three-message DDH 1-out-of-2 Oblivious Transfer protocol over `F.Carrier d` at
+security parameter `n`, with raw fair-coin bit strings (`DDHOTSenderBitCoins` and `List Bool`)
+stored unreduced in `PartyView.coins` ([BonehShoup2023], Section 23.5.7.2, Remark 23.5, p. 1059). -/
+@[expose] noncomputable def ddhOTProbProtocol (n : ℕ) (d : F.Desc) :
+    Protocol 2 noOracleSpec (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+      (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) :=
+  ddhOTProtocolWith (F.generator d) (F.order d)
+    (F.sampleDDHOTSenderBitCoins n d) (F.sampleExpBits n d)
+    (DDHOTSenderBitCoins.toSenderCoins (F.order d))
+    (fun bs => (BitString.binaryValue bs : ZMod (F.order d)))
+
+/-- `ddhOTProbProtocol` over the groups of `F` as a `ProtocolFamily`: at security parameter `n` and
+public parameters `d`, both parties draw raw fair-coin bit strings via `sampleExpBits n d`, retain
+those bit strings in `PartyView.coins`, and compute `otFunctionality (F.Carrier d)`. -/
+noncomputable abbrev ddhOTProbFamily : ProtocolFamily 2 where
   Desc := F.Desc
   spec _ _ := noOracleSpec
   sc _ d := ddhOTSchedule (F.Carrier d)
   In _ d := OTIn (F.Carrier d)
-  Coins _ d := DDHOTCoins (F.order d)
+  Coins _ _ := DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)
   Out _ d := OTOut (F.Carrier d)
-  protocol _ d := ddhOTProtocol (F.generator d) (F.order d)
+  protocol := F.ddhOTProbProtocol
   world _ _ := noOracleWorld
   functionality _ d := otFunctionality (F.Carrier d)
 
-/-- The words of a sender's view in `ddhOTProtocol` over `F.Carrier d`: the messages and branch
-keys as `F.encode d` words, and the exponents as their values below `F.order d`. -/
+/-- The words of a sender's view in `ddhOTProbProtocol` over `F.Carrier d`: the messages and branch
+keys as `F.encode d` words, and the five raw coin bit strings verbatim. -/
 @[expose] def ddhOTSenderViewWords (d : F.Desc)
-    (view : PartyView (OTIn (F.Carrier d)) (DDHOTCoins (F.order d)) (ddhOTSchedule (F.Carrier d))
-      0) : DDHOTSenderViewWords :=
+    (view : PartyView (OTIn (F.Carrier d)) (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool))
+      (ddhOTSchedule (F.Carrier d)) 0) : DDHOTSenderViewWords :=
   let (m₀, m₁) := view.input
-  let (a, r₀, s₀, r₁, s₁) := view.coins
+  let c := view.coins
   let (_, w, _) := view.received
   let (w₀, w₁) := w rfl
-  ⟨F.encode d m₀, F.encode d m₁, a.val, r₀.val, s₀.val, r₁.val, s₁.val, F.encode d w₀,
-    F.encode d w₁⟩
+  ⟨F.encode d m₀, F.encode d m₁, c.exponentBits, c.coinR₀Bits, c.coinS₀Bits, c.coinR₁Bits,
+    c.coinS₁Bits, F.encode d w₀, F.encode d w₁⟩
 
-/-- The words of a receiver's view in `ddhOTProtocol` over `F.Carrier d`: the choice bit, the
-coin as its value below `F.order d`, and the received group elements as `F.encode d` words. -/
+/-- The words of a receiver's view in `ddhOTProbProtocol` over `F.Carrier d`: the choice bit, the
+raw coin bit string verbatim, and the received group elements as `F.encode d` words. -/
 @[expose] def ddhOTReceiverViewWords (d : F.Desc)
-    (view : PartyView (OTIn (F.Carrier d)) (DDHOTCoins (F.order d)) (ddhOTSchedule (F.Carrier d))
-      1) : DDHOTReceiverViewWords :=
+    (view : PartyView (OTIn (F.Carrier d)) (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool))
+      (ddhOTSchedule (F.Carrier d)) 1) : DDHOTReceiverViewWords :=
   let (u, _, reply, _) := view.received
   let ((e₀, c₀), (e₁, c₁)) := reply rfl
-  ⟨view.input, view.coins.val, F.encode d (u rfl), F.encode d e₀, F.encode d c₀, F.encode d e₁,
+  ⟨view.input, view.coins, F.encode d (u rfl), F.encode d e₀, F.encode d c₀, F.encode d e₁,
     F.encode d c₁⟩
 
-/-- The words determine a sender's view. -/
+/-- The words determine a sender's view, including its five unreduced coin bit strings. -/
 theorem ddhOTSenderViewWords_injective (d : F.Desc) :
     Function.Injective (F.ddhOTSenderViewWords d) := by
   rintro ⟨⟨m₀, m₁⟩, ⟨a, r₀, s₀, r₁, s₁⟩, ⟨u, w, reply, ⟨⟩⟩⟩
     ⟨⟨m₀', m₁'⟩, ⟨a', r₀', s₀', r₁', s₁'⟩, ⟨u', w', reply', ⟨⟩⟩⟩ h
   simp only [ddhOTSenderViewWords, DDHOTSenderViewWords.mk.injEq] at h
-  obtain ⟨hm₀, hm₁, ha, hr₀, hs₀, hr₁, hs₁, hw₀, hw₁⟩ := h
-  refine PartyView.ext ?_ ?_ (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
+  obtain ⟨hm₀, hm₁, rfl, rfl, rfl, rfl, rfl, hw₀, hw₁⟩ := h
+  refine PartyView.ext ?_ rfl (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
   · exact Prod.ext (F.encode_injective d hm₀) (F.encode_injective d hm₁)
-  · simp only [ZMod.val_injective _ |>.eq_iff] at ha hr₀ hs₀ hr₁ hs₁
-    rw [ha, hr₀, hs₀, hr₁, hs₁]
   · exact Round.received_message_eq_of_ne (by decide) _ _
   · exact Round.received_message_ext fun _ =>
       Prod.ext (F.encode_injective d hw₀) (F.encode_injective d hw₁)
   · exact Round.received_message_eq_of_ne (by decide) _ _
 
-/-- The words determine a receiver's view. -/
+/-- The words determine a receiver's view, including its unreduced coin bit string. -/
 theorem ddhOTReceiverViewWords_injective (d : F.Desc) :
     Function.Injective (F.ddhOTReceiverViewWords d) := by
-  rintro ⟨σ, b, ⟨u, w, reply, ⟨⟩⟩⟩ ⟨σ', b', ⟨u', w', reply', ⟨⟩⟩⟩ h
+  rintro ⟨σ, bBits, ⟨u, w, reply, ⟨⟩⟩⟩ ⟨σ', bBits', ⟨u', w', reply', ⟨⟩⟩⟩ h
   injection h with hσ hb hu he₀ hc₀ he₁ hc₁
-  refine PartyView.ext hσ (ZMod.val_injective _ hb) (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
+  refine PartyView.ext hσ hb (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
   · exact Round.received_message_ext fun _ => F.encode_injective d hu
   · exact Round.received_message_eq_of_ne (by decide) _ _
   · exact Round.received_message_ext fun _ =>
       Prod.ext (Prod.ext (F.encode_injective d he₀) (F.encode_injective d hc₀))
         (Prod.ext (F.encode_injective d he₁) (F.encode_injective d hc₁))
 
-/-- The encoding of `ddhOTFamily` for machines. Group parameters are written with `F.encDesc`.
+/-- The encoding of `ddhOTProbFamily` for machines. Group parameters are written with `F.encDesc`.
 The sender's input `(m₀, m₁)` is the pair of words `(F.encode d m₀, F.encode d m₁)`
 (`encPair encBits encBits`) and the receiver's input is its choice bit (`encBool`). The sender's
 output `()` is the empty word (`encUnit`) and the receiver's output `m_σ` is the word
-`F.encode d m_σ`. The sender's and the receiver's views are their view words
-(`ddhOTSenderViewWords`, `ddhOTReceiverViewWords`), encoded by `encDDHOTSenderViewWords` and
-`encDDHOTReceiverViewWords`. -/
-@[expose] noncomputable def ddhOTEncoding : F.ddhOTFamily.Encoding where
+`F.encode d m_σ`. Each party's view is its view words (`ddhOTSenderViewWords`,
+`ddhOTReceiverViewWords`, preserving the raw coin bit strings), encoded by
+`encDDHOTSenderViewWords` and `encDDHOTReceiverViewWords`. -/
+@[expose] noncomputable def ddhOTEncoding : F.ddhOTProbFamily.Encoding where
   desc := F.encDesc
   input :=
     { Rep := OTIn (List Bool)
@@ -248,11 +416,12 @@ output `()` is the empty word (`encUnit`) and the receiver's output `m_σ` is th
       enc := fun i => Fin.cases (motive := fun i => DDHOTViewWords i ↪ List Bool)
         encDDHOTSenderViewWords (fun _ => encDDHOTReceiverViewWords) i
       rep := fun _ d i => Fin.cases (motive := fun i =>
-          PartyView (OTIn (F.Carrier d)) (DDHOTCoins (F.order d)) (ddhOTSchedule (F.Carrier d)) i ↪
-            DDHOTViewWords i)
+          PartyView (OTIn (F.Carrier d)) (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool))
+            (ddhOTSchedule (F.Carrier d)) i ↪ DDHOTViewWords i)
         ⟨F.ddhOTSenderViewWords d, F.ddhOTSenderViewWords_injective d⟩
-        (Fin.cases (motive := fun j => PartyView (OTIn (F.Carrier d)) (DDHOTCoins (F.order d))
-            (ddhOTSchedule (F.Carrier d)) j.succ ↪ DDHOTViewWords j.succ)
+        (Fin.cases (motive := fun j =>
+            PartyView (OTIn (F.Carrier d)) (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool))
+              (ddhOTSchedule (F.Carrier d)) j.succ ↪ DDHOTViewWords j.succ)
           ⟨F.ddhOTReceiverViewWords d, F.ddhOTReceiverViewWords_injective d⟩
           fun k => k.elim0) i }
 
@@ -260,108 +429,194 @@ output `()` is the empty word (`encUnit`) and the receiver's output `m_σ` is th
 
 /-- The DDH distinguisher built from an environment `Z` that corrupts the receiver: given the
 security parameter `n`, group parameters `d` and a DDH triple `(u, v, w)`, run `Z.choose`, draw
-the receiver's coin `b` and the chosen branch's coins `r, s` with `sampleExp`, and run
-`ddhOTReductionWithCoins` with `Z.guess`, which embeds the triple into the unchosen branch. -/
-@[expose] noncomputable def ddhOTReceiverToDDHDistinguisher (Z : Environment F.ddhOTFamily {1}) :
+the receiver's raw coin bit string `bBits` and two chosen-branch bit strings `rBits, sBits` with
+`sampleExpBits n d`, and run `ddhOTReductionWithCoinsOf` with `Z.guess`, recording `bBits`
+unreduced in the receiver's `PartyView.coins` and embedding `(u, v, w)` into the unchosen
+branch. -/
+@[expose] noncomputable def ddhOTReceiverToDDHDistinguisher
+    (Z : Environment F.ddhOTProbFamily {1}) :
     F.DDHDistinguisher := fun n d u v w => do
   let c ← Z.choose n d
-  let b ← F.sampleExp n d
-  let r ← F.sampleExp n d
-  let s ← F.sampleExp n d
-  ddhOTReductionWithCoins (F.generator d) c.inputs (Z.guess n d c.state)
-    (b : ZMod (F.order d)) (r : ZMod (F.order d)) (s : ZMod (F.order d)) u v w
+  let bBits ← F.sampleExpBits n d
+  let rBits ← F.sampleExpBits n d
+  let sBits ← F.sampleExpBits n d
+  let q := F.order d
+  ddhOTReductionWithCoinsOf (C₀ := DDHOTSenderBitCoins) (F.generator d)
+    (fun bs : List Bool => (BitString.binaryValue bs : ZMod q))
+    c.inputs (Z.guess n d c.state) bBits
+    (BitString.binaryValue rBits : ZMod q) (BitString.binaryValue sBits : ZMod q) u v w
 
-/-- The reduction with exact uniform coins: run `Z.choose`, then `ddhOTReduction`. It is not PPT;
-it compares the games with the DDH games of `ddhOTReceiverToDDHDistinguisher`. -/
-private noncomputable def ddhOTReceiverToDDHExact (Z : Environment F.ddhOTFamily {1}) :
+/-- Intermediate reduction that draws the receiver's raw bit string `bBits ← sampleExpBits n d`
+(matching the real receiver) and exact uniform chosen-branch exponents `r, s : ZMod (F.order d)`. -/
+private noncomputable def ddhOTReceiverToDDHExact (Z : Environment F.ddhOTProbFamily {1}) :
     F.DDHDistinguisher := fun n d u v w => do
   let c ← Z.choose n d
-  ddhOTReduction (F.generator d) (F.order d) c.inputs (Z.guess n d c.state) u v w
+  ddhOTReductionOf (C₀ := DDHOTSenderBitCoins) (F.generator d) (F.order d) (F.sampleExpBits n d)
+    (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
+    c.inputs (Z.guess n d c.state) u v w
 
-/-- The real game against a corrupted receiver is the real DDH game of the exact reduction. -/
-private theorem realGame_receiver_eq (setup : ℕ → PMF F.Desc) (Z : Environment F.ddhOTFamily {1})
-    (n : ℕ) :
-    F.ddhOTFamily.realGame setup {1} Z n =
-      F.ddhRealGame setup (F.ddhOTReceiverToDDHExact Z) n := by
-  simp only [ProtocolFamily.realGame, ddhRealGame, Game.withSetup, PMF.monad_bind_eq_bind]
-  refine congrArg (PMF.bind _) (funext fun d => ?_)
-  simp only [real_receiver_eq_ddhRealExperiment, eval_ddhRealExperiment,
-    ddhOTReceiverToDDHExact, ProbComp.eval_bind]
-  pmf_swap
+/-- Replacing the honest sender's five bit strings in `ddhOTProbFamily.realGame` at `{1}` with five
+exact uniform exponents yields `ddhRealGame` of `ddhOTReceiverToDDHExact`, within `5 / 2 ^ n`. -/
+private theorem advantage_realGame_receiver_ddhRealGame_le (setup : ℕ → PMF F.Desc)
+    (Z : Environment F.ddhOTProbFamily {1}) (n : ℕ) :
+    Game.advantage (F.ddhOTProbFamily.realGame setup {1} Z n)
+      (F.ddhRealGame setup (F.ddhOTReceiverToDDHExact Z) n) ≤ 5 / 2 ^ n := by
+  simp only [ProtocolFamily.realGame, ddhOTProbProtocol, Protocol.realJoint,
+    evalWith_ddhOTProtocolWith, ddhRealGame, Game.withSetup, eval_ddhRealExperiment,
+    ddhOTReceiverToDDHExact, ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.bind_bind,
+    PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def, Prod.map, id, restrict_singleton]
+  refine Game.advantage_bind_le_nnreal _ _ _ fun d => ?_
+  have hswap (c : InputChoice F.ddhOTProbFamily n d) :
+      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
+        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun b =>
+          ProbComp.eval (ddhOTReductionOf (C₀ := DDHOTSenderBitCoins) (F.generator d) (F.order d)
+            (F.sampleExpBits n d)
+            (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
+            c.inputs (Z.guess n d c.state)
+            (a • F.generator d) (b • F.generator d) ((a * b) • F.generator d))) =
+      ((ProbComp.eval (sampleDDHOTSenderCoins (F.order d))).bind fun c₀ =>
+        (ProbComp.eval (F.sampleExpBits n d)).bind fun bBits =>
+          ProbComp.eval (Z.guess n d c.state
+            (singletonView (ddhOTReceiverViewWith (c.inputs 1) bBits (c₀.1 • F.generator d)
+              (ddhOTSenderReplyUnchecked (F.generator d) (c.inputs 0) c₀
+                (ddhOTReceiverMsg (F.generator d) (c.inputs 1)
+                  (BitString.binaryValue bBits : ZMod (F.order d))
+                  (c₀.1 • F.generator d)))),
+              otOutputs c.inputs))) := by
+    simpa only [eval_ddhRealExperiment] using
+      (real_receiver_eq_ddhRealExperiment_of (C₀ := DDHOTSenderBitCoins) (F.generator d)
+        (F.order d) (F.sampleExpBits n d)
+        (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
+        c.inputs (Z.guess n d c.state)).symm
+  have hrhs :
+      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
+        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun b =>
+          (ProbComp.eval (Z.choose n d)).bind fun c =>
+            ProbComp.eval (ddhOTReductionOf (C₀ := DDHOTSenderBitCoins) (F.generator d) (F.order d)
+              (F.sampleExpBits n d)
+              (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
+              c.inputs (Z.guess n d c.state)
+              (a • F.generator d) (b • F.generator d) ((a * b) • F.generator d))) =
+      ((ProbComp.eval (Z.choose n d)).bind fun c =>
+        (ProbComp.eval (sampleDDHOTSenderCoins (F.order d))).bind fun c₀ =>
+          (ProbComp.eval (F.sampleExpBits n d)).bind fun bBits =>
+            ProbComp.eval (Z.guess n d c.state
+              (singletonView (ddhOTReceiverViewWith (c.inputs 1) bBits (c₀.1 • F.generator d)
+                (ddhOTSenderReplyUnchecked (F.generator d) (c.inputs 0) c₀
+                  (ddhOTReceiverMsg (F.generator d) (c.inputs 1)
+                    (BitString.binaryValue bBits : ZMod (F.order d))
+                    (c₀.1 • F.generator d)))),
+                otOutputs c.inputs))) := by
+    calc _ = (ProbComp.eval (Z.choose n d)).bind fun c =>
+          (PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
+            (PMF.uniformOfFintype (ZMod (F.order d))).bind fun b =>
+              ProbComp.eval (ddhOTReductionOf (C₀ := DDHOTSenderBitCoins) (F.generator d)
+                (F.order d) (F.sampleExpBits n d)
+                (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
+                c.inputs (Z.guess n d c.state)
+                (a • F.generator d) (b • F.generator d) ((a * b) • F.generator d)) := by pmf_swap
+      _ = _ := congrArg (PMF.bind _) (funext hswap)
+  rw [hrhs]
+  refine Game.advantage_bind_le_nnreal _ _ _ fun c => ?_
+  exact F.advantage_bind_sampleDDHOTSenderBitCoins_le n d fun c₀ =>
+    (ProbComp.eval (F.sampleExpBits n d)).bind fun bBits =>
+      ProbComp.eval (Z.guess n d c.state
+        (singletonView (ddhOTReceiverViewWith (c.inputs 1) bBits (c₀.1 • F.generator d)
+          (ddhOTSenderReplyUnchecked (F.generator d) (c.inputs 0) c₀
+            (ddhOTReceiverMsg (F.generator d) (c.inputs 1)
+              (BitString.binaryValue bBits : ZMod (F.order d))
+              (c₀.1 • F.generator d)))),
+          otOutputs c.inputs))
 
-/-- The ideal game against a corrupted receiver with the exact-sampling simulator is the random
-DDH game of the exact reduction. -/
-private theorem idealGame_receiver_eq (setup : ℕ → PMF F.Desc) (Z : Environment F.ddhOTFamily {1})
-    (n : ℕ) :
-    F.ddhOTFamily.idealGame setup {1}
-        (fun _ d => ddhOTReceiverSim (F.generator d) (F.order d)) Z n =
+/-- The ideal game against a corrupted receiver with the exact-sender-mask simulator
+`ddhOTReceiverSimOf` equals the random DDH game of `ddhOTReceiverToDDHExact`. -/
+private theorem idealGame_receiver_eq (setup : ℕ → PMF F.Desc)
+    (Z : Environment F.ddhOTProbFamily {1}) (n : ℕ) :
+    F.ddhOTProbFamily.idealGame setup {1}
+        (fun n d => ddhOTReceiverSimOf (F.generator d) (F.order d) (F.sampleExpBits n d)
+          (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))) Z n =
       F.ddhRandomGame setup (F.ddhOTReceiverToDDHExact Z) n := by
   simp only [ProtocolFamily.idealGame, ddhRandomGame, Game.withSetup, PMF.monad_bind_eq_bind]
   refine congrArg (PMF.bind _) (funext fun d => ?_)
   simp only [← ProbComp.eval_bind,
-    ideal_receiver_eq_ddhRandomExperiment _ _ (F.smul_generator_surjective d)]
+    ideal_receiver_eq_ddhRandomExperiment_of (C₀ := DDHOTSenderBitCoins) (F.generator d)
+      (F.order d) (F.smul_generator_surjective d) (F.sampleExpBits n d)
+      (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))]
   simp only [eval_ddhRandomExperiment, ddhOTReceiverToDDHExact, ProbComp.eval_bind]
   pmf_swap
 
-/-- On every triple, the exact and the `sampleExp` reductions accept with probabilities within
-`3 / 2 ^ n`. -/
-private theorem advantage_ddhOTReceiverToDDHExact_le (Z : Environment F.ddhOTFamily {1}) (n : ℕ)
+/-- On every triple, `ddhOTReceiverToDDHExact` and `ddhOTReceiverToDDHDistinguisher` accept with
+probabilities within `2 / 2 ^ n` (only the two chosen-branch coins differ; the receiver's raw coin
+`bBits ← sampleExpBits n d` is drawn identically in both). -/
+private theorem advantage_ddhOTReceiverToDDHExact_le (Z : Environment F.ddhOTProbFamily {1}) (n : ℕ)
     (d : F.Desc) (u v w : F.Carrier d) :
     Game.advantage (ProbComp.eval (F.ddhOTReceiverToDDHExact Z n d u v w))
-      (ProbComp.eval (F.ddhOTReceiverToDDHDistinguisher Z n d u v w)) ≤ 3 / 2 ^ n := by
-  simp only [ddhOTReceiverToDDHExact, ddhOTReceiverToDDHDistinguisher, ddhOTReduction,
+      (ProbComp.eval (F.ddhOTReceiverToDDHDistinguisher Z n d u v w)) ≤ 2 / 2 ^ n := by
+  simp only [ddhOTReceiverToDDHExact, ddhOTReceiverToDDHDistinguisher, ddhOTReductionOf,
     ProbComp.eval_bind, ProbComp.eval_uniform]
-  refine Game.advantage_bind_le_nnreal _ _ _ fun c => ?_
+  refine Game.advantage_bind_le_nnreal _ _ _ fun c =>
+    Game.advantage_bind_le_nnreal _ _ _ fun bBits => ?_
   rw [Game.advantage_comm]
-  exact F.advantage_bind_sampleExp_triple_le n d fun b r s =>
-    ProbComp.eval (ddhOTReductionWithCoins (F.generator d) c.inputs (Z.guess n d c.state)
-      b r s u v w)
+  exact F.advantage_bind_sampleExpBits_pair_le n d fun r s =>
+    ProbComp.eval (ddhOTReductionWithCoinsOf (C₀ := DDHOTSenderBitCoins) (F.generator d)
+      (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
+      c.inputs (Z.guess n d c.state) bBits r s u v w)
 
-/-- **Concrete bound for a corrupted receiver**: the advantage of `Z` between the real game and
-the ideal game with the exact-sampling simulator `ddhOTReceiverSim` is at most the DDH advantage
-of `ddhOTReceiverToDDHDistinguisher Z` plus `6 / 2 ^ n`. -/
+/-- Concrete reduction step for a corrupted receiver in `ddhOTProbFamily` against the
+exact-sender-mask simulator `ddhOTReceiverSimOf` (which draws the receiver's raw bit string via
+`sampleExpBits n d` and the five sender/mask exponents uniformly): every environment's advantage is
+at most the DDH advantage of `ddhOTReceiverToDDHDistinguisher Z` plus `9 / 2 ^ n`. For the
+certified PPT simulator `ddhOTReceiverSimProb`, see `advantage_ddhOTProbReceiverGame_le` in
+`CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean`. -/
 theorem advantage_ddhOTReceiverGame_le (setup : ℕ → PMF F.Desc)
-    (Z : Environment F.ddhOTFamily {1}) (n : ℕ) :
-    Game.advantage (F.ddhOTFamily.realGame setup {1} Z n)
-        (F.ddhOTFamily.idealGame setup {1}
-          (fun _ d => ddhOTReceiverSim (F.generator d) (F.order d)) Z n) ≤
+    (Z : Environment F.ddhOTProbFamily {1}) (n : ℕ) :
+    Game.advantage (F.ddhOTProbFamily.realGame setup {1} Z n)
+        (F.ddhOTProbFamily.idealGame setup {1}
+          (fun n d => ddhOTReceiverSimOf (F.generator d) (F.order d) (F.sampleExpBits n d)
+            (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))) Z n) ≤
       Game.advantage (F.ddhRealGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n)
-        (F.ddhRandomGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n) + 6 / 2 ^ n := by
-  rw [realGame_receiver_eq, idealGame_receiver_eq]
-  have hreal : Game.advantage (F.ddhRealGame setup (F.ddhOTReceiverToDDHExact Z) n)
-      (F.ddhRealGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n) ≤ 3 / 2 ^ n := by
+        (F.ddhRandomGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n) + 9 / 2 ^ n := by
+  rw [idealGame_receiver_eq]
+  have hreal0 := F.advantage_realGame_receiver_ddhRealGame_le setup Z n
+  have hreal1 : Game.advantage (F.ddhRealGame setup (F.ddhOTReceiverToDDHExact Z) n)
+      (F.ddhRealGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n) ≤ 2 / 2 ^ n := by
     simp only [ddhRealGame, Game.withSetup, eval_ddhRealExperiment]
     exact Game.advantage_bind_le_nnreal _ _ _ fun d =>
       Game.advantage_bind_le_nnreal _ _ _ fun a => Game.advantage_bind_le_nnreal _ _ _ fun b =>
         F.advantage_ddhOTReceiverToDDHExact_le Z n d _ _ _
   have hrandom : Game.advantage (F.ddhRandomGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n)
-      (F.ddhRandomGame setup (F.ddhOTReceiverToDDHExact Z) n) ≤ 3 / 2 ^ n := by
+      (F.ddhRandomGame setup (F.ddhOTReceiverToDDHExact Z) n) ≤ 2 / 2 ^ n := by
     rw [Game.advantage_comm]
     simp only [ddhRandomGame, Game.withSetup, eval_ddhRandomExperiment]
     exact Game.advantage_bind_le_nnreal _ _ _ fun d =>
       Game.advantage_bind_le_nnreal _ _ _ fun a => Game.advantage_bind_le_nnreal _ _ _ fun b =>
         Game.advantage_bind_le_nnreal _ _ _ fun c =>
           F.advantage_ddhOTReceiverToDDHExact_le Z n d _ _ _
-  calc _ ≤ 3 / 2 ^ n + (Game.advantage (F.ddhRealGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n)
-          (F.ddhRandomGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n) + 3 / 2 ^ n) :=
-        (Game.advantage_triangle _ _ _).trans (add_le_add hreal
-          ((Game.advantage_triangle _ _ _).trans (add_le_add le_rfl hrandom)))
+  calc _ ≤ 5 / 2 ^ n + (2 / 2 ^ n +
+        (Game.advantage (F.ddhRealGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n)
+          (F.ddhRandomGame setup (F.ddhOTReceiverToDDHDistinguisher Z) n) + 2 / 2 ^ n)) :=
+        (Game.advantage_triangle _ (F.ddhRealGame setup (F.ddhOTReceiverToDDHExact Z) n) _).trans
+          (add_le_add hreal0 ((Game.advantage_triangle _ _ _).trans (add_le_add hreal1
+            ((Game.advantage_triangle _ _ _).trans (add_le_add le_rfl hrandom)))))
     _ = _ := by ring
 
 /-! ### Corrupted receiver: efficiency of the reduction -/
 
 /-- The view words that `ddhOTReceiverToDDHDistinguisher` gives the environment, from the DDH
-input `x`, the words `m₀, m₁` of the messages, the choice bit `σ` and the coins `b, r, s`. The
-second components of the branch ciphertexts add the encoded messages with `F.add`, and `-b` is
-`F.order d - b % F.order d`. -/
+input `x`, the words `m₀, m₁` of the messages, the choice bit `σ` and the raw bit strings
+`bBits, rBits, sBits`. `bBits` is recorded verbatim in `coinBits`, while scalar multiplications use
+`BitString.binaryValue` and `-b` is `F.order d - b % F.order d`. -/
 private def ddhOTReceiverViewWordsOf (x : F.DDHInput) (m₀ m₁ : List Bool) (σ : Bool)
-    (b r s : ℕ) : DDHOTReceiverViewWords :=
+    (bBits rBits sBits : List Bool) : DDHOTReceiverViewWords :=
   let d := x.groupParameters
   let q := F.order d
+  let b := BitString.binaryValue bBits
+  let r := BitString.binaryValue rBits
+  let s := BitString.binaryValue sBits
   let e := (r : ZMod q) • F.generator d + (s : ZMod q) • x.leftPublic
   let chosen := F.encode d ((b : ZMod q) • e)
   let other := F.encode d (x.candidateShared + ((q - b % q : ℕ) : ZMod q) • x.rightPublic)
-  ⟨σ, b % q, F.encode d x.leftPublic, if σ then F.encode d x.rightPublic else F.encode d e,
+  ⟨σ, bBits, F.encode d x.leftPublic, if σ then F.encode d x.rightPublic else F.encode d e,
     F.add (d, if σ then other else chosen, m₀),
     if σ then F.encode d e else F.encode d x.rightPublic,
     F.add (d, if σ then chosen else other, m₁)⟩
@@ -377,36 +632,41 @@ private noncomputable def ddhOTOutputWords (m₀ m₁ : List Bool) (σ : Bool) :
 environment, laid out as `encGuessInputFields`: the security parameter, the group parameters, the
 state, the table of the receiver's view words, and the word of the outputs. -/
 private noncomputable def ddhOTReceiverGuessWords (x : F.DDHInput) (m₀ m₁ : List Bool) (σ : Bool)
-    (state : List Bool) (b r s : ℕ) : ℕ × F.Desc × List Bool × List Bool × List Bool :=
+    (state bBits rBits sBits : List Bool) : ℕ × F.Desc × List Bool × List Bool × List Bool :=
   (x.secParam, x.groupParameters, state,
     encPi encBits fun _ : ({1} : Finset (Fin 2)) =>
-      encDDHOTReceiverViewWords (F.ddhOTReceiverViewWordsOf x m₀ m₁ σ b r s),
+      encDDHOTReceiverViewWords (F.ddhOTReceiverViewWordsOf x m₀ m₁ σ bBits rBits sBits),
     ddhOTOutputWords m₀ m₁ σ)
 
 /-- The words that an environment's choosing stage writes for `ddhOTEncoding`: the table of the
 parties' input words and the state. -/
-private abbrev ChoiceWords : Type := ((i : Fin 2) → F.ddhOTEncoding.input.Rep i) × List Bool
+private abbrev ChoiceWords : Type := ((i : Fin 2) → OTIn (List Bool) i) × List Bool
 
 /-- What the last stage of `ddhOTReceiverToDDHDistinguisher` reads: the DDH input, the words of
-the environment's choice and the three coins. -/
-private abbrev ReceiverReductionWords : Type := (((F.DDHInput × F.ChoiceWords) × ℕ) × ℕ) × ℕ
+the environment's choice and the three raw bit strings. -/
+private abbrev ReceiverReductionWords : Type :=
+  (((F.DDHInput × ChoiceWords) × List Bool) × List Bool) × List Bool
 
 /-- `ddhOTReceiverToDDHDistinguisher Z` is uniform strict PPT whenever `Z` is. -/
-theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}}
+theorem isPPT_ddhOTReceiverToDDHDistinguisher
+    {Z : Environment F.ddhOTProbFamily {1}}
     (hZ : Z.IsPPT F.ddhOTEncoding) : (F.ddhOTReceiverToDDHDistinguisher Z).IsPPT := by
   obtain ⟨W, hW, hWeq⟩ := hZ.guess.exists_bool_factor (encGuessInput_apply F.ddhOTEncoding)
   let E := encPair (encPair (encPair (encPair F.encDDHInput
-    (encPair (encDPi F.ddhOTEncoding.input.enc) encBits)) encNat) encNat) encNat
+    (encPair (encDPi F.ddhOTEncoding.input.enc) encBits)) encBits) encBits) encBits
   have hx : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.1.1) E
       F.encDDHInput := by fun_prop
   have hcw : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.1.2) E
       (encPair (encDPi F.ddhOTEncoding.input.enc) encBits) := by fun_prop
-  have hb : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.2) E
-      encNat := by fun_prop
-  have hr : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.2) E
-      encNat := by fun_prop
-  have hs : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.2) E
-      encNat := by fun_prop
+  have hbBits : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.2) E
+      encBits := by fun_prop
+  have hrBits : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.2) E
+      encBits := by fun_prop
+  have hsBits : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.2) E
+      encBits := by fun_prop
+  have hb := ComputableInPolyTime.bitsBinaryValue.comp hbBits
+  have hr := ComputableInPolyTime.bitsBinaryValue.comp hrBits
+  have hs := ComputableInPolyTime.bitsBinaryValue.comp hsBits
   have htable := hcw.fst'
   have hstate := hcw.snd'
   have hin₀ : ComputableInPolyTime (fun p : F.ReceiverReductionWords => p.1.1.1.2.1 0) E
@@ -432,7 +692,7 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
   have hview : ComputableInPolyTime (fun p : F.ReceiverReductionWords =>
       F.ddhOTReceiverViewWordsOf p.1.1.1.1 (p.1.1.1.2.1 0).1 (p.1.1.1.2.1 0).2 (p.1.1.1.2.1 1)
         p.1.1.2 p.1.2 p.2) E encDDHOTReceiverViewWords :=
-    encDDHOTReceiverViewWords_mk_polyTime hσ hmod hu (hσ.ite' hv he)
+    encDDHOTReceiverViewWords_mk_polyTime hσ hbBits hu (hσ.ite' hv he)
       (F.computableInPolyTime_add.comp (hd.prod ((hσ.ite' hother hchosen).prod hm₀)))
       (hσ.ite' he hv)
       (F.computableInPolyTime_add.comp (hd.prod ((hσ.ite' hchosen hother).prod hm₁)))
@@ -445,7 +705,7 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
       ddhOTOutputWords (p.1.1.1.2.1 0).1 (p.1.1.1.2.1 0).2 (p.1.1.1.2.1 1)) E encBits := by
     unfold ddhOTOutputWords
     refine (ComputableInPolyTime.pi fun i => ?_).encoding_comp
-    refine Fin.cases ?_ (fun j => ?_) i
+    refine Fin.cases ?_ (fun _ => ?_) i
     · exact ComputableInPolyTime.const []
     · exact hσ.ite' hm₁ hm₀
   have hwords : ComputableInPolyTime (fun p : F.ReceiverReductionWords =>
@@ -454,15 +714,15 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
     (F.encDDHInput_secParam_polyTime hx).prod (hd.prod (hstate.prod (hviews.prod houtputs)))
   have hsample {α : Type} {enc : α ↪ List Bool} {x : α → F.DDHInput}
       (hx : ComputableInPolyTime x enc F.encDDHInput) :
-      IsPPTOn enc encNat fun a => F.sampleExp (x a).secParam (x a).groupParameters :=
-    F.isPPTOn_sampleExp (by fun_prop) (by fun_prop)
+      IsPPTOn enc encBits fun a => F.sampleExpBits (x a).secParam (x a).groupParameters :=
+    F.isPPTOn_sampleExpBits (by fun_prop) (by fun_prop)
   have hprogram : IsPPTOn F.encDDHInput encBool (fun x => do
-      let cw ← (fun c => ((fun i => F.ddhOTEncoding.input.rep x.secParam x.groupParameters i
-          (c.inputs i)), c.state)) <$> Z.choose x.secParam x.groupParameters
-      let b ← F.sampleExp x.secParam x.groupParameters
-      let r ← F.sampleExp x.secParam x.groupParameters
-      let s ← F.sampleExp x.secParam x.groupParameters
-      W (F.ddhOTReceiverGuessWords x (cw.1 0).1 (cw.1 0).2 (cw.1 1) cw.2 b r s)) := by
+      let cw ← (fun c => ((fun i => F.ddhOTEncoding.input.rep x.secParam
+          x.groupParameters i (c.inputs i)), c.state)) <$> Z.choose x.secParam x.groupParameters
+      let bBits ← F.sampleExpBits x.secParam x.groupParameters
+      let rBits ← F.sampleExpBits x.secParam x.groupParameters
+      let sBits ← F.sampleExpBits x.secParam x.groupParameters
+      W (F.ddhOTReceiverGuessWords x (cw.1 0).1 (cw.1 0).2 (cw.1 1) cw.2 bBits rBits sBits)) := by
     refine IsPPTOn.bind_with (hZ.choose.preprocess
       (prepare := fun x : F.DDHInput => (x.secParam, x.groupParameters)) (by fun_prop)) ?_
     refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
@@ -471,8 +731,8 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
     exact hW.preprocess hwords
   refine hprogram.congr fun x => ?_
   simp only [ddhOTReceiverToDDHDistinguisher, ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map]
-  refine congrArg (PMF.bind _) (funext fun c => congrArg (PMF.bind _) (funext fun b =>
-    congrArg (PMF.bind _) (funext fun r => congrArg (PMF.bind _) (funext fun s => ?_))))
+  refine congrArg (PMF.bind _) (funext fun c => congrArg (PMF.bind _) (funext fun bBits =>
+    congrArg (PMF.bind _) (funext fun rBits => congrArg (PMF.bind _) (funext fun sBits => ?_))))
   obtain ⟨xs, state⟩ := c
   obtain ⟨⟨m₀, m₁⟩, σ, rfl⟩ : ∃ (m : F.Carrier x.groupParameters × F.Carrier x.groupParameters)
       (σ : Bool), xs = fun i =>
@@ -485,28 +745,31 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
       (F.ddhOTEncoding.view.encCoalition_singleton x.secParam x.groupParameters 1 _).symm
     refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTReceiverViewWords ?_)
     let q := F.order x.groupParameters
+    let b := BitString.binaryValue bBits
+    let r := BitString.binaryValue rBits
+    let s := BitString.binaryValue sBits
     let e := (r : ZMod q) • F.generator x.groupParameters + (s : ZMod q) • x.leftPublic
     cases σ
-    · change F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) false b r s =
-        F.ddhOTReceiverViewWords x.groupParameters (ddhOTReceiverView false (b : ZMod q)
-          x.leftPublic ((e, (b : ZMod q) • e + m₀),
+    · change F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) false bBits rBits sBits =
+        F.ddhOTReceiverViewWords x.groupParameters (ddhOTReceiverViewWith false bBits x.leftPublic
+          ((e, (b : ZMod q) • e + m₀),
             (x.rightPublic, x.candidateShared - (b : ZMod q) • x.rightPublic + m₁)))
-      simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverView,
+      simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
         Bool.false_eq_true, ↓reduceIte, F.add_encode, ZMod.natCast_sub_mod_eq_neg, neg_smul,
-        ← sub_eq_add_neg, ZMod.val_natCast]
+        ← sub_eq_add_neg]
       rfl
-    · change F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) true b r s =
-        F.ddhOTReceiverViewWords x.groupParameters (ddhOTReceiverView true (b : ZMod q)
-          x.leftPublic ((x.rightPublic, x.candidateShared - (b : ZMod q) • x.rightPublic + m₀),
+    · change F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) true bBits rBits sBits =
+        F.ddhOTReceiverViewWords x.groupParameters (ddhOTReceiverViewWith true bBits x.leftPublic
+          ((x.rightPublic, x.candidateShared - (b : ZMod q) • x.rightPublic + m₀),
             (e, (b : ZMod q) • e + m₁)))
-      simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverView, ↓reduceIte,
-        F.add_encode, ZMod.natCast_sub_mod_eq_neg, neg_smul, ← sub_eq_add_neg, ZMod.val_natCast]
+      simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
+        ↓reduceIte, F.add_encode, ZMod.natCast_sub_mod_eq_neg, neg_smul, ← sub_eq_add_neg]
       rfl
   · simp only [ddhOTReceiverGuessWords, ddhOTOutputWords, PartyEncoding.encAll,
       Function.Embedding.coeFn_mk, encDPi_apply]
     congr 1
     funext i
-    refine Fin.cases rfl (fun j => ?_) i
+    refine Fin.cases rfl (fun _ => ?_) i
     cases σ <;> rfl
 
 end Cslib.Crypto.PrimeOrderGroupFamily

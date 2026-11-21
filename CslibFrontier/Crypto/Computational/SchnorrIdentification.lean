@@ -12,7 +12,6 @@ public import CslibFrontier.Probability.BitString
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import Cslib.Foundations.Data.BitString
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Identification
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.BitString.Counter
 import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Probability.PMF
@@ -23,7 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 
 /-!
-# Schnorr identification under the discrete-logarithm assumption
+# Schnorr identification and its rewinding discrete-logarithm reduction
 
 Schnorr's identification scheme ([BonehShoup2023], Section 19.1) over a `PrimeOrderGroupFamily`:
 the key is a description `d`, drawn from a setup law, a uniform secret `α` and the public key
@@ -41,11 +40,15 @@ theorem. For each security parameter, if `2 ^ k ≤ q` for every description the
   `ε ≤ 1 / 2 ^ k + √ε'`,
 
 where `ε` is the impersonator's success probability and `ε'` the discrete-logarithm success
-probability of the rewinding adversary (`succProbability_schnorrDirectGame_le`, Theorem 19.1).
-The rewinding adversary is uniform strict PPT whenever the impersonator is and `k` is computable
-in polynomial time. Under the discrete-logarithm assumption, with negligible `1 / 2 ^ k`, every
-uniform strict PPT impersonator therefore succeeds with negligible probability
-(`negligible_schnorrDirectGame`).
+probability of the rewinding adversary (`succProbability_schnorrDirectGame_le_ideal`, the
+bound (19.2) of [BonehShoup2023], Theorem 19.1). `schnorrDirectGame` draws the secret key with
+`PMF.uniformOfFintype`, which a strict PPT machine cannot do, so this bound is an ideal-sampling
+step. The rewinding adversary is uniform strict PPT whenever the impersonator is and `k` is
+computable in polynomial time (`isPPTOn_rewind`).
+
+Theorem 19.1 itself, for the native key generator `schnorrSigKeyGen`, is
+`negligible_schnorrDirectProbGame` in `CslibFrontier.Crypto.Computational.SchnorrEavesdrop`. It
+applies the discrete-logarithm assumption to the rewinding adversary through `isPPTOn_rewind`.
 
 The impersonator may use fresh randomness in its second stage; its state is a word. Challenges
 are bit strings because strict PPT machines sample them exactly; they cannot sample `ZMod q`
@@ -54,7 +57,8 @@ exactly, which matters for the honest prover and for simulation but not for this
 ## Main definitions
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.SchnorrImpersonator`: a two-stage word adversary.
-* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrDirectGame`: the direct impersonation attack.
+* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrDirectGame`: the direct impersonation attack, with
+  an ideal key.
 * `Cslib.Crypto.PrimeOrderGroupFamily.SchnorrImpersonator.rewind`: the rewinding
   discrete-logarithm adversary.
 * `Cslib.Crypto.PrimeOrderGroupFamily.SchnorrImpersonator.typed`: an impersonator's typed view,
@@ -64,12 +68,13 @@ exactly, which matters for the honest prover and for simulation but not for this
 
 ## Main results
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_schnorrDirectGame_le`: `ε ≤ 1 / 2 ^ k + √ε'`
-  at each security parameter.
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_rewind`: the rewinding adversary is uniform strict
   PPT.
-* `Cslib.Crypto.PrimeOrderGroupFamily.negligible_schnorrDirectGame`: Schnorr identification is
-  secure against direct attacks under the discrete-logarithm assumption.
+
+## Ideal-sampling step
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_schnorrDirectGame_le_ideal`:
+  `ε ≤ 1 / 2 ^ k + √ε'` at each security parameter, in the ideal-key game.
 
 ## References
 
@@ -105,8 +110,10 @@ def SchnorrImpersonator.IsPPT (A : F.SchnorrImpersonator) : Prop :=
 
 variable (F) in
 /-- The direct impersonation attack on Schnorr identification ([BonehShoup2023], Attack
-Game 18.1), with challenges of `k n` bits. The verifier accepts when the commitment encodes
-`z • g - c • u`. -/
+Game 18.1), with challenges of `k n` bits and an ideal key: the secret key is drawn with
+`PMF.uniformOfFintype`, which a strict PPT machine cannot do. The verifier accepts when the
+commitment encodes `z • g - c • u`. The game with the native key generator `schnorrSigKeyGen` is
+`schnorrDirectProbGame`. -/
 noncomputable def schnorrDirectGame (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ)
     (A : F.SchnorrImpersonator) (n : ℕ) : Game := do
   let d ← setup n
@@ -233,11 +240,13 @@ private theorem oneWayGame_eq (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ) (A 
     Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
     PMF.pure_bind, PMF.bind_map, Function.comp_def, wordExtract, decide_wordRelation]
 
-/-- **Schnorr identification against direct attacks, exact form** ([BonehShoup2023],
-Theorem 19.1): at each security parameter where every possible group has at least `2 ^ k n`
-elements, an impersonator's success probability is at most `1 / 2 ^ k n + √ε'`, where `ε'` is the
-discrete-logarithm success probability of the rewinding adversary. -/
-theorem succProbability_schnorrDirectGame_le (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ)
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.1, not the cited result: in the
+ideal-key game `schnorrDirectGame`, at each security parameter where every possible group has at
+least `2 ^ k n` elements, an impersonator's success probability is at most `1 / 2 ^ k n + √ε'`,
+where `ε'` is the discrete-logarithm success probability of the rewinding adversary (the
+bound (19.2)). The native-key bound is `succProbability_schnorrDirectProbGame_le`, and
+Theorem 19.1 is `negligible_schnorrDirectProbGame`. -/
+theorem succProbability_schnorrDirectGame_le_ideal (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ)
     (A : F.SchnorrImpersonator) (n : ℕ) (hkq : ∀ d ∈ (setup n).support, 2 ^ k n ≤ F.order d) :
     (Game.succProbability (F.schnorrDirectGame setup k A n) : ℝ) ≤
       1 / 2 ^ k n + √(Game.succProbability (F.discreteLogGame setup (A.rewind k) n)) := by
@@ -256,7 +265,6 @@ theorem isPPTOn_rewind {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary e
     {A : F.SchnorrImpersonator} (hA : A.IsPPT) :
     IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
       (fun input => A.rewind k input.1 input.2) := by
-  have hk' := hk.tidy
   have hrespond := hA.2
   unfold SchnorrImpersonator.rewind
   refine hA.1.bind_with ?_
@@ -268,25 +276,6 @@ theorem isPPTOn_rewind {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary e
   refine (hrespond.preprocess
     (prepare := fun p : ((((ℕ × F.Desc × List Bool) × List Bool × List Bool) × List Bool) ×
       List Bool) × List Bool => (p.1.1.1.1.1, (p.1.1.1.2.2, p.1.2))) (by fun_prop)).bind_with ?_
-  exact (ComputableInPolyTime.tidy (by fun_prop)).isPPTOn
-
-/-! ### Security under the discrete-logarithm assumption -/
-
-open scoped NNReal in
-/-- **Schnorr identification is secure against direct attacks under the discrete-logarithm
-assumption** ([BonehShoup2023], Theorem 19.1). Suppose the challenge length `k` is computable in
-polynomial time, every group the setup can produce at parameter `n` has at least `2 ^ k n`
-elements, and `1 / 2 ^ k n` is negligible. Then every uniform strict PPT impersonator succeeds
-with negligible probability. -/
-theorem negligible_schnorrDirectGame {setup : ℕ → PMF F.Desc} (hDL : F.DiscreteLog setup)
-    {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary encUnary)
-    (hkq : ∀ n, ∀ d ∈ (setup n).support, 2 ^ k n ≤ F.order d)
-    (hchallenge : Negligible fun n => 1 / 2 ^ k n) {A : F.SchnorrImpersonator} (hA : A.IsPPT) :
-    Negligible fun n => Game.succProbability (F.schnorrDirectGame setup k A n) := by
-  refine negligible_of_le (hchallenge.add (Negligible.sqrt (hDL _ (isPPTOn_rewind hk hA))))
-    fun n => ?_
-  rw [← NNReal.coe_le_coe, Pi.add_apply, NNReal.coe_add, Real.coe_sqrt, NNReal.coe_div,
-    NNReal.coe_one, NNReal.coe_pow, NNReal.coe_ofNat]
-  exact succProbability_schnorrDirectGame_le setup k A n (hkq n)
+  exact ComputableInPolyTime.isPPTOn (by fun_prop)
 
 end Cslib.Crypto.PrimeOrderGroupFamily

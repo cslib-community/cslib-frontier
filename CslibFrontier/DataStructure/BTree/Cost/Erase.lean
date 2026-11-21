@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.BTree.Cost.Query
 public import CslibFrontier.DataStructure.BTree.Erase.MinMax
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Node-visit costs of B-tree erasure
@@ -60,14 +61,12 @@ variable {α β : Type} {t : ℕ} {tr : BTree α β}
 theorem time_rebalanceRightM_le (c : BTree α β) (k : α) (v : β) (s : BTree α β)
     (rest : List (Triple α β)) :
     (rebalanceRightM t (tick 1) c k v s rest).time ≤ 1 := by
-  rw [rebalanceRightM_def]
-  split <;> simp
+  time_spec rebalanceRightM
 
 /-- A repair against the left sibling visits at most that sibling. -/
 theorem time_rebalanceLastM_le (prev : BTree α β) (k : α) (v : β) (c : BTree α β) :
     (rebalanceLastM t (tick 1) prev k v c).time ≤ 1 := by
-  rw [rebalanceLastM_def]
-  split <;> simp
+  time_spec rebalanceLastM
 
 /-- Removing the least entry of a subtree visits at most `2 * height - 1` nodes: one node and at
 most one repaired sibling per level, with no repair at the deepest node, whose first child is a
@@ -84,7 +83,7 @@ theorem time_popMinM_le (tr : BTree α β) : (popMinM t (tick 1) tr).time ≤ 2 
     have e : (node f r).height + 1 ≤ (node (.node f r) rest).height := height_first_succ_le
     have e₁ : f.height + 1 ≤ (node f r).height := height_first_succ_le
     generalize (node (.node f r) rest).height = H at e ⊢
-    simp only [popMinM_node (first := .node f r), TimeM.time_bind, TimeM.time_tick]
+    simp only [popMinM_node (first := .node f r), time_simps]
     generalize (node f r).height = h₁ at h e e₁
     split
     · simp; omega
@@ -110,7 +109,7 @@ theorem time_eraseSubtreeM_le (k : α) (tr : BTree α β) :
       (H := (node first rest).height) height_first_succ_le (time_eraseSubtreeM_le k first)
       (heightRest_le_iff.2 fun _ he => height_succ_le_of_mem_rest he)
     have e : first.height + 1 ≤ (node first rest).height := height_first_succ_le
-    simp only [eraseSubtreeM_node, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+    simp only [eraseSubtreeM_node, time_simps]
     omega
 termination_by sizeOf tr
 
@@ -123,7 +122,7 @@ theorem time_eraseRestM_le (k : α) (prev : BTree α β) (prevErased : TimeM ℕ
     (eraseRestM t leT (tick 1) k prev prevErased rest).time ≤ 2 * H - 1 := by
   match rest with
   | [] =>
-    simp only [eraseRestM_nil, TimeM.time_bind, TimeM.time_pure]
+    simp only [eraseRestM_nil, time_simps]
     omega
   | (k', v', c) :: rest =>
     rw [heightRest_cons] at hrest
@@ -141,7 +140,7 @@ theorem time_eraseRestM_le (k : α) (prev : BTree α β) (prevErased : TimeM ℕ
             simp only
             omega
           · have := time_rebalanceRightM_le (t := t) c' k₃ v₃ c₃ rest₃
-            simp only [TimeM.time_bind, TimeM.time_pure]
+            simp only [time_simps]
             omega
       · have := time_rebalanceRightM_le (t := t) prevErased.ret k' v' c rest
         simp only [hk, hk', decide_true, decide_false, Bool.false_eq_true, ↓reduceIte,
@@ -156,7 +155,7 @@ theorem time_eraseRestM_le (k : α) (prev : BTree α β) (prevErased : TimeM ℕ
       | e :: rest =>
         have := time_eraseRestM_le k c (eraseSubtreeM t leT (tick 1) k c) (e :: rest)
           (H := H) (by omega) hc (by omega)
-        simp only [TimeM.time_bind, TimeM.time_pure]
+        simp only [time_simps]
         omega
 termination_by sizeOf rest
 end
@@ -183,17 +182,17 @@ theorem eraseMaxT_def : eraseMaxT t tr = eraseMaxM t leT (tick 1) tr := (rfl)
 
 /-- The value of `eraseT` is `erase`. -/
 @[simp] theorem ret_eraseT (k : α) : (eraseT t k tr).ret = erase t k tr := by
-  simpa only [erase_def, eraseT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [erase_def, eraseT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_eraseM t leT (tick 1) k tr)
 
 /-- The value of `eraseMinT` is `eraseMin?`. -/
 @[simp] theorem ret_eraseMinT : (eraseMinT t tr).ret = eraseMin? t tr := by
-  simpa only [eraseMin?_def, eraseMinT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [eraseMin?_def, eraseMinT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_eraseMinM t leT (tick 1) tr)
 
 /-- The value of `eraseMaxT` is `eraseMax?`. -/
 @[simp] theorem ret_eraseMaxT : (eraseMaxT t tr).ret = eraseMax? t tr := by
-  simpa only [eraseMax?_def, eraseMaxT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [eraseMax?_def, eraseMaxT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_eraseMaxM t leT (tick 1) tr)
 
 /-- Erasure visits exactly the nodes that erasure from the root subtree visits: collapsing an

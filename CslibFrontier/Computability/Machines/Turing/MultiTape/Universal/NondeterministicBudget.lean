@@ -518,7 +518,7 @@ public theorem nuStart_budget {α : Type} {enc : α ↪ List Bool} {D : α → D
     ComputableInSpace (fun a => nuStart (D a) (B a)) enc eNU S := by
   have hT := eDesc_table_budget hD
   have hI : ComputableInSpace (fun a => init (D a)) enc eCfg S :=
-    budget_comp_lin (of_inO init_inO.computableInO) linear_succ hD
+    budget_comp_lin (of_inO init_inO) linear_succ hD
   have hO : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encUnary) S :=
     (constZero []).mono_le fun _ => Nat.zero_le _
   exact eNU_mk_budget hT hT hB hI hO

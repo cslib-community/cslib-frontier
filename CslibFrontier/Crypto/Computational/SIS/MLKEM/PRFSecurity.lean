@@ -236,7 +236,7 @@ theorem isOraclePPTOn_queryNoise {P : α → Params} {count : α → ℕ} {width
     have hpost : ComputableInPolyTime
         (fun p : (α × (ℕ × List Bool)) × List Bool => (p.1.2.1 + 1, p.1.2.2 ++ p.2))
         (encPair (encPair input S) encBits) S := by fun_prop
-    exact (IsOraclePPTOn.query_take' () hreq hlim).map_with' hpost
+    exact (IsOraclePPTOn.query_take () hreq hlim).map_with hpost
   have hgrowth : ∀ a (state : ℕ × List Bool),
       ∀ next ∈ OracleComp.support (queryNoiseStep (P a) (width a) state),
         (S next).length ≤ (S state).length + (2 * bound a + 4) := by
@@ -252,8 +252,8 @@ theorem isOraclePPTOn_queryNoise {P : α → Params} {count : α → ℕ} {width
     omega
   have hpoly : PolyBounded (fun a => (input a).length) (fun a => 2 * bound a + 4) :=
     ((PolyBounded.const 2).mul (ComputableInPolyTime.polyBounded hbound)).add (PolyBounded.const 4)
-  exact (IsOraclePPTOn.iterateWith_of_bounded_growth' hcount (ComputableInPolyTime.const (0, []))
-    hstep hpoly hgrowth).map' (ComputableInPolyTime.snd encUnary encBits)
+  exact (IsOraclePPTOn.iterateWith_of_bounded_growth hcount (ComputableInPolyTime.const (0, []))
+    hstep hpoly hgrowth).map (ComputableInPolyTime.snd encUnary encBits)
 
 end PolyTime
 
@@ -322,7 +322,7 @@ private theorem isPPTOn_afterKeyPRF (hP : ComputableInPolyTime P encUnary encPar
       (kpke P).IsMessagePair y.1.1 y.1.2 (ChoiceOut.msg₀ y.2) (ChoiceOut.msg₁ y.2)) G encBool := by
     simp only [WordPKE.IsMessagePair, kpke]
     fun_prop
-  refine IsPPTOn.cond' hvalid ((isPPTOn_sampleList.preprocess hκ).bind_with ?_)
+  refine IsPPTOn.cond hvalid ((isPPTOn_sampleList.preprocess hκ).bind_with ?_)
     (ComputableInPolyTime.const false).isPPTOn
   let H := encPair G encBits
   have hκH : ComputableInPolyTime (fun z : ((ℕ × List Bool) × ChoiceOut (List Bool)) × List Bool =>
@@ -411,7 +411,7 @@ theorem isOraclePPT_encPRFReduction (hP : ComputableInPolyTime P encUnary encPar
       encBool := by
     simp only [WordPKE.IsMessagePair, kpke]
     fun_prop
-  refine IsOraclePPTOn.cond' hvalid ?_ (ComputableInPolyTime.const false).isOraclePPTOn
+  refine IsOraclePPTOn.cond hvalid ?_ (ComputableInPolyTime.const false).isOraclePPTOn
   have hbound : ComputableInPolyTime
       (fun z : ((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool) =>
         (P z.1.1.1).n * (2 * (P z.1.1.1).η₁) + (P z.1.1.1).n * (2 * (P z.1.1.1).η₂)) E₂

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.ThreeSum.Convolution
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native weight selection for the Convolution-3SUM reduction
@@ -153,7 +154,7 @@ theorem exec_store {w N b d : ℕ} {μ : ℕ → ℤ} {fill z : ℤ} (negate : B
         flipRightSign, addCore, addMagnitudes, finish,
         Code.Preserves, Op.bin, Op.dest, ne_eq, Option.some.injEq, left, right, result, two,
         zero, magA, magB, signA, signB, index, len, base, filler, Fin.ext_iff] <;> omega
-  have hqd : q.regs dest = d := (hpre.regs_eq (by decide)).trans hdest
+  have hqd : q.regs dest = d := by regs_frame
   cases negate with
   | false =>
     have hc : Exec (B := .standard) (w + 2) (.op (.copy result right)) q
@@ -173,7 +174,7 @@ theorem exec_store {w N b d : ℕ} {μ : ℕ → ℤ} {fill z : ℤ} (negate : B
   | true =>
     obtain ⟨y, hy, hyr, hym, hyreg⟩ := exec_subtract (GenericRAM.Signed.fits_zero hz.1)
       hval q hqr hq
-    have hyd : y.regs dest = d := (hyreg dest (Or.inr (by decide))).trans hqd
+    have hyd : y.regs dest = d := by regs_frame
     have hlast := (Exec.store (B := .standard) (w := w + 2) (x := y)
       (a := dest) (s := result)).within
     have he := hpre.seq (hy.seq hlast)

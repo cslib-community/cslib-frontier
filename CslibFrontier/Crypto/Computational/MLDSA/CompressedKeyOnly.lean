@@ -171,6 +171,19 @@ theorem selfTargetMap_compressedForgeryLowPart [NeZero P.q] (d : ℕ) (pk : Publ
   simp only [Pi.add_apply]
   ring
 
+/-- The high bits of the full self-target product of the corrected witness are exactly the
+high bits recovered from the hint and the rounded public key. -/
+theorem highBits_selfTargetMap_compressedForgeryLowPart (hP : P.Valid)
+    (hγq : 4 * P.γ₂ < P.q) (d : ℕ) (pk : PublicKey P) (σ : CompressedSignature P) :
+    highBitsVec P (selfTargetMap P pk (compressedForgeryLowPart P d pk σ) σ.z σ.c) =
+      fun i => useHintVec P.q P.γ₂ (σ.h i) (compressedVerifierCommitment P d pk σ.z σ.c i) := by
+  have : NeZero P.q := ⟨by have := hP.one_lt_q; lia⟩
+  rw [selfTargetMap_compressedForgeryLowPart]
+  funext i j
+  exact highBits_intCast_mul hP.γ₂_pos hP.two_mul_γ₂_dvd
+    (useHint_nonneg hP.γ₂_pos hγq _ _)
+    (useHint_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hγq _ _)
+
 private theorem abs_valMinAbs_add_le {q : ℕ} (a b : ZMod q) :
     |(a + b).valMinAbs| ≤ |a.valMinAbs| + |b.valMinAbs| := by
   rw [Int.abs_eq_natAbs, Int.abs_eq_natAbs, Int.abs_eq_natAbs]
@@ -214,12 +227,7 @@ theorem isSelfTargetSolution_of_compressedVerify (hP : P.Valid) (hγq : 4 * P.γ
     exact hle.trans (by
       exact_mod_cast (le_max_left (P.γ₁ - P.β)
         (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1))))
-  · rw [selfTargetHash, selfTargetMap_compressedForgeryLowPart]
-    convert hH using 3
-    funext i j
-    exact highBits_intCast_mul hP.γ₂_pos hP.two_mul_γ₂_dvd
-      (useHint_nonneg hP.γ₂_pos hγq _ _)
-      (useHint_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hγq _ _)
+  · simpa only [selfTargetHash, highBits_selfTargetMap_compressedForgeryLowPart hP hγq] using hH
 
 /-! ### Compressed key-only games and reductions -/
 
@@ -293,7 +301,7 @@ theorem succProbability_compressedKoaGame_le_selfTargetGame (hP : P.Valid)
   · rw [Bool.not_eq_true] at hv
     simp [hv]
 
-/-- **Compressed key-only unforgeability from Module-LWE and self-target MSIS.** Against honest
+/-- **Finite key-only bound in the compressed, polynomial-challenge model.** Against honest
 keys, success is at most the short-law Module-LWE advantage of the explicit distinguisher plus
 the uniform-key success probability of the explicit self-target solver. This semantic finite-game
 inequality supplies neither executable resource bounds nor an asymptotic/negligible corollary. -/

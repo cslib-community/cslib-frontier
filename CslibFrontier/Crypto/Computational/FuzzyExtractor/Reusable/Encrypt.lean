@@ -45,9 +45,9 @@ strongly reusable in the standard model without random oracles. Section 5 has no
 theorem: it sketches a proof of strong reusability "based on hardness of the `LWE_{n,(t+2)m,q,χ}`
 problem, where the adversary makes at most `t` oracle calls in the experiment of Definition 3"
 (p. 12), assuming that the coordinates of the reading are independent draws from `χ` and that
-the encryption error has the same law. We formalize the construction, its correctness, the
-reduction step as a concrete advantage inequality, and the security claim against efficient
-adversaries (`stronglyReusable_lweEncryptFuzzyExtractor`).
+the encryption error has the same law. We formalize the construction, a decoder-relative step for
+its setup correctness (#6040), the reduction step as a concrete advantage inequality, and the
+security claim against efficient adversaries (`stronglyReusable_lweEncryptFuzzyExtractor`).
 
 ## Construction (Section 5)
 
@@ -97,11 +97,11 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   `Cslib.Crypto.FuzzyExtractor.symDecrypt_symEncrypt_eq`: deterministic decryption
   correctness whenever every coordinate `e i` of the encryption error satisfies
   `8 * (e i).valMinAbs.natAbs + 4 ≤ q`.
-* `Cslib.Crypto.FuzzyExtractor.DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`:
-  if `decode` fails with probability at most `δ` over a uniform matrix
-  (`DecoderCorrectWithError decode t δ`) and every error vector in `(ProbComp.eval E).support`
-  has centered coordinates bounded by `8 * (e i).valMinAbs.natAbs + 4 ≤ q`, then
-  `lweEncryptFuzzyExtractor` reproduces with error at most `δ`, averaged over a uniform `A`.
+* `Cslib.Crypto.FuzzyExtractor.setupCorrect_lweEncryptFuzzyExtractor_of_decoderCorrectWithError`:
+  a step establishing `δ`-error setup correctness of `lweEncryptFuzzyExtractor` over a uniform
+  matrix `A` relative to a caller-supplied decoder (`DecoderCorrectWithError decode t δ`, #6040),
+  when every error vector in `(ProbComp.eval E).support` has centered coordinates bounded by
+  `8 * (e i).valMinAbs.natAbs + 4 ≤ q`.
 * `Cslib.Crypto.FuzzyExtractor.realGame_encryptRealReduction`,
   `Cslib.Crypto.FuzzyExtractor.realGame_encryptIdealReduction`,
   `Cslib.Crypto.FuzzyExtractor.randomGame_encryptRealReduction_eq_ideal`: exact game
@@ -152,6 +152,8 @@ so the certificate is proved for the program.
 
 * [D. Apon, C. Cho, K. Eldefrawy, and J. Katz, *Efficient, Reusable Fuzzy Extractors from
   LWE*][AponChoEldefrawyKatz2017], Section 5.
+* [B. Fuller, X. Meng, and L. Reyzin, *Computational Fuzzy Extractors*][FullerMengReyzin2020],
+  Section 4 (Construction 4.9, Lemma 4.10).
 -/
 
 public section
@@ -309,14 +311,15 @@ and syndrome decoder `decode`:
 
 /-! ### Section 5 Correctness -/
 
-/-- If `decode` fails with probability at most `δ` over a uniform matrix
-(`DecoderCorrectWithError decode t δ`) and every error vector `e` in the support of `E` satisfies
-`8 * (e i).valMinAbs.natAbs + 4 ≤ q` for all `i : Fin l`, then
-`lweEncryptFuzzyExtractor m n l q E decode` reproduces with error at most `δ` for readings at
-Hamming distance at most `t`, averaged over a uniform public matrix `A`
-([AponChoEldefrawyKatz2017], Section 5). Decryption is exact once decoding succeeds, so the only
-failure is a decoding failure. -/
-theorem DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor
+/-- A step after [AponChoEldefrawyKatz2017] Section 5 (p. 12) establishing `δ`-error Hamming
+setup correctness of `lweEncryptFuzzyExtractor m n l q E decode` over a uniform public matrix `A`
+relative to a caller-supplied decoder (`hdec : DecoderCorrectWithError decode t δ`), not the
+unconditional correctness claim of Section 5, because the concrete random-subset LWE decoder of
+[FullerMengReyzin2020] Construction 4.9 / Lemma 4.10 (pp. 15–16) is not formalized (#6040).
+When every encryption error vector `e` in the support of `E` satisfies
+`8 * (e i).valMinAbs.natAbs + 4 ≤ q` for all `i : Fin l`, decryption is exact once decoding
+succeeds, so the only reproduction failure is a decoding failure. -/
+theorem setupCorrect_lweEncryptFuzzyExtractor_of_decoderCorrectWithError
     {E : ProbComp (Fin l → ZMod q)}
     {decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q))}
@@ -1471,7 +1474,7 @@ private theorem isPPTOn_queryWords (hm : ComputableInPolyTime m encUnary encUnar
         (w call.1.1.secParam) (t call.1.1.secParam)
         (Cslib.Matrix.toBinary (LWE.augmentedMatrix call.1.1.matrix call.1.1.target)) call.2.1
         call.2.2) :=
-    (IsPPTOn.ite' hcond hyes hno).congr fun _ => rfl
+    (IsPPTOn.ite hcond hyes hno).congr fun _ => rfl
   -- The view word is computed in polynomial time.
   have hview : ComputableInPolyTime (fun p : LWE.Input n R w × List Bool =>
       (p.1.secParam, viewWordOf (m p.1.secParam) (n p.1.secParam) (l p.1.secParam)
@@ -1616,8 +1619,9 @@ above `t κ` is answered as the shift `0` (`clampShift`), where Definition 3 adm
 weight at most `t`, and the advantage is the distance between the real and ideal games, twice the
 source's `ε` in `1/2 + ε`. Definition 3 is stated for a fuzzy extractor, correctness included;
 this theorem concludes only the security half. Section 5 calls correctness immediate "for the same
-range of parameters as in the FMR scheme" (p. 12); averaged over the matrix it is
-`DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`. -/
+range of parameters as in the FMR scheme" (p. 12); averaged over the matrix and relative to a
+caller-supplied decoder (`DecoderCorrectWithError`, #6040), that step is
+`setupCorrect_lweEncryptFuzzyExtractor_of_decoderCorrectWithError`. -/
 theorem stronglyReusable_lweEncryptFuzzyExtractor {m n l w : ℕ → ℕ}
     (hm : ComputableInPolyTime m encUnary encUnary)
     (hn : ComputableInPolyTime n encUnary encUnary)

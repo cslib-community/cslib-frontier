@@ -311,24 +311,19 @@ def permOnList {V R : Type*} [DecidableEq V] [CommSemiring R] (M : V → V → R
 /-- `permOn` is evaluated by `permOnList` on duplicate-free lists of its rows and columns. -/
 theorem permOn_eq_permOnList (M : Matrix V V R) (rows cols : List V) (hr : rows.Nodup)
     (hc : cols.Nodup) : permOn M rows.toFinset cols.toFinset = permOnList M rows cols := by
-  induction rows generalizing cols with
-  | nil =>
-    rw [List.toFinset_nil, permOn_empty_left]
-    cases cols with
-    | nil => simp [permOnList]
-    | cons j js => simp [permOnList]
-  | cons i is ih =>
+  fun_induction permOnList M rows cols with
+  | case1 | case2 => simp [permOn_empty_left]
+  | case3 i is cols ih =>
     have hi : i ∈ (i :: is).toFinset := by simp
-    simp only [permOnList]
     rw [permOn_laplace M hi, ← List.sum_toFinset _ hc]
-    · refine sum_congr rfl fun j hj => ?_
-      have hr' := (List.nodup_cons.1 hr)
-      have he : ((i :: is).toFinset).erase i = is.toFinset := by
-        rw [List.toFinset_cons, erase_insert (by simpa using hr'.1)]
-      have hce : cols.toFinset.erase j = (cols.erase j).toFinset := by
-        ext x
-        simp [hc.mem_erase_iff]
-      rw [he, hce, ih _ hr'.2 (hc.erase j)]
+    refine sum_congr rfl fun j hj => ?_
+    have hr' := (List.nodup_cons.1 hr)
+    have he : ((i :: is).toFinset).erase i = is.toFinset := by
+      rw [List.toFinset_cons, erase_insert (by simpa using hr'.1)]
+    have hce : cols.toFinset.erase j = (cols.erase j).toFinset := by
+      ext x
+      simp [hc.mem_erase_iff]
+    rw [he, hce, ih _ hr'.2 (hc.erase j)]
 
 /-- For a matrix with entries `0` and `1`, `permOn` counts the bijections along `1`-entries. -/
 theorem permOn_eq_card {M : Matrix V V ℤ} (hM : ∀ i j, M i j = 0 ∨ M i j = 1) (S T : Finset V) :

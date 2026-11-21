@@ -29,7 +29,11 @@ import CslibFrontier.Computability.Probabilistic.AffineHash
 import CslibFrontier.Foundations.Data.BitString.Block
 import Cslib.Foundations.Data.Polynomial.Monotone
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
+import CslibFrontier.Computability.Complexity.Classes.Oracle.Monotone
+import CslibFrontier.Computability.Complexity.Classes.NP.Image
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
+import CslibFrontier.Computability.Complexity.Classes.PH.Collapse
+import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Reduction.Turing
 import CslibFrontier.Foundations.Data.BitString.WordCount
 import CslibFrontier.Foundations.Data.Finset.Density
@@ -85,6 +89,12 @@ independent.
   a special case of Goldreich's rational output.
 * The `(1 / q, μ)`-approximation with `μ(n) = 2 ^ (-n)`: the estimate misses `#R(a)` by more than
   `#R(a) / q(n)` with probability at most `2 ^ (-n)`.
+* Exercise 6.39 asks, for every PC-complete `R`, that `(1 - 1 / p)`-approximate counting (the
+  factor `1 ± 1 / p` of Theorem 6.27) and uniform generation randomly reduce to deciding
+  `S_R`. Its counting half is `FNP.exists_approxCount_of_npHard`, for every `R ∈ FNP` whose
+  language `searchDomain R` is `NP`-hard, which every PC-complete relation satisfies; the oracle
+  is the set `enc '' searchDomain R` of encoded instances with a solution. The
+  uniform-generation half is not formalized.
 * Exercise 6.34 asks that `{(a, i, h, 1 ^ t) : ∃ distinct y₁, …, y_t ∈ R(a), h(y_j) = 0 ^ i}` be in
   `NP`. Here `h` ranges over the affine hashes given by a seed (the rows of the matrix, then the
   offset) and `t` is written in unary (`NPRelation.sieveQuery`,
@@ -96,6 +106,17 @@ independent.
   `NP ⊆ P`, the same estimator, with its queries decided in polynomial time, approximates every
   `#P` function within the factor `1 - ε` with probability at least `2 / 3`
   (`SharpP.exists_approx_of_NP_subset_P`).
+* Arora–Barak's Exercise 9 §6 (c), the deterministic versions: if `NP ⊆ P`, a deterministic
+  polynomial-time algorithm approximates every `#P` function within the factor `1 - ε` on every
+  instance (`SharpP.exists_deterministic_approx_of_NP_subset_P`), and within `1 + 1 / q(n)` for
+  every positive polynomial `q` (`SharpP.exists_deterministic_approxCount_of_NP_subset_P`). The
+  book's hint derandomizes through `BPP ⊆ Σ₂`; the levels of the estimate are not a `BPP`
+  language, since the trials of the middle levels have no bounded error, so the Sipser–Lautemann
+  shift cover is applied to each level directly: the `Σ₂` language of levels whose amplified
+  trials some shifts cover (`SipserLautemann.verifier`) contains every level whose trials accept
+  with probability `≥ 2 / 3` and no level whose trials reject with probability `≥ 2 / 3`, which
+  makes its answers correct (`Probability.ApproximateCounting.AnswersCorrect`), and it is in `P`
+  by `PH_eq_P_of_NP_subset_P`.
 
 ## Main definitions
 
@@ -116,11 +137,18 @@ independent.
   functions with the `SAT` oracle.
 * `Cslib.Complexity.FNP.exists_approxCount_SAT`: **Stockmeyer's approximate counting** for every
   polynomially balanced PC relation (Goldreich, Theorem 6.27).
+* `Cslib.Complexity.FNP.exists_approxCount_of_npHard`: for a PC relation `R` with `NP`-hard
+  `S_R`, approximate counting with an oracle for `S_R` (the counting half of Goldreich's
+  Exercise 6.39).
 * `Cslib.Complexity.SharpP.exists_approx_of_NP_subset_P`: approximate counting under `NP ⊆ P`.
+* `Cslib.Complexity.SharpP.exists_deterministic_approxCount_of_NP_subset_P`,
+  `Cslib.Complexity.SharpP.exists_deterministic_approx_of_NP_subset_P`: deterministic
+  approximate counting under `NP ⊆ P`.
 
 ## References
 
 * [L. Stockmeyer, *The complexity of approximate counting*][Stockmeyer1983]
+* [C. Lautemann, *BPP and the polynomial hierarchy*][Lautemann1983]
 * [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, draft r3, February
   2007][Goldreich2007Draft]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, draft of
@@ -516,6 +544,16 @@ private theorem estimator_ofFn (a : α) (r : BitString (randomLength R q (enc a)
       exact Nat.mul_le_mul_right _ (by omega)
     simp [hnil, hj, List.count_replicate]
 
+/-- The `k(n)`-tuples of witnesses number at most `2 ^ M(n)`. -/
+private theorem card_witnessSet_pow_le (a : α) :
+    #(R.witnessSet a) ^ copies q (enc a).length ≤ 2 ^ tupleLength R q (enc a).length := by
+  have : #(R.witnessSet a) ≤ 2 ^ R.certLength.eval (enc a).length := by
+    simpa only [BitString.card] using card_le_univ (R.witnessSet a)
+  calc #(R.witnessSet a) ^ copies q (enc a).length
+      ≤ (2 ^ R.certLength.eval (enc a).length) ^ copies q (enc a).length :=
+        Nat.pow_le_pow_left this _
+    _ = 2 ^ tupleLength R q (enc a).length := by rw [← pow_mul, mul_comm]
+
 /-- **The estimator is accurate with high probability**: for a positive precision `q(n)`, the
 estimate lies between `#R(a)` and `(1 + 1 / q(n)) #R(a)` for all but a `2 ^ (-(n + 2))` fraction
 of the random strings, `n` the encoded length of `a`. -/
@@ -535,13 +573,7 @@ theorem one_sub_inv_two_pow_le_dens_estimator (a : α) (hq : q.eval (enc a).leng
       Probability.IsPairwiseIndependentHash (tupleHash R q (enc a).length j) := fun j =>
     (isPairwiseIndependentHash_levelHash (le_seedLevelLength R q _ j)).comp
       blocksEquiv.symm.injective
-  have hS : #(R.witnessSet a) ^ copies q (enc a).length ≤ 2 ^ tupleLength R q (enc a).length := by
-    have : #(R.witnessSet a) ≤ 2 ^ R.certLength.eval (enc a).length := by
-      simpa only [BitString.card] using card_le_univ (R.witnessSet a)
-    calc #(R.witnessSet a) ^ copies q (enc a).length
-        ≤ (2 ^ R.certLength.eval (enc a).length) ^ copies q (enc a).length :=
-          Nat.pow_le_pow_left this _
-      _ = 2 ^ tupleLength R q (enc a).length := by rw [← pow_mul, mul_comm]
+  have hS := card_witnessSet_pow_le R q a
   have hp : 128 * q.eval (enc a).length ^ copies q (enc a).length ≤
       (q.eval (enc a).length + 1) ^ copies q (enc a).length :=
     Probability.ApproximateCounting.two_pow_mul_pow_le_add_one_pow 7 hq
@@ -739,6 +771,166 @@ private theorem dens_lt_abs_estimator_sub_le (a : α) (hq : q.eval (enc a).lengt
   rw [abs_of_nonneg (sub_nonneg.2 hle'), div_lt_iff₀ hp] at hr
   linarith
 
+/-! ### Deterministic levels under `NP ⊆ P`
+
+Under `NP ⊆ P` each level of the estimate is decided deterministically. A single trial of level
+`j` on the instance `a` asks one hashed lower-bound query with the seed read from a random
+string; level `j` is answered yes when some shifts of the amplified trials cover every random
+string (`SipserLautemann.verifier`). This is a `Σ₂` language, hence in `P` by
+`PH_eq_P_of_NP_subset_P`. It contains the levels whose trials accept with probability at least
+`2 / 3` and no level whose trials reject with probability at least `2 / 3`, which by the first and
+second moment bounds of pairwise independent hashing makes its answers correct
+(`Probability.ApproximateCounting.AnswersCorrect`) for the size `#R(a) ^ k` of the `k`-fold power
+of the witness set. -/
+
+/-- The seed length `n' (7 q(n') m(n')) + n'` of one trial on a level instance `(a, j)` of
+encoded length `n'`: enough for the affine seed of level `j` on tuples of `M(|a|)` bits. -/
+private noncomputable def trialSeedPoly : Polynomial ℕ :=
+  Polynomial.X * (Polynomial.C 7 * q * R.certLength) + Polynomial.X
+
+private theorem le_eval_trialSeedPoly (a : α) (j : ℕ) :
+    j * tupleLength R q (enc a).length + j ≤
+      (trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length := by
+  have hn : (enc a).length ≤ (encPair enc encUnary (a, j)).length := by
+    simp only [length_encPair]
+    omega
+  have hj : j ≤ (encPair enc encUnary (a, j)).length := by
+    simp only [length_encPair, encUnary_apply, List.length_replicate]
+    omega
+  have hM := Polynomial.eval_mono (Polynomial.C 7 * q * R.certLength) hn
+  simp only [Polynomial.eval_mul, Polynomial.eval_C] at hM
+  simp only [trialSeedPoly, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_C]
+  exact Nat.add_le_add (Nat.mul_le_mul hj hM) hj
+
+open Classical in
+/-- One trial of level `j` on the instance `a`: whether the affine hash to `j` bits with the seed
+read from the random string sends some `k(n)`-tuple of witnesses of `a` to zero. -/
+private noncomputable def levelTrial (x : (α × ℕ) × List Bool) : Bool :=
+  decide ((⟨x.1.1, copies q (enc x.1.1).length, x.1.2, x.2⟩ : HashQuery α) ∈
+    R.hashQuery.language)
+
+/-- The levels answered yes: those `(a, j)` for which some shifts of the amplified trials of level
+`j` cover every random string, Lautemann's `Σ₂` form of a majority of accepting trials. -/
+private def levelLanguage : Set (α × ℕ) :=
+  {x | Alternation true ([SipserLautemann.witnessPoly (trialSeedPoly R q),
+      SipserLautemann.seedPoly (trialSeedPoly R q)].map
+        fun p => p.eval (encPair enc encUnary x).length)
+    fun w => SipserLautemann.verifier (encPair enc encUnary) (trialSeedPoly R q)
+      (levelTrial R q) (x, w) = true}
+
+/-- **Under `NP ⊆ P` the levels are decided in polynomial time**: the trials are then decided in
+polynomial time, so the level language is in `Σ₂`, which collapses to `P`. -/
+private theorem levelLanguage_mem_P
+    (h : ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ P encB) :
+    levelLanguage R q ∈ P (encPair enc encUnary) := by
+  classical
+  obtain ⟨d, hd, hdL⟩ := h _ R.hashQuery.language_mem_NP
+  have hn : ComputableInPolyTime (fun x : (α × ℕ) × List Bool => (enc x.1.1).length)
+      (encPair (encPair enc encUnary) encBits) encUnary := by fun_prop
+  have hQ : ComputableInPolyTime (fun x : (α × ℕ) × List Bool =>
+      (⟨x.1.1, copies q (enc x.1.1).length, x.1.2, x.2⟩ : HashQuery α))
+      (encPair (encPair enc encUnary) encBits) (encHashQuery α enc) :=
+    encHashQuery_mk_polyTime α enc ((ComputableInPolyTime.fst _ _).comp (.fst _ _))
+      ((unary_copies q).comp hn) ((ComputableInPolyTime.snd _ _).comp (.fst _ _)) (.snd _ _)
+  have hV : ComputableInPolyTime (levelTrial R q) (encPair (encPair enc encUnary) encBits)
+      encBool :=
+    (hd.comp hQ).of_enc_eq fun x => by
+      simp only [levelTrial, Function.comp_apply, hdL, Bool.decide_eq_true]
+  rw [← PH_eq_P_of_NP_subset_P h]
+  exact SigmaP_subset_PH 2 ⟨_, _, rfl, SipserLautemann.verifier_polyTime hV, fun _ => Iff.rfl⟩
+
+/-- **The deterministic answers are correct**: the levels `j ≤ M(n)` with `(a, j)` in the level
+language are correct answers for the `#R(a) ^ k` tuples of witnesses. -/
+private theorem answersCorrect_levelLanguage (a : α) :
+    Probability.ApproximateCounting.AnswersCorrect (tupleLength R q (enc a).length)
+      (#(R.witnessSet a) ^ copies q (enc a).length) fun j => (a, j) ∈ levelLanguage R q := by
+  set S := Fintype.piFinset fun _ : Fin (copies q (enc a).length) => R.witnessSet a
+  have hS : #S = #(R.witnessSet a) ^ copies q (enc a).length := Fintype.card_piFinset_const _ _
+  -- the trials of level `j` are the hits of `0` by a pairwise independent hash family
+  have htrial : ∀ j {K : ℕ} (s : BitString K), levelTrial R q ((a, j), List.ofFn s) = true ↔
+      0 ∈ S.image fun x => levelHash (tupleLength R q (enc a).length) K j s (blocksEquiv.symm x) :=
+    fun j K s => by
+      simp only [levelTrial, decide_eq_true_eq, R.mem_hashQuery_language_iff]
+      rfl
+  have hh : ∀ j, Probability.IsPairwiseIndependentHash fun
+      (s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length))
+      (x : Fin (copies q (enc a).length) → BitString (R.certLength.eval (enc a).length)) =>
+      levelHash (tupleLength R q (enc a).length) _ j s (blocksEquiv.symm x) := fun j =>
+    (isPairwiseIndependentHash_levelHash (le_eval_trialSeedPoly R q a j)).comp
+      blocksEquiv.symm.injective
+  have hsplit : ∀ j,
+      #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length) |
+        levelTrial R q ((a, j), List.ofFn s) = true} +
+      #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length) |
+        levelTrial R q ((a, j), List.ofFn s) = false} =
+      2 ^ (trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length := fun j => by
+    rw [← BitString.card, ← card_univ, ← card_filter_add_card_filter_not
+      (s := univ) fun s => levelTrial R q ((a, j), List.ofFn s) = true]
+    simp only [Bool.not_eq_true]
+  -- many tuples: at most a quarter of the trials miss `0`
+  have hyes : ∀ j, 4 * 2 ^ j ≤ #S → (a, j) ∈ levelLanguage R q := fun j hj => by
+    refine SipserLautemann.alternation_verifier_of_accepts ?_
+    have hb := (hh j).four_mul_card_filter_notMem_image_le (S := S)
+      (by rwa [BitString.card]) 0
+    rw [BitString.card] at hb
+    have he : #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length) |
+        levelTrial R q ((a, j), List.ofFn s) = false} =
+        #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length) |
+          0 ∉ S.image fun x =>
+            levelHash (tupleLength R q (enc a).length) _ j s (blocksEquiv.symm x)} :=
+      congrArg Finset.card (filter_congr fun s _ => by rw [← Bool.not_eq_true, htrial])
+    rw [← he] at hb
+    have := hsplit j
+    omega
+  -- few tuples: at most a quarter of the trials hit `0`
+  have hno : ∀ j, 4 * #S ≤ 2 ^ j → (a, j) ∉ levelLanguage R q := fun j hj => by
+    refine SipserLautemann.not_alternation_verifier_of_rejects ?_
+    have hb := (hh j).four_mul_card_filter_mem_image_le (S := S) (by rwa [BitString.card]) 0
+    rw [BitString.card] at hb
+    have he : #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length) |
+        levelTrial R q ((a, j), List.ofFn s) = true} =
+        #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length) |
+          0 ∈ S.image fun x =>
+            levelHash (tupleLength R q (enc a).length) _ j s (blocksEquiv.symm x)} :=
+      congrArg Finset.card (filter_congr fun s _ => htrial j s)
+    rw [← he] at hb
+    have := hsplit j
+    omega
+  refine ⟨⟨fun h0 => ?_, fun hc => ?_⟩, fun j _ hj => hyes j (by omega),
+    fun j _ hj => hno j (by omega)⟩
+  · by_contra hc
+    exact hno 0 (by omega) h0
+  · -- level `0`: every hash value is `0`, so every trial accepts
+    refine SipserLautemann.alternation_verifier_of_accepts ?_
+    obtain ⟨x, hx⟩ : S.Nonempty := card_pos.1 (hS ▸ hc)
+    have hall : #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, 0)).length) |
+        levelTrial R q ((a, 0), List.ofFn s) = true} =
+        2 ^ (trialSeedPoly R q).eval (encPair enc encUnary (a, 0)).length := by
+      rw [← BitString.card, ← card_univ]
+      exact congrArg Finset.card (filter_true_of_mem fun s _ =>
+        (htrial 0 s).2 (mem_image.2 ⟨x, hx, Subsingleton.elim _ _⟩))
+    omega
+
+/-- **The deterministic estimate is accurate**: for decided levels `b j ↔ (a, j) ∈ levelLanguage`
+and a positive precision `q(n)`, the `k(n)`-th root of `16` times the estimate from these answers
+lies between `#R(a)` and `(1 + 1 / q(n)) #R(a)`. -/
+private theorem le_and_mul_le_nthRoot_estimate (a : α) (hq : q.eval (enc a).length ≠ 0)
+    {b : ℕ → Prop} [DecidablePred b] (hb : ∀ j, b j ↔ (a, j) ∈ levelLanguage R q) :
+    #(R.witnessSet a) ≤ Nat.nthRoot (copies q (enc a).length)
+        (16 * Probability.ApproximateCounting.estimate (tupleLength R q (enc a).length) b) ∧
+      q.eval (enc a).length * Nat.nthRoot (copies q (enc a).length)
+          (16 * Probability.ApproximateCounting.estimate (tupleLength R q (enc a).length) b) ≤
+        (q.eval (enc a).length + 1) * #(R.witnessSet a) := by
+  classical
+  have hc := answersCorrect_levelLanguage R q a
+  rw [estimate_congr hb]
+  refine Probability.ApproximateCounting.le_nthRoot_and_mul_nthRoot_le (by simp [copies, hq])
+    (hc.le_estimate (card_witnessSet_pow_le R q a)) ?_
+    (Probability.ApproximateCounting.two_pow_mul_pow_le_add_one_pow 7 hq)
+  rw [show 2 ^ 7 = 16 * 8 by norm_num, mul_assoc]
+  exact Nat.mul_le_mul_left 16 hc.estimate_le
+
 end Stockmeyer
 
 namespace SharpP
@@ -773,6 +965,33 @@ theorem exists_approxCount_SAT {f : α → ℕ} (hf : f ∈ SharpP enc) (q : Pol
   refine (dens_lt_abs_estimator_sub_le R q a (hq _)).trans ?_
   exact inv_anti₀ (by positivity) (pow_le_pow_right₀ (by norm_num) (Nat.le_add_right _ _))
 
+/-- The precision `P = ⌈1 / ε⌉ + 1` has `1 ≤ ε P`. -/
+private theorem one_le_mul_ceil_inv_add_one {ε : ℚ} (hε : 0 < ε) :
+    1 ≤ ε * ((⌈ε⁻¹⌉₊ + 1 : ℕ) : ℚ) := by
+  have h1 : ε⁻¹ ≤ ⌈ε⁻¹⌉₊ := Nat.le_ceil _
+  push_cast
+  calc (1 : ℚ) = ε * ε⁻¹ := (mul_inv_cancel₀ hε.ne').symm
+    _ ≤ ε * (⌈ε⁻¹⌉₊ + 1) := by gcongr; linarith
+
+/-- The factor `1 - ε` from the relative error `1 / P` with `1 ≤ ε P`: if `c ≤ E` and
+`P E ≤ (P + 1) c`, then `(1 - ε) c ≤ E` and `(1 - ε) E ≤ c`. -/
+private theorem one_sub_mul_le_and_one_sub_mul_le {ε : ℚ} {P c E : ℕ} (hεP : 1 ≤ ε * P)
+    (hle : c ≤ E) (hmul : P * E ≤ (P + 1) * c) : (1 - ε) * c ≤ E ∧ (1 - ε) * E ≤ c := by
+  have hle' : (c : ℚ) ≤ E := by exact_mod_cast hle
+  have hmul' : (P : ℚ) * E ≤ ((P : ℚ) + 1) * c := by exact_mod_cast hmul
+  have hc : (0 : ℚ) ≤ c := by positivity
+  have hP0 : (0 : ℚ) < P := by
+    rcases Nat.eq_zero_or_pos P with hP | hP
+    · simp [hP] at hεP
+      linarith
+    · exact_mod_cast hP
+  have hε : 0 < ε := by nlinarith
+  constructor
+  · nlinarith
+  · rcases le_or_gt 1 ε with h1 | h1
+    · nlinarith
+    · nlinarith
+
 /-- **Approximate counting under `NP ⊆ P`** [Arora and Barak, Chapter 9, Exercise 6][AroraBarak07]:
 if `NP ⊆ P`, then for every function `f ∈ #P` and every `ε > 0` a polynomial-time algorithm
 reading `ℓ(n)` random bits, for a polynomial `ℓ`, approximates `f` within the factor `1 - ε`,
@@ -780,7 +999,8 @@ reading `ℓ(n)` random bits, for a polynomial `ℓ`, approximates `f` within th
 `0 < ε < 1` the second inequality reads `A(a) ≤ f(a) / (1 - ε)`. For `ε = 1 / 2` this
 is the approximation within the factor `1 / 2`, `f(a) / 2 ≤ A(a) ≤ 2 f(a)`, of the exercise's
 first part. The algorithm is Stockmeyer's estimator (`Cslib.Complexity.Stockmeyer.estimator`)
-with the constant precision `⌈1 / ε⌉ + 1`, whose `NP` queries are answered in polynomial time. -/
+with the constant precision `⌈1 / ε⌉ + 1`, whose `NP` queries are answered in polynomial time.
+The deterministic form is `SharpP.exists_deterministic_approx_of_NP_subset_P`. -/
 theorem exists_approx_of_NP_subset_P
     (h : ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ P encB) {f : α → ℕ}
     (hf : f ∈ SharpP enc) {ε : ℚ} (hε : 0 < ε) :
@@ -791,12 +1011,6 @@ theorem exists_approx_of_NP_subset_P
   obtain ⟨p, V, hV, hfV⟩ := hf
   let R : NPRelation enc := ⟨p, V, hV⟩
   let P : ℕ := ⌈ε⁻¹⌉₊ + 1
-  have hεP : 1 ≤ ε * P := by
-    have h1 : ε⁻¹ ≤ ⌈ε⁻¹⌉₊ := Nat.le_ceil _
-    have h2 : (P : ℚ) = ⌈ε⁻¹⌉₊ + 1 := by simp [P]
-    rw [h2]
-    calc (1 : ℚ) = ε * ε⁻¹ := (mul_inv_cancel₀ hε.ne').symm
-      _ ≤ ε * (⌈ε⁻¹⌉₊ + 1) := by gcongr; linarith
   refine ⟨randomLengthPoly R (Polynomial.C P), estimator R (Polynomial.C P),
     computableInPolyTime_estimator_of_NP_subset_P R _ h, fun a => ?_⟩
   rw [eval_randomLengthPoly]
@@ -811,19 +1025,65 @@ theorem exists_approx_of_NP_subset_P
     calc (2 / 3 : ℚ≥0) + (2 ^ ((enc a).length + 2))⁻¹ ≤ 2 / 3 + 1 / 4 := by gcongr
       _ ≤ 1 := by norm_num [← NNRat.coe_le_coe]
   · simp only [mem_filter, mem_univ, true_and, Polynomial.eval_C] at hr ⊢
-    obtain ⟨hle, hmul⟩ := hr
     rw [hfV a, ← R.card_witnessSet a]
-    have hle' : (#(R.witnessSet a) : ℚ) ≤ estimator R (Polynomial.C P) (a, List.ofFn r) := by
-      exact_mod_cast hle
-    have hmul' : (P : ℚ) * estimator R (Polynomial.C P) (a, List.ofFn r) ≤
-        ((P : ℚ) + 1) * #(R.witnessSet a) := by exact_mod_cast hmul
-    have hc : (0 : ℚ) ≤ #(R.witnessSet a) := by positivity
-    have hP0 : (0 : ℚ) < P := by positivity
-    constructor
-    · nlinarith
-    · rcases le_or_gt 1 ε with h1 | h1
-      · nlinarith
-      · nlinarith
+    exact one_sub_mul_le_and_one_sub_mul_le (one_le_mul_ceil_inv_add_one hε) hr.1 hr.2
+
+/-- **Deterministic approximate counting under `NP ⊆ P`**, with any polynomial precision: if
+`NP ⊆ P`, then for every function `f ∈ #P` and every positive polynomial `q`, a deterministic
+polynomial-time algorithm `A` has `f(a) ≤ A(a) ≤ (1 + 1 / q(n)) f(a)` for every instance `a`, `n`
+its encoded length. The algorithm decides each level `j` of Stockmeyer's estimate for the
+`7 q(n)`-fold power of the witness set by a `Σ₂` language, the Sipser–Lautemann shift cover of
+the hashed lower-bound queries of that level, which is in `P` as the polynomial hierarchy
+collapses (`PH_eq_P_of_NP_subset_P`); it outputs the `7 q(n)`-th root of `16` times the estimate
+from these answers. -/
+theorem exists_deterministic_approxCount_of_NP_subset_P
+    (h : ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ P encB) {f : α → ℕ}
+    (hf : f ∈ SharpP enc) (q : Polynomial ℕ) (hq : ∀ n, q.eval n ≠ 0) :
+    ∃ A : α → ℕ, ComputableInPolyTime A enc encNat ∧
+      ∀ a, f a ≤ A a ∧ q.eval (enc a).length * A a ≤ (q.eval (enc a).length + 1) * f a := by
+  classical
+  obtain ⟨p, V, hV, hfV⟩ := hf
+  let R : NPRelation enc := ⟨p, V, hV⟩
+  obtain ⟨D, hD, hDL⟩ := levelLanguage_mem_P R q h
+  refine ⟨fun a => Nat.nthRoot (copies q (enc a).length)
+    (16 * Probability.ApproximateCounting.estimate (tupleLength R q (enc a).length)
+      fun j => D (a, j) = true), ?_, fun a => ?_⟩
+  · have hn : ComputableInPolyTime (fun a : α => (enc a).length) enc encUnary := by fun_prop
+    have hfind := ComputableInPolyTime.findGreatest (predicate := fun a j => D (a, j) = true)
+      ((unary_tupleLength R q).comp hn) (hD.of_enc_eq fun _ => by simp only [Bool.decide_eq_true])
+    have hzero : ComputableInPolyTime (fun a : α => D (a, 0)) enc encBool :=
+      hD.comp (ComputableInPolyTime.id'.prod (.const 0))
+    have hest : ComputableInPolyTime (fun a : α =>
+        Probability.ApproximateCounting.estimate (tupleLength R q (enc a).length)
+          fun j => D (a, j) = true) enc encNat := by
+      unfold Probability.ApproximateCounting.estimate
+      exact hzero.ite' (ComputableInPolyTime.binary_pow' (.const 2) hfind) (.const 0)
+    exact ComputableInPolyTime.binary_nthRoot' ((unary_copies q).comp hn)
+      (ComputableInPolyTime.binary_mul' (.const 16) hest)
+  · rw [hfV a, ← R.card_witnessSet a]
+    exact le_and_mul_le_nthRoot_estimate R q a (hq _) fun j => (hDL (a, j)).symm
+
+/-- **Deterministic approximate counting under `NP ⊆ P`** [Arora and Barak, Chapter 9, Exercise
+6(c)][AroraBarak07]: if `NP ⊆ P`, then for every function `f ∈ #P` and every `ε > 0` a
+deterministic polynomial-time algorithm `A` approximates `f` within the factor `1 - ε`,
+`(1 - ε) f(a) ≤ A(a)` and `(1 - ε) A(a) ≤ f(a)`, for every instance `a`; for `0 < ε < 1` the
+second inequality reads `A(a) ≤ f(a) / (1 - ε)`, and `ε = 1 / 2` gives the deterministic form
+`f(a) / 2 ≤ A(a) ≤ 2 f(a)` of the exercise's part (a). Instances are encoded by `enc` and the
+output in binary (`encNat`). The algorithm is that of
+`SharpP.exists_deterministic_approxCount_of_NP_subset_P` with the constant precision
+`⌈1 / ε⌉ + 1`; the book's hint derandomizes through `BPP ⊆ Σ₂` (Sipser–Gács–Lautemann, Theorem
+7.18 of the draft), which is applied here to each level of the estimate. -/
+theorem exists_deterministic_approx_of_NP_subset_P
+    (h : ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ P encB) {f : α → ℕ}
+    (hf : f ∈ SharpP enc) {ε : ℚ} (hε : 0 < ε) :
+    ∃ A : α → ℕ, ComputableInPolyTime A enc encNat ∧
+      ∀ a, (1 - ε) * f a ≤ A a ∧ (1 - ε) * A a ≤ f a := by
+  obtain ⟨A, hA, hAf⟩ := exists_deterministic_approxCount_of_NP_subset_P h hf
+    (Polynomial.C (⌈ε⁻¹⌉₊ + 1)) fun _ => by simp
+  refine ⟨A, hA, fun a => ?_⟩
+  obtain ⟨hle, hmul⟩ := hAf a
+  rw [Polynomial.eval_C] at hmul
+  exact one_sub_mul_le_and_one_sub_mul_le (one_le_mul_ceil_inv_add_one hε) hle hmul
 
 end SharpP
 
@@ -850,5 +1110,33 @@ theorem exists_approxCount_SAT {R : α → List Bool → Prop} (hR : R ∈ FNP e
   SharpP.exists_approxCount_SAT (searchCount_mem_SharpP hR) q hq
 
 end FNP
+
+/-- **Approximate counting with an `S_R` oracle** [Goldreich, Exercise 6.39][Goldreich2007Draft],
+its approximate-counting half: for every polynomially balanced, polynomial-time checkable search
+relation `R` (Goldreich's `PC`, here `FNP`) whose solution-existence language
+`S_R = searchDomain R` is `NP`-hard, and every positive polynomial `q`, approximating the number
+`#R(a) = searchCount R a` of solutions within `#R(a) / q(n)` randomly reduces to deciding `S_R`.
+A polynomial-time oracle algorithm with the oracle `enc '' searchDomain R`, reading `ℓ(n)` random
+bits for a polynomial `ℓ`, misses `#R(a)` by more than `#R(a) / q(n)` with probability at most
+`2 ^ (-n)`, `n` the encoded length of `a`. Every PC-complete `R` qualifies: a Levin reduction of
+another relation to `R` is a Karp reduction of the languages (`LevinHard.npHard`). Following the
+source's guideline, the `SAT` oracle of Stockmeyer's algorithm (`FNP.exists_approxCount_SAT`)
+is replaced by `S_R` through a Karp reduction of `SAT` to `S_R`. The exercise's
+uniform-generation half is not proved here. -/
+theorem FNP.exists_approxCount_of_npHard {enc : α ↪ List Bool} {R : α → List Bool → Prop}
+    (hR : R ∈ FNP enc) (hS : NPHard enc (searchDomain R)) (q : Polynomial ℕ)
+    (hq : ∀ n, q.eval n ≠ 0) :
+    ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
+      ComputableInPolyTimeWithOracle (enc '' searchDomain R) E (encPair enc encBits) encNat ∧
+      ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
+        (searchCount R a : ℚ) / q.eval (enc a).length <
+          |(E (a, List.ofFn r) : ℚ) - searchCount R a|} ≤ (2 ^ (enc a).length)⁻¹ := by
+  obtain ⟨ℓ, E, hE, hacc⟩ := FNP.exists_approxCount_SAT hR q hq
+  refine ⟨ℓ, E, hE.of_polyTimeReducible ?_, hacc⟩
+  -- a satisfiable formula's word goes to the encoding of an instance with a solution
+  obtain ⟨f, hf, hfR⟩ := hS encBits (encCNF '' SAT) image_SAT_mem_NP
+  have henc : ComputableInPolyTime (fun a => enc a) enc encBits := .of_eq fun _ => rfl
+  exact ⟨fun w => enc (f w), henc.comp hf, fun w => by
+    rw [hfR w, enc.injective.mem_set_image]⟩
 
 end Cslib.Complexity

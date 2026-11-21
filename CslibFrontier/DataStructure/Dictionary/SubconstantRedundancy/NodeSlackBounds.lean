@@ -117,11 +117,7 @@ theorem numNodes_mul_tableCap_le {U V n R p_min q_min p_max q_max : ℕ}
     (canonicalSchedule h).numNodes ℓ * (canonicalSchedule h).tableCap ℓ ≤
       3 * (canonicalSchedule h).numNodes (ℓ + 1) * (canonicalSchedule h).delta (ℓ + 1) := by
   have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
-  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
-  have hstep_t := two_pow_eighteen_mul_targetSize_succ_le h.redundancyRatio_bounds.1
-    h.four_mul_redundancyRatio_le_log_univ h.two_pow_eighteen_mul_log_univ_pow_le hlt_k
-  have hS17 := cumBranchBits_add_seventeen_le (hT_pos ℓ hlt_k.le) (hT_pos (ℓ + 1) hlt_k)
-    (hT_le ℓ hlt_k.le) hstep_t
+  have hS17 := canonical_cumBranchBits_add_seventeen_le h hlt_k
   refine numNodes_mul_tableCap_of_schedule (canonicalSchedule h) h1 hlt ?_
     (delta_pos_of_le_depth h hlt) ?_
   · rw [canonicalSchedule_nFloor_eq h (ℓ + 1), canonicalSchedule_nFloor_eq h ℓ,
@@ -169,7 +165,8 @@ private theorem leaf_and_deficit_of_schedule (P : TreeSchedule) {n r : ℕ}
         ≤ (2 * P.numNodes P.depth * P.delta P.depth) * r := Nat.mul_le_mul_right r hdef_le
       _ = 2 * (P.numNodes P.depth * P.delta P.depth * r) := by ring
       _ ≤ 2 * n := Nat.mul_le_mul_left 2 hNd_r
-  nlinarith
+  rw [Nat.add_mul, Nat.mul_assoc 3, Nat.mul_assoc 3]
+  omega
 
 /-- Total leaf-slack and value deficit bit budget scaled by `r` is bounded by `9 * n`. -/
 theorem leaf_and_deficit_slack_le {U V n R p_min q_min p_max q_max : ℕ}
@@ -234,7 +231,9 @@ private theorem single_nonLeaf_tableMeta_of_schedule (P : TreeSchedule) {n r s �
       rwa [max_eq_left (by omega : 1 ≤ y)] at hc_le
     refine Nat.clog_le_of_le_pow ?_
     rw [hid_def]
-    calc 2 * (y + 1) ≤ (2 * y) ^ 2 := by nlinarith
+    calc 2 * (y + 1) ≤ 2 * (2 * y) := by omega
+      _ ≤ (2 * y) * (2 * y) := Nat.mul_le_mul_right _ (by omega)
+      _ = (2 * y) ^ 2 := (sq _).symm
       _ ≤ (2 ^ c) ^ 2 := Nat.pow_le_pow_left h2y_c 2
       _ = 2 ^ (2 * c) := by rw [← Nat.pow_mul, Nat.mul_comm]
       _ ≤ 2 ^ (4 * c) := Nat.pow_le_pow_right Nat.two_pos (by omega)
@@ -247,16 +246,30 @@ private theorem single_nonLeaf_tableMeta_of_schedule (P : TreeSchedule) {n r s �
       P.tableCap ℓ * (Nat.clog 2 (2 * (P.nFloor ℓ + 1)) + Nat.clog 2 (P.tableCap ℓ + 1)) ≤
       (77 * P.tableCap ℓ + 9) * (P.idBits ℓ + 2) := by
     have hsum_cl : Nat.clog 2 (2 * (P.nFloor ℓ + 1)) + Nat.clog 2 (P.tableCap ℓ + 1) ≤
-        2 * P.idBits ℓ + 1 := by omega
-    have hprod := Nat.mul_le_mul_left (P.tableCap ℓ) hsum_cl
-    nlinarith
+        2 * (P.idBits ℓ + 2) := by omega
+    have hprod : P.tableCap ℓ *
+        (Nat.clog 2 (2 * (P.nFloor ℓ + 1)) + Nat.clog 2 (P.tableCap ℓ + 1)) ≤
+        2 * P.tableCap ℓ * (P.idBits ℓ + 2) := by
+      calc P.tableCap ℓ *
+            (Nat.clog 2 (2 * (P.nFloor ℓ + 1)) + Nat.clog 2 (P.tableCap ℓ + 1))
+          ≤ P.tableCap ℓ * (2 * (P.idBits ℓ + 2)) := Nat.mul_le_mul_left _ hsum_cl
+        _ = 2 * P.tableCap ℓ * (P.idBits ℓ + 2) := by rw [Nat.mul_left_comm, Nat.mul_assoc]
+    calc succinctTableMetaBits (P.idBits ℓ) (P.tableCap ℓ) +
+          P.tableCap ℓ *
+            (Nat.clog 2 (2 * (P.nFloor ℓ + 1)) + Nat.clog 2 (P.tableCap ℓ + 1))
+        ≤ (75 * P.tableCap ℓ * (P.idBits ℓ + 2) + 9 * (P.idBits ℓ + 2)) +
+            2 * P.tableCap ℓ * (P.idBits ℓ + 2) := Nat.add_le_add hmeta hprod
+      _ = (77 * P.tableCap ℓ + 9) * (P.idBits ℓ + 2) := by ring
   have hN_le_Nd : P.numNodes ℓ ≤ P.numNodes (ℓ + 1) * P.delta (ℓ + 1) := by
     calc P.numNodes ℓ ≤ P.numNodes ℓ * P.branchFactor ℓ :=
           Nat.le_mul_of_pos_right _ (P.branchFactor_pos ℓ)
       _ = P.numNodes (ℓ + 1) := (P.numNodes_succ ℓ).symm
       _ ≤ P.numNodes (ℓ + 1) * P.delta (ℓ + 1) := Nat.le_mul_of_pos_right _ hd_pos
   have hN77 : P.numNodes ℓ * (77 * P.tableCap ℓ + 9) ≤
-      240 * (P.numNodes (ℓ + 1) * P.delta (ℓ + 1)) := by nlinarith
+      240 * (P.numNodes (ℓ + 1) * P.delta (ℓ + 1)) := by
+    rw [Nat.mul_add, Nat.mul_left_comm (P.numNodes ℓ) 77, Nat.mul_comm (P.numNodes ℓ) 9]
+    rw [Nat.mul_assoc 3] at hNtc
+    omega
   have hsr2 : s * r ^ 2 ≤ s ^ 3 := by
     calc s * r ^ 2 ≤ s * s ^ 2 := Nat.mul_le_mul_left s (Nat.pow_le_pow_left hs_ge_r 2)
       _ = s ^ 3 := (pow_succ' s 2).symm
@@ -273,6 +286,16 @@ private theorem single_nonLeaf_tableMeta_of_schedule (P : TreeSchedule) {n r s �
     _ ≤ 36000 * ((P.numNodes (ℓ + 1) * P.delta (ℓ + 1)) * s ^ 3) :=
         Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hsr2)
     _ ≤ 36000 * n := Nat.mul_le_mul_left 36000 hcub
+
+private theorem sum_mul_le_of_mul_sq_le {S : Finset ℕ} {f : ℕ → ℕ} {r B : ℕ}
+    (hr1 : 1 ≤ r) (hcard : S.card ≤ r) (hbound : ∀ ℓ ∈ S, f ℓ * r ^ 2 ≤ B) :
+    (∑ ℓ ∈ S, f ℓ) * r ≤ B := by
+  refine Nat.le_of_mul_le_mul_right ?_ hr1
+  calc (∑ ℓ ∈ S, f ℓ) * r * r
+      = ∑ ℓ ∈ S, f ℓ * r ^ 2 := by rw [Nat.mul_assoc, ← sq, Finset.sum_mul]
+    _ ≤ ∑ _ℓ ∈ S, B := Finset.sum_le_sum hbound
+    _ = S.card * B := by simp
+    _ ≤ B * r := by rw [Nat.mul_comm B r]; exact Nat.mul_le_mul_right B hcard
 
 private theorem nonLeaf_tables_of_schedule (P : TreeSchedule) {n r : ℕ}
     (hr1 : 1 ≤ r) (hk_le_r : P.depth ≤ r)
@@ -291,42 +314,24 @@ private theorem nonLeaf_tables_of_schedule (P : TreeSchedule) {n r : ℕ}
           P.tableCap 1 *
             (Nat.clog 2 (2 * (P.nFloor 1 + 1)) + Nat.clog 2 (P.tableCap 1 + 1)))) *
       r ≤ 72000 * n := by
-  have hsum_r2 : (∑ ℓ ∈ Finset.Ico 2 P.depth,
-      P.numNodes ℓ *
-        (succinctTableMetaBits (P.idBits ℓ) (P.tableCap ℓ) +
-          P.tableCap ℓ * Nat.clog 2 (2 * (P.nFloor ℓ + 1)))) * r ^ 2 ≤ r * (36000 * n) := by
-    rw [Finset.sum_mul]
-    calc ∑ ℓ ∈ Finset.Ico 2 P.depth,
-          P.numNodes ℓ *
-            (succinctTableMetaBits (P.idBits ℓ) (P.tableCap ℓ) +
-              P.tableCap ℓ * Nat.clog 2 (2 * (P.nFloor ℓ + 1))) * r ^ 2
-        ≤ ∑ _ℓ ∈ Finset.Ico 2 P.depth, 36000 * n := by
-          refine Finset.sum_le_sum fun ℓ hℓ => ?_
-          obtain ⟨h2, hlt⟩ := Finset.mem_Ico.mp hℓ
-          refine (Nat.mul_le_mul_right (r ^ 2) (Nat.mul_le_mul_left (P.numNodes ℓ) ?_)).trans
-            (hsingle ℓ (by omega) hlt)
-          exact Nat.add_le_add_left (Nat.mul_le_mul_left _ (Nat.le_add_right _ _)) _
-      _ = (Finset.Ico 2 P.depth).card * (36000 * n) := by simp
-      _ ≤ r * (36000 * n) := by
-          refine Nat.mul_le_mul_right _ ?_
-          rw [Nat.card_Ico]
-          omega
   have hsum_r : (∑ ℓ ∈ Finset.Ico 2 P.depth,
       P.numNodes ℓ *
         (succinctTableMetaBits (P.idBits ℓ) (P.tableCap ℓ) +
-          P.tableCap ℓ * Nat.clog 2 (2 * (P.nFloor ℓ + 1)))) * r ≤ 36000 * n := by
-    refine Nat.le_of_mul_le_mul_right ?_ hr1
-    calc _ * r * r = _ * r ^ 2 := by ring
-      _ ≤ 36000 * n * r := by linarith
+          P.tableCap ℓ * Nat.clog 2 (2 * (P.nFloor ℓ + 1)))) * r ≤ 36000 * n :=
+    sum_mul_le_of_mul_sq_le hr1 (by rw [Nat.card_Ico]; omega) fun ℓ hℓ => by
+      obtain ⟨h2, hlt⟩ := Finset.mem_Ico.mp hℓ
+      refine (Nat.mul_le_mul_right (r ^ 2) (Nat.mul_le_mul_left (P.numNodes ℓ) ?_)).trans
+        (hsingle ℓ (by omega) hlt)
+      exact Nat.add_le_add_left (Nat.mul_le_mul_left _ (Nat.le_add_right _ _)) _
   have hroot_r : P.numNodes 1 *
       (succinctTableMetaBits (P.idBits 1) (P.tableCap 1) +
         P.tableCap 1 *
           (Nat.clog 2 (2 * (P.nFloor 1 + 1)) + Nat.clog 2 (P.tableCap 1 + 1))) * r ≤
       36000 * n := by
     have h1 := hsingle 1 le_rfl (by have := P.two_le_depth; omega)
-    have hr_r2 : r ≤ r ^ 2 := Nat.le_self_pow (by decide) r
-    exact (Nat.mul_le_mul_left _ hr_r2).trans h1
-  nlinarith
+    exact (Nat.mul_le_mul_left _ (Nat.le_self_pow (by decide) r)).trans h1
+  rw [Nat.add_mul]
+  omega
 
 /-- Total metadata and payload overhead of all non-leaf tables scaled by `r` is bounded
 by `72000 * n`. -/
@@ -346,9 +351,8 @@ theorem nonLeaf_tables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
               Nat.clog 2 ((canonicalSchedule h).tableCap 1 + 1)))) *
       redundancyRatio n R ≤ 72000 * n := by
   have hr256 := h.redundancyRatio_bounds.1
-  have hr1 : 1 ≤ redundancyRatio n R := by dsimp [minRedundancyRatio] at hr256; omega
   obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
-  refine nonLeaf_tables_of_schedule (canonicalSchedule h) hr1
+  refine nonLeaf_tables_of_schedule (canonicalSchedule h) h.one_le_redundancyRatio
     ((canonicalSchedule_depth h).symm ▸ h.treeDepth_le_redundancyRatio)
     fun ℓ h1 hlt => ?_
   have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
@@ -412,7 +416,8 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
       calc (P.paddedUniv + n - 1) / n ≤ P.paddedUniv + n - 1 := Nat.div_le_self _ _
         _ ≤ 2 * P.paddedUniv := by omega
     have h2p : 2 * (p_max + 2) * L + 1 ≤ s1 ^ 2 := by
-      calc 2 * (p_max + 2) * L + 1 ≤ (2 * (p_max + 2) + 1) * L := by nlinarith
+      calc 2 * (p_max + 2) * L + 1 ≤ 2 * (p_max + 2) * L + L := by omega
+        _ = (2 * (p_max + 2) + 1) * L := by rw [Nat.add_mul, Nat.one_mul]
         _ ≤ L * L := Nat.mul_le_mul_right L hpL
         _ = L ^ 2 := (sq L).symm
         _ ≤ s1 ^ 2 := Nat.pow_le_pow_left hL_s1 2
@@ -478,9 +483,10 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
       calc 10 * L ^ 4 ≤ L ^ 5 * L ^ 4 := Nat.mul_le_mul_right _ h10
         _ = L ^ 9 := (Nat.pow_add L 5 4).symm
     have h8L2 : 8 * L ^ 2 ≤ n := by
-      calc 8 * L ^ 2 ≤ 10 * L ^ 4 := by
-            have : 1 ≤ L ^ 2 := Nat.one_le_pow 2 L (by omega)
-            nlinarith
+      calc 8 * L ^ 2 ≤ 10 * L ^ 2 := by omega
+        _ = 10 * L ^ 2 * 1 := (Nat.mul_one _).symm
+        _ ≤ 10 * L ^ 2 * L ^ 2 := Nat.mul_le_mul_left _ (Nat.one_le_pow 2 L (by omega))
+        _ = 10 * L ^ 4 := by rw [Nat.mul_assoc, ← Nat.pow_add]
         _ ≤ L ^ 9 := h10L4
         _ ≤ P.numNodes 1 * L ^ 9 := Nat.le_mul_of_pos_left _ (P.numNodes_pos 1)
         _ ≤ n := hN1_L9
@@ -489,7 +495,7 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
           Nat.mul_le_mul (Nat.add_le_add_right (Nat.mul_le_mul_left _ h1K) 4) hpr_L2
       _ = P.numNodes 1 * (10 * L ^ 4) + 8 * L ^ 2 := by ring
       _ ≤ P.numNodes 1 * L ^ 9 + n := Nat.add_le_add (Nat.mul_le_mul_left _ h10L4) h8L2
-      _ ≤ 3 * n := by linarith
+      _ ≤ 3 * n := by omega
   have hdir_r : P.rootPoolDirBits * r ≤ 7 * n := by
     have heq : P.rootPoolDirBits * r =
         P.numNodes 1 * (P.tableCap 1 / K) * (ptrBits * r) +
@@ -500,8 +506,9 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
         r = _
       ring
     rw [heq]
-    linarith
-  nlinarith
+    omega
+  rw [Nat.add_mul]
+  omega
 
 /-- Root extra quotient bits and pool directory overhead scaled by `r` is bounded by `8 * n`. -/
 theorem rootExtra_and_poolDir_slack_le {U V n R p_min q_min p_max q_max : ℕ}
@@ -511,21 +518,16 @@ theorem rootExtra_and_poolDir_slack_le {U V n R p_min q_min p_max q_max : ℕ}
       Nat.clog 2 (((canonicalSchedule h).paddedUniv + (canonicalSchedule h).cap - 1) /
         (canonicalSchedule h).cap) +
       (canonicalSchedule h).rootPoolDirBits) * redundancyRatio n R ≤ 8 * n := by
-  obtain ⟨hr256, _, hr10⟩ := h.redundancyRatio_bounds
+  have hr256 := h.redundancyRatio_bounds.1
   obtain ⟨hL_s1, _⟩ := h.log_univ_bounds
   obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
   have h1_lt : 1 < treeDepth U (redundancyRatio n R) := by
     have := two_le_treeDepth U (redundancyRatio n R); omega
-  have hr_le_L : redundancyRatio n R ≤ Nat.log 2 n :=
-    (Nat.le_self_pow (by decide : 10 ≠ 0) _).trans hr10
-  have hpoly : 2560000 * (max q_min 1 + p_max + 4) ^ 4 ≤ Nat.log 2 n :=
-    (poly_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-  have hbase_p : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-    Nat.le_self_pow (by decide) _
+  have hp := h.mul_param_le_log (by decide : 3 ≤ 2560000)
   have h1_lt_d : 1 < (canonicalSchedule h).depth := by rwa [canonicalSchedule_depth]
   refine rootExtra_and_poolDir_of_schedule (canonicalSchedule h) h.two_le_n rfl (by omega)
-    (by omega) hL_s1 hr_le_L (canonicalSchedule_cap h) (paddedUniv_le_two_pow_mul_log h) ?_ ?_
-    (numNodes_mul_tableCap_le h le_rfl h1_lt_d) ?_ ?_
+    (by omega) hL_s1 h.redundancyRatio_le_log (canonicalSchedule_cap h)
+    (paddedUniv_le_two_pow_mul_log h) ?_ ?_ (numNodes_mul_tableCap_le h le_rfl h1_lt_d) ?_ ?_
   · rw [canonicalSchedule_nFloor_div_eq h h1_lt_d.le]
     exact Nat.mul_div_le n _
   · rw [canonicalSchedule_numNodes_eq h h1_lt_d.le, canonicalSchedule_delta_eq h 1]
@@ -560,7 +562,6 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
     (hpad_s1 : P.paddedUniv ≤ 2 ^ (s1 ^ 2))
     (hsq_all : ∀ ℓ < P.depth, (P.routerSeedBits ℓ) ^ 2 ≤ P.nFloor ℓ)
     (hd_pos_all : ∀ j ≤ P.depth, 1 ≤ P.delta j)
-    (hhd_all : ∀ j ≤ P.depth, 2 * P.delta j ≤ P.nFloor j)
     (hid_pred_all : ∀ ℓ, 2 ≤ ℓ → ℓ ≤ P.depth → P.idBits (ℓ - 1) ≤ 148 * levelScale U r P.depth ℓ)
     (hcub_all : ∀ ℓ, 1 ≤ ℓ → ℓ ≤ P.depth →
       P.numNodes ℓ * P.delta ℓ * (levelScale U r P.depth ℓ) ^ 3 ≤ n)
@@ -570,63 +571,32 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
         P.numNodes ℓ * P.nFloor ℓ ≤ n) :
     (P.allWaitingListsBits + P.allHashSeedsBits) * r ≤ 1700 * n := by
   have hr1 : 1 ≤ r := by omega
-  have hwait_r2 : (∑ ℓ ∈ Finset.Icc 2 P.depth,
-      P.numNodes ℓ * waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1))) * r ^ 2 ≤
-      r * (740 * n) := by
-    rw [Finset.sum_mul]
-    calc ∑ ℓ ∈ Finset.Icc 2 P.depth,
-          P.numNodes ℓ * waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1)) * r ^ 2
-        ≤ ∑ _ℓ ∈ Finset.Icc 2 P.depth, 740 * n := by
-          refine Finset.sum_le_sum fun ℓ hℓ => ?_
-          obtain ⟨h2, hle⟩ := Finset.mem_Icc.mp hℓ
-          have hd_pos : 1 ≤ P.delta ℓ := hd_pos_all ℓ hle
-          have hhd := hhd_all ℓ hle
-          have hnh_id := P.nHigh_le_two_pow_idBits ℓ (by omega) hle
-          have hcl_w : Nat.clog 2 (P.waitCap ℓ + 1) ≤ P.idBits ℓ := by
-            refine Nat.clog_le_of_le_pow ?_
-            dsimp only [TreeSchedule.waitCap]
-            omega
-          have hid_mono : P.idBits ℓ ≤ P.idBits (ℓ - 1) := by
-            have hstep := P.idBits_step_le (ℓ - 1) (by omega) (by omega)
-            rw [Nat.sub_add_cancel (by omega : 1 ≤ ℓ)] at hstep
-            omega
-          set s := levelScale U r P.depth ℓ
-          have hid_pred : P.idBits (ℓ - 1) ≤ 148 * s := hid_pred_all ℓ h2 hle
-          have hw_le : waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1)) ≤
-              740 * P.delta ℓ * s := by
-            dsimp only [waitingListBits, TreeSchedule.waitCap]
-            have h1 : Nat.clog 2 (2 * P.delta ℓ + 1) +
-                2 * P.delta ℓ * (P.idBits ℓ + P.idBits (ℓ - 1)) ≤
-                5 * P.delta ℓ * P.idBits (ℓ - 1) := by
-              have hcl2 : Nat.clog 2 (2 * P.delta ℓ + 1) ≤ P.delta ℓ * P.idBits (ℓ - 1) :=
-                (hcl_w.trans hid_mono).trans (Nat.le_mul_of_pos_left _ hd_pos)
-              nlinarith
-            calc _ ≤ 5 * P.delta ℓ * P.idBits (ℓ - 1) := h1
-              _ ≤ 5 * P.delta ℓ * (148 * s) := Nat.mul_le_mul_left _ hid_pred
-              _ = 740 * P.delta ℓ * s := by ring
-          have hs_r : r ≤ s := by
-            dsimp only [s]; rw [hdepth_eq]; exact r_le_levelScale (by omega) h4r
-          have hsr2 : s * r ^ 2 ≤ s ^ 3 := by
-            calc s * r ^ 2 ≤ s * s ^ 2 := Nat.mul_le_mul_left s (Nat.pow_le_pow_left hs_r 2)
-              _ = s ^ 3 := (pow_succ' s 2).symm
-          have hcub := hcub_all ℓ (by omega) hle
-          calc P.numNodes ℓ * waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1)) *
-                r ^ 2
-              ≤ P.numNodes ℓ * (740 * P.delta ℓ * s) * r ^ 2 :=
-                Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hw_le)
-            _ = 740 * (P.numNodes ℓ * P.delta ℓ * (s * r ^ 2)) := by ring
-            _ ≤ 740 * (P.numNodes ℓ * P.delta ℓ * s ^ 3) :=
-                Nat.mul_le_mul_left 740 (Nat.mul_le_mul_left _ hsr2)
-            _ ≤ 740 * n := Nat.mul_le_mul_left 740 hcub
-      _ = (Finset.Icc 2 P.depth).card * (740 * n) := by simp
-      _ ≤ r * (740 * n) := by
-          refine Nat.mul_le_mul_right _ ?_
-          rw [Nat.card_Icc]
-          omega
   have hwait_r : P.allWaitingListsBits * r ≤ 740 * n := by
-    refine Nat.le_of_mul_le_mul_right ?_ hr1
-    calc P.allWaitingListsBits * r * r = P.allWaitingListsBits * r ^ 2 := by ring
-      _ ≤ 740 * n * r := by dsimp only [TreeSchedule.allWaitingListsBits]; linarith
+    dsimp only [TreeSchedule.allWaitingListsBits]
+    refine sum_mul_le_of_mul_sq_le hr1 (by rw [Nat.card_Icc]; omega) fun ℓ hℓ => ?_
+    obtain ⟨h2, hle⟩ := Finset.mem_Icc.mp hℓ
+    set s := levelScale U r P.depth ℓ
+    have hd_pos : 1 ≤ P.delta ℓ := hd_pos_all ℓ hle
+    have hw_le : waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1)) ≤
+        740 * P.delta ℓ * s := by
+      calc waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1))
+          ≤ (4 * P.delta ℓ + 1) * P.idBits (ℓ - 1) :=
+            P.waitingListBits_le_of_two_le h2 hle
+        _ ≤ (5 * P.delta ℓ) * (148 * s) :=
+            Nat.mul_le_mul (by omega) (hid_pred_all ℓ h2 hle)
+        _ = 740 * P.delta ℓ * s := by ring
+    have hs_r : r ≤ s := by
+      dsimp only [s]; rw [hdepth_eq]; exact r_le_levelScale (by omega) h4r
+    have hsr2 : s * r ^ 2 ≤ s ^ 3 := by
+      calc s * r ^ 2 ≤ s * s ^ 2 := Nat.mul_le_mul_left s (Nat.pow_le_pow_left hs_r 2)
+        _ = s ^ 3 := (pow_succ' s 2).symm
+    calc P.numNodes ℓ * waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1)) * r ^ 2
+        ≤ P.numNodes ℓ * (740 * P.delta ℓ * s) * r ^ 2 :=
+          Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hw_le)
+      _ = 740 * (P.numNodes ℓ * P.delta ℓ * (s * r ^ 2)) := by ring
+      _ ≤ 740 * (P.numNodes ℓ * P.delta ℓ * s ^ 3) :=
+          Nat.mul_le_mul_left 740 (Nat.mul_le_mul_left _ hsr2)
+      _ ≤ 740 * n := Nat.mul_le_mul_left 740 (hcub_all ℓ (by omega) hle)
   have hseed0_r : P.routerSeedBits 0 * r ≤ n := by
     have hsq0 : (P.routerSeedBits 0) ^ 2 ≤ n := by
       have h0 := hsq_all 0 (by have := P.two_le_depth; omega)
@@ -634,134 +604,110 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
     rcases le_total (P.routerSeedBits 0) r with hle | hge
     · exact (Nat.mul_le_mul_right r hle).trans ((sq r).symm ▸ hr2_n)
     · exact (Nat.mul_le_mul_left _ hge).trans ((sq (P.routerSeedBits 0)).symm ▸ hsq0)
-  have hseed_sum_r2 : (∑ ℓ ∈ Finset.Icc 1 P.depth, P.numNodes ℓ * P.nodeHashSeedBits ℓ) * r ^ 2 ≤
-      r * (900 * n) := by
-    rw [Finset.sum_mul]
-    calc ∑ ℓ ∈ Finset.Icc 1 P.depth, P.numNodes ℓ * P.nodeHashSeedBits ℓ * r ^ 2
-        ≤ ∑ _ℓ ∈ Finset.Icc 1 P.depth, 900 * n := by
-          refine Finset.sum_le_sum fun ℓ hℓ => ?_
-          obtain ⟨h1, hle⟩ := Finset.mem_Icc.mp hℓ
-          set s := levelScale U r P.depth ℓ
-          have hs_r : r ≤ s := by
-            dsimp only [s]; rw [hdepth_eq]; exact r_le_levelScale h1 h4r
-          obtain ⟨hNTℓ, hs9_nf, hN_nf⟩ := hNT_all ℓ h1 hle
-          have hrouter_part : P.numNodes ℓ *
-              (if ℓ < P.depth then P.routerSeedBits ℓ else 0) * r ^ 2 ≤ n := by
-            split_ifs with hlt
-            · have hsq := hsq_all ℓ hlt
-              have hr4_nf : (r ^ 2) ^ 2 ≤ P.nFloor ℓ := by
-                calc (r ^ 2) ^ 2 = r ^ 4 := (Nat.pow_mul r 2 2).symm
-                  _ ≤ r ^ 9 := Nat.pow_le_pow_right hr1 (by decide)
-                  _ ≤ s ^ 9 := Nat.pow_le_pow_left hs_r 9
-                  _ ≤ P.nFloor ℓ := hs9_nf
-              have hprod : P.routerSeedBits ℓ * r ^ 2 ≤ P.nFloor ℓ := by
-                rcases le_total (P.routerSeedBits ℓ) (r ^ 2) with ha | hb
-                · exact (Nat.mul_le_mul_right _ ha).trans ((sq (r ^ 2)).symm ▸ hr4_nf)
-                · exact (Nat.mul_le_mul_left _ hb).trans ((sq (P.routerSeedBits ℓ)).symm ▸ hsq)
-              calc P.numNodes ℓ * P.routerSeedBits ℓ * r ^ 2
-                  = P.numNodes ℓ * (P.routerSeedBits ℓ * r ^ 2) := by ring
-                _ ≤ P.numNodes ℓ * P.nFloor ℓ := Nat.mul_le_mul_left _ hprod
-                _ ≤ n := hN_nf
-            · simp
-          have hidcomp_part : P.numNodes ℓ *
-              FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) * r ^ 2 ≤
-              894 * n := by
-            have hic := FeistelPerm.idCompressorSeedBits_le (P.idBits ℓ) (P.idCompRightUniv ℓ)
-            rcases eq_or_lt_of_le h1 with rfl | hgt1
-            · have hs_eq : s = s1 := by
-                dsimp only [s, levelScale]
-                rw [ite_eq_left (by have := P.two_le_depth; omega)]
-                simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using hs1_eq.symm
-              have hs1_256 : 256 ≤ s1 := by omega
-              have hcl1 : Nat.clog 2 (max (P.idCompRightUniv 1) 2) ≤ s1 ^ 2 := by
-                dsimp only [TreeSchedule.idCompRightUniv]
-                rw [ite_eq_left le_rfl]
-                have hq_pad : P.quotOne ≤ P.paddedUniv := by
-                  dsimp only [TreeSchedule.paddedUniv]
-                  exact Nat.le_mul_of_pos_left _
-                    (Nat.mul_pos (P.branchFactor_pos 0) (Nat.two_pow_pos _))
-                refine Nat.clog_le_of_le_pow (max_le (hq_pad.trans hpad_s1) ?_)
-                exact (show 2 = 2 ^ 1 by decide) ▸
-                  Nat.pow_le_pow_right Nat.two_pos (Nat.one_le_pow 2 s1 (by omega))
-              have hid1_s1 : max (P.idBits 1) 1 ≤ s1 ^ 2 := by
-                have hid1 := hid_pred_all 2 le_rfl P.two_le_depth
-                have hls2_s1 : levelScale U r P.depth 2 ≤ s1 := by
-                  dsimp only [levelScale]
-                  split_ifs
-                  · simpa only [Nat.iterLog_succ, Nat.iterLog_zero, ← hs1_eq] using
-                      Nat.log_le_self 2 s1
-                  · exact hr_s1
-                refine max_le ?_ (Nat.one_le_pow 2 s1 (by omega))
-                calc P.idBits 1 ≤ 148 * levelScale U r P.depth 2 := hid1
-                  _ ≤ 148 * s1 := Nat.mul_le_mul_left 148 hls2_s1
-                  _ ≤ s1 * s1 := Nat.mul_le_mul_right s1 (by omega)
-                  _ = s1 ^ 2 := (sq s1).symm
-              have hic1 : FeistelPerm.idCompressorSeedBits (P.idBits 1) (P.idCompRightUniv 1) ≤
-                  6 * s1 ^ 2 :=
-                hic.trans (Nat.mul_le_mul_left 6 (max_le hcl1 hid1_s1))
-              have hs1_4 : s1 ^ 2 * r ^ 2 ≤ s1 ^ 9 := by
-                calc s1 ^ 2 * r ^ 2 ≤ s1 ^ 2 * s1 ^ 2 :=
-                      Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hr_s1 2)
-                  _ = s1 ^ 4 := (Nat.pow_add s1 2 2).symm
-                  _ ≤ s1 ^ 9 := Nat.pow_le_pow_right (by omega) (by decide)
-              have hNT1 : P.numNodes 1 * s1 ^ 9 ≤ n := hs_eq ▸ hNTℓ
-              calc P.numNodes 1 *
-                    FeistelPerm.idCompressorSeedBits (P.idBits 1) (P.idCompRightUniv 1) * r ^ 2
-                  ≤ P.numNodes 1 * (6 * s1 ^ 2) * r ^ 2 :=
-                    Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hic1)
-                _ = 6 * (P.numNodes 1 * (s1 ^ 2 * r ^ 2)) := by ring
-                _ ≤ 6 * (P.numNodes 1 * s1 ^ 9) :=
-                    Nat.mul_le_mul_left 6 (Nat.mul_le_mul_left _ hs1_4)
-                _ ≤ 6 * n := Nat.mul_le_mul_left 6 hNT1
-                _ ≤ 894 * n := by omega
-            · have hid_pred : P.idBits (ℓ - 1) ≤ 148 * s := hid_pred_all ℓ hgt1 hle
-              have hs_ge256 : 256 ≤ s := by omega
-              have hcl_rem : Nat.clog 2 (max (P.idCompRightUniv ℓ) 2) ≤ 149 * s := by
-                dsimp only [TreeSchedule.idCompRightUniv]
-                rw [ite_eq_right (by omega)]
-                refine Nat.clog_le_of_le_pow (max_le ?_ ?_)
-                · refine Nat.pow_le_pow_right Nat.two_pos ?_
-                  dsimp only [TreeSchedule.remBits]
-                  omega
-                · exact (show 2 = 2 ^ 1 by decide) ▸ Nat.pow_le_pow_right Nat.two_pos (by omega)
-              have hid_s : max (P.idBits ℓ) 1 ≤ 149 * s := by
-                have hstep := P.idBits_step_le (ℓ - 1) (by omega) (by omega)
-                rw [Nat.sub_add_cancel (by omega : 1 ≤ ℓ)] at hstep
-                omega
-              have hic_ℓ : FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) ≤
-                  894 * s := by
-                have := max_le hcl_rem hid_s
-                omega
-              have hsr9 : s * r ^ 2 ≤ s ^ 9 := by
-                calc s * r ^ 2 ≤ s * s ^ 2 := Nat.mul_le_mul_left s (Nat.pow_le_pow_left hs_r 2)
-                  _ = s ^ 3 := (pow_succ' s 2).symm
-                  _ ≤ s ^ 9 := Nat.pow_le_pow_right (by omega) (by decide)
-              calc P.numNodes ℓ *
-                    FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) * r ^ 2
-                  ≤ P.numNodes ℓ * (894 * s) * r ^ 2 :=
-                    Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hic_ℓ)
-                _ = 894 * (P.numNodes ℓ * (s * r ^ 2)) := by ring
-                _ ≤ 894 * (P.numNodes ℓ * s ^ 9) :=
-                    Nat.mul_le_mul_left 894 (Nat.mul_le_mul_left _ hsr9)
-                _ ≤ 894 * n := Nat.mul_le_mul_left 894 hNTℓ
-          have hnhs : P.nodeHashSeedBits ℓ =
-              (if ℓ < P.depth then P.routerSeedBits ℓ else 0) +
-                FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) := by
-            dsimp only [TreeSchedule.nodeHashSeedBits]; rw [ite_eq_right (by omega)]
-          rw [hnhs]
-          nlinarith
-      _ = (Finset.Icc 1 P.depth).card * (900 * n) := by simp
-      _ ≤ r * (900 * n) := by
-          refine Nat.mul_le_mul_right _ ?_
-          rw [Nat.card_Icc]
-          omega
   have hseed_sum_r :
       (∑ ℓ ∈ Finset.Icc 1 P.depth, P.numNodes ℓ * P.nodeHashSeedBits ℓ) * r ≤ 900 * n := by
-    refine Nat.le_of_mul_le_mul_right ?_ hr1
-    calc _ * r * r = _ * r ^ 2 := by ring
-      _ ≤ 900 * n * r := by linarith
+    refine sum_mul_le_of_mul_sq_le hr1 (by rw [Nat.card_Icc]; omega) fun ℓ hℓ => ?_
+    obtain ⟨h1, hle⟩ := Finset.mem_Icc.mp hℓ
+    set s := levelScale U r P.depth ℓ
+    have hs_r : r ≤ s := by
+      dsimp only [s]; rw [hdepth_eq]; exact r_le_levelScale h1 h4r
+    obtain ⟨hNTℓ, hs9_nf, hN_nf⟩ := hNT_all ℓ h1 hle
+    have hrouter_part : P.numNodes ℓ *
+        (if ℓ < P.depth then P.routerSeedBits ℓ else 0) * r ^ 2 ≤ n := by
+      split_ifs with hlt
+      · have hsq := hsq_all ℓ hlt
+        have hr4_nf : (r ^ 2) ^ 2 ≤ P.nFloor ℓ := by
+          calc (r ^ 2) ^ 2 = r ^ 4 := (Nat.pow_mul r 2 2).symm
+            _ ≤ r ^ 9 := Nat.pow_le_pow_right hr1 (by decide)
+            _ ≤ s ^ 9 := Nat.pow_le_pow_left hs_r 9
+            _ ≤ P.nFloor ℓ := hs9_nf
+        have hprod : P.routerSeedBits ℓ * r ^ 2 ≤ P.nFloor ℓ := by
+          rcases le_total (P.routerSeedBits ℓ) (r ^ 2) with ha | hb
+          · exact (Nat.mul_le_mul_right _ ha).trans ((sq (r ^ 2)).symm ▸ hr4_nf)
+          · exact (Nat.mul_le_mul_left _ hb).trans ((sq (P.routerSeedBits ℓ)).symm ▸ hsq)
+        calc P.numNodes ℓ * P.routerSeedBits ℓ * r ^ 2
+            = P.numNodes ℓ * (P.routerSeedBits ℓ * r ^ 2) := by ring
+          _ ≤ P.numNodes ℓ * P.nFloor ℓ := Nat.mul_le_mul_left _ hprod
+          _ ≤ n := hN_nf
+      · simp
+    have hidcomp_part : P.numNodes ℓ *
+        FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) * r ^ 2 ≤
+        894 * n := by
+      rcases eq_or_lt_of_le h1 with rfl | hgt1
+      · have hic := FeistelPerm.idCompressorSeedBits_le (P.idBits 1) (P.idCompRightUniv 1)
+        have hs_eq : s = s1 := by
+          dsimp only [s, levelScale]
+          rw [ite_eq_left (by have := P.two_le_depth; omega)]
+          simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using hs1_eq.symm
+        have hs1_256 : 256 ≤ s1 := by omega
+        have hcl1 : Nat.clog 2 (max (P.idCompRightUniv 1) 2) ≤ s1 ^ 2 := by
+          dsimp only [TreeSchedule.idCompRightUniv]
+          rw [ite_eq_left le_rfl]
+          have hq_pad : P.quotOne ≤ P.paddedUniv := by
+            dsimp only [TreeSchedule.paddedUniv]
+            exact Nat.le_mul_of_pos_left _
+              (Nat.mul_pos (P.branchFactor_pos 0) (Nat.two_pow_pos _))
+          refine Nat.clog_le_of_le_pow (max_le (hq_pad.trans hpad_s1) ?_)
+          exact (show 2 = 2 ^ 1 by decide) ▸
+            Nat.pow_le_pow_right Nat.two_pos (Nat.one_le_pow 2 s1 (by omega))
+        have hid1_s1 : max (P.idBits 1) 1 ≤ s1 ^ 2 := by
+          have hid1 := hid_pred_all 2 le_rfl P.two_le_depth
+          have hls2_s1 : levelScale U r P.depth 2 ≤ s1 := by
+            dsimp only [levelScale]
+            split_ifs
+            · simpa only [Nat.iterLog_succ, Nat.iterLog_zero, ← hs1_eq] using
+                Nat.log_le_self 2 s1
+            · exact hr_s1
+          refine max_le ?_ (Nat.one_le_pow 2 s1 (by omega))
+          calc P.idBits 1 ≤ 148 * levelScale U r P.depth 2 := hid1
+            _ ≤ 148 * s1 := Nat.mul_le_mul_left 148 hls2_s1
+            _ ≤ s1 * s1 := Nat.mul_le_mul_right s1 (by omega)
+            _ = s1 ^ 2 := (sq s1).symm
+        have hic1 : FeistelPerm.idCompressorSeedBits (P.idBits 1) (P.idCompRightUniv 1) ≤
+            6 * s1 ^ 2 :=
+          hic.trans (Nat.mul_le_mul_left 6 (max_le hcl1 hid1_s1))
+        have hs1_4 : s1 ^ 2 * r ^ 2 ≤ s1 ^ 9 := by
+          calc s1 ^ 2 * r ^ 2 ≤ s1 ^ 2 * s1 ^ 2 :=
+                Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hr_s1 2)
+            _ = s1 ^ 4 := (Nat.pow_add s1 2 2).symm
+            _ ≤ s1 ^ 9 := Nat.pow_le_pow_right (by omega) (by decide)
+        have hNT1 : P.numNodes 1 * s1 ^ 9 ≤ n := hs_eq ▸ hNTℓ
+        calc P.numNodes 1 *
+              FeistelPerm.idCompressorSeedBits (P.idBits 1) (P.idCompRightUniv 1) * r ^ 2
+            ≤ P.numNodes 1 * (6 * s1 ^ 2) * r ^ 2 :=
+              Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hic1)
+          _ = 6 * (P.numNodes 1 * (s1 ^ 2 * r ^ 2)) := by ring
+          _ ≤ 6 * (P.numNodes 1 * s1 ^ 9) :=
+              Nat.mul_le_mul_left 6 (Nat.mul_le_mul_left _ hs1_4)
+          _ ≤ 6 * n := Nat.mul_le_mul_left 6 hNT1
+          _ ≤ 894 * n := by omega
+      · have hid_pred : P.idBits (ℓ - 1) ≤ 148 * s := hid_pred_all ℓ hgt1 hle
+        have hic_ℓ : FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) ≤
+            894 * s := by
+          have := P.idCompressorSeedBits_le_of_two_le hgt1 hle
+          have : max (P.idBits (ℓ - 1)) 1 ≤ 149 * s := max_le (by omega) (by omega)
+          omega
+        have hsr9 : s * r ^ 2 ≤ s ^ 9 := by
+          calc s * r ^ 2 ≤ s * s ^ 2 := Nat.mul_le_mul_left s (Nat.pow_le_pow_left hs_r 2)
+            _ = s ^ 3 := (pow_succ' s 2).symm
+            _ ≤ s ^ 9 := Nat.pow_le_pow_right (by omega) (by decide)
+        calc P.numNodes ℓ *
+              FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) * r ^ 2
+            ≤ P.numNodes ℓ * (894 * s) * r ^ 2 :=
+              Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hic_ℓ)
+          _ = 894 * (P.numNodes ℓ * (s * r ^ 2)) := by ring
+          _ ≤ 894 * (P.numNodes ℓ * s ^ 9) :=
+              Nat.mul_le_mul_left 894 (Nat.mul_le_mul_left _ hsr9)
+          _ ≤ 894 * n := Nat.mul_le_mul_left 894 hNTℓ
+    have hnhs : P.nodeHashSeedBits ℓ =
+        (if ℓ < P.depth then P.routerSeedBits ℓ else 0) +
+          FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) := by
+      dsimp only [TreeSchedule.nodeHashSeedBits]; rw [ite_eq_right (by omega)]
+    rw [hnhs, Nat.mul_add, Nat.add_mul]
+    omega
   dsimp only [TreeSchedule.allHashSeedsBits]
-  nlinarith
+  rw [Nat.add_mul, Nat.add_mul]
+  omega
 
 /-- Total bits for waiting lists and all node hash seeds scaled by `r` is bounded by
 `1700 * n`. -/
@@ -772,31 +718,22 @@ theorem waitingLists_and_hashSeeds_slack_le {U V n R p_min q_min p_max q_max : �
   obtain ⟨hr256, _, hr10⟩ := h.redundancyRatio_bounds
   obtain ⟨hL_s1, _⟩ := h.log_univ_bounds
   obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
-  have hr1 : 1 ≤ redundancyRatio n R := by dsimp [minRedundancyRatio] at hr256; omega
-  have hr_le_L : redundancyRatio n R ≤ Nat.log 2 n :=
-    (Nat.le_self_pow (by decide : 10 ≠ 0) _).trans hr10
   have hr2_n : (redundancyRatio n R) ^ 2 ≤ n :=
-    ((Nat.pow_le_pow_right hr1 (by decide : 2 ≤ 10)).trans hr10).trans (Nat.log_le_self 2 n)
-  have hpoly : 2560000 * (max q_min 1 + p_max + 4) ^ 4 ≤ Nat.log 2 n :=
-    (poly_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-  have hbase_p : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-    Nat.le_self_pow (by decide) _
+    ((Nat.pow_le_pow_right h.one_le_redundancyRatio (by decide : 2 ≤ 10)).trans hr10).trans
+      (Nat.log_le_self 2 n)
+  have hp := h.mul_param_le_log (by decide : 2 ≤ 2560000)
   have h2p_s1 : 2 * (p_max + 2) * Nat.log 2 n ≤ (Nat.log 2 U) ^ 2 := by
     have hpL : 2 * (p_max + 2) ≤ Nat.log 2 n := by omega
     exact ((Nat.mul_le_mul_right _ hpL).trans (sq _).symm.le).trans
       (Nat.pow_le_pow_left hL_s1 2)
   refine waitingLists_and_hashSeeds_of_schedule (canonicalSchedule h)
-    (by dsimp [minRedundancyRatio] at hr256; exact hr256) hr2_n (hr_le_L.trans hL_s1) rfl
+    (by dsimp [minRedundancyRatio] at hr256; exact hr256) hr2_n
+    (h.redundancyRatio_le_log.trans hL_s1) rfl
     h.four_mul_redundancyRatio_le_log_univ (canonicalSchedule_depth h) (canonicalSchedule_cap h)
     ((canonicalSchedule_depth h).symm ▸ h.treeDepth_le_redundancyRatio)
     ((paddedUniv_le_two_pow_mul_log h).trans (Nat.pow_le_pow_right Nat.two_pos h2p_s1))
     (fun ℓ hlt => routerSeedBits_sq_le_nFloor h hlt)
-    (fun j hj => delta_pos_of_le_depth h hj) ?_ ?_ ?_ ?_
-  · intro j hj
-    have hg := nFloor_ge_pow_256 h hj
-    rw [canonicalSchedule_nFloor_eq h j] at hg
-    rw [canonicalSchedule_delta_eq h j, canonicalSchedule_nFloor_eq h j]
-    exact two_mul_delta_le_nFloor_of_eight_le ((by decide : 8 ≤ 256 ^ 9).trans hg)
+    (fun j hj => delta_pos_of_le_depth h hj) ?_ ?_ ?_
   · intro ℓ h2 hle
     have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
     rw [canonicalSchedule_idBits_eq h (ℓ - 1), canonicalSchedule_depth]

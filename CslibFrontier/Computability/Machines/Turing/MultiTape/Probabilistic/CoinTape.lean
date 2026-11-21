@@ -30,8 +30,11 @@ machine implementing replay from an encoded input and coin tape needs a separate
 ## Main results
 
 * `Turing.MultiTapePTM.runConfigFromCoins_append`: pause and resume at a tape boundary.
+* `Turing.MultiTapePTM.replay_append`: concatenating closed coin replays runs them consecutively.
 * `Turing.MultiTapePTM.run_interpret_runConfigFrom_eq_coins`: average fixed-coin runs, retaining
   the complete configuration and private state.
+* `Turing.MultiTapePTM.eval_runClosedConfigFrom_one`: one closed step averages the two
+  fixed-coin steps.
 * `Turing.MultiTapePTM.runClosedCoins_ofDeterministic`: replaying a deterministic machine runs it
   for as many steps as there are coins.
 
@@ -184,6 +187,14 @@ def runClosedConfigFromCoins (machine : MultiTapePTM k Symbol State)
     Config k Symbol State Empty input :=
   coins.foldl (fun cfg bit => (machine.withCoin bit).step cfg) cfg
 
+/-- Running a sequential concatenation of coin sequences is equivalent to
+running them consecutively. -/
+theorem replay_append (machine : MultiTapePTM k Symbol State)
+    (before after : List Bool) (cfg : Config k Symbol State Empty input) :
+    machine.runClosedConfigFromCoins (before ++ after) cfg =
+      machine.runClosedConfigFromCoins after (machine.runClosedConfigFromCoins before cfg) :=
+  List.foldl_append
+
 /-- A closed one-step program with a fixed coin is a pure deterministic transition. -/
 theorem runConfigFrom_pure_coin (machine : MultiTapePTM k Symbol State) (bit : Bool)
     (cfg : Config k Symbol State Empty input) :
@@ -227,6 +238,16 @@ theorem eval_runClosedConfigFrom_eq_map_coins (machine : MultiTapePTM k Symbol S
   rw [runClosedConfigFrom, ProbComp.eval, OracleComp.evalWith_eq_interpret,
     interpret_runConfigFrom_eq_coins machine _ _ _ hcoin]
   simp [runConfigFromCoins_closed, PMF.map, Function.comp_def]
+
+/-- One closed step draws a fair coin and takes the step selected by it. -/
+theorem eval_runClosedConfigFrom_one (machine : MultiTapePTM k Symbol State)
+    (cfg : Config k Symbol State Empty input) :
+    ProbComp.eval (machine.runClosedConfigFrom 1 cfg) =
+      (PMF.uniformOfFintype Bool).map fun bit => (machine.withCoin bit).step cfg := by
+  rw [eval_runClosedConfigFrom_eq_map_coins, BitString.uniformList_succ,
+    BitString.uniformList_zero, PMF.map_bind]
+  simp only [PMF.pure_map]
+  exact PMF.bind_pure_comp _ _
 
 /-- A closed fair-coin run is a deterministic function of a uniform tape of clock length. -/
 theorem eval_runClosed_eq_map_coins (machine : MultiTapePTM k Symbol State)

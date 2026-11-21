@@ -248,6 +248,11 @@ theorem ddh_trivialGroupFamily :
 
 private def oddOrder (d : ℕ) : ℕ := 3 * (2 * d + 1)
 
+private theorem oddOrder_polyTime : ComputableInPolyTime oddOrder encNat encNat :=
+  ComputableInPolyTime.binary_mul' (.const 3)
+    (ComputableInPolyTime.binary_add'
+      (ComputableInPolyTime.binary_mul' (.const 2) .id') (.const 1))
+
 private def oddOrderAdd : ℕ × List Bool × List Bool → List Bool
   | (d, x, y) => ((ofBits x + ofBits y) % oddOrder d).bits
 
@@ -281,19 +286,27 @@ private def oddFactorFamily : CyclicGroupFamily where
     simp only [oddOrderSMul, ofBits_bits, smul_eq_mul, ZMod.val_mul, ZMod.val_natCast,
       Nat.mod_mul_mod]
   computableInPolyTime_order := by
-    unfold oddOrder
-    fun_prop
+    exact oddOrder_polyTime
   computableInPolyTime_generator := by
     have h1 : ∀ d : ℕ, ((1 : ZMod (oddOrder d)).val) = 1 := fun d =>
       ZMod.val_one'' (by simp [oddOrder])
     simp only [h1]
     exact ComputableInPolyTime.const _
   computableInPolyTime_add := by
-    unfold oddOrderAdd oddOrder
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encNat (encPair encBits encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_add'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (oddOrder_polyTime.comp hp.fst')).encoding_comp
   computableInPolyTime_smul := by
-    unfold oddOrderSMul oddOrder
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encNat (encPair encNat encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hp.snd'.fst'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (oddOrder_polyTime.comp hp.fst')).encoding_comp
 
 -- `CyclicGroupFamily.ddhSmallFactorDistinguisher` evaluates by `decide` on `oddFactorFamily` at
 -- `d = 2` (order `15`), confirming `@[expose]` works across `module` imports.
@@ -338,6 +351,14 @@ private theorem altOrder_ne_zero (d : ℕ) : altOrder d ≠ 0 := by
   simp only [altOrder, altFactor, ne_eq, mul_eq_zero]
   omega
 
+private theorem altOrder_polyTime : ComputableInPolyTime altOrder encNat encNat :=
+  ComputableInPolyTime.binary_mul'
+    (ComputableInPolyTime.binary_add' (.const 3)
+      (ComputableInPolyTime.binary_mul' (.const 2)
+        (ComputableInPolyTime.binary_mod' .id' (.const 2))))
+    (ComputableInPolyTime.binary_add'
+      (ComputableInPolyTime.binary_mul' (.const 30) .id') (.const 1))
+
 private def altOrderAdd : ℕ × List Bool × List Bool → List Bool
   | (d, x, y) => ((ofBits x + ofBits y) % altOrder d).bits
 
@@ -371,8 +392,7 @@ private def alternatingFactorFamily : CyclicGroupFamily where
     simp only [altOrderSMul, ofBits_bits, smul_eq_mul, ZMod.val_mul, ZMod.val_natCast,
       Nat.mod_mul_mod]
   computableInPolyTime_order := by
-    unfold altOrder altFactor
-    fun_prop
+    exact altOrder_polyTime
   computableInPolyTime_generator := by
     have h1 : ∀ d : ℕ, ((1 : ZMod (altOrder d)).val) = 1 := fun d =>
       ZMod.val_one'' (by
@@ -384,11 +404,20 @@ private def alternatingFactorFamily : CyclicGroupFamily where
     simp only [h1]
     exact ComputableInPolyTime.const _
   computableInPolyTime_add := by
-    unfold altOrderAdd altOrder altFactor
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encNat (encPair encBits encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_add'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (altOrder_polyTime.comp hp.fst')).encoding_comp
   computableInPolyTime_smul := by
-    unfold altOrderSMul altOrder altFactor
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encNat (encPair encNat encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hp.snd'.fst'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (altOrder_polyTime.comp hp.fst')).encoding_comp
 
 /-- `alternatingFactorFamily` fails `DDH` via `not_ddh_of_prime_factor` with the non-constant
 polynomial-time selector `d ↦ 3 + 2 * (d % 2)` (which outputs `3` on `d = 0` and `5` on `d = 1`).
@@ -400,8 +429,10 @@ theorem alternatingFactorFamily_not_ddh :
   refine CyclicGroupFamily.not_ddh_of_prime_factor alternatingFactorFamily (fun _ d => altFactor d)
     ?_ (fun _ => 5) (polynomiallyBounded_iff_le.2 ⟨5, 0, fun _ => by simp⟩)
     (Filter.Eventually.of_forall fun n d hd => ?_).frequently
-  · unfold altFactor
-    fun_prop
+  · have hd := ComputableInPolyTime.snd encUnary encNat
+    exact ComputableInPolyTime.binary_add' (ComputableInPolyTime.const 3)
+      (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 2)
+        (ComputableInPolyTime.binary_mod' hd (ComputableInPolyTime.const 2)))
   · have hdn : d = n := (PMF.mem_support_pure_iff n d).mp hd
     rw [hdn]
     change (altFactor n).Prime ∧ altFactor n ∣ altOrder n ∧ altFactor n ≤ 5

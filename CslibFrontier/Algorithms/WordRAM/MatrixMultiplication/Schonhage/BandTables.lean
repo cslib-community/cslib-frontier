@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPopulation
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged materialization of the subset tables
@@ -188,11 +189,7 @@ private theorem TableParameters.of_eq {L m inv tab : ℕ} {x y : Data 96}
     (hx : TableParameters L m inv tab x)
     (h : ∀ i ∈ tableParameterRegisters, y.regs i = x.regs i) :
     TableParameters L m inv tab y := by
-  exact ⟨(h _ (by decide)).trans hx.levels, (h _ (by decide)).trans hx.inner,
-    (h _ (by decide)).trans hx.masks, (h _ (by decide)).trans hx.inverse,
-    (h _ (by decide)).trans hx.table, (h _ (by decide)).trans hx.square,
-    (h _ (by decide)).trans hx.zero, (h _ (by decide)).trans hx.one,
-    (h _ (by decide)).trans hx.two⟩
+  regs_frame
 
 /-- The complete native scan computes both tables, with all inner population scans and
 outer controls charged. Outside memory may contain arbitrary caller data. -/
@@ -236,8 +233,7 @@ theorem exec_tables {w : ℕ} (L m inv tab : ℕ) (x : Data 96)
       exact huf i (hf i hi).1 (hf i hi).2.1 (hf i hi).2.2.1 (hf i hi).2.2.2)
     have hut : u.regs mask = y.regs mask :=
       huf mask (by decide) (by decide) (by decide) (by decide)
-    have hur : u.regs rank = prefixCount L m (y.regs mask) :=
-      (huf rank (by decide) (by decide) (by decide) (by decide)).trans hrank
+    have hur : u.regs rank = prefixCount L m (y.regs mask) := by regs_frame
     obtain ⟨z, hz, hzmem, hzt, hzr, _⟩ := exec_tableWrite L m inv tab (y.regs mask) u
       htlt hup.inverse hup.table hut hur hpop hup.inner hup.square hup.zero hup.one
       (hfit.of_le (by omega))

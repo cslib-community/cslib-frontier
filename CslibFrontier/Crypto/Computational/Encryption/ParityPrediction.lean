@@ -27,8 +27,9 @@ import CslibFrontier.Tactic.PPT
 A semantically secure cipher over non-empty bit strings is secure against parity prediction
 ([BonehShoup2023], Section 2.2.3.2, Attack Game 2.3, Definition 2.4, and Theorem 2.8, pp. 20–22).
 We formalize both the concrete exact advantage identity for a typed symmetric cipher
-`Cipher K (BitString L) C` and the asymptotic word-level statement over `{0, 1}^{msgLen n}`
-against `DEMOneTimeKeyWordINDCPA` together with its uniform strict PPT certificate.
+`Cipher K (BitString L) C` and the asymptotic theorem for a cipher with message space
+`{0, 1}^{msgLen n}`, whose semantic security admits exactly the challenge pairs of two
+`msgLen n`-bit messages, together with the uniform strict PPT certificate of the reduction.
 
 Relative to [BonehShoup2023], §2.2.3.2, pp. 20–22, this formalization makes two hypotheses explicit:
 * On a concrete `Cipher K (BitString L) C`,
@@ -39,7 +40,7 @@ Relative to [BonehShoup2023], §2.2.3.2, pp. 20–22, this formalization makes t
   `parityReduction (ProbComp.uniform (BitString L)) (flipLastBitString hL) (parity L) A`.
   (The book implicitly takes `L ≥ 1` and allows all fixed-length pairs in Attack Game 2.1.)
 * On word messages `{0, 1}^{msgLen n}`, `parityWordAdvantage_eq_half_mul_demKeyGameOn` and
-  `DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage` require `1 ≤ msgLen n`
+  `DEMOneTimeKeyINDCPAOn.negligible_parityWordAdvantage` require `1 ≤ msgLen n`
   (`hpos : ∀ n, 1 ≤ msgLen n`) and `ComputableInPolyTime msgLen encUnary encUnary` for PPT
   message sampling. Checked counterexamples in `CslibFrontierTests.Crypto.ParityPrediction` show
   that `hL`, `hvalid`, and `hpos` are needed.
@@ -63,9 +64,9 @@ Relative to [BonehShoup2023], §2.2.3.2, pp. 20–22, this formalization makes t
 * `Cslib.Crypto.Encryption.isPPT_parityWordToDEMAdversary`: uniform strict PPT certificate for
   `parityWordToDEMAdversary`.
 * `Cslib.Crypto.Encryption.parityWordAdvantage_eq_half_mul_demKeyGameOn`: word-level exact
-  identity at each `n` with `1 ≤ msgLen n`.
-* `Cslib.Crypto.Encryption.DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage`: asymptotic
-  Theorem 2.8 for `DEMOneTimeKeyWordINDCPA`.
+  identity at each `n` with `1 ≤ msgLen n`, the equation of the proof of Theorem 2.8.
+* `Cslib.Crypto.Encryption.DEMOneTimeKeyINDCPAOn.negligible_parityWordAdvantage`: asymptotic
+  Theorem 2.8, from semantic security on challenge pairs of `msgLen n`-bit messages.
 
 ## References
 
@@ -295,16 +296,13 @@ private theorem computableInPolyTime_flipLastBitWord {α : Type} {enc : α ↪ L
     (hL : ComputableInPolyTime L enc encUnary)
     (hw : ComputableInPolyTime w enc encBits) :
     ComputableInPolyTime (fun a => flipLastBitWord (L a) (w a)) enc encBits := by
-  unfold flipLastBitWord
-  have hpad : ComputableInPolyTime
-      (fun a => List.replicate (L a - 1) false ++ [true]) enc encBits := by
-    refine ComputableInPolyTime.bitsAppend ?_ (ComputableInPolyTime.const [true])
-    exact (ComputableInPolyTime.bitsReplicate false).comp
-      (ComputableInPolyTime.unary_sub' hL (.const 1))
-  have hwords : ComputableInPolyTime
-      (fun a => [w a, List.replicate (L a - 1) false ++ [true]]) enc (encList encBits) :=
-    hw.cons' (hpad.cons' (ComputableInPolyTime.const []))
-  exact ComputableInPolyTime.bitsXorWithInput hL hwords
+  have hmask := ComputableInPolyTime.bitsAppend
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.unary_sub' hL (ComputableInPolyTime.const 1)))
+    (ComputableInPolyTime.const [true])
+  exact ComputableInPolyTime.bitsXorWithInput hL
+    (ComputableInPolyTime.cons' hw
+      (ComputableInPolyTime.cons' hmask (ComputableInPolyTime.const [])))
 
 attribute [local fun_prop] computableInPolyTime_wordParity computableInPolyTime_flipLastBitWord
 
@@ -320,23 +318,29 @@ theorem isPPT_parityWordToDEMAdversary {msgLen : ℕ → ℕ}
   · dsimp only [parityWordToDEMAdversary, parityReduction]
     ppt
 
-/-- Exact word-level advantage identity for Theorem 2.8 at each `n` with `1 ≤ msgLen n`,
-derived from `parityReduction_advantage_eq`. -/
+/-- Exact word-level advantage identity of the proof of Theorem 2.8 ([BonehShoup2023], p. 21) at
+each `n` with `1 ≤ msgLen n`: `Parityadv[A, E](n) = (1 / 2) · SSadv[B, E](n)` for
+`B := parityWordToDEMAdversary msgLen A`, in Attack Game 2.1 with challenge pairs of two
+`msgLen n`-bit messages. Derived from `parityReduction_advantage_eq`. -/
 theorem parityWordAdvantage_eq_half_mul_demKeyGameOn (msgLen keyLen : ℕ → ℕ)
     (encryptSym : ℕ → List Bool → List Bool → ProbComp (List Bool))
     (A : ℕ → List Bool → ProbComp Bool) {n : ℕ} (hn : 1 ≤ msgLen n) :
     (parityWordAdvantage msgLen keyLen encryptSym A n : ℝ) =
       (1 / 2 : ℝ) *
         (Game.advantage
-          (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+          (ProbComp.eval (demKeyGameOn
+            (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
             keyLen encryptSym (parityWordToDEMAdversary msgLen A) false n))
-          (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+          (ProbComp.eval (demKeyGameOn
+            (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
             keyLen encryptSym (parityWordToDEMAdversary msgLen A) true n)) : ℝ) := by
   let E_word : Cipher (List Bool) (List Bool) (List Bool) :=
     ⟨fun k m => encryptSym n k m, fun _ _ => pure []⟩
-  let valid : List Bool → List Bool → Bool := fun m₀ m₁ => m₀.length == m₁.length
+  let valid : List Bool → List Bool → Bool := fun m₀ m₁ =>
+    m₀.length == msgLen n && m₁.length == msgLen n
   have hgame : ∀ b : Bool,
-      ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+      ProbComp.eval (demKeyGameOn
+        (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
         keyLen encryptSym (parityWordToDEMAdversary msgLen A) b n) =
         ProbComp.eval (E_word.oneTimeExperiment (BitString.sampleList (keyLen n)) valid
           (parityReduction (BitString.sampleList (msgLen n))
@@ -362,13 +366,21 @@ theorem parityWordAdvantage_eq_half_mul_demKeyGameOn (msgLen keyLen : ℕ → �
       exact wordParity_flipLastBitWord hn (BitString.length_of_mem_support_uniformList hm₀))
     (A n)
 
-/-- **Theorem 2.8 (asymptotic word-level statement)** ([BonehShoup2023], Theorem 2.8, pp. 21–22):
-every `DEMOneTimeKeyWordINDCPA` cipher over `{0, 1}^{msgLen n}` (`∀ n, 1 ≤ msgLen n`, `msgLen`
-unary polynomial-time computable) has negligible `parityWordAdvantage` against every PPT adversary
-`A`. -/
-theorem DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage {msgLen keyLen : ℕ → ℕ}
+/-- **Theorem 2.8** ([BonehShoup2023], Section 2.2.3.2, p. 21): a semantically secure cipher with
+message space `{0, 1}^L` is secure against parity prediction. Here `L = msgLen n` at security
+parameter `n`, with `1 ≤ msgLen n` (the book leaves `1 ≤ L` implicit: at `L = 0` the parity is
+constant and the conclusion fails) and `msgLen` computable in polynomial time in unary. The
+premise is semantic security in Attack Game 2.1 (Definition 2.2, p. 16) with a uniform
+`keyLen n`-bit key, against uniform strict PPT two-stage adversaries, for exactly the challenge
+pairs of the message space: two `msgLen n`-bit messages. The conclusion: every uniform strict PPT
+predictor `A`, given `1ⁿ` and the ciphertext of a uniform `msgLen n`-bit message, has negligible
+advantage `|Pr[W] - 1 / 2|` in Attack Game 2.3 (`parityWordAdvantage`). The reduction
+`parityWordToDEMAdversary` is certified by `isPPT_parityWordToDEMAdversary`, and
+`parityWordAdvantage_eq_half_mul_demKeyGameOn` is the proof's exact equation. -/
+theorem DEMOneTimeKeyINDCPAOn.negligible_parityWordAdvantage {msgLen keyLen : ℕ → ℕ}
     {encryptSym : ℕ → List Bool → List Bool → ProbComp (List Bool)}
-    (hsec : DEMOneTimeKeyWordINDCPA keyLen encryptSym)
+    (hsec : DEMOneTimeKeyINDCPAOn
+      (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n) encBits keyLen encryptSym)
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary)
     (hpos : ∀ n, 1 ≤ msgLen n)
     {A : ℕ → List Bool → ProbComp Bool}

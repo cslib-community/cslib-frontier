@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Primitives.HQC.SupportSampling
 public import CslibFrontier.Languages.Probabilistic.Expect
 public import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Finite-bit density bounds for HQC support sampling
@@ -125,6 +126,7 @@ theorem sampleSupport2_density_bounds {width n count : ℕ} (h : count ≤ n) (S
   simpa only [sampleSupport2, Nat.Ico_zero_eq_range] using hb
 
 /-- The upper density is finite, so converting its bounds to real probabilities is sound. -/
+@[aesop (rule_sets := [finiteness]) safe apply]
 theorem supportUpperDensity_ne_top (width n offset count : ℕ) :
     supportUpperDensity width n offset count ≠ ⊤ := by
   apply ENNReal.prod_ne_top
@@ -167,11 +169,8 @@ theorem sampleSupport2_event_bounds {width n count : ℕ} (h : count ≤ n)
   simp only [ProbComp.expect, ← PMF.toOuterMeasure_eq_tsum_mul_indicator] at hb
   simp only [ProbComp.probability_map_decide_mem]
   constructor
-  · simpa only [ENNReal.toReal_mul] using
-      ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _) hb.1
-  · simpa only [ENNReal.toReal_mul] using ENNReal.toReal_mono
-      (ENNReal.mul_ne_top (supportUpperDensity_ne_top width n 0 count)
-        (PMF.toOuterMeasure_ne_top _ _)) hb.2
+  · ennreal_to_real using hb.1
+  · ennreal_to_real using hb.2
 
 /-- The finite real-valued expectation form of corrected Lemma 6.5. Only values on valid
 supports must be nonnegative, since both samplers are supported there. -/
@@ -193,14 +192,11 @@ theorem sampleSupport2_payoff_bounds {width n count : ℕ} (h : count ≤ n)
   · apply Finset.sum_le_sum
     intro S hS
     apply mul_le_mul_of_nonneg_right _ (hV S hS)
-    simpa only [sampleSupport2, ENNReal.toReal_mul] using
-      ENNReal.toReal_mono (PMF.apply_ne_top _ _) (hb S).1
+    ennreal_to_real using (hb S).1
   · apply Finset.sum_le_sum
     intro S hS
     apply mul_le_mul_of_nonneg_right _ (hV S hS)
-    simpa only [sampleSupport2, ENNReal.toReal_mul] using ENNReal.toReal_mono
-      (ENNReal.mul_ne_top (supportUpperDensity_ne_top width n 0 count) (PMF.apply_ne_top _ _))
-      (hb S).2
+    ennreal_to_real using (hb S).2
 
 private theorem lower_factor_real {M d : ℕ} (hM : 0 < M) :
     (((M / d * d : ℕ) : ℝ) / M) = 1 - (M % d : ℕ) / (M : ℝ) := by
