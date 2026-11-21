@@ -86,6 +86,24 @@ example :
       (fun s => (encJustesenSubdivisionState s).length) :=
   ⟨justesenSubdivisionEdgeStart_inSpace, callbackVerdict_inSpace _ _⟩
 
+open Turing.DoubleCounting.BoundedWalk in
+-- A caller can take a state-changing step and inspect the resumed state in the same budget.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (rank : ℕ)
+    (r : Registers
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount) :
+    let M := configurationJustesenBoundedWalk ntm c w rank r
+    let enc := Runtime.encStep encJustesenSubdivisionContext encJustesenSubdivisionState
+    ComputableInSpace (M.query ∘ M.next) enc encNat (fun p => (enc p).length) ∧
+    ComputableInSpace (M.halted ∘ M.next) enc encBool (fun p => (enc p).length) ∧
+    ComputableInSpace (Runtime.remainingFuel ∘ M.next) enc (encOption encNat)
+      (fun p => (enc p).length) := by
+  obtain ⟨hq, hn, hh, hf⟩ := configurationJustesenBoundedWalk_parts_inSpace ntm c w rank r
+  have hquery := budget_comp_linear hq hn
+  have hhalted := budget_comp_linear hh hn
+  have hfuel := budget_comp_linear hf hn
+  exact ⟨hquery, hhalted, hfuel⟩
+
 -- At the designated endpoints the decoded bit and every prefix fit the same call contract.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ∃ C, ∀ w : List Bool,
