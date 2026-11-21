@@ -265,12 +265,123 @@ class GuideSelectionTests(unittest.TestCase):
         self.assertEqual(parse_outputs(output), {"check": "true", "render": "false"})
 
         for bad_header in (
-            "import «Quoted»\n",
+            "import «unterminated\n",
+            "import «»\n",
+            "import CslibFrontier.«Dot.Inside»\n",
+            "import CslibFrontier.«Slash/Inside»\n",
+            "import CslibFrontier.Example$extra\n",
+            "import CslibFrontier.Example-bar\n",
+            "import CslibFrontier.Example.\n",
+            "import CslibFrontier..Core\n",
+            "import CslibFrontier . Core\nimport CslibFrontier.Leaf\n",
+            "import CslibFrontier.Example«extra»\n",
+            "import«CslibFrontier»\n",
+            "scoped import CslibFrontier.Core\n",
             "/- unterminated comment\nimport CslibFrontier.Core\n",
             "meta public import CslibFrontier.Core\n",
         ):
-            with self.assertRaises(select_guide.AmbiguousHeader):
-                select_guide.parse_header_imports_text(bad_header)
+            with self.subTest(bad_header=bad_header):
+                with self.assertRaises(select_guide.AmbiguousHeader):
+                    select_guide.parse_header_imports_text(bad_header)
+
+    def test_primed_module_with_unprimed_sibling_tracks_transitive_leaf(self):
+        tree = {
+            "README.md": "base\n",
+            "CslibFrontier.lean": (
+                "public import CslibFrontier.Example\n"
+                "public import CslibFrontier.Example'\n"
+                "public import CslibFrontier.Leaf\n"
+            ),
+            "CslibFrontier/Leaf.lean": "module\ndef leaf := 1\n",
+            "CslibFrontier/Example.lean": "module\ndef plain := 1\n",
+            "CslibFrontier/Example'.lean": (
+                "module\npublic import CslibFrontier.Leaf\ndef primed := leaf\n"
+            ),
+            "guide/CslibFrontierGuide.lean": "import CslibFrontier.Example'\n",
+        }
+        checkout_leaf, base_leaf, _ = self.make_repo(
+            tree,
+            head_writes={"CslibFrontier/Leaf.lean": "module\ndef leaf := 2\n"},
+            name="primed_leaf",
+        )
+        self.assertEqual(
+            select_guide.guide_import_closure(checkout_leaf),
+            {"CslibFrontier.Example'", "CslibFrontier.Leaf"},
+        )
+        res_leaf, out_leaf = self.run_selector(checkout_leaf, base_leaf)
+        self.assertEqual(res_leaf.returncode, 0, res_leaf.stderr)
+        self.assertEqual(parse_outputs(out_leaf), {"check": "true", "render": "false"})
+
+        checkout_primed, base_primed, _ = self.make_repo(
+            tree,
+            head_writes={
+                "CslibFrontier/Example'.lean": (
+                    "module\npublic import CslibFrontier.Leaf\ndef primed := leaf + 1\n"
+                ),
+            },
+            name="primed_direct",
+        )
+        res_primed, out_primed = self.run_selector(checkout_primed, base_primed)
+        self.assertEqual(res_primed.returncode, 0, res_primed.stderr)
+        self.assertEqual(parse_outputs(out_primed), {"check": "true", "render": "false"})
+
+        checkout_plain, base_plain, _ = self.make_repo(
+            tree,
+            head_writes={"CslibFrontier/Example.lean": "module\ndef plain := 2\n"},
+            name="unprimed_sibling",
+        )
+        res_plain, out_plain = self.run_selector(checkout_plain, base_plain)
+        self.assertEqual(res_plain.returncode, 0, res_plain.stderr)
+        self.assertEqual(parse_outputs(out_plain), {"check": "false", "render": "false"})
+
+    def test_guillemet_unicode_identifiers_and_unsupported_continuation_fail_closed(self):
+        self.assertEqual(
+            select_guide.parse_header_imports_text(
+                "module\n"
+                "public import «Quoted»\n"
+                "import «CslibFrontier».«Example'»\n"
+                "meta import CslibFrontier.«My-Mod»\n"
+                "import all CslibFrontier.α₁_β?!'\n"
+                "public section\n"
+            ),
+            [
+                "Quoted",
+                "CslibFrontier.Example'",
+                "CslibFrontier.My-Mod",
+                "CslibFrontier.α₁_β?!'",
+            ],
+        )
+        # Transitive closure through a guillemet-escaped module with an unescaped prefix sibling.
+        quoted_tree = {
+            **self.base_tree(),
+            "CslibFrontier/Leaf.lean": "module\ndef leaf := 1\n",
+            "CslibFrontier/My.lean": "module\ndef plain := 1\n",
+            "CslibFrontier/My-Mod.lean": "module\npublic import CslibFrontier.Leaf\n",
+            "guide/CslibFrontierGuide.lean": "import CslibFrontier.«My-Mod»\n",
+        }
+        checkout_q, base_q, _ = self.make_repo(
+            quoted_tree,
+            head_writes={"CslibFrontier/Leaf.lean": "module\ndef leaf := 2\n"},
+            name="quoted_trans",
+        )
+        res_q, out_q = self.run_selector(checkout_q, base_q)
+        self.assertEqual(res_q.returncode, 0, res_q.stderr)
+        self.assertEqual(parse_outputs(out_q), {"check": "true", "render": "false"})
+
+        # Unsupported continuation after an ASCII prefix retains the Guide compile (`check=true`).
+        cont_tree = {
+            **self.base_tree(),
+            "CslibFrontier/Example.lean": "module\ndef plain := 1\n",
+            "guide/CslibFrontierGuide.lean": "import CslibFrontier.Example$extra\n",
+        }
+        checkout_c, base_c, _ = self.make_repo(
+            cont_tree,
+            head_writes={"CslibFrontier/Unrelated.lean": "module\ndef leaf := 2\n"},
+            name="unsupported_cont",
+        )
+        res_c, out_c = self.run_selector(checkout_c, base_c)
+        self.assertEqual(res_c.returncode, 0, res_c.stderr)
+        self.assertEqual(parse_outputs(out_c), {"check": "true", "render": "false"})
 
     def test_merge_commit_uses_first_parent_instead_of_stale_base(self):
         box = self.root / "merge"

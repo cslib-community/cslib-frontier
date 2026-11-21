@@ -58,39 +58,93 @@ SAFE_NON_LIBRARY_DIRS = (
     "roadmap/",
     "manual/",
 )
-MODULE_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*")
-AGGREGATE_IMPORT_RE = re.compile(
-    r"(?:public )?import ([A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*)"
-)
-_WORD_RE = re.compile(r"[A-Za-z_0-9.]+")
-
-
 class AmbiguousHeader(ValueError):
     """A Lean header could not be parsed conservatively without invoking Lean."""
 
 
-def _next_header_token(text: str, pos: int) -> tuple[str | None, int]:
-    """Return `(token, next_pos)` skipping whitespace, `--` comments, and nested `/- -/` comments.
+def _is_letter_like(cp: int) -> bool:
+    """Match `Lean.isLetterLike` from `Init/Meta/Defs.lean`."""
+    return (
+        (0x03B1 <= cp <= 0x03C9 and cp != 0x03BB)
+        or (0x0391 <= cp <= 0x03A9 and cp not in (0x03A0, 0x03A3))
+        or (0x03CA <= cp <= 0x03FB)
+        or (0x1F00 <= cp <= 0x1FFE)
+        or (0x2100 <= cp <= 0x214F)
+        or (0x1D49C <= cp <= 0x1D59F)
+        or (0x00C0 <= cp <= 0x00FF and cp not in (0x00D7, 0x00F7))
+        or (0x0100 <= cp <= 0x017F)
+    )
 
-    Returns `(None, pos)` at EOF or at the start of a docstring (`/-!`, `/--` not `/---`).
-    Raises `AmbiguousHeader` on unterminated block comments or guillemet-quoted identifiers.
+
+def _is_subscript_alnum(cp: int) -> bool:
+    """Match `Lean.isSubScriptAlnum` from `Init/Meta/Defs.lean`."""
+    return (
+        (0x2080 <= cp <= 0x2089)
+        or (0x2090 <= cp <= 0x209C)
+        or (0x1D62 <= cp <= 0x1D6A)
+        or cp == 0x2C7C
+    )
+
+
+def _is_id_first(ch: str) -> bool:
+    """Match `Lean.isIdFirst` (`Char.isAlpha` in Lean is ASCII-only)."""
+    return ("a" <= ch <= "z") or ("A" <= ch <= "Z") or ch == "_" or _is_letter_like(ord(ch))
+
+
+def _is_id_rest(ch: str) -> bool:
+    """Match `Lean.isIdRest` (`Char.isAlphanum` in Lean is ASCII-only)."""
+    return (
+        ("a" <= ch <= "z")
+        or ("A" <= ch <= "Z")
+        or ("0" <= ch <= "9")
+        or ch in ("_", "'", "!", "?")
+        or _is_letter_like(ord(ch))
+        or _is_subscript_alnum(ord(ch))
+    )
+
+
+def _is_unquoted_ident(part: str) -> bool:
+    return bool(part) and _is_id_first(part[0]) and all(_is_id_rest(c) for c in part[1:])
+
+
+def is_unquoted_module_name(mod: str) -> bool:
+    parts = mod.split(".")
+    return bool(parts) and all(_is_unquoted_ident(p) for p in parts)
+
+
+def _at_token_boundary(text: str, pos: int) -> bool:
+    return (
+        pos >= len(text)
+        or text[pos] in (" ", "\r", "\n")
+        or text.startswith(("--", "/-"), pos)
+    )
+
+
+def _skip_ws_and_comments(text: str, pos: int) -> tuple[int, bool]:
+    """Advance past header spaces/newlines, `--` line comments, and nested `/- -/` block comments.
+
+    Returns `(next_pos, stopped_at_doc_or_eof)` where `stopped_at_doc_or_eof` is `True` at EOF or
+    at the start of a docstring (`/-!`, `/--` excluding `/---` dividers). Raises `AmbiguousHeader`
+    on tabs, non-ASCII whitespace, or unterminated block comments.
     """
     n = len(text)
     i = pos
     while i < n:
         ch = text[i]
-        if ch.isspace():
+        if ch in (" ", "\r", "\n"):
             i += 1
             continue
+        if ch == "\t" or ch.isspace():
+            raise AmbiguousHeader("unsupported whitespace in module header")
         if ch == "-" and i + 1 < n and text[i + 1] == "-":
             end = text.find("\n", i + 2)
             if end < 0:
-                return None, n
+                return n, True
             i = end + 1
             continue
         if ch == "/" and i + 1 < n and text[i + 1] == "-":
             if text.startswith(("/-!", "/--"), i) and not text.startswith("/---", i):
-                return None, i
+                return i, True
             depth = 1
             i += 2
             while i < n and depth > 0:
@@ -105,17 +159,63 @@ def _next_header_token(text: str, pos: int) -> tuple[str | None, int]:
             if depth != 0:
                 raise AmbiguousHeader("unterminated block comment in module header")
             continue
-        if ch == "«":
-            raise AmbiguousHeader("quoted identifier in module header")
-        m = _WORD_RE.match(text, i)
-        if m:
-            tok = m.group(0)
-            nxt = m.end()
-            if nxt < n and text[nxt] == "«":
-                raise AmbiguousHeader("quoted identifier in module header")
-            return tok, nxt
-        return ch, i + 1
-    return None, n
+        return i, False
+    return n, True
+
+
+def _read_word(text: str, pos: int) -> tuple[str | None, int]:
+    if pos < len(text) and _is_id_first(text[pos]):
+        j = pos + 1
+        n = len(text)
+        while j < n and _is_id_rest(text[j]):
+            j += 1
+        return text[pos:j], j
+    return None, pos
+
+
+def _parse_module_ident(text: str, pos: int) -> tuple[str, int]:
+    """Parse a `.`-separated Lean `moduleIdent` (including `'`, Unicode, and safe `«...»` parts).
+
+    Raises `AmbiguousHeader` on missing/malformed components, quoted components containing `.` or
+    path/control characters (which would make `.`-joined module names ambiguous), or any unexpected
+    continuation character immediately following the module name.
+    """
+    n = len(text)
+    i = pos
+    parts: list[str] = []
+    while True:
+        if i >= n:
+            raise AmbiguousHeader("unexpected end of input in module import")
+        if text[i] == "«":
+            end = text.find("»", i + 1)
+            if end < 0:
+                raise AmbiguousHeader("unterminated quoted identifier in module header")
+            part = text[i + 1 : end]
+            if (
+                not part
+                or part in (".", "..")
+                or any(c in ("«", ".", "/", "\\", "\0", "\r", "\n", "\t") for c in part)
+            ):
+                raise AmbiguousHeader(f"unsupported quoted module component: {part!r}")
+            parts.append(part)
+            i = end + 1
+        elif _is_id_first(text[i]):
+            j = i + 1
+            while j < n and _is_id_rest(text[j]):
+                j += 1
+            parts.append(text[i:j])
+            i = j
+        else:
+            raise AmbiguousHeader(f"unsupported import target at {text[i:i + 16]!r}")
+        if i < n and text[i] == ".":
+            i += 1
+            if i >= n:
+                raise AmbiguousHeader("trailing dot in module import")
+            continue
+        if not _at_token_boundary(text, i):
+            raise AmbiguousHeader(f"unexpected continuation {text[i]!r} after module name")
+        break
+    return ".".join(parts), i
 
 
 def parse_header_imports_text(text: str) -> list[str]:
@@ -123,8 +223,9 @@ def parse_header_imports_text(text: str) -> list[str]:
 
     Supports Lean's token-based header grammar: optional `module` / `prelude` followed by
     `[public | private] [meta] import [all] <module>`, including line breaks, `--` comments,
-    and nested `/- ... -/` block comments between tokens. Raises `AmbiguousHeader` on any
-    unusual import syntax (`«...»`, unterminated block comment, missing/invalid module name).
+    nested `/- ... -/` block comments, full Lean identifier characters (`'`, `!`, `?`, `_`,
+    Unicode letters/subscripts), and single-segment `«...»` escapes. Raises `AmbiguousHeader` on
+    any unsupported continuation, malformed modifier ordering, or ambiguous quoted component.
     """
     imports: list[str] = []
     pos = 0
@@ -132,41 +233,74 @@ def parse_header_imports_text(text: str) -> list[str]:
     seen_module = False
     seen_prelude = False
     while True:
-        tok, nxt = _next_header_token(text, pos)
-        if tok is None:
+        pos, ended = _skip_ws_and_comments(text, pos)
+        if ended:
             break
-        if not seen_import and tok == "module" and not seen_module:
+        word, nxt = _read_word(text, pos)
+        if word is None:
+            if text[pos] in (".", "«"):
+                raise AmbiguousHeader(f"unexpected header token starting with {text[pos]!r}")
+            break
+        if not seen_import and word == "module" and not seen_module and not seen_prelude:
+            if not _at_token_boundary(text, nxt):
+                raise AmbiguousHeader("unexpected continuation after 'module'")
             seen_module = True
             pos = nxt
             continue
-        if not seen_import and tok == "prelude" and not seen_prelude:
+        if not seen_import and word == "prelude" and not seen_prelude:
+            if not _at_token_boundary(text, nxt):
+                raise AmbiguousHeader("unexpected continuation after 'prelude'")
             seen_prelude = True
             pos = nxt
             continue
         cur = nxt
-        if tok in ("public", "private"):
-            tok, cur = _next_header_token(text, cur)
-            if tok is None:
+        if word in ("public", "private"):
+            if not _at_token_boundary(text, cur):
+                raise AmbiguousHeader(f"unexpected continuation after {word!r}")
+            cur, ended = _skip_ws_and_comments(text, cur)
+            if ended:
                 break
-        if tok == "meta":
-            tok, cur = _next_header_token(text, cur)
-            if tok is None:
+            word, cur = _read_word(text, cur)
+            if word is None:
                 break
-            if tok in ("public", "private"):
-                nxt_tok, _ = _next_header_token(text, cur)
-                if nxt_tok == "import":
-                    raise AmbiguousHeader("unexpected modifier ordering before import")
+        if word == "meta":
+            if not _at_token_boundary(text, cur):
+                raise AmbiguousHeader("unexpected continuation after 'meta'")
+            cur, ended = _skip_ws_and_comments(text, cur)
+            if ended:
                 break
-        if tok != "import":
-            # Reached a body declaration such as `public section`, `private def`, `meta def`,
-            # `namespace`, `open`, `@[...]`, etc.
+            word, cur = _read_word(text, cur)
+            if word is None:
+                break
+            if word in ("public", "private"):
+                after_vis, ended2 = _skip_ws_and_comments(text, cur)
+                if not ended2:
+                    nxt_word, _ = _read_word(text, after_vis)
+                    if nxt_word == "import":
+                        raise AmbiguousHeader("unexpected modifier ordering before import")
+                break
+        if word != "import":
+            # Fail closed if an unrecognized/misordered modifier immediately precedes `import`.
+            if _at_token_boundary(text, cur):
+                peek_pos, peek_ended = _skip_ws_and_comments(text, cur)
+                if not peek_ended:
+                    peek_word, _ = _read_word(text, peek_pos)
+                    if peek_word == "import":
+                        raise AmbiguousHeader(f"unexpected modifier {word!r} before import")
             break
+        if not _at_token_boundary(text, cur):
+            raise AmbiguousHeader("unexpected continuation after 'import'")
         seen_import = True
-        mod, cur = _next_header_token(text, cur)
-        if mod == "all":
-            mod, cur = _next_header_token(text, cur)
-        if mod is None or not MODULE_NAME_RE.fullmatch(mod):
-            raise AmbiguousHeader(f"unsupported import target: {mod!r}")
+        cur, ended = _skip_ws_and_comments(text, cur)
+        if ended:
+            raise AmbiguousHeader("missing module name after import")
+        if text.startswith("all", cur):
+            if not _at_token_boundary(text, cur + 3):
+                raise AmbiguousHeader("ambiguous 'all' prefix in import target")
+            cur, ended = _skip_ws_and_comments(text, cur + 3)
+            if ended:
+                raise AmbiguousHeader("missing module name after 'import all'")
+        mod, cur = _parse_module_ident(text, cur)
         imports.append(mod)
         pos = cur
     return imports
@@ -175,8 +309,8 @@ def parse_header_imports_text(text: str) -> list[str]:
 def parse_header_imports(path: Path) -> list[str]:
     """Return all imported module names from a Lean file's header.
 
-    Raises `AmbiguousHeader` on any unusual syntax (`«...»`, unsupported `import` syntax,
-    unterminated block comment, symlink, or missing file).
+    Raises `AmbiguousHeader` on any unsupported `import` syntax, ambiguous `«...»` component,
+    unterminated block comment, symlink, or missing file.
     """
     if path.is_symlink():
         raise AmbiguousHeader(f"symlinked source: {path}")
@@ -233,14 +367,24 @@ def guide_import_closure(root: Path) -> set[str]:
     return closure
 
 
+def _parse_aggregate_import_line(line: str) -> str | None:
+    for prefix in ("public import ", "import "):
+        if line.startswith(prefix):
+            mod = line[len(prefix):]
+            if is_unquoted_module_name(mod):
+                return mod
+            return None
+    return None
+
+
 def only_adds_imports(old: str, new: str, added_modules: set[str]) -> bool:
     """Whether `new` equals `old` with only import lines for `added_modules` inserted."""
     rest: list[str] = []
     imported: set[str] = set()
     for line in new.split("\n"):
-        m = AGGREGATE_IMPORT_RE.fullmatch(line)
-        if m and m.group(1) in added_modules and m.group(1) not in imported:
-            imported.add(m.group(1))
+        mod = _parse_aggregate_import_line(line)
+        if mod and mod in added_modules and mod not in imported:
+            imported.add(mod)
         else:
             rest.append(line)
     return bool(imported) and rest == old.split("\n")
@@ -339,9 +483,10 @@ def select_mode(root: Path, event: str, base_sha: str) -> tuple[bool, bool, str]
             agg_changed = True
             continue
         if path.startswith("CslibFrontier/") and path.endswith(".lean"):
-            mod = ".".join(Path(path).with_suffix("").parts)
-            if not MODULE_NAME_RE.fullmatch(mod):
+            mod_parts = Path(path).with_suffix("").parts
+            if not all(_is_unquoted_ident(p) for p in mod_parts):
                 return True, False, f"unsupported library path: {path}"
+            mod = ".".join(mod_parts)
             if status == "A":
                 added_lib_modules.add(mod)
             touched_lib_modules.append((status, mod))
