@@ -475,6 +475,9 @@ import CslibFrontier.Foundations.Probability.IndependentSumNorm
 
 import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 
+import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+
 /-!
 # Collected results
 
@@ -11937,3 +11940,34 @@ register_result "micciancio-regev-smoothing-parameter-dual-minimum" where
     Banaszczyk's Lemma 1.5(i) directly. Source check: outside-fleet agent review \
     (reviewer-codex-edemaine) on PR #6844 against the December 27, 2005 author's copy, \
     pp. 10–11: https://github.com/cslib-community/cslib-frontier/pull/6844."
+
+register_result "micciancio-regev-shifted-gaussian-mass-le-zero" where
+  title := "Shifted lattice Gaussian mass is maximized at the origin"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 2.9",
+      locator := "December 27, 2005 author's copy (Gaussian.pdf), §2, printed p. 9" }
+  ]
+  theorems := [ZLattice.gaussianMass_le_gaussianMass_zero]
+  scope := "For every discrete ℤ-submodule L of a finite-dimensional real inner product space E, \
+    every width s > 0, and every center c : E, the shifted lattice Gaussian mass satisfies \
+    gaussianMass L s c ≤ gaussianMass L s 0. Strict generalization of Lemma 2.9: no full-rank \
+    (IsZLattice ℝ L) or MeasurableSpace E hypothesis is required; the proof projects c \
+    orthogonally onto Submodule.span ℝ (L : Set E) and applies Poisson summation on the span."
+
+register_result "micciancio-regev-smoothing-dual-mass-lambda-n" where
+  title := "Dual-mass form of the Micciancio–Regev λ_n smoothing bound"
+  topic := "cryptography"
+  sources := [
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.3 (dual-mass step)",
+      locator := "December 27, 2005 author's copy (Gaussian.pdf), §3, printed pp. 11–12" }
+  ]
+  theorems := [ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum]
+  scope := "Dual-mass step toward Micciancio–Regev Lemma 3.3: for every full-rank discrete \
+    lattice L in a finite-dimensional real inner product space E of dimension n = finrank ℝ E \
+    (including n = 0), every ε > 0, and every s > 0 with \
+    √(ln(2n(1 + 1/ε)) / π) · λ_n(L) ≤ s, this theorem proves the nonzero reciprocal-width dual \
+    mass inequality gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε, stopping one \
+    step before wrapping that dual-mass condition into the smoothing-parameter infimum \
+    η_ε(L) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no MeasurableSpace E hypothesis. The \
+    asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is not formalized here."

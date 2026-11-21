@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.CoeffNorm
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.DeterminantWeight
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 
 /-!
@@ -29,8 +30,6 @@ public section
 
 namespace MvPolynomial.PurePower
 
-open scoped BigOperators
-
 /-- Bound the parameter coefficient norm of the Jacobian of the actual pure-power relations. -/
 theorem parameterCoeffNorm_jacobian_le {n d R : ℕ}
     (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
@@ -47,24 +46,12 @@ theorem parameterCoeffNorm_jacobian_le {n d R : ℕ}
       simpa only [ParameterCoeffNorm.X, one_pow] using
         ParameterCoeffNorm.pow_le (X i : MvPolynomial (Fin n) (Polynomial ℤ)) (d + 1)
     exact (ParameterCoeffNorm.pderiv_le _ j).trans (Nat.mul_le_mul hdeg hnorm)
-  rw [jacobian, Matrix.det_apply]
-  refine (ParameterCoeffNorm.sum_le _ _).trans ?_
-  calc
-    _ ≤ ∑ _σ : Equiv.Perm (Fin n), ((d + 1) * (1 + R)) ^ n := by
-      apply Finset.sum_le_sum
-      intro σ _
-      have hsign (p : MvPolynomial (Fin n) (Polynomial ℤ)) :
-          ParameterCoeffNorm.norm (Equiv.Perm.sign σ • p) = ParameterCoeffNorm.norm p := by
-        rcases Int.units_eq_one_or (Equiv.Perm.sign σ) with h | h
-        · rw [h, one_smul]
-        · rw [h, Units.neg_smul, one_smul, ParameterCoeffNorm.neg]
-      rw [hsign]
-      refine (ParameterCoeffNorm.prod_le _ _).trans ?_
-      simpa only [Matrix.of_apply, Finset.prod_const, Finset.card_univ, Fintype.card_fin] using
-        (Finset.prod_le_prod fun i _ => hentry (σ i) i :
-          (∏ i : Fin n, ParameterCoeffNorm.norm (pderiv i (X (σ i) ^ (d + 1) - r (σ i)))) ≤
-            ∏ _i : Fin n, (d + 1) * (1 + R))
-    _ = _ := by simp [Fintype.card_perm]
+  unfold jacobian
+  have h := Matrix.det_weight_le ParameterCoeffNorm.zero ParameterCoeffNorm.one.le
+    ParameterCoeffNorm.add_le ParameterCoeffNorm.mul_le ParameterCoeffNorm.neg
+    (Matrix.of (fun i j => pderiv j (X i ^ (d + 1) - r i)))
+    (fun i j => by simpa only [Matrix.of_apply] using hentry i j)
+  rwa [Fintype.card_fin] at h
 
 /-- Bound the bivariate coefficient norm of the actual quotient characteristic polynomial.
 Here `D` is the quotient dimension, `B` bounds the residue numerator degrees through `D`,

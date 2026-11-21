@@ -5792,9 +5792,11 @@ public import CslibFrontier.DataStructure.BPlusTree.Basic
 public import CslibFrontier.DataStructure.BPlusTree.Height
 public import CslibFrontier.DataStructure.BPlusTree.Lookup
 public import CslibFrontier.DataStructure.BPlusTree.MinMax
+public import CslibFrontier.DataStructure.BPlusTree.OfSortedList
 public import CslibFrontier.DataStructure.BPlusTree.PredSucc
 public import CslibFrontier.DataStructure.BPlusTree.Range
 public import CslibFrontier.DataStructure.BPlusTree.Rank
+public import CslibFrontier.DataStructure.BPlusTree.TreeMap
 public import CslibFrontier.DataStructure.BTree.Basic
 public import CslibFrontier.DataStructure.BTree.BinarySearch
 public import CslibFrontier.DataStructure.BTree.Comparisons.BinarySearch
@@ -7057,6 +7059,7 @@ public import CslibFrontier.Foundations.Geometry.Orthogonal.Simple
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Subdivision
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Trim
 public import CslibFrontier.Foundations.Geometry.Polygonal.AngleOrder
+public import CslibFrontier.Foundations.Geometry.Polygonal.AnnularPaths
 public import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.CircleConnector
@@ -7141,6 +7144,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.CoinStep
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Copositive
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.CutRank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Derivation
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.DeterminantWeight
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.EndpointIncidence
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.EuclideanOpNorm
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Farkas
@@ -7323,6 +7327,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
 public import CslibFrontier.Foundations.Probability.Gaussian.Stein
+public import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 public import CslibFrontier.Foundations.Probability.IndependentSumNorm
 public import CslibFrontier.Foundations.Probability.InfinitePi
 public import CslibFrontier.Foundations.Probability.InnerProductResampling
@@ -7429,6 +7434,7 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Residu
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Specialization
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Trace
 public import CslibFrontier.Foundations.RingTheory.Polynomial.Hermite
+public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.PowerSeries.Constants
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.Principal
 public import CslibFrontier.Foundations.RingTheory.Trace.Reproducing
