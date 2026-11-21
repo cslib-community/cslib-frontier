@@ -244,15 +244,20 @@ theorem isPPTOn_collisionPairReduction {I : Type} {encI : I ↪ List Bool}
   have hbound := hlen.unary_mul' (hlen.unary_sub' (.const 1))
   have hdecode : ComputableInPolyTime (fun p : List M × ℕ => decodeCollisionPair fallback p.1 p.2)
       (encPair encL encUnary) (encCollisionGuess encM) := by
-    have hs := fst encL encUnary
-    have hs' := snd encL encUnary
-    have hw := (hlen.comp hs).unary_sub' (.const 1)
-    have hi := unary_div' hs' hw
-    have hj := unary_mod' hs' hw
+    let encQR := encPair encUnary encUnary
+    have hinputList := fst encL encUnary
+    have hslot := snd encL encUnary
+    have hwidth := (hlen.comp hinputList).unary_sub' (.const 1)
+    have hdivMod := unary_divMod.comp (hslot.prod hwidth)
+    have hlist := fst encL encQR
+    have hqr := snd encL encQR
+    have hi := (fst encUnary encUnary).comp hqr
+    have hj := (snd encUnary encUnary).comp hqr
     have hskip := (unary_lt' hj hi).ite hj (hj.unary_add' (.const 1))
-    simpa only [decodeCollisionPair, Function.comp_apply, decide_eq_true_eq] using
-      (encCollisionGuess_mk_polyTime encM
-        (listGetDWithInput hs hi fallback) (listGetDWithInput hs hskip fallback))
+    have hlookup := encCollisionGuess_mk_polyTime encM
+      (listGetDWithInput hlist hi fallback) (listGetDWithInput hlist hskip fallback)
+    refine (hlookup.comp (hinputList.prod hdivMod)).of_enc_eq fun p => ?_
+    simp only [decodeCollisionPair, Function.comp_apply, decide_eq_true_eq]
   have hresult : ComputableInPolyTime
       (fun p : List M × Option ℕ =>
         p.2.elim ⟨fallback, fallback⟩ (decodeCollisionPair fallback p.1))
