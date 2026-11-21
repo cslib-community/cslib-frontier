@@ -77,6 +77,22 @@ private theorem add_one_le_pow_two {M K E : ℕ} (hM : M ≤ 2 ^ K) (hE : K + 1 
     _ = 2 ^ (K + 1) := (pow_succ _ _).symm
     _ ≤ _ := Nat.pow_le_pow_right (by decide) hE
 
+/-- The chosen parameter exceeds the coefficient norm of the value section plus one. -/
+theorem coeffNorm1_eval_C_add_one_le_parameterExclusion {P : Polynomial (Polynomial ℤ)} {D H : ℕ}
+    (hD : P.natDegree ≤ D) (hH : P.bivariateCoeffNorm1 ≤ 2 ^ H) :
+    (P.eval (C ((2 : ℤ) ^ (H + 1)))).coeffNorm1 + 1 ≤ 2 ^ parameterExclusionExponent D H := by
+  let a : ℤ := 2 ^ (H + 1)
+  have ha : a.natAbs = 2 ^ (H + 1) := by simp [a, Int.natAbs_pow]
+  have hsection : (P.eval (C a)).coeffNorm1 ≤ 2 ^ (H + (H + 1) * D) := by
+    calc
+      _ ≤ P.bivariateCoeffNorm1 * a.natAbs ^ P.natDegree :=
+        coeffNorm1_eval_C_le P a (by rw [ha]; exact Nat.one_le_two_pow)
+      _ ≤ 2 ^ H * (2 ^ (H + 1)) ^ D := by
+        rw [ha]
+        exact Nat.mul_le_mul hH (Nat.pow_le_pow_right Nat.one_le_two_pow hD)
+      _ = _ := by rw [← pow_mul, ← pow_add]
+  exact add_one_le_pow_two hsection (Nat.succ_le_succ (le_max_right _ _))
+
 private theorem resultant_le_pow_two {P : Polynomial (Polynomial ℤ)} {D H : ℕ}
     (hD : P.natDegree ≤ D) (hH : P.bivariateCoeffNorm1 ≤ 2 ^ H) :
     (P.resultant P.derivative).coeffNorm1 ≤
@@ -105,28 +121,22 @@ theorem eval₂_ne_zero_at_parameterExclusion {P : Polynomial (Polynomial ℤ)} 
       (P.resultant P.derivative).eval₂ (Int.castRingHom ℝ) u ≠ 0 := by
   intro a u
   have ha : a.natAbs = 2 ^ (H + 1) := by simp [a, Int.natAbs_pow]
-  have hsection : (P.eval (C a)).coeffNorm1 ≤ 2 ^ (H + (H + 1) * D) := by
-    calc
-      _ ≤ P.bivariateCoeffNorm1 * a.natAbs ^ P.natDegree :=
-        coeffNorm1_eval_C_le P a (by rw [ha]; exact Nat.one_le_two_pow)
-      _ ≤ 2 ^ H * (2 ^ (H + 1)) ^ D := by
-        rw [ha]
-        exact Nat.mul_le_mul hH (Nat.pow_le_pow_right Nat.one_le_two_pow hD)
-      _ = _ := by rw [← pow_mul, ← pow_add]
   have hnonzero : P.eval (C a) ≠ 0 := by
     apply eval_C_ne_zero_of_bivariateCoeffNorm1_add_one_le hP
     rw [ha]
     exact add_one_le_pow_two hH le_rfl
-  have exclude {q : Polynomial ℤ} {K : ℕ} (hq : q ≠ 0) (hK : q.coeffNorm1 ≤ 2 ^ K)
-      (hE : K + 1 ≤ parameterExclusionExponent D H) : q.eval₂ (Int.castRingHom ℝ) u ≠ 0 := by
+  have exclude {q : Polynomial ℤ} (hq : q ≠ 0)
+      (hb : q.coeffNorm1 + 1 ≤ 2 ^ parameterExclusionExponent D H) :
+      q.eval₂ (Int.castRingHom ℝ) u ≠ 0 := by
     intro hroot
     have hlt := abs_lt_coeffNorm1_add_one_of_eval₂_eq_zero hq hroot
     rw [abs_of_nonneg (by positivity : 0 ≤ u)] at hlt
     have hle : (q.coeffNorm1 : ℝ) + 1 ≤ u := by
       dsimp [u]
-      exact_mod_cast add_one_le_pow_two hK hE
+      exact_mod_cast hb
     exact (not_lt_of_ge hle) hlt
-  exact ⟨exclude hnonzero hsection (Nat.succ_le_succ (le_max_right _ _)),
-    exclude hres (resultant_le_pow_two hD hH) (Nat.succ_le_succ (le_max_left _ _))⟩
+  exact ⟨exclude hnonzero (coeffNorm1_eval_C_add_one_le_parameterExclusion hD hH),
+    exclude hres (add_one_le_pow_two (resultant_le_pow_two hD hH)
+      (Nat.succ_le_succ (le_max_left _ _)))⟩
 
 end Polynomial

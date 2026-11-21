@@ -377,7 +377,8 @@ theorem routeCorrupt_handle_inr_inr {ιI : Type} {I : ιI → Type} (C : Finset 
       (fun p => (Sum.inr p.1, p.2)) <$> (P.handle (.inr q)).run s :=
   StateT.run_map _ _ _
 
-private theorem liftParty_map {β : Type} (f : α → β)
+/-- Mapping over a party-interface program commutes with `liftParty`. -/
+theorem liftParty_map {β : Type} (f : α → β)
     (program : ProbOracleComp (partySpec n In Out) α) :
     liftParty (NetQ := NetQ) (NetR := NetR) (f <$> program) = f <$> liftParty program :=
   OracleComp.interpret_map _ _ _

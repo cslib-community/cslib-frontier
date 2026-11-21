@@ -359,6 +359,19 @@ theorem fieldContext_inSpace :
   exact (budget_comp (encFieldContext_mk_budget hd hc hm) hparams
     (fieldDegree_le_linear.add hparams.length_le)).of_enc_eq fun _ => rfl
 
+/-- The prepared modulus stores one bit per coefficient, including the leading term. -/
+theorem length_fieldContext_modulus (w n : ℕ) :
+    (fieldContext w n).modulus.length = fieldDegree w n + 1 := by
+  change (BinaryField.modulusBitsScan (fieldDegree w n)).length = _
+  rw [BinaryField.modulusBitsScan_eq, BinaryField.length_modulusBits (fieldDegree_ne_zero w n)]
+
+/-- The prepared field context, including the modulus word, has linear encoded length
+in the binary graph dimensions. -/
+theorem length_fieldContext_le_encodedDimensions :
+    (fun p : ℕ × ℕ => (encFieldContext (fieldContext p.1 p.2)).length) ≼
+      fun p => (encPair encNat encNat p).length :=
+  fieldContext_inSpace.length_le
+
 /-- Prepare one coordinate from a retained field context. The point width uses the stored
 modulus word, as in the field multiplication and Horner routines. -/
 def FieldContext.decodeWord (ctx : FieldContext) (index : ℕ) : CoordinateWord :=
@@ -369,11 +382,8 @@ theorem fieldContext_decodeWord_eq {w n : ℕ} (j : Fin (codeLength w n)) :
     (fieldContext w n).decodeWord j.val =
       let (point, half, bit) := decodeCoordinate w n j
       ⟨List.ofFn (nonzeroPointBits point), half.val, bit.val⟩ := by
-  have hlen : (fieldContext w n).modulus.length = fieldDegree w n + 1 := by
-    change (BinaryField.modulusBitsScan (fieldDegree w n)).length = _
-    rw [BinaryField.modulusBitsScan_eq, BinaryField.length_modulusBits (fieldDegree_ne_zero w n)]
   unfold FieldContext.decodeWord
-  rw [hlen, Nat.add_sub_cancel]
+  rw [length_fieldContext_modulus, Nat.add_sub_cancel]
   have hpoint := lowBits_decodeIndex_point j
   have hcoord := decodeIndex_eq_decodeCoordinate j
   unfold decodeCoordinateWord
