@@ -47,8 +47,8 @@ theorem fieldContext_indexedBit_eq {w n : ℕ} (label : Fin w) (index : Fin (cod
   unfold FieldContext.indexedBit
   rw [fieldContext_decodeWord_eq, indexedCodewordMod_eq_hornerBits]
   obtain ⟨point, half, bit⟩ := decodeCoordinate w n index
-  simp only [selectBit, HornerInput.evaluate_eq, fieldContext_eq, BinaryField.modulusBitsScan_eq,
-    BinaryField.length_modulusBits (fieldDegree_ne_zero w n), Nat.add_sub_cancel]
+  simp only [selectBit, HornerInput.evaluate_eq]
+  rw [length_fieldContext_modulus, Nat.add_sub_cancel, fieldContext_eq]
 
 /-- Framed (retained field context, binary label), followed by the binary bit index. -/
 abbrev encIndexedBitInput := encPair (encPair encFieldContext encNat) encNat

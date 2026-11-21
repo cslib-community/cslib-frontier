@@ -8,7 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
-import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
@@ -285,21 +285,22 @@ example :
   exact criticalCoefficientValue_at_criticalParameterResidue 1 (by decide) F hF
     (by decide) (by decide) _ (fun y => by simp [F])
 
--- The deformation of a positive input attains each minimum and has no uniform bound.
+-- The minima of a positive input vary continuously and monotonically, and are unbounded.
 example :
     let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2 + 1
     let a : Fin 1 → ℝ := fun _ => 1
-    (∃ x, IsMinOn (fun y => eval y (deformedPolynomial 3 a 1 F)) Set.univ x) ∧
-      ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → ∃ x, eval x (deformedPolynomial 3 a u F) ≤ B := by
+    ContinuousOn (criticalMinimumValue 3 a F) (Set.Ici 0) ∧
+      MonotoneOn (criticalMinimumValue 3 a F) (Set.Ici 0) ∧
+      ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → criticalMinimumValue 3 a F u ≤ B := by
   intro F a
   have ha (i : Fin 1) : 0 ≤ a i := by simp [a]
   have hF (x : Fin 1 → ℝ) : 0 ≤ eval x F := by
     simp only [F, map_add, map_pow, eval_X, map_one]
     positivity
-  refine ⟨exists_isMinOn_eval_deformedPolynomial 3 (by decide) (by decide) a ha F hF 1
-    zero_le_one, ?_⟩
+  refine ⟨continuousOn_criticalMinimumValue (by decide) (by decide) a ha F hF,
+    monotoneOn_criticalMinimumValue (by decide) (by decide) a ha F hF, ?_⟩
   intro hbounded
-  have hcriterion := exists_zero_iff_bounded_eval_deformedPolynomial 3
+  have hcriterion := exists_zero_iff_bounded_criticalMinimumValue (ell := 3)
     (by decide) (by decide) a ha F hF
   obtain ⟨x, hx⟩ := hcriterion.mpr hbounded
   simp only [F, map_add, map_pow, eval_X, map_one] at hx
@@ -313,7 +314,7 @@ example :
   intro F hF
   have heval (x : Fin 1 → ℝ) :
       eval x (deformedPolynomial 3 0 1 F) = x 0 ^ 4 + 4 * x 0 ^ 2 := by
-    norm_num [deformedPolynomial, potentialPolynomial, F, Fin.sum_univ_one]
+    norm_num [eval_deformedPolynomial, potentialPolynomial, F, Fin.sum_univ_one]
   have hmin : IsMinOn (fun x => eval x (deformedPolynomial 3 0 1 F)) Set.univ 0 := by
     intro x _
     change eval (0 : Fin 1 → ℝ) (deformedPolynomial 3 0 1 F) ≤
@@ -330,5 +331,29 @@ example :
   have hroot := isRoot_valuePolynomial_criticalMinimumValue (by decide : 1 ≤ 3)
     (by decide) 0 (fun _ => le_rfl) F hF hFn 1 zero_le_one
   rwa [hvalue] at hroot
+
+-- For the branch y = u, the finite test compares u = 4 with the cutoff y = 2.
+example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
+  let P : Polynomial (Polynomial ℤ) := Polynomial.X - Polynomial.C Polynomial.X
+  have hlead : P.leadingCoeff = 1 := Polynomial.leadingCoeff_X_sub_C _
+  have hP : P ≠ 0 := by
+    intro hz
+    simp [hz] at hlead
+  have hroot (u : ℝ) :
+      P.eval₂ (Polynomial.eval₂RingHom (Int.castRingHom ℝ) u) u = 0 := by
+    simp [P]
+  have hR : (P.leadingCoeff.coeffNorm1 : ℝ) + 1 ≤ ((2 : ℤ) : ℝ) := by
+    norm_num [hlead, Polynomial.coeffNorm1_one]
+  have hX : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
+    simpa using Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
+  have hU : ((P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 : ℝ) + 1 ≤ 4 := by
+    have hbound := Polynomial.coeffNorm1_sub_le Polynomial.X (Polynomial.C (2 : ℤ))
+    rw [hX, Polynomial.coeffNorm1_C] at hbound
+    have hnorm : (P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 ≤ 3 := by
+      simpa [P] using hbound
+    exact_mod_cast (Nat.add_le_add_right hnorm 1)
+  have hcut := Polynomial.bounded_root_branch_iff_lt hP
+    (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
+  exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.WeightDimensions
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
 import Mathlib.Tactic.NormNum
 
@@ -62,5 +63,22 @@ example : fieldDegree (2 ^ 1024) 0 = 32 ∧ coefficientCount (2 ^ 1024) 0 = 2 ^ 
     rw [hd, show s = 1 by omega]
     rfl
   exact ⟨hd32, by rw [coefficientCount_eq, hd32]⟩
+
+open Turing QueryMachine SeedWeight.Dimensions in
+/-- The native initializer supplies the original-input offset to the weight pass at layer one. -/
+example (seed : Fin (codeLength 1 1) → Bool) :
+    let x : Input := ⟨⟨1, 1, 1, 0⟩, List.ofFn seed⟩
+    let start := load x
+    let M := SeedWeight.machine start.inner
+    ComputableInSpace load encInput (encLocated SeedWeight.Context SeedWeight.encContext)
+      (fun r => (encHeader r.header).length) ∧
+      (∀ t, M.withOffset.runFrom (encInput x) ⟨start.offset, M.init⟩ t =
+        ⟨start.offset, M.run x.seed t⟩) ∧
+      M.output x.seed (x.seed.length + 1) = encNat (generatedWeight seed (1, 0)) := by
+  intro x start M
+  refine ⟨load_inSpace, fun t => ?_, ?_⟩
+  · rw [withOffset_runFrom, drop_seed]
+    rfl
+  · exact (SeedWeight.generatedWeight_output seed (1, 0)).2.2
 
 end CslibFrontierTests.JustesenParameters
