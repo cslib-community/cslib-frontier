@@ -10,32 +10,34 @@ module
 import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedRank
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.JustesenBit
 
-/-! Checked clients for composing the indexed Justesen bit with the retained seed-rank scan. -/
+/-! Check that the retained-rank weight evaluator can use the indexed Justesen bit. -/
 
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.JustesenIndexedBit
 
-open Cslib.Code.JustesenFamily Cslib.Reachability.Hoza.SeedRank
+open Cslib Cslib.Code.JustesenFamily Cslib.Reachability.Hoza Cslib.Reachability.Hoza.SeedRank
 open Turing.MultiTapeTM Turing.BinaryField
 
 private def codeBit (p : FieldContext × ℕ) (index : ℕ) : Bool :=
   p.1.indexedBit p.2 index
 
-/-- The retained context and binary label supply exactly the bit in the isolation proof. -/
-example {w n : ℕ} (label : Fin w) (j : Fin (codeLength w n)) :
-    codeBit (fieldContext w n, label.val) j.val = indexedCodeword label j :=
-  (fieldContext_indexedBit_eq label j).trans (indexedCodewordMod_eq label j)
+/-- The binary label and retained context give the weight used by the isolation theorem. -/
+example {w n : ℕ} (rank : Fin (2 ^ codeLength w n)) (vertex : Fin (n + 1) × Fin w) :
+    weightRank codeBit
+        ⟨⟨(fieldContext w n, vertex.2.val), rank.val, codeLength w n⟩, vertex.1.val⟩ =
+      generatedWeight ((BitString.equivFin _).symm rank) vertex :=
+  weightRank_eq_generatedWeight codeBit (fieldContext w n, vertex.2.val) rank vertex
+    (fieldContext_indexedBit_eq vertex.2)
 
-/-- The retained-rank digit scan can use the indexed evaluator at its existing callback
-encoding. -/
+/-- The native retained-rank weight evaluator accepts the indexed bit at its existing encoding. -/
 example (heval : ComputableInSpace HornerInput.evaluate encHornerInput encCoefficients
       (fun p => (encHornerInput p).length)) :
     let encContext := encPair encFieldContext encNat
-    ComputableInSpace (accumulateRank codeBit) (encRequest encContext) encNat
-      (fun q => (encRequest encContext q).length + q.width) := by
+    ComputableInSpace (weightRank codeBit) (encWeightRequest encContext) encNat
+      (fun q => (encWeightRequest encContext q).length + q.seed.width) := by
   let : Inhabited FieldContext := ⟨⟨0, 0, []⟩⟩
-  exact accumulateRank_inSpace (encPair encFieldContext encNat) codeBit
+  exact weightRank_inSpace (encPair encFieldContext encNat) codeBit
     (fieldContext_indexedBit_inSpace_of_horner heval)
 
 end CslibFrontierTests.JustesenIndexedBit
