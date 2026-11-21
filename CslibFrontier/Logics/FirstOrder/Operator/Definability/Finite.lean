@@ -23,8 +23,9 @@ finite machine transition tables in descriptive-complexity proofs.
 * `PolarityDefinable.exists_mem`, `PolarityDefinable.forall_mem`: disjunctions and conjunctions
   over a fixed list, with definability required only of its members.
 * `PolarityDefinable.iEx`, `PolarityDefinable.iAll`: fixed finite choices and conjunctions.
+* `Definable.forall_mem`: conjunction over a fixed list of uniformly definable predicates.
 
-`constant`, `iEx` and `iAll` participate in the extensible `FODefinable` synthesis rule set.
+These rules participate in the extensible `FODefinable` synthesis rule set.
 -/
 
 public section
@@ -82,6 +83,26 @@ theorem iAll {β : Type r} [Finite β] {P : β → ∀ i, (α → M i) → Prop}
   let _ := Fintype.ofFinite β
   exact (forall_mem (Finset.univ : Finset β).toList fun b _ => hP b).congr fun _ _ => by simp
 
-attribute [aesop safe apply (rule_sets := [FODefinable])] constant iEx iAll
+attribute [aesop safe apply (rule_sets := [FODefinable])]
+  constant exists_mem forall_mem iEx iAll
 
 end Cslib.Logic.FO.Operator.PolarityDefinable
+
+namespace Cslib.Logic.FO.Operator.Definable
+
+variable {L : Language.{u, v}} {O : Type s} {shape : O → Shape} {policy : Policy shape}
+  {ι : Type t} {M : ι → Type z} [∀ i, L.Structure (M i)]
+  {I : ∀ i, Interpretation shape (M i)} {Γ : List ℕ} {ρ : ∀ i, RelEnv Γ (M i)}
+  {α : Type w}
+
+/-- A conjunction over a fixed list uses one defining formula for each of its members. -/
+@[aesop safe apply (rule_sets := [FODefinable])]
+theorem forall_mem {β : Type r} (l : List β) {P : β → ∀ i, (α → M i) → Prop}
+    (hP : ∀ b ∈ l, Definable (L := L) policy M I ρ (P b)) :
+    Definable (L := L) policy M I ρ (fun i v => ∀ b ∈ l, P b i v) := by
+  induction l with
+  | nil => exact truth.congr fun _ _ => by simp
+  | cons b l ih =>
+    exact ((hP b (by simp)).conj (ih fun c hc => hP c (by simp [hc]))).congr fun _ _ => by simp
+
+end Cslib.Logic.FO.Operator.Definable

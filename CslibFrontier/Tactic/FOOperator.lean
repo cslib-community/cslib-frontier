@@ -17,7 +17,11 @@ public import CslibFrontier.Tactic.FOOperator.Init
 `fo_definable` proves uniform definability of an ordinary Lean predicate by constructing a
 well-formed formula, using the extensible Aesop rule set `FODefinable`. Its witness is a single
 formula for the whole family of structures, rather than a formula chosen separately for each
-structure. The built-in rules cover first-order atoms, Boolean connectives, and quantification.
+structure. The built-in rules cover first-order atoms, Boolean connectives, and quantification,
+including fixed-width tuples through `Definable.exs`. Importing
+`CslibFrontier.Logics.FirstOrder.Operator.Definability.Finite` also registers conjunction over
+a fixed list and the corresponding polarity-preserving finite-choice rules. The tuple width
+and finite choices are independent of the structure index and its universe size.
 
 To add a semantic operation, prove a theorem whose conclusion is `Operator.Definable` and
 register it with `@[aesop safe apply (rule_sets := [FODefinable])]`. The theorem must supply a
@@ -43,7 +47,7 @@ open Lean Parser.Tactic
 
 attribute [aesop safe apply (rule_sets := [FODefinable])]
   Definable.ofFO Definable.neg Definable.conj Definable.disj Definable.imp
-  Definable.ex Definable.all Definable.truth Definable.falsity
+  Definable.ex Definable.exs Definable.all Definable.truth Definable.falsity
   Definable.var_eq Definable.equal Definable.relation Definable.relation_vars Definable.rel
   Definable.relation₁ Definable.relation₂ Definable.rel_vars Definable.rel₁ Definable.rel₂
 
