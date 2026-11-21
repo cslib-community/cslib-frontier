@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.BitString.ZModTwo
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GaussJordan
 import CslibFrontier.Computability.Circuit.Boolean.AtLeast
 import CslibFrontier.Computability.Circuit.Boolean.Synthesis
+import CslibFrontier.Tactic.Synthesis
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.Linarith
 
@@ -164,9 +165,11 @@ private theorem newFn_eq (p : Fin r × Fin c) :
 theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits A ⊆ s) :
     Synthesis interpretation s (entryBits fun x => stage (A x) k)
       (14 * (r + 1) * (r + c + 1)) := by
+  have hbits (i : Fin r) (l : Fin c) : (fun x => bitEquiv (A x i l)) ∈ s :=
+    hA (entry_mem_entryBits A i l)
   have hentry (i : Fin r) (l : Fin c) :
       Synthesis interpretation s {fun x => bitEquiv (A x i l)} 0 :=
-    Synthesis.of_mem (hA (entry_mem_entryBits A i l))
+    Synthesis.of_mem (hbits i l)
   -- candidates
   have h₁ : Synthesis interpretation s (Set.range (candFn A k)) (r * (c + 3)) := by
     refine (Synthesis.family (candFn A k) (fun _ => c + 3) fun i => ?_).mono Set.Subset.rfl
@@ -197,14 +200,8 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
       (Set.range (pivEntryFn A k)) (c * (5 * r + 1)) := by
     refine (Synthesis.family (pivEntryFn A k) (fun _ => 5 * r + 1) fun l => ?_).mono
       Set.Subset.rfl Set.Subset.rfl (by simp)
-    have hpiv (i : Fin r) : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k))) {pivFn A k i} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inr ⟨i, rfl⟩))
-    have hent (i : Fin r) : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k))) {fun x => bitEquiv (A x i l)} 0 :=
-      Synthesis.of_mem (Or.inl (hA (entry_mem_entryBits A i l)))
     refine (Synthesis.sum univ (fun i x => pivFn A k i x && bitEquiv (A x i l)) (fun _ => 1)
-      fun i _ => (hpiv i).and (hent i)).mono Set.Subset.rfl Set.Subset.rfl ?_
+      fun i _ => by synthesis_bool).mono Set.Subset.rfl Set.Subset.rfl ?_
     simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
     omega
   -- new entries
@@ -213,18 +210,7 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
       (Set.range (newFn A k)) (r * c * 7) := by
     refine (Synthesis.family (newFn A k) (fun _ => 7) fun p => ?_).mono Set.Subset.rfl
       Set.Subset.rfl (by simp)
-    have hent (i : Fin r) (l : Fin c) : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k) ∪ Set.range (pivEntryFn A k)))
-        {fun x => bitEquiv (A x i l)} 0 :=
-      Synthesis.of_mem (Or.inl (hA (entry_mem_entryBits A i l)))
-    have hpiv : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k) ∪ Set.range (pivEntryFn A k)))
-        {pivFn A k p.1} 0 := Synthesis.of_mem (Or.inr (Or.inl (Or.inr ⟨p.1, rfl⟩)))
-    have hpe : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k) ∪ Set.range (pivEntryFn A k)))
-        {pivEntryFn A k p.2} 0 := Synthesis.of_mem (Or.inr (Or.inr ⟨p.2, rfl⟩))
-    exact ((hent p.1 p.2).xor ((hent p.1 k).and (hpiv.not.and hpe))).mono Set.Subset.rfl
-      Set.Subset.rfl (by omega)
+    synthesis_bool [newFn]
   have h := ((h₁.comp h₂).comp h₃).trans h₄
   have hset : Set.range (newFn A k) = entryBits fun x => stage (A x) k :=
     congrArg Set.range (funext (newFn_eq A k))
