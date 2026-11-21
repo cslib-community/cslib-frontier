@@ -240,6 +240,23 @@ theorem otherWatch_spec {u w₁ w₂ : Literal ℕ} (hne : w₁ ≠ w₂) :
   have : w₁ ≠ u := fun h' => hne (h'.trans h.symm)
   simp [otherWatch, this]
 
+/-- Putting the clause `k` just visited back on the watch list of `t.negate` keeps every watched
+clause listed, with `L` left to visit. -/
+private theorem WExec.ProcInv.listed_addWatch {S : WExec φ} {t : Literal ℕ} {k : ℕ} {L : List ℕ}
+    (h : S.ProcInv t (k :: L)) (k' : ℕ) (hk' : k' < S.store.clauses.size)
+    (w : Literal ℕ) (hw : w ∈ S.store.clauses[k'].2.take 2) :
+    k' ∈ watchList (addWatch S.store.watches (watchIndex t.negate) k) (watchIndex w) ∨
+      (w = t.negate ∧ k' ∈ L) := by
+  simp only [watchList_addWatch]
+  rcases h.listed k' hk' w hw with hl | ⟨rfl, hL⟩
+  · split
+    · rename_i hi
+      exact .inl (List.mem_cons_of_mem _ (watchInj_mem hi hl))
+    · exact .inl hl
+  · rcases List.mem_cons.1 hL with rfl | hL
+    · exact .inl (by simp)
+    · exact .inr ⟨rfl, hL⟩
+
 /-- **Keeping** a clause whose other watched literal is true: it goes back on the watch list. -/
 theorem WExec.ProcInv.keep {S : WExec φ} {t : Literal ℕ} {k : ℕ} {L : List ℕ}
     (h : S.ProcInv t (k :: L)) (hv : VisitSpec S.store S.M t.negate k .keep) :
@@ -248,15 +265,7 @@ theorem WExec.ProcInv.keep {S : WExec φ} {t : Literal ℕ} {k : ℕ} {L : List 
   obtain ⟨hk, w₁, w₂, rest, hc, hu, hother⟩ := hv
   refine ⟨h.exec, h.sound, h.nodup, h.long, h.covers, fun k' hk' w hw => ?_, ?_, h.notBoth,
     h.short_mem, h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above, h.t_mem⟩
-  · simp only [watchList_addWatch]
-    rcases h.listed k' hk' w hw with hl | ⟨rfl, hL⟩
-    · split
-      · rename_i hi
-        exact .inl (List.mem_cons_of_mem _ (watchInj_mem hi hl))
-      · exact .inl hl
-    · rcases List.mem_cons.1 hL with rfl | hL
-      · exact .inl (by simp)
-      · exact .inr ⟨rfl, hL⟩
+  · exact h.listed_addWatch k' hk' w hw
   · intro k' hk'' hk' v₁ v₂ rest' hc'
     simp only [watchList_addWatch, ↓reduceIte, List.mem_cons] at hk''
     rcases hk'' with rfl | hk''
@@ -487,15 +496,7 @@ theorem WExec.ProcInv.unit {S : WExec φ} {t l : Literal ℕ} {id k : ℕ} {L : 
       otherWatch u w₁ w₂ :: Trail.lits S.M := by rw [hM]; rfl
   refine ⟨⟨hspec.1, h.sound, h.nodup, h.long, h.covers, fun k' hk' w hw => ?_, ?_, ?_,
     h.short_mem, h.short_covers, ?_, ?_, ?_, List.mem_cons_of_mem _ h.t_mem⟩, ?_⟩
-  · simp only [WExec.propagateUnit, watchList_addWatch]
-    rcases h.listed k' hk' w hw with hl' | ⟨rfl, hL⟩
-    · split
-      · rename_i hi
-        exact .inl (List.mem_cons_of_mem _ (watchInj_mem hi hl'))
-      · exact .inl hl'
-    · rcases List.mem_cons.1 hL with rfl | hL
-      · exact .inl (by simp)
-      · exact .inr ⟨rfl, hL⟩
+  · exact h.listed_addWatch k' hk' w hw
   · intro k' hk'' hk' v₁ v₂ rest' hc'
     rw [hlits]
     simp only [WExec.propagateUnit, watchList_addWatch, ↓reduceIte, List.mem_cons] at hk''

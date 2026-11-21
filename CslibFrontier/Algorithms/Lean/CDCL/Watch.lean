@@ -37,15 +37,18 @@ open Cslib.Logic.PL
 /-- The watch list at index `i`, empty past the end of the array. -/
 @[expose] def watchList (W : Array (List ℕ)) (i : ℕ) : List ℕ := W.getD i []
 
+/-- Applying `f` to the watch list at index `i`, growing the array if needed. -/
+@[expose] def modifyWatch (W : Array (List ℕ)) (i : ℕ) (f : List ℕ → List ℕ) : Array (List ℕ) :=
+  let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []
+  W'.modify i f
+
 /-- Adding `k` to the watch list at index `i`, growing the array if needed. -/
 @[expose] def addWatch (W : Array (List ℕ)) (i k : ℕ) : Array (List ℕ) :=
-  let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []
-  W'.modify i (k :: ·)
+  modifyWatch W i (k :: ·)
 
 /-- Replacing the watch list at index `i`, growing the array if needed. -/
 @[expose] def setWatch (W : Array (List ℕ)) (i : ℕ) (L : List ℕ) : Array (List ℕ) :=
-  let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []
-  W'.modify i fun _ => L
+  modifyWatch W i fun _ => L
 
 theorem watchList_grow (W : Array (List ℕ)) (i j : ℕ) :
     watchList (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []) j =
@@ -66,9 +69,9 @@ theorem i_lt_size_grow (W : Array (List ℕ)) (i : ℕ) :
   · assumption
   · simp; omega
 
-@[simp] theorem watchList_addWatch (W : Array (List ℕ)) (i k j : ℕ) :
-    watchList (addWatch W i k) j = if j = i then k :: watchList W i else watchList W j := by
-  unfold addWatch
+theorem watchList_modifyWatch (W : Array (List ℕ)) (i : ℕ) (f : List ℕ → List ℕ) (j : ℕ) :
+    watchList (modifyWatch W i f) j = if j = i then f (watchList W i) else watchList W j := by
+  unfold modifyWatch
   have hlt := i_lt_size_grow W i
   generalize hW' : (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []) = W' at hlt
   have hgrow : ∀ j, watchList W' j = watchList W j := fun j => hW' ▸ watchList_grow W i j
@@ -80,19 +83,13 @@ theorem i_lt_size_grow (W : Array (List ℕ)) (i : ℕ) :
   · rename_i hne
     simp [Ne.symm hne]
 
+@[simp] theorem watchList_addWatch (W : Array (List ℕ)) (i k j : ℕ) :
+    watchList (addWatch W i k) j = if j = i then k :: watchList W i else watchList W j :=
+  watchList_modifyWatch W i _ j
+
 @[simp] theorem watchList_setWatch (W : Array (List ℕ)) (i : ℕ) (L : List ℕ) (j : ℕ) :
-    watchList (setWatch W i L) j = if j = i then L else watchList W j := by
-  unfold setWatch
-  have hlt := i_lt_size_grow W i
-  generalize hW' : (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []) = W' at hlt
-  have hgrow : ∀ j, watchList W' j = watchList W j := fun j => hW' ▸ watchList_grow W i j
-  rw [← hgrow]
-  unfold watchList
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
-  split
-  · subst j; simp [Array.getElem?_eq_getElem hlt]
-  · rename_i hne
-    simp [Ne.symm hne]
+    watchList (setWatch W i L) j = if j = i then L else watchList W j :=
+  watchList_modifyWatch W i _ j
 
 /-- **The watch store**: the clauses with at least two literals, each with its watched literals
 first, and the watch lists, giving for each literal the clauses that may watch it. -/
