@@ -712,6 +712,40 @@ theorem exists_scan_of_firstHalting {τ : Type} {N : ℕ}
     (fun _ => none) (Scan.tallyPrefix_zero edge source target radius _) hfirst hend
   exact ⟨branch, by simpa [selectors] using hbits, hscan⟩
 
+/-- If successful walk calls have exact, prefix-free selector encodings, a successful
+first-halting tally corresponds to a unique typed scan with the same membership reply. -/
+theorem firstHalting_iff_scan {τ : Type} {N : ℕ}
+    (walk : NondeterministicQueryMachine τ) (enter : Registers → τ) (result : τ → Option ℕ)
+    (input : List Bool) (edge : Fin N → Fin N → Bool) (source target : Fin N)
+    (radius : ℕ) (expected : Tally) (walkSelectors : List (Fin N) → List Bool)
+    (hprefix : ∀ {a b}, walkSelectors a <+: walkSelectors b → a = b)
+    (hwalk : ∀ (v : Fin N) (acc : Scan.Result) (bits : List Bool) (remaining : ℕ),
+      let r : Registers := ⟨⟨N, source.val, target.val, radius, expected⟩, v.val, acc⟩
+      walk.FirstHalting input bits (enter r) ∧
+        result (walk.replay input bits (enter r)) = some remaining ↔
+      ∃ tail, bits = walkSelectors tail ∧
+        (Scan.walkM Scan.readNext (fun u v => pure (edge u v)) v radius source tail).1 =
+          some remaining)
+    (bits : List Bool) (hit : Bool) :
+    let M := machine ⟨N, source.val, target.val, radius, expected⟩ walk enter result
+    M.FirstHalting input bits M.init ∧ reply (M.run input bits) = some hit ↔
+      ∃! branch, bits = selectors walkSelectors branch ∧
+        Scan.run edge source target radius expected branch = some hit := by
+  dsimp only
+  rw [reply_eq_some_iff]
+  constructor
+  · rintro ⟨hfirst, hend⟩
+    obtain ⟨branch, hbits, hscan⟩ := exists_scan_of_firstHalting walk enter result input edge
+      source target radius expected walkSelectors
+      (fun v acc ws left hf hr => (hwalk v acc ws left).mp ⟨hf, hr⟩) bits hit hfirst hend
+    exact ⟨branch, ⟨hbits, hscan⟩, fun other hother =>
+      selectors_injective walkSelectors hprefix (hother.1.symm.trans hbits)⟩
+  · rintro ⟨branch, ⟨rfl, hscan⟩, _⟩
+    exact firstHalting_of_scan walk enter result input edge source target radius expected branch
+      hit walkSelectors
+      (fun v acc tail left hw => (hwalk v acc (walkSelectors tail) left).mpr ⟨tail, rfl, hw⟩)
+      hscan
+
 private def Invariant {τ : Type} (ctx : Context) (walk : NondeterministicQueryMachine τ)
     (enter : Registers → τ) (input : List Bool) : State τ → Prop
   | .inl r => r.context = ctx ∧ r.Bounded
@@ -774,6 +808,11 @@ private theorem length_registers_le (r : Registers) (h : r.Bounded) :
     encTally_apply, encTallyFields, encBool_apply, List.length_singleton, length_encPair]
   omega
 
+/-- Bound the phase, retained tally registers, and a suspended walk of at most `walkBound` bits. -/
+@[expose] def stateBound (ctx : Context) (walkBound : ℕ) : ℕ :=
+  4 * (encContext ctx).length + 12 * (Nat.log2 ctx.size + 1) +
+    4 * (Nat.log2 (ctx.size * ctx.radius) + 1) + walkBound + 15
+
 /-- Charge the complete suspended tally and the walk state on every finite branch prefix. -/
 theorem length_replay_le {τ : Type} (encT : τ ↪ List Bool) (ctx : Context)
     (walk : NondeterministicQueryMachine τ) (enter : Registers → τ) (result : τ → Option ℕ)
@@ -782,8 +821,8 @@ theorem length_replay_le {τ : Type} (encT : τ ↪ List Bool) (ctx : Context)
       ∀ choices, (encT (walk.replay input choices (enter r))).length ≤ budget)
     (choices : List Bool) :
     (encState encT ((machine ctx walk enter result).run input choices)).length ≤
-      4 * (encContext ctx).length + 12 * (Nat.log2 ctx.size + 1) +
-        4 * (Nat.log2 (ctx.size * ctx.radius) + 1) + budget + 15 := by
+      stateBound ctx budget := by
+  unfold stateBound
   have hi : Invariant ctx walk enter input (initial ctx) := ⟨rfl, initial_bounded ctx⟩
   have hb := invariant_replay ctx walk enter result input choices hi
   change Invariant ctx walk enter input ((machine ctx walk enter result).run input choices) at hb
@@ -971,23 +1010,11 @@ theorem withBoundedWalk_firstHalting_iff (input : List Bool)
     M.FirstHalting input bits M.init ∧ M.run input bits = .inr (.inr (some hit)) ↔
       ∃! branch, bits = selectors (BoundedWalk.selectors clock) branch ∧
         Scan.run adjacent source target radius expected branch = some hit := by
-  dsimp only [withBoundedWalk]
-  constructor
-  · rintro ⟨hfirst, hend⟩
-    have h := exists_scan_of_firstHalting W enterWalk BoundedWalk.remainingFuel input adjacent
-      source target radius expected (BoundedWalk.selectors clock)
-    obtain ⟨branch, hbits, hrun⟩ := h (fun v acc ws left hf hr =>
-      (boundedWalk_replay edge start verdict clock fallback input adjacent source target v
-        radius expected acc ws left hclock hedge).mp ⟨hf, hr⟩) bits hit hfirst hend
-    refine ⟨branch, ⟨hbits, hrun⟩, fun other hother => ?_⟩
-    exact selectors_injective _ (BoundedWalk.eq_of_selectors_prefix clock)
-      (hother.1.symm.trans hbits)
-  · rintro ⟨branch, ⟨rfl, hrun⟩, _⟩
-    refine firstHalting_of_scan W enterWalk BoundedWalk.remainingFuel input adjacent
-      source target radius expected branch hit (BoundedWalk.selectors clock) ?_ hrun
-    intro v acc tail left hw r
-    exact (boundedWalk_replay edge start verdict clock fallback input adjacent source target v
-      radius expected acc (BoundedWalk.selectors clock tail) left hclock hedge).mpr ⟨tail, rfl, hw⟩
+  simpa only [reply_eq_some_iff, withBoundedWalk] using
+    firstHalting_iff_scan W enterWalk BoundedWalk.remainingFuel input adjacent source target
+      radius expected (BoundedWalk.selectors clock) (BoundedWalk.eq_of_selectors_prefix clock)
+      (fun v acc ws left => boundedWalk_replay edge start verdict clock fallback input adjacent
+        source target v radius expected acc ws left hclock hedge) bits hit
 
 /-- Charge the full candidate scan clock, including all rejecting walk and tally choices. -/
 theorem withBoundedWalk_haltsWithin (ctx : Context) (input : List Bool) :
@@ -1002,10 +1029,8 @@ theorem withBoundedWalk_haltsWithin (ctx : Context) (input : List Bool) :
 
 /-- Encoded tally and walk registers plus one adjacency callback state. -/
 def boundedWalkStateBound (N clock : ℕ) (ctx : Context) (calleeBound : ℕ) : ℕ :=
-  4 * (encContext ctx).length + 12 * (Nat.log2 ctx.size + 1) +
-    4 * (Nat.log2 (ctx.size * ctx.radius) + 1) +
-    (12 * (encNat N).length + 4 * (Nat.log2 N.size + 1) +
-      4 * (encNat ctx.radius).length + 2 * (encNat clock).length + calleeBound + 21) + 15
+  stateBound ctx (12 * (encNat N).length + 4 * (Nat.log2 N.size + 1) +
+    4 * (encNat ctx.radius).length + 2 * (encNat clock).length + calleeBound + 21)
 
 /-- Charge both the suspended tally and the entire bounded walk on all branch prefixes. -/
 theorem withBoundedWalk_length_run_le (encCallee : τ ↪ List Bool)

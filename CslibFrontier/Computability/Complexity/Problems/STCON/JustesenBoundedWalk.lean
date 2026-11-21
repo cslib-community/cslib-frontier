@@ -170,7 +170,7 @@ theorem configurationJustesenBoundedWalk_bounds (ntm : MultiTapeNTM k Bool State
   change (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState
     (M.run w bits)).length ≤ _
   refine hrun.trans ?_
-  dsimp only [b] at hctx hvertices hb ⊢
+  dsimp only [b, Runtime.stateBound] at hctx hvertices hb ⊢
   simp only [hclock, Nat.add_mul, Nat.mul_assoc]
   omega
 
