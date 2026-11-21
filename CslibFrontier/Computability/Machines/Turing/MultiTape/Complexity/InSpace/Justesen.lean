@@ -324,6 +324,13 @@ def fieldContext (w n : ℕ) : FieldContext :=
   let degree := fieldDegree w n
   ⟨degree, coefficientCount w n, BinaryField.modulusBitsScan degree⟩
 
+/-- The retained context supplies the same degree, coefficient count and modulus as the
+table-free generator. -/
+theorem fieldContext_eq (w n : ℕ) :
+    fieldContext w n =
+      ⟨fieldDegree w n, coefficientCount w n, BinaryField.modulusBitsScan (fieldDegree w n)⟩ := by
+  rw [fieldContext]
+
 /-- The native initializer uses workspace linear in the encoded binary dimensions.
 One capacity run supplies the degree and coefficient count, and the native modulus search
 uses workspace linear in that degree. -/
