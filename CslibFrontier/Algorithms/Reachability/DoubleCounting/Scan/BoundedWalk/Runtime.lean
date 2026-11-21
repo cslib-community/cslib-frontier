@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 
 /-!
@@ -95,14 +94,12 @@ theorem entry_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ
   have hregisters : ComputableInSpace (fun a => encRegisters (dimension a) (registers a))
       encIn encBits budget :=
     (budget_prod hcurrent (budget_prod htarget hfuel)).of_enc_eq fun _ => rfl
-  have hchoice := budget_prod hregisters (NondeterministicChoice.init_budget hdim)
-  have htag := budget_comp_linear (of_inO (ComputableInDegree.inl
-    (encPair encBits NondeterministicChoice.encState) encBits).inO_one) hchoice
-  refine (budget_prod hcontext (budget_prod hdim htag)).of_enc_eq fun a => ?_
+  have hchoice := BoundedWalk.choiceWord_budget hregisters (NondeterministicChoice.init_budget hdim)
+  refine (budget_prod hcontext (budget_prod hdim hchoice)).of_enc_eq fun a => ?_
   change (frame (encContext (context a)) ++ (frame (encNat (dimension a)) ++
     BoundedWalk.encState encCallee ((BoundedWalk.machine edge
       (fun u v => start (context a) u.val v.val) verdict clock (registers a)).init))) = _
-  simp only [BoundedWalk.encState_init, encPair_apply, encSum_inl, encBits_apply]
+  simp only [BoundedWalk.encState_init, encPair_apply, encBits_apply]
 
 /-- One same-input transition machine selects the walk's context and dimension from its
 current state, including during a suspended adjacency call. -/
