@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting
 import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Foundations.Control.Monad.Clock
 
 /-!
 # Streaming bounded membership scans
@@ -479,21 +480,12 @@ private theorem foldlM_registers_le (g : Fin N → Option Result) (k : ℕ)
     rw [Fin.foldlM_succ_last] at hr
     change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero).bind
       (fun acc => (g (Fin.last N)).map (add acc))) = some r at hr
-    cases hp : Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero with
-    | none =>
-      rw [hp] at hr
-      contradiction
-    | some partialResult =>
-      have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
-      rw [hp] at hr
-      cases hl : g (Fin.last N) with
-      | none => simp [hl, Option.bind] at hr
-      | some last =>
-        have hlast := hg (Fin.last N) last hl
-        simp only [hl, Option.bind, Option.map_some, Option.some.injEq] at hr
-        subst r
-        exact ⟨Nat.add_le_add hb.1 hlast.1,
-          (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
+    obtain ⟨partialResult, hp, hr⟩ := Option.bind_eq_some_iff.mp hr
+    obtain ⟨last, hl, rfl⟩ := Option.map_eq_some_iff.mp hr
+    have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
+    have hlast := hg (Fin.last N) last hl
+    exact ⟨Nat.add_le_add hb.1 hlast.1,
+      (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
 
 /-- In any successfully processed prefix, the count is bounded by the number of processed
 vertices, and the length sum by that number times the walk budget. The prefix may be followed
@@ -513,67 +505,22 @@ private theorem walkM_clock {σ : Type} (clock : σ → ℕ)
     clock (walkM next edge target k current s).2 ≤ clock s + (2 * k + 1) := by
   induction k generalizing current s with
   | zero =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      cases v <;> exact h
+    rw [walkM, show 2 * 0 + 1 = 1 + 0 by rfl]
+    apply bind_stateM_clock clock 1 0 _ _ hn
+    intro result t
+    cases result <;> exact le_rfl
   | succ k ih =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      change clock t ≤ clock s + 1 at h
-      cases v with
-      | none =>
-        change clock t ≤ _
-        omega
-      | some v =>
-        change clock ((edge current v >>= fun answer =>
-          if answer then walkM next edge target k v else pure none) t).2 ≤ _
-        have hedge := he current v t
-        simp only [bind, StateT.bind]
-        cases ha : edge current v t with
-        | mk answer t' =>
-          rw [ha] at hedge
-          change clock t' ≤ clock t + 1 at hedge
-          cases answer with
-          | false =>
-            change clock t' ≤ _
-            omega
-          | true =>
-            change clock (walkM next edge target k v t').2 ≤ _
-            have hrest := ih v t'
-            omega
-
-private theorem foldlM_clock {σ R : Type} (clock : σ → ℕ) (cost : ℕ)
-    (f : R → Fin N → OptionT (StateM σ) R)
-    (h : ∀ a v s, clock ((f a v).run s).2 ≤ clock s + cost) (a : R) (s : σ) :
-    clock ((Fin.foldlM N f a).run s).2 ≤ clock s + N * cost := by
-  induction N generalizing a s with
-  | zero => simp [Fin.foldlM_zero, pure, OptionT.pure, OptionT.run, OptionT.mk, StateT.pure]
-  | succ N ih =>
-    simp only [Fin.foldlM_succ, bind, OptionT.bind, OptionT.mk, OptionT.run, StateT.bind]
-    have hfirst := h a 0 s
-    change clock (f a 0 s).2 ≤ clock s + cost at hfirst
-    cases hf : f a 0 s with
-    | mk r t =>
-      rw [hf] at hfirst
-      change clock t ≤ clock s + cost at hfirst
-      cases r with
-      | none =>
-        change clock t ≤ _
-        rw [Nat.succ_mul]
-        omega
-      | some a' =>
-        change clock ((Fin.foldlM N (fun b v => f b v.succ) a').run t).2 ≤ _
-        have hrest := ih _ (fun b v t => h b v.succ t) a' t
-        rw [Nat.succ_mul]
-        omega
+    rw [walkM, show 2 * (k + 1) + 1 = 1 + (1 + (2 * k + 1)) by omega]
+    apply bind_stateM_clock clock 1 (1 + (2 * k + 1)) _ _ hn
+    intro result t
+    cases result with
+    | none => exact Nat.le_add_right (clock t) _
+    | some v =>
+      apply bind_stateM_clock clock 1 (2 * k + 1) _ _ (he current v)
+      intro answer u
+      cases answer with
+      | false => exact Nat.le_add_right (clock u) _
+      | true => exact ih v u
 
 /-- All branches use at most `N * (2 * k + 2)` callback actions when each selection,
 destination read, or adjacency query advances the clock by at most one. This bound includes
@@ -586,7 +533,7 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
     (he : ∀ u v s, clock (edge u v s).2 ≤ clock s + 1) (s : σ) :
     clock (tallyM select next edge source target k s).2 ≤ clock s + N * (2 * k + 2) := by
   unfold tallyM
-  apply foldlM_clock
+  apply foldlM_optionT_clock
   intro acc v state
   have hselect := hs v state
   simp only [OptionT.run, OptionT.mk, candidateM, bind, StateT.bind]
@@ -607,5 +554,20 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
         change clock u ≤ _ at hwalk
         change clock u ≤ _
         omega
+
+/-- The terminal tally check adds no callback action to `tallyM_clock`. Both a rejected scan
+and a successful false membership answer retain the same callback-action bound. -/
+theorem runM_clock {σ : Type} (clock : σ → ℕ)
+    (select : Fin N → StateM σ Bool) (next : StateM σ (Option (Fin N)))
+    (edge : Fin N → Fin N → StateM σ Bool) (source target : Fin N) (k : ℕ) (expected : Tally)
+    (hs : ∀ v s, clock (select v s).2 ≤ clock s + 1)
+    (hn : ∀ s, clock (next s).2 ≤ clock s + 1)
+    (he : ∀ u v s, clock (edge u v s).2 ≤ clock s + 1) (s : σ) :
+    clock (runM select next edge source target k expected s).2 ≤
+      clock s + N * (2 * k + 2) := by
+  have h := tallyM_clock clock select next edge source target k hs hn he s
+  cases ht : tallyM select next edge source target k s with
+  | mk result state =>
+    simpa only [runM, bind, StateT.bind, pure, StateT.pure, ht] using h
 
 end Cslib.DoubleCounting.Scan
