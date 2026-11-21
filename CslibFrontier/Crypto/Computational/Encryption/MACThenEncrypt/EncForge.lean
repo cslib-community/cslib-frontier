@@ -25,9 +25,8 @@ D(k, c) ∉ {m₁, m₂, …}". The library's notion `SymmetricCipher.EncForge` 
 asks to "Show that MAC-then-Encrypt is both CPA and PI secure." `indcpa_macThenEncrypt` gives the
 CPA half; this module gives the PI half: `encForge_macThenEncrypt` proves `EncForge` for
 `macThenEncrypt E M …` from `M.EUFCMA` alone, with no hypothesis on the cipher `E`. This is the
-argument of part (a) from the library's `MACScheme.EUFCMA`, which is not yet the book's notion: its
-signing oracle also tags words outside the message space, so a MAC that is secure in the sense of
-Definition 6.2 need not satisfy it (#5686).
+argument of part (a) from the library's `MACScheme.EUFCMA`, fresh-message unforgeability with
+tagging queries in the message space, which Definition 6.2 implies (`MACScheme.SUFCMA.eufCma`).
 
 The reduction `mteToMACForger` samples the encryption key itself, answers each encryption query by
 asking the MAC signing oracle for a tag and encrypting the encoded pair, and decrypts the
@@ -155,40 +154,40 @@ private theorem computableInPolyTime_mteMACPost {S : Type} (encS : S ↪ List Bo
         (E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1).isSome)
       EPost encBool :=
     hdec.optionIsSome
-  have hdecTidy : ComputableTidilyInPolyTime
+  have hdecPlain : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1)
       EPost (encOption encBits) :=
-    hdec.tidy
-  have hpt : ComputableTidilyInPolyTime
+    hdec
+  have hpt : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         (E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1).getD [])
       EPost encBits :=
-    hdecTidy.optionGetDWithInput (ComputableInPolyTime.const []).tidy
+    hdecPlain.optionGetDWithInput (ComputableInPolyTime.const [])
   have hmsgLen : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) => M.msgLen p.1.1.1)
       EPost encUnary :=
     M.msgLen_polyTime.comp (by dsimp only [EPost, ECaller]; fun_prop)
-  have hs : ComputableTidilyInPolyTime
+  have hs : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         (E.decrypt (ptLen p.1.1.1) p.1.2 p.2.1).isSome)
-      EPost encBool := hdecSome.tidy
-  have hm : ComputableTidilyInPolyTime
+      EPost encBool := hdecSome
+  have hm : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) => M.msgLen p.1.1.1)
-      EPost encUnary := hmsgLen.tidy
-  have hmsg := ComputableTidilyInPolyTime.unframe.comp hpt
-  have htag := ComputableTidilyInPolyTime.dropFrame.comp hpt
-  have hframeEq := (hmsg.prod htag).encoded.beq hpt
-  have hlenEq := ((by fun_prop : ComputableTidilyInPolyTime (fun x : List Bool => x.length)
+      EPost encUnary := hmsgLen
+  have hmsg := ComputableInPolyTime.unframe.comp hpt
+  have htag := ComputableInPolyTime.dropFrame.comp hpt
+  have hframeEq := (hmsg.prod htag).encoding_comp.beq hpt
+  have hlenEq := ((by fun_prop : ComputableInPolyTime (fun x : List Bool => x.length)
     encBits encUnary).comp hmsg).beq hm
-  have hfallback : ComputableTidilyInPolyTime
+  have hfallback : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × (List Bool × S) =>
         ((if M.msgLen p.1.1.1 == 0 then [false] else []), ([] : List Bool)))
       EPost (encPair encBits encBits) :=
-    ((hm.beq (ComputableTidilyInPolyTime.const 0)).cond (ComputableTidilyInPolyTime.const [false])
-      (ComputableTidilyInPolyTime.const [])).prod (ComputableTidilyInPolyTime.const [])
-  exact (((hs.bool_and' hframeEq).bool_and' hlenEq).cond (hmsg.prod htag)
-    hfallback).computableInPolyTime
+    ((hm.beq (ComputableInPolyTime.const 0)).ite' (ComputableInPolyTime.const [false])
+      (ComputableInPolyTime.const [])).prod (ComputableInPolyTime.const [])
+  exact (((hs.bool_and' hframeEq).bool_and' hlenEq).ite' (hmsg.prod htag)
+    hfallback)
 
 /-- `mteToMACForger` is oracle PPT when the adversary is and `ptLen` and `tagBound` are
 polynomial-time computable. -/
@@ -271,7 +270,7 @@ theorem isOraclePPT_mteToMACForger (E : SymmetricCipher) (M : MACScheme)
               (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
               (mteToMACHandler E caller.1.1 (ptLen caller.1.1) (tagBound caller.1.1) caller.2))
             (adversary caller.1.1 [])).run ()) :=
-    hrun.map_with' (computableInPolyTime_mteMACPost (encFinEnum Unit) E M hptLen)
+    hrun.map_with (computableInPolyTime_mteMACPost (encFinEnum Unit) E M hptLen)
   unfold mteToMACForger
   exact (hke.bind_with hrunMap).isOraclePPT
 
@@ -290,7 +289,7 @@ private theorem eval_run_mteToMACHandler_signingOracle_eq (E : SymmetricCipher) 
     (prog : WordOracleComp Unit (List Bool)) :
     ((OracleComp.interpret
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-        (fun q s => ProbComp.eval (M.signingOracle km q s)))
+        (fun q s => ProbComp.eval (M.signingOracle n km q s)))
       ((OracleComp.interpret
         (OracleComp.sumHandler
           (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
@@ -309,7 +308,7 @@ private theorem eval_run_mteToMACHandler_signingOracle_eq (E : SymmetricCipher) 
     (oracle' := fun q (state : Unit × List (List Bool)) =>
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-          (fun q s => ProbComp.eval (M.signingOracle km q s)))
+          (fun q s => ProbComp.eval (M.signingOracle n km q s)))
         (mteToMACHandler E n (ptLen n) (tagBound n) ke q state.1)).run state.2).map
         (fun result => (result.1.1, result.1.2, result.2)))
     (represent := fun s : List (List Bool) => ((), s))
@@ -320,22 +319,22 @@ private theorem eval_run_mteToMACHandler_signingOracle_eq (E : SymmetricCipher) 
           (fun x => (x.1, (), x.2)) =
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-            (fun q s => ProbComp.eval (M.signingOracle km q s)))
+            (fun q s => ProbComp.eval (M.signingOracle n km q s)))
           (mteToMACHandler E n (ptLen n) (tagBound n) ke ((), msg) ())).run queried).map
           (fun result => (result.1.1, result.1.2, result.2))
       unfold SymmetricCipher.encForgeOracle mteToMACHandler
       by_cases hlenEq : (msg.length == n) = true
-      · simp only [hlenEq, ↓reduceIte, macThenEncrypt, unframe_encPair_encBits,
+      · have hmsgM : msg.length = M.msgLen n := by rw [hmsgLen]; exact beq_iff_eq.mp hlenEq
+        simp only [hlenEq, ↓reduceIte, macThenEncrypt, unframe_encPair_encBits,
           dropFrame_encPair_encBits, ProbComp.eval_bind, ProbComp.eval_pure,
           OracleComp.interpret_bind, StateT.run_bind, OracleComp.interpret_map, StateT.run_map,
-          ProbOracleComp.interpret_query, MACScheme.signingOracle,
-          _root_.PMF.monad_map_eq_map, Probability.PMF.monad_bind_eq_bind,
+          ProbOracleComp.interpret_query, MACScheme.signingOracle, SignatureScheme.signingOracleOn,
+          beq_iff_eq.mpr hmsgM, _root_.PMF.monad_map_eq_map, Probability.PMF.monad_bind_eq_bind,
           ProbOracleComp.run_interpret_sample]
         simp only [PMF.map_bind, PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind,
           OracleComp.interpret_pure, PMF.pure_map, StateT.run]
         apply PMF.bind_congr_on_support
         intro tag htag
-        have hmsgM : msg.length = M.msgLen n := by rw [hmsgLen]; exact beq_iff_eq.mp hlenEq
         rw [List.take_of_length_le (htagBound km hkm msg hmsgM tag htag)]
         dsimp only [Pure.pure, StateT.pure]
         simp only [PMF.pure_map]
@@ -403,10 +402,10 @@ theorem succProbability_encForgeGame_macThenEncrypt_le (E : SymmetricCipher) (M 
 
 /-- **Plaintext integrity of MAC-then-Encrypt.** If `M` satisfies the library's `MACScheme.EUFCMA`,
 then `macThenEncrypt E M …` has plaintext integrity (`EncForge`), for every cipher `E`. This is the
-argument of [BonehShoup2023], Exercise 9.15(a) (p. 395), from a hypothesis that is not yet the
-book's: the signing oracle of `MACScheme.EUFCMA` also tags words outside the message space, so a
-MAC secure in the sense of Definition 6.2 need not satisfy it (#5686). The reduction asks for tags
-on `n`-bit messages only. -/
+argument of [BonehShoup2023], Exercise 9.15(a) (p. 395). `MACScheme.EUFCMA` keeps tagging queries
+in the message space, as Definition 6.2 does, and only asks for a forgery on a new message, so a
+MAC secure in the sense of Definition 6.2 satisfies it (`MACScheme.SUFCMA.eufCma`). The reduction
+asks for tags on `n`-bit messages only. -/
 theorem encForge_macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
     (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
     (hmsgLen : ∀ n, M.msgLen n = n)

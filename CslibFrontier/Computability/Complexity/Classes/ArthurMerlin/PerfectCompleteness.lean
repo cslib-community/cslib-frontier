@@ -60,6 +60,8 @@ proof and a random string is a deterministic certificate (`MAZero = NP`).
   `Cslib.Complexity.AM_eq_AMOne`: `AM enc = AMOne enc` (two-message constant-round milestone of
   [Goldreich, Exercise 9.8(2)][Goldreich2007DraftR5]).
 * `Cslib.Complexity.MAOne_subset_AMOne`: `MAOne enc ⊆ AMOne enc`.
+* `Cslib.Complexity.IsArthurMerlinOneVerifier.arthurMerlinRepeat_one_perfect`: two parallel trials
+  keep perfect completeness and have soundness error `1 / 4`.
 
 ## References
 
@@ -297,12 +299,19 @@ theorem MAOne_subset_MA : MAOne enc ⊆ MA enc :=
     ⟨q, 2 * 1 * p, merlinArthurRepeat enc q 1 p V,
       computableInPolyTime_merlinArthurRepeat hV q 1 p, h.merlinArthurRepeat_one⟩
 
-/-- Repeating a perfectly complete Arthur–Merlin verifier twice in parallel (`r = 1`) reduces its
-soundness error from `1 / 2` to `1 / 4 ≤ 1 / 3`. -/
-theorem IsArthurMerlinOneVerifier.arthurMerlinRepeat_one {p q : Polynomial ℕ}
-    {V : α × List Bool → Bool} (h : IsArthurMerlinOneVerifier enc p q V A) :
-    IsArthurMerlinVerifier enc (2 * 1 * p) (2 * 1 * q) (arthurMerlinRepeat enc 1 p q V) A := by
-  intro a
+/-- Repeating a perfectly complete Arthur–Merlin verifier twice in parallel (`r = 1`), accepting
+when both copies accept, keeps perfect completeness and reduces the soundness error from `1 / 2` to
+`1 / 4 ≤ 1 / 3`, on every input separately: on a member every random string has an accepted reply,
+and on a non-member at least two thirds of the random strings have none. -/
+theorem IsArthurMerlinOneVerifier.arthurMerlinRepeat_one_perfect {p q : Polynomial ℕ}
+    {V : α × List Bool → Bool} (h : IsArthurMerlinOneVerifier enc p q V A) (a : α) :
+    (a ∈ A → ∀ x : Fin ((2 * 1 * p).eval (enc a).length) → Bool,
+      ∃ y : Fin ((2 * 1 * q).eval (enc a).length) → Bool,
+        arthurMerlinRepeat enc 1 p q V (a, List.ofFn x ++ List.ofFn y) = true) ∧
+    (a ∉ A → 2 * 2 ^ (2 * 1 * p).eval (enc a).length ≤
+      3 * #{x : Fin ((2 * 1 * p).eval (enc a).length) → Bool |
+        ∀ y : Fin ((2 * 1 * q).eval (enc a).length) → Bool,
+          arthurMerlinRepeat enc 1 p q V (a, List.ofFn x ++ List.ofFn y) = false}) := by
   have hlenP : (2 * 1 * p).eval (enc a).length =
       2 * (1 : Polynomial ℕ).eval (enc a).length * p.eval (enc a).length := by
     simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
@@ -311,21 +320,27 @@ theorem IsArthurMerlinOneVerifier.arthurMerlinRepeat_one {p q : Polynomial ℕ}
     simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
   have hex := exists_arthurMerlinRepeat_ofFn_append_ofFn_iff (enc := enc) (r := 1) (p := p) (q := q)
     (V := V) a
+  rw [hlenP, hlenQ]
   constructor
+  · intro ha x
+    rw [hex, filter_true_of_mem fun i _ => (h a).1 ha (BitString.block x i)]
+    simp
   · intro ha
-    rw [hlenP, hlenQ]
-    simpa only [hex] using
-      two_mul_two_pow_le_three_mul_card_two_trials_of_forall Polynomial.eval_one
-        (fun r : BitString (p.eval (enc a).length) =>
-          ∃ z : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn z) = true)
-        ((h a).1 ha)
-  · intro ha
-    rw [hlenP, hlenQ]
     refine (two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one
       (fun r : BitString (p.eval (enc a).length) =>
         ∃ z : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn z) = true)
       ((h a).2 ha)).trans_eq (congrArg (3 * ·) (congrArg card (filter_congr fun x _ => ?_)))
     simp only [← Bool.not_eq_true, ← not_exists, hex]
+
+/-- Repeating a perfectly complete Arthur–Merlin verifier twice in parallel (`r = 1`) reduces its
+soundness error from `1 / 2` to `1 / 4 ≤ 1 / 3`. -/
+theorem IsArthurMerlinOneVerifier.arthurMerlinRepeat_one {p q : Polynomial ℕ}
+    {V : α × List Bool → Bool} (h : IsArthurMerlinOneVerifier enc p q V A) :
+    IsArthurMerlinVerifier enc (2 * 1 * p) (2 * 1 * q) (arthurMerlinRepeat enc 1 p q V) A := by
+  refine fun a => ⟨fun ha => ?_, (h.arthurMerlinRepeat_one_perfect a).2⟩
+  rw [filter_true_of_mem fun x _ => (h.arthurMerlinRepeat_one_perfect a).1 ha x, card_univ,
+    Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+  omega
 
 /-- **`AMOne ⊆ AM`**. -/
 theorem AMOne_subset_AM : AMOne enc ⊆ AM enc :=

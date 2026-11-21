@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   CACHE_RECOVERY_GENERATION: ${{ vars.CACHE_RECOVERY_GENERATION || '0' }}
@@ -94,6 +95,7 @@ jobs:
         uses: ./.github/actions/cache-guide-deps
         with:
           generation: ${{ env.CACHE_RECOVERY_GENERATION }}
+          disable-artifact: ${{ vars.DISABLE_GUIDE_ARTIFACT }}
       - name: Compile guide examples
         run: lake -q -d guide build --log-level=error CslibFrontierGuide
       - name: Build the guide

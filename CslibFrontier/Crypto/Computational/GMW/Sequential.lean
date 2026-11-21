@@ -240,9 +240,9 @@ private theorem computableInPolyTime_seqStep {α : Type} {input : α ↪ List Bo
   have hlist := hst.snd'
   have hcoins := (ComputableInPolyTime.headD (encA := encProverCoins) ⟨[], []⟩).comp' hlist
   have hempty :=
-    (ComputableTidilyInPolyTime.listIsEmpty' encProverCoins).computableInPolyTime.comp' hlist
+    (ComputableInPolyTime.listIsEmpty' encProverCoins).comp' hlist
   have htail :=
-    (ComputableTidilyInPolyTime.listTail encProverCoins).computableInPolyTime.comp' hlist
+    (ComputableInPolyTime.listTail encProverCoins).comp' hlist
   exact hempty.ite' (.const ([], (false, [])))
     (hst.fst'.ite'
       ((computableInPolyTime_honestReply2 hs hφ hcoins
@@ -360,10 +360,10 @@ theorem isOraclePPTOn_replicate_bool {Operation α : Type} [DecidableEq Operatio
     (hcount : ComputableInPolyTime count input encUnary) :
     IsOraclePPTOn input encBits (fun a => OracleComp.replicate (count a) (program a)) := by
   simp only [replicate_eq_iterate]
-  refine IsOraclePPTOn.iterateWith_of_bounded_growth' hcount (.const []) ?_
+  refine IsOraclePPTOn.iterateWith_of_bounded_growth hcount (.const []) ?_
     (.const 1) (fun a state next hnext => ?_)
-  · exact (hprog.preprocess' (prepare := Prod.fst)
-      (ComputableInPolyTime.fst input encBits)).map_with'
+  · exact (hprog.preprocess (prepare := Prod.fst)
+      (ComputableInPolyTime.fst input encBits)).map_with
       (f := fun p x => p.2 ++ [x])
       (ComputableInPolyTime.bitsAppend
         ((ComputableInPolyTime.fst (encPair input encBits) encBool).snd')
@@ -390,7 +390,7 @@ theorem isOraclePPTOn_gmwSeqVerifier {α : Type} {enc : α ↪ List Bool}
   have hV := isOraclePPTOn_gmwVerifier (enc := enc) hg hlen hf
   have hk' := hk.comp' (.fst encUnary enc)
   dsimp only [gmwSeqVerifier]
-  exact IsOraclePPTOn.map' (f := fun bs : List Bool => bs.all id)
+  exact IsOraclePPTOn.map (f := fun bs : List Bool => bs.all id)
     (isOraclePPTOn_replicate_bool hV hk')
     (ComputableInPolyTime.bitsAllWithInput (.id' (encIn := encBits)) (.snd encBits encBool))
 
@@ -732,10 +732,10 @@ theorem isOraclePPTOn_oneSessionStep {k : ℕ} {Control : Type} [Finite Control]
   let encHIn := encPair encUnary encHMid
   have hhandler : IsOraclePPTOn encHIn (encPair encBits encUnary)
       (fun ⟨limit, req, q⟩ => sessionQueryHandler limit req q) := by
-    have hq := (IsOraclePPTOn.query_take' () (input := encHIn)
+    have hq := (IsOraclePPTOn.query_take () (input := encHIn)
       (request := fun p => p.2.1.2) (limit := fun p => p.1)
       ((ComputableInPolyTime.snd encUnary encHMid).fst'.snd')
-      (.fst encUnary encHMid)).map_with' (output := encPair encBits encUnary)
+      (.fst encUnary encHMid)).map_with (output := encPair encBits encUnary)
       (f := fun p ans => (ans, p.2.2 - 1))
       ((ComputableInPolyTime.snd encHIn encBits).prod
         (((ComputableInPolyTime.fst encHIn encBits).snd'.snd').unary_sub' (.const 1)))
@@ -753,11 +753,11 @@ theorem isOraclePPTOn_oneSessionStep {k : ℕ} {Control : Type} [Finite Control]
     (g := fun p : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit =>
       decide ((decide (p.2.1 = 0) || decide (p.2.2.1 = 0)) = true)) (fun _ => rfl)
   unfold oneSessionStep
-  apply IsOraclePPTOn.ite' hcond h2.isOraclePPTOn
+  apply IsOraclePPTOn.ite hcond h2.isOraclePPTOn
   have hp1 := ComputableInPolyTime.fst encIn (encPair encCfg encUnary)
   have hp2 := ComputableInPolyTime.snd encIn (encPair encCfg encUnary)
-  have hno := (hstep.preprocess'
-    (h1.prod (h2.snd'.snd'.prod h2.snd'.fst'))).map_with'
+  have hno := (hstep.preprocess
+    (h1.prod (h2.snd'.snd'.prod h2.snd'.fst'))).map_with
     (f := fun (p : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit)
       (r : FiniteConfig k Bool Control Unit × ℕ) => (p.2.1 - 1, r.2, r.1))
     ((hp1.snd'.fst'.unary_sub' (.const 1)).prod (hp2.snd'.prod hp2.fst'))
@@ -793,9 +793,9 @@ theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
     obtain ⟨h1, h2, h3⟩ := mem_support_oneSessionStep machine a.1
       (T := T₀ a) (by dsimp [T₀]; have := hst.1; omega) hst.2.2 hnext
     exact ⟨h1.trans hst.1, h2.trans hst.2.1, h3⟩
-  have hstep := (isOraclePPTOn_oneSessionStep machine).preprocess'
+  have hstep := (isOraclePPTOn_oneSessionStep machine).preprocess
     (((ComputableInPolyTime.fst encIn encSt).fst').prod (.snd encIn encSt))
-  have hiter := (IsOraclePPTOn.iterateWith_spec' (input := encIn) (stateEncoding := encSt)
+  have hiter := (IsOraclePPTOn.iterateWith_spec (input := encIn) (stateEncoding := encSt)
     (count := fun a => a.2.1) (initial := fun a => a.2)
     (step := fun a st => oneSessionStep machine a.1 st)
     ((ComputableInPolyTime.snd encUnary encSt).fst') (.snd encUnary encSt) hstep inv hbase hpres
@@ -815,7 +815,7 @@ theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
       dsimp only [encCfg] at hstlen
       rw [Nat.add_mul, show 4 * cf = 2 * (cf * 2) by omega, Nat.mul_assoc, Nat.mul_assoc]
       omega)).1
-  exact hiter.map' (output := encPair encUnary encCfg)
+  exact hiter.map (output := encPair encUnary encCfg)
     ((ComputableInPolyTime.fst encUnary (encPair encUnary encCfg)).prod
       ((ComputableInPolyTime.snd encUnary (encPair encUnary encCfg)).snd'))
 
@@ -893,11 +893,11 @@ theorem isPPTOn_finishSessionRun {k : ℕ} {Control : Type} [Finite Control]
   have h1 := ComputableInPolyTime.fst encUnary (encPair encUnary encCfg)
   have h2 := ComputableInPolyTime.snd encUnary (encPair encUnary encCfg)
   have hout := ComputableInPolyTime.finiteCfg_output.comp'
-    (ComputableTidilyInPolyTime.finiteConfig_tapes.computableInPolyTime.comp'
+    (ComputableInPolyTime.finiteConfig_tapes.comp'
       (.snd encUnary encCfg))
   have hrun := isPPTOn_runEmptyOracle
-    (((isOraclePPTOn_sessionStep machine).preprocess'
-      (h1.prod (h2.fst'.prod (h1.prod h2.snd')))).map' (output := encBits) hout)
+    (((isOraclePPTOn_sessionStep machine).preprocess
+      (h1.prod (h2.fst'.prod (h1.prod h2.snd')))).map (output := encBits) hout)
   exact (congrArg (IsPPTOn _ _) (by funext p; rfl)).mp hrun
 
 private theorem runSeq_sessionStep_one_add {k : ℕ} {Control : Type}

@@ -18,6 +18,7 @@ import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Data.Nat.CeilDiv
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # The PPZ algorithm on the randomized word RAM
@@ -383,7 +384,7 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
     obtain ⟨y₁, hy₁, -, hf₁, hm₁⟩ := decCounter_rename_spec hx.frame.zero_eq hx.frame.one_eq
       hx.bLen_eq (by rw [hx.bBase_eq]; exact hx.digits) (by rw [hx.bBase_eq]; exact hfit)
     replace hf₁ : y₁.regs sFound = 0 := by rw [hf₁]; split_ifs; rfl
-    have hz₁ : y₁.regs zero = 0 := (hy₁.regs_eq (by decide)).trans hx.frame.zero_eq
+    have hz₁ : y₁.regs zero = 0 := by regs_frame
     have hbody : ExecWithin w (ampBodyWith core) x (y₁.set flag 0)
         (9 * decSteps ds + 4 + 2) :=
       WP.execWithin (by refine WP.seq (WP.of_execWithin hy₁ ?_); wram_exec [hf₁, hz₁]; rfl)
@@ -411,14 +412,13 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
     have hv₁ : Nat.ofDigits 2 (decDigits ds) = j := by
       have := Schoening.ofDigits_decDigits hx.binary (by omega)
       omega
-    have hz₁ : y₁.regs zero = 0 := (hy₁.regs_eq (by decide)).trans hx.frame.zero_eq
+    have hz₁ : y₁.regs zero = 0 := by regs_frame
     have hfr₁ : RoundFrame φ C Tb y₁.mem y₁ :=
       hx.frame.of_exec_mem_lt (by decide) hy₁ fun a ha => hm₁ a (by omega)
     have hpar₁ : HoldsList (Tb + 2 * n) S y₁.mem :=
       hx.params.frame fun a _ ha => hm₁ a ha
-    have hb₁ : y₁.regs bBase = Tb + 2 * n + S.length :=
-      (hy₁.regs_eq (by decide)).trans hx.bBase_eq
-    have hl₁ : y₁.regs bLen = ds.length := (hy₁.regs_eq (by decide)).trans hx.bLen_eq
+    have hb₁ : y₁.regs bBase = Tb + 2 * n + S.length := by regs_frame
+    have hl₁ : y₁.regs bLen = ds.length := by regs_frame
     have hcf : ¬(Cond.eq sFound zero).Holds y₁ := by simp [Cond.holds_eq, hf₁, hz₁]
     -- one round
     have hcore' := (((hcore.law y₁.mem y₁ hfr₁ hpar₁).withPreserves hcore.preserves_bBase)
@@ -431,9 +431,8 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
       (c₂ := ram[ ⟪roundCheck⟫; if out = one then [ flag ← zero ] else [ flag ← one ] ])
       (Q := Q) hcore' fun y ⟨⟨⟨⟨hy, hyb⟩, hyB⟩, hyL⟩, _⟩ => by
         obtain ⟨z, hz, hzm, hfz, hzo⟩ := roundCheck_exec hw hT hy hyb
-        have hzB : z.regs bBase = Tb + 2 * n + S.length :=
-          (hz.regs_eq (by decide)).trans (hyB.trans hb₁)
-        have hzL : z.regs bLen = ds.length := (hz.regs_eq (by decide)).trans (hyL.trans hl₁)
+        have hzB : z.regs bBase = Tb + 2 * n + S.length := by regs_frame
+        have hzL : z.regs bLen = ds.length := by regs_frame
         refine WP.exists_execWithin (WP.seq (WP.of_execWithin hz ?_))
         by_cases he : φ.eval (assignmentAt y.mem Tb n) = true <;>
           simp only [he, Bool.false_eq_true, ↓reduceIte] at hzo <;>
@@ -707,13 +706,11 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
     (hw.of_le (by omega)) e (x.set iReg 0) (by wram_simp [hB]) (by wram_simp [he])
     (by wram_simp [hz]) (by wram_simp [ho]) (by wram_simp)
   simp only [Data.set_regs, Function.update_self, Nat.add_zero, Data.set_mem] at hm₁
-  have hr₁ {i : Fin 32} (hi : fillLoop.Preserves i) (hi' : i ≠ iReg) : y₁.regs i = x.regs i :=
-    (hy₁.regs_eq hi).trans (by simp [Function.update_of_ne hi'])
-  have hb₁ : y₁.regs bBase = B := (hr₁ (by decide) (by decide)).trans hB
-  have he₁ : y₁.regs eReg = e := (hr₁ (by decide) (by decide)).trans he
-  have ho₁ : y₁.regs one = 1 := (hr₁ (by decide) (by decide)).trans ho
-  have hc₁ : y₁.regs cReg = c := (hr₁ (by decide) (by decide)).trans hc
-  have hz₁ : y₁.regs zero = 0 := (hr₁ (by decide) (by decide)).trans hz
+  have hb₁ : y₁.regs bBase = B := by regs_frame
+  have he₁ : y₁.regs eReg = e := by regs_frame
+  have ho₁ : y₁.regs one = 1 := by regs_frame
+  have hc₁ : y₁.regs cReg = c := by regs_frame
+  have hz₁ : y₁.regs zero = 0 := by regs_frame
   refine WP.of_execWithin hy₁ ?_
   wram_exec [hb₁, he₁, ho₁, hc₁, hz₁]
   wram_call (mulAdd_rename_spec (w := w) (a := c) (cy := 0) (Bd := c)

@@ -870,10 +870,54 @@ theorem computableInPolyTime_plsPpadsSucc
     (hP₂ : ComputableInPolyTime P₂ (encPair enc encBits) encBits)
     (hS₂ : ComputableInPolyTime S₂ (encPair enc encBits) encBits) :
     ComputableInPolyTime (plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂) (encPair enc encBits) encBits := by
-  change ComputableInPolyTime (fun p => plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ p)
-    (encPair enc encBits) encBits
-  dsimp only [plsPpadsSucc, plsPpadsSuccCore]
-  fun_prop
+  have ha := ComputableInPolyTime.fst enc encBits
+  have hw := ComputableInPolyTime.snd enc encBits
+  have h₁ := hn₁.comp ha
+  have h₂ := hn₂.comp ha
+  have hm := ComputableInPolyTime.unary_add.comp (h₁.prod h₂)
+  have hx := ComputableInPolyTime.bitsTakeWithInput hw h₁
+  have htail := ComputableInPolyTime.bitsDropWithInput hw h₁
+  have hz := ComputableInPolyTime.bitsTakeWithInput htail hm
+  have hr := ComputableInPolyTime.bitsDropWithInput htail hm
+  have hT := binary_two_pow_pt hm
+  have hK := binary_two_pow_pt h₂
+  have hM := binary_sub' hT hK
+  have hα := ComputableInPolyTime.bitsBinaryValue.comp hz
+  have hk := ComputableInPolyTime.bitsBinaryValue.comp hr
+  have hrest := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend hz hr)
+  have hy := binaryWord_polyTime h₂ hα
+  have hNx := hN₁.comp (ha.prod hx)
+  have hstep := ComputableInPolyTime.binary_lt'
+    (hC₁.comp (ha.prod hNx)) (hC₁.comp (ha.prod hx))
+  have hnext := binaryWord_polyTime hm (binary_add' hk (ComputableInPolyTime.const 1))
+  have hshift := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend
+    (binaryWord_polyTime hm (binary_sub' hα (ComputableInPolyTime.const 1))) hnext)
+  have hactive := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend
+    (binaryWord_polyTime hm (binary_sub'
+      (ComputableInPolyTime.bitsBinaryValue.comp (hS₂.comp (ha.prod hy)))
+      (ComputableInPolyTime.const 1))) hnext)
+  have hzero := (ComputableInPolyTime.bitsReplicate false).comp h₂
+  have hjump := ComputableInPolyTime.bitsAppend hNx (ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend hx hy) ((ComputableInPolyTime.bitsReplicate false).comp hm))
+  have hin := hasIn_pt hn₂ hP₂ hS₂ ha hy
+  have hout := hasOut_pt hn₂ hP₂ hS₂ ha hy
+  have hisolated := ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.bool_not.comp (hy.decide_eq' hzero))
+    (ComputableInPolyTime.bool_not.comp hin)
+  have hresult := ComputableInPolyTime.ite_decide hstep
+    (ComputableInPolyTime.ite_decide (ComputableInPolyTime.binary_lt' hk hM)
+      (ComputableInPolyTime.ite_decide (ComputableInPolyTime.binary_lt' hα hK)
+        (hout.ite hactive (hisolated.ite hshift hrest))
+        (ComputableInPolyTime.ite_decide
+          (ComputableInPolyTime.binary_lt' hα (binary_sub' hT hk)) hshift hrest))
+      ((ComputableInPolyTime.bool_and' (hk.decide_eq' hM)
+        (ComputableInPolyTime.binary_lt' hα hK)).ite hjump hrest)) hrest
+  change ComputableInPolyTime (fun p => plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
+  convert hresult using 1
+  funext p
+  simp only [plsPpadsSucc, plsPpadsSuccCore, Function.comp_def, zeroVertex,
+    decide_eq_true_eq, List.append_assoc]
+  split_ifs <;> first | rfl | contradiction
 
 theorem computableInPolyTime_plsPpadsPred
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)
@@ -883,10 +927,52 @@ theorem computableInPolyTime_plsPpadsPred
     (hP₂ : ComputableInPolyTime P₂ (encPair enc encBits) encBits)
     (hS₂ : ComputableInPolyTime S₂ (encPair enc encBits) encBits) :
     ComputableInPolyTime (plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂) (encPair enc encBits) encBits := by
-  change ComputableInPolyTime (fun p => plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂ p)
-    (encPair enc encBits) encBits
-  dsimp only [plsPpadsPred, plsPpadsPredCore]
-  fun_prop
+  have ha := ComputableInPolyTime.fst enc encBits
+  have hw := ComputableInPolyTime.snd enc encBits
+  have h₁ := hn₁.comp ha
+  have h₂ := hn₂.comp ha
+  have hm := ComputableInPolyTime.unary_add.comp (h₁.prod h₂)
+  have hx := ComputableInPolyTime.bitsTakeWithInput hw h₁
+  have htail := ComputableInPolyTime.bitsDropWithInput hw h₁
+  have hz := ComputableInPolyTime.bitsTakeWithInput htail hm
+  have hr := ComputableInPolyTime.bitsDropWithInput htail hm
+  have hT := binary_two_pow_pt hm
+  have hK := binary_two_pow_pt h₂
+  have hM := binary_sub' hT hK
+  have hα := ComputableInPolyTime.bitsBinaryValue.comp hz
+  have hk := ComputableInPolyTime.bitsBinaryValue.comp hr
+  have hrest := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend hz hr)
+  have hx₀ := ComputableInPolyTime.bitsTakeWithInput hz h₁
+  have hi₀ := ComputableInPolyTime.bitsDropWithInput hz h₁
+  have hNx₀ := hN₁.comp (ha.prod hx₀)
+  have hstep₀ := ComputableInPolyTime.binary_lt'
+    (hC₁.comp (ha.prod hNx₀)) (hC₁.comp (ha.prod hx₀))
+  have hNx := hN₁.comp (ha.prod hx)
+  have hstep := ComputableInPolyTime.binary_lt'
+    (hC₁.comp (ha.prod hNx)) (hC₁.comp (ha.prod hx))
+  have hαnext := binary_add' hα (ComputableInPolyTime.const 1)
+  have hy := binaryWord_polyTime h₂ hαnext
+  have hprev := binaryWord_polyTime hm (binary_sub' hk (ComputableInPolyTime.const 1))
+  have hshift := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend
+    (binaryWord_polyTime hm hαnext) hprev)
+  have hactive := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend
+    (binaryWord_polyTime hm
+      (ComputableInPolyTime.bitsBinaryValue.comp (hP₂.comp (ha.prod hy)))) hprev)
+  have hjump := ComputableInPolyTime.bitsAppend hx₀ (ComputableInPolyTime.bitsAppend
+    (binaryWord_polyTime hm (ComputableInPolyTime.bitsBinaryValue.comp hi₀))
+    (binaryWord_polyTime hm hM))
+  have hin := hasIn_pt hn₂ hP₂ hS₂ ha hy
+  have hout := hasOut_pt hn₂ hP₂ hS₂ ha hy
+  have hresult := ComputableInPolyTime.ite_decide
+    (hk.decide_eq' (ComputableInPolyTime.const 0))
+    ((ComputableInPolyTime.bool_and' hstep₀ (hNx₀.decide_eq' hx)).ite hjump hrest)
+    ((ComputableInPolyTime.bool_and' (binary_le_pt hk hM) hstep).ite
+      (ComputableInPolyTime.ite_decide (ComputableInPolyTime.binary_lt' hαnext hK)
+        (hin.ite hactive ((ComputableInPolyTime.bool_not.comp hout).ite hshift hrest))
+        (ComputableInPolyTime.ite_decide
+          (ComputableInPolyTime.binary_lt' hα (binary_sub' hT hk)) hshift hrest)) hrest)
+  change ComputableInPolyTime (fun p => plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
+  simpa only [plsPpadsPred, plsPpadsPredCore, Function.comp_def, decide_eq_true_eq] using hresult
 
 theorem computableInPolyTime_plsPpadsPotential
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)
@@ -894,10 +980,7 @@ theorem computableInPolyTime_plsPpadsPotential
     (hn₂ : ComputableInPolyTime n₂ enc encUnary)
     (hB : ComputableInPolyTime B enc encNat) :
     ComputableInPolyTime (plsPpadsPotential n₁ C₁ n₂ B) (encPair enc encBits) encNat := by
-  change ComputableInPolyTime (fun p => plsPpadsPotential n₁ C₁ n₂ B p)
-    (encPair enc encBits) encNat
-  dsimp only [plsPpadsPotential]
-  fun_prop
+  fun_prop [plsPpadsPotential]
 
 end Computability
 

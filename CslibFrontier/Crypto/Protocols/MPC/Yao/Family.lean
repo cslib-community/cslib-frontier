@@ -22,15 +22,16 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
-# Yao's protocol over a garbling scheme, as a protocol family
+# Yao's protocol over a garbling scheme in the ideal OT hybrid model
 
-Yao's two-party protocol [Yao1986] in the form of Protocol 2 of Lindell and Pinkas
-[LindellPinkas2009] (§4.2, p. 15), run over any garbling scheme `G : Garbling.Scheme Fn` of
+This module defines the protocol family `Yao.family G` (`Cslib.Crypto.Protocols.MPC.ProtocolFamily`)
+running Yao's two-party protocol [Yao1986] in the ideal `batchOTWorld` (`batchOTSpec`)
+oblivious-transfer hybrid model (#6045), rather than composing with concrete 1-out-of-2
+oblivious-transfer executions as in Protocol 2 of Lindell and Pinkas [LindellPinkas2009] (ePrint
+2004/175, §4.2, p. 15). It is parameterized over any garbling scheme `G : Garbling.Scheme Fn` of
 Bellare, Hoang and Rogaway [BellareHoangRogaway2012] whose input encoding is `projectiveEncode`:
 projective in the sense of §3.2 (p. 8), in the word layout of point-and-permute and half-gates
-garbling, with `2 n` tokens of one width. The protocol runs in the hybrid model of one ideal
-batched oblivious transfer (`batchOTSpec`). It is the protocol family `Yao.family G`
-(`Cslib.Crypto.Protocols.MPC.ProtocolFamily`).
+garbling, with `2 n` tokens of one width.
 
 The public parameters `Yao.Params G` are a function description `fn`, known to both parties, and
 the number `garblerLen` of its input bits held by the garbler (party `0`); the evaluator (party
@@ -53,18 +54,19 @@ which is the functionality's output in every run at a parameter `n ≥ 1` when `
 efficiency predicates of `ProtocolFamily.SemiHonestSecure`. A corrupted garbler sees its input, its
 coins and the output: `Yao.garblerSim` draws fresh coins, matches its real view at every `n ≥ 1`
 (`Yao.idealJoint_garblerSim`), and is PPT when `G` computes its coin count in polynomial time
-(`Yao.isPPT_garblerSim`). So the family is semi-honest secure against the garbler
-(`Yao.semiHonestSecure_garbler`), with no assumption. This is a step towards Theorem 7 of Lindell
-and Pinkas, not that theorem or its Case 1 (p. 16). Case 1 simulates the garbler's view of the
-oblivious-transfer protocol and then uses correctness (Claim 6); in the hybrid model the garbler's
-view of the transfer is empty, so only the correctness step remains. `Yao.realJoint_garbler` and
-`Yao.realJoint_evaluator` give the real joint laws from the garbler's coins.
+(`Yao.isPPT_garblerSim`). So the family is semi-honest secure against the garbler in the
+`batchOTWorld` hybrid (`Yao.hybridSemiHonestSecure_garbler`), with no assumption. This is a step
+towards Theorem 7 of Lindell and Pinkas (#6045), not that theorem or its Case 1 (p. 16). Case 1
+simulates the garbler's view of the oblivious-transfer protocol and then uses correctness (Claim
+6); in the hybrid model the garbler's view of the transfer is empty, so only the correctness step
+remains. `Yao.realJoint_garbler` and `Yao.realJoint_evaluator` give the real joint laws from the
+garbler's coins.
 
 ## Comparison with [LindellPinkas2009]
 
 * **Oblivious transfer.** The transfers are the ideal `batchOTSpec`, one call for all of the
   evaluator's bits; Theorem 7 (p. 15) assumes an oblivious transfer protocol, run for each bit.
-  Composition with a protocol is not formalized here.
+  Composition with a protocol is not formalized here (#6045).
 * **Notion.** `ProtocolFamily.SemiHonestSecure` has uniform PPT environments that choose the inputs
   after seeing the public parameters, drawn from a setup law; Definition 1 (§2.1, p. 5) quantifies
   over all inputs against non-uniform distinguishers, with no setup.
@@ -96,8 +98,8 @@ view of the transfer is empty, so only the correctness step remains. `Yao.realJo
 * `Cslib.Crypto.Protocols.MPC.Yao.idealJoint_garblerSim`,
   `Cslib.Crypto.Protocols.MPC.Yao.isPPT_garblerSim`: the garbler's simulator is exact from `n = 1`
   on and PPT.
-* `Cslib.Crypto.Protocols.MPC.Yao.semiHonestSecure_garbler`: semi-honest security against a
-  corrupted garbler, a step towards Theorem 7 of [LindellPinkas2009].
+* `Cslib.Crypto.Protocols.MPC.Yao.hybridSemiHonestSecure_garbler`: corrupted-garbler step in the
+  ideal `batchOTWorld` hybrid (#6045) towards Theorem 7 of [LindellPinkas2009].
 
 ## References
 
@@ -675,17 +677,18 @@ theorem isPPT_garblerSim {encFn : Fn ↪ List Bool}
   refine Eq.trans ?_ ((encoding G encFn).view.encCoalition_singleton n c 0 _).symm
   rfl
 
-/-- **Semi-honest security against a corrupted garbler in the oblivious-transfer hybrid model**, a
-step towards Theorem 7 of [LindellPinkas2009] (§4.2, p. 15), not that theorem or its Case 1
-(p. 16). For every setup law of the public parameters, when `G` is correct, its encoding is
-`projectiveEncode` and its coin count is computed in polynomial time, the PPT simulator family
-`garblerSim` makes the real and ideal games equal at every parameter `n ≥ 1`; no computational
-assumption is needed. Case 1 simulates the garbler's view of the oblivious-transfer protocol and
-then uses correctness; with the ideal `batchOTSpec` the garbler's view of the transfer is empty, so
-only the correctness step remains. The other deviations are those of the module documentation:
-uniform environments that choose the inputs, a setup law, and the garbling scheme as a parameter,
-correct from `n = 1` on. -/
-theorem semiHonestSecure_garbler {encFn : Fn ↪ List Bool}
+/-- Semi-honest security of `Yao.family G` against a corrupted garbler in the ideal `batchOTWorld`
+oblivious-transfer hybrid model (#6045), with no computational assumption: a step towards Theorem 7
+of [LindellPinkas2009] (ePrint 2004/175, §4.2, p. 15), not plain-model Theorem 7 or its Case 1
+(p. 16), which compose with a concrete semi-honest 1-out-of-2 oblivious-transfer protocol. For
+every setup law of the public parameters, when `G` is correct, its encoding is `projectiveEncode`
+and its coin count is computed in polynomial time, the PPT simulator family `garblerSim` makes the
+real and ideal games equal at every parameter `n ≥ 1`. Case 1 simulates the garbler's view of the
+oblivious-transfer protocol and then uses correctness; with the ideal `batchOTWorld` (`batchOTSpec`)
+the garbler's view of the transfer is empty, so only the correctness step remains. The other
+deviations are those of the module documentation: uniform environments that choose the inputs, a
+setup law, and the garbling scheme as a parameter, correct from `n = 1` on. -/
+theorem hybridSemiHonestSecure_garbler {encFn : Fn ↪ List Bool}
     (hcoins : ComputableInPolyTime (fun (k, f) => G.coins k f) (encPair encUnary encFn) encUnary)
     (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) (setup : ℕ → PMF (Params G)) :
     (family G).SemiHonestSecure setup {0} (encoding G encFn) := by

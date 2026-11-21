@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Explicit
 import CslibFrontier.Foundations.Data.List.Boole
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.List.GetD
 
 /-!
@@ -153,7 +154,7 @@ theorem contraction_append_pairs {R : Type*} [CommSemiring R] (W : ℕ)
       obtain ⟨e, he⟩ := e
       simp only [dup]
       rcases Nat.even_or_odd' e with ⟨w, rfl | rfl⟩
-      · exact congrArg x (Fin.ext (by change 2 * (2 * w / 2) = 2 * w; omega))
+      · exact congrArg x (by fin_index)
       · refine (congrArg x (Fin.ext ?_)).trans (h ⟨w, by omega⟩)
         change 2 * ((2 * w + 1) / 2) = 2 * w
         omega

@@ -12,9 +12,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Ba
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Append
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelAppend
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.ConditionalMachine
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Foundations.Data.List.Fold
 
 /-!
@@ -29,8 +29,8 @@ logarithmic space, as are the projections of pairs.
 
 Concatenating or pairing two logspace functions of the same input runs both machines one after the
 other; the work space is the sum of the two
-(`Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.append`). Case distinctions run the condition
-test and then the selected branch (`Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.ite`).
+(`Turing.MultiTapeTM.ComputesTidilyInTimeAndSpace.append`). Case distinctions run the condition
+test and then the selected branch (`Turing.MultiTapeTM.Internal.conditional`).
 Together with word concatenation, these give logspace operations on options, lists, bit words, and
 unary numbers, as well as bounded-count batch evaluation (`map_range_const`, `map_range_of_le`,
 `mapToBits_range_const`, `mapToBits_range_of_le`).
@@ -136,35 +136,43 @@ theorem ite_subtype {encC : Bool ↪ List Bool} {c : α → Bool} {f g : α → 
   obtain ⟨tc, cc, hc⟩ := hc
   obtain ⟨tf, cf, hf⟩ := hf
   obtain ⟨tg, cg, hg⟩ := hg
-  obtain ⟨dc, hc⟩ := hc.exists_computableTidilyInTimeAndSpace
-  obtain ⟨df, hf⟩ := hf.exists_computableTidilyInTimeAndSpace
-  obtain ⟨dg, hg⟩ := hg.exists_computableTidilyInTimeAndSpace
+  obtain ⟨dc, _, kc, Qc, hfinc, tmc, hc⟩ := Internal.NormalForm.exactBounds hc
+  let := hfinc
+  obtain ⟨df, _, kf, Qf, hfinf, tmf, hf⟩ := Internal.NormalForm.exactBounds hf
+  let := hfinf
+  obtain ⟨dg, _, kg, Qg, hfing, tmg, hg⟩ := Internal.NormalForm.exactBounds hg
+  let := hfing
   let tf' (a : α) : ℕ :=
     if h : c a = true then
-      2 * tf ⟨a, h⟩ + 3 * (cf * ((encIn a).length.log2 + 1)) + df
+      df * (tf ⟨a, h⟩ + 1)
     else 0
   let sf' (a : α) : ℕ := df * (cf * ((encIn a).length.log2 + 1) + 1)
   let tg' (a : α) : ℕ :=
     if h : c a = false then
-      2 * tg ⟨a, h⟩ + 3 * (cg * ((encIn a).length.log2 + 1)) + dg
+      dg * (tg ⟨a, h⟩ + 1)
     else 0
   let sg' (a : α) : ℕ := dg * (cg * ((encIn a).length.log2 + 1) + 1)
-  have hf' : ComputableTidilyInTimeAndSpace (f ∘ Subtype.val)
-      ((Function.Embedding.subtype (c · = true)).trans encIn) encOut
-      (tf' ∘ Subtype.val) (sf' ∘ Subtype.val) :=
-    hf.mono (fun x => by simp [tf', x.2]) fun _ => le_rfl
-  have hg' : ComputableTidilyInTimeAndSpace (g ∘ Subtype.val)
-      ((Function.Embedding.subtype (c · = false)).trans encIn) encOut
-      (tg' ∘ Subtype.val) (sg' ∘ Subtype.val) :=
-    hg.mono (fun x => by simp [tg', x.2]) fun _ => le_rfl
-  obtain ⟨k, h⟩ := hc.ite hf' hg'
-  refine ⟨_, dc * (cc + 1) + df * (cf + 1) + dg * (cg + 1) + k,
-    h.computableInTimeAndSpace.mono (fun _ => le_rfl) fun a => ?_⟩
+  have hf' (x : {a // c a = true}) : tmf.ComputesTidilyInTimeAndSpace
+      (encIn x) (encOut (f x)) (tf' x) (sf' x) := by
+    rcases x with ⟨a, ha⟩
+    simpa only [tf', sf', ha, ↓reduceDIte, Function.comp_apply,
+      Function.Embedding.trans_apply, Function.Embedding.subtype_apply] using hf ⟨a, ha⟩
+  have hg' (x : {a // c a = false}) : tmg.ComputesTidilyInTimeAndSpace
+      (encIn x) (encOut (g x)) (tg' x) (sg' x) := by
+    rcases x with ⟨a, ha⟩
+    simpa only [tg', sg', ha, ↓reduceDIte, Function.comp_apply,
+      Function.Embedding.trans_apply, Function.Embedding.subtype_apply] using hg ⟨a, ha⟩
+  obtain ⟨k, km, Qm, hfinm, tm, h⟩ := Internal.conditional hc hf' hg'
+  refine ⟨(fun a => dc * (tc a + 1) + (if c a then tf' a else tg' a) + k),
+    dc * (cc + 1) + df * (cf + 1) + dg * (cg + 1) + k,
+    km, Qm, hfinm, tm, ?_⟩
+  refine ComputesFunInTimeAndSpace.mono (fun a => (h a).computesInTimeAndSpace)
+    (fun _ => le_rfl) ?_
+  intro a
   simp only [sf', sg']
   generalize Nat.log2 (encIn a).length = l
-  cases c a <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
-    nlinarith [Nat.zero_le l, Nat.zero_le (dc * cc * l), Nat.zero_le (df * cf * l),
-      Nat.zero_le (dg * cg * l)]
+  cases c a <;> simp only [Bool.false_eq_true, ↓reduceIte, Nat.mul_add, Nat.add_mul,
+    Nat.mul_one, Nat.mul_assoc] <;> omega
 
 /-- **Case distinction**: if `c`, `f` and `g` are computable in logarithmic space on a common
 input, so is `fun a => if c a then f a else g a`. -/
@@ -196,13 +204,20 @@ theorem append {f₁ : α → β₁} {f₂ : α → β₂} {g : α → β}
     ComputableInLogSpace g encIn encOut := by
   obtain ⟨t₁, c₁, h₁⟩ := h₁
   obtain ⟨t₂, c₂, h₂⟩ := h₂
-  obtain ⟨d₁, h₁⟩ := h₁.exists_computableTidilyInTimeAndSpace
-  obtain ⟨d₂, h₂⟩ := h₂.exists_computableTidilyInTimeAndSpace
-  obtain ⟨k, h⟩ := h₁.append h₂ hg
-  refine ⟨_, d₁ * (c₁ + 1) + d₂ * (c₂ + 1) + k, h.computableInTimeAndSpace.mono
-    (fun _ => le_rfl) fun a => ?_⟩
+  obtain ⟨d₁, _, k₁, Q₁, hfin₁, tm₁, h₁⟩ := Internal.NormalForm.exactBounds h₁
+  obtain ⟨d₂, _, k₂, Q₂, hfin₂, tm₂, h₂⟩ := Internal.NormalForm.exactBounds h₂
+  let := hfin₁
+  let := hfin₂
+  refine ⟨(fun a => d₁ * (t₁ a + 1) + d₂ * (t₂ a + 1)),
+    d₁ * (c₁ + 1) + d₂ * (c₂ + 1) + 2 * max k₁ k₂,
+    max k₁ k₂, Q₁ ⊕ Q₂, inferInstance, appendTM tm₁ tm₂, ?_⟩
+  have h a := ((h₁ a).append (h₂ a)).computesInTimeAndSpace
+  simp only [← hg] at h
+  refine ComputesFunInTimeAndSpace.mono h (fun _ => le_rfl) ?_
+  intro a
   generalize Nat.log2 (encIn a).length = l
-  nlinarith [Nat.zero_le l, Nat.zero_le (d₁ * c₁ * l), Nat.zero_le (d₂ * c₂ * l)]
+  simp only [Nat.mul_add, Nat.add_mul, Nat.mul_one, Nat.mul_assoc]
+  omega
 
 /-- The first component of a pair. -/
 theorem fst (enc₁ : β₁ ↪ List Bool) (enc₂ : β₂ ↪ List Bool) :

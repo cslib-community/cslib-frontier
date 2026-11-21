@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Data.BitString.Parity
 import CslibFrontier.Computability.Circuit.Boolean.Hastad
 import CslibFrontier.Computability.Languages.Slice
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # AC⁰ and parity
@@ -86,6 +87,7 @@ variable {φ} [φ.Preserves interpretation I]
   cases b <;> rfl
 
 /-- A constant has depth at most one. -/
+@[circuit_bound]
 theorem depth_constCircuit_le (b : Bool) : (constCircuit (n := n) φ b).depth ≤ 1 := by
   cases b <;> simp [constCircuit]
 
@@ -97,20 +99,19 @@ theorem depth_constCircuit_le (b : Bool) : (constCircuit (n := n) φ b).depth �
 
 /-- Appending a negation gate adds `1` to the size of `C`. -/
 @[simp] theorem size_notCircuit (C : Circuit σ n 1) : (notCircuit φ C).size = C.size + 1 := by
-  rw [notCircuit, Circuit.size_comp, Circuit.size_mapOp, Circuit.size_oneGate, add_comm]
+  simp only [circuit_simps, notCircuit]
 
 /-- A negation adds one to the depth. -/
+@[circuit_bound]
 theorem depth_notCircuit_le (C : Circuit σ n 1) : (notCircuit φ C).depth ≤ C.depth + 1 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_mapOp, Circuit.depth_oneGate, add_comm]
+  circuit_bound [notCircuit]
 
 /-- The gate of `binCircuit φ op h C D` applied to the outputs of `C` and `D`. -/
 theorem eval_binCircuit (op : Op) (h : op.arity = 2) (C D : Circuit σ n 1) (x : BitString n)
     (j : Fin 1) :
     (binCircuit φ op h C D).eval I x j =
       interpretation op fun a => ![C.eval I x 0, D.eval I x 0] (Fin.cast h a) := by
-  rw [binCircuit, Circuit.eval_comp, Circuit.eval_mapOp (I := interpretation),
-    Circuit.eval_oneGate, Circuit.eval_append]
+  simp only [circuit_simps, binCircuit, Circuit.eval_mapOp (I := interpretation)]
   congr 1 with a : 1
   refine Fin.cases ?_ (fun b => ?_) (Fin.cast h a)
   · exact Fin.append_left _ _ 0
@@ -134,15 +135,13 @@ of `C` and `D`. -/
 /-- Combining `C` and `D` with a binary gate has size `C.size + D.size + 1`. -/
 @[simp] theorem size_binCircuit (op : Op) (h : op.arity = 2) (C D : Circuit σ n 1) :
     (binCircuit φ op h C D).size = C.size + D.size + 1 := by
-  rw [binCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_mapOp,
-    Circuit.size_oneGate, add_comm]
+  simp only [circuit_simps, binCircuit]
 
 /-- A gate of two arguments adds one to the larger depth. -/
+@[circuit_bound]
 theorem depth_binCircuit_le (op : Op) (h : op.arity = 2) (C D : Circuit σ n 1) :
     (binCircuit φ op h C D).depth ≤ max C.depth D.depth + 1 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_mapOp, Circuit.depth_oneGate, add_comm]
-  exact Nat.add_le_add_right (Circuit.depth_append_le C D) 1
+  circuit_bound [binCircuit]
 
 end Unbounded
 

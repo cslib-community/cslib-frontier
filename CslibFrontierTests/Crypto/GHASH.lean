@@ -267,8 +267,9 @@ example (e : F ≃+ BitString 128) {a b : ℕ} (ha : a < 2 ^ 64) (hb : b < 2 ^ 6
       omega)
 
 open Cslib.Crypto.Protocols.CarterWegman in
--- The caller: Theorem 7.10 for the tag layer of GCM with a truly random pad function. A forger
--- choosing its nonces, never repeating one, wins with probability at most `ε + 2 ^ (-128)`.
+-- The caller: the random-function step of the proof of Theorem 7.10 for the tag layer of GCM, with
+-- a truly random pad function. A forger choosing its nonces, never repeating one, wins with
+-- probability at most `ε + 2 ^ (-128)`.
 example (e : F ≃+ BitString 128) {X N : Type} [DecidableEq X] [Fintype N] [DecidableEq N]
     {ℓ : ℕ} (d c : X → List Bool) (hinj : ∀ x x', d x = d x' → c x = c x' → x = x')
     (hd : ∀ x, (d x).length < 2 ^ 64) (hc : ∀ x, (c x).length < 2 ^ 64)

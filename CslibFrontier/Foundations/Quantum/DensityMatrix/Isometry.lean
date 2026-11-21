@@ -40,7 +40,7 @@ public section
 namespace Cslib.Quantum
 
 open Matrix
-open scoped Kronecker
+open scoped Kronecker ComplexOrder
 
 variable {ι ι' κ : Type*} [Fintype ι]
 
@@ -62,6 +62,20 @@ theorem densityConj_mul {ι'' : Type*} [Fintype ι'] (U : Matrix ι'' ι' ℂ)
     (V : Matrix ι' ι ℂ) (ρ : Matrix ι ι ℂ) :
     densityConj (U * V) ρ = densityConj U (densityConj V ρ) := by
   simp only [densityConj_apply, conjTranspose_mul, Matrix.mul_assoc]
+
+/-- Conjugating a positive matrix by the difference of two isometries gives a matrix
+with at most four times the original trace, including on subnormalized measurement branches. -/
+theorem trace_densityConj_sub_le {ι ι' : Type*} [Fintype ι] [Fintype ι'] [DecidableEq ι]
+    {U V : Matrix ι' ι ℂ} (hu : Uᴴ * U = 1) (hv : Vᴴ * V = 1)
+    {ρ : Matrix ι ι ℂ} (hρ : ρ.PosSemidef) :
+    (densityConj (U - V) ρ).trace.re ≤ 4 * ρ.trace.re := by
+  have pos := (Complex.nonneg_iff.mp (hρ.mul_mul_conjTranspose_same (U + V)).trace_nonneg).1
+  have traceU : (U * ρ * Uᴴ).trace = ρ.trace := by rw [trace_mul_cycle, hu, one_mul]
+  have traceV : (V * ρ * Vᴴ).trace = ρ.trace := by rw [trace_mul_cycle, hv, one_mul]
+  simp only [densityConj_apply, conjTranspose_sub, conjTranspose_add, Matrix.sub_mul,
+    Matrix.mul_sub, Matrix.add_mul, Matrix.mul_add, trace_add, trace_sub, traceU, traceV,
+    Complex.add_re, Complex.sub_re] at pos ⊢
+  linarith
 
 /-- The identity matrix leaves an arbitrary state operator unchanged. -/
 @[simp] theorem densityConj_one [DecidableEq ι] (ρ : Matrix ι ι ℂ) :

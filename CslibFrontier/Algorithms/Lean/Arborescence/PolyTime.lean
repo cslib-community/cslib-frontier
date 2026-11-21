@@ -723,15 +723,18 @@ private theorem computableInPolyTime_findCycleList :
       (encPair (encPair encUnary (encList encUnary)) encUnary) := by fun_prop
   exact bool_and' (by fun_prop) (computableInPolyTime_hasCycleFromList.comp hcargs)
 
+private theorem workVertexCount_polyTime :
+    ComputableInPolyTime (fun w : ContractWork => w.state.adj.length) encContractWork encUnary :=
+  (length_list (encList encBool)).comp
+    (encContractState_adj_polyTime <| encContractWork_state_polyTime id')
+
 private theorem computableInPolyTime_cycleMaskWork :
     ComputableInPolyTime
       (fun w : ContractWork => cycleMaskList w.state.adj.length w.parent w.rep)
       encContractWork (encList encBool) := by
   unfold cycleMaskList
-  refine mapWithInput (range.comp (by fun_prop)) ?_
-  have hlen2 : ComputableInPolyTime (fun q : ContractWork × ℕ => q.1.state.adj.length)
-      (encPair encContractWork encUnary) encUnary := by fun_prop
-  refine anyWithInput (range.comp hlen2) ?_
+  refine mapWithInput (range.comp workVertexCount_polyTime) ?_
+  refine anyWithInput (range.comp (workVertexCount_polyTime.comp (fst _ _))) ?_
   have hrargs : ComputableInPolyTime
       (fun r : (ContractWork × ℕ) × ℕ => ((r.1.1.parent, r.1.1.rep), r.2))
       (encPair (encPair encContractWork encUnary) encUnary)
@@ -748,7 +751,7 @@ private theorem computableInPolyTime_otherCycleCostWork :
         otherCycleCostList w.state.adj.length w.state.cost w.parent w.inCycle)
       encContractWork (encList encIntBin) := by
   unfold otherCycleCostList
-  refine mapWithInput (range.comp (by fun_prop)) ?_
+  refine mapWithInput (range.comp workVertexCount_polyTime) ?_
   have hcond : ComputableInPolyTime
       (fun q : ContractWork × ℕ => q.1.inCycle.getD q.2 false)
       (encPair encContractWork encUnary) encBool := by fun_prop
@@ -759,7 +762,9 @@ private theorem computableInPolyTime_otherCycleCostWork :
           costAt q.1.state.cost y (q.1.parent.getD y 0)).sum)
       (encPair encContractWork encUnary) encIntBin := by
     refine intBin_sum.comp ?_
-    exact mapWithInput (filterWithInput (range.comp (by fun_prop)) (by fun_prop)) (by fun_prop)
+    exact mapWithInput
+      (filterWithInput (range.comp (workVertexCount_polyTime.comp (fst _ _))) (by fun_prop))
+      (by fun_prop)
   exact ite hcond hsum (const 0)
 
 private theorem computableInPolyTime_bestEntryWork :
@@ -768,12 +773,13 @@ private theorem computableInPolyTime_bestEntryWork :
         bestEntryList w.state.adj.length w.state.adj w.state.cost w.inCycle)
       encContractWork (encList (encOption encUnary)) := by
   unfold bestEntryList
-  refine mapWithInput (range.comp (by fun_prop)) ?_
+  refine mapWithInput (range.comp workVertexCount_polyTime) ?_
   refine computableInPolyTime_argMinRange (encPar := encPair encContractWork encUnary)
     (par := fun q => q) (bound := fun q => q.1.state.adj.length)
     (pred := fun par y => par.1.inCycle.getD y false && adjAt par.1.state.adj par.2 y)
     (key := fun par y => costAt par.1.state.cost par.2 y)
-    (id' (encIn := encPair encContractWork encUnary)) (by fun_prop) (by fun_prop) (by fun_prop)
+    (id' (encIn := encPair encContractWork encUnary)) (workVertexCount_polyTime.comp (fst _ _))
+    (by fun_prop) (by fun_prop)
 
 private theorem computableInPolyTime_bestExitWork :
     ComputableInPolyTime
@@ -781,12 +787,13 @@ private theorem computableInPolyTime_bestExitWork :
         bestExitList w.state.adj.length w.state.adj w.state.cost w.inCycle w.other)
       encContractWork (encList (encOption encUnary)) := by
   unfold bestExitList
-  refine mapWithInput (range.comp (by fun_prop)) ?_
+  refine mapWithInput (range.comp workVertexCount_polyTime) ?_
   refine computableInPolyTime_argMinRange (encPar := encPair encContractWork encUnary)
     (par := fun q => q) (bound := fun q => q.1.state.adj.length)
     (pred := fun par x => par.1.inCycle.getD x false && adjAt par.1.state.adj x par.2)
     (key := fun par x => costAt par.1.state.cost x par.2 + par.1.other.getD x 0)
-    (id' (encIn := encPair encContractWork encUnary)) (by fun_prop) (by fun_prop) (by fun_prop)
+    (id' (encIn := encPair encContractWork encUnary)) (workVertexCount_polyTime.comp (fst _ _))
+    (by fun_prop) (by fun_prop)
 
 private theorem computableInPolyTime_contractAdjWork :
     ComputableInPolyTime
@@ -795,8 +802,8 @@ private theorem computableInPolyTime_contractAdjWork :
           w.rep w.state.root)
       encContractWork (encList (encList encBool)) := by
   unfold contractAdjList
-  refine mapWithInput (range.comp (by fun_prop)) ?_
-  refine mapWithInput (range.comp (by fun_prop)) ?_
+  refine mapWithInput (range.comp workVertexCount_polyTime) ?_
+  refine mapWithInput (range.comp (workVertexCount_polyTime.comp (fst _ _))) ?_
   fun_prop
 
 private theorem computableInPolyTime_contractCostWork :
@@ -806,8 +813,8 @@ private theorem computableInPolyTime_contractCostWork :
           w.bestExit w.rep)
       encContractWork (encList (encList encIntBin)) := by
   unfold contractCostList
-  refine mapWithInput (range.comp (by fun_prop)) ?_
-  refine mapWithInput (range.comp (by fun_prop)) ?_
+  refine mapWithInput (range.comp workVertexCount_polyTime) ?_
+  refine mapWithInput (range.comp (workVertexCount_polyTime.comp (fst _ _))) ?_
   fun_prop
 
 private theorem computableInPolyTime_contractFromParent :

@@ -49,10 +49,7 @@ theorem polynomiallyBounded_clog_two {f : ℕ → ℕ} (hf : PolynomiallyBounded
 theorem polynomiallyBounded_two_pow_mul_log (c : ℕ) :
     PolynomiallyBounded fun n => 2 ^ (c * (Nat.log 2 n + 1)) := by
   refine polynomiallyBounded_iff_le.2 ⟨2 ^ c, c, fun n => ?_⟩
-  have h : 2 ^ Nat.log 2 n ≤ n + 1 := by
-    rcases Nat.eq_zero_or_pos n with rfl | hn
-    · simp
-    · exact (Nat.pow_log_le_self 2 hn.ne').trans (Nat.le_succ n)
+  have h := Nat.pow_log_le_add_one 2 n
   calc 2 ^ (c * (Nat.log 2 n + 1)) = 2 ^ c * (2 ^ Nat.log 2 n) ^ c := by
         rw [mul_add, mul_one, pow_add, mul_comm c, pow_mul, mul_comm]
     _ ≤ 2 ^ c * (n + 1) ^ c := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left h c)
