@@ -53,6 +53,23 @@ example : runTop G none (State.init G none none) [.red D setX0 (some []) none] =
     some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false, none, none, []⟩ := by
   decide
 
+/-! ### Promoting to the core -/
+
+-- `core id 1` on the input constraint `1`, already in the core set, is a no-op (§5.1): the core
+-- set is unchanged, however often it is repeated.
+example : runTop G none (State.init G none none) [.core [1], .core [1]] =
+    some (State.init G none none) := by
+  decide
+
+-- A derived constraint is promoted once.
+example : runTop G none (State.init G none none) [.red D setX0 none none, .core [2, 2], .core [2]] =
+    some ⟨(2, D.normalize) :: initDb G, 3, none, none, (2, D.normalize) :: initDb G, true,
+      false, none, none, []⟩ := by
+  decide
+
+-- `core id` needs at least one ID.
+example : runTop G none (State.init G none none) [.core []] = none := by decide
+
 /-! ### Breaking a symmetry -/
 
 /-- `x0 ↔ x1` and exactly one of `x0`, `x1`: unsatisfiable, and symmetric under swapping the two

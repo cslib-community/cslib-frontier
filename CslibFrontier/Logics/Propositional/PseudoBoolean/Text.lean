@@ -19,10 +19,11 @@ extended as described below, producing the abstract syntax checked by
 `Cslib.Logic.PL.VeriPB.checkRed`:
 
 * an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPB`): an optional objective line
-  `min: ∑ wᵢ ℓᵢ;` and an optional preserved-set line `preserved: x₁ … ;`, in either order,
-  before the constraints (`Cslib.Logic.PL.VeriPB.Objective`), then one
-  constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one of `>=`, `<=`, `=`, an equality counting as the
-  two constraints `≥` and `≤` in this order; lines starting with `*` are comments;
+  `min: ∑ wᵢ ℓᵢ [k];`, with an optional constant `k`, and an optional preserved-set line
+  `preserved: x₁ … ;`, in either order, before the constraints
+  (`Cslib.Logic.PL.VeriPB.Objective`), then one constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one
+  of `>=`, `<=`, `=`, an equality counting as the two constraints `≥` and `≤` in this order; lines
+  starting with `*` are comments;
 * a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
   exactly `C` clauses over the variables `1, …, V`, its clause `1 -2 3 0` read as the constraint
   `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
@@ -34,11 +35,14 @@ extended as described below, producing the abstract syntax checked by
   `end pseudo-Boolean proof;`.
 
 **Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1
-of the VeriPB/CakePB documentation, 22 June 2026 edition), with three extensions. First, the
-line `f N;` is optional, as in the general format (§4.1). The kernel format requires it as the
-first command after the header (§6.1), but a proof without it is accepted and checked against
-the parsed formula. The other two extensions, `del id` and `rup` without hints, are described
-under **Steps**. So a proof accepted here need not be a kernel proof.
+of the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented
+format. First, the line `f N;` is optional, as in the general format (§4.1). The kernel format
+requires it as the first command after the header (§6.1), but a proof without it is accepted and
+checked against the parsed formula. Second, `red`, the checked `delc` and `obju` may omit their
+subproof, and a goal is also autoproven when it is a constraint of the database up to the order
+of its terms (`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the
+subproof (§6.1). The remaining extensions, `del id` and `rup` without hints, are described under
+**Steps**. So a proof accepted here need not be a kernel proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
@@ -49,10 +53,10 @@ soundness, which concerns only the parsed formula.
 **Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
 witness and an optional subproof of `proofgoal` blocks (`#1`, `#2` for the objective, and
 constraint numbers), the solution-logging steps `sol`, `soli` and `solx` and the bound `obji`
-(§5.8), the
-objective update `obju new` or `obju diff` with an optional subproof of `proofgoal #1` and `#2`
-(§5.9), `core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1):
-`deld` of derived constraints, the unchecked `delc` of core constraints, and the checked
+(§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax, an
+optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id`
+(§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of
+derived constraints, the unchecked `delc` of core constraints, and the checked
 `delc id : ω` of one core constraint, with an optional subproof. Deletion, `core`,
 strengthening-to-core, solution logging, `obji` and `obju` are accepted only at top level, as
 the format requires. Two steps of the augmented format are also accepted: `del id`, read as the
@@ -164,7 +168,9 @@ private def Names.ofTokens (nvars : ℕ) (ts : List String) : Names :=
 /-! ### Constraints -/
 
 /-- The terms `a ℓ` of a constraint or an objective, up to the relation, `;` or `:`, as an integer
-linear form and the constant contributed by negative literals (`a ¬x = a - a x`). -/
+linear form and a constant: that contributed by negative literals (`a ¬x = a - a x`) and, in an
+objective, a final constant term. A constraint never ends in `;` or `:` before its relation, so
+`constr` still rejects a constant there. -/
 private def terms (N : Names) :
     ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
   | 0, _, _, _ => none
@@ -177,10 +183,13 @@ private def terms (N : Names) :
         | none => (1, t :: ts)
       match rest with
       | u :: rest =>
-        match N.lit? u with
-        | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
-        | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
-        | none => none
+        -- A coefficient before `;` or `:` is the constant of an objective.
+        if (int? t).isSome && (u == ";" || u == ":") then some (L, k + a, u :: rest)
+        else
+          match N.lit? u with
+          | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
+          | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
+          | none => none
       | [] => none
   | _ + 1, [], _, _ => none
 
@@ -224,10 +233,18 @@ private def opbLines : List (List String) → Option (List PBConstr)
       | some (cs, [";"]), some F => some (cs ++ F)
       | _, _ => none
 
-/-- An objective line `min: ∑ wᵢ ℓᵢ;`, given its tokens after `min:`. -/
+/-- An objective `∑ wᵢ ℓᵢ [k]` with an optional constant `k`, up to `;` or `:`, and the rest from
+there: the OPB objective syntax, which `obju` reuses (§5.9). -/
+private def objTerms (N : Names) (ts : List String) : Option (Objective × List String) :=
+  match terms N (ts.length + 1) ts [] 0 with
+  | some (L, k, t :: rest) => if t == ";" || t == ":" then some (⟨L, k⟩, t :: rest) else none
+  | _ => none
+
+/-- An objective line `min: ∑ wᵢ ℓᵢ [k];`, given its tokens after `min:`, with an optional
+constant `k`. -/
 private def objective (ts : List String) : Option Objective :=
-  match terms stdNames (ts.length + 1) ts [] 0 with
-  | some (L, k, [";"]) => some ⟨L, k⟩
+  match objTerms stdNames ts with
+  | some (f, [";"]) => some f
   | _ => none
 
 /-- An OPB instance: its constraints and its objective, if any. -/
@@ -470,13 +487,13 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
   | "obju" :: kind :: ts =>
     (if kind == "new" then some false else if kind == "diff" then some true else none).bind
       fun diff =>
-        match terms N (ts.length + 1) ts [] 0 with
-        | some (L, k, ";" :: rest) => some ([.obju diff ⟨L, k⟩ none], rest)
-        | some (L, k, ":" :: "subproof" :: rest) =>
+        match objTerms N ts with
+        | some (g, ";" :: rest) => some ([.obju diff g none], rest)
+        | some (g, ":" :: "subproof" :: rest) =>
           (redItems N fuel rest).bind fun (items, rest) =>
             match rest with
             | "qed" :: ";" :: rest | "qed" :: "obju" :: ";" :: rest =>
-              some ([.obju diff ⟨L, k⟩ (some items)], rest)
+              some ([.obju diff g (some items)], rest)
             | _ => none
         | _ => none
   | "core" :: "id" :: ts =>
