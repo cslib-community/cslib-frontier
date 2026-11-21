@@ -11555,7 +11555,7 @@ register_result "micciancio-regev-discrete-gaussian-norm-tail" where
   title := "Discrete Gaussian sample-norm tail bound (dual-mass step)"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 4.4",
+    { paper := MicciancioRegev2007, theorem := "Lemma 4.4 (dual-mass step)",
       locator := "author's copy of December 27, 2005, §4, printed p. 15" }
   ]
   theorems := [
