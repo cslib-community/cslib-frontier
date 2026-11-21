@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (ordinary clients of prescribed reference-star geometry)
 
-public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokes
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
 import Mathlib.Tactic.NormNum
@@ -114,7 +114,13 @@ example :
     ∃ D : PolygonalDrawing doubleLoop.graph, D.IsEmbedding ∧
       sbtw (((D.cutPort 1 (secondLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle)
         (((D.cutPort 1 (firstLoop, true) - D.vertex 0).arg : ℝ) : Real.Angle)
-        (((D.cutPort 1 (firstLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle) := by
+        (((D.cutPort 1 (firstLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle) ∧
+      ∃ T : {d : Dart doubleLoop.graph // d.vertex = 0} → Route,
+        (∀ d, (T d).start = D.vertex 0 ∧ (T d).finish = D.cutPort 1 d.val ∧
+          (((T d).germ false).arg : Real.Angle) =
+            (referenceDrawing doubleLoop).direction (subdivisionDart doubleLoop d.val) ∧
+          (T d).IsSimple ∧ (T d).support \ Metric.ball (D.vertex 0) 1 = {D.cutPort 1 d.val}) ∧
+        Pairwise (fun d e => (T d).support ∩ (T e).support = {D.vertex 0}) := by
   have hI : Valid doubleLoop := (validate_eq_true_iff _).mp (by decide +kernel)
   let c : RotationCertificate := ⟨[1, 2, 3, 0]⟩
   have hrot : RotationCertificate.verifyRotation doubleLoop.graph c = true := by decide +kernel
@@ -129,17 +135,24 @@ example :
     intro v hv
     simpa [doubleLoop, incidenceVertices] using hv
   have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r hends hg hloop
-  refine ⟨D, hD, ?_⟩
   have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
-  have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
-    hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
-    (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
-    (by decide +kernel) (by decide +kernel) (by decide +kernel)
-  apply a.mpr
-  apply (referenceDrawing_fixedWord_clockwise_iff hI hw
-    (a := (firstLoop, false)) (b := (firstLoop, true)) (c := (secondLoop, false))
-    (by decide +kernel) (by decide +kernel) (by decide +kernel)
-    (by decide +kernel) (by decide +kernel) (by decide +kernel)).mpr
-  decide +kernel
+  refine ⟨D, hD, ?_, ?_⟩
+  · have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
+      hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
+      (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    apply a.mpr
+    apply (referenceDrawing_fixedWord_clockwise_iff hI hw
+      (a := (firstLoop, false)) (b := (firstLoop, true)) (c := (secondLoop, false))
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel) (by decide +kernel) (by decide +kernel)).mpr
+    decide +kernel
+  · obtain ⟨T, hT, hpair⟩ := exists_reference_spokes_at_cutPorts hI hD
+      (PolygonalDrawing.bouquet_realizes r hloop) hfix zero_lt_one hw
+    refine ⟨T, ?_, hpair⟩
+    intro d
+    obtain ⟨hs, ht, ⟨a, ha, he⟩, hsim, hb⟩ := hT d
+    refine ⟨hs, ht, ?_, hsim, hb⟩
+    simp only [he, Complex.real_smul, Complex.arg_real_mul _ ha, PolygonalDrawing.direction]
 
 end Cslib.Tests.RotationReferenceStar
