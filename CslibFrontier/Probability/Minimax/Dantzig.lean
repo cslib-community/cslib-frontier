@@ -42,17 +42,19 @@ P = (-Aᵀ  0   c)
 `c ⬝ᵥ x ≤ y ⬝ᵥ b` (`isSymmetricGameSolution_dantzigGame_iff`, [Adler2013], (5)), and Dantzig
 reads the linear program off it ([Adler2013], Theorem 2):
 
-* `IsSymmetricGameSolution.mul_sub_eq_zero_of_dantzigGame`: `t * (y ⬝ᵥ b - c ⬝ᵥ x) = 0`;
-* `IsSymmetricGameSolution.optimal_of_dantzigGame`: if `0 < t`, then `x / t` and `y / t` are
-  optimal solutions of the primal and the dual;
-* `IsSymmetricGameSolution.not_feasible_of_dantzigGame`: if `c ⬝ᵥ x < y ⬝ᵥ b`, then the primal
-  or the dual is infeasible.
+* `IsSymmetricGameSolution.optimal_of_dantzigGame` (Theorem 2(b)): if `0 < t`, then `x / t` and
+  `y / t` are optimal solutions of the primal and the dual;
+* `IsSymmetricGameSolution.not_feasible_of_dantzigGame` (Theorem 2(c)): if
+  `c ⬝ᵥ x < y ⬝ᵥ b`, then the primal or the dual is infeasible;
+* the step `IsSymmetricGameSolution.mul_sub_eq_zero_of_dantzigGame`, after Theorem 2(a):
+  `t * (y ⬝ᵥ b - c ⬝ᵥ x) = 0`.
 
 The reduction is incomplete: a solution may have `t = 0` and `c ⬝ᵥ x = y ⬝ᵥ b`, and then it says
-nothing about the program ([Adler2013], p. 166, citing [Dantzig1951]).
-`exists_dantzigGame_undetermined` states the gap exactly: one strategy with `t = 0` and
+nothing about the program ([Adler2013], p. 166, citing [Dantzig1951]). The original example
+`exists_dantzigGame_undetermined` exhibits the gap: one strategy with `t = 0` and
 `c ⬝ᵥ x = y ⬝ᵥ b` solves the Dantzig games of two programs, one of which has an optimal solution
-and the other of which is infeasible.
+and the other of which is infeasible. Repairing the reduction for linear programs themselves,
+through the feasibility problem below, remains open.
 
 ## Adler's repair
 
@@ -63,7 +65,8 @@ not formalized here. Writing
 `A *ᵥ x = b` as `b ≤ A *ᵥ x` and `∑ i, (A *ᵥ x) i ≤ ∑ i, b i`, the Dantzig game of the program
 `min {u | b ≤ A *ᵥ x + u • 1, ∑ i, (A *ᵥ x) i - u ≤ ∑ i, b i, 0 ≤ x, 0 ≤ u}` is the *Dantzig
 game associated with `F(A, b)`* (`feasibilityGame A b`; its solutions are [Adler2013], (6a)–(6g)).
-Its solutions `(y, v, x, u, t)` resolve `F(A, b)` unless `t = 0` ([Adler2013], Proposition 4):
+Its solutions `(y, v, x, u, t)` resolve `F(A, b)` unless `t = 0`. Three steps of the reduction
+below, after [Adler2013], Proposition 4, say so:
 
 * `IsSymmetricGameSolution.mulVec_eq_of_feasibilityGame`: if `0 < t` and `u = 0`, then
   `x / t` solves `F(A, b)`;
@@ -97,12 +100,23 @@ is the reduction, that the status of the problem is read off any solution of the
 
 ## Main results
 
-* `Cslib.Probability.exists_isSymmetricGameSolution`: every symmetric game has a solution.
+* `Cslib.Probability.exists_isSymmetricGameSolution`: every symmetric game has a solution
+  ([Adler2013], Theorem 1).
 * `Cslib.Probability.IsSymmetricGameSolution.optimal_of_dantzigGame`,
-  `Cslib.Probability.IsSymmetricGameSolution.not_feasible_of_dantzigGame`: Dantzig's read-off.
-* `Cslib.Probability.exists_dantzigGame_undetermined`: the gap in Dantzig's reduction.
+  `Cslib.Probability.IsSymmetricGameSolution.not_feasible_of_dantzigGame`: Dantzig's read-off
+  ([Adler2013], Theorem 2(b)–(c)).
+* `Cslib.Probability.exists_dantzigGame_undetermined`: an original example of the gap in
+  Dantzig's reduction.
+* `Cslib.Probability.IsSymmetricGameSolution.pos_of_feasibilityGame_bounded`: the bounded game
+  has no solution with `t = 0` ([Adler2013], Proposition 6).
 * `Cslib.Probability.resolves_of_feasibilityGame_bounded`: Adler's
-  reduction of a linear feasibility problem with integer data to one symmetric game.
+  reduction of a linear feasibility problem with integer data to one symmetric game
+  ([Adler2013], Section 3.1).
+
+The remaining parts of [Adler2013] are open here: the reduction of a pair of dual programs to
+one feasibility problem (p. 167), the bound on `β` for algebraic data (Section 3.1), the
+Cook-type reduction (Section 3.2) and the derivation of Farkas' lemma from the minimax theorem
+(Section 4).
 
 ## References
 
@@ -249,8 +263,9 @@ namespace IsSymmetricGameSolution
 
 variable {A : Matrix m n K} {b : m → K} {c : n → K} {y : m → K} {x : n → K} {t : K}
 
-/-- A solution `(y, x, t)` of the Dantzig game has `t * (y ⬝ᵥ b - c ⬝ᵥ x) = 0`
-([Adler2013], Theorem 2(a); [Dantzig1951]). -/
+/-- A step of Dantzig's read-off (`optimal_of_dantzigGame`, `not_feasible_of_dantzigGame`),
+after [Adler2013], Theorem 2(a): a solution `(y, x, t)` of the Dantzig game has
+`t * (y ⬝ᵥ b - c ⬝ᵥ x) = 0`. -/
 theorem mul_sub_eq_zero_of_dantzigGame
     (h : IsSymmetricGameSolution (dantzigGame A b c) (Sum.elim y (Sum.elim x fun _ => t))) :
     t * (y ⬝ᵥ b - c ⬝ᵥ x) = 0 := by
@@ -317,10 +332,11 @@ theorem not_feasible_of_dantzigGame
 
 end IsSymmetricGameSolution
 
-/-- **The gap in Dantzig's reduction** ([Adler2013], p. 166; [Dantzig1951]): a solution
-`(y, x, 0)` of the Dantzig game with `c ⬝ᵥ x = y ⬝ᵥ b` does not determine the program. The same
-such strategy solves the Dantzig games of `min {0 | 0 ≤ 0, 0 ≤ x}`, which has an optimal solution,
-and of `min {0 | 1 ≤ 0, 0 ≤ x}`, which is infeasible. -/
+/-- **An example of the gap in Dantzig's reduction** (original; it illustrates the remark of
+[Adler2013], p. 166, which cites [Dantzig1951]): a solution `(y, x, 0)` of the Dantzig game with
+`c ⬝ᵥ x = y ⬝ᵥ b` does not determine the program. The same such strategy solves the Dantzig
+games of `min {0 | 0 ≤ 0, 0 ≤ x}`, which has an optimal solution, and of
+`min {0 | 1 ≤ 0, 0 ≤ x}`, which is infeasible. -/
 theorem exists_dantzigGame_undetermined :
     ∃ (A : Matrix Unit Unit K) (b₀ b₁ c y x : Unit → K),
       IsSymmetricGameSolution (dantzigGame A b₀ c) (Sum.elim y (Sum.elim x fun _ => 0)) ∧
@@ -404,8 +420,9 @@ namespace IsSymmetricGameSolution
 
 variable {A : Matrix m n K} {b : m → K} {y : m → K} {v : K} {x : n → K} {u t : K}
 
-/-- If `(y, v, x, u, t)` solves the Dantzig game associated with `F(A, b)`, `0 < t` and `u = 0`,
-then `x / t` solves `F(A, b)` ([Adler2013], Proposition 4(a)(i)). -/
+/-- A step of Adler's reduction (`resolves_of_feasibilityGame_bounded`, [Adler2013],
+Section 3.1), after [Adler2013], Proposition 4(a)(i): if `(y, v, x, u, t)` solves the Dantzig
+game associated with `F(A, b)`, `0 < t` and `u = 0`, then `x / t` solves `F(A, b)`. -/
 theorem mulVec_eq_of_feasibilityGame
     (h : IsSymmetricGameSolution (feasibilityGame A b)
       (Sum.elim (Sum.elim y fun _ => v) (Sum.elim (Sum.elim x fun _ => u) fun _ => t)))
@@ -423,9 +440,10 @@ theorem mulVec_eq_of_feasibilityGame
   rw [mulVec_smul, Pi.smul_apply, smul_eq_mul, inv_mul_eq_iff_eq_mul₀ ht.ne']
   linarith
 
-/-- If `(y, v, x, u, t)` solves the Dantzig game associated with `F(A, b)` and `0 < u`, then
-`F(A, b)` has no solution: `y - v • 1` is a certificate of infeasibility
-([Adler2013], Proposition 4(a)(ii), there stated under the further hypothesis `0 < t`). -/
+/-- A step of Adler's reduction (`resolves_of_feasibilityGame_bounded`, [Adler2013],
+Section 3.1), after [Adler2013], Proposition 4(a)(ii), which also assumes `0 < t`: if
+`(y, v, x, u, t)` solves the Dantzig game associated with `F(A, b)` and `0 < u`, then `F(A, b)`
+has no solution; `y - v • 1` is a certificate of infeasibility. -/
 theorem not_exists_of_feasibilityGame
     (h : IsSymmetricGameSolution (feasibilityGame A b)
       (Sum.elim (Sum.elim y fun _ => v) (Sum.elim (Sum.elim x fun _ => u) fun _ => t)))
@@ -437,9 +455,10 @@ theorem not_exists_of_feasibilityGame
     simpa using dotProduct_le_dotProduct_of_nonneg_right hc hx'
   linarith
 
-/-- If `(y, v, x, 0)` solves the Dantzig game associated with `F(A, b)`, then `x` is a nonzero
-solution of `0 ≤ x`, `A *ᵥ x = 0` ([Adler2013], Proposition 4(b)). Such `x` exist whenever the
-solutions of `F(A, b)` are unbounded, so they do not resolve `F(A, b)`. -/
+/-- A step of Adler's reduction (`resolves_of_feasibilityGame_bounded`, [Adler2013],
+Section 3.1), after [Adler2013], Proposition 4(b): if `(y, v, x, 0)` solves the Dantzig game
+associated with `F(A, b)`, then `x` is a nonzero solution of `0 ≤ x`, `A *ᵥ x = 0`. Such `x`
+exist whenever the solutions of `F(A, b)` are unbounded, so they do not resolve `F(A, b)`. -/
 theorem mulVec_eq_zero_of_feasibilityGame
     (h : IsSymmetricGameSolution (feasibilityGame A b)
       (Sum.elim (Sum.elim y fun _ => v) (Sum.elim (Sum.elim x fun _ => u) fun _ => 0))) :
@@ -485,9 +504,9 @@ theorem pos_of_feasibilityGame_bounded {β : K} {y : m ⊕ Unit → K} {x : n �
 
 end IsSymmetricGameSolution
 
-/-- [Adler2013], Proposition 7, for integer data: a solvable integer system `A *ᵥ x = b`,
-`0 ≤ x`, with entries of absolute value at most `B` has a solution of total weight at most
-`card n * ((card n)! * (card m * B ^ 2 + 1) ^ card n)`. -/
+/-- A step of Adler's reduction, after [Adler2013], Proposition 7, for integer data: a solvable
+integer system `A *ᵥ x = b`, `0 ≤ x`, with entries of absolute value at most `B` has a solution
+of total weight at most `card n * ((card n)! * (card m * B ^ 2 + 1) ^ card n)`. -/
 private theorem exists_nonneg_mulVec_eq_sum_le {A : Matrix m n ℤ} {b : m → ℤ} {B : ℕ}
     (hA : ∀ i j, |A i j| ≤ B) (hb : ∀ i, |b i| ≤ B) {x : n → K} (hx : 0 ≤ x)
     (hAx : A.map (Int.cast : ℤ → K) *ᵥ x = fun i => (b i : K)) :
