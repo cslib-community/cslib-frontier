@@ -186,6 +186,32 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
     exact ⟨fun _ => none, ⟨rfl, false, run_skip _ _ _⟩, fun _ h =>
       MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm⟩
 
+/-- The final membership callback fits its bounds at the source loop's scalar limits,
+even for a tally larger than any exact round total. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let I := configurationInstance ntm c w
+      let n := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+      ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin n),
+        let ctx : JustesenSourceContext :=
+          ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+        let r : SourceRoundLoop.Registers JustesenSourceContext :=
+          ⟨ctx, 0, n, ⟨1 + n * n, n * n * n⟩⟩
+        let M := justesenSourceMembershipMachine ntm c
+        let entry := justesenSourceMembershipStart r
+        (M.withInit entry).HaltsWithin w (configurationJustesenMembershipTallyClock ntm c w) ∧
+          ∀ bits, (MembershipTally.encRetainedState encJustesenSubdivisionContext
+            encJustesenSubdivisionState (M.replay w bits entry)).length ≤
+              C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, h⟩ := justesenSourceMembership_bounds ntm c
+  refine ⟨C, fun w => ?_⟩
+  intro I n seed source target ctx r M entry
+  have hsize : ctx.size = n :=
+    configurationJustesenSourceContext_size ntm c w seed.val source.val target.val
+  have hr : SourceRoundLoop.Admissible ctx ctx.size n r := by
+    simp only [SourceRoundLoop.Admissible, r, hsize, Nat.zero_add, and_self, le_refl]
+  exact h w seed source target n le_rfl r hr
+
 /-- A supplied round and concrete final membership can share the existing source-loop
 transition and query certificates. -/
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)

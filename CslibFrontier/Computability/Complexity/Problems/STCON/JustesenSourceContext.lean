@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenMembershipTally
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop.Resource
 
 /-!
 # Retained context for a Justesen source scan
@@ -30,6 +30,8 @@ carrier as the adjacency callback.
   membership entry in linear workspace in the encoded loop registers.
 * `Cslib.Complexity.STCON.justesenSourceMembership_readReply_iff`: a complete typed scan and
   the return selector give the same reply and leave the same suffix.
+* `Cslib.Complexity.STCON.justesenSourceMembership_bounds`: a common selector clock and
+  logarithmic state bound at every admissible loop entry.
 -/
 
 public section
@@ -56,6 +58,15 @@ enc_structure encJustesenSourceContext : JustesenSourceContext where
 /-- Number of vertices in the retained subdivision. -/
 @[expose] def JustesenSourceContext.size (ctx : JustesenSourceContext) : ℕ :=
   ctx.adjacency.parameters.search.subdivision.vertexCount
+
+/-- The initialized source context uses the scheduler setup's subdivision dimension. -/
+theorem configurationJustesenSourceContext_size {k : ℕ} {State : Type} [Fintype State]
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) (rank source target : ℕ) :
+    (⟨configurationJustesenSubdivisionContext ntm c w rank, source, target⟩ :
+      JustesenSourceContext).size =
+        (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount := by
+  simp only [JustesenSourceContext.size, configurationJustesenSubdivisionContext,
+    (configurationSeedSearchSetup_endpoints ntm c w).1]
 
 /-- Read the subdivision size from the existing adjacency context encoding. -/
 theorem encJustesenSourceContext_size_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
@@ -104,8 +115,7 @@ theorem justesenSourceMembershipMachine_withInit
             source, target, radius, totals⟩ := by
   intro ctx
   unfold justesenSourceMembershipMachine
-  simp only [justesenSourceMembershipStart, ctx, JustesenSourceContext.size,
-    configurationJustesenSubdivisionContext, (configurationSeedSearchSetup_endpoints ntm c w).1]
+  simp only [justesenSourceMembershipStart, ctx, configurationJustesenSourceContext_size]
   exact configurationJustesenMembershipTally_withInit ntm c [] w 0 rank _ _
 
 open NondeterministicQueryMachine in
@@ -142,5 +152,48 @@ theorem justesenSourceMembership_readReply_iff
     refine ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, ?_⟩⟩
     exact fun _ h =>
       MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm
+
+open NondeterministicQueryMachine in
+/-- The final membership callback has a common selector clock and logarithmic encoded-state
+bound at every admissible loop entry, including when earlier callbacks returned inexact totals. -/
+theorem justesenSourceMembership_bounds (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let I := configurationInstance ntm c w
+      let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+      ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount)
+        (limit : ℕ), limit ≤ size.vertexCount →
+        let ctx : JustesenSourceContext :=
+          ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+        ∀ r, SourceRoundLoop.Admissible ctx ctx.size limit r →
+          let M := justesenSourceMembershipMachine ntm c
+          let entry := justesenSourceMembershipStart r
+          (M.withInit entry).HaltsWithin w (configurationJustesenMembershipTallyClock ntm c w) ∧
+            ∀ bits, (MembershipTally.encRetainedState encJustesenSubdivisionContext
+              encJustesenSubdivisionState (M.replay w bits entry)).length ≤
+                C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hlength⟩ := configurationJustesenMembershipTally_length_run_le_log_of_loop_caps ntm c
+  refine ⟨C, fun w => ?_⟩
+  intro I size seed source target limit hlimit ctx r hr M entry
+  have hsize : ctx.size = size.vertexCount :=
+    configurationJustesenSourceContext_size ntm c w seed.val source.val target.val
+  rcases r with ⟨actual, fuel, radius, totals⟩
+  obtain ⟨hctx, hfuel, hc, hs⟩ := hr
+  change actual = ctx at hctx
+  subst actual
+  change fuel + radius = limit at hfuel
+  change totals.count ≤ 1 + radius * ctx.size at hc
+  change totals.lengthSum ≤ ctx.size * radius * radius at hs
+  rw [hsize] at hc hs
+  have hrad : radius ≤ size.vertexCount := by omega
+  have hc' := hc.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hrad) 1)
+  have hs' := hs.trans (Nat.mul_le_mul (Nat.mul_le_mul_left _ hrad) hrad)
+  dsimp only [M, entry]
+  constructor
+  · rw [justesenSourceMembershipMachine_withInit]
+    exact configurationJustesenMembershipTally_haltsWithin_clock ntm c w
+      seed source target radius totals hrad
+  · intro bits
+    rw [← run_withInit, justesenSourceMembershipMachine_withInit]
+    exact hlength w seed source target radius totals hrad hc' hs' bits
 
 end Cslib.Complexity.STCON
