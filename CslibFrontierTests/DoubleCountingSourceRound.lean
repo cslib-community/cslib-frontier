@@ -50,6 +50,34 @@ example : replayScan context reply start id [] (List.replicate 16 false) =
     some (⟨⟨3, 1⟩, true⟩, []) :=
   (firstHalting_iff_replayScan context reply start id _ _ _).mp ⟨tie_firstHalting, rfl⟩
 
+-- At radius zero the only vertex has already been counted. A complete membership reply
+-- certifies the exact next tally via the mathematical round theorem.
+open Cslib.DoubleCounting in
+example :
+    let ctx : Context := ⟨1, 0, 0, ⟨1, 0⟩⟩
+    let edge : Fin ctx.size → Fin ctx.size → Prop := fun _ _ => False
+    let a : RoundUpdate := ⟨⟨1, 0⟩, false⟩
+    a.tally = expected edge 0 1 ∧ (a.bad = false ↔ ∃! w, Passes edge 0 1 w) := by
+  intro ctx edge a
+  let enter (_ : Context) : Request → Option Bool := fun
+    | .edge .. => some false
+    | .member _ => some true
+  let M := machine ctx reply enter id
+  have hfirst : M.FirstHalting [] [false, false] (entry ctx) := by
+    refine ⟨rfl, fun i hi => ?_⟩
+    simp only [List.length_cons, List.length_nil] at hi
+    interval_cases i <;> rfl
+  have hscan := (firstHalting_iff_replayScan ctx reply enter id [] [false, false] a).mp
+    ⟨hfirst, rfl⟩
+  refine replayScan_correct ctx 0 edge reply enter id []
+    (expected_zero edge 0).symm (existsUnique_passes_zero edge 0) ?_ ?_ hscan
+  · rintro u v (_ | ⟨_ | _, bits⟩) hit rest h <;>
+      simp [NondeterministicQueryMachine.readReply, enter, reply, edge] at h ⊢
+    simp [h.1]
+  · rintro v (_ | ⟨_ | _, bits⟩) hit rest h <;>
+      simp [NondeterministicQueryMachine.readReply, enter, reply] at h
+    simp [h.1, ctx, Cslib.DoubleCounting.round_zero, Subsingleton.elim v (0 : Fin ctx.size)]
+
 /-- A tied round remains successful and has only one complete selector list. -/
 example : {bits : List Bool | tieRound.FirstHalting [] bits tieRound.init ∧
     (answer (tieRound.run [] bits)).isSome} = {List.replicate 16 false} := by
