@@ -5,11 +5,11 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
-public import CslibFrontier.Foundations.Probability.IndependentSumNorm
-
+import CslibFrontier.Foundations.Probability.Gaussian.MomentsDiscrete
 import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
+import CslibFrontier.Foundations.Probability.IndependentSumNorm
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Analysis.Real.Pi.Bounds
@@ -17,17 +17,17 @@ import Mathlib.MeasureTheory.Constructions.Pi
 import Mathlib.Probability.Independence.Basic
 
 /-!
-Non-vacuous `module` client tests for discrete Gaussian moments (dual-mass steps toward
-[MicciancioRegev2007], Lemmas 4.2 and 4.3), `MemLp 2` and Bochner integral bridges, and the
-independent-vector linear-combination second-moment bound ([MicciancioRegev2007], Lemma 2.11),
-including an end-to-end `Measure.pi` composition of Lemmas 4.2, 4.3, and 2.11 on the non-isotropic
-2-D lattice `ℤ × 2ℤ` at an off-lattice center.
+Non-vacuous `module` client tests for discrete Gaussian moments ([MicciancioRegev2007], Lemmas 4.2
+and 4.3, in both dual-mass and `2 * η_ε(L) ≤ s` forms), `MemLp 2` and Bochner integral bridges,
+and the independent-vector linear-combination second-moment bound ([MicciancioRegev2007],
+Lemma 2.11), including an end-to-end `Measure.pi` composition of Lemmas 4.2, 4.3, and 2.11 on
+the non-isotropic 2-D lattice `ℤ × 2ℤ` at an off-lattice center.
 -/
+
+set_option linter.privateModule false
 
 open Module MeasureTheory ProbabilityTheory
 open scoped ENNReal RealInnerProductSpace
-
-public section
 
 noncomputable section
 
@@ -76,6 +76,25 @@ example :
     (by norm_num) dual_zero_dim0
   simpa using h
 
+/-- Smoothing-parameter (`2 * η_ε(L) ≤ s`) MR07 Lemma 4.3 bounds hold in dimension `0`. -/
+example :
+    ‖∑' x : L0, (ZLattice.discreteGaussian L0 1 (by norm_num) 0 x).toReal • ((x : E0) - 0)‖ ^ 2 ≤
+      0 := by
+  have hη : 2 * ZLattice.smoothingParameter L0 (1 / 2) ≤ 1 := by
+    rw [ZLattice.smoothingParameter_eq_zero_of_subsingleton]; norm_num
+  have h := ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le_of_smoothingParameter_le L0 1
+    (by norm_num) 0 (1 / 2) (by norm_num) (by norm_num) hη
+  simpa using h
+
+example :
+    (∑' x : L0, (ZLattice.discreteGaussian L0 1 (by norm_num) 0 x).toReal * ‖(x : E0) - 0‖ ^ 2) ≤
+      0 := by
+  have hη : 2 * ZLattice.smoothingParameter L0 (1 / 2) ≤ 1 := by
+    rw [ZLattice.smoothingParameter_eq_zero_of_subsingleton]; norm_num
+  have h := ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le_of_smoothingParameter_le L0 1
+    (by norm_num) 0 (1 / 2) (by norm_num) (by norm_num) hη
+  simpa using h
+
 /-- `MemLp 2` and Bochner integral bridges hold in dimension `0`. -/
 example :
     MemLp (fun x : L0 ↦ (x : E0) - 0) 2
@@ -95,10 +114,10 @@ example :
 /-! ### Dimension 1: `ℤ ⊂ ℝ` at off-lattice center `c1 = 1 / 3` -/
 
 /-- Standard unit basis of `ℝ` spanning `ℤ ⊂ ℝ`. -/
-def unitBasis1 : Basis Unit ℝ ℝ := Basis.singleton Unit ℝ
+private def unitBasis1 : Basis Unit ℝ ℝ := Basis.singleton Unit ℝ
 
 /-- The one-dimensional integer lattice `ℤ ⊂ ℝ`. -/
-abbrev L1 := Submodule.span ℤ (Set.range unitBasis1)
+private abbrev L1 := Submodule.span ℤ (Set.range unitBasis1)
 private abbrev D1 := LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) L1
 
 private instance : DiscreteTopology D1 := ZLattice.discreteTopology_dualSubmodule L1
@@ -192,6 +211,50 @@ example :
     norm_num
   rwa [hnum] at h
 
+private theorem two_mul_eta_half_le_four_L1 : 2 * ZLattice.smoothingParameter L1 (1 / 2) ≤ 4 := by
+  have h := ZLattice.smoothingParameter_le_of_dual_mass_le L1 (by norm_num : (0 : ℝ) < 2)
+    (by simpa only [show (1 / 2 : ℝ) = 2 / 4 by norm_num] using dual_small1)
+  linarith
+
+/-- Smoothing-parameter (`2 * η_ε(L) ≤ s`) MR07 Lemmas 4.2 and 4.3 on `ℤ ⊂ ℝ` at off-lattice
+center `1 / 3`, width `s = 4`, and `ε = 1 / 2`. -/
+example :
+    |∑' x : L1, (ZLattice.discreteGaussian L1 4 (by norm_num) c1 x).toReal *
+        ⟪(x : ℝ) - c1, 1⟫| ≤ 4 := by
+  have h := ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le_of_smoothingParameter_le L1 4
+    (by norm_num) c1 1 (by simp) (1 / 2) (by norm_num) (by norm_num) two_mul_eta_half_le_four_L1
+  simpa only [show (1 / 2 : ℝ) / (1 - 1 / 2) * 4 = 4 by norm_num] using h
+
+example :
+    |(∑' x : L1, (ZLattice.discreteGaussian L1 4 (by norm_num) c1 x).toReal *
+        ⟪(x : ℝ) - c1, 1⟫ ^ 2) - 8 / Real.pi| ≤ 16 := by
+  have h := ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le_of_smoothingParameter_le L1
+    4 (by norm_num) c1 1 (by simp) (1 / 2) (by norm_num) (by norm_num)
+    two_mul_eta_half_le_four_L1
+  have h1 : (4 : ℝ) ^ 2 / (2 * Real.pi) = 8 / Real.pi := by ring
+  have h2 : (1 / 2 : ℝ) / (1 - 1 / 2) * 4 ^ 2 = 16 := by norm_num
+  rwa [h1, h2] at h
+
+example :
+    ‖∫ x : L1, ((x : ℝ) - c1) ∂(ZLattice.discreteGaussian L1 4 (by norm_num) c1).toMeasure‖ ^ 2 ≤
+      16 := by
+  rw [ZLattice.integral_sub_discreteGaussian_eq_tsum]
+  have h := ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le_of_smoothingParameter_le L1 4
+    (by norm_num) c1 (1 / 2) (by norm_num) (by norm_num) two_mul_eta_half_le_four_L1
+  simpa only [finrank_self, Nat.cast_one, mul_one,
+    show ((1 / 2 : ℝ) / (1 - 1 / 2)) ^ 2 * 4 ^ 2 = 16 by norm_num] using h
+
+example :
+    (∫ x : L1, ‖(x : ℝ) - c1‖ ^ 2 ∂(ZLattice.discreteGaussian L1 4 (by norm_num) c1).toMeasure) ≤
+      (1 / (2 * Real.pi) + 1) * 16 := by
+  rw [ZLattice.integral_norm_sub_sq_discreteGaussian_eq_tsum]
+  have h := ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le_of_smoothingParameter_le L1 4
+    (by norm_num) c1 (1 / 2) (by norm_num) (by norm_num) two_mul_eta_half_le_four_L1
+  have hnum :
+      (1 / (2 * Real.pi) + (1 / 2 : ℝ) / (1 - 1 / 2)) * 4 ^ 2 * (finrank ℝ ℝ : ℝ) =
+        (1 / (2 * Real.pi) + 1) * 16 := by rw [finrank_self]; norm_num
+  rwa [hnum] at h
+
 /-! ### Dimension 2: non-isotropic `ℤ × 2ℤ` and composition into MR07 Lemma 2.11 -/
 
 private abbrev E2 := EuclideanSpace ℝ (Fin 2)
@@ -281,6 +344,49 @@ example :
   have h1 : (8 : ℝ) ^ 2 / (2 * Real.pi) = 32 / Real.pi := by ring
   have h2 : (1 / 2 : ℝ) / (1 - 1 / 2) * 8 ^ 2 = 64 := by norm_num
   rwa [h1, h2] at h
+
+private theorem two_mul_eta_half_le_eight_L2 : 2 * ZLattice.smoothingParameter L2 (1 / 2) ≤ 8 := by
+  have h := ZLattice.smoothingParameter_le_of_dual_mass_le L2 (by norm_num : (0 : ℝ) < 4)
+    (by simpa only [show (1 / 4 : ℝ) = 2 / 8 by norm_num] using dual_small2)
+  linarith
+
+/-- Smoothing-parameter (`2 * η_ε(L) ≤ s`) MR07 Lemmas 4.2 and 4.3 on the non-isotropic 2-D
+lattice `ℤ × 2ℤ` along `u2 = (3/5, 4/5)` at off-lattice center `(1/3, 1/2)`. -/
+example :
+    |∑' x : L2, (ZLattice.discreteGaussian L2 8 (by norm_num) c2 x).toReal *
+        ⟪(x : E2) - c2, u2⟫| ≤ 8 := by
+  have h := ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_le_of_smoothingParameter_le L2 8
+    (by norm_num) c2 u2 norm_u2 (1 / 2) (by norm_num) (by norm_num) two_mul_eta_half_le_eight_L2
+  simpa only [show (1 / 2 : ℝ) / (1 - 1 / 2) * 8 = 8 by norm_num] using h
+
+example :
+    |(∑' x : L2, (ZLattice.discreteGaussian L2 8 (by norm_num) c2 x).toReal *
+        ⟪(x : E2) - c2, u2⟫ ^ 2) - 32 / Real.pi| ≤ 64 := by
+  have h := ZLattice.abs_tsum_discreteGaussian_mul_inner_sub_sq_sub_le_of_smoothingParameter_le L2
+    8 (by norm_num) c2 u2 norm_u2 (1 / 2) (by norm_num) (by norm_num)
+    two_mul_eta_half_le_eight_L2
+  have h1 : (8 : ℝ) ^ 2 / (2 * Real.pi) = 32 / Real.pi := by ring
+  have h2 : (1 / 2 : ℝ) / (1 - 1 / 2) * 8 ^ 2 = 64 := by norm_num
+  rwa [h1, h2] at h
+
+example :
+    ‖∑' x : L2, (ZLattice.discreteGaussian L2 8 (by norm_num) c2 x).toReal • ((x : E2) - c2)‖ ^ 2 ≤
+      128 := by
+  have h := ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le_of_smoothingParameter_le L2 8
+    (by norm_num) c2 (1 / 2) (by norm_num) (by norm_num) two_mul_eta_half_le_eight_L2
+  have hdim : finrank ℝ E2 = 2 := by simp [E2]
+  simpa only [hdim, show ((1 / 2 : ℝ) / (1 - 1 / 2)) ^ 2 * 8 ^ 2 * (2 : ℕ) = 128 by norm_num]
+    using h
+
+example :
+    (∑' x : L2, (ZLattice.discreteGaussian L2 8 (by norm_num) c2 x).toReal *
+        ‖(x : E2) - c2‖ ^ 2) ≤ (1 / (2 * Real.pi) + 1) * 128 := by
+  have h := ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le_of_smoothingParameter_le L2 8
+    (by norm_num) c2 (1 / 2) (by norm_num) (by norm_num) two_mul_eta_half_le_eight_L2
+  have hdim : finrank ℝ E2 = 2 := by simp [E2]
+  have hnum : (1 / (2 * Real.pi) + (1 / 2 : ℝ) / (1 - 1 / 2)) * 8 ^ 2 * (finrank ℝ E2 : ℝ) =
+      (1 / (2 * Real.pi) + 1) * 128 := by rw [hdim]; norm_num; ring
+  rwa [hnum] at h
 
 /-- End-to-end composition of MR07 Lemmas 4.2, 4.3, and 2.11: two independent off-center discrete
 Gaussian samples on the non-isotropic 2-D lattice `ℤ × 2ℤ` combined with concrete weights
