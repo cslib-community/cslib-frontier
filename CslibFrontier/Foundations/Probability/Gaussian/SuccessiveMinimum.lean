@@ -15,41 +15,30 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.LinearAlgebra.BilinearForm.DualLattice
 
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
-import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.Analysis.SpecificLimits.Normed
 
 /-!
-# Shifted Gaussian mass maximization and successive-minimum smoothing bound
+# Successive-minimum dual-mass smoothing bound
 
-This module proves two core lattice Gaussian estimates from [MicciancioRegev2007]:
-
-1. **Shifted mass is maximized at the origin** ([MicciancioRegev2007], Lemma 2.9, p. 9 of the
-   December 27, 2005 author's copy): for every discrete `ℤ`-submodule `L` of a finite-dimensional
-   real inner product space, every `s > 0`, and every center `c`,
-   `gaussianMass L s c ≤ gaussianMass L s 0` (`ZLattice.gaussianMass_le_gaussianMass_zero`). The
-   proof projects `c` orthogonally onto `Submodule.span ℝ (L : Set E)` and applies Poisson
-   summation there, so no full-rank or `MeasurableSpace` hypothesis is required.
-2. **Dual-mass form of the `λ_n` smoothing bound** (step toward [MicciancioRegev2007], Lemma 3.3,
-   pp. 11–12 of the December 27, 2005 author's copy): for every full-rank discrete lattice `L` in a
-   finite-dimensional real inner product space `E` of dimension `n = finrank ℝ E`, every `ε > 0`,
-   and every width `s > 0` satisfying `√(ln (2 n (1 + 1 / ε)) / π) * λ_n(L) ≤ s`, the nonzero
-   reciprocal-width dual mass satisfies `ρ_{1/s}(L* \ {0}) ≤ ε`
-   (`ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`). This is the dual-mass premise
-   that `η_ε(L) ≤ √(ln (2 n (1 + 1 / ε)) / π) * λ_n(L)` unfolds to once the smoothing parameter
-   definition is imported; the asymptotic `ω(log n)` / negligible-`ε` remark of Lemma 3.3 is not
-   formalized here.
+This module proves the dual-mass form of the `λ_n` smoothing bound (a step toward
+[MicciancioRegev2007], Lemma 3.3, pp. 11–12 of the December 27, 2005 author's copy): for every
+full-rank discrete lattice `L` in a finite-dimensional real inner product space `E` of dimension
+`n = finrank ℝ E`, every `ε > 0`, and every width `s > 0` satisfying
+`√(ln (2 n (1 + 1 / ε)) / π) * λ_n(L) ≤ s`, the nonzero reciprocal-width dual mass satisfies
+`ρ_{1/s}(L* \ {0}) ≤ ε` (`ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`). This proves
+the dual-mass inequality one step before wrapping it into the smoothing-parameter infimum
+`η_ε(L) ≤ √(ln (2 n (1 + 1 / ε)) / π) * λ_n(L)`; the asymptotic `ω(log n)` / negligible-`ε` remark
+of Lemma 3.3 is not formalized here.
 
 ## Main results
 
-* `ZLattice.gaussianMass_le_gaussianMass_zero`: shifted lattice Gaussian mass is at most centered
-  Gaussian mass for every discrete `ℤ`-submodule.
-* `ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`: dual-mass form of the
+* `ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`: dual-mass step toward the
   Micciancio–Regev `λ_n` smoothing bound, including dimension zero.
 
 ## References
 
-* [MicciancioRegev2007], Lemma 2.9 (p. 9) and Lemma 3.3 (pp. 11–12) of the December 27, 2005
-  author's copy (`SIAM J. Comput.` 37(1):267–302, 2007).
+* [MicciancioRegev2007], Lemma 3.3 (pp. 11–12 of the December 27, 2005 author's copy;
+  `SIAM J. Comput.` 37(1):267–302, 2007).
 -/
 
 public section
@@ -60,109 +49,6 @@ open Module ProbabilityTheory MeasureTheory
 open scoped RealInnerProductSpace
 
 namespace ZLattice
-
-section ShiftedMass
-
-private theorem gaussianMass_le_gaussianMass_zero_of_isZLattice
-    {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
-    [MeasurableSpace E] [BorelSpace E]
-    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
-    (s : ℝ) (hs : 0 < s) (c : E) :
-    gaussianMass L s c ≤ gaussianMass L s 0 := by
-  have h1 := (abs_le.mp (abs_gaussianMass_normalized_sub_one_le L s hs c)).2
-  have h2 : covolume L / s ^ finrank ℝ E * gaussianMass L s c ≤
-      gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 := by
-    linarith
-  have h0 : gaussianMass L s 0 = s ^ finrank ℝ E / covolume L *
-      gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 := by
-    apply Complex.ofReal_injective
-    simpa only [inner_zero_left, neg_zero, Real.fourierChar.map_zero_eq_one, Circle.coe_one,
-      one_mul, mul_one, gaussianMass, sub_zero, Complex.ofReal_mul, Complex.ofReal_div,
-      Complex.ofReal_pow, Complex.ofReal_tsum] using gaussianMass_eq_tsum_dual L s hs 0
-  have hc : 0 < covolume L := covolume_pos L volume
-  have hsp : 0 < s ^ finrank ℝ E := pow_pos hs _
-  have hmul := mul_le_mul_of_nonneg_left h2 (div_pos hsp hc).le
-  rw [← h0] at hmul
-  have hcancel : s ^ finrank ℝ E / covolume L *
-      (covolume L / s ^ finrank ℝ E * gaussianMass L s c) = gaussianMass L s c := by
-    field_simp
-  rwa [hcancel] at hmul
-
-/-- Shifted lattice Gaussian mass is maximized at the origin ([MicciancioRegev2007], Lemma 2.9,
-p. 9 of the author's copy). Holds for every discrete `ℤ`-submodule `L` of a finite-dimensional
-real inner product space (not necessarily full-rank) without requiring `MeasurableSpace E`. -/
-theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
-    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
-    (L : Submodule ℤ E) [DiscreteTopology L] (s : ℝ) (hs : 0 < s) (c : E) :
-    gaussianMass L s c ≤ gaussianMass L s 0 := by
-  let V : Submodule ℝ E := Submodule.span ℝ (L : Set E)
-  let cPar : V := V.orthogonalProjectionOnto c
-  have hproj : gaussianMass L s c ≤ gaussianMass L s (cPar : E) := by
-    refine Summable.tsum_le_tsum (fun z : L ↦ ?_)
-      (summable_gaussianWeight L s hs c) (summable_gaussianWeight L s hs (cPar : E))
-    have hdiff : (z : E) - (cPar : E) ∈ V := V.sub_mem (Submodule.subset_span z.2) cPar.2
-    have horth : c - (cPar : E) ∈ Vᗮ := V.sub_starProjection_mem_orthogonal c
-    have hinner : ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ = 0 :=
-      (Submodule.mem_orthogonal V _).mp horth _ hdiff
-    have hsq : ‖(z : E) - (cPar : E)‖ ^ 2 ≤ ‖(z : E) - c‖ ^ 2 := by
-      have hdecomp : (z : E) - c = ((z : E) - (cPar : E)) - (c - (cPar : E)) :=
-        (sub_sub_sub_cancel_right (z : E) c (cPar : E)).symm
-      have hsub : ‖(z : E) - c‖ ^ 2 =
-          ‖(z : E) - (cPar : E)‖ ^ 2 + ‖c - (cPar : E)‖ ^ 2 := by
-        calc
-          ‖(z : E) - c‖ ^ 2 = ‖((z : E) - (cPar : E)) - (c - (cPar : E))‖ ^ 2 := by
-            rw [hdecomp]
-          _ = ‖(z : E) - (cPar : E)‖ ^ 2 - 2 * ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ +
-              ‖c - (cPar : E)‖ ^ 2 := norm_sub_sq_real _ _
-          _ = ‖(z : E) - (cPar : E)‖ ^ 2 + ‖c - (cPar : E)‖ ^ 2 := by rw [hinner]; ring
-      nlinarith [sq_nonneg ‖c - (cPar : E)‖]
-    apply Real.exp_le_exp.mpr
-    have hdiv : Real.pi * ‖(z : E) - (cPar : E)‖ ^ 2 / s ^ 2 ≤
-        Real.pi * ‖(z : E) - c‖ ^ 2 / s ^ 2 := by
-      gcongr
-    simp only [neg_mul, neg_div]
-    exact neg_le_neg hdiv
-  let LV : Submodule ℤ V := L.comap (V.subtype.restrictScalars ℤ)
-  let e : LV ≃ L := {
-    toFun := fun x ↦ ⟨(x.1 : E), x.2⟩
-    invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.2⟩, z.2⟩
-    left_inv := fun _ ↦ rfl
-    right_inv := fun _ ↦ rfl
-  }
-  have he_cont : Continuous e := by
-    refine Continuous.subtype_mk ?_ _
-    exact continuous_subtype_val.comp continuous_subtype_val
-  have hLV_disc : DiscreteTopology LV := by
-    rw [discreteTopology_iff_isOpen_singleton]
-    intro x
-    have hpre : e ⁻¹' ({e x} : Set L) = {x} := by
-      ext y
-      simp only [Set.mem_preimage, Set.mem_singleton_iff, e.injective.eq_iff]
-    rw [← hpre]
-    exact (isOpen_discrete {e x}).preimage he_cont
-  have hLV_lat : IsZLattice ℝ LV := ⟨by
-    apply Submodule.map_injective_of_injective V.injective_subtype
-    rw [Submodule.map_span, Submodule.map_top, Submodule.range_subtype]
-    have himg : (V.subtype '' (LV : Set V)) = (L : Set E) := by
-      ext y
-      refine ⟨?_, fun hy ↦ ⟨⟨y, Submodule.subset_span hy⟩, hy, rfl⟩⟩
-      rintro ⟨x, hx, rfl⟩
-      exact hx
-    rw [himg]⟩
-  have hmass_eq (y : V) : gaussianMass LV s y = gaussianMass L s (y : E) := by
-    unfold gaussianMass
-    rw [← e.tsum_eq (fun z : L ↦ gaussianWeight s ((z : E) - (y : E)))]
-    refine tsum_congr fun _ ↦ rfl
-  have hborel : @BorelSpace V _ (borel V) := @BorelSpace.mk V _ (borel V) rfl
-  calc
-    gaussianMass L s c ≤ gaussianMass L s (cPar : E) := hproj
-    _ = gaussianMass LV s cPar := (hmass_eq cPar).symm
-    _ ≤ gaussianMass LV s 0 :=
-      @gaussianMass_le_gaussianMass_zero_of_isZLattice V _ _ _ (borel V) hborel
-        LV hLV_disc hLV_lat s hs cPar
-    _ = gaussianMass L s 0 := hmass_eq 0
-
-end ShiftedMass
 
 section SuccessiveMinimumBound
 
@@ -277,20 +163,8 @@ private def dualOrthSubmodule {E : Type*} [NormedAddCommGroup E] [InnerProductSp
 private theorem discreteTopology_dualOrthSubmodule
     {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
     (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L] (v : E) :
-    DiscreteTopology (dualOrthSubmodule L v) := by
-  let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
-  have : DiscreteTopology D := discreteTopology_dualSubmodule L
-  let incl : dualOrthSubmodule L v → D := fun x ↦ ⟨x.1, x.2.1⟩
-  have hincl_cont : Continuous incl := Continuous.subtype_mk continuous_subtype_val _
-  have hincl_inj : Function.Injective incl := fun x y hxy ↦
-    Subtype.ext (congrArg (Subtype.val : D → E) hxy)
-  rw [discreteTopology_iff_isOpen_singleton]
-  intro x
-  have hpre : incl ⁻¹' ({incl x} : Set D) = {x} := by
-    ext y
-    simp only [Set.mem_preimage, Set.mem_singleton_iff, hincl_inj.eq_iff]
-  rw [← hpre]
-  exact (isOpen_discrete {incl x}).preimage hincl_cont
+    DiscreteTopology (dualOrthSubmodule L v) :=
+  DiscreteTopology.of_subset (discreteTopology_dualSubmodule L) fun _ hx ↦ hx.1
 
 private theorem dual_hyperplane_fiber_le
     {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]

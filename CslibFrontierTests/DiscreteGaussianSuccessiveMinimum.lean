@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
 public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 public import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
 
@@ -294,19 +295,9 @@ example :
 private abbrev Lsub : Submodule ℤ Plane :=
   Submodule.span ℤ ({rectBasis 0} : Set Plane)
 
-private instance : DiscreteTopology Lsub := by
-  have hle : Lsub ≤ L2 := Submodule.span_mono (Set.singleton_subset_iff.mpr ⟨0, rfl⟩)
-  let incl : Lsub → L2 := fun x ↦ ⟨x.1, hle x.2⟩
-  have hincl_cont : Continuous incl := Continuous.subtype_mk continuous_subtype_val _
-  have hincl_inj : Function.Injective incl := fun x y hxy ↦
-    Subtype.ext (congrArg (Subtype.val : L2 → Plane) hxy)
-  rw [discreteTopology_iff_isOpen_singleton]
-  intro x
-  have hpre : incl ⁻¹' ({incl x} : Set L2) = {x} := by
-    ext y
-    simp only [Set.mem_preimage, Set.mem_singleton_iff, hincl_inj.eq_iff]
-  rw [← hpre]
-  exact (isOpen_discrete {incl x}).preimage hincl_cont
+private instance : DiscreteTopology Lsub :=
+  DiscreteTopology.of_subset (inferInstance : DiscreteTopology L2)
+    (Submodule.span_mono (Set.singleton_subset_iff.mpr ⟨0, rfl⟩))
 
 /-- `ZLattice.gaussianMass_le_gaussianMass_zero` applies to lower-rank discrete lattices and
 centers outside their real span. -/

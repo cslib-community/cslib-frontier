@@ -463,6 +463,7 @@ import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 import CslibFrontier.Algorithms.Lean.CDCL.System
 import CslibFrontier.Algorithms.Lean.DPLL.RefutationSize
 import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
+import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 
 /-!
@@ -11688,15 +11689,15 @@ register_result "micciancio-regev-smoothing-dual-mass-lambda-n" where
   title := "Dual-mass form of the Micciancio–Regev λ_n smoothing bound"
   topic := "cryptography"
   sources := [
-    { paper := MicciancioRegev2007, theorem := "Lemma 3.3",
+    { paper := MicciancioRegev2007, theorem := "Lemma 3.3 (dual-mass step)",
       locator := "December 27, 2005 author's copy (Gaussian.pdf), §3, printed pp. 11–12" }
   ]
   theorems := [ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum]
-  scope := "Dual-mass form of Micciancio–Regev Lemma 3.3 (step toward the smoothing-parameter \
-    inequality η_ε(L) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L); the η_ε corollary follows PR #6844). \
-    For every full-rank discrete lattice L in a finite-dimensional real inner product space E \
-    of dimension n = finrank ℝ E (including n = 0), every ε > 0, and every s > 0 with \
-    √(ln(2n(1 + 1/ε)) / π) · λ_n(L) ≤ s, the nonzero reciprocal-width dual mass satisfies \
-    gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε. Requires no MeasurableSpace E \
-    hypothesis. The asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is not formalized \
-    here."
+  scope := "Dual-mass step toward Micciancio–Regev Lemma 3.3: for every full-rank discrete \
+    lattice L in a finite-dimensional real inner product space E of dimension n = finrank ℝ E \
+    (including n = 0), every ε > 0, and every s > 0 with \
+    √(ln(2n(1 + 1/ε)) / π) · λ_n(L) ≤ s, this theorem proves the nonzero reciprocal-width dual \
+    mass inequality gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε, stopping one \
+    step before wrapping that dual-mass condition into the smoothing-parameter infimum \
+    η_ε(L) ≤ √(ln(2n(1 + 1/ε)) / π) · λ_n(L). Requires no MeasurableSpace E hypothesis. The \
+    asymptotic ω(log n) / negligible-ε remark of Lemma 3.3 is not formalized here."
