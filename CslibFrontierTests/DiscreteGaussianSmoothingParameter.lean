@@ -227,13 +227,14 @@ private theorem basis_domain_op {E : Type*} [NormedAddCommGroup E] [InnerProduct
       (ZSpan.fundamentalDomain b) volume :=
   isAddFundamentalDomain_op_iff.mpr (ZSpan.isAddFundamentalDomain' b volume)
 
-/-- Bridge 2 (`Quotient`): full-`L¹` distance of the centered Gaussian mod `2ℤ` from uniform. -/
+/-- Bridge 2 (`Quotient`, MR07 Lemma 4.1 at `c = 0`): full-`L¹` distance of the centered Gaussian
+mod `2ℤ` from uniform above `η_{1/2}(2ℤ) ≤ 2`. -/
 example : tvDist
     (Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L.toAddSubgroup)
       (volume.withDensity (fun x : ℝ ↦ ENNReal.ofReal (gaussianWeight 2 x / 2))))
     ((1 / 2 : ℝ≥0∞) • Measure.map (QuotientAddGroup.mk : ℝ → ℝ ⧸ L.toAddSubgroup)
       (volume.restrict (ZSpan.fundamentalDomain twoBasis))) ≤ 1 / 2 := by
-  have h := ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le L 2 (by norm_num)
+  have h := ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le L 2 (by norm_num) 0
     (basis_domain_op twoBasis) (1 / 2) (by norm_num) eta_half_le_two
   simpa [covolume_two] using h
 

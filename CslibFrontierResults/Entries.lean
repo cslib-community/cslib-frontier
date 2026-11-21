@@ -11925,12 +11925,10 @@ register_result "micciancio-regev-discrete-gaussian-directional-moments" where
   scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
     space E (including dimension 0), real 0 < ε < 1, width s > 0 satisfying \
     2 · ZLattice.smoothingParameter L ε ≤ s, center c : E, and unit vector u : E (‖u‖ = 1), \
-    |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫]| ≤ (ε / (1 − ε)) s and \
-    |𝔼_{x ~ D_{L, s, c}}[⟪x − c, u⟫²] − s² / (2π)| ≤ (ε / (1 − ε)) s². Deviations from the \
-    source: (1) uses general Gaussian width s > 0 with 2 · η_ε(L) ≤ s rather than normalizing \
-    s = 1 with η_ε(L) ≤ 1 / 2; (2) uses the exact probability-weighted tsum form (bridged to \
-    Bochner integrals over (discreteGaussian L s hs c).toMeasure by \
-    integral_sub_discreteGaussian_eq_tsum and integral_norm_sub_sq_discreteGaussian_eq_tsum)."
+    matches MicciancioRegev2007 Lemma 4.2 directly in probability-weighted directional tsum form: \
+    |∑' x : L, (discreteGaussian L s hs c x).toReal · ⟪(x : E) − c, u⟫| ≤ (ε / (1 − ε)) s and \
+    |(∑' x : L, (discreteGaussian L s hs c x).toReal · ⟪(x : E) − c, u⟫²) − s² / (2π)| ≤ \
+    (ε / (1 − ε)) s²."
 
 register_result "micciancio-regev-discrete-gaussian-moments" where
   title := "Mean-norm and expected squared-norm bounds for discrete Gaussians above twice the \
@@ -11946,12 +11944,12 @@ register_result "micciancio-regev-discrete-gaussian-moments" where
   ]
   scope := "For any full-rank discrete lattice L in a finite-dimensional real inner product \
     space E (of dimension n = finrank ℝ E, including n = 0), real 0 < ε < 1, width s > 0 \
-    satisfying 2 · ZLattice.smoothingParameter L ε ≤ s, and center c : E, \
-    ‖𝔼_{x ~ D_{L, s, c}}[x − c]‖² ≤ (ε / (1 − ε))² s² n and \
-    𝔼_{x ~ D_{L, s, c}}[‖x − c‖²] ≤ (1 / (2π) + ε / (1 − ε)) s² n. Deviations from the source: \
-    (1) uses general width s > 0 with 2 · η_ε(L) ≤ s rather than normalizing s = 1 with \
-    η_ε(L) ≤ 1 / 2; (2) uses the exact probability-weighted tsum form (bridged to Bochner \
-    integrals by integral_sub_discreteGaussian_eq_tsum and \
+    satisfying 2 · ZLattice.smoothingParameter L ε ≤ s, and center c : E, matches \
+    MicciancioRegev2007 Lemma 4.3 directly in probability-weighted tsum form: \
+    ‖∑' x : L, (discreteGaussian L s hs c x).toReal • ((x : E) − c)‖² ≤ (ε / (1 − ε))² s² n and \
+    ∑' x : L, (discreteGaussian L s hs c x).toReal · ‖(x : E) − c‖² ≤ \
+    (1 / (2π) + ε / (1 − ε)) s² n (bridged directly to Bochner integrals over \
+    (discreteGaussian L s hs c).toMeasure by integral_sub_discreteGaussian_eq_tsum and \
     integral_norm_sub_sq_discreteGaussian_eq_tsum)."
 
 -- https://github.com/cslib-community/cslib-frontier/pull/6844
