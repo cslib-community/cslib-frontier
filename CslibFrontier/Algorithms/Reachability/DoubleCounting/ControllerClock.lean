@@ -41,28 +41,6 @@ bound also composes with a membership routine's own action bound. See the ordina
 public section
 namespace Cslib.DoubleCounting
 
-private theorem bind_clock {σ α β : Type} (clock : σ → ℕ) (A B : ℕ)
-    (x : OptionT (StateM σ) α) (f : α → OptionT (StateM σ) β)
-    (hx : ∀ s, clock (x.run s).2 ≤ clock s + A)
-    (hf : ∀ a s, clock ((f a).run s).2 ≤ clock s + B) (s : σ) :
-    clock ((x >>= f).run s).2 ≤ clock s + (A + B) := by
-  have h := hx s
-  change clock (x s).2 ≤ clock s + A at h
-  simp only [bind, OptionT.bind, OptionT.mk, OptionT.run, StateT.bind]
-  cases he : x s with
-  | mk r t =>
-    rw [he] at h
-    change clock t ≤ clock s + A at h
-    cases r with
-    | none =>
-      change clock t ≤ _
-      omega
-    | some a =>
-      change clock (f a t).2 ≤ _
-      have hnext := hf a t
-      change clock (f a t).2 ≤ clock t + B at hnext
-      omega
-
 private theorem predecessorStep_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M : ℕ)
     (edge : Fin n → Fin n → OptionT (StateM σ) Bool)
     (member : Fin n → OptionT (StateM σ) Bool)
@@ -71,12 +49,12 @@ private theorem predecessorStep_clock {σ : Type} {n : ℕ} (clock : σ → ℕ)
     (v u : Fin n) (c : ℕ) (s : σ) :
     clock ((predecessorStep edge member v c u).run s).2 ≤ clock s + (E + M) := by
   unfold predecessorStep
-  apply bind_clock clock E M _ _ (he u v)
+  apply bind_optionT_clock clock E M _ _ (he u v)
   intro answer state
   cases answer with
   | false => change clock state ≤ _; omega
   | true =>
-    have h := bind_clock clock M 0 (member u)
+    have h := bind_optionT_clock clock M 0 (member u)
       (fun hit => if hit then pure (c + 1) else pure c) (hm u)
       (fun hit state => by cases hit <;> (change clock state ≤ _; omega)) state
     simpa using h
@@ -101,12 +79,12 @@ private theorem scanVertex_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M
     (k : ℕ) (a : RoundUpdate) (v : Fin n) (s : σ) :
     clock ((scanVertex edge member k a v).run s).2 ≤ clock s + (M + n * (E + M)) := by
   unfold scanVertex
-  apply bind_clock clock M (n * (E + M)) _ _ (hm v)
+  apply bind_optionT_clock clock M (n * (E + M)) _ _ (hm v)
   intro answer state
   cases answer with
   | true => change clock state ≤ _; omega
   | false =>
-    have h := bind_clock clock (n * (E + M)) 0 (countPredecessors edge member v)
+    have h := bind_optionT_clock clock (n * (E + M)) 0 (countPredecessors edge member v)
       (fun p => pure (a.addVertex k p))
       (countPredecessors_clock clock E M edge member he hm v)
       (fun _ state => by change clock state ≤ _; omega) state
@@ -144,14 +122,14 @@ theorem runRounds_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M limit : 
     calc
       _ ≤ clock s + (n * (M + n * (E + M)) +
           (fuel * (n * (M + n * (E + M))) + M)) := by
-        apply bind_clock clock (n * (M + n * (E + M)))
+        apply bind_optionT_clock clock (n * (M + n * (E + M)))
           (fuel * (n * (M + n * (E + M))) + M) _ _
           (scanNextRound_clock clock E M edge member k t he (hm k hkl t))
         intro a state
         split
         · change clock state ≤ _; omega
         split
-        · have h := bind_clock clock M 0 (member k t target)
+        · have h := bind_optionT_clock clock M 0 (member k t target)
             (fun hit => pure (some (ControllerVerdict.decided hit))) (hm k hkl t target)
             (fun _ state => by change clock state ≤ _; omega) state
           simp only [Nat.add_zero] at h

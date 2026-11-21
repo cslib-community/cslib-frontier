@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary coordinate-order clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
+public import CslibFrontier.Foundations.Geometry.Polygonal.RadialOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.Join
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
@@ -108,5 +109,24 @@ example : StrictMono (fun k => (unequalSteps.point k).re) ∧
       (AffineMap.lineMap (1 : ℂ) 100 (1 / 2)).re
     norm_num [AffineMap.lineMap_apply_module]
   · norm_num [position, unequalSteps, segments, append, line]
+
+private def outward : Route := (line (⟨1, 0⟩ : ℂ) ⟨2, 2⟩).append ⟨0, 5⟩
+
+private theorem outward_chords (i : Fin outward.segments) :
+    ‖outward.point i.succ - outward.point i.castSucc‖ ^ 2 <
+      ‖outward.point i.succ - (0 : ℂ)‖ ^ 2 - ‖outward.point i.castSucc - (0 : ℂ)‖ ^ 2 := by
+  fin_cases i
+  · change ‖(⟨2, 2⟩ : ℂ) - ⟨1, 0⟩‖ ^ 2 < ‖(⟨2, 2⟩ : ℂ) - 0‖ ^ 2 - ‖(⟨1, 0⟩ : ℂ) - 0‖ ^ 2
+    norm_num [Complex.sq_norm, Complex.normSq_apply, Complex.sub_re, Complex.sub_im]
+  · change ‖(⟨0, 5⟩ : ℂ) - ⟨2, 2⟩‖ ^ 2 < ‖(⟨0, 5⟩ : ℂ) - 0‖ ^ 2 - ‖(⟨2, 2⟩ : ℂ) - 0‖ ^ 2
+    norm_num [Complex.sq_norm, Complex.normSq_apply, Complex.sub_re, Complex.sub_im]
+
+-- The real coordinate reverses at the bend, but the radius increases across the two chords.
+example : outward.IsSimple ∧ ‖outward.eval 0 (1 / 2) - (0 : ℂ)‖ <
+    ‖outward.eval 1 (1 / 2) - (0 : ℂ)‖ := by
+  refine ⟨outward.isSimple_of_outward 0 outward_chords, ?_⟩
+  apply (outward.norm_eval_lt_iff_position_lt_of_outward 0 outward_chords
+    0 1 (1 / 2) (1 / 2) (by norm_num) (by norm_num)).mpr
+  norm_num [outward, position, segments, line, append]
 
 end Cslib.Tests.PolygonalCoordinateOrder
