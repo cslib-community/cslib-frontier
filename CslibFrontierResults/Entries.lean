@@ -11799,20 +11799,24 @@ register_result "micciancio-regev-gaussian-quotient-uniformity" where
       locator := "author's copy of December 27, 2005, §4, printed p. 12" }
   ]
   theorems := [
-    ZLattice.tvDist_gaussian_shift_quotient_le
+    ZLattice.tvDist_gaussian_shift_quotient_le,
+    ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le
   ]
-  scope := "Dual-mass form (first sentence) of MicciancioRegev2007 Lemma 4.1 (a step toward the \
-    s ≥ η_ε(L) corollary once ZLattice.smoothingParameter is in scope): for any full-rank \
-    discrete lattice L in a finite-dimensional real inner product space E with Borel measurable \
-    structure, fundamental domain F for L, width s > 0, and arbitrary center c : E, the \
-    quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total variation \
-    distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the normalized \
-    quotient Haar measure. Conventions and deviations from the source: (1) Mathlib's tvDist is \
-    the full-L¹ distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly \
-    equivalent to the source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}) (identical constant, \
-    not looser); (2) stated on the quotient group E ⧸ L with normalized restricted volume on an \
-    arbitrary fundamental domain F rather than a basis parallelepiped P(B); (3) omits the \
-    'In particular, s ≥ η_ε(B) ⇒ Δ ≤ ε / 2' specialization until smoothingParameter lands."
+  scope := "MicciancioRegev2007 Lemma 4.1 in two parts. (a) Dual-mass form of the first sentence: \
+    for any full-rank discrete lattice L in a finite-dimensional real inner product space E with \
+    Borel measurable structure, fundamental domain F for L, width s > 0, and arbitrary center \
+    c : E, the quotient pushforward of the shifted continuous Gaussian D_{s, c} to E ⧸ L has total \
+    variation distance at most gaussianMass (dualSubmodule (innerₗ E) L) (1 / s) 0 − 1 from the \
+    normalized quotient Haar measure; the premise is the dual-lattice Gaussian mass, not the \
+    smoothing parameter. (b) Smoothing-parameter corollary for the centered Gaussian (c = 0): \
+    for ε > 0 and ZLattice.smoothingParameter L ε ≤ s, the same total variation distance is at \
+    most ε. Conventions and deviations from the source: (1) Mathlib's tvDist is the full-L¹ \
+    distance tvDist = 2 Δ ∈ [0, 2], so tvDist ≤ ρ_{1/s}(L* \\ {0}) is exactly equivalent to \
+    the source's half-L¹ bound Δ ≤ (1 / 2) ρ_{1/s}(L* \\ {0}), and tvDist ≤ ε in (b) is the \
+    source's Δ ≤ ε / 2 (identical constants, not looser); (2) stated on the quotient group E ⧸ L \
+    with normalized restricted volume on an arbitrary fundamental domain F rather than a basis \
+    parallelepiped P(B); (3) the η_ε specialization is registered for the centered Gaussian \
+    only."
 
 register_result "classical-quantum-tuple-mutual-information-chain" where
   title := "Mutual information chain rule for finite classical tuples and a quantum register"
