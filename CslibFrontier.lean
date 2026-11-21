@@ -7130,6 +7130,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 public import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
+public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentCuts
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
 public import CslibFrontier.Foundations.Geometry.Polygonal.SlopeDetour

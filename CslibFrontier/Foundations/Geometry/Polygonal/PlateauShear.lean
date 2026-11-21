@@ -15,7 +15,7 @@ import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Data.List.ConsecutivePairs
 import CslibFrontier.Foundations.Data.List.FlatMapPositions
-import Mathlib.Data.Finset.Sort
+import CslibFrontier.Foundations.Geometry.Polygonal.SegmentCuts
 import Mathlib.Topology.Algebra.Group.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -121,44 +121,11 @@ theorem plateauShear_apply_outer {h r : ℝ} (hr : 0 < r) (d : ℝ) {z : ℂ}
 private noncomputable def levels (h r : ℝ) : Finset ℝ :=
   {h - r, h - r / 2, h + r / 2, h + r}
 
-private noncomputable def strictCuts (h r : ℝ) (a b : ℂ) : Finset ℝ :=
-  if b.im = a.im then ∅ else
-    ((levels h r).image fun y => (y - a.im) / (b.im - a.im)).filter fun t => 0 < t ∧ t < 1
+private noncomputable abbrev strictCuts (h r : ℝ) (a b : ℂ) : Finset ℝ :=
+  segmentInteriorCuts (levels h r) a.im b.im
 
-private noncomputable def cutSet (h r : ℝ) (a b : ℂ) : Finset ℝ :=
-  insert 0 (insert 1 (strictCuts h r a b))
-
-private noncomputable def cuts (h r : ℝ) (a b : ℂ) : List ℝ :=
-  (cutSet h r a b).sort
-
-private theorem strictCuts_mem {h r : ℝ} {a b : ℂ} {t : ℝ}
-    (ht : t ∈ strictCuts h r a b) : t ∈ Set.Ioo 0 1 := by
-  unfold strictCuts at ht
-  split_ifs at ht with heq
-  · exact False.elim (Finset.notMem_empty t ht)
-  · exact (Finset.mem_filter.mp ht).2
-
-private theorem mem_cuts {h r : ℝ} {a b : ℂ} {t : ℝ} :
-    t ∈ cuts h r a b ↔ t = 0 ∨ t = 1 ∨ t ∈ strictCuts h r a b := by
-  simp only [cuts, Finset.mem_sort, cutSet, Finset.mem_insert]
-
-private theorem cuts_bounds {h r : ℝ} {a b : ℂ} {t : ℝ}
-    (ht : t ∈ cuts h r a b) : t ∈ Set.Icc 0 1 := by
-  rcases mem_cuts.mp ht with rfl | rfl | ht
-  · constructor <;> norm_num
-  · constructor <;> norm_num
-  · exact ⟨(strictCuts_mem ht).1.le, (strictCuts_mem ht).2.le⟩
-
-private theorem cuts_strict (h r : ℝ) (a b : ℂ) : (cuts h r a b).SortedLT :=
-  Finset.sortedLT_sort _
-
-private theorem cuts_length_eq (h r : ℝ) (a b : ℂ) :
-    (cuts h r a b).length = (strictCuts h r a b).card + 2 := by
-  have hn₀ : (0 : ℝ) ∉ strictCuts h r a b := fun ht => (lt_irrefl 0) (strictCuts_mem ht).1
-  have hn₁ : (1 : ℝ) ∉ strictCuts h r a b := fun ht => (lt_irrefl 1) (strictCuts_mem ht).2
-  simp only [cuts, Finset.length_sort, cutSet,
-    Finset.card_insert_of_notMem (by simp [hn₀] : (0 : ℝ) ∉ insert 1 (strictCuts h r a b)),
-    Finset.card_insert_of_notMem hn₁]
+private noncomputable abbrev cuts (h r : ℝ) (a b : ℂ) : List ℝ :=
+  segmentCuts (levels h r) a.im b.im
 
 private theorem cuts_length_bounds (h r : ℝ) (a b : ℂ) :
     2 ≤ (cuts h r a b).length ∧ (cuts h r a b).length ≤ 6 := by
@@ -170,7 +137,8 @@ private theorem cuts_length_bounds (h r : ℝ) (a b : ℂ) :
         (by
           change ({h-r,h-r/2,h+r/2,h+r} : Finset ℝ).card ≤ 4
           exact Finset.card_le_four))
-  rw [cuts_length_eq]
+  rw [show (cuts h r a b).length = (strictCuts h r a b).card + 2 from
+    segmentCuts_length_eq (levels h r) a.im b.im]
   omega
 
 private theorem profile_lower {h r y : ℝ} (hr : 0 < r)
@@ -306,107 +274,6 @@ private theorem shear_lineMap {h r : ℝ} (hr : 0 < r) (d : ℝ) {a b : ℂ}
     exact lineMap_mem_segment ℝ _ _ ht
   rw [hF _ hz, hF a ha, hF b hb, F.apply_lineMap]
 
-private theorem cut_first_last (h r : ℝ) (a b : ℂ) :
-    (cuts h r a b)[0]'(by have := cuts_length_bounds h r a b; omega) = 0 ∧
-      (cuts h r a b)[(cuts h r a b).length - 1]'(by
-        have := cuts_length_bounds h r a b; omega) = 1 := by
-  let L := cuts h r a b
-  have hmono := (cuts_strict h r a b).strictMono_get
-  have hzero : (0 : ℝ) ∈ L := mem_cuts.mpr (Or.inl rfl)
-  have hone : (1 : ℝ) ∈ L := mem_cuts.mpr (Or.inr (Or.inl rfl))
-  obtain ⟨i, hi⟩ := List.mem_iff_get.mp hzero
-  obtain ⟨j, hj⟩ := List.mem_iff_get.mp hone
-  have hlen := cuts_length_bounds h r a b
-  constructor
-  · apply le_antisymm
-    · exact (hmono.monotone (show (⟨0, by dsimp only [L] at *; omega⟩ : Fin L.length) ≤ i from
-        Nat.zero_le _)).trans_eq hi
-    · exact (cuts_bounds (List.get_mem L _)).1
-  · apply le_antisymm
-    · exact (cuts_bounds (List.get_mem L _)).2
-    · exact hj.symm.trans_le (hmono.monotone (show j ≤
-        (⟨L.length - 1, by dsimp only [L] at *; omega⟩ : Fin L.length) from
-          Nat.le_sub_one_of_lt j.isLt))
-
-private theorem cut_adjacent_no_level {h r : ℝ} {a b : ℂ} {k : ℕ}
-    (hk : k + 1 < (cuts h r a b).length) :
-    ∀ y ∈ levels h r,
-      ¬(min (AffineMap.lineMap a b (cuts h r a b)[k]).im
-          (AffineMap.lineMap a b (cuts h r a b)[k + 1]).im < y ∧
-        y < max (AffineMap.lineMap a b (cuts h r a b)[k]).im
-          (AffineMap.lineMap a b (cuts h r a b)[k + 1]).im) := by
-  let L := cuts h r a b
-  have hkL : k + 1 < L.length := hk
-  let α := L[k]
-  let β := L[k + 1]
-  have hmono := (cuts_strict h r a b).strictMono_get
-  have hαβ : α < β := hmono (show (⟨k, by omega⟩ : Fin L.length) < ⟨k + 1, hk⟩ from
-    Nat.lt_succ_self k)
-  have hα := cuts_bounds (List.getElem_mem (l := L) (by omega : k < L.length))
-  have hβ := cuts_bounds (List.getElem_mem (l := L) hk)
-  intro y hy hbetween
-  have him (t : ℝ) : (AffineMap.lineMap a b t).im = t * (b.im - a.im) + a.im := by
-    change Complex.imCLM.toLinearMap.toAffineMap (AffineMap.lineMap a b t) = _
-    rw [AffineMap.apply_lineMap, AffineMap.lineMap_apply_ring']
-    rfl
-  simp only [him] at hbetween
-  have hne : b.im - a.im ≠ 0 := by
-    intro he
-    simp only [he, mul_zero, zero_add, min_self, max_self] at hbetween
-    exact (not_lt_of_ge hbetween.1.le) hbetween.2
-  let t := (y - a.im) / (b.im - a.im)
-  have ht_eq : t * (b.im - a.im) + a.im = y := by
-    dsimp [t]
-    field_simp [hne]
-    ring
-  have ht : α < t ∧ t < β := by
-    rcases lt_or_gt_of_ne hne with hneg | hpos
-    · have he : β * (b.im - a.im) + a.im < α * (b.im - a.im) + a.im := by nlinarith
-      rw [min_eq_right he.le, max_eq_left he.le] at hbetween
-      constructor
-      · exact (mul_lt_mul_right_of_neg hneg).mp (by linarith [hbetween.2])
-      · exact (mul_lt_mul_right_of_neg hneg).mp (by linarith [hbetween.1])
-    · have he : α * (b.im - a.im) + a.im < β * (b.im - a.im) + a.im := by nlinarith
-      rw [min_eq_left he.le, max_eq_right he.le] at hbetween
-      constructor
-      · exact (mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.1])
-      · exact (mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.2])
-  have htm : t ∈ strictCuts h r a b := by
-    rw [strictCuts, ite_eq_right (sub_ne_zero.mp hne), Finset.mem_filter]
-    exact ⟨Finset.mem_image.mpr ⟨y, hy, rfl⟩,
-      lt_of_le_of_lt hα.1 ht.1, lt_of_lt_of_le ht.2 hβ.2⟩
-  obtain ⟨j, hj⟩ := List.mem_iff_get.mp (mem_cuts.mpr (Or.inr (Or.inr htm)))
-  have hkj : (⟨k, by omega⟩ : Fin L.length) < j := (hmono.lt_iff_lt).mp (hj ▸ ht.1)
-  have hjk : j < (⟨k + 1, hk⟩ : Fin L.length) := (hmono.lt_iff_lt).mp (hj ▸ ht.2)
-  change k < j.val at hkj
-  change j.val < k + 1 at hjk
-  omega
-
-private theorem cut_interval {h r : ℝ} {a b : ℂ} {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
-    ∃ (k : ℕ) (hk : k + 1 < (cuts h r a b).length),
-      (cuts h r a b)[k] ≤ t ∧ t ≤ (cuts h r a b)[k + 1] := by
-  let L := cuts h r a b
-  have hlen : 2 ≤ L.length ∧ L.length ≤ 6 := cuts_length_bounds h r a b
-  have hends : L[0] = 0 ∧ L[L.length - 1] = 1 := cut_first_last h r a b
-  dsimp only [L] at hlen hends
-  by_cases ht1 : t = 1
-  · refine ⟨L.length - 2, by dsimp only [L] at *; omega, ?_, ?_⟩
-    · exact (cuts_bounds (List.getElem_mem (by dsimp only [L] at *; omega))).2.trans_eq ht1.symm
-    · change t ≤ L[L.length - 2 + 1]
-      simp only [show L.length - 2 + 1 = L.length - 1 by dsimp only [L] at *; omega]
-      exact ht1.trans_le (show L[L.length - 1] = 1 from hends.2).symm.le
-  · let f : Fin (L.length - 1 + 1) → ℝ := fun j => L[j.val]'(by
-      have := j.isLt
-      dsimp only [L] at *
-      omega)
-    obtain ⟨i, hlo, hhi⟩ := Fin.exists_le_lt_adjacent (f := f) (x := t)
-      (by change L[0] ≤ t; rw [show L[0] = 0 from hends.1]; exact ht.1)
-      (by
-        change t < L[L.length - 1]
-        rw [show L[L.length - 1] = 1 from hends.2]
-        exact lt_of_le_of_ne ht.2 ht1)
-    exact ⟨i.val, by have := i.isLt; dsimp only [L] at *; omega, hlo, hhi.le⟩
-
 private theorem cut_eval {h r : ℝ} (hr : 0 < r) (d : ℝ) {a b : ℂ} {k : ℕ}
     (hk : k + 1 < (cuts h r a b).length) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     plateauShear h r d (AffineMap.lineMap a b
@@ -414,8 +281,8 @@ private theorem cut_eval {h r : ℝ} (hr : 0 < r) (d : ℝ) {a b : ℂ} {k : ℕ
       AffineMap.lineMap
         (plateauShear h r d (AffineMap.lineMap a b (cuts h r a b)[k]))
         (plateauShear h r d (AffineMap.lineMap a b (cuts h r a b)[k + 1])) t := by
-  rw [(AffineMap.lineMap a b).apply_lineMap]
-  exact shear_lineMap hr d (cut_adjacent_no_level hk) ht
+  exact segmentCuts_map_lineMap (levels h r) Complex.imCLM.toLinearMap.toAffineMap
+    (plateauShear h r d) (fun a b hn t ht => shear_lineMap hr d hn ht) a b hk ht
 
 private noncomputable def sourceBlock (p : Route) (h r : ℝ) (i : Fin p.segments) :
     List (Fin p.segments × ℝ) :=
@@ -428,22 +295,6 @@ private noncomputable def sourceSamples (p : Route) (h r : ℝ) : List (Fin p.se
 private def sourcePosition {p : Route} (x : Fin p.segments × ℝ) : ℝ :=
   (x.1.val : ℝ) + x.2
 
-private theorem dropLast_cuts_bounds {h r : ℝ} {a b : ℂ} {t : ℝ}
-    (ht : t ∈ (cuts h r a b).dropLast) : 0 ≤ t ∧ t < 1 := by
-  let L := cuts h r a b
-  obtain ⟨i, hi⟩ := List.mem_iff_get.mp ht
-  have hlen : 2 ≤ L.length ∧ L.length ≤ 6 := cuts_length_bounds h r a b
-  have hilt : i.val < L.length - 1 := by simpa only [List.length_dropLast] using i.isLt
-  have hil : i.val < L.length := by omega
-  have ht' : L[i.val] = t := by simpa only [List.get_eq_getElem, List.getElem_dropLast] using hi
-  constructor
-  · exact ht' ▸ (cuts_bounds (List.getElem_mem hil)).1
-  · have hm := (cuts_strict h r a b).strictMono_get
-      (show (⟨i.val, hil⟩ : Fin L.length) < ⟨L.length - 1, by omega⟩ from hilt)
-    change L[i.val] < L[L.length - 1] at hm
-    rw [ht', show L[L.length - 1] = 1 from (cut_first_last h r a b).2] at hm
-    exact hm
-
 private theorem sourceSamples_bounds (p : Route) (h r : ℝ)
     {x : Fin p.segments × ℝ} (hx : x ∈ sourceSamples p h r) : x.2 ∈ Set.Icc 0 1 := by
   simp only [sourceSamples] at hx
@@ -452,7 +303,7 @@ private theorem sourceSamples_bounds (p : Route) (h r : ℝ)
     change x ∈ (cuts h r (p.point i.castSucc) (p.point i.succ)).dropLast.map (fun t => (i,t)) at ht
     obtain ⟨t, hcut, heq⟩ := List.mem_map.mp ht
     subst x
-    exact ⟨(dropLast_cuts_bounds hcut).1, (dropLast_cuts_bounds hcut).2.le⟩
+    exact ⟨(segmentCuts_dropLast_bounds hcut).1, (segmentCuts_dropLast_bounds hcut).2.le⟩
   · have he : x = (Fin.last p.bends, 1) := List.mem_singleton.mp hx
     rw [he]
     constructor <;> norm_num
@@ -465,7 +316,8 @@ private theorem sourceSamples_ordered (p : Route) (h r : ℝ) :
     constructor
     · intro i _
       apply List.pairwise_map.mpr
-      have hc := (cuts_strict h r (p.point i.castSucc) (p.point i.succ)).pairwise
+      have hc := (segmentCuts_sorted (levels h r)
+        (p.point i.castSucc).im (p.point i.succ).im).pairwise
       exact (hc.sublist (List.dropLast_sublist _)).imp
         (fun hab => by dsimp [sourcePosition]; linarith)
     · apply (List.sortedLT_finRange p.segments).pairwise.imp
@@ -473,8 +325,8 @@ private theorem sourceSamples_ordered (p : Route) (h r : ℝ) :
       obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hx
       obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hy
       have hstep : (i.val : ℝ) + 1 ≤ j.val := by exact_mod_cast hij
-      have hs' := dropLast_cuts_bounds hs
-      have ht' := dropLast_cuts_bounds ht
+      have hs' := segmentCuts_dropLast_bounds hs
+      have ht' := segmentCuts_dropLast_bounds ht
       dsimp [sourcePosition]
       linarith
   · intro x hx y hy
@@ -485,7 +337,7 @@ private theorem sourceSamples_ordered (p : Route) (h r : ℝ) :
     subst y
     have hi : i.val ≤ p.bends := by have := i.isLt; dsimp [Route.segments] at *; omega
     have hi' : (i.val : ℝ) ≤ p.bends := by exact_mod_cast hi
-    have ht' := dropLast_cuts_bounds hcut
+    have ht' := segmentCuts_dropLast_bounds hcut
     dsimp [sourcePosition]
     linarith
 
@@ -506,7 +358,7 @@ private theorem sourceBlock_head (p : Route) (h r : ℝ) (i : Fin p.segments) :
     (sourceBlock p h r i).head (sourceBlock_ne_nil p h r i) = (i, 0) := by
   rw [List.head_eq_getElem]
   simp only [sourceBlock, List.getElem_map, List.getElem_dropLast,
-    (cut_first_last h r (p.point i.castSucc) (p.point i.succ)).1]
+    (segmentCuts_first_last (levels h r) (p.point i.castSucc).im (p.point i.succ).im).1]
 
 private theorem sourceBlock_last (p : Route) (h r : ℝ) (i : Fin p.segments) :
     (sourceBlock p h r i).getLast (sourceBlock_ne_nil p h r i) =
@@ -631,7 +483,7 @@ private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
       have hlen := cuts_length_bounds h r (p.point i.castSucc) (p.point i.succ)
       have hend : C[C.length - 2 + 1]'(by dsimp [C]; omega) = 1 := by
         simpa only [show C.length - 2 + 1 = C.length - 1 by dsimp [C]; omega] using
-          (cut_first_last h r (p.point i.castSucc) (p.point i.succ)).2
+          (segmentCuts_first_last (levels h r) (p.point i.castSucc).im (p.point i.succ).im).2
       refine ⟨i, C.length - 2, by dsimp [C]; omega, rfl, ?_, rfl, ?_⟩
       · rw [hend]
         simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one,
@@ -658,7 +510,7 @@ private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
       have hlen := cuts_length_bounds h r (p.point i.castSucc) (p.point i.succ)
       have hend : C[C.length - 2 + 1]'(by dsimp [C]; omega) = 1 := by
         simpa only [show C.length - 2 + 1 = C.length - 1 by dsimp [C]; omega] using
-          (cut_first_last h r (p.point i.castSucc) (p.point i.succ)).2
+          (segmentCuts_first_last (levels h r) (p.point i.castSucc).im (p.point i.succ).im).2
       refine ⟨i, C.length - 2, by dsimp [C]; omega, rfl, ?_, rfl, ?_⟩
       · rw [hend]
       · dsimp only [sourcePosition, Route.position, i, Fin.val_last]
@@ -795,9 +647,9 @@ private theorem rawShear_parameter {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ
     (List.getElem_mem_consecutivePairs (sourceSamples p h r) i.val hidx)
   let C := cuts h r (p.point j.castSucc) (p.point j.succ)
   have hkC : k + 1 < C.length := hk
-  have hα := cuts_bounds (List.getElem_mem (by omega : k < C.length))
-  have hβ := cuts_bounds (List.getElem_mem hk)
-  have hαβ : C[k] < C[k + 1] := (cuts_strict h r _ _).strictMono_get
+  have hα := segmentCuts_mem_Icc (List.getElem_mem (by omega : k < C.length))
+  have hβ := segmentCuts_mem_Icc (List.getElem_mem hk)
+  have hαβ : C[k] < C[k + 1] := (segmentCuts_sorted (levels h r) _ _).strictMono_get
     (show (⟨k, by omega⟩ : Fin C.length) < ⟨k + 1, hk⟩ from Nat.lt_succ_self k)
   refine ⟨j, C[k], C[k + 1], hα.1, hαβ, hβ.2, cut_adjacent_no_level hk, ?_, ?_⟩
   · intro t ht
@@ -948,7 +800,7 @@ private theorem sourceSamples_piece (p : Route) (h r : ℝ) (j : Fin p.segments)
         have hkLast' : k + 1 = C.length - 1 := by simpa only
           [f, sourceBlock, List.length_map, List.length_dropLast] using hkLast
         simp only [hkLast']
-        exact (cut_first_last h r (p.point j.castSucc) (p.point j.succ)).2
+        exact (segmentCuts_first_last (levels h r) (p.point j.castSucc).im (p.point j.succ).im).2
       have hpref : ((L.take (j.val + 1)).flatMap f).length = prefLen + (f j).length := by
         rw [List.take_succ_eq_append_getElem hj, List.flatMap_append,
           List.flatMap_singleton, List.length_append, hget]
@@ -1003,11 +855,11 @@ private theorem sourceSamples_piece (p : Route) (h r : ℝ) (j : Fin p.segments)
 private theorem rawShear_contains {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ)
     (j : Fin p.segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     plateauShear h r d (p.eval j t) ∈ (rawShear p h r d).support := by
-  obtain ⟨k, hk, hlo, hhi⟩ := cut_interval (h := h) (r := r)
-    (a := p.point j.castSucc) (b := p.point j.succ) ht
+  obtain ⟨k, hk, hlo, hhi⟩ := segmentCuts_cover (levels := levels h r)
+    (a := (p.point j.castSucc).im) (b := (p.point j.succ).im) ht
   let C := cuts h r (p.point j.castSucc) (p.point j.succ)
   have hkC : k + 1 < C.length := hk
-  have hstep : C[k] < C[k + 1] := (cuts_strict h r _ _).strictMono_get
+  have hstep : C[k] < C[k + 1] := (segmentCuts_sorted (levels h r) _ _).strictMono_get
     (show (⟨k, by omega⟩ : Fin C.length) < ⟨k + 1, hk⟩ from Nat.lt_succ_self k)
   let u := (t - C[k]) / (C[k + 1] - C[k])
   have hu : u ∈ Set.Icc (0 : ℝ) 1 := by
@@ -1075,7 +927,7 @@ private theorem strictCuts_eq_empty_of_untouched {p : Route} {h r : ℝ} (hr : 0
     strictCuts h r (p.point i.castSucc) (p.point i.succ) = ∅ := by
   apply Finset.eq_empty_iff_forall_notMem.mpr
   intro t ht
-  unfold strictCuts at ht
+  unfold strictCuts segmentInteriorCuts at ht
   split_ifs at ht with heq
   · simp at ht
   · obtain ⟨himage, hinterval⟩ := Finset.mem_filter.mp ht
@@ -1169,7 +1021,7 @@ theorem segments_plateauShear_eq {h r : ℝ} (hr : 0 < r) (p : Route) {d : ℝ} 
   · rw [ite_eq_right hu, rawShear_segments, sourceSamples_length_eq_sum, Nat.add_sub_cancel]
     apply Finset.sum_congr rfl
     intro i _
-    simp only [sourceBlock, List.length_map, List.length_dropLast, cuts_length_eq]
+    simp only [sourceBlock, List.length_map, List.length_dropLast, segmentCuts_length_eq]
     omega
 
 /-- Actual continuum parameter transport. The old interval is strictly positive and lies

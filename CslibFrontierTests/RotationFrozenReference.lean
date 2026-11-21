@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
+import CslibFrontier.Foundations.Geometry.Polygonal.SegmentCuts
 import Mathlib.Tactic.NormNum
 
 /-! Ordinary clients keep both loop ends, parallel occurrences, unused fresh leaves, a fixed
@@ -164,6 +165,20 @@ example (z w : ℂ) (h : z.re = w.re) (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
   intro x _
   rw [h, min_self, max_self]
   exact fun hx => (not_lt_of_ge hx.1.le) hx.2
+
+-- Each actual indexed piece in the compressed plane is transported by straight interpolation.
+example (a b : ℂ) :
+    ∃ (F : ℂ ≃ₜ ℂ) (cuts : Finset ℝ),
+      let times := segmentCuts cuts a.re b.re
+      ∀ (k : ℕ) (hk : k + 1 < times.length) (t : ℝ), t ∈ Set.Icc 0 1 →
+        F.symm (AffineMap.lineMap a b (AffineMap.lineMap times[k] times[k + 1] t)) =
+          AffineMap.lineMap (F.symm (AffineMap.lineMap a b times[k]))
+            (F.symm (AffineMap.lineMap a b times[k + 1])) t := by
+  obtain ⟨F, cuts, _, _, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  refine ⟨F, cuts, fun k hk t ht => ?_⟩
+  exact segmentCuts_map_lineMap cuts Complex.reCLM.toLinearMap.toAffineMap F.symm
+    hline a b hk ht
 
 /-- Removing every edge keeps the entire frame as distinct isolated points. -/
 theorem all_free_frame :
