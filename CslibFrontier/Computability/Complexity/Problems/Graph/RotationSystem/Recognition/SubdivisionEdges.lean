@@ -87,6 +87,26 @@ theorem subdivisionEdgeIndex_val (I : FixedRotationInput)
   change e.val = 3 * (e.val / 3) + e.val % 3
   rw [Nat.add_comm, Nat.mod_add_div]
 
+/-- Select the stored subdivision occurrence at the given original edge and piece. -/
+@[expose] def SubdivisionEdgeIndex.edge {I : FixedRotationInput} (d : SubdivisionEdgeIndex I) :
+    Fin (subdivisionGraph I).edges.length :=
+  ⟨3 * d.original.val + d.piece.val, by
+    have hi := d.original.isLt
+    have hk := d.piece.isLt
+    simp only [subdivisionGraph, List.length_map, length_subdivide]
+    omega⟩
+
+/-- Decoding the stored occurrence recovers both input indices. -/
+@[simp] theorem subdivisionEdgeIndex_edge {I : FixedRotationInput} (d : SubdivisionEdgeIndex I) :
+    subdivisionEdgeIndex I d.edge = d := by
+  have he := subdivisionEdgeIndex_val I d.edge
+  generalize hk : subdivisionEdgeIndex I d.edge = a at he ⊢
+  obtain ⟨i, k⟩ := a
+  change 3 * d.original.val + d.piece.val = 3 * i.val + k.val at he
+  have hd := d.piece.isLt
+  have hk := k.isLt
+  exact congrArg₂ SubdivisionEdgeIndex.mk (Fin.ext (by omega)) (Fin.ext (by omega))
+
 /-- The ordered source or fresh vertex names at the ends of the decoded piece. -/
 @[expose] def SubdivisionEdgeIndex.endpoints {I : FixedRotationInput} (d : SubdivisionEdgeIndex I) :
     ℕ × ℕ :=
@@ -126,18 +146,12 @@ subdivision segment. In particular, the two original loop ends select different 
 theorem subdivisionEdgeIndex_subdivisionDart (I : FixedRotationInput) (d : Dart I.graph) :
     subdivisionEdgeIndex I (subdivisionDart I d).1 =
       ⟨d.1, if d.2 then 2 else 0⟩ := by
-  have ha := subdivisionEdgeIndex_val I (subdivisionDart I d).1
-  generalize subdivisionEdgeIndex I (subdivisionDart I d).1 = a at ha ⊢
-  obtain ⟨i, k⟩ := a
-  let j : Fin 3 := if d.2 then 2 else 0
-  have hjval : j.val = (if d.2 then 2 else 0) := by
-    dsimp only [j]
-    cases d.2 <;> rfl
-  change 3 * d.1.val + (if d.2 then 2 else 0) = 3 * i.val + k.val at ha
-  rw [← hjval] at ha
-  have hj := j.isLt
-  have hk := k.isLt
-  exact congrArg₂ SubdivisionEdgeIndex.mk (Fin.ext (by omega)) (Fin.ext (by omega))
+  rcases d with ⟨i, b⟩
+  let a : SubdivisionEdgeIndex I := ⟨i, if b then 2 else 0⟩
+  have he : a.edge = (subdivisionDart I (i, b)).1 := by
+    apply Fin.ext
+    cases b <;> rfl
+  simpa only [he] using subdivisionEdgeIndex_edge a
 
 /-- The selected outgoing end has its original center and its own fresh occurrence leaf. -/
 theorem subdivisionDart_endpoints (I : FixedRotationInput) (d : Dart I.graph) :
