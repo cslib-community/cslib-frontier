@@ -43,9 +43,9 @@ the number after them.
   is a single untyped deletion: its numbers must be distinct and each must name a constraint of
   the database, core or derived, and those constraints are removed. Deleting
   constraints only enlarges the set of solutions of the database, so this is sound for `UNSAT`,
-  the only conclusion checked here. The conclusions of `Cslib.Logic.PL.VeriPB.checkRed` that rest
-  on a logged solution check it against the input formula instead of relying on checked
-  deletion.
+  the only conclusion checked here. The checker `Cslib.Logic.PL.VeriPB.checkRed` keeps the core
+  set and has the typed and checked deletions of the kernel format; there, `del` is the deletion
+  by reference of the augmented format (§5.7.2), unchecked when it deletes a core constraint.
 
 **Unit propagation** on pseudo-Boolean constraints [Gocht and Nordström][GochtNordstrom2021]
 works on a trail of literals taken to be true. The *slack* of `∑ aᵢ ℓᵢ ≥ d` is the sum of the
@@ -443,7 +443,7 @@ inductive Step where
   derive the contradiction numbered `n`. -/
   | pbc (c : PBConstr) (sub : List Step) (qed : ℕ)
   /-- `del id ids;`: delete the constraints with these distinct numbers, each of which must be in
-  the database. This untyped deletion stands for both `deld` and `delc` and takes no number; it
+  the database. This untyped deletion is `del id` of the augmented format and takes no number; it
   only enlarges the set of solutions of the database. -/
   | del (ids : List ℕ)
   deriving Repr

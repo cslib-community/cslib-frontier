@@ -9,7 +9,11 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.PrescribedOrder
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restriction
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Basic
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Angle
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
 import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Nodup
@@ -39,8 +43,6 @@ objective is tracked in [#3091](https://github.com/cslib-community/cslib-frontie
   flag selects exactly the indexed first/last segments of originally fixed ends.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_subdivisionDart_germ`: the
   actual outgoing vector from that center to that leaf.
-* `Cslib.Complexity.Graph.RotationRecognition.fixedWord_dart_vertex`: membership in a
-  prescribed complete word determines the original center.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_arg_lt_iff`: actual
   arguments decrease in the literal prescribed word, including comparison with itself.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_directions_injective`:
@@ -199,13 +201,6 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
     dsimp [k, i]
     omega
 
-/-- A dart in a prescribed complete word has that word's center. -/
-theorem fixedWord_dart_vertex {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
-    {word : List ℕ} (hw : I.orders.getD v none = some word)
-    {d : Dart I.graph} (hd : d.index ∈ word) : d.vertex = v := by
-  have hf := (hI.2.2.2 v word hw).2 d.index |>.mp hd
-  exact (Dart.vertex_index d).symm.trans (mem_fiber.mp hf).2
-
 /-- Actual outgoing arguments decrease along the literal prescribed word. No inequality
 between the two darts is assumed: comparing a dart with itself also satisfies this iff. -/
 theorem referenceDrawing_fixedWord_arg_lt_iff {I : FixedRotationInput} (hI : Valid I)
@@ -294,5 +289,28 @@ theorem referenceDrawing_fixedWord_clockwise_iff {I : FixedRotationInput} (hI : 
     referenceDrawing_fixedWord_arg_lt_iff hI hw hb ha,
     referenceDrawing_fixedWord_arg_lt_iff hI hw ha hc]
   tauto
+
+/-- The boundary ports of an embedding realizing a prescribed word have the same clockwise
+triples as the matching reference rays. The radius changes the port positions but does not
+change their order as seen from the original center. -/
+theorem cutPort_clockwise_iff_reference {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) {r : RotationSystem I.graph}
+    (hReal : D.Realizes r) (hfixed : Realizes I r) {ρ : ℝ} (hρ : 0 < ρ)
+    {v : ℕ} {word : List ℕ} (hw : I.orders.getD v none = some word)
+    {a b c : Dart I.graph} (ha : a.index ∈ word) (hb : b.index ∈ word) (hc : c.index ∈ word)
+    (hab : a ≠ b) (hbc : b ≠ c) (hac : a ≠ c) :
+    sbtw (((D.cutPort ρ c - D.vertex v).arg : ℝ) : Real.Angle)
+      (((D.cutPort ρ b - D.vertex v).arg : ℝ) : Real.Angle)
+      (((D.cutPort ρ a - D.vertex v).arg : ℝ) : Real.Angle) ↔
+    sbtw ((referenceDrawing I).direction (subdivisionDart I c))
+      ((referenceDrawing I).direction (subdivisionDart I b))
+      ((referenceDrawing I).direction (subdivisionDart I a)) := by
+  have hav := fixedWord_dart_vertex hI hw ha
+  have hbv := fixedWord_dart_vertex hI hw hb
+  have hcv := fixedWord_dart_vertex hI hw hc
+  exact (hReal.cutPort_clockwise hD v hρ (Metric.mem_ball_self hρ)
+    a b c hav hbv hcv hab hbc hac).trans
+    ((hfixed.mem_rotationInterval_iff_fixedWord hI hw ha hb hc hab hbc hac).trans
+      (referenceDrawing_fixedWord_clockwise_iff hI hw ha hb hc hab hbc hac).symm)
 
 end Cslib.Complexity.Graph.RotationRecognition

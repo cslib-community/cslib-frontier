@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Trace
+public import Mathlib.LinearAlgebra.Matrix.Charpoly.Basic
+import CslibFrontier.Foundations.LinearAlgebra.MultiplicationCharacter
+import Mathlib.LinearAlgebra.Charpoly.ToMatrix
 
 /-!
 # Multiplication matrices in the normal-monomial basis
@@ -20,13 +23,17 @@ against the Jacobian polynomial (`multiplicationMatrix_trace_pow`). Applying any
 homomorphism to the matrix gives the corresponding specialized residue formula
 (`multiplicationMatrix_map_trace_pow`), without constructing a specialized basis or requiring
 injectivity or simple roots. The coefficient rings are arbitrary commutative rings.
+Evaluating the relations at a common zero yields a characteristic root by Cayley–Hamilton.
+Conversely, every simple characteristic root over a field is attained at a common zero
+over that same field.
 
 The matrix is a mathematical specification; it is not expanded machine input. This module
 asserts no complexity bound. The construction and identities are adapted from
 [normal-basis multiplication matrices](https://github.com/edemaine/lean-canny/blob/970f28a5ecefc1327402ade16c068aa4b1b2c183/LeanCanny/CountingHierarchy/QuotientMultiplicationMatrix.lean)
 and
 [trace specialization](https://github.com/edemaine/lean-canny/blob/970f28a5ecefc1327402ade16c068aa4b1b2c183/LeanCanny/CountingHierarchy/QuotientTraceSpecialization.lean)
-in lean-canny.
+in lean-canny. The characteristic-root argument is adapted from `QuotientEvaluation` at
+the same revision.
 -/
 
 public section
@@ -41,6 +48,13 @@ noncomputable def multiplicationMatrix (hell : 1 ≤ ell)
     (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree < ell) :
     MvPolynomial (Fin n) S →ₐ[S] Matrix (NormalIndex n ell) (NormalIndex n ell) S :=
   (Algebra.leftMulMatrix (normalBasis hell r hr)).comp (projection ell r)
+
+/-- Polynomials that represent the same quotient element give the same multiplication matrix. -/
+theorem multiplicationMatrix_eq_of_projection_eq (hell : 1 ≤ ell)
+    (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree < ell)
+    {v w : MvPolynomial (Fin n) S} (h : projection ell r v = projection ell r w) :
+    multiplicationMatrix hell r hr v = multiplicationMatrix hell r hr w :=
+  congrArg (Algebra.leftMulMatrix (normalBasis hell r hr)) h
 
 /-- The normal monomial coordinates of multiplication commute with every coefficient map. -/
 theorem multiplicationMatrix_map (φ : S →+* T) (hell : 1 ≤ ell)
@@ -119,5 +133,54 @@ theorem multiplicationMatrix_map_trace_pow (φ : S →+* T)
     multiplicationMatrix_trace_pow d hd r hr v k,
     residue_map φ (by omega) r (fun i => (hr i).trans_lt (Nat.lt_succ_self d)),
     map_mul, map_pow, jacobian_map]
+
+/-- Evaluating at a common zero of the normalized relations gives a root of the actual
+multiplication matrix's characteristic polynomial, by Cayley–Hamilton in the quotient. -/
+theorem isRoot_charpoly_multiplicationMatrix_of_aeval_eq (hell : 1 ≤ ell)
+    (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree < ell)
+    (v : MvPolynomial (Fin n) S) (x : Fin n → S) (hx : ∀ i, aeval x (r i) = x i ^ ell) :
+    (multiplicationMatrix hell r hr v).charpoly.IsRoot (aeval x v) := by
+  classical
+  have hker : relationIdeal ell r ≤ RingHom.ker (aeval x).toRingHom := by
+    apply Ideal.span_le.mpr
+    rintro _ ⟨i, rfl⟩
+    change aeval x (X i ^ ell - r i) = 0
+    simp only [map_sub, map_pow, aeval_X, hx, sub_self]
+  let ev := Ideal.Quotient.liftₐ (relationIdeal ell r) (aeval x) (fun _ h => hker h)
+  have hev : ev (projection ell r v) = aeval x v :=
+    congrArg (fun f : MvPolynomial (Fin n) S →ₐ[S] S => f v)
+      (Ideal.Quotient.liftₐ_comp (relationIdeal ell r) (aeval x) (fun _ h => hker h))
+  have hc : Polynomial.aeval (projection ell r v) (multiplicationMatrix hell r hr v).charpoly = 0 :=
+    Algebra.aeval_charpoly_leftMulMatrix (normalBasis hell r hr) (projection ell r v)
+  rw [Polynomial.IsRoot.def, ← Polynomial.coe_aeval_eq_eval, ← hev,
+    Polynomial.aeval_algHom_apply, hc, map_zero]
+
+/-- A simple characteristic root of the multiplication matrix is the value of the
+multiplier at a common zero of the normalized relations over the coefficient field. -/
+theorem exists_common_zero_of_rootMultiplicity_multiplicationMatrix_eq_one {K : Type*} [Field K]
+    (hell : 1 ≤ ell) (r : Fin n → MvPolynomial (Fin n) K)
+    (hr : ∀ i, (r i).totalDegree < ell) (v : MvPolynomial (Fin n) K) {η : K}
+    (hsimple : (multiplicationMatrix hell r hr v).charpoly.rootMultiplicity η = 1) :
+    ∃ x : Fin n → K, (∀ i, aeval x (r i) = x i ^ ell) ∧ aeval x v = η := by
+  let A := QuotientAlgebra ell r
+  let b := normalBasis hell r hr
+  let : Module.Finite K A := Module.Finite.of_basis b
+  let π := projection ell r
+  have hchar : (multiplicationMatrix hell r hr v).charpoly =
+      (Algebra.lmul K A (π v)).charpoly := by
+    change (Algebra.leftMulMatrix b (π v)).charpoly = _
+    rw [Algebra.leftMulMatrix_apply, LinearMap.charpoly_toMatrix]
+  rw [hchar] at hsimple
+  obtain ⟨χ, hχ⟩ := Algebra.exists_algHom_of_rootMultiplicity_lmul_eq_one (π v) hsimple
+  let x : Fin n → K := fun i => χ (π (X i))
+  have hcomp : χ.comp π = aeval x := by
+    apply MvPolynomial.algHom_ext
+    intro i
+    simp only [AlgHom.comp_apply, aeval_X, x]
+  have heval (q : MvPolynomial (Fin n) K) : χ (π q) = aeval x q :=
+    congrArg (fun f : MvPolynomial (Fin n) K →ₐ[K] K => f q) hcomp
+  refine ⟨x, fun i => ?_, (heval v).symm.trans hχ⟩
+  rw [← heval, ← projection_X_pow ell r i]
+  simp only [map_pow, x, π]
 
 end MvPolynomial.PurePower

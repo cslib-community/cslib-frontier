@@ -132,6 +132,15 @@ theorem charpolyRev_newton (M : Matrix ι ι R) (k : ℕ) :
   simp only [smul_mul_assoc, ← pow_succ, Matrix.trace_smul, smul_eq_mul] at h
   simpa only [Nat.cast_add, Nat.cast_one, mul_comm] using h
 
+/-- Within the matrix dimension, reversing the index identifies a coefficient of
+`charpolyRev` with the corresponding coefficient of `charpoly`. -/
+theorem coeff_charpolyRev_card_sub (M : Matrix ι ι R)
+    (k : ℕ) (hk : k ≤ Fintype.card ι) :
+    M.charpolyRev.coeff (Fintype.card ι - k) = M.charpoly.coeff k := by
+  nontriviality R
+  rw [← reverse_charpoly, coeff_reverse, charpoly_natDegree_eq_dim,
+    revAt_le (Nat.sub_le _ _), Nat.sub_sub_self hk]
+
 end Matrix
 
 namespace Polynomial
@@ -241,7 +250,6 @@ theorem trace_exponential_coeff_eq_charpoly {ι : Type*} [Fintype ι] [Decidable
           M.charpoly.coeff k := by
   classical
   rw [trace_exponential_coeff_eq_charpolyRev M _ hK _ (Nat.sub_le _ _),
-    ← Matrix.reverse_charpoly, coeff_reverse, Matrix.charpoly_natDegree_eq_dim,
-    revAt_le (Nat.sub_le _ _), Nat.sub_sub_self hk]
+    Matrix.coeff_charpolyRev_card_sub M k hk]
 
 end Matrix

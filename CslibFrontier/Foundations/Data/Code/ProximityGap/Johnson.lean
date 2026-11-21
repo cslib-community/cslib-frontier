@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
 public import CslibFrontier.Foundations.Data.Code.SudanInterpolant
 public import Mathlib.Analysis.Real.Sqrt
+import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.Code.GuruswamiSudan
 import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.CharP.Algebra
@@ -138,20 +139,6 @@ def johnsonCurveBound (n m d D r W_tot : ℕ) : ℕ :=
 end
 
 section SwapAndDegZ
-
-private theorem coeff_coeff_swap {R : Type*} [CommSemiring R] (p : R[X][X])
-    (a b : ℕ) :
-    ((Bivariate.swap p).coeff a).coeff b = (p.coeff b).coeff a := by
-  induction p using Polynomial.induction_on' with
-  | add p q hp hq =>
-    simp [map_add, hp, hq]
-  | monomial n c =>
-    rw [Bivariate.swap_monomial, mul_comm (c.map C), coeff_C_mul, coeff_map,
-      mul_comm (X ^ n), coeff_C_mul, coeff_X_pow, coeff_monomial]
-    by_cases hbn : n = b
-    · subst hbn
-      simp
-    · simp [Ne.symm hbn]
 
 /-- Ring equivalence moving the innermost variable `Z` of `R[Z][X][Y]` to the outermost position
 `(R[X][Y])[Z]`. -/

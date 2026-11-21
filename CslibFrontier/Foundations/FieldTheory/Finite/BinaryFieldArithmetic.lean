@@ -41,9 +41,7 @@ private theorem all_range_eq_isNone_findCode (p : ℕ → Bool) (n : ℕ) :
   simp [List.all_eq_true, Option.isNone_iff_eq_none]
 
 private def isIrreducibleCodeScan (m : ℕ) : Bool :=
-  decide (2 ≤ m) && (findCode (fun d =>
-    !(decide (d < 2) || decide (Nat.log 2 m / 2 < Nat.log 2 d) ||
-      (modBits d.bits m.bits).any id)) 0 m).isNone
+  decide (2 ≤ m) && (findCode (fun d => !divisorPasses m d) 0 m).isNone
 
 private theorem isIrreducibleCodeScan_eq (m : ℕ) :
     isIrreducibleCodeScan m = isIrreducibleCode m := by
@@ -72,6 +70,12 @@ to its degree. A caller can reuse the same modulus across many products. -/
 @[expose] def fieldMulMod (g a b : List Bool) : List Bool :=
   let word (x : List Bool) := List.ofFn fun i : Fin (g.length - 1) => x.getD i false
   modMulBits g (word a) (word b)
+
+/-- The product always has the supplied modulus's coordinate width. -/
+@[simp] theorem length_fieldMulMod (g a b : List Bool) :
+    (fieldMulMod g a b).length = g.length - 1 := by
+  unfold fieldMulMod
+  exact length_modMulBits _ _ _ (by simp)
 
 private theorem mk_polyOfBits_word {w : ℕ} (hw : w ≠ 0) (a : List Bool) :
     AdjoinRoot.mk (leastIrreducible w)
