@@ -199,4 +199,21 @@ example :
   retainedRoundEntry_inSpace retainedSize retainedSource encBool (encOption encBool)
     (budget_const 1 (.refl _)) (budget_const 0 (.refl _))
 
+/-- Certify the transition of the context-dependent round plugged into the source loop. -/
+example :
+    let encCallee := encOption encBool
+    let encRound := encPair encBool (SourceRound.encMachineState (Option Bool) encCallee)
+    let encStep := encPair encRound encReadChoice
+    let round := retainedRound retainedSize retainedSource optionalCallback retainedStart id
+      (start false 1)
+    ComputableInSpace round.next encStep encRound (fun p => (encStep p).length) := by
+  dsimp only
+  refine retainedRound_next_inSpace retainedSize retainedSource optionalCallback retainedStart id
+    (start false 1) encBool (encOption encBool) ?_ ?_ ?_ ?_
+  · exact budget_ite (fst encBool SourceRound.encState)
+      (budget_const (some true) (.refl _)) (budget_const none (.refl _))
+  · exact of_inO (ComputableInDegree.id' (enc := encOption encBool)).inO_one
+  · exact budget_const true (.refl _)
+  · exact fst (encOption encBool) encReadChoice
+
 end CslibFrontierTests.DoubleCountingSourceRoundLoopResource

@@ -61,6 +61,26 @@ variable (callee : NondeterministicQueryMachine τ)
   retain (Equiv.refl _) (fun k =>
     SourceRound.machine (roundContext size source r) callee (calleeStart k) calleeReply) r.context
 
+/-- Step the retained round in linear workspace, using its immutable context at callback entry. -/
+theorem retainedRound_next_inSpace (r : Registers κ) (encContext : κ ↪ List Bool)
+    (encCallee : τ ↪ List Bool)
+    (hs : ComputableInSpace (fun (k, q) => calleeStart k q.context (SourceRound.request q))
+      (encPair encContext SourceRound.encState) encCallee
+      (fun p => (encPair encContext SourceRound.encState p).length))
+    (hf : ComputableInSpace calleeReply encCallee (encOption encBool)
+      (fun s => (encCallee s).length))
+    (hh : ComputableInSpace callee.halted encCallee encBool (fun s => (encCallee s).length))
+    (hn : ComputableInSpace callee.next (encPair encCallee encReadChoice) encCallee
+      (fun p => (encPair encCallee encReadChoice p).length)) :
+    let encRound := encPair encContext (SourceRound.encMachineState τ encCallee)
+    let encStep := encPair encRound encReadChoice
+    ComputableInSpace (retainedRound size source callee calleeStart calleeReply r).next
+      encStep encRound (fun p => (encStep p).length) := by
+  let encRound := encPair encContext (SourceRound.encMachineState τ encCallee)
+  exact budget_prod (fst' (fst encRound encReadChoice))
+    (SourceRound.machine_next_withParameter_inSpace encContext encCallee
+      (roundContext size source r) callee calleeStart calleeReply hs hf hh hn)
+
 /-- Changing the retained data and scalar registers at entry preserves the round transitions. -/
 theorem retainedRound_withInit (r next : Registers κ) :
     (retainedRound size source callee calleeStart calleeReply r).withInit

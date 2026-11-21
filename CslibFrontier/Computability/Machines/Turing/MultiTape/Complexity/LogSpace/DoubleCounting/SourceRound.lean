@@ -338,6 +338,52 @@ theorem answer_inSpace {τ : Type} (encT : τ ↪ List Bool) :
   exact (budget_ite (encState_rejected_budget hc) (budget_const none (.refl _))
     (budget_optionSome (encState_update_budget hc))).of_enc_eq fun _ => rfl
 
+/-- Step the scalar round with an extra immutable parameter for callback entry. -/
+theorem machine_next_withParameter_inSpace {κ τ : Type} (encK : κ ↪ List Bool)
+    (encT : τ ↪ List Bool)
+    (ctx : Context) (N : NondeterministicQueryMachine τ)
+    (start : κ → Context → Request → τ) (finish : τ → Option Bool)
+    (hs : ComputableInSpace (fun (k, q) => start k q.context (request q))
+      (encPair encK encState) encT (fun p => (encPair encK encState p).length))
+    (hf : ComputableInSpace finish encT (encOption encBool) (fun t => (encT t).length))
+    (hh : ComputableInSpace N.halted encT encBool (fun t => (encT t).length))
+    (hn : ComputableInSpace N.next (encPair encT encReadChoice) encT
+      (fun p => (encPair encT encReadChoice p).length)) :
+    let encStep := encPair (encPair encK (encMachineState τ encT)) encReadChoice
+    ComputableInSpace (fun ((k, q), read, choice) => (machine ctx N (start k) finish).next
+      (q, read, choice)) encStep (encMachineState τ encT) (fun p => (encStep p).length) := by
+  let encCaller := encPair (encPair encK encState) encReadChoice
+  have hcaller := fst (encPair encK encState) encReadChoice
+  have hstate := snd' hcaller
+  have hchoice := snd' (snd (encPair encK encState) encReadChoice)
+  have henter := encMachineState_mk_budget τ encT hstate
+    (budget_optionSome (budget_comp_linear hs hcaller))
+  have hreject := encMachineState_mk_budget τ encT (budget_comp_linear reject_inSpace hstate)
+    (budget_const none (.refl _))
+  have hbetween := budget_ite hchoice hreject henter
+  have hframe := fst encCaller encT
+  have hcallee := snd encCaller encT
+  have hcontroller := snd' (fst' hframe)
+  have hreadChoice := snd' hframe
+  have hreturn := budget_comp_linear advance_inSpace
+    (budget_prod hcontroller (budget_comp_linear hf hcallee))
+  have hreturned := encMachineState_mk_budget τ encT hreturn (budget_const none (.refl _))
+  have hcontinue := encMachineState_mk_budget τ encT hcontroller
+    (budget_optionSome (budget_comp_linear hn (budget_prod hcallee hreadChoice)))
+  have hactive := budget_ite (budget_comp_linear hh hcallee)
+    (budget_ite (snd' hreadChoice) (budget_comp_linear hreject hframe) hreturned) hcontinue
+  let encRound := encPair encK (encMachineState τ encT)
+  have hround := fst encRound encReadChoice
+  have hmachine := snd' hround
+  have hpair := budget_prod
+    (budget_prod (budget_prod (fst' hround) (encMachineState_controller_budget τ encT hmachine))
+      (snd encRound encReadChoice))
+    (encMachineState_callee_budget τ encT hmachine)
+  refine (budget_comp_linear (optionElimSnd hbetween hactive) hpair).of_enc_eq ?_
+  rintro ⟨⟨k, ⟨q, _ | t⟩⟩, read, choice⟩
+  · cases choice <;> rfl
+  · cases choice <;> cases N.halted t <;> rfl
+
 /-- Advance the suspended caller or the active callee in linear space in their joint encoding. -/
 theorem machine_next_inSpace {τ : Type} (encT : τ ↪ List Bool)
     (ctx : Context) (N : NondeterministicQueryMachine τ)
@@ -351,34 +397,14 @@ theorem machine_next_inSpace {τ : Type} (encT : τ ↪ List Bool)
     ComputableInSpace (machine ctx N start finish).next
       (encPair (encMachineState τ encT) encReadChoice) (encMachineState τ encT)
       (fun p => (encPair (encMachineState τ encT) encReadChoice p).length) := by
-  let encCaller := encPair encState encReadChoice
-  have hcaller := fst encState encReadChoice
-  have hchoice := snd' (snd encState encReadChoice)
-  have henter := encMachineState_mk_budget τ encT hcaller
-    (budget_optionSome (budget_comp_linear hs hcaller))
-  have hreject := encMachineState_mk_budget τ encT (budget_comp_linear reject_inSpace hcaller)
-    (budget_const none (.refl _))
-  have hbetween := budget_ite hchoice hreject henter
-  have hframe := fst encCaller encT
-  have hcallee := snd encCaller encT
-  have hcontroller := fst' hframe
-  have hreadChoice := snd' hframe
-  have hreturn := budget_comp_linear advance_inSpace
-    (budget_prod hcontroller (budget_comp_linear hf hcallee))
-  have hreturned := encMachineState_mk_budget τ encT hreturn (budget_const none (.refl _))
-  have hcontinue := encMachineState_mk_budget τ encT hcontroller
-    (budget_optionSome (budget_comp_linear hn (budget_prod hcallee hreadChoice)))
-  have hactive := budget_ite (budget_comp_linear hh hcallee)
-    (budget_ite (snd' hreadChoice) (budget_comp_linear hreject hframe) hreturned) hcontinue
-  have hmachine := fst (encMachineState τ encT) encReadChoice
-  have hpair := budget_prod
-    (budget_prod (encMachineState_controller_budget τ encT hmachine)
-      (snd (encMachineState τ encT) encReadChoice))
-    (encMachineState_callee_budget τ encT hmachine)
-  refine (budget_comp_linear (optionElimSnd hbetween hactive) hpair).of_enc_eq ?_
-  rintro ⟨⟨q, _ | t⟩, read, choice⟩
-  · cases choice <;> rfl
-  · cases choice <;> cases N.halted t <;> rfl
+  have hentry := budget_comp_linear hs (snd encUnit encState)
+  have hnext := machine_next_withParameter_inSpace encUnit encT ctx N (fun _ => start) finish
+    hentry hf hh hn
+  have hstep := budget_prod
+    (budget_prod (budget_const (encB := encUnit) () (.refl _))
+      (fst (encMachineState τ encT) encReadChoice))
+    (snd (encMachineState τ encT) encReadChoice)
+  exact (budget_comp_linear hnext hstep).of_enc_eq fun _ => rfl
 
 open NondeterministicQueryMachine in
 /-- Compile one round with a supplied input-dependent initializer and native same-input callbacks.
