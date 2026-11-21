@@ -144,6 +144,17 @@ theorem of_card_le [Fintype ι] [Nonempty ι] [DecidableEq Y] {c : ℕ}
 
 end IsUniversalHash
 
+/-- A key-independent hash difference for a pair of distinct inputs rules out
+`ε`-difference universality for any `ε < 1`, for any seed distribution. -/
+theorem not_isDeltaUniversalHash_of_sub_const [AddGroup Y] {seed : PMF ι}
+    {hash : ι → X → Y} {x x' : X} (hne : x ≠ x') (d : Y)
+    (hd : ∀ k, hash k x - hash k x' = d) {ε : ℝ≥0∞} (hε : ε < 1) :
+    ¬ IsDeltaUniversalHash seed hash ε := fun hh => by
+  have h : seed.toOuterMeasure {k | hash k x - hash k x' = d} = 1 :=
+    (seed.toOuterMeasure_apply_eq_one_iff _).2 fun k _ => hd k
+  apply hε.not_ge
+  simpa only [h] using hh x x' hne d
+
 namespace IsDeltaUniversalHash
 
 variable [AddGroup Y] {seed : PMF ι} {hash : ι → X → Y} {ε ε' : ℝ≥0∞}
