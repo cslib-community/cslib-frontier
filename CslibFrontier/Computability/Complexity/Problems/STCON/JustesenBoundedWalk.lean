@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.BoundedWalk.Runtime
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 
 /-!
 # Bounded walks for Justesen-weighted STCON
@@ -130,5 +131,40 @@ theorem configurationJustesenBoundedWalk_bounds (ntm : MultiTapeNTM k Bool State
   dsimp only [b] at hctx hvertices hb ⊢
   simp only [hclock, Nat.add_mul, Nat.mul_assoc]
   omega
+
+/-- A common selector clock for fuel at most the initialized subdivision vertex count. -/
+noncomputable def configurationJustesenBoundedWalkClock (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) : ℕ :=
+  let n := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+  n * (n.size + 6) + (n.size + 2)
+
+/-- The common selector clock is polynomial in the length of the original input. -/
+theorem configurationJustesenBoundedWalkClock_polyBounded
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    PolyBounded List.length (configurationJustesenBoundedWalkClock ntm c) := by
+  let count (w : List Bool) :=
+    (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+  have hcount : PolyBounded List.length count :=
+    (configurationSeedSearchParameters_polyBounded ntm c).2.2.mono fun w => by
+      simp only [count, (configurationSeedSearchSetup_endpoints ntm c w).1, le_refl]
+  have hwidth : PolyBounded List.length (fun w => (count w).size) :=
+    hcount.mono fun w => Nat.size_le_self (count w)
+  exact (hcount.mul (hwidth.add (.const 6))).add (hwidth.add (.const 2))
+
+/-- The common clock bounds every selector branch, uniformly in the rank and endpoints. -/
+theorem configurationJustesenBoundedWalk_haltsWithin_clock
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) (rank : ℕ)
+    (r : Registers
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount)
+    (hfuel : r.fuel ≤
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount) :
+    (configurationJustesenBoundedWalk ntm c w rank r).HaltsWithin w
+      (configurationJustesenBoundedWalkClock ntm c w) := by
+  have h := Runtime.haltsWithin (justesenWeightedSubdivisionCallback ntm)
+    (fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)) callbackVerdict 3
+    (configurationJustesenSubdivisionContext ntm c w rank) r w
+  unfold configurationJustesenBoundedWalk configurationJustesenBoundedWalkClock
+  exact NondeterministicQueryMachine.HaltsWithin.mono _ _ h
+    (Nat.add_le_add_right (Nat.mul_le_mul_right _ hfuel) _)
 
 end Cslib.Complexity.STCON

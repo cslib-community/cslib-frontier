@@ -114,8 +114,12 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   intro I s size index seed ctx u v M start
   exact hC w seed u v
 
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    PolyBounded List.length (configurationJustesenBoundedWalkClock ntm c) :=
+  configurationJustesenBoundedWalkClock_polyBounded ntm c
+
 open Cslib.DoubleCounting.Scan Turing.DoubleCounting.BoundedWalk in
--- Check the zero-edge success, common clock, and state bound on a wrong return selector.
+-- Check zero-edge success, the shared polynomial clock, and a wrong return selector.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ∃ C, ∀ w : List Bool,
       let I := configurationInstance ntm c w
@@ -129,6 +133,7 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       let bits := selectors (N := size.vertexCount) 3 []
       M.FirstHalting w bits M.init ∧ Runtime.remainingFuel (M.run w bits) = some 0 ∧
         M.HaltsWithin w (size.vertexCount.size + 2) ∧
+        M.HaltsWithin w (configurationJustesenBoundedWalkClock ntm c w) ∧
         (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState
           (M.run w [false, true])).length ≤ C * (Nat.log2 w.length + 1) := by
   obtain ⟨C, hC⟩ := configurationJustesenBoundedWalk_bounds ntm c
@@ -138,7 +143,9 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   obtain ⟨hclock, hstates⟩ := hC w seed r hfuel
   have hrun := (configurationJustesenBoundedWalk_firstHalting_iff ntm c w seed r bits 0).mpr
     ⟨[], rfl, by simp [r, walkM, readNext, bind, StateT.bind, pure, StateT.pure]⟩
-  refine ⟨hrun.1, hrun.2, ?_, hstates [false, true]⟩
+  refine ⟨hrun.1, hrun.2, ?_,
+    configurationJustesenBoundedWalk_haltsWithin_clock ntm c w seed.val r hfuel,
+    hstates [false, true]⟩
   simpa only [r, Nat.zero_mul, Nat.zero_add] using hclock
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall
