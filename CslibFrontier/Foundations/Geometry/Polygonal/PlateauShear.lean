@@ -130,7 +130,7 @@ private noncomputable abbrev cuts (h r : ℝ) (a b : ℂ) : List ℝ :=
 private theorem cuts_length_bounds (h r : ℝ) (a b : ℂ) :
     2 ≤ (cuts h r a b).length ∧ (cuts h r a b).length ≤ 6 := by
   have hc : (strictCuts h r a b).card ≤ 4 := by
-    unfold strictCuts
+    unfold strictCuts segmentInteriorCuts
     split_ifs
     · simp
     · exact (Finset.card_filter_le _ _).trans ((Finset.card_image_le).trans
@@ -651,7 +651,9 @@ private theorem rawShear_parameter {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ
   have hβ := segmentCuts_mem_Icc (List.getElem_mem hk)
   have hαβ : C[k] < C[k + 1] := (segmentCuts_sorted (levels h r) _ _).strictMono_get
     (show (⟨k, by omega⟩ : Fin C.length) < ⟨k + 1, hk⟩ from Nat.lt_succ_self k)
-  refine ⟨j, C[k], C[k + 1], hα.1, hαβ, hβ.2, cut_adjacent_no_level hk, ?_, ?_⟩
+  refine ⟨j, C[k], C[k + 1], hα.1, hαβ, hβ.2, ?_, ?_, ?_⟩
+  · exact segmentCuts_adjacent_no_level (levels h r) Complex.imCLM.toLinearMap.toAffineMap
+      (a := p.point j.castSucc) (b := p.point j.succ) hk
   · intro t ht
     rw [heval, hx, hy]
     exact (cut_eval hr d hk ht).symm
@@ -1021,7 +1023,7 @@ theorem segments_plateauShear_eq {h r : ℝ} (hr : 0 < r) (p : Route) {d : ℝ} 
   · rw [ite_eq_right hu, rawShear_segments, sourceSamples_length_eq_sum, Nat.add_sub_cancel]
     apply Finset.sum_congr rfl
     intro i _
-    simp only [sourceBlock, List.length_map, List.length_dropLast, segmentCuts_length_eq]
+    simp only [sourceBlock, List.length_map, List.length_dropLast, segmentCuts_length_eq, strictCuts]
     omega
 
 /-- Actual continuum parameter transport. The old interval is strictly positive and lies

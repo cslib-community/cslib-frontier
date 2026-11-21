@@ -103,8 +103,7 @@ theorem segmentCuts_first_last (levels : Finset ℝ) (a b : ℝ) :
         (⟨L.length - 1, by dsimp only [L] at *; omega⟩ : Fin L.length) from
           Nat.le_sub_one_of_lt j.isLt))
 
-/-- No declared level is strictly between the coordinates of two consecutive samples. -/
-theorem segmentCuts_adjacent_no_level {levels : Finset ℝ} {a b : ℝ} {k : ℕ}
+private theorem segmentCuts_adjacent_no_level_real {levels : Finset ℝ} {a b : ℝ} {k : ℕ}
     (hk : k + 1 < (segmentCuts levels a b).length) :
     ∀ y ∈ levels,
       y ∉ Set.Ioo
@@ -199,6 +198,20 @@ theorem segmentCuts_dropLast_bounds {levels : Finset ℝ} {a b : ℝ} {t : ℝ}
     rw [ht', show L[L.length - 1] = 1 from (segmentCuts_first_last levels a b).2] at hm
     exact hm
 
+/-- No level lies strictly between consecutive sample coordinates, for any real affine
+coordinate on the plane. -/
+theorem segmentCuts_adjacent_no_level (levels : Finset ℝ) (coordinate : ℂ →ᵃ[ℝ] ℝ)
+    {a b : ℂ} {k : ℕ} (hk : k + 1 < (segmentCuts levels (coordinate a) (coordinate b)).length) :
+    let L := segmentCuts levels (coordinate a) (coordinate b)
+    ∀ y ∈ levels, y ∉ Set.Ioo
+      (min (coordinate (AffineMap.lineMap a b L[k])) (coordinate (AffineMap.lineMap a b L[k + 1])))
+      (max (coordinate (AffineMap.lineMap a b L[k]))
+        (coordinate (AffineMap.lineMap a b L[k + 1]))) := by
+  dsimp only
+  intro y hy
+  rw [coordinate.apply_lineMap, coordinate.apply_lineMap]
+  exact segmentCuts_adjacent_no_level_real hk y hy
+
 /-- A map preserving straight interpolation between declared coordinate levels preserves it on
 each consecutive indexed piece of the cut segment, including both parameter endpoints. -/
 theorem segmentCuts_map_lineMap (levels : Finset ℝ) (coordinate : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ)
@@ -215,9 +228,6 @@ theorem segmentCuts_map_lineMap (levels : Finset ℝ) (coordinate : ℂ →ᵃ[�
         (F (AffineMap.lineMap a b L[k + 1])) t := by
   dsimp only
   rw [(AffineMap.lineMap a b).apply_lineMap]
-  apply hF _ _ ?_ t ht
-  intro y hy
-  rw [coordinate.apply_lineMap, coordinate.apply_lineMap]
-  exact segmentCuts_adjacent_no_level hk y hy
+  exact hF _ _ (segmentCuts_adjacent_no_level levels coordinate hk) t ht
 
 end Cslib.Polygonal
