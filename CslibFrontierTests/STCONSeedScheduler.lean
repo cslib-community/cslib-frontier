@@ -66,11 +66,22 @@ example : ComputableInSpace seedScanRequest
   seedScanRequest_inSpace
 
 example (state : ℕ) :
-    (encPair encSeedSchedulerFrame encNat
-      (seedSchedulerFrame setup 1 (some (1, false)) 2, state)).length ≤
-      24 * (encSeedSearchSetup setup).length + (encNat state).length + 19 :=
-  length_seedSchedulerCall_le encNat setup rfl ⟨1, by decide⟩
-    (some (⟨1, by decide⟩, false)) ⟨2, by decide⟩ state
+    let frame := seedSchedulerFrame setup 1 none setup.sourceID
+    frame.request = seedScanRequest (setup, 1, none) ∧
+      (encPair encSeedSchedulerFrame encNat (frame, state)).length ≤
+        24 * (encSeedSearchSetup setup).length + (encNat state).length + 19 :=
+  ⟨seedSchedulerFrame_designated_request setup 1,
+    length_seedSchedulerCall_le encNat setup rfl ⟨1, by decide⟩
+      none ⟨setup.sourceID, sourceValid⟩ state⟩
+
+example (state : ℕ) :
+    let frame := seedSchedulerFrame setup 1 (some (1, false)) (setup.originalSourceID 1)
+    frame.request = seedScanRequest (setup, 1, some 1) ∧
+      (encPair encSeedSchedulerFrame encNat (frame, state)).length ≤
+        24 * (encSeedSearchSetup setup).length + (encNat state).length + 19 :=
+  ⟨seedSchedulerFrame_indexed_request setup 1 1 false,
+    length_seedSchedulerCall_le encNat setup rfl ⟨1, by decide⟩
+      (some (⟨1, by decide⟩, false)) ⟨setup.originalSourceID 1, rootValid 1 (by decide)⟩ state⟩
 
 -- The same entry point accepts the native initializer's IDs and root lookup certificates.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)

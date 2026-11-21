@@ -86,6 +86,20 @@ def seedScanRequest (p : SeedSearchSetup × ℕ × Option ℕ) : SeedScanRequest
   let (setup, seed, position) := p
   ⟨setup, seed, position.elim setup.sourceID setup.originalSourceID⟩
 
+/-- The designated callback frame carries the request for the retained source. -/
+theorem seedSchedulerFrame_designated_request (s : SeedSearchSetup) (seed : ℕ) :
+    (seedSchedulerFrame s seed none s.sourceID).request = seedScanRequest (s, seed, none) := by
+  unfold seedScanRequest
+  rfl
+
+/-- An indexed callback frame carries the request for that original source position. -/
+theorem seedSchedulerFrame_indexed_request (s : SeedSearchSetup) (seed position : ℕ)
+    (answer : Bool) :
+    (seedSchedulerFrame s seed (some (position, answer))
+      (s.originalSourceID position)).request = seedScanRequest (s, seed, some position) := by
+  unfold seedScanRequest
+  rfl
+
 /-- Preparing a request uses linear native workspace in its encoded arguments. -/
 theorem seedScanRequest_inSpace :
     ComputableInSpace seedScanRequest
