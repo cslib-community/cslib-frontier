@@ -8,7 +8,7 @@ module
 -- upstream: local-only (test suite)
 
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Primitives.UHF.Computational
+import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
@@ -125,6 +125,24 @@ example (n : ℕ) :
     multiQueryGame unitSetup (fun _ _ m => m) constHash (fun _ => pure [false, true, false]) n =
       PMF.pure false := by
   simp [multiQueryGame, unitSetup, constHash, ProbComp.eval_uniform, PMF.uniformOfFintype_unit]
+
+private def residueHash (_ : ℕ) (_ : Unit) (_ : Unit) (m : Bool) : ZMod 3 :=
+  if m then 1 else 0
+
+open Turing.MultiTapeTM in
+/-- The public prediction of one always succeeds on the ordered Boolean pair. -/
+theorem not_isComputationalDUF_residueHash :
+    ¬ IsComputationalDUF encUnit encBool unitSetup (fun _ _ _ => true) residueHash
+      (fun _ => encZMod 3) := by
+  intro h
+  let guess : DifferenceGuess Bool (List Bool) := ⟨⟨false, true⟩, encZMod 3 1⟩
+  have hwin (n : ℕ) : differenceGame unitSetup (fun _ _ _ => true) residueHash
+      (fun _ => encZMod 3) (fun _ => pure guess) n = PMF.pure true := by
+    simp [differenceGame, unitSetup, residueHash, guess, ProbComp.eval_uniform,
+      PMF.uniformOfFintype_unit]
+  have hnegl := h.negligible_succProbability (fun _ => pure guess)
+    (ComputableInPolyTime.const guess).isPPTOn
+  exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

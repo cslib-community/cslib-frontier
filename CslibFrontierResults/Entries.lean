@@ -78,6 +78,7 @@ import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.HashFamily.Transport
 import CslibFrontier.Crypto.Primitives.UHF.Computational
+import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
@@ -10857,6 +10858,19 @@ register_result "computational-universal-hash-single-to-multi-query" where
     accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
+
+register_result "computational-difference-unpredictability-implies-universal-hashing" where
+  title := "Computational difference unpredictability implies computational universal hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Zero-difference reduction (unnumbered)",
+      locator := "v0.6, Section 7.4, printed p. 269, after Remark 7.3" }
+  ]
+  theorems := [Cslib.Crypto.UHF.IsComputationalDUF.isComputationalUHF_zmod]
+  scope := "Asymptotic form of the zero-prediction reduction. The setup chooses a digest modulus. \
+    One uniform strict PPT machine copies the collision guess and appends the canonical binary \
+    encoding of zero, which has the same word at every modulus. The games have equal success \
+    probability and keep the uniform hash key private."
 
 register_result "pairwise-unpredictability-implies-universal-hashing" where
   title := "Pairwise unpredictability implies universality and difference universality"
