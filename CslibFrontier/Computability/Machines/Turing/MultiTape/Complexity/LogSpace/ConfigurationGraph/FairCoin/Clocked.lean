@@ -81,8 +81,7 @@ theorem clockedVertexBound_budget (D d : ℕ) (hn : ComputableInSpace n enc encN
     (hin : (fun a => (enc a).length) ≼ S) :
     ComputableInSpace (fun a => clockedVertexBound (k := k) D d (n a)) enc encNat S :=
   budget_natMul (budget_natSucc (polyClock_budget d hn hin))
-    (vertexBound_budget (k := k)
-      (budget_natPow (budget_natAdd hn (budget_const 2 hin)) hin D) hin)
+    (vertexBound_budget (k := k) (radix_budget D hn hin) hin)
 
 /-- The terminal reward test preserves the native space budget of its binary arguments. -/
 theorem clockedAccept_budget {State : Type} [Fintype State]

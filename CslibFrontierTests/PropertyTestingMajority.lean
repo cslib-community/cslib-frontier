@@ -14,7 +14,7 @@ import Mathlib.Tactic.Linarith
 /-! # Clients of the strict majority tester -/
 
 namespace Cslib.BitString
-open Cslib.Probability
+open Cslib.Probability Turing.MultiTapeTM
 
 open scoped BigOperators
 
@@ -66,5 +66,17 @@ example (x : BitString 3) :
         (fun r => (decide ((majorityTester 3 64 (1 / 2)).Passes x r), ())) := by
   classical
   exact majorityDirectAccess_eq_majorityTester (by decide) (by norm_num) x
+
+
+-- One machine works at distance one half and accepts the three-bit all-ones member.
+example :
+    ∃ (k : ℕ) (t : ℕ → ℕ) (program : ℕ → WordOracleComp Unit Bool),
+      PolyBounded (fun n => (encNat n).length) t ∧
+      ComputesOracleInTimeAndQueriesOn encNat encBool t (fun _ => k) program ∧
+      (2 / 3 : ℝ) ≤ (ProbOracleComp.acceptProbWith
+        (majorityInputOracle (fun _ : Fin 3 => true)) (program 3) ()).toReal := by
+  obtain ⟨k, t, program, ht, hmachine, hyes, _⟩ :=
+    exists_majorityDirectAccess (δ := 1 / 2) (by norm_num)
+  exact ⟨k, t, program, ht, hmachine, hyes 3 _ (by decide)⟩
 
 end Cslib.BitString
