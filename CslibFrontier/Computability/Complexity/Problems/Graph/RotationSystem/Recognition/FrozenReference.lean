@@ -329,7 +329,7 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
     stripRamp_eq_zero (hright v (hmem.mp hv)) (hgap v)
       (fun h => hx ⟨by linarith only [h.1], h.2⟩)
   have hoffset {v : ℕ} {x : ℝ} (hx : x ∉ band v) : offset v x = 0 := by
-    rw [offset, stripPlateau_eq_zero hx, mul_zero]
+    simp only [offset, stripPlateau_eq_zero hx, mul_zero]
   have hsum (k : ℕ → ℝ → ℝ) (hzero : ∀ v ∈ V, ∀ x ∉ band v, k v x = 0)
       {v : ℕ} (hv : v ∈ V) {x : ℝ} (hx : x ∈ band v) :
       (∑ w ∈ V, k w x) = k v x := by
@@ -345,10 +345,10 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
     by_cases hy : ∃ v ∈ V, y ∈ band v
     · obtain ⟨v, hv, hyv⟩ := hy
       have hy' : f y = y - (1 - s) * ramp v y := by
-        rw [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hyv]
+        simp only [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hyv]
       have hx' : f x ≤ x - (1 - s) * ramp v x := by
         by_cases hx : x ∈ band v
-        · rw [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hx]
+        · simp only [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hx]
         · rwa [hramp hv hx, mul_zero, sub_zero]
       have hstep : ramp v y ≤ ramp v x + (y - x) :=
         stripRamp_increment (hright v (hmem.mp hv)) (hgap v) hxy.le
@@ -382,10 +382,11 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
       F z = referencePoint I v + s • (z - referencePoint I v) := by
     have hz' : z.re ∈ band v := ⟨by linarith only [hz.1], by linarith only [hz.2]⟩
     have hre : f z.re = z.re - (1 - s) * (z.re - a v) := by
-      rw [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hz', ramp,
-        stripRamp_eq_sub (hright v (hmem.mp hv)) (hgap v) hz]
+      simp only [f, hsum ramp (fun w hw _ hxw => hramp hw hxw) hv hz']
+      simp only [ramp, stripRamp_eq_sub (hright v (hmem.mp hv)) (hgap v) hz]
     have him : g z.re = (1 - s) * (referencePoint I v).im := by
-      rw [g, hsum offset (fun _ _ _ h => hoffset h) hv hz', offset, stripPlateau_eq_one hz, mul_one]
+      simp only [g, hsum offset (fun _ _ _ h => hoffset h) hv hz']
+      simp only [offset, stripPlateau_eq_one hz, mul_one]
     apply Complex.ext
     · change f z.re = (referencePoint I v + s • (z - referencePoint I v)).re
       rw [hre, Complex.add_re, Complex.smul_re, Complex.sub_re]
