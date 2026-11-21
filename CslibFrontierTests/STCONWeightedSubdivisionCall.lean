@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionSpace
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision
 
 /-! Ordinary-import clients for weighted STCON adjacency and the flat scan interface. -/
 
@@ -21,24 +21,16 @@ open Turing.QueryMachine.Subdivision
 
 private abbrev Context := LayeredParameters × ℕ
 
-private def code : Context × ℕ → ℕ → Bool := fun _ _ => false
-
--- Both flat entry and weighted return use the same encoded call state. This component
--- fixture uses a one-bit seed width and a constant code-bit routine.
+-- Both flat entry and weighted return use the same state encoding, with the actual Justesen
+-- evaluator inside the return transition.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) :
-    let encCtx := encPair encLayeredParameters encNat
-    let encFlat := encFlatQuery encCtx
-    let enc := encCallback encCtx encLayeredCallback
-    let M := weightedSubdivisionCallback ntm Prod.fst Prod.snd (fun _ => 1) code
+    let encFlat := encFlatQuery encJustesenSubdivisionContext
+    let enc := encCallback encJustesenSubdivisionContext encLayeredCallback
+    let M := justesenWeightedSubdivisionCallback ntm
     ComputableInSpace flatCallbackStart encFlat enc (fun q => (encFlat q).length) ∧
     ComputableInSpace M.next (QueryMachine.encStateRead enc) enc
-      (fun p => (QueryMachine.encStateRead enc p).length) := by
-  let : Inhabited LayeredParameters := ⟨⟨0, 0, 0, 0⟩⟩
-  let encCtx := encPair encLayeredParameters encNat
-  exact ⟨flatCallbackStart_inSpace _ _,
-    (weightedSubdivisionCallback_parts_inSpace ntm encCtx Prod.fst Prod.snd (fun _ => 1) code
-      (fst encLayeredParameters encNat) (snd encLayeredParameters encNat)
-      (budget_const 1 (.refl _)) (BigOLe.const 1 _) (budget_const false (.refl _))).2.1⟩
+      (fun p => (QueryMachine.encStateRead enc p).length) :=
+  ⟨flatCallbackStart_inSpace _ _, (justesenWeightedSubdivisionCallback_parts_inSpace ntm).2.1⟩
 
 -- Use the generated subdivision's adjacency specification at the original roots,
 -- with the code-bit correspondence supplied at the source column.
@@ -122,5 +114,30 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   refine (hR w s hgraph u.val v.val u.isLt v.isLt t ht).trans ?_
   rw [Nat.mul_assoc, Nat.add_mul, Nat.one_mul]
   exact Nat.mul_le_mul_left R (Nat.add_le_add_right (hK w) _)
+
+-- The real callback returns a generated edge for the all-zero seed, using the initialized
+-- carrier's fixed endpoint IDs.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let s := configurationSeedSearchSetup ntm c w
+    let size := s.parameters.search.subdivision
+    let index := configurationSubdivisionIndex ntm c w
+    let seed : Fin (2 ^ codeLength I.n (I.n - 1)) := ⟨0, Nat.pow_pos (by decide)⟩
+    let ctx : JustesenSubdivisionContext :=
+      ⟨configurationSeedSearchParameters ntm c w, fieldContext I.n (I.n - 1), seed.val⟩
+    let u : Fin size.vertexCount :=
+      ⟨s.sourceID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1⟩
+    let v : Fin size.vertexCount :=
+      ⟨s.targetID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).2⟩
+    let M := justesenWeightedSubdivisionCallback ntm
+    let start := flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩
+    ∃ answer, M.runFrom w start 3 = .inl (.inr answer) ∧
+      M.halted (M.runFrom w start 3) = true ∧
+      (answer = true ↔ (graph (layeredDigraph I)
+        (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj
+        (index.symm u) (index.symm v)) := by
+  intro I s size index seed ctx u v
+  exact (configurationJustesenWeightedSubdivisionCallback_agrees ntm c w u v seed).2
 
 end CslibFrontierTests.STCONWeightedSubdivisionCall
