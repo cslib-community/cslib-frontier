@@ -8,6 +8,10 @@ module
 
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
+import CslibFrontier.Foundations.Probability.Gaussian.Convolution
+import CslibFrontier.Foundations.Probability.Gaussian.Projection
+import CslibFrontier.Foundations.Probability.Gaussian.Quotient
+import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
 

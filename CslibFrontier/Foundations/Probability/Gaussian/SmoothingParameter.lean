@@ -8,10 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Analysis.Lattice.Minimum
-public import CslibFrontier.Foundations.Probability.Gaussian.Projection
-public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
+public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
 public import Mathlib.Algebra.Module.Submodule.Pointwise
+public import Mathlib.Analysis.InnerProductSpace.Basic
+public import Mathlib.LinearAlgebra.BilinearForm.DualLattice
 
+import CslibFrontier.Foundations.Analysis.Lattice.Dual
+import CslibFrontier.Foundations.Probability.Gaussian.CenteredTail
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Normed.Group.FunctionSeries
 import Mathlib.Analysis.Normed.Group.Tannery
@@ -32,6 +35,10 @@ positive, attained with exact equality `ρ_{1 / η_ε(L)}(L* \ {0}) = ε`, and s
 characterizations `η_ε(L) ≤ s ↔ ρ_{1/s}(L* \ {0}) ≤ ε` and `s ≤ η_ε(L) ↔ ε ≤ ρ_{1/s}(L* \ {0})`
 hold uniformly in every dimension (including dimension zero) for all `s > 0` and `ε > 0`.
 
+Smoothing-parameter conversions for the shifted-mass, quotient, convolution, and scalar-projection
+bounds live alongside their consuming theorems in `Gaussian.ShiftBounds`, `Gaussian.Quotient`,
+`Gaussian.Convolution`, and `Gaussian.Projection`.
+
 ## Main definitions
 
 * `ZLattice.smoothingParameter`: the smoothing parameter `η_ε(L)` ([MicciancioRegev2007],
@@ -50,29 +57,18 @@ hold uniformly in every dimension (including dimension zero) for all `s > 0` and
 * `ZLattice.smoothingParameter_smul`: scaling `η_ε(c • L) = |c| * η_ε(L)` for `c ≠ 0`.
 * `ZLattice.smoothingParameter_le_sqrt_div_minimum_dual`: Micciancio–Regev Lemma 3.2,
   `η_{2^{-n}}(L) ≤ √n / λ₁(L*)` for every full-rank discrete lattice of dimension `n`.
-* `ZLattice.gaussianMass_mem_Icc_of_smoothingParameter_le`,
-  `ZLattice.tvDist_gaussian_quotient_le_of_smoothingParameter_le`,
-  `ZLattice.tvDist_conv_discreteGaussian_le_of_smoothingParameter_le`,
-  `ZLattice.tvDist_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le`, and
-  `ZLattice.tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le`:
-  bridges restating the dual-mass theorems in `Gaussian.ShiftBounds`, `Gaussian.Quotient`,
-  `Gaussian.Convolution`, and `Gaussian.Projection` under `η_ε(L) ≤ s`.
 
 ## References
 
 * [MicciancioRegev2007], Definition 3.1 (p. 10) and Lemma 3.2 (pp. 10–11) of the December 27, 2005
   author's copy (`SIAM J. Comput.` 37(1):267–302, 2007).
-* [Regev2009], Claim 3.8 (p. 22), Claim 3.9 (pp. 22–23), and Corollary 3.10 (p. 23) of the
-  May 2, 2009 author version. The quotient and convolution bounds use Mathlib's full-`L¹` `tvDist`
-  (range `[0, 2]`), matching [Regev2009], p. 13 (twice the half-`L¹` statistical distance `Δ` of
-  [MicciancioRegev2007], Definition 2.1, pp. 5–6).
 -/
 
 public section
 
 noncomputable section
 
-open Filter MeasureTheory Module ProbabilityTheory
+open Filter Module ProbabilityTheory
 open scoped ENNReal Pointwise RealInnerProductSpace Topology
 
 namespace ZLattice
@@ -220,6 +216,19 @@ private theorem gaussianWeight_one_div (s : ℝ) (x : E) :
   · congr 1
     field_simp
 
+private theorem gaussianMass_zero_sub_one_eq_tsum_aux (M : Submodule ℤ E) [DiscreteTopology M]
+    (s : ℝ) (hs : 0 < s) :
+    gaussianMass M s 0 - 1 = ∑' z : ↥{z : M | z ≠ 0}, gaussianWeight s (z : E) := by
+  classical
+  have h := (summable_gaussianWeight M s hs 0).sum_add_tsum_compl (s := {0})
+  have hset : (↑({0} : Finset M) : Set M)ᶜ = {z | z ≠ 0} := by ext z; simp
+  rw [hset] at h
+  have hsum : 1 + (∑' z : ↥{z : M | z ≠ 0}, gaussianWeight s (z : E)) = gaussianMass M s 0 := by
+    simpa only [Finset.sum_singleton, Submodule.coe_zero, sub_zero, gaussianWeight,
+      norm_zero, zero_pow (by decide : 2 ≠ 0), mul_zero, zero_div, Real.exp_zero,
+      Finset.coe_singleton, Set.mem_compl_iff, Set.mem_singleton_iff, gaussianMass] using h
+  linarith
+
 private theorem summable_dual_nonzero {s : ℝ} (hs : 0 < s) :
     Summable (fun w : ↥{w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L | w ≠ 0} ↦
       gaussianWeight (1 / s) (w : E)) := by
@@ -257,8 +266,8 @@ private theorem dualMass_strictAnti [Nontrivial E] {s₁ s₂ : ℝ} (hs₁ : 0 
   let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
   have : DiscreteTopology D := discreteTopology_dualSubmodule L
   have hs₂ : 0 < s₂ := hs₁.trans h
-  rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s₂) (one_div_pos.mpr hs₂),
-    gaussianMass_zero_sub_one_eq_tsum D (1 / s₁) (one_div_pos.mpr hs₁)]
+  rw [gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s₂) (one_div_pos.mpr hs₂),
+    gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s₁) (one_div_pos.mpr hs₁)]
   obtain ⟨w₀, hw₀⟩ := exists_dual_ne_zero L
   have hle : ∀ w : ↥{w : D | w ≠ 0},
       gaussianWeight (1 / s₂) (w : E) ≤ gaussianWeight (1 / s₁) (w : E) :=
@@ -299,7 +308,7 @@ private theorem continuousAt_dualMass {s₀ : ℝ} (hs₀ : 0 < s₀) :
     hcont_tsum.continuousAt hnhds
   refine hca.congr ?_
   filter_upwards [hnhds] with s hs
-  exact (gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr (ha.trans_le hs))).symm
+  exact (gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) (one_div_pos.mpr (ha.trans_le hs))).symm
 
 private theorem tendsto_dualMass_atTop :
     Tendsto
@@ -328,7 +337,7 @@ private theorem tendsto_dualMass_atTop :
   rw [tsum_zero] at hlim
   refine hlim.congr' ?_
   filter_upwards [eventually_gt_atTop (0 : ℝ)] with s hs
-  exact (gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr hs)).symm
+  exact (gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) (one_div_pos.mpr hs)).symm
 
 private theorem nonempty_smoothingSet {ε : ℝ} (hε : 0 < ε) :
     {s : ℝ | 0 < s ∧
@@ -353,7 +362,7 @@ private theorem exists_pos_lt_dualMass [Nontrivial E] (ε : ℝ) :
   have hM : 0 < M := by positivity
   let δ : ℝ := 1 / M
   refine ⟨δ, one_div_pos.mpr hM, fun s hs hsδ ↦ ?_⟩
-  rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr hs)]
+  rw [gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) (one_div_pos.mpr hs)]
   let emb : Fin N → ↥{w : D | w ≠ 0} := fun k ↦
     ⟨(k.1 + 1) • w₀, by
       intro h0
@@ -617,106 +626,41 @@ theorem smoothingParameter_le_sqrt_div_minimum_dual :
       minimum_le_norm w.property (fun h0 ↦ hw (Subtype.ext h0))
     let _ : MeasurableSpace E := borel E
     have : BorelSpace E := ⟨rfl⟩
+    have hs' : 0 < 1 / s := one_div_pos.mpr hs
     have hdual : gaussianMass D (1 / s) 0 - 1 ≤ (1 / 2 : ℝ) ^ finrank ℝ E := by
-      refine gaussianMass_dual_sub_one_le_of_gap L s hs (minimum D) ha hgap
-        ((1 / 2 : ℝ) ^ finrank ℝ E) (by positivity) ?_
+      have htail := discreteGaussian_zero_norm_ge_le D (1 / s) hs' (minimum D) ha.le
       have hsq : s ^ 2 * minimum D ^ 2 = (finrank ℝ E : ℝ) := by
         dsimp only [s]
         rw [div_pow, Real.sq_sqrt (Nat.cast_nonneg _), div_mul_cancel₀ _ (sq_pos_of_pos ha).ne']
-      have hexp : -3 * Real.pi * s ^ 2 * minimum D ^ 2 / 4 =
+      have hexp : -3 * Real.pi * minimum D ^ 2 / (4 * (1 / s) ^ 2) =
           -3 * Real.pi * (finrank ℝ E : ℝ) / 4 := by
-        calc
-          -3 * Real.pi * s ^ 2 * minimum D ^ 2 / 4
-              = -3 * Real.pi * (s ^ 2 * minimum D ^ 2) / 4 := by ring
-          _ = -3 * Real.pi * (finrank ℝ E : ℝ) / 4 := by rw [hsq]
-      rw [hexp]
-      exact two_pow_mul_exp_le_half_pow_div (finrank ℝ E) hnpos
+        have h1 : -3 * Real.pi * minimum D ^ 2 / (4 * (1 / s) ^ 2) =
+            -3 * Real.pi * (s ^ 2 * minimum D ^ 2) / 4 := by field_simp
+        rw [h1, hsq]
+      rw [hexp] at htail
+      have hsubset : {w : D | w ≠ 0} ⊆ {w : D | minimum D ≤ ‖(w : E)‖} := fun w hw ↦ hgap w hw
+      have hprob : (discreteGaussian D (1 / s) hs' 0).toOuterMeasure {w : D | w ≠ 0} ≤
+          ENNReal.ofReal ((1 / 2 : ℝ) ^ finrank ℝ E / (1 + (1 / 2 : ℝ) ^ finrank ℝ E)) :=
+        ((discreteGaussian D (1 / s) hs' 0).toOuterMeasure.mono hsubset).trans
+          (htail.trans (ENNReal.ofReal_le_ofReal (two_pow_mul_exp_le_half_pow_div _ hnpos)))
+      have hm : 0 < gaussianMass D (1 / s) 0 := gaussianMass_pos D (1 / s) hs' 0
+      have hnonzero :
+          (discreteGaussian D (1 / s) hs' 0).toOuterMeasure {w : D | w ≠ 0} =
+            ENNReal.ofReal ((gaussianMass D (1 / s) 0 - 1) / gaussianMass D (1 / s) 0) := by
+        rw [PMF.toOuterMeasure_apply,
+          ← tsum_subtype {w : D | w ≠ 0} (discreteGaussian D (1 / s) hs' 0),
+          gaussianMass_zero_sub_one_eq_tsum_aux D (1 / s) hs', ← tsum_div_const,
+          ENNReal.ofReal_tsum_of_nonneg
+            (fun w ↦ div_nonneg (gaussianWeight_pos _ _).le hm.le)
+            ((summable_dual_nonzero L hs).div_const _)]
+        refine tsum_congr fun w ↦ ?_
+        rw [discreteGaussian_apply, sub_zero, ENNReal.ofReal_div_of_pos hm]
+      rw [hnonzero, ENNReal.ofReal_le_ofReal_iff (by positivity)] at hprob
+      have he : 0 < 1 + (1 / 2 : ℝ) ^ finrank ℝ E := by positivity
+      have hmul := (div_le_div_iff₀ hm he).mp hprob
+      nlinarith
     exact smoothingParameter_le_of_dual_mass_le L hs hdual
 
 end FullRank
-
-section Bridges
-
-variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
-variable [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
-variable (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
-
-/-- Shifted lattice Gaussian mass interval above the smoothing parameter
-([Regev2009], Claim 3.8, p. 22). For the source's translate `L + c`, use center `-c`. -/
-theorem gaussianMass_mem_Icc_of_smoothingParameter_le (s : ℝ) (hs : 0 < s)
-    (ε : ℝ) (hε : 0 < ε) (hη : smoothingParameter L ε ≤ s) (c : E) :
-    gaussianMass L s c ∈ Set.Icc
-      (s ^ finrank ℝ E / covolume L * (1 - ε))
-      (s ^ finrank ℝ E / covolume L * (1 + ε)) :=
-  gaussianMass_mem_Icc_of_dual_mass_le L s hs ε ((smoothingParameter_le_iff L hs hε).mp hη) c
-
-/-- Full-`L¹` distance of the centered continuous Gaussian modulo `L` from normalized quotient
-Haar measure above the smoothing parameter ([Regev2009], p. 17 / Claim 3.8; centered case of
-[MicciancioRegev2007], Lemma 4.1 in full-`L¹` convention, where `tvDist ≤ ε` corresponds to
-half-`L¹` distance `Δ ≤ ε / 2`). -/
-theorem tvDist_gaussian_quotient_le_of_smoothingParameter_le (s : ℝ) (hs : 0 < s)
-    {F : Set E} (hF : IsAddFundamentalDomain L.toAddSubgroup.op F volume)
-    (ε : ℝ) (hε : 0 < ε) (hη : smoothingParameter L ε ≤ s) :
-    tvDist
-      (Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup)
-        (volume.withDensity (fun x : E ↦ ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E))))
-      ((ENNReal.ofReal (covolume L))⁻¹ •
-        Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup) (volume.restrict F)) ≤ ε :=
-  (tvDist_gaussian_quotient_le L s hs hF).trans ((smoothingParameter_le_iff L hs hε).mp hη)
-
-/-- Adding continuous Gaussian noise of width `s` to a coset discrete Gaussian of width `r` is
-within full-`L¹` distance `4ε` of the continuous Gaussian of width `t = √(r² + s²)` whenever
-`η_ε(L) ≤ r * s / t` ([Regev2009], Claim 3.9, pp. 22–23). -/
-theorem tvDist_conv_discreteGaussian_le_of_smoothingParameter_le (r s t : ℝ)
-    (hr : 0 < r) (hs : 0 < s) (ht : 0 < t) (ht2 : t ^ 2 = r ^ 2 + s ^ 2) (u : E)
-    (ε : ℝ) (hε : 0 < ε) (hεhalf : ε < 1 / 2)
-    (hη : smoothingParameter L ε ≤ r * s / t) :
-    tvDist
-      (Measure.conv ((discreteGaussian L r hr (-u)).toMeasure.map (fun z : L ↦ (z : E) + u))
-        (volume.withDensity (fun x : E ↦ ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E))))
-      (volume.withDensity (fun x : E ↦ ENNReal.ofReal (gaussianWeight t x / t ^ finrank ℝ E))) ≤
-      4 * ε :=
-  tvDist_conv_discreteGaussian_le_of_dual_mass_le L r s t hr hs ht ht2 u ε hε.le hεhalf
-    ((smoothingParameter_le_iff L (div_pos (mul_pos hr hs) ht) hε).mp hη)
-
-/-- Scalar inner-product projection of a coset discrete Gaussian plus scalar Gaussian noise is
-within full-`L¹` distance `4ε` of the predicted centered Gaussian whenever
-`η_ε(L) ≤ 1 / √(1 / r² + (‖z‖ / α)²)` ([Regev2009], Corollary 3.10, p. 23). -/
-theorem tvDist_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le
-    (r α : ℝ) (hr : 0 < r) (hα : 0 < α) (u z : E)
-    (ε : ℝ) (hε : 0 < ε) (hεhalf : ε < 1 / 2)
-    (hη : smoothingParameter L ε ≤ 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2)) :
-    tvDist
-      (Measure.conv
-        (((discreteGaussian L r hr (-u)).toMeasure.map (fun v : L ↦ (v : E) + u)).map
-          (fun x ↦ ⟪z, x⟫))
-        (gaussianReal 0 ((α ^ 2 / (2 * Real.pi)).toNNReal)))
-      (gaussianReal 0 ((((r * ‖z‖) ^ 2 + α ^ 2) / (2 * Real.pi)).toNNReal)) ≤
-      4 * ε := by
-  have hh : 0 < 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2) := by positivity
-  refine tvDist_conv_map_inner_discreteGaussian_le_of_dual_mass_le L r α hr hα u z
-    ε hε.le hεhalf ?_
-  simpa only [one_div_one_div] using (smoothingParameter_le_iff L hh hε).mp hη
-
-/-- Mod-one (`UnitAddCircle`) pushforward of the scalar projection experiment under the smoothing
-parameter hypothesis ([Regev2009], Corollary 3.10, p. 23). -/
-theorem tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le
-    (r α : ℝ) (hr : 0 < r) (hα : 0 < α) (u z : E)
-    (ε : ℝ) (hε : 0 < ε) (hεhalf : ε < 1 / 2)
-    (hη : smoothingParameter L ε ≤ 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2)) :
-    tvDist
-      ((Measure.conv
-        (((discreteGaussian L r hr (-u)).toMeasure.map (fun v : L ↦ (v : E) + u)).map
-          (fun x ↦ ⟪z, x⟫))
-        (gaussianReal 0 ((α ^ 2 / (2 * Real.pi)).toNNReal))).map
-          (fun x : ℝ ↦ (x : UnitAddCircle)))
-      ((gaussianReal 0 ((((r * ‖z‖) ^ 2 + α ^ 2) / (2 * Real.pi)).toNNReal)).map
-        (fun x : ℝ ↦ (x : UnitAddCircle))) ≤ 4 * ε := by
-  have hh : 0 < 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2) := by positivity
-  refine tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_dual_mass_le L r α hr hα u z
-    ε hε.le hεhalf ?_
-  simpa only [one_div_one_div] using (smoothingParameter_le_iff L hh hε).mp hη
-
-end Bridges
 
 end ZLattice
