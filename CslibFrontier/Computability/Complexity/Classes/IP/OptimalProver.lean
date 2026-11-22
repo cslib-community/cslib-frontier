@@ -103,10 +103,10 @@ theorem after_query_bind_cons (m : List Bool) (next : List Bool → WordQueryCom
 theorem after_append (p : WordQueryComp Unit α) (h e : History) :
     after p (h ++ e) = (after p h).bind (after · e) := by
   fun_induction after p h with
-  | case1 => simp
-  | case2 => rfl
-  | case3 _ _ _ _ ih => exact (ite_eq_left rfl).trans ih
-  | case4 _ _ _ _ _ hm => exact ite_eq_right hm
+  | case1 => simp -- p, []
+  | case2 => rfl -- pure, _ :: _
+  | case3 _ _ _ _ ih => exact (ite_eq_left rfl).trans ih -- liftBind, message matches
+  | case4 _ _ _ _ _ hne => exact ite_eq_right hne -- liftBind, message differs
 
 /-- The outcome of a program after a history: it has finished with a result, it sends a message,
 or it does not send the messages of the history. -/

@@ -213,10 +213,10 @@ theorem arthurBits_mergeMerlin (g : List (AMMove × ℕ)) :
 theorem value_mergeMerlin (g : List (AMMove × ℕ)) (f : List Bool → ℚ) :
     value true (mergeMerlin g) f = value true g f := by
   fun_induction mergeMerlin g generalizing f with
-  | case3 n g n' g' h ih =>
+  | case3 n g n' g' hmerged ih => -- (.merlin, n) :: g, merged tail starts with Merlin
     refine (value_merge_merlin [] g' n n' f).symm.trans ?_
-    simp only [List.nil_append, ← h, value_merlin_true, ih]
-  | _ => simp only [value_arthur, value_merlin_true, *]
+    simp only [List.nil_append, ← hmerged, value_merlin_true, ih]
+  | _ => simp only [value_arthur, value_merlin_true, *] -- [], Arthur move, unmerged Merlin
 
 /-- Appending a zero-bit Arthur move preserves `arthurBits`. -/
 theorem arthurBits_append_arthur_zero (g : List (AMMove × ℕ)) :

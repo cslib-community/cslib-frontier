@@ -172,12 +172,14 @@ theorem foldl_consistentHistStep_false (h₁ h₂ : History) (ok : Bool) :
 theorem foldl_consistentHistStep_true (h₁ h₂ : History) (ok : Bool) :
     (h₁.foldl consistentHistStep (h₂, true, ok)).2.2 = (ok && consistentHist h₁ h₂) := by
   fun_induction consistentHist h₁ h₂ generalizing ok with
-  | case1 => simp
-  | case2 h₁ hne =>
+  | case1 => simp -- [], _
+  | case2 h₁ hne => -- _ :: _, []
     cases h₁
     · exact absurd rfl hne
     · simp [consistentHistStep, foldl_consistentHistStep_false]
+  -- same query: compare replies
   | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih => simp [consistentHistStep, hq, ih, Bool.and_assoc]
+  -- different queries: stop
   | case4 => simp_all [consistentHistStep, foldl_consistentHistStep_false]
 
 theorem consistentHistStep_suffix {h₂ : History} {s : History × Bool × Bool}

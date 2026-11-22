@@ -122,8 +122,8 @@ noncomputable def shapePoly (B Z : Polynomial ℕ) : List (IPMove × Polynomial 
 theorem evalShape_shapePoly (B Z : Polynomial ℕ) (G : List (IPMove × Polynomial ℕ)) (n : ℕ) :
     AMGame.evalShape (shapePoly B Z G) n = shape (B.eval n) (Z.eval n) (evalShape G n) := by
   fun_induction shapePoly B Z G with
-  | case1 => rfl
-  | _ =>
+  | case1 => rfl -- []
+  | _ => -- verifier or prover move
     simp only [AMGame.evalShape_cons, evalShape, List.map_cons, shape, Polynomial.eval_add,
       Polynomial.eval_mul, *]
 

@@ -541,13 +541,13 @@ private noncomputable def bestOfList (g : α → ℝ≥0∞) (default : α) : Li
 private theorem le_bestOfList (g : α → ℝ≥0∞) (default : α) (l : List α) {x : α} (hx : x ∈ l) :
     g x ≤ g (bestOfList g default l) := by
   fun_induction bestOfList g default l with
-  | case1 => cases hx
-  | case2 a l _ h ih =>
+  | case1 => cases hx -- []
+  | case2 a l _ hle ih => -- a :: l, g b ≤ g a: keep a
     rcases List.mem_cons.mp hx with rfl | hx
-    exacts [le_rfl, (ih hx).trans h]
-  | case3 a l _ h ih =>
+    exacts [le_rfl, (ih hx).trans hle]
+  | case3 a l _ hnle ih => -- a :: l, g a < g b: keep b
     rcases List.mem_cons.mp hx with rfl | hx
-    exacts [le_of_not_ge h, ih hx]
+    exacts [le_of_not_ge hnle, ih hx]
 
 private theorem tsum_mul_le_bestOfList (μ : PMF α) (g : α → ℝ≥0∞) (default : α) (l : List α)
     (hsupp : ∀ x ∈ μ.support, x ∈ l) :
@@ -665,11 +665,11 @@ theorem DetProver.ValidFrom.consistentHist {D : DetProver} {s : D.State}
     {h₁ h₂ : List (List Bool × List Bool)} (hv₁ : D.ValidFrom s h₁) (hv₂ : D.ValidFrom s h₂) :
     MIP.consistentHist h₁ h₂ = true := by
   fun_induction MIP.consistentHist h₁ h₂ generalizing s with
-  | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih =>
+  | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih => -- same query: compare replies
     obtain rfl := beq_iff_eq.mp hq
     simp only [hv₁.1, ← hv₂.1, beq_self_eq_true, Bool.true_and]
     exact ih hv₁.2 hv₂.2
-  | _ => rfl
+  | _ => rfl -- an empty history, or different queries
 
 /-- Filter a candidate list of histories on query `q`: keep the tails of histories starting with
 `(q, r')` and emit the first matching reply `r'` (or `[]` if none match). -/
