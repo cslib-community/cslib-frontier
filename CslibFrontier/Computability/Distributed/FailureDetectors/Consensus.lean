@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Distributed.FailureDetectors.Reduction
-import Mathlib.Data.List.Dedup
+public import CslibFrontier.Computability.Distributed.RoundRobin
 import Mathlib.Order.WellFounded
 
 /-!
@@ -87,9 +87,9 @@ Event-driven step-schedule realizations of Figures 5–6 and the valence-DAG nec
   `t`-crash-tolerant consensus specification parameterized by a detector class predicate.
 * `Cslib.Distributed.FailureDetectors.ownInputFDProtocol`: zero-communication protocol for
   `Fintype.card P ≤ 1`.
-* `Cslib.Distributed.FailureDetectors.rotatingCoordinator`, `CTState`, `CTMsg`,
+* `Cslib.Distributed.FailureDetectors.CTState`, `CTMsg`,
   `ctRoundProtocol`: `t`-oblivious 4-subround rotating-coordinator `◇S` consensus protocol after
-  Figure 6.
+  Figure 6 (using `Cslib.Distributed.rotatingCoordinator`).
 * `Cslib.Distributed.FailureDetectors.LockedInRound`: round-`r` strict-majority quorum-locking
   invariant on `(r, v)`.
 
@@ -334,45 +334,7 @@ theorem solvesFDAsyncRoundConsensus_ownInput {P V : Type*} [Fintype P] [Decidabl
     rw [ownInputFDProtocol_decision]
     rfl
 
-/-! ### Rotating coordinator and maximum-timestamp selector -/
-
-/-- Round-robin coordinator `c = r mod |P|` indexing into `procs.dedup`
-([Chandra and Toueg, §6.2, Figure 6, line `c_p ← (r_p mod n) + 1`, p. 243][ChandraToueg1996]). -/
-@[expose] def rotatingCoordinator {P : Type*} [DecidableEq P]
-    (procs : List P) (fallback : P) (r : ℕ) : P :=
-  if h : r % procs.dedup.length < procs.dedup.length then
-    procs.dedup[r % procs.dedup.length]
-  else fallback
-
-/-- Every target process `q*` listed in `procs` becomes `rotatingCoordinator` within
-`procs.dedup.length` rounds starting from any `r₀`. -/
-theorem exists_rotatingCoordinator_eq {P : Type*} [DecidableEq P]
-    {procs : List P} (hprocs : ∀ p : P, p ∈ procs) (fallback : P) (qStar : P) (r₀ : ℕ) :
-    ∃ rStar, r₀ ≤ rStar ∧ rStar < r₀ + procs.dedup.length ∧
-      rotatingCoordinator procs fallback rStar = qStar := by
-  have hmem : qStar ∈ procs.dedup := List.mem_dedup.mpr (hprocs qStar)
-  obtain ⟨idx, hidx, hget⟩ := List.mem_iff_getElem.mp hmem
-  let L := procs.dedup.length
-  have hL_pos : 0 < L := Nat.zero_lt_of_lt hidx
-  let delta := (idx + L - r₀ % L) % L
-  let rStar := r₀ + delta
-  have hdelta_lt : delta < L := Nat.mod_lt _ hL_pos
-  have hmod : rStar % L = idx := by
-    have hr₀_lt : r₀ % L < L := Nat.mod_lt r₀ hL_pos
-    calc rStar % L
-        = (r₀ % L + delta % L) % L := Nat.add_mod r₀ delta L
-      _ = ((r₀ % L) % L + (idx + L - r₀ % L) % L) % L := by
-          rw [Nat.mod_eq_of_lt hr₀_lt]
-          simp only [delta, Nat.mod_mod]
-      _ = (r₀ % L + (idx + L - r₀ % L)) % L :=
-          (Nat.add_mod (r₀ % L) (idx + L - r₀ % L) L).symm
-      _ = (idx + L) % L := by congr 1; omega
-      _ = idx := by rw [Nat.add_mod_right, Nat.mod_eq_of_lt hidx]
-  refine ⟨rStar, Nat.le_add_right r₀ delta, by omega, ?_⟩
-  unfold rotatingCoordinator
-  change (if h : rStar % L < L then procs.dedup[rStar % L] else fallback) = qStar
-  simp only [hmod, L, hidx, ↓reduceDIte]
-  exact hget
+/-! ### Maximum-timestamp selector -/
 
 /-- Deterministic selector returning an `(estimate, timestamp)` pair maximizing the timestamp in a
 nonempty list ([Chandra and Toueg, §6.2, Figure 6, Phase 2, p. 243][ChandraToueg1996]). -/
@@ -1481,6 +1443,46 @@ private theorem fdState_eq_of_prefix {P V State Msg : Type*} [DecidableEq P]
         simp only [hq₁, hq₂, ↓reduceIte]
     rw [hprev, hH, hinc]
 
+/-- In a partitioned `◇P` scenario where `C = univ \ A` crashes at `t = 0`, `H = fun _ _ => C`, and
+all inputs equal `v`, any protocol solving `SolvesFDAsyncRoundConsensus t IsEventuallyPerfect` leads
+`a ∈ A` to decide `some v` at some subround `K`. -/
+private theorem isolated_half_decides {P V S M : Type*} [Fintype P] [DecidableEq P]
+    {π : FDAsyncRoundProtocol P V S M} {t : ℕ}
+    (hsol : π.SolvesFDAsyncRoundConsensus t IsEventuallyPerfect)
+    {A C : Finset P} (hC : ∀ p, p ∈ C ↔ p ∉ A)
+    (hC_le : C.card ≤ t) (hA_quorum : Fintype.card P - t ≤ A.card)
+    {a : P} (ha : a ∈ A) (partDeliver : ℕ → P → P → Bool)
+    (hdel : ∀ k q p, partDeliver k q p = true ↔ (q ∈ A ↔ p ∈ A)) (v : V) :
+    ∃ K, π.decision (FailurePattern.const C) (fun _ _ => C) id partDeliver (fun _ => v) K a =
+      some v := by
+  let F_c : FailurePattern P := FailurePattern.const C
+  let H_c : DetectorHistory P := fun _ _ => C
+  have hEP : IsEventuallyPerfect F_c H_c := by
+    refine ⟨⟨0, fun p hp _ _ _ _ => ?_⟩, ⟨0, fun _ _ p hp _ _ => ?_⟩⟩
+    · simpa only [F_c, FailurePattern.crashed_const, mem_coe] using hp
+    · simpa only [F_c, H_c, FailurePattern.correct_const, Set.mem_compl_iff, mem_coe] using hp
+  have hadm : AdmissibleFDNetwork F_c H_c t id partDeliver := by
+    refine ⟨strictMono_id, fun k p hp q => ?_, fun k p hp => ?_⟩
+    · have hp_A : p ∈ A := by by_contra hnA; exact hp k ((hC p).mpr hnA)
+      by_cases hq_A : q ∈ A
+      · exact Or.inl ⟨fun hq_C => ((hC q).mp hq_C) hq_A, (hdel k q p).mpr (iff_of_true hq_A hp_A)⟩
+      · exact Or.inr ((hC q).mpr hq_A)
+    · have hp_A : p ∈ A := by by_contra hnA; exact hp k ((hC p).mpr hnA)
+      have heq : (Finset.univ.filter fun q =>
+          decide (q ∉ F_c (id k) ∧ partDeliver k q p = true)) = A := by
+        ext q
+        simp only [F_c, FailurePattern.const_apply, mem_filter, mem_univ, true_and,
+          decide_eq_true_eq, hC q, Classical.not_not, hdel k q p, hp_A, iff_true, and_self]
+      rw [heq]
+      exact hA_quorum
+  have ha_corr : a ∈ F_c.Correct := fun _ hc => ((hC a).mp hc) ha
+  obtain ⟨K, hK⟩ := hsol.termination F_c (fun _ => hC_le) H_c id partDeliver (fun _ => v)
+    hadm hEP a ha_corr
+  obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp hK
+  obtain ⟨_, hw_eq⟩ := hsol.validity F_c (fun _ => hC_le) H_c id partDeliver (fun _ => v)
+    hadm hEP K a ha_corr w hw
+  exact ⟨K, hw_eq ▸ hw⟩
+
 /-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Theorem 6.3.1, pp. 247–248][ChandraToueg1996]): when
 `2 ≤ Fintype.card P ≤ 2 * t` and `V` has at least two distinct values, no `FDAsyncRoundProtocol`
@@ -1539,72 +1541,20 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
     simp only [a₁, A₀, mem_filter, mem_univ, Equiv.apply_symm_apply, true_and]
     omega
   have ha₁ : a₁ ∈ A₁ := mem_sdiff.mpr ⟨mem_univ a₁, ha₁_not_A₀⟩
-  have ha₀_not_A₁ : a₀ ∉ A₁ := fun h => (mem_sdiff.mp h).2 ha₀
   let partDeliver : ℕ → P → P → Bool := fun _ q p => decide (q ∈ A₀ ↔ p ∈ A₀)
-  -- Scenario 0: `A₁` crashes at `t = 0`, `H₀` permanently suspects `A₁`, all inputs `v₀`.
+  -- Scenario 0 (`A₁` crashes at `t = 0`, inputs `v₀`) and Scenario 1 (`A₀` crashes, inputs `v₁`):
   let F₀ : FailurePattern P := FailurePattern.const A₁
   let H₀ : DetectorHistory P := fun _ _ => A₁
-  have hEP₀ : IsEventuallyPerfect F₀ H₀ := by
-    refine ⟨⟨0, fun p hp _ _ _ _ => ?_⟩, ⟨0, fun _ _ p hp _ _ => ?_⟩⟩
-    · simpa only [F₀, FailurePattern.crashed_const, mem_coe] using hp
-    · simpa only [F₀, H₀, FailurePattern.correct_const, Set.mem_compl_iff, mem_coe] using hp
-  have hadm₀ : AdmissibleFDNetwork F₀ H₀ t id partDeliver := by
-    refine ⟨strictMono_id, fun k p hp q => ?_, fun k p hp => ?_⟩
-    · have hp_A₀ : p ∈ A₀ := by
-        have hp_not_A₁ : p ∉ A₁ := hp k
-        by_contra hnot
-        exact hp_not_A₁ (mem_sdiff.mpr ⟨mem_univ p, hnot⟩)
-      by_cases hq_A₀ : q ∈ A₀
-      · refine Or.inl ⟨fun hq_A₁ => (mem_sdiff.mp hq_A₁).2 hq_A₀, ?_⟩
-        simp only [partDeliver, hq_A₀, hp_A₀, decide_true]
-      · exact Or.inr (mem_sdiff.mpr ⟨mem_univ q, hq_A₀⟩)
-    · have hp_A₀ : p ∈ A₀ := by
-        have hp_not_A₁ : p ∉ A₁ := hp k
-        by_contra hnot
-        exact hp_not_A₁ (mem_sdiff.mpr ⟨mem_univ p, hnot⟩)
-      have heq : (Finset.univ.filter fun q =>
-          decide (q ∉ F₀ (id k) ∧ partDeliver k q p = true)) = A₀ := by
-        ext q
-        simp only [F₀, FailurePattern.const_apply, A₁, mem_sdiff, mem_univ, true_and,
-          Classical.not_not, partDeliver, hp_A₀, iff_true, mem_filter, decide_eq_true_eq, and_self]
-      rw [heq]
-      exact hA₀_quorum
-  have ha₀_corr₀ : a₀ ∈ F₀.Correct := fun _ => ha₀_not_A₁
-  obtain ⟨K₀, hK₀⟩ := hsol.termination F₀ (fun _ => hA₁_le) H₀ id partDeliver (fun _ => v₀)
-    hadm₀ hEP₀ a₀ ha₀_corr₀
-  obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.mp hK₀
-  obtain ⟨_, hw₀_eq⟩ := hsol.validity F₀ (fun _ => hA₁_le) H₀ id partDeliver (fun _ => v₀)
-    hadm₀ hEP₀ K₀ a₀ ha₀_corr₀ w₀ hw₀
-  subst hw₀_eq
-  -- Scenario 1: `A₀` crashes at `t = 0`, `H₁` permanently suspects `A₀`, all inputs `v₁`.
+  obtain ⟨K₀, hw₀⟩ := isolated_half_decides hsol
+    (fun p => by simp only [A₁, mem_sdiff, mem_univ, true_and]) hA₁_le hA₀_quorum ha₀
+    partDeliver (fun _ _ _ => decide_eq_true_iff) v₀
   let F₁ : FailurePattern P := FailurePattern.const A₀
   let H₁ : DetectorHistory P := fun _ _ => A₀
-  have hEP₁ : IsEventuallyPerfect F₁ H₁ := by
-    refine ⟨⟨0, fun p hp _ _ _ _ => ?_⟩, ⟨0, fun _ _ p hp _ _ => ?_⟩⟩
-    · simpa only [F₁, FailurePattern.crashed_const, mem_coe] using hp
-    · simpa only [F₁, H₁, FailurePattern.correct_const, Set.mem_compl_iff, mem_coe] using hp
-  have hadm₁ : AdmissibleFDNetwork F₁ H₁ t id partDeliver := by
-    refine ⟨strictMono_id, fun k p hp q => ?_, fun k p hp => ?_⟩
-    · have hp_not_A₀ : p ∉ A₀ := hp k
-      by_cases hq_A₀ : q ∈ A₀
-      · exact Or.inr hq_A₀
-      · refine Or.inl ⟨hq_A₀, ?_⟩
-        simp only [partDeliver, hq_A₀, hp_not_A₀, decide_true]
-    · have hp_not_A₀ : p ∉ A₀ := hp k
-      have heq : (Finset.univ.filter fun q =>
-          decide (q ∉ F₁ (id k) ∧ partDeliver k q p = true)) = A₁ := by
-        ext q
-        simp only [F₁, FailurePattern.const_apply, partDeliver, hp_not_A₀, iff_false, mem_filter,
-          mem_univ, true_and, decide_eq_true_eq, and_self, A₁, mem_sdiff]
-      rw [heq]
-      exact hA₁_quorum
-  have ha₁_corr₁ : a₁ ∈ F₁.Correct := fun _ => ha₁_not_A₀
-  obtain ⟨K₁, hK₁⟩ := hsol.termination F₁ (fun _ => hA₀_le) H₁ id partDeliver (fun _ => v₁)
-    hadm₁ hEP₁ a₁ ha₁_corr₁
-  obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.mp hK₁
-  obtain ⟨_, hw₁_eq⟩ := hsol.validity F₁ (fun _ => hA₀_le) H₁ id partDeliver (fun _ => v₁)
-    hadm₁ hEP₁ K₁ a₁ ha₁_corr₁ w₁ hw₁
-  subst hw₁_eq
+  obtain ⟨K₁, hw₁⟩ := isolated_half_decides hsol
+    (fun p => by simp only [A₁, mem_sdiff, mem_univ, true_and, Classical.not_not]) hA₀_le hA₁_quorum
+    ha₁ partDeliver (fun _ q p => by
+      simp only [partDeliver, decide_eq_true_eq, A₁, mem_sdiff, mem_univ, true_and]
+      exact Decidable.not_iff_not.symm) v₁
   -- Scenario A: zero crashes (`F_A = const ∅`), partition heals at `G = max K₀ K₁` while `H_A`
   -- suspects the opposite half before `G` and `∅` from `G` onward (`IsEventuallyPerfect F_A H_A`).
   let G := max K₀ K₁

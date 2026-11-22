@@ -737,19 +737,6 @@ theorem exists_isQuasiPerfect_not_isStrongCompleteness {P : Type*} [Fintype P]
     have hmem := ht f hf c₂ hc₂ t le_rfl
     simp only [H, hc₂c₁, ↓reduceIte, notMem_empty] at hmem
 
-/-- **Original raw-history incomparability of `S` and `◇P`** (`[Finite P] [Nontrivial P]`): there
-exists a raw detector history in `S \ ◇P` and one in `◇P \ S`. -/
-theorem strong_and_eventuallyPerfect_incomparable {P : Type*} [Finite P] [Nontrivial P] :
-    (∃ (F : FailurePattern P) (H : DetectorHistory P),
-      F.Correct.Nonempty ∧ IsStrong F H ∧ ¬ IsEventuallyPerfect F H) ∧
-    (∃ (F : FailurePattern P) (H : DetectorHistory P),
-      F.Correct.Nonempty ∧ IsEventuallyPerfect F H ∧ ¬ IsStrong F H) := by
-  refine ⟨?_, ?_⟩
-  · obtain ⟨F, H, hcorr, hS, hnESA⟩ := exists_isStrong_not_isEventualStrongAccuracy (P := P)
-    exact ⟨F, H, hcorr, hS, fun hEP => hnESA hEP.2⟩
-  · obtain ⟨F, H, hcorr, hEP, hnWA⟩ := exists_isEventuallyPerfect_not_isWeakAccuracy (P := P)
-    exact ⟨F, H, hcorr, hEP, fun hS => hnWA hS.2⟩
-
 /-- **Original exact completeness of the 8-class raw-history lattice (`3 ≤ Fintype.card P`):** over
 a type `P` with at least three processes, raw history inclusion `c₁.Sat F H → c₂.Sat F H` holds
 across all admissible failure patterns `F` (`F.Correct.Nonempty`) if and only if `c₁ ≤ c₂` in

@@ -3455,6 +3455,7 @@ public import CslibFrontier.Computability.Distributed.Paxos.Liveness
 public import CslibFrontier.Computability.Distributed.RingElection.Anonymous
 public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
 public import CslibFrontier.Computability.Distributed.RingElection.Peterson
+public import CslibFrontier.Computability.Distributed.RoundRobin
 public import CslibFrontier.Computability.Distributed.SelfStabilization.Basic
 public import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
 public import CslibFrontier.Computability.Distributed.SharedMemory.Basic

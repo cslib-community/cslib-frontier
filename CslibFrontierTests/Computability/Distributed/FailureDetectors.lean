@@ -56,8 +56,10 @@ example :
     (∃ (F : FailurePattern (Fin 3)) (H : DetectorHistory (Fin 3)),
       F.Correct.Nonempty ∧ IsStrong F H ∧ ¬ IsEventuallyPerfect F H) ∧
     (∃ (F : FailurePattern (Fin 3)) (H : DetectorHistory (Fin 3)),
-      F.Correct.Nonempty ∧ IsEventuallyPerfect F H ∧ ¬ IsStrong F H) :=
-  strong_and_eventuallyPerfect_incomparable
+      F.Correct.Nonempty ∧ IsEventuallyPerfect F H ∧ ¬ IsStrong F H) := by
+  obtain ⟨F₁, H₁, hc₁, hS, hnESA⟩ := exists_isStrong_not_isEventualStrongAccuracy (P := Fin 3)
+  obtain ⟨F₂, H₂, hc₂, hEP, hnWA⟩ := exists_isEventuallyPerfect_not_isWeakAccuracy (P := Fin 3)
+  exact ⟨⟨F₁, H₁, hc₁, hS, fun h => hnESA h.2⟩, ⟨F₂, H₂, hc₂, hEP, fun h => hnWA h.2⟩⟩
 
 example :
     ∃ (F : FailurePattern (Fin 3)) (H : DetectorHistory (Fin 3)),
