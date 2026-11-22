@@ -441,6 +441,7 @@ theorem DerivableInSize.lift {D : Ineq V} {s : ℕ}
   obtain ⟨K, hK⟩ := hall D hD
   exact ⟨K, ls', hp', hK, hlen'.trans (Nat.mul_le_mul_left _ hlen)⟩
 
+omit [DecidableEq V] in
 /-- **Wrapping** (§2.2 of the paper): a derivation of `D` from `C` gives one of `z ⇒ D` from
 `z ⇒ C`, for a variable `z` in neither, with four lines per line. Here `z ⇒ C` is
 `C + K₀ (1 - x_z) ≥ 0`, for any reification coefficient `K₀`. This is Theorem 1 for
@@ -449,6 +450,7 @@ theorem DerivableInSize.wrap {C D : Ineq V} {z : V} {s : ℕ} (hC : C.coeff z = 
     (hD : D.coeff z = 0) (K₀ : ℕ) (h : DerivableInSize {C} D s) :
     ∃ K : ℕ, DerivableInSize {C + K₀ • guard {z} (fun _ => true)}
       (D + K • guard {z} (fun _ => true)) (4 * s) := by
+  classical
   have hΓ : Ineq.restrict {z} (fun _ => true) '' {C + K₀ • guard {z} (fun _ => true)} = {C} := by
     rw [Set.image_singleton, restrict_add, restrict_nsmul, restrict_guard, smul_zero, add_zero,
       restrict_of_coeff_eq_zero (by simpa using hC)]
