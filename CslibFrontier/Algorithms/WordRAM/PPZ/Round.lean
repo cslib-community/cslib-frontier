@@ -385,11 +385,10 @@ theorem forcedCode_isOracleCode {φ : CNF (Fin n)} {C Tb w : ℕ} {M : ℕ → �
   preserves_x := by decide
   preserves_i := by decide
   preserves_j := by decide
-  exec τ v y hf hv hs := by
-    obtain ⟨z, hz, hzm, hzr, -⟩ := forcedCode_spec φ τ v y (hf.scanFrame hv hs hw hT)
+  exec τ v y hf hv hs :=
+    forcedCode_spec φ τ v y (hf.scanFrame hv hs hw hT)
       (by rw [hf.cBeg_eq]; exact hf.clauses) (by rw [hf.cBeg_eq, hf.cEnd_eq]; exact hf.span)
       (by rw [hf.cEnd_eq]; exact hw.of_le (by omega))
-    exact ⟨z, hz, hzm, hzr⟩
 
 /-- The postcondition of the step from step `i`:for the drawn position `p` and the value `b` set,
 `jReg = i + p`, `res = b`, and the loop state at step `i + 1` after processing `g p`. -/
