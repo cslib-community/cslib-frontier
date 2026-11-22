@@ -63,9 +63,15 @@ def splitVarCodec : NatCodec (ℕ ⊕ (ℕ × ℕ)) :=
   NatCodec.nat.sum (NatCodec.nat.pair .nat)
 
 /-- An injective numbering of the variables of a split formula: original variables at even
-numbers, auxiliary variables at odd numbers through `Nat.pair`. -/
-def splitVarToNat (x : ℕ ⊕ (ℕ × ℕ)) : ℕ :=
-  splitVarCodec x
+numbers, auxiliary variables at odd numbers through `Nat.pair`. Kept as a pure computational term so
+statements mentioning `toThreeSAT` do not inherit `Nat.unpair_pair`'s classical axioms from
+`splitVarCodec`'s proof fields. -/
+def splitVarToNat : ℕ ⊕ (ℕ × ℕ) → ℕ :=
+  Sum.elim (2 * ·) fun p => 2 * Nat.pair p.1 p.2 + 1
+
+@[simp]
+theorem splitVarCodec_apply (x : ℕ ⊕ (ℕ × ℕ)) : splitVarCodec x = splitVarToNat x :=
+  rfl
 
 theorem splitVarToNat_injective : Function.Injective splitVarToNat :=
   splitVarCodec.injective
@@ -90,7 +96,8 @@ by one bit, and unary fresh-variable pairs are paired and converted to odd binar
 theorem computableInPolyTime_splitVarToNat :
     ComputableInPolyTime splitVarToNat
       (encSum encNat (encPair encUnary encUnary)) encNat := by
-  unfold splitVarToNat splitVarCodec
+  change ComputableInPolyTime (fun x => splitVarCodec x) _ _
+  unfold splitVarCodec
   fun_prop
 
 /-- The reduction `toThreeSAT` is computable in polynomial time under `encCNF`. -/
