@@ -91,15 +91,19 @@ remain open under #7502.
 
 ## Main results
 
-* `Cslib.Distributed.CRDT.semilatticeCoordinationFreeConsistent_iff_monotone`: for `[Nontrivial P]`,
-  `SemilatticeCoordinationFreeConsistent P emit ↔ Monotone emit`.
+* `Monotone.semilatticeCoordinationFreeConsistent` and
+  `Cslib.Distributed.CRDT.semilatticeCoordinationFreeConsistent_iff_monotone`: monotonicity implies
+  `SemilatticeCoordinationFreeConsistent P emit` over `[Nonempty P]`, and is equivalent to it over
+  `[Nontrivial P]`.
 * `Cslib.Distributed.CRDT.emitted_eq_global_of_monotone`: under `Monotone emit`, any all-pairs
   gossip schedule converges every replica's irrevocable output to `emit (globalMergedState cfg)`.
 * `Cslib.Distributed.CRDT.semilatticeCoordinationFreeConsistent_of_subsingleton`: on
   `[Subsingleton P]`, `SemilatticeCoordinationFreeConsistent P emit` holds unconditionally, showing
   `[Nontrivial P]` is necessary.
-* `Cslib.Distributed.CRDT.semilatticeObservableConsistent_iff_monotone`: for `[Nontrivial P]`,
-  `SemilatticeObservableConsistent P q ↔ Monotone q`.
+* `Monotone.semilatticeObservableConsistent` and
+  `Cslib.Distributed.CRDT.semilatticeObservableConsistent_iff_monotone`: monotonicity implies
+  `SemilatticeObservableConsistent P q` over `[Nonempty P]`, and is equivalent to it over
+  `[Nontrivial P]`.
 * `Cslib.Distributed.CRDT.semilatticeCoordinationFreeConsistent_gcounterThreshold`,
   `Cslib.Distributed.CRDT.semilatticeObservableConsistent_gcounterThresholdBool`,
   `Cslib.Distributed.CRDT.semilatticeCoordinationFreeConsistent_gsetMem`, and
@@ -129,6 +133,24 @@ namespace Cslib.Distributed.CRDT
 def globalMergedState {P S : Type*} [Fintype P] [Nonempty P] [SemilatticeSup S]
     (cfg : P → S) : S :=
   Finset.univ.sup' Finset.univ_nonempty cfg
+
+/-- Replica states resulting from folding asynchronous `(· ⊔ ·)` gossip merges `hops` from `cfg`. -/
+@[expose]
+def gossipReplicaStates {P S : Type*} [DecidableEq P] [SemilatticeSup S]
+    (cfg : P → S) (hops : List (P × P)) : P → S :=
+  hops.foldl (fun rep (src, dst) => Function.update rep dst (rep dst ⊔ rep src)) cfg
+
+private theorem gossipReplicaStates_le_of_forall_le {P S : Type*} [DecidableEq P] [SemilatticeSup S]
+    (cfg : P → S) (hops : List (P × P)) {u : S} (h : ∀ p, cfg p ≤ u) :
+    ∀ p, gossipReplicaStates cfg hops p ≤ u := by
+  induction hops generalizing cfg with
+  | nil => exact h
+  | cons hop tl ih =>
+    obtain ⟨src, dst⟩ := hop
+    refine ih (Function.update cfg dst (cfg dst ⊔ cfg src)) fun p => ?_
+    by_cases hpd : p = dst
+    · subst hpd; simp [sup_le (h p) (h src)]
+    · simp [Function.update_of_ne hpd, h p]
 
 /-- Distributed state of replicas running a semilattice `CvRDT` alongside an irrevocable output
 accumulator `emitted : P → Finset Fact` (modeling append-only transition outputs
@@ -183,22 +205,20 @@ section IrrevocableCharacterization
 variable {P S Fact : Type*} [Fintype P] [DecidableEq P] [SemilatticeSup S] [DecidableEq Fact]
 
 omit [Fintype P] in
+private theorem foldl_gossipEmitStep_replica (emit : S → Finset Fact)
+    (st : IrrevocableReplicaState P S Fact) (hops : List (P × P)) :
+    (hops.foldl (gossipEmitStep emit) st).replica = gossipReplicaStates st.replica hops := by
+  induction hops generalizing st with
+  | nil => rfl
+  | cons hop tl ih => exact ih (gossipEmitStep emit st hop)
+
+omit [Fintype P] in
 private theorem foldl_gossipEmitStep_le_bound (emit : S → Finset Fact)
     (st : IrrevocableReplicaState P S Fact) (hops : List (P × P)) (u : S)
     (hrep : ∀ p, st.replica p ≤ u) :
     ∀ p, (hops.foldl (gossipEmitStep emit) st).replica p ≤ u := by
-  induction hops generalizing st with
-  | nil => exact hrep
-  | cons hop tl ih =>
-    obtain ⟨src, dst⟩ := hop
-    refine ih (gossipEmitStep emit st (src, dst)) fun p => ?_
-    simp only [gossipEmitStep]
-    by_cases hpd : p = dst
-    · subst hpd
-      simp only [Function.update_self]
-      exact sup_le (hrep p) (hrep src)
-    · simp only [Function.update_of_ne hpd]
-      exact hrep p
+  rw [foldl_gossipEmitStep_replica]
+  exact gossipReplicaStates_le_of_forall_le st.replica hops hrep
 
 omit [Fintype P] in
 private theorem foldl_gossipEmitStep_mono (emit : S → Finset Fact)
@@ -246,6 +266,17 @@ private theorem foldl_gossipEmitStep_emitted_sub_of_monotone {emit : S → Finse
       · simp only [Function.update_of_ne hpd]
         exact hem p
 
+/-- Every monotone query `emit : S → Finset Fact` is coordination-free consistent over any
+nonempty finite replica set `P`. -/
+theorem _root_.Monotone.semilatticeCoordinationFreeConsistent [Nonempty P]
+    {emit : S → Finset Fact} (hmono : Monotone emit) :
+    SemilatticeCoordinationFreeConsistent P emit := fun cfg hops p =>
+  foldl_gossipEmitStep_emitted_sub_of_monotone hmono
+    (initIrrevocableState emit cfg) hops (globalMergedState cfg)
+    (fun q => Finset.le_sup' cfg (Finset.mem_univ q))
+    (fun q => hmono (Finset.le_sup' cfg (Finset.mem_univ q)))
+    p
+
 /-- Semilattice irrevocable-emission coordination-free consistency characterization step (toward
 #7502, adapting the split-brain horizontal-partition argument of [AmelootNevenVandenBussche2011],
 §6 Theorem 12 & Corollary 13, p. 8, to `SemilatticeSup S` states, motivated by [Hellerstein2010],
@@ -277,12 +308,7 @@ theorem semilatticeCoordinationFreeConsistent_iff_monotone [Nontrivial P]
     have hf_init : f ∈ (runGossipEmit emit cfg []).emitted p₁ := by
       simpa [runGossipEmit, initIrrevocableState, cfg] using hf
     exact hsub hf_init
-  · intro hmono cfg hops p
-    exact foldl_gossipEmitStep_emitted_sub_of_monotone hmono
-      (initIrrevocableState emit cfg) hops (globalMergedState cfg)
-      (fun q => Finset.le_sup' cfg (Finset.mem_univ q))
-      (fun q => hmono (Finset.le_sup' cfg (Finset.mem_univ q)))
-      p
+  · exact Monotone.semilatticeCoordinationFreeConsistent
 
 omit [Fintype P] in
 private theorem foldl_hops_achieves_pairs (emit : S → Finset Fact)
@@ -403,12 +429,6 @@ end IrrevocableCharacterization
 
 /-! ### Preorder-Valued Observable Queries (`q : S → Out`) -/
 
-/-- Replica states resulting from folding asynchronous `(· ⊔ ·)` gossip merges `hops` from `cfg`. -/
-@[expose]
-def gossipReplicaStates {P S : Type*} [DecidableEq P] [SemilatticeSup S]
-    (cfg : P → S) (hops : List (P × P)) : P → S :=
-  hops.foldl (fun rep (src, dst) => Function.update rep dst (rep dst ⊔ rep src)) cfg
-
 /-- Semilattice observable-query consistency over `[Preorder Out]`: at every point along any
 asynchronous gossip schedule `hops` from any partitioned configuration `cfg : P → S`, every
 replica's local observation `q (state p)` is bounded above in `Out` by the globally converged
@@ -419,6 +439,15 @@ def SemilatticeObservableConsistent (P : Type*) [Fintype P] [DecidableEq P] [Non
     {S Out : Type*} [SemilatticeSup S] [Preorder Out] (q : S → Out) : Prop :=
   ∀ (cfg : P → S) (hops : List (P × P)) (p : P),
     q (gossipReplicaStates cfg hops p) ≤ q (globalMergedState cfg)
+
+/-- Every monotone observation `q : S → Out` is observable-consistent over any nonempty finite
+replica set `P`. -/
+theorem _root_.Monotone.semilatticeObservableConsistent {P S Out : Type*}
+    [Fintype P] [DecidableEq P] [Nonempty P] [SemilatticeSup S] [Preorder Out]
+    {q : S → Out} (hmono : Monotone q) :
+    SemilatticeObservableConsistent P q := fun cfg hops p =>
+  hmono (gossipReplicaStates_le_of_forall_le cfg hops
+    (fun r => Finset.le_sup' cfg (Finset.mem_univ r)) p)
 
 /-- Semilattice observable-query consistency characterization step (toward #7502): over any finite
 network `P` with `[Nontrivial P]`, `SemilatticeObservableConsistent P q` holds if and only if
@@ -444,27 +473,12 @@ theorem semilatticeObservableConsistent_iff_monotone {P S Out : Type*}
         simpa [cfg, Ne.symm hp₁₂] using hp₂
     have hle := hobs cfg [] p₁
     simpa [gossipReplicaStates, cfg, hglobal] using hle
-  · intro hmono cfg hops p
-    have hbound : ∀ (l : List (P × P)) (rep : P → S),
-        (∀ r, rep r ≤ globalMergedState cfg) →
-        ∀ r, l.foldl (fun rp (src, dst) => Function.update rp dst (rp dst ⊔ rp src)) rep r ≤
-          globalMergedState cfg := by
-      intro l
-      induction l with
-      | nil => exact fun _ h => h
-      | cons hop tl ih =>
-        intro rep h
-        obtain ⟨src, dst⟩ := hop
-        refine ih _ fun r => ?_
-        by_cases hrd : r = dst
-        · subst hrd; simp [sup_le (h r) (h src)]
-        · simp [Function.update_of_ne hrd, h r]
-    exact hmono (hbound hops cfg (fun r => Finset.le_sup' cfg (Finset.mem_univ r)) p)
+  · exact Monotone.semilatticeObservableConsistent
 
 /-! ### Positive Monotone CRDT Query Instantiations -/
 
 /-- Threshold fact emission on `GCounter Q` (`k ≤ c.value`), e.g. quorum/threshold crossing
-([Hellerstein2010], §4.1, PDF p. 7). -/
+([Hellerstein2010], §3.4.3 & §4.1, PDF pp. 9, 11). -/
 @[expose]
 def gcounterThresholdEmit {Q : Type*} [Fintype Q] (k : ℕ) (c : GCounter Q) : Finset Unit :=
   if k ≤ c.value then {()} else ∅
@@ -498,12 +512,8 @@ theorem monotone_gcounterThresholdEmit {Q : Type*} [Fintype Q] (k : ℕ) :
 theorem semilatticeCoordinationFreeConsistent_gcounterThreshold
     (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]
     {Q : Type*} [Fintype Q] (k : ℕ) :
-    SemilatticeCoordinationFreeConsistent P (gcounterThresholdEmit (Q := Q) k) := by
-  by_cases hnt : Nontrivial P
-  · exact semilatticeCoordinationFreeConsistent_iff_monotone.mpr
-      (monotone_gcounterThresholdEmit k)
-  · rw [not_nontrivial_iff_subsingleton] at hnt
-    exact semilatticeCoordinationFreeConsistent_of_subsingleton _
+    SemilatticeCoordinationFreeConsistent P (gcounterThresholdEmit (Q := Q) k) :=
+  (monotone_gcounterThresholdEmit k).semilatticeCoordinationFreeConsistent
 
 theorem monotone_gcounterThresholdBool {Q : Type*} [Fintype Q] (k : ℕ) :
     Monotone (gcounterThresholdBool (Q := Q) k) := by
@@ -515,10 +525,10 @@ theorem monotone_gcounterThresholdBool {Q : Type*} [Fintype Q] (k : ℕ) :
   · simp [h₁]
 
 theorem semilatticeObservableConsistent_gcounterThresholdBool
-    (P : Type*) [Fintype P] [DecidableEq P] [Nontrivial P]
+    (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]
     {Q : Type*} [Fintype Q] (k : ℕ) :
     SemilatticeObservableConsistent P (gcounterThresholdBool (Q := Q) k) :=
-  semilatticeObservableConsistent_iff_monotone.mpr (monotone_gcounterThresholdBool k)
+  (monotone_gcounterThresholdBool k).semilatticeObservableConsistent
 
 theorem monotone_gsetMemEmit {α : Type*} [DecidableEq α] (x : α) :
     Monotone (gsetMemEmit x) := by
@@ -532,11 +542,8 @@ theorem monotone_gsetMemEmit {α : Type*} [DecidableEq α] (x : α) :
 theorem semilatticeCoordinationFreeConsistent_gsetMem
     (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]
     {α : Type*} [DecidableEq α] (x : α) :
-    SemilatticeCoordinationFreeConsistent P (gsetMemEmit x) := by
-  by_cases hnt : Nontrivial P
-  · exact semilatticeCoordinationFreeConsistent_iff_monotone.mpr (monotone_gsetMemEmit x)
-  · rw [not_nontrivial_iff_subsingleton] at hnt
-    exact semilatticeCoordinationFreeConsistent_of_subsingleton _
+    SemilatticeCoordinationFreeConsistent P (gsetMemEmit x) :=
+  (monotone_gsetMemEmit x).semilatticeCoordinationFreeConsistent
 
 theorem monotone_gsetFilterImage {α β : Type*} [DecidableEq β] (pred : α → Bool) (f : α → β) :
     Monotone (gsetFilterImage pred f) :=
@@ -545,11 +552,8 @@ theorem monotone_gsetFilterImage {α β : Type*} [DecidableEq β] (pred : α →
 theorem semilatticeCoordinationFreeConsistent_gsetFilterImage
     (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]
     {α β : Type*} [DecidableEq α] [DecidableEq β] (pred : α → Bool) (f : α → β) :
-    SemilatticeCoordinationFreeConsistent P (gsetFilterImage pred f) := by
-  by_cases hnt : Nontrivial P
-  · exact semilatticeCoordinationFreeConsistent_iff_monotone.mpr (monotone_gsetFilterImage pred f)
-  · rw [not_nontrivial_iff_subsingleton] at hnt
-    exact semilatticeCoordinationFreeConsistent_of_subsingleton _
+    SemilatticeCoordinationFreeConsistent P (gsetFilterImage pred f) :=
+  (monotone_gsetFilterImage pred f).semilatticeCoordinationFreeConsistent
 
 /-! ### Negative Non-Monotone CRDT Query Instantiations (Split-Brain Retractions) -/
 

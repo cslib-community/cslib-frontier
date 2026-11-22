@@ -965,46 +965,6 @@ theorem CmRDT.bss_strong_convergence (C : CmRDT S Op Eff Q) {F : Set P}
     C.causalLinearization_eq hcomm_sub hp_lin hq_lin
   exact ⟨hstate_eq, congrArg C.query hstate_eq⟩
 
-private theorem bss_delivered_mono_extract {F : Set P}
-    {ss : ωSequence (BSSState P Eff)} {xs : ωSequence (BSSAction P Eff)}
-    (he : (bssLTS F).OmegaExecution ss xs) {i j : ℕ} (hij : i ≤ j) {q : P}
-    {pkt : Packet P Eff} (hmem : pkt ∈ ((ss i).proc q).delivered) :
-    pkt ∈ ((ss j).proc q).delivered := by
-  obtain ⟨d, rfl⟩ : ∃ d, j = i + d := ⟨j - i, by omega⟩
-  induction d with
-  | zero => simpa using hmem
-  | succ d ih =>
-    have hd := ih (Nat.le_add_right i d)
-    obtain ⟨_, hstep⟩ := he (i + d)
-    rw [← Nat.add_assoc, hstep]
-    cases xs (i + d) with
-    | broadcast p payload =>
-      simp only [bssStep, bssExecBroadcast]
-      by_cases hqp : q = p
-      · subst hqp; simp only [Function.update_self]; exact List.mem_append_left _ hd
-      · simpa [Function.update_of_ne hqp] using hd
-    | crashBroadcast p dests payload =>
-      simp only [bssStep, bssExecCrashBroadcast]
-      by_cases hqp : q = p
-      · subst hqp; simp only [Function.update_self]; exact List.mem_append_left _ hd
-      · simpa [Function.update_of_ne hqp] using hd
-    | recv m =>
-      simp only [bssStep, bssExecRecv]
-      by_cases hqm : q = m.dest
-      · subst hqm; simpa using hd
-      · simpa [Function.update_of_ne hqm] using hd
-    | deliver p pkt' =>
-      simp only [bssStep, bssExecDeliver]
-      by_cases hqp : q = p
-      · subst hqp; simp only [Function.update_self]; exact List.mem_append_left _ hd
-      · simpa [Function.update_of_ne hqp] using hd
-    | crash p =>
-      simp only [bssStep, bssExecCrash]
-      by_cases hqp : q = p
-      · subst hqp; simpa using hd
-      · simpa [Function.update_of_ne hqp] using hd
-    | stutter => exact hd
-
 /-- Causal-broadcast to `CmRDT` quiescent eventual-convergence bridge step (toward #7502,
 combining `bss_live_of_atomic_multicast` and `CmRDT.bss_strong_convergence`): in any fair infinite
 execution `(ss, xs)` of `bssLTS F` with atomic multicast steps (`∀ k, IsAtomicMulticastAction
@@ -1074,7 +1034,7 @@ theorem CmRDT.bss_quiescent_convergence (C : CmRDT S Op Eff Q) {F : Set P}
       have hm_le_k : mFn idx ≤ k :=
         le_trans (Finset.le_sup (f := mFn) (Finset.mem_univ idx))
           (le_trans (Nat.le_max_right K _) hkM)
-      exact bss_delivered_mono_extract he hm_le_k hmem_m
+      exact bss_omega_delivered_mono he hm_le_k hmem_m
   exact (C.bss_strong_convergence hmtr_k (hcomm k) fun pkt =>
     (hall_deliv p hp pkt).trans (hall_deliv q hq pkt).symm).1
 

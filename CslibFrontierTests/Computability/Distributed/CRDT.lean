@@ -240,14 +240,12 @@ theorem cvrdt_cmrdt_emulations_checked :
 
 /-! ### 3. `GCounter`, `PNCounter`, `TwoPhaseSet`, `ORSet` (Add-Wins), & Untagged Impossibility -/
 
-/-- Check `GCounter.value_sup_of_local_counts` and `naive_max_counter_loses_concurrent_inc`. -/
+/-- Check `GCounter.value_sup_of_local_counts` on a 2-replica `Fin 2` configuration. -/
 example :
-    max (0 + 1) (0 + 1) ≠ 2 ∧
-    (let rep : Fin 2 → GCounter (Fin 2) := fun i =>
-       if i = 0 then ((GCounter.zero (Fin 2)).inc 0).inc 0
-       else (GCounter.zero (Fin 2)).inc 1
-     (Finset.univ.sup' Finset.univ_nonempty rep).value = 3) := by
-  refine ⟨naive_max_counter_loses_concurrent_inc, ?_⟩
+    let rep : Fin 2 → GCounter (Fin 2) := fun i =>
+      if i = 0 then ((GCounter.zero (Fin 2)).inc 0).inc 0
+      else (GCounter.zero (Fin 2)).inc 1
+    (Finset.univ.sup' Finset.univ_nonempty rep).value = 3 := by
   let rep : Fin 2 → GCounter (Fin 2) := fun i =>
     if i = 0 then ((GCounter.zero (Fin 2)).inc 0).inc 0 else (GCounter.zero (Fin 2)).inc 1
   let k : Fin 2 → ℕ := fun i => if i = 0 then 2 else 1
@@ -368,17 +366,15 @@ theorem fig14_causal_add_wins_verified :
 
 /-- Untagged `Finset` merge impossibility (`not_exists_untagged_finset_merge` &
 `untagged_insert_erase_ne_erase_insert`), paired with non-vacuity checks showing `(· ∪ ·)` and
-`(· ∩ ·)` are commutative idempotent merges that each satisfy one sequential requirement while
-violating the other. -/
+`(· ∩ ·)` are commutative merges that each satisfy one requirement while violating the other. -/
 theorem untagged_set_impossibility_and_nonvacuity :
     (¬ ∃ (merge : Finset ℕ → Finset ℕ → Finset ℕ),
         Std.Commutative merge ∧
-        Std.IdempotentOp merge ∧
-        (∀ x : ℕ, x ∈ merge (merge ∅ ∅) (insert x (merge ∅ ∅))) ∧
-        (∀ x : ℕ, x ∉ merge {x} ((merge {x} {x}).erase x))) ∧
+        (∀ x : ℕ, x ∈ merge ∅ (insert x ∅)) ∧
+        (∀ x : ℕ, x ∉ merge {x} (({x} : Finset ℕ).erase x))) ∧
     ((insert 0 (∅ : Finset ℕ)).erase 0 ≠ insert 0 ((∅ : Finset ℕ).erase 0)) ∧
-    (∀ x : ℕ, x ∈ ((∅ : Finset ℕ) ∪ ∅) ∪ insert x ((∅ : Finset ℕ) ∪ ∅)) ∧
-    (∀ x : ℕ, x ∉ ({x} : Finset ℕ) ∩ ((({x} : Finset ℕ) ∩ {x}).erase x)) := by
+    (∀ x : ℕ, x ∈ (∅ : Finset ℕ) ∪ insert x ∅) ∧
+    (∀ x : ℕ, x ∉ ({x} : Finset ℕ) ∩ (({x} : Finset ℕ).erase x)) := by
   refine ⟨not_exists_untagged_finset_merge, untagged_insert_erase_ne_erase_insert 0, ?_, ?_⟩
   · intro x
     exact Finset.mem_union_right _ (Finset.mem_insert_self x _)
@@ -387,16 +383,18 @@ theorem untagged_set_impossibility_and_nonvacuity :
 
 /-! ### 4. Semilattice Irrevocable-Emission Coordination-Free Consistency ↔ Monotonicity -/
 
-/-- Positive monotone CRDT query instantiations (`GCounter` threshold, Boolean threshold, `GSet`
-membership, and `GSet` selection-projection) on `Fin 3`. -/
+/-- Positive monotone CRDT query instantiations (`GCounter` threshold, Boolean threshold on both
+`Fin 3` and `Fin 1`, `GSet` membership, and `GSet` selection-projection). -/
 theorem positive_monotone_queries_instantiated :
     SemilatticeCoordinationFreeConsistent (Fin 3) (gcounterThresholdEmit (Q := Fin 3) 2) ∧
     SemilatticeObservableConsistent (Fin 3) (gcounterThresholdBool (Q := Fin 3) 2) ∧
+    SemilatticeObservableConsistent (Fin 1) (gcounterThresholdBool (Q := Fin 3) 2) ∧
     SemilatticeCoordinationFreeConsistent (Fin 3) (gsetMemEmit (α := ℕ) 5) ∧
     SemilatticeCoordinationFreeConsistent (Fin 3)
       (gsetFilterImage (α := ℕ) (β := ℕ) (fun n => decide (n % 2 = 0)) (· / 2)) :=
   ⟨semilatticeCoordinationFreeConsistent_gcounterThreshold (Fin 3) 2,
    semilatticeObservableConsistent_gcounterThresholdBool (Fin 3) 2,
+   semilatticeObservableConsistent_gcounterThresholdBool (Fin 1) 2,
    semilatticeCoordinationFreeConsistent_gsetMem (Fin 3) 5,
    semilatticeCoordinationFreeConsistent_gsetFilterImage (Fin 3) _ _⟩
 

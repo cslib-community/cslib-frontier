@@ -17,15 +17,15 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 This module formalizes concrete state-based (`CvRDT`) and operation-based (`CmRDT`) data types
 together with their functional specifications and untagged set impossibility steps toward #7502
 (after Shapiro, Preguiça, Baquero, and Zawirski [ShapiroPreguicaBaqueroZawirski2011], §§4.1–4.2,
-p. 11, and [ShapiroPreguicaBaqueroZawirski2011R], §§3.1, 3.3, Specifications 6, 7, 11, 12, 15,
+pp. 11–12, and [ShapiroPreguicaBaqueroZawirski2011R], §§3.1, 3.3, Specifications 6, 7, 11, 12, 15,
 pp. 14–16, 21–27):
 
 1. **`GCounter P` (Grow-Only Counter, Specification 6):**
    Per-replica vector `counts : P → ℕ` with pointwise `max` semilattice merge and query
    `∑ p : P, counts p`, proving `SemilatticeSup` / `OrderBot`, `CvRDT` and `CmRDT` instances,
-   monotonicity of `GCounter.value`, exact multi-replica global sum convergence
-   (`GCounter.value_sup_of_local_counts`), and contrast against naïve scalar `max`
-   (`naive_max_counter_loses_concurrent_inc`).
+   monotonicity of `GCounter.value`, and exact multi-replica global sum convergence
+   (`GCounter.value_sup_of_local_counts`, avoiding the lost-update anomaly of merging a single
+   scalar counter via `max`).
 
 2. **`PNCounter P` (Positive-Negative Counter, Specification 7):**
    Paired `(pos, neg)` `GCounter`s evaluating to `(pos.value : ℤ) - (neg.value : ℤ)`, proving
@@ -54,11 +54,12 @@ pp. 14–16, 21–27):
 
 5. **Untagged Set Impossibility (`not_exists_untagged_finset_merge`,
    `untagged_insert_erase_ne_erase_insert`):**
-   Proves that no commutative, idempotent binary merge `Finset α → Finset α → Finset α` on plain
-   untagged sets (`[Nonempty α]`) can simultaneously preserve two-replica sequential
-   `add`-after-`remove` and sequential `remove`-after-`add`, and formalizes op-based
-   non-commutativity of naïve `insert` and `erase` ([ShapiroPreguicaBaqueroZawirski2011R], §3.3
-   Figure 11, p. 21).
+   Proves that no commutative binary merge `Finset α → Finset α → Finset α` on plain untagged sets
+   (`[Nonempty α]`) can simultaneously propagate a fresh `add` to an untouched peer at `∅`
+   (`x ∈ merge ∅ (insert x ∅)`) and propagate a sequential `remove`-after-`add` to a peer still
+   holding `{x}` (`x ∉ merge {x} (({x} : Finset α).erase x)`), because both executions present the
+   same unordered pair of untagged states `{∅, {x}}`, alongside op-based non-commutativity of naïve
+   `insert` and `erase` ([ShapiroPreguicaBaqueroZawirski2011R], §3.3 Figure 11, p. 21).
 
 ## Main definitions
 
@@ -85,8 +86,6 @@ pp. 14–16, 21–27):
   `Cslib.Distributed.CRDT.GCounter.mono_value`, and
   `Cslib.Distributed.CRDT.GCounter.value_sup_of_local_counts`: `GCounter` commutativity,
   monotonicity, and exact global sum convergence.
-* `Cslib.Distributed.CRDT.naive_max_counter_loses_concurrent_inc`: concurrent increment anomaly of
-  scalar `max` merge.
 * `Cslib.Distributed.CRDT.PNCounter.cmrdt_effectsCommute` and
   `Cslib.Distributed.CRDT.PNCounter.value_sup_of_local_counts`: `PNCounter` commutativity and exact
   global difference convergence.
@@ -119,8 +118,9 @@ namespace Cslib.Distributed.CRDT
 /-! ### `GCounter`: Grow-Only Counter -/
 
 /-- Replicated grow-only counter (`G-Counter`, [ShapiroPreguicaBaqueroZawirski2011], §4.1, p. 11;
-[ShapiroPreguicaBaqueroZawirski2011R], §3.1.2, Specification 6, p. 15) allocating one natural-number
-slot per replica `p : P`. -/
+[ShapiroPreguicaBaqueroZawirski2011R], §3.1.2, Specification 6, pp. 14–16) allocating one
+natural-number slot per replica `p : P` (avoiding the lost-update anomaly of merging a single scalar
+counter via `max`). -/
 @[ext]
 structure GCounter (P : Type*) where
   /-- Per-replica increment counts. -/
@@ -255,12 +255,6 @@ theorem value_sup_of_local_counts {P : Type*} [Fintype P] [Nonempty P]
   rfl
 
 end GCounter
-
-/-- Naïve scalar `max`-merge anomaly step (toward #7502, after
-[ShapiroPreguicaBaqueroZawirski2011R], §3.1.2, pp. 14–16): merging two concurrent increments of `0`
-via scalar `max` yields `1` rather than `2`. -/
-theorem naive_max_counter_loses_concurrent_inc : max (0 + 1) (0 + 1) ≠ 2 := by
-  decide
 
 /-! ### `PNCounter`: Positive-Negative Counter -/
 
@@ -1051,28 +1045,27 @@ end ORSetProofs
 
 /-! ### Untagged Set Merge Impossibility and Naïve Op-Based Non-Commutativity -/
 
-/-- Untagged set state-merge impossibility (original to this library, formalizing the concurrent /
-sequential add-remove conflict motivation of [ShapiroPreguicaBaqueroZawirski2011R], §3.3, p. 21):
-over any nonempty element type `α`, there is no binary commutative, idempotent merge operation
+/-- Untagged set state-merge impossibility (original to this library, formalizing the untagged
+add/remove conflict motivation of [ShapiroPreguicaBaqueroZawirski2011R], §3.3, p. 21):
+over any nonempty element type `α`, there is no binary commutative merge operation
 `merge : Finset α → Finset α → Finset α` on plain untagged sets that simultaneously:
-1. propagates sequential `add`-after-`remove` (`∀ x, x ∈ merge (merge ∅ ∅) (insert x (merge ∅ ∅))`),
-   and
-2. preserves sequential `remove`-after-`add` (`∀ x, x ∉ merge {x} ((merge {x} {x}).erase x)`). -/
+1. propagates a fresh `add` (`insert x ∅ = {x}`) to an untouched peer at `∅`
+   (`∀ x, x ∈ merge ∅ (insert x ∅)`), and
+2. propagates a sequential `remove`-after-`add` (`({x} : Finset α).erase x = ∅`) to a peer still
+   holding `{x}` (`∀ x, x ∉ merge {x} (({x} : Finset α).erase x)`),
+because without per-addition tags or tombstones both executions yield the same unordered pair of
+replica states `{∅, {x}}`. -/
 theorem not_exists_untagged_finset_merge {α : Type*} [DecidableEq α] [Nonempty α] :
     ¬ ∃ (merge : Finset α → Finset α → Finset α),
         Std.Commutative merge ∧
-        Std.IdempotentOp merge ∧
-        (∀ x : α, x ∈ merge (merge ∅ ∅) (insert x (merge ∅ ∅))) ∧
-        (∀ x : α, x ∉ merge {x} ((merge {x} {x}).erase x)) := by
-  rintro ⟨merge, hcomm, hidem, hadd, hrem⟩
+        (∀ x : α, x ∈ merge ∅ (insert x ∅)) ∧
+        (∀ x : α, x ∉ merge {x} (({x} : Finset α).erase x)) := by
+  rintro ⟨merge, hcomm, hadd, hrem⟩
   obtain ⟨x⟩ := ‹Nonempty α›
-  have h₁ : x ∈ merge ∅ {x} := by
-    have ha := hadd x
-    rw [hidem.idempotent ∅] at ha
-    exact ha
+  have h₁ : x ∈ merge ∅ {x} := hadd x
   have h₂ : x ∉ merge {x} ∅ := by
     have hr := hrem x
-    rwa [hidem.idempotent {x}, Finset.erase_singleton] at hr
+    rwa [Finset.erase_singleton] at hr
   rw [hcomm.comm ∅ {x}] at h₁
   exact h₂ h₁
 
