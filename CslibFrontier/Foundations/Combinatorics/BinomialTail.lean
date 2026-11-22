@@ -11,8 +11,8 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Analysis.SpecialFunctions.Exp
 public import Mathlib.Data.Nat.Choose.Basic
-import CslibFrontier.Probability.Azuma
 import CslibFrontier.Probability.Concentration
+import CslibFrontier.Probability.HoeffdingStep
 import CslibFrontier.Probability.PoissonBinomial
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -75,10 +75,10 @@ theorem one_sub_mul_exp_add_mul_exp_le {p : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p �
     (1 - p) * exp (-s * p) + p * exp (s * (1 - p)) ≤ exp (s ^ 2 / 8) := by
   let q : unitInterval := ⟨p, hp₀, hp₁⟩
   have h := Probability.PMF.sum_mul_exp_sub_mean_le (Probability.PMF.coin q)
-    (fun b => if b then (1 : ℝ) else 0) (a := 0) (c := 1)
+    (fun b => if b then (1 : ℝ) else 0) (a := 0) (b := 1)
     (fun b _ => by cases b <;> norm_num) s
   simp only [Fintype.sum_bool, Probability.PMF.coin_apply_toReal, q, ↓reduceIte,
-    Bool.false_eq_true, mul_one, mul_zero, add_zero, one_pow] at h
+    Bool.false_eq_true, sub_zero, one_pow, mul_one, mul_zero, add_zero] at h
   convert h using 1
   rw [show s * (0 - p) = -s * p by ring]
   ring

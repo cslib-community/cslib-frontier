@@ -10,20 +10,21 @@ module
 public import CslibFrontier.Crypto.Primitives.Garbling.BinaryToOneHotObliviousness
 public import CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Switch.Oblivious
-public import CslibFrontier.Probability.Azuma
 public import CslibFrontier.Probability.Concentration
 public import CslibFrontier.Probability.HockeyStick
+public import CslibFrontier.Probability.HoeffdingStep
 public import CslibFrontier.Probability.PMF.Coin
 public import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
-/-! # Sequential Azuma–Hoeffding, hockey-stick divergence, `UniformBridge`, and tweak-unique CCR
+/-! # Hoeffding's centered MGF step, hockey-stick divergence, `UniformBridge`, and tweak-unique CCR
 
 Concrete checked instances for:
-1. `Cslib.Probability.PMF.azuma_le` and `azuma_abs_le` on state-dependent walks over `ℤ` (without
-   `[Fintype ℤ]` or `[MeasurableSpace ℤ]`), paired with an exact 2-step tail evaluation.
+1. `Cslib.Probability.PMF.tsum_mul_exp_sub_mean_le` on a 2-point `PMF ℤ` supported on `{-1, 3}`
+   (without `[Fintype ℤ]` or `[MeasurableSpace ℤ]`) and
+   `Cslib.Probability.PMF.sum_mul_exp_sub_mean_le` on a biased `±1` score under `coin (1/4)`.
 2. `Cslib.Probability.PMF.hockeyStick` on explicit Bernoulli coins (`3/4` vs `1/4`) across
    thresholds `c = 3, 2, 1`, data processing, and power-ratio moment bounds.
 3. `Cslib.Probability.PMF.UniformBridge` on an explicit subset `{-3, -1, 2, 4} : Finset ℤ`.
@@ -40,7 +41,7 @@ namespace CslibFrontierTests.ProbAzumaTweakableCCR
 open Cslib Cslib.Crypto Cslib.Crypto.Garbling Cslib.Probability Cslib.Probability.PMF
 open scoped BigOperators ENNReal
 
-/-! ### 1. Adaptive biased/fair walk and martingale walk on `ℤ` (`Probability.Azuma`) -/
+/-! ### 1. Hoeffding's centered MGF bound on `ℤ` and `Bool` (`Probability.HoeffdingStep`) -/
 
 /-- Biased probability `1 / 4` in `[0, 1]`. -/
 noncomputable def quarterProb : unitInterval := ⟨1 / 4, by norm_num, by norm_num⟩
@@ -51,169 +52,59 @@ noncomputable def halfProb : unitInterval := ⟨1 / 2, by norm_num, by norm_num�
 /-- Biased probability `3 / 4` in `[0, 1]`. -/
 noncomputable def threeQuarterProb : unitInterval := ⟨3 / 4, by norm_num, by norm_num⟩
 
-/-- State-dependent walk on `ℤ`: from `s ≥ 0` it steps `+1` with probability `1/4` and `-1` with
-probability `3/4` (drift `-1/2`); from `s < 0` it steps `±1` with a fair coin (drift `0`). -/
-noncomputable def adaptiveWalkStep (_ : ℕ) (s : ℤ) : PMF ℤ :=
-  (coin (if 0 ≤ s then quarterProb else halfProb)).map fun b => s + if b then 1 else -1
+/-- Asymmetric zero-mean law on `ℤ`: puts mass `1 / 4` on `3` and mass `3 / 4` on `-1` (range
+`[-1, 3]` of width `4`, without `[Fintype ℤ]` or `[MeasurableSpace ℤ]`). -/
+noncomputable def intTwoPoint : PMF ℤ :=
+  (coin quarterProb).map fun b => if b then 3 else -1
 
-private theorem adaptiveWalkStep_apply (i : ℕ) (s s' : ℤ) :
-    adaptiveWalkStep i s s' =
-      (if s' = s + 1 then (coin (if 0 ≤ s then quarterProb else halfProb)) true else 0) +
-      (if s' = s - 1 then (coin (if 0 ≤ s then quarterProb else halfProb)) false else 0) := by
-  rw [adaptiveWalkStep, _root_.PMF.map_apply, tsum_fintype, Fintype.sum_bool]
-  simp only [↓reduceIte, Bool.false_eq_true, sub_eq_add_neg]
+private theorem intTwoPoint_apply (z : ℤ) :
+    intTwoPoint z =
+      (if z = 3 then coin quarterProb true else 0) +
+      (if z = -1 then coin quarterProb false else 0) := by
+  rw [intTwoPoint, _root_.PMF.map_apply, tsum_fintype, Fintype.sum_bool]
+  simp only [↓reduceIte, Bool.false_eq_true]
 
-private theorem adaptiveWalkStep_drift_nonpos (i : ℕ) (s : ℤ) :
-    (∑' s' : ℤ, (adaptiveWalkStep i s s').toReal * ((s' : ℝ) - s)) ≤ 0 := by
-  have hsupp : ∀ s' ∉ ({s + 1, s - 1} : Finset ℤ),
-      (adaptiveWalkStep i s s').toReal * ((s' : ℝ) - s) = 0 := by
-    intro s' hs'
-    simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hs'
-    rw [adaptiveWalkStep_apply, ite_eq_right hs'.1, ite_eq_right hs'.2, add_zero,
-      ENNReal.toReal_zero, zero_mul]
-  rw [tsum_eq_sum hsupp, Finset.sum_pair (by omega : s + 1 ≠ s - 1)]
-  rw [adaptiveWalkStep_apply, adaptiveWalkStep_apply]
-  have hne1 : s + 1 ≠ s - 1 := by omega
-  have hne2 : s - 1 ≠ s + 1 := by omega
-  simp only [↓reduceIte, hne1, hne2, add_zero, zero_add]
-  by_cases hs : 0 ≤ s
-  · simp only [hs, ↓reduceIte, coin_apply_toReal, quarterProb]
-    push_cast
-    linarith
-  · simp only [hs, ↓reduceIte, coin_apply_toReal, halfProb]
-    push_cast
-    linarith
-
-private theorem adaptiveWalkStep_range (i : ℕ) (s : ℤ) :
-    ∃ a : ℝ, ∀ s' ∈ (adaptiveWalkStep i s).support, ((s' : ℝ) - s) ∈ Set.Icc a (a + 2) := by
-  refine ⟨-1, fun s' hs' => ?_⟩
-  rw [adaptiveWalkStep, _root_.PMF.mem_support_map_iff] at hs'
-  obtain ⟨b, _, rfl⟩ := hs'
-  cases b <;> constructor <;> push_cast <;> norm_num
-
-/-- **Azuma–Hoeffding on an adaptive biased/fair walk over `ℤ`**: for every horizon `n` and
-`ε ≥ 0`, the upper tail `Pr[X_n ≥ ε]` is at most `exp (-2 ε² / (4 n))`. -/
-theorem adaptiveWalk_tail_le (n : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
-    ((chain (_root_.PMF.pure (0 : ℤ)) adaptiveWalkStep n).toOuterMeasure
-        {s : ℤ | ε ≤ (s : ℝ)}).toReal ≤
-      Real.exp (-2 * ε ^ 2 / (4 * n)) := by
-  have h := azuma_le (_root_.PMF.pure (0 : ℤ)) adaptiveWalkStep (fun _ (s : ℤ) => (s : ℝ))
-    (fun _ => 2) (m := 0) (ε := ε) n hε
-    (fun s hs => by
-      simp only [_root_.PMF.support_pure, Set.mem_singleton_iff] at hs
-      simp [hs])
-    (fun i _ s _ => adaptiveWalkStep_drift_nonpos i s)
-    (fun i _ s _ => adaptiveWalkStep_range i s)
-  have hev : {s : ℤ | (0 : ℝ) + ε ≤ (s : ℝ)} = {s : ℤ | ε ≤ (s : ℝ)} := by
-    simp only [zero_add]
-  rw [hev] at h
-  refine h.trans_eq ?_
-  congr 1
-  simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-  ring
-
-/-- Exact 2-step check: from `0`, reaching `s ≥ 2` in `2` steps requires two `+1` moves from
-nonnegative states (`(1/4) * (1/4) = 1/16`), which is strictly below Azuma's `exp (-1)` bound. -/
-theorem adaptiveWalk_two_step_ge_two :
-    ((chain (_root_.PMF.pure (0 : ℤ)) adaptiveWalkStep 2).toOuterMeasure
-        {s : ℤ | (2 : ℝ) ≤ (s : ℝ)}).toReal = 1 / 16 ∧
-      ((chain (_root_.PMF.pure (0 : ℤ)) adaptiveWalkStep 2).toOuterMeasure
-        {s : ℤ | (2 : ℝ) ≤ (s : ℝ)}).toReal ≤ Real.exp (-1) := by
-  refine ⟨?_, ?_⟩
-  · have hchain :
-        chain (_root_.PMF.pure (0 : ℤ)) adaptiveWalkStep 2 =
-          (adaptiveWalkStep 0 0).bind (adaptiveWalkStep 1) := by
-      rw [chain_succ, chain_succ, chain_zero, _root_.PMF.pure_bind]
-    rw [hchain, _root_.PMF.toOuterMeasure_bind_apply]
-    have h0 : ∀ s ∉ ({1, -1} : Finset ℤ),
-        adaptiveWalkStep 0 0 s * (adaptiveWalkStep 1 s).toOuterMeasure {s' : ℤ | (2 : ℝ) ≤ s'} =
-          0 := by
-      intro s hs
-      simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hs
-      rw [adaptiveWalkStep_apply, ite_eq_right (by omega), ite_eq_right (by omega), add_zero,
+/-- Exact mean `0` and uncentered exponential moment bound `exp (2 t²)` on `ℤ` via
+`tsum_mul_exp_sub_mean_le` (`(3 - (-1))² / 8 = 2`). -/
+theorem intTwoPoint_mean_zero_and_mgf_le (t : ℝ) :
+    (∑' z : ℤ, (intTwoPoint z).toReal * (z : ℝ)) = 0 ∧
+      ∑' z : ℤ, intTwoPoint z * ENNReal.ofReal (Real.exp (t * (z : ℝ))) ≤
+        ENNReal.ofReal (Real.exp (2 * t ^ 2)) := by
+  have hmean : (∑' z : ℤ, (intTwoPoint z).toReal * (z : ℝ)) = 0 := by
+    have hsupp : ∀ z ∉ ({3, -1} : Finset ℤ), (intTwoPoint z).toReal * (z : ℝ) = 0 := by
+      intro z hz
+      simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hz
+      rw [intTwoPoint_apply, ite_eq_right hz.1, ite_eq_right hz.2, add_zero, ENNReal.toReal_zero,
         zero_mul]
-    rw [tsum_eq_sum h0, Finset.sum_pair (by decide : (1 : ℤ) ≠ -1)]
-    have h1 : (adaptiveWalkStep 1 1).toOuterMeasure {s' : ℤ | (2 : ℝ) ≤ s'} =
-        adaptiveWalkStep 1 1 2 := by
-      rw [_root_.PMF.toOuterMeasure_apply, tsum_eq_single 2]
-      · simp
-      · intro s' hs'
-        by_cases hle : s' ∈ {x : ℤ | (2 : ℝ) ≤ (x : ℝ)}
-        · have hs'2 : 2 < s' := by
-            have : (2 : ℤ) ≤ s' := by exact_mod_cast hle
-            omega
-          rw [Set.indicator_of_mem hle, adaptiveWalkStep_apply,
-            ite_eq_right (by omega), ite_eq_right (by omega), add_zero]
-        · exact Set.indicator_of_notMem hle _
-    have hm1 : (adaptiveWalkStep 1 (-1)).toOuterMeasure {s' : ℤ | (2 : ℝ) ≤ s'} = 0 := by
-      rw [_root_.PMF.toOuterMeasure_apply, tsum_eq_zero_iff]
-      intro s'
-      by_cases hle : s' ∈ {x : ℤ | (2 : ℝ) ≤ (x : ℝ)}
-      · have : (2 : ℤ) ≤ s' := by exact_mod_cast hle
-        rw [Set.indicator_of_mem hle, adaptiveWalkStep_apply,
-          ite_eq_right (by omega), ite_eq_right (by omega), add_zero]
-      · exact Set.indicator_of_notMem hle _
-    rw [h1, hm1, mul_zero, add_zero, ENNReal.toReal_mul]
-    have hstep0 : adaptiveWalkStep 0 0 1 = coin quarterProb true := by
-      rw [adaptiveWalkStep_apply]
-      simp
-    have hstep1 : adaptiveWalkStep 1 1 2 = coin quarterProb true := by
-      rw [adaptiveWalkStep_apply]
-      simp
-    rw [hstep0, hstep1, coin_apply_toReal]
-    simp only [↓reduceIte, quarterProb]
+    rw [tsum_eq_sum hsupp, Finset.sum_pair (by decide : (3 : ℤ) ≠ -1), intTwoPoint_apply,
+      intTwoPoint_apply]
+    simp only [↓reduceIte, show (3 : ℤ) ≠ -1 by decide, show (-1 : ℤ) ≠ 3 by decide, add_zero,
+      zero_add, coin_apply_toReal, quarterProb]
     norm_num
-  · refine (adaptiveWalk_tail_le 2 (ε := 2) (by norm_num)).trans_eq ?_
-    congr 1
-    norm_num
-
-/-- Adaptive zero-mean martingale step on `ℤ`: fair `±1` step on `s ≥ 0` and fair `±2` step on
-`s < 0` (every step has conditional expectation `0` and range width at most `4`). -/
-noncomputable def adaptiveMartingaleStep (_ : ℕ) (s : ℤ) : PMF ℤ :=
-  let stepSize : ℤ := if 0 ≤ s then 1 else 2
-  (coin halfProb).map fun b => s + if b then stepSize else -stepSize
-
-/-- Two-sided Azuma–Hoeffding check (`azuma_abs_le`) on `adaptiveMartingaleStep`. -/
-theorem adaptiveMartingale_abs_tail_le (n : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
-    ((chain (_root_.PMF.pure (0 : ℤ)) adaptiveMartingaleStep n).toOuterMeasure
-        {s : ℤ | ε ≤ |(s : ℝ)|}).toReal ≤
-      2 * Real.exp (-2 * ε ^ 2 / (16 * n)) := by
-  have h := azuma_abs_le (_root_.PMF.pure (0 : ℤ)) adaptiveMartingaleStep
-    (fun _ (s : ℤ) => (s : ℝ)) (fun _ => 4) (m := 0) (ε := ε) n hε
-    (fun s hs => by
-      simp only [_root_.PMF.support_pure, Set.mem_singleton_iff] at hs
-      simp [hs])
-    (fun i _ s _ => by
-      dsimp only [adaptiveMartingaleStep]
-      set d : ℤ := if 0 ≤ s then 1 else 2
-      have hd : s + d ≠ s + -d := by
-        by_cases hs0 : 0 ≤ s <;> simp [d, hs0]
-      have hsupp : ∀ s' ∉ ({s + d, s + -d} : Finset ℤ),
-          (((coin halfProb).map fun b => s + if b then d else -d) s').toReal * ((s' : ℝ) - s) =
-            0 := by
-        intro s' hs'
-        simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hs'
-        rw [_root_.PMF.map_apply, tsum_fintype, Fintype.sum_bool]
-        simp only [↓reduceIte, Bool.false_eq_true]
-        rw [ite_eq_right hs'.1, ite_eq_right hs'.2, add_zero, ENNReal.toReal_zero, zero_mul]
-      rw [tsum_eq_sum hsupp, Finset.sum_pair hd, _root_.PMF.map_apply, _root_.PMF.map_apply,
-        tsum_fintype, tsum_fintype, Fintype.sum_bool, Fintype.sum_bool]
-      simp only [↓reduceIte, Bool.false_eq_true, hd, hd.symm, add_zero, zero_add,
-        coin_apply_toReal, halfProb]
-      push_cast
-      ring)
-    (fun i _ s _ => ⟨-2, fun s' hs' => by
-      rw [adaptiveMartingaleStep, _root_.PMF.mem_support_map_iff] at hs'
-      obtain ⟨b, _, rfl⟩ := hs'
-      by_cases hs0 : 0 ≤ s <;> cases b <;> simp only [hs0, ↓reduceIte] <;>
-        constructor <;> push_cast <;> norm_num⟩)
-  have hev : {s : ℤ | ε ≤ |(s : ℝ) - 0|} = {s : ℤ | ε ≤ |(s : ℝ)|} := by
-    simp only [sub_zero]
-  rw [hev] at h
-  refine h.trans_eq ?_
-  congr 2
-  simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  refine ⟨hmean, ?_⟩
+  have h := tsum_mul_exp_sub_mean_le intTwoPoint (fun z : ℤ => (z : ℝ)) (a := -1) (b := 3)
+    (fun z hz => by
+      rw [intTwoPoint, _root_.PMF.mem_support_map_iff] at hz
+      obtain ⟨b, _, rfl⟩ := hz
+      cases b <;> constructor <;> push_cast <;> norm_num) t
+  simp only [hmean, sub_zero] at h
+  refine h.trans_eq (congrArg (ENNReal.ofReal ∘ Real.exp) ?_)
   ring
+
+/-- Finite centered MGF check (`sum_mul_exp_sub_mean_le`) on a `±1`-valued score under
+`coin (1/4)` (mean `-1/2`, range `[-1, 1]` of width `2`):
+`(1/4) exp (3 t / 2) + (3/4) exp (-t / 2) ≤ exp (t² / 2)`. -/
+theorem biased_pm_one_centered_mgf_le (t : ℝ) :
+    (1 / 4 : ℝ) * Real.exp (3 * t / 2) + (3 / 4 : ℝ) * Real.exp (-t / 2) ≤
+      Real.exp (t ^ 2 / 2) := by
+  have h := sum_mul_exp_sub_mean_le (coin quarterProb)
+    (fun b : Bool => if b then (1 : ℝ) else -1) (a := -1) (b := 1)
+    (fun b _ => by cases b <;> norm_num) t
+  simp only [Fintype.sum_bool, coin_apply_toReal, quarterProb, ↓reduceIte, Bool.false_eq_true] at h
+  refine (le_of_eq ?_).trans (h.trans_eq ?_)
+  · congr 1 <;> congr 1 <;> congr 1 <;> ring
+  · congr 1
+    ring
 
 /-! ### 2. Explicit Bernoulli hockey-stick divergences (`Probability.HockeyStick`) -/
 
