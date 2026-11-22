@@ -1372,6 +1372,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Layered.Padding
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.Padding.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.Size
+public import CslibFrontier.Computability.Circuit.Boolean.LinearHash
 public import CslibFrontier.Computability.Circuit.Boolean.Lookup
 public import CslibFrontier.Computability.Circuit.Boolean.MachineSimulation
 public import CslibFrontier.Computability.Circuit.Boolean.Majority
@@ -1432,6 +1433,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.PPolyHard
 public import CslibFrontier.Computability.Circuit.Boolean.ParallelCode
 public import CslibFrontier.Computability.Circuit.Boolean.Parity
 public import CslibFrontier.Computability.Circuit.Boolean.ParityNC1
+public import CslibFrontier.Computability.Circuit.Boolean.PartialSynthesis
 public import CslibFrontier.Computability.Circuit.Boolean.Polarization
 public import CslibFrontier.Computability.Circuit.Boolean.Polarization.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime

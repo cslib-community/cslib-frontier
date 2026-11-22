@@ -44,6 +44,11 @@ disjunctions, and the bounds are proved here for De Morgan circuits. The circuit
 `CslibFrontier.Computability.Circuit.Boolean.SparseSynthesisConstruction`; this file chooses their
 parameters, uniformly in the set and the function.
 
+The refinement `complexityOn_le_card` retains the actual support cardinality in the leading
+term. The general bound with no square-root restriction is proved in
+`CslibFrontier.Computability.Circuit.Boolean.PartialSynthesis` by composing this refinement
+with an injective linear hash.
+
 Together with the sparse corrections of `CslibFrontier.Computability.Circuit.Boolean.Correction`,
 these bounds show that circuit complexity is continuous at the scale of the square root of the
 number of inputs: changing a function with any number of outputs on at most `2 ^ p` inputs, and in
@@ -68,6 +73,8 @@ The circuit model counts every AND, OR, NOT and constant gate; fan-out and outpu
 
 * `Cslib.Circuits.Boolean.SparseSynthesis.complexity_indicator_le`: sparse indicators.
 * `Cslib.Circuits.Boolean.SparseSynthesis.complexityOn_le`: partial functions.
+* `Cslib.Circuits.Boolean.SparseSynthesis.complexityOn_le_card`: partial synthesis retaining the
+  actual support size between `2 ^ (p - 1)` and `2 ^ p`.
 * `Cslib.Circuits.Boolean.SparseSynthesis.dist_complexity_le`: square-root continuity.
 * `Cslib.Circuits.Boolean.SparseSynthesis.dist_complexity_single_le`: square-root continuity for
   a single output.
@@ -148,12 +155,12 @@ private theorem indicatorBound_le {p h k l K a t : ℕ} (hh : h ≤ p) (hk : k �
   linarith
 
 /-- The partial function construction on `2 p` inputs costs at most its leading term
-`⌊2 ^ p / J⌋` plus `32 (p + 1) ^ 3 2 ^ (p - h)`, when the tables and the collisions fit in `p - h`
+`⌊w / J⌋` plus `32 (p + 1) ^ 3 2 ^ (p - h)`, when the tables and the collisions fit in `p - h`
 bits. -/
 private theorem partialBound_le {p h k l J w : ℕ} (hh : h ≤ p) (hk : k ≤ p - h)
     (hl : l ≤ p - h) (hkl : k + l ≤ 2 * p) (hkl' : p + h ≤ k + l) (hJ : 4 * k + 5 + J ≤ p - h)
     (hw : w ≤ 2 ^ p) :
-    partialBound (2 * p) k l J w ≤ 2 ^ p / J + 32 * (p + 1) ^ 3 * 2 ^ (p - h) := by
+    partialBound (2 * p) k l J w ≤ w / J + 32 * (p + 1) ^ 3 * 2 ^ (p - h) := by
   set G := 2 ^ (p - h)
   have hG : 1 ≤ G := Nat.one_le_two_pow
   have hkG : 2 ^ k ≤ G := Nat.pow_le_pow_right two_pos hk
@@ -166,15 +173,14 @@ private theorem partialBound_le {p h k l J w : ℕ} (hh : h ≤ p) (hk : k ≤ p
           · rw [pow_add]; have := Nat.one_le_two_pow (n := k); omega
       _ = 2 ^ (4 * k + 5 + J) := by rw [← pow_mul, ← pow_add, ← pow_add]; ring_nf
       _ ≤ G := Nat.pow_le_pow_right two_pos hJ
-  have hwJ : w / J ≤ 2 ^ p / J := Nat.div_le_div_right hw
   have hcoll : w * w / 2 ^ (k + l) ≤ G :=
     (Nat.div_le_div_right (by rw [two_mul, pow_add]; exact Nat.mul_le_mul hw hw)).trans
       (two_pow_div_le hh hkl')
-  have htable : partialTableBound k l J w ≤ 2 ^ p / J + (8 * p + 8) * G := by
+  have htable : partialTableBound k l J w ≤ w / J + (8 * p + 8) * G := by
     have h₁ : (2 ^ k + 2 ^ l) * (2 * (k + l) + 1) ≤ (2 * G) * (4 * p + 1) :=
       Nat.mul_le_mul (by omega) (by omega)
     unfold partialTableBound
-    nlinarith only [h₁, hbank, hlG, hG, hwJ]
+    nlinarith only [h₁, hbank, hlG, hG]
   have hhash : (k + l) * (4 * (2 * p) + 1) ≤ (16 * p ^ 2 + 2 * p) * G := by
     have := Nat.mul_le_mul hkl (le_refl (4 * (2 * p) + 1))
     nlinarith only [this, hG]
@@ -255,14 +261,14 @@ private theorem parameters_spec {P q p h c : ℕ} (hq : 32 * (P + 1) ≤ q)
 tables and of `J = (q ^ 2 - 4 q - 6) h` entries in partial tables, and `t = q + 1` filters with
 hashes to `k + l = p + q h` bits. Then the sparse indicator construction costs at most
 `(1 + 1 / (2 P)) 2 ^ p` gates and the partial function construction at most
-`(1 + 1 / (2 P)) 2 ^ p / p`, up to an error of `32 (p + 1) ^ 3 2 ^ (p - h)`. -/
+`(1 + 1 / (2 P)) |D| / p`, up to an error of `32 (p + 1) ^ 3 2 ^ (p - h)`. -/
 private theorem two_mul_complexity_le {P q p h c : ℕ} (hq : 32 * (P + 1) ≤ q)
     (hcq : c + 4 * q + 6 = q ^ 2) (hh : 2 * q ≤ h) (hlo : q ^ 2 * h ≤ p)
     (hhi : p < q ^ 2 * (h + 1)) (D : Finset (BitString (2 * p))) (hD : #D ≤ 2 ^ p) :
     2 * P * complexity interpretation (single fun x => decide (x ∈ D)) ≤
         (2 * P + 1) * 2 ^ p + 2 * P * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) ∧
       ∀ u : BooleanFunction (2 * p), 2 * P * p * complexityOn interpretation D (single u) ≤
-        (2 * P + 1) * 2 ^ p + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
+        (2 * P + 1) * #D + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
   obtain ⟨hhp, hqh, hk, hkl, hK, hat, hJ, hKpos, hJpos, hmainK, hmainJ⟩ :=
     parameters_spec hq hcq hh hlo hhi
   refine ⟨?_, fun u => ?_⟩
@@ -278,23 +284,22 @@ private theorem two_mul_complexity_le {P q p h c : ℕ} (hq : 32 * (P + 1) ≤ q
   · have hhq : h ≤ q * h := Nat.le_mul_of_pos_left h (by omega)
     have hle := (complexityOn_le_partialBound ((q + 1) * h) (p - h) D u hJpos).trans
       (partialBound_le hhp hk le_rfl (by omega) (by omega) hJ hD)
-    have hmain := mul_div_le_mul (2 ^ p) hmainJ
+    have hmain := mul_div_le_mul #D hmainJ
     calc 2 * P * p * complexityOn interpretation D (single u)
-        ≤ 2 * P * p * (2 ^ p / (c * h) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) :=
+        ≤ 2 * P * p * (#D / (c * h) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) :=
           Nat.mul_le_mul_left _ hle
-      _ = 2 * P * p * (2 ^ p / (c * h)) + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
+      _ = 2 * P * p * (#D / (c * h)) + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
           ring
-      _ ≤ (2 * P + 1) * 2 ^ p + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
+      _ ≤ (2 * P + 1) * #D + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
 
-/-- **Uniform sparse and partial synthesis, in natural numbers.** For every `P`, for all large
-`p`, the indicator of a set of at most `2 ^ p` of the `2 ^ (2 p)` inputs costs at most
-`(1 + 1 / P) 2 ^ p` gates, and a function on such a set at most `(1 + 1 / P) 2 ^ p / p`. The
-error terms are absorbed by taking `h = ⌊p / q ^ 2⌋`, which grows linearly with `p`. -/
-private theorem eventually_complexity_le (P : ℕ) :
+/-- Uniform sparse synthesis and a partial-synthesis estimate retaining the actual support in
+its leading term. The error is at most `2 ^ p` after multiplying the partial cost by `2 P p`.
+Take `h = ⌊p / q ^ 2⌋`, which grows linearly with `p`, to absorb the polynomial error factor. -/
+private theorem eventually_complexity_le_raw (P : ℕ) :
     ∀ᶠ p in atTop, ∀ D : Finset (BitString (2 * p)), #D ≤ 2 ^ p →
       P * complexity interpretation (single fun x => decide (x ∈ D)) ≤ (P + 1) * 2 ^ p ∧
       ∀ u : BooleanFunction (2 * p),
-        P * p * complexityOn interpretation D (single u) ≤ (P + 1) * 2 ^ p := by
+        2 * P * p * complexityOn interpretation D (single u) ≤ (2 * P + 1) * #D + 2 ^ p := by
   obtain ⟨q, hq⟩ : ∃ q, q = 32 * (P + 1) := ⟨_, rfl⟩
   have hq6 : 4 * q + 6 ≤ q ^ 2 := by
     have : 32 ≤ q := by omega
@@ -323,7 +328,7 @@ private theorem eventually_complexity_le (P : ℕ) :
         = 2 * P * p * (32 * (p + 1) ^ 3) * 2 ^ (p - h) := by ring
       _ ≤ 2 ^ h * 2 ^ (p - h) := Nat.mul_le_mul_right _ (hpoly.trans (hH h (by omega)))
       _ = 2 ^ p := by rw [← pow_add, Nat.add_sub_cancel' hhp]
-  refine ⟨Nat.le_of_mul_le_mul_left ?_ two_pos, fun u => Nat.le_of_mul_le_mul_left ?_ two_pos⟩
+  refine ⟨Nat.le_of_mul_le_mul_left ?_ two_pos, fun u => ?_⟩
   · have : 2 * P * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) ≤
         2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) :=
       Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_right _ hp1)
@@ -331,10 +336,19 @@ private theorem eventually_complexity_le (P : ℕ) :
         = 2 * P * complexity interpretation (single fun x => decide (x ∈ D)) := by ring
       _ ≤ (2 * P + 1) * 2 ^ p + 2 ^ p := hind.trans (by omega)
       _ = 2 * ((P + 1) * 2 ^ p) := by ring
-  · calc 2 * (P * p * complexityOn interpretation D (single u))
-        = 2 * P * p * complexityOn interpretation D (single u) := by ring
-      _ ≤ (2 * P + 1) * 2 ^ p + 2 ^ p := (hpart u).trans (by omega)
-      _ = 2 * ((P + 1) * 2 ^ p) := by ring
+  · exact (hpart u).trans (Nat.add_le_add_left herr _)
+
+/-- The uniform square-root estimates, obtained by enlarging the actual support to `2 ^ p`. -/
+private theorem eventually_complexity_le (P : ℕ) :
+    ∀ᶠ p in atTop, ∀ D : Finset (BitString (2 * p)), #D ≤ 2 ^ p →
+      P * complexity interpretation (single fun x => decide (x ∈ D)) ≤ (P + 1) * 2 ^ p ∧
+      ∀ u : BooleanFunction (2 * p),
+        P * p * complexityOn interpretation D (single u) ≤ (P + 1) * 2 ^ p := by
+  filter_upwards [eventually_complexity_le_raw P] with p hp D hD
+  obtain ⟨hind, hpart⟩ := hp D hD
+  refine ⟨hind, fun u => Nat.le_of_mul_le_mul_left ?_ two_pos⟩
+  have h := (hpart u).trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hD) _)
+  nlinarith only [h]
 
 /-! ### Uniform sparse and partial synthesis -/
 
@@ -380,6 +394,26 @@ theorem complexityOn_le (ε : ℝ) (hε : 0 < ε) :
   have := hP (p * complexityOn interpretation D (single u)) (2 ^ p) (by
     simpa [mul_assoc] using (hp₀ p (le_of_max_le_left hp) D hD).2 u)
   simpa using this
+
+/-- Partial synthesis on `2 p` inputs with the actual support size as leading term. For every
+`ε > 0`, all large `p`, and `2 ^ (p - 1) ≤ |D| ≤ 2 ^ p`, the cost is at most
+`(1 + ε) |D| / p`. Keeping `|D|` here avoids a factor of two when an arbitrary domain is
+compressed to twice its ceiling logarithm. -/
+theorem complexityOn_le_card (ε : ℝ) (hε : 0 < ε) :
+    ∃ p₀ : ℕ, ∀ p ≥ p₀, ∀ D : Finset (BitString (2 * p)),
+      2 ^ p ≤ 2 * #D → #D ≤ 2 ^ p → ∀ u : BooleanFunction (2 * p),
+        (complexityOn interpretation D (single u) : ℝ) ≤ (1 + ε) * #D / p := by
+  obtain ⟨P, hP⟩ := exists_le_add_mul_of_mul_le 2 3 (show 0 < 2 * ε by positivity)
+  obtain ⟨p₀, hp₀⟩ := eventually_atTop.mp (eventually_complexity_le_raw P)
+  refine ⟨max p₀ 1, fun p hp D hlo hhi u => ?_⟩
+  have h := (hp₀ p (le_of_max_le_left hp) D hhi).2 u
+  have hnat : P * (2 * p * complexityOn interpretation D (single u)) ≤ (2 * P + 3) * #D := by
+    nlinarith only [h, hlo]
+  have hr := hP _ #D hnat
+  simp only [Nat.cast_mul, Nat.cast_ofNat] at hr
+  have hp0 : (0 : ℝ) < p := by exact_mod_cast (show 0 < p by omega)
+  rw [le_div_iff₀ hp0]
+  nlinarith only [hr]
 
 /-! ### Square-root continuity of circuit complexity -/
 
