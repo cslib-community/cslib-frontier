@@ -89,6 +89,8 @@ uniformity.
   `⌊n/2⌋ - o(n)`, for every `γ < (c* - c)/(2L)`.
 * `Cslib.Circuits.Frontier.half_le_cutRank_hardMatrix`: the bisection cut rank of the chosen
   family.
+* `Cslib.Circuits.Frontier.isLittleO_hardDeficiency`: sublinearity (`o(n)`) of the bisection
+  cut-rank deficiency of `hardMatrix n`.
 * `Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le`: the headline bound for the
   chosen family.
 * `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt`: below `c n`

@@ -530,6 +530,8 @@ import CslibFrontier.Probability.Renyi
 import CslibFrontier.Foundations.BooleanAnalysis.Subcube
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
 
+import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
+
 /-!
 # Collected results
 
@@ -12625,6 +12627,38 @@ register_result "odonnell-edge-isoperimetric-inequality" where
     b = true and b = false; these are the book's Pr[f = 1] and Pr[f = −1]. The logarithm is \
     Real.logb 2, the book's log. The book's optimality remark for α a power of 1/2 is checked \
     only for the conjunction of two bits. Source check: outside-fleet review on PR #5817."
+
+register_result "odonnell-kkl-edge-isoperimetric-theorem" where
+  title := "KKL Edge-Isoperimetric Theorem"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "KKL Edge-Isoperimetric Theorem (unnumbered), general-variance case of \
+        Exercise 9.29",
+      locator := "arXiv:2105.10386v1, §9.6, printed p. 267; Exercise 9.29 in §9.7, printed p. 276" }
+  ]
+  theorems := [Cslib.BitString.exists_nine_div_sq_mul_one_ninth_rpow_le_influence]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal, whose variance 𝔼 x, (F x - 𝔼 y, F y) ^ 2 is positive (the book's \
+    nonconstant f), some coordinate i has (9 / Ĩ²) · (1/9) ^ Ĩ ≤ influence i F, where \
+    Ĩ = totalInfluence F / variance is a real exponent; this is the book's MaxInf bound. The \
+    book's remark Ĩ ≥ 1 is not a hypothesis. Covers the general-variance case asked for in \
+    Exercise 9.29, which contains the book's unbiased case."
+
+register_result "odonnell-kkl-theorem" where
+  title := "Kahn–Kalai–Linial Theorem with constant 1/4"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Kahn–Kalai–Linial (KKL) Theorem (unnumbered)",
+      locator := "arXiv:2105.10386v1, §9.6, printed p. 265; derived from the Edge-Isoperimetric \
+        version on printed p. 267" }
+  ]
+  theorems := [Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence]
+  scope := "For every f : (ι → Bool) → Bool over a nonempty finite coordinate type ι with \
+    n = card ι, read as signs F through signVal, some coordinate i has \
+    Var[F] · log n / (4 n) ≤ influence i F, with Var[F] = 𝔼 x, (F x - 𝔼 y, F y) ^ 2 and the \
+    natural logarithm. The book states the theorem with an unspecified constant Ω(·); this \
+    fixes it to 1/4 for every n ≥ 1, not the asymptotic 1/2 of Exercise 9.30(c)."
 
 register_result "mpda-hole-bounded-incomparable-phase-bounded" where
   title := "Hole-bounded and phase-bounded visibly MPDA languages are incomparable"
