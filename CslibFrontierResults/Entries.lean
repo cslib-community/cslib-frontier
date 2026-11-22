@@ -340,6 +340,7 @@ import CslibFrontier.Crypto.Computational.OneWayToSignature
 import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.SchnorrProtocol
@@ -11059,6 +11060,27 @@ register_result "computational-universal-hash-single-to-multi-query" where
     accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
+
+register_result "hash-then-prf-computational-security" where
+  title := "Hash-then-PRF composition from a computational universal hash"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 7.7",
+      locator := "v0.6, Section 7.3, printed pp. 262–265; equations (7.18)–(7.22)" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable,
+    Cslib.Crypto.PRF.computableInPolyTime_hashThenPRFWord,
+    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_multiQuery,
+    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_collision
+  ]
+  scope := "Uniform strict oracle-PPT word adversaries. The hash and PRF keys are sampled \
+    independently at fixed widths computable from the unary security parameter. The message \
+    domain has a polynomial-time validity test and maps to the fixed-width input of the PRF. \
+    The ideal function consistently samples independent replies on valid messages. Repetitions \
+    are allowed, and malformed messages receive empty replies in both games. The explicit \
+    wrappers have strict PPT certificates and the single-pair bound uses bounded fair-bit \
+    rejection sampling."
 
 register_result "xor-hash-computational-universality" where
   title := "XOR-hash from a secure PRF is computationally universal"

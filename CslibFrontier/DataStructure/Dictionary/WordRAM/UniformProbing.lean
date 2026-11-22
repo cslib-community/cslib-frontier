@@ -13,9 +13,11 @@ public import CslibFrontier.DataStructure.Dictionary.UniformProbing
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.DoubleTabulation
 public import CslibFrontier.Computability.WordRAM.ExactNotation
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -592,13 +594,6 @@ def initMidCode (c_exp n_max : ℕ) : Code .exact 16 :=
 private def initMidData (base c_exp n_max : ℕ) (d : Data 16) : Data 16 :=
   (d.set regCond (singleTabSpace c_exp n_max)).set regBase (base + singleTabSpace c_exp n_max)
 
-private theorem initMidCode_exec {w base c_exp n_max : ℕ} {d : Data 16}
-    (hbase : d.regs regBase = base) (hS : Fits w (base + space c_exp n_max)) :
-    Exec w (initMidCode c_exp n_max) d (initMidData base c_exp n_max d) 2 := by
-  obtain ⟨hfit_btab, _, _, _, _, _, _, _, _⟩ := fits_of_space hS
-  unfold initMidCode initMidData
-  wram_exec [hbase]
-
 /-- Deterministic 2-instruction glue restoring `regBase` from `base + singleTabSpace c_exp n_max`
 back to `base`. -/
 def initPostCode (c_exp n_max : ℕ) : Code .exact 16 :=
@@ -608,14 +603,6 @@ def initPostCode (c_exp n_max : ℕ) : Code .exact 16 :=
 /-- Closed-form machine state after `initPostCode c_exp n_max`. -/
 private def initPostData (base c_exp n_max : ℕ) (d : Data 16) : Data 16 :=
   (d.set regCond (singleTabSpace c_exp n_max)).set regBase base
-
-private theorem initPostCode_exec {w base c_exp n_max : ℕ} {d : Data 16}
-    (hbase : d.regs regBase = base + singleTabSpace c_exp n_max)
-    (hS : Fits w (base + space c_exp n_max)) :
-    Exec w (initPostCode c_exp n_max) d (initPostData base c_exp n_max d) 2 := by
-  obtain ⟨hfit_btab, _, _, _, _, _, _, _, _⟩ := fits_of_space hS
-  unfold initPostCode initPostData
-  wram_exec [hbase]
 
 /-- Complete randomized setup program `initSetup c_exp n_max`: resamples the primary Double
 Tabulation seed at `[base, base + singleTabSpace c_exp n_max)` and the stride Double Tabulation
@@ -644,10 +631,9 @@ private def extractSeedPair (base c_exp n_max : ℕ) (y : Data 16) : Seed c_exp 
 /-- Output state distribution of `DoubleTabulation.resampleCode` renamed into `Data 16` at
 table address `addr` and output bit-width `M`. -/
 private noncomputable def resampleInitPMF (addr c_exp n_max M : ℕ) (x : Data 16) : PMF (Data 16) :=
-  (Prod.fst <$>
-    ((fun z => (z.1.extend dtMap x, z.2)) <$>
-      DoubleTabulation.resampleComp addr (numChars c_exp) (tupleLen c_exp) (charBits n_max)
-        M (x.comap dtMap))).eval
+  (((fun z => (z.1.extend dtMap x, z.2)) <$>
+    DoubleTabulation.resampleComp addr (numChars c_exp) (tupleLen c_exp) (charBits n_max)
+      M (x.comap dtMap)).eval).map Prod.fst
 
 /-- Output state distribution of `initSetup c_exp n_max`. -/
 private noncomputable def initSetupPMF (base c_exp n_max : ℕ) (x₁ : Data 16) : PMF (Data 16) :=
@@ -669,8 +655,8 @@ private theorem mem_support_resampleInitPMF {addr c_exp n_max M : ℕ} {x y : Da
     y.regs regBase = addr ∧
     y.regs regV = x.regs regV ∧
     (∀ a, a < addr ∨ addr + singleTabSpace c_exp n_max ≤ a → y.mem a = x.mem a) := by
-  rw [resampleInitPMF, Functor.map_map, ProbComp.eval_map, PMF.mem_support_map_iff] at hy
-  obtain ⟨z, hz, rfl⟩ := hy
+  rw [resampleInitPMF, ProbComp.eval_map, PMF.map_comp] at hy
+  supp_cases hy with ⟨z, hz, rfl⟩
   rw [ProbComp.support_eval] at hz
   obtain ⟨hbase', hrep, hframe, -⟩ :=
     DoubleTabulation.mem_support_resampleComp hbase hz
@@ -687,7 +673,7 @@ private theorem map_extractSeed_resampleInitPMF (addr c_exp n_max M : ℕ) (x : 
         (DoubleTabTopSeed (numChars c_exp) (tupleLen c_exp) (charBits n_max) ×
           DoubleTabBotSeed (tupleLen c_exp) (charBits n_max) M) := by
   dsimp only [resampleInitPMF]
-  rw [Functor.map_map, ProbComp.eval_map, PMF.map_comp]
+  rw [ProbComp.eval_map, PMF.map_comp, PMF.map_comp]
   exact DoubleTabulation.map_extractSeed_eval_resampleComp
     addr (numChars c_exp) (tupleLen c_exp) (charBits n_max) M (x.comap dtMap)
 
@@ -700,12 +686,11 @@ private theorem resampleInit_execCodeDist {w addr c_exp n_max M : ℕ} {x : Data
       ((DoubleTabulation.resampleCode (numChars c_exp) (tupleLen c_exp) (charBits n_max)
         M).rename dtMap) x (resampleInitPMF addr c_exp n_max M x)
       (DoubleTabulation.resampleSteps (numChars c_exp) (tupleLen c_exp) (charBits n_max)) := by
-  have hrand := (DoubleTabulation.resampleCode_execRand (x := x.comap dtMap) hbase hfit_end
-    hfit_mask_b hfit_mask_M hfit_1).rename injective_dtMap
-  refine (ExecCodeDist.of_execRand hrand).congr_dist rfl ?_
-  rw [ProbComp.expect_map]
-  refine (ProbComp.expect_mono_on_support fun z hz => ?_).trans_eq (ProbComp.expect_const _ _)
-  exact_mod_cast (DoubleTabulation.mem_support_resampleComp hbase hz).2.2.2.le
+  refine ExecCodeDist.of_execRand_le
+    ((DoubleTabulation.resampleCode_execRand (x := x.comap dtMap) hbase hfit_end
+      hfit_mask_b hfit_mask_M hfit_1).rename injective_dtMap) fun z hz => ?_
+  supp_cases hz with ⟨z₀, hz₀, rfl⟩
+  exact (DoubleTabulation.mem_support_resampleComp hbase hz₀).2.2.2.le
 
 /-- **Exact uniformity of the sampled seed pair**: the seed marginal of `initSeedStatePMF` is the
 exact product uniform distribution `seedLaw c_exp n_max`. -/
@@ -749,28 +734,24 @@ private theorem initSetup_execCodeDist {w base c_exp n_max : ℕ} {x₁ : Data 1
     (hbase : x₁.regs regBase = base) (hS : Fits w (base + space c_exp n_max)) :
     ExecCodeDist w (initSetup c_exp n_max) x₁ (initSetupPMF base c_exp n_max x₁)
       (setupSteps c_exp n_max) := by
-  obtain ⟨hbt, hb2t, _, hmb, _, hmM, _, hmM1, h1⟩ := fits_of_space hS
-  have hprim := resampleInit_execCodeDist hbase hbt hmb hmM h1
-  have hrest : ∀ y₁ ∈ (resampleInitPMF base c_exp n_max (bucketBits n_max) x₁).support,
-      ExecCodeDist w (.seq (initMidCode c_exp n_max) (.seq
-        ((DoubleTabulation.resampleCode (numChars c_exp) (tupleLen c_exp) (charBits n_max)
-          (bucketBits n_max - 1)).rename dtMap) (initPostCode c_exp n_max)))
-        y₁ ((resampleInitPMF (base + singleTabSpace c_exp n_max) c_exp n_max
-          (bucketBits n_max - 1) (initMidData base c_exp n_max y₁)).map
-            (initPostData base c_exp n_max))
-        (2 + (DoubleTabulation.resampleSteps (numChars c_exp) (tupleLen c_exp) (charBits n_max) +
-          2 : ℕ)) := fun y₁ hy₁ => by
-    have hb₁ := (mem_support_resampleInitPMF hbase hy₁).2.1
-    set y₂ := initMidData base c_exp n_max y₁
-    have hy₂_base : y₂.regs regBase = base + singleTabSpace c_exp n_max := by
-      simp +decide [y₂, initMidData]
-    have hstr := resampleInit_execCodeDist hy₂_base hb2t hmb hmM1 h1
-    have hpost := (hstr.seq_const (fun y₃ hy₃ => ExecCodeDist.of_exec <| initPostCode_exec
-      (mem_support_resampleInitPMF hy₂_base hy₃).2.1 hS) fun _ _ => le_rfl).congr_dist
-      (PMF.bind_pure_comp _ _).symm (by norm_cast)
-    exact (ExecCodeDist.of_exec (initMidCode_exec hb₁ hS)).seq_pure hpost
-  refine (hprim.seq_const hrest fun _ _ => le_rfl).congr_dist rfl ?_
-  dsimp only [setupSteps]; norm_cast; omega
+  obtain ⟨hbt, hb2t, hst, hmb, _, hmM, _, hmM1, h1⟩ := fits_of_space hS
+  have hfit_base : Fits w base := by fits
+  unfold initSetup initMidCode initPostCode
+  refine WP.Dist.execCodeDist ?_
+  wram_rand_call (resampleInit_execCodeDist hbase hbt hmb hmM h1) with y₁ hy₁
+  · have hb₁ := (mem_support_resampleInitPMF hbase hy₁).2.1
+    wram_rand_exec [hb₁]
+    have hy₂_base : ((y₁.set regCond (singleTabSpace c_exp n_max)).set regBase
+        (base + singleTabSpace c_exp n_max)).regs regBase = base + singleTabSpace c_exp n_max :=
+      rfl
+    wram_rand_call (resampleInit_execCodeDist hy₂_base hb2t hmb hmM1 h1) with y₃ hy₃
+    · have hb₃ := (mem_support_resampleInitPMF hy₂_base hy₃).2.1
+      wram_rand_exec [hb₃, show base + singleTabSpace c_exp n_max - singleTabSpace c_exp n_max =
+        base from Nat.add_sub_cancel _ _]
+    · exact ⟨(PMF.bind_pure_comp _ _).symm, by norm_cast⟩
+  · dsimp only [initSetupPMF, initMidData, initPostData, setupSteps]
+    refine ⟨rfl, ?_⟩
+    norm_cast; omega
 
 /-- Full `Randomized.StateTransitionImpl.setup_exec` certificate for `initSetup c_exp n_max`. -/
 theorem setup_exec_spec {w base c_exp U V n_max : ℕ} {x₁ : Data 16}
@@ -790,13 +771,11 @@ theorem setup_exec_spec {w base c_exp U V n_max : ℕ} {x₁ : Data 16}
   refine ⟨initSeedStatePMF base c_exp n_max x₁,
     hexec.congr_dist (by rw [initSeedStatePMF, PMF.map_comp]; exact (PMF.map_id _).symm) le_rfl,
     fun θ => by rw [map_fst_initSeedStatePMF, one_mul], fun p hp => ?_⟩
-  rw [initSeedStatePMF, PMF.mem_support_map_iff] at hp
-  obtain ⟨y, hy, rfl⟩ := hp
+  dsimp only [initSeedStatePMF] at hp
+  supp_cases hp with ⟨y, hy, rfl⟩
   have hbdd_y : y.Bounded w := hexec.bounded hx₁ y hy
-  rw [initSetupPMF, PMF.mem_support_bind_iff] at hy
-  obtain ⟨y₁, hy₁, hy_post⟩ := hy
-  rw [PMF.mem_support_map_iff] at hy_post
-  obtain ⟨y₃, hy₃, rfl⟩ := hy_post
+  dsimp only [initSetupPMF] at hy
+  supp_cases hy with ⟨y₁, hy₁, y₃, hy₃, rfl⟩
   obtain ⟨hprim_rep₁, -, hv₁, hframe₁⟩ := mem_support_resampleInitPMF hbase hy₁
   obtain ⟨hstr_rep, -, hv₃, hframe₃⟩ :=
     mem_support_resampleInitPMF (by simp +decide [initMidData]) hy₃

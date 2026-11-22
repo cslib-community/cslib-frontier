@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCopy
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandParameters
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged copies into the shared band catalogue
@@ -23,9 +24,6 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 public section
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
-
--- Static register-frame proofs reduce the fixed finite code and register bank.
-set_option maxRecDepth 4096
 
 open Cslib.WordRAM
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
@@ -104,16 +102,8 @@ theorem exec_collectBand {w L m N : ℕ} (side : Bool) (β : ℕ) (x : Data 96)
     have hn : start.regs copyLen = 10 ^ L := by simp [start]
     rw [hn]
     omega
-  refine ⟨y, hwhole, ?_, parameters_reframe hx ?_, ?_⟩
-  · simpa [start, copySrc, copyDst, copyLen, temporary, Encoding.outputBase, Nat.add_comm]
-      using hmem
-  · intro i hi
-    apply hwhole.regs_eq
-    have hp : ∀ side i, i ∈ parameterRegisters → (collectBand side).Preserves i := by
-      intro side
-      cases side <;> simp +decide only []
-    exact hp side i hi
-  · exact (hwhole.regs_eq (by
-      cases side <;> simp +decide only [])).trans hb
+  refine ⟨y, hwhole, ?_, by cases side <;> regs_frame, by cases side <;> regs_frame⟩
+  simpa [start, copySrc, copyDst, copyLen, temporary, Encoding.outputBase, Nat.add_comm]
+    using hmem
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
