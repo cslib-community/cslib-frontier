@@ -57,9 +57,6 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 
 variable {φ : CNF ℕ}
 
-/-- A bound on the variables of a trail: one past the greatest. -/
-def XTrail.varBound (T : XTrail) : ℕ := T.foldl (fun m x => max m (x.entry.lit.1 + 1)) 0
-
 /-- The number of the reason of each implied variable of the trail `T`, indexed by variable, for
 the variables below `n`. -/
 def XTrail.reasons (T : XTrail) (n : ℕ) : Array (Option ℕ) :=
@@ -107,22 +104,46 @@ def derivedHints (T : XTrail) (memo : Assign) : List ℕ :=
     | .implied l r => if memo.value l.1 == some true then some r else none
     | .decision _ => none
 
+/-- `derivedHints` in one pass over the trail, newest first, without reversing it. -/
+def derivedHintsFast (T : XTrail) (memo : Assign) : List ℕ :=
+  T.foldl (fun acc x => match x with
+    | .implied l r => if memo.value l.1 == some true then r :: acc else acc
+    | .decision _ => acc) []
+
+private theorem foldl_derivedHints (memo : Assign) : ∀ (T : XTrail) (acc : List ℕ),
+    T.foldl (fun acc x => match x with
+      | .implied l r => if memo.value l.1 == some true then r :: acc else acc
+      | .decision _ => acc) acc = derivedHints T memo ++ acc
+  | [], _ => by simp [derivedHints]
+  | x :: T, acc => by
+    rw [List.foldl_cons, foldl_derivedHints memo T]
+    cases x with
+    | decision d => simp [derivedHints]
+    | implied l r =>
+      by_cases h : memo.value l.1 = some true <;> simp [derivedHints, h]
+
+theorem derivedHintsFast_eq (T : XTrail) (memo : Assign) :
+    derivedHintsFast T memo = derivedHints T memo := by
+  rw [derivedHintsFast, foldl_derivedHints, List.append_nil]
+
 /-- The array marking the variables of the clause `C`, below `n`. -/
 def clauseVars (C : Clause ℕ) (n : ℕ) : Array Bool :=
   C.foldl (fun a y => a.setIfInBounds y.1 true) (Array.replicate n false)
 
 /-- **The redundant literals** of the learned clause `C` with the asserting literal `lit`, whose
 false literals are on the trail `T`, and the memoized search: recursively if `recursive`, and
-otherwise following only the reasons of the literals implied at the root. -/
+otherwise following only the reasons of the literals implied at the root. The arrays have `n`
+slots, and the search `n + 1` levels of fuel: with `n` beyond every variable of `T`, whose
+variables are distinct, no reason is missed and the fuel never runs out, and in any case the
+result is sound. -/
 def minimizeRedundant (log : LRATLog φ) (T : XTrail) (C : Clause ℕ) (lit : Literal ℕ)
-    (recursive : Bool) : List (Literal ℕ) × Assign :=
-  let n := max T.varBound (C.foldl (fun m y => max m (y.1 + 1)) 0)
+    (recursive : Bool) (n : ℕ) : List (Literal ℕ) × Assign :=
   let deep : ℕ → Bool :=
     if recursive then fun _ => true
     else
       let root := Assign.ofTrail (XTrail.trail (XTrail.root T))
       fun v => root.assigned v
-  redundant log (T.reasons n) (clauseVars C n) deep (T.length + 1) lit C ⟨Array.replicate n 0⟩
+  redundant log (T.reasons n) (clauseVars C n) deep (n + 1) lit C ⟨Array.replicate n 0⟩
 
 /-! ### The minimized clause is a RUP clause -/
 
@@ -473,22 +494,22 @@ variable {log₀ : LRATLog φ} {A : Trail}
 of the derived literals, oldest first, and then the hints of the learned clause reaches a conflict.
 This is what `Cslib.Algorithms.Lean.CDCL.Learned.minimize` logs, with no check at run time. -/
 theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTrail.trail T))
-    (hreasons : Reasons log₀ T) (hnd : (Trail.vars (XTrail.trail T)).Nodup) (recursive : Bool) :
+    (hreasons : Reasons log₀ T) (hnd : (Trail.vars (XTrail.trail T)).Nodup) (recursive : Bool)
+    (n : ℕ) :
     let C := L.clause
-    let r := minimizeRedundant log₀ T C L.lit recursive
+    let r := minimizeRedundant log₀ T C L.lit recursive n
     propagateHints log₀.db ((L.lit :: C.filter fun y => y != L.lit && !r.1.contains y).map
       Std.Sat.Literal.negate) (derivedHints T r.2 ++ L.hints) = true := by
   intro C r
   let D := L.lit :: C.filter fun y => y != L.lit && !r.1.contains y
   change propagateHints log₀.db (D.map Std.Sat.Literal.negate) _ = true
-  let n := max T.varBound (C.foldl (fun m y => max m (y.1 + 1)) 0)
   let deep : ℕ → Bool :=
     if recursive then fun _ => true
     else
       let root := Assign.ofTrail (XTrail.trail (XTrail.root T))
       fun v => root.assigned v
   have hspec := redundant_spec (log := log₀) (reason := T.reasons n) (inC := clauseVars C n)
-    (deep := deep) (fuel := T.length + 1) (lit := L.lit) (C := C)
+    (deep := deep) (fuel := n + 1) (lit := L.lit) (C := C)
     (memo := ⟨Array.replicate n 0⟩) fun w hw => by
       simp only [Assign.value, Array.getD_eq_getD_getElem?, Array.getElem?_replicate] at hw
       split at hw <;> simp at hw
@@ -563,10 +584,10 @@ the trail, oldest first, which propagate the negations of the literals removed, 
 the learned clause (`Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_minimized`). The learned
 clause is kept if nothing is redundant. -/
 def Learned.minimize {T : XTrail} (L : Learned log₀ A (XTrail.trail T)) (hreasons : Reasons log₀ T)
-    (hnd : (Trail.vars (XTrail.trail T)).Nodup) (recursive : Bool := true) :
+    (hnd : (Trail.vars (XTrail.trail T)).Nodup) (n : ℕ) (recursive : Bool := true) :
     Learned log₀ A (XTrail.trail T) :=
   let C := L.clause
-  let r := minimizeRedundant log₀ T C L.lit recursive
+  let r := minimizeRedundant log₀ T C L.lit recursive n
   if r.1.isEmpty then L
   else
     let D := L.lit :: C.filter fun y => y != L.lit && !r.1.contains y
@@ -576,8 +597,8 @@ def Learned.minimize {T : XTrail} (L : Learned log₀ A (XTrail.trail T)) (hreas
       · exact (List.mem_filter.1 hy).1
     { L with
       clause := D
-      hints := derivedHints T r.2 ++ L.hints
-      rup := L.propagateHints_minimized hreasons hnd recursive
+      hints := derivedHintsFast T r.2 ++ L.hints
+      rup := derivedHintsFast_eq T r.2 ▸ L.propagateHints_minimized hreasons hnd recursive n
       vars_mem := fun l hl => L.vars_mem l (hsub l hl)
       mem := List.mem_cons_self
       false_below := fun y hy hne => L.false_below y (hsub y hy) hne

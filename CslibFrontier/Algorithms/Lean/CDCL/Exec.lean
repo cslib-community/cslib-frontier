@@ -270,8 +270,8 @@ structure Marks where
   /-- The variables seen, newest first. -/
   vars : List ℕ
 
-/-- Nothing seen. -/
-def Marks.empty : Marks := ⟨⟨#[]⟩, [], 0, []⟩
+/-- Nothing seen, in an array of `n` slots, so that seeing a variable below `n` does not grow it. -/
+def Marks.start (n : ℕ) : Marks := ⟨⟨Array.replicate n 0⟩, [], 0, []⟩
 
 /-- **The analysed clause** of the state `m`, with the entries `Cur` of the current level still to
 pass: the literals of `out`, and the negations of the literals of `Cur` whose variables are seen.
@@ -304,14 +304,19 @@ structure Marks.Inv (m : Marks) (Cur M₀ : Trail) (V : List ℕ) : Prop where
   vars_nodup : m.vars.Nodup
   out_nodup : m.out.Nodup
 
-theorem Marks.inv_empty (Cur M₀ : Trail) (V : List ℕ) : Marks.empty.Inv Cur M₀ V where
-  out_below := by simp [Marks.empty]
-  out_seen := by simp [Marks.empty]
-  below_out _ _ h := by simp [Marks.empty, Assign.assigned] at h
+private theorem assigned_replicate (n v : ℕ) :
+    (⟨Array.replicate n 0⟩ : Assign).assigned v = false := by
+  simp only [Assign.assigned, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> simp
+
+theorem Marks.inv_start (n : ℕ) (Cur M₀ : Trail) (V : List ℕ) : (Marks.start n).Inv Cur M₀ V where
+  out_below := by simp [Marks.start]
+  out_seen := by simp [Marks.start]
+  below_out _ _ h := by simp [Marks.start, assigned_replicate] at h
   path_eq := by
-    simp [Marks.empty, Assign.assigned]
-  seen_iff _ := by simp [Marks.empty, Assign.assigned]
-  vars_mem := by simp [Marks.empty]
+    simp [Marks.start, assigned_replicate]
+  seen_iff _ := by simp [Marks.start, assigned_replicate]
+  vars_mem := by simp [Marks.start]
   vars_nodup := List.nodup_nil
   out_nodup := List.nodup_nil
 
@@ -694,10 +699,11 @@ analysis walks down the level, adding the reasons of the entries whose variables
 one seen variable is left on the level, its first unique implication point, which is reached at
 the latest at the decision. The learned clause is never false at the current level elsewhere, and
 the hints, the reasons added, oldest first, and then the clause `i`, refute it by unit
-propagation. -/
+propagation. The variables seen are marked in an array of `n` slots, which grows only for
+variables beyond it: `n` affects the cost, not the result. -/
 def analyze (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) (N : XTrail)
     (hA : Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ⊆ Trail.lits A) (cur : Assign)
-    (hcurA : cur.Agrees (XTrail.trail N ++ [⟨d, true⟩])) (i : ℕ) (C : Clause ℕ)
+    (hcurA : cur.Agrees (XTrail.trail N ++ [⟨d, true⟩])) (n : ℕ) (i : ℕ) (C : Clause ℕ)
     (hC : log.clause? i = some C) (hreasons : Reasons log (N ++ XEntry.decision d :: M₀))
     (hdec : ∀ x ∈ N, x.entry.decision = false)
     (hfalse : ∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail (N ++ XEntry.decision d :: M₀)))
@@ -709,9 +715,9 @@ def analyze (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) (N 
     have := hfalse y hy
     rw [trail_level, lits_append, List.mem_append] at this
     exact this
-  have hspec := Marks.absorb_spec hcurA (by rw [← trail_level]; exact hnd) Marks.empty C
-    (Marks.inv_empty _ _ _) (LRATLog.vars_mem_of_clause? hC) fun y hy _ => hfalse' y hy
-  analyzeGo log d M₀ A N hA cur hcurA (Marks.empty.absorb cur C) hspec.1
+  have hspec := Marks.absorb_spec hcurA (by rw [← trail_level]; exact hnd) (Marks.start n) C
+    (Marks.inv_start _ _ _ _) (LRATLog.vars_mem_of_clause? hC) fun y hy _ => hfalse' y hy
+  analyzeGo log d M₀ A N hA cur hcurA ((Marks.start n).absorb cur C) hspec.1
     (by
       obtain ⟨y, hy, hyc⟩ := hcur
       rw [hspec.1.path_eq]

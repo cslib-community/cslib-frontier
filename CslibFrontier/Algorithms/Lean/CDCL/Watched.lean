@@ -2241,12 +2241,15 @@ a restarted state has fewer conflicts than that. -/
       let marks := T.marks
       let T₁ := T.dropMarks
       have hT₁ : T₁.Inv := hT.dropMarks
+      -- the slots of the assignment array: past every variable of the trail, so that the arrays
+      -- of the analysis and of minimization do not grow and no reason is missed
+      let n := T₁.assign.vals.size
       let L₀ := analyze T₁.exec.log sp.decision sp.below
         (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
         (marks.1.assignLevel sp.decision sp.above)
         (by
           rw [Assign.assignLevel_eq]
-          exact Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) e.1 e.2
+          exact Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) n e.1 e.2
         (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
         (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
         (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)
@@ -2257,8 +2260,8 @@ a restarted state has fewer conflicts than that. -/
         exact this.of_append_right
       let L := match T₁.opts.ccminMode with
         | .none => L₀
-        | .basic => L₀.minimize hbelow hnd (recursive := false)
-        | .recursive => L₀.minimize hbelow hnd (recursive := true)
+        | .basic => L₀.minimize hbelow hnd n (recursive := false)
+        | .recursive => L₀.minimize hbelow hnd n (recursive := true)
       let k₀ := L₀.clause.length
       have hspec := WExec.afterConflict_spec hT₁ he hconf hsp L k₀
       .move (T₁.afterConflict sp L k₀) hspec.1 (by
