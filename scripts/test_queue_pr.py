@@ -693,6 +693,29 @@ class QueuePrefixTests(unittest.TestCase):
         self.assertIn("its review discussion changed while waiting", out.getvalue())
         api.assert_not_called()
 
+    def test_changed_queue_prefix_during_replay_stops_enqueue(self) -> None:
+        import queue_status
+
+        ready_pr = pr(check_run())
+        third_sha = "d" * 40
+        prefixes = iter([
+            (BASE_SHA, [(10, self.OTHER_SHA)]),
+            (BASE_SHA, [(10, self.OTHER_SHA), (11, third_sha)]),
+        ])
+        out = io.StringIO()
+        with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+             patch.object(queue_pr, "fetch_discussion", return_value=("unchanged",)), \
+             patch.object(queue_status, "prefix", side_effect=lambda *a, **kw: next(prefixes)), \
+             patch.object(queue_status, "fetch_objects"), \
+             patch.object(queue_status, "check_prefix", return_value=0), \
+             patch.object(queue_pr, "replay_repository", return_value=queue_pr.ROOT), \
+             patch.object(queue_pr, "gh_graphql") as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = queue_pr.main(["12", SHA])
+        self.assertEqual(rc, 1, out.getvalue())
+        self.assertIn("the merge queue changed during prefix replay", out.getvalue())
+        api.assert_not_called()
+
     def test_cli_and_separately_loaded_entrypoint_catch_prefix_gh_error(self) -> None:
         import queue_status
 

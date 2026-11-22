@@ -531,6 +531,9 @@ def check_queue_prefix(
                     os.environ.pop("GIT_DIR", None)
                 else:
                     os.environ["GIT_DIR"] = old_git_dir
+        if rc == 0 and queue_status.prefix(owner, name, number, sha,
+                                           graphql=gh_graphql) != (base, entries):
+            return "the merge queue changed during prefix replay; rerun the helper."
     except GhError:
         raise
     except imported_gh_error as error:
