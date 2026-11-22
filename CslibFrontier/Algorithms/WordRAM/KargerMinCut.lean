@@ -877,8 +877,7 @@ theorem highProbTime_bound {n : ℕ} (hn : 2 ≤ n) :
     calc
       (((d + 2) * (d + 2 - 1) / 2) * (Nat.log 2 (d + 2) + 2)) *
           (50 * (d + 2) ^ 2 + 12 * (d + 2) + 30)
-        ≤ (((d + 2) * (d + 2 - 1) / 2) * (Nat.log 2 (d + 2) + 2)) * (64 * (d + 2) ^ 2) :=
-          Nat.mul_le_mul_left _ h1
+        ≤ (((d + 2) * (d + 2 - 1) / 2) * (Nat.log 2 (d + 2) + 2)) * (64 * (d + 2) ^ 2) := by gcongr
       _ = (((d + 2) * (d + 2 - 1) / 2) * (64 * (d + 2) ^ 2)) * (Nat.log 2 (d + 2) + 2) := by ring
       _ ≤ (32 * (d + 2) ^ 4) * (Nat.log 2 (d + 2) + 2) := Nat.mul_le_mul_right _ h2
   have hoverhead : 4 * Nat.log 2 (d + 2) + 22 ≤ 1 * (d + 2) ^ 4 * (Nat.log 2 (d + 2) + 2) := by

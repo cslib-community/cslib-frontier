@@ -280,8 +280,7 @@ theorem ampTime_le {k : ℕ} (hk : 3 ≤ k) (n c L : ℕ) :
         ((setupTime k n c + 9 * counterLen k n c + 45 : ℕ) : ℝ) := by
     simp only [ampTime]; push_cast; ring
   have hT : (schoeningTrials k n c : ℝ) * ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) ≤
-      (9 * n + 4) * r * c * (66 * (n + 1) * (L + 1)) :=
-    mul_le_mul hR hPr (Nat.cast_nonneg _) (by positivity)
+      (9 * n + 4) * r * c * (66 * (n + 1) * (L + 1)) := by gcongr
   have hN0 : (0 : ℝ) ≤ (N : ℝ) ^ 3 := by positivity
   have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
   rw [hexp]
