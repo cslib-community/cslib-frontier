@@ -205,4 +205,38 @@ example : GapIndependentSet 0 ∈ PromiseP encIndependentSetInstance := by
       omega
     simp [Nat.ne_of_gt hmpos, hemp]
 
+/-- Model-boundary witness: a 0-coin verifier querying position `0` twice and accepting only when
+the two answers differ has no self-consistent accepting views (`fglssEdgeList` has `[]` vertices and
+`indepNum = 0`), while `2 ^ 0 = 1` sets a positive target `m = 1`, placing the image in
+`(GapIndependentSet s).no` for every `0 ≤ s < 1`. -/
+def zeroCoinSelfConflict : PCPVerifier Unit where
+  coins _ := 0
+  queries _ := [0, 0]
+  verdict p := p.2.getD 0 false != p.2.getD 1 false
+
+example {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
+    (zeroCoinSelfConflict.fglssEdgeList ()).vertices = [] ∧
+    (zeroCoinSelfConflict.fglssToIndependentSet ()).m = 1 ∧
+    zeroCoinSelfConflict.fglssToIndependentSet () ∈ (GapIndependentSet s).no := by
+  have hno_vert : IsEmpty
+      {v : zeroCoinSelfConflict.View () // zeroCoinSelfConflict.IsFGLSSVertex () v} :=
+    ⟨fun ⟨v, hv⟩ => by
+      have h := hv.consistent.eq (i := ⟨0, by simp [zeroCoinSelfConflict]⟩)
+        (j := ⟨1, by simp [zeroCoinSelfConflict]⟩) rfl
+      exact absurd h (by simpa [zeroCoinSelfConflict, List.ofFn_succ] using hv.accepts)⟩
+  have hemp : (zeroCoinSelfConflict.fglssEdgeList ()).vertices = [] := by
+    by_contra h
+    obtain ⟨n, hn⟩ := List.exists_mem_of_ne_nil _ h
+    exact isEmptyElim ((zeroCoinSelfConflict.fglssGraphIso ()).symm ⟨n, hn⟩)
+  have hm : (zeroCoinSelfConflict.fglssToIndependentSet ()).m = 1 := rfl
+  refine ⟨hemp, hm, ?_⟩
+  refine (PromiseProblem.mem_no_gapMax_of_lt (by rw [hm]; push_cast; linarith)).2 ?_
+  have hle := Graph.indepNum_le_card (zeroCoinSelfConflict.fglssEdgeList ())
+  rw [hemp] at hle
+  have h0 : (zeroCoinSelfConflict.fglssEdgeList ()).indepNum = 0 := by simpa using hle
+  change ((zeroCoinSelfConflict.fglssEdgeList ()).indepNum : ℝ) ≤ s * (1 : ℕ)
+  rw [h0]
+  push_cast
+  linarith
+
 end CslibFrontierTests.FGLSSHardness

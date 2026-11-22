@@ -239,9 +239,10 @@ theorem indepNum_fglssEdgeList (a : α) :
     (V.fglssEdgeList a).indepNum = (V.fglssGraph a).indepNum :=
   (V.fglssGraphIso a).symm.indepNum_eq
 
-/-- **The FGLSS reduction** [FeigeGoldwasserLovaszSafraSzegedy1996] from an instance `a` of a
-nonadaptive PCP verifier `V` to `IndependentSetInstance`: the explicit accepting-view conflict graph
-`V.fglssEdgeList a` with target `2 ^ V.coins a`. -/
+/-- Nonadaptive FGLSS reduction map (after [FeigeGoldwasserLovaszSafraSzegedy1996], Section 3;
+[Goldreich2007DraftR5], Exercise 9.18) from an instance `a` of a nonadaptive PCP verifier `V` to
+`IndependentSetInstance`: the explicit accepting-view conflict graph `V.fglssEdgeList a` paired with
+target `2 ^ V.coins a`. -/
 def fglssToIndependentSet (a : α) : IndependentSetInstance :=
   ⟨V.fglssEdgeList a, 2 ^ V.coins a⟩
 
@@ -261,9 +262,10 @@ theorem computableInPolyTime_fglssToIndependentSet {enc : α ↪ List Bool} (hV 
 
 end PCPVerifier
 
-/-- **The FGLSS gap-preserving reduction** [FeigeGoldwasserLovaszSafraSzegedy1996],
-[Goldreich2007DraftR5], Exercise 9.18: every problem in `PCP_{1, s}(log n, q)` with constant query
-bound `q` and soundness `s < 1` reduces in polynomial time to `GapIndependentSet s` via
+/-- Nonadaptive FGLSS gap-reduction step toward [Goldreich2007DraftR5], Exercise 9.18 (#4772) and
+[Arora and Barak, Chapter 11][AroraBarak09] (#4711), after [FeigeGoldwasserLovaszSafraSzegedy1996],
+Section 3: every problem in `PCP_{1, s}(log n, q)` (for nonadaptive `PCPVerifier`) with constant
+query bound `q` and soundness `s < 1` reduces in polynomial time to `GapIndependentSet s` via
 `PCPVerifier.fglssToIndependentSet`. -/
 theorem polyTimeReducible_GapIndependentSet_of_mem_PCPWith {α : Type} {enc : α ↪ List Bool}
     {A : Set α} {q : ℕ} (hs1 : s < 1)
@@ -395,25 +397,27 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (hs : s < 1) {
 
 /-! ### Inapproximability -/
 
-/-- **Maximum independent set is NP-hard to approximate within every constant factor**
-[FeigeGoldwasserLovaszSafraSzegedy1996], [AroraLundMotwaniSudanSzegedy1998],
-[Goldreich2007DraftR5], Exercise 9.18: for every `0 < s < 1`, distinguishing graphs with an
-independent set of `k` declared vertices from graphs without an independent set of more than `s * k`
-declared vertices is NP-hard. The proof amplifies `NP = PCP(log n, 1)`
-(`Cslib.Complexity.NP_eq_PCP_log`) to soundness `s` by independent verifier repetition
-(`Cslib.Complexity.PCPWith_one`) and applies the FGLSS reduction
-(`Cslib.Complexity.polyTimeReducible_GapIndependentSet_of_mem_PCPWith`). -/
+/-- **Constant-factor NP-hardness of maximum independent set** ([Goldreich2007DraftR5],
+Exercise 9.18, final claim; constant-factor specialization after
+[FeigeGoldwasserLovaszSafraSzegedy1996], Section 3 and [AroraLundMotwaniSudanSzegedy1998]): for
+every fixed constant `0 < s < 1`, distinguishing graphs with an independent set of `k` declared
+vertices from graphs without an independent set of more than `s * k` declared vertices is NP-hard.
+The proof amplifies `NP = PCP(log n, 1)` (`Cslib.Complexity.NP_eq_PCP_log`) to soundness `s` by
+independent verifier repetition (`Cslib.Complexity.PCPWith_one`) and applies the nonadaptive FGLSS
+reduction (`Cslib.Complexity.polyTimeReducible_GapIndependentSet_of_mem_PCPWith`). Size-dependent
+subconstant gaps (#4772, #4711) remain open. -/
 theorem GapIndependentSet_npHard (hs0 : 0 < s) (hs1 : s < 1) :
     PromiseProblem.NPHard encIndependentSetInstance (GapIndependentSet s) := by
   intro _ enc A hA
   rw [NP_eq_PCP_log, ← PCPWith_one hs0 hs1] at hA
   exact polyTimeReducible_GapIndependentSet_of_mem_PCPWith hs1 hA
 
-/-- **Maximum clique is NP-hard to approximate within every constant factor**
-[FeigeGoldwasserLovaszSafraSzegedy1996], [AroraLundMotwaniSudanSzegedy1998],
-[Goldreich2007DraftR5], Exercise 9.18: for every `0 < s < 1`, distinguishing graphs with a clique
-of `k` declared vertices from graphs without a clique of more than `s * k` declared vertices is
-NP-hard. The gap of maximum independent set transfers to the complement graph. -/
+/-- **Constant-factor NP-hardness of maximum clique** ([Goldreich2007DraftR5], Exercise 9.18, final
+claim; constant-factor specialization after [FeigeGoldwasserLovaszSafraSzegedy1996], Section 3 and
+[AroraLundMotwaniSudanSzegedy1998]): for every fixed constant `0 < s < 1`, distinguishing graphs
+with a clique of `k` declared vertices from graphs without a clique of more than `s * k` declared
+vertices is NP-hard. The gap of maximum independent set transfers to the complement graph;
+size-dependent subconstant gaps (#4772, #4711) remain open. -/
 theorem GapClique_npHard (hs0 : 0 < s) (hs1 : s < 1) :
     PromiseProblem.NPHard encCliqueInstance (GapClique s) :=
   (GapIndependentSet_npHard hs0 hs1).trans polyTimeReducible_GapIndependentSet_GapClique

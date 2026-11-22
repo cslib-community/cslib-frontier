@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.NatPolynomial
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import Mathlib.Data.List.DropRight
 
 /-!
@@ -344,27 +345,13 @@ theorem computableInPolyTime_fglssEdgeList (hV : V.PolyTime enc) {c d : ℕ}
     ComputableInPolyTime V.fglssEdgeList enc encGraph := by
   let size := fun a => 2 ^ (V.coins a + d) * ((enc a).length + 1)
   have hsize : PolyBounded (fun a => (enc a).length) size :=
-    .of_forall_le (2 ^ (c + d)) (c + 1) fun a => by
-      have hpow : 2 ^ (V.coins a + d) ≤ 2 ^ (c * (Nat.log 2 (enc a).length + 1) + d) :=
-        Nat.pow_le_pow_right (by decide) (Nat.add_le_add_right (hcoins a) d)
-      have hlog : 2 ^ (Nat.log 2 (enc a).length + 1) ≤ 2 * ((enc a).length + 1) := by
-        rw [Nat.pow_succ, Nat.mul_comm]
-        exact Nat.mul_le_mul_left 2 (Nat.pow_log_le_add_one 2 (enc a).length)
-      have hc : 2 ^ (c * (Nat.log 2 (enc a).length + 1)) ≤
-          2 ^ c * ((enc a).length + 1) ^ c := by
-        calc 2 ^ (c * (Nat.log 2 (enc a).length + 1))
-            = (2 ^ (Nat.log 2 (enc a).length + 1)) ^ c := by rw [Nat.mul_comm c, Nat.pow_mul]
-          _ ≤ (2 * ((enc a).length + 1)) ^ c := Nat.pow_le_pow_left hlog c
-          _ = 2 ^ c * ((enc a).length + 1) ^ c := Nat.mul_pow ..
-      calc size a ≤ 2 ^ (c * (Nat.log 2 (enc a).length + 1) + d) * ((enc a).length + 1) :=
-            Nat.mul_le_mul_right _ hpow
-        _ = 2 ^ (c * (Nat.log 2 (enc a).length + 1)) * 2 ^ d * ((enc a).length + 1) := by
-            rw [Nat.pow_add]
-        _ ≤ 2 ^ c * ((enc a).length + 1) ^ c * 2 ^ d * ((enc a).length + 1) :=
-            Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hc)
-        _ = 2 ^ (c + d) * ((enc a).length + 1) ^ (c + 1) := by
-            rw [Nat.pow_add, Nat.pow_succ]
-            ac_rfl
+    (((PolyBounded.of_polynomiallyBounded _
+        (Cslib.polynomiallyBounded_two_pow_mul_log c)).mul (.const (2 ^ d))).mul
+      (PolyBounded.self.add (.const 1))).mono fun a => by
+      dsimp only [size]
+      rw [Nat.pow_add]
+      exact Nat.mul_le_mul_right _
+        (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) (hcoins a)))
   obtain ⟨T, S, hT, hS, h⟩ := V.computableInO_fglssEdgeList hV (fun _ => d) hq
   exact h.computableInPolyTime (hT.comp hsize) (hS.comp hsize)
 
