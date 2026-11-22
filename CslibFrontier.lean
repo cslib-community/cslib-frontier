@@ -1103,6 +1103,8 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.WordSum.L
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.WordSum.Runs
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthThree
 public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant
+public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant.Formula
+public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant.Projection
 public import CslibFrontier.Computability.Circuit.Arithmetic.DeterminantalComplexity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Encoding
 public import CslibFrontier.Computability.Circuit.Arithmetic.Encoding.Check
@@ -1165,6 +1167,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearGadge
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearLowerBound
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearize
 public import CslibFrontier.Computability.Circuit.Arithmetic.SigmaPi
+public import CslibFrontier.Computability.Circuit.Arithmetic.SubstMatrix
 public import CslibFrontier.Computability.Circuit.Arithmetic.SumFlatten
 public import CslibFrontier.Computability.Circuit.Arithmetic.Synthesis
 public import CslibFrontier.Computability.Circuit.Arithmetic.VNP
