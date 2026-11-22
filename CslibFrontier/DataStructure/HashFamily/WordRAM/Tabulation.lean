@@ -16,6 +16,8 @@ public import CslibFrontier.Probability.Uniform
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Tactic.Fits
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Self-contained Word-RAM random tables and tabulated odd-stride generation
@@ -562,7 +564,7 @@ namespace TabulatedOddStride
 
 /-- Character bit-width `b = max 1 (⌊log₂ (max n_max 2)⌋ / 2)` for `d`-character simple tabulation,
 ensuring `1 ≤ b` and `2 ^ b ≤ max 2 n_max` (`2 ^ (2 * b) ≤ max 4 n_max`). -/
-@[expose] def charBits (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def charBits (n_max : ℕ) : ℕ :=
   max 1 (Nat.log 2 (max n_max 2) / 2)
 
 /-- `charBits n_max` is always at least `1`. -/
@@ -577,9 +579,7 @@ theorem charBits_pos (n_max : ℕ) : 0 < charBits n_max :=
 theorem two_pow_charBits_le (n_max : ℕ) : 2 ^ charBits n_max ≤ max 2 n_max := by
   have hlog_ge : 1 ≤ Nat.log 2 (max n_max 2) :=
     Nat.le_log_of_pow_le (by decide) (by omega)
-  have hle_log : charBits n_max ≤ Nat.log 2 (max n_max 2) := by
-    simp only [charBits]
-    omega
+  have hle_log : charBits n_max ≤ Nat.log 2 (max n_max 2) := by wram_omega
   calc
     2 ^ charBits n_max ≤ 2 ^ Nat.log 2 (max n_max 2) :=
       Nat.pow_le_pow_right (by decide) hle_log
@@ -681,7 +681,7 @@ entries for the first `d` base-`2 ^ b` characters of `u`. -/
 /-- Memory footprint `4 + d * 2 ^ b` words for a `d`-character simple tabulation table with
 character bit-width `b` (4 header words `(b, 2 ^ b, 2 ^ b - 1, 2 ^ M - 1)` followed by
 `d * 2 ^ b` random `< 2 ^ M` words). -/
-@[expose] def spaceFromB (b d : ℕ) : ℕ := 4 + d * 2 ^ b
+@[expose, wram_arith] def spaceFromB (b d : ℕ) : ℕ := 4 + d * 2 ^ b
 
 /-- Memory footprint `4 + d * 2 ^ (charBits n_max)` words at capacity parameter `n_max`. -/
 @[expose] def space (n_max d : ℕ) : ℕ := spaceFromB (charBits n_max) d
@@ -863,13 +863,13 @@ theorem setupFromBCode_exec {w base b d M : ℕ} {x : Data 9}
     Exec w (setupFromBCode d) x (setupFromBData base b d M x) 16 := by
   have h1_le_b : 1 ≤ 2 ^ b := Nat.one_le_two_pow
   have h1_le_M : 1 ≤ 2 ^ M := Nat.one_le_two_pow
-  have hfit_b1 : Fits w (base + 1) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b2 : Fits w (base + 2) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b3 : Fits w (base + 3) := hfit_space.of_le (by simp [spaceFromB]; omega)
+  have hfit_b1 : Fits w (base + 1) := hfit_space.of_le (by wram_omega)
+  have hfit_b2 : Fits w (base + 2) := hfit_space.of_le (by wram_omega)
+  have hfit_b3 : Fits w (base + 3) := hfit_space.of_le (by wram_omega)
   have hfit_b4 : Fits w (base + 4) := hfit_space.of_le (by simp [spaceFromB])
-  have hfit_dmul : Fits w (d * 2 ^ b) := hfit_space.of_le (by simp [spaceFromB]; omega)
+  have hfit_dmul : Fits w (d * 2 ^ b) := hfit_space.of_le (by wram_omega)
   have hfit_end : Fits w (base + 4 + d * 2 ^ b) :=
-    hfit_space.of_le (by simp [spaceFromB]; omega)
+    hfit_space.of_le (by wram_omega)
   unfold setupFromBCode
   wram_exec [hbase, hb, hM, Nat.shiftLeft_eq, Nat.one_mul]
   ext i : 2
@@ -901,7 +901,7 @@ theorem initFromBCode_execRand {w base b d M : ℕ} {x : Data 9}
     (by simp +decide [s, setupFromBData, fillMap9, Data.comap])
     (by simp +decide [s, setupFromBData, fillMap9, Data.comap])
     (by simp +decide [s, setupFromBData, fillMap9, Data.comap])
-    (hfit_space.of_le (by simp [spaceFromB]; omega))
+    (hfit_space.of_le (by wram_omega))
     (by fits)
   have hloop := hloop0.rename injective_fillMap9
   have hseq := hsetup.seqRand hloop
@@ -963,14 +963,12 @@ theorem mem_support_initFromBComp {base b d M : ℕ} {x : Data 9} {z : Data 9 ×
     simpa +decide [s, setupFromBData, fillMap9, Data.comap] using hbase
   have hframe' : ∀ a, (a < base ∨ base + spaceFromB b d ≤ a) → z₀.1.mem a = x.mem a := by
     intro a ha
-    have ha4 : a < base + 4 ∨ base + 4 + d * 2 ^ b ≤ a := by
-      simp only [spaceFromB] at ha
-      omega
+    have ha4 : a < base + 4 ∨ base + 4 + d * 2 ^ b ≤ a := by wram_omega [ha]
     rw [hframe a ha4]
-    have hne0 : a ≠ base := by simp only [spaceFromB] at ha; omega
-    have hne1 : a ≠ base + 1 := by simp only [spaceFromB] at ha; omega
-    have hne2 : a ≠ base + 2 := by simp only [spaceFromB] at ha; omega
-    have hne3 : a ≠ base + 3 := by simp only [spaceFromB] at ha; omega
+    have hne0 : a ≠ base := by wram_omega [ha]
+    have hne1 : a ≠ base + 1 := by wram_omega [ha]
+    have hne2 : a ≠ base + 2 := by wram_omega [ha]
+    have hne3 : a ≠ base + 3 := by wram_omega [ha]
     simp [s, setupFromBData, Data.comap, Data.write,
       Function.update_of_ne hne0, Function.update_of_ne hne1,
       Function.update_of_ne hne2, Function.update_of_ne hne3]
@@ -1084,12 +1082,12 @@ theorem evalSetupCode_exec {w base b d M : ℕ} {T : Fin (d * 2 ^ b) → Fin (2 
     (hfit_space : Fits w (base + spaceFromB b d)) (hfit_d : Fits w d) :
     Exec w (evalSetupCode d) x (evalSetupData base b d x) 12 := by
   obtain ⟨hm0, hm1, hm2, -, -⟩ := hrep
-  have hfit_2 : Fits w 2 := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b1 : Fits w (base + 1) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b2 : Fits w (base + 2) := hfit_space.of_le (by simp [spaceFromB]; omega)
+  have hfit_2 : Fits w 2 := hfit_space.of_le (by wram_omega)
+  have hfit_b1 : Fits w (base + 1) := hfit_space.of_le (by wram_omega)
+  have hfit_b2 : Fits w (base + 2) := hfit_space.of_le (by wram_omega)
   have hfit_b4 : Fits w (base + 4) := hfit_space.of_le (by simp [spaceFromB])
-  have hfit_dmul : Fits w (d * 2 ^ b) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_end : Fits w (base + 4 + d * 2 ^ b) := hfit_space.of_le (by simp [spaceFromB]; omega)
+  have hfit_dmul : Fits w (d * 2 ^ b) := hfit_space.of_le (by wram_omega)
+  have hfit_end : Fits w (base + 4 + d * 2 ^ b) := hfit_space.of_le (by wram_omega)
   unfold evalSetupCode evalSetupData
   wram_exec [hbase, hm0, hm1, hm2]
 
@@ -1167,12 +1165,12 @@ theorem tabLoop_exec {w base b d M : ℕ} {T : Fin (d * 2 ^ b) → Fin (2 ^ M)} 
       ⟨acc.val ^^^ entry, Nat.xor_lt_two_pow acc.isLt (T ⟨idx, hidx_lt⟩).isLt⟩
     have hfit_ch : Fits w ch := hfit_u.of_le Nat.and_le_left
     have hfit_addr : Fits w (base + 4 + j * 2 ^ b + ch) :=
-      hfit_space.of_le (by simp [spaceFromB]; omega)
+      hfit_space.of_le (by wram_omega)
     have hfit_shr : Fits w (u >>> b) := hfit_u.of_le (Nat.shiftRight_le u b)
     have hnext_eq : base + 4 + j * 2 ^ b + 2 ^ b = base + 4 + (j + 1) * 2 ^ b := by ring
     have hfit_next : Fits w (base + 4 + j * 2 ^ b + 2 ^ b) := by
       have : (j + 1) * 2 ^ b ≤ d * 2 ^ b := Nat.mul_le_mul_right (2 ^ b) (by omega)
-      exact hfit_space.of_le (by simp [spaceFromB]; omega)
+      exact hfit_space.of_le (by wram_omega)
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
     unfold tabBody
     wram_exec [hkey, hmaskB, hptr, hout, hb, hpowB, ← hch, hentry_mem,
@@ -1230,8 +1228,8 @@ theorem evalCode_execWithin {w base b d M u : ℕ} {T : Fin (d * 2 ^ b) → Fin 
       hfit_u
   set tab := simpleTab b d M T u
   have htab_eq : yLoop.regs regOut = tab.val := hy_out
-  have hfit_3 : Fits w 3 := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b3 : Fits w (base + 3) := hfit_space.of_le (by simp [spaceFromB]; omega)
+  have hfit_3 : Fits w 3 := hfit_space.of_le (by wram_omega)
+  have hfit_b3 : Fits w (base + 3) := hfit_space.of_le (by wram_omega)
   have hfit_2tab1 : Fits w (tab.val + tab.val + 1) := by fits
   have hfit_and : Fits w ((tab.val + tab.val + 1) &&& (2 ^ M - 1)) :=
     hfit_2tab1.of_le Nat.and_le_left

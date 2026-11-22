@@ -237,7 +237,7 @@ info: 'Cslib.Crypto.evenMansourDecryptWord_evenMansourEncryptWord' depends on ax
 #print axioms evenMansourDecryptWord_evenMansourEncryptWord
 
 /--
-info: 'Cslib.Crypto.advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le' depends on axioms: [propext,
+info: 'Cslib.Crypto.EvenMansour.advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le' depends on axioms: [propext,
  Classical.choice,
  Quot.sound]
 -/

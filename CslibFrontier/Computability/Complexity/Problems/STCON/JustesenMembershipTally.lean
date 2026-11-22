@@ -19,6 +19,10 @@ import CslibFrontier.Foundations.Data.Nat.BinarySize
 The retained tally reads the original word. It supplies the same initialized Justesen context
 to every bounded walk, so the typed scan uses the subdivision adjacency for the chosen rank.
 
+## Main definitions
+
+* `Cslib.Complexity.STCON.justesenSourceMembershipMachine`: the fixed re-entrant tally.
+
 ## Main results
 
 * `Cslib.Complexity.STCON.justesenSourceMembershipMachine_parts_inSpace`: linear-space
@@ -30,6 +34,8 @@ to every bounded walk, so the typed scan uses the subdivision adjacency for the 
   one successful selector list at the exact round totals given a unique passing transcript.
 * `Cslib.Complexity.STCON.configurationJustesenMembershipTally_native_firstHalting_iff`:
   one accepting native occurrence list per passing selector list.
+* `Cslib.Complexity.STCON.configurationJustesenMembershipTally_acceptCount_eq_one`:
+  one native accepting branch across all selectors when the passing transcript is unique.
 * `Cslib.Complexity.STCON.configurationJustesenMembershipTally_length_run_le_log`:
   logarithmic encoded length on every prefix of a bounded tally query.
 * `Cslib.Complexity.STCON.configurationJustesenMembershipTally_length_run_le_log_of_loop_caps`:
@@ -200,6 +206,50 @@ theorem configurationJustesenMembershipTally_native_firstHalting_iff
   · intro u v
     simpa only [ctx, hrank] using (hcall u v).2
 
+open NondeterministicQueryMachine in
+/-- At the exact round totals with a unique passing transcript, the compiled Justesen tally
+has one accepting branch at any sufficient native clock. The count includes a false reply. -/
+theorem configurationJustesenMembershipTally_acceptCount_eq_one
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) {α : Type} {enc : α ↪ List Bool}
+    {S : α → ℕ} {rank : α → ℕ} {params : α → MembershipTally.Context}
+    {w₀ : List Bool} {rank₀ : ℕ} {params₀ : MembershipTally.Context}
+    (R : Routines (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀)
+      (fun a => MembershipTally.retainedInitial
+        (configurationJustesenSubdivisionContext ntm c (enc a) (rank a)) (params a)) enc S)
+    (a : α) {fuel : ℕ} (hclock : R.machine.RunsInTime (enc a) fuel) :
+    let I := configurationInstance ntm c (enc a)
+    let size := (configurationSeedSearchSetup ntm c (enc a)).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount)
+      (radius : ℕ),
+      let adjacent := configurationJustesenSubdivisionAdjacent ntm c (enc a) seed
+      let edge := fun u v => adjacent u v = true
+      rank a = seed.val →
+      params a = ⟨size.vertexCount, source.val, target.val, radius, expected edge source radius⟩ →
+      (∃! transcript, Passes edge source radius transcript) →
+      (Native.countingMachine R.I R.P R.F R.C).acceptCount fuel
+        (R.machine.initCfg (enc a)) = 1 := by
+  intro I size seed source target radius adjacent edge hrank hparams hpass
+  apply (R.acceptCount_eq_one_iff a hclock).mpr
+  have hunique := configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a)
+    seed source target radius hpass
+  have hM := configurationJustesenMembershipTally_withInit ntm c w₀ (enc a)
+    rank₀ (rank a) params₀ (params a)
+  rw [hrank, hparams] at hM
+  have haccept (s : MembershipTally.RetainedState JustesenSubdivisionContext
+      JustesenSubdivisionState) :
+      (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).accept s =
+        (MembershipTally.retainedReply s).isSome :=
+    MembershipTally.retainedMachine_accept _ _ _ _ _ _ _ _
+  simp only [haccept, hrank, hparams]
+  let ctx := configurationJustesenSubdivisionContext ntm c (enc a) seed.val
+  let entered := (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).withInit
+    (MembershipTally.retainedInitial ctx
+      ⟨size.vertexCount, source.val, target.val, radius, expected edge source radius⟩)
+  change ∃! bits, entered.FirstHalting (enc a) bits entered.init ∧
+    (MembershipTally.retainedReply (entered.run (enc a) bits)).isSome
+  dsimp only [entered, ctx]
+  rwa [hM]
+
 private theorem loopCaps_of_tightCaps {n : ℕ} {totals : Tally} (hn : 0 < n)
     (hc : totals.count ≤ n) (hs : totals.lengthSum ≤ n * n) :
     totals.count ≤ 1 + n * n ∧ totals.lengthSum ≤ n * n * n := by
@@ -241,14 +291,11 @@ theorem configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps
   have hsource := length_encNat_mono source.isLt.le
   have htarget := length_encNat_mono target.isLt.le
   have hradius := length_encNat_mono hr
-  have hsq := length_encNat_mul_le n n
-  have hcount := (length_encNat_mono hc).trans (length_encNat_add_le_add 1 (n * n))
-  have hsum := (length_encNat_mono hs).trans (length_encNat_mul_le (n * n) n)
-  have hone : (encNat 1).length = 1 := rfl
+  obtain ⟨hcount, hsum⟩ := length_encTally_fields_le_of_caps le_rfl hc hs
   have hparams : (MembershipTally.encContext params).length ≤ 15 * (encNat n).length + 9 := by
     simp only [params, MembershipTally.encContext_apply, MembershipTally.encContextFields,
       encTally_apply, encTallyFields, length_encPair]
-    dsimp only [n] at hsq hcount hsum ⊢
+    dsimp only [n] at hcount hsum ⊢
     omega
   have hlogN : Nat.log2 n ≤ (encNat n).length := by
     rw [length_encNat_eq_size]

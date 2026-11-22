@@ -18,6 +18,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
 import CslibFrontier.Computability.WordRAM.Width
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # `Memory.Prog` Dictionary Array Accessors and Slot Resolution via `realize`
@@ -496,7 +497,7 @@ theorem realizes_readQuotGen :
   realizeDict
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, quotientBits_le_of_le_pow hU.le, h.2,
-    hspace.of_le (by unfold totalSpace offGM offLM offVal offQuot; omega)⟩
+    hspace.of_le (by wram_omega)⟩
 
 theorem realizes_writeQuotGen :
     Realizes .exact writeQuotGenProg
@@ -508,7 +509,7 @@ theorem realizes_writeQuotGen :
   realizeDict
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, quotientBits_le_of_le_pow hU.le, h.2,
-    hspace.of_le (by unfold totalSpace offGM offLM offVal offQuot; omega)⟩
+    hspace.of_le (by wram_omega)⟩
 
 theorem realizes_readValGen :
     Realizes .exact readValGenProg
@@ -520,7 +521,7 @@ theorem realizes_readValGen :
   realizeDict
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, Nat.clog_le_of_le_pow hV, h.2,
-    hspace.of_le (by unfold totalSpace offGM offLM offVal; omega)⟩
+    hspace.of_le (by wram_omega)⟩
 
 theorem realizes_writeValGen :
     Realizes .exact writeValGenProg
@@ -532,7 +533,7 @@ theorem realizes_writeValGen :
   realizeDict
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨n_max, rfl, hw, Nat.clog_le_of_le_pow hV, h.2,
-    hspace.of_le (by unfold totalSpace offGM offLM offVal; omega)⟩
+    hspace.of_le (by wram_omega)⟩
 
 theorem realizes_readLMGen (c : Fin 9) :
     Realizes .exact (readLMGenProg c)
@@ -546,8 +547,7 @@ theorem realizes_readLMGen (c : Fin 9) :
     rcases henv with ⟨rfl, hspace⟩
     refine ⟨totalMicroBuckets n_max, rfl, hw, effBucketPosBits_le_of_lt_pow hnU hU, h.2,
       hspace.of_le ?_⟩
-    unfold totalSpace offGM offLMSub offLM lmSubWords
-    omega
+    wram_omega
 
 theorem realizes_writeLMGen (c : Fin 9) :
     Realizes .exact (writeLMGenProg c)
@@ -561,8 +561,7 @@ theorem realizes_writeLMGen (c : Fin 9) :
     rcases henv with ⟨rfl, hspace⟩
     refine ⟨totalMicroBuckets n_max, rfl, hw, effBucketPosBits_le_of_lt_pow hnU hU, h.2,
       hspace.of_le ?_⟩
-    unfold totalSpace offGM offLMSub offLM lmSubWords
-    omega
+    wram_omega
 
 theorem realizes_readGMGen :
     Realizes .exact readGMGenProg
@@ -574,7 +573,7 @@ theorem realizes_readGMGen :
   realizeDict
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨globalMetaLen n_max, rfl, hw, globalPtrBits_le_of_lt_pow hnU hU, h.2,
-    hspace.of_le (by unfold totalSpace; omega)⟩
+    hspace.of_le (by wram_omega)⟩
 
 theorem realizes_writeGMGen :
     Realizes .exact writeGMGenProg
@@ -586,7 +585,7 @@ theorem realizes_writeGMGen :
   realizeDict
   rcases henv with ⟨rfl, hspace⟩
   exact ⟨globalMetaLen n_max, rfl, hw, globalPtrBits_le_of_lt_pow hnU hU, h.2,
-    hspace.of_le (by unfold totalSpace; omega)⟩
+    hspace.of_le (by wram_omega)⟩
 
 theorem clientState_readGMProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readGMProg U V w n_max h_space d) = s :=
@@ -607,7 +606,7 @@ theorem fits_const_of_dictEnv {U V w₀ n_max h_space w base c : ℕ}
   have hg : 2 ≤ packedWords (globalMetaLen n_max) (globalPtrBits n_max) w := Nat.le_add_left 2 _
   have hv : 2 ≤ packedWords n_max (valBits V) w := Nat.le_add_left 2 _
   have hq : 2 ≤ packedWords n_max (quotientBits U n_max) w := Nat.le_add_left 2 _
-  exact hspace.of_le (by unfold totalSpace offGM offLM offVal offQuot; omega)
+  exact hspace.of_le (by wram_omega)
 
 theorem fits_of_le_globalMetaLen {U V w₀ n_max h_space w base x : ℕ}
     (h : DictEnvGen w (mkDictParams U V w₀ n_max h_space) base) (hb_pos : 0 < bucketBits n_max)
@@ -689,7 +688,7 @@ theorem clientResult_readBucketCountProg {U V w n_max h_space : ℕ}
   · have hd2 : d.2 = 0 := by
       have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
       omega
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     simp only [hb0, ↓reduceIte, hd2]
     exact clientResult_readGMProg s h0_lt
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
@@ -731,7 +730,7 @@ theorem realizes_readBucketCountGen :
       have hq : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
       have hr : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
   all_goals try dictSide
-  · unfold globalMetaLen; omega
+  · wram_omega
   · rw [clientState_readGMProg, clientResult_readGMProg _ hq, clientResult_readGMProg _ hr]
     have hbc := bCount_le_n_max hinv d.2
     unfold bCount at hbc
@@ -896,8 +895,7 @@ private theorem resolveIndexedSlot_tail_le {U V w₀ n_max h_space : ℕ}
     rw [htail.ntails_eq]
     exact htail.ptr_lt d.1.2 hb _ hr_lt
   have htot := hinv.multi_total_le hb_pos
-  unfold gmTailPtrIdx gmTailPtrFlatIdx at ht_lt
-  omega
+  wram_omega [ht_lt]
 
 theorem realizes_resolveIndexedSlotGen :
     Realizes .exact resolveIndexedSlotGenProg
@@ -1012,7 +1010,7 @@ theorem writeQuotProg_effect {U V w n_max h_space base idx val : ℕ}
       s'.mem a = s.mem a := by
     intro a ha
     rw [hmem]
-    exact writePacked_outside hw s.mem hidx_lt _ (by dsimp only [offVal] at ha; omega)
+    exact writePacked_outside hw s.mem hidx_lt _ (by wram_omega [ha])
   refine ⟨rfl, hout_mem, ?_, ?_, ?_, ?_⟩
   · unfold quotAt
     rw [hmem]
@@ -1022,11 +1020,11 @@ theorem writeQuotProg_effect {U V w n_max h_space base idx val : ℕ}
     · rfl
   · funext ⟨c, j⟩; unfold lmAt; split_ifs with hp
     · exact readPacked_congr hw (fun a ⟨ha1, _⟩ =>
-        hout_mem a (by dsimp only [offLMSub, offLM] at ha1; omega)) hp.2
+        hout_mem a (by wram_omega [ha1])) hp.2
     · rfl
   · funext j; unfold gmAt; split_ifs with hj_lt
     · exact readPacked_congr hw (fun a ⟨ha1, _⟩ =>
-        hout_mem a (by dsimp only [offGM, offLM] at ha1; omega)) hj_lt
+        hout_mem a (by wram_omega [ha1])) hj_lt
     · rfl
 
 /-- Pure state effect of `writeValProg`. -/
@@ -1049,22 +1047,22 @@ theorem writeValProg_effect {U V w n_max h_space base idx val : ℕ}
       a < base + offLM U V w n_max h_space) → s'.mem a = s.mem a := by
     intro a ha
     rw [hmem]
-    exact writePacked_outside hw s.mem hidx_lt _ (by dsimp only [offLM] at ha; omega)
+    exact writePacked_outside hw s.mem hidx_lt _ (by wram_omega [ha])
   refine ⟨rfl, hout_mem, ?_, ?_, ?_, ?_⟩
   · funext j; unfold quotAt; split_ifs with hj_lt
     · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-        hout_mem a (by dsimp only [offVal, offQuot] at ha2 ⊢; omega)) hj_lt
+        hout_mem a (by wram_omega [ha2])) hj_lt
     · rfl
   · unfold valAt
     rw [hmem]
     exact readPacked_writePacked_bounded hw hidx_lt hval_lt s.mem
   · funext ⟨c, j⟩; unfold lmAt; split_ifs with hp
     · exact readPacked_congr hw (fun a ⟨ha1, _⟩ =>
-        hout_mem a (by dsimp only [offLMSub] at ha1; omega)) hp.2
+        hout_mem a (by wram_omega [ha1])) hp.2
     · rfl
   · funext j; unfold gmAt; split_ifs with hj_lt
     · exact readPacked_congr hw (fun a ⟨ha1, _⟩ =>
-        hout_mem a (by dsimp only [offGM] at ha1; omega)) hj_lt
+        hout_mem a (by wram_omega [ha1])) hj_lt
     · rfl
 
 /-- Pure state effect of `writeLMProg`. -/
@@ -1095,18 +1093,15 @@ theorem writeLMProg_effect {U V w n_max h_space c base idx val : ℕ}
   have hout_mem : ∀ a, ¬(base + offLM U V w n_max h_space ≤ a ∧
       a < base + offGM U V w n_max h_space) → s'.mem a = s.mem a := by
     intro a ha
-    exact hout_sub a (by
-      unfold lmSubWords at hsub
-      dsimp only [offGM, offLMSub, lmSubWords] at ha ⊢
-      omega)
+    exact hout_sub a (by wram_omega [hsub, ha])
   refine ⟨rfl, hout_mem, ?_, ?_, ?_, ?_⟩
   · funext j; unfold quotAt; split_ifs with hj_lt
     · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-        hout_mem a (by dsimp only [offLM, offVal, offQuot] at ha2 ⊢; omega)) hj_lt
+        hout_mem a (by wram_omega [ha2])) hj_lt
     · rfl
   · funext j; unfold valAt; split_ifs with hj_lt
     · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-        hout_mem a (by dsimp only [offLM, offVal] at ha2 ⊢; omega)) hj_lt
+        hout_mem a (by wram_omega [ha2])) hj_lt
     · rfl
   · funext ⟨c', j⟩; unfold lmAt
     by_cases hp_eq : (c', j) = (c, idx)
@@ -1165,14 +1160,14 @@ theorem quotAt_eq (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) :
     quotAt base U w n_max h_space s₁.mem = quotAt base U w n_max h_space s.mem := by
   funext j; unfold quotAt; split_ifs with hj_lt
   · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-      h.outside a (by dsimp only [offGM, offLM, offVal, offQuot] at ha2 ⊢; omega)) hj_lt
+      h.outside a (by wram_omega [ha2])) hj_lt
   · rfl
 
 theorem valAt_eq (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) :
     valAt base U V w n_max h_space s₁.mem = valAt base U V w n_max h_space s.mem := by
   funext j; unfold valAt; split_ifs with hj_lt
   · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-      h.outside a (by dsimp only [offGM, offLM, offVal] at ha2 ⊢; omega)) hj_lt
+      h.outside a (by wram_omega [ha2])) hj_lt
   · rfl
 
 theorem lmAt_eq (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) :
@@ -1183,10 +1178,7 @@ theorem lmAt_eq (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) :
       Nat.mul_le_mul_right _ hc
     rw [Nat.add_one_mul] at hsub
     exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-      h.outside a (by
-        unfold lmSubWords at hsub
-        dsimp only [offGM, offLMSub, offLM, lmSubWords] at ha2 ⊢
-        omega)) hj_lt
+      h.outside a (by wram_omega [hsub, ha2])) hj_lt
   · rfl
 
 /-- The six-part effect of a `GlobalMeta`-only run with resulting `GlobalMeta` contents `g`. -/
@@ -1208,7 +1200,7 @@ theorem gmFrame_writeGMProg {U V w n_max h_space base idx val : ℕ}
     GmFrame U V w n_max h_space base s
       ((Memory.spec 0).clientState s (writeGMProg U V w n_max h_space ((base, idx), val))) :=
   ⟨rfl, fun a ha => show writePacked (base + offGM U V w n_max h_space) _ w s.mem idx val a = _ from
-    writePacked_outside hw s.mem hidx _ (by dsimp only [totalSpace] at ha; omega)⟩
+    writePacked_outside hw s.mem hidx _ (by wram_omega [ha])⟩
 
 theorem gmAt_writeGMProg {U V w n_max h_space base idx val : ℕ}
     (hw : 0 < w) (hidx : idx < globalMetaLen n_max) (hval : val < 2 ^ globalPtrBits n_max)

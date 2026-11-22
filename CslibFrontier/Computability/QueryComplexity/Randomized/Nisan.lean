@@ -229,7 +229,7 @@ theorem Computes.approxDegree_le_depth {ε : ℝ≥0} (h : μ.Computes ε f) :
     _ ≤ ∑ t ∈ μ.weights.support, |μ.weights t * (bitVal ℝ (t.eval y) - bitVal ℝ (f y))| :=
         Finset.abs_sum_le_sum_abs _ _
     _ = μ.errorProb f y := by
-        simp only [errorProb, Finsupp.sum]
+        simp only [errorProb_eq_sum, Finsupp.sum]
         refine Finset.sum_congr rfl fun t _ => ?_
         rw [abs_mul, abs_of_nonneg (μ.weights_nonneg t)]
         congr 1

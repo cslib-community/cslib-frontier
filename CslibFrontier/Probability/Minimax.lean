@@ -9,9 +9,12 @@ module
 
 public import CslibFrontier.Probability.PMF
 public import Mathlib.Basic.Real.Basic
+public import Mathlib.Data.ENat.Lattice
 public import Mathlib.Geometry.Convex.ConvexSpace.Defs
 import CslibFrontier.Probability.Minimax.Value
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.ToReal
+import Mathlib.Data.Fintype.Powerset
 
 /-!
 # Averaging and the minimax principle for finite distributions
@@ -47,6 +50,9 @@ functions (`PMF`), whose supports may be infinite. On a finite type the two corr
 
 * `Cslib.Probability.PMF.ofStdSimplex`, `Cslib.Probability.PMF.toStdSimplex`: distributions on a
   finite type as points of the standard simplex.
+* `Convexity.StdSimplex.maxCost`, `Convexity.StdSimplex.errorProb`,
+  `Cslib.Probability.PMF.maxCost`, `Cslib.Probability.PMF.errorProb`: maximum cost over the support
+  and failure probability of a randomized strategy or input distribution.
 
 ## Main results
 
@@ -56,11 +62,16 @@ functions (`PMF`), whose supports may be infinite. On a finite type the two corr
   mean of a real-valued function on a finite type.
 * `Cslib.Probability.PMF.exists_mem_support_tsum_mul_le_tsum_mul`,
   `Cslib.Probability.PMF.exists_mem_support_tsum_mul_le`,
-  `Cslib.Probability.PMF.exists_mem_support_toOuterMeasure_le`: the averaging argument.
+  `Cslib.Probability.PMF.exists_mem_support_toOuterMeasure_le`,
+  `Convexity.StdSimplex.exists_errorProb_le`, `Cslib.Probability.PMF.exists_errorProb_le`: the
+  averaging argument.
 * `Convexity.StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le`,
   `Cslib.Probability.PMF.exists_forall_sum_mul_le`: the minimax theorem for finite games.
-* `Cslib.Probability.PMF.exists_forall_toOuterMeasure_le`: the minimax theorem for failure
-  probabilities on finitely many inputs.
+* `Convexity.StdSimplex.exists_forall_errorProb_le`,
+  `Cslib.Probability.PMF.exists_forall_toOuterMeasure_le`,
+  `Convexity.StdSimplex.exists_maxCost_le_and_forall_errorProb_le`,
+  `Cslib.Probability.PMF.exists_maxCost_le_and_forall_errorProb_le`: Yao's minimax principle for
+  failure probabilities on finitely many inputs.
 
 ## References
 
@@ -122,6 +133,172 @@ theorem exists_forall_sum_le_of_forall_exists_sum_le {I J : Type*} [Fintype I] [
   obtain ⟨v, ⟨p, hp⟩, q, hq⟩ := Cslib.Probability.exists_isMinimaxValue M
   obtain ⟨i, hi⟩ := h q
   exact ⟨p, fun j => (hp j).trans ((hq i).trans hi)⟩
+
+/-! ### Randomized strategies and distributional error on `StdSimplex` -/
+
+section Strategies
+
+variable {α β γ : Type*}
+
+/-- The maximum of `cost` over the support of a finitely supported distribution `μ`. -/
+def maxCost (cost : α → ℕ) (μ : StdSimplex ℝ α) : ℕ :=
+  μ.weights.support.sup cost
+
+theorem maxCost_le_iff {cost : α → ℕ} {μ : StdSimplex ℝ α} {d : ℕ} :
+    μ.maxCost cost ≤ d ↔ ∀ a ∈ μ.weights.support, cost a ≤ d :=
+  Finset.sup_le_iff
+
+theorem le_maxCost {cost : α → ℕ} {μ : StdSimplex ℝ α} {a : α} (ha : a ∈ μ.weights.support) :
+    cost a ≤ μ.maxCost cost :=
+  Finset.le_sup ha
+
+@[simp] theorem maxCost_single (cost : α → ℕ) (a : α) :
+    (StdSimplex.single a : StdSimplex ℝ α).maxCost cost = cost a := by
+  simp [maxCost]
+
+/-- Every element in the support of `StdSimplex.map φ μ` is the image of some element in the
+support of `μ`. -/
+theorem exists_of_mem_support_map {φ : α → β} {μ : StdSimplex ℝ α} {b : β}
+    (hb : b ∈ (StdSimplex.map φ μ).weights.support) :
+    ∃ a ∈ μ.weights.support, φ a = b := by
+  classical
+  exact Finset.mem_image.mp
+    (Finsupp.mapDomain_support (by simpa [StdSimplex.weights_map] using hb))
+
+/-- If `φ` adds at most `d` to the cost of every strategy in the support, so does `map φ`. -/
+theorem maxCost_map_le (cost : α → ℕ) (cost' : β → ℕ) (φ : α → β) (μ : StdSimplex ℝ α) {d : ℕ}
+    (hφ : ∀ a, cost' (φ a) ≤ cost a + d) :
+    (StdSimplex.map φ μ).maxCost cost' ≤ μ.maxCost cost + d := by
+  refine maxCost_le_iff.mpr fun b hb => ?_
+  obtain ⟨a, ha, rfl⟩ := exists_of_mem_support_map hb
+  exact (hφ a).trans (Nat.add_le_add_right (le_maxCost ha) d)
+
+open Classical in
+/-- The probability under `μ` that `Acc` fails. -/
+noncomputable def errorProb (Acc : α → Prop) (μ : StdSimplex ℝ α) : ℝ :=
+  μ.weights.sum fun a w => w * if Acc a then 0 else 1
+
+/-- `errorProb` with any decidable predicate `Acc`. -/
+theorem errorProb_eq_sum (Acc : α → Prop) [DecidablePred Acc] (μ : StdSimplex ℝ α) :
+    μ.errorProb Acc = μ.weights.sum fun a w => w * if Acc a then 0 else 1 := by
+  unfold errorProb
+  congr!
+
+open Classical in
+theorem errorProb_nonneg {Acc : α → Prop} {μ : StdSimplex ℝ α} : 0 ≤ μ.errorProb Acc :=
+  Finset.sum_nonneg fun a _ => mul_nonneg (μ.weights_nonneg a) (ite_nonneg le_rfl zero_le_one)
+
+open Classical in
+theorem errorProb_le_one {Acc : α → Prop} {μ : StdSimplex ℝ α} : μ.errorProb Acc ≤ 1 :=
+  sum_mul_le_of_forall_le fun _ _ => ite_le_one zero_le_one le_rfl
+
+theorem errorProb_eq_zero_iff {Acc : α → Prop} {μ : StdSimplex ℝ α} :
+    μ.errorProb Acc = 0 ↔ ∀ a ∈ μ.weights.support, Acc a := by
+  classical
+  rw [errorProb, Finsupp.sum, Finset.sum_eq_zero_iff_of_nonneg fun a _ =>
+    mul_nonneg (μ.weights_nonneg a) (ite_nonneg le_rfl zero_le_one)]
+  refine forall₂_congr fun a ha => ?_
+  rw [mul_eq_zero, or_iff_right (Finsupp.mem_support_iff.mp ha)]
+  split_ifs with h <;> simp [h]
+
+open Classical in
+@[simp] theorem errorProb_single (Acc : α → Prop) (a : α) :
+    (StdSimplex.single a : StdSimplex ℝ α).errorProb Acc = if Acc a then 0 else 1 := by
+  simp [errorProb]
+
+theorem errorProb_single_of_pos {Acc : α → Prop} {a : α} (ha : Acc a) :
+    (StdSimplex.single a : StdSimplex ℝ α).errorProb Acc = 0 := by
+  simp [ha]
+
+theorem errorProb_single_of_neg {Acc : α → Prop} {a : α} (ha : ¬Acc a) :
+    (StdSimplex.single a : StdSimplex ℝ α).errorProb Acc = 1 := by
+  simp [ha]
+
+/-- Mapping strategies by `φ` that preserves acceptance cannot increase the failure probability. -/
+theorem errorProb_map_le (Acc : α → Prop) (Acc' : β → Prop) (φ : α → β) (μ : StdSimplex ℝ α)
+    (hφ : ∀ a, Acc a → Acc' (φ a)) :
+    (StdSimplex.map φ μ).errorProb Acc' ≤ μ.errorProb Acc := by
+  classical
+  rw [errorProb_eq_sum, errorProb_eq_sum, StdSimplex.weights_map,
+    Finsupp.sum_mapDomain_index (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _]
+  refine Finset.sum_le_sum fun a _ => mul_le_mul_of_nonneg_left ?_ (μ.weights_nonneg a)
+  by_cases h : Acc a
+  · simp [h, hφ a h]
+  · split_ifs <;> linarith
+
+/-- **The averaging argument** for failure probabilities under `StdSimplex`: if `μ` fails on every
+input `b` with probability at most `ε`, then for every input distribution `ν` some strategy in the
+support of `μ` fails on `ν` with probability at most `ε`. -/
+theorem exists_errorProb_le (Acc : α → β → Prop) (μ : StdSimplex ℝ α) (ν : StdSimplex ℝ β)
+    {ε : ℝ} (h : ∀ b, μ.errorProb (fun a => Acc a b) ≤ ε) :
+    ∃ a ∈ μ.weights.support, ν.errorProb (fun b => Acc a b) ≤ ε := by
+  classical
+  obtain ⟨a, ha, hle⟩ :=
+    exists_mem_support_le_sum_mul μ fun a => ν.errorProb (fun b => Acc a b)
+  refine ⟨a, ha, hle.trans ?_⟩
+  have hswap : (μ.weights.sum fun a w => w * ν.errorProb (fun b => Acc a b)) =
+      ν.weights.sum fun b w => w * μ.errorProb (fun a => Acc a b) := by
+    simp only [errorProb, Finsupp.sum, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun b _ => Finset.sum_congr rfl fun a _ => mul_left_comm _ _ _
+  rw [hswap]
+  exact sum_mul_le_of_forall_le fun b _ => h b
+
+/-- **Yao's minimax principle** for failure probabilities on a finite input space: if against every
+input distribution `ν` some strategy in `α` fails with probability at most `ε`, then some finitely
+supported distribution `μ` on `α` fails with probability at most `ε` on every input. Strategies
+with the same failure set on `β` are interchangeable, so only finitely many representative
+strategies are needed even when `α` is infinite. -/
+theorem exists_forall_errorProb_le [Finite β] [Nonempty α] (Acc : α → β → Prop) {ε : ℝ}
+    (h : ∀ ν : StdSimplex ℝ β, ∃ a : α, ν.errorProb (fun b => Acc a b) ≤ ε) :
+    ∃ μ : StdSimplex ℝ α, ∀ b, μ.errorProb (fun a => Acc a b) ≤ ε := by
+  classical
+  have := Fintype.ofFinite β
+  let r : α → Set β := fun a => {b | ¬Acc a b}
+  have := Fintype.ofFinite (Set.range r)
+  have : Nonempty (Set.range r) := ⟨⟨r (Classical.arbitrary α), _, rfl⟩⟩
+  let rep : Set.range r → α := fun s => s.2.choose
+  have hrep (s : Set.range r) (b : β) :
+      (if Acc (rep s) b then 0 else 1 : ℝ) = if b ∈ s.1 then 1 else 0 := by
+    have : ¬Acc (rep s) b ↔ b ∈ s.1 := by
+      rw [← s.2.choose_spec]
+      rfl
+    by_cases hb : Acc (rep s) b <;> simp [hb, show b ∈ s.1 ↔ ¬Acc (rep s) b from this.symm]
+  obtain ⟨p, hp⟩ := exists_forall_sum_le_of_forall_exists_sum_le
+    (fun (s : Set.range r) b => if b ∈ s.1 then 1 else 0) (c := ε) fun q => by
+      obtain ⟨a, hq⟩ := h q
+      refine ⟨⟨r a, a, rfl⟩, ?_⟩
+      rw [errorProb_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _] at hq
+      refine le_of_eq_of_le (Finset.sum_congr rfl fun b _ => ?_) hq
+      by_cases hb : Acc a b <;> simp [hb, r]
+  refine ⟨p.map rep, fun b => ?_⟩
+  rw [errorProb_eq_sum, StdSimplex.weights_map,
+    Finsupp.sum_mapDomain_index (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
+    Finsupp.sum_fintype _ _ fun _ => zero_mul _]
+  exact le_of_eq_of_le (Finset.sum_congr rfl fun s _ => by rw [hrep]) (hp b)
+
+/-- **Yao's minimax principle** for bounded-cost finitely supported randomized strategies on a
+finite nonempty input space: if against every input distribution `ν` some strategy of cost at most
+`d` fails with probability at most `ε`, then some finitely supported distribution `μ` over
+strategies of cost at most `d` fails with probability at most `ε` on every input. -/
+theorem exists_maxCost_le_and_forall_errorProb_le [Finite β] [Nonempty β]
+    (cost : α → ℕ) (Acc : α → β → Prop) {d : ℕ} {ε : ℝ}
+    (h : ∀ ν : StdSimplex ℝ β, ∃ a : α, cost a ≤ d ∧ ν.errorProb (fun b => Acc a b) ≤ ε) :
+    ∃ μ : StdSimplex ℝ α, (∀ b, μ.errorProb (fun a => Acc a b) ≤ ε) ∧ μ.maxCost cost ≤ d := by
+  classical
+  obtain ⟨a₀, ha₀, -⟩ := h (.single (Classical.arbitrary β))
+  have : Nonempty {a : α // cost a ≤ d} := ⟨⟨a₀, ha₀⟩⟩
+  obtain ⟨μ, hμ⟩ := exists_forall_errorProb_le (α := {a : α // cost a ≤ d})
+    (fun a b => Acc a.1 b) (ε := ε) fun ν => by
+      obtain ⟨a, ha, hν⟩ := h ν
+      exact ⟨⟨a, ha⟩, hν⟩
+  refine ⟨μ.map Subtype.val, fun b => ?_, maxCost_le_iff.mpr fun a ha => ?_⟩
+  · exact (errorProb_map_le (fun a : {a : α // cost a ≤ d} => Acc a.1 b)
+      (fun a => Acc a b) Subtype.val μ fun _ h => h).trans (hμ b)
+  · obtain ⟨a', -, rfl⟩ := exists_of_mem_support_map ha
+    exact a'.2
+
+end Strategies
 
 end Convexity.StdSimplex
 
@@ -214,17 +391,45 @@ section Minimax
 
 variable {I J : Type*} [Fintype I] [Fintype J]
 
-/-- The distribution on a finite type whose probabilities are the weights of a point of the
-standard simplex. -/
-def ofStdSimplex (p : StdSimplex ℝ I) : PMF I :=
-  PMF.ofFintype (fun i => ENNReal.ofReal (p.weights i)) (by
-    rw [← ENNReal.ofReal_sum_of_nonneg fun i _ => p.weights_nonneg i, p.total_of_fintype,
-      ENNReal.ofReal_one])
+/-- The finitely supported distribution whose probabilities are the weights of a point of the
+standard simplex on an arbitrary type `I`. -/
+noncomputable def ofStdSimplex {I : Type*} (p : StdSimplex ℝ I) : PMF I :=
+  PMF.ofFinset (fun i => ENNReal.ofReal (p.weights i)) p.weights.support
+    (by
+      rw [← ENNReal.ofReal_sum_of_nonneg fun i _ => p.weights_nonneg i]
+      exact (congrArg ENNReal.ofReal p.total).trans ENNReal.ofReal_one)
+    (fun i hi => by rw [Finsupp.notMem_support_iff.mp hi, ENNReal.ofReal_zero])
+
+@[simp] theorem ofStdSimplex_apply {I : Type*} (p : StdSimplex ℝ I) (i : I) :
+    ofStdSimplex p i = ENNReal.ofReal (p.weights i) :=
+  rfl
 
 /-- The probability of `i` under `ofStdSimplex p` is the weight of `i` in `p`. -/
-@[simp] theorem toReal_ofStdSimplex (p : StdSimplex ℝ I) (i : I) :
+theorem toReal_ofStdSimplex {I : Type*} (p : StdSimplex ℝ I) (i : I) :
     (ofStdSimplex p i).toReal = p.weights i :=
   ENNReal.toReal_ofReal (p.weights_nonneg i)
+
+/-- Every distribution obtained from `StdSimplex` has finite support. -/
+theorem finite_support_ofStdSimplex {I : Type*} (p : StdSimplex ℝ I) :
+    (ofStdSimplex p).support.Finite :=
+  p.weights.support.finite_toSet.subset fun i hi => by
+    contrapose hi
+    rw [PMF.mem_support_iff, not_not, ofStdSimplex_apply,
+      Finsupp.notMem_support_iff.mp hi, ENNReal.ofReal_zero]
+
+/-- The real-valued outer measure of `{i | P i}` under `ofStdSimplex p` equals
+`p.errorProb (fun i => ¬P i)`. -/
+theorem toOuterMeasure_toReal_ofStdSimplex_setOf {I : Type*} (p : StdSimplex ℝ I) (P : I → Prop) :
+    ((ofStdSimplex p).toOuterMeasure {i | P i}).toReal = p.errorProb (fun i => ¬P i) := by
+  classical
+  rw [toOuterMeasure_eq_tsum_mul_ite,
+    tsum_eq_sum (s := p.weights.support) fun i hi => by
+      rw [ofStdSimplex_apply, Finsupp.notMem_support_iff.mp hi, ENNReal.ofReal_zero, zero_mul],
+    ENNReal.toReal_sum fun i _ =>
+      ENNReal.mul_ne_top (PMF.apply_ne_top _ _) (by split_ifs <;> simp),
+    StdSimplex.errorProb_eq_sum, Finsupp.sum]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  by_cases hi : P i <;> simp [hi, p.weights_nonneg i]
 
 /-- The point of the standard simplex whose weights are the probabilities of a distribution on a
 finite type. -/
@@ -276,31 +481,113 @@ theorem exists_forall_sum_mul_le [Nonempty I] (M : I → J → ℝ) {ε : ℝ}
 fails on an input `j`, where there may be infinitely many strategies but only finitely many inputs.
 If against every distribution `ν` on the inputs some strategy fails with probability at most `ε`,
 then some distribution `μ` on finitely many strategies fails with probability at most `ε` on every
-input. -/
+input. This is `Convexity.StdSimplex.exists_forall_errorProb_le` read through `ofStdSimplex`. -/
 theorem exists_forall_toOuterMeasure_le {I J : Type*} [Finite J] [Nonempty I] (E : I → J → Prop)
     {ε : ℝ} (h : ∀ ν : PMF J, ∃ i, (ν.toOuterMeasure {j | E i j}).toReal ≤ ε) :
     ∃ μ : PMF I, μ.support.Finite ∧ ∀ j, (μ.toOuterMeasure {i | E i j}).toReal ≤ ε := by
-  classical
-  have := Fintype.ofFinite J
-  -- Strategies with the same failures are interchangeable: play on the finitely many sets of
-  -- failures, each represented by one strategy.
-  let r : I → Set J := fun i => {j | E i j}
-  have := Fintype.ofFinite (Set.range r)
-  have : Nonempty (Set.range r) := ⟨⟨r (Classical.arbitrary I), _, rfl⟩⟩
-  let rep : Set.range r → I := fun s => s.2.choose
-  have hrep (s : Set.range r) (j : J) : E (rep s) j ↔ j ∈ s.1 := by
-    rw [← s.2.choose_spec]
-    rfl
-  obtain ⟨μ, hμ⟩ := exists_forall_sum_mul_le (fun (s : Set.range r) j => if j ∈ s.1 then 1 else 0)
-    (ε := ε) fun ν => by
-      obtain ⟨i, hi⟩ := h ν
-      refine ⟨⟨r i, i, rfl⟩, ?_⟩
-      rwa [toOuterMeasure_toReal_eq_sum_ite] at hi
-  refine ⟨μ.map rep, by rw [PMF.support_map]; exact (Set.toFinite _).image _, fun j => ?_⟩
-  rw [PMF.toOuterMeasure_map_apply, toOuterMeasure_toReal_eq_sum_ite]
-  refine le_of_eq_of_le (sum_congr rfl fun s _ => ?_) (hμ j)
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, hrep]
+  obtain ⟨p, hp⟩ := StdSimplex.exists_forall_errorProb_le (fun i j => ¬E i j) (ε := ε) fun q => by
+    simpa only [toOuterMeasure_toReal_ofStdSimplex_setOf] using h (ofStdSimplex q)
+  exact ⟨ofStdSimplex p, finite_support_ofStdSimplex p, fun j => by
+    simpa only [toOuterMeasure_toReal_ofStdSimplex_setOf] using hp j⟩
 
 end Minimax
+
+/-! ### Public-coin cost, error probability, and Yao's minimax bridge on `PMF` -/
+
+section PublicCoin
+
+/-- The supremum of `cost` over the support of `μ`, in `ℕ∞`. -/
+noncomputable def maxCost (cost : α → ℕ) (μ : PMF α) : ℕ∞ :=
+  ⨆ a ∈ μ.support, (cost a : ℕ∞)
+
+theorem maxCost_le_iff {cost : α → ℕ} {μ : PMF α} {c : ℕ∞} :
+    maxCost cost μ ≤ c ↔ ∀ a ∈ μ.support, (cost a : ℕ∞) ≤ c :=
+  iSup₂_le_iff
+
+theorem le_maxCost {cost : α → ℕ} {μ : PMF α} {a : α} (ha : a ∈ μ.support) :
+    (cost a : ℕ∞) ≤ maxCost cost μ :=
+  le_iSup₂ (f := fun a (_ : a ∈ μ.support) => (cost a : ℕ∞)) a ha
+
+@[simp] theorem maxCost_pure (cost : α → ℕ) (a : α) :
+    maxCost cost (PMF.pure a) = cost a :=
+  le_antisymm (maxCost_le_iff.mpr fun b hb => by rw [(PMF.mem_support_pure_iff _ _).mp hb])
+    (le_maxCost ((PMF.mem_support_pure_iff _ _).mpr rfl))
+
+theorem maxCost_map_le {γ : Type*} (cost : α → ℕ) (cost' : γ → ℕ) (f : γ → α) (μ : PMF γ)
+    (hf : ∀ c ∈ μ.support, cost (f c) ≤ cost' c) :
+    maxCost cost (μ.map f) ≤ maxCost cost' μ := by
+  refine maxCost_le_iff.mpr fun a ha => ?_
+  obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ha
+  exact (Nat.cast_le.mpr (hf c hc)).trans (le_maxCost hc)
+
+theorem maxCost_map_le_of_le {γ : Type*} (cost : α → ℕ) (f : γ → α) (μ : PMF γ) {c : ℕ}
+    (hf : ∀ x ∈ μ.support, cost (f x) ≤ c) :
+    maxCost cost (μ.map f) ≤ c := by
+  refine maxCost_le_iff.mpr fun a ha => ?_
+  obtain ⟨x, hx, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ha
+  exact_mod_cast hf x hx
+
+/-- The real-valued probability that a strategy `a` drawn from `μ` fails `Acc a b` on input `b`. -/
+noncomputable def errorProb (Acc : α → β → Prop) (μ : PMF α) (b : β) : ℝ :=
+  (μ.toOuterMeasure {a | ¬Acc a b}).toReal
+
+theorem errorProb_eq_sum [Fintype α] (Acc : α → β → Prop) (μ : PMF α) (b : β)
+    [DecidablePred fun a => Acc a b] :
+    errorProb Acc μ b = ∑ a, if Acc a b then 0 else (μ a).toReal := by
+  rw [errorProb, PMF.toOuterMeasure_apply_toReal]
+  refine Finset.sum_congr rfl fun a _ => ?_
+  by_cases h : Acc a b <;> simp [h]
+
+theorem errorProb_nonneg {Acc : α → β → Prop} {μ : PMF α} {b : β} : 0 ≤ errorProb Acc μ b :=
+  ENNReal.toReal_nonneg
+
+theorem errorProb_le_one {Acc : α → β → Prop} {μ : PMF α} {b : β} : errorProb Acc μ b ≤ 1 :=
+  toOuterMeasure_toReal_le_one μ _
+
+open Classical in
+theorem errorProb_pure (Acc : α → β → Prop) (a : α) (b : β) :
+    errorProb Acc (PMF.pure a) b = if Acc a b then 0 else 1 := by
+  rw [errorProb, PMF.toOuterMeasure_pure_apply]
+  split_ifs <;> simp_all
+
+theorem errorProb_pure_le (Acc : α → β → Prop) {a : α} {b : β} {ε : ℝ} (ha : Acc a b)
+    (hε : 0 ≤ ε) : errorProb Acc (PMF.pure a) b ≤ ε := by
+  classical
+  simpa [errorProb_pure, ha] using hε
+
+theorem errorProb_map {γ : Type*} (Acc : α → β → Prop) (f : γ → α) (μ : PMF γ) (b : β) :
+    errorProb Acc (μ.map f) b = errorProb (fun c b => Acc (f c) b) μ b := by
+  rw [errorProb, errorProb, PMF.toOuterMeasure_map_apply]
+  rfl
+
+/-- **The averaging argument** in terms of `errorProb`: if `μ` errs with probability at most `ε`
+on every input in the support of `ν`, then some strategy in the support of `μ` errs with
+probability at most `ε` on inputs drawn from `ν`. -/
+theorem exists_errorProb_le {Acc : α → β → Prop} {μ : PMF α} (ν : PMF β) {ε : ℝ}
+    (h : ∀ b ∈ ν.support, errorProb Acc μ b ≤ ε) :
+    ∃ a ∈ μ.support, errorProb (fun b a => Acc a b) ν a ≤ ε :=
+  exists_mem_support_toOuterMeasure_le μ ν (fun a b => ¬Acc a b) h
+
+/-- **Yao's minimax principle** for bounded-cost `PMF` strategies on a finite input domain `D`:
+if under every distribution `ν` supported on `D` some strategy of cost at most `c` errs with
+probability at most `ε`, then some distribution `μ` over strategies of cost at most `c` errs with
+probability at most `ε` on every input of `D`. -/
+theorem exists_maxCost_le_and_forall_errorProb_le {cost : α → ℕ} {Acc : α → β → Prop}
+    {D : Set β} [Finite D] {c : ℕ} [Nonempty {a : α // cost a ≤ c}] {ε : ℝ}
+    (h : ∀ ν : PMF β, (∀ b ∈ ν.support, b ∈ D) →
+      ∃ a : α, cost a ≤ c ∧ errorProb (fun b a => Acc a b) ν a ≤ ε) :
+    ∃ μ : PMF α, (∀ b ∈ D, errorProb Acc μ b ≤ ε) ∧ maxCost cost μ ≤ c := by
+  obtain ⟨μ, -, hμ⟩ := exists_forall_toOuterMeasure_le
+    (I := {a : α // cost a ≤ c}) (J := D) (fun a b => ¬Acc a.1 b.1) (ε := ε) fun ν => by
+      obtain ⟨a, hc, hp⟩ := h (ν.map Subtype.val) fun b hb => by
+        obtain ⟨b', -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hb
+        exact b'.2
+      refine ⟨⟨a, hc⟩, ?_⟩
+      rwa [errorProb, PMF.toOuterMeasure_map_apply] at hp
+  refine ⟨μ.map Subtype.val, fun b hb => ?_, maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.2⟩
+  rw [errorProb, PMF.toOuterMeasure_map_apply]
+  exact hμ ⟨b, hb⟩
+
+end PublicCoin
 
 end Cslib.Probability.PMF

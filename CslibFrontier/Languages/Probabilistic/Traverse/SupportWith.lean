@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Semantics
 public import Mathlib.Data.List.Forall2
@@ -32,9 +33,22 @@ This is the oracle analogue of `Cslib.ProbComp.mem_support_mapM_iff`.
 * `Cslib.OracleComp.QueriesSatisfy.mapM`: a traversal makes only the calls its entries make.
 * `Cslib.OracleComp.IsCostBounded.foldlM`: a fold of a list `xs` whose step costs at most `k`
   costs at most `xs.length * k`.
+* `Cslib.ProbOracleComp.run_mapM_query`: a list of queries to a fixed function returns its image.
 -/
 
 public section
+
+namespace Cslib.ProbOracleComp
+
+/-- Against a fixed function, a list of external queries returns the list of its values. -/
+theorem run_mapM_query {Q R : Type} (f : Q → R) (xs : List Q) :
+    (xs.mapM (query (spec := fun _ : Q => R))).run (fun x => pure (f x)) =
+      pure (xs.map f) := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih => simp [List.mapM_cons, ih]
+
+end Cslib.ProbOracleComp
 
 namespace Cslib.OracleComp
 
