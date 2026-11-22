@@ -8647,6 +8647,7 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Core
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Propagate
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
