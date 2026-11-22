@@ -19,15 +19,18 @@ import Mathlib.Tactic.Linarith
 # Trimmed-extremes midpoint operator for approximate Byzantine agreement
 
 This module defines the computable trimmed-extremes midpoint operator `midTrim` over any linearly
-ordered field `K` and proves the two combinatorial-algebraic properties underlying the deterministic
-synchronous (`n > 3t`) and asynchronous (`n > 5t`) approximate Byzantine agreement protocols of
-[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]:
+ordered field `K` and proves the convex-hull validity and factor-`1/2` contraction properties used
+by the unit-interval, fixed-horizon synchronous (`n > 3t`) and single-hop asynchronous (`n > 5t`)
+protocols in `CslibFrontier.Computability.Distributed.ApproxAgreement.Protocol` (milestone steps
+toward `#7116` and `#3261`, after Section 2 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]):
 
 1. **Convex-hull validity (`midTrim_mem_Icc`):** given a list `xs` of length `m > 2t` in which at
    least `m - t` entries lie in `[lo, hi]` (so at most `t` entries come from Byzantine processes
    outside `[lo, hi]`), sorting `xs` and dropping its `t` smallest and `t` largest entries
-   (`trimmed t xs`) leaves only values in `[lo, hi]`, and their extreme-value midpoint
-   `midTrim t xs` also lies in `[lo, hi]`.
+   (`trimmed t xs`, corresponding to `reduce^t` in Section 2.1, Lemmas 3–4 of
+   [DolevLynchPinterStarkWeihl1986]) leaves only values in `[lo, hi]`, and their extreme-value
+   midpoint `midTrim t xs` also lies in `[lo, hi]`.
 2. **Factor-`1/2` contraction (`abs_midTrim_sub_le`):** given two lists `xs` and `ys` (not
    necessarily of equal length) each having at most `t` entries outside `[lo, hi]` and sharing
    strictly more than `2t` entries with multiplicity (`2 * t < (xs ∩ ys).card` as multisets),
@@ -45,14 +48,16 @@ same Finset-indexed multiset corollaries (`multisetMidTrim_map_mem_Icc` and
 
 ## Comparison with multi-step representative averaging
 
-Presentations of [DolevLynchPinterStarkWeihl1986] often state a parameterized family of
-approximation functions `f_{t, k}` that sort the received multiset, discard `t` extremes on each
-end (`reduce`), select every `k`-th surviving point (`select`), and take the arithmetic mean of
-those representatives, achieving sharper per-round contraction `1 / c` when `n / t` is large.
-Taking the midpoint `(min + max) / 2` of the trimmed multiset (`midTrim`) corresponds to averaging
-just the two extreme surviving points: it uses one uniform formula across both `3t < n`
-(synchronous) and `5t < n` (asynchronous), avoids variable-arity division, and guarantees a uniform
-contraction factor of `1 / 2` per round in both models.
+Section 2.2 (p. 503, Lemma 5) of [DolevLynchPinterStarkWeihl1986] defines the parameterized family
+of approximation functions `f_{k, t}(V) = mean(select_k(reduce^t(V)))` that sort the received
+multiset, discard `t` extremes on each end (`reduce^t`), select every `k`-th surviving point
+(`select_k`), and take the arithmetic mean of those `c(m - 2t, k) = ⌊(m - 2t - 1) / k⌋ + 1`
+representatives, achieving per-round contraction `1 / c(m - 2t, k)` (with `k = t` synchronously and
+`k = 2t` asynchronously). Taking the midpoint `(min + max) / 2` of the trimmed multiset (`midTrim`)
+averages just the two extreme surviving points: it agrees with `f_{t, t}` at `n = 3t + 1` and with
+`f_{2t, t}` at `n = 5t + 1` (where `c = 2`), while trading sharper `1 / c` contraction at larger
+`n / t` for one uniform formula across both `3t < n` and `5t < n` with no variable-arity division
+and a uniform contraction factor of `1 / 2` per round.
 
 To ensure kernel reduction (`decide +kernel`) works inside `module` clients (where Lean's
 well-founded `List.mergeSort` and Mathlib's unexposed `List.insertionSort` do not unfold), sorting
@@ -271,7 +276,7 @@ theorem mem_Icc_of_mem_trimmed {t : ℕ} {xs : List K} {lo hi z : K}
 
 end LinearOrder
 
-/-! ### Midpoint operator `midTrim` and the DLPSW lemmas -/
+/-! ### Midpoint operator `midTrim` and contraction lemmas -/
 
 section MidTrim
 
@@ -414,10 +419,11 @@ private lemma sortLE_min_le_max_of_inter {t : ℕ} {xs ys : List K}
     simpa only [Multiset.coe_countP] using hle
   exact sortLE_getElem_le (by rw [length_sortLE]; omega) hxs_le
 
-/-- **DLPSW contraction lemma (`abs_midTrim_sub_le`):** if `xs` and `ys` each have at most `t`
-entries outside `[lo, hi]` and share strictly more than `2 * t` multiset entries, then
-`|midTrim t xs - midTrim t ys| ≤ (hi - lo) / 2`
-([Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]). -/
+/-- **Trimmed-midpoint contraction (`abs_midTrim_sub_le`):** extreme-endpoint specialization after
+Section 2.2, Lemma 5 of [Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]
+(using `(min + max) / 2` in place of `f_{k, t}`'s `c`-point `select_k` mean): if `xs` and `ys`
+each have at most `t` entries outside `[lo, hi]` and share strictly more than `2 * t` multiset
+entries, then `|midTrim t xs - midTrim t ys| ≤ (hi - lo) / 2`. -/
 theorem abs_midTrim_sub_le {t : ℕ} {xs ys : List K} {lo hi : K}
     (hinter : 2 * t < (Multiset.ofList xs ∩ Multiset.ofList ys).card)
     (hxs : xs.length - t ≤ xs.countP (fun x => decide (lo ≤ x ∧ x ≤ hi)))

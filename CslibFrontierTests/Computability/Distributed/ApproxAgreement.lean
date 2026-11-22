@@ -10,14 +10,14 @@ module
 import CslibFrontier.Computability.Distributed.ApproxAgreement.Protocol
 import Mathlib.Algebra.Order.Ring.Rat
 
-/-! Approximate Byzantine agreement tests (checked as a `module` client with ordinary imports):
-kernel-evaluated (`decide +kernel`) `ℚ` checks on `trimmed`, `midTrim`, and `multisetMidTrim`
-(outlier rejection, permutation invariance, exact `(hi - lo) / 2` contraction tightness, and the
-`Fin 5, t = 1` single-hop non-contraction witness showing `5t < n` is tight for
+/-! Unit-interval fixed-horizon approximate Byzantine agreement tests (checked as a `module` client
+with ordinary imports): kernel-evaluated (`decide +kernel`) `ℚ` checks on `trimmed`, `midTrim`, and
+`multisetMidTrim` (outlier rejection, permutation invariance, exact `(hi - lo) / 2` contraction
+tightness, and the `Fin 5, t = 1` single-hop non-contraction witness showing `5t < n` is tight for
 `asyncApproxProtocol`), concrete multi-round synchronous runs on `Fin 4, t = 1` against
 equivocating and rushing adversaries, concrete multi-round asynchronous LTS traces on
 `Fin 6, t = 1` (`R = 2`) with Byzantine equivocation, replay flooding, and out-of-order round
-buffering, plus instantiations of all headline solvability and `2 ≤ n ≤ 3t` impossibility
+buffering, plus instantiations of all unit-interval solvability and `2 ≤ n ≤ 3t` impossibility
 theorems. -/
 set_option linter.privateModule false
 
@@ -273,7 +273,7 @@ private def asyncTrace5 : List (Action (Fin 5) (RoundMsg ℚ)) :=
    .byzRecv 4 2 ⟨0, 1⟩,
    .deliver ⟨0, 2, ⟨0, 0⟩⟩, .deliver ⟨2, 2, ⟨0, 1⟩⟩, .deliver ⟨3, 2, ⟨0, 1⟩⟩]
 
-example : ¬ (asyncApproxProtocol (Fin 5) ℚ 1 1).SolvesAsyncApproxAgreement 1 (1 / 2) := by
+example : ¬ (asyncApproxProtocol (Fin 5) ℚ 1 1).SolvesUnitAsyncApproxAgreement 1 (1 / 2) := by
   intro hsol
   let π := asyncApproxProtocol (Fin 5) ℚ 1 1
   let sFinal := execAsync π (π.start {4} asyncInp5) asyncTrace5
@@ -292,7 +292,7 @@ example : ¬ (asyncApproxProtocol (Fin 5) ℚ 1 1).SolvesAsyncApproxAgreement 1 
     0 (by decide) 2 (by decide) 0 1 hd0 hd2
   norm_num at habs
 
-/-! ### Part 4: Headline solvability, arbitrary-interval contraction, and impossibility checks -/
+/-! ### Part 4: Unit-interval solvability, arbitrary-interval contraction, and impossibility -/
 
 -- Arbitrary-interval contraction (`[-10, 30]` over `ℚ`, width `40`): after `4` synchronous rounds
 -- on `Fin 4, t = 1`, honest decisions lie in `[-10, 30]` and differ by at most `40 / 16 = 5 / 2`.
@@ -307,58 +307,58 @@ example (adv : ℕ → Fin 4 → Fin 4 → ℚ) (x : Fin 4 → ℚ)
   refine h.trans ?_
   norm_num
 
--- Synchronous solvability and monotonicity (`Fin 4, t = 1`, `ε = 1 / 16` in `R = 4` rounds).
-example : (syncApproxProtocol (Fin 4) ℚ 1).SolvesSyncApproxAgreement 1 4 (1 / 16) :=
-  solvesSyncApproxAgreement_syncApprox (by decide) (by norm_num)
+-- Unit-interval synchronous solvability and monotonicity (`Fin 4, t = 1`, `ε = 1 / 16` in `R = 4`).
+example : (syncApproxProtocol (Fin 4) ℚ 1).SolvesUnitSyncApproxAgreement 1 4 (1 / 16) :=
+  solvesUnitSyncApproxAgreement_syncApprox (by decide) (by norm_num)
 
-example : (syncApproxProtocol (Fin 4) ℚ 1).SolvesSyncApproxAgreement 0 4 (1 / 8) :=
-  (solvesSyncApproxAgreement_syncApprox (P := Fin 4) (K := ℚ) (t := 1) (R := 4) (ε := 1 / 16)
+example : (syncApproxProtocol (Fin 4) ℚ 1).SolvesUnitSyncApproxAgreement 0 4 (1 / 8) :=
+  (solvesUnitSyncApproxAgreement_syncApprox (P := Fin 4) (K := ℚ) (t := 1) (R := 4) (ε := 1 / 16)
     (by decide) (by norm_num)).mono (Nat.zero_le 1) (by norm_num)
 
--- Sharp synchronous threshold instantiations (`Fin 1`, `Fin 3`, `Fin 4`).
+-- Sharp unit-interval synchronous threshold instantiations (`Fin 1`, `Fin 3`, `Fin 4`).
 example : ∃ (S M : Type) (π : SyncProtocol (Fin 1) ℚ S M) (R : ℕ),
-    π.SolvesSyncApproxAgreement 5 R (1 / 1000) :=
-  (exists_solvesSyncApproxAgreement_iff (Fin 1) ℚ 5 (by norm_num) (by norm_num)).mpr
+    π.SolvesUnitSyncApproxAgreement 5 R (1 / 1000) :=
+  (exists_solvesUnitSyncApproxAgreement_iff (Fin 1) ℚ 5 (by norm_num) (by norm_num)).mpr
     (Or.inl (by decide))
 
 example : ¬ ∃ (S M : Type) (π : SyncProtocol (Fin 3) ℚ S M) (R : ℕ),
-    π.SolvesSyncApproxAgreement 1 R (1 / 3) := by
-  rw [exists_solvesSyncApproxAgreement_iff (Fin 3) ℚ 1 (by norm_num) (by norm_num)]
+    π.SolvesUnitSyncApproxAgreement 1 R (1 / 3) := by
+  rw [exists_solvesUnitSyncApproxAgreement_iff (Fin 3) ℚ 1 (by norm_num) (by norm_num)]
   decide
 
 example : ∃ (S M : Type) (π : SyncProtocol (Fin 4) ℚ S M) (R : ℕ),
-    π.SolvesSyncApproxAgreement 1 R (1 / 100) :=
-  (exists_solvesSyncApproxAgreement_iff (Fin 4) ℚ 1 (by norm_num) (by norm_num)).mpr
+    π.SolvesUnitSyncApproxAgreement 1 R (1 / 100) :=
+  (exists_solvesUnitSyncApproxAgreement_iff (Fin 4) ℚ 1 (by norm_num) (by norm_num)).mpr
     (Or.inr (by decide))
 
--- Synchronous `2 ≤ |P| ≤ 3 * t` impossibility for both `ε = 1 / 3 < 1 / 2` and `ε = 99 / 100 < 1`.
+-- Unit-interval synchronous `2 ≤ |P| ≤ 3 * t` impossibility (`ε = 1 / 3` and `ε = 99 / 100 < 1`).
 example {S M : Type} (π : SyncProtocol (Fin 3) ℚ S M) (R : ℕ) :
-    ¬ π.SolvesSyncApproxAgreement 1 R (99 / 100) :=
-  π.not_solvesSyncApproxAgreement (by decide) (by decide) (by norm_num)
+    ¬ π.SolvesUnitSyncApproxAgreement 1 R (99 / 100) :=
+  π.not_solvesUnitSyncApproxAgreement (by decide) (by decide) (by norm_num)
 
 example {S M : Type} (π : SyncProtocol (Fin 2) ℚ S M) (R : ℕ) :
-    ¬ π.SolvesSyncApproxAgreement 1 R (1 / 3) :=
-  π.not_solvesSyncApproxAgreement (by decide) (by decide) (by norm_num)
+    ¬ π.SolvesUnitSyncApproxAgreement 1 R (1 / 3) :=
+  π.not_solvesUnitSyncApproxAgreement (by decide) (by decide) (by norm_num)
 
--- Asynchronous solvability (`Fin 6, t = 1`, `ε = 1 / 8` in `R = 3` rounds) and arbitrary `ε > 0`.
-example : (asyncApproxProtocol (Fin 6) ℚ 1 3).SolvesAsyncApproxAgreement 1 (1 / 8) :=
-  solvesAsyncApproxAgreement_asyncApprox (by decide) (by norm_num)
+-- Unit-interval asynchronous solvability (`Fin 6, t = 1`, `ε = 1 / 8` in `R = 3` rounds).
+example : (asyncApproxProtocol (Fin 6) ℚ 1 3).SolvesUnitAsyncApproxAgreement 1 (1 / 8) :=
+  solvesUnitAsyncApproxAgreement_asyncApprox (by decide) (by norm_num)
 
 example : ∃ (S M : Type) (_ : DecidableEq M) (π : AsyncProtocol (Fin 6) ℚ S M),
-    π.SolvesAsyncApproxAgreement 1 (1 / 1000) :=
-  exists_solvesAsyncApproxAgreement (Fin 6) ℚ 1 (by norm_num) (Or.inr (by decide))
+    π.SolvesUnitAsyncApproxAgreement 1 (1 / 1000) :=
+  exists_solvesUnitAsyncApproxAgreement (Fin 6) ℚ 1 (by norm_num) (Or.inr (by decide))
 
 example : ∃ (S M : Type) (_ : DecidableEq M) (π : AsyncProtocol (Fin 1) ℚ S M),
-    π.SolvesAsyncApproxAgreement 3 (1 / 1000) :=
-  exists_solvesAsyncApproxAgreement (Fin 1) ℚ 3 (by norm_num) (Or.inl (by decide))
+    π.SolvesUnitAsyncApproxAgreement 3 (1 / 1000) :=
+  exists_solvesUnitAsyncApproxAgreement (Fin 1) ℚ 3 (by norm_num) (Or.inl (by decide))
 
 -- Independent universe polymorphism `.{u, v}` across `P : Type u` and `K : Type v`.
 private theorem async_universes.{u, v} (P : Type u) (K : Type v) [Fintype P] [DecidableEq P]
     [Field K] [LinearOrder K] [IsStrictOrderedRing K] [Archimedean K]
     (t : ℕ) {ε : K} (hε : 0 < ε) (hn : Fintype.card P ≤ 1 ∨ 5 * t < Fintype.card P) :
     ∃ (S : Type (max u v)) (M : Type v) (_ : DecidableEq M) (π : AsyncProtocol P K S M),
-      π.SolvesAsyncApproxAgreement t ε :=
-  exists_solvesAsyncApproxAgreement.{u, v} P K t hε hn
+      π.SolvesUnitAsyncApproxAgreement t ε :=
+  exists_solvesUnitAsyncApproxAgreement.{u, v} P K t hε hn
 
 -- Admissible-run cross-step agreement (`agreement_admissible`) and fair termination instantiation.
 example {x : Fin 6 → ℚ} (hx : ∀ k ∉ ({5} : Finset (Fin 6)), x k ∈ Set.Icc (0 : ℚ) 1)
@@ -368,19 +368,19 @@ example {x : Fin 6 → ℚ} (hx : ∀ k ∉ ({5} : Finset (Fin 6)), x k ∈ Set.
     (∃ n₀ v₀, (ss n₀).ProcDecided 0 v₀) ∧
     (∀ n₀ n₁ v₀ v₁, (ss n₀).ProcDecided 0 v₀ → (ss n₁).ProcDecided 1 v₁ →
       |v₀ - v₁| ≤ 1 / 8) := by
-  have hsol : (asyncApproxProtocol (Fin 6) ℚ 1 3).SolvesAsyncApproxAgreement 1 (1 / 8) :=
-    solvesAsyncApproxAgreement_asyncApprox (by decide) (by norm_num)
+  have hsol : (asyncApproxProtocol (Fin 6) ℚ 1 3).SolvesUnitAsyncApproxAgreement 1 (1 / 8) :=
+    solvesUnitAsyncApproxAgreement_asyncApprox (by decide) (by norm_num)
   refine ⟨asyncApproxProtocol_terminates (by decide) (by decide) x ha (by decide), ?_⟩
   intro n₀ n₁ v₀ v₁ h₀ h₁
   exact hsol.agreement_admissible (by decide) hx ha (by decide) (by decide) h₀ h₁
 
--- Asynchronous `2 ≤ |P| ≤ 3 * t` impossibility (`Fin 3, t = 1` and `Fin 2, t = 1`).
+-- Unit-interval asynchronous `2 ≤ |P| ≤ 3 * t` impossibility (`Fin 3, t = 1` and `Fin 2, t = 1`).
 example {S M : Type} [DecidableEq M] (π : AsyncProtocol (Fin 3) ℚ S M) :
-    ¬ π.SolvesAsyncApproxAgreement 1 (99 / 100) :=
-  π.not_solvesAsyncApproxAgreement (by decide) (by decide) (by norm_num)
+    ¬ π.SolvesUnitAsyncApproxAgreement 1 (99 / 100) :=
+  π.not_solvesUnitAsyncApproxAgreement (by decide) (by decide) (by norm_num)
 
 example {S M : Type} [DecidableEq M] (π : AsyncProtocol (Fin 2) ℚ S M) :
-    ¬ π.SolvesAsyncApproxAgreement 1 (1 / 3) :=
-  π.not_solvesAsyncApproxAgreement (by decide) (by decide) (by norm_num)
+    ¬ π.SolvesUnitAsyncApproxAgreement 1 (1 / 3) :=
+  π.not_solvesUnitAsyncApproxAgreement (by decide) (by decide) (by norm_num)
 
 end CslibFrontierTests.Distributed.ApproxAgreement

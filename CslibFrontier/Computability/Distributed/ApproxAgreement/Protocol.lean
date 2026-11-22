@@ -17,83 +17,90 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
 /-!
-# Synchronous and asynchronous approximate Byzantine agreement
+# Unit-interval fixed-horizon approximate Byzantine agreement
 
-Deterministic synchronous (`3t < n`) and single-hop asynchronous (`5t < n`) approximate Byzantine
-agreement protocols following
-[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], together with matching
-`2 ≤ n ≤ 3t` impossibility bounds in both models.
+Unit-interval (`[0, 1]`), fixed-horizon (`R`-round) deterministic synchronous (`3t < n`) and
+single-hop asynchronous (`5t < n`) approximate Byzantine agreement protocols
+(`SolvesUnitSyncApproxAgreement`, `SolvesUnitAsyncApproxAgreement`), together with arbitrary-range
+`(hi - lo) / 2 ^ R` multi-round contraction and `2 ≤ n ≤ 3t` unit-interval impossibility bounds.
+
+These declarations formalize bounded-input, fixed-horizon milestone steps toward `#7116` and `#3261`
+after the nonterminating approximation phases (Algorithm $S_0$ in Section 3, Lemma 6, p. 506;
+Algorithm $A_0$ in Section 4, Lemma 8, p. 509; and the fixed-round problem variant in Section 7,
+p. 516) of [Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986] — not the
+unbounded-input, dynamically halting Theorems 1 and 2 of that paper. Theorems 1 and 2 of
+[DolevLynchPinterStarkWeihl1986] accept arbitrary real inputs without a pre-agreed horizon `R`,
+computing process-dependent halting horizons `H = ⌈log_c(δ(V) / ε)⌉` from round-1 / round-0
+`reduce^{2t}` views and echoing `(v, halted)` tags (Algorithms $S$ and $A$, Figures 1–2), and use
+`f_{t, t}` / `f_{2t, t}` representative means rather than the two-endpoint midpoint `midTrim`.
 
 ## Contrast with exact consensus and FLP
 
-* **Synchronous threshold (`exists_solvesSyncApproxAgreement_iff`):** for any `0 < ε < 1` over an
-  Archimedean linearly ordered field `K`, a deterministic synchronous protocol on `P` solves
-  `ε`-approximate Byzantine agreement on `[0, 1]` inputs against `t` faults **if and only if**
-  `Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P`. Relaxing exact agreement (`ε = 0`) to `ε < 1`
-  leaves the `3t + 1` synchronous fault threshold unchanged (`not_solvesSyncApproxAgreement`),
-  while `syncApproxProtocol` contracts the honest diameter by `1 / 2` in every round without relay
-  trees (`syncApproxProtocol_abs_decision_sub_le`).
-* **Asynchronous solvability despite FLP (`exists_solvesAsyncApproxAgreement`):** whereas exact
-  deterministic asynchronous consensus (`ε = 0`) is impossible on `n ≥ 2` processes even against a
-  single crash fault (`Cslib.FLP`), for **every** `0 < ε` and `5 * t < Fintype.card P` the
-  deterministic single-hop round-tagged protocol `asyncApproxProtocol` terminates under fair
-  message delivery (`asyncApproxProtocol_terminates`), preserves the honest input convex hull
-  (`asyncApproxProtocol_mem_Icc`), and contracts the honest output spread to at most
-  `(hi - lo) / 2 ^ R` (`asyncApproxProtocol_abs_sub_le`), solving `SolvesAsyncApproxAgreement t ε`.
-* **Asynchronous `2 ≤ n ≤ 3t` impossibility (`not_solvesAsyncApproxAgreement`):** no deterministic
-  asynchronous protocol achieves `ε`-approximate Byzantine agreement with `ε < 1` when
-  `2 ≤ Fintype.card P ≤ 3 * t`, proved via `AsyncByzantine.Protocol.replay_subset_mTr`. Note that
-  [Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986] establishes the `5t < n`
-  single-hop asynchronous upper bound and the `n ≤ 3t` lower bound formalized here; closing the
-  asynchronous resilience gap `3t < n ≤ 5t` via multi-hop witness/broadcast phases belongs to later
-  work beyond [DolevLynchPinterStarkWeihl1986] (tracked under `#3261`) and is outside this module's
-  scope.
-* **Arbitrary-range contraction vs fixed-horizon `[0, 1]` agreement:** `syncApproxProtocol` and
-  `asyncApproxProtocol` operate on arbitrary inputs `x : P → K`, preserving every closed interval
-  `[lo, hi]` containing the correct inputs and contracting `(hi - lo)` by `2 ^ R` over `R` rounds
-  (`syncApproxProtocol_abs_decision_sub_le`, `asyncApproxProtocol_abs_sub_le`). The solvability
-  predicates `SolvesSyncApproxAgreement` and `SolvesAsyncApproxAgreement` package fixed-horizon
-  `ε`-agreement on bounded `[0, 1]` inputs, since choosing a uniform round horizon `R` ahead of
-  input arrival requires a bounded initial diameter (unbounded-input termination in
-  [DolevLynchPinterStarkWeihl1986] uses input-dependent halting rounds with post-halting value
-  echoing).
+* **Unit-interval synchronous threshold (`exists_solvesUnitSyncApproxAgreement_iff`):** for any
+  `0 < ε < 1` over an Archimedean linearly ordered field `K`, a deterministic synchronous protocol
+  on `P` solves `SolvesUnitSyncApproxAgreement t R ε` for some fixed horizon `R` **if and only if**
+  `Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P`. Relaxing exact agreement (`ε = 0`) to `ε < 1` on
+  `[0, 1]` inputs leaves the `3t + 1` synchronous fault threshold unchanged
+  (`not_solvesUnitSyncApproxAgreement`, adapting
+  [Fischer, Lynch and Merritt][FischerLynchMerritt1985]), while `syncApproxProtocol` contracts any
+  honest input interval `[lo, hi]` by `2 ^ R` over `R` rounds without relay trees
+  (`syncApproxProtocol_abs_decision_sub_le`).
+* **Unit-interval asynchronous solvability despite FLP (`exists_solvesUnitAsyncApproxAgreement`):**
+  whereas exact deterministic asynchronous binary consensus (`{0, 1}` inputs, `ε = 0`) is
+  impossible on `n ≥ 2` processes even against a single crash fault (`Cslib.FLP`), for **every**
+  `0 < ε` and `5 * t < Fintype.card P` there is a fixed horizon `R` for which the deterministic
+  single-hop round-tagged protocol `asyncApproxProtocol` terminates under fair message delivery
+  (`asyncApproxProtocol_terminates`), preserves every honest input interval `[lo, hi]`
+  (`asyncApproxProtocol_mem_Icc`), contracts the honest output spread to `(hi - lo) / 2 ^ R`
+  (`asyncApproxProtocol_abs_sub_le`), and therefore satisfies
+  `SolvesUnitAsyncApproxAgreement t ε`.
+* **Asynchronous `2 ≤ n ≤ 3t` impossibility (`not_solvesUnitAsyncApproxAgreement`):** no
+  deterministic asynchronous protocol achieves `SolvesUnitAsyncApproxAgreement t ε` with `ε < 1`
+  when `2 ≤ Fintype.card P ≤ 3 * t`, proved via `AsyncByzantine.Protocol.replay_subset_mTr`. Note
+  that Theorem 2 of [Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]
+  likewise requires `5t < n` (`n ≥ 5t + 1`); closing the asynchronous resilience gap `3t < n ≤ 5t`
+  via multi-hop witness techniques beyond [DolevLynchPinterStarkWeihl1986] (see Section 7, p. 515)
+  is tracked separately under `#3261`.
 
 ## Main definitions
 
 * `Cslib.Distributed.ApproxAgreement.SyncProtocol`: deterministic synchronous protocol over a
   value domain `V`.
-* `Cslib.Distributed.ApproxAgreement.SyncProtocol.SolvesSyncApproxAgreement`: synchronous
-  `ε`-approximate Byzantine agreement on `[0, 1]` inputs after `R` rounds.
-* `Cslib.Distributed.ApproxAgreement.syncApproxProtocol`: synchronous iterative `multisetMidTrim`
-  protocol (`3 * t < Fintype.card P`).
+* `Cslib.Distributed.ApproxAgreement.SyncProtocol.SolvesUnitSyncApproxAgreement`: unit-interval
+  (`x k ∈ [0, 1]`), fixed-horizon (`R`-round) synchronous `ε`-approximate Byzantine agreement.
+* `Cslib.Distributed.ApproxAgreement.syncApproxProtocol`: fixed-horizon synchronous iterative
+  `multisetMidTrim` protocol (`3 * t < Fintype.card P`), after Algorithm $S_0$ of
+  [DolevLynchPinterStarkWeihl1986].
 * `Cslib.Distributed.ApproxAgreement.AsyncProtocol`: deterministic multi-input asynchronous
   Byzantine protocol reusing `Cslib.Distributed.AsyncByzantine`'s authenticated LTS configurations.
-* `Cslib.Distributed.ApproxAgreement.AsyncProtocol.SolvesAsyncApproxAgreement`: asynchronous
-  `ε`-approximate Byzantine agreement on `[0, 1]` inputs under fair delivery.
+* `Cslib.Distributed.ApproxAgreement.AsyncProtocol.SolvesUnitAsyncApproxAgreement`: unit-interval
+  (`x k ∈ [0, 1]`) asynchronous `ε`-approximate Byzantine agreement under fair delivery.
 * `Cslib.Distributed.ApproxAgreement.RoundMsg`,
   `Cslib.Distributed.ApproxAgreement.AsyncApproxState`,
-  `Cslib.Distributed.ApproxAgreement.asyncApproxProtocol`: single-hop round-tagged asynchronous
-  approximate agreement protocol (`5 * t < Fintype.card P`).
+  `Cslib.Distributed.ApproxAgreement.asyncApproxProtocol`: fixed-horizon (`R`-round) single-hop
+  round-tagged asynchronous approximate agreement protocol (`5 * t < Fintype.card P`), after
+  Algorithm $A_0$ of [DolevLynchPinterStarkWeihl1986].
 
 ## Main results
 
 * `Cslib.Distributed.ApproxAgreement.syncApproxProtocol_decision_mem_Icc`,
-  `Cslib.Distributed.ApproxAgreement.syncApproxProtocol_abs_decision_sub_le`: convex-hull validity
-  and `(hi - lo) / 2 ^ R` contraction of `syncApproxProtocol` for `3 * t < Fintype.card P`.
-* `Cslib.Distributed.ApproxAgreement.SyncProtocol.not_solvesSyncApproxAgreement`: synchronous
-  impossibility for `2 ≤ Fintype.card P ≤ 3 * t` and `ε < 1`.
-* `Cslib.Distributed.ApproxAgreement.exists_solvesSyncApproxAgreement_iff`: sharp synchronous
-  threshold `Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P` for `0 < ε < 1`.
+  `Cslib.Distributed.ApproxAgreement.syncApproxProtocol_abs_decision_sub_le`: arbitrary-interval
+  convex-hull validity and `(hi - lo) / 2 ^ R` contraction of `syncApproxProtocol` for
+  `3 * t < Fintype.card P`.
+* `Cslib.Distributed.ApproxAgreement.SyncProtocol.not_solvesUnitSyncApproxAgreement`: unit-interval
+  synchronous impossibility for `2 ≤ Fintype.card P ≤ 3 * t` and `ε < 1`.
+* `Cslib.Distributed.ApproxAgreement.exists_solvesUnitSyncApproxAgreement_iff`: sharp threshold
+  `Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P` for `SolvesUnitSyncApproxAgreement` (`0 < ε < 1`).
 * `Cslib.Distributed.ApproxAgreement.asyncApproxProtocol_terminates`,
   `Cslib.Distributed.ApproxAgreement.asyncApproxProtocol_mem_Icc`,
   `Cslib.Distributed.ApproxAgreement.asyncApproxProtocol_abs_sub_le`: fair-delivery termination,
-  convex-hull validity, and `(hi - lo) / 2 ^ R` contraction of `asyncApproxProtocol` for
-  `5 * t < Fintype.card P`.
-* `Cslib.Distributed.ApproxAgreement.exists_solvesAsyncApproxAgreement`: solvability of
-  deterministic asynchronous `ε`-approximate Byzantine agreement for `0 < ε` and
-  `5 * t < Fintype.card P`.
-* `Cslib.Distributed.ApproxAgreement.AsyncProtocol.not_solvesAsyncApproxAgreement`: asynchronous
-  impossibility for `2 ≤ Fintype.card P ≤ 3 * t` and `ε < 1`.
+  arbitrary-interval convex-hull validity, and `(hi - lo) / 2 ^ R` contraction of
+  `asyncApproxProtocol` for `5 * t < Fintype.card P`.
+* `Cslib.Distributed.ApproxAgreement.exists_solvesUnitAsyncApproxAgreement`: solvability of
+  `SolvesUnitAsyncApproxAgreement t ε` for `0 < ε` and
+  `Fintype.card P ≤ 1 ∨ 5 * t < Fintype.card P`.
+* `Cslib.Distributed.ApproxAgreement.AsyncProtocol.not_solvesUnitAsyncApproxAgreement`:
+  unit-interval asynchronous impossibility for `2 ≤ Fintype.card P ≤ 3 * t` and `ε < 1`.
 
 ## References
 
@@ -348,14 +355,15 @@ section Spec
 
 variable {K : Type*} [Field K] [LinearOrder K] (πK : SyncProtocol P K S M)
 
-/-- `πK` solves synchronous `ε`-approximate Byzantine agreement on `[0, 1]` inputs against at most
-`t` Byzantine faults in `R` rounds
-([Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]):
-whenever `F.card ≤ t` and all correct inputs lie in `[0, 1]`,
+/-- Unit-interval, fixed-horizon synchronous `ε`-approximate Byzantine agreement (a
+`[0, 1]`-bounded, fixed-round milestone step toward `#7116`, after Section 3 and Section 7, p. 516
+of [Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], rather than that
+paper's unbounded-input, dynamically halting Theorem 1): whenever `F.card ≤ t` and all correct
+inputs lie in `[0, 1]`, after the fixed round horizon `R`:
 * **validity** (convex hull): for every closed interval `[lo, hi]` containing all correct inputs,
   every correct process's decision lies in `[lo, hi]`;
 * **agreement** (`ε`-closeness): any two correct processes' decisions differ by at most `ε`. -/
-structure SolvesSyncApproxAgreement (t R : ℕ) (ε : K) : Prop where
+structure SolvesUnitSyncApproxAgreement (t R : ℕ) (ε : K) : Prop where
   /-- Convex-hull validity: decisions remain within every `[lo, hi]` containing correct inputs. -/
   validity : ∀ F : Finset P, F.card ≤ t → ∀ (adv : ℕ → P → P → M) (x : P → K) (lo hi : K),
     (∀ k ∉ F, x k ∈ Set.Icc 0 1) → (∀ k ∉ F, x k ∈ Set.Icc lo hi) →
@@ -365,15 +373,16 @@ structure SolvesSyncApproxAgreement (t R : ℕ) (ε : K) : Prop where
     (∀ k ∉ F, x k ∈ Set.Icc 0 1) →
     ∀ i ∉ F, ∀ j ∉ F, |πK.decision F adv x R i - πK.decision F adv x R j| ≤ ε
 
-theorem SolvesSyncApproxAgreement.mono {πK : SyncProtocol P K S M} {t t' R : ℕ} {ε ε' : K}
-    (h : πK.SolvesSyncApproxAgreement t R ε) (ht : t' ≤ t) (hε : ε ≤ ε') :
-    πK.SolvesSyncApproxAgreement t' R ε' where
+theorem SolvesUnitSyncApproxAgreement.mono {πK : SyncProtocol P K S M} {t t' R : ℕ} {ε ε' : K}
+    (h : πK.SolvesUnitSyncApproxAgreement t R ε) (ht : t' ≤ t) (hε : ε ≤ ε') :
+    πK.SolvesUnitSyncApproxAgreement t' R ε' where
   validity F hF := h.validity F (hF.trans ht)
   agreement F hF adv x hx i hi j hj := (h.agreement F (hF.trans ht) adv x hx i hi j hj).trans hε
 
-/-- Synchronous approximate agreement guarantees also hold against rushing adversaries. -/
-theorem SolvesSyncApproxAgreement.adaptive {πK : SyncProtocol P K S M} {t R : ℕ} {ε : K}
-    (h : πK.SolvesSyncApproxAgreement t R ε) {F : Finset P} (hF : F.card ≤ t)
+/-- Unit-interval fixed-horizon synchronous approximate agreement guarantees also hold against
+rushing adversaries. -/
+theorem SolvesUnitSyncApproxAgreement.adaptive {πK : SyncProtocol P K S M} {t R : ℕ} {ε : K}
+    (h : πK.SolvesUnitSyncApproxAgreement t R ε) {F : Finset P} (hF : F.card ≤ t)
     (strat : ℕ → (P → S) → P → P → M) (x : P → K) (hx : ∀ k ∉ F, x k ∈ Set.Icc 0 1) :
     (∀ lo hi, (∀ k ∉ F, x k ∈ Set.Icc lo hi) →
       ∀ i ∉ F, πK.output i (πK.adaptiveState F strat x R i) ∈ Set.Icc lo hi) ∧
@@ -383,9 +392,9 @@ theorem SolvesSyncApproxAgreement.adaptive {πK : SyncProtocol P K S M} {t R : �
   rw [πK.adaptiveState_eq_state F strat x R]
   exact ⟨fun lo hi hIcc => h.validity F hF _ x lo hi hx hIcc, h.agreement F hF _ x hx⟩
 
-theorem solvesSyncApproxAgreement_ownInput [IsStrictOrderedRing K] [Subsingleton P]
+theorem solvesUnitSyncApproxAgreement_ownInput [IsStrictOrderedRing K] [Subsingleton P]
     (t R : ℕ) {ε : K} (hε : 0 ≤ ε) :
-    (ownInput P K).SolvesSyncApproxAgreement t R ε := by
+    (ownInput P K).SolvesUnitSyncApproxAgreement t R ε := by
   have hstate : ∀ F adv (x : P → K) r i, (ownInput P K).state F adv x r i = x i := by
     intro F adv x r i
     induction r with
@@ -397,15 +406,15 @@ theorem solvesSyncApproxAgreement_ownInput [IsStrictOrderedRing K] [Subsingleton
   · rw [Subsingleton.elim i j, sub_self, abs_zero]
     exact hε
 
-/-- **Covering impossibility for synchronous `ε`-approximate Byzantine agreement** (`ε < 1`): if
-`P` splits into three groups of size at most `t` with witnesses `a` in group `0` and `c` in group
-`2`, no protocol achieves `SolvesSyncApproxAgreement t R ε` for `ε < 1` (in particular for
-`ε < 1 / 2`). -/
-theorem not_solvesSyncApproxAgreement_of_partition [Fintype P] [IsStrictOrderedRing K]
+/-- **Covering impossibility for unit-interval synchronous `ε`-approximate Byzantine agreement**
+(`ε < 1`): if `P` splits into three groups of size at most `t` with witnesses `a` in group `0` and
+`c` in group `2`, no protocol achieves `SolvesUnitSyncApproxAgreement t R ε` for `ε < 1` (in
+particular for `ε < 1 / 2`), adapting [Fischer, Lynch and Merritt][FischerLynchMerritt1985]. -/
+theorem not_solvesUnitSyncApproxAgreement_of_partition [Fintype P] [IsStrictOrderedRing K]
     {t R : ℕ} {ε : K} (hε : ε < 1) (g : P → Fin 3)
     (hcard : ∀ k : Fin 3, (Finset.univ.filter fun i => g i = k).card ≤ t)
     {a c : P} (ha : g a = 0) (hc : g c = 2) :
-    ¬ πK.SolvesSyncApproxAgreement t R ε := by
+    ¬ πK.SolvesUnitSyncApproxAgreement t R ε := by
   intro h
   let bitVal : Bool → K := fun b => if b then 1 else 0
   have hbit_Icc : ∀ b : Bool, bitVal b ∈ Set.Icc (0 : K) 1 := by
@@ -470,24 +479,27 @@ theorem not_solvesSyncApproxAgreement_of_partition [Fintype P] [IsStrictOrderedR
   rw [hσ_a, hσ_c, h₂, h₀, sub_zero, abs_one] at h₁
   linarith
 
-/-- **No synchronous `ε`-approximate Byzantine agreement for `2 ≤ |P| ≤ 3 * t` and `ε < 1`:**
-the `3t + 1` synchronous fault bound of
-[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], proved via the double-cover
-network construction of [Fischer, Lynch and Merritt][FischerLynchMerritt1985] (including `|P| = 2`
-via an empty middle group). -/
-theorem not_solvesSyncApproxAgreement [Fintype P] [IsStrictOrderedRing K]
+/-- **No unit-interval synchronous `ε`-approximate Byzantine agreement for `2 ≤ |P| ≤ 3 * t` and
+`ε < 1`:** adapts the `3t + 1` covering lower bound proved in
+[Fischer, Lynch and Merritt][FischerLynchMerritt1985] (and cited in Section 7, p. 515 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]) to
+`SolvesUnitSyncApproxAgreement` (including `|P| = 2` via an empty middle group). -/
+theorem not_solvesUnitSyncApproxAgreement [Fintype P] [IsStrictOrderedRing K]
     {t R : ℕ} {ε : K} (h2 : 2 ≤ Fintype.card P) (h3 : Fintype.card P ≤ 3 * t) (hε : ε < 1) :
-    ¬ πK.SolvesSyncApproxAgreement t R ε := by
+    ¬ πK.SolvesUnitSyncApproxAgreement t R ε := by
   obtain ⟨g, a, c, hcard, ha, hc⟩ := exists_three_group_fn h2 h3
-  exact πK.not_solvesSyncApproxAgreement_of_partition hε g hcard ha hc
+  exact πK.not_solvesUnitSyncApproxAgreement_of_partition hε g hcard ha hc
 
 end Spec
 
 end SyncProtocol
 
-/-- **Synchronous iterative trimmed-midpoint protocol** ([DolevLynchPinterStarkWeihl1986]): in each
-round every process broadcasts its current estimate, collects the `|P|` values received, and moves
-to `multisetMidTrim t`. -/
+/-- **Fixed-horizon synchronous iterative trimmed-midpoint protocol** (step after the nonterminating
+Algorithm $S_0$ in Section 3, p. 506 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], using `multisetMidTrim t`
+in place of `f_{t, t}` and evaluated at a caller-chosen horizon `R` rather than Algorithm $S$'s
+input-dependent halting tag): in each round every process broadcasts its current estimate, collects
+the `|P|` values received, and moves to `multisetMidTrim t`. -/
 @[expose] def syncApproxProtocol (P K : Type*) [Fintype P] [Field K] [LinearOrder K] (t : ℕ) :
     SyncProtocol P K K K where
   init _ v := v
@@ -552,11 +564,13 @@ theorem syncApproxProtocol_abs_decision_sub_le {t : ℕ} (h3t : 3 * t < Fintype.
   rw [abs_sub_le_iff]
   constructor <;> linarith
 
-/-- When `3 * t < Fintype.card P` and `(1 : K) / 2 ^ R ≤ ε`, `syncApproxProtocol` solves
-synchronous `ε`-approximate Byzantine agreement in `R` rounds. -/
-theorem solvesSyncApproxAgreement_syncApprox {t R : ℕ} {ε : K}
+/-- Unit-interval, fixed-horizon step toward `#7116` (after Section 3 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]): when
+`3 * t < Fintype.card P` and `(1 : K) / 2 ^ R ≤ ε`, `syncApproxProtocol` achieves
+`SolvesUnitSyncApproxAgreement t R ε`. -/
+theorem solvesUnitSyncApproxAgreement_syncApprox {t R : ℕ} {ε : K}
     (h3t : 3 * t < Fintype.card P) (hR : (1 : K) / 2 ^ R ≤ ε) :
-    (syncApproxProtocol P K t).SolvesSyncApproxAgreement t R ε where
+    (syncApproxProtocol P K t).SolvesUnitSyncApproxAgreement t R ε where
   validity _ hF adv x _ _ _ hIcc _ hiF :=
     syncApproxProtocol_decision_mem_Icc h3t hF adv x hIcc R hiF
   agreement _ hF adv x hx _ hiF _ hjF := by
@@ -564,31 +578,33 @@ theorem solvesSyncApproxAgreement_syncApprox {t R : ℕ} {ε : K}
     rw [sub_zero] at hsub
     exact hsub.trans hR
 
-/-- **Sharp synchronous threshold for approximate Byzantine agreement:** over any Archimedean
-linearly ordered field `K` and accuracy `0 < ε < 1`, a deterministic synchronous protocol on `P`
-solving `ε`-approximate Byzantine agreement against `t` faults exists **if and only if**
+/-- **Sharp threshold for unit-interval, fixed-horizon synchronous approximate Byzantine agreement**
+(milestone step toward `#7116`, after Section 3 and Section 7, p. 515 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], rather than that paper's
+unbounded-input, dynamically halting Theorem 1): over any Archimedean linearly ordered field `K` and
+accuracy `0 < ε < 1`, a deterministic synchronous protocol on `P` solving
+`SolvesUnitSyncApproxAgreement t R ε` for some fixed horizon `R` exists **if and only if**
 `Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P`. The degenerate `|P| ≤ 1` branch is witnessed by
-`SyncProtocol.ownInput`; `3 * t < |P|` sufficiency is witnessed by `syncApproxProtocol` following
-[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]; and necessity for
-`2 ≤ |P| ≤ 3 * t` follows from `SyncProtocol.not_solvesSyncApproxAgreement` via the covering
-construction of [Fischer, Lynch and Merritt][FischerLynchMerritt1985]. -/
-theorem exists_solvesSyncApproxAgreement_iff.{u} (P : Type*) (K : Type u)
+`SyncProtocol.ownInput`; `3 * t < |P|` sufficiency is witnessed by `syncApproxProtocol`; and
+necessity for `2 ≤ |P| ≤ 3 * t` follows from `SyncProtocol.not_solvesUnitSyncApproxAgreement`
+adapting [Fischer, Lynch and Merritt][FischerLynchMerritt1985]. -/
+theorem exists_solvesUnitSyncApproxAgreement_iff.{u} (P : Type*) (K : Type u)
     [Fintype P] [DecidableEq P]
     [Field K] [LinearOrder K] [IsStrictOrderedRing K] [Archimedean K]
     (t : ℕ) {ε : K} (hε0 : 0 < ε) (hε1 : ε < 1) :
     (∃ (S M : Type u) (π : SyncProtocol P K S M) (R : ℕ),
-      π.SolvesSyncApproxAgreement t R ε) ↔
+      π.SolvesUnitSyncApproxAgreement t R ε) ↔
       Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P := by
   constructor
   · rintro ⟨S, M, π, R, hsol⟩
     by_contra! h
-    exact π.not_solvesSyncApproxAgreement (by omega) h.2 hε1 hsol
+    exact π.not_solvesUnitSyncApproxAgreement (by omega) h.2 hε1 hsol
   · rintro (h1 | h3t)
     · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.mp h1
       exact ⟨K, PUnit.{u + 1}, SyncProtocol.ownInput P K, 0,
-        SyncProtocol.solvesSyncApproxAgreement_ownInput t 0 hε0.le⟩
+        SyncProtocol.solvesUnitSyncApproxAgreement_ownInput t 0 hε0.le⟩
     · obtain ⟨R, hR⟩ := exists_one_div_two_pow_le hε0
-      exact ⟨K, K, syncApproxProtocol P K t, R, solvesSyncApproxAgreement_syncApprox h3t hR⟩
+      exact ⟨K, K, syncApproxProtocol P K t, R, solvesUnitSyncApproxAgreement_syncApprox h3t hR⟩
 
 end SyncTheorems
 
@@ -725,16 +741,16 @@ section Spec
 
 variable {K : Type*} [Field K] [LinearOrder K] (πK : AsyncProtocol P K S M)
 
-/-- `πK` solves asynchronous `ε`-approximate Byzantine agreement on `[0, 1]` inputs against at most
-`t` static Byzantine faults
-([Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]):
-whenever `F.card ≤ t` and all correct inputs lie in `[0, 1]`,
+/-- Unit-interval asynchronous `ε`-approximate Byzantine agreement (a `[0, 1]`-bounded milestone
+step toward `#7116` and `#3261`, after Section 4 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], rather than that paper's
+unbounded-input Theorem 2): whenever `F.card ≤ t` and all correct inputs lie in `[0, 1]`,
 * **termination**: in every fair execution, every correct process eventually outputs a value;
 * **validity**: for every `[lo, hi]` containing all correct inputs, every value output by a correct
   process in any reachable state lies in `[lo, hi]`;
 * **agreement**: in any reachable state, any two values output by correct processes differ by at
   most `ε`. -/
-structure SolvesAsyncApproxAgreement [Fintype P] (t : ℕ) (ε : K) : Prop where
+structure SolvesUnitAsyncApproxAgreement [Fintype P] (t : ℕ) (ε : K) : Prop where
   /-- Fair-delivery termination: every correct process eventually decides. -/
   termination : ∀ F : Finset P, F.card ≤ t → ∀ x : P → K,
     (∀ k ∉ F, x k ∈ Set.Icc 0 1) →
@@ -749,19 +765,19 @@ structure SolvesAsyncApproxAgreement [Fintype P] (t : ℕ) (ε : K) : Prop where
     ∀ s, πK.Reachable F x s → ∀ i ∉ F, ∀ j ∉ F, ∀ v₁ v₂,
     s.ProcDecided i v₁ → s.ProcDecided j v₂ → |v₁ - v₂| ≤ ε
 
-theorem SolvesAsyncApproxAgreement.mono [Fintype P] {πK : AsyncProtocol P K S M}
+theorem SolvesUnitAsyncApproxAgreement.mono [Fintype P] {πK : AsyncProtocol P K S M}
     {t t' : ℕ} {ε ε' : K}
-    (h : πK.SolvesAsyncApproxAgreement t ε) (ht : t' ≤ t) (hε : ε ≤ ε') :
-    πK.SolvesAsyncApproxAgreement t' ε' where
+    (h : πK.SolvesUnitAsyncApproxAgreement t ε) (ht : t' ≤ t) (hε : ε ≤ ε') :
+    πK.SolvesUnitAsyncApproxAgreement t' ε' where
   termination F hF := h.termination F (hF.trans ht)
   validity F hF := h.validity F (hF.trans ht)
   agreement F hF x hx s hr i hi j hj v₁ v₂ h₁ h₂ :=
     (h.agreement F (hF.trans ht) x hx s hr i hi j hj v₁ v₂ h₁ h₂).trans hε
 
-/-- Agreement along any admissible run at arbitrary decision steps `n₁, n₂`. -/
-theorem SolvesAsyncApproxAgreement.agreement_admissible [Fintype P]
+/-- Unit-interval agreement along any admissible run at arbitrary decision steps `n₁, n₂`. -/
+theorem SolvesUnitAsyncApproxAgreement.agreement_admissible [Fintype P]
     {πK : AsyncProtocol P K S M} {t : ℕ} {ε : K}
-    (h : πK.SolvesAsyncApproxAgreement t ε) {F : Finset P} (hF : F.card ≤ t)
+    (h : πK.SolvesUnitAsyncApproxAgreement t ε) {F : Finset P} (hF : F.card ≤ t)
     {x : P → K} (hx : ∀ k ∉ F, x k ∈ Set.Icc 0 1)
     {ss : ωSequence (State P S M K)} {xs : ωSequence (Action P M)}
     (ha : πK.AdmissibleRun F x ss xs) {i j : P} (hi : i ∉ F) (hj : j ∉ F)
@@ -773,10 +789,10 @@ theorem SolvesAsyncApproxAgreement.agreement_admissible [Fintype P]
     (πK.omega_procDecided_stable ha.2.1 (le_max_left _ _) h₁)
     (πK.omega_procDecided_stable ha.2.1 (le_max_right _ _) h₂)
 
-theorem solvesAsyncApproxAgreement_ownInput.{u, v} {P : Type u} {K : Type v}
+theorem solvesUnitAsyncApproxAgreement_ownInput.{u, v} {P : Type u} {K : Type v}
     [DecidableEq P] [Fintype P] [Field K] [LinearOrder K] [IsStrictOrderedRing K] [Subsingleton P]
     (t : ℕ) {ε : K} (hε : 0 ≤ ε) :
-    (ownInput P K).SolvesAsyncApproxAgreement t ε := by
+    (ownInput P K).SolvesUnitAsyncApproxAgreement t ε := by
   have hinv : ∀ (F : Finset P) (x : P → K) (s : State P (ULift.{u} K) PUnit.{v + 1} K),
       (ownInput P K).Reachable F x s →
       ∀ p ∉ F, (s.proc p).state.down = x p ∧ ∀ v, s.ProcDecided p v → v = x p := by
@@ -882,18 +898,18 @@ private lemma extract_isHonest_of_forall {P' M' : Type*} (xs : ωSequence (Actio
   rw [xs.get_extract hi']
   exact hhon (0 + i)
 
-/-- **Split-brain impossibility for asynchronous `ε`-approximate Byzantine agreement** (`ε < 1`):
-if `P` is partitioned into pairwise disjoint groups `A, B, C` each of size at most `t` with
-`a₀ ∈ A` and `c₀ ∈ C` (`B` may be empty), no protocol solves `SolvesAsyncApproxAgreement t ε`
-for `ε < 1`. -/
-theorem not_solvesAsyncApproxAgreement_of_partition [Fintype P] [IsStrictOrderedRing K]
+/-- **Split-brain impossibility for unit-interval asynchronous `ε`-approximate Byzantine agreement**
+(`ε < 1`): if `P` is partitioned into pairwise disjoint groups `A, B, C` each of size at most `t`
+with `a₀ ∈ A` and `c₀ ∈ C` (`B` may be empty), no protocol solves
+`SolvesUnitAsyncApproxAgreement t ε` for `ε < 1`. -/
+theorem not_solvesUnitAsyncApproxAgreement_of_partition [Fintype P] [IsStrictOrderedRing K]
     {t : ℕ} {ε : K} (hε : ε < 1)
     (A B C : Finset P)
     (hAB : Disjoint A B) (hAC : Disjoint A C) (hBC : Disjoint B C)
     (hcover : ∀ p : P, p ∈ A ∨ p ∈ B ∨ p ∈ C)
     (hA : A.card ≤ t) (hB : B.card ≤ t) (hC : C.card ≤ t)
     {a₀ c₀ : P} (ha₀ : a₀ ∈ A) (hc₀ : c₀ ∈ C) :
-    ¬ πK.SolvesAsyncApproxAgreement t ε := by
+    ¬ πK.SolvesUnitAsyncApproxAgreement t ε := by
   intro hsol
   have hc₀_not_A : c₀ ∉ A := Finset.disjoint_right.mp hAC hc₀
   have ha₀_not_C : a₀ ∉ C := Finset.disjoint_left.mp hAC ha₀
@@ -1000,12 +1016,14 @@ theorem not_solvesAsyncApproxAgreement_of_partition [Fintype P] [IsStrictOrdered
   rw [sub_zero, abs_one] at habs
   linarith
 
-/-- **No asynchronous `ε`-approximate Byzantine agreement for `2 ≤ |P| ≤ 3 * t` and `ε < 1`**
-([Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]). Covers both `n = 2`
+/-- **No unit-interval asynchronous `ε`-approximate Byzantine agreement for `2 ≤ |P| ≤ 3 * t` and
+`ε < 1`:** asynchronous split-brain analogue of the `3t + 1` bound of
+[Fischer, Lynch and Merritt][FischerLynchMerritt1985] (cited in Section 7, p. 515 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]). Covers both `n = 2`
 (empty middle group) and `3 ≤ n ≤ 3 * t`, and in particular every `ε < 1 / 2`. -/
-theorem not_solvesAsyncApproxAgreement [Fintype P] [IsStrictOrderedRing K]
+theorem not_solvesUnitAsyncApproxAgreement [Fintype P] [IsStrictOrderedRing K]
     {t : ℕ} {ε : K} (h2 : 2 ≤ Fintype.card P) (h3 : Fintype.card P ≤ 3 * t) (hε : ε < 1) :
-    ¬ πK.SolvesAsyncApproxAgreement t ε := by
+    ¬ πK.SolvesUnitAsyncApproxAgreement t ε := by
   obtain ⟨g, a₀, c₀, hcard, ha₀, hc₀⟩ := exists_three_group_fn h2 h3
   let grp : Fin 3 → Finset P := fun k => Finset.univ.filter fun i => g i = k
   have hdisj : ∀ k₁ k₂ : Fin 3, k₁ ≠ k₂ → Disjoint (grp k₁) (grp k₂) := by
@@ -1024,7 +1042,7 @@ theorem not_solvesAsyncApproxAgreement [Fintype P] [IsStrictOrderedRing K]
     · exact Or.inl rfl
     · exact Or.inr (Or.inl rfl)
     · exact Or.inr (Or.inr rfl)
-  exact πK.not_solvesAsyncApproxAgreement_of_partition hε (grp 0) (grp 1) (grp 2)
+  exact πK.not_solvesUnitAsyncApproxAgreement_of_partition hε (grp 0) (grp 1) (grp 2)
     (hdisj 0 1 (by decide)) (hdisj 0 2 (by decide)) (hdisj 1 2 (by decide))
     hcov (hcard 0) (hcard 1) (hcard 2)
     (a₀ := a₀) (c₀ := c₀)
@@ -1035,7 +1053,7 @@ end Spec
 
 end AsyncProtocol
 
-/-! ### Single-hop round-tagged asynchronous DLPSW protocol (`5 * t < |P|`) -/
+/-! ### Fixed-horizon single-hop round-tagged asynchronous protocol (`5 * t < |P|`) -/
 
 /-- Round-tagged payload exchanged by `asyncApproxProtocol`. -/
 @[ext]
@@ -1123,11 +1141,14 @@ delivers `st.est` immediately; when `R > 0`, a fresh `(msg.round, src)` with
   else
     ⟨st, 0, none⟩
 
-/-- **Single-hop asynchronous approximate Byzantine agreement protocol**
-([Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]):
-at start every process broadcasts `⟨0, x p⟩`; in each round `r < R`, upon collecting `|P| - t`
-distinct round-`r` senders, a process updates its estimate via `multisetMidTrim t`, broadcasts
-`⟨r + 1, est'⟩` if `r + 1 < R`, and delivers `est'` once `round = R`. -/
+/-- **Fixed-horizon single-hop asynchronous approximate agreement protocol** (step after the
+nonterminating Algorithm $A_0$ in Section 4, p. 509 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], using `multisetMidTrim t`
+in place of `f_{2t, t}` and halting after a caller-chosen round horizon `R` rather than Algorithm
+$A$'s round-0 `reduce^{2t}` spread estimation and `(v, halted)` tags): at start every process
+broadcasts `⟨0, x p⟩`; in each round `r < R`, upon collecting `|P| - t` distinct round-`r` senders,
+a process updates its estimate via `multisetMidTrim t`, broadcasts `⟨r + 1, est'⟩` if `r + 1 < R`,
+and delivers `est'` once `round = R`. -/
 @[expose] def asyncApproxProtocol (P K : Type*) [Fintype P] [DecidableEq P]
     [Field K] [LinearOrder K] (t R : ℕ) :
     AsyncProtocol P K (AsyncApproxState P K) (RoundMsg K) where
@@ -2004,11 +2025,13 @@ theorem asyncApproxProtocol_abs_sub_le {t R : ℕ} (h5t : 5 * t < Fintype.card P
   rw [abs_sub_le_iff]
   constructor <;> linarith
 
-/-- When `5 * t < Fintype.card P` and `(1 : K) / 2 ^ R ≤ ε`, `asyncApproxProtocol P K t R` solves
-asynchronous `ε`-approximate Byzantine agreement on `[0, 1]` inputs. -/
-theorem solvesAsyncApproxAgreement_asyncApprox {t R : ℕ} {ε : K}
+/-- Unit-interval, fixed-horizon step toward `#7116` and `#3261` (after Algorithm $A_0$ in Section 4
+of [Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986]): when
+`5 * t < Fintype.card P` and `(1 : K) / 2 ^ R ≤ ε`, `asyncApproxProtocol P K t R` achieves
+`SolvesUnitAsyncApproxAgreement t ε`. -/
+theorem solvesUnitAsyncApproxAgreement_asyncApprox {t R : ℕ} {ε : K}
     (h5t : 5 * t < Fintype.card P) (hR : (1 : K) / 2 ^ R ≤ ε) :
-    (asyncApproxProtocol P K t R).SolvesAsyncApproxAgreement t ε where
+    (asyncApproxProtocol P K t R).SolvesUnitAsyncApproxAgreement t ε where
   termination _ hF x _ _ _ ha _ hiF :=
     asyncApproxProtocol_terminates (by omega) hF x ha hiF
   validity _ hF _ _ _ _ hIcc _ hr _ hiF _ hv :=
@@ -2022,24 +2045,27 @@ end AsyncOrderedField
 
 end AsyncProofs
 
-/-- **Deterministic asynchronous consensus circumvents FLP in the approximate setting:** over any
-Archimedean linearly ordered field `K`, for every `0 < ε` and `Fintype.card P ≤ 1 ∨ 5 * t < |P|`,
-there exists a deterministic asynchronous protocol solving `ε`-approximate Byzantine agreement
-against `t` Byzantine faults (`AsyncProtocol.ownInput` for the degenerate `|P| ≤ 1` case, and
-`asyncApproxProtocol` following
-[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986] for `5 * t < |P|`). -/
-theorem exists_solvesAsyncApproxAgreement.{u, v} (P : Type u) (K : Type v)
+/-- **Unit-interval fixed-horizon asynchronous approximate Byzantine agreement** (milestone step
+toward `#7116` and `#3261` after Algorithm $A_0$ in Section 4, p. 509 of
+[Dolev, Lynch, Pinter, Stark and Weihl][DolevLynchPinterStarkWeihl1986], rather than that paper's
+unbounded-input, dynamically halting Algorithm $A$ / Theorem 2): over any Archimedean linearly
+ordered field `K`, for every `0 < ε` and `Fintype.card P ≤ 1 ∨ 5 * t < Fintype.card P`, there
+exists a deterministic asynchronous protocol solving `SolvesUnitAsyncApproxAgreement t ε`
+(`AsyncProtocol.ownInput` for `|P| ≤ 1`, and fixed-horizon `asyncApproxProtocol P K t R` with
+`(1 : K) / 2 ^ R ≤ ε` for `5 * t < |P|`), contrasting with exact consensus impossibility
+(`Cslib.FLP`) even on `[0, 1]` inputs. -/
+theorem exists_solvesUnitAsyncApproxAgreement.{u, v} (P : Type u) (K : Type v)
     [Fintype P] [DecidableEq P]
     [Field K] [LinearOrder K] [IsStrictOrderedRing K] [Archimedean K]
     (t : ℕ) {ε : K} (hε : 0 < ε) (hn : Fintype.card P ≤ 1 ∨ 5 * t < Fintype.card P) :
     ∃ (S : Type (max u v)) (M : Type v) (_ : DecidableEq M) (π : AsyncProtocol P K S M),
-      π.SolvesAsyncApproxAgreement t ε := by
+      π.SolvesUnitAsyncApproxAgreement t ε := by
   rcases hn with h1 | h5t
   · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.mp h1
     exact ⟨ULift.{u} K, PUnit.{v + 1}, inferInstance, AsyncProtocol.ownInput P K,
-      AsyncProtocol.solvesAsyncApproxAgreement_ownInput t hε.le⟩
+      AsyncProtocol.solvesUnitAsyncApproxAgreement_ownInput t hε.le⟩
   · obtain ⟨R, hR⟩ := exists_one_div_two_pow_le hε
     exact ⟨AsyncApproxState P K, RoundMsg K, inferInstance, asyncApproxProtocol P K t R,
-      solvesAsyncApproxAgreement_asyncApprox h5t hR⟩
+      solvesUnitAsyncApproxAgreement_asyncApprox h5t hR⟩
 
 end Cslib.Distributed.ApproxAgreement
