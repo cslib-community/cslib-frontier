@@ -27,8 +27,8 @@ with the simp set they already use.
 `wram_call spec framed with v m post` is `wram_call` with the data reached in this form
 (`Cslib.WordRAM.WP.of_spec_havoc`). The contract may leave its hypotheses out, as in
 `wram_call (routine_spec a b ..) framed with v m post`: each is simplified with `wram_simp` and
-the given lemmas and proved by a hypothesis or the discharger of `wram_exec`, and those that
-remain follow the continuation as goals. The contract's conclusion is simplified in the same way
+the given lemmas and proved by a hypothesis, by `fits` or by `omega`, and those that remain
+follow the continuation as goals. The contract's conclusion is simplified in the same way
 before `post` names its parts, so that it speaks of `v`, `m` and the caller's data.
 
 ## Main definitions
@@ -121,9 +121,9 @@ theorem WP.of_spec_havoc {w T : ℕ} {c : Code B r} {x : Data r} {P : Data r →
 is the caller's data `x` with the registers the routine writes replaced by `v` and memory by `m`
 (`x.havoc c v m`), so `wram_exec` and `wram_simp` reduce later reads of the other registers to
 their values in `x`. Hypotheses the contract leaves out, as in `(routine_spec a b ..)`, are
-simplified with `wram_simp` and the given lemmas and proved by a hypothesis or by `fits` or
-`omega`; those that remain follow the continuation. The contract's conclusion is simplified in
-the same way before the patterns after `v` and `m` name its parts. -/
+simplified with `wram_simp` and the given lemmas and proved by a hypothesis, up to reducible
+unfolding, or by `fits` or `omega`; those that remain follow the continuation. The contract's
+conclusion is simplified in the same way before the patterns after `v` and `m` name its parts. -/
 tactic_extension wramCall
 
 @[tactic_alt wramCall]
@@ -147,7 +147,8 @@ elab_rules : tactic
     let some cont ← goals.findM? fun g => return (← g.getTag).eraseMacroScopes == `cont
       | throwError "wram_call: no continuation"
     let simpArgs := args.map (·.getElems.map (·.raw)) |>.getD #[]
-    let disch ← liftMacroM <| WP.Exec.dischOf none
+    let disch ← `(Lean.Parser.Tactic.tacticSeq|
+      first | with_reducible assumption | fits | omega)
     let sideGoals ← IO.mkRef #[]
     WP.Exec.withSimpContext disch simpArgs fun ctx simprocs simpDischarge => do
       let cfg : WP.Exec.Config :=
