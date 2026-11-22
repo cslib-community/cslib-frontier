@@ -2135,11 +2135,7 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       omega
     -- Block counts: `#cmp.blocks ≤ |V|`, `#cmp.external ≤ 2 |V|`, `#Q_{1,2} ≤ 8 |V| / M`,
     -- `#Q₃ ≤ 2 β₁ + #Q₁`.
-    have hblocks_le_V : cmp.blocks.card ≤ Nat.card V := by
-      rw [Nat.card_eq_fintype_card, ← Fintype.card_coe]
-      refine Fintype.card_le_of_surjective cmp.blockOf fun B => ?_
-      obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (cmp.ne_nil B.1 B.2)
-      exact ⟨v, cmp.mem_iff_blockOf_eq.mp hv⟩
+    have hblocks_le_V : cmp.blocks.card ≤ Nat.card V := cmp.card_blocks_le
     have hext_le : 2 * Nat.card cmp.external ≤ 3 * Nat.card V := by
       have hhand := Q.sum_ncard_incidenceSet hQ_loop
       have hdeg_sum : ∑ B : cmp.blocks, (Q.incidenceSet B).ncard ≤ 3 * cmp.blocks.card := by
@@ -2162,11 +2158,9 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       1 ≤ (Q.incidenceSet B).ncard ∧ (Q.incidenceSet B).ncard ≤ 2
     set Q1 := Finset.univ.filter fun B : cmp.blocks => (Q.incidenceSet B).ncard = 1
     set Q3 := Finset.univ.filter fun B : cmp.blocks => (Q.incidenceSet B).ncard = 3
-    have hQ12_mul : (M / 2 + 1) * Q12.card ≤ 4 * Nat.card V := by
-      have h := hsat.card_deg_one_two_mul_le
-      simpa [Q12, Nat.card_eq_fintype_card] using h
     have hQ12_real : (Q12.card : ℝ) ≤ 8 * (Nat.card V : ℝ) / (M : ℝ) := by
-      have := Nat.mul_le_mul_left Q12.card (show M ≤ 2 * (M / 2 + 1) by omega)
+      have : M * Q12.card ≤ 8 * Nat.card V := by
+        simpa [Q12, Nat.card_eq_fintype_card] using hsat.mul_card_deg_one_two_le
       rw [le_div_iff₀ (by positivity)]
       exact_mod_cast (by linarith : Q12.card * M ≤ 8 * Nat.card V)
     have hQ1_sub : Q1 ⊆ Q12 := fun B hB => by

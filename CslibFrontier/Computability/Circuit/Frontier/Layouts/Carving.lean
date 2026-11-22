@@ -820,11 +820,7 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
   have hQ_loop : Q.Loopless := cmp.quotient_loopless
   have hQ_deg : Q.MaxDegreeLE 3 := cmp.quotient_maxDegreeLE
   have hcard_X : Nat.card X = X.ncard := Nat.card_coe_set_eq X
-  have hblocks_le_X : cmp.blocks.card ≤ X.ncard := by
-    rw [← hcard_X, Nat.card_eq_fintype_card, ← Fintype.card_coe]
-    refine Fintype.card_le_of_surjective cmp.blockOf fun B => ?_
-    obtain ⟨x, hx⟩ := List.exists_mem_of_ne_nil _ (cmp.ne_nil B.1 B.2)
-    exact ⟨x, cmp.mem_iff_blockOf_eq.mp hx⟩
+  have hblocks_le_X : cmp.blocks.card ≤ X.ncard := hcard_X ▸ cmp.card_blocks_le
   have hX_le_V : X.ncard ≤ Nat.card V := ncard_le_card X
   -- Low-degree and degree-3 block counts on `Q`.
   set Lset := Finset.univ.filter fun B : cmp.blocks =>
@@ -842,8 +838,7 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
       omega
     omega
   have hL_le : (Lset.card : ℝ) ≤ 32 / (M : ℝ) * h := by
-    have hsat_bound : (M / 2 + 1) * Lset.card ≤ 4 * ∑ x : X, w x := hsat.card_deg_one_two_mul_le
-    have := Nat.mul_le_mul_left Lset.card (show M ≤ 2 * (M / 2 + 1) by omega)
+    have hsat_bound : M * Lset.card ≤ 8 * ∑ x : X, w x := hsat.mul_card_deg_one_two_le
     rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity), show h = Nat.card V from rfl]
     exact_mod_cast (by linarith : Lset.card * M ≤ 32 * Nat.card V)
   have hQ3_le : (Q3set.card : ℝ) + ((G.edgeCut X).ncard : ℝ) ≤ (X.ncard : ℝ) + (Lset.card : ℝ) := by
