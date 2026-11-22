@@ -139,6 +139,16 @@ set_option linter.hashCommand false in
 #guard formulaWordTokenAt (encFormula 0 (.eqZero (.const 0))) (2 ^ 80) == .inl () &&
   formulaWordTokenAt (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) 0 == .inl ()
 
+-- Comparison queries retain different payloads and the distinction between zero and negative.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  decide (formulaWordComparisonRequest word 1 = some ⟨encTerm 1 (.var 0), false⟩) &&
+    decide (formulaWordComparisonRequest word 2 = some ⟨encTerm 1 (.const (-2)), true⟩) &&
+    (formulaWordComparisonRequest word 0).isNone &&
+    (formulaWordComparisonRequest word (2 ^ 80)).isNone &&
+    (formulaWordComparisonRequest [] 0).isNone
+
 -- The left subtree stops at the right child of the conjunction.
 set_option linter.hashCommand false in
 #guard
@@ -192,6 +202,16 @@ set_option linter.hashCommand false in
     formulaGateSuffixValue [true, false, true] index (index + 3) &&
     !formulaGateSuffixValue [true] index index &&
     !formulaGateSuffixValue [true] index (2 * index)
+
+-- Only comparison gates use the prepared answer. Each step preserves the computed suffix.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 0 (.or (.not (.eqZero (.const 0))) (.ltZero (.const (-1))))
+  formulaWordGateUpdate word 0 false [false, true, true] == [true, false, true, true] &&
+    formulaWordGateUpdate word 1 false [false, true] == [true, false, true] &&
+    formulaWordGateUpdate word 3 true [] == [true] &&
+    formulaWordGateUpdate word 3 false [] == [false] &&
+    formulaWordGateUpdate [] (2 ^ 80) true [] == [false]
 
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
