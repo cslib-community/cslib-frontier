@@ -287,24 +287,14 @@ section SubcubeTest
 
 variable [DecidableEq α]
 
+/-- The case `y = 0` of `sum_powerset_chi_mul_chi`. -/
 private theorem ite_filter_eq_empty_eq_pow_mul_sum_powerset (S : Finset α) (f : α → Bool) :
     (if {i ∈ S | f i} = ∅ then (1 : ℝ) else 0) =
       (1 / 2 : ℝ) ^ #S * ∑ T ∈ S.powerset, chi ℝ T f := by
-  have hprod : ∏ i ∈ S, (signVal (f i) + 1) = ∑ T ∈ S.powerset, chi ℝ T f := by
-    have h := prod_add (fun i => signVal (f i)) (fun _ => (1 : ℝ)) S
-    simp only [prod_const_one, mul_one, ← chi_eq_prod_signVal] at h
-    exact h
-  rw [← hprod, ← prod_const, ← prod_mul_distrib]
-  split_ifs with hempty
-  · symm
-    refine prod_eq_one fun i hi => ?_
-    have hfi : f i = false := by
-      by_contra htrue
-      exact notMem_empty i (hempty ▸ mem_filter.2 ⟨hi, Bool.eq_true_of_not_eq_false htrue⟩)
-    norm_num [hfi]
-  · obtain ⟨i, hi⟩ := nonempty_iff_ne_empty.2 hempty
-    obtain ⟨hiS, hfi⟩ := mem_filter.1 hi
-    exact (prod_eq_zero hiS (by simp [hfi])).symm
+  have h := sum_powerset_chi_mul_chi (R := ℝ) S f 0
+  simp only [chi_zero, mul_one] at h
+  rw [h, mul_ite, mul_zero, ← mul_pow]
+  simp [filter_eq_empty_iff, Bool.zero_eq_false]
 
 variable [Fintype α]
 

@@ -8,11 +8,14 @@ module
 -- upstream: local-only (real-arithmetic semantic and codec regression tests)
 
 import CslibFrontier.Computability.Complexity.Classes.ExistsReal
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
+public meta import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
 public meta import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
+import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
 import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
@@ -137,6 +140,16 @@ set_option linter.hashCommand false in
 #guard formulaWordTokenAt (encFormula 0 (.eqZero (.const 0))) (2 ^ 80) == .inl () &&
   formulaWordTokenAt (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) 0 == .inl ()
 
+-- Comparison queries retain different payloads and the distinction between zero and negative.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  decide (formulaWordComparisonRequest word 1 = some ⟨encTerm 1 (.var 0), false⟩) &&
+    decide (formulaWordComparisonRequest word 2 = some ⟨encTerm 1 (.const (-2)), true⟩) &&
+    (formulaWordComparisonRequest word 0).isNone &&
+    (formulaWordComparisonRequest word (2 ^ 80)).isNone &&
+    (formulaWordComparisonRequest [] 0).isNone
+
 -- The left subtree stops at the right child of the conjunction.
 set_option linter.hashCommand false in
 #guard
@@ -171,6 +184,63 @@ set_option linter.hashCommand false in
   let value := fun index => index == 1 || index == 3 || index == 5
   gate 0 value && !gate 0 (· == 1) && gate 1 value && !gate 2 value &&
     gate 3 value && !gate 4 value && gate 5 value && !gate (2 ^ 80) value
+
+-- A backward scan computes the operand values without a caller-provided gate table.
+set_option linter.hashCommand false in
+#guard
+  let term : Term 0 := .const (-1)
+  let word := encFormula 0 (.and (.not (.eqZero term)) (.or .false (.ltZero term)))
+  let termSign := fun bits => if bits == encTerm 0 term then (-1 : SignType) else 0
+  formulaWordGateValues word termSign == [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithAnswers word (· != 2) == [true, true, false, true, false, true] &&
+    formulaWordGateValues [] termSign == [false]
+
+-- A huge gate index uses the same suffix offsets as a small one. A child at the gate
+-- or beyond the stored suffix reads false even if the suffix starts with true.
+set_option linter.hashCommand false in
+#guard
+  let index := 2 ^ 80
+  formulaGateSuffixValue [true, false, true] index (index + 1) &&
+    formulaGateSuffixValue [true, false, true] index (index + 3) &&
+    !formulaGateSuffixValue [true] index index &&
+    !formulaGateSuffixValue [true] index (2 * index)
+
+-- Only comparison gates use the prepared answer. Each step preserves the computed suffix.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 0 (.or (.not (.eqZero (.const 0))) (.ltZero (.const (-1))))
+  formulaWordGateUpdate word 0 false [false, true, true] == [true, false, true, true] &&
+    formulaWordGateUpdate word 1 false [false, true] == [true, false, true] &&
+    formulaWordGateUpdate word 3 true [] == [true] &&
+    formulaWordGateUpdate word 3 false [] == [false] &&
+    formulaWordGateUpdate [] (2 ^ 80) true [] == [false]
+
+-- A positive sign never satisfies either comparison, so this reader uses a constant answer.
+example :
+    ComputableInPolySpace (fun word : List Bool => formulaWordGateValues word (fun _ => 1))
+      encBits encBits := by
+  refine formulaWordGateValues_polySpace_of_comparisonAnswers ComputableInPolyTime.id' ?_
+  refine ComputableInPolySpace.congr
+    (ComputableInPolySpace.of_polyTime (ComputableInPolyTime.const false)) ?_
+  rintro ⟨word, index⟩
+  cases formulaWordComparisonRequest word index with
+  | none => rfl
+  | some request =>
+    rcases request with ⟨_, strict⟩
+    cases strict <;> simp [Option.any, FormulaComparisonRequest.requestedSign]
+
+-- A malformed word has no comparison terms, so its sign reader can be arbitrary.
+example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
+    (formulaWordGateValues [] termSign).getD 0 false = true ↔
+      x ∈ (Formula.ofWord []).solutionSet := by
+  refine formulaWordGateValues_getD_zero_eq_true_iff [] termSign x ?_
+  intro _ h
+  have hinvalid : validFormulaWord [] ≠ true := by
+    intro hvalid
+    obtain ⟨p, hp⟩ := validFormulaWord_eq_true_iff.mp hvalid
+    cases p <;> simp [encFormula_apply, encFormula_tokens] at hp
+  rw [formulaWordTokens_eq, Formula.ofWord_of_not_valid hinvalid] at h
+  simp [encFormula_tokens, FormulaToken.encodeTerms] at h
 
 -- The total view preserves the existential semantics of a satisfiable formula.
 example :
