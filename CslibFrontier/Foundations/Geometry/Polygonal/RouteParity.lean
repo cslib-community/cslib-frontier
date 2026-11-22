@@ -269,9 +269,11 @@ private theorem parityTriangle_support (c : ℂ) {r : ℝ} (hr : 0 < r)
     · intro heq
       have hx := congrArg Complex.re heq
       have hy := congrArg Complex.im heq
-      norm_num [Route.eval, parityTriangle_point] at hx hy <;> nlinarith
+      norm_num [Route.eval, parityTriangle_point] at hx hy
+      nlinarith
     all_goals
-      norm_num [Route.eval, parityTriangle_point] <;> nlinarith
+      norm_num [Route.eval, parityTriangle_point]
+      nlinarith
 
 /-- An arbitrarily small three-segment closed route can toggle horizontal ray parity
 at exactly one point of a finite set. Its support avoids the center and every observation
