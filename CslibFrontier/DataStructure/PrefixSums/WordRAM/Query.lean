@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Update
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Fixed Word-RAM prefix queries
@@ -67,12 +66,19 @@ private theorem queryBody_exec (hx : Entry b n i δ x) (hi : i ≤ n) (hn : 0 < 
     (hv : Fits w (a + x.mem b))
     (hl : i ≠ n → n / 2 ≤ i → Fits w (a + x.mem (b + 1))) :
     ExecWithin w queryBody x (queryNext x b n i a) 11 := by
+  obtain ⟨hz, ho, ht, hp, hn', hi', hd⟩ := hx
+  have hf : Fits w (n / 2) := ha.of_le (by omega)
+  have hb : Fits w (b + 1) := ha.of_le (by omega)
+  have hb' : Fits w (b + n / 2) := ha.of_le (by omega)
+  have hb'' : Fits w (b + n / 2 + n / 2) := ha.of_le (by omega)
+  have hi'' : Fits w (i - n / 2) := ha.of_le (by omega)
   by_cases he : i = n
-  · simp only [queryBody, queryNext, he, ↓reduceIte]; wram_exec *
+  · ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, hv]
   · by_cases hc : i < n / 2
-    · simp only [queryBody, queryNext, he, hc, ↓reduceIte]; wram_exec *
-    · have := hl he (by omega)
-      simp only [queryBody, queryNext, he, hc, ↓reduceIte]; wram_exec *
+    · ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hf, hb]
+    · have hs := hl he (by omega)
+      ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hf, hb, hb',
+        hb'', hi'', hs]
 
 /-- One prefix-query iteration leaves RAM memory unchanged. -/
 @[simp]

@@ -10,7 +10,6 @@ module
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Tree
 public import CslibFrontier.Computability.WordRAM.Compile
 public import CslibFrontier.Computability.WordRAM.Notation
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -114,7 +113,15 @@ variable {w h b n i δ : ℕ} {x : Data 14}
 private theorem updateBody_exec (hx : Entry b n i δ x) (hi : i < n)
     (ha : Fits w (b + 2 * n)) (hv : Fits w (x.mem b + δ)) :
     ExecWithin w updateBody x (updateNext x b n i δ) 9 := by
-  by_cases hc : i < n / 2 <;> (simp only [updateBody, updateNext, hc, ↓reduceIte]; wram_exec *)
+  obtain ⟨hz, ho, ht, hp, hl, hi', hd⟩ := hx
+  have hf : Fits w (n / 2) := ha.of_le (by omega)
+  have hb : Fits w (b + 1) := ha.of_le (by omega)
+  have hb' : Fits w (b + n / 2) := ha.of_le (by omega)
+  have hb'' : Fits w (b + n / 2 + n / 2) := ha.of_le (by omega)
+  have hi'' : Fits w (i - n / 2) := ha.of_le (by omega)
+  by_cases hc : i < n / 2
+  · ram_eval [updateBody, updateNext, hp, hl, hi', hd, ho, ht, hc, hv, hf, hb]
+  · ram_eval [updateBody, updateNext, hp, hl, hi', hd, ho, ht, hc, hv, hf, hb', hb'', hi'']
 
 private theorem updateNext_entry (hx : Entry b n i δ x) :
     Entry (if i < n / 2 then b + 1 else b + n / 2 + n / 2) (n / 2)
