@@ -33,6 +33,9 @@ charged. No semantic correctness or width assumption is needed.
 
 public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+  Cslib.Probability.IsPPTOn
+
 namespace Cslib.Crypto.Homomorphic.Scheme
 
 open Probability Turing.MultiTapeTM

@@ -74,6 +74,9 @@ the enumeration `Cslib.BitString.enumList` (`Cslib.BitString.enumList_eq_ofFn`).
 
 @[expose] public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+  Cslib.Probability.IsOraclePPTOn
+
 namespace Cslib.Crypto.KabanetsCai
 
 open Probability Turing.MultiTapeTM ComputableInPolyTime Circuits Circuits.Boolean

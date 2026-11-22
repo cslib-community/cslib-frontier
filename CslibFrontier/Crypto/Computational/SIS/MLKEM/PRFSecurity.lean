@@ -128,6 +128,9 @@ about ML-KEM ([NISTFIPS203]) or its Fujisaki–Okamoto transform.
 
 public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+  Cslib.Probability.IsPPTOn Cslib.Probability.IsOraclePPTOn
+
 namespace Cslib.Crypto.MLKEM
 
 open Probability Turing.MultiTapeTM Cslib.Crypto.Protocols.FujisakiOkamoto Cslib.Crypto.Encryption

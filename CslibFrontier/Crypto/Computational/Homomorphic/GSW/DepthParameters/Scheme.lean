@@ -58,6 +58,9 @@ and circular security is not asserted.
 
 @[expose] public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+  Cslib.Probability.IsPPTOn
+
 namespace Cslib.Crypto.Homomorphic.GSW.DepthParameters
 
 open Circuits Circuits.Boolean Probability Turing.MultiTapeTM
@@ -81,31 +84,63 @@ noncomputable def scheme : Scheme where
     pure (evaluateCircuit (dimension security) (width security) C inputs)
   permitted security C := 2 * C.2.depth ≤ depthBudget security
 
+private theorem scheme_keyGen (security : ℕ) :
+    scheme.keyGen security =
+      LWE.keyGenSerialized (dimension security) (samples security) (width security)
+        (noise security) := rfl
+
+private theorem scheme_encrypt (security : ℕ) :
+    scheme.encrypt security =
+      encryptSerialized (dimension security) (samples security) (width security) := rfl
+
+private theorem scheme_decrypt (security : ℕ) (sk c : List Bool) :
+    scheme.decrypt security sk c =
+      decryptSerialized (dimension security) (width security) sk c := rfl
+
+private theorem scheme_evaluate (security : ℕ) (pk : List Bool)
+    (C : Σ m, Circuit signature m 1) (inputs : List (List Bool)) :
+    scheme.evaluate security pk C inputs =
+      pure (evaluateCircuit (dimension security) (width security) C inputs) := rfl
+
+private theorem scheme_permitted (security : ℕ) (C : Σ m, Circuit signature m 1) :
+    scheme.permitted security C = (2 * C.2.depth ≤ depthBudget security) := rfl
+
+private theorem eq_evaluateCircuit_of_mem_evaluate {security : ℕ} {pk : List Bool}
+    {C : Σ m, Circuit signature m 1} {inputs : List (List Bool)} {ciphertext : List Bool}
+    (h : ciphertext ∈ (ProbComp.eval (scheme.evaluate security pk C inputs)).support) :
+    ciphertext = evaluateCircuit (dimension security) (width security) C inputs := by
+  rwa [scheme_evaluate, ProbComp.eval_pure, PMF.mem_support_pure_iff] at h
+
 /-- Encryption and evaluation of every permitted circuit are perfectly correct. -/
 theorem correct : scheme.Correct where
-  decrypt_encrypt security keys hkeys μ ciphertext hciphertext :=
-    keyGenSerialized_encrypt_correct (width_pos security)
+  decrypt_encrypt security keys hkeys μ ciphertext hciphertext := by
+    rw [scheme_keyGen] at hkeys
+    rw [scheme_encrypt] at hciphertext
+    rw [scheme_decrypt]
+    exact keyGenSerialized_encrypt_correct (width_pos security)
       (by simpa only [Nat.mul_assoc, modulus] using fresh_margin security) hkeys μ hciphertext
-  decrypt_evaluate security keys hkeys C hC bits inputs hbits hinputs ciphertext hciphertext := by
-    change ciphertext ∈ (ProbComp.eval (pure _ : ProbComp (List Bool))).support at hciphertext
-    rw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hciphertext
-    subst hciphertext
+  decrypt_evaluate security keys hkeys C hC bits inputs hbits hinputs _ hciphertext := by
+    rw [scheme_keyGen] at hkeys
+    rw [scheme_permitted] at hC
+    rw [Scheme.FreshInputs, scheme_encrypt] at hinputs
+    rw [eq_evaluateCircuit_of_mem_evaluate hciphertext, scheme_decrypt]
     exact (evaluateCircuit_correct (width_pos security) hkeys C (noise_margin_of_le hC)
       hbits hinputs).2
 
 /-- Secret keys, fresh ciphertexts and evaluation outputs have fixed widths. -/
 theorem fixedWidth : scheme.FixedWidth secretWidth ciphertextWidth where
   secret_length security keys hkeys := by
-    change keys ∈ (ProbComp.eval (LWE.keyGenSerialized _ _ _ _)).support at hkeys
-    rw [LWE.eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
+    rw [scheme_keyGen, LWE.eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
     obtain ⟨typedKeys, _, rfl⟩ := hkeys
     exact LWE.length_serializeSecret _
-  encrypt_length security keys hkeys μ ciphertext hciphertext :=
-    (boundedError_encryptSerialized hkeys μ hciphertext).1.trans (pow_two _)
-  evaluate_length security keys hkeys C _ bits inputs hbits hinputs ciphertext hciphertext := by
-    change ciphertext ∈ (ProbComp.eval (pure _ : ProbComp (List Bool))).support at hciphertext
-    rw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hciphertext
-    subst hciphertext
+  encrypt_length security keys hkeys μ ciphertext hciphertext := by
+    rw [scheme_keyGen] at hkeys
+    rw [scheme_encrypt] at hciphertext
+    exact (boundedError_encryptSerialized hkeys μ hciphertext).1.trans (pow_two _)
+  evaluate_length security keys hkeys C _ bits inputs hbits hinputs _ hciphertext := by
+    rw [scheme_keyGen] at hkeys
+    rw [Scheme.FreshInputs, scheme_encrypt] at hinputs
+    rw [eq_evaluateCircuit_of_mem_evaluate hciphertext]
     exact (boundedError_evaluateCircuit C hbits
       (hinputs.imp fun μ c hc => boundedError_encryptSerialized hkeys μ hc)).1.trans (pow_two _)
 

@@ -82,6 +82,9 @@ strings, so it cannot express a predicate of a uniform residue under generated R
 
 public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+  Cslib.Probability.IsPPTOn
+
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM

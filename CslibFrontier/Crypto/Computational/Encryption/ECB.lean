@@ -88,6 +88,9 @@ challenge message to the oracle in one list traversal, certified by
 
 public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+  Cslib.Probability.IsPPTOn Cslib.Probability.IsOraclePPTOn
+
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
