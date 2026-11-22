@@ -2744,4 +2744,3 @@ theorem unbounded_snapshotLinearizable_of_reachable {P Data : Type*} [Fintype P]
   exact snapshotLinearizable_of_trace τ
 
 end Cslib.Distributed.SetAgreement
-
