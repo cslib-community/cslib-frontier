@@ -17,9 +17,6 @@ public import CslibFrontier.Languages.Probabilistic.UniformNat.ModIndex
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
-import CslibFrontier.Computability.Probabilistic.Memoize
-import CslibFrontier.Computability.Probabilistic.Oracle.RunState
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Probabilistic.UniformNat.ModIndex
@@ -178,46 +175,41 @@ with `List.ofFn`, and answer queries of any other length with `[]`. -/
 
 /-- The elementary lazy-simulation list-guessing wrapper `B` of Theorem 8.10 ([BonehShoup2023],
 §8.10.2, pp. 331–332): draw an independent `outLen n`-bit key `z`, run `D n x z` against
-`cachedRandomFunctionOracle (secLen n) (outLen n)` starting from `[]`, and output the cached
-`secLen n`-bit queries. -/
+the random-function cache starting from `[]`, and output the cached `secLen n`-bit queries. -/
 @[expose] noncomputable def lazyROToListGuess {X : Type} (secLen outLen : ℕ → ℕ)
     (D : WordRODistinguisher X) : ListGuessFamilyAdversary X secLen :=
   fun n x => do
     let z ← BitString.sampleList (outLen n)
     let (_, cache) ←
       ((D n x z).runState fun ⟨_, q⟩ =>
-        cachedRandomFunctionOracle (secLen n) (outLen n) q).run []
+        cachedRandomFunctionOracle (·.length == secLen n) (outLen n) q).run []
     return cache.map fun ⟨q, _⟩ => BitString.ofList (secLen n) q
 
 private theorem cachedRandomFunctionOracle_support {inLen outLen : ℕ} {q : List Bool}
     {cache : List (List Bool × List Bool)} {res : List Bool × List (List Bool × List Bool)}
-    (hres : res ∈ (ProbComp.eval (cachedRandomFunctionOracle inLen outLen q cache)).support) :
+    (hres : res ∈
+      (ProbComp.eval (cachedRandomFunctionOracle (·.length == inLen) outLen q cache)).support) :
     res.2.length ≤ cache.length + 1 ∧
       ((∀ entry ∈ cache, entry.1.length = inLen) → ∀ entry ∈ res.2, entry.1.length = inLen) := by
-  by_cases hq : q.length = inLen
-  · simp only [cachedRandomFunctionOracle, hq, ↓reduceIte, ProbComp.eval_memoize] at hres
-    rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hres with
-      ⟨_, hnext⟩ | ⟨_, _, hnext⟩
-    · rw [hnext]
-      exact ⟨Nat.le_succ _, id⟩
-    · rw [hnext]
-      refine ⟨by simp, fun hcache entry hentry => ?_⟩
-      rcases List.mem_cons.mp hentry with rfl | hmem
-      · exact hq
-      · exact hcache entry hmem
-  · simp only [cachedRandomFunctionOracle, hq, ↓reduceIte, ProbComp.eval_pure,
-      PMF.mem_support_pure_iff] at hres
-    subst hres
+  rcases cachedRandomFunctionOracle_cache_of_mem_support hres with hsame | ⟨hq, _, hnext⟩
+  · rw [hsame]
     exact ⟨Nat.le_succ _, id⟩
+  · rw [hnext]
+    refine ⟨by simp, fun hcache entry hentry => ?_⟩
+    rcases List.mem_cons.mp hentry with rfl | hmem
+    · exact beq_iff_eq.mp hq
+    · exact hcache entry hmem
 
 private theorem key_length_of_mem_runState_cachedRandomFunctionOracle {α : Type}
     (inLen outLen : ℕ) (P : WordOracleComp Unit α) {res : α × List (List Bool × List Bool)}
     (hres : res ∈ (ProbComp.eval
-      ((P.runState fun ⟨_, q⟩ => cachedRandomFunctionOracle inLen outLen q).run [])).support) :
+      ((P.runState fun ⟨_, q⟩ =>
+        cachedRandomFunctionOracle (·.length == inLen) outLen q).run [])).support) :
     ∀ entry ∈ res.2, entry.1.length = inLen := by
   rw [ProbOracleComp.eval_runState] at hres
   exact ProbOracleComp.runWith_invariant
-    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedRandomFunctionOracle inLen outLen q cache))
+    (fun ⟨_, q⟩ cache =>
+      ProbComp.eval (cachedRandomFunctionOracle (·.length == inLen) outLen q cache))
     (fun cache => ∀ entry ∈ cache, entry.1.length = inLen)
     (fun ⟨_, q⟩ cache hcache a cache' hstep =>
       (cachedRandomFunctionOracle_support hstep).2 hcache)
@@ -238,7 +230,7 @@ theorem length_le_of_mem_support_lazyROToListGuess {X : Type} {secLen outLen : �
   rw [BitString.eval_sampleList] at hz
   have hzlen := BitString.length_of_mem_support_uniformList hz
   have hbound := ProbOracleComp.measure_runState_le (cost := fun _ => 1) (hQ z hzlen)
-    (fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen n) (outLen n) q) List.length
+    (fun ⟨_, q⟩ => cachedRandomFunctionOracle (·.length == secLen n) (outLen n) q) List.length
     (fun ⟨_, q⟩ s res hres => (cachedRandomFunctionOracle_support hres).1) [] (b, cache) hrun
   simpa using hbound
 
@@ -385,16 +377,17 @@ private theorem eval_lazyROToListGuess_eq_memoize {X : Type} (secLen outLen : �
   let represent : List (BitString k × BitString m) → List (List Bool × List Bool) :=
     List.map fun (q, v) => (List.ofFn q, List.ofFn v)
   have hmap := ProbOracleComp.runWith_map_state O_typed
-    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedRandomFunctionOracle k m q cache)) represent
+    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedRandomFunctionOracle (·.length == k) m q cache))
+    represent
     (fun ⟨_, q⟩ cache => by
       by_cases hq : q.length = k
-      · simp only [O_typed, cachedRandomFunctionOracle, hq, ↓reduceIte, PMF.map_comp,
+      · simp only [O_typed, cachedRandomFunctionOracle, beq_iff_eq, hq, ↓reduceIte, PMF.map_comp,
           Function.comp_def, ProbComp.eval_memoize, BitString.eval_sampleList]
         have hm := Cslib.memoize_map (encBitString k) List.ofFn d
           (fun _ => BitString.uniformList m) (fun _ => rfl) (BitString.ofList k q) cache
         simpa only [encBitString_apply, BitString.ofFn_ofList hq, PMF.monad_map_eq_map,
           represent] using hm
-      · simp only [O_typed, cachedRandomFunctionOracle, hq, ↓reduceIte, PMF.pure_map,
+      · simp only [O_typed, cachedRandomFunctionOracle, beq_iff_eq, hq, ↓reduceIte, PMF.pure_map,
           ProbComp.eval_pure])
     P []
   simp only [represent, List.map_nil] at hmap
@@ -445,30 +438,9 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
   let E₁ := encPair E₀ encBits
   have hz : IsPPTOn E₀ encBits (fun p : ℕ × X => BitString.sampleList (outLen p.1)) :=
     (hout.comp (ComputableInPolyTime.fst encUnary encX)).sampleList
-  have hrun : IsPPTOn E₁ (encPair encBool (encMemoCache encBits encBits))
-      (fun c : (ℕ × X) × List Bool =>
-        (((D c.1.1 c.1.2 c.2).runState
-          fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen c.1.1) (outLen c.1.1) q).run [])) := by
-    apply hD.isPPTOn_runState (operationEncoding := encFinEnum Unit)
-      (prepare := fun c : (ℕ × X) × List Bool => (c.1.1, c.1.2, c.2))
-      (resources := fun c q => 4 * q.length + 2 * outLen c.1.1 + 3)
-      (by fun_prop) (by fun_prop) (by fun_prop)
-      (fun c cache => ∀ entry ∈ cache, entry.2.length ≤ outLen c.1.1) (by simp) (by fun_prop)
-    intro c request cache hcache result hresult
-    by_cases hquery : request.2.length = secLen c.1.1
-    · simp only [cachedRandomFunctionOracle, hquery, ↓reduceIte] at hresult
-      rw [ProbComp.eval_memoize] at hresult
-      obtain ⟨hreply, hcache', hgrowth⟩ := memoize_call_size_le encBits encBits
-        (fun _ => ProbComp.eval (BitString.sampleList (outLen c.1.1))) request.2 cache
-        (outLen c.1.1) hcache (fun value hvalue => by
-          rw [BitString.eval_sampleList] at hvalue
-          exact (BitString.length_of_mem_support_uniformList hvalue).le) result hresult
-      exact ⟨hcache', by simpa only [encBits_apply] using hreply.trans (by lia),
-        by simpa only [encBits_apply, Nat.add_assoc] using hgrowth⟩
-    · simp only [cachedRandomFunctionOracle, hquery, ↓reduceIte, ProbComp.eval_pure,
-        PMF.mem_support_pure_iff] at hresult
-      subst hresult
-      exact ⟨hcache, by simp, by lia⟩
+  have hrun := isPPTOn_runState_cachedRandomFunctionOracle (input := E₁)
+    (prepare := fun c => (c.1.1, c.1.2, c.2)) (valid := fun c q => q.length == secLen c.1.1)
+    (outLen := fun c => outLen c.1.1) hD (by fun_prop) (by fun_prop) (by fun_prop)
   have hpost : ComputableInPolyTime
       (fun r : Bool × List (List Bool × List Bool) => r.2.map Prod.fst)
       (encPair encBool (encMemoCache encBits encBits)) (encList encBits) := by
@@ -477,7 +449,8 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
       let z ← BitString.sampleList (outLen p.1)
       (fun r : Bool × List (List Bool × List Bool) => r.2.map Prod.fst) <$>
         (((D p.1 p.2 z).runState
-          fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen p.1) (outLen p.1) q).run [])) :=
+          fun ⟨_, q⟩ =>
+            cachedRandomFunctionOracle (·.length == secLen p.1) (outLen p.1) q).run [])) :=
     hz.bind_with (hrun.map hpost)
   refine hprog.congr fun p => ?_
   simp only [lazyROToListGuess, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,

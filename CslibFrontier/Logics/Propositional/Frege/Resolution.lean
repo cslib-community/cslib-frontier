@@ -165,8 +165,8 @@ theorem derivableInSize_toFormula_resolvent (c₁ c₂ : Clause V) (v : V) :
     simp only [List.length_cons] at this
     omega
   -- discharge `¬v`
-  obtain ⟨L₁, g₂, h₂⟩ := IsProof.deduction (Γ := Γ₀ ++ Δ) (Δ := [nv]) (g₁a.trans g₁b).proof
-    (L := []) .nil
+  obtain ⟨L₁, g₂, h₂⟩ := IsProof.deduction (Γ := Γ₀ ++ Δ) (Δ := [nv])
+    (Grows.proof (g₁a.trans g₁b)) (L := []) .nil
   have hnn : Proposition.neg nv ∈ L₁ := h₂ _ h₁b
   -- `v` by double negation elimination
   have g₃ := grows_ax g₂.proof (IsAxiom.dne (var v))
@@ -193,7 +193,7 @@ theorem derivableInSize_toFormula_resolvent (c₁ c₂ : Clause V) (v : V) :
     simp only [List.length_cons, List.length_nil] at this
     omega
   -- discharge `Δ`
-  obtain ⟨L₃, g₇, h₇⟩ := IsProof.deduction (Γ := Γ₀) (Δ := Δ) gM₂.proof (L := []) .nil
+  obtain ⟨L₃, g₇, h₇⟩ := IsProof.deduction (Γ := Γ₀) (Δ := Δ) (Grows.proof gM₂) (L := []) .nil
   refine ⟨L₃, g₇.proof, h₇ _ h₆, ?_⟩
   have h3 := g₇.length_of_nil
   have hab : a + b ≤ 2 * max a b := by omega
@@ -214,32 +214,18 @@ theorem CNF.IsProof.frege {φ : CNF V} {ls : List (Clause V)} (h : φ.IsProof ls
     (hw : ∀ c ∈ ls, c.width ≤ w) :
     ∃ L, Frege.IsProof (φ.map Clause.toFormula) L ∧ (∀ c ∈ ls, c.toFormula ∈ L) ∧
       L.length ≤ stepBound w * ls.length := by
-  induction h with
-  | nil => exact ⟨[], .nil, by simp, by simp⟩
-  | @mem ls c _ hc ih =>
-    obtain ⟨L, hL, hmem, hlen⟩ := ih fun d hd => hw d (List.mem_cons_of_mem _ hd)
-    refine ⟨c.toFormula :: L, hL.hyp (List.mem_map_of_mem hc), fun d hd => ?_, ?_⟩
-    · rcases List.mem_cons.1 hd with rfl | hd
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (hmem d hd)
-    · have h1 : 1 ≤ stepBound w := by unfold stepBound; nlinarith
-      simp only [List.length_cons, Nat.mul_succ]
-      omega
-  | @resolvent ls c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
-    obtain ⟨L, hL, hmem, hlen⟩ := ih fun d hd => hw d (List.mem_cons_of_mem _ hd)
-    obtain ⟨M, hM, hR, hMlen⟩ := derivableInSize_toFormula_resolvent c₁ c₂ v
-    have hM' : Frege.IsProof (φ.map Clause.toFormula ++ [c₁.toFormula, c₂.toFormula]) M :=
-      hM.mono fun x hx => List.mem_append_right _ hx
-    obtain ⟨M', hp, hlen', hmem'⟩ := hM'.cut hL (by simp [hmem _ h₁, hmem _ h₂])
-    refine ⟨M' ++ L, hp, fun d hd => ?_, ?_⟩
-    · rcases List.mem_cons.1 hd with rfl | hd
-      · exact hmem' _ hR
-      · exact List.mem_append_right _ (hmem d hd)
-    · have hs : stepBound (max c₁.width c₂.width) ≤ stepBound w :=
-        stepBound_mono (max_le (hw _ (List.mem_cons_of_mem _ h₁))
-          (hw _ (List.mem_cons_of_mem _ h₂)))
-      simp only [List.length_append, List.length_cons, Nat.mul_succ]
-      omega
+  obtain ⟨L, hL, hmem, hlen⟩ := (CNF.isProof_iff_lineProof.1 h).simulate
+    (R₂ := Frege.rules V) (Γ₂ := {x | x ∈ φ.map Clause.toFormula}) Clause.toFormula (stepBound w)
+    (fun c hc _ => ⟨[c.toFormula], LineProof.nil.hyp (List.mem_map_of_mem hc), by simp,
+      by simp only [List.length_cons, List.length_nil, stepBound]; nlinarith⟩)
+    fun r hr _ hp => by
+      obtain ⟨c₁, c₂, v, -, -, rfl⟩ := hr
+      obtain ⟨M, hM, hR, hMlen⟩ := derivableInSize_toFormula_resolvent c₁ c₂ v
+      have hs : stepBound (max c₁.width c₂.width) ≤ stepBound w :=
+        stepBound_mono (max_le (hw _ (hp c₁ (by simp))) (hw _ (hp c₂ (by simp))))
+      exact ⟨M, (Frege.isProof_iff_lineProof.1 hM).mono_hyp Set.subset_union_right,
+        hR, hMlen.trans hs⟩
+  exact ⟨L, Frege.isProof_iff_lineProof.2 hL, hmem, hlen⟩
 
 /-- A resolution refutation of `φ` with `s` lines becomes a Frege refutation of the formulas of the
 clauses of `φ` (a Frege proof containing `⊥`) with at most `stepBound (2 N) * s` lines, where `N`

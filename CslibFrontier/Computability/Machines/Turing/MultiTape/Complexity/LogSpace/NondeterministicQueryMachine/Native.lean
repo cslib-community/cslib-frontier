@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RepeatUntilBlank
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Native control for binary-choice query passes
@@ -139,7 +140,7 @@ theorem apply_relabelAction {S S' : Type} {input : List Bool}
 
 theorem apply_routeAction {S : Type} {input : List Bool} (q : Option S)
     (c : Cfg k Bool S input) : (routeAction q).apply c = c.withState q := by
-  apply Cfg.ext <;> simp [routeAction, Action.apply, SignType.cast, Cfg.withState]
+  tm_step [routeAction]
 
 /-- The initializer is simulated step for step until its first halt. -/
 theorem step_init {input : List Bool} (choice : Bool) (c : Cfg k Bool SI input)

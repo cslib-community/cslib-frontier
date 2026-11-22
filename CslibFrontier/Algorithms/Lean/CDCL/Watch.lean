@@ -17,12 +17,15 @@ by literal (`litKey`). A watch list holds *watchers* (`Watcher`): the position o
 *blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is skipped
 without reading its clause.
 
-The store holds numbers only, so that the solver follows no pointer to read a literal and
-allocates nothing to move a watch or keep a watcher. A literal is its key `2 * v + b` (`litKey`,
-the word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`), decoded by `litOfKey`, a bijection
-between literals and numbers. A clause is an array of numbers: the keys of its literals, then its
-number (`WatchStore.codes`). A watch list is an array of numbers, two per watcher: the position of
-the clause and the key of the blocker.
+The store holds numbers only, so that the solver follows no pointer to read a literal, and moving a
+watch or keeping a watcher makes no object for the watcher or the literal. This holds for numbers
+in the scalar range of Lean's runtime: a larger number is boxed. The arrays are written in place
+when they are not shared and have room; otherwise `Array.push` grows or copies them, and adding a
+watch may also grow the array of watch lists (`addWatch`). A literal is its key `2 * v + b`
+(`litKey`, the word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`), decoded by `litOfKey`, a
+bijection between literals and numbers. A clause is an array of numbers: the keys of its literals,
+then its number (`WatchStore.codes`). A watch list is an array of numbers, two per watcher: the
+position of the clause and the key of the blocker.
 
 The invariants are stated on the store read back (the representation): its clauses, numbered
 arrays of literals (`WatchStore.clauses`, by `decodeClause`), and the watchers of a watch list,
@@ -74,8 +77,10 @@ structure Watcher where
 abbrev clauseIds (L : List Watcher) : List ℕ := L.map Watcher.clause
 
 /-- **The watch lists**: for each index (`litKey`), an array of numbers, two for each watcher: the
-position of its clause, then the key of its blocker (`litKey`). Small numbers are unboxed at run
-time, so a watch list holds no pointers, and keeping or adding a watcher allocates nothing. -/
+position of its clause, then the key of its blocker (`litKey`). Numbers in the scalar range are
+unboxed at run time, so a watch list of them holds no pointers, and keeping or adding a watcher
+makes no object of its own. Pushing writes in place only when the array is not shared and has
+room, and otherwise grows or copies it. -/
 abbrev Watches : Type := Array (Array ℕ)
 
 /-- **The watchers of a watch list read backwards**: two numbers each, the key of the blocker and
@@ -497,7 +502,12 @@ def WatchStore.visit (S : WatchStore) (A : Assign) (u k b : ℕ) : KeyVisit :=
 key `x` at position `j`, with the other watched literal, of key `o`, as blocker: as MiniSat does,
 the clause becomes `o`, `x`, then the others with `u` in place of `x`, written into its array in
 place, and the watch list of `x` gets the watcher. The arrays are taken out of the store first, so
-that they are updated in place when the store is not shared. -/
+that they are updated in place when the store is not shared.
+
+The position `j` must be one of the clause's literals but the watched ones: `1 < j` and
+`j + 1 < a.size` for the array `a` of the clause at `k`, as `WatchStore.visit` finds it and
+`WatchStore.clauses_moveTo` assumes. The last number of `a` is the clause's number, which
+`j = a.size - 1` would overwrite; nothing here checks the bound. -/
 @[expose] def WatchStore.moveTo (S : WatchStore) (k j o x u : ℕ) : WatchStore :=
   let codes := S.codes
   let watches := S.watches

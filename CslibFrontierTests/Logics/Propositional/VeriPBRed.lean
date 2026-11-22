@@ -63,13 +63,13 @@ example : (∀ c ∈ G, c.Holds (Witness.apply σ₀ setX0)) ∧ D.Holds (Witnes
 -- constraint `2`, as in VeriPB.
 example : runTop G none (State.init G none none) [.red D setX0 none none] =
     some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false, none, none, [], [],
-      none, none⟩ := by
+      none, none, false⟩ := by
   decide
 
 -- With a subproof, even an empty one, `¬D` takes `2` and `D` takes `3`.
 example : runTop G none (State.init G none none) [.red D setX0 (some []) none] =
     some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false, none, none, [], [],
-      none, none⟩ := by
+      none, none, false⟩ := by
   decide
 
 /-! ### Promoting to the core -/
@@ -83,7 +83,7 @@ example : runTop G none (State.init G none none) [.core [1], .core [1]] =
 -- A derived constraint is promoted once.
 example : runTop G none (State.init G none none) [.red D setX0 none none, .core [2, 2], .core [2]] =
     some ⟨(2, D.normalize) :: initDb G, 3, none, none, (2, D.normalize) :: initDb G, true,
-      false, none, none, [], [], none, none⟩ := by
+      false, none, none, [], [], none, none, false⟩ := by
   decide
 
 -- `core id` needs at least one ID.

@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain.CoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -156,32 +157,10 @@ theorem eval_zeroLinkAdversary_choose_eq_map_coins (E : Scheme)
       (Nat.le_succ _), hlength, ← Nat.mul_assoc, ↓reduceIte] at hlinks
     rw [hlinks, PMF.bind_map]
     rfl
-  rw [ProbComp.eval_replicate_of_uniformList (depth n) keyCoins _ _ hkey, PMF.bind_map,
-    PMF.map]
+  rw [ProbComp.eval_replicate_of_uniformList (depth n) keyCoins _ _ hkey, PMF.bind_map]
   unfold zeroLinkChooseCoins
   dsimp only [Function.comp_def]
-  rw [BitString.uniformList_bind_split (depth n * keyCoins)
-    (depth n * capacity * encCoins + chooseCoins) (fun first rest => PMF.pure
-    (evaluateChoose (n, encPublicKey
-      (challengePk :: ((BitString.listRows (depth n) keyCoins first).map (evaluateKey n)).map
-        Prod.fst,
-      Scheme.encryptKeyLinksCoins evaluateEncrypt n encCoins capacity true
-        ((challengePk, (((BitString.listRows (depth n) keyCoins first).map
-          (evaluateKey n)).headD ([], [])).2) ::
-          (BitString.listRows (depth n) keyCoins first).map (evaluateKey n))
-        (rest.take (depth n * capacity * encCoins))))
-      (rest.drop (depth n * capacity * encCoins))))]
-  congr 1 with first : 1
-  rw [BitString.uniformList_bind_split (depth n * capacity * encCoins) chooseCoins
-    (fun second third => PMF.pure
-    (evaluateChoose (n, encPublicKey
-      (challengePk :: ((BitString.listRows (depth n) keyCoins first).map (evaluateKey n)).map
-        Prod.fst,
-      Scheme.encryptKeyLinksCoins evaluateEncrypt n encCoins capacity true
-        ((challengePk, (((BitString.listRows (depth n) keyCoins first).map
-          (evaluateKey n)).headD ([], [])).2) ::
-          (BitString.listRows (depth n) keyCoins first).map (evaluateKey n)) second)) third))]
-  rfl
+  exact (BitString.uniformList_map_split3 _ _ _ _).symm
 
 /-- The saved state of an actual zero-link choice is bounded by its bounded-artifact choice
 envelope. This is a support statement about the original choice, independent of its replay. -/

@@ -62,18 +62,23 @@ namespace Matrix
 variable {m n ι κ κ' K : Type*} [Field K]
 
 /-- `M` is *submatrix-robust* with deficiency `t`: every square block of `M`, with `k` rows and `k`
-columns, has rank at least `k - t`. -/
-def SubmatrixRobust (M : Matrix m n K) (t : ℕ) : Prop :=
+columns, has rank at least `k - t`. Both index types are required to be finite so that `Set.ncard`
+and `Matrix.blockRank` (`Module.finrank`) measure actual block sizes and ranks rather than
+returning `0` on infinite sets or subspaces. -/
+-- Finiteness restricts the public domain; `ncard` and `finrank` themselves do not require it.
+@[nolint unusedArguments]
+def SubmatrixRobust [Finite m] [Finite n] (M : Matrix m n K) (t : ℕ) : Prop :=
   ∀ (S : Set m) (T : Set n), S.ncard = T.ncard → S.ncard ≤ M.blockRank S T + t
 
 /-- A larger deficiency is weaker. -/
-theorem SubmatrixRobust.mono {M : Matrix m n K} {t t' : ℕ} (hM : M.SubmatrixRobust t)
-    (ht : t ≤ t') : M.SubmatrixRobust t' :=
+theorem SubmatrixRobust.mono [Finite m] [Finite n] {M : Matrix m n K} {t t' : ℕ}
+    (hM : M.SubmatrixRobust t) (ht : t ≤ t') : M.SubmatrixRobust t' :=
   fun S T h => (hM S T h).trans (Nat.add_le_add_left ht _)
 
 /-- Every block of a robust matrix has rank at least its smaller side minus the deficiency. -/
-theorem SubmatrixRobust.min_le [Finite n] {M : Matrix m n K} {t : ℕ} (hM : M.SubmatrixRobust t)
-    (S : Set m) (T : Set n) : min S.ncard T.ncard ≤ M.blockRank S T + t := by
+theorem SubmatrixRobust.min_le [Finite m] [Finite n] {M : Matrix m n K} {t : ℕ}
+    (hM : M.SubmatrixRobust t) (S : Set m) (T : Set n) :
+    min S.ncard T.ncard ≤ M.blockRank S T + t := by
   obtain ⟨S', hS', hS'c⟩ := Set.exists_subset_card_eq (min_le_left S.ncard T.ncard)
   obtain ⟨T', hT', hT'c⟩ := Set.exists_subset_card_eq (min_le_right S.ncard T.ncard)
   have h := hM S' T' (hS'c.trans hT'c.symm)

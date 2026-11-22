@@ -66,25 +66,27 @@ variable {n m r a : ℕ}
 and the last `m` bits are `T` in binary, least significant bit first. -/
 def inputTimeIterate (f : BitString n → BitString n) (m : ℕ) (y : BitString (n + m)) :
     BitString n :=
-  f^[(word fun j : Fin m => y (Fin.natAdd n j)).toNat] fun i => y (Fin.castAdd m i)
+  f^[(BitString.equivBitVec fun j : Fin m => y (Fin.natAdd n j)).toNat] fun i => y (Fin.castAdd m i)
 
 /-- Without time bits the state is returned unchanged. -/
 theorem inputTimeIterate_zero (f : BitString n → BitString n) (y : BitString (n + 0)) :
     inputTimeIterate f 0 y = fun i => y (Fin.castAdd 0 i) := by
-  have h : (word fun j : Fin 0 => y (Fin.natAdd n j)).toNat = 0 := by
-    simpa only [pow_zero, Nat.lt_one_iff] using (word fun j : Fin 0 => y (Fin.natAdd n j)).isLt
+  have h : (BitString.equivBitVec fun j : Fin 0 => y (Fin.natAdd n j)).toNat = 0 := by
+    simpa only [pow_zero, Nat.lt_one_iff] using
+      (BitString.equivBitVec fun j : Fin 0 => y (Fin.natAdd n j)).isLt
   simp only [inputTimeIterate, h, Function.iterate_zero, id_eq]
 
 /-- Reading one more bit of a binary time adds that bit's power of two. -/
-private theorem toNat_word_mod_two_pow_succ (bits : BitString m) {j : ℕ} (hj : j < m) :
-    (word bits).toNat % 2 ^ (j + 1) =
-      (word bits).toNat % 2 ^ j + if bits ⟨j, hj⟩ then 2 ^ j else 0 := by
-  have hbit : (word bits).toNat / 2 ^ j % 2 = if bits ⟨j, hj⟩ then 1 else 0 := by
-    have ht : bits ⟨j, hj⟩ = decide ((word bits).toNat / 2 ^ j % 2 = 1) := by
-      rw [← getLsbD_word bits ⟨j, hj⟩, ← BitVec.testBit_toNat, Nat.testBit_eq_decide_div_mod_eq]
-    have hlt := Nat.mod_lt ((word bits).toNat / 2 ^ j) (show 0 < 2 by decide)
+private theorem toNat_equivBitVec_mod_two_pow_succ (bits : BitString m) {j : ℕ} (hj : j < m) :
+    (BitString.equivBitVec bits).toNat % 2 ^ (j + 1) =
+      (BitString.equivBitVec bits).toNat % 2 ^ j + if bits ⟨j, hj⟩ then 2 ^ j else 0 := by
+  have hbit : (BitString.equivBitVec bits).toNat / 2 ^ j % 2 = if bits ⟨j, hj⟩ then 1 else 0 := by
+    have ht : bits ⟨j, hj⟩ = decide ((BitString.equivBitVec bits).toNat / 2 ^ j % 2 = 1) := by
+      rw [← BitString.getLsbD_equivBitVec bits ⟨j, hj⟩, ← BitVec.testBit_toNat,
+        Nat.testBit_eq_decide_div_mod_eq]
+    have hlt := Nat.mod_lt ((BitString.equivBitVec bits).toNat / 2 ^ j) (show 0 < 2 by decide)
     rw [ht]
-    by_cases h : (word bits).toNat / 2 ^ j % 2 = 1
+    by_cases h : (BitString.equivBitVec bits).toNat / 2 ^ j % 2 = 1
     · simp only [h, decide_true, ite_true]
     · simp only [h, decide_false, Bool.false_eq_true, ite_false]
       omega
@@ -92,12 +94,12 @@ private theorem toNat_word_mod_two_pow_succ (bits : BitString m) {j : ℕ} (hj :
   split_ifs <;> simp
 
 /-- Applying `f^[2 ^ j]` exactly when bit `j` is set extends the time read so far by that bit. -/
-private theorem iterate_toNat_word_mod_two_pow_succ {α : Type*} (f : α → α) (bits : BitString m)
-    {j : ℕ} (hj : j < m) (y : α) :
-    f^[(word bits).toNat % 2 ^ (j + 1)] y =
-      if bits ⟨j, hj⟩ then f^[2 ^ j] (f^[(word bits).toNat % 2 ^ j] y)
-      else f^[(word bits).toNat % 2 ^ j] y := by
-  rw [toNat_word_mod_two_pow_succ bits hj]
+private theorem iterate_toNat_equivBitVec_mod_two_pow_succ {α : Type*} (f : α → α)
+    (bits : BitString m) {j : ℕ} (hj : j < m) (y : α) :
+    f^[(BitString.equivBitVec bits).toNat % 2 ^ (j + 1)] y =
+      if bits ⟨j, hj⟩ then f^[2 ^ j] (f^[(BitString.equivBitVec bits).toNat % 2 ^ j] y)
+      else f^[(BitString.equivBitVec bits).toNat % 2 ^ j] y := by
+  rw [toNat_equivBitVec_mod_two_pow_succ bits hj]
   split_ifs
   · rw [← Function.iterate_add_apply, Nat.add_comm]
   · rfl
@@ -113,9 +115,10 @@ theorem synthesis_batched_binary_powering (f : BitString n → BitString n) (C :
     (hi : ∀ member bit, (fun x => init x member bit) ∈ s)
     (hb : ∀ member j, (fun x => bits x member j) ∈ s) :
     Synthesis interpretation s
-      (⋃ member, wires fun x => f^[(word (bits x member)).toNat] (init x member))
+      (⋃ member, wires fun x => f^[(BitString.equivBitVec (bits x member)).toNat] (init x member))
       (m * (C + 4 * (r * n))) := by
-  let state := fun j x member => f^[(word (bits x member)).toNat % 2 ^ j] (init x member)
+  let state := fun j x member =>
+    f^[(BitString.equivBitVec (bits x member)).toNat % 2 ^ j] (init x member)
   let q := fun j => ⋃ member, wires fun x => state j x member
   have hz : q 0 ⊆ s := by
     intro g hg
@@ -149,14 +152,14 @@ theorem synthesis_batched_binary_powering (f : BitString n → BitString n) (C :
         f^[2 ^ j] (state j x member) else state j x member) = q (j + 1) := by
       congr 1 with member : 1
       congr 1 with x : 1
-      exact (iterate_toNat_word_mod_two_pow_succ f (bits x member) hj (init x member)).symm
+      exact (iterate_toNat_equivBitVec_mod_two_pow_succ f (bits x member) hj (init x member)).symm
     rw [he] at hmux
     refine (hpow.trans hmux).mono Set.Subset.rfl Set.Subset.rfl ?_
     simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
     nlinarith
   have h := (Synthesis.steps q _ m hz hstep).mono Set.Subset.rfl
     (Synthesis.subset_stages q le_rfl) le_rfl
-  simpa only [q, state, Nat.mod_eq_of_lt (word _).isLt] using h
+  simpa only [q, state, Nat.mod_eq_of_lt (BitString.equivBitVec _).isLt] using h
 
 /-- **Binary powering.** If every power `f^[2 ^ j]` with `j < m` has a circuit of size at most
 `C`, then `T` steps of `f` from an available state, with `T` given by `m` available bits, cost at
@@ -166,7 +169,7 @@ theorem synthesis_binary_powering {a : ℕ} (f : BitString n → BitString n) (C
       c.Computes interpretation f^[2 ^ j] ∧ c.size ≤ C)
     (s : Set (BooleanFunction a)) (init : BitString a → BitString n)
     (bits : BitString a → BitString m) (hi : wires init ⊆ s) (hb : wires bits ⊆ s) :
-    Synthesis interpretation s (wires fun x => f^[(word (bits x)).toNat] (init x))
+    Synthesis interpretation s (wires fun x => f^[(BitString.equivBitVec (bits x)).toNat] (init x))
       (m * (C + 4 * n)) := by
   have hpowers' : ∀ j < m, ∃ c : Circuit signature (1 * n) (1 * n),
       c.Computes interpretation (blockMap f^[2 ^ j] 1) ∧ c.size ≤ C := by
