@@ -45,6 +45,14 @@ and `Xᶜ` plus the bilinear cross-term `(Q + Qᵀ)[X, Xᶜ]` of rank `(Q + Qᵀ
   polar cut rank.
 * `Cslib.Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul`: low-rank Frobenius inner
   product bound against quadratic form sign matrices.
+
+## References
+
+* [J. Forster, *A linear lower bound on the unbounded error probabilistic communication
+  complexity*][Forster2002]
+* [S. Jukna, *Extremal Combinatorics*, Ch. 14][Jukna2011]
+* [A. A. Sherstov, P. Wu, *Near-Optimal Lower Bounds on the Threshold Degree and Sign-Rank of
+  AC⁰*, Theorem A.2][SherstovWu2019]
 -/
 
 public section
@@ -71,13 +79,8 @@ theorem abs_sum_mul_signMatrix_quadForm_le {ι : Type*} [Fintype ι] [DecidableE
   let glue := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
   let f : (X → Bool) → (↥Xᶜ → Bool) → Bool := fun a b => BitString.quadForm Q (glue (a, b))
   set M := signMatrix ℝ f
-  let bitEquiv : Bool ≃ ZMod 2 :=
-    { toFun := BitString.bitVal (ZMod 2)
-      invFun := fun z => decide (z = 1)
-      left_inv := fun b => by cases b <;> decide
-      right_inv := fun z => by revert z; decide }
-  let eX : (X → Bool) ≃ (X → ZMod 2) := Equiv.piCongrRight fun _ => bitEquiv
-  let eY : (↥Xᶜ → Bool) ≃ (↥Xᶜ → ZMod 2) := Equiv.piCongrRight fun _ => bitEquiv
+  let eX : (X → Bool) ≃ (X → ZMod 2) := (BitString.toZModSpace X).toEquiv
+  let eY : (↥Xᶜ → Bool) ≃ (↥Xᶜ → ZMod 2) := (BitString.toZModSpace ↥Xᶜ).toEquiv
   let C := (Q + Qᵀ).submatrix ((↑) : X → ι) ((↑) : ↥Xᶜ → ι)
   let g : (X → ZMod 2) → ℝ := fun u =>
     (-1) ^ (u ⬝ᵥ Q.submatrix ((↑) : X → ι) ((↑) : X → ι) *ᵥ u).val
@@ -94,12 +97,14 @@ theorem abs_sum_mul_signMatrix_quadForm_le {ι : Type*} [Fintype ι] [DecidableE
       have h1 : X.domRestrict (glue (a, b)) = a :=
         congrArg Prod.fst ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply _)
       ext i
-      exact congrArg (BitString.bitVal (ZMod 2)) (congrFun h1 i)
+      rw [Set.domRestrict_apply, ← BitString.bitEquiv_symm_apply]
+      exact congrArg BitString.bitEquiv.symm (congrFun h1 i)
     have hb_sub : (Xᶜ.domRestrict fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)) = eY b := by
       have h2 : Xᶜ.domRestrict (glue (a, b)) = b :=
         congrArg Prod.snd ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply _)
       ext j
-      exact congrArg (BitString.bitVal (ZMod 2)) (congrFun h2 j)
+      rw [Set.domRestrict_apply, ← BitString.bitEquiv_symm_apply]
+      exact congrArg BitString.bitEquiv.symm (congrFun h2 j)
     rw [hS, hq, ZMod.neg_one_pow_val_add, ZMod.neg_one_pow_val_add, ha_sub, hb_sub]
   set kerCard := #{z : ↥Xᶜ → ZMod 2 | C *ᵥ z = 0}
   have hker_eq : (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X =

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Basic
+public import CslibFrontier.Computability.Circuit.Quantum.Input
 public import CslibFrontier.Computability.Circuit.Quantum.PhaseGates
 public import CslibFrontier.Computability.Communication.QuadFormSignRank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
@@ -44,12 +45,13 @@ single-qubit `U(2)` gates (`g.arity ≤ 1`), as well as idle or one-qubit-only a
 
 * `Cslib.Circuits.Frontier.twoQubitCount`: number of two-qubit gates (`g.arity = 2`) in a circuit.
 * `Cslib.Circuits.Frontier.TwoLocal`, `Cslib.Circuits.Frontier.HasBondRankTwo`,
-  `Cslib.Circuits.Frontier.AllBondRankTwo`: two-qubit locality and bond-rank-two predicates.
-* `Cslib.Circuits.Frontier.embedBits`, `Cslib.Circuits.Frontier.quantumAcceptProb`,
-  `Cslib.Circuits.Frontier.quantumCorrelation`, `Cslib.Circuits.Frontier.phaseState`,
-  `Cslib.Circuits.Frontier.boolMulVec`, `Cslib.Circuits.Frontier.linBlockMatrix`: quantum data
-  embedding, acceptance probability, correlation, quadratic phase states, and bipartite linear
-  polar block matrices.
+  `Cslib.Circuits.Frontier.AllBondRankTwo`: two-qubit locality and bond-rank-two predicates
+  (defined via `Cslib.Quantum.Circuit.IsOver`).
+* `Cslib.Circuits.Frontier.quantumAcceptProb`, `Cslib.Circuits.Frontier.quantumCorrelation`,
+  `Cslib.Circuits.Frontier.phaseState`, `Cslib.Circuits.Frontier.boolMulVec`,
+  `Cslib.Circuits.Frontier.linBlockMatrix`: quantum acceptance probability (via
+  `Cslib.Quantum.glue`), correlation, quadratic phase states (via `Cslib.Quantum.embedState`), and
+  bipartite linear polar block matrices.
 * `Cslib.Circuits.Frontier.CompiledQuantumNet`: packaged finite degree-`d` wire network compiled
   from `C : Quantum.Circuit N` together with its component cycle-rank and single-cut bounds.
 
@@ -96,10 +98,11 @@ theorem twoQubitCount_append {N : ℕ} (C D : Quantum.Circuit N) :
     twoQubitCount (C ++ D) = twoQubitCount C + twoQubitCount D := by
   simp only [twoQubitCount, List.filter_append, List.length_append]
 
-/-- A quantum circuit is *two-local* when every gate acts on at most two qubits (`g.arity ≤ 2`). -/
+/-- A quantum circuit is *two-local* when every gate acts on at most two qubits (`g.arity ≤ 2`),
+expressed via `Quantum.Circuit.IsOver`. -/
 @[expose]
 def TwoLocal {N : ℕ} (C : Quantum.Circuit N) : Prop :=
-  ∀ g ∈ C, g.arity ≤ 2
+  C.IsOver {g | g.1 ≤ 2}
 
 /-- A two-qubit gate `U : Quantum.Gate 2` has *Schmidt / bond rank at most two* across wire `0` and
 wire `1` when its unitary matrix factors as a sum over a single Boolean bond index `b : Bool`. -/
@@ -112,10 +115,10 @@ def HasBondRankTwo (U : Quantum.Gate 2) : Prop :=
 
 /-- A quantum circuit `C` is two-local with every two-qubit gate having bond rank at most two
 (for instance arbitrary `U(2)` single-qubit gates together with `CNOT`, `CZ`, and controlled-`V`
-gates). -/
+gates), expressed via `Quantum.Circuit.IsOver`. -/
 @[expose]
 def AllBondRankTwo {N : ℕ} (C : Quantum.Circuit N) : Prop :=
-  TwoLocal C ∧ ∀ g ∈ C, ∀ h : g.arity = 2, HasBondRankTwo (h ▸ g.gate)
+  C.IsOver {g | g.1 ≤ 2 ∧ ∀ h : g.1 = 2, HasBondRankTwo (h ▸ g.2)}
 
 /-- `Quantum.Gate.cnot` has bond rank two across its control and target wires. -/
 theorem cnot_hasBondRankTwo : HasBondRankTwo Quantum.Gate.cnot := by
@@ -130,6 +133,7 @@ theorem cnot_hasBondRankTwo : HasBondRankTwo Quantum.Gate.cnot := by
       zero_ne_one, not_false_eq_true, Function.update_of_ne]
   rw [if_congr hiff rfl rfl]
   cases hx0 : x 0 <;> cases hy0 : y 0 <;> cases hx1 : x 1 <;> cases hy1 : y 1 <;> simp
+
 /-- Every controlled single-qubit gate `Quantum.Gate.controlled V` has bond rank at most two. -/
 theorem controlled_hasBondRankTwo (V : Quantum.Gate 1) :
     HasBondRankTwo (Quantum.Gate.controlled V) := by
@@ -138,11 +142,7 @@ theorem controlled_hasBondRankTwo (V : Quantum.Gate 1) :
       if b then (V : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ) (fun _ => y₁) (fun _ => x₁)
       else if y₁ = x₁ then 1 else 0,
     fun y x => ?_⟩
-  change (if y 0 = x 0 then
-      if x 0 then (V : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ) (fun _ => y 1) (fun _ => x 1)
-      else if y 1 = x 1 then 1 else 0
-    else 0) = _
-  rw [Fintype.sum_bool]
+  rw [Quantum.Gate.controlled_apply, Fintype.sum_bool]
   by_cases hx0 : x 0 = true <;> by_cases hy0 : y 0 = true
   · simp [hx0, hy0]
   · simp [hx0, hy0]
@@ -272,7 +272,7 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       · intro hbond a ha h2
         rcases List.mem_append.mp ha with haG | haL
         · exact hbondG hbond a haG h2
-        · exact hbondL ⟨htwo_C, fun g' hg' => hbond.2 g' (List.mem_cons_of_mem _ hg')⟩ a haL h2
+        · exact hbondL (fun g' hg' => hbond g' (List.mem_cons_of_mem _ hg')) a haL h2
       · rw [Quantum.Circuit.matrix_cons, Submonoid.coe_mul, Matrix.mul_apply]
         simp_rw [hmatC, hmatG]
         have hsum_eq : (∑ z : Fin N → Bool,
@@ -316,7 +316,7 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
         split_ifs <;> rfl
       · intro hbond a ha h2
         rcases List.mem_singleton.mp ha with rfl
-        exact hbond.2 g List.mem_cons_self h2
+        exact (hbond g List.mem_cons_self).2 h2
       · rw [Quantum.PlacedGate.matrix_apply]
         simp only [evalAct, one_mul, placeAct_apply]
         dsimp only [actG]
@@ -2024,42 +2024,20 @@ private theorem amplitude_cut_factorization {V_fin E_fin W : Type}
 
 end WireNetwork
 
-/-! ### Quantum circuit observables: embedding, correlation, state fidelity, and linear maps -/
+/-! ### Quantum circuit observables: acceptance, correlation, state fidelity, and linear maps -/
 
-/-- Embed `n` data bits `x : Fin n → Bool` onto `e : Fin n ↪ Fin N`, using `x₀ : Fin N → Bool` on
-all ancilla qubits outside `Set.range e`. -/
-@[expose]
-noncomputable def embedBits {n N : ℕ} (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
-    (x : Fin n → Bool) (j : Fin N) : Bool :=
-  open Classical in
-  if hj : ∃ i, e i = j then x (Classical.choose hj) else x₀ j
-
-@[simp]
-theorem embedBits_apply_wire {n N : ℕ} (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
-    (x : Fin n → Bool) (i : Fin n) : embedBits e x₀ x (e i) = x i := by
-  classical
-  have hj : ∃ i', e i' = e i := ⟨i, rfl⟩
-  simp only [embedBits, hj, ↓reduceDIte]
-  exact congrArg x (e.injective (Classical.choose_spec hj))
-
-theorem embedBits_apply_of_notMem {n N : ℕ} (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
-    (x : Fin n → Bool) {j : Fin N} (hj : j ∉ Set.range e) : embedBits e x₀ x j = x₀ j := by
-  classical
-  have hne : ¬∃ i, e i = j := hj
-  simp only [embedBits, hne, ↓reduceDIte]
-
-theorem embedBits_injective {n N : ℕ} (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) :
-    Function.Injective (embedBits e x₀) := fun x₁ x₂ h =>
+private theorem glue_left_injective {n N : ℕ} (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) :
+    Function.Injective (fun x : Fin n → Bool => Quantum.glue e x x₀) := fun x₁ x₂ h =>
   funext fun i => by
-    have hi := congrFun h (e i)
-    rwa [embedBits_apply_wire, embedBits_apply_wire] at hi
+    have hi : Quantum.glue e x₁ x₀ (e i) = Quantum.glue e x₂ x₀ (e i) := congrFun h (e i)
+    rwa [Quantum.glue_apply_emb, Quantum.glue_apply_emb] at hi
 
 /-- Acceptance probability of measuring qubit `q_out` in `|1⟩` (`true`) after running `C` on
-`|embedBits e x₀ x⟩`. -/
+`|Quantum.glue e x x₀⟩`. -/
 @[expose]
 noncomputable def quantumAcceptProb {n N : ℕ} (C : Quantum.Circuit N) (q_out : Fin N)
     (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) (x : Fin n → Bool) : ℝ :=
-  Quantum.measureProb (C.run (embedBits e x₀ x)) (Finset.univ.filter fun y => y q_out = true)
+  Quantum.measureProb (C.run (Quantum.glue e x x₀)) (Finset.univ.filter fun y => y q_out = true)
 
 theorem quantumAcceptProb_nonneg {n N : ℕ} (C : Quantum.Circuit N) (q_out : Fin N)
     (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) (x : Fin n → Bool) :
@@ -2070,9 +2048,9 @@ theorem quantumAcceptProb_le_one {n N : ℕ} (C : Quantum.Circuit N) (q_out : Fi
     (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) (x : Fin n → Bool) :
     quantumAcceptProb C q_out e x₀ x ≤ 1 := by
   calc quantumAcceptProb C q_out e x₀ x
-      ≤ Quantum.measureProb (C.run (embedBits e x₀ x)) Finset.univ :=
+      ≤ Quantum.measureProb (C.run (Quantum.glue e x x₀)) Finset.univ :=
         Quantum.measureProb_le_measureProb_univ _ _
-    _ = ‖C.run (embedBits e x₀ x)‖ ^ 2 := Quantum.measureProb_univ _
+    _ = ‖C.run (Quantum.glue e x x₀)‖ ^ 2 := Quantum.measureProb_univ _
     _ = 1 := by rw [Quantum.Circuit.norm_run, one_pow]
 
 /-- Correlation `𝔼_x [±1_{x ∈ S} · (2 p(x) - 1)]` between a target set `S ⊆ Bool^n` and an
@@ -2084,52 +2062,37 @@ noncomputable def quantumCorrelation {n : ℕ} (S : Set (Fin n → Bool))
   (∑ x : Fin n → Bool, (if x ∈ S then (1 : ℝ) else -1) * (2 * p x - 1)) / (2 : ℝ) ^ n
 
 /-- The `n`-qubit computational-basis phase state
-`2^{-n/2} ∑_{z : Bool^n} (-1)^{BitString.quadForm Q z} |embedBits e x₀ z⟩`. -/
-@[expose]
+`2^{-n/2} ∑_{z : Bool^n} (-1)^{BitString.quadForm Q z} |Quantum.glue e z x₀⟩`, embedded via
+`Quantum.embedState`. -/
 noncomputable def phaseState {n N : ℕ} (Q : Matrix (Fin n) (Fin n) (ZMod 2))
     (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) : Quantum.Qubits N :=
-  open Classical in
-  WithLp.toLp 2 fun y =>
-    if hz : ∃ z : Fin n → Bool, embedBits e x₀ z = y then
-      (((1 / √2) ^ n : ℝ) : ℂ) * (if BitString.quadForm Q (Classical.choose hz) then -1 else 1)
-    else 0
+  Quantum.embedState e x₀
+    (WithLp.toLp 2 fun z : Fin n → Bool =>
+      (((1 / √2) ^ n : ℝ) : ℂ) * (if BitString.quadForm Q z then -1 else 1))
 
 theorem norm_phaseState {n N : ℕ} (Q : Matrix (Fin n) (Fin n) (ZMod 2))
     (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) : ‖phaseState Q e x₀‖ = 1 := by
-  classical
-  have hsq : ‖phaseState Q e x₀‖ ^ 2 = 1 := by
+  rw [phaseState, LinearIsometry.norm_map]
+  set ψ : Quantum.Qubits n := WithLp.toLp 2 fun z : Fin n → Bool =>
+    (((1 / √2) ^ n : ℝ) : ℂ) * (if BitString.quadForm Q z then -1 else 1)
+  have hsq : ‖ψ‖ ^ 2 = 1 := by
     rw [← Quantum.measureProb_univ, Quantum.measureProb]
-    have hfilt : (∑ y : Fin N → Bool, ‖(phaseState Q e x₀).ofLp y‖ ^ 2) =
-        ∑ z : Fin n → Bool, ‖(phaseState Q e x₀).ofLp (embedBits e x₀ z)‖ ^ 2 := by
-      have hzero : ∀ y ∈ (Finset.univ : Finset (Fin N → Bool)),
-          y ∉ Finset.univ.image (embedBits e x₀) →
-            ‖(phaseState Q e x₀).ofLp y‖ ^ 2 = 0 := by
-        intro y _ hy
-        have hne : ¬∃ z, embedBits e x₀ z = y := fun ⟨z, hz⟩ =>
-          hy (Finset.mem_image.mpr ⟨z, Finset.mem_univ z, hz⟩)
-        simp only [phaseState, WithLp.ofLp_toLp, hne, ↓reduceDIte, norm_zero, ne_eq,
-          OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow]
-      rw [← Finset.sum_subset (Finset.subset_univ _) hzero,
-        Finset.sum_image fun _ _ _ _ h => embedBits_injective e x₀ h]
-    rw [hfilt]
-    have hterm (z : Fin n → Bool) :
-        ‖(phaseState Q e x₀).ofLp (embedBits e x₀ z)‖ ^ 2 = (1 / 2 : ℝ) ^ n := by
-      have hz : ∃ z', embedBits e x₀ z' = embedBits e x₀ z := ⟨z, rfl⟩
-      have hsign_norm : ‖(if BitString.quadForm Q (Classical.choose hz) then (-1 : ℂ) else 1)‖ =
-          1 := by split_ifs <;> simp
-      simp only [phaseState, WithLp.ofLp_toLp, hz, ↓reduceDIte, norm_mul, Complex.norm_real,
+    have hterm (z : Fin n → Bool) : ‖ψ.ofLp z‖ ^ 2 = (1 / 2 : ℝ) ^ n := by
+      have hsign_norm : ‖(if BitString.quadForm Q z then (-1 : ℂ) else 1)‖ = 1 := by
+        split_ifs <;> simp
+      simp only [ψ, norm_mul, Complex.norm_real,
         Real.norm_of_nonneg (by positivity : (0 : ℝ) ≤ (1 / √2) ^ n), hsign_norm, mul_one]
       rw [← pow_mul, mul_comm n 2, pow_mul, div_pow, one_pow, Real.sq_sqrt (by norm_num)]
     simp_rw [hterm]
     rw [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
       nsmul_eq_mul, Nat.cast_pow, Nat.cast_ofNat, ← mul_pow, mul_one_div_cancel (by norm_num),
       one_pow]
-  nlinarith [norm_nonneg (phaseState Q e x₀)]
+  nlinarith [norm_nonneg ψ]
 
 /-- Given `Q_sub ⊆ ↥A` inducing `S = {i : Fin n | ⟨e i, _⟩ ∈ Q_sub}`, restricting
-`embedBits e x₀ (glueS (a, b))` to `Q_sub` depends only on `a : S → Bool` and restricting to
+`Quantum.glue e (glueS (a, b)) x₀` to `Q_sub` depends only on `a : S → Bool` and restricting to
 `Q_subᶜ` depends only on `b : ↥Sᶜ → Bool`. -/
-private theorem exists_lift_domRestrict_embedBits {n N : ℕ}
+private theorem exists_lift_domRestrict_glue {n N : ℕ}
     (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) {A : Set (Fin N)} (heA : Set.range e ⊆ A)
     (Q_sub : Set ↥A)
     [DecidablePred (· ∈ ({i : Fin n | (⟨e i, heA ⟨i, rfl⟩⟩ : ↥A) ∈ Q_sub} : Set (Fin n)))] :
@@ -2137,9 +2100,9 @@ private theorem exists_lift_domRestrict_embedBits {n N : ℕ}
     let glueS := (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
     ∃ (liftP : (S → Bool) → (Q_sub → Bool)) (liftPc : (↥Sᶜ → Bool) → (↥Q_subᶜ → Bool)),
       (∀ (a : S → Bool) (b : ↥Sᶜ → Bool),
-        Q_sub.domRestrict (A.domRestrict (embedBits e x₀ (glueS (a, b)))) = liftP a) ∧
+        Q_sub.domRestrict (A.domRestrict (Quantum.glue e (glueS (a, b)) x₀)) = liftP a) ∧
       (∀ (a : S → Bool) (b : ↥Sᶜ → Bool),
-        Q_subᶜ.domRestrict (A.domRestrict (embedBits e x₀ (glueS (a, b)))) = liftPc b) := by
+        Q_subᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueS (a, b)) x₀)) = liftPc b) := by
   intro S glueS
   let liftP (a : S → Bool) : Q_sub → Bool := fun q =>
     open Classical in
@@ -2161,9 +2124,13 @@ private theorem exists_lift_domRestrict_embedBits {n N : ℕ}
     else x₀ q.1.1
   refine ⟨liftP, liftPc, fun a b => ?_, fun a b => ?_⟩
   · ext q
-    simp only [Set.domRestrict_apply, embedBits, liftP]
+    simp only [Set.domRestrict_apply, liftP]
     by_cases hq : ∃ i, e i = q.1.1
     · simp only [hq, ↓reduceDIte]
+      have hg : Quantum.glue e (glueS (a, b)) x₀ q.1.1 = glueS (a, b) (Classical.choose hq) :=
+        (congrArg (Quantum.glue e (glueS (a, b)) x₀) (Classical.choose_spec hq)).symm.trans
+          (Quantum.glue_apply_emb e (glueS (a, b)) x₀ (Classical.choose hq))
+      rw [hg]
       have hm : Classical.choose hq ∈ S := by
         have hs : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
           Subtype.ext (Classical.choose_spec hq)
@@ -2173,10 +2140,15 @@ private theorem exists_lift_domRestrict_embedBits {n N : ℕ}
         ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply (a, b)))
         ⟨Classical.choose hq, hm⟩
     · simp only [hq, ↓reduceDIte]
+      exact Quantum.glue_of_not e _ x₀ fun i hi => hq ⟨i, hi⟩
   · ext q
-    simp only [Set.domRestrict_apply, embedBits, liftPc]
+    simp only [Set.domRestrict_apply, liftPc]
     by_cases hq : ∃ i, e i = q.1.1
     · simp only [hq, ↓reduceDIte]
+      have hg : Quantum.glue e (glueS (a, b)) x₀ q.1.1 = glueS (a, b) (Classical.choose hq) :=
+        (congrArg (Quantum.glue e (glueS (a, b)) x₀) (Classical.choose_spec hq)).symm.trans
+          (Quantum.glue_apply_emb e (glueS (a, b)) x₀ (Classical.choose hq))
+      rw [hg]
       have hm : Classical.choose hq ∈ Sᶜ := by
         have hs : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
           Subtype.ext (Classical.choose_spec hq)
@@ -2186,6 +2158,7 @@ private theorem exists_lift_domRestrict_embedBits {n N : ℕ}
         ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply (a, b)))
         ⟨Classical.choose hq, hm⟩
     · simp only [hq, ↓reduceDIte]
+      exact Quantum.glue_of_not e _ x₀ fun i hi => hq ⟨i, hi⟩
 
 /-! ### Core single-cut bounds from `CappedWireNet` -/
 
@@ -2228,37 +2201,38 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
   have hprob_act (x : Fin n → Bool) :
       quantumAcceptProb C q_out e x₀ x =
         ∑ yA : ↥A → Bool, (if yA q_act = true then (1 : ℝ) else 0) *
-          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (embedBits e x₀ x))‖ ^ 2 := by
+          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2 := by
     rw [quantumAcceptProb, Quantum.measureProb]
     have hrun (y : Fin N → Bool) :
-        (C.run (embedBits e x₀ x)).ofLp y = (C.matrix : Matrix _ _ ℂ) y (embedBits e x₀ x) := by
+        (C.run (Quantum.glue e x x₀)).ofLp y =
+          (C.matrix : Matrix _ _ ℂ) y (Quantum.glue e x x₀) := by
       simp only [Quantum.Circuit.run, Quantum.Circuit.eval, Quantum.unitaryEquiv_apply,
         Matrix.mulVec, dotProduct, Quantum.ket_apply, mul_ite, mul_one, mul_zero,
         Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
     have hfilt_sum : (∑ y ∈ Finset.univ.filter (fun y : Fin N → Bool => y q_out = true),
-        ‖(C.run (embedBits e x₀ x)).ofLp y‖ ^ 2) =
+        ‖(C.run (Quantum.glue e x x₀)).ofLp y‖ ^ 2) =
         ∑ y : Fin N → Bool, (if y q_out = true then (1 : ℝ) else 0) *
-          ‖(C.matrix : Matrix _ _ ℂ) y (embedBits e x₀ x)‖ ^ 2 := by
+          ‖(C.matrix : Matrix _ _ ℂ) y (Quantum.glue e x x₀)‖ ^ 2 := by
       rw [Finset.sum_filter]
       refine Finset.sum_congr rfl fun y _ => ?_
       rw [hrun y]
       split_ifs <;> ring
     rw [hfilt_sum]
-    simp_rw [hsplit _ (embedBits e x₀ x), norm_mul, mul_pow]
+    simp_rw [hsplit _ (Quantum.glue e x x₀), norm_mul, mul_pow]
     have hsum_split : (∑ y : Fin N → Bool,
         (if y q_out = true then (1 : ℝ) else 0) *
           (‖(evalAct L : Matrix _ _ ℂ) (A.domRestrict y)
-              (A.domRestrict (embedBits e x₀ x))‖ ^ 2 *
+              (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2 *
             ‖∏ q : {q : Fin N // q ∉ A},
-              (inactU q : Matrix Bool Bool ℂ) (y q.1) (embedBits e x₀ x q.1)‖ ^ 2)) =
+              (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)‖ ^ 2)) =
         (∑ yA : ↥A → Bool, (if yA q_act = true then (1 : ℝ) else 0) *
-          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (embedBits e x₀ x))‖ ^ 2) *
+          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2) *
         ∑ yAc : {q : Fin N // q ∉ A} → Bool,
           ∏ q : {q : Fin N // q ∉ A},
             ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.1)‖ ^ 2 := by
       let fA (yA : ↥A → Bool) : ℝ :=
         (if yA q_act = true then (1 : ℝ) else 0) *
-          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (embedBits e x₀ x))‖ ^ 2
+          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2
       let fAc (yAc : {q : Fin N // q ∉ A} → Bool) : ℝ :=
         ∏ q : {q : Fin N // q ∉ A}, ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.1)‖ ^ 2
       let eqvN : (Fin N → Bool) ≃ (↥A → Bool) × ({q : Fin N // q ∉ A} → Bool) :=
@@ -2275,16 +2249,15 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
         have hyq : y q_out = (A.domRestrict y) q_act := rfl
         have hprod_norm :
             ‖∏ q : {q : Fin N // q ∉ A},
-              (inactU q : Matrix Bool Bool ℂ) (y q.1) (embedBits e x₀ x q.1)‖ ^ 2 =
+              (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)‖ ^ 2 =
             ∏ q : {q : Fin N // q ∉ A},
               ‖(inactU q : Matrix Bool Bool ℂ) (y q.1) (x₀ q.1)‖ ^ 2 := by
           have heq_p : (∏ q : {q : Fin N // q ∉ A},
-                (inactU q : Matrix Bool Bool ℂ) (y q.1) (embedBits e x₀ x q.1)) =
+                (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)) =
               ∏ q : {q : Fin N // q ∉ A},
                 (inactU q : Matrix Bool Bool ℂ) (y q.1) (x₀ q.1) :=
-            Finset.prod_congr (M := ℂ) rfl fun q _ => by
-              have hnot_range : q.1 ∉ Set.range e := fun hr => q.2 (heA hr)
-              rw [embedBits_apply_of_notMem e x₀ x hnot_range]
+            Finset.prod_congr (M := ℂ) rfl fun q _ =>
+              congrArg _ (Quantum.glue_of_not e x x₀ fun i hi => q.2 (heA ⟨i, hi⟩))
           rw [heq_p, norm_prod, Finset.prod_pow]
         dsimp only [fA, fAc]
         rw [heqv1, heqv2, hyq, hprod_norm]
@@ -2317,12 +2290,13 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
   let YP : Set ↥A := {q | outVert q ∈ P}
   let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
   obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ :=
-    exists_lift_domRestrict_embedBits e x₀ heA XP
+    exists_lift_domRestrict_glue e x₀ heA XP
   have hdom_XP (a : X → Bool) (b : ↥Xᶜ → Bool) :
-      {q | inVert q ∈ P}.domRestrict (A.domRestrict (embedBits e x₀ (glueX (a, b)))) = liftXP a :=
+      {q | inVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
+        liftXP a :=
     hdom_XP' a b
   have hdom_XPc (a : X → Bool) (b : ↥Xᶜ → Bool) :
-      {q | inVert q ∈ P}ᶜ.domRestrict (A.domRestrict (embedBits e x₀ (glueX (a, b)))) =
+      {q | inVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
         liftXPc b := hdom_XPc' a b
   -- Product indicator on `YP` and `YPᶜ` for `yA q_act = true`:
   let wYP (yP : YP → Bool) : ℝ :=
@@ -2350,7 +2324,7 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
     rw [hprob_act]
     have hstep1 : (∑ yA : ↥A → Bool,
         (if yA q_act = true then (1 : ℝ) else 0) *
-          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (embedBits e x₀ (glueX (a, b))))‖ ^ 2) =
+          ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀))‖ ^ 2) =
         ∑ yA : ↥A → Bool,
           (∑ p : (Ecut → Bool) × (Ecut → Bool),
             ((wYP (YP.domRestrict yA) : ℂ) * Φ (liftXP a) (YP.domRestrict yA) p.1 *
@@ -2358,9 +2332,10 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
             ((wYPc (YPᶜ.domRestrict yA) : ℂ) * Ψ (liftXPc b) (YPᶜ.domRestrict yA) p.1 *
                 star (Ψ (liftXPc b) (YPᶜ.domRestrict yA) p.2))).re := by
       refine Finset.sum_congr rfl fun yA _ => ?_
-      have h1 := hamp (A.domRestrict (embedBits e x₀ (glueX (a, b)))) yA
+      have h1 := hamp (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) yA
       rw [hdom_XP, hdom_XPc] at h1
-      set z_amp : ℂ := (evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (embedBits e x₀ (glueX (a, b))))
+      set z_amp : ℂ :=
+        (evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀))
       have hnorm_sq : ‖z_amp‖ ^ 2 = (z_amp * star z_amp).re := by
         rw [RCLike.star_def, Complex.mul_conj, Complex.normSq_eq_norm_sq, Complex.ofReal_re]
       rw [hw_prod yA, hnorm_sq, h1, ← Complex.re_ofReal_mul]
@@ -2613,32 +2588,32 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
   let glueY := (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm
   let c_inact : ℂ := ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.1) (x₀ q.1)
   obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ :=
-    exists_lift_domRestrict_embedBits e x₀ heA YP
+    exists_lift_domRestrict_glue e x₀ heA YP
   have hdom_YP (a : Y → Bool) (b : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}.domRestrict (A.domRestrict (embedBits e x₀ (glueY (a, b)))) = liftYP a :=
-    hdom_YP' a b
+      {q | outVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueY (a, b)) x₀)) =
+        liftYP a := hdom_YP' a b
   have hdom_YPc (a : Y → Bool) (b : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}ᶜ.domRestrict (A.domRestrict (embedBits e x₀ (glueY (a, b)))) =
+      {q | outVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueY (a, b)) x₀)) =
         liftYPc b := hdom_YPc' a b
-  let amp (z : Fin n → Bool) : ℂ := (C.run x₀).ofLp (embedBits e x₀ z)
+  let amp (z : Fin n → Bool) : ℂ := (C.run x₀).ofLp (Quantum.glue e z x₀)
   have hamp_z (a : Y → Bool) (b : ↥Yᶜ → Bool) :
       amp (glueY (a, b)) =
         ∑ τ : Ecut → Bool,
           (c_inact * Φ (XP.domRestrict (A.domRestrict x₀)) (liftYP a) τ) *
             Ψ (XPᶜ.domRestrict (A.domRestrict x₀)) (liftYPc b) τ := by
     have hrun : amp (glueY (a, b)) =
-        (C.matrix : Matrix _ _ ℂ) (embedBits e x₀ (glueY (a, b))) x₀ := by
+        (C.matrix : Matrix _ _ ℂ) (Quantum.glue e (glueY (a, b)) x₀) x₀ := by
       simp only [amp, Quantum.Circuit.run, Quantum.Circuit.eval, Quantum.unitaryEquiv_apply,
         Matrix.mulVec, dotProduct, Quantum.ket_apply, mul_ite, mul_one, mul_zero,
         Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-    have hamp1 := hamp (A.domRestrict x₀) (A.domRestrict (embedBits e x₀ (glueY (a, b))))
+    have hamp1 := hamp (A.domRestrict x₀) (A.domRestrict (Quantum.glue e (glueY (a, b)) x₀))
     rw [hdom_YP, hdom_YPc] at hamp1
     rw [hrun, hsplit, hamp1]
     have hcin : (∏ q : {q : Fin N // q ∉ A},
         (inactU q : Matrix Bool Bool ℂ)
-          (embedBits e x₀ (glueY (a, b)) q.1) (x₀ q.1)) = c_inact := by
+          (Quantum.glue e (glueY (a, b)) x₀ q.1) (x₀ q.1)) = c_inact := by
       refine Finset.prod_congr rfl fun q _ => ?_
-      rw [embedBits_apply_of_notMem e x₀ _ (fun hr => q.2 (heA hr))]
+      rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩))]
     rw [hcin, mul_comm _ c_inact, Finset.mul_sum]
     exact Finset.sum_congr rfl fun _ _ => by ring
   -- Real and imaginary parts of `amp (glueY (a, b))` each factor through `(Ecut → Bool) × Bool`.
@@ -2676,11 +2651,11 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
     simp_rw [h1]
     rw [← Fintype.sum_prod_type']
     have hbij : (∑ p : (Y → Bool) × (↥Yᶜ → Bool), ‖amp (glueY (p.1, p.2))‖ ^ 2) =
-        ∑ z : Fin n → Bool, ‖(C.run x₀).ofLp (embedBits e x₀ z)‖ ^ 2 :=
+        ∑ z : Fin n → Bool, ‖(C.run x₀).ofLp (Quantum.glue e z x₀)‖ ^ 2 :=
       Fintype.sum_equiv glueY _ _ fun p => by simp only [Prod.mk.eta, amp]
     rw [hbij, ← Finset.sum_image (f := fun y => ‖(C.run x₀).ofLp y‖ ^ 2)
-      (fun _ _ _ _ h => embedBits_injective e x₀ h)]
-    calc ∑ y ∈ Finset.univ.image (embedBits e x₀), ‖(C.run x₀).ofLp y‖ ^ 2
+      (fun _ _ _ _ h => glue_left_injective e x₀ h)]
+    calc ∑ y ∈ Finset.univ.image (fun z => Quantum.glue e z x₀), ‖(C.run x₀).ofLp y‖ ^ 2
         ≤ Quantum.measureProb (C.run x₀) Finset.univ :=
           Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun _ _ _ => by positivity
       _ = ‖C.run x₀‖ ^ 2 := Quantum.measureProb_univ _
@@ -2692,31 +2667,29 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
         (((∑ a, ∑ b, S_mat a b * (U_re * V_re) a b : ℝ) : ℂ) +
           Complex.I * ((∑ a, ∑ b, S_mat a b * (U_im * V_im) a b : ℝ) : ℂ)) := by
     rw [PiLp.inner_apply]
-    have hzero : ∀ y ∈ (Finset.univ : Finset (Fin N → Bool)),
-        y ∉ Finset.univ.image (embedBits e x₀) →
-          inner ℂ ((phaseState Q e x₀).ofLp y) ((C.run x₀).ofLp y) = 0 := by
-      intro y _ hy
-      have hne : ¬∃ z, embedBits e x₀ z = y := fun ⟨z, hz⟩ =>
-        hy (Finset.mem_image.mpr ⟨z, Finset.mem_univ z, hz⟩)
-      simp only [phaseState, WithLp.ofLp_toLp, hne, ↓reduceDIte, inner_zero_left]
-    rw [← Finset.sum_subset (Finset.subset_univ _) hzero,
-      Finset.sum_image fun _ _ _ _ h => embedBits_injective e x₀ h]
-    have hterm (z : Fin n → Bool) :
-        inner ℂ ((phaseState Q e x₀).ofLp (embedBits e x₀ z))
-          ((C.run x₀).ofLp (embedBits e x₀ z)) =
-        (((1 / √2) ^ n : ℝ) : ℂ) *
-          (if BitString.quadForm Q z then -1 else 1) * amp z := by
-      have hz : ∃ z', embedBits e x₀ z' = embedBits e x₀ z := ⟨z, rfl⟩
-      have hchoose : Classical.choose hz = z := embedBits_injective e x₀ (Classical.choose_spec hz)
-      simp only [phaseState, WithLp.ofLp_toLp, hz, ↓reduceDIte, hchoose, RCLike.inner_apply,
-        map_mul, Complex.conj_ofReal, amp]
+    have hsum_z : (∑ y : Fin N → Bool, inner ℂ ((phaseState Q e x₀).ofLp y) ((C.run x₀).ofLp y)) =
+        ∑ z : Fin n → Bool,
+          (((1 / √2) ^ n : ℝ) : ℂ) *
+            ((if BitString.quadForm Q z then -1 else 1) * amp z) := by
+      have hite (y : Fin N → Bool) :
+          inner ℂ ((phaseState Q e x₀).ofLp y) ((C.run x₀).ofLp y) =
+            if Quantum.AgreeOff e y x₀ then
+              inner ℂ ((((1 / √2) ^ n : ℝ) : ℂ) * (if BitString.quadForm Q (y ∘ e) then -1 else 1))
+                ((C.run x₀).ofLp y)
+            else 0 := by
+        rw [phaseState, Quantum.embedState_apply]
+        split_ifs <;> simp_all
+      simp_rw [hite]
+      rw [Quantum.sum_agreeOff e x₀]
+      refine Finset.sum_congr rfl fun z _ => ?_
+      rw [Quantum.glue_comp, RCLike.inner_apply, map_mul, Complex.conj_ofReal]
       have hconj_sign : (starRingEnd ℂ) (if BitString.quadForm Q z then (-1 : ℂ) else 1) =
           if BitString.quadForm Q z then -1 else 1 := by
         cases BitString.quadForm Q z <;> simp
       rw [hconj_sign]
+      dsimp only [amp]
       ring
-    simp_rw [hterm, mul_assoc]
-    rw [← Finset.mul_sum]
+    rw [hsum_z, ← Finset.mul_sum]
     congr 1
     refine (Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool) _
       (fun p => (if BitString.quadForm Q (glueY p) then (-1 : ℂ) else 1) * amp (glueY p))
@@ -2854,8 +2827,8 @@ private theorem sign_dotProduct_eq_prod {α : Type*} (s : Finset α)
 
 open Classical in
 /-- Single-cut linear synthesis bound via Walsh-Hadamard duality on `CappedWireNet`: if `C`
-coherently computes `|embedBits e x₀ x⟩ ↦ |embedBits e x₀ (boolMulVec R x)⟩`, then across any cut
-`P`, the joint input/output cut `U ⊆ Fin (2 * n)` satisfies
+coherently computes `|Quantum.glue e x x₀⟩ ↦ |Quantum.glue e (boolMulVec R x) x₀⟩`, then across any
+cut `P`, the joint input/output cut `U ⊆ Fin (2 * n)` satisfies
 `(linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤ |G.edgeCut P| + 1`. -/
 private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     {C : Quantum.Circuit N} {e : Fin n ↪ Fin N} {x₀ : Fin N → Bool}
@@ -2874,7 +2847,7 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     (hloc_edge : ∀ v x y γ₁ γ₂, Set.EqOn γ₁ γ₂ (G.incidenceSet v) → F v x y γ₁ = F v x y γ₂)
     (R : Matrix (Fin n) (Fin n) (ZMod 2))
     (hlin : ∀ x : Fin n → Bool,
-      C.run (embedBits e x₀ x) = Quantum.ket (embedBits e x₀ (boolMulVec R x)))
+      C.run (Quantum.glue e x x₀) = Quantum.ket (Quantum.glue e (boolMulVec R x) x₀))
     (leaf2n : Fin (2 * n) ↪ V_fin)
     (hleaf_in : ∀ i : Fin n, leaf2n (inl2n n i) = inVert ⟨e i, heA ⟨i, rfl⟩⟩)
     (hleaf_out : ∀ j : Fin n, leaf2n (inr2n n j) = outVert ⟨e j, heA ⟨j, rfl⟩⟩)
@@ -2895,109 +2868,102 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
   let glueY := (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm
   let c_inact : ℂ := ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.1) (x₀ q.1)
   obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ :=
-    exists_lift_domRestrict_embedBits e x₀ heA XP
+    exists_lift_domRestrict_glue e x₀ heA XP
   have hdom_XP (a : X → Bool) (b : ↥Xᶜ → Bool) :
-      {q | inVert q ∈ P}.domRestrict (A.domRestrict (embedBits e x₀ (glueX (a, b)))) = liftXP a :=
+      {q | inVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
+        liftXP a :=
     hdom_XP' a b
   have hdom_XPc (a : X → Bool) (b : ↥Xᶜ → Bool) :
-      {q | inVert q ∈ P}ᶜ.domRestrict (A.domRestrict (embedBits e x₀ (glueX (a, b)))) =
+      {q | inVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
         liftXPc b := hdom_XPc' a b
   obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ :=
-    exists_lift_domRestrict_embedBits e x₀ heA YP
+    exists_lift_domRestrict_glue e x₀ heA YP
   have hdom_YP (wP : Y → Bool) (wPc : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}.domRestrict (A.domRestrict (embedBits e x₀ (glueY (wP, wPc)))) =
+      {q | outVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueY (wP, wPc)) x₀)) =
         liftYP wP := hdom_YP' wP wPc
   have hdom_YPc (wP : Y → Bool) (wPc : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}ᶜ.domRestrict (A.domRestrict (embedBits e x₀ (glueY (wP, wPc)))) =
+      {q | outVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueY (wP, wPc)) x₀)) =
         liftYPc wPc := hdom_YPc' wP wPc
   have hamp_wx (xP : X → Bool) (xPc : ↥Xᶜ → Bool) (wP : Y → Bool) (wPc : ↥Yᶜ → Bool) :
       (if glueY (wP, wPc) = boolMulVec R (glueX (xP, xPc)) then (1 : ℂ) else 0) =
         ∑ τ : Ecut → Bool,
           (c_inact * Φ (liftXP xP) (liftYP wP) τ) * Ψ (liftXPc xPc) (liftYPc wPc) τ := by
     have hket : (if glueY (wP, wPc) = boolMulVec R (glueX (xP, xPc)) then (1 : ℂ) else 0) =
-        (C.run (embedBits e x₀ (glueX (xP, xPc)))).ofLp (embedBits e x₀ (glueY (wP, wPc))) := by
+        (C.run (Quantum.glue e (glueX (xP, xPc)) x₀)).ofLp
+          (Quantum.glue e (glueY (wP, wPc)) x₀) := by
       rw [hlin, Quantum.ket_apply]
-      have hinj : (embedBits e x₀ (glueY (wP, wPc)) =
-          embedBits e x₀ (boolMulVec R (glueX (xP, xPc)))) ↔
+      have hinj : (Quantum.glue e (glueY (wP, wPc)) x₀ =
+          Quantum.glue e (boolMulVec R (glueX (xP, xPc))) x₀) ↔
           glueY (wP, wPc) = boolMulVec R (glueX (xP, xPc)) :=
-        ⟨fun h => embedBits_injective e x₀ h, fun h => congrArg (embedBits e x₀) h⟩
+        ⟨fun h => glue_left_injective e x₀ h, fun h => congrArg (Quantum.glue e · x₀) h⟩
       exact (if_congr hinj rfl rfl).symm
-    have hrun : (C.run (embedBits e x₀ (glueX (xP, xPc)))).ofLp
-          (embedBits e x₀ (glueY (wP, wPc))) =
+    have hrun : (C.run (Quantum.glue e (glueX (xP, xPc)) x₀)).ofLp
+          (Quantum.glue e (glueY (wP, wPc)) x₀) =
         (C.matrix : Matrix _ _ ℂ)
-          (embedBits e x₀ (glueY (wP, wPc))) (embedBits e x₀ (glueX (xP, xPc))) := by
+          (Quantum.glue e (glueY (wP, wPc)) x₀) (Quantum.glue e (glueX (xP, xPc)) x₀) := by
       simp only [Quantum.Circuit.run, Quantum.Circuit.eval, Quantum.unitaryEquiv_apply,
         Matrix.mulVec, dotProduct, Quantum.ket_apply, mul_ite, mul_one, mul_zero,
         Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
     have hamp1 :=
-      hamp (A.domRestrict (embedBits e x₀ (glueX (xP, xPc))))
-        (A.domRestrict (embedBits e x₀ (glueY (wP, wPc))))
+      hamp (A.domRestrict (Quantum.glue e (glueX (xP, xPc)) x₀))
+        (A.domRestrict (Quantum.glue e (glueY (wP, wPc)) x₀))
     rw [hdom_XP, hdom_XPc, hdom_YP, hdom_YPc] at hamp1
     rw [hket, hrun, hsplit, hamp1]
     have hcin : (∏ q : {q : Fin N // q ∉ A},
-        (inactU q : Matrix Bool Bool ℂ) (embedBits e x₀ (glueY (wP, wPc)) q.1)
-          (embedBits e x₀ (glueX (xP, xPc)) q.1)) = c_inact := by
+        (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (wP, wPc)) x₀ q.1)
+          (Quantum.glue e (glueX (xP, xPc)) x₀ q.1)) = c_inact := by
       refine Finset.prod_congr rfl fun q _ => ?_
-      rw [embedBits_apply_of_notMem e x₀ _ (fun hr => q.2 (heA hr)),
-        embedBits_apply_of_notMem e x₀ _ (fun hr => q.2 (heA hr))]
+      rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩)),
+        Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩))]
     rw [hcin, mul_comm _ c_inact, Finset.mul_sum]
     exact Finset.sum_congr rfl fun _ _ => by ring
   -- Extract `(xP, yP)` from `a : U → Bool` and `(xPc, yPc)` from `b : ↥Uᶜ → Bool`.
-  let x_of_a (a : U → Bool) : X → Bool :=
-    fun i => a ⟨inl2n n i.1, by change leaf2n (inl2n n i.1) ∈ P; rw [hleaf_in]; exact i.2⟩
-  let y_of_a (a : U → Bool) : Y → Bool :=
-    fun j => a ⟨inr2n n j.1, by change leaf2n (inr2n n j.1) ∈ P; rw [hleaf_out]; exact j.2⟩
+  have hglue_emb (emb : Fin n → Fin (2 * n)) (S : Set (Fin n)) (hemb : ∀ i, emb i ∈ U ↔ i ∈ S)
+      (a : U → Bool) (b : ↥Uᶜ → Bool) (i : Fin n) :
+      glueU (a, b) (emb i) =
+        (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
+          ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
+           (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i := by
+    by_cases hi : i ∈ S
+    · have hiU : emb i ∈ U := (hemb i).mpr hi
+      have h1 : glueU (a, b) (emb i) = a ⟨emb i, hiU⟩ :=
+        congrFun (congrArg Prod.fst
+          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b))) ⟨emb i, hiU⟩
+      have h2 : (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
+          ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
+           (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i = a ⟨emb i, hiU⟩ :=
+        congrFun (congrArg Prod.fst
+          ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply _)) ⟨i, hi⟩
+      exact h1.trans h2.symm
+    · have hiUc : emb i ∈ Uᶜ := fun h => hi ((hemb i).mp h)
+      have h1 : glueU (a, b) (emb i) = b ⟨emb i, hiUc⟩ :=
+        congrFun (congrArg Prod.snd
+          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b)))
+          ⟨emb i, hiUc⟩
+      have h2 : (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
+          ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
+           (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i = b ⟨emb i, hiUc⟩ :=
+        congrFun (congrArg Prod.snd
+          ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply _)) ⟨i, hi⟩
+      exact h1.trans h2.symm
+  have hinl_mem (i : Fin n) : inl2n n i ∈ U ↔ i ∈ X := by
+    change leaf2n (inl2n n i) ∈ P ↔ inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P
+    rw [hleaf_in]
+  have hinr_mem (j : Fin n) : inr2n n j ∈ U ↔ j ∈ Y := by
+    change leaf2n (inr2n n j) ∈ P ↔ outVert ⟨e j, heA ⟨j, rfl⟩⟩ ∈ P
+    rw [hleaf_out]
+  let x_of_a (a : U → Bool) : X → Bool := fun i => a ⟨inl2n n i.1, (hinl_mem i.1).mpr i.2⟩
+  let y_of_a (a : U → Bool) : Y → Bool := fun j => a ⟨inr2n n j.1, (hinr_mem j.1).mpr j.2⟩
   let x_of_b (b : ↥Uᶜ → Bool) : ↥Xᶜ → Bool :=
-    fun i => b ⟨inl2n n i.1, by change leaf2n (inl2n n i.1) ∉ P; rw [hleaf_in]; exact i.2⟩
+    fun i => b ⟨inl2n n i.1, fun h => i.2 ((hinl_mem i.1).mp h)⟩
   let y_of_b (b : ↥Uᶜ → Bool) : ↥Yᶜ → Bool :=
-    fun j => b ⟨inr2n n j.1, by change leaf2n (inr2n n j.1) ∉ P; rw [hleaf_out]; exact j.2⟩
+    fun j => b ⟨inr2n n j.1, fun h => j.2 ((hinr_mem j.1).mp h)⟩
   have hglue_inl (a : U → Bool) (b : ↥Uᶜ → Bool) :
-      (fun i => glueU (a, b) (inl2n n i)) = glueX (x_of_a a, x_of_b b) := by
-    ext i
-    by_cases hi : i ∈ X
-    · have hiU : inl2n n i ∈ U := by change leaf2n (inl2n n i) ∈ P; rwa [hleaf_in]
-      have h1 : glueU (a, b) (inl2n n i) = a ⟨inl2n n i, hiU⟩ :=
-        congrFun (congrArg Prod.fst
-          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b)))
-          ⟨inl2n n i, hiU⟩
-      have h2 : glueX (x_of_a a, x_of_b b) i = x_of_a a ⟨i, hi⟩ :=
-        congrFun (congrArg Prod.fst
-          ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply
-            (x_of_a a, x_of_b b))) ⟨i, hi⟩
-      exact h1.trans h2.symm
-    · have hiUc : inl2n n i ∈ Uᶜ := by change leaf2n (inl2n n i) ∉ P; rwa [hleaf_in]
-      have h1 : glueU (a, b) (inl2n n i) = b ⟨inl2n n i, hiUc⟩ :=
-        congrFun (congrArg Prod.snd
-          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b)))
-          ⟨inl2n n i, hiUc⟩
-      have h2 : glueX (x_of_a a, x_of_b b) i = x_of_b b ⟨i, hi⟩ :=
-        congrFun (congrArg Prod.snd
-          ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply
-            (x_of_a a, x_of_b b))) ⟨i, hi⟩
-      exact h1.trans h2.symm
+      (fun i => glueU (a, b) (inl2n n i)) = glueX (x_of_a a, x_of_b b) :=
+    funext (hglue_emb (inl2n n) X hinl_mem a b)
   have hglue_inr (a : U → Bool) (b : ↥Uᶜ → Bool) (j : Fin n) :
-      glueU (a, b) (inr2n n j) = glueY (y_of_a a, y_of_b b) j := by
-    by_cases hj : j ∈ Y
-    · have hjU : inr2n n j ∈ U := by change leaf2n (inr2n n j) ∈ P; rwa [hleaf_out]
-      have h1 : glueU (a, b) (inr2n n j) = a ⟨inr2n n j, hjU⟩ :=
-        congrFun (congrArg Prod.fst
-          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b)))
-          ⟨inr2n n j, hjU⟩
-      have h2 : glueY (y_of_a a, y_of_b b) j = y_of_a a ⟨j, hj⟩ :=
-        congrFun (congrArg Prod.fst
-          ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).apply_symm_apply
-            (y_of_a a, y_of_b b))) ⟨j, hj⟩
-      exact h1.trans h2.symm
-    · have hjUc : inr2n n j ∈ Uᶜ := by change leaf2n (inr2n n j) ∉ P; rwa [hleaf_out]
-      have h1 : glueU (a, b) (inr2n n j) = b ⟨inr2n n j, hjUc⟩ :=
-        congrFun (congrArg Prod.snd
-          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b)))
-          ⟨inr2n n j, hjUc⟩
-      have h2 : glueY (y_of_a a, y_of_b b) j = y_of_b b ⟨j, hj⟩ :=
-        congrFun (congrArg Prod.snd
-          ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).apply_symm_apply
-            (y_of_a a, y_of_b b))) ⟨j, hj⟩
-      exact h1.trans h2.symm
+      glueU (a, b) (inr2n n j) = glueY (y_of_a a, y_of_b b) j :=
+    hglue_emb (inr2n n) Y hinr_mem a b j
   -- Walsh-transform `Φ` over `wP : Y → Bool` and `Ψ` over `wPc : ↥Yᶜ → Bool`.
   let Φ_lin (a : U → Bool) (τ : Ecut → Bool) : ℂ :=
     ∑ wP : Y → Bool,
@@ -3204,7 +3170,7 @@ structure CompiledQuantumNet {n N : ℕ} (d : ℕ) (e : Fin n ↪ Fin N) (q_extr
       (2 : ℝ) ^ (Q + Qᵀ).cutRank {i | leafOut i ∈ P} ≤
       4 * (2 : ℝ) ^ (G.edgeCut P).ncard
   cutRank_linBlockMatrix_le : ∀ (x₀ : Fin N → Bool) {R : Matrix (Fin n) (Fin n) (ZMod 2)},
-    (∀ x, C.run (embedBits e x₀ x) = Quantum.ket (embedBits e x₀ (boolMulVec R x))) →
+    (∀ x, C.run (Quantum.glue e x x₀) = Quantum.ket (Quantum.glue e (boolMulVec R x) x₀)) →
     ∀ P : Set V,
     (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank {k | leaf2n k ∈ P} ≤
       (G.edgeCut P).ncard + 1
@@ -3220,7 +3186,7 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
     Nonempty (CompiledQuantumNet d e q_extra C) := by
   have htwo : TwoLocal C := by
     rcases hd with rfl | rfl
-    · simp only [↓reduceIte] at hmodel; exact hmodel.1
+    · simp only [↓reduceIte] at hmodel; exact fun g hg => (hmodel g hg).1
     · simp only [(by decide : 4 ≠ 3), ↓reduceIte] at hmodel; exact hmodel
   classical
   set Aset := activeSet e q_extra C

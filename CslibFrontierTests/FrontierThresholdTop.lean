@@ -16,6 +16,51 @@ open Cslib.Circuits Cslib.Circuits.Frontier Cslib.Communication Real Filter
 
 namespace CslibFrontierTests.FrontierThresholdTop
 
+/-! ### Concrete `ThresholdTop` + `Program` evaluation check -/
+
+/-- A concrete `2`-input, `1`-gate `AND` program topped with an irrational-weight threshold unit
+reading both inputs (weight `-1`) and the internal `AND` gate (weight `-√2`) with bias `3`:
+`![true, true]` evaluates to `true` (`3 - 2 - √2 < 0`), whereas `![true, false]` evaluates to
+`false` (`3 - 1 ≥ 0`). -/
+example :
+    let σ : Signature.{0} := { Op := PUnit, Arity := fun _ => 2 }
+    let I : Interpretation σ Bool := fun _ f => f 0 && f 1
+    let p : Program σ 2 1 := Program.empty.gate ⟨PUnit.unit, fun j => .input j⟩
+    let T : ThresholdTop Bool 2 1 1 :=
+      { weight := fun _ w b => if b then Wire.elim (fun _ => -1) (fun _ => -√2) w else 0
+        bias := fun _ => 3
+        combine := fun v => v 0 }
+    T.eval p I ![true, true] = true ∧ T.eval p I ![true, false] = false := by
+  intro σ I p T
+  have heval (x : Fin 2 → Bool) :
+      T.eval p I x = decide (3 + ((if x 0 then (-1 : ℝ) else 0) +
+        (if x 1 then (-1 : ℝ) else 0) + (if (x 0 && x 1) then -√2 else 0)) < 0) := by
+    dsimp only [ThresholdTop.eval, T]
+    congr 1
+    congr 1
+    have hsum : (∑ w : Wire 2 1,
+        (if p.trace I x w then Wire.elim (fun _ => (-1 : ℝ)) (fun _ => -√2) w else 0)) =
+        ∑ s : Fin 2 ⊕ Fin 1,
+          (if p.trace I x ((Wire.equiv 2 1).symm s) then
+            Wire.elim (fun _ => (-1 : ℝ)) (fun _ => -√2) ((Wire.equiv 2 1).symm s) else 0) :=
+      rfl
+    rw [hsum, Fintype.sum_sum_type, Fin.sum_univ_two, Fin.sum_univ_one]
+    change (3 : ℝ) + (((if x 0 then -1 else 0) + (if x 1 then -1 else 0)) +
+      (if (x 0 && x 1) then -√2 else 0)) = _
+    ring
+  have hsqrt2 : (1 : ℝ) < √2 := by
+    rw [← Real.sqrt_one]
+    exact Real.sqrt_lt_sqrt zero_le_one one_lt_two
+  constructor
+  · rw [heval, decide_eq_true_iff]
+    simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one, Bool.and_self,
+      ↓reduceIte]
+    linarith
+  · rw [heval, decide_eq_false_iff_not, not_lt]
+    simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one, Bool.and_false,
+      ↓reduceIte, Bool.false_eq_true]
+    linarith
+
 /-! ### Irrational-weight halfspaces and order-rank compression -/
 
 /-- A concrete two-party halfspace with irrational weights `π` and `√2`. -/

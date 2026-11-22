@@ -37,9 +37,15 @@ together with its magic `ℓ₁` weight `cos (π / 8) + sin (π / 8) = √(1 + 1
 
 ## Main results
 
+* `Cslib.Quantum.Gate.controlled_apply`, `Cslib.Quantum.Gate.pauliZ_apply`,
+  `Cslib.Quantum.Gate.phaseT_apply`: matrix-entry characterizations of the three register gates.
 * `Cslib.Quantum.Gate.cos_add_sin_pi_div_eight`: `cos (π / 8) + sin (π / 8) = √(1 + 1 / √2)`.
 * `Cslib.Quantum.Gate.phaseT_eq_comb_pauliZ`: exact `2`-term Clifford linear combination for
   `Gate.phaseT` in `{1, Gate.pauliZ}`.
+
+## References
+
+* [R. de Wolf, *Quantum Computing: Lecture Notes*][deWolf2019]
 -/
 
 public section
@@ -51,7 +57,6 @@ open scoped Finset
 
 /-- The **controlled-`V` two-qubit gate** (`|0, b⟩ ↦ |0, b⟩`, `|1, b⟩ ↦ |1⟩ ⊗ V |b⟩`) for any
 single-qubit gate `V : Gate 1`. -/
-@[expose]
 noncomputable def controlled (V : Gate 1) : Gate 2 :=
   ⟨Matrix.of fun y x =>
       if y 0 = x 0 then
@@ -130,9 +135,17 @@ noncomputable def controlled (V : Gate 1) : Gate 2 :=
       simp only [hy0, hx0, ↓reduceIte, Bool.false_eq_true, true_and, mul_zero, add_zero, star_zero]
       cases y 1 <;> cases x 1 <;> simp⟩
 
+@[simp]
+theorem controlled_apply (V : Gate 1) (y x : Fin 2 → Bool) :
+    (controlled V : Matrix (Fin 2 → Bool) (Fin 2 → Bool) ℂ) y x =
+      if y 0 = x 0 then
+        if x 0 then (V : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ) (fun _ => y 1) (fun _ => x 1)
+        else if y 1 = x 1 then 1 else 0
+      else 0 := by
+  rfl
+
 /-- Single-qubit Pauli-`Z` register gate (`diag(1, -1)`), reindexing `Cslib.Quantum.pauliZ` along
 `Fin 1 → Bool ≃ Bool`. -/
-@[expose]
 noncomputable def pauliZ : Gate 1 :=
   ⟨Cslib.Quantum.pauliZ.submatrix (Equiv.funUnique (Fin 1) Bool) (Equiv.funUnique (Fin 1) Bool),
     Matrix.submatrix_equiv_mem_unitary.mpr pauliZ_mem_unitaryGroup⟩
@@ -145,7 +158,6 @@ theorem pauliZ_apply (y x : Fin 1 → Bool) :
   rw [Cslib.Quantum.pauliZ_apply]
 
 /-- Single-qubit `T` (`π / 4` phase) gate (`diag(1, e^{i π / 4})`). -/
-@[expose]
 noncomputable def phaseT : Gate 1 :=
   ⟨Matrix.of fun y x =>
       if y 0 = x 0 then (if x 0 then Complex.exp (Complex.I * (π / 4)) else 1) else 0, by
@@ -177,6 +189,12 @@ noncomputable def phaseT : Gate 1 :=
     · simp
     · simp [hnorm]⟩
 
+@[simp]
+theorem phaseT_apply (y x : Fin 1 → Bool) :
+    (phaseT : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ) y x =
+      if y 0 = x 0 then (if x 0 then Complex.exp (Complex.I * (π / 4)) else 1) else 0 := by
+  rfl
+
 /-- Exact `Clifford + T` magic norm identity: `cos (π / 8) + sin (π / 8) = √(1 + 1 / √2)`. -/
 theorem cos_add_sin_pi_div_eight : cos (π / 8) + sin (π / 8) = √(1 + 1 / √2) := by
   have hpi8_pos : 0 ≤ π / 8 := by positivity
@@ -206,12 +224,8 @@ theorem phaseT_eq_comb_pauliZ :
   ext y x
   have heq_iff : (y = x) ↔ y 0 = x 0 :=
     ⟨fun h => congrFun h 0, fun h => funext fun i => by rw [Fin.eq_zero i, h]⟩
-  simp only [Matrix.add_apply, Matrix.smul_apply, Matrix.one_apply, smul_eq_mul, pauliZ_apply]
-  change (if y 0 = x 0 then (if x 0 then Complex.exp (Complex.I * (π / 4)) else (1 : ℂ)) else 0) =
-    Complex.exp (Complex.I * (π / 8)) * (cos (π / 8) : ℂ) * (if y = x then 1 else 0) +
-      -Complex.I * Complex.exp (Complex.I * (π / 8)) * (sin (π / 8) : ℂ) *
-        (if y 0 = x 0 then (if y 0 then (-1 : ℂ) else 1) else 0)
-  rw [if_congr heq_iff rfl rfl]
+  simp only [Matrix.add_apply, Matrix.smul_apply, Matrix.one_apply, smul_eq_mul, pauliZ_apply,
+    phaseT_apply, if_congr heq_iff rfl rfl]
   by_cases hyx : y 0 = x 0
   · simp only [hyx, ↓reduceIte, mul_one]
     have hcos_sin_pos : Complex.exp (Complex.I * (π / 8)) *

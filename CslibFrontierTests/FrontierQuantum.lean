@@ -34,7 +34,7 @@ example :
        ⟨2, Gate.controlled Gate.hadamard, wire12⟩]
     twoQubitCount bellPlusAncilla = 2 ∧ AllBondRankTwo bellPlusAncilla := by
   intro wire1 wire01 wire12 bellPlusAncilla
-  refine ⟨rfl, fun g hg => ?_, fun g hg h2 => ?_⟩
+  refine ⟨rfl, fun g hg => ⟨?_, fun h2 => ?_⟩⟩
   · simp only [bellPlusAncilla, List.mem_cons, List.not_mem_nil, or_false] at hg
     rcases hg with rfl | rfl | rfl | rfl | rfl <;> decide
   · simp only [bellPlusAncilla, List.mem_cons, List.not_mem_nil, or_false] at hg
@@ -48,16 +48,23 @@ example :
 example (x : Fin 3 → Bool) :
     let dataIn3 : Fin 3 ↪ Fin 5 :=
       ⟨fun i => ⟨i.val, by omega⟩, fun _ _ h => Fin.ext (Fin.mk.inj h)⟩
-    embedBits dataIn3 (fun _ => false) x 1 = x 1 ∧
-      embedBits dataIn3 (fun _ => false) x 4 = false := by
+    glue dataIn3 x (fun _ => false) 1 = x 1 ∧
+      glue dataIn3 x (fun _ => false) 4 = false := by
   intro dataIn3
-  refine ⟨embedBits_apply_wire dataIn3 (fun _ => false) x 1,
-    embedBits_apply_of_notMem dataIn3 (fun _ => false) x ?_⟩
-  rintro ⟨i, hi⟩
+  refine ⟨glue_apply_emb dataIn3 x (fun _ => false) 1,
+    glue_of_not dataIn3 x (fun _ => false) fun i hi => ?_⟩
   have hv : i.val = 4 := congrArg Fin.val hi
   omega
 
-/-! ### `Clifford + T` identity, phase-state unit norm, and reversible linear bijection -/
+/-! ### `Clifford + T` `@[simp]` evaluation, phase-state unit norm, and reversible bijection -/
+
+example (V : Gate 1) (y x : Fin 2 → Bool) :
+    (Gate.controlled V : Matrix _ _ ℂ) y x =
+      if y 0 = x 0 then
+        if x 0 then (V : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ) (fun _ => y 1) (fun _ => x 1)
+        else if y 1 = x 1 then 1 else 0
+      else 0 := by
+  simp
 
 example : (cos (π / 8) + sin (π / 8)) ^ 2 = 1 + 1 / √2 := by
   rw [Gate.cos_add_sin_pi_div_eight, sq_sqrt (by positivity)]
@@ -73,15 +80,15 @@ example : Function.Bijective (boolMulVec (robustBijectiveMatrix 8)) :=
 
 example : ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) (C : Circuit N),
     AllBondRankTwo C →
-    (∀ x, C.run (embedBits e x₀ x) =
-      ket (embedBits e x₀ (boolMulVec (robustBijectiveMatrix n) x))) →
+    (∀ x, C.run (glue e x x₀) =
+      ket (glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
       (457597 / 100000 - 1 / 100 : ℝ) * n < twoQubitCount C :=
   eventually_lt_twoQubitCount_linear_457597 (ε := 1 / 100) (by norm_num)
 
 example : ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) (C : Circuit N),
     TwoLocal C →
-    (∀ x, C.run (embedBits e x₀ x) =
-      ket (embedBits e x₀ (boolMulVec (robustBijectiveMatrix n) x))) →
+    (∀ x, C.run (glue e x x₀) =
+      ket (glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
       (7 / 2 - 1 / 100 : ℝ) * n < twoQubitCount C :=
   eventually_lt_twoQubitCount_linear_twoLocal_two_fifths (ε := 1 / 100) (by norm_num)
 

@@ -69,6 +69,11 @@ linear threshold units reading all inputs and internal gates):
    computing `hardForm n` needs more than `(1 + π / (6 arccos (5/6)) - ε) n ≈ 1.893993 n` inner
    gates.
 
+The frontier lower-bound extensions to arbitrary-real-weight threshold tops developed here —
+combining order-rank compression on realized state rectangles with componentwise edge peeling, and
+combining cut-wise shifted order-rank factorizations with Forster's theorem on graphs — are
+original to this library.
+
 ## Main definitions
 
 * `Cslib.Circuits.Frontier.IsHalfspaceComb`: Boolean combinations of `t` two-party real halfspaces.
@@ -90,6 +95,15 @@ linear threshold units reading all inputs and internal gates):
   `Cslib.Circuits.Frontier.signRank_thresholdTop_le`,
   `Cslib.Circuits.Frontier.eventually_lt_innerSize_thresholdTop_hardForm`: single-cut sign-rank
   bounds and `hardForm` lower bound via Forster's theorem.
+
+## References
+
+* [J. Forster, *A linear lower bound on the unbounded error probabilistic communication
+  complexity*][Forster2002]
+* [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
+  Exponential Algorithms*][Gaspers2026]
+* [A. A. Sherstov, P. Wu, *Near-Optimal Lower Bounds on the Threshold Degree and Sign-Rank of
+  AC⁰*][SherstovWu2019]
 -/
 
 public section
@@ -598,8 +612,10 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
   exact lt_irrefl _ hcount
 
 /-- **Families meeting `HalfspaceCombBias` with bias tending to zero.** For any fixed `t : ℕ`,
-there is a family `S_n ⊆ Bool^n` with `HalfspaceCombBias t (S n) (2 (t + 1) (n + 1)^3 + 2^t)
-(1 / (n + 1))`, `log K_n = o(n)`, and `b_n → 0`. -/
+there is a family `S_n ⊆ Bool^n` (selected nonconstructively via `Classical.choose` from the
+counting witness `exists_halfspaceCombBias`) with
+`HalfspaceCombBias t (S n) (2 (t + 1) (n + 1)^3 + 2^t) (1 / (n + 1))`, `log K_n = o(n)`, and
+`b_n → 0`. -/
 theorem exists_halfspaceCombBias_family (t : ℕ) :
     ∃ S : ∀ n, Set (Fin n → Bool),
       (∀ᶠ n in atTop,
@@ -706,63 +722,6 @@ private theorem unitLedger_run_eq_trace {σ : Signature.{v}} {U : Type u} {n g :
     (unitLedger p I).run () x = p.trace I x :=
   (unitLedger p I).run_eq_trace rfl
 
-/-- When two inputs `x, y` agree on the edge cut of `P` in `liveNetwork p (fun _ => False) U`,
-splicing `x` on `readIn P` and `y` off `readIn P` into `z` makes `p.trace I z` agree with `x` on
-`wiresIn P` and with `y` off `wiresIn P`. -/
-private theorem trace_splice_wiresIn {σ : Signature.{v}} {U : Type u} {n g : ℕ}
-    (p : Program σ n g) (I : Interpretation σ U)
-    (P : Set (Compiler.Vertex (liveCircuit p (fun _ => False))))
-    {x y z : Fin n → U}
-    (hcut : EqOn (fun e => p.trace I x e.signal.1) (fun e => p.trace I y e.signal.1)
-      ((liveNetwork p (fun _ => False) U).edgeCut P))
-    (hzx : EqOn z x ((liveNetwork p (fun _ => False) U).readIn P))
-    (hzy : EqOn z y ((liveNetwork p (fun _ => False) U).readIn P)ᶜ)
-    (w : Wire n g) :
-    (w ∈ wiresIn P → p.trace I z w = p.trace I x w) ∧
-      (w ∉ wiresIn P → p.trace I z w = p.trace I y w) := by
-  set L := unitLedger p I
-  have hαx : (L.network ()).Satisfies x (fun e => p.trace I x e.signal.1) := by
-    have h : (L.network ()).Satisfies x (fun e => L.run () x e.signal.1) :=
-      Compiler.satisfies_trace fun _ => mem_univ _
-    rwa [unitLedger_run_eq_trace] at h
-  have hαy : (L.network ()).Satisfies y (fun e => p.trace I y e.signal.1) := by
-    have h : (L.network ()).Satisfies y (fun e => L.run () y e.signal.1) :=
-      Compiler.satisfies_trace fun _ => mem_univ _
-    rwa [unitLedger_run_eq_trace] at h
-  obtain ⟨γ, hγ, hγx, hγy⟩ := hαx.splice hαy hcut hzx hzy
-  have hγz (e : Compiler.Edge (liveCircuit p (fun _ => False))) :
-      γ e = p.trace I z e.signal.1 := by
-    have h : γ e = L.run () z e.signal.1 := Compiler.eq_trace hγ e
-    rwa [unitLedger_run_eq_trace] at h
-  by_cases hreach : Compiler.Reach (liveCircuit p (fun _ => False)) w
-  · have hhead : p.trace I z w = γ (Compiler.head ⟨w, hreach⟩) :=
-      (hγz (Compiler.head ⟨w, hreach⟩)).symm
-    rw [hhead]
-    refine ⟨fun ⟨_, hw⟩ => hγx (Or.inl hw), fun hw => ?_⟩
-    have hw' : (.signal ⟨w, hreach⟩ : Compiler.Vertex (liveCircuit p (fun _ => False))) ∉ P :=
-      fun h => hw ⟨hreach, h⟩
-    by_cases ht : Compiler.head ⟨w, hreach⟩ ∈ (L.network ()).touching P
-    · rw [hγx ht]
-      refine hcut ?_
-      rcases ht with ht | ht
-      · exact absurd ht hw'
-      · exact fun h => hw' (h.mpr ht)
-    · exact hγy ht
-  · refine ⟨fun ⟨h, _⟩ => absurd h hreach, fun _ => ?_⟩
-    have hlive : ¬Live p (fun _ => False) w := fun h => by
-      have ho := Compiler.Reach.output (c := liveCircuit p (fun _ => False))
-        (Finite.equivFin {w' // Live p (fun _ => False) w'} ⟨w, h⟩)
-      exact hreach (by simpa [liveCircuit] using ho)
-    cases w with
-    | input i => exact absurd trivial hlive
-    | gate k =>
-      have h0 : σ.Arity (p.lines k).op = 0 := by
-        by_contra hne
-        exact hlive ⟨not_false, hne⟩
-      rw [Program.trace_gate, Program.trace_gate]
-      congr 1 with a : 1
-      exact absurd a.isLt (by omega)
-
 open Classical in
 /-- On any subset of inputs `R ⊆ univ` all sharing the same edge-cut transcript on `edgeCut P`,
 `T.eval p I` restricts to a `t`-halfspace combination across `(readIn P, (readIn P)ᶜ)`. -/
@@ -808,7 +767,7 @@ private theorem exists_isHalfspaceComb_on_cut {σ : Signature.{v}} {U : Type u}
       exact Option.some_injective _ (h1.trans h2.symm)
   have hzx : EqOn z x₀ X := domRestrict_eq_domRestrict_iff.mp hax_dom.symm
   have hzy : EqOn z y₀ Xᶜ := domRestrict_eq_domRestrict_iff.mp hby_dom.symm
-  have hsplit := trace_splice_wiresIn p I P hcut_xy hzx hzy
+  have hsplit := (unitLedger p I).trace_of_splice (x := x₀) (y := y₀) rfl rfl hcut_xy hzx hzy
   dsimp only [ThresholdTop.eval]
   congr 1 with r
   have hsum_eq : T.bias r + ∑ w : Wire n g, T.weight r w (p.trace I z w) =
@@ -969,13 +928,6 @@ private theorem abs_signedCount_le_of_root_peers {ι U M : Type*} [Finite ι] [F
         exact_mod_cast ncard_accepted_le_mul_realizedSize hL hsmall
       linarith [abs_signedCount_le D B.accepted,
         mul_nonneg (by linarith : (0 : ℝ) ≤ 2 * b) (Nat.cast_nonneg (α := ℝ) B.accepted.ncard)]
-
-private theorem reach_input_liveCircuit {σ : Signature.{v}} {n g : ℕ}
-    (p : Program σ n g) (i : Fin n) :
-    Compiler.Reach (liveCircuit p (fun _ => False)) (.input i) := by
-  have h := Compiler.Reach.output (c := liveCircuit p (fun _ => False))
-    (Finite.equivFin {w' // Live p (fun _ => False) w'} ⟨.input i, trivial⟩)
-  rwa [show (liveCircuit p (fun _ => False)).outputs _ = .input i by simp [liveCircuit]] at h
 
 /-- At step `s < |V|` of a componentwise layout of `liveNetwork p (fun _ => False) U`, the number
 of realized edges is bounded both by `|U| ^ (|frontier s| + 4)` (for fan-in `≤ 2`) and by
@@ -1375,9 +1327,7 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
         ≤ (B₀.edges V).ncard := ncard_le_ncard hsub (toFinite _)
       _ ≤ q ^ (L.network ()).readᶜ.ncard := (L.network ()).ncard_edges_last_le lay
       _ = 1 := by
-          have hread : (L.network ()).read = univ :=
-            eq_univ_of_forall fun i => ⟨_, mem_univ _,
-              Compiler.site_of_reach (reach_input_liveCircuit p i)⟩
+          have hread : (L.network ()).read = univ := read_liveNetwork (U := U)
           rw [hread, compl_univ, ncard_empty, pow_zero]
   -- Sum over all `V + 1` steps to bound `((K' n - 1)^2 * realizedSize B₀) / q^n`.
   set M_exp : ℝ := (1 - 2 * μ) * n - 2 * Real.logb q (K' n) - κ * Real.log (V + 1) - 1
@@ -1664,7 +1614,7 @@ theorem signRank_thresholdTop_le {σ : Signature.{v}} {U : Type u} [Fintype U]
         domRestrict_eq_domRestrict_iff.mp ((hglue_X a b).trans hxa.symm)
       have hzy : EqOn (glue (a, b)) y Xᶜ :=
         domRestrict_eq_domRestrict_iff.mp ((hglue_Xc a b).trans hyb.symm)
-      have hsp := trace_splice_wiresIn p I P hcut_xy hzx hzy
+      have hsp := (unitLedger p I).trace_of_splice (x := x) (y := y) rfl rfl hcut_xy hzx hzy
       ext e
       by_cases hw : e.1.signal.1 ∈ wiresIn P
       · exact ((hsp e.1.signal.1).1 hw).trans (congrFun hxτ e)
@@ -1724,7 +1674,7 @@ private theorem readIn_compl_liveNetwork {σ : Signature.{v}} {U : Type u} {n g 
       ((liveNetwork p (fun _ => False) U).readIn P)ᶜ := by
   set lc := liveCircuit p (fun _ => False)
   ext i
-  have hreach : Compiler.Reach lc (.input i) := reach_input_liveCircuit p i
+  have hreach : Compiler.Reach lc (.input i) := reach_input i
   have hsite := Compiler.site_of_reach hreach
   constructor
   · rintro ⟨v, hvP, hvi⟩ ⟨w, hwP, hwi⟩
@@ -1768,8 +1718,9 @@ private theorem cutRank_hardMatrix_le_of_thresholdTop_eval {σ : Signature.{v}} 
 
 /-- **Single-cut `hardForm` lower bound for `ThresholdTop` (`t = 1`) under `LayoutBound 3 A`.**
 Every fan-in-two program `p` topped with a single arbitrary-real-weight linear threshold unit `T`
-(including direct input skip-wires) computing `hardForm n` needs more than
-`(1 + 1 / (4 A) - ε) n` inner gates. -/
+(including direct input skip-wires) computing the nonconstructively chosen bilinear form
+`hardForm n` (selected via `Classical.choose`) needs more than `(1 + 1 / (4 A) - ε) n` inner
+gates. -/
 theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (hA : 0 < A)
     (hlayout : LayoutBound 3 A) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (g : ℕ)
@@ -1843,10 +1794,7 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
       omega
   -- Pick the layer `s` where `readIn (lay.initial s)` has size `⌊n / 2⌋`.
   have hread_all : n / 2 ≤ Nnet.read.ncard := by
-    have hread : Nnet.read = univ :=
-      eq_univ_of_forall fun i => ⟨_, mem_univ _,
-        Compiler.site_of_reach (reach_input_liveCircuit p i)⟩
-    rw [hread, ncard_univ, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
+    rw [read_liveNetwork, ncard_univ, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
     exact Nat.div_le_self n 2
   obtain ⟨s, hsV, hXs⟩ := Nnet.exists_ncard_readIn_initial_eq lay
     (Compiler.ncard_readAt_le (I.withConstants ((unitLedger p I).readout ())) (fun _ => univ))
@@ -1855,9 +1803,7 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
     rcases eq_or_lt_of_le hsV with rfl | hlt
     · rw [lay.initial_of_card_le le_rfl] at hXs
       have hread_n : (Nnet.readIn univ).ncard = n := by
-        have hread : Nnet.readIn univ = univ :=
-          eq_univ_of_forall fun i => ⟨_, mem_univ _,
-            Compiler.site_of_reach (reach_input_liveCircuit p i)⟩
+        have hread : Nnet.readIn univ = univ := read_liveNetwork (U := Bool)
         rw [hread, ncard_univ, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
       omega
     · exact hlt
