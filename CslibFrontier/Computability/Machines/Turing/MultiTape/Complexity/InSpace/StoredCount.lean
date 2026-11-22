@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
-import Mathlib.Data.Nat.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 
 /-!
 # Counting over a range with a stored counter
@@ -47,11 +47,6 @@ private theorem countP_range_succ {α : Type} (p : ℕ × α → Bool) (a : α) 
       (List.range j).countP (fun i => p (i, a)) + if p (j, a) then 1 else 0 := by
   rw [List.range_succ, List.countP_append]
   cases h : p (j, a) <;> simp [h]
-
-private theorem length_encNat_le_of_le {i M : ℕ} (h : i ≤ M) :
-    (encNat i).length ≤ (encNat M).length := by
-  rw [encNat_apply, encNat_apply, Nat.size_eq_bits_len, Nat.size_eq_bits_len]
-  exact Nat.size_le_size h
 
 /-- **Counting with a stored counter.** If the bound `m` is computable within `S`, and the
 predicate `p` takes a stored index and the input within the length of the index plus `S`, then the
@@ -113,8 +108,8 @@ theorem ComputableInSpace.countWith {α : Type} {encA : α ↪ List Bool} {m : �
     (fun a j hj => by simp [countStep, hj, countP_range_succ])
     (fun a => by simp [countStep])
     (fun a j hj => by
-      have h₁ := length_encNat_le_of_le hj
-      have h₂ := length_encNat_le_of_le (((List.range j).countP_le_length).trans
+      have h₁ := length_encNat_mono hj
+      have h₂ := length_encNat_mono (((List.range j).countP_le_length).trans
         (by rw [List.length_range]; exact hj) : (List.range j).countP (fun i => p (i, a)) ≤ m a)
       simp only [length_encPair]
       omega)
