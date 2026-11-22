@@ -332,12 +332,9 @@ removes additional used ports. No unbounded fresh timestamp or variable-label sc
       run sem f rs next ((remaining.erase input).filter fun a => decide (a ∉ next.used))
 termination_by remaining.length
 decreasing_by
-  have hm : input ∈ remaining := List.mem_of_find?_eq_some _hnext
-  have hpos : 0 < remaining.length := List.length_pos_of_mem hm
-  have herase := List.length_erase_of_mem hm
-  have hfilter := List.length_filter_le (fun a => decide (a ∉
-    Log.used ((⟨input, outputs⟩ : Expansion F) :: es))) (remaining.erase input)
-  omega
+  have hm : _ ∈ remaining := List.mem_of_find?_eq_some ‹_›
+  have := List.length_pos_of_mem hm
+  exact (List.length_filter_le _ _).trans_lt (by rw [List.length_erase_of_mem hm]; omega)
 
 /-- Fresh Algorithm 1 forest search. Preconditions about edge instances, validity and even
 delta-matroids belong to correctness theorems; the program itself is total on arbitrary CSPs. -/

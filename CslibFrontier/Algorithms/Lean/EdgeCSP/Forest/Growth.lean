@@ -191,13 +191,9 @@ theorem run_grown (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
       exact of_decide_eq_true (List.mem_filter.mp ho).2
 termination_by remaining.length
 decreasing_by
-  rename_i input _hi _ _ os _ _
-  have hm : input ∈ remaining := List.mem_of_find?_eq_some _hi
-  have hpos : 0 < remaining.length := List.length_pos_of_mem hm
-  have he := List.length_erase_of_mem hm
-  have hf := List.length_filter_le (fun a => decide
-    (a ∉ Log.used ((⟨input, os⟩ : Expansion F) :: es))) (remaining.erase input)
-  omega
+  have hm : _ ∈ remaining := List.mem_of_find?_eq_some ‹_›
+  have := List.length_pos_of_mem hm
+  exact (List.length_filter_le _ _).trans_lt (by rw [List.length_erase_of_mem hm]; omega)
 
 /-- Every completed log in a fresh search is derived from actual frontier choices and scans. -/
 theorem search_grown (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F Bool)

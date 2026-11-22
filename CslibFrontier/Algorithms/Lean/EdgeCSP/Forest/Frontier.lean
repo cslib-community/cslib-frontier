@@ -72,11 +72,9 @@ theorem run_exhausted_frontier (sem : Rel → List Bool → Bool)
       exact run_exhausted_frontier sem f rs _ _ (hc.next _) hr
 termination_by remaining.length
 decreasing_by
-  have hm : _ ∈ remaining := List.mem_of_find?_eq_some (by assumption)
-  have hp : 0 < remaining.length := List.length_pos_of_mem hm
-  apply Nat.lt_of_le_of_lt (List.length_filter_le _ _)
-  rw [List.length_erase_of_mem hm]
-  omega
+  have hm : _ ∈ remaining := List.mem_of_find?_eq_some ‹_›
+  have := List.length_pos_of_mem hm
+  exact (List.length_filter_le _ _).trans_lt (by rw [List.length_erase_of_mem hm]; omega)
 
 /-- Fresh-run exhaustion of step 2, paid for by the actual incidence list. This does not
 replace the separate optimality conclusion of source Lemma 45. -/
