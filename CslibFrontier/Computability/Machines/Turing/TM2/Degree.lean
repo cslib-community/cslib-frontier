@@ -106,7 +106,6 @@ private theorem dpi_apply_computableInDegree (enc : ∀ i, Value i ↪ List Bool
   have hx : ∀ x, x = i → enc x (values x) = enc i (values i) := by rintro x rfl; rfl
   simpa using (hx _ (by simp [e])).symm
 
-@[local fun_prop]
 private theorem dpi_update_computableInDegree [DecidableEq Index] {values : α → ∀ i, Value i}
     {i : Index} {value : α → Value i}
     (hvalues : ComputableInDegree values input (encDPi enc) 1 1)

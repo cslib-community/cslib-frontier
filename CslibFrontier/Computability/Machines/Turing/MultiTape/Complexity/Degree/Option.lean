@@ -19,8 +19,9 @@ adds rules for options and list heads so that a definition using them needs no r
 of tests and defaults:
 
 * `Option.elim`, at arbitrary resource and output degrees (`optionElim_le`) and at degree one
-  (`optionElim_one`), which is also the form `option_match_to_elim` gives a `match` on an option;
-* `Option.toList`, without an inhabitant of the element type (`optionToList`, `optionToList_le`);
+  (`optionElim_one`), without an inhabitant of the element type, which is also the form
+  `option_match_to_elim` gives a `match`, `bind` or `toList` on an option;
+* `Option.toList`, without an inhabitant of the element type (`optionToList`);
 * `List.head?` at degree one (`head?_one`);
 * `Option.some`, `Option.getD`, `List.headD`, `List.tail` and `List.isEmpty`, registered as
   `fun_prop` rules.
@@ -28,8 +29,7 @@ of tests and defaults:
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInDegree.optionElim_le`, `.optionElim_one`: eliminating an option.
-* `Turing.MultiTapeTM.ComputableInDegree.optionToList`, `.optionToList_le`: converting an option to
-  a framed list.
+* `Turing.MultiTapeTM.ComputableInDegree.optionToList`: converting an option to a framed list.
 * `Turing.MultiTapeTM.ComputableInDegree.head?_one`: the head of a framed list.
 -/
 
@@ -42,7 +42,7 @@ attribute [fun_prop] optionSome getD headD tail isEmpty
 /-- **Eliminating an option** with independent resource and output degrees: the handler of `some`
 receives the input and the value. -/
 @[fun_prop]
-theorem optionElim_le {α β γ : Type} [Inhabited β] {encA : α ↪ List Bool}
+theorem optionElim_le {α β γ : Type} {encA : α ↪ List Bool}
     {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
     {value : α → Option β} {fallback : α → γ} {body : α → β → γ}
     {dv ev dn en db eb d e : ℕ}
@@ -52,17 +52,23 @@ theorem optionElim_le {α β γ : Type} [Inhabited β] {encA : α ↪ List Bool}
     (hd : max (max 1 (max dv dn)) (max ev (max 1 ev * db)) ≤ d)
     (he : max (max 1 ev * eb) en ≤ e) :
     ComputableInDegree (fun a => (value a).elim (fallback a) (body a)) encA encC d e := by
-  simp only [Option.elim_eq_if_isSome default]
-  have hg : ComputableInDegree (fun a => (value a).getD default) encA encB (max dv ev) ev :=
-    ((getD (enc₁ := encB) default).comp hv).mono (by omega) (by omega)
-  have hsome : ComputableInDegree (fun a => body a ((value a).getD default)) encA encC
-      (max (max 1 (max dv ev)) (max 1 ev * db)) (max 1 ev * eb) :=
-    hb.comp (id'.prod hg)
-  exact ite_le ((isSome encB).comp hv) hsome hn (by omega) (by omega)
+  rcases isEmpty_or_nonempty β with hβ | hβ
+  · refine (hn.mono (by omega) (by omega)).of_enc_eq fun a => ?_
+    cases value a with
+    | none => rfl
+    | some b => exact isEmptyElim b
+  · obtain ⟨b₀⟩ := hβ
+    simp only [Option.elim_eq_if_isSome b₀]
+    have hg : ComputableInDegree (fun a => (value a).getD b₀) encA encB (max dv ev) ev :=
+      ((getD (enc₁ := encB) b₀).comp hv).mono (by omega) (by omega)
+    have hsome : ComputableInDegree (fun a => body a ((value a).getD b₀)) encA encC
+        (max (max 1 (max dv ev)) (max 1 ev * db)) (max 1 ev * eb) :=
+      hb.comp (id'.prod hg)
+    exact ite_le ((isSome encB).comp hv) hsome hn (by omega) (by omega)
 
 /-- **Eliminating an option** in linear time and space: the handler of `some` receives the input
 and the value. -/
-theorem optionElim_one {α β γ : Type} [Inhabited β] {encA : α ↪ List Bool}
+theorem optionElim_one {α β γ : Type} {encA : α ↪ List Bool}
     {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
     {value : α → Option β} {fallback : α → γ} {body : α → β → γ}
     (hv : ComputableInDegree value encA (encOption encB) 1 1)
@@ -85,17 +91,6 @@ theorem optionToList {α : Type} (enc : α ↪ List Bool) :
     ((of_frame (f := frame) (encIn := encBits) (encMid := encBits) fun _ => rfl).comp htail).mono
   exact (ite_le (isSome enc) hframe (const []) (by decide) (by decide)).of_enc_eq fun o => by
     cases o <;> simp [encList_cons]
-
-/-- Compositional `fun_prop` rule for `Option.toList`, inferring the element encoding from the
-computed option. -/
-@[fun_prop]
-theorem optionToList_le {α : Type*} {β : Type} {encIn : α ↪ List Bool} {enc : β ↪ List Bool}
-    {f : α → Option β} {df ef d e : ℕ}
-    (hf : ComputableInDegree f encIn (encOption enc) df ef)
-    (hd : max df ef ≤ d) (he : ef ≤ e) :
-    ComputableInDegree (fun x => (f x).toList) encIn (encList enc) d e :=
-  ((optionToList enc).comp hf).mono (by simp only [Nat.mul_one]; omega)
-    (by simp only [Nat.mul_one]; omega)
 
 /-- **The head of a framed list**, as an option, in linear time and space. -/
 @[fun_prop]
