@@ -22,9 +22,9 @@ machine-model dependencies:
    stack in `2 * fibNodes n - 1` steps, checking `Eval`, `Loop.child`, `Eval.run`,
    `Eval.good_iterate`, `Scheme.run_eq_some`, and concrete `17`-step vs `16`-step traces at `n = 4`.
 2. `Cslib.BitString` (`UniformSplit`): `uniformList_map_split`, `uniformList_drop`,
-   `uniformList_map_split3`, `uniformList_map_split4`, and `uniformList_map_listRows` on concrete
-   heterogeneous widths (including zero-width segments and infinite codomain `ℕ`) together with
-   exact point-mass checks.
+   `uniformList_map_split3`, and `uniformList_map_listRows` on concrete heterogeneous widths
+   (including zero-width segments, composed 4-segment splits, and infinite codomain `ℕ`) together
+   with exact point-mass checks.
 -/
 
 set_option linter.privateModule false
@@ -183,7 +183,8 @@ example :
   rw [uniformList_map_split3 2 0 3 fun s₁ s₂ s₃ => s₁ ++ s₂ ++ s₃]
   simpa only [uniformList_zero, PMF.pure_bind, List.append_nil] using (uniformList_add 2 3).symm
 
--- Four-segment `uniformList_map_split4` on heterogeneous widths `(2, 1, 3, 2)` (`8` bits total).
+-- Four-segment split on heterogeneous widths `(2, 1, 3, 2)` (`8` bits total) by composing
+-- `uniformList_map_split` with `uniformList_map_split3`.
 example :
     (uniformList (2 + (1 + (3 + 2)))).map
         (fun tape =>
@@ -195,8 +196,12 @@ example :
         (uniformList 1).bind fun s₂ =>
           (uniformList 3).bind fun s₃ =>
             (uniformList 2).map fun s₄ =>
-              (s₁.count true, s₂.headD false, s₃.count false, s₄.reverse) :=
-  uniformList_map_split4 2 1 3 2 fun s₁ s₂ s₃ s₄ =>
+              (s₁.count true, s₂.headD false, s₃.count false, s₄.reverse) := by
+  rw [uniformList_map_split 2 (1 + (3 + 2)) fun s₁ rest =>
+    (s₁.count true, (rest.take 1).headD false,
+      ((rest.drop 1).take 3).count false, ((rest.drop 1).drop 3).reverse)]
+  congr 1 with s₁ : 1
+  exact uniformList_map_split3 1 3 2 fun s₂ s₃ s₄ =>
     (s₁.count true, s₂.headD false, s₃.count false, s₄.reverse)
 
 -- Block-row `uniformList_map_listRows` on `count = 3, width = 2` (`6` bits) into the infinite

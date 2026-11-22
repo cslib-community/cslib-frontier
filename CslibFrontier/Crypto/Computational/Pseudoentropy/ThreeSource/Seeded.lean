@@ -175,9 +175,15 @@ theorem generate_distribution (count seedBits bound observationBits labelBits re
             firstKey middleKey lastKey) := by
   unfold seedLength generate
   dsimp only
-  exact uniformList_map_split4 (count * seedBits) (remainingBits * (count * seedBits))
-    (labelBits * count) (observationBits * (count * (2 * bound + 1)))
-    fun coins lastKey middleKey firstKey =>
+  rw [uniformList_map_split (count * seedBits) _ fun coins rest =>
+    hashSamples count seedBits bound observationBits labelBits remainingBits
+      ((listRows count seedBits coins).map fun seed => (evaluate seed, seed))
+      ((rest.drop (remainingBits * (count * seedBits))).drop (labelBits * count))
+      ((rest.drop (remainingBits * (count * seedBits))).take (labelBits * count))
+      (rest.take (remainingBits * (count * seedBits)))]
+  congr 1 with coins : 1
+  exact uniformList_map_split3 (remainingBits * (count * seedBits)) (labelBits * count)
+    (observationBits * (count * (2 * bound + 1))) fun lastKey middleKey firstKey =>
       hashSamples count seedBits bound observationBits labelBits remainingBits
         ((listRows count seedBits coins).map fun seed => (evaluate seed, seed))
         firstKey middleKey lastKey

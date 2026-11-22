@@ -169,9 +169,17 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
     simp only [(hencrypt target.1 (hkeys target htarget).1 _).1, PMF.bind_map]
     rfl
   rw [hkey, PMF.bind_map]
-  unfold modLeveledGameCoinBudget modLeveledGameCoins
-  dsimp only [Function.comp_def, choiceBudget, guessBudget, evaluateZero, chooseReplay, finish]
-  exact (BitString.uniformList_map_split4 _ _ _ _ _).symm
+  dsimp only [Function.comp_def]
+  trans (BitString.uniformList (keyCoins n)).bind fun keys =>
+    (BitString.uniformList (choiceBudget + (encCoins n + guessBudget))).map fun rest =>
+      finish (evaluateKey n keys) (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
+        ((rest.drop choiceBudget).take (encCoins n))
+        ((rest.drop choiceBudget).drop (encCoins n))
+  · congr 1 with keys : 1
+    exact (BitString.uniformList_map_split3 _ _ _ _).symm
+  · unfold modLeveledGameCoinBudget modLeveledGameCoins
+    dsimp only [choiceBudget, guessBudget, evaluateZero, chooseReplay, finish]
+    exact (BitString.uniformList_map_split _ _ _).symm
 
 /-- The complete replay is native polynomial time in the unary parameter and complete tape,
 for either fixed challenge world. This does not assert a multiplicative runtime ratio to the

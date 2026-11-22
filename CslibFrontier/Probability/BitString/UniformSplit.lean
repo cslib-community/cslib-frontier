@@ -18,19 +18,18 @@ Saved-coin evaluators parse one flat uniform tape into sequential segments with 
 `BitString.uniformList_bind_split` and `BitString.uniformList_listRows` directly to `PMF.map` and
 `PMF.iid`, avoiding manual unfolding of `PMF.map` into `PMF.pure` binds:
 
-* **Sequential heterogeneous segments** (`uniformList_map_split`, `uniformList_map_split3`,
-  `uniformList_map_split4`, and suffix projection `uniformList_drop`): splitting a uniform tape of
-  total length `n₁ + … + nₘ` along nested `take`/`drop` offsets yields independent uniform
-  segments, including when any segment has width zero.
+* **Sequential heterogeneous segments** (`uniformList_map_split`, `uniformList_map_split3`, and
+  suffix projection `uniformList_drop`): splitting a uniform tape of total length `n₁ + n₂` or
+  `n₁ + (n₂ + n₃)` along nested `take`/`drop` offsets yields independent uniform segments,
+  including when any segment has width zero.
 * **Homogeneous block rows** (`uniformList_map_listRows`): mapping any evaluator `f : List Bool → α`
   over `listRows count width` of a `count * width`-bit uniform tape realizes `count` independent
   draws from `(uniformList width).map f` (`PMF.iid`), without requiring `α` to be finite.
 
 ## Main results
 
-* `Cslib.BitString.uniformList_map_split`, `Cslib.BitString.uniformList_map_split3`,
-  `Cslib.BitString.uniformList_map_split4`: two-, three-, and four-segment `PMF.map` splitting laws
-  for `uniformList`.
+* `Cslib.BitString.uniformList_map_split`, `Cslib.BitString.uniformList_map_split3`: two- and
+  three-segment `PMF.map` splitting laws for `uniformList`.
 * `Cslib.BitString.uniformList_drop`: dropping a `k`-bit prefix from `uniformList (k + n)` gives
   `uniformList n`.
 * `Cslib.BitString.uniformList_map_listRows`: mapping an evaluator over `listRows count width`
@@ -70,21 +69,6 @@ theorem uniformList_map_split3 {α : Type*} (n₁ n₂ n₃ : ℕ)
   rw [uniformList_map_split n₁ (n₂ + n₃) fun s₁ rest => f s₁ (rest.take n₂) (rest.drop n₂)]
   congr 1 with s₁ : 1
   exact uniformList_map_split n₂ n₃ (f s₁)
-
-/-- Mapping a four-argument evaluator across sequential `take`/`drop` slices of widths `n₁`, `n₂`,
-`n₃`, and `n₄` gives four independent uniform segments. -/
-theorem uniformList_map_split4 {α : Type*} (n₁ n₂ n₃ n₄ : ℕ)
-    (f : List Bool → List Bool → List Bool → List Bool → α) :
-    (uniformList (n₁ + (n₂ + (n₃ + n₄)))).map
-        (fun tape => f (tape.take n₁) ((tape.drop n₁).take n₂)
-          (((tape.drop n₁).drop n₂).take n₃) (((tape.drop n₁).drop n₂).drop n₃)) =
-      (uniformList n₁).bind fun s₁ =>
-        (uniformList n₂).bind fun s₂ =>
-          (uniformList n₃).bind fun s₃ => (uniformList n₄).map (f s₁ s₂ s₃) := by
-  rw [uniformList_map_split n₁ (n₂ + (n₃ + n₄)) fun s₁ rest =>
-    f s₁ (rest.take n₂) ((rest.drop n₂).take n₃) ((rest.drop n₂).drop n₃)]
-  congr 1 with s₁ : 1
-  exact uniformList_map_split3 n₂ n₃ n₄ (f s₁)
 
 /-- Mapping an evaluator `f` over the `count` fixed-width `width`-bit rows of a uniform
 `(count * width)`-bit tape realizes `count` independent draws from `(uniformList width).map f`,

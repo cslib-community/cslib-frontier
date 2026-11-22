@@ -24,8 +24,7 @@ import CslibFrontier.Tactic.EncLen
 
 The pure explicit-stack depth-first recursion scheme (`Cslib.Algorithms.StackRecursion.Scheme`,
 `Invariant`, `State`, `Scheme.Loop`, `Scheme.Eval`, `Scheme.step`, `Scheme.run`) is defined
-without any machine model in `CslibFrontier.Algorithms.Recursion.StackScheme` and re-exported under
-`Cslib.GenericRAM.StackRecursion`.
+without any machine model in `CslibFrontier.Algorithms.Recursion.StackScheme`.
 
 **The native certificate** (`Scheme.certificate`). The leaf step is an arbitrary native
 certificate; the other components are polynomial-time (`Scheme.PolyTime`). One fixed machine runs
@@ -46,16 +45,19 @@ instance, with its leaves evaluated by direct summation.
 
 ## Main definitions
 
-* `Cslib.GenericRAM.StackRecursion.Scheme.encState`: list-and-option encoding of stack states.
-* `Cslib.GenericRAM.StackRecursion.Scheme.PolyTime`: polynomial-time non-leaf components.
-* `Cslib.GenericRAM.StackRecursion.Scheme.certificate`: one native machine for the clocked run.
+* `Cslib.Algorithms.StackRecursion.Scheme.encState`: list-and-option encoding of stack states.
+* `Cslib.Algorithms.StackRecursion.Scheme.PolyTime`: polynomial-time non-leaf components.
+* `Cslib.Algorithms.StackRecursion.Scheme.stepCertificate`,
+  `Cslib.Algorithms.StackRecursion.Scheme.leafCost`: one-step native certificate and pending-leaf
+  cost.
+* `Cslib.Algorithms.StackRecursion.Scheme.certificate`: one native machine for the clocked run.
 
 ## Main results
 
-* `Cslib.GenericRAM.StackRecursion.Scheme.exists_stepCertificate_le`: one step costs a polynomial
+* `Cslib.Algorithms.StackRecursion.Scheme.exists_stepCertificate_le`: one step costs a polynomial
   in the state length plus the leaf certificate at a pending leaf.
-* `Cslib.GenericRAM.StackRecursion.Scheme.length_encState_le`: encoded length bound on good states.
-* `Cslib.GenericRAM.StackRecursion.Scheme.certificate_le`: time `fuel + 1` times a polynomial in
+* `Cslib.Algorithms.StackRecursion.Scheme.length_encState_le`: encoded length bound on good states.
+* `Cslib.Algorithms.StackRecursion.Scheme.certificate_le`: time `fuel + 1` times a polynomial in
   `(h + 1) * (F + 1)` plus the leaf time, and workspace a polynomial plus the leaf space.
 
 ## References
@@ -65,41 +67,9 @@ instance, with its leaves evaluated by direct summation.
 
 public section
 
-namespace Cslib.GenericRAM.StackRecursion
+namespace Cslib.Algorithms.StackRecursion.Scheme
 
-export Cslib.Algorithms.StackRecursion (Scheme Invariant State)
-
-namespace State
-
-export Cslib.Algorithms.StackRecursion.State (returned)
-
-end State
-
-open Turing.MultiTapeTM
-
-namespace Scheme
-
-export Cslib.Algorithms.StackRecursion.Scheme
-  (resume step resume_of_next_none resume_of_next_some step_leaf step_call step_return
-    step_final Loop Eval Good run run_eq_some)
-
-namespace Loop
-
-export Cslib.Algorithms.StackRecursion.Scheme.Loop (done leaf call child run good)
-
-end Loop
-
-namespace Eval
-
-export Cslib.Algorithms.StackRecursion.Scheme.Eval (leaf call one_le run good good_iterate)
-
-end Eval
-
-namespace Good
-
-export Cslib.Algorithms.StackRecursion.Scheme.Good (mono)
-
-end Good
+open Cslib.GenericRAM Turing.MultiTapeTM
 
 variable {X A Y : Type}
 
@@ -132,20 +102,20 @@ structure PolyTime (encX : X ↪ List Bool) (encA : A ↪ List Bool) (encY : Y �
   finish : ComputableInPolyTime (fun p : X × A => R.finish p.1 p.2) (encPair encX encA) encY
 
 /-- Whether the register holds a pending leaf. -/
-def isLeafCall (σ : State X A Y) : Bool := σ.2.1.elim false R.isLeaf
+private def isLeafCall (σ : State X A Y) : Bool := σ.2.1.elim false R.isLeaf
 
 /-- Evaluate a pending node as a leaf, keeping the stack. -/
-def leafStep (σ : State X A Y) : State X A Y :=
+private def leafStep (σ : State X A Y) : State X A Y :=
   (σ.1, none, σ.2.1.elim none fun x => some (R.leaf x))
 
 /-- Every step but the evaluation of a leaf. -/
-def polyStep (σ : State X A Y) : State X A Y :=
+private def polyStep (σ : State X A Y) : State X A Y :=
   σ.2.1.elim
     (σ.2.2.elim σ fun y => σ.1.head?.elim σ fun f => R.resume f.1 (R.absorb f.1 f.2 y) σ.1.tail)
     (fun x => R.resume x (R.start x) σ.1)
 
 /-- A step evaluates a leaf, or takes a polynomial-time step. -/
-theorem step_eq_ite (σ : State X A Y) :
+private theorem step_eq_ite (σ : State X A Y) :
     R.step σ = if isLeafCall R σ then leafStep R σ else polyStep R σ := by
   rcases σ with ⟨_ | ⟨⟨x, a⟩, st⟩, _ | c, _ | y⟩ <;>
     simp only [step, isLeafCall, leafStep, polyStep, Option.elim, List.head?, List.tail,
@@ -154,7 +124,7 @@ theorem step_eq_ite (σ : State X A Y) :
 variable {R}
 
 /-- Continuing a call is polynomial-time. -/
-theorem resume_polyTime (h : PolyTime R encX encA encY) :
+private theorem resume_polyTime (h : R.PolyTime encX encA encY) :
     ComputableInPolyTime (fun q : (X × A) × List (X × A) => R.resume q.1.1 q.1.2 q.2)
       (encPair (encPair encX encA) (encList (encPair encX encA))) (encState encX encA encY) := by
   have hnext := h.next
@@ -164,7 +134,7 @@ theorem resume_polyTime (h : PolyTime R encX encA encY) :
   fun_prop
 
 /-- The leaf test on the register is polynomial-time. -/
-theorem isLeafCall_polyTime (h : PolyTime R encX encA encY) :
+private theorem isLeafCall_polyTime (h : R.PolyTime encX encA encY) :
     ComputableInPolyTime (isLeafCall R) (encState encX encA encY) encBool := by
   have hreg := (ComputableInPolyTime.fst (encOption encX) (encOption encY)).comp
     (ComputableInPolyTime.snd (encList (encPair encX encA))
@@ -174,7 +144,7 @@ theorem isLeafCall_polyTime (h : PolyTime R encX encA encY) :
     (h.isLeaf.comp (ComputableInPolyTime.snd (encState encX encA encY) encX))
 
 /-- Every step but the evaluation of a leaf is polynomial-time. -/
-theorem polyStep_polyTime (h : PolyTime R encX encA encY) :
+private theorem polyStep_polyTime (h : R.PolyTime encX encA encY) :
     ComputableInPolyTime (polyStep R) (encState encX encA encY) (encState encX encA encY) := by
   have hstack : ComputableInPolyTime (fun σ : State X A Y => σ.1) (encState encX encA encY)
       (encList (encPair encX encA)) :=
@@ -245,19 +215,19 @@ section Certificate
 
 variable {R : Scheme X A Y} {encX : X ↪ List Bool} {encA : A ↪ List Bool} {encY : Y ↪ List Bool}
 
-theorem stack_polyTime :
+private theorem stack_polyTime :
     ComputableInPolyTime (fun σ : State X A Y => σ.1) (encState encX encA encY)
       (encList (encPair encX encA)) :=
   ComputableInPolyTime.fst _ _
 
-theorem pending_polyTime :
+private theorem pending_polyTime :
     ComputableInPolyTime (fun σ : State X A Y => σ.2.1) (encState encX encA encY)
       (encOption encX) :=
   (ComputableInPolyTime.fst (encOption encX) (encOption encY)).comp (ComputableInPolyTime.snd _ _)
 
 variable (R) in
 /-- **The leaf step**: the leaf certificate on the pending node, keeping the stack. -/
-noncomputable def leafStepCertificate (leaf : NativeCertificate R.leaf encX encY) :
+private noncomputable def leafStepCertificate (leaf : NativeCertificate R.leaf encX encY) :
     NativeCertificate (leafStep R) (encState encX encA encY) (encState encX encA encY) :=
   (NativeCertificate.ofPolyTime stack_polyTime).prod ((NativeCertificate.const none).prod
     (NativeCertificate.option (value := fun σ : State X A Y => σ.2.1) (fallback := fun _ => none)
@@ -267,29 +237,29 @@ noncomputable def leafStepCertificate (leaf : NativeCertificate R.leaf encX encY
 
 /-- **One step of the machine**: the leaf certificate on a pending leaf, and a polynomial-time
 step otherwise. -/
-noncomputable def stepCertificate (h : PolyTime R encX encA encY)
+noncomputable def stepCertificate (h : R.PolyTime encX encA encY)
     (leaf : NativeCertificate R.leaf encX encY) :
     NativeCertificate R.step (encState encX encA encY) (encState encX encA encY) :=
   (NativeCertificate.branch (NativeCertificate.ofPolyTime (isLeafCall_polyTime h))
     (leafStepCertificate R leaf) (NativeCertificate.ofPolyTime (polyStep_polyTime h))).congr
     fun σ => (step_eq_ite R σ).symm
 
-theorem stepCertificate_time (h : PolyTime R encX encA encY)
+private theorem stepCertificate_time (h : R.PolyTime encX encA encY)
     (leaf : NativeCertificate R.leaf encX encY) (σ : State X A Y) :
     (stepCertificate h leaf).time σ =
       (NativeCertificate.ofPolyTime (isLeafCall_polyTime h)).time σ +
       if isLeafCall R σ then (leafStepCertificate R (encA := encA) leaf).time σ
       else (NativeCertificate.ofPolyTime (polyStep_polyTime h)).time σ := by rfl
 
-theorem stepCertificate_space (h : PolyTime R encX encA encY)
+private theorem stepCertificate_space (h : R.PolyTime encX encA encY)
     (leaf : NativeCertificate R.leaf encX encY) (σ : State X A Y) :
     (stepCertificate h leaf).space σ =
       (NativeCertificate.ofPolyTime (isLeafCall_polyTime h)).space σ +
       if isLeafCall R σ then (leafStepCertificate R (encA := encA) leaf).space σ
       else (NativeCertificate.ofPolyTime (polyStep_polyTime h)).space σ := by rfl
 
-theorem leafStepCertificate_time (leaf : NativeCertificate R.leaf encX encY) (st : List (X × A))
-    (x : X) (v : Option Y) :
+private theorem leafStepCertificate_time (leaf : NativeCertificate R.leaf encX encY)
+    (st : List (X × A)) (x : X) (v : Option Y) :
     (leafStepCertificate R (encA := encA) leaf).time (st, some x, v) =
       (NativeCertificate.ofPolyTime (stack_polyTime (encX := encX) (encA := encA)
         (encY := encY))).time (st, some x, v) +
@@ -300,7 +270,7 @@ theorem leafStepCertificate_time (leaf : NativeCertificate R.leaf encX encY) (st
             ((encPair (encState encX encA encY) encX ((st, some x, v), x)).length +
               leaf.time x))) := by rfl
 
-theorem leafStepCertificate_space (leaf : NativeCertificate R.leaf encX encY)
+private theorem leafStepCertificate_space (leaf : NativeCertificate R.leaf encX encY)
     (st : List (X × A)) (x : X) (v : Option Y) :
     (leafStepCertificate R (encA := encA) leaf).space (st, some x, v) =
       (NativeCertificate.ofPolyTime (stack_polyTime (encX := encX) (encA := encA)
@@ -327,13 +297,13 @@ private theorem length_pending_le {σ : State X A Y} {x : X} (hx : σ.2.1 = some
 
 /-- **The cost of one step**: a polynomial in the state length, plus the leaf certificate at a
 pending leaf. -/
-theorem exists_stepCertificate_le (h : PolyTime R encX encA encY)
+theorem exists_stepCertificate_le (h : R.PolyTime encX encA encY)
     (leaf : NativeCertificate R.leaf encX encY) :
     ∃ K : ℕ, ∀ σ : State X A Y,
       (stepCertificate h leaf).time σ ≤
-          K * ((encState encX encA encY σ).length + 1) ^ K + leafCost R leaf.time σ ∧
+          K * ((encState encX encA encY σ).length + 1) ^ K + R.leafCost leaf.time σ ∧
         (stepCertificate h leaf).space σ ≤
-          K * ((encState encX encA encY σ).length + 1) ^ K + leafCost R leaf.space σ := by
+          K * ((encState encX encA encY σ).length + 1) ^ K + R.leafCost leaf.space σ := by
   have ht := NativeCertificate.ofPolyTime_isPolynomial (isLeafCall_polyTime h)
   have hp := NativeCertificate.ofPolyTime_isPolynomial (polyStep_polyTime h)
   have hs := NativeCertificate.ofPolyTime_isPolynomial (stack_polyTime (encX := encX)
@@ -371,7 +341,7 @@ theorem exists_stepCertificate_le (h : PolyTime R encX encA encY)
 
 /-- **The native machine** for the clocked run: one fixed machine, from native certificates for
 the fuel and the root. -/
-noncomputable def certificate (h : PolyTime R encX encA encY)
+noncomputable def certificate (h : R.PolyTime encX encA encY)
     (leaf : NativeCertificate R.leaf encX encY) {I : Type} {encIn : I ↪ List Bool}
     {fuel : I → ℕ} {root : I → X} (cn : NativeCertificate fuel encIn encNat)
     (croot : NativeCertificate root encIn encX) :
@@ -435,7 +405,7 @@ root plus `fuel + 1` times `K ((H + 1) (F + 1)) ^ K + TL` (and the cost of the b
 the workspace is at most the cost of the fuel and the root plus `K ((H + 1) (F + 1)) ^ K + SL`.
 The bounds hold for any fuel; with `2 * N - 1 ≤ fuel` the result is the value
 (`run_eq_some`). -/
-theorem certificate_le (h : PolyTime R encX encA encY)
+theorem certificate_le (h : R.PolyTime encX encA encY)
     (leaf : NativeCertificate R.leaf encX encY) :
     ∃ K : ℕ, ∀ {I : Type} {encIn : I ↪ List Bool} {fuel : I → ℕ} {root : I → X}
       (cn : NativeCertificate fuel encIn encNat) (croot : NativeCertificate root encIn encX)
@@ -466,7 +436,7 @@ theorem certificate_le (h : PolyTime R encX encA encY)
   clear_value z
   have hcost (cost : X → ℕ) (B : ℕ)
       (hB : ∀ x, Inv.node x → R.isLeaf x = true → cost x ≤ B) (j : ℕ) :
-      leafCost R cost (R.step^[j] ([], some (root a), none)) ≤ B := by
+      R.leafCost cost (R.step^[j] ([], some (root a), none)) ≤ B := by
     obtain ⟨-, -, ⟨x, hr, hx⟩ | ⟨y', hr, -⟩⟩ := hgood j <;> simp only [leafCost, hr, Option.elim]
     · split_ifs with hl
       · exact hB x hx hl
@@ -508,18 +478,5 @@ theorem certificate_le (h : PolyTime R encX encA encY)
   · omega
 
 end Certificate
-
-end Scheme
-
-end Cslib.GenericRAM.StackRecursion
-
-namespace Cslib.Algorithms.StackRecursion.Scheme
-
-export Cslib.GenericRAM.StackRecursion.Scheme
-  (encState PolyTime isLeafCall leafStep polyStep step_eq_ite resume_polyTime
-    isLeafCall_polyTime polyStep_polyTime stack_polyTime pending_polyTime
-    leafStepCertificate stepCertificate stepCertificate_time stepCertificate_space
-    leafStepCertificate_time leafStepCertificate_space leafCost
-    exists_stepCertificate_le certificate length_encState_le certificate_le)
 
 end Cslib.Algorithms.StackRecursion.Scheme
