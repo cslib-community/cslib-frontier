@@ -9,9 +9,7 @@ module
 
 import CslibFrontier.Foundations.Data.BitString.ZModSpace
 import CslibFrontier.Foundations.Data.BitString.LinearEquiv
-import CslibFrontier.Foundations.Data.BitString.BitVec
 import CslibFrontier.Foundations.Data.Code.ParityCheck
-import CslibFrontier.Foundations.Data.Code.ExpanderCode
 import CslibFrontier.Foundations.BooleanAnalysis.QuadraticForm
 import CslibFrontier.Foundations.Combinatorics.Multigraph.CutSpace
 import CslibFrontier.Foundations.Combinatorics.Multidigraph.Arborescence
@@ -19,22 +17,20 @@ import CslibFrontier.Foundations.Combinatorics.Multidigraph.Connectivity
 import CslibFrontier.Foundations.Combinatorics.Digraph.Connectivity
 
 /-!
-# Tests for `BitString` linear algebra, `BitVec`, multigraph cut spaces, and multidigraphs
+# Tests for `BitString` linear algebra, multigraph cut spaces, and multidigraphs
 
 Exercises:
 1. `Cslib.BitString.ZModSpace` (`toZModSpace`, `submoduleZModIso`, `finrank_submoduleZModIso`,
    `exists_isCompl_bool`, `orthogonal`, `finrank_orthogonal_add_finrank_bool`,
    `orthogonal_orthogonal_bool`), binary parity-check codes
-   (`Code.submoduleZModIso_parityCheckCode`), and `BitString.quadForm_eq_bitEquiv`.
-2. `Cslib.BitString.LinearEquiv` (`congrLinearEquiv`, `appendLinearEquiv`, `blocksLinearEquiv`,
-   `piBlocksLinearEquiv`).
-3. `Cslib.BitString.BitVec` (`equivBitVec` little-endian bit layout, bitwise XOR/AND/OR/NOT
-   homomorphisms, and non-homomorphism for modular `BitVec` addition `+`).
-4. `Cslib.Multigraph.CutSpace` (`incidenceMatrix_eq_endpointIncidence`,
+   (`Code.submoduleZModIso_parityCheckCode`, `Code.orthogonal_parityCheckCode_bool`), and
+   `BitString.quadForm_eq_bitEquiv`.
+2. `Cslib.BitString.LinearEquiv` (`congrLinearEquiv`, `appendLinearEquiv`, `piBlocksLinearEquiv`).
+3. `Cslib.Multigraph.CutSpace` (`incidenceMatrix_eq_endpointIncidence`,
    `cutSpace_eq_span_incidence`, `mem_cutSpace_iff_exists_edgeCut`, `finrank_cutSpace_add_one`,
    `orthogonal_cutSpace`, `finrank_ker_incidenceMatrix_add_card`) on a concrete connected
    multigraph with parallel edges and a self-loop.
-5. `Cslib.Multidigraph` ↔ `Digraph` bridges (`toDigraph_arcSrc_arcTgt`, `arcMatrix_arcSrc_arcTgt`,
+4. `Cslib.Multidigraph` ↔ `Digraph` bridges (`toDigraph_arcSrc_arcTgt`, `arcMatrix_arcSrc_arcTgt`,
    `arborescenceEquivSubdigraph`, `isDipath_pmap_zip_tail`).
 -/
 
@@ -105,44 +101,14 @@ example :
   exact ⟨(appendLinearEquiv 2 3).symm_apply_apply (u, v), map_add (appendLinearEquiv 2 3) _ _⟩
 
 example (x y : BitString 6) :
-    blocksLinearEquiv 2 3 (x + y) = blocksLinearEquiv 2 3 x + blocksLinearEquiv 2 3 y ∧
-      piBlocksLinearEquiv ![2, 1, 3] (x + y) =
-        piBlocksLinearEquiv ![2, 1, 3] x + piBlocksLinearEquiv ![2, 1, 3] y ∧
+    piBlocksLinearEquiv ![2, 1, 3] (x + y) =
+      piBlocksLinearEquiv ![2, 1, 3] x + piBlocksLinearEquiv ![2, 1, 3] y ∧
       congrLinearEquiv (by decide : 6 = 3 + 3) (x + y) =
         congrLinearEquiv (by decide : 6 = 3 + 3) x +
           congrLinearEquiv (by decide : 6 = 3 + 3) y :=
-  ⟨map_add _ x y, map_add _ x y, map_add _ x y⟩
+  ⟨map_add _ x y, map_add _ x y⟩
 
-/-! ### 3. `BitVec`: little-endian bit layout and bitwise ring operations -/
-
-/-- `![true, false, true, true]` has bit `0 = 1`, bit `1 = 0`, bit `2 = 1`, bit `3 = 1`, i.e.
-unsigned value `1 + 0 + 4 + 8 = 13` (`13#4`). -/
-example :
-    equivBitVec 4 ![true, false, true, true] = 13#4 ∧
-      (equivBitVec 4).symm 13#4 = ![true, false, true, true] := by
-  refine ⟨by decide, ?_⟩
-  funext i
-  fin_cases i <;> decide
-
-example (x y : BitString 4) :
-    equivBitVec 4 0 = 0#4 ∧
-      equivBitVec 4 1 = BitVec.allOnes 4 ∧
-      equivBitVec 4 (x + y) = (equivBitVec 4 x ^^^ equivBitVec 4 y) ∧
-      equivBitVec 4 (x * y) = (equivBitVec 4 x &&& equivBitVec 4 y) ∧
-      equivBitVec 4 (x ⊔ y) = (equivBitVec 4 x ||| equivBitVec 4 y) ∧
-      equivBitVec 4 xᶜ = ~~~equivBitVec 4 x := by
-  simp
-
-/-- Negative check: `BitString` `+` is coordinatewise XOR (characteristic `2`), whereas `BitVec` `+`
-is modular addition mod `2 ^ n`, so `equivBitVec` is NOT additive for `BitVec`'s `+`. -/
-example :
-    let x : BitString 2 := ![true, false]
-    equivBitVec 2 (x + x) = 0#2 ∧
-      equivBitVec 2 x + equivBitVec 2 x = 2#2 ∧
-      equivBitVec 2 (x + x) ≠ equivBitVec 2 x + equivBitVec 2 x := by
-  decide
-
-/-! ### 4. `Multigraph/CutSpace` ↔ `EndpointIncidence` with parallel edges and self-loops -/
+/-! ### 3. `Multigraph/CutSpace` ↔ `EndpointIncidence` with parallel edges and self-loops -/
 
 /-- Concrete multigraph on `Fin 3` with `5` edges:
 - edges `0` and `1`: parallel edges between `0` and `1`;
@@ -188,7 +154,7 @@ private theorem cutSpace_and_cycleSpace_loopParallel :
     · rw [Multigraph.orthogonal_cutSpace, LinearMap.mem_ker]
       decide
 
-/-! ### 5. `Multidigraph` ↔ `Digraph` bridges -/
+/-! ### 4. `Multidigraph` ↔ `Digraph` bridges -/
 
 /-- Simple digraph on `Fin 3` with arcs `0 → 1`, `1 → 2`, `0 → 2`, and self-loop `1 → 1`. -/
 private def sampleDigraph : Digraph (Fin 3) where

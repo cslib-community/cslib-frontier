@@ -6875,7 +6875,6 @@ public import CslibFrontier.Foundations.Data.BitString.AgreeExpect
 public import CslibFrontier.Foundations.Data.BitString.Balanced
 public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Binary
-public import CslibFrontier.Foundations.Data.BitString.BitVec
 public import CslibFrontier.Foundations.Data.BitString.Block
 public import CslibFrontier.Foundations.Data.BitString.Block.Cons
 public import CslibFrontier.Foundations.Data.BitString.BlockPower

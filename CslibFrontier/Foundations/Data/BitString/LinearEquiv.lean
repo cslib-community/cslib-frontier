@@ -9,32 +9,29 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.BitString.Basic
-public import CslibFrontier.Foundations.Data.BitString.Block
 public import Mathlib.Algebra.Module.Equiv.Defs
 public import Mathlib.Algebra.Module.Prod
 public import Mathlib.Algebra.Module.Pi
+public import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # `Bool`-linear equivalences for concatenating and partitioning bit strings
 
 Bit strings form `Bool`-modules under coordinatewise exclusive or (`BooleanRing Bool`). This module
-packages length congruence, binary concatenation (`Fin.append` / `fstBits` / `sndBits`), uniform
-block slicing (`Cslib.BitString.block` / `Cslib.BitString.blocksEquiv`), and variable-length block
-slicing (`finSigmaFinEquiv`) as `Bool`-linear equivalences (`≃ₗ[Bool]`). Definitions and simp
-interface equations only.
+packages length congruence, binary concatenation (`Fin.append` / `fstBits` / `sndBits`), and
+variable-length block slicing (`finSigmaFinEquiv`) as `Bool`-linear equivalences (`≃ₗ[Bool]`).
+Definitions and simp interface equations only.
 
 ## Main definitions
 
 * `Cslib.BitString.congrLinearEquiv`: `BitString n₁ ≃ₗ[Bool] BitString n₂` from `n₁ = n₂`.
-* `Cslib.BitString.appendLinearEquiv`: `BitString a × BitString b ≃ₗ[Bool] BitString (a + b)` via
+* `Cslib.BitString.appendLinearEquiv`: `(BitString a × BitString b) ≃ₗ[Bool] BitString (a + b)` via
   `Fin.append` and `(fstBits, sndBits)`.
-* `Cslib.BitString.blocksLinearEquiv`: `BitString (m * k) ≃ₗ[Bool] (Fin m → BitString k)` via
-  `Cslib.BitString.blocksEquiv`.
 * `Cslib.BitString.piBlocksLinearEquiv`:
   `BitString (∑ i, b i) ≃ₗ[Bool] (∀ i : Fin t, BitString (b i))` via `finSigmaFinEquiv`.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.BitString
 
@@ -49,12 +46,12 @@ def congrLinearEquiv {n₁ n₂ : ℕ} (h : n₁ = n₂) : BitString n₁ ≃ₗ
 
 @[simp]
 theorem congrLinearEquiv_apply {n₁ n₂ : ℕ} (h : n₁ = n₂) (x : BitString n₁) (i : Fin n₂) :
-    congrLinearEquiv h x i = x (Fin.cast h.symm i) :=
+    congrLinearEquiv h x i = x (Fin.cast h.symm i) := by
   rfl
 
 @[simp]
 theorem congrLinearEquiv_symm {n₁ n₂ : ℕ} (h : n₁ = n₂) :
-    (congrLinearEquiv h).symm = congrLinearEquiv h.symm :=
+    (congrLinearEquiv h).symm = congrLinearEquiv h.symm := by
   rfl
 
 /-- `Bool`-linear equivalence concatenating `BitString a × BitString b` into `BitString (a + b)`
@@ -80,29 +77,12 @@ def appendLinearEquiv (a b : ℕ) : (BitString a × BitString b) ≃ₗ[Bool] Bi
 
 @[simp]
 theorem appendLinearEquiv_apply {a b : ℕ} (p : BitString a × BitString b) :
-    appendLinearEquiv a b p = Fin.append p.1 p.2 :=
+    appendLinearEquiv a b p = Fin.append p.1 p.2 := by
   rfl
 
 @[simp]
 theorem appendLinearEquiv_symm_apply {a b : ℕ} (x : BitString (a + b)) :
-    (appendLinearEquiv a b).symm x = (fstBits x, sndBits x) :=
-  rfl
-
-/-- `Bool`-linear equivalence cutting `BitString (m * k)` into `m` consecutive blocks of `k` bits
-via `Cslib.BitString.blocksEquiv`. -/
-def blocksLinearEquiv (m k : ℕ) : BitString (m * k) ≃ₗ[Bool] (Fin m → BitString k) where
-  toEquiv := blocksEquiv
-  map_add' _ _ := rfl
-  map_smul' _ _ := rfl
-
-@[simp]
-theorem blocksLinearEquiv_apply {m k : ℕ} (x : BitString (m * k)) :
-    blocksLinearEquiv m k x = block x :=
-  rfl
-
-@[simp]
-theorem blocksLinearEquiv_symm_apply {m k : ℕ} (y : Fin m → BitString k) :
-    (blocksLinearEquiv m k).symm y = blocksEquiv.symm y :=
+    (appendLinearEquiv a b).symm x = (fstBits x, sndBits x) := by
   rfl
 
 /-- `Bool`-linear equivalence partitioning `BitString (∑ i, b i)` into `t` blocks of lengths
@@ -122,7 +102,14 @@ def piBlocksLinearEquiv {t : ℕ} (b : Fin t → ℕ) :
 @[simp]
 theorem piBlocksLinearEquiv_apply {t : ℕ} (b : Fin t → ℕ) (x : BitString (∑ i, b i)) (i : Fin t)
     (j : Fin (b i)) :
-    piBlocksLinearEquiv b x i j = x (finSigmaFinEquiv ⟨i, j⟩) :=
+    piBlocksLinearEquiv b x i j = x (finSigmaFinEquiv ⟨i, j⟩) := by
+  rfl
+
+@[simp]
+theorem piBlocksLinearEquiv_symm_apply {t : ℕ} (b : Fin t → ℕ) (g : ∀ i : Fin t, BitString (b i))
+    (k : Fin (∑ i, b i)) :
+    (piBlocksLinearEquiv b).symm g k =
+      g (finSigmaFinEquiv.symm k).1 (finSigmaFinEquiv.symm k).2 := by
   rfl
 
 end Cslib.BitString

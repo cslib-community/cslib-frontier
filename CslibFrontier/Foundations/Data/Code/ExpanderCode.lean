@@ -56,11 +56,9 @@ at most `c` (`Cslib.Bipartite.IsLeftBounded`) and `k` is any natural number. Fli
 * `Cslib.BitString.ExpanderCode.mem_unsat_iff`: a check is violated iff it sees an odd number of
   errors.
 * `Cslib.BitString.ExpanderCode.card_unsat_le`: at most `c · d(y, w)` checks are violated.
-* `Cslib.BitString.ExpanderCode.finrank_code_add_rank`,
-  `Cslib.BitString.ExpanderCode.card_code_eq_two_pow_finrank`,
-  `Cslib.BitString.ExpanderCode.two_pow_sub_le_card_code`,
+* `Cslib.BitString.ExpanderCode.two_pow_sub_le_card_code`,
   `Cslib.BitString.ExpanderCode.one_sub_card_div_card_le_rate`,
-  `Cslib.BitString.ExpanderCode.one_sub_div_le_rate_of_isBiregular`: dimension and rate.
+  `Cslib.BitString.ExpanderCode.one_sub_div_le_rate_of_isBiregular`: the rate.
 * `Cslib.BitString.ExpanderCode.lt_hammingDist`, `Cslib.BitString.ExpanderCode.lt_minDist`,
   `Cslib.BitString.ExpanderCode.two_mul_mul_le_hammingDist`: the distance.
 
@@ -162,20 +160,7 @@ theorem card_unsat_le {c : ℕ} (hG : IsLeftBounded G c) {y w : ι → Bool} (hw
     #(unsat G y) ≤ c * hammingDist y w :=
   (card_le_card (unsat_subset_neighbors hw)).trans (card_neighbors_le hG _)
 
-/-! ### Rate and dimension -/
-
-omit [Fintype κ] in
-/-- Exact `𝔽₂` rank-nullity for `code G`: the rank of `(checkMatrix G).map bitEquiv.symm` plus the
-`Bool`-dimension of `code G` equals `|ι|`. -/
-theorem finrank_code_add_rank :
-    ((checkMatrix G).map bitEquiv.symm).rank + Module.finrank Bool (code G) = Fintype.card ι :=
-  Code.finrank_parityCheckCode_bool_add_rank (checkMatrix G)
-
-omit [Fintype κ] in
-/-- The expander code has `2 ^ dim Bool (code G)` codewords. -/
-theorem card_code_eq_two_pow_finrank :
-    Nat.card (code G) = 2 ^ Module.finrank Bool (code G) :=
-  natCard_submodule_bool (code G)
+/-! ### Rate -/
 
 /-- `2 ^ n ≤ |C(G)| · 2 ^ m`: the code is the kernel of a linear map into `2 ^ m` words. -/
 theorem two_pow_card_le :

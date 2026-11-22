@@ -34,8 +34,6 @@ explicit affine condensers and extractors ([Li2023], [LiZhong2024]):
   of `BitString n`.
 * `Cslib.AffineDisperser.Li.IsAffineSource`: an `(n, k)` affine source (`[Li2023, Def. 3.1]`,
   `[LiZhong2024, Def. 15]`).
-* `Cslib.AffineDisperser.Li.blockEquiv`: canonical isomorphism between `BitString (∑ i, b i)`
-  and partitioned bit-blocks `∀ i : Fin t, BitString (b i)`.
 * `Cslib.AffineDisperser.Li.IsAffineExtractor`: seedless `(k, ε)`-affine extractors.
 * `Cslib.AffineDisperser.Li.IsSumsetExtractor`: `(k₁, k₂, ε)`-sumset extractors
   (`[Li2023, Thm. 7.13]`).
@@ -380,12 +378,6 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
 
 /-! ### Affine Block Decomposition ([Li2023, Lemma 3.10]) -/
 
-/-- Canonical additive equivalence between flat bit strings `BitString (∑ i, b i)` and
-partitioned bit-blocks `∀ i : Fin t, BitString (b i)`. -/
-@[expose] def blockEquiv {t : ℕ} (b : Fin t → ℕ) :
-    BitString (∑ i, b i) ≃+ (∀ i : Fin t, BitString (b i)) :=
-  (piBlocksLinearEquiv b).toAddEquiv
-
 private theorem blockSlice_codim_le {t r : ℕ} {b : Fin t → ℕ}
     (V_flat : Submodule Bool (BitString (∑ i, b i)))
     (eB : (∀ i : Fin t, BitString (b i)) ≃ₗ[Bool] BitString (∑ i, b i))
@@ -420,7 +412,7 @@ product affine sources `PMF.pi (P c)` whose `i`-th block `P c i` is an affine so
 `BitString (b i)` of dimension at least `b i - r`. -/
 theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
     {X : PMF (∀ i : Fin t, BitString (b i))}
-    (hX : IsAffineSource (X.map (blockEquiv b).symm) k)
+    (hX : IsAffineSource (X.map (piBlocksLinearEquiv b).symm) k)
     (hr : (∑ i, b i) ≤ k + r) :
     ∃ (C : Type) (_ : Fintype C) (μ : PMF C)
       (P : C → ∀ i : Fin t, PMF (BitString (b i))),
@@ -430,7 +422,7 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
   rcases hX with ⟨A_flat, ⟨x₀_flat, hx₀_flat⟩, hdim_flat, hX_flat⟩
   let eB := (piBlocksLinearEquiv b).symm
   let V_flat := A_flat.direction
-  let x₀ := blockEquiv b x₀_flat
+  let x₀ := piBlocksLinearEquiv b x₀_flat
   let W : ∀ i : Fin t, Submodule Bool (BitString (b i)) := fun i =>
     V_flat.comap (eB.toLinearMap.comp (LinearMap.single Bool (fun j => BitString (b j)) i))
   let Wprod := ⨆ i : Fin t, (W i).map (LinearMap.single Bool (fun j => BitString (b j)) i)
@@ -458,37 +450,38 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
         right_inv := fun wf => Subtype.ext (eB.apply_symm_apply wf.1) }).trans
       (isCompl_prodEquiv hC_le hWprod_flat_le ⟨hC_inf, hC_sup⟩)
   let P : C_flat → ∀ i : Fin t, PMF (BitString (b i)) := fun c i =>
-    uniformAffine (AffineSubspace.mk' (x₀ i + (blockEquiv b c.1) i) (W i))
+    uniformAffine (AffineSubspace.mk' (x₀ i + (piBlocksLinearEquiv b c.1) i) (W i))
       ⟨_, AffineSubspace.self_mem_mk' _ _⟩
-  have hX_eq : X = (uniformAffine A_flat ⟨x₀_flat, hx₀_flat⟩).map (blockEquiv b) := by
+  have hX_eq : X = (uniformAffine A_flat ⟨x₀_flat, hx₀_flat⟩).map (piBlocksLinearEquiv b) := by
     rw [← hX_flat, PMF.map_comp,
-      show (⇑(blockEquiv b) ∘ ⇑(blockEquiv b).symm) = id from
-        funext (blockEquiv b).apply_symm_apply, PMF.map_id]
+      show (⇑(piBlocksLinearEquiv b) ∘ ⇑(piBlocksLinearEquiv b).symm) = id from
+        funext (piBlocksLinearEquiv b).apply_symm_apply, PMF.map_id]
   refine ⟨C_flat, inferInstance, PMF.uniformOfFintype C_flat, P,
     fun c i => ⟨finrank Bool (W i), blockSlice_codim_le V_flat eB (hdim_flat ▸ hr) i,
       _, _, by rw [AffineSubspace.direction_mk'], rfl⟩, ?_⟩
   have hbind : ((PMF.uniformOfFintype (C_flat × (∀ i : Fin t, W i))).map
-      fun p => blockEquiv b (x₀_flat + (e_dir p).1)) =
+      fun p => piBlocksLinearEquiv b (x₀_flat + (e_dir p).1)) =
       (PMF.uniformOfFintype C_flat).bind fun c =>
         (PMF.uniformOfFintype (∀ i : Fin t, W i)).map fun w =>
-          blockEquiv b (x₀_flat + (e_dir (c, w)).1) :=
-    (uniformOfFintype_bind_map fun c w => blockEquiv b (x₀_flat + (e_dir (c, w)).1)).symm
+          piBlocksLinearEquiv b (x₀_flat + (e_dir (c, w)).1) :=
+    (uniformOfFintype_bind_map fun c w => piBlocksLinearEquiv b (x₀_flat + (e_dir (c, w)).1)).symm
   rw [hX_eq, uniformAffine_eq_map_direction A_flat hx₀_flat, ← uniformOfFintype_map_equiv e_dir,
     PMF.map_comp, PMF.map_comp]
   change (PMF.uniformOfFintype (C_flat × (∀ i : Fin t, W i))).map
-    (fun p => blockEquiv b (x₀_flat + (e_dir p).1)) = _
+    (fun p => piBlocksLinearEquiv b (x₀_flat + (e_dir p).1)) = _
   rw [hbind]
   refine congrArg (PMF.bind _) (funext fun c => ?_)
   have hpi : PMF.pi (P c) = (PMF.uniformOfFintype (∀ i : Fin t, W i)).map
-      fun w i => x₀ i + blockEquiv b c.1 i + (w i).1 := by
+      fun w i => x₀ i + piBlocksLinearEquiv b c.1 i + (w i).1 := by
     have : P c = fun i => (PMF.uniformOfFintype (W i)).map
-        fun w => x₀ i + blockEquiv b c.1 i + w.1 :=
+        fun w => x₀ i + piBlocksLinearEquiv b c.1 i + w.1 :=
       funext fun i => uniformAffine_mk'_eq_map _ (W i)
     rw [this, PMF.pi_map, PMF.pi_uniformOfFintype]
   rw [hpi]
   exact congrArg (PMF.map · _) (funext fun w => funext fun i => by
-    change (blockEquiv b (x₀_flat + (c.1 + (blockEquiv b).symm fun j => (w j).1))) i = _
-    simp only [map_add, (blockEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc])
+    change (piBlocksLinearEquiv b
+      (x₀_flat + (c.1 + (piBlocksLinearEquiv b).symm fun j => (w j).1))) i = _
+    simp only [map_add, (piBlocksLinearEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc])
 
 /-! ### Bridges from affine and sumset extractors to `IsAffineDisperser` ([Li2023, Cor. 7.14]) -/
 
