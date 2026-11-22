@@ -8,7 +8,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -23,6 +26,8 @@ Every operand follows its parent in the prefix token stream, so visiting tokens 
 left gives each gate access to its previously computed operands. Arithmetic comparisons use
 a supplied interpretation of term-word signs. Correct signs for the comparison terms appearing
 in the word suffice for the root value to characterize membership in the real solution set.
+The backward scan stays in polynomial space when comparison answers are computed in polynomial
+space, keeping just one bit per processed gate.
 -/
 
 public section
@@ -102,14 +107,67 @@ def formulaWordGateValues (word : List Bool) (termSign : List Bool → SignType)
   let size := (formulaWordTokens word).length
   gateValuesAux word termSign size size
 
+private theorem gateValuesAux_length (word : List Bool) (termSign : List Bool → SignType)
+    (size count : ℕ) : (gateValuesAux word termSign size count).length = count := by
+  induction count with
+  | zero => rfl
+  | succ count ih => simp only [gateValuesAux, List.length_cons, ih]
+
 /-- The scan stores one Boolean value per token. -/
 theorem formulaWordGateValues_length (word : List Bool) (termSign : List Bool → SignType) :
-    (formulaWordGateValues word termSign).length = (formulaWordTokens word).length := by
-  have length_aux (size count : ℕ) : (gateValuesAux word termSign size count).length = count := by
-    induction count with
-    | zero => rfl
-    | succ count ih => simp only [gateValuesAux, List.length_cons, ih]
-  exact length_aux _ _
+    (formulaWordGateValues word termSign).length = (formulaWordTokens word).length :=
+  gateValuesAux_length word termSign _ _
+
+/-- A polynomial-space comparison-answer computation suffices for the whole backward
+gate scan. Each query receives the original encoded input and a binary gate index, and the
+scan stores a raw suffix bit for each gate it has processed. -/
+theorem formulaWordGateValues_polySpace_of_comparisonAnswers {α : Type} [Inhabited α]
+    {input : α ↪ List Bool} {word : α → List Bool} {termSign : α → List Bool → SignType}
+    (hword : ComputableInPolyTime word input encBits)
+    (hanswer : ComputableInPolySpace (fun p : α × ℕ =>
+      (formulaWordComparisonRequest (word p.1) p.2).any fun request =>
+        decide (termSign p.1 request.termWord = request.requestedSign))
+      (encPair input encNat) encBool) :
+    ComputableInPolySpace (fun a => formulaWordGateValues (word a) (termSign a)) input encBits := by
+  let count (a : α) := (formulaWordTokens (word a)).length
+  let answer (a : α) (index : ℕ) := (formulaWordComparisonRequest (word a) index).any
+    fun request => decide (termSign a request.termWord = request.requestedSign)
+  let step (a : α) (k : ℕ) (suffix : List Bool) :=
+    let index := count a - (k + 1)
+    formulaWordGateUpdate (word a) index (answer a index) suffix
+  have htokens := formulaWordTokens_polyTime.comp hword
+  have hcount : ComputableInPolyTime count input encNat := length_list_binary' htokens
+  let tail := encPair encNat encBits
+  let args := encPair input tail
+  have hcontext := fst input tail
+  have hrest := snd input tail
+  have hround := (fst encNat encBits).comp hrest
+  have hsuffix := (snd encNat encBits).comp hrest
+  have hindex := binary_sub' (hcount.comp hcontext) (binary_add' hround (const 1))
+  have hbit := hanswer.comp (ComputableInPolySpace.of_polyTime (hcontext.prod hindex))
+  have hkeep := fst args encBool
+  have hfinish := formulaWordGateUpdate_polyTime ((hword.comp hcontext).comp hkeep)
+    (hindex.comp hkeep) (snd args encBool) (hsuffix.comp hkeep)
+  have hstep : ComputableInPolySpace (fun p : α × ℕ × List Bool => step p.1 p.2.1 p.2.2)
+      args encBits :=
+    (ComputableInPolySpace.of_polyTime hfinish).comp (ComputableInPolySpace.id'.prod hbit)
+  have hbound : PolyBounded (fun a => (input a).length) count :=
+    htokens.polyBounded_length.mono fun a =>
+      SizedListEncoding.length_le (encA := encFormulaToken) (encL := encList encFormulaToken) _
+  let invariant (a : α) (k : ℕ) (suffix : List Bool) :=
+    suffix = gateValuesAux (word a) (termSign a) (count a) k
+  obtain ⟨hfold, hcorrect⟩ := ComputableInPolySpace.natFold_spec hcount
+    (ComputableInPolySpace.of_polyTime (const [])) hstep invariant
+    (fun _ => rfl) (fun a k suffix _ hs => by
+      change suffix = _ at hs
+      change step a k suffix = _
+      rw [hs]
+      simp only [step, answer, formulaWordGateUpdate_eq_cons, gateValuesAux])
+    hbound (fun a k suffix hk hs => by
+      change suffix = _ at hs
+      rw [encBits_apply, hs, gateValuesAux_length]
+      exact hk)
+  exact hfold.congr fun a => hcorrect a
 
 private theorem gateValuesAux_getD (word : List Bool) (termSign : List Bool → SignType)
     (size count offset : ℕ) :
