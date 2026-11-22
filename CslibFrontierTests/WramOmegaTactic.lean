@@ -145,6 +145,30 @@ example : True := by
 
 example : t2Base base n < footerBase base n := by wram_omega
 
+/-! Monotonicity between distinct powers of two when `omega` proves `e₁ ≤ e₂` or `e₁ < e₂` from
+the context. -/
+
+example {k : ℕ} (hk : k ≤ n) : tableSize k ≤ tableSize n := by wram_omega
+
+example {k : ℕ} (hk : k < n) : 2 * tableSize k ≤ tableSize n := by wram_omega
+
+example {k : ℕ} (hk : k < w) : Fits w (tableSize k) := by wram_omega
+
+example {c : ℕ} (hc : 2 * c < w) : Fits w (2 ^ c) := by wram_omega
+
+example {w₀ : ℕ} (hfit : Fits w₀ (base + space n)) (hw : w₀ ≤ w) (h : i < tableSize n) :
+    Fits w (t2Base base n + i) := by
+  wram_omega
+
+example {k : ℕ} (hk : k ≤ n) (h : i < tableSize k) : t2Base base n + i < base + space n := by
+  wram_omega
+
+example {w₀ : ℕ} (hfit : Fits w₀ n) (hw : w₀ < w) : Fits w (2 * n + 1) := by
+  wram_omega
+
+example {w₀ : ℕ} (h : ¬Fits w a) (hw : w₀ ≤ w) : ¬Fits w₀ a := by
+  wram_omega
+
 /-! When nothing was unfolded, `omega` proves the goal and the linter asks for it. -/
 
 /--
@@ -197,6 +221,22 @@ where
 -/
 #guard_msgs in
 example : sealedBase base < t1Base base := by wram_omega
+
+/--
+error: wram_omega: `omega` could not prove the goal with the `@[wram_arith]` definitions and the local definitions unfolded in the goal and in the arithmetic hypotheses. Products are unknowns to `omega`: give bounds on them with `wram_omega [h]`.
+Unfolded: `tableSize`.
+-/
+#guard_msgs (substring := true) in
+example {k : ℕ} : tableSize k ≤ tableSize n := by wram_omega
+
+/--
+error: wram_omega: `omega` could not prove the goal with the `@[wram_arith]` definitions and the local definitions unfolded in the goal and in the arithmetic hypotheses. Products are unknowns to `omega`: give bounds on them with `wram_omega [h]`.
+Unfolded: `Fits`, `space`, `tableSize`.
+-/
+#guard_msgs (substring := true) in
+example {w₀ : ℕ} (_hfit : Fits w₀ (base + space n)) (_hw : w₀ ≤ w) :
+    Fits w (base + space n + 1) := by
+  wram_omega
 
 /-! What `@[wram_arith]` rejects. -/
 
