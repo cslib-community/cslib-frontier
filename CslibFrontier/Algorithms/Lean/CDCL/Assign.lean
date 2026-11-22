@@ -481,14 +481,14 @@ theorem litOfKey_negKey (l : Literal ℕ) : litOfKey (negKey l) = l.negate := by
 
 /-- **Whether the literal of the key `c` is true**, read on the key, without building the
 literal. -/
-def Assign.holdsKey (A : Assign) (c : ℕ) : Bool :=
+@[inline] def Assign.holdsKey (A : Assign) (c : ℕ) : Bool :=
   match A.vals.getD (c / 2) 0 with
   | 0 => false
   | 1 => !(c % 2 == 1)
   | _ => c % 2 == 1
 
 /-- **Whether the literal of the key `c` is false**, read on the key. -/
-def Assign.isFalseKey (A : Assign) (c : ℕ) : Bool :=
+@[inline] def Assign.isFalseKey (A : Assign) (c : ℕ) : Bool :=
   match A.vals.getD (c / 2) 0 with
   | 0 => false
   | 1 => c % 2 == 1
