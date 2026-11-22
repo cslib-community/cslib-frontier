@@ -19,6 +19,10 @@ import CslibFrontier.Foundations.Data.Nat.BinarySize
 The retained tally reads the original word. It supplies the same initialized Justesen context
 to every bounded walk, so the typed scan uses the subdivision adjacency for the chosen rank.
 
+## Main definitions
+
+* `Cslib.Complexity.STCON.justesenSourceMembershipMachine`: the fixed re-entrant tally.
+
 ## Main results
 
 * `Cslib.Complexity.STCON.justesenSourceMembershipMachine_parts_inSpace`: linear-space
@@ -287,14 +291,11 @@ theorem configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps
   have hsource := length_encNat_mono source.isLt.le
   have htarget := length_encNat_mono target.isLt.le
   have hradius := length_encNat_mono hr
-  have hsq := length_encNat_mul_le n n
-  have hcount := (length_encNat_mono hc).trans (length_encNat_add_le_add 1 (n * n))
-  have hsum := (length_encNat_mono hs).trans (length_encNat_mul_le (n * n) n)
-  have hone : (encNat 1).length = 1 := rfl
+  obtain ⟨hcount, hsum⟩ := length_encTally_fields_le_of_caps le_rfl hc hs
   have hparams : (MembershipTally.encContext params).length ≤ 15 * (encNat n).length + 9 := by
     simp only [params, MembershipTally.encContext_apply, MembershipTally.encContextFields,
       encTally_apply, encTallyFields, length_encPair]
-    dsimp only [n] at hsq hcount hsum ⊢
+    dsimp only [n] at hcount hsum ⊢
     omega
   have hlogN : Nat.log2 n ≤ (encNat n).length := by
     rw [length_encNat_eq_size]

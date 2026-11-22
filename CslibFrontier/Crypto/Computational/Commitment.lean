@@ -80,7 +80,8 @@ The general public-parameter interface is in `Commitment/Basic`.
   and full auxiliary-input hiding from a `NonuniformPRG`), together with
   `Cslib.Crypto.GenerableStatefulHiding.computational_hiding` and
   `Cslib.Crypto.StatefulHiding.computational_hiding`.
-* `Cslib.Crypto.naorBindingProb_le`, `Cslib.Crypto.naorBindingProb_le_of_three_mul_add_one`,
+* `Cslib.Crypto.naorBindingProb_lt_of_three_mul`,
+  `Cslib.Crypto.naorBindingProb_le_of_three_mul_add_one`,
   `Cslib.Crypto.negligible_naorBindingError`: statistical binding when `3 * n ≤ length n`.
 * `Cslib.Crypto.PseudorandomGenerator.naorGenerableBitCommitment`,
   `Cslib.Crypto.OneWay.exists_generableBitCommitmentScheme`: packaged Naor scheme with
@@ -348,11 +349,11 @@ bounded auxiliary input: for every family `aux : ℕ → List Bool` with
 `CommitmentReceiver` can distinguish commitments to its first chosen bit (`bit = false`) from
 commitments to its second chosen bit (`bit = true`) with non-negligible advantage.
 
-This is the secrecy condition of [Naor1991], Section 2, pp. 3–4 (of the author's copy), including
-the source's remark on auxiliary input, for a commitment whose commit stage is the receiver's
-string `r` followed by `commit r b seed` on a uniform `n`-bit seed, specialized from commitments
-to many bits to one bit. A distinguishing advantage replaces the source's guessing probability
-`1/2 + 1/p(n)`; the two differ by a factor of two.
+This specializes the receiver-chosen pair in [Naor1991], Section 2, pp. 3–4 of the author's copy,
+to two bits. The receiver sends `r` and receives `commit r b seed` on a uniform `n`-bit seed.
+The distinguishing gap is twice the excess success probability of a uniform-bit guesser.
+Both worlds use the same `aux n`. The source also discusses side information correlated with the
+hidden bit and measures the gain over the receiver's prior guessing probability (#6256).
 
 *Clock convention.* `CommitmentReceiver.IsPPT` clocks `receiver.choose` polynomial in the length
 of its full encoded input `(1^n, aux n)`, i.e., `poly(n + (aux n).length)`, and clocks
@@ -597,9 +598,9 @@ theorem PseudorandomGenerator.naorGenerableStatefulHiding
 /-- Step toward Naor's PRG-based bit commitment secrecy proof (after [Naor1991]), not the cited
 result: for any nonuniform pseudorandom generator (`NonuniformPRG`), `naorCommit generator`
 satisfies `StatefulHiding` against randomized stateful PPT receivers given any polynomially bounded
-auxiliary input family `aux : ℕ → List Bool`. Exact source-locator verification beyond Section 2
-(`pp. 3–4` of `bit.pdf`) and results inventory registration (`CslibFrontierResults.Entries`) remain
-open pending inspection of `bit.pdf` (#6256 / #5293). -/
+auxiliary input family `aux : ℕ → List Bool`. Both games use the same advice.
+Section 2, p. 3 of the author's copy also compares prediction before and after commitment when
+the bit and the receiver's prior information have a joint law (#6256). -/
 theorem NonuniformPRG.naorStatefulHiding
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length) :
@@ -678,26 +679,23 @@ theorem mem_image_naorBadShift_of_not_naorBinding {generator : List Bool → Lis
   change y₀ + y₁ = r'
   rw [hbit, add_right_comm, BitString.add_self, zero_add]
 
+private theorem card_not_naorBinding_le_image {generator : List Bool → List Bool} {length : ℕ → ℕ}
+    (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
+    (Finset.univ.filter (fun r : BitString (length n) =>
+      ¬ NaorBinding generator n (List.ofFn r))).card ≤
+      (Finset.univ.image (naorBadShift generator (length n) n)).card := by
+  apply Finset.card_le_card
+  intro r hr
+  simpa only [BitString.ofList_ofFn] using
+    mem_image_naorBadShift_of_not_naorBinding hlen (Finset.mem_filter.mp hr).2
+
 /-- At most `2 ^ (2 * n)` receiver strings of length `length n` violate `NaorBinding`. -/
 theorem card_not_naorBinding_le {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
     (Finset.univ.filter (fun r : BitString (length n) =>
       ¬ NaorBinding generator n (List.ofFn r))).card ≤ 2 ^ (2 * n) := by
-  have hsub : Finset.univ.filter (fun r : BitString (length n) =>
-      ¬ NaorBinding generator n (List.ofFn r)) ⊆
-        Finset.univ.image (naorBadShift generator (length n) n) := by
-    intro r hr
-    rw [Finset.mem_filter] at hr
-    simpa only [BitString.ofList_ofFn] using mem_image_naorBadShift_of_not_naorBinding hlen hr.2
-  calc
-    (Finset.univ.filter (fun r : BitString (length n) =>
-        ¬ NaorBinding generator n (List.ofFn r))).card
-      ≤ (Finset.univ.image (naorBadShift generator (length n) n)).card :=
-        Finset.card_le_card hsub
-    _ ≤ (Finset.univ : Finset (BitString n × BitString n)).card := Finset.card_image_le
-    _ = 2 ^ (2 * n) := by
-        simp only [Finset.card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin,
-          Fintype.card_bool, ← pow_add, two_mul]
+  simpa [← pow_add, two_mul] using
+    (card_not_naorBinding_le_image hlen n).trans Finset.card_image_le
 
 /-- The `ENNReal` probability that a uniform receiver string of length `length n` fails to be
 binding for `n`-bit seeds. -/
@@ -711,15 +709,20 @@ noncomputable def naorBindingError (generator : List Bool → List Bool) (length
     (n : ℕ) : ℝ≥0 :=
   (naorBindingProb generator length n).toNNReal
 
+private theorem naorBindingProb_eq_card_div (generator : List Bool → List Bool) (length : ℕ → ℕ)
+    (n : ℕ) : naorBindingProb generator length n =
+      ((Finset.univ.filter (fun r : BitString (length n) =>
+        ¬ NaorBinding generator n (List.ofFn r))).card : ℝ≥0∞) / 2 ^ length n := by
+  classical
+  rw [naorBindingProb, BitString.uniformList, PMF.toOuterMeasure_map_apply,
+    Probability.PMF.toOuterMeasure_uniformOfFintype]
+  simp [Set.preimage, Set.mem_ofPred_eq, div_eq_mul_inv]
+
 /-- The binding failure probability is at most `2 ^ (2 * n) / 2 ^ (length n)`. -/
 theorem naorBindingProb_le {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
     naorBindingProb generator length n ≤ (2 ^ (2 * n) : ℝ≥0∞) / 2 ^ (length n) := by
-  classical
-  rw [naorBindingProb, BitString.uniformList, PMF.toOuterMeasure_map_apply,
-    Probability.PMF.toOuterMeasure_uniformOfFintype]
-  simp only [Set.preimage, Set.mem_ofPred_eq, Fintype.card_fun, Fintype.card_fin,
-    Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat, div_eq_mul_inv]
+  rw [naorBindingProb_eq_card_div]
   gcongr
   exact_mod_cast card_not_naorBinding_le hlen n
 
@@ -738,6 +741,27 @@ theorem naorBindingProb_le_of_three_mul {generator : List Bool → List Bool} {l
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) (hstretch : 3 * n ≤ length n) :
     naorBindingProb generator length n ≤ (1 / 2 : ℝ≥0∞) ^ n :=
   (naorBindingProb_le hlen n).trans (two_pow_div_two_pow_le (by lia))
+
+/-- Strict binding bound for positive seed length, the single-bit binding step of
+[Naor1991], Section 3, Theorem 3.1(2), p. 6 of the author's copy. Each pair of equal seeds
+produces the same zero shift, so the count in Claim 3.1 strictly overestimates the number
+of bad challenges. The hiding clause is tracked in #6256. -/
+theorem naorBindingProb_lt_of_three_mul {generator : List Bool → List Bool} {length : ℕ → ℕ}
+    (hlen : ∀ s, (generator s).length = length s.length) {n : ℕ} (hn : 0 < n)
+    (hstretch : 3 * n ≤ length n) : naorBindingProb generator length n < (1 / 2 : ℝ≥0∞) ^ n := by
+  have hlt : (Finset.univ.image (naorBadShift generator (length n) n)).card <
+      (Finset.univ : Finset (BitString n × BitString n)).card := by
+    refine lt_of_le_of_ne Finset.card_image_le fun heq => ?_
+    let x : BitString n := fun _ => false
+    let y : BitString n := fun _ => true
+    have h := Finset.card_image_iff.mp heq (Finset.mem_univ (x, x)) (Finset.mem_univ (y, y))
+      (by simp [naorBadShift])
+    exact Bool.false_ne_true (congrArg (fun p : BitString n × BitString n => p.1 ⟨0, hn⟩) h)
+  have hcount := (card_not_naorBinding_le_image hlen n).trans_lt hlt
+  rw [naorBindingProb_eq_card_div]
+  refine lt_of_lt_of_le ?_ (two_pow_div_two_pow_le (a := 2 * n) (b := length n) (by lia))
+  apply (ENNReal.div_lt_div_iff_left (by positivity) (by finiteness)).2
+  exact_mod_cast (show _ < 2 ^ (2 * n) by simpa [← pow_add, two_mul] using hcount)
 
 /-- When `3 * n + 1 ≤ length n`, the binding failure probability is at most `(1 / 2) ^ (n + 1)`. -/
 theorem naorBindingProb_le_of_three_mul_add_one {generator : List Bool → List Bool}
@@ -1312,10 +1336,9 @@ theorem OneWay.exists_generableBitCommitmentScheme {f : List Bool → List Bool}
 /-- Step toward Naor's PRG-based bit commitment construction (after [Naor1991]), not the cited
 result: packages `naorCommit generator` from any nonuniform pseudorandom generator (`NonuniformPRG`)
 with stretch at least `3 * n` into a `BitCommitmentScheme` providing `StatefulHiding` against
-randomized stateful PPT receivers given arbitrary polynomially bounded auxiliary input. Exact
-source-locator verification beyond Section 2 (`pp. 3–4` of `bit.pdf`) and results inventory
-registration (`CslibFrontierResults.Entries`) remain open pending inspection of `bit.pdf`
-(#6256 / #5293). -/
+randomized stateful PPT receivers given arbitrary polynomially bounded auxiliary input.
+`naorBindingProb_lt_of_three_mul` gives the strict probability bound for the binding clause.
+The hiding game uses advice fixed across its two worlds (#6256). -/
 def NonuniformPRG.naorBitCommitment
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length)
@@ -1329,9 +1352,8 @@ result: proves `Nonempty BitCommitmentScheme` (with `StatefulHiding` against ran
 receivers given arbitrary polynomially bounded auxiliary input) from any nonuniform one-way function
 (`NonuniformOneWay`), composing the nonuniform OWF-to-PRG step
 (`NonuniformOneWay.exists_nonuniformPRG_three_mul`, [HILL1999]) with
-`NonuniformPRG.naorBitCommitment`. Exact source-locator verification beyond Section 2 (`pp. 3–4` of
-`bit.pdf`) and results inventory registration (`CslibFrontierResults.Entries`) remain open pending
-inspection of `bit.pdf` (#6256 / #5293). -/
+`NonuniformPRG.naorBitCommitment`. The latter carries the fixed-advice hiding guarantee
+compared with the source in #6256. -/
 theorem NonuniformOneWay.exists_bitCommitmentScheme {f : List Bool → List Bool}
     (hf : NonuniformOneWay f) :
     Nonempty BitCommitmentScheme := by

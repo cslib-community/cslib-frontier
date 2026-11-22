@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.SingleTape.PostTuringM
 public import CslibFrontier.Foundations.Data.BiTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ReadInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Simulation of `SingleTapeTM` by `MultiTapeTM`
@@ -96,9 +97,7 @@ theorem runFrom_copyInputToWork (x : List Symbol) :
         ⟨none, p', fun _ => tapeOfList x, fun _ => 0, []⟩ := by
   have hinit : (copyInputToWork Symbol).initCfg x =
       wordsCfgAt x 1 (some (copyInputToWork Symbol).q₀) (fun _ => []) [] := by
-    refine Cfg.ext rfl rfl ?_ rfl rfl
-    funext i
-    simp [MultiTapeNTM.initCfg, Cfg.init, wordsCfgAt]
+    tm_step
   have hval : ((1 : Fin (x.length + 2)) : ℕ) = 1 :=
     (Fin.val_one' _).trans (Nat.mod_eq_of_lt (by omega))
   have hp₀ : ((1 : Fin (x.length + 2)) : ℕ) ≠ 0 := by omega
@@ -121,10 +120,7 @@ theorem runFrom_copyInputToWork (x : List Symbol) :
   change (appendRead (copyReader Symbol) 0).runFrom
       (wordsCfgAt x 1 (some (appendRead (copyReader Symbol) 0).q₀) (fun _ => []) []) _ = _
   rw [hrun, hws', he]
-  refine Cfg.ext rfl rfl ?_ rfl rfl
-  funext i
-  rw [Fin.fin_one_eq_zero i, hval]
-  simp [wordsCfgAt]
+  tm_step [wordsCfgAt]
 
 /-- `BiTape.mk₁ xs` represents `tapeOfList xs` with head at `0`. -/
 theorem represents_tapeOfList (xs : List Symbol) :
@@ -236,14 +232,8 @@ lemma runFrom_walk {y : List Symbol} {contents : ℤ → Option Symbol} {head : 
       have hread := (hrep n).symm
       rw [BiTape.read_mk₁] at hread
       simpa [List.getElem?_eq_getElem hlt] using hread
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, ih (by omega), step_of_state rfl]
-    simp only [emitWork, tr_ofTr, Cfg.workTapeSymbols, hsym]
-    refine Cfg.ext rfl (by simp [Action.apply, moveInputPos_zero]) rfl ?_ ?_
-    · funext _
-      simp only [Action.apply_workTapePos, SignType.coe_one, Nat.cast_add, Nat.cast_one]
-      omega
-    · rw [List.take_add_one, List.getElem?_eq_getElem hlt]
-      simp [Action.apply]
+    rw [runFrom_succ, ih (by omega)]
+    tm_step [emitWork, hsym]
 
 end EmitWork
 
@@ -255,7 +245,7 @@ theorem runFrom_emitWork {input y : List Symbol} (mcfg : Cfg 1 Symbol Unit input
       ((emitWork Symbol).runFrom mcfg (y.length + 1)).output = mcfg.output ++ y := by
   have hmcfg : mcfg = ⟨some (), mcfg.inputPos, fun _ => mcfg.workTapes 0,
       fun _ => mcfg.workTapePos 0, mcfg.output⟩ := by
-    refine Cfg.ext hstate rfl ?_ ?_ rfl <;> funext i <;> rw [Fin.fin_one_eq_zero i]
+    tm_step [hstate, Fin.fin_one_eq_zero]
   have hwalk := runFrom_walk (inpos := mcfg.inputPos) hrep mcfg.output y.length le_rfl
   have hblank : mcfg.workTapes 0 (mcfg.workTapePos 0 + y.length) = none := by
     have hread := (hrep y.length).symm
@@ -266,12 +256,8 @@ theorem runFrom_emitWork {input y : List Symbol} (mcfg : Cfg 1 Symbol Unit input
       (y.length + 1) =
     ⟨none, mcfg.inputPos, fun _ => mcfg.workTapes 0, fun _ => mcfg.workTapePos 0 + y.length,
       mcfg.output ++ y⟩ := by
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, hwalk, step_of_state rfl]
-    simp only [emitWork, tr_ofTr, Cfg.workTapeSymbols, hblank]
-    refine Cfg.ext rfl (by simp [Action.apply, moveInputPos_zero]) rfl ?_ ?_
-    · funext _
-      simp [Action.apply]
-    · simp [Action.apply]
+    rw [runFrom_succ, hwalk]
+    tm_step [emitWork, hblank]
   rw [← hmcfg] at htotal
   rw [htotal]
   exact ⟨rfl, rfl⟩

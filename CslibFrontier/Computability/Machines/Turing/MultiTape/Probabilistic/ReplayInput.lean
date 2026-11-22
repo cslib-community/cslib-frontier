@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.PrepareReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Foundations.Data.Fin.Tuple
 import Mathlib.Data.Fin.Tuple.Embedding
 import Mathlib.Tactic.Linarith
@@ -63,8 +64,7 @@ private theorem embed_initial (machine : MultiTapePTM k Bool State) (coins input
       (fun _ _ => none) (fun _ => 0) = initial k r coins input (some (some machine.initial)) := by
   have hc : config (machine.initialConfig input) (tapeOfList coins) 0 =
       wordsCfg input (some (some machine.initial)) (Fin.snoc (fun _ => []) coins) [] := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
-      induction i using Fin.lastCases <;> simp [config, MultiTapeMachine.initialConfig, wordsCfg]
+    tm_step [config, MultiTapeMachine.initialConfig]
   rw [hc]
   simp only [initial]
   have he := embed_wordsCfg (input := input) (tapes k r) (ws := fun _ => [])

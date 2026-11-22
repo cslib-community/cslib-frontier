@@ -26,9 +26,9 @@ of size polynomial in `2 ^ n` (`Γ = P/poly`) [RazborovRudich1997]. It is *usefu
 proof against `Λ` exhibits a property useful against `Λ`, and Razborov and Rudich observe that
 the properties used by the known proofs are natural.
 
-**The natural proofs barrier.** If a property holds for no function of a keyed family, the test
-deciding it from truth tables never accepts the truth table of a member, but accepts that of a
-uniformly random function with probability the density of the property
+**The truth-table test in the natural proofs barrier.** If a property holds for no member of a
+keyed family, its test rejects every member’s truth table and accepts a uniformly random truth
+table with probability equal to the density of the property
 (`advantage_truthTableGenerator_truthTableTest`). A property decided by circuits with `t` gates
 and useful against circuits with `s` gates therefore distinguishes every keyed family of functions
 with `s` gates from uniformly random functions, by a circuit with `t` gates and with advantage its
@@ -37,9 +37,10 @@ useful against `P/poly` if some keyed family with members of polynomial circuit 
 *exponentially secure*, pseudorandom against circuits of size `2 ^ (c n)` with error `2 ^ (-c n)`
 for every `c` (`Cslib.Crypto.PRG.IsExponentiallySecure`, `not_isUseful_PPoly_of_isNatural`).
 
-Razborov and Rudich obtain such a family from a pseudorandom generator secure against circuits of
-size `2 ^ (k ^ ε)` on seeds of length `k`, by the construction of Goldreich, Goldwasser and Micali
-[GGM1986] with keys of length polynomial in `n`. That derivation, with its circuit-size analysis,
+The proof of [RazborovRudich1997, Theorem 4.1, pp. 30–31] constructs the keyed family from a
+pseudorandom generator secure against circuits of size `2 ^ (k ^ ε)` on seeds of length `k`.
+It uses the construction of Goldreich, Goldwasser and Micali [GGM1986] with keys of length
+polynomial in `n`. That derivation, with its circuit-size analysis,
 is `Cslib.Crypto.GGM.isExponentiallySecure_booleanFamily`, and the barrier from such a generator
 is `Cslib.Circuits.Boolean.not_isUseful_PPoly_of_isNatural_of_generator`
 (`CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Generator`).
@@ -82,8 +83,8 @@ in `P/poly` (`truthTableLanguage_setOf_lt_complexity_notMem_PPoly`) [KabanetsCai
   Razborov–Rudich distinguisher is the density of the property.
 * `Cslib.Circuits.Boolean.not_secure_truthTableGenerator`: the barrier for one input length,
   with explicit sizes and advantage.
-* `Cslib.Circuits.Boolean.not_isUseful_PPoly_of_isNatural`: the natural proofs barrier for
-  `P/poly`, assuming an exponentially secure keyed family.
+* `Cslib.Circuits.Boolean.not_isUseful_PPoly_of_isNatural`: the keyed-family step in the
+  natural proofs barrier for `P/poly`.
 * `Cslib.Circuits.Boolean.isLarge_setOf_lt_complexity`,
   `Cslib.Circuits.Boolean.isUseful_PPoly_setOf_lt_complexity`: the functions needing more than
   `2 ^ n / (5 n)` gates form a large property useful against `P/poly`.
@@ -336,9 +337,9 @@ section Family
 
 variable {Key : ℕ → Type*} [∀ n, Fintype (Key n)] [∀ n, Nonempty (Key n)]
 
-/-- **The natural proofs barrier** for `P/poly` [RazborovRudich1997, Section 4]. Suppose that for
-each `n` a keyed family `F n` of Boolean functions on `n` inputs has members with at most `s n`
-gates, for a polynomially bounded `s`, and is exponentially secure: for every `c`, eventually no
+/-- The keyed-family step in the proof of [RazborovRudich1997, Theorem 4.1, equation (3),
+p. 31]. Suppose each member of the keyed family `F n` has at most `s n` gates, for a polynomially
+bounded `s`, and that the family is exponentially secure. For every `c`, eventually no
 circuit with at most `2 ^ (c n)` gates distinguishes the truth table of a member with a uniformly
 random key from a uniformly random truth table with advantage more than `2 ^ (-c n)`. Then no
 `P/poly`-natural property is useful against `P/poly`.
@@ -422,11 +423,11 @@ theorem isUseful_PPoly_setOf_lt_complexity :
     exact hn.le
   exact this.trans hf
 
-/-- Under the hypothesis of `not_isUseful_PPoly_of_isNatural`, the truth tables of the functions
-on `n` inputs that need more than `2 ^ n / (5 n)` gates, that is the no-instances
-`GapMCSP.noSet (fun n => 2 ^ n / (5 * n))`, do not form a language in `P/poly`
-[RazborovRudich1997], [KabanetsCai2000]. The property is large and useful against `P/poly`, so
-it is not `P/poly`-constructive. -/
+/-- If a keyed family of polynomial-size functions satisfies `IsExponentiallySecure`, the
+truth tables of the functions on `n` inputs needing more than `2 ^ n / (5 n)` gates, the
+no-instances `GapMCSP.noSet (fun n => 2 ^ n / (5 * n))`, do not form a language in `P/poly`.
+Largeness and usefulness against `P/poly` give a distinguishing test from any `P/poly`
+decision procedure for this property. -/
 theorem truthTableLanguage_setOf_lt_complexity_notMem_PPoly {F : ∀ n, Key n → BooleanFunction n}
     {s : ℕ → ℕ} (hs : PolynomiallyBounded s)
     (hF : ∀ n key, complexity interpretation (single (F n key)) ≤ s n)
@@ -436,9 +437,8 @@ theorem truthTableLanguage_setOf_lt_complexity_notMem_PPoly {F : ∀ n, Key n �
   not_isUseful_PPoly_of_isNatural hs hF hsecure
     ⟨_, fun _ => le_rfl, isLarge_setOf_lt_complexity, hmem⟩ isUseful_PPoly_setOf_lt_complexity
 
-/-- Under the hypothesis of `not_isUseful_PPoly_of_isNatural`, the property of needing more than
-`2 ^ n / (5 n)` gates is not `P/poly`-natural: it is useful against `P/poly`
-[RazborovRudich1997]. -/
+/-- If a keyed family of polynomial-size functions satisfies `IsExponentiallySecure`, usefulness
+of the property of needing more than `2 ^ n / (5 n)` gates rules out its `P/poly`-naturality. -/
 theorem not_isNatural_PPoly_setOf_lt_complexity {F : ∀ n, Key n → BooleanFunction n}
     {s : ℕ → ℕ} (hs : PolynomiallyBounded s)
     (hF : ∀ n key, complexity interpretation (single (F n key)) ≤ s n)
