@@ -134,7 +134,7 @@ open Lean Meta Elab Tactic
 
 /-- Apply a canonical renamed contract (supporting both `WP` and `WP.Exact`, `Exists` specs, bare
 `ExecWithin`/`Exec`, optional `hf`, auto-discharged trailing arguments, and `.seq` peeling). -/
-meta def applyCanonical (hTerm : Term) (hf? : Option Term) (hintTerms : Array Term)
+private meta def applyCanonical (hTerm : Term) (hf? : Option Term) (hintTerms : Array Term)
     (pats? : Option (TSyntaxArray `rintroPat)) : TacticM Bool :=
     withMainContext do
   let g ← getMainGoal

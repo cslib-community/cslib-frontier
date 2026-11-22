@@ -251,7 +251,7 @@ meta def introWithWitness (witAfter : ℕ) (pats : TSyntaxArray `rintroPat) :
     try simp only [Cslib.WordRAM.Data.comap_regs, Cslib.WordRAM.Data.comap_mem] at *))
 
 /-- Whether `g`'s head target is `WP w (.seq c₁ c₂) x Q` or `WP.Exact w (.seq c₁ c₂) x Q`. -/
-meta def tryPeelSeq (g : MVarId) : MetaM (Option MVarId) := g.withContext do
+private meta def tryPeelSeq (g : MVarId) : MetaM (Option MVarId) := g.withContext do
   let tgt := (WP.Exec.headBetaAll (← instantiateMVars (← g.getType))).consumeMData
   let (exact, code) ←
     if tgt.isAppOfArity ``WP 6 then pure (false, tgt.getArg! 3)
@@ -643,7 +643,7 @@ meta def dischargePremises (mvars : Array MVarId) (hintTerms : Array Term) :
 
 /-- Collect unassigned metavariables introduced by elaborating `hTerm`, preserving binder order and
 user names for tagging any leftover side goals. -/
-meta def applyAuto (mode : Name) (hTerm : Term) (hf? : Option Term)
+private meta def applyAuto (mode : Name) (hTerm : Term) (hf? : Option Term)
     (hintTerms : Array Term) (pats? : Option (TSyntaxArray `rintroPat)) :
     TacticM Bool := withMainContext do
   let g ← getMainGoal
@@ -786,7 +786,7 @@ meta def applyAuto (mode : Name) (hTerm : Term) (hf? : Option Term)
 
 /-- Check whether `hTerm` elaborates to a quantified `∀` (needing telescope/auto-discharge),
 contains unfilled `_` holes, or is a direct `ExecWithin` / `Exec` / `And` contract. -/
-meta def needsAuto (hTerm : Term) : TacticM Bool := withMainContext do
+private meta def needsAuto (hTerm : Term) : TacticM Bool := withMainContext do
   let s ← saveState
   try
     let e ← Tactic.elabTerm hTerm none true

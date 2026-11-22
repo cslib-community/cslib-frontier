@@ -77,7 +77,7 @@ private meta def finFnRead? (e : Expr) : MetaM (Option (Expr × Expr × Expr)) :
   return some (r, v, i)
 
 /-- The parts `(r, s, a)` of a memory read `s.mem a` of `s : Data r`. -/
-meta def memRead? (e : Expr) : Option (Expr × Expr × Expr) :=
+private meta def memRead? (e : Expr) : Option (Expr × Expr × Expr) :=
   if e.isAppOfArity ``Data.mem 3 then some (e.getArg! 0, e.getArg! 1, e.getArg! 2) else none
 
 /-- The parts `(r, s)` of a whole-memory projection `s.mem`. -/
@@ -512,7 +512,7 @@ private meta def reduceHavocRegs? (B r c x v m i : Expr) : MetaM (Option (Expr �
 `Data.set`, `Data.write`, `Data.extend`, `Data.comap`, and `Data.havoc`, through a frame of the
 state whose premises hold at `i`, and through the definition of a state introduced by `let`. A
 state is visited once, so that frames in both directions between two states do not loop. -/
-meta def frameStep (F : Facts) (stuck : IO.Ref Stuck) (e : Expr) : SimpM Simp.Step := do
+private meta def frameStep (F : Facts) (stuck : IO.Ref Stuck) (e : Expr) : SimpM Simp.Step := do
   let isFinFn := (← finFnRead? e).isSome
   unless (read? e).isSome || isFinFn do return .continue
   let mut cur := e
@@ -646,7 +646,7 @@ meta def tryProve (g : MVarId) (facts? : Option Facts := none) : MetaM Bool := d
 /-- One-step `wram_exec *` pre-simproc: reduces a leaf register read `s.regs i` or memory read
 `s.mem a` using local values, frames (including `Exec`/`ExecWithin.regs_eq`), `Data.extend`,
 `Data.comap`, `Data.havoc`, and `s'.mem = s.mem` equations scanned from context. -/
-meta def autoReadPre (F : Facts) (e : Expr) : SimpM Simp.Step := do
+private meta def autoReadPre (F : Facts) (e : Expr) : SimpM Simp.Step := do
   if let some (_, s, _) := read? e then
     if s.isAppOf ``Data.set || s.isAppOf ``Data.write then
       return .continue

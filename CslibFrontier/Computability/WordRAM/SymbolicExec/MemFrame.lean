@@ -155,6 +155,8 @@ theorem ExecWithin.mem_eq {w T : ℕ} {c : Code B r} {x y : Data r}
 
 end Cslib.WordRAM
 
+end
+
 public section
 
 namespace Cslib.WordRAM

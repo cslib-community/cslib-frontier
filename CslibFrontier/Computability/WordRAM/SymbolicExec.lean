@@ -528,7 +528,7 @@ private meta def finVal (n i : Expr) : MetaM (Expr × Bool) := do
   return (mkApp2 (mkConst ``Fin.val) n i, false)
 
 /-- A hypothesis `j ∉ Set.range f` when `i` is `f a`, giving `j ≠ i`. -/
-meta def outsideRange? (j i : Expr) : MetaM (Option Expr) := do
+private meta def outsideRange? (j i : Expr) : MetaM (Option Expr) := do
   let .app f a := i | return none
   let some hj ← (← getLCtx).findDeclRevM? fun d => do
       if d.isImplementationDetail then return none
@@ -593,30 +593,6 @@ meta def forallRangeNe? (f i : Expr) : MetaM (Option Expr) := do
         mkLambdaFVars #[j] (← mkAppM ``Ne.symm #[mkApp d.toExpr j]))
     return none
 
-/-- Prove a closed or standard `Fin`-embedding injectivity goal `Function.Injective f`: first from
-the local context, then for `Fin.castAdd`, `Fin.castLE`, and `Fin.natAdd`, then by `decide` when
-`f` is closed. -/
-meta def proveInjective? (f : Expr) : MetaM (Option Expr) := do
-  let f ← instantiateMVars f
-  if let some hf ← injective? f then return some hf
-  match f.getAppFn.constName? with
-  | some ``Fin.castAdd =>
-    let args := f.getAppArgs
-    if args.size == 2 then
-      return some (mkApp2 (mkConst ``Fin.castAdd_injective) args[0]! args[1]!)
-  | some ``Fin.castLE =>
-    let args := f.getAppArgs
-    if args.size == 3 then
-      return some (mkApp3 (mkConst ``Fin.castLE_injective) args[0]! args[1]! args[2]!)
-  | some ``Fin.natAdd =>
-    let args := f.getAppArgs
-    if args.size == 2 then
-      return some (mkApp2 (mkConst ``Fin.natAdd_injective) args[0]! args[1]!)
-  | _ => pure ()
-  let hp ← mkAppM ``Function.Injective #[f]
-  if let some (some hf) ← decideClosed? hp then return some hf
-  return none
-
 /-- A proof of `j ≠ i` from a hypothesis `i ∉ s` when `j ∈ s` holds by evaluation or hypothesis. -/
 private meta def outsideSet? (j i : Expr) : MetaM (Option Expr) := do
   (← getLCtx).findDeclRevM? fun d => do
@@ -644,7 +620,7 @@ symmetrically; by a hypothesis `i ∉ s` with `j ∈ s`, or symmetrically; by an
 hypothesis `∀ xs, a ≠ b` (`forallNe?`); by a hypothesis `Function.Injective f` when they are `f b`
 and `f a` with `b` and `a` different; and otherwise by the discharger on their values, when one of
 them unfolds to a constructor `⟨k, _⟩` (`finVal`). -/
-meta partial def regNe? (j i : Expr) : SimpM (Option Expr) := do
+private meta partial def regNe? (j i : Expr) : SimpM (Option Expr) := do
   let p ← mkAppM ``Ne #[j, i]
   if let some r ← decideClosed? p then return r
   for q in [p, mkNot (← mkEq j i)] do
