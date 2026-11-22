@@ -7139,6 +7139,7 @@ public import CslibFrontier.Foundations.Data.Matrix.Permanent.Relay
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Split
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.ZeroOne
 public import CslibFrontier.Foundations.Data.Matrix.Reindex
+public import CslibFrontier.Foundations.Data.Matrix.RowTable
 public import CslibFrontier.Foundations.Data.Matrix.Ryser
 public import CslibFrontier.Foundations.Data.Matrix.TotallyRegular
 public import CslibFrontier.Foundations.Data.MvPolynomial.AffineLine
@@ -7278,6 +7279,8 @@ public import CslibFrontier.Foundations.Data.Option.Rel
 public import CslibFrontier.Foundations.Data.Polynomial.BinaryDigits
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList
+public import CslibFrontier.Foundations.Data.Polynomial.CoeffList.Arith
+public import CslibFrontier.Foundations.Data.Polynomial.CoeffList.DivMod
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffProd
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffSumBounds
