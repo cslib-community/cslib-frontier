@@ -4922,6 +4922,7 @@ public import CslibFrontier.Computability.WordRAM.Defs
 public import CslibFrontier.Computability.WordRAM.Dynamic
 public import CslibFrontier.Computability.WordRAM.ExactLog
 public import CslibFrontier.Computability.WordRAM.ExactNotation
+public import CslibFrontier.Computability.WordRAM.FlatEndpoint
 public import CslibFrontier.Computability.WordRAM.Footprint
 public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Computability.WordRAM.GhostLoop
@@ -4935,6 +4936,7 @@ public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.MemoryView
 public import CslibFrontier.Computability.WordRAM.MemoryWindow
+public import CslibFrontier.Computability.WordRAM.MemoryWindow.Dynamic
 public import CslibFrontier.Computability.WordRAM.MemoryWindow.Normalization
 public import CslibFrontier.Computability.WordRAM.Multiword
 public import CslibFrontier.Computability.WordRAM.Multiword.Arithmetic
