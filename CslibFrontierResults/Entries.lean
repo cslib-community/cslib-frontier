@@ -503,6 +503,7 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.PartialSynchrony.Liveness
 import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
 import CslibFrontier.Computability.Distributed.MutualExclusion.FilterLock
 import CslibFrontier.Computability.Distributed.SharedMemory.Hierarchy
@@ -11895,6 +11896,97 @@ register_result "peterson-filter-lock-mutual-exclusion" where
     general Burns–Lynch space lower bound. Source check: outside-fleet agent review \
     (reviewer-codex-edemaine) on PR #7391 at 471e81e4cc71: \
     https://github.com/cslib-community/cslib-frontier/pull/7391#pullrequestreview-6010996984."
+
+register_result "dwork-lynch-stockmeyer-omission-partial-synchrony-consensus" where
+  title := "Deterministic consensus under partial synchrony with omission faults requires and \
+    suffices at 2t < N (basic round model)"
+  topic := "distributed computing"
+  sources := [
+    { paper := DworkLynchStockmeyer1988,
+      theorem := "Theorem 3.1, Theorem 4.3, and Table I (basic round model)",
+      locator := "§1.2, Table I, p. 291; §3.1, p. 295; §3.2.1, p. 297; and §4.3, pp. 305–306" }
+  ]
+  theorems := [
+    Cslib.Distributed.PartialSynchrony.omission_terminates_after_gst,
+    Cslib.Distributed.PartialSynchrony.solvesOmissionPartialSync_omissionQuorumProtocol,
+    Cslib.Distributed.PartialSynchrony.not_omissionPartialSync_weakUnanimity,
+    Cslib.Distributed.PartialSynchrony.not_solvesOmissionPartialSync,
+    Cslib.Distributed.PartialSynchrony.exists_solvesOmissionPartialSync_iff
+  ]
+  scope := "Formalized in the Section 3.1 basic round model (PartialSyncProtocol P V S M with \
+    adversarial pre-stabilization delivery deliver : ℕ → P → P → Bool and reliable \
+    correct-to-correct delivery IsGST deliver F gst from an unknown round gst onward) over any \
+    finite process type P ([Fintype P]) and value type V: (1) for 2 * t < Fintype.card P and \
+    [DecidableEq P] [DecidableEq V], the original three-subround rotating-coordinator \
+    view-locking protocol omissionQuorumProtocol achieves unconditional write-once \
+    irrevocability, agreement across correct processes, strong unanimity (∀ i, x i = v), and \
+    post-GST decision by round gst + 3 * (t + 2) (omission_terminates_after_gst, \
+    solvesOmissionPartialSync_omissionQuorumProtocol, witnessing the existence half of \
+    Theorem 3.1 via a three-subround rotating-coordinator view-locking construction in place of \
+    Algorithm 1's alternating trying/lock-release phases and monotone PROPER-set piggybacking); \
+    (2) for 2 ≤ Fintype.card P ≤ 2 * t and [Nontrivial V], no deterministic protocol achieves \
+    post-GST termination against ≤ t omission faults together with failure-free (F = ∅, \
+    ∃ gst, IsGST deliver ∅ gst) agreement and weak unanimity \
+    (not_omissionPartialSync_weakUnanimity, healing the two-group partition after R₀, R₁, and \
+    max R₀ R₁ as in Theorem 4.3, pp. 305–306, with immediate corollary \
+    not_solvesOmissionPartialSync); and (3) together with ownInputProtocol for \
+    Fintype.card P ≤ 1, solvability of SolvesOmissionPartialSync t is equivalent to \
+    Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P (exists_solvesOmissionPartialSync_iff, \
+    Table I, p. 291). Models the Section 3.1 basic round model directly; the real-time \
+    step-group simulations for synchronous processors with eventual or unknown Δ \
+    (Theorems 4.1–4.2, pp. 303–305) and partially synchronous processors \
+    (Sections 5–6, pp. 306–322) are out of scope. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7394 at b118ef3313b5: \
+    https://github.com/cslib-community/cslib-frontier/pull/7394#pullrequestreview-6011300049."
+
+register_result "dwork-lynch-stockmeyer-byzantine-partial-synchrony-consensus" where
+  title := "Deterministic unauthenticated Byzantine consensus under partial synchrony requires \
+    and suffices at 3t < N (basic round model)"
+  topic := "distributed computing"
+  sources := [
+    { paper := DworkLynchStockmeyer1988,
+      theorem := "Theorem 3.3, Remark 1, and §1.2 / Table I (basic round model)",
+      locator := "§1.2 and Table I, p. 291; §3.1, p. 295; and §3.2.3, p. 302" }
+  ]
+  theorems := [
+    Cslib.Distributed.PartialSynchrony.byzQuorum_terminates_after_gst,
+    Cslib.Distributed.PartialSynchrony.solvesByzantinePartialSync_byzQuorumProtocol,
+    Cslib.Distributed.PartialSynchrony.not_partialSync_of_le_three_t,
+    Cslib.Distributed.PartialSynchrony.not_solvesByzantinePartialSync,
+    Cslib.Distributed.PartialSynchrony.exists_solvesByzantinePartialSync_iff
+  ]
+  scope := "Formalized in the Section 3.1 basic round model (PartialSyncProtocol P V S M, \
+    IsGST deliver F gst) over any finite process type P ([Fintype P] [DecidableEq P]) and value \
+    type V: (1) for 3 * t < Fintype.card P and [DecidableEq V], the original six-subround \
+    rotating-coordinator view-locking protocol byzQuorumProtocol (using a two-round \
+    t + 1 / n - t unauthenticated status and input-properness relay followed by n - t echo, \
+    vote/lock, and commit quorums) achieves unconditional write-once irrevocability, agreement \
+    across correct processes, strong correct-input validity (∀ i ∉ F, x i = v, implying strong \
+    unanimity ∀ i, x i = v), and post-GST decision by round gst + 6 * (t + 2) \
+    (byzQuorum_terminates_after_gst, solvesByzantinePartialSync_byzQuorumProtocol, witnessing \
+    the existence half of Theorem 3.3 and Remark 1's O(t) post-GST round complexity via a \
+    six-subround rotating-coordinator view-locking construction in place of Algorithm 3's \
+    alternating trying/lock-release phases, monotone PROPER-set piggybacking, and continuous \
+    Srikanth–Toueg broadcast); (2) for 2 ≤ Fintype.card P ≤ 3 * t and [Nontrivial V], \
+    specializing to GST = 0 (deliver = fun _ _ _ => true) embeds synchronous \
+    Cslib.Distributed.Byzantine.Protocol (PartialSyncProtocol.toSyncProtocol), refuting both \
+    fixed-round R agreement, correct-input validity, and termination \
+    (not_partialSync_of_le_three_t, via Byzantine.Protocol.not_solvesByzantineAgreement) and \
+    run-dependent eventual termination under SolvesByzantinePartialSync t \
+    (not_solvesByzantinePartialSync, via Byzantine.Protocol.state_eq_coverState), matching the \
+    unauthenticated reduction to synchronous Pease–Shostak–Lamport / Fischer–Lynch–Merritt \
+    noted in §1.2, p. 291 (and distinct from Theorem 4.4, p. 306, which proves 2 ≤ N ≤ 3t for \
+    authenticated Byzantine faults under weak unanimity via pre-GST partition delay and is not \
+    formalized here); and (3) together with ownInputProtocol for Fintype.card P ≤ 1, \
+    solvability of SolvesByzantinePartialSync t is equivalent to \
+    Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P (exists_solvesByzantinePartialSync_iff, §1.2 \
+    and Table I, p. 291). Models the Section 3.1 basic round model directly; the real-time \
+    step-group simulations for synchronous processors with eventual or unknown Δ \
+    (Theorems 4.1–4.2, pp. 303–305), authenticated Byzantine protocols and Theorem 4.4 \
+    (§3.2.2, p. 298, and §4.3, p. 306), and partially synchronous processors \
+    (Sections 5–6, pp. 306–322) are out of scope. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7394 at b118ef3313b5: \
+    https://github.com/cslib-community/cslib-frontier/pull/7394#pullrequestreview-6011300049."
 
 register_result "low-individual-degree-projective-self-improvement" where
   title := "Projective self-improvement for symmetric low-individual-degree strategies"
