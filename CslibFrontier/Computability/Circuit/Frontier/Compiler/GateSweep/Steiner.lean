@@ -8,11 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Basic
+import CslibFrontier.Computability.Circuit.CompositionLines
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Foundations.Data.Nat.Card
 import CslibFrontier.Foundations.Data.Set.Card
+import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Sort
@@ -57,19 +60,27 @@ its *post-layout* Steiner path for a given layout `π : Layout (Node c)`:
   `Cslib.Circuits.Frontier.Compiler.signalWidth`: hyperedge supports, frontiers, and layout width.
 * `Cslib.Circuits.Frontier.Compiler.multiFanoutGates`,
   `Cslib.Circuits.Frontier.Compiler.multiFanoutSize`: reachable inner gates of fan-out at least two.
+* `Cslib.Circuits.Circuit.gateFanout`: syntactic consumer count of gate `g` across program lines
+  and outputs.
 * `Cslib.Circuits.Frontier.Compiler.SteinerEdge`, `Cslib.Circuits.Frontier.Compiler.steinerGraph`,
   `Cslib.Circuits.Frontier.Compiler.steinerNetwork`: the post-layout Steiner multigraph and
   constraint network.
 
 ## Main results
 
+* `Cslib.Circuits.Frontier.Compiler.multiFanoutSize_le_innerSize`,
+  `Cslib.Circuits.Frontier.Compiler.multiFanoutSize_le_card_gateFanout`,
+  `Cslib.Circuits.Frontier.Compiler.multiFanoutSize_eq_zero_of_gateFanout_le_one`,
+  `Cslib.Circuits.Frontier.Compiler.multiFanoutSize_toCircuit`: upper bounds and zero criteria for
+  `multiFanoutSize`, including `multiFanoutSize F.toCircuit = 0` for every formula `F`.
 * `Cslib.Circuits.Frontier.Compiler.eval_splice_signalFrontier`: splicing outputs across any node
   cut along `signalFrontier`.
 * `Cslib.Circuits.Frontier.Compiler.ncard_frontier_steinerGraph_eq`,
   `Cslib.Circuits.Frontier.Compiler.width_steinerGraph_eq`: network frontiers equal signal
   frontiers.
 * `Cslib.Circuits.Frontier.Compiler.satisfies_steinerNetwork_iff`,
-  `Cslib.Circuits.Frontier.Compiler.accepted_steinerNetwork`: exactness and uniqueness.
+  `Cslib.Circuits.Frontier.Compiler.accepted_steinerNetwork`,
+  `Cslib.Circuits.Frontier.Compiler.accepted_steinerNetwork_single`: exactness and uniqueness.
 -/
 
 public section
@@ -115,13 +126,9 @@ outputs. -/
 
 /-- A circuit has at most `c.innerSize + m` computation nodes. -/
 theorem card_node_le (c : Circuit σ n m) : Nat.card (Node c) ≤ c.innerSize + m := by
-  have hg : Nat.card (InnerGate c) ≤ c.innerSize := by
-    rw [Circuit.innerSize, ← Nat.card_eq_finsetCard]
-    exact Nat.card_le_card_of_injective (fun g => ⟨g.1, Program.mem_innerGates.mpr g.2.2⟩)
-      fun _ _ h => Subtype.ext (congrArg Subtype.val h :)
   rw [Nat.card_congr (Node.equiv c), Nat.card_sum, Nat.card_eq_fintype_card (α := Fin m),
     Fintype.card_fin]
-  exact Nat.add_le_add_right hg m
+  exact Nat.add_le_add_right (card_innerGate_le (c := c)) m
 
 /-- A non-constant reachable signal of a circuit: a reachable input or a reachable inner gate. -/
 inductive ActiveSignal (c : Circuit σ n m) : Type
@@ -410,13 +417,9 @@ theorem sum_ncard_support_le_card_innerGate [Fintype (ActiveSignal c)] {r : ℕ}
 
 /-- The support sizes of all active signals sum to at most `(r + 1) · c.innerSize + m`. -/
 theorem sum_ncard_support_le [Fintype (ActiveSignal c)] {r : ℕ} (hfan : c.FanInAtMost r) :
-    ∑ w : ActiveSignal c, (support c w).ncard ≤ (r + 1) * c.innerSize + m := by
-  have hg : Nat.card (InnerGate c) ≤ c.innerSize := by
-    rw [Circuit.innerSize, ← Nat.card_eq_finsetCard]
-    exact Nat.card_le_card_of_injective (fun g => ⟨g.1, Program.mem_innerGates.mpr g.2.2⟩)
-      fun _ _ h => Subtype.ext (congrArg Subtype.val h :)
-  exact (sum_ncard_support_le_card_innerGate hfan).trans
-    (Nat.add_le_add_right (Nat.mul_le_mul_left (r + 1) hg) m)
+    ∑ w : ActiveSignal c, (support c w).ncard ≤ (r + 1) * c.innerSize + m :=
+  (sum_ncard_support_le_card_innerGate hfan).trans
+    (Nat.add_le_add_right (Nat.mul_le_mul_left (r + 1) (card_innerGate_le (c := c))) m)
 
 variable (c) in
 /-- Reachable inner gates whose wire has fan-out at least two. -/
@@ -427,6 +430,336 @@ variable (c) in
 /-- The number of reachable inner gates of fan-out at least two (`g_{≥2}`). -/
 @[expose] noncomputable def multiFanoutSize : ℕ :=
   (multiFanoutGates c).ncard
+
+/-- At most `c.innerSize` reachable inner gates have fan-out at least two. -/
+theorem multiFanoutSize_le_innerSize (c : Circuit σ n m) :
+    multiFanoutSize c ≤ c.innerSize :=
+  (ncard_le_card (multiFanoutGates c)).trans card_innerGate_le
+
+/-- Syntactic consumer count of gate `g` in `c`: the number of argument slots across all program
+lines reading `.gate g`, plus the number of circuit outputs equal to `.gate g`. -/
+@[expose] def _root_.Cslib.Circuits.Circuit.gateFanout {σ : Signature} {n m : ℕ}
+    (c : Circuit σ n m) (g : Fin c.size) : ℕ :=
+  (∑ h : Fin c.size,
+      (Finset.univ.filter fun a => (c.program.lines h).wires a = .gate g).card) +
+    (Finset.univ.filter fun o : Fin m => c.outputs o = .gate g).card
+
+private def consumerToSyntactic (g : InnerGate c) :
+    {t : Consumer c // consumed t = (.gate g : ActiveSignal c).toSignal} →
+      (Σ h : Fin c.size, {a : Fin (σ.Arity (c.program.lines h).op) //
+        (c.program.lines h).wires a = .gate g.1}) ⊕
+      {o : Fin m // c.outputs o = .gate g.1}
+  | ⟨.inl ⟨⟨h, a⟩, _⟩, ht⟩ => .inl ⟨h, ⟨a, congrArg Subtype.val ht⟩⟩
+  | ⟨.inr o, ht⟩ => .inr ⟨o, congrArg Subtype.val ht⟩
+
+private theorem consumerToSyntactic_injective (g : InnerGate c) :
+    Function.Injective (consumerToSyntactic (c := c) g) := by
+  rintro ⟨⟨⟨h₁, a₁⟩, _⟩ | o₁, ht₁⟩ ⟨⟨⟨h₂, a₂⟩, _⟩ | o₂, ht₂⟩ heq
+  · obtain ⟨rfl, ha⟩ := Sigma.mk.inj (Sum.inl.inj heq)
+    obtain rfl := Subtype.mk.inj (eq_of_heq ha)
+    rfl
+  · cases heq
+  · cases heq
+  · obtain rfl := Subtype.mk.inj (Sum.inr.inj heq)
+    rfl
+
+/-- Semantic consumer fan-out of an inner gate is bounded by its syntactic `gateFanout`. -/
+theorem fanout_gate_le_gateFanout (g : InnerGate c) :
+    fanout c ((.gate g : ActiveSignal c).toSignal) ≤ c.gateFanout g.1 := by
+  calc fanout c ((.gate g : ActiveSignal c).toSignal)
+      ≤ Nat.card ((Σ h : Fin c.size, {a : Fin (σ.Arity (c.program.lines h).op) //
+          (c.program.lines h).wires a = .gate g.1}) ⊕
+          {o : Fin m // c.outputs o = .gate g.1}) :=
+        Nat.card_le_card_of_injective _ (consumerToSyntactic_injective g)
+    _ = c.gateFanout g.1 := by
+        rw [Nat.card_eq_fintype_card, Fintype.card_sum, Fintype.card_sigma]
+        simp only [Fintype.card_subtype, Circuit.gateFanout]
+
+/-- `multiFanoutSize c` is at most the number of gates with `2 ≤ c.gateFanout g`. -/
+theorem multiFanoutSize_le_card_gateFanout (c : Circuit σ n m) :
+    multiFanoutSize c ≤ (Finset.univ.filter fun g : Fin c.size => 2 ≤ c.gateFanout g).card := by
+  rw [multiFanoutSize, ← Nat.card_coe_set_eq, ← Fintype.card_coe, ← Nat.card_eq_fintype_card]
+  exact Nat.card_le_card_of_injective
+    (fun g => ⟨g.1.1, Finset.mem_filter.mpr
+      ⟨Finset.mem_univ _, g.2.trans (fanout_gate_le_gateFanout g.1)⟩⟩)
+    fun g₁ g₂ h => Subtype.ext (Subtype.ext (congrArg Subtype.val h :))
+
+/-- If every gate of `c` has syntactic `gateFanout` at most one, `multiFanoutSize c = 0`. -/
+theorem multiFanoutSize_eq_zero_of_gateFanout_le_one {c : Circuit σ n m}
+    (h : ∀ g : Fin c.size, c.gateFanout g ≤ 1) : multiFanoutSize c = 0 := by
+  refine Nat.eq_zero_of_le_zero ((multiFanoutSize_le_card_gateFanout c).trans ?_)
+  rw [Nat.le_zero, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
+  exact fun g _ => not_le_of_gt (lt_of_le_of_lt (h g) one_lt_two)
+
+private theorem card_filter_eq_of_iff {α : Type*} [Fintype α] {p q : α → Prop}
+    [DecidablePred p] [DecidablePred q] (h : ∀ a, p a ↔ q a) :
+    (Finset.univ.filter p).card = (Finset.univ.filter q).card := by
+  congr 1
+  ext a
+  exact ⟨fun ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, (h a).mp (Finset.mem_filter.mp ha).2⟩,
+    fun ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, (h a).mpr (Finset.mem_filter.mp ha).2⟩⟩
+
+private theorem gateFanout_append_le_one {m₁ m₂ : ℕ} {c₁ : Circuit σ n m₁}
+    {c₂ : Circuit σ n m₂} (hc₁ : ∀ g, c₁.gateFanout g ≤ 1) (hc₂ : ∀ g, c₂.gateFanout g ≤ 1)
+    (g : Fin (c₁.append c₂).size) : (c₁.append c₂).gateFanout g ≤ 1 := by
+  let d : Circuit σ n (m₁ + m₂) :=
+    ⟨c₁.program.append Wire.input c₂.program,
+      Fin.append (Wire.castAdd c₂.size ∘ c₁.outputs)
+        (Program.appendedWire Wire.input ∘ c₂.outputs)⟩
+  have hd : c₁.append c₂ = d := rfl
+  revert g
+  rw [hd]
+  intro (g : Fin (c₁.size + c₂.size))
+  induction g using Fin.addCases with
+  | left g =>
+    have hcast (w : Wire n c₁.size) :
+        w.castAdd c₂.size = .gate (Fin.castAdd c₂.size g) ↔ w = .gate g := by
+      cases w <;> simp [Fin.ext_iff]
+    have happ (w : Wire n c₂.size) :
+        Program.appendedWire (Wire.input : Fin n → Wire n c₁.size) w ≠
+          .gate (Fin.castAdd c₂.size g) := by
+      cases w with
+      | input i => intro h; cases h
+      | gate j =>
+        intro h
+        have := congrArg Fin.val (Wire.gate.inj h)
+        dsimp at this
+        omega
+    have hlines :
+        (∑ h : Fin (c₁.size + c₂.size),
+            (Finset.univ.filter fun a =>
+              (d.program.lines h).wires a = .gate (Fin.castAdd c₂.size g)).card) =
+          ∑ h : Fin c₁.size,
+            (Finset.univ.filter fun a => (c₁.program.lines h).wires a = .gate g).card := by
+      rw [← Equiv.sum_comp finSumFinEquiv, Fintype.sum_sum_type]
+      have hL : ∀ h : Fin c₁.size,
+          (Finset.univ.filter fun a =>
+              (d.program.lines (finSumFinEquiv (.inl h))).wires a =
+                .gate (Fin.castAdd c₂.size g)).card =
+            (Finset.univ.filter fun a => (c₁.program.lines h).wires a = .gate g).card := by
+        intro h
+        change (Finset.univ.filter fun a =>
+          ((c₁.program.append Wire.input c₂.program).lines (Fin.castAdd c₂.size h)).wires a =
+            .gate (Fin.castAdd c₂.size g)).card = _
+        rw [Program.lines_append_castAdd]
+        have hm : (c₁.program.lines h).mapWires (Wire.castAdd c₂.size) =
+            ⟨(c₁.program.lines h).op, Wire.castAdd c₂.size ∘ (c₁.program.lines h).wires⟩ := rfl
+        rw [hm]
+        exact card_filter_eq_of_iff fun a => hcast ((c₁.program.lines h).wires a)
+      have hR : ∀ h : Fin c₂.size,
+          (Finset.univ.filter fun a =>
+              (d.program.lines (finSumFinEquiv (.inr h))).wires a =
+                .gate (Fin.castAdd c₂.size g)).card = 0 := by
+        intro h
+        change (Finset.univ.filter fun a =>
+          ((c₁.program.append Wire.input c₂.program).lines (Fin.natAdd c₁.size h)).wires a =
+            .gate (Fin.castAdd c₂.size g)).card = 0
+        rw [Program.lines_append_natAdd, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
+        exact fun a _ => happ _
+      simp only [hL, hR, Finset.sum_const_zero, add_zero]
+    have houts :
+        (Finset.univ.filter fun o : Fin (m₁ + m₂) =>
+            d.outputs o = .gate (Fin.castAdd c₂.size g)).card =
+          (Finset.univ.filter fun o : Fin m₁ => c₁.outputs o = .gate g).card := by
+      rw [Finset.card_filter, Finset.card_filter, ← Equiv.sum_comp finSumFinEquiv,
+        Fintype.sum_sum_type]
+      have hL : ∀ o : Fin m₁,
+          (if d.outputs (finSumFinEquiv (.inl o)) = .gate (Fin.castAdd c₂.size g)
+            then 1 else 0) = if c₁.outputs o = .gate g then 1 else 0 := fun o => by
+        have ho : d.outputs (finSumFinEquiv (.inl o)) = (c₁.outputs o).castAdd c₂.size :=
+          Fin.append_left _ _ o
+        rw [ho]
+        exact if_congr (hcast _) rfl rfl
+      have hR : ∀ o : Fin m₂,
+          (if d.outputs (finSumFinEquiv (.inr o)) = .gate (Fin.castAdd c₂.size g)
+            then 1 else 0) = 0 := fun o => by
+        have ho : d.outputs (finSumFinEquiv (.inr o)) =
+            Program.appendedWire Wire.input (c₂.outputs o) := Fin.append_right _ _ o
+        rw [ho]
+        exact ite_eq_right_iff.mpr fun h => absurd h (happ _)
+      simp only [hL, hR, Finset.sum_const_zero, add_zero]
+    dsimp only [Circuit.gateFanout]
+    rw [hlines, houts]
+    exact hc₁ g
+  | right g =>
+    have hcast (w : Wire n c₁.size) : w.castAdd c₂.size ≠ .gate (Fin.natAdd c₁.size g) := by
+      cases w with
+      | input i => intro h; cases h
+      | gate j =>
+        intro h
+        have := congrArg Fin.val (Wire.gate.inj h)
+        dsimp at this
+        omega
+    have happ (w : Wire n c₂.size) :
+        Program.appendedWire (Wire.input : Fin n → Wire n c₁.size) w =
+          .gate (Fin.natAdd c₁.size g) ↔ w = .gate g := by
+      cases w <;> simp [Fin.ext_iff]
+    have hlines :
+        (∑ h : Fin (c₁.size + c₂.size),
+            (Finset.univ.filter fun a =>
+              (d.program.lines h).wires a = .gate (Fin.natAdd c₁.size g)).card) =
+          ∑ h : Fin c₂.size,
+            (Finset.univ.filter fun a => (c₂.program.lines h).wires a = .gate g).card := by
+      rw [← Equiv.sum_comp finSumFinEquiv, Fintype.sum_sum_type]
+      have hL : ∀ h : Fin c₁.size,
+          (Finset.univ.filter fun a =>
+              (d.program.lines (finSumFinEquiv (.inl h))).wires a =
+                .gate (Fin.natAdd c₁.size g)).card = 0 := by
+        intro h
+        change (Finset.univ.filter fun a =>
+          ((c₁.program.append Wire.input c₂.program).lines (Fin.castAdd c₂.size h)).wires a =
+            .gate (Fin.natAdd c₁.size g)).card = 0
+        rw [Program.lines_append_castAdd, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
+        exact fun a _ => hcast _
+      have hR : ∀ h : Fin c₂.size,
+          (Finset.univ.filter fun a =>
+              (d.program.lines (finSumFinEquiv (.inr h))).wires a =
+                .gate (Fin.natAdd c₁.size g)).card =
+            (Finset.univ.filter fun a => (c₂.program.lines h).wires a = .gate g).card := by
+        intro h
+        change (Finset.univ.filter fun a =>
+          ((c₁.program.append Wire.input c₂.program).lines (Fin.natAdd c₁.size h)).wires a =
+            .gate (Fin.natAdd c₁.size g)).card = _
+        rw [Program.lines_append_natAdd]
+        let feed₀ : Fin n → Wire n c₁.size := Wire.input
+        have hm : (c₂.program.lines h).mapWires (Program.appendedWire feed₀) =
+            ⟨(c₂.program.lines h).op,
+              Program.appendedWire feed₀ ∘ (c₂.program.lines h).wires⟩ := rfl
+        rw [hm]
+        exact card_filter_eq_of_iff fun a => happ ((c₂.program.lines h).wires a)
+      simp only [hL, hR, Finset.sum_const_zero, zero_add]
+    have houts :
+        (Finset.univ.filter fun o : Fin (m₁ + m₂) =>
+            d.outputs o = .gate (Fin.natAdd c₁.size g)).card =
+          (Finset.univ.filter fun o : Fin m₂ => c₂.outputs o = .gate g).card := by
+      rw [Finset.card_filter, Finset.card_filter, ← Equiv.sum_comp finSumFinEquiv,
+        Fintype.sum_sum_type]
+      have hL : ∀ o : Fin m₁,
+          (if d.outputs (finSumFinEquiv (.inl o)) = .gate (Fin.natAdd c₁.size g)
+            then 1 else 0) = 0 := fun o => by
+        have ho : d.outputs (finSumFinEquiv (.inl o)) = (c₁.outputs o).castAdd c₂.size :=
+          Fin.append_left _ _ o
+        rw [ho]
+        exact ite_eq_right_iff.mpr fun h => absurd h (hcast _)
+      have hR : ∀ o : Fin m₂,
+          (if d.outputs (finSumFinEquiv (.inr o)) = .gate (Fin.natAdd c₁.size g)
+            then 1 else 0) = if c₂.outputs o = .gate g then 1 else 0 := fun o => by
+        have ho : d.outputs (finSumFinEquiv (.inr o)) =
+            Program.appendedWire Wire.input (c₂.outputs o) := Fin.append_right _ _ o
+        rw [ho]
+        exact if_congr (happ _) rfl rfl
+      simp only [hL, hR, Finset.sum_const_zero, zero_add]
+    dsimp only [Circuit.gateFanout]
+    rw [hlines, houts]
+    exact hc₂ g
+
+private theorem gateFanout_pi_le_one {m : ℕ} (cs : Fin m → Circuit σ n 1)
+    (hcs : ∀ j g, (cs j).gateFanout g ≤ 1) (g : Fin (Circuit.pi cs).size) :
+    (Circuit.pi cs).gateFanout g ≤ 1 := by
+  induction m with
+  | zero => exact g.elim0
+  | succ m ih =>
+    exact gateFanout_append_le_one (ih (fun i => cs i.castSucc) fun i g => hcs i.castSucc g)
+      (hcs (Fin.last m)) g
+
+private theorem gateFanout_oneGate_comp_le_one (op : σ.Op) (c : Circuit σ n (σ.Arity op))
+    (hc : ∀ g, c.gateFanout g ≤ 1) (g : Fin ((Circuit.oneGate op id).comp c).size) :
+    ((Circuit.oneGate op id).comp c).gateFanout g ≤ 1 := by
+  let line : Line σ n c.size :=
+    Line.mapWires ⟨op, Wire.input⟩ (Program.appendedWire (g₂ := 0) c.outputs)
+  let d : Circuit σ n 1 :=
+    ⟨c.program.gate line, Program.appendedWire c.outputs ∘ fun _ => Wire.gate 0⟩
+  have hout_eq (o : Fin 1) : d.outputs o = .gate (Fin.last c.size) := by
+    change Program.appendedWire c.outputs (Wire.gate 0) = .gate (Fin.last c.size)
+    apply congrArg Wire.gate
+    ext
+    exact Nat.add_zero c.size
+  have hd : (Circuit.oneGate op id).comp c = d := rfl
+  revert g
+  rw [hd]
+  intro (g : Fin (c.size + 1))
+  induction g using Fin.lastCases with
+  | last =>
+    have hlines :
+        (∑ h : Fin (c.size + 1),
+            (Finset.univ.filter fun a =>
+              (d.program.lines h).wires a = .gate (Fin.last c.size)).card) = 0 := by
+      refine Finset.sum_eq_zero fun h _ => ?_
+      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
+      intro a _ heq
+      have hlt := d.program.lt_of_lines_wires_eq_gate h a (Fin.last c.size) heq
+      have := h.isLt
+      change c.size < (h : ℕ) at hlt
+      change (h : ℕ) < c.size + 1 at this
+      omega
+    have hout :
+        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate (Fin.last c.size)).card ≤ 1 :=
+      (Finset.card_filter_le _ _).trans_eq (by simp)
+    dsimp only [Circuit.gateFanout]
+    rw [hlines, zero_add]
+    exact hout
+  | cast g =>
+    have hcast_iff (w : Wire n c.size) :
+        Wire.Renaming.castSucc w = .gate g.castSucc ↔ w = .gate g := by
+      cases w with
+      | input i => simp [Wire.Renaming.castSucc]
+      | gate j => simp [Wire.Renaming.castSucc, Fin.castSucc_inj]
+    have hlines :
+        (∑ h : Fin (c.size + 1),
+            (Finset.univ.filter fun a =>
+              (d.program.lines h).wires a = .gate g.castSucc).card) = c.gateFanout g := by
+      change (∑ h : Fin (c.size + 1),
+          (Finset.univ.filter fun a =>
+            ((c.program.gate line).lines h).wires a = .gate g.castSucc).card) = _
+      rw [Fin.sum_univ_castSucc]
+      have hprev : ∀ h : Fin c.size,
+          (Finset.univ.filter fun a =>
+              ((c.program.gate line).lines h.castSucc).wires a = .gate g.castSucc).card =
+            (Finset.univ.filter fun a => (c.program.lines h).wires a = .gate g).card := by
+        intro h
+        rw [Program.lines_gate_castSucc]
+        have hm : (c.program.lines h).mapWires Wire.Renaming.castSucc =
+            ⟨(c.program.lines h).op, Wire.Renaming.castSucc ∘ (c.program.lines h).wires⟩ := rfl
+        rw [hm]
+        exact card_filter_eq_of_iff fun a => hcast_iff ((c.program.lines h).wires a)
+      have hlast :
+          (Finset.univ.filter fun a =>
+              ((c.program.gate line).lines (Fin.last c.size)).wires a = .gate g.castSucc).card =
+            (Finset.univ.filter fun a : Fin (σ.Arity op) => c.outputs a = .gate g).card := by
+        rw [Program.lines_gate_last]
+        have hm : line.mapWires Wire.Renaming.castSucc =
+            ⟨op, fun a => Wire.Renaming.castSucc ((c.outputs a).castAdd 0)⟩ := rfl
+        rw [hm]
+        refine card_filter_eq_of_iff fun a => ?_
+        dsimp only
+        have hc0 : (c.outputs a).castAdd 0 = c.outputs a := by cases c.outputs a <;> rfl
+        rw [hc0]
+        exact hcast_iff (c.outputs a)
+      simp only [hprev, hlast, Circuit.gateFanout]
+    have hout :
+        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate g.castSucc).card = 0 := by
+      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
+      intro o _
+      rw [hout_eq o]
+      intro heq
+      exact Fin.castSucc_ne_last g (Wire.gate.inj heq).symm
+    dsimp only [Circuit.gateFanout]
+    rw [hlines, hout, add_zero]
+    exact hc g
+
+/-- Every gate in `F.toCircuit` has syntactic consumer fan-out at most one. -/
+theorem _root_.Cslib.Circuits.Formula.gateFanout_toCircuit_le_one (F : Formula σ n)
+    (g : Fin F.toCircuit.size) : F.toCircuit.gateFanout g ≤ 1 := by
+  induction F with
+  | input i => exact g.elim0
+  | gate op args ih =>
+    exact gateFanout_oneGate_comp_le_one op (Circuit.pi fun a => (args a).toCircuit)
+      (gateFanout_pi_le_one _ ih) g
+
+/-- Compiling a formula to a circuit produces zero multi-fanout inner gates (`g_{≥2} = 0`). -/
+@[simp] theorem multiFanoutSize_toCircuit (F : Formula σ n) :
+    multiFanoutSize F.toCircuit = 0 :=
+  multiFanoutSize_eq_zero_of_gateFanout_le_one F.gateFanout_toCircuit_le_one
 
 /-- An active signal is *unit-fanout* when it is an inner gate of fan-out one. -/
 @[expose] def IsUnitGateSignal (c : Circuit σ n m) : ActiveSignal c → Prop
@@ -1313,6 +1646,14 @@ theorem accepted_steinerNetwork :
   ext x
   exact ⟨fun ⟨_, hα⟩ => (satisfies_steinerNetwork_iff.mp hα).1,
     fun hx => ⟨_, satisfies_steinerNetwork_trace (π := π) hx⟩⟩
+
+/-- Single-output specialization of `accepted_steinerNetwork`. -/
+theorem accepted_steinerNetwork_single {c : Circuit σ n 1} {Acc : Set U}
+    {π : Layout (Node c)} :
+    (steinerNetwork c I (fun _ => Acc) π).accepted = {x | c.eval I x 0 ∈ Acc} := by
+  rw [accepted_steinerNetwork]
+  ext x
+  exact ⟨fun h => h 0, fun h o => Subsingleton.elim o 0 ▸ h⟩
 
 /-- Every input has at most one satisfying assignment in `steinerNetwork`. -/
 theorem satisfies_steinerNetwork_unique {x : Fin n → U} {α β : SteinerEdge c → U}

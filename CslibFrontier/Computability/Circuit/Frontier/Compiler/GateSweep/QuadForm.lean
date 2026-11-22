@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
 public import Mathlib.Analysis.Asymptotics.Defs
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.Chebyshev
@@ -51,7 +52,9 @@ When the polar matrix `Q + Qᵀ` has high rank on every square block `S × T` wi
 (`Matrix.DisjointBlockRobust`, shown to exist with deficiency `2 ⌊√n⌋ + 1` in
 `Matrix.exists_disjointBlockRobust`), combining `Compiler.exists_node_cut_margin` with the unread
 input bound yields `2 ^ (-γ n)` correlation below `((k₀ + 1) / (r + 2 ^ k₀ - k₀ - 1) - ε) n` inner
-gates for all `r ≥ 2` and `k₀ ≥ 1`, hence `Ω(log r) · n` in `(r - 1) * c.innerSize`.
+gates for all `r ≥ 2` and `k₀ ≥ 1`, hence `Ω(log r) · n` in `(r - 1) * c.innerSize`. Both the
+disjoint-block-robust slice reduction across computation-node cuts and the resulting fan-in-`r`
+quadratic-form correlation bounds are original to this library.
 
 ## Main definitions
 
@@ -79,15 +82,17 @@ namespace Cslib.Circuits.Frontier
 open Set Filter Asymptotics Matrix
 open scoped BigOperators
 
-/-- An `n × n` matrix over `𝔽₂` (chosen nonconstructively via `Matrix.exists_disjointBlockRobust`)
-whose polar matrix is disjoint-block-robust with deficiency `2 ⌊√n⌋ + 1`. -/
+/-- An `n × n` strict upper-triangular matrix over `𝔽₂` (chosen nonconstructively via
+`Matrix.exists_polarUpper_disjointBlockRobust`) whose polar matrix is disjoint-block-robust with
+deficiency `2 ⌊√n⌋ + 1`. -/
 noncomputable def symmHardForm (n : ℕ) : Matrix (Fin n) (Fin n) (ZMod 2) :=
-  (Matrix.exists_disjointBlockRobust n).choose
+  Matrix.toUpper (Matrix.exists_polarUpper_disjointBlockRobust n).choose
 
 /-- The polar matrix of `symmHardForm n` is disjoint-block-robust with deficiency `2 ⌊√n⌋ + 1`. -/
 theorem disjointBlockRobust_symmHardForm (n : ℕ) :
-    (symmHardForm n + (symmHardForm n)ᵀ).DisjointBlockRobust (2 * Nat.sqrt n + 1) :=
-  (Matrix.exists_disjointBlockRobust n).choose_spec
+    (symmHardForm n + (symmHardForm n)ᵀ).DisjointBlockRobust (2 * Nat.sqrt n + 1) := by
+  rw [symmHardForm, ← Matrix.polarUpper_eq]
+  exact (Matrix.exists_polarUpper_disjointBlockRobust n).choose_spec
 
 universe v
 
@@ -96,19 +101,6 @@ private theorem zmod_two_mul_self (z : ZMod 2) : z * z = z := by
 
 private theorem zmod_two_add_self (z : ZMod 2) : z + z = 0 := by
   decide +revert
-
-@[simp]
-private theorem correlation_compl_left {ι U : Type*}
-    (S T : Set (ι → U)) : correlation Sᶜ T = -correlation S T := by
-  have hs₁ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ T} = {x | x ∈ S ↔ x ∈ Tᶜ} := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
-  have hs₂ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T} := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
-  rw [correlation, correlation, agreement, agreement, hs₁, hs₂, ← agreement, ← agreement, neg_sub]
 
 private def sliceEquiv {n : ℕ} (O : Set (Fin n)) [DecidablePred (· ∈ O)] :
     (Fin n → Bool) ≃ (O → Bool) × (↥Oᶜ → Bool) where
@@ -413,30 +405,9 @@ theorem sq_correlation_quadForm_mul_le_of_not_reach {σ : Signature.{v}} {n : �
     (hD : ∀ i ∈ D, ¬ Compiler.Reach c (.input i)) :
     correlation {x | BitString.quadForm Q x} {x | c.eval I x 0 ∈ Acc} ^ 2 *
         2 ^ (Q + Qᵀ).cutRank D ≤ 2 := by
-  classical
-  set T : Set (Fin n → Bool) := {x | c.eval I x 0 ∈ Acc}
-  have hdep : DependsOn (· ∈ T) Dᶜ := by
-    intro x y hxy
-    have hzx : EqOn x y (Compiler.nodeReadIn c univ) := by
-      rw [Compiler.nodeReadIn_univ]
-      exact fun i hi => @hxy i fun hiD => hD i hiD hi
-    have heval := (Compiler.eval_splice_signalFrontier I
-      (P := (univ : Set (Compiler.Node c))) (x := y) (y := x) (z := x)
-      (by simp) hzx (fun _ _ => rfl) 0).1 (mem_univ _)
-    simp only [T, mem_ofPred_eq, heval]
-  have hdep' : DependsOn (· ∈ Tᶜ) Dᶜ := fun x y hxy => congrArg Not (hdep hxy)
-  refine (sq_correlation_quadForm_mul_le Q T (fun x => decide (x ∈ T)) D
-    (fun x y h => by simpa using h) fun x => ?_).trans ?_
-  · by_cases hx : x ∈ T
-    · refine ⟨univ, Dᶜ.domRestrict '' T, ?_⟩
-      rw [← eq_rectangle_of_dependsOn hdep]
-      exact Set.ext fun y => by by_cases hy : y ∈ T <;> simp [hx, hy]
-    · refine ⟨univ, Dᶜ.domRestrict '' Tᶜ, ?_⟩
-      rw [← eq_rectangle_of_dependsOn hdep']
-      exact Set.ext fun y => by by_cases hy : y ∈ T <;> simp [hx, hy]
-  · have hle := ncard_le_card (range fun x => decide (x ∈ T))
-    rw [Nat.card_eq_fintype_card, Fintype.card_bool] at hle
-    exact_mod_cast hle
+  refine sq_correlation_quadForm_mul_le_of_unread I Acc c Q fun i hi => ?_
+  rw [mem_compl_iff, Compiler.read_network]
+  exact hD i hi
 
 /-! ### Asymptotic gate-sweep correlation bounds -/
 
@@ -459,26 +430,6 @@ theorem quadFormGateSweepCoefficient_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
     have : (1 : ℝ) ≤ r := by exact_mod_cast hr
     linarith
   exact div_pos (by positivity) hd
-
-private theorem le_rpow_of_mul_two_pow_le {y : ℝ} {ρ m : ℕ} {r : ℝ}
-    (hy : y * 2 ^ ρ ≤ 2 * 2 ^ m) (hr : r ≤ ρ) :
-    y ≤ (2 : ℝ) ^ (1 + (m : ℝ) - r) := by
-  have hpos : (0 : ℝ) < 2 ^ ρ := by positivity
-  have h₁ : y ≤ 2 * 2 ^ m / 2 ^ ρ := (le_div_iff₀ hpos).mpr hy
-  have h₂ : (2 * 2 ^ m / 2 ^ ρ : ℝ) = (2 : ℝ) ^ (1 + (m : ℝ) - (ρ : ℝ)) := by
-    rw [Real.rpow_sub (by norm_num), Real.rpow_add (by norm_num), Real.rpow_one,
-      Real.rpow_natCast, Real.rpow_natCast]
-  rw [h₂] at h₁
-  exact h₁.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith))
-
-private theorem abs_le_two_rpow_of_sq_le {y γ : ℝ} {n : ℕ}
-    (h : y ^ 2 ≤ (2 : ℝ) ^ (-(2 * γ) * n)) : |y| ≤ (2 : ℝ) ^ (-γ * n) := by
-  apply abs_le_of_sq_le_sq _ (by positivity)
-  have hsq : ((2 : ℝ) ^ (-γ * n)) ^ 2 = (2 : ℝ) ^ (-(2 * γ) * n) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
-    push_cast
-    ring_nf
-  rwa [hsq]
 
 /-- **Exponentially small correlation with quadratic forms at fan-in `r`.** For every `r ≥ 2`,
 `k₀ ≥ 1`, and `ε > 0`, there is `γ > 0` such that if `(Q n + (Q n)ᵀ)` is disjoint-block-robust with
@@ -622,11 +573,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
         Nat.card (Compiler.InnerGate c) := by
       rw [Nat.card_eq_fintype_card]
     have hG_le_s : (Nat.card (Compiler.InnerGate c) : ℝ) ≤ c.innerSize := by
-      have hnat : Nat.card (Compiler.InnerGate c) ≤ c.innerSize := by
-        rw [Circuit.innerSize, ← Nat.card_eq_finsetCard]
-        exact Nat.card_le_card_of_injective (fun g => ⟨g.1, Program.mem_innerGates.mpr g.2.2⟩)
-          fun _ _ h => Subtype.ext (congrArg Subtype.val h :)
-      exact_mod_cast hnat
+      exact_mod_cast Compiler.card_innerGate_le (c := c)
     have hexp_diff :
         ((k₀ + 1 : ℝ) * R_in.ncard - D_r * Nat.card (Compiler.InnerGate c) - 1) / (2 : ℝ) ^ k₀ ≤
           (∑ i : {i : Fin n // Compiler.Reach c (.input i)},

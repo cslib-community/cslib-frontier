@@ -46,6 +46,8 @@ and columns `y ∩ U` (`Matrix.add_blockRank_le_cutRank_add_transpose`). If ther
 * `Matrix.SubmatrixRobust M t`: every square block of `M` with `k` rows has rank at least `k - t`.
 * `Matrix.DisjointBlockRobust M t`: every square block of `M` on disjoint row and column sets with
   `k` rows has rank at least `k - t`.
+* `Matrix.UpperIdx`, `Matrix.toUpper`, `Matrix.polarUpper`: strict upper-triangular index pairs,
+  strict upper-triangular matrices, and their symmetric hollow polar matrices `M + Mᵀ`.
 
 ## Main results
 
@@ -54,8 +56,9 @@ and columns `y ∩ U` (`Matrix.add_blockRank_le_cutRank_add_transpose`). If ther
   disjoint block (and every cut) of a disjoint-block-robust matrix has nearly full rank.
 * `Matrix.exists_submatrixRobust_of_lt`, `Matrix.exists_submatrixRobust`: robust matrices over
   `𝔽₂` exist, by counting.
-* `Matrix.exists_disjointBlockRobust_of_lt`, `Matrix.exists_disjointBlockRobust`: upper-triangular
-  matrices over `𝔽₂` with disjoint-block-robust polar matrices exist, by counting.
+* `Matrix.exists_polarUpper_disjointBlockRobust`, `Matrix.exists_disjointBlockRobust_of_lt`,
+  `Matrix.exists_disjointBlockRobust`: strict upper-triangular matrices over `𝔽₂` with
+  disjoint-block-robust polar matrices exist, by counting.
 * `Matrix.add_blockRank_le_cutRank_add_transpose`: the cut rank of a bilinear form.
 * `Matrix.SubmatrixRobust.le_cutRank_add`: bisections of a robust bilinear form have nearly full
   cut rank.
@@ -166,11 +169,11 @@ private theorem exists_spanning_columns (R : Matrix (Fin k) (Fin k) (ZMod 2))
     exact Submodule.subset_span ⟨⟨j, hj⟩, rfl⟩
 
 open Classical in
-/-- The matrices whose columns in `T`, restricted to the rows `S`, lie in the span of their
+/-- Parameters `a : α` whose columns in `T`, restricted to the rows `S`, lie in the span of their
 columns in `T'`. -/
-private noncomputable def spannedBy (S T T' : Finset (Fin k)) :
-    Finset (Matrix (Fin k) (Fin k) (ZMod 2)) :=
-  {R | ∀ j ∈ T, colVec R ↑S j ∈ Submodule.span (ZMod 2) (colVec R ↑S '' ↑T')}
+private noncomputable def spannedFamily {α : Type*} [Fintype α]
+    (mat : α → Matrix (Fin k) (Fin k) (ZMod 2)) (S T T' : Finset (Fin k)) : Finset α :=
+  {a | ∀ j ∈ T, colVec (mat a) ↑S j ∈ Submodule.span (ZMod 2) (colVec (mat a) ↑S '' ↑T')}
 
 open Classical in
 /-- Coefficients expressing a column in terms of the columns in `T'`, chosen once and for all. -/
@@ -187,6 +190,127 @@ private theorem spanCoeff_spec {R : Matrix (Fin k) (Fin k) (ZMod 2)} {S T' : Fin
   simp only [h, ↓reduceDIte]
   exact Classical.choose_spec ((Submodule.mem_span_image_finset_iff_exists_fun (ZMod 2)).mp h)
 
+/-- When `T' ⊆ T`, `#T' + t < #S`, and `#S = #T`, a codimension bound on `spannedFamily mat S T T'`
+gives `#(spannedFamily mat S T T') * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ U`. -/
+private theorem card_spannedFamily_mul_two_pow_sq_le {α : Type*} [Fintype α] {U t : ℕ}
+    {mat : α → Matrix (Fin k) (Fin k) (ZMod 2)} {S T T' : Finset (Fin k)}
+    (H : #(spannedFamily mat S T T') * 2 ^ (#S * #(T \ T')) ≤ 2 ^ (#(T \ T') * #T') * 2 ^ U)
+    (hT'T : T' ⊆ T) (hlt : #T' + t < #S) (hST : #S = #T) :
+    #(spannedFamily mat S T T') * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ U := by
+  have hsplit := card_sdiff_add_card_eq_card hT'T
+  set d := #(T \ T')
+  have hd : t + 1 ≤ d := by omega
+  rw [hST, ← hsplit] at H
+  have hpow : 2 ^ ((t + 1) ^ 2) ≤ 2 ^ (d * d) :=
+    Nat.pow_le_pow_right (by norm_num) (by nlinarith)
+  have key : #(spannedFamily mat S T T') * 2 ^ (d * d) * 2 ^ (d * #T') ≤
+      2 ^ U * 2 ^ (d * #T') := by
+    calc #(spannedFamily mat S T T') * 2 ^ (d * d) * 2 ^ (d * #T')
+        = #(spannedFamily mat S T T') * 2 ^ ((d + #T') * d) := by
+          rw [mul_assoc, ← pow_add]
+          congr 2
+          ring
+      _ ≤ 2 ^ (d * #T') * 2 ^ U := H
+      _ = _ := mul_comm _ _
+  calc #(spannedFamily mat S T T') * 2 ^ ((t + 1) ^ 2)
+      ≤ #(spannedFamily mat S T T') * 2 ^ (d * d) := Nat.mul_le_mul_left _ hpow
+    _ ≤ _ := Nat.le_of_mul_le_mul_right key (by positivity)
+
+open Classical in
+/-- Parameters `a : α` whose `P`-admissible square block `S × T` has deficiency larger than `t`. -/
+private noncomputable def deficientFamily {α : Type*} [Fintype α]
+    (P : Finset (Fin k) → Finset (Fin k) → Prop)
+    (mat : α → Matrix (Fin k) (Fin k) (ZMod 2)) (t : ℕ) (S T : Finset (Fin k)) : Finset α :=
+  {a | P S T ∧ #S = #T ∧ (mat a).blockRank ↑S ↑T + t < #S}
+
+private theorem card_deficientFamily_mul_le {α : Type*} [Fintype α] {U : ℕ}
+    {P : Finset (Fin k) → Finset (Fin k) → Prop}
+    {mat : α → Matrix (Fin k) (Fin k) (ZMod 2)}
+    (hspan : ∀ {S T T' : Finset (Fin k)}, P S T → T' ⊆ T →
+      #(spannedFamily mat S T T') * 2 ^ (#S * #(T \ T')) ≤ 2 ^ (#(T \ T') * #T') * 2 ^ U)
+    (t : ℕ) (S T : Finset (Fin k)) :
+    #(deficientFamily P mat t S T) * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ U := by
+  classical
+  let 𝒯 := T.powerset.filter fun T' => P S T ∧ #T' + t < #S ∧ #S = #T
+  have hsub : deficientFamily P mat t S T ⊆ 𝒯.biUnion fun T' => spannedFamily mat S T T' := by
+    intro a ha
+    obtain ⟨hP, hST, hdef⟩ := (mem_filter.mp ha).2
+    obtain ⟨T', hT', hcard, hsp⟩ := exists_spanning_columns (mat a) S T
+    refine mem_biUnion.mpr ⟨T', mem_filter.mpr ⟨mem_powerset.mpr hT', hP, by omega, hST⟩, ?_⟩
+    exact mem_filter.mpr ⟨mem_univ _, hsp⟩
+  have hone : ∀ T' ∈ 𝒯, #(spannedFamily mat S T T') * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ U :=
+    fun T' hT' => by
+      obtain ⟨hT'T, hP, hlt, hST⟩ := mem_filter.mp hT'
+      exact card_spannedFamily_mul_two_pow_sq_le (hspan hP (mem_powerset.mp hT'T))
+        (mem_powerset.mp hT'T) hlt hST
+  have h𝒯 : #𝒯 ≤ 2 ^ k := by
+    calc #𝒯 ≤ #T.powerset := card_filter_le _ _
+      _ = 2 ^ #T := card_powerset T
+      _ ≤ 2 ^ k := Nat.pow_le_pow_right (by norm_num) (card_le_univ T |>.trans (by simp))
+  calc #(deficientFamily P mat t S T) * 2 ^ ((t + 1) ^ 2)
+      ≤ (∑ T' ∈ 𝒯, #(spannedFamily mat S T T')) * 2 ^ ((t + 1) ^ 2) :=
+        Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_biUnion_le)
+    _ = ∑ T' ∈ 𝒯, #(spannedFamily mat S T T') * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
+    _ ≤ ∑ _T' ∈ 𝒯, 2 ^ U := Finset.sum_le_sum hone
+    _ = #𝒯 * 2 ^ U := by rw [sum_const, smul_eq_mul]
+    _ ≤ 2 ^ k * 2 ^ U := Nat.mul_le_mul_right _ h𝒯
+
+open Classical in
+/-- **Shared counting union bound.** For any `2 ^ U`-element matrix family satisfying the
+`spannedFamily` codimension bound on `P`-admissible blocks, `3 k < (t + 1) ^ 2` guarantees an
+element with deficiency at most `t` on every `P`-admissible square block. -/
+private theorem exists_blockRank_ge_of_spanned_bound {α : Type*} [Fintype α] {U t : ℕ}
+    (hα : Fintype.card α = 2 ^ U) (mat : α → Matrix (Fin k) (Fin k) (ZMod 2))
+    (P : Finset (Fin k) → Finset (Fin k) → Prop)
+    (hspan : ∀ {S T T' : Finset (Fin k)}, P S T → T' ⊆ T →
+      #(spannedFamily mat S T T') * 2 ^ (#S * #(T \ T')) ≤ 2 ^ (#(T \ T') * #T') * 2 ^ U)
+    (ht : 3 * k < (t + 1) ^ 2) :
+    ∃ a : α, ∀ S T : Set (Fin k), P S.toFinset T.toFinset → S.ncard = T.ncard →
+      S.ncard ≤ (mat a).blockRank S T + t := by
+  classical
+  let pairs : Finset (Finset (Fin k) × Finset (Fin k)) := univ ×ˢ univ
+  let bad := pairs.biUnion fun p => deficientFamily P mat t p.1 p.2
+  have hbad : #bad * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) := by
+    calc #bad * 2 ^ ((t + 1) ^ 2)
+        ≤ (∑ p ∈ pairs, #(deficientFamily P mat t p.1 p.2)) * 2 ^ ((t + 1) ^ 2) :=
+          Nat.mul_le_mul_right _ card_biUnion_le
+      _ = ∑ p ∈ pairs, #(deficientFamily P mat t p.1 p.2) * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
+      _ ≤ ∑ _p ∈ pairs, 2 ^ k * 2 ^ U :=
+          Finset.sum_le_sum fun p _ => card_deficientFamily_mul_le hspan t p.1 p.2
+      _ = 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) := by
+          rw [sum_const, smul_eq_mul, card_product, card_univ, Fintype.card_finset,
+            Fintype.card_fin]
+  have hlt : #bad < Fintype.card α := by
+    rw [hα]
+    by_contra hge
+    push Not at hge
+    have h₁ : 2 ^ U * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) :=
+      (Nat.mul_le_mul_right _ hge).trans hbad
+    have h₂ : 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) < 2 ^ U * 2 ^ ((t + 1) ^ 2) := by
+      rw [← pow_add, ← pow_add, ← pow_add, ← pow_add]
+      exact Nat.pow_lt_pow_right (by norm_num) (by omega)
+    omega
+  obtain ⟨a, -, ha⟩ := exists_mem_notMem_of_card_lt_card hlt
+  refine ⟨a, fun S T hP hST => ?_⟩
+  by_contra hcon
+  push Not at hcon
+  apply ha
+  refine mem_biUnion.mpr ⟨(S.toFinset, T.toFinset), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, ?_⟩
+  refine mem_filter.mpr ⟨mem_univ _, hP, ?_, ?_⟩
+  · rw [← Set.ncard_eq_toFinset_card', ← Set.ncard_eq_toFinset_card']
+    exact hST
+  · simp only [Set.coe_toFinset]
+    rw [← Set.ncard_eq_toFinset_card']
+    exact hcon
+
+private theorem three_mul_lt_sq_two_mul_sqrt (k : ℕ) :
+    3 * k < (2 * Nat.sqrt k + 1 + 1) ^ 2 := by
+  have h := Nat.lt_succ_sqrt' k
+  have hsq : (2 * Nat.sqrt k + 1 + 1) ^ 2 = 4 * (Nat.sqrt k + 1) ^ 2 := by ring
+  rw [hsq]
+  rw [Nat.succ_eq_add_one] at h
+  omega
+
 /-- The complement of `S ×ˢ D` in `Fin k × Fin k` has `k * k - #S * #D` elements. -/
 private theorem card_compl_product_add (S D : Finset (Fin k)) :
     #((S ×ˢ D)ᶜ : Finset (Fin k × Fin k)) + #S * #D = k * k := by
@@ -195,16 +319,19 @@ private theorem card_compl_product_add (S D : Finset (Fin k)) :
     Nat.mul_le_mul (card_le_univ S |>.trans (by simp)) (card_le_univ D |>.trans (by simp))
   omega
 
-/-- **Counting spanned matrices.** A matrix in `spannedBy S T T'` is determined by the
+/-- **Counting spanned matrices.** A matrix in `spannedFamily id S T T'` is determined by the
 coefficients of its columns in `T \ T'` and by its entries outside `S × (T \ T')`. -/
 private theorem card_spannedBy_mul_le (S T T' : Finset (Fin k)) :
-    #(spannedBy S T T') * 2 ^ (#S * #(T \ T')) ≤ 2 ^ (#(T \ T') * #T') * 2 ^ (k * k) := by
+    #(spannedFamily (id : Matrix (Fin k) (Fin k) (ZMod 2) → _) S T T') *
+        2 ^ (#S * #(T \ T')) ≤
+      2 ^ (#(T \ T') * #T') * 2 ^ (k * k) := by
   classical
   set D := T \ T'
   set Z : Finset (Fin k × Fin k) := (S ×ˢ D)ᶜ
   let Φ : Matrix (Fin k) (Fin k) (ZMod 2) → (D → T' → ZMod 2) × (Z → ZMod 2) :=
     fun R => (fun j => spanCoeff R S T' j, fun p => R p.1.1 p.1.2)
-  have hinj : Set.InjOn Φ (spannedBy S T T') := by
+  have hinj : Set.InjOn Φ
+      (spannedFamily (id : Matrix (Fin k) (Fin k) (ZMod 2) → _) S T T') := by
     intro R hR R' hR' h
     simp only [Φ, Prod.mk.injEq] at h
     obtain ⟨hc, hz⟩ := h
@@ -218,7 +345,7 @@ private theorem card_spannedBy_mul_le (S T T' : Finset (Fin k)) :
       have e1 := congrFun (spanCoeff_spec (hR j hjT)) ⟨i, hij'.1⟩
       have e2 := congrFun (spanCoeff_spec (hR' j hjT)) ⟨i, hij'.1⟩
       have hcj : spanCoeff R S T' j = spanCoeff R' S T' j := congrFun hc ⟨j, hij'.2⟩
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, colVec] at e1 e2
+      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, colVec, id_eq] at e1 e2
       rw [← e1, ← e2, hcj]
       refine Finset.sum_congr rfl fun l _ => ?_
       congr 1
@@ -230,131 +357,43 @@ private theorem card_spannedBy_mul_le (S T T' : Finset (Fin k)) :
   have hcard := card_le_card_of_injOn Φ (fun _ _ => mem_univ _) hinj
   rw [card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_fun,
     ZMod.card, Fintype.card_coe, Fintype.card_coe, Fintype.card_coe] at hcard
-  calc #(spannedBy S T T') * 2 ^ (#S * #D)
+  calc #(spannedFamily (id : Matrix (Fin k) (Fin k) (ZMod 2) → _) S T T') * 2 ^ (#S * #D)
       ≤ (2 ^ #T') ^ #D * 2 ^ #Z * 2 ^ (#S * #D) := Nat.mul_le_mul_right _ hcard
     _ = 2 ^ (#D * #T') * 2 ^ (k * k) := by
         rw [mul_assoc, ← pow_add, card_compl_product_add S D, ← pow_mul, mul_comm #T']
-
-open Classical in
-/-- The matrices with a deficient square block on the rows `S` and the columns `T`. -/
-private noncomputable def deficientOn (t : ℕ) (S T : Finset (Fin k)) :
-    Finset (Matrix (Fin k) (Fin k) (ZMod 2)) :=
-  {R | #S = #T ∧ R.blockRank ↑S ↑T + t < #S}
-
-/-- When `T' ⊆ T`, `#T' + t < #S`, and `#S = #T`, at most a `2 ^ -((t + 1) ^ 2)` fraction of
-`k × k` matrices belong to `spannedBy S T T'`. -/
-private theorem card_spannedBy_mul_two_pow_sq_le {t : ℕ} {S T T' : Finset (Fin k)}
-    (hT'T : T' ⊆ T) (hlt : #T' + t < #S) (hST : #S = #T) :
-    #(spannedBy S T T') * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ (k * k) := by
-  have hsplit := card_sdiff_add_card_eq_card hT'T
-  set d := #(T \ T')
-  have hd : t + 1 ≤ d := by omega
-  have H := card_spannedBy_mul_le S T T'
-  rw [hST, ← hsplit] at H
-  have hpow : 2 ^ ((t + 1) ^ 2) ≤ 2 ^ (d * d) :=
-    Nat.pow_le_pow_right (by norm_num) (by nlinarith)
-  have key : #(spannedBy S T T') * 2 ^ (d * d) * 2 ^ (d * #T') ≤
-      2 ^ (k * k) * 2 ^ (d * #T') := by
-    calc #(spannedBy S T T') * 2 ^ (d * d) * 2 ^ (d * #T')
-        = #(spannedBy S T T') * 2 ^ ((d + #T') * d) := by
-          rw [mul_assoc, ← pow_add]
-          congr 2
-          ring
-      _ ≤ 2 ^ (d * #T') * 2 ^ (k * k) := H
-      _ = _ := mul_comm _ _
-  calc #(spannedBy S T T') * 2 ^ ((t + 1) ^ 2)
-      ≤ #(spannedBy S T T') * 2 ^ (d * d) := Nat.mul_le_mul_left _ hpow
-    _ ≤ _ := Nat.le_of_mul_le_mul_right key (by positivity)
-
-/-- Each block is deficient for at most a `2 ^ (k - (t + 1)²)` fraction of all matrices. -/
-private theorem card_deficientOn_mul_le (t : ℕ) (S T : Finset (Fin k)) :
-    #(deficientOn t S T) * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ (k * k) := by
-  classical
-  let 𝒯 := T.powerset.filter fun T' => #T' + t < #S ∧ #S = #T
-  have hsub : deficientOn t S T ⊆ 𝒯.biUnion fun T' => spannedBy S T T' := by
-    intro R hR
-    obtain ⟨hST, hdef⟩ := (mem_filter.mp hR).2
-    obtain ⟨T', hT', hcard, hspan⟩ := exists_spanning_columns R S T
-    refine mem_biUnion.mpr ⟨T', mem_filter.mpr ⟨mem_powerset.mpr hT', by omega, hST⟩, ?_⟩
-    exact mem_filter.mpr ⟨mem_univ _, hspan⟩
-  have hone : ∀ T' ∈ 𝒯, #(spannedBy S T T') * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ (k * k) := fun T' hT' => by
-    obtain ⟨hT'T, hlt, hST⟩ := mem_filter.mp hT'
-    exact card_spannedBy_mul_two_pow_sq_le (mem_powerset.mp hT'T) hlt hST
-  have h𝒯 : #𝒯 ≤ 2 ^ k := by
-    calc #𝒯 ≤ #T.powerset := card_filter_le _ _
-      _ = 2 ^ #T := card_powerset T
-      _ ≤ 2 ^ k := Nat.pow_le_pow_right (by norm_num) (card_le_univ T |>.trans (by simp))
-  calc #(deficientOn t S T) * 2 ^ ((t + 1) ^ 2)
-      ≤ (∑ T' ∈ 𝒯, #(spannedBy S T T')) * 2 ^ ((t + 1) ^ 2) :=
-        Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_biUnion_le)
-    _ = ∑ T' ∈ 𝒯, #(spannedBy S T T') * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
-    _ ≤ ∑ _T' ∈ 𝒯, 2 ^ (k * k) := Finset.sum_le_sum hone
-    _ = #𝒯 * 2 ^ (k * k) := by rw [sum_const, smul_eq_mul]
-    _ ≤ 2 ^ k * 2 ^ (k * k) := Nat.mul_le_mul_right _ h𝒯
 
 /-- **Robust matrices exist, by counting.** If `3 k < (t + 1)²`, some `k × k` matrix over `𝔽₂` is
 submatrix-robust with deficiency `t`. -/
 theorem exists_submatrixRobust_of_lt {t : ℕ} (ht : 3 * k < (t + 1) ^ 2) :
     ∃ R : Matrix (Fin k) (Fin k) (ZMod 2), R.SubmatrixRobust t := by
-  classical
-  let bad := (univ ×ˢ univ : Finset (Finset (Fin k) × Finset (Fin k))).biUnion
-    fun p => deficientOn t p.1 p.2
-  have hbad : #bad * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ (k * k)) := by
-    calc #bad * 2 ^ ((t + 1) ^ 2)
-        ≤ (∑ p ∈ (univ ×ˢ univ : Finset (Finset (Fin k) × Finset (Fin k))),
-            #(deficientOn t p.1 p.2)) * 2 ^ ((t + 1) ^ 2) :=
-          Nat.mul_le_mul_right _ card_biUnion_le
-      _ = ∑ p ∈ (univ ×ˢ univ : Finset (Finset (Fin k) × Finset (Fin k))),
-            #(deficientOn t p.1 p.2) * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
-      _ ≤ ∑ _p ∈ (univ ×ˢ univ : Finset (Finset (Fin k) × Finset (Fin k))),
-            2 ^ k * 2 ^ (k * k) :=
-          Finset.sum_le_sum fun p _ => card_deficientOn_mul_le t p.1 p.2
-      _ = 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ (k * k)) := by
-          rw [sum_const, smul_eq_mul, card_product, card_univ, Fintype.card_finset,
-            Fintype.card_fin]
-  have hlt : #bad < Fintype.card (Matrix (Fin k) (Fin k) (ZMod 2)) := by
+  have hcard : Fintype.card (Matrix (Fin k) (Fin k) (ZMod 2)) = 2 ^ (k * k) := by
     rw [Fintype.card_congr Matrix.of.symm, Fintype.card_fun, Fintype.card_fun, ZMod.card,
       Fintype.card_fin, ← pow_mul]
-    by_contra hge
-    push Not at hge
-    have h1 : 2 ^ (k * k) * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ (k * k)) :=
-      (Nat.mul_le_mul_right _ hge).trans hbad
-    have h2 : 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ (k * k)) < 2 ^ (k * k) * 2 ^ ((t + 1) ^ 2) := by
-      rw [← pow_add, ← pow_add, ← pow_add, ← pow_add]
-      exact Nat.pow_lt_pow_right (by norm_num) (by omega)
-    omega
-  obtain ⟨R, -, hR⟩ := exists_mem_notMem_of_card_lt_card hlt
-  refine ⟨R, fun S T hST => ?_⟩
-  by_contra hcon
-  push Not at hcon
-  apply hR
-  refine mem_biUnion.mpr ⟨(S.toFinset, T.toFinset), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, ?_⟩
-  refine mem_filter.mpr ⟨mem_univ _, ?_, ?_⟩
-  · rw [← Set.ncard_eq_toFinset_card', ← Set.ncard_eq_toFinset_card']
-    exact hST
-  · simp only [Set.coe_toFinset]
-    rw [← Set.ncard_eq_toFinset_card']
-    exact hcon
+  obtain ⟨R, hR⟩ := exists_blockRank_ge_of_spanned_bound hcard id (fun _ _ => True)
+    (fun _ _ => card_spannedBy_mul_le _ _ _) ht
+  exact ⟨R, fun S T hST => hR S T trivial hST⟩
 
 /-- **Robust matrices exist.** For every `k`, some `k × k` matrix over `𝔽₂` has every square block
 with `j` rows of rank at least `j - (2 ⌊√k⌋ + 1)`. -/
 theorem exists_submatrixRobust (k : ℕ) :
-    ∃ R : Matrix (Fin k) (Fin k) (ZMod 2), R.SubmatrixRobust (2 * Nat.sqrt k + 1) := by
-  refine exists_submatrixRobust_of_lt ?_
-  have h := Nat.lt_succ_sqrt' k
-  have : (2 * Nat.sqrt k + 1 + 1) ^ 2 = 4 * (Nat.sqrt k + 1) ^ 2 := by ring
-  rw [this]
-  rw [Nat.succ_eq_add_one] at h
-  omega
+    ∃ R : Matrix (Fin k) (Fin k) (ZMod 2), R.SubmatrixRobust (2 * Nat.sqrt k + 1) :=
+  exists_submatrixRobust_of_lt (three_mul_lt_sq_two_mul_sqrt k)
 
-private abbrev UpperIdx (n : ℕ) : Type :=
+/-- Strict upper-triangular index pairs `(i, j)` of `Fin n` with `i < j`. -/
+abbrev UpperIdx (n : ℕ) : Type :=
   {p : Fin n × Fin n // p.1 < p.2}
 
-private def toUpper (u : UpperIdx k → ZMod 2) : Matrix (Fin k) (Fin k) (ZMod 2) :=
+/-- Strict upper-triangular `k × k` matrix determined by its entries `u` above the diagonal. -/
+def toUpper {R : Type*} [Zero R] (u : UpperIdx k → R) : Matrix (Fin k) (Fin k) R :=
   Matrix.of fun i j => if h : i < j then u ⟨(i, j), h⟩ else 0
 
-private def polarUpper (u : UpperIdx k → ZMod 2) : Matrix (Fin k) (Fin k) (ZMod 2) :=
+/-- The symmetric hollow polar matrix `toUpper u + (toUpper u)ᵀ` associated to `u`. -/
+def polarUpper {R : Type*} [AddZeroClass R] (u : UpperIdx k → R) : Matrix (Fin k) (Fin k) R :=
   toUpper u + (toUpper u)ᵀ
+
+theorem polarUpper_eq {R : Type*} [AddZeroClass R] (u : UpperIdx k → R) :
+    polarUpper u = toUpper u + (toUpper u)ᵀ :=
+  rfl
 
 private def ordPair {i j : Fin k} (hne : i ≠ j) : UpperIdx k :=
   ⟨(min i j, max i j), min_lt_max.mpr hne⟩
@@ -391,15 +430,9 @@ private theorem ordPair_eq_iff {i₁ j₁ i₂ j₂ : Fin k} (h₁ : i₁ ≠ j�
     rw [max_eq_left le₁, max_eq_left le₂] at hmax
     exact Or.inl ⟨hmax, hmin⟩
 
-open Classical in
-private noncomputable def spannedUpper (S T T' : Finset (Fin k)) :
-    Finset (UpperIdx k → ZMod 2) :=
-  {u | ∀ j ∈ T, colVec (polarUpper u) ↑S j ∈
-    Submodule.span (ZMod 2) (colVec (polarUpper u) ↑S '' ↑T')}
-
 private theorem card_spannedUpper_mul_le {S T T' : Finset (Fin k)}
     (hST : Disjoint S T) (hT'T : T' ⊆ T) :
-    #(spannedUpper S T T') * 2 ^ (#S * #(T \ T')) ≤
+    #(spannedFamily (polarUpper (k := k)) S T T') * 2 ^ (#S * #(T \ T')) ≤
       2 ^ (#(T \ T') * #T') * 2 ^ Fintype.card (UpperIdx k) := by
   classical
   set D := T \ T'
@@ -423,7 +456,7 @@ private theorem card_spannedUpper_mul_le {S T T' : Finset (Fin k)}
     exact card_compl_add_card W
   let Φ : (UpperIdx k → ZMod 2) → (D → T' → ZMod 2) × (Z → ZMod 2) :=
     fun u => (fun j => spanCoeff (polarUpper u) S T' j.val, fun p => u p.val)
-  have hinj : Set.InjOn Φ (spannedUpper S T T') := by
+  have hinj : Set.InjOn Φ (spannedFamily (polarUpper (k := k)) S T T') := by
     intro u₁ hu₁ u₂ hu₂ h
     obtain ⟨hc, hz⟩ := Prod.mk.inj h
     have h₁ := (mem_filter.mp hu₁).2
@@ -463,118 +496,42 @@ private theorem card_spannedUpper_mul_le {S T T' : Finset (Fin k)}
   have hcard := card_le_card_of_injOn Φ (fun _ _ => mem_univ _) hinj
   rw [card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_fun,
     ZMod.card, Fintype.card_coe, Fintype.card_coe, Fintype.card_coe] at hcard
-  calc #(spannedUpper S T T') * 2 ^ (#S * #D)
+  calc #(spannedFamily (polarUpper (k := k)) S T T') * 2 ^ (#S * #D)
       ≤ (2 ^ #T') ^ #D * 2 ^ #Z * 2 ^ (#S * #D) := Nat.mul_le_mul_right _ hcard
     _ = 2 ^ (#D * #T') * 2 ^ Fintype.card (UpperIdx k) := by
         rw [mul_assoc, ← pow_add, hcardZ, ← pow_mul, mul_comm #T']
 
-private theorem card_spannedUpper_mul_two_pow_sq_le {t : ℕ} {S T T' : Finset (Fin k)}
-    (hST_disj : Disjoint S T) (hT'T : T' ⊆ T) (hlt : #T' + t < #S) (hST : #S = #T) :
-    #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ Fintype.card (UpperIdx k) := by
-  have hsplit := card_sdiff_add_card_eq_card hT'T
-  set d := #(T \ T')
-  have hd : t + 1 ≤ d := by omega
-  have H := card_spannedUpper_mul_le hST_disj hT'T
-  rw [hST, ← hsplit] at H
-  have hpow : 2 ^ ((t + 1) ^ 2) ≤ 2 ^ (d * d) :=
-    Nat.pow_le_pow_right (by norm_num) (by nlinarith)
-  have key : #(spannedUpper S T T') * 2 ^ (d * d) * 2 ^ (d * #T') ≤
-      2 ^ Fintype.card (UpperIdx k) * 2 ^ (d * #T') := by
-    calc #(spannedUpper S T T') * 2 ^ (d * d) * 2 ^ (d * #T')
-        = #(spannedUpper S T T') * 2 ^ ((d + #T') * d) := by
-          rw [mul_assoc, ← pow_add]
-          congr 2
-          ring
-      _ ≤ 2 ^ (d * #T') * 2 ^ Fintype.card (UpperIdx k) := H
-      _ = _ := mul_comm _ _
-  calc #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2)
-      ≤ #(spannedUpper S T T') * 2 ^ (d * d) := Nat.mul_le_mul_left _ hpow
-    _ ≤ _ := Nat.le_of_mul_le_mul_right key (by positivity)
-
-open Classical in
-private noncomputable def deficientUpperOn (t : ℕ) (S T : Finset (Fin k)) :
-    Finset (UpperIdx k → ZMod 2) :=
-  {u | Disjoint S T ∧ #S = #T ∧ (polarUpper u).blockRank ↑S ↑T + t < #S}
-
-private theorem card_deficientUpperOn_mul_le (t : ℕ) (S T : Finset (Fin k)) :
-    #(deficientUpperOn t S T) * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ Fintype.card (UpperIdx k) := by
+/-- **Disjoint-block-robust `polarUpper` witnesses, by counting.** If `3 k < (t + 1) ^ 2`, some
+upper-triangular assignment `u : UpperIdx k → ZMod 2` has `(polarUpper u).DisjointBlockRobust t`. -/
+theorem exists_polarUpper_disjointBlockRobust_of_lt {t : ℕ} (ht : 3 * k < (t + 1) ^ 2) :
+    ∃ u : UpperIdx k → ZMod 2, (polarUpper u).DisjointBlockRobust t := by
   classical
-  let 𝒯 := T.powerset.filter fun T' => Disjoint S T ∧ #T' + t < #S ∧ #S = #T
-  have hsub : deficientUpperOn t S T ⊆ 𝒯.biUnion fun T' => spannedUpper S T T' := by
-    intro u hu
-    obtain ⟨hdisj, hST, hdef⟩ := (mem_filter.mp hu).2
-    obtain ⟨T', hT', hcard, hspan⟩ := exists_spanning_columns (polarUpper u) S T
-    refine mem_biUnion.mpr ⟨T', mem_filter.mpr ⟨mem_powerset.mpr hT', hdisj, by omega, hST⟩, ?_⟩
-    exact mem_filter.mpr ⟨mem_univ _, hspan⟩
-  have hone : ∀ T' ∈ 𝒯, #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2) ≤
-      2 ^ Fintype.card (UpperIdx k) := fun T' hT' => by
-    obtain ⟨hT'T, hdisj, hlt, hST⟩ := mem_filter.mp hT'
-    exact card_spannedUpper_mul_two_pow_sq_le hdisj (mem_powerset.mp hT'T) hlt hST
-  have h𝒯 : #𝒯 ≤ 2 ^ k := by
-    calc #𝒯 ≤ #T.powerset := card_filter_le _ _
-      _ = 2 ^ #T := card_powerset T
-      _ ≤ 2 ^ k := Nat.pow_le_pow_right (by norm_num) (card_le_univ T |>.trans (by simp))
-  calc #(deficientUpperOn t S T) * 2 ^ ((t + 1) ^ 2)
-      ≤ (∑ T' ∈ 𝒯, #(spannedUpper S T T')) * 2 ^ ((t + 1) ^ 2) :=
-        Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_biUnion_le)
-    _ = ∑ T' ∈ 𝒯, #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
-    _ ≤ ∑ _T' ∈ 𝒯, 2 ^ Fintype.card (UpperIdx k) := Finset.sum_le_sum hone
-    _ = #𝒯 * 2 ^ Fintype.card (UpperIdx k) := by rw [sum_const, smul_eq_mul]
-    _ ≤ 2 ^ k * 2 ^ Fintype.card (UpperIdx k) := Nat.mul_le_mul_right _ h𝒯
+  have hcard : Fintype.card (UpperIdx k → ZMod 2) = 2 ^ Fintype.card (UpperIdx k) := by
+    rw [Fintype.card_fun, ZMod.card]
+  obtain ⟨u, hu⟩ := exists_blockRank_ge_of_spanned_bound hcard polarUpper Disjoint
+    (fun hST hT'T => card_spannedUpper_mul_le hST hT'T) ht
+  refine ⟨u, fun S T hST hcard_eq => hu S T ?_ hcard_eq⟩
+  rwa [← Finset.disjoint_coe, Set.coe_toFinset, Set.coe_toFinset]
 
 /-- **Polar matrices of upper-triangular forms are disjoint-block-robust, by counting.** If
 `3 k < (t + 1) ^ 2`, some `k × k` matrix `Q` over `𝔽₂` has `(Q + Qᵀ).DisjointBlockRobust t`. -/
 theorem exists_disjointBlockRobust_of_lt {t : ℕ} (ht : 3 * k < (t + 1) ^ 2) :
     ∃ Q : Matrix (Fin k) (Fin k) (ZMod 2), (Q + Qᵀ).DisjointBlockRobust t := by
-  classical
-  set U := Fintype.card (UpperIdx k)
-  let pairs : Finset (Finset (Fin k) × Finset (Fin k)) := univ ×ˢ univ
-  let bad := pairs.biUnion fun p => deficientUpperOn t p.1 p.2
-  have hbad : #bad * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) := by
-    calc #bad * 2 ^ ((t + 1) ^ 2)
-        ≤ (∑ p ∈ pairs, #(deficientUpperOn t p.1 p.2)) * 2 ^ ((t + 1) ^ 2) :=
-          Nat.mul_le_mul_right _ card_biUnion_le
-      _ = ∑ p ∈ pairs, #(deficientUpperOn t p.1 p.2) * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
-      _ ≤ ∑ _p ∈ pairs, 2 ^ k * 2 ^ U :=
-          Finset.sum_le_sum fun p _ => card_deficientUpperOn_mul_le t p.1 p.2
-      _ = 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) := by
-          rw [sum_const, smul_eq_mul, card_product, card_univ, Fintype.card_finset,
-            Fintype.card_fin]
-  have hlt : #bad < Fintype.card (UpperIdx k → ZMod 2) := by
-    rw [Fintype.card_fun, ZMod.card]
-    change #bad < 2 ^ U
-    by_contra hge
-    push Not at hge
-    have h₁ : 2 ^ U * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) :=
-      (Nat.mul_le_mul_right _ hge).trans hbad
-    have h₂ : 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) < 2 ^ U * 2 ^ ((t + 1) ^ 2) := by
-      rw [← pow_add, ← pow_add, ← pow_add, ← pow_add]
-      exact Nat.pow_lt_pow_right (by norm_num) (by omega)
-    omega
-  obtain ⟨u, -, hu⟩ := exists_mem_notMem_of_card_lt_card hlt
-  refine ⟨toUpper u, fun S T hST hcard => ?_⟩
-  by_contra hcon
-  push Not at hcon
-  apply hu
-  refine mem_biUnion.mpr ⟨(S.toFinset, T.toFinset), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, ?_⟩
-  refine mem_filter.mpr ⟨mem_univ _, ?_, ?_, ?_⟩
-  · rwa [← Finset.disjoint_coe, Set.coe_toFinset, Set.coe_toFinset]
-  · rw [← Set.ncard_eq_toFinset_card', ← Set.ncard_eq_toFinset_card']
-    exact hcard
-  · simp only [Set.coe_toFinset, polarUpper]
-    rw [← Set.ncard_eq_toFinset_card']
-    exact hcon
+  obtain ⟨u, hu⟩ := exists_polarUpper_disjointBlockRobust_of_lt ht
+  exact ⟨toUpper u, hu⟩
+
+/-- **Disjoint-block-robust `polarUpper` witnesses exist.** For every `k`, some
+`u : UpperIdx k → ZMod 2` has `(polarUpper u).DisjointBlockRobust (2 ⌊√k⌋ + 1)`. -/
+theorem exists_polarUpper_disjointBlockRobust (k : ℕ) :
+    ∃ u : UpperIdx k → ZMod 2, (polarUpper u).DisjointBlockRobust (2 * Nat.sqrt k + 1) :=
+  exists_polarUpper_disjointBlockRobust_of_lt (three_mul_lt_sq_two_mul_sqrt k)
 
 /-- **Disjoint-block-robust polar matrices exist.** For every `k`, some `k × k` matrix `Q` over `𝔽₂`
 has `(Q + Qᵀ).DisjointBlockRobust (2 ⌊√k⌋ + 1)`. -/
 theorem exists_disjointBlockRobust (k : ℕ) :
     ∃ Q : Matrix (Fin k) (Fin k) (ZMod 2), (Q + Qᵀ).DisjointBlockRobust (2 * Nat.sqrt k + 1) := by
-  refine exists_disjointBlockRobust_of_lt ?_
-  have h := Nat.lt_succ_sqrt' k
-  have hsq : (2 * Nat.sqrt k + 1 + 1) ^ 2 = 4 * (Nat.sqrt k + 1) ^ 2 := by ring
-  rw [hsq]
-  rw [Nat.succ_eq_add_one] at h
-  omega
+  obtain ⟨u, hu⟩ := exists_polarUpper_disjointBlockRobust k
+  exact ⟨toUpper u, hu⟩
 
 end Counting
 

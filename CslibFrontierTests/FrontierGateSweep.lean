@@ -40,19 +40,15 @@ private def projCircuit : Circuit testSig 2 1 :=
 
 example (lay : Layout (Compiler.Node projCircuit)) :
     (Compiler.steinerNetwork projCircuit testInterp (fun _ => {true}) lay).accepted =
-      {x | projCircuit.eval testInterp x 0 = true} := by
-  rw [Compiler.accepted_steinerNetwork]
-  ext x
-  exact ⟨fun h => h 0, fun h o => Subsingleton.elim o 0 ▸ h⟩
+      {x | projCircuit.eval testInterp x 0 = true} :=
+  Compiler.accepted_steinerNetwork_single
 
 example (lay : Layout (Compiler.Node projCircuit)) :
     (Compiler.steinerGraph projCircuit lay).width lay = Compiler.signalWidth projCircuit lay :=
   Compiler.width_steinerGraph_eq
 
-example : Compiler.multiFanoutSize projCircuit = 0 := by
-  rw [Compiler.multiFanoutSize, ncard_eq_zero]
-  ext g
-  exact False.elim (Fin.elim0 g.1)
+example : Compiler.multiFanoutSize projCircuit = 0 :=
+  Compiler.multiFanoutSize_eq_zero_of_gateFanout_le_one (by decide)
 
 /-- 2. Constant arity-`0` gate circuit (`innerSize = 0`). -/
 private def constCircuit : Circuit testSig 1 1 where
@@ -63,10 +59,8 @@ example : constCircuit.innerSize = 0 := by decide
 
 example (lay : Layout (Compiler.Node constCircuit)) :
     (Compiler.steinerNetwork constCircuit testInterp (fun _ => {true}) lay).accepted =
-      {x | constCircuit.eval testInterp x 0 = true} := by
-  rw [Compiler.accepted_steinerNetwork]
-  ext x
-  exact ⟨fun h => h 0, fun h o => Subsingleton.elim o 0 ▸ h⟩
+      {x | constCircuit.eval testInterp x 0 = true} :=
+  Compiler.accepted_steinerNetwork_single
 
 /-- 3. Duplicate-wire gate `g(x₀, x₀)` (`innerSize = 1`, `multiFanoutSize = 0`). -/
 private def dupWireCircuit : Circuit testSig 1 1 where
@@ -75,14 +69,16 @@ private def dupWireCircuit : Circuit testSig 1 1 where
 
 example : dupWireCircuit.innerSize = 1 := by decide
 
+example : Compiler.multiFanoutSize dupWireCircuit = 0 :=
+  Compiler.multiFanoutSize_eq_zero_of_gateFanout_le_one (by decide)
+
 example (lay : Layout (Compiler.Node dupWireCircuit)) :
     (Compiler.steinerNetwork dupWireCircuit testInterp (fun _ => {true}) lay).accepted =
-      {x | dupWireCircuit.eval testInterp x 0 = true} := by
-  rw [Compiler.accepted_steinerNetwork]
-  ext x
-  exact ⟨fun h => h 0, fun h o => Subsingleton.elim o 0 ▸ h⟩
+      {x | dupWireCircuit.eval testInterp x 0 = true} :=
+  Compiler.accepted_steinerNetwork_single
 
-/-- 4. Formula `(x₀ ∧ x₁) ∨ x₂`: every inner gate has fan-out one (`multiFanoutSize = 0`). -/
+/-- 4. Formula `(x₀ ∧ x₁) ∨ x₂`: every inner gate has fan-out one (`multiFanoutSize = 0`), as does
+`F.toCircuit` for every formula `F`. -/
 private def formulaCircuit : Circuit testSig 3 1 where
   program :=
     (Program.empty.gate ⟨TestOp.andOp, ![Wire.input 0, Wire.input 1]⟩).gate
@@ -90,6 +86,17 @@ private def formulaCircuit : Circuit testSig 3 1 where
   outputs _ := Wire.gate 1
 
 example : formulaCircuit.innerSize = 2 := by decide
+
+example : Compiler.multiFanoutSize formulaCircuit = 0 :=
+  Compiler.multiFanoutSize_eq_zero_of_gateFanout_le_one (by decide)
+
+example (lay : Layout (Compiler.Node formulaCircuit)) :
+    (Compiler.steinerNetwork formulaCircuit testInterp (fun _ => {true}) lay).accepted =
+      {x | formulaCircuit.eval testInterp x 0 = true} :=
+  Compiler.accepted_steinerNetwork_single
+
+example (n : ℕ) (F : Formula testSig n) : Compiler.multiFanoutSize F.toCircuit = 0 :=
+  Compiler.multiFanoutSize_toCircuit F
 
 /-- 5. Shared-gate circuit `u = x₀ ∧ x₁; (u ∨ x₂) ∧ (u ∨ x₀)` where `u` feeds two gates. -/
 private def sharedCircuit : Circuit testSig 3 1 where
@@ -102,12 +109,50 @@ private def sharedCircuit : Circuit testSig 3 1 where
 
 example : sharedCircuit.innerSize = 4 := by decide
 
+example : Compiler.multiFanoutSize sharedCircuit ≤ sharedCircuit.innerSize :=
+  Compiler.multiFanoutSize_le_innerSize sharedCircuit
+
+example : Compiler.multiFanoutSize sharedCircuit = 1 := by
+  refine le_antisymm ((Compiler.multiFanoutSize_le_card_gateFanout sharedCircuit).trans (by decide))
+    ?_
+  let idx₀ : Fin sharedCircuit.size := ⟨0, by decide⟩
+  let idx₁ : Fin sharedCircuit.size := ⟨1, by decide⟩
+  let idx₂ : Fin sharedCircuit.size := ⟨2, by decide⟩
+  let idx₃ : Fin sharedCircuit.size := ⟨3, by decide⟩
+  let a₃₀ : Fin (testSig.Arity (sharedCircuit.program.lines idx₃).op) := ⟨0, by decide⟩
+  let a₃₁ : Fin (testSig.Arity (sharedCircuit.program.lines idx₃).op) := ⟨1, by decide⟩
+  let a₁₀ : Fin (testSig.Arity (sharedCircuit.program.lines idx₁).op) := ⟨0, by decide⟩
+  let a₂₀ : Fin (testSig.Arity (sharedCircuit.program.lines idx₂).op) := ⟨0, by decide⟩
+  have hw30 : (sharedCircuit.program.lines idx₃).wires a₃₀ = .gate idx₁ := by decide
+  have hw31 : (sharedCircuit.program.lines idx₃).wires a₃₁ = .gate idx₂ := by decide
+  have hw10 : (sharedCircuit.program.lines idx₁).wires a₁₀ = .gate idx₀ := by decide
+  have hw20 : (sharedCircuit.program.lines idx₂).wires a₂₀ = .gate idx₀ := by decide
+  have h3 : Compiler.Reach sharedCircuit (.gate idx₃) := Compiler.Reach.output 0
+  have h1 : Compiler.Reach sharedCircuit (.gate idx₁) := hw30 ▸ Compiler.Reach.arg a₃₀ h3
+  have h2 : Compiler.Reach sharedCircuit (.gate idx₂) := hw31 ▸ Compiler.Reach.arg a₃₁ h3
+  have h0 : Compiler.Reach sharedCircuit (.gate idx₀) := hw10 ▸ Compiler.Reach.arg a₁₀ h1
+  let g₀ : Compiler.InnerGate sharedCircuit := ⟨idx₀, h0, by decide⟩
+  have hmem : g₀ ∈ Compiler.multiFanoutGates sharedCircuit := by
+    let w₀ := (Compiler.ActiveSignal.gate g₀).toSignal
+    let t₁ : {t : Compiler.Consumer sharedCircuit // Compiler.consumed t = w₀} :=
+      ⟨.inl ⟨⟨idx₁, a₁₀⟩, h1⟩, Subtype.ext hw10⟩
+    let t₂ : {t : Compiler.Consumer sharedCircuit // Compiler.consumed t = w₀} :=
+      ⟨.inl ⟨⟨idx₂, a₂₀⟩, h2⟩, Subtype.ext hw20⟩
+    have hne : t₁ ≠ t₂ := fun h => by
+      have hslot := congrArg Subtype.val (Sum.inl.inj (congrArg Subtype.val h))
+      have hval : idx₁.val = idx₂.val := congrArg (fun p => p.1.val) hslot
+      exact absurd hval (by decide)
+    have hcard : Nat.card Bool ≤ Compiler.fanout sharedCircuit w₀ :=
+      Nat.card_le_card_of_injective (fun b : Bool => if b then t₁ else t₂) fun b₁ b₂ hb => by
+        cases b₁ <;> cases b₂ <;> first | rfl | exact absurd hb.symm hne | exact absurd hb hne
+    change 2 ≤ Compiler.fanout sharedCircuit w₀
+    simpa [Nat.card_eq_fintype_card] using hcard
+  exact (ncard_pos (toFinite _)).mpr ⟨g₀, hmem⟩
+
 example (lay : Layout (Compiler.Node sharedCircuit)) :
     (Compiler.steinerNetwork sharedCircuit testInterp (fun _ => {true}) lay).accepted =
-      {x | sharedCircuit.eval testInterp x 0 = true} := by
-  rw [Compiler.accepted_steinerNetwork]
-  ext x
-  exact ⟨fun h => h 0, fun h o => Subsingleton.elim o 0 ▸ h⟩
+      {x | sharedCircuit.eval testInterp x 0 = true} :=
+  Compiler.accepted_steinerNetwork_single
 
 /-! ### Exact rational threshold evaluations and comparisons -/
 
