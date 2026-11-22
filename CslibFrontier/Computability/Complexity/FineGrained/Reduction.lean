@@ -31,17 +31,13 @@ More generally, subexponential time transfers along **$2^{O(m(a))}$-time reducti
 linearly in $m(a) \log_2 m(a)$ and the $2^{O(m(a))}$ runtime is absorbed into
 $2^{(\varepsilon / 2) m(a) \log_2 m(a)}$.
 
-Under the exponential time hypothesis, 3SAT is not decidable in subexponential time in the number
-of clauses (`Cslib.Complexity.ETH_iff_not_decidableInSubexpTime_length`, by the sparsification
-lemma). So a polynomial-time reduction from 3SAT whose output measure is linear in the number of
-clauses shows that the target problem is not decidable in subexponential time in that measure
-(`Cslib.Complexity.ETH.not_decidableInSubexpTime_of_reduction`)
-[ImpagliazzoPaturiZane2001] [CyganEtAl2015, Chapter 14]. Lower bounds for larger measures are
-stronger: a lower bound for a measure gives one for every measure at most linear in it
+A polynomial-time reduction from 3SAT whose output measure is linear in the number of clauses
+transfers subexponential-time decision for the target problem unconditionally to subexponential-time
+decision for `ThreeSAT` in clause count
+(`Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_reduction`) [ImpagliazzoPaturiZane2001]
+[CyganEtAl2015, Chapter 14]. Transfers from smaller measures are stronger: subexponential time in a
+smaller measure transfers to every measure that bounds it up to a linear factor
 (`Cslib.Complexity.DecidableInSubexpTime.mono_measure`).
-
-`Cslib.Complexity.CountingNativeEndpoint.not_ETH` proves that `ETH` is false, so lower bounds
-obtained this way hold vacuously. The transfer theorems are unconditional.
 
 The scalar estimates for measure rescaling and reduction-time composition are shared with
 function-time and randomized transfers through
@@ -56,8 +52,8 @@ function-time and randomized transfers through
   size.
 * `Cslib.Complexity.DecidableInSubexpTime.of_expReduction`: subexponential-time transfer along
   $2^{O(m)}$-time reductions into parameter $m \log_2 m$.
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_of_reduction`: lower bounds from the exponential
-  time hypothesis through reductions of linear size from 3SAT.
+* `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_reduction`: unconditional subexponential-time
+  transfer to `ThreeSAT` in clause count along reductions of linear size from 3-CNF formulas.
 
 ## References
 
@@ -138,23 +134,22 @@ theorem DecidableInSubexpTime.of_reduction {f : α → β}
   ((h (δ / (c + 1)) (by positivity)).of_reduction hf hfA hμ (by positivity)).mono
     (natCast_mul_div_add_one_le hδ.le c)
 
-/-- **Lower bounds from the exponential time hypothesis** [ImpagliazzoPaturiZane2001]
-[CyganEtAl2015, Chapter 14]. Under `ETH`, if `f` is computable in polynomial time and, on formulas
-`φ` in conjunctive normal form with `m` clauses of at most three literals, maps `φ` to an instance
-of `B` exactly when `φ` is satisfiable, with `μB (f φ) ≤ k * m + k`, then `B` is not decidable in
-subexponential time in `μB`: for some `δ > 0`, no decider runs within time `2 ^ (δ * μB b)` times a
-polynomial in the length of the encoded instance. -/
-theorem ETH.not_decidableInSubexpTime_of_reduction (hETH : ETH) {f : CNF ℕ → β}
+/-- **Unconditional subexponential-time transfer to `ThreeSAT` along a linear-size reduction**
+[ImpagliazzoPaturiZane2001] [CyganEtAl2015, Chapter 14]: if `f` is computable in polynomial time
+and, on formulas `φ` in conjunctive normal form with `m` clauses of at most three literals, maps
+`φ` to an instance of `B` exactly when `φ` is satisfiable, with `μB (f φ) ≤ k * m + k`, then any
+subexponential-time decider for `B` in `μB` yields a subexponential-time decider for `ThreeSAT` in
+clause count `List.length`. -/
+theorem DecidableInSubexpTime.threeSAT_of_reduction {f : CNF ℕ → β}
     (hf : ComputableInPolyTime f encCNF encB)
     (hfB : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → (f φ ∈ B ↔ φ ∈ SAT)) {k : ℕ}
-    (hμ : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → μB (f φ) ≤ k * φ.length + k) :
-    ¬DecidableInSubexpTime B encB μB := by
-  intro h
+    (hμ : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → μB (f φ) ≤ k * φ.length + k)
+    (h : DecidableInSubexpTime B encB μB) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length := by
   -- formulas with a clause of more than three literals go to the image of the empty clause
-  refine ETH_iff_not_decidableInSubexpTime_length.mp hETH
-    (h.of_reduction (f := fun φ => if φ.all (fun c => decide (c.length ≤ 3)) then f φ
-      else f [[]]) (ComputableInPolyTime.ite' (computableInPolyTime_all_length_le 3)
-        hf (ComputableInPolyTime.const _)) (fun φ => ?_) (c := 2 * k) fun φ => ?_)
+  refine h.of_reduction (f := fun φ => if φ.all (fun c => decide (c.length ≤ 3)) then f φ
+    else f [[]]) (ComputableInPolyTime.ite' (computableInPolyTime_all_length_le 3)
+      hf (ComputableInPolyTime.const _)) (fun φ => ?_) (c := 2 * k) fun φ => ?_
   · by_cases hφ : ∀ c ∈ φ, c.length ≤ 3
     · have hw : (φ.all fun c => decide (c.length ≤ 3)) = true := by simpa using hφ
       simp only [hw, ite_true, hfB φ hφ]

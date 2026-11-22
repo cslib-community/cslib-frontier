@@ -2316,23 +2316,25 @@ register_result "subexponential-sat-count" where
     the interpolation scale. Not the manuscript's sharper headline runtime."
 
 register_result "partial-mcsp" where
-  title := "Ilango: Partial MCSP is hard under the Exponential Time Hypothesis"
+  title := "Ilango subexponential transfer from Partial MCSP to 3-SAT"
   topic := "meta-complexity"
   sources := [
     { paper := Ilango2020FOCS, theorem := unverified, locator := unverified }
   ]
   theorems := [
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_tableSize,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_encBinary,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate,
-    Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate_encBinary
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP,
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_tableSize,
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_encBinary,
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_binaryGate,
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_binaryGate_encBinary
   ]
-  scope := "Under the library's ETH, PartialMCSP on m-variable partial truth tables is not \
-    decidable by deterministic multi-tape machines in time 2^o(m log m) = N^o(log log N), \
-    N = 2^m, with explicit unary or binary size-threshold encodings and De Morgan all-gate or \
-    binary-gate cost. Conditional: the library also refutes ETH (subexponential-sat), so the \
-    premise is false; the implications remain valid."
+  scope := "Any deterministic multi-tape decider for PartialMCSP on m-variable partial truth \
+    tables running in time 2^o(m log m) = N^o(log log N), N = 2^m, with explicit unary or \
+    binary size-threshold encodings and De Morgan all-gate or binary-gate cost, transfers \
+    unconditionally via BipartitePermutationIndependentSet and ThreeColoring to a \
+    subexponential-time decider for ThreeSAT in clause count. Because the library refutes ETH \
+    in its native machine model (subexponential-sat), this records the unconditional transfer \
+    rather than the source's ETH-conditional exclusion."
 
 register_result "partial-mcsp-rp-hard" where
   title := "Hirahara: Partial MCSP is NP-hard under randomized reductions"
@@ -9495,23 +9497,24 @@ register_result "product-relation-simulation-privacy" where
     claimed for the simulators (#5829)."
 
 register_result "clique-eth-lower-bound" where
-  title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
+  title := "Clause-grouping subexponential transfer from parameterized Clique to 3-SAT"
   topic := "fine-grained complexity"
   sources := [
     { paper := CyganEtAl2015, theorem := "Theorem 14.21", locator := "p.485" }
   ]
   theorems := [
-    Cslib.Complexity.ETH.not_clique_subexpVertex,
-    Cslib.Complexity.ETH.not_clique_subexpEnc,
-    Cslib.Complexity.ETH.clique_not_mem_FPT,
-    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpVertex
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpVertex,
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpEnc,
+    Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_mem_FPT
   ]
   scope := "Clause-grouping reduction SAT.groupClique on Clique encCliqueInstance and \
-    ThreeSAT (encCNF). Under ETH (relative to the library's native DecidableInTimeO model), no \
-    decider for Clique runs in time f(k) · (|V| + 1)^o(k) · poly(|enc|) or f(k) · (|enc| + 1)^o(k) \
-    with arbitrary f and real exponent g(k) satisfying g(k) ≤ ε k for large k; in particular \
-    Clique ∉ FPT. Unconditional subexponential-time transfers to ThreeSAT hold without ETH. \
-    This adapts the source's 3-Coloring vertex grouping to 3-CNF clauses and arbitrary f."
+    ThreeSAT (encCNF). Any Clique decider running in time f(k) · (|V| + 1)^o(k) · poly(|enc|) \
+    or f(k) · (|enc| + 1)^o(k) with arbitrary real f and exponent g(k) ≤ ε k for large k—and in \
+    particular any FPT algorithm for Clique—yields a native subexponential-time decider for \
+    ThreeSAT in clause count. Because the library refutes ETH in its native machine model \
+    (subexponential-sat), this records the unconditional transfers rather than the source's \
+    ETH-conditional lower bound. Adapts the source's 3-Coloring vertex grouping to 3-CNF \
+    clauses and arbitrary f."
 
 register_result "csp-bounded-treewidth" where
   title := "Exact counting and decision for finite-domain CSPs over bounded treewidth"

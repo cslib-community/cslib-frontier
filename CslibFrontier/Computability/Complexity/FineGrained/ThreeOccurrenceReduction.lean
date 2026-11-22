@@ -48,9 +48,9 @@ pp. 43–47).
   every variable occurs at most three times.
 * `Cslib.Complexity.DecidableInExpTime.threeSAT_length_of_threeSATThree_numVars`,
   `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_threeSATThree_numVars`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_threeSATThree_numVars`: fine-grained exponential
-  and subexponential reductions from `ThreeSAT` to `ThreeSATThree` in both `CNF.numVars` and
-  `List.length`.
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_threeSATThree_length`: fine-grained
+  exponential and subexponential reductions from `ThreeSAT` to `ThreeSATThree` in both `CNF.numVars`
+  and `List.length`.
 * `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter_of_promise`,
   `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter`,
   `Cslib.Complexity.CountingSparsify.exists_computableInO_search_threeOccurrence_of_promise`,
@@ -251,28 +251,6 @@ theorem DecidableInSubexpTime.threeSAT_of_threeSATThree_length
   exact DecidableInSubexpTime.of_reduction computableInPolyTime_toThreeSATThree
     (fun φ => (mem_ThreeSATThree_toThreeSATThree_iff φ).symm)
     (c := 4) (fun φ => (length_toThreeSATThree_le_mul_length φ).trans (by omega)) h
-
-/-- **Under `ETH`, `ThreeSATThree` is not decidable in subexponential time in the number of
-variables.** -/
-theorem ETH.not_decidableInSubexpTime_threeSATThree_numVars (h : ETH) :
-    ¬ DecidableInSubexpTime ThreeSATThree encCNF CNF.numVars :=
-  fun h' => ETH_iff_not_decidableInSubexpTime.mp h h'.threeSAT_of_threeSATThree_numVars
-
-/-- **Under `ETH`, `ThreeSATThree` is not decidable in subexponential time in the number of
-clauses.** -/
-theorem ETH.not_decidableInSubexpTime_threeSATThree_length (h : ETH) :
-    ¬ DecidableInSubexpTime ThreeSATThree encCNF List.length :=
-  fun h' => ETH_iff_not_decidableInSubexpTime.mp h h'.threeSAT_of_threeSATThree_length
-
-/-- Deciding `ThreeSATThree` in subexponential time in `CNF.numVars` refutes `ETH`. -/
-theorem not_ETH_of_decidableInSubexpTime_threeSATThree_numVars
-    (h : DecidableInSubexpTime ThreeSATThree encCNF CNF.numVars) : ¬ ETH :=
-  fun heth => heth.not_decidableInSubexpTime_threeSATThree_numVars h
-
-/-- Deciding `ThreeSATThree` in subexponential time in `List.length` refutes `ETH`. -/
-theorem not_ETH_of_decidableInSubexpTime_threeSATThree_length
-    (h : DecidableInSubexpTime ThreeSATThree encCNF List.length) : ¬ ETH :=
-  fun heth => heth.not_decidableInSubexpTime_threeSATThree_length h
 
 /-! ### 3. Guarded leaf model-counter reduction for `CountingSparsify.search` -/
 

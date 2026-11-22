@@ -21,11 +21,12 @@ import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Bitwise
 
 /-!
-# Bipartite Permutation Independent Set and its ETH lower bound
+# Bipartite Permutation Independent Set and subexponential transfers to 3-SAT
 
 This module defines the `$2n \times 2n$ Bipartite Permutation Independent Set` problem and proves
-the Lokshtanov–Marx–Saurabh lower bound under the Exponential Time Hypothesis (`ETH`): the problem
-cannot be decided in time $2^{o(n \log n)}$ [LokshtanovMarxSaurabh2018, Theorem 2.11], as used in
+the Lokshtanov–Marx–Saurabh subexponential-time transfer [LokshtanovMarxSaurabh2018, Theorem 2.11]:
+any $2^{o(n \log n)}$-time decider for `BipartitePermutationIndependentSet` decides `ThreeSAT` in
+time $2^{o(m)}$ (`DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet`), as used in
 Ilango's reduction to partial-function MCSP [Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183,
 Section 3, Theorem 10, p. 20].
 
@@ -51,15 +52,15 @@ Two equivalent presentations appear in the literature:
 `BipartitePermutationIndependentSet.mem_iff_exists_satisfiesUndirected` prove that the two
 formulations define the exact same language.
 
-## Proof of the ETH lower bound
+## Proof of the subexponential transfer
 
-To prove [LokshtanovMarxSaurabh2018, Theorem 2.11], this library gives a direct Turing reduction
-from `ThreeColoring` on $N$-vertex graphs (which has no $2^{o(N)}$-time algorithm under `ETH` by
-`ETH.not_decidableInSubexpTime_ThreeColoring_vertices`) to subexponentially many instances of
-`BipartitePermutationIndependentSet` of parameter $n = \Theta(N / \log N)$, for which
-$n \log_2 n \le 10 N + 5$ (`BipartitePermutationIndependentSet.fst_bpisOfColoring_mul_log_le`),
-using a library proof based on monotone threshold enumeration (`Tuple.sort` and
-`Tuple.lt_card_le_iff_apply_le_of_monotone`):
+To prove the transfer behind [LokshtanovMarxSaurabh2018, Theorem 2.11], this library gives a direct
+Turing reduction from `ThreeColoring` on $N$-vertex graphs (which transfers $2^{o(N)}$-time
+deciders to `ThreeSAT` via `DecidableInSubexpTime.threeSAT_of_ThreeColoring_vertices`) to
+subexponentially many instances of `BipartitePermutationIndependentSet` of parameter
+$n = \Theta(N / \log N)$, for which $n \log_2 n \le 10 N + 5$
+(`BipartitePermutationIndependentSet.fst_bpisOfColoring_mul_log_le`), using a library proof based on
+monotone threshold enumeration (`Tuple.sort` and `Tuple.lt_card_le_iff_apply_le_of_monotone`):
 
 * Partition the $N$ vertices into $n = \lfloor N / b \rfloor + 1$ blocks of size
   $b = \lfloor (\log_2 N) / 4 \rfloor + 1$, so that $n \log_2 n \le 10 N + 5$
@@ -74,12 +75,12 @@ using a library proof based on monotone threshold enumeration (`Tuple.sort` and
   `Tuple.lt_card_le_iff_apply_le_of_monotone`, encoded in $B \cdot (\lfloor \log_2 n \rfloor + 1) =
   o(N)$ bits.
 * Branching over all $2^{B \cdot (\lfloor \log_2 n \rfloor + 1)} = 2^{o(N)}$ threshold encodings
-  and querying a purported $2^{o(n \log n)}$ decider for `BipartitePermutationIndependentSet`
-  decides `ThreeColoring` in time $2^{o(N)}$, contradicting `ETH`.
+  and querying a $2^{o(n \log n)}$ decider for `BipartitePermutationIndependentSet` decides
+  `ThreeColoring` in time $2^{o(N)}$, and hence `ThreeSAT` in time $2^{o(m)}$.
 
-**The hypothesis is refuted.** `Cslib.Complexity.CountingNativeEndpoint.not_ETH` proves that `ETH`
-is false, so the `ETH`-conditional lower bound of this module holds vacuously. It is kept as a
-conditional statement; the Turing reduction from `ThreeColoring` behind it is unconditional.
+Because `Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes `ETH` in this library's native
+machine model, we state these results as unconditional subexponential-time transfers rather than
+vacuous `ETH → ¬DecidableInSubexpTime …` implications.
 
 ## Main definitions
 
@@ -101,19 +102,19 @@ conditional statement; the Turing reduction from `ThreeColoring` behind it is un
 * `Cslib.Complexity.BipartitePermutationGraph.exists_satisfies_iff_exists_satisfiesUndirected`,
   `Cslib.Complexity.BipartitePermutationIndependentSet.mem_iff_exists_satisfiesUndirected`:
   equivalence of Ilango's and Lokshtanov–Marx–Saurabh's formulations.
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_ThreeColoring_vertices`: under `ETH`,
-  `ThreeColoring` is not decidable in time $2^{o(|V|)}$.
+* `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_ThreeColoring_vertices`: unconditional
+  transfer from $2^{o(|V|)}$ `ThreeColoring` deciders to subexponential `ThreeSAT`.
 * `Cslib.Complexity.BipartitePermutationIndependentSet.mem_ThreeColoring_iff_exists_bpisOfColoring`:
   correctness of the block-sorting reduction from `ThreeColoring` to
   `BipartitePermutationIndependentSet`.
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet`: under `ETH`,
-  `BipartitePermutationIndependentSet` is not decidable in time $2^{o(n \log n)}$
+* `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet`:
+  unconditional $2^{o(n \log n)}$ transfer from `BipartitePermutationIndependentSet` to `ThreeSAT`
   ([LokshtanovMarxSaurabh2018, Theorem 2.11]; [Ilango2020FOCS, Section III.B, p. 427; ECCC
   TR20-183, Section 3, Theorem 10, p. 20]).
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet_binary`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet_clog`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet_two_mul`:
-  variants for binary encoding, ceiling logarithm $n \lceil \log_2 n \rceil$, and parameter
+* `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet_binary`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet_clog`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet_two_mul`:
+  transfer variants for binary encoding, ceiling logarithm $n \lceil \log_2 n \rceil$, and parameter
   $2n \log_2(2n)$.
 
 ## References
@@ -328,12 +329,13 @@ theorem mem_ThreeColoring_iff_fin (G : Graph) :
       simpa only [List.getElem_idxOf, Graph.adjBool_eq_true_iff] using huv
     exact hf ⟨G.vertices.idxOf u, hu'⟩ ⟨G.vertices.idxOf v, hv'⟩ hpq (Fin.ext h)
 
-/-- **No $2^{o(|V|)}$ algorithm for 3-coloring under ETH** [CyganEtAl2015, Chapter 14]:
-for some $\delta > 0$, `ThreeColoring` is not decidable within time $2^{\delta |V|}$ times any
-polynomial in the length of the encoded graph, for graphs with $|V|$ declared vertices. -/
-theorem ETH.not_decidableInSubexpTime_ThreeColoring_vertices (h : ETH) :
-    ¬DecidableInSubexpTime ThreeColoring encGraph fun G => G.vertices.length :=
-  h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toThreeColoring
+/-- **Subexponential-time transfer from 3-coloring in `|V|` to `ThreeSAT`**
+[CyganEtAl2015, Chapter 14]: deciding `ThreeColoring` within time $2^{\delta |V|}$ times a
+polynomial for every $\delta > 0$ decides `ThreeSAT` in time $2^{o(m)}$. -/
+theorem DecidableInSubexpTime.threeSAT_of_ThreeColoring_vertices
+    (h : DecidableInSubexpTime ThreeColoring encGraph fun G => G.vertices.length) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  h.threeSAT_of_reduction SAT.computableInPolyTime_toThreeColoring
     (fun φ _ => SAT.toThreeColoring_mem_iff φ) (k := 93) fun φ hφ => by
       have := SAT.length_toThreeColoring_le hφ
       omega
@@ -1081,41 +1083,37 @@ theorem DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSe
     (fun H r => by have := fst_bpisOfColoring_mul_log_le H r; omega)
     (fun M hM => ⟨48 * (48 * M) ^ 3, fun H => searchBits_le_div_add H.vertices.length hM⟩)
 
-/-- **Lokshtanov–Marx–Saurabh ETH Lower Bound for $2n \times 2n$ Bipartite Permutation Independent
-Set** [LokshtanovMarxSaurabh2018, Theorem 2.11] [Ilango2020FOCS, Section III.B, p. 427; ECCC
-TR20-183, Section 3, Theorem 10, p. 20]: under `ETH`,
-`BipartitePermutationIndependentSet` is not decidable within time $2^{o(n \log n)}$, i.e., for some
-$\delta > 0$, no algorithm decides `BipartitePermutationIndependentSet` within time
-$2^{\delta n \log_2 n}$ times a polynomial in the length of the encoded instance. -/
-theorem ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet (h : ETH) :
-    ¬DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
-      fun G => G.1 * Nat.log 2 G.1 :=
-  fun hsub => h.not_decidableInSubexpTime_ThreeColoring_vertices
-    hsub.threeColoring_of_bipartitePermutationIndependentSet
+/-- **Lokshtanov–Marx–Saurabh subexponential-time transfer for $2n \times 2n$ Bipartite Permutation
+Independent Set** [LokshtanovMarxSaurabh2018, Theorem 2.11] [Ilango2020FOCS, Section III.B, p. 427;
+ECCC TR20-183, Section 3, Theorem 10, p. 20]: deciding `BipartitePermutationIndependentSet` in time
+$2^{o(n \log n)}$ decides `ThreeSAT` in subexponential time in clause count `List.length`. -/
+theorem DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet
+    (h : DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
+      fun G => G.1 * Nat.log 2 G.1) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  h.threeColoring_of_bipartitePermutationIndependentSet.threeSAT_of_ThreeColoring_vertices
 
-/-- **Binary-encoded variant of the Lokshtanov–Marx–Saurabh ETH lower bound**
+/-- **Binary-encoded variant of the Lokshtanov–Marx–Saurabh subexponential-time transfer**
 [LokshtanovMarxSaurabh2018, Theorem 2.11] [Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183,
-Section 3, Theorem 10, p. 20]: under `ETH`,
-`BipartitePermutationIndependentSet` is not decidable in time $2^{o(n \log n)}$ under binary
-coordinate encoding. -/
-theorem ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet_binary (h : ETH) :
-    ¬DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraphBinary
-      fun G => G.1 * Nat.log 2 G.1 := by
-  intro hsub
-  refine h.not_decidableInSubexpTime_BipartitePermutationIndependentSet ?_
-  exact hsub.of_reduction BipartitePermutationIndependentSet.computableInPolyTime_toBinary
-    (fun _ => Iff.rfl) (c := 1) fun G => by dsimp only [id]; omega
+Section 3, Theorem 10, p. 20]: deciding `BipartitePermutationIndependentSet` in time
+$2^{o(n \log n)}$ under binary coordinate encoding decides `ThreeSAT` in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet_binary
+    (h : DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraphBinary
+      fun G => G.1 * Nat.log 2 G.1) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (h.of_reduction BipartitePermutationIndependentSet.computableInPolyTime_toBinary
+    (fun _ => Iff.rfl) (c := 1)
+    fun G => by dsimp only [id]; omega).threeSAT_of_BipartitePermutationIndependentSet
 
-/-- **Ceiling-logarithm variant of the Lokshtanov–Marx–Saurabh ETH lower bound**
+/-- **Ceiling-logarithm variant of the Lokshtanov–Marx–Saurabh subexponential-time transfer**
 [LokshtanovMarxSaurabh2018, Theorem 2.11] [Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183,
-Section 3, Theorem 10, p. 20]: under `ETH`,
-`BipartitePermutationIndependentSet` is not decidable in time $2^{o(n \lceil \log_2 n \rceil)}$. -/
-theorem ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet_clog (h : ETH) :
-    ¬DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
-      fun G => G.1 * Nat.clog 2 G.1 := by
-  intro hsub
-  refine h.not_decidableInSubexpTime_BipartitePermutationIndependentSet ?_
-  refine hsub.mono_measure (c := 2) fun G => ?_
+Section 3, Theorem 10, p. 20]: deciding `BipartitePermutationIndependentSet` in time
+$2^{o(n \lceil \log_2 n \rceil)}$ decides `ThreeSAT` in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet_clog
+    (h : DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
+      fun G => G.1 * Nat.clog 2 G.1) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length := by
+  refine (h.mono_measure (c := 2) fun G => ?_).threeSAT_of_BipartitePermutationIndependentSet
   rcases le_or_gt G.1 1 with hG | hG
   · have : Nat.clog 2 G.1 = 0 := Nat.clog_of_right_le_one hG 2
     simp [this]
@@ -1128,15 +1126,14 @@ theorem ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet_clog (h
     calc G.1 * Nat.clog 2 G.1 ≤ G.1 * (2 * Nat.log 2 G.1) := Nat.mul_le_mul_left G.1 hclog
       _ ≤ 2 * (G.1 * Nat.log 2 G.1) + 2 := by rw [Nat.mul_left_comm]; omega
 
-/-- **$2n \log_2(2n)$-parameterized variant of the Lokshtanov–Marx–Saurabh ETH lower bound**
-[LokshtanovMarxSaurabh2018, Theorem 2.11]: under `ETH`, `BipartitePermutationIndependentSet` is not
-decidable in time $2^{o(k \log k)}$ where $k = 2n$. -/
-theorem ETH.not_decidableInSubexpTime_BipartitePermutationIndependentSet_two_mul (h : ETH) :
-    ¬DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
-      fun G => (2 * G.1) * Nat.log 2 (2 * G.1) := by
-  intro hsub
-  refine h.not_decidableInSubexpTime_BipartitePermutationIndependentSet ?_
-  refine hsub.mono_measure (c := 4) fun G => ?_
+/-- **$2n \log_2(2n)$-parameterized variant of the Lokshtanov–Marx–Saurabh subexponential-time
+transfer** [LokshtanovMarxSaurabh2018, Theorem 2.11]: deciding `BipartitePermutationIndependentSet`
+in time $2^{o(k \log k)}$ where $k = 2n$ decides `ThreeSAT` in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_BipartitePermutationIndependentSet_two_mul
+    (h : DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
+      fun G => (2 * G.1) * Nat.log 2 (2 * G.1)) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length := by
+  refine (h.mono_measure (c := 4) fun G => ?_).threeSAT_of_BipartitePermutationIndependentSet
   rcases le_or_gt G.1 1 with hG | hG
   · interval_cases G.1 <;> decide
   · have hlog : Nat.log 2 (2 * G.1) ≤ 2 * Nat.log 2 G.1 := by

@@ -80,10 +80,10 @@ subexponential time $2^{o(m \log m)} = N^{o(\log \log N)}$ (`¬DecidableInSubexp
      \iff \mathrm{ilangoInstance}\, G \in \mathrm{PartialMCSP.BinaryGate}
      \iff \mathrm{ilangoInstance}\, G \in \mathrm{PartialMCSP.MonotoneReadOnce}.$$
 
-**The hypothesis is refuted.** `Cslib.Complexity.CountingNativeEndpoint.not_ETH` proves that `ETH`
-is false, so the `ETH`-conditional lower bounds of this module hold vacuously. They are kept as
-conditional statements, as is the Partial MCSP catalogue entry; the reduction and the equivalences
-above are unconditional.
+Because `Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes `ETH` in this library's native
+machine model, we state Ilango's $2^{o(m \log m)} = N^{o(\log \log N)}$ reduction endpoints
+directly as unconditional subexponential-time transfers to `ThreeSAT` rather than vacuous
+`ETH → ¬DecidableInSubexpTime …` implications.
 
 ## Main definitions
 
@@ -101,18 +101,17 @@ above are unconditional.
 * `Cslib.PartialMCSP.mem_BipartitePermutationIndependentSet_iff_ilangoInstance_mem`: correctness of
   `ilangoInstance` for $2 \le G.1$ across `PartialMCSP`, `PartialMCSP.BinaryGate`, and
   `PartialMCSP.MonotoneReadOnce` [ECCC TR20-183, Section 3, Theorem 11, p. 20, proof pp. 21–24].
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_encBinary`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate_encBinary`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_monotoneReadOnce`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_monotoneReadOnce_encBinary`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_tableSize`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_PartialMCSP_tableSize_encBinary`: Ilango's FOCS
-  2020 Theorem I.3 / ECCC TR20-183 Section 1.2.2 Theorem 3 (under `ETH`, `PartialMCSP` and its
-  binary-gate and monotone-read-once variants reject the subexponential decider family
-  `DecidableInSubexpTime` at $m \log_2 m = \log_2 N \cdot \log_2 \log_2 N$, i.e., are not decidable
-  in time $2^{o(m \log m)} = N^{o(\log \log N)}$).
+* `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_encBinary`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_binaryGate`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_binaryGate_encBinary`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_monotoneReadOnce`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_monotoneReadOnce_encBinary`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_tableSize`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_PartialMCSP_tableSize_encBinary`: Ilango's
+  FOCS 2020 Theorem I.3 / ECCC TR20-183 Section 1.2.2 Theorem 3 subexponential-time transfers from
+  $2^{o(m \log m)} = N^{o(\log \log N)}$ deciders for `PartialMCSP` (and its binary-gate and
+  monotone-read-once variants) to subexponential-time `ThreeSAT`.
 
 ## References
 
@@ -1899,90 +1898,98 @@ namespace Complexity
 
 open PartialMCSP Turing.MultiTapeTM
 
-/-- **Ilango's ETH Lower Bound for `PartialMCSP` (unary threshold encoding)**
+/-- **Ilango's subexponential-time transfer for `PartialMCSP` (unary threshold encoding)**
 [Ilango2020FOCS, Theorem I.3, pp. 424, 427–428; ECCC TR20-183, Section 1.2.2, Theorem 3, p. 6, and
-Section 3, Theorem 11, pp. 20–21]: under `ETH`, `PartialMCSP` on $m$-variable partial Boolean
-functions cannot be decided in time $2^{o(m \log m)} = N^{o(\log \log N)}$ (where $N = 2^m$ is the
-truth-table size). -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP PartialMCSP.enc
-      fun I => I.arity * Nat.log 2 I.arity :=
-  fun hsub => h.not_decidableInSubexpTime_BipartitePermutationIndependentSet
-    (decidableInSubexpTime_bpis_of_ilangoReduction
-      mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem hsub)
+Section 3, Theorem 11, pp. 20–21]: deciding `PartialMCSP` on $m$-variable partial Boolean functions
+in time $2^{o(m \log m)} = N^{o(\log \log N)}$ (where $N = 2^m$ is the truth-table size) decides
+`ThreeSAT` in subexponential time in clause count `List.length`. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP
+    (hsub : DecidableInSubexpTime PartialMCSP PartialMCSP.enc
+      fun I => I.arity * Nat.log 2 I.arity) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (decidableInSubexpTime_bpis_of_ilangoReduction
+    mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem
+    hsub).threeSAT_of_BipartitePermutationIndependentSet
 
-/-- **Ilango's ETH Lower Bound for `PartialMCSP` (binary threshold encoding)**
+/-- **Ilango's subexponential-time transfer for `PartialMCSP` (binary threshold encoding)**
 [Ilango2020FOCS, Theorem I.3, pp. 424, 427–428; ECCC TR20-183, Section 1.2.2, Theorem 3, p. 6, and
-Section 3, Theorem 11, pp. 20–21]: under `ETH`, `PartialMCSP` on $m$-variable partial Boolean
-functions cannot be decided in time $2^{o(m \log m)} = N^{o(\log \log N)}$ under binary threshold
-encoding. -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP_encBinary (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP PartialMCSP.encBinary
-      fun I => I.arity * Nat.log 2 I.arity :=
-  fun hsub => h.not_decidableInSubexpTime_PartialMCSP (decidableInSubexpTime_of_encBinary hsub)
+Section 3, Theorem 11, pp. 20–21]: deciding `PartialMCSP` on $m$-variable partial Boolean functions
+in time $2^{o(m \log m)} = N^{o(\log \log N)}$ under binary threshold encoding decides `ThreeSAT`
+in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP_encBinary
+    (hsub : DecidableInSubexpTime PartialMCSP PartialMCSP.encBinary
+      fun I => I.arity * Nat.log 2 I.arity) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (decidableInSubexpTime_of_encBinary hsub).threeSAT_of_PartialMCSP
 
-/-- **Ilango's ETH Lower Bound for `PartialMCSP.BinaryGate` (unary threshold encoding)**
-[Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183, Section 3, Theorem 11, pp. 20–21]: under
-`ETH`, `PartialMCSP.BinaryGate` (circuit size measured by binary AND/OR gates) cannot be decided in
-time $2^{o(m \log m)} = N^{o(\log \log N)}$. -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP.BinaryGate PartialMCSP.enc
-      fun I => I.arity * Nat.log 2 I.arity :=
-  fun hsub => h.not_decidableInSubexpTime_BipartitePermutationIndependentSet
-    (decidableInSubexpTime_bpis_of_ilangoReduction
-      mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_binaryGate hsub)
+/-- **Ilango's subexponential-time transfer for `PartialMCSP.BinaryGate` (unary threshold
+encoding)** [Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183, Section 3, Theorem 11,
+pp. 20–21]: deciding `PartialMCSP.BinaryGate` (circuit size measured by binary AND/OR gates) in
+time $2^{o(m \log m)} = N^{o(\log \log N)}$ decides `ThreeSAT` in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP_binaryGate
+    (hsub : DecidableInSubexpTime PartialMCSP.BinaryGate PartialMCSP.enc
+      fun I => I.arity * Nat.log 2 I.arity) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (decidableInSubexpTime_bpis_of_ilangoReduction
+    mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_binaryGate
+    hsub).threeSAT_of_BipartitePermutationIndependentSet
 
-/-- **Ilango's ETH Lower Bound for `PartialMCSP.BinaryGate` (binary threshold encoding)**
-[Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183, Section 3, Theorem 11, pp. 20–21]: under
-`ETH`, `PartialMCSP.BinaryGate` cannot be decided in time $2^{o(m \log m)} = N^{o(\log \log N)}$
-under binary threshold encoding. -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP_binaryGate_encBinary (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP.BinaryGate PartialMCSP.encBinary
-      fun I => I.arity * Nat.log 2 I.arity :=
-  fun hsub =>
-    h.not_decidableInSubexpTime_PartialMCSP_binaryGate (decidableInSubexpTime_of_encBinary hsub)
+/-- **Ilango's subexponential-time transfer for `PartialMCSP.BinaryGate` (binary threshold
+encoding)** [Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183, Section 3, Theorem 11,
+pp. 20–21]: deciding `PartialMCSP.BinaryGate` in time $2^{o(m \log m)} = N^{o(\log \log N)}$ under
+binary threshold encoding decides `ThreeSAT` in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP_binaryGate_encBinary
+    (hsub : DecidableInSubexpTime PartialMCSP.BinaryGate PartialMCSP.encBinary
+      fun I => I.arity * Nat.log 2 I.arity) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (decidableInSubexpTime_of_encBinary hsub).threeSAT_of_PartialMCSP_binaryGate
 
-/-- **Ilango's ETH Lower Bound for `PartialMCSP.MonotoneReadOnce` (unary threshold encoding)**
-[Ilango2020FOCS, Section III.B, p. 428; ECCC TR20-183, Section 3, Theorem 11, pp. 20–21]: under
-`ETH`, even deciding whether a partial Boolean function has a monotone read-once formula of size at
-most `threshold` cannot be done in time $2^{o(m \log m)} = N^{o(\log \log N)}$. -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP_monotoneReadOnce (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP.MonotoneReadOnce PartialMCSP.enc
-      fun I => I.arity * Nat.log 2 I.arity :=
-  fun hsub => h.not_decidableInSubexpTime_BipartitePermutationIndependentSet
-    (decidableInSubexpTime_bpis_of_ilangoReduction
-      mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_monotoneReadOnce hsub)
+/-- **Ilango's subexponential-time transfer for `PartialMCSP.MonotoneReadOnce` (unary threshold
+encoding)** [Ilango2020FOCS, Section III.B, p. 428; ECCC TR20-183, Section 3, Theorem 11,
+pp. 20–21]: deciding `PartialMCSP.MonotoneReadOnce` in time
+$2^{o(m \log m)} = N^{o(\log \log N)}$ decides `ThreeSAT` in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP_monotoneReadOnce
+    (hsub : DecidableInSubexpTime PartialMCSP.MonotoneReadOnce PartialMCSP.enc
+      fun I => I.arity * Nat.log 2 I.arity) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (decidableInSubexpTime_bpis_of_ilangoReduction
+    mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_monotoneReadOnce
+    hsub).threeSAT_of_BipartitePermutationIndependentSet
 
-/-- **Ilango's ETH Lower Bound for `PartialMCSP.MonotoneReadOnce` (binary threshold encoding)**
-[Ilango2020FOCS, Section III.B, p. 428; ECCC TR20-183, Section 3, Theorem 11, pp. 20–21]: under
-`ETH`, `PartialMCSP.MonotoneReadOnce` cannot be decided in time
-$2^{o(m \log m)} = N^{o(\log \log N)}$ under binary threshold encoding. -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP_monotoneReadOnce_encBinary (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP.MonotoneReadOnce PartialMCSP.encBinary
-      fun I => I.arity * Nat.log 2 I.arity :=
-  fun hsub =>
-    h.not_decidableInSubexpTime_PartialMCSP_monotoneReadOnce
-      (decidableInSubexpTime_of_encBinary hsub)
+/-- **Ilango's subexponential-time transfer for `PartialMCSP.MonotoneReadOnce` (binary threshold
+encoding)** [Ilango2020FOCS, Section III.B, p. 428; ECCC TR20-183, Section 3, Theorem 11,
+pp. 20–21]: deciding `PartialMCSP.MonotoneReadOnce` in time
+$2^{o(m \log m)} = N^{o(\log \log N)}$ under binary threshold encoding decides `ThreeSAT` in
+subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP_monotoneReadOnce_encBinary
+    (hsub : DecidableInSubexpTime PartialMCSP.MonotoneReadOnce PartialMCSP.encBinary
+      fun I => I.arity * Nat.log 2 I.arity) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (decidableInSubexpTime_of_encBinary hsub).threeSAT_of_PartialMCSP_monotoneReadOnce
 
-/-- **Truth-table-size ($N = 2^m$) formulation of Ilango's ETH Lower Bound for `PartialMCSP`**
-[Ilango2020FOCS, Theorem I.3, p. 424; ECCC TR20-183, Section 1.2.2, Theorem 3, p. 6]: under `ETH`,
-`PartialMCSP` on partial truth tables of size $N = I.\text{tableSize} = 2^m$ is not decidable in
-time $N^{o(\log \log N)} = 2^{o(\log_2 N \cdot \log_2 \log_2 N)}$. -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP_tableSize (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP PartialMCSP.enc
-      fun I => Nat.log 2 I.tableSize * Nat.log 2 (Nat.log 2 I.tableSize) := by
-  simpa only [Instance.log_tableSize] using h.not_decidableInSubexpTime_PartialMCSP
+/-- **Truth-table-size ($N = 2^m$) formulation of Ilango's subexponential-time transfer for
+`PartialMCSP`** [Ilango2020FOCS, Theorem I.3, p. 424; ECCC TR20-183, Section 1.2.2, Theorem 3,
+p. 6]: deciding `PartialMCSP` on partial truth tables of size $N = I.\text{tableSize} = 2^m$ in
+time $N^{o(\log \log N)} = 2^{o(\log_2 N \cdot \log_2 \log_2 N)}$ decides `ThreeSAT` in
+subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP_tableSize
+    (hsub : DecidableInSubexpTime PartialMCSP PartialMCSP.enc
+      fun I => Nat.log 2 I.tableSize * Nat.log 2 (Nat.log 2 I.tableSize)) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length := by
+  rw [show (fun I : Instance => Nat.log 2 I.tableSize * Nat.log 2 (Nat.log 2 I.tableSize)) =
+    fun I => I.arity * Nat.log 2 I.arity by funext I; simp [Instance.log_tableSize]] at hsub
+  exact hsub.threeSAT_of_PartialMCSP
 
-/-- **Truth-table-size ($N = 2^m$) formulation of Ilango's ETH Lower Bound for `PartialMCSP`
-(binary threshold encoding)** [Ilango2020FOCS, Theorem I.3, p. 424; ECCC TR20-183, Section 1.2.2,
-Theorem 3, p. 6]: under `ETH`, `PartialMCSP` on partial truth tables of size
-$N = I.\text{tableSize} = 2^m$ is not decidable in time
-$N^{o(\log \log N)} = 2^{o(\log_2 N \cdot \log_2 \log_2 N)}$ under binary threshold encoding. -/
-theorem ETH.not_decidableInSubexpTime_PartialMCSP_tableSize_encBinary (h : ETH) :
-    ¬DecidableInSubexpTime PartialMCSP PartialMCSP.encBinary
-      fun I => Nat.log 2 I.tableSize * Nat.log 2 (Nat.log 2 I.tableSize) :=
-  fun hsub =>
-    h.not_decidableInSubexpTime_PartialMCSP_tableSize (decidableInSubexpTime_of_encBinary hsub)
+/-- **Truth-table-size ($N = 2^m$) formulation of Ilango's subexponential-time transfer for
+`PartialMCSP` (binary threshold encoding)** [Ilango2020FOCS, Theorem I.3, p. 424; ECCC TR20-183,
+Section 1.2.2, Theorem 3, p. 6]: deciding `PartialMCSP` on partial truth tables of size
+$N = I.\text{tableSize} = 2^m$ in time $N^{o(\log \log N)} = 2^{o(\log_2 N \cdot \log_2 \log_2 N)}$
+under binary threshold encoding decides `ThreeSAT` in subexponential time. -/
+theorem DecidableInSubexpTime.threeSAT_of_PartialMCSP_tableSize_encBinary
+    (hsub : DecidableInSubexpTime PartialMCSP PartialMCSP.encBinary
+      fun I => Nat.log 2 I.tableSize * Nat.log 2 (Nat.log 2 I.tableSize)) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (decidableInSubexpTime_of_encBinary hsub).threeSAT_of_PartialMCSP_tableSize
 
 end Complexity
 end Cslib

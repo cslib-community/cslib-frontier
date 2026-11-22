@@ -27,7 +27,7 @@ import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# Clause-Grouping Reduction from 3-SAT to Clique and ETH Lower Bounds
+# Clause-Grouping Reduction from 3-SAT to Parameterized Clique
 
 This file formalizes the clause-grouping reduction from `ThreeSAT` to `Clique` of Cygan et al.,
 *Parameterized Algorithms* (2016-05-30 companion PDF,
@@ -48,8 +48,11 @@ assignments in distinct blocks) such that `⟨G, r⟩ ∈ Clique ↔ φ ∈ Thre
 Uniformity of the padded polynomial-time reduction over `(r, φ)` gives an
 `O(2 ^ (O(m / r)) * poly)` construction whose polynomial exponent `D` is independent of `r`.
 Choosing `r` sufficiently large transfers any `f(k) * |V| ^ o(k) * poly(|enc|)` or
-`f(k) * |enc| ^ o(k)` algorithm for `Clique` to a subexponential-time algorithm for `ThreeSAT`
-parameterized by `φ.length`, contradicting `ETH` (and in particular showing `Clique ∉ FPT`).
+`f(k) * |enc| ^ o(k)` algorithm—and in particular any `FPT` algorithm—for `Clique` unconditionally
+to a subexponential-time algorithm for `ThreeSAT` parameterized by `φ.length`. Because
+`CountingNativeEndpoint.not_ETH` refutes `ETH` in this library's native machine model, we state
+these results directly as unconditional subexponential-time transfers rather than vacuous
+`ETH → ¬…` implications.
 
 ## Main definitions
 
@@ -64,12 +67,10 @@ parameterized by `φ.length`, contradicting `ETH` (and in particular showing `Cl
 * `Cslib.Complexity.SAT.exists_computableInO_groupClique`: uniform runtime/size bound in
   `(r, φ)` via `ComputableInPolyTime.exists_computableInO_pad`.
 * `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`,
-  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpEnc`: unconditional transfers to
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpEnc`,
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_mem_FPT`: unconditional transfers from
+  `f(k) * |V| ^ o(k) * poly`, `f(k) * |enc| ^ o(k)`, and `FPT` algorithms for `Clique` to
   subexponential `ThreeSAT` algorithms.
-* `Cslib.Complexity.ETH.not_clique_subexpVertex`,
-  `Cslib.Complexity.ETH.not_clique_subexpEnc`, `Cslib.Complexity.ETH.clique_not_mem_FPT`:
-  `ETH`-conditional lower bounds ruling out `f(k) * n ^ o(k) * poly` and `FPT` algorithms for
-  `Clique`.
 
 ## References
 
@@ -898,37 +899,15 @@ theorem DecidableInSubexpTime.threeSAT_of_clique_subexpVertex
         exact le_abs_self _
       _ ≤ _ := le_add_of_nonneg_right zero_le_one
 
-/-- Under `ETH`, `Clique` cannot be decided in `f(k) * |V| ^ o(k) * poly(|enc|)` time. -/
-theorem ETH.not_clique_subexpVertex (hETH : ETH)
-    (f g : ℕ → ℝ) (e : ℕ)
-    (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k) :
-    ¬DecidableInTimeO Clique encCliqueInstance
-      (fun x =>
-        let graph := x.graph
-        let verts := graph.vertices
-        f x.m * ((verts.length : ℝ) + 1) ^ g x.m *
-          (((encCliqueInstance x).length : ℝ) + 1) ^ e) := by
-  intro hClique
-  exact (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
-    (DecidableInSubexpTime.threeSAT_of_clique_subexpVertex f g e hg hClique)
-
-/-- Under `ETH`, `Clique` cannot be decided in `f(k) * |enc| ^ o(k)` time. -/
-theorem ETH.not_clique_subexpEnc (hETH : ETH)
-    (f g : ℕ → ℝ)
-    (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k) :
-    ¬DecidableInTimeO Clique encCliqueInstance
-      (fun x => f x.m * (((encCliqueInstance x).length : ℝ) + 1) ^ g x.m) := by
-  intro hClique
-  exact (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
-    (DecidableInSubexpTime.threeSAT_of_clique_subexpEnc f g hg hClique)
-
-/-- Under `ETH`, parameterized `Clique` is not fixed-parameter tractable (`Clique ∉ FPT`). -/
-theorem ETH.clique_not_mem_FPT (hETH : ETH) :
-    Clique ∉ FPT encCliqueInstance CliqueInstance.m := by
-  rw [mem_FPT]
-  rintro ⟨f, c, hFPT⟩
-  refine hETH.not_clique_subexpVertex (fun k => (f k : ℝ)) (fun _ => 0) c
+/-- Any fixed-parameter tractable (`FPT`) algorithm for parameterized `Clique` yields a
+subexponential-time algorithm for `ThreeSAT` parameterized by clause count `List.length`. -/
+theorem DecidableInSubexpTime.threeSAT_of_clique_mem_FPT
+    (hFPT : Clique ∈ FPT encCliqueInstance CliqueInstance.m) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length := by
+  rw [mem_FPT] at hFPT
+  obtain ⟨f, c, hClique⟩ := hFPT
+  refine threeSAT_of_clique_subexpVertex (fun k => (f k : ℝ)) (fun _ => 0) c
     (fun ε hε => ⟨0, fun k _ => by positivity⟩) ?_
-  simpa using hFPT
+  simpa using hClique
 
 end Cslib.Complexity

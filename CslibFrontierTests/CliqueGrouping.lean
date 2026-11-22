@@ -21,8 +21,9 @@ Kernel-checked tests (with no `native_decide`) exercising `Cslib.Complexity.SAT.
 3. Boundary inputs (`[]`, `[[]]`, a width-4 clause `non3CNF`, and `r = 0`), verifying
    `groupClique_snd`, `length_groupClique_vertices_le`, and `groupClique_mem_Clique_iff`.
 4. Non-vacuous type signatures of `exists_computableInO_groupClique`,
-   `DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`, `ETH.not_clique_subexpVertex`,
-   `ETH.not_clique_subexpEnc`, and `ETH.clique_not_mem_FPT`.
+   `DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`,
+   `DecidableInSubexpTime.threeSAT_of_clique_subexpEnc`, and
+   `DecidableInSubexpTime.threeSAT_of_clique_mem_FPT`.
 -/
 
 public section
@@ -80,19 +81,20 @@ example : SAT.groupClique 2 non3CNF ∉ Clique := by
 
 example : SAT.groupClique 0 sat2 = ⟨⟨[], []⟩, 1⟩ := by decide
 
-/-- Non-vacuity typecheck of the ETH lower-bound and `FPT` theorems. -/
-example (hETH : ETH) : Clique ∉ FPT encCliqueInstance
-    CliqueInstance.m :=
-  ETH.clique_not_mem_FPT hETH
+/-- Typecheck of the unconditional subexponential and `FPT` transfer theorems. -/
+example (hFPT : Clique ∈ FPT encCliqueInstance CliqueInstance.m) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  DecidableInSubexpTime.threeSAT_of_clique_mem_FPT hFPT
 
-example (hETH : ETH) :
-    ¬DecidableInTimeO Clique encCliqueInstance
+example
+    (hClique : DecidableInTimeO Clique encCliqueInstance
       (fun x =>
         let graph := x.graph
         let verts := graph.vertices
-        ((verts.length : ℝ) + 1) ^ (0 : ℝ)) := by
-  have h := ETH.not_clique_subexpVertex hETH (fun _ => 1) (fun _ => 0) 0
-    (fun ε hε => ⟨0, fun k _ => by positivity⟩)
-  simpa using h
+        ((verts.length : ℝ) + 1) ^ (0 : ℝ))) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length := by
+  refine DecidableInSubexpTime.threeSAT_of_clique_subexpVertex (fun _ => 1) (fun _ => 0) 0
+    (fun ε hε => ⟨0, fun k _ => by positivity⟩) ?_
+  simpa using hClique
 
 end Cslib.Complexity.Tests.CliqueGrouping

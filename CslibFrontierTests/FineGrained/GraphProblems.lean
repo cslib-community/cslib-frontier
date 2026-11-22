@@ -127,16 +127,15 @@ example : DecidableInSubexpTime (∅ : Set Graph) encGraph fun G =>
     simp only [Nat.cast_one, pow_one, one_mul]
     nlinarith
 
-/-- Under `ETH`, clique is not decidable in time `2 ^ o(n)` for `n` distinct vertices either, and
-3SAT is not decidable in subexponential time in the number of clauses. -/
-example (h : ETH) :
-    ¬DecidableInSubexpTime Clique encCliqueInstance (fun x => x.graph.vertices.toFinset.card) ∧
-    ¬DecidableInSubexpTime ThreeSAT encCNF List.length :=
-  ⟨fun h' => h.not_decidableInSubexpTime_Clique (h'.mono_measure (c := 1) fun x => by
+/-- Subexponential clique deciders in the number of distinct vertices transfer unconditionally to
+subexponential `ThreeSAT` deciders in the number of clauses. -/
+example
+    (hClique : DecidableInSubexpTime Clique encCliqueInstance
+      (fun x => x.graph.vertices.toFinset.card)) :
+    DecidableInSubexpTime ThreeSAT encCNF List.length :=
+  (hClique.mono_measure (c := 1) fun x => by
     have := x.graph.vertices.toFinset_card_le
-    omega),
-   h.not_decidableInSubexpTime_of_reduction (f := id) ComputableInPolyTime.id'
-    (fun φ hφ => ⟨fun h => h.2, fun h' => ⟨hφ, h'⟩⟩) (k := 1) fun φ _ => by simp⟩
+    omega).threeSAT_of_Clique
 
 /-! ### Axioms -/
 
