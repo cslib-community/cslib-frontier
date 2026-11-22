@@ -211,10 +211,10 @@ theorem sum_levelWeight_Ioc (f : (ι → Bool) → ℝ) (t : ℕ) :
 coefficients at `i` and `j` agree. -/
 theorem fourierCoeff_singleton_eq_of_comp_swap {f : (ι → Bool) → ℝ} {i j : ι}
     (hf : ∀ x, f (x ∘ Equiv.swap i j) = f x) : fourierCoeff f {i} = fourierCoeff f {j} := by
-  simp only [fourierCoeff, chi_singleton]
-  refine Fintype.expect_equiv ((Equiv.swap i j).arrowCongr (Equiv.refl Bool)) _ _ fun x => ?_
-  change _ = f (x ∘ Equiv.swap i j) * signVal (x (Equiv.swap i j j))
-  rw [hf, Equiv.swap_apply_right]
+  have h := fourierCoeff_comp_arrowCongr (Equiv.swap i j) f {i}
+  rw [Equiv.symm_swap, map_singleton, Equiv.coe_toEmbedding, Equiv.swap_apply_left] at h
+  rw [← h]
+  exact congrArg (fourierCoeff · {i}) (funext fun x => (hf x).symm)
 
 /-- **Degree-one weight of a symmetric function.** If `f` is invariant under permutations of the
 coordinates, all its degree-one coefficients are equal, so
