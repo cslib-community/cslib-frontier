@@ -480,7 +480,8 @@ scope, findings and their resolution, and any remaining limitations. Preserve en
 there for another contributor to assess the change; a path into a local `.lake/` directory is not
 a durable review record. Recheck changes made after review and identify the final reviewed revision.
 Link the hosted CI run for the final revision rather than asserting which checks passed. Keep review
-verdicts short: the revision, the verdict and the findings, linking evidence rather than pasting it.
+verdicts short. When several reviewers contribute, the reviewer responsible for the whole PR
+links the resolutions of blocking findings under [Approve and queue](policy/review.md#approve-and-queue).
 For descriptions with Lean declaration names, `python3 scripts/check_pr_names.py --pr N` can
 catch backticked names absent from the PR head. CI posts the same advisory notice; fix relevant
 findings without requiring a duplicate local run.

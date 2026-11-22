@@ -36,6 +36,8 @@ Delete if none. -->
 ## Validation
 
 <!-- Give checks and outcomes, or link existing CI/review evidence. State material limitations.
+When returning a fix, reply in the existing discussion with the revision and the affected check.
+For a disputed claim, prefer an example that distinguishes the intended behavior from the alternative.
 For library changes, link the duplication notices for the reviewed revision and record resolutions
 of relevant candidates (or link the existing explanation), including skipped/incomplete coverage.
 For changes to procedure or registry pages, include the relevant excerpt/link checks and Lean

@@ -53,8 +53,10 @@ take on long program work in the same session.
 Use issues for substantial tasks, dependencies and remaining objectives; a small fix may use its
 PR as the durable task record. Search existing issues and PRs before creating a duplicate.
 Record smaller delegated subtasks in the parent task. Split work into independently useful,
-reviewable changes; batch closely related mechanical fixes when they share a contract and
-validation. Do not create a separate issue or PR for each incidental cleanup.
+reviewable changes. Choose a boundary where a reviewer can decide one useful claim and check
+its use. Keep a correction with its dependent change when landing either alone would publish a
+misleading intermediate result. Batch closely related mechanical fixes when they share a
+contract and validation. Keep incidental cleanup in its parent task.
 
 ### Completion and scope
 
@@ -106,15 +108,20 @@ documentation progress.
    ownership, that direction controls for that session. Whoever takes over preserves the earlier work and its
    credit, builds on it where it is sound, and says what was carried over. A returning owner
    rebases onto the result and raises anything it lost.
-4. Implement, self-review and validate. Explain the change in the docstring's mapping from
+4. Implement, self-review and validate. When two plausible readings of a claim differ, try
+   an input, client or resource bound that distinguishes them before requesting review.
+   Explain the change in the docstring's mapping from
    statement to source and in the PR description, not in the manual's reference chapters. Update
    a procedure page or registry when the change alters what it says
    ([Maintaining the manuals](../CONTRIBUTING.md#maintaining-the-manuals)).
 5. Open a PR with validation and limitations; link its issue when there is one and request
    coordinator review. Record the handoff once. Awaiting review is not abandoned work. Keep
    linked issues open until integration or an explicit disposition.
-6. Address requested changes on open PRs before starting more work. Request review of the delta
-   after fixes; release work explicitly if unavailable. Do not approve or merge your own PR.
+6. Address requested changes before starting more work. In the existing PR discussion, identify
+   the revised head, what answers the finding, and the affected check or client. Link a focused
+   local or hosted result when available. If validation is blocked, say what remains and who
+   will follow it up. Ask for review of the affected reasoning. Release work explicitly if
+   unavailable. Authors do not approve or merge their own PRs.
 
 Plain comments such as `active`, `blocked`, `available`, `awaiting review` and `changes requested`
 are sufficient; no custom labels or recurring heartbeat comments are required.
