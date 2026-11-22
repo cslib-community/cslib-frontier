@@ -68,6 +68,10 @@ theorem sampleRegHistory_complete :
        .resp true () (.readRet 7)] := by
   decide
 
+theorem sampleRegHistory_complete_wellFormed :
+    History.WellFormed (History.complete sampleRegHistory) :=
+  History.complete_wellFormed sampleRegHistory_wellFormed
+
 /-- Overlapping operations `⟨false, 0⟩` and `⟨true, 0⟩` in `sampleRegHistory` are incomparable under
 real-time precedence `History.prec`. -/
 theorem sampleRegHistory_overlapping_incomparable :

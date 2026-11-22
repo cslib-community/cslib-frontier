@@ -15,8 +15,8 @@ import Mathlib.Data.Fintype.Pigeonhole
 # The Non-Blocking Progress Hierarchy: Wait-Freedom, Lock-Freedom, and Obstruction-Freedom
 
 This module formalizes the three classical non-blocking progress conditions for asynchronous
-shared-memory concurrent object implementations over processes `P` ([Herlihy1991], §2, p. 127;
-[HerlihyLuchangcoMoir2003], §1, pp. 1–2; [MoirShavit2007], §1.1.3, pp. 1-5–1-6):
+shared-memory concurrent object implementations over processes `P` ([Herlihy1991], §§2.2–2.3,
+pp. 128–129; [HerlihyLuchangcoMoir2003], §1, pp. 1–2; [MoirShavit2007], §1.1.3, pp. 1-5–1-6):
 
 * **Wait-freedom** (`ProgressSystem.IsWaitFree`): in every infinite execution starting from a
   reachable state, any process `p` with a pending operation that takes infinitely many
@@ -29,16 +29,21 @@ shared-memory concurrent object implementations over processes `P` ([Herlihy1991
   isolation (`soloIter`).
 
 Unlike `Cslib.Distributed.SharedMemory.Protocol` (which models one-shot consensus where each
-process decides once and halts), `ProgressSystem` separates new operation invocations by idle
-processes (`Invoke`) from multi-step implementation transitions of active processes (`step`),
-capturing long-lived concurrent objects where fast processes may repeatedly invoke and complete new
-operations while a slow process retries.
+process decides once and halts), `ProgressSystem` separates relational new-operation invocations by
+idle processes (`Invoke`) from a **deterministic, always-enabled** per-process implementation step
+(`step : State → P → State × Bool`), capturing long-lived concurrent objects where fast processes
+may repeatedly invoke and complete new operations while a slow process retries. Because active
+implementation steps cannot be passively disabled, passive conditional or lock waiting is modeled as
+spin-waiting (`.exec p false`): consequently, [Herlihy1991] §2.3 (p. 129)'s non-blocking Condition
+(2) follows from Condition (1) via `IsWaitFree.isObstructionFree`, and `IsObstructionFree` inspects
+the unique solo trajectory `soloIter` rather than quantifying over nondeterministic solo runs.
 
 ## Main definitions
 
 * `Cslib.Distributed.ConcurrentObjects.StepLabel`: transition label (`invoke` or `exec`).
 * `Cslib.Distributed.ConcurrentObjects.ProgressSystem`: asynchronous concurrent-object transition
-  system with per-process pending operations, integrated with `Cslib.LTS`.
+  system with relational invocations and deterministic per-process implementation steps over
+  `Cslib.LTS`.
 * `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsWaitFree`,
   `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsLockFree`,
   `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsObstructionFree`: the three non-blocking
@@ -53,11 +58,13 @@ operations while a slow process retries.
 
 ## Main results
 
-* `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsWaitFree.isLockFree`: wait-freedom implies
-  lock-freedom over `[Finite P]`.
+* `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsWaitFree.isLockFree`: in a deterministic
+  `ProgressSystem` over `[Finite P]`, wait-freedom implies lock-freedom (after [MoirShavit2007],
+  §1.1.3, p. 1-5).
 * `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsLockFree.isObstructionFree`,
-  `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsWaitFree.isObstructionFree`: lock-freedom
-  and wait-freedom imply obstruction-freedom (for arbitrary `P`, without finiteness).
+  `Cslib.Distributed.ConcurrentObjects.ProgressSystem.IsWaitFree.isObstructionFree`: in a
+  deterministic `ProgressSystem`, lock-freedom and wait-freedom imply obstruction-freedom (for
+  arbitrary `P`, without finiteness).
 * `Cslib.Distributed.ConcurrentObjects.ProgressSystem.isLockFree_of_bounded_shared_changes`:
   original reusable lock-freedom criterion for optimistic `CAS` implementations (shared by
   `casCounterSystem` and `TreiberStack`).
@@ -147,22 +154,16 @@ theorem isExec_of_isCompleted {lbl : StepLabel P} (h : lbl.isCompleted = true) :
   | invoke _ => exact Bool.noConfusion h
   | exec _ _ => rfl
 
-theorem eq_exec_true_of_isCompleted {lbl : StepLabel P} (h : lbl.isCompleted = true) :
-    lbl = .exec lbl.proc true := by
-  cases lbl with
-  | invoke _ => exact Bool.noConfusion h
-  | exec p done =>
-    simp only [isCompleted_exec] at h
-    subst h
-    rfl
-
 end StepLabel
 
 universe u
 
 /-- Operational transition system of a concurrent shared-memory object implementation over
-processes `P` with per-process pending operations ([Herlihy1991], §2, p. 127;
-[HerlihyLuchangcoMoir2003], §1, pp. 1–2; [MoirShavit2007], §1.1.3, pp. 1-5–1-6). -/
+processes `P` with per-process pending operations ([Herlihy1991], §§2.2–2.3, pp. 128–129;
+[HerlihyLuchangcoMoir2003], §1, pp. 1–2; [MoirShavit2007], §1.1.3, pp. 1-5–1-6). Invocations
+`Invoke` are relational, whereas `step : State → P → State × Bool` is deterministic and always
+enabled whenever `Active s p` holds (modeling passive lock or conditional waiting via non-completing
+spin steps `.exec p false`, so each active process has a unique `soloIter` trajectory). -/
 structure ProgressSystem (P : Type u) where
   /-- Global configuration (shared memory together with per-process local execution phases). -/
   State : Type u
@@ -255,7 +256,7 @@ theorem soloIter_succ (sys : ProgressSystem P) (s : sys.State) (p : P) (k : ℕ)
     sys.soloIter s p (k + 1) = (sys.step (sys.soloIter s p k) p).1 :=
   rfl
 
-/-- **Wait-freedom** ([Herlihy1991], §2, p. 127; [MoirShavit2007], §1.1.3, p. 1-5): in every
+/-- **Wait-freedom** ([Herlihy1991], §2.3, p. 129; [MoirShavit2007], §1.1.3, p. 1-5): in every
 infinite execution from a reachable state, if process `p` has a pending operation at index `t₀` and
 takes infinitely many implementation steps at or after `t₀`, then `p` completes its pending
 operation at some index `n ≥ t₀`. -/
@@ -423,10 +424,10 @@ theorem InfiniteExec.infinitely_many_isExec [Finite P] {sys : ProgressSystem P}
 
 /-! ### The Non-Blocking Progress Hierarchy (`IsWaitFree → IsLockFree → IsObstructionFree`) -/
 
-/-- **Wait-freedom implies lock-freedom** over finitely many processes (`[Finite P]`,
-[MoirShavit2007], §1.1.3, p. 1-5): in any infinite execution taking infinitely many implementation
-steps, some process steps infinitely often by infinite pigeonhole (`Finite.exists_infinite_fiber`)
-and therefore completes infinitely often. -/
+/-- In a deterministic `ProgressSystem` over finitely many processes (`[Finite P]`), wait-freedom
+implies lock-freedom (after [MoirShavit2007], §1.1.3, p. 1-5): in any infinite execution taking
+infinitely many implementation steps, some process steps infinitely often by infinite pigeonhole
+(`Finite.exists_infinite_fiber`) and therefore completes infinitely often. -/
 theorem IsWaitFree.isLockFree [Finite P] {sys : ProgressSystem P} (hwf : sys.IsWaitFree) :
     sys.IsLockFree := by
   intro exec hexec M
@@ -504,10 +505,11 @@ private def nonCompletingSoloExec {sys : ProgressSystem P} {s : sys.State} {p : 
     reachable_zero := hs
     valid := fun k => ⟨hact_all k, Prod.ext rfl (hfalse k)⟩ }
 
-/-- **Lock-freedom implies obstruction-freedom** ([HerlihyLuchangcoMoir2003], §1, p. 1;
-[MoirShavit2007], §1.1.3, p. 1-5): if an active process `p` failed to complete in every finite
-prefix of its solo execution from a reachable state `s`, scheduling `p` forever in isolation would
-yield a valid infinite execution with zero completions. -/
+/-- In a deterministic `ProgressSystem`, lock-freedom implies obstruction-freedom (after
+[HerlihyLuchangcoMoir2003], §1, p. 1; [MoirShavit2007], §1.1.3, p. 1-5): if an active process `p`
+failed to complete in every finite prefix of its solo trajectory `soloIter` from a reachable state
+`s`, scheduling `p` forever in isolation would yield a valid infinite execution with zero
+completions. -/
 theorem IsLockFree.isObstructionFree {sys : ProgressSystem P} (hlf : sys.IsLockFree) :
     sys.IsObstructionFree := by
   intro s hs p hact
@@ -516,9 +518,11 @@ theorem IsLockFree.isObstructionFree {sys : ProgressSystem P} (hlf : sys.IsLockF
     hlf (nonCompletingSoloExec hs hact hnever) (fun M => ⟨M, Nat.le_refl M, rfl⟩) 0
   exact Bool.noConfusion hc
 
-/-- **Wait-freedom implies obstruction-freedom** for arbitrary `P` (including infinite process sets,
-without `[Finite P]`): scheduling an active process `p` in isolation gives `p` infinitely many
-implementation steps, so `IsWaitFree` forces `p` to complete at some step `n`. -/
+/-- In a deterministic `ProgressSystem` over arbitrary `P` (including infinite process sets,
+without `[Finite P]`), wait-freedom implies obstruction-freedom (after [Herlihy1991], §2.3, p. 129;
+[MoirShavit2007], §1.1.3, p. 1-5): scheduling an active process `p` along its always-enabled solo
+trajectory `soloIter` gives `p` infinitely many implementation steps, so `IsWaitFree` forces `p` to
+complete at some step `n`. -/
 theorem IsWaitFree.isObstructionFree {sys : ProgressSystem P} (hwf : sys.IsWaitFree) :
     sys.IsObstructionFree := by
   intro s hs p hact
@@ -813,8 +817,7 @@ structure CASCounterState (P : Type*) where
 namespace CASCounterPhase
 
 /-- Bounded solo-progress rank when `counter` is unchanged across non-completing steps. -/
-@[expose]
-def rank (counter : ℕ) : CASCounterPhase → ℕ
+private def rank (counter : ℕ) : CASCounterPhase → ℕ
   | .idle => 0
   | .tryCAS expected => if expected = counter then 1 else 3
   | .readCounter => 2

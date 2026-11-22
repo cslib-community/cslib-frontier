@@ -14,8 +14,8 @@ public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Progress
 # Treiber's Lock-Free `CAS` Stack (Fresh-Node Step)
 
 This module formalizes a fresh-node (ABA-free) step toward **Treiber's lock-free `CAS` stack**
-(#7501; after [Treiber1986]; [Hendler, Shavit, and Yerushalmi, §§2.1–2.2, Fig. 2–3, p. 208, §2.3,
-p. 209, and §5, Definition 5.1, Lemma 5.13, and Theorem 5.17,
+(#7501; after [Treiber1986]; [Hendler, Shavit, and Yerushalmi, §§2.1–2.2, Fig. 2–3, p. 208,
+§§2.2–2.3, p. 209, and §5, Definition 5.1, Lemma 5.13, and Theorem 5.17,
 pp. 212–215][HendlerShavitYerushalmi2004]; [Moir and Shavit, §1.3,
 pp. 1-15–1-16][MoirShavit2007]), where each `push` allocates a fresh node index at `heap.length`
 rather than recycling popped nodes through an ABA version-tagged free list.
@@ -154,21 +154,18 @@ variable {V : Type u}
 
 /-- Whether a phase is a `.returning` phase (the operation has linearized and will finish on its
 next step). -/
-@[expose]
-def IsReturning : TreiberPhase V → Prop
+private def IsReturning : TreiberPhase V → Prop
   | .returning _ => True
   | _ => False
 
 /-- Exclusive ownership of an unlinked newly allocated node index `node`. -/
-@[expose]
-def OwnsNode : TreiberPhase V → ℕ → Prop
+private def OwnsNode : TreiberPhase V → ℕ → Prop
   | .pushRead _ n, node => n = node
   | .pushCAS _ n _, node => n = node
   | _, _ => False
 
 /-- Bounded solo-progress rank when `head` remains constant across non-completing steps. -/
-@[expose]
-def rank (head : Option ℕ) : TreiberPhase V → ℕ
+private def rank (head : Option ℕ) : TreiberPhase V → ℕ
   | .idle => 0
   | .returning _ => 0
   | .pushCAS _ _ exp => if head = exp then 1 else 4
@@ -386,9 +383,9 @@ private theorem treiberFreshNodeStep_head_ne {P V : Type u} [DecidableEq P]
     · simp only [treiberFreshNodeStep, htp, hc, ↓reduceIte, ne_eq, not_true_eq_false] at hne
   | returning _ => simp only [treiberFreshNodeStep, htp, ne_eq, not_true_eq_false] at hne
 
-/-- Fresh-node model step for #7501 (after [Treiber1986]; [Hendler, Shavit, and Yerushalmi, §5,
-Theorem 5.17, p. 215][HendlerShavitYerushalmi2004]): `treiberFreshNodeSystem` is lock-free over
-finitely many processes (`[Finite P]`), instantiated via
+/-- Fresh-node model step for #7501, not the cited endpoint (after [Treiber1986];
+[Hendler, Shavit, and Yerushalmi, §5, Theorem 5.17, p. 215][HendlerShavitYerushalmi2004]):
+`treiberFreshNodeSystem` is lock-free over finitely many processes (`[Finite P]`), instantiated via
 `ProgressSystem.isLockFree_of_bounded_shared_changes`, leaving the ABA version-tagged free-list
 recycling model open in #7501. -/
 theorem treiberFreshNode_isLockFree (P V : Type u) [DecidableEq P] [Finite P] :
@@ -455,12 +452,12 @@ theorem treiberFreshNode_isLockFree (P V : Type u) [DecidableEq P] [Finite P] :
     dsimp only [treiberFreshNodeSystem] at hsh_eq ⊢
     rw [hsh_eq, treiberFreshNodeStep_threads_of_ne s hqp]
 
-/-- Fresh-node contention-witness step for #7501 (after [Hendler, Shavit, and Yerushalmi, §5,
-Theorem 5.17, p. 215][HendlerShavitYerushalmi2004]): along any finite execution segment
-`states 0 → ... → states k` of `treiberFreshNodeSystem`, if thread `p` observed
-`(states 0).head = expected`, later encounters `(states k).head ≠ expected` (causing `p`'s `CAS`
-to fail and retry), and did not itself modify `head` during `[0, k)`, then another thread `q ≠ p`
-executed a successful `CAS` at an intervening step `j < k`, modifying `head` and entering
+/-- Fresh-node contention-witness step for #7501, not the cited endpoint (after
+[Hendler, Shavit, and Yerushalmi, §5, Theorem 5.17, p. 215][HendlerShavitYerushalmi2004]): along
+any finite execution segment `states 0 → ... → states k` of `treiberFreshNodeSystem`, if thread `p`
+observed `(states 0).head = expected`, later encounters `(states k).head ≠ expected` (causing `p`'s
+`CAS` to fail and retry), and did not itself modify `head` during `[0, k)`, then another thread
+`q ≠ p` executed a successful `CAS` at an intervening step `j < k`, modifying `head` and entering
 `.returning resp`. -/
 theorem treiberFreshNode_cas_fail_witnesses_intervening_cas {P V : Type u} [DecidableEq P]
     {states : ℕ → TreiberFreshNodeState P V} {labels : ℕ → StepLabel P} {k : ℕ}
@@ -1294,11 +1291,11 @@ private theorem treiberInv_of_reachable {P V : Type u} [DecidableEq P]
 
 end LinearizabilityProof
 
-/-- Fresh-node model step for #7501 (after [Treiber1986]; [Hendler, Shavit, and Yerushalmi, §5,
-Lemma 5.13, p. 214][HendlerShavitYerushalmi2004]): for every reachable configuration `s` of
-`treiberFreshNodeSystem P V`, the recorded concurrent history `s.history` is linearizable with
-respect to the sequential LIFO stack specification `stackSeqSpec V`, leaving the ABA version-tagged
-free-list recycling model open in #7501. -/
+/-- Fresh-node model step for #7501, not the cited endpoint (after [Treiber1986];
+[Hendler, Shavit, and Yerushalmi, §5, Lemma 5.13, p. 214][HendlerShavitYerushalmi2004]): for every
+reachable configuration `s` of `treiberFreshNodeSystem P V`, the recorded concurrent history
+`s.history` is linearizable with respect to the sequential LIFO stack specification
+`stackSeqSpec V`, leaving the ABA version-tagged free-list recycling model open in #7501. -/
 theorem treiberFreshNode_isLinearizable {P V : Type u} [DecidableEq P]
     {s : TreiberFreshNodeState P V} (hs : (treiberFreshNodeSystem P V).Reachable s) :
     IsLinearizable (fun _ : Unit => stackSeqSpec V) s.history := by

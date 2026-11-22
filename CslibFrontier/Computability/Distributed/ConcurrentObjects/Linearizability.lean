@@ -55,7 +55,8 @@ completion extensions (`History.IsExtension`) and per-object subhistory projecti
   histories ([HerlihyWing1990], §2.1, p. 468).
 * `Cslib.Distributed.ConcurrentObjects.IsLinearizable`,
   `Cslib.Distributed.ConcurrentObjects.IsSequentiallyConsistent`: Herlihy–Wing linearizability
-  ([HerlihyWing1990], §2.2, p. 469) and sequential consistency ([HerlihyWing1990], §3.3, p. 472).
+  ([HerlihyWing1990], §2.2, p. 469) and sequential consistency (extending [HerlihyWing1990], §3.3,
+  p. 472 to incomplete histories via `History.IsExtension` and `History.complete`).
 * `Cslib.Distributed.ConcurrentObjects.RegOp`,
   `Cslib.Distributed.ConcurrentObjects.RegResp`,
   `Cslib.Distributed.ConcurrentObjects.registerSeqSpec`: sequential atomic read/write register
@@ -71,7 +72,7 @@ completion extensions (`History.IsExtension`) and per-object subhistory projecti
   cycle-collapse theorem showing the union of per-object strict orders with a compatible interval
   order is `Relation.Acyclic`.
 * `Cslib.Distributed.ConcurrentObjects.IsLinearizable.isSequentiallyConsistent`: every linearizable
-  history is sequentially consistent ([HerlihyWing1990], §3.3, p. 472).
+  history is sequentially consistent (after [HerlihyWing1990], §3.3, p. 472).
 * `Cslib.Distributed.ConcurrentObjects.isLinearizable_iff_forall_obj`: **Herlihy–Wing Theorem 1
   (Locality)** — a well-formed history `H` is linearizable if and only if for every object `x`, its
   object subhistory `History.objSubhistory H x` is linearizable ([HerlihyWing1990], §3.1, Theorem 1,
@@ -651,7 +652,7 @@ theorem complete_objSubhistory [DecidableEq P] [DecidableEq Obj] {H : History P 
           simp only [hanyf, Bool.false_eq_true, ↓reduceIte, ih]
   exact go [] H rfl
 
-theorem even_length_of_equivalent_complete [DecidableEq P] {H S : History P Op Resp}
+private theorem even_length_of_equivalent_complete [DecidableEq P] {H S : History P Op Resp}
     (hwf : WellFormed H) (hseq : IsSequential S) (heq : Equivalent (complete H) S) :
     S.length % 2 = 0 := by
   rcases isSequential_decomp hseq with ⟨cs, rfl⟩ | ⟨cs, p, x, op, rfl⟩
@@ -686,7 +687,7 @@ theorem IsExtension.refl [DecidableEq P] {H : History P Op Resp} (hwf : WellForm
     IsExtension H H :=
   ⟨[], fun _ hm => False.elim (List.not_mem_nil hm), (List.append_nil H).symm, hwf⟩
 
-theorem isRespList_eq_nil_of_isSequential_even {L R : History P Op Resp}
+private theorem isRespList_eq_nil_of_isSequential_even {L R : History P Op Resp}
     (hseq : IsSequential L) (heven : L.length % 2 = 0) (hresp : IsRespList R)
     (hseq_app : IsSequential (L ++ R)) : R = [] := by
   match L with
@@ -709,7 +710,7 @@ theorem isRespList_eq_nil_of_isSequential_even {L R : History P Op Resp}
     simp only [List.length_cons] at heven
     exact isRespList_eq_nil_of_isSequential_even hseq.2.2 (by omega) hresp hseq_app.2.2
 
-theorem isRespList_le_one_of_isSequential {L R : History P Op Resp}
+private theorem isRespList_le_one_of_isSequential {L R : History P Op Resp}
     (hseq : IsSequential L) (hresp : IsRespList R) (hseq_app : IsSequential (L ++ R)) :
     R = [] ∨ ∃ (cs : List (OpCall P Op Resp)) (p : P) (x : Obj) (op : Op x) (res : Resp x),
       L = cs.flatMap OpCall.toEvents ++ [.inv p x op] ∧ R = [.resp p x res] := by
@@ -748,6 +749,188 @@ theorem isRespList_le_one_of_isSequential {L R : History P Op Resp}
 
 /-! ### Operation positions and real-time precedence `<_H` -/
 
+/-- Position in `l` of the `n`-th element satisfying `pred` (`none` if at most `n` elements in `l`
+satisfy `pred`). -/
+private def nthFilterPos {α : Type*} (pred : α → Bool) : List α → ℕ → Option ℕ
+  | [], _ => none
+  | a :: rest, 0 =>
+    if pred a then some 0 else (nthFilterPos pred rest 0).map (· + 1)
+  | a :: rest, n + 1 =>
+    if pred a then (nthFilterPos pred rest n).map (· + 1)
+    else (nthFilterPos pred rest (n + 1)).map (· + 1)
+
+private theorem nthFilterPos_isSome_iff {α : Type*} (pred : α → Bool) (l : List α) (n : ℕ) :
+    (nthFilterPos pred l n).isSome = true ↔ n < (l.filter pred).length := by
+  induction l generalizing n with
+  | nil =>
+    simp only [nthFilterPos, Option.isSome_none, Bool.false_eq_true, List.filter_nil,
+      List.length_nil, Nat.not_lt_zero]
+  | cons a rest ih =>
+    cases n with
+    | zero =>
+      simp only [nthFilterPos, List.filter]
+      cases hpa : pred a
+      · simp only [Bool.false_eq_true, ↓reduceIte, Option.isSome_map, ih 0]
+      · simp only [↓reduceIte, Option.isSome_some, List.length_cons, Nat.zero_lt_succ]
+    | succ n =>
+      simp only [nthFilterPos, List.filter]
+      cases hpa : pred a
+      · simp only [Bool.false_eq_true, ↓reduceIte, Option.isSome_map, ih (n + 1)]
+      · simp only [↓reduceIte, Option.isSome_map, ih n, List.length_cons]
+        omega
+
+private theorem nthFilterPos_lt_length {α : Type*} {pred : α → Bool} {l : List α} {n pos : ℕ}
+    (h : nthFilterPos pred l n = some pos) :
+    pos < l.length ∧ l[pos]? = (l.filter pred)[n]? ∧ l[pos]?.map pred = some true := by
+  induction l generalizing n pos with
+  | nil => simp only [nthFilterPos, reduceCtorEq] at h
+  | cons a rest ih =>
+    cases n with
+    | zero =>
+      simp only [nthFilterPos, List.filter] at h ⊢
+      cases hpa : pred a
+      · simp only [hpa, Bool.false_eq_true, ↓reduceIte, Option.map_eq_some_iff] at h
+        obtain ⟨pos', hpos', rfl⟩ := h
+        obtain ⟨hlt, hget, hpr⟩ := ih hpos'
+        exact ⟨by simp only [List.length_cons]; omega,
+          by simp only [List.getElem?_cons_succ, hget],
+          by simp only [List.getElem?_cons_succ, hpr]⟩
+      · simp only [hpa, ↓reduceIte, Option.some.injEq] at h
+        subst h
+        exact ⟨Nat.zero_lt_succ _, rfl,
+          by simp only [List.getElem?_cons_zero, Option.map_some, hpa]⟩
+    | succ n =>
+      simp only [nthFilterPos, List.filter] at h ⊢
+      cases hpa : pred a
+      · simp only [hpa, Bool.false_eq_true, ↓reduceIte, Option.map_eq_some_iff] at h
+        obtain ⟨pos', hpos', rfl⟩ := h
+        obtain ⟨hlt, hget, hpr⟩ := ih hpos'
+        exact ⟨by simp only [List.length_cons]; omega,
+          by simp only [List.getElem?_cons_succ, hget],
+          by simp only [List.getElem?_cons_succ, hpr]⟩
+      · simp only [hpa, ↓reduceIte, Option.map_eq_some_iff] at h
+        obtain ⟨pos', hpos', rfl⟩ := h
+        obtain ⟨hlt, hget, hpr⟩ := ih hpos'
+        exact ⟨by simp only [List.length_cons]; omega,
+          by simp only [List.getElem?_cons_succ, hget],
+          by simp only [List.getElem?_cons_succ, hpr]⟩
+
+private theorem map_eq_some_of_map_decide {α β : Type*} [DecidableEq β] {o : Option α}
+    {f : α → β} {v : β} (h : o.map (fun a => decide (f a = v)) = some true) :
+    o.map f = some v := by
+  cases o with
+  | none => simp only [Option.map_none, reduceCtorEq] at h
+  | some a =>
+    simp only [Option.map_some, Option.some.injEq, decide_eq_true_eq] at h ⊢
+    exact h
+
+private theorem nthFilterPos_strictMono {α : Type*} {pred : α → Bool} {l : List α}
+    {m n i j : ℕ} (hmn : m < n) (hm : nthFilterPos pred l m = some i)
+    (hn : nthFilterPos pred l n = some j) : i < j := by
+  induction l generalizing m n i j with
+  | nil => simp only [nthFilterPos, reduceCtorEq] at hm
+  | cons a rest ih =>
+    cases m with
+    | zero =>
+      cases n with
+      | zero => omega
+      | succ n =>
+        simp only [nthFilterPos] at hm hn
+        cases hpa : pred a
+        · simp only [hpa, Bool.false_eq_true, ↓reduceIte, Option.map_eq_some_iff] at hm hn
+          obtain ⟨i', hi', rfl⟩ := hm
+          obtain ⟨j', hj', rfl⟩ := hn
+          have := ih (Nat.zero_lt_succ n) hi' hj'
+          omega
+        · simp only [hpa, ↓reduceIte, Option.some.injEq, Option.map_eq_some_iff] at hm hn
+          obtain ⟨j', _, rfl⟩ := hn
+          omega
+    | succ m =>
+      cases n with
+      | zero => omega
+      | succ n =>
+        simp only [nthFilterPos] at hm hn
+        cases hpa : pred a
+        · simp only [hpa, Bool.false_eq_true, ↓reduceIte, Option.map_eq_some_iff] at hm hn
+          obtain ⟨i', hi', rfl⟩ := hm
+          obtain ⟨j', hj', rfl⟩ := hn
+          have := ih hmn hi' hj'
+          omega
+        · simp only [hpa, ↓reduceIte, Option.map_eq_some_iff] at hm hn
+          obtain ⟨i', hi', rfl⟩ := hm
+          obtain ⟨j', hj', rfl⟩ := hn
+          have := ih (by omega) hi' hj'
+          omega
+
+private theorem nthFilterPos_inj {α : Type*} {pred : α → Bool} {l : List α} {u v w : ℕ}
+    (hu : nthFilterPos pred l u = some w) (hv : nthFilterPos pred l v = some w) : u = v := by
+  rcases Nat.lt_trichotomy u v with hlt | rfl | hgt
+  · exact absurd (nthFilterPos_strictMono hlt hu hv) (Nat.lt_irrefl w)
+  · rfl
+  · exact absurd (nthFilterPos_strictMono hgt hv hu) (Nat.lt_irrefl w)
+
+private theorem nthFilterPos_append_left {α : Type*} {pred : α → Bool} {l₁ : List α}
+    (l₂ : List α) {n : ℕ} (hn : n < (l₁.filter pred).length) :
+    nthFilterPos pred (l₁ ++ l₂) n = nthFilterPos pred l₁ n := by
+  induction l₁ generalizing n with
+  | nil => simp only [List.filter_nil, List.length_nil] at hn; omega
+  | cons a rest ih =>
+    cases n with
+    | zero =>
+      simp only [nthFilterPos, List.cons_append]
+      cases hpa : pred a
+      · simp only [List.filter, hpa] at hn
+        simp only [Bool.false_eq_true, ↓reduceIte, ih hn]
+      · simp only [↓reduceIte]
+    | succ n =>
+      simp only [nthFilterPos, List.cons_append]
+      cases hpa : pred a
+      · simp only [List.filter, hpa] at hn
+        simp only [Bool.false_eq_true, ↓reduceIte, ih hn]
+      · simp only [List.filter, hpa, List.length_cons] at hn
+        simp only [↓reduceIte, ih (n := n) (by omega)]
+
+private theorem nthFilterPos_append_right {α : Type*} {pred : α → Bool} (l₁ l₂ : List α)
+    {n : ℕ} (hn : (l₁.filter pred).length ≤ n) :
+    nthFilterPos pred (l₁ ++ l₂) n =
+      (nthFilterPos pred l₂ (n - (l₁.filter pred).length)).map (· + l₁.length) := by
+  induction l₁ generalizing n with
+  | nil =>
+    simp only [List.nil_append, List.filter_nil, List.length_nil, Nat.sub_zero, Nat.add_zero,
+      Option.map_id']
+  | cons a rest ih =>
+    cases n with
+    | zero =>
+      have hpa : pred a = false := by
+        cases hp : pred a
+        · rfl
+        · simp only [List.filter, hp, List.length_cons] at hn; omega
+      simp only [List.filter, hpa] at hn ⊢
+      simp only [List.cons_append, nthFilterPos, hpa, Bool.false_eq_true, ↓reduceIte, ih hn,
+        Option.map_map, List.length_cons, Function.comp_def, Nat.add_assoc]
+    | succ n =>
+      simp only [List.cons_append, nthFilterPos, List.length_cons]
+      cases hpa : pred a
+      · simp only [List.filter, hpa] at hn ⊢
+        simp only [Bool.false_eq_true, ↓reduceIte, ih hn, Option.map_map, Function.comp_def,
+          Nat.add_assoc]
+      · simp only [List.filter, hpa, List.length_cons] at hn ⊢
+        simp only [↓reduceIte]
+        rw [ih (n := n) (by omega), Option.map_map]
+        have hsub : n + 1 - ((rest.filter pred).length + 1) =
+            n - (rest.filter pred).length := by omega
+        rw [hsub]
+        simp only [Function.comp_def, Nat.add_assoc]
+
+private theorem nthFilterPos_of_append_lt {α : Type*} {pred : α → Bool} {l₁ l₂ : List α}
+    {n pos : ℕ} (h : nthFilterPos pred (l₁ ++ l₂) n = some pos) (hlt : pos < l₁.length) :
+    nthFilterPos pred l₁ n = some pos := by
+  by_cases hn : n < (l₁.filter pred).length
+  · rwa [nthFilterPos_append_left l₂ hn] at h
+  · rw [nthFilterPos_append_right l₁ l₂ (by omega), Option.map_eq_some_iff] at h
+    obtain ⟨_, _, rfl⟩ := h
+    omega
+
 /-- Position in `H` of the `n`-th event belonging to process `p` (`none` if `p` has at most `n`
 events in `H`). -/
 @[expose]
@@ -781,24 +964,23 @@ strictly precedes the invocation of `e₁` in `H`. -/
 def prec [DecidableEq P] (H : History P Op Resp) (e₀ e₁ : OpId P) : Prop :=
   ∃ r i, respPos H e₀ = some r ∧ invPos H e₁ = some i ∧ r < i
 
-theorem nthProcPos_isSome_iff [DecidableEq P] (p : P) (H : History P Op Resp) (n : ℕ) :
+private theorem nthProcPos_eq_nthFilterPos [DecidableEq P] (p : P) :
+    ∀ (H : History P Op Resp) (n : ℕ),
+      nthProcPos p H n = nthFilterPos (fun e => decide (e.proc = p)) H n
+  | [], _ => rfl
+  | e :: rest, 0 => by
+    simp only [nthProcPos, nthFilterPos, decide_eq_true_eq]
+    by_cases hep : e.proc = p <;> simp only [hep, ↓reduceIte, nthProcPos_eq_nthFilterPos p rest 0]
+  | e :: rest, n + 1 => by
+    simp only [nthProcPos, nthFilterPos, decide_eq_true_eq]
+    by_cases hep : e.proc = p
+    · simp only [hep, ↓reduceIte, nthProcPos_eq_nthFilterPos p rest n]
+    · simp only [hep, ↓reduceIte, nthProcPos_eq_nthFilterPos p rest (n + 1)]
+
+private theorem nthProcPos_isSome_iff [DecidableEq P] (p : P) (H : History P Op Resp) (n : ℕ) :
     (nthProcPos p H n).isSome = true ↔ n < (procSubhistory H p).length := by
-  induction H generalizing n with
-  | nil => simp only [nthProcPos, Option.isSome_none, Bool.false_eq_true, procSubhistory_nil,
-      List.length_nil, Nat.not_lt_zero]
-  | cons e rest ih =>
-    cases n with
-    | zero =>
-      simp only [nthProcPos, procSubhistory_cons]
-      by_cases hep : e.proc = p
-      · simp only [hep, ↓reduceIte, Option.isSome_some, List.length_cons, Nat.zero_lt_succ]
-      · simp only [hep, ↓reduceIte, Option.isSome_map, ih 0]
-    | succ n =>
-      simp only [nthProcPos, procSubhistory_cons]
-      by_cases hep : e.proc = p
-      · simp only [hep, ↓reduceIte, Option.isSome_map, ih n, List.length_cons]
-        omega
-      · simp only [hep, ↓reduceIte, Option.isSome_map, ih (n + 1)]
+  rw [nthProcPos_eq_nthFilterPos]
+  exact nthFilterPos_isSome_iff (fun e => decide (e.proc = p)) H n
 
 theorem isCompletedOp_iff_lt_length [DecidableEq P] (H : History P Op Resp) (e : OpId P) :
     IsCompletedOp H e ↔ 2 * e.idx + 1 < (procSubhistory H e.proc).length :=
@@ -809,73 +991,21 @@ theorem Equivalent.isCompletedOp_iff [DecidableEq P] {H₁ H₂ : History P Op R
     IsCompletedOp H₁ e ↔ IsCompletedOp H₂ e := by
   rw [isCompletedOp_iff_lt_length, isCompletedOp_iff_lt_length, heq e.proc]
 
-theorem nthProcPos_lt_length [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
+private theorem nthProcPos_lt_length [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
     (h : nthProcPos p H n = some pos) : pos < H.length ∧ H[pos]?.map Event.proc = some p := by
-  induction H generalizing n pos with
-  | nil => simp only [nthProcPos, reduceCtorEq] at h
-  | cons e rest ih =>
-    cases n with
-    | zero =>
-      simp only [nthProcPos] at h
-      by_cases hep : e.proc = p
-      · simp only [hep, ↓reduceIte, Option.some.injEq] at h
-        subst h
-        exact ⟨Nat.zero_lt_succ _, by simp only [List.getElem?_cons_zero, Option.map_some, hep]⟩
-      · simp only [hep, ↓reduceIte, Option.map_eq_some_iff] at h
-        obtain ⟨pos', hpos', rfl⟩ := h
-        obtain ⟨hlt, hproc⟩ := ih hpos'
-        exact ⟨by simp only [List.length_cons]; omega,
-          by simp only [List.getElem?_cons_succ, hproc]⟩
-    | succ n =>
-      simp only [nthProcPos] at h
-      by_cases hep : e.proc = p
-      · simp only [hep, ↓reduceIte, Option.map_eq_some_iff] at h
-        obtain ⟨pos', hpos', rfl⟩ := h
-        obtain ⟨hlt, hproc⟩ := ih hpos'
-        exact ⟨by simp only [List.length_cons]; omega,
-          by simp only [List.getElem?_cons_succ, hproc]⟩
-      · simp only [hep, ↓reduceIte, Option.map_eq_some_iff] at h
-        obtain ⟨pos', hpos', rfl⟩ := h
-        obtain ⟨hlt, hproc⟩ := ih hpos'
-        exact ⟨by simp only [List.length_cons]; omega,
-          by simp only [List.getElem?_cons_succ, hproc]⟩
+  rw [nthProcPos_eq_nthFilterPos] at h
+  obtain ⟨hlt, _, hpr⟩ := nthFilterPos_lt_length h
+  exact ⟨hlt, map_eq_some_of_map_decide hpr⟩
 
-theorem nthProcPos_strictMono [DecidableEq P] {p : P} {H : History P Op Resp} {m n i j : ℕ}
+private theorem nthProcPos_getElem? [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
+    (h : nthProcPos p H n = some pos) : H[pos]? = (procSubhistory H p)[n]? := by
+  rw [nthProcPos_eq_nthFilterPos] at h
+  exact (nthFilterPos_lt_length h).2.1
+
+private theorem nthProcPos_strictMono [DecidableEq P] {p : P} {H : History P Op Resp} {m n i j : ℕ}
     (hmn : m < n) (hm : nthProcPos p H m = some i) (hn : nthProcPos p H n = some j) : i < j := by
-  induction H generalizing m n i j with
-  | nil => simp only [nthProcPos, reduceCtorEq] at hm
-  | cons e rest ih =>
-    cases m with
-    | zero =>
-      cases n with
-      | zero => omega
-      | succ n =>
-        simp only [nthProcPos] at hm hn
-        by_cases hep : e.proc = p
-        · simp only [hep, ↓reduceIte, Option.some.injEq, Option.map_eq_some_iff] at hm hn
-          obtain ⟨j', _, rfl⟩ := hn
-          omega
-        · simp only [hep, ↓reduceIte, Option.map_eq_some_iff] at hm hn
-          obtain ⟨i', hi', rfl⟩ := hm
-          obtain ⟨j', hj', rfl⟩ := hn
-          have := ih (Nat.zero_lt_succ n) hi' hj'
-          omega
-    | succ m =>
-      cases n with
-      | zero => omega
-      | succ n =>
-        simp only [nthProcPos] at hm hn
-        by_cases hep : e.proc = p
-        · simp only [hep, ↓reduceIte, Option.map_eq_some_iff] at hm hn
-          obtain ⟨i', hi', rfl⟩ := hm
-          obtain ⟨j', hj', rfl⟩ := hn
-          have := ih (by omega) hi' hj'
-          omega
-        · simp only [hep, ↓reduceIte, Option.map_eq_some_iff] at hm hn
-          obtain ⟨i', hi', rfl⟩ := hm
-          obtain ⟨j', hj', rfl⟩ := hn
-          have := ih hmn hi' hj'
-          omega
+  rw [nthProcPos_eq_nthFilterPos] at hm hn
+  exact nthFilterPos_strictMono hmn hm hn
 
 theorem invPos_of_respPos [DecidableEq P] {H : History P Op Resp} {e : OpId P} {r : ℕ}
     (hr : respPos H e = some r) : ∃ i, invPos H e = some i ∧ i < r := by
@@ -921,55 +1051,24 @@ theorem prec_of_same_proc_lt [DecidableEq P] {H : History P Op Resp} {e₀ e₁ 
   have hi₁' : nthProcPos e₀.proc H (2 * e₁.idx) = some i₁ := by rw [hp]; exact hi₁
   exact ⟨r₀, i₁, hr₀, hi₁, nthProcPos_strictMono (by omega : 2 * e₀.idx + 1 < 2 * e₁.idx) hr₀ hi₁'⟩
 
-theorem nthProcPos_append_left [DecidableEq P] {p : P} {H₁ : History P Op Resp}
+private theorem nthProcPos_append_left [DecidableEq P] {p : P} {H₁ : History P Op Resp}
     (H₂ : History P Op Resp) {n : ℕ} (hn : n < (procSubhistory H₁ p).length) :
     nthProcPos p (H₁ ++ H₂) n = nthProcPos p H₁ n := by
-  induction H₁ generalizing n with
-  | nil => simp only [procSubhistory_nil, List.length_nil] at hn; omega
-  | cons e rest ih =>
-    cases n with
-    | zero =>
-      simp only [nthProcPos, List.cons_append]
-      by_cases hep : e.proc = p
-      · simp only [hep, ↓reduceIte]
-      · simp only [procSubhistory_cons, hep, ↓reduceIte] at hn
-        simp only [hep, ↓reduceIte, ih hn]
-    | succ n =>
-      simp only [nthProcPos, List.cons_append]
-      by_cases hep : e.proc = p
-      · simp only [procSubhistory_cons, hep, ↓reduceIte, List.length_cons] at hn
-        simp only [hep, ↓reduceIte, ih (n := n) (by omega)]
-      · simp only [procSubhistory_cons, hep, ↓reduceIte] at hn
-        simp only [hep, ↓reduceIte, ih hn]
+  rw [nthProcPos_eq_nthFilterPos, nthProcPos_eq_nthFilterPos]
+  exact nthFilterPos_append_left H₂ hn
 
-theorem nthProcPos_append_right [DecidableEq P] {p : P} (H₁ H₂ : History P Op Resp) {n : ℕ}
+private theorem nthProcPos_append_right [DecidableEq P] {p : P} (H₁ H₂ : History P Op Resp) {n : ℕ}
     (hn : (procSubhistory H₁ p).length ≤ n) :
     nthProcPos p (H₁ ++ H₂) n =
       (nthProcPos p H₂ (n - (procSubhistory H₁ p).length)).map (· + H₁.length) := by
-  induction H₁ generalizing n with
-  | nil =>
-    simp only [List.nil_append, procSubhistory_nil, List.length_nil, Nat.sub_zero, Nat.add_zero,
-      Option.map_id']
-  | cons e rest ih =>
-    cases n with
-    | zero =>
-      have hep : e.proc ≠ p := by
-        intro h; simp only [procSubhistory_cons, h, ↓reduceIte, List.length_cons] at hn; omega
-      simp only [procSubhistory_cons, hep, ↓reduceIte] at hn ⊢
-      simp only [List.cons_append, nthProcPos, hep, ↓reduceIte, ih hn, Option.map_map,
-        List.length_cons, Function.comp_def, Nat.add_assoc]
-    | succ n =>
-      simp only [List.cons_append, nthProcPos, List.length_cons]
-      by_cases hep : e.proc = p
-      · simp only [procSubhistory_cons, hep, ↓reduceIte, List.length_cons] at hn ⊢
-        rw [ih (n := n) (by omega), Option.map_map]
-        have hsub : n + 1 - ((procSubhistory rest p).length + 1) =
-            n - (procSubhistory rest p).length := by omega
-        rw [hsub]
-        simp only [Function.comp_def, Nat.add_assoc]
-      · simp only [procSubhistory_cons, hep, ↓reduceIte] at hn ⊢
-        rw [ih hn, Option.map_map]
-        simp only [Function.comp_def, Nat.add_assoc]
+  rw [nthProcPos_eq_nthFilterPos, nthProcPos_eq_nthFilterPos]
+  exact nthFilterPos_append_right H₁ H₂ hn
+
+private theorem nthProcPos_of_append_lt [DecidableEq P] {p : P} {H₁ H₂ : History P Op Resp}
+    {n pos : ℕ} (h : nthProcPos p (H₁ ++ H₂) n = some pos) (hlt : pos < H₁.length) :
+    nthProcPos p H₁ n = some pos := by
+  rw [nthProcPos_eq_nthFilterPos] at h ⊢
+  exact nthFilterPos_of_append_lt h hlt
 
 /-- Appending response events does not alter `<_H` on operations completed in `H ++ R`. -/
 theorem prec_append_resp_iff [DecidableEq P] {H R : History P Op Resp}
@@ -995,13 +1094,7 @@ theorem prec_append_resp_iff [DecidableEq P] {H R : History P Op Resp}
   · rintro ⟨r, i, hr, hi, hri⟩
     rw [hinv_eq] at hi
     obtain ⟨hi_lt, _⟩ := nthProcPos_lt_length hi
-    by_cases hr_in : 2 * e₀.idx + 1 < (procSubhistory H e₀.proc).length
-    · rw [respPos, nthProcPos_append_left R hr_in] at hr
-      exact ⟨r, i, hr, hi, hri⟩
-    · exfalso
-      rw [respPos, nthProcPos_append_right H R (by omega), Option.map_eq_some_iff] at hr
-      obtain ⟨k, _, rfl⟩ := hr
-      omega
+    exact ⟨r, i, nthProcPos_of_append_lt hr (by omega), hi, hri⟩
   · rintro ⟨r, i, hr, hi, hri⟩
     have hr_in : 2 * e₀.idx + 1 < (procSubhistory H e₀.proc).length :=
       (nthProcPos_isSome_iff e₀.proc H (2 * e₀.idx + 1)).mp (by rw [← respPos, hr]; rfl)
@@ -1188,10 +1281,12 @@ def IsLinearizable {P Obj : Type*} {Op Resp : Obj → Type*} [DecidableEq P] [De
       ∀ e₀ e₁, History.IsCompletedOp H' e₀ → History.IsCompletedOp H' e₁ →
         History.prec H e₀ e₁ → History.prec S e₀ e₁
 
-/-- **Sequential consistency** ([HerlihyWing1990], §3.3, p. 472): history `H` can be extended by
-appending zero or more responses to a well-formed history `H'` such that `complete(H')` is
-equivalent to some legal sequential history `S` (preserving per-process program order without
-requiring cross-process real-time precedence `<_H ⊆ <_S`). -/
+/-- **Sequential consistency** (extending [HerlihyWing1990], §3.3, p. 472 to incomplete histories
+via `History.IsExtension` and `History.complete` in parallel with `IsLinearizable`, coinciding with
+§3.3 on complete histories): history `H` can be extended by appending zero or more responses to a
+well-formed history `H'` such that `complete(H')` is equivalent to some legal sequential history `S`
+(preserving per-process program order without requiring cross-process real-time precedence
+`<_H ⊆ <_S`). -/
 @[expose]
 def IsSequentiallyConsistent {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] [DecidableEq Obj]
@@ -1200,7 +1295,8 @@ def IsSequentiallyConsistent {P Obj : Type*} {Op Resp : Obj → Type*}
     ∃ S : History P Op Resp, History.IsSequential S ∧ History.IsLegal spec S ∧
       History.Equivalent (History.complete H') S
 
-/-- Every linearizable history is sequentially consistent ([HerlihyWing1990], §3.3, p. 472). -/
+/-- Every linearizable history is sequentially consistent (after [HerlihyWing1990], §3.3,
+p. 472). -/
 theorem IsLinearizable.isSequentiallyConsistent {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] [DecidableEq Obj] {spec : ∀ x, SeqSpec P Op Resp x}
     {H : History P Op Resp} (h : IsLinearizable spec H) :
@@ -1336,7 +1432,7 @@ private theorem exists_minimal_of_acyclic {α : Type*} (R : α → α → Prop) 
 
 /-- Finite topological sort: every duplicate-free list `elems` over an acyclic relation `R` admits a
 permutation `order` in which every `R`-edge points strictly forward. -/
-theorem exists_topoSort_of_acyclic {α : Type*} {R : α → α → Prop}
+private theorem exists_topoSort_of_acyclic {α : Type*} {R : α → α → Prop}
     (hacyc : Acyclic R) {elems : List α} (hnodup : elems.Nodup) :
     ∃ order : List α, order.Perm elems ∧ order.Nodup ∧
       ∀ i j (hi : i < order.length) (hj : j < order.length),
@@ -1408,49 +1504,67 @@ private def opIdAt [DecidableEq P] (calls : List (OpCall P Op Resp)) (j : ℕ)
     (hj : j < calls.length) : OpId P :=
   ⟨calls[j].proc, countProcCalls calls[j].proc (calls.take j)⟩
 
+private theorem nthFilterPos_flatMap_toEvents (pred : OpCall P Op Resp → Bool)
+    (evPred : Event P Op Resp → Bool)
+    (hinv_p : ∀ c : OpCall P Op Resp, evPred (.inv c.proc c.obj c.op) = pred c)
+    (hresp_p : ∀ c : OpCall P Op Resp, evPred (.resp c.proc c.obj c.res) = pred c)
+    (calls : List (OpCall P Op Resp)) (k : ℕ) (hk : k < calls.length)
+    (hpk : pred calls[k] = true) :
+    History.nthFilterPos evPred (calls.flatMap OpCall.toEvents)
+        (2 * ((calls.take k).filter pred).length) = some (2 * k) ∧
+      History.nthFilterPos evPred (calls.flatMap OpCall.toEvents)
+        (2 * ((calls.take k).filter pred).length + 1) = some (2 * k + 1) := by
+  induction calls generalizing k with
+  | nil => simp only [List.length_nil] at hk; omega
+  | cons c rest ih =>
+    cases k with
+    | zero =>
+      simp only [List.getElem_cons_zero] at hpk
+      simp only [List.take_zero, List.filter_nil, List.length_nil, Nat.mul_zero, Nat.zero_add,
+        List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append,
+        History.nthFilterPos, hinv_p, hresp_p, hpk, ↓reduceIte, Option.map_some, and_self]
+    | succ k' =>
+      have hk' : k' < rest.length := by simp only [List.length_cons] at hk; omega
+      simp only [List.getElem_cons_succ] at hpk
+      obtain ⟨hinv, hresp⟩ := ih k' hk' hpk
+      simp only [List.take_succ_cons, List.flatMap_cons, OpCall.toEvents, List.cons_append,
+        List.nil_append]
+      cases hpc : pred c
+      · have hpc_ne : ¬ pred c = true := by simp only [hpc, Bool.false_eq_true, not_false_eq_true]
+        simp only [List.filter_cons_of_neg hpc_ne]
+        cases hk₁ : 2 * ((rest.take k').filter pred).length with
+        | zero =>
+          rw [hk₁] at hinv
+          have hk₂ : 2 * ((rest.take k').filter pred).length + 1 = 1 := by omega
+          rw [hk₂] at hresp
+          simp only [Nat.zero_add, History.nthFilterPos, hinv_p, hresp_p, hpc,
+            Bool.false_eq_true, ↓reduceIte, hinv, hresp, Option.map_some]
+          exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
+        | succ m =>
+          rw [hk₁] at hinv
+          have hk₂ : 2 * ((rest.take k').filter pred).length + 1 = m + 1 + 1 := by omega
+          rw [hk₂] at hresp
+          simp only [History.nthFilterPos, hinv_p, hresp_p, hpc, Bool.false_eq_true,
+            ↓reduceIte, hinv, hresp, Option.map_some]
+          exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
+      · simp only [List.filter_cons_of_pos hpc, List.length_cons]
+        have heq₁ : 2 * (((rest.take k').filter pred).length + 1) =
+            2 * ((rest.take k').filter pred).length + 1 + 1 := by omega
+        rw [heq₁]
+        simp only [History.nthFilterPos, hinv_p, hresp_p, hpc, ↓reduceIte, hinv, hresp,
+          Option.map_some]
+        exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
+
 private theorem invPos_respPos_opIdAt [DecidableEq P] (calls : List (OpCall P Op Resp))
     (j : ℕ) (hj : j < calls.length) :
     History.invPos (calls.flatMap OpCall.toEvents) (opIdAt calls j hj) = some (2 * j) ∧
       History.respPos (calls.flatMap OpCall.toEvents) (opIdAt calls j hj) = some (2 * j + 1) := by
-  induction calls generalizing j with
-  | nil => simp only [List.length_nil] at hj; omega
-  | cons c rest ih =>
-    cases j with
-    | zero =>
-      simp only [opIdAt, List.getElem_cons_zero, List.take_zero, countProcCalls_nil,
-        History.invPos, History.respPos, Nat.mul_zero, Nat.zero_add, List.flatMap_cons,
-        OpCall.toEvents, List.cons_append, List.nil_append, History.nthProcPos, Event.proc_inv,
-        Event.proc_resp, ↓reduceIte, Option.map_some, and_self]
-    | succ j' =>
-      have hj' : j' < rest.length := by simp only [List.length_cons] at hj; omega
-      obtain ⟨hinv, hresp⟩ := ih j' hj'
-      simp only [History.invPos, History.respPos, opIdAt] at hinv hresp ⊢
-      simp only [List.getElem_cons_succ, List.take_succ_cons, countProcCalls_cons,
-        List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append]
-      by_cases hcp : c.proc = rest[j'].proc
-      · simp only [hcp, ↓reduceIte]
-        have heq₁ : 2 * (countProcCalls rest[j'].proc (rest.take j') + 1) =
-            2 * countProcCalls rest[j'].proc (rest.take j') + 1 + 1 := by omega
-        rw [heq₁]
-        simp only [History.nthProcPos, Event.proc_inv, Event.proc_resp, ↓reduceIte,
-          hinv, hresp, Option.map_some]
-        exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
-      · simp only [hcp, ↓reduceIte]
-        cases hk₁ : 2 * countProcCalls rest[j'].proc (rest.take j') with
-        | zero =>
-          rw [hk₁] at hinv
-          have hk₂ : 2 * countProcCalls rest[j'].proc (rest.take j') + 1 = 1 := by omega
-          rw [hk₂] at hresp
-          simp only [Nat.zero_add, History.nthProcPos, Event.proc_inv, Event.proc_resp, hcp,
-            ↓reduceIte, hinv, hresp, Option.map_some]
-          exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
-        | succ m =>
-          rw [hk₁] at hinv
-          have hk₂ : 2 * countProcCalls rest[j'].proc (rest.take j') + 1 = m + 1 + 1 := by omega
-          rw [hk₂] at hresp
-          simp only [History.nthProcPos, Event.proc_inv, Event.proc_resp, hcp, ↓reduceIte,
-            hinv, hresp, Option.map_some]
-          exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
+  simp only [History.invPos, History.respPos, opIdAt, countProcCalls,
+    History.nthProcPos_eq_nthFilterPos]
+  exact nthFilterPos_flatMap_toEvents
+    (fun c => decide (c.proc = calls[j].proc))
+    (fun e => decide (e.proc = calls[j].proc))
+    (fun _ => rfl) (fun _ => rfl) calls j hj (decide_eq_true rfl)
 
 private theorem opIdAt_injective [DecidableEq P] {calls : List (OpCall P Op Resp)}
     {j₁ j₂ : ℕ} (hj₁ : j₁ < calls.length) (hj₂ : j₂ < calls.length)
@@ -1542,13 +1656,8 @@ private theorem prec_strictTotal_of_isSequential_even [DecidableEq P] {S : Histo
   · exact Or.inr ((prec_flatMap_toEvents_opIdAt_iff calls hj₂ hj₁).mpr h₂₁)
 
 /-- Position in `L` of the `n`-th event whose object is `x`. -/
-private def nthObjPos [DecidableEq Obj] (x : Obj) : History P Op Resp → ℕ → Option ℕ
-  | [], _ => none
-  | e :: rest, 0 =>
-    if e.obj = x then some 0 else (nthObjPos x rest 0).map (· + 1)
-  | e :: rest, n + 1 =>
-    if e.obj = x then (nthObjPos x rest n).map (· + 1)
-    else (nthObjPos x rest (n + 1)).map (· + 1)
+private def nthObjPos [DecidableEq Obj] (x : Obj) (L : History P Op Resp) (n : ℕ) : Option ℕ :=
+  History.nthFilterPos (fun e => decide (e.obj = x)) L n
 
 /-- Number of events on object `x` strictly preceding index `pos` in `M`. -/
 private def objProjPos [DecidableEq Obj] (x : Obj) : History P Op Resp → ℕ → ℕ
@@ -1576,58 +1685,22 @@ private theorem objProjPos_lt_iff [DecidableEq Obj] (x : Obj) :
     by_cases hex : e.obj = x <;> simp only [hex, ↓reduceIte] <;> omega
 
 private theorem nthObjPos_isSome_iff [DecidableEq Obj] (x : Obj) (L : History P Op Resp) (n : ℕ) :
-    (nthObjPos x L n).isSome = true ↔ n < (History.objSubhistory L x).length := by
-  induction L generalizing n with
-  | nil =>
-    simp only [nthObjPos, Option.isSome_none, Bool.false_eq_true, History.objSubhistory_nil,
-      List.length_nil, Nat.not_lt_zero]
-  | cons e rest ih =>
-    cases n with
-    | zero =>
-      simp only [nthObjPos, History.objSubhistory_cons]
-      by_cases hex : e.obj = x
-      · simp only [hex, ↓reduceIte, Option.isSome_some, List.length_cons, Nat.zero_lt_succ]
-      · simp only [hex, ↓reduceIte, Option.isSome_map, ih 0]
-    | succ n =>
-      simp only [nthObjPos, History.objSubhistory_cons]
-      by_cases hex : e.obj = x
-      · simp only [hex, ↓reduceIte, Option.isSome_map, ih n, List.length_cons]; omega
-      · simp only [hex, ↓reduceIte, Option.isSome_map, ih (n + 1)]
+    (nthObjPos x L n).isSome = true ↔ n < (History.objSubhistory L x).length :=
+  History.nthFilterPos_isSome_iff (fun e : Event P Op Resp => decide (e.obj = x)) L n
 
 private theorem nthObjPos_lt_length [DecidableEq Obj] {x : Obj} {L : History P Op Resp}
     {n m : ℕ} (h : nthObjPos x L n = some m) : m < L.length ∧ L[m]?.map Event.obj = some x := by
-  induction L generalizing n m with
-  | nil => simp only [nthObjPos, reduceCtorEq] at h
-  | cons e rest ih =>
-    cases n with
-    | zero =>
-      simp only [nthObjPos] at h
-      by_cases hex : e.obj = x
-      · simp only [hex, ↓reduceIte, Option.some.injEq] at h
-        subst h
-        exact ⟨Nat.zero_lt_succ _, by simp only [List.getElem?_cons_zero, Option.map_some, hex]⟩
-      · simp only [hex, ↓reduceIte, Option.map_eq_some_iff] at h
-        obtain ⟨m', hm', rfl⟩ := h
-        obtain ⟨hlt, hobj⟩ := ih hm'
-        exact ⟨by simp only [List.length_cons]; omega,
-          by simp only [List.getElem?_cons_succ, hobj]⟩
-    | succ n =>
-      simp only [nthObjPos] at h
-      by_cases hex : e.obj = x <;>
-        simp only [hex, ↓reduceIte, Option.map_eq_some_iff] at h <;>
-        obtain ⟨m', hm', rfl⟩ := h <;>
-        obtain ⟨hlt, hobj⟩ := ih hm' <;>
-        exact ⟨by simp only [List.length_cons]; omega,
-          by simp only [List.getElem?_cons_succ, hobj]⟩
+  obtain ⟨hlt, _, hpr⟩ := History.nthFilterPos_lt_length h
+  exact ⟨hlt, History.map_eq_some_of_map_decide hpr⟩
 
 private theorem nthObjPos_pair_of_isSequential [DecidableEq Obj] {x : Obj}
     {L : History P Op Resp} (hseq : History.IsSequential L) {k_x m : ℕ}
     (h : nthObjPos x L (2 * k_x + 1) = some m) :
     ∃ k : ℕ, m = 2 * k + 1 ∧ nthObjPos x L (2 * k_x) = some (2 * k) := by
   match L with
-  | [] => simp only [nthObjPos, reduceCtorEq] at h
+  | [] => simp only [nthObjPos, History.nthFilterPos, reduceCtorEq] at h
   | [.inv p y op] =>
-    simp only [nthObjPos] at h
+    simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq] at h
     by_cases hyx : y = x <;>
       simp only [Event.obj_inv, hyx, ↓reduceIte, Option.map_none, reduceCtorEq] at h
   | [.resp _ _ _] => exact False.elim hseq
@@ -1639,34 +1712,40 @@ private theorem nthObjPos_pair_of_isSequential [DecidableEq Obj] {x : Obj}
     by_cases hxx : x₁ = x
     · cases k_x with
       | zero =>
-        simp only [Nat.zero_add, nthObjPos, Event.obj_inv, Event.obj_resp, hxx,
-          ↓reduceIte, Option.map_some, Option.some.injEq] at h ⊢
+        simp only [Nat.zero_add, nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte, Option.map_some, Option.some.injEq] at h ⊢
         exact ⟨0, h.symm, rfl⟩
       | succ k_x' =>
         have hstep₁ : 2 * (k_x' + 1) + 1 = (2 * k_x' + 1) + 1 + 1 := by omega
         have hstep₀ : 2 * (k_x' + 1) = (2 * k_x') + 1 + 1 := by omega
         rw [hstep₁] at h
-        simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
-          Option.map_eq_some_iff] at h
+        simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte, Option.map_eq_some_iff] at h
         obtain ⟨m₁, ⟨m', hm', rfl⟩, rfl⟩ := h
         obtain ⟨k', rfl, hk₀⟩ := nthObjPos_pair_of_isSequential hrest hm'
         refine ⟨k' + 1, by omega, ?_⟩
         rw [hstep₀]
-        simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte, hk₀, Option.map_some]
+        simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte]
+        rw [← nthObjPos, hk₀, Option.map_some, Option.map_some]
         exact congrArg some (by omega)
-    · simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
-        Option.map_eq_some_iff] at h
+    · simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv, Event.obj_resp,
+        hxx, ↓reduceIte, Option.map_eq_some_iff] at h
       obtain ⟨m₁, ⟨m', hm', rfl⟩, rfl⟩ := h
       obtain ⟨k', rfl, hk₀⟩ := nthObjPos_pair_of_isSequential hrest hm'
       refine ⟨k' + 1, by omega, ?_⟩
       cases h2 : 2 * k_x with
       | zero =>
         rw [h2] at hk₀
-        simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte, hk₀, Option.map_some]
+        simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte]
+        rw [← nthObjPos, hk₀, Option.map_some, Option.map_some]
         exact congrArg some (by omega)
       | succ u =>
         rw [h2] at hk₀
-        simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte, hk₀, Option.map_some]
+        simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte]
+        rw [← nthObjPos, hk₀, Option.map_some, Option.map_some]
         exact congrArg some (by omega)
 
 private theorem nthObjPos_complete_eq [DecidableEq P] [DecidableEq Obj] {x : Obj}
@@ -1677,7 +1756,7 @@ private theorem nthObjPos_complete_eq [DecidableEq P] [DecidableEq Obj] {x : Obj
   | [] => exact h
   | [.inv p y op] =>
     simp only [History.complete, List.any_nil, Bool.false_eq_true, ↓reduceIte, nthObjPos,
-      reduceCtorEq] at h
+      History.nthFilterPos, reduceCtorEq] at h
   | [.resp _ _ _] => exact False.elim hseq
   | .inv _ _ _ :: .inv _ _ _ :: _ => exact False.elim hseq
   | .resp _ _ _ :: _ :: _ => exact False.elim hseq
@@ -1690,25 +1769,29 @@ private theorem nthObjPos_complete_eq [DecidableEq P] [DecidableEq Obj] {x : Obj
     by_cases hxx : x₁ = x
     · cases n with
       | zero =>
-        simp only [nthObjPos, Event.obj_inv, hxx, ↓reduceIte] at h ⊢; exact h
+        simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv, hxx,
+          ↓reduceIte] at h ⊢
+        exact h
       | succ n₁ =>
         cases n₁ with
         | zero =>
-          simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte] at h ⊢; exact h
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte] at h ⊢
+          exact h
         | succ n₂ =>
-          simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
-            Option.map_eq_some_iff] at h ⊢
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte, Option.map_eq_some_iff] at h ⊢
           obtain ⟨m₁, ⟨m₂, hm₂, rfl⟩, rfl⟩ := h
           exact ⟨m₂ + 1, ⟨m₂, nthObjPos_complete_eq hrest hm₂, rfl⟩, rfl⟩
     · cases n with
       | zero =>
-        simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
-          Option.map_eq_some_iff] at h ⊢
+        simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte, Option.map_eq_some_iff] at h ⊢
         obtain ⟨m₁, ⟨m₂, hm₂, rfl⟩, rfl⟩ := h
         exact ⟨m₂ + 1, ⟨m₂, nthObjPos_complete_eq hrest hm₂, rfl⟩, rfl⟩
       | succ n₁ =>
-        simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
-          Option.map_eq_some_iff] at h ⊢
+        simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte, Option.map_eq_some_iff] at h ⊢
         obtain ⟨m₁, ⟨m₂, hm₂, rfl⟩, rfl⟩ := h
         exact ⟨m₂ + 1, ⟨m₂, nthObjPos_complete_eq hrest hm₂, rfl⟩, rfl⟩
 
@@ -1718,15 +1801,13 @@ private theorem nthObjPos_eq_complete_of_odd [DecidableEq P] [DecidableEq Obj] {
       (∀ m, nthObjPos x L (2 * k_x + 1) = some m →
         nthObjPos x L (2 * k_x) = nthObjPos x (History.complete L) (2 * k_x)) := by
   match L with
-  | [] => exact ⟨rfl, fun _ hm => by simp only [nthObjPos, reduceCtorEq] at hm⟩
+  | [] =>
+    exact ⟨rfl, fun _ hm => by simp only [nthObjPos, History.nthFilterPos, reduceCtorEq] at hm⟩
   | [.inv p y op] =>
     refine ⟨?_, fun _ hm => ?_⟩
     · simp only [History.complete, List.any_nil, Bool.false_eq_true, ↓reduceIte, nthObjPos,
-        Event.obj_inv]
-      by_cases hyx : y = x <;> simp only [hyx, ↓reduceIte, Option.map_none]
-    · simp only [nthObjPos, Event.obj_inv] at hm
-      by_cases hyx : y = x <;>
-        simp only [hyx, ↓reduceIte, Option.map_none, reduceCtorEq] at hm
+        History.nthFilterPos, Option.map_none, ite_self]
+    · simp only [nthObjPos, History.nthFilterPos, Option.map_none, ite_self, reduceCtorEq] at hm
   | [.resp _ _ _] => exact False.elim hseq
   | .inv _ _ _ :: .inv _ _ _ :: _ => exact False.elim hseq
   | .resp _ _ _ :: _ :: _ => exact False.elim hseq
@@ -1740,35 +1821,45 @@ private theorem nthObjPos_eq_complete_of_odd [DecidableEq P] [DecidableEq Obj] {
     · cases k_x with
       | zero =>
         refine ⟨?_, fun _ _ => ?_⟩
-        · simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte]
-        · simp only [nthObjPos, Event.obj_inv, hxx, ↓reduceIte]
+        · simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte]
+        · simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv, hxx,
+            ↓reduceIte]
       | succ k_x' =>
         obtain ⟨ih₁, ih₀⟩ := nthObjPos_eq_complete_of_odd (x := x) hrest (k_x := k_x')
         have hstep₁ : 2 * (k_x' + 1) + 1 = (2 * k_x' + 1) + 1 + 1 := by omega
         have hstep₀ : 2 * (k_x' + 1) = (2 * k_x') + 1 + 1 := by omega
         rw [hstep₁, hstep₀]
         refine ⟨?_, fun m hm => ?_⟩
-        · simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte, ih₁]
-        · simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
-            Option.map_eq_some_iff] at hm
+        · simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte] at ih₁ ⊢
+          rw [ih₁]
+        · simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte, Option.map_eq_some_iff] at hm
           obtain ⟨m₁, ⟨m₂, hm₂, rfl⟩, rfl⟩ := hm
-          simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte, ih₀ m₂ hm₂]
+          have h0 := ih₀ m₂ hm₂
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte] at h0 ⊢
+          rw [h0]
     · obtain ⟨ih₁, ih₀⟩ := nthObjPos_eq_complete_of_odd (x := x) hrest (k_x := k_x)
       refine ⟨?_, fun m hm => ?_⟩
-      · simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte, ih₁]
-      · simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
-          Option.map_eq_some_iff] at hm
+      · simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte] at ih₁ ⊢
+        rw [ih₁]
+      · simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+          Event.obj_resp, hxx, ↓reduceIte, Option.map_eq_some_iff] at hm
         obtain ⟨m₁, ⟨m₂, hm₂, rfl⟩, rfl⟩ := hm
+        have h0 := ih₀ m₂ hm₂
         cases h2 : 2 * k_x with
         | zero =>
-          simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte]
-          have h0 := ih₀ m₂ hm₂
           rw [h2] at h0
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte] at h0 ⊢
           rw [h0]
         | succ u =>
-          simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte]
-          have h0 := ih₀ m₂ hm₂
           rw [h2] at h0
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, Event.obj_inv,
+            Event.obj_resp, hxx, ↓reduceIte] at h0 ⊢
           rw [h0]
 
 private theorem nthProcPos_objSubhistory_eq [DecidableEq P] [DecidableEq Obj]
@@ -1779,21 +1870,23 @@ private theorem nthProcPos_objSubhistory_eq [DecidableEq P] [DecidableEq Obj]
       M[pos]?.map Event.obj = some x ∧
         History.nthProcPos p (History.objSubhistory M x) n_x = some (objProjPos x M pos)
   | [], _, _, _, hobj, _ => by
-    simp only [History.procSubhistory_nil, nthObjPos, reduceCtorEq] at hobj
+    simp only [History.procSubhistory_nil, nthObjPos, History.nthFilterPos, reduceCtorEq] at hobj
   | e :: rest, n_x, n, pos, hobj, hproc => by
     by_cases hep : e.proc = p
     · simp only [History.procSubhistory_cons, hep, ↓reduceIte] at hobj
       by_cases hex : e.obj = x
       · cases n_x with
         | zero =>
-          simp only [nthObjPos, hex, ↓reduceIte, Option.some.injEq] at hobj
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, hex, ↓reduceIte,
+            Option.some.injEq] at hobj
           subst hobj
           simp only [History.nthProcPos, hep, ↓reduceIte, Option.some.injEq] at hproc
           subst hproc
           simp only [List.getElem?_cons_zero, Option.map_some, hex, History.objSubhistory_cons,
             ↓reduceIte, History.nthProcPos, hep, objProjPos, and_self]
         | succ n_x' =>
-          simp only [nthObjPos, hex, ↓reduceIte, Option.map_eq_some_iff] at hobj
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, hex, ↓reduceIte,
+            Option.map_eq_some_iff] at hobj
           obtain ⟨n', hn', rfl⟩ := hobj
           simp only [History.nthProcPos, hep, ↓reduceIte, Option.map_eq_some_iff] at hproc
           obtain ⟨pos', hpos', rfl⟩ := hproc
@@ -1802,7 +1895,8 @@ private theorem nthProcPos_objSubhistory_eq [DecidableEq P] [DecidableEq Obj]
             History.nthProcPos, hep, hm_pos, Option.map_some, objProjPos, and_self]
       · cases n_x with
         | zero =>
-          simp only [nthObjPos, hex, ↓reduceIte, Option.map_eq_some_iff] at hobj
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, hex, ↓reduceIte,
+            Option.map_eq_some_iff] at hobj
           obtain ⟨n', hn', rfl⟩ := hobj
           simp only [History.nthProcPos, hep, ↓reduceIte, Option.map_eq_some_iff] at hproc
           obtain ⟨pos', hpos', rfl⟩ := hproc
@@ -1810,7 +1904,8 @@ private theorem nthProcPos_objSubhistory_eq [DecidableEq P] [DecidableEq Obj]
           simp only [List.getElem?_cons_succ, hm_obj, History.objSubhistory_cons, hex, ↓reduceIte,
             hm_pos, objProjPos, and_self]
         | succ n_x' =>
-          simp only [nthObjPos, hex, ↓reduceIte, Option.map_eq_some_iff] at hobj
+          simp only [nthObjPos, History.nthFilterPos, decide_eq_true_eq, hex, ↓reduceIte,
+            Option.map_eq_some_iff] at hobj
           obtain ⟨n', hn', rfl⟩ := hobj
           simp only [History.nthProcPos, hep, ↓reduceIte, Option.map_eq_some_iff] at hproc
           obtain ⟨pos', hpos', rfl⟩ := hproc
@@ -1934,7 +2029,7 @@ end LocalityInfrastructure
 
 /-! ### Herlihy–Wing Theorem 1 (Locality) and Theorem 2 (Nonblocking) -/
 
-theorem isSequential_append_left {P Obj : Type*} {Op Resp : Obj → Type*} :
+private theorem isSequential_append_left {P Obj : Type*} {Op Resp : Obj → Type*} :
     ∀ {L₁ L₂ : History P Op Resp},
       History.IsSequential (L₁ ++ L₂) → History.IsSequential L₁
   | [], _, _ => trivial
@@ -1945,7 +2040,7 @@ theorem isSequential_append_left {P Obj : Type*} {Op Resp : Obj → Type*} :
   | .inv _ _ _ :: .inv _ _ _ :: _, _, h => False.elim h
   | .inv _ _ _ :: .resp _ _ _ :: _, _, h => ⟨h.1, h.2.1, isSequential_append_left h.2.2⟩
 
-theorem complete_flatMap_append_inv {P Obj : Type*} {Op Resp : Obj → Type*}
+private theorem complete_flatMap_append_inv {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] (cs : List (OpCall P Op Resp)) (q : P) (y : Obj) (op : Op y) :
     History.complete (cs.flatMap OpCall.toEvents ++ [.inv q y op]) =
       cs.flatMap OpCall.toEvents := by
@@ -1962,7 +2057,7 @@ theorem complete_flatMap_append_inv {P Obj : Type*} {Op Resp : Obj → Type*}
     simp only [History.complete, hany, ↓reduceIte]
     exact congrArg (fun t => .inv c.proc c.obj c.op :: .resp c.proc c.obj c.res :: t) ih
 
-theorem isCompletedOp_complete_iff {P Obj : Type*} {Op Resp : Obj → Type*}
+private theorem isCompletedOp_complete_iff {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] {M : History P Op Resp} (hwf : History.WellFormed M) (e : OpId P) :
     History.IsCompletedOp (History.complete M) e ↔ History.IsCompletedOp M e := by
   rw [History.isCompletedOp_iff_lt_length, History.isCompletedOp_iff_lt_length,
@@ -2091,60 +2186,16 @@ private theorem filter_getElem_count_take {α : Type*} (pred : α → Bool) :
 private def countObjCalls [DecidableEq Obj] (x : Obj) (calls : List (OpCall P Op Resp)) : ℕ :=
   (calls.filter fun c => decide (c.obj = x)).length
 
-private theorem countObjCalls_nil [DecidableEq Obj] (x : Obj) :
-    countObjCalls x ([] : List (OpCall P Op Resp)) = 0 :=
-  rfl
-
-private theorem countObjCalls_cons [DecidableEq Obj] (x : Obj) (c : OpCall P Op Resp)
-    (rest : List (OpCall P Op Resp)) :
-    countObjCalls x (c :: rest) =
-      if c.obj = x then countObjCalls x rest + 1 else countObjCalls x rest := by
-  simp only [countObjCalls, List.filter]
-  by_cases h : c.obj = x <;> simp only [h, decide_true, decide_false, ↓reduceIte, List.length_cons]
-
 private theorem nthObjPos_flatMap_toEvents [DecidableEq Obj] (calls : List (OpCall P Op Resp))
     (k : ℕ) (hk : k < calls.length) :
     nthObjPos calls[k].obj (calls.flatMap OpCall.toEvents)
         (2 * countObjCalls calls[k].obj (calls.take k)) = some (2 * k) ∧
       nthObjPos calls[k].obj (calls.flatMap OpCall.toEvents)
-        (2 * countObjCalls calls[k].obj (calls.take k) + 1) = some (2 * k + 1) := by
-  induction calls generalizing k with
-  | nil => simp only [List.length_nil] at hk; omega
-  | cons c rest ih =>
-    cases k with
-    | zero =>
-      simp only [List.getElem_cons_zero, List.take_zero, countObjCalls_nil, Nat.mul_zero,
-        Nat.zero_add, List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append,
-        nthObjPos, Event.obj_inv, Event.obj_resp, ↓reduceIte, Option.map_some, and_self]
-    | succ k' =>
-      have hk' : k' < rest.length := by simp only [List.length_cons] at hk; omega
-      obtain ⟨hinv, hresp⟩ := ih k' hk'
-      simp only [List.getElem_cons_succ, List.take_succ_cons, countObjCalls_cons,
-        List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append]
-      by_cases hcx : c.obj = rest[k'].obj
-      · simp only [hcx, ↓reduceIte]
-        have heq₁ : 2 * (countObjCalls rest[k'].obj (rest.take k') + 1) =
-            2 * countObjCalls rest[k'].obj (rest.take k') + 1 + 1 := by omega
-        rw [heq₁]
-        simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hcx, ↓reduceIte,
-          hinv, hresp, Option.map_some]
-        exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
-      · simp only [hcx, ↓reduceIte]
-        cases hk₁ : 2 * countObjCalls rest[k'].obj (rest.take k') with
-        | zero =>
-          rw [hk₁] at hinv
-          have hk₂ : 2 * countObjCalls rest[k'].obj (rest.take k') + 1 = 1 := by omega
-          rw [hk₂] at hresp
-          simp only [Nat.zero_add, nthObjPos, Event.obj_inv, Event.obj_resp, hcx, ↓reduceIte,
-            hinv, hresp, Option.map_some]
-          exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
-        | succ m =>
-          rw [hk₁] at hinv
-          have hk₂ : 2 * countObjCalls rest[k'].obj (rest.take k') + 1 = m + 1 + 1 := by omega
-          rw [hk₂] at hresp
-          simp only [nthObjPos, Event.obj_inv, Event.obj_resp, hcx, ↓reduceIte,
-            hinv, hresp, Option.map_some]
-          exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
+        (2 * countObjCalls calls[k].obj (calls.take k) + 1) = some (2 * k + 1) :=
+  nthFilterPos_flatMap_toEvents
+    (fun c => decide (c.obj = calls[k].obj))
+    (fun e => decide (e.obj = calls[k].obj))
+    (fun _ => rfl) (fun _ => rfl) calls k hk (decide_eq_true rfl)
 
 private theorem strictMono_list_eq_range' :
     ∀ (m s : ℕ) (L : List ℕ),
@@ -2946,43 +2997,7 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
           change nthObjPos (callOf a).obj ((pCalls a.1.proc).flatMap OpCall.toEvents)
             (2 * (localOp a).idx) = some (2 * a.1.idx) at hno_ev
           rw [hax, ← hpCalls_eq a.1.proc, ha_proc, ha_idx] at hno_ev
-          have hinj : ∀ {L : History P Op Resp} {u v w : ℕ},
-              nthObjPos x L u = some w → nthObjPos x L v = some w → u = v := by
-            intro L u v w hu hv
-            induction L generalizing u v w with
-            | nil => simp only [nthObjPos, reduceCtorEq] at hu
-            | cons ev rs ihr =>
-              by_cases hex : ev.obj = x
-              · cases u with
-                | zero =>
-                  cases v with
-                  | zero => rfl
-                  | succ v' =>
-                    simp only [nthObjPos, hex, ↓reduceIte, Option.some.injEq,
-                      Option.map_eq_some_iff] at hu hv
-                    subst hu; obtain ⟨_, _, h0⟩ := hv; omega
-                | succ u' =>
-                  cases v with
-                  | zero =>
-                    simp only [nthObjPos, hex, ↓reduceIte, Option.some.injEq,
-                      Option.map_eq_some_iff] at hu hv
-                    subst hv; obtain ⟨_, _, h0⟩ := hu; omega
-                  | succ v' =>
-                    simp only [nthObjPos, hex, ↓reduceIte, Option.map_eq_some_iff] at hu hv
-                    obtain ⟨w₁, hu', rfl⟩ := hu
-                    obtain ⟨w₂, hv', hw⟩ := hv
-                    have hw' : w₁ = w₂ := by omega
-                    subst hw'
-                    exact congrArg (· + 1) (ihr hu' hv')
-              · have hneg : ∀ m, nthObjPos x (ev :: rs) m = (nthObjPos x rs m).map (· + 1) := by
-                  intro m; cases m <;> simp only [nthObjPos, hex, ↓reduceIte]
-                rw [hneg, Option.map_eq_some_iff] at hu hv
-                obtain ⟨w₁, hu', rfl⟩ := hu
-                obtain ⟨w₂, hv', hw⟩ := hv
-                have hw' : w₁ = w₂ := by omega
-                subst hw'
-                exact ihr hu' hv'
-          have h2eq := hinj hno_ev hk₀_comp
+          have h2eq := History.nthFilterPos_inj hno_ev hk₀_comp
           ext
           · exact ha_proc
           · omega
@@ -3090,15 +3105,8 @@ theorem History.append_pending_inv_extension {P Obj : Type*} {Op Resp : Obj → 
     rw [History.invPos, History.nthProcPos_append_left [Event.inv p x op] hlt_i₁] at hi₁
     exact hi₁
   obtain ⟨hi₁_lt_H, _⟩ := History.nthProcPos_lt_length hi₁_H
-  have hr₀_H : History.respPos H e₀ = some r₀ := by
-    by_cases hlt_r₀ : 2 * e₀.idx + 1 < (History.procSubhistory H e₀.proc).length
-    · rw [History.respPos, History.nthProcPos_append_left [Event.inv p x op] hlt_r₀] at hr₀
-      exact hr₀
-    · exfalso
-      rw [History.respPos, History.nthProcPos_append_right H [Event.inv p x op] (by omega),
-        Option.map_eq_some_iff] at hr₀
-      obtain ⟨_, _, rfl⟩ := hr₀
-      omega
+  have hr₀_H : History.respPos H e₀ = some r₀ :=
+    History.nthProcPos_of_append_lt hr₀ (by omega)
   exact hprecS e₀ e₁ hc₀_HR hc₁_HR ⟨r₀, i₁, hr₀_H, hi₁_H, hri⟩
 
 /-- Linearizing an uncompleted pending invocation `Event.inv p x op` of process `p` by appending
@@ -3311,32 +3319,7 @@ theorem History.flush_resp_from_extension {P Obj : Type*} {Op Resp : Obj → Typ
           simp only [H₁, List.getElem?_append_right (Nat.le_refl _), Nat.sub_self,
             List.getElem?_cons_zero]
         have hseq_q := hwf_H₁ e₁.proc
-        have hnth_get : ∀ (L : History P Op Resp) (n pos : ℕ),
-            History.nthProcPos e₁.proc L n = some pos →
-              L[pos]? = (History.procSubhistory L e₁.proc)[n]? := by
-          intro L n pos hn_pos
-          induction L generalizing n pos with
-          | nil => simp only [History.nthProcPos, reduceCtorEq] at hn_pos
-          | cons a rs ih =>
-            cases n with
-            | zero =>
-              simp only [History.nthProcPos, History.procSubhistory_cons] at hn_pos ⊢
-              by_cases hap : a.proc = e₁.proc
-              · simp only [hap, ↓reduceIte, Option.some.injEq] at hn_pos
-                subst hn_pos; simp only [hap, ↓reduceIte, List.getElem?_cons_zero]
-              · simp only [hap, ↓reduceIte, Option.map_eq_some_iff] at hn_pos ⊢
-                obtain ⟨p₀, hp₀, rfl⟩ := hn_pos
-                simp only [List.getElem?_cons_succ, ih 0 p₀ hp₀]
-            | succ n' =>
-              simp only [History.nthProcPos, History.procSubhistory_cons] at hn_pos ⊢
-              by_cases hap : a.proc = e₁.proc
-              · simp only [hap, ↓reduceIte, Option.map_eq_some_iff] at hn_pos ⊢
-                obtain ⟨p₀, hp₀, rfl⟩ := hn_pos
-                simp only [List.getElem?_cons_succ, ih n' p₀ hp₀]
-              · simp only [hap, ↓reduceIte, Option.map_eq_some_iff] at hn_pos ⊢
-                obtain ⟨p₀, hp₀, rfl⟩ := hn_pos
-                simp only [List.getElem?_cons_succ, ih (n' + 1) p₀ hp₀]
-        have hev_eq := hnth_get H₁ (2 * e₁.idx) i₁ hi₁
+        have hev_eq := History.nthProcPos_getElem? hi₁
         rw [heq_len, hget] at hev_eq
         have his_inv : ∀ (k : ℕ) (L : History P Op Resp) (ev : Event P Op Resp),
             History.IsSequential L → L[2 * k]? = some ev → ev.isResp = false := by
@@ -3375,23 +3358,8 @@ theorem History.flush_resp_from_extension {P Obj : Type*} {Op Resp : Obj → Typ
         exact Bool.noConfusion hfalse
       · omega
     have hr₀_lt : r₀ < H.length := by omega
-    have hr₀_H : History.respPos H e₀ = some r₀ := by
-      by_cases hlt_r : 2 * e₀.idx + 1 < (History.procSubhistory H e₀.proc).length
-      · rw [History.respPos, History.nthProcPos_append_left [Event.resp p x res] hlt_r] at hr₀
-        exact hr₀
-      · exfalso
-        rw [History.respPos, History.nthProcPos_append_right H [Event.resp p x res] (by omega),
-          Option.map_eq_some_iff] at hr₀
-        obtain ⟨_, _, rfl⟩ := hr₀; omega
-    have hi₁_H : History.invPos H e₁ = some i₁ := by
-      by_cases hlt_i : 2 * e₁.idx < (History.procSubhistory H e₁.proc).length
-      · rw [History.invPos, History.nthProcPos_append_left [Event.resp p x res] hlt_i] at hi₁
-        exact hi₁
-      · exfalso
-        rw [History.invPos, History.nthProcPos_append_right H [Event.resp p x res] (by omega),
-          Option.map_eq_some_iff] at hi₁
-        obtain ⟨_, _, rfl⟩ := hi₁; omega
-    exact ⟨r₀, i₁, hr₀_H, hi₁_H, hri⟩
+    exact ⟨r₀, i₁, History.nthProcPos_of_append_lt hr₀ hr₀_lt,
+      History.nthProcPos_of_append_lt hi₁ hi₁_lt, hri⟩
   exact hprecS e₀ e₁ hc₀_HR hc₁_HR hpr_H
 
 /-- **Herlihy–Wing Theorem 2 (Nonblocking Property of Linearizability)**
@@ -3486,6 +3454,66 @@ def registerSeqSpec {P Obj V : Type*} (x : Obj) (init : V) :
     SeqSpec P (fun _ : Obj => RegOp V) (fun _ : Obj => RegResp V) x :=
   SeqSpec.ofMachine x init registerStep
 
+private theorem resp_ext_eq_nil_of_even_proc {P Obj : Type*} {Op Resp : Obj → Type*}
+    [DecidableEq P] {H R : History P Op Resp} (hwf : History.WellFormed H)
+    (hev : ∀ p : P, (History.procSubhistory H p).length % 2 = 0)
+    (hrespR : History.IsRespList R) (hwf' : History.WellFormed (H ++ R)) : R = [] := by
+  cases R with
+  | nil => rfl
+  | cons e rs =>
+    cases e with
+    | inv _ _ _ => exact Bool.noConfusion (hrespR _ List.mem_cons_self)
+    | resp p x res =>
+      have hp := hwf' p
+      rw [History.procSubhistory_append] at hp
+      have hresp_p : History.IsRespList (History.procSubhistory (.resp p x res :: rs) p) :=
+        fun a ha => hrespR a (List.mem_filter.mp ha).1
+      have hnil_p :=
+        History.isRespList_eq_nil_of_isSequential_even (hwf p) (hev p) hresp_p hp
+      simp only [History.procSubhistory_cons, Event.proc_resp, ↓reduceIte] at hnil_p
+      nomatch hnil_p
+
+private theorem filter_proc_bool_length_sum {Obj : Type*} {Op Resp : Obj → Type*}
+    (l : List (OpCall Bool Op Resp)) :
+    (l.filter fun c => decide (c.proc = false)).length +
+      (l.filter fun c => decide (c.proc = true)).length = l.length := by
+  have h := List.length_eq_length_filter_add (l := l) (fun c => decide (c.proc = false))
+  have hnot : (fun c : OpCall Bool Op Resp => !decide (c.proc = false)) =
+      fun c => decide (c.proc = true) := by
+    funext c; cases c.proc <;> rfl
+  rw [hnot] at h
+  exact h.symm
+
+private theorem dekker_write_not_lt_stale_read
+    {c0 c1 c2 c3 : OpCall Bool (fun _ : Bool => RegOp Bool) (fun _ : Bool => RegResp Bool)}
+    (reg : Bool)
+    (hleg : History.objSubhistory ([c0, c1, c2, c3].flatMap OpCall.toEvents) reg ∈
+      (registerSeqSpec reg false).allowed)
+    {jA0 jA1 jB0 jB1 : ℕ}
+    (hjA0 : jA0 < 4) (hjA1 : jA1 < 4) (hjB0 : jB0 < 4) (hjB1 : jB1 < 4)
+    (hltA : jA0 < jA1) (hltB : jB0 < jB1)
+    (hne00 : jA0 ≠ jB0) (hne01 : jA0 ≠ jB1) (hne10 : jA1 ≠ jB0) (hne11 : jA1 ≠ jB1)
+    (eA0 : [c0, c1, c2, c3][jA0] = ⟨reg, reg, .write true, .writeAck⟩)
+    (eA1 : [c0, c1, c2, c3][jA1] = ⟨reg, !reg, .read, .readRet false⟩)
+    (eB0 : [c0, c1, c2, c3][jB0] = ⟨!reg, !reg, .write true, .writeAck⟩)
+    (eB1 : [c0, c1, c2, c3][jB1] = ⟨!reg, reg, .read, .readRet false⟩) :
+    ¬ jA0 < jB1 := by
+  intro hlt
+  rw [History.objSubhistory_flatMap_toEvents] at hleg
+  have hne_reg : decide ((!reg) = reg) = false := by cases reg <;> rfl
+  have hcases : (jA0 = 0 ∨ jA0 = 1 ∨ jA0 = 2) ∧ (jB1 = 1 ∨ jB1 = 2 ∨ jB1 = 3) ∧
+      (jA1 = 1 ∨ jA1 = 2 ∨ jA1 = 3) ∧ (jB0 = 0 ∨ jB0 = 1 ∨ jB0 = 2) := by omega
+  rcases hcases with ⟨rfl | rfl | rfl, rfl | rfl | rfl, rfl | rfl | rfl, rfl | rfl | rfl⟩
+  all_goals first
+    | omega
+    | (simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eA0 eA1 eB0 eB1
+       rw [eA0, eA1, eB0, eB1] at hleg
+       simp only [registerSeqSpec, SeqSpec.mem_ofMachine_allowed, List.filter, hne_reg,
+         decide_true, List.flatMap_cons, List.flatMap_nil, OpCall.toEvents,
+         List.cons_append, List.nil_append, SeqSpec.evalMachine, registerStep] at hleg
+       obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg
+       nomatch hbad)
+
 /-- Original explicit 2-process, 1-register history that is **sequentially consistent** (`B`'s
 `read false` can be ordered before `A`'s `write true`) yet **not linearizable** (`A`'s `write true`
 completed in real time before `B`'s `read false` was invoked), witnessing the single-object
@@ -3498,62 +3526,31 @@ theorem exists_sequentiallyConsistent_not_linearizable :
   let H : History Bool (fun _ : Unit => RegOp Bool) (fun _ : Unit => RegResp Bool) :=
     [.inv false () (.write true), .resp false () .writeAck,
      .inv true () .read, .resp true () (.readRet false)]
-  refine ⟨H, ?_, ?_, ?_⟩
-  · intro b; cases b <;> trivial
+  have hwfH : History.WellFormed H := fun b => by cases b <;> trivial
+  refine ⟨H, hwfH, ?_, ?_⟩
   · let S : History Bool (fun _ : Unit => RegOp Bool) (fun _ : Unit => RegResp Bool) :=
       [.inv true () .read, .resp true () (.readRet false),
        .inv false () (.write true), .resp false () .writeAck]
-    have hwfH : History.WellFormed H := fun b => by cases b <;> trivial
     refine ⟨H, History.IsExtension.refl hwfH, S, ⟨rfl, rfl, rfl, rfl, trivial⟩, ?_, ?_⟩
     · intro x; cases x
       exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
     · intro b; cases b <;> rfl
   · rintro ⟨H', ⟨R, hrespR, rfl, hwf'⟩, S, hseqS, hlegS, heqS, hprecS⟩
-    have hR_nil : R = [] := by
-      cases R with
-      | nil => rfl
-      | cons e rs =>
-        cases e with
-        | inv _ _ _ => exact Bool.noConfusion (hrespR _ List.mem_cons_self)
-        | resp b x res =>
-          have hp := hwf' b
-          rw [History.procSubhistory_append] at hp
-          have hseq_Hb : History.IsSequential (History.procSubhistory H b) := by
-            cases b <;> trivial
-          have hev_Hb : (History.procSubhistory H b).length % 2 = 0 := by
-            cases b <;> decide
-          have hresp_b : History.IsRespList (History.procSubhistory (Event.resp b x res :: rs) b) :=
-            fun a ha => hrespR a (List.mem_filter.mp ha).1
-          have hnil_b :=
-            History.isRespList_eq_nil_of_isSequential_even hseq_Hb hev_Hb hresp_b hp
-          simp only [History.procSubhistory_cons, Event.proc_resp, ↓reduceIte] at hnil_b
-          nomatch hnil_b
+    have hR_nil : R = [] :=
+      resp_ext_eq_nil_of_even_proc hwfH (fun b => by cases b <;> decide) hrespR hwf'
     subst hR_nil
     rw [List.append_nil] at hwf' heqS hprecS
     have hcF : History.IsCompletedOp H ⟨false, 0⟩ := rfl
     have hcT : History.IsCompletedOp H ⟨true, 0⟩ := rfl
     have hpr_FT : History.prec H ⟨false, 0⟩ ⟨true, 0⟩ := ⟨1, 2, rfl, rfl, by omega⟩
     have hpr_S := hprecS ⟨false, 0⟩ ⟨true, 0⟩ hcF hcT hpr_FT
-    -- Determine `S` explicitly from `IsSequential S`, `S.length = 4`, and `Equivalent`:
     have hevS := History.even_length_of_equivalent_complete hwf' hseqS heqS
     obtain ⟨cs, rfl⟩ := History.exists_calls_of_isSequential_even hseqS hevS
     have hlen_cs : cs.length = 2 := by
       have hf := congrArg List.length (heqS false)
       have ht := congrArg List.length (heqS true)
       rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents] at hf ht
-      have hpart : ∀ l : List (OpCall Bool (fun _ : Unit => RegOp Bool)
-          (fun _ : Unit => RegResp Bool)),
-          (l.filter fun c => decide (c.proc = false)).length +
-            (l.filter fun c => decide (c.proc = true)).length = l.length := by
-        intro l
-        induction l with
-        | nil => rfl
-        | cons c ls ih =>
-          cases hcp : c.proc <;>
-            simp only [List.filter, hcp, Bool.false_eq_true, Bool.true_eq_false,
-              decide_true, decide_false, List.length_cons] <;>
-            omega
-      have hp_sum := hpart cs
+      have hp_sum := filter_proc_bool_length_sum cs
       have hf_val : (History.procSubhistory (History.complete H) false).length = 2 := rfl
       have ht_val : (History.procSubhistory (History.complete H) true).length = 2 := rfl
       rw [hf_val] at hf; rw [ht_val] at ht
@@ -3655,25 +3652,8 @@ theorem exists_obj_sequentiallyConsistent_not_global :
         · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
       · intro p; cases p <;> rfl
   · rintro ⟨H', ⟨R, hrespR, rfl, hwf'⟩, S, hseqS, hlegS, heqS⟩
-    have hR_nil : R = [] := by
-      cases R with
-      | nil => rfl
-      | cons e rs =>
-        cases e with
-        | inv _ _ _ => exact Bool.noConfusion (hrespR _ List.mem_cons_self)
-        | resp b x res =>
-          have hp := hwf' b
-          rw [History.procSubhistory_append] at hp
-          have hseq_Hb : History.IsSequential (History.procSubhistory H b) := by
-            cases b <;> trivial
-          have hev_Hb : (History.procSubhistory H b).length % 2 = 0 := by
-            cases b <;> decide
-          have hresp_b : History.IsRespList (History.procSubhistory (Event.resp b x res :: rs) b) :=
-            fun a ha => hrespR a (List.mem_filter.mp ha).1
-          have hnil_b :=
-            History.isRespList_eq_nil_of_isSequential_even hseq_Hb hev_Hb hresp_b hp
-          simp only [History.procSubhistory_cons, Event.proc_resp, ↓reduceIte] at hnil_b
-          nomatch hnil_b
+    have hR_nil : R = [] :=
+      resp_ext_eq_nil_of_even_proc hwfH (fun b => by cases b <;> decide) hrespR hwf'
     subst hR_nil
     rw [List.append_nil] at hwf' heqS
     have hevS := History.even_length_of_equivalent_complete hwf' hseqS heqS
@@ -3748,78 +3728,25 @@ theorem exists_obj_sequentiallyConsistent_not_global :
     simp only [hcs_F, List.getElem_cons_zero, List.getElem_cons_succ] at hgetF0 hgetF1
     simp only [hcs_T, List.getElem_cons_zero, List.getElem_cons_succ] at hgetT0 hgetT1
     have hlen_cs4 : cs.length = 4 := by
-      have hpart : ∀ l : List (OpCall Bool (fun _ : Bool => RegOp Bool)
-          (fun _ : Bool => RegResp Bool)),
-          (l.filter fun c => decide (c.proc = false)).length +
-            (l.filter fun c => decide (c.proc = true)).length = l.length := by
-        intro l
-        induction l with
-        | nil => rfl
-        | cons c ls ih =>
-          cases hcp : c.proc <;>
-            simp only [List.filter, hcp, Bool.false_eq_true, Bool.true_eq_false,
-              decide_true, decide_false, List.length_cons] <;>
-            omega
-      have h := hpart cs
+      have h := filter_proc_bool_length_sum cs
       simp only [countProcCalls] at hcF0 hcT0
       omega
     obtain ⟨c0, c1, c2, c3, hcs_eq⟩ : ∃ c0 c1 c2 c3, cs = [c0, c1, c2, c3] := by
       match cs, hlen_cs4 with
       | [c0, c1, c2, c3], _ => exact ⟨c0, c1, c2, c3, rfl⟩
     subst hcs_eq
-    have hne_all : jF0 ≠ jF1 ∧ jF0 ≠ jT0 ∧ jF0 ≠ jT1 ∧ jF1 ≠ jT0 ∧ jF1 ≠ jT1 ∧ jT0 ≠ jT1 := by
-      refine ⟨by omega, fun h => ?_, fun h => ?_, fun h => ?_, fun h => ?_, by omega⟩
-      · subst h; rw [hopF0] at hopT0; nomatch hopT0
-      · subst h; rw [hopF0] at hopT1; nomatch hopT1
-      · subst h; rw [hopF1] at hopT0; nomatch hopT0
-      · subst h; rw [hopF1] at hopT1; nomatch hopT1
+    have hne_FT00 : jF0 ≠ jT0 := fun h => by subst h; rw [hopF0] at hopT0; nomatch hopT0
+    have hne_FT01 : jF0 ≠ jT1 := fun h => by subst h; rw [hopF0] at hopT1; nomatch hopT1
+    have hne_FT10 : jF1 ≠ jT0 := fun h => by subst h; rw [hopF1] at hopT0; nomatch hopT0
+    have hne_FT11 : jF1 ≠ jT1 := fun h => by subst h; rw [hopF1] at hopT1; nomatch hopT1
     simp only [List.length_cons, List.length_nil] at hjF0 hjF1 hjT0 hjT1
-    have hnot_F0_lt_T1 : ¬ jF0 < jT1 := by
-      intro hlt
-      have hlegF := hlegS false
-      rw [History.objSubhistory_flatMap_toEvents] at hlegF
-      have hcases : (jF0 = 0 ∨ jF0 = 1 ∨ jF0 = 2) ∧ (jT1 = 1 ∨ jT1 = 2 ∨ jT1 = 3) ∧
-          (jF1 = 1 ∨ jF1 = 2 ∨ jF1 = 3) ∧ (jT0 = 0 ∨ jT0 = 1 ∨ jT0 = 2) := by omega
-      have checkF : [c0, c1, c2, c3][jF0] = ⟨false, false, .write true, .writeAck⟩ →
-          [c0, c1, c2, c3][jF1] = ⟨false, true, .read, .readRet false⟩ →
-          [c0, c1, c2, c3][jT0] = ⟨true, true, .write true, .writeAck⟩ →
-          [c0, c1, c2, c3][jT1] = ⟨true, false, .read, .readRet false⟩ → False := by
-        intro eF0 eF1 eT0 eT1
-        rcases hcases with ⟨rfl | rfl | rfl, rfl | rfl | rfl, rfl | rfl | rfl, rfl | rfl | rfl⟩
-        all_goals first
-          | omega
-          | (simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eF0 eF1 eT0 eT1
-             rw [eF0, eF1, eT0, eT1] at hlegF
-             simp only [registerSeqSpec, SeqSpec.mem_ofMachine_allowed, List.filter, decide_true,
-               Bool.true_eq_false, decide_false, List.flatMap_cons, List.flatMap_nil,
-               OpCall.toEvents, List.cons_append, List.nil_append, SeqSpec.evalMachine,
-               registerStep] at hlegF
-             obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hlegF
-             nomatch hbad)
-      exact checkF hgetF0.symm hgetF1.symm hgetT0.symm hgetT1.symm
-    have hnot_T0_lt_F1 : ¬ jT0 < jF1 := by
-      intro hlt
-      have hlegT := hlegS true
-      rw [History.objSubhistory_flatMap_toEvents] at hlegT
-      have hcases : (jT0 = 0 ∨ jT0 = 1 ∨ jT0 = 2) ∧ (jF1 = 1 ∨ jF1 = 2 ∨ jF1 = 3) ∧
-          (jT1 = 1 ∨ jT1 = 2 ∨ jT1 = 3) ∧ (jF0 = 0 ∨ jF0 = 1 ∨ jF0 = 2) := by omega
-      have checkT : [c0, c1, c2, c3][jF0] = ⟨false, false, .write true, .writeAck⟩ →
-          [c0, c1, c2, c3][jF1] = ⟨false, true, .read, .readRet false⟩ →
-          [c0, c1, c2, c3][jT0] = ⟨true, true, .write true, .writeAck⟩ →
-          [c0, c1, c2, c3][jT1] = ⟨true, false, .read, .readRet false⟩ → False := by
-        intro eF0 eF1 eT0 eT1
-        rcases hcases with ⟨rfl | rfl | rfl, rfl | rfl | rfl, rfl | rfl | rfl, rfl | rfl | rfl⟩
-        all_goals first
-          | omega
-          | (simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eF0 eF1 eT0 eT1
-             rw [eF0, eF1, eT0, eT1] at hlegT
-             simp only [registerSeqSpec, SeqSpec.mem_ofMachine_allowed, List.filter, decide_true,
-               Bool.false_eq_true, decide_false, List.flatMap_cons, List.flatMap_nil,
-               OpCall.toEvents, List.cons_append, List.nil_append, SeqSpec.evalMachine,
-               registerStep] at hlegT
-             obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hlegT
-             nomatch hbad)
-      exact checkT hgetF0.symm hgetF1.symm hgetT0.symm hgetT1.symm
+    have hnot_F0_lt_T1 : ¬ jF0 < jT1 :=
+      dekker_write_not_lt_stale_read false (hlegS false) hjF0 hjF1 hjT0 hjT1 hjF_lt hjT_lt
+        hne_FT00 hne_FT01 hne_FT10 hne_FT11 hgetF0.symm hgetF1.symm hgetT0.symm hgetT1.symm
+    have hnot_T0_lt_F1 : ¬ jT0 < jF1 :=
+      dekker_write_not_lt_stale_read true (hlegS true) hjT0 hjT1 hjF0 hjF1 hjT_lt hjF_lt
+        hne_FT00.symm hne_FT10.symm hne_FT01.symm hne_FT11.symm
+        hgetT0.symm hgetT1.symm hgetF0.symm hgetF1.symm
     omega
 
 end Cslib.Distributed.ConcurrentObjects
