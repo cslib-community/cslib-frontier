@@ -1558,8 +1558,11 @@ public import CslibFrontier.Computability.Circuit.DagProtocol
 public import CslibFrontier.Computability.Circuit.Decomposable
 public import CslibFrontier.Computability.Circuit.Depth
 public import CslibFrontier.Computability.Circuit.Descending
+public import CslibFrontier.Computability.Circuit.Encoding.Basic
 public import CslibFrontier.Computability.Circuit.Encoding.Check
+public import CslibFrontier.Computability.Circuit.Encoding.Combinators
 public import CslibFrontier.Computability.Circuit.Encoding.Evaluation
+public import CslibFrontier.Computability.Circuit.Encoding.EvaluationTime
 public import CslibFrontier.Computability.Circuit.Encoding.Layer
 public import CslibFrontier.Computability.Circuit.Encoding.MapOp
 public import CslibFrontier.Computability.Circuit.Erase

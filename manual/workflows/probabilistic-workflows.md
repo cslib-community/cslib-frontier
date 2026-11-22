@@ -565,7 +565,7 @@ uniform inputs, defined in
   re-export it. Each generator has a `_code` lemma stating exact agreement with the typed circuit.
   `polarizeCode` builds on `replicateCode`, from
   [CodeReplication.lean](../../CslibFrontier/Computability/Circuit/Boolean/CodeReplication.lean),
-  and on `muxCode`, from
+  and on `(muxCircuit m).code` (`computableInPolyTime_muxCircuit`), from
   [Comparison/PolyTime.lean](../../CslibFrontier/Computability/Circuit/Boolean/Comparison/PolyTime.lean).
 
 The thresholds are constants with `0 ≤ β < α² ≤ 1`, and the circuits are De Morgan circuits with
