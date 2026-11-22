@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Det
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.OutputPrefix
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Retaining a charged prefix in counting computations
@@ -62,8 +63,8 @@ theorem HaltsWithin.prependOutput {machine : MultiTapeCTM k Symbol State} {fuel 
   | @step fuel cfg nonempty next ih =>
     refine .step nonempty fun index => ?_
     have happly : (machine.actions cfg)[index].apply (cfg.prependOutput pre) =
-        ((machine.actions cfg)[index].apply cfg).prependOutput pre :=
-      Cfg.ext rfl rfl rfl rfl (by simp [Action.apply])
+        ((machine.actions cfg)[index].apply cfg).prependOutput pre := by
+      tm_step
     exact happly ▸ ih index
 
 variable (prepare : MultiTapeTM k Symbol State₀) (source : MultiTapeCTM k Symbol State₁)

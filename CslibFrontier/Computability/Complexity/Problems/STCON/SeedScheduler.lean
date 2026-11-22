@@ -139,6 +139,12 @@ def seedSchedulerCandidate (s : SeedSearchSetup) (seed : ℕ) : Option SeedSched
     some (seedSchedulerFrame s seed none s.sourceID)
   else none
 
+/-- A rank below the seed limit enters the designated scan. -/
+theorem seedSchedulerCandidate_eq_some {s : SeedSearchSetup} {seed : ℕ}
+    (h : seed < s.parameters.search.seedLimit) :
+    seedSchedulerCandidate s seed = some (seedSchedulerFrame s seed none s.sourceID) := by
+  simp [seedSchedulerCandidate, h]
+
 /-- The designated call always scans. An indexed frame skips the designated source. -/
 def SeedSchedulerFrame.needsScan (f : SeedSchedulerFrame) : Bool :=
   f.answer.isNone || f.request.sourceID != f.request.setup.sourceID
@@ -337,6 +343,19 @@ theorem seedSchedulerCandidate_valid {s : SeedSearchSetup} {seed : ℕ} {f : See
   · cases h
     exact ⟨⟨‹_›, rfl, rfl⟩, rfl, rfl⟩
   · contradiction
+
+/-- A valid frame requests an in-range source if the designated and indexed IDs are valid. -/
+theorem SeedSchedulerFrame.Valid.source_lt {f : SeedSchedulerFrame} (hf : f.Valid)
+    (hsource : f.request.setup.sourceID <
+      f.request.setup.parameters.search.subdivision.vertexCount)
+    (hroot : ∀ j < f.request.setup.parameters.search.subdivision.originalCount,
+      f.request.setup.originalSourceID j <
+        f.request.setup.parameters.search.subdivision.vertexCount) :
+    f.request.sourceID < f.request.setup.parameters.search.subdivision.vertexCount := by
+  obtain ⟨_, hphase⟩ := hf
+  split at hphase
+  · exact hphase.2 ▸ hsource
+  · exact hphase.2 ▸ hroot _ hphase.1
 
 /-- A frame constructed at a valid indexed root and seed is valid. -/
 theorem seedSchedulerFrame_indexed_valid (s : SeedSearchSetup) {seed position : ℕ}
@@ -644,12 +663,13 @@ theorem SeedSchedulerFrame.Valid.length_le {f : SeedSchedulerFrame} (hf : f.Vali
       f.request.setup.originalSourceID j <
         f.request.setup.parameters.search.subdivision.vertexCount) :
     (encSeedSchedulerFrame f).length ≤ 12 * (encSeedSearchSetup f.request.setup).length + 9 := by
-  obtain ⟨hi, hphase⟩ := hf
-  split at hphase
-  · exact length_encSeedSchedulerFrame_le _ _ _ _ _ hi.le
-      (hphase.1 ▸ Nat.zero_le _) (hphase.2 ▸ hsource.le)
-  · exact length_encSeedSchedulerFrame_le _ _ _ _ _ hi.le
-      hphase.1.le (hphase.2 ▸ (hroot _ hphase.1).le)
+  have hcursor : f.cursor ≤ f.request.setup.parameters.search.subdivision.originalCount := by
+    have hphase := hf.2
+    split at hphase
+    · exact hphase.1 ▸ Nat.zero_le _
+    · exact hphase.1.le
+  exact length_encSeedSchedulerFrame_le _ _ _ _ _ hf.seed_lt.le hcursor
+    (hf.source_lt hsource hroot).le
 
 private theorem scanFrame_bounds (s : SeedSearchSetup)
     (hlimit : s.parameters.search.seedLimit = 2 ^ s.parameters.search.seedWidth)

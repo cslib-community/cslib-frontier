@@ -58,6 +58,11 @@ def Xofs.shake : Xofs :=
       take_read := fun x _ _ h => Keccak.take_bitSponge layout _ x h }
   ⟨xof Keccak.shake128Layout, xof Keccak.shake256Layout⟩
 
+/-- SHAKE256 evaluation in the FIPS 202 instantiation uses the four-one domain-separation suffix. -/
+@[simp] theorem shake_h256_read (word : List Bool) (n : ℕ) :
+    Xofs.shake.h256.read word n =
+      Keccak.bitSponge Keccak.shake256Layout [true, true, true, true] word n := by rfl
+
 /-- The parameter choices from FIPS 204, Table 1. -/
 inductive Level where
   | mlDSA44 | mlDSA65 | mlDSA87
@@ -1150,6 +1155,10 @@ def publicKey (s : Level) (bytes : List Byte)
     ((decodeRounded s bytes i j).val : ZMod 8380417) * 8192
   ⟨matrix, fun i j => t[i.val][j.val]⟩
 
+/-- Public-key decoding retains the matrix obtained from the published seed. -/
+@[simp] theorem publicKey_matrix (s : Level) (bytes : List Byte) (matrix : PublicMatrix s) :
+    (publicKey s bytes matrix).A = matrix := by simp [publicKey]
+
 private theorem highPart_range (r : ZMod 8380417) :
     0 ≤ (power2Round 8380417 13 r).1 ∧ (power2Round 8380417 13 r).1 < 1024 := by
   have h := power2Round_high_mul_add_low (d := 13) r
@@ -1271,25 +1280,37 @@ theorem commitmentInput_ne_digestInput {s : Level} (w : Fin s.params.k → Fin 2
   rw [length_packCoeffs] at h
   cases s <;> revert h <;> decide
 
+/-- The message representative occupies the prefix of the Algorithm 8 preimage. -/
+theorem take_commitmentInput (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
+    (commitmentInput s w μ).take μ.length = μ := by simp [commitmentInput]
+
+/-- Read the packed high-bit coefficients after a message prefix of the given bit length. -/
+def unpackCommitment (s : Level) (prefixLength : ℕ) (raw : List Bool) :
+    Fin s.params.k → Fin 256 → ℤ := fun i j =>
+  unpackCoeff (raw.drop prefixLength) (((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1)
+    (256 * i.val + j.val)
+
+/-- Unpacking the canonical FIPS address recovers each bounded high-bit coefficient. -/
+theorem unpackCommitment_input {s : Level} {w : Fin s.params.k → Fin 256 → ℤ} (μ : List Bool)
+    (hw : ∀ i j, 0 ≤ w i j ∧ w i j < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ)) :
+    unpackCommitment s μ.length (commitmentInput s w μ) = w := by
+  let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
+  have size : (s.params.q - 1) / (2 * s.params.γ₂) ≤ 2 ^ width := by cases s <;> decide
+  have strict (i j) : (w i j).toNat < 2 ^ width := by
+    have := (hw i j).2
+    have pos : 0 < 2 ^ width := by positivity
+    omega
+  funext i j
+  simp only [unpackCommitment, commitmentInput, List.drop_left]
+  rw [unpack_packCoeffs _ strict, Int.toNat_of_nonneg (hw i j).1]
+
 /-- Fixed-width packing distinguishes all high-bit vectors in the range of UseHint. -/
 theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 → ℤ} {μ : List Bool}
     (hw : ∀ i j, 0 ≤ w i j ∧ w i j < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ))
     (hv : ∀ i j, 0 ≤ v i j ∧ v i j < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ))
     (he : commitmentInput s w μ = commitmentInput s v μ) : w = v := by
-  let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
-  have size : (s.params.q - 1) / (2 * s.params.γ₂) ≤ 2 ^ width := by cases s <;> decide
-  funext i j
-  have strict {z : ℤ} (hz : z < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ)) :
-      z.toNat < 2 ^ width := by
-    have pos : 0 < 2 ^ width := by positivity
-    omega
-  have values := congrArg (fun bits => unpackCoeff bits width (256 * i.val + j.val))
-    (List.append_cancel_left he)
-  rw [unpack_packCoeffs _ (fun i j => strict (hw i j).2),
-    unpack_packCoeffs _ (fun i j => strict (hv i j).2)] at values
-  have := (hw i j).1
-  have := (hv i j).1
-  omega
+  simpa only [unpackCommitment_input μ hw, unpackCommitment_input μ hv] using
+    congrArg (unpackCommitment s μ.length) he
 
 /-- The full FIPS hash of the message representative and packed reconstructed commitment. -/
 @[expose] def Xofs.commitmentDigest (H : Xofs) (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
@@ -1305,7 +1326,9 @@ abbrev commitmentDigest := Xofs.commitmentDigest Xofs.shake
     (μ : List Bool) : (H.commitmentDigest s w μ).length = digestBytes s :=
   H.h256.length_read ..
 
-private def hintedCommitment (s : Level) (pk : MLDSA.PublicKey s.params)
+/-- Algorithm 8 reconstructs the high commitment from the public key, response, hint and
+expanded challenge. -/
+@[expose] def hintedCommitment (s : Level) (pk : MLDSA.PublicKey s.params)
     (σ : Signature s) (c : Poly) : Fin s.params.k → Fin 256 → ℤ :=
   fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
     (moduleSISMap pk.A σ.z i - negacyclicMul c (pk.t i))
@@ -1464,6 +1487,28 @@ deriving DecidableEq
 /-- Algorithm 3 frames the context before the bit-string message. -/
 @[expose] def formattedMessage (f : Forgery) : List Bool :=
   formatMessage f.message f.context
+
+/-- Acceptance by the byte verifier at a supplied matrix `A`, including the context and key
+length bounds, signature decoding, challenge expansion, response shortness, and full
+commitment-digest equality. -/
+theorem verifyWithMatrix_eq_some_true_iff (s : Level) (bytes : List Byte) (A : PublicMatrix s)
+    (f : Forgery) :
+    verifyWithExpansion s (fun _ => some A) bytes f.message f.context f.signature = some true ↔
+      f.context.length ≤ 255 ∧ bytes.length = 32 + 320 * s.params.k ∧
+      ∃ σ c, sigDecode s f.signature = some σ ∧ sampleInBall s σ.digest = some c ∧
+        ResponseShort s.params σ.z ∧
+        commitmentDigest s (hintedCommitment s (publicKey s bytes A) σ c)
+          (messageRepresentative bytes (formattedMessage f)) = σ.digest := by
+  by_cases hctx : f.context.length ≤ 255 <;> by_cases hlen : bytes.length = 32 + 320 * s.params.k
+  · cases hσ : sigDecode s f.signature with
+    | none =>
+      simp [verifyWithExpansion, Xofs.verifyWithExpansion, Xofs.verifyInternalWith, guard, hctx,
+        hlen, hσ]
+    | some σ =>
+      simp [verifyWithExpansion, Xofs.verifyWithExpansion, Xofs.verifyInternalWith, guard, hctx,
+        hlen, hσ, Option.bind_eq_some_iff, Xofs.check, Signature.acceptDigest, formattedMessage]
+  all_goals simp [verifyWithExpansion, Xofs.verifyWithExpansion, Xofs.verifyInternalWith, guard,
+    hctx, hlen]
 
 private def candidate (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Bool)
     (σ : Signature s) (c : Poly) : SelfTargetCandidate s.params :=
@@ -1739,7 +1784,7 @@ theorem succProbability_verify_le_seededSelfTarget (s : Level)
 
 /-- Expand an oracle's fixed-length commitment digest by Algorithm 29, including XOF
 exhaustion at the Appendix C limit. -/
-def expandDigest (s : Level) (digest : FixedBytes (digestBytes s)) : Option Poly :=
+@[expose] def expandDigest (s : Level) (digest : FixedBytes (digestBytes s)) : Option Poly :=
   sampleInBall s digest.toList
 
 open ModuleSIS.SelfTarget in

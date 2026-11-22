@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 public import CslibFrontier.Foundations.Geometry.Polygonal.ParabolaChord
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import Mathlib.Data.Bool.Basic
 import Mathlib.Data.List.GetD
@@ -86,20 +87,26 @@ theorem subdivide_source_ne_target {I : FixedRotationInput} (hI : Valid I)
   rcases hs with rfl | rfl | rfl <;>
     dsimp only [Segment.source, Segment.target, Segment.endpoints] <;> omega
 
+/-- Every incidence of a valid input's twice subdivision has a declared vertex. -/
+theorem subdivisionGraph_endpoints_declared {I : FixedRotationInput} (hI : Valid I) :
+    ∀ v ∈ (subdivisionGraph I).incidenceVertices, v ∈ (subdivisionGraph I).vertices := by
+  intro v hv
+  obtain ⟨edge, he, hv⟩ := List.mem_flatMap.mp hv
+  obtain ⟨s, hs, rfl⟩ := List.mem_map.mp he
+  have hb := boundedEndpoints_frame hI s hs
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with rfl | rfl
+  · exact List.mem_range.mpr hb.1
+  · exact List.mem_range.mpr hb.2
+
 /-- Both ends of an actual indexed subdivision edge occur in the reference order and
 are distinct. The certificate includes original loops after twice subdivision. -/
 theorem subdivision_endpoint_spec {I : FixedRotationInput} (hI : Valid I)
     (e : Fin (subdivisionGraph I).edges.length) :
     (∀ b, Dart.vertex (e, b) ∈ referenceOrder I) ∧
       Dart.vertex (e, false) ≠ Dart.vertex (e, true) := by
-  have hclosed : ∀ edge ∈ (subdivisionGraph I).edges,
-      edge.1 ∈ (subdivisionGraph I).vertices ∧ edge.2 ∈ (subdivisionGraph I).vertices := by
-    intro edge he
-    obtain ⟨s, hs, rfl⟩ := List.mem_map.mp he
-    have hb := boundedEndpoints_frame hI s hs
-    exact ⟨List.mem_range.mpr hb.1, List.mem_range.mpr hb.2⟩
   refine ⟨fun b => ((referenceOrder_enumerates hI).2 _).mpr
-    ((subdivisionGraph I).edgeEndpoint_mem hclosed e.isLt b), ?_⟩
+    (RotationSystem.vertex_mem (subdivisionGraph_endpoints_declared hI) (e, b)), ?_⟩
   have he : (subdivisionGraph I).edges[e] ∈ (subdivisionGraph I).edges :=
     List.getElem_mem e.isLt
   obtain ⟨s, hs, hse⟩ := List.mem_map.mp he

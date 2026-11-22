@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Foundations.Data.BitString.Basic
+public import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Languages.Probabilistic.RandomPermutation
 public import CslibFrontier.Languages.Probabilistic.Sum
@@ -70,15 +71,25 @@ We formalize four aspects of the Even–Mansour construction:
    (`isBadKeyPair_eq_decide_of_evenMansourEquiv`). Under a uniform two-key `(k₀, k₁)` or single
    key `k`, the bad-key probability is at most `2 * |T_e| * |T_π| / |G|`
     (`toOuterMeasure_isBadEvenMansourKey_toReal_le`,
-    `toOuterMeasure_isBadSingleKeyEvenMansour_toReal_le`). For any adaptive distinguisher satisfying
-    `IsCallBounded program Q_e Q_π`, `OracleComp.IsCostBounded.transcript_cost_le` bounds every
-    supported transcript by `|T_e| ≤ Q_e` and `|T_π| ≤ Q_π`, yielding the `2 * Q_e * Q_π / |G|`
-    bad-key bound on every supported execution path (`IsCallBounded.badEvenMansourKey_toReal_le`,
+    `toOuterMeasure_isBadSingleKeyEvenMansour_toReal_le`). For any deterministic (coin-free)
+    adaptive distinguisher satisfying `IsCallBounded program Q_e Q_π`,
+    `OracleComp.IsCostBounded.transcript_cost_le` bounds every supported transcript by
+    `|T_e| ≤ Q_e` and `|T_π| ≤ Q_π`, yielding the `2 * Q_e * Q_π / |G|` bad-key bound on every
+    supported execution path (`IsCallBounded.badEvenMansourKey_toReal_le`,
     `IsCallBounded.badSingleKeyEvenMansour_toReal_le`). Coupling `idealLazyHandler` to a single
-    key-shifted lazy permutation cache bounds the distinguishing advantage of any adaptive
+    key-shifted lazy permutation cache bounds the distinguishing advantage of any deterministic
     (`Q_e`, `Q_π`)-query adversary against both two-key and single-key Even–Mansour by
     `2 * Q_e * Q_π / |G|` (`advantage_evenMansourRealGame_evenMansourIdealGame_le`,
     `advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le`).
+5. **Randomized (`ProbOracleComp`) distinguishers via coin fixing**: fixing private coins
+   (`ProbOracleComp.coinLaw`) lifts the deterministic two-key and single-key games and their
+   `2 * Q_e * Q_π / |G|` bounds to arbitrary randomized adaptive distinguishers
+   `ProbOracleComp (EvenMansourSpec G) Bool` with separate cipher and primitive query budgets
+   `IsProbCallBounded program Q_e Q_π`
+   (`advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le`,
+   `advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le`, and the `BitString n`
+   specializations `advantage_evenMansourProbRealGame_bitString_le`,
+   `advantage_singleKeyEvenMansourProbRealGame_bitString_le`).
 
 ## Main definitions
 
@@ -86,11 +97,13 @@ We formalize four aspects of the Even–Mansour construction:
   `singleKeyEvenMansourEquiv`: Even–Mansour encryption, decryption, and bundled permutations.
 * `Cslib.Crypto.EvenMansour.preWhitenEquiv`, `postWhitenEquiv`, `preWhitenKeyRecoveryAttack`,
   `postWhitenKeyRecoveryAttack`: single-whitening variants and 2-query key-recovery attacks.
-* `Cslib.Crypto.EvenMansour.EvenMansourSpec`, `IsCallBounded`:
-  bidirectional cipher and primitive permutation oracle interface and separate query budgets.
+* `Cslib.Crypto.EvenMansour.EvenMansourSpec`, `IsCallBounded`, `IsProbCallBounded`:
+  bidirectional cipher and primitive permutation oracle interface and separate query budgets for
+  coin-free and randomized distinguishers.
 * `Cslib.Crypto.EvenMansour.evenMansourRealGame`, `singleKeyEvenMansourRealGame`,
-  `evenMansourIdealGame`, `idealLazyHandler`, `realLazyHandler`: real and ideal bidirectional
-  permutation games and lazy two-cache and single-cache handlers.
+  `evenMansourIdealGame`, `evenMansourProbRealGame`, `singleKeyEvenMansourProbRealGame`,
+  `evenMansourProbIdealGame`, `idealLazyHandler`, `realLazyHandler`: deterministic and randomized
+  real and ideal bidirectional permutation games and lazy two-cache and single-cache handlers.
 * `Cslib.Crypto.EvenMansour.isBadKeyPair`, `isBadEvenMansourKey`, `isBadSingleKeyEvenMansour`,
   `transcriptCipher`, `transcriptPerm`: bad-key collision predicates and transcript projections.
 
@@ -113,8 +126,11 @@ We formalize four aspects of the Even–Mansour construction:
   `Cslib.Crypto.EvenMansour.IsCallBounded.badSingleKeyEvenMansour_toReal_le`:
   Boneh–Shoup Theorem 4.14 bad-key probability bound `2 * Q_e * Q_π / |G|`.
 * `Cslib.Crypto.EvenMansour.advantage_evenMansourRealGame_evenMansourIdealGame_le`,
-  `Cslib.Crypto.EvenMansour.advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le`:
-  end-to-end PRP security bound `2 * Q_e * Q_π / |G|` in the ideal-permutation model.
+  `Cslib.Crypto.EvenMansour.advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le`,
+  `Cslib.Crypto.EvenMansour.advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le`,
+  `Cslib.Crypto.EvenMansour.advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le`:
+  end-to-end PRP security bounds `2 * Q_e * Q_π / |G|` in the ideal-permutation model for
+  deterministic and randomized distinguishers.
 
 ## References
 
@@ -481,16 +497,20 @@ section Games
 
 variable {G : Type} [AddGroup G] [Fintype G] [DecidableEq G] [Nonempty G]
 
-/-- The real Even–Mansour security experiment ([BonehShoup2023], Section 4.7): sample a uniform
-permutation `π ← Equiv.Perm G` and uniform independent keys `(k₀, k₁) ← G × G`, and run `program`
-against `evenMansourEquiv π k₀ k₁` and `π`. -/
+/-- The real Even–Mansour security experiment ([BonehShoup2023], Section 4.7) for a deterministic
+(coin-free) distinguisher `program : OracleComp (EvenMansourSpec G) Bool` (see
+`evenMansourProbRealGame` for randomized distinguishers): sample a uniform permutation
+`π ← Equiv.Perm G` and uniform independent keys `(k₀, k₁) ← G × G`, and run `program` against
+`evenMansourEquiv π k₀ k₁` and `π`. -/
 noncomputable def evenMansourRealGame (program : OracleComp (EvenMansourSpec G) Bool) : Game := do
   let π ← PMF.uniformOfFintype (Equiv.Perm G)
   let k ← PMF.uniformOfFintype (G × G)
   return evalEvenMansour π k.1 k.2 program
 
-/-- The single-key Even–Mansour security experiment ([DunkelmanKellerShamir2012]): sample a uniform
-permutation `π ← Equiv.Perm G` and a single uniform key `k ← G`, and run `program` against
+/-- The single-key Even–Mansour security experiment ([DunkelmanKellerShamir2012]) for a
+deterministic (coin-free) distinguisher `program : OracleComp (EvenMansourSpec G) Bool` (see
+`singleKeyEvenMansourProbRealGame` for randomized distinguishers): sample a uniform permutation
+`π ← Equiv.Perm G` and a single uniform key `k ← G`, and run `program` against
 `singleKeyEvenMansourEquiv π k` and `π`. -/
 noncomputable def singleKeyEvenMansourRealGame
     (program : OracleComp (EvenMansourSpec G) Bool) : Game := do
@@ -498,8 +518,10 @@ noncomputable def singleKeyEvenMansourRealGame
   let k ← PMF.uniformOfFintype G
   return evalEvenMansour π k k program
 
-/-- The ideal Even–Mansour security experiment: sample two independent uniform permutations
-`E, π ← Equiv.Perm G` and run `program` against `E` and `π`. -/
+/-- The ideal Even–Mansour security experiment for a deterministic (coin-free) distinguisher
+`program : OracleComp (EvenMansourSpec G) Bool` (see `evenMansourProbIdealGame` for randomized
+distinguishers): sample two independent uniform permutations `E, π ← Equiv.Perm G` and run
+`program` against `E` and `π`. -/
 noncomputable def evenMansourIdealGame (program : OracleComp (EvenMansourSpec G) Bool) : Game := do
   let E ← PMF.uniformOfFintype (Equiv.Perm G)
   let π ← PMF.uniformOfFintype (Equiv.Perm G)
@@ -1833,11 +1855,13 @@ private theorem advantage_keyDist_evenMansourIdealGame_le (keyDist : PMF (G × G
   simpa [ε, ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
     advantage_le_of_forall_bool_le hε hle
 
-/-- **Even–Mansour PRP security in the ideal-permutation model** ([BonehShoup2023], Section 4.7,
-Theorem 4.14; [EvenMansour1997]): for any adaptive distinguisher `program` making at most `Q_e`
-cipher queries and at most `Q_π` primitive permutation queries (`IsCallBounded program Q_e Q_π`),
-the distinguishing advantage between `evenMansourRealGame program` and
-`evenMansourIdealGame program` is at most `2 * Q_e * Q_π / |G|`. -/
+/-- **Deterministic Even–Mansour PRP security in the ideal-permutation model** ([BonehShoup2023],
+Section 4.7, Theorem 4.14; [EvenMansour1997]): for any deterministic (coin-free) adaptive
+distinguisher `program : OracleComp (EvenMansourSpec G) Bool` making at most `Q_e` cipher queries
+and at most `Q_π` primitive permutation queries (`IsCallBounded program Q_e Q_π`), the
+distinguishing advantage between `evenMansourRealGame program` and `evenMansourIdealGame program` is
+at most `2 * Q_e * Q_π / |G|`. For randomized distinguishers (`ProbOracleComp`), see
+`advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le`. -/
 theorem advantage_evenMansourRealGame_evenMansourIdealGame_le
     {program : OracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
     (hcall : IsCallBounded program Q_e Q_π) :
@@ -1846,11 +1870,13 @@ theorem advantage_evenMansourRealGame_evenMansourIdealGame_le
   advantage_keyDist_evenMansourIdealGame_le (PMF.uniformOfFintype (G × G)) hcall
     toOuterMeasure_isBadEvenMansourKey_le
 
-/-- **Single-key Even–Mansour PRP security in the ideal-permutation model**
-([DunkelmanKellerShamir2012]): for any adaptive distinguisher `program` making at most `Q_e` cipher
-queries and at most `Q_π` primitive permutation queries (`IsCallBounded program Q_e Q_π`), the
-distinguishing advantage between `singleKeyEvenMansourRealGame program` and
-`evenMansourIdealGame program` is at most `2 * Q_e * Q_π / |G|`. -/
+/-- **Deterministic single-key Even–Mansour PRP security in the ideal-permutation model**
+([DunkelmanKellerShamir2012]): for any deterministic (coin-free) adaptive distinguisher
+`program : OracleComp (EvenMansourSpec G) Bool` making at most `Q_e` cipher queries and at most
+`Q_π` primitive permutation queries (`IsCallBounded program Q_e Q_π`), the distinguishing advantage
+between `singleKeyEvenMansourRealGame program` and `evenMansourIdealGame program` is at most
+`2 * Q_e * Q_π / |G|`. For randomized distinguishers (`ProbOracleComp`), see
+`advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le`. -/
 theorem advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le
     {program : OracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
     (hcall : IsCallBounded program Q_e Q_π) :
@@ -1867,5 +1893,228 @@ theorem advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le
     exact toOuterMeasure_isBadSingleKeyEvenMansour_le c_e c_π
 
 end Coupling
+
+/-! ### Randomized (`ProbOracleComp`) ideal-permutation security via coin fixing -/
+
+section ProbOracleSecurity
+
+variable {G : Type} [AddGroup G] [Fintype G] [DecidableEq G]
+
+omit [AddGroup G] [DecidableEq G] in
+instance instFintypeEvenMansourSpec (q : PermQuery G ⊕ PermQuery G) :
+    Fintype (EvenMansourSpec G q) := by
+  cases q <;> exact inferInstanceAs (Fintype G)
+
+/-- Answer a single `EvenMansourSpec G` query against cipher permutation `E` and primitive
+permutation `π`. -/
+def evalTwoPermsQuery (E π : Equiv.Perm G) (q : PermQuery G ⊕ PermQuery G) :
+    EvenMansourSpec G q :=
+  match q with
+  | .inl qe => evalPerm E qe
+  | .inr qπ => evalPerm π qπ
+
+/-- Evaluate a randomized oracle program `ProbOracleComp (EvenMansourSpec G) α` against cipher
+permutation `E` and primitive permutation `π`. -/
+noncomputable def evalProbTwoPerms {α : Type} (E π : Equiv.Perm G)
+    (program : ProbOracleComp (EvenMansourSpec G) α) : PMF α :=
+  OracleComp.interpret
+    (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (evalTwoPermsQuery E π q)))
+    program
+
+/-- A randomized adversary `program : ProbOracleComp (EvenMansourSpec G) α` makes at most `Q_e`
+cipher queries and at most `Q_π` primitive permutation queries on every execution path, regardless
+of its private coin choices. -/
+def IsProbCallBounded {α : Type} (program : ProbOracleComp (EvenMansourSpec G) α) (Q_e Q_π : ℕ) :
+    Prop :=
+  OracleComp.IsCostBounded (Sum.elim (fun _ => 0) cipherCost) program Q_e ∧
+    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) permCost) program Q_π
+
+omit [AddGroup G] [Fintype G] [DecidableEq G] in
+/-- Fixing the private coins `ω` of a randomized `(Q_e, Q_π)`-call-bounded distinguisher yields a
+deterministic distinguisher satisfying `IsCallBounded _ Q_e Q_π`. -/
+theorem IsProbCallBounded.fixCoins {α : Type}
+    {program : ProbOracleComp (EvenMansourSpec G) α} {Q_e Q_π : ℕ}
+    (h : IsProbCallBounded program Q_e Q_π) (ω : ProbOracleComp.Coins program) :
+    IsCallBounded (ProbOracleComp.fixCoins program ω) Q_e Q_π :=
+  ⟨ProbOracleComp.isCostBounded_fixCoins h.1 ω, ProbOracleComp.isCostBounded_fixCoins h.2 ω⟩
+
+omit [AddGroup G] [Fintype G] [DecidableEq G] in
+/-- A closed probabilistic sample makes `0` cipher queries and `0` primitive queries. -/
+theorem isProbCallBounded_sample {α : Type} (p : ProbComp α) :
+    IsProbCallBounded (ProbOracleComp.sample (spec := EvenMansourSpec G) p) 0 0 :=
+  ⟨ProbOracleComp.isCostBounded_sample cipherCost p,
+   ProbOracleComp.isCostBounded_sample permCost p⟩
+
+omit [AddGroup G] [Fintype G] [DecidableEq G] in
+/-- Lifting a deterministic `IsCallBounded` program to `ProbOracleComp` preserves its `(Q_e, Q_π)`
+query budgets. -/
+theorem IsProbCallBounded.of_isCallBounded {α : Type}
+    {program : OracleComp (EvenMansourSpec G) α} {Q_e Q_π : ℕ}
+    (h : IsCallBounded program Q_e Q_π) :
+    IsProbCallBounded (OracleComp.interpret (fun q => ProbOracleComp.query q) program) Q_e Q_π :=
+  ⟨ProbOracleComp.isCostBounded_interpret_query h.1,
+   ProbOracleComp.isCostBounded_interpret_query h.2⟩
+
+omit [AddGroup G] [Fintype G] [DecidableEq G] in
+/-- Any randomized program making at most `Q` total external queries satisfies
+`IsProbCallBounded program Q Q`. -/
+theorem IsProbCallBounded.of_isQueryBounded {α : Type}
+    {program : ProbOracleComp (EvenMansourSpec G) α} {Q : ℕ}
+    (hQ : program.IsQueryBounded Q) : IsProbCallBounded program Q Q :=
+  ⟨hQ.of_le fun q => by
+      cases q with
+      | inl _ => rfl
+      | inr q => cases q <;> simp [cipherCost],
+   hQ.of_le fun q => by
+      cases q with
+      | inl _ => rfl
+      | inr q => cases q <;> simp [permCost]⟩
+
+/-- The real two-key Even–Mansour game for a randomized distinguisher
+`program : ProbOracleComp (EvenMansourSpec G) Bool`. -/
+noncomputable def evenMansourProbRealGame
+    (program : ProbOracleComp (EvenMansourSpec G) Bool) : Game := do
+  let π ← PMF.uniformOfFintype (Equiv.Perm G)
+  let k ← PMF.uniformOfFintype (G × G)
+  evalProbTwoPerms (evenMansourEquiv π k.1 k.2) π program
+
+/-- The real single-key Even–Mansour game for a randomized distinguisher
+`program : ProbOracleComp (EvenMansourSpec G) Bool`. -/
+noncomputable def singleKeyEvenMansourProbRealGame
+    (program : ProbOracleComp (EvenMansourSpec G) Bool) : Game := do
+  let π ← PMF.uniformOfFintype (Equiv.Perm G)
+  let k ← PMF.uniformOfFintype G
+  evalProbTwoPerms (singleKeyEvenMansourEquiv π k) π program
+
+/-- The ideal Even–Mansour game for a randomized distinguisher
+`program : ProbOracleComp (EvenMansourSpec G) Bool`: two independent uniform permutations
+`E, π ← Equiv.Perm G`. -/
+noncomputable def evenMansourProbIdealGame
+    (program : ProbOracleComp (EvenMansourSpec G) Bool) : Game := do
+  let E ← PMF.uniformOfFintype (Equiv.Perm G)
+  let π ← PMF.uniformOfFintype (Equiv.Perm G)
+  evalProbTwoPerms E π program
+
+omit [AddGroup G] [Fintype G] [DecidableEq G] in
+private theorem interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms {α : Type} (E π : Equiv.Perm G)
+    (program : OracleComp (EvenMansourSpec G) α) :
+    OracleComp.interpret (fun q => PMF.pure (evalTwoPermsQuery E π q)) program =
+      PMF.pure (evalTwoPerms E π program) := by
+  rw [pure_evalTwoPerms]
+  congr 1; funext q; cases q <;> rfl
+
+/-- Coin-fixing decomposition of `evenMansourProbRealGame`: sampling `(π, k)` independently of
+`program`'s private coins equals averaging the deterministic `evenMansourRealGame` over
+`ProbOracleComp.coinLaw program`. -/
+theorem evenMansourProbRealGame_eq_coinLaw_bind
+    (program : ProbOracleComp (EvenMansourSpec G) Bool) :
+    evenMansourProbRealGame program =
+      (ProbOracleComp.coinLaw program).bind fun ω =>
+        evenMansourRealGame (ProbOracleComp.fixCoins program ω) := by
+  let μ : PMF (Equiv.Perm G × (G × G)) :=
+    (PMF.uniformOfFintype (Equiv.Perm G)).bind fun π =>
+      (PMF.uniformOfFintype (G × G)).map fun k => (π, k)
+  have hcoins := ProbOracleComp.table_bind_interpret_eq_coinLaw_bind μ
+    (fun p => evalTwoPermsQuery (evenMansourEquiv p.1 p.2.1 p.2.2) p.1) program
+  simp only [pmf_norm, μ, evenMansourProbRealGame, evenMansourRealGame, evalEvenMansour,
+    evalProbTwoPerms, interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms] at hcoins ⊢
+  exact hcoins
+
+/-- Coin-fixing decomposition of `singleKeyEvenMansourProbRealGame`: sampling `(π, k)`
+independently of `program`'s private coins equals averaging the deterministic
+`singleKeyEvenMansourRealGame` over `ProbOracleComp.coinLaw program`. -/
+theorem singleKeyEvenMansourProbRealGame_eq_coinLaw_bind
+    (program : ProbOracleComp (EvenMansourSpec G) Bool) :
+    singleKeyEvenMansourProbRealGame program =
+      (ProbOracleComp.coinLaw program).bind fun ω =>
+        singleKeyEvenMansourRealGame (ProbOracleComp.fixCoins program ω) := by
+  let μ : PMF (Equiv.Perm G × G) :=
+    (PMF.uniformOfFintype (Equiv.Perm G)).bind fun π =>
+      (PMF.uniformOfFintype G).map fun k => (π, k)
+  have hcoins := ProbOracleComp.table_bind_interpret_eq_coinLaw_bind μ
+    (fun p => evalTwoPermsQuery (singleKeyEvenMansourEquiv p.1 p.2) p.1) program
+  simp only [pmf_norm, μ, singleKeyEvenMansourProbRealGame, singleKeyEvenMansourRealGame,
+    evalEvenMansour, evalProbTwoPerms,
+    interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms] at hcoins ⊢
+  exact hcoins
+
+omit [AddGroup G] in
+/-- Coin-fixing decomposition of `evenMansourProbIdealGame`: sampling `(E, π)` independently of
+`program`'s private coins equals averaging the deterministic `evenMansourIdealGame` over
+`ProbOracleComp.coinLaw program`. -/
+theorem evenMansourProbIdealGame_eq_coinLaw_bind
+    (program : ProbOracleComp (EvenMansourSpec G) Bool) :
+    evenMansourProbIdealGame program =
+      (ProbOracleComp.coinLaw program).bind fun ω =>
+        evenMansourIdealGame (ProbOracleComp.fixCoins program ω) := by
+  let μ : PMF (Equiv.Perm G × Equiv.Perm G) :=
+    (PMF.uniformOfFintype (Equiv.Perm G)).bind fun E =>
+      (PMF.uniformOfFintype (Equiv.Perm G)).map fun π => (E, π)
+  have hcoins := ProbOracleComp.table_bind_interpret_eq_coinLaw_bind μ
+    (fun p => evalTwoPermsQuery p.1 p.2) program
+  simp only [pmf_norm, μ, evenMansourProbIdealGame, evenMansourIdealGame,
+    evalProbTwoPerms, interpret_evalTwoPermsQuery_eq_pure_evalTwoPerms] at hcoins ⊢
+  exact hcoins
+
+/-- **Even–Mansour PRP security in the ideal-permutation model** ([EvenMansour1997];
+[BonehShoup2023], Section 4.7, Theorem 4.14; [KatzLindell2020]): for any randomized adaptive
+distinguisher `program : ProbOracleComp (EvenMansourSpec G) Bool` making at most `Q_e` cipher
+queries and at most `Q_π` primitive permutation queries (`IsProbCallBounded program Q_e Q_π`), the
+distinguishing advantage between `evenMansourProbRealGame program` and
+`evenMansourProbIdealGame program` is at most `2 * Q_e * Q_π / |G|`. -/
+theorem advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le
+    {program : ProbOracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
+    (hcall : IsProbCallBounded program Q_e Q_π) :
+    (Game.advantage (evenMansourProbRealGame program) (evenMansourProbIdealGame program) : ℝ) ≤
+      2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
+  rw [evenMansourProbRealGame_eq_coinLaw_bind, evenMansourProbIdealGame_eq_coinLaw_bind]
+  refine Game.advantage_bind_le _ _ _ fun ω => ?_
+  exact advantage_evenMansourRealGame_evenMansourIdealGame_le (hcall.fixCoins ω)
+
+/-- **Single-key Even–Mansour PRP security in the ideal-permutation model**
+([DunkelmanKellerShamir2012]; [BonehShoup2023], Section 4.7): for any randomized adaptive
+distinguisher `program : ProbOracleComp (EvenMansourSpec G) Bool` making at most `Q_e` cipher
+queries and at most `Q_π` primitive permutation queries (`IsProbCallBounded program Q_e Q_π`), the
+distinguishing advantage between `singleKeyEvenMansourProbRealGame program` and
+`evenMansourProbIdealGame program` is at most `2 * Q_e * Q_π / |G|`. -/
+theorem advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le
+    {program : ProbOracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
+    (hcall : IsProbCallBounded program Q_e Q_π) :
+    (Game.advantage (singleKeyEvenMansourProbRealGame program)
+      (evenMansourProbIdealGame program) : ℝ) ≤
+      2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
+  rw [singleKeyEvenMansourProbRealGame_eq_coinLaw_bind, evenMansourProbIdealGame_eq_coinLaw_bind]
+  refine Game.advantage_bind_le _ _ _ fun ω => ?_
+  exact advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le (hcall.fixCoins ω)
+
+end ProbOracleSecurity
+
+private theorem advantage_bitString_of_card_le {n Q_e Q_π : ℕ} {g₁ g₂ : Game}
+    (h : (Game.advantage g₁ g₂ : ℝ) ≤
+      2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card (BitString n) : ℝ)) :
+    (Game.advantage g₁ g₂ : ℝ) ≤ 2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n := by
+  simpa only [Fintype.card_pi, Fintype.card_fin, Fintype.card_bool, Finset.prod_const,
+    Finset.card_univ, Nat.cast_pow, Nat.cast_ofNat] using h
+
+/-- Specialization of `advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le` to `n`-bit
+strings `BitString n`: the distinguishing advantage is at most `2 * Q_e * Q_π / 2 ^ n`. -/
+theorem advantage_evenMansourProbRealGame_bitString_le {n Q_e Q_π : ℕ}
+    {program : ProbOracleComp (EvenMansourSpec (BitString n)) Bool}
+    (hcall : IsProbCallBounded program Q_e Q_π) :
+    (Game.advantage (evenMansourProbRealGame program) (evenMansourProbIdealGame program) : ℝ) ≤
+      2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n :=
+  advantage_bitString_of_card_le
+    (advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le hcall)
+
+/-- Specialization of `advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le` to
+`n`-bit strings `BitString n`: the distinguishing advantage is at most `2 * Q_e * Q_π / 2 ^ n`. -/
+theorem advantage_singleKeyEvenMansourProbRealGame_bitString_le {n Q_e Q_π : ℕ}
+    {program : ProbOracleComp (EvenMansourSpec (BitString n)) Bool}
+    (hcall : IsProbCallBounded program Q_e Q_π) :
+    (Game.advantage (singleKeyEvenMansourProbRealGame program)
+      (evenMansourProbIdealGame program) : ℝ) ≤
+      2 * (Q_e : ℝ) * (Q_π : ℝ) / (2 : ℝ) ^ n :=
+  advantage_bitString_of_card_le
+    (advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le hcall)
 
 end Cslib.Crypto.EvenMansour

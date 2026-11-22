@@ -275,7 +275,7 @@ private theorem propagateFast_eq {db : Array (Option (Clause ℕ))} {L : List (�
     cases L.find? (·.1 == h) with
     | none => exact ⟨rfl, hreset asg trail hasg⟩
     | some e =>
-      simp only [Option.map_some, hfilter]
+      simp only [Option.map_some, hfilter, Clause.residual]
       cases e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) with
       | nil => exact ⟨rfl, hreset asg trail hasg⟩
       | cons l ls =>
