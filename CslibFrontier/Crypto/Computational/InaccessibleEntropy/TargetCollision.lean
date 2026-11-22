@@ -179,54 +179,51 @@ theorem rompelCascadeSteps_pos (G : ShrinkingCollisionGrid) (n : ℕ) :
   have hk := G.gridCount_pos n
   have hout := G.le_outLen n
   have hs := G.shrinkLen_pos n
-  have hprod : 1 ≤ (2 * G.gridCount n - 1) * G.outLen n := Nat.mul_pos (by omega) (by omega)
+  have := Nat.mul_pos (by omega : 0 < 2 * G.gridCount n - 1) (by omega : 0 < G.outLen n)
   unfold rompelCascadeSteps
   exact Nat.div_pos (by omega) hs
 
+private theorem outLen_le_rompelBlockLen (G : ShrinkingCollisionGrid) (n : ℕ) :
+    G.outLen n ≤ rompelBlockLen G n :=
+  Nat.le_mul_of_pos_left _ (G.gridCount_pos n)
+
+private theorem outLen_le_two_mul_rompelBlockLen (G : ShrinkingCollisionGrid) (n : ℕ) :
+    G.outLen n ≤ 2 * rompelBlockLen G n :=
+  (outLen_le_rompelBlockLen G n).trans (Nat.le_mul_of_pos_left _ zero_lt_two)
+
 theorem two_mul_rompelBlockLen_le (G : ShrinkingCollisionGrid) (n : ℕ) :
     2 * rompelBlockLen G n ≤ G.outLen n + rompelCascadeSteps G n * G.shrinkLen n := by
-  have hk : 1 ≤ G.gridCount n := G.gridCount_pos n
-  have hout : n + 1 ≤ G.outLen n := G.le_outLen n
-  have hs : 1 ≤ G.shrinkLen n := G.shrinkLen_pos n
-  have hprod : 1 ≤ (2 * G.gridCount n - 1) * G.outLen n := Nat.mul_pos (by omega) (by omega)
-  have hsub : 1 + (2 * G.gridCount n - 1) = 2 * G.gridCount n := by omega
-  have hdiv_add := Nat.div_add_mod
-    ((2 * G.gridCount n - 1) * G.outLen n + G.shrinkLen n - 1) (G.shrinkLen n)
-  have hmod_lt :
-      ((2 * G.gridCount n - 1) * G.outLen n + G.shrinkLen n - 1) % G.shrinkLen n <
-        G.shrinkLen n :=
-    Nat.mod_lt _ hs
+  have hk := G.gridCount_pos n
+  have hs := G.shrinkLen_pos n
+  have hprod := Nat.mul_pos (by omega : 0 < 2 * G.gridCount n - 1)
+    (by have := G.le_outLen n; omega : 0 < G.outLen n)
+  have hdiv := Nat.div_add_mod ((2 * G.gridCount n - 1) * G.outLen n + G.shrinkLen n - 1)
+    (G.shrinkLen n)
+  have hmod := Nat.mod_lt ((2 * G.gridCount n - 1) * G.outLen n + G.shrinkLen n - 1) hs
   have hceil : (2 * G.gridCount n - 1) * G.outLen n ≤ rompelCascadeSteps G n * G.shrinkLen n := by
-    unfold rompelCascadeSteps
-    rw [mul_comm] at hdiv_add
-    omega
-  calc
-    2 * rompelBlockLen G n
-      = (1 + (2 * G.gridCount n - 1)) * G.outLen n := by
-        rw [rompelBlockLen, ← mul_assoc, hsub]
-    _ = G.outLen n + (2 * G.gridCount n - 1) * G.outLen n := by rw [add_mul, one_mul]
-    _ ≤ G.outLen n + rompelCascadeSteps G n * G.shrinkLen n := Nat.add_le_add_left hceil _
+    unfold rompelCascadeSteps; rw [mul_comm] at hdiv; omega
+  rw [rompelBlockLen, ← mul_assoc, show 2 * G.gridCount n = 1 + (2 * G.gridCount n - 1) by omega,
+    add_mul, one_mul]
+  exact Nat.add_le_add_left hceil _
 
 theorem le_rompelBlockLen (G : ShrinkingCollisionGrid) (n : ℕ) :
-    n ≤ rompelBlockLen G n := by
-  calc
-    n ≤ G.outLen n := (Nat.le_succ n).trans (G.le_outLen n)
-    _ = 1 * G.outLen n := (one_mul _).symm
-    _ ≤ G.gridCount n * G.outLen n := Nat.mul_le_mul_right _ (G.gridCount_pos n)
+    n ≤ rompelBlockLen G n :=
+  (Nat.le_succ n).trans ((G.le_outLen n).trans (outLen_le_rompelBlockLen G n))
+
+attribute [local fun_prop] ShrinkingCollisionGrid.polyTime_inLen
+  ShrinkingCollisionGrid.polyTime_outLen
+  ShrinkingCollisionGrid.polyTime_shrinkLen
+  ShrinkingCollisionGrid.polyTime_gridCount
 
 @[fun_prop]
 theorem computableInPolyTime_rompelCascadeSteps (G : ShrinkingCollisionGrid) :
     ComputableInPolyTime (rompelCascadeSteps G) encUnary encUnary := by
-  unfold rompelCascadeSteps
-  have h2k := ComputableInPolyTime.unary_mul' (.const 2) G.polyTime_gridCount
-  have hnum := (h2k.unary_sub' (.const 1)).unary_mul' G.polyTime_outLen
-  exact ComputableInPolyTime.unary_div'
-    ((hnum.unary_add' G.polyTime_shrinkLen).unary_sub' (.const 1)) G.polyTime_shrinkLen
+  unfold rompelCascadeSteps; fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_rompelBlockLen (G : ShrinkingCollisionGrid) :
-    ComputableInPolyTime (rompelBlockLen G) encUnary encUnary :=
-  ComputableInPolyTime.unary_mul' G.polyTime_gridCount G.polyTime_outLen
+    ComputableInPolyTime (rompelBlockLen G) encUnary encUnary := by
+  unfold rompelBlockLen; fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_rompelKeyLen (G : ShrinkingCollisionGrid) :
@@ -287,16 +284,15 @@ theorem computableInPolyTime_rompelCandidateEval (G : ShrinkingCollisionGrid)
     ComputableInPolyTime
       (fun a => rompelCandidateEval G (n a) (q a) (K a) (x a))
       encIn encBits := by
-  have hout := G.polyTime_outLen.comp hn
-  have hshrink := G.polyTime_shrinkLen.comp hn
-  have hsteps := (computableInPolyTime_rompelCascadeSteps G).comp hn
-  have hy := ComputableInPolyTime.bitsRowWithInput (G.polyTime_inLen.comp hn) (.const 0) hK
-  have hmasks := ComputableInPolyTime.bitsDropWithInput hK (G.polyTime_inLen.comp hn)
+  have hin := G.polyTime_inLen.comp hn
+  have hy := ComputableInPolyTime.bitsRowWithInput hin (.const 0) hK
   have hp1 := ComputableInPolyTime.fst encIn encBits
-  have hstep := computableInPolyTime_rompelShiftedStep G (hn.comp hp1) (hq.comp hp1) (hy.comp hp1)
-    (ComputableInPolyTime.snd encIn encBits)
-  exact computableInPolyTime_shoupCascade hout hshrink hsteps hstep
-    (fun _ w _ => length_rompelShiftedStep G _ _ _ w) hmasks hx
+  exact computableInPolyTime_shoupCascade (G.polyTime_outLen.comp hn)
+    (G.polyTime_shrinkLen.comp hn) ((computableInPolyTime_rompelCascadeSteps G).comp hn)
+    (computableInPolyTime_rompelShiftedStep G (hn.comp hp1) (hq.comp hp1) (hy.comp hp1)
+      (.snd encIn encBits))
+    (fun _ w _ => length_rompelShiftedStep G _ _ _ w)
+    (ComputableInPolyTime.bitsDropWithInput hK hin) hx
 
 /-- Step-`i` (`1 ≤ i ≤ rompelCascadeSteps G n`) `G.inLen n`-bit input fed to
 `rompelShiftedStep G n q (BitString.listRow (G.inLen n) 0 K)` during
@@ -329,22 +325,15 @@ theorem computableInPolyTime_rompelCascadeInput (G : ShrinkingCollisionGrid)
       encIn encBits := by
   have hout := G.polyTime_outLen.comp hn
   have hshrink := G.polyTime_shrinkLen.comp hn
-  have hin := G.polyTime_inLen.comp hn
-  have hy := ComputableInPolyTime.bitsRowWithInput hin (.const 0) hK
-  have hmasks := ComputableInPolyTime.bitsDropWithInput hK hin
+  have hy := ComputableInPolyTime.bitsRowWithInput (G.polyTime_inLen.comp hn) (.const 0) hK
+  have hmasks := ComputableInPolyTime.bitsDropWithInput hK (G.polyTime_inLen.comp hn)
   have hp1 := ComputableInPolyTime.fst encIn encBits
-  have hstep :
-      ComputableInPolyTime
-        (fun p : γ × List Bool =>
-          rompelShiftedStep G (n p.1) (q p.1)
-            (BitString.listRow (G.inLen (n p.1)) 0 (K p.1)) p.2)
-        (encPair encIn encBits) encBits :=
-    computableInPolyTime_rompelShiftedStep G (hn.comp hp1) (hq.comp hp1) (hy.comp hp1)
-      (ComputableInPolyTime.snd encIn encBits)
   have hstate := computableInPolyTime_shoupState
     (step := fun a w => rompelShiftedStep G (n a) (q a)
       (BitString.listRow (G.inLen (n a)) 0 (K a)) w)
-    hout hshrink (hi.unary_sub' (.const 1)) hstep
+    hout hshrink (hi.unary_sub' (.const 1))
+    (computableInPolyTime_rompelShiftedStep G (hn.comp hp1) (hq.comp hp1) (hy.comp hp1)
+      (.snd encIn encBits))
     (fun _ w _ => length_rompelShiftedStep G _ _ _ w) hmasks hx
   exact computableInPolyTime_shoupStepInput hout hshrink hmasks hx hi hstate
 
@@ -365,11 +354,7 @@ theorem exists_rompelCascadeInput_collision (G : ShrinkingCollisionGrid)
           (rompelCascadeInput G n q i K x₀) =
         rompelShiftedStep G n q (BitString.listRow (G.inLen n) 0 K)
           (rompelCascadeInput G n q i K x₁) :=
-  exists_shoupCascade_step_collision (G.shrinkLen_pos n)
-    (calc
-      G.outLen n = 1 * G.outLen n := (one_mul _).symm
-      _ ≤ G.gridCount n * G.outLen n := Nat.mul_le_mul_right _ (G.gridCount_pos n)
-      _ ≤ 2 * (G.gridCount n * G.outLen n) := by omega)
+  exists_shoupCascade_step_collision (G.shrinkLen_pos n) (outLen_le_two_mul_rompelBlockLen G n)
     (two_mul_rompelBlockLen_le G n)
     (rompelShiftedStep G n q (BitString.listRow (G.inLen n) 0 K))
     (fun w _ => length_rompelShiftedStep G n q _ w)
@@ -387,25 +372,15 @@ def rompelCompressionEval (G : ShrinkingCollisionGrid) (n : ℕ) (K x : List Boo
 @[simp]
 theorem length_rompelCompressionEval (G : ShrinkingCollisionGrid) (n : ℕ) (K x : List Bool) :
     (rompelCompressionEval G n K x).length = rompelBlockLen G n := by
-  have hmap : List.map (fun q => (rompelCandidateEval G n q K x).length)
-      (List.range (G.gridCount n)) = List.replicate (G.gridCount n) (G.outLen n) := by
-    rw [List.eq_replicate_iff]
-    refine ⟨by simp, fun len hmem => ?_⟩
-    obtain ⟨q, _, rfl⟩ := List.mem_map.mp hmem
-    exact length_rompelCandidateEval G n q K x
-  rw [rompelCompressionEval, List.length_flatMap, hmap, List.sum_replicate, smul_eq_mul,
-    rompelBlockLen]
+  simp [rompelCompressionEval, rompelBlockLen]
 
 theorem listRow_rompelCompressionEval (G : ShrinkingCollisionGrid) (n : ℕ) (K x : List Bool)
     {q : ℕ} (hq : q < G.gridCount n) :
     BitString.listRow (G.outLen n) q (rompelCompressionEval G n K x) =
       rompelCandidateEval G n q K x := by
-  have h := BitString.listRow_flatMap_append
-    (width := G.outLen n)
-    (fun idx => rompelCandidateEval G n idx K x)
-    (List.range (G.gridCount n))
-    (fun idx _ => length_rompelCandidateEval G n idx K x)
-    [] q (by simpa only [List.length_range] using hq)
+  have h := BitString.listRow_flatMap_append (width := G.outLen n)
+    (fun idx => rompelCandidateEval G n idx K x) (List.range (G.gridCount n))
+    (fun idx _ => length_rompelCandidateEval G n idx K x) [] q (by simpa using hq)
   simpa only [rompelCompressionEval, List.append_nil, List.getElem_range] using h
 
 @[fun_prop]
@@ -413,17 +388,13 @@ theorem computableInPolyTime_rompelCompressionEval (G : ShrinkingCollisionGrid) 
     ComputableInPolyTime
       (fun ⟨n, K, x⟩ => rompelCompressionEval G n K x)
       (encPair encUnary (encPair encBits encBits)) encBits := by
-  let encIn := encPair encUnary (encPair encBits encBits)
   unfold rompelCompressionEval
   apply ComputableInPolyTime.flatMapToBitsWithInput
-    (ComputableInPolyTime.unary_range' (G.polyTime_gridCount.comp (ComputableInPolyTime.fst _ _)))
-  have hp1 := ComputableInPolyTime.fst encIn encUnary
-  have hrest := (ComputableInPolyTime.snd encUnary (encPair encBits encBits)).comp hp1
-  exact computableInPolyTime_rompelCandidateEval G
-    ((ComputableInPolyTime.fst encUnary (encPair encBits encBits)).comp hp1)
-    (ComputableInPolyTime.snd encIn encUnary)
-    ((ComputableInPolyTime.fst encBits encBits).comp hrest)
-    ((ComputableInPolyTime.snd encBits encBits).comp hrest)
+    (ComputableInPolyTime.unary_range' (by fun_prop))
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary (encPair encBits encBits)) encUnary)
+  exact computableInPolyTime_rompelCandidateEval G hp.fst'.fst' hp.snd'
+    hp.fst'.snd'.fst' hp.fst'.snd'.snd'
 
 /-- **Rompel / HHRVW halving `KeyedCompressionFamily`** (adapting `[Shoup2000]`;
 `[HHRVW2020]`, Section 5.1.5, STEP 4 and STEP 5(ii–iii), pp. 31–32): compresses
@@ -454,16 +425,15 @@ private def clampIdx (bound guess : ℕ) : ℕ :=
 
 private theorem clampIdx_eq_of_lt {bound guess : ℕ} (h : guess < bound) :
     clampIdx bound guess = guess := by
-  unfold clampIdx
-  omega
+  unfold clampIdx; omega
 
+@[local fun_prop]
 private theorem computableInPolyTime_clampIdx {γ : Type} {encIn : γ ↪ List Bool}
     {bound guess : γ → ℕ}
     (hb : ComputableInPolyTime bound encIn encUnary)
     (hg : ComputableInPolyTime guess encIn encUnary) :
-    ComputableInPolyTime (fun a => clampIdx (bound a) (guess a)) encIn encUnary :=
-  have hb1 := hb.unary_sub' (.const 1)
-  hb1.unary_sub' (hb1.unary_sub' hg)
+    ComputableInPolyTime (fun a => clampIdx (bound a) (guess a)) encIn encUnary := by
+  unfold clampIdx; fun_prop
 
 /-- **Planted-subkey reduction to `randomCollisionGame`** (`[Shoup2000]`; `[HHRVW2020]`,
 Section 5.1.4, Lemmas 5.6–5.7, pp. 29–30; Section 5.1.5, STEPS 4–5, pp. 31–32): samples a dyadic
@@ -487,56 +457,30 @@ theorem isPPT_rompelCompressionInverter (G : ShrinkingCollisionGrid)
     {adversary : TargetCollisionFinder} (ha : adversary.IsPPT) :
     IsPPT encBits (rompelCompressionInverter G adversary) := by
   apply IsPPTOn.isPPT
-  let enc0 := encPair encUnary encBits
-  let enc1 := encPair enc0 encUnary
-  let enc2 := encPair enc1 (encPair encBits encBits)
-  have h0_n := ComputableInPolyTime.fst encUnary encBits
-  have h1_p := ComputableInPolyTime.fst enc0 encUnary
-  have h1_n := h0_n.comp h1_p
-  have hchoose := (isPPTOn_shoupComposeChoose G.polyTime_outLen G.polyTime_shrinkLen
-    (computableInPolyTime_rompelCascadeSteps G) ha.choose).preprocess h1_n
+  refine (isPPTOn_sampleDyadicIndex (by fun_prop)).bind_with ?_
+  refine ((isPPTOn_shoupComposeChoose G.polyTime_outLen G.polyTime_shrinkLen
+    (computableInPolyTime_rompelCascadeSteps G) ha.choose).preprocess (by fun_prop)).bind_with ?_
+  let enc2 := encPair (encPair (encPair encUnary encBits) encUnary) (encPair encBits encBits)
   have h2 := ComputableInPolyTime.id' (encIn := enc2)
-  have h2_q1 := h2.fst'
-  have h2_ch := h2.snd'
-  have h2_p := h1_p.comp h2_q1
-  have h2_n := h0_n.comp h2_p
-  have h2_z := (ComputableInPolyTime.snd encUnary encBits).comp h2_p
-  have h2_qGuess := (ComputableInPolyTime.snd enc0 encUnary).comp h2_q1
-  have h2_q := computableInPolyTime_clampIdx (G.polyTime_gridCount.comp h2_n) h2_qGuess
+  have h2_n := h2.fst'.fst'.fst'
   have h2_in := G.polyTime_inLen.comp h2_n
-  have h2_yStar : ComputableInPolyTime
-      (fun r : ((ℕ × List Bool) × ℕ) × (List Bool × List Bool) =>
-        BitString.listXor (G.inLen r.1.1.1) [r.1.1.2, r.2.1])
-      enc2 encBits :=
-    ComputableInPolyTime.bitsXorWithInput h2_in
-      (ComputableInPolyTime.cons' h2_z
-        (ComputableInPolyTime.cons' h2_ch.fst' (.const [])))
-  have hstep_key : ComputableInPolyTime
-      (fun s : (((ℕ × List Bool) × ℕ) × (List Bool × List Bool)) × List Bool × List Bool =>
-        rompelShiftedStep G s.1.1.1.1 (clampIdx (G.gridCount s.1.1.1.1) s.1.1.2) s.2.1 s.2.2)
-      (encPair enc2 (encPair encBits encBits)) encBits := by
-    let sid := ComputableInPolyTime.id' (encIn := encPair enc2 (encPair encBits encBits))
-    exact computableInPolyTime_rompelShiftedStep G (h2_n.comp sid.fst') (h2_q.comp sid.fst')
-      sid.snd'.fst' sid.snd'.snd'
-  have hfind := isPPTOn_shoupComposeFindWith
+  have h2_yStar := ComputableInPolyTime.bitsXorWithInput h2_in
+    (.cons' h2.fst'.fst'.snd' (.cons' h2.snd'.fst' (.const [])))
+  have sid := ComputableInPolyTime.id' (encIn := encPair enc2 (encPair encBits encBits))
+  have hstep_key := computableInPolyTime_rompelShiftedStep G (h2_n.comp sid.fst')
+    (computableInPolyTime_clampIdx (G.polyTime_gridCount.comp (h2_n.comp sid.fst'))
+      (h2.fst'.snd'.comp sid.fst'))
+    sid.snd'.fst' sid.snd'.snd'
+  refine (isPPTOn_shoupComposeFindWith
     (stepOfKey := fun r : ((ℕ × List Bool) × ℕ) × (List Bool × List Bool) =>
       rompelShiftedStep G r.1.1.1 (clampIdx (G.gridCount r.1.1.1) r.1.2))
-    h2_in (G.polyTime_outLen.comp h2_n)
-    (G.polyTime_shrinkLen.comp h2_n) ((computableInPolyTime_rompelCascadeSteps G).comp h2_n)
+    h2_in (G.polyTime_outLen.comp h2_n) (G.polyTime_shrinkLen.comp h2_n)
+    ((computableInPolyTime_rompelCascadeSteps G).comp h2_n)
     h2_n hstep_key (fun _ _ w _ _ => length_rompelShiftedStep G _ _ _ w)
-    h2_ch.snd' h2_yStar ha.find
-  let enc3 := encPair enc2 encBits
-  have h3 := ComputableInPolyTime.id' (encIn := enc3)
-  have hunmask : ComputableInPolyTime
-      (fun u : (((ℕ × List Bool) × ℕ) × (List Bool × List Bool)) × List Bool =>
-        BitString.listXor (G.inLen u.1.1.1.1)
-          [u.2, BitString.listXor (G.inLen u.1.1.1.1) [u.1.1.1.2, u.1.2.1]])
-      enc3 encBits :=
-    ComputableInPolyTime.bitsXorWithInput (h2_in.comp h3.fst')
-      (ComputableInPolyTime.cons' h3.snd'
-        (ComputableInPolyTime.cons' (h2_yStar.comp h3.fst') (.const [])))
-  exact (isPPTOn_sampleDyadicIndex (G.polyTime_gridCount.comp h0_n)).bind_with
-    (hchoose.bind_with (hfind.bind_with hunmask.isPPTOn))
+    h2.snd'.snd' h2_yStar ha.find).bind_with ?_
+  have h3 := ComputableInPolyTime.id' (encIn := encPair enc2 encBits)
+  exact (ComputableInPolyTime.bitsXorWithInput (h2_in.comp h3.fst')
+    (.cons' h3.snd' (.cons' (h2_yStar.comp h3.fst') (.const [])))).isPPTOn
 
 /-- **Concrete security bound for `rompelCompression G`**: at every candidate index
 `qStar < G.gridCount n`, the target-collision success probability of `adversary` against
@@ -572,41 +516,26 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
           (targetCollisionGame (shoupComposeKeyLen G.inLen G.outLen (rompelCascadeSteps G))
             (shoupComposeEval G.inLen G.outLen G.shrinkLen (rompelCascadeSteps G) hShift)
             validLong adversary n)) := by
-    let joint : PMF ((List Bool × List Bool) × List Bool × List Bool) :=
-      (ProbComp.eval (adversary.choose n)).bind fun choice =>
-        (BitString.uniformList (rompelKeyLen G n)).bind fun K =>
-          (ProbComp.eval (adversary.find n choice.2 K)).map fun x₁ => (choice, K, x₁)
-    have heq₁ :
-        ProbComp.eval
-          (targetCollisionGame (rompelCompression G).keyLen (rompelCompression G).eval
-            (rompelCompression G).validInput adversary n) =
-          joint.map fun t =>
-            isCollision (rompelCompressionEval G n) (rompelCompression G).validInput n
-              t.2.1 t.1.1 t.2.2 := by
-      simp only [targetCollisionGame, rompelCompression, joint, ProbComp.eval_bind,
-        ProbComp.eval_pure, BitString.eval_sampleList, PMF.map,
-        PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    have heq₂ :
-        ProbComp.eval
-          (targetCollisionGame (shoupComposeKeyLen G.inLen G.outLen (rompelCascadeSteps G))
-            (shoupComposeEval G.inLen G.outLen G.shrinkLen (rompelCascadeSteps G) hShift)
-            validLong adversary n) =
-          joint.map fun t =>
-            isCollision (rompelCandidateEval G n qStar) validLong n t.2.1 t.1.1 t.2.2 := by
-      simp only [targetCollisionGame, rompelKeyLen, joint, ProbComp.eval_bind,
-        ProbComp.eval_pure, BitString.eval_sampleList, PMF.map, PMF.bind_bind,
-        PMF.pure_bind, Function.comp_def]
-      rfl
-    rw [heq₁, heq₂]
-    refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) (PMF.map_true_mono joint fun t _ hW => ?_)
-    obtain ⟨hx₀, hx₁, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
-    have hv₀ : t.1.1.length == 2 * rompelBlockLen G n := by
-      simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₀
-    have hv₁ : t.2.2.length == 2 * rompelBlockLen G n := by
-      simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₁
-    refine isCollision_eq_true_iff.mpr ⟨hv₀, hv₁, hne, ?_⟩
-    rw [← listRow_rompelCompressionEval G n t.2.1 t.1.1 hqStar,
-      ← listRow_rompelCompressionEval G n t.2.1 t.2.2 hqStar, hcol]
+    refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
+    dsimp only [targetCollisionGame]
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
+      show (rompelCompression G).keyLen n =
+          shoupComposeKeyLen G.inLen G.outLen (rompelCascadeSteps G) n
+        by simp only [rompelCompression, rompelKeyLen]]
+    refine PMF.bind_apply_mono_on_support _ true fun choice _ =>
+      PMF.bind_apply_mono_on_support _ true fun K _ =>
+        PMF.bind_apply_mono_on_support _ true fun x₁ _ => ?_
+    cases hW : isCollision ((rompelCompression G).eval n) (rompelCompression G).validInput n K
+        choice.1 x₁
+    · simp only [PMF.pure_apply, reduceCtorEq, ↓reduceIte]; exact zero_le
+    · obtain ⟨hx₀, hx₁, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
+      rw [isCollision_eq_true_iff.mpr
+        ⟨by simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₀,
+          by simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₁, hne, by
+            change rompelCandidateEval G n qStar K choice.1 = rompelCandidateEval G n qStar K x₁
+            rw [← listRow_rompelCompressionEval G n K choice.1 hqStar,
+              ← listRow_rompelCompressionEval G n K x₁ hqStar]
+            exact congrArg _ hcol⟩]
   -- Step 2: Apply `succProbability_targetCollisionGame_shoupCompose_le` (`dyadicSize t` factor).
   have hshoup :
       Game.succProbability
@@ -617,12 +546,8 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
       (dyadicSize (rompelCascadeSteps G n) : ℝ≥0) *
         Game.succProbability
           (ProbComp.eval (targetCollisionGame G.inLen hShift validBase shoupAdv n)) :=
-    succProbability_targetCollisionGame_shoupCompose_le adversary n (G.shrinkLen_pos n)
-      (calc
-        G.outLen n = 1 * G.outLen n := (one_mul _).symm
-        _ ≤ G.gridCount n * G.outLen n := Nat.mul_le_mul_right _ (G.gridCount_pos n)
-        _ ≤ 2 * (G.gridCount n * G.outLen n) := by omega)
-      (two_mul_rompelBlockLen_le G n)
+    succProbability_targetCollisionGame_shoupCompose_le adversary n
+      (G.shrinkLen_pos n) (outLen_le_two_mul_rompelBlockLen G n) (two_mul_rompelBlockLen_le G n)
       (fun _ w _ _ => length_rompelShiftedStep G n qStar _ w)
   -- Step 3: Lemma 5.6 1-step XOR-shift + `qGuess = qStar` point bound (`dyadicSize gridCount`).
   have hshift :
@@ -657,91 +582,51 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
       simp only [ProbComp.eval_bind, ProbComp.eval_pure, eval_sampleDyadicIndex,
         BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
       rw [PMF.bind_comm (BitString.uniformList W) (PMF.uniformOfFintype (Fin Dq))]
-      refine PMF.bind_congr_on_support _ _ _ fun a _ => ?_
-      exact PMF.bind_comm (BitString.uniformList W) _ _
+      exact PMF.bind_congr_on_support _ _ _ fun _ _ => PMF.bind_comm (BitString.uniformList W) _ _
     have hqStar_eq :
         candTrial qStar =
           ProbComp.eval (targetCollisionGame G.inLen hShift validBase shoupAdv n) := by
-      have hclamp : clampIdx (G.gridCount n) qStar = qStar := clampIdx_eq_of_lt hqStar
       dsimp only [candTrial, targetCollisionGame, shoupAdv, shoupComposeAdversary]
-      simp only [hclamp, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
+      simp only [clampIdx_eq_of_lt hqStar, ProbComp.eval_bind, ProbComp.eval_pure,
+        BitString.eval_sampleList]
       refine PMF.bind_congr_on_support _ _ _ fun choice hch => ?_
       have hw₀_len : choice.1.length = W :=
         (length_fst_of_mem_support_shoupComposeChoose hch).trans (G.outLen_add_shrink n)
-      let post (yStar : List Bool) : PMF Bool :=
-        (ProbComp.eval
-          (shoupComposeFindWith W (G.outLen n) (G.shrinkLen n) (rompelCascadeSteps G n)
-            (rompelShiftedStep G n qStar) adversary n choice.2 yStar)).bind fun w₁ =>
-          PMF.pure (isCollision (hShift n) validBase n yStar choice.1 w₁)
-      have hpred :
-          ((BitString.uniformList W).bind fun zWord =>
-            let yStar := BitString.listXor W [zWord, choice.1]
-            (ProbComp.eval
-              (shoupComposeFindWith W (G.outLen n) (G.shrinkLen n) (rompelCascadeSteps G n)
-                (rompelShiftedStep G n qStar) adversary n choice.2 yStar)).bind fun w₁ =>
-              let z' := BitString.listXor W [w₁, yStar]
-              PMF.pure (decide (z'.length = W ∧ z' ≠ zWord ∧
-                G.evalGrid n qStar z' = G.evalGrid n qStar zWord))) =
-          ((BitString.uniformList W).map (fun zWord => BitString.listXor W [zWord, choice.1])).bind
-            post := by
-        rw [PMF.bind_map]
-        refine PMF.bind_congr_on_support _ _ _ fun zWord hz => ?_
-        have hz_len : zWord.length = W := BitString.length_of_mem_support_uniformList hz
-        dsimp only [Function.comp_def, post]
-        refine PMF.bind_congr_on_support _ _ _ fun w₁ hw₁ => ?_
-        have hw₁_len : w₁.length = W :=
-          (length_of_mem_support_shoupComposeFindWith hw₁).trans (G.outLen_add_shrink n)
-        set yStar := BitString.listXor W [zWord, choice.1]
-        have hx₀ : BitString.listXor W [choice.1, yStar] = zWord := by
-          dsimp only [yStar]
-          rw [BitString.listXor_pair_comm W zWord choice.1,
-            BitString.listXor_pair_self_left_of_length choice.1 hz_len]
-        have hne_iff : BitString.listXor W [w₁, yStar] ≠ zWord ↔ choice.1 ≠ w₁ := by
-          rw [← hx₀, ne_eq, BitString.listXor_pair_left_inj hw₁_len hw₀_len yStar, ne_comm]
-        have hv₀ : validBase n choice.1 = true := by
-          simp [validBase, hw₀_len, W, G.outLen_add_shrink n]
-        have hv₁ : validBase n w₁ = true := by
-          simp [validBase, hw₁_len, W, G.outLen_add_shrink n]
-        dsimp only [W] at hx₀ hne_iff ⊢
-        congr 1
-        apply Bool.eq_iff_iff.mpr
-        rw [decide_eq_true_eq, isCollision_eq_true_iff]
-        simp only [BitString.length_listXor, true_and, hne_iff, hv₀, hv₁, hShift,
-          rompelShiftedStep, hx₀, eq_comm]
-      rw [hpred, BitString.uniformList_map_listXor W choice.1]
+      conv_rhs => rw [← BitString.uniformList_map_listXor W choice.1, PMF.bind_map]
+      refine PMF.bind_congr_on_support _ _ _ fun zWord hz => ?_
+      have hz_len := BitString.length_of_mem_support_uniformList hz
+      dsimp only [Function.comp_def]
+      refine PMF.bind_congr_on_support _ _ _ fun w₁ hw₁ => ?_
+      have hw₁_len : w₁.length = W :=
+        (length_of_mem_support_shoupComposeFindWith hw₁).trans (G.outLen_add_shrink n)
+      set yStar := BitString.listXor W [zWord, choice.1]
+      have hx₀ : BitString.listXor W [choice.1, yStar] = zWord := by
+        dsimp only [yStar]
+        rw [BitString.listXor_pair_comm W zWord choice.1,
+          BitString.listXor_pair_self_left_of_length choice.1 hz_len]
+      have hne_iff : BitString.listXor W [w₁, yStar] ≠ zWord ↔ choice.1 ≠ w₁ := by
+        rw [← hx₀, ne_eq, BitString.listXor_pair_left_inj hw₁_len hw₀_len yStar, ne_comm]
+      have hv₀ : validBase n choice.1 = true := by
+        simp [validBase, hw₀_len, W, G.outLen_add_shrink n]
+      have hv₁ : validBase n w₁ = true := by
+        simp [validBase, hw₁_len, W, G.outLen_add_shrink n]
+      dsimp only [W] at hx₀ hne_iff ⊢
+      congr 1
+      apply Bool.eq_iff_iff.mpr
+      rw [decide_eq_true_eq, isCollision_eq_true_iff]
+      simp only [BitString.length_listXor, true_and, hne_iff, hv₀, hv₁, hShift,
+        rompelShiftedStep, hx₀, eq_comm]
     obtain ⟨val, hval⟩ : ∃ val : ℕ → ℝ≥0, ∀ q, Game.succProbability (candTrial q) = val q :=
       ⟨_, fun _ => rfl⟩
     let aStar : Fin Dq := ⟨qStar, hqStar.trans (lt_dyadicSize _)⟩
     have : Nonempty (Fin Dq) := ⟨aStar⟩
-    have hcard : (Fintype.card (Fin Dq) : ℝ≥0) = (Dq : ℝ≥0) := by simp only [Fintype.card_fin]
-    have hpos : (0 : ℝ≥0) < Dq := by exact_mod_cast dyadicSize_pos (G.gridCount n)
     conv_lhs => rw [← hqStar_eq, hval]
-    rw [hrand_eq, Game.succProbability_uniform, hcard, mul_div_cancel₀ _ hpos.ne']
+    rw [hrand_eq, Game.succProbability_uniform, Fintype.card_fin,
+      mul_div_cancel₀ _ (Nat.cast_ne_zero.mpr (dyadicSize_pos _).ne')]
     simp_rw [hval]
     exact Finset.single_le_sum (f := fun a : Fin Dq => val a.val)
       (fun _ _ => zero_le) (Finset.mem_univ aStar)
-  calc
-    Game.succProbability
-        (ProbComp.eval
-          (targetCollisionGame (rompelCompression G).keyLen (rompelCompression G).eval
-            (rompelCompression G).validInput adversary n))
-      ≤ (dyadicSize (rompelCascadeSteps G n) : ℝ≥0) *
-          Game.succProbability
-            (ProbComp.eval (targetCollisionGame G.inLen hShift validBase shoupAdv n)) :=
-      hproj.trans hshoup
-    _ ≤ (dyadicSize (rompelCascadeSteps G n) : ℝ≥0) *
-          ((dyadicSize (G.gridCount n) : ℝ≥0) *
-            Game.succProbability
-              (ProbComp.eval
-                (randomCollisionGame (fun k => G.evalGrid k qStar) G.inLen
-                  (rompelCompressionInverter G adversary) n))) :=
-      mul_le_mul_of_nonneg_left hshift (zero_le : (0 : ℝ≥0) ≤ _)
-    _ = (dyadicSize (G.gridCount n) * dyadicSize (rompelCascadeSteps G n) : ℝ≥0) *
-          Game.succProbability
-            (ProbComp.eval
-              (randomCollisionGame (fun k => G.evalGrid k qStar) G.inLen
-                (rompelCompressionInverter G adversary) n)) := by
-      ring
+  exact ((hproj.trans hshoup).trans (mul_le_mul_of_nonneg_left hshift zero_le)).trans_eq (by ring)
 
 /-- **Adapting `[HHRVW2020]`, Section 5.1.5, STEP 4 and STEP 5(ii–iii) (pp. 31–32)**: for any
 `ShrinkingCollisionGrid` `G`, `rompelCompression G` is a target collision-resistant
@@ -751,27 +636,15 @@ theorem ShrinkingCollisionGrid.targetCollisionResistant_rompelCompression
     (rompelCompression G).TargetCollisionResistant := by
   apply TargetCollisionResistantOn.of_negligible
   intro adversary hadversary
-  have hinv_ppt : IsPPT encBits (rompelCompressionInverter G adversary) :=
-    isPPT_rompelCompressionInverter G hadversary
-  obtain ⟨goodIdx, hgood_lt, hneg_rand⟩ :=
-    G.exists_good_candidate (rompelCompressionInverter G adversary) hinv_ppt
-  have hdq_pb : PolynomiallyBounded (fun n => dyadicSize (G.gridCount n)) :=
-    dyadicSize_polynomiallyBounded.comp G.polyTime_gridCount.polynomiallyBounded
-  have hds_pb : PolynomiallyBounded (fun n => dyadicSize (rompelCascadeSteps G n)) :=
-    dyadicSize_polynomiallyBounded.comp
-      (computableInPolyTime_rompelCascadeSteps G).polynomiallyBounded
-  have hloss_pb : PolynomiallyBounded
-      (fun n => dyadicSize (G.gridCount n) * dyadicSize (rompelCascadeSteps G n)) :=
-    hdq_pb.mul hds_pb
-  have hbound_neg := hneg_rand.polynomiallyBounded_mul hloss_pb
-  refine negligible_of_le hbound_neg fun n => ?_
-  have hgame :
-      randomCollisionGame (fun k => G.evalGrid k (goodIdx k)) G.inLen
-        (rompelCompressionInverter G adversary) n =
-      randomCollisionGame (fun k => G.evalGrid k (goodIdx n)) G.inLen
-        (rompelCompressionInverter G adversary) n := rfl
-  rw [hgame, Nat.cast_mul]
-  exact succProbability_targetCollisionGame_rompelCompression_le G adversary (hgood_lt n)
+  obtain ⟨goodIdx, hgood_lt, hneg_rand⟩ := G.exists_good_candidate _
+    (isPPT_rompelCompressionInverter G hadversary)
+  have hloss_pb :=
+    (dyadicSize_polynomiallyBounded.comp G.polyTime_gridCount.polynomiallyBounded).mul
+      (dyadicSize_polynomiallyBounded.comp
+        (computableInPolyTime_rompelCascadeSteps G).polynomiallyBounded)
+  refine negligible_of_le (hneg_rand.polynomiallyBounded_mul hloss_pb) fun n => ?_
+  simpa only [randomCollisionGame, Nat.cast_mul] using
+    succProbability_targetCollisionGame_rompelCompression_le G adversary (hgood_lt n)
 
 /-! ### Unrestricted `KeyedHashFamily` and `OneWay` UOWHF endpoints -/
 
