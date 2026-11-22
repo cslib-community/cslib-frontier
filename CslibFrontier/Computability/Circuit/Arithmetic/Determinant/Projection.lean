@@ -61,8 +61,8 @@ polynomials.
 * [P. Bürgisser, *Completeness and Reduction in Algebraic Complexity Theory*][Burgisser2000],
   Chapter 2
 * [R. Saptharishi, *A survey of lower bounds in arithmetic circuit
-  complexity*][Saptharishi2026Survey], chapter "VP and VNP", Theorem `thm:vp` and Section
-  `sec:formula-to-dets`
+  complexity*][Saptharishi2026Survey], chapter "Algebraic complexity classes", Theorem `thm:vp` and
+  Section `sec:formula-to-dets`
 -/
 
 public section

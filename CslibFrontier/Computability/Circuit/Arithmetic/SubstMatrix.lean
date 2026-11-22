@@ -28,12 +28,6 @@ permanents and generic determinants.
 * `Cslib.Circuits.Arithmetic.IsSubstMatrix`: a matrix over `MvPolynomial σ K` whose entries satisfy
   `IsSubstEntry`.
 
-## Main results
-
-* `Cslib.Circuits.Arithmetic.IsSubstMatrix.fromBlocks`: `2 × 2` block specialization matrices.
-* `Cslib.Circuits.Arithmetic.IsSubstMatrix.submatrix`: row and column selection preserves
-  `IsSubstMatrix`.
-
 ## References
 
 * [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra]

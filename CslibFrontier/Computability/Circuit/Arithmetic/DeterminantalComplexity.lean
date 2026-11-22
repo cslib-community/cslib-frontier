@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant
-public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant.Projection
+import CslibFrontier.Computability.Circuit.Arithmetic.Determinant.Projection
 import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.GrenetPermanent
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.HessianPermanent

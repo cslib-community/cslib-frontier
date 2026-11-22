@@ -16,10 +16,10 @@ register_result "determinant-formula-simulation" where
   sources := [
     { paper := OrzelSrinivasanTavenasYehudayoff2025,
       theorem := "Lemma 4 (determinant part, with Definition 1)",
-      locator := "LIPIcs FSTTCS 2025, §1.2 pp. 47:3–47:4 and §2 p. 47:5" },
+      locator := "LIPIcs FSTTCS 2025, §1.2 pp. 47:3–47:4 and §2 pp. 47:5–47:6" },
     { paper := Saptharishi2026Survey,
       theorem := "Theorem thm:vp and Section sec:formula-to-dets",
-      locator := "chap_vpvnp.tex, rev. af95c539" },
+      locator := "chap_vpvnp.tex (Chapter \"Algebraic complexity classes\"), rev. af95c539" },
     { paper := Valiant1979Algebra, theorem := unverified, locator := unverified }
   ]
   theorems := [
@@ -42,10 +42,10 @@ register_result "valiant-determinant-projection-universality" where
   sources := [
     { paper := Saptharishi2026Survey,
       theorem := "Theorem thm:vp",
-      locator := "chap_vpvnp.tex, rev. af95c539" },
+      locator := "chap_vpvnp.tex (Chapter \"Algebraic complexity classes\"), rev. af95c539" },
     { paper := OrzelSrinivasanTavenasYehudayoff2025,
-      theorem := "Lemma 4 (determinant part)",
-      locator := "LIPIcs FSTTCS 2025, §1.2 p. 47:4" },
+      theorem := "Lemma 4 (determinant part) and §2 dc(f) < ∞ remark",
+      locator := "LIPIcs FSTTCS 2025, §1.2 p. 47:4 and §2 p. 47:6" },
     { paper := Valiant1979Algebra, theorem := unverified, locator := unverified }
   ]
   theorems := [
@@ -65,8 +65,8 @@ register_result "valiant-determinantal-universality" where
       theorem := "Chapter chap:dc (via Theorem thm:vp)",
       locator := "chap_dc.tex and chap_vpvnp.tex, rev. af95c539" },
     { paper := OrzelSrinivasanTavenasYehudayoff2025,
-      theorem := "Lemma 4 (determinant part)",
-      locator := "LIPIcs FSTTCS 2025, §1.2 p. 47:4" },
+      theorem := "Lemma 4 (determinant part) and §2 dc(f) < ∞ remark",
+      locator := "LIPIcs FSTTCS 2025, §1.2 p. 47:4 and §2 p. 47:6" },
     { paper := Valiant1979Algebra, theorem := unverified, locator := unverified }
   ]
   theorems := [
@@ -78,4 +78,6 @@ register_result "valiant-determinantal-universality" where
     finiteness or decidable-equality hypotheses on σ and without nontriviality on K), every \
     f : MvPolynomial σ K admits a finite determinantal representation, has \
     determinantalComplexity f < ⊤, and attains determinantalComplexity f at some finite \
-    matrix dimension."
+    matrix dimension. HasDeterminantalRepresentation and determinantalComplexity formalize \
+    Saptharishi's (chap_dc.tex) affine-linear entry definition, which is upper-bounded by the \
+    projection-based determinantal complexity dc(f) of Orzel et al. (§2 p. 47:6)."

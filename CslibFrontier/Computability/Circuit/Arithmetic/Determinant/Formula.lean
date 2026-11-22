@@ -45,8 +45,8 @@ every commutative ring `K`.
 * [I. Orzel et al., *The Algebraic Cost of a Boolean Sum*][OrzelSrinivasanTavenasYehudayoff2025],
   Definition 1 (p. 47:3), Lemma 4 (p. 47:4) and projection conventions (p. 47:5)
 * [R. Saptharishi, *A survey of lower bounds in arithmetic circuit
-  complexity*][Saptharishi2026Survey], chapter "VP and VNP", Theorem `thm:vp` and Section
-  `sec:formula-to-dets`
+  complexity*][Saptharishi2026Survey], chapter "Algebraic complexity classes", Theorem `thm:vp` and
+  Section `sec:formula-to-dets`
 -/
 
 public section

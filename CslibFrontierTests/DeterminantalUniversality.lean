@@ -141,8 +141,7 @@ example : HasDeterminantalRepresentation (X 0 - X 1 : MvPolynomial (Fin 2) ℤ) 
 
 /-! ### Boundary 4: nested product-of-sums formula, circuit bridge, and projection closure -/
 
--- `(X₀ + 1) * (X₁ + (-1) * 2)` has 6 operation nodes (`3` constants + `2` adds + `1` mul? Wait:
--- `X₀ + 1` has size 2; `X₁ + (-2)` with `.const (-2)` has size 2; `.mul` adds 1 -> size 5!).
+-- `(X₀ + 1) * (X₁ + (-2))` has 5 operation nodes (`2` constants, `2` additions, `1` product).
 private def nested : Formula (arithSignature ℤ) 2 :=
   .gate₂ .mul rfl
     (.gate₂ .add rfl (.input 0) (.gate (.const 1) Fin.elim0))
