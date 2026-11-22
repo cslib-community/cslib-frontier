@@ -8667,6 +8667,7 @@ public import CslibFrontier.Logics.Propositional.CliqueColoring
 public import CslibFrontier.Logics.Propositional.CuttingPlanes
 public import CslibFrontier.Logics.Propositional.CuttingPlanes.Interpolation
 public import CslibFrontier.Logics.Propositional.CuttingPlanes.Pigeonhole
+public import CslibFrontier.Logics.Propositional.CuttingPlanes.Reification
 public import CslibFrontier.Logics.Propositional.CuttingPlanes.Resolution
 public import CslibFrontier.Logics.Propositional.CuttingPlanes.Separation
 public import CslibFrontier.Logics.Propositional.DNF
