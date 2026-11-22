@@ -125,8 +125,8 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have hgroup : QueriedProduct.groupedBase L m N qs.length + qs.length ≤ D0 := horder.2.1
   have hqueries : QueriedProduct.codeBase L m N qs.length + qs.length ≤ D0 := horder.2.2.1
   have hVorder : D0 ≤ R0 ∧ R0 ≤ V ∧ V + K ≤ O := horder.2.2.2
-  have hpaD : pa ≤ D0 := by omega
-  have hpbD : pb ≤ D0 := by omega
+  have hpaD : pa ≤ D0 := (Nat.le_add_right pa (10 ^ L)).trans (hpab.1.trans hbefore)
+  have hpbD : pb ≤ D0 := (Nat.le_add_right pb (10 ^ L)).trans (hpab.2.trans hbefore)
   have hpaV : pa + 10 ^ L ≤ V := by omega
   have hpbV : pb + 10 ^ L ≤ V := by omega
   have hqD : QueriedProduct.codeBase L m N qs.length + a ≤ D0 := by omega

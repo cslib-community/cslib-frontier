@@ -44,7 +44,7 @@ theorem exists_decodeDesc_tinyCut_eq (d : Desc) (N : ℕ) :
       true := tinyDesc_frame_append (by rw [List.length_replicate]; exact Nat.le_add_left _ _)
   refine ⟨_, ?_, htiny, ?_⟩
   · rw [List.length_append, List.length_replicate]
-    omega
+    exact (Nat.le_add_right N _).trans (Nat.le_add_left _ _)
   · rw [tinyCut_of_tinyDesc htiny, decodeDesc_unframe_frame_append]
 
 /-- **The configurations of a simulation within space `O(f)` eventually fit within `G n` bits**

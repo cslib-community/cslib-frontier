@@ -84,7 +84,10 @@ theorem exec_catalogueStep {w L H D R s : ℕ} (x : Data registers)
       CatalogueParameters L H D R y ∧
       (∀ i, ¬CatalogueLocal i → y.regs i = x.regs i) := by
   have hscan : Fits w (s + 10 ^ L + L + 12) := hfit.of_le (by omega)
-  have hwrite : Fits w (D + R + 6 * (s + 1) + 12) := hfit.of_le (by omega)
+  have hwrite : Fits w (D + R + 6 * (s + 1) + 12) := hfit.of_le
+    (Nat.add_le_add_right ((Nat.add_le_add_left
+      (Nat.mul_le_mul_left 6 (Nat.succ_le_of_lt hslt)) (D + R)).trans
+        ((Nat.le_add_right _ (10 ^ L)).trans (Nat.le_add_right _ L))) 12)
   obtain ⟨u, hu, he, hcode, hpop, hstride, hmem, hframe⟩ :=
     exec_inspect x hx.levels hx.span hs hx.one hx.ten hx.nine hscan
   obtain ⟨y, hy, hym, hys, hyc, _⟩ := exec_writeSlot u
