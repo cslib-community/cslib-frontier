@@ -125,6 +125,18 @@ set_option linter.hashCommand false in
 #guard normalizeFormulaWord (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) ==
   encFormula 0 .false
 
+-- Indices follow the formula's prefix order and retain the exact comparison payloads.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 2 (.and (.eqZero (.var 1)) (.ltZero (.const (-2))))
+  formulaWordTokenAt word 1 == .inr (.inl (encTerm 2 (.var 1))) &&
+    formulaWordTokenAt word 2 == .inr (.inr (.inl (encTerm 2 (.const (-2)))))
+
+-- Out-of-range binary indices and malformed formula words give the falsity token.
+set_option linter.hashCommand false in
+#guard formulaWordTokenAt (encFormula 0 (.eqZero (.const 0))) (2 ^ 80) == .inl () &&
+  formulaWordTokenAt (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) 0 == .inl ()
+
 -- The total view preserves the existential semantics of a satisfiable formula.
 example :
     (Formula.ofWord (encFormula 0 (.eqZero (.const 0)))).solutionSet.Nonempty := by
