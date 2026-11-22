@@ -295,12 +295,14 @@ theorem assigned_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
   simp only [assigned, value_mark]
   split <;> simp_all
 
-/-- An array in which exactly the variables `vs` are assigned. -/
-def marks (vs : List ℕ) : Assign := (⟨#[]⟩ : Assign).mark vs
+/-- An array in which exactly the variables `vs` are assigned. It is sized once for the greatest
+of them, so that marking never grows it. -/
+def marks (vs : List ℕ) : Assign := (⟨Array.replicate (vs.foldl max 0 + 1) none⟩ : Assign).mark vs
 
 theorem assigned_marks (vs : List ℕ) (v : ℕ) : (marks vs).assigned v = true ↔ v ∈ vs := by
   rw [marks, assigned_mark]
-  simp [assigned, value]
+  simp only [assigned, value, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> simp
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/
 theorem agrees_ofTrail (M : Trail) (hM : (Trail.vars M).Nodup) : (ofTrail M).Agrees M :=
