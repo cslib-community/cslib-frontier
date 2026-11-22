@@ -18,6 +18,7 @@ discards the final carry, so underflow wraps modulo `2 ^ w` instead of truncated
 
 ## Main definitions
 
+* `Cslib.Circuits.Boolean.Modular.subtractInputs`: complemented-word and carry input stage.
 * `Cslib.Circuits.Boolean.Modular.subtract`: the modular subtraction circuit.
 
 ## Main results
@@ -40,7 +41,7 @@ open BitString
 variable {w : ℕ}
 
 /-- Keep the first word, complement the second word in parallel, and append a true carry. -/
-private def subtractInputs (w : ℕ) : Circuit signature (w + w) (w + w + 1) :=
+@[expose] def subtractInputs (w : ℕ) : Circuit signature (w + w) (w + w + 1) :=
   ((Circuit.wiring signature (Fin.castAdd w)).append
     (Circuit.pi fun i : Fin w => (Formula.input (Fin.natAdd w i)).not.toCircuit)).append
       (Circuit.oneGate (.const true) Fin.elim0)
@@ -60,7 +61,7 @@ private theorem depth_subtractInputs_le (w : ℕ) : (subtractInputs w).depth ≤
   circuit_bound [subtractInputs]
 
 /-- Discard the carry-out after adding the first word, the second word's complement and one. -/
-def subtract (w : ℕ) : Circuit signature (w + w) w :=
+@[expose] def subtract (w : ℕ) : Circuit signature (w + w) w :=
   (Circuit.wiring signature (fun i : Fin w => i.castSucc)).comp
     ((carryLookahead w).comp (subtractInputs w))
 

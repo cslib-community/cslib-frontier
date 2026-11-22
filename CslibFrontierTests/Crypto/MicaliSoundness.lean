@@ -4,7 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.Kilian.MicaliSoundness
+import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
 import CslibFrontierTests.Crypto.MerkleTestHash
 
 /-!
@@ -30,6 +33,8 @@ import CslibFrontierTests.Crypto.MerkleTestHash
    that interleaves Merkle and Fiat–Shamir oracle calls, and instantiate
    `micaliProofBits_micaliProvePure_le` and `exists_micaliCSProof_of_mem_NP`.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.MicaliSoundness
 
@@ -62,9 +67,10 @@ abbrev honestProof : MicaliProof :=
 /-- Record `(q, hTree q)` for every hash evaluation along the openings of `proof`. -/
 def openingTrace (hTree : List Bool → List Bool) (proof : MicaliProof) :
     List (List Bool × List Bool) :=
-  ((kilianOpenings toyVerifier x (fixedFS (x, proof.root)) proof.response).flatMap fun o =>
-    (merkleInputs (fun _ => hTree) [] [o.2.leaf]
-      (kilianPosition toyVerifier x o.1) o.2.path).map fun q => (q, hTree q)).eraseDups
+  ((kilianOpenings toyVerifier x (fixedFS (x, proof.root)) proof.response).flatMap
+    fun (a, opening) =>
+      (merkleInputs (fun _ => hTree) [] [opening.leaf]
+        (kilianPosition toyVerifier x a) opening.path).map fun q => (q, hTree q)).eraseDups
 
 abbrev trHonest : List (List Bool × List Bool) := openingTrace idHash honestProof
 

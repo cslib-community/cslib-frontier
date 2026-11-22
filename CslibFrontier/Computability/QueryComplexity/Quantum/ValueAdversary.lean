@@ -52,6 +52,7 @@ Bounding each step's drop in `valueWeightedProgress` gives `(1 - δ) √(m m') �
 
 * `Cslib.Quantum.norm_inner_valueOracle_valueOracle_ge`: one-step overlap loss bound for
   `valueOracle`.
+* `Cslib.Quantum.valueWeightedProgress_zero_sub_le`: telescoping bound on `valueWeightedProgress`.
 * `Cslib.Quantum.one_sub_mul_sum_le_of_sq_le_value`: weighted adversary inequality for `runValue`.
 * `Cslib.Quantum.one_sub_mul_sqrt_le_two_mul_mul_sqrt_value`: [Ambainis2002], Theorem 6 (overlap
   form) for non-Boolean value queries.
@@ -245,26 +246,22 @@ private theorem sum_endpoint_querySlice_sq_le [DecidableEq α]
     _ = α_b x := by
           rw [sum_sq_norm_querySlice, norm_runValue, hψ₀, one_pow, mul_one]
 
-/-- **Weighted quantum adversary inequality for value-query algorithms**: if after `T` value queries
-the states on every pair in `R` have overlap at most `δ`, and nonnegative step weights `a, b`
-satisfy `γ(p)² ≤ a(p, i) b(p, i)` whenever `p.1 i ≠ p.2 i` with coordinatewise fiber budgets
-`α_b` and `β_b`, then
-`(1 - δ) ∑_{p ∈ R} γ p ≤ T (∑_{x ∈ fst(R)} α_b x + ∑_{y ∈ snd(R)} β_b y)`. -/
-theorem one_sub_mul_sum_le_of_sq_le_value [DecidableEq α]
+/-- **Telescoping**: `T` value queries lower `valueWeightedProgress` by at most `T` times the
+endpoint weight budgets. -/
+theorem valueWeightedProgress_zero_sub_le [DecidableEq α]
     (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
     (U : ℕ → ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W)
-    {ψ₀ : ValueState ι V W} (hψ₀ : ‖ψ₀‖ = 1) (T : ℕ)
+    {ψ₀ : ValueState ι V W} (hψ₀ : ‖ψ₀‖ = 1)
     (R : Finset ((ι → α) × (ι → α))) (γ : (ι → α) × (ι → α) → ℝ)
-    {δ : ℝ}
-    (hδ : ∀ p ∈ R, ‖inner ℂ (runValue step U ψ₀ p.1 T) (runValue step U ψ₀ p.2 T)‖ ≤ δ)
     (a b : (ι → α) × (ι → α) → ι → ℝ) (α_b β_b : (ι → α) → ℝ)
     (hγ : ∀ p ∈ R, 0 ≤ γ p)
     (ha : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ a p i)
     (hb : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ b p i)
     (hγsq : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → γ p ^ 2 ≤ a p i * b p i)
     (hα : ∀ x ∈ R.image Prod.fst, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.1 = x, a p i ≤ α_b x)
-    (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β_b y) :
-    (1 - δ) * ∑ p ∈ R, γ p ≤
+    (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β_b y)
+    (T : ℕ) :
+    valueWeightedProgress step U ψ₀ R γ 0 - valueWeightedProgress step U ψ₀ R γ T ≤
       T * (∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y) := by
   have hstep : ∀ t : ℕ,
       valueWeightedProgress step U ψ₀ R γ t - valueWeightedProgress step U ψ₀ R γ (t + 1) ≤
@@ -299,16 +296,35 @@ theorem one_sub_mul_sum_le_of_sq_le_value [DecidableEq α]
     have hX := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.fst a α_b hα t
     have hY := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.snd b β_b hβ t
     linarith
-  have htel (t : ℕ) : valueWeightedProgress step U ψ₀ R γ 0 -
-      valueWeightedProgress step U ψ₀ R γ t ≤
-        t * (∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y) := by
-    induction t with
-    | zero => simp
-    | succ t ih =>
-      have hs := hstep t
-      push_cast
-      linarith
-  have htelT := htel T
+  induction T with
+  | zero => simp
+  | succ t ih =>
+    have hs := hstep t
+    push_cast
+    linarith
+
+/-- **Weighted quantum adversary inequality for value-query algorithms**: if after `T` value queries
+the states on every pair in `R` have overlap at most `δ`, and nonnegative step weights `a, b`
+satisfy `γ(p)² ≤ a(p, i) b(p, i)` whenever `p.1 i ≠ p.2 i` with coordinatewise fiber budgets
+`α_b` and `β_b`, then
+`(1 - δ) ∑_{p ∈ R} γ p ≤ T (∑_{x ∈ fst(R)} α_b x + ∑_{y ∈ snd(R)} β_b y)`. -/
+theorem one_sub_mul_sum_le_of_sq_le_value [DecidableEq α]
+    (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
+    (U : ℕ → ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W)
+    {ψ₀ : ValueState ι V W} (hψ₀ : ‖ψ₀‖ = 1) (T : ℕ)
+    (R : Finset ((ι → α) × (ι → α))) (γ : (ι → α) × (ι → α) → ℝ)
+    {δ : ℝ}
+    (hδ : ∀ p ∈ R, ‖inner ℂ (runValue step U ψ₀ p.1 T) (runValue step U ψ₀ p.2 T)‖ ≤ δ)
+    (a b : (ι → α) × (ι → α) → ι → ℝ) (α_b β_b : (ι → α) → ℝ)
+    (hγ : ∀ p ∈ R, 0 ≤ γ p)
+    (ha : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ a p i)
+    (hb : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ b p i)
+    (hγsq : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → γ p ^ 2 ≤ a p i * b p i)
+    (hα : ∀ x ∈ R.image Prod.fst, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.1 = x, a p i ≤ α_b x)
+    (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β_b y) :
+    (1 - δ) * ∑ p ∈ R, γ p ≤
+      T * (∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y) := by
+  have htelT := valueWeightedProgress_zero_sub_le step U hψ₀ R γ a b α_b β_b hγ ha hb hγsq hα hβ T
   have hend : valueWeightedProgress step U ψ₀ R γ T ≤ δ * ∑ p ∈ R, γ p := by
     rw [valueWeightedProgress, mul_sum]
     refine sum_le_sum fun p hp => ?_

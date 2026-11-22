@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import Mathlib.Algebra.BigOperators.Expect
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -56,12 +57,6 @@ theorem acceptScore_eq_sum
   classical
   rw [accepts_eq_withDiagonalCap]
   rfl
-
-/-- A real-valued sum weighted by the uniform PMF is a finite expectation. -/
-theorem uniform_sum_eq_expect {ι : Type*} [Fintype ι] [Nonempty ι] (f : ι → ℝ) :
-    (∑ x, (uniformOfFintype ι x).toReal * f x) = 𝔼 x, f x := by
-  simp only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-    inv_mul_eq_div, Fintype.expect_eq_sum_div_card, sum_div]
 
 variable [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
   [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint] [NonnegSpectrumClass ℝ A]
@@ -123,7 +118,7 @@ omit [Field F] [DecidableEq F] in
 private theorem sum_assignLineRoles_eq (line point : Question F m)
     (w : Question F m × Question F m → ℝ) :
     ∑ q, (assignLineRoles line point q).toReal * w q = (w (point, line) + w (line, point)) / 2 := by
-  rw [assignLineRoles, sum_map_mul, uniform_sum_eq_expect, Fintype.expect_eq_sum_div_card,
+  rw [assignLineRoles, sum_map_mul, sum_uniformOfFintype_toReal_mul, Fintype.expect_eq_sum_div_card,
     Fintype.sum_bool, Fintype.card_bool]
   simp only [Bool.false_eq_true, ite_false, ite_true, Nat.cast_ofNat]
   rw [add_comm]
@@ -150,7 +145,8 @@ theorem axisScoreAtDegrees_eq_expect (n d D : ℕ)
       𝔼 u : Point F (n + 1), 𝔼 i : Fin (n + 1),
         lineScoreAtDegrees S d D u (.axis (linePoints u (Pi.single i (1 : F)))) := by
   rw [branchWinProbAtDegrees_eq_weighted, branchQuestions_axis, axisQuestions, sum_bind_mul]
-  simp only [sum_bind_mul, uniform_sum_eq_expect, sum_assignLineRoles_eq, lineScoreAtDegrees]
+  simp only [sum_bind_mul, sum_uniformOfFintype_toReal_mul, sum_assignLineRoles_eq,
+    lineScoreAtDegrees]
 
 /-- The consistency score averages the acceptance at a shared point. -/
 theorem consistencyScoreAtDegrees_eq_expect (n d D : ℕ)
@@ -159,7 +155,7 @@ theorem consistencyScoreAtDegrees_eq_expect (n d D : ℕ)
     (branchGameWithDiagonalCap (F := F) n d D .consistency).commutingWinProb S =
       𝔼 u : Point F (n + 1), acceptScoreAtDegrees S d D (.point u) (.point u) := by
   rw [branchWinProbAtDegrees_eq_weighted, branchQuestions_consistency, consistencyQuestions,
-    sum_map_mul, uniform_sum_eq_expect]
+    sum_map_mul, sum_uniformOfFintype_toReal_mul]
 
 /-- The diagonal score averages over the base point, prefix, direction and roles. -/
 theorem diagonalScoreAtDegrees_eq_expect (n d D : ℕ)
@@ -169,7 +165,8 @@ theorem diagonalScoreAtDegrees_eq_expect (n d D : ℕ)
       𝔼 u : Point F (n + 1), 𝔼 i : Fin (n + 1), 𝔼 v,
         lineScoreAtDegrees S d D u (.diagonal (linePoints u (prefixDirection i v))) := by
   rw [branchWinProbAtDegrees_eq_weighted, branchQuestions_diagonal, diagonalQuestions, sum_bind_mul]
-  simp only [sum_bind_mul, uniform_sum_eq_expect, sum_assignLineRoles_eq, lineScoreAtDegrees]
+  simp only [sum_bind_mul, sum_uniformOfFintype_toReal_mul, sum_assignLineRoles_eq,
+    lineScoreAtDegrees]
 
 omit [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
   [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint] [NonnegSpectrumClass ℝ A] in

@@ -44,12 +44,13 @@ example : replicateCode 1 0 ([(.not, [0])], [1]) = ([], []) := by
 
 /-! ### The multiplexer code -/
 
-/-- The multiplexer on words of two bits has `3 * 2 + 1` gates. -/
-example : (muxCode 2).1.length = 7 := by
+/-- The multiplexer on words of two bits has `3 * 2 + 1` gates and is generated in polynomial time.
+-/
+example : (muxCircuit 2).code.1.length = 7 := by
   decide
 
-example : (muxCode 2).1.length = (muxCircuit 2).code.1.length := by
-  rw [muxCode_code]
+example : ComputableInPolyTime (fun w => (muxCircuit w).code) encUnary encCode := by
+  fun_prop
 
 /-! ### Polarization with fixed parameters -/
 

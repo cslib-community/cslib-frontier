@@ -88,13 +88,13 @@ theorem evalTokenStep_polyTime {γ : Type} {enc : γ ↪ List Bool}
   let op (a : γ) (tag : Unit ⊕ Unit) := tag.elim (add a) (mul a)
   let var (a : γ) (i : ℕ) := some ((point a).getD i 0 % modulus a :: stack a)
   let varOrOp (a : γ) (tag : ℕ ⊕ Unit ⊕ Unit) := tag.elim (var a) (op a)
-  have ho := sumElimSnd (left := add) (right := mul) none
+  have ho := sumElimSnd (left := add) (right := mul)
     (combineResidues_polyTime binary_add hpUnit hsUnit)
     (combineResidues_polyTime binary_mul hpUnit hsUnit)
-  have hvarOrOp := sumElimSnd (left := var) (right := op) none hv ho
+  have hvarOrOp := sumElimSnd (left := var) (right := op) hv ho
   have h := sumElimWithInput
     (left := fun a z => some ((z % (modulus a : ℤ)).toNat :: stack a)) (right := varOrOp)
-    none ht hc hvarOrOp
+    ht hc hvarOrOp
   apply h.of_enc_eq
   intro a
   apply congrArg (encOption (encList encNat))
