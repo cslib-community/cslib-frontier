@@ -302,7 +302,7 @@ abbrev InnerGateIn (W : Set (Vertex c)) : Type :=
   {g : InnerGate c // Vertex.signal ⟨.gate g.1, g.2.1⟩ ∈ W}
 
 /-- The reachable inner gates are inner gates. -/
-private theorem card_innerGate_le : Nat.card (InnerGate c) ≤ c.innerSize := by
+theorem card_innerGate_le : Nat.card (InnerGate c) ≤ c.innerSize := by
   rw [Circuit.innerSize, ← Nat.card_eq_finsetCard]
   exact Nat.card_le_card_of_injective (fun g => ⟨g.1, Program.mem_innerGates.mpr g.2.2⟩)
     fun _ _ h => Subtype.ext (congrArg Subtype.val h :)
