@@ -447,10 +447,11 @@ marked. -/
 
 /-- The initial state, with the options `o`. -/
 @[expose] def WExec.init (φ : CNF ℕ) (o : Options) : WExec φ :=
+  -- built once, not once per field
+  let order := WExec.initOrder φ o
   ⟨Exec.init φ, ⟨#[]⟩, Assign.marks φ.vars, WatchStore.build ⟨#[]⟩ φ.lratDB, [],
     φ.lratDB.filter fun e => e.2.dedup.length < 2,
-    Activity.init (varSlots φ),
-    (WExec.initOrder φ o).1, (WExec.initOrder φ o).2,
+    Activity.init (varSlots φ), order.1, order.2,
     Phases.init (varSlots φ), Reduction.init φ.length o.learntsDivisor, 0, 0, o, {},
     ⟨⟨#[]⟩, fun v => by simp [Assign.value]⟩⟩
 
@@ -1605,26 +1606,44 @@ theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
   · exact (hq ▸ hS.store).not_falsifies hS.exec.run.nodup he hlen
   · exact hshort e (hS.short_covers e he (by omega))
 
+/-- The variable order `H` and its marks `I` at a restart undoing the variables `vs`, with the
+options `o` and the activities `A`: with VSIDS, the variables of `vs` that are not marked are
+inserted and marked. -/
+@[expose] def restartOrderWith (o : Options) (H : VarOrder) (I : Array Bool) (A : Activity)
+    (vs : List ℕ) : VarOrder × Array Bool :=
+  if o.vsids then VarOrder.addMissing H I A vs else (H, I)
+
 /-- The variable order and its marks at a restart: with VSIDS, the variables of the trail that are
 not marked are inserted and marked. -/
 @[expose] def WExec.restartOrder (S : WExec φ) : VarOrder × Array Bool :=
-  if S.opts.vsids then VarOrder.addMissing S.order S.inOrder S.act (Trail.vars S.M)
-  else (S.order, S.inOrder)
+  restartOrderWith S.opts S.order S.inOrder S.act (Trail.vars S.M)
 
 /-- **Restart**, at an empty queue: back to the root of the trail, with VSIDS putting the variables
 of the trail back in the variable order. With phase saving on, the phases of the trail's literals
 are saved first, as MiniSat's `cancelUntil(0)` saves those it undoes; the root's literals stay
-assigned, so only the saved phases of the undone ones are read later. -/
+assigned, so only the saved phases of the undone ones are read later. The fields are taken out of
+`S` first, so that the variable order and its marks are updated in place. -/
 @[expose] def WExec.restart (S : WExec φ) : WExec φ :=
-  let e := S.exec.restart
-  { S with
-    exec := e
-    assign := Assign.ofTrail (XTrail.trail e.trail)
-    level := 0
-    order := (S.restartOrder).1
-    inOrder := (S.restartOrder).2
-    phase := if S.opts.phaseSaving then S.phase.save S.M else S.phase
-    stats := { S.stats with restarts := S.stats.restarts + 1 } }
+  let exec := S.exec
+  let occurs := S.occurs
+  let store := S.store
+  let queue := S.queue
+  let short := S.short
+  let act := S.act
+  let order := S.order
+  let inOrder := S.inOrder
+  let phase := S.phase
+  let red := S.red
+  let simpAssigns := S.simpAssigns
+  let opts := S.opts
+  let stats := S.stats
+  let marks := S.marks
+  let M := XTrail.trail exec.trail
+  let e := exec.restart
+  let order := restartOrderWith opts order inOrder act (Trail.vars M)
+  let phase := if opts.phaseSaving then phase.save M else phase
+  ⟨e, Assign.ofTrail (XTrail.trail e.trail), occurs, store, queue, short, act, order.1, order.2,
+    phase, red, 0, simpAssigns, opts, { stats with restarts := stats.restarts + 1 }, marks⟩
 
 /-- Restart keeps the invariant: the processed literals kept were processed, and the clauses with
 both watched literals false keep their support, which is below the oldest decision. -/
@@ -1646,7 +1665,7 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
     have h₂ := VarOrder.added_addMissing S.order S.inOrder S.act (Trail.vars S.M)
     change VarOrder.Inv S.restartOrder.1 S.restartOrder.2 S.act φ.vars S.restart.M
       S.occurs.assigned
-    simp only [WExec.restartOrder, hv, ↓reduceIte]
+    simp only [WExec.restartOrder, restartOrderWith, hv, ↓reduceIte]
     refine ⟨h₂.wf hS'.wf, fun e he => ?_, fun v hv' hvM hvo => ?_, h₂.marked hS'.marked⟩
     · rcases h₂.mem_new e he with he | ⟨v, hv'', rfl⟩
       · exact hS'.vars e he
