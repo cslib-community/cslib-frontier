@@ -557,10 +557,7 @@ concern successful replies at exact totals and a unique current round. -/
 theorem replayRounds_correct {bits rest : List Bool} {verdict : ControllerVerdict}
     (h : replayRounds round roundStart roundReply member memberStart memberReply input
       (start context n) bits = some (some verdict, rest)) :
-    match verdict with
-    | .bad k => (∀ j < k, ∃! w, Passes r source j w) ∧ ¬ (∃! w, Passes r source k w)
-    | .decided hit =>
-      (∀ k, ∃! w, Passes r source k w) ∧ (hit = true ↔ ReflTransGen r source target) := by
+    verdict.Correct r source target := by
   classical
   let edge (u v : Fin n) : Id Bool := decide (r u v)
   let membership : MembershipScan Id n :=
@@ -577,7 +574,7 @@ theorem replayRounds_correct {bits rest : List Bool} {verdict : ControllerVerdic
   rw [hzero, ← runController, href] at hrun
   have heq := Option.some.inj hrun
   subst reference
-  cases verdict <;> exact hspec
+  exact hspec
 
 end Verdict
 

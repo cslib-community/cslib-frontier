@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Representation
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # The compact heap's initialization and calling-convention certificate
@@ -39,7 +40,7 @@ open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure
 open Cslib.DataStructure.PriorityQueue.BinaryHeap (space)
 
 private theorem dimension_fits {w n base : ℕ} (hS : Fits w (base + space n)) : Fits w n :=
-  hS.of_le (by unfold space; omega)
+  hS.of_le (by wram_omega)
 
 private theorem parameter_live {n : ℕ} {x : Data Program.registers}
     (hpar : ∀ i, x.regs (Program.code.initParams i) = (![n] : Fin 1 → ℕ) i) :

@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Machine
+import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Replay
 meta import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Machine
 
 /-! Check the scheduler's same-input and single-selector call protocol. -/
@@ -34,6 +34,53 @@ private def verdict : ℕ ⊕ Option Bool → Option ControllerVerdict :=
 
 private def scheduler := machine setup scan (fun r => .inl r.sourceID) verdict
 
+private def totalScan : NondeterministicQueryMachine (ℕ ⊕ Option Bool) :=
+  { scan with next := fun
+      | (_, read, choice) => .inr (if choice then none else some (read.getD false)) }
+
+-- A false selector returns a verdict for every request, even past the end of the input.
+private theorem totalScan_hasResult (w : List Bool) :
+    let M := machine setup totalScan (fun r => .inl r.sourceID) verdict
+    ∃ bits, M.FirstHalting w bits M.init ∧ (reply (M.run w bits)).isSome := by
+  refine exists_successful_firstHalting setup totalScan (fun r => .inl r.sourceID) verdict w ?_
+  intro f _ _ _
+  exact ⟨[false], totalScan.firstHalting_append_singleton w [] false rfl rfl, rfl⟩
+
+-- The same successful machine trace yields exactly the mathematical List outcome.
+example (w : List Bool) :
+    let M := machine setup totalScan (fun r => .inl r.sourceID) verdict
+    let oracle (r : SeedScanRequest) : List (Option ControllerVerdict) :=
+      [some (.decided (w[r.sourceID]?.getD false))]
+    let hs : setup.sourceID < setup.parameters.search.subdivision.vertexCount := by decide
+    let hr : ∀ position < setup.parameters.search.subdivision.originalCount,
+        setup.originalSourceID position < setup.parameters.search.subdivision.vertexCount := by
+      intro position hp
+      change position < 2 at hp
+      rcases (show position = 0 ∨ position = 1 by omega) with rfl | rfl <;> decide
+    ∃ bits answer result, M.FirstHalting w bits M.init ∧ reply (M.run w bits) = some answer ∧
+      runSeedSchedulerFor setup hs hr (fun f => oracle f.request) = [result] ∧
+        result.map (fun a => ⟨a.seed.val, a.reachable⟩) = answer := by
+  intro M oracle hs hr
+  obtain ⟨bits, hfirst, hresult⟩ := totalScan_hasResult w
+  obtain ⟨answer, hreply⟩ := Option.isSome_iff_exists.mp hresult
+  have hcorrect :=
+    runSeedSchedulerFor_eq_of_firstHalting setup hs hr rfl totalScan (fun r => .inl r.sourceID)
+      verdict w oracle ?_ bits answer hfirst hreply
+  · obtain ⟨result, hrun, heq⟩ := hcorrect
+    exact ⟨bits, answer, result, hfirst, hreply, hrun, heq⟩
+  · intro frame _ _ _ selectors value hhalt hv
+    cases selectors with
+    | nil => cases hhalt.1
+    | cons bit rest =>
+      have hrest := (totalScan.firstHalting_cons_iff w bit rest _).mp hhalt
+      obtain rfl := (totalScan.firstHalting_iff_nil_of_halted w rest _ rfl).mp hrest.2
+      cases bit with
+      | true => cases hv
+      | false =>
+        change some (.decided (w[frame.request.sourceID]?.getD false)) = some value at hv
+        cases hv
+        rfl
+
 -- The common clock also covers a rejecting selector or a read past the input.
 example (w : List Bool) : scheduler.HaltsWithin w 24 := by
   refine Cslib.Complexity.STCON.SeedSchedulerMachine.haltsWithin setup scan
@@ -53,6 +100,27 @@ set_option linter.hashCommand false in
 #guard
   let final := scheduler.run [true, false, false] (List.replicate 5 false)
   scheduler.accept final && decide (reply final = some (some ⟨0, true⟩))
+
+-- The same scanner has at most one first-halting scheduler trace, including a negative result.
+example (w : List Bool) :
+    {bits : List Bool | scheduler.FirstHalting w bits scheduler.init ∧
+      (reply (scheduler.run w bits)).isSome}.Subsingleton := by
+  refine subsingleton_successful_firstHalting setup scan (fun r => .inl r.sourceID) verdict w ?_
+  intro frame _ _ _
+  have unique (bits : List Bool) (hf : scan.FirstHalting w bits (.inl frame.request.sourceID))
+      (hv : (verdict (scan.replay w bits (.inl frame.request.sourceID))).isSome) :
+      bits = [false] := by
+    cases bits with
+    | nil => cases hf.1
+    | cons bit rest =>
+      have hrest := ((scan.firstHalting_cons_iff w bit rest _).mp hf).2
+      have he := (scan.firstHalting_iff_nil_of_halted w rest _ rfl).mp hrest
+      subst rest
+      cases bit with
+      | false => rfl
+      | true => cases hv
+  intro l hl r hr
+  exact (unique l hl.1 hl.2).trans (unique r hr.1 hr.2).symm
 
 -- A true selector on the skipped root rejects the branch.
 set_option linter.hashCommand false in
@@ -127,43 +195,6 @@ example {α σ : Type} {enc : α ↪ List Bool} {S : α → ℕ} (encScan : σ �
     budget_comp_linear hr hstate, budget_comp_linear ha hstate⟩
 
 open MultiTapeTM in
-/-- The fixture scanner's uniform bound charges the initial source ID and its one-step reply.
-The scheduler bound then covers arbitrary selector prefixes, including rejected scans. -/
-example (w bits : List Bool) :
-    (encState (encSum encNat (encOption encBool)) (scheduler.run w bits)).length ≤
-      36 * (encSeedSearchSetup setup).length + 31 := by
-  have hsource : setup.sourceID < setup.parameters.search.subdivision.vertexCount := by decide
-  have hroot (j : ℕ) (hj : j < setup.parameters.search.subdivision.originalCount) :
-      setup.originalSourceID j < setup.parameters.search.subdivision.vertexCount := by
-    change j < 2 at hj
-    have he : j = 0 ∨ j = 1 := by omega
-    rcases he with rfl | rfl <;> decide
-  have hbound := length_run_le setup scan (fun r => .inl r.sourceID) verdict
-    (encSum encNat (encOption encBool)) w (12 * (encSeedSearchSetup setup).length + 10)
-    hsource hroot (by
-      intro f hs hf _ choices
-      cases choices with
-      | nil =>
-        have hid := (encSeedScanRequest_sourceID_length_le f.request).trans
-          (encSeedSchedulerFrame_request_length_le f)
-        have hframe := hs ▸ hf.length_le (hs.symm ▸ hsource) (hs.symm ▸ hroot)
-        simp only [NondeterministicQueryMachine.replay_nil, encSum_inl, List.length_cons]
-        omega
-      | cons bit rest =>
-        rw [scan.replay_cons]
-        change (encSum encNat (encOption encBool)
-          (scan.replay w rest (.inr (if bit then none else w[f.request.sourceID]?)))).length ≤ _
-        rw [scan.replay_of_halted w (by rfl)]
-        cases (if bit then none else w[f.request.sourceID]?)
-        · simp only [encSum_inr, encOption_none, List.length_cons, List.length_nil]
-          omega
-        · simp only [encSum_inr, encOption_some, encBool_apply, List.length_cons, List.length_nil]
-          omega)
-    bits
-  change (encState (encSum encNat (encOption encBool)) (scheduler.run w bits)).length ≤ _ at hbound
-  omega
-
-open MultiTapeTM in
 /-- The initial scheduler state can use the workspace of a variable setup producer. -/
 example {α σ : Type} {enc : α ↪ List Bool} {S : α → ℕ} (encScan : σ ↪ List Bool)
     (call : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
@@ -207,5 +238,42 @@ example {α σ : Type} {enc : α ↪ List Bool} {S : α → ℕ} (encScan : σ �
       (current a, readChoice a)) enc (encState encScan) S :=
   budget_comp_linear (next_inSpace encScan setup call start readVerdict hstart hhalt hreply hnext)
     (budget_prod hcurrent hread)
+
+open MultiTapeTM in
+/-- The fixture scanner's uniform bound charges the initial source ID and its one-step reply.
+The scheduler bound then covers arbitrary selector prefixes, including rejected scans. -/
+example (w bits : List Bool) :
+    (encState (encSum encNat (encOption encBool)) (scheduler.run w bits)).length ≤
+      36 * (encSeedSearchSetup setup).length + 31 := by
+  have hsource : setup.sourceID < setup.parameters.search.subdivision.vertexCount := by decide
+  have hroot (j : ℕ) (hj : j < setup.parameters.search.subdivision.originalCount) :
+      setup.originalSourceID j < setup.parameters.search.subdivision.vertexCount := by
+    change j < 2 at hj
+    have he : j = 0 ∨ j = 1 := by omega
+    rcases he with rfl | rfl <;> decide
+  have hbound := length_run_le setup scan (fun r => .inl r.sourceID) verdict
+    (encSum encNat (encOption encBool)) w (12 * (encSeedSearchSetup setup).length + 10)
+    hsource hroot (by
+      intro f hs hf _ choices
+      cases choices with
+      | nil =>
+        have hid := (encSeedScanRequest_sourceID_length_le f.request).trans
+          (encSeedSchedulerFrame_request_length_le f)
+        have hframe := hs ▸ hf.length_le (hs.symm ▸ hsource) (hs.symm ▸ hroot)
+        simp only [NondeterministicQueryMachine.replay_nil, encSum_inl, List.length_cons]
+        omega
+      | cons bit rest =>
+        rw [scan.replay_cons]
+        change (encSum encNat (encOption encBool)
+          (scan.replay w rest (.inr (if bit then none else w[f.request.sourceID]?)))).length ≤ _
+        rw [scan.replay_of_halted w (by rfl)]
+        cases (if bit then none else w[f.request.sourceID]?)
+        · simp only [encSum_inr, encOption_none, List.length_cons, List.length_nil]
+          omega
+        · simp only [encSum_inr, encOption_some, encBool_apply, List.length_cons, List.length_nil]
+          omega)
+    bits
+  change (encState (encSum encNat (encOption encBool)) (scheduler.run w bits)).length ≤ _ at hbound
+  omega
 
 end CslibFrontierTests.STCONSeedSchedulerMachine

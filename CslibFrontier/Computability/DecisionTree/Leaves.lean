@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.DecisionTree.Basic
 public import CslibFrontier.Foundations.Data.BitString.Weight
 public import Mathlib.Data.Nat.Choose.Sum
+import CslibFrontier.Foundations.Data.Nat.Power
 
 /-!
 # Leaves, rank, decision lists, and energy of decision trees
@@ -94,10 +95,7 @@ theorem leafCount_pos (t : DecisionTree ι β) : 0 < t.leafCount := by
 theorem leafCount_le_two_pow_depth (t : DecisionTree ι β) : t.leafCount ≤ 2 ^ t.depth := by
   induction t with
   | leaf => exact le_refl 1
-  | node i t₀ t₁ ih₀ ih₁ =>
-    rw [leafCount, depth_node, Nat.pow_succ, Nat.mul_two]
-    exact Nat.add_le_add (ih₀.trans (Nat.pow_le_pow_right Nat.two_pos (Nat.le_max_left _ _)))
-      (ih₁.trans (Nat.pow_le_pow_right Nat.two_pos (Nat.le_max_right _ _)))
+  | node _ _ _ ih₀ ih₁ => exact Nat.add_le_two_pow_max_succ ih₀ ih₁
 
 /-- Inputs following the same path reach the same leaf label. -/
 theorem eval_eq_of_path_eq (t : DecisionTree ι β) {x y : ι → Bool}
