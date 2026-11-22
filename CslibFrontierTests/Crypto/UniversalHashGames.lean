@@ -227,6 +227,16 @@ example {family : List Bool → List Bool → List Bool}
       (fun _ => xorHashWordFamily (fun _ => 2) id id family) :=
   isComputationalUHF_xorHashWordFamily hPRF (.const 2) .id' negligible_inv_two_pow
 
+/-- Only a distinct valid message within the cap produces a collision under a constant table. -/
+example :
+    let A : ℕ × ℕ → ProbComp (List (List (List Bool))) :=
+      fun _ => pure [[[false]], [[false]], [[true, true]], [[true]]]
+    let B := xorHashWordMultiQueryReduction (fun _ => 2) (fun _ => 1) (fun _ => 1)
+    (B (fun _ => 3) A 0 []).run (fun _ => pure [true]) = pure false ∧
+      (B (fun _ => 4) A 0 []).run (fun _ => pure [true]) = pure true ∧
+      (B (fun _ => 4) A 0 []).IsQueryBounded 8 :=
+  ⟨rfl, rfl, isQueryBounded_xorHashWordMultiQueryReduction _ _ _ _ _ _ _⟩
+
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
   guess _ digest := pure ⟨target, digest⟩

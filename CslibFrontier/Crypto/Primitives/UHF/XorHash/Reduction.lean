@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.ListCollision
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Primitives.UHF.Computational
@@ -14,10 +15,12 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
@@ -33,12 +36,17 @@ through the same word oracle. The ideal random function restricts to a uniform t
 tagged blocks, giving the statistical collision bound. The resulting uniform strict PPT
 reduction proves the single-pair guarantee in Boneh–Shoup v0.6, §7.2.3, Theorem 7.6
 (printed pp. 261–262), including equation (7.12).
+The direct multi-query wrapper retains at most `Q` messages and has its own strict
+oracle PPT and `Q * ℓ` query certificates, a step toward Exercise 7.28.
 
 ## Main results
 
 * `Cslib.Crypto.UHF.isOraclePPT_xorHashWordCollisionReduction`: certify the explicit wrapper.
 * `Cslib.Crypto.UHF.succProbability_xorHashWordFamily_le`: the concrete PRF-plus-collision bound.
 * `Cslib.Crypto.UHF.isComputationalUHF_xorHashWordFamily`: the asymptotic security guarantee.
+* `Cslib.Crypto.UHF.isOraclePPT_xorHashWordMultiQueryReduction`: the bounded-list wrapper is
+  uniform strict oracle PPT.
+* `Cslib.Crypto.UHF.isQueryBounded_xorHashWordMultiQueryReduction`: its `Q * ℓ` query budget.
 -/
 
 public section
@@ -83,6 +91,31 @@ The auxiliary input of the PRF game is unused. -/
     else
       return false
 
+/-- Evaluate the valid messages in the first `Q n` entries of the adversary's list,
+using one shared word oracle. Accept exactly when distinct retained messages have the
+same digest. Repeated messages alone cannot give a collision. -/
+@[expose] def xorHashWordMultiQueryReduction (ℓ blockWidth width Q : ℕ → ℕ)
+    (A : ℕ × ℕ → ProbComp (List (List (List Bool)))) : OracleDistinguisher :=
+  fun n _ => do
+    let guesses ← ProbOracleComp.sample (A (n, n))
+    let ms := (guesses.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
+    let ds ← ms.mapM (xorHashWordQueries (ℓ n) (width n))
+    return hasDistinctCollision (ds.zip ms)
+
+/-- Each retained valid message costs at most `ℓ n` oracle calls, even for arbitrary replies. -/
+theorem isQueryBounded_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : ℕ → ℕ)
+    (A : ℕ × ℕ → ProbComp (List (List (List Bool)))) (n : ℕ) (aux : List Bool) :
+    (xorHashWordMultiQueryReduction ℓ blockWidth width Q A n aux).IsQueryBounded (Q n * ℓ n) := by
+  rw [xorHashWordMultiQueryReduction, ← Nat.zero_add (Q n * ℓ n)]
+  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun guesses => ?_
+  let ms := (guesses.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
+  have htraverse := OracleComp.IsCostBounded.mapM (inputs := ms) fun m _ =>
+    isQueryBounded_xorHashWordQueries (ℓ n) (width n) m
+  refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+  have hlen : ms.length ≤ Q n :=
+    (List.length_filter_le _ _).trans (List.length_take_le _ _)
+  simpa only [Nat.add_zero] using Nat.mul_le_mul_right (ℓ n) hlen
+
 private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
     {ℓ blockWidth : α → ℕ} {m : α → List (List Bool)}
     (hℓ : ComputableInPolyTime ℓ input encUnary)
@@ -100,6 +133,56 @@ private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
       (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd input encBits))
       (hb.comp (ComputableInPolyTime.fst input encBits))
   exact ComputableInPolyTime.bool_and.comp (hcap.prod hblocks)
+
+/-- The multi-query wrapper is strict oracle PPT whenever its adversary is strict PPT and
+its dimensions and list cap are polynomial-time computable in unary. -/
+theorem isOraclePPT_xorHashWordMultiQueryReduction {ℓ blockWidth width Q : ℕ → ℕ}
+    {A : ℕ × ℕ → ProbComp (List (List (List Bool)))}
+    (hℓ : ComputableInPolyTime ℓ encUnary encUnary)
+    (hb : ComputableInPolyTime blockWidth encUnary encUnary)
+    (hw : ComputableInPolyTime width encUnary encUnary)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hA : IsPPTOn (encPair encUnary encUnary) (encList (encList encBits)) A) :
+    IsOraclePPT encBool (xorHashWordMultiQueryReduction ℓ blockWidth width Q A) := by
+  let encM := encList encBits
+  let encInput := encPair encUnary encBits
+  let encStage := encPair encInput (encList encM)
+  let encDigests := encList encBits
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hrun := hA.preprocess (hn.prod hn)
+  have hn' := hn.comp (ComputableInPolyTime.fst encInput (encList encM))
+  have hguesses := ComputableInPolyTime.snd encInput (encList encM)
+  have htake := ComputableInPolyTime.listTakeWithInput hguesses (hQ.comp hn')
+  have hparam := hn'.comp (ComputableInPolyTime.fst encStage encM)
+  have hvalid := polyTime_xorHashWordValid (hℓ.comp hparam) (hb.comp hparam)
+    (ComputableInPolyTime.snd encStage encM)
+  have hmessages := ComputableInPolyTime.filterWithInput
+    (test := fun p : (ℕ × List Bool) × List (List (List Bool)) =>
+      xorHashWordValid (ℓ p.1.1) (blockWidth p.1.1)) htake hvalid
+  have hargs := ((hℓ.comp hparam).prod (hw.comp hparam)).prod
+    (ComputableInPolyTime.snd encStage encM)
+  have hhash := isOraclePPTOn_xorHashWordQueries.preprocess hargs
+  have htraverse := IsOraclePPTOn.mapM_with_of_bounded_output []
+    (program := fun p : (ℕ × List Bool) × List (List (List Bool)) =>
+      xorHashWordQueries (ℓ p.1.1) (width p.1.1))
+    hmessages hhash (hw.comp hn')
+    (fun _ _ _ hout => length_le_of_mem_support_xorHashWordQueries hout)
+  have hzip := (ComputableInPolyTime.zip encBits encM).comp
+    ((ComputableInPolyTime.snd encStage encDigests).prod
+      (hmessages.comp (ComputableInPolyTime.fst encStage encDigests)))
+  have htest := (polyTime_hasDistinctCollision encBits encM).comp hzip
+  have htail : IsOraclePPTOn encStage encBool
+      (fun p : (ℕ × List Bool) × List (List (List Bool)) => do
+        let n := p.1.1
+        let ms := (p.2.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
+        let ds ← ms.mapM (xorHashWordQueries (ℓ n) (width n))
+        return hasDistinctCollision (ds.zip ms)) := by
+    simpa only [map_eq_bind_pure_comp, Function.comp_def] using htraverse.map_with
+      (f := fun (p : (ℕ × List Bool) × List (List (List Bool))) (ds : List (List Bool)) =>
+        hasDistinctCollision
+        (ds.zip ((p.2.take (Q p.1.1)).filter (xorHashWordValid (ℓ p.1.1) (blockWidth p.1.1)))))
+      htest
+  exact hrun.isOraclePPTOn.bind_with htail
 
 /-- A strict PPT collision adversary gives a uniform strict PPT word-oracle
 distinguisher. The cap and both widths are computed from the unary parameter. -/
