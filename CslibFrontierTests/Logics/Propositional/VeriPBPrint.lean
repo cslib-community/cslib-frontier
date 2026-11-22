@@ -9,10 +9,12 @@ module
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 
-/-! The printers of OPB instances and DIMACS formulas under the ordinary imports of their API: the
-kernel evaluates them (`decide +kernel`), and the round-trip theorems apply to an instance with an
-objective, a constant and a negative literal, and to a CNF formula. The parsers themselves have no
-exposed bodies; `CslibFrontierTests.Logics.Propositional.VeriPBPrintDecide` evaluates them. -/
+/-! The printers of OPB instances and DIMACS formulas under the ordinary imports of their API:
+the kernel evaluates `CNF.toDIMACS` and `reread` (`decide +kernel`), and the round-trip theorems
+apply to an instance with an objective, a constant and a negative literal, and to a CNF formula.
+`printOPB`, its private word builders and the parsers have no exposed bodies;
+`CslibFrontierTests.Logics.Propositional.VeriPBPrintDecide` evaluates them in the kernel, the
+printed text of both instances included. -/
 
 @[expose] public section
 
@@ -25,18 +27,10 @@ def cover : Instance :=
   ⟨[⟨[(1, (0, true)), (1, (1, true))], 1⟩, ⟨[(1, (1, true)), (1, (2, true))], 1⟩],
     some ⟨[(0, 1), (1, 1), (2, 1)], 0⟩, none⟩
 
-/-- The printed text of `cover`. -/
-example : printOPB cover = "* #variable= 3 #constraint= 2 \nmin: 1 x1 1 x2 1 x3 ; \n\
-    1 x1 1 x2 >= 1 ; \n1 x2 1 x3 >= 1 ; \n" := by
-  decide +kernel
 
 /-- An instance with a negative literal, a negative weight, a constant and a preserved set. -/
 def mixed : Instance :=
   ⟨[⟨[(2, (0, true)), (3, (4, false))], 3⟩, ⟨[], 0⟩], some ⟨[(4, -2), (0, 0)], 7⟩, some [4, 0]⟩
-
-example : printOPB mixed = "* #variable= 5 #constraint= 2 \nmin: -2 x5 0 x1 7 ; \n\
-    preserved: x5 x1 ; \n2 x1 3 ~x5 >= 3 ; \n>= 0 ; \n" := by
-  decide +kernel
 
 -- Both are in the normal form of the parser, so they are read back exactly.
 example : parseOPB (printOPB cover) = some cover := parseOPB_printOPB_of_normal (by decide)

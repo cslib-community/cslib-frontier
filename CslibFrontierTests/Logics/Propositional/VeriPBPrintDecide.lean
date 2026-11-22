@@ -7,10 +7,11 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 import CslibFrontierTests.Logics.Propositional.VeriPBPrint
--- `import all`: the kernel evaluates the parsers and checkers of `Text` and the step `stepTop` of
--- `Redundance`, whose bodies are not exposed.
+-- `import all`: the kernel evaluates `printOPB` and its private word builders in `Print`, the
+-- parsers and checkers of `Text` and the step `stepTop` of `Redundance`, whose bodies are not
+-- exposed.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
@@ -18,8 +19,8 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 soundness theorems applied to the result: the conclusion is about the Lean value, with no
 statement about parsing left to trust.
 
-* `cover` and `mixed` are printed and re-parsed, and so is a CNF formula, by `decide +kernel`,
-  independently of the round-trip theorems.
+* `cover` and `mixed` are printed, and printed and re-parsed, and so is a CNF formula, by
+  `decide +kernel`, independently of the round-trip theorems.
 * The optimality proof of `cover` (elaborated by VeriPB 3.0.2, as in
   `CslibFrontierTests.Logics.Propositional.VeriPBText`) is accepted against `printOPB cover` with
   `BOUNDS 1 : 6 1`, so the optimum of `cover` is `1`.
@@ -33,6 +34,12 @@ namespace CslibFrontierTests.Logics.Propositional.VeriPBPrint
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Text
 
+example : printOPB cover = "* #variable= 3 #constraint= 2 \nmin: 1 x1 1 x2 1 x3 ; \n\
+    1 x1 1 x2 >= 1 ; \n1 x2 1 x3 >= 1 ; \n" := by
+  decide +kernel
+example : printOPB mixed = "* #variable= 5 #constraint= 2 \nmin: -2 x5 0 x1 7 ; \n\
+    preserved: x5 x1 ; \n2 x1 3 ~x5 >= 3 ; \n>= 0 ; \n" := by
+  decide +kernel
 example : parseOPB (printOPB cover) = some cover := by decide +kernel
 example : parseOPB (printOPB mixed) = some mixed := by decide +kernel
 example : parseDIMACS (CNF.toDIMACS φ) = some φ := by decide +kernel

@@ -21,8 +21,10 @@ variables and clauses, then the clauses, each a list of nonzero integers ended b
 certificate for the formula read refers to the same variables as the file. It checks the header:
 the literals are within its number of variables and the clauses are as many as it says. As in
 the SATLIB benchmarks, a line `%` ends the formula. A line is split into words at whitespace
-(`Char.isWhitespace`), and a number is a nonempty string of decimal digits, an integer one with an
-optional `-`.
+(`Char.isWhitespace`). A number is read as `String.toNat?` and `String.toInt?` read it: a nonempty
+string of decimal digits with `_` digit separators, each between two digits (`1_000`), an
+integer one with an optional `-`. The digits themselves are read by the decimal reader
+`Nat.ofDecimal?` shared with the OPB front end.
 
 `Cslib.Logic.PL.CNF.toDIMACS` writes a formula, the header giving one more variable than the
 largest, and one clause per line. It is defined on lists of characters, so the kernel evaluates
@@ -61,9 +63,17 @@ def words : List Char → List Char → List (List Char)
   | [], cur => flushWord cur
   | c :: cs, cur => if c.isWhitespace then flushWord cur ++ words cs [] else words cs (c :: cur)
 
-/-- A natural number: a nonempty string of decimal digits. -/
+/-- Whether `cs` is a nonempty string of decimal digits with `_` digit separators, each between
+two digits, as `String.isNat` checks; `last` tells whether a digit comes before `cs`. -/
+def isNatChars : Bool → List Char → Bool
+  | last, [] => last
+  | last, c :: cs =>
+    if c == '_' then last && isNatChars false cs else c.isDigit && isNatChars true cs
+
+/-- A natural number, as `String.toNat?` reads it: decimal digits with `_` digit separators, each
+between two digits. The separators are dropped and the digits read by `Nat.ofDecimal?`. -/
 def natOfChars? (cs : List Char) : Option ℕ :=
-  if !cs.isEmpty && cs.all Char.isDigit then some (cs.foldl Nat.digitStep 0) else none
+  if isNatChars false cs then Nat.ofDecimal? (cs.filter (· != '_')) else none
 
 /-- An integer: a natural number with an optional `-`. -/
 def intOfChars? : List Char → Option ℤ
@@ -142,10 +152,9 @@ def CNF.ofDIMACS (s : String) : Except String (CNF ℕ) := do
 
 namespace Dimacs
 
-/-- A literal as a DIMACS integer: the variable `v` as `v + 1`, negated if the literal is. -/
-def litChars : Literal ℕ → List Char
-  | (v, true) => Nat.toDecimal (v + 1)
-  | (v, false) => '-' :: Nat.toDecimal (v + 1)
+/-- A literal as a DIMACS integer (`Cslib.Logic.PL.Literal.toDIMACS`): the variable `v` as `v + 1`,
+negated if the literal is. -/
+def litChars (l : Literal ℕ) : List Char := Int.toDecimal l.toDIMACS
 
 /-- A clause as a DIMACS line: its literals, `0` and a newline. -/
 def clauseChars (cl : Clause ℕ) : List Char :=
@@ -181,11 +190,9 @@ theorem isWhitespace_eq_false_of_isDigit {c : Char} (h : c.isDigit = true) :
 /-- The characters of a literal are not whitespace. -/
 theorem isWhitespace_of_mem_litChars {l : Literal ℕ} {c : Char} (h : c ∈ litChars l) :
     c.isWhitespace = false := by
-  obtain ⟨v, _ | _⟩ := l
-  · rcases List.mem_cons.1 h with rfl | h
-    · decide
-    · exact isWhitespace_eq_false_of_isDigit (Nat.isDigit_of_mem_toDecimal h)
-  · exact isWhitespace_eq_false_of_isDigit (Nat.isDigit_of_mem_toDecimal h)
+  rcases Int.mem_toDecimal h with rfl | h
+  · decide
+  · exact isWhitespace_eq_false_of_isDigit h
 
 /-- A run of characters other than whitespace joins the word in progress. -/
 theorem words_append {w rest cur : List Char} (hw : ∀ c ∈ w, c.isWhitespace = false) :
@@ -218,13 +225,36 @@ theorem words_of_forall {w : List Char} (hne : w ≠ []) (hw : ∀ c ∈ w, c.is
   rw [← List.append_nil w, words_append hw, List.append_nil, List.append_nil, words, flushWord]
   simp [hne]
 
+/-- A decimal digit is not the character `c` of `cs`, for the characters that the reader
+treats specially. -/
+theorem ne_of_isDigit {d c : Char} (hd : d.isDigit = true) (hc : c.isDigit = false) : d ≠ c := by
+  rintro rfl
+  simp_all
+
+/-- Decimal digits without separators pass the separator check. -/
+theorem isNatChars_of_isDigit {cs : List Char} (h : ∀ c ∈ cs, c.isDigit = true) :
+    isNatChars true cs = true := by
+  induction cs with
+  | nil => rfl
+  | cons c cs ih =>
+    have hc : (c == '_') = false := beq_eq_false_iff_ne.2 (ne_of_isDigit (h c List.mem_cons_self)
+      (by decide))
+    simp only [isNatChars, hc, h c List.mem_cons_self, Bool.true_and, Bool.false_eq_true,
+      ↓reduceIte, ih fun d hd => h d (List.mem_cons_of_mem _ hd)]
+
 /-- **Reading the digits of a number.** -/
 @[simp] theorem natOfChars?_toDecimal (n : ℕ) : natOfChars? (Nat.toDecimal n) = some n := by
-  have h1 : (Nat.toDecimal n).isEmpty = false := by
-    simpa using Nat.toDecimal_ne_nil n
-  have h2 : (Nat.toDecimal n).all Char.isDigit = true :=
-    List.all_eq_true.2 fun c hc => Nat.isDigit_of_mem_toDecimal hc
-  simp [natOfChars?, h1, h2, Nat.foldl_digitStep_toDecimal_zero]
+  have hd := fun c (hc : c ∈ Nat.toDecimal n) => Nat.isDigit_of_mem_toDecimal hc
+  obtain ⟨d, ds, h, hd₀⟩ := Nat.exists_toDecimal_eq_cons n
+  have hsep : isNatChars false (Nat.toDecimal n) = true := by
+    have hu : (d == '_') = false :=
+      beq_eq_false_iff_ne.2 (ne_of_isDigit hd₀ (c := '_') (by decide))
+    rw [h, isNatChars]
+    simp only [hu, Bool.false_eq_true, ↓reduceIte, hd₀, Bool.true_and]
+    exact isNatChars_of_isDigit fun c hc => hd c (h ▸ List.mem_cons_of_mem _ hc)
+  have hf : (Nat.toDecimal n).filter (· != '_') = Nat.toDecimal n :=
+    List.filter_eq_self.2 fun c hc => by simpa using ne_of_isDigit (hd c hc) (c := '_') (by decide)
+  simp only [natOfChars?, hsep, ↓reduceIte, hf, Nat.ofDecimal?_toDecimal]
 
 /-- A word not starting with `-` is read as a natural number. -/
 theorem intOfChars?_of_ne {c : Char} {cs : List Char} (h : c ≠ '-') :
@@ -235,39 +265,23 @@ theorem intOfChars?_of_ne {c : Char} {cs : List Char} (h : c ≠ '-') :
     exact absurd (List.cons.inj heq).1 h
   · rfl
 
-/-- The first digit of a number. -/
-theorem exists_toDecimal_eq_cons (n : ℕ) :
-    ∃ d ds, Nat.toDecimal n = d :: ds ∧ d.isDigit = true := by
-  obtain ⟨d, ds, h⟩ := List.exists_cons_of_ne_nil (Nat.toDecimal_ne_nil n)
-  exact ⟨d, ds, h, Nat.isDigit_of_mem_toDecimal (h ▸ List.mem_cons_self)⟩
-
-/-- A decimal digit is not the character `c` of `cs`, for the characters that the reader
-treats specially. -/
-theorem ne_of_isDigit {d c : Char} (hd : d.isDigit = true) (hc : c.isDigit = false) : d ≠ c := by
-  rintro rfl
-  simp_all
-
-/-- The DIMACS integer of a negative literal. -/
-theorem ofDIMACS_neg (v : ℕ) : Literal.ofDIMACS (-((v + 1 : ℕ) : ℤ)) = some (v, false) := by
-  have h1 : ¬ (0 < -((v + 1 : ℕ) : ℤ)) := by omega
-  have h2 : -((v + 1 : ℕ) : ℤ) < 0 := by omega
-  simp only [Literal.ofDIMACS, h1, h2, ↓reduceIte, Int.natAbs_neg, Int.natAbs_natCast,
-    Nat.add_sub_cancel]
-
-/-- The DIMACS integer of a positive literal. -/
-theorem ofDIMACS_pos (v : ℕ) : Literal.ofDIMACS ((v + 1 : ℕ) : ℤ) = some (v, true) := by
-  have h1 : 0 < ((v + 1 : ℕ) : ℤ) := by omega
-  simp only [Literal.ofDIMACS, h1, ↓reduceIte, Int.natAbs_natCast, Nat.add_sub_cancel]
+/-- **Reading the digits of an integer.** -/
+@[simp] theorem intOfChars?_toDecimal (a : ℤ) : intOfChars? a.toDecimal = some a := by
+  unfold Int.toDecimal
+  split
+  · rename_i h
+    simp only [intOfChars?, natOfChars?_toDecimal, Option.map_some, Option.some.injEq]
+    omega
+  · rename_i h
+    obtain ⟨d, ds, hds, hd⟩ := Nat.exists_toDecimal_eq_cons a.natAbs
+    rw [hds, intOfChars?_of_ne (ne_of_isDigit hd (by decide)), ← hds, natOfChars?_toDecimal]
+    simp only [Option.map_some, Option.some.injEq]
+    omega
 
 /-- **Reading a literal**: the integer of its word names it. -/
 theorem ofDIMACS_intOfChars?_litChars (l : Literal ℕ) :
-    ∃ i, intOfChars? (litChars l) = some i ∧ Literal.ofDIMACS i = some l := by
-  obtain ⟨v, _ | _⟩ := l
-  · exact ⟨_, by simp [litChars, intOfChars?], ofDIMACS_neg v⟩
-  · obtain ⟨d, ds, h, hd⟩ := exists_toDecimal_eq_cons (v + 1)
-    refine ⟨_, ?_, ofDIMACS_pos v⟩
-    rw [litChars, h, intOfChars?_of_ne (ne_of_isDigit hd (by decide)), ← h, natOfChars?_toDecimal]
-    rfl
+    ∃ i, intOfChars? (litChars l) = some i ∧ Literal.ofDIMACS i = some l :=
+  ⟨_, intOfChars?_toDecimal _, Literal.ofDIMACS_toDIMACS l⟩
 
 /-- Reading the word of a literal adds it to the clause in progress. -/
 theorem readLits_litChars {nvars : ℕ} {l : Literal ℕ} (hl : l.1 < nvars)
@@ -282,17 +296,14 @@ theorem readLits_clause {nvars : ℕ} {cl : Clause ℕ} (hcl : ∀ l ∈ cl, l.1
     readLits nvars (cl.map litChars ++ [['0']]) cls cur =
       .ok (cls.push (cur.toList ++ cl), #[]) := by
   induction cl generalizing cur with
-  | nil => simp [readLits, intOfChars?, natOfChars?, Literal.ofDIMACS, Nat.digitStep]
+  | nil => simp [readLits, show intOfChars? ['0'] = some 0 by decide, Literal.ofDIMACS]
   | cons l cl ih =>
     rw [List.map_cons, List.cons_append, readLits_litChars (hcl l List.mem_cons_self),
       ih (fun l' hl' => hcl l' (List.mem_cons_of_mem _ hl'))]
     simp
 
 /-- The word of a literal is not empty. -/
-theorem litChars_ne_nil (l : Literal ℕ) : litChars l ≠ [] := by
-  obtain ⟨v, _ | _⟩ := l
-  · simp [litChars]
-  · exact Nat.toDecimal_ne_nil _
+theorem litChars_ne_nil (l : Literal ℕ) : litChars l ≠ [] := Int.toDecimal_ne_nil _
 
 /-- The words of a clause line. -/
 theorem words_clause (cl : Clause ℕ) :
@@ -310,10 +321,9 @@ theorem exists_words_clause_eq_cons (cl : Clause ℕ) :
       ∀ c ∈ tok.head?, c = '-' ∨ c.isDigit = true := by
   match cl with
   | [] => exact ⟨['0'], [], rfl, by simp⟩
-  | (v, false) :: cl => exact ⟨_, _, rfl, by simp [litChars]⟩
-  | (v, true) :: cl =>
-    obtain ⟨d, ds, h, hd⟩ := exists_toDecimal_eq_cons (v + 1)
-    exact ⟨_, _, rfl, by simp [litChars, h, hd]⟩
+  | l :: cl =>
+    obtain ⟨d, ds, h, hd⟩ := Int.exists_toDecimal_eq_cons l.toDIMACS
+    exact ⟨_, _, rfl, by simpa [litChars, h] using hd⟩
 
 /-- Splitting at the first newline. -/
 theorem splitOn_newline {a : List Char} (b : List Char) (h : ∀ c ∈ a, c ≠ '\n') :
