@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
 public import CslibFrontier.Logics.Propositional.CNF.LRATKernel
-public import Mathlib.Data.Fin.VecNotation
 public meta import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 public meta import CslibFrontier.Algorithms.Lean.CDCL.Watched
 public meta import CslibFrontier.Logics.Propositional.CNF.LRATFast
@@ -112,7 +111,9 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
   (certificates of 131 and 461 steps) in about 7 and 23 seconds, the chain of 320 implications
   in about 3 seconds, and the distributivity of `∧` over `∨` on six disjunctions (32 steps) and
   the associativity of `↔` on six atoms (67 steps) in about 2.5 seconds each. The time grows
-  with the number of steps and with the length of the clauses the hints name. The benchmark
+  with the number of steps and with the length of the clauses the hints name. The final step,
+  in which the kernel checks that the goal is the value of `A` under `v`, took under 0.3 seconds
+  on each of these goals, finding each atom by a binary search on its number. The benchmark
   script `LRATTautoBench` in the repository's scripts measures these families.
 * The solver runs in Lean's interpreter, and its work counts toward `maxHeartbeats`; it takes a
   small fraction of the time of the kernel check, but on the larger formulas enough heartbeats
@@ -386,6 +387,26 @@ private def certFor (φ : CNF ℕ) (atoms : Array Expr) : MetaM (Array LRAT.IntA
     throwError "lrat_tauto: the goal is not a propositional tautology. It is false under this \
       assignment to its atoms, read as independent propositions:{MessageData.joinSep lines ""}"
 
+/-- The body of the valuation `valuation atoms`, for the atoms numbered `lo, …, hi - 1`: a
+balanced tree of `cond (Nat.blt i.val m) …`, where `i : Fin n` is the bound variable `#0`. The
+atoms have no loose bound variables, since `reify` only descends into non-dependent arrows. -/
+private partial def valuationTree (atoms : Array Expr) (lo hi : ℕ) : Expr :=
+  if hi ≤ lo then mkConst ``False
+  else if hi = lo + 1 then atoms[lo]!
+  else
+    let m := (lo + hi) / 2
+    let iv := mkApp2 (mkConst ``Fin.val) (toExpr atoms.size) (.bvar 0)
+    mkApp4 (mkConst ``cond [1]) (mkSort .zero) (mkApp2 (mkConst ``Nat.blt) iv (mkRawNatLit m))
+      (valuationTree atoms lo m) (valuationTree atoms m hi)
+
+/-- The valuation `v : Fin n → Prop` sending the atom numbered `i` to the expression it was read
+from, by a binary search on `i.val`: the kernel reaches each atom in about `log₂ n` comparisons
+of numerals. A chain of `Matrix.vecCons` takes `i` steps of `Fin.cases` to reach the atom `i`;
+on the chain of 320 implications, those lookups took almost all of the 6 seconds that the kernel
+spent on the final step, against 0.3 seconds with this valuation. -/
+private def valuation (atoms : Array Expr) : Expr :=
+  .lam `i (toTypeExpr (Fin atoms.size)) (valuationTree atoms 0 atoms.size) .default
+
 /-- Closes the goal `g`, already introduced, from the certificate `cert`, or from one the
 generator finds. -/
 private def closeGoal (g : MVarId) (cert : Option Expr) : MetaM Unit := g.withContext do
@@ -407,8 +428,7 @@ private def closeGoal (g : MVarId) (cert : Option Expr) : MetaM Unit := g.withCo
         (mkAuxLemma [] checkProp (← mkDecideProof checkProp))
     catch ex => throwError (← explainRejection checkE cert ex)
   trace[lrat_tauto] "the kernel checked the certificate in {(← IO.monoMsNow) - start} ms"
-  let v ← atoms.foldrM (fun e t => mkAppM ``Matrix.vecCons #[e, t])
-    (← mkAppOptM ``Matrix.vecEmpty #[mkSort .zero])
+  let v := valuation atoms
   -- `checkLRATKernel φ cert = true`, rewritten to `checkLRAT φ cert = true`
   let hcheck ← mkEqTrans (← mkEqSymm (← mkAppM ``CNF.checkLRATKernel_eq_checkLRAT #[φE, cert]))
     hcheck
