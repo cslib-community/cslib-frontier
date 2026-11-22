@@ -24,9 +24,10 @@ Dolev–Strong authenticated synchronous broadcast (checked as an ordinary `modu
   (`[0, 1]`), three-value flood capping in `dolevStrongRound`, and the `2 * (n - F.card) * (n - 1)`
   network message bound.
 * Fischer–Lynch interactive consistency (`InteractiveProtocol`): refutations at `R = 0, 1, 2` via
-  `not_solvesInteractiveConsistency_of_rounds_le`, a 1-round `Fin 2, t = 1` sharpness witness
-  `directIC_solves_fin2` showing `t + 2 ≤ Fintype.card P` cannot be weakened, the same-round
-  majority reduction `solvesByzantineAgreement_toByzantineAgreement`, Boolean consensus refutations
+  `not_solvesInteractiveConsistency_of_rounds_le`, a 1-round `Fin 2, t = 1` boundary witness
+  `directIC_solves_fin2` showing `t + 2 ≤ Fintype.card P` cannot be weakened to `2 ≤ |P|`, the
+  same-round majority adapter `solvesByzantineAgreement_toByzantineAgreement` producing a Boolean
+  consensus `Protocol` from an `InteractiveProtocol`, Boolean consensus refutations
   at `R = 0, 1, 2`, and the two-parameter `iff` `exists_solvesByzantineAgreement_iff_full`. -/
 set_option linter.privateModule false
 
@@ -287,8 +288,8 @@ example {S M : Type} (π : InteractiveProtocol (Fin 4) ℕ S M) :
 
 /-- Direct 1-round interactive consistency protocol on `Fin 2`: each process sends its own private
 input in round `1` and outputs its own input at its own coordinate and the peer's message at the
-peer's coordinate. Demonstrates that `t + 2 ≤ Fintype.card P` in
-`not_solvesInteractiveConsistency_of_rounds_le` is sharp (`Fin 2, t = 1, R = 1` is solvable!). -/
+peer's coordinate. Witnesses the `n = 2, t = 1` boundary showing `t + 2 ≤ Fintype.card P` in
+`not_solvesInteractiveConsistency_of_rounds_le` cannot be weakened to `2 ≤ Fintype.card P`. -/
 def directIC (V : Type*) : InteractiveProtocol (Fin 2) V (V × V) V where
   init _ v := (v, v)
   send _ _ s _ := s.1
@@ -302,13 +303,15 @@ theorem directIC_solves_fin2 (V : Type*) :
     rcases Fin.exists_fin_two.1 ⟨i, rfl⟩ with rfl | rfl <;>
       rcases Fin.exists_fin_two.1 ⟨j, rfl⟩ with rfl | rfl <;>
       rcases Fin.exists_fin_two.1 ⟨r, rfl⟩ with rfl | rfl <;>
-      simp [InteractiveProtocol.decision, InteractiveProtocol.state, directIC, hi, hj]
+      simp [InteractiveProtocol.decision, InteractiveProtocol.state, Protocol.state,
+        directIC, hi, hj]
   validity F _ adv inp i _ r hr := by
     rcases Fin.exists_fin_two.1 ⟨i, rfl⟩ with rfl | rfl <;>
       rcases Fin.exists_fin_two.1 ⟨r, rfl⟩ with rfl | rfl <;>
-      simp [InteractiveProtocol.decision, InteractiveProtocol.state, directIC, hr]
+      simp [InteractiveProtocol.decision, InteractiveProtocol.state, Protocol.state,
+        directIC, hr]
 
--- Same-round reduction from Boolean consensus to Boolean interactive consistency (`2 * t < n`).
+-- Same-round adapter running an `InteractiveProtocol` over `Bool` to produce a Boolean `Protocol`.
 example {S M : Type} (π : InteractiveProtocol (Fin 7) Bool S M) (R : ℕ)
     (h : π.SolvesInteractiveConsistency 3 R) :
     π.toByzantineAgreement.SolvesByzantineAgreement 3 R :=
