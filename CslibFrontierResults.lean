@@ -1,4 +1,5 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Registry
