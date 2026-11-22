@@ -401,8 +401,7 @@ theorem walk {x : Call T} (h : active x = true) (vals : State → List ℕ) :
             64).length - 1 := by omega
         simp only [List.getElem?_eq_none (show (cursorList (weights x) (nodePrec x)
           (nodes x).length (numPoints x) 64).length ≤ c + 1 by omega)]
-        subst hc''
-        exact hlast
+        exact hc'' ▸ hlast
     · rw [List.take_add_one, List.getElem?_eq_getElem hc]
       simp only [runAcc, Option.toList_some, List.foldl_append, List.foldl_cons, List.foldl_nil]
   · simp only [List.take_length]
@@ -423,12 +422,12 @@ theorem exists_eval (x₀ : Call T) (x : Call T) (hx : (inv ev mk x₀).node x) 
     simp [scheme, value_of_not_active ev mk hl']
   · have hl' : active x = true := by simpa [scheme] using hl
     obtain ⟨h0, hnext, hdone, habs, hfin⟩ := walk ev mk hl' fun c => value ev mk (child x mk c)
+    have hd (s) : (child x mk s).depth = x.depth + 1 := rfl
     refine ⟨(children x).length, frameAt x fun c => value ev mk (child x mk c),
       fun c => child x mk ((children x).getD c (0, 0, [], 0)), h0, hnext, hdone,
-      fun c hc => habs c hc,
-      fun c _ => ⟨trivial, fun h => absurd h (by simp [child]), edges_lt_bound_of_active hl'⟩, ?_⟩
-    simp only [scheme, Prod.mk.injEq, true_and]
-    rw [value_of_active ev mk hl', hfin]
+      fun c hc => by dsimp only; rw [hd]; exact habs c hc, fun c _ => ⟨trivial,
+        fun h : x.depth + 1 = 0 => (nomatch h), edges_lt_bound_of_active hl'⟩, ?_⟩
+    simp only [scheme, value_of_active ev mk hl', hfin]
   · simp only at h0
     rw [hx h0]
 
@@ -449,7 +448,7 @@ theorem getElem_flatMap_range {α : Type*} (f : ℕ → ℕ → α) {T n t k : �
     ((List.range T).flatMap fun t => (List.range n).map (f t))[t * n + k]'(by
       simp only [List.length_flatMap, List.length_map, List.length_range, List.map_const',
         List.sum_replicate, smul_eq_mul]
-      nlinarith) = f t k := by
+      nlinarith only [ht, hk]) = f t k := by
   induction T with
   | zero => omega
   | succ T ih =>
@@ -457,7 +456,7 @@ theorem getElem_flatMap_range {α : Type*} (f : ℕ → ℕ → α) {T n t k : �
     have hlen : ((List.range T).flatMap fun t => (List.range n).map (f t)).length = T * n := by
       simp
     rcases Nat.lt_or_ge t T with htT | htT
-    · rw [List.getElem_append_left (by rw [hlen]; nlinarith)]
+    · rw [List.getElem_append_left (by rw [hlen]; nlinarith only [htT, hk])]
       exact ih htT
     · have htT' : t = T := by omega
       subst htT'
@@ -503,7 +502,7 @@ theorem val_table_runLoop (h : active x = true) (vals : State → List ℕ) {j :
   have hqlen : qs.length = (nodes x).length * numPoints x := by
     have := congrArg List.length hqs
     simpa [List.length_flatMap, List.sum_replicate] using this
-  have hpos : j * numPoints x + i < qs.length := by rw [hqlen]; nlinarith
+  have hpos : j * numPoints x + i < qs.length := by rw [hqlen]; nlinarith only [hj, hi]
   have hrow : ((table x qs).getD ((nodes x)[j]) []).getD i [] = qs[j * numPoints x + i] := by
     have htab : (table x qs).getD ((nodes x)[j]) [] =
         (qs.drop (j * numPoints x)).take (numPoints x) := by
@@ -522,8 +521,7 @@ theorem val_table_runLoop (h : active x = true) (vals : State → List ℕ) {j :
     exact Option.some.inj h1
   have hle := nodePrec_le_wide (x := x) j
   rw [← reduce_val hle, hφ, sumAt, map_list_sum, List.map_map]
-  congr 1
-  refine List.map_congr_left fun β _ => ?_
+  refine congrArg List.sum (List.map_congr_left fun β _ => ?_)
   simp only [Function.comp_def, map_list_prod, List.map_map, reduce_val]
 
 /-! ### Correctness -/
