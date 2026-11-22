@@ -7,15 +7,18 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: local-only (test suite)
 
+import Cslib.Foundations.Data.BitString
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
+import CslibFrontier.Crypto.Primitives.UHF.XorHash
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.Field.ZMod
+import Mathlib.Algebra.Ring.BooleanRing
 
 set_option linter.privateModule false
 
@@ -143,6 +146,20 @@ theorem not_isComputationalDUF_residueHash :
   have hnegl := h.negligible_succProbability (fun _ => pure guess)
     (ComputableInPolyTime.const guess).isPPTOn
   exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
+
+/-- Repeating a block uses two distinct table entries, even against an empty comparison input. -/
+example :
+    (PMF.uniformOfFintype (Bool × Fin 2 → BitString 2)).map
+        (fun f => xorHash f ⟨[true, true], by decide⟩ - xorHash f ⟨[], by decide⟩) =
+      PMF.uniformOfFintype (BitString 2) :=
+  uniform_xorHash_sub (by decide)
+
+/-- The finite collision game uses the ideal table's pairwise bound. -/
+example (A : ProbComp (CollisionGuess {m : List Bool // m.length ≤ 2})) :
+    ProbComp.eval (collisionExperiment (xorHash (Y := BitString 2)) A) true ≤
+      (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ :=
+  (isUniversalHash_iff_eval_collisionExperiment_le _ _).mp
+    isDeltaUniversalHash_xorHash.isUniversalHash A
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
