@@ -21,28 +21,35 @@ cubic multigraph is placed at the median of the three scores of its incident edg
 bound of `#(vertices straddling t)` at each threshold `t`.
 
 Keeping a matching `M : Set E` (a set of pairwise vertex-disjoint edges) *unsubdivided* yields a
-strictly sharper layout. Each unpaired vertex `v` keeps its `median3` key, while each matched edge
-`e ∈ M` with endpoints `u = G.src e` and `v = G.tgt e` and outer incident pairs `G.incidenceSet u \
-{e} = {a, b}` and `G.incidenceSet v \ {e} = {c, d}` places `u` and `v` at the single pair keys
-`pairKey (score a) (score b) (score c) (score d)` and
+threshold cost bound `Multigraph.matchingCost` that is pointwise at most the naive straddling count
+(`Multigraph.matchingCost_le_edgeStraddles`). Equality holds for the empty matching
+(`Multigraph.matchingCost_empty`), while concrete examples exhibit strict savings (e.g.,
+`exists_twoVertexCost_lt_starCost_add` and the `K₄` test comparing the two threshold cost bounds
+rather than full layout widths). Each unpaired vertex `v` keeps its `median3` key, while each
+matched edge `e ∈ M` with endpoints `u = G.src e` and `v = G.tgt e` and outer incident pairs
+`G.incidenceSet u \ {e} = {a, b}` and `G.incidenceSet v \ {e} = {c, d}` places `u` and `v` at the
+single pair keys `pairKey (score a) (score b) (score c) (score d)` and
 `pairKey (score c) (score d) (score a) (score b)`, where
 `pairKey a b c d := min (max a b) (max (min a b) (min c d))`.
 
 This single pair of real keys *simultaneously attains the optimal two-vertex cut energy at every
 threshold `t`* (`twoVertexEnergy_pairKey`):
 
-* cost `0` when all four outer edge scores lie on the same side of `t`;
-* cost `1` when at least one outer pair `{a, b}` or `{c, d}` does not straddle `t` (covering the
-  `(1, 0)`, `(0, 1)`, `(2, 1)`, `(1, 2)`, `(2, 0)`, and `(0, 2)` splits);
+* cost `0` when all four outer edge scores lie on the same side of `t` (`(0, 0)` or `(2, 2)`);
+* cost `1` when the four outer edge scores straddle `t` and at least one outer pair `{a, b}` or
+  `{c, d}` does not straddle `t` (covering the `(1, 0)`, `(0, 1)`, `(2, 1)`, `(1, 2)`, `(2, 0)`,
+  and `(0, 2)` splits);
 * cost `2` only when both outer pairs straddle `t` (`(1, 1)`).
 
 Decomposing `twoVertexCost` into the two binary events `Multigraph.PairStraddlesAny` (the four outer
 edges straddle `t`) and `Multigraph.PairStraddlesBoth` (both outer pairs straddle `t`) avoids any
 ordering choice on incident edges, handles parallel edges without requiring a simple graph, and
-lets every cut of a threshold layout be bounded pointwise by `Multigraph.matchingCost`, which is
-always at most the naive straddling count (`Multigraph.matchingCost_le_edgeStraddles`) and strictly
-smaller whenever a matched pair has a `(1, 0)` or `(2, 1)` outer split whose shared edge lands on
-the minority side (`exists_twoVertexCost_lt_starCost_add`).
+lets every cut of a threshold layout be bounded pointwise by `Multigraph.matchingCost`. This weak
+pointwise bound is always at most the naive straddling count
+(`Multigraph.matchingCost_le_edgeStraddles`), with equality possible (e.g., `M = ∅`,
+`Multigraph.matchingCost_empty`) and strict improvement in concrete examples where a matched pair
+has a `(1, 0)` outer split whose shared edge lands on the minority side
+(`exists_twoVertexCost_lt_starCost_add`).
 
 This adapts the deterministic pair-insertion key (`pairKey` / `pairColor`) from the Apache 2.0
 companion repository `SamuelSchlesinger/the-frontier-method` (modules `Frontier.Layouts.Pair` and
@@ -58,6 +65,7 @@ matched-edge branch-and-bound bound (`rrwilliams0/circuit-lb-4.6155n`).
   disagreement energy and optimal cost.
 * `Cslib.Circuits.Frontier.twoVertexEnergy`, `Cslib.Circuits.Frontier.twoVertexCost`: two-vertex
   matched-edge energy and optimal cost.
+* `Cslib.Circuits.Frontier.StraddlesOn`: set-straddling predicate shared by the matched-pair events.
 * `Cslib.Circuits.Frontier.Multigraph.IsMatching`: pairwise vertex-disjoint edge set.
 * `Cslib.Circuits.Frontier.Multigraph.matchedVertices`: vertices incident to a matching edge.
 * `Cslib.Circuits.Frontier.Multigraph.PairStraddlesAny`,
@@ -71,11 +79,10 @@ matched-edge branch-and-bound bound (`rrwilliams0/circuit-lb-4.6155n`).
 * `Cslib.Circuits.Frontier.twoVertexEnergy_pairKey`: one pair of keys achieves the optimal
   two-vertex cost simultaneously at every threshold `t`.
 * `Cslib.Circuits.Frontier.twoVertexCost_le_starCost_add`,
-  `Cslib.Circuits.Frontier.exists_twoVertexCost_lt_starCost_add`: pair insertion is always at most
-  the sum of the two naive star costs, and strictly saves `1` on mismatched `(1, 0)` / `(2, 1)`
-  splits.
-* `Cslib.Circuits.Frontier.Multigraph.matchingCost_le_edgeStraddles`: matching cost is bounded by
-  the naive straddling count from `Median`.
+  `Cslib.Circuits.Frontier.exists_twoVertexCost_lt_starCost_add`: weak pointwise bound showing pair
+  cost is at most the sum of the two star costs, with a strict concrete `(1, 0)` example (`1 < 2`).
+* `Cslib.Circuits.Frontier.Multigraph.matchingCost_le_edgeStraddles`: weak pointwise bound showing
+  matching cost is at most the naive straddling count from `Median` (with equality for `M = ∅`).
 * `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_threshold_le_matchingCost`: exact cut bound at
   every threshold `t`.
 * `Cslib.Circuits.Frontier.Multigraph.exists_width_le_of_matching_edgeScore`: deterministic layout
@@ -156,7 +163,7 @@ def twoVertexEnergy (a b c d x y : Bool) : ℕ :=
 
 /-- Minimum disagreement cost of a matched edge pair over all choices of `(x, y : Bool)`:
 `0` when all four outer colors match, `2` when both pairs disagree (`a ≠ b` and `c ≠ d`), and `1`
-otherwise. -/
+when the four outer colors are not all equal but at least one pair matches (`a = b` or `c = d`). -/
 def twoVertexCost (a b c d : Bool) : ℕ :=
   (if a = b ∧ b = c ∧ c = d then 0 else 1) +
     (if a ≠ b ∧ c ≠ d then 1 else 0)
@@ -218,6 +225,24 @@ theorem exists_twoVertexCost_lt_starCost_add :
       starCost true false true + starCost false false true := by
   decide
 
+/-- Scores `score` *straddle* threshold `t` on a set `S`: some element of `S` scores below `t`
+and some element of `S` scores at least `t`. -/
+def StraddlesOn {ι α : Type*} [LinearOrder α] (score : ι → α) (t : α) (S : Set ι) : Prop :=
+  (∃ f ∈ S, score f < t) ∧ (∃ f ∈ S, t ≤ score f)
+
+/-- Whether `score` straddles `t` on `S` depends only on the values of `score` on `S`. -/
+theorem straddlesOn_congr {ι α : Type*} [LinearOrder α] {score score' : ι → α} {t : α}
+    {S : Set ι} (h : ∀ f ∈ S, score f = score' f) :
+    StraddlesOn score t S ↔ StraddlesOn score' t S := by
+  constructor <;> rintro ⟨⟨f, hf, hlt⟩, ⟨g, hg, hle⟩⟩
+  · exact ⟨⟨f, hf, by rwa [← h f hf]⟩, ⟨g, hg, by rwa [← h g hg]⟩⟩
+  · exact ⟨⟨f, hf, by rwa [h f hf]⟩, ⟨g, hg, by rwa [h g hg]⟩⟩
+
+private theorem straddlesOn_pair_iff {ι α : Type*} [LinearOrder α] (score : ι → α) (t : α)
+    (a b : ι) : StraddlesOn score t {a, b} ↔ decide (score a < t) ≠ decide (score b < t) := by
+  simp only [StraddlesOn, mem_insert_iff, mem_singleton_iff]
+  by_cases ha : score a < t <;> by_cases hb : score b < t <;> simp [ha, hb, not_lt.mp]
+
 namespace Multigraph
 
 variable {V E : Type*} (G : Multigraph V E)
@@ -236,16 +261,13 @@ def matchedVertices (M : Set E) : Set V :=
 /-- `PairStraddlesAny` holds at a matched edge `e` when the four outer edges at `G.src e` and
 `G.tgt e` (excluding `e`) straddle `t`: one scores below `t` and one at least `t`. -/
 def PairStraddlesAny {α : Type*} [LinearOrder α] (score : E → α) (t : α) (e : E) : Prop :=
-  (∃ f ∈ (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}), score f < t) ∧
-    (∃ f ∈ (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}), t ≤ score f)
+  StraddlesOn score t ((G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}))
 
 /-- `PairStraddlesBoth` holds at a matched edge `e` when *both* outer pairs
 `G.incidenceSet (G.src e) \ {e}` and `G.incidenceSet (G.tgt e) \ {e}` straddle `t`. -/
 def PairStraddlesBoth {α : Type*} [LinearOrder α] (score : E → α) (t : α) (e : E) : Prop :=
-  (∃ f ∈ G.incidenceSet (G.src e) \ {e}, score f < t) ∧
-    (∃ f ∈ G.incidenceSet (G.src e) \ {e}, t ≤ score f) ∧
-    (∃ f ∈ G.incidenceSet (G.tgt e) \ {e}, score f < t) ∧
-    (∃ f ∈ G.incidenceSet (G.tgt e) \ {e}, t ≤ score f)
+  StraddlesOn score t (G.incidenceSet (G.src e) \ {e}) ∧
+    StraddlesOn score t (G.incidenceSet (G.tgt e) \ {e})
 
 /-- The threshold cost of a matching `M` at threshold `t`: each unpaired straddling vertex pays
 `1`, each matched edge whose outer edges straddle `t` pays `1`, and each matched edge whose two
@@ -269,24 +291,15 @@ theorem matchingCost_empty {α : Type*} [LinearOrder α] (score : E → α) (t :
 theorem pairStraddlesAny_congr {α : Type*} [LinearOrder α] {score score' : E → α} {t : α}
     {e : E} (h : ∀ f ∈ (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}),
       score f = score' f) :
-    G.PairStraddlesAny score t e ↔ G.PairStraddlesAny score' t e := by
-  constructor <;> rintro ⟨⟨f, hf, hlt⟩, ⟨g, hg, hle⟩⟩
-  · exact ⟨⟨f, hf, by rwa [← h f hf]⟩, ⟨g, hg, by rwa [← h g hg]⟩⟩
-  · exact ⟨⟨f, hf, by rwa [h f hf]⟩, ⟨g, hg, by rwa [h g hg]⟩⟩
+    G.PairStraddlesAny score t e ↔ G.PairStraddlesAny score' t e :=
+  straddlesOn_congr h
 
 theorem pairStraddlesBoth_congr {α : Type*} [LinearOrder α] {score score' : E → α} {t : α}
     {e : E} (h : ∀ f ∈ (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}),
       score f = score' f) :
-    G.PairStraddlesBoth score t e ↔ G.PairStraddlesBoth score' t e := by
-  constructor <;> rintro ⟨⟨f₁, hf₁, hlt₁⟩, ⟨g₁, hg₁, hle₁⟩, ⟨f₂, hf₂, hlt₂⟩, ⟨g₂, hg₂, hle₂⟩⟩
-  · exact ⟨⟨f₁, hf₁, by rwa [← h f₁ (Or.inl hf₁)]⟩,
-      ⟨g₁, hg₁, by rwa [← h g₁ (Or.inl hg₁)]⟩,
-      ⟨f₂, hf₂, by rwa [← h f₂ (Or.inr hf₂)]⟩,
-      ⟨g₂, hg₂, by rwa [← h g₂ (Or.inr hg₂)]⟩⟩
-  · exact ⟨⟨f₁, hf₁, by rwa [h f₁ (Or.inl hf₁)]⟩,
-      ⟨g₁, hg₁, by rwa [h g₁ (Or.inl hg₁)]⟩,
-      ⟨f₂, hf₂, by rwa [h f₂ (Or.inr hf₂)]⟩,
-      ⟨g₂, hg₂, by rwa [h g₂ (Or.inr hg₂)]⟩⟩
+    G.PairStraddlesBoth score t e ↔ G.PairStraddlesBoth score' t e :=
+  and_congr (straddlesOn_congr fun f hf => h f (Or.inl hf))
+    (straddlesOn_congr fun f hf => h f (Or.inr hf))
 
 variable {G}
 
@@ -483,9 +496,10 @@ private theorem twoVertexCost_eq_pairStraddles {α : Type*} [LinearOrder α]
       ¬(decide (score a < t) = decide (score b < t) ∧
         decide (score b < t) = decide (score c < t) ∧
         decide (score c < t) = decide (score d < t)) := by
-    simp only [PairStraddlesAny, hsrc, htgt, mem_union, mem_insert_iff, mem_singleton_iff]
-    have hlt : (∃ f, ((f = a ∨ f = b) ∨ f = c ∨ f = d) ∧ score f < t) ↔
-        score a < t ∨ score b < t ∨ score c < t ∨ score d < t := by
+    simp only [PairStraddlesAny, StraddlesOn, hsrc, htgt, mem_union, mem_insert_iff,
+      mem_singleton_iff]
+    have hex (p : E → Prop) : (∃ f, ((f = a ∨ f = b) ∨ f = c ∨ f = d) ∧ p f) ↔
+        p a ∨ p b ∨ p c ∨ p d := by
       constructor
       · rintro ⟨f, (rfl | rfl) | (rfl | rfl), h⟩ <;> simp [h]
       · rintro (h | h | h | h)
@@ -493,26 +507,14 @@ private theorem twoVertexCost_eq_pairStraddles {α : Type*} [LinearOrder α]
         · exact ⟨b, Or.inl (Or.inr rfl), h⟩
         · exact ⟨c, Or.inr (Or.inl rfl), h⟩
         · exact ⟨d, Or.inr (Or.inr rfl), h⟩
-    have hge : (∃ f, ((f = a ∨ f = b) ∨ f = c ∨ f = d) ∧ t ≤ score f) ↔
-        t ≤ score a ∨ t ≤ score b ∨ t ≤ score c ∨ t ≤ score d := by
-      constructor
-      · rintro ⟨f, (rfl | rfl) | (rfl | rfl), h⟩ <;> simp [h]
-      · rintro (h | h | h | h)
-        · exact ⟨a, Or.inl (Or.inl rfl), h⟩
-        · exact ⟨b, Or.inl (Or.inr rfl), h⟩
-        · exact ⟨c, Or.inr (Or.inl rfl), h⟩
-        · exact ⟨d, Or.inr (Or.inr rfl), h⟩
-    rw [hlt, hge]
+    rw [hex (score · < t), hex (t ≤ score ·)]
     by_cases ha : score a < t <;> by_cases hb : score b < t <;>
       by_cases hc : score c < t <;> by_cases hd : score d < t <;>
       simp [ha, hb, hc, hd, not_lt.mp]
   have hboth : G.PairStraddlesBoth score t e ↔
       (decide (score a < t) ≠ decide (score b < t) ∧
         decide (score c < t) ≠ decide (score d < t)) := by
-    simp only [PairStraddlesBoth, hsrc, htgt, mem_insert_iff, mem_singleton_iff]
-    by_cases ha : score a < t <;> by_cases hb : score b < t <;>
-      by_cases hc : score c < t <;> by_cases hd : score d < t <;>
-      simp [ha, hb, hc, hd, not_lt.mp]
+    simp only [PairStraddlesBoth, hsrc, htgt, straddlesOn_pair_iff]
   simp only [twoVertexCost]
   congr 1
   · split_ifs with h1 h2 h2
@@ -526,8 +528,87 @@ private theorem twoVertexCost_eq_pairStraddles {α : Type*} [LinearOrder α]
     · exact (h1 (hboth.mp h2)).elim
     · rfl
 
+/-- Extract the two outer incident edges at each endpoint of `e` in a cubic multigraph. -/
+private theorem exists_outer_edges [Finite E] (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
+    (e : E) :
+    ∃ a b c d : E, a ≠ b ∧ c ≠ d ∧
+      G.incidenceSet (G.src e) \ {e} = {a, b} ∧
+      G.incidenceSet (G.tgt e) \ {e} = {c, d} := by
+  obtain ⟨a, b, hab, hsrc⟩ :=
+    ncard_eq_two.mp (ncard_sdiff_singleton_eq_two (h3 (G.src e)) (Or.inl rfl))
+  obtain ⟨c, d, hcd, htgt⟩ :=
+    ncard_eq_two.mp (ncard_sdiff_singleton_eq_two (h3 (G.tgt e)) (Or.inr rfl))
+  exact ⟨a, b, c, d, hab, hcd, hsrc, htgt⟩
+
+private theorem incidenceSet_eq_triple_of_sdiff {v : V} {e a b : E}
+    (he : e ∈ G.incidenceSet v) (hdiff : G.incidenceSet v \ {e} = {a, b}) :
+    G.incidenceSet v = {a, b, e} := by
+  ext f
+  simp only [mem_insert_iff, mem_singleton_iff]
+  by_cases hfe : f = e
+  · subst hfe; simp [he]
+  · have hd : f ∈ G.incidenceSet v \ {e} ↔ f = a ∨ f = b := by simp [hdiff]
+    simpa [hfe] using hd
+
+private theorem filter_notMem_incidenceSet_eq_pair [Fintype E] [DecidableEq E] {M : Set E}
+    {v : V} [DecidablePred (fun f : E => f ∉ M ∧ f ∈ G.incidenceSet v)] {e a b : E}
+    (hM : G.IsMatching M) (heM : e ∈ M) (hev : e ∈ G.incidenceSet v)
+    (hdiff : G.incidenceSet v \ {e} = {a, b}) :
+    Finset.univ.filter (fun f => f ∉ M ∧ f ∈ G.incidenceSet v) = {a, b} := by
+  ext f
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
+    Finset.mem_singleton]
+  have hd : f ∈ G.incidenceSet v \ {e} ↔ f = a ∨ f = b := by simp [hdiff]
+  rw [← hd]
+  exact ⟨fun ⟨hfM, hfi⟩ => ⟨hfi, fun hfe => hfM (hfe ▸ heM)⟩,
+    fun ⟨hfi, hfe⟩ => ⟨fun hfM => hfe (eq_of_mem_isMatching hM hfM heM hfi hev), hfi⟩⟩
+
+private theorem ncard_and_eq_sum_filter {ι : Type*} [Fintype ι] (S P : ι → Prop)
+    [DecidablePred S] [DecidablePred P] :
+    {x | S x ∧ P x}.ncard = ∑ x ∈ Finset.univ.filter S, if P x then 1 else 0 := by
+  have hset : {x | S x ∧ P x} =
+      ((Finset.univ.filter fun x => S x ∧ P x) : Set ι) := by
+    ext x; simp
+  rw [hset, ncard_coe_finset, Finset.card_filter, Finset.sum_filter]
+  refine Finset.sum_congr rfl fun x _ => ?_
+  by_cases hx : S x <;> by_cases hp : P x <;> simp [hx, hp]
+
+/-- Decompose a sum over all vertices into the unmatched vertices and pairs of matched edge
+endpoints. -/
+private theorem sum_vertices_eq_unmatched_add_matching [Fintype V] [Fintype E]
+    {M : Set E} [DecidablePred (· ∈ M)] [DecidablePred (· ∈ G.matchedVertices M)]
+    (hloop : G.Loopless) (hM : G.IsMatching M) (w : V → ℕ) :
+    ∑ v : V, w v =
+      (∑ v ∈ Finset.univ.filter (· ∉ G.matchedVertices M), w v) +
+      ∑ e ∈ Finset.univ.filter (· ∈ M), (w (G.src e) + w (G.tgt e)) := by
+  have := Classical.decEq V
+  let Mfin : Finset E := Finset.univ.filter (· ∈ M)
+  have hbi : Finset.univ.filter (· ∈ G.matchedVertices M) =
+      Mfin.biUnion fun e => ({G.src e, G.tgt e} : Finset V) := by
+    ext v
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, matchedVertices, mem_ofPred_eq,
+      Finset.mem_biUnion, Finset.mem_insert, Finset.mem_singleton, mem_incidenceSet, Mfin]
+    constructor
+    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
+    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
+  have hdisj : (Mfin : Set E).PairwiseDisjoint
+      (fun e => ({G.src e, G.tgt e} : Finset V)) := by
+    intro e he f hf hne
+    exact Finset.disjoint_left.mpr fun u hu hv => by
+      have heM : e ∈ M := by simpa [Mfin] using he
+      have hfM : f ∈ M := by simpa [Mfin] using hf
+      exact disjoint_left.mp (hM heM hfM hne) (by simpa using hu) (by simpa using hv)
+  have hcompl := (Finset.sum_add_sum_compl (Finset.univ.filter (· ∈ G.matchedVertices M))
+    w).symm
+  have hcf : (Finset.univ.filter (· ∈ G.matchedVertices M))ᶜ =
+      Finset.univ.filter (· ∉ G.matchedVertices M) := by ext v; simp
+  rw [hcompl, hcf, add_comm, hbi, Finset.sum_biUnion hdisj]
+  congr 1
+  exact Finset.sum_congr rfl fun e _ => Finset.sum_pair (hloop e)
+
 /-- **Comparison with median edge scores.** For every matching `M` in a loopless cubic multigraph,
-`matchingCost M score t` is at most the total number of vertices straddling `t`. -/
+`matchingCost M score t` is at most the total number of vertices straddling `t`. Equality holds for
+`M = ∅` (`matchingCost_empty`). -/
 theorem matchingCost_le_edgeStraddles [Finite V] [Finite E] {α : Type*} [LinearOrder α]
     (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
     {M : Set E} (hM : G.IsMatching M) (score : E → α) (t : α) :
@@ -535,95 +616,22 @@ theorem matchingCost_le_edgeStraddles [Finite V] [Finite E] {α : Type*} [Linear
   classical
   have := Fintype.ofFinite V
   have := Fintype.ofFinite E
-  have hsum_ncard (P : V → Prop) [DecidablePred P] :
-      {v | P v}.ncard = ∑ v : V, if P v then 1 else 0 := by
-    have : {v | P v} = (Finset.univ.filter P : Set V) := by ext v; simp
-    rw [this, ncard_coe_finset, Finset.card_filter]
-  have hsum_encard (P : E → Prop) [DecidablePred P] :
-      {e | P e}.ncard = ∑ e : E, if P e then 1 else 0 := by
-    have : {e | P e} = (Finset.univ.filter P : Set E) := by ext e; simp
-    rw [this, ncard_coe_finset, Finset.card_filter]
-  set Mfin : Finset E := Finset.univ.filter (· ∈ M)
-  have hMmem : ∀ e, e ∈ Mfin ↔ e ∈ M := fun e => by simp [Mfin]
-  have hpart : ∑ v : V, (if G.EdgeStraddles score t v then 1 else 0) =
-      (∑ v : V, if v ∉ G.matchedVertices M ∧ G.EdgeStraddles score t v then 1 else 0) +
-      ∑ e ∈ Mfin, ((if G.EdgeStraddles score t (G.src e) then 1 else 0) +
-        (if G.EdgeStraddles score t (G.tgt e) then 1 else 0)) := by
-    have hsplit : ∑ v : V, (if G.EdgeStraddles score t v then 1 else 0) =
-        (∑ v : V, if v ∉ G.matchedVertices M ∧ G.EdgeStraddles score t v then 1 else 0) +
-        (∑ v : V, if v ∈ G.matchedVertices M then
-          (if G.EdgeStraddles score t v then 1 else 0) else 0) := by
-      rw [← Finset.sum_add_distrib]
-      refine Finset.sum_congr rfl fun v _ => ?_
-      by_cases hv : v ∈ G.matchedVertices M <;> by_cases hs : G.EdgeStraddles score t v <;>
-        simp [hv, hs]
-    rw [hsplit]
-    congr 1
-    let g : V → ℕ := fun v => if G.EdgeStraddles score t v then 1 else 0
-    have hbi : Finset.univ.filter (· ∈ G.matchedVertices M) =
-        Mfin.biUnion fun e => ({G.src e, G.tgt e} : Finset V) := by
-      ext v
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, matchedVertices, mem_ofPred_eq,
-        Finset.mem_biUnion, hMmem, Finset.mem_insert, Finset.mem_singleton, mem_incidenceSet]
-      constructor
-      · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
-      · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
-    have hdisj : (Mfin : Set E).PairwiseDisjoint
-        (fun e => ({G.src e, G.tgt e} : Finset V)) := by
-      intro e he f hf hne
-      exact Finset.disjoint_left.mpr fun u hu hv => by
-        have heM : e ∈ M := by simpa [Mfin] using he
-        have hfM : f ∈ M := by simpa [Mfin] using hf
-        exact disjoint_left.mp (hM heM hfM hne) (by simpa using hu) (by simpa using hv)
-    rw [← Finset.sum_filter, hbi, Finset.sum_biUnion hdisj]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    exact Finset.sum_pair (hloop e)
-  rw [matchingCost, hsum_ncard, hsum_encard, hsum_encard, hsum_ncard, hpart]
-  have hmerge :
-      (∑ e : E, if e ∈ M ∧ G.PairStraddlesAny score t e then 1 else 0) +
-      (∑ e : E, if e ∈ M ∧ G.PairStraddlesBoth score t e then 1 else 0) =
-      ∑ e ∈ Mfin, ((if G.PairStraddlesAny score t e then 1 else 0) +
-        (if G.PairStraddlesBoth score t e then 1 else 0)) := by
-    rw [← Finset.sum_add_distrib]
-    simp only [Mfin, Finset.sum_filter]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    by_cases he : e ∈ M <;> simp [he]
-  rw [add_assoc, hmerge]
-  refine Nat.add_le_add_left (Finset.sum_le_sum fun e he => ?_) _
-  have hns : (G.incidenceSet (G.src e) \ {e}).ncard = 2 :=
-    ncard_sdiff_singleton_eq_two (h3 _) (Or.inl rfl)
-  have hnt : (G.incidenceSet (G.tgt e) \ {e}).ncard = 2 :=
-    ncard_sdiff_singleton_eq_two (h3 _) (Or.inr rfl)
-  obtain ⟨a, b, _, hsrc⟩ := ncard_eq_two.mp hns
-  obtain ⟨c, d, _, htgt⟩ := ncard_eq_two.mp hnt
-  have hinc_s : G.incidenceSet (G.src e) = {a, b, e} := by
-    ext f
-    have hmem : e ∈ G.incidenceSet (G.src e) := Or.inl rfl
-    have hdiff : f ∈ G.incidenceSet (G.src e) \ {e} ↔ f = a ∨ f = b := by
-      simp [hsrc]
-    constructor
-    · intro hf
-      by_cases hfe : f = e
-      · simp [hfe]
-      · rcases hdiff.mp ⟨hf, hfe⟩ with rfl | rfl <;> simp
-    · rintro (rfl | rfl | rfl)
-      · exact (hdiff.mpr (Or.inl rfl)).1
-      · exact (hdiff.mpr (Or.inr rfl)).1
-      · exact hmem
-  have hinc_t : G.incidenceSet (G.tgt e) = {c, d, e} := by
-    ext f
-    have hmem : e ∈ G.incidenceSet (G.tgt e) := Or.inr rfl
-    have hdiff : f ∈ G.incidenceSet (G.tgt e) \ {e} ↔ f = c ∨ f = d := by
-      simp [htgt]
-    constructor
-    · intro hf
-      by_cases hfe : f = e
-      · simp [hfe]
-      · rcases hdiff.mp ⟨hf, hfe⟩ with rfl | rfl <;> simp
-    · rintro (rfl | rfl | rfl)
-      · exact (hdiff.mpr (Or.inl rfl)).1
-      · exact (hdiff.mpr (Or.inr rfl)).1
-      · exact hmem
+  have htot : {v | G.EdgeStraddles score t v}.ncard =
+      ∑ v : V, if G.EdgeStraddles score t v then 1 else 0 := by
+    simpa using ncard_and_eq_sum_filter (fun _ : V => True) (G.EdgeStraddles score t)
+  rw [matchingCost,
+    ncard_and_eq_sum_filter (· ∉ G.matchedVertices M) (G.EdgeStraddles score t),
+    ncard_and_eq_sum_filter (· ∈ M) (G.PairStraddlesAny score t),
+    ncard_and_eq_sum_filter (· ∈ M) (G.PairStraddlesBoth score t),
+    htot, sum_vertices_eq_unmatched_add_matching hloop hM
+      (fun v => if G.EdgeStraddles score t v then 1 else 0),
+    add_assoc, ← Finset.sum_add_distrib]
+  refine Nat.add_le_add_left (Finset.sum_le_sum fun e _ => ?_) _
+  obtain ⟨a, b, c, d, _, _, hsrc, htgt⟩ := exists_outer_edges h3 e
+  have hinc_s : G.incidenceSet (G.src e) = {a, b, e} :=
+    incidenceSet_eq_triple_of_sdiff (Or.inl rfl) hsrc
+  have hinc_t : G.incidenceSet (G.tgt e) = {c, d, e} :=
+    incidenceSet_eq_triple_of_sdiff (Or.inr rfl) htgt
   rw [← twoVertexCost_eq_pairStraddles score t hsrc htgt,
     ← starCost_eq_ite_edgeStraddles score t hinc_s,
     ← starCost_eq_ite_edgeStraddles score t hinc_t]
@@ -694,44 +702,14 @@ theorem ncard_edgeCut_threshold_le_matchingCost [Finite V] [Finite E]
   -- Split vertex sum into unmatched vertices and matched pairs.
   let vsum (v : V) : ℕ :=
     ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v), boolDiff (col v) (ecol e)
-  have hbi : Finset.univ.filter (· ∈ G.matchedVertices M) =
-      Mfin.biUnion fun e => ({G.src e, G.tgt e} : Finset V) := by
-    ext v
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, matchedVertices, mem_ofPred_eq,
-      Finset.mem_biUnion, Finset.mem_insert, Finset.mem_singleton, mem_incidenceSet, Mfin]
-    constructor
-    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
-    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
-  have hdisj : (Mfin : Set E).PairwiseDisjoint
-      (fun e => ({G.src e, G.tgt e} : Finset V)) := by
-    intro e he f hf hne
-    exact Finset.disjoint_left.mpr fun u hu hv => by
-      have heM : e ∈ M := by simpa [Mfin] using he
-      have hfM : f ∈ M := by simpa [Mfin] using hf
-      exact disjoint_left.mp (hM heM hfM hne) (by simpa using hu) (by simpa using hv)
   have hvsplit : ∑ v : V, vsum v =
       (∑ v ∈ Finset.univ.filter (· ∉ G.matchedVertices M), vsum v) +
-      ∑ e ∈ Mfin, (vsum (G.src e) + vsum (G.tgt e)) := by
-    have hcompl := (Finset.sum_add_sum_compl (Finset.univ.filter (· ∈ G.matchedVertices M))
-      vsum).symm
-    have hcf : (Finset.univ.filter (· ∈ G.matchedVertices M))ᶜ =
-        Finset.univ.filter (· ∉ G.matchedVertices M) := by ext v; simp
-    rw [hcompl, hcf, add_comm, hbi, Finset.sum_biUnion hdisj]
-    congr 1
-    exact Finset.sum_congr rfl fun e _ => Finset.sum_pair (hloop e)
+      ∑ e ∈ Mfin, (vsum (G.src e) + vsum (G.tgt e)) :=
+    sum_vertices_eq_unmatched_add_matching hloop hM vsum
   -- Evaluate `vsum` at every unpaired vertex (`starCost`).
   have hsingle : ∑ v ∈ Finset.univ.filter (· ∉ G.matchedVertices M), vsum v =
       {v | v ∉ G.matchedVertices M ∧ G.EdgeStraddles score t v}.ncard := by
-    have hnc : {v | v ∉ G.matchedVertices M ∧ G.EdgeStraddles score t v}.ncard =
-        ∑ v ∈ Finset.univ.filter (· ∉ G.matchedVertices M),
-          if G.EdgeStraddles score t v then 1 else 0 := by
-      have hset : {v | v ∉ G.matchedVertices M ∧ G.EdgeStraddles score t v} =
-          ((Finset.univ.filter fun v => v ∉ G.matchedVertices M ∧
-            G.EdgeStraddles score t v) : Set V) := by ext v; simp
-      rw [hset, ncard_coe_finset, Finset.card_filter, Finset.sum_filter]
-      refine Finset.sum_congr rfl fun v _ => ?_
-      by_cases hv : v ∈ G.matchedVertices M <;> simp [hv]
-    rw [hnc]
+    rw [ncard_and_eq_sum_filter (· ∉ G.matchedVertices M) (G.EdgeStraddles score t)]
     refine Finset.sum_congr rfl fun v hv => ?_
     have hv' : v ∉ G.matchedVertices M := (Finset.mem_filter.mp hv).2
     obtain ⟨e₀, e₁, e₂, h01, h02, h12, hinc, hkey⟩ := matchingKey_unmatched h3 score hv'
@@ -756,53 +734,14 @@ theorem ncard_edgeCut_threshold_le_matchingCost [Finite V] [Finite E]
         (vsum (G.src e) + vsum (G.tgt e))) =
       {e | e ∈ M ∧ G.PairStraddlesAny score t e}.ncard +
         {e | e ∈ M ∧ G.PairStraddlesBoth score t e}.ncard := by
-    have hncA : {e | e ∈ M ∧ G.PairStraddlesAny score t e}.ncard =
-        ∑ e ∈ Mfin, if G.PairStraddlesAny score t e then 1 else 0 := by
-      have hset : {e | e ∈ M ∧ G.PairStraddlesAny score t e} =
-          ((Finset.univ.filter fun e => e ∈ M ∧ G.PairStraddlesAny score t e) : Set E) := by
-        ext e; simp
-      rw [hset, ncard_coe_finset, Finset.card_filter, Finset.sum_filter]
-      refine Finset.sum_congr rfl fun e _ => ?_
-      by_cases he : e ∈ M <;> simp [he]
-    have hncB : {e | e ∈ M ∧ G.PairStraddlesBoth score t e}.ncard =
-        ∑ e ∈ Mfin, if G.PairStraddlesBoth score t e then 1 else 0 := by
-      have hset : {e | e ∈ M ∧ G.PairStraddlesBoth score t e} =
-          ((Finset.univ.filter fun e => e ∈ M ∧ G.PairStraddlesBoth score t e) : Set E) := by
-        ext e; simp
-      rw [hset, ncard_coe_finset, Finset.card_filter, Finset.sum_filter]
-      refine Finset.sum_congr rfl fun e _ => ?_
-      by_cases he : e ∈ M <;> simp [he]
-    rw [hncA, hncB, ← Finset.sum_add_distrib]
+    rw [ncard_and_eq_sum_filter (· ∈ M) (G.PairStraddlesAny score t),
+      ncard_and_eq_sum_filter (· ∈ M) (G.PairStraddlesBoth score t),
+      ← Finset.sum_add_distrib]
     refine Finset.sum_congr rfl fun e he => ?_
     have heM : e ∈ M := (Finset.mem_filter.mp he).2
-    have hns : (G.incidenceSet (G.src e) \ {e}).ncard = 2 :=
-      ncard_sdiff_singleton_eq_two (h3 _) (Or.inl rfl)
-    have hnt : (G.incidenceSet (G.tgt e) \ {e}).ncard = 2 :=
-      ncard_sdiff_singleton_eq_two (h3 _) (Or.inr rfl)
-    obtain ⟨a, b, hab, hsrc⟩ := ncard_eq_two.mp hns
-    obtain ⟨c, d, hcd, htgt⟩ := ncard_eq_two.mp hnt
-    have hfil_s : Finset.univ.filter (fun f => f ∉ M ∧ f ∈ G.incidenceSet (G.src e)) =
-        {a, b} := by
-      ext f
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-        Finset.mem_singleton]
-      have hd : f ∈ G.incidenceSet (G.src e) \ {e} ↔ f = a ∨ f = b := by simp [hsrc]
-      rw [← hd]
-      constructor
-      · exact fun ⟨hfM, hfi⟩ => ⟨hfi, fun hfe => hfM (hfe ▸ heM)⟩
-      · exact fun ⟨hfi, hfe⟩ => ⟨fun hfM => hfe (eq_of_mem_isMatching hM hfM heM hfi (Or.inl rfl)),
-          hfi⟩
-    have hfil_t : Finset.univ.filter (fun f => f ∉ M ∧ f ∈ G.incidenceSet (G.tgt e)) =
-        {c, d} := by
-      ext f
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-        Finset.mem_singleton]
-      have hd : f ∈ G.incidenceSet (G.tgt e) \ {e} ↔ f = c ∨ f = d := by simp [htgt]
-      rw [← hd]
-      constructor
-      · exact fun ⟨hfM, hfi⟩ => ⟨hfi, fun hfe => hfM (hfe ▸ heM)⟩
-      · exact fun ⟨hfi, hfe⟩ => ⟨fun hfM => hfe (eq_of_mem_isMatching hM hfM heM hfi (Or.inr rfl)),
-          hfi⟩
+    obtain ⟨a, b, c, d, hab, hcd, hsrc, htgt⟩ := exists_outer_edges h3 e
+    have hfil_s := filter_notMem_incidenceSet_eq_pair hM heM (Or.inl rfl) hsrc
+    have hfil_t := filter_notMem_incidenceSet_eq_pair hM heM (Or.inr rfl) htgt
     obtain ⟨hks, hkt⟩ := matchingKey_matched hM hloop h3 score heM hsrc htgt
     have hsval : vsum (G.src e) =
         boolDiff (col (G.src e)) (ecol a) + boolDiff (col (G.src e)) (ecol b) := by
@@ -850,12 +789,7 @@ private theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
     have hpv : p (G.matchingKey M score v) := (Finset.mem_filter.mp hv).2
     by_cases hmat : v ∈ G.matchedVertices M
     · obtain ⟨e, heM, hev⟩ := hmat
-      have hns : (G.incidenceSet (G.src e) \ {e}).ncard = 2 :=
-        ncard_sdiff_singleton_eq_two (h3 _) (Or.inl rfl)
-      have hnt : (G.incidenceSet (G.tgt e) \ {e}).ncard = 2 :=
-        ncard_sdiff_singleton_eq_two (h3 _) (Or.inr rfl)
-      obtain ⟨a, b, hab, hsrc⟩ := ncard_eq_two.mp hns
-      obtain ⟨c, d, hcd, htgt⟩ := ncard_eq_two.mp hnt
+      obtain ⟨a, b, c, d, _, _, hsrc, htgt⟩ := exists_outer_edges h3 e
       obtain ⟨hks, hkt⟩ := matchingKey_matched hM hloop h3 score heM hsrc htgt
       have hinc_a : a ∈ G.incidenceSet (G.src e) :=
         ((show a ∈ G.incidenceSet (G.src e) \ {e} by rw [hsrc]; simp)).1

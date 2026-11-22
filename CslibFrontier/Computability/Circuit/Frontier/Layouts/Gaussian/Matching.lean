@@ -24,25 +24,28 @@ score the edges of `G` by the unit Gaussian projections `edgeScore G q R ω e` f
 threshold cost `Multigraph.matchingCost G M (edgeScore G q R ω) t` decomposes into three local
 binary indicator sums:
 
-* unpaired vertices straddling `t` (`unmatchedStraddleEvent`, supported on `closedBall v (R + 1)`);
+* unpaired vertices straddling `t` (`unmatchedStraddleEvent`, supported on
+  `closedBall G.toSimpleGraph v (R + 1)`, radius `R + 1` around `v`);
 * matched edges whose four outer edges straddle `t` (`pairAnyEvent`, supported on
-  `closedBall (G.src e) (R + 2)`);
+  `closedBall G.toSimpleGraph (G.src e) (R + 2)`, radius `R + 2` around `G.src e`);
 * matched edges whose two outer pairs *both* straddle `t` (`pairBothEvent`, supported on
-  `closedBall (G.src e) (R + 2)`).
+  `closedBall G.toSimpleGraph (G.src e) (R + 2)`, radius `R + 2` around `G.src e`).
 
 Each count concentrates around its expectation under `Measure.pi (fun _ => gaussianReal 0 1)` by
 `Cslib.Circuits.Frontier.Gaussian.measureReal_deviation_le`. Over a uniform grid
 `-T, -T + δ, ..., T` of `K` windows (`δ = 2T / K`), a union bound over `4 K + 2` deviation events
-yields one Gaussian sample `ω` controlling every threshold cost, window edge count, and tail edge
-count (`exists_good_matching_sample_of_mean`).
+yields one Gaussian sample `ω` simultaneously controlling the matching cost at each **grid
+threshold** `-T + i * δ` (`0 ≤ i < K`), each window edge count `[-T + i * δ, -T + (i + 1) * δ)`,
+and both tail edge counts (`< -T` and `≥ T`) (`exists_good_matching_sample_of_mean`).
 
 Thus *any* uniform per-vertex expectation bound `μ ≥ 0` on `expectedMatchingCost` over cubic graphs
 implies `CubicLayoutBound μ` (`cubicLayoutBound_of_matching_mean`) and therefore
-`LayoutBound 3 (2 * μ)` (`layoutBound_of_matching_mean`). For `M = ∅`, this matches the naive
-median-edge-score bound; with a strictly tighter matching expectation (such as a linear-size
-matching optimization or the `M_tree ≤ 0.2765836097` branch-and-bound certificate architecture), it
-transfers directly to fan-in-two, nondeterministic, ledger, correlation, and linear circuit lower
-bounds via `LayoutBound 3 (2 * μ)`.
+`LayoutBound 3 (2 * μ)` (`layoutBound_of_matching_mean`). For `M = ∅`, `expectedMatchingCost`
+equals the single-vertex straddling sum (`expectedMatchingCost_empty`), recovering the same
+asymptotic `CubicLayoutBound μ` as the median-edge-score bound; with a strictly tighter matching
+expectation (such as a linear-size matching optimization or the `M_tree ≤ 0.2765836097`
+branch-and-bound certificate architecture), it transfers directly to fan-in-two, nondeterministic,
+ledger, correlation, and linear circuit lower bounds via `LayoutBound 3 (2 * μ)`.
 
 Note that this module supplies the **conditional reduction** from a uniform single-threshold
 expectation bound to a layout bound; it does not prove a specific numerical value of `μ` below
@@ -50,11 +53,12 @@ expectation bound to a layout bound; it does not prove a specific numerical valu
 
 ## Main definitions
 
-* `Cslib.Circuits.Frontier.Gaussian.unmatchedStraddleEvent`: local event for an unpaired vertex
-  straddling threshold `t`.
+* `Cslib.Circuits.Frontier.Gaussian.unmatchedStraddleEvent`: local event (supported on radius
+  `R + 1` around `v`) for an unpaired vertex straddling threshold `t`.
 * `Cslib.Circuits.Frontier.Gaussian.pairAnyEvent`,
-  `Cslib.Circuits.Frontier.Gaussian.pairBothEvent`: local events for a matched edge whose outer
-  edges (resp. both outer pairs) straddle threshold `t`.
+  `Cslib.Circuits.Frontier.Gaussian.pairBothEvent`: local events (supported on radius `R + 2`
+  around `G.src e`) for a matched edge whose outer edges (resp. both outer pairs) straddle
+  threshold `t`.
 * `Cslib.Circuits.Frontier.Gaussian.expectedMatchingCost`: expected value of
   `Multigraph.matchingCost` under the standard Gaussian sample.
 * `Cslib.Circuits.Frontier.Gaussian.matchingBoundOfMean`: per-vertex width bound of a good sample.
@@ -87,20 +91,24 @@ section Events
 variable {V E : Type*} [Fintype V] (G : Multigraph V E)
 
 /-- The event that an unpaired vertex `v ∉ G.matchedVertices M` straddles threshold `t` under
-Gaussian edge scores `edgeScore G q R`. Empty on matched vertices. -/
+Gaussian edge scores `edgeScore G q R`. Supported on `closedBall G.toSimpleGraph v (R + 1)`
+(radius `R + 1` around `v`). Empty on matched vertices. -/
 noncomputable def unmatchedStraddleEvent (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (v : V) :
     Set (V → ℝ) :=
   letI := Classical.propDecidable
   if v ∉ G.matchedVertices M then straddleEvent G q R t v else ∅
 
 /-- The event that a matched edge `e ∈ M` has its four outer incident edges straddling threshold
-`t` (`Multigraph.PairStraddlesAny`). Empty on unmatched edges. -/
+`t` (`Multigraph.PairStraddlesAny`). Supported on `closedBall G.toSimpleGraph (G.src e) (R + 2)`
+(radius `R + 2` around `G.src e`). Empty on unmatched edges. -/
 noncomputable def pairAnyEvent (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (e : E) : Set (V → ℝ) :=
   letI := Classical.propDecidable
   if e ∈ M then {ω | G.PairStraddlesAny (edgeScore G q R ω) t e} else ∅
 
 /-- The event that a matched edge `e ∈ M` has *both* outer pairs of incident edges straddling
-threshold `t` (`Multigraph.PairStraddlesBoth`). Empty on unmatched edges. -/
+threshold `t` (`Multigraph.PairStraddlesBoth`). Supported on
+`closedBall G.toSimpleGraph (G.src e) (R + 2)` (radius `R + 2` around `G.src e`). Empty on
+unmatched edges. -/
 noncomputable def pairBothEvent (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (e : E) : Set (V → ℝ) :=
   letI := Classical.propDecidable
   if e ∈ M then {ω | G.PairStraddlesBoth (edgeScore G q R ω) t e} else ∅
@@ -170,51 +178,33 @@ private theorem edgeScore_congr_of_outer (hloop : G.Loopless) (q : ℝ) (R : ℕ
       (by exact_mod_cast Nat.le_succ (R + 1))
   · exact edgeScore_congr hf.1 fun z hz => hω z (closedBall_tgt_subset_src hloop e R hz)
 
+private theorem measurableSet_straddlesOn [Finite E] (q : ℝ) (R : ℕ) (t : ℝ) (S : Set E) :
+    MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
+  have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
+      (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩
+      (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by
+    ext ω
+    simp [StraddlesOn]
+  rw [hset]
+  exact ((toFinite S).measurableSet_biUnion fun f _ =>
+      measurable_edgeScore q R f measurableSet_Iio).inter
+    ((toFinite S).measurableSet_biUnion fun f _ =>
+      measurable_edgeScore q R f measurableSet_Ici)
+
 private theorem measurableSet_pairAnyEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
     (e : E) : MeasurableSet (pairAnyEvent G M q R t e) := by
   classical
-  have := Fintype.ofFinite E
   unfold pairAnyEvent
   split_ifs with he
-  · let outSet : Set E := (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e})
-    have hset : {ω | G.PairStraddlesAny (edgeScore G q R ω) t e} =
-        (⋃ f ∈ Finset.univ.filter (· ∈ outSet), {ω | edgeScore G q R ω f < t}) ∩
-        (⋃ f ∈ Finset.univ.filter (· ∈ outSet), {ω | t ≤ edgeScore G q R ω f}) := by
-      ext ω
-      simp [Multigraph.PairStraddlesAny, outSet]
-    rw [hset]
-    refine MeasurableSet.inter ?_ ?_
-    · refine Finset.measurableSet_biUnion _ fun f _ => ?_
-      exact measurable_edgeScore q R f measurableSet_Iio
-    · refine Finset.measurableSet_biUnion _ fun f _ => ?_
-      exact measurable_edgeScore q R f measurableSet_Ici
+  · exact measurableSet_straddlesOn q R t _
   · exact MeasurableSet.empty
 
 private theorem measurableSet_pairBothEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
     (e : E) : MeasurableSet (pairBothEvent G M q R t e) := by
   classical
-  have := Fintype.ofFinite E
   unfold pairBothEvent
   split_ifs with he
-  · let outS : Set E := G.incidenceSet (G.src e) \ {e}
-    let outT : Set E := G.incidenceSet (G.tgt e) \ {e}
-    have hset : {ω | G.PairStraddlesBoth (edgeScore G q R ω) t e} =
-        ((⋃ f ∈ Finset.univ.filter (· ∈ outS), {ω | edgeScore G q R ω f < t}) ∩
-          (⋃ f ∈ Finset.univ.filter (· ∈ outS), {ω | t ≤ edgeScore G q R ω f})) ∩
-        ((⋃ f ∈ Finset.univ.filter (· ∈ outT), {ω | edgeScore G q R ω f < t}) ∩
-          (⋃ f ∈ Finset.univ.filter (· ∈ outT), {ω | t ≤ edgeScore G q R ω f})) := by
-      ext ω
-      simp [Multigraph.PairStraddlesBoth, outS, outT, and_assoc]
-    rw [hset]
-    refine MeasurableSet.inter (MeasurableSet.inter ?_ ?_) (MeasurableSet.inter ?_ ?_)
-    · refine Finset.measurableSet_biUnion _ fun f _ => ?_
-      exact measurable_edgeScore q R f measurableSet_Iio
-    · refine Finset.measurableSet_biUnion _ fun f _ => ?_
-      exact measurable_edgeScore q R f measurableSet_Ici
-    · refine Finset.measurableSet_biUnion _ fun f _ => ?_
-      exact measurable_edgeScore q R f measurableSet_Iio
-    · refine Finset.measurableSet_biUnion _ fun f _ => ?_
-      exact measurable_edgeScore q R f measurableSet_Ici
+  · exact (measurableSet_straddlesOn q R t _).inter (measurableSet_straddlesOn q R t _)
   · exact MeasurableSet.empty
 
 private theorem dependsOn_pairAnyEvent (hloop : G.Loopless) (M : Set E) (q : ℝ) (R : ℕ)
@@ -285,18 +275,11 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
       (fun v => dependsOn_unmatchedStraddleEvent M q R t v)
       (fun v => card_not_disjoint_closedBall_le hdeg (by norm_num) R v) hcpos).trans ?_
     gcongr
-  have devAny (t : ℝ) :
-      P.real (deviation (pairAnyEvent G M q R t) c) ≤ 3 / 2 * h * D / c ^ 2 := by
-    refine (measureReal_deviation_le (fun e => measurableSet_pairAnyEvent M q R t e)
-      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 2))
-      (fun e => dependsOn_pairAnyEvent hloop M q R t e)
-      (fun e => card_not_disjoint_closedBall_src_le hdeg (R + 1) e) hcpos).trans_eq ?_
-    rw [hE]
-  have devBoth (t : ℝ) :
-      P.real (deviation (pairBothEvent G M q R t) c) ≤ 3 / 2 * h * D / c ^ 2 := by
-    refine (measureReal_deviation_le (fun e => measurableSet_pairBothEvent M q R t e)
-      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 2))
-      (fun e => dependsOn_pairBothEvent hloop M q R t e)
+  have devPair (A : E → Set (V → ℝ)) (hm : ∀ e, MeasurableSet (A e))
+      (hd : ∀ e, DependsOn (· ∈ A e) (closedBall G.toSimpleGraph (G.src e) (R + 2))) :
+      P.real (deviation A c) ≤ 3 / 2 * h * D / c ^ 2 := by
+    refine (measureReal_deviation_le hm
+      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 2)) hd
       (fun e => card_not_disjoint_closedBall_src_le hdeg (R + 1) e) hcpos).trans_eq ?_
     rw [hE]
   have devEdge {p : ℝ → Prop} (hp : MeasurableSet {x | p x}) :
@@ -320,9 +303,15 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   let badLo : Set (V → ℝ) := deviation (edgeScoreEvent G q R (· < -T)) c
   let badHi : Set (V → ℝ) := deviation (edgeScoreEvent G q R (T ≤ ·)) c
   have hCost_le (i : ℕ) (_ : i < K) : P.real (badCost i) ≤ 4 * h * D / c ^ 2 := by
+    have hA := devPair (pairAnyEvent G M q R (grid i))
+      (fun e => measurableSet_pairAnyEvent M q R (grid i) e)
+      (fun e => dependsOn_pairAnyEvent hloop M q R (grid i) e)
+    have hB := devPair (pairBothEvent G M q R (grid i))
+      (fun e => measurableSet_pairBothEvent M q R (grid i) e)
+      (fun e => dependsOn_pairBothEvent hloop M q R (grid i) e)
     refine (measureReal_union_le _ _).trans ?_
-    refine (add_le_add (measureReal_union_le _ _) (devBoth (grid i))).trans ?_
-    have hsum := add_le_add (add_le_add (devSingle (grid i)) (devAny (grid i)))
+    refine (add_le_add (measureReal_union_le _ _) hB).trans ?_
+    have hsum := add_le_add (add_le_add (devSingle (grid i)) hA)
       (le_refl (3 / 2 * h * D / c ^ 2))
     refine hsum.trans_eq ?_
     ring

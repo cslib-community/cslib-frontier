@@ -11,8 +11,9 @@ import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Matching
 
 Verifies:
 1. Concrete `pairKey` threshold cuts and strict `1 < 2` saving over naive median-of-3 edge scores.
-2. Concrete `K₄` cubic graph with perfect matching `M = {e₀₁, e₂₃}` where `matchingCost = 2 < 4`
-   (strictly half the naive `EdgeStraddles` count of `4`).
+2. Concrete `K₄` cubic graph with perfect matching `M = {e₀₁, e₂₃}` comparing the two threshold
+   cost bounds at `t = 0`: `matchingCost = 2 < 4 = #{EdgeStraddles}` (strictly half the naive
+   straddling count bound, not a comparison of full layout widths).
 3. Concrete theta multigraph (2 vertices, 3 parallel edges) confirming the loopless multigraph
    theory handles parallel edges directly.
 4. Non-vacuous instantiation of `layoutBound_of_matching_mean` via `M = ∅`.
@@ -123,11 +124,11 @@ example : k4Graph.matchingCost k4Matching k4Score 0 = 2 ∧
     ⟨⟨2, Or.inl ⟨Or.inr rfl, by decide⟩, by norm_num [k4Score]⟩,
       ⟨4, Or.inl ⟨Or.inr rfl, by decide⟩, by norm_num [k4Score]⟩⟩
   have hnotboth0 : ¬k4Graph.PairStraddlesBoth k4Score 0 0 := by
-    rintro ⟨-, -, ⟨f, hf, hlt⟩, -⟩
+    rintro ⟨-, ⟨f, hf, hlt⟩, -⟩
     fin_cases f <;> simp_all [k4Graph, Multigraph.incidenceSet, k4Src, k4Tgt, k4Score] <;>
       norm_num at hlt
   have hnotboth1 : ¬k4Graph.PairStraddlesBoth k4Score 0 1 := by
-    rintro ⟨-, -, ⟨f, hf, hlt⟩, -⟩
+    rintro ⟨-, ⟨f, hf, hlt⟩, -⟩
     fin_cases f <;> simp_all [k4Graph, Multigraph.incidenceSet, k4Src, k4Tgt, k4Score] <;>
       norm_num at hlt
   have hA : {e | e ∈ k4Matching ∧ k4Graph.PairStraddlesAny k4Score 0 e} = k4Matching := by
