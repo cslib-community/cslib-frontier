@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignApproximation
@@ -51,6 +52,17 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- At -1 the product vanishes, so the cleared values are additive inverses.
+example : (signTestDenominatorResidue 101 1 1 100 : ZMod 101) = 33 ∧
+    (signTestNumeratorResidue 101 1 1 100 : ZMod 101) = 68 := by
+  obtain ⟨hd, hn⟩ := signTestResidues_cast (p := 101) 1 1 100
+  simp only [Polynomial.eval₂_dyadicSignProduct] at hd hn
+  constructor
+  · rw [hd]
+    decide
+  · rw [hn]
+    decide
 
 -- Binary order two applied to 3X² gives the constant 6 modulo 101.
 example : (univariateDerivativeResidue 101 2 2 0 (fun i => if i = 2 then 3 else 0) :

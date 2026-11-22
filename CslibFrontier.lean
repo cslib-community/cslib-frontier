@@ -3100,6 +3100,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacob
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalNumericEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Factorial
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.GridEnumeration
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.IndexedPowerProduct
