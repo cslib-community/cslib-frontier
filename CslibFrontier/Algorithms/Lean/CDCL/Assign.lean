@@ -51,7 +51,7 @@ structure Assign where
 namespace Assign
 
 /-- The code of a value: `0` for none, `1` for `false`, `2` for `true`. -/
-def code : Option Bool → ℕ
+@[inline] def code : Option Bool → ℕ
   | none => 0
   | some false => 1
   | some true => 2
@@ -73,14 +73,14 @@ still runs it. -/
 def value (A : Assign) (v : ℕ) : Option Bool := decode (A.vals.getD v 0)
 
 /-- **Whether the literal `l` is true**, read on the code of its variable. -/
-def holds (A : Assign) (l : Literal ℕ) : Bool :=
+@[inline] def holds (A : Assign) (l : Literal ℕ) : Bool :=
   match A.vals.getD l.1 0 with
   | 0 => false
   | 1 => !l.2
   | _ => l.2
 
 /-- **Whether the literal `l` is false**: `holds` of its negation, without building the negation. -/
-def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
+@[inline] def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
   match A.vals.getD l.1 0 with
   | 0 => false
   | 1 => l.2
@@ -109,7 +109,7 @@ private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
   rcases c with _ | _ | c <;> cases x <;> rfl
 
 /-- **Whether the variable `v` is assigned.** -/
-def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
+@[inline] def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
 
 /-- A variable is assigned when it has a value. -/
 theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).isSome := by
@@ -118,16 +118,16 @@ theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).i
   rcases c with _ | _ | c <;> rfl
 
 /-- Setting the value of `v` to `x`, growing the array if needed. -/
-def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign :=
+@[inline] def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign :=
   if v < A.vals.size then ⟨A.vals.set! v (code x)⟩
   else ⟨(A.vals ++ Array.replicate (v - A.vals.size) 0).push (code x)⟩
 
 /-- Assigning the literal `l`. -/
-def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
+@[inline] def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
 
 /-- Unassigning the variable `v`: an update within the array, which is left as it is if `v` is past
 its end, since `v` then has no value. -/
-def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v 0⟩
+@[inline] def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v 0⟩
 
 /-- Unassigning the variables `vs`. It never grows the array. -/
 def unassign (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.clear v) A

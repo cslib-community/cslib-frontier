@@ -1622,6 +1622,51 @@ theorem ATrail.decisionsFrom_eq (T : ATrail) (q : ℕ) :
     T.decisionsFrom q = (T.seg q (T.size - q)).countP XEntry.isDecision := by
   rw [decisionsFrom, foldDown_eq, foldl_countDecisions, Nat.zero_add]
 
+/-- **Undoing the `k` entries from position `lo` up**, newest first, in one loop over the arrays:
+their variables are unassigned, put back in the variable order with VSIDS, their phases saved with
+phase saving, and the decisions among them counted. Each part is the fold of its own
+(`ATrail.undoGo_assign`, `ATrail.undoGo_order`, `ATrail.undoGo_phase`,
+`ATrail.undoGo_decisions`). -/
+@[expose] def ATrail.undoGo (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
+    ℕ → Assign → VarOrder → Phases → ℕ → Assign × VarOrder × Phases × ℕ
+  | 0, A, H, P, n => (A, H, P, n)
+  | k + 1, A, H, P, n =>
+    let c := T.lits.getD (lo + k) 0
+    T.undoGo o act lo k (A.clear (c / 2)) (if o.vsids then H.insert act (c / 2) else H)
+      (if o.phaseSaving then P.set (c / 2) (c % 2 == 1) else P)
+      (if T.rsns.getD (lo + k) 0 == 0 then n + 1 else n)
+
+theorem ATrail.undoGo_assign (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
+    ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
+      (T.undoGo o act lo k A H P n).1 = T.foldDown (fun A c _ => A.clear (c / 2)) lo k A
+  | 0, _, _, _, _ => rfl
+  | k + 1, A, H, P, n => by rw [undoGo, ATrail.undoGo_assign T o act lo k]; rfl
+
+theorem ATrail.undoGo_order (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
+    ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
+      (T.undoGo o act lo k A H P n).2.1 =
+        if o.vsids then T.foldDown (fun H c _ => H.insert act (c / 2)) lo k H else H
+  | 0, _, _, _, _ => by split <;> rfl
+  | k + 1, A, H, P, n => by
+    rw [undoGo, ATrail.undoGo_order T o act lo k]
+    cases o.vsids <;> rfl
+
+theorem ATrail.undoGo_phase (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
+    ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
+      (T.undoGo o act lo k A H P n).2.2.1 =
+        if o.phaseSaving then T.foldDown (fun P c _ => P.set (c / 2) (c % 2 == 1)) lo k P else P
+  | 0, _, _, _, _ => by split <;> rfl
+  | k + 1, A, H, P, n => by
+    rw [undoGo, ATrail.undoGo_phase T o act lo k]
+    cases o.phaseSaving <;> rfl
+
+theorem ATrail.undoGo_decisions (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
+    ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
+      (T.undoGo o act lo k A H P n).2.2.2 =
+        T.foldDown (fun n _ r => if r == 0 then n + 1 else n) lo k n
+  | 0, _, _, _, _ => rfl
+  | k + 1, A, H, P, n => by rw [undoGo, ATrail.undoGo_decisions T o act lo k]; rfl
+
 /-- **Backjump and Learn with watches**, at the newest decision, at position `p` of the trail: the
 state after the conflict, with the learned clause in the store, watching its asserting literal, or
 among the short clauses, and the asserting literal queued. The entries undone are those from the
@@ -1651,11 +1696,13 @@ it. -/
   let q := T.cutPos marks.assigned p
   let pr := bumpOrderWith opts act order L.seen
   let A := pr.1
-  let assign := (T.unassignFrom q assign).assign L.lit
-  let order := reorderedFrom opts pr.2 A T q
-  let phase := savedFrom opts phase T q
+  -- the entries undone, read once: unassigned, reinserted, their phases saved, decisions counted
+  let u := T.undoGo opts A q (T.size - q) assign pr.2 phase 0
+  let assign := u.1.assign L.lit
+  let order := u.2.1
+  let phase := u.2.2.1
   let occurs := occurs.markLits L.clause
-  let level := level - T.decisionsFrom q
+  let level := level - u.2.2.2
   let k := L.clause.length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
@@ -1800,7 +1847,8 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
   unfold WExec.afterConflict
   dsimp only
   rw [show (jumpMarksAt S.exec.tr p L).assigned = jumpMarked (S.exec.tr.splitAt p) L by
-      rw [jumpMarksAt_eq]; rfl, ← hqdef, ATrail.unassignFrom_eq, reorderedFrom_eq, ← hUdef,
+      rw [jumpMarksAt_eq]; rfl, ← hqdef, ATrail.undoGo_assign, ATrail.undoGo_order,
+    ← ATrail.unassignFrom, ← reorderedFrom, ATrail.unassignFrom_eq, reorderedFrom_eq, ← hUdef,
     ← hEdef, Assign.markLits_eq]
   split
   · rename_i hlen
