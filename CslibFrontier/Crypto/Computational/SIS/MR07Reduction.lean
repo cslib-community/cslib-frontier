@@ -55,7 +55,7 @@ Re-exports `CslibFrontier.Crypto.Computational.SIS.MR07Reduction.Shorten` and
   framing encoding for worst-case lattice basis solvers.
 * `Cslib.Crypto.SIS.MR07.mr07ErrBits`, `mr07Prec`, `mr07MaxTrials`, `mr07AmpTrials`, `mr07Eps`:
   explicit unary/real error-budget schedules parameterized by `(n, m, β, κ, c, R)`.
-* `Cslib.Crypto.SIS.MR07.mr07GIVPShortenStep`, `Cslib.Crypto.SIS.MR07.mr07GIVPReduction`:
+* `Cslib.Crypto.SIS.MR07.mr07GIVPReduction`:
   guarded strict-PPT basis-shortening loop (`OracleComp.iterate`) composing
   `ratOrthoTargetIntTable`, `mr07IncGDDReduction`, and `guardedUpdateIntTable`.
 
@@ -550,7 +550,7 @@ theorem mr07_total_succProb_ge (κ R : ℕ) {roundFail : ℝ}
 /-- One guarded basis-shortening round of `mr07GIVPReduction`: computes the rational orthogonal
 target `ratOrthoTargetIntTable T`, calls `mr07IncGDDReduction`, and applies
 `guardedUpdateIntTable`. -/
-noncomputable def mr07GIVPShortenStep (P : SISParams) (c : ℕ) (F : P.Solver)
+private noncomputable def mr07GIVPShortenStep (P : SISParams) (c : ℕ) (F : P.Solver)
     (inp : GIVPInput) (T : IntTable) : ProbComp IntTable := do
   let κ := inp.secParam
   let n := P.n κ

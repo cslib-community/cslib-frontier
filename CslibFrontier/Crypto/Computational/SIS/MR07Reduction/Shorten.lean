@@ -621,7 +621,7 @@ theorem computableInPolyTime_sqNormRatList :
 
 /-- Build the `(T.numCols - 1) × T.numRows` `RatTable` whose rows are the columns `j ≠ iStar`
 of row-major `IntTable` `T` (matching `MR07Shorten.omitRowTable`). -/
-def omitColAsRatRows (T : IntTable) (iStar : ℕ) : RatTable :=
+private def omitColAsRatRows (T : IntTable) (iStar : ℕ) : RatTable :=
   let m := T.numCols - 1
   ⟨m, T.numRows,
     (List.range m).map fun a =>
@@ -842,7 +842,7 @@ theorem ratOrthoTargetIntTable_spec {m : ℕ} (T : IntTable)
 /-! ### 3. Strict-PPT `guardedUpdateIntTable` matching `MR07Shorten.shortenGuardedStep` -/
 
 /-- Replace column `iStar` of row-major `IntTable` `T` with `u : List ℤ`. -/
-def replaceColIntTable (T : IntTable) (iStar : ℕ) (u : List ℤ) : IntTable :=
+private def replaceColIntTable (T : IntTable) (iStar : ℕ) (u : List ℤ) : IntTable :=
   ⟨T.numRows, T.numCols,
     tabulateTable T.numRows T.numCols fun i j =>
       if j = iStar then u.getD i 0 else T.entry i j⟩
@@ -864,7 +864,7 @@ theorem intTableIsSquareWF_eq_true_iff (n : ℕ) (T : IntTable) :
     exact ⟨⟨⟨h1, h2⟩, h1 ▸ h3⟩, fun row hrow => h2 ▸ h4 row hrow⟩
 
 /-- Pure-integer squared Euclidean norm of `u : List ℤ` (first `n` entries). -/
-def vecSqNormNat (n : ℕ) (u : List ℤ) : ℕ :=
+private def vecSqNormNat (n : ℕ) (u : List ℤ) : ℕ :=
   (ListMatrix.dotProduct n u u).natAbs
 
 /-- Executable guarded column update for the shortening loop (`IsPPTOn.iterateWith_spec`). -/

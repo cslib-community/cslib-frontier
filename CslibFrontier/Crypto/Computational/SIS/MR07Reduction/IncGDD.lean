@@ -77,8 +77,8 @@ Theorem 5.9 (see tracking issue #6861 for the asymptotic worst-case hardness end
 * `Cslib.Crypto.SIS.MR07.singleIncGDDCall`: single strict-PPT call realizing
   `MR07Core.idealIncGDDStep` via `MR07Samplers.{sampleGridGaussian, sampleQuotientModS}`,
   `sampleModNat`, `ratSolve`, `Rat.floor`, and an `ℓ₂`-SIS solver `F`.
-* `Cslib.Crypto.SIS.MR07.scaledSqDist`, `closestRatCand`, `mr07IncGDDReduction`: denominator-cleared
-  pure-integer squared-distance minimizer and `OracleComp.replicate` amplification wrapper.
+* `Cslib.Crypto.SIS.MR07.mr07IncGDDReduction`: `OracleComp.replicate` amplification wrapper
+  selecting the closest candidate via denominator-cleared pure-integer squared distance.
 * `Cslib.Crypto.SIS.MR07.mr07SingleCallErr`: explicit 5-term `CloseTo` discrepancy budget for one
   `singleIncGDDCall`.
 
@@ -471,7 +471,7 @@ private theorem rat_floor_divInt_eq_ediv (a : ℤ) {q : ℕ} (hq : 0 < q) :
   exact ⟨(le_div_iff₀ hqQ).mpr hlo_q, (div_lt_iff₀ hqQ).mpr hhi_q⟩
 
 /-- Pack a row-major `List (List ℕ)` of residues into `P.Input` at security parameter `κ`. -/
-def makeSISInput (P : SISParams) (κ : ℕ) (rows : List (List ℕ)) : P.Input :=
+private def makeSISInput (P : SISParams) (κ : ℕ) (rows : List (List ℕ)) : P.Input :=
   ⟨κ, Matrix.of fun i j => ((rows.getD i.1 []).getD j.1 0 : ZMod (P.q κ))⟩
 
 private theorem list_ofFn_eq_map_range {α : Type*} (n : ℕ) (f : ℕ → α) :
@@ -531,7 +531,8 @@ private theorem makeSISInput_polytime {P : SISParams} (hP : MR07ParamPolyTime P)
   rfl
 
 /-- Invoke a SIS solver `F` on a row-major residue matrix and return its output as `List ℤ`. -/
-noncomputable def callSISSolver (P : SISParams) (F : P.Solver) (κ : ℕ) (rows : List (List ℕ)) :
+private noncomputable def callSISSolver (P : SISParams) (F : P.Solver) (κ : ℕ)
+    (rows : List (List ℕ)) :
     ProbComp (List ℤ) :=
   List.ofFn <$> F κ (makeSISInput P κ rows).matrix
 
@@ -567,7 +568,7 @@ open scoped CombineColArg
 
 /-- Exact single-column combiner realizing `MR07Core.combineColumn`: solves `S *ᵥ ξ = v + u / q`,
 sets `k = ⌊ξ⌋`, `sk = S *ᵥ k`, and `a_r = ⌊q * (ξ_r - k_r)⌋ % q`. -/
-def combineColInt (dim q : ℕ) (S : IntTable) (v u : List ℤ) : List ℤ × List ℕ :=
+private def combineColInt (dim q : ℕ) (S : IntTable) (v u : List ℤ) : List ℤ × List ℕ :=
   let rhs : List ℚ := (List.range dim).map fun r =>
     Rat.divInt ((q : ℤ) * v.getD r 0 + u.getD r 0) (q : ℤ)
   let sol : List ℚ := (ratSolve ⟨intTableToRatTable S, rhs⟩).solution.getD (List.replicate dim 0)
@@ -675,7 +676,7 @@ attribute [local irreducible] CombineRowsArg.enc
 open scoped CombineRowsArg
 
 /-- Transpose the `m` column residue vectors produced by `combineColInt` into `n` matrix rows. -/
-def combineMatrixRowsInt (n m : ℕ) (cols : List (List ℤ × List ℕ)) : List (List ℕ) :=
+private def combineMatrixRowsInt (n m : ℕ) (cols : List (List ℤ × List ℕ)) : List (List ℕ) :=
   (List.range n).map fun r =>
     (List.range m).map fun c => (cols.getD c ([], [])).2.getD r 0
 
@@ -730,7 +731,7 @@ open scoped CombineOutArg
 
 /-- Exact integer recombination realizing `combineOutput B S q V C z - ∑ z_i • Y_i` using
 `Rat.floor (Rat.divInt _ q)` for exact integer division by `q`. -/
-def combineOutputInt (n m q : ℕ) (S : IntTable)
+private def combineOutputInt (n m q : ℕ) (S : IntTable)
     (cols : List (List ℤ × List ℕ)) (vs ys : List (List ℤ)) (z : List ℤ) : List ℤ :=
   let azDivQ : List ℤ := (List.range n).map fun r =>
     (Rat.divInt (((List.range m).map fun c =>
@@ -2284,14 +2285,14 @@ theorem closeTo_eval_singleIncGDDCall_idealIncGDDStep
 
 /-- Pure-integer scaled squared Euclidean distance `‖D • v - tNum‖²` (zero rational arithmetic
 inside the candidate comparison loop). -/
-def scaledSqDist (n D : ℕ) (tNum v : List ℤ) : ℕ :=
+private def scaledSqDist (n D : ℕ) (tNum v : List ℤ) : ℕ :=
   let diff := (List.range n).map fun i => (D : ℤ) * v.getD i 0 - tNum.getD i 0
   (ListMatrix.dotProduct n diff diff).natAbs
 
 /-- Deterministic exact rational squared-distance minimizer over `cands : List (List ℤ)`,
 defaulting to `List.replicate n 0` (which is `0 ∈ intLattice B`), reusing
 `BareissElimination.{rowDenomProd, clearRow}`. -/
-def closestRatCand (n : ℕ) (t : List ℚ) (cands : List (List ℤ)) : List ℤ :=
+private def closestRatCand (n : ℕ) (t : List ℚ) (cands : List (List ℤ)) : List ℤ :=
   let D := rowDenomProd t
   let tNum := clearRow t
   cands.foldl
