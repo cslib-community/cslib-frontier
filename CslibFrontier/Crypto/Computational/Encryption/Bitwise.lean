@@ -35,8 +35,9 @@ Library infrastructure for bitwise multi-bit public-key encryption (`bitwiseEncr
 [KatzLindell2020], Section 12.2.2, locator not verified, rather than Theorem 12.6's
 multi-encryption oracle endpoint; cf. [BonehShoup2023], Section 11.3.2, Attack Game 11.2 and
 Theorem 11.1, pp. 438–440, which instead lifts single-challenge to multi-challenge CPA security
-over the same message space `M` as in `LoRCPA/FromSingle.lean`, rather than 1-bit-to-multi-bit
-bitwise encryption `{0, 1} → {0, 1}^ℓ`). Encrypting each bit of a message word independently under
+over the same message space `M` as in `Cslib.Crypto.Encryption.LoRCPA.FromSingle`, rather than
+1-bit-to-multi-bit bitwise encryption `{0, 1} → {0, 1}^ℓ`). Encrypting each bit of a message word
+independently under
 a single-bit public-key scheme yields a bit-word encryption scheme. Any chosen-message adversary
 against equal-length challenge words of length at most `maxLen n` reduces to a single-bit
 chosen-message adversary (`bitwiseToSingle`) by a hybrid argument across the coordinates: the
