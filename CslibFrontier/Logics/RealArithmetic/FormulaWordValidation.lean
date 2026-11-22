@@ -27,6 +27,8 @@ payloads. Valid words encode formulas in the dimension given by their length.
 
 The total view adapts `LeanCanny.ETR.FormulaView` at the same revision. It preserves the exact
 bits of valid encodings and gives malformed words the semantics of falsity.
+Its indexed token reader adapts the constructor and term-word access of
+`LeanCanny.ETR.FormulaBooleanCircuitSource` to the frontier prefix token list.
 -/
 
 public section
@@ -219,12 +221,61 @@ theorem encFormula_ofWord (word : List Bool) :
   · rw [Formula.ofWord_of_not_valid h, normalizeFormulaWord, ite_eq_right h]
     rfl
 
+/-- Formula word normalization is uniformly polynomial time. -/
+theorem normalizeFormulaWord_polyTime :
+    ComputableInPolyTime normalizeFormulaWord encBits encBits :=
+  validFormulaWord_polyTime.ite' id' (const (encFormula 0 .false))
+
 /-- Re-encoding the total formula view is uniformly polynomial time on raw bit words. -/
 theorem encFormula_ofWord_polyTime :
     ComputableInPolyTime (fun word => encFormula word.length (Formula.ofWord word))
-      encBits encBits := by
-  have h : ComputableInPolyTime normalizeFormulaWord encBits encBits :=
-    validFormulaWord_polyTime.ite' id' (const (encFormula 0 .false))
-  exact h.of_enc_eq fun word => congrArg encBits (encFormula_ofWord word)
+      encBits encBits :=
+  normalizeFormulaWord_polyTime.of_enc_eq fun word => congrArg encBits (encFormula_ofWord word)
+
+/-- The prefix tokens of the total formula view, retaining the original comparison term words. -/
+@[expose] def formulaWordTokens (word : List Bool) : List FormulaToken :=
+  (formulaTokensDecoder.decode (normalizeFormulaWord word)).getD []
+
+/-- The executable token stream agrees with the typed formula view on every input. -/
+theorem formulaWordTokens_eq (word : List Bool) :
+    formulaWordTokens word =
+      (encFormula_tokens word.length (Formula.ofWord word)).map FormulaToken.encodeTerms := by
+  rw [formulaWordTokens, ← encFormula_ofWord, formulaTokensDecoder_decode_encFormula]
+  rfl
+
+/-- Each token of a valid word occupies at least one bit. Malformed words have one falsity
+token, including for the empty input. -/
+theorem formulaWordTokens_length_le (word : List Bool) :
+    (formulaWordTokens word).length ≤ max 1 word.length := by
+  by_cases h : validFormulaWord word = true
+  · have hnormalize : normalizeFormulaWord word = word := ite_eq_left h
+    have hdecode := formulaTokensDecoder_decode_encFormula (Formula.ofWord word)
+    rw [encFormula_ofWord, hnormalize, ← formulaWordTokens_eq] at hdecode
+    have hword := (formulaTokensDecoder.decode_eq_some_iff _ _).mp hdecode
+    calc
+      (formulaWordTokens word).length ≤ (encList encFormulaToken (formulaWordTokens word)).length :=
+        SizedListEncoding.length_le (encA := encFormulaToken) (encL := encList encFormulaToken) _
+      _ ≤ max 1 word.length := by
+        rw [hword]
+        exact le_max_right ..
+  · rw [formulaWordTokens_eq, Formula.ofWord_of_not_valid h]
+    exact le_max_left 1 word.length
+
+/-- Recover the framed prefix token stream in polynomial time. -/
+theorem formulaWordTokens_polyTime :
+    ComputableInPolyTime formulaWordTokens encBits (encList encFormulaToken) :=
+  optionGetDWithInput (formulaTokensDecoder.computable.comp normalizeFormulaWord_polyTime)
+    (const [])
+
+/-- Read a prefix token by position. Positions beyond the stream return the falsity token. -/
+@[expose] def formulaWordTokenAt (word : List Bool) (index : ℕ) : FormulaToken :=
+  (formulaWordTokens word).getD index (.inl ())
+
+/-- Token lookup takes polynomial time in the raw word and binary index. -/
+theorem formulaWordTokenAt_polyTime :
+    ComputableInPolyTime (fun p : List Bool × ℕ => formulaWordTokenAt p.1 p.2)
+      (encPair encBits encNat) encFormulaToken :=
+  listGetD_binary (encA := encFormulaToken) (.inl ())
+    (formulaWordTokens_polyTime.comp (fst encBits encNat)) (snd encBits encNat)
 
 end Cslib.Logic.RealArithmetic
