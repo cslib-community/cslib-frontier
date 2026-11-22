@@ -27,15 +27,15 @@ vertices), where every node belongs to at most `r + 1` hyperedges, every gate si
 `2` nodes, and the total pin count satisfies `∑ w, |hyperEdge c w| ≤ (r + 1) |LiveGate c| + 1`.
 
 Instead of expanding high-fan-out signals into fixed degree-`3` junction chains prior to choosing a
-layout, this module scores `HyperNode c` directly by an **adaptive bipartite `walkMax` Gaussian
-kernel** on `HyperNode c ⊕ PrunedEdge c K₀`:
+layout, this module scores `HyperNode c` directly by an **adaptive bipartite walk-maximum Gaussian
+kernel** over `HyperNode c` and the pruned hyperedges of cardinality in `[2, K₀]`:
 
-1. **Truncation and bipartite walk-maximum kernel (`PrunedEdge`, `bipSimpleGraph`, `walkMax`).**
-   Signals of size `k > K₀` are bounded deterministically (`1 ≤ a (K₀ + 1) + b ≤ a k + b`), while
-   signals `e` of size `2 ≤ k ≤ K₀` form a bipartite incidence graph of maximum degree
-   `D = max (r + 1) K₀` with non-backtracking branching `r` at nodes and `k - 1` at hyperedges, and
-   step attenuation `θ / (r (k - 1)) ^ (1/4)`. Non-backtracking cancellation bounds the radius-`m`
-   boundary mass by `D θ ^ (2 m)` without any girth assumption (`sum_sq_walkMax_strict_le`).
+1. **Truncation and bipartite walk-maximum kernel.** Signals of size `k > K₀` are bounded
+   deterministically (`1 ≤ a (K₀ + 1) + b ≤ a k + b`), while signals `e` of size `2 ≤ k ≤ K₀` form a
+   bipartite incidence graph of maximum degree `D = max (r + 1) K₀` with non-backtracking branching
+   `r` at nodes and `k - 1` at hyperedges, and step attenuation `θ / (r (k - 1)) ^ (1/4)`.
+   Non-backtracking cancellation bounds the radius-`m` boundary mass by `D θ ^ (2 m)` without any
+   girth assumption.
 2. **Four straddling-probability regimes (`HyperEdgeBound`).** On any hyperedge `e` of size `k`:
    - **Pairwise two-step Sheppard (`.pairwise`):** distinct `u, v ∈ e` achieve limiting inner
      product `twoStepCorr r k = 2 q₂ / (1 + q₂²)`, `q₂ = 1 / √(r (k - 1))`.
@@ -64,7 +64,7 @@ sweeps [Gaspers2026], Sheppard's median identity [Sheppard1899], and Slepian's i
 ## Main definitions
 
 * `Cslib.Circuits.Frontier.Hypergraph.twoStepCorr`, `capSq`, `capCorr`, `coneMeanSq`, `coneCorr`:
-  limiting correlations of the bipartite `walkMax` kernel.
+  limiting correlations of the bipartite walk-maximum kernel.
 * `Cslib.Circuits.Frontier.Hypergraph.HyperEdgeBound`,
   `Cslib.Circuits.Frontier.Hypergraph.HyperDualCert`,
   `Cslib.Circuits.Frontier.Hypergraph.hyperCoeff`: dual certificate specification and resulting
@@ -209,9 +209,7 @@ private theorem two_mul_div_step_defect_le {q a b a₀ b₀ : ℝ} (hq0 : 0 ≤ 
     (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : q * b₀ ≤ a) (hba : q * a₀ ≤ b) :
     2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 - a * b ≤
       (if a₀ < a then a ^ 2 else 0) + (if b₀ < b then b ^ 2 else 0) := by
-  have hκ1 : 2 * q / (1 + q ^ 2) ≤ 1 := by
-    rw [div_le_one (by positivity)]
-    nlinarith [sq_nonneg (q - 1)]
+  have hκ1 : 2 * q / (1 + q ^ 2) ≤ 1 := Gaussian.two_mul_div_one_add_sq_le_one q
   have hκ0 : 0 ≤ 2 * q / (1 + q ^ 2) := by positivity
   have hab0 : 0 ≤ a * b := mul_nonneg ha hb
   by_cases ha_lt : a₀ < a
@@ -585,15 +583,15 @@ section BipartiteKernel
 variable {σ : Signature} {n : ℕ} (c : Circuit σ n 1) (K₀ : ℕ)
 
 /-- Live signals whose hyperedge has cardinality in `[2, K₀]`. -/
-abbrev PrunedEdge : Type :=
+private abbrev PrunedEdge : Type :=
   {w : LiveSignal c // 2 ≤ (hyperEdge c w).card ∧ (hyperEdge c w).card ≤ K₀}
 
 /-- Nodes of the pruned bipartite hypergraph: `HyperNode c ⊕ PrunedEdge c K₀`. -/
-abbrev BipNode : Type :=
+private abbrev BipNode : Type :=
   HyperNode c ⊕ PrunedEdge c K₀
 
 /-- Incidence adjacency on `BipNode c K₀`. -/
-def bipAdj : BipNode c K₀ → BipNode c K₀ → Prop
+private def bipAdj : BipNode c K₀ → BipNode c K₀ → Prop
   | .inl v, .inr e => v ∈ hyperEdge c e.1
   | .inr e, .inl v => v ∈ hyperEdge c e.1
   | _, _ => False
@@ -605,14 +603,14 @@ private theorem bipAdj_irrefl (x : BipNode c K₀) : ¬bipAdj c K₀ x x := by
   cases x <;> simp [bipAdj]
 
 /-- Simple graph on `BipNode c K₀` induced by `bipAdj`. -/
-def bipSimpleGraph : SimpleGraph (BipNode c K₀) where
+private def bipSimpleGraph : SimpleGraph (BipNode c K₀) where
   Adj := bipAdj c K₀
   symm := ⟨fun _ _ h => bipAdj_symm c K₀ h⟩
   loopless := ⟨bipAdj_irrefl c K₀⟩
 
 /-- Non-backtracking branching bound on `BipNode c K₀`: `r` at circuit nodes and `|e| - 1` at
 pruned hyperedges. -/
-noncomputable def bipBranch (r : ℕ) : BipNode c K₀ → ℕ
+private noncomputable def bipBranch (r : ℕ) : BipNode c K₀ → ℕ
   | .inl _ => r
   | .inr e => (hyperEdge c e.1).card - 1
 
@@ -625,7 +623,7 @@ private theorem one_le_bipBranch {r : ℕ} (hr : 2 ≤ r) (x : BipNode c K₀) :
     omega
 
 /-- Adaptive step attenuation `θ / √(√(br x) * √(br y))` along an incidence step `(x, y)`. -/
-noncomputable def stepWeight (r : ℕ) (θ : ℝ) (x y : BipNode c K₀) : ℝ :=
+private noncomputable def stepWeight (r : ℕ) (θ : ℝ) (x y : BipNode c K₀) : ℝ :=
   θ / √(√(bipBranch c K₀ r x : ℝ) * √(bipBranch c K₀ r y : ℝ))
 
 private theorem stepWeight_nonneg (r : ℕ) {θ : ℝ} (hθ : 0 ≤ θ) (x y : BipNode c K₀) :
@@ -651,7 +649,7 @@ private theorem stepWeight_sq (r : ℕ) (θ : ℝ) (x y : BipNode c K₀) :
 
 open Classical in
 /-- Radius-`m` walk-maximum kernel on `BipNode c K₀ → HyperNode c → ℝ`. -/
-noncomputable def walkMax (r : ℕ) (θ : ℝ) : ℕ → BipNode c K₀ → HyperNode c → ℝ
+private noncomputable def walkMax (r : ℕ) (θ : ℝ) : ℕ → BipNode c K₀ → HyperNode c → ℝ
   | 0, .inl v, z => if v = z then 1 else 0
   | 0, .inr _, _ => 0
   | m + 1, x, z =>
@@ -716,46 +714,49 @@ private theorem one_le_norm_walkMax (r : ℕ) (θ : ℝ) (m : ℕ) (v : HyperNod
 
 /-! ### Degree, support, and non-backtracking boundary-mass bounds -/
 
-private theorem card_bipAdj_le {r : ℕ} (hfan : c.FanInAtMost r) (x : BipNode c K₀) :
-    open Classical in
-    (Finset.univ.filter (bipAdj c K₀ x)).card ≤ max (r + 1) K₀ := by
-  classical
-  rcases x with v | e
-  · let f : {y : BipNode c K₀ // y ∈ Finset.univ.filter (bipAdj c K₀ (.inl v))} →
-        {w : LiveSignal c // v ∈ hyperEdge c w} := fun ⟨y, hy⟩ => by
-      have hadj := (Finset.mem_filter.mp hy).2
-      rcases y with u | e'
-      · exact False.elim hadj
-      · exact ⟨e'.1, hadj⟩
-    have hf_inj : Function.Injective f := by
-      rintro ⟨u₁ | e₁, h₁⟩ ⟨u₂ | e₂, h₂⟩ h
-      · exact False.elim (Finset.mem_filter.mp h₁).2
-      · exact False.elim (Finset.mem_filter.mp h₁).2
-      · exact False.elim (Finset.mem_filter.mp h₂).2
-      · have he : e₁.1 = e₂.1 := congrArg (Subtype.val : {w // v ∈ hyperEdge c w} → _) h
-        exact Subtype.ext (congrArg Sum.inr (Subtype.ext he))
-    have hcard := Fintype.card_le_of_injective f hf_inj
-    rw [Fintype.card_coe, Fintype.card_subtype] at hcard
-    exact (hcard.trans (card_signals_at_node_le hfan v)).trans (le_max_left _ _)
-  · have hbij : (Finset.univ.filter (bipAdj c K₀ (.inr e))).card = (hyperEdge c e.1).card := by
-      refine Finset.card_bij (fun y hy => match y, (Finset.mem_filter.mp hy).2 with
-        | .inl v, _ => v) (fun y hy => ?_) (fun y₁ hy₁ y₂ hy₂ h => ?_) (fun v hv => ?_)
-      · rcases y with v | e'
-        · exact (Finset.mem_filter.mp hy).2
-        · exact False.elim (Finset.mem_filter.mp hy).2
-      · rcases y₁ with v₁ | e₁ <;> rcases y₂ with v₂ | e₂
-        · exact congrArg Sum.inl h
-        · exact False.elim (Finset.mem_filter.mp hy₂).2
-        · exact False.elim (Finset.mem_filter.mp hy₁).2
-        · exact False.elim (Finset.mem_filter.mp hy₁).2
-      · exact ⟨.inl v, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩, rfl⟩
-    exact (hbij.trans_le e.2.2).trans (le_max_right _ _)
+open Classical in
+private theorem card_bipAdj_inl_le {r : ℕ} (hfan : c.FanInAtMost r) (v : HyperNode c) :
+    (Finset.univ.filter (bipAdj c K₀ (.inl v))).card ≤ r + 1 := by
+  let f : {y : BipNode c K₀ // y ∈ Finset.univ.filter (bipAdj c K₀ (.inl v))} →
+      {w : LiveSignal c // v ∈ hyperEdge c w} := fun ⟨y, hy⟩ =>
+    match y, (Finset.mem_filter.mp hy).2 with | .inr e', hadj => ⟨e'.1, hadj⟩
+  have hf_inj : Function.Injective f := by
+    rintro ⟨u₁ | e₁, h₁⟩ ⟨u₂ | e₂, h₂⟩ h
+    · exact False.elim (Finset.mem_filter.mp h₁).2
+    · exact False.elim (Finset.mem_filter.mp h₁).2
+    · exact False.elim (Finset.mem_filter.mp h₂).2
+    · have he : e₁.1 = e₂.1 := congrArg (Subtype.val : {w // v ∈ hyperEdge c w} → _) h
+      exact Subtype.ext (congrArg Sum.inr (Subtype.ext he))
+  have hcard := Fintype.card_le_of_injective f hf_inj
+  rw [Fintype.card_coe, Fintype.card_subtype] at hcard
+  exact hcard.trans (card_signals_at_node_le hfan v)
 
+open Classical in
+private theorem card_bipAdj_inr_eq (e : PrunedEdge c K₀) :
+    (Finset.univ.filter (bipAdj c K₀ (.inr e))).card = (hyperEdge c e.1).card := by
+  refine Finset.card_bij (fun y hy => match y, (Finset.mem_filter.mp hy).2 with
+    | .inl v, _ => v) (fun y hy => ?_) (fun y₁ hy₁ y₂ hy₂ h => ?_) (fun v hv => ?_)
+  · rcases y with v | e'
+    · exact (Finset.mem_filter.mp hy).2
+    · exact False.elim (Finset.mem_filter.mp hy).2
+  · rcases y₁ with v₁ | e₁ <;> rcases y₂ with v₂ | e₂
+    · exact congrArg Sum.inl h
+    · exact False.elim (Finset.mem_filter.mp hy₂).2
+    · exact False.elim (Finset.mem_filter.mp hy₁).2
+    · exact False.elim (Finset.mem_filter.mp hy₁).2
+  · exact ⟨.inl v, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩, rfl⟩
+
+open Classical in
+private theorem card_bipAdj_le {r : ℕ} (hfan : c.FanInAtMost r) (x : BipNode c K₀) :
+    (Finset.univ.filter (bipAdj c K₀ x)).card ≤ max (r + 1) K₀ := by
+  rcases x with v | e
+  · exact (card_bipAdj_inl_le c K₀ hfan v).trans (le_max_left _ _)
+  · exact ((card_bipAdj_inr_eq c K₀ e).trans_le e.2.2).trans (le_max_right _ _)
+
+open Classical in
 private theorem card_bipAdj_ne_le {r : ℕ} (hfan : c.FanInAtMost r) {prev x : BipNode c K₀}
     (hprev : bipAdj c K₀ prev x) :
-    open Classical in
     (Finset.univ.filter fun y => bipAdj c K₀ x y ∧ y ≠ prev).card ≤ bipBranch c K₀ r x := by
-  classical
   have hmem : prev ∈ Finset.univ.filter (bipAdj c K₀ x) :=
     Finset.mem_filter.mpr ⟨Finset.mem_univ _, bipAdj_symm c K₀ hprev⟩
   have hsub : (Finset.univ.filter fun y => bipAdj c K₀ x y ∧ y ≠ prev) ⊆
@@ -765,33 +766,10 @@ private theorem card_bipAdj_ne_le {r : ℕ} (hfan : c.FanInAtMost r) {prev x : B
     exact Finset.mem_erase.mpr ⟨hy'.2, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy'.1⟩⟩
   have hcard_le := (Finset.card_le_card hsub).trans (Finset.card_erase_of_mem hmem).le
   rcases x with v | e
-  · let f : {y : BipNode c K₀ // y ∈ Finset.univ.filter (bipAdj c K₀ (.inl v))} →
-        {w : LiveSignal c // v ∈ hyperEdge c w} := fun ⟨y, hy⟩ =>
-      match y, (Finset.mem_filter.mp hy).2 with | .inr e', hadj => ⟨e'.1, hadj⟩
-    have hf_inj : Function.Injective f := by
-      rintro ⟨u₁ | e₁, h₁⟩ ⟨u₂ | e₂, h₂⟩ h
-      · exact False.elim (Finset.mem_filter.mp h₁).2
-      · exact False.elim (Finset.mem_filter.mp h₁).2
-      · exact False.elim (Finset.mem_filter.mp h₂).2
-      · have he : e₁.1 = e₂.1 := congrArg (Subtype.val : {w // v ∈ hyperEdge c w} → _) h
-        exact Subtype.ext (congrArg Sum.inr (Subtype.ext he))
-    have htot := Fintype.card_le_of_injective f hf_inj
-    rw [Fintype.card_coe, Fintype.card_subtype] at htot
-    have := htot.trans (card_signals_at_node_le hfan v)
+  · have := card_bipAdj_inl_le c K₀ hfan v
     dsimp only [bipBranch]
     omega
-  · have hbij : (Finset.univ.filter (bipAdj c K₀ (.inr e))).card = (hyperEdge c e.1).card := by
-      refine Finset.card_bij (fun y hy => match y, (Finset.mem_filter.mp hy).2 with
-        | .inl v, _ => v) (fun y hy => ?_) (fun y₁ hy₁ y₂ hy₂ h => ?_) (fun v hv => ?_)
-      · rcases y with v | e'
-        · exact (Finset.mem_filter.mp hy).2
-        · exact False.elim (Finset.mem_filter.mp hy).2
-      · rcases y₁ with v₁ | e₁ <;> rcases y₂ with v₂ | e₂
-        · exact congrArg Sum.inl h
-        · exact False.elim (Finset.mem_filter.mp hy₂).2
-        · exact False.elim (Finset.mem_filter.mp hy₁).2
-        · exact False.elim (Finset.mem_filter.mp hy₁).2
-      · exact ⟨.inl v, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩, rfl⟩
+  · have := card_bipAdj_inr_eq c K₀ e
     dsimp only [bipBranch]
     omega
 
@@ -1108,7 +1086,7 @@ private theorem sum_sq_walkMax_twoStep_strict_le {r : ℕ} (hr : 2 ≤ r) (hfan 
 /-! ### Unit vertex rows and the three correlation lower bounds -/
 
 /-- Unit row of vertex `v : HyperNode c` at radius `2 * S`. -/
-noncomputable def hyperUnitRow (r : ℕ) (θ : ℝ) (S : ℕ) (v : HyperNode c) :
+private noncomputable def hyperUnitRow (r : ℕ) (θ : ℝ) (S : ℕ) (v : HyperNode c) :
     EuclideanSpace ℝ (HyperNode c) :=
   let a := WithLp.toLp 2 (walkMax c K₀ r θ (2 * S) (.inl v))
   ‖a‖⁻¹ • a
@@ -1528,13 +1506,81 @@ private theorem twoStepCorr_lt_one {r k : ℕ} (hr : 2 ≤ r) (hk : 2 ≤ k) : t
   nlinarith [sq_pos_of_pos (sub_pos.mpr hq_lt)]
 
 /-- Gaussian vertex score induced by `hyperUnitRow c K₀ r θ S`. -/
-noncomputable def hyperScore (r : ℕ) (θ : ℝ) (S : ℕ) (ω : HyperNode c → ℝ)
+private noncomputable def hyperScore (r : ℕ) (θ : ℝ) (S : ℕ) (ω : HyperNode c → ℝ)
     (v : HyperNode c) : ℝ :=
   ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫
 
 end BipartiteKernel
 
 section ParameterSelection
+
+/-- Shared `(θ, S)` convergence selection for the two-step pairwise inner-product bound: for any
+`r ≥ 2`, `k ≥ 2`, and `δ > 0`, choosing `θ` close to `1` and `S` large makes every pair of vertices
+in any size-`k` pruned hyperedge have inner product at least `twoStepCorr r k - 3 * δ / 4`. -/
+private theorem exists_theta_radius_twoStep_inner_ge {r k K₀ : ℕ} (hr : 2 ≤ r) (hk : 2 ≤ k)
+    {δ : ℝ} (hδ : 0 < δ) :
+    ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
+      ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k →
+          ∀ {u v : HyperNode c}, u ∈ hyperEdge c e.1 → v ∈ hyperEdge c e.1 →
+            twoStepCorr r k - 3 * δ / 4 ≤
+              ⟪hyperUnitRow c K₀ r θ S u, hyperUnitRow c K₀ r θ S v⟫ := by
+  have hkR : (2 : ℝ) ≤ k := by exact_mod_cast hk
+  have hrR : (2 : ℝ) ≤ r := by exact_mod_cast hr
+  have hm_pos : 0 < (r : ℝ) * ((k : ℝ) - 1) := by nlinarith
+  set q₂ := 1 / √((r : ℝ) * ((k : ℝ) - 1))
+  have hq₂_pos : 0 < q₂ := by positivity
+  set D : ℝ := max ((r : ℝ) + 1) (K₀ : ℝ)
+  have hD_pos : 0 < D := lt_of_lt_of_le (by positivity) (le_max_left _ _)
+  set ρ₀ := twoStepCorr r k
+  let f : ℝ → ℝ := fun θ => 2 * (θ ^ 2 * q₂) / (1 + (θ ^ 2 * q₂) ^ 2)
+  have hf_cont : ContinuousAt f 1 := by
+    dsimp only [f]
+    refine ((continuousAt_const.mul ((continuousAt_id.pow 2).mul continuousAt_const)).div
+      (continuousAt_const.add (((continuousAt_id.pow 2).mul continuousAt_const).pow 2)) ?_)
+    positivity
+  have hf1 : f 1 = ρ₀ := by simp [f, ρ₀, twoStepCorr, q₂]
+  obtain ⟨γ, hγ, hcont_f⟩ := Metric.continuousAt_iff.mp hf_cont (δ / 2) (half_pos hδ)
+  set θ₀ := 1 - min γ (1 / 2) / 2
+  have hθ₀_mem : θ₀ ∈ Ioo (0 : ℝ) 1 := by
+    have hmin_pos : 0 < min γ (1 / 2) := lt_min hγ (by norm_num)
+    have hmin_le : min γ (1 / 2) ≤ 1 / 2 := min_le_right _ _
+    exact ⟨by dsimp only [θ₀]; linarith, by dsimp only [θ₀]; linarith⟩
+  refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
+  have hθ0 : 0 < θ := hθ₀_mem.1.trans hθ.1
+  have hθ1 : θ < 1 := hθ.2
+  have hdist_θ : dist θ 1 < γ := by
+    rw [Real.dist_eq, abs_of_neg (by linarith)]
+    have : min γ (1 / 2) ≤ γ := min_le_left _ _
+    have : θ₀ < θ := hθ.1
+    dsimp only [θ₀] at this
+    linarith
+  have hf_close : ρ₀ - δ / 2 < f θ := by
+    have H := hcont_f hdist_θ
+    rw [Real.dist_eq, hf1] at H
+    linarith [neg_abs_le (f θ - ρ₀)]
+  obtain ⟨N, hN⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < δ / (16 * D)) hθ1
+  refine ⟨max 1 (N + 1), le_max_left _ _, fun S hS σ n c hfan e hk_eq u v hu hv => ?_⟩
+  have hS1 : 1 ≤ S := (le_max_left 1 (N + 1)).trans hS
+  have hSN : N ≤ 4 * S - 2 := by
+    have : N + 1 ≤ S := (le_max_right 1 (N + 1)).trans hS
+    omega
+  have herr : 4 * D * θ ^ (4 * S - 2) < δ / 4 := by
+    have hpow : θ ^ (4 * S - 2) ≤ θ ^ N := pow_le_pow_of_le_one hθ0.le hθ1.le hSN
+    have hlt := (mul_le_mul_of_nonneg_left hpow (by positivity : 0 ≤ 4 * D)).trans_lt
+      (mul_lt_mul_of_pos_left hN (by positivity : 0 < 4 * D))
+    have hsimp : 4 * D * (δ / (16 * D)) = δ / 4 := by field_simp; ring
+    linarith
+  have hcorr := twoStep_le_inner_hyperUnitRow c K₀ hr hfan hθ0 hθ1.le hS1 e hu hv
+  have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) = θ ^ 2 * q₂ := by
+    rw [hk_eq]
+    dsimp only [q₂]
+    ring
+  dsimp only at hcorr
+  rw [hq_eq] at hcorr
+  change 2 * (θ ^ 2 * q₂) / (1 + (θ ^ 2 * q₂) ^ 2) - 4 * D * θ ^ (4 * S - 2) ≤ _ at hcorr
+  dsimp only [ρ₀, f] at hf_close ⊢
+  linarith
 
 /-- Analytic parameter selection for a single hyperedge size `k`: given `HyperEdgeBound r k p` and
 `η > 0`, there is a decay threshold `θ₀ ∈ (0, 1)` such that for every `θ ∈ (θ₀, 1)` there is a
@@ -1560,46 +1606,8 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
     set ρ₀ := twoStepCorr r k
     obtain ⟨δ, hδ, hcont_arc⟩ := Metric.continuousAt_iff.mp
       (continuous_arccos.continuousAt (x := ρ₀)) (2 * π * η / k) (by positivity)
-    let f : ℝ → ℝ := fun θ => 2 * (θ ^ 2 * q₂) / (1 + (θ ^ 2 * q₂) ^ 2)
-    have hf_cont : ContinuousAt f 1 := by
-      dsimp only [f]
-      refine ((continuousAt_const.mul ((continuousAt_id.pow 2).mul continuousAt_const)).div
-        (continuousAt_const.add (((continuousAt_id.pow 2).mul continuousAt_const).pow 2)) ?_)
-      positivity
-    have hf1 : f 1 = ρ₀ := by simp [f, ρ₀, twoStepCorr, q₂]
-    obtain ⟨γ, hγ, hcont_f⟩ := Metric.continuousAt_iff.mp hf_cont (δ / 2) (half_pos hδ)
-    set θ₀ := 1 - min γ (1 / 2) / 2
-    have hθ₀_mem : θ₀ ∈ Ioo (0 : ℝ) 1 := by
-      have hmin_pos : 0 < min γ (1 / 2) := lt_min hγ (by norm_num)
-      have hmin_le : min γ (1 / 2) ≤ 1 / 2 := min_le_right _ _
-      exact ⟨by dsimp only [θ₀]; linarith, by dsimp only [θ₀]; linarith⟩
-    refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
-    have hθ0 : 0 < θ := hθ₀_mem.1.trans hθ.1
-    have hθ1 : θ < 1 := hθ.2
-    have hdist_θ : dist θ 1 < γ := by
-      rw [Real.dist_eq, abs_of_neg (by linarith)]
-      have : min γ (1 / 2) ≤ γ := min_le_left _ _
-      have : θ₀ < θ := hθ.1
-      dsimp only [θ₀] at this
-      linarith
-    have hf_close : ρ₀ - δ / 2 < f θ := by
-      have H := hcont_f hdist_θ
-      rw [Real.dist_eq, hf1] at H
-      linarith [neg_abs_le (f θ - ρ₀)]
-    obtain ⟨N, hN⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < δ / (16 * D)) hθ1
-    refine ⟨max 1 (N + 1), le_max_left _ _, fun S hS σ n c hfan e hk_eq t => ?_⟩
-    have hS1 : 1 ≤ S := (le_max_left 1 (N + 1)).trans hS
-    have hSN : N ≤ 4 * S - 2 := by
-      have : N + 1 ≤ S := (le_max_right 1 (N + 1)).trans hS
-      omega
-    have herr : 4 * D * θ ^ (4 * S - 2) < δ / 4 := by
-      have hpow : θ ^ (4 * S - 2) ≤ θ ^ N := pow_le_pow_of_le_one hθ0.le hθ1.le hSN
-      have hlt := (mul_le_mul_of_nonneg_left hpow (by positivity : 0 ≤ 4 * D)).trans_lt
-        (mul_lt_mul_of_pos_left hN (by positivity : 0 < 4 * D))
-      have hsimp : 4 * D * (δ / (16 * D)) = δ / 4 := by field_simp; ring
-      linarith
-    set ρ := ρ₀ - δ / 2 - δ / 4
-    have hρ_lt : ρ < ρ₀ := by dsimp only [ρ]; linarith
+    obtain ⟨θ₀, hθ₀_mem, hθ_sel⟩ := exists_theta_radius_twoStep_inner_ge (K₀ := K₀) hr hk hδ
+    set ρ := ρ₀ - 3 * δ / 4
     have hdist_ρ : dist ρ ρ₀ < δ := by
       rw [Real.dist_eq, show ρ - ρ₀ = -(3 * δ / 4) by dsimp only [ρ]; ring, abs_neg,
         abs_of_pos (by positivity)]
@@ -1614,6 +1622,9 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
         have hk_ne : (k : ℝ) ≠ 0 := by positivity
         field_simp
       linarith
+    refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
+    obtain ⟨S₀, hS₀, hS_sel⟩ := hθ_sel θ hθ
+    refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq t => ?_⟩
     have hangle : ∑ pq ∈ (hyperEdge c e.1).offDiag,
         InnerProductGeometry.angle (hyperUnitRow c K₀ r θ S pq.1)
           (hyperUnitRow c K₀ r θ S pq.2) ≤
@@ -1627,18 +1638,7 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
       obtain ⟨h1, h2, -⟩ := Finset.mem_offDiag.mp hpq
       rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one
         (norm_hyperUnitRow c K₀ r θ S pq.1) (norm_hyperUnitRow c K₀ r θ S pq.2)]
-      refine arccos_le_arccos ?_
-      have hcorr := twoStep_le_inner_hyperUnitRow c K₀ hr hfan hθ0 hθ1.le hS1 e h1 h2
-      have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) = θ ^ 2 * q₂ := by
-        rw [hk_eq]
-        dsimp only [q₂]
-        ring
-      dsimp only at hcorr
-      rw [hq_eq] at hcorr
-      change 2 * (θ ^ 2 * q₂) / (1 + (θ ^ 2 * q₂) ^ 2) - 4 * D * θ ^ (4 * S - 2) ≤ _ at hcorr
-      change ρ ≤ _
-      dsimp only [ρ, f] at hf_close ⊢
-      linarith
+      exact arccos_le_arccos (hS_sel S hS c hfan e hk_eq h1 h2)
     have hprob := measureReal_straddlesOn_le_of_sum_angle (hk_eq ▸ hk)
       (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hangle t
     have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
@@ -1658,44 +1658,7 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
       (continuousAt_equicorrStraddle k hρ₀_pos hρ₀_lt) η hη
     set δ := min δ₀ (min ρ₀ (1 - ρ₀))
     have hδ : 0 < δ := lt_min hδ₀ (lt_min hρ₀_pos (sub_pos.mpr hρ₀_lt))
-    let f : ℝ → ℝ := fun θ => 2 * (θ ^ 2 * q₂) / (1 + (θ ^ 2 * q₂) ^ 2)
-    have hf_cont : ContinuousAt f 1 := by
-      dsimp only [f]
-      refine ((continuousAt_const.mul ((continuousAt_id.pow 2).mul continuousAt_const)).div
-        (continuousAt_const.add (((continuousAt_id.pow 2).mul continuousAt_const).pow 2)) ?_)
-      positivity
-    have hf1 : f 1 = ρ₀ := by simp [f, ρ₀, twoStepCorr, q₂]
-    obtain ⟨γ, hγ, hcont_f⟩ := Metric.continuousAt_iff.mp hf_cont (δ / 2) (half_pos hδ)
-    set θ₀ := 1 - min γ (1 / 2) / 2
-    have hθ₀_mem : θ₀ ∈ Ioo (0 : ℝ) 1 := by
-      have hmin_pos : 0 < min γ (1 / 2) := lt_min hγ (by norm_num)
-      have hmin_le : min γ (1 / 2) ≤ 1 / 2 := min_le_right _ _
-      exact ⟨by dsimp only [θ₀]; linarith, by dsimp only [θ₀]; linarith⟩
-    refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
-    have hθ0 : 0 < θ := hθ₀_mem.1.trans hθ.1
-    have hθ1 : θ < 1 := hθ.2
-    have hdist_θ : dist θ 1 < γ := by
-      rw [Real.dist_eq, abs_of_neg (by linarith)]
-      have : min γ (1 / 2) ≤ γ := min_le_left _ _
-      have : θ₀ < θ := hθ.1
-      dsimp only [θ₀] at this
-      linarith
-    have hf_close : ρ₀ - δ / 2 < f θ := by
-      have H := hcont_f hdist_θ
-      rw [Real.dist_eq, hf1] at H
-      linarith [neg_abs_le (f θ - ρ₀)]
-    obtain ⟨N, hN⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < δ / (16 * D)) hθ1
-    refine ⟨max 1 (N + 1), le_max_left _ _, fun S hS σ n c hfan e hk_eq t => ?_⟩
-    have hS1 : 1 ≤ S := (le_max_left 1 (N + 1)).trans hS
-    have hSN : N ≤ 4 * S - 2 := by
-      have : N + 1 ≤ S := (le_max_right 1 (N + 1)).trans hS
-      omega
-    have herr : 4 * D * θ ^ (4 * S - 2) < δ / 4 := by
-      have hpow : θ ^ (4 * S - 2) ≤ θ ^ N := pow_le_pow_of_le_one hθ0.le hθ1.le hSN
-      have hlt := (mul_le_mul_of_nonneg_left hpow (by positivity : 0 ≤ 4 * D)).trans_lt
-        (mul_lt_mul_of_pos_left hN (by positivity : 0 < 4 * D))
-      have hsimp : 4 * D * (δ / (16 * D)) = δ / 4 := by field_simp; ring
-      linarith
+    obtain ⟨θ₀, hθ₀_mem, hθ_sel⟩ := exists_theta_radius_twoStep_inner_ge (K₀ := K₀) hr hk hδ
     set ρ := ρ₀ - 3 * δ / 4
     have hρ0 : 0 ≤ ρ := by
       have : δ ≤ ρ₀ := (min_le_right _ _).trans (min_le_left _ _)
@@ -1713,28 +1676,22 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
       have H := (le_abs_self (equicorrStraddle k ρ - equicorrStraddle k ρ₀)).trans
         (by simpa [Real.dist_eq] using (hcont_sl hdist_ρ).le)
       linarith
+    refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
+    obtain ⟨S₀, hS₀, hS_sel⟩ := hθ_sel θ hθ
+    refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq t => ?_⟩
     have hprob := measureReal_straddlesOn_le_equicorr (s := hyperEdge c e.1) (hk_eq ▸ hk)
-      (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hρ0 hρ1 (fun u hu v hv _ => ?_) t
-    · have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
-          {v | hyperScore c K₀ r θ S ω v < t}} =
-          {ω | (∃ v ∈ hyperEdge c e.1, ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫ < t) ∧
-            (∃ v ∈ hyperEdge c e.1, t ≤ ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫)} := by
-        ext ω
-        rw [mem_ofPred_eq, mem_ofPred_eq, hyperedgeStraddles_threshold_iff]
-        simp only [StraddlesOn, Finset.mem_coe, hyperScore]
-      rw [hev]
-      rw [hk_eq] at hprob
-      exact hprob.trans hsl_le
-    · have hcorr := twoStep_le_inner_hyperUnitRow c K₀ hr hfan hθ0 hθ1.le hS1 e hu hv
-      have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) = θ ^ 2 * q₂ := by
-        rw [hk_eq]
-        dsimp only [q₂]
-        ring
-      dsimp only at hcorr
-      rw [hq_eq] at hcorr
-      change 2 * (θ ^ 2 * q₂) / (1 + (θ ^ 2 * q₂) ^ 2) - 4 * D * θ ^ (4 * S - 2) ≤ _ at hcorr
-      dsimp only [ρ, f] at hf_close ⊢
-      linarith
+      (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hρ0 hρ1
+      (fun u hu v hv _ => hS_sel S hS c hfan e hk_eq hu hv) t
+    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
+        {v | hyperScore c K₀ r θ S ω v < t}} =
+        {ω | (∃ v ∈ hyperEdge c e.1, ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫ < t) ∧
+          (∃ v ∈ hyperEdge c e.1, t ≤ ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫)} := by
+      ext ω
+      rw [mem_ofPred_eq, mem_ofPred_eq, hyperedgeStraddles_threshold_iff]
+      simp only [StraddlesOn, Finset.mem_coe, hyperScore]
+    rw [hev]
+    rw [hk_eq] at hprob
+    exact hprob.trans hsl_le
   | cap hcap hp =>
     set q₁ := 1 / √(√((k : ℝ) - 1) * √(r : ℝ))
     have hq₁_pos : 0 < q₁ := by

@@ -18,14 +18,14 @@ This module constructs six explicit `HyperDualCert` witnesses for bounded-fan-in
 `r ∈ {3, 4, 8, 16, 64}`, combining all four straddling-probability regimes of
 `CslibFrontier/Computability/Circuit/Frontier/Compiler/Hypergraph/Gaussian.lean`:
 
-1. `cert_r3_sheppard` (`r = 3`, pure Sheppard + star-cone): `hyperCoeff > 44011 / 10000`
-   (and `> 43906 / 10000`), with `b < 0` (worst-case, average-case, and nondeterministic).
-2. `cert_r3_slepian` (`r = 3`, Slepian + star-cone): `hyperCoeff > 44199 / 10000`
-   (and `> 44154 / 10000`), with `b < 0` (worst-case, average-case, and nondeterministic).
-3. `cert_r4_sheppard` (`r = 4`, Sheppard + star-cone): `hyperCoeff > 44792 / 10000`
-   (and `> 44335 / 10000`), with `b < 0` (worst-case, average-case, and nondeterministic).
-4. `cert_r8_slepian` (`r = 8`, Slepian + star-cone): `hyperCoeff > 46666 / 10000`
-   (and `> 46149 / 10000`), with `b = 0` (worst-case, average-case, and nondeterministic).
+1. `cert_r3_sheppard` (`r = 3`, pure Sheppard + star-cone): `hyperCoeff > 44011 / 10000`, with
+   `b < 0` (worst-case, average-case, and nondeterministic).
+2. `cert_r3_slepian` (`r = 3`, Slepian + star-cone): `hyperCoeff > 44199 / 10000`, with `b < 0`
+   (worst-case, average-case, and nondeterministic).
+3. `cert_r4_sheppard` (`r = 4`, Sheppard + star-cone): `hyperCoeff > 44792 / 10000`, with `b < 0`
+   (worst-case, average-case, and nondeterministic).
+4. `cert_r8_slepian` (`r = 8`, Slepian + star-cone): `hyperCoeff > 46666 / 10000`, with `b = 0`
+   (worst-case, average-case, and nondeterministic).
 5. `cert_r16_slepian` (`r = 16`, Slepian + star-cone): `hyperCoeff > 49798 / 10000`
    (worst-case and average-case).
 6. `cert_r64_slepian` (`r = 64`, Slepian): `hyperCoeff > 60012 / 10000`
@@ -609,14 +609,6 @@ theorem cert_r3_sheppard :
     · exact edge_sheppard_r3_k5
     · exact edge_sheppard_r3_k6
 
-theorem lt_hyperCoeff_44011_r3_sheppard :
-    (44011 / 10000 : ℚ) < hyperCoeff 3 (18389141 / 100000000 : ℚ) (-19757453 / 100000000 : ℚ) := by
-  norm_num [hyperCoeff]
-
-theorem lt_hyperCoeff_43906_r3_sheppard :
-    (43906 / 10000 : ℚ) < hyperCoeff 3 (18389141 / 100000000 : ℚ) (-19757453 / 100000000 : ℚ) := by
-  norm_num [hyperCoeff]
-
 private theorem edge_slepian_r3_k2 :
     HyperEdgeBound 3 2
       (((17970677 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-18502061 / 100000000 : ℚ) : ℝ)) := by
@@ -762,14 +754,6 @@ theorem cert_r3_slepian :
     · exact edge_slepian_r3_k5
     · exact edge_slepian_r3_k6
 
-theorem lt_hyperCoeff_44199_r3_slepian :
-    (44199 / 10000 : ℚ) < hyperCoeff 3 (17970677 / 100000000 : ℚ) (-18502061 / 100000000 : ℚ) := by
-  norm_num [hyperCoeff]
-
-theorem lt_hyperCoeff_44154_r3_slepian :
-    (44154 / 10000 : ℚ) < hyperCoeff 3 (17970677 / 100000000 : ℚ) (-18502061 / 100000000 : ℚ) := by
-  norm_num [hyperCoeff]
-
 private theorem edge_sheppard_r4_k2 :
     HyperEdgeBound 4 2
       (((19737623 / 100000000 : ℚ) : ℝ) * (2 : ℕ) + ((-18991953 / 100000000 : ℚ) : ℝ)) := by
@@ -863,14 +847,6 @@ theorem cert_r4_sheppard :
     · exact edge_sheppard_r4_k4
     · exact edge_sheppard_r4_k5
     · exact edge_sheppard_r4_k6
-
-theorem lt_hyperCoeff_44792_r4_sheppard :
-    (44792 / 10000 : ℚ) < hyperCoeff 4 (19737623 / 100000000 : ℚ) (-18991953 / 100000000 : ℚ) := by
-  norm_num [hyperCoeff]
-
-theorem lt_hyperCoeff_44335_r4_sheppard :
-    (44335 / 10000 : ℚ) < hyperCoeff 4 (19737623 / 100000000 : ℚ) (-18991953 / 100000000 : ℚ) := by
-  norm_num [hyperCoeff]
 
 private theorem edge_slepian_r8_k2 :
     HyperEdgeBound 8 2
@@ -1023,14 +999,6 @@ theorem cert_r8_slepian :
     · exact edge_slepian_r8_k5
     · exact edge_slepian_r8_k6
 
-theorem lt_hyperCoeff_46666_r8_slepian :
-    (46666 / 10000 : ℚ) < hyperCoeff 8 (666667 / 4000000 : ℚ) (0 : ℚ) := by
-  norm_num [hyperCoeff]
-
-theorem lt_hyperCoeff_46149_r8_slepian :
-    (46149 / 10000 : ℚ) < hyperCoeff 8 (666667 / 4000000 : ℚ) (0 : ℚ) := by
-  norm_num [hyperCoeff]
-
 private theorem edge_slepian_r16_k2 :
     HyperEdgeBound 16 2
       (((4588373 / 50000000 : ℚ) : ℝ) * (2 : ℕ) + ((18096309 / 50000000 : ℚ) : ℝ)) := by
@@ -1181,10 +1149,6 @@ theorem cert_r16_slepian :
     · exact edge_slepian_r16_k4
     · exact edge_slepian_r16_k5
     · exact edge_slepian_r16_k6
-
-theorem lt_hyperCoeff_49798_r16_slepian :
-    (49798 / 10000 : ℚ) < hyperCoeff 16 (4588373 / 50000000 : ℚ) (18096309 / 50000000 : ℚ) := by
-  norm_num [hyperCoeff]
 
 private theorem edge_slepian_r64_k2 :
     HyperEdgeBound 64 2
@@ -1404,9 +1368,5 @@ theorem cert_r64_slepian :
     · exact edge_slepian_r64_k5
     · exact edge_slepian_r64_k6
     · exact edge_slepian_r64_k7
-
-theorem lt_hyperCoeff_60012_r64_slepian :
-    (60012 / 10000 : ℚ) < hyperCoeff 64 (2318347 / 50000000 : ℚ) (16272637 / 25000000 : ℚ) := by
-  norm_num [hyperCoeff]
 
 end Cslib.Circuits.Frontier.Hypergraph

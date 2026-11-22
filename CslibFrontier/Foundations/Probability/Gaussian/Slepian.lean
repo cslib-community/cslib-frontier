@@ -47,9 +47,11 @@ For `k = 3`, a non-zero triple straddles `0` if and only if `4` of its `6` order
 sign, so Sheppard's formula [Sheppard1899] gives `equicorrStraddle 3 ρ = (3 / (2π)) arccos ρ`
 (`equicorrStraddle_three`), which in turn evaluates the quadratic centered-cdf moment
 `∫_{z > 0} φ(z) (Φ(γ z) - 1/2) ^ 2` in closed form (`two_mul_integral_Ioi_cdf_sub_half_sq`).
-Together with alternating Taylor bounds for `exp (-u)` and Mill's / Gordon's rational tail bound
-`(B / (B² + 1)) φ(B) ≤ 1 - Φ(B)` [Vershynin2018, Proposition 2.1.2], this yields rational upper
-bounds on `equicorrStraddle k ρ` for `k ∈ {4, 5, 6, 7}` (`equicorrStraddle_le_of_poly`).
+Together with alternating Taylor bounds for `exp (-u)` and Gordon's rational Mill's-ratio tail
+lower bound `(B / (B² + 1)) φ(B) ≤ 1 - Φ(B)` (`div_sq_add_one_mul_gaussianPDFReal_le`, proved
+self-contained here; cf. [Vershynin2018, Proposition 2.1.2], which records the weaker
+`(1 / B - 1 / B³) φ(B)` bound for `B > 1`), this yields rational upper bounds on
+`equicorrStraddle k ρ` for `k ∈ {4, 5, 6, 7}` (`equicorrStraddle_le_of_poly`).
 
 ## Main definitions
 
@@ -1480,8 +1482,10 @@ theorem sum_odd_taylor_le_exp_neg (m : ℕ) {u : ℝ} (hu : 0 ≤ u) :
     ∑ j ∈ Finset.range (2 * m + 2), (-u) ^ j / (j.factorial : ℝ) ≤ exp (-u) :=
   (exp_neg_taylor_even_odd (2 * m + 1) hu).2 ⟨m, rfl⟩
 
-/-- Mill's / Gordon's rational Gaussian tail lower bound [Vershynin2018, Proposition 2.1.2]:
-for every `B : ℝ`, `(B / (B² + 1)) φ(B) ≤ 1 - Φ(B)`. -/
+/-- Gordon's rational Mill's-ratio lower bound for the standard Gaussian tail: for every `B : ℝ`,
+`(B / (B² + 1)) φ(B) ≤ 1 - Φ(B)` (proved self-contained by monotonicity; cf.
+[Vershynin2018, Proposition 2.1.2], which records the weaker `(1 / B - 1 / B³) φ(B)` lower bound
+for `B > 1`). -/
 theorem div_sq_add_one_mul_gaussianPDFReal_le (B : ℝ) :
     B / (B ^ 2 + 1) * φ B ≤ 1 - Φ B := by
   let g : ℝ → ℝ := fun x => (1 - Φ x) - x / (x ^ 2 + 1) * φ x

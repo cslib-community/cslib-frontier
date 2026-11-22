@@ -40,12 +40,11 @@ strictly stronger unconditional circuit lower bounds across bounded fan-in `r �
     uniformly in the witness length `k`, giving `(r - 1) * c.multiarySize > (L - ε) * n` against
     nondeterministic circuits as well.
 
-Instantiating the six verified certificates yields unconditional lower bounds at:
-* `r = 3` (Sheppard + star-cone): `2 s > (4.4011 - ε) n`, worst-case, average-case, and
-  nondeterministic;
+Instantiating the verified certificates yields unconditional lower bounds at:
 * `r = 3` (Slepian + star-cone): `2 s > (4.4199 - ε) n`, worst-case, average-case, and
   nondeterministic (improving `4n` in
-  `CslibFrontier/Computability/Circuit/Frontier/BoundedFanIn.lean`);
+  `CslibFrontier/Computability/Circuit/Frontier/BoundedFanIn.lean`; `cert_r3_sheppard` in
+  `Certificates.lean` also gives a Slepian-free `4.4011n` certificate via the parametric theorems);
 * `r = 4` (Sheppard + star-cone): `3 s > (4.4792 - ε) n`, worst-case, average-case, and
   nondeterministic;
 * `r = 8` (Slepian + star-cone): `7 s > (4.6666 - ε) n`, worst-case, average-case, and
@@ -857,80 +856,11 @@ private theorem eventually_agreement_multiary_of_le_coeff {r K₀ : ℕ} {a b : 
   exact hn σ I Acc c hfan
     (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 
-private theorem eventually_agreement_inner_of_le_coeff {r K₀ : ℕ} {a b : ℚ}
-    (hcert : HyperDualCert r K₀ a b) {L m_r : ℝ} (hL : L ≤ (hyperCoeff r a b : ℝ))
-    (hm_r : (r : ℝ) - 1 = m_r) {ε : ℝ} (hε : 0 < ε) :
-    ∃ γ > 0, ∀ (U : Type u) [Finite U] [Nontrivial U] (S : ∀ n, Set (Fin n → U))
-      (K : ℕ → ℕ) (b_bias : ℕ → ℝ), (∀ᶠ n in atTop, RectangleBias (S n) (K n) (b_bias n)) →
-      (fun n => Real.log (K n)) =o[atTop] (fun n => (n : ℝ)) →
-      ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-        (c : Circuit σ n 1), c.FanInAtMost r → m_r * c.innerSize ≤ (L - ε) * n →
-          agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
-  obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_innerSize_of_cert.{u, v} hcert hε
-  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => ?_⟩
-  filter_upwards [H U S K b_bias hbias hK] with n hn σ I Acc c hfan hs
-  rw [← hm_r] at hs
-  exact hn σ I Acc c hfan
-    (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
-
 /-! ### Unconditional bounded-fan-in lower bounds (`r ∈ {3, 4, 8, 16, 64}`) -/
 
 section ConcreteBounds
 
 variable {U : Type u} [Finite U] [Nontrivial U] {S : ∀ n, Set (Fin n → U)} {K : ℕ → ℕ}
-
-/-! #### Fan-in `r = 3` (pure Sheppard + star-cone: `4.4011n`) -/
-
-/-- Pure Sheppard + star-cone worst-case lower bound for fan-in at most `3`:
-`2 * c.multiarySize > (44011 / 10000 - ε) * n`. -/
-theorem eventually_44011_lt_two_mul_multiarySize_sheppard (hSK : DenseRectangleFree S K)
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1), c.FanInAtMost 3 → c.Decides I Acc (S n) →
-        (44011 / 10000 - ε) * n < 2 * c.multiarySize :=
-  eventually_lt_multiary_of_le_coeff cert_r3_sheppard
-    (by norm_num [hyperCoeff]) (by norm_num) hSK hε
-
-/-- Pure Sheppard + star-cone `innerSize` lower bound for fan-in at most `3`:
-`2 * c.innerSize > (44011 / 10000 - ε) * n`. -/
-theorem eventually_44011_lt_two_mul_innerSize_sheppard (hSK : DenseRectangleFree S K)
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1), c.FanInAtMost 3 → c.Decides I Acc (S n) →
-        (44011 / 10000 - ε) * n < 2 * c.innerSize :=
-  eventually_lt_inner_of_le_coeff cert_r3_sheppard
-    (by norm_num [hyperCoeff]) (by norm_num) hSK hε
-
-/-- Pure Sheppard + star-cone nondeterministic lower bound for fan-in at most `3`:
-`2 * c.multiarySize > (44011 / 10000 - ε) * n`. -/
-theorem eventually_44011_lt_two_mul_multiarySize_nondeterministic_sheppard
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ (n + k) 1), c.FanInAtMost 3 → c.NondeterministicDecides I Acc (S n) →
-        (44011 / 10000 - ε) * n < 2 * c.multiarySize :=
-  eventually_lt_nondet_multiary_of_le_coeff cert_r3_sheppard (by norm_num)
-    (by norm_num [hyperCoeff]) (by norm_num) hSK hε
-
-/-- Pure Sheppard + star-cone nondeterministic `innerSize` lower bound for fan-in at most `3`:
-`2 * c.innerSize > (44011 / 10000 - ε) * n`. -/
-theorem eventually_44011_lt_two_mul_innerSize_nondeterministic_sheppard
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ (n + k) 1), c.FanInAtMost 3 → c.NondeterministicDecides I Acc (S n) →
-        (44011 / 10000 - ε) * n < 2 * c.innerSize :=
-  eventually_lt_nondet_inner_of_le_coeff cert_r3_sheppard (by norm_num)
-    (by norm_num [hyperCoeff]) (by norm_num) hSK hε
-
-/-- Pure Sheppard + star-cone average-case bound (`44011 / 10000`) for fan-in at most `3`. -/
-theorem eventually_agreement_le_44011_two_mul_multiarySize_sheppard {ε : ℝ} (hε : 0 < ε) :
-    ∃ γ > 0, ∀ (U : Type u) [Finite U] [Nontrivial U] (S : ∀ n, Set (Fin n → U))
-      (K : ℕ → ℕ) (b_bias : ℕ → ℝ), (∀ᶠ n in atTop, RectangleBias (S n) (K n) (b_bias n)) →
-      (fun n => Real.log (K n)) =o[atTop] (fun n => (n : ℝ)) →
-      ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-        (c : Circuit σ n 1), c.FanInAtMost 3 → 2 * (c.multiarySize : ℝ) ≤ (44011 / 10000 - ε) * n →
-          agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) :=
-  eventually_agreement_multiary_of_le_coeff cert_r3_sheppard
-    (by norm_num [hyperCoeff]) (by norm_num) hε
 
 /-! #### Fan-in `r = 3` (Slepian + star-cone: `4.4199n`) -/
 
@@ -992,9 +922,16 @@ theorem eventually_agreement_le_44199_two_mul_innerSize {ε : ℝ} (hε : 0 < ε
       (fun n => Real.log (K n)) =o[atTop] (fun n => (n : ℝ)) →
       ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
         (c : Circuit σ n 1), c.FanInAtMost 3 → 2 * (c.innerSize : ℝ) ≤ (44199 / 10000 - ε) * n →
-          agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) :=
-  eventually_agreement_inner_of_le_coeff cert_r3_slepian
-    (by norm_num [hyperCoeff]) (by norm_num) hε
+          agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
+  obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_innerSize_of_cert.{u, v} cert_r3_slepian hε
+  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => ?_⟩
+  have hL : (44199 / 10000 : ℝ) ≤
+      (hyperCoeff 3 (17970677 / 100000000) (-18502061 / 100000000) : ℝ) := by
+    norm_num [hyperCoeff]
+  filter_upwards [H U S K b_bias hbias hK] with n hn σ I Acc c hfan hs
+  rw [show (2 : ℝ) = (3 : ℝ) - 1 by norm_num] at hs
+  exact hn σ I Acc c hfan
+    (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 
 /-! #### Fan-in `r = 4` (Sheppard + star-cone: `4.4792n`) -/
 
