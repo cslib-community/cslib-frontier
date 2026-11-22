@@ -1187,10 +1187,8 @@ theorem EndOfLine_searchReducible_Sperner2D :
       (by fun_prop) (by fun_prop) computableInPolyTime_colorFun
       fun _ _ _ => length_colorToBits _
   refine SearchReducible.of_isTotalSearch Sperner2D_mem_TFNP.2
-    (f := fun inst => (inst.1 + 5, colorCode inst))
-    ((by fun_prop : ComputableInPolyTime
-      (fun inst : ℕ × CircuitCode × CircuitCode => inst.1 + 5) encEndOfLine encUnary).prod
-      hcodePoly)
+    (f := fun inst => ⟨inst.1 + 5, colorCode inst⟩)
+    (encSperner2D_mk_polyTime (by fun_prop) hcodePoly)
     computableInPolyTime_decodeSol ?_
   intro ⟨n, pCode, sCode⟩ w ⟨hwlen, htri⟩
   let P := evalNat n pCode
@@ -1204,7 +1202,7 @@ theorem EndOfLine_searchReducible_Sperner2D :
     have hpow : M = 32 * N := by simp only [M, N, Nat.pow_add]; ring
     omega
   have hcolor_eq {p : ℕ × ℕ} (hx : p.1 ≤ M) (hy : p.2 ≤ M) :
-      Sperner2D.color (n + 5, colorCode (n, pCode, sCode)) p =
+      Sperner2D.color ⟨n + 5, colorCode (n, pCode, sCode)⟩ p =
         graphColor N P S M p := by
     rcases p with ⟨cx, cy⟩
     dsimp only at hx hy

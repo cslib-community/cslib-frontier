@@ -7,7 +7,10 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
@@ -17,6 +20,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignApproximation
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProductBounds
@@ -58,6 +62,45 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- A constant source in zero variables has a real zero exactly when its input coefficient is zero.
+example : {z : ℤ | z = 0} ∈ CountingLevel 26 encIntBin := by
+  let C : Controlled (fun z : ℤ => (MvPolynomial.C z : MvPolynomial (Fin 0) ℤ)) encIntBin 0 :=
+    Controlled.constant (ComputableInPolyTime.const 0) id ComputableInPolyTime.id'
+  simpa using C.feasibility_mem Decoder.intBin
+
+-- A cubic degree bound gives a fixed-width witness for the zero source.
+example :
+    ∃ word : List Bool, word.length = criticalFeasibilityWitnessWidth 3 2 ∧
+      criticalFeasibilityDeterminant (n := 1) (ell := 3) (by decide) 0 0
+        (by simp) word < 0 := by
+  have h := exists_zero_iff_neg_criticalFeasibilityDeterminant
+    (n := 1) (ell := 3) (b := 0) (by decide) (by decide) 0 (by simp) (by simp) (by simp)
+  exact h.mp ⟨0, by simp⟩
+
+-- A positive constant has no accepting fixed-width witness.
+example :
+    ¬ ∃ word : List Bool, word.length = criticalFeasibilityWitnessWidth 3 2 ∧
+      criticalFeasibilityDeterminant (n := 1) (ell := 3) (by decide) 0 1
+        (by simp) word < 0 := by
+  have h := exists_zero_iff_neg_criticalFeasibilityDeterminant
+    (n := 1) (ell := 3) (b := 0) (by decide) (by decide) 1 (by simp) (by simp) (by simp)
+  exact fun hw => by simpa using h.mpr hw
+
+-- The prime-window sign certificate accepts a varying shift for a controlled zero source.
+example :
+    let P (_ : ℕ) : MvPolynomial (Fin 1) ℤ := MvPolynomial.C 0
+    let C : Controlled P encNat 0 :=
+      Controlled.constant (ComputableInPolyTime.const 1) (fun _ => 0) (.const 0)
+    (fun e : ℕ =>
+      (criticalLabelDeterminant (ell := 2) (by decide) (C.massExponent e) (P e)
+        (show (P e).totalDegree ≤ 2 by simp [P])
+        (decodeRootLabel (D := 2) (by decide) 2 []) (e % 3)).sign) ∈
+      CountingFunction 24 encNat encIntBin := by
+  intro P C
+  exact C.criticalLabelDeterminantSign_mem Decoder.nat (d := fun _ => 1)
+    (e := id) (data := fun _ => []) (fun _ => le_rfl) (by simp [P])
+    (.const 1) (by fun_prop) (.const [])
 
 -- The determinant certificate accepts a binary shift and a plain zero-source evaluator.
 example : (fun e : ℕ => criticalLabelDeterminantResidue 101 1 1 0 e [] (fun _ => 0)) ∈

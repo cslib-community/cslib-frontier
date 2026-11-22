@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test suite)
 
-import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 import CslibFrontier.Probability.HashFamily.Polynomial
 
 set_option linter.privateModule false
@@ -15,20 +15,41 @@ set_option linter.privateModule false
 /-!
 # Tests for `PRF(UHF)` composition
 
-Checks the API and hypotheses of `CslibFrontier.Crypto.PRF.HashThenPRF` and
-`CslibFrontier.Crypto.UHF.Finite` as a `module` client:
+Checks the finite and word PRF composition APIs as a `module` client:
 - instantiating `PRF.advantage_hashThenPRF_le` with `coeffPolyHash`;
 - equation `(6.17)` (§6.5, p. 231) on `hashThenPRF`;
 - `UHF.multiQueryExperiment` on constant hashes, repeated lists, two-query lists, and
   `collisionDistinguisher`;
 - tightness/necessity on constant hashes, counterexample when `m₀ = m₁` (`Z = Bool`), comparison
-  with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe.
+  with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe;
+- the word reduction forwards valid queries and gives an empty reply to malformed queries.
 -/
 
 namespace Cslib.Crypto.PRF.Tests
 
 open Cslib.Probability
 open scoped ENNReal NNReal
+
+private def readFirstReply (msg : List Bool) : OracleDistinguisher := fun _ _ =>
+  (fun reply => reply.headD false) <$> ProbOracleComp.query ((), msg)
+
+/-- With identity hash and PRF evaluators, the word reduction returns the first bit of a
+one-bit request and rejects all other lengths. -/
+example (msg : List Bool) :
+    ProbComp.eval (prfRealGame (fun _ => 1) (fun _ query => query)
+      (hashThenPRFWordReduction (fun _ => 2) (fun _ => 1)
+        (fun _ word => word.length == 1) (fun _ _ word => word) (readFirstReply msg)) 1) =
+      PMF.pure (msg.length == 1 && msg.headD false) := by
+  rw [eval_prfRealGame_hashThenPRFWordReduction (keyLen := fun _ => 2)
+    (inLen := fun _ => 1) (outLen := fun _ => 1)
+    (fun _ word => word.length == 1) (fun _ _ word => word) (fun _ query => query)
+    (fun _ _ _ _ hv => beq_iff_eq.mp hv) (fun _ _ h => h) (readFirstReply msg) 1]
+  simp only [readFirstReply, ProbOracleComp.run_map, ProbOracleComp.run_query,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map, PMF.bind_const,
+    hashThenPRF]
+  by_cases h : msg.length = 1
+  · simp [h]
+  · simp [beq_eq_false_iff_ne.mpr h]
 
 /-! ### Instantiation with `coeffPolyHash` and equation (6.17) (§6.5, p. 231) -/
 

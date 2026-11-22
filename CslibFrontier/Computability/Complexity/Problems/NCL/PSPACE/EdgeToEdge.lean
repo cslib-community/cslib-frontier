@@ -12,18 +12,18 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 
 /-!
 # Directional edge-to-edge NCL is in PSPACE
 
-Quantify an initial bit list of polynomially computed width. If its second distinguished edge
-already has the requested direction, the empty path suffices. Otherwise configuration-to-edge
-reachability supplies the requested reversal.
+A single witness concatenates the initial and final configurations. In a valid graph its
+length equals the number of ports, since each edge has two ends. A fixed-target reachability
+test on the two halves verifies validity, width, legality and reachability together.
 
-The witness encodes one bit per edge of a valid graph. Its width is bounded by the number
-of explicitly listed ports on every input, including a malformed binary edge count. This
-proves the AND/OR case of the directional edge-to-edge upper bound in
-[HearnDemaine2005, Corollary 6].
+The witness width is the number of explicitly listed ports on every input, including a
+malformed binary edge count. This proves the AND/OR case of the directional edge-to-edge upper
+bound in [HearnDemaine2005, Corollary 6].
 
 ## Main results
 
@@ -43,173 +43,84 @@ open _root_.Turing.MultiTapeTM
 private abbrev EdgeInput := AndOrNCLEdgeToEdge.Instance
 private abbrev WitnessInput := EdgeInput × List Bool
 private abbrev witnessEncoding := encPair encAndOrNCLEdgeToEdge encBits
-private def boundedWidth (g : AndOrGraph) : ℕ :=
-  min (g.vertices.flatMap Vertex.ports).length g.edgeCount
 
-private theorem boundedWidth_eq (g : AndOrGraph) (hv : g.Valid) : boundedWidth g = g.edgeCount := by
-  rw [boundedWidth, AndOrGraph.portCount_eq_two_mul g hv.1 hv.2.2]
-  exact Nat.min_eq_right (by omega)
+private def configWitness (q : WitnessInput) : AndOrNCL.Instance :=
+  let n := q.2.length / 2
+  ⟨q.1.graph, q.2.take n, q.2.drop n⟩
 
-private theorem computableInPolyTime_boundedWidth :
-    ComputableInPolyTime boundedWidth encAndOrGraph encUnary := by
-  have hp : ComputableInPolyTime (fun g : AndOrGraph => g.vertices.flatMap Vertex.ports)
-      encAndOrGraph (encWeightedPorts encNat) := by fun_prop
-  exact ComputableInPolyTime.binary_min_unary' ((ComputableInPolyTime.length_list _).comp hp)
-    (by fun_prop)
+private def checkPort (g : AndOrGraph) (p : Port ℕ) (s : List Bool) : Bool :=
+  decide (p.edge < g.edgeCount) && decide (s.getD p.edge false = p.dir)
 
-private def toEdge (q : WitnessInput) : AndOrNCLEdge.Instance :=
-  ⟨q.1.graph, q.2, q.1.second.edge⟩
+private def guard (q : WitnessInput) : Bool :=
+  checkPort q.1.graph q.1.first (configWitness q).initial &&
+    checkPort q.1.graph q.1.second (configWitness q).target
 
-private def common (q : WitnessInput) : Bool :=
-  q.1.graph.checkValid &&
-    ((decide (q.2.length = q.1.graph.edgeCount) && q.1.graph.checkLegal q.2) &&
-      (decide (q.1.first.edge < q.1.graph.edgeCount) &&
-        (decide (q.1.second.edge < q.1.graph.edgeCount) &&
-          decide (q.2.getD q.1.first.edge false = q.1.first.dir))))
+private def witness : Set WitnessInput := {q | configWitness q ∈ AndOrNCL ∧ guard q = true}
 
-private def desired (q : WitnessInput) : Bool :=
-  decide (q.2.getD q.1.second.edge false = q.1.second.dir)
-
-private def witness : Set WitnessInput :=
-  {q | common q = true ∧ (desired q = true ∨ toEdge q ∈ AndOrNCLEdge)}
-
-private theorem exists_goal_iff {V E : Type*} [DecidableEq E]
-    (G : ConstraintGraph V E) (s : E → Bool) (e : E) (d : Bool) :
-    (∃ t, G.Reachable s t ∧ t e = d) ↔ s e = d ∨ G.CanReverse s e := by
+private theorem witness_iff (x : EdgeInput) : x ∈ AndOrNCLEdgeToEdge ↔
+    ∃ w : List Bool, w.length = (x.graph.vertices.flatMap Vertex.ports).length ∧
+      (x, w) ∈ witness := by
   constructor
-  · rintro ⟨t, hr, hd⟩
-    by_cases hs : s e = d
-    · exact .inl hs
-    · exact .inr ⟨t, hr, fun h => hs (h.symm.trans hd)⟩
-  · rintro (hs | ⟨t, hr, hd⟩)
-    · exact ⟨s, .refl, hs⟩
-    · by_cases hs : s e = d
-      · exact ⟨s, .refl, hs⟩
-      · refine ⟨t, hr, ?_⟩
-        cases hS : s e <;> cases hT : t e <;> cases d <;> simp_all
+  · rintro ⟨ha, hb, hv, s, t, hs, hA, hB, hr⟩
+    let w := List.ofFn s ++ List.ofFn t
+    have hw : w.length = 2 * x.graph.edgeCount := by simp [w, two_mul]
+    have he : configWitness (x, w) = ⟨x.graph, List.ofFn s, List.ofFn t⟩ := by
+      have half : w.length / 2 = (List.ofFn s).length := by rw [List.length_ofFn]; omega
+      simp only [configWitness, half, w, List.take_left, List.drop_left]
+    refine ⟨w, hw.trans (AndOrGraph.portCount_eq_two_mul _ hv.1 hv.2.2).symm, ?_⟩
+    change configWitness (x, w) ∈ AndOrNCL ∧ guard (x, w) = true
+    simp only [guard, he, checkPort, Bool.and_eq_true, decide_eq_true_eq]
+    refine ⟨⟨hv, List.length_ofFn, List.length_ofFn, ?_, ?_⟩, ⟨ha, ?_⟩, hb, ?_⟩
+    · simpa only [AndOrGraph.config_ofFn] using hs
+    · simpa only [AndOrGraph.config_ofFn] using hr
+    · exact (congrFun (AndOrGraph.config_ofFn x.graph s) ⟨_, ha⟩).trans hA
+    · exact (congrFun (AndOrGraph.config_ofFn x.graph t) ⟨_, hb⟩).trans hB
+  · rintro ⟨w, _, ⟨hv, _, _, hs, hr⟩, hg⟩
+    simp only [guard, checkPort, Bool.and_eq_true, decide_eq_true_eq] at hg
+    exact ⟨hg.1.1, hg.2.1, hv, _, _, hs, hg.1.2, hg.2.2, hr⟩
 
-private theorem edgeToEdge_witness_iff (x : EdgeInput) : x ∈ AndOrNCLEdgeToEdge ↔
-    ∃ s : List Bool, s.length = boundedWidth x.graph ∧ (x, s) ∈ witness := by
-  constructor
-  · rintro ⟨hA, hB, hv, s, t, hl, hAeq, hBeq, hr⟩
-    let eA : Fin x.graph.edgeCount := ⟨x.first.edge, hA⟩
-    let eB : Fin x.graph.edgeCount := ⟨x.second.edge, hB⟩
-    let bits := List.ofFn s
-    have hread (e : Fin x.graph.edgeCount) : bits.getD e false = s e :=
-      congrFun (AndOrGraph.config_ofFn x.graph s) e
-    refine ⟨bits, by rw [boundedWidth_eq _ hv]; exact List.length_ofFn, ?_, ?_⟩
-    · simp only [common, Bool.and_eq_true, decide_eq_true_eq]
-      refine ⟨(AndOrGraph.checkValid_eq_true_iff _).2 hv,
-        ⟨List.length_ofFn, ?_⟩, hA, hB, ?_⟩
-      · apply (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).2
-        simpa only [bits, AndOrGraph.config_ofFn] using hl
-      · rw [show bits.getD x.first.edge false = s eA from hread eA]
-        exact hAeq
-    · have hg := (exists_goal_iff x.graph.graph s eB x.second.dir).1 ⟨t, hr, hBeq⟩
-      rcases hg with hg | hg
-      · left
-        simp only [desired, decide_eq_true_eq]
-        rw [show bits.getD x.second.edge false = s eB from hread eB]
-        exact hg
-      · right
-        refine ⟨hB, hv, List.length_ofFn, ?_, ?_⟩
-        · change x.graph.graph.Legal (x.graph.config bits)
-          simpa only [bits, AndOrGraph.config_ofFn] using hl
-        · change x.graph.graph.CanReverse (x.graph.config bits) eB
-          simpa only [bits, AndOrGraph.config_ofFn] using hg
-  · rintro ⟨s, _, hc, hd⟩
-    simp only [common, Bool.and_eq_true, decide_eq_true_eq] at hc
-    obtain ⟨hv, ⟨hs, hl⟩, hA, hB, hAdir⟩ := hc
-    have hv := (AndOrGraph.checkValid_eq_true_iff _).1 hv
-    have hl := (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).1 hl
-    rcases hd with hd | hd
-    · exact ⟨hA, hB, hv, x.graph.config s, x.graph.config s, hl, hAdir,
-        of_decide_eq_true hd, .refl⟩
-    · obtain ⟨_, _, _, _, hreverse⟩ := hd
-      obtain ⟨t, hr, ht⟩ := (exists_goal_iff x.graph.graph (x.graph.config s)
-        (⟨x.second.edge, hB⟩ : Fin x.graph.edgeCount) x.second.dir).2 (.inr hreverse)
-      exact ⟨hA, hB, hv, x.graph.config s, t, hl, hAdir, ht, hr⟩
-
-private theorem computableInPolyTime_descriptor :
-    ComputableInPolyTime (fun q : WitnessInput => q.1)
-      witnessEncoding encAndOrNCLEdgeToEdge := by
-  unfold witnessEncoding
-  fun_prop
-
-private theorem computableInPolyTime_state :
-    ComputableInPolyTime (fun q : WitnessInput => q.2) witnessEncoding encBits := by
-  unfold witnessEncoding
-  fun_prop
-
-private theorem computableInPolyTime_toEdge :
-    ComputableInPolyTime toEdge witnessEncoding encAndOrNCLEdge := by
-  have hd := computableInPolyTime_descriptor
-  have hg : ComputableInPolyTime (fun q : WitnessInput => q.1.graph)
-      witnessEncoding encAndOrGraph := by fun_prop
-  have he : ComputableInPolyTime (fun q : WitnessInput => q.1.second.edge)
-      witnessEncoding encNat := by fun_prop
-  exact encAndOrNCLEdge_mk_polyTime hg
-    ((bits_encList_polyTime encBool).1.comp computableInPolyTime_state) he
-
-private theorem computableInPolyTime_common :
-    ComputableInPolyTime common witnessEncoding encBool := by
-  have hd := computableInPolyTime_descriptor
-  have hs := computableInPolyTime_state
-  have hg : ComputableInPolyTime (fun q : WitnessInput => q.1.graph)
-      witnessEncoding encAndOrGraph := by fun_prop
-  have hw : ComputableInPolyTime (fun q : WitnessInput => q.1.graph.edgeCount)
-      witnessEncoding encNat := by
+private theorem computableInPolyTime_configWitness :
+    ComputableInPolyTime configWitness witnessEncoding encAndOrNCL := by
+  have hw := (bits_encList_polyTime encBool).1.comp
+    (ComputableInPolyTime.snd encAndOrNCLEdgeToEdge encBits)
+  have hn : ComputableInPolyTime (fun q : WitnessInput => q.2.length / 2)
+      witnessEncoding encUnary := by
+    unfold witnessEncoding
     fun_prop
-  have hA : ComputableInPolyTime (fun q : WitnessInput => q.1.first.edge)
-      witnessEncoding encNat := by fun_prop
-  have hB : ComputableInPolyTime (fun q : WitnessInput => q.1.second.edge)
-      witnessEncoding encNat := by fun_prop
-  have hdA : ComputableInPolyTime (fun q : WitnessInput => q.1.first.dir)
-      witnessEncoding encBool := by fun_prop
-  have hn : ComputableInPolyTime (fun q : WitnessInput => q.2.length)
-      witnessEncoding encUnary := by fun_prop
-  have hbn := ComputableInPolyTime.unary_to_binary.comp hn
-  have hlen := hbn.decide_eq' hw
-  have hr := ComputableInPolyTime.listGetD_binary (encA := encBool) false hs hA
-  have hdir := hr.decide_eq' hdA
-  have hv := AndOrGraph.computableInPolyTime_checkValid.comp hg
-  have hl := AndOrGraph.computableInPolyTime_checkLegal hg hs
-  exact ComputableInPolyTime.bool_and' hv
-    (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hlen hl)
-      (ComputableInPolyTime.bool_and' (ComputableInPolyTime.binary_lt' hA hw)
-        (ComputableInPolyTime.bool_and' (ComputableInPolyTime.binary_lt' hB hw) hdir)))
+  exact encAndOrNCL_mk_polyTime (by unfold witnessEncoding; fun_prop)
+    (ComputableInPolyTime.listTakeWithInput hw hn) (ComputableInPolyTime.listDropWithInput hw hn)
 
-private theorem computableInPolyTime_desired :
-    ComputableInPolyTime desired witnessEncoding encBool := by
-  have hd := computableInPolyTime_descriptor
-  have he : ComputableInPolyTime (fun q : WitnessInput => q.1.second.edge)
-      witnessEncoding encNat := by fun_prop
-  have hdir : ComputableInPolyTime (fun q : WitnessInput => q.1.second.dir)
-      witnessEncoding encBool := by fun_prop
-  have hr := ComputableInPolyTime.listGetD_binary (encA := encBool) false
-    computableInPolyTime_state he
-  exact hr.decide_eq' hdir
-
-private theorem witness_mem_PSPACE : witness ∈ PSPACE witnessEncoding := by
-  have hred : PolyTimeReducible witnessEncoding encAndOrNCLEdge
-      (toEdge ⁻¹' AndOrNCLEdge) AndOrNCLEdge :=
-    ⟨toEdge, computableInPolyTime_toEdge, fun _ => Iff.rfl⟩
-  have hc : {q | common q = true} ∈ PSPACE witnessEncoding :=
-    ⟨_, .of_polyTime computableInPolyTime_common, fun _ => Iff.rfl⟩
-  have hd : {q | desired q = true} ∈ PSPACE witnessEncoding :=
-    ⟨_, .of_polyTime computableInPolyTime_desired, fun _ => Iff.rfl⟩
-  exact inter_mem_PSPACE hc (union_mem_PSPACE hd (hred.mem_PSPACE AndOrNCLEdge_mem_PSPACE))
+private theorem computableInPolyTime_checkPort {α : Type} {enc : α ↪ List Bool}
+    {g : α → AndOrGraph} {p : α → Port ℕ} {s : α → List Bool}
+    (hg : ComputableInPolyTime g enc encAndOrGraph)
+    (hp : ComputableInPolyTime p enc (encPort encNat))
+    (hs : ComputableInPolyTime s enc (encList encBool)) :
+    ComputableInPolyTime (fun x => checkPort (g x) (p x) (s x)) enc encBool := by
+  have he : ComputableInPolyTime (fun x => (p x).edge) enc encNat := by fun_prop
+  exact (ComputableInPolyTime.binary_lt' he (by fun_prop)).bool_and'
+    ((ComputableInPolyTime.listGetD_binary (encA := encBool) false hs he).decide_eq' (by fun_prop))
 
 /-- Directional edge-to-edge reachability on AND/OR multigraphs is in PSPACE,
 including graphs with loops. -/
 theorem AndOrNCLEdgeToEdge_mem_PSPACE : AndOrNCLEdgeToEdge ∈ PSPACE encAndOrNCLEdgeToEdge := by
-  have hg : ComputableInPolyTime (fun x : EdgeInput => x.graph)
-      encAndOrNCLEdgeToEdge encAndOrGraph := by
-    fun_prop
-  have hh := setOf_exists_mem_PSPACE witness_mem_PSPACE (computableInPolyTime_boundedWidth.comp hg)
-  have heq : {x : EdgeInput | ∃ s : List Bool, s.length = boundedWidth x.graph ∧ (x, s) ∈ witness} =
-      AndOrNCLEdgeToEdge := Set.ext (fun x => (edgeToEdge_witness_iff x).symm)
-  simp only [Function.comp_apply] at hh
-  rwa [heq] at hh
+  have hc := computableInPolyTime_configWitness
+  have hred : PolyTimeReducible witnessEncoding encAndOrNCL (configWitness ⁻¹' AndOrNCL) AndOrNCL :=
+    ⟨configWitness, hc, fun _ => Iff.rfl⟩
+  have hg : ComputableInPolyTime guard witnessEncoding encBool := by
+    unfold guard
+    apply ComputableInPolyTime.bool_and' <;> apply computableInPolyTime_checkPort <;>
+      unfold witnessEncoding at * <;> fun_prop
+  have hgSpace : {q | guard q = true} ∈ PSPACE witnessEncoding :=
+    ⟨_, .of_polyTime hg, fun _ => Iff.rfl⟩
+  have hw : witness ∈ PSPACE witnessEncoding :=
+    inter_mem_PSPACE (hred.mem_PSPACE AndOrNCL_mem_PSPACE) hgSpace
+  have hlen : ComputableInPolyTime
+      (fun x : EdgeInput => (x.graph.vertices.flatMap Vertex.ports).length)
+      encAndOrNCLEdgeToEdge encUnary := by fun_prop
+  have heq : AndOrNCLEdgeToEdge = {x | ∃ w,
+      w.length = (x.graph.vertices.flatMap Vertex.ports).length ∧ (x, w) ∈ witness} :=
+    Set.ext witness_iff
+  rw [heq]
+  exact setOf_exists_mem_PSPACE hw hlen
 
 end Cslib.Complexity.NCL

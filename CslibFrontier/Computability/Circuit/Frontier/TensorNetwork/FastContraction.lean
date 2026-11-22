@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ChildCu
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeRecovery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduledRecursion
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.VertexDesc
-public import CslibFrontier.Computability.GenericRAM.Native.StackRecursionTree
+public import CslibFrontier.Algorithms.Recursion.StackRecursionTree
 public import CslibFrontier.Computability.PolyTime.PacketPacking
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChild
 import CslibFrontier.Computability.PolyTime.GaloisRingSeries
@@ -21,7 +21,7 @@ import Mathlib.Data.List.GetD
 # The native contraction recursion as a stack recursion
 
 The recursion of Theorem D.1 of [OpenAI2026ETH] (Appendix D.4.7, p. 64), as a depth-first stack
-recursion (`Cslib.GenericRAM.StackRecursion.Scheme`) over *calls*. A call
+recursion (`Cslib.Algorithms.StackRecursion.Scheme`) over *calls*. A call
 (`FastContraction.Call T`) is a described network (`DescribedNetwork (VertexDesc T)`) whose first
 `r` vertices are its rows, with the schedule's scale `s` (the number of edges of the root, since
 the machine sees no other size), its depth `d`, an edge bound, its precision `p` and the
@@ -88,8 +88,8 @@ public section
 
 namespace Cslib.Circuits.Frontier.FastContraction
 
-open GaloisRingArith ChildCursor NativeRecovery ContractionSchedule NativeChild Cslib.GenericRAM
-  Cslib.GenericRAM.StackRecursion
+open GaloisRingArith ChildCursor NativeRecovery ContractionSchedule NativeChild
+  Cslib.Algorithms.StackRecursion
 
 /-- The parameters of a call: the scale `s`, the depth `d`, the edge bound, the precision `p`, the
 coefficients `fl` of the modulus and the number `r` of rows. -/

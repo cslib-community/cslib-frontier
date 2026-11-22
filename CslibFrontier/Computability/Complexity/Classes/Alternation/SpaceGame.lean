@@ -247,10 +247,8 @@ theorem EXP_subset_APSPACE : EXP enc ⊆ APSPACE enc := by
       (budget_natMul (budget_natAdd hT (budget_const 1 hin))
         (blockSize_inSpace (k := k) (State := State) hT hin)))
   have hBs : PolyBounded (fun a => (enc a).length) Bs := by growth_poly
-  have hJ := budget_prod hx (budget_prod hT
-    (budget_prod hN (budget_const (encB := encBool) true hin)))
-  have hJM := budget_prod hx (budget_prod hT
-    (budget_prod hM (budget_const (encB := encBool) true hin)))
+  have hJ := encClaim_mk_budget hx hT hN (budget_const (encB := encBool) true hin)
+  have hJM := encClaim_mk_budget hx hT hM (budget_const (encB := encBool) true hin)
   have hI := ComputableInPolySpace.of_inSpace hBs
     (budget_comp_linear (position_inSpace tm) hJ)
   have hℓ := (ComputableInPolySpace.of_inSpace hBs hJM).polyBounded_length.add
@@ -262,12 +260,10 @@ theorem EXP_subset_APSPACE : EXP enc ⊆ APSPACE enc := by
   · intro a u x r b hr
     obtain ⟨w', v, -, he⟩ := reach_position (tm := tm) encClaim (hNM a) hr
     obtain ⟨-, rfl⟩ := position_eq_cons he.symm
-    exact ⟨pos u b (enc a, T a, w', v), encPos_pos _ _ _, by rw [step_pos, update_position_cons]⟩
+    exact ⟨pos u b ⟨enc a, T a, w', v⟩, encPos_pos _ _ _, by rw [step_pos, update_position_cons]⟩
   · intro a w hr
     obtain ⟨w', v, hw', rfl⟩ := reach_position (tm := tm) encClaim (hNM a) hr
-    refine (length_position_le _).trans ?_
-    simp only [encPair_apply, Nat.add_le_add_iff_right]
-    exact length_encClaim_mono hw'.le
+    exact (length_position_le _).trans (Nat.add_le_add_right (length_encClaim_mono hw'.le) 2)
   · exact fun a => ⟨N a, ends_position (tm := tm) encClaim (enc a) (T a) (N a) (hNM a) true⟩
   · intro a
     rw [wins_position_iff (enc a) (T a) (N a) (hNM a) true]

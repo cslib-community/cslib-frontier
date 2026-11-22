@@ -373,23 +373,19 @@ private theorem vecPotential_vset_add {α : Type*} {n : ℕ} {p : α → Prop} [
   have hset : Finset.univ.filter (fun u => p (vget (vset t w x) u)) =
       (Finset.univ.filter (fun u => p (vget t u))).erase w := by
     ext u
-    by_cases huw : u = w
-    · subst huw
-      simp [hx]
-    · simp [huw, vget_vset_ne t x (Ne.symm huw)]
-  rw [vecPotential, hset, Finset.sum_erase_add _ _ (by simpa using hw)]
-  rfl
+    rcases eq_or_ne u w with rfl | h
+    · simp [hx]
+    · simp [h, vget_vset_ne _ _ h.symm]
+  rw [vecPotential, hset, Finset.sum_erase_add _ c (by simp [hw])]; rfl
 
 private theorem vecPotential_vset_le {α : Type*} {n : ℕ} {p : α → Prop} [DecidablePred p]
     {c : Fin n → ℕ} (t : Vector α n) (w : Fin n) {x : α} (hx : ¬ p x) :
     vecPotential p c (vset t w x) ≤ vecPotential p c t := by
   refine Finset.sum_le_sum_of_subset fun u hu => ?_
   simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
-  by_cases huw : u = w
-  · subst huw
-    rw [vget_vset_self] at hu
-    exact absurd hu hx
-  · rwa [vget_vset_ne t x (Ne.symm huw)] at hu
+  rcases eq_or_ne u w with rfl | h
+  · exact absurd (by simpa using hu) hx
+  · rwa [vget_vset_ne t x h.symm] at hu
 
 private theorem vecPotential_le_sum {α : Type*} {n : ℕ} {p : α → Prop} [DecidablePred p]
     (c : Fin n → ℕ) (t : Vector α n) : vecPotential p c t ≤ ∑ u, c u :=
@@ -405,20 +401,15 @@ private theorem matchedLeft_foldl (mate : Vector (Option (Fin m)) r) (l : List (
   | nil => simp
   | cons v l ih =>
     rw [List.foldl_cons, ih]
-    rcases hv : vget mate v with _ | w
-    · simp only [hkMarkStep, hv, List.mem_cons, exists_eq_or_imp, reduceCtorEq, false_or]
-    · simp only [hkMarkStep, hv, List.mem_cons, exists_eq_or_imp, Option.some.injEq]
-      by_cases huw : w = u
-      · subst huw
-        simp
-      · rw [vget_vset_ne b true huw]
-        simp [huw]
+    rcases hv : vget mate v with _ | w <;> simp only [hkMarkStep, hv, List.mem_cons,
+      exists_eq_or_imp, reduceCtorEq, false_or, Option.some.injEq]
+    rcases eq_or_ne w u with rfl | h
+    · simp
+    · simp [h, vget_vset_ne _ _ h]
 
 theorem hkMatchedLeftM_ret (mate : Vector (Option (Fin m)) r) (u : Fin m) :
     vget (hkMatchedLeftM mate).ret u = true ↔ u ∈ matchedLeft (mateMatching mate) := by
-  simp only [hkMatchedLeftM, time_simps]
-  rw [matchedLeft_foldl]
-  simp
+  simp [hkMatchedLeftM, time_simps, matchedLeft_foldl]
 
 @[time_simps]
 theorem hkMatchedLeftM_time (mate : Vector (Option (Fin m)) r) :
@@ -437,25 +428,15 @@ private theorem bfsInit_foldl (ml : Vector Bool m) (l : List (Fin m))
   | cons x l ih =>
     rw [List.foldl_cons]
     obtain ⟨ih1, ih2⟩ := ih (hkBfsInitStep ml p x)
-    by_cases hx : vget ml x = true
-    · have hstep : hkBfsInitStep ml p x = p := by simp [hkBfsInitStep, hx]
-      rw [hstep] at ih1 ih2 ⊢
-      refine ⟨fun u => ?_, fun u => ?_⟩
-      · rw [ih1 u]
-        by_cases hux : u = x <;> simp [hx, hux]
-      · rw [ih2 u]
-        by_cases hux : u = x <;> simp [hx, hux]
-    · have hx' : vget ml x = false := by simpa using hx
-      have hstep : hkBfsInitStep ml p x = (vset p.1 x (some 0), x :: p.2) := by
-        simp [hkBfsInitStep, hx']
-      rw [hstep] at ih1 ih2 ⊢
-      refine ⟨fun u => ?_, fun u => ?_⟩
-      · rw [ih1 u]
-        by_cases hux : u = x
-        · subst hux; simp [hx']
-        · simp [hux, vget_vset_ne p.1 (some 0) (Ne.symm hux)]
-      · rw [ih2 u]
-        by_cases hux : u = x <;> simp [hx', hux]
+    refine ⟨fun u => ?_, fun u => ?_⟩
+    · rw [ih1 u]; unfold hkBfsInitStep
+      rcases eq_or_ne u x with rfl | hux
+      · by_cases hx : vget ml u = true <;> simp [hx]
+      · by_cases hx : vget ml x = true <;> simp [hx, hux, vget_vset_ne _ _ hux.symm]
+    · rw [ih2 u]; unfold hkBfsInitStep
+      rcases eq_or_ne u x with rfl | hux
+      · by_cases hx : vget ml u = true <;> simp [hx]
+      · split_ifs <;> simp [hux]
 
 private theorem bfsInit_nodup (ml : Vector Bool m) (l : List (Fin m))
     (p : Vector (Option ℕ) m × List (Fin m)) (hl : l.Nodup) (hp : p.2.Nodup)
@@ -463,19 +444,12 @@ private theorem bfsInit_nodup (ml : Vector Bool m) (l : List (Fin m))
   induction l generalizing p with
   | nil => exact hp
   | cons x l ih =>
-    rw [List.foldl_cons]
     obtain ⟨hxl, hl⟩ := List.nodup_cons.mp hl
-    by_cases hx : vget ml x = true
-    · have : hkBfsInitStep ml p x = p := by simp [hkBfsInitStep, hx]
-      rw [this]
-      exact ih p hl hp fun y hy => hdisj y (List.mem_cons_of_mem _ hy)
-    · have : hkBfsInitStep ml p x = (vset p.1 x (some 0), x :: p.2) := by
-        simp [hkBfsInitStep, hx]
-      rw [this]
-      refine ih _ hl (List.nodup_cons.mpr ⟨hdisj x List.mem_cons_self, hp⟩) fun y hy h => ?_
-      rcases List.mem_cons.mp h with rfl | h
-      · exact hxl hy
-      · exact hdisj y (List.mem_cons_of_mem _ hy) h
+    simp only [List.foldl_cons, hkBfsInitStep]
+    split_ifs with hx
+    · exact ih p hl hp fun y hy => hdisj y (List.mem_cons_of_mem _ hy)
+    · refine ih _ hl (List.nodup_cons.mpr ⟨hdisj x List.mem_cons_self, hp⟩) fun y hy h => ?_
+      exact (List.mem_cons.mp h).elim (fun h => hxl (h ▸ hy)) (hdisj y (List.mem_cons_of_mem _ hy))
 
 private theorem bfsInit_potential (ml : Vector Bool m) (c : Fin m → ℕ) (l : List (Fin m))
     (p : Vector (Option ℕ) m × List (Fin m)) :
@@ -485,19 +459,13 @@ private theorem bfsInit_potential (ml : Vector Bool m) (c : Fin m → ℕ) (l : 
   induction l generalizing p with
   | nil => simp
   | cons x l ih =>
-    rw [List.foldl_cons]
-    refine (ih _).trans ?_
-    by_cases hx : vget ml x = true
-    · have : hkBfsInitStep ml p x = p := by simp [hkBfsInitStep, hx]
-      rw [this, List.map_cons, List.sum_cons]
-      omega
-    · have : hkBfsInitStep ml p x = (vset p.1 x (some 0), x :: p.2) := by
-        simp [hkBfsInitStep, hx]
-      rw [this]
-      have := vecPotential_vset_le (p := (· = none)) (c := c) p.1 x (x := some 0) (by simp)
+    refine (ih (hkBfsInitStep ml p x)).trans ?_
+    simp only [hkBfsInitStep, List.map_cons, List.sum_cons]
+    split_ifs
+    · omega
+    · have := vecPotential_vset_le (p := (· = none)) (c := c) p.1 x (x := some 0) (by simp)
       simp only [List.map_cons, List.sum_cons]
       omega
-
 
 /-! ### Breadth-first search: one layer -/
 
@@ -507,15 +475,7 @@ variable {G : Fin m × Fin r → Bool} {mate : Vector (Option (Fin m)) r}
 
 private theorem vget_mate_eq_none_iff {v : Fin r} :
     vget mate v = none ↔ v ∉ matchedRight (mateMatching mate) := by
-  simp only [mem_matchedRight, mem_mateMatching, not_exists]
-  constructor
-  · intro h u hu
-    rw [h] at hu
-    exact nomatch hu
-  · intro h
-    cases hv : vget mate v with
-    | none => rfl
-    | some u => exact absurd hv (h u)
+  simp [Option.eq_none_iff_forall_ne_some]
 
 /-- Invariant while expanding layer `j`. -/
 private structure HKStepInv (G : Fin m × Fin r → Bool) (M : Finset (Fin m × Fin r)) (j : ℕ)
@@ -531,45 +491,36 @@ private theorem hkBfsStep_inv {j : ℕ} {u : Fin m} (hu : u ∈ altLeft G (mateM
     {s : HKBfsState m} (hs : HKStepInv G (mateMatching mate) j s) (v : Fin r) :
     HKStepInv G (mateMatching mate) j (hkBfsStep G mate j u s v) := by
   unfold hkBfsStep
-  by_cases hG : G (u, v) = true
-  · rw [ite_eq_left hG]
-    cases hm : vget mate v with
+  split_ifs with hG
+  · cases hm : vget mate v with
     | none =>
       exact ⟨hs.exact, hs.bound, hs.next_iff, hs.next_layer, hs.nodup, fun _ =>
         ⟨v, mem_altRight.mpr ⟨u, hu, hG⟩, vget_mate_eq_none_iff.mp hm⟩⟩
     | some w =>
-      simp only
-      by_cases hd : vget s.dist w = none
-      · rw [ite_eq_left hd]
-        have hwM : (w, v) ∈ mateMatching mate := mem_mateMatching.mpr hm
-        have hwl : IsLayer G (mateMatching mate) w (j + 1) := by
+      dsimp only; split_ifs with hd
+      · have hwl : IsLayer G (mateMatching mate) w (j + 1) := by
           obtain ⟨i, hi, hwi⟩ := exists_isLayer
-            (mem_altLeft_succ_of_mem hwM (mem_altRight.mpr ⟨u, hu, hG⟩))
+            (mem_altLeft_succ_of_mem (mem_mateMatching.mpr hm) (mem_altRight.mpr ⟨u, hu, hG⟩))
           rcases Nat.lt_or_eq_of_le hi with hlt | rfl
-          · have := (hs.exact w i (by omega)).mpr hwi
-            rw [hd] at this
-            exact absurd this (by simp)
+          · exact absurd ((hs.exact w i (by omega)).mpr hwi) (by simp [hd])
           · exact hwi
-        refine ⟨fun x i hi => ?_, fun x i hx => ?_, fun x => ?_, fun x hx => ?_, ?_, hs.found⟩
+        refine ⟨fun x i hi => ?_, fun x i hx => ?_, fun x => ?_,
+          fun x hx => (List.mem_cons.mp hx).elim (· ▸ hwl) (hs.next_layer x),
+          List.nodup_cons.mpr ⟨fun h => by have h' := (hs.next_iff w).mpr h; simp [hd] at h',
+            hs.nodup⟩,
+          hs.found⟩
         · rcases eq_or_ne x w with rfl | hxw
-          · rw [vget_vset_self]
-            exact ⟨fun h => by simp only [Option.some.injEq] at h; omega,
+          · exact ⟨fun h => by simp at h; omega,
               fun h => absurd ((hs.exact x i hi).mpr h) (by simp [hd])⟩
-          · rw [vget_vset_ne _ _ hxw.symm]
-            exact hs.exact x i hi
+          · rw [vget_vset_ne _ _ hxw.symm]; exact hs.exact x i hi
         · rcases eq_or_ne x w with rfl | hxw
-          · rw [vget_vset_self, Option.some.injEq] at hx; omega
+          · simp only [vget_vset_self, Option.some.injEq] at hx; omega
           · exact hs.bound x i (by rwa [vget_vset_ne _ _ hxw.symm] at hx)
         · rcases eq_or_ne x w with rfl | hxw
           · simp
           · simp [vget_vset_ne _ _ hxw.symm, hs.next_iff, hxw]
-        · exact (List.mem_cons.mp hx).elim (· ▸ hwl) (hs.next_layer x)
-        · exact List.nodup_cons.mpr ⟨fun h => by have := (hs.next_iff w).mpr h; simp [hd] at this,
-            hs.nodup⟩
-      · rw [ite_eq_right hd]
-        exact hs
-  · rw [ite_eq_right hG]
-    exact hs
+      · exact hs
+  · exact hs
 
 private theorem foldl_hkBfsStep_inv {j : ℕ} {u : Fin m} (hu : u ∈ altLeft G (mateMatching mate) j)
     (l : List (Fin r)) {s : HKBfsState m} (hs : HKStepInv G (mateMatching mate) j s) :
@@ -586,26 +537,21 @@ private theorem HKStateLe.refl (s : HKBfsState m) : HKStateLe s s := ⟨id, fun 
 
 private theorem HKStateLe.trans {s₁ s₂ s₃ : HKBfsState m} (h₁ : HKStateLe s₁ s₂)
     (h₂ : HKStateLe s₂ s₃) : HKStateLe s₁ s₃ :=
-  ⟨fun h => h₂.1 (h₁.1 h), fun u i h => h₂.2 u i (h₁.2 u i h)⟩
+  ⟨h₂.1 ∘ h₁.1, fun u i => h₂.2 u i ∘ h₁.2 u i⟩
 
 private theorem hkBfsStep_le (j : ℕ) (u : Fin m) (s : HKBfsState m) (v : Fin r) :
     HKStateLe s (hkBfsStep G mate j u s v) := by
   unfold hkBfsStep
-  by_cases hG : G (u, v) = true
-  · rw [ite_eq_left hG]
-    cases hm : vget mate v with
+  split_ifs with hG
+  · cases vget mate v with
     | none => exact ⟨fun _ => rfl, fun _ _ h => h⟩
     | some w =>
-      simp only
-      by_cases hd : vget s.dist w = none
-      · rw [ite_eq_left hd]
-        refine ⟨id, fun x i hx => ?_⟩
+      dsimp only; split_ifs with hd
+      · refine ⟨id, fun x i hx => ?_⟩
         have hxw : x ≠ w := fun h => by rw [h, hd] at hx; exact nomatch hx
-        simpa [vget_vset_ne _ _ (Ne.symm hxw)] using hx
-      · rw [ite_eq_right hd]
-        exact HKStateLe.refl s
-  · rw [ite_eq_right hG]
-    exact HKStateLe.refl s
+        simpa [vget_vset_ne _ _ hxw.symm] using hx
+      · exact HKStateLe.refl s
+  · exact HKStateLe.refl s
 
 private theorem foldl_hkBfsStep_le (j : ℕ) (u : Fin m) (l : List (Fin r)) (s : HKBfsState m) :
     HKStateLe s (l.foldl (hkBfsStep G mate j u) s) := by
@@ -634,22 +580,14 @@ private theorem foldl_hkBfsStep_done (j : ℕ) (u : Fin m) (l : List (Fin r)) (s
   | cons v l ih =>
     intro x hx hG
     rcases List.mem_cons.mp hx with rfl | hx
-    · refine HKStepDone.mono (l := [x]) ?_ (foldl_hkBfsStep_le j u l _) x
+    · refine HKStepDone.mono (l := [x]) (fun y hy hGy => ?_) (foldl_hkBfsStep_le j u l _) x
         List.mem_cons_self hG
-      intro y hy hGy
-      rw [List.mem_singleton] at hy
-      subst hy
-      unfold hkBfsStep
-      rw [ite_eq_left hGy]
-      refine ⟨fun hm => by simp [hm], fun w hw => ?_⟩
-      simp only [hw]
-      by_cases hd : vget s.dist w = none
-      · simp [hd]
-      · simp [hd]
+      obtain rfl := List.mem_singleton.mp hy
+      refine ⟨fun hm => by simp [hkBfsStep, hGy, hm], fun w hw => ?_⟩
+      by_cases hd : vget s.dist w = none <;> simp [hkBfsStep, hGy, hw, hd]
     · exact ih _ x hx hG
 
 end BfsLayer
-
 
 /-! ### Breadth-first search: correctness -/
 
@@ -712,25 +650,20 @@ private theorem layer_complete (hadj : BipAdjValid G adj) {j : ℕ} {frontier : 
     · exact absurd h (hw.2 j (Nat.lt_succ_self j))
     obtain ⟨u, hu, hG⟩ := mem_altRight.mp hv
     obtain ⟨i, hij, hui⟩ := exists_isLayer hu
-    have hi : i = j := by
-      by_contra hne
-      have := mem_altLeft_succ_of_mem hwv (mem_altRight_of_isLayer hui le_rfl hG)
-      exact hw.2 (i + 1) (by omega) this
-    rw [hi] at hui
-    have hd := (hdone u ((hfront u).mpr hui) v (hadj u v hG) hG).2 w (mem_mateMatching.mp hwv)
+    have hi : i = j := by_contra fun _ => hw.2 (i + 1) (by omega)
+      (mem_altLeft_succ_of_mem hwv (mem_altRight_of_isLayer hui le_rfl hG))
+    have hd := (hdone u ((hfront u).mpr (hi ▸ hui)) v (hadj u v hG) hG).2 w
+      (mem_mateMatching.mp hwv)
     obtain ⟨i', hi'⟩ := Option.ne_none_iff_exists'.mp hd
-    have hb := hs.bound w i' hi'
-    rcases Nat.lt_or_eq_of_le hb with hlt | heq
-    · have := hw.unique ((hs.exact w i' (by omega)).mp hi')
-      omega
-    · exact (hs.next_iff w).mp (heq ▸ hi')
+    rcases Nat.lt_or_eq_of_le (hs.bound w i' hi') with hlt | rfl
+    · have := hw.unique ((hs.exact w i' (by omega)).mp hi'); omega
+    · exact (hs.next_iff w).mp hi'
   · obtain ⟨u, hu, hG⟩ := mem_altRight.mp ht
     obtain ⟨i, hij, hui⟩ := exists_isLayer hu
-    have hi : i = j := by
-      by_contra hne
-      exact hfree (hN i (by omega) (mem_altRight_of_isLayer hui le_rfl hG))
-    rw [hi] at hui
-    exact (hdone u ((hfront u).mpr hui) t (hadj u t hG) hG).1 (vget_mate_eq_none_iff.mpr hfree)
+    have hi : i = j := by_contra fun _ =>
+      hfree (hN i (by omega) (mem_altRight_of_isLayer hui le_rfl hG))
+    exact (hdone u ((hfront u).mpr (hi ▸ hui)) t (hadj u t hG) hG).1
+      (vget_mate_eq_none_iff.mpr hfree)
 
 /-- Specification of a breadth-first layering result. -/
 structure HKBfsSpec (G : Fin m × Fin r → Bool) (M : Finset (Fin m × Fin r))
@@ -742,7 +675,6 @@ structure HKBfsSpec (G : Fin m × Fin r → Bool) (M : Finset (Fin m × Fin r))
     altRight G M b.k ⊆ matchedRight M ∧ ∀ u, vget b.dist u = none ↔ u ∉ altLeft G M b.k
 
 end BfsSpec
-
 
 section BfsLoop
 
@@ -759,95 +691,68 @@ private theorem hkBfsLoopM_spec (hadj : BipAdjValid G adj) (fuel : ℕ) {j : ℕ
   induction fuel generalizing j dist frontier with
   | zero =>
     have := Finset.card_le_univ (altLeft G (mateMatching mate) j)
-    simp only [Fintype.card_fin] at this
-    omega
+    simp only [Fintype.card_fin] at this; omega
   | succ fuel ih =>
     have hs0 : HKStepInv G (mateMatching mate) j ⟨dist, [], false⟩ :=
       ⟨hex, fun u i h => Nat.le_succ_of_le (hbd u i h),
-        fun u => ⟨fun h => by have := hbd u _ h; omega, fun h => absurd h List.not_mem_nil⟩,
-        fun u hu => absurd hu List.not_mem_nil, List.nodup_nil, fun h => by simp at h⟩
-    have hfrontL : ∀ u ∈ frontier, u ∈ altLeft G (mateMatching mate) j :=
-      fun u hu => ((hfront u).mp hu).1
+        fun u => ⟨fun h => (by have := hbd u _ h; omega), (nomatch ·)⟩,
+        fun _ hu => absurd hu List.not_mem_nil, List.nodup_nil, (nomatch ·)⟩
     set s := frontier.foldl (fun s u => (adj u).foldl (hkBfsStep G mate j u) s)
       (⟨dist, [], false⟩ : HKBfsState m) with hsdef
-    have hs : HKStepInv G (mateMatching mate) j s := layerFold_inv frontier hfrontL hs0
-    obtain ⟨hcomp, hfound⟩ := layer_complete hadj hfront hN hs (layerFold_done j frontier _)
+    have hs : HKStepInv G (mateMatching mate) j s :=
+      layerFold_inv (adj := adj) frontier (fun u hu => ((hfront u).mp hu).1) hs0
+    obtain ⟨hcomp, hfound⟩ := layer_complete hadj hfront hN hs
+      (hsdef ▸ layerFold_done j frontier _)
     simp only [hkBfsLoopM, TimeM.ret_bind, hkBfsLayerM_ret, ← hsdef]
-    by_cases hf : s.found = true
-    · rw [ite_eq_left hf, TimeM.ret_pure]
-      exact ⟨hN, hs.exact, fun _ => hs.found hf, fun h => by simp at h⟩
-    rw [ite_eq_right hf]
-    by_cases hne : s.next.isEmpty = true
-    · rw [ite_eq_left hne, TimeM.ret_pure]
+    split_ifs with hf hne
+    · exact ⟨hN, hs.exact, fun _ => hs.found hf, fun h => by simp at h⟩
+    · simp only [TimeM.ret_pure]
       have hnil : s.next = [] := List.isEmpty_iff.mp hne
-      have hstable : altLeft G (mateMatching mate) (j + 1) = altLeft G (mateMatching mate) j := by
-        refine Finset.Subset.antisymm (fun w hw => ?_) (altLeft_mono (Nat.le_succ j))
+      refine ⟨hN, hs.exact, fun h => by simp at h, fun _ => ⟨?_,
+        fun t ht => by_contra fun hfree => hf (hfound t ht hfree), fun u => ⟨fun hd hu => ?_,
+          fun hu => ?_⟩⟩⟩
+      · refine Finset.Subset.antisymm (fun w hw => ?_) (altLeft_mono (Nat.le_succ j))
         obtain ⟨i, hij, hwi⟩ := exists_isLayer hw
-        rcases Nat.lt_or_eq_of_le hij with hlt | rfl
+        rcases Nat.lt_or_eq_of_le hij with _ | rfl
         · exact altLeft_mono (by omega) hwi.1
-        · have := hcomp w hwi; simp [hnil] at this
-      have hmatched : altRight G (mateMatching mate) j ⊆ matchedRight (mateMatching mate) :=
-        fun t ht => by_contra fun hfree => hf (hfound t ht hfree)
-      refine ⟨hN, hs.exact, fun h => by simp at h, fun _ => ⟨hstable, hmatched, fun u => ?_⟩⟩
-      dsimp only
-      constructor
-      · intro hd hu
-        obtain ⟨i, hij, hui⟩ := exists_isLayer hu
+        · exact absurd (hcomp w hwi) (by simp [hnil])
+      · obtain ⟨i, hij, hui⟩ := exists_isLayer hu
         simp [(hs.exact u i hij).mpr hui] at hd
-      · intro hu
-        cases hd : vget s.dist u with
+      · cases hd : vget s.dist u with
         | none => rfl
         | some i =>
-          exfalso
           rcases Nat.lt_or_eq_of_le (hs.bound u i hd) with hlt | rfl
-          · exact hu (altLeft_mono (by omega) ((hs.exact u i (by omega)).mp hd).1)
-          · have := (hs.next_iff u).mp hd; simp [hnil] at this
-    rw [ite_eq_right hne]
-    obtain ⟨w, hw⟩ := List.exists_mem_of_ne_nil s.next (fun h => hne (by simp [h]))
-    refine ih (fun u i hi => ?_) (fun u i h => hs.bound u i h)
-      (fun u => ⟨hs.next_layer u, hcomp u⟩) hs.nodup ?_ ?_
-    · rcases Nat.lt_or_eq_of_le hi with hlt | rfl
+          · have hij : i ≤ j := Nat.lt_succ_iff.mp hlt
+            exact absurd (altLeft_mono hij ((hs.exact u i hij).mp hd).1) hu
+          · exact absurd ((hs.next_iff u).mp hd) (by simp [hnil])
+    · obtain ⟨w, hw⟩ := List.exists_mem_of_ne_nil s.next (fun h => hne (by simp [h]))
+      have hwl := hs.next_layer w hw
+      have hcard := Finset.card_lt_card <| Finset.ssubset_iff_subset_ne.mpr
+        ⟨altLeft_mono (Nat.le_add_right j 1), fun h => hwl.2 j (Nat.lt_add_one j) (h ▸ hwl.1)⟩
+      refine ih (fun u i hi => ?_) hs.bound (fun u => ⟨hs.next_layer u, hcomp u⟩) hs.nodup
+        (fun j' hj' t ht => (Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hj')).elim
+          (fun h => hN j' h ht) (fun h => by_contra fun hf' => hf (hfound t (h ▸ ht) hf')))
+        (by omega)
+      rcases Nat.lt_or_eq_of_le hi with _ | rfl
       · exact hs.exact u i (by omega)
       · exact ⟨fun h => hs.next_layer u ((hs.next_iff u).mp h),
           fun h => (hs.next_iff u).mpr (hcomp u h)⟩
-    · intro j' hj' t ht
-      rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hj') with hlt | rfl
-      · exact hN j' hlt ht
-      · exact by_contra fun hfree => hf (hfound t ht hfree)
-    · have hwl := hs.next_layer w hw
-      have := Finset.card_lt_card <| Finset.ssubset_iff_subset_ne.mpr
-        ⟨altLeft_mono (Nat.le_add_right j 1), fun h => hwl.2 j (Nat.lt_add_one j) (h ▸ hwl.1)⟩
-      omega
 
 theorem hkBfsM_spec (hadj : BipAdjValid G adj) :
     HKBfsSpec G (mateMatching mate) (hkBfsM G adj mate).ret := by
   simp only [hkBfsM, time_simps]
   set ml := (hkMatchedLeftM mate).ret
-  set p := (List.finRange m).foldl (hkBfsInitStep ml) (Vector.replicate m none, [])
   obtain ⟨h1, h2⟩ := bfsInit_foldl ml (List.finRange m) (Vector.replicate m none, [])
-  have hml : ∀ u, vget ml u = false ↔ IsLayer G (mateMatching mate) u 0 := by
-    intro u
-    rw [isLayer_zero, ← hkMatchedLeftM_ret mate u]
-    simp [ml]
-  refine hkBfsLoopM_spec hadj (m + 1) (fun u i hi => ?_) (fun u i h => ?_) (fun u => ?_)
+  have hml : ∀ u, vget ml u = false ↔ IsLayer G (mateMatching mate) u 0 := fun u => by
+    rw [isLayer_zero, ← hkMatchedLeftM_ret mate u]; simp [ml]
+  refine hkBfsLoopM_spec hadj (m + 1)
+    (fun u i hi => by obtain rfl : i = 0 := Nat.eq_zero_of_le_zero hi; simp [h1 u, ← hml u])
+    (fun u i h => by rw [h1 u] at h; split_ifs at h <;> simp_all)
+    (fun u => by simp [h2 u, ← hml u])
     (bfsInit_nodup ml _ _ (List.nodup_finRange m) List.nodup_nil (by simp))
-    (fun j hj => absurd hj (Nat.not_lt_zero _)) (by omega)
-  · have hi0 : i = 0 := by omega
-    subst hi0
-    rw [h1 u, ← hml u]
-    simp
-  · rw [h1 u] at h
-    by_cases hc : u ∈ List.finRange m ∧ vget ml u = false
-    · rw [ite_eq_left hc] at h
-      simp only [Option.some.injEq] at h
-      omega
-    · rw [ite_eq_right hc, vget_replicate] at h
-      exact nomatch h
-  · rw [h2 u, ← hml u]
-    simp
+    (fun _ hj => absurd hj (Nat.not_lt_zero _)) (by omega)
 
 end BfsLoop
-
 
 /-! ### Breadth-first search: cost -/
 
@@ -862,21 +767,16 @@ private theorem hkBfsStep_potential (j : ℕ) (u : Fin m) (s : HKBfsState m) (v 
     vecPotential (· = none) (hkBfsCost adj) (hkBfsStep G mate j u s v).dist +
         ((hkBfsStep G mate j u s v).next.map (hkBfsCost adj)).sum =
       vecPotential (· = none) (hkBfsCost adj) s.dist + (s.next.map (hkBfsCost adj)).sum := by
-  unfold hkBfsStep
-  by_cases hG : G (u, v) = true
-  · rw [ite_eq_left hG]
-    cases hm : vget mate v with
+  unfold hkBfsStep; split_ifs
+  · cases vget mate v with
     | none => rfl
     | some w =>
-      simp only
-      by_cases hd : vget s.dist w = none
-      · rw [ite_eq_left hd]
-        have := vecPotential_vset_add (c := hkBfsCost adj) (p := (· = none)) (t := s.dist)
+      dsimp only; split_ifs with hd
+      · have := vecPotential_vset_add (c := hkBfsCost adj) (p := (· = none)) (t := s.dist)
           (x := some (j + 1)) hd (by simp)
-        simp only [List.map_cons, List.sum_cons]
-        omega
-      · rw [ite_eq_right hd]
-  · rw [ite_eq_right hG]
+        simp only [List.map_cons, List.sum_cons]; omega
+      · rfl
+  · rfl
 
 private theorem layerFold_potential (j : ℕ) (us : List (Fin m)) (s : HKBfsState m) :
     vecPotential (· = none) (hkBfsCost adj)
@@ -888,13 +788,12 @@ private theorem layerFold_potential (j : ℕ) (us : List (Fin m)) (s : HKBfsStat
       vecPotential (· = none) (hkBfsCost adj) (l.foldl (hkBfsStep G mate j u) s).dist +
         ((l.foldl (hkBfsStep G mate j u) s).next.map (hkBfsCost adj)).sum =
       vecPotential (· = none) (hkBfsCost adj) s.dist + (s.next.map (hkBfsCost adj)).sum := by
-    intro u l
-    induction l with
-    | nil => intro s; rfl
-    | cons v l ih => intro s; rw [List.foldl_cons, ih, hkBfsStep_potential]
+    intro u l; induction l with
+    | nil => intro _; rfl
+    | cons _ _ ih => intro _; rw [List.foldl_cons, ih, hkBfsStep_potential]
   induction us generalizing s with
   | nil => rfl
-  | cons u us ih => rw [List.foldl_cons, ih, step]
+  | cons _ _ ih => rw [List.foldl_cons, ih, step]
 
 private theorem hkBfsLoopM_time_le (fuel j : ℕ) (dist : Vector (Option ℕ) m)
     (frontier : List (Fin m)) :
@@ -903,23 +802,18 @@ private theorem hkBfsLoopM_time_le (fuel j : ℕ) (dist : Vector (Option ℕ) m)
   induction fuel generalizing j dist frontier with
   | zero => simp [hkBfsLoopM]
   | succ fuel ih =>
-    have hlayer : (hkBfsLayerM G adj mate j frontier ⟨dist, [], false⟩).time =
-        (frontier.map (hkBfsCost adj)).sum := by
-      rw [hkBfsLayerM_time]
-      rfl
+    set s := frontier.foldl (fun s u => (adj u).foldl (hkBfsStep G mate j u) s)
+      ⟨dist, [], false⟩ with hsdef
     have hpot := layerFold_potential (G := G) (mate := mate) (adj := adj) j frontier
       ⟨dist, [], false⟩
-    simp only [List.map_nil, List.sum_nil, Nat.add_zero] at hpot
-    simp only [hkBfsLoopM, time_simps, hlayer]
-    set s := frontier.foldl (fun s u => (adj u).foldl (hkBfsStep G mate j u) s)
-      (⟨dist, [], false⟩ : HKBfsState m)
+    simp only [List.map_nil, List.sum_nil, Nat.add_zero, ← hsdef] at hpot
+    have hlt : (hkBfsLayerM G adj mate j frontier ⟨dist, [], false⟩).time =
+        (frontier.map (hkBfsCost adj)).sum := hkBfsLayerM_time ..
+    simp only [hkBfsLoopM, time_simps, hlt, hkBfsLayerM_ret, ← hsdef]
     split_ifs
-    · simp only [TimeM.time_pure]
-      omega
-    · simp only [TimeM.time_pure]
-      omega
-    · have := ih (j + 1) s.dist s.next
-      omega
+    · simp only [TimeM.time_pure]; omega
+    · simp only [TimeM.time_pure]; omega
+    · have := ih (j + 1) s.dist s.next; omega
 
 private theorem sum_hkBfsCost (adj : Fin m → List (Fin r)) :
     ∑ u, hkBfsCost adj u = bipAdjSteps adj + m := by
@@ -929,18 +823,16 @@ theorem hkBfsM_time_le (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin 
     (mate : Vector (Option (Fin m)) r) :
     (hkBfsM G adj mate).time ≤ 6 * m + r + 1 + 2 * bipAdjSteps adj := by
   simp only [hkBfsM, time_simps, List.length_finRange]
+  set p := (List.finRange m).foldl (hkBfsInitStep (hkMatchedLeftM mate).ret)
+    (Vector.replicate m none, []) with hp
   have hinit := bfsInit_potential (hkMatchedLeftM mate).ret (hkBfsCost adj) (List.finRange m)
     (Vector.replicate m none, [])
-  set p := (List.finRange m).foldl (hkBfsInitStep (hkMatchedLeftM mate).ret)
-    (Vector.replicate m none, [])
   have hloop := hkBfsLoopM_time_le (G := G) (adj := adj) (mate := mate) (m + 1) 0 p.1 p.2
-  have h0 := vecPotential_le_sum (p := (· = none)) (hkBfsCost adj)
-    (Vector.replicate m (none : Option ℕ))
+  have h0 := (vecPotential_le_sum (α := Option ℕ) (p := (· = none)) (hkBfsCost adj)
+    (Vector.replicate m none)).trans_eq (sum_hkBfsCost adj)
   have hsum : ((List.finRange m).map (hkBfsCost adj)).sum = bipAdjSteps adj + m := by
-    rw [← List.sum_toFinset _ (List.nodup_finRange m), ← sum_hkBfsCost adj]
-    simp
-  simp only [List.map_nil, List.sum_nil, Nat.add_zero] at hinit
-  rw [sum_hkBfsCost] at h0
+    rw [← List.sum_toFinset _ (List.nodup_finRange m), ← sum_hkBfsCost adj]; simp
+  simp only [List.map_nil, List.sum_nil, Nat.add_zero, ← hp] at hinit
   omega
 
 end BfsTime
@@ -950,35 +842,6 @@ end BfsTime
 section DfsSpec
 
 variable {G : Fin m × Fin r → Bool} {M : Finset (Fin m × Fin r)} {k : ℕ}
-
-private theorem mate_unique {mate : Vector (Option (Fin m)) r} {w w' : Fin m} {v : Fin r}
-    (h : (w, v) ∈ mateMatching mate) (h' : (w', v) ∈ mateMatching mate) : w = w' := by
-  rw [mem_mateMatching] at h h'
-  rw [h] at h'
-  exact Option.some.inj h'
-
-private theorem mem_matchedRight_cons {e : Fin m × Fin r} {l : List (Fin m × Fin r)} {v : Fin r} :
-    v ∈ matchedRight (e :: l).toFinset ↔ v = e.2 ∨ v ∈ matchedRight l.toFinset := by
-  simp only [mem_matchedRight, List.toFinset_cons, Finset.mem_insert, List.mem_toFinset]
-  constructor
-  · rintro ⟨u, rfl | h⟩
-    · exact .inl rfl
-    · exact .inr ⟨u, h⟩
-  · rintro (rfl | ⟨u, h⟩)
-    · exact ⟨e.1, .inl rfl⟩
-    · exact ⟨u, .inr h⟩
-
-private theorem matchedRight_subset_append (p l : List (Fin m × Fin r)) :
-    matchedRight l.toFinset ⊆ matchedRight (p ++ l).toFinset := by
-  intro v hv
-  obtain ⟨u, hu⟩ := mem_matchedRight.mp hv
-  exact mem_matchedRight.mpr ⟨u, by
-    simp only [List.toFinset_append, Finset.mem_union]
-    exact .inr hu⟩
-
-private theorem matchedRight_subset_cons (e : Fin m × Fin r) (l : List (Fin m × Fin r)) :
-    matchedRight l.toFinset ⊆ matchedRight (e :: l).toFinset :=
-  matchedRight_subset_append [e] l
 
 /-- A layered path through the candidate edge `(u, v)`. -/
 private theorem IsLayeredPath.cons_cases {U : Finset (Fin r)} {u : Fin m} {v : Fin r} {i : ℕ}
@@ -995,9 +858,8 @@ private def HKDead (G : Fin m × Fin r → Bool) (M : Finset (Fin m × Fin r)) (
   ∃ w, (w, v) ∈ M ∧ ∀ i q, ¬ IsLayeredPath G M U k w i q
 
 private theorem HKDead.mono {U U' : Finset (Fin r)} (hU : U ⊆ U') {v : Fin r}
-    (h : HKDead G M U k v) : HKDead G M U' k v := by
-  obtain ⟨w, hw, h⟩ := h
-  exact ⟨w, hw, fun i q hq => h i q (hq.mono hU)⟩
+    (h : HKDead G M U k v) : HKDead G M U' k v :=
+  let ⟨w, hw, h⟩ := h; ⟨w, hw, fun i q hq => h i q (hq.mono hU)⟩
 
 /-- Visited-table invariant of the depth-first search for accumulated paths `acc` and the right
 vertices `S` on the current search stack. -/
@@ -1010,18 +872,9 @@ private structure HKVisInv (G : Fin m × Fin r → Bool) (M : Finset (Fin m × F
 /-- Visited tables only grow. -/
 private def HKVisLe (vis vis' : Vector Bool r) : Prop := ∀ v, vget vis v = true → vget vis' v = true
 
-private theorem HKVisLe.refl (vis : Vector Bool r) : HKVisLe vis vis := fun _ => id
-
-private theorem HKVisLe.trans {a b c : Vector Bool r} (h₁ : HKVisLe a b) (h₂ : HKVisLe b c) :
-    HKVisLe a c := fun v h => h₂ v (h₁ v h)
-
-private theorem HKVisLe.vset (vis : Vector Bool r) (v : Fin r) : HKVisLe vis (vset vis v true) := by
-  intro x hx
-  by_cases hxv : x = v
-  · subst hxv
-    exact vget_vset_self vis x true
-  · rw [vget_vset_ne vis true (Ne.symm hxv)]
-    exact hx
+private theorem HKVisLe.vset (vis : Vector Bool r) (v : Fin r) : HKVisLe vis (vset vis v true) :=
+  fun x hx => (eq_or_ne x v).elim (· ▸ vget_vset_self vis v true)
+    fun h => by rwa [vget_vset_ne vis true h.symm]
 
 /-- A layered path whose first edge ends at a right vertex `v` matched to `w` continues with a
 layered path from `w` in the next layer. -/
@@ -1031,37 +884,32 @@ private theorem IsLayeredPath.of_mate {mate : Vector (Option (Fin m)) r} {U : Fi
     IsLayeredPath G (mateMatching mate) U k w (i + 1) q := by
   rcases h.cons_cases.2.2 with ⟨_, hfree⟩ | ⟨w', hw', hp⟩
   · exact absurd (mem_matchedRight.mpr ⟨w, hw⟩) hfree
-  · rwa [← mate_unique hw hw'] at hp
+  · obtain rfl : w = w' := Option.some.inj ((mem_mateMatching.mp hw).symm.trans
+      (mem_mateMatching.mp hw'))
+    exact hp
 
 /-- Marking `v` visited while pushing it on the search stack preserves the visited invariant. -/
 private theorem HKVisInv.push {acc : List (Fin m × Fin r)} {S : Finset (Fin r)}
     {vis : Vector Bool r} (h : HKVisInv G M k acc S vis) (v : Fin r) :
     HKVisInv G M k acc (insert v S) (vset vis v true) := by
   refine ⟨fun x hx => HKVisLe.vset vis v x (h.acc_vis x hx), fun x hx => ?_⟩
-  by_cases hxv : x = v
-  · subst hxv
-    exact .inr (.inl (Finset.mem_insert_self _ _))
-  · rw [vget_vset_ne vis true (Ne.symm hxv)] at hx
-    rcases h.vis_cases x hx with h | h | h
-    · exact .inl h
-    · exact .inr (.inl (Finset.mem_insert_of_mem h))
-    · exact .inr (.inr h)
+  rcases eq_or_ne x v with rfl | hxv
+  · exact .inr (.inl (Finset.mem_insert_self _ _))
+  · rw [vget_vset_ne vis true hxv.symm] at hx
+    exact (h.vis_cases x hx).imp_right (Or.imp_left Finset.mem_insert_of_mem)
 
 /-- Prepending a visited edge `(u, v)` to the accumulated paths moves `v` from the search stack
 to the matched vertices. -/
 private theorem HKVisInv.cons {acc : List (Fin m × Fin r)} {S : Finset (Fin r)}
     {vis : Vector Bool r} {u : Fin m} {v : Fin r} (h : HKVisInv G M k acc (insert v S) vis)
     (hv : vget vis v = true) : HKVisInv G M k ((u, v) :: acc) S vis := by
-  refine ⟨fun x hx => ?_, fun x hx => ?_⟩
-  · rcases mem_matchedRight_cons.mp hx with rfl | hx
-    · exact hv
-    · exact h.acc_vis x hx
-  · rcases h.vis_cases x hx with h | h | h
-    · exact .inl (matchedRight_subset_cons _ _ h)
-    · rcases Finset.mem_insert.mp h with rfl | h
-      · exact .inl (mem_matchedRight_cons.mpr (.inl rfl))
-      · exact .inr (.inl h)
-    · exact .inr (.inr (h.mono (matchedRight_subset_cons _ _)))
+  have hsub : matchedRight acc.toFinset ⊆ matchedRight ((u, v) :: acc).toFinset := by
+    simp only [matchedRight, List.toFinset_cons]
+    exact Finset.image_subset_image (Finset.subset_insert _ _)
+  refine ⟨fun x hx => ((by simpa [matchedRight] using hx : x = v ∨ _).elim (· ▸ hv) (h.acc_vis x)),
+    fun x hx => (h.vis_cases x hx).elim (fun hx => .inl (hsub hx)) fun hx => hx.elim
+      (fun hx => (Finset.mem_insert.mp hx).elim (· ▸ .inl (by simp [matchedRight])) (.inr ∘ .inl))
+      fun hx => .inr (.inr (hx.mono hsub))⟩
 
 /-- Popping `v` from the search stack after the scan from its mate `w` in layer `j` found no
 layered path preserves the visited invariant: `v` is now dead. -/
@@ -1070,16 +918,12 @@ private theorem HKVisInv.pop {mate : Vector (Option (Fin m)) r} {acc : List (Fin
     (h : HKVisInv G (mateMatching mate) k acc (insert v S) vis) (hw : (w, v) ∈ mateMatching mate)
     (hwl : IsLayer G (mateMatching mate) w j)
     (hblk : ∀ q, ¬ IsLayeredPath G (mateMatching mate) (matchedRight acc.toFinset) k w j q) :
-    HKVisInv G (mateMatching mate) k acc S vis := by
-  refine ⟨h.acc_vis, fun x hx => ?_⟩
-  rcases h.vis_cases x hx with h | h | h
-  · exact .inl h
-  · rcases Finset.mem_insert.mp h with rfl | h
-    · refine .inr (.inr ⟨w, hw, fun i' q hq => ?_⟩)
-      obtain rfl := hwl.unique hq.isLayer
-      exact hblk q hq
-    · exact .inr (.inl h)
-  · exact .inr (.inr h)
+    HKVisInv G (mateMatching mate) k acc S vis :=
+  ⟨h.acc_vis, fun x hx => (h.vis_cases x hx).imp_right fun hx => hx.elim
+    (fun h => (Finset.mem_insert.mp h).elim
+      (fun heq => .inr ⟨w, heq ▸ hw, fun _ q hq => by
+        subst heq; cases hwl.unique hq.isLayer; exact hblk q hq⟩) .inl)
+    .inr⟩
 
 /-- Postcondition of a depth-first scan from `u` in layer `i`. On success the found path is
 prepended to `acc`; on failure `blocked` holds. -/
@@ -1102,11 +946,9 @@ private theorem HKDfsPost.skip {u : Fin m} {i : ℕ} {acc : List (Fin m × Fin r
     (hv : ∀ q, ¬ IsLayeredPath G M (matchedRight acc.toFinset) k u i ((u, v) :: q)) :
     HKDfsPost G M k u i acc S vis
       (∀ v' ∈ v :: vs, ∀ q, ¬ IsLayeredPath G M (matchedRight acc.toFinset) k u i ((u, v') :: q))
-      res := by
-  refine ⟨hle.trans h.le, h.found, fun hn => ⟨(h.fail hn).1, fun v' hv' => ?_⟩⟩
-  rcases List.mem_cons.mp hv' with rfl | hv'
-  · exact hv
-  · exact (h.fail hn).2 v' hv'
+      res :=
+  ⟨fun x hx => h.le x (hle x hx), h.found, fun hn => ⟨(h.fail hn).1, fun v' hv' =>
+    (List.mem_cons.mp hv').elim (· ▸ hv) ((h.fail hn).2 v')⟩⟩
 
 /-- Right vertices on the search stack are matched to left vertices of layers `≤ i`. -/
 private def HKStackOK (G : Fin m × Fin r → Bool) (M : Finset (Fin m × Fin r)) (S : Finset (Fin r))
@@ -1153,80 +995,60 @@ private theorem hkDfsLevelM_post
         ((u, v) :: q))
       (hkDfsLevelM G mate dist accept i next u vs vis acc).ret := by
   induction vs with
-  | nil =>
-    intro vis hinv
-    exact ⟨HKVisLe.refl vis, fun p hp => (nomatch hp),
-      fun _ => ⟨hinv, fun v hv => absurd hv List.not_mem_nil⟩⟩
+  | nil => exact fun vis hinv => ⟨fun _ => id, fun _ hp => (nomatch hp),
+      fun _ => ⟨hinv, fun _ hv => nomatch hv⟩⟩
   | cons v vs ih =>
     intro vis hinv
     simp only [hkDfsLevelM, TimeM.ret_bind]
-    by_cases hc : G (u, v) = true ∧ vget vis v = false
-    · rw [ite_eq_left hc]
+    split
+    · next hc =>
       have hvU : v ∉ matchedRight acc.toFinset := fun h =>
         Bool.false_ne_true (hc.2.symm.trans (hinv.acc_vis v h))
       cases hm : vget mate v with
       | none =>
-        simp only
-        by_cases ha : accept = true
-        · -- The last layer: `v` is free, so `(u, v)` completes an augmenting path.
-          rw [ite_eq_left ha, TimeM.ret_pure]
+        dsimp only; split
+        · next ha =>
           obtain rfl : i = k := hacc.mp ha
-          refine ⟨HKVisLe.vset vis v, fun p hp => ?_, fun hp => (nomatch hp)⟩
-          obtain rfl : p = (u, v) :: acc := (Option.some.inj hp).symm
-          exact ⟨[(u, v)], rfl, .last hu hc.1 (vget_mate_eq_none_iff.mp hm) hvU,
-            (hinv.push v).cons (vget_vset_self vis _ true)⟩
-        · rw [ite_eq_right ha]
-          refine (ih vis hinv).skip (HKVisLe.refl vis) fun q hq => ?_
-          rcases hq.cons_cases.2.2 with ⟨hik', _⟩ | ⟨w, hw, _⟩
-          · exact ha (hacc.mpr hik')
-          · simp [mem_mateMatching, hm] at hw
+          exact ⟨HKVisLe.vset vis v, fun p hp => Option.some.inj hp ▸
+            ⟨[(u, v)], rfl, .last hu hc.1 (vget_mate_eq_none_iff.mp hm) hvU,
+              (hinv.push v).cons (vget_vset_self vis _ true)⟩, fun hp => nomatch hp⟩
+        · next ha =>
+          exact (ih vis hinv).skip (fun _ => id) fun _ hq =>
+            hq.cons_cases.2.2.elim (fun h => ha (hacc.mpr h.1)) fun ⟨_, hw, _⟩ => by
+              simp [mem_mateMatching, hm] at hw
       | some w =>
-        simp only
         have hwM : (w, v) ∈ mateMatching mate := mem_mateMatching.mpr hm
-        by_cases hb : accept = false ∧ vget dist w = some (i + 1)
-        · -- Recurse from the mate `w` of `v` in the next layer, with `v` on the stack.
-          rw [ite_eq_left hb]
+        dsimp only; split
+        · next hb =>
           simp only [TimeM.ret_bind]
-          have hik1 : i + 1 ≤ k :=
-            lt_of_le_of_ne hik fun h => Bool.false_ne_true (hb.1.symm.trans (hacc.mpr h))
-          have hwl : IsLayer G (mateMatching mate) w (i + 1) := (hex w (i + 1) hik1).mp hb.2
+          have hwl : IsLayer G (mateMatching mate) w (i + 1) := (hex w (i + 1)
+            (lt_of_le_of_ne hik fun h => Bool.false_ne_true
+              (hb.1.symm.trans (hacc.mpr h)))).mp hb.2
           have hspec := hnext hb.1 w (vset vis v true) acc (insert v S) hwl (hS.insert hwM hwl)
             (hinv.push v)
           generalize (next w (vset vis v true) acc).ret = res at hspec ⊢
-          obtain ⟨vis', o⟩ := res
-          have hle : HKVisLe vis vis' := (HKVisLe.vset vis v).trans hspec.le
-          cases o with
-          | some p' =>
-            simp only [TimeM.ret_pure]
-            obtain ⟨q, rfl, hqpath, hqinv⟩ := hspec.found p' rfl
-            refine ⟨hle, fun p hp => ?_, fun hp => (nomatch hp)⟩
-            obtain rfl : p = (u, v) :: (q ++ acc) := (Option.some.inj hp).symm
-            exact ⟨(u, v) :: q, rfl, .cons hu hc.1 hwM hvU hqpath,
-              hqinv.cons (hspec.le _ (vget_vset_self vis _ true))⟩
-          | none =>
-            simp only
-            obtain ⟨hinv1, hblk⟩ := hspec.fail rfl
-            exact (ih vis' (hinv1.pop hwM hwl hblk)).skip hle fun q hq => hblk q (hq.of_mate hwM)
-        · -- The mate of `v` is not in the next layer, so no layered path uses `(u, v)`.
-          rw [ite_eq_right hb]
-          refine (ih vis hinv).skip (HKVisLe.refl vis) fun q hq => ?_
+          rcases res with ⟨vis', _ | p'⟩
+          · obtain ⟨hinv1, hblk⟩ := hspec.fail rfl
+            exact (ih vis' (hinv1.pop hwM hwl hblk)).skip
+              (fun x hx => hspec.le x (HKVisLe.vset vis v x hx))
+              fun q hq => hblk q (hq.of_mate hwM)
+          · obtain ⟨q, rfl, hqpath, hqinv⟩ := hspec.found p' rfl
+            exact ⟨fun x hx => hspec.le x (HKVisLe.vset vis v x hx),
+              fun _ hp => Option.some.inj hp ▸ ⟨(u, v) :: q, rfl, .cons hu hc.1 hwM hvU hqpath,
+                hqinv.cons (hspec.le _ (vget_vset_self vis _ true))⟩, fun hp => nomatch hp⟩
+        · next hb =>
+          refine (ih vis hinv).skip (fun _ => id) fun _ hq => ?_
           have hp := hq.of_mate hwM
-          refine hb ⟨?_, (hex w (i + 1) hp.le).mpr hp.isLayer⟩
-          by_contra ha
-          have ha' : accept = true := Bool.eq_true_of_not_eq_false ha
-          have := hacc.mp ha'
-          have := hp.le
-          omega
-    · -- `(u, v)` is not an edge or `v` was already visited.
-      rw [ite_eq_right hc]
-      refine (ih vis hinv).skip (HKVisLe.refl vis) fun q hq => ?_
+          exact hb ⟨Bool.eq_false_iff.mpr fun ha => by have := hacc.mp ha; have := hp.le; omega,
+            (hex w (i + 1) hp.le).mpr hp.isLayer⟩
+    · next hc =>
+      refine (ih vis hinv).skip (fun _ => id) fun q hq => ?_
       obtain ⟨hG, hU, -⟩ := hq.cons_cases
-      have hvis : vget vis v = true := Bool.of_not_eq_false fun h => hc ⟨hG, h⟩
-      rcases hinv.vis_cases v hvis with h | h | ⟨w, hw, hdead⟩
+      rcases hinv.vis_cases v (Bool.of_not_eq_false fun h => hc ⟨hG, h⟩) with
+        h | h | ⟨w, hw, hdead⟩
       · exact hU h
-      · obtain ⟨w, j, hw, hwl, hj⟩ := hS v h
-        have := hwl.unique (hq.of_mate hw).isLayer
-        omega
+      · obtain ⟨w, j, hw, hwl, _⟩ := hS v h
+        have := hwl.unique (hq.of_mate hw).isLayer; omega
       · exact hdead _ q (hq.of_mate hw)
 
 end DfsLevel
@@ -1265,23 +1087,6 @@ private theorem hkDfsM_spec (hadj : BipAdjValid G adj)
     exact (hkDfsLevelM_post (accept := false) hex (by omega) (by simp; omega)
       (fun _ => ih (i + 1) (by omega)) hu hS (adj u) vis hinv).weaken blocked
 
-private theorem mem_matchedLeft_iff_mem_map {l : List (Fin m × Fin r)} {x : Fin m} :
-    x ∈ matchedLeft l.toFinset ↔ x ∈ l.map Prod.fst := by
-  simp only [mem_matchedLeft, List.mem_toFinset, List.mem_map]
-  constructor
-  · rintro ⟨v, hv⟩
-    exact ⟨(x, v), hv, rfl⟩
-  · rintro ⟨⟨a, b⟩, h, rfl⟩
-    exact ⟨b, h⟩
-
-private theorem matchedLeft_subset_append (p l : List (Fin m × Fin r)) :
-    matchedLeft l.toFinset ⊆ matchedLeft (p ++ l).toFinset := by
-  intro v hv
-  obtain ⟨u, hu⟩ := mem_matchedLeft.mp hv
-  exact mem_matchedLeft.mpr ⟨u, by
-    simp only [List.toFinset_append, Finset.mem_union]
-    exact .inr hu⟩
-
 private theorem hkDfsRootsM_spec (hadj : BipAdjValid G adj)
     (hex : ∀ u i, i ≤ k → (vget dist u = some i ↔ IsLayer G (mateMatching mate) u i))
     (us : List (Fin m)) (hnd : us.Nodup) :
@@ -1295,52 +1100,44 @@ private theorem hkDfsRootsM_spec (hadj : BipAdjValid G adj)
       ∀ q, ¬ IsLayeredPath G (mateMatching mate)
         (matchedRight (hkDfsRootsM G adj mate dist k us vis acc).ret.toFinset) k y 0 q := by
   induction us with
-  | nil =>
-    intro vis acc hfam _ _ hmax
-    exact ⟨hfam, fun y hy => hmax y List.not_mem_nil hy⟩
+  | nil => exact fun _ _ hfam _ _ hmax => ⟨hfam, fun y => hmax y List.not_mem_nil⟩
   | cons x us ih =>
     intro vis acc hfam hinv hroots hmax
     obtain ⟨hxus, hnd'⟩ := List.nodup_cons.mp hnd
     simp only [hkDfsRootsM, TimeM.ret_bind]
-    by_cases hd : vget dist x = some 0
-    · rw [ite_eq_left hd]
-      simp only [TimeM.ret_bind]
-      have hx0 : IsLayer G (mateMatching mate) x 0 := (hex x 0 (Nat.zero_le _)).mp hd
-      have hS : HKStackOK G (mateMatching mate) ∅ 0 := fun v hv => absurd hv (Finset.notMem_empty v)
-      have hspec := hkDfsM_spec hadj hex k 0 (by omega) x vis acc ∅ hx0 hS hinv
+    split_ifs with hd
+    · simp only [TimeM.ret_bind]
+      have hx0 := (hex x 0 (Nat.zero_le _)).mp hd
+      have hspec := hkDfsM_spec hadj hex k 0 (by omega) x vis acc ∅ hx0 (by simp [HKStackOK]) hinv
       generalize (hkDfsM G adj mate dist k 0 x vis acc).ret = res at hspec ⊢
-      obtain ⟨vis', o⟩ := res
-      cases o with
-      | none =>
-        obtain ⟨hinv', hblk⟩ := hspec.fail rfl
-        refine ih hnd' vis' acc hfam hinv' (fun y hy => hroots y (List.mem_cons_of_mem _ hy))
+      rcases res with ⟨vis', _ | p⟩
+      · obtain ⟨hinv', hblk⟩ := hspec.fail rfl
+        exact ih hnd' vis' acc hfam hinv' (fun y hy => hroots y (List.mem_cons_of_mem _ hy))
           fun y hy hyacc => (eq_or_ne y x).elim (· ▸ hblk) fun hyx =>
             hmax y (fun h => (List.mem_cons.mp h).elim hyx hy) hyacc
-      | some p =>
-        obtain ⟨q, rfl, hq, hinv'⟩ := hspec.found p rfl
-        have hxacc : x ∉ acc.map Prod.fst := fun h =>
-          hroots x List.mem_cons_self hx0 (mem_matchedLeft_iff_mem_map.mpr h)
+      · obtain ⟨q, rfl, hq, hinv'⟩ := hspec.found p rfl
+        have hsub : acc.toFinset ⊆ (q ++ acc).toFinset := by
+          simp only [List.toFinset_append]; exact Finset.subset_union_right
+        have hxacc : x ∉ acc.map Prod.fst := fun h => hroots x List.mem_cons_self hx0
+          (by simpa [matchedLeft] using h)
         refine ih hnd' vis' (q ++ acc) (.cons hfam hxacc hq) hinv' (fun y hy hy0 hyacc => ?_)
           fun y hy hyacc => ?_
-        · rw [mem_matchedLeft_iff_mem_map, List.map_append, List.mem_append] at hyacc
-          rcases hyacc with hyq | hyacc
-          · obtain ⟨e, he, hfst⟩ := List.mem_map.mp hyq
-            rcases hq.mem_left e he with hex' | ⟨_, _, hM'⟩
-            · exact hxus (hex' ▸ hfst.symm ▸ hy)
-            · exact (isLayer_zero.mp hy0) (mem_matchedLeft.mpr ⟨_, hfst ▸ hM'⟩)
-          · exact hroots y (List.mem_cons_of_mem _ hy) hy0 (mem_matchedLeft_iff_mem_map.mpr hyacc)
+        · rcases Finset.mem_image.mp hyacc with ⟨e, he, rfl⟩
+          rcases List.mem_append.mp (List.mem_toFinset.mp he) with he | he
+          · rcases hq.mem_left e he with h | ⟨_, _, hM'⟩
+            · exact hxus (h ▸ hy)
+            · exact (isLayer_zero.mp hy0) (mem_matchedLeft.mpr ⟨_, hM'⟩)
+          · exact hroots e.1 (List.mem_cons_of_mem _ hy) hy0
+              (Finset.mem_image_of_mem _ (List.mem_toFinset.mpr he))
         · rcases eq_or_ne y x with rfl | hyx
-          · obtain ⟨v, _, rfl⟩ := hq.head
-            exact absurd (mem_matchedLeft.mpr ⟨v, by simp⟩) hyacc
+          · obtain ⟨v, _, rfl⟩ := hq.head; exact absurd (mem_matchedLeft.mpr ⟨v, by simp⟩) hyacc
           · exact fun p hp => hmax y (fun h => (List.mem_cons.mp h).elim hyx hy)
-              (fun h => hyacc (matchedLeft_subset_append q acc h)) p
-              (hp.mono (matchedRight_subset_append q acc))
-    · rw [ite_eq_right hd]
-      refine ih hnd' vis acc hfam hinv (fun y hy => hroots y (List.mem_cons_of_mem _ hy))
-        fun y hy hyacc => ?_
-      rcases eq_or_ne y x with rfl | hyx
-      · exact fun q hq => hd ((hex y 0 (Nat.zero_le _)).mpr hq.isLayer)
-      · exact hmax y (fun h => (List.mem_cons.mp h).elim hyx hy) hyacc
+              (fun h => hyacc (Finset.image_subset_image hsub h)) p
+              (hp.mono (Finset.image_subset_image hsub))
+    · exact ih hnd' vis acc hfam hinv (fun y hy => hroots y (List.mem_cons_of_mem _ hy))
+        fun y hy hyacc => (eq_or_ne y x).elim
+          (fun h q hq => hd ((hex x 0 (Nat.zero_le _)).mpr (h ▸ hq.isLayer)))
+          fun hyx => hmax y (fun h => (List.mem_cons.mp h).elim hyx hy) hyacc
 
 /-- The edge list found by one phase is a maximal layered augmentation. -/
 theorem hkDfsRootsM_maximal (hadj : BipAdjValid G adj)
@@ -1353,10 +1150,9 @@ theorem hkDfsRootsM_maximal (hadj : BipAdjValid G adj)
       k := by
   have h := hkDfsRootsM_spec hadj hex (List.finRange m) (List.nodup_finRange m)
     (Vector.replicate r false) [] .nil
-    ⟨fun v hv => by simp [matchedRight] at hv, fun v hv => by
-      rw [vget_replicate] at hv
-      exact nomatch hv⟩
-    (fun y _ _ => by simp [matchedLeft]) (fun y hy => absurd (List.mem_finRange y) hy)
+    ⟨fun _ hv => by simp [matchedRight] at hv, fun _ hv => by
+      simp only [vget_replicate] at hv; exact nomatch hv⟩
+    (fun _ _ _ => by simp [matchedLeft]) (fun y hy => absurd (List.mem_finRange y) hy)
   exact ⟨h.1, h.1.isMaximalLayeredAugmentation hM h.2⟩
 
 end DfsDriver
@@ -1373,23 +1169,12 @@ theorem vget_foldl_apply (mate : Vector (Option (Fin m)) r) (es : List (Fin m ×
   | nil => simp
   | cons e es ih =>
     obtain ⟨a, b⟩ := e
-    simp only [List.map_cons, List.nodup_cons] at hnd
-    rw [List.foldl_cons, ih _ hnd.2]
-    by_cases hvb : v = b
-    · subst hvb
-      simp only [vget_vset_self, Option.some.injEq, List.mem_cons, Prod.mk.injEq, and_true,
-        List.map_cons, true_or, not_true_eq_false, false_and, or_false]
-      constructor
-      · rintro (h | ⟨_, h⟩)
-        · exact .inr (by
-            have : (u, v) ∈ es := h
-            exact absurd (List.mem_map.mpr ⟨(u, v), this, rfl⟩) hnd.1)
-        · exact .inl h.symm
-      · rintro (h | h)
-        · exact .inr ⟨hnd.1, h.symm⟩
-        · exact absurd (List.mem_map.mpr ⟨(u, v), h, rfl⟩) hnd.1
-    · rw [vget_vset_ne mate _ (Ne.symm hvb)]
-      simp only [List.mem_cons, Prod.mk.injEq, hvb, and_false, false_or, List.map_cons]
+    obtain ⟨hb, hnd'⟩ := List.nodup_cons.mp (by simpa only [List.map_cons] using hnd)
+    rw [List.foldl_cons, ih _ hnd']
+    rcases eq_or_ne v b with rfl | hvb
+    · have hne : (u, v) ∉ es := fun h => hb (List.mem_map.mpr ⟨_, h, rfl⟩)
+      simp [hb, hne, eq_comm]
+    · simp [vget_vset_ne mate _ hvb.symm, hvb]
 
 /-- Rematching a mate table along a compatible edge list realizes `augment`. -/
 theorem mateMatching_applyEdges (mate : Vector (Option (Fin m)) r)
@@ -1402,25 +1187,14 @@ theorem mateMatching_applyEdges (mate : Vector (Option (Fin m)) r)
   ext ⟨u, v⟩
   rw [mem_mateMatching, vget_foldl_apply mate es hnd, mem_augment, List.mem_toFinset,
     mem_mateMatching]
-  have hv : v ∈ es.map Prod.snd ↔ v ∈ matchedRight es.toFinset := by
-    simp only [List.mem_map, mem_matchedRight, List.mem_toFinset]
-    constructor
-    · rintro ⟨⟨a, b⟩, h, rfl⟩
-      exact ⟨a, h⟩
-    · rintro ⟨a, h⟩
-      exact ⟨(a, v), h, rfl⟩
-  constructor
-  · rintro (h | ⟨h1, h2⟩)
-    · exact .inl h
-    · refine .inr ⟨h2, fun hu => h1 (hv.mpr ((hcompat u v (mem_mateMatching.mpr h2)).mp hu))⟩
-  · rintro (h | ⟨h1, h2⟩)
-    · exact .inl h
-    · exact .inr ⟨fun h => h2 ((hcompat u v (mem_mateMatching.mpr h1)).mpr (hv.mp h)), h1⟩
+  have hv : v ∈ es.map Prod.snd ↔ v ∈ matchedRight es.toFinset := by simp [matchedRight]
+  exact or_congr_right
+    ⟨fun ⟨h1, h2⟩ => ⟨h2, fun hu => h1 (hv.mpr ((hcompat u v (mem_mateMatching.mpr h2)).mp hu))⟩,
+     fun ⟨h1, h2⟩ => ⟨fun h => h2 ((hcompat u v (mem_mateMatching.mpr h1)).mpr (hv.mp h)), h1⟩⟩
 
 end ApplyEdges
 
 /-! ### Depth-first search: cost -/
-
 
 section DfsTime
 
@@ -1446,121 +1220,74 @@ private theorem hkDfsLevelM_time_le {accept : Bool} {i : ℕ}
           (hkDfsLevelM G mate dist accept i next u vs vis acc).ret.1 ≤
       vs.length + vecPotential (· = false) (hkDfsCost adj mate) vis := by
   induction vs with
-  | nil => intro vis; simp [hkDfsLevelM]
+  | nil => exact fun _ => by simp [hkDfsLevelM]
   | cons v vs ih =>
     intro vis
-    have skip : ∀ vis', vecPotential (· = false) (hkDfsCost adj mate) vis' ≤
-        vecPotential (· = false) (hkDfsCost adj mate) vis →
-        1 + (hkDfsLevelM G mate dist accept i next u vs vis' acc).time +
-          vecPotential (· = false) (hkDfsCost adj mate)
-            (hkDfsLevelM G mate dist accept i next u vs vis' acc).ret.1 ≤
-        (v :: vs).length + vecPotential (· = false) (hkDfsCost adj mate) vis := by
-      intro vis' hvis'
-      have := ih vis'
-      simp only [List.length_cons]
-      omega
-    simp only [hkDfsLevelM, TimeM.time_bind, TimeM.time_tick, TimeM.ret_bind]
+    simp only [hkDfsLevelM, TimeM.time_bind, TimeM.time_tick, TimeM.ret_bind, List.length_cons]
     by_cases hc : G (u, v) = true ∧ vget vis v = false
-    · rw [ite_eq_left hc]
-      have hpot : ∀ w, vget mate v = some w →
-          vecPotential (· = false) (hkDfsCost adj mate) (vset vis v true) + (adj w).length =
-            vecPotential (· = false) (hkDfsCost adj mate) vis := by
-        intro w hw
-        have := vecPotential_vset_add (p := (· = false)) (c := hkDfsCost adj mate) (t := vis)
-          (w := v) (x := true) hc.2 (by simp)
-        simpa [hkDfsCost, hw] using this
+    · rw [ite_eq_left_of_eq_true _ _ (eq_true hc)]
       cases hm : vget mate v with
       | none =>
-        simp only
+        dsimp only
         by_cases ha : accept = true
-        · rw [ite_eq_left ha, TimeM.time_pure, TimeM.ret_pure]
+        · rw [ite_eq_left_of_eq_true _ _ (eq_true ha)]
           have := vecPotential_vset_le (p := (· = false)) (c := hkDfsCost adj mate) vis v
             (x := true) (by simp)
-          simp only [List.length_cons]
-          omega
-        · rw [ite_eq_right ha]
-          exact skip vis le_rfl
+          simp only [TimeM.time_pure, TimeM.ret_pure]; omega
+        · rw [ite_eq_right_of_eq_false _ _ (eq_false ha)]; have := ih vis; omega
       | some w =>
-        simp only
+        dsimp only
         by_cases hb : accept = false ∧ vget dist w = some (i + 1)
-        · rw [ite_eq_left hb]
-          simp only [TimeM.time_bind, TimeM.ret_bind]
-          have hp := hpot w hm
+        · rw [ite_eq_left_of_eq_true _ _ (eq_true hb)]; simp only [TimeM.time_bind, TimeM.ret_bind]
+          have hpot : vecPotential (· = false) (hkDfsCost adj mate) (vset vis v true) +
+              (adj w).length = vecPotential (· = false) (hkDfsCost adj mate) vis := by
+            simpa [hkDfsCost, hm] using vecPotential_vset_add (p := (· = false))
+              (c := hkDfsCost adj mate) (t := vis) (w := v) (x := true) hc.2 (by simp)
           have hn := hnext w (vset vis v true) acc
           generalize next w (vset vis v true) acc = R at hn ⊢
-          rcases R with ⟨⟨vis', o⟩, t⟩
-          simp only at hn
-          cases o with
-          | some q =>
-            simp only [TimeM.time_pure, TimeM.ret_pure, List.length_cons]
-            omega
-          | none =>
-            simp only [List.length_cons]
-            have := ih vis'
-            omega
-        · rw [ite_eq_right hb]
-          exact skip vis le_rfl
-    · rw [ite_eq_right hc]
-      exact skip vis le_rfl
+          rcases R with ⟨⟨vis', _ | _⟩, t⟩
+          · have := ih vis'; simp only at hn ⊢; omega
+          · simp only [TimeM.time_pure, TimeM.ret_pure] at hn ⊢; omega
+        · rw [ite_eq_right_of_eq_false _ _ (eq_false hb)]; have := ih vis; omega
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false hc)]; have := ih vis; omega
 
 private theorem hkDfsM_time_le (f : ℕ) : ∀ i u vis acc,
     (hkDfsM G adj mate dist f i u vis acc).time +
         vecPotential (· = false) (hkDfsCost adj mate) (hkDfsM G adj mate dist f i u vis acc).ret.1 ≤
       (adj u).length + vecPotential (· = false) (hkDfsCost adj mate) vis := by
   induction f with
-  | zero =>
-    intro i u vis acc
-    simp only [hkDfsM]
-    exact hkDfsLevelM_time_le (fun w vis acc => by simp) u acc (adj u) vis
-  | succ f ih =>
-    intro i u vis acc
-    simp only [hkDfsM]
-    exact hkDfsLevelM_time_le (fun w vis acc => ih (i + 1) w vis acc) u acc (adj u) vis
+  | zero => exact fun _ u vis acc => hkDfsLevelM_time_le (fun _ _ _ => by simp) u acc (adj u) vis
+  | succ _ ih => exact fun i u vis acc => hkDfsLevelM_time_le (ih (i + 1)) u acc (adj u) vis
 
 private theorem hkDfsRootsM_time_le (k : ℕ) (us : List (Fin m)) :
     ∀ vis acc, (hkDfsRootsM G adj mate dist k us vis acc).time ≤
       us.length + (us.map fun u => (adj u).length).sum +
         vecPotential (· = false) (hkDfsCost adj mate) vis := by
   induction us with
-  | nil => intro vis acc; simp [hkDfsRootsM]
+  | nil => exact fun _ _ => by simp [hkDfsRootsM]
   | cons u us ih =>
     intro vis acc
     simp only [hkDfsRootsM, time_simps]
     split_ifs
-    · simp only [TimeM.time_bind]
-      have h1 := hkDfsM_time_le (G := G) (adj := adj) (mate := mate) (dist := dist) k 0 u vis acc
+    · have h1 := hkDfsM_time_le (G := G) (adj := adj) (mate := mate) (dist := dist) k 0 u vis acc
       have h2 := ih (hkDfsM G adj mate dist k 0 u vis acc).ret.1
         ((hkDfsM G adj mate dist k 0 u vis acc).ret.2.getD acc)
-      omega
-    · have := ih vis acc
-      omega
+      simp only [TimeM.time_bind]; omega
+    · have := ih vis acc; omega
 
 /-- The initial potential is at most the total candidate list length, as `mate` is a matching. -/
 private theorem vecPotential_replicate_le (hM : IsMatching G (mateMatching mate)) :
     vecPotential (· = false) (hkDfsCost adj mate) (Vector.replicate r false) ≤ bipAdjSteps adj := by
   refine (vecPotential_le_sum _ _).trans ?_
   have hc : ∀ v, hkDfsCost adj mate v =
-      ∑ u, if vget mate v = some u then (adj u).length else 0 := by
-    intro v
-    unfold hkDfsCost
-    cases hv : vget mate v with
-    | none => simp
-    | some w => simp [Finset.sum_ite_eq]
-  simp only [hc]
-  rw [Finset.sum_comm]
+      ∑ u, if vget mate v = some u then (adj u).length else 0 := fun v => by
+    cases hv : vget mate v <;> simp [hkDfsCost, hv, Finset.sum_ite_eq]
+  simp_rw [hc]; rw [Finset.sum_comm]
   refine Finset.sum_le_sum fun u _ => ?_
-  rw [← Finset.sum_filter, Finset.sum_const, smul_eq_mul]
-  have hcard : (Finset.univ.filter fun v => vget mate v = some u).card ≤ 1 := by
-    refine Finset.card_le_one.mpr fun a ha b hb => ?_
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha hb
-    exact hM.2.1 u a b (mem_mateMatching.mpr ha) (mem_mateMatching.mpr hb)
-  calc _ ≤ 1 * (adj u).length := Nat.mul_le_mul_right _ hcard
-    _ = (adj u).length := Nat.one_mul _
-
-private theorem sum_finRange_length (adj : Fin m → List (Fin r)) :
-    ((List.finRange m).map fun u => (adj u).length).sum = bipAdjSteps adj := by
-  rw [← List.sum_toFinset _ (List.nodup_finRange m)]
-  simp [bipAdjSteps]
+  have hcard : (Finset.univ.filter fun v => vget mate v = some u).card ≤ 1 :=
+    Finset.card_le_one.mpr fun a ha b hb => hM.2.1 u a b
+      (by simpa [mem_mateMatching] using ha) (by simpa [mem_mateMatching] using hb)
+  simpa [← Finset.sum_filter, smul_eq_mul] using Nat.mul_le_mul_right (adj u).length hcard
 
 end DfsTime
 
@@ -1587,10 +1314,12 @@ theorem hkPhaseM_time_le (hadj : BipAdjValid G adj) (hM : IsMatching G (mateMatc
   simp only [hkPhaseM, time_simps, hkApplyEdgesM]
   have h1 := hkDfsRootsM_time_le (G := G) (adj := adj) (mate := mate) (dist := dist) k
     (List.finRange m) (Vector.replicate r false) []
+  have hsum : ((List.finRange m).map fun u => (adj u).length).sum = bipAdjSteps adj := by
+    rw [← List.sum_toFinset _ (List.nodup_finRange m)]; simp [bipAdjSteps]
   have h2 := vecPotential_replicate_le (G := G) (adj := adj) (mate := mate) hM
-  rw [sum_finRange_length, List.length_finRange] at h1
   have h3 := (hfam.nodup_right hM).length_le_card
-  rw [List.length_map, Fintype.card_fin] at h3
+  simp only [List.length_map, Fintype.card_fin] at h3
+  rw [hsum, List.length_finRange] at h1
   omega
 
 end Phase
@@ -1621,53 +1350,39 @@ private theorem hkLoopM_spec (hadj : BipAdjValid G adj) {C : ℕ}
   intro fuel
   induction fuel with
   | zero =>
-    intro n mate hM hfuel
-    have h := hM.card_le_card_left
-    simp only [Fintype.card_fin] at h
-    omega
+    intro _ mate hM hfuel
+    have := hM.card_le_card_left; simp only [Fintype.card_fin] at this; omega
   | succ fuel ih =>
     intro n mate hM hfuel
     have hb := hkBfsM_spec (G := G) (adj := adj) (mate := mate) hadj
     have hbt := hkBfsM_time_le G adj mate
     simp only [hkLoopM, time_simps]
-    set b := (hkBfsM G adj mate).ret with hbdef
-    by_cases hf : b.found = true
-    · rw [ite_eq_left hf]
-      simp only [time_simps]
-      have hex := hb.exact
-      obtain ⟨N, hN, hmate'⟩ := hkPhaseM_spec (dist := b.dist) hadj hM hex
-      have hpt := hkPhaseM_time_le (dist := b.dist) (k := b.k) hadj hM hex
+    set b := (hkBfsM G adj mate).ret
+    split_ifs with hf
+    · simp only [time_simps]
+      obtain ⟨N, hN, hmate'⟩ := hkPhaseM_spec (dist := b.dist) hadj hM hb.exact
+      have hpt := hkPhaseM_time_le (dist := b.dist) (k := b.k) hadj hM hb.exact
       obtain ⟨t, ht, hfree⟩ := hb.found_true hf
-      have hM' : IsMatching G (mateMatching (hkPhaseM G adj mate b.dist b.k).ret) := by
-        rw [hmate']
-        exact hN.isMatching_augment hM
+      have hM' : IsMatching G (mateMatching (hkPhaseM G adj mate b.dist b.k).ret) :=
+        hmate' ▸ hN.isMatching_augment hM
       have hlt : (mateMatching mate).card <
-          (mateMatching (hkPhaseM G adj mate b.dist b.k).ret).card := by
-        rw [hmate']
-        exact hN.card_lt_card_augment_of_mem_altRight hM hb.noShort ht hfree
+          (mateMatching (hkPhaseM G adj mate b.dist b.k).ret).card :=
+        hmate' ▸ hN.card_lt_card_augment_of_mem_altRight hM hb.noShort ht hfree
       obtain ⟨hpost, htime⟩ := ih (n + 1) _ hM' (by omega)
-      refine ⟨⟨hpost.isMatching, by have := hpost.le_phases; omega, ?_, hpost.closed⟩, ?_⟩
-      · have hrun := hpost.run
-        rw [hmate'] at hrun
-        have heq : (hkLoopM G adj fuel (n + 1) (hkPhaseM G adj mate b.dist b.k).ret).ret.phases -
-            n = (hkLoopM G adj fuel (n + 1) (hkPhaseM G adj mate b.dist b.k).ret).ret.phases -
-              (n + 1) + 1 := by
-          have := hpost.le_phases
-          omega
-        rw [heq]
-        exact .step hb.noShort ht hfree hN hrun
-      · have hle := hpost.le_phases
-        set P := (hkLoopM G adj fuel (n + 1) (hkPhaseM G adj mate b.dist b.k).ret).ret.phases
-        have heq : P - n + 1 = (P - (n + 1) + 1) + 1 := by omega
-        rw [heq, Nat.succ_mul]
+      have hle := hpost.le_phases
+      refine ⟨⟨hpost.isMatching, by omega, ?_, hpost.closed⟩, ?_⟩
+      · have : (hkLoopM G adj fuel (n + 1) (hkPhaseM G adj mate b.dist b.k).ret).ret.phases - n =
+            (hkLoopM G adj fuel (n + 1) (hkPhaseM G adj mate b.dist b.k).ret).ret.phases -
+              (n + 1) + 1 := by omega
+        exact this ▸ .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
+      · set ph := (hkLoopM G adj fuel (n + 1) (hkPhaseM G adj mate b.dist b.k).ret).ret.phases
+        have hmul : (ph - n + 1) * C = (ph - (n + 1) + 1) * C + C := by
+          rw [show ph - n + 1 = (ph - (n + 1) + 1) + 1 by omega, Nat.add_mul, Nat.one_mul]
         omega
-    · have hf' : b.found = false := by simpa using hf
-      rw [ite_eq_right hf]
-      simp only [time_simps]
-      obtain ⟨hstable, hsub, hdist⟩ := hb.found_false hf'
+    · simp only [time_simps]
+      obtain ⟨hstable, hsub, hdist⟩ := hb.found_false (Bool.eq_false_iff.mpr hf)
       refine ⟨⟨hM, le_rfl, Nat.sub_self n ▸ .done, b.k, hstable, hsub, hdist⟩, ?_⟩
-      simp only [Nat.sub_self, Nat.zero_add, Nat.one_mul]
-      omega
+      simp only [Nat.sub_self, Nat.zero_add, Nat.one_mul]; omega
 
 end Loop
 
@@ -1715,16 +1430,9 @@ section Main
 
 variable {G : Fin m × Fin r → Bool} {adj : Fin m → List (Fin r)}
 
-/-- Per-round cost bound used in `hopcroftKarpM_time_le`. -/
-private theorem hk_round_cost (adj : Fin m → List (Fin r)) :
-    6 * m + r + 1 + 2 * bipAdjSteps adj + (2 * r + m + 2 * bipAdjSteps adj) ≤
-      7 * m + 3 * r + 1 + 4 * bipAdjSteps adj := by
-  omega
-
 private theorem mateMatching_replicate_none :
     mateMatching (Vector.replicate r (none : Option (Fin m))) = ∅ := by
-  ext e
-  simp [vget_replicate]
+  ext e; simp [vget_replicate]
 
 private theorem hkLoop_start (hadj : BipAdjValid G adj) :
     HKLoopPost G (Vector.replicate r none) 0
@@ -1732,7 +1440,7 @@ private theorem hkLoop_start (hadj : BipAdjValid G adj) :
       (hkLoopM G adj (m + 1) 0 (Vector.replicate r none)).time ≤
         ((hkLoopM G adj (m + 1) 0 (Vector.replicate r none)).ret.phases - 0 + 1) *
           (7 * m + 3 * r + 1 + 4 * bipAdjSteps adj) := by
-  refine hkLoopM_spec hadj (hk_round_cost adj) (m + 1) 0 _ ?_ (by omega)
+  refine hkLoopM_spec hadj (by omega) (m + 1) 0 _ ?_ (by omega)
   rw [mateMatching_replicate_none]
   exact ⟨by simp, by simp, by simp⟩
 
@@ -1746,35 +1454,24 @@ theorem hopcroftKarpM_correct (hadj : BipAdjValid G adj) :
       (hopcroftKarpM G adj).ret.phases ≤ 2 * Nat.sqrt (hopcroftKarpM G adj).ret.matching.card := by
   obtain ⟨hpost, -⟩ := hkLoop_start (G := G) hadj
   simp only [hopcroftKarpM, time_simps]
-  set st := (hkLoopM G adj (m + 1) 0 (Vector.replicate r none)).ret
   obtain ⟨k, hstable, hsub, hdist⟩ := hpost.closed
   have hM := hpost.isMatching
-  have hmatch : (List.finRange r).foldl (hkMatchingStep st.mate) ∅ = mateMatching st.mate := by
-    ext ⟨u, v⟩
-    rw [mem_foldl_hkMatchingStep, mem_mateMatching]
-    simp
-  have hcover : (⟨(List.finRange m).foldl (hkCoverLeftStep st.dist) ∅,
-      (List.finRange r).foldl (hkCoverRightStep st.mate st.dist) ∅⟩ : VertexCover (Fin m) (Fin r))
-      = layerCover G (mateMatching st.mate) k := by
+  set out := (hkLoopM G adj (m + 1) 0 (Vector.replicate r none)).ret
+  have hmatch : (List.finRange r).foldl (hkMatchingStep out.mate) ∅ = mateMatching out.mate := by
+    ext ⟨u, v⟩; simp [mem_foldl_hkMatchingStep]
+  have hcover : (⟨(List.finRange m).foldl (hkCoverLeftStep out.dist) ∅,
+      (List.finRange r).foldl (hkCoverRightStep out.mate out.dist) ∅⟩ :
+        VertexCover (Fin m) (Fin r)) = layerCover G (mateMatching out.mate) k := by
     simp only [layerCover, VertexCover.mk.injEq]
-    refine ⟨?_, ?_⟩
-    · ext u
-      rw [mem_foldl_hkCoverLeftStep, Finset.mem_sdiff, ← hdist u]
-      simp
-    · ext v
-      rw [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub]
-      simp only [Finset.notMem_empty, List.mem_finRange, true_and, false_or, mem_mateMatching]
-      constructor
-      · rintro ⟨w, hw, hd⟩
-        exact ⟨w, hw, by_contra fun h => hd ((hdist w).mpr h)⟩
-      · rintro ⟨w, hw, hwk⟩
-        exact ⟨w, hw, fun h => (hdist w).mp h hwk⟩
+    refine ⟨by ext u; simp [mem_foldl_hkCoverLeftStep, hdist u], by
+      ext v
+      simp only [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub,
+        Finset.notMem_empty, List.mem_finRange, true_and, false_or, mem_mateMatching]
+      exact exists_congr fun w => and_congr_right fun _ => by simp [hdist w]⟩
   rw [hmatch, hcover]
   obtain ⟨hmax, hmin⟩ := isMaxMatching_isMinVertexCover_of_stable hM hstable hsub
-  refine ⟨hmax, hmin, (size_layerCover_of_stable hM hstable hsub).symm, ?_⟩
-  have hrun := hpost.run
-  rw [mateMatching_replicate_none, Nat.sub_zero] at hrun
-  exact hrun.le_two_mul_sqrt hmax
+  exact ⟨hmax, hmin, (size_layerCover_of_stable hM hstable hsub).symm,
+    (mateMatching_replicate_none ▸ Nat.sub_zero _ ▸ hpost.run).le_two_mul_sqrt hmax⟩
 
 end Main
 
@@ -1828,16 +1525,14 @@ theorem hopcroftKarpDenseM_correct (G : Fin m × Fin r → Bool) :
 theorem hopcroftKarpDenseM_time_le (G : Fin m × Fin r → Bool) :
     (hopcroftKarpDenseM G).time ≤
       (2 * Nat.sqrt (min m r) + 1) * (7 * m + 3 * r + 1 + 4 * (m * r)) + m + 3 * r := by
-  have h := hopcroftKarpM_time_le_sqrt_min (bipAdjValid_denseBipAdj G)
-  rw [bipAdjSteps_denseBipAdj] at h
-  exact h
+  simpa [hopcroftKarpDenseM, bipAdjSteps_denseBipAdj] using
+    hopcroftKarpM_time_le_sqrt_min (bipAdjValid_denseBipAdj G)
 
 /-- Hopcroft–Karp and the Edmonds–Karp reduction `bipartiteMatchingM` find matchings of the same
 (maximum) size. -/
 theorem card_hopcroftKarpM_matching (hadj : BipAdjValid G adj) :
     (hopcroftKarpM G adj).ret.matching.card = (bipartiteMatchingM G).ret.matching.card := by
-  have h1 := (hopcroftKarpM_correct hadj).1
-  have h2 := (bipartiteMatchingM_correct G).1
+  have h1 := (hopcroftKarpM_correct hadj).1; have h2 := (bipartiteMatchingM_correct G).1
   exact le_antisymm (h2.2 _ h1.1) (h1.2 _ h2.1)
 
 end Main2
@@ -1863,12 +1558,10 @@ theorem decidePerfectMatchingHKM_eq_true_iff (hadj : BipAdjValid G adj) :
 theorem decidePerfectMatchingHKM_time_le (hadj : BipAdjValid G adj) :
     (decidePerfectMatchingHKM G adj).time ≤
       (2 * Nat.sqrt n + 1) * (10 * n + 1 + 4 * bipAdjSteps adj) + 4 * n + 1 := by
-  simp only [decidePerfectMatchingHKM, time_simps]
   have h := hopcroftKarpM_time_le_sqrt_min hadj
-  rw [Nat.min_self] at h
-  have : 7 * n + 3 * n + 1 + 4 * bipAdjSteps adj = 10 * n + 1 + 4 * bipAdjSteps adj := by omega
-  rw [this] at h
-  omega
+  rw [Nat.min_self, show 7 * n + 3 * n + 1 + 4 * bipAdjSteps adj =
+    10 * n + 1 + 4 * bipAdjSteps adj by omega] at h
+  simp only [decidePerfectMatchingHKM, time_simps]; omega
 
 end Perfect
 

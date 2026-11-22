@@ -60,8 +60,9 @@ theorem StackMemory.decode {L F : ℕ} {η : OutStr L} {tasks : List (List Term)
   induction tasks with
   | nil => rfl
   | cons xs rest ih =>
-    rw [List.length_cons, decodeStack, h.1.depth, h.1.code, decodePrefix_prefixCode,
-      ih h.2]
+    have hdepth : μ (F + rest.length * 5) = xs.length := h.1 0
+    have hcode : μ (F + rest.length * 5 + 1) = prefixCode xs := h.1 1
+    rw [List.length_cons, decodeStack, hdepth, hcode, decodePrefix_prefixCode, ih h.2]
 
 /-- Proof-only work potential computed from the actual pending records. -/
 @[expose] def workMeasure {L : ℕ} (η : OutStr L) (t F : ℕ) (x : Data registers) : ℕ :=

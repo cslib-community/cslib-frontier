@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.ModularCoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -169,28 +170,16 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
     rfl
   rw [hkey, PMF.bind_map]
   dsimp only [Function.comp_def]
-  change _ = (BitString.uniformList (keyCoins n + (choiceBudget +
-    (encCoins n + guessBudget)))).bind (fun tape => PMF.pure
-      (finish (evaluateKey n (tape.take (keyCoins n)))
-        (chooseReplay (evaluateKey n (tape.take (keyCoins n))).1
-          ((tape.drop (keyCoins n)).take choiceBudget))
-        (((tape.drop (keyCoins n)).drop choiceBudget).take (encCoins n))
-        (((tape.drop (keyCoins n)).drop choiceBudget).drop (encCoins n))))
-  rw [BitString.uniformList_bind_split (keyCoins n) (choiceBudget + (encCoins n + guessBudget))
-    (fun keys rest => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
-      ((rest.drop choiceBudget).take (encCoins n))
-      ((rest.drop choiceBudget).drop (encCoins n))))]
-  congr 1 with keys : 1
-  rw [BitString.uniformList_bind_split choiceBudget (encCoins n + guessBudget)
-    (fun chosen rest => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 chosen) (rest.take (encCoins n))
-      (rest.drop (encCoins n))))]
-  congr 1 with chosen : 1
-  rw [BitString.uniformList_bind_split (encCoins n) guessBudget
-    (fun encSeed guessSeed => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 chosen) encSeed guessSeed))]
-  rfl
+  trans (BitString.uniformList (keyCoins n)).bind fun keys =>
+    (BitString.uniformList (choiceBudget + (encCoins n + guessBudget))).map fun rest =>
+      finish (evaluateKey n keys) (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
+        ((rest.drop choiceBudget).take (encCoins n))
+        ((rest.drop choiceBudget).drop (encCoins n))
+  · congr 1 with keys : 1
+    exact (BitString.uniformList_map_split3 _ _ _ _).symm
+  · unfold modLeveledGameCoinBudget modLeveledGameCoins
+    dsimp only [choiceBudget, guessBudget, evaluateZero, chooseReplay, finish]
+    exact (BitString.uniformList_map_split _ _ _).symm
 
 /-- The complete replay is native polynomial time in the unary parameter and complete tape,
 for either fixed challenge world. This does not assert a multiplicative runtime ratio to the
