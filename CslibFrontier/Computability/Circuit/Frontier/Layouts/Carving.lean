@@ -765,6 +765,18 @@ private theorem ncard_eq_sub_of_union {α : Type*} [Finite α] {S T U : Set α}
   push_cast
   ring
 
+/-- Splitting `X = X₁ ⊔ X₂` splits the cut edges of `X` by the part that contains their end in
+`X`. -/
+private theorem ncard_edgeCut_endIn_eq_sub {V E : Type*} [Finite E] {G : Multigraph V E}
+    {X X₁ X₂ : Set V} (hd : Disjoint X₁ X₂) (hu : X₁ ∪ X₂ = X) :
+    ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) =
+      (G.edgeCut X).ncard - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) := by
+  refine ncard_eq_sub_of_union (disjoint_left.mpr fun _ h1 h2 => disjoint_left.mp hd h1.2 h2.2) ?_
+  ext e
+  refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
+  rcases (hu ▸ (endIn_mem he).1 : endIn G X e ∈ X₁ ∪ X₂) with h | h
+  exacts [Or.inl ⟨he, h⟩, Or.inr ⟨he, h⟩]
+
 /-- **Depth-one `CappedCompression` bisection.** For a subset `X ⊆ V` of a loopless cubic
 multigraph `G` where every vertex in `X` has at most one incident edge in `G.edgeCut X`, a
 weight-capped compression of `G.induce X` followed by a symmetric (`t = 0`) Gaussian cut bisects
@@ -1073,18 +1085,8 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
     dsimp [bWt]
     by_cases hB : ω ∈ inSide B <;> simp [S_Q, hB]
   have hbdry_X₂ : ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) =
-      ((G.edgeCut X).ncard : ℝ) - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) := by
-    have hd : Disjoint {e ∈ G.edgeCut X | endIn G X e ∈ X₁}
-        {e ∈ G.edgeCut X | endIn G X e ∈ X₂} :=
-      disjoint_left.mpr fun e h1 h2 => disjoint_left.mp hdisjX h1.2 h2.2
-    have hu : {e ∈ G.edgeCut X | endIn G X e ∈ X₁} ∪ {e ∈ G.edgeCut X | endIn G X e ∈ X₂} =
-        G.edgeCut X := by
-      ext e
-      refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
-      have hm : endIn G X e ∈ X₁ ∪ X₂ := hunionX ▸ (endIn_mem he).1
-      rcases hm with h1 | h2
-      exacts [Or.inl ⟨he, h1⟩, Or.inr ⟨he, h2⟩]
-    exact ncard_eq_sub_of_union hd hu
+      ((G.edgeCut X).ncard : ℝ) - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) :=
+    ncard_edgeCut_endIn_eq_sub hdisjX hunionX
   have hb_abs : |∑ B : cmp.blocks, bWt B * (inSide B).indicator 1 ω -
       1 / 2 * ((G.edgeCut X).ncard : ℝ)| < c := by
     have hmean : ∑ B : cmp.blocks, bWt B * P.real (inSide B) =
@@ -1396,18 +1398,8 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
       1 / 2 * ((G.edgeCut Y).ncard : ℝ)| < c := by
     rwa [← hE₁_sum, hmeanE] at hωE
   have hE₂_eq : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℝ) =
-      ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) := by
-    have hd : Disjoint {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}
-        {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} :=
-      disjoint_left.mpr fun _ h1 h2 => disjoint_left.mp hdisjY h1.2 h2.2
-    have hu : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁} ∪ {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} =
-        G.edgeCut Y := by
-      ext e
-      refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
-      have hm : endIn G Y e ∈ Y₁ ∪ Y₂ := hunionY ▸ (endIn_mem he).1
-      rcases hm with h1 | h2
-      exacts [Or.inl ⟨he, h1⟩, Or.inr ⟨he, h2⟩]
-    exact ncard_eq_sub_of_union hd hu
+      ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) :=
+    ncard_edgeCut_endIn_eq_sub hdisjY hunionY
   -- Internal cut of `Y` between `Y₁` and `Y₂` injects into `{v ∈ Y | G.EdgeStraddles ... 0 v}`.
   have hint_cut_le : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard ≤
       {v : V | v ∈ Y ∧ ω ∈ As v}.ncard := by
