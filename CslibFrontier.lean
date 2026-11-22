@@ -3368,6 +3368,9 @@ public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
 public import CslibFrontier.Computability.Distributed.RingElection.Peterson
 public import CslibFrontier.Computability.Distributed.SelfStabilization.Basic
 public import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
+public import CslibFrontier.Computability.Distributed.SetAgreement.AtomicSnapshot
+public import CslibFrontier.Computability.Distributed.SetAgreement.ImmediateSnapshot
+public import CslibFrontier.Computability.Distributed.SetAgreement.Impossibility
 public import CslibFrontier.Computability.Distributed.SharedMemory.Basic
 public import CslibFrontier.Computability.Distributed.SharedMemory.Hierarchy
 public import CslibFrontier.Computability.Distributed.SharedMemory.Universal
