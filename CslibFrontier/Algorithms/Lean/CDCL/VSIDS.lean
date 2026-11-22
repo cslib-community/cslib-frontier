@@ -292,7 +292,7 @@ theorem Activity.compare_congr {A A' : Activity} {a b : ℕ} (ha : A'.get a = A.
 /-! #### Positions -/
 
 /-- The value at `v` after setting `x` to `b`: `b` if `x = v` within the array. -/
-theorem getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
+theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
     (p.setIfInBounds x b).getD v 0 = if x = v ∧ v < p.size then b else p.getD v 0 := by
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
   by_cases h : x = v
@@ -302,7 +302,7 @@ theorem getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
     · simp [hx]
   · simp [h]
 
-theorem lt_size_of_getD_ne {p : Array ℕ} {v : ℕ} (h : p.getD v 0 ≠ 0) : v < p.size := by
+theorem VarOrder.lt_size_of_getD_ne {p : Array ℕ} {v : ℕ} (h : p.getD v 0 ≠ 0) : v < p.size := by
   by_contra hv
   simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (Nat.le_of_not_lt hv)] at h
 
@@ -346,10 +346,10 @@ theorem empty (n : ℕ) : PosOK #[] (Array.replicate n 0) where
 end VarOrder.PosOK
 
 /-- The positions after swapping the elements `x` at `i` and `y` at `j`. -/
-def swapPos (p : Array ℕ) (x y i j : ℕ) : Array ℕ :=
+def VarOrder.swapPos (p : Array ℕ) (x y i j : ℕ) : Array ℕ :=
   (p.setIfInBounds x (j + 1)).setIfInBounds y (i + 1)
 
-theorem size_swapPos (p : Array ℕ) (x y i j : ℕ) : (swapPos p x y i j).size = p.size := by
+theorem VarOrder.size_swapPos (p : Array ℕ) (x y i j : ℕ) : (swapPos p x y i j).size = p.size := by
   simp [swapPos]
 
 theorem VarOrder.PosOK.swap {a p : Array ℕ} (h : PosOK a p) {i j : ℕ} (hi : i < a.size)
