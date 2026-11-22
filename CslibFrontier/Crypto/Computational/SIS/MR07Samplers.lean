@@ -184,7 +184,7 @@ private theorem computableInPolyTime_intTableMulVec :
 
 /-- Shared exact rational-solve, coordinatewise `Rat.floor`, and integer multiply-back helper:
 solves `mat *ᵥ ξ = rhs`, sets `k = ⌊ξ⌋`, and returns `mat *ᵥ k` via `ListMatrix.dotProduct`. -/
-@[expose] def solveFloorMul (dim : ℕ) (mat : IntTable) (rhs : List ℚ) : List ℤ :=
+def solveFloorMul (dim : ℕ) (mat : IntTable) (rhs : List ℚ) : List ℤ :=
   let matRat : RatTable :=
     ⟨mat.numRows, mat.numCols, mat.rows.map fun row => row.map (Int.cast : ℤ → ℚ)⟩
   let sol := (ratSolve ⟨matRat, rhs⟩).solution.getD (List.replicate dim 0)
@@ -328,7 +328,7 @@ open scoped GridSampleInput
 
 /-- Exact integer grid reduction: given `r' ∈ ℤ^dim`, computes `bk = solveFloorMul dim B (-r' / q)`
 and returns `(u, y) = (-r' - q • bk, -bk)`. -/
-@[expose] def gridReduceInt (dim q : ℕ) (B : IntTable) (r' : List ℤ) : List ℤ × List ℤ :=
+def gridReduceInt (dim q : ℕ) (B : IntTable) (r' : List ℤ) : List ℤ × List ℤ :=
   let rhs : List ℚ := (List.range dim).map fun i => Rat.divInt (-(r'.getD i 0)) (q : ℤ)
   let bk : List ℤ := solveFloorMul dim B rhs
   ((List.range dim).map fun i => -(r'.getD i 0) - (q : ℤ) * bk.getD i 0,
@@ -531,7 +531,7 @@ end QuotientSampleInput
 open scoped QuotientSampleInput
 
 /-- Integer quotient index `D = |det S| / |det B|` computed via staged Bird determinants. -/
-@[expose] def quotientIndex (B S : IntTable) : ℕ :=
+def quotientIndex (B S : IntTable) : ℕ :=
   (Cslib.Circuits.Rational.detRows S.rows).natAbs /
     (Cslib.Circuits.Rational.detRows B.rows).natAbs
 
@@ -552,7 +552,7 @@ private theorem computableInPolyTime_quotientIndex :
 
 /-- Exact integer quotient representative reduction: given `x ∈ ℕ^dim`, computes `v0 = B *ᵥ x` via
 `ListMatrix.dotProduct`, `sk = solveFloorMul dim S v0`, and returns `v0 - sk`. -/
-@[expose] def quotientReduceInt (dim : ℕ) (B S : IntTable) (x : List ℕ) : List ℤ :=
+def quotientReduceInt (dim : ℕ) (B S : IntTable) (x : List ℕ) : List ℤ :=
   let v0 : List ℤ := (List.range B.numRows).map fun r =>
     ListMatrix.dotProduct B.numCols (B.rows.getD r []) (x.map (Nat.cast : ℕ → ℤ))
   let rhs : List ℚ := (List.range dim).map fun i => (v0.getD i 0 : ℚ)
@@ -806,13 +806,8 @@ theorem solveFloorMul_spec {n : ℕ} (T : IntTable) (B : Matrix (Fin n) (Fin n) 
         simpa [BQ] using ((Int.castRingHom ℚ).map_det B).symm
       rw [hdet]
       exact Int.cast_ne_zero.mpr hB
-    have hBR_det : BR.det ≠ 0 := by
-      have hdet : BR.det = (B.det : ℝ) := by
-        simpa [BR] using ((Int.castRingHom ℝ).map_det B).symm
-      rw [hdet]
-      exact Int.cast_ne_zero.mpr hB
     have hBQ_inv : BQ * BQ⁻¹ = 1 := Matrix.mul_nonsing_inv BQ (isUnit_iff_ne_zero.mpr hBQ_det)
-    have hBR_inv : BR⁻¹ * BR = 1 := Matrix.nonsing_inv_mul BR (isUnit_iff_ne_zero.mpr hBR_det)
+    have hBR_inv : BR⁻¹ * BR = 1 := matR_inv_mul hB
     let bQ : Fin n → ℚ := fun k => rhs.getD k.val 0
     let ξQ : Fin n → ℚ := BQ⁻¹ *ᵥ bQ
     have hcons : ∃ x : Fin M.numCols → ℚ,
@@ -863,22 +858,6 @@ theorem solveFloorMul_spec {n : ℕ} (T : IntTable) (B : Matrix (Fin n) (Fin n) 
         ← Rat.floor_cast (α := ℝ)]
     rw [hfl, hsol_real j]
 
-private theorem exists_mul_eq_of_intLattice_le {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
-    (hSB : intLattice S ≤ intLattice B) :
-    ∃ U : Matrix (Fin n) (Fin n) ℤ, B * U = S := by
-  have hcol : ∀ j : Fin n, ∃ u : Fin n → ℤ,
-      intCol S j = WithLp.toLp 2 (fun i => ((B *ᵥ u) i : ℝ)) := fun j =>
-    (mem_intLattice_iff B _).mp (hSB (Submodule.subset_span ⟨j, rfl⟩))
-  choose Ucols hUcols using hcol
-  let U : Matrix (Fin n) (Fin n) ℤ := fun i j => Ucols j i
-  refine ⟨U, ?_⟩
-  ext i j
-  have hij := congrArg (fun x : EuclideanSpace ℝ (Fin n) => x i) (hUcols j)
-  have hmul : (B * U) i j = (B *ᵥ Ucols j) i := rfl
-  rw [hmul]
-  have h1 : (S i j : ℝ) = ((B *ᵥ Ucols j) i : ℝ) := by simpa [intCol] using hij
-  exact Int.cast_injective h1.symm
-
 /-- Exact determinant-index specification of `quotientIndex`: for well-formed square `IntTable`s
 representing `B, S : Matrix (Fin n) (Fin n) ℤ` with `B.det ≠ 0` and `intLattice S ≤ intLattice B`,
 `quotientIndex TB TS = (S.det / B.det).natAbs`. -/
@@ -893,32 +872,16 @@ theorem quotientIndex_eq_natAbs_div_det {n : ℕ} (TB TS : IntTable)
     Cslib.Circuits.Rational.detRows_eq_det_of_rowEntry B (hBwf.1.trans hBrows) hBmat
   have hdetS : Cslib.Circuits.Rational.detRows TS.rows = S.det :=
     Cslib.Circuits.Rational.detRows_eq_det_of_rowEntry S (hSwf.1.trans hSrows) hSmat
-  obtain ⟨U, hBU⟩ := exists_mul_eq_of_intLattice_le hSB
-  have hdet_mul : S.det = B.det * U.det := by rw [← hBU, Matrix.det_mul]
+  have hdet_mul : S.det = B.det * (sublatticeMat B S hSB).det := by
+    rw [← Matrix.det_mul, mul_sublatticeMat]
   unfold quotientIndex
   rw [hdetB, hdetS, hdet_mul, Int.natAbs_mul,
     Nat.mul_div_cancel_left _ (Int.natAbs_pos.mpr hB),
     Int.mul_ediv_cancel_left _ hB]
 
-private theorem matR_det_ne_zero {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
-    (B.map (Int.cast : ℤ → ℝ)).det ≠ 0 := by
-  have hdet : (B.map (Int.cast : ℤ → ℝ)).det = (B.det : ℝ) := by
-    simpa using ((Int.castRingHom ℝ).map_det B).symm
-  rw [hdet]
-  exact Int.cast_ne_zero.mpr hB
-
-private theorem matR_mul_nonsing_inv {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
-    (B.map (Int.cast : ℤ → ℝ)) * (B.map (Int.cast : ℤ → ℝ))⁻¹ = 1 :=
-  Matrix.mul_nonsing_inv _ (isUnit_iff_ne_zero.mpr (matR_det_ne_zero hB))
-
-private theorem matR_nonsing_inv_mul {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 0) :
-    (B.map (Int.cast : ℤ → ℝ))⁻¹ * (B.map (Int.cast : ℤ → ℝ)) = 1 :=
-  Matrix.nonsing_inv_mul _ (isUnit_iff_ne_zero.mpr (matR_det_ne_zero hB))
-
-/-- Exact geometric specification of `gridReduceInt` against `MR07Core.modParallelepiped` and
-`MR07Core.intLattice`: for invertible `B = T.toMatrix` and `0 < q`, `(u, y)` from
-`gridReduceInt n q T r'` satisfies `u / q = (-r' / q) mod P(B)` and
-`y = r' / q + u / q ∈ intLattice B`. -/
+/-- Exact geometric specification of `gridReduceInt` against `modParallelepiped` and
+`intLattice`: for invertible `B` and `0 < q`, `(u, y)` from `gridReduceInt n q T r'` satisfies
+`u / q = (-r' / q) mod P(B)` and `y = r' / q + u / q ∈ intLattice B`. -/
 theorem gridReduceInt_spec {n q : ℕ} (T : IntTable) (B : Matrix (Fin n) (Fin n) ℤ)
     (hrows : T.numRows = n) (hcols : T.numCols = n)
     (hmat : ∀ (i j : Fin n), T.entry i.val j.val = B i j)
@@ -966,7 +929,7 @@ theorem gridReduceInt_spec {n q : ℕ} (T : IntTable) (B : Matrix (Fin n) (Fin n
     rw [List.getD_eq_getElem _ _ hi]
     simp [p, gridReduceInt, rhs]
   let BR : Matrix (Fin n) (Fin n) ℝ := B.map Int.cast
-  have hBR_mul : BR * BR⁻¹ = 1 := matR_mul_nonsing_inv hB
+  have hBR_mul : BR * BR⁻¹ = 1 := matR_mul_inv hB
   have hu_eq : uVec = modParallelepiped B (-rVec) := by
     ext i
     have hbi := hbk i
@@ -1053,7 +1016,7 @@ theorem quotientReduceInt_spec {n : ℕ} (TB TS : IntTable) (B S : Matrix (Fin n
     rw [List.getElem_map, List.getElem_range]
     simpa only [Rat.cast_intCast] using congrArg (Int.cast : ℤ → ℝ) (hv0_coord k)
   let SR : Matrix (Fin n) (Fin n) ℝ := S.map Int.cast
-  have hSR_mul : SR * SR⁻¹ = 1 := matR_mul_nonsing_inv hS
+  have hSR_mul : SR * SR⁻¹ = 1 := matR_mul_inv hS
   refine ⟨hv_len, ?_⟩
   ext i
   have hi : i.val < v.length := by rw [hv_len]; exact i.isLt
@@ -1090,43 +1053,10 @@ private theorem list_ofFn_getD_eq {α : Type*} {n : ℕ} {l : List α} (hl : l.l
   simp only [List.getElem_ofFn, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi',
     Option.getD_some]
 
-private theorem modParallelepiped_idemp_of_det_ne_zero {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ}
-    (hB : B.det ≠ 0) (x : EuclideanSpace ℝ (Fin n)) :
-    modParallelepiped B (modParallelepiped B x) = modParallelepiped B x := by
-  let BR : Matrix (Fin n) (Fin n) ℝ := B.map Int.cast
-  have hinv_mul : BR⁻¹ * BR = 1 := matR_nonsing_inv_mul hB
-  have hinv : BR⁻¹ *ᵥ WithLp.ofLp (modParallelepiped B x) =
-      fun k => (BR⁻¹ *ᵥ WithLp.ofLp x) k - (Int.floor ((BR⁻¹ *ᵥ WithLp.ofLp x) k) : ℝ) := by
-    change BR⁻¹ *ᵥ (BR *ᵥ _) = _
-    rw [Matrix.mulVec_mulVec, hinv_mul, Matrix.one_mulVec]
-  unfold modParallelepiped; dsimp only
-  change WithLp.toLp 2 (BR *ᵥ fun k =>
-    (BR⁻¹ *ᵥ WithLp.ofLp (modParallelepiped B x)) k -
-      (Int.floor ((BR⁻¹ *ᵥ WithLp.ofLp (modParallelepiped B x)) k) : ℝ)) = _
-  rw [hinv]; congr 1; congr 1; funext k
-  rw [Int.floor_sub_intCast, sub_self, Int.cast_zero, sub_zero]
-
-private theorem modParallelepiped_abs_le_sum {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ)
-    (x : EuclideanSpace ℝ (Fin n)) (i : Fin n) :
-    |modParallelepiped B x i| ≤ ∑ j : Fin n, |(B i j : ℝ)| := by
-  unfold modParallelepiped; dsimp only
-  change |∑ j : Fin n, (B i j : ℝ) * (((B.map Int.cast : Matrix _ _ ℝ)⁻¹ *ᵥ WithLp.ofLp x) j -
-    (Int.floor (((B.map Int.cast : Matrix _ _ ℝ)⁻¹ *ᵥ WithLp.ofLp x) j) : ℝ))| ≤ _
-  refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => ?_)
-  rw [abs_mul]
-  have h0 : 0 ≤ ((B.map Int.cast : Matrix _ _ ℝ)⁻¹ *ᵥ WithLp.ofLp x) j -
-      (Int.floor (((B.map Int.cast : Matrix _ _ ℝ)⁻¹ *ᵥ WithLp.ofLp x) j) : ℝ) :=
-    sub_nonneg.mpr (Int.floor_le _)
-  have h1 : ((B.map Int.cast : Matrix _ _ ℝ)⁻¹ *ᵥ WithLp.ofLp x) j -
-      (Int.floor (((B.map Int.cast : Matrix _ _ ℝ)⁻¹ *ᵥ WithLp.ofLp x) j) : ℝ) ≤ 1 :=
-    (sub_lt_iff_lt_add'.mpr (Int.lt_floor_add_one _)).le
-  rw [abs_of_nonneg h0]
-  simpa using mul_le_mul_of_nonneg_left h1 (abs_nonneg (B i j : ℝ))
-
 /-! #### 5.1 Discrete-grid Gaussian sampler ↔ `MR07.idealGridSample` -/
 
 /-- Bijection identifying `Fin n → ℤ` with the fine grid lattice `G_q = (1 / q) ℤⁿ`. -/
-@[expose] noncomputable def gridEmbed (n q : ℕ) (hq : 0 < q) : (Fin n → ℤ) ≃ gridLattice n q :=
+noncomputable def gridEmbed (n q : ℕ) (hq : 0 < q) : (Fin n → ℤ) ≃ gridLattice n q :=
   Equiv.ofBijective
     (fun r' => ⟨((q : ℝ)⁻¹ : ℝ) • WithLp.toLp 2 (fun i => (r' i : ℝ)),
       (mem_gridLattice_iff _).2 ⟨r', rfl⟩⟩)
@@ -1144,7 +1074,7 @@ private theorem modParallelepiped_abs_le_sum {n : ℕ} (B : Matrix (Fin n) (Fin 
 
 /-- Canonical injective encoding of a typed `GridRep B q × intLattice B` sample into
 `List ℤ × List ℤ`. -/
-@[expose] noncomputable def gridPairToLists {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ} :
+noncomputable def gridPairToLists {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ} :
     GridRep B q × intLattice B → List ℤ × List ℤ
   | (g, y) => (List.ofFn g.1, List.ofFn fun i => Int.floor ((y : EuclideanSpace ℝ (Fin n)) i))
 
@@ -1171,7 +1101,7 @@ theorem gridPairToLists_injective {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q 
   exact Prod.ext hc hy
 
 /-- Left-inverse decoder from `List ℤ × List ℤ` to `GridRep B q × intLattice B`. -/
-@[expose] noncomputable def decodeGridPair {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (q : ℕ) :
+noncomputable def decodeGridPair {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (q : ℕ) :
     List ℤ × List ℤ → GridRep B q × intLattice B :=
   Function.invFun (gridPairToLists (B := B) (q := q))
 
@@ -1286,7 +1216,7 @@ theorem gridReduceInt_exists_gridRep {n q : ℕ} (T : IntTable) (B : Matrix (Fin
   let u : Fin n → ℤ := fun i => p.1.getD i.val 0
   have hu_bound : ∀ i : Fin n, |u i| ≤ (q : ℤ) * ∑ j : Fin n, |B i j| := by
     intro i
-    have h1 := modParallelepiped_abs_le_sum B (-rVec) i
+    have h1 := modParallelepiped_abs_le B (-rVec) i
     have h2 : modParallelepiped B (-rVec) i = (q : ℝ)⁻¹ * (u i : ℝ) := by
       rw [← hu_eq]; rfl
     rw [h2, abs_mul, abs_inv, abs_of_pos hqR, inv_mul_le_iff₀ hqR] at h1
@@ -1294,7 +1224,7 @@ theorem gridReduceInt_exists_gridRep {n q : ℕ} (T : IntTable) (B : Matrix (Fin
       (|u i| : ℝ) ≤ ((q : ℤ) * ∑ j : Fin n, |B i j| : ℤ))
   have hu_idemp : modParallelepiped B (((q : ℝ)⁻¹ : ℝ) • WithLp.toLp 2 (fun i => (u i : ℝ))) =
       ((q : ℝ)⁻¹ : ℝ) • WithLp.toLp 2 (fun i => (u i : ℝ)) := by
-    rw [hu_eq]; exact modParallelepiped_idemp_of_det_ne_zero hB (-rVec)
+    rw [hu_eq]; exact modParallelepiped_idemp hB (-rVec)
   let g : GridRep B q := ⟨u, hu_bound, hu_idemp⟩
   let y : intLattice B := ⟨WithLp.toLp 2 (fun i : Fin n => (p.2.getD i.val 0 : ℝ)), hy_mem⟩
   refine ⟨(g, y), ?_, hu_eq, hy_eq⟩
@@ -1355,9 +1285,7 @@ theorem map_gridReduceInt_piFin_eq_map_idealGridSample {n q : ℕ}
   congr 1; funext r'
   simpa [Equiv.symm_apply_apply] using hf_list (gridEmbed n q hq r')
 
-/-- Direct typed-law `CloseTo` combinator: decoding any `List ℤ × List ℤ` law close to the
-`gridReduceInt` product pushforward yields a `CloseTo` bound against `MR07Core.idealGridSample`. -/
-theorem closeTo_decodeGridPair_idealGridSample {n q : ℕ}
+private theorem closeTo_decodeGridPair_idealGridSample {n q : ℕ}
     (T : IntTable) (B : Matrix (Fin n) (Fin n) ℤ)
     (hrows : T.numRows = n) (hcols : T.numCols = n)
     (hmat : ∀ (i j : Fin n), T.entry i.val j.val = B i j)
@@ -1376,35 +1304,8 @@ theorem closeTo_decodeGridPair_idealGridSample {n q : ℕ}
     funext decodeGridPair_gridPairToLists
   rwa [hid, PMF.map_id] at h1
 
-/-- `CloseTo` guarantee for `sampleGridGaussian` directly against
-`(MR07.idealGridSample ...).map gridPairToLists` on `List ℤ × List ℤ`. -/
-theorem closeTo_eval_sampleGridGaussian_map_idealGridSample
-    (inp : GridSampleInput) (B : Matrix (Fin inp.dim) (Fin inp.dim) ℤ)
-    (hrows : inp.basis.numRows = inp.dim) (hcols : inp.basis.numCols = inp.dim)
-    (hmat : ∀ (i j : Fin inp.dim), inp.basis.entry i.val j.val = B i j)
-    (hB : B.det ≠ 0) (hsSq : 0 < inp.sSq) (hq : 0 < inp.modulus)
-    (hqs1 : 1 ≤ (inp.modulus : ℝ) * Real.sqrt (inp.sSq : ℝ)) (ht : 1 ≤ inp.tail)
-    {ε : ℝ} (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 2)
-    (hdual : ZLattice.gaussianMass
-      (LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal)
-      (1 / ((inp.modulus : ℝ) * Real.sqrt (inp.sSq : ℝ))) 0 - 1 ≤ ε)
-    (hprec : 8 * (2 * inp.tail + 6) ≤ 2 ^ inp.prec) :
-    let tVec : EuclideanSpace ℝ (Fin inp.dim) :=
-      WithLp.toLp 2 fun i : Fin inp.dim => (inp.target.getD i.val 0 : ℝ)
-    CloseTo (ProbComp.eval (sampleGridGaussian inp))
-      ((idealGridSample B hB inp.modulus hq
-          (Real.sqrt (inp.sSq : ℝ)) (by positivity) tVec).map gridPairToLists)
-      (ENNReal.ofReal ((inp.dim : ℝ) *
-        ((1 - 1 / (16 * (2 * inp.tail + 6 : ℝ))) ^ inp.maxTrials
-          + (8 * inp.tail + 24 : ℝ) / (2 : ℝ) ^ inp.prec
-          + (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * (inp.tail : ℝ) ^ 2))))) := by
-  have h := closeTo_eval_sampleGridGaussian_pi inp hsSq hq hqs1 ht hε0 hε hdual hprec
-  rwa [map_gridReduceInt_piFin_eq_map_idealGridSample inp.basis B hrows hcols hmat hB hq
-    (Real.sqrt (inp.sSq : ℝ)) (by positivity)
-    (WithLp.toLp 2 fun i : Fin inp.dim => (inp.target.getD i.val 0 : ℝ))] at h
-
 /-- `CloseTo` guarantee for `sampleGridGaussian` decoded into the typed
-`GridRep B inp.modulus × intLattice B` law `MR07.idealGridSample`. -/
+`GridRep B inp.modulus × intLattice B` law `idealGridSample`. -/
 theorem closeTo_eval_sampleGridGaussian_idealGridSample
     (inp : GridSampleInput) (B : Matrix (Fin inp.dim) (Fin inp.dim) ℤ)
     (hrows : inp.basis.numRows = inp.dim) (hcols : inp.basis.numCols = inp.dim)
@@ -1456,7 +1357,7 @@ theorem closeTo_eval_sampleGridGaussian_idealGridSample_of_smoothingParameter_le
 /-! #### 5.2 HNF-free quotient sampler ↔ `PMF.uniformOfFintype (SublatticeQuot B S)` -/
 
 /-- Canonical injective encoding of a typed `SublatticeQuot B S` element into `List ℤ`. -/
-@[expose] def sublatticeQuotToList {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
+def sublatticeQuotToList {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
     (q : SublatticeQuot B S) : List ℤ :=
   List.ofFn q.1
 
@@ -1469,7 +1370,7 @@ theorem sublatticeQuotToList_injective {n : ℕ} {B S : Matrix (Fin n) (Fin n) �
   simpa [sublatticeQuotToList, getD_ofFn_eq] using hi
 
 /-- Left-inverse decoder from `List ℤ` to `SublatticeQuot B S`. -/
-@[expose] noncomputable def decodeSublatticeQuot {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) :
+noncomputable def decodeSublatticeQuot {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) :
     List ℤ → SublatticeQuot B S :=
   Function.invFun (sublatticeQuotToList (B := B) (S := S))
 
@@ -1486,13 +1387,9 @@ theorem quotientIndex_pos {n : ℕ} (TB TS : IntTable) (B S : Matrix (Fin n) (Fi
     (hSrows : TS.numRows = n) (hSmat : ∀ (i j : Fin n), TS.entry i.val j.val = S i j)
     (hB : B.det ≠ 0) (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B) :
     0 < quotientIndex TB TS := by
-  rw [quotientIndex_eq_natAbs_div_det TB TS B S hBwf hSwf hBrows hBmat hSrows hSmat hB hSB]
-  obtain ⟨U, hBU⟩ := exists_mul_eq_of_intLattice_le hSB
-  have hdet_mul : S.det = B.det * U.det := by rw [← hBU, Matrix.det_mul]
-  have hUdet : U.det ≠ 0 := by
-    intro h0; rw [h0, mul_zero] at hdet_mul; exact hS hdet_mul
-  rw [hdet_mul, Int.mul_ediv_cancel_left _ hB]
-  exact Int.natAbs_pos.mpr hUdet
+  rw [quotientIndex_eq_natAbs_div_det TB TS B S hBwf hSwf hBrows hBmat hSrows hSmat hB hSB,
+    ← det_sublatticeMat hB hSB]
+  exact Int.natAbs_pos.mpr (det_sublatticeMat_ne_zero hS hSB)
 
 /-- Every `quotientReduceInt n TB TS x` output is the exact `sublatticeQuotToList` image of a
 typed `SublatticeQuot B S` representative (zero decoding loss). -/
@@ -1509,37 +1406,21 @@ theorem quotientReduceInt_exists_sublatticeQuot {n : ℕ} (TB TS : IntTable)
   set v := quotientReduceInt n TB TS x
   let xZ : Fin n → ℤ := fun j => (x.getD j.val 0 : ℤ)
   let xE : EuclideanSpace ℝ (Fin n) := WithLp.toLp 2 (fun i : Fin n => ((B *ᵥ xZ) i : ℝ))
-  let SR : Matrix (Fin n) (Fin n) ℝ := S.map Int.cast
-  have hSR_mul : SR * SR⁻¹ = 1 := matR_mul_nonsing_inv hS
   let c : Fin n → ℤ := fun i => v.getD i.val 0
   have hv_bound : ∀ i : Fin n, |c i| ≤ ∑ j : Fin n, |S i j| := by
     intro i
-    have h1 := modParallelepiped_abs_le_sum S xE i
+    have h1 := modParallelepiped_abs_le S xE i
     have h2 : modParallelepiped S xE i = (c i : ℝ) := by
       simpa [c, xE, xZ] using (congrArg (fun w : EuclideanSpace ℝ (Fin n) => w i) hv_vec).symm
     rw [h2] at h1
     exact_mod_cast (by simpa [Int.cast_abs, Int.cast_sum] using h1 :
       (|c i| : ℝ) ≤ ((∑ j : Fin n, |S i j| : ℤ) : ℝ))
   have hv_mem : WithLp.toLp 2 (fun i => (c i : ℝ)) ∈ intLattice B := by
-    have h1 : xE ∈ intLattice B := (mem_intLattice_iff B xE).2 ⟨xZ, rfl⟩
-    let k : Fin n → ℤ := fun j => Int.floor ((SR⁻¹ *ᵥ WithLp.ofLp xE) j)
-    have h2 : WithLp.toLp 2 (fun i => ((S *ᵥ k) i : ℝ)) ∈ intLattice B :=
-      hSB ((mem_intLattice_iff S _).2 ⟨k, rfl⟩)
-    have hsub : WithLp.toLp 2 (fun i => (c i : ℝ)) =
-        xE - WithLp.toLp 2 (fun i => ((S *ᵥ k) i : ℝ)) := by
-      rw [show WithLp.toLp 2 (fun i => (c i : ℝ)) = modParallelepiped S xE from hv_vec]
-      ext i
-      have hmul_x : xE i = (SR *ᵥ (SR⁻¹ *ᵥ WithLp.ofLp xE)) i := by
-        rw [Matrix.mulVec_mulVec, hSR_mul, Matrix.one_mulVec]
-      have hSk : (SR *ᵥ fun j => (k j : ℝ)) i = ((S *ᵥ k) i : ℝ) := by
-        simp [SR, Matrix.mulVec, dotProduct]
-      unfold modParallelepiped; dsimp only
-      change (SR *ᵥ ((SR⁻¹ *ᵥ WithLp.ofLp xE) - fun j => (k j : ℝ))) i = _
-      rw [Matrix.mulVec_sub, Pi.sub_apply, ← hmul_x, hSk]; rfl
-    rw [hsub]; exact Submodule.sub_mem _ h1 h2
+    rw [hv_vec]
+    exact modParallelepiped_mem_of_le hS hSB ((mem_intLattice_iff B xE).2 ⟨xZ, rfl⟩)
   have hv_idemp : modParallelepiped S (WithLp.toLp 2 (fun i => (c i : ℝ))) =
       WithLp.toLp 2 (fun i => (c i : ℝ)) := by
-    rw [hv_vec]; exact modParallelepiped_idemp_of_det_ne_zero hS xE
+    rw [hv_vec]; exact modParallelepiped_idemp hS xE
   exact ⟨⟨c, hv_bound, hv_mem, hv_idemp⟩, (list_ofFn_getD_eq hv_len 0).symm⟩
 
 /-- Every output in the support of `sampleQuotientModS inp` encodes a valid `SublatticeQuot B S`
@@ -1555,21 +1436,12 @@ theorem mem_support_sampleQuotientModS_exists_sublatticeQuot (inp : QuotientSamp
     ∃ qv : SublatticeQuot B S,
       v = sublatticeQuotToList qv ∧ decodeSublatticeQuot B S v = qv := by
   rcases mem_support_sampleQuotientModS inp hv with rfl | ⟨x, _, rfl⟩
-  · let q0 : SublatticeQuot B S :=
-      ⟨0,
-       fun i => by
-         simpa using Finset.sum_nonneg fun j (_ : j ∈ Finset.univ) => abs_nonneg (S i j),
-       by
-         have h0 : WithLp.toLp 2 (fun _ : Fin inp.dim => ((0 : ℤ) : ℝ)) = 0 := by ext i; simp
-         change WithLp.toLp 2 (fun _ : Fin inp.dim => ((0 : ℤ) : ℝ)) ∈ intLattice B
-         rw [h0]; exact (intLattice B).zero_mem,
-       by
-         ext i
-         simp [modParallelepiped, Matrix.mulVec, dotProduct]⟩
-    have hlist : List.replicate inp.dim (0 : ℤ) = sublatticeQuotToList q0 := by
+  · have hlist : List.replicate inp.dim (0 : ℤ) =
+        sublatticeQuotToList (SublatticeQuot.zero B S) := by
       apply List.ext_getElem (by simp [sublatticeQuotToList])
-      intro i hi _; simp [sublatticeQuotToList, q0]
-    exact ⟨q0, hlist, hlist ▸ decodeSublatticeQuot_sublatticeQuotToList q0⟩
+      intro i hi _; simp [sublatticeQuotToList]
+    exact ⟨SublatticeQuot.zero B S, hlist,
+      hlist ▸ decodeSublatticeQuot_sublatticeQuotToList (SublatticeQuot.zero B S)⟩
   · obtain ⟨qv, hqv⟩ :=
       quotientReduceInt_exists_sublatticeQuot inp.basis inp.sublattice B S
         hBrows hBcols hBmat hSrows hScols hSmat hS hSB x
@@ -1607,13 +1479,6 @@ theorem quotientReduceInt_eq_quotientHom {n : ℕ} (TB TS : IntTable)
   simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi_len, Option.getD_some] at hZ
   simpa [sublatticeQuotToList] using hZ
 
-private theorem piFin_uniformOfFintype_eq (n D : ℕ) [NeZero D] :
-    (PMF.piFin fun _ : Fin n => PMF.uniformOfFintype (ZMod D)) =
-      PMF.uniformOfFintype (Fin n → ZMod D) := by
-  ext z
-  simp [PMF.piFin_apply, PMF.uniformOfFintype_apply, Fintype.card_pi, Finset.prod_const,
-    ENNReal.inv_pow]
-
 private theorem map_quotientReduceInt_piFin_eq_map_uniform_aux {n : ℕ}
     (TB TS : IntTable) (B S : Matrix (Fin n) (Fin n) ℤ)
     (hBrows : TB.numRows = n) (hBcols : TB.numCols = n)
@@ -1626,7 +1491,7 @@ private theorem map_quotientReduceInt_piFin_eq_map_uniform_aux {n : ℕ}
         (fun z => quotientReduceInt n TB TS (List.ofFn fun i => (z i).val)) =
       (PMF.uniformOfFintype (SublatticeQuot B S)).map sublatticeQuotToList := by
   subst hD
-  rw [piFin_uniformOfFintype_eq,
+  rw [(PMF.piFin_const _ n).trans (PMF.iid_uniformOfFintype n),
     ← map_quotientHom_uniform_eq_uniform_sublatticeQuot B S hB hS hSB, PMF.map_comp]
   congr 1; funext z
   exact quotientReduceInt_eq_quotientHom TB TS B S hBrows hBcols hBmat hSrows hScols hSmat
@@ -1654,10 +1519,7 @@ theorem map_quotientReduceInt_piFin_eq_map_uniform {n : ℕ}
     hSrows hScols hSmat hB hS hSB (quotientIndex TB TS)
     (quotientIndex_eq_natAbs_div_det TB TS B S hBwf hSwf hBrows hBmat hSrows hSmat hB hSB)
 
-/-- Direct typed-law `CloseTo` combinator: decoding any `List ℤ` law close to the
-`quotientReduceInt` product pushforward yields a `CloseTo` bound against
-`PMF.uniformOfFintype (SublatticeQuot B S)`. -/
-theorem closeTo_decodeSublatticeQuot_uniform {n : ℕ}
+private theorem closeTo_decodeSublatticeQuot_uniform {n : ℕ}
     (TB TS : IntTable) (B S : Matrix (Fin n) (Fin n) ℤ)
     (hBwf : TB.WellFormed) (hSwf : TS.WellFormed)
     (hBrows : TB.numRows = n) (hBcols : TB.numCols = n)
@@ -1680,26 +1542,6 @@ theorem closeTo_decodeSublatticeQuot_uniform {n : ℕ}
   have hid : (decodeSublatticeQuot B S ∘ sublatticeQuotToList (B := B) (S := S)) = id :=
     funext decodeSublatticeQuot_sublatticeQuotToList
   rwa [hid, PMF.map_id] at h1
-
-/-- `CloseTo` guarantee for `sampleQuotientModS` directly against
-`(PMF.uniformOfFintype (SublatticeQuot B S)).map sublatticeQuotToList` on `List ℤ`. -/
-theorem closeTo_eval_sampleQuotientModS_map_uniform
-    (inp : QuotientSampleInput) (B S : Matrix (Fin inp.dim) (Fin inp.dim) ℤ)
-    (hBwf : inp.basis.WellFormed) (hSwf : inp.sublattice.WellFormed)
-    (hBrows : inp.basis.numRows = inp.dim) (hBcols : inp.basis.numCols = inp.dim)
-    (hBmat : ∀ (i j : Fin inp.dim), inp.basis.entry i.val j.val = B i j)
-    (hSrows : inp.sublattice.numRows = inp.dim) (hScols : inp.sublattice.numCols = inp.dim)
-    (hSmat : ∀ (i j : Fin inp.dim), inp.sublattice.entry i.val j.val = S i j)
-    (hB : B.det ≠ 0) (hS : S.det ≠ 0) (hSB : intLattice S ≤ intLattice B) :
-    CloseTo (ProbComp.eval (sampleQuotientModS inp))
-      ((PMF.uniformOfFintype (SublatticeQuot B S)).map sublatticeQuotToList)
-      ((inp.dim : ℝ≥0∞) / 2 ^ inp.extraBits) := by
-  have hDpos := quotientIndex_pos inp.basis inp.sublattice B S hBwf hSwf
-    hBrows hBmat hSrows hSmat hB hS hSB
-  have h := closeTo_eval_sampleQuotientModS_pi inp hDpos
-  dsimp only at h
-  rwa [map_quotientReduceInt_piFin_eq_map_uniform inp.basis inp.sublattice B S hBwf hSwf
-    hBrows hBcols hBmat hSrows hScols hSmat hB hS hSB] at h
 
 /-- `CloseTo` guarantee for `sampleQuotientModS` decoded into the typed uniform law
 `PMF.uniformOfFintype (SublatticeQuot B S)`. -/
