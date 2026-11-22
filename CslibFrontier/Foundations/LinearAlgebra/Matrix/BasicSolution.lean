@@ -70,13 +70,6 @@ theorem exists_nonneg_mulVec_eq_forall_mulVec_eq_zero {A : Matrix m n K} {b : m 
     ∃ y, 0 ≤ y ∧ A *ᵥ y = b ∧ (∀ j, x j = 0 → y j = 0) ∧
       ∀ w : n → K, (∀ j, y j = 0 → w j = 0) → A *ᵥ w = 0 → w = 0 := by
   classical
-  suffices h : ∀ k (x : n → K), #{j | x j ≠ 0} = k → 0 ≤ x → A *ᵥ x = b →
-      ∃ y, 0 ≤ y ∧ A *ᵥ y = b ∧ (∀ j, x j = 0 → y j = 0) ∧
-        ∀ w : n → K, (∀ j, y j = 0 → w j = 0) → A *ᵥ w = 0 → w = 0 from h _ x rfl hx hAx
-  intro k
-  induction k using Nat.strong_induction_on with
-  | _ k ih =>
-  intro x hk hx hAx
   by_cases hmin : ∀ w : n → K, (∀ j, x j = 0 → w j = 0) → A *ᵥ w = 0 → w = 0
   · exact ⟨x, hx, hAx, fun _ h => h, hmin⟩
   push Not at hmin
@@ -109,16 +102,16 @@ theorem exists_nonneg_mulVec_eq_forall_mulVec_eq_zero {A : Matrix m n K} {b : m 
     simp only [x', Pi.sub_apply, Pi.smul_apply, smul_eq_mul, t]
     rw [div_mul_cancel₀ _ hwj₁.ne', sub_self]
   have hxj₁ : x j₁ ≠ 0 := fun h => hwj₁.ne' (hws j₁ h)
-  have hlt : #{j | x' j ≠ 0} < k := by
-    rw [← hk]
+  have hlt : #{j | x' j ≠ 0} < #{j | x j ≠ 0} := by
     apply Finset.card_lt_card
     refine ⟨fun j => ?_, fun h => ?_⟩
     · simp only [mem_filter, mem_univ, true_and]
       exact mt (hsub j)
     · have := h (show j₁ ∈ ({j | x j ≠ 0} : Finset n) by simp [hxj₁])
       simp [hx'j₁] at this
-  obtain ⟨y, hy, hAy, hxy, hymin⟩ := ih _ hlt x' rfl hx' hAx'
+  obtain ⟨y, hy, hAy, hxy, hymin⟩ := exists_nonneg_mulVec_eq_forall_mulVec_eq_zero hx' hAx'
   exact ⟨y, hy, hAy, fun j hj => hxy j (hsub j hj), hymin⟩
+termination_by #{j | x j ≠ 0}
 
 /-- A sum of `card m` products of entries bounded by `B` is bounded by `card m * B ^ 2`. -/
 private theorem abs_sum_mul_le {u v : m → ℤ} {B : ℕ} (hu : ∀ i, |u i| ≤ B) (hv : ∀ i, |v i| ≤ B) :
