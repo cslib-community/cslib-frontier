@@ -121,18 +121,6 @@ theorem _root_.Cslib.Probability.PMF.one_sub_le_toOuterMeasure_compl {α : Type*
     _ ≤ δ + p.toOuterMeasure sᶜ := by gcongr
     _ = p.toOuterMeasure sᶜ + δ := add_comm _ _
 
-private theorem toOuterMeasure_mono_on_support {α : Type*} (p : PMF α) {s t : Set α}
-    (h : ∀ a ∈ p.support, a ∈ s → a ∈ t) :
-    p.toOuterMeasure s ≤ p.toOuterMeasure t := by
-  classical
-  rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ p.support
-  · by_cases hs : a ∈ s
-    · simp [hs, h a ha hs]
-    · simp [hs]
-  · simp [Set.indicator_apply, (PMF.apply_eq_zero_iff p a).mpr ha]
-
 private theorem one_sub_le_toOuterMeasure_le {α : Type*} (p : PMF α) (f : α → ℕ) (n : ℕ)
     {δ : ℝ≥0∞} (hδ : p.toOuterMeasure {a | n < f a} ≤ δ) :
     1 - δ ≤ p.toOuterMeasure {a | f a ≤ n} :=
@@ -349,7 +337,7 @@ theorem ExecRand.one_sub_le_evalRand_program {w : ℕ} {c : Code B r} {x : Data 
   classical
   have hfast : 1 - δ ≤ m.eval.toOuterMeasure {z | Q z.1 ∧ z.2 ≤ B_hor} :=
     (one_sub_le_toOuterMeasure_le m.eval Prod.snd B_hor hfail).trans
-      (toOuterMeasure_mono_on_support _ fun z hz hle => ⟨hQ z hz, hle⟩)
+      (PMF.toOuterMeasure_mono _ fun z ⟨hle, hz⟩ => ⟨hQ z hz, hle⟩)
   refine hfast.trans ?_
   have hpart :
       m.eval.toOuterMeasure {z | Q z.1 ∧ z.2 ≤ B_hor} =
@@ -1682,7 +1670,7 @@ theorem seq_whp_ofFn (C : HighProbStateTransitionImpl P D w base params s₀)
     obtain ⟨hs_tr, htrans_tr⟩ := htr_eq tr htr
     exact ⟨hs_tr, by simpa using htrans_tr,
       ⟨C.ghostRun C.ghostInit ops, hs_tr ▸ hrep_fin tr htr⟩⟩
-  · refine hsucc.trans (toOuterMeasure_mono_on_support _ fun tr htr hle => ⟨hle, ?_⟩)
+  · refine hsucc.trans (PMF.toOuterMeasure_mono _ fun tr ⟨hle, htr⟩ => ⟨hle, ?_⟩)
     simpa using (htr_eq tr htr).2
 
 /-- **Per-operation w.h.p. bound after an arbitrary-length oblivious prefix
