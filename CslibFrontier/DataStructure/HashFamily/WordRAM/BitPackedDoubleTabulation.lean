@@ -21,10 +21,12 @@ public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation
 public import CslibFrontier.Probability.KWiseIndependent.ReducedLimbs
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.Uniform
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Computability.WordRAM.Width
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -576,32 +578,6 @@ attribute [local wram_arith] resampleSteps
     (x1.comap DoubleTabulation.fillMap12)
   pure (z.1.extend DoubleTabulation.fillMap12 x1, 2 + (6 + z.2))
 
-/-- 6-instruction straight-line setup executed inside `resampleCode` between sampling `α` and
-invoking `Tabulation.randFillLoop`. -/
-private abbrev resampleSetupCode (w c_tab d b_char M_out : ℕ) : Code .exact 12 :=
-  .seq (.op (.store 0 7)) (.seq (.op (.const 6 1)) (.seq (.op (.exactBin .add 3 0 6))
-    (.seq (.op (.const 4 (space w c_tab d b_char M_out)))
-      (.seq (.op (.exactBin .add 4 0 4)) (.op (.const 5 (2 ^ w - 1)))))))
-
-/-- Register/memory state after `resampleSetupCode`. -/
-private abbrev resampleSetupData (base w c_tab d b_char M_out : ℕ) (z : Data 12) : Data 12 :=
-  (((((z.write base (z.regs 7)).set 6 1).set 3 (base + 1)).set 4
-    (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1))
-
-private theorem resampleSetupCode_exec {w base c_tab d b_char M_out : ℕ} {a : Data 12}
-    (hw : 0 < w) (ha0 : a.regs 0 = base)
-    (hfit_end : Fits w (base + space w c_tab d b_char M_out)) :
-    Exec w (resampleSetupCode w c_tab d b_char M_out) a
-      (resampleSetupData base w c_tab d b_char M_out a) 6 := by
-  have hfit_mask_w : Fits w (2 ^ w - 1) := Nat.sub_lt (Nat.two_pow_pos w) one_pos
-  have hfit_one : Fits w 1 := Nat.one_lt_two_pow hw.ne'
-  have hfit_sp : Fits w (space w c_tab d b_char M_out) := by wram_omega
-  have hfit_b1 : Fits w (base + 1) := by wram_omega
-  refine WP.Exact.exec ?_
-  unfold resampleSetupCode
-  wram_exec [ha0]
-  ext i <;> first | rfl | (simp only [resampleSetupData, Data.set, Data.write]; fin_cases i <;> rfl)
-
 theorem resampleCode_execRand {w w₀ base c_tab d b_char M_out : ℕ} {x : Data 12}
     (hw : 0 < w) (hw₀_le : w₀ ≤ w) (hbase : x.regs 0 = base)
     (hfit_end : Fits w (base + space w c_tab d b_char M_out)) :
@@ -610,46 +586,22 @@ theorem resampleCode_execRand {w w₀ base c_tab d b_char M_out : ℕ} {x : Data
   have hfit_mask_α : Fits w (2 ^ (w₀ - 1) - 1) :=
     (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le (Nat.pow_le_pow_right two_pos (by omega))
   have hfit_mask_w : Fits w (2 ^ w - 1) := Nat.sub_lt (Nat.two_pow_pos w) one_pos
+  have hfit_one : Fits w 1 := Nat.one_lt_two_pow hw.ne'
   have hsp_eq : (base + 1) + (topWords w c_tab d b_char + botWords w d b_char M_out) =
       base + space w c_tab d b_char M_out := by wram_omega
-  set d0 := x.set 5 (2 ^ (w₀ - 1) - 1)
-  have s12 : ExecRand (B := .exact) w (.seq (.op (.const 5 (2 ^ (w₀ - 1) - 1))) (.rand 7 5)) x
-      ((fun z => (z.1, 1 + z.2)) <$> (do
-        let k ← ProbComp.unifFin (2 ^ (w₀ - 1) - 1)
-        pure (d0.set 7 k.val, 1))) := by
-    refine (Exec.const (B := .exact) hfit_mask_α).seqRand ?_
-    have h := ExecRand.rand (B := .exact) (w := w) (dst := (7 : Fin 12)) (src := (5 : Fin 12))
-      (x := d0) (by wram_simp [d0, hfit_mask_α])
-    have hr5 : d0.regs 5 = 2 ^ (w₀ - 1) - 1 := by wram_simp [d0]
-    rwa [hr5] at h
-  have hall := ExecRand.seq s12
-    (c₂ := .seq (resampleSetupCode w c_tab d b_char M_out)
-      (Tabulation.randFillLoop.rename DoubleTabulation.fillMap12))
-    (m₂ := fun z =>
-      (fun zf : Data 6 × ℕ =>
-        (zf.1.extend DoubleTabulation.fillMap12 (resampleSetupData base w c_tab d b_char M_out z),
-          6 + zf.2)) <$>
-        Tabulation.randFillComp w (base + 1)
-          (topWords w c_tab d b_char + botWords w d b_char M_out)
-          ((resampleSetupData base w c_tab d b_char M_out z).comap DoubleTabulation.fillMap12))
-    fun z hz => by
-      obtain ⟨_, hz', rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-      obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hz'
-      cases OracleComp.eq_of_mem_supportWith_pure hk
-      have edet := resampleSetupCode_exec (c_tab := c_tab) (d := d) (b_char := b_char)
-        (M_out := M_out) hw (a := d0.set 7 k.val) (by wram_simp [d0, hbase]) hfit_end
-      have hloop := (Tabulation.randFillLoop_execRand (w := w) (bits := w) (arrBase := base + 1)
-        (topWords w c_tab d b_char + botWords w d b_char M_out)
-        (x := (resampleSetupData base w c_tab d b_char M_out (d0.set 7 k.val)).comap
-          DoubleTabulation.fillMap12)
-        (by simp +decide [DoubleTabulation.fillMap12, Data.comap])
-        (by simp +decide [DoubleTabulation.fillMap12, Data.comap, hsp_eq])
-        (by simp +decide [DoubleTabulation.fillMap12, Data.comap])
-        (by simp +decide [DoubleTabulation.fillMap12, Data.comap])
-        (hsp_eq.symm ▸ hfit_end) hfit_mask_w).rename DoubleTabulation.injective_fillMap12
-      simpa only [Functor.map_map, Function.comp_def] using edet.seqRand hloop
-  simpa only [resampleCode, resampleComp, resampleSetupCode, resampleSetupData, d0,
-    Data.set_regs_self, bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using hall
+  unfold resampleCode
+  wram_rand_exec (disch := first | fits | omega | wram_omega) [hbase]
+  · wram_rand_call (Tabulation.randFillLoop_execRand (bits := w) (arrBase := base + 1)
+      (topWords w c_tab d b_char + botWords w d b_char M_out)
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write])
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write, hsp_eq])
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write])
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write])
+      (hsp_eq.symm ▸ hfit_end) hfit_mask_w) renamed DoubleTabulation.injective_fillMap12
+  · have hset : ∀ (d : Data 12) (a b : ℕ), (d.set 4 a).set 4 b = d.set 4 b := fun _ _ _ => by
+      simp [Data.set]
+    simp only [resampleComp, ← bind_pure_comp, bind_assoc, pure_bind, hset]
+    congr 1; funext kα; congr 1; funext z; congr 2; omega
 
 theorem isQueryBounded_resampleComp (base w w₀ c_tab d b_char M_out : ℕ) (x : Data 12) :
     (resampleComp base w w₀ c_tab d b_char M_out x).IsQueryBounded
@@ -677,9 +629,7 @@ theorem mem_support_resampleComp {base w w₀ c_tab d b_char M_out : ℕ} {x : D
     z.2 = resampleSteps w c_tab d b_char M_out := by
   have hbdd := (resampleCode_execRand hw hw₀_le hbase hfit_end).bounded hx_bdd hz
   dsimp only [resampleComp] at hz
-  obtain ⟨kα, -, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-  obtain ⟨zf, hzf, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-  cases OracleComp.eq_of_mem_supportWith_pure hpure
+  supp_cases hz with ⟨kα, zf, hzf, rfl⟩
   obtain ⟨hsteps, _, _, _, _, hextra, hlt, hframe⟩ := Tabulation.mem_support_randFillComp hzf
   have hmem_base : zf.1.mem base = kα.val := by
     rw [hframe base (Or.inl (by omega))]
