@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Structured
 /-!
 # Reflected register-preservation and width-read checks for word-RAM code
 
-Proving `∀ i : Fin r, P i → c.Preserves i` by `decide` runs `Fin.decidableForallFin` `r` times
+Proving `∀ i : Fin r, P i → c.Preserves i` by `decide` runs `Nat.decidableForallFin` `r` times
 across `c`, taking `O(r · |c|)` reductions and exceeding the default `maxRecDepth` once `r`
 reaches a few hundred registers. Likewise, synthesizing `Decidable c.ReadsWidth` walks the full
 syntax tree of `c` in the elaborator before kernel reduction can run.
@@ -24,7 +24,7 @@ This module provides single-pass `O(|c|)` structural reflections:
 * `Cslib.WordRAM.Code.writeStart` / `Cslib.WordRAM.Code.writeEnd`: minimum and strict upper bound
   (`max + 1`) of written register indices using small-`ℕ` `min` and `max`.
 * `Cslib.WordRAM.Code.readsWidthBool : Code B r → Bool`: reflected `Bool` check equivalent to
-  `Code.ReadsWidth`, together with compositional `rename` lemmas.
+  `Code.ReadsWidth`.
 
 ## Main definitions
 
@@ -38,15 +38,13 @@ This module provides single-pass `O(|c|)` structural reflections:
 ## Main results
 
 * `Cslib.WordRAM.Code.preservesAll_eq_true_iff`,
-  `Cslib.WordRAM.Code.preserves_of_preservesAllPred`: soundness and completeness of `preservesAll`.
-* `Cslib.WordRAM.Code.preservesAll_rename`, `Cslib.WordRAM.Code.preservesAll_rename_of_false`:
-  compositional `preservesAll` rules under register renaming.
-* `Cslib.WordRAM.Code.preserves_of_writeStart`, `Cslib.WordRAM.Code.preserves_of_writeEnd`,
-  `Cslib.WordRAM.Code.offset_le_writeStart_rename`,
-  `Cslib.WordRAM.Code.writeEnd_rename_le_offset`: interval preservation and offset bounds.
-* `Cslib.WordRAM.Code.readsWidthBool_eq_false_iff`,
-  `Cslib.WordRAM.Code.not_readsWidth_of_readsWidthBool`,
-  `Cslib.WordRAM.Code.readsWidth_rename`: reflected and compositional width-independence rules.
+  `Cslib.WordRAM.Code.preserves_of_preservesAllPred`,
+  `Cslib.WordRAM.Code.preservesAll_rename_of_false`: soundness, completeness, and renamed-bank
+  elimination for `preservesAll`.
+* `Cslib.WordRAM.Code.preserves_of_writeStart`, `Cslib.WordRAM.Code.preserves_of_writeEnd`:
+  interval register-preservation bounds.
+* `Cslib.WordRAM.Code.readsWidthBool_eq_true_iff`,
+  `Cslib.WordRAM.Code.not_readsWidth_of_readsWidthBool`: reflected width-independence rules.
 -/
 
 @[expose] public section
@@ -81,15 +79,11 @@ def readsWidthBool : Op B r → Bool
 theorem readsWidthBool_eq_true_iff (o : Op B r) : o.readsWidthBool = true ↔ o.ReadsWidth := by
   cases o <;> simp [readsWidthBool, Op.ReadsWidth]
 
-/-- Register renaming preserves `Op.readsWidthBool`. -/
-@[simp]
-theorem readsWidthBool_rename (f : Fin r → Fin r') (o : Op B r) :
+private theorem readsWidthBool_rename (f : Fin r → Fin r') (o : Op B r) :
     (o.rename f).readsWidthBool = o.readsWidthBool := by
   cases o <;> rfl
 
-/-- Register renaming preserves `Op.preservesAll` by precomposing `keep`. -/
-@[simp]
-theorem preservesAll_rename (keep : Fin r' → Bool) (f : Fin r → Fin r') (o : Op B r) :
+private theorem preservesAll_rename (keep : Fin r' → Bool) (f : Fin r → Fin r') (o : Op B r) :
     (o.rename f).preservesAll keep = o.preservesAll (keep ∘ f) := by
   cases o <;> rfl
 
@@ -100,7 +94,7 @@ namespace Code
 /-! ## Single-pass `Bool` preservation predicate (`preservesAll`) -/
 
 /-- Single-pass `Bool` check over `Fin r`: returns `true` iff no instruction of `c` writes a
-register `d` with `keep d = true`. Unlike `Fin.decidableForallFin`, this visits `c` once and
+register `d` with `keep d = true`. Unlike `Nat.decidableForallFin`, this visits `c` once and
 evaluates `keep` only on written destinations (`O(|c|)` instead of `O(r · |c|)`). -/
 def preservesAll (keep : Fin r → Bool) : Code B r → Bool
   | .op o => o.preservesAll keep
@@ -232,37 +226,6 @@ theorem preserves_of_writeEnd {c : Code B r} {hi : ℕ} (h : c.writeEnd ≤ hi)
     {i : Fin r} (hge : hi ≤ i.val) : c.Preserves i :=
   preserves_of_writeEnd_le (h.trans hge)
 
-/-- `writeStart` of a bank embedded at `offset` is at least `offset` without unfolding `c`. -/
-theorem offset_le_writeStart_rename {f : Fin r → Fin r'} {offset : ℕ}
-    (hf : ∀ j : Fin r, (f j).val = offset + j.val) (hr : offset ≤ r') (c : Code B r) :
-    offset ≤ (c.rename f).writeStart := by
-  induction c with
-  | op o => cases o <;> simp [rename, writeStart, Op.rename, Op.writeStart, hf, hr]
-  | seq _ _ ih₁ ih₂ => exact le_min ih₁ ih₂
-  | branch _ _ _ ihp ihn => exact le_min ihp ihn
-  | loop _ _ ih => exact ih
-  | rand _ _ => simp [rename, writeStart, hf]
-
-/-- `writeEnd` of a bank embedded at `offset` is at most `offset + r` without unfolding `c`. -/
-theorem writeEnd_rename_le_offset {f : Fin r → Fin r'} {offset : ℕ}
-    (hf : ∀ j : Fin r, (f j).val = offset + j.val) (c : Code B r) :
-    (c.rename f).writeEnd ≤ offset + r := by
-  induction c with
-  | op o =>
-    cases o with
-    | const d _ | copy d _ | alu _ d _ | load d _ =>
-      simp only [rename, writeEnd, Op.rename, Op.writeEnd, hf d]
-      have := d.isLt
-      omega
-    | store _ _ => simp [rename, writeEnd, Op.rename, Op.writeEnd]
-  | seq _ _ ih₁ ih₂ => exact max_le ih₁ ih₂
-  | branch _ _ _ ihp ihn => exact max_le ihp ihn
-  | loop _ _ ih => exact ih
-  | rand dst _ =>
-    simp only [rename, writeEnd, hf dst]
-    have := dst.isLt
-    omega
-
 /-! ## Reflected `readsWidthBool` and compositional rules -/
 
 /-- Structural `Bool` check determining whether `c` reads the physical word width `w`. -/
@@ -282,14 +245,10 @@ theorem readsWidthBool_eq_true_iff (c : Code B r) : c.readsWidthBool = true ↔ 
   | loop _ _ ih => exact ih
   | rand _ _ => simp [readsWidthBool, ReadsWidth]
 
-/-- `c.readsWidthBool = false` holds iff `¬c.ReadsWidth`. -/
-theorem readsWidthBool_eq_false_iff (c : Code B r) : c.readsWidthBool = false ↔ ¬c.ReadsWidth := by
-  rw [← Bool.not_eq_true, readsWidthBool_eq_true_iff]
-
 /-- Soundness for the reflected width check. -/
 theorem not_readsWidth_of_readsWidthBool {c : Code B r} (h : c.readsWidthBool = false) :
     ¬c.ReadsWidth :=
-  c.readsWidthBool_eq_false_iff.mp h
+  fun hc => Bool.false_ne_true (h.symm.trans (c.readsWidthBool_eq_true_iff.mpr hc))
 
 /-- Register renaming preserves `readsWidthBool` without unfolding `c`. -/
 @[simp]
@@ -301,12 +260,6 @@ theorem readsWidthBool_rename (f : Fin r → Fin r') (c : Code B r) :
   | branch _ _ _ ihp ihn => simp [rename, readsWidthBool, ihp, ihn]
   | loop _ _ ih => exact ih
   | rand _ _ => rfl
-
-/-- Register renaming preserves `ReadsWidth` without unfolding `c`. -/
-@[simp]
-theorem readsWidth_rename (f : Fin r → Fin r') (c : Code B r) :
-    (c.rename f).ReadsWidth ↔ c.ReadsWidth := by
-  rw [← readsWidthBool_eq_true_iff, readsWidthBool_rename, readsWidthBool_eq_true_iff]
 
 end Code
 

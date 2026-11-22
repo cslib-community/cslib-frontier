@@ -35,15 +35,14 @@ open CallableProduct
   coreTime m t qs + 2 + 7 * (QueriedProduct.inputEnd m N qs.length + 1) + 7 * qs.length + 14
 
 private theorem pointer_registers_preserved :
-    program.Preserves Reg.left ∧ program.Preserves Reg.right ∧ program.Preserves Reg.queries :=
-  have hk {c : Code .standard 163} {i : Fin 173} (hi : 163 ≤ i.val) :
-      (c.rename callableBank).Preserves i :=
-    have hle := Code.writeEnd_rename_le_offset (f := callableBank) (offset := 0)
-      (fun j => (Nat.zero_add j.val).symm) c
-    Code.preserves_of_writeEnd (by simpa only [Nat.zero_add] using hle) hi
-  have hp {i : Fin 173} (hlo : 163 ≤ i.val) (hhi : i.val < 166) : program.Preserves i :=
-    ⟨⟨⟨hk hlo, hk hlo⟩, Code.preserves_of_writeStart (by decide) hhi, hk hlo⟩, hk hlo⟩
-  ⟨hp (by decide) (by decide), hp (by decide) (by decide), hp (by decide) (by decide)⟩
+    program.Preserves Reg.left ∧ program.Preserves Reg.right ∧ program.Preserves Reg.queries := by
+  have hp : ∀ i : Fin 173, (i = Reg.left ∨ i = Reg.right ∨ i = Reg.queries) →
+      program.Preserves i := by
+    apply Code.preserves_of_preservesAllPred
+    simp (disch := decide +kernel) only [program, core, setupLayout, Code.preservesAll,
+      Code.preservesAll_rename_of_false]
+    rfl
+  exact ⟨hp _ (.inl rfl), hp _ (.inr (.inl rfl)), hp _ (.inr (.inr rfl))⟩
 
 /-- Execute fixed pointer code from actual external readback, without a solver certificate. -/
 theorem exec {W b m t N s r q : ℕ}

@@ -71,7 +71,7 @@ private def widthSample : Code .standard 8 :=
 
 example : widthSample.readsWidthBool = true := rfl
 example : widthSample.ReadsWidth :=
-  (widthSample.readsWidthBool_eq_true_iff).mp rfl
+  widthSample.readsWidthBool_eq_true_iff.mp rfl
 
 /-- Store-only programs preserve all registers (`writeStart = r`, `writeEnd = 0`). -/
 private def storeOnly : Code .standard 8 := ram[ *r0 ← r1; *r2 ← r3 ]
@@ -87,28 +87,16 @@ private def highBank (j : Fin 8) : Fin 400 := ⟨320 + j.val, by omega⟩
 private def callerProg : Code .standard 400 :=
   .seq (randSample.rename highBank) (.op (.const ⟨350, by decide⟩ 7))
 
-example (i : Fin 400) (hi : i.val < 320) : callerProg.Preserves i := by
-  have h1 : 320 ≤ (randSample.rename highBank).writeStart :=
-    Code.offset_le_writeStart_rename (fun _ => rfl) (by decide) randSample
-  have h2 : 320 ≤ callerProg.writeStart := le_min h1 (by decide)
-  exact Code.preserves_of_writeStart h2 hi
-
-example (i : Fin 400) (hi : 351 ≤ i.val) : callerProg.Preserves i := by
-  have h1 : (randSample.rename highBank).writeEnd ≤ 320 + 8 :=
-    Code.writeEnd_rename_le_offset (fun _ => rfl) randSample
-  have h2 : callerProg.writeEnd ≤ 351 := max_le (h1.trans (by decide)) (by decide)
-  exact Code.preserves_of_writeEnd h2 hi
-
 example : ∀ i : Fin 400, (i.val < 320 ∨ (330 ≤ i.val ∧ i.val < 350) ∨ 351 ≤ i.val) →
     callerProg.Preserves i := by
   apply Code.preserves_of_preservesAllPred
   simp only [callerProg, Code.preservesAll]
-  rw [Code.preservesAll_rename_of_false (f := highBank)]
-  · rfl
-  · decide
+  rw [Code.preservesAll_rename_of_false (f := highBank) (by decide)]
+  rfl
 
 example : ¬callerProg.ReadsWidth := by
-  simp only [callerProg, Code.ReadsWidth, Code.readsWidth_rename, Op.ReadsWidth]
-  exact fun h => h.elim (Code.not_readsWidth_of_readsWidthBool rfl) False.elim
+  apply Code.not_readsWidth_of_readsWidthBool
+  simp only [callerProg, Code.readsWidthBool, Code.readsWidthBool_rename]
+  rfl
 
 end CslibFrontierTests.WordRAMPreservesMask
