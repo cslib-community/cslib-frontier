@@ -7,6 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Data.Nat.ToDigits
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 
@@ -110,6 +111,10 @@ This is a guarantee about the text and the formula the parser returns: the parse
 to read the files as intended, and nothing is said about compiled code. It is smaller than the
 end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
 which also covers the execution of its compiled machine code and the parsing of DIMACS input.
+For an instance or formula built in Lean, the parsers drop out: they read back the text that
+`Cslib.Logic.PL.VeriPB.Text.printOPB` and `Cslib.Logic.PL.CNF.toDIMACS` print, and the soundness
+theorems in `CslibFrontier.Logics.Propositional.PseudoBoolean.Print` conclude about the Lean
+value itself (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB_printOPB` and others).
 
 ## Main definitions
 
@@ -182,16 +187,8 @@ private def lexLine : List Char → List Char → List String
 def tokens (s : String) : List String :=
   (splitChars (· == '\n') s.toList).flatMap fun line => lexLine (line.takeWhile (· != '%')) []
 
-/-- The value of decimal digits after the value `n` of those before them. -/
-private def digits : List Char → ℕ → Option ℕ
-  | [], n => some n
-  | c :: cs, n => if c.isDigit then digits cs (10 * n + (c.toNat - '0'.toNat)) else none
-
-/-- A natural number: one or more decimal digits. -/
-private def nat? (t : String) : Option ℕ :=
-  match t.toList with
-  | [] => none
-  | cs => digits cs 0
+/-- A natural number: one or more decimal digits (`Nat.ofDecimal?`). -/
+private def nat? (t : String) : Option ℕ := Nat.ofDecimal? t.toList
 
 /-- The rest of `t` after its first character, if that is `c`. -/
 private def dropChar? (c : Char) (t : String) : Option String :=
