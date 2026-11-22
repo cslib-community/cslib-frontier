@@ -42,6 +42,30 @@ example (m : ℕ → Memory.Prog ℕ) (P : ℕ → ℕ → Memory.State → Prop
   realize [hm trivial]
   exact h
 
+-- A mapped opaque call keeps its certificate, including its input-dependent work.
+-- The mapper also uses the caller's argument and must fit at the actual reply.
+example (m : ℕ → Memory.Prog ℕ) (hm : Realizes .exact m word word
+    (fun _ n _ => 0 < n) (fun n _ => n)) :
+    Realizes .exact (fun n => (fun a => n + a) <$> m n) word word
+      (fun w n s => 0 < n ∧ Fits w (n + (Memory.spec 0).clientResult s (m n)))
+      (fun n _ => n) := by
+  realize [hm]
+  all_goals first | exact h.1 | exact h.2
+
+-- The explicit free-monad map also works inside a bind. The selected field is a live word.
+example (m : ℕ → Memory.Prog (ℕ × ℕ))
+    (hm : RealizesBounded .exact m word pairWords (fun _ _ _ => True) (fun _ _ => 0)) :
+    RealizesBounded .exact (fun n => do Memory.read (← (m n).map Prod.snd)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hm]
+
+-- At address zero an arbitrary fitting word can still overflow when incremented.
+example : True := by
+  fail_if_success
+    have _ : Realizes .exact (fun _ : ℕ => (· + 1) <$> Memory.read 0) word word
+        (fun _ _ _ => True) (fun _ _ => 0) := by realize
+  trivial
+
 -- Supplying a certificate leaves the actual fit and callee-domain conditions visible.
 example (m : ℕ → Memory.Prog ℕ) (P : ℕ → ℕ → Memory.State → Prop)
     (hm : True → Realizes .exact m word word P (fun _ _ => 0)) :
@@ -157,6 +181,9 @@ example (m : ℕ → Memory.Prog ℕ)
   fail_if_success
     have _ : Realizes .exact m word word (fun _ _ _ => True) (fun _ _ => 0) := by
       realize [_hm trivial]
+  fail_if_success
+    have _ : Realizes .exact (fun n => id <$> m n) word word (fun _ _ _ => True)
+        (fun _ _ => 0) := by realize [_hm trivial]
   trivial
 
 -- An ordinary certificate supplies no frontier-bounded witness for an opaque method.

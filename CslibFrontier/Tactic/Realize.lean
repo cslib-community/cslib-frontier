@@ -23,6 +23,8 @@ the client syntax, unfolding definitions, with one rule per form:
 * `bind`: compose the component work at the actual reply and next memory, absorbing fixed
   control work. After each bind the live words are the previous ones followed by the answer's
   encoding (`WordEncoding`); `realize` keeps this layout itself.
+* `f <$> p` or `p.map f`: reuse the certificate for `p` and certify `f` on its reply with the
+  same word operations and fit conditions as `do let a ← p; return f a`.
 * `pure`: `Realizes.pure₀`, with each result word certified by a `GlueComputable` proof assembled
   from the closure rules of `CslibFrontier.Computability.WordRAM.Glue`: projections, constants, and
   the exact- or standard-basis arithmetic and bitwise operations. Conditional values, natural
@@ -905,9 +907,13 @@ private def rebuildCond (c a b : Expr) : MetaM Expr := do
   else if c.isAppOfArity ``LT.lt 4 then mkAppM ``LT.lt #[a, b]
   else mkAppM ``GT.gt #[b, a]
 
+/-- Both spellings of a result map on a memory program. -/
+private def isClientMap (e : Expr) : Bool :=
+  e.isAppOfArity ``Functor.map 6 || e.isAppOfArity ``PFunctor.FreeM.map 5
+
 /-- Primitive syntax forms on which local method certificates are never queried. -/
 private def isPrimitiveClientForm (e : Expr) : Bool :=
-  e.isAppOfArity ``Bind.bind 6 || e.isAppOfArity ``PFunctor.FreeM.bind 5 ||
+  isClientMap e || e.isAppOfArity ``Bind.bind 6 || e.isAppOfArity ``PFunctor.FreeM.bind 5 ||
   e.isAppOfArity ``Pure.pure 4 || e.isAppOfArity ``PFunctor.FreeM.pure 3 ||
   e.isAppOfArity ``PFunctor.FreeM.lift 2 || e.isAppOfArity ``PFunctor.FreeM.liftBind 4 ||
   e.isAppOfArity ``ite 5
@@ -1642,6 +1648,13 @@ private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arra
     else if body.isAppOfArity ``PFunctor.FreeM.bind 5 then some (body.getArg! 3, body.getArg! 4)
     else none
   if let some (m, f) := bind? then return ← realizeBind ctx env d m f output?
+  if isClientMap body then
+    let m := body.appArg!
+    let eq ← mkAppM ``PFunctor.FreeM.bind_pure_comp #[body.appFn!.appArg!, m]
+    let some (_, bind, _) := (← inferType eq).eq?
+      | throwError "realize: internal error expanding a result map"
+    let out ← realizeBind ctx env d m bind.appArg! output?
+    return { out with proof := ← mkAppM ``Realizes.congr #[out.proof, ← mkLambdaFVars #[d] eq] }
   if body.isAppOfArity ``PFunctor.FreeM.liftBind 4 then
     let m ← mkAppOptM ``PFunctor.FreeM.lift #[body.getArg! 0, body.getArg! 2]
     return ← realizeBind ctx env d m (body.getArg! 3) output?
@@ -1779,7 +1792,7 @@ private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arra
   if let some r ← optionDiscr? d body then
     return ← realizeOptionSplit ctx env d atoms body r output?
   throwError "realize: unsupported client form{indentExpr body}\n\
-    Expected `bind`, `pure`, a memory query, `if` on a word comparison,\n\
+    Expected `bind`, `map`, `pure`, a memory query, `if` on a word comparison,\n\
     a `match` on an optional answer, `iterate` or `boundedWhile`.\n\
     Write recursion on a runtime value as one of these loops."
 

@@ -6759,6 +6759,7 @@ public import CslibFrontier.DataStructure.Stack.Native
 public import CslibFrontier.DataStructure.Stack.Spec
 public import CslibFrontier.DataStructure.StateTransition
 public import CslibFrontier.DataStructure.StateTransition.Amortized
+public import CslibFrontier.DataStructure.StateTransition.ClientMap
 public import CslibFrontier.DataStructure.StateTransition.ClientSimps.Init
 public import CslibFrontier.DataStructure.StateTransition.Composition
 public import CslibFrontier.DataStructure.StateTransition.CostHoare
