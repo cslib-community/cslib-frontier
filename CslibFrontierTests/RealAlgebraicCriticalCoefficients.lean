@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
@@ -54,6 +55,21 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- A negative second-derivative test follows the positive qualifying slot and precedes padding.
+example (i : Fin 3) :
+    let L : List (Fin 2 × SignType) := [(1, -1)]
+    rootLabelCodeOrders 2 2 (encodeRootLabel L) = [2] ∧
+      (rootLabelCodeTarget 101 (encodeRootLabel L) i.val : ZMod 101) = ![1, -1, 0] i := by
+  intro L
+  have hL : decodeRootLabel (by decide) 2 (encodeRootLabel L) = L :=
+    decodeRootLabel_encodeRootLabel (by decide) L (by decide)
+  constructor
+  · rw [rootLabelCodeOrders_eq (by decide), hL]
+    rfl
+  · rw [rootLabelCodeTarget_cast (D := 2) (N := 2) (by decide) (by decide)
+      (encodeRootLabel L) 0 0 i, hL]
+    fin_cases i <;> rfl
 
 -- The qualifying constant and the requested derivative of X are both positive unit tests.
 example : (sparseRootLabelResidue 101 1 1 0 0 1 (fun j => if j = 1 then 1 else 0)

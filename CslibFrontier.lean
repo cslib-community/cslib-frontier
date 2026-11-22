@@ -3120,6 +3120,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.PowerProductC
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientCharacteristicEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ResidueEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
