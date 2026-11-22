@@ -286,30 +286,34 @@ linear form and a constant: that contributed by negative literals (`a ¬x = a - 
 objective, a final constant term. A constraint never ends in `;` or `:` before its relation, so
 `constr` still rejects a constant there. -/
 private def terms (N : Names) :
-    ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
-  | 0, _, _, _ => none
-  | fuel + 1, t :: ts, L, k =>
+    List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
+  | [], _, _ => none
+  | t :: ts, L, k =>
     if t == ">=" || t == "<=" || t == "=" || t == ";" || t == ":" then some (L, k, t :: ts)
     else
-      -- A coefficient and a literal, or a literal with coefficient `1`.
-      let (a, rest) := match int? t with
-        | some a => (a, ts)
-        | none => (1, t :: ts)
-      match rest with
-      | u :: rest =>
-        -- A coefficient before `;` or `:` is the constant of an objective.
-        if (int? t).isSome && (u == ";" || u == ":") then some (L, k + a, u :: rest)
-        else
-          match N.lit? u with
-          | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
-          | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
-          | none => none
-      | [] => none
-  | _ + 1, [], _, _ => none
+      match int? t with
+      | some a =>
+        -- A coefficient and a literal; a coefficient before `;` or `:` is the constant of an
+        -- objective.
+        match ts with
+        | u :: rest =>
+          if u == ";" || u == ":" then some (L, k + a, u :: rest)
+          else
+            match N.lit? u with
+            | some (v, true) => terms N rest (PBConstr.insertCoeff v a L) k
+            | some (v, false) => terms N rest (PBConstr.insertCoeff v (-a) L) (k + a)
+            | none => none
+        | [] => none
+      | none =>
+        -- A literal with coefficient `1`.
+        match N.lit? t with
+        | some (v, true) => terms N ts (PBConstr.insertCoeff v 1 L) k
+        | some (v, false) => terms N ts (PBConstr.insertCoeff v (-1) L) (k + 1)
+        | none => none
 
 /-- A constraint `∑ aᵢ ℓᵢ ⋈ A`: one or two constraints `≥` (`=` gives two), and the rest. -/
 private def constr (N : Names) (ts : List String) : Option (List PBConstr × List String) :=
-  match terms N (ts.length + 1) ts [] 0 with
+  match terms N ts [] 0 with
   | some (L, k, rel :: d :: rest) =>
     match int? d with
     | none => none
@@ -347,7 +351,7 @@ private def opbLines (N : Names) : List (List String) → Option (List PBConstr)
 /-- An objective `∑ wᵢ ℓᵢ [k]` with an optional constant `k`, up to `;` or `:`, and the rest from
 there: the OPB objective syntax, which `obju` reuses (§5.9). -/
 private def objTerms (N : Names) (ts : List String) : Option (Objective × List String) :=
-  match terms N (ts.length + 1) ts [] 0 with
+  match terms N ts [] 0 with
   | some (L, k, t :: rest) => if t == ";" || t == ":" then some (⟨L, k⟩, t :: rest) else none
   | _ => none
 
