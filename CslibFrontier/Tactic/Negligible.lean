@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Negligible.Dyadic
-public import Mathlib.Basic.ENNReal.Basic
 public import Mathlib.Basic.NNReal.Basic
 public meta import Lean.Elab.Tactic.Omega
 public meta import Lean.Elab.Tactic.Simp
@@ -25,10 +24,9 @@ public meta import Mathlib.Tactic.Positivity
 `ℝ≥0` or `ℝ`.
 
 * `negligible` normalizes local `let` bindings, unary polynomial-time certificates
-  (`ComputableInPolyTime f encUnary encUnary`), linear schedule lower bounds (`∀ n, n ≤ g n`),
-  `Bool`-indexed `Negligible` hypotheses, `ENNReal.toNNReal` coercions, pointwise `Pi` operations,
-  and unit fractions `1 / x`, then runs `fun_prop` with arithmetic dischargers (`norm_num`,
-  `positivity`, `omega`).
+  (`ComputableInPolyTime f encUnary encUnary`), `Bool`-indexed `Negligible` hypotheses, pointwise
+  `Pi` operations, and unit fractions `1 / x`, then runs `fun_prop` with arithmetic dischargers
+  (`norm_num`, `positivity`, `omega`).
 * `negligible [f, g]` (combinable with `using hle` or `eventually hle`) unfolds named wrapper
   definitions in the residual `Negligible` goal before normalization.
 * `negligible using hle` reduces `Negligible f` along a pointwise bound `hle` proving either
@@ -341,13 +339,9 @@ private meta def prepareNegligibleContext : TacticM Unit := withMainContext do
   for decl in lctx do
     if decl.isImplementationDetail then continue
     let rawTy ← instantiateMVars decl.type
-    let mentionsPoly := (rawTy.find? fun e =>
-      e.isConstOf ``Cslib.PolynomiallyBounded ||
-      e.isConstOf ``Cslib.Crypto.PolynomiallyLowerBounded).isSome
-    if mentionsPoly then
+    if (rawTy.find? (·.isConstOf ``Cslib.PolynomiallyBounded)).isSome then
       let ty ← whnfR rawTy
-      if ty.isAppOfArity ``Cslib.PolynomiallyBounded 1 ||
-          ty.isAppOfArity ``Cslib.Crypto.PolynomiallyLowerBounded 1 then
+      if ty.isAppOfArity ``Cslib.PolynomiallyBounded 1 then
         knownPolyFns := knownPolyFns.push ty.appArg!
 
   for decl in lctx do
@@ -376,18 +370,6 @@ private meta def prepareNegligibleContext : TacticM Unit := withMainContext do
         candidates := candidates.push (← mkAppM ``And.left #[decl.toExpr], ty.getArg! 0)
         candidates := candidates.push (← mkAppM ``And.right #[decl.toExpr], ty.getArg! 1)
       for (cand, candTy) in candidates do
-        if let .forallE paramName dom body _ := candTy.consumeMData then
-          if dom.isConstOf ``Nat then
-            let body := body.consumeMData
-            if body.isAppOfArity ``LE.le 4 && (body.getArg! 0).isConstOf ``Nat &&
-                body.getArg! 2 == .bvar 0 && body.getArg! 3 != .bvar 0 then
-              let gLam := Expr.lam paramName dom (body.getArg! 3) .default
-              unless knownPolyFns.any (· == gLam) do
-                let pf ← mkAppOptM ``Cslib.Crypto.PolynomiallyLowerBounded.of_le
-                  #[some gLam, some cand]
-                let pfTy := mkApp (mkConst ``Cslib.Crypto.PolynomiallyLowerBounded) gLam
-                newHyps := newHyps.push { userName := `hpoly_lb, type := pfTy, value := pf }
-                knownPolyFns := knownPolyFns.push gLam
         if (candTy.find? (·.isConstOf `Turing.MultiTapeTM.ComputableInPolyTime)).isSome then
           for lem in unaryPolyCertificateLemmas do
             if let some pf ← applyUnaryCertificate? lem cand then
@@ -443,116 +425,17 @@ private meta def prepareNegligibleContext : TacticM Unit := withMainContext do
     if expanded == target then pure g else g.replaceTargetDefEq expanded
   replaceMainGoal [g]
 
-/-- Match `(2 : ℝ≥0) ^ k`, returning the exponent `k : ℕ`. -/
-private meta def matchTwoPowNNReal? (e : Expr) : Option Expr := do
-  let e := e.consumeMData
-  guard <| e.isAppOfArity ``HPow.hPow 6
-  guard <| (e.getArg! 0).isConstOf ``NNReal && (e.getArg! 1).isConstOf ``Nat
-  let base := (e.getArg! 4).consumeMData
-  guard <| base.isAppOfArity ``OfNat.ofNat 3
-  guard <| (base.getArg! 1).rawNatLit? == some 2
-  return e.getArg! 5
-
-/-- Bound subterms `NNReal.sqrt ((2 : ℝ≥0) ^ out / 2 ^ src)` inside monotone `+` / `*` contexts
-by `(1 / 2 : ℝ≥0) ^ n` using `hn : marginPropAtN` when `marginPropAtN` unifies with
-`out + 2 * n ≤ src`. -/
-private meta partial def boundSqrtExprAtN? (nFVar hn marginPropAtN e : Expr) :
-    MetaM (Option (Expr × Expr)) := do
-  let c := e.consumeMData
-  if c.isAppOfArity ``DFunLike.coe 6 && (c.getArg! 4).consumeMData.isConstOf ``NNReal.sqrt then
-    let inner := (c.getArg! 5).consumeMData
-    if inner.isAppOfArity ``HDiv.hDiv 6 && (inner.getArg! 0).isConstOf ``NNReal then
-      if let (some outAtN, some srcAtN) :=
-          (matchTwoPowNNReal? (inner.getArg! 4), matchTwoPowNNReal? (inner.getArg! 5)) then
-        let twoMulN ← mkAppM ``HMul.hMul #[mkNatLit 2, nFVar]
-        let lhs ← mkAppM ``HAdd.hAdd #[outAtN, twoMulN]
-        let expectedProp ← mkAppM ``LE.le #[lhs, srcAtN]
-        if ← withNewMCtxDepth (withReducibleAndInstances (isDefEq marginPropAtN expectedProp)) then
-          let hnTyped ← mkExpectedTypeHint hn expectedProp
-          let rawPf ← mkAppOptM ``Cslib.Crypto.sqrt_pow_two_div_pow_two_le
-            #[some outAtN, some srcAtN, some nFVar, some hnTyped]
-          let pfTy ← inferType rawPf
-          let u := pfTy.appArg!
-          let targetLe ← mkAppM ``LE.le #[e, u]
-          if ← withReducibleAndInstances (isDefEq pfTy targetLe) then
-            return some (u, ← mkExpectedTypeHint rawPf targetLe)
-  for (opName, monoLem) in #[(``HAdd.hAdd, ``add_le_add), (``HMul.hMul, ``mul_le_mul')] do
-    if c.isAppOfArity opName 6 && (c.getArg! 0).isConstOf ``NNReal &&
-        (c.getArg! 1).isConstOf ``NNReal then
-      let a := c.getArg! 4
-      let b := c.getArg! 5
-      match ← boundSqrtExprAtN? nFVar hn marginPropAtN a,
-            ← boundSqrtExprAtN? nFVar hn marginPropAtN b with
-      | some (u1, h1), some (u2, h2) =>
-        return some (← mkAppM opName #[u1, u2], ← mkAppM monoLem #[h1, h2])
-      | some (u1, h1), none =>
-        return some (← mkAppM opName #[u1, b],
-          ← mkAppM monoLem #[h1, ← mkAppM ``le_refl #[b]])
-      | none, some (u2, h2) =>
-        return some (← mkAppM opName #[a, u2],
-          ← mkAppM monoLem #[← mkAppM ``le_refl #[a], h2])
-      | none, none => return none
-  return none
-
-/-- Replace square-root dyadic entropy terms `NNReal.sqrt ((2 : ℝ≥0) ^ out n / 2 ^ src n)` in the
-main `Negligible` goal by `(1 / 2 : ℝ≥0) ^ n` when a local `∀ᶠ n in Filter.atTop,
-out n + 2 * n ≤ src n` margin hypothesis is available. -/
-private meta def boundEntropySqrt : TacticM Unit := withMainContext do
-  let mut g ← getMainGoal
-  let initTarget := (← instantiateMVars (← g.getType)).consumeMData
-  unless (initTarget.find? (·.isConstOf ``NNReal.sqrt)).isSome do return
-  let mut marginHyps : Array (Expr × Expr) := #[]
-  for decl in ← getLCtx do
-    if decl.isImplementationDetail then continue
-    let ty ← instantiateMVars decl.type
-    unless (ty.find? (·.isConstOf ``Filter.Eventually)).isSome do continue
-    let tyR ← whnfR ty
-    if tyR.isAppOfArity ``Filter.Eventually 3 && (tyR.getArg! 0).isConstOf ``Nat &&
-        (tyR.getArg! 2).isAppOf ``Filter.atTop then
-      marginHyps := marginHyps.push (decl.toExpr, tyR.getArg! 1)
-  for (hev, pred) in marginHyps do
-    g ← g.withContext do
-      let target := (← instantiateMVars (← g.getType)).consumeMData
-      unless target.isAppOfArity ``Cslib.Crypto.Negligible 1 &&
-          (target.find? (·.isConstOf ``NNReal.sqrt)).isSome do return g
-      let fn ← Core.betaReduce (← etaExpand target.appArg!)
-      let .lam paramName paramDom body _ := fn | return g
-      let stepRes? ← withLocalDeclD paramName paramDom fun n => do
-        let marginPropAtN := (mkApp pred n).headBeta
-        let bodyAtN := body.instantiate1 n
-        withLocalDeclD `hn marginPropAtN fun hn => do
-          let some (uAtN, pfAtN) ← boundSqrtExprAtN? n hn marginPropAtN bodyAtN | return none
-          return some (← mkLambdaFVars #[n] uAtN, ← mkLambdaFVars #[n, hn] pfAtN)
-      let some (uFn, monoStep) := stepRes? | return g
-      let hevBound ← mkAppM ``Filter.Eventually.mono #[hev, monoStep]
-      let newGoalTy := mkApp (mkConst ``Cslib.Crypto.Negligible) uFn
-      let newMVar ← mkFreshExprSyntheticOpaqueMVar newGoalTy
-      let proof ← mkAppM ``Cslib.Crypto.negligible_of_eventually_le #[newMVar, hevBound]
-      unless ← isDefEq (← inferType proof) target do return g
-      g.assign proof
-      return newMVar.mvarId!
-  replaceMainGoal [g]
-
 /-- Normalize pointwise `Pi` operations and `1 / x` in the main `Negligible` goal and any local
 `Negligible` hypotheses that contain `/` or pointwise `+` / `*`. -/
 private meta def normalizeNegligibleForms : TacticM Unit := withMainContext do
   -- Eta-expand the argument of `Negligible` so `Pi.add_apply` / `Pi.mul_apply` fire.
   let g ← getMainGoal
   let target := (← instantiateMVars (← g.getType)).consumeMData
-  let hasENNReal := (target.find? (·.isConstOf ``ENNReal.toNNReal)).isSome
   if target.isAppOfArity ``Cslib.Crypto.Negligible 1 then
     let fn ← etaExpand target.appArg!
     if fn != target.appArg! then
       let g' ← g.replaceTargetDefEq (mkApp target.appFn! fn)
       replaceMainGoal [g']
-  if hasENNReal then
-    try
-      evalTactic (← `(tactic|
-        simp (config := { zetaDelta := false }) only [ENNReal.toNNReal_pow,
-          ENNReal.toNNReal_div, ENNReal.toNNReal_mul, ENNReal.toNNReal_inv,
-          ENNReal.toNNReal_one, ENNReal.toNNReal_ofNat, ENNReal.toNNReal_natCast]))
-    catch _ => pure ()
-  if (← getUnsolvedGoals).isEmpty then return
   try
     evalTactic (← `(tactic|
       simp (config := { zetaDelta := false }) only [Pi.add_apply, Pi.mul_apply, Pi.pow_apply,
@@ -732,6 +615,17 @@ variables so `fun_prop` never unfolds distinct `def` games, composite projection
 `let` definitions. -/
 private meta def abstractNegligibleHypotheses : TacticM Unit := withMainContext do
   let mut gGoal ← getMainGoal
+  -- Abstract complete `Negligible` leaves first so the polynomial pass cannot rewrite inside them.
+  let candIds ← collectAbstractableHypIds gGoal ``Cslib.Crypto.Negligible false
+  let replaceNegl (pat replacement e : Expr) : MetaM (Expr × Bool) :=
+    walkNNRealCombinators (fun sub => do
+      if !sub.hasLooseBVars then
+        if ← withNewMCtxDepth (withReducibleAndInstances (isDefEq sub pat)) then
+          return some replacement
+      return none) e
+  for fvarId in candIds do
+    gGoal ← abstractHypothesisAt gGoal fvarId ``Cslib.Crypto.Negligible (mkConst ``NNReal) false
+      replaceNegl
   let polyCandIds ← collectAbstractableHypIds gGoal ``Cslib.PolynomiallyBounded true
   let replacePoly (pat replacement e : Expr) : MetaM (Expr × Bool) :=
     walkNNRealCombinators (fun sub => do
@@ -743,16 +637,6 @@ private meta def abstractNegligibleHypotheses : TacticM Unit := withMainContext 
   for fvarId in polyCandIds do
     gGoal ← abstractHypothesisAt gGoal fvarId ``Cslib.PolynomiallyBounded (mkConst ``Nat) true
       replacePoly
-  let candIds ← collectAbstractableHypIds gGoal ``Cslib.Crypto.Negligible false
-  let replaceNegl (pat replacement e : Expr) : MetaM (Expr × Bool) :=
-    walkNNRealCombinators (fun sub => do
-      if !sub.hasLooseBVars then
-        if ← withNewMCtxDepth (withReducibleAndInstances (isDefEq sub pat)) then
-          return some replacement
-      return none) e
-  for fvarId in candIds do
-    gGoal ← abstractHypothesisAt gGoal fvarId ``Cslib.Crypto.Negligible (mkConst ``NNReal) false
-      replaceNegl
   replaceMainGoal [gGoal]
 
 /-- Apply a pointwise or eventual upper bound `hle` in `ℝ≥0` or `ℝ`. -/
@@ -798,8 +682,7 @@ syntax negligibleEventuallyClause := ppSpace &"eventually" ppSpace term
 
 /-- `negligible` proves `Cslib.Crypto.Negligible f` using `fun_prop` closure rules for polynomial
 losses, dyadic reciprocals `((2 : ℝ≥0) ^ n)⁻¹` and `1 / 2 ^ n`, birthday bounds, square roots,
-square-root dyadic entropy ratios, geometric decay, parameter shifts/scalings, and finite range
-sums.
+geometric decay, parameter shifts/scalings, and finite range sums.
 
 * `negligible [f, g]` unfolds named wrapper definitions in the `Negligible` goal before
   normalization (combinable with `using hle` or `eventually hle`).
@@ -836,8 +719,6 @@ meta def evalNegligible : Tactic := fun stx => focus <| withMainContext do
     evalTactic (← `(tactic| simp only [$simpTerms,*]))
   if (← getUnsolvedGoals).isEmpty then return
   prepareNegligibleContext
-  if (← getUnsolvedGoals).isEmpty then return
-  boundEntropySqrt
   if (← getUnsolvedGoals).isEmpty then return
   normalizeNegligibleForms
   if (← getUnsolvedGoals).isEmpty then return

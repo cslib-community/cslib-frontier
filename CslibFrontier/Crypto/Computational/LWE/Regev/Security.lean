@@ -434,6 +434,7 @@ theorem indCPA_of_decisionLWE {n m w η : ℕ → ℕ}
   intro adversary hadversary
   have hsource := hLWE.encoded (lweDistinguisher n m w adversary)
     (isPPT_lweDistinguisher hn hm hw hadversary)
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
   negligible [hidingError] using advantage_game_le n m w η adversary
 
 /-! ### Adaptive multi-challenge left-or-right security -/
@@ -735,6 +736,7 @@ theorem lorIndCPA_of_decisionLWE {n m w η Q : ℕ → ℕ}
   intro adversary hadversary
   have hsource := hLWE.encoded (lorLweDistinguisher n m w Q adversary)
     (isPPT_lorLweDistinguisher hn hm hw hQ hadversary)
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
   negligible [hidingError] using lorGameSerialized_advantage_le_two_mul n m w η Q adversary
 
 end Cslib.Crypto.Regev

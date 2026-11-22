@@ -179,10 +179,6 @@ theorem mono_of_le (hg : PolynomiallyLowerBounded g) (hle : ∀ n, g n ≤ f n) 
 protected theorem id : PolynomiallyLowerBounded (fun n => n) :=
   ⟨1, 1, fun n => by simp⟩
 
-/-- Any schedule dominating the identity pointwise is polynomially lower-bounded. -/
-theorem of_le {g : ℕ → ℕ} (h : ∀ n, n ≤ g n) : PolynomiallyLowerBounded g :=
-  PolynomiallyLowerBounded.id.mono_of_le h
-
 /-- Adding any nonnegative offset on the right preserves a polynomial lower bound. -/
 @[fun_prop]
 protected theorem add_right (hg : PolynomiallyLowerBounded g) (f : ℕ → ℕ) :

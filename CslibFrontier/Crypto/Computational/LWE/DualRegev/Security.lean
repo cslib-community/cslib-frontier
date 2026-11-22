@@ -1128,6 +1128,7 @@ theorem indCPA_of_decisionLWE {n m w η : ℕ → ℕ}
   intro adversary hadversary
   have hsource := hLWE.encoded (lweDistinguisher n m w adversary)
     (isPPT_lweDistinguisher hn hm hw hadversary)
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
   negligible [hidingError] using advantage_game_le n m w η adversary
 
 end Cslib.Crypto.DualRegev

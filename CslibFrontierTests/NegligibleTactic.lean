@@ -59,29 +59,28 @@ example (hQ : PolynomiallyBounded Q) (hε : Negligible ε) :
     Negligible (fun n => ∑ _i ∈ Finset.range (Q n), ε n) := by
   negligible
 
-example (hQ : PolynomiallyBounded Q) {out src : ℕ → ℕ}
-    (hmargin : ∀ᶠ n in Filter.atTop, out n + 2 * n ≤ src n) :
-    Negligible (fun n => (Q n : ℝ≥0) * NNReal.sqrt ((2 : ℝ≥0) ^ out n / 2 ^ src n)) := by
-  negligible
-
-example {k : ℕ → ℕ} (hk : ∀ n, n ≤ k n) :
-    Negligible (fun n => ((1 / 3 : ℝ≥0∞) ^ k n).toNNReal) := by
-  negligible
-
 private noncomputable def testHidingError (out src : ℕ) : ℝ≥0 :=
   NNReal.sqrt ((2 : ℝ≥0) ^ out / 2 ^ src)
 
 example {f : ℕ → ℝ≥0} {out src : ℕ → ℕ} (h : Bool → Negligible ε)
     (hmargin : ∀ᶠ n in Filter.atTop, out n + 2 * n ≤ src n)
-    (hle : ∀ n, f n ≤ ε n + testHidingError (out n) (src n)) :
+    (hle : ∀ n, f n ≤ ε n + (Q n : ℝ≥0) * testHidingError (out n) (src n))
+    (hQ : PolynomiallyBounded Q) :
     Negligible f := by
   have _ := h
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
   negligible [testHidingError] using hle
 
 example {g : Bool → ℕ → ℝ≥0} {f : ℕ → ℝ≥0} (h : ∀ b, Negligible (g b))
     (hle : ∀ n, f n ≤ g false n + g true n) :
     Negligible f := by
   negligible using hle
+
+/-- A polynomial bound on `f + g` does not rewrite inside the negligible leaf `(f n + g n)⁻¹`. -/
+example {f g : ℕ → ℕ} (_hp : PolynomiallyBounded (fun n => f n + g n))
+    (hinv : Negligible fun n => ((f n + g n : ℕ) : ℝ≥0)⁻¹) :
+    Negligible fun n => 3 * ((f n + g n : ℕ) : ℝ≥0)⁻¹ := by
+  negligible
 
 /-! ### Local `let` definitions and unary `ComputableInPolyTime` certificates -/
 
