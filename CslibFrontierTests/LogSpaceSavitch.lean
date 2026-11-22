@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Savitch
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
@@ -23,6 +25,9 @@ language checks the RL bridge and the quadratic-space conclusion on accepting, r
 inputs.
 -/
 
+-- This module contains only checked clients.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.LogSpaceSavitch
 
 open Cslib.Turing Turing Turing.MultiTapeTM Cslib.Complexity
@@ -38,7 +43,7 @@ example : (lowBits 3 0, lowBits 0 0) = ([false, false, false], []) := by decide
 
 /-! ### A machine accepting every input -/
 
-private def acceptAction : Action 0 Bool Unit :=
+def acceptAction : Action 0 Bool Unit :=
   { inputTape := 0, workTapes := Fin.elim0, output := some true, state := none }
 
 private def acceptMachine : MultiTapeNTM 0 Bool Unit where
@@ -139,8 +144,11 @@ example (s : Runtime) : encRuntime s =
           s.round.setup.params.inputLength, s.round.setup.params.symbol), s.round.setup.width),
           s.round.recursion)) := rfl
 
-example (q : ((Bool × ℕ × ℕ × Option Bool) × ℕ) × Cslib.Reachability.Savitch.State) :
-    encSimulationRound (.ofRound q) = Cslib.Reachability.Savitch.encRound encParam q := rfl
+example (p : EdgeParams) :
+    encEdgeParams p = encParam (p.overflowMode, p.radix, p.inputLength, p.symbol) := rfl
+
+example (q : (EdgeParams × ℕ) × Cslib.Reachability.Savitch.State) :
+    encSimulationRound (.ofRound q) = Cslib.Reachability.Savitch.encRound encEdgeParams q := rfl
 
 example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {s : α → Runtime}
     (hs : ComputableInSpace s enc encRuntime S) :
