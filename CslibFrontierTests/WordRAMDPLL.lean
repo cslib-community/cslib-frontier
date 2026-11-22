@@ -45,8 +45,8 @@ def runList (p : Program .standard 32) : ℕ → State 32 → Option (List ℕ �
 def runSolver (N : ℕ) (φ : CNF ℕ) : Option (List ℕ × ℕ) :=
   runList program 100000 (State.init (encode N φ))
 
--- An unsatisfiable formula gives `[0]`, the output of `solve`, in `2013` instructions.
-#guard runSolver 2 full == some ([0], 2013)
+-- An unsatisfiable formula gives `[0]`, the output of `solve`, in `1587` instructions.
+#guard runSolver 2 full == some ([0], 1587)
 
 #guard answerWords 2 full == [0]
 
@@ -55,20 +55,28 @@ def runSolver (N : ℕ) (φ : CNF ℕ) : Option (List ℕ × ℕ) :=
 
 #guard answerWords 3 unitFirst == [1, 0, 0, 1]
 
+/-- `x0 ∨ x1 ∨ ¬x0`: without a unit clause, the search branches on the variable that occurs
+first. -/
+def firstOccurrence : CNF ℕ := [[(0, true), (1, true), (0, false)]]
+
+#guard (runSolver 2 firstOccurrence).map Prod.fst == some [1, 1, 0]
+
+#guard answerWords 2 firstOccurrence == [1, 1, 0]
+
 -- The empty formula: the model with every variable false.
 #guard (runSolver 2 []).map Prod.fst == some [1, 0, 0]
 
 -- The empty clause is falsified at once.
 #guard (runSolver 1 [[]]).map Prod.fst == some [0]
 
--- `program_spec` bounds the count by `2 ^ 3 · (46 · 13 + 64) + 10 · 2 + 8 · 13 + 21 = 5441`.
+-- `program_spec` bounds the count by `2 ^ 3 · (37 · 13 + 62) + 10 · 2 + 14 = 4378`.
 
 example : (encode 2 full).length = 13 ∧ Cslib.Algorithms.Lean.DPLL.depth full = 2 := by decide
 
 -- The hypothesis of `program_spec` holds at word size `64`, so the solver returns the output of
 -- `solve` within the bound.
-example : ∃ n ≤ 2 ^ (Cslib.Algorithms.Lean.DPLL.depth full + 1) * (46 * (encode 2 full).length +
-      64) + 10 * 2 + 8 * (encode 2 full).length + 21,
+example : ∃ n ≤ 2 ^ (Cslib.Algorithms.Lean.DPLL.depth full + 1) * (37 * (encode 2 full).length +
+      62) + 10 * 2 + 14,
     ExecutesList 64 program (State.init (encode 2 full)) (answerWords 2 full) n :=
   program_spec 2 full (by decide) (w := 64) (by decide)
 

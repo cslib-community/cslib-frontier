@@ -41,11 +41,11 @@ example : streamAcceptCount firstBit [] 4 = 8 := by
 
 example : ComputableInPolySpace
     (fun w : List Bool => acceptCount firstBit w (w.length + 1)) encBits encNat :=
-  computableInPolySpace_acceptCount firstBit_polyTime (by fun_prop)
+  computableInPolySpace_acceptCount (.of_polyTime firstBit_polyTime) (by fun_prop)
 
 example : ComputableInPolySpace
     (fun w : List Bool => acceptCount firstBit w 0) encBits encNat :=
-  computableInPolySpace_acceptCount firstBit_polyTime (.const 0)
+  computableInPolySpace_acceptCount (.of_polyTime firstBit_polyTime) (.const 0)
 
 theorem power_mem : (fun w : List Bool => 2 ^ w.length) ∈ SharpP encBits := by
   simpa using SharpP.two_pow_mem (enc := encBits) Polynomial.X

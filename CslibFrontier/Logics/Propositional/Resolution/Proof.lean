@@ -58,6 +58,8 @@ clauses of `ψ` (`Cslib.Logic.PL.CNF.IsProof.comp`).
   `Cslib.Logic.PL.CNF.IsProof.restrictBy`: restricting and lifting proofs along a fixed variable or
   a partial assignment.
 * `Cslib.Logic.PL.CNF.IsProof.comp`: composing proofs.
+* `Cslib.Logic.PL.CNF.RefutableInSize.of_relabel`: refutations of a formula relabelled along an
+  injective map give refutations of the formula of the same size.
 * `Cslib.Logic.PL.CNF.IsProof.width_le`: the lines of a proof from `φ` have width at most twice
   the number of variables of `φ`.
 
@@ -226,6 +228,40 @@ theorem RefutableInWidth.mono {w w' : ℕ} (h : φ.RefutableInWidth w) (hww' : w
     φ.RefutableInWidth w' :=
   let ⟨ls, h, hnil, hw⟩ := h
   ⟨ls, h, hnil, fun c hc => (hw c hc).trans hww'⟩
+
+/-- Along an injective map `f`, a proof from `φ.relabel f` is a relabelled proof from `φ`. -/
+private theorem IsProof.exists_of_relabel {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : Function.Injective f) {ls : List (Clause W)} (h : (φ.relabel f).IsProof ls) :
+    ∃ ls', φ.IsProof ls' ∧ ls'.map (Clause.relabel f) = ls := by
+  induction h with
+  | nil => exact ⟨[], .nil, rfl⟩
+  | mem _ hc ih =>
+    obtain ⟨ls', h', rfl⟩ := ih
+    obtain ⟨c', hc', rfl⟩ := List.mem_map.1 hc
+    exact ⟨c' :: ls', h'.mem hc', rfl⟩
+  | resolvent v _ h₁ h₂ hv₁ hv₂ ih =>
+    obtain ⟨ls', h', rfl⟩ := ih
+    obtain ⟨c₁, hc₁, rfl⟩ := List.mem_map.1 h₁
+    obtain ⟨c₂, hc₂, rfl⟩ := List.mem_map.1 h₂
+    obtain ⟨⟨u, b⟩, hu₁, hub⟩ := List.mem_map.1 hv₁
+    obtain ⟨⟨u', b'⟩, hu₂, hub'⟩ := List.mem_map.1 hv₂
+    simp only [Prod.map, id, Prod.mk.injEq] at hub hub'
+    obtain ⟨rfl, rfl⟩ := hub
+    obtain ⟨hu', rfl⟩ := hub'
+    obtain rfl : u = u' := (hf hu').symm
+    exact ⟨_ :: ls', h'.resolvent u hc₁ hc₂ hu₁ hu₂,
+      by rw [List.map_cons, Clause.relabel_resolvent hf]⟩
+
+/-- **Relabelling back a refutation.** Along an injective map `f`, a refutation of `φ.relabel f`
+gives a refutation of `φ` with the same number of lines. -/
+theorem RefutableInSize.of_relabel {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : Function.Injective f) {s : ℕ} (h : (φ.relabel f).RefutableInSize s) :
+    φ.RefutableInSize s := by
+  obtain ⟨ls, h, hnil, hlen⟩ := h
+  obtain ⟨ls', h', rfl⟩ := h.exists_of_relabel hf
+  obtain ⟨c, hc, hc'⟩ := List.mem_map.1 hnil
+  obtain rfl : c = [] := List.map_eq_nil_iff.1 hc'
+  exact ⟨ls', h', hc, by simpa using hlen⟩
 
 /-! ### Restricting and lifting proofs -/
 

@@ -19,6 +19,8 @@ import Mathlib.Data.Rat.Cast.Lemmas
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Partitioned-bucket, micro-bucket, and slab-hysteresis model for succinct dictionaries
@@ -117,7 +119,7 @@ open scoped BigOperators ENNReal
 
 /-- Number of local micro-bucket bits `min ⌊log₂ n⌋ (3 * logLogFactor n)` within each Feistel
 bucket. -/
-@[expose]
+@[expose, wram_arith]
 def microBits (n : ℕ) : ℕ :=
   min (Nat.log 2 n) (3 * Dynamic.logLogFactor n)
 
@@ -127,7 +129,7 @@ def numMicroPerBucket (n : ℕ) : ℕ :=
   2 ^ microBits n
 
 /-- Total number of `(bucket, microBucket)` address bits `bucketBits n + microBits n = ⌊log₂ n⌋`. -/
-@[expose]
+@[expose, wram_arith]
 def totalMicroBits (n : ℕ) : ℕ :=
   bucketBits n + microBits n
 
@@ -184,7 +186,7 @@ def maxTailItems (n : ℕ) : ℕ :=
   numBuckets n * tailCapPerBucket n
 
 /-- Bit-width `⌈log₂ (n + 1)⌉` capable of representing any global index or count in `0 .. n`. -/
-@[expose]
+@[expose, wram_arith]
 def globalPtrBits (n : ℕ) : ℕ :=
   Nat.clog 2 (n + 1)
 
@@ -206,9 +208,7 @@ theorem keyQuotient_eq_of_quotientFin_eq {U n : ℕ} (hnU : n ≤ U) (u₁ u₂ 
   rwa [quotientFin_val_eq hnU, quotientFin_val_eq hnU] at hval
 
 /-- For every `n : ℕ`, `totalMicroBits n = Nat.log 2 n`. -/
-theorem totalMicroBits_eq_log (n : ℕ) : totalMicroBits n = Nat.log 2 n := by
-  unfold totalMicroBits bucketBits microBits
-  omega
+theorem totalMicroBits_eq_log (n : ℕ) : totalMicroBits n = Nat.log 2 n := by wram_omega
 
 /-- `bucketBits n` is at most `totalMicroBits n`. -/
 theorem bucketBits_le_totalMicroBits (n : ℕ) : bucketBits n ≤ totalMicroBits n :=
@@ -433,8 +433,7 @@ theorem globalPtrBits_le_two_mul_slabScale {n : ℕ} (hb : 0 < bucketBits n) :
   have hclog2 : Nat.clog 2 (max n 4) ≤ slabScale n := by
     unfold slabScale Dynamic.logLogFactor
     exact Nat.le_pow_clog (by decide) (Nat.clog 2 (max n 4))
-  unfold globalPtrBits
-  omega
+  wram_omega
 
 /-- For every `n : ℕ`, `maxTailItems n ≤ n`. -/
 theorem maxTailItems_le (n : ℕ) : maxTailItems n ≤ n := by
@@ -1075,7 +1074,7 @@ def globalMetaVarLen (n : ℕ) : ℕ :=
 /-- Total number of `globalPtrBits n`-bit entries in `GlobalMeta`: `4` global header slots (slots
 `0` and `1` store `n_slabs` and `n_tails`; slots `2` and `3` are unused) plus `globalMetaVarLen n`.
 -/
-@[expose]
+@[expose, wram_arith]
 def globalMetaLen (n : ℕ) : ℕ :=
   4 + globalMetaVarLen n
 

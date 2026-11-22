@@ -80,10 +80,30 @@ theorem PolynomialFunction.value_eq_eval {d : ℕ} (p : PolynomialFunction F d) 
   unfold value
   rfl
 
+/-- The values at field elements determine a polynomial function. -/
+theorem PolynomialFunction.value_injective {d : ℕ} :
+    Function.Injective (PolynomialFunction.value : PolynomialFunction F d → F → F) := by
+  intro f g h
+  apply Subtype.ext
+  funext x
+  have hx (j : Fin 1) : x.val 0 = x.val j := congrArg x.val (Subsingleton.elim _ _)
+  have h' := congrFun h (x.val 0)
+  rw [PolynomialFunction.value_eq_eval, PolynomialFunction.value_eq_eval] at h'
+  have he : (fun _ : Fin 1 => x.val 0) = x.val := funext hx
+  rw [he] at h'
+  simpa only [PolynomialFunction.eval, Subtype.eta] using h'
+
 theorem PolynomialFunction.exists_polynomial_value {d : ℕ} (p : PolynomialFunction F d) :
     ∃ f : Polynomial F, f.natDegree ≤ d ∧ ∀ t, f.eval t = p.value t := by
   obtain ⟨f, hf, he⟩ := p.exists_polynomial
   exact ⟨f, hf, fun t => (he (fun _ => t)).symm⟩
+
+/-- A degree-zero function takes the same value at every field element. -/
+theorem PolynomialFunction.value_eq_of_degree_zero (f : PolynomialFunction F 0) (s t : F) :
+    f.value s = f.value t := by
+  obtain ⟨p, hp, he⟩ := f.exists_polynomial_value
+  rw [← he s, ← he t, Polynomial.eq_C_of_natDegree_eq_zero (Nat.eq_zero_of_le_zero hp),
+    Polynomial.eval_C, Polynomial.eval_C]
 
 /-- Represent the evaluations of a degree-bounded univariate polynomial. -/
 noncomputable def PolynomialFunction.ofPolynomial {d : ℕ} (p : Polynomial F)
@@ -128,6 +148,12 @@ def decodePoint {m : ℕ} : Answer F m → F
 omit [Fintype F] [DecidableEq F] in
 @[simp] theorem decodePoint_inl {m : ℕ} (a : F) :
     decodePoint (m := m) (Sum.inl a) = a := by
+  unfold decodePoint
+  rfl
+
+omit [Fintype F] [DecidableEq F] in
+@[simp] theorem decodePoint_inr {m : ℕ} (a : Σ L : Finset (Point F m), L → F) :
+    decodePoint (Sum.inr a) = 0 := by
   unfold decodePoint
   rfl
 

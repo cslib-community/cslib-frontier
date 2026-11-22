@@ -20,6 +20,9 @@ and its encoded cached heights agree, at every node. Heap contents remain govern
 `recomputeHeight_mkNode` proves that the concrete nine-instruction height update implements
 the cached-height constructor `AVLTree.mkNode`, preserving the matched children.
 It requires consistent child heights but permits an arbitrary old root cache.
+
+`Rebuilt` is the contract of a routine that rebuilds the subtree under the cursor in place;
+the flat and the structured rebalancing programs both establish it.
 -/
 
 public section
@@ -131,5 +134,29 @@ theorem recomputeHeight_mkNode (zero maxSucc : M.Op) (encode : ℕ → M.Value)
   · exact ⟨by simp [Ne.symm notKey], by simp, ml, mr⟩
   · rw [← shape]
     exact distinct.updateData _ _ _
+
+/-- The subtree `old` under the cursor of `s` has been rebuilt in place as `tree`, which matches
+`target`: it is represented under the same parent, occupies the same addresses, the cursor is at
+its root, register six holds the former root, and the root register and every record outside
+it are unchanged. -/
+structure Rebuilt (encode : ℕ → M.Value) (field : Fin (extra + 1))
+    (s t : State M (layout extra (regs + 1))) (parent : Pointer)
+    (old tree : BinaryTree (Label M extra)) (target : AVLTree M.Value) : Prop where
+  /-- The rebuilt subtree is represented under the same parent. -/
+  rep : Represents t.heap parent tree
+  /-- Its keys and height caches match the functional result. -/
+  matched : Matches encode field tree target
+  /-- Its addresses are distinct. -/
+  distinct : AddressesDistinct tree
+  /-- It occupies the addresses of the old subtree. -/
+  footprint : addresses tree = addresses old
+  /-- The cursor is at its root. -/
+  cursor : t.ptr 0 = root tree
+  /-- Register six holds the former root. -/
+  saved : t.ptr 6 = s.ptr 0
+  /-- The root register is unchanged. -/
+  top : t.ptr 1 = s.ptr 1
+  /-- No record outside the old subtree changed. -/
+  frame : ∀ z, z ∉ addresses old → t.heap[z]? = s.heap[z]?
 
 end Cslib.DataStructure.AVLTree.PointerMachine

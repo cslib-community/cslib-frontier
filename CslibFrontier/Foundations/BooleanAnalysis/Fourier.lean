@@ -67,6 +67,8 @@ coefficient on the circle, so the name is meant to be used qualified.
 * `Cslib.BitString.fourierCoeff_sum_mul_chi`, `Cslib.BitString.fourierCoeff_injective`:
   uniqueness of the Fourier coefficients.
 * `Cslib.BitString.expect_mul_eq_sum_fourierCoeff_mul`: Plancherel's identity.
+* `Cslib.BitString.fourierCoeff_comp_arrowCongr`: relabelling the coordinates relabels the
+  Fourier coefficients.
 * `Cslib.BitString.sum_fourierCoeff_sq_signVal`: Parseval's identity for functions with values
   `±1`; so their coefficients have square and absolute value at most one
   (`Cslib.BitString.fourierCoeff_sq_signVal_le_one`,
@@ -289,6 +291,14 @@ theorem fourierCoeff_chi (S T : Finset ι) :
     fourierCoeff (chi ℝ S) T = if S = T then 1 else 0 :=
   expect_chi_mul_chi S T
 
+/-- A literal `x ↦ b ⊕ x_i`, read as `±1`, is `signVal b` times the character of `{i}`, so its
+only nonzero Fourier coefficient is `signVal b`, on `{i}`. -/
+theorem fourierCoeff_signVal_xor (b : Bool) (i : ι) (S : Finset ι) :
+    fourierCoeff (fun x => signVal (b ^^ x i)) S = if {i} = S then signVal b else 0 := by
+  have h : (fun x : ι → Bool => signVal (b ^^ x i)) = fun x => signVal b * chi ℝ {i} x :=
+    funext fun x => by rw [signVal_xor, chi_singleton]
+  rw [h, fourierCoeff_const_mul, fourierCoeff_chi, mul_ite, mul_one, mul_zero]
+
 /-- A parity, read as `±1`, is the character of its set, so all its weight is on that set. -/
 theorem fourierCoeff_signVal_parityOn (S U : Finset ι) :
     fourierCoeff (fun x => signVal (parityOn S x)) U = if U = S then 1 else 0 := by
@@ -296,6 +306,18 @@ theorem fourierCoeff_signVal_parityOn (S U : Finset ι) :
     funext fun x => (chi_eq_signVal_parityOn S x).symm
   rw [h, fourierCoeff_chi]
   exact if_congr eq_comm rfl rfl
+
+/-- **Relabelling the coordinates relabels the Fourier coefficients**: renaming the coordinates
+of `g` by `e`, the coefficient on `S` is the coefficient of `g` on the image of `S` under `e`.
+For a permutation `π` this is `f̂^π(S) = f̂(π⁻¹(S))`, where `f^π(x) = f(x^π)` and
+`(x^π)ᵢ = x_{π(i)}` [O'Donnell, Exercise 1.30(a)][ODonnell2014]. -/
+theorem fourierCoeff_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] (e : ι ≃ κ)
+    (g : (κ → Bool) → ℝ) (S : Finset ι) :
+    fourierCoeff (fun y : ι → Bool => g fun j => y (e.symm j)) S =
+      fourierCoeff g (S.map e.toEmbedding) := by
+  refine Fintype.expect_equiv (e.arrowCongr (Equiv.refl Bool)) _ _ fun x =>
+    congrArg (_ * ·) ?_
+  simp [chi]
 
 /-- The coefficient on the empty set is the expectation. -/
 @[simp] theorem fourierCoeff_empty (f : (ι → Bool) → ℝ) : fourierCoeff f ∅ = 𝔼 x, f x := by
