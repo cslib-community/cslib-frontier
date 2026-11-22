@@ -171,6 +171,28 @@ example (F : Bool → Bool × Fin 2 → BitString 2)
   ⟨eval_collisionExperiment_xorHash_le_prfAdvantage F A,
     isQueryBounded_xorHashCollisionReduction A⟩
 
+/-- Three messages of at most two blocks give three candidate pairs and at most six queries. -/
+example (F : Bool → Bool × Fin 2 → BitString 2)
+    (A : ProbComp (List {m : List Bool // m.length ≤ 2}))
+    (hA : ∀ ms ∈ (ProbComp.eval A).support, ms.length ≤ 3) :
+    ProbComp.eval (multiQueryExperiment (fun k => xorHash (F k)) A) true ≤
+      (PRF.advantage F (xorHashMultiQueryReduction 3 A) : ℝ≥0∞) +
+        (3 : ℝ≥0∞) * (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ ∧
+    (xorHashMultiQueryReduction (Y := BitString 2) 3 A).IsQueryBounded 6 := by
+  refine ⟨?_, isQueryBounded_xorHashMultiQueryReduction 3 A⟩
+  simpa only [show (3 : ℕ).choose 2 = 3 by decide, Nat.cast_ofNat] using
+    eval_multiQueryExperiment_xorHash_le_prfAdvantage F A hA
+
+/-- The wrapper rejects a repeated message and detects the collision once it sees a distinct one. -/
+example :
+    let m₀ : {m : List Bool // m.length ≤ 1} := ⟨[false], by decide⟩
+    let m₁ : {m : List Bool // m.length ≤ 1} := ⟨[true], by decide⟩
+    let A : ProbComp (List {m : List Bool // m.length ≤ 1}) := pure [m₀, m₀, m₁]
+    let oracle (_ : Bool × Fin 1) : ProbComp (BitString 2) := pure 0
+    (xorHashMultiQueryReduction 2 A).run oracle = pure false ∧
+      (xorHashMultiQueryReduction 3 A).run oracle = pure true :=
+  ⟨rfl, rfl⟩
+
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
   guess _ digest := pure ⟨target, digest⟩

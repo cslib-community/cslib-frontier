@@ -1633,7 +1633,7 @@ Zsigmond Nagy. “A Constructive Estimation of the Ramsey Numbers” (in Hungari
 <a id="naor91"></a>
 ## naor91
 
-Moni Naor. “Bit Commitment Using Pseudorandomness.” *Journal of Cryptology* 4(2), 151–158, 1991. https://doi.org/10.1007/BF00196774 . The journal version was not inspected. Read on 2026-11-15 in the author's copy, https://www.wisdom.weizmann.ac.il/~naor/PAPERS/bit.pdf (“Bit Commitment Using Pseudo-Randomness”, 10 pages, dated February 25, 2001; SHA-256 `938b32039291411c682ca457c8c040dba7f0dc264de91182e6cb8cdaaba633b6`), whose section and page numbers the library cites: Section 2 (pp. 3–4), the secrecy and binding conditions of a bit commitment, the remark on auxiliary input, and the conditions for commitments to many bits, in which the receiver selects the two sequences. Section 3 (pp. 5–6 of the same copy) gives the single-bit protocol and its hiding argument. On p. 6, Claim 3.1 counts pairs of seeds to bound the binding failure by `2⁻ⁿ`, and Theorem 3.1(2) states the strict inequality for sufficiently large `n`.
+Moni Naor. “Bit Commitment Using Pseudorandomness.” *Journal of Cryptology* 4(2), 151–158, 1991. https://doi.org/10.1007/BF00196774 . The journal version was not inspected. Read on 2026-11-15 in the author's copy, https://www.wisdom.weizmann.ac.il/~naor/PAPERS/bit.pdf (“Bit Commitment Using Pseudo-Randomness”, 10 pages, dated February 25, 2001; SHA-256 `938b32039291411c682ca457c8c040dba7f0dc264de91182e6cb8cdaaba633b6`), whose section and page numbers the library cites: Section 2 (pp. 3–4), the secrecy and binding conditions of a bit commitment, the remark on auxiliary input, and the conditions for commitments to many bits, in which the receiver selects the two sequences. Section 2, p. 4 allows any polynomial output length and treats the generator as a stream with efficient prefixes. Section 3 (pp. 5–6) uses its first `3n` bits. Theorem 3.1(1), p. 6 bounds the probability that a probabilistic polynomial-time receiver guesses the bit by one half plus any inverse polynomial for sufficiently large `n`. Claim 3.1 counts seed pairs to bound binding failure by `2⁻ⁿ`. Theorem 3.1(2) states the strict inequality.
 
 <a id="naoryung89"></a>
 ## naoryung89
@@ -1757,6 +1757,11 @@ Christos H. Papadimitriou. "On the Complexity of the Parity Argument and Other I
 
 Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifiable Secret Sharing." *Advances in Cryptology — CRYPTO '91*, LNCS 576, 129–140, Springer, 1992. https://doi.org/10.1007/3-540-46766-1_9 . Publisher's PDF, https://link.springer.com/content/pdf/10.1007/3-540-46766-1_9.pdf , fetched on 2026-11-18 UTC (SHA-256 `79c0634a04b7bc869715770519eca9dcfcb3011012dbff054b9487b187558b18`): a 12-page scan of the complete printed pp. 129–140 (PDF page = printed page − 128). Read on 2026-11-18: Section 2 (p. 130: primes `q | p − 1`, `G_q` the order-`q` subgroup of `Z_p^*`, `g` a generator) and all of Section 3 (p. 131): `g` and `h` are chosen so that nobody knows `log_g h`, by a trusted center or a coin-flipping protocol; the commitment is `E(s, t) = g^s h^t` for `s ∈ Z_q` and random `t ∈ Z_q`; Theorem 3.1 states that for uniform `t` the commitment is uniform on `G_q` (first sentence) and that `s ≠ s'` with `E(s, t) = E(s', t')` gives `t ≠ t' mod q` and `log_g h = (s − s')/(t' − t) mod q` (second sentence). The theorem states no game or computational assumption, and the first sentence needs `h ≠ 1`, which the condition on `log_g h` implies. Sections 4–6 were not checked.
 
+<a id="peikert2016"></a>
+## peikert2016
+
+Chris Peikert. *A Decade of Lattice Cryptography*. Foundations and Trends in Theoretical Computer Science 10(4), 283–424, 2016. https://doi.org/10.1561/0400000074 ; author PDF dated February 17, 2016 at https://web.eecs.umich.edu/~cpeikert/pubs/lattice-survey.pdf . Consulted in the February 17, 2016 author PDF: Section 4.2.1, unnumbered "Normal form" paragraph, printed p. 23, for the sample transformation from `(n + m)`-sample uniform-secret LWE to `m`-sample error-secret (normal-form) LWE by inverting the top `n × n` block, losing the singular-block probability (`NormalForm.lean` formalizes these finite probability steps on framed-integer `ProbComp` callers toward the hardness reductions in #3673, without certifying polynomial-time inversion).
+
 <a id="pighizzini2009"></a>
 ## pighizzini2009
 
@@ -1811,6 +1816,11 @@ Bruce Reed, Kaleigh Smith and Adrian Vetta. "Finding Odd Cycle Transversals." *O
 ## regev04
 
 Oded Regev. *Lattices in Computer Science*, Lecture 3: "CVP Algorithm" (scribe: E. Kaplan). Lecture notes, Tel Aviv University, Fall 2004. https://cims.nyu.edu/~regev/teaching/lattices_fall_2004/ln/cvp.pdf . Inspected on 2026-11-08: §1 (the nearest-plane algorithm with `δ = 3/4` LLL, input `B ∈ ℤ^{m×n}`, `t ∈ ℤᵐ`), Claims 4–5, and Lemma 6 (`‖x − t‖ ≤ 2^{n/2} ‖y − t‖` for the output `x` and a closest lattice point `y`). The notes attribute the factor `2 (2/√3)ⁿ` to Babai's algorithm and present `2^{n/2}` for simplicity.
+
+<a id="regev2009"></a>
+## regev2009
+
+Oded Regev. "On lattices, learning with errors, random linear codes, and cryptography." *Journal of the ACM* 56(6), Article 34 (1–40), 2009. https://doi.org/10.1145/1568318.1568324 ; author PDF dated May 2, 2009 at https://cims.nyu.edu/~regev/papers/qcrypto.pdf . Consulted in the May 2, 2009 author PDF: Lemma 4.1 (pp. 30–31, non-negligible fraction of good secrets from uniform-secret advantage) and Lemma 4.2 (p. 31, efficient search from an all-secret distinguisher for prime `2 ≤ p ≤ poly(n)`). `SearchToDecision.lean` formalizes a finite probability step toward Regev's reduction (#3673) over arbitrary prime `q`, using a fixed-batch distinguisher's absolute averaged acceptance gap, fresh per-trial secret re-randomization over `(n * q + 1) * N * m` samples, noncomputable argmax selection, and an explicit Hoeffding bound, without an `IsPPTOn` certificate.
 
 <a id="reingold2008"></a>
 ## reingold2008
