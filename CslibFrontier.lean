@@ -1572,6 +1572,10 @@ public import CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn
 public import CslibFrontier.Computability.Circuit.Frontier.BranchingProgram
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.CNF
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.QuadForm
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Steiner
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Uniform
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
