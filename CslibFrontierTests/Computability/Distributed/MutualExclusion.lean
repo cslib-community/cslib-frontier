@@ -22,7 +22,7 @@ scenarios on `Fin 3`:
 2. **Peterson's bounded-state `3`-process filter lock:** 3-thread contention trace driving threads
    `0, 1, 2` through waiting rooms `0` and `1`, verifying the level-capacity bounds `≤ 3, ≤ 2, ≤ 1`
    (`card_at_level_le`), `filterLock_mutualExclusion`, `filterLock_step_progress`, and
-   `filterLock_deadlockFree`.
+   `filterLock_exists_cs_execution`.
 3. **Single-register `turn`-variable protocol failure & impossibility:** concrete covering-write
    execution putting two `Fin 3` processes into `.cs` simultaneously on 1 register, alongside
    instantiations of `not_deadlockFreeMutex_of_single_register`.
@@ -249,7 +249,7 @@ example :
     ∃ μs s', (filterLock 3).MTr filterStage1 μs s' ∧
       (∀ μ ∈ μs, ∀ p, μ ≠ .requestCS p ∧ μ ≠ .exitCS p) ∧
       (∃ p, s'.inCS p) :=
-  filterLock_deadlockFree filterStage1_reachable ⟨0, by decide⟩
+  filterLock_exists_cs_execution filterStage1_reachable ⟨0, by decide⟩
 
 /-! ## 3. Single-register `turn`-variable protocol failure trace & impossibility -/
 

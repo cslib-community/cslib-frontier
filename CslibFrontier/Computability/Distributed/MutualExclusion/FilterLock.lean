@@ -23,22 +23,31 @@ import Mathlib.Tactic.Ring
 This module pairs two foundational results on shared-memory mutual exclusion over atomic read/write
 registers, complementing the unbounded-ticket safe-register Bakery algorithm in `Bakery.lean`:
 
-1. **Peterson's `(n - 1)`-Level `n`-Process Filter Lock (`filterLock`, [Peterson1981]):**
-   Using bounded `Fin n`-valued atomic read/write arrays `level : Fin n → Fin n` and
-   `victim : Fin (n - 1) → Fin n` (with individual single-register reads and writes, without
-   multi-word snapshots or read-modify-write primitives), each waiting room `r : Fin (n - 1)` acts
-   as a filter admitting at most `n - (r + 1)` processes to the next level (`card_at_level_le`).
-   At the final level `ℓ = n - 1`, capacity `n - (n - 1) = 1` yields mutual exclusion
-   (`filterLock_mutualExclusion`), while inspecting the highest occupied waiting room yields
-   deadlock freedom (`filterLock_step_progress`, `filterLock_deadlockFree`).
+1. **Peterson's `(n - 1)`-Level `n`-Process Filter Lock (`filterLock`, [Peterson1981], Fig. 3,
+   p. 116):**
+   Using bounded `0`-indexed `Fin n`-valued atomic read/write arrays `level : Fin n → Fin n` and
+   `victim : Fin (n - 1) → Fin n` (evaluating each waiting room's test via single-register
+   reads `checkVictim` and `checkLevel` without multi-word snapshots or read-modify-write
+   primitives), each waiting room `r : Fin (n - 1)` acts as a filter admitting at most `n - (r + 1)`
+   processes (`card_at_level_le`, proof infrastructure for Fig. 3). At the final level `ℓ = n - 1`,
+   capacity `n - (n - 1) = 1` yields mutual exclusion (`filterLock_mutualExclusion`). Inspecting the
+   highest occupied waiting room (`filterLock_step_progress`) yields an enabled finite trying-only
+   execution reaching `CriticalSection` (`filterLock_exists_cs_execution`, a finite progress
+   witness; fair-execution progress across infinite runs with a sequenced room scan remains open in
+   #7296).
 
-2. **Single-Register Shared-Memory Mutual Exclusion Impossibility
-   (`not_deadlockFreeMutex_of_single_register`, a 1-register step toward [BurnsLynch1993]):**
-   Formalizes general deterministic asynchronous multi-writer atomic read/write register
-   mutual-exclusion protocols (`MutexProtocol P Reg Val State`) and proves the covering-write
-   base step toward Burns and Lynch's `Fintype.card P ≤ Fintype.card Reg` space lower bound
-   (tracked in #7296): when `2 ≤ Fintype.card P` and `Fintype.card Reg ≤ 1`, no protocol satisfies
-   both mutual exclusion and weak-fairness deadlock freedom.
+2. **Single-Register Covering-Write Impossibility Step
+   (`not_deadlockFreeMutex_of_single_register`, 1-register base step toward [BurnsLynch1993],
+   Theorem 5.1, p. 177):**
+   Formalizes deterministic asynchronous multi-writer atomic read/write register protocols
+   (`MutexProtocol P Reg Val State`) where `MutexProtocol.DeadlockFree` requires eventual
+   `CriticalSection` entry under `MutexProtocol.WeakFair` and `MutexProtocol.CSEventuallyExits`
+   (without a separate exit region, whereas [BurnsLynch1993], §§2–3, pp. 173–175 includes an exit
+   region `Eᵢ` and defines global progress as some process changing regions in every nonnull fair
+   history). Proves the `Fintype.card Reg ≤ 1` (`2 ≤ Fintype.card P`) step via one blind write
+   overwriting another process's writes (specializing Lemma 5.2's indistinguishability replay and
+   Lemma 5.4's covering-write argument, pp. 177, 180); the full `Fintype.card P ≤ Fintype.card Reg`
+   bound stays open under #7296.
 
 ## Main definitions
 
@@ -64,20 +73,17 @@ registers, complementing the unbounded-ticket safe-register Bakery algorithm in 
 
 ## Main results
 
-* `Cslib.Distributed.MutualExclusion.card_at_level_le`: Inductive Level-Capacity Invariant
-  ([Peterson1981]) — in every reachable state of `filterLock n`, for every `ℓ < n`, at most
-  `n - ℓ` processes belong to `s.atLevel ℓ` (with `ℓ ≤ (s.level p).val` via `atLevel_level_ge`).
-* `Cslib.Distributed.MutualExclusion.filterLock_mutualExclusion`: Mutual Exclusion ([Peterson1981])
-  — in every reachable state of `filterLock n`, at most one process is in `CriticalSection`.
-* `Cslib.Distributed.MutualExclusion.filterLock_step_progress`,
-  `Cslib.Distributed.MutualExclusion.filterLock_deadlockFree`: Deadlock Freedom ([Peterson1981]) —
-  from any reachable state with a nonempty set of trying processes and none in `CriticalSection`,
-  some trying process advances (strictly increasing `FilterState.potential`), and a finite
-  trying-only execution enters `CriticalSection`.
+* `Cslib.Distributed.MutualExclusion.filterLock_mutualExclusion`: Mutual Exclusion for Peterson's
+  Fig. 3 `n`-process filter lock ([Peterson1981], p. 116) — in every reachable state of
+  `filterLock n`, at most one process is in `CriticalSection` (proved via the level-capacity
+  infrastructure `atLevel_level_ge` and `card_at_level_le`).
+* `Cslib.Distributed.MutualExclusion.filterLock_exists_cs_execution`: Finite Progress Witness for
+  `filterLock` — from any reachable state with a nonempty set of trying processes, there exists an
+  enabled finite trying-only execution reaching `CriticalSection` (built on single-step potential
+  infrastructure `filterLock_step_progress`, without claiming fair-execution liveness; see #7296).
 * `Cslib.Distributed.MutualExclusion.not_deadlockFreeMutex_of_single_register`: Single-Register
-  Impossibility Step toward [BurnsLynch1993] (#7296) — for `2 ≤ Fintype.card P` and
-  `Fintype.card Reg ≤ 1`, no `MutexProtocol P Reg Val State` achieves deadlock-free mutual
-  exclusion.
+  Impossibility Step toward [BurnsLynch1993], Theorem 5.1 (#7296) — for `2 ≤ Fintype.card P` and
+  `Fintype.card Reg ≤ 1`, no `MutexProtocol P Reg Val State` achieves `DeadlockFreeMutex`.
 
 ## References
 
@@ -872,9 +878,10 @@ private theorem atRoomSet_subset_prev {n : ℕ} (s : FilterState n) (r : Fin (n 
     unfold FilterPhase.aboveRoom
     (cases hph : s.phase p <;> simp_all) <;> omega
 
-/-- **Inductive Level-Capacity Invariant** ([Peterson1981]): in every reachable state of
-`filterLock n`, for every level `ℓ < n`, at most `n - ℓ` processes belong to `s.atLevel ℓ` (having
-reached `level ≥ ℓ` and passed all waiting rooms `< ℓ`). -/
+/-- Inductive level-capacity invariant (proof infrastructure for Peterson's Fig. 3 protocol,
+[Peterson1981], p. 116): in every reachable state of `filterLock n`, for every level `ℓ < n`, at
+most `n - ℓ` processes belong to `s.atLevel ℓ` (having reached `level ≥ ℓ` and passed all waiting
+rooms `< ℓ`). -/
 theorem card_at_level_le {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     (ℓ : ℕ) (hℓ : ℓ < n) : (s.atLevel ℓ).card ≤ n - ℓ := by
   have hinv := hr.filterInv
@@ -913,8 +920,8 @@ theorem card_at_level_le {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     · rw [Finset.not_nonempty_iff_eq_empty.mp hne]
       simp
 
-/-- **Mutual Exclusion for Peterson's Filter Lock** ([Peterson1981]): in every reachable state of
-`filterLock n`, at most one process is in `CriticalSection`. -/
+/-- **Mutual Exclusion for Peterson's Filter Lock** ([Peterson1981], Fig. 3, p. 116): in every
+reachable state of `filterLock n`, at most one process is in `CriticalSection`. -/
 theorem filterLock_mutualExclusion {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     {p q : Fin n} (hp : s.inCS p) (hq : s.inCS q) : p = q := by
   by_cases hn2 : n ≤ 1
@@ -992,12 +999,12 @@ private theorem nextAfterRoom_potential_gt {n : ℕ} (r : Fin (n - 1)) (c : ℕ)
     have : (r.val + 2) * (n + 2) ≤ n * (n + 2) := Nat.mul_le_mul_right (n + 2) hr
     linarith
 
-/-- **Single-Step Highest-Level Progress** ([Peterson1981]): in any reachable state where the set
-of trying processes is nonempty and no process is in `CriticalSection`, some trying process has an
-enabled step (advancing from `.ready`/`.writeVictim`, passing the highest occupied waiting room
-`r_max` when not `victim[r_max]`, or recording a lower-level witness at `r_max` when it is the
-unique occupant) that strictly increases `FilterState.potential` without waking any remainder
-process. -/
+/-- Single-step potential-progress lemma (proof infrastructure for
+`filterLock_exists_cs_execution`): in any reachable state where the set of trying processes is
+nonempty and no process is in `CriticalSection`, some trying process has an enabled step (advancing
+from `.ready`/`.writeVictim`, passing the highest occupied waiting room `r_max` when not
+`victim[r_max]`, or recording a lower-level witness at `r_max` when it is the unique occupant) that
+strictly increases `FilterState.potential` without waking any remainder process. -/
 theorem filterLock_step_progress {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     (htry : ∃ p, s.isTrying p) (hno_cs : ∀ p, ¬ s.inCS p) :
     ∃ μ s', s.isTrying μ.actor ∧ (filterLock n).Tr s μ s' ∧
@@ -1174,11 +1181,15 @@ private theorem trying_step_leads_to_trying_or_cs {n : ℕ} {s s' : FilterState 
   | exit p hph =>
     simp [FilterAction.actor, FilterState.isTrying, hph, FilterPhase.isTrying] at htry_act
 
-/-- **Deadlock Freedom for Peterson's Filter Lock** ([Peterson1981]): from any reachable state
-where at least one process is trying (`∃ p, s.isTrying p`), there exists a finite execution
-stepping only trying processes (never waking `.remainder` processes or exiting `.cs`) that reaches
-a state with a process in `CriticalSection`. -/
-theorem filterLock_deadlockFree {n : ℕ} {s : FilterState n} (hr : s.Reachable)
+/-- **Finite Progress Witness for `filterLock`**: from any reachable state where at least one
+process is trying (`∃ p, s.isTrying p`), there exists **an** enabled finite execution stepping only
+trying processes (never waking `.remainder` processes or exiting `.cs`) that reaches a state with a
+process in `CriticalSection`.
+
+This provides an existential finite execution witness (obstruction-free reachability), rather than
+progress across all fair infinite executions (`OmegaExecution`), which requires sequencing the
+waiting-room scan (#7296). -/
+theorem filterLock_exists_cs_execution {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     (htry : ∃ p, s.isTrying p) :
     ∃ μs s', (filterLock n).MTr s μs s' ∧
       (∀ μ ∈ μs, ∀ p, μ ≠ .requestCS p ∧ μ ≠ .exitCS p) ∧
@@ -1727,14 +1738,19 @@ private theorem run_second_solo_into_cs {π : MutexProtocol P Reg Val State}
   · calc (soloIter π p₁ k₁ b₁).localState p₀ = b₁.localState p₀ := hoth_c' p₀ hp_ne
       _ = c.localState p₀ := by dsimp only [b₁]; exact Function.update_of_ne hp_ne _ _
 
-/-- **Single-Register Shared-Memory Mutual Exclusion Impossibility** ([BurnsLynch1993] 1-register
-covering-write step): for `2 ≤ Fintype.card P` processes and `Fintype.card Reg ≤ 1` atomic
-multi-writer read/write registers, no deterministic asynchronous mutual-exclusion protocol satisfies
-both `MutuallyExclusive` and weak-fairness `DeadlockFree`.
+/-- Intermediate 1-register covering-write base step toward the `Fintype.card P ≤ Fintype.card Reg`
+space lower bound of [BurnsLynch1993] (Theorem 5.1, p. 177; tracked in #7296): for
+`2 ≤ Fintype.card P` processes and `Fintype.card Reg ≤ 1` atomic multi-writer read/write registers,
+no deterministic asynchronous `MutexProtocol` satisfies `DeadlockFreeMutex` (`MutuallyExclusive` and
+`DeadlockFree`).
 
-*Scope note:* `[BurnsLynch1993]` proves the general `Fintype.card P ≤ Fintype.card Reg` space
-lower bound across arbitrary `n`; this theorem formalizes the `Fintype.card Reg ≤ 1`
-covering-write base case (`2 ≤ Fintype.card P`). -/
+Here `MutexProtocol.DeadlockFree` asks for eventual `CriticalSection` entry under
+`MutexProtocol.WeakFair` and `MutexProtocol.CSEventuallyExits` (without a separate exit-region
+state), whereas [BurnsLynch1993] (§§2–3, pp. 173–175) includes an explicit exit region `Eᵢ` and
+defines global progress as some process changing regions in every nonnull history that steps active
+processes infinitely often. The proof uses one poised blind write to erase the second process's
+writes, specializing the indistinguishability and covering-write arguments of [BurnsLynch1993],
+Lemmas 5.2 and 5.4 (pp. 177, 180). -/
 theorem not_deadlockFreeMutex_of_single_register
     {P Reg Val State : Type*} [Fintype P] [Fintype Reg] [DecidableEq P] [DecidableEq Reg]
     (hP : 2 ≤ Fintype.card P) (hReg : Fintype.card Reg ≤ 1)

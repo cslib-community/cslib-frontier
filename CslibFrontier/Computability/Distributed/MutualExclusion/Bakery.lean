@@ -53,9 +53,11 @@ recovering to `.remainder` with `choosing[p] = false` and `number[p] = 0`:
 
 ## Main results
 
-* `Cslib.Distributed.MutualExclusion.bakery_doorway_lt`: Doorway Ordering ([Lamport1974],
-  Assertion 1, p. 454) — if `p` is in the bakery before `q` begins its doorway ticket scan and `p`
-  remains in the bakery until `q` enters the bakery, then `s₂.ticket p < s₂.ticket q`.
+* `Cslib.Distributed.MutualExclusion.bakery_doorway_lt`: Lexicographic Doorway Ordering (variant of
+  [Lamport1974], Assertion 1, p. 454) — if `p` is in the bakery before `q` begins its doorway ticket
+  scan (`s₁.beforeDoorwayScan q`, whereas Assertion 1 starts before doorway entry and concludes the
+  numeric inequality `number[p] < number[q]`) and `p` remains in the bakery until `q` enters the
+  bakery, then `s₂.ticket p < s₂.ticket q`.
 * `Cslib.Distributed.MutualExclusion.bakery_cs_lt`: Critical-Section Ticket Ordering ([Lamport1974],
   Assertion 2, pp. 454–455) — if `p` is in `CriticalSection` and `q ≠ p` is in the bakery in any
   reachable state, then `s.ticket p < s.ticket q`.
@@ -65,9 +67,11 @@ recovering to `.remainder` with `choosing[p] = false` and `number[p] = 0`:
 * `Cslib.Distributed.MutualExclusion.bakery_fcfs`: First-Come-First-Served ([Lamport1974],
   p. 455) — if `p` completes its doorway before `q` begins its doorway scan, `q` cannot enter
   `CriticalSection` while `p` remains in its waiting section.
-* `Cslib.Distributed.MutualExclusion.bakery_starvationFree`: Starvation-Free Liveness
-  ([Lamport1974], Assertion 3, p. 455) — under weak per-process step fairness and a bounded number
-  of failures, every non-failing trying process eventually enters `CriticalSection`.
+* `Cslib.Distributed.MutualExclusion.bakery_starvationFree`: Per-Process Starvation Freedom
+  (per-process weak-fairness corollary following [Lamport1974], Assertion 3, p. 455) — whereas
+  Assertion 3 states some-process progress under bounded failures, this theorem derives per-process
+  `CriticalSection` entry under explicit weak per-process step fairness (`BakeryState.WeakFair`),
+  bounded total failures (`BakeryAction.NoFailAfter`), and the target's no-failure premise.
 
 ## References
 
@@ -1120,10 +1124,15 @@ private theorem doorwayAfter_execution [Fintype P] [LinearOrder P]
     obtain ⟨hda_t, hnum_st⟩ := ih (fun x hx => hstay x (List.mem_cons_of_mem r hx)) hda_s
     exact ⟨hda_t, hnum_st.trans hnum_rs⟩
 
-/-- **Doorway Ordering Lemma** ([Lamport1974], Assertion 1, p. 454): if `p` has entered the bakery
-(`s₁.inBakery p`) before `q` begins its doorway scan (`s₁.beforeDoorwayScan q`, in particular when
-`s₁.phase q = .remainder`), and `p` remains in the bakery throughout an execution to `s₂` where `q`
-is also in the bakery (`s₂.inBakery q`), then `s₂.ticket p < s₂.ticket q`. -/
+/-- **Doorway Ordering Lemma** (lexicographic variant of [Lamport1974], Assertion 1, p. 454): if `p`
+has entered the bakery (`s₁.inBakery p`) before `q` begins its doorway ticket scan
+(`s₁.beforeDoorwayScan q`, in particular when `s₁.phase q = .remainder`), and `p` remains in the
+bakery throughout an execution to `s₂` where `q` is also in the bakery (`s₂.inBakery q`), then
+`s₂.ticket p < s₂.ticket q`.
+
+Whereas Assertion 1 in [Lamport1974] (p. 454) starts before `q` enters the doorway and states the
+numeric ticket inequality `number[p] < number[q]`, this lemma starts before `q`'s ticket scan and
+states the induced lexicographic inequality `s₂.ticket p < s₂.ticket q`. -/
 theorem bakery_doorway_lt [Fintype P] [LinearOrder P]
     {s₁ s₂ : BakeryState P} {μs : List (BakeryAction P)} {sl : List (BakeryState P)}
     (hex : (bakeryLTS P).Execution s₁ μs s₂ sl)
@@ -1442,11 +1451,16 @@ private theorem waitMeasure_step_lt_of_quiescent [Fintype P] [LinearOrder P]
     simp only [BakeryAction.actor, Option.some.injEq] at hact; subst hact
     simp_all [BakeryState.inWaiting, BakeryPhase.isWaiting]
 
-/-- **Starvation-Free Liveness** ([Lamport1974], Assertion 3, p. 455): in any infinite execution
-from a reachable state under weak per-process step fairness (`BakeryState.WeakFair`, under which
-processes in `CriticalSection` eventually exit and in-progress writes/recoveries complete) and a
-bounded number of failures (`BakeryAction.NoFailAfter`), every non-failing trying process eventually
-enters `CriticalSection`. -/
+/-- **Per-Process Starvation Freedom** (weak-fairness corollary following [Lamport1974],
+Assertion 3, p. 455): in any infinite execution from a reachable state under weak per-process step
+fairness (`BakeryState.WeakFair`, under which processes in `CriticalSection` eventually exit and
+in-progress writes/recoveries complete) and bounded total failures (`BakeryAction.NoFailAfter`),
+every trying process `p` that never fails (`∀ k, μs k ≠ .fail p`) eventually enters
+`CriticalSection`.
+
+Whereas Assertion 3 in [Lamport1974] (p. 455) states bounded-failure progress for *some* process in
+the bakery, this theorem formalizes the ensuing per-process lockout-freedom consequence under
+explicit weak step fairness and `p`'s no-failure premise. -/
 theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     {ss : ωSequence (BakeryState P)} {μs : ωSequence (BakeryAction P)}
     (hreach : (ss 0).Reachable)

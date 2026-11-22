@@ -502,6 +502,8 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
+import CslibFrontier.Computability.Distributed.MutualExclusion.FilterLock
 
 /-!
 # Collected results
@@ -12725,3 +12727,88 @@ register_result "gaspers-cubic-switched-cutwidth" where
     fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear lower bounds \
     are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
     (main.tex) and compiled PDF on 2026-11-22."
+
+register_result "lamport-bakery-mutual-exclusion" where
+  title := "Lamport's Bakery algorithm achieves mutual exclusion and first-come-first-served \
+    over safe overlapping reads"
+  topic := "distributed computing"
+  sources := [
+    { paper := Lamport1974,
+      theorem := "Assertions 1 and 2, mutual exclusion, and first-come-first-served (adapted)",
+      locator := "\"The Algorithm\" and \"Proof of Correctness\", printed pp. 454–455" }
+  ]
+  theorems := [
+    Cslib.Distributed.MutualExclusion.bakery_doorway_lt,
+    Cslib.Distributed.MutualExclusion.bakery_cs_lt,
+    Cslib.Distributed.MutualExclusion.bakery_mutualExclusion,
+    Cslib.Distributed.MutualExclusion.bakery_fcfs
+  ]
+  scope := "Over any finite linearly ordered process type P ([Fintype P] [LinearOrder P]), \
+    bakeryLTS P models finite asynchronous interleavings of single-writer safe registers \
+    choosing : P → Bool and number : P → ℕ with split-phase writes (.writeChoosingTrue, \
+    .writeNumber, .writeChoosingFalse, .writeNumberZero), arbitrary-order doorway maximum \
+    scans (BakeryPhase.readMax), nondeterministic overlapping safe reads (SafeReadChoosing and \
+    SafeReadNumber returning arbitrary Bool or ℕ values during active writes or .failed \
+    phases), and transient processor failure/recovery (.fail and .recover resetting choosing \
+    to false and number to 0). Proves critical-section ticket ordering (bakery_cs_lt, \
+    Assertion 2), unconditional mutual exclusion on all states reachable from BakeryState.init \
+    (bakery_mutualExclusion), and first-come-first-served entry (bakery_fcfs). Whereas \
+    Assertion 1 in Lamport (1974, p. 454) starts before doorway entry and states the numeric \
+    inequality number[p] < number[q], bakery_doorway_lt starts before q's doorway ticket scan \
+    (beforeDoorwayScan) and states the induced lexicographic inequality ticket p < ticket q. \
+    Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7391 at \
+    471e81e4cc71: \
+    https://github.com/cslib-community/cslib-frontier/pull/7391#pullrequestreview-6010996984."
+
+register_result "lamport-bakery-starvation-freedom" where
+  title := "Per-process starvation freedom for Lamport's Bakery algorithm under weak step \
+    fairness and bounded failures"
+  topic := "distributed computing"
+  sources := [
+    { paper := Lamport1974,
+      theorem := "Starvation freedom from Assertion 3 (per-process weak-fairness variant)",
+      locator := "\"Proof of Correctness\", Assertion 3 and ensuing paragraph, printed p. 455" }
+  ]
+  theorems := [
+    Cslib.Distributed.MutualExclusion.bakery_starvationFree
+  ]
+  scope := "For any infinite execution (bakeryLTS P).OmegaExecution ss μs from a reachable \
+    state (ss 0).Reachable over [Fintype P] [LinearOrder P], assuming explicit weak \
+    per-process step fairness (BakeryState.WeakFair ss μs, under which enabled doorway/waiting \
+    steps, in-progress write completions, critical-section exits, and .recover transitions \
+    eventually occur), a global bound N on total processor failures (BakeryAction.NoFailAfter \
+    μs N), and that the trying target process p never fails (∀ k, μs k ≠ .fail p), p \
+    eventually enters CriticalSection (∃ k, (ss k).inCS p). Whereas Assertion 3 in Lamport \
+    (1974, p. 455) states bounded-failure progress for some process in the bakery, \
+    bakery_starvationFree formalizes the ensuing per-process lockout-freedom consequence under \
+    explicit weak scheduling fairness and p's no-failure premise. Source check: outside-fleet \
+    agent review (reviewer-codex-edemaine) on PR #7391 at 471e81e4cc71: \
+    https://github.com/cslib-community/cslib-frontier/pull/7391#pullrequestreview-6010996984."
+
+register_result "peterson-filter-lock-mutual-exclusion" where
+  title := "Peterson's (n − 1)-level filter lock achieves n-process mutual exclusion over \
+    bounded atomic registers"
+  topic := "distributed computing"
+  sources := [
+    { paper := Peterson1981,
+      theorem := "Figure 3 mutual exclusion",
+      locator := "Figure 3, printed p. 116" }
+  ]
+  theorems := [
+    Cslib.Distributed.MutualExclusion.filterLock_mutualExclusion
+  ]
+  scope := "Models Peterson's n-process generalization (Fig. 3, p. 116, whose correctness \
+    proof the paper leaves to the reader) as filterLock n over 0-indexed Fin n-valued atomic \
+    single-register read/write arrays level : Fin n → Fin n and victim : Fin (n - 1) → Fin n \
+    (both initialized to 0 for n > 0). In each waiting room r : Fin (n - 1), filterStep? \
+    evaluates the room wait test via individual atomic reads rather than an atomic multi-word \
+    formula: checkVictim advances when victim[r] ≠ p, and checkLevel records individual \
+    processes q ≠ p read with level[q] < r + 1 until Finset.univ.erase p is cleared. Proves \
+    that at most one process occupies CriticalSection in any reachable state \
+    (filterLock_mutualExclusion), using the inductive level-capacity bound card_at_level_le as \
+    proof infrastructure. Companion theorem filterLock_exists_cs_execution supplies an enabled \
+    finite trying-only execution reaching CriticalSection, while fair-execution progress across \
+    infinite runs requires sequencing the room scan and remains open under #7296 alongside the \
+    general Burns–Lynch space lower bound. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7391 at 471e81e4cc71: \
+    https://github.com/cslib-community/cslib-frontier/pull/7391#pullrequestreview-6010996984."
