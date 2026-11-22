@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.ZeroKnowledge
 public import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Negligible soundness for zero-knowledge proof systems
@@ -123,18 +124,14 @@ end ZKProof
 count `k : ℕ → ℕ` satisfying `∀ n, n ≤ k n`. -/
 theorem negligible_pow_of_lt_one {ratio : ℝ≥0} (hratio : ratio < 1) {k : ℕ → ℕ}
     (hk : ∀ n, n ≤ k n) :
-    Negligible (fun n => ratio ^ k n) :=
-  negligible_of_le (negligible_geometric hratio) fun n =>
-    pow_le_pow_of_le_one ratio.coe_nonneg hratio.le (hk n)
+    Negligible (fun n => ratio ^ k n) := by
+  negligible
 
 /-- The amplified soundness bound `fun n => ((1 / 3 : ENNReal) ^ k n).toNNReal` is negligible
 whenever `∀ n, n ≤ k n`. -/
 theorem negligible_one_third_pow {k : ℕ → ℕ} (hk : ∀ n, n ≤ k n) :
     Negligible (fun n => ((1 / 3 : ENNReal) ^ k n).toNNReal) := by
-  have hlt : ((1 / 3 : ENNReal).toNNReal) < 1 := by
-    rw [ENNReal.toNNReal_div, ENNReal.toNNReal_one, ENNReal.toNNReal_ofNat]
-    norm_num
-  simpa only [ENNReal.toNNReal_pow] using negligible_pow_of_lt_one hlt hk
+  negligible
 
 /-- Any positive number of repetitions is at least as sound as one round:
 `(1 / 3) ^ (n + 1) ≤ 1 / 3`. With `ZKProof.mono`, this turns a sequentially amplified system into

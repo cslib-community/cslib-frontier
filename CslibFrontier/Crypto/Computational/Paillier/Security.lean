@@ -21,8 +21,6 @@ import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Computational.Paillier.Finite
 import CslibFrontier.Crypto.Computational.UnitSampling
 import CslibFrontier.Crypto.Game.Statistical
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.UniformNat
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
@@ -30,6 +28,7 @@ import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformSubset
 import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Paillier encryption is IND-CPA secure under DCR
@@ -304,17 +303,16 @@ theorem DCR.indcpaOn_paillier {gen : ℕ → ProbComp Desc}
   have hmid : Negligible fun n => Game.advantage
       (dcrRealGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary false) n)
       (dcrRealGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary true) n) := by
-    refine negligible_of_le ((hD false).add (hD true)) fun n => ?_
-    dsimp only [Pi.add_apply]
-    refine (Game.advantage_triangle _
-      (dcrRandomGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary false) n)
-      _).trans (add_le_add le_rfl ?_)
-    rw [dcrRandomGame_dcrDistinguisher_false_eq_true]
-    exact (Game.advantage_comm _ _).le
-  have h5 : Negligible fun n => (5 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 5
-  refine negligible_of_le ((h5.add hmid).add h5) fun n => ?_
-  dsimp only [Pi.add_apply]
-  exact Game.advantage_four_hop_le (advantage_gameOn_dcrRealGame_le hsize adversary false n)
+    negligible using fun n =>
+      let setup := fun m => ProbComp.eval (gen m)
+      (Game.advantage_triangle (dcrRealGame setup (dcrDistinguisher adversary false) n)
+        (dcrRandomGame setup (dcrDistinguisher adversary false) n)
+        (dcrRealGame setup (dcrDistinguisher adversary true) n)).trans
+        (add_le_add le_rfl (le_of_eq ((congrArg (fun g => Game.advantage g _)
+          (dcrRandomGame_dcrDistinguisher_false_eq_true setup adversary n)).trans
+          (Game.advantage_comm _ _))))
+  negligible using fun n => Game.advantage_four_hop_le
+    (advantage_gameOn_dcrRealGame_le hsize adversary false n)
     (advantage_gameOn_dcrRealGame_le hsize adversary true n)
 
 end Cslib.Crypto.Paillier

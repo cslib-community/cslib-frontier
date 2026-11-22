@@ -7,15 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests of the negligible tactic)
 
-public import CslibFrontier.Tactic.Negligible
-public import CslibFrontier.Crypto.Game
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
+import CslibFrontier.Tactic.Negligible
+import CslibFrontier.Crypto.Game
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 
 /-!
 # Tests for `negligible`
 -/
 
-public section
+set_option linter.privateModule false
 
 open Cslib Cslib.Crypto Turing.MultiTapeTM
 open scoped NNReal ENNReal
@@ -59,6 +59,30 @@ example (hQ : PolynomiallyBounded Q) (hε : Negligible ε) :
     Negligible (fun n => ∑ _i ∈ Finset.range (Q n), ε n) := by
   negligible
 
+example (hQ : PolynomiallyBounded Q) {out src : ℕ → ℕ}
+    (hmargin : ∀ᶠ n in Filter.atTop, out n + 2 * n ≤ src n) :
+    Negligible (fun n => (Q n : ℝ≥0) * NNReal.sqrt ((2 : ℝ≥0) ^ out n / 2 ^ src n)) := by
+  negligible
+
+example {k : ℕ → ℕ} (hk : ∀ n, n ≤ k n) :
+    Negligible (fun n => ((1 / 3 : ℝ≥0∞) ^ k n).toNNReal) := by
+  negligible
+
+private noncomputable def testHidingError (out src : ℕ) : ℝ≥0 :=
+  NNReal.sqrt ((2 : ℝ≥0) ^ out / 2 ^ src)
+
+example {f : ℕ → ℝ≥0} {out src : ℕ → ℕ} (h : Bool → Negligible ε)
+    (hmargin : ∀ᶠ n in Filter.atTop, out n + 2 * n ≤ src n)
+    (hle : ∀ n, f n ≤ ε n + testHidingError (out n) (src n)) :
+    Negligible f := by
+  have _ := h
+  negligible [testHidingError] using hle
+
+example {g : Bool → ℕ → ℝ≥0} {f : ℕ → ℝ≥0} (h : ∀ b, Negligible (g b))
+    (hle : ∀ n, f n ≤ g false n + g true n) :
+    Negligible f := by
+  negligible using hle
+
 /-! ### Local `let` definitions and unary `ComputableInPolyTime` certificates -/
 
 example (c d : ℕ) (hε : Negligible ε) :
@@ -94,13 +118,15 @@ example {g : ℕ → Game} (hQ : PolynomiallyBounded Q) (hR : PolynomiallyBounde
 
 /-! ### Multiple `def` game-advantage leaves (no deep `whnf` unfolding across distinct games) -/
 
-noncomputable def testBindGameA (D : ℕ → Bool × Bool → PMF Bool) (bit : Bool) (n : ℕ) : Game :=
+private noncomputable def testBindGameA (D : ℕ → Bool × Bool → PMF Bool) (bit : Bool) (n : ℕ) :
+    Game :=
   (PMF.pure false).bind fun x =>
     (PMF.pure true).bind fun y =>
       (PMF.pure bit).bind fun z =>
         D n (x ^^ bit, y ^^ z)
 
-noncomputable def testBindGameB (D : ℕ → Bool × Bool → PMF Bool) (bit : Bool) (n : ℕ) : Game :=
+private noncomputable def testBindGameB (D : ℕ → Bool × Bool → PMF Bool) (bit : Bool) (n : ℕ) :
+    Game :=
   (PMF.pure true).bind fun x =>
     (PMF.pure false).bind fun y =>
       D n (x, y ^^ bit)
@@ -156,6 +182,7 @@ example : Negligible (fun n => ((2 : ℝ≥0) ^ n)⁻¹) ∧ Nonempty ℕ := by
 example : True := by
   fail_if_success have : Negligible (fun _ => (1 : ℝ≥0)) := by negligible
   fail_if_success have : Negligible (fun n => 1 / (n + 1 : ℝ≥0)) := by negligible
+  fail_if_success have : Negligible (fun n => NNReal.sqrt ((2 : ℝ≥0) ^ n / 2 ^ n)) := by negligible
   trivial
 
 /--
@@ -213,4 +240,16 @@ Issues:
 example : Negligible (fun n => (1 : ℝ≥0)) := by
   negligible
 
-end
+/--
+error: negligible: `fun_prop` could not close the normalized goal:
+  Negligible fun n => NNReal.sqrt (2 ^ n * 2⁻¹ ^ n)
+Supply missing `Negligible` or `PolynomiallyBounded` hypotheses in context, or pass an explicit upper bound with `negligible using hle` / `negligible eventually hle`.
+`fun_prop` was unable to prove `Negligible fun n => NNReal.sqrt (2 ^ n * 2⁻¹ ^ n)`
+
+Issues:
+  No theorems found for `HPow.hPow` in order to prove `PolynomiallyBoundedNNReal fun a => 2 ^ a`
+  Failed to prove necessary assumption `2 < 1` when applying theorem `Cslib.Crypto.negligible_geometric`.
+-/
+#guard_msgs in
+example : Negligible (fun n => testHidingError n n) := by
+  negligible [testHidingError]
